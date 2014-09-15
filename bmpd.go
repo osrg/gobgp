@@ -57,12 +57,12 @@ func main() {
 
 	serverHost := os.Getenv("BMPD_HOST")
 	if serverHost == "" {
-		serverHost = DEFAULT_BMP_SERVER_HOST
+		serverHost = DEFAULT_BMPD_HOST
 	}
 
 	serverPort := os.Getenv("BMPD_PORT")
 	if serverPort == "" {
-		serverPort = DEFAULT_BMP_SERVER_PORT
+		serverPort = DEFAULT_BMPD_PORT
 	}
 
 	listener, err := net.Listen("tcp", serverHost+":"+serverPort)
