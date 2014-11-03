@@ -105,11 +105,9 @@ func (c *DefaultParameterCapability) DecodeFromBytes(data []byte) error {
 }
 
 func (c *DefaultParameterCapability) Serialize() ([]byte, error) {
+	c.CapLen = uint8(len(c.CapValue))
 	buf := make([]byte, 2)
 	buf[0] = uint8(c.CapCode)
-	if c.CapLen == 0 {
-		c.CapLen = uint8(len(c.CapValue) + 2)
-	}
 	buf[1] = c.CapLen
 	buf = append(buf, c.CapValue...)
 	return buf, nil
@@ -141,16 +139,35 @@ func (c *CapMultiProtocol) DecodeFromBytes(data []byte) error {
 }
 
 func (c *CapMultiProtocol) Serialize() ([]byte, error) {
-	buf := make([]byte, 6)
-	buf[0] = uint8(BGP_CAP_MULTIPROTOCOL)
-	buf[1] = 4
-	binary.BigEndian.PutUint16(buf[2:4], c.CapValue.AFI)
-	buf[5] = c.CapValue.SAFI
-	return buf, nil
+	buf := make([]byte, 4)
+	binary.BigEndian.PutUint16(buf[0:], c.CapValue.AFI)
+	buf[3] = c.CapValue.SAFI
+	c.DefaultParameterCapability.CapValue = buf
+	return c.DefaultParameterCapability.Serialize()
+}
+
+func NewCapMultiProtocol(afi uint16, safi uint8) *CapMultiProtocol {
+	return &CapMultiProtocol{
+		DefaultParameterCapability{
+			CapCode: BGP_CAP_MULTIPROTOCOL,
+		},
+		CapMultiProtocolValue{
+			AFI:  afi,
+			SAFI: safi,
+		},
+	}
 }
 
 type CapRouteRefresh struct {
 	DefaultParameterCapability
+}
+
+func NewCapRouteRefresh() *CapRouteRefresh {
+	return &CapRouteRefresh{
+		DefaultParameterCapability{
+			CapCode: BGP_CAP_ROUTE_REFRESH,
+		},
+	}
 }
 
 type CapCarryingLabelInfo struct {
@@ -191,9 +208,8 @@ func (c *CapGracefulRestart) DecodeFromBytes(data []byte) error {
 }
 
 func (c *CapGracefulRestart) Serialize() ([]byte, error) {
-	buf := make([]byte, 4)
-	buf[0] = uint8(BGP_CAP_MULTIPROTOCOL)
-	binary.BigEndian.PutUint16(buf[2:4], uint16(c.CapValue.Flags)<<12|c.CapValue.Time)
+	buf := make([]byte, 2)
+	binary.BigEndian.PutUint16(buf[0:], uint16(c.CapValue.Flags)<<12|c.CapValue.Time)
 	for _, t := range c.CapValue.Tuples {
 		tbuf := make([]byte, 4)
 		binary.BigEndian.PutUint16(tbuf[0:2], t.AFI)
@@ -201,8 +217,21 @@ func (c *CapGracefulRestart) Serialize() ([]byte, error) {
 		tbuf[3] = t.Flags
 		buf = append(buf, tbuf...)
 	}
-	buf[1] = uint8(len(buf) - 2)
-	return buf, nil
+	c.DefaultParameterCapability.CapValue = buf
+	return c.DefaultParameterCapability.Serialize()
+}
+
+func NewCapGracefulRestart(flags uint8, time uint16, tuples []CapGracefulRestartTuples) *CapGracefulRestart {
+	return &CapGracefulRestart{
+		DefaultParameterCapability{
+			CapCode: BGP_CAP_GRACEFUL_RESTART,
+		},
+		CapGracefulRestartValue{
+			flags,
+			time,
+			tuples,
+		},
+	}
 }
 
 type CapFourOctetASNumber struct {
@@ -221,19 +250,43 @@ func (c *CapFourOctetASNumber) DecodeFromBytes(data []byte) error {
 }
 
 func (c *CapFourOctetASNumber) Serialize() ([]byte, error) {
-	buf := make([]byte, 6)
-	buf[0] = uint8(BGP_CAP_FOUR_OCTET_AS_NUMBER)
-	buf[1] = uint8(len(buf))
-	binary.BigEndian.PutUint32(buf[2:6], c.CapValue)
-	return buf, nil
+	buf := make([]byte, 4)
+	binary.BigEndian.PutUint32(buf, c.CapValue)
+	c.DefaultParameterCapability.CapValue = buf
+	return c.DefaultParameterCapability.Serialize()
+}
+
+func NewCapFourOctetASNumber(asnum uint32) *CapFourOctetASNumber {
+	return &CapFourOctetASNumber{
+		DefaultParameterCapability{
+			CapCode: BGP_CAP_FOUR_OCTET_AS_NUMBER,
+		},
+		asnum,
+	}
 }
 
 type CapEnhancedRouteRefresh struct {
 	DefaultParameterCapability
 }
 
+func NewCapEnhancedRouteRefresh() *CapEnhancedRouteRefresh {
+	return &CapEnhancedRouteRefresh{
+		DefaultParameterCapability{
+			CapCode: BGP_CAP_ENHANCED_ROUTE_REFRESH,
+		},
+	}
+}
+
 type CapRouteRefreshCisco struct {
 	DefaultParameterCapability
+}
+
+func NewCapRouteRefreshCisco() *CapRouteRefreshCisco {
+	return &CapRouteRefreshCisco{
+		DefaultParameterCapability{
+			CapCode: BGP_CAP_ROUTE_REFRESH_CISCO,
+		},
+	}
 }
 
 type CapUnknown struct {
@@ -297,6 +350,13 @@ func (o *OptionParameterCapability) Serialize() ([]byte, error) {
 	}
 	buf[1] = uint8(len(buf) - 2)
 	return buf, nil
+}
+
+func NewOptionParameterCapability(capability []ParameterCapabilityInterface) *OptionParameterCapability {
+	return &OptionParameterCapability{
+		ParamType:  BGP_OPT_CAPABILITY,
+		Capability: capability,
+	}
 }
 
 type OptionParameterUnknown struct {
@@ -364,15 +424,16 @@ func (msg *BGPOpen) Serialize() ([]byte, error) {
 	binary.BigEndian.PutUint16(buf[1:3], msg.MyAS)
 	binary.BigEndian.PutUint16(buf[3:5], msg.HoldTime)
 	copy(buf[5:9], msg.ID)
+	pbuf := make([]byte, 0)
 	for _, p := range msg.OptParams {
-		pbuf, err := p.Serialize()
+		onepbuf, err := p.Serialize()
 		if err != nil {
 			return nil, err
 		}
-		buf = append(buf, pbuf...)
+		pbuf = append(pbuf, onepbuf...)
 	}
-	buf[9] = uint8(len(buf) - 10)
-	return buf, nil
+	buf[9] = uint8(len(pbuf))
+	return append(buf, pbuf...), nil
 }
 
 func NewBGPOpenMessage(myas uint16, holdtime uint16, id string, optparams []OptionParameterInterface) *BGPMessage {
