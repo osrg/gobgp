@@ -375,6 +375,13 @@ func (msg *BGPOpen) Serialize() ([]byte, error) {
 	return buf, nil
 }
 
+func NewBGPOpenMessage(myas uint16, holdtime uint16, id string, optparams []OptionParameterInterface) *BGPMessage {
+	return &BGPMessage{
+		Header: BGPHeader{Type: BGP_MSG_OPEN},
+		Body:   &BGPOpen{4, myas, holdtime, net.ParseIP(id).To4(), 0, optparams},
+	}
+}
+
 type AddrPrefixInterface interface {
 	DecodeFromBytes([]byte) error
 	Serialize() ([]byte, error)
@@ -1834,6 +1841,13 @@ func (msg *BGPUpdate) Serialize() ([]byte, error) {
 	return buf, nil
 }
 
+func NewBGPUpdateMessage(withdrawnRoutes []WithdrawnRoute, pathattrs []PathAttributeInterface, nlri []NLRInfo) *BGPMessage {
+	return &BGPMessage{
+		Header: BGPHeader{Type: BGP_MSG_UPDATE},
+		Body:   &BGPUpdate{0, withdrawnRoutes, 0, pathattrs, nlri},
+	}
+}
+
 type BGPNotification struct {
 	ErrorCode    uint8
 	ErrorSubcode uint8
@@ -1860,6 +1874,13 @@ func (msg *BGPNotification) Serialize() ([]byte, error) {
 	return buf, nil
 }
 
+func NewBGPNotificationMessage(errcode uint8, errsubcode uint8, data []byte) *BGPMessage {
+	return &BGPMessage{
+		Header: BGPHeader{Type: BGP_MSG_NOTIFICATION},
+		Body:   &BGPNotification{errcode, errsubcode, data},
+	}
+}
+
 type BGPKeepAlive struct {
 }
 
@@ -1869,6 +1890,13 @@ func (msg *BGPKeepAlive) DecodeFromBytes(data []byte) error {
 
 func (msg *BGPKeepAlive) Serialize() ([]byte, error) {
 	return nil, nil
+}
+
+func NewBGPKeepAliveMessage() *BGPMessage {
+	return &BGPMessage{
+		Header: BGPHeader{Len: 19, Type: BGP_MSG_KEEPALIVE},
+		Body:   &BGPKeepAlive{},
+	}
 }
 
 type BGPRouteRefresh struct {
@@ -1893,6 +1921,13 @@ func (msg *BGPRouteRefresh) Serialize() ([]byte, error) {
 	buf[2] = msg.Demarcation
 	buf[3] = msg.SAFI
 	return buf, nil
+}
+
+func NewBGPRouteRefreshMessage(afi uint16, demarcation uint8, safi uint8) *BGPMessage {
+	return &BGPMessage{
+		Header: BGPHeader{Type: BGP_MSG_ROUTE_REFRESH},
+		Body:   &BGPRouteRefresh{afi, demarcation, safi},
+	}
 }
 
 type BGPBody interface {
