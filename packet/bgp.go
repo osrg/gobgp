@@ -450,14 +450,24 @@ type IPv6AddrPrefix struct {
 	IPAddrPrefix
 }
 
+func NewIPAddrPrefix(length uint8, prefix string) *IPAddrPrefix {
+	return &IPAddrPrefix{
+		IPAddrPrefixDefault{length, net.ParseIP(prefix)},
+		4,
+	}
+}
+
 func (r *IPv6AddrPrefix) AFI() uint16 {
 	return AFI_IP6
 }
 
-func NewIPv6AddrPrefix() *IPv6AddrPrefix {
-	p := &IPv6AddrPrefix{}
-	p.addrlen = 16
-	return p
+func NewIPv6AddrPrefix(length uint8, prefix string) *IPv6AddrPrefix {
+	return &IPv6AddrPrefix{
+		IPAddrPrefix{
+			IPAddrPrefixDefault{length, net.ParseIP(prefix)},
+			16,
+		},
+	}
 }
 
 type WithdrawnRoute struct {
@@ -514,6 +524,18 @@ func (rd *RouteDistinguisherTwoOctetAS) Serialize() ([]byte, error) {
 	return rd.DefaultRouteDistinguisher.Serialize()
 }
 
+func NewRouteDistinguisherTwoOctetAS(admin uint16, assigned uint32) *RouteDistinguisherTwoOctetAS {
+	return &RouteDistinguisherTwoOctetAS{
+		DefaultRouteDistinguisher{
+			Type: BGP_RD_TWO_OCTET_AS,
+		},
+		RouteDistinguisherTwoOctetASValue{
+			Admin:    admin,
+			Assigned: assigned,
+		},
+	}
+}
+
 type RouteDistinguisherIPAddressASValue struct {
 	Admin    net.IP
 	Assigned uint16
@@ -532,6 +554,18 @@ func (rd *RouteDistinguisherIPAddressAS) Serialize() ([]byte, error) {
 	return rd.DefaultRouteDistinguisher.Serialize()
 }
 
+func NewRouteDistinguisherIPAddressAS(admin string, assigned uint16) *RouteDistinguisherIPAddressAS {
+	return &RouteDistinguisherIPAddressAS{
+		DefaultRouteDistinguisher{
+			Type: BGP_RD_IPV4_ADDRESS,
+		},
+		RouteDistinguisherIPAddressASValue{
+			Admin:    net.ParseIP(admin),
+			Assigned: assigned,
+		},
+	}
+}
+
 type RouteDistinguisherFourOctetASValue struct {
 	Admin    uint32
 	Assigned uint16
@@ -548,6 +582,18 @@ func (rd *RouteDistinguisherFourOctetAS) Serialize() ([]byte, error) {
 	binary.BigEndian.PutUint16(buf[4:], rd.Value.Assigned)
 	rd.DefaultRouteDistinguisher.Value = buf
 	return rd.DefaultRouteDistinguisher.Serialize()
+}
+
+func NewRouteDistinguisherFourOctetAS(admin uint32, assigned uint16) *RouteDistinguisherFourOctetAS {
+	return &RouteDistinguisherFourOctetAS{
+		DefaultRouteDistinguisher{
+			Type: BGP_RD_FOUR_OCTET_AS,
+		},
+		RouteDistinguisherFourOctetASValue{
+			Admin:    admin,
+			Assigned: assigned,
+		},
+	}
 }
 
 type RouteDistinguisherUnknown struct {
@@ -619,6 +665,10 @@ func (l *Label) Serialize() ([]byte, error) {
 
 func (l *Label) Len() int { return 3 * len(l.Labels) }
 
+func NewLabel(labels ...uint32) *Label {
+	return &Label{labels}
+}
+
 type LabelledVPNIPAddrPrefix struct {
 	IPAddrPrefixDefault
 	Labels  Label
@@ -671,10 +721,17 @@ func (l *LabelledVPNIPAddrPrefix) SAFI() uint8 {
 	return SAFI_MPLS_VPN
 }
 
-func NewLabelledVPNIPAddrPrefix() *LabelledVPNIPAddrPrefix {
-	p := &LabelledVPNIPAddrPrefix{}
-	p.addrlen = 4
-	return p
+func NewLabelledVPNIPAddrPrefix(length uint8, prefix string, label Label, rd RouteDistinguisherInterface) *LabelledVPNIPAddrPrefix {
+	rdlen := 0
+	if rd != nil {
+		rdlen = rd.Len()
+	}
+	return &LabelledVPNIPAddrPrefix{
+		IPAddrPrefixDefault{length + uint8(8*(label.Len()+rdlen)), net.ParseIP(prefix)},
+		label,
+		rd,
+		4,
+	}
 }
 
 type LabelledVPNIPv6AddrPrefix struct {
@@ -685,10 +742,19 @@ func (l *LabelledVPNIPv6AddrPrefix) AFI() uint16 {
 	return AFI_IP6
 }
 
-func NewLabelledVPNIPv6AddrPrefix() *LabelledVPNIPv6AddrPrefix {
-	p := &LabelledVPNIPv6AddrPrefix{}
-	p.addrlen = 16
-	return p
+func NewLabelledVPNIPv6AddrPrefix(length uint8, prefix string, label Label, rd RouteDistinguisherInterface) *LabelledVPNIPv6AddrPrefix {
+	rdlen := 0
+	if rd != nil {
+		rdlen = rd.Len()
+	}
+	return &LabelledVPNIPv6AddrPrefix{
+		LabelledVPNIPAddrPrefix{
+			IPAddrPrefixDefault{length + uint8(8*(label.Len()+rdlen)), net.ParseIP(prefix)},
+			label,
+			rd,
+			16,
+		},
+	}
 }
 
 type LabelledIPAddrPrefix struct {
@@ -754,20 +820,26 @@ func (l *LabelledIPAddrPrefix) Serialize() ([]byte, error) {
 	return buf, nil
 }
 
-func NewLabelledIPAddrPrefix() *LabelledIPAddrPrefix {
-	p := &LabelledIPAddrPrefix{}
-	p.addrlen = 4
-	return p
+func NewLabelledIPAddrPrefix(length uint8, prefix string, label Label) *LabelledIPAddrPrefix {
+	return &LabelledIPAddrPrefix{
+		IPAddrPrefixDefault{length + uint8(label.Len()*8), net.ParseIP(prefix)},
+		label,
+		4,
+	}
 }
 
 type LabelledIPv6AddrPrefix struct {
 	LabelledIPAddrPrefix
 }
 
-func NewLabelledIPv6AddrPrefix() *LabelledIPv6AddrPrefix {
-	p := &LabelledIPv6AddrPrefix{}
-	p.addrlen = 16
-	return p
+func NewLabelledIPv6AddrPrefix(length uint8, prefix string, label Label) *LabelledIPv6AddrPrefix {
+	return &LabelledIPv6AddrPrefix{
+		LabelledIPAddrPrefix{
+			IPAddrPrefixDefault{length + uint8(label.Len()*8), net.ParseIP(prefix)},
+			label,
+			16,
+		},
+	}
 }
 
 type RouteTargetMembershipNLRI struct {
@@ -818,17 +890,17 @@ const (
 func routeFamilyPrefix(afi uint16, safi uint8) (prefix AddrPrefixInterface) {
 	switch rfshift(afi, safi) {
 	case RF_IPv4_UC:
-		prefix = &IPAddrPrefix{}
+		prefix = NewIPAddrPrefix(0, "")
 	case RF_IPv6_UC:
-		prefix = NewIPv6AddrPrefix()
+		prefix = NewIPv6AddrPrefix(0, "")
 	case RF_IPv4_VPN:
-		prefix = NewLabelledVPNIPAddrPrefix()
+		prefix = NewLabelledVPNIPAddrPrefix(0, "", *NewLabel(), nil)
 	case RF_IPv6_VPN:
-		prefix = NewLabelledVPNIPv6AddrPrefix()
+		prefix = NewLabelledVPNIPv6AddrPrefix(0, "", *NewLabel(), nil)
 	case RF_IPv4_MPLS:
-		prefix = NewLabelledIPAddrPrefix()
+		prefix = NewLabelledIPAddrPrefix(0, "", *NewLabel())
 	case RF_IPv6_MPLS:
-		prefix = NewLabelledIPv6AddrPrefix()
+		prefix = NewLabelledIPv6AddrPrefix(0, "", *NewLabel())
 	case RF_RTC_UC:
 		prefix = &RouteTargetMembershipNLRI{}
 	}
