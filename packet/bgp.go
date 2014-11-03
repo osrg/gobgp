@@ -20,8 +20,6 @@ import (
 	"fmt"
 	"math"
 	"net"
-	"reflect"
-	"strings"
 )
 
 // move somewhere else
@@ -84,13 +82,9 @@ func (c BGPCapabilityCode) String() string {
 	return "Unknown"
 }
 
-func structName(m interface{}) string {
-	r := reflect.TypeOf(m)
-	return strings.TrimLeft(r.String(), "*bgp.")
-}
-
 type ParameterCapabilityInterface interface {
 	DecodeFromBytes([]byte) error
+	Serialize() ([]byte, error)
 	Len() int
 }
 
@@ -108,6 +102,17 @@ func (c *DefaultParameterCapability) DecodeFromBytes(data []byte) error {
 	}
 	c.CapValue = data[2 : 2+c.CapLen]
 	return nil
+}
+
+func (c *DefaultParameterCapability) Serialize() ([]byte, error) {
+	buf := make([]byte, 2)
+	buf[0] = uint8(c.CapCode)
+	if c.CapLen == 0 {
+		c.CapLen = uint8(len(c.CapValue) + 2)
+	}
+	buf[1] = c.CapLen
+	buf = append(buf, c.CapValue...)
+	return buf, nil
 }
 
 func (c *DefaultParameterCapability) Len() int {
@@ -133,6 +138,15 @@ func (c *CapMultiProtocol) DecodeFromBytes(data []byte) error {
 	c.CapValue.AFI = binary.BigEndian.Uint16(data[0:2])
 	c.CapValue.SAFI = data[3]
 	return nil
+}
+
+func (c *CapMultiProtocol) Serialize() ([]byte, error) {
+	buf := make([]byte, 6)
+	buf[0] = uint8(BGP_CAP_MULTIPROTOCOL)
+	buf[1] = 4
+	binary.BigEndian.PutUint16(buf[2:4], c.CapValue.AFI)
+	buf[5] = c.CapValue.SAFI
+	return buf, nil
 }
 
 type CapRouteRefresh struct {
@@ -176,6 +190,21 @@ func (c *CapGracefulRestart) DecodeFromBytes(data []byte) error {
 	return nil
 }
 
+func (c *CapGracefulRestart) Serialize() ([]byte, error) {
+	buf := make([]byte, 4)
+	buf[0] = uint8(BGP_CAP_MULTIPROTOCOL)
+	binary.BigEndian.PutUint16(buf[2:4], uint16(c.CapValue.Flags)<<12|c.CapValue.Time)
+	for _, t := range c.CapValue.Tuples {
+		tbuf := make([]byte, 4)
+		binary.BigEndian.PutUint16(tbuf[0:2], t.AFI)
+		tbuf[2] = t.SAFI
+		tbuf[3] = t.Flags
+		buf = append(buf, tbuf...)
+	}
+	buf[1] = uint8(len(buf) - 2)
+	return buf, nil
+}
+
 type CapFourOctetASNumber struct {
 	DefaultParameterCapability
 	CapValue uint32
@@ -191,6 +220,14 @@ func (c *CapFourOctetASNumber) DecodeFromBytes(data []byte) error {
 	return nil
 }
 
+func (c *CapFourOctetASNumber) Serialize() ([]byte, error) {
+	buf := make([]byte, 6)
+	buf[0] = uint8(BGP_CAP_FOUR_OCTET_AS_NUMBER)
+	buf[1] = uint8(len(buf))
+	binary.BigEndian.PutUint32(buf[2:6], c.CapValue)
+	return buf, nil
+}
+
 type CapEnhancedRouteRefresh struct {
 	DefaultParameterCapability
 }
@@ -204,18 +241,13 @@ type CapUnknown struct {
 }
 
 type OptionParameterInterface interface {
+	Serialize() ([]byte, error)
 }
 
 type OptionParameterCapability struct {
 	ParamType  uint8
 	ParamLen   uint8
 	Capability []ParameterCapabilityInterface
-}
-
-type OptionParameterUnknown struct {
-	ParamType uint8
-	ParamLen  uint8
-	Value     []byte
 }
 
 func (o *OptionParameterCapability) DecodeFromBytes(data []byte) error {
@@ -252,6 +284,37 @@ func (o *OptionParameterCapability) DecodeFromBytes(data []byte) error {
 	return nil
 }
 
+func (o *OptionParameterCapability) Serialize() ([]byte, error) {
+	buf := make([]byte, 2)
+	buf[0] = o.ParamType
+	//buf[1] = o.ParamLen
+	for _, p := range o.Capability {
+		pbuf, err := p.Serialize()
+		if err != nil {
+			return nil, err
+		}
+		buf = append(buf, pbuf...)
+	}
+	buf[1] = uint8(len(buf) - 2)
+	return buf, nil
+}
+
+type OptionParameterUnknown struct {
+	ParamType uint8
+	ParamLen  uint8
+	Value     []byte
+}
+
+func (o *OptionParameterUnknown) Serialize() ([]byte, error) {
+	buf := make([]byte, 2)
+	buf[0] = o.ParamType
+	if o.ParamLen == 0 {
+		o.ParamLen = uint8(len(o.Value))
+	}
+	buf[1] = o.ParamLen
+	return append(buf, o.Value...), nil
+}
+
 type BGPOpen struct {
 	Version     uint8
 	MyAS        uint16
@@ -278,13 +341,13 @@ func (msg *BGPOpen) DecodeFromBytes(data []byte) error {
 		rest -= paramlen + 2
 
 		if paramtype == BGP_OPT_CAPABILITY {
-			p := OptionParameterCapability{}
+			p := &OptionParameterCapability{}
 			p.ParamType = paramtype
 			p.ParamLen = paramlen
 			p.DecodeFromBytes(data[2 : 2+paramlen])
 			msg.OptParams = append(msg.OptParams, p)
 		} else {
-			p := OptionParameterUnknown{}
+			p := &OptionParameterUnknown{}
 			p.ParamType = paramtype
 			p.ParamLen = paramlen
 			p.Value = data[2 : 2+paramlen]
@@ -295,8 +358,28 @@ func (msg *BGPOpen) DecodeFromBytes(data []byte) error {
 	return nil
 }
 
+func (msg *BGPOpen) Serialize() ([]byte, error) {
+	buf := make([]byte, 10)
+	buf[0] = msg.Version
+	binary.BigEndian.PutUint16(buf[1:3], msg.MyAS)
+	binary.BigEndian.PutUint16(buf[3:5], msg.HoldTime)
+	copy(buf[5:9], msg.ID)
+	for _, p := range msg.OptParams {
+		pbuf, err := p.Serialize()
+		if err != nil {
+			return nil, err
+		}
+		buf = append(buf, pbuf...)
+	}
+	buf[9] = uint8(len(buf) - 10)
+	return buf, nil
+}
+
 type AddrPrefixInterface interface {
 	DecodeFromBytes([]byte) error
+	Serialize() ([]byte, error)
+	AFI() uint16
+	SAFI() uint8
 	Len() int
 }
 
@@ -311,6 +394,20 @@ func (r *IPAddrPrefixDefault) decodePrefix(data []byte, bitlen uint8, addrlen ui
 	copy(b, data[:bytelen])
 	r.Prefix = b
 	return nil
+}
+
+func (r *IPAddrPrefixDefault) serializePrefix(bitlen uint8) ([]byte, error) {
+	bytelen := (bitlen + 7) / 8
+	buf := make([]byte, bytelen)
+	copy(buf, r.Prefix)
+	// clear trailing bits in the last byte. rfc doesn't require
+	// this though.
+	if bitlen%8 != 0 {
+		mask := 0xff00 >> (bitlen % 8)
+		last_byte_value := buf[bytelen-1] & byte(mask)
+		buf[bytelen-1] = last_byte_value
+	}
+	return buf, nil
 }
 
 func (r *IPAddrPrefixDefault) Len() int {
@@ -331,8 +428,30 @@ func (r *IPAddrPrefix) DecodeFromBytes(data []byte) error {
 	return nil
 }
 
+func (r *IPAddrPrefix) Serialize() ([]byte, error) {
+	buf := make([]byte, 1)
+	buf[0] = r.Length
+	pbuf, err := r.serializePrefix(r.Length)
+	if err != nil {
+		return nil, err
+	}
+	return append(buf, pbuf...), nil
+}
+
+func (r *IPAddrPrefix) AFI() uint16 {
+	return AFI_IP
+}
+
+func (r *IPAddrPrefix) SAFI() uint8 {
+	return SAFI_UNICAST
+}
+
 type IPv6AddrPrefix struct {
 	IPAddrPrefix
+}
+
+func (r *IPv6AddrPrefix) AFI() uint16 {
+	return AFI_IP6
 }
 
 func NewIPv6AddrPrefix() *IPv6AddrPrefix {
@@ -353,6 +472,7 @@ const (
 
 type RouteDistinguisherInterface interface {
 	DecodeFromBytes([]byte) error
+	Serialize() ([]byte, error)
 	Len() int
 }
 
@@ -361,10 +481,17 @@ type DefaultRouteDistinguisher struct {
 	Value []byte
 }
 
-func (rd DefaultRouteDistinguisher) DecodeFromBytes(data []byte) error {
+func (rd *DefaultRouteDistinguisher) DecodeFromBytes(data []byte) error {
 	rd.Type = binary.BigEndian.Uint16(data[0:2])
 	rd.Value = data[2:8]
 	return nil
+}
+
+func (rd *DefaultRouteDistinguisher) Serialize() ([]byte, error) {
+	buf := make([]byte, 8)
+	binary.BigEndian.PutUint16(buf, rd.Type)
+	copy(buf[2:], rd.Value)
+	return buf, nil
 }
 
 func (rd *DefaultRouteDistinguisher) Len() int { return 8 }
@@ -379,6 +506,14 @@ type RouteDistinguisherTwoOctetAS struct {
 	Value RouteDistinguisherTwoOctetASValue
 }
 
+func (rd *RouteDistinguisherTwoOctetAS) Serialize() ([]byte, error) {
+	buf := make([]byte, 6)
+	binary.BigEndian.PutUint16(buf[0:], rd.Value.Admin)
+	binary.BigEndian.PutUint32(buf[2:], rd.Value.Assigned)
+	rd.DefaultRouteDistinguisher.Value = buf
+	return rd.DefaultRouteDistinguisher.Serialize()
+}
+
 type RouteDistinguisherIPAddressASValue struct {
 	Admin    net.IP
 	Assigned uint16
@@ -387,6 +522,14 @@ type RouteDistinguisherIPAddressASValue struct {
 type RouteDistinguisherIPAddressAS struct {
 	DefaultRouteDistinguisher
 	Value RouteDistinguisherIPAddressASValue
+}
+
+func (rd *RouteDistinguisherIPAddressAS) Serialize() ([]byte, error) {
+	buf := make([]byte, 6)
+	copy(buf[0:], rd.Value.Admin)
+	binary.BigEndian.PutUint16(buf[4:], rd.Value.Assigned)
+	rd.DefaultRouteDistinguisher.Value = buf
+	return rd.DefaultRouteDistinguisher.Serialize()
 }
 
 type RouteDistinguisherFourOctetASValue struct {
@@ -399,30 +542,43 @@ type RouteDistinguisherFourOctetAS struct {
 	Value RouteDistinguisherFourOctetASValue
 }
 
+func (rd *RouteDistinguisherFourOctetAS) Serialize() ([]byte, error) {
+	buf := make([]byte, 6)
+	binary.BigEndian.PutUint32(buf[0:], rd.Value.Admin)
+	binary.BigEndian.PutUint16(buf[4:], rd.Value.Assigned)
+	rd.DefaultRouteDistinguisher.Value = buf
+	return rd.DefaultRouteDistinguisher.Serialize()
+}
+
 type RouteDistinguisherUnknown struct {
 	DefaultRouteDistinguisher
 }
 
 func getRouteDistinguisher(data []byte) RouteDistinguisherInterface {
-	switch binary.BigEndian.Uint16(data[0:2]) {
+	rdtype := binary.BigEndian.Uint16(data[0:2])
+	switch rdtype {
 	case BGP_RD_TWO_OCTET_AS:
 		rd := &RouteDistinguisherTwoOctetAS{}
+		rd.Type = rdtype
 		rd.Value.Admin = binary.BigEndian.Uint16(data[2:4])
 		rd.Value.Assigned = binary.BigEndian.Uint32(data[4:8])
 		return rd
 	case BGP_RD_IPV4_ADDRESS:
 		rd := &RouteDistinguisherIPAddressAS{}
+		rd.Type = rdtype
 		rd.Value.Admin = data[2:6]
 		rd.Value.Assigned = binary.BigEndian.Uint16(data[6:8])
 		return rd
 	case BGP_RD_FOUR_OCTET_AS:
 		rd := &RouteDistinguisherFourOctetAS{}
+		rd.Type = rdtype
 		rd.Value.Admin = binary.BigEndian.Uint32(data[2:6])
 		rd.Value.Assigned = binary.BigEndian.Uint16(data[6:8])
 		return rd
 	}
-
-	return &RouteDistinguisherUnknown{}
+	rd := &RouteDistinguisherUnknown{}
+	rd.Type = rdtype
+	return rd
 }
 
 type Label struct {
@@ -449,6 +605,18 @@ func (l *Label) DecodeFromBytes(data []byte) error {
 	return nil
 }
 
+func (l *Label) Serialize() ([]byte, error) {
+	buf := make([]byte, len(l.Labels)*3)
+	for i, label := range l.Labels {
+		label = label << 4
+		buf[i*3] = byte((label >> 16) & 0xff)
+		buf[i*3+1] = byte((label >> 8) & 0xff)
+		buf[i*3+2] = byte(label & 0xff)
+	}
+	buf[len(buf)-1] |= 1
+	return buf, nil
+}
+
 func (l *Label) Len() int { return 3 * len(l.Labels) }
 
 type LabelledVPNIPAddrPrefix struct {
@@ -473,6 +641,36 @@ func (l *LabelledVPNIPAddrPrefix) DecodeFromBytes(data []byte) error {
 	return nil
 }
 
+func (l *LabelledVPNIPAddrPrefix) Serialize() ([]byte, error) {
+	buf := make([]byte, 1)
+	buf[0] = l.Length
+	lbuf, err := l.Labels.Serialize()
+	if err != nil {
+		return nil, err
+	}
+	buf = append(buf, lbuf...)
+	rbuf, err := l.RD.Serialize()
+	if err != nil {
+		return nil, err
+	}
+	buf = append(buf, rbuf...)
+	restbits := int(l.Length) - 8*(l.Labels.Len()+l.RD.Len())
+	pbuf, err := l.serializePrefix(uint8(restbits))
+	if err != nil {
+		return nil, err
+	}
+	buf = append(buf, pbuf...)
+	return buf, nil
+}
+
+func (l *LabelledVPNIPAddrPrefix) AFI() uint16 {
+	return AFI_IP
+}
+
+func (l *LabelledVPNIPAddrPrefix) SAFI() uint8 {
+	return SAFI_MPLS_VPN
+}
+
 func NewLabelledVPNIPAddrPrefix() *LabelledVPNIPAddrPrefix {
 	p := &LabelledVPNIPAddrPrefix{}
 	p.addrlen = 4
@@ -481,6 +679,10 @@ func NewLabelledVPNIPAddrPrefix() *LabelledVPNIPAddrPrefix {
 
 type LabelledVPNIPv6AddrPrefix struct {
 	LabelledVPNIPAddrPrefix
+}
+
+func (l *LabelledVPNIPv6AddrPrefix) AFI() uint16 {
+	return AFI_IP6
 }
 
 func NewLabelledVPNIPv6AddrPrefix() *LabelledVPNIPv6AddrPrefix {
@@ -493,6 +695,14 @@ type LabelledIPAddrPrefix struct {
 	IPAddrPrefixDefault
 	Labels  Label
 	addrlen uint8
+}
+
+func (r *LabelledIPAddrPrefix) AFI() uint16 {
+	return AFI_IP
+}
+
+func (r *LabelledIPAddrPrefix) SAFI() uint8 {
+	return SAFI_MPLS_LABEL
 }
 
 func (r *IPAddrPrefix) decodeNextHop(data []byte) net.IP {
@@ -527,6 +737,23 @@ func (l *LabelledIPAddrPrefix) DecodeFromBytes(data []byte) error {
 	return nil
 }
 
+func (l *LabelledIPAddrPrefix) Serialize() ([]byte, error) {
+	buf := make([]byte, 1)
+	buf[0] = l.Length
+	restbits := int(l.Length) - 8*(l.Labels.Len())
+	lbuf, err := l.Labels.Serialize()
+	if err != nil {
+		return nil, err
+	}
+	buf = append(buf, lbuf...)
+	pbuf, err := l.serializePrefix(uint8(restbits))
+	if err != nil {
+		return nil, err
+	}
+	buf = append(buf, pbuf...)
+	return buf, nil
+}
+
 func NewLabelledIPAddrPrefix() *LabelledIPAddrPrefix {
 	p := &LabelledIPAddrPrefix{}
 	p.addrlen = 4
@@ -552,6 +779,24 @@ func (n *RouteTargetMembershipNLRI) DecodeFromBytes(data []byte) error {
 	n.AS = binary.BigEndian.Uint32(data[0:4])
 	n.RouteTarget = parseExtended(data[4:])
 	return nil
+}
+
+func (n *RouteTargetMembershipNLRI) Serialize() ([]byte, error) {
+	buf := make([]byte, 4)
+	binary.BigEndian.PutUint32(buf, n.AS)
+	ebuf, err := n.RouteTarget.Serialize()
+	if err != nil {
+		return nil, err
+	}
+	return append(buf, ebuf...), nil
+}
+
+func (n *RouteTargetMembershipNLRI) AFI() uint16 {
+	return AFI_IP
+}
+
+func (n *RouteTargetMembershipNLRI) SAFI() uint8 {
+	return SAFI_ROUTE_TARGET_CONSTRTAINS
 }
 
 func (n *RouteTargetMembershipNLRI) Len() int { return 12 }
@@ -692,6 +937,7 @@ const (
 
 type PathAttributeInterface interface {
 	DecodeFromBytes([]byte) error
+	Serialize() ([]byte, error)
 	Len() int
 }
 
@@ -726,6 +972,26 @@ func (p *PathAttribute) DecodeFromBytes(data []byte) error {
 	p.Value = data[:p.Length]
 
 	return nil
+}
+
+func (p *PathAttribute) Serialize() ([]byte, error) {
+	p.Length = uint16(len(p.Value))
+	if p.Length > 255 {
+		p.Flags |= BGP_ATTR_FLAG_EXTENDED_LENGTH
+	} else {
+		p.Flags &^= BGP_ATTR_FLAG_EXTENDED_LENGTH
+	}
+	buf := make([]byte, p.Len())
+	buf[0] = p.Flags
+	buf[1] = p.Type
+	if p.Flags&BGP_ATTR_FLAG_EXTENDED_LENGTH != 0 {
+		binary.BigEndian.PutUint16(buf[2:4], p.Length)
+		copy(buf[4:], p.Value)
+	} else {
+		buf[2] = byte(p.Length)
+		copy(buf[3:], p.Value)
+	}
+	return buf, nil
 }
 
 type PathAttributeOrigin struct {
@@ -808,6 +1074,21 @@ func (p *PathAttributeAsPath) DecodeFromBytes(data []byte) error {
 	return nil
 }
 
+func (p *PathAttributeAsPath) Serialize() ([]byte, error) {
+	buf := make([]byte, 0)
+	for _, v := range p.Value {
+		vbuf := make([]byte, 2+len(v.AS)*2)
+		vbuf[0] = v.Type
+		vbuf[1] = v.Num
+		for j, as := range v.AS {
+			binary.BigEndian.PutUint16(vbuf[2+j*2:], uint16(as))
+		}
+		buf = append(buf, vbuf...)
+	}
+	p.PathAttribute.Value = buf
+	return p.PathAttribute.Serialize()
+}
+
 type PathAttributeNextHop struct {
 	PathAttribute
 	Value net.IP
@@ -817,6 +1098,11 @@ func (p *PathAttributeNextHop) DecodeFromBytes(data []byte) error {
 	p.PathAttribute.DecodeFromBytes(data)
 	p.Value = p.PathAttribute.Value
 	return nil
+}
+
+func (p *PathAttributeNextHop) Serialize() ([]byte, error) {
+	p.PathAttribute.Value = p.Value
+	return p.PathAttribute.Serialize()
 }
 
 type PathAttributeMultiExitDisc struct {
@@ -830,6 +1116,13 @@ func (p *PathAttributeMultiExitDisc) DecodeFromBytes(data []byte) error {
 	return nil
 }
 
+func (p *PathAttributeMultiExitDisc) Serialize() ([]byte, error) {
+	buf := make([]byte, 4)
+	binary.BigEndian.PutUint32(buf, p.Value)
+	p.PathAttribute.Value = buf
+	return p.PathAttribute.Serialize()
+}
+
 type PathAttributeLocalPref struct {
 	PathAttribute
 	Value uint32
@@ -839,6 +1132,13 @@ func (p *PathAttributeLocalPref) DecodeFromBytes(data []byte) error {
 	p.PathAttribute.DecodeFromBytes(data)
 	p.Value = binary.BigEndian.Uint32(p.PathAttribute.Value)
 	return nil
+}
+
+func (p *PathAttributeLocalPref) Serialize() ([]byte, error) {
+	buf := make([]byte, 4)
+	binary.BigEndian.PutUint32(buf, p.Value)
+	p.PathAttribute.Value = buf
+	return p.PathAttribute.Serialize()
 }
 
 type PathAttributeAtomicAggregate struct {
@@ -867,6 +1167,14 @@ func (p *PathAttributeAggregator) DecodeFromBytes(data []byte) error {
 	return nil
 }
 
+func (p *PathAttributeAggregator) Serialize() ([]byte, error) {
+	buf := make([]byte, 6)
+	binary.BigEndian.PutUint16(buf, uint16(p.Value.AS))
+	copy(buf[2:], p.Value.Address)
+	p.PathAttribute.Value = buf
+	return p.PathAttribute.Serialize()
+}
+
 type PathAttributeCommunities struct {
 	PathAttribute
 	Value []uint32
@@ -882,6 +1190,15 @@ func (p *PathAttributeCommunities) DecodeFromBytes(data []byte) error {
 	return nil
 }
 
+func (p *PathAttributeCommunities) Serialize() ([]byte, error) {
+	buf := make([]byte, len(p.Value)*4)
+	for i, v := range p.Value {
+		binary.BigEndian.PutUint32(buf[i*4:], v)
+	}
+	p.PathAttribute.Value = buf
+	return p.PathAttribute.Serialize()
+}
+
 type PathAttributeOriginatorId struct {
 	PathAttribute
 	Value net.IP
@@ -891,6 +1208,13 @@ func (p *PathAttributeOriginatorId) DecodeFromBytes(data []byte) error {
 	p.PathAttribute.DecodeFromBytes(data)
 	p.Value = p.PathAttribute.Value
 	return nil
+}
+
+func (p *PathAttributeOriginatorId) Serialize() ([]byte, error) {
+	buf := make([]byte, 4)
+	copy(buf, p.Value)
+	p.PathAttribute.Value = buf
+	return p.PathAttribute.Serialize()
 }
 
 type PathAttributeClusterList struct {
@@ -906,6 +1230,15 @@ func (p *PathAttributeClusterList) DecodeFromBytes(data []byte) error {
 		value = value[4:]
 	}
 	return nil
+}
+
+func (p *PathAttributeClusterList) Serialize() ([]byte, error) {
+	buf := make([]byte, len(p.Value)*4)
+	for i, v := range p.Value {
+		copy(buf[i*4:], v)
+	}
+	p.PathAttribute.Value = buf
+	return p.PathAttribute.Serialize()
 }
 
 type PathAttributeMpReachNLRI struct {
@@ -945,6 +1278,35 @@ func (p *PathAttributeMpReachNLRI) DecodeFromBytes(data []byte) error {
 	return nil
 }
 
+func (p *PathAttributeMpReachNLRI) Serialize() ([]byte, error) {
+	afi := p.Value[0].AFI()
+	safi := p.Value[0].SAFI()
+	nexthoplen := 4
+	if afi == AFI_IP6 {
+		nexthoplen = 16
+	}
+	offset := 0
+	if safi == SAFI_MPLS_VPN {
+		offset = 8
+		nexthoplen += 8
+	}
+	buf := make([]byte, 4+nexthoplen)
+	binary.BigEndian.PutUint16(buf[0:], afi)
+	buf[2] = safi
+	buf[3] = uint8(nexthoplen)
+	copy(buf[4+offset:], p.Nexthop)
+	buf = append(buf, make([]byte, 1)...)
+	for _, prefix := range p.Value {
+		pbuf, err := prefix.Serialize()
+		if err != nil {
+			return nil, err
+		}
+		buf = append(buf, pbuf...)
+	}
+	p.PathAttribute.Value = buf
+	return p.PathAttribute.Serialize()
+}
+
 type PathAttributeMpUnreachNLRI struct {
 	PathAttribute
 	Value []AddrPrefixInterface
@@ -956,10 +1318,9 @@ func (p *PathAttributeMpUnreachNLRI) DecodeFromBytes(data []byte) error {
 	value := p.PathAttribute.Value
 	afi := binary.BigEndian.Uint16(value[0:2])
 	safi := value[2]
-	addrprefix := routeFamilyPrefix(afi, safi)
 	value = value[3:]
 	for len(value) > 0 {
-		prefix := addrprefix
+		prefix := routeFamilyPrefix(afi, safi)
 		prefix.DecodeFromBytes(value)
 		value = value[prefix.Len():]
 		p.Value = append(p.Value, prefix)
@@ -967,12 +1328,40 @@ func (p *PathAttributeMpUnreachNLRI) DecodeFromBytes(data []byte) error {
 	return nil
 }
 
+func (p *PathAttributeMpUnreachNLRI) Serialize() ([]byte, error) {
+	buf := make([]byte, 3)
+	afi := p.Value[0].AFI()
+	safi := p.Value[0].SAFI()
+	binary.BigEndian.PutUint16(buf, afi)
+	buf[2] = safi
+	for _, prefix := range p.Value {
+		pbuf, err := prefix.Serialize()
+		if err != nil {
+			return nil, err
+		}
+		buf = append(buf, pbuf...)
+	}
+	p.PathAttribute.Value = buf
+	return p.PathAttribute.Serialize()
+}
+
 type ExtendedCommunityInterface interface {
+	Serialize() ([]byte, error)
 }
 
 type TwoOctetAsSpecificExtended struct {
+	SubType    uint8
 	AS         uint16
 	LocalAdmin uint32
+}
+
+func (e *TwoOctetAsSpecificExtended) Serialize() ([]byte, error) {
+	buf := make([]byte, 8)
+	buf[0] = 0x00
+	buf[1] = e.SubType
+	binary.BigEndian.PutUint16(buf[2:], e.AS)
+	binary.BigEndian.PutUint32(buf[4:], e.LocalAdmin)
+	return buf, nil
 }
 
 type IPv4AddressSpecificExtended struct {
@@ -981,17 +1370,51 @@ type IPv4AddressSpecificExtended struct {
 	LocalAdmin uint16
 }
 
+func (e *IPv4AddressSpecificExtended) Serialize() ([]byte, error) {
+	buf := make([]byte, 8)
+	buf[0] = 0x01
+	buf[1] = e.SubType
+	copy(buf[2:6], e.IPv4)
+	binary.BigEndian.PutUint16(buf[6:], e.LocalAdmin)
+	return buf, nil
+}
+
 type FourOctetAsSpecificExtended struct {
-	AS         net.IP
+	SubType    uint8
+	AS         uint32
 	LocalAdmin uint16
+}
+
+func (e *FourOctetAsSpecificExtended) Serialize() ([]byte, error) {
+	buf := make([]byte, 8)
+	buf[0] = 0x02
+	buf[1] = e.SubType
+	binary.BigEndian.PutUint32(buf[2:], e.AS)
+	binary.BigEndian.PutUint16(buf[6:], e.LocalAdmin)
+	return buf, nil
 }
 
 type OpaqueExtended struct {
 	Value []byte
 }
 
+func (e *OpaqueExtended) Serialize() ([]byte, error) {
+	buf := make([]byte, 8)
+	buf[0] = 0x03
+	copy(buf[1:], e.Value)
+	return buf, nil
+}
+
 type UnknownExtended struct {
+	Type  uint8
 	Value []byte
+}
+
+func (e *UnknownExtended) Serialize() ([]byte, error) {
+	buf := make([]byte, 8)
+	buf[0] = e.Type
+	copy(buf[1:], e.Value)
+	return buf, nil
 }
 
 type PathAttributeExtendedCommunities struct {
@@ -1004,6 +1427,7 @@ func parseExtended(data []byte) ExtendedCommunityInterface {
 	switch typehigh {
 	case 0:
 		e := &TwoOctetAsSpecificExtended{}
+		e.SubType = data[1]
 		e.AS = binary.BigEndian.Uint16(data[2:4])
 		e.LocalAdmin = binary.BigEndian.Uint32(data[4:8])
 		return e
@@ -1015,7 +1439,8 @@ func parseExtended(data []byte) ExtendedCommunityInterface {
 		return e
 	case 2:
 		e := &FourOctetAsSpecificExtended{}
-		e.AS = data[2:6]
+		e.SubType = data[1]
+		e.AS = binary.BigEndian.Uint32(data[2:6])
 		e.LocalAdmin = binary.BigEndian.Uint16(data[6:8])
 		return e
 	case 3:
@@ -1024,6 +1449,7 @@ func parseExtended(data []byte) ExtendedCommunityInterface {
 		return e
 	}
 	e := &UnknownExtended{}
+	e.Type = data[1]
 	e.Value = data[2:8]
 	return e
 }
@@ -1063,6 +1489,14 @@ func (p *PathAttributeAs4Aggregator) DecodeFromBytes(data []byte) error {
 	p.Value.AS = binary.BigEndian.Uint32(p.PathAttribute.Value[0:4])
 	p.Value.Address = p.PathAttribute.Value[4:]
 	return nil
+}
+
+func (p *PathAttributeAs4Aggregator) Serialize() ([]byte, error) {
+	buf := make([]byte, 8)
+	binary.BigEndian.PutUint32(buf[0:], p.Value.AS)
+	copy(buf[4:], p.Value.Address)
+	p.PathAttribute.Value = buf
+	return p.PathAttribute.Serialize()
 }
 
 type PathAttributeUnknown struct {
@@ -1148,6 +1582,38 @@ func (msg *BGPUpdate) DecodeFromBytes(data []byte) error {
 	return nil
 }
 
+func (msg *BGPUpdate) Serialize() ([]byte, error) {
+	wbuf := make([]byte, 2)
+	for _, w := range msg.WithdrawnRoutes {
+		onewbuf, err := w.Serialize()
+		if err != nil {
+			return nil, err
+		}
+		wbuf = append(wbuf, onewbuf...)
+	}
+	binary.BigEndian.PutUint16(wbuf, uint16(len(wbuf)-2))
+
+	pbuf := make([]byte, 2)
+	for _, p := range msg.PathAttributes {
+		onepbuf, err := p.Serialize()
+		if err != nil {
+			return nil, err
+		}
+		pbuf = append(pbuf, onepbuf...)
+	}
+	binary.BigEndian.PutUint16(pbuf, uint16(len(pbuf)-2))
+
+	buf := append(wbuf, pbuf...)
+	for _, n := range msg.NLRI {
+		nbuf, err := n.Serialize()
+		if err != nil {
+			return nil, err
+		}
+		buf = append(buf, nbuf...)
+	}
+	return buf, nil
+}
+
 type BGPNotification struct {
 	ErrorCode    uint8
 	ErrorSubcode uint8
@@ -1166,11 +1632,23 @@ func (msg *BGPNotification) DecodeFromBytes(data []byte) error {
 	return nil
 }
 
+func (msg *BGPNotification) Serialize() ([]byte, error) {
+	buf := make([]byte, 2)
+	buf[0] = msg.ErrorCode
+	buf[1] = msg.ErrorSubcode
+	buf = append(buf, msg.Data...)
+	return buf, nil
+}
+
 type BGPKeepAlive struct {
 }
 
 func (msg *BGPKeepAlive) DecodeFromBytes(data []byte) error {
 	return nil
+}
+
+func (msg *BGPKeepAlive) Serialize() ([]byte, error) {
+	return nil, nil
 }
 
 type BGPRouteRefresh struct {
@@ -1189,8 +1667,17 @@ func (msg *BGPRouteRefresh) DecodeFromBytes(data []byte) error {
 	return nil
 }
 
+func (msg *BGPRouteRefresh) Serialize() ([]byte, error) {
+	buf := make([]byte, 4)
+	binary.BigEndian.PutUint16(buf[0:2], msg.AFI)
+	buf[2] = msg.Demarcation
+	buf[3] = msg.SAFI
+	return buf, nil
+}
+
 type BGPBody interface {
 	DecodeFromBytes([]byte) error
+	Serialize() ([]byte, error)
 }
 
 type BGPHeader struct {
@@ -1210,6 +1697,16 @@ func (msg *BGPHeader) DecodeFromBytes(data []byte) error {
 		return fmt.Errorf("Not all BGP message bytes available")
 	}
 	return nil
+}
+
+func (msg *BGPHeader) Serialize() ([]byte, error) {
+	buf := make([]byte, 19)
+	for i, _ := range buf[:16] {
+		buf[i] = 0xff
+	}
+	binary.BigEndian.PutUint16(buf[16:18], msg.Len)
+	buf[18] = msg.Type
+	return buf, nil
 }
 
 type BGPMessage struct {
@@ -1241,6 +1738,21 @@ func ParseBGPMessage(data []byte) (*BGPMessage, error) {
 		return nil, err
 	}
 	return msg, nil
+}
+
+func (msg *BGPMessage) Serialize() ([]byte, error) {
+	b, err := msg.Body.Serialize()
+	if err != nil {
+		return nil, err
+	}
+	if msg.Header.Len == 0 {
+		msg.Header.Len = 19 + uint16(len(b))
+	}
+	h, err := msg.Header.Serialize()
+	if err != nil {
+		return nil, err
+	}
+	return append(h, b...), nil
 }
 
 // BMP
