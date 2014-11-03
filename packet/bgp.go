@@ -1070,6 +1070,16 @@ type PathAttributeOrigin struct {
 	PathAttribute
 }
 
+func NewPathAttributeOrigin(value uint8) *PathAttributeOrigin {
+	return &PathAttributeOrigin{
+		PathAttribute: PathAttribute{
+			Flags: BGP_ATTR_FLAG_TRANSITIVE,
+			Type:  BGP_ATTR_TYPE_ORIGIN,
+			Value: []byte{byte(value)},
+		},
+	}
+}
+
 type AsPathParam struct {
 	Type uint8
 	Num  uint8
@@ -1161,6 +1171,16 @@ func (p *PathAttributeAsPath) Serialize() ([]byte, error) {
 	return p.PathAttribute.Serialize()
 }
 
+func NewPathAttributeAsPath(value []AsPathParam) *PathAttributeAsPath {
+	return &PathAttributeAsPath{
+		PathAttribute: PathAttribute{
+			Flags: BGP_ATTR_FLAG_TRANSITIVE,
+			Type:  BGP_ATTR_TYPE_AS_PATH,
+		},
+		Value: value,
+	}
+}
+
 type PathAttributeNextHop struct {
 	PathAttribute
 	Value net.IP
@@ -1175,6 +1195,16 @@ func (p *PathAttributeNextHop) DecodeFromBytes(data []byte) error {
 func (p *PathAttributeNextHop) Serialize() ([]byte, error) {
 	p.PathAttribute.Value = p.Value
 	return p.PathAttribute.Serialize()
+}
+
+func NewPathAttributeNextHop(value string) *PathAttributeNextHop {
+	return &PathAttributeNextHop{
+		PathAttribute: PathAttribute{
+			Flags: BGP_ATTR_FLAG_TRANSITIVE,
+			Type:  BGP_ATTR_TYPE_NEXT_HOP,
+		},
+		Value: net.ParseIP(value).To4(),
+	}
 }
 
 type PathAttributeMultiExitDisc struct {
@@ -1195,6 +1225,16 @@ func (p *PathAttributeMultiExitDisc) Serialize() ([]byte, error) {
 	return p.PathAttribute.Serialize()
 }
 
+func NewPathAttributeMultiExitDisc(value uint32) *PathAttributeMultiExitDisc {
+	return &PathAttributeMultiExitDisc{
+		PathAttribute: PathAttribute{
+			Flags: BGP_ATTR_FLAG_OPTIONAL,
+			Type:  BGP_ATTR_TYPE_MULTI_EXIT_DISC,
+		},
+		Value: value,
+	}
+}
+
 type PathAttributeLocalPref struct {
 	PathAttribute
 	Value uint32
@@ -1213,8 +1253,27 @@ func (p *PathAttributeLocalPref) Serialize() ([]byte, error) {
 	return p.PathAttribute.Serialize()
 }
 
+func NewPathAttributeLocalPref(value uint32) *PathAttributeLocalPref {
+	return &PathAttributeLocalPref{
+		PathAttribute: PathAttribute{
+			Flags: BGP_ATTR_FLAG_TRANSITIVE,
+			Type:  BGP_ATTR_TYPE_LOCAL_PREF,
+		},
+		Value: value,
+	}
+}
+
 type PathAttributeAtomicAggregate struct {
 	PathAttribute
+}
+
+func NewPathAttributeAtomicAggregate() *PathAttributeAtomicAggregate {
+	return &PathAttributeAtomicAggregate{
+		PathAttribute: PathAttribute{
+			Flags: BGP_ATTR_FLAG_TRANSITIVE,
+			Type:  BGP_ATTR_TYPE_ATOMIC_AGGREGATE,
+		},
+	}
 }
 
 type PathAttributeAggregatorParam struct {
@@ -1247,6 +1306,19 @@ func (p *PathAttributeAggregator) Serialize() ([]byte, error) {
 	return p.PathAttribute.Serialize()
 }
 
+func NewPathAttributeAggregator(as uint16, address string) *PathAttributeAggregator {
+	return &PathAttributeAggregator{
+		PathAttribute: PathAttribute{
+			Flags: BGP_ATTR_FLAG_OPTIONAL | BGP_ATTR_FLAG_TRANSITIVE,
+			Type:  BGP_ATTR_TYPE_AGGREGATOR,
+		},
+		Value: PathAttributeAggregatorParam{
+			AS:      uint32(as),
+			Address: net.ParseIP(address).To4(),
+		},
+	}
+}
+
 type PathAttributeCommunities struct {
 	PathAttribute
 	Value []uint32
@@ -1271,6 +1343,13 @@ func (p *PathAttributeCommunities) Serialize() ([]byte, error) {
 	return p.PathAttribute.Serialize()
 }
 
+func NewPathAttributeCommunities(value []uint32) *PathAttributeCommunities {
+	return &PathAttributeCommunities{
+		PathAttribute{BGP_ATTR_FLAG_OPTIONAL | BGP_ATTR_FLAG_TRANSITIVE, BGP_ATTR_TYPE_COMMUNITIES, 0, nil},
+		value,
+	}
+}
+
 type PathAttributeOriginatorId struct {
 	PathAttribute
 	Value net.IP
@@ -1287,6 +1366,13 @@ func (p *PathAttributeOriginatorId) Serialize() ([]byte, error) {
 	copy(buf, p.Value)
 	p.PathAttribute.Value = buf
 	return p.PathAttribute.Serialize()
+}
+
+func NewPathAttributeOriginatorId(value string) *PathAttributeOriginatorId {
+	return &PathAttributeOriginatorId{
+		PathAttribute{BGP_ATTR_FLAG_OPTIONAL, BGP_ATTR_TYPE_ORIGINATOR_ID, 0, nil},
+		net.ParseIP(value).To4(),
+	}
 }
 
 type PathAttributeClusterList struct {
@@ -1311,6 +1397,17 @@ func (p *PathAttributeClusterList) Serialize() ([]byte, error) {
 	}
 	p.PathAttribute.Value = buf
 	return p.PathAttribute.Serialize()
+}
+
+func NewPathAttributeClusterList(value []string) *PathAttributeClusterList {
+	l := make([]net.IP, len(value))
+	for i, v := range value {
+		l[i] = net.ParseIP(v).To4()
+	}
+	return &PathAttributeClusterList{
+		PathAttribute{BGP_ATTR_FLAG_OPTIONAL, BGP_ATTR_TYPE_CLUSTER_LIST, 0, nil},
+		l,
+	}
 }
 
 type PathAttributeMpReachNLRI struct {
@@ -1379,6 +1476,17 @@ func (p *PathAttributeMpReachNLRI) Serialize() ([]byte, error) {
 	return p.PathAttribute.Serialize()
 }
 
+func NewPathAttributeMpReachNLRI(nexthop string, nlri []AddrPrefixInterface) *PathAttributeMpReachNLRI {
+	return &PathAttributeMpReachNLRI{
+		PathAttribute: PathAttribute{
+			Flags: BGP_ATTR_FLAG_OPTIONAL,
+			Type:  BGP_ATTR_TYPE_MP_REACH_NLRI,
+		},
+		Nexthop: net.ParseIP(nexthop),
+		Value:   nlri,
+	}
+}
+
 type PathAttributeMpUnreachNLRI struct {
 	PathAttribute
 	Value []AddrPrefixInterface
@@ -1415,6 +1523,13 @@ func (p *PathAttributeMpUnreachNLRI) Serialize() ([]byte, error) {
 	}
 	p.PathAttribute.Value = buf
 	return p.PathAttribute.Serialize()
+}
+
+func NewPathAttributeMpUnreachNLRI(nlri []AddrPrefixInterface) *PathAttributeMpUnreachNLRI {
+	return &PathAttributeMpUnreachNLRI{
+		PathAttribute{BGP_ATTR_FLAG_OPTIONAL, BGP_ATTR_TYPE_MP_UNREACH_NLRI, 0, nil},
+		nlri,
+	}
 }
 
 type ExtendedCommunityInterface interface {
@@ -1538,6 +1653,16 @@ func (p *PathAttributeExtendedCommunities) DecodeFromBytes(data []byte) error {
 	return nil
 }
 
+func NewPathAttributeExtendedCommunities(value []ExtendedCommunityInterface) *PathAttributeExtendedCommunities {
+	return &PathAttributeExtendedCommunities{
+		PathAttribute: PathAttribute{
+			Flags: BGP_ATTR_FLAG_OPTIONAL | BGP_ATTR_FLAG_TRANSITIVE,
+			Type:  BGP_ATTR_TYPE_EXTENDED_COMMUNITIES,
+		},
+		Value: value,
+	}
+}
+
 type PathAttributeAs4Path struct {
 	PathAttribute
 	Value []AsPathParam
@@ -1548,6 +1673,16 @@ func (p *PathAttributeAs4Path) DecodeFromBytes(data []byte) error {
 	p.PathAttribute.DecodeFromBytes(data)
 	p.Value = p.DefaultAsPath.decodeAs4path(p.PathAttribute.Value)
 	return nil
+}
+
+func NewPathAttributeAs4Path(value []AsPathParam) *PathAttributeAs4Path {
+	return &PathAttributeAs4Path{
+		PathAttribute: PathAttribute{
+			Flags: BGP_ATTR_FLAG_TRANSITIVE,
+			Type:  BGP_ATTR_TYPE_AS4_PATH,
+		},
+		Value: value,
+	}
 }
 
 type PathAttributeAs4Aggregator struct {
@@ -1569,6 +1704,19 @@ func (p *PathAttributeAs4Aggregator) Serialize() ([]byte, error) {
 	copy(buf[4:], p.Value.Address)
 	p.PathAttribute.Value = buf
 	return p.PathAttribute.Serialize()
+}
+
+func NewPathAttributeAs4Aggregator(as uint32, address string) *PathAttributeAs4Aggregator {
+	return &PathAttributeAs4Aggregator{
+		PathAttribute: PathAttribute{
+			Flags: BGP_ATTR_FLAG_OPTIONAL | BGP_ATTR_FLAG_TRANSITIVE,
+			Type:  BGP_ATTR_TYPE_AS4_AGGREGATOR,
+		},
+		Value: PathAttributeAggregatorParam{
+			AS:      as,
+			Address: net.ParseIP(address),
+		},
+	}
 }
 
 type PathAttributeUnknown struct {
