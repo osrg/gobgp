@@ -1831,6 +1831,12 @@ type NLRInfo struct {
 	IPAddrPrefix
 }
 
+func NewNLRInfo(length uint8, prefix string) *NLRInfo {
+	return &NLRInfo{
+		IPAddrPrefix: *NewIPAddrPrefix(length, prefix),
+	}
+}
+
 type BGPUpdate struct {
 	WithdrawnRoutesLen    uint16
 	WithdrawnRoutes       []WithdrawnRoute
