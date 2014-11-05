@@ -38,16 +38,22 @@ func update() *BGPMessage {
 	w2 := WithdrawnRoute{*NewIPAddrPrefix(17, "100.33.3.0")}
 	w := []WithdrawnRoute{w1, w2}
 
-	aspath := []AsPathParam{
-		AsPathParam{Type: 2, Num: 1, AS: []uint32{1000}},
-		AsPathParam{Type: 1, Num: 2, AS: []uint32{1001, 1002}},
-		AsPathParam{Type: 2, Num: 2, AS: []uint32{1003, 1004}},
+	aspath1 := []AsPathParamInterface{
+		NewAsPathParam(2, []uint16{1000}),
+		NewAsPathParam(1, []uint16{1001, 1002}),
+		NewAsPathParam(2, []uint16{1003, 1004}),
 	}
 
-	aspath2 := []AsPathParam{
-		AsPathParam{Type: 2, Num: 1, AS: []uint32{1000000}},
-		AsPathParam{Type: 1, Num: 2, AS: []uint32{1000001, 1002}},
-		AsPathParam{Type: 2, Num: 2, AS: []uint32{1003, 100004}},
+	aspath2 := []AsPathParamInterface{
+		NewAs4PathParam(2, []uint32{1000000}),
+		NewAs4PathParam(1, []uint32{1000001, 1002}),
+		NewAs4PathParam(2, []uint32{1003, 100004}),
+	}
+
+	aspath3 := []*As4PathParam{
+		NewAs4PathParam(2, []uint32{1000000}),
+		NewAs4PathParam(1, []uint32{1000001, 1002}),
+		NewAs4PathParam(2, []uint32{1003, 100004}),
 	}
 
 	ecommunities := []ExtendedCommunityInterface{
@@ -77,7 +83,8 @@ func update() *BGPMessage {
 
 	p := []PathAttributeInterface{
 		NewPathAttributeOrigin(3),
-		NewPathAttributeAsPath(aspath),
+		NewPathAttributeAsPath(aspath1),
+		NewPathAttributeAsPath(aspath2),
 		NewPathAttributeNextHop("129.1.1.2"),
 		NewPathAttributeMultiExitDisc(1 << 20),
 		NewPathAttributeLocalPref(1 << 22),
@@ -87,7 +94,7 @@ func update() *BGPMessage {
 		NewPathAttributeOriginatorId("10.10.0.1"),
 		NewPathAttributeClusterList([]string{"10.10.0.2", "10.10.0.3"}),
 		NewPathAttributeExtendedCommunities(ecommunities),
-		NewPathAttributeAs4Path(aspath2),
+		NewPathAttributeAs4Path(aspath3),
 		NewPathAttributeAs4Aggregator(10000, "112.22.2.1"),
 		NewPathAttributeMpReachNLRI("112.22.2.0", mp_nlri),
 		NewPathAttributeMpReachNLRI("1023::", mp_nlri2),

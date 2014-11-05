@@ -1151,7 +1151,79 @@ func NewPathAttributeOrigin(value uint8) *PathAttributeOrigin {
 type AsPathParam struct {
 	Type uint8
 	Num  uint8
+	AS   []uint16
+}
+
+func (a *AsPathParam) Serialize() ([]byte, error) {
+	buf := make([]byte, 2+len(a.AS)*2)
+	buf[0] = a.Type
+	buf[1] = a.Num
+	for j, as := range a.AS {
+		binary.BigEndian.PutUint16(buf[2+j*2:], as)
+	}
+	return buf, nil
+}
+
+func (a *AsPathParam) DecodeFromBytes(data []byte) error {
+	a.Type = data[0]
+	a.Num = data[1]
+	data = data[2:]
+	for i := 0; i < int(a.Num); i++ {
+		a.AS = append(a.AS, binary.BigEndian.Uint16(data))
+		data = data[2:]
+	}
+	return nil
+}
+
+func (a *AsPathParam) Len() int {
+	return 2 + len(a.AS)*2
+}
+
+func NewAsPathParam(segType uint8, as []uint16) *AsPathParam {
+	return &AsPathParam{
+		Type: segType,
+		Num:  uint8(len(as)),
+		AS:   as,
+	}
+}
+
+type As4PathParam struct {
+	Type uint8
+	Num  uint8
 	AS   []uint32
+}
+
+func (a *As4PathParam) Serialize() ([]byte, error) {
+	buf := make([]byte, 2+len(a.AS)*4)
+	buf[0] = a.Type
+	buf[1] = a.Num
+	for j, as := range a.AS {
+		binary.BigEndian.PutUint32(buf[2+j*4:], as)
+	}
+	return buf, nil
+}
+
+func (a *As4PathParam) DecodeFromBytes(data []byte) error {
+	a.Type = data[0]
+	a.Num = data[1]
+	data = data[2:]
+	for i := 0; i < int(a.Num); i++ {
+		a.AS = append(a.AS, binary.BigEndian.Uint32(data))
+		data = data[4:]
+	}
+	return nil
+}
+
+func (a *As4PathParam) Len() int {
+	return 2 + len(a.AS)*4
+}
+
+func NewAs4PathParam(segType uint8, as []uint32) *As4PathParam {
+	return &As4PathParam{
+		Type: segType,
+		Num:  uint8(len(as)),
+		AS:   as,
+	}
 }
 
 type DefaultAsPath struct {
@@ -1173,53 +1245,32 @@ func (p *DefaultAsPath) isValidAspath(data []byte) bool {
 	return true
 }
 
-// TODO: could marge two functions nicely with reflect?
-func (p *DefaultAsPath) decodeAspath(data []byte) []AsPathParam {
-	var param []AsPathParam
-
-	for len(data) > 0 {
-		a := AsPathParam{}
-		a.Type = data[0]
-		a.Num = data[1]
-		data = data[2:]
-		for i := 0; i < int(a.Num); i++ {
-			a.AS = append(a.AS, uint32(binary.BigEndian.Uint16(data)))
-			data = data[2:]
-		}
-		param = append(param, a)
-	}
-	return param
-}
-
-func (p *DefaultAsPath) decodeAs4path(data []byte) []AsPathParam {
-	var param []AsPathParam
-
-	for len(data) > 0 {
-		a := AsPathParam{}
-		a.Type = data[0]
-		a.Num = data[1]
-		data = data[2:]
-		for i := 0; i < int(a.Num); i++ {
-			a.AS = append(a.AS, binary.BigEndian.Uint32(data))
-			data = data[4:]
-		}
-		param = append(param, a)
-	}
-	return param
+type AsPathParamInterface interface {
+	Serialize() ([]byte, error)
+	DecodeFromBytes([]byte) error
+	Len() int
 }
 
 type PathAttributeAsPath struct {
 	DefaultAsPath
 	PathAttribute
-	Value []AsPathParam
+	Value []AsPathParamInterface
 }
 
 func (p *PathAttributeAsPath) DecodeFromBytes(data []byte) error {
 	p.PathAttribute.DecodeFromBytes(data)
-	if p.DefaultAsPath.isValidAspath(p.PathAttribute.Value) {
-		p.Value = p.DefaultAsPath.decodeAspath(p.PathAttribute.Value)
-	} else {
-		p.Value = p.DefaultAsPath.decodeAs4path(p.PathAttribute.Value)
+	validAs := p.DefaultAsPath.isValidAspath(p.PathAttribute.Value)
+	v := p.PathAttribute.Value
+	for len(v) > 0 {
+		var tuple AsPathParamInterface
+		if validAs == true {
+			tuple = &AsPathParam{}
+		} else {
+			tuple = &As4PathParam{}
+		}
+		tuple.DecodeFromBytes(v)
+		p.Value = append(p.Value, tuple)
+		v = v[tuple.Len():]
 	}
 	return nil
 }
@@ -1227,11 +1278,9 @@ func (p *PathAttributeAsPath) DecodeFromBytes(data []byte) error {
 func (p *PathAttributeAsPath) Serialize() ([]byte, error) {
 	buf := make([]byte, 0)
 	for _, v := range p.Value {
-		vbuf := make([]byte, 2+len(v.AS)*2)
-		vbuf[0] = v.Type
-		vbuf[1] = v.Num
-		for j, as := range v.AS {
-			binary.BigEndian.PutUint16(vbuf[2+j*2:], uint16(as))
+		vbuf, err := v.Serialize()
+		if err != nil {
+			return nil, err
 		}
 		buf = append(buf, vbuf...)
 	}
@@ -1239,7 +1288,7 @@ func (p *PathAttributeAsPath) Serialize() ([]byte, error) {
 	return p.PathAttribute.Serialize()
 }
 
-func NewPathAttributeAsPath(value []AsPathParam) *PathAttributeAsPath {
+func NewPathAttributeAsPath(value []AsPathParamInterface) *PathAttributeAsPath {
 	return &PathAttributeAsPath{
 		PathAttribute: PathAttribute{
 			Flags: BGP_ATTR_FLAG_TRANSITIVE,
@@ -1733,17 +1782,36 @@ func NewPathAttributeExtendedCommunities(value []ExtendedCommunityInterface) *Pa
 
 type PathAttributeAs4Path struct {
 	PathAttribute
-	Value []AsPathParam
+	Value []*As4PathParam
 	DefaultAsPath
 }
 
 func (p *PathAttributeAs4Path) DecodeFromBytes(data []byte) error {
 	p.PathAttribute.DecodeFromBytes(data)
-	p.Value = p.DefaultAsPath.decodeAs4path(p.PathAttribute.Value)
+	v := p.PathAttribute.Value
+	for len(v) > 0 {
+		tuple := &As4PathParam{}
+		tuple.DecodeFromBytes(v)
+		p.Value = append(p.Value, tuple)
+		v = v[tuple.Len():]
+	}
 	return nil
 }
 
-func NewPathAttributeAs4Path(value []AsPathParam) *PathAttributeAs4Path {
+func (p *PathAttributeAs4Path) Serialize() ([]byte, error) {
+	buf := make([]byte, 0)
+	for _, v := range p.Value {
+		vbuf, err := v.Serialize()
+		if err != nil {
+			return nil, err
+		}
+		buf = append(buf, vbuf...)
+	}
+	p.PathAttribute.Value = buf
+	return p.PathAttribute.Serialize()
+}
+
+func NewPathAttributeAs4Path(value []*As4PathParam) *PathAttributeAs4Path {
 	return &PathAttributeAs4Path{
 		PathAttribute: PathAttribute{
 			Flags: BGP_ATTR_FLAG_TRANSITIVE,
