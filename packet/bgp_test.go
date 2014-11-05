@@ -89,6 +89,7 @@ func update() *BGPMessage {
 		NewPathAttributeMultiExitDisc(1 << 20),
 		NewPathAttributeLocalPref(1 << 22),
 		NewPathAttributeAtomicAggregate(),
+		NewPathAttributeAggregator(uint16(30002), "129.0.2.99"),
 		NewPathAttributeAggregator(uint32(30002), "129.0.2.99"),
 		NewPathAttributeAggregator(uint32(300020), "129.0.2.99"),
 		NewPathAttributeCommunities([]uint32{1, 3}),
