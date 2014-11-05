@@ -20,6 +20,7 @@ import (
 	"fmt"
 	"math"
 	"net"
+	"reflect"
 )
 
 // move somewhere else
@@ -1395,6 +1396,7 @@ func NewPathAttributeAtomicAggregate() *PathAttributeAtomicAggregate {
 
 type PathAttributeAggregatorParam struct {
 	AS      uint32
+	askind  reflect.Kind
 	Address net.IP
 }
 
@@ -1408,29 +1410,42 @@ func (p *PathAttributeAggregator) DecodeFromBytes(data []byte) error {
 	if len(p.PathAttribute.Value) == 6 {
 		p.Value.AS = uint32(binary.BigEndian.Uint16(p.PathAttribute.Value[0:2]))
 		p.Value.Address = p.PathAttribute.Value[2:]
+		p.Value.askind = reflect.Uint16
 	} else {
 		p.Value.AS = binary.BigEndian.Uint32(p.PathAttribute.Value[0:4])
 		p.Value.Address = p.PathAttribute.Value[4:]
+		p.Value.askind = reflect.Uint32
 	}
 	return nil
 }
 
 func (p *PathAttributeAggregator) Serialize() ([]byte, error) {
-	buf := make([]byte, 6)
-	binary.BigEndian.PutUint16(buf, uint16(p.Value.AS))
-	copy(buf[2:], p.Value.Address)
+	var buf []byte
+	switch p.Value.askind {
+	case reflect.Uint16:
+		buf = make([]byte, 6)
+		binary.BigEndian.PutUint16(buf, uint16(p.Value.AS))
+		copy(buf[2:], p.Value.Address)
+	case reflect.Uint32:
+		buf = make([]byte, 8)
+		binary.BigEndian.PutUint32(buf, p.Value.AS)
+		copy(buf[4:], p.Value.Address)
+	}
+
 	p.PathAttribute.Value = buf
 	return p.PathAttribute.Serialize()
 }
 
-func NewPathAttributeAggregator(as uint16, address string) *PathAttributeAggregator {
+func NewPathAttributeAggregator(as interface{}, address string) *PathAttributeAggregator {
+	v := reflect.ValueOf(as)
 	return &PathAttributeAggregator{
 		PathAttribute: PathAttribute{
 			Flags: BGP_ATTR_FLAG_OPTIONAL | BGP_ATTR_FLAG_TRANSITIVE,
 			Type:  BGP_ATTR_TYPE_AGGREGATOR,
 		},
 		Value: PathAttributeAggregatorParam{
-			AS:      uint32(as),
+			AS:      uint32(v.Uint()),
+			askind:  v.Kind(),
 			Address: net.ParseIP(address).To4(),
 		},
 	}
