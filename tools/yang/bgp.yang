@@ -1,0 +1,607 @@
+ module bgp {
+
+     yang-version "1";
+
+     // namespace
+     // TODO: change to an ietf or other more generic namespace
+     namespace "http://google.com/yang/google-bgp-protocol-cfg";
+
+     prefix "bgp";
+
+     // import some basic inet types
+     import ietf-inet-types { prefix inet; }
+     import bgp-multiprotocol { prefix bgp-mp; }
+     import bgp-policy { prefix bgp-pol; }
+     import bgp-operational { prefix bgp-op; }
+
+     // meta
+     organization
+       "Google, AT&T, BT, Microsoft";
+
+     contact
+       "Google, Inc.
+       1600 Amphitheatre Way
+       Mountain View, CA  94043
+
+       AT&T Labs
+       200 S. Laurel Avenue
+       Middletown, NJ  07748
+
+       BT
+       pp. C3L, BT Centre
+       81, Newgate Street
+       London  EC1A 7AJ
+       UK
+
+       Microsoft
+       205 108th Ave. NE, Suite 400
+       Bellevue, WA 98004";
+
+     description
+       "This module describes a YANG model for BGP protocol
+       configuration.It is a limited subset of all of the configuration
+       parameters available in the variety of vendor implementations,
+       hence it is expected that it would be augmented with vendor-
+       specific configuration data as needed.Additional modules or
+       submodules to handle other aspects of BGP configuration,
+       including policy, VRFs, VPNs, and additional address families
+       are also expected.
+
+       This model supports the following BGP configuration level
+       hierarchy:
+
+         BGP
+           |
+           +-> [ global BGP configuration ]
+           +-> AFI / SAFI (address family)
+             +-> [AFI-specific config ]
+           +-> peer group
+             +-> [ peer group config ]
+             +-> AFI / SAFI [ per-AFI overrides ]
+             +-> neighbor
+               +-> [ per-neighbor overrides ]
+               +-> AFI / SAFI [ per-AFI overrides ]
+           +-> neighbor
+             +-> [ neighbor config ]
+             +-> AFI / SAFI [ per-AFI overrides ]";
+
+     revision "2014-09-30" {
+         description
+           "Initial revision";
+         reference "TBD";
+     }
+
+     typedef peer-type {
+       type enumeration {
+         enum INTERNAL {
+           description "internal (iBGP) peer";
+         }
+         enum EXTERNAL {
+           description "external (eBGP) peer";
+         }
+       }
+       description
+         "labels a peer or peer group as explicitly internal or
+         external";
+     }
+
+     typedef remove-private-as-option {
+       type enumeration {
+         enum ALL {
+           description "remove all private ASes in the path";
+         }
+         enum REPLACE {
+           description "replace private ASes with local AS";
+         }
+       }
+       description
+         "set of options for configuring how private AS path numbers
+         are removed from advertisements";
+     }
+
+     typedef percentage {
+       type uint8 {
+         range "0..100";
+       }
+       description
+         "Integer indicating a percentage value";
+     }
+
+     typedef rr-cluster-id-type {
+       type union {
+         type uint32;
+         type inet:ipv4-address;
+       }
+       description
+         "union type for route reflector cluster ids:
+         option 1: 4-byte number
+         option 2: IP address";
+     }
+
+     grouping bgp-common-configuration {
+       description "Common configuration available at all hierarchy
+       levels, global, AFI, groups, neighbors, etc.";
+
+       leaf description {
+         type string;
+         description
+           "An optional textual description (intended primarily for use
+           with a peer or group";
+       }
+
+       container route-selection-options {
+           // TODO: consider moving this container to AFI/SAFI level
+           // config
+           description
+             "Set of configuration options that govern best
+             path selection.";
+           leaf always-compare-med {
+             type boolean;
+             default "false";
+             description
+               "Compare multi-exit discriminator (MED) value from
+               different ASes when selecting the best route.  The
+               default behavior is to only compare MEDs for paths
+               received from the same AS.";
+           }
+
+           leaf ignore-as-path-length {
+             type boolean;
+             default "false";
+             description
+               "Ignore the AS path length when selecting the best path.
+               The default is to use the AS path length and prefer paths
+               with shorter length.";
+           }
+
+           leaf external-compare-router-id {
+             type boolean;
+             default "true";
+             description
+               "When comparing similar routes received from external
+               BGP peers, use the router-id as a criterion to select
+               the active path.";
+           }
+
+           leaf advertise-inactive-routes {
+             type boolean;
+             default "false";
+             description
+               "Advertise inactive routes to external peers.  The
+               default is to only advertise active routes.";
+           }
+
+           leaf enable-aigp {
+             type empty;
+             description
+               "Flag to enable sending / receiving accumulated IGP
+               attribute in routing updates";
+           }
+       }
+
+       container use-multiple-paths {
+
+         presence
+           "Presence of this container indicates that multipath
+            is enabled for both eBGP and iBGP, absence indicates
+            that multi-path is not used";
+
+         description
+           "Configuration of BGP multi-path for iBGP and eBGP";
+
+         container ebgp {
+           description
+             "Configuration of BGP multipath to enable load sharing
+             across multiple paths to eBGP peers";
+
+           leaf allow-multiple-as {
+            type boolean;
+            default "false";
+            description
+             "Allow multipath to use paths from different neighbouring
+             ASes.  The default is to only consider multiple paths from
+             the same neighbouring AS.";
+           }
+
+           leaf maximum-paths {
+            type uint32;
+            default 1;
+            description
+             "Maximum number of parallel paths to consider when using
+             BGP multipath. The default is use a single path.";
+           }
+         }
+
+         container ibgp {
+           description
+             "Configuration of BGP multipath to enable load-sharing
+             across multiple paths to iBGP peers";
+
+           leaf maximum-paths {
+             type uint32;
+             default 1;
+             description
+               "Maximum number of parallel paths to consider when using
+               iBGP multipath. The default is to use a single path";
+           }
+         }
+
+         container eibgp {
+           description
+             "Configuration of BGP multipath to enable load-sharing
+             across multiple paths to external confederation sub-ASes";
+           leaf maximum-paths {
+             type uint32;
+             default 1;
+             description
+               "Maximum number of parallel paths to consider when using
+               eiBGP multipath. The default is to use a single path";
+           }
+
+         }
+       }
+
+       container graceful-restart {
+         // TODO: most impls seem to require this at the global level
+         // in order to specify at neighbor or other levels
+         presence "Presence of this item indicates that BGP graceful
+         restart is enabled.";
+
+         description
+           "Configures BGP graceful restart, which is a negotiated
+           option that indicates that a BGP speaker is able to retain
+           forwarding state when a BGP session restarts";
+
+         reference "RFC 4724: Graceful Restart Mechanism for BGP";
+
+         leaf restart-time {
+           type uint16 {
+             range 0..4096;
+           }
+           description
+             "Estimated time in seconds for the BGP session to be
+             re-established after a restart.  This is a 12-bit value
+             advertised by the router to peers.  Per RFC 4724, the
+             suggested default value is <= the hold-time value";
+         }
+
+         leaf stale-routes-time {
+           type decimal64 {
+             fraction-digits 2;
+           }
+           description
+             "Sets an upper bound on the time in seconds that stale
+             routes will be retained by the router after a session is
+             restarted";
+         }
+       }
+
+       uses bgp-pol:apply-policy-group;
+     }
+
+     grouping  bgp-global-configuration {
+         description
+           "Grouping for global level configuration items";
+
+         leaf as {
+           type inet:as-number;
+           mandatory "true";
+           description
+             "Local autonomous system number of the router.  Uses
+             the 32-bit as-number type from the model in RFC 6991";
+         }
+         leaf router-id {
+           type inet:ipv4-address;
+           description
+             "Router id of the router, expressed as an
+             32-bit value, IPv4 address.";
+         }
+
+         container default-route-distance {
+           description
+             "Administrative distance (or preference) assigned to
+             routes received from different sources
+             (external, internal, and local).";
+           leaf external-route-distance {
+             type uint8 {
+               range "1..255";
+             }
+             description
+               "Administrative distance for routes learned from external
+               BGP (eBGP).";
+           }
+           leaf internal-route-distance {
+             type uint8 {
+               range "1..255";
+             }
+             description
+               "Administrative distance for routes learned from internal
+               BGP (iBGP).";
+           }
+         }
+
+         container confederation {
+
+           presence "Presence of this node indicates that the local AS
+             is part of a confederation";
+           description
+             "Configuration for a BGP confederation consisting of a
+             confed id and member sub-AS list";
+
+           leaf identifier {
+             type inet:as-number;
+             description
+               "Confederation identifier for the autonomous system";
+           }
+
+           leaf-list member-as {
+             type inet:as-number;
+             description
+               "Remote autonomous systems that are to be treated
+               as part of the local confederation.";
+           }
+         }
+
+     }
+
+     grouping bgp-group-common-configuration {
+       description "Configuration items that are applied at the peer
+       group level";
+
+       // currently a placeholder in case we identify config that is
+       // really only applicable at the group level
+     }
+
+     grouping bgp-group-neighbor-common-configuration {
+       description "Configuration items that are applied at the peer
+       or peer group levels";
+
+       leaf auth-password {
+         type string;
+         description
+           "Configures an MD5 authentication password for use with
+           neighboring devices.";
+       }
+
+       leaf peer-type {
+           type peer-type;
+           description
+             "Explicitly designate the peer or peer group as internal
+             (iBGP) or external (eBGP).";
+       }
+
+       container timers {
+         description "Configuration of various BGP timers";
+         leaf connect-retry {
+           type decimal64 {
+             fraction-digits 2;
+           }
+           default 30;
+           description
+             "Time interval in seconds between attempts to establish a
+             session with the peer.";
+         }
+
+         leaf hold-time {
+           type decimal64 {
+             fraction-digits 2;
+           }
+           default 90;
+           description
+             "Time interval in seconds that a BGP session will be
+             considered active in the absence of keepalive or other
+             messages from the peer.  The hold-time is typically
+             set to 3x the keepalive-interval.";
+           reference
+             "RFC 4271 - A Border Gateway Protocol 4, Sec. 10";
+         }
+
+         leaf keepalive-interval {
+           type decimal64 {
+             fraction-digits 2;
+           }
+           default 30;
+           description
+             "Time interval in seconds between transmission of keepalive
+             messages to the neighbor.  Typically set to 1/3 the
+             hold-time.";
+         }
+
+         leaf minimum-advertisement-interval {
+           type decimal64 {
+             fraction-digits 2;
+           }
+           default 30;
+           description
+             "Mininum time interval in seconds between transmission
+             of BGP updates to neighbors";
+           reference
+             "RFC 4271 - A Border Gateway Protocol 4, Sec 10";
+         }
+
+         leaf send-update-delay {
+           type decimal64 {
+             fraction-digits 2;
+           }
+           description
+             "Time interval between routes changing in the routing
+             table and corresponding updates sent to neighbors --
+             serves to batch updates";
+         }
+
+       }
+
+       container ebgp-multihop {
+         description
+           "Configure multihop BGP for peers that are not directly
+           connected";
+
+         leaf multihop-ttl {
+           type uint8;
+           default 1;
+           description
+             "Time-to-live for multihop BGP sessions.  The default
+             value of 1 is for directly connected peers (i.e.,
+             multihop disabled";
+
+         }
+
+       }
+
+       container route-reflector {
+         description
+           "Configure the local router as a route-reflector
+           server";
+
+         leaf route-reflector-cluster-id {
+           type rr-cluster-id-type;
+           description
+             "route-reflector cluster id to use when local router is
+             configured as a route reflector.  Commonly set at the group
+             level, but allows a different cluster
+             id to be set for each neighbor.";
+         }
+
+         leaf route-reflector-client {
+           type boolean;
+           default "false";
+           description
+             "Configure the neighbor as a route reflector client.";
+         }
+       }
+
+       leaf remove-private-as {
+         // could also make this a container with a flag to enable
+         // remove-private and separate option.  here, option implies
+         // remove-private is enabled.
+         type remove-private-as-option;
+         description
+           "Remove private AS numbers from updates sent to peers.";
+       }
+
+       container bgp-logging-options {
+         description
+           "Configure various tracing/logging options for BGP peers
+           or groups.  Expected that additional vendor-specific log
+           options would augment this container.";
+
+         leaf log-neighbor-state-changes {
+           type boolean;
+           default "true";
+           description
+             "Configure logging of peer state changes.  Default is
+             to enable logging of peer state changes.";
+         }
+       }
+
+       container transport-options {
+         description
+           "Transport protocol options for BGP sessions";
+
+           leaf tcp-mss {
+             type uint16;
+             description
+               "Sets the max segment size for BGP TCP sessions.";
+           }
+
+           leaf mtu-discovery {
+             type boolean;
+             description
+               "Turns path mtu discovery for BGP TCP sessions on (true)
+               or off (false)";
+           }
+
+           leaf passive-mode {
+             type boolean;
+             description
+               "Wait for peers to issue requests to open a BGP session,
+               rather than initiating sessions from the local router.";
+           }
+       }
+
+       leaf local-address {
+         type inet:ip-address;
+         description
+           "Set the local IP (either IPv4 or IPv6) address to use for
+           the session when sending BGP update messages.";
+       }
+
+       leaf route-flap-damping {
+         type boolean;
+         description
+           "Enable route flap damping.";
+       }
+     }
+
+     grouping bgp-neighbor-configuration {
+       description
+         "Neighbor-level configuration items";
+
+       list neighbor {
+         key "neighbor-address";
+         description
+           "List of BGP peers, uniquely identified by neighbor
+           address.";
+         leaf neighbor-address {
+           type inet:ip-address;
+           description
+             "Address of the BGP peer, either IPv4 or IPv6.";
+         }
+
+         leaf peer-as {
+           type inet:as-number;
+           mandatory "true";
+           description
+             "AS number of the peer.";
+
+         }
+         uses bgp-common-configuration;
+         uses bgp-mp:address-family-configuration;
+         uses bgp-group-neighbor-common-configuration;
+         uses bgp-op:bgp-op-neighbor-group;
+       }
+     }
+
+     container bgp {
+       description "Top-level configuration data for the BGP router";
+
+       container global {
+         description
+           "Top-level bgp protocol options applied at the global level
+           in the hierarchy -- these apply across peer-groups,
+           neighbors, and address families";
+
+         uses bgp-global-configuration;
+
+         // attach global level operational data
+         uses bgp-op:bgp-op-global-group;
+       }
+
+       // top level AF configuration
+       uses bgp-mp:address-family-configuration;
+
+       list peer-group {
+         key "group-name";
+         description
+           "List of peer-groups, uniquely identified by the peer group
+           name.";
+         leaf group-name {
+           type string;
+           description "Name of the peer group.";
+         }
+         uses bgp-op:bgp-op-peergroup-group;
+         uses bgp-common-configuration;
+         uses bgp-mp:address-family-configuration;
+         uses bgp-group-neighbor-common-configuration;
+
+         // list of configurations for neighbors in this peer group
+         uses bgp-neighbor-configuration;
+       }
+
+       // top level neighbor configuration
+       uses bgp-neighbor-configuration;
+
+       // hook for top-level policy definitions
+       uses bgp-pol:policy-definition-group;
+     }
+   }
