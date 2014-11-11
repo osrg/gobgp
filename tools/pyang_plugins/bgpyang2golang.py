@@ -17,8 +17,8 @@
 # usage example:
 # cd $PYANG_INSTALL_DIR
 # source ./env.sh
-# PYTHONPATH=. ./bin/pyang --plugindir $GOPATH/gobgp/tools/pyang_plugins -f golang ./modules/bgp.yang
-#  > $GOPATH/gobgp/config/bgp_configs.go
+# PYTHONPATH=. ./bin/pyang --plugindir $GOPATH/gobgp/tools/pyang_plugins \
+#  -f golang ./modules/bgp.yang > $GOPATH/gobgp/config/bgp_configs.go
 # NOTICE: copy related yang files into $$PYANG_INSTALL_DIR/modules/ in advance.
 
 
@@ -44,6 +44,7 @@ import StringIO
 from pyang import plugin
 
 emitted_type_names = []
+
 
 def pyang_plugin_init():
     plugin.register_plugin(GolangPlugin())
@@ -129,7 +130,8 @@ def emit_class_def(ctx, c, struct_name):
 
             # case translation required
             elif is_translation_required(type_obj):
-                print >> o,'  //%s\'s original type is %s' % (val_name, type_obj.arg)
+                print >> o, '  //%s\'s original type is %s'\
+                            % (val_name, type_obj.arg)
                 emit_type_name = translate_type(type_name)
 
             # case other primitives
@@ -154,7 +156,7 @@ def emit_class_def(ctx, c, struct_name):
 
             # case translation required
             elif is_translation_required(type_obj):
-                print >> o,'  //original type is list of %s' % (type_obj)
+                print >> o, '  //original type is list of %s' % (type_obj)
                 emit_type_name = '[]'+translate_type(type_name)
 
             # case other primitives
@@ -176,7 +178,7 @@ def emit_class_def(ctx, c, struct_name):
         elif is_list(child):
             t = ctx.golang_struct_names[val_name]
             val_name_go = val_name_go + 'List'
-            emit_type_name = '[]'+ t.golang_name
+            emit_type_name = '[]' + t.golang_name
 
         print >> o, '  %s\t%s' % (val_name_go, emit_type_name)
 
@@ -188,7 +190,6 @@ def visit_children(ctx, module, children, prefix=''):
     for c in children:
         t = c.search_one('type')
         type_name = t.arg if t is not None else None
-        #print '%skeyword->%s, arg->%s, type->%s' % (prefix, c.keyword, c.arg, type_name)
         if is_list(c) or is_container(c):
             c.golang_name = convert_to_gostruct(c.arg)
             ctx.golang_struct_def.append(c)
@@ -263,7 +264,8 @@ def emit_typedef(ctx, module):
         o = StringIO.StringIO()
 
         if t.arg == 'enumeration':
-            print >> o, '// typedef for typedef %s:%s' % (prefix, type_name_org)
+            print >> o, '// typedef for typedef %s:%s'\
+                        % (prefix, type_name_org)
             print >> o, 'type %s int' % (type_name)
 
             const_prefix = convert_const_prefix(type_name_org)
@@ -273,10 +275,12 @@ def emit_typedef(ctx, module):
                 print >> o, ' %s_%s' % (const_prefix, sub.arg)
             print >> o, ')'
         elif t.arg == 'union':
-            print >> o, '// typedef for typedef %s:%s' % (prefix, type_name_org)
+            print >> o, '// typedef for typedef %s:%s'\
+                        % (prefix, type_name_org)
             print >> o, 'type %s string' % (type_name)
         else:
-            print >> o, '// typedef for typedef %s:%s' % (prefix, type_name_org)
+            print >> o, '// typedef for typedef %s:%s'\
+                        % (prefix, type_name_org)
             print >> o, 'type %s %s' % (type_name, t.arg)
 
         print o.getvalue()
@@ -332,15 +336,15 @@ def is_translation_required(t):
 
 
 _type_translation_map = {
-    'union' : 'string',
-    'enumeration' : 'string',
-    'decimal64' : 'float64',
-    'boolean' : 'bool',
-    'empty' : 'bool',
+    'union': 'string',
+    'enumeration': 'string',
+    'decimal64': 'float64',
+    'boolean': 'bool',
+    'empty': 'bool',
     'inet:ip-address': '*net.IP',
     'inet:ipv4-address': '*net.IP',
-    'inet:as-number' : 'uint32',
-    'rr-cluster-id-type' : 'uint32',
+    'inet:as-number': 'uint32',
+    'rr-cluster-id-type': 'uint32',
 }
 
 
@@ -353,7 +357,8 @@ _type_builtin = ["union",
                  "uint8",
                  "uint16",
                  "uint32",
-                 "uint64",]
+                 "uint64",
+                 ]
 
 
 def generate_header(ctx):
@@ -365,7 +370,7 @@ def generate_header(ctx):
 
 
 def translate_type(key):
-    if _type_translation_map.has_key(key):
+    if key in _type_translation_map.keys:
         return _type_translation_map[key]
     else:
         return key
