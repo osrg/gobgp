@@ -370,7 +370,7 @@ def generate_header(ctx):
 
 
 def translate_type(key):
-    if key in _type_translation_map.keys:
+    if key in _type_translation_map.keys():
         return _type_translation_map[key]
     else:
         return key
