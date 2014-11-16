@@ -2085,6 +2085,10 @@ type BGPBody interface {
 	Serialize() ([]byte, error)
 }
 
+const (
+	BGP_HEADER_LENGTH = 19
+)
+
 type BGPHeader struct {
 	Marker []byte
 	Len    uint16
@@ -2098,9 +2102,6 @@ func (msg *BGPHeader) DecodeFromBytes(data []byte) error {
 	}
 	msg.Len = binary.BigEndian.Uint16(data[16:18])
 	msg.Type = data[18]
-	if len(data) < int(msg.Len) {
-		return fmt.Errorf("Not all BGP message bytes available")
-	}
 	return nil
 }
 
@@ -2119,13 +2120,12 @@ type BGPMessage struct {
 	Body   BGPBody
 }
 
-func ParseBGPMessage(data []byte) (*BGPMessage, error) {
-	msg := &BGPMessage{}
-	err := msg.Header.DecodeFromBytes(data)
-	if err != nil {
-		return nil, err
+func parseBody(h *BGPHeader, data []byte) (*BGPMessage, error) {
+	if len(data) < int(h.Len)-BGP_HEADER_LENGTH {
+		return nil, fmt.Errorf("Not all BGP message bytes available")
 	}
-	data = data[19:msg.Header.Len]
+	msg := &BGPMessage{Header: *h}
+
 	switch msg.Header.Type {
 	case BGP_MSG_OPEN:
 		msg.Body = &BGPOpen{}
@@ -2138,11 +2138,24 @@ func ParseBGPMessage(data []byte) (*BGPMessage, error) {
 	case BGP_MSG_ROUTE_REFRESH:
 		msg.Body = &BGPRouteRefresh{}
 	}
-	err = msg.Body.DecodeFromBytes(data)
+	err := msg.Body.DecodeFromBytes(data)
 	if err != nil {
 		return nil, err
 	}
 	return msg, nil
+}
+
+func ParseBGPMessage(data []byte) (*BGPMessage, error) {
+	h := &BGPHeader{}
+	err := h.DecodeFromBytes(data)
+	if err != nil {
+		return nil, err
+	}
+	return parseBody(h, data[19:h.Len])
+}
+
+func ParseBGPBody(h *BGPHeader, data []byte) (*BGPMessage, error) {
+	return parseBody(h, data)
 }
 
 func (msg *BGPMessage) Serialize() ([]byte, error) {
