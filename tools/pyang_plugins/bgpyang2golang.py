@@ -175,7 +175,7 @@ def emit_class_def(ctx, c, struct_name):
         # case container
         elif is_container(child):
             t = ctx.golang_struct_names[val_name]
-            emit_type_name = '[]'+t.golang_name
+            emit_type_name = t.golang_name
 
         # case list
         elif is_list(child):

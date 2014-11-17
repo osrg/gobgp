@@ -209,11 +209,11 @@ type SetAsPathPrependType struct {
 //struct for container actions
 type ActionsType struct {
 	// original -> bgp-policy:set-as-path-prepend
-	SetAsPathPrepend []SetAsPathPrependType
+	SetAsPathPrepend SetAsPathPrependType
 	// original -> bgp-policy:set-community
-	SetCommunity []SetCommunityType
+	SetCommunity SetCommunityType
 	// original -> bgp-policy:set-ext-community
-	SetExtCommunity []SetExtCommunityType
+	SetExtCommunity SetExtCommunityType
 	// original -> bgp-policy:set-route-origin
 	SetRouteOrigin BgpOriginAttrType
 	// original -> bgp-policy:set-local-pref
@@ -275,9 +275,9 @@ type ConditionsType struct {
 	// original -> bgp-policy:local-pref-eq
 	LocalPrefEq uint32
 	// original -> bgp-policy:community-count
-	CommunityCount []CommunityCountType
+	CommunityCount CommunityCountType
 	// original -> bgp-policy:as-path-length
-	AsPathLength []AsPathLengthType
+	AsPathLength AsPathLengthType
 	// original -> bgp-policy:route-type
 	//route-type's original type is enumeration
 	RouteType string
@@ -288,9 +288,9 @@ type StatementsType struct {
 	// original -> bgp-policy:name
 	Name string
 	// original -> bgp-policy:conditions
-	Conditions []ConditionsType
+	Conditions ConditionsType
 	// original -> bgp-policy:actions
-	Actions []ActionsType
+	Actions ActionsType
 }
 
 //struct for container policy-definition
@@ -367,9 +367,9 @@ type DefinedSetsType struct {
 //struct for container policy
 type PolicyType struct {
 	// original -> bgp-policy:defined-sets
-	DefinedSets []DefinedSetsType
+	DefinedSets DefinedSetsType
 	// original -> bgp-policy:policy-definitions
-	PolicyDefinitions []PolicyDefinitionsType
+	PolicyDefinitions PolicyDefinitionsType
 }
 
 //struct for container bgp-neighbor-common-state
@@ -480,7 +480,7 @@ type VrfsType struct {
 	// original -> bgp-mp:route-distinguisher
 	RouteDistinguisher uint64
 	// original -> bgp-policy:apply-policy
-	ApplyPolicy []ApplyPolicyType
+	ApplyPolicy ApplyPolicyType
 }
 
 //struct for container ipv4-l3vpn-unicast
@@ -501,23 +501,23 @@ type SafiType struct {
 	// original -> bgp-mp:safi-name
 	SafiName SafiTypeDef
 	// original -> bgp-mp:ipv4-ipv6-unicast
-	Ipv4Ipv6Unicast []Ipv4Ipv6UnicastType
+	Ipv4Ipv6Unicast Ipv4Ipv6UnicastType
 	// original -> bgp-mp:ipv4-l3vpn-unicast
-	Ipv4L3vpnUnicast []Ipv4L3vpnUnicastType
+	Ipv4L3vpnUnicast Ipv4L3vpnUnicastType
 	// original -> bgp-mp:ipv6-l3vpn-unicast
-	Ipv6L3vpnUnicast []Ipv6L3vpnUnicastType
+	Ipv6L3vpnUnicast Ipv6L3vpnUnicastType
 	// original -> bgp-mp:ipv4-labeled-unicast
-	Ipv4LabeledUnicast []Ipv4LabeledUnicastType
+	Ipv4LabeledUnicast Ipv4LabeledUnicastType
 	// original -> bgp-mp:l2vpn
-	L2vpn []L2vpnType
+	L2vpn L2vpnType
 	// original -> bgp-mp:ipv4-multicast-vpn
-	Ipv4MulticastVpn []Ipv4MulticastVpnType
+	Ipv4MulticastVpn Ipv4MulticastVpnType
 	// original -> bgp-mp:ipv6-multicast-vpn
-	Ipv6MulticastVpn []Ipv6MulticastVpnType
+	Ipv6MulticastVpn Ipv6MulticastVpnType
 	// original -> bgp-mp:prefix-limit
-	PrefixLimit []PrefixLimitType
+	PrefixLimit PrefixLimitType
 	// original -> bgp-policy:apply-policy
-	ApplyPolicy []ApplyPolicyType
+	ApplyPolicy ApplyPolicyType
 }
 
 //struct for container afi
@@ -527,7 +527,7 @@ type AfiType struct {
 	// original -> bgp-mp:safi
 	SafiList []SafiType
 	// original -> bgp-op:bgp-af-common-state
-	BgpAfCommonState []BgpAfCommonStateType
+	BgpAfCommonState BgpAfCommonStateType
 }
 
 //struct for container graceful-restart
@@ -563,11 +563,11 @@ type EbgpType struct {
 //struct for container use-multiple-paths
 type UseMultiplePathsType struct {
 	// original -> bgp:ebgp
-	Ebgp []EbgpType
+	Ebgp EbgpType
 	// original -> bgp:ibgp
-	Ibgp []IbgpType
+	Ibgp IbgpType
 	// original -> bgp:eibgp
-	Eibgp []EibgpType
+	Eibgp EibgpType
 }
 
 //struct for container route-selection-options
@@ -600,13 +600,13 @@ type NeighborType struct {
 	// original -> bgp:description
 	Description string
 	// original -> bgp:route-selection-options
-	RouteSelectionOptions []RouteSelectionOptionsType
+	RouteSelectionOptions RouteSelectionOptionsType
 	// original -> bgp:use-multiple-paths
-	UseMultiplePaths []UseMultiplePathsType
+	UseMultiplePaths UseMultiplePathsType
 	// original -> bgp:graceful-restart
-	GracefulRestart []GracefulRestartType
+	GracefulRestart GracefulRestartType
 	// original -> bgp-policy:apply-policy
-	ApplyPolicy []ApplyPolicyType
+	ApplyPolicy ApplyPolicyType
 	// original -> bgp-mp:afi
 	AfiList []AfiType
 	// original -> bgp:auth-password
@@ -614,17 +614,17 @@ type NeighborType struct {
 	// original -> bgp:peer-type
 	PeerType PeerTypeDef
 	// original -> bgp:timers
-	Timers []TimersType
+	Timers TimersType
 	// original -> bgp:ebgp-multihop
-	EbgpMultihop []EbgpMultihopType
+	EbgpMultihop EbgpMultihopType
 	// original -> bgp:route-reflector
-	RouteReflector []RouteReflectorType
+	RouteReflector RouteReflectorType
 	// original -> bgp:remove-private-as
 	RemovePrivateAs RemovePrivateAsOption
 	// original -> bgp:bgp-logging-options
-	BgpLoggingOptions []BgpLoggingOptionsType
+	BgpLoggingOptions BgpLoggingOptionsType
 	// original -> bgp:transport-options
-	TransportOptions []TransportOptionsType
+	TransportOptions TransportOptionsType
 	// original -> bgp:local-address
 	//local-address's original type is inet:ip-address
 	LocalAddress net.IP
@@ -632,7 +632,7 @@ type NeighborType struct {
 	//route-flap-damping's original type is boolean
 	RouteFlapDamping bool
 	// original -> bgp-op:bgp-neighbor-common-state
-	BgpNeighborCommonState []BgpNeighborCommonStateType
+	BgpNeighborCommonState BgpNeighborCommonStateType
 }
 
 //struct for container bgp-group-common-state
@@ -644,17 +644,17 @@ type PeerGroupType struct {
 	// original -> bgp:group-name
 	GroupName string
 	// original -> bgp-op:bgp-group-common-state
-	BgpGroupCommonState []BgpGroupCommonStateType
+	BgpGroupCommonState BgpGroupCommonStateType
 	// original -> bgp:description
 	Description string
 	// original -> bgp:route-selection-options
-	RouteSelectionOptions []RouteSelectionOptionsType
+	RouteSelectionOptions RouteSelectionOptionsType
 	// original -> bgp:use-multiple-paths
-	UseMultiplePaths []UseMultiplePathsType
+	UseMultiplePaths UseMultiplePathsType
 	// original -> bgp:graceful-restart
-	GracefulRestart []GracefulRestartType
+	GracefulRestart GracefulRestartType
 	// original -> bgp-policy:apply-policy
-	ApplyPolicy []ApplyPolicyType
+	ApplyPolicy ApplyPolicyType
 	// original -> bgp-mp:afi
 	AfiList []AfiType
 	// original -> bgp:auth-password
@@ -662,17 +662,17 @@ type PeerGroupType struct {
 	// original -> bgp:peer-type
 	PeerType PeerTypeDef
 	// original -> bgp:timers
-	Timers []TimersType
+	Timers TimersType
 	// original -> bgp:ebgp-multihop
-	EbgpMultihop []EbgpMultihopType
+	EbgpMultihop EbgpMultihopType
 	// original -> bgp:route-reflector
-	RouteReflector []RouteReflectorType
+	RouteReflector RouteReflectorType
 	// original -> bgp:remove-private-as
 	RemovePrivateAs RemovePrivateAsOption
 	// original -> bgp:bgp-logging-options
-	BgpLoggingOptions []BgpLoggingOptionsType
+	BgpLoggingOptions BgpLoggingOptionsType
 	// original -> bgp:transport-options
-	TransportOptions []TransportOptionsType
+	TransportOptions TransportOptionsType
 	// original -> bgp:local-address
 	//local-address's original type is inet:ip-address
 	LocalAddress net.IP
@@ -714,17 +714,17 @@ type GlobalType struct {
 	//router-id's original type is inet:ipv4-address
 	RouterId net.IP
 	// original -> bgp:default-route-distance
-	DefaultRouteDistance []DefaultRouteDistanceType
+	DefaultRouteDistance DefaultRouteDistanceType
 	// original -> bgp:confederation
-	Confederation []ConfederationType
+	Confederation ConfederationType
 	// original -> bgp-op:bgp-global-state
-	BgpGlobalState []BgpGlobalStateType
+	BgpGlobalState BgpGlobalStateType
 }
 
 //struct for container bgp
 type BgpType struct {
 	// original -> bgp:global
-	Global []GlobalType
+	Global GlobalType
 	// original -> bgp-mp:afi
 	AfiList []AfiType
 	// original -> bgp:peer-group
@@ -732,5 +732,5 @@ type BgpType struct {
 	// original -> bgp:neighbor
 	NeighborList []NeighborType
 	// original -> bgp-policy:policy
-	Policy []PolicyType
+	Policy PolicyType
 }
