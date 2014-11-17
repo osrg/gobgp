@@ -1,4 +1,4 @@
-# Copyright (C) 2013,2014 Nippon Telegraph and Telephone Corporation.
+# Copyright (C) 2014 Nippon Telegraph and Telephone Corporation.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -13,17 +13,20 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-# this is a pyang plugin to generate $GOPATH/gobgp/config/bgp_configs.go
+# this is a pyang plugin to generate $GOBGP_PATH/config/bgp_configs.go
 # usage example:
+# GOBGP_PATH=$GOPATH/src/github.com/osrg/gobgp
 # cd $PYANG_INSTALL_DIR
 # source ./env.sh
-# PYTHONPATH=. ./bin/pyang --plugindir $GOPATH/gobgp/tools/pyang_plugins \
-#  -f golang ./modules/bgp.yang > $GOPATH/gobgp/config/bgp_configs.go
-# NOTICE: copy related yang files into $$PYANG_INSTALL_DIR/modules/ in advance.
+# PYTHONPATH=. ./bin/pyang --plugindir $GOBGP_PATH/tools/pyang_plugins \
+#  -f golang ./modules/bgp.yang > out.go
+# gofmt out.go > $GOBGP_PATH/config/bgp_configs.go
+#
+# NOTICE: copy related yang files into $PYANG_INSTALL_DIR/modules/ in advance.
 
 
 _COPYRIGHT_NOTICE = """
-// Copyright (C) 2013,2014 Nippon Telegraph and Telephone Corporation.
+// Copyright (C) 2014 Nippon Telegraph and Telephone Corporation.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -156,7 +159,7 @@ def emit_class_def(ctx, c, struct_name):
 
             # case translation required
             elif is_translation_required(type_obj):
-                print >> o, '  //original type is list of %s' % (type_obj)
+                print >> o, '  //original type is list of %s' % (type_obj.arg)
                 emit_type_name = '[]'+translate_type(type_name)
 
             # case other primitives
@@ -341,8 +344,8 @@ _type_translation_map = {
     'decimal64': 'float64',
     'boolean': 'bool',
     'empty': 'bool',
-    'inet:ip-address': '*net.IP',
-    'inet:ipv4-address': '*net.IP',
+    'inet:ip-address': 'net.IP',
+    'inet:ipv4-address': 'net.IP',
     'inet:as-number': 'uint32',
     'rr-cluster-id-type': 'uint32',
 }
