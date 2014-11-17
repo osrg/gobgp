@@ -1,4 +1,4 @@
-// Copyright (C) 2013,2014 Nippon Telegraph and Telephone Corporation.
+// Copyright (C) 2014 Nippon Telegraph and Telephone Corporation.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -185,7 +185,7 @@ type L2vpnVplsSafi struct {
 //struct for container set-ext-community
 type SetExtCommunityType struct {
 	// original -> bgp-policy:communities
-	//original type is list of <pyang.statements.Statement object at 0x10150d290>
+	//original type is list of union
 	Communities []string
 	// original -> bgp-policy:options
 	Options SetCommunityOptionType
@@ -194,7 +194,7 @@ type SetExtCommunityType struct {
 //struct for container set-community
 type SetCommunityType struct {
 	// original -> bgp-policy:communities
-	//original type is list of <pyang.statements.Statement object at 0x10150d0d0>
+	//original type is list of union
 	Communities []string
 	// original -> bgp-policy:options
 	Options SetCommunityOptionType
@@ -270,8 +270,8 @@ type ConditionsType struct {
 	// original -> bgp-policy:origin-eq
 	OriginEq BgpOriginAttrType
 	// original -> bgp-policy:next-hop-in
-	//original type is list of <pyang.statements.Statement object at 0x101517dd0>
-	NextHopIn []*net.IP
+	//original type is list of inet:ip-address
+	NextHopIn []net.IP
 	// original -> bgp-policy:local-pref-eq
 	LocalPrefEq uint32
 	// original -> bgp-policy:community-count
@@ -320,7 +320,7 @@ type ExtCommunitySetType struct {
 	// original -> bgp-policy:ext-community-set-name
 	ExtCommunitySetName string
 	// original -> bgp-policy:ext-community-members
-	//original type is list of <pyang.statements.Statement object at 0x1015085d0>
+	//original type is list of union
 	ExtCommunityMembers []string
 }
 
@@ -329,7 +329,7 @@ type CommunitySetType struct {
 	// original -> bgp-policy:community-set-name
 	CommunitySetName string
 	// original -> bgp-policy:community-members
-	//original type is list of <pyang.statements.Statement object at 0x101508490>
+	//original type is list of union
 	CommunityMembers []string
 }
 
@@ -337,7 +337,7 @@ type CommunitySetType struct {
 type PrefixType struct {
 	// original -> bgp-policy:address
 	//address's original type is inet:ip-address
-	Address *net.IP
+	Address net.IP
 	// original -> bgp-policy:masklength
 	Masklength uint8
 	// original -> bgp-policy:masklength-range
@@ -593,7 +593,7 @@ type RouteSelectionOptionsType struct {
 type NeighborType struct {
 	// original -> bgp:neighbor-address
 	//neighbor-address's original type is inet:ip-address
-	NeighborAddress *net.IP
+	NeighborAddress net.IP
 	// original -> bgp:peer-as
 	//peer-as's original type is inet:as-number
 	PeerAs uint32
@@ -627,7 +627,7 @@ type NeighborType struct {
 	TransportOptions []TransportOptionsType
 	// original -> bgp:local-address
 	//local-address's original type is inet:ip-address
-	LocalAddress *net.IP
+	LocalAddress net.IP
 	// original -> bgp:route-flap-damping
 	//route-flap-damping's original type is boolean
 	RouteFlapDamping bool
@@ -675,7 +675,7 @@ type PeerGroupType struct {
 	TransportOptions []TransportOptionsType
 	// original -> bgp:local-address
 	//local-address's original type is inet:ip-address
-	LocalAddress *net.IP
+	LocalAddress net.IP
 	// original -> bgp:route-flap-damping
 	//route-flap-damping's original type is boolean
 	RouteFlapDamping bool
@@ -693,7 +693,7 @@ type ConfederationType struct {
 	//identifier's original type is inet:as-number
 	Identifier uint32
 	// original -> bgp:member-as
-	//original type is list of <pyang.statements.Statement object at 0x1014cb0d0>
+	//original type is list of inet:as-number
 	MemberAs []uint32
 }
 
@@ -712,7 +712,7 @@ type GlobalType struct {
 	As uint32
 	// original -> bgp:router-id
 	//router-id's original type is inet:ipv4-address
-	RouterId *net.IP
+	RouterId net.IP
 	// original -> bgp:default-route-distance
 	DefaultRouteDistance []DefaultRouteDistanceType
 	// original -> bgp:confederation
