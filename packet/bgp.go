@@ -1180,6 +1180,10 @@ func (a *AsPathParam) Len() int {
 	return 2 + len(a.AS)*2
 }
 
+func (a *AsPathParam) ASLen() int {
+	return len(a.AS)
+}
+
 func NewAsPathParam(segType uint8, as []uint16) *AsPathParam {
 	return &AsPathParam{
 		Type: segType,
@@ -1219,6 +1223,10 @@ func (a *As4PathParam) Len() int {
 	return 2 + len(a.AS)*4
 }
 
+func (a *As4PathParam) ASLen() int {
+	return len(a.AS)
+}
+
 func NewAs4PathParam(segType uint8, as []uint32) *As4PathParam {
 	return &As4PathParam{
 		Type: segType,
@@ -1250,6 +1258,7 @@ type AsPathParamInterface interface {
 	Serialize() ([]byte, error)
 	DecodeFromBytes([]byte) error
 	Len() int
+	ASLen() int
 }
 
 type PathAttributeAsPath struct {
