@@ -23,6 +23,158 @@ import (
 	"testing"
 )
 
+func TestDestinationNewIPv4(t *testing.T) {
+	peerD := DestCreatePeer()
+	msgD := DestCreateMSG(peerD)
+	pathD := DestCreatePath(msgD)
+	ipv4d := NewIPv4Destination(pathD[0].getNlri())
+	assert.NotNil(t, ipv4d)
+}
+func TestDestinationNewIPv6(t *testing.T) {
+	peerD := DestCreatePeer()
+	msgD := DestCreateMSG(peerD)
+	pathD := DestCreatePath(msgD)
+	ipv6d := NewIPv6Destination(pathD[0].getNlri())
+	assert.NotNil(t, ipv6d)
+}
+
+func TestDestinationSetRouteFamily(t *testing.T) {
+	dd := &DestinationDefault{}
+	dd.setRouteFamily(RF_IPv4_UC)
+	rf := dd.getRouteFamily()
+	assert.Equal(t, rf, RF_IPv4_UC)
+}
+func TestDestinationGetRouteFamily(t *testing.T) {
+	dd := &DestinationDefault{}
+	dd.setRouteFamily(RF_IPv6_UC)
+	rf := dd.getRouteFamily()
+	assert.Equal(t, rf, RF_IPv6_UC)
+}
+func TestDestinationSetNlri(t *testing.T) {
+	dd := &DestinationDefault{}
+	nlri := bgp.NewNLRInfo(24, "13.2.3.1")
+	dd.setNlri(nlri)
+	r_nlri := dd.getNlri()
+	assert.Equal(t, r_nlri, nlri)
+}
+func TestDestinationGetNlri(t *testing.T) {
+	dd := &DestinationDefault{}
+	nlri := bgp.NewNLRInfo(24, "10.110.123.1")
+	dd.setNlri(nlri)
+	r_nlri := dd.getNlri()
+	assert.Equal(t, r_nlri, nlri)
+}
+func TestDestinationSetBestPathReason(t *testing.T) {
+	dd := &DestinationDefault{}
+	reason := "reason1"
+	dd.setBestPathReason(reason)
+	r_reason := dd.getBestPathReason()
+	assert.Equal(t, r_reason, reason)
+}
+func TestDestinationGetBestPathReason(t *testing.T) {
+	dd := &DestinationDefault{}
+	reason := "reason2"
+	dd.setBestPathReason(reason)
+	r_reason := dd.getBestPathReason()
+	assert.Equal(t, r_reason, reason)
+}
+func TestDestinationSetBestPath(t *testing.T) {
+	peerD := DestCreatePeer()
+	msgD := DestCreateMSG(peerD)
+	pathD := DestCreatePath(msgD)
+	ipv4d := NewIPv4Destination(pathD[0].getNlri())
+	ipv4d.setBestPath(pathD[0])
+	r_pathD := ipv4d.getBestPath()
+	assert.Equal(t, r_pathD, pathD[0])
+}
+func TestDestinationGetBestPath(t *testing.T) {
+	peerD := DestCreatePeer()
+	msgD := DestCreateMSG(peerD)
+	pathD := DestCreatePath(msgD)
+	ipv4d := NewIPv4Destination(pathD[0].getNlri())
+	ipv4d.setBestPath(pathD[0])
+	r_pathD := ipv4d.getBestPath()
+	assert.Equal(t, r_pathD, pathD[0])
+}
+func TestDestinationCalculate(t *testing.T) {
+	peerD := DestCreatePeer()
+	msgD := DestCreateMSG(peerD)
+	pathD := DestCreatePath(msgD)
+	ipv4d := NewIPv4Destination(pathD[0].getNlri())
+	//best path selection
+	ipv4d.addNewPath(pathD[0])
+	ipv4d.addNewPath(pathD[1])
+	ipv4d.addNewPath(pathD[2])
+	ipv4d.addWithdraw(pathD[2])
+	_, _, e := ipv4d.Calculate(uint32(100))
+	assert.Nil(t, e)
+}
+
+func TestDestinationRemoveSentRoute(t *testing.T) {
+	peerD := DestCreatePeer()
+	msgD := DestCreateMSG(peerD)
+	pathD := DestCreatePath(msgD)
+	ipv4d := NewIPv4Destination(pathD[0].getNlri())
+	//sent route and remove sent route
+	sroute1 := &SentRoute{path: pathD[0], peer: peerD[0]}
+	sroute2 := &SentRoute{path: pathD[1], peer: peerD[0]}
+	sroute3 := &SentRoute{path: pathD[2], peer: peerD[1]}
+	ipv4d.addSentRoute(sroute1)
+	ipv4d.addSentRoute(sroute2)
+	ipv4d.addSentRoute(sroute3)
+	result := ipv4d.removeSentRoute(peerD[2])
+	assert.Equal(t, result, false)
+	result = ipv4d.removeSentRoute(peerD[1])
+	assert.Equal(t, result, true)
+}
+
+func TestDestinationRemoveOldPathsFromSource(t *testing.T) {
+	peerD := DestCreatePeer()
+	msgD := DestCreateMSG(peerD)
+	pathD := DestCreatePath(msgD)
+	ipv4d := NewIPv4Destination(pathD[0].getNlri())
+	sroute1 := &SentRoute{path: pathD[0], peer: peerD[0]}
+	sroute2 := &SentRoute{path: pathD[1], peer: peerD[0]}
+	sroute3 := &SentRoute{path: pathD[2], peer: peerD[1]}
+	ipv4d.addSentRoute(sroute1)
+	ipv4d.addSentRoute(sroute2)
+	ipv4d.addSentRoute(sroute3)
+	compPath := make([]Path, 0)
+	for _, peer := range peerD {
+		r_path := ipv4d.removeOldPathsFromSource(peer)
+		assert.Equal(t, r_path, compPath)
+	}
+}
+
+func DestCreatePeer() []*Peer {
+	peerD1 := &Peer{VersionNum: 4, RemoteAs: 65000}
+	peerD2 := &Peer{VersionNum: 4, RemoteAs: 65001}
+	peerD3 := &Peer{VersionNum: 4, RemoteAs: 65002}
+	peerD := []*Peer{peerD1, peerD2, peerD3}
+	return peerD
+}
+func DestCreateMSG(peerD []*Peer) []*ProcessMessage {
+	bgpMsgD1 := updateMsgD1()
+	bgpMsgD2 := updateMsgD2()
+	bgpMsgD3 := updateMsgD3()
+	msgD1 := &ProcessMessage{innerMessage: bgpMsgD1, fromPeer: peerD[0]}
+	msgD2 := &ProcessMessage{innerMessage: bgpMsgD2, fromPeer: peerD[1]}
+	msgD3 := &ProcessMessage{innerMessage: bgpMsgD3, fromPeer: peerD[2]}
+	msgD := []*ProcessMessage{msgD1, msgD2, msgD3}
+	return msgD
+}
+func DestCreatePath(msgs []*ProcessMessage) []Path {
+	pathD := make([]Path, 3)
+	for i, msg := range msgs {
+		updateMsgD := msg.innerMessage.Body.(*bgp.BGPUpdate)
+		nlriList := updateMsgD.NLRI
+		pathAttributes := updateMsgD.PathAttributes
+		nlri_info := nlriList[0]
+		pathD[i] = CreatePath(msg.fromPeer, &nlri_info, pathAttributes, false)
+	}
+	return pathD
+}
+
 func updateMsgD1() *bgp.BGPMessage {
 
 	origin := bgp.NewPathAttributeOrigin(0)
@@ -80,128 +232,4 @@ func updateMsgD3() *bgp.BGPMessage {
 	w1 := bgp.WithdrawnRoute{*bgp.NewIPAddrPrefix(23, "40.40.40.0")}
 	withdrawnRoutes := []bgp.WithdrawnRoute{w1}
 	return bgp.NewBGPUpdateMessage(withdrawnRoutes, pathAttributes, nlri)
-}
-func createDestinationCheck(t *testing.T, path Path) (Destination, string) {
-	dest := NewIPv4Destination(path.getNlri())
-	ar := assert.NotNil(t, dest)
-	if !ar {
-		return nil, "NG"
-	}
-	return dest, "OK"
-}
-
-func routeCheck(t *testing.T, dest Destination) string {
-	bgpMsg1 := updateMsgD1()
-	bgpMsg2 := updateMsgD2()
-	bgpMsg3 := updateMsgD3()
-	pr1 := &Peer{VersionNum: 2, RemoteAs: 65000}
-	pr2 := &Peer{VersionNum: 4, RemoteAs: 65001}
-	pr3 := &Peer{VersionNum: 4, RemoteAs: 65002}
-	msg1 := &ProcessMessage{innerMessage: bgpMsg1, fromPeer: pr1}
-	msg2 := &ProcessMessage{innerMessage: bgpMsg2, fromPeer: pr1}
-	msg3 := &ProcessMessage{innerMessage: bgpMsg3, fromPeer: pr2}
-	path1, _ := createPathCheck(t, msg1)
-	path2, _ := createPathCheck(t, msg2)
-	path3, _ := createPathCheck(t, msg3)
-
-	//best path selection
-	dest.addNewPath(path1)
-	dest.addNewPath(path2)
-	dest.addNewPath(path3)
-	dest.addWithdraw(path3)
-
-	_, _, e := dest.Calculate(uint32(100))
-	//bpath, str, e := dest.Calculate()
-	//t.Log(bpath)
-	//t.Log(str)
-	ar := assert.Nil(t, e)
-	if !ar {
-		return "NG"
-	}
-
-	//sent route and remove sent route
-	sroute1 := &SentRoute{path: path1, peer: pr1}
-	sroute2 := &SentRoute{path: path2, peer: pr1}
-	sroute3 := &SentRoute{path: path3, peer: pr2}
-	dest.addSentRoute(sroute1)
-	dest.addSentRoute(sroute2)
-	dest.addSentRoute(sroute3)
-	result := dest.removeSentRoute(pr3)
-	ar = assert.Equal(t, result, false)
-	if !ar {
-		return "NG"
-	}
-	result = dest.removeSentRoute(pr2)
-	ar = assert.Equal(t, result, true)
-	if !ar {
-		return "NG"
-	}
-
-	//remote old path
-	rpath := dest.removeOldPathsFromSource(pr1)
-	t.Log(rpath)
-	//t.Log(dest.getKnownPathList())
-	return "OK"
-}
-
-/*
-func getKnownPathListCheck(t *testing.T, dest Destination) string {
-	paths := dest.getKnownPathList()
-	t.Log(paths)
-	return "OK"
-}
-*/
-
-//getter&setter test
-func dgsTerCheck(t *testing.T, path Path) string {
-	dd := &DestinationDefault{}
-	//check Route Family
-	dd.setRouteFamily(RF_IPv4_UC)
-	rf := dd.getRouteFamily()
-	ar := assert.Equal(t, rf, RF_IPv4_UC)
-	if !ar {
-		return "NG"
-	}
-	//check nlri
-	nlri := bgp.NewNLRInfo(24, "13.2.3.1")
-	dd.setNlri(nlri)
-	r_nlri := dd.getNlri()
-	ar = assert.Equal(t, r_nlri, nlri)
-	if !ar {
-		return "NG"
-	}
-	// check best path reason
-	reason := "reason"
-	dd.setBestPathReason(reason)
-	r_reason := dd.getBestPathReason()
-	ar = assert.Equal(t, r_reason, reason)
-	if !ar {
-		return "NG"
-	}
-	//check best path
-	dd.setBestPath(path)
-	r_path := dd.getBestPath()
-	ar = assert.Equal(t, r_path, path)
-	if !ar {
-		return "NG"
-	}
-	return "OK"
-}
-func TestDestination(t *testing.T) {
-	bgpMsg1 := updateMsgD1()
-	pr1 := &Peer{VersionNum: 2, RemoteAs: 65000}
-	msg := &ProcessMessage{innerMessage: bgpMsg1, fromPeer: pr1}
-	path, _ := createPathCheck(t, msg)
-	t.Log("# CREATE PATH CHECK")
-	dest, result := createDestinationCheck(t, path)
-	t.Log("# CHECK END -> [ ", result, " ]")
-	t.Log("")
-	t.Log("# ROUTE CHECK")
-	result = routeCheck(t, dest)
-	t.Log("# CHECK END -> [ ", result, " ]")
-	t.Log("")
-	t.Log("# GETTER SETTER CHECK")
-	result = dgsTerCheck(t, path)
-	t.Log("# CHECK END -> [ ", result, " ]")
-	t.Log("")
 }

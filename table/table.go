@@ -39,7 +39,7 @@ type TableDefault struct {
 	//need SignalBus
 }
 
-func NewTableDefault(scope_id, coreService *CoreService) *TableDefault {
+func NewTableDefault(scope_id int, coreService *CoreService) *TableDefault {
 	table := &TableDefault{}
 	table.ROUTE_FAMILY = RF_IPv4_UC
 	table.destinations = make(map[string]Destination)
@@ -194,7 +194,7 @@ type IPv4Table struct {
 	//need structure
 }
 
-func NewIPv4Table(scope_id, coreService *CoreService) *IPv4Table {
+func NewIPv4Table(scope_id int, coreService *CoreService) *IPv4Table {
 	ipv4Table := &IPv4Table{}
 	ipv4Table.TableDefault = NewTableDefault(scope_id, coreService)
 	ipv4Table.TableDefault.ROUTE_FAMILY = RF_IPv4_UC
@@ -228,7 +228,7 @@ type IPv6Table struct {
 	//need structure
 }
 
-func NewIPv6Table(scope_id, coreService *CoreService) *IPv6Table {
+func NewIPv6Table(scope_id int, coreService *CoreService) *IPv6Table {
 	ipv6Table := &IPv6Table{}
 	ipv6Table.TableDefault = NewTableDefault(scope_id, coreService)
 	ipv6Table.TableDefault.ROUTE_FAMILY = RF_IPv6_UC

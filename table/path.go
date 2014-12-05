@@ -57,10 +57,6 @@ type PathDefault struct {
 
 func NewPathDefault(source *Peer, nlri bgp.AddrPrefixInterface, sourceVerNum int, nexthop net.IP,
 	isWithdraw bool, pattr *utils.OrderedMap, medSetByTargetNeighbor bool) *PathDefault {
-	if source == nil {
-		logger.Error("Need to provide source")
-		return nil
-	}
 
 	if !isWithdraw && (pattr == nil || nexthop == nil) {
 		logger.Error("Need to provide nexthop and patattrs for path that is not a withdraw.")
@@ -174,9 +170,16 @@ func (pi *PathDefault) clone(forWithdrawal bool) Path {
 	if !forWithdrawal {
 		pathAttrs = pi.getPathAttributeMap()
 	}
-	clone := NewPathDefault(pi.getSource(), pi.getNlri(), pi.getSourceVerNum(),
+	def := NewPathDefault(pi.getSource(), pi.getNlri(), pi.getSourceVerNum(),
 		pi.getNexthop(), forWithdrawal, pathAttrs, pi.getMedSetByTargetNeighbor())
-	return clone
+	switch pi.ROUTE_FAMILY {
+	case RF_IPv4_UC:
+		return &IPv4Path{PathDefault: def}
+	case RF_IPv6_UC:
+		return &IPv6Path{PathDefault: def}
+	default:
+		return def
+	}
 }
 
 // return Path's string representation
@@ -190,20 +193,14 @@ func (pi *PathDefault) String() string {
 }
 
 func (pi *PathDefault) getPrefix() net.IP {
-	addrPrefix := pi.nlri.(*bgp.NLRInfo)
-	return addrPrefix.Prefix
-}
 
-func getNextHop(pathAttributes []bgp.PathAttributeInterface) net.IP {
-
-	for _, pathAttr := range pathAttributes {
-		switch p := pathAttr.(type) {
-		case *bgp.PathAttributeNextHop:
-			return p.Value
-		}
+	switch nlri := pi.nlri.(type) {
+	case *bgp.NLRInfo:
+		return nlri.Prefix
+	case *bgp.WithdrawnRoute:
+		return nlri.Prefix
 	}
 	return nil
-
 }
 
 func createPathAttributeMap(pathAttributes []bgp.PathAttributeInterface) *utils.OrderedMap {
@@ -258,25 +255,36 @@ func CreatePath(source *Peer, nlri bgp.AddrPrefixInterface,
 	logger.Debugf("afi: %d, safi: %d ", int(nlri.AFI()), nlri.SAFI())
 	pathAttrMap := createPathAttributeMap(pathAttributes)
 	var path Path
+	var sourceVerNum int = 1
+
+	if source != nil {
+		sourceVerNum = source.VersionNum
+	}
 
 	switch rf {
 	case RF_IPv4_UC:
 		logger.Debugf("RouteFamily : %s", RF_IPv4_UC.String())
-		nexthop := getNextHop(pathAttributes)
-		path = NewIPv4Path(source, nlri, source.VersionNum, nexthop, isWithdraw, pathAttrMap, false)
-	case RF_IPv6_UC:
-		logger.Debugf("RouteFamily : %s", RF_IPv6_UC.String())
-		var mpattr *bgp.PathAttributeMpReachNLRI
 		var nexthop net.IP
 
 		if !isWithdraw {
-			mpattr = pathAttrMap.Get(bgp.BGP_ATTR_TYPE_MP_REACH_NLRI).(*bgp.PathAttributeMpReachNLRI)
-			nexthop = mpattr.Nexthop
+			nexthop_attr := pathAttrMap.Get(bgp.BGP_ATTR_TYPE_NEXT_HOP).(*bgp.PathAttributeNextHop)
+			nexthop = nexthop_attr.Value
 		} else {
 			nexthop = nil
 		}
 
-		path = NewIPv6Path(source, nlri, source.VersionNum, nexthop, isWithdraw, pathAttrMap, false)
+		path = NewIPv4Path(source, nlri, sourceVerNum, nexthop, isWithdraw, pathAttrMap, false)
+	case RF_IPv6_UC:
+		logger.Debugf("RouteFamily : %s", RF_IPv6_UC.String())
+		var nexthop net.IP
+
+		if !isWithdraw {
+			mpattr := pathAttrMap.Get(bgp.BGP_ATTR_TYPE_MP_REACH_NLRI).(*bgp.PathAttributeMpReachNLRI)
+			nexthop = mpattr.Nexthop
+		} else {
+			nexthop = nil
+		}
+		path = NewIPv6Path(source, nlri, sourceVerNum, nexthop, isWithdraw, pathAttrMap, false)
 	}
 	return path
 }
