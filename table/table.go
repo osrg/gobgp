@@ -81,18 +81,17 @@ func insert(table Table, path Path) Destination {
 	return dest
 }
 func insertSentRoute(table Table, sentRoute *SentRoute) {
-	pd := sentRoute.path.(*PathDefault)
+	pd := sentRoute.path
 	table.validatePath(pd)
 	dest := getOrCreateDest(table, pd.getNlri())
-	dest.(*DestinationDefault).addSentRoute(sentRoute)
+	dest.addSentRoute(sentRoute)
 }
 
 //"Remove old paths from whose source is `peer`
 func (td *TableDefault) cleanupPathsForPeer(peer *Peer) {
 	for _, dest := range td.destinations {
-		dd := dest.(*DestinationDefault)
-		pathsDeleted := dd.removeOldPathsFromSource(peer)
-		hadSent := dd.removeSentRoute(peer)
+		pathsDeleted := dest.removeOldPathsFromSource(peer)
+		hadSent := dest.removeSentRoute(peer)
 		if hadSent {
 			logger.Errorf("Cleaning paths from table %s for peer %s.", td, peer)
 		}
@@ -119,7 +118,7 @@ func (td *TableDefault) cleanUninterestingPaths(interested_rts) int  {
 }
 */
 
-func deleteDestByNlri(table Table, nlri *bgp.NLRInfo) Destination {
+func deleteDestByNlri(table Table, nlri bgp.AddrPrefixInterface) Destination {
 	table.validateNlri(nlri)
 	destinations := table.getDestinations()
 	dest := destinations[table.tableKey(nlri).String()]

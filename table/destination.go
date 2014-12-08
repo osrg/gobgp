@@ -48,6 +48,8 @@ type Destination interface {
 	setBestPathReason(string)
 	getBestPath() Path
 	setBestPath(path Path)
+	getOldBestPath() Path
+	setOldBestPath(path Path)
 	getKnownPathList() []Path
 	String() string
 	addWithdraw(withdraw Path)
@@ -67,6 +69,7 @@ type DestinationDefault struct {
 	newPathList    []Path
 	bestPath       Path
 	bestPathReason string
+	oldBestPath    Path
 	sentRoutes     map[*Peer]*SentRoute
 }
 
@@ -79,6 +82,7 @@ func NewDestinationDefault(nlri bgp.AddrPrefixInterface) *DestinationDefault {
 	destination.newPathList = make([]Path, 0)
 	destination.bestPath = nil
 	destination.bestPathReason = ""
+	destination.oldBestPath = nil
 	destination.sentRoutes = make(map[*Peer]*SentRoute)
 	return destination
 }
@@ -113,6 +117,14 @@ func (dd *DestinationDefault) getBestPath() Path {
 
 func (dd *DestinationDefault) setBestPath(path Path) {
 	dd.bestPath = path
+}
+
+func (dd *DestinationDefault) getOldBestPath() Path {
+	return dd.oldBestPath
+}
+
+func (dd *DestinationDefault) setOldBestPath(path Path) {
+	dd.oldBestPath = path
 }
 
 func (dd *DestinationDefault) getKnownPathList() []Path {
@@ -245,14 +257,12 @@ func (dest *DestinationDefault) removeWithdrawls() {
 	matches := make(map[string]Path)
 	wMatches := make(map[string]Path)
 	// Match all withdrawals from destination paths.
-	for _, wItem := range dest.withdrawList {
-		withdraw := wItem.(*PathDefault)
+	for _, withdraw := range dest.withdrawList {
 		var isFound bool = false
-		for _, item := range dest.knownPathList {
-			path := item.(*PathDefault)
+		for _, path := range dest.knownPathList {
 			// We have a match if the source are same.
 			// TODO add GetSource to Path interface
-			if path.source == withdraw.source {
+			if path.getSource() == withdraw.getSource() {
 				isFound = true
 				matches[path.String()] = path
 				wMatches[withdraw.String()] = withdraw

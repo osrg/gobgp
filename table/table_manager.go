@@ -20,7 +20,6 @@ import (
 	"github.com/osrg/gobgp/packet"
 	"net"
 	"os"
-	"reflect"
 	"time"
 )
 
@@ -135,11 +134,10 @@ func (attr AttributeType) String() string {
 }
 
 type TableManager struct {
-	Tables          map[RouteFamily]Table
-	adjInLocalRib   map[string]*ReceivedRoute
-	processMessages chan *ProcessMessage
-	Counter         map[PeerCounterName]int
-	localAsn        uint32
+	Tables        map[RouteFamily]Table
+	adjInLocalRib map[string]*ReceivedRoute
+	Counter       map[PeerCounterName]int
+	localAsn      uint32
 }
 
 type ProcessMessage struct {
@@ -152,8 +150,6 @@ func NewTableManager() *TableManager {
 	t.Tables = make(map[RouteFamily]Table)
 	t.Tables[RF_IPv4_UC] = NewIPv4Table(0, nil)
 	t.Tables[RF_IPv6_UC] = NewIPv6Table(0, nil)
-
-	t.processMessages = make(chan *ProcessMessage, 10)
 	// initialize prefix counter
 	t.Counter = make(map[PeerCounterName]int)
 	t.Counter[RECV_PREFIXES] = 0
@@ -175,19 +171,21 @@ func (manager *TableManager) incrCounter(name PeerCounterName, step int) {
 func (manager *TableManager) handleNlri(p *ProcessMessage) ([]Destination, error) {
 
 	updateMsg := p.innerMessage.Body.(*bgp.BGPUpdate)
-	nlriList := updateMsg.NLRI
+	nlriList := updateMsg.NLRI // NLRI is an array of NLRInfo.
 	pathAttributes := updateMsg.PathAttributes
 
 	destList := make([]Destination, 0)
 	for _, nlri_info := range nlriList {
+
+		// define local variable to pass nlri's address to CreatePath
+		var nlri bgp.NLRInfo = nlri_info
 		// create Path object
-		path := CreatePath(p.fromPeer, &nlri_info, pathAttributes, false)
+		path := CreatePath(p.fromPeer, &nlri, pathAttributes, false)
 		// TODO process filter
 
 		rf := path.getRouteFamily()
 		// push Path into table
 		destination := insert(manager.Tables[rf], path)
-
 		destList = append(destList, destination)
 		manager.incrCounter(RECV_PREFIXES, len(nlriList))
 		// TODO handle adj-in-loc-rib
@@ -196,7 +194,7 @@ func (manager *TableManager) handleNlri(p *ProcessMessage) ([]Destination, error
 		//		manager.adjInChanged <- rr
 	}
 
-	logger.Debugf("destinationList contains %d destinations from nlri", len(destList))
+	logger.Debugf("destinationList contains %d destinations from nlri_info", len(destList))
 
 	return destList, nil
 }
@@ -212,8 +210,10 @@ func (manager *TableManager) handleWithdraw(p *ProcessMessage) ([]Destination, e
 
 	// process withdraw path
 	for _, nlriWithdraw := range withdrawnRoutes {
+		// define local variable to pass nlri's address to CreatePath
+		var w bgp.WithdrawnRoute = nlriWithdraw
 		// create withdrawn Path object
-		path := CreatePath(p.fromPeer, &nlriWithdraw, pathAttributes, true)
+		path := CreatePath(p.fromPeer, &w, pathAttributes, true)
 		rf := path.getRouteFamily()
 		// push Path into table
 		destination := insert(manager.Tables[rf], path)
@@ -231,11 +231,12 @@ func (manager *TableManager) handleMPReachNlri(p *ProcessMessage) ([]Destination
 	pathAttributes := updateMsg.PathAttributes
 	attrList := []*bgp.PathAttributeMpReachNLRI{}
 
+LOOP:
 	for _, attr := range pathAttributes {
-		logger.Debugf("attr type: %s", reflect.TypeOf(attr))
 		switch a := attr.(type) {
 		case *bgp.PathAttributeMpReachNLRI:
 			attrList = append(attrList, a)
+			break LOOP
 		}
 	}
 
@@ -271,10 +272,12 @@ func (manager *TableManager) handleMPUNReachNlri(p *ProcessMessage) ([]Destinati
 	pathAttributes := updateMsg.PathAttributes
 	attrList := []*bgp.PathAttributeMpUnreachNLRI{}
 
+LOOP:
 	for _, attr := range pathAttributes {
 		switch a := attr.(type) {
 		case *bgp.PathAttributeMpUnreachNLRI:
 			attrList = append(attrList, a)
+			break LOOP
 		}
 	}
 
@@ -300,10 +303,10 @@ func (manager *TableManager) handleMPUNReachNlri(p *ProcessMessage) ([]Destinati
 
 // process BGPUpdate message
 // this function processes only BGPUpdate
-func (manager *TableManager) ProcessUpdate(fromPeer *Peer, message *bgp.BGPMessage) ([]Path, []Path, error) {
+func (manager *TableManager) ProcessUpdate(fromPeer *Peer, message *bgp.BGPMessage) ([]Path, []Destination, error) {
 
 	var bestPaths []Path = make([]Path, 0)
-	var withdrawPaths []Path = make([]Path, 0)
+	var lostDest []Destination = make([]Destination, 0)
 
 	// check msg's type if it's BGPUpdate
 	body := message.Body
@@ -348,12 +351,10 @@ func (manager *TableManager) ProcessUpdate(fromPeer *Peer, message *bgp.BGPMessa
 		if destinationList != nil {
 			for _, destination := range destinationList {
 				// compute best path
-				logger.Infof("Processing destination: %s", destination.String())
+				logger.Infof("Processing destination: %v", destination.String())
 				newBestPath, reason, err := destination.Calculate(manager.localAsn)
 
-				logger.Debugf("new best path: %s, reason=%s", newBestPath, reason)
-				logger.Infof("new best path: NLRI: %s, next_hop=%s, reason=%s", newBestPath.getPrefix().String(),
-					newBestPath.getNexthop().String(), reason)
+				logger.Debugf("new best path: %v, reason=%v", newBestPath, reason)
 				if err != nil {
 					logger.Error(err)
 					continue
@@ -369,20 +370,24 @@ func (manager *TableManager) ProcessUpdate(fromPeer *Peer, message *bgp.BGPMessa
 				}
 
 				if newBestPath == nil {
-
-					logger.Debug("new best path is nil")
-
+					logger.Debug("best path is nil")
 					if len(destination.getKnownPathList()) == 0 {
 						// create withdraw path
 						if currentBestPath != nil {
-							withdrawPaths = append(withdrawPaths, currentBestPath)
+							logger.Debug("best path is lost")
+							destination.setOldBestPath(destination.getBestPath())
+							lostDest = append(lostDest, destination)
 						}
 						destination.setBestPath(nil)
 					} else {
-						panic("known path list is not empty")
+						logger.Error("known path list is not empty")
 					}
 				} else {
-					logger.Debug("best path : ", newBestPath.String())
+					logger.Debugf("new best path: NLRI: %v, next_hop=%v, reason=%v",
+						newBestPath.getPrefix().String(),
+						newBestPath.getNexthop().String(),
+						reason)
+
 					bestPaths = append(bestPaths, newBestPath)
 					destination.setBestPath(newBestPath)
 				}
@@ -391,6 +396,7 @@ func (manager *TableManager) ProcessUpdate(fromPeer *Peer, message *bgp.BGPMessa
 					rf := destination.getRouteFamily()
 					t := manager.Tables[rf]
 					deleteDest(t, destination)
+					logger.Debugf("destination removed route_family=%v, destination=%v", rf, destination)
 				}
 			}
 		}
@@ -398,7 +404,7 @@ func (manager *TableManager) ProcessUpdate(fromPeer *Peer, message *bgp.BGPMessa
 		logger.Warn("message is not BGPUpdate")
 	}
 
-	return bestPaths, withdrawPaths, nil
+	return bestPaths, lostDest, nil
 }
 
 type ReceivedRoute struct {
