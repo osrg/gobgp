@@ -33,7 +33,7 @@ func getData(t *testing.T, oMap *OrderedMap, iNum int, deleteNum int) string {
 		arg := "test"
 		key := i
 		value := fmt.Sprintf("%s%d", arg, key)
-		ans := oMap.Get(i).Element
+		ans := oMap.Get(i)
 		result = "OK"
 		//fmt.Println(ans)
 		if ans != value {
@@ -57,7 +57,7 @@ func deleteData(t *testing.T, oMap *OrderedMap, iNum int, deleteNum int) string 
 func popData(t *testing.T, oMap *OrderedMap, iNum int, popNum int) string {
 	arg := "test"
 	value := fmt.Sprintf("%s%d", arg, popNum)
-	getValue := oMap.Pop(popNum).Element
+	getValue := oMap.Pop(popNum)
 	result := "OK"
 	fmt.Println(getValue)
 	if value != getValue {
