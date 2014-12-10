@@ -2,161 +2,154 @@
 package utils
 
 import (
+	"container/list"
 	"fmt"
+	"github.com/stretchr/testify/assert"
 	"testing"
 )
 
-func insertData(t *testing.T, oMap *OrderedMap, num int) (*OrderedMap, string) {
-	var e error = nil
-	for i := 0; i < num; i++ {
-		arg := "test"
-		key := i
-		value := fmt.Sprintf("%s%d", arg, key)
-		e = oMap.Append(key, value)
-		if e != nil {
-			t.Error(e)
-		}
-	}
-	result := "FAIL"
-	if e == nil {
-		result = "OK"
-	}
-	return oMap, result
+func TestOrderedMapNew(t *testing.T) {
+	oMap1 := NewOrderedMap()
+	oMap2 := new(OrderedMap)
+	oMap2.TMap = make(map[K]interface{})
+	oMap2.TOrder = list.New()
+	assert.NotNil(t, oMap1)
+	assert.Equal(t, oMap1, oMap2)
 }
 
-func getData(t *testing.T, oMap *OrderedMap, iNum int, deleteNum int) string {
-	var result string
-	for i := 0; i < iNum; i++ {
-		if deleteNum == i {
-			continue
-		}
-		arg := "test"
-		key := i
-		value := fmt.Sprintf("%s%d", arg, key)
-		ans := oMap.Get(i)
-		result = "OK"
-		//fmt.Println(ans)
-		if ans != value {
-			result = "FAIL"
-			break
-		}
-	}
-	return result
-}
-func deleteData(t *testing.T, oMap *OrderedMap, iNum int, deleteNum int) string {
-	e := oMap.Delete(deleteNum)
-	result := "OK"
-	if e != nil {
-		result = "FAIL"
-		t.Error(e)
-		return result
-	}
-	result = getData(t, oMap, iNum, deleteNum)
-	return result
-}
-func popData(t *testing.T, oMap *OrderedMap, iNum int, popNum int) string {
-	arg := "test"
-	value := fmt.Sprintf("%s%d", arg, popNum)
-	getValue := oMap.Pop(popNum)
-	result := "OK"
-	fmt.Println(getValue)
-	if value != getValue {
-		result = "FAIL"
-		t.Errorf("Different result < %s > < %s >", value, getValue)
-		return result
-	}
-	result = getData(t, oMap, iNum, popNum)
-	return result
-}
-func checkLen(t *testing.T, oMap *OrderedMap, iNum int) string {
-	mLen := oMap.Len()
-	result := "OK"
-	if mLen != iNum {
-		result = "FAIL"
-		t.Errorf("Different result < %d > < %d >", mLen, iNum)
-		return result
-	}
-	return result
-}
-func getkListData(t *testing.T, oMap *OrderedMap, iNum int) string {
-	kList := oMap.KeyLists()
-	mkLen := kList.Len()
-	result := "OK"
-	if mkLen != iNum {
-		result = "FAIL"
-		t.Errorf("Different result < %d > < %d >", mkLen, iNum)
-		return result
-	}
-	i := 0
-	for elem := kList.Front(); elem != nil; elem = elem.Next() {
-		if elem.Value != i {
-			result = "FAIL"
-			break
-		}
-		i++
-	}
-	return result
-}
-func getvListData(t *testing.T, oMap *OrderedMap, iNum int) string {
-	vList := oMap.ValueLists()
-	mvLen := vList.Len()
-	result := "OK"
-	if mvLen != iNum {
-		result = "FAIL"
-		t.Errorf("Different result < %d > < %d >", mvLen, iNum)
-		return result
-	}
-	arg := "test"
-	i := 0
-	for elem := vList.Front(); elem != nil; elem = elem.Next() {
-		value := fmt.Sprintf("%s%d", arg, i)
-		if elem.Value != value {
-			result = "FAIL"
-			break
-		}
-		i++
-	}
-	return result
-}
-func Test_Collection(t *testing.T) {
-	// init
-	var result string
-	iNum := 10
-	deleteNum := -1
+func TestOrderedMapAppend(t *testing.T) {
 	oMap := NewOrderedMap()
-	// test
-	t.Log("# INSERT")
-	oMap, result = insertData(t, oMap, iNum)
-	t.Log("# INSERT END -> [ ", result, " ]")
-	t.Log("")
-	t.Log("# GET ELEMENT")
-	result = getData(t, oMap, iNum, deleteNum)
-	t.Log("# INSERT ELEMENT END -> [ ", result, " ]")
-	t.Log("")
-	t.Log("# DELETE ELEMENT")
-	deleteNum = 9
-	result = deleteData(t, oMap, iNum, deleteNum)
-	t.Log("# DELETE ELEMENT END -> [ ", result, " ]")
-	t.Log("")
-	t.Log("# POP ELEMENT")
-	popNum := 9
-	oMap = NewOrderedMap()
-	oMap, result = insertData(t, oMap, iNum)
-	result = popData(t, oMap, iNum, popNum)
-	t.Log("# POP ELEMENT END -> [ ", result, " ]")
-	t.Log("")
-	t.Log("# CHECK LEN")
-	oMap = NewOrderedMap()
-	oMap, result = insertData(t, oMap, iNum)
-	result = checkLen(t, oMap, iNum)
-	t.Log("# CHECK LEN END -> [ ", result, " ]")
-	t.Log("")
-	t.Log("# GET KEY LIST")
-	result = getkListData(t, oMap, iNum)
-	t.Log("# GET KEY LIST END -> [ ", result, " ]")
-	t.Log("")
-	t.Log("# GET VALUE LIST")
-	result = getvListData(t, oMap, iNum)
-	t.Log("# GET VALUE LIST END -> [ ", result, " ]")
-	t.Log("")
+	e := oMap.Append(1, "test1")
+	assert.NoError(t, e)
+	expected := "test1"
+	assert.Equal(t, expected, oMap.Get(1).(string))
+}
+
+func TestOrderedMapGet(t *testing.T) {
+	oMap := NewOrderedMap()
+	e := oMap.Append(2, "test2")
+	assert.NoError(t, e)
+	expected := "test2"
+	assert.Nil(t, oMap.Get(1))
+	assert.Equal(t, expected, oMap.Get(2).(string))
+	assert.Nil(t, oMap.Get(3))
+}
+
+func TestOrderedMapDelete(t *testing.T) {
+	oMap := NewOrderedMap()
+	e := oMap.Append(3, "test3")
+	assert.NoError(t, e)
+	expected := "test3"
+	assert.Equal(t, expected, oMap.Get(3).(string))
+	oMap.Delete(3)
+	assert.Nil(t, oMap.Get(3))
+}
+
+func TestOrderdMapPop(t *testing.T) {
+	oMap := NewOrderedMap()
+	e := oMap.Append(4, "test4")
+	assert.NoError(t, e)
+	expected := "test4"
+	assert.Equal(t, expected, oMap.Pop(4).(string))
+	assert.Nil(t, oMap.Get(4))
+}
+
+func TestOrderdMapLen(t *testing.T) {
+	oMap := NewOrderedMap()
+	count := 10
+	for i := 0; i < count; i++ {
+		e := oMap.Append(i, "test")
+		assert.NoError(t, e)
+	}
+	assert.Equal(t, count, oMap.Len())
+}
+
+func TestOrderdMapKeyLists(t *testing.T) {
+	oMap := NewOrderedMap()
+	count := 10
+	for i := 0; i < count; i++ {
+		str := fmt.Sprintf("%s%d", "test", i)
+		e := oMap.Append(i, str)
+		assert.NoError(t, e)
+	}
+	expectedList := list.New()
+	for i := 0; i < count; i++ {
+		expectedList.PushBack(i)
+	}
+	kList := oMap.KeyLists()
+	assert.Equal(t, expectedList, kList)
+}
+
+func TestOrderdMapValueLists(t *testing.T) {
+	oMap := NewOrderedMap()
+	count := 10
+	for i := 0; i < count; i++ {
+		str := fmt.Sprintf("%s%d", "test", i)
+		e := oMap.Append(i, str)
+		assert.NoError(t, e)
+	}
+	expectedList := list.New()
+	for i := 0; i < count; i++ {
+		str := fmt.Sprintf("%s%d", "test", i)
+		expectedList.PushBack(str)
+	}
+	vList := oMap.ValueLists()
+	assert.Equal(t, expectedList, vList)
+}
+
+func TestOrderedMapDiffKeyType(t *testing.T) {
+	oMap := NewOrderedMap()
+	e1 := oMap.Append(11, "test11")
+	assert.NoError(t, e1)
+	e2 := oMap.Append("test12", "test12")
+	assert.Error(t, e2)
+	//t.Log(e2)
+}
+
+func TestOrderedMapDiffValueType(t *testing.T) {
+	oMap := NewOrderedMap()
+	e1 := oMap.Append(13, "test13")
+	assert.NoError(t, e1)
+	e2 := oMap.Append(14, 14)
+	assert.NoError(t, e2)
+	expectedStr := "test13"
+	expectedNum := 14
+	assert.Equal(t, expectedStr, oMap.Get(13).(string))
+	assert.Equal(t, expectedNum, oMap.Get(14).(int))
+}
+
+func TestOrderedMapDupKey(t *testing.T) {
+	oMap := NewOrderedMap()
+	e1 := oMap.Append(15, "test15")
+	assert.NoError(t, e1)
+	e2 := oMap.Append(15, "test15-1")
+	assert.NoError(t, e2)
+	expected := "test15-1"
+	assert.Equal(t, oMap.Get(15).(string), expected)
+}
+
+func TestOrderedMapElementsOfStruct(t *testing.T) {
+	oMap := NewOrderedMap()
+	ks1 := &KeyStructT{1, "test1"}
+	ks2 := &KeyStructT{2, "test2"}
+	vs1 := &ValStructT{"test1", 1}
+	vs2 := &ValStructT{"test2", 2}
+	vs1expected := &ValStructT{"test1", 1}
+	vs2expected := &ValStructT{"test2", 2}
+	e1 := oMap.Append(ks1, vs1)
+	assert.NoError(t, e1)
+	e2 := oMap.Append(ks2, vs2)
+	assert.NoError(t, e2)
+	assert.Equal(t, vs1expected, oMap.Get(ks1))
+	assert.Equal(t, vs2expected, oMap.Get(ks2))
+}
+
+type KeyStructT struct {
+	a int
+	b string
+}
+
+type ValStructT struct {
+	c string
+	d int
 }
