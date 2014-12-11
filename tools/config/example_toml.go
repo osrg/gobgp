@@ -1,7 +1,7 @@
 package main
 
 import (
-	"../../config"
+	"github.com/osrg/gobgp/config"
 	"bytes"
 	"fmt"
 	"github.com/BurntSushi/toml"
