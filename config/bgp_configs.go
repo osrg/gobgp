@@ -16,6 +16,7 @@
 package config
 
 import "net"
+import "time"
 
 // typedef for typedef bgp:peer-type
 type PeerTypeDef int
@@ -374,6 +375,44 @@ type PolicyType struct {
 
 //struct for container bgp-neighbor-common-state
 type BgpNeighborCommonStateType struct {
+	// peer-state
+	State uint32
+	// peer-uptime
+	Uptime uint64
+
+	// BGP statistics
+	// Open message input count
+	OpenIn uint32
+	// Open message output count
+	OpenOut uint32
+	// Update message input count
+	UpdateIn uint32
+	// Update message ouput count
+	UpdateOut uint32
+	// Update message received time
+	UpdateRecvTime time.Time
+	// Keepalive input count
+	KeepaliveIn uint32
+	// Keepalive output count
+	KeepaliveOut uint32
+	// Notify input count
+	NotifyIn uint32
+	// Notify output count
+	NotifyOut uint32
+	// Route Refresh input count
+	RefreshIn uint32
+	// Route Refresh output count
+	RefreshOut uint32
+	// Dynamic Capability input count
+	DynamicCapIn uint32
+	// Dynamic Capability output count
+	DynamicCapOut uint32
+
+	// BGP state count
+	// Established
+	EstablishedCount uint32
+	// Dropped
+	DroppedCount uint32
 }
 
 //struct for container transport-options
