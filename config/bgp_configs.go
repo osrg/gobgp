@@ -471,6 +471,10 @@ type TimersType struct {
 
 //struct for container bgp-af-common-state
 type BgpAfCommonStateType struct {
+	// received prefix count
+	Pcount int64
+	// sent prefix count
+	Scount int64
 }
 
 //struct for container apply-policy
