@@ -142,7 +142,7 @@ type TableManager struct {
 
 type ProcessMessage struct {
 	innerMessage *bgp.BGPMessage
-	fromPeer     *Peer
+	fromPeer     *PeerInfo
 }
 
 func NewTableManager() *TableManager {
@@ -303,7 +303,7 @@ LOOP:
 
 // process BGPUpdate message
 // this function processes only BGPUpdate
-func (manager *TableManager) ProcessUpdate(fromPeer *Peer, message *bgp.BGPMessage) ([]Path, []Destination, error) {
+func (manager *TableManager) ProcessUpdate(fromPeer *PeerInfo, message *bgp.BGPMessage) ([]Path, []Destination, error) {
 
 	var bestPaths []Path = make([]Path, 0)
 	var lostDest []Destination = make([]Destination, 0)

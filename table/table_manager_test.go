@@ -20,6 +20,7 @@ import (
 	log "github.com/Sirupsen/logrus"
 	"github.com/osrg/gobgp/packet"
 	"github.com/stretchr/testify/assert"
+	"net"
 	"os"
 	"reflect"
 	"testing"
@@ -35,36 +36,30 @@ func getLogger(lv log.Level) *log.Logger {
 	return l
 }
 
-func peerR1() *Peer {
-	proto := &BgpProtocol{}
-	proto.sentOpenMsg = bgp.NewBGPOpenMessage(65000, 300, "10.0.0.1", nil).Body.(*bgp.BGPOpen)
-	proto.recvOpenMsg = bgp.NewBGPOpenMessage(65000, 300, "10.0.0.3", nil).Body.(*bgp.BGPOpen)
-
-	peer := &Peer{
+func peerR1() *PeerInfo {
+	peer := &PeerInfo{
 		VersionNum: 4,
-		RemoteAs:   65000,
-		protocol:   proto,
+		AS:         65000,
+		ID:         net.ParseIP("10.0.0.3").To4(),
+		LocalID:    net.ParseIP("10.0.0.1").To4(),
 	}
 	return peer
 }
 
-func peerR2() *Peer {
-	peer := &Peer{
+func peerR2() *PeerInfo {
+	peer := &PeerInfo{
 		VersionNum: 4,
-		RemoteAs:   65100,
+		AS:         65100,
 	}
 	return peer
 }
 
-func peerR3() *Peer {
-	proto := &BgpProtocol{}
-	proto.sentOpenMsg = bgp.NewBGPOpenMessage(65000, 300, "10.0.0.1", nil).Body.(*bgp.BGPOpen)
-	proto.recvOpenMsg = bgp.NewBGPOpenMessage(65000, 300, "10.0.0.2", nil).Body.(*bgp.BGPOpen)
-
-	peer := &Peer{
+func peerR3() *PeerInfo {
+	peer := &PeerInfo{
 		VersionNum: 4,
-		RemoteAs:   65000,
-		protocol:   proto,
+		AS:         65000,
+		ID:         net.ParseIP("10.0.0.2").To4(),
+		LocalID:    net.ParseIP("10.0.0.1").To4(),
 	}
 	return peer
 }
@@ -374,7 +369,7 @@ func TestProcessBGPUpdate_2_select_local_origin_ipv4(t *testing.T) {
 	assert.Equal(t, 0, len(wList))
 	assert.NoError(t, err)
 
-	var peer2 *Peer = nil
+	var peer2 *PeerInfo = nil
 	pList, wList, err = tm.ProcessUpdate(peer2, bgpMessage2)
 	assert.Equal(t, 1, len(pList))
 	assert.Equal(t, 0, len(wList))
@@ -458,7 +453,7 @@ func TestProcessBGPUpdate_2_select_local_origin_ipv6(t *testing.T) {
 	assert.Equal(t, 0, len(wList))
 	assert.NoError(t, err)
 
-	var peer2 *Peer = nil
+	var peer2 *PeerInfo = nil
 	pList, wList, err = tm.ProcessUpdate(peer2, bgpMessage2)
 	assert.Equal(t, 1, len(pList))
 	assert.Equal(t, 0, len(wList))

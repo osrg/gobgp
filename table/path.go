@@ -29,8 +29,8 @@ type Path interface {
 	clone(forWithdrawal bool) Path
 	setRouteFamily(ROUTE_FAMILY RouteFamily)
 	getRouteFamily() RouteFamily
-	setSource(source *Peer)
-	getSource() *Peer
+	setSource(source *PeerInfo)
+	getSource() *PeerInfo
 	setNexthop(nexthop net.IP)
 	getNexthop() net.IP
 	setSourceVerNum(sourceVerNum int)
@@ -46,7 +46,7 @@ type Path interface {
 
 type PathDefault struct {
 	ROUTE_FAMILY           RouteFamily
-	source                 *Peer
+	source                 *PeerInfo
 	nexthop                net.IP
 	sourceVerNum           int
 	withdraw               bool
@@ -55,7 +55,7 @@ type PathDefault struct {
 	medSetByTargetNeighbor bool
 }
 
-func NewPathDefault(source *Peer, nlri bgp.AddrPrefixInterface, sourceVerNum int, nexthop net.IP,
+func NewPathDefault(source *PeerInfo, nlri bgp.AddrPrefixInterface, sourceVerNum int, nexthop net.IP,
 	isWithdraw bool, pattr *utils.OrderedMap, medSetByTargetNeighbor bool) *PathDefault {
 
 	if !isWithdraw && (pattr == nil || nexthop == nil) {
@@ -94,10 +94,10 @@ func (pd *PathDefault) getRouteFamily() RouteFamily {
 	return pd.ROUTE_FAMILY
 }
 
-func (pd *PathDefault) setSource(source *Peer) {
+func (pd *PathDefault) setSource(source *PeerInfo) {
 	pd.source = source
 }
-func (pd *PathDefault) getSource() *Peer {
+func (pd *PathDefault) getSource() *PeerInfo {
 	return pd.source
 }
 
@@ -248,7 +248,7 @@ func createPathAttributeMap(pathAttributes []bgp.PathAttributeInterface) *utils.
 }
 
 // create Path object based on route family
-func CreatePath(source *Peer, nlri bgp.AddrPrefixInterface,
+func CreatePath(source *PeerInfo, nlri bgp.AddrPrefixInterface,
 	pathAttributes []bgp.PathAttributeInterface, isWithdraw bool) Path {
 
 	rf := RouteFamily(int(nlri.AFI())<<16 | int(nlri.SAFI()))
@@ -296,7 +296,7 @@ type IPv4Path struct {
 	*PathDefault
 }
 
-func NewIPv4Path(source *Peer, nlri bgp.AddrPrefixInterface, sourceVerNum int, nexthop net.IP,
+func NewIPv4Path(source *PeerInfo, nlri bgp.AddrPrefixInterface, sourceVerNum int, nexthop net.IP,
 	isWithdraw bool, pattr *utils.OrderedMap, medSetByTargetNeighbor bool) *IPv4Path {
 	ipv4Path := &IPv4Path{}
 	ipv4Path.PathDefault = NewPathDefault(source, nlri, sourceVerNum, nexthop, isWithdraw, pattr, medSetByTargetNeighbor)
@@ -315,7 +315,7 @@ type IPv6Path struct {
 	*PathDefault
 }
 
-func NewIPv6Path(source *Peer, nlri bgp.AddrPrefixInterface, sourceVerNum int, nexthop net.IP,
+func NewIPv6Path(source *PeerInfo, nlri bgp.AddrPrefixInterface, sourceVerNum int, nexthop net.IP,
 	isWithdraw bool, pattr *utils.OrderedMap, medSetByTargetNeighbor bool) *IPv6Path {
 	ipv6Path := &IPv6Path{}
 	ipv6Path.PathDefault = NewPathDefault(source, nlri, sourceVerNum, nexthop, isWithdraw, pattr, medSetByTargetNeighbor)

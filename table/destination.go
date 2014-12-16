@@ -38,6 +38,13 @@ const (
 	BPR_ROUTER_ID          = "Router ID"
 )
 
+type PeerInfo struct {
+	AS         uint32
+	ID         net.IP
+	VersionNum int
+	LocalID    net.IP
+}
+
 type Destination interface {
 	Calculate(localAsn uint32) (Path, string, error)
 	getRouteFamily() RouteFamily
@@ -55,7 +62,7 @@ type Destination interface {
 	addWithdraw(withdraw Path)
 	addNewPath(newPath Path)
 	constructWithdrawPath() Path
-	removeOldPathsFromSource(source *Peer) []Path
+	removeOldPathsFromSource(source *PeerInfo) []Path
 }
 
 type DestinationDefault struct {
@@ -136,7 +143,7 @@ func (dd *DestinationDefault) addNewPath(newPath Path) {
 	dd.newPathList = append(dd.newPathList, newPath)
 }
 
-func (dd *DestinationDefault) removeOldPathsFromSource(source *Peer) []Path {
+func (dd *DestinationDefault) removeOldPathsFromSource(source *PeerInfo) []Path {
 	removePaths := make([]Path, 0)
 	sourceVerNum := source.VersionNum
 	tempKnownPathList := make([]Path, 0)
@@ -641,7 +648,7 @@ func compareByASNumber(localAsn uint32, path1, path2 Path) Path {
 		if path.getSource() == nil {
 			asn = localAsn
 		} else {
-			asn = path.getSource().RemoteAs
+			asn = path.getSource().AS
 		}
 		return asn
 	}
@@ -680,19 +687,19 @@ func compareByRouterID(localAsn uint32, path1, path2 Path) (Path, error) {
 	//	RFC: http://tools.ietf.org/html/rfc5004
 	//	We pick best path between two iBGP paths as usual.
 	logger.Debugf("enter compareByRouterID")
-	getAsn := func(pathSource *Peer) uint32 {
+	getAsn := func(pathSource *PeerInfo) uint32 {
 		if pathSource == nil {
 			return localAsn
 		} else {
-			return pathSource.RemoteAs
+			return pathSource.AS
 		}
 	}
 
-	getRouterId := func(pathSource *Peer, localBgpId uint32) uint32 {
+	getRouterId := func(pathSource *PeerInfo, localBgpId uint32) uint32 {
 		if pathSource == nil {
 			return localBgpId
 		} else {
-			routerId := pathSource.protocol.recvOpenMsg.ID
+			routerId := pathSource.ID
 			routerId_u32 := binary.BigEndian.Uint32(routerId)
 			return routerId_u32
 		}
@@ -725,10 +732,10 @@ func compareByRouterID(localAsn uint32, path1, path2 Path) (Path, error) {
 	// At least one path is not coming from NC, so we get local bgp id.
 	var localBgpId_u32 uint32
 	if pathSource1 != nil {
-		localBgpId := pathSource1.protocol.sentOpenMsg.ID
+		localBgpId := pathSource1.LocalID
 		localBgpId_u32 = binary.BigEndian.Uint32(localBgpId)
 	} else {
-		localBgpId := pathSource2.protocol.sentOpenMsg.ID
+		localBgpId := pathSource2.LocalID
 		localBgpId_u32 = binary.BigEndian.Uint32(localBgpId)
 	}
 

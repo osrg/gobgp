@@ -106,14 +106,14 @@ func TestTableGetDestinations(t *testing.T) {
 	assert.Equal(t, ds, destinations)
 }
 
-func TableCreatePeer() []*Peer {
-	peerT1 := &Peer{VersionNum: 4, RemoteAs: 65000}
-	peerT2 := &Peer{VersionNum: 4, RemoteAs: 65001}
-	peerT3 := &Peer{VersionNum: 4, RemoteAs: 65002}
-	peerT := []*Peer{peerT1, peerT2, peerT3}
+func TableCreatePeer() []*PeerInfo {
+	peerT1 := &PeerInfo{VersionNum: 4, AS: 65000}
+	peerT2 := &PeerInfo{VersionNum: 4, AS: 65001}
+	peerT3 := &PeerInfo{VersionNum: 4, AS: 65002}
+	peerT := []*PeerInfo{peerT1, peerT2, peerT3}
 	return peerT
 }
-func TableCreateMSG(peerT []*Peer) []*ProcessMessage {
+func TableCreateMSG(peerT []*PeerInfo) []*ProcessMessage {
 	bgpMsgT1 := updateMsgT1()
 	bgpMsgT2 := updateMsgT2()
 	bgpMsgT3 := updateMsgT3()

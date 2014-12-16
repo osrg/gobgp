@@ -68,14 +68,14 @@ func TestPathGetRouteFamily(t *testing.T) {
 }
 func TestPathSetSource(t *testing.T) {
 	pd := &PathDefault{}
-	pr := &Peer{RemoteAs: 65000, VersionNum: 4}
+	pr := &PeerInfo{AS: 65000, VersionNum: 4}
 	pd.setSource(pr)
 	r_pr := pd.getSource()
 	assert.Equal(t, r_pr, pr)
 }
 func TestPathGetSource(t *testing.T) {
 	pd := &PathDefault{}
-	pr := &Peer{RemoteAs: 65001, VersionNum: 4}
+	pr := &PeerInfo{AS: 65001, VersionNum: 4}
 	pd.setSource(pr)
 	r_pr := pd.getSource()
 	assert.Equal(t, r_pr, pr)
@@ -189,14 +189,14 @@ func TestPathClone(t *testing.T) {
 	assert.Equal(t, clPath, pathP[0])
 }
 
-func PathCreatePeer() []*Peer {
-	peerP1 := &Peer{VersionNum: 4, RemoteAs: 65000}
-	peerP2 := &Peer{VersionNum: 4, RemoteAs: 65001}
-	peerP3 := &Peer{VersionNum: 4, RemoteAs: 65002}
-	peerP := []*Peer{peerP1, peerP2, peerP3}
+func PathCreatePeer() []*PeerInfo {
+	peerP1 := &PeerInfo{VersionNum: 4, AS: 65000}
+	peerP2 := &PeerInfo{VersionNum: 4, AS: 65001}
+	peerP3 := &PeerInfo{VersionNum: 4, AS: 65002}
+	peerP := []*PeerInfo{peerP1, peerP2, peerP3}
 	return peerP
 }
-func PathCreateMSG(peerP []*Peer) []*ProcessMessage {
+func PathCreateMSG(peerP []*PeerInfo) []*ProcessMessage {
 	bgpMsgP1 := updateMsgP1()
 	bgpMsgP2 := updateMsgP2()
 	bgpMsgP3 := updateMsgP3()

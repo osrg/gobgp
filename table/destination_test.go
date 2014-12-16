@@ -110,14 +110,14 @@ func TestDestinationCalculate(t *testing.T) {
 	assert.Nil(t, e)
 }
 
-func DestCreatePeer() []*Peer {
-	peerD1 := &Peer{VersionNum: 4, RemoteAs: 65000}
-	peerD2 := &Peer{VersionNum: 4, RemoteAs: 65001}
-	peerD3 := &Peer{VersionNum: 4, RemoteAs: 65002}
-	peerD := []*Peer{peerD1, peerD2, peerD3}
+func DestCreatePeer() []*PeerInfo {
+	peerD1 := &PeerInfo{VersionNum: 4, AS: 65000}
+	peerD2 := &PeerInfo{VersionNum: 4, AS: 65001}
+	peerD3 := &PeerInfo{VersionNum: 4, AS: 65002}
+	peerD := []*PeerInfo{peerD1, peerD2, peerD3}
 	return peerD
 }
-func DestCreateMSG(peerD []*Peer) []*ProcessMessage {
+func DestCreateMSG(peerD []*PeerInfo) []*ProcessMessage {
 	bgpMsgD1 := updateMsgD1()
 	bgpMsgD2 := updateMsgD2()
 	bgpMsgD3 := updateMsgD3()
