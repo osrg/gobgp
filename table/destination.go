@@ -54,8 +54,6 @@ type Destination interface {
 	String() string
 	addWithdraw(withdraw Path)
 	addNewPath(newPath Path)
-	addSentRoute(sentRoute *SentRoute)
-	removeSentRoute(peer *Peer) bool
 	constructWithdrawPath() Path
 	removeOldPathsFromSource(source *Peer) []Path
 }
@@ -69,7 +67,6 @@ type DestinationDefault struct {
 	bestPath       Path
 	bestPathReason string
 	oldBestPath    Path
-	sentRoutes     map[*Peer]*SentRoute
 }
 
 func NewDestinationDefault(nlri bgp.AddrPrefixInterface) *DestinationDefault {
@@ -82,7 +79,6 @@ func NewDestinationDefault(nlri bgp.AddrPrefixInterface) *DestinationDefault {
 	destination.bestPath = nil
 	destination.bestPathReason = ""
 	destination.oldBestPath = nil
-	destination.sentRoutes = make(map[*Peer]*SentRoute)
 	return destination
 }
 
@@ -134,27 +130,12 @@ func (dd *DestinationDefault) addWithdraw(withdraw Path) {
 	dd.validatePath(withdraw)
 	dd.withdrawList = append(dd.withdrawList, withdraw)
 }
+
 func (dd *DestinationDefault) addNewPath(newPath Path) {
 	dd.validatePath(newPath)
 	dd.newPathList = append(dd.newPathList, newPath)
 }
-func (dd *DestinationDefault) addSentRoute(sentRoute *SentRoute) {
-	dd.sentRoutes[sentRoute.peer] = sentRoute
-}
-func (dd *DestinationDefault) removeSentRoute(peer *Peer) bool {
-	if dd.wasSentTo(peer) {
-		delete(dd.sentRoutes, peer)
-		return true
-	}
-	return false
-}
-func (dd *DestinationDefault) wasSentTo(peer *Peer) bool {
-	_, ok := dd.sentRoutes[peer]
-	if ok {
-		return true
-	}
-	return false
-}
+
 func (dd *DestinationDefault) removeOldPathsFromSource(source *Peer) []Path {
 	removePaths := make([]Path, 0)
 	sourceVerNum := source.VersionNum

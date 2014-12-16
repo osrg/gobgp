@@ -110,42 +110,6 @@ func TestDestinationCalculate(t *testing.T) {
 	assert.Nil(t, e)
 }
 
-func TestDestinationRemoveSentRoute(t *testing.T) {
-	peerD := DestCreatePeer()
-	msgD := DestCreateMSG(peerD)
-	pathD := DestCreatePath(msgD)
-	ipv4d := NewIPv4Destination(pathD[0].getNlri())
-	//sent route and remove sent route
-	sroute1 := &SentRoute{path: pathD[0], peer: peerD[0]}
-	sroute2 := &SentRoute{path: pathD[1], peer: peerD[0]}
-	sroute3 := &SentRoute{path: pathD[2], peer: peerD[1]}
-	ipv4d.addSentRoute(sroute1)
-	ipv4d.addSentRoute(sroute2)
-	ipv4d.addSentRoute(sroute3)
-	result := ipv4d.removeSentRoute(peerD[2])
-	assert.Equal(t, result, false)
-	result = ipv4d.removeSentRoute(peerD[1])
-	assert.Equal(t, result, true)
-}
-
-func TestDestinationRemoveOldPathsFromSource(t *testing.T) {
-	peerD := DestCreatePeer()
-	msgD := DestCreateMSG(peerD)
-	pathD := DestCreatePath(msgD)
-	ipv4d := NewIPv4Destination(pathD[0].getNlri())
-	sroute1 := &SentRoute{path: pathD[0], peer: peerD[0]}
-	sroute2 := &SentRoute{path: pathD[1], peer: peerD[0]}
-	sroute3 := &SentRoute{path: pathD[2], peer: peerD[1]}
-	ipv4d.addSentRoute(sroute1)
-	ipv4d.addSentRoute(sroute2)
-	ipv4d.addSentRoute(sroute3)
-	compPath := make([]Path, 0)
-	for _, peer := range peerD {
-		r_path := ipv4d.removeOldPathsFromSource(peer)
-		assert.Equal(t, r_path, compPath)
-	}
-}
-
 func DestCreatePeer() []*Peer {
 	peerD1 := &Peer{VersionNum: 4, RemoteAs: 65000}
 	peerD2 := &Peer{VersionNum: 4, RemoteAs: 65001}

@@ -35,43 +35,6 @@ func TestTableTableKeyDefault(t *testing.T) {
 	assert.Nil(t, tk)
 }
 
-func TestTableInsertSentRoute(t *testing.T) {
-	peerT := TableCreatePeer()
-	msgT := TableCreateMSG(peerT)
-	pathT := TableCreatePath(msgT)
-	ipv4t := NewIPv4Table(0)
-	for _, path := range pathT {
-		tableKey := ipv4t.tableKey(path.getNlri())
-		dest := ipv4t.createDest(path.getNlri())
-		ipv4t.setDestination(tableKey.String(), dest)
-	}
-	sroute := &SentRoute{path: pathT[0], peer: peerT[0]}
-	insertSentRoute(ipv4t, sroute)
-	tableKey := ipv4t.tableKey(pathT[0].getNlri())
-	dest := ipv4t.getDestination(tableKey.String())
-	sr := dest.removeSentRoute(peerT[0])
-	assert.Equal(t, sr, true)
-}
-
-func TestTableCleanupPathsForPeer(t *testing.T) {
-	peerT := TableCreatePeer()
-	msgT := TableCreateMSG(peerT)
-	pathT := TableCreatePath(msgT)
-	ipv4t := NewIPv4Table(0)
-	for _, path := range pathT {
-		tableKey := ipv4t.tableKey(path.getNlri())
-		dest := ipv4t.createDest(path.getNlri())
-		ipv4t.setDestination(tableKey.String(), dest)
-	}
-	sroute := &SentRoute{path: pathT[0], peer: peerT[0]}
-	insertSentRoute(ipv4t, sroute)
-	ipv4t.cleanupPathsForPeer(peerT[0])
-	tableKey := ipv4t.tableKey(pathT[0].getNlri())
-	dest := ipv4t.getDestination(tableKey.String())
-	cpfp := dest.removeSentRoute(peerT[0])
-	assert.Equal(t, cpfp, false)
-}
-
 func TestTableDeleteDestByNlri(t *testing.T) {
 	peerT := TableCreatePeer()
 	msgT := TableCreateMSG(peerT)

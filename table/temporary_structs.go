@@ -13,10 +13,7 @@ type Peer struct {
 	RemoteAddress net.IP
 	protocol      *BgpProtocol
 }
-type SentRoute struct {
-	path Path
-	peer *Peer
-}
+
 type BgpProtocol struct {
 	//need to define a structure
 	recvOpenMsg *bgp.BGPOpen

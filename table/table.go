@@ -74,26 +74,6 @@ func insert(table Table, path Path) Destination {
 	}
 	return dest
 }
-func insertSentRoute(table Table, sentRoute *SentRoute) {
-	pd := sentRoute.path
-	table.validatePath(pd)
-	dest := getOrCreateDest(table, pd.getNlri())
-	dest.addSentRoute(sentRoute)
-}
-
-//"Remove old paths from whose source is `peer`
-func (td *TableDefault) cleanupPathsForPeer(peer *Peer) {
-	for _, dest := range td.destinations {
-		pathsDeleted := dest.removeOldPathsFromSource(peer)
-		hadSent := dest.removeSentRoute(peer)
-		if hadSent {
-			logger.Errorf("Cleaning paths from table %s for peer %s.", td, peer)
-		}
-		if pathsDeleted != nil {
-			//need _signal_bus.dest_changed(dest)
-		}
-	}
-}
 
 /*
 //Cleans table of any path that do not have any RT in common with interested_rts
