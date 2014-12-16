@@ -18,7 +18,6 @@ package server
 import (
 	"fmt"
 	"github.com/osrg/gobgp/config"
-	"github.com/osrg/gobgp/io"
 	"net"
 	"os"
 	"strconv"
@@ -84,13 +83,13 @@ func (server *BgpServer) Serve() {
 		case peer := <-server.addedPeerCh:
 			fmt.Println(peer)
 			addr := peer.NeighborAddress.String()
-			io.SetTcpMD5SigSockopts(int(f.Fd()), addr, peer.AuthPassword)
+			SetTcpMD5SigSockopts(int(f.Fd()), addr, peer.AuthPassword)
 			p := NewPeer(server.bgpConfig.Global, peer)
 			peerMap[peer.NeighborAddress.String()] = p
 		case peer := <-server.deletedPeerCh:
 			fmt.Println(peer)
 			addr := peer.NeighborAddress.String()
-			io.SetTcpMD5SigSockopts(int(f.Fd()), addr, "")
+			SetTcpMD5SigSockopts(int(f.Fd()), addr, "")
 			p, found := peerMap[addr]
 			if found {
 				fmt.Println("found neighbor", addr)
