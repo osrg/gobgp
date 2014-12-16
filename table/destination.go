@@ -62,7 +62,6 @@ type Destination interface {
 
 type DestinationDefault struct {
 	ROUTE_FAMILY   RouteFamily
-	coreService    CoreService
 	nlri           bgp.AddrPrefixInterface
 	knownPathList  []Path
 	withdrawList   []Path

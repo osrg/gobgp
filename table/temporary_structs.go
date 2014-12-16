@@ -6,16 +6,6 @@ import (
 	"net"
 )
 
-type CoreService struct {
-	CommonConf    *Commons
-	NeighborsConf *Neighbors
-}
-type Neighbors struct {
-	//need to define a structure
-}
-type Commons struct {
-	//need to define a structure
-}
 type Peer struct {
 	//need to define a structure
 	RemoteAs      uint32

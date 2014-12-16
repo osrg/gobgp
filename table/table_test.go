@@ -16,24 +16,20 @@
 package table
 
 import (
-	//"fmt"
 	"github.com/osrg/gobgp/packet"
 	"github.com/stretchr/testify/assert"
-	//"net"
 	"testing"
 )
 
 func TestTableCreateDestDefault(t *testing.T) {
-	coreService := &CoreService{CommonConf: &Commons{}, NeighborsConf: &Neighbors{}}
-	td := NewTableDefault(0, coreService)
+	td := NewTableDefault(0)
 	nlri := bgp.NewNLRInfo(24, "13.2.3.1")
 	cd := td.createDest(nlri)
 	assert.Nil(t, cd)
 }
 
 func TestTableTableKeyDefault(t *testing.T) {
-	coreService := &CoreService{CommonConf: &Commons{}, NeighborsConf: &Neighbors{}}
-	td := NewTableDefault(0, coreService)
+	td := NewTableDefault(0)
 	nlri := bgp.NewNLRInfo(24, "13.2.3.1")
 	tk := td.tableKey(nlri)
 	assert.Nil(t, tk)
@@ -43,8 +39,7 @@ func TestTableInsertSentRoute(t *testing.T) {
 	peerT := TableCreatePeer()
 	msgT := TableCreateMSG(peerT)
 	pathT := TableCreatePath(msgT)
-	coreService := &CoreService{CommonConf: &Commons{}, NeighborsConf: &Neighbors{}}
-	ipv4t := NewIPv4Table(0, coreService)
+	ipv4t := NewIPv4Table(0)
 	for _, path := range pathT {
 		tableKey := ipv4t.tableKey(path.getNlri())
 		dest := ipv4t.createDest(path.getNlri())
@@ -62,8 +57,7 @@ func TestTableCleanupPathsForPeer(t *testing.T) {
 	peerT := TableCreatePeer()
 	msgT := TableCreateMSG(peerT)
 	pathT := TableCreatePath(msgT)
-	coreService := &CoreService{CommonConf: &Commons{}, NeighborsConf: &Neighbors{}}
-	ipv4t := NewIPv4Table(0, coreService)
+	ipv4t := NewIPv4Table(0)
 	for _, path := range pathT {
 		tableKey := ipv4t.tableKey(path.getNlri())
 		dest := ipv4t.createDest(path.getNlri())
@@ -82,8 +76,7 @@ func TestTableDeleteDestByNlri(t *testing.T) {
 	peerT := TableCreatePeer()
 	msgT := TableCreateMSG(peerT)
 	pathT := TableCreatePath(msgT)
-	coreService := &CoreService{CommonConf: &Commons{}, NeighborsConf: &Neighbors{}}
-	ipv4t := NewIPv4Table(0, coreService)
+	ipv4t := NewIPv4Table(0)
 	for _, path := range pathT {
 		tableKey := ipv4t.tableKey(path.getNlri())
 		dest := ipv4t.createDest(path.getNlri())
@@ -99,8 +92,7 @@ func TestTableDeleteDest(t *testing.T) {
 	peerT := TableCreatePeer()
 	msgT := TableCreateMSG(peerT)
 	pathT := TableCreatePath(msgT)
-	coreService := &CoreService{CommonConf: &Commons{}, NeighborsConf: &Neighbors{}}
-	ipv4t := NewIPv4Table(0, coreService)
+	ipv4t := NewIPv4Table(0)
 	for _, path := range pathT {
 		tableKey := ipv4t.tableKey(path.getNlri())
 		dest := ipv4t.createDest(path.getNlri())
@@ -115,24 +107,16 @@ func TestTableDeleteDest(t *testing.T) {
 }
 
 func TestTableGetRouteFamily(t *testing.T) {
-	coreService := &CoreService{CommonConf: &Commons{}, NeighborsConf: &Neighbors{}}
-	ipv4t := NewIPv4Table(0, coreService)
+	ipv4t := NewIPv4Table(0)
 	rf := ipv4t.getRoutefamily()
 	assert.Equal(t, rf, RF_IPv4_UC)
-}
-func TestTableGetCoreService(t *testing.T) {
-	coreService := &CoreService{CommonConf: &Commons{}, NeighborsConf: &Neighbors{}}
-	ipv4t := NewIPv4Table(0, coreService)
-	cs := ipv4t.getCoreService()
-	assert.Equal(t, cs, coreService)
 }
 
 func TestTableSetDestinations(t *testing.T) {
 	peerT := TableCreatePeer()
 	msgT := TableCreateMSG(peerT)
 	pathT := TableCreatePath(msgT)
-	coreService := &CoreService{CommonConf: &Commons{}, NeighborsConf: &Neighbors{}}
-	ipv4t := NewIPv4Table(0, coreService)
+	ipv4t := NewIPv4Table(0)
 	destinations := make(map[string]Destination)
 	for _, path := range pathT {
 		tableKey := ipv4t.tableKey(path.getNlri())
@@ -147,8 +131,7 @@ func TestTableGetDestinations(t *testing.T) {
 	peerT := DestCreatePeer()
 	msgT := DestCreateMSG(peerT)
 	pathT := DestCreatePath(msgT)
-	coreService := &CoreService{CommonConf: &Commons{}, NeighborsConf: &Neighbors{}}
-	ipv4t := NewIPv4Table(0, coreService)
+	ipv4t := NewIPv4Table(0)
 	destinations := make(map[string]Destination)
 	for _, path := range pathT {
 		tableKey := ipv4t.tableKey(path.getNlri())

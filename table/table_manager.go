@@ -148,8 +148,8 @@ type ProcessMessage struct {
 func NewTableManager() *TableManager {
 	t := &TableManager{}
 	t.Tables = make(map[RouteFamily]Table)
-	t.Tables[RF_IPv4_UC] = NewIPv4Table(0, nil)
-	t.Tables[RF_IPv6_UC] = NewIPv6Table(0, nil)
+	t.Tables[RF_IPv4_UC] = NewIPv4Table(0)
+	t.Tables[RF_IPv6_UC] = NewIPv6Table(0)
 	// initialize prefix counter
 	t.Counter = make(map[PeerCounterName]int)
 	t.Counter[RECV_PREFIXES] = 0
