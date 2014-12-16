@@ -16,11 +16,11 @@
 package main
 
 import (
-	"./server"
 	"fmt"
 	"github.com/jessevdk/go-flags"
 	"github.com/osrg/gobgp/config"
 	"github.com/osrg/gobgp/packet"
+	"github.com/osrg/gobgp/server"
 	"os"
 	"os/signal"
 	"runtime"
