@@ -32,7 +32,6 @@ type Peer struct {
 	incoming       chan *bgp.BGPMessage
 	outgoing       chan *bgp.BGPMessage
 	fsm            *FSM
-	sourceVerNum   int
 }
 
 func NewPeer(g config.GlobalType, peer config.NeighborType) *Peer {
@@ -42,7 +41,6 @@ func NewPeer(g config.GlobalType, peer config.NeighborType) *Peer {
 		acceptedConnCh: make(chan *net.TCPConn),
 		incoming:       make(chan *bgp.BGPMessage, 4096),
 		outgoing:       make(chan *bgp.BGPMessage, 4096),
-		sourceVerNum:   1,
 	}
 	p.fsm = NewFSM(&g, &peer, p.acceptedConnCh, p.incoming, p.outgoing)
 	p.t.Go(p.loop)
@@ -59,9 +57,7 @@ func (peer *Peer) loop() error {
 			case nextState := <-peer.fsm.StateChanged():
 				// waits for all goroutines created for the current state
 				h.Wait()
-				if peer.fsm.StateChange(nextState) {
-					peer.sourceVerNum++
-				}
+				peer.fsm.StateChange(nextState)
 				sameState = false
 			case <-peer.t.Dying():
 				close(peer.acceptedConnCh)

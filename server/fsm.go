@@ -19,6 +19,7 @@ import (
 	"fmt"
 	"github.com/osrg/gobgp/config"
 	"github.com/osrg/gobgp/packet"
+	"github.com/osrg/gobgp/table"
 	"gopkg.in/tomb.v2"
 	"net"
 	"time"
@@ -31,10 +32,13 @@ type FSM struct {
 	state           int
 	incoming        chan *bgp.BGPMessage
 	outgoing        chan *bgp.BGPMessage
-	//activeConn *net.TCPConn
-	passiveConn   *net.TCPConn
-	passiveConnCh chan *net.TCPConn
-	stateCh       chan int
+	passiveConn     *net.TCPConn
+	passiveConnCh   chan *net.TCPConn
+	stateCh         chan int
+
+	peerInfo     *table.PeerInfo
+	sourceVerNum int
+	routerId     net.IP
 }
 
 func NewFSM(gConfig *config.GlobalType, pConfig *config.NeighborType, connCh chan *net.TCPConn, incoming chan *bgp.BGPMessage, outgoing chan *bgp.BGPMessage) *FSM {
@@ -46,6 +50,7 @@ func NewFSM(gConfig *config.GlobalType, pConfig *config.NeighborType, connCh cha
 		state:         bgp.BGP_FSM_IDLE,
 		passiveConnCh: connCh,
 		stateCh:       make(chan int),
+		sourceVerNum:  1,
 	}
 }
 
@@ -53,14 +58,22 @@ func (fsm *FSM) StateChanged() chan int {
 	return fsm.stateCh
 }
 
-func (fsm *FSM) StateChange(nextState int) bool {
+func (fsm *FSM) StateChange(nextState int) {
 	fmt.Println("state changed", nextState, fsm.state)
-	oldState := fsm.state
 	fsm.state = nextState
-	if oldState >= bgp.BGP_FSM_OPENSENT && fsm.state == bgp.BGP_FSM_IDLE {
-		return true
+}
+
+func (fsm *FSM) PeerInfoGet() *table.PeerInfo {
+	return fsm.peerInfo
+}
+
+func (fsm *FSM) createPeerInfo() {
+	fsm.peerInfo = &table.PeerInfo{
+		AS:         fsm.peerConfig.PeerAs,
+		ID:         fsm.routerId,
+		VersionNum: fsm.sourceVerNum,
+		LocalID:    fsm.globalConfig.RouterId,
 	}
-	return false
 }
 
 type FSMHandler struct {
@@ -89,7 +102,7 @@ func (h *FSMHandler) Stop() error {
 	return h.t.Wait()
 }
 
-func (h *FSMHandler) idle() error {
+func (h *FSMHandler) idle() int {
 	fsm := h.fsm
 	// TODO: support idle hold timer
 
@@ -97,22 +110,20 @@ func (h *FSMHandler) idle() error {
 		fsm.keepaliveTicker.Stop()
 		fsm.keepaliveTicker = nil
 	}
-	fsm.stateCh <- bgp.BGP_FSM_ACTIVE
-	return nil
+	return bgp.BGP_FSM_ACTIVE
 }
 
-func (h *FSMHandler) active() error {
+func (h *FSMHandler) active() int {
 	fsm := h.fsm
 	select {
 	case <-h.t.Dying():
-		return nil
+		return 0
 	case conn := <-fsm.passiveConnCh:
 		fsm.passiveConn = conn
 	}
 	// we don't implement delayed open timer so move to opensent right
 	// away.
-	fsm.stateCh <- bgp.BGP_FSM_OPENSENT
-	return nil
+	return bgp.BGP_FSM_OPENSENT
 }
 
 func buildopen(global *config.GlobalType, neighborT *config.NeighborType) *bgp.BGPMessage {
@@ -176,7 +187,7 @@ func (h *FSMHandler) recvMessage() error {
 	return nil
 }
 
-func (h *FSMHandler) opensent() error {
+func (h *FSMHandler) opensent() int {
 	fsm := h.fsm
 	m := buildopen(fsm.globalConfig, fsm.peerConfig)
 	b, _ := m.Serialize()
@@ -191,10 +202,11 @@ func (h *FSMHandler) opensent() error {
 	select {
 	case <-h.t.Dying():
 		fsm.passiveConn.Close()
-		return nil
+		return 0
 	case m, ok := <-h.ch:
 		if ok {
 			if m.Header.Type == bgp.BGP_MSG_OPEN {
+				fsm.routerId = m.Body.(*bgp.BGPOpen).ID
 				msg := bgp.NewBGPKeepAliveMessage()
 				b, _ := msg.Serialize()
 				fsm.passiveConn.Write(b)
@@ -206,11 +218,10 @@ func (h *FSMHandler) opensent() error {
 			// io error
 		}
 	}
-	fsm.stateCh <- nextState
-	return nil
+	return nextState
 }
 
-func (h *FSMHandler) openconfirm() error {
+func (h *FSMHandler) openconfirm() int {
 	fsm := h.fsm
 	sec := time.Second * time.Duration(fsm.peerConfig.Timers.KeepaliveInterval)
 	fsm.keepaliveTicker = time.NewTicker(sec)
@@ -224,7 +235,7 @@ func (h *FSMHandler) openconfirm() error {
 		select {
 		case <-h.t.Dying():
 			fsm.passiveConn.Close()
-			return nil
+			return 0
 		case <-fsm.keepaliveTicker.C:
 			m := bgp.NewBGPKeepAliveMessage()
 			b, _ := m.Serialize()
@@ -241,12 +252,11 @@ func (h *FSMHandler) openconfirm() error {
 			} else {
 				// io error
 			}
-			fsm.stateCh <- nextState
-			return nil
+			return nextState
 		}
 	}
 	// panic
-	return nil
+	return 0
 }
 
 func (h *FSMHandler) sendMessageloop() error {
@@ -282,7 +292,7 @@ func (h *FSMHandler) recvMessageloop() error {
 	}
 }
 
-func (h *FSMHandler) established() error {
+func (h *FSMHandler) established() int {
 	fsm := h.fsm
 	h.conn = fsm.passiveConn
 	h.t.Go(h.sendMessageloop)
@@ -298,33 +308,46 @@ func (h *FSMHandler) established() error {
 			} else {
 				h.conn.Close()
 				h.t.Kill(nil)
-				fsm.stateCh <- bgp.BGP_FSM_IDLE
-				return nil
+				return bgp.BGP_FSM_IDLE
 			}
 		case <-h.t.Dying():
 			h.conn.Close()
-			return nil
+			return 0
 		}
 	}
-	return nil
+	return 0
 }
 
 func (h *FSMHandler) loop() error {
 	fsm := h.fsm
+	nextState := 0
 	switch fsm.state {
 	case bgp.BGP_FSM_IDLE:
-		return h.idle()
+		nextState = h.idle()
 		//	case bgp.BGP_FSM_CONNECT:
 		//		return h.connect()
 	case bgp.BGP_FSM_ACTIVE:
-		return h.active()
+		nextState = h.active()
 	case bgp.BGP_FSM_OPENSENT:
-		return h.opensent()
+		nextState = h.opensent()
 	case bgp.BGP_FSM_OPENCONFIRM:
-		return h.openconfirm()
+		nextState = h.openconfirm()
 	case bgp.BGP_FSM_ESTABLISHED:
-		return h.established()
+		nextState = h.established()
 	}
-	// panic
+
+	if nextState == bgp.BGP_FSM_ESTABLISHED {
+		fmt.Println("new peerinfo")
+		// everytime we go into BGP_FSM_ESTABLISHED, we create
+		// a PeerInfo because sourceNum could be incremented
+		fsm.createPeerInfo()
+	}
+	if fsm.state >= bgp.BGP_FSM_OPENSENT && nextState == bgp.BGP_FSM_IDLE {
+		fsm.sourceVerNum++
+	}
+
+	if nextState >= bgp.BGP_FSM_IDLE {
+		fsm.stateCh <- nextState
+	}
 	return nil
 }
