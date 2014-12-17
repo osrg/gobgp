@@ -134,10 +134,9 @@ func (attr AttributeType) String() string {
 }
 
 type TableManager struct {
-	Tables        map[RouteFamily]Table
-	adjInLocalRib map[string]*ReceivedRoute
-	Counter       map[PeerCounterName]int
-	localAsn      uint32
+	Tables   map[RouteFamily]Table
+	Counter  map[PeerCounterName]int
+	localAsn uint32
 }
 
 type ProcessMessage struct {
@@ -153,7 +152,6 @@ func NewTableManager() *TableManager {
 	// initialize prefix counter
 	t.Counter = make(map[PeerCounterName]int)
 	t.Counter[RECV_PREFIXES] = 0
-
 	return t
 }
 
@@ -188,10 +186,6 @@ func (manager *TableManager) handleNlri(p *ProcessMessage) ([]Destination, error
 		destination := insert(manager.Tables[rf], path)
 		destList = append(destList, destination)
 		manager.incrCounter(RECV_PREFIXES, len(nlriList))
-		// TODO handle adj-in-loc-rib
-		//		rr := NewReceivedRoute(path, p.fromPeer, false)
-		//		manager.adjInLocalRib[p.fromPeer.String()] = rr
-		//		manager.adjInChanged <- rr
 	}
 
 	logger.Debugf("destinationList contains %d destinations from nlri_info", len(destList))
@@ -254,10 +248,6 @@ LOOP:
 
 			destList = append(destList, destination)
 			manager.incrCounter(RECV_PREFIXES, len(nlri_info))
-			// TODO handle adj-in-loc-rib
-			//		rr := NewReceivedRoute(path, p.fromPeer, false)
-			//		manager.adjInLocalRib[p.fromPeer.String()] = rr
-			//		manager.adjInChanged <- rr
 		}
 	}
 	logger.Debugf("destinationList contains %d destinations from MpReachNLRI", len(destList))
@@ -405,6 +395,23 @@ func (manager *TableManager) ProcessUpdate(fromPeer *PeerInfo, message *bgp.BGPM
 	}
 
 	return bestPaths, lostDest, nil
+}
+
+type AdjRib struct {
+	adjRibIn  map[RouteFamily]map[string]*ReceivedRoute
+	adjRibOut map[RouteFamily]map[string]*ReceivedRoute
+}
+
+func NewAdjRib() *AdjRib {
+	r := &AdjRib{
+		adjRibIn:  make(map[RouteFamily]map[string]*ReceivedRoute),
+		adjRibOut: make(map[RouteFamily]map[string]*ReceivedRoute),
+	}
+	r.adjRibIn[RF_IPv4_UC] = make(map[string]*ReceivedRoute)
+	r.adjRibIn[RF_IPv6_UC] = make(map[string]*ReceivedRoute)
+	r.adjRibOut[RF_IPv4_UC] = make(map[string]*ReceivedRoute)
+	r.adjRibOut[RF_IPv6_UC] = make(map[string]*ReceivedRoute)
+	return r
 }
 
 type ReceivedRoute struct {
