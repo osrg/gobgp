@@ -53,9 +53,14 @@ func (fsm *FSM) StateChanged() chan int {
 	return fsm.stateCh
 }
 
-func (fsm *FSM) StateSet(nextState int) {
+func (fsm *FSM) StateChange(nextState int) bool {
 	fmt.Println("state changed", nextState, fsm.state)
+	oldState := fsm.state
 	fsm.state = nextState
+	if oldState >= bgp.BGP_FSM_OPENSENT && fsm.state == bgp.BGP_FSM_IDLE {
+		return true
+	}
+	return false
 }
 
 type FSMHandler struct {
