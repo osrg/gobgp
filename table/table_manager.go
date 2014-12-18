@@ -133,15 +133,101 @@ func (attr AttributeType) String() string {
 	}
 }
 
+type ProcessMessage struct {
+	innerMessage *bgp.BGPMessage
+	fromPeer     *PeerInfo
+}
+
+func (p *ProcessMessage) nlri2Path() []Path {
+	updateMsg := p.innerMessage.Body.(*bgp.BGPUpdate)
+	pathAttributes := updateMsg.PathAttributes
+	pathList := make([]Path, 0)
+	for _, nlri_info := range updateMsg.NLRI {
+		// define local variable to pass nlri's address to CreatePath
+		var nlri bgp.NLRInfo = nlri_info
+		// create Path object
+		path := CreatePath(p.fromPeer, &nlri, pathAttributes, false)
+		pathList = append(pathList, path)
+	}
+	return pathList
+}
+
+func (p *ProcessMessage) withdraw2Path() []Path {
+	updateMsg := p.innerMessage.Body.(*bgp.BGPUpdate)
+	pathAttributes := updateMsg.PathAttributes
+	pathList := make([]Path, 0)
+	for _, nlriWithdraw := range updateMsg.WithdrawnRoutes {
+		// define local variable to pass nlri's address to CreatePath
+		var w bgp.WithdrawnRoute = nlriWithdraw
+		// create withdrawn Path object
+		path := CreatePath(p.fromPeer, &w, pathAttributes, true)
+		pathList = append(pathList, path)
+	}
+	return pathList
+}
+
+func (p *ProcessMessage) mpreachNlri2Path() []Path {
+	updateMsg := p.innerMessage.Body.(*bgp.BGPUpdate)
+	pathAttributes := updateMsg.PathAttributes
+	attrList := []*bgp.PathAttributeMpReachNLRI{}
+
+	for _, attr := range pathAttributes {
+		a, ok := attr.(*bgp.PathAttributeMpReachNLRI)
+		if ok {
+			attrList = append(attrList, a)
+			break
+		}
+	}
+	pathList := make([]Path, 0)
+
+	for _, mp := range attrList {
+		nlri_info := mp.Value
+		for _, nlri := range nlri_info {
+			path := CreatePath(p.fromPeer, nlri, pathAttributes, false)
+			pathList = append(pathList, path)
+		}
+	}
+	return pathList
+}
+
+func (p *ProcessMessage) mpunreachNlri2Path() []Path {
+	updateMsg := p.innerMessage.Body.(*bgp.BGPUpdate)
+	pathAttributes := updateMsg.PathAttributes
+	attrList := []*bgp.PathAttributeMpUnreachNLRI{}
+
+	for _, attr := range pathAttributes {
+		a, ok := attr.(*bgp.PathAttributeMpUnreachNLRI)
+		if ok {
+			attrList = append(attrList, a)
+			break
+		}
+	}
+	pathList := make([]Path, 0)
+
+	for _, mp := range attrList {
+		nlri_info := mp.Value
+
+		for _, nlri := range nlri_info {
+			path := CreatePath(p.fromPeer, nlri, pathAttributes, true)
+			pathList = append(pathList, path)
+		}
+	}
+	return pathList
+}
+
+func (p *ProcessMessage) ToPathList() []Path {
+	pathList := make([]Path, 0)
+	pathList = append(pathList, p.nlri2Path()...)
+	pathList = append(pathList, p.withdraw2Path()...)
+	pathList = append(pathList, p.mpreachNlri2Path()...)
+	pathList = append(pathList, p.mpunreachNlri2Path()...)
+	return pathList
+}
+
 type TableManager struct {
 	Tables   map[RouteFamily]Table
 	Counter  map[PeerCounterName]int
 	localAsn uint32
-}
-
-type ProcessMessage struct {
-	innerMessage *bgp.BGPMessage
-	fromPeer     *PeerInfo
 }
 
 func NewTableManager() *TableManager {
@@ -165,236 +251,89 @@ func (manager *TableManager) incrCounter(name PeerCounterName, step int) {
 	manager.Counter[name] = val
 }
 
-// create destination list from nlri
-func (manager *TableManager) handleNlri(p *ProcessMessage) ([]Destination, error) {
+func (manager *TableManager) processUpdate(pathList []Path) ([]Path, []Destination, error) {
+	bestPaths := make([]Path, 0)
+	lostDest := make([]Destination, 0)
 
-	updateMsg := p.innerMessage.Body.(*bgp.BGPUpdate)
-	nlriList := updateMsg.NLRI // NLRI is an array of NLRInfo.
-	pathAttributes := updateMsg.PathAttributes
-
-	destList := make([]Destination, 0)
-	for _, nlri_info := range nlriList {
-
-		// define local variable to pass nlri's address to CreatePath
-		var nlri bgp.NLRInfo = nlri_info
-		// create Path object
-		path := CreatePath(p.fromPeer, &nlri, pathAttributes, false)
-		// TODO process filter
-
+	destinationList := make([]Destination, 0)
+	for _, path := range pathList {
 		rf := path.getRouteFamily()
 		// push Path into table
 		destination := insert(manager.Tables[rf], path)
-		destList = append(destList, destination)
-		manager.incrCounter(RECV_PREFIXES, len(nlriList))
+		destinationList = append(destinationList, destination)
 	}
 
-	logger.Debugf("destinationList contains %d destinations from nlri_info", len(destList))
+	for _, destination := range destinationList {
+		// compute best path
+		logger.Infof("Processing destination: %v", destination.String())
+		newBestPath, reason, err := destination.Calculate(manager.localAsn)
 
-	return destList, nil
-}
+		logger.Debugf("new best path: %v, reason=%v", newBestPath, reason)
+		if err != nil {
+			logger.Error(err)
+			continue
+		}
 
-// create destination list from withdrawn routes
-func (manager *TableManager) handleWithdraw(p *ProcessMessage) ([]Destination, error) {
+		destination.setBestPathReason(reason)
+		currentBestPath := destination.getBestPath()
 
-	updateMsg := p.innerMessage.Body.(*bgp.BGPUpdate)
-	pathAttributes := updateMsg.PathAttributes
-	withdrawnRoutes := updateMsg.WithdrawnRoutes
+		if newBestPath != nil && currentBestPath == newBestPath {
+			// best path is not changed
+			logger.Debug("best path is not changed")
+			continue
+		}
 
-	wDestList := make([]Destination, 0)
+		if newBestPath == nil {
+			logger.Debug("best path is nil")
+			if len(destination.getKnownPathList()) == 0 {
+				// create withdraw path
+				if currentBestPath != nil {
+					logger.Debug("best path is lost")
+					destination.setOldBestPath(destination.getBestPath())
+					lostDest = append(lostDest, destination)
+				}
+				destination.setBestPath(nil)
+			} else {
+				logger.Error("known path list is not empty")
+			}
+		} else {
+			logger.Debugf("new best path: NLRI: %v, next_hop=%v, reason=%v",
+				newBestPath.getPrefix().String(),
+				newBestPath.getNexthop().String(),
+				reason)
 
-	// process withdraw path
-	for _, nlriWithdraw := range withdrawnRoutes {
-		// define local variable to pass nlri's address to CreatePath
-		var w bgp.WithdrawnRoute = nlriWithdraw
-		// create withdrawn Path object
-		path := CreatePath(p.fromPeer, &w, pathAttributes, true)
-		rf := path.getRouteFamily()
-		// push Path into table
-		destination := insert(manager.Tables[rf], path)
-		wDestList = append(wDestList, destination)
-	}
+			bestPaths = append(bestPaths, newBestPath)
+			destination.setBestPath(newBestPath)
+		}
 
-	logger.Debugf("destinationList contains %d withdrawn destinations", len(wDestList))
-	return wDestList, nil
-}
-
-// create destination list from nlri
-func (manager *TableManager) handleMPReachNlri(p *ProcessMessage) ([]Destination, error) {
-
-	updateMsg := p.innerMessage.Body.(*bgp.BGPUpdate)
-	pathAttributes := updateMsg.PathAttributes
-	attrList := []*bgp.PathAttributeMpReachNLRI{}
-
-LOOP:
-	for _, attr := range pathAttributes {
-		switch a := attr.(type) {
-		case *bgp.PathAttributeMpReachNLRI:
-			attrList = append(attrList, a)
-			break LOOP
+		if len(destination.getKnownPathList()) == 0 && destination.getBestPath() == nil {
+			rf := destination.getRouteFamily()
+			t := manager.Tables[rf]
+			deleteDest(t, destination)
+			logger.Debugf("destination removed route_family=%v, destination=%v", rf, destination)
 		}
 	}
-
-	destList := make([]Destination, 0)
-	for _, mp := range attrList {
-		nlri_info := mp.Value
-
-		for _, nlri := range nlri_info {
-			path := CreatePath(p.fromPeer, nlri, pathAttributes, false)
-			// TODO process filter
-
-			rf := path.getRouteFamily()
-			// push Path into table
-			destination := insert(manager.Tables[rf], path)
-
-			destList = append(destList, destination)
-			manager.incrCounter(RECV_PREFIXES, len(nlri_info))
-		}
-	}
-	logger.Debugf("destinationList contains %d destinations from MpReachNLRI", len(destList))
-
-	return destList, nil
-}
-
-// create destination list from nlri
-func (manager *TableManager) handleMPUNReachNlri(p *ProcessMessage) ([]Destination, error) {
-
-	updateMsg := p.innerMessage.Body.(*bgp.BGPUpdate)
-	pathAttributes := updateMsg.PathAttributes
-	attrList := []*bgp.PathAttributeMpUnreachNLRI{}
-
-LOOP:
-	for _, attr := range pathAttributes {
-		switch a := attr.(type) {
-		case *bgp.PathAttributeMpUnreachNLRI:
-			attrList = append(attrList, a)
-			break LOOP
-		}
-	}
-
-	destList := make([]Destination, 0)
-	for _, mp := range attrList {
-		nlri_info := mp.Value
-
-		for _, nlri := range nlri_info {
-			path := CreatePath(p.fromPeer, nlri, pathAttributes, true)
-			// TODO process filter
-
-			rf := path.getRouteFamily()
-			// push Path into table
-			destination := insert(manager.Tables[rf], path)
-
-			destList = append(destList, destination)
-			manager.incrCounter(RECV_PREFIXES, len(nlri_info))
-		}
-	}
-	logger.Debugf("destinationList contains %d destinations from MpUnreachNLRI", len(destList))
-	return destList, nil
+	return bestPaths, lostDest, nil
 }
 
 // process BGPUpdate message
 // this function processes only BGPUpdate
 func (manager *TableManager) ProcessUpdate(fromPeer *PeerInfo, message *bgp.BGPMessage) ([]Path, []Destination, error) {
-
 	var bestPaths []Path = make([]Path, 0)
 	var lostDest []Destination = make([]Destination, 0)
 
 	// check msg's type if it's BGPUpdate
-	body := message.Body
-	switch body.(type) {
-	case *bgp.BGPUpdate:
-
-		msg := &ProcessMessage{
-			innerMessage: message,
-			fromPeer:     fromPeer,
-		}
-
-		// get destination list
-		destList, err := manager.handleNlri(msg)
-		if err != nil {
-			logger.Error(err)
-			return nil, nil, err
-		}
-
-		wDestList, err := manager.handleWithdraw(msg)
-		if err != nil {
-			logger.Error(err)
-			return nil, nil, err
-		}
-
-		mpreachDestList, err := manager.handleMPReachNlri(msg)
-		if err != nil {
-			logger.Error(err)
-			return nil, nil, err
-		}
-
-		mpunreachDestList, err := manager.handleMPUNReachNlri(msg)
-		if err != nil {
-			logger.Error(err)
-			return nil, nil, err
-		}
-		// merge destList and wDestList
-		destinationList := append(destList, wDestList...)
-		destinationList = append(destinationList, mpreachDestList...)
-		destinationList = append(destinationList, mpunreachDestList...)
-
-		// check best path changed
-		if destinationList != nil {
-			for _, destination := range destinationList {
-				// compute best path
-				logger.Infof("Processing destination: %v", destination.String())
-				newBestPath, reason, err := destination.Calculate(manager.localAsn)
-
-				logger.Debugf("new best path: %v, reason=%v", newBestPath, reason)
-				if err != nil {
-					logger.Error(err)
-					continue
-				}
-
-				destination.setBestPathReason(reason)
-				currentBestPath := destination.getBestPath()
-
-				if newBestPath != nil && currentBestPath == newBestPath {
-					// best path is not changed
-					logger.Debug("best path is not changed")
-					continue
-				}
-
-				if newBestPath == nil {
-					logger.Debug("best path is nil")
-					if len(destination.getKnownPathList()) == 0 {
-						// create withdraw path
-						if currentBestPath != nil {
-							logger.Debug("best path is lost")
-							destination.setOldBestPath(destination.getBestPath())
-							lostDest = append(lostDest, destination)
-						}
-						destination.setBestPath(nil)
-					} else {
-						logger.Error("known path list is not empty")
-					}
-				} else {
-					logger.Debugf("new best path: NLRI: %v, next_hop=%v, reason=%v",
-						newBestPath.getPrefix().String(),
-						newBestPath.getNexthop().String(),
-						reason)
-
-					bestPaths = append(bestPaths, newBestPath)
-					destination.setBestPath(newBestPath)
-				}
-
-				if len(destination.getKnownPathList()) == 0 && destination.getBestPath() == nil {
-					rf := destination.getRouteFamily()
-					t := manager.Tables[rf]
-					deleteDest(t, destination)
-					logger.Debugf("destination removed route_family=%v, destination=%v", rf, destination)
-				}
-			}
-		}
-	default:
+	if message.Header.Type != bgp.BGP_MSG_UPDATE {
 		logger.Warn("message is not BGPUpdate")
+		return bestPaths, lostDest, nil
 	}
 
-	return bestPaths, lostDest, nil
+	msg := &ProcessMessage{
+		innerMessage: message,
+		fromPeer:     fromPeer,
+	}
+
+	return manager.processUpdate(msg.ToPathList())
 }
 
 type AdjRib struct {
