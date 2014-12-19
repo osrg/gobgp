@@ -36,6 +36,9 @@ type Peer struct {
 	outEventCh     chan *message
 	fsm            *FSM
 	adjRib         *table.AdjRib
+	// peer and rib are always not one-to-one so should not be
+	// here but it's the simplest and works our first target.
+	rib *table.TableManager
 }
 
 func NewPeer(g config.GlobalType, peer config.NeighborType, outEventCh chan *message) *Peer {
@@ -50,6 +53,7 @@ func NewPeer(g config.GlobalType, peer config.NeighborType, outEventCh chan *mes
 	}
 	p.fsm = NewFSM(&g, &peer, p.acceptedConnCh, p.incoming, p.outgoing)
 	p.adjRib = table.NewAdjRib()
+	p.rib = table.NewTableManager()
 	p.t.Go(p.loop)
 	return p
 }
@@ -71,8 +75,13 @@ func (peer *Peer) handleBGPmessage(m *bgp.BGPMessage) {
 
 	peer.adjRib.UpdateIn(pathList)
 
-	for path := range pathList {
-		peer.sendToHub("", PEER_MSG_PATH, path)
+	peer.sendToHub("", PEER_MSG_PATH, pathList)
+}
+
+func (peer *Peer) handlePeermessage(m *message) {
+	switch m.event {
+	case PEER_MSG_PATH:
+		pList, wList, _ := peer.rib.ProcessPaths(m.data.([]table.Path))
 	}
 }
 
@@ -100,7 +109,7 @@ func (peer *Peer) loop() error {
 				}
 				peer.handleBGPmessage(m)
 			case m := <-peer.inEventCh:
-				fmt.Println(m)
+				peer.handlePeermessage(m)
 			}
 		}
 	}

@@ -257,7 +257,7 @@ func (manager *TableManager) incrCounter(name PeerCounterName, step int) {
 	manager.Counter[name] = val
 }
 
-func (manager *TableManager) processUpdate(pathList []Path) ([]Path, []Destination, error) {
+func (manager *TableManager) ProcessPaths(pathList []Path) ([]Path, []Destination, error) {
 	bestPaths := make([]Path, 0)
 	lostDest := make([]Destination, 0)
 
@@ -339,7 +339,7 @@ func (manager *TableManager) ProcessUpdate(fromPeer *PeerInfo, message *bgp.BGPM
 		fromPeer:     fromPeer,
 	}
 
-	return manager.processUpdate(msg.ToPathList())
+	return manager.ProcessPaths(msg.ToPathList())
 }
 
 type AdjRib struct {
