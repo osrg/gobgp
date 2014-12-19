@@ -29,19 +29,6 @@ var logger *log.Logger = &log.Logger{
 	Level:     log.InfoLevel,
 }
 
-type PeerCounterName string
-
-const (
-	RECV_PREFIXES        PeerCounterName = "recv_prefixes"
-	RECV_UPDATES         PeerCounterName = "recv_updates"
-	SENT_UPDATES         PeerCounterName = "sent_updates"
-	RECV_NOTIFICATION    PeerCounterName = "recv_notification"
-	SENT_NOTIFICATION    PeerCounterName = "sent_notification"
-	SENT_REFRESH         PeerCounterName = "sent_refresh"
-	RECV_REFRESH         PeerCounterName = "recv_refresh"
-	FSM_ESTB_TRANSITIONS PeerCounterName = "fms_established_transitions"
-)
-
 type RouteFamily int
 
 const (
@@ -232,7 +219,6 @@ func (p *ProcessMessage) ToPathList() []Path {
 
 type TableManager struct {
 	Tables   map[RouteFamily]Table
-	Counter  map[PeerCounterName]int
 	localAsn uint32
 }
 
@@ -241,20 +227,11 @@ func NewTableManager() *TableManager {
 	t.Tables = make(map[RouteFamily]Table)
 	t.Tables[RF_IPv4_UC] = NewIPv4Table(0)
 	t.Tables[RF_IPv6_UC] = NewIPv6Table(0)
-	// initialize prefix counter
-	t.Counter = make(map[PeerCounterName]int)
-	t.Counter[RECV_PREFIXES] = 0
 	return t
 }
 
 func setLogger(loggerInstance *log.Logger) {
 	logger = loggerInstance
-}
-
-func (manager *TableManager) incrCounter(name PeerCounterName, step int) {
-	val := manager.Counter[name]
-	val += step
-	manager.Counter[name] = val
 }
 
 func (manager *TableManager) ProcessPaths(pathList []Path) ([]Path, []Destination, error) {

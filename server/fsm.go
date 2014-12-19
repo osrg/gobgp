@@ -41,6 +41,43 @@ type FSM struct {
 	routerId     net.IP
 }
 
+func (fsm *FSM) bgpMessageStateUpdate(MessageType uint8, isIn bool) {
+	state := fsm.peerConfig.BgpNeighborCommonState
+	switch MessageType {
+	case bgp.BGP_MSG_OPEN:
+		if isIn {
+			state.OpenIn++
+		} else {
+			state.OpenOut++
+		}
+	case bgp.BGP_MSG_UPDATE:
+		if isIn {
+			state.UpdateIn++
+			state.UpdateRecvTime = time.Now()
+		} else {
+			state.UpdateOut++
+		}
+	case bgp.BGP_MSG_NOTIFICATION:
+		if isIn {
+			state.NotifyIn++
+		} else {
+			state.NotifyOut++
+		}
+	case bgp.BGP_MSG_KEEPALIVE:
+		if isIn {
+			state.KeepaliveIn++
+		} else {
+			state.KeepaliveOut++
+		}
+	case bgp.BGP_MSG_ROUTE_REFRESH:
+		if isIn {
+			state.RefreshIn++
+		} else {
+			state.RefreshOut++
+		}
+	}
+}
+
 func NewFSM(gConfig *config.GlobalType, pConfig *config.NeighborType, connCh chan *net.TCPConn, incoming chan *bgp.BGPMessage, outgoing chan *bgp.BGPMessage) *FSM {
 	return &FSM{
 		globalConfig:  gConfig,
@@ -192,6 +229,7 @@ func (h *FSMHandler) opensent() int {
 	m := buildopen(fsm.globalConfig, fsm.peerConfig)
 	b, _ := m.Serialize()
 	fsm.passiveConn.Write(b)
+	fsm.bgpMessageStateUpdate(m.Header.Type, false)
 
 	h.ch = make(chan *bgp.BGPMessage)
 	h.conn = fsm.passiveConn
@@ -205,11 +243,13 @@ func (h *FSMHandler) opensent() int {
 		return 0
 	case m, ok := <-h.ch:
 		if ok {
+			fsm.bgpMessageStateUpdate(m.Header.Type, true)
 			if m.Header.Type == bgp.BGP_MSG_OPEN {
 				fsm.routerId = m.Body.(*bgp.BGPOpen).ID
 				msg := bgp.NewBGPKeepAliveMessage()
 				b, _ := msg.Serialize()
 				fsm.passiveConn.Write(b)
+				fsm.bgpMessageStateUpdate(m.Header.Type, false)
 				nextState = bgp.BGP_FSM_OPENCONFIRM
 			} else {
 				// send error
@@ -244,6 +284,7 @@ func (h *FSMHandler) openconfirm() int {
 		case m, ok := <-h.ch:
 			nextState := bgp.BGP_FSM_IDLE
 			if ok {
+				fsm.bgpMessageStateUpdate(m.Header.Type, true)
 				if m.Header.Type == bgp.BGP_MSG_KEEPALIVE {
 					nextState = bgp.BGP_FSM_ESTABLISHED
 				} else {
@@ -272,6 +313,7 @@ func (h *FSMHandler) sendMessageloop() error {
 			if err != nil {
 				return nil
 			}
+			fsm.bgpMessageStateUpdate(m.Header.Type, false)
 		case <-fsm.keepaliveTicker.C:
 			m := bgp.NewBGPKeepAliveMessage()
 			b, _ := m.Serialize()
@@ -279,6 +321,7 @@ func (h *FSMHandler) sendMessageloop() error {
 			if err != nil {
 				return nil
 			}
+			fsm.bgpMessageStateUpdate(m.Header.Type, false)
 		}
 	}
 }
@@ -304,6 +347,7 @@ func (h *FSMHandler) established() int {
 		select {
 		case m, ok := <-h.ch:
 			if ok {
+				fsm.bgpMessageStateUpdate(m.Header.Type, true)
 				fsm.incoming <- m
 			} else {
 				h.conn.Close()
