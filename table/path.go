@@ -37,8 +37,7 @@ type Path interface {
 	getSourceVerNum() int
 	setWithdraw(withdraw bool)
 	isWithdraw() bool
-	setNlri(nlri bgp.AddrPrefixInterface)
-	getNlri() bgp.AddrPrefixInterface
+	GetNlri() bgp.AddrPrefixInterface
 	getPrefix() net.IP
 	setMedSetByTargetNeighbor(medSetByTargetNeighbor bool)
 	getMedSetByTargetNeighbor() bool
@@ -125,11 +124,7 @@ func (pd *PathDefault) isWithdraw() bool {
 	return pd.withdraw
 }
 
-func (pd *PathDefault) setNlri(nlri bgp.AddrPrefixInterface) {
-	pd.nlri = nlri
-}
-
-func (pd *PathDefault) getNlri() bgp.AddrPrefixInterface {
+func (pd *PathDefault) GetNlri() bgp.AddrPrefixInterface {
 	return pd.nlri
 }
 
@@ -170,7 +165,7 @@ func (pi *PathDefault) clone(forWithdrawal bool) Path {
 	if !forWithdrawal {
 		pathAttrs = pi.getPathAttributeMap()
 	}
-	def := NewPathDefault(pi.getSource(), pi.getNlri(), pi.getSourceVerNum(),
+	def := NewPathDefault(pi.getSource(), pi.GetNlri(), pi.getSourceVerNum(),
 		pi.getNexthop(), forWithdrawal, pathAttrs, pi.getMedSetByTargetNeighbor())
 	switch pi.ROUTE_FAMILY {
 	case RF_IPv4_UC:

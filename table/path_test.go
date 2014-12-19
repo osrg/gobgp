@@ -13,7 +13,7 @@ func TestPathNewIPv4(t *testing.T) {
 	peerP := PathCreatePeer()
 	msgP := PathCreateMSG(peerP)
 	pathP := PathCreatePath(msgP)
-	ipv4p := NewIPv4Path(pathP[0].getSource(), pathP[0].getNlri(), pathP[0].getSourceVerNum(), pathP[0].getNexthop(),
+	ipv4p := NewIPv4Path(pathP[0].getSource(), pathP[0].GetNlri(), pathP[0].getSourceVerNum(), pathP[0].getNexthop(),
 		true, pathP[0].getPathAttributeMap(), pathP[0].getMedSetByTargetNeighbor())
 	assert.NotNil(t, ipv4p)
 }
@@ -21,7 +21,7 @@ func TestPathNewIPv6(t *testing.T) {
 	peerP := PathCreatePeer()
 	msgP := PathCreateMSG(peerP)
 	pathP := PathCreatePath(msgP)
-	ipv6p := NewIPv6Path(pathP[0].getSource(), pathP[0].getNlri(), pathP[0].getSourceVerNum(), pathP[0].getNexthop(),
+	ipv6p := NewIPv6Path(pathP[0].getSource(), pathP[0].GetNlri(), pathP[0].getSourceVerNum(), pathP[0].getNexthop(),
 		true, pathP[0].getPathAttributeMap(), pathP[0].getMedSetByTargetNeighbor())
 	assert.NotNil(t, ipv6p)
 }
@@ -122,20 +122,16 @@ func TestPathGetWithdaw(t *testing.T) {
 	r_wd := pd.isWithdraw()
 	assert.Equal(t, r_wd, wd)
 }
-func TestPathSetNlri(t *testing.T) {
-	pd := &PathDefault{}
-	nlri := bgp.NewNLRInfo(24, "13.2.3.1")
-	pd.setNlri(nlri)
-	r_nlri := pd.getNlri()
-	assert.Equal(t, r_nlri, nlri)
-}
+
 func TestPathGetNlri(t *testing.T) {
-	pd := &PathDefault{}
 	nlri := bgp.NewNLRInfo(24, "13.2.3.2")
-	pd.setNlri(nlri)
-	r_nlri := pd.getNlri()
+	pd := &PathDefault{
+		nlri: nlri,
+	}
+	r_nlri := pd.GetNlri()
 	assert.Equal(t, r_nlri, nlri)
 }
+
 func TestPathSetMedSetByTargetNeighbor(t *testing.T) {
 	pd := &PathDefault{}
 	msbt := true
@@ -143,6 +139,7 @@ func TestPathSetMedSetByTargetNeighbor(t *testing.T) {
 	r_msbt := pd.getMedSetByTargetNeighbor()
 	assert.Equal(t, r_msbt, msbt)
 }
+
 func TestPathGetMedSetByTargetNeighbor(t *testing.T) {
 	pd := &PathDefault{}
 	msbt := true
