@@ -18,7 +18,6 @@ package table
 import (
 	log "github.com/Sirupsen/logrus"
 	"github.com/osrg/gobgp/packet"
-	"net"
 	"os"
 	"time"
 )
@@ -136,6 +135,13 @@ func (attr AttributeType) String() string {
 type ProcessMessage struct {
 	innerMessage *bgp.BGPMessage
 	fromPeer     *PeerInfo
+}
+
+func NewProcessMessage(m *bgp.BGPMessage, peerInfo *PeerInfo) *ProcessMessage {
+	return &ProcessMessage{
+		innerMessage: m,
+		fromPeer:     peerInfo,
+	}
 }
 
 func (p *ProcessMessage) nlri2Path() []Path {
@@ -353,9 +359,23 @@ func NewAdjRib() *AdjRib {
 	return r
 }
 
+func (adj *AdjRib) UpdateIn(pathList []Path) {
+	for _, path := range pathList {
+		rf := path.getRouteFamily()
+		key := path.getPrefix().String()
+		if path.isWithdraw() {
+			_, found := adj.adjRibIn[rf][key]
+			if found {
+				delete(adj.adjRibIn[rf], key)
+			}
+		} else {
+			adj.adjRibIn[rf][key] = NewReceivedRoute(path, false)
+		}
+	}
+}
+
 type ReceivedRoute struct {
 	path      Path
-	fromPeer  *net.IP
 	filtered  bool
 	timestamp time.Time
 }
@@ -364,11 +384,10 @@ func (rr *ReceivedRoute) String() string {
 	return rr.path.(*PathDefault).getPrefix().String()
 }
 
-func NewReceivedRoute(path Path, peer *net.IP, filtered bool) *ReceivedRoute {
+func NewReceivedRoute(path Path, filtered bool) *ReceivedRoute {
 
 	rroute := &ReceivedRoute{
 		path:      path,
-		fromPeer:  peer,
 		filtered:  filtered,
 		timestamp: time.Now(),
 	}

@@ -24,6 +24,12 @@ import (
 	"strings"
 )
 
+const (
+	_ = iota
+	PEER_MSG_NEW
+	PEER_MSG_PATH
+)
+
 type message struct {
 	src   string
 	dst   string

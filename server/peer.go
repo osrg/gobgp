@@ -20,6 +20,7 @@ import (
 	"fmt"
 	"github.com/osrg/gobgp/config"
 	"github.com/osrg/gobgp/packet"
+	"github.com/osrg/gobgp/table"
 	"gopkg.in/tomb.v2"
 	"net"
 )
@@ -34,6 +35,7 @@ type Peer struct {
 	inEventCh      chan *message
 	outEventCh     chan *message
 	fsm            *FSM
+	adjRib         *table.AdjRib
 }
 
 func NewPeer(g config.GlobalType, peer config.NeighborType, outEventCh chan *message) *Peer {
@@ -47,8 +49,31 @@ func NewPeer(g config.GlobalType, peer config.NeighborType, outEventCh chan *mes
 		outEventCh:     outEventCh,
 	}
 	p.fsm = NewFSM(&g, &peer, p.acceptedConnCh, p.incoming, p.outgoing)
+	p.adjRib = table.NewAdjRib()
 	p.t.Go(p.loop)
 	return p
+}
+
+func (peer *Peer) handleBGPmessage(m *bgp.BGPMessage) {
+	j, _ := json.Marshal(m)
+	fmt.Println(string(j))
+	// TODO: update state here
+
+	if m.Header.Type != bgp.BGP_MSG_UPDATE {
+		return
+	}
+
+	msg := table.NewProcessMessage(m, peer.fsm.peerInfo)
+	pathList := msg.ToPathList()
+	if len(pathList) == 0 {
+		return
+	}
+
+	peer.adjRib.UpdateIn(pathList)
+
+	for path := range pathList {
+		peer.sendToHub("", PEER_MSG_PATH, path)
+	}
 }
 
 // this goroutine handles routing table operations
@@ -70,10 +95,10 @@ func (peer *Peer) loop() error {
 				close(peer.outgoing)
 				return nil
 			case m := <-peer.incoming:
-				if m != nil {
-					j, _ := json.Marshal(m)
-					fmt.Println(string(j))
+				if m == nil {
+					continue
 				}
+				peer.handleBGPmessage(m)
 			case m := <-peer.inEventCh:
 				fmt.Println(m)
 			}
