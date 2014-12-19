@@ -24,12 +24,20 @@ import (
 	"strings"
 )
 
+type message struct {
+	src   string
+	dst   string
+	event int
+	data  interface{}
+}
+
 type BgpServer struct {
 	bgpConfig     config.BgpType
 	globalTypeCh  chan config.GlobalType
 	addedPeerCh   chan config.NeighborType
 	deletedPeerCh chan config.NeighborType
 	listenPort    int
+	peerMap       map[string]*Peer
 }
 
 func NewBgpServer(port int) *BgpServer {
@@ -65,14 +73,15 @@ func (server *BgpServer) Serve() {
 		}
 	}()
 
-	peerMap := make(map[string]*Peer)
+	server.peerMap = make(map[string]*Peer)
+	broadcastCh := make(chan *message)
 	for {
 		f, _ := l.File()
 		select {
 		case conn := <-acceptCh:
 			fmt.Println(conn)
 			remoteAddr := strings.Split(conn.RemoteAddr().String(), ":")[0]
-			peer, found := peerMap[remoteAddr]
+			peer, found := server.peerMap[remoteAddr]
 			if found {
 				fmt.Println("found neighbor", remoteAddr)
 				peer.PassConn(conn)
@@ -84,20 +93,22 @@ func (server *BgpServer) Serve() {
 			fmt.Println(peer)
 			addr := peer.NeighborAddress.String()
 			SetTcpMD5SigSockopts(int(f.Fd()), addr, peer.AuthPassword)
-			p := NewPeer(server.bgpConfig.Global, peer)
-			peerMap[peer.NeighborAddress.String()] = p
+			p := NewPeer(server.bgpConfig.Global, peer, broadcastCh)
+			server.peerMap[peer.NeighborAddress.String()] = p
 		case peer := <-server.deletedPeerCh:
 			fmt.Println(peer)
 			addr := peer.NeighborAddress.String()
 			SetTcpMD5SigSockopts(int(f.Fd()), addr, "")
-			p, found := peerMap[addr]
+			p, found := server.peerMap[addr]
 			if found {
 				fmt.Println("found neighbor", addr)
 				p.Stop()
-				delete(peerMap, addr)
+				delete(server.peerMap, addr)
 			} else {
 				fmt.Println("can't found neighbor", addr)
 			}
+		case msg := <-broadcastCh:
+			server.broadcast(msg)
 		}
 	}
 }
@@ -112,4 +123,16 @@ func (server *BgpServer) PeerAdd(peer config.NeighborType) {
 
 func (server *BgpServer) PeerDelete(peer config.NeighborType) {
 	server.deletedPeerCh <- peer
+}
+
+func (server *BgpServer) broadcast(msg *message) {
+	for key := range server.peerMap {
+		if key == msg.src {
+			continue
+		}
+		if msg.dst == "" || msg.dst == key {
+			peer := server.peerMap[key]
+			peer.SendMessage(msg)
+		}
+	}
 }

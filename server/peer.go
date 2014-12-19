@@ -31,16 +31,20 @@ type Peer struct {
 	acceptedConnCh chan *net.TCPConn
 	incoming       chan *bgp.BGPMessage
 	outgoing       chan *bgp.BGPMessage
+	inEventCh      chan *message
+	outEventCh     chan *message
 	fsm            *FSM
 }
 
-func NewPeer(g config.GlobalType, peer config.NeighborType) *Peer {
+func NewPeer(g config.GlobalType, peer config.NeighborType, outEventCh chan *message) *Peer {
 	p := &Peer{
 		globalConfig:   g,
 		peerConfig:     peer,
 		acceptedConnCh: make(chan *net.TCPConn),
 		incoming:       make(chan *bgp.BGPMessage, 4096),
 		outgoing:       make(chan *bgp.BGPMessage, 4096),
+		inEventCh:      make(chan *message, 4096),
+		outEventCh:     outEventCh,
 	}
 	p.fsm = NewFSM(&g, &peer, p.acceptedConnCh, p.incoming, p.outgoing)
 	p.t.Go(p.loop)
@@ -70,6 +74,8 @@ func (peer *Peer) loop() error {
 					j, _ := json.Marshal(m)
 					fmt.Println(string(j))
 				}
+			case m := <-peer.inEventCh:
+				fmt.Println(m)
 			}
 		}
 	}
@@ -82,4 +88,17 @@ func (peer *Peer) Stop() error {
 
 func (peer *Peer) PassConn(conn *net.TCPConn) {
 	peer.acceptedConnCh <- conn
+}
+
+func (peer *Peer) SendMessage(msg *message) {
+	peer.inEventCh <- msg
+}
+
+func (peer *Peer) sendToHub(destination string, event int, data interface{}) {
+	peer.outEventCh <- &message{
+		src:   peer.peerConfig.NeighborAddress.String(),
+		dst:   destination,
+		event: event,
+		data:  data,
+	}
 }
