@@ -82,6 +82,7 @@ func (peer *Peer) handlePeermessage(m *message) {
 	switch m.event {
 	case PEER_MSG_PATH:
 		pList, wList, _ := peer.rib.ProcessPaths(m.data.([]table.Path))
+		fmt.Println(pList, wList)
 	}
 }
 
