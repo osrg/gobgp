@@ -13,16 +13,14 @@ func TestPathNewIPv4(t *testing.T) {
 	peerP := PathCreatePeer()
 	msgP := PathCreateMSG(peerP)
 	pathP := PathCreatePath(msgP)
-	ipv4p := NewIPv4Path(pathP[0].getSource(), pathP[0].GetNlri(), pathP[0].getSourceVerNum(), pathP[0].getNexthop(),
-		true, pathP[0].getPathAttributeMap(), pathP[0].getMedSetByTargetNeighbor())
+	ipv4p := NewIPv4Path(pathP[0].getSource(), pathP[0].GetNlri(), pathP[0].getSourceVerNum(), true, pathP[0].GetPathAttrs(), pathP[0].getMedSetByTargetNeighbor())
 	assert.NotNil(t, ipv4p)
 }
 func TestPathNewIPv6(t *testing.T) {
 	peerP := PathCreatePeer()
 	msgP := PathCreateMSG(peerP)
 	pathP := PathCreatePath(msgP)
-	ipv6p := NewIPv6Path(pathP[0].getSource(), pathP[0].GetNlri(), pathP[0].getSourceVerNum(), pathP[0].getNexthop(),
-		true, pathP[0].getPathAttributeMap(), pathP[0].getMedSetByTargetNeighbor())
+	ipv6p := NewIPv6Path(pathP[0].getSource(), pathP[0].GetNlri(), pathP[0].getSourceVerNum(), true, pathP[0].GetPathAttrs(), pathP[0].getMedSetByTargetNeighbor())
 	assert.NotNil(t, ipv6p)
 }
 
@@ -178,17 +176,9 @@ func TestPathGetAttribute(t *testing.T) {
 	msgP := PathCreateMSG(peerP)
 	pathP := PathCreatePath(msgP)
 	nh := "192.168.50.1"
-	pa := pathP[0].getPathAttribute(bgp.BGP_ATTR_TYPE_NEXT_HOP)
+	_, pa := pathP[0].GetPathAttr(bgp.BGP_ATTR_TYPE_NEXT_HOP)
 	r_nh := pa.(*bgp.PathAttributeNextHop).Value.String()
 	assert.Equal(t, r_nh, nh)
-}
-
-func TestPathClone(t *testing.T) {
-	peerP := PathCreatePeer()
-	msgP := PathCreateMSG(peerP)
-	pathP := PathCreatePath(msgP)
-	clPath := pathP[0].clone(false)
-	assert.Equal(t, clPath, pathP[0])
 }
 
 func PathCreatePeer() []*PeerInfo {

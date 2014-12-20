@@ -84,23 +84,27 @@ func TestProcessBGPUpdate_0_select_onlypath_ipv4(t *testing.T) {
 	// check PathAttribute
 	pathAttributes := bgpMessage.Body.(*bgp.BGPUpdate).PathAttributes
 	expectedOrigin := pathAttributes[0]
-	pathOrigin := path.getPathAttribute(bgp.BGP_ATTR_TYPE_ORIGIN).(*bgp.PathAttributeOrigin)
+	_, attr := path.GetPathAttr(bgp.BGP_ATTR_TYPE_ORIGIN)
+	pathOrigin := attr.(*bgp.PathAttributeOrigin)
 	assert.Equal(t, expectedOrigin, pathOrigin)
 
 	expectedAsPath := pathAttributes[1]
-	pathAspath := path.getPathAttribute(bgp.BGP_ATTR_TYPE_AS_PATH).(*bgp.PathAttributeAsPath)
+	_, attr = path.GetPathAttr(bgp.BGP_ATTR_TYPE_AS_PATH)
+	pathAspath := attr.(*bgp.PathAttributeAsPath)
 	assert.Equal(t, expectedAsPath, pathAspath)
 
 	expectedNexthopAttr := pathAttributes[2]
-	pathNexthop := path.getPathAttribute(bgp.BGP_ATTR_TYPE_NEXT_HOP).(*bgp.PathAttributeNextHop)
+	_, attr = path.GetPathAttr(bgp.BGP_ATTR_TYPE_NEXT_HOP)
+	pathNexthop := attr.(*bgp.PathAttributeNextHop)
 	assert.Equal(t, expectedNexthopAttr, pathNexthop)
 
 	expectedMed := pathAttributes[3]
-	pathMed := path.getPathAttribute(bgp.BGP_ATTR_TYPE_MULTI_EXIT_DISC).(*bgp.PathAttributeMultiExitDisc)
+	_, attr = path.GetPathAttr(bgp.BGP_ATTR_TYPE_MULTI_EXIT_DISC)
+	pathMed := attr.(*bgp.PathAttributeMultiExitDisc)
 	assert.Equal(t, expectedMed, pathMed)
 
 	// check PathAttribute length
-	assert.Equal(t, 4, path.getPathAttributeMap().Len())
+	assert.Equal(t, 4, len(path.GetPathAttrs()))
 
 	// check destination
 	expectedPrefix := "10.10.10.0"
@@ -132,23 +136,27 @@ func TestProcessBGPUpdate_0_select_onlypath_ipv6(t *testing.T) {
 	pathAttributes := bgpMessage.Body.(*bgp.BGPUpdate).PathAttributes
 
 	expectedNexthopAttr := pathAttributes[0]
-	pathNexthop := path.getPathAttribute(bgp.BGP_ATTR_TYPE_MP_REACH_NLRI).(*bgp.PathAttributeMpReachNLRI)
+	_, attr := path.GetPathAttr(bgp.BGP_ATTR_TYPE_MP_REACH_NLRI)
+	pathNexthop := attr.(*bgp.PathAttributeMpReachNLRI)
 	assert.Equal(t, expectedNexthopAttr, pathNexthop)
 
 	expectedOrigin := pathAttributes[1]
-	pathOrigin := path.getPathAttribute(bgp.BGP_ATTR_TYPE_ORIGIN).(*bgp.PathAttributeOrigin)
+	_, attr = path.GetPathAttr(bgp.BGP_ATTR_TYPE_ORIGIN)
+	pathOrigin := attr.(*bgp.PathAttributeOrigin)
 	assert.Equal(t, expectedOrigin, pathOrigin)
 
 	expectedAsPath := pathAttributes[2]
-	pathAspath := path.getPathAttribute(bgp.BGP_ATTR_TYPE_AS_PATH).(*bgp.PathAttributeAsPath)
+	_, attr = path.GetPathAttr(bgp.BGP_ATTR_TYPE_AS_PATH)
+	pathAspath := attr.(*bgp.PathAttributeAsPath)
 	assert.Equal(t, expectedAsPath, pathAspath)
 
 	expectedMed := pathAttributes[3]
-	pathMed := path.getPathAttribute(bgp.BGP_ATTR_TYPE_MULTI_EXIT_DISC).(*bgp.PathAttributeMultiExitDisc)
+	_, attr = path.GetPathAttr(bgp.BGP_ATTR_TYPE_MULTI_EXIT_DISC)
+	pathMed := attr.(*bgp.PathAttributeMultiExitDisc)
 	assert.Equal(t, expectedMed, pathMed)
 
 	// check PathAttribute length
-	assert.Equal(t, 4, path.getPathAttributeMap().Len())
+	assert.Equal(t, 4, len(path.GetPathAttrs()))
 
 	// check destination
 	expectedPrefix := "2001:123:123:1::"
@@ -215,23 +223,27 @@ func TestProcessBGPUpdate_1_select_high_localpref_ipv4(t *testing.T) {
 	// check PathAttribute
 	pathAttributes := bgpMessage2.Body.(*bgp.BGPUpdate).PathAttributes
 	expectedOrigin := pathAttributes[0]
-	pathOrigin := path.getPathAttribute(bgp.BGP_ATTR_TYPE_ORIGIN).(*bgp.PathAttributeOrigin)
+	_, attr := path.GetPathAttr(bgp.BGP_ATTR_TYPE_ORIGIN)
+	pathOrigin := attr.(*bgp.PathAttributeOrigin)
 	assert.Equal(t, expectedOrigin, pathOrigin)
 
 	expectedAsPath := pathAttributes[1]
-	pathAspath := path.getPathAttribute(bgp.BGP_ATTR_TYPE_AS_PATH).(*bgp.PathAttributeAsPath)
+	_, attr = path.GetPathAttr(bgp.BGP_ATTR_TYPE_AS_PATH)
+	pathAspath := attr.(*bgp.PathAttributeAsPath)
 	assert.Equal(t, expectedAsPath, pathAspath)
 
 	expectedNexthopAttr := pathAttributes[2]
-	pathNexthop := path.getPathAttribute(bgp.BGP_ATTR_TYPE_NEXT_HOP).(*bgp.PathAttributeNextHop)
+	_, attr = path.GetPathAttr(bgp.BGP_ATTR_TYPE_NEXT_HOP)
+	pathNexthop := attr.(*bgp.PathAttributeNextHop)
 	assert.Equal(t, expectedNexthopAttr, pathNexthop)
 
 	expectedMed := pathAttributes[3]
-	pathMed := path.getPathAttribute(bgp.BGP_ATTR_TYPE_MULTI_EXIT_DISC).(*bgp.PathAttributeMultiExitDisc)
+	_, attr = path.GetPathAttr(bgp.BGP_ATTR_TYPE_MULTI_EXIT_DISC)
+	pathMed := attr.(*bgp.PathAttributeMultiExitDisc)
 	assert.Equal(t, expectedMed, pathMed)
 
 	// check PathAttribute length
-	assert.Equal(t, len(pathAttributes2), path.getPathAttributeMap().Len())
+	assert.Equal(t, len(pathAttributes2), len(path.GetPathAttrs()))
 
 	// check destination
 	expectedPrefix := "10.10.10.0"
@@ -300,23 +312,27 @@ func TestProcessBGPUpdate_1_select_high_localpref_ipv6(t *testing.T) {
 	pathAttributes := bgpMessage2.Body.(*bgp.BGPUpdate).PathAttributes
 
 	expectedNexthopAttr := pathAttributes[0]
-	pathNexthop := path.getPathAttribute(bgp.BGP_ATTR_TYPE_MP_REACH_NLRI).(*bgp.PathAttributeMpReachNLRI)
+	_, attr := path.GetPathAttr(bgp.BGP_ATTR_TYPE_MP_REACH_NLRI)
+	pathNexthop := attr.(*bgp.PathAttributeMpReachNLRI)
 	assert.Equal(t, expectedNexthopAttr, pathNexthop)
 
 	expectedOrigin := pathAttributes[1]
-	pathOrigin := path.getPathAttribute(bgp.BGP_ATTR_TYPE_ORIGIN).(*bgp.PathAttributeOrigin)
+	_, attr = path.GetPathAttr(bgp.BGP_ATTR_TYPE_ORIGIN)
+	pathOrigin := attr.(*bgp.PathAttributeOrigin)
 	assert.Equal(t, expectedOrigin, pathOrigin)
 
 	expectedAsPath := pathAttributes[2]
-	pathAspath := path.getPathAttribute(bgp.BGP_ATTR_TYPE_AS_PATH).(*bgp.PathAttributeAsPath)
+	_, attr = path.GetPathAttr(bgp.BGP_ATTR_TYPE_AS_PATH)
+	pathAspath := attr.(*bgp.PathAttributeAsPath)
 	assert.Equal(t, expectedAsPath, pathAspath)
 
 	expectedMed := pathAttributes[3]
-	pathMed := path.getPathAttribute(bgp.BGP_ATTR_TYPE_MULTI_EXIT_DISC).(*bgp.PathAttributeMultiExitDisc)
+	_, attr = path.GetPathAttr(bgp.BGP_ATTR_TYPE_MULTI_EXIT_DISC)
+	pathMed := attr.(*bgp.PathAttributeMultiExitDisc)
 	assert.Equal(t, expectedMed, pathMed)
 
 	// check PathAttribute length
-	assert.Equal(t, 5, path.getPathAttributeMap().Len())
+	assert.Equal(t, 5, len(path.GetPathAttrs()))
 
 	// check destination
 	expectedPrefix := "2001:123:123:1::"
@@ -383,23 +399,27 @@ func TestProcessBGPUpdate_2_select_local_origin_ipv4(t *testing.T) {
 	// check PathAttribute
 	pathAttributes := bgpMessage2.Body.(*bgp.BGPUpdate).PathAttributes
 	expectedOrigin := pathAttributes[0]
-	pathOrigin := path.getPathAttribute(bgp.BGP_ATTR_TYPE_ORIGIN).(*bgp.PathAttributeOrigin)
+	_, attr := path.GetPathAttr(bgp.BGP_ATTR_TYPE_ORIGIN)
+	pathOrigin := attr.(*bgp.PathAttributeOrigin)
 	assert.Equal(t, expectedOrigin, pathOrigin)
 
 	expectedAsPath := pathAttributes[1]
-	pathAspath := path.getPathAttribute(bgp.BGP_ATTR_TYPE_AS_PATH).(*bgp.PathAttributeAsPath)
+	_, attr = path.GetPathAttr(bgp.BGP_ATTR_TYPE_AS_PATH)
+	pathAspath := attr.(*bgp.PathAttributeAsPath)
 	assert.Equal(t, expectedAsPath, pathAspath)
 
 	expectedNexthopAttr := pathAttributes[2]
-	pathNexthop := path.getPathAttribute(bgp.BGP_ATTR_TYPE_NEXT_HOP).(*bgp.PathAttributeNextHop)
+	_, attr = path.GetPathAttr(bgp.BGP_ATTR_TYPE_NEXT_HOP)
+	pathNexthop := attr.(*bgp.PathAttributeNextHop)
 	assert.Equal(t, expectedNexthopAttr, pathNexthop)
 
 	expectedMed := pathAttributes[3]
-	pathMed := path.getPathAttribute(bgp.BGP_ATTR_TYPE_MULTI_EXIT_DISC).(*bgp.PathAttributeMultiExitDisc)
+	_, attr = path.GetPathAttr(bgp.BGP_ATTR_TYPE_MULTI_EXIT_DISC)
+	pathMed := attr.(*bgp.PathAttributeMultiExitDisc)
 	assert.Equal(t, expectedMed, pathMed)
 
 	// check PathAttribute length
-	assert.Equal(t, len(pathAttributes2), path.getPathAttributeMap().Len())
+	assert.Equal(t, len(pathAttributes2), len(path.GetPathAttrs()))
 
 	// check destination
 	expectedPrefix := "10.10.10.0"
@@ -468,23 +488,27 @@ func TestProcessBGPUpdate_2_select_local_origin_ipv6(t *testing.T) {
 	pathAttributes := bgpMessage2.Body.(*bgp.BGPUpdate).PathAttributes
 
 	expectedNexthopAttr := pathAttributes[0]
-	pathNexthop := path.getPathAttribute(bgp.BGP_ATTR_TYPE_MP_REACH_NLRI).(*bgp.PathAttributeMpReachNLRI)
+	_, attr := path.GetPathAttr(bgp.BGP_ATTR_TYPE_MP_REACH_NLRI)
+	pathNexthop := attr.(*bgp.PathAttributeMpReachNLRI)
 	assert.Equal(t, expectedNexthopAttr, pathNexthop)
 
 	expectedOrigin := pathAttributes[1]
-	pathOrigin := path.getPathAttribute(bgp.BGP_ATTR_TYPE_ORIGIN).(*bgp.PathAttributeOrigin)
+	_, attr = path.GetPathAttr(bgp.BGP_ATTR_TYPE_ORIGIN)
+	pathOrigin := attr.(*bgp.PathAttributeOrigin)
 	assert.Equal(t, expectedOrigin, pathOrigin)
 
 	expectedAsPath := pathAttributes[2]
-	pathAspath := path.getPathAttribute(bgp.BGP_ATTR_TYPE_AS_PATH).(*bgp.PathAttributeAsPath)
+	_, attr = path.GetPathAttr(bgp.BGP_ATTR_TYPE_AS_PATH)
+	pathAspath := attr.(*bgp.PathAttributeAsPath)
 	assert.Equal(t, expectedAsPath, pathAspath)
 
 	expectedMed := pathAttributes[3]
-	pathMed := path.getPathAttribute(bgp.BGP_ATTR_TYPE_MULTI_EXIT_DISC).(*bgp.PathAttributeMultiExitDisc)
+	_, attr = path.GetPathAttr(bgp.BGP_ATTR_TYPE_MULTI_EXIT_DISC)
+	pathMed := attr.(*bgp.PathAttributeMultiExitDisc)
 	assert.Equal(t, expectedMed, pathMed)
 
 	// check PathAttribute length
-	assert.Equal(t, 5, path.getPathAttributeMap().Len())
+	assert.Equal(t, 5, len(path.GetPathAttrs()))
 
 	// check destination
 	expectedPrefix := "2001:123:123:1::"
@@ -524,23 +548,27 @@ func TestProcessBGPUpdate_3_select_aspath_ipv4(t *testing.T) {
 	// check PathAttribute
 	pathAttributes := bgpMessage2.Body.(*bgp.BGPUpdate).PathAttributes
 	expectedOrigin := pathAttributes[0]
-	pathOrigin := path.getPathAttribute(bgp.BGP_ATTR_TYPE_ORIGIN).(*bgp.PathAttributeOrigin)
+	_, attr := path.GetPathAttr(bgp.BGP_ATTR_TYPE_ORIGIN)
+	pathOrigin := attr.(*bgp.PathAttributeOrigin)
 	assert.Equal(t, expectedOrigin, pathOrigin)
 
 	expectedAsPath := pathAttributes[1]
-	pathAspath := path.getPathAttribute(bgp.BGP_ATTR_TYPE_AS_PATH).(*bgp.PathAttributeAsPath)
+	_, attr = path.GetPathAttr(bgp.BGP_ATTR_TYPE_AS_PATH)
+	pathAspath := attr.(*bgp.PathAttributeAsPath)
 	assert.Equal(t, expectedAsPath, pathAspath)
 
 	expectedNexthopAttr := pathAttributes[2]
-	pathNexthop := path.getPathAttribute(bgp.BGP_ATTR_TYPE_NEXT_HOP).(*bgp.PathAttributeNextHop)
+	_, attr = path.GetPathAttr(bgp.BGP_ATTR_TYPE_NEXT_HOP)
+	pathNexthop := attr.(*bgp.PathAttributeNextHop)
 	assert.Equal(t, expectedNexthopAttr, pathNexthop)
 
 	expectedMed := pathAttributes[3]
-	pathMed := path.getPathAttribute(bgp.BGP_ATTR_TYPE_MULTI_EXIT_DISC).(*bgp.PathAttributeMultiExitDisc)
+	_, attr = path.GetPathAttr(bgp.BGP_ATTR_TYPE_MULTI_EXIT_DISC)
+	pathMed := attr.(*bgp.PathAttributeMultiExitDisc)
 	assert.Equal(t, expectedMed, pathMed)
 
 	// check PathAttribute length
-	assert.Equal(t, 4, path.getPathAttributeMap().Len())
+	assert.Equal(t, 4, len(path.GetPathAttrs()))
 
 	// check destination
 	expectedPrefix := "20.20.20.0"
@@ -580,23 +608,27 @@ func TestProcessBGPUpdate_3_select_aspath_ipv6(t *testing.T) {
 	pathAttributes := bgpMessage2.Body.(*bgp.BGPUpdate).PathAttributes
 
 	expectedNexthopAttr := pathAttributes[0]
-	pathNexthop := path.getPathAttribute(bgp.BGP_ATTR_TYPE_MP_REACH_NLRI).(*bgp.PathAttributeMpReachNLRI)
+	_, attr := path.GetPathAttr(bgp.BGP_ATTR_TYPE_MP_REACH_NLRI)
+	pathNexthop := attr.(*bgp.PathAttributeMpReachNLRI)
 	assert.Equal(t, expectedNexthopAttr, pathNexthop)
 
 	expectedOrigin := pathAttributes[1]
-	pathOrigin := path.getPathAttribute(bgp.BGP_ATTR_TYPE_ORIGIN).(*bgp.PathAttributeOrigin)
+	_, attr = path.GetPathAttr(bgp.BGP_ATTR_TYPE_ORIGIN)
+	pathOrigin := attr.(*bgp.PathAttributeOrigin)
 	assert.Equal(t, expectedOrigin, pathOrigin)
 
 	expectedAsPath := pathAttributes[2]
-	pathAspath := path.getPathAttribute(bgp.BGP_ATTR_TYPE_AS_PATH).(*bgp.PathAttributeAsPath)
+	_, attr = path.GetPathAttr(bgp.BGP_ATTR_TYPE_AS_PATH)
+	pathAspath := attr.(*bgp.PathAttributeAsPath)
 	assert.Equal(t, expectedAsPath, pathAspath)
 
 	expectedMed := pathAttributes[3]
-	pathMed := path.getPathAttribute(bgp.BGP_ATTR_TYPE_MULTI_EXIT_DISC).(*bgp.PathAttributeMultiExitDisc)
+	_, attr = path.GetPathAttr(bgp.BGP_ATTR_TYPE_MULTI_EXIT_DISC)
+	pathMed := attr.(*bgp.PathAttributeMultiExitDisc)
 	assert.Equal(t, expectedMed, pathMed)
 
 	// check PathAttribute length
-	assert.Equal(t, 4, path.getPathAttributeMap().Len())
+	assert.Equal(t, 4, len(path.GetPathAttrs()))
 
 	// check destination
 	expectedPrefix := "2002:223:123:1::"
@@ -663,23 +695,27 @@ func TestProcessBGPUpdate_4_select_low_origin_ipv4(t *testing.T) {
 	// check PathAttribute
 	pathAttributes := bgpMessage2.Body.(*bgp.BGPUpdate).PathAttributes
 	expectedOrigin := pathAttributes[0]
-	pathOrigin := path.getPathAttribute(bgp.BGP_ATTR_TYPE_ORIGIN).(*bgp.PathAttributeOrigin)
+	_, attr := path.GetPathAttr(bgp.BGP_ATTR_TYPE_ORIGIN)
+	pathOrigin := attr.(*bgp.PathAttributeOrigin)
 	assert.Equal(t, expectedOrigin, pathOrigin)
 
 	expectedAsPath := pathAttributes[1]
-	pathAspath := path.getPathAttribute(bgp.BGP_ATTR_TYPE_AS_PATH).(*bgp.PathAttributeAsPath)
+	_, attr = path.GetPathAttr(bgp.BGP_ATTR_TYPE_AS_PATH)
+	pathAspath := attr.(*bgp.PathAttributeAsPath)
 	assert.Equal(t, expectedAsPath, pathAspath)
 
 	expectedNexthopAttr := pathAttributes[2]
-	pathNexthop := path.getPathAttribute(bgp.BGP_ATTR_TYPE_NEXT_HOP).(*bgp.PathAttributeNextHop)
+	_, attr = path.GetPathAttr(bgp.BGP_ATTR_TYPE_NEXT_HOP)
+	pathNexthop := attr.(*bgp.PathAttributeNextHop)
 	assert.Equal(t, expectedNexthopAttr, pathNexthop)
 
 	expectedMed := pathAttributes[3]
-	pathMed := path.getPathAttribute(bgp.BGP_ATTR_TYPE_MULTI_EXIT_DISC).(*bgp.PathAttributeMultiExitDisc)
+	_, attr = path.GetPathAttr(bgp.BGP_ATTR_TYPE_MULTI_EXIT_DISC)
+	pathMed := attr.(*bgp.PathAttributeMultiExitDisc)
 	assert.Equal(t, expectedMed, pathMed)
 
 	// check PathAttribute length
-	assert.Equal(t, len(pathAttributes2), path.getPathAttributeMap().Len())
+	assert.Equal(t, len(pathAttributes2), len(path.GetPathAttrs()))
 
 	// check destination
 	expectedPrefix := "10.10.10.0"
@@ -748,23 +784,27 @@ func TestProcessBGPUpdate_4_select_low_origin_ipv6(t *testing.T) {
 	pathAttributes := bgpMessage2.Body.(*bgp.BGPUpdate).PathAttributes
 
 	expectedNexthopAttr := pathAttributes[0]
-	pathNexthop := path.getPathAttribute(bgp.BGP_ATTR_TYPE_MP_REACH_NLRI).(*bgp.PathAttributeMpReachNLRI)
+	_, attr := path.GetPathAttr(bgp.BGP_ATTR_TYPE_MP_REACH_NLRI)
+	pathNexthop := attr.(*bgp.PathAttributeMpReachNLRI)
 	assert.Equal(t, expectedNexthopAttr, pathNexthop)
 
 	expectedOrigin := pathAttributes[1]
-	pathOrigin := path.getPathAttribute(bgp.BGP_ATTR_TYPE_ORIGIN).(*bgp.PathAttributeOrigin)
+	_, attr = path.GetPathAttr(bgp.BGP_ATTR_TYPE_ORIGIN)
+	pathOrigin := attr.(*bgp.PathAttributeOrigin)
 	assert.Equal(t, expectedOrigin, pathOrigin)
 
 	expectedAsPath := pathAttributes[2]
-	pathAspath := path.getPathAttribute(bgp.BGP_ATTR_TYPE_AS_PATH).(*bgp.PathAttributeAsPath)
+	_, attr = path.GetPathAttr(bgp.BGP_ATTR_TYPE_AS_PATH)
+	pathAspath := attr.(*bgp.PathAttributeAsPath)
 	assert.Equal(t, expectedAsPath, pathAspath)
 
 	expectedMed := pathAttributes[3]
-	pathMed := path.getPathAttribute(bgp.BGP_ATTR_TYPE_MULTI_EXIT_DISC).(*bgp.PathAttributeMultiExitDisc)
+	_, attr = path.GetPathAttr(bgp.BGP_ATTR_TYPE_MULTI_EXIT_DISC)
+	pathMed := attr.(*bgp.PathAttributeMultiExitDisc)
 	assert.Equal(t, expectedMed, pathMed)
 
 	// check PathAttribute length
-	assert.Equal(t, 5, path.getPathAttributeMap().Len())
+	assert.Equal(t, 5, len(path.GetPathAttrs()))
 
 	// check destination
 	expectedPrefix := "2001:123:123:1::"
@@ -831,23 +871,27 @@ func TestProcessBGPUpdate_5_select_low_med_ipv4(t *testing.T) {
 	// check PathAttribute
 	pathAttributes := bgpMessage2.Body.(*bgp.BGPUpdate).PathAttributes
 	expectedOrigin := pathAttributes[0]
-	pathOrigin := path.getPathAttribute(bgp.BGP_ATTR_TYPE_ORIGIN).(*bgp.PathAttributeOrigin)
+	_, attr := path.GetPathAttr(bgp.BGP_ATTR_TYPE_ORIGIN)
+	pathOrigin := attr.(*bgp.PathAttributeOrigin)
 	assert.Equal(t, expectedOrigin, pathOrigin)
 
 	expectedAsPath := pathAttributes[1]
-	pathAspath := path.getPathAttribute(bgp.BGP_ATTR_TYPE_AS_PATH).(*bgp.PathAttributeAsPath)
+	_, attr = path.GetPathAttr(bgp.BGP_ATTR_TYPE_AS_PATH)
+	pathAspath := attr.(*bgp.PathAttributeAsPath)
 	assert.Equal(t, expectedAsPath, pathAspath)
 
 	expectedNexthopAttr := pathAttributes[2]
-	pathNexthop := path.getPathAttribute(bgp.BGP_ATTR_TYPE_NEXT_HOP).(*bgp.PathAttributeNextHop)
+	_, attr = path.GetPathAttr(bgp.BGP_ATTR_TYPE_NEXT_HOP)
+	pathNexthop := attr.(*bgp.PathAttributeNextHop)
 	assert.Equal(t, expectedNexthopAttr, pathNexthop)
 
 	expectedMed := pathAttributes[3]
-	pathMed := path.getPathAttribute(bgp.BGP_ATTR_TYPE_MULTI_EXIT_DISC).(*bgp.PathAttributeMultiExitDisc)
+	_, attr = path.GetPathAttr(bgp.BGP_ATTR_TYPE_MULTI_EXIT_DISC)
+	pathMed := attr.(*bgp.PathAttributeMultiExitDisc)
 	assert.Equal(t, expectedMed, pathMed)
 
 	// check PathAttribute length
-	assert.Equal(t, len(pathAttributes2), path.getPathAttributeMap().Len())
+	assert.Equal(t, len(pathAttributes2), len(path.GetPathAttrs()))
 
 	// check destination
 	expectedPrefix := "10.10.10.0"
@@ -916,23 +960,27 @@ func TestProcessBGPUpdate_5_select_low_med_ipv6(t *testing.T) {
 	pathAttributes := bgpMessage2.Body.(*bgp.BGPUpdate).PathAttributes
 
 	expectedNexthopAttr := pathAttributes[0]
-	pathNexthop := path.getPathAttribute(bgp.BGP_ATTR_TYPE_MP_REACH_NLRI).(*bgp.PathAttributeMpReachNLRI)
+	_, attr := path.GetPathAttr(bgp.BGP_ATTR_TYPE_MP_REACH_NLRI)
+	pathNexthop := attr.(*bgp.PathAttributeMpReachNLRI)
 	assert.Equal(t, expectedNexthopAttr, pathNexthop)
 
 	expectedOrigin := pathAttributes[1]
-	pathOrigin := path.getPathAttribute(bgp.BGP_ATTR_TYPE_ORIGIN).(*bgp.PathAttributeOrigin)
+	_, attr = path.GetPathAttr(bgp.BGP_ATTR_TYPE_ORIGIN)
+	pathOrigin := attr.(*bgp.PathAttributeOrigin)
 	assert.Equal(t, expectedOrigin, pathOrigin)
 
 	expectedAsPath := pathAttributes[2]
-	pathAspath := path.getPathAttribute(bgp.BGP_ATTR_TYPE_AS_PATH).(*bgp.PathAttributeAsPath)
+	_, attr = path.GetPathAttr(bgp.BGP_ATTR_TYPE_AS_PATH)
+	pathAspath := attr.(*bgp.PathAttributeAsPath)
 	assert.Equal(t, expectedAsPath, pathAspath)
 
 	expectedMed := pathAttributes[3]
-	pathMed := path.getPathAttribute(bgp.BGP_ATTR_TYPE_MULTI_EXIT_DISC).(*bgp.PathAttributeMultiExitDisc)
+	_, attr = path.GetPathAttr(bgp.BGP_ATTR_TYPE_MULTI_EXIT_DISC)
+	pathMed := attr.(*bgp.PathAttributeMultiExitDisc)
 	assert.Equal(t, expectedMed, pathMed)
 
 	// check PathAttribute length
-	assert.Equal(t, 5, path.getPathAttributeMap().Len())
+	assert.Equal(t, 5, len(path.GetPathAttrs()))
 
 	// check destination
 	expectedPrefix := "2001:123:123:1::"
@@ -1001,23 +1049,27 @@ func TestProcessBGPUpdate_6_select_ebgp_path_ipv4(t *testing.T) {
 	// check PathAttribute
 	pathAttributes := bgpMessage2.Body.(*bgp.BGPUpdate).PathAttributes
 	expectedOrigin := pathAttributes[0]
-	pathOrigin := path.getPathAttribute(bgp.BGP_ATTR_TYPE_ORIGIN).(*bgp.PathAttributeOrigin)
+	_, attr := path.GetPathAttr(bgp.BGP_ATTR_TYPE_ORIGIN)
+	pathOrigin := attr.(*bgp.PathAttributeOrigin)
 	assert.Equal(t, expectedOrigin, pathOrigin)
 
 	expectedAsPath := pathAttributes[1]
-	pathAspath := path.getPathAttribute(bgp.BGP_ATTR_TYPE_AS_PATH).(*bgp.PathAttributeAsPath)
+	_, attr = path.GetPathAttr(bgp.BGP_ATTR_TYPE_AS_PATH)
+	pathAspath := attr.(*bgp.PathAttributeAsPath)
 	assert.Equal(t, expectedAsPath, pathAspath)
 
 	expectedNexthopAttr := pathAttributes[2]
-	pathNexthop := path.getPathAttribute(bgp.BGP_ATTR_TYPE_NEXT_HOP).(*bgp.PathAttributeNextHop)
+	_, attr = path.GetPathAttr(bgp.BGP_ATTR_TYPE_NEXT_HOP)
+	pathNexthop := attr.(*bgp.PathAttributeNextHop)
 	assert.Equal(t, expectedNexthopAttr, pathNexthop)
 
 	expectedMed := pathAttributes[3]
-	pathMed := path.getPathAttribute(bgp.BGP_ATTR_TYPE_MULTI_EXIT_DISC).(*bgp.PathAttributeMultiExitDisc)
+	_, attr = path.GetPathAttr(bgp.BGP_ATTR_TYPE_MULTI_EXIT_DISC)
+	pathMed := attr.(*bgp.PathAttributeMultiExitDisc)
 	assert.Equal(t, expectedMed, pathMed)
 
 	// check PathAttribute length
-	assert.Equal(t, len(pathAttributes2), path.getPathAttributeMap().Len())
+	assert.Equal(t, len(pathAttributes2), len(path.GetPathAttrs()))
 
 	// check destination
 	expectedPrefix := "10.10.10.0"
@@ -1087,23 +1139,27 @@ func TestProcessBGPUpdate_6_select_ebgp_path_ipv6(t *testing.T) {
 	pathAttributes := bgpMessage2.Body.(*bgp.BGPUpdate).PathAttributes
 
 	expectedNexthopAttr := pathAttributes[0]
-	pathNexthop := path.getPathAttribute(bgp.BGP_ATTR_TYPE_MP_REACH_NLRI).(*bgp.PathAttributeMpReachNLRI)
+	_, attr := path.GetPathAttr(bgp.BGP_ATTR_TYPE_MP_REACH_NLRI)
+	pathNexthop := attr.(*bgp.PathAttributeMpReachNLRI)
 	assert.Equal(t, expectedNexthopAttr, pathNexthop)
 
 	expectedOrigin := pathAttributes[1]
-	pathOrigin := path.getPathAttribute(bgp.BGP_ATTR_TYPE_ORIGIN).(*bgp.PathAttributeOrigin)
+	_, attr = path.GetPathAttr(bgp.BGP_ATTR_TYPE_ORIGIN)
+	pathOrigin := attr.(*bgp.PathAttributeOrigin)
 	assert.Equal(t, expectedOrigin, pathOrigin)
 
 	expectedAsPath := pathAttributes[2]
-	pathAspath := path.getPathAttribute(bgp.BGP_ATTR_TYPE_AS_PATH).(*bgp.PathAttributeAsPath)
+	_, attr = path.GetPathAttr(bgp.BGP_ATTR_TYPE_AS_PATH)
+	pathAspath := attr.(*bgp.PathAttributeAsPath)
 	assert.Equal(t, expectedAsPath, pathAspath)
 
 	expectedMed := pathAttributes[3]
-	pathMed := path.getPathAttribute(bgp.BGP_ATTR_TYPE_MULTI_EXIT_DISC).(*bgp.PathAttributeMultiExitDisc)
+	_, attr = path.GetPathAttr(bgp.BGP_ATTR_TYPE_MULTI_EXIT_DISC)
+	pathMed := attr.(*bgp.PathAttributeMultiExitDisc)
 	assert.Equal(t, expectedMed, pathMed)
 
 	// check PathAttribute length
-	assert.Equal(t, 5, path.getPathAttributeMap().Len())
+	assert.Equal(t, 5, len(path.GetPathAttrs()))
 
 	// check destination
 	expectedPrefix := "2001:123:123:1::"
@@ -1174,23 +1230,27 @@ func TestProcessBGPUpdate_7_select_low_routerid_path_ipv4(t *testing.T) {
 	// check PathAttribute
 	pathAttributes := bgpMessage2.Body.(*bgp.BGPUpdate).PathAttributes
 	expectedOrigin := pathAttributes[0]
-	pathOrigin := path.getPathAttribute(bgp.BGP_ATTR_TYPE_ORIGIN).(*bgp.PathAttributeOrigin)
+	_, attr := path.GetPathAttr(bgp.BGP_ATTR_TYPE_ORIGIN)
+	pathOrigin := attr.(*bgp.PathAttributeOrigin)
 	assert.Equal(t, expectedOrigin, pathOrigin)
 
 	expectedAsPath := pathAttributes[1]
-	pathAspath := path.getPathAttribute(bgp.BGP_ATTR_TYPE_AS_PATH).(*bgp.PathAttributeAsPath)
+	_, attr = path.GetPathAttr(bgp.BGP_ATTR_TYPE_AS_PATH)
+	pathAspath := attr.(*bgp.PathAttributeAsPath)
 	assert.Equal(t, expectedAsPath, pathAspath)
 
 	expectedNexthopAttr := pathAttributes[2]
-	pathNexthop := path.getPathAttribute(bgp.BGP_ATTR_TYPE_NEXT_HOP).(*bgp.PathAttributeNextHop)
+	_, attr = path.GetPathAttr(bgp.BGP_ATTR_TYPE_NEXT_HOP)
+	pathNexthop := attr.(*bgp.PathAttributeNextHop)
 	assert.Equal(t, expectedNexthopAttr, pathNexthop)
 
 	expectedMed := pathAttributes[3]
-	pathMed := path.getPathAttribute(bgp.BGP_ATTR_TYPE_MULTI_EXIT_DISC).(*bgp.PathAttributeMultiExitDisc)
+	_, attr = path.GetPathAttr(bgp.BGP_ATTR_TYPE_MULTI_EXIT_DISC)
+	pathMed := attr.(*bgp.PathAttributeMultiExitDisc)
 	assert.Equal(t, expectedMed, pathMed)
 
 	// check PathAttribute length
-	assert.Equal(t, len(pathAttributes2), path.getPathAttributeMap().Len())
+	assert.Equal(t, len(pathAttributes2), len(path.GetPathAttrs()))
 
 	// check destination
 	expectedPrefix := "10.10.10.0"
@@ -1260,23 +1320,27 @@ func TestProcessBGPUpdate_7_select_low_routerid_path_ipv6(t *testing.T) {
 	pathAttributes := bgpMessage2.Body.(*bgp.BGPUpdate).PathAttributes
 
 	expectedNexthopAttr := pathAttributes[0]
-	pathNexthop := path.getPathAttribute(bgp.BGP_ATTR_TYPE_MP_REACH_NLRI).(*bgp.PathAttributeMpReachNLRI)
+	_, attr := path.GetPathAttr(bgp.BGP_ATTR_TYPE_MP_REACH_NLRI)
+	pathNexthop := attr.(*bgp.PathAttributeMpReachNLRI)
 	assert.Equal(t, expectedNexthopAttr, pathNexthop)
 
 	expectedOrigin := pathAttributes[1]
-	pathOrigin := path.getPathAttribute(bgp.BGP_ATTR_TYPE_ORIGIN).(*bgp.PathAttributeOrigin)
+	_, attr = path.GetPathAttr(bgp.BGP_ATTR_TYPE_ORIGIN)
+	pathOrigin := attr.(*bgp.PathAttributeOrigin)
 	assert.Equal(t, expectedOrigin, pathOrigin)
 
 	expectedAsPath := pathAttributes[2]
-	pathAspath := path.getPathAttribute(bgp.BGP_ATTR_TYPE_AS_PATH).(*bgp.PathAttributeAsPath)
+	_, attr = path.GetPathAttr(bgp.BGP_ATTR_TYPE_AS_PATH)
+	pathAspath := attr.(*bgp.PathAttributeAsPath)
 	assert.Equal(t, expectedAsPath, pathAspath)
 
 	expectedMed := pathAttributes[3]
-	pathMed := path.getPathAttribute(bgp.BGP_ATTR_TYPE_MULTI_EXIT_DISC).(*bgp.PathAttributeMultiExitDisc)
+	_, attr = path.GetPathAttr(bgp.BGP_ATTR_TYPE_MULTI_EXIT_DISC)
+	pathMed := attr.(*bgp.PathAttributeMultiExitDisc)
 	assert.Equal(t, expectedMed, pathMed)
 
 	// check PathAttribute length
-	assert.Equal(t, 5, path.getPathAttributeMap().Len())
+	assert.Equal(t, 5, len(path.GetPathAttrs()))
 
 	// check destination
 	expectedPrefix := "2001:123:123:1::"
@@ -1345,23 +1409,27 @@ func TestProcessBGPUpdate_8_withdraw_path_ipv4(t *testing.T) {
 	checkPattr := func(expected *bgp.BGPMessage, actual Path) {
 		pathAttributes := expected.Body.(*bgp.BGPUpdate).PathAttributes
 		expectedOrigin := pathAttributes[0]
-		pathOrigin := actual.getPathAttribute(bgp.BGP_ATTR_TYPE_ORIGIN).(*bgp.PathAttributeOrigin)
+		_, attr := actual.GetPathAttr(bgp.BGP_ATTR_TYPE_ORIGIN)
+		pathOrigin := attr.(*bgp.PathAttributeOrigin)
 		assert.Equal(t, expectedOrigin, pathOrigin)
 
 		expectedAsPath := pathAttributes[1]
-		pathAspath := actual.getPathAttribute(bgp.BGP_ATTR_TYPE_AS_PATH).(*bgp.PathAttributeAsPath)
+		_, attr = actual.GetPathAttr(bgp.BGP_ATTR_TYPE_AS_PATH)
+		pathAspath := attr.(*bgp.PathAttributeAsPath)
 		assert.Equal(t, expectedAsPath, pathAspath)
 
 		expectedNexthopAttr := pathAttributes[2]
-		pathNexthop := actual.getPathAttribute(bgp.BGP_ATTR_TYPE_NEXT_HOP).(*bgp.PathAttributeNextHop)
+		_, attr = actual.GetPathAttr(bgp.BGP_ATTR_TYPE_NEXT_HOP)
+		pathNexthop := attr.(*bgp.PathAttributeNextHop)
 		assert.Equal(t, expectedNexthopAttr, pathNexthop)
 
 		expectedMed := pathAttributes[3]
-		pathMed := actual.getPathAttribute(bgp.BGP_ATTR_TYPE_MULTI_EXIT_DISC).(*bgp.PathAttributeMultiExitDisc)
+		_, attr = actual.GetPathAttr(bgp.BGP_ATTR_TYPE_MULTI_EXIT_DISC)
+		pathMed := attr.(*bgp.PathAttributeMultiExitDisc)
 		assert.Equal(t, expectedMed, pathMed)
 
 		// check PathAttribute length
-		assert.Equal(t, len(pathAttributes), path.getPathAttributeMap().Len())
+		assert.Equal(t, len(pathAttributes), len(path.GetPathAttrs()))
 	}
 	checkPattr(bgpMessage2, path)
 	// check destination
@@ -1453,19 +1521,23 @@ func TestProcessBGPUpdate_8_mpunreach_path_ipv6(t *testing.T) {
 	pathAttributes := bgpMessage2.Body.(*bgp.BGPUpdate).PathAttributes
 
 	expectedNexthopAttr := pathAttributes[0]
-	pathNexthop := path.getPathAttribute(bgp.BGP_ATTR_TYPE_MP_REACH_NLRI).(*bgp.PathAttributeMpReachNLRI)
+	_, attr := path.GetPathAttr(bgp.BGP_ATTR_TYPE_MP_REACH_NLRI)
+	pathNexthop := attr.(*bgp.PathAttributeMpReachNLRI)
 	assert.Equal(t, expectedNexthopAttr, pathNexthop)
 
 	expectedOrigin := pathAttributes[1]
-	pathOrigin := path.getPathAttribute(bgp.BGP_ATTR_TYPE_ORIGIN).(*bgp.PathAttributeOrigin)
+	_, attr = path.GetPathAttr(bgp.BGP_ATTR_TYPE_ORIGIN)
+	pathOrigin := attr.(*bgp.PathAttributeOrigin)
 	assert.Equal(t, expectedOrigin, pathOrigin)
 
 	expectedAsPath := pathAttributes[2]
-	pathAspath := path.getPathAttribute(bgp.BGP_ATTR_TYPE_AS_PATH).(*bgp.PathAttributeAsPath)
+	_, attr = path.GetPathAttr(bgp.BGP_ATTR_TYPE_AS_PATH)
+	pathAspath := attr.(*bgp.PathAttributeAsPath)
 	assert.Equal(t, expectedAsPath, pathAspath)
 
 	expectedMed := pathAttributes[3]
-	pathMed := path.getPathAttribute(bgp.BGP_ATTR_TYPE_MULTI_EXIT_DISC).(*bgp.PathAttributeMultiExitDisc)
+	_, attr = path.GetPathAttr(bgp.BGP_ATTR_TYPE_MULTI_EXIT_DISC)
+	pathMed := attr.(*bgp.PathAttributeMultiExitDisc)
 	assert.Equal(t, expectedMed, pathMed)
 
 	// check PathAttribute
@@ -1473,22 +1545,26 @@ func TestProcessBGPUpdate_8_mpunreach_path_ipv6(t *testing.T) {
 		pathAttributes := expected.Body.(*bgp.BGPUpdate).PathAttributes
 
 		expectedNexthopAttr := pathAttributes[0]
-		pathNexthop := actual.getPathAttribute(bgp.BGP_ATTR_TYPE_MP_REACH_NLRI).(*bgp.PathAttributeMpReachNLRI)
+		_, attr = actual.GetPathAttr(bgp.BGP_ATTR_TYPE_MP_REACH_NLRI)
+		pathNexthop := attr.(*bgp.PathAttributeMpReachNLRI)
 		assert.Equal(t, expectedNexthopAttr, pathNexthop)
 
 		expectedOrigin := pathAttributes[1]
-		pathOrigin := actual.getPathAttribute(bgp.BGP_ATTR_TYPE_ORIGIN).(*bgp.PathAttributeOrigin)
+		_, attr = actual.GetPathAttr(bgp.BGP_ATTR_TYPE_ORIGIN)
+		pathOrigin := attr.(*bgp.PathAttributeOrigin)
 		assert.Equal(t, expectedOrigin, pathOrigin)
 
 		expectedAsPath := pathAttributes[2]
-		pathAspath := actual.getPathAttribute(bgp.BGP_ATTR_TYPE_AS_PATH).(*bgp.PathAttributeAsPath)
+		_, attr = actual.GetPathAttr(bgp.BGP_ATTR_TYPE_AS_PATH)
+		pathAspath := attr.(*bgp.PathAttributeAsPath)
 		assert.Equal(t, expectedAsPath, pathAspath)
 
 		expectedMed := pathAttributes[3]
-		pathMed := actual.getPathAttribute(bgp.BGP_ATTR_TYPE_MULTI_EXIT_DISC).(*bgp.PathAttributeMultiExitDisc)
+		_, attr = actual.GetPathAttr(bgp.BGP_ATTR_TYPE_MULTI_EXIT_DISC)
+		pathMed := attr.(*bgp.PathAttributeMultiExitDisc)
 		assert.Equal(t, expectedMed, pathMed)
 		// check PathAttribute length
-		assert.Equal(t, len(pathAttributes), path.getPathAttributeMap().Len())
+		assert.Equal(t, len(pathAttributes), len(path.GetPathAttrs()))
 	}
 
 	checkPattr(bgpMessage2, path)
@@ -1571,23 +1647,27 @@ func TestProcessBGPUpdate_bestpath_lost_ipv4(t *testing.T) {
 	checkPattr := func(expected *bgp.BGPMessage, actual Path) {
 		pathAttributes := expected.Body.(*bgp.BGPUpdate).PathAttributes
 		expectedOrigin := pathAttributes[0]
-		pathOrigin := actual.getPathAttribute(bgp.BGP_ATTR_TYPE_ORIGIN).(*bgp.PathAttributeOrigin)
+		_, attr := actual.GetPathAttr(bgp.BGP_ATTR_TYPE_ORIGIN)
+		pathOrigin := attr.(*bgp.PathAttributeOrigin)
 		assert.Equal(t, expectedOrigin, pathOrigin)
 
 		expectedAsPath := pathAttributes[1]
-		pathAspath := actual.getPathAttribute(bgp.BGP_ATTR_TYPE_AS_PATH).(*bgp.PathAttributeAsPath)
+		_, attr = actual.GetPathAttr(bgp.BGP_ATTR_TYPE_AS_PATH)
+		pathAspath := attr.(*bgp.PathAttributeAsPath)
 		assert.Equal(t, expectedAsPath, pathAspath)
 
 		expectedNexthopAttr := pathAttributes[2]
-		pathNexthop := actual.getPathAttribute(bgp.BGP_ATTR_TYPE_NEXT_HOP).(*bgp.PathAttributeNextHop)
+		_, attr = actual.GetPathAttr(bgp.BGP_ATTR_TYPE_NEXT_HOP)
+		pathNexthop := attr.(*bgp.PathAttributeNextHop)
 		assert.Equal(t, expectedNexthopAttr, pathNexthop)
 
 		expectedMed := pathAttributes[3]
-		pathMed := actual.getPathAttribute(bgp.BGP_ATTR_TYPE_MULTI_EXIT_DISC).(*bgp.PathAttributeMultiExitDisc)
+		_, attr = actual.GetPathAttr(bgp.BGP_ATTR_TYPE_MULTI_EXIT_DISC)
+		pathMed := attr.(*bgp.PathAttributeMultiExitDisc)
 		assert.Equal(t, expectedMed, pathMed)
 
 		// check PathAttribute length
-		assert.Equal(t, len(pathAttributes), path.getPathAttributeMap().Len())
+		assert.Equal(t, len(pathAttributes), len(path.GetPathAttrs()))
 	}
 
 	checkPattr(bgpMessage1, path)
@@ -1648,22 +1728,26 @@ func TestProcessBGPUpdate_bestpath_lost_ipv6(t *testing.T) {
 		pathAttributes := expected.Body.(*bgp.BGPUpdate).PathAttributes
 
 		expectedNexthopAttr := pathAttributes[0]
-		pathNexthop := actual.getPathAttribute(bgp.BGP_ATTR_TYPE_MP_REACH_NLRI).(*bgp.PathAttributeMpReachNLRI)
+		_, attr := actual.GetPathAttr(bgp.BGP_ATTR_TYPE_MP_REACH_NLRI)
+		pathNexthop := attr.(*bgp.PathAttributeMpReachNLRI)
 		assert.Equal(t, expectedNexthopAttr, pathNexthop)
 
 		expectedOrigin := pathAttributes[1]
-		pathOrigin := actual.getPathAttribute(bgp.BGP_ATTR_TYPE_ORIGIN).(*bgp.PathAttributeOrigin)
+		_, attr = actual.GetPathAttr(bgp.BGP_ATTR_TYPE_ORIGIN)
+		pathOrigin := attr.(*bgp.PathAttributeOrigin)
 		assert.Equal(t, expectedOrigin, pathOrigin)
 
 		expectedAsPath := pathAttributes[2]
-		pathAspath := actual.getPathAttribute(bgp.BGP_ATTR_TYPE_AS_PATH).(*bgp.PathAttributeAsPath)
+		_, attr = actual.GetPathAttr(bgp.BGP_ATTR_TYPE_AS_PATH)
+		pathAspath := attr.(*bgp.PathAttributeAsPath)
 		assert.Equal(t, expectedAsPath, pathAspath)
 
 		expectedMed := pathAttributes[3]
-		pathMed := actual.getPathAttribute(bgp.BGP_ATTR_TYPE_MULTI_EXIT_DISC).(*bgp.PathAttributeMultiExitDisc)
+		_, attr = actual.GetPathAttr(bgp.BGP_ATTR_TYPE_MULTI_EXIT_DISC)
+		pathMed := attr.(*bgp.PathAttributeMultiExitDisc)
 		assert.Equal(t, expectedMed, pathMed)
 		// check PathAttribute length
-		assert.Equal(t, len(pathAttributes), path.getPathAttributeMap().Len())
+		assert.Equal(t, len(pathAttributes), len(path.GetPathAttrs()))
 	}
 
 	checkPattr(bgpMessage1, path)
@@ -1734,23 +1818,27 @@ func TestProcessBGPUpdate_implicit_withdrwal_ipv4(t *testing.T) {
 	checkPattr := func(expected *bgp.BGPMessage, actual Path) {
 		pathAttributes := expected.Body.(*bgp.BGPUpdate).PathAttributes
 		expectedOrigin := pathAttributes[0]
-		pathOrigin := actual.getPathAttribute(bgp.BGP_ATTR_TYPE_ORIGIN).(*bgp.PathAttributeOrigin)
+		_, attr := actual.GetPathAttr(bgp.BGP_ATTR_TYPE_ORIGIN)
+		pathOrigin := attr.(*bgp.PathAttributeOrigin)
 		assert.Equal(t, expectedOrigin, pathOrigin)
 
 		expectedAsPath := pathAttributes[1]
-		pathAspath := actual.getPathAttribute(bgp.BGP_ATTR_TYPE_AS_PATH).(*bgp.PathAttributeAsPath)
+		_, attr = actual.GetPathAttr(bgp.BGP_ATTR_TYPE_AS_PATH)
+		pathAspath := attr.(*bgp.PathAttributeAsPath)
 		assert.Equal(t, expectedAsPath, pathAspath)
 
 		expectedNexthopAttr := pathAttributes[2]
-		pathNexthop := actual.getPathAttribute(bgp.BGP_ATTR_TYPE_NEXT_HOP).(*bgp.PathAttributeNextHop)
+		_, attr = actual.GetPathAttr(bgp.BGP_ATTR_TYPE_NEXT_HOP)
+		pathNexthop := attr.(*bgp.PathAttributeNextHop)
 		assert.Equal(t, expectedNexthopAttr, pathNexthop)
 
 		expectedMed := pathAttributes[3]
-		pathMed := actual.getPathAttribute(bgp.BGP_ATTR_TYPE_MULTI_EXIT_DISC).(*bgp.PathAttributeMultiExitDisc)
+		_, attr = actual.GetPathAttr(bgp.BGP_ATTR_TYPE_MULTI_EXIT_DISC)
+		pathMed := attr.(*bgp.PathAttributeMultiExitDisc)
 		assert.Equal(t, expectedMed, pathMed)
 
 		// check PathAttribute length
-		assert.Equal(t, len(pathAttributes), path.getPathAttributeMap().Len())
+		assert.Equal(t, len(pathAttributes), len(path.GetPathAttrs()))
 	}
 	checkPattr(bgpMessage2, path)
 	// check destination
@@ -1819,19 +1907,23 @@ func TestProcessBGPUpdate_implicit_withdrwal_ipv6(t *testing.T) {
 	pathAttributes := bgpMessage2.Body.(*bgp.BGPUpdate).PathAttributes
 
 	expectedNexthopAttr := pathAttributes[0]
-	pathNexthop := path.getPathAttribute(bgp.BGP_ATTR_TYPE_MP_REACH_NLRI).(*bgp.PathAttributeMpReachNLRI)
+	_, attr := path.GetPathAttr(bgp.BGP_ATTR_TYPE_MP_REACH_NLRI)
+	pathNexthop := attr.(*bgp.PathAttributeMpReachNLRI)
 	assert.Equal(t, expectedNexthopAttr, pathNexthop)
 
 	expectedOrigin := pathAttributes[1]
-	pathOrigin := path.getPathAttribute(bgp.BGP_ATTR_TYPE_ORIGIN).(*bgp.PathAttributeOrigin)
+	_, attr = path.GetPathAttr(bgp.BGP_ATTR_TYPE_ORIGIN)
+	pathOrigin := attr.(*bgp.PathAttributeOrigin)
 	assert.Equal(t, expectedOrigin, pathOrigin)
 
 	expectedAsPath := pathAttributes[2]
-	pathAspath := path.getPathAttribute(bgp.BGP_ATTR_TYPE_AS_PATH).(*bgp.PathAttributeAsPath)
+	_, attr = path.GetPathAttr(bgp.BGP_ATTR_TYPE_AS_PATH)
+	pathAspath := attr.(*bgp.PathAttributeAsPath)
 	assert.Equal(t, expectedAsPath, pathAspath)
 
 	expectedMed := pathAttributes[3]
-	pathMed := path.getPathAttribute(bgp.BGP_ATTR_TYPE_MULTI_EXIT_DISC).(*bgp.PathAttributeMultiExitDisc)
+	_, attr = path.GetPathAttr(bgp.BGP_ATTR_TYPE_MULTI_EXIT_DISC)
+	pathMed := attr.(*bgp.PathAttributeMultiExitDisc)
 	assert.Equal(t, expectedMed, pathMed)
 
 	// check PathAttribute
@@ -1839,22 +1931,26 @@ func TestProcessBGPUpdate_implicit_withdrwal_ipv6(t *testing.T) {
 		pathAttributes := expected.Body.(*bgp.BGPUpdate).PathAttributes
 
 		expectedNexthopAttr := pathAttributes[0]
-		pathNexthop := actual.getPathAttribute(bgp.BGP_ATTR_TYPE_MP_REACH_NLRI).(*bgp.PathAttributeMpReachNLRI)
+		_, attr := actual.GetPathAttr(bgp.BGP_ATTR_TYPE_MP_REACH_NLRI)
+		pathNexthop := attr.(*bgp.PathAttributeMpReachNLRI)
 		assert.Equal(t, expectedNexthopAttr, pathNexthop)
 
 		expectedOrigin := pathAttributes[1]
-		pathOrigin := actual.getPathAttribute(bgp.BGP_ATTR_TYPE_ORIGIN).(*bgp.PathAttributeOrigin)
+		_, attr = actual.GetPathAttr(bgp.BGP_ATTR_TYPE_ORIGIN)
+		pathOrigin := attr.(*bgp.PathAttributeOrigin)
 		assert.Equal(t, expectedOrigin, pathOrigin)
 
 		expectedAsPath := pathAttributes[2]
-		pathAspath := actual.getPathAttribute(bgp.BGP_ATTR_TYPE_AS_PATH).(*bgp.PathAttributeAsPath)
+		_, attr = actual.GetPathAttr(bgp.BGP_ATTR_TYPE_AS_PATH)
+		pathAspath := attr.(*bgp.PathAttributeAsPath)
 		assert.Equal(t, expectedAsPath, pathAspath)
 
 		expectedMed := pathAttributes[3]
-		pathMed := actual.getPathAttribute(bgp.BGP_ATTR_TYPE_MULTI_EXIT_DISC).(*bgp.PathAttributeMultiExitDisc)
+		_, attr = actual.GetPathAttr(bgp.BGP_ATTR_TYPE_MULTI_EXIT_DISC)
+		pathMed := attr.(*bgp.PathAttributeMultiExitDisc)
 		assert.Equal(t, expectedMed, pathMed)
 		// check PathAttribute length
-		assert.Equal(t, len(pathAttributes), path.getPathAttributeMap().Len())
+		assert.Equal(t, len(pathAttributes), len(path.GetPathAttrs()))
 	}
 
 	checkPattr(bgpMessage2, path)
@@ -1893,23 +1989,27 @@ func TestProcessBGPUpdate_multiple_nlri_ipv4(t *testing.T) {
 	checkPattr := func(expected *bgp.BGPMessage, actual Path) {
 		pathAttributes := expected.Body.(*bgp.BGPUpdate).PathAttributes
 		expectedOrigin := pathAttributes[0]
-		pathOrigin := actual.getPathAttribute(bgp.BGP_ATTR_TYPE_ORIGIN).(*bgp.PathAttributeOrigin)
+		_, attr := actual.GetPathAttr(bgp.BGP_ATTR_TYPE_ORIGIN)
+		pathOrigin := attr.(*bgp.PathAttributeOrigin)
 		assert.Equal(t, expectedOrigin, pathOrigin)
 
 		expectedAsPath := pathAttributes[1]
-		pathAspath := actual.getPathAttribute(bgp.BGP_ATTR_TYPE_AS_PATH).(*bgp.PathAttributeAsPath)
+		_, attr = actual.GetPathAttr(bgp.BGP_ATTR_TYPE_AS_PATH)
+		pathAspath := attr.(*bgp.PathAttributeAsPath)
 		assert.Equal(t, expectedAsPath, pathAspath)
 
 		expectedNexthopAttr := pathAttributes[2]
-		pathNexthop := actual.getPathAttribute(bgp.BGP_ATTR_TYPE_NEXT_HOP).(*bgp.PathAttributeNextHop)
+		_, attr = actual.GetPathAttr(bgp.BGP_ATTR_TYPE_NEXT_HOP)
+		pathNexthop := attr.(*bgp.PathAttributeNextHop)
 		assert.Equal(t, expectedNexthopAttr, pathNexthop)
 
 		expectedMed := pathAttributes[3]
-		pathMed := actual.getPathAttribute(bgp.BGP_ATTR_TYPE_MULTI_EXIT_DISC).(*bgp.PathAttributeMultiExitDisc)
+		_, attr = actual.GetPathAttr(bgp.BGP_ATTR_TYPE_MULTI_EXIT_DISC)
+		pathMed := attr.(*bgp.PathAttributeMultiExitDisc)
 		assert.Equal(t, expectedMed, pathMed)
 
 		// check PathAttribute length
-		assert.Equal(t, len(pathAttributes), actual.getPathAttributeMap().Len())
+		assert.Equal(t, len(pathAttributes), len(actual.GetPathAttrs()))
 	}
 
 	checkBestPathResult := func(pType, prefix, nexthop string, p Path, m *bgp.BGPMessage) {
@@ -2020,27 +2120,32 @@ func TestProcessBGPUpdate_multiple_nlri_ipv6(t *testing.T) {
 	checkPattr := func(expected *bgp.BGPMessage, actual Path) {
 		pathAttributes := expected.Body.(*bgp.BGPUpdate).PathAttributes
 		pathNexthop := pathAttributes[4]
-		expectedNexthopAttr := actual.getPathAttribute(bgp.BGP_ATTR_TYPE_MP_REACH_NLRI).(*bgp.PathAttributeMpReachNLRI)
+		_, attr := actual.GetPathAttr(bgp.BGP_ATTR_TYPE_MP_REACH_NLRI)
+		expectedNexthopAttr := attr.(*bgp.PathAttributeMpReachNLRI)
 		assert.Equal(t, expectedNexthopAttr, pathNexthop)
 
 		expectedOrigin := pathAttributes[0]
-		pathOrigin := actual.getPathAttribute(bgp.BGP_ATTR_TYPE_ORIGIN).(*bgp.PathAttributeOrigin)
+		_, attr = actual.GetPathAttr(bgp.BGP_ATTR_TYPE_ORIGIN)
+		pathOrigin := attr.(*bgp.PathAttributeOrigin)
 		assert.Equal(t, expectedOrigin, pathOrigin)
 
 		expectedAsPath := pathAttributes[1]
-		pathAspath := actual.getPathAttribute(bgp.BGP_ATTR_TYPE_AS_PATH).(*bgp.PathAttributeAsPath)
+		_, attr = actual.GetPathAttr(bgp.BGP_ATTR_TYPE_AS_PATH)
+		pathAspath := attr.(*bgp.PathAttributeAsPath)
 		assert.Equal(t, expectedAsPath, pathAspath)
 
 		expectedMed := pathAttributes[2]
-		pathMed := actual.getPathAttribute(bgp.BGP_ATTR_TYPE_MULTI_EXIT_DISC).(*bgp.PathAttributeMultiExitDisc)
+		_, attr = actual.GetPathAttr(bgp.BGP_ATTR_TYPE_MULTI_EXIT_DISC)
+		pathMed := attr.(*bgp.PathAttributeMultiExitDisc)
 		assert.Equal(t, expectedMed, pathMed)
 
 		expectedLocalpref := pathAttributes[3]
-		localpref := actual.getPathAttribute(bgp.BGP_ATTR_TYPE_LOCAL_PREF).(*bgp.PathAttributeLocalPref)
+		_, attr = actual.GetPathAttr(bgp.BGP_ATTR_TYPE_LOCAL_PREF)
+		localpref := attr.(*bgp.PathAttributeLocalPref)
 		assert.Equal(t, expectedLocalpref, localpref)
 
 		// check PathAttribute length
-		assert.Equal(t, len(pathAttributes), actual.getPathAttributeMap().Len())
+		assert.Equal(t, len(pathAttributes), len(actual.GetPathAttrs()))
 
 	}
 
