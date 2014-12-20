@@ -27,7 +27,6 @@ type Path interface {
 	getPathAttributeMap() *utils.OrderedMap
 	getPathAttribute(int) bgp.PathAttributeInterface
 	clone(forWithdrawal bool) Path
-	setRouteFamily(ROUTE_FAMILY RouteFamily)
 	getRouteFamily() RouteFamily
 	setSource(source *PeerInfo)
 	getSource() *PeerInfo
@@ -44,7 +43,7 @@ type Path interface {
 }
 
 type PathDefault struct {
-	ROUTE_FAMILY           RouteFamily
+	routeFamily            RouteFamily
 	source                 *PeerInfo
 	nexthop                net.IP
 	sourceVerNum           int
@@ -54,7 +53,7 @@ type PathDefault struct {
 	medSetByTargetNeighbor bool
 }
 
-func NewPathDefault(source *PeerInfo, nlri bgp.AddrPrefixInterface, sourceVerNum int, nexthop net.IP,
+func NewPathDefault(rf RouteFamily, source *PeerInfo, nlri bgp.AddrPrefixInterface, sourceVerNum int, nexthop net.IP,
 	isWithdraw bool, pattr *utils.OrderedMap, medSetByTargetNeighbor bool) *PathDefault {
 
 	if !isWithdraw && (pattr == nil || nexthop == nil) {
@@ -63,7 +62,7 @@ func NewPathDefault(source *PeerInfo, nlri bgp.AddrPrefixInterface, sourceVerNum
 	}
 
 	path := &PathDefault{}
-	path.ROUTE_FAMILY = RF_IPv4_UC
+	path.routeFamily = rf
 	path.pattrMap = utils.NewOrderedMap()
 	if pattr != nil {
 		keyList := pattr.KeyLists()
@@ -86,11 +85,8 @@ func NewPathDefault(source *PeerInfo, nlri bgp.AddrPrefixInterface, sourceVerNum
 	return path
 }
 
-func (pd *PathDefault) setRouteFamily(ROUTE_FAMILY RouteFamily) {
-	pd.ROUTE_FAMILY = ROUTE_FAMILY
-}
 func (pd *PathDefault) getRouteFamily() RouteFamily {
-	return pd.ROUTE_FAMILY
+	return pd.routeFamily
 }
 
 func (pd *PathDefault) setSource(source *PeerInfo) {
@@ -165,9 +161,9 @@ func (pi *PathDefault) clone(forWithdrawal bool) Path {
 	if !forWithdrawal {
 		pathAttrs = pi.getPathAttributeMap()
 	}
-	def := NewPathDefault(pi.getSource(), pi.GetNlri(), pi.getSourceVerNum(),
+	def := NewPathDefault(pi.getRouteFamily(), pi.getSource(), pi.GetNlri(), pi.getSourceVerNum(),
 		pi.getNexthop(), forWithdrawal, pathAttrs, pi.getMedSetByTargetNeighbor())
-	switch pi.ROUTE_FAMILY {
+	switch pi.getRouteFamily() {
 	case RF_IPv4_UC:
 		return &IPv4Path{PathDefault: def}
 	case RF_IPv6_UC:
@@ -294,8 +290,7 @@ type IPv4Path struct {
 func NewIPv4Path(source *PeerInfo, nlri bgp.AddrPrefixInterface, sourceVerNum int, nexthop net.IP,
 	isWithdraw bool, pattr *utils.OrderedMap, medSetByTargetNeighbor bool) *IPv4Path {
 	ipv4Path := &IPv4Path{}
-	ipv4Path.PathDefault = NewPathDefault(source, nlri, sourceVerNum, nexthop, isWithdraw, pattr, medSetByTargetNeighbor)
-	ipv4Path.PathDefault.ROUTE_FAMILY = RF_IPv4_UC
+	ipv4Path.PathDefault = NewPathDefault(RF_IPv4_UC, source, nlri, sourceVerNum, nexthop, isWithdraw, pattr, medSetByTargetNeighbor)
 	return ipv4Path
 }
 
@@ -313,8 +308,7 @@ type IPv6Path struct {
 func NewIPv6Path(source *PeerInfo, nlri bgp.AddrPrefixInterface, sourceVerNum int, nexthop net.IP,
 	isWithdraw bool, pattr *utils.OrderedMap, medSetByTargetNeighbor bool) *IPv6Path {
 	ipv6Path := &IPv6Path{}
-	ipv6Path.PathDefault = NewPathDefault(source, nlri, sourceVerNum, nexthop, isWithdraw, pattr, medSetByTargetNeighbor)
-	ipv6Path.PathDefault.ROUTE_FAMILY = RF_IPv6_UC
+	ipv6Path.PathDefault = NewPathDefault(RF_IPv6_UC, source, nlri, sourceVerNum, nexthop, isWithdraw, pattr, medSetByTargetNeighbor)
 	return ipv6Path
 }
 

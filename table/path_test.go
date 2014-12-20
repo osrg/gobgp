@@ -33,6 +33,7 @@ func TestPathIPv4SetDefault(t *testing.T) {
 	r_pd := ipv4p.getPathDefault()
 	assert.Equal(t, r_pd, pd)
 }
+
 func TestPathIPv4GetDefault(t *testing.T) {
 	pd := &PathDefault{withdraw: false}
 	ipv4p := &IPv4Path{}
@@ -40,6 +41,7 @@ func TestPathIPv4GetDefault(t *testing.T) {
 	r_pd := ipv4p.getPathDefault()
 	assert.Equal(t, r_pd, pd)
 }
+
 func TestPathIPv6SetDefault(t *testing.T) {
 	pd := &PathDefault{sourceVerNum: 4}
 	ipv6p := &IPv6Path{}
@@ -47,6 +49,7 @@ func TestPathIPv6SetDefault(t *testing.T) {
 	r_pd := ipv6p.getPathDefault()
 	assert.Equal(t, r_pd, pd)
 }
+
 func TestPathIPv6GetDefault(t *testing.T) {
 	pd := &PathDefault{sourceVerNum: 5}
 	ipv6p := &IPv6Path{}
@@ -54,18 +57,13 @@ func TestPathIPv6GetDefault(t *testing.T) {
 	r_pd := ipv6p.getPathDefault()
 	assert.Equal(t, r_pd, pd)
 }
-func TestPathSetRouteFamily(t *testing.T) {
-	pd := &PathDefault{}
-	pd.setRouteFamily(RF_IPv4_UC)
-	rf := pd.getRouteFamily()
-	assert.Equal(t, rf, RF_IPv4_UC)
-}
+
 func TestPathGetRouteFamily(t *testing.T) {
-	pd := &PathDefault{}
-	pd.setRouteFamily(RF_IPv6_UC)
+	pd := &PathDefault{routeFamily: RF_IPv6_UC}
 	rf := pd.getRouteFamily()
 	assert.Equal(t, rf, RF_IPv6_UC)
 }
+
 func TestPathSetSource(t *testing.T) {
 	pd := &PathDefault{}
 	pr := &PeerInfo{AS: 65000, VersionNum: 4}
@@ -73,6 +71,7 @@ func TestPathSetSource(t *testing.T) {
 	r_pr := pd.getSource()
 	assert.Equal(t, r_pr, pr)
 }
+
 func TestPathGetSource(t *testing.T) {
 	pd := &PathDefault{}
 	pr := &PeerInfo{AS: 65001, VersionNum: 4}
@@ -80,6 +79,7 @@ func TestPathGetSource(t *testing.T) {
 	r_pr := pd.getSource()
 	assert.Equal(t, r_pr, pr)
 }
+
 func TestPathSetNexthop(t *testing.T) {
 	pd := &PathDefault{}
 	ip := net.ParseIP("192.168.0.1")
@@ -87,6 +87,7 @@ func TestPathSetNexthop(t *testing.T) {
 	nh := pd.getNexthop()
 	assert.Equal(t, nh, ip)
 }
+
 func TestPathgetNexthop(t *testing.T) {
 	pd := &PathDefault{}
 	ip := net.ParseIP("192.168.0.2")
@@ -94,6 +95,7 @@ func TestPathgetNexthop(t *testing.T) {
 	nh := pd.getNexthop()
 	assert.Equal(t, nh, ip)
 }
+
 func TestPathSetSourceVerNum(t *testing.T) {
 	pd := &PathDefault{}
 	svn := 4
@@ -101,6 +103,7 @@ func TestPathSetSourceVerNum(t *testing.T) {
 	r_svn := pd.getSourceVerNum()
 	assert.Equal(t, r_svn, svn)
 }
+
 func TestPathGetSourceVerNum(t *testing.T) {
 	pd := &PathDefault{}
 	svn := 5
@@ -108,6 +111,7 @@ func TestPathGetSourceVerNum(t *testing.T) {
 	r_svn := pd.getSourceVerNum()
 	assert.Equal(t, r_svn, svn)
 }
+
 func TestPathSetWithdraw(t *testing.T) {
 	pd := &PathDefault{}
 	wd := true
@@ -115,6 +119,7 @@ func TestPathSetWithdraw(t *testing.T) {
 	r_wd := pd.isWithdraw()
 	assert.Equal(t, r_wd, wd)
 }
+
 func TestPathGetWithdaw(t *testing.T) {
 	pd := &PathDefault{}
 	wd := false
