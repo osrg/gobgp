@@ -18,7 +18,6 @@ package table
 import (
 	"fmt"
 	"github.com/osrg/gobgp/packet"
-	//"github.com/osrg/gobgp/utils"
 	"net"
 	"reflect"
 )
@@ -27,7 +26,6 @@ type Path interface {
 	String() string
 	GetPathAttrs() []bgp.PathAttributeInterface
 	GetPathAttr(int) (int, bgp.PathAttributeInterface)
-	//	clone(forWithdrawal bool) Path
 	getRouteFamily() RouteFamily
 	setSource(source *PeerInfo)
 	getSource() *PeerInfo
@@ -41,6 +39,7 @@ type Path interface {
 	getPrefix() net.IP
 	setMedSetByTargetNeighbor(medSetByTargetNeighbor bool)
 	getMedSetByTargetNeighbor() bool
+	Clone() Path
 }
 
 type PathDefault struct {
@@ -72,6 +71,18 @@ func NewPathDefault(rf RouteFamily, source *PeerInfo, nlri bgp.AddrPrefixInterfa
 	path.medSetByTargetNeighbor = medSetByTargetNeighbor
 
 	return path
+}
+
+// create new PathAttributes
+func (pd *PathDefault) Clone() Path {
+	copiedAttrs := append([]bgp.PathAttributeInterface(nil), pd.pathAttrs...)
+	for i, attr := range copiedAttrs {
+		t, v := reflect.TypeOf(attr), reflect.ValueOf(attr)
+		newAttrObjp := reflect.New(t.Elem())
+		newAttrObjp.Elem().Set(v.Elem())
+		copiedAttrs[i] = newAttrObjp.Interface().(bgp.PathAttributeInterface)
+	}
+	return CreatePath(pd.source, pd.nlri, copiedAttrs, pd.withdraw)
 }
 
 func (pd *PathDefault) getRouteFamily() RouteFamily {
@@ -151,23 +162,6 @@ func (pd *PathDefault) GetPathAttr(pattrType int) (int, bgp.PathAttributeInterfa
 	}
 	return -1, nil
 }
-
-// func (pi *PathDefault) clone(forWithdrawal bool) Path {
-// 	pathAttrs := utils.NewOrderedMap()
-// 	if !forWithdrawal {
-// 		pathAttrs = pi.getPathAttributeMap()
-// 	}
-// 	def := NewPathDefault(pi.getRouteFamily(), pi.getSource(), pi.GetNlri(), pi.getSourceVerNum(),
-// 		pi.getNexthop(), forWithdrawal, pathAttrs, pi.getMedSetByTargetNeighbor())
-// 	switch pi.getRouteFamily() {
-// 	case RF_IPv4_UC:
-// 		return &IPv4Path{PathDefault: def}
-// 	case RF_IPv6_UC:
-// 		return &IPv6Path{PathDefault: def}
-// 	default:
-// 		return def
-// 	}
-//}
 
 // return Path's string representation
 func (pi *PathDefault) String() string {
