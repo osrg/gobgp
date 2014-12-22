@@ -16,7 +16,6 @@
 package main
 
 import (
-	"fmt"
 	log "github.com/Sirupsen/logrus"
 	"github.com/jessevdk/go-flags"
 	"github.com/osrg/gobgp/api"
@@ -88,15 +87,17 @@ func main() {
 			}
 
 			for _, p := range added {
+				log.Infof("Peer %v is added", p.NeighborAddress)
 				bgpServer.PeerAdd(p)
 			}
 			for _, p := range deleted {
+				log.Infof("Peer %v is deleted", p.NeighborAddress)
 				bgpServer.PeerDelete(p)
 			}
 		case sig := <-sigCh:
 			switch sig {
 			case syscall.SIGHUP:
-				fmt.Println("relaod the config file")
+				log.Info("relaod the config file")
 				reloadCh <- true
 			}
 		}

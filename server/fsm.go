@@ -16,7 +16,7 @@
 package server
 
 import (
-	"fmt"
+	log "github.com/Sirupsen/logrus"
 	"github.com/osrg/gobgp/config"
 	"github.com/osrg/gobgp/packet"
 	"github.com/osrg/gobgp/table"
@@ -96,7 +96,7 @@ func (fsm *FSM) StateChanged() chan int {
 }
 
 func (fsm *FSM) StateChange(nextState int) {
-	fmt.Println("state changed", nextState, fsm.state)
+	log.Debugf("Peer (%v) state changed from %v to %v", fsm.peerConfig.NeighborAddress, nextState, fsm.state)
 	fsm.state = nextState
 }
 
@@ -393,7 +393,6 @@ func (h *FSMHandler) loop() error {
 	}
 
 	if nextState == bgp.BGP_FSM_ESTABLISHED {
-		fmt.Println("new peerinfo")
 		// everytime we go into BGP_FSM_ESTABLISHED, we create
 		// a PeerInfo because sourceNum could be incremented
 		fsm.createPeerInfo()

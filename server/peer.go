@@ -17,7 +17,7 @@ package server
 
 import (
 	"encoding/json"
-	"fmt"
+	log "github.com/Sirupsen/logrus"
 	"github.com/osrg/gobgp/config"
 	"github.com/osrg/gobgp/packet"
 	"github.com/osrg/gobgp/table"
@@ -62,7 +62,7 @@ func NewPeer(g config.GlobalType, peer config.NeighborType, outEventCh chan *mes
 
 func (peer *Peer) handleBGPmessage(m *bgp.BGPMessage) {
 	j, _ := json.Marshal(m)
-	fmt.Println(string(j))
+	log.Info(string(j))
 	// TODO: update state here
 
 	if m.Header.Type != bgp.BGP_MSG_UPDATE {
@@ -136,8 +136,8 @@ func (peer *Peer) loop() error {
 			case nextState := <-peer.fsm.StateChanged():
 				// waits for all goroutines created for the current state
 				h.Wait()
-				oldState := peer.fsm.state
-				peer.fsm.state = nextState
+				oldState := peer.state
+				peer.state = nextState
 				peer.fsm.StateChange(nextState)
 				sameState = false
 				// TODO: check peer's rf

@@ -17,6 +17,7 @@ package server
 
 import (
 	"fmt"
+	log "github.com/Sirupsen/logrus"
 	"github.com/osrg/gobgp/api"
 	"github.com/osrg/gobgp/config"
 	"net"
@@ -67,7 +68,7 @@ func (server *BgpServer) Serve() {
 
 	l, err := net.ListenTCP("tcp4", addr)
 	if err != nil {
-		fmt.Println(err)
+		log.Fatal(err)
 		os.Exit(1)
 	}
 
@@ -76,7 +77,7 @@ func (server *BgpServer) Serve() {
 		for {
 			conn, err := l.Accept()
 			if err != nil {
-				fmt.Println(err)
+				log.Info(err)
 				continue
 			}
 			acceptCh <- conn.(*net.TCPConn)
@@ -89,33 +90,30 @@ func (server *BgpServer) Serve() {
 		f, _ := l.File()
 		select {
 		case conn := <-acceptCh:
-			fmt.Println(conn)
 			remoteAddr := strings.Split(conn.RemoteAddr().String(), ":")[0]
 			peer, found := server.peerMap[remoteAddr]
 			if found {
-				fmt.Println("found neighbor", remoteAddr)
+				log.Info("accepted a new passive connection for", remoteAddr)
 				peer.PassConn(conn)
 			} else {
-				fmt.Println("can't found neighbor", remoteAddr)
+				log.Info("can't find configuration for a new passive connection", remoteAddr)
 				conn.Close()
 			}
 		case peer := <-server.addedPeerCh:
-			fmt.Println(peer)
 			addr := peer.NeighborAddress.String()
 			SetTcpMD5SigSockopts(int(f.Fd()), addr, peer.AuthPassword)
 			p := NewPeer(server.bgpConfig.Global, peer, broadcastCh)
 			server.peerMap[peer.NeighborAddress.String()] = p
 		case peer := <-server.deletedPeerCh:
-			fmt.Println(peer)
 			addr := peer.NeighborAddress.String()
 			SetTcpMD5SigSockopts(int(f.Fd()), addr, "")
 			p, found := server.peerMap[addr]
 			if found {
-				fmt.Println("found neighbor", addr)
+				log.Info("Delete a peer configuration for", addr)
 				p.Stop()
 				delete(server.peerMap, addr)
 			} else {
-				fmt.Println("can't found neighbor", addr)
+				log.Info("Can't delete a peer configuration for", addr)
 			}
 		case restReq := <-server.RestReqCh:
 			server.handleRest(restReq)
