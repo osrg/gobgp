@@ -58,6 +58,7 @@ type Destination interface {
 	GetOldBestPath() Path
 	setOldBestPath(path Path)
 	getKnownPathList() []Path
+	setKnownPathList([]Path)
 	String() string
 	addWithdraw(withdraw Path)
 	addNewPath(newPath Path)
@@ -131,6 +132,10 @@ func (dd *DestinationDefault) setOldBestPath(path Path) {
 
 func (dd *DestinationDefault) getKnownPathList() []Path {
 	return dd.knownPathList
+}
+
+func (dd *DestinationDefault) setKnownPathList(List []Path) {
+	dd.knownPathList = List
 }
 
 func (dd *DestinationDefault) addWithdraw(withdraw Path) {

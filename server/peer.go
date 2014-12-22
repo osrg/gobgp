@@ -29,6 +29,7 @@ type Peer struct {
 	t              tomb.Tomb
 	globalConfig   config.GlobalType
 	peerConfig     config.NeighborType
+	state          int
 	acceptedConnCh chan *net.TCPConn
 	incoming       chan *bgp.BGPMessage
 	outgoing       chan *bgp.BGPMessage
@@ -45,6 +46,7 @@ func NewPeer(g config.GlobalType, peer config.NeighborType, outEventCh chan *mes
 	p := &Peer{
 		globalConfig:   g,
 		peerConfig:     peer,
+		state:          bgp.BGP_FSM_IDLE,
 		acceptedConnCh: make(chan *net.TCPConn),
 		incoming:       make(chan *bgp.BGPMessage, 4096),
 		outgoing:       make(chan *bgp.BGPMessage, 4096),
@@ -102,19 +104,25 @@ func (peer *Peer) path2update(pathList []table.Path) []*bgp.BGPMessage {
 }
 
 func (peer *Peer) handlePeermessage(m *message) {
-	switch m.event {
-	case PEER_MSG_PATH:
-		pList, wList, _ := peer.rib.ProcessPaths(m.data.([]table.Path))
+
+	sendpath := func(pList []table.Path, wList []table.Destination) {
 		pathList := append([]table.Path(nil), pList...)
 
 		for _, dest := range wList {
 			p := dest.GetOldBestPath()
 			pathList = append(pathList, p.Clone(true))
 		}
-
 		peer.adjRib.UpdateOut(pathList)
-
 		peer.sendMessages(peer.path2update(pathList))
+	}
+
+	switch m.event {
+	case PEER_MSG_PATH:
+		pList, wList, _ := peer.rib.ProcessPaths(m.data.([]table.Path))
+		sendpath(pList, wList)
+	case PEER_MSG_DOWN:
+		pList, wList, _ := peer.rib.DeletePathsforPeer(m.data.(*table.PeerInfo))
+		sendpath(pList, wList)
 	}
 }
 
@@ -128,12 +136,17 @@ func (peer *Peer) loop() error {
 			case nextState := <-peer.fsm.StateChanged():
 				// waits for all goroutines created for the current state
 				h.Wait()
+				oldState := peer.fsm.state
+				peer.fsm.state = nextState
 				peer.fsm.StateChange(nextState)
 				sameState = false
 				// TODO: check peer's rf
 				if nextState == bgp.BGP_FSM_ESTABLISHED {
 					pathList := peer.adjRib.GetOutPathList(table.RF_IPv4_UC)
 					peer.sendMessages(peer.path2update(pathList))
+				}
+				if oldState == bgp.BGP_FSM_ESTABLISHED {
+					peer.sendToHub("", PEER_MSG_DOWN, peer.fsm.peerInfo)
 				}
 			case <-peer.t.Dying():
 				close(peer.acceptedConnCh)

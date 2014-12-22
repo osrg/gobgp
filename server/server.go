@@ -28,6 +28,7 @@ const (
 	_ = iota
 	PEER_MSG_NEW
 	PEER_MSG_PATH
+	PEER_MSG_DOWN
 )
 
 type message struct {

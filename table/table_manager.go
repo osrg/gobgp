@@ -234,17 +234,9 @@ func setLogger(loggerInstance *log.Logger) {
 	logger = loggerInstance
 }
 
-func (manager *TableManager) ProcessPaths(pathList []Path) ([]Path, []Destination, error) {
+func (manager *TableManager) calculate(destinationList []Destination) ([]Path, []Destination, error) {
 	bestPaths := make([]Path, 0)
 	lostDest := make([]Destination, 0)
-
-	destinationList := make([]Destination, 0)
-	for _, path := range pathList {
-		rf := path.getRouteFamily()
-		// push Path into table
-		destination := insert(manager.Tables[rf], path)
-		destinationList = append(destinationList, destination)
-	}
 
 	for _, destination := range destinationList {
 		// compute best path
@@ -297,6 +289,22 @@ func (manager *TableManager) ProcessPaths(pathList []Path) ([]Path, []Destinatio
 		}
 	}
 	return bestPaths, lostDest, nil
+}
+
+func (manager *TableManager) DeletePathsforPeer(peerInfo *PeerInfo) ([]Path, []Destination, error) {
+	destinationList := manager.Tables[RF_IPv4_UC].DeleteDestByPeer(peerInfo)
+	return manager.calculate(destinationList)
+}
+
+func (manager *TableManager) ProcessPaths(pathList []Path) ([]Path, []Destination, error) {
+	destinationList := make([]Destination, 0)
+	for _, path := range pathList {
+		rf := path.getRouteFamily()
+		// push Path into table
+		destination := insert(manager.Tables[rf], path)
+		destinationList = append(destinationList, destination)
+	}
+	return manager.calculate(destinationList)
 }
 
 // process BGPUpdate message

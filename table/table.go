@@ -30,6 +30,7 @@ type Table interface {
 	tableKey(nlri bgp.AddrPrefixInterface) net.IP
 	validatePath(path Path)
 	validateNlri(nlri bgp.AddrPrefixInterface)
+	DeleteDestByPeer(*PeerInfo) []Destination
 }
 
 type TableDefault struct {
@@ -91,6 +92,23 @@ func (td *TableDefault) cleanUninterestingPaths(interested_rts) int  {
 	// need content
 }
 */
+
+func (td *TableDefault) DeleteDestByPeer(peerInfo *PeerInfo) []Destination {
+	changedDests := make([]Destination, 0)
+	for _, dest := range td.destinations {
+		newKnownPathList := make([]Path, 0)
+		for _, p := range dest.getKnownPathList() {
+			if peerInfo != p.getSource() || peerInfo.VersionNum != p.getSourceVerNum() {
+				newKnownPathList = append(newKnownPathList, p)
+			}
+		}
+		if len(newKnownPathList) != len(dest.getKnownPathList()) {
+			changedDests = append(changedDests, dest)
+			dest.setKnownPathList(newKnownPathList)
+		}
+	}
+	return changedDests
+}
 
 func deleteDestByNlri(table Table, nlri bgp.AddrPrefixInterface) Destination {
 	table.validateNlri(nlri)

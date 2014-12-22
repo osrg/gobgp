@@ -76,7 +76,12 @@ func NewPathDefault(rf RouteFamily, source *PeerInfo, nlri bgp.AddrPrefixInterfa
 // create new PathAttributes
 func (pd *PathDefault) Clone(isWithdraw bool) Path {
 	copiedAttrs := []bgp.PathAttributeInterface(nil)
-	if !isWithdraw {
+	nlri := pd.nlri
+	if isWithdraw {
+		if !pd.IsWithdraw() {
+			nlri = &bgp.WithdrawnRoute{pd.nlri.(*bgp.NLRInfo).IPAddrPrefix}
+		}
+	} else {
 		copiedAttrs = append(copiedAttrs, pd.pathAttrs...)
 		for i, attr := range copiedAttrs {
 			t, v := reflect.TypeOf(attr), reflect.ValueOf(attr)
@@ -85,7 +90,7 @@ func (pd *PathDefault) Clone(isWithdraw bool) Path {
 			copiedAttrs[i] = newAttrObjp.Interface().(bgp.PathAttributeInterface)
 		}
 	}
-	return CreatePath(pd.source, pd.nlri, copiedAttrs, isWithdraw)
+	return CreatePath(pd.source, nlri, copiedAttrs, isWithdraw)
 }
 
 func (pd *PathDefault) getRouteFamily() RouteFamily {
