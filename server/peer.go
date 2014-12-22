@@ -78,36 +78,43 @@ func (peer *Peer) handleBGPmessage(m *bgp.BGPMessage) {
 	peer.sendToHub("", PEER_MSG_PATH, pathList)
 }
 
+func (peer *Peer) sendMessages(msgs []*bgp.BGPMessage) {
+	for _, m := range msgs {
+		peer.outgoing <- m
+	}
+}
+
+func (peer *Peer) path2update(pathList []table.Path) []*bgp.BGPMessage {
+	// TODO: merge multiple messages
+	// TODO: 4bytes and 2bytes conversion.
+	msgs := make([]*bgp.BGPMessage, 0)
+	for _, p := range pathList {
+		if p.IsWithdraw() {
+			draw := p.GetNlri().(*bgp.WithdrawnRoute)
+			msgs = append(msgs, bgp.NewBGPUpdateMessage([]bgp.WithdrawnRoute{*draw}, []bgp.PathAttributeInterface{}, []bgp.NLRInfo{}))
+		} else {
+			pathAttrs := p.GetPathAttrs()
+			nlri := p.GetNlri().(*bgp.NLRInfo)
+			msgs = append(msgs, bgp.NewBGPUpdateMessage([]bgp.WithdrawnRoute{}, pathAttrs, []bgp.NLRInfo{*nlri}))
+		}
+	}
+	return msgs
+}
+
 func (peer *Peer) handlePeermessage(m *message) {
 	switch m.event {
 	case PEER_MSG_PATH:
 		pList, wList, _ := peer.rib.ProcessPaths(m.data.([]table.Path))
-		// TODO: merge multiple messages
-		// TODO: 4bytes and 2bytes conversion.
-		adjPathLists := append([]table.Path(nil), pList...)
-
-		msgs := make([]*bgp.BGPMessage, 0)
-		for _, p := range pList {
-			pathAttrs := p.GetPathAttrs()
-			nlri := p.GetNlri().(*bgp.NLRInfo)
-			m := bgp.NewBGPUpdateMessage([]bgp.WithdrawnRoute{}, pathAttrs, []bgp.NLRInfo{*nlri})
-			msgs = append(msgs, m)
-		}
+		pathList := append([]table.Path(nil), pList...)
 
 		for _, dest := range wList {
 			p := dest.GetOldBestPath()
-			draw := p.GetNlri().(*bgp.WithdrawnRoute)
-			m := bgp.NewBGPUpdateMessage([]bgp.WithdrawnRoute{*draw}, []bgp.PathAttributeInterface{}, []bgp.NLRInfo{})
-			msgs = append(msgs, m)
-
-			adjPathLists = append(adjPathLists, p.Clone(true))
+			pathList = append(pathList, p.Clone(true))
 		}
 
-		peer.adjRib.UpdateOut(adjPathLists)
+		peer.adjRib.UpdateOut(pathList)
 
-		for _, m := range msgs {
-			peer.outgoing <- m
-		}
+		peer.sendMessages(peer.path2update(pathList))
 	}
 }
 
@@ -123,6 +130,11 @@ func (peer *Peer) loop() error {
 				h.Wait()
 				peer.fsm.StateChange(nextState)
 				sameState = false
+				// TODO: check peer's rf
+				if nextState == bgp.BGP_FSM_ESTABLISHED {
+					pathList := peer.adjRib.GetOutPathList(table.RF_IPv4_UC)
+					peer.sendMessages(peer.path2update(pathList))
+				}
 			case <-peer.t.Dying():
 				close(peer.acceptedConnCh)
 				h.Stop()

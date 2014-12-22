@@ -34,7 +34,7 @@ type Path interface {
 	setSourceVerNum(sourceVerNum int)
 	getSourceVerNum() int
 	setWithdraw(withdraw bool)
-	isWithdraw() bool
+	IsWithdraw() bool
 	GetNlri() bgp.AddrPrefixInterface
 	getPrefix() net.IP
 	setMedSetByTargetNeighbor(medSetByTargetNeighbor bool)
@@ -119,7 +119,7 @@ func (pd *PathDefault) setWithdraw(withdraw bool) {
 	pd.withdraw = withdraw
 }
 
-func (pd *PathDefault) isWithdraw() bool {
+func (pd *PathDefault) IsWithdraw() bool {
 	return pd.withdraw
 }
 
@@ -171,7 +171,7 @@ func (pi *PathDefault) String() string {
 	str := fmt.Sprintf("IPv4Path Source: %d, ", pi.getSourceVerNum())
 	str = str + fmt.Sprintf(" NLRI: %s, ", pi.getPrefix().String())
 	str = str + fmt.Sprintf(" nexthop: %s, ", pi.getNexthop().String())
-	str = str + fmt.Sprintf(" withdraw: %s, ", pi.isWithdraw())
+	str = str + fmt.Sprintf(" withdraw: %s, ", pi.IsWithdraw())
 	//str = str + fmt.Sprintf(" path attributes: %s, ", pi.getPathAttributeMap())
 	return str
 }
@@ -266,7 +266,7 @@ func (ipv6p *IPv6Path) String() string {
 	str := fmt.Sprintf("IPv6Path Source: %d, ", ipv6p.getSourceVerNum())
 	str = str + fmt.Sprintf(" NLRI: %s, ", ipv6p.getPrefix().String())
 	str = str + fmt.Sprintf(" nexthop: %s, ", ipv6p.getNexthop().String())
-	str = str + fmt.Sprintf(" withdraw: %s, ", ipv6p.isWithdraw())
+	str = str + fmt.Sprintf(" withdraw: %s, ", ipv6p.IsWithdraw())
 	//str = str + fmt.Sprintf(" path attributes: %s, ", ipv6p.getPathAttributeMap())
 	return str
 }

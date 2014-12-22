@@ -340,7 +340,7 @@ func (adj *AdjRib) update(rib map[RouteFamily]map[string]*ReceivedRoute, pathLis
 	for _, path := range pathList {
 		rf := path.getRouteFamily()
 		key := path.getPrefix().String()
-		if path.isWithdraw() {
+		if path.IsWithdraw() {
 			_, found := rib[rf][key]
 			if found {
 				delete(rib[rf], key)
@@ -357,6 +357,23 @@ func (adj *AdjRib) UpdateIn(pathList []Path) {
 
 func (adj *AdjRib) UpdateOut(pathList []Path) {
 	adj.update(adj.adjRibOut, pathList)
+}
+
+func (adj *AdjRib) getPathList(rib map[string]*ReceivedRoute) []Path {
+	pathList := []Path{}
+
+	for _, rr := range rib {
+		pathList = append(pathList, rr.path)
+	}
+	return pathList
+}
+
+func (adj *AdjRib) GetInPathList(rf RouteFamily) []Path {
+	return adj.getPathList(adj.adjRibIn[rf])
+}
+
+func (adj *AdjRib) GetOutPathList(rf RouteFamily) []Path {
+	return adj.getPathList(adj.adjRibOut[rf])
 }
 
 type ReceivedRoute struct {

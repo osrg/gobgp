@@ -114,7 +114,7 @@ func TestPathSetWithdraw(t *testing.T) {
 	pd := &PathDefault{}
 	wd := true
 	pd.setWithdraw(wd)
-	r_wd := pd.isWithdraw()
+	r_wd := pd.IsWithdraw()
 	assert.Equal(t, r_wd, wd)
 }
 
@@ -122,7 +122,7 @@ func TestPathGetWithdaw(t *testing.T) {
 	pd := &PathDefault{}
 	wd := false
 	pd.setWithdraw(wd)
-	r_wd := pd.isWithdraw()
+	r_wd := pd.IsWithdraw()
 	assert.Equal(t, r_wd, wd)
 }
 

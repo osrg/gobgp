@@ -65,7 +65,7 @@ func insert(table Table, path Path) Destination {
 	table.validateNlri(path.GetNlri())
 	dest = getOrCreateDest(table, path.GetNlri())
 
-	if path.isWithdraw() {
+	if path.IsWithdraw() {
 		// withdraw insert
 		dest.addWithdraw(path)
 	} else {
