@@ -336,19 +336,27 @@ func NewAdjRib() *AdjRib {
 	return r
 }
 
-func (adj *AdjRib) UpdateIn(pathList []Path) {
+func (adj *AdjRib) update(rib map[RouteFamily]map[string]*ReceivedRoute, pathList []Path) {
 	for _, path := range pathList {
 		rf := path.getRouteFamily()
 		key := path.getPrefix().String()
 		if path.isWithdraw() {
-			_, found := adj.adjRibIn[rf][key]
+			_, found := rib[rf][key]
 			if found {
-				delete(adj.adjRibIn[rf], key)
+				delete(rib[rf], key)
 			}
 		} else {
-			adj.adjRibIn[rf][key] = NewReceivedRoute(path, false)
+			rib[rf][key] = NewReceivedRoute(path, false)
 		}
 	}
+}
+
+func (adj *AdjRib) UpdateIn(pathList []Path) {
+	adj.update(adj.adjRibIn, pathList)
+}
+
+func (adj *AdjRib) UpdateOut(pathList []Path) {
+	adj.update(adj.adjRibOut, pathList)
 }
 
 type ReceivedRoute struct {

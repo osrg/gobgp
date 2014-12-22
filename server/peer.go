@@ -84,6 +84,7 @@ func (peer *Peer) handlePeermessage(m *message) {
 		pList, wList, _ := peer.rib.ProcessPaths(m.data.([]table.Path))
 		// TODO: merge multiple messages
 		// TODO: 4bytes and 2bytes conversion.
+		adjPathLists := append([]table.Path(nil), pList...)
 
 		msgs := make([]*bgp.BGPMessage, 0)
 		for _, p := range pList {
@@ -98,7 +99,11 @@ func (peer *Peer) handlePeermessage(m *message) {
 			draw := p.GetNlri().(*bgp.WithdrawnRoute)
 			m := bgp.NewBGPUpdateMessage([]bgp.WithdrawnRoute{*draw}, []bgp.PathAttributeInterface{}, []bgp.NLRInfo{})
 			msgs = append(msgs, m)
+
+			adjPathLists = append(adjPathLists, p.Clone(true))
 		}
+
+		peer.adjRib.UpdateOut(adjPathLists)
 
 		for _, m := range msgs {
 			peer.outgoing <- m

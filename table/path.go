@@ -39,7 +39,7 @@ type Path interface {
 	getPrefix() net.IP
 	setMedSetByTargetNeighbor(medSetByTargetNeighbor bool)
 	getMedSetByTargetNeighbor() bool
-	Clone() Path
+	Clone(IsWithdraw bool) Path
 }
 
 type PathDefault struct {
@@ -74,15 +74,18 @@ func NewPathDefault(rf RouteFamily, source *PeerInfo, nlri bgp.AddrPrefixInterfa
 }
 
 // create new PathAttributes
-func (pd *PathDefault) Clone() Path {
-	copiedAttrs := append([]bgp.PathAttributeInterface(nil), pd.pathAttrs...)
-	for i, attr := range copiedAttrs {
-		t, v := reflect.TypeOf(attr), reflect.ValueOf(attr)
-		newAttrObjp := reflect.New(t.Elem())
-		newAttrObjp.Elem().Set(v.Elem())
-		copiedAttrs[i] = newAttrObjp.Interface().(bgp.PathAttributeInterface)
+func (pd *PathDefault) Clone(isWithdraw bool) Path {
+	copiedAttrs := []bgp.PathAttributeInterface(nil)
+	if !isWithdraw {
+		copiedAttrs = append(copiedAttrs, pd.pathAttrs...)
+		for i, attr := range copiedAttrs {
+			t, v := reflect.TypeOf(attr), reflect.ValueOf(attr)
+			newAttrObjp := reflect.New(t.Elem())
+			newAttrObjp.Elem().Set(v.Elem())
+			copiedAttrs[i] = newAttrObjp.Interface().(bgp.PathAttributeInterface)
+		}
 	}
-	return CreatePath(pd.source, pd.nlri, copiedAttrs, pd.withdraw)
+	return CreatePath(pd.source, pd.nlri, copiedAttrs, isWithdraw)
 }
 
 func (pd *PathDefault) getRouteFamily() RouteFamily {

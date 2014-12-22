@@ -2250,7 +2250,7 @@ func TestModifyPathAttribute(t *testing.T) {
 	assert.NoError(t, err)
 
 	path0 := pList[0]
-	path1 := path0.Clone()
+	path1 := path0.Clone(false)
 
 	_, attr1 := path1.GetPathAttr(bgp.BGP_ATTR_TYPE_MULTI_EXIT_DISC)
 	mx1 := attr1.(*bgp.PathAttributeMultiExitDisc)
