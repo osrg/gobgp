@@ -308,12 +308,24 @@ func (h *FSMHandler) sendMessageloop() error {
 		case <-h.t.Dying():
 			return nil
 		case m := <-fsm.outgoing:
-			b, _ := m.Serialize()
-			_, err := conn.Write(b)
-			if err != nil {
-				return nil
+			isSend := func(state int, Type uint8) bool {
+				switch Type {
+				case bgp.BGP_MSG_UPDATE:
+					if state == bgp.BGP_FSM_ESTABLISHED {
+						return true
+					}
+				}
+				return false
+			}(fsm.state, m.Header.Type)
+
+			if isSend {
+				b, _ := m.Serialize()
+				_, err := conn.Write(b)
+				if err != nil {
+					return nil
+				}
+				fsm.bgpMessageStateUpdate(m.Header.Type, false)
 			}
-			fsm.bgpMessageStateUpdate(m.Header.Type, false)
 		case <-fsm.keepaliveTicker.C:
 			m := bgp.NewBGPKeepAliveMessage()
 			b, _ := m.Serialize()

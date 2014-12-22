@@ -1639,7 +1639,7 @@ func TestProcessBGPUpdate_bestpath_lost_ipv4(t *testing.T) {
 	assert.NoError(t, err)
 
 	// check old best path
-	path := wList[0].getOldBestPath()
+	path := wList[0].GetOldBestPath()
 	expectedType := "*table.IPv4Path"
 	assert.Equal(t, reflect.TypeOf(path).String(), expectedType)
 
@@ -1719,7 +1719,7 @@ func TestProcessBGPUpdate_bestpath_lost_ipv6(t *testing.T) {
 	assert.NoError(t, err)
 
 	// check old best path
-	path := wList[0].getOldBestPath()
+	path := wList[0].GetOldBestPath()
 	expectedType := "*table.IPv6Path"
 	assert.Equal(t, reflect.TypeOf(path).String(), expectedType)
 
