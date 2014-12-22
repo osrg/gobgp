@@ -18,6 +18,7 @@ package table
 import (
 	"encoding/binary"
 	"fmt"
+	log "github.com/Sirupsen/logrus"
 	"github.com/osrg/gobgp/packet"
 	"net"
 	"reflect"
@@ -166,7 +167,7 @@ func (dd *DestinationDefault) removeOldPathsFromSource(source *PeerInfo) []Path 
 
 func (dd *DestinationDefault) validatePath(path Path) {
 	if path == nil || path.getRouteFamily() != dd.ROUTE_FAMILY {
-		logger.Error("Invalid path. Expected %s path got %s.", dd.ROUTE_FAMILY, path)
+		log.Error("Invalid path. Expected %s path got %s.", dd.ROUTE_FAMILY, path)
 	}
 }
 
@@ -190,7 +191,7 @@ func (dest *DestinationDefault) Calculate(localAsn uint32) (Path, string, error)
 		// it becomes best path.
 		dest.knownPathList = append(dest.knownPathList, dest.newPathList[0])
 		dest.newPathList, _ = deleteAt(dest.newPathList, 0)
-		logger.Debugf("best path : %s, reason=%s", dest.knownPathList[0], BPR_ONLY_PATH)
+		log.Debugf("best path : %s, reason=%s", dest.knownPathList[0], BPR_ONLY_PATH)
 
 		return dest.knownPathList[0], BPR_ONLY_PATH, nil
 	}
@@ -198,7 +199,7 @@ func (dest *DestinationDefault) Calculate(localAsn uint32) (Path, string, error)
 	// If we have a new version of old/known path we use it and delete old
 	// one.
 	dest.removeOldPaths()
-	logger.Debugf("removeOldPaths")
+	log.Debugf("removeOldPaths")
 	// Collect all new paths into known paths.
 	dest.knownPathList = append(dest.knownPathList, dest.newPathList...)
 
@@ -214,7 +215,7 @@ func (dest *DestinationDefault) Calculate(localAsn uint32) (Path, string, error)
 	// Compute new best path
 	currentBestPath, reason, e := dest.computeKnownBestPath(localAsn)
 	if e != nil {
-		logger.Error(e)
+		log.Error(e)
 	}
 	return currentBestPath, reason, e
 
@@ -230,7 +231,7 @@ func (dest *DestinationDefault) Calculate(localAsn uint32) (Path, string, error)
 //"""
 func (dest *DestinationDefault) removeWithdrawls() {
 
-	logger.Debugf("Removing %d withdrawals", len(dest.withdrawList))
+	log.Debugf("Removing %d withdrawals", len(dest.withdrawList))
 
 	// If we have no withdrawals, we have nothing to do.
 	if len(dest.withdrawList) == 0 {
@@ -240,7 +241,7 @@ func (dest *DestinationDefault) removeWithdrawls() {
 	// If we have some withdrawals and no know-paths, it means it is safe to
 	// delete these withdraws.
 	if len(dest.knownPathList) == 0 {
-		logger.Debugf("Found %s withdrawals for path(s) that did not get installed", len(dest.withdrawList))
+		log.Debugf("Found %s withdrawals for path(s) that did not get installed", len(dest.withdrawList))
 		dest.withdrawList = dest.withdrawList[len(dest.withdrawList):]
 	}
 
@@ -265,13 +266,13 @@ func (dest *DestinationDefault) removeWithdrawls() {
 
 		// We do no have any match for this withdraw.
 		if !isFound {
-			logger.Debugf("No matching path for withdraw found, may be path was not installed into table: %s", withdraw.String())
+			log.Debugf("No matching path for withdraw found, may be path was not installed into table: %s", withdraw.String())
 		}
 	}
 
 	// If we have partial match.
 	if len(matches) != len(dest.withdrawList) {
-		logger.Debugf(
+		log.Debugf(
 			"Did not find match for some withdrawals. Number of matches(%d), number of withdrawals (%d)",
 			len(matches), len(dest.withdrawList))
 	}
@@ -281,14 +282,14 @@ func (dest *DestinationDefault) removeWithdrawls() {
 		var result bool = false
 		dest.knownPathList, result = removeWithPath(dest.knownPathList, path)
 		if !result {
-			logger.Debugf("could not remove path: %s from knownPathList", path.String())
+			log.Debugf("could not remove path: %s from knownPathList", path.String())
 		}
 	}
 	for _, path := range wMatches {
 		var result bool = false
 		dest.withdrawList, result = removeWithPath(dest.withdrawList, path)
 		if !result {
-			logger.Debugf("could not remove path: %s from withdrawList", path.String())
+			log.Debugf("could not remove path: %s from withdrawList", path.String())
 		}
 	}
 }
@@ -302,7 +303,7 @@ func (dest *DestinationDefault) computeKnownBestPath(localAsn uint32) (Path, str
 		return nil, "", fmt.Errorf("Need at-least one known path to compute best path")
 	}
 
-	logger.Debugf("computeKnownBestPath known pathlist: %d", len(dest.knownPathList))
+	log.Debugf("computeKnownBestPath known pathlist: %d", len(dest.knownPathList))
 
 	// We pick the first path as current best path. This helps in breaking
 	// tie between two new paths learned in one cycle for which best-path
@@ -347,10 +348,10 @@ func (dest *DestinationDefault) removeOldPaths() {
 			match := false
 			knownPaths, match = removeWithPath(knownPaths, oldPath)
 			if !match {
-				logger.Debugf("not exist withdrawal of old path in known paths: %s ", oldPath.String())
+				log.Debugf("not exist withdrawal of old path in known paths: %s ", oldPath.String())
 
 			}
-			logger.Debugf("Implicit withdrawal of old path, "+
+			log.Debugf("Implicit withdrawal of old path, "+
 				"since we have learned new path from same source: %s", oldPath.String())
 		}
 	}
@@ -457,7 +458,7 @@ func computeBestPath(localAsn uint32, path1, path2 Path) (Path, string) {
 		var e error = nil
 		bestPath, e = compareByRouterID(localAsn, path1, path2)
 		if e != nil {
-			logger.Error(e)
+			log.Error(e)
 		}
 		bestPathReason = BPR_ROUTER_ID
 	}
@@ -473,8 +474,8 @@ func compareByReachableNexthop(path1, path2 Path) Path {
 	//
 	//	If no path matches this criteria, return None.
 	//  However RouteServer doesn't need to check reachability, so return nil.
-	logger.Debugf("enter compareByReachableNexthop")
-	logger.Debugf("path1: %s, path2: %s", path1, path2)
+	log.Debugf("enter compareByReachableNexthop")
+	log.Debugf("path1: %s, path2: %s", path1, path2)
 	return nil
 }
 
@@ -485,8 +486,8 @@ func compareByHighestWeight(path1, path2 Path) Path {
 	//	is configured.
 	//	Return:
 	//	nil if best path among given paths cannot be decided, else best path.
-	logger.Debugf("enter compareByHighestWeight")
-	logger.Debugf("path1: %s, path2: %s", path1, path2)
+	log.Debugf("enter compareByHighestWeight")
+	log.Debugf("path1: %s, path2: %s", path1, path2)
 	return nil
 }
 
@@ -499,7 +500,7 @@ func compareByLocalPref(path1, path2 Path) Path {
 	//	we return None.
 	//
 	//	# Default local-pref values is 100
-	logger.Debugf("enter compareByLocalPref")
+	log.Debugf("enter compareByLocalPref")
 	_, attribute1 := path1.GetPathAttr(bgp.BGP_ATTR_TYPE_LOCAL_PREF)
 	_, attribute2 := path2.GetPathAttr(bgp.BGP_ATTR_TYPE_LOCAL_PREF)
 
@@ -528,7 +529,7 @@ func compareByLocalOrigin(path1, path2 Path) Path {
 	//	Returns None if given paths have same source.
 	//	"""
 	//	# If both paths are from same sources we cannot compare them here.
-	logger.Debugf("enter compareByLocalOrigin")
+	log.Debugf("enter compareByLocalOrigin")
 	if path1.getSource() == path2.getSource() {
 		return nil
 	}
@@ -550,7 +551,7 @@ func compareByASPath(path1, path2 Path) Path {
 	//
 	//	Shortest as-path length is preferred. If both path have same lengths,
 	//	we return None.
-	logger.Debugf("enter compareByASPath")
+	log.Debugf("enter compareByASPath")
 	_, attribute1 := path1.GetPathAttr(bgp.BGP_ATTR_TYPE_AS_PATH)
 	_, attribute2 := path2.GetPathAttr(bgp.BGP_ATTR_TYPE_AS_PATH)
 
@@ -558,7 +559,7 @@ func compareByASPath(path1, path2 Path) Path {
 	asPath2 := attribute2.(*bgp.PathAttributeAsPath)
 
 	if asPath1 == nil || asPath2 == nil {
-		logger.Error("it is not possible to compare asPath are not present")
+		log.Error("it is not possible to compare asPath are not present")
 	}
 
 	var l1, l2 int
@@ -570,9 +571,9 @@ func compareByASPath(path1, path2 Path) Path {
 		l2 += pathParam.ASLen()
 	}
 
-	logger.Debugf("l1: %d, l2: %d", l1, l2)
-	logger.Debug(reflect.TypeOf(asPath1.Value))
-	logger.Debug(asPath1.Value)
+	log.Debugf("l1: %d, l2: %d", l1, l2)
+	log.Debug(reflect.TypeOf(asPath1.Value))
+	log.Debug(asPath1.Value)
 	if l1 > l2 {
 		return path2
 	} else if l1 < l2 {
@@ -587,19 +588,19 @@ func compareByOrigin(path1, path2 Path) Path {
 	//
 	//	IGP is preferred over EGP; EGP is preferred over Incomplete.
 	//	If both paths have same origin, we return None.
-	logger.Debugf("enter compareByOrigin")
+	log.Debugf("enter compareByOrigin")
 	_, attribute1 := path1.GetPathAttr(bgp.BGP_ATTR_TYPE_ORIGIN)
 	_, attribute2 := path2.GetPathAttr(bgp.BGP_ATTR_TYPE_ORIGIN)
 
 	if attribute1 == nil || attribute2 == nil {
-		logger.Error("it is not possible to compare origin are not present")
+		log.Error("it is not possible to compare origin are not present")
 		return nil
 	}
 
 	origin1, n1 := binary.Uvarint(attribute1.(*bgp.PathAttributeOrigin).Value)
 	origin2, n2 := binary.Uvarint(attribute2.(*bgp.PathAttributeOrigin).Value)
-	logger.Debugf("path1 origin value: %d, %d byte read", origin1, n1)
-	logger.Debugf("path2 origin value: %d, %d byte read", origin2, n2)
+	log.Debugf("path1 origin value: %d, %d byte read", origin1, n1)
+	log.Debugf("path2 origin value: %d, %d byte read", origin2, n2)
 
 	// If both paths have same origins
 	if origin1 == origin2 {
@@ -620,7 +621,7 @@ func compareByMED(path1, path2 Path) Path {
 	//	RFC says lower MED is preferred over higher MED value.
 	//  compare MED among not only same AS path but also all path,
 	//  like bgp always-compare-med
-	logger.Debugf("enter compareByMED")
+	log.Debugf("enter compareByMED")
 	getMed := func(path Path) uint32 {
 		_, attribute := path.GetPathAttr(bgp.BGP_ATTR_TYPE_MULTI_EXIT_DISC)
 		if attribute == nil {
@@ -647,7 +648,7 @@ func compareByASNumber(localAsn uint32, path1, path2 Path) Path {
 	//
 	//eBGP path is preferred over iBGP. If both paths are from same kind of
 	//peers, return None.
-	logger.Debugf("enter compareByASNumber")
+	log.Debugf("enter compareByASNumber")
 	getPathSourceAsn := func(path Path) uint32 {
 		var asn uint32
 		if path.getSource() == nil {
@@ -679,8 +680,8 @@ func compareByIGPCost(path1, path2 Path) Path {
 	//
 	//	Return None if igp cost is same.
 	// Currently BGPS has no concept of IGP and IGP cost.
-	logger.Debugf("enter compareByIGPCost")
-	logger.Debugf("path1: %s, path2: %s", path1, path2)
+	log.Debugf("enter compareByIGPCost")
+	log.Debugf("path1: %s, path2: %s", path1, path2)
 	return nil
 }
 
@@ -691,7 +692,7 @@ func compareByRouterID(localAsn uint32, path1, path2 Path) (Path, error) {
 	//	not pick best-path based on this criteria.
 	//	RFC: http://tools.ietf.org/html/rfc5004
 	//	We pick best path between two iBGP paths as usual.
-	logger.Debugf("enter compareByRouterID")
+	log.Debugf("enter compareByRouterID")
 	getAsn := func(pathSource *PeerInfo) uint32 {
 		if pathSource == nil {
 			return localAsn
@@ -826,7 +827,7 @@ func (ipv6d *IPv6Destination) String() string {
 
 func (ipv6d *IPv6Destination) getPrefix() net.IP {
 	var ip net.IP
-	logger.Debugf("type %s", reflect.TypeOf(ipv6d.nlri))
+	log.Debugf("type %s", reflect.TypeOf(ipv6d.nlri))
 	switch p := ipv6d.nlri.(type) {
 	case *bgp.IPv6AddrPrefix:
 		ip = p.IPAddrPrefix.IPAddrPrefixDefault.Prefix

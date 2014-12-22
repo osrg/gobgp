@@ -17,6 +17,7 @@ package table
 
 import (
 	"fmt"
+	log "github.com/Sirupsen/logrus"
 	"github.com/osrg/gobgp/packet"
 	"net"
 	"reflect"
@@ -56,7 +57,7 @@ type PathDefault struct {
 func NewPathDefault(rf RouteFamily, source *PeerInfo, nlri bgp.AddrPrefixInterface, sourceVerNum int, nexthop net.IP, isWithdraw bool, pattrs []bgp.PathAttributeInterface, medSetByTargetNeighbor bool) *PathDefault {
 
 	if !isWithdraw && pattrs == nil {
-		logger.Error("Need to provide nexthop and patattrs for path that is not a withdraw.")
+		log.Error("Need to provide nexthop and patattrs for path that is not a withdraw.")
 		return nil
 	}
 
@@ -196,7 +197,7 @@ func (pi *PathDefault) getPrefix() net.IP {
 func CreatePath(source *PeerInfo, nlri bgp.AddrPrefixInterface, attrs []bgp.PathAttributeInterface, isWithdraw bool) Path {
 
 	rf := RouteFamily(int(nlri.AFI())<<16 | int(nlri.SAFI()))
-	logger.Debugf("afi: %d, safi: %d ", int(nlri.AFI()), nlri.SAFI())
+	log.Debugf("afi: %d, safi: %d ", int(nlri.AFI()), nlri.SAFI())
 	var path Path
 	var sourceVerNum int = 1
 
@@ -206,10 +207,10 @@ func CreatePath(source *PeerInfo, nlri bgp.AddrPrefixInterface, attrs []bgp.Path
 
 	switch rf {
 	case RF_IPv4_UC:
-		logger.Debugf("RouteFamily : %s", RF_IPv4_UC.String())
+		log.Debugf("RouteFamily : %s", RF_IPv4_UC.String())
 		path = NewIPv4Path(source, nlri, sourceVerNum, isWithdraw, attrs, false)
 	case RF_IPv6_UC:
-		logger.Debugf("RouteFamily : %s", RF_IPv6_UC.String())
+		log.Debugf("RouteFamily : %s", RF_IPv6_UC.String())
 		path = NewIPv6Path(source, nlri, sourceVerNum, isWithdraw, attrs, false)
 	}
 	return path

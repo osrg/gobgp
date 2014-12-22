@@ -16,6 +16,7 @@
 package table
 
 import (
+	log "github.com/Sirupsen/logrus"
 	"github.com/osrg/gobgp/packet"
 	"net"
 	"reflect"
@@ -55,7 +56,7 @@ func (td *TableDefault) getRoutefamily() RouteFamily {
 //Implements interface
 func (td *TableDefault) createDest(nlri *bgp.NLRInfo) Destination {
 	//return NewDestination(td, nlri)
-	logger.Error("CreateDest NotImplementedError")
+	log.Error("CreateDest NotImplementedError")
 	return nil
 }
 
@@ -127,22 +128,22 @@ func deleteDest(table Table, dest Destination) {
 
 func (td *TableDefault) validatePath(path Path) {
 	if path == nil || path.getRouteFamily() != td.ROUTE_FAMILY {
-		logger.Errorf("Invalid path. Expected instance of %s route family path, got %s.", td.ROUTE_FAMILY, path)
+		log.Errorf("Invalid path. Expected instance of %s route family path, got %s.", td.ROUTE_FAMILY, path)
 	}
 }
 func (td *TableDefault) validateNlri(nlri bgp.AddrPrefixInterface) {
 	if nlri == nil {
-		logger.Error("Invalid Vpnv4 prefix given.")
+		log.Error("Invalid Vpnv4 prefix given.")
 	}
 }
 
 func getOrCreateDest(table Table, nlri bgp.AddrPrefixInterface) Destination {
-	logger.Debugf("Table type : %s", reflect.TypeOf(table))
+	log.Debugf("Table type : %s", reflect.TypeOf(table))
 	tableKey := table.tableKey(nlri)
 	dest := table.getDestination(tableKey.String())
 	// If destination for given prefix does not exist we create it.
 	if dest == nil {
-		logger.Debugf("dest with key %s is not found", tableKey.String())
+		log.Debugf("dest with key %s is not found", tableKey.String())
 		dest = table.createDest(nlri)
 		table.setDestination(tableKey.String(), dest)
 	}
@@ -172,7 +173,7 @@ func (td *TableDefault) setDestination(key string, dest Destination) {
 func (td *TableDefault) tableKey(nlri bgp.AddrPrefixInterface) net.IP {
 	//need Inheritance over ride
 	//return &nlri.IPAddrPrefix.IPAddrPrefixDefault.Prefix
-	logger.Error("CreateDest NotImplementedError")
+	log.Error("CreateDest NotImplementedError")
 	return nil
 }
 

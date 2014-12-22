@@ -17,6 +17,7 @@ package main
 
 import (
 	"fmt"
+	log "github.com/Sirupsen/logrus"
 	"github.com/jessevdk/go-flags"
 	"github.com/osrg/gobgp/api"
 	"github.com/osrg/gobgp/config"
@@ -36,12 +37,23 @@ func main() {
 
 	var opts struct {
 		ConfigFile string `short:"f" long:"config-file" description:"specifying a config file"`
+		LogLevel   string `short:"l" long:"log-level" description:"specifying log level"`
 	}
-
 	_, err := flags.Parse(&opts)
 	if err != nil {
 		os.Exit(1)
 	}
+
+	switch opts.LogLevel {
+	case "debug":
+		log.SetLevel(log.DebugLevel)
+	case "info":
+		log.SetLevel(log.InfoLevel)
+	default:
+		log.SetLevel(log.InfoLevel)
+	}
+	log.SetOutput(os.Stderr)
+	log.SetFormatter(&log.JSONFormatter{})
 
 	if opts.ConfigFile == "" {
 		opts.ConfigFile = "gobgpd.conf"

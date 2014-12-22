@@ -18,16 +18,8 @@ package table
 import (
 	log "github.com/Sirupsen/logrus"
 	"github.com/osrg/gobgp/packet"
-	"os"
 	"time"
 )
-
-var logger *log.Logger = &log.Logger{
-	Out:       os.Stderr,
-	Formatter: new(log.JSONFormatter),
-	Hooks:     make(map[log.Level][]log.Hook),
-	Level:     log.InfoLevel,
-}
 
 type RouteFamily int
 
@@ -230,22 +222,18 @@ func NewTableManager() *TableManager {
 	return t
 }
 
-func setLogger(loggerInstance *log.Logger) {
-	logger = loggerInstance
-}
-
 func (manager *TableManager) calculate(destinationList []Destination) ([]Path, []Destination, error) {
 	bestPaths := make([]Path, 0)
 	lostDest := make([]Destination, 0)
 
 	for _, destination := range destinationList {
 		// compute best path
-		logger.Infof("Processing destination: %v", destination.String())
+		log.Infof("Processing destination: %v", destination.String())
 		newBestPath, reason, err := destination.Calculate(manager.localAsn)
 
-		logger.Debugf("new best path: %v, reason=%v", newBestPath, reason)
+		log.Debugf("new best path: %v, reason=%v", newBestPath, reason)
 		if err != nil {
-			logger.Error(err)
+			log.Error(err)
 			continue
 		}
 
@@ -254,25 +242,25 @@ func (manager *TableManager) calculate(destinationList []Destination) ([]Path, [
 
 		if newBestPath != nil && currentBestPath == newBestPath {
 			// best path is not changed
-			logger.Debug("best path is not changed")
+			log.Debug("best path is not changed")
 			continue
 		}
 
 		if newBestPath == nil {
-			logger.Debug("best path is nil")
+			log.Debug("best path is nil")
 			if len(destination.getKnownPathList()) == 0 {
 				// create withdraw path
 				if currentBestPath != nil {
-					logger.Debug("best path is lost")
+					log.Debug("best path is lost")
 					destination.setOldBestPath(destination.getBestPath())
 					lostDest = append(lostDest, destination)
 				}
 				destination.setBestPath(nil)
 			} else {
-				logger.Error("known path list is not empty")
+				log.Error("known path list is not empty")
 			}
 		} else {
-			logger.Debugf("new best path: NLRI: %v, next_hop=%v, reason=%v",
+			log.Debugf("new best path: NLRI: %v, next_hop=%v, reason=%v",
 				newBestPath.getPrefix().String(),
 				newBestPath.getNexthop().String(),
 				reason)
@@ -285,7 +273,7 @@ func (manager *TableManager) calculate(destinationList []Destination) ([]Path, [
 			rf := destination.getRouteFamily()
 			t := manager.Tables[rf]
 			deleteDest(t, destination)
-			logger.Debugf("destination removed route_family=%v, destination=%v", rf, destination)
+			log.Debugf("destination removed route_family=%v, destination=%v", rf, destination)
 		}
 	}
 	return bestPaths, lostDest, nil
@@ -315,7 +303,7 @@ func (manager *TableManager) ProcessUpdate(fromPeer *PeerInfo, message *bgp.BGPM
 
 	// check msg's type if it's BGPUpdate
 	if message.Header.Type != bgp.BGP_MSG_UPDATE {
-		logger.Warn("message is not BGPUpdate")
+		log.Warn("message is not BGPUpdate")
 		return bestPaths, lostDest, nil
 	}
 

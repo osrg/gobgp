@@ -21,16 +21,8 @@ import (
 	log "github.com/Sirupsen/logrus"
 	"github.com/gorilla/mux"
 	"net/http"
-	"os"
 	"strconv"
 )
-
-var logger *log.Logger = &log.Logger{
-	Out:       os.Stderr,
-	Formatter: new(log.JSONFormatter),
-	Hooks:     make(map[log.Level][]log.Hook),
-	Level:     log.InfoLevel,
-}
 
 const (
 	_ = iota
@@ -170,11 +162,11 @@ func (rs *RestServer) Neighbor(w http.ResponseWriter, r *http.Request) {
 	remoteAddr, found := params[PARAM_REMOTE_PEER_ADDR]
 	if !found {
 		errStr := "neighbor address is not specified"
-		logger.Debug(errStr)
+		log.Debug(errStr)
 		http.Error(w, errStr, http.StatusInternalServerError)
 	}
 
-	logger.Debugf("Look up neighbor with the remote address : %v", remoteAddr)
+	log.Debugf("Look up neighbor with the remote address : %v", remoteAddr)
 
 	//Send channel of request parameter.
 	req := NewRestRequest(REQ_NEIGHBOR, remoteAddr)
@@ -183,7 +175,7 @@ func (rs *RestServer) Neighbor(w http.ResponseWriter, r *http.Request) {
 	//Wait response
 	resInf := <-req.ResponseCh
 	if e := resInf.Err(); e != nil {
-		logger.Debug(e.Error())
+		log.Debug(e.Error())
 		http.Error(w, e.Error(), http.StatusInternalServerError)
 		return
 	}
@@ -200,7 +192,7 @@ func (rs *RestServer) Neighbor(w http.ResponseWriter, r *http.Request) {
 	}
 	if err != nil {
 		errStr := fmt.Sprintf("Failed to perth json of neighbor state", remoteAddr)
-		logger.Error(errStr)
+		log.Error(errStr)
 		http.Error(w, errStr, http.StatusInternalServerError)
 		return
 	}
