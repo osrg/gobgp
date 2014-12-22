@@ -93,10 +93,10 @@ func (server *BgpServer) Serve() {
 			remoteAddr := strings.Split(conn.RemoteAddr().String(), ":")[0]
 			peer, found := server.peerMap[remoteAddr]
 			if found {
-				log.Info("accepted a new passive connection for", remoteAddr)
+				log.Info("accepted a new passive connection from ", remoteAddr)
 				peer.PassConn(conn)
 			} else {
-				log.Info("can't find configuration for a new passive connection", remoteAddr)
+				log.Info("can't find configuration for a new passive connection from ", remoteAddr)
 				conn.Close()
 			}
 		case peer := <-server.addedPeerCh:
@@ -109,11 +109,11 @@ func (server *BgpServer) Serve() {
 			SetTcpMD5SigSockopts(int(f.Fd()), addr, "")
 			p, found := server.peerMap[addr]
 			if found {
-				log.Info("Delete a peer configuration for", addr)
+				log.Info("Delete a peer configuration for ", addr)
 				p.Stop()
 				delete(server.peerMap, addr)
 			} else {
-				log.Info("Can't delete a peer configuration for", addr)
+				log.Info("Can't delete a peer configuration for ", addr)
 			}
 		case restReq := <-server.RestReqCh:
 			server.handleRest(restReq)

@@ -96,7 +96,7 @@ func (fsm *FSM) StateChanged() chan int {
 }
 
 func (fsm *FSM) StateChange(nextState int) {
-	log.Debugf("Peer (%v) state changed from %v to %v", fsm.peerConfig.NeighborAddress, nextState, fsm.state)
+	log.Debugf("Peer (%v) state changed from %v to %v", fsm.peerConfig.NeighborAddress, fsm.state, nextState)
 	fsm.state = nextState
 }
 
