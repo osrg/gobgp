@@ -18,6 +18,7 @@ package main
 import (
 	"fmt"
 	"github.com/jessevdk/go-flags"
+	"github.com/osrg/gobgp/api"
 	"github.com/osrg/gobgp/config"
 	"github.com/osrg/gobgp/packet"
 	"github.com/osrg/gobgp/server"
@@ -53,6 +54,10 @@ func main() {
 
 	bgpServer := server.NewBgpServer(bgp.BGP_PORT)
 	go bgpServer.Serve()
+
+	// start Rest Server
+	restServer := api.NewRestServer(api.REST_PORT, bgpServer.RestReqCh)
+	go restServer.Serve()
 
 	var bgpConfig *config.BgpType = nil
 	for {

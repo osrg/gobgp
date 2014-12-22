@@ -17,6 +17,7 @@ package server
 
 import (
 	"fmt"
+	"github.com/osrg/gobgp/api"
 	"github.com/osrg/gobgp/config"
 	"net"
 	"os"
@@ -43,6 +44,7 @@ type BgpServer struct {
 	globalTypeCh  chan config.GlobalType
 	addedPeerCh   chan config.NeighborType
 	deletedPeerCh chan config.NeighborType
+	RestReqCh     chan *api.RestRequest
 	listenPort    int
 	peerMap       map[string]*Peer
 }
@@ -52,6 +54,7 @@ func NewBgpServer(port int) *BgpServer {
 	b.globalTypeCh = make(chan config.GlobalType)
 	b.addedPeerCh = make(chan config.NeighborType)
 	b.deletedPeerCh = make(chan config.NeighborType)
+	b.RestReqCh = make(chan *api.RestRequest, 1)
 	b.listenPort = port
 	return &b
 }
@@ -114,6 +117,9 @@ func (server *BgpServer) Serve() {
 			} else {
 				fmt.Println("can't found neighbor", addr)
 			}
+		case restReq := <-server.RestReqCh:
+			server.handleRest(restReq)
+
 		case msg := <-broadcastCh:
 			server.broadcast(msg)
 		}
@@ -141,5 +147,25 @@ func (server *BgpServer) broadcast(msg *message) {
 			peer := server.peerMap[key]
 			peer.SendMessage(msg)
 		}
+	}
+}
+
+func (server *BgpServer) handleRest(restReq *api.RestRequest) {
+	defer close(restReq.ResponseCh)
+	switch restReq.RequestType {
+	case api.REQ_NEIGHBOR: // get neighbor state
+
+		remoteAddr := restReq.RemoteAddr
+		result := &api.RestResponseNeighbor{}
+		peer, found := server.peerMap[remoteAddr]
+		if found {
+			c := peer.peerConfig
+			result.NeighborState = c.BgpNeighborCommonState.State
+			result.RemoteAddr = c.NeighborAddress.String()
+			result.RemoteAs = c.PeerAs
+		} else {
+			result.ResponseErr = fmt.Errorf("Neighbor that has %v does not exist.", remoteAddr)
+		}
+		restReq.ResponseCh <- result
 	}
 }
