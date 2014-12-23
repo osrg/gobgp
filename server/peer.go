@@ -62,7 +62,6 @@ func NewPeer(g config.GlobalType, peer config.NeighborType, outEventCh chan *mes
 func (peer *Peer) handleBGPmessage(m *bgp.BGPMessage) {
 	j, _ := json.Marshal(m)
 	log.Debug(string(j))
-	// TODO: update state here
 
 	switch m.Header.Type {
 	case bgp.BGP_MSG_ROUTE_REFRESH:
