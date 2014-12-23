@@ -61,22 +61,22 @@ func NewPeer(g config.GlobalType, peer config.NeighborType, outEventCh chan *mes
 
 func (peer *Peer) handleBGPmessage(m *bgp.BGPMessage) {
 	j, _ := json.Marshal(m)
-	log.Info(string(j))
+	log.Debug(string(j))
 	// TODO: update state here
 
-	if m.Header.Type != bgp.BGP_MSG_UPDATE {
-		return
+	switch m.Header.Type {
+	case bgp.BGP_MSG_ROUTE_REFRESH:
+		pathList := peer.adjRib.GetOutPathList(table.RF_IPv4_UC)
+		peer.sendMessages(peer.path2update(pathList))
+	case bgp.BGP_MSG_UPDATE:
+		msg := table.NewProcessMessage(m, peer.fsm.peerInfo)
+		pathList := msg.ToPathList()
+		if len(pathList) == 0 {
+			return
+		}
+		peer.adjRib.UpdateIn(pathList)
+		peer.sendToHub("", PEER_MSG_PATH, pathList)
 	}
-
-	msg := table.NewProcessMessage(m, peer.fsm.peerInfo)
-	pathList := msg.ToPathList()
-	if len(pathList) == 0 {
-		return
-	}
-
-	peer.adjRib.UpdateIn(pathList)
-
-	peer.sendToHub("", PEER_MSG_PATH, pathList)
 }
 
 func (peer *Peer) sendMessages(msgs []*bgp.BGPMessage) {
