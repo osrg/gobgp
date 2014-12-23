@@ -118,17 +118,17 @@ func NewRestServer(port int, bgpServerCh chan *RestRequest) *RestServer {
 // Main thread of rest service.
 // URL than can receive.
 //   get state of neighbor.
-//     -- curt -i -X GET http://<ownIP>:3000/v1/bgp/neighbor/<remote address of target neighbor>
+//     -- curl -i -X GET http://<ownIP>:3000/v1/bgp/neighbor/<remote address of target neighbor>
 //   get state of neighbors.
-//     -- curt -i -X GET http://<ownIP>:3000/v1/bgp/neighbors
+//     -- curl -i -X GET http://<ownIP>:3000/v1/bgp/neighbors
 //   get adj-rib-in of each neighbor.
-//     -- curt -i -X GET http://<ownIP>:3000/v1/bgp/adj-rib-in/<remote address of target neighbor>
+//     -- curl -i -X GET http://<ownIP>:3000/v1/bgp/adj-rib-in/<remote address of target neighbor>
 //   get adj-rib-out of each neighbor.
-//     -- curt -i -X GET http://<ownIP>:3000/v1/bgp/adj-rib-out/<remote address of target neighbor>
+//     -- curl -i -X GET http://<ownIP>:3000/v1/bgp/adj-rib-out/<remote address of target neighbor>
 //   get adj-rib-local of each neighbor.
-//     -- curt -i -X GET http://<ownIP>:3000/v1/bgp/adj-rib-local/<remote address of target neighbor>
+//     -- curl -i -X GET http://<ownIP>:3000/v1/bgp/adj-rib-local/<remote address of target neighbor>
 //   get only best path of adj-rib-local  of each neighbor.
-//     -- curt -i -X GET http://<ownIP>:3000/v1/bgp/adj-rib-local/best/<remote address of target neighbor>
+//     -- curl -i -X GET http://<ownIP>:3000/v1/bgp/adj-rib-local/best/<remote address of target neighbor>
 func (rs *RestServer) Serve() {
 	neighbor := BASE_VERSION + NEIGHBOR
 	// neighbors := BASE_VERSION + NEIGHBORS
@@ -164,6 +164,7 @@ func (rs *RestServer) Neighbor(w http.ResponseWriter, r *http.Request) {
 		errStr := "neighbor address is not specified"
 		log.Debug(errStr)
 		http.Error(w, errStr, http.StatusInternalServerError)
+		return
 	}
 
 	log.Debugf("Look up neighbor with the remote address : %v", remoteAddr)
