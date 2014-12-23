@@ -19,8 +19,10 @@ const AS_TRANS = 23456
 
 const BGP_PORT = 179
 
+type FSMState int
+
 const (
-	_ = iota
+	_ FSMState = iota
 	BGP_FSM_IDLE
 	BGP_FSM_CONNECT
 	BGP_FSM_ACTIVE

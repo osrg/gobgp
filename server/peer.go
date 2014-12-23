@@ -29,7 +29,6 @@ type Peer struct {
 	t              tomb.Tomb
 	globalConfig   config.GlobalType
 	peerConfig     config.NeighborType
-	state          int
 	acceptedConnCh chan *net.TCPConn
 	incoming       chan *bgp.BGPMessage
 	outgoing       chan *bgp.BGPMessage
@@ -46,7 +45,6 @@ func NewPeer(g config.GlobalType, peer config.NeighborType, outEventCh chan *mes
 	p := &Peer{
 		globalConfig:   g,
 		peerConfig:     peer,
-		state:          bgp.BGP_FSM_IDLE,
 		acceptedConnCh: make(chan *net.TCPConn),
 		incoming:       make(chan *bgp.BGPMessage, 4096),
 		outgoing:       make(chan *bgp.BGPMessage, 4096),
@@ -54,6 +52,7 @@ func NewPeer(g config.GlobalType, peer config.NeighborType, outEventCh chan *mes
 		outEventCh:     outEventCh,
 	}
 	p.fsm = NewFSM(&g, &peer, p.acceptedConnCh, p.incoming, p.outgoing)
+	peer.BgpNeighborCommonState.State = uint32(bgp.BGP_FSM_IDLE)
 	p.adjRib = table.NewAdjRib()
 	p.rib = table.NewTableManager()
 	p.t.Go(p.loop)
@@ -136,8 +135,8 @@ func (peer *Peer) loop() error {
 			case nextState := <-peer.fsm.StateChanged():
 				// waits for all goroutines created for the current state
 				h.Wait()
-				oldState := peer.state
-				peer.state = nextState
+				oldState := bgp.FSMState(peer.peerConfig.BgpNeighborCommonState.State)
+				peer.peerConfig.BgpNeighborCommonState.State = uint32(nextState)
 				peer.fsm.StateChange(nextState)
 				sameState = false
 				// TODO: check peer's rf

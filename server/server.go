@@ -20,6 +20,7 @@ import (
 	log "github.com/Sirupsen/logrus"
 	"github.com/osrg/gobgp/api"
 	"github.com/osrg/gobgp/config"
+	"github.com/osrg/gobgp/packet"
 	"net"
 	"os"
 	"strconv"
@@ -158,7 +159,7 @@ func (server *BgpServer) handleRest(restReq *api.RestRequest) {
 		peer, found := server.peerMap[remoteAddr]
 		if found {
 			c := peer.peerConfig
-			result.NeighborState = c.BgpNeighborCommonState.State
+			result.NeighborState = bgp.FSMState(c.BgpNeighborCommonState.State).String()
 			result.RemoteAddr = c.NeighborAddress.String()
 			result.RemoteAs = c.PeerAs
 		} else {

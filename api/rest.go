@@ -91,7 +91,7 @@ type RestResponseNeighbor struct {
 	RestResponseDefault
 	RemoteAddr    string
 	RemoteAs      uint32
-	NeighborState uint32
+	NeighborState string
 	UpdateCount   int
 }
 

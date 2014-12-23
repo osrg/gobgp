@@ -29,12 +29,12 @@ type FSM struct {
 	globalConfig    *config.GlobalType
 	peerConfig      *config.NeighborType
 	keepaliveTicker *time.Ticker
-	state           int
+	state           bgp.FSMState
 	incoming        chan *bgp.BGPMessage
 	outgoing        chan *bgp.BGPMessage
 	passiveConn     *net.TCPConn
 	passiveConnCh   chan *net.TCPConn
-	stateCh         chan int
+	stateCh         chan bgp.FSMState
 
 	peerInfo     *table.PeerInfo
 	sourceVerNum int
@@ -86,16 +86,16 @@ func NewFSM(gConfig *config.GlobalType, pConfig *config.NeighborType, connCh cha
 		outgoing:      outgoing,
 		state:         bgp.BGP_FSM_IDLE,
 		passiveConnCh: connCh,
-		stateCh:       make(chan int),
+		stateCh:       make(chan bgp.FSMState),
 		sourceVerNum:  1,
 	}
 }
 
-func (fsm *FSM) StateChanged() chan int {
+func (fsm *FSM) StateChanged() chan bgp.FSMState {
 	return fsm.stateCh
 }
 
-func (fsm *FSM) StateChange(nextState int) {
+func (fsm *FSM) StateChange(nextState bgp.FSMState) {
 	log.Debugf("Peer (%v) state changed from %v to %v", fsm.peerConfig.NeighborAddress, fsm.state, nextState)
 	fsm.state = nextState
 }
@@ -139,7 +139,7 @@ func (h *FSMHandler) Stop() error {
 	return h.t.Wait()
 }
 
-func (h *FSMHandler) idle() int {
+func (h *FSMHandler) idle() bgp.FSMState {
 	fsm := h.fsm
 	// TODO: support idle hold timer
 
@@ -150,7 +150,7 @@ func (h *FSMHandler) idle() int {
 	return bgp.BGP_FSM_ACTIVE
 }
 
-func (h *FSMHandler) active() int {
+func (h *FSMHandler) active() bgp.FSMState {
 	fsm := h.fsm
 	select {
 	case <-h.t.Dying():
@@ -224,7 +224,7 @@ func (h *FSMHandler) recvMessage() error {
 	return nil
 }
 
-func (h *FSMHandler) opensent() int {
+func (h *FSMHandler) opensent() bgp.FSMState {
 	fsm := h.fsm
 	m := buildopen(fsm.globalConfig, fsm.peerConfig)
 	b, _ := m.Serialize()
@@ -261,7 +261,7 @@ func (h *FSMHandler) opensent() int {
 	return nextState
 }
 
-func (h *FSMHandler) openconfirm() int {
+func (h *FSMHandler) openconfirm() bgp.FSMState {
 	fsm := h.fsm
 	sec := time.Second * time.Duration(fsm.peerConfig.Timers.KeepaliveInterval)
 	fsm.keepaliveTicker = time.NewTicker(sec)
@@ -308,7 +308,7 @@ func (h *FSMHandler) sendMessageloop() error {
 		case <-h.t.Dying():
 			return nil
 		case m := <-fsm.outgoing:
-			isSend := func(state int, Type uint8) bool {
+			isSend := func(state bgp.FSMState, Type uint8) bool {
 				switch Type {
 				case bgp.BGP_MSG_UPDATE:
 					if state == bgp.BGP_FSM_ESTABLISHED {
@@ -347,7 +347,7 @@ func (h *FSMHandler) recvMessageloop() error {
 	}
 }
 
-func (h *FSMHandler) established() int {
+func (h *FSMHandler) established() bgp.FSMState {
 	fsm := h.fsm
 	h.conn = fsm.passiveConn
 	h.t.Go(h.sendMessageloop)
@@ -376,7 +376,7 @@ func (h *FSMHandler) established() int {
 
 func (h *FSMHandler) loop() error {
 	fsm := h.fsm
-	nextState := 0
+	nextState := bgp.FSMState(0)
 	switch fsm.state {
 	case bgp.BGP_FSM_IDLE:
 		nextState = h.idle()
