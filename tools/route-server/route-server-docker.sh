@@ -55,7 +55,7 @@ case "$1" in
 	    run_quagga $i
 	    i=$(( i+1 ))
 	done
-	docker run --privileged=true -v $CONFIG_DIR:/mnt --name $GOBGP_DOCKER_NAME -id osrg/gobgp
+	docker run --privileged=true -v $CONFIG_DIR:/mnt -d --name $GOBGP_DOCKER_NAME -id osrg/gobgp
 	sudo pipework $BRIDGE_NAME $GOBGP_DOCKER_NAME 10.0.255.1/16
 	;;
     stop)
@@ -86,7 +86,7 @@ case "$1" in
         sudo docker pull osrg/quagga
         sudo docker pull osrg/gobgp
 	mkdir /usr/local/gobgp
-	sudo docker run --privileged=true --name gobgp -id osrg/gobgp -v /usr/local/gobgp:/mnt go run /root/gobgp/tools/route-server/quagga-rsconfig.go -c /mnt
+	sudo docker run --privileged=true -v /usr/local/gobgp:/mnt --name gobgp -id osrg/gobgp go run /root/gobgp/tools/route-server/quagga-rsconfig.go -c /mnt
 	docker rm -f gobgp
 	;;
     *)
