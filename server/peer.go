@@ -23,6 +23,7 @@ import (
 	"github.com/osrg/gobgp/table"
 	"gopkg.in/tomb.v2"
 	"net"
+	"time"
 )
 
 type Peer struct {
@@ -68,6 +69,7 @@ func (peer *Peer) handleBGPmessage(m *bgp.BGPMessage) {
 		pathList := peer.adjRib.GetOutPathList(table.RF_IPv4_UC)
 		peer.sendMessages(peer.path2update(pathList))
 	case bgp.BGP_MSG_UPDATE:
+		peer.peerConfig.BgpNeighborCommonState.UpdateRecvTime = time.Now()
 		msg := table.NewProcessMessage(m, peer.fsm.peerInfo)
 		pathList := msg.ToPathList()
 		if len(pathList) == 0 {
@@ -142,6 +144,7 @@ func (peer *Peer) loop() error {
 				if nextState == bgp.BGP_FSM_ESTABLISHED {
 					pathList := peer.adjRib.GetOutPathList(table.RF_IPv4_UC)
 					peer.sendMessages(peer.path2update(pathList))
+					peer.peerConfig.BgpNeighborCommonState.Uptime = time.Now()
 					peer.peerConfig.BgpNeighborCommonState.EstablishedCount++
 				}
 				if oldState == bgp.BGP_FSM_ESTABLISHED {
