@@ -142,6 +142,7 @@ func (peer *Peer) loop() error {
 				if nextState == bgp.BGP_FSM_ESTABLISHED {
 					pathList := peer.adjRib.GetOutPathList(table.RF_IPv4_UC)
 					peer.sendMessages(peer.path2update(pathList))
+					peer.peerConfig.BgpNeighborCommonState.EstablishedCount++
 				}
 				if oldState == bgp.BGP_FSM_ESTABLISHED {
 					peer.sendToHub("", PEER_MSG_DOWN, peer.fsm.peerInfo)
