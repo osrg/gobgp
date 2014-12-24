@@ -83,7 +83,7 @@ case "$1" in
         sudo apt-get install -y --force-yes lv
 	sudo wget https://raw.github.com/jpetazzo/pipework/master/pipework -O /usr/local/bin/pipework
 	sudo chmod 755 /usr/local/bin/pipework
-        sudo docker pull osrg/ryu
+        sudo docker pull osrg/quagga
         sudo docker pull osrg/gobgp
 	mkdir /usr/local/gobgp
 	sudo docker run --privileged=true --name gobgp -id osrg/gobgp -v /usr/local/gobgp:/mnt go run /root/gobgp/tools/route-server/quagga-rsconfig.go -c /mnt
