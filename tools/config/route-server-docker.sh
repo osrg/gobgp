@@ -2,7 +2,15 @@
 
 NR_PEERS=8
 BRIDGE_NAME=br0
-CONFIG_DIR=`pwd`
+CONFIG_DIR=/usr/local/gobgp
+GOBGP_DOCKER_NAME=gobgp
+
+check_user() {
+    if [ `whoami` = "root" ]; then
+        echo "Super user cannot execute! Please execute as non super user"
+        exit 2
+    fi
+}
 
 run_quagga() {
     local docker_name=q$1
@@ -47,9 +55,9 @@ case "$1" in
 	    run_quagga $i
 	    i=$(( i+1 ))
 	done
-	sudo ip addr add 10.0.255.1/16 dev $BRIDGE_NAME
+	docker run --privileged=true -v $CONFIG_DIR:/mnt --name $GOBGP_DOCKER_NAME -id osrg/gobgp
+	sudo pipework $BRIDGE_NAME $GOBGP_DOCKER_NAME 10.0.255.1/16
 	;;
-
     stop)
 	i=1
 	while [ $i -le $NR_PEERS ]
@@ -58,6 +66,28 @@ case "$1" in
 	    i=$(( i+1 ))
 	done
 	delete_bridge $BRIDGE_NAME
+	docker rm -f $GOBGP_DOCKER_NAME
+	;;
+    install)
+	sudo apt-key adv --keyserver hkp://keyserver.ubuntu.com:80 --recv-keys 36A1D7869245C8950F966E92D8576A8BA88D21E9
+	sudo sh -c "echo deb https://get.docker.io/ubuntu docker main > /etc/apt/sources.list.d/docker.list"
+	sudo apt-get update
+	sudo apt-get install -y --force-yes lxc-docker-1.3.2
+	sudo ln -sf /usr/bin/docker.io /usr/local/bin/docker
+	sudo gpasswd -a `whoami` docker
+        sudo apt-get install -y --force-yes emacs23-nox
+        sudo apt-get install -y --force-yes wireshark
+	sudo apt-get install -y --force-yes iputils-arping
+        sudo apt-get install -y --force-yes bridge-utils
+        sudo apt-get install -y --force-yes tcpdump
+        sudo apt-get install -y --force-yes lv
+	sudo wget https://raw.github.com/jpetazzo/pipework/master/pipework -O /usr/local/bin/pipework
+	sudo chmod 755 /usr/local/bin/pipework
+        sudo docker pull osrg/ryu
+        sudo docker pull osrg/gobgp
+	mkdir /usr/local/gobgp
+	sudo docker run --privileged=true --name gobgp -id osrg/gobgp -v /usr/local/gobgp:/mnt go run /root/gobgp/tools/route-server/quagga-rsconfig.go -c /mnt
+	docker rm -f gobgp
 	;;
     *)
 	echo $1
