@@ -87,11 +87,12 @@ case "$1" in
         sudo docker pull osrg/gobgp
 	sudo mkdir /usr/local/gobgp
 	sudo docker run --privileged=true -v /usr/local/gobgp:/mnt --name gobgp -id osrg/gobgp go run /root/gobgp/tools/route-server/quagga-rsconfig.go -c /mnt
-	sudo docker rm -f gobgp
+	sudo docker wait gobgp
+	sudo docker rm gobgp
 	;;
     *)
 	echo $1
-	echo "Usage: root-server-docker {start|stop}"
+	echo "Usage: root-server-docker {start|stop|install}"
 	exit 2
 	;;
 esac
