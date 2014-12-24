@@ -24,10 +24,12 @@ delete_bridge() {
     fi
 }
 
-while getopts c: OPT
+while getopts c:n: OPT
 do
     case $OPT in
 	c) CONFIG_DIR="$OPTARG"
+	    ;;
+	n) NR_PEERS="$OPTARG"
 	    ;;
 	*) echo "Unknown option"
 	    exit 1
