@@ -85,9 +85,9 @@ case "$1" in
 	sudo chmod 755 /usr/local/bin/pipework
         sudo docker pull osrg/quagga
         sudo docker pull osrg/gobgp
-	mkdir /usr/local/gobgp
+	sudo mkdir /usr/local/gobgp
 	sudo docker run --privileged=true -v /usr/local/gobgp:/mnt --name gobgp -id osrg/gobgp go run /root/gobgp/tools/route-server/quagga-rsconfig.go -c /mnt
-	docker rm -f gobgp
+	sudo docker rm -f gobgp
 	;;
     *)
 	echo $1
