@@ -4,6 +4,7 @@ NR_PEERS=8
 BRIDGE_NAME=br0
 CONFIG_DIR=/usr/local/gobgp
 GOBGP_DOCKER_NAME=gobgp
+USE_HOST=0
 
 check_user() {
     if [ `whoami` = "root" ]; then
@@ -32,12 +33,14 @@ delete_bridge() {
     fi
 }
 
-while getopts c:n: OPT
+while getopts c:n:u OPT
 do
     case $OPT in
 	c) CONFIG_DIR="$OPTARG"
 	    ;;
 	n) NR_PEERS="$OPTARG"
+	    ;;
+	u) USE_HOST=1
 	    ;;
 	*) echo "Unknown option"
 	    exit 1
@@ -55,8 +58,12 @@ case "$1" in
 	    run_quagga $i
 	    i=$(( i+1 ))
 	done
-	docker run --privileged=true -v $CONFIG_DIR:/mnt -d --name $GOBGP_DOCKER_NAME -id osrg/gobgp
-	sudo pipework $BRIDGE_NAME $GOBGP_DOCKER_NAME 10.0.255.1/16
+	if [ $USE_HOST -eq 1 ]; then
+	    sudo ip addr add 10.0.255.1/16 dev $BRIDGE_NAME
+	else
+	    docker run --privileged=true -v $CONFIG_DIR:/mnt -d --name $GOBGP_DOCKER_NAME -id osrg/gobgp
+	    sudo pipework $BRIDGE_NAME $GOBGP_DOCKER_NAME 10.0.255.1/16
+	fi
 	;;
     stop)
 	i=1
