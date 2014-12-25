@@ -95,13 +95,12 @@ func NewDestinationDefault(nlri bgp.AddrPrefixInterface) *DestinationDefault {
 
 func (dd *DestinationDefault) MarshalJSON() ([]byte, error) {
 	prefix := dd.getNlri().(*bgp.NLRInfo).Prefix
-	paths, _ := json.Marshal(dd.knownPathList)
 	return json.Marshal(struct {
 		Prefix string
-		Paths  string
+		Paths  []Path
 	}{
 		Prefix: prefix.String(),
-		Paths:  string(paths),
+		Paths:  dd.knownPathList,
 	})
 }
 

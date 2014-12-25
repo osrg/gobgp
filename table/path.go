@@ -97,7 +97,6 @@ func (pd *PathDefault) MarshalJSON() ([]byte, error) {
 			aslist = append(aslist, path.AS...)
 		}
 	}
-	asPath, _ := json.Marshal(aslist)
 
 	var prefix net.IP
 	var prefixLen uint8
@@ -110,7 +109,7 @@ func (pd *PathDefault) MarshalJSON() ([]byte, error) {
 	return json.Marshal(struct {
 		Network string
 		Nexthop string
-		AsPath  string
+		AsPath  []uint32
 		Metric  string
 		//origin string
 		Best string
@@ -118,7 +117,7 @@ func (pd *PathDefault) MarshalJSON() ([]byte, error) {
 		Network: prefix.String() + "/" + fmt.Sprint(prefixLen),
 		Nexthop: pd.nexthop.String(),
 		Metric:  fmt.Sprint(med),
-		AsPath:  string(asPath),
+		AsPath:  aslist,
 		Best:    fmt.Sprint(pd.isBest),
 	})
 }

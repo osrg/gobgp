@@ -55,12 +55,11 @@ func (td *TableDefault) MarshalJSON() ([]byte, error) {
 	for _, dest := range td.destinations {
 		destList = append(destList, dest)
 	}
-	j, _ := json.Marshal(destList)
 
 	return json.Marshal(struct {
-		Destinations string
+		Destinations []Destination
 	}{
-		Destinations: string(j),
+		Destinations: destList,
 	})
 }
 
