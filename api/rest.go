@@ -30,9 +30,9 @@ const (
 	REQ_NEIGHBORS
 	REQ_ADJ_RIB_IN
 	REQ_ADJ_RIB_OUT
-	REQ_ADJ_RIB_LOCAL
-	REQ_ADJ_RIB_LOCAL_BEST
+	REQ_LOCAL_RIB
 )
+
 const (
 	BASE_VERSION       = "/v1"
 	NEIGHBOR           = "/bgp/neighbor"
@@ -80,6 +80,7 @@ type RestResponse interface {
 
 type RestResponseDefault struct {
 	ResponseErr error
+	Data        []byte
 }
 
 func (r *RestResponseDefault) Err() error {
@@ -137,12 +138,11 @@ func (rs *RestServer) Serve() {
 
 	r := mux.NewRouter()
 	// set URLs
-	r.HandleFunc(neighbor+"/{"+PARAM_REMOTE_PEER_ADDR+"}", rs.Neighbor).Methods("GET")
 	// r.HandleFunc(neighbors, rs.Neighbors).Methods("GET")
+	r.HandleFunc(neighbor+"/{"+PARAM_REMOTE_PEER_ADDR+"}", rs.Neighbor).Methods("GET")
 	// r.HandleFunc(adjRibIn+"/{"+PARAM_REMOTE_PEER_ADDR+"}", rs.AdjRibIn).Methods("GET")
 	// r.HandleFunc(adjRibOut+"/{"+PARAM_REMOTE_PEER_ADDR+"}", rs.AdjRibOut).Methods("GET")
-	// r.HandleFunc(adjRibLocal+"/{"+PARAM_REMOTE_PEER_ADDR+"}", rs.AdjRibLocal).Methods("GET")
-	// r.HandleFunc(adjRibLocalBest+"/{"+PARAM_REMOTE_PEER_ADDR+"}", rs.AdjRibLocalBest).Methods("GET")
+	r.HandleFunc(neighbor+"/{"+PARAM_REMOTE_PEER_ADDR+"}/"+"local-rib", rs.NeighborLocalRib).Methods("GET")
 
 	// Handler when not found url
 	r.NotFoundHandler = http.HandlerFunc(NotFoundHandler)
@@ -196,6 +196,35 @@ func (rs *RestServer) Neighbor(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	w.Write(jns)
+}
+
+// TODO: merge the above function
+func (rs *RestServer) NeighborLocalRib(w http.ResponseWriter, r *http.Request) {
+	params := mux.Vars(r)
+	remoteAddr, found := params[PARAM_REMOTE_PEER_ADDR]
+	if !found {
+		errStr := "neighbor address is not specified"
+		log.Debug(errStr)
+		http.Error(w, errStr, http.StatusInternalServerError)
+		return
+	}
+
+	log.Debugf("Look up neighbor with the remote address : %v", remoteAddr)
+
+	//Send channel of request parameter.
+	req := NewRestRequest(REQ_LOCAL_RIB, remoteAddr)
+	rs.bgpServerCh <- req
+
+	//Wait response
+	resInf := <-req.ResponseCh
+	if e := resInf.Err(); e != nil {
+		log.Debug(e.Error())
+		http.Error(w, e.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	res := resInf.(*RestResponseDefault)
+	w.Write(res.Data)
 }
 
 func NotFoundHandler(w http.ResponseWriter, r *http.Request) {

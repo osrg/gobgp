@@ -18,6 +18,7 @@ package server
 import (
 	"encoding/json"
 	log "github.com/Sirupsen/logrus"
+	"github.com/osrg/gobgp/api"
 	"github.com/osrg/gobgp/config"
 	"github.com/osrg/gobgp/packet"
 	"github.com/osrg/gobgp/table"
@@ -103,6 +104,14 @@ func (peer *Peer) path2update(pathList []table.Path) []*bgp.BGPMessage {
 	return msgs
 }
 
+func (peer *Peer) handleREST(restReq *api.RestRequest) {
+	result := &api.RestResponseDefault{}
+	j, _ := json.Marshal(peer.rib.Tables[bgp.RF_IPv4_UC])
+	result.Data = j
+	restReq.ResponseCh <- result
+	close(restReq.ResponseCh)
+}
+
 func (peer *Peer) handlePeermessage(m *message) {
 
 	sendpath := func(pList []table.Path, wList []table.Destination) {
@@ -123,6 +132,8 @@ func (peer *Peer) handlePeermessage(m *message) {
 	case PEER_MSG_DOWN:
 		pList, wList, _ := peer.rib.DeletePathsforPeer(m.data.(*table.PeerInfo))
 		sendpath(pList, wList)
+	case PEER_MSG_REST:
+		peer.handleREST(m.data.(*api.RestRequest))
 	}
 }
 

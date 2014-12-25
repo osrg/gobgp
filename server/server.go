@@ -32,6 +32,7 @@ const (
 	PEER_MSG_NEW
 	PEER_MSG_PATH
 	PEER_MSG_DOWN
+	PEER_MSG_REST //hacky, fix later
 )
 
 type message struct {
@@ -150,7 +151,6 @@ func (server *BgpServer) broadcast(msg *message) {
 }
 
 func (server *BgpServer) handleRest(restReq *api.RestRequest) {
-	defer close(restReq.ResponseCh)
 	switch restReq.RequestType {
 	case api.REQ_NEIGHBOR: // get neighbor state
 
@@ -166,5 +166,21 @@ func (server *BgpServer) handleRest(restReq *api.RestRequest) {
 			result.ResponseErr = fmt.Errorf("Neighbor that has %v does not exist.", remoteAddr)
 		}
 		restReq.ResponseCh <- result
+		close(restReq.ResponseCh)
+	case api.REQ_LOCAL_RIB:
+		remoteAddr := restReq.RemoteAddr
+		result := &api.RestResponseNeighbor{}
+		peer, found := server.peerMap[remoteAddr]
+		if found {
+			msg := message{
+				event: PEER_MSG_REST,
+				data:  restReq,
+			}
+			peer.SendMessage(&msg)
+		} else {
+			result.ResponseErr = fmt.Errorf("Neighbor that has %v does not exist.", remoteAddr)
+			restReq.ResponseCh <- result
+			close(restReq.ResponseCh)
+		}
 	}
 }
