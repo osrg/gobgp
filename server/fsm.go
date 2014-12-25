@@ -42,7 +42,12 @@ type FSM struct {
 }
 
 func (fsm *FSM) bgpMessageStateUpdate(MessageType uint8, isIn bool) {
-	state := fsm.peerConfig.BgpNeighborCommonState
+	state := &fsm.peerConfig.BgpNeighborCommonState
+	if isIn {
+		state.TotalIn++
+	} else {
+		state.TotalOut++
+	}
 	switch MessageType {
 	case bgp.BGP_MSG_OPEN:
 		if isIn {

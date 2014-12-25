@@ -408,6 +408,9 @@ type BgpNeighborCommonStateType struct {
 	// Dynamic Capability output count
 	DynamicCapOut uint32
 
+	TotalIn  uint32
+	TotalOut uint32
+
 	// BGP state count
 	// Established
 	EstablishedCount uint32

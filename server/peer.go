@@ -154,10 +154,11 @@ func (peer *Peer) loop() error {
 				if nextState == bgp.BGP_FSM_ESTABLISHED {
 					pathList := peer.adjRib.GetOutPathList(table.RF_IPv4_UC)
 					peer.sendMessages(peer.path2update(pathList))
-					peer.peerConfig.BgpNeighborCommonState.Uptime = time.Now()
-					peer.peerConfig.BgpNeighborCommonState.EstablishedCount++
+					peer.fsm.peerConfig.BgpNeighborCommonState.Uptime = time.Now()
+					peer.fsm.peerConfig.BgpNeighborCommonState.EstablishedCount++
 				}
 				if oldState == bgp.BGP_FSM_ESTABLISHED {
+					peer.fsm.peerConfig.BgpNeighborCommonState.Uptime = time.Time{}
 					peer.sendToHub("", PEER_MSG_DOWN, peer.fsm.peerInfo)
 				}
 			case <-peer.t.Dying():
@@ -202,32 +203,37 @@ func (peer *Peer) sendToHub(destination string, event int, data interface{}) {
 
 func (peer *Peer) MarshalJSON() ([]byte, error) {
 
-	c := peer.peerConfig
 	f := peer.fsm
+	c := f.peerConfig
 
 	p := make(map[string]interface{})
 
 	p["conf"] = struct {
-		RemoteIP           string `json:"remote_ip"`
-		Id                 string `json:"id"`
-		Description        string `json:"description"`
-		RemoteAS           uint32 `json:"remote_as"`
-		LocalAddress       string `json:"local_address"`
-		LocalPort          int    `json:"local_port"`
-		CapRefresh         bool   `json:"cap_refresh"`
-		CapEnhancedRefresh bool   `json:"cap_enhanced_refresh"`
+		RemoteIP string `json:"remote_ip"`
+		Id       string `json:"id"`
+		//Description        string `json:"description"`
+		RemoteAS uint32 `json:"remote_as"`
+		//LocalAddress       string `json:"local_address"`
+		//LocalPort          int    `json:"local_port"`
+		CapRefresh         bool `json:"cap_refresh"`
+		CapEnhancedRefresh bool `json:"cap_enhanced_refresh"`
 	}{
-		RemoteIP:    c.NeighborAddress.String(),
-		Id:          f.routerId.To4().String(),
-		Description: "",
-		RemoteAS:    c.PeerAs,
+		RemoteIP: c.NeighborAddress.String(),
+		Id:       f.routerId.To4().String(),
+		//Description: "",
+		RemoteAS: c.PeerAs,
 		//LocalAddress:       f.passiveConn.LocalAddr().String(),
 		//LocalPort:          f.passiveConn.LocalAddr().(*net.TCPAddr).Port,
 		CapRefresh:         false,
 		CapEnhancedRefresh: false,
 	}
 
-	s := peer.peerConfig.BgpNeighborCommonState
+	s := c.BgpNeighborCommonState
+
+	uptime := float64(0)
+	if !s.Uptime.IsZero() {
+		uptime = time.Now().Sub(s.Uptime).Seconds()
+	}
 	p["info"] = struct {
 		BgpState                  string  `json:"bgp_state"`
 		FsmEstablishedTransitions uint32  `json:"fsm_established_transitions"`
@@ -249,8 +255,8 @@ func (peer *Peer) MarshalJSON() ([]byte, error) {
 
 		BgpState:                  f.state.String(),
 		FsmEstablishedTransitions: s.EstablishedCount,
-		TotalMessageOut:           0,
-		TotalMessageIn:            0,
+		TotalMessageOut:           s.TotalOut,
+		TotalMessageIn:            s.TotalIn,
 		UpdateMessageOut:          s.UpdateOut,
 		UpdateMessageIn:           s.UpdateIn,
 		KeepAliveMessageOut:       s.KeepaliveOut,
@@ -261,7 +267,7 @@ func (peer *Peer) MarshalJSON() ([]byte, error) {
 		NotificationIn:            s.NotifyIn,
 		RefreshMessageOut:         s.RefreshOut,
 		RefreshMessageIn:          s.RefreshIn,
-		Uptime:                    time.Now().Sub(s.Uptime).Seconds(),
+		Uptime:                    uptime,
 	}
 
 	return json.Marshal(p)
