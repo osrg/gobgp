@@ -20,7 +20,6 @@ import (
 	log "github.com/Sirupsen/logrus"
 	"github.com/osrg/gobgp/api"
 	"github.com/osrg/gobgp/config"
-	"github.com/osrg/gobgp/packet"
 	"net"
 	"os"
 	"strconv"
@@ -153,7 +152,7 @@ func (server *BgpServer) broadcast(msg *message) {
 func (server *BgpServer) handleRest(restReq *api.RestRequest) {
 	switch restReq.RequestType {
 	case api.REQ_NEIGHBORS:
-		result := &api.RestResponseDefault{}
+		result := &api.RestResponse{}
 		peerList := make([]*Peer, 0)
 		for _, peer := range server.peerMap {
 			peerList = append(peerList, peer)
@@ -165,13 +164,10 @@ func (server *BgpServer) handleRest(restReq *api.RestRequest) {
 	case api.REQ_NEIGHBOR: // get neighbor state
 
 		remoteAddr := restReq.RemoteAddr
-		result := &api.RestResponseNeighbor{}
+		result := &api.RestResponse{}
 		peer, found := server.peerMap[remoteAddr]
 		if found {
-			c := peer.peerConfig
-			result.NeighborState = bgp.FSMState(c.BgpNeighborCommonState.State).String()
-			result.RemoteAddr = c.NeighborAddress.String()
-			result.RemoteAs = c.PeerAs
+			result.Data = peer
 		} else {
 			result.ResponseErr = fmt.Errorf("Neighbor that has %v does not exist.", remoteAddr)
 		}
@@ -179,7 +175,7 @@ func (server *BgpServer) handleRest(restReq *api.RestRequest) {
 		close(restReq.ResponseCh)
 	case api.REQ_LOCAL_RIB:
 		remoteAddr := restReq.RemoteAddr
-		result := &api.RestResponseNeighbor{}
+		result := &api.RestResponse{}
 		peer, found := server.peerMap[remoteAddr]
 		if found {
 			msg := message{

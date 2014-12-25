@@ -17,7 +17,6 @@ package api
 
 import (
 	"encoding/json"
-	"fmt"
 	log "github.com/Sirupsen/logrus"
 	"github.com/gorilla/mux"
 	"net/http"
@@ -61,7 +60,7 @@ var JsonFormat int = JSON_FORMATTED
 type RestRequest struct {
 	RequestType int
 	RemoteAddr  string
-	ResponseCh  chan RestResponse
+	ResponseCh  chan *RestResponse
 	Err         error
 }
 
@@ -69,31 +68,18 @@ func NewRestRequest(reqType int, remoteAddr string) *RestRequest {
 	r := &RestRequest{
 		RequestType: reqType,
 		RemoteAddr:  remoteAddr,
-		ResponseCh:  make(chan RestResponse),
+		ResponseCh:  make(chan *RestResponse),
 	}
 	return r
 }
 
-type RestResponse interface {
-	Err() error
-}
-
-type RestResponseDefault struct {
+type RestResponse struct {
 	ResponseErr error
 	Data        interface{}
 }
 
-func (r *RestResponseDefault) Err() error {
+func (r *RestResponse) Err() error {
 	return r.ResponseErr
-}
-
-// Response struct for Neighbor
-type RestResponseNeighbor struct {
-	RestResponseDefault
-	RemoteAddr    string
-	RemoteAs      uint32
-	NeighborState string
-	UpdateCount   int
 }
 
 type RestServer struct {
@@ -144,55 +130,8 @@ func (rs *RestServer) Serve() {
 
 }
 
-// Http request of curl, return the json format infomation of neibor state.
-func (rs *RestServer) Neighbor(w http.ResponseWriter, r *http.Request) {
-	//	remotePeerAddr := mux.Vars(r)[PARAM_REMOTE_PEER_ADDR]
-
-	params := mux.Vars(r)
-	remoteAddr, found := params[PARAM_REMOTE_PEER_ADDR]
-	if !found {
-		errStr := "neighbor address is not specified"
-		log.Debug(errStr)
-		http.Error(w, errStr, http.StatusInternalServerError)
-		return
-	}
-
-	log.Debugf("Look up neighbor with the remote address : %v", remoteAddr)
-
-	//Send channel of request parameter.
-	req := NewRestRequest(REQ_NEIGHBOR, remoteAddr)
-	rs.bgpServerCh <- req
-
-	//Wait response
-	resInf := <-req.ResponseCh
-	if e := resInf.Err(); e != nil {
-		log.Debug(e.Error())
-		http.Error(w, e.Error(), http.StatusInternalServerError)
-		return
-	}
-
-	res := resInf.(*RestResponseNeighbor)
-
-	var jns []byte
-	var err error
-	switch JsonFormat {
-	case JSON_FORMATTED:
-		jns, err = json.MarshalIndent(res, "", "  ") // formatted json
-	case JSON_UN_FORMATTED:
-		jns, err = json.Marshal(res) // Unformatted json
-	}
-	if err != nil {
-		errStr := fmt.Sprintf("Failed to perth json of neighbor state", remoteAddr)
-		log.Error(errStr)
-		http.Error(w, errStr, http.StatusInternalServerError)
-		return
-	}
-	w.Header().Set("Content-Type", "application/json; charset=utf-8")
-	w.Write(jns)
-}
-
 // TODO: merge the above function
-func (rs *RestServer) NeighborLocalRib(w http.ResponseWriter, r *http.Request) {
+func (rs *RestServer) neighbor(w http.ResponseWriter, r *http.Request, reqType int) {
 	params := mux.Vars(r)
 	remoteAddr, found := params[PARAM_REMOTE_PEER_ADDR]
 	if !found {
@@ -205,21 +144,28 @@ func (rs *RestServer) NeighborLocalRib(w http.ResponseWriter, r *http.Request) {
 	log.Debugf("Look up neighbor with the remote address : %v", remoteAddr)
 
 	//Send channel of request parameter.
-	req := NewRestRequest(REQ_LOCAL_RIB, remoteAddr)
+	req := NewRestRequest(reqType, remoteAddr)
 	rs.bgpServerCh <- req
 
 	//Wait response
-	resInf := <-req.ResponseCh
-	if e := resInf.Err(); e != nil {
+	res := <-req.ResponseCh
+	if e := res.Err(); e != nil {
 		log.Debug(e.Error())
 		http.Error(w, e.Error(), http.StatusInternalServerError)
 		return
 	}
 
-	res := resInf.(*RestResponseDefault)
 	w.Header().Set("Content-Type", "application/json; charset=utf-8")
 	j, _ := json.Marshal(res.Data)
 	w.Write(j)
+}
+
+func (rs *RestServer) Neighbor(w http.ResponseWriter, r *http.Request) {
+	rs.neighbor(w, r, REQ_NEIGHBOR)
+}
+
+func (rs *RestServer) NeighborLocalRib(w http.ResponseWriter, r *http.Request) {
+	rs.neighbor(w, r, REQ_LOCAL_RIB)
 }
 
 func (rs *RestServer) Neighbors(w http.ResponseWriter, r *http.Request) {
@@ -228,14 +174,13 @@ func (rs *RestServer) Neighbors(w http.ResponseWriter, r *http.Request) {
 	rs.bgpServerCh <- req
 
 	//Wait response
-	resInf := <-req.ResponseCh
-	if e := resInf.Err(); e != nil {
+	res := <-req.ResponseCh
+	if e := res.Err(); e != nil {
 		log.Debug(e.Error())
 		http.Error(w, e.Error(), http.StatusInternalServerError)
 		return
 	}
 
-	res := resInf.(*RestResponseDefault)
 	w.Header().Set("Content-Type", "application/json; charset=utf-8")
 	j, _ := json.Marshal(res.Data)
 	w.Write(j)
