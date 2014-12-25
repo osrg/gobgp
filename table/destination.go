@@ -121,6 +121,9 @@ func (dd *DestinationDefault) getBestPath() Path {
 
 func (dd *DestinationDefault) setBestPath(path Path) {
 	dd.bestPath = path
+	if path != nil {
+		path.setBest(true)
+	}
 }
 
 func (dd *DestinationDefault) GetOldBestPath() Path {
@@ -129,6 +132,9 @@ func (dd *DestinationDefault) GetOldBestPath() Path {
 
 func (dd *DestinationDefault) setOldBestPath(path Path) {
 	dd.oldBestPath = path
+	if path != nil {
+		path.setBest(false)
+	}
 }
 
 func (dd *DestinationDefault) getKnownPathList() []Path {

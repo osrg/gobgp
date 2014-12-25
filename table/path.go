@@ -16,6 +16,7 @@
 package table
 
 import (
+	"encoding/json"
 	"fmt"
 	log "github.com/Sirupsen/logrus"
 	"github.com/osrg/gobgp/packet"
@@ -41,6 +42,8 @@ type Path interface {
 	setMedSetByTargetNeighbor(medSetByTargetNeighbor bool)
 	getMedSetByTargetNeighbor() bool
 	Clone(IsWithdraw bool) Path
+	setBest(isBest bool)
+	MarshalJSON() ([]byte, error)
 }
 
 type PathDefault struct {
@@ -52,6 +55,7 @@ type PathDefault struct {
 	nlri                   bgp.AddrPrefixInterface
 	pathAttrs              []bgp.PathAttributeInterface
 	medSetByTargetNeighbor bool
+	isBest                 bool
 }
 
 func NewPathDefault(rf RouteFamily, source *PeerInfo, nlri bgp.AddrPrefixInterface, sourceVerNum int, nexthop net.IP, isWithdraw bool, pattrs []bgp.PathAttributeInterface, medSetByTargetNeighbor bool) *PathDefault {
@@ -70,8 +74,53 @@ func NewPathDefault(rf RouteFamily, source *PeerInfo, nlri bgp.AddrPrefixInterfa
 	path.sourceVerNum = sourceVerNum
 	path.withdraw = isWithdraw
 	path.medSetByTargetNeighbor = medSetByTargetNeighbor
-
+	path.isBest = false
 	return path
+}
+
+func (pd *PathDefault) setBest(isBest bool) {
+	pd.isBest = isBest
+}
+
+func (pd *PathDefault) MarshalJSON() ([]byte, error) {
+	med := uint32(0)
+	_, attr := pd.GetPathAttr(bgp.BGP_ATTR_TYPE_MULTI_EXIT_DISC)
+	if attr != nil {
+		med = attr.(*bgp.PathAttributeMultiExitDisc).Value
+	}
+
+	aslist := make([]uint32, 0)
+	_, attr = pd.GetPathAttr(bgp.BGP_ATTR_TYPE_AS_PATH)
+	if attr != nil {
+		for _, p := range attr.(*bgp.PathAttributeAsPath).Value {
+			path := p.(*bgp.As4PathParam)
+			aslist = append(aslist, path.AS...)
+		}
+	}
+	asPath, _ := json.Marshal(aslist)
+
+	var prefix net.IP
+	var prefixLen uint8
+	switch nlri := pd.nlri.(type) {
+	case *bgp.NLRInfo:
+		prefix = nlri.Prefix
+		prefixLen = nlri.Length
+	}
+
+	return json.Marshal(struct {
+		Network string
+		Nexthop string
+		AsPath  string
+		Metric  string
+		//origin string
+		Best string
+	}{
+		Network: prefix.String() + "/" + fmt.Sprint(prefixLen),
+		Nexthop: pd.nexthop.String(),
+		Metric:  fmt.Sprint(med),
+		AsPath:  string(asPath),
+		Best:    fmt.Sprint(pd.isBest),
+	})
 }
 
 // create new PathAttributes
