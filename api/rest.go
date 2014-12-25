@@ -122,7 +122,7 @@ func NewRestServer(port int, bgpServerCh chan *RestRequest) *RestServer {
 //     -- curl -i -X GET http://<ownIP>:8080/v1/bgp/neighbor/<remote address of target neighbor>/local-rib
 func (rs *RestServer) Serve() {
 	neighbor := BASE_VERSION + NEIGHBOR
-	// neighbors := BASE_VERSION + NEIGHBORS
+	neighbors := BASE_VERSION + NEIGHBORS
 	// adjRibIn := BASE_VERSION + ADJ_RIB_IN
 	// adjRibOut := BASE_VERSION + ADJ_RIB_OUT
 	// adjRibLocal := BASE_VERSION + ADJ_RIB_LOCAL
@@ -130,7 +130,7 @@ func (rs *RestServer) Serve() {
 
 	r := mux.NewRouter()
 	// set URLs
-	// r.HandleFunc(neighbors, rs.Neighbors).Methods("GET")
+	r.HandleFunc(neighbors, rs.Neighbors).Methods("GET")
 	r.HandleFunc(neighbor+"/{"+PARAM_REMOTE_PEER_ADDR+"}", rs.Neighbor).Methods("GET")
 	// r.HandleFunc(adjRibIn+"/{"+PARAM_REMOTE_PEER_ADDR+"}", rs.AdjRibIn).Methods("GET")
 	// r.HandleFunc(adjRibOut+"/{"+PARAM_REMOTE_PEER_ADDR+"}", rs.AdjRibOut).Methods("GET")
@@ -206,6 +206,25 @@ func (rs *RestServer) NeighborLocalRib(w http.ResponseWriter, r *http.Request) {
 
 	//Send channel of request parameter.
 	req := NewRestRequest(REQ_LOCAL_RIB, remoteAddr)
+	rs.bgpServerCh <- req
+
+	//Wait response
+	resInf := <-req.ResponseCh
+	if e := resInf.Err(); e != nil {
+		log.Debug(e.Error())
+		http.Error(w, e.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	res := resInf.(*RestResponseDefault)
+	w.Header().Set("Content-Type", "application/json; charset=utf-8")
+	j, _ := json.Marshal(res.Data)
+	w.Write(j)
+}
+
+func (rs *RestServer) Neighbors(w http.ResponseWriter, r *http.Request) {
+	//Send channel of request parameter.
+	req := NewRestRequest(REQ_NEIGHBORS, "")
 	rs.bgpServerCh <- req
 
 	//Wait response

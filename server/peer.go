@@ -205,88 +205,64 @@ func (peer *Peer) MarshalJSON() ([]byte, error) {
 	c := peer.peerConfig
 	f := peer.fsm
 
-	conf, confErr := json.Marshal(
-		struct {
-			RemoteIP           string `json:"remote_ip"`
-			Id                 string `json:"id"`
-			Description        string `json:"description"`
-			RemoteAS           uint32 `json:"remote_as"`
-			LocalAddress       string `json:"local_address"`
-			LocalPort          int    `json:"local_port"`
-			CapRefresh         bool   `json:"cap_refresh"`
-			CapEnhancedRefresh bool   `json:"cap_enhanced_refresh"`
-			CapMbgpVpnv4       bool   `json:"cap_mbgp_vpnv4"`
-			CapMbgpVpnv6       bool   `json:"cap_mbgp_vpnv6"`
-		}{
-			RemoteIP:           c.NeighborAddress.String(),
-			Id:                 f.routerId.String(),
-			Description:        "",
-			RemoteAS:           c.PeerAs,
-			LocalAddress:       f.passiveConn.LocalAddr().String(),
-			LocalPort:          f.passiveConn.LocalAddr().(*net.TCPAddr).Port,
-			CapRefresh:         false,
-			CapEnhancedRefresh: false,
-			CapMbgpVpnv4:       false,
-			CapMbgpVpnv6:       false,
-		})
+	p := make(map[string]interface{})
 
-	if confErr != nil {
-		return nil, confErr
+	p["conf"] = struct {
+		RemoteIP           string `json:"remote_ip"`
+		Id                 string `json:"id"`
+		Description        string `json:"description"`
+		RemoteAS           uint32 `json:"remote_as"`
+		LocalAddress       string `json:"local_address"`
+		LocalPort          int    `json:"local_port"`
+		CapRefresh         bool   `json:"cap_refresh"`
+		CapEnhancedRefresh bool   `json:"cap_enhanced_refresh"`
+	}{
+		RemoteIP:    c.NeighborAddress.String(),
+		Id:          f.routerId.To4().String(),
+		Description: "",
+		RemoteAS:    c.PeerAs,
+		//LocalAddress:       f.passiveConn.LocalAddr().String(),
+		//LocalPort:          f.passiveConn.LocalAddr().(*net.TCPAddr).Port,
+		CapRefresh:         false,
+		CapEnhancedRefresh: false,
 	}
 
 	s := peer.peerConfig.BgpNeighborCommonState
+	p["info"] = struct {
+		BgpState                  string  `json:"bgp_state"`
+		FsmEstablishedTransitions uint32  `json:"fsm_established_transitions"`
+		TotalMessageOut           uint32  `json:"total_message_out"`
+		TotalMessageIn            uint32  `json:"total_message_in"`
+		UpdateMessageOut          uint32  `json:"update_message_out"`
+		UpdateMessageIn           uint32  `json:"update_message_in"`
+		KeepAliveMessageOut       uint32  `json:"keepalive_message_out"`
+		KeepAliveMessageIn        uint32  `json:"keepalive_message_in"`
+		OpenMessageOut            uint32  `json:"open_message_out"`
+		OpenMessageIn             uint32  `json:"open_message_in"`
+		NotificationOut           uint32  `json:"notification_out"`
+		NotificationIn            uint32  `json:"notification_in"`
+		RefreshMessageOut         uint32  `json:"refresh_message_out"`
+		RefreshMessageIn          uint32  `json:"refresh_message_in"`
+		Uptime                    float64 `json:"uptime"`
+		LastError                 string  `json:"last_error"`
+	}{
 
-	info, infoErr := json.Marshal(
-		struct {
-			BgpState                  string  `json:"bgp_state"`
-			FsmEstablishedTransitions uint32  `json:"fsm_established_transitions"`
-			TotalMessageOut           uint32  `json:"total_message_out"`
-			TotalMessageIn            uint32  `json:"total_message_in"`
-			UpdateMessageOut          uint32  `json:"update_message_out"`
-			UpdateMessageIn           uint32  `json:"update_message_in"`
-			KeepAliveMessageOut       uint32  `json:"keepalive_message_out"`
-			KeepAliveMessageIn        uint32  `json:"keepalive_message_in"`
-			OpenMessageOut            uint32  `json:"open_message_out"`
-			OpenMessageIn             uint32  `json:"open_message_in"`
-			NotificationOut           uint32  `json:"notification_out"`
-			NotificationIn            uint32  `json:"notification_in"`
-			RefreshMessageOut         uint32  `json:"refresh_message_out"`
-			RefreshMessageIn          uint32  `json:"refresh_message_in"`
-			Uptime                    float64 `json:"uptime"`
-			LastError                 string  `json:"last_error"`
-		}{
-
-			BgpState:                  f.state.String(),
-			FsmEstablishedTransitions: s.EstablishedCount,
-			TotalMessageOut:           0,
-			TotalMessageIn:            0,
-			UpdateMessageOut:          s.UpdateOut,
-			UpdateMessageIn:           s.UpdateIn,
-			KeepAliveMessageOut:       s.KeepaliveOut,
-			KeepAliveMessageIn:        s.KeepaliveIn,
-			OpenMessageOut:            s.OpenOut,
-			OpenMessageIn:             s.OpenIn,
-			NotificationOut:           s.NotifyOut,
-			NotificationIn:            s.NotifyIn,
-			RefreshMessageOut:         s.RefreshOut,
-			RefreshMessageIn:          s.RefreshIn,
-			Uptime:                    time.Now().Sub(s.Uptime).Seconds(),
-		})
-
-	if infoErr != nil {
-		return nil, infoErr
+		BgpState:                  f.state.String(),
+		FsmEstablishedTransitions: s.EstablishedCount,
+		TotalMessageOut:           0,
+		TotalMessageIn:            0,
+		UpdateMessageOut:          s.UpdateOut,
+		UpdateMessageIn:           s.UpdateIn,
+		KeepAliveMessageOut:       s.KeepaliveOut,
+		KeepAliveMessageIn:        s.KeepaliveIn,
+		OpenMessageOut:            s.OpenOut,
+		OpenMessageIn:             s.OpenIn,
+		NotificationOut:           s.NotifyOut,
+		NotificationIn:            s.NotifyIn,
+		RefreshMessageOut:         s.RefreshOut,
+		RefreshMessageIn:          s.RefreshIn,
+		Uptime:                    time.Now().Sub(s.Uptime).Seconds(),
 	}
 
-	confTag := []byte("{'conf':")
-	delimiter := []byte(",")
-	infoTag := []byte("'info':")
-	endDoc := []byte("}")
-
-	jsonval := append(confTag, conf...)
-	jsonval = append(jsonval, delimiter...)
-	jsonval = append(jsonval, infoTag...)
-	jsonval = append(jsonval, info...)
-	jsonval = append(jsonval, endDoc...)
-
-	return jsonval, nil
+	return json.Marshal(p)
 }

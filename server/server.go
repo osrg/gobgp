@@ -152,6 +152,16 @@ func (server *BgpServer) broadcast(msg *message) {
 
 func (server *BgpServer) handleRest(restReq *api.RestRequest) {
 	switch restReq.RequestType {
+	case api.REQ_NEIGHBORS:
+		result := &api.RestResponseDefault{}
+		peerList := make([]*Peer, 0)
+		for _, peer := range server.peerMap {
+			peerList = append(peerList, peer)
+		}
+		result.Data = peerList
+		restReq.ResponseCh <- result
+		close(restReq.ResponseCh)
+
 	case api.REQ_NEIGHBOR: // get neighbor state
 
 		remoteAddr := restReq.RemoteAddr
