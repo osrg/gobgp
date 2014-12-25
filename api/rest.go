@@ -195,6 +195,7 @@ func (rs *RestServer) Neighbor(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, errStr, http.StatusInternalServerError)
 		return
 	}
+	w.Header().Set("Content-Type", "application/json; charset=utf-8")
 	w.Write(jns)
 }
 
@@ -224,6 +225,7 @@ func (rs *RestServer) NeighborLocalRib(w http.ResponseWriter, r *http.Request) {
 	}
 
 	res := resInf.(*RestResponseDefault)
+	w.Header().Set("Content-Type", "application/json; charset=utf-8")
 	w.Write(res.Data)
 }
 
