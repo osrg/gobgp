@@ -46,14 +46,6 @@ const (
 
 const REST_PORT = 8080
 
-const (
-	_ = iota
-	JSON_FORMATTED
-	JSON_UN_FORMATTED
-)
-
-var JsonFormat int = JSON_FORMATTED
-
 // trigger struct for exchanging information in the rest and peer.
 // rest and peer operated at different thread.
 
