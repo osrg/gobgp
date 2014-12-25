@@ -117,18 +117,16 @@ func NewRestServer(port int, bgpServerCh chan *RestRequest) *RestServer {
 
 // Main thread of rest service.
 // URL than can receive.
-//   get state of neighbor.
-//     -- curl -i -X GET http://<ownIP>:8080/v1/bgp/neighbor/<remote address of target neighbor>
 //   get state of neighbors.
 //     -- curl -i -X GET http://<ownIP>:8080/v1/bgp/neighbors
+//   get state of neighbor.
+//     -- curl -i -X GET http://<ownIP>:8080/v1/bgp/neighbor/<remote address of target neighbor>
 //   get adj-rib-in of each neighbor.
-//     -- curl -i -X GET http://<ownIP>:8080/v1/bgp/<remote address of target neighbor>/adj-rib-in
+//     -- curl -i -X GET http://<ownIP>:8080/v1/bgp/neighbor/<remote address of target neighbor>/adj-rib-in
 //   get adj-rib-out of each neighbor.
-//     -- curl -i -X GET http://<ownIP>:8080/v1/bgp/<remote address of target neighbor>/adj-rib-out
+//     -- curl -i -X GET http://<ownIP>:8080/v1/bgp/neighbor/<remote address of target neighbor>/adj-rib-out
 //   get local-rib of each neighbor.
-//     -- curl -i -X GET http://<ownIP>:8080/v1/bgp/<remote address of target neighbor>/local-rib
-//   get only best path of adj-rib-local  of each neighbor.
-//     -- curl -i -X GET http://<ownIP>:8080/v1/bgp/adj-rib-local/best/<remote address of target neighbor>
+//     -- curl -i -X GET http://<ownIP>:8080/v1/bgp/neighbor/<remote address of target neighbor>/local-rib
 func (rs *RestServer) Serve() {
 	neighbor := BASE_VERSION + NEIGHBOR
 	// neighbors := BASE_VERSION + NEIGHBORS
