@@ -48,14 +48,14 @@ func create_config_files(nr int, outputDir string) {
 
 	gobgpConf := config.BgpType{
 		Global: config.GlobalType{
-			As:       64512,
+			As:       65000,
 			RouterId: net.ParseIP("192.168.255.1"),
 		},
 	}
 
 	for i := 1; i < nr+1; i++ {
 		c := config.NeighborType{
-			PeerAs:          64513 + uint32(i),
+			PeerAs:          65000 + uint32(i),
 			NeighborAddress: net.ParseIP(fmt.Sprintf("10.0.0.%d", i)),
 			AuthPassword:    fmt.Sprintf("hoge%d", i),
 		}
