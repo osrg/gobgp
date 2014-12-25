@@ -17,6 +17,7 @@ package table
 
 import (
 	"encoding/binary"
+	"encoding/json"
 	"fmt"
 	log "github.com/Sirupsen/logrus"
 	"github.com/osrg/gobgp/packet"
@@ -65,6 +66,7 @@ type Destination interface {
 	addNewPath(newPath Path)
 	constructWithdrawPath() Path
 	removeOldPathsFromSource(source *PeerInfo) []Path
+	MarshalJSON() ([]byte, error)
 }
 
 type DestinationDefault struct {
@@ -89,6 +91,18 @@ func NewDestinationDefault(nlri bgp.AddrPrefixInterface) *DestinationDefault {
 	destination.bestPathReason = ""
 	destination.oldBestPath = nil
 	return destination
+}
+
+func (dd *DestinationDefault) MarshalJSON() ([]byte, error) {
+	prefix := dd.getNlri().(*bgp.NLRInfo).Prefix
+	paths, _ := json.Marshal(dd.knownPathList)
+	return json.Marshal(struct {
+		Prefix string
+		Paths  string
+	}{
+		Prefix: prefix.String(),
+		Paths:  string(paths),
+	})
 }
 
 func (dd *DestinationDefault) getRouteFamily() RouteFamily {

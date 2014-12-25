@@ -16,6 +16,7 @@
 package table
 
 import (
+	"encoding/json"
 	log "github.com/Sirupsen/logrus"
 	"github.com/osrg/gobgp/packet"
 	"net"
@@ -32,6 +33,7 @@ type Table interface {
 	validatePath(path Path)
 	validateNlri(nlri bgp.AddrPrefixInterface)
 	DeleteDestByPeer(*PeerInfo) []Destination
+	MarshalJSON() ([]byte, error)
 }
 
 type TableDefault struct {
@@ -46,6 +48,20 @@ func NewTableDefault(scope_id int) *TableDefault {
 	table.destinations = make(map[string]Destination)
 	return table
 
+}
+
+func (td *TableDefault) MarshalJSON() ([]byte, error) {
+	destList := make([]Destination, 0)
+	for _, dest := range td.destinations {
+		destList = append(destList, dest)
+	}
+	j, _ := json.Marshal(destList)
+
+	return json.Marshal(struct {
+		Destinations string
+	}{
+		Destinations: string(j),
+	})
 }
 
 func (td *TableDefault) getRoutefamily() RouteFamily {
