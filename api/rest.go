@@ -80,7 +80,7 @@ type RestResponse interface {
 
 type RestResponseDefault struct {
 	ResponseErr error
-	Data        []byte
+	Data        interface{}
 }
 
 func (r *RestResponseDefault) Err() error {
@@ -94,14 +94,6 @@ type RestResponseNeighbor struct {
 	RemoteAs      uint32
 	NeighborState string
 	UpdateCount   int
-}
-
-// Response struct for Rib
-type RestResponseRib struct {
-	RestResponseDefault
-	RemoteAddr string
-	RemoteAs   uint32
-	RibInfo    []string
 }
 
 type RestServer struct {
@@ -226,7 +218,8 @@ func (rs *RestServer) NeighborLocalRib(w http.ResponseWriter, r *http.Request) {
 
 	res := resInf.(*RestResponseDefault)
 	w.Header().Set("Content-Type", "application/json; charset=utf-8")
-	w.Write(res.Data)
+	j, _ := json.Marshal(res.Data)
+	w.Write(j)
 }
 
 func NotFoundHandler(w http.ResponseWriter, r *http.Request) {
