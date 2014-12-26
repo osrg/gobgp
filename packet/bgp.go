@@ -17,6 +17,7 @@ package bgp
 
 import (
 	"encoding/binary"
+	"encoding/json"
 	"fmt"
 	"math"
 	"net"
@@ -1141,6 +1142,16 @@ type PathAttributeOrigin struct {
 	PathAttribute
 }
 
+func (p *PathAttributeOrigin) MarshalJSON() ([]byte, error) {
+	return json.Marshal(struct {
+		Type  string
+		Value uint8
+	}{
+		Type:  p.Type.String(),
+		Value: uint8(p.Value[0]),
+	})
+}
+
 func NewPathAttributeOrigin(value uint8) *PathAttributeOrigin {
 	return &PathAttributeOrigin{
 		PathAttribute: PathAttribute{
@@ -1300,6 +1311,25 @@ func (p *PathAttributeAsPath) Serialize() ([]byte, error) {
 	return p.PathAttribute.Serialize()
 }
 
+func (p *PathAttributeAsPath) MarshalJSON() ([]byte, error) {
+	aslist := make([]uint32, 0)
+	for _, a := range p.Value {
+		path, y := a.(*As4PathParam)
+		if y {
+			aslist = append(aslist, path.AS...)
+		} else {
+			// TODO aspathparam
+		}
+	}
+	return json.Marshal(struct {
+		Type   string
+		AsPath []uint32
+	}{
+		Type:   p.Type.String(),
+		AsPath: aslist,
+	})
+}
+
 func NewPathAttributeAsPath(value []AsPathParamInterface) *PathAttributeAsPath {
 	return &PathAttributeAsPath{
 		PathAttribute: PathAttribute{
@@ -1324,6 +1354,16 @@ func (p *PathAttributeNextHop) DecodeFromBytes(data []byte) error {
 func (p *PathAttributeNextHop) Serialize() ([]byte, error) {
 	p.PathAttribute.Value = p.Value
 	return p.PathAttribute.Serialize()
+}
+
+func (p *PathAttributeNextHop) MarshalJSON() ([]byte, error) {
+	return json.Marshal(struct {
+		Type    string
+		Nexthop string
+	}{
+		Type:    p.Type.String(),
+		Nexthop: p.Value.String(),
+	})
 }
 
 func NewPathAttributeNextHop(value string) *PathAttributeNextHop {
@@ -1354,6 +1394,16 @@ func (p *PathAttributeMultiExitDisc) Serialize() ([]byte, error) {
 	return p.PathAttribute.Serialize()
 }
 
+func (p *PathAttributeMultiExitDisc) MarshalJSON() ([]byte, error) {
+	return json.Marshal(struct {
+		Type   string
+		Metric uint32
+	}{
+		Type:   p.Type.String(),
+		Metric: p.Value,
+	})
+}
+
 func NewPathAttributeMultiExitDisc(value uint32) *PathAttributeMultiExitDisc {
 	return &PathAttributeMultiExitDisc{
 		PathAttribute: PathAttribute{
@@ -1382,6 +1432,16 @@ func (p *PathAttributeLocalPref) Serialize() ([]byte, error) {
 	return p.PathAttribute.Serialize()
 }
 
+func (p *PathAttributeLocalPref) MarshalJSON() ([]byte, error) {
+	return json.Marshal(struct {
+		Type string
+		Pref uint32
+	}{
+		Type: p.Type.String(),
+		Pref: p.Value,
+	})
+}
+
 func NewPathAttributeLocalPref(value uint32) *PathAttributeLocalPref {
 	return &PathAttributeLocalPref{
 		PathAttribute: PathAttribute{
@@ -1394,6 +1454,14 @@ func NewPathAttributeLocalPref(value uint32) *PathAttributeLocalPref {
 
 type PathAttributeAtomicAggregate struct {
 	PathAttribute
+}
+
+func (p *PathAttributeAtomicAggregate) MarshalJSON() ([]byte, error) {
+	return json.Marshal(struct {
+		Type string
+	}{
+		Type: p.Type.String(),
+	})
 }
 
 func NewPathAttributeAtomicAggregate() *PathAttributeAtomicAggregate {
@@ -1447,6 +1515,18 @@ func (p *PathAttributeAggregator) Serialize() ([]byte, error) {
 	return p.PathAttribute.Serialize()
 }
 
+func (p *PathAttributeAggregator) MarshalJSON() ([]byte, error) {
+	return json.Marshal(struct {
+		Type    string
+		AS      uint32
+		Address net.IP
+	}{
+		Type:    p.Type.String(),
+		AS:      p.Value.AS,
+		Address: p.Value.Address,
+	})
+}
+
 func NewPathAttributeAggregator(as interface{}, address string) *PathAttributeAggregator {
 	v := reflect.ValueOf(as)
 	return &PathAttributeAggregator{
@@ -1486,6 +1566,16 @@ func (p *PathAttributeCommunities) Serialize() ([]byte, error) {
 	return p.PathAttribute.Serialize()
 }
 
+func (p *PathAttributeCommunities) MarshalJSON() ([]byte, error) {
+	return json.Marshal(struct {
+		Type  string
+		Value []uint32
+	}{
+		Type:  p.Type.String(),
+		Value: p.Value,
+	})
+}
+
 func NewPathAttributeCommunities(value []uint32) *PathAttributeCommunities {
 	return &PathAttributeCommunities{
 		PathAttribute{BGP_ATTR_FLAG_OPTIONAL | BGP_ATTR_FLAG_TRANSITIVE, BGP_ATTR_TYPE_COMMUNITIES, 0, nil},
@@ -1509,6 +1599,16 @@ func (p *PathAttributeOriginatorId) Serialize() ([]byte, error) {
 	copy(buf, p.Value)
 	p.PathAttribute.Value = buf
 	return p.PathAttribute.Serialize()
+}
+
+func (p *PathAttributeOriginatorId) MarshalJSON() ([]byte, error) {
+	return json.Marshal(struct {
+		Type    string
+		Address string
+	}{
+		Type:    p.Type.String(),
+		Address: p.Value.String(),
+	})
 }
 
 func NewPathAttributeOriginatorId(value string) *PathAttributeOriginatorId {
@@ -1540,6 +1640,21 @@ func (p *PathAttributeClusterList) Serialize() ([]byte, error) {
 	}
 	p.PathAttribute.Value = buf
 	return p.PathAttribute.Serialize()
+}
+
+func (p *PathAttributeClusterList) MarshalJSON() ([]byte, error) {
+	l := make([]string, 0)
+	for _, addr := range p.Value {
+		l = append(l, addr.String())
+	}
+
+	return json.Marshal(struct {
+		Type    string
+		Address []string
+	}{
+		Type:    p.Type.String(),
+		Address: l,
+	})
 }
 
 func NewPathAttributeClusterList(value []string) *PathAttributeClusterList {
