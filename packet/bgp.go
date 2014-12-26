@@ -1587,7 +1587,7 @@ func (p *PathAttributeCommunities) MarshalJSON() ([]byte, error) {
 		if found {
 			l[i] = s
 		} else {
-			l[i] = fmt.Sprintf("%x:%x", (v&0xffff0000)>>16, v&0xffff)
+			l[i] = fmt.Sprintf("%d:%d", (v&0xffff0000)>>16, v&0xffff)
 		}
 	}
 
