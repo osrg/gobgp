@@ -83,20 +83,11 @@ func (pd *PathDefault) setBest(isBest bool) {
 }
 
 func (pd *PathDefault) MarshalJSON() ([]byte, error) {
-	med := uint32(0)
-	_, attr := pd.GetPathAttr(bgp.BGP_ATTR_TYPE_MULTI_EXIT_DISC)
-	if attr != nil {
-		med = attr.(*bgp.PathAttributeMultiExitDisc).Value
-	}
-
-	aslist := make([]uint32, 0)
-	_, attr = pd.GetPathAttr(bgp.BGP_ATTR_TYPE_AS_PATH)
-	if attr != nil {
-		for _, p := range attr.(*bgp.PathAttributeAsPath).Value {
-			path := p.(*bgp.As4PathParam)
-			aslist = append(aslist, path.AS...)
-		}
-	}
+	// med := uint32(0)
+	// _, attr := pd.GetPathAttr(bgp.BGP_ATTR_TYPE_MULTI_EXIT_DISC)
+	// if attr != nil {
+	// 	med = attr.(*bgp.PathAttributeMultiExitDisc).Value
+	// }
 
 	var prefix net.IP
 	var prefixLen uint8
@@ -108,16 +99,16 @@ func (pd *PathDefault) MarshalJSON() ([]byte, error) {
 
 	return json.Marshal(struct {
 		Network string
-		Nexthop string
-		AsPath  []uint32
-		Metric  string
+		//Nexthop string
+		Attrs   []bgp.PathAttributeInterface
+		//Metric  string
 		//origin string
 		Best string
 	}{
 		Network: prefix.String() + "/" + fmt.Sprint(prefixLen),
-		Nexthop: pd.nexthop.String(),
-		Metric:  fmt.Sprint(med),
-		AsPath:  aslist,
+		//Nexthop: pd.nexthop.String(),
+		//Metric:  fmt.Sprint(med),
+		Attrs:   pd.GetPathAttrs(),
 		Best:    fmt.Sprint(pd.isBest),
 	})
 }
