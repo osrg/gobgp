@@ -106,7 +106,8 @@ func (peer *Peer) path2update(pathList []table.Path) []*bgp.BGPMessage {
 
 func (peer *Peer) handleREST(restReq *api.RestRequest) {
 	result := &api.RestResponse{}
-	result.Data = peer.rib.Tables[bgp.RF_IPv4_UC]
+	j, _ := json.Marshal(peer.rib.Tables[bgp.RF_IPv4_UC])
+	result.Data = j
 	restReq.ResponseCh <- result
 	close(restReq.ResponseCh)
 }

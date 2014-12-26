@@ -16,6 +16,7 @@
 package server
 
 import (
+	"encoding/json"
 	"fmt"
 	log "github.com/Sirupsen/logrus"
 	"github.com/osrg/gobgp/api"
@@ -157,7 +158,8 @@ func (server *BgpServer) handleRest(restReq *api.RestRequest) {
 		for _, peer := range server.peerMap {
 			peerList = append(peerList, peer)
 		}
-		result.Data = peerList
+		j, _ := json.Marshal(peerList)
+		result.Data = j
 		restReq.ResponseCh <- result
 		close(restReq.ResponseCh)
 
@@ -167,7 +169,8 @@ func (server *BgpServer) handleRest(restReq *api.RestRequest) {
 		result := &api.RestResponse{}
 		peer, found := server.peerMap[remoteAddr]
 		if found {
-			result.Data = peer
+			j, _ := json.Marshal(peer)
+			result.Data = j
 		} else {
 			result.ResponseErr = fmt.Errorf("Neighbor that has %v does not exist.", remoteAddr)
 		}

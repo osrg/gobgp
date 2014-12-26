@@ -16,7 +16,6 @@
 package api
 
 import (
-	"encoding/json"
 	log "github.com/Sirupsen/logrus"
 	"github.com/gorilla/mux"
 	"net/http"
@@ -67,7 +66,7 @@ func NewRestRequest(reqType int, remoteAddr string) *RestRequest {
 
 type RestResponse struct {
 	ResponseErr error
-	Data        interface{}
+	Data        []byte
 }
 
 func (r *RestResponse) Err() error {
@@ -148,8 +147,7 @@ func (rs *RestServer) neighbor(w http.ResponseWriter, r *http.Request, reqType i
 	}
 
 	w.Header().Set("Content-Type", "application/json; charset=utf-8")
-	j, _ := json.Marshal(res.Data)
-	w.Write(j)
+	w.Write(res.Data)
 }
 
 func (rs *RestServer) Neighbor(w http.ResponseWriter, r *http.Request) {
@@ -174,8 +172,7 @@ func (rs *RestServer) Neighbors(w http.ResponseWriter, r *http.Request) {
 	}
 
 	w.Header().Set("Content-Type", "application/json; charset=utf-8")
-	j, _ := json.Marshal(res.Data)
-	w.Write(j)
+	w.Write(res.Data)
 }
 
 func NotFoundHandler(w http.ResponseWriter, r *http.Request) {
