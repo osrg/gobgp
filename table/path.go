@@ -27,7 +27,7 @@ import (
 type Path interface {
 	String() string
 	GetPathAttrs() []bgp.PathAttributeInterface
-	GetPathAttr(int) (int, bgp.PathAttributeInterface)
+	GetPathAttr(bgp.BGPAttrType) (int, bgp.PathAttributeInterface)
 	getRouteFamily() RouteFamily
 	setSource(source *PeerInfo)
 	getSource() *PeerInfo
@@ -193,7 +193,7 @@ func (pd *PathDefault) GetPathAttrs() []bgp.PathAttributeInterface {
 	return pd.pathAttrs
 }
 
-func (pd *PathDefault) GetPathAttr(pattrType int) (int, bgp.PathAttributeInterface) {
+func (pd *PathDefault) GetPathAttr(pattrType bgp.BGPAttrType) (int, bgp.PathAttributeInterface) {
 	attrMap := [bgp.BGP_ATTR_TYPE_AS4_AGGREGATOR + 1]reflect.Type{}
 	attrMap[bgp.BGP_ATTR_TYPE_ORIGIN] = reflect.TypeOf(&bgp.PathAttributeOrigin{})
 	attrMap[bgp.BGP_ATTR_TYPE_AS_PATH] = reflect.TypeOf(&bgp.PathAttributeAsPath{})

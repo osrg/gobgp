@@ -983,8 +983,10 @@ const (
 	BGP_ATTR_FLAG_OPTIONAL        = 1 << 7
 )
 
+type BGPAttrType uint8
+
 const (
-	_ = iota
+	_ BGPAttrType = iota
 	BGP_ATTR_TYPE_ORIGIN
 	BGP_ATTR_TYPE_AS_PATH
 	BGP_ATTR_TYPE_NEXT_HOP
@@ -1084,7 +1086,7 @@ type PathAttributeInterface interface {
 
 type PathAttribute struct {
 	Flags  uint8
-	Type   uint8
+	Type   BGPAttrType
 	Length uint16
 	Value  []byte
 }
@@ -1101,7 +1103,7 @@ func (p *PathAttribute) Len() int {
 
 func (p *PathAttribute) DecodeFromBytes(data []byte) error {
 	p.Flags = data[0]
-	p.Type = data[1]
+	p.Type = BGPAttrType(data[1])
 
 	if p.Flags&BGP_ATTR_FLAG_EXTENDED_LENGTH != 0 {
 		p.Length = binary.BigEndian.Uint16(data[2:4])
@@ -1124,7 +1126,7 @@ func (p *PathAttribute) Serialize() ([]byte, error) {
 	}
 	buf := make([]byte, p.Len())
 	buf[0] = p.Flags
-	buf[1] = p.Type
+	buf[1] = uint8(p.Type)
 	if p.Flags&BGP_ATTR_FLAG_EXTENDED_LENGTH != 0 {
 		binary.BigEndian.PutUint16(buf[2:4], p.Length)
 		copy(buf[4:], p.Value)
@@ -1157,7 +1159,7 @@ type AsPathParam struct {
 
 func (a *AsPathParam) Serialize() ([]byte, error) {
 	buf := make([]byte, 2+len(a.AS)*2)
-	buf[0] = a.Type
+	buf[0] = uint8(a.Type)
 	buf[1] = a.Num
 	for j, as := range a.AS {
 		binary.BigEndian.PutUint16(buf[2+j*2:], as)
@@ -1734,13 +1736,13 @@ func (e *OpaqueExtended) Serialize() ([]byte, error) {
 }
 
 type UnknownExtended struct {
-	Type  uint8
+	Type  BGPAttrType
 	Value []byte
 }
 
 func (e *UnknownExtended) Serialize() ([]byte, error) {
 	buf := make([]byte, 8)
-	buf[0] = e.Type
+	buf[0] = uint8(e.Type)
 	copy(buf[1:], e.Value)
 	return buf, nil
 }
@@ -1777,7 +1779,7 @@ func parseExtended(data []byte) ExtendedCommunityInterface {
 		return e
 	}
 	e := &UnknownExtended{}
-	e.Type = data[1]
+	e.Type = BGPAttrType(data[1])
 	e.Value = data[2:8]
 	return e
 }
@@ -1884,7 +1886,7 @@ type PathAttributeUnknown struct {
 }
 
 func getPathAttribute(data []byte) PathAttributeInterface {
-	switch data[1] {
+	switch BGPAttrType(data[1]) {
 	case BGP_ATTR_TYPE_ORIGIN:
 		return &PathAttributeOrigin{}
 	case BGP_ATTR_TYPE_AS_PATH:
