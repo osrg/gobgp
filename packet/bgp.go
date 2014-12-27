@@ -943,18 +943,20 @@ func (n *RouteTargetMembershipNLRI) SAFI() uint8 {
 
 func (n *RouteTargetMembershipNLRI) Len() int { return 12 }
 
-func rfshift(afi uint16, safi uint8) int {
-	return int(afi)<<16 | int(safi)
+func rfshift(afi uint16, safi uint8) RouteFamily  {
+	return RouteFamily (int(afi)<<16 | int(safi))
 }
 
+type RouteFamily int
+
 const (
-	RF_IPv4_UC   = AFI_IP<<16 | SAFI_UNICAST
-	RF_IPv6_UC   = AFI_IP6<<16 | SAFI_UNICAST
-	RF_IPv4_VPN  = AFI_IP<<16 | SAFI_MPLS_VPN
-	RF_IPv6_VPN  = AFI_IP6<<16 | SAFI_MPLS_VPN
-	RF_IPv4_MPLS = AFI_IP<<16 | SAFI_MPLS_LABEL
-	RF_IPv6_MPLS = AFI_IP6<<16 | SAFI_MPLS_LABEL
-	RF_RTC_UC    = AFI_IP<<16 | SAFI_ROUTE_TARGET_CONSTRTAINS
+	RF_IPv4_UC   RouteFamily = AFI_IP<<16 | SAFI_UNICAST
+	RF_IPv6_UC   RouteFamily = AFI_IP6<<16 | SAFI_UNICAST
+	RF_IPv4_VPN  RouteFamily = AFI_IP<<16 | SAFI_MPLS_VPN
+	RF_IPv6_VPN  RouteFamily = AFI_IP6<<16 | SAFI_MPLS_VPN
+	RF_IPv4_MPLS RouteFamily = AFI_IP<<16 | SAFI_MPLS_LABEL
+	RF_IPv6_MPLS RouteFamily = AFI_IP6<<16 | SAFI_MPLS_LABEL
+	RF_RTC_UC    RouteFamily = AFI_IP<<16 | SAFI_ROUTE_TARGET_CONSTRTAINS
 )
 
 func routeFamilyPrefix(afi uint16, safi uint8) (prefix AddrPrefixInterface) {

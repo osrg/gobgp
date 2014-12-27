@@ -37,14 +37,14 @@ type Table interface {
 }
 
 type TableDefault struct {
-	ROUTE_FAMILY RouteFamily
+	ROUTE_FAMILY bgp.RouteFamily
 	destinations map[string]Destination
 	//need SignalBus
 }
 
 func NewTableDefault(scope_id int) *TableDefault {
 	table := &TableDefault{}
-	table.ROUTE_FAMILY = RF_IPv4_UC
+	table.ROUTE_FAMILY = bgp.RF_IPv4_UC
 	table.destinations = make(map[string]Destination)
 	return table
 
@@ -63,7 +63,7 @@ func (td *TableDefault) MarshalJSON() ([]byte, error) {
 	})
 }
 
-func (td *TableDefault) GetRoutefamily() RouteFamily {
+func (td *TableDefault) GetRoutefamily() bgp.RouteFamily {
 	return td.ROUTE_FAMILY
 }
 
@@ -204,7 +204,7 @@ type IPv4Table struct {
 func NewIPv4Table(scope_id int) *IPv4Table {
 	ipv4Table := &IPv4Table{}
 	ipv4Table.TableDefault = NewTableDefault(scope_id)
-	ipv4Table.TableDefault.ROUTE_FAMILY = RF_IPv4_UC
+	ipv4Table.TableDefault.ROUTE_FAMILY = bgp.RF_IPv4_UC
 	//need Processing
 	return ipv4Table
 }
@@ -238,7 +238,7 @@ type IPv6Table struct {
 func NewIPv6Table(scope_id int) *IPv6Table {
 	ipv6Table := &IPv6Table{}
 	ipv6Table.TableDefault = NewTableDefault(scope_id)
-	ipv6Table.TableDefault.ROUTE_FAMILY = RF_IPv6_UC
+	ipv6Table.TableDefault.ROUTE_FAMILY = bgp.RF_IPv6_UC
 	//need Processing
 	return ipv6Table
 }

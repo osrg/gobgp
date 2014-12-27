@@ -2091,7 +2091,7 @@ func TestProcessBGPUpdate_multiple_nlri_ipv4(t *testing.T) {
 	assert.NoError(t, err)
 
 	// check table
-	table := tm.Tables[RF_IPv4_UC]
+	table := tm.Tables[bgp.RF_IPv4_UC]
 	assert.Equal(t, 13, len(table.getDestinations()))
 
 }
@@ -2234,7 +2234,7 @@ func TestProcessBGPUpdate_multiple_nlri_ipv6(t *testing.T) {
 	assert.NoError(t, err)
 
 	// check table
-	table := tm.Tables[RF_IPv6_UC]
+	table := tm.Tables[bgp.RF_IPv6_UC]
 	assert.Equal(t, 13, len(table.getDestinations()))
 
 }
@@ -2257,7 +2257,7 @@ func TestModifyPathAttribute(t *testing.T) {
 	original := mx1.Value
 	mx1.Value++
 
-	table := tm.Tables[RF_IPv4_UC]
+	table := tm.Tables[bgp.RF_IPv4_UC]
 	dest := table.getDestination(table.tableKey(path0.GetNlri()).String()).(*IPv4Destination)
 	path2 := dest.getKnownPathList()
 	_, attr2 := path2[0].GetPathAttr(bgp.BGP_ATTR_TYPE_MULTI_EXIT_DISC)

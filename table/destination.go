@@ -45,13 +45,13 @@ type PeerInfo struct {
 	ID         net.IP
 	VersionNum int
 	LocalID    net.IP
-	RF         RouteFamily
+	RF         bgp.RouteFamily
 }
 
 type Destination interface {
 	Calculate(localAsn uint32) (Path, string, error)
-	getRouteFamily() RouteFamily
-	setRouteFamily(ROUTE_FAMILY RouteFamily)
+	getRouteFamily() bgp.RouteFamily
+	setRouteFamily(ROUTE_FAMILY bgp.RouteFamily)
 	getNlri() bgp.AddrPrefixInterface
 	setNlri(nlri bgp.AddrPrefixInterface)
 	getBestPathReason() string
@@ -71,7 +71,7 @@ type Destination interface {
 }
 
 type DestinationDefault struct {
-	ROUTE_FAMILY   RouteFamily
+	ROUTE_FAMILY   bgp.RouteFamily
 	nlri           bgp.AddrPrefixInterface
 	knownPathList  []Path
 	withdrawList   []Path
@@ -83,7 +83,7 @@ type DestinationDefault struct {
 
 func NewDestinationDefault(nlri bgp.AddrPrefixInterface) *DestinationDefault {
 	destination := &DestinationDefault{}
-	destination.ROUTE_FAMILY = RF_IPv4_UC
+	destination.ROUTE_FAMILY = bgp.RF_IPv4_UC
 	destination.nlri = nlri
 	destination.knownPathList = make([]Path, 0)
 	destination.withdrawList = make([]Path, 0)
@@ -105,11 +105,11 @@ func (dd *DestinationDefault) MarshalJSON() ([]byte, error) {
 	})
 }
 
-func (dd *DestinationDefault) getRouteFamily() RouteFamily {
+func (dd *DestinationDefault) getRouteFamily() bgp.RouteFamily {
 	return dd.ROUTE_FAMILY
 }
 
-func (dd *DestinationDefault) setRouteFamily(ROUTE_FAMILY RouteFamily) {
+func (dd *DestinationDefault) setRouteFamily(ROUTE_FAMILY bgp.RouteFamily) {
 	dd.ROUTE_FAMILY = ROUTE_FAMILY
 }
 
@@ -816,7 +816,7 @@ type IPv4Destination struct {
 func NewIPv4Destination(nlri bgp.AddrPrefixInterface) *IPv4Destination {
 	ipv4Destination := &IPv4Destination{}
 	ipv4Destination.DestinationDefault = NewDestinationDefault(nlri)
-	ipv4Destination.DestinationDefault.ROUTE_FAMILY = RF_IPv4_UC
+	ipv4Destination.DestinationDefault.ROUTE_FAMILY = bgp.RF_IPv4_UC
 	//need Processing
 	return ipv4Destination
 }
@@ -834,7 +834,7 @@ type IPv6Destination struct {
 func NewIPv6Destination(nlri bgp.AddrPrefixInterface) *IPv6Destination {
 	ipv6Destination := &IPv6Destination{}
 	ipv6Destination.DestinationDefault = NewDestinationDefault(nlri)
-	ipv6Destination.DestinationDefault.ROUTE_FAMILY = RF_IPv6_UC
+	ipv6Destination.DestinationDefault.ROUTE_FAMILY = bgp.RF_IPv6_UC
 	//need Processing
 	return ipv6Destination
 }

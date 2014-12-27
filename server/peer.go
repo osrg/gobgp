@@ -42,7 +42,7 @@ type Peer struct {
 	// here but it's the simplest and works our first target.
 	rib *table.TableManager
 	// for now we support only the same afi as transport
-	rf table.RouteFamily
+	rf bgp.RouteFamily
 }
 
 func NewPeer(g config.GlobalType, peer config.NeighborType, outEventCh chan *message) *Peer {
@@ -58,9 +58,9 @@ func NewPeer(g config.GlobalType, peer config.NeighborType, outEventCh chan *mes
 	p.fsm = NewFSM(&g, &peer, p.acceptedConnCh, p.incoming, p.outgoing)
 	peer.BgpNeighborCommonState.State = uint32(bgp.BGP_FSM_IDLE)
 	if peer.NeighborAddress.To4() != nil {
-		p.rf = table.RF_IPv4_UC
+		p.rf = bgp.RF_IPv4_UC
 	} else {
-		p.rf = table.RF_IPv6_UC
+		p.rf = bgp.RF_IPv6_UC
 	}
 	p.adjRib = table.NewAdjRib()
 	p.rib = table.NewTableManager()
@@ -124,7 +124,7 @@ func (peer *Peer) path2update(pathList []table.Path) []*bgp.BGPMessage {
 			continue
 		}
 
-		if peer.rf == table.RF_IPv4_UC {
+		if peer.rf == bgp.RF_IPv4_UC {
 			msgs = append(msgs, path2v4update(p))
 		} else {
 			msgs = append(msgs, path2v6update(p))

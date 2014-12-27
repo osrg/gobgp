@@ -21,39 +21,6 @@ import (
 	"time"
 )
 
-type RouteFamily int
-
-const (
-	RF_IPv4_UC   RouteFamily = bgp.RF_IPv4_UC
-	RF_IPv6_UC   RouteFamily = bgp.RF_IPv6_UC
-	RF_IPv4_VPN  RouteFamily = bgp.RF_IPv4_VPN
-	RF_IPv6_VPN  RouteFamily = bgp.RF_IPv6_VPN
-	RF_IPv4_MPLS RouteFamily = bgp.RF_IPv4_MPLS
-	RF_IPv6_MPLS RouteFamily = bgp.RF_IPv6_MPLS
-	RF_RTC_UC    RouteFamily = bgp.RF_RTC_UC
-)
-
-func (rf RouteFamily) String() string {
-	switch rf {
-	case RF_IPv4_UC:
-		return "RF_IPv4_UC"
-	case RF_IPv6_UC:
-		return "RF_IPv6_UC"
-	case RF_IPv4_VPN:
-		return "RF_IPv4_VPN"
-	case RF_IPv6_VPN:
-		return "RF_IPv6_VPN"
-	case RF_IPv4_MPLS:
-		return "RF_IPv4_MPLS"
-	case RF_IPv6_MPLS:
-		return "RF_IPv6_MPLS"
-	case RF_RTC_UC:
-		return "RF_RTC_UC"
-	default:
-		return "Unknown"
-	}
-}
-
 type ProcessMessage struct {
 	innerMessage *bgp.BGPMessage
 	fromPeer     *PeerInfo
@@ -153,15 +120,15 @@ func (p *ProcessMessage) ToPathList() []Path {
 }
 
 type TableManager struct {
-	Tables   map[RouteFamily]Table
+	Tables   map[bgp.RouteFamily]Table
 	localAsn uint32
 }
 
 func NewTableManager() *TableManager {
 	t := &TableManager{}
-	t.Tables = make(map[RouteFamily]Table)
-	t.Tables[RF_IPv4_UC] = NewIPv4Table(0)
-	t.Tables[RF_IPv6_UC] = NewIPv6Table(0)
+	t.Tables = make(map[bgp.RouteFamily]Table)
+	t.Tables[bgp.RF_IPv4_UC] = NewIPv4Table(0)
+	t.Tables[bgp.RF_IPv6_UC] = NewIPv6Table(0)
 	return t
 }
 
@@ -259,23 +226,23 @@ func (manager *TableManager) ProcessUpdate(fromPeer *PeerInfo, message *bgp.BGPM
 }
 
 type AdjRib struct {
-	adjRibIn  map[RouteFamily]map[string]*ReceivedRoute
-	adjRibOut map[RouteFamily]map[string]*ReceivedRoute
+	adjRibIn  map[bgp.RouteFamily]map[string]*ReceivedRoute
+	adjRibOut map[bgp.RouteFamily]map[string]*ReceivedRoute
 }
 
 func NewAdjRib() *AdjRib {
 	r := &AdjRib{
-		adjRibIn:  make(map[RouteFamily]map[string]*ReceivedRoute),
-		adjRibOut: make(map[RouteFamily]map[string]*ReceivedRoute),
+		adjRibIn:  make(map[bgp.RouteFamily]map[string]*ReceivedRoute),
+		adjRibOut: make(map[bgp.RouteFamily]map[string]*ReceivedRoute),
 	}
-	r.adjRibIn[RF_IPv4_UC] = make(map[string]*ReceivedRoute)
-	r.adjRibIn[RF_IPv6_UC] = make(map[string]*ReceivedRoute)
-	r.adjRibOut[RF_IPv4_UC] = make(map[string]*ReceivedRoute)
-	r.adjRibOut[RF_IPv6_UC] = make(map[string]*ReceivedRoute)
+	r.adjRibIn[bgp.RF_IPv4_UC] = make(map[string]*ReceivedRoute)
+	r.adjRibIn[bgp.RF_IPv6_UC] = make(map[string]*ReceivedRoute)
+	r.adjRibOut[bgp.RF_IPv4_UC] = make(map[string]*ReceivedRoute)
+	r.adjRibOut[bgp.RF_IPv6_UC] = make(map[string]*ReceivedRoute)
 	return r
 }
 
-func (adj *AdjRib) update(rib map[RouteFamily]map[string]*ReceivedRoute, pathList []Path) {
+func (adj *AdjRib) update(rib map[bgp.RouteFamily]map[string]*ReceivedRoute, pathList []Path) {
 	for _, path := range pathList {
 		rf := path.GetRouteFamily()
 		key := path.getPrefix().String()
@@ -307,11 +274,11 @@ func (adj *AdjRib) getPathList(rib map[string]*ReceivedRoute) []Path {
 	return pathList
 }
 
-func (adj *AdjRib) GetInPathList(rf RouteFamily) []Path {
+func (adj *AdjRib) GetInPathList(rf bgp.RouteFamily) []Path {
 	return adj.getPathList(adj.adjRibIn[rf])
 }
 
-func (adj *AdjRib) GetOutPathList(rf RouteFamily) []Path {
+func (adj *AdjRib) GetOutPathList(rf bgp.RouteFamily) []Path {
 	return adj.getPathList(adj.adjRibOut[rf])
 }
 

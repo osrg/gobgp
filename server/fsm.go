@@ -110,11 +110,11 @@ func (fsm *FSM) PeerInfoGet() *table.PeerInfo {
 }
 
 func (fsm *FSM) createPeerInfo() {
-	var rf table.RouteFamily
+	var rf bgp.RouteFamily
 	if fsm.peerConfig.NeighborAddress.To4() != nil {
-		rf = table.RF_IPv4_UC
+		rf = bgp.RF_IPv4_UC
 	} else {
-		rf = table.RF_IPv6_UC
+		rf = bgp.RF_IPv6_UC
 	}
 
 	fsm.peerInfo = &table.PeerInfo{
