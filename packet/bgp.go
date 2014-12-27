@@ -56,33 +56,13 @@ type BGPCapabilityCode uint8
 
 const (
 	BGP_CAP_MULTIPROTOCOL          BGPCapabilityCode = 1
-	BGP_CAP_ROUTE_REFRESH                            = 2
-	BGP_CAP_CARRYING_LABEL_INFO                      = 4
-	BGP_CAP_GRACEFUL_RESTART                         = 64
-	BGP_CAP_FOUR_OCTET_AS_NUMBER                     = 65
-	BGP_CAP_ENHANCED_ROUTE_REFRESH                   = 70
-	BGP_CAP_ROUTE_REFRESH_CISCO                      = 128
+	BGP_CAP_ROUTE_REFRESH          BGPCapabilityCode = 2
+	BGP_CAP_CARRYING_LABEL_INFO    BGPCapabilityCode = 4
+	BGP_CAP_GRACEFUL_RESTART       BGPCapabilityCode = 64
+	BGP_CAP_FOUR_OCTET_AS_NUMBER   BGPCapabilityCode = 65
+	BGP_CAP_ENHANCED_ROUTE_REFRESH BGPCapabilityCode = 70
+	BGP_CAP_ROUTE_REFRESH_CISCO    BGPCapabilityCode = 128
 )
-
-func (c BGPCapabilityCode) String() string {
-	switch c {
-	case BGP_CAP_MULTIPROTOCOL:
-		return "MultiProtocol"
-	case BGP_CAP_ROUTE_REFRESH:
-		return "RouteRefresh"
-	case BGP_CAP_CARRYING_LABEL_INFO:
-		return "CarryingLabelInfo"
-	case BGP_CAP_GRACEFUL_RESTART:
-		return "GracefulRestart"
-	case BGP_CAP_FOUR_OCTET_AS_NUMBER:
-		return "FourOctetASNumber"
-	case BGP_CAP_ENHANCED_ROUTE_REFRESH:
-		return "EnhancedRouteRefresh"
-	case BGP_CAP_ROUTE_REFRESH_CISCO:
-		return "RouteRefreshCisco"
-	}
-	return "Unknown"
-}
 
 type ParameterCapabilityInterface interface {
 	DecodeFromBytes([]byte) error
@@ -943,8 +923,8 @@ func (n *RouteTargetMembershipNLRI) SAFI() uint8 {
 
 func (n *RouteTargetMembershipNLRI) Len() int { return 12 }
 
-func rfshift(afi uint16, safi uint8) RouteFamily  {
-	return RouteFamily (int(afi)<<16 | int(safi))
+func rfshift(afi uint16, safi uint8) RouteFamily {
+	return RouteFamily(int(afi)<<16 | int(safi))
 }
 
 type RouteFamily int
