@@ -71,7 +71,7 @@ func TestTableDeleteDest(t *testing.T) {
 
 func TestTableGetRouteFamily(t *testing.T) {
 	ipv4t := NewIPv4Table(0)
-	rf := ipv4t.getRoutefamily()
+	rf := ipv4t.GetRoutefamily()
 	assert.Equal(t, rf, RF_IPv4_UC)
 }
 

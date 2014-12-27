@@ -62,37 +62,67 @@ func NewBgpServer(port int) *BgpServer {
 	return &b
 }
 
-func (server *BgpServer) Serve() {
-	server.bgpConfig.Global = <-server.globalTypeCh
+// avoid mapped IPv6 address
+func listenAndAccept(proto string, port int, ch chan *net.TCPConn) (*net.TCPListener, error) {
+	service := ":" + strconv.Itoa(port)
+	addr, _ := net.ResolveTCPAddr(proto, service)
 
-	service := ":" + strconv.Itoa(server.listenPort)
-	addr, _ := net.ResolveTCPAddr("tcp", service)
-
-	l, err := net.ListenTCP("tcp4", addr)
+	l, err := net.ListenTCP(proto, addr)
 	if err != nil {
-		log.Fatal(err)
-		os.Exit(1)
+		log.Info(err)
+		return nil, err
 	}
-
-	acceptCh := make(chan *net.TCPConn)
 	go func() {
 		for {
-			conn, err := l.Accept()
+			conn, err := l.AcceptTCP()
 			if err != nil {
 				log.Info(err)
 				continue
 			}
-			acceptCh <- conn.(*net.TCPConn)
+			ch <- conn
 		}
 	}()
+
+	return l, nil
+}
+
+func (server *BgpServer) Serve() {
+	server.bgpConfig.Global = <-server.globalTypeCh
+
+	listenerMap := make(map[string]*net.TCPListener)
+	acceptCh := make(chan *net.TCPConn)
+	l4, err1 := listenAndAccept("tcp4", server.listenPort, acceptCh)
+	listenerMap["tcp4"] = l4
+	l6, err2 := listenAndAccept("tcp6", server.listenPort, acceptCh)
+	listenerMap["tcp6"] = l6
+	if err1 != nil && err2 != nil {
+		log.Fatal("can't listen either v4 and v6")
+		os.Exit(1)
+	}
+
+	listenFile := func(addr net.IP) *os.File {
+		var l *net.TCPListener
+		if addr.To4() != nil {
+			l = listenerMap["tcp4"]
+		} else {
+			l = listenerMap["tcp6"]
+		}
+		f, _ := l.File()
+		return f
+	}
 
 	server.peerMap = make(map[string]*Peer)
 	broadcastCh := make(chan *message)
 	for {
-		f, _ := l.File()
 		select {
 		case conn := <-acceptCh:
-			remoteAddr := strings.Split(conn.RemoteAddr().String(), ":")[0]
+			remoteAddr := func(addrPort string) string {
+				if strings.Index(addrPort, "[") == -1 {
+					return strings.Split(addrPort, ":")[0]
+				}
+				idx := strings.LastIndex(addrPort, ":")
+				return addrPort[1 : idx-1]
+			}(conn.RemoteAddr().String())
 			peer, found := server.peerMap[remoteAddr]
 			if found {
 				log.Info("accepted a new passive connection from ", remoteAddr)
@@ -103,11 +133,13 @@ func (server *BgpServer) Serve() {
 			}
 		case peer := <-server.addedPeerCh:
 			addr := peer.NeighborAddress.String()
+			f := listenFile(peer.NeighborAddress)
 			SetTcpMD5SigSockopts(int(f.Fd()), addr, peer.AuthPassword)
 			p := NewPeer(server.bgpConfig.Global, peer, broadcastCh)
 			server.peerMap[peer.NeighborAddress.String()] = p
 		case peer := <-server.deletedPeerCh:
 			addr := peer.NeighborAddress.String()
+			f := listenFile(peer.NeighborAddress)
 			SetTcpMD5SigSockopts(int(f.Fd()), addr, "")
 			p, found := server.peerMap[addr]
 			if found {

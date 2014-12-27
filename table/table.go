@@ -63,7 +63,7 @@ func (td *TableDefault) MarshalJSON() ([]byte, error) {
 	})
 }
 
-func (td *TableDefault) getRoutefamily() RouteFamily {
+func (td *TableDefault) GetRoutefamily() RouteFamily {
 	return td.ROUTE_FAMILY
 }
 
@@ -142,7 +142,7 @@ func deleteDest(table Table, dest Destination) {
 }
 
 func (td *TableDefault) validatePath(path Path) {
-	if path == nil || path.getRouteFamily() != td.ROUTE_FAMILY {
+	if path == nil || path.GetRouteFamily() != td.ROUTE_FAMILY {
 		log.Errorf("Invalid path. Expected instance of %s route family path, got %s.", td.ROUTE_FAMILY, path)
 	}
 }

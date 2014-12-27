@@ -41,6 +41,8 @@ type Peer struct {
 	// peer and rib are always not one-to-one so should not be
 	// here but it's the simplest and works our first target.
 	rib *table.TableManager
+	// for now we support only the same afi as transport
+	rf table.RouteFamily
 }
 
 func NewPeer(g config.GlobalType, peer config.NeighborType, outEventCh chan *message) *Peer {
@@ -55,6 +57,11 @@ func NewPeer(g config.GlobalType, peer config.NeighborType, outEventCh chan *mes
 	}
 	p.fsm = NewFSM(&g, &peer, p.acceptedConnCh, p.incoming, p.outgoing)
 	peer.BgpNeighborCommonState.State = uint32(bgp.BGP_FSM_IDLE)
+	if peer.NeighborAddress.To4() != nil {
+		p.rf = table.RF_IPv4_UC
+	} else {
+		p.rf = table.RF_IPv6_UC
+	}
 	p.adjRib = table.NewAdjRib()
 	p.rib = table.NewTableManager()
 	p.t.Go(p.loop)
@@ -67,7 +74,7 @@ func (peer *Peer) handleBGPmessage(m *bgp.BGPMessage) {
 
 	switch m.Header.Type {
 	case bgp.BGP_MSG_ROUTE_REFRESH:
-		pathList := peer.adjRib.GetOutPathList(table.RF_IPv4_UC)
+		pathList := peer.adjRib.GetOutPathList(peer.rf)
 		peer.sendMessages(peer.path2update(pathList))
 	case bgp.BGP_MSG_UPDATE:
 		peer.peerConfig.BgpNeighborCommonState.UpdateRecvTime = time.Now()
@@ -87,18 +94,40 @@ func (peer *Peer) sendMessages(msgs []*bgp.BGPMessage) {
 	}
 }
 
+func path2v4update(path table.Path) *bgp.BGPMessage {
+	if path.IsWithdraw() {
+		draw := path.GetNlri().(*bgp.WithdrawnRoute)
+		return bgp.NewBGPUpdateMessage([]bgp.WithdrawnRoute{*draw}, []bgp.PathAttributeInterface{}, []bgp.NLRInfo{})
+	} else {
+		nlri := path.GetNlri().(*bgp.NLRInfo)
+		pathAttrs := path.GetPathAttrs()
+		return bgp.NewBGPUpdateMessage([]bgp.WithdrawnRoute{}, pathAttrs, []bgp.NLRInfo{*nlri})
+	}
+}
+
+func path2v6update(path table.Path) *bgp.BGPMessage {
+	if path.IsWithdraw() {
+		pathAttrs := path.GetPathAttrs()
+		return bgp.NewBGPUpdateMessage([]bgp.WithdrawnRoute{}, pathAttrs, []bgp.NLRInfo{})
+	} else {
+		pathAttrs := path.GetPathAttrs()
+		return bgp.NewBGPUpdateMessage([]bgp.WithdrawnRoute{}, pathAttrs, []bgp.NLRInfo{})
+	}
+}
+
 func (peer *Peer) path2update(pathList []table.Path) []*bgp.BGPMessage {
 	// TODO: merge multiple messages
 	// TODO: 4bytes and 2bytes conversion.
 	msgs := make([]*bgp.BGPMessage, 0)
 	for _, p := range pathList {
-		if p.IsWithdraw() {
-			draw := p.GetNlri().(*bgp.WithdrawnRoute)
-			msgs = append(msgs, bgp.NewBGPUpdateMessage([]bgp.WithdrawnRoute{*draw}, []bgp.PathAttributeInterface{}, []bgp.NLRInfo{}))
+		if peer.rf != p.GetRouteFamily() {
+			continue
+		}
+
+		if peer.rf == table.RF_IPv4_UC {
+			msgs = append(msgs, path2v4update(p))
 		} else {
-			pathAttrs := p.GetPathAttrs()
-			nlri := p.GetNlri().(*bgp.NLRInfo)
-			msgs = append(msgs, bgp.NewBGPUpdateMessage([]bgp.WithdrawnRoute{}, pathAttrs, []bgp.NLRInfo{*nlri}))
+			msgs = append(msgs, path2v6update(p))
 		}
 	}
 	return msgs
@@ -106,7 +135,7 @@ func (peer *Peer) path2update(pathList []table.Path) []*bgp.BGPMessage {
 
 func (peer *Peer) handleREST(restReq *api.RestRequest) {
 	result := &api.RestResponse{}
-	j, _ := json.Marshal(peer.rib.Tables[bgp.RF_IPv4_UC])
+	j, _ := json.Marshal(peer.rib.Tables[peer.rf])
 	result.Data = j
 	restReq.ResponseCh <- result
 	close(restReq.ResponseCh)
@@ -151,9 +180,8 @@ func (peer *Peer) loop() error {
 				peer.peerConfig.BgpNeighborCommonState.State = uint32(nextState)
 				peer.fsm.StateChange(nextState)
 				sameState = false
-				// TODO: check peer's rf
 				if nextState == bgp.BGP_FSM_ESTABLISHED {
-					pathList := peer.adjRib.GetOutPathList(table.RF_IPv4_UC)
+					pathList := peer.adjRib.GetOutPathList(peer.rf)
 					peer.sendMessages(peer.path2update(pathList))
 					peer.fsm.peerConfig.BgpNeighborCommonState.Uptime = time.Now()
 					peer.fsm.peerConfig.BgpNeighborCommonState.EstablishedCount++

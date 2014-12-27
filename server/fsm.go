@@ -110,11 +110,19 @@ func (fsm *FSM) PeerInfoGet() *table.PeerInfo {
 }
 
 func (fsm *FSM) createPeerInfo() {
+	var rf table.RouteFamily
+	if fsm.peerConfig.NeighborAddress.To4() != nil {
+		rf = table.RF_IPv4_UC
+	} else {
+		rf = table.RF_IPv6_UC
+	}
+
 	fsm.peerInfo = &table.PeerInfo{
 		AS:         fsm.peerConfig.PeerAs,
 		ID:         fsm.routerId,
 		VersionNum: fsm.sourceVerNum,
 		LocalID:    fsm.globalConfig.RouterId,
+		RF:         rf,
 	}
 }
 
@@ -168,14 +176,20 @@ func (h *FSMHandler) active() bgp.FSMState {
 	return bgp.BGP_FSM_OPENSENT
 }
 
-func buildopen(global *config.GlobalType, neighborT *config.NeighborType) *bgp.BGPMessage {
+func buildopen(global *config.GlobalType, peerConf *config.NeighborType) *bgp.BGPMessage {
+	var afi int
+	if peerConf.NeighborAddress.To4() != nil {
+		afi = bgp.AFI_IP
+	} else {
+		afi = bgp.AFI_IP6
+	}
 	p1 := bgp.NewOptionParameterCapability(
 		[]bgp.ParameterCapabilityInterface{bgp.NewCapRouteRefresh()})
 	p2 := bgp.NewOptionParameterCapability(
-		[]bgp.ParameterCapabilityInterface{bgp.NewCapMultiProtocol(bgp.AFI_IP, bgp.SAFI_UNICAST)})
+		[]bgp.ParameterCapabilityInterface{bgp.NewCapMultiProtocol(uint16(afi), bgp.SAFI_UNICAST)})
 	p3 := bgp.NewOptionParameterCapability(
 		[]bgp.ParameterCapabilityInterface{bgp.NewCapFourOctetASNumber(global.As)})
-	holdTime := uint16(neighborT.Timers.HoldTime)
+	holdTime := uint16(peerConf.Timers.HoldTime)
 	as := global.As
 	if as > (1<<16)-1 {
 		as = bgp.AS_TRANS

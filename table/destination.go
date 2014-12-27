@@ -45,6 +45,7 @@ type PeerInfo struct {
 	ID         net.IP
 	VersionNum int
 	LocalID    net.IP
+	RF         RouteFamily
 }
 
 type Destination interface {
@@ -185,7 +186,7 @@ func (dd *DestinationDefault) removeOldPathsFromSource(source *PeerInfo) []Path 
 }
 
 func (dd *DestinationDefault) validatePath(path Path) {
-	if path == nil || path.getRouteFamily() != dd.ROUTE_FAMILY {
+	if path == nil || path.GetRouteFamily() != dd.ROUTE_FAMILY {
 		log.Error("Invalid path. Expected %s path got %s.", dd.ROUTE_FAMILY, path)
 	}
 }

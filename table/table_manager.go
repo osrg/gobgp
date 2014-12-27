@@ -223,14 +223,14 @@ func (manager *TableManager) calculate(destinationList []Destination) ([]Path, [
 }
 
 func (manager *TableManager) DeletePathsforPeer(peerInfo *PeerInfo) ([]Path, []Destination, error) {
-	destinationList := manager.Tables[RF_IPv4_UC].DeleteDestByPeer(peerInfo)
+	destinationList := manager.Tables[peerInfo.RF].DeleteDestByPeer(peerInfo)
 	return manager.calculate(destinationList)
 }
 
 func (manager *TableManager) ProcessPaths(pathList []Path) ([]Path, []Destination, error) {
 	destinationList := make([]Destination, 0)
 	for _, path := range pathList {
-		rf := path.getRouteFamily()
+		rf := path.GetRouteFamily()
 		// push Path into table
 		destination := insert(manager.Tables[rf], path)
 		destinationList = append(destinationList, destination)
@@ -277,7 +277,7 @@ func NewAdjRib() *AdjRib {
 
 func (adj *AdjRib) update(rib map[RouteFamily]map[string]*ReceivedRoute, pathList []Path) {
 	for _, path := range pathList {
-		rf := path.getRouteFamily()
+		rf := path.GetRouteFamily()
 		key := path.getPrefix().String()
 		if path.IsWithdraw() {
 			_, found := rib[rf][key]

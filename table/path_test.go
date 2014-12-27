@@ -58,7 +58,7 @@ func TestPathIPv6GetDefault(t *testing.T) {
 
 func TestPathGetRouteFamily(t *testing.T) {
 	pd := &PathDefault{routeFamily: RF_IPv6_UC}
-	rf := pd.getRouteFamily()
+	rf := pd.GetRouteFamily()
 	assert.Equal(t, rf, RF_IPv6_UC)
 }
 
