@@ -41,7 +41,7 @@ type Path interface {
 	getPrefix() net.IP
 	setMedSetByTargetNeighbor(medSetByTargetNeighbor bool)
 	getMedSetByTargetNeighbor() bool
-	Clone(IsWithdraw bool) Path
+	clone(IsWithdraw bool) Path
 	setBest(isBest bool)
 	MarshalJSON() ([]byte, error)
 }
@@ -114,23 +114,16 @@ func (pd *PathDefault) MarshalJSON() ([]byte, error) {
 }
 
 // create new PathAttributes
-func (pd *PathDefault) Clone(isWithdraw bool) Path {
-	copiedAttrs := []bgp.PathAttributeInterface(nil)
+func (pd *PathDefault) clone(isWithdraw bool) Path {
 	nlri := pd.nlri
 	if isWithdraw {
-		if !pd.IsWithdraw() {
+		if pd.IsWithdraw() {
+			log.Fatal("Withdraw path is not supposed to be cloned")
+		} else {
 			nlri = &bgp.WithdrawnRoute{pd.nlri.(*bgp.NLRInfo).IPAddrPrefix}
 		}
-	} else {
-		copiedAttrs = append(copiedAttrs, pd.pathAttrs...)
-		for i, attr := range copiedAttrs {
-			t, v := reflect.TypeOf(attr), reflect.ValueOf(attr)
-			newAttrObjp := reflect.New(t.Elem())
-			newAttrObjp.Elem().Set(v.Elem())
-			copiedAttrs[i] = newAttrObjp.Interface().(bgp.PathAttributeInterface)
-		}
 	}
-	return CreatePath(pd.source, nlri, copiedAttrs, isWithdraw)
+	return CreatePath(pd.source, nlri, pd.pathAttrs, isWithdraw)
 }
 
 func (pd *PathDefault) GetRouteFamily() bgp.RouteFamily {
@@ -293,34 +286,14 @@ func NewIPv6Path(source *PeerInfo, nlri bgp.AddrPrefixInterface, sourceVerNum in
 	return ipv6Path
 }
 
-func (ipv6p *IPv6Path) Clone(isWithdraw bool) Path {
-	copiedAttrs := []bgp.PathAttributeInterface(nil)
+func (ipv6p *IPv6Path) clone(isWithdraw bool) Path {
 	nlri := ipv6p.nlri
 	if isWithdraw {
-		if !ipv6p.IsWithdraw() {
-			copiedAttrs = append(copiedAttrs, ipv6p.GetPathAttrs()...)
-			for i, attr := range copiedAttrs {
-				t, v := reflect.TypeOf(attr), reflect.ValueOf(attr)
-				newAttrObjp := reflect.New(t.Elem())
-				newAttrObjp.Elem().Set(v.Elem())
-				copiedAttrs[i] = newAttrObjp.Interface().(bgp.PathAttributeInterface)
-			}
-			idx, attr := ipv6p.GetPathAttr(bgp.BGP_ATTR_TYPE_MP_REACH_NLRI)
-			reach := attr.(*bgp.PathAttributeMpReachNLRI)
-			copiedAttrs[idx] = bgp.NewPathAttributeMpUnreachNLRI(reach.Value)
-		} else {
-			copiedAttrs = ipv6p.GetPathAttrs()
-		}
-	} else {
-		copiedAttrs = append(copiedAttrs, ipv6p.pathAttrs...)
-		for i, attr := range copiedAttrs {
-			t, v := reflect.TypeOf(attr), reflect.ValueOf(attr)
-			newAttrObjp := reflect.New(t.Elem())
-			newAttrObjp.Elem().Set(v.Elem())
-			copiedAttrs[i] = newAttrObjp.Interface().(bgp.PathAttributeInterface)
+		if ipv6p.IsWithdraw() {
+			log.Fatal("Withdraw path is not supposed to be cloned")
 		}
 	}
-	return CreatePath(ipv6p.source, nlri, copiedAttrs, isWithdraw)
+	return CreatePath(ipv6p.source, nlri, ipv6p.pathAttrs, isWithdraw)
 }
 
 func (ipv6p *IPv6Path) setPathDefault(pd *PathDefault) {

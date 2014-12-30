@@ -17,6 +17,7 @@ package table
 
 import (
 	"github.com/osrg/gobgp/packet"
+	"reflect"
 )
 
 func UpdatePathAttrs2ByteAs(msg *bgp.BGPUpdate) error {
@@ -108,6 +109,18 @@ func UpdatePathAttrs4ByteAs(msg *bgp.BGPUpdate) error {
 	return nil
 }
 
+func clonePathAttributes(attrs []bgp.PathAttributeInterface) []bgp.PathAttributeInterface {
+	clonedAttrs := []bgp.PathAttributeInterface(nil)
+	clonedAttrs = append(clonedAttrs, attrs...)
+	for i, attr := range clonedAttrs {
+		t, v := reflect.TypeOf(attr), reflect.ValueOf(attr)
+		newAttrObjp := reflect.New(t.Elem())
+		newAttrObjp.Elem().Set(v.Elem())
+		clonedAttrs[i] = newAttrObjp.Interface().(bgp.PathAttributeInterface)
+	}
+	return clonedAttrs
+}
+
 func CreateUpdateMsgFromPath(path Path, msg *bgp.BGPMessage) (*bgp.BGPMessage, error) {
 	rf := path.GetRouteFamily()
 
@@ -122,11 +135,13 @@ func CreateUpdateMsgFromPath(path Path, msg *bgp.BGPMessage) (*bgp.BGPMessage, e
 		}
 	} else if rf == bgp.RF_IPv6_UC {
 		if path.IsWithdraw() {
-			pathAttrs := path.GetPathAttrs()
-			return bgp.NewBGPUpdateMessage([]bgp.WithdrawnRoute{}, pathAttrs, []bgp.NLRInfo{}), nil
+			clonedAttrs := clonePathAttributes(path.GetPathAttrs())
+			idx, attr := path.GetPathAttr(bgp.BGP_ATTR_TYPE_MP_REACH_NLRI)
+			reach := attr.(*bgp.PathAttributeMpReachNLRI)
+			clonedAttrs[idx] = bgp.NewPathAttributeMpUnreachNLRI(reach.Value)
+			return bgp.NewBGPUpdateMessage([]bgp.WithdrawnRoute{}, clonedAttrs, []bgp.NLRInfo{}), nil
 		} else {
-			pathAttrs := path.GetPathAttrs()
-			return bgp.NewBGPUpdateMessage([]bgp.WithdrawnRoute{}, pathAttrs, []bgp.NLRInfo{}), nil
+			return bgp.NewBGPUpdateMessage([]bgp.WithdrawnRoute{}, path.GetPathAttrs(), []bgp.NLRInfo{}), nil
 		}
 	}
 	return nil, nil

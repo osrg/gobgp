@@ -162,8 +162,9 @@ func (manager *TableManager) calculate(destinationList []Destination) ([]Path, [
 				// create withdraw path
 				if currentBestPath != nil {
 					log.Debug("best path is lost")
-					destination.setOldBestPath(destination.getBestPath())
-					lostPaths = append(lostPaths, destination.getBestPath())
+					p := destination.getBestPath()
+					destination.setOldBestPath(p)
+					lostPaths = append(lostPaths, p.clone(true))
 				}
 				destination.setBestPath(nil)
 			} else {

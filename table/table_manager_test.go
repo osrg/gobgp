@@ -1640,10 +1640,6 @@ func TestProcessBGPUpdate_bestpath_lost_ipv4(t *testing.T) {
 	// check destination
 	expectedPrefix := "10.10.10.0"
 	assert.Equal(t, expectedPrefix, path.getPrefix().String())
-	// check nexthop
-	expectedNexthop := "192.168.50.1"
-	assert.Equal(t, expectedNexthop, path.getNexthop().String())
-
 }
 
 func TestProcessBGPUpdate_bestpath_lost_ipv6(t *testing.T) {
@@ -1719,10 +1715,6 @@ func TestProcessBGPUpdate_bestpath_lost_ipv6(t *testing.T) {
 	// check destination
 	expectedPrefix := "2001:123:123:1::"
 	assert.Equal(t, expectedPrefix, path.getPrefix().String())
-	// check nexthop
-	expectedNexthop := "2001::192:168:50:1"
-	assert.Equal(t, expectedNexthop, path.getNexthop().String())
-
 }
 
 // test: implicit withdrawal case
@@ -2206,7 +2198,9 @@ func TestModifyPathAttribute(t *testing.T) {
 	assert.NoError(t, err)
 
 	path0 := pList[0]
-	path1 := path0.Clone(false)
+	path1 := path0.clone(false)
+	ipv4p := path1.(*IPv4Path)
+	ipv4p.PathDefault.pathAttrs = clonePathAttributes(path0.GetPathAttrs())
 
 	_, attr1 := path1.GetPathAttr(bgp.BGP_ATTR_TYPE_MULTI_EXIT_DISC)
 	mx1 := attr1.(*bgp.PathAttributeMultiExitDisc)

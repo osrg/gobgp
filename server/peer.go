@@ -122,9 +122,12 @@ func (peer *Peer) handleREST(restReq *api.RestRequest) {
 func (peer *Peer) handlePeermessage(m *message) {
 	sendpath := func(pList []table.Path, wList []table.Path) {
 		pathList := append([]table.Path(nil), pList...)
+		pathList = append(pathList, wList...)
 
 		for _, p := range wList {
-			pathList = append(pathList, p.Clone(true))
+			if !p.IsWithdraw() {
+				log.Fatal("withdraw pathlist has non withdraw path")
+			}
 		}
 		peer.adjRib.UpdateOut(pathList)
 		peer.sendMessages(peer.path2update(pathList))
