@@ -521,8 +521,8 @@ func compareByLocalPref(path1, path2 Path) Path {
 	//
 	//	# Default local-pref values is 100
 	log.Debugf("enter compareByLocalPref")
-	_, attribute1 := path1.GetPathAttr(bgp.BGP_ATTR_TYPE_LOCAL_PREF)
-	_, attribute2 := path2.GetPathAttr(bgp.BGP_ATTR_TYPE_LOCAL_PREF)
+	_, attribute1 := path1.getPathAttr(bgp.BGP_ATTR_TYPE_LOCAL_PREF)
+	_, attribute2 := path2.getPathAttr(bgp.BGP_ATTR_TYPE_LOCAL_PREF)
 
 	if attribute1 == nil || attribute2 == nil {
 		return nil
@@ -572,8 +572,8 @@ func compareByASPath(path1, path2 Path) Path {
 	//	Shortest as-path length is preferred. If both path have same lengths,
 	//	we return None.
 	log.Debugf("enter compareByASPath")
-	_, attribute1 := path1.GetPathAttr(bgp.BGP_ATTR_TYPE_AS_PATH)
-	_, attribute2 := path2.GetPathAttr(bgp.BGP_ATTR_TYPE_AS_PATH)
+	_, attribute1 := path1.getPathAttr(bgp.BGP_ATTR_TYPE_AS_PATH)
+	_, attribute2 := path2.getPathAttr(bgp.BGP_ATTR_TYPE_AS_PATH)
 
 	asPath1 := attribute1.(*bgp.PathAttributeAsPath)
 	asPath2 := attribute2.(*bgp.PathAttributeAsPath)
@@ -609,8 +609,8 @@ func compareByOrigin(path1, path2 Path) Path {
 	//	IGP is preferred over EGP; EGP is preferred over Incomplete.
 	//	If both paths have same origin, we return None.
 	log.Debugf("enter compareByOrigin")
-	_, attribute1 := path1.GetPathAttr(bgp.BGP_ATTR_TYPE_ORIGIN)
-	_, attribute2 := path2.GetPathAttr(bgp.BGP_ATTR_TYPE_ORIGIN)
+	_, attribute1 := path1.getPathAttr(bgp.BGP_ATTR_TYPE_ORIGIN)
+	_, attribute2 := path2.getPathAttr(bgp.BGP_ATTR_TYPE_ORIGIN)
 
 	if attribute1 == nil || attribute2 == nil {
 		log.Error("it is not possible to compare origin are not present")
@@ -643,7 +643,7 @@ func compareByMED(path1, path2 Path) Path {
 	//  like bgp always-compare-med
 	log.Debugf("enter compareByMED")
 	getMed := func(path Path) uint32 {
-		_, attribute := path.GetPathAttr(bgp.BGP_ATTR_TYPE_MULTI_EXIT_DISC)
+		_, attribute := path.getPathAttr(bgp.BGP_ATTR_TYPE_MULTI_EXIT_DISC)
 		if attribute == nil {
 			return 0
 		}

@@ -26,8 +26,8 @@ import (
 
 type Path interface {
 	String() string
-	GetPathAttrs() []bgp.PathAttributeInterface
-	GetPathAttr(bgp.BGPAttrType) (int, bgp.PathAttributeInterface)
+	getPathAttrs() []bgp.PathAttributeInterface
+	getPathAttr(bgp.BGPAttrType) (int, bgp.PathAttributeInterface)
 	GetRouteFamily() bgp.RouteFamily
 	setSource(source *PeerInfo)
 	getSource() *PeerInfo
@@ -37,7 +37,7 @@ type Path interface {
 	getSourceVerNum() int
 	setWithdraw(withdraw bool)
 	IsWithdraw() bool
-	GetNlri() bgp.AddrPrefixInterface
+	getNlri() bgp.AddrPrefixInterface
 	getPrefix() net.IP
 	setMedSetByTargetNeighbor(medSetByTargetNeighbor bool)
 	getMedSetByTargetNeighbor() bool
@@ -108,7 +108,7 @@ func (pd *PathDefault) MarshalJSON() ([]byte, error) {
 		Network: prefix.String() + "/" + fmt.Sprint(prefixLen),
 		//Nexthop: pd.nexthop.String(),
 		//Metric:  fmt.Sprint(med),
-		Attrs: pd.GetPathAttrs(),
+		Attrs: pd.getPathAttrs(),
 		Best:  fmt.Sprint(pd.isBest),
 	})
 }
@@ -161,7 +161,7 @@ func (pd *PathDefault) IsWithdraw() bool {
 	return pd.withdraw
 }
 
-func (pd *PathDefault) GetNlri() bgp.AddrPrefixInterface {
+func (pd *PathDefault) getNlri() bgp.AddrPrefixInterface {
 	return pd.nlri
 }
 
@@ -173,11 +173,11 @@ func (pd *PathDefault) getMedSetByTargetNeighbor() bool {
 	return pd.medSetByTargetNeighbor
 }
 
-func (pd *PathDefault) GetPathAttrs() []bgp.PathAttributeInterface {
+func (pd *PathDefault) getPathAttrs() []bgp.PathAttributeInterface {
 	return pd.pathAttrs
 }
 
-func (pd *PathDefault) GetPathAttr(pattrType bgp.BGPAttrType) (int, bgp.PathAttributeInterface) {
+func (pd *PathDefault) getPathAttr(pattrType bgp.BGPAttrType) (int, bgp.PathAttributeInterface) {
 	attrMap := [bgp.BGP_ATTR_TYPE_AS4_AGGREGATOR + 1]reflect.Type{}
 	attrMap[bgp.BGP_ATTR_TYPE_ORIGIN] = reflect.TypeOf(&bgp.PathAttributeOrigin{})
 	attrMap[bgp.BGP_ATTR_TYPE_AS_PATH] = reflect.TypeOf(&bgp.PathAttributeAsPath{})
@@ -259,7 +259,7 @@ func NewIPv4Path(source *PeerInfo, nlri bgp.AddrPrefixInterface, sourceVerNum in
 	ipv4Path := &IPv4Path{}
 	ipv4Path.PathDefault = NewPathDefault(bgp.RF_IPv4_UC, source, nlri, sourceVerNum, nil, isWithdraw, attrs, medSetByTargetNeighbor)
 	if !isWithdraw {
-		_, nexthop_attr := ipv4Path.GetPathAttr(bgp.BGP_ATTR_TYPE_NEXT_HOP)
+		_, nexthop_attr := ipv4Path.getPathAttr(bgp.BGP_ATTR_TYPE_NEXT_HOP)
 		ipv4Path.nexthop = nexthop_attr.(*bgp.PathAttributeNextHop).Value
 	}
 	return ipv4Path
@@ -280,7 +280,7 @@ func NewIPv6Path(source *PeerInfo, nlri bgp.AddrPrefixInterface, sourceVerNum in
 	ipv6Path := &IPv6Path{}
 	ipv6Path.PathDefault = NewPathDefault(bgp.RF_IPv6_UC, source, nlri, sourceVerNum, nil, isWithdraw, attrs, medSetByTargetNeighbor)
 	if !isWithdraw {
-		_, mpattr := ipv6Path.GetPathAttr(bgp.BGP_ATTR_TYPE_MP_REACH_NLRI)
+		_, mpattr := ipv6Path.getPathAttr(bgp.BGP_ATTR_TYPE_MP_REACH_NLRI)
 		ipv6Path.nexthop = mpattr.(*bgp.PathAttributeMpReachNLRI).Nexthop
 	}
 	return ipv6Path

@@ -126,22 +126,22 @@ func CreateUpdateMsgFromPath(path Path, msg *bgp.BGPMessage) (*bgp.BGPMessage, e
 
 	if rf == bgp.RF_IPv4_UC {
 		if path.IsWithdraw() {
-			draw := path.GetNlri().(*bgp.WithdrawnRoute)
+			draw := path.getNlri().(*bgp.WithdrawnRoute)
 			return bgp.NewBGPUpdateMessage([]bgp.WithdrawnRoute{*draw}, []bgp.PathAttributeInterface{}, []bgp.NLRInfo{}), nil
 		} else {
-			nlri := path.GetNlri().(*bgp.NLRInfo)
-			pathAttrs := path.GetPathAttrs()
+			nlri := path.getNlri().(*bgp.NLRInfo)
+			pathAttrs := path.getPathAttrs()
 			return bgp.NewBGPUpdateMessage([]bgp.WithdrawnRoute{}, pathAttrs, []bgp.NLRInfo{*nlri}), nil
 		}
 	} else if rf == bgp.RF_IPv6_UC {
 		if path.IsWithdraw() {
-			clonedAttrs := clonePathAttributes(path.GetPathAttrs())
-			idx, attr := path.GetPathAttr(bgp.BGP_ATTR_TYPE_MP_REACH_NLRI)
+			clonedAttrs := clonePathAttributes(path.getPathAttrs())
+			idx, attr := path.getPathAttr(bgp.BGP_ATTR_TYPE_MP_REACH_NLRI)
 			reach := attr.(*bgp.PathAttributeMpReachNLRI)
 			clonedAttrs[idx] = bgp.NewPathAttributeMpUnreachNLRI(reach.Value)
 			return bgp.NewBGPUpdateMessage([]bgp.WithdrawnRoute{}, clonedAttrs, []bgp.NLRInfo{}), nil
 		} else {
-			return bgp.NewBGPUpdateMessage([]bgp.WithdrawnRoute{}, path.GetPathAttrs(), []bgp.NLRInfo{}), nil
+			return bgp.NewBGPUpdateMessage([]bgp.WithdrawnRoute{}, path.getPathAttrs(), []bgp.NLRInfo{}), nil
 		}
 	}
 	return nil, nil
