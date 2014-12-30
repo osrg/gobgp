@@ -171,8 +171,6 @@ func TestProcessBGPUpdate_0_select_onlypath_ipv6(t *testing.T) {
 func TestProcessBGPUpdate_1_select_high_localpref_ipv4(t *testing.T) {
 
 	tm := NewTableManager()
-	var pList []Path
-	var wList []Destination
 	var err error
 
 	// low localpref message
@@ -204,7 +202,7 @@ func TestProcessBGPUpdate_1_select_high_localpref_ipv4(t *testing.T) {
 	bgpMessage2 := bgp.NewBGPUpdateMessage(withdrawnRoutes2, pathAttributes2, nlri2)
 
 	peer1 := peerR1()
-	pList, wList, err = tm.ProcessUpdate(peer1, bgpMessage1)
+	pList, wList, err := tm.ProcessUpdate(peer1, bgpMessage1)
 	assert.Equal(t, 1, len(pList))
 	assert.Equal(t, 0, len(wList))
 	assert.NoError(t, err)
@@ -257,8 +255,6 @@ func TestProcessBGPUpdate_1_select_high_localpref_ipv4(t *testing.T) {
 func TestProcessBGPUpdate_1_select_high_localpref_ipv6(t *testing.T) {
 
 	tm := NewTableManager()
-	var pList []Path
-	var wList []Destination
 	var err error
 
 	origin1 := bgp.NewPathAttributeOrigin(0)
@@ -292,7 +288,7 @@ func TestProcessBGPUpdate_1_select_high_localpref_ipv6(t *testing.T) {
 	bgpMessage2 := bgp.NewBGPUpdateMessage(withdrawnRoutes2, pathAttributes2, nlri2)
 
 	peer1 := peerR1()
-	pList, wList, err = tm.ProcessUpdate(peer1, bgpMessage1)
+	pList, wList, err := tm.ProcessUpdate(peer1, bgpMessage1)
 	assert.Equal(t, 1, len(pList))
 	assert.Equal(t, 0, len(wList))
 	assert.NoError(t, err)
@@ -347,8 +343,6 @@ func TestProcessBGPUpdate_1_select_high_localpref_ipv6(t *testing.T) {
 func TestProcessBGPUpdate_2_select_local_origin_ipv4(t *testing.T) {
 
 	tm := NewTableManager()
-	var pList []Path
-	var wList []Destination
 	var err error
 
 	// low localpref message
@@ -380,7 +374,7 @@ func TestProcessBGPUpdate_2_select_local_origin_ipv4(t *testing.T) {
 	bgpMessage2 := bgp.NewBGPUpdateMessage(withdrawnRoutes2, pathAttributes2, nlri2)
 
 	peer1 := peerR1()
-	pList, wList, err = tm.ProcessUpdate(peer1, bgpMessage1)
+	pList, wList, err := tm.ProcessUpdate(peer1, bgpMessage1)
 	assert.Equal(t, 1, len(pList))
 	assert.Equal(t, 0, len(wList))
 	assert.NoError(t, err)
@@ -433,8 +427,6 @@ func TestProcessBGPUpdate_2_select_local_origin_ipv4(t *testing.T) {
 func TestProcessBGPUpdate_2_select_local_origin_ipv6(t *testing.T) {
 
 	tm := NewTableManager()
-	var pList []Path
-	var wList []Destination
 	var err error
 
 	origin1 := bgp.NewPathAttributeOrigin(0)
@@ -468,7 +460,7 @@ func TestProcessBGPUpdate_2_select_local_origin_ipv6(t *testing.T) {
 	bgpMessage2 := bgp.NewBGPUpdateMessage(withdrawnRoutes2, pathAttributes2, nlri2)
 
 	peer1 := peerR1()
-	pList, wList, err = tm.ProcessUpdate(peer1, bgpMessage1)
+	pList, wList, err := tm.ProcessUpdate(peer1, bgpMessage1)
 	assert.Equal(t, 1, len(pList))
 	assert.Equal(t, 0, len(wList))
 	assert.NoError(t, err)
@@ -523,13 +515,11 @@ func TestProcessBGPUpdate_2_select_local_origin_ipv6(t *testing.T) {
 func TestProcessBGPUpdate_3_select_aspath_ipv4(t *testing.T) {
 
 	tm := NewTableManager()
-	var pList []Path
-	var wList []Destination
 	var err error
 
 	bgpMessage1 := update_fromR2viaR1()
 	peer1 := peerR1()
-	pList, wList, err = tm.ProcessUpdate(peer1, bgpMessage1)
+	pList, wList, err := tm.ProcessUpdate(peer1, bgpMessage1)
 	assert.Equal(t, 1, len(pList))
 	assert.Equal(t, 0, len(wList))
 	assert.NoError(t, err)
@@ -582,13 +572,11 @@ func TestProcessBGPUpdate_3_select_aspath_ipv4(t *testing.T) {
 func TestProcessBGPUpdate_3_select_aspath_ipv6(t *testing.T) {
 
 	tm := NewTableManager()
-	var pList []Path
-	var wList []Destination
 	var err error
 
 	bgpMessage1 := update_fromR2viaR1_ipv6()
 	peer1 := peerR1()
-	pList, wList, err = tm.ProcessUpdate(peer1, bgpMessage1)
+	pList, wList, err := tm.ProcessUpdate(peer1, bgpMessage1)
 	assert.Equal(t, 1, len(pList))
 	assert.Equal(t, 0, len(wList))
 	assert.NoError(t, err)
@@ -643,8 +631,6 @@ func TestProcessBGPUpdate_3_select_aspath_ipv6(t *testing.T) {
 func TestProcessBGPUpdate_4_select_low_origin_ipv4(t *testing.T) {
 
 	tm := NewTableManager()
-	var pList []Path
-	var wList []Destination
 	var err error
 
 	// low origin message
@@ -676,7 +662,7 @@ func TestProcessBGPUpdate_4_select_low_origin_ipv4(t *testing.T) {
 	bgpMessage2 := bgp.NewBGPUpdateMessage(withdrawnRoutes2, pathAttributes2, nlri2)
 
 	peer1 := peerR1()
-	pList, wList, err = tm.ProcessUpdate(peer1, bgpMessage1)
+	pList, wList, err := tm.ProcessUpdate(peer1, bgpMessage1)
 	assert.Equal(t, 1, len(pList))
 	assert.Equal(t, 0, len(wList))
 	assert.NoError(t, err)
@@ -729,8 +715,6 @@ func TestProcessBGPUpdate_4_select_low_origin_ipv4(t *testing.T) {
 func TestProcessBGPUpdate_4_select_low_origin_ipv6(t *testing.T) {
 
 	tm := NewTableManager()
-	var pList []Path
-	var wList []Destination
 	var err error
 
 	origin1 := bgp.NewPathAttributeOrigin(1)
@@ -764,7 +748,7 @@ func TestProcessBGPUpdate_4_select_low_origin_ipv6(t *testing.T) {
 	bgpMessage2 := bgp.NewBGPUpdateMessage(withdrawnRoutes2, pathAttributes2, nlri2)
 
 	peer1 := peerR1()
-	pList, wList, err = tm.ProcessUpdate(peer1, bgpMessage1)
+	pList, wList, err := tm.ProcessUpdate(peer1, bgpMessage1)
 	assert.Equal(t, 1, len(pList))
 	assert.Equal(t, 0, len(wList))
 	assert.NoError(t, err)
@@ -819,8 +803,6 @@ func TestProcessBGPUpdate_4_select_low_origin_ipv6(t *testing.T) {
 func TestProcessBGPUpdate_5_select_low_med_ipv4(t *testing.T) {
 
 	tm := NewTableManager()
-	var pList []Path
-	var wList []Destination
 	var err error
 
 	// low origin message
@@ -852,7 +834,7 @@ func TestProcessBGPUpdate_5_select_low_med_ipv4(t *testing.T) {
 	bgpMessage2 := bgp.NewBGPUpdateMessage(withdrawnRoutes2, pathAttributes2, nlri2)
 
 	peer1 := peerR1()
-	pList, wList, err = tm.ProcessUpdate(peer1, bgpMessage1)
+	pList, wList, err := tm.ProcessUpdate(peer1, bgpMessage1)
 	assert.Equal(t, 1, len(pList))
 	assert.Equal(t, 0, len(wList))
 	assert.NoError(t, err)
@@ -905,8 +887,6 @@ func TestProcessBGPUpdate_5_select_low_med_ipv4(t *testing.T) {
 func TestProcessBGPUpdate_5_select_low_med_ipv6(t *testing.T) {
 
 	tm := NewTableManager()
-	var pList []Path
-	var wList []Destination
 	var err error
 
 	origin1 := bgp.NewPathAttributeOrigin(0)
@@ -940,7 +920,7 @@ func TestProcessBGPUpdate_5_select_low_med_ipv6(t *testing.T) {
 	bgpMessage2 := bgp.NewBGPUpdateMessage(withdrawnRoutes2, pathAttributes2, nlri2)
 
 	peer1 := peerR1()
-	pList, wList, err = tm.ProcessUpdate(peer1, bgpMessage1)
+	pList, wList, err := tm.ProcessUpdate(peer1, bgpMessage1)
 	assert.Equal(t, 1, len(pList))
 	assert.Equal(t, 0, len(wList))
 	assert.NoError(t, err)
@@ -997,8 +977,6 @@ func TestProcessBGPUpdate_6_select_ebgp_path_ipv4(t *testing.T) {
 	tm := NewTableManager()
 	tm.localAsn = uint32(65000)
 
-	var pList []Path
-	var wList []Destination
 	var err error
 
 	// low origin message
@@ -1030,7 +1008,7 @@ func TestProcessBGPUpdate_6_select_ebgp_path_ipv4(t *testing.T) {
 	bgpMessage2 := bgp.NewBGPUpdateMessage(withdrawnRoutes2, pathAttributes2, nlri2)
 
 	peer1 := peerR1()
-	pList, wList, err = tm.ProcessUpdate(peer1, bgpMessage1)
+	pList, wList, err := tm.ProcessUpdate(peer1, bgpMessage1)
 	assert.Equal(t, 1, len(pList))
 	assert.Equal(t, 0, len(wList))
 	assert.NoError(t, err)
@@ -1084,8 +1062,6 @@ func TestProcessBGPUpdate_6_select_ebgp_path_ipv6(t *testing.T) {
 
 	tm := NewTableManager()
 	tm.localAsn = uint32(65000)
-	var pList []Path
-	var wList []Destination
 	var err error
 
 	origin1 := bgp.NewPathAttributeOrigin(0)
@@ -1119,7 +1095,7 @@ func TestProcessBGPUpdate_6_select_ebgp_path_ipv6(t *testing.T) {
 	bgpMessage2 := bgp.NewBGPUpdateMessage(withdrawnRoutes2, pathAttributes2, nlri2)
 
 	peer1 := peerR1()
-	pList, wList, err = tm.ProcessUpdate(peer1, bgpMessage1)
+	pList, wList, err := tm.ProcessUpdate(peer1, bgpMessage1)
 	assert.Equal(t, 1, len(pList))
 	assert.Equal(t, 0, len(wList))
 	assert.NoError(t, err)
@@ -1178,8 +1154,6 @@ func TestProcessBGPUpdate_7_select_low_routerid_path_ipv4(t *testing.T) {
 	tm := NewTableManager()
 	tm.localAsn = uint32(65000)
 
-	var pList []Path
-	var wList []Destination
 	var err error
 
 	// low origin message
@@ -1211,7 +1185,7 @@ func TestProcessBGPUpdate_7_select_low_routerid_path_ipv4(t *testing.T) {
 	bgpMessage2 := bgp.NewBGPUpdateMessage(withdrawnRoutes2, pathAttributes2, nlri2)
 
 	peer1 := peerR1()
-	pList, wList, err = tm.ProcessUpdate(peer1, bgpMessage1)
+	pList, wList, err := tm.ProcessUpdate(peer1, bgpMessage1)
 	assert.Equal(t, 1, len(pList))
 	assert.Equal(t, 0, len(wList))
 	assert.NoError(t, err)
@@ -1265,8 +1239,6 @@ func TestProcessBGPUpdate_7_select_low_routerid_path_ipv6(t *testing.T) {
 
 	tm := NewTableManager()
 	tm.localAsn = uint32(65000)
-	var pList []Path
-	var wList []Destination
 	var err error
 
 	origin1 := bgp.NewPathAttributeOrigin(0)
@@ -1300,7 +1272,7 @@ func TestProcessBGPUpdate_7_select_low_routerid_path_ipv6(t *testing.T) {
 	bgpMessage2 := bgp.NewBGPUpdateMessage(withdrawnRoutes2, pathAttributes2, nlri2)
 
 	peer1 := peerR1()
-	pList, wList, err = tm.ProcessUpdate(peer1, bgpMessage1)
+	pList, wList, err := tm.ProcessUpdate(peer1, bgpMessage1)
 	assert.Equal(t, 1, len(pList))
 	assert.Equal(t, 0, len(wList))
 	assert.NoError(t, err)
@@ -1356,8 +1328,6 @@ func TestProcessBGPUpdate_8_withdraw_path_ipv4(t *testing.T) {
 
 	tm := NewTableManager()
 	//setLogger(getLogger(log.DebugLevel))
-	var pList []Path
-	var wList []Destination
 	var err error
 
 	// path1
@@ -1389,7 +1359,7 @@ func TestProcessBGPUpdate_8_withdraw_path_ipv4(t *testing.T) {
 	bgpMessage2 := bgp.NewBGPUpdateMessage(withdrawnRoutes2, pathAttributes2, nlri2)
 
 	peer1 := peerR1()
-	pList, wList, err = tm.ProcessUpdate(peer1, bgpMessage1)
+	pList, wList, err := tm.ProcessUpdate(peer1, bgpMessage1)
 	assert.Equal(t, 1, len(pList))
 	assert.Equal(t, 0, len(wList))
 	assert.NoError(t, err)
@@ -1466,8 +1436,6 @@ func TestProcessBGPUpdate_8_withdraw_path_ipv4(t *testing.T) {
 func TestProcessBGPUpdate_8_mpunreach_path_ipv6(t *testing.T) {
 
 	tm := NewTableManager()
-	var pList []Path
-	var wList []Destination
 	var err error
 
 	origin1 := bgp.NewPathAttributeOrigin(0)
@@ -1501,7 +1469,7 @@ func TestProcessBGPUpdate_8_mpunreach_path_ipv6(t *testing.T) {
 	bgpMessage2 := bgp.NewBGPUpdateMessage(withdrawnRoutes2, pathAttributes2, nlri2)
 
 	peer1 := peerR1()
-	pList, wList, err = tm.ProcessUpdate(peer1, bgpMessage1)
+	pList, wList, err := tm.ProcessUpdate(peer1, bgpMessage1)
 	assert.Equal(t, 1, len(pList))
 	assert.Equal(t, 0, len(wList))
 	assert.NoError(t, err)
@@ -1605,8 +1573,6 @@ func TestProcessBGPUpdate_bestpath_lost_ipv4(t *testing.T) {
 
 	tm := NewTableManager()
 	//setLogger(getLogger(log.DebugLevel))
-	var pList []Path
-	var wList []Destination
 	var err error
 
 	// path1
@@ -1628,7 +1594,7 @@ func TestProcessBGPUpdate_bestpath_lost_ipv4(t *testing.T) {
 	bgpMessage1_w := bgp.NewBGPUpdateMessage(w, []bgp.PathAttributeInterface{}, []bgp.NLRInfo{})
 
 	peer1 := peerR1()
-	pList, wList, err = tm.ProcessUpdate(peer1, bgpMessage1)
+	pList, wList, err := tm.ProcessUpdate(peer1, bgpMessage1)
 	assert.Equal(t, 1, len(pList))
 	assert.Equal(t, 0, len(wList))
 	assert.NoError(t, err)
@@ -1639,7 +1605,7 @@ func TestProcessBGPUpdate_bestpath_lost_ipv4(t *testing.T) {
 	assert.NoError(t, err)
 
 	// check old best path
-	path := wList[0].GetOldBestPath()
+	path := wList[0]
 	expectedType := "*table.IPv4Path"
 	assert.Equal(t, reflect.TypeOf(path).String(), expectedType)
 
@@ -1683,8 +1649,6 @@ func TestProcessBGPUpdate_bestpath_lost_ipv4(t *testing.T) {
 func TestProcessBGPUpdate_bestpath_lost_ipv6(t *testing.T) {
 
 	tm := NewTableManager()
-	var pList []Path
-	var wList []Destination
 	var err error
 
 	origin1 := bgp.NewPathAttributeOrigin(0)
@@ -1703,7 +1667,7 @@ func TestProcessBGPUpdate_bestpath_lost_ipv6(t *testing.T) {
 	bgpMessage1 := bgp.NewBGPUpdateMessage(withdrawnRoutes1, pathAttributes1, nlri1)
 
 	peer1 := peerR1()
-	pList, wList, err = tm.ProcessUpdate(peer1, bgpMessage1)
+	pList, wList, err := tm.ProcessUpdate(peer1, bgpMessage1)
 	assert.Equal(t, 1, len(pList))
 	assert.Equal(t, 0, len(wList))
 	assert.NoError(t, err)
@@ -1719,7 +1683,7 @@ func TestProcessBGPUpdate_bestpath_lost_ipv6(t *testing.T) {
 	assert.NoError(t, err)
 
 	// check old best path
-	path := wList[0].GetOldBestPath()
+	path := wList[0]
 	expectedType := "*table.IPv6Path"
 	assert.Equal(t, reflect.TypeOf(path).String(), expectedType)
 
@@ -1766,8 +1730,6 @@ func TestProcessBGPUpdate_implicit_withdrwal_ipv4(t *testing.T) {
 
 	tm := NewTableManager()
 	//setLogger(getLogger(log.DebugLevel))
-	var pList []Path
-	var wList []Destination
 	var err error
 
 	// path1
@@ -1799,7 +1761,7 @@ func TestProcessBGPUpdate_implicit_withdrwal_ipv4(t *testing.T) {
 	bgpMessage2 := bgp.NewBGPUpdateMessage(withdrawnRoutes2, pathAttributes2, nlri2)
 
 	peer1 := peerR1()
-	pList, wList, err = tm.ProcessUpdate(peer1, bgpMessage1)
+	pList, wList, err := tm.ProcessUpdate(peer1, bgpMessage1)
 	assert.Equal(t, 1, len(pList))
 	assert.Equal(t, 0, len(wList))
 	assert.NoError(t, err)
@@ -1853,8 +1815,6 @@ func TestProcessBGPUpdate_implicit_withdrwal_ipv4(t *testing.T) {
 func TestProcessBGPUpdate_implicit_withdrwal_ipv6(t *testing.T) {
 
 	tm := NewTableManager()
-	var pList []Path
-	var wList []Destination
 	var err error
 
 	origin1 := bgp.NewPathAttributeOrigin(0)
@@ -1888,7 +1848,7 @@ func TestProcessBGPUpdate_implicit_withdrwal_ipv6(t *testing.T) {
 	bgpMessage2 := bgp.NewBGPUpdateMessage(withdrawnRoutes2, pathAttributes2, nlri2)
 
 	peer1 := peerR1()
-	pList, wList, err = tm.ProcessUpdate(peer1, bgpMessage1)
+	pList, wList, err := tm.ProcessUpdate(peer1, bgpMessage1)
 	assert.Equal(t, 1, len(pList))
 	assert.Equal(t, 0, len(wList))
 	assert.NoError(t, err)
@@ -1969,8 +1929,6 @@ func TestProcessBGPUpdate_multiple_nlri_ipv4(t *testing.T) {
 
 	tm := NewTableManager()
 	//setLogger(getLogger(log.DebugLevel))
-	var pList []Path
-	var wList []Destination
 	var err error
 
 	createPathAttr := func(aspaths []uint16, nh string) []bgp.PathAttributeInterface {
@@ -2058,7 +2016,7 @@ func TestProcessBGPUpdate_multiple_nlri_ipv4(t *testing.T) {
 	bgpMessage4 := bgp.NewBGPUpdateMessage([]bgp.WithdrawnRoute{}, pathAttributes4, nlri4)
 
 	peer1 := peerR1()
-	pList, wList, err = tm.ProcessUpdate(peer1, bgpMessage1)
+	pList, wList, err := tm.ProcessUpdate(peer1, bgpMessage1)
 	assert.Equal(t, 5, len(pList))
 	assert.Equal(t, 0, len(wList))
 	assert.NoError(t, err)
@@ -2101,8 +2059,6 @@ func TestProcessBGPUpdate_multiple_nlri_ipv6(t *testing.T) {
 
 	tm := NewTableManager()
 	//setLogger(getLogger(log.DebugLevel))
-	var pList []Path
-	var wList []Destination
 	var err error
 
 	createPathAttr := func(aspaths []uint16) []bgp.PathAttributeInterface {
@@ -2201,7 +2157,7 @@ func TestProcessBGPUpdate_multiple_nlri_ipv6(t *testing.T) {
 	bgpMessage4 := bgp.NewBGPUpdateMessage([]bgp.WithdrawnRoute{}, pathAttributes4, []bgp.NLRInfo{})
 
 	peer1 := peerR1()
-	pList, wList, err = tm.ProcessUpdate(peer1, bgpMessage1)
+	pList, wList, err := tm.ProcessUpdate(peer1, bgpMessage1)
 	assert.Equal(t, 5, len(pList))
 	assert.Equal(t, 0, len(wList))
 	assert.NoError(t, err)

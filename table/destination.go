@@ -58,7 +58,7 @@ type Destination interface {
 	setBestPathReason(string)
 	getBestPath() Path
 	setBestPath(path Path)
-	GetOldBestPath() Path
+	getOldBestPath() Path
 	setOldBestPath(path Path)
 	getKnownPathList() []Path
 	setKnownPathList([]Path)
@@ -140,7 +140,7 @@ func (dd *DestinationDefault) setBestPath(path Path) {
 	}
 }
 
-func (dd *DestinationDefault) GetOldBestPath() Path {
+func (dd *DestinationDefault) getOldBestPath() Path {
 	return dd.oldBestPath
 }
 

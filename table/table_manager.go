@@ -132,9 +132,9 @@ func NewTableManager() *TableManager {
 	return t
 }
 
-func (manager *TableManager) calculate(destinationList []Destination) ([]Path, []Destination, error) {
+func (manager *TableManager) calculate(destinationList []Destination) ([]Path, []Path, error) {
 	bestPaths := make([]Path, 0)
-	lostDest := make([]Destination, 0)
+	lostPaths := make([]Path, 0)
 
 	for _, destination := range destinationList {
 		// compute best path
@@ -163,7 +163,7 @@ func (manager *TableManager) calculate(destinationList []Destination) ([]Path, [
 				if currentBestPath != nil {
 					log.Debug("best path is lost")
 					destination.setOldBestPath(destination.getBestPath())
-					lostDest = append(lostDest, destination)
+					lostPaths = append(lostPaths, destination.getBestPath())
 				}
 				destination.setBestPath(nil)
 			} else {
@@ -186,15 +186,16 @@ func (manager *TableManager) calculate(destinationList []Destination) ([]Path, [
 			log.Debugf("destination removed route_family=%v, destination=%v", rf, destination)
 		}
 	}
-	return bestPaths, lostDest, nil
+	return bestPaths, lostPaths, nil
 }
 
-func (manager *TableManager) DeletePathsforPeer(peerInfo *PeerInfo) ([]Path, []Destination, error) {
+func (manager *TableManager) DeletePathsforPeer(peerInfo *PeerInfo) ([]Path, []Path, error) {
 	destinationList := manager.Tables[peerInfo.RF].DeleteDestByPeer(peerInfo)
 	return manager.calculate(destinationList)
+
 }
 
-func (manager *TableManager) ProcessPaths(pathList []Path) ([]Path, []Destination, error) {
+func (manager *TableManager) ProcessPaths(pathList []Path) ([]Path, []Path, error) {
 	destinationList := make([]Destination, 0)
 	for _, path := range pathList {
 		rf := path.GetRouteFamily()
@@ -207,14 +208,11 @@ func (manager *TableManager) ProcessPaths(pathList []Path) ([]Path, []Destinatio
 
 // process BGPUpdate message
 // this function processes only BGPUpdate
-func (manager *TableManager) ProcessUpdate(fromPeer *PeerInfo, message *bgp.BGPMessage) ([]Path, []Destination, error) {
-	var bestPaths []Path = make([]Path, 0)
-	var lostDest []Destination = make([]Destination, 0)
-
+func (manager *TableManager) ProcessUpdate(fromPeer *PeerInfo, message *bgp.BGPMessage) ([]Path, []Path, error) {
 	// check msg's type if it's BGPUpdate
 	if message.Header.Type != bgp.BGP_MSG_UPDATE {
 		log.Warn("message is not BGPUpdate")
-		return bestPaths, lostDest, nil
+		return []Path{}, []Path{}, nil
 	}
 
 	msg := &ProcessMessage{

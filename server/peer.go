@@ -142,12 +142,10 @@ func (peer *Peer) handleREST(restReq *api.RestRequest) {
 }
 
 func (peer *Peer) handlePeermessage(m *message) {
-
-	sendpath := func(pList []table.Path, wList []table.Destination) {
+	sendpath := func(pList []table.Path, wList []table.Path) {
 		pathList := append([]table.Path(nil), pList...)
 
-		for _, dest := range wList {
-			p := dest.GetOldBestPath()
+		for _, p := range wList {
 			pathList = append(pathList, p.Clone(true))
 		}
 		peer.adjRib.UpdateOut(pathList)
