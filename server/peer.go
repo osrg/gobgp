@@ -94,40 +94,18 @@ func (peer *Peer) sendMessages(msgs []*bgp.BGPMessage) {
 	}
 }
 
-func path2v4update(path table.Path) *bgp.BGPMessage {
-	if path.IsWithdraw() {
-		draw := path.GetNlri().(*bgp.WithdrawnRoute)
-		return bgp.NewBGPUpdateMessage([]bgp.WithdrawnRoute{*draw}, []bgp.PathAttributeInterface{}, []bgp.NLRInfo{})
-	} else {
-		nlri := path.GetNlri().(*bgp.NLRInfo)
-		pathAttrs := path.GetPathAttrs()
-		return bgp.NewBGPUpdateMessage([]bgp.WithdrawnRoute{}, pathAttrs, []bgp.NLRInfo{*nlri})
-	}
-}
-
-func path2v6update(path table.Path) *bgp.BGPMessage {
-	if path.IsWithdraw() {
-		pathAttrs := path.GetPathAttrs()
-		return bgp.NewBGPUpdateMessage([]bgp.WithdrawnRoute{}, pathAttrs, []bgp.NLRInfo{})
-	} else {
-		pathAttrs := path.GetPathAttrs()
-		return bgp.NewBGPUpdateMessage([]bgp.WithdrawnRoute{}, pathAttrs, []bgp.NLRInfo{})
-	}
-}
-
 func (peer *Peer) path2update(pathList []table.Path) []*bgp.BGPMessage {
-	// TODO: merge multiple messages
 	// TODO: 4bytes and 2bytes conversion.
 	msgs := make([]*bgp.BGPMessage, 0)
+	var pMsg *bgp.BGPMessage
 	for _, p := range pathList {
 		if peer.rf != p.GetRouteFamily() {
 			continue
 		}
-
-		if peer.rf == bgp.RF_IPv4_UC {
-			msgs = append(msgs, path2v4update(p))
-		} else {
-			msgs = append(msgs, path2v6update(p))
+		msg, _ := table.CreateUpdateMsgFromPath(p, pMsg)
+		if msg != nil {
+			msgs = append(msgs, msg)
+			pMsg = msg
 		}
 	}
 	return msgs

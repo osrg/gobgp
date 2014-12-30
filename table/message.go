@@ -107,3 +107,27 @@ func UpdatePathAttrs4ByteAs(msg *bgp.BGPUpdate) error {
 	}
 	return nil
 }
+
+func CreateUpdateMsgFromPath(path Path, msg *bgp.BGPMessage) (*bgp.BGPMessage, error) {
+	rf := path.GetRouteFamily()
+
+	if rf == bgp.RF_IPv4_UC {
+		if path.IsWithdraw() {
+			draw := path.GetNlri().(*bgp.WithdrawnRoute)
+			return bgp.NewBGPUpdateMessage([]bgp.WithdrawnRoute{*draw}, []bgp.PathAttributeInterface{}, []bgp.NLRInfo{}), nil
+		} else {
+			nlri := path.GetNlri().(*bgp.NLRInfo)
+			pathAttrs := path.GetPathAttrs()
+			return bgp.NewBGPUpdateMessage([]bgp.WithdrawnRoute{}, pathAttrs, []bgp.NLRInfo{*nlri}), nil
+		}
+	} else if rf == bgp.RF_IPv6_UC {
+		if path.IsWithdraw() {
+			pathAttrs := path.GetPathAttrs()
+			return bgp.NewBGPUpdateMessage([]bgp.WithdrawnRoute{}, pathAttrs, []bgp.NLRInfo{}), nil
+		} else {
+			pathAttrs := path.GetPathAttrs()
+			return bgp.NewBGPUpdateMessage([]bgp.WithdrawnRoute{}, pathAttrs, []bgp.NLRInfo{}), nil
+		}
+	}
+	return nil, nil
+}
