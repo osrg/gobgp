@@ -145,7 +145,23 @@ func (td *TableDefault) validatePath(path Path) {
 	if path == nil || path.GetRouteFamily() != td.ROUTE_FAMILY {
 		log.Errorf("Invalid path. Expected instance of %s route family path, got %s.", td.ROUTE_FAMILY, path)
 	}
+	_, attr := path.getPathAttr(bgp.BGP_ATTR_TYPE_AS_PATH)
+	if attr != nil {
+		pathParam := attr.(*bgp.PathAttributeAsPath).Value
+		for _, as := range pathParam {
+			_, y := as.(*bgp.As4PathParam)
+			if !y {
+				log.Fatal("AsPathParam must be converted to As4PathParam, ", as)
+			}
+		}
+	}
+
+	_, attr = path.getPathAttr(bgp.BGP_ATTR_TYPE_AS4_PATH)
+	if attr != nil {
+		log.Fatal("AS4_PATH must be converted to AS_PATH")
+	}
 }
+
 func (td *TableDefault) validateNlri(nlri bgp.AddrPrefixInterface) {
 	if nlri == nil {
 		log.Error("Invalid Vpnv4 prefix given.")

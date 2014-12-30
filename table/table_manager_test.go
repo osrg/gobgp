@@ -175,7 +175,7 @@ func TestProcessBGPUpdate_1_select_high_localpref_ipv4(t *testing.T) {
 
 	// low localpref message
 	origin1 := bgp.NewPathAttributeOrigin(0)
-	aspath1 := createAsPathAttribute([]uint16{65000})
+	aspath1 := createAsPathAttribute([]uint32{65000})
 	nexthop1 := bgp.NewPathAttributeNextHop("192.168.50.1")
 	med1 := bgp.NewPathAttributeMultiExitDisc(0)
 	localpref1 := bgp.NewPathAttributeLocalPref(100)
@@ -189,7 +189,7 @@ func TestProcessBGPUpdate_1_select_high_localpref_ipv4(t *testing.T) {
 
 	// high localpref message
 	origin2 := bgp.NewPathAttributeOrigin(0)
-	aspath2 := createAsPathAttribute([]uint16{65100, 65000})
+	aspath2 := createAsPathAttribute([]uint32{65100, 65000})
 	nexthop2 := bgp.NewPathAttributeNextHop("192.168.50.1")
 	med2 := bgp.NewPathAttributeMultiExitDisc(100)
 	localpref2 := bgp.NewPathAttributeLocalPref(200)
@@ -258,7 +258,7 @@ func TestProcessBGPUpdate_1_select_high_localpref_ipv6(t *testing.T) {
 	var err error
 
 	origin1 := bgp.NewPathAttributeOrigin(0)
-	aspath1 := createAsPathAttribute([]uint16{65000})
+	aspath1 := createAsPathAttribute([]uint32{65000})
 	mp_reach1 := createMpReach("2001::192:168:50:1",
 		[]bgp.AddrPrefixInterface{bgp.NewIPv6AddrPrefix(64, "2001:123:123:1::")})
 	med1 := bgp.NewPathAttributeMultiExitDisc(100)
@@ -273,7 +273,7 @@ func TestProcessBGPUpdate_1_select_high_localpref_ipv6(t *testing.T) {
 	bgpMessage1 := bgp.NewBGPUpdateMessage(withdrawnRoutes1, pathAttributes1, nlri1)
 
 	origin2 := bgp.NewPathAttributeOrigin(0)
-	aspath2 := createAsPathAttribute([]uint16{65100, 65000})
+	aspath2 := createAsPathAttribute([]uint32{65100, 65000})
 	mp_reach2 := createMpReach("2001::192:168:100:1",
 		[]bgp.AddrPrefixInterface{bgp.NewIPv6AddrPrefix(64, "2001:123:123:1::")})
 	med2 := bgp.NewPathAttributeMultiExitDisc(100)
@@ -347,7 +347,7 @@ func TestProcessBGPUpdate_2_select_local_origin_ipv4(t *testing.T) {
 
 	// low localpref message
 	origin1 := bgp.NewPathAttributeOrigin(0)
-	aspath1 := createAsPathAttribute([]uint16{65000})
+	aspath1 := createAsPathAttribute([]uint32{65000})
 	nexthop1 := bgp.NewPathAttributeNextHop("192.168.50.1")
 	med1 := bgp.NewPathAttributeMultiExitDisc(0)
 	localpref1 := bgp.NewPathAttributeLocalPref(100)
@@ -361,7 +361,7 @@ func TestProcessBGPUpdate_2_select_local_origin_ipv4(t *testing.T) {
 
 	// high localpref message
 	origin2 := bgp.NewPathAttributeOrigin(0)
-	aspath2 := createAsPathAttribute([]uint16{})
+	aspath2 := createAsPathAttribute([]uint32{})
 	nexthop2 := bgp.NewPathAttributeNextHop("0.0.0.0")
 	med2 := bgp.NewPathAttributeMultiExitDisc(100)
 	localpref2 := bgp.NewPathAttributeLocalPref(100)
@@ -430,7 +430,7 @@ func TestProcessBGPUpdate_2_select_local_origin_ipv6(t *testing.T) {
 	var err error
 
 	origin1 := bgp.NewPathAttributeOrigin(0)
-	aspath1 := createAsPathAttribute([]uint16{65000})
+	aspath1 := createAsPathAttribute([]uint32{65000})
 	mp_reach1 := createMpReach("2001::192:168:50:1",
 		[]bgp.AddrPrefixInterface{bgp.NewIPv6AddrPrefix(64, "2001:123:123:1::")})
 	med1 := bgp.NewPathAttributeMultiExitDisc(100)
@@ -445,7 +445,7 @@ func TestProcessBGPUpdate_2_select_local_origin_ipv6(t *testing.T) {
 	bgpMessage1 := bgp.NewBGPUpdateMessage(withdrawnRoutes1, pathAttributes1, nlri1)
 
 	origin2 := bgp.NewPathAttributeOrigin(0)
-	aspath2 := createAsPathAttribute([]uint16{})
+	aspath2 := createAsPathAttribute([]uint32{})
 	mp_reach2 := createMpReach("::",
 		[]bgp.AddrPrefixInterface{bgp.NewIPv6AddrPrefix(64, "2001:123:123:1::")})
 	med2 := bgp.NewPathAttributeMultiExitDisc(100)
@@ -635,7 +635,7 @@ func TestProcessBGPUpdate_4_select_low_origin_ipv4(t *testing.T) {
 
 	// low origin message
 	origin1 := bgp.NewPathAttributeOrigin(1)
-	aspath1 := createAsPathAttribute([]uint16{65200, 65000})
+	aspath1 := createAsPathAttribute([]uint32{65200, 65000})
 	nexthop1 := bgp.NewPathAttributeNextHop("192.168.50.1")
 	med1 := bgp.NewPathAttributeMultiExitDisc(100)
 	localpref1 := bgp.NewPathAttributeLocalPref(100)
@@ -649,7 +649,7 @@ func TestProcessBGPUpdate_4_select_low_origin_ipv4(t *testing.T) {
 
 	// high origin message
 	origin2 := bgp.NewPathAttributeOrigin(0)
-	aspath2 := createAsPathAttribute([]uint16{65100, 65000})
+	aspath2 := createAsPathAttribute([]uint32{65100, 65000})
 	nexthop2 := bgp.NewPathAttributeNextHop("192.168.100.1")
 	med2 := bgp.NewPathAttributeMultiExitDisc(100)
 	localpref2 := bgp.NewPathAttributeLocalPref(100)
@@ -718,7 +718,7 @@ func TestProcessBGPUpdate_4_select_low_origin_ipv6(t *testing.T) {
 	var err error
 
 	origin1 := bgp.NewPathAttributeOrigin(1)
-	aspath1 := createAsPathAttribute([]uint16{65200, 65000})
+	aspath1 := createAsPathAttribute([]uint32{65200, 65000})
 	mp_reach1 := createMpReach("2001::192:168:50:1",
 		[]bgp.AddrPrefixInterface{bgp.NewIPv6AddrPrefix(64, "2001:123:123:1::")})
 	med1 := bgp.NewPathAttributeMultiExitDisc(100)
@@ -733,7 +733,7 @@ func TestProcessBGPUpdate_4_select_low_origin_ipv6(t *testing.T) {
 	bgpMessage1 := bgp.NewBGPUpdateMessage(withdrawnRoutes1, pathAttributes1, nlri1)
 
 	origin2 := bgp.NewPathAttributeOrigin(0)
-	aspath2 := createAsPathAttribute([]uint16{65100, 65000})
+	aspath2 := createAsPathAttribute([]uint32{65100, 65000})
 	mp_reach2 := createMpReach("2001::192:168:100:1",
 		[]bgp.AddrPrefixInterface{bgp.NewIPv6AddrPrefix(64, "2001:123:123:1::")})
 	med2 := bgp.NewPathAttributeMultiExitDisc(100)
@@ -807,7 +807,7 @@ func TestProcessBGPUpdate_5_select_low_med_ipv4(t *testing.T) {
 
 	// low origin message
 	origin1 := bgp.NewPathAttributeOrigin(0)
-	aspath1 := createAsPathAttribute([]uint16{65200, 65000})
+	aspath1 := createAsPathAttribute([]uint32{65200, 65000})
 	nexthop1 := bgp.NewPathAttributeNextHop("192.168.50.1")
 	med1 := bgp.NewPathAttributeMultiExitDisc(500)
 	localpref1 := bgp.NewPathAttributeLocalPref(100)
@@ -821,7 +821,7 @@ func TestProcessBGPUpdate_5_select_low_med_ipv4(t *testing.T) {
 
 	// high origin message
 	origin2 := bgp.NewPathAttributeOrigin(0)
-	aspath2 := createAsPathAttribute([]uint16{65100, 65000})
+	aspath2 := createAsPathAttribute([]uint32{65100, 65000})
 	nexthop2 := bgp.NewPathAttributeNextHop("192.168.100.1")
 	med2 := bgp.NewPathAttributeMultiExitDisc(100)
 	localpref2 := bgp.NewPathAttributeLocalPref(100)
@@ -890,7 +890,7 @@ func TestProcessBGPUpdate_5_select_low_med_ipv6(t *testing.T) {
 	var err error
 
 	origin1 := bgp.NewPathAttributeOrigin(0)
-	aspath1 := createAsPathAttribute([]uint16{65200, 65000})
+	aspath1 := createAsPathAttribute([]uint32{65200, 65000})
 	mp_reach1 := createMpReach("2001::192:168:50:1",
 		[]bgp.AddrPrefixInterface{bgp.NewIPv6AddrPrefix(64, "2001:123:123:1::")})
 	med1 := bgp.NewPathAttributeMultiExitDisc(500)
@@ -905,7 +905,7 @@ func TestProcessBGPUpdate_5_select_low_med_ipv6(t *testing.T) {
 	bgpMessage1 := bgp.NewBGPUpdateMessage(withdrawnRoutes1, pathAttributes1, nlri1)
 
 	origin2 := bgp.NewPathAttributeOrigin(0)
-	aspath2 := createAsPathAttribute([]uint16{65100, 65000})
+	aspath2 := createAsPathAttribute([]uint32{65100, 65000})
 	mp_reach2 := createMpReach("2001::192:168:100:1",
 		[]bgp.AddrPrefixInterface{bgp.NewIPv6AddrPrefix(64, "2001:123:123:1::")})
 	med2 := bgp.NewPathAttributeMultiExitDisc(200)
@@ -981,7 +981,7 @@ func TestProcessBGPUpdate_6_select_ebgp_path_ipv4(t *testing.T) {
 
 	// low origin message
 	origin1 := bgp.NewPathAttributeOrigin(0)
-	aspath1 := createAsPathAttribute([]uint16{65000, 65200})
+	aspath1 := createAsPathAttribute([]uint32{65000, 65200})
 	nexthop1 := bgp.NewPathAttributeNextHop("192.168.50.1")
 	med1 := bgp.NewPathAttributeMultiExitDisc(200)
 	localpref1 := bgp.NewPathAttributeLocalPref(100)
@@ -995,7 +995,7 @@ func TestProcessBGPUpdate_6_select_ebgp_path_ipv4(t *testing.T) {
 
 	// high origin message
 	origin2 := bgp.NewPathAttributeOrigin(0)
-	aspath2 := createAsPathAttribute([]uint16{65100, 65000})
+	aspath2 := createAsPathAttribute([]uint32{65100, 65000})
 	nexthop2 := bgp.NewPathAttributeNextHop("192.168.100.1")
 	med2 := bgp.NewPathAttributeMultiExitDisc(200)
 	localpref2 := bgp.NewPathAttributeLocalPref(100)
@@ -1065,7 +1065,7 @@ func TestProcessBGPUpdate_6_select_ebgp_path_ipv6(t *testing.T) {
 	var err error
 
 	origin1 := bgp.NewPathAttributeOrigin(0)
-	aspath1 := createAsPathAttribute([]uint16{65000, 65200})
+	aspath1 := createAsPathAttribute([]uint32{65000, 65200})
 	mp_reach1 := createMpReach("2001::192:168:50:1",
 		[]bgp.AddrPrefixInterface{bgp.NewIPv6AddrPrefix(64, "2001:123:123:1::")})
 	med1 := bgp.NewPathAttributeMultiExitDisc(200)
@@ -1080,7 +1080,7 @@ func TestProcessBGPUpdate_6_select_ebgp_path_ipv6(t *testing.T) {
 	bgpMessage1 := bgp.NewBGPUpdateMessage(withdrawnRoutes1, pathAttributes1, nlri1)
 
 	origin2 := bgp.NewPathAttributeOrigin(0)
-	aspath2 := createAsPathAttribute([]uint16{65100, 65200})
+	aspath2 := createAsPathAttribute([]uint32{65100, 65200})
 	mp_reach2 := createMpReach("2001::192:168:100:1",
 		[]bgp.AddrPrefixInterface{bgp.NewIPv6AddrPrefix(64, "2001:123:123:1::")})
 	med2 := bgp.NewPathAttributeMultiExitDisc(200)
@@ -1158,7 +1158,7 @@ func TestProcessBGPUpdate_7_select_low_routerid_path_ipv4(t *testing.T) {
 
 	// low origin message
 	origin1 := bgp.NewPathAttributeOrigin(0)
-	aspath1 := createAsPathAttribute([]uint16{65000, 65200})
+	aspath1 := createAsPathAttribute([]uint32{65000, 65200})
 	nexthop1 := bgp.NewPathAttributeNextHop("192.168.50.1")
 	med1 := bgp.NewPathAttributeMultiExitDisc(200)
 	localpref1 := bgp.NewPathAttributeLocalPref(100)
@@ -1172,7 +1172,7 @@ func TestProcessBGPUpdate_7_select_low_routerid_path_ipv4(t *testing.T) {
 
 	// high origin message
 	origin2 := bgp.NewPathAttributeOrigin(0)
-	aspath2 := createAsPathAttribute([]uint16{65000, 65100})
+	aspath2 := createAsPathAttribute([]uint32{65000, 65100})
 	nexthop2 := bgp.NewPathAttributeNextHop("192.168.100.1")
 	med2 := bgp.NewPathAttributeMultiExitDisc(200)
 	localpref2 := bgp.NewPathAttributeLocalPref(100)
@@ -1242,7 +1242,7 @@ func TestProcessBGPUpdate_7_select_low_routerid_path_ipv6(t *testing.T) {
 	var err error
 
 	origin1 := bgp.NewPathAttributeOrigin(0)
-	aspath1 := createAsPathAttribute([]uint16{65000, 65200})
+	aspath1 := createAsPathAttribute([]uint32{65000, 65200})
 	mp_reach1 := createMpReach("2001::192:168:50:1",
 		[]bgp.AddrPrefixInterface{bgp.NewIPv6AddrPrefix(64, "2001:123:123:1::")})
 	med1 := bgp.NewPathAttributeMultiExitDisc(200)
@@ -1257,7 +1257,7 @@ func TestProcessBGPUpdate_7_select_low_routerid_path_ipv6(t *testing.T) {
 	bgpMessage1 := bgp.NewBGPUpdateMessage(withdrawnRoutes1, pathAttributes1, nlri1)
 
 	origin2 := bgp.NewPathAttributeOrigin(0)
-	aspath2 := createAsPathAttribute([]uint16{65100, 65200})
+	aspath2 := createAsPathAttribute([]uint32{65100, 65200})
 	mp_reach2 := createMpReach("2001::192:168:100:1",
 		[]bgp.AddrPrefixInterface{bgp.NewIPv6AddrPrefix(64, "2001:123:123:1::")})
 	med2 := bgp.NewPathAttributeMultiExitDisc(200)
@@ -1332,7 +1332,7 @@ func TestProcessBGPUpdate_8_withdraw_path_ipv4(t *testing.T) {
 
 	// path1
 	origin1 := bgp.NewPathAttributeOrigin(0)
-	aspath1 := createAsPathAttribute([]uint16{65000})
+	aspath1 := createAsPathAttribute([]uint32{65000})
 	nexthop1 := bgp.NewPathAttributeNextHop("192.168.50.1")
 	med1 := bgp.NewPathAttributeMultiExitDisc(200)
 	localpref1 := bgp.NewPathAttributeLocalPref(100)
@@ -1346,7 +1346,7 @@ func TestProcessBGPUpdate_8_withdraw_path_ipv4(t *testing.T) {
 
 	// path 2
 	origin2 := bgp.NewPathAttributeOrigin(0)
-	aspath2 := createAsPathAttribute([]uint16{65100, 65000})
+	aspath2 := createAsPathAttribute([]uint32{65100, 65000})
 	nexthop2 := bgp.NewPathAttributeNextHop("192.168.100.1")
 	med2 := bgp.NewPathAttributeMultiExitDisc(200)
 	localpref2 := bgp.NewPathAttributeLocalPref(200)
@@ -1439,7 +1439,7 @@ func TestProcessBGPUpdate_8_mpunreach_path_ipv6(t *testing.T) {
 	var err error
 
 	origin1 := bgp.NewPathAttributeOrigin(0)
-	aspath1 := createAsPathAttribute([]uint16{65000})
+	aspath1 := createAsPathAttribute([]uint32{65000})
 	mp_reach1 := createMpReach("2001::192:168:50:1",
 		[]bgp.AddrPrefixInterface{bgp.NewIPv6AddrPrefix(64, "2001:123:123:1::")})
 	med1 := bgp.NewPathAttributeMultiExitDisc(200)
@@ -1454,7 +1454,7 @@ func TestProcessBGPUpdate_8_mpunreach_path_ipv6(t *testing.T) {
 	bgpMessage1 := bgp.NewBGPUpdateMessage(withdrawnRoutes1, pathAttributes1, nlri1)
 
 	origin2 := bgp.NewPathAttributeOrigin(0)
-	aspath2 := createAsPathAttribute([]uint16{65100, 65000})
+	aspath2 := createAsPathAttribute([]uint32{65100, 65000})
 	mp_reach2 := createMpReach("2001::192:168:100:1",
 		[]bgp.AddrPrefixInterface{bgp.NewIPv6AddrPrefix(64, "2001:123:123:1::")})
 	med2 := bgp.NewPathAttributeMultiExitDisc(200)
@@ -1577,7 +1577,7 @@ func TestProcessBGPUpdate_bestpath_lost_ipv4(t *testing.T) {
 
 	// path1
 	origin1 := bgp.NewPathAttributeOrigin(0)
-	aspath1 := createAsPathAttribute([]uint16{65000})
+	aspath1 := createAsPathAttribute([]uint32{65000})
 	nexthop1 := bgp.NewPathAttributeNextHop("192.168.50.1")
 	med1 := bgp.NewPathAttributeMultiExitDisc(200)
 	localpref1 := bgp.NewPathAttributeLocalPref(100)
@@ -1648,7 +1648,7 @@ func TestProcessBGPUpdate_bestpath_lost_ipv6(t *testing.T) {
 	var err error
 
 	origin1 := bgp.NewPathAttributeOrigin(0)
-	aspath1 := createAsPathAttribute([]uint16{65000})
+	aspath1 := createAsPathAttribute([]uint32{65000})
 	mp_reach1 := createMpReach("2001::192:168:50:1",
 		[]bgp.AddrPrefixInterface{bgp.NewIPv6AddrPrefix(64, "2001:123:123:1::")})
 	med1 := bgp.NewPathAttributeMultiExitDisc(200)
@@ -1726,7 +1726,7 @@ func TestProcessBGPUpdate_implicit_withdrwal_ipv4(t *testing.T) {
 
 	// path1
 	origin1 := bgp.NewPathAttributeOrigin(0)
-	aspath1 := createAsPathAttribute([]uint16{65000, 65100, 65200})
+	aspath1 := createAsPathAttribute([]uint32{65000, 65100, 65200})
 	nexthop1 := bgp.NewPathAttributeNextHop("192.168.50.1")
 	med1 := bgp.NewPathAttributeMultiExitDisc(200)
 	localpref1 := bgp.NewPathAttributeLocalPref(100)
@@ -1740,7 +1740,7 @@ func TestProcessBGPUpdate_implicit_withdrwal_ipv4(t *testing.T) {
 
 	// path 1 from same peer but short AS_PATH
 	origin2 := bgp.NewPathAttributeOrigin(0)
-	aspath2 := createAsPathAttribute([]uint16{65000, 65100})
+	aspath2 := createAsPathAttribute([]uint32{65000, 65100})
 	nexthop2 := bgp.NewPathAttributeNextHop("192.168.50.1")
 	med2 := bgp.NewPathAttributeMultiExitDisc(200)
 	localpref2 := bgp.NewPathAttributeLocalPref(100)
@@ -1810,7 +1810,7 @@ func TestProcessBGPUpdate_implicit_withdrwal_ipv6(t *testing.T) {
 	var err error
 
 	origin1 := bgp.NewPathAttributeOrigin(0)
-	aspath1 := createAsPathAttribute([]uint16{65000, 65100, 65200})
+	aspath1 := createAsPathAttribute([]uint32{65000, 65100, 65200})
 	mp_reach1 := createMpReach("2001::192:168:50:1",
 		[]bgp.AddrPrefixInterface{bgp.NewIPv6AddrPrefix(64, "2001:123:123:1::")})
 	med1 := bgp.NewPathAttributeMultiExitDisc(200)
@@ -1825,7 +1825,7 @@ func TestProcessBGPUpdate_implicit_withdrwal_ipv6(t *testing.T) {
 	bgpMessage1 := bgp.NewBGPUpdateMessage(withdrawnRoutes1, pathAttributes1, nlri1)
 
 	origin2 := bgp.NewPathAttributeOrigin(0)
-	aspath2 := createAsPathAttribute([]uint16{65000, 65100})
+	aspath2 := createAsPathAttribute([]uint32{65000, 65100})
 	mp_reach2 := createMpReach("2001::192:168:50:1",
 		[]bgp.AddrPrefixInterface{bgp.NewIPv6AddrPrefix(64, "2001:123:123:1::")})
 	med2 := bgp.NewPathAttributeMultiExitDisc(200)
@@ -1923,7 +1923,7 @@ func TestProcessBGPUpdate_multiple_nlri_ipv4(t *testing.T) {
 	//setLogger(getLogger(log.DebugLevel))
 	var err error
 
-	createPathAttr := func(aspaths []uint16, nh string) []bgp.PathAttributeInterface {
+	createPathAttr := func(aspaths []uint32, nh string) []bgp.PathAttributeInterface {
 		origin := bgp.NewPathAttributeOrigin(0)
 		aspath := createAsPathAttribute(aspaths)
 		nexthop := bgp.NewPathAttributeNextHop(nh)
@@ -1973,7 +1973,7 @@ func TestProcessBGPUpdate_multiple_nlri_ipv4(t *testing.T) {
 	}
 
 	// path1
-	pathAttributes1 := createPathAttr([]uint16{65000, 65100, 65200}, "192.168.50.1")
+	pathAttributes1 := createPathAttr([]uint32{65000, 65100, 65200}, "192.168.50.1")
 	nlri1 := []bgp.NLRInfo{
 		*bgp.NewNLRInfo(24, "10.10.10.0"),
 		*bgp.NewNLRInfo(24, "20.20.20.0"),
@@ -1983,7 +1983,7 @@ func TestProcessBGPUpdate_multiple_nlri_ipv4(t *testing.T) {
 	bgpMessage1 := bgp.NewBGPUpdateMessage([]bgp.WithdrawnRoute{}, pathAttributes1, nlri1)
 
 	// path2
-	pathAttributes2 := createPathAttr([]uint16{65000, 65100, 65300}, "192.168.50.1")
+	pathAttributes2 := createPathAttr([]uint32{65000, 65100, 65300}, "192.168.50.1")
 	nlri2 := []bgp.NLRInfo{
 		*bgp.NewNLRInfo(24, "11.11.11.0"),
 		*bgp.NewNLRInfo(24, "22.22.22.0"),
@@ -1993,7 +1993,7 @@ func TestProcessBGPUpdate_multiple_nlri_ipv4(t *testing.T) {
 	bgpMessage2 := bgp.NewBGPUpdateMessage([]bgp.WithdrawnRoute{}, pathAttributes2, nlri2)
 
 	// path3
-	pathAttributes3 := createPathAttr([]uint16{65000, 65100, 65400}, "192.168.50.1")
+	pathAttributes3 := createPathAttr([]uint32{65000, 65100, 65400}, "192.168.50.1")
 	nlri3 := []bgp.NLRInfo{
 		*bgp.NewNLRInfo(24, "77.77.77.0"),
 		*bgp.NewNLRInfo(24, "88.88.88.0"),
@@ -2001,7 +2001,7 @@ func TestProcessBGPUpdate_multiple_nlri_ipv4(t *testing.T) {
 	bgpMessage3 := bgp.NewBGPUpdateMessage([]bgp.WithdrawnRoute{}, pathAttributes3, nlri3)
 
 	// path4
-	pathAttributes4 := createPathAttr([]uint16{65000, 65100, 65500}, "192.168.50.1")
+	pathAttributes4 := createPathAttr([]uint32{65000, 65100, 65500}, "192.168.50.1")
 	nlri4 := []bgp.NLRInfo{
 		*bgp.NewNLRInfo(24, "99.99.99.0"),
 	}
@@ -2053,7 +2053,7 @@ func TestProcessBGPUpdate_multiple_nlri_ipv6(t *testing.T) {
 	//setLogger(getLogger(log.DebugLevel))
 	var err error
 
-	createPathAttr := func(aspaths []uint16) []bgp.PathAttributeInterface {
+	createPathAttr := func(aspaths []uint32) []bgp.PathAttributeInterface {
 		origin := bgp.NewPathAttributeOrigin(0)
 		aspath := createAsPathAttribute(aspaths)
 		med := bgp.NewPathAttributeMultiExitDisc(100)
@@ -2108,7 +2108,7 @@ func TestProcessBGPUpdate_multiple_nlri_ipv6(t *testing.T) {
 	}
 
 	// path1
-	pathAttributes1 := createPathAttr([]uint16{65000, 65100, 65200})
+	pathAttributes1 := createPathAttr([]uint32{65000, 65100, 65200})
 	mpreach1 := createMpReach("2001::192:168:50:1", []bgp.AddrPrefixInterface{
 		bgp.NewIPv6AddrPrefix(64, "2001:123:1210:11::"),
 		bgp.NewIPv6AddrPrefix(64, "2001:123:1220:11::"),
@@ -2120,7 +2120,7 @@ func TestProcessBGPUpdate_multiple_nlri_ipv6(t *testing.T) {
 	bgpMessage1 := bgp.NewBGPUpdateMessage([]bgp.WithdrawnRoute{}, pathAttributes1, []bgp.NLRInfo{})
 
 	// path2
-	pathAttributes2 := createPathAttr([]uint16{65000, 65100, 65300})
+	pathAttributes2 := createPathAttr([]uint32{65000, 65100, 65300})
 	mpreach2 := createMpReach("2001::192:168:50:1", []bgp.AddrPrefixInterface{
 		bgp.NewIPv6AddrPrefix(64, "2001:123:1211:11::"),
 		bgp.NewIPv6AddrPrefix(64, "2001:123:1222:11::"),
@@ -2132,7 +2132,7 @@ func TestProcessBGPUpdate_multiple_nlri_ipv6(t *testing.T) {
 	bgpMessage2 := bgp.NewBGPUpdateMessage([]bgp.WithdrawnRoute{}, pathAttributes2, []bgp.NLRInfo{})
 
 	// path3
-	pathAttributes3 := createPathAttr([]uint16{65000, 65100, 65400})
+	pathAttributes3 := createPathAttr([]uint32{65000, 65100, 65400})
 	mpreach3 := createMpReach("2001::192:168:50:1", []bgp.AddrPrefixInterface{
 		bgp.NewIPv6AddrPrefix(64, "2001:123:1277:11::"),
 		bgp.NewIPv6AddrPrefix(64, "2001:123:1288:11::"),
@@ -2141,7 +2141,7 @@ func TestProcessBGPUpdate_multiple_nlri_ipv6(t *testing.T) {
 	bgpMessage3 := bgp.NewBGPUpdateMessage([]bgp.WithdrawnRoute{}, pathAttributes3, []bgp.NLRInfo{})
 
 	// path4
-	pathAttributes4 := createPathAttr([]uint16{65000, 65100, 65500})
+	pathAttributes4 := createPathAttr([]uint32{65000, 65100, 65500})
 	mpreach4 := createMpReach("2001::192:168:50:1", []bgp.AddrPrefixInterface{
 		bgp.NewIPv6AddrPrefix(64, "2001:123:1299:11::"),
 	})
@@ -2224,7 +2224,7 @@ func TestModifyPathAttribute(t *testing.T) {
 func update_fromR1() *bgp.BGPMessage {
 
 	origin := bgp.NewPathAttributeOrigin(0)
-	aspathParam := []bgp.AsPathParamInterface{bgp.NewAsPathParam(2, []uint16{65000})}
+	aspathParam := []bgp.AsPathParamInterface{bgp.NewAs4PathParam(2, []uint32{65000})}
 	aspath := bgp.NewPathAttributeAsPath(aspathParam)
 	nexthop := bgp.NewPathAttributeNextHop("192.168.50.1")
 	med := bgp.NewPathAttributeMultiExitDisc(0)
@@ -2245,7 +2245,7 @@ func update_fromR1() *bgp.BGPMessage {
 func update_fromR1_ipv6() *bgp.BGPMessage {
 
 	origin := bgp.NewPathAttributeOrigin(0)
-	aspathParam := []bgp.AsPathParamInterface{bgp.NewAsPathParam(2, []uint16{65000})}
+	aspathParam := []bgp.AsPathParamInterface{bgp.NewAs4PathParam(2, []uint32{65000})}
 	aspath := bgp.NewPathAttributeAsPath(aspathParam)
 
 	mp_nlri := []bgp.AddrPrefixInterface{bgp.NewIPv6AddrPrefix(64, "2001:123:123:1::")}
@@ -2266,7 +2266,7 @@ func update_fromR1_ipv6() *bgp.BGPMessage {
 func update_fromR2() *bgp.BGPMessage {
 
 	origin := bgp.NewPathAttributeOrigin(0)
-	aspathParam := []bgp.AsPathParamInterface{bgp.NewAsPathParam(2, []uint16{65100})}
+	aspathParam := []bgp.AsPathParamInterface{bgp.NewAs4PathParam(2, []uint32{65100})}
 	aspath := bgp.NewPathAttributeAsPath(aspathParam)
 	nexthop := bgp.NewPathAttributeNextHop("192.168.100.1")
 	med := bgp.NewPathAttributeMultiExitDisc(100)
@@ -2286,7 +2286,7 @@ func update_fromR2() *bgp.BGPMessage {
 func update_fromR2_ipv6() *bgp.BGPMessage {
 
 	origin := bgp.NewPathAttributeOrigin(0)
-	aspath := createAsPathAttribute([]uint16{65100})
+	aspath := createAsPathAttribute([]uint32{65100})
 	mp_reach := createMpReach("2001::192:168:100:1",
 		[]bgp.AddrPrefixInterface{bgp.NewIPv6AddrPrefix(64, "2002:223:123:1::")})
 	med := bgp.NewPathAttributeMultiExitDisc(100)
@@ -2302,8 +2302,8 @@ func update_fromR2_ipv6() *bgp.BGPMessage {
 	return bgp.NewBGPUpdateMessage(withdrawnRoutes, pathAttributes, nlri)
 }
 
-func createAsPathAttribute(ases []uint16) *bgp.PathAttributeAsPath {
-	aspathParam := []bgp.AsPathParamInterface{bgp.NewAsPathParam(2, ases)}
+func createAsPathAttribute(ases []uint32) *bgp.PathAttributeAsPath {
+	aspathParam := []bgp.AsPathParamInterface{bgp.NewAs4PathParam(2, ases)}
 	aspath := bgp.NewPathAttributeAsPath(aspathParam)
 	return aspath
 }
@@ -2322,7 +2322,7 @@ func createMpUNReach(nlri string, len uint8) *bgp.PathAttributeMpUnreachNLRI {
 func update_fromR2viaR1() *bgp.BGPMessage {
 
 	origin := bgp.NewPathAttributeOrigin(0)
-	aspathParam := []bgp.AsPathParamInterface{bgp.NewAsPathParam(2, []uint16{65000, 65100})}
+	aspathParam := []bgp.AsPathParamInterface{bgp.NewAs4PathParam(2, []uint32{65000, 65100})}
 	aspath := bgp.NewPathAttributeAsPath(aspathParam)
 	nexthop := bgp.NewPathAttributeNextHop("192.168.50.1")
 
@@ -2340,7 +2340,7 @@ func update_fromR2viaR1() *bgp.BGPMessage {
 func update_fromR2viaR1_ipv6() *bgp.BGPMessage {
 
 	origin := bgp.NewPathAttributeOrigin(0)
-	aspath := createAsPathAttribute([]uint16{65000, 65100})
+	aspath := createAsPathAttribute([]uint32{65000, 65100})
 	mp_reach := createMpReach("2001::192:168:50:1",
 		[]bgp.AddrPrefixInterface{bgp.NewIPv6AddrPrefix(64, "2002:223:123:1::")})
 	med := bgp.NewPathAttributeMultiExitDisc(100)
