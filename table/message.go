@@ -29,6 +29,10 @@ func UpdatePathAttrs2ByteAs(msg *bgp.BGPUpdate) error {
 		}
 	}
 
+	if asAttr == nil {
+		return nil
+	}
+
 	as4pathParam := make([]*bgp.As4PathParam, 0)
 	for i, param := range asAttr.Value {
 		asParam, y := param.(*bgp.As4PathParam)
@@ -72,6 +76,10 @@ func UpdatePathAttrs4ByteAs(msg *bgp.BGPUpdate) error {
 		default:
 			newPathAttrs = append(newPathAttrs, attr)
 		}
+	}
+
+	if asAttr == nil {
+		return nil
 	}
 
 	AS := make([]uint32, 0)
