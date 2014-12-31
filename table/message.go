@@ -16,11 +16,13 @@
 package table
 
 import (
+	"bytes"
 	"github.com/osrg/gobgp/packet"
 	"reflect"
 )
 
 func UpdatePathAttrs2ByteAs(msg *bgp.BGPUpdate) error {
+	// FIXME: clone
 	var asAttr *bgp.PathAttributeAsPath
 	for _, attr := range msg.PathAttributes {
 		switch attr.(type) {
@@ -129,28 +131,103 @@ func clonePathAttributes(attrs []bgp.PathAttributeInterface) []bgp.PathAttribute
 	return clonedAttrs
 }
 
-func CreateUpdateMsgFromPath(path Path, msg *bgp.BGPMessage) (*bgp.BGPMessage, error) {
+func createUpdateMsgFromPath(path Path, msg *bgp.BGPMessage) *bgp.BGPMessage {
 	rf := path.GetRouteFamily()
 
 	if rf == bgp.RF_IPv4_UC {
 		if path.IsWithdraw() {
 			draw := path.getNlri().(*bgp.WithdrawnRoute)
-			return bgp.NewBGPUpdateMessage([]bgp.WithdrawnRoute{*draw}, []bgp.PathAttributeInterface{}, []bgp.NLRInfo{}), nil
+			if msg != nil {
+				u := msg.Body.(*bgp.BGPUpdate)
+				u.WithdrawnRoutes = append(u.WithdrawnRoutes, *draw)
+				return nil
+			} else {
+				return bgp.NewBGPUpdateMessage([]bgp.WithdrawnRoute{*draw}, []bgp.PathAttributeInterface{}, []bgp.NLRInfo{})
+			}
 		} else {
 			nlri := path.getNlri().(*bgp.NLRInfo)
-			pathAttrs := path.getPathAttrs()
-			return bgp.NewBGPUpdateMessage([]bgp.WithdrawnRoute{}, pathAttrs, []bgp.NLRInfo{*nlri}), nil
+			if msg != nil {
+				u := msg.Body.(*bgp.BGPUpdate)
+				u.NLRI = append(u.NLRI, *nlri)
+			} else {
+				pathAttrs := path.getPathAttrs()
+				return bgp.NewBGPUpdateMessage([]bgp.WithdrawnRoute{}, pathAttrs, []bgp.NLRInfo{*nlri})
+			}
 		}
 	} else if rf == bgp.RF_IPv6_UC {
 		if path.IsWithdraw() {
-			clonedAttrs := clonePathAttributes(path.getPathAttrs())
-			idx, attr := path.getPathAttr(bgp.BGP_ATTR_TYPE_MP_REACH_NLRI)
-			reach := attr.(*bgp.PathAttributeMpReachNLRI)
-			clonedAttrs[idx] = bgp.NewPathAttributeMpUnreachNLRI(reach.Value)
-			return bgp.NewBGPUpdateMessage([]bgp.WithdrawnRoute{}, clonedAttrs, []bgp.NLRInfo{}), nil
+			if msg != nil {
+				idx, _ := path.getPathAttr(bgp.BGP_ATTR_TYPE_MP_REACH_NLRI)
+				u := msg.Body.(*bgp.BGPUpdate)
+				unreach := u.PathAttributes[idx].(*bgp.PathAttributeMpUnreachNLRI)
+				unreach.Value = append(unreach.Value, path.getNlri())
+			} else {
+				clonedAttrs := clonePathAttributes(path.getPathAttrs())
+				idx, attr := path.getPathAttr(bgp.BGP_ATTR_TYPE_MP_REACH_NLRI)
+				reach := attr.(*bgp.PathAttributeMpReachNLRI)
+				clonedAttrs[idx] = bgp.NewPathAttributeMpUnreachNLRI(reach.Value)
+				return bgp.NewBGPUpdateMessage([]bgp.WithdrawnRoute{}, clonedAttrs, []bgp.NLRInfo{})
+			}
 		} else {
-			return bgp.NewBGPUpdateMessage([]bgp.WithdrawnRoute{}, path.getPathAttrs(), []bgp.NLRInfo{}), nil
+			if msg != nil {
+				idx, _ := path.getPathAttr(bgp.BGP_ATTR_TYPE_MP_REACH_NLRI)
+				u := msg.Body.(*bgp.BGPUpdate)
+				reachAttr := u.PathAttributes[idx].(*bgp.PathAttributeMpReachNLRI)
+				reachAttr.Value = append(reachAttr.Value, path.getNlri())
+			} else {
+				// we don't need to clone here but we
+				// might merge path to this message in
+				// the future so let's clone anyway.
+				clonedAttrs := clonePathAttributes(path.getPathAttrs())
+				return bgp.NewBGPUpdateMessage([]bgp.WithdrawnRoute{}, clonedAttrs, []bgp.NLRInfo{})
+			}
 		}
 	}
-	return nil, nil
+	return nil
+}
+
+func isSamePathAttrs(pList1 []bgp.PathAttributeInterface, pList2 []bgp.PathAttributeInterface) bool {
+	if len(pList1) != len(pList2) {
+		return false
+	}
+	for i, p1 := range pList1 {
+		_, y := p1.(*bgp.PathAttributeMpReachNLRI)
+		if y {
+			continue
+		}
+		b1, _ := p1.Serialize()
+		b2, _ := pList2[i].Serialize()
+
+		if bytes.Compare(b1, b2) != 0 {
+			return false
+		}
+	}
+	return true
+}
+
+func isMergeable(p1 Path, p2 Path) bool {
+	if p1 == nil {
+		return false
+	}
+	if p1.getSource() == p2.getSource() && isSamePathAttrs(p1.getPathAttrs(), p2.getPathAttrs()) {
+		return true
+	}
+	return false
+}
+
+func CreateUpdateMsgFromPaths(pathList []Path) []*bgp.BGPMessage {
+	var pre Path
+	var msgs []*bgp.BGPMessage
+	for _, path := range pathList {
+		y := isMergeable(pre, path)
+		if y {
+			msg := msgs[len(msgs)-1]
+			createUpdateMsgFromPath(path, msg)
+		} else {
+			msg := createUpdateMsgFromPath(path, nil)
+			pre = path
+			msgs = append(msgs, msg)
+		}
+	}
+	return msgs
 }

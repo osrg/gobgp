@@ -89,7 +89,7 @@ func (peer *Peer) handleBGPmessage(m *bgp.BGPMessage) {
 
 	case bgp.BGP_MSG_ROUTE_REFRESH:
 		pathList := peer.adjRib.GetOutPathList(peer.rf)
-		peer.sendMessages(peer.path2update(pathList))
+		peer.sendMessages(table.CreateUpdateMsgFromPaths(pathList))
 	case bgp.BGP_MSG_UPDATE:
 		peer.peerConfig.BgpNeighborCommonState.UpdateRecvTime = time.Now()
 		body := m.Body.(*bgp.BGPUpdate)
@@ -106,31 +106,24 @@ func (peer *Peer) handleBGPmessage(m *bgp.BGPMessage) {
 
 func (peer *Peer) sendMessages(msgs []*bgp.BGPMessage) {
 	for _, m := range msgs {
-		if m.Header.Type == bgp.BGP_MSG_UPDATE {
-			_, y := peer.capMap[bgp.BGP_CAP_FOUR_OCTET_AS_NUMBER]
-			if !y {
-				log.Debug("update BGPUpdate for 2byte AS peer, ", peer.peerConfig.NeighborAddress.String())
-				table.UpdatePathAttrs2ByteAs(m.Body.(*bgp.BGPUpdate))
-			}
-		}
-		peer.outgoing <- m
-	}
-}
-
-func (peer *Peer) path2update(pathList []table.Path) []*bgp.BGPMessage {
-	msgs := make([]*bgp.BGPMessage, 0)
-	var pMsg *bgp.BGPMessage
-	for _, p := range pathList {
-		if peer.rf != p.GetRouteFamily() {
+		// FIXME: there is race where state change
+		// (established) event arrived before open message
+		if peer.peerConfig.BgpNeighborCommonState.State != uint32(bgp.BGP_FSM_ESTABLISHED) {
 			continue
 		}
-		msg, _ := table.CreateUpdateMsgFromPath(p, pMsg)
-		if msg != nil {
-			msgs = append(msgs, msg)
-			pMsg = msg
+
+		if m.Header.Type != bgp.BGP_MSG_UPDATE {
+			log.Fatal("not update message ", m.Header.Type)
 		}
+
+		_, y := peer.capMap[bgp.BGP_CAP_FOUR_OCTET_AS_NUMBER]
+		if !y {
+			log.Debug("update BGPUpdate for 2byte AS peer, ", peer.peerConfig.NeighborAddress.String())
+			table.UpdatePathAttrs2ByteAs(m.Body.(*bgp.BGPUpdate))
+		}
+
+		peer.outgoing <- m
 	}
-	return msgs
 }
 
 func (peer *Peer) handleREST(restReq *api.RestRequest) {
@@ -152,7 +145,7 @@ func (peer *Peer) handlePeermessage(m *message) {
 			}
 		}
 		peer.adjRib.UpdateOut(pathList)
-		peer.sendMessages(peer.path2update(pathList))
+		peer.sendMessages(table.CreateUpdateMsgFromPaths(pathList))
 	}
 
 	switch m.event {
@@ -183,7 +176,7 @@ func (peer *Peer) loop() error {
 				sameState = false
 				if nextState == bgp.BGP_FSM_ESTABLISHED {
 					pathList := peer.adjRib.GetOutPathList(peer.rf)
-					peer.sendMessages(peer.path2update(pathList))
+					peer.sendMessages(table.CreateUpdateMsgFromPaths(pathList))
 					peer.fsm.peerConfig.BgpNeighborCommonState.Uptime = time.Now()
 					peer.fsm.peerConfig.BgpNeighborCommonState.EstablishedCount++
 				}
