@@ -68,12 +68,17 @@ type ParameterCapabilityInterface interface {
 	DecodeFromBytes([]byte) error
 	Serialize() ([]byte, error)
 	Len() int
+	Code() BGPCapabilityCode
 }
 
 type DefaultParameterCapability struct {
 	CapCode  BGPCapabilityCode
 	CapLen   uint8
 	CapValue []byte
+}
+
+func (c *DefaultParameterCapability) Code() BGPCapabilityCode {
+	return c.CapCode
 }
 
 func (c *DefaultParameterCapability) DecodeFromBytes(data []byte) error {

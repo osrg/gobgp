@@ -264,6 +264,7 @@ func (h *FSMHandler) opensent() bgp.FSMState {
 		if ok {
 			fsm.bgpMessageStateUpdate(m.Header.Type, true)
 			if m.Header.Type == bgp.BGP_MSG_OPEN {
+				fsm.incoming <- m
 				fsm.routerId = m.Body.(*bgp.BGPOpen).ID
 				msg := bgp.NewBGPKeepAliveMessage()
 				b, _ := msg.Serialize()

@@ -42,7 +42,8 @@ type Peer struct {
 	// here but it's the simplest and works our first target.
 	rib *table.TableManager
 	// for now we support only the same afi as transport
-	rf bgp.RouteFamily
+	rf     bgp.RouteFamily
+	capMap map[bgp.BGPCapabilityCode]bgp.ParameterCapabilityInterface
 }
 
 func NewPeer(g config.GlobalType, peer config.NeighborType, outEventCh chan *message) *Peer {
@@ -54,6 +55,7 @@ func NewPeer(g config.GlobalType, peer config.NeighborType, outEventCh chan *mes
 		outgoing:       make(chan *bgp.BGPMessage, 4096),
 		inEventCh:      make(chan *message, 4096),
 		outEventCh:     outEventCh,
+		capMap:         make(map[bgp.BGPCapabilityCode]bgp.ParameterCapabilityInterface),
 	}
 	p.fsm = NewFSM(&g, &peer, p.acceptedConnCh, p.incoming, p.outgoing)
 	peer.BgpNeighborCommonState.State = uint32(bgp.BGP_FSM_IDLE)
@@ -73,11 +75,25 @@ func (peer *Peer) handleBGPmessage(m *bgp.BGPMessage) {
 	log.Debug(string(j))
 
 	switch m.Header.Type {
+	case bgp.BGP_MSG_OPEN:
+		body := m.Body.(*bgp.BGPOpen)
+		for _, p := range body.OptParams {
+			paramCap, y := p.(*bgp.OptionParameterCapability)
+			if !y {
+				continue
+			}
+			for _, c := range paramCap.Capability {
+				peer.capMap[c.Code()] = c
+			}
+		}
+
 	case bgp.BGP_MSG_ROUTE_REFRESH:
 		pathList := peer.adjRib.GetOutPathList(peer.rf)
 		peer.sendMessages(peer.path2update(pathList))
 	case bgp.BGP_MSG_UPDATE:
 		peer.peerConfig.BgpNeighborCommonState.UpdateRecvTime = time.Now()
+		body := m.Body.(*bgp.BGPUpdate)
+		table.UpdatePathAttrs4ByteAs(body)
 		msg := table.NewProcessMessage(m, peer.fsm.peerInfo)
 		pathList := msg.ToPathList()
 		if len(pathList) == 0 {
@@ -90,12 +106,18 @@ func (peer *Peer) handleBGPmessage(m *bgp.BGPMessage) {
 
 func (peer *Peer) sendMessages(msgs []*bgp.BGPMessage) {
 	for _, m := range msgs {
+		if m.Header.Type == bgp.BGP_MSG_UPDATE {
+			_, y := peer.capMap[bgp.BGP_CAP_FOUR_OCTET_AS_NUMBER]
+			if !y {
+				log.Debug("update BGPUpdate for 2byte AS peer, ", peer.peerConfig.NeighborAddress.String())
+				table.UpdatePathAttrs2ByteAs(m.Body.(*bgp.BGPUpdate))
+			}
+		}
 		peer.outgoing <- m
 	}
 }
 
 func (peer *Peer) path2update(pathList []table.Path) []*bgp.BGPMessage {
-	// TODO: 4bytes and 2bytes conversion.
 	msgs := make([]*bgp.BGPMessage, 0)
 	var pMsg *bgp.BGPMessage
 	for _, p := range pathList {
