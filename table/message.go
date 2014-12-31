@@ -22,18 +22,21 @@ import (
 )
 
 func UpdatePathAttrs2ByteAs(msg *bgp.BGPUpdate) error {
-	// FIXME: clone
 	var asAttr *bgp.PathAttributeAsPath
-	for _, attr := range msg.PathAttributes {
+	idx := 0
+	for i, attr := range msg.PathAttributes {
 		switch attr.(type) {
 		case *bgp.PathAttributeAsPath:
 			asAttr = attr.(*bgp.PathAttributeAsPath)
+			idx = i
 		}
 	}
 
 	if asAttr == nil {
 		return nil
 	}
+	msg.PathAttributes = clonePathAttributes(msg.PathAttributes)
+	asAttr = msg.PathAttributes[idx].(*bgp.PathAttributeAsPath)
 
 	as4pathParam := make([]*bgp.As4PathParam, 0)
 	for i, param := range asAttr.Value {
