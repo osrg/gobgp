@@ -19,7 +19,6 @@ import (
 	log "github.com/Sirupsen/logrus"
 	"github.com/osrg/gobgp/config"
 	"github.com/osrg/gobgp/packet"
-	"github.com/osrg/gobgp/table"
 	"gopkg.in/tomb.v2"
 	"net"
 	"time"
@@ -35,10 +34,6 @@ type FSM struct {
 	passiveConn     *net.TCPConn
 	passiveConnCh   chan *net.TCPConn
 	stateCh         chan bgp.FSMState
-
-	peerInfo     *table.PeerInfo
-	sourceVerNum int
-	routerId     net.IP
 }
 
 func (fsm *FSM) bgpMessageStateUpdate(MessageType uint8, isIn bool) {
@@ -92,7 +87,6 @@ func NewFSM(gConfig *config.GlobalType, pConfig *config.NeighborType, connCh cha
 		state:         bgp.BGP_FSM_IDLE,
 		passiveConnCh: connCh,
 		stateCh:       make(chan bgp.FSMState),
-		sourceVerNum:  1,
 	}
 }
 
@@ -103,27 +97,6 @@ func (fsm *FSM) StateChanged() chan bgp.FSMState {
 func (fsm *FSM) StateChange(nextState bgp.FSMState) {
 	log.Debugf("Peer (%v) state changed from %v to %v", fsm.peerConfig.NeighborAddress, fsm.state, nextState)
 	fsm.state = nextState
-}
-
-func (fsm *FSM) PeerInfoGet() *table.PeerInfo {
-	return fsm.peerInfo
-}
-
-func (fsm *FSM) createPeerInfo() {
-	var rf bgp.RouteFamily
-	if fsm.peerConfig.NeighborAddress.To4() != nil {
-		rf = bgp.RF_IPv4_UC
-	} else {
-		rf = bgp.RF_IPv6_UC
-	}
-
-	fsm.peerInfo = &table.PeerInfo{
-		AS:         fsm.peerConfig.PeerAs,
-		ID:         fsm.routerId,
-		VersionNum: fsm.sourceVerNum,
-		LocalID:    fsm.globalConfig.RouterId,
-		RF:         rf,
-	}
 }
 
 type FSMHandler struct {
@@ -265,7 +238,6 @@ func (h *FSMHandler) opensent() bgp.FSMState {
 			fsm.bgpMessageStateUpdate(m.Header.Type, true)
 			if m.Header.Type == bgp.BGP_MSG_OPEN {
 				fsm.incoming <- m
-				fsm.routerId = m.Body.(*bgp.BGPOpen).ID
 				msg := bgp.NewBGPKeepAliveMessage()
 				b, _ := msg.Serialize()
 				fsm.passiveConn.Write(b)
@@ -410,15 +382,6 @@ func (h *FSMHandler) loop() error {
 		nextState = h.openconfirm()
 	case bgp.BGP_FSM_ESTABLISHED:
 		nextState = h.established()
-	}
-
-	if nextState == bgp.BGP_FSM_ESTABLISHED {
-		// everytime we go into BGP_FSM_ESTABLISHED, we create
-		// a PeerInfo because sourceNum could be incremented
-		fsm.createPeerInfo()
-	}
-	if fsm.state >= bgp.BGP_FSM_OPENSENT && nextState == bgp.BGP_FSM_IDLE {
-		fsm.sourceVerNum++
 	}
 
 	if nextState >= bgp.BGP_FSM_IDLE {

@@ -42,8 +42,9 @@ type Peer struct {
 	// here but it's the simplest and works our first target.
 	rib *table.TableManager
 	// for now we support only the same afi as transport
-	rf     bgp.RouteFamily
-	capMap map[bgp.BGPCapabilityCode]bgp.ParameterCapabilityInterface
+	rf       bgp.RouteFamily
+	capMap   map[bgp.BGPCapabilityCode]bgp.ParameterCapabilityInterface
+	peerInfo *table.PeerInfo
 }
 
 func NewPeer(g config.GlobalType, peer config.NeighborType, outEventCh chan *message) *Peer {
@@ -64,6 +65,12 @@ func NewPeer(g config.GlobalType, peer config.NeighborType, outEventCh chan *mes
 	} else {
 		p.rf = bgp.RF_IPv6_UC
 	}
+	p.peerInfo = &table.PeerInfo{
+		AS:         peer.PeerAs,
+		VersionNum: 1,
+		LocalID:    g.RouterId,
+		RF:         p.rf,
+	}
 	p.adjRib = table.NewAdjRib()
 	p.rib = table.NewTableManager()
 	p.t.Go(p.loop)
@@ -77,6 +84,7 @@ func (peer *Peer) handleBGPmessage(m *bgp.BGPMessage) {
 	switch m.Header.Type {
 	case bgp.BGP_MSG_OPEN:
 		body := m.Body.(*bgp.BGPOpen)
+		peer.peerInfo.ID = m.Body.(*bgp.BGPOpen).ID
 		for _, p := range body.OptParams {
 			paramCap, y := p.(*bgp.OptionParameterCapability)
 			if !y {
@@ -94,7 +102,7 @@ func (peer *Peer) handleBGPmessage(m *bgp.BGPMessage) {
 		peer.peerConfig.BgpNeighborCommonState.UpdateRecvTime = time.Now()
 		body := m.Body.(*bgp.BGPUpdate)
 		table.UpdatePathAttrs4ByteAs(body)
-		msg := table.NewProcessMessage(m, peer.fsm.peerInfo)
+		msg := table.NewProcessMessage(m, peer.peerInfo)
 		pathList := msg.ToPathList()
 		if len(pathList) == 0 {
 			return
@@ -179,10 +187,13 @@ func (peer *Peer) loop() error {
 					peer.sendMessages(table.CreateUpdateMsgFromPaths(pathList))
 					peer.fsm.peerConfig.BgpNeighborCommonState.Uptime = time.Now()
 					peer.fsm.peerConfig.BgpNeighborCommonState.EstablishedCount++
+					if oldState >= bgp.BGP_FSM_OPENSENT {
+						peer.peerInfo.VersionNum++
+					}
 				}
 				if oldState == bgp.BGP_FSM_ESTABLISHED {
 					peer.fsm.peerConfig.BgpNeighborCommonState.Uptime = time.Time{}
-					peer.sendToHub("", PEER_MSG_DOWN, peer.fsm.peerInfo)
+					peer.sendToHub("", PEER_MSG_DOWN, peer.peerInfo)
 				}
 			case <-peer.t.Dying():
 				close(peer.acceptedConnCh)
@@ -242,7 +253,7 @@ func (peer *Peer) MarshalJSON() ([]byte, error) {
 		CapEnhancedRefresh bool `json:"cap_enhanced_refresh"`
 	}{
 		RemoteIP: c.NeighborAddress.String(),
-		Id:       f.routerId.To4().String(),
+		Id:       peer.peerInfo.ID.To4().String(),
 		//Description: "",
 		RemoteAS: c.PeerAs,
 		//LocalAddress:       f.passiveConn.LocalAddr().String(),
