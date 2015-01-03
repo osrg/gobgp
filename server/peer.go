@@ -27,6 +27,19 @@ import (
 	"time"
 )
 
+type peerMsgType int
+
+const (
+	_ peerMsgType = iota
+	PEER_MSG_PATH
+	PEER_MSG_PEER_DOWN
+)
+
+type peerMsg struct {
+	msgType peerMsgType
+	msgData interface{}
+}
+
 type Peer struct {
 	t              tomb.Tomb
 	globalConfig   config.GlobalType
@@ -34,8 +47,8 @@ type Peer struct {
 	acceptedConnCh chan *net.TCPConn
 	incoming       chan *fsmMsg
 	outgoing       chan *bgp.BGPMessage
-	inEventCh      chan *message
-	outEventCh     chan *message
+	serverMsgCh    chan *serverMsg
+	peerMsgCh      chan *peerMsg
 	fsm            *FSM
 	adjRib         *table.AdjRib
 	// peer and rib are always not one-to-one so should not be
@@ -45,18 +58,23 @@ type Peer struct {
 	rf       bgp.RouteFamily
 	capMap   map[bgp.BGPCapabilityCode]bgp.ParameterCapabilityInterface
 	peerInfo *table.PeerInfo
+	siblings map[string]*serverMsgDataPeer
 }
 
-func NewPeer(g config.GlobalType, peer config.NeighborType, outEventCh chan *message) *Peer {
+func NewPeer(g config.GlobalType, peer config.NeighborType, serverMsgCh chan *serverMsg, peerMsgCh chan *peerMsg, peerList []*serverMsgDataPeer) *Peer {
 	p := &Peer{
 		globalConfig:   g,
 		peerConfig:     peer,
 		acceptedConnCh: make(chan *net.TCPConn),
 		incoming:       make(chan *fsmMsg, 4096),
 		outgoing:       make(chan *bgp.BGPMessage, 4096),
-		inEventCh:      make(chan *message, 4096),
-		outEventCh:     outEventCh,
+		serverMsgCh:    serverMsgCh,
+		peerMsgCh:      peerMsgCh,
 		capMap:         make(map[bgp.BGPCapabilityCode]bgp.ParameterCapabilityInterface),
+	}
+	p.siblings = make(map[string]*serverMsgDataPeer)
+	for _, s := range peerList {
+		p.siblings[s.address.String()] = s
 	}
 	p.fsm = NewFSM(&g, &peer, p.acceptedConnCh, p.incoming, p.outgoing)
 	peer.BgpNeighborCommonState.State = uint32(bgp.BGP_FSM_IDLE)
@@ -70,6 +88,7 @@ func NewPeer(g config.GlobalType, peer config.NeighborType, outEventCh chan *mes
 		VersionNum: 1,
 		LocalID:    g.RouterId,
 		RF:         p.rf,
+		Address:    peer.NeighborAddress,
 	}
 	p.adjRib = table.NewAdjRib()
 	p.rib = table.NewTableManager()
@@ -108,7 +127,14 @@ func (peer *Peer) handleBGPmessage(m *bgp.BGPMessage) {
 			return
 		}
 		peer.adjRib.UpdateIn(pathList)
-		peer.sendToHub("", PEER_MSG_PATH, pathList)
+		pm := &peerMsg{
+			msgType: PEER_MSG_PATH,
+			msgData: pathList,
+		}
+		for _, s := range peer.siblings {
+			// TODO: check rf
+			s.peerMsgCh <- pm
+		}
 	}
 }
 
@@ -140,7 +166,7 @@ func (peer *Peer) handleREST(restReq *api.RestRequest) {
 	close(restReq.ResponseCh)
 }
 
-func (peer *Peer) handlePeermessage(m *message) {
+func (peer *Peer) handlePeerMsg(m *peerMsg) {
 	sendpath := func(pList []table.Path, wList []table.Path) {
 		pathList := append([]table.Path(nil), pList...)
 		pathList = append(pathList, wList...)
@@ -154,15 +180,46 @@ func (peer *Peer) handlePeermessage(m *message) {
 		peer.sendMessages(table.CreateUpdateMsgFromPaths(pathList))
 	}
 
-	switch m.event {
+	switch m.msgType {
 	case PEER_MSG_PATH:
-		pList, wList, _ := peer.rib.ProcessPaths(m.data.([]table.Path))
+		pList, wList, _ := peer.rib.ProcessPaths(m.msgData.([]table.Path))
 		sendpath(pList, wList)
-	case PEER_MSG_DOWN:
-		pList, wList, _ := peer.rib.DeletePathsforPeer(m.data.(*table.PeerInfo))
+	case PEER_MSG_PEER_DOWN:
+		pList, wList, _ := peer.rib.DeletePathsforPeer(m.msgData.(*table.PeerInfo))
 		sendpath(pList, wList)
-	case PEER_MSG_REST:
-		peer.handleREST(m.data.(*api.RestRequest))
+	}
+}
+
+func (peer *Peer) handleServerMsg(m *serverMsg) {
+	switch m.msgType {
+	case SRV_MSG_PEER_ADDED:
+		d := m.msgData.(*serverMsgDataPeer)
+		peer.siblings[d.address.String()] = d
+		pathList := peer.adjRib.GetInPathList(d.rf)
+		if len(pathList) == 0 {
+			return
+		}
+		pm := &peerMsg{
+			msgType: PEER_MSG_PATH,
+			msgData: pathList,
+		}
+		for _, s := range peer.siblings {
+			// TODO: check rf
+			s.peerMsgCh <- pm
+		}
+	case SRV_MSG_PEER_DELETED:
+		d := m.msgData.(*table.PeerInfo)
+		_, found := peer.siblings[d.Address.String()]
+		if found {
+			delete(peer.siblings, d.Address.String())
+			// TODO: do the same that PEER_MSG_PEER_DOWN handler
+		} else {
+			log.Warning("can not find peer: ", d.Address.String())
+		}
+	case SRV_MSG_API:
+		peer.handleREST(m.msgData.(*api.RestRequest))
+	default:
+		log.Fatal("unknown server msg type ", m.msgType)
 	}
 }
 
@@ -200,13 +257,21 @@ func (peer *Peer) loop() error {
 					}
 					if oldState == bgp.BGP_FSM_ESTABLISHED {
 						peer.fsm.peerConfig.BgpNeighborCommonState.Uptime = time.Time{}
-						peer.sendToHub("", PEER_MSG_DOWN, peer.peerInfo)
+						pm := &peerMsg{
+							msgType: PEER_MSG_PEER_DOWN,
+							msgData: peer.peerInfo,
+						}
+						for _, s := range peer.siblings {
+							s.peerMsgCh <- pm
+						}
 					}
 				case FSM_MSG_BGP_MESSAGE:
 					peer.handleBGPmessage(e.MsgData.(*bgp.BGPMessage))
 				}
-			case m := <-peer.inEventCh:
-				peer.handlePeermessage(m)
+			case m := <-peer.serverMsgCh:
+				peer.handleServerMsg(m)
+			case m := <-peer.peerMsgCh:
+				peer.handlePeerMsg(m)
 			}
 		}
 	}
@@ -219,19 +284,6 @@ func (peer *Peer) Stop() error {
 
 func (peer *Peer) PassConn(conn *net.TCPConn) {
 	peer.acceptedConnCh <- conn
-}
-
-func (peer *Peer) SendMessage(msg *message) {
-	peer.inEventCh <- msg
-}
-
-func (peer *Peer) sendToHub(destination string, event int, data interface{}) {
-	peer.outEventCh <- &message{
-		src:   peer.peerConfig.NeighborAddress.String(),
-		dst:   destination,
-		event: event,
-		data:  data,
-	}
 }
 
 func (peer *Peer) MarshalJSON() ([]byte, error) {

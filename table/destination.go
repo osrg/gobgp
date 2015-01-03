@@ -46,6 +46,7 @@ type PeerInfo struct {
 	VersionNum int
 	LocalID    net.IP
 	RF         bgp.RouteFamily
+	Address    net.IP
 }
 
 type Destination interface {

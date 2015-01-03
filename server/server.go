@@ -21,25 +21,38 @@ import (
 	log "github.com/Sirupsen/logrus"
 	"github.com/osrg/gobgp/api"
 	"github.com/osrg/gobgp/config"
+	"github.com/osrg/gobgp/packet"
 	"net"
 	"os"
 	"strconv"
 	"strings"
 )
 
+type serverMsgType int
+
 const (
-	_ = iota
-	PEER_MSG_NEW
-	PEER_MSG_PATH
-	PEER_MSG_DOWN
-	PEER_MSG_REST //hacky, fix later
+	_ serverMsgType = iota
+	SRV_MSG_PEER_ADDED
+	SRV_MSG_PEER_DELETED
+	SRV_MSG_API
 )
 
-type message struct {
-	src   string
-	dst   string
-	event int
-	data  interface{}
+type serverMsg struct {
+	msgType serverMsgType
+	msgData interface{}
+}
+
+type serverMsgDataPeer struct {
+	peerMsgCh chan *peerMsg
+	address   net.IP
+	rf        bgp.RouteFamily
+}
+
+type peerMapInfo struct {
+	peer        *Peer
+	serverMsgCh chan *serverMsg
+	peerMsgCh   chan *peerMsg
+	peerMsgData *serverMsgDataPeer
 }
 
 type BgpServer struct {
@@ -49,7 +62,7 @@ type BgpServer struct {
 	deletedPeerCh chan config.NeighborType
 	RestReqCh     chan *api.RestRequest
 	listenPort    int
-	peerMap       map[string]*Peer
+	peerMap       map[string]peerMapInfo
 }
 
 func NewBgpServer(port int) *BgpServer {
@@ -111,8 +124,7 @@ func (server *BgpServer) Serve() {
 		return f
 	}
 
-	server.peerMap = make(map[string]*Peer)
-	broadcastCh := make(chan *message)
+	server.peerMap = make(map[string]peerMapInfo)
 	for {
 		select {
 		case conn := <-acceptCh:
@@ -123,10 +135,10 @@ func (server *BgpServer) Serve() {
 				idx := strings.LastIndex(addrPort, ":")
 				return addrPort[1 : idx-1]
 			}(conn.RemoteAddr().String())
-			peer, found := server.peerMap[remoteAddr]
+			info, found := server.peerMap[remoteAddr]
 			if found {
 				log.Info("accepted a new passive connection from ", remoteAddr)
-				peer.PassConn(conn)
+				info.peer.PassConn(conn)
 			} else {
 				log.Info("can't find configuration for a new passive connection from ", remoteAddr)
 				conn.Close()
@@ -135,26 +147,56 @@ func (server *BgpServer) Serve() {
 			addr := peer.NeighborAddress.String()
 			f := listenFile(peer.NeighborAddress)
 			SetTcpMD5SigSockopts(int(f.Fd()), addr, peer.AuthPassword)
-			p := NewPeer(server.bgpConfig.Global, peer, broadcastCh)
-			server.peerMap[peer.NeighborAddress.String()] = p
+			sch := make(chan *serverMsg, 8)
+			pch := make(chan *peerMsg, 4096)
+			l := make([]*serverMsgDataPeer, len(server.peerMap))
+			i := 0
+			for _, v := range server.peerMap {
+				l[i] = v.peerMsgData
+				i++
+			}
+			p := NewPeer(server.bgpConfig.Global, peer, sch, pch, l)
+			d := &serverMsgDataPeer{
+				address:   peer.NeighborAddress,
+				peerMsgCh: pch,
+				rf:        p.peerInfo.RF,
+			}
+			msg := &serverMsg{
+				msgType: SRV_MSG_PEER_ADDED,
+				msgData: d,
+			}
+			sendServerMsgToAll(server.peerMap, msg)
+			server.peerMap[peer.NeighborAddress.String()] = peerMapInfo{
+				peer:        p,
+				serverMsgCh: sch,
+				peerMsgData: d,
+			}
 		case peer := <-server.deletedPeerCh:
 			addr := peer.NeighborAddress.String()
 			f := listenFile(peer.NeighborAddress)
 			SetTcpMD5SigSockopts(int(f.Fd()), addr, "")
-			p, found := server.peerMap[addr]
+			info, found := server.peerMap[addr]
 			if found {
 				log.Info("Delete a peer configuration for ", addr)
-				p.Stop()
+				info.peer.Stop()
 				delete(server.peerMap, addr)
+				msg := &serverMsg{
+					msgType: SRV_MSG_PEER_DELETED,
+					msgData: info.peer.peerInfo,
+				}
+				sendServerMsgToAll(server.peerMap, msg)
 			} else {
 				log.Info("Can't delete a peer configuration for ", addr)
 			}
 		case restReq := <-server.RestReqCh:
 			server.handleRest(restReq)
-
-		case msg := <-broadcastCh:
-			server.broadcast(msg)
 		}
+	}
+}
+
+func sendServerMsgToAll(peerMap map[string]peerMapInfo, msg *serverMsg) {
+	for _, info := range peerMap {
+		info.serverMsgCh <- msg
 	}
 }
 
@@ -170,25 +212,13 @@ func (server *BgpServer) PeerDelete(peer config.NeighborType) {
 	server.deletedPeerCh <- peer
 }
 
-func (server *BgpServer) broadcast(msg *message) {
-	for key := range server.peerMap {
-		if key == msg.src {
-			continue
-		}
-		if msg.dst == "" || msg.dst == key {
-			peer := server.peerMap[key]
-			peer.SendMessage(msg)
-		}
-	}
-}
-
 func (server *BgpServer) handleRest(restReq *api.RestRequest) {
 	switch restReq.RequestType {
 	case api.REQ_NEIGHBORS:
 		result := &api.RestResponse{}
 		peerList := make([]*Peer, 0)
-		for _, peer := range server.peerMap {
-			peerList = append(peerList, peer)
+		for _, info := range server.peerMap {
+			peerList = append(peerList, info.peer)
 		}
 		j, _ := json.Marshal(peerList)
 		result.Data = j
@@ -199,9 +229,9 @@ func (server *BgpServer) handleRest(restReq *api.RestRequest) {
 
 		remoteAddr := restReq.RemoteAddr
 		result := &api.RestResponse{}
-		peer, found := server.peerMap[remoteAddr]
+		info, found := server.peerMap[remoteAddr]
 		if found {
-			j, _ := json.Marshal(peer)
+			j, _ := json.Marshal(info.peer)
 			result.Data = j
 		} else {
 			result.ResponseErr = fmt.Errorf("Neighbor that has %v does not exist.", remoteAddr)
@@ -211,13 +241,13 @@ func (server *BgpServer) handleRest(restReq *api.RestRequest) {
 	case api.REQ_LOCAL_RIB:
 		remoteAddr := restReq.RemoteAddr
 		result := &api.RestResponse{}
-		peer, found := server.peerMap[remoteAddr]
+		info, found := server.peerMap[remoteAddr]
 		if found {
-			msg := message{
-				event: PEER_MSG_REST,
-				data:  restReq,
+			msg := &serverMsg{
+				msgType: SRV_MSG_API,
+				msgData: restReq,
 			}
-			peer.SendMessage(&msg)
+			info.peer.serverMsgCh <- msg
 		} else {
 			result.ResponseErr = fmt.Errorf("Neighbor that has %v does not exist.", remoteAddr)
 			restReq.ResponseCh <- result
