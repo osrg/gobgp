@@ -84,11 +84,10 @@ func NewPeer(g config.GlobalType, peer config.NeighborType, serverMsgCh chan *se
 		p.rf = bgp.RF_IPv6_UC
 	}
 	p.peerInfo = &table.PeerInfo{
-		AS:         peer.PeerAs,
-		VersionNum: 1,
-		LocalID:    g.RouterId,
-		RF:         p.rf,
-		Address:    peer.NeighborAddress,
+		AS:      peer.PeerAs,
+		LocalID: g.RouterId,
+		RF:      p.rf,
+		Address: peer.NeighborAddress,
 	}
 	p.adjRib = table.NewAdjRib()
 	p.rib = table.NewTableManager()
@@ -256,9 +255,6 @@ func (peer *Peer) loop() error {
 						peer.sendMessages(table.CreateUpdateMsgFromPaths(pathList))
 						peer.fsm.peerConfig.BgpNeighborCommonState.Uptime = time.Now()
 						peer.fsm.peerConfig.BgpNeighborCommonState.EstablishedCount++
-						if oldState >= bgp.BGP_FSM_OPENSENT {
-							peer.peerInfo.VersionNum++
-						}
 					}
 					if oldState == bgp.BGP_FSM_ESTABLISHED {
 						peer.fsm.peerConfig.BgpNeighborCommonState.Uptime = time.Time{}

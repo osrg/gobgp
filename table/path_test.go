@@ -13,14 +13,14 @@ func TestPathNewIPv4(t *testing.T) {
 	peerP := PathCreatePeer()
 	msgP := PathCreateMSG(peerP)
 	pathP := PathCreatePath(msgP)
-	ipv4p := NewIPv4Path(pathP[0].getSource(), pathP[0].getNlri(), pathP[0].getSourceVerNum(), true, pathP[0].getPathAttrs(), pathP[0].getMedSetByTargetNeighbor())
+	ipv4p := NewIPv4Path(pathP[0].getSource(), pathP[0].getNlri(), true, pathP[0].getPathAttrs(), pathP[0].getMedSetByTargetNeighbor())
 	assert.NotNil(t, ipv4p)
 }
 func TestPathNewIPv6(t *testing.T) {
 	peerP := PathCreatePeer()
 	msgP := PathCreateMSG(peerP)
 	pathP := PathCreatePath(msgP)
-	ipv6p := NewIPv6Path(pathP[0].getSource(), pathP[0].getNlri(), pathP[0].getSourceVerNum(), true, pathP[0].getPathAttrs(), pathP[0].getMedSetByTargetNeighbor())
+	ipv6p := NewIPv6Path(pathP[0].getSource(), pathP[0].getNlri(), true, pathP[0].getPathAttrs(), pathP[0].getMedSetByTargetNeighbor())
 	assert.NotNil(t, ipv6p)
 }
 
@@ -41,7 +41,7 @@ func TestPathIPv4GetDefault(t *testing.T) {
 }
 
 func TestPathIPv6SetDefault(t *testing.T) {
-	pd := &PathDefault{sourceVerNum: 4}
+	pd := &PathDefault{}
 	ipv6p := &IPv6Path{}
 	ipv6p.setPathDefault(pd)
 	r_pd := ipv6p.getPathDefault()
@@ -49,7 +49,7 @@ func TestPathIPv6SetDefault(t *testing.T) {
 }
 
 func TestPathIPv6GetDefault(t *testing.T) {
-	pd := &PathDefault{sourceVerNum: 5}
+	pd := &PathDefault{}
 	ipv6p := &IPv6Path{}
 	ipv6p.setPathDefault(pd)
 	r_pd := ipv6p.getPathDefault()
@@ -64,7 +64,7 @@ func TestPathGetRouteFamily(t *testing.T) {
 
 func TestPathSetSource(t *testing.T) {
 	pd := &PathDefault{}
-	pr := &PeerInfo{AS: 65000, VersionNum: 4}
+	pr := &PeerInfo{AS: 65000}
 	pd.setSource(pr)
 	r_pr := pd.getSource()
 	assert.Equal(t, r_pr, pr)
@@ -72,7 +72,7 @@ func TestPathSetSource(t *testing.T) {
 
 func TestPathGetSource(t *testing.T) {
 	pd := &PathDefault{}
-	pr := &PeerInfo{AS: 65001, VersionNum: 4}
+	pr := &PeerInfo{AS: 65001}
 	pd.setSource(pr)
 	r_pr := pd.getSource()
 	assert.Equal(t, r_pr, pr)
@@ -92,22 +92,6 @@ func TestPathgetNexthop(t *testing.T) {
 	pd.setNexthop(ip)
 	nh := pd.getNexthop()
 	assert.Equal(t, nh, ip)
-}
-
-func TestPathSetSourceVerNum(t *testing.T) {
-	pd := &PathDefault{}
-	svn := 4
-	pd.setSourceVerNum(svn)
-	r_svn := pd.getSourceVerNum()
-	assert.Equal(t, r_svn, svn)
-}
-
-func TestPathGetSourceVerNum(t *testing.T) {
-	pd := &PathDefault{}
-	svn := 5
-	pd.setSourceVerNum(svn)
-	r_svn := pd.getSourceVerNum()
-	assert.Equal(t, r_svn, svn)
 }
 
 func TestPathSetWithdraw(t *testing.T) {
@@ -182,9 +166,9 @@ func TestPathGetAttribute(t *testing.T) {
 }
 
 func PathCreatePeer() []*PeerInfo {
-	peerP1 := &PeerInfo{VersionNum: 4, AS: 65000}
-	peerP2 := &PeerInfo{VersionNum: 4, AS: 65001}
-	peerP3 := &PeerInfo{VersionNum: 4, AS: 65002}
+	peerP1 := &PeerInfo{AS: 65000}
+	peerP2 := &PeerInfo{AS: 65001}
+	peerP3 := &PeerInfo{AS: 65002}
 	peerP := []*PeerInfo{peerP1, peerP2, peerP3}
 	return peerP
 }

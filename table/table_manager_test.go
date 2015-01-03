@@ -38,28 +38,25 @@ func getLogger(lv log.Level) *log.Logger {
 
 func peerR1() *PeerInfo {
 	peer := &PeerInfo{
-		VersionNum: 4,
-		AS:         65000,
-		ID:         net.ParseIP("10.0.0.3").To4(),
-		LocalID:    net.ParseIP("10.0.0.1").To4(),
+		AS:      65000,
+		ID:      net.ParseIP("10.0.0.3").To4(),
+		LocalID: net.ParseIP("10.0.0.1").To4(),
 	}
 	return peer
 }
 
 func peerR2() *PeerInfo {
 	peer := &PeerInfo{
-		VersionNum: 4,
-		AS:         65100,
+		AS: 65100,
 	}
 	return peer
 }
 
 func peerR3() *PeerInfo {
 	peer := &PeerInfo{
-		VersionNum: 4,
-		AS:         65000,
-		ID:         net.ParseIP("10.0.0.2").To4(),
-		LocalID:    net.ParseIP("10.0.0.1").To4(),
+		AS:      65000,
+		ID:      net.ParseIP("10.0.0.2").To4(),
+		LocalID: net.ParseIP("10.0.0.1").To4(),
 	}
 	return peer
 }

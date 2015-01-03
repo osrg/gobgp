@@ -107,9 +107,9 @@ func TestTableGetDestinations(t *testing.T) {
 }
 
 func TableCreatePeer() []*PeerInfo {
-	peerT1 := &PeerInfo{VersionNum: 4, AS: 65000}
-	peerT2 := &PeerInfo{VersionNum: 4, AS: 65001}
-	peerT3 := &PeerInfo{VersionNum: 4, AS: 65002}
+	peerT1 := &PeerInfo{AS: 65000}
+	peerT2 := &PeerInfo{AS: 65001}
+	peerT3 := &PeerInfo{AS: 65002}
 	peerT := []*PeerInfo{peerT1, peerT2, peerT3}
 	return peerT
 }

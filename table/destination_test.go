@@ -111,9 +111,9 @@ func TestDestinationCalculate(t *testing.T) {
 }
 
 func DestCreatePeer() []*PeerInfo {
-	peerD1 := &PeerInfo{VersionNum: 4, AS: 65000}
-	peerD2 := &PeerInfo{VersionNum: 4, AS: 65001}
-	peerD3 := &PeerInfo{VersionNum: 4, AS: 65002}
+	peerD1 := &PeerInfo{AS: 65000}
+	peerD2 := &PeerInfo{AS: 65001}
+	peerD3 := &PeerInfo{AS: 65002}
 	peerD := []*PeerInfo{peerD1, peerD2, peerD3}
 	return peerD
 }

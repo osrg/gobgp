@@ -114,7 +114,7 @@ func (td *TableDefault) DeleteDestByPeer(peerInfo *PeerInfo) []Destination {
 	for _, dest := range td.destinations {
 		newKnownPathList := make([]Path, 0)
 		for _, p := range dest.getKnownPathList() {
-			if peerInfo != p.getSource() || peerInfo.VersionNum != p.getSourceVerNum() {
+			if p.getSource() != peerInfo {
 				newKnownPathList = append(newKnownPathList, p)
 			}
 		}

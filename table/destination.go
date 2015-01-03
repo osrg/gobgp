@@ -41,12 +41,11 @@ const (
 )
 
 type PeerInfo struct {
-	AS         uint32
-	ID         net.IP
-	VersionNum int
-	LocalID    net.IP
-	RF         bgp.RouteFamily
-	Address    net.IP
+	AS      uint32
+	ID      net.IP
+	LocalID net.IP
+	RF      bgp.RouteFamily
+	Address net.IP
 }
 
 type Destination interface {
@@ -172,11 +171,10 @@ func (dd *DestinationDefault) addNewPath(newPath Path) {
 
 func (dd *DestinationDefault) removeOldPathsFromSource(source *PeerInfo) []Path {
 	removePaths := make([]Path, 0)
-	sourceVerNum := source.VersionNum
 	tempKnownPathList := make([]Path, 0)
 
 	for _, path := range dd.knownPathList {
-		if path.getSource() == source && path.getSourceVerNum() < sourceVerNum {
+		if path.getSource() == source {
 			removePaths = append(removePaths, path)
 		} else {
 			tempKnownPathList = append(tempKnownPathList, path)
