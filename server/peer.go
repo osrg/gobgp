@@ -132,7 +132,9 @@ func (peer *Peer) handleBGPmessage(m *bgp.BGPMessage) {
 			msgData: pathList,
 		}
 		for _, s := range peer.siblings {
-			// TODO: check rf
+			if s.rf != peer.rf {
+				continue
+			}
 			s.peerMsgCh <- pm
 		}
 	}
@@ -166,27 +168,27 @@ func (peer *Peer) handleREST(restReq *api.RestRequest) {
 	close(restReq.ResponseCh)
 }
 
-func (peer *Peer) handlePeerMsg(m *peerMsg) {
-	sendpath := func(pList []table.Path, wList []table.Path) {
-		pathList := append([]table.Path(nil), pList...)
-		pathList = append(pathList, wList...)
+func (peer *Peer) sendUpdateMsgFromPaths(pList []table.Path, wList []table.Path) {
+	pathList := append([]table.Path(nil), pList...)
+	pathList = append(pathList, wList...)
 
-		for _, p := range wList {
-			if !p.IsWithdraw() {
-				log.Fatal("withdraw pathlist has non withdraw path")
-			}
+	for _, p := range wList {
+		if !p.IsWithdraw() {
+			log.Fatal("withdraw pathlist has non withdraw path")
 		}
-		peer.adjRib.UpdateOut(pathList)
-		peer.sendMessages(table.CreateUpdateMsgFromPaths(pathList))
 	}
+	peer.adjRib.UpdateOut(pathList)
+	peer.sendMessages(table.CreateUpdateMsgFromPaths(pathList))
+}
 
+func (peer *Peer) handlePeerMsg(m *peerMsg) {
 	switch m.msgType {
 	case PEER_MSG_PATH:
 		pList, wList, _ := peer.rib.ProcessPaths(m.msgData.([]table.Path))
-		sendpath(pList, wList)
+		peer.sendUpdateMsgFromPaths(pList, wList)
 	case PEER_MSG_PEER_DOWN:
 		pList, wList, _ := peer.rib.DeletePathsforPeer(m.msgData.(*table.PeerInfo))
-		sendpath(pList, wList)
+		peer.sendUpdateMsgFromPaths(pList, wList)
 	}
 }
 
@@ -204,7 +206,9 @@ func (peer *Peer) handleServerMsg(m *serverMsg) {
 			msgData: pathList,
 		}
 		for _, s := range peer.siblings {
-			// TODO: check rf
+			if s.rf != peer.rf {
+				continue
+			}
 			s.peerMsgCh <- pm
 		}
 	case SRV_MSG_PEER_DELETED:
@@ -212,7 +216,8 @@ func (peer *Peer) handleServerMsg(m *serverMsg) {
 		_, found := peer.siblings[d.Address.String()]
 		if found {
 			delete(peer.siblings, d.Address.String())
-			// TODO: do the same that PEER_MSG_PEER_DOWN handler
+			pList, wList, _ := peer.rib.DeletePathsforPeer(d)
+			peer.sendUpdateMsgFromPaths(pList, wList)
 		} else {
 			log.Warning("can not find peer: ", d.Address.String())
 		}
