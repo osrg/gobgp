@@ -32,7 +32,7 @@ type Peer struct {
 	globalConfig   config.GlobalType
 	peerConfig     config.NeighborType
 	acceptedConnCh chan *net.TCPConn
-	incoming       chan *bgp.BGPMessage
+	incoming       chan *fsmMsg
 	outgoing       chan *bgp.BGPMessage
 	inEventCh      chan *message
 	outEventCh     chan *message
@@ -52,7 +52,7 @@ func NewPeer(g config.GlobalType, peer config.NeighborType, outEventCh chan *mes
 		globalConfig:   g,
 		peerConfig:     peer,
 		acceptedConnCh: make(chan *net.TCPConn),
-		incoming:       make(chan *bgp.BGPMessage, 4096),
+		incoming:       make(chan *fsmMsg, 4096),
 		outgoing:       make(chan *bgp.BGPMessage, 4096),
 		inEventCh:      make(chan *message, 4096),
 		outEventCh:     outEventCh,
@@ -114,8 +114,6 @@ func (peer *Peer) handleBGPmessage(m *bgp.BGPMessage) {
 
 func (peer *Peer) sendMessages(msgs []*bgp.BGPMessage) {
 	for _, m := range msgs {
-		// FIXME: there is race where state change
-		// (established) event arrived before open message
 		if peer.peerConfig.BgpNeighborCommonState.State != uint32(bgp.BGP_FSM_ESTABLISHED) {
 			continue
 		}
@@ -175,37 +173,38 @@ func (peer *Peer) loop() error {
 		sameState := true
 		for sameState {
 			select {
-			case nextState := <-peer.fsm.StateChanged():
-				// waits for all goroutines created for the current state
-				h.Wait()
-				oldState := bgp.FSMState(peer.peerConfig.BgpNeighborCommonState.State)
-				peer.peerConfig.BgpNeighborCommonState.State = uint32(nextState)
-				peer.fsm.StateChange(nextState)
-				sameState = false
-				if nextState == bgp.BGP_FSM_ESTABLISHED {
-					pathList := peer.adjRib.GetOutPathList(peer.rf)
-					peer.sendMessages(table.CreateUpdateMsgFromPaths(pathList))
-					peer.fsm.peerConfig.BgpNeighborCommonState.Uptime = time.Now()
-					peer.fsm.peerConfig.BgpNeighborCommonState.EstablishedCount++
-					if oldState >= bgp.BGP_FSM_OPENSENT {
-						peer.peerInfo.VersionNum++
-					}
-				}
-				if oldState == bgp.BGP_FSM_ESTABLISHED {
-					peer.fsm.peerConfig.BgpNeighborCommonState.Uptime = time.Time{}
-					peer.sendToHub("", PEER_MSG_DOWN, peer.peerInfo)
-				}
 			case <-peer.t.Dying():
 				close(peer.acceptedConnCh)
 				h.Stop()
 				close(peer.incoming)
 				close(peer.outgoing)
 				return nil
-			case m := <-peer.incoming:
-				if m == nil {
-					continue
+			case e := <-peer.incoming:
+				switch e.MsgType {
+				case FSM_MSG_STATE_CHANGE:
+					nextState := e.MsgData.(bgp.FSMState)
+					// waits for all goroutines created for the current state
+					h.Wait()
+					oldState := bgp.FSMState(peer.peerConfig.BgpNeighborCommonState.State)
+					peer.peerConfig.BgpNeighborCommonState.State = uint32(nextState)
+					peer.fsm.StateChange(nextState)
+					sameState = false
+					if nextState == bgp.BGP_FSM_ESTABLISHED {
+						pathList := peer.adjRib.GetOutPathList(peer.rf)
+						peer.sendMessages(table.CreateUpdateMsgFromPaths(pathList))
+						peer.fsm.peerConfig.BgpNeighborCommonState.Uptime = time.Now()
+						peer.fsm.peerConfig.BgpNeighborCommonState.EstablishedCount++
+						if oldState >= bgp.BGP_FSM_OPENSENT {
+							peer.peerInfo.VersionNum++
+						}
+					}
+					if oldState == bgp.BGP_FSM_ESTABLISHED {
+						peer.fsm.peerConfig.BgpNeighborCommonState.Uptime = time.Time{}
+						peer.sendToHub("", PEER_MSG_DOWN, peer.peerInfo)
+					}
+				case FSM_MSG_BGP_MESSAGE:
+					peer.handleBGPmessage(e.MsgData.(*bgp.BGPMessage))
 				}
-				peer.handleBGPmessage(m)
 			case m := <-peer.inEventCh:
 				peer.handlePeermessage(m)
 			}

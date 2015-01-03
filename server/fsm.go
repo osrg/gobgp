@@ -24,16 +24,28 @@ import (
 	"time"
 )
 
+type fsmMsgType int
+
+const (
+	_ fsmMsgType = iota
+	FSM_MSG_STATE_CHANGE
+	FSM_MSG_BGP_MESSAGE
+)
+
+type fsmMsg struct {
+	MsgType fsmMsgType
+	MsgData interface{}
+}
+
 type FSM struct {
 	globalConfig    *config.GlobalType
 	peerConfig      *config.NeighborType
 	keepaliveTicker *time.Ticker
 	state           bgp.FSMState
-	incoming        chan *bgp.BGPMessage
+	incoming        chan *fsmMsg
 	outgoing        chan *bgp.BGPMessage
 	passiveConn     *net.TCPConn
 	passiveConnCh   chan *net.TCPConn
-	stateCh         chan bgp.FSMState
 }
 
 func (fsm *FSM) bgpMessageStateUpdate(MessageType uint8, isIn bool) {
@@ -78,7 +90,7 @@ func (fsm *FSM) bgpMessageStateUpdate(MessageType uint8, isIn bool) {
 	}
 }
 
-func NewFSM(gConfig *config.GlobalType, pConfig *config.NeighborType, connCh chan *net.TCPConn, incoming chan *bgp.BGPMessage, outgoing chan *bgp.BGPMessage) *FSM {
+func NewFSM(gConfig *config.GlobalType, pConfig *config.NeighborType, connCh chan *net.TCPConn, incoming chan *fsmMsg, outgoing chan *bgp.BGPMessage) *FSM {
 	return &FSM{
 		globalConfig:  gConfig,
 		peerConfig:    pConfig,
@@ -86,12 +98,7 @@ func NewFSM(gConfig *config.GlobalType, pConfig *config.NeighborType, connCh cha
 		outgoing:      outgoing,
 		state:         bgp.BGP_FSM_IDLE,
 		passiveConnCh: connCh,
-		stateCh:       make(chan bgp.FSMState),
 	}
-}
-
-func (fsm *FSM) StateChanged() chan bgp.FSMState {
-	return fsm.stateCh
 }
 
 func (fsm *FSM) StateChange(nextState bgp.FSMState) {
@@ -103,7 +110,7 @@ type FSMHandler struct {
 	t       tomb.Tomb
 	fsm     *FSM
 	conn    *net.TCPConn
-	msgCh   chan *bgp.BGPMessage
+	msgCh   chan *fsmMsg
 	errorCh chan bool
 }
 
@@ -208,7 +215,11 @@ func (h *FSMHandler) recvMessageWithError() error {
 		h.errorCh <- true
 		return err
 	}
-	h.msgCh <- m
+	e := &fsmMsg{
+		MsgType: FSM_MSG_BGP_MESSAGE,
+		MsgData: m,
+	}
+	h.msgCh <- e
 	return nil
 }
 
@@ -224,7 +235,7 @@ func (h *FSMHandler) opensent() bgp.FSMState {
 	fsm.passiveConn.Write(b)
 	fsm.bgpMessageStateUpdate(m.Header.Type, false)
 
-	h.msgCh = make(chan *bgp.BGPMessage)
+	h.msgCh = make(chan *fsmMsg)
 	h.conn = fsm.passiveConn
 
 	h.t.Go(h.recvMessage)
@@ -234,10 +245,15 @@ func (h *FSMHandler) opensent() bgp.FSMState {
 	case <-h.t.Dying():
 		fsm.passiveConn.Close()
 		return 0
-	case m := <-h.msgCh:
+	case e := <-h.msgCh:
+		m := e.MsgData.(*bgp.BGPMessage)
 		fsm.bgpMessageStateUpdate(m.Header.Type, true)
 		if m.Header.Type == bgp.BGP_MSG_OPEN {
-			fsm.incoming <- m
+			e := &fsmMsg{
+				MsgType: FSM_MSG_BGP_MESSAGE,
+				MsgData: m,
+			}
+			fsm.incoming <- e
 			msg := bgp.NewBGPKeepAliveMessage()
 			b, _ := msg.Serialize()
 			fsm.passiveConn.Write(b)
@@ -256,7 +272,7 @@ func (h *FSMHandler) openconfirm() bgp.FSMState {
 	sec := time.Second * time.Duration(fsm.peerConfig.Timers.KeepaliveInterval)
 	fsm.keepaliveTicker = time.NewTicker(sec)
 
-	h.msgCh = make(chan *bgp.BGPMessage)
+	h.msgCh = make(chan *fsmMsg)
 	h.conn = fsm.passiveConn
 
 	h.t.Go(h.recvMessage)
@@ -271,7 +287,8 @@ func (h *FSMHandler) openconfirm() bgp.FSMState {
 			b, _ := m.Serialize()
 			// TODO: check error
 			fsm.passiveConn.Write(b)
-		case m := <-h.msgCh:
+		case e := <-h.msgCh:
+			m := e.MsgData.(*bgp.BGPMessage)
 			nextState := bgp.BGP_FSM_IDLE
 			fsm.bgpMessageStateUpdate(m.Header.Type, true)
 			if m.Header.Type == bgp.BGP_MSG_KEEPALIVE {
@@ -366,7 +383,11 @@ func (h *FSMHandler) loop() error {
 
 	// zero means that tomb.Dying()
 	if nextState >= bgp.BGP_FSM_IDLE {
-		fsm.stateCh <- nextState
+		e := &fsmMsg{
+			MsgType: FSM_MSG_STATE_CHANGE,
+			MsgData: nextState,
+		}
+		fsm.incoming <- e
 	}
 	return nil
 }
