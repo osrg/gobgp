@@ -1,0 +1,124 @@
+#!/usr/bin/env python
+#
+# Copyright (C) 2014 Nippon Telegraph and Telephone Corporation.
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#    http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or
+# implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+#
+# Examples
+#
+# - get the state of neighbors
+# $ gobgpcli show neighbors
+# - get the local rib of a neighbor
+# $ gobgpcli show neighbor 10.0.0.2 local
+
+from optparse import OptionParser
+import requests
+import sys
+import inspect
+import json
+from datetime import timedelta
+
+
+class Show(object):
+    def __init__(self, options, args):
+        super(Show, self).__init__()
+        self.options = options
+        self.args = args
+        self.base_url = self.options.url + ":" + str(self.options.port) + "/v1/bgp"
+
+    def __call__(self):
+        if len(self.args) == 0:
+            return 1
+
+        for f in inspect.getmembers(self, inspect.ismethod):
+            func_name = f[0]
+            if func_name == "do_" + self.args[0]:
+                return f[1]()
+        return 1
+
+    def do_neighbors(self):
+        r = requests.get(self.base_url + "/neighbors")
+        neighbors = r.json()
+        if self.options.debug:
+            print neighbors
+            return 0
+        for n in sorted(neighbors, key=lambda n: n["conf"]["remote_ip"]):
+            print("BGP neighbor is {:s}, remote AS {:d}".format(n["conf"]["remote_ip"], n["conf"]["remote_as"]))
+            print("BGP state = {:s}, up for {:s}".format(n["info"]["bgp_state"], str(timedelta(seconds=n["info"]["uptime"]))))
+            print("Message statistics:")
+            print("                       Sent       Rcvd")
+            print("  Opens:         {:>10d} {:>10d}".format(n["info"]["open_message_out"], n["info"]["open_message_in"]))
+            print("  Notifications: {:>10d} {:>10d}".format(n["info"]["notification_out"], n["info"]["notification_in"]))
+            print("  Updates:       {:>10d} {:>10d}".format(n["info"]["update_message_out"], n["info"]["update_message_in"]))
+            print("  Keepalives:    {:>10d} {:>10d}".format(n["info"]["keepalive_message_out"], n["info"]["keepalive_message_in"]))
+            print("  Route Refesh:  {:>10d} {:>10d}".format(n["info"]["refresh_message_out"], n["info"]["refresh_message_in"]))
+            print("  Total:         {:>10d} {:>10d}".format(n["info"]["total_message_out"], n["info"]["total_message_in"]))
+            print("")
+        return 0
+
+    def do_neighbor(self):
+        if len(self.args) != 3:
+            return 1
+        if self.args[2] == "local":
+            self.args[2] = "local-rib"
+        r = requests.get(self.base_url + "/neighbor/" + self.args[1] + "/" + self.args[2])
+        if self.options.debug:
+            print r.json()
+            return 0
+        print("    Network          Next Hop      AS              Attrs")
+        for d in r.json()["Destinations"]:
+            for p in d["Paths"]:
+                nexthop = ""
+                AS = ""
+                for a in p["Attrs"]:
+                    if a["Type"] == "BGP_ATTR_TYPE_NEXT_HOP":
+                        nexthop = a["Nexthop"]
+                    elif a["Type"] == "BGP_ATTR_TYPE_AS_PATH":
+                        AS = a["AsPath"]
+                print("    {:s}   {:s}      {:s}    {:s}".format(p["Network"],
+                                                                 nexthop, AS, p["Attrs"]))
+        return 0
+
+
+def main():
+    usage = "gobpgcli [options] <command> <args>"
+    parser = OptionParser(usage)
+
+    parser.add_option("-u", "--url", dest="url", default="http://localhost",
+                      help="specifying an url (http://localhost by default)")
+    parser.add_option("-p", "--port", dest="port", default=8080,
+                      help="specifying a port (8080 by default)")
+    parser.add_option("-d", "--debug", dest="debug", action="store_true",
+                      help="dump raw json")
+
+    (options, args) = parser.parse_args()
+
+    commands = {"show": Show}
+
+    if len(args) == 0:
+        parser.print_help()
+        sys.exit(1)
+
+    if args[0] not in commands:
+        parser.print_help()
+        sys.exit(1)
+
+    ret = commands[args[0]](options, args[1:])()
+    if ret != 0:
+        parser.print_help()
+        sys.exit(1)
+
+if __name__ == "__main__":
+    main()
