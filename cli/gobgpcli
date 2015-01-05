@@ -20,6 +20,8 @@
 #
 # - get the state of neighbors
 # $ gobgpcli show neighbors
+# - get the state of a neighbor
+# $ gobgpcli show neighbor 10.0.0.2
 # - get the local rib of a neighbor
 # $ gobgpcli show neighbor 10.0.0.2 local
 
@@ -48,13 +50,15 @@ class Show(object):
                 return f[1]()
         return 1
 
-    def do_neighbors(self):
+    def _neighbors(self, neighbor=None):
         r = requests.get(self.base_url + "/neighbors")
         neighbors = r.json()
         if self.options.debug:
             print neighbors
             return 0
         for n in sorted(neighbors, key=lambda n: n["conf"]["remote_ip"]):
+            if neighbor is not None and neighbor != n["conf"]["remote_ip"]:
+                continue
             print("BGP neighbor is {:s}, remote AS {:d}".format(n["conf"]["remote_ip"], n["conf"]["remote_as"]))
             print("BGP state = {:s}, up for {:s}".format(n["info"]["bgp_state"], str(timedelta(seconds=n["info"]["uptime"]))))
             print("Message statistics:")
@@ -68,9 +72,14 @@ class Show(object):
             print("")
         return 0
 
+    def do_neighbors(self):
+        return self._neighbors()
+
     def do_neighbor(self):
-        if len(self.args) != 3:
+        if len(self.args) != 2 and len(self.args) != 3:
             return 1
+        if len(self.args) == 2:
+            return self._neighbors(neighbor=self.args[1])
         if self.args[2] == "local":
             self.args[2] = "local-rib"
         r = requests.get(self.base_url + "/neighbor/" + self.args[1] + "/" + self.args[2])
