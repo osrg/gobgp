@@ -70,12 +70,20 @@ class Show(object):
             print("  BGP version 4, remote router ID {:s}".format(n["conf"]["id"]))
             print("  BGP state = {:s}, up for {:s}".format(n["info"]["bgp_state"], str(timedelta(seconds=n["info"]["uptime"]))))
             print("  Neighbor capabilities:")
-            for i in n["conf"]["CapList"]:
+            allcap = set(n["conf"]["RemoteCap"]) | set(n["conf"]["LocalCap"])
+            for i in sorted(allcap):
                 if i in capdict:
-                    i = capdict[i]
+                    k = capdict[i]
                 else:
-                    i = "UNKNOWN (" + str(i) + ")"
-                print("    {:s}".format(i))
+                    k = "UNKNOWN (" + str(i) + ")"
+                r = ""
+                if i in n["conf"]["LocalCap"]:
+                    r += "advertised"
+                if i in n["conf"]["RemoteCap"]:
+                    if len(r) != 0:
+                        r += " and "
+                    r += "received"
+                print("    {:s}: {:s}".format(k, r))
             print("  Message statistics:")
             print("                         Sent       Rcvd")
             print("    Opens:         {:>10d} {:>10d}".format(n["info"]["open_message_out"], n["info"]["open_message_in"]))

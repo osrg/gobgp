@@ -304,14 +304,14 @@ func (peer *Peer) MarshalJSON() ([]byte, error) {
 		RemoteAS           uint32 `json:"remote_as"`
 		CapRefresh         bool   `json:"cap_refresh"`
 		CapEnhancedRefresh bool   `json:"cap_enhanced_refresh"`
-		CapList            []int
+		RemoteCap          []int
+		LocalCap           []int
 	}{
-		RemoteIP:           c.NeighborAddress.String(),
-		Id:                 peer.peerInfo.ID.To4().String(),
-		RemoteAS:           c.PeerAs,
-		CapList:            capList,
-		CapRefresh:         false,
-		CapEnhancedRefresh: false,
+		RemoteIP:  c.NeighborAddress.String(),
+		Id:        peer.peerInfo.ID.To4().String(),
+		RemoteAS:  c.PeerAs,
+		RemoteCap: capList,
+		LocalCap:  []int{int(bgp.BGP_CAP_MULTIPROTOCOL), int(bgp.BGP_CAP_ROUTE_REFRESH), int(bgp.BGP_CAP_FOUR_OCTET_AS_NUMBER)},
 	}
 
 	s := c.BgpNeighborCommonState
