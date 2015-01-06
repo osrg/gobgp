@@ -1554,36 +1554,12 @@ func (p *PathAttributeCommunities) Serialize() ([]byte, error) {
 }
 
 func (p *PathAttributeCommunities) MarshalJSON() ([]byte, error) {
-	wellKnown := map[uint32]string{
-		0xffff0000: "planned-shut",
-		0xffff0001: "accept-own",
-		0xffff0002: "ROUTE_FILTER_TRANSLATED_v4",
-		0xffff0003: "ROUTE_FILTER_v4",
-		0xffff0004: "ROUTE_FILTER_TRANSLATED_v6",
-		0xffff0005: "ROUTE_FILTER_v6",
-		0xffff0006: "LLGR_STALE",
-		0xffff0007: "NO_LLGR",
-		0xFFFFFF01: "NO_EXPORT",
-		0xFFFFFF02: "NO_ADVERTISE",
-		0xFFFFFF03: "NO_EXPORT_SUBCONFED",
-		0xFFFFFF04: "NOPEER"}
-
-	l := make([]string, len(p.Value))
-	for i, v := range p.Value {
-		s, found := wellKnown[v]
-		if found {
-			l[i] = s
-		} else {
-			l[i] = fmt.Sprintf("%d:%d", (v&0xffff0000)>>16, v&0xffff)
-		}
-	}
-
 	return json.Marshal(struct {
 		Type  string
-		Value []string
+		Value []uint32
 	}{
 		Type:  p.Type.String(),
-		Value: l,
+		Value: p.Value,
 	})
 }
 

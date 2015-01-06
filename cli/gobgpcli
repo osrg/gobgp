@@ -90,6 +90,59 @@ class Show(object):
             return 1
         return self._neighbors()
 
+    def _format_attrs(self, attrlist):
+        attrs = []
+        for a in attrlist:
+            if a["Type"] == "BGP_ATTR_TYPE_NEXT_HOP":
+                pass
+            elif a["Type"] == "BGP_ATTR_TYPE_AS_PATH":
+                pass
+            elif a["Type"] == "BGP_ATTR_TYPE_ORIGIN":
+                attrs.append({"Origin": a["Value"]})
+            elif a["Type"] == "BGP_ATTR_TYPE_MULTI_EXIT_DISC":
+                attrs.append({"Med": a["Metric"]})
+            elif a["Type"] == "BGP_ATTR_TYPE_LOCAL_PREF":
+                attrs.append({"LocalPref": a["Pref"]})
+            elif a["Type"] == "BGP_ATTR_TYPE_ATOMIC_AGGREGATE":
+                attrs.append("AtomicAggregate")
+            elif a["Type"] == "BGP_ATTR_TYPE_AGGREGATE":
+                attrs.append({"Aggregate": {"AS": a["AS"], "Address": a["Address"]}})
+            elif a["Type"] == "BGP_ATTR_TYPE_COMMUNITIES":
+                wellknown = {
+                    0xffff0000: "planned-shut",
+                    0xffff0001: "accept-own",
+                    0xffff0002: "ROUTE_FILTER_TRANSLATED_v4",
+                    0xffff0003: "ROUTE_FILTER_v4",
+                    0xffff0004: "ROUTE_FILTER_TRANSLATED_v6",
+                    0xffff0005: "ROUTE_FILTER_v6",
+                    0xffff0006: "LLGR_STALE",
+                    0xffff0007: "NO_LLGR",
+                    0xFFFFFF01: "NO_EXPORT",
+                    0xFFFFFF02: "NO_ADVERTISE",
+                    0xFFFFFF03: "NO_EXPORT_SUBCONFED",
+                    0xFFFFFF04: "NOPEER"}
+
+                l = []
+                for v in a["Value"]:
+                    if v in wellknown:
+                        l.append(wellknown[v])
+                    else:
+                        l.append(str((0xffff0000 & v) >> 16) + ":" + str(0xffff & v))
+                attrs.append({"Community": l})
+            elif a["Type"] == "BGP_ATTR_TYPE_ORIGINATOR_ID":
+                attrs.append({"Originator": a["Address"]})
+            elif a["Type"] == "BGP_ATTR_TYPE_CLUSTER_LIST":
+                attrs.append({"Cluster": a["Address"]})
+            elif a["Type"] == "BGP_ATTR_TYPE_MP_REACH_NLRI":
+                pass
+            elif a["Type"] == "BGP_ATTR_TYPE_MP_UNREACH_NLRI":
+                pass
+            elif a["Type"] == "BGP_ATTR_TYPE_AS4_PATH":
+                pass
+            else:
+                attrs.append({a["Type"]: a["Value"]})
+        return attrs
+
     def do_neighbor(self):
         if len(self.args) != 2 and len(self.args) != 3:
             return 1
@@ -101,7 +154,7 @@ class Show(object):
         if self.options.debug:
             print r.json()
             return 0
-        print("    Network          Next Hop      AS              Attrs")
+        print("   Network          Next Hop      AS              Attrs")
         for d in r.json()["Destinations"]:
             for p in d["Paths"]:
                 nexthop = ""
@@ -111,8 +164,12 @@ class Show(object):
                         nexthop = a["Nexthop"]
                     elif a["Type"] == "BGP_ATTR_TYPE_AS_PATH":
                         AS = a["AsPath"]
-                print("    {:s}   {:s}      {:s}    {:s}".format(p["Network"],
-                                                                 nexthop, AS, p["Attrs"]))
+                if p["Best"] == "true":
+                    header = "*>"
+                else:
+                    header = "*"
+                print("{:s} {:s}   {:s}      {:s}         {:s}".format(header, p["Network"],
+                                                                       nexthop, AS, self._format_attrs(p["Attrs"])))
         return 0
 
 
