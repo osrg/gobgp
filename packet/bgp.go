@@ -1305,7 +1305,10 @@ func (p *PathAttributeAsPath) MarshalJSON() ([]byte, error) {
 		if y {
 			aslist = append(aslist, path.AS...)
 		} else {
-			// TODO aspathparam
+			path := a.(*AsPathParam)
+			for _, v := range path.AS {
+				aslist = append(aslist, uint32(v))
+			}
 		}
 	}
 	return json.Marshal(struct {
