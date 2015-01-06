@@ -73,6 +73,8 @@ class Show(object):
             for i in n["conf"]["CapList"]:
                 if i in capdict:
                     i = capdict[i]
+                else:
+                    i = "UNKNOWN (" + str(i) + ")"
                 print("    {:s}".format(i))
             print("  Message statistics:")
             print("                         Sent       Rcvd")
