@@ -293,23 +293,23 @@ func (peer *Peer) MarshalJSON() ([]byte, error) {
 	c := f.peerConfig
 
 	p := make(map[string]interface{})
+	capList := make([]int, 0)
+	for k, _ := range peer.capMap {
+		capList = append(capList, int(k))
+	}
 
 	p["conf"] = struct {
-		RemoteIP string `json:"remote_ip"`
-		Id       string `json:"id"`
-		//Description        string `json:"description"`
-		RemoteAS uint32 `json:"remote_as"`
-		//LocalAddress       string `json:"local_address"`
-		//LocalPort          int    `json:"local_port"`
-		CapRefresh         bool `json:"cap_refresh"`
-		CapEnhancedRefresh bool `json:"cap_enhanced_refresh"`
+		RemoteIP           string `json:"remote_ip"`
+		Id                 string `json:"id"`
+		RemoteAS           uint32 `json:"remote_as"`
+		CapRefresh         bool   `json:"cap_refresh"`
+		CapEnhancedRefresh bool   `json:"cap_enhanced_refresh"`
+		CapList            []int
 	}{
-		RemoteIP: c.NeighborAddress.String(),
-		Id:       peer.peerInfo.ID.To4().String(),
-		//Description: "",
-		RemoteAS: c.PeerAs,
-		//LocalAddress:       f.passiveConn.LocalAddr().String(),
-		//LocalPort:          f.passiveConn.LocalAddr().(*net.TCPAddr).Port,
+		RemoteIP:           c.NeighborAddress.String(),
+		Id:                 peer.peerInfo.ID.To4().String(),
+		RemoteAS:           c.PeerAs,
+		CapList:            capList,
 		CapRefresh:         false,
 		CapEnhancedRefresh: false,
 	}

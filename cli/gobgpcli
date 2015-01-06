@@ -51,6 +51,13 @@ class Show(object):
         return 1
 
     def _neighbors(self, neighbor=None):
+        capdict = {1: "MULTIPROTOCOL",
+                   2: "ROUTE_REFRESH",
+                   4: "CARRYING_LABEL_INFO",
+                   64: "GRACEFUL_RESTART",
+                   65: "FOUR_OCTET_AS_NUMBER",
+                   70: "ENHANCED_ROUTE_REFRESH",
+                   128: "ROUTE_REFRESH_CISCO"}
         r = requests.get(self.base_url + "/neighbors")
         neighbors = r.json()
         if self.options.debug:
@@ -60,19 +67,27 @@ class Show(object):
             if neighbor is not None and neighbor != n["conf"]["remote_ip"]:
                 continue
             print("BGP neighbor is {:s}, remote AS {:d}".format(n["conf"]["remote_ip"], n["conf"]["remote_as"]))
-            print("BGP state = {:s}, up for {:s}".format(n["info"]["bgp_state"], str(timedelta(seconds=n["info"]["uptime"]))))
-            print("Message statistics:")
-            print("                       Sent       Rcvd")
-            print("  Opens:         {:>10d} {:>10d}".format(n["info"]["open_message_out"], n["info"]["open_message_in"]))
-            print("  Notifications: {:>10d} {:>10d}".format(n["info"]["notification_out"], n["info"]["notification_in"]))
-            print("  Updates:       {:>10d} {:>10d}".format(n["info"]["update_message_out"], n["info"]["update_message_in"]))
-            print("  Keepalives:    {:>10d} {:>10d}".format(n["info"]["keepalive_message_out"], n["info"]["keepalive_message_in"]))
-            print("  Route Refesh:  {:>10d} {:>10d}".format(n["info"]["refresh_message_out"], n["info"]["refresh_message_in"]))
-            print("  Total:         {:>10d} {:>10d}".format(n["info"]["total_message_out"], n["info"]["total_message_in"]))
+            print("  BGP version 4, remote router ID {:s}".format(n["conf"]["id"]))
+            print("  BGP state = {:s}, up for {:s}".format(n["info"]["bgp_state"], str(timedelta(seconds=n["info"]["uptime"]))))
+            print("  Neighbor capabilities:")
+            for i in n["conf"]["CapList"]:
+                if i in capdict:
+                    i = capdict[i]
+                print("    {:s}".format(i))
+            print("  Message statistics:")
+            print("                         Sent       Rcvd")
+            print("    Opens:         {:>10d} {:>10d}".format(n["info"]["open_message_out"], n["info"]["open_message_in"]))
+            print("    Notifications: {:>10d} {:>10d}".format(n["info"]["notification_out"], n["info"]["notification_in"]))
+            print("    Updates:       {:>10d} {:>10d}".format(n["info"]["update_message_out"], n["info"]["update_message_in"]))
+            print("    Keepalives:    {:>10d} {:>10d}".format(n["info"]["keepalive_message_out"], n["info"]["keepalive_message_in"]))
+            print("    Route Refesh:  {:>10d} {:>10d}".format(n["info"]["refresh_message_out"], n["info"]["refresh_message_in"]))
+            print("    Total:         {:>10d} {:>10d}".format(n["info"]["total_message_out"], n["info"]["total_message_in"]))
             print("")
         return 0
 
     def do_neighbors(self):
+        if len(self.args) != 1:
+            return 1
         return self._neighbors()
 
     def do_neighbor(self):
