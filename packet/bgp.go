@@ -1945,7 +1945,7 @@ func (p *PathAttributeAs4Path) Serialize() ([]byte, error) {
 func NewPathAttributeAs4Path(value []*As4PathParam) *PathAttributeAs4Path {
 	return &PathAttributeAs4Path{
 		PathAttribute: PathAttribute{
-			Flags: BGP_ATTR_FLAG_TRANSITIVE,
+			Flags: BGP_ATTR_FLAG_OPTIONAL | BGP_ATTR_FLAG_TRANSITIVE,
 			Type:  BGP_ATTR_TYPE_AS4_PATH,
 		},
 		Value: value,
