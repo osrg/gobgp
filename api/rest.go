@@ -17,6 +17,7 @@ package api
 
 import (
 	log "github.com/Sirupsen/logrus"
+	"github.com/fukata/golang-stats-api-handler"
 	"github.com/gorilla/mux"
 	"net/http"
 	"strconv"
@@ -41,6 +42,7 @@ const (
 	ADJ_RIB_LOCAL_BEST = "/bgp/adj-rib-local/best"
 
 	PARAM_REMOTE_PEER_ADDR = "remotePeerAddr"
+	STATS                  = "/stats"
 )
 
 const REST_PORT = 8080
@@ -112,6 +114,8 @@ func (rs *RestServer) Serve() {
 	// r.HandleFunc(adjRibIn+"/{"+PARAM_REMOTE_PEER_ADDR+"}", rs.AdjRibIn).Methods("GET")
 	// r.HandleFunc(adjRibOut+"/{"+PARAM_REMOTE_PEER_ADDR+"}", rs.AdjRibOut).Methods("GET")
 	r.HandleFunc(neighbor+"/{"+PARAM_REMOTE_PEER_ADDR+"}/"+"local-rib", rs.NeighborLocalRib).Methods("GET")
+	// stats
+	r.HandleFunc(STATS, stats_api.Handler)
 
 	// Handler when not found url
 	r.NotFoundHandler = http.HandlerFunc(NotFoundHandler)
