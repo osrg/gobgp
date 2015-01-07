@@ -2184,40 +2184,6 @@ func TestProcessBGPUpdate_multiple_nlri_ipv6(t *testing.T) {
 
 }
 
-func TestModifyPathAttribute(t *testing.T) {
-	tm := NewTableManager()
-
-	bgpMessage := update_fromR1()
-	peer := peerR1()
-	pList, wList, err := tm.ProcessUpdate(peer, bgpMessage)
-	assert.Equal(t, len(pList), 1)
-	assert.Equal(t, len(wList), 0)
-	assert.NoError(t, err)
-
-	path0 := pList[0]
-	path1 := path0.clone(false)
-	ipv4p := path1.(*IPv4Path)
-	ipv4p.PathDefault.pathAttrs = clonePathAttributes(path0.getPathAttrs())
-
-	_, attr1 := path1.getPathAttr(bgp.BGP_ATTR_TYPE_MULTI_EXIT_DISC)
-	mx1 := attr1.(*bgp.PathAttributeMultiExitDisc)
-	original := mx1.Value
-	mx1.Value++
-
-	table := tm.Tables[bgp.RF_IPv4_UC]
-	dest := table.getDestination(table.tableKey(path0.getNlri()).String()).(*IPv4Destination)
-	path2 := dest.getKnownPathList()
-	_, attr2 := path2[0].getPathAttr(bgp.BGP_ATTR_TYPE_MULTI_EXIT_DISC)
-	mx2 := attr2.(*bgp.PathAttributeMultiExitDisc)
-	assert.Equal(t, original, mx2.Value)
-
-	path3 := path0
-	_, attr3 := path3.getPathAttr(bgp.BGP_ATTR_TYPE_MULTI_EXIT_DISC)
-	mx3 := attr3.(*bgp.PathAttributeMultiExitDisc)
-	mx3.Value++
-	assert.Equal(t, mx2.Value, mx3.Value)
-}
-
 func update_fromR1() *bgp.BGPMessage {
 
 	origin := bgp.NewPathAttributeOrigin(0)
