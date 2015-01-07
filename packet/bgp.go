@@ -1724,6 +1724,18 @@ func (p *PathAttributeMpReachNLRI) Serialize() ([]byte, error) {
 	return p.PathAttribute.Serialize()
 }
 
+func (p *PathAttributeMpReachNLRI) MarshalJSON() ([]byte, error) {
+	// TODO: fix address printing
+	return json.Marshal(struct {
+		Type    string
+		Nexthop string
+		Address []string
+	}{
+		Type:    p.Type.String(),
+		Nexthop: p.Nexthop.String(),
+	})
+}
+
 func NewPathAttributeMpReachNLRI(nexthop string, nlri []AddrPrefixInterface) *PathAttributeMpReachNLRI {
 	return &PathAttributeMpReachNLRI{
 		PathAttribute: PathAttribute{

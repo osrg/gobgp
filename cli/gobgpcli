@@ -164,22 +164,20 @@ class Show(object):
         if self.options.debug:
             print r.json()
             return 0
-        print("   Network          Next Hop      AS              Attrs")
+        print("   Network          Next Hop      AS_PATH              Attrs")
         for d in r.json()["Destinations"]:
             for p in d["Paths"]:
                 nexthop = ""
                 AS = ""
                 for a in p["Attrs"]:
-                    if a["Type"] == "BGP_ATTR_TYPE_NEXT_HOP":
-                        nexthop = a["Nexthop"]
-                    elif a["Type"] == "BGP_ATTR_TYPE_AS_PATH":
+                    if a["Type"] == "BGP_ATTR_TYPE_AS_PATH":
                         AS = a["AsPath"]
                 if p["Best"] == "true":
                     header = "*>"
                 else:
                     header = "*"
                 print("{:s} {:s}   {:s}      {:s}         {:s}".format(header, p["Network"],
-                                                                       nexthop, AS, self._format_attrs(p["Attrs"])))
+                                                                       p["Nexthop"], AS, self._format_attrs(p["Attrs"])))
         return 0
 
 

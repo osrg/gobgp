@@ -855,3 +855,14 @@ func (ipv6d *IPv6Destination) getPrefix() net.IP {
 	}
 	return ip
 }
+
+func (ipv6d *IPv6Destination) MarshalJSON() ([]byte, error) {
+	prefix := ipv6d.getNlri().(*bgp.IPv6AddrPrefix).Prefix
+	return json.Marshal(struct {
+		Prefix string
+		Paths  []Path
+	}{
+		Prefix: prefix.String(),
+		Paths:  ipv6d.knownPathList,
+	})
+}
