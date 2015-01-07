@@ -115,7 +115,7 @@ func (rs *RestServer) Serve() {
 	// r.HandleFunc(adjRibOut+"/{"+PARAM_REMOTE_PEER_ADDR+"}", rs.AdjRibOut).Methods("GET")
 	r.HandleFunc(neighbor+"/{"+PARAM_REMOTE_PEER_ADDR+"}/"+"local-rib", rs.NeighborLocalRib).Methods("GET")
 	// stats
-	r.HandleFunc(STATS, stats_api.Handler)
+	r.HandleFunc(STATS, stats_api.Handler).Methods("GET")
 
 	// Handler when not found url
 	r.NotFoundHandler = http.HandlerFunc(NotFoundHandler)
