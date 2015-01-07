@@ -169,7 +169,8 @@ func createUpdateMsgFromPath(path Path, msg *bgp.BGPMessage) *bgp.BGPMessage {
 				idx, _ := path.getPathAttr(bgp.BGP_ATTR_TYPE_MP_REACH_NLRI)
 				u := msg.Body.(*bgp.BGPUpdate)
 				reachAttr := u.PathAttributes[idx].(*bgp.PathAttributeMpReachNLRI)
-				reachAttr.Value = append(reachAttr.Value, path.getNlri())
+				u.PathAttributes[idx] = bgp.NewPathAttributeMpReachNLRI(reachAttr.Nexthop.String(),
+					append(reachAttr.Value, path.getNlri()))
 			} else {
 				// we don't need to clone here but we
 				// might merge path to this message in
@@ -203,6 +204,9 @@ func isSamePathAttrs(pList1 []bgp.PathAttributeInterface, pList2 []bgp.PathAttri
 
 func isMergeable(p1 Path, p2 Path) bool {
 	if p1 == nil {
+		return false
+	}
+	if p1.GetRouteFamily() != bgp.RF_IPv4_UC {
 		return false
 	}
 	if p1.getSource() == p2.getSource() && isSamePathAttrs(p1.getPathAttrs(), p2.getPathAttrs()) {
