@@ -97,7 +97,7 @@ func NewPeer(g config.GlobalType, peer config.NeighborType, serverMsgCh chan *se
 
 func (peer *Peer) handleBGPmessage(m *bgp.BGPMessage) {
 	j, _ := json.Marshal(m)
-	log.Debug(string(j))
+	log.Debugf("received %v: %s", peer.peerConfig.NeighborAddress, j)
 
 	switch m.Header.Type {
 	case bgp.BGP_MSG_OPEN:

@@ -16,6 +16,7 @@
 package server
 
 import (
+	"encoding/json"
 	log "github.com/Sirupsen/logrus"
 	"github.com/osrg/gobgp/config"
 	"github.com/osrg/gobgp/packet"
@@ -319,6 +320,8 @@ func (h *FSMHandler) sendMessageloop() error {
 				h.errorCh <- true
 				return nil
 			}
+			j, _ := json.Marshal(m)
+			log.Debugf("sent %v: %s", fsm.peerConfig.NeighborAddress, string(j))
 			fsm.bgpMessageStateUpdate(m.Header.Type, false)
 		case <-fsm.keepaliveTicker.C:
 			m := bgp.NewBGPKeepAliveMessage()

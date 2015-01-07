@@ -37,7 +37,7 @@ func main() {
 	var opts struct {
 		ConfigFile string `short:"f" long:"config-file" description:"specifying a config file"`
 		LogLevel   string `short:"l" long:"log-level" description:"specifying log level"`
-		LogJson    bool   `shot:"j" long:"log-json" description:"use json format for logging"`
+		LogJson    bool   `short:"j" long:"log-json" description:"use json format for logging"`
 	}
 	_, err := flags.Parse(&opts)
 	if err != nil {
