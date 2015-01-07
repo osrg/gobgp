@@ -100,7 +100,7 @@ func main() {
 		case sig := <-sigCh:
 			switch sig {
 			case syscall.SIGHUP:
-				log.Info("relaod the config file")
+				log.Info("reload the config file")
 				reloadCh <- true
 			}
 		}
