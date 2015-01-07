@@ -1954,6 +1954,20 @@ func (p *PathAttributeAs4Path) Serialize() ([]byte, error) {
 	return p.PathAttribute.Serialize()
 }
 
+func (p *PathAttributeAs4Path) MarshalJSON() ([]byte, error) {
+	aslist := make([]uint32, 0)
+	for _, a := range p.Value {
+		aslist = append(aslist, a.AS...)
+	}
+	return json.Marshal(struct {
+		Type   string
+		AsPath []uint32
+	}{
+		Type:   p.Type.String(),
+		AsPath: aslist,
+	})
+}
+
 func NewPathAttributeAs4Path(value []*As4PathParam) *PathAttributeAs4Path {
 	return &PathAttributeAs4Path{
 		PathAttribute: PathAttribute{

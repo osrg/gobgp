@@ -18,7 +18,6 @@ package table
 import (
 	"bytes"
 	"github.com/osrg/gobgp/packet"
-	"reflect"
 )
 
 func UpdatePathAttrs2ByteAs(msg *bgp.BGPUpdate) error {
@@ -35,15 +34,13 @@ func UpdatePathAttrs2ByteAs(msg *bgp.BGPUpdate) error {
 	if asAttr == nil {
 		return nil
 	}
-	msg.PathAttributes = clonePathAttributes(msg.PathAttributes)
-	asAttr = msg.PathAttributes[idx].(*bgp.PathAttributeAsPath)
 
+	msg.PathAttributes = cloneAttrSlice(msg.PathAttributes)
+	asAttr = msg.PathAttributes[idx].(*bgp.PathAttributeAsPath)
 	as4pathParam := make([]*bgp.As4PathParam, 0)
+	newASparams := make([]bgp.AsPathParamInterface, len(asAttr.Value))
 	for i, param := range asAttr.Value {
-		asParam, y := param.(*bgp.As4PathParam)
-		if !y {
-			continue
-		}
+		asParam := param.(*bgp.As4PathParam)
 
 		newAs := make([]uint32, 0)
 		oldAs := make([]uint16, len(asParam.AS))
@@ -55,11 +52,13 @@ func UpdatePathAttrs2ByteAs(msg *bgp.BGPUpdate) error {
 				oldAs[j] = uint16(asParam.AS[j])
 			}
 		}
-		asAttr.Value[i] = bgp.NewAsPathParam(asParam.Type, oldAs)
+
+		newASparams[i] = bgp.NewAsPathParam(asParam.Type, oldAs)
 		if len(newAs) > 0 {
 			as4pathParam = append(as4pathParam, bgp.NewAs4PathParam(asParam.Type, newAs))
 		}
 	}
+	msg.PathAttributes[idx] = bgp.NewPathAttributeAsPath(newASparams)
 	if len(as4pathParam) > 0 {
 		msg.PathAttributes = append(msg.PathAttributes, bgp.NewPathAttributeAs4Path(as4pathParam))
 	}
@@ -122,15 +121,9 @@ func UpdatePathAttrs4ByteAs(msg *bgp.BGPUpdate) error {
 	return nil
 }
 
-func clonePathAttributes(attrs []bgp.PathAttributeInterface) []bgp.PathAttributeInterface {
-	clonedAttrs := []bgp.PathAttributeInterface(nil)
+func cloneAttrSlice(attrs []bgp.PathAttributeInterface) []bgp.PathAttributeInterface {
+	clonedAttrs := make([]bgp.PathAttributeInterface, 0)
 	clonedAttrs = append(clonedAttrs, attrs...)
-	for i, attr := range clonedAttrs {
-		t, v := reflect.TypeOf(attr), reflect.ValueOf(attr)
-		newAttrObjp := reflect.New(t.Elem())
-		newAttrObjp.Elem().Set(v.Elem())
-		clonedAttrs[i] = newAttrObjp.Interface().(bgp.PathAttributeInterface)
-	}
 	return clonedAttrs
 }
 
@@ -165,7 +158,7 @@ func createUpdateMsgFromPath(path Path, msg *bgp.BGPMessage) *bgp.BGPMessage {
 				unreach := u.PathAttributes[idx].(*bgp.PathAttributeMpUnreachNLRI)
 				unreach.Value = append(unreach.Value, path.getNlri())
 			} else {
-				clonedAttrs := clonePathAttributes(path.getPathAttrs())
+				clonedAttrs := cloneAttrSlice(path.getPathAttrs())
 				idx, attr := path.getPathAttr(bgp.BGP_ATTR_TYPE_MP_REACH_NLRI)
 				reach := attr.(*bgp.PathAttributeMpReachNLRI)
 				clonedAttrs[idx] = bgp.NewPathAttributeMpUnreachNLRI(reach.Value)
@@ -181,7 +174,7 @@ func createUpdateMsgFromPath(path Path, msg *bgp.BGPMessage) *bgp.BGPMessage {
 				// we don't need to clone here but we
 				// might merge path to this message in
 				// the future so let's clone anyway.
-				clonedAttrs := clonePathAttributes(path.getPathAttrs())
+				clonedAttrs := cloneAttrSlice(path.getPathAttrs())
 				return bgp.NewBGPUpdateMessage([]bgp.WithdrawnRoute{}, clonedAttrs, []bgp.NLRInfo{})
 			}
 		}
