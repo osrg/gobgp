@@ -2,6 +2,7 @@ package server
 
 import (
 	"net"
+	"strings"
 	"syscall"
 	"unsafe"
 )
@@ -41,5 +42,19 @@ func SetTcpMD5SigSockopts(fd int, address string, key string) error {
 	_, _, e := syscall.Syscall6(syscall.SYS_SETSOCKOPT, uintptr(fd),
 		uintptr(syscall.IPPROTO_TCP), uintptr(TCP_MD5SIG),
 		uintptr(unsafe.Pointer(&t)), unsafe.Sizeof(t), 0)
+	return e
+}
+
+func SetTcpTTLSockopts(conn *net.TCPConn, ttl int) error {
+	level := syscall.IPPROTO_IP
+	name := syscall.IP_TTL
+	if strings.Contains(conn.RemoteAddr().String(), "[") {
+		level = syscall.IPPROTO_IPV6
+		name = syscall.IPV6_UNICAST_HOPS
+	}
+	file, _ := conn.File()
+	_, _, e := syscall.Syscall6(syscall.SYS_SETSOCKOPT, uintptr(int(file.Fd())),
+		uintptr(level), uintptr(name),
+		uintptr(unsafe.Pointer(&ttl)), unsafe.Sizeof(ttl), 0)
 	return e
 }
