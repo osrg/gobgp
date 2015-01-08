@@ -265,6 +265,7 @@ func (peer *Peer) loop() error {
 					}
 					if oldState == bgp.BGP_FSM_ESTABLISHED {
 						peer.fsm.peerConfig.BgpNeighborCommonState.Uptime = time.Time{}
+						peer.adjRib.DropAllIn(peer.rf)
 						pm := &peerMsg{
 							msgType: PEER_MSG_PEER_DOWN,
 							msgData: peer.peerInfo,

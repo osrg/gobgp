@@ -281,6 +281,11 @@ func (adj *AdjRib) GetOutPathList(rf bgp.RouteFamily) []Path {
 	return adj.getPathList(adj.adjRibOut[rf])
 }
 
+func (adj *AdjRib) DropAllIn(rf bgp.RouteFamily) {
+	// replace old one
+	adj.adjRibIn[rf] = make(map[string]*ReceivedRoute)
+}
+
 type ReceivedRoute struct {
 	path      Path
 	filtered  bool
