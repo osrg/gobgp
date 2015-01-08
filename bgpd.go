@@ -17,14 +17,18 @@ package main
 
 import (
 	log "github.com/Sirupsen/logrus"
+	"github.com/Sirupsen/logrus/hooks/syslog"
 	"github.com/jessevdk/go-flags"
 	"github.com/osrg/gobgp/api"
 	"github.com/osrg/gobgp/config"
 	"github.com/osrg/gobgp/packet"
 	"github.com/osrg/gobgp/server"
+	"io/ioutil"
+	"log/syslog"
 	"os"
 	"os/signal"
 	"runtime"
+	"strings"
 	"syscall"
 )
 
@@ -38,6 +42,7 @@ func main() {
 		ConfigFile string `short:"f" long:"config-file" description:"specifying a config file"`
 		LogLevel   string `short:"l" long:"log-level" description:"specifying log level"`
 		LogJson    bool   `short:"j" long:"log-json" description:"use json format for logging"`
+		UseSyslog  string `short:"s" long:"syslog" description:"use syslogd"`
 	}
 	_, err := flags.Parse(&opts)
 	if err != nil {
@@ -52,7 +57,27 @@ func main() {
 	default:
 		log.SetLevel(log.InfoLevel)
 	}
-	log.SetOutput(os.Stderr)
+
+	if opts.UseSyslog == "" {
+		log.SetOutput(os.Stderr)
+	} else {
+		dst := strings.SplitN(opts.UseSyslog, ":", 2)
+		network := ""
+		addr := ""
+		if len(dst) == 2 {
+			network = dst[0]
+			addr = dst[1]
+		}
+		hook, err := logrus_syslog.NewSyslogHook(network, addr, syslog.LOG_INFO, "bgpd")
+		if err != nil {
+			log.Error("Unable to connect to syslog daemon, ", opts.UseSyslog)
+			os.Exit(1)
+		} else {
+			log.AddHook(hook)
+			log.SetOutput(ioutil.Discard)
+		}
+	}
+
 	if opts.LogJson {
 		log.SetFormatter(&log.JSONFormatter{})
 	}
