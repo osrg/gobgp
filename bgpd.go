@@ -41,7 +41,7 @@ func main() {
 	var opts struct {
 		ConfigFile string `short:"f" long:"config-file" description:"specifying a config file"`
 		LogLevel   string `short:"l" long:"log-level" description:"specifying log level"`
-		LogJson    bool   `short:"j" long:"log-json" description:"use json format for logging"`
+		LogPlain   bool   `short:"p" long:"log-plain" description:"use plain format for logging (json by default)"`
 		UseSyslog  string `short:"s" long:"syslog" description:"use syslogd"`
 	}
 	_, err := flags.Parse(&opts)
@@ -78,7 +78,7 @@ func main() {
 		}
 	}
 
-	if opts.LogJson {
+	if opts.LogPlain == false {
 		log.SetFormatter(&log.JSONFormatter{})
 	}
 
