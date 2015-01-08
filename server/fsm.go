@@ -16,7 +16,6 @@
 package server
 
 import (
-	"encoding/json"
 	log "github.com/Sirupsen/logrus"
 	"github.com/osrg/gobgp/config"
 	"github.com/osrg/gobgp/packet"
@@ -103,7 +102,12 @@ func NewFSM(gConfig *config.GlobalType, pConfig *config.NeighborType, connCh cha
 }
 
 func (fsm *FSM) StateChange(nextState bgp.FSMState) {
-	log.Debugf("Peer (%v) state changed from %v to %v", fsm.peerConfig.NeighborAddress, fsm.state, nextState)
+	log.WithFields(log.Fields{
+		"Topic": "Peer",
+		"Key":   fsm.peerConfig.NeighborAddress,
+		"old":   fsm.state.String(),
+		"new":   nextState.String(),
+	}).Debug("state changed")
 	fsm.state = nextState
 }
 
@@ -320,8 +324,11 @@ func (h *FSMHandler) sendMessageloop() error {
 				h.errorCh <- true
 				return nil
 			}
-			j, _ := json.Marshal(m)
-			log.Debugf("sent %v: %s", fsm.peerConfig.NeighborAddress, string(j))
+			log.WithFields(log.Fields{
+				"Topic": "Peer",
+				"Key":   fsm.peerConfig.NeighborAddress,
+				"data":  m,
+			}).Debug("sent")
 			fsm.bgpMessageStateUpdate(m.Header.Type, false)
 		case <-fsm.keepaliveTicker.C:
 			m := bgp.NewBGPKeepAliveMessage()

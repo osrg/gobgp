@@ -96,8 +96,11 @@ func NewPeer(g config.GlobalType, peer config.NeighborType, serverMsgCh chan *se
 }
 
 func (peer *Peer) handleBGPmessage(m *bgp.BGPMessage) {
-	j, _ := json.Marshal(m)
-	log.Debugf("received %v: %s", peer.peerConfig.NeighborAddress, j)
+	log.WithFields(log.Fields{
+		"Topic": "Peer",
+		"Key":   peer.peerConfig.NeighborAddress,
+		"data":  m,
+	}).Debug("received")
 
 	switch m.Header.Type {
 	case bgp.BGP_MSG_OPEN:
@@ -151,7 +154,11 @@ func (peer *Peer) sendMessages(msgs []*bgp.BGPMessage) {
 
 		_, y := peer.capMap[bgp.BGP_CAP_FOUR_OCTET_AS_NUMBER]
 		if !y {
-			log.Debug("update BGPUpdate for 2byte AS peer, ", peer.peerConfig.NeighborAddress.String())
+			log.WithFields(log.Fields{
+				"Topic": "Peer",
+				"Key":   peer.peerConfig.NeighborAddress,
+				"data":  m,
+			}).Debug("update for 2byte AS peer")
 			table.UpdatePathAttrs2ByteAs(m.Body.(*bgp.BGPUpdate))
 		}
 
