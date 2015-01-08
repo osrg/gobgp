@@ -43,6 +43,7 @@ func main() {
 		LogLevel   string `short:"l" long:"log-level" description:"specifying log level"`
 		LogPlain   bool   `short:"p" long:"log-plain" description:"use plain format for logging (json by default)"`
 		UseSyslog  string `short:"s" long:"syslog" description:"use syslogd"`
+		Facility   string `long:"syslog-facility" description:"specify syslog facility"`
 	}
 	_, err := flags.Parse(&opts)
 	if err != nil {
@@ -68,7 +69,52 @@ func main() {
 			network = dst[0]
 			addr = dst[1]
 		}
-		hook, err := logrus_syslog.NewSyslogHook(network, addr, syslog.LOG_INFO, "bgpd")
+
+		facility := syslog.Priority(0)
+		switch opts.Facility {
+		case "kern":
+			facility = syslog.LOG_KERN
+		case "user":
+			facility = syslog.LOG_USER
+		case "mail":
+			facility = syslog.LOG_MAIL
+		case "daemon":
+			facility = syslog.LOG_DAEMON
+		case "auth":
+			facility = syslog.LOG_AUTH
+		case "syslog":
+			facility = syslog.LOG_SYSLOG
+		case "lpr":
+			facility = syslog.LOG_LPR
+		case "news":
+			facility = syslog.LOG_NEWS
+		case "uucp":
+			facility = syslog.LOG_UUCP
+		case "cron":
+			facility = syslog.LOG_CRON
+		case "authpriv":
+			facility = syslog.LOG_AUTHPRIV
+		case "ftp":
+			facility = syslog.LOG_FTP
+		case "local0":
+			facility = syslog.LOG_LOCAL0
+		case "local1":
+			facility = syslog.LOG_LOCAL1
+		case "local2":
+			facility = syslog.LOG_LOCAL2
+		case "local3":
+			facility = syslog.LOG_LOCAL3
+		case "local4":
+			facility = syslog.LOG_LOCAL4
+		case "local5":
+			facility = syslog.LOG_LOCAL5
+		case "local6":
+			facility = syslog.LOG_LOCAL6
+		case "local7":
+			facility = syslog.LOG_LOCAL7
+		}
+
+		hook, err := logrus_syslog.NewSyslogHook(network, addr, syslog.LOG_INFO|facility, "bgpd")
 		if err != nil {
 			log.Error("Unable to connect to syslog daemon, ", opts.UseSyslog)
 			os.Exit(1)
