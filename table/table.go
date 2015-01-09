@@ -19,7 +19,6 @@ import (
 	"encoding/json"
 	log "github.com/Sirupsen/logrus"
 	"github.com/osrg/gobgp/packet"
-	"net"
 	"reflect"
 )
 
@@ -29,7 +28,7 @@ type Table interface {
 	setDestinations(destinations map[string]Destination)
 	getDestination(key string) Destination
 	setDestination(key string, dest Destination)
-	tableKey(nlri bgp.AddrPrefixInterface) net.IP
+	tableKey(nlri bgp.AddrPrefixInterface) string
 	validatePath(path Path)
 	validateNlri(nlri bgp.AddrPrefixInterface)
 	DeleteDestByPeer(*PeerInfo) []Destination
@@ -129,16 +128,16 @@ func (td *TableDefault) DeleteDestByPeer(peerInfo *PeerInfo) []Destination {
 func deleteDestByNlri(table Table, nlri bgp.AddrPrefixInterface) Destination {
 	table.validateNlri(nlri)
 	destinations := table.getDestinations()
-	dest := destinations[table.tableKey(nlri).String()]
+	dest := destinations[table.tableKey(nlri)]
 	if dest != nil {
-		delete(destinations, table.tableKey(nlri).String())
+		delete(destinations, table.tableKey(nlri))
 	}
 	return dest
 }
 
 func deleteDest(table Table, dest Destination) {
 	destinations := table.getDestinations()
-	delete(destinations, table.tableKey(dest.getNlri()).String())
+	delete(destinations, table.tableKey(dest.getNlri()))
 }
 
 func (td *TableDefault) validatePath(path Path) {
@@ -171,12 +170,12 @@ func (td *TableDefault) validateNlri(nlri bgp.AddrPrefixInterface) {
 func getOrCreateDest(table Table, nlri bgp.AddrPrefixInterface) Destination {
 	log.Debugf("Table type : %s", reflect.TypeOf(table))
 	tableKey := table.tableKey(nlri)
-	dest := table.getDestination(tableKey.String())
+	dest := table.getDestination(tableKey)
 	// If destination for given prefix does not exist we create it.
 	if dest == nil {
-		log.Debugf("dest with key %s is not found", tableKey.String())
+		log.Debugf("dest with key %s is not found", tableKey)
 		dest = table.createDest(nlri)
-		table.setDestination(tableKey.String(), dest)
+		table.setDestination(tableKey, dest)
 	}
 	return dest
 }
@@ -201,11 +200,11 @@ func (td *TableDefault) setDestination(key string, dest Destination) {
 }
 
 //Implements interface
-func (td *TableDefault) tableKey(nlri bgp.AddrPrefixInterface) net.IP {
+func (td *TableDefault) tableKey(nlri bgp.AddrPrefixInterface) string {
 	//need Inheritance over ride
 	//return &nlri.IPAddrPrefix.IPAddrPrefixDefault.Prefix
 	log.Error("CreateDest NotImplementedError")
-	return nil
+	return ""
 }
 
 /*
@@ -233,17 +232,15 @@ func (ipv4t *IPv4Table) createDest(nlri bgp.AddrPrefixInterface) Destination {
 
 //make tablekey
 //Implements interface
-func (ipv4t *IPv4Table) tableKey(nlri bgp.AddrPrefixInterface) net.IP {
-	//addrPrefix := nlri.(*bgp.IPAddrPrefix)
-
-	var ip net.IP
+func (ipv4t *IPv4Table) tableKey(nlri bgp.AddrPrefixInterface) string {
 	switch p := nlri.(type) {
 	case *bgp.NLRInfo:
-		ip = p.IPAddrPrefix.IPAddrPrefixDefault.Prefix
+		return p.IPAddrPrefix.IPAddrPrefixDefault.String()
 	case *bgp.WithdrawnRoute:
-		ip = p.IPAddrPrefix.IPAddrPrefixDefault.Prefix
+		return p.IPAddrPrefix.IPAddrPrefixDefault.String()
 	}
-	return ip
+	log.Fatal()
+	return ""
 }
 
 type IPv6Table struct {
@@ -267,9 +264,9 @@ func (ipv6t *IPv6Table) createDest(nlri bgp.AddrPrefixInterface) Destination {
 
 //make tablekey
 //Implements interface
-func (ipv6t *IPv6Table) tableKey(nlri bgp.AddrPrefixInterface) net.IP {
+func (ipv6t *IPv6Table) tableKey(nlri bgp.AddrPrefixInterface) string {
 
 	addrPrefix := nlri.(*bgp.IPv6AddrPrefix)
-	return addrPrefix.IPAddrPrefixDefault.Prefix
+	return addrPrefix.IPAddrPrefixDefault.String()
 
 }

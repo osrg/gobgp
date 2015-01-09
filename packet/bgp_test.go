@@ -2,6 +2,7 @@ package bgp
 
 import (
 	"bytes"
+	"github.com/stretchr/testify/assert"
 	"net"
 	"testing"
 )
@@ -130,4 +131,13 @@ func Test_Message(t *testing.T) {
 			t.Error(len(buf2), &msg, buf2)
 		}
 	}
+}
+
+func Test_IPAddrPrefixString(t *testing.T) {
+	ipv4 := NewIPAddrPrefix(24, "129.6.10.0")
+	assert.Equal(t, "129.6.10.0/24", ipv4.String())
+	ipv6 := NewIPv6AddrPrefix(18, "3343:faba:3903::1")
+	assert.Equal(t, "3343:faba:3903::1/18", ipv6.String())
+	ipv6 = NewIPv6AddrPrefix(18, "3343:faba:3903::0")
+	assert.Equal(t, "3343:faba:3903::/18", ipv6.String())
 }

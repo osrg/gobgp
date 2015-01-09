@@ -469,6 +469,10 @@ func (r *IPAddrPrefixDefault) Len() int {
 	return int(1 + ((r.Length + 7) / 8))
 }
 
+func (r *IPAddrPrefixDefault) String() string {
+	return fmt.Sprintf("%s/%d", r.Prefix.String(), r.Length)
+}
+
 type IPAddrPrefix struct {
 	IPAddrPrefixDefault
 	addrlen uint8
