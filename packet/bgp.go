@@ -2088,8 +2088,28 @@ type BGPUpdate struct {
 }
 
 func (msg *BGPUpdate) DecodeFromBytes(data []byte) error {
+
+	// cache error codes
+	eCode := uint8(BGP_ERROR_UPDATE_MESSAGE_ERROR)
+	eSubCode := uint8(BGP_ERROR_SUB_MALFORMED_ATTRIBUTE_LIST)
+
+	// check withdrawn route length
+	if len(data) < 2 {
+		msg := "message length isn't enough for withdrawn route length"
+		e := NewPacketParseError(eCode, eSubCode, msg)
+		return e
+	}
+
 	msg.WithdrawnRoutesLen = binary.BigEndian.Uint16(data[0:2])
 	data = data[2:]
+
+	// check withdrawn route
+	if len(data) < int(msg.WithdrawnRoutesLen) {
+		msg := "withdrawn route length exceeds message length"
+		e := NewPacketParseError(eCode, eSubCode, msg)
+		return e
+	}
+
 	for routelen := msg.WithdrawnRoutesLen; routelen > 0; {
 		w := WithdrawnRoute{}
 		w.DecodeFromBytes(data)
@@ -2097,8 +2117,24 @@ func (msg *BGPUpdate) DecodeFromBytes(data []byte) error {
 		data = data[w.Len():]
 		msg.WithdrawnRoutes = append(msg.WithdrawnRoutes, w)
 	}
+
+	// check path total attribute length
+	if len(data) < 2 {
+		msg := "message length isn't enough for path total attribute length"
+		e := NewPacketParseError(eCode, eSubCode, msg)
+		return e
+	}
+
 	msg.TotalPathAttributeLen = binary.BigEndian.Uint16(data[0:2])
 	data = data[2:]
+
+	// check path attribute
+	if len(data) < int(msg.TotalPathAttributeLen) {
+		msg := "path total attribute length exceeds message length"
+		e := NewPacketParseError(eCode, eSubCode, msg)
+		return e
+	}
+
 	for pathlen := msg.TotalPathAttributeLen; pathlen > 0; {
 		p := getPathAttribute(data)
 		p.DecodeFromBytes(data)
@@ -2660,4 +2696,23 @@ func ParseBMPMessage(data []byte) (*BMPMessage, error) {
 		return nil, err
 	}
 	return msg, nil
+}
+
+type PacketParseError struct {
+	TypeCode    uint8
+	SubTypeCode uint8
+	Message     string
+}
+
+func NewPacketParseError(typeCode, subTypeCode uint8, msg string) error {
+	e := &PacketParseError{
+		TypeCode:    typeCode,
+		SubTypeCode: subTypeCode,
+		Message:     msg,
+	}
+	return e
+}
+
+func (e *PacketParseError) Error() string {
+	return e.Message
 }
