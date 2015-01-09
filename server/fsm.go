@@ -225,6 +225,7 @@ func (h *FSMHandler) recvMessageWithError() error {
 		MsgData: m,
 	}
 	h.msgCh <- e
+	h.fsm.bgpMessageStateUpdate(m.Header.Type, true)
 	return nil
 }
 
@@ -252,7 +253,6 @@ func (h *FSMHandler) opensent() bgp.FSMState {
 		return 0
 	case e := <-h.msgCh:
 		m := e.MsgData.(*bgp.BGPMessage)
-		fsm.bgpMessageStateUpdate(m.Header.Type, true)
 		if m.Header.Type == bgp.BGP_MSG_OPEN {
 			e := &fsmMsg{
 				MsgType: FSM_MSG_BGP_MESSAGE,
@@ -262,8 +262,8 @@ func (h *FSMHandler) opensent() bgp.FSMState {
 			msg := bgp.NewBGPKeepAliveMessage()
 			b, _ := msg.Serialize()
 			fsm.passiveConn.Write(b)
-			fsm.bgpMessageStateUpdate(m.Header.Type, false)
 			nextState = bgp.BGP_FSM_OPENCONFIRM
+			fsm.bgpMessageStateUpdate(msg.Header.Type, false)
 		} else {
 			// send error
 		}
@@ -292,10 +292,10 @@ func (h *FSMHandler) openconfirm() bgp.FSMState {
 			b, _ := m.Serialize()
 			// TODO: check error
 			fsm.passiveConn.Write(b)
+			fsm.bgpMessageStateUpdate(m.Header.Type, false)
 		case e := <-h.msgCh:
 			m := e.MsgData.(*bgp.BGPMessage)
 			nextState := bgp.BGP_FSM_IDLE
-			fsm.bgpMessageStateUpdate(m.Header.Type, true)
 			if m.Header.Type == bgp.BGP_MSG_KEEPALIVE {
 				nextState = bgp.BGP_FSM_ESTABLISHED
 			} else {
