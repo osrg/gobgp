@@ -151,9 +151,9 @@ func TestPathGetPrefix(t *testing.T) {
 	peerP := PathCreatePeer()
 	msgP := PathCreateMSG(peerP)
 	pathP := PathCreatePath(msgP)
-	prefix := "10.10.10.0"
+	prefix := "10.10.10.0/24"
 	r_prefix := pathP[0].getPrefix()
-	assert.Equal(t, r_prefix.String(), prefix)
+	assert.Equal(t, r_prefix, prefix)
 }
 func TestPathGetAttribute(t *testing.T) {
 	peerP := PathCreatePeer()

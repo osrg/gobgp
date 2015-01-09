@@ -36,7 +36,7 @@ type Path interface {
 	setWithdraw(withdraw bool)
 	IsWithdraw() bool
 	getNlri() bgp.AddrPrefixInterface
-	getPrefix() net.IP
+	getPrefix() string
 	setMedSetByTargetNeighbor(medSetByTargetNeighbor bool)
 	getMedSetByTargetNeighbor() bool
 	clone(IsWithdraw bool) Path
@@ -192,22 +192,22 @@ func (pd *PathDefault) getPathAttr(pattrType bgp.BGPAttrType) (int, bgp.PathAttr
 // return Path's string representation
 func (pi *PathDefault) String() string {
 	str := fmt.Sprintf("IPv4Path Source: %v, ", pi.getSource())
-	str = str + fmt.Sprintf(" NLRI: %s, ", pi.getPrefix().String())
+	str = str + fmt.Sprintf(" NLRI: %s, ", pi.getPrefix())
 	str = str + fmt.Sprintf(" nexthop: %s, ", pi.getNexthop().String())
 	str = str + fmt.Sprintf(" withdraw: %s, ", pi.IsWithdraw())
 	//str = str + fmt.Sprintf(" path attributes: %s, ", pi.getPathAttributeMap())
 	return str
 }
 
-func (pi *PathDefault) getPrefix() net.IP {
-
+func (pi *PathDefault) getPrefix() string {
 	switch nlri := pi.nlri.(type) {
 	case *bgp.NLRInfo:
-		return nlri.Prefix
+		return nlri.IPAddrPrefix.IPAddrPrefixDefault.String()
 	case *bgp.WithdrawnRoute:
-		return nlri.Prefix
+		return nlri.IPAddrPrefix.IPAddrPrefixDefault.String()
 	}
-	return nil
+	log.Fatal()
+	return ""
 }
 
 // create Path object based on route family
@@ -284,15 +284,15 @@ func (ipv6p *IPv6Path) getPathDefault() *PathDefault {
 	return ipv6p.PathDefault
 }
 
-func (ipv6p *IPv6Path) getPrefix() net.IP {
+func (ipv6p *IPv6Path) getPrefix() string {
 	addrPrefix := ipv6p.nlri.(*bgp.IPv6AddrPrefix)
-	return addrPrefix.Prefix
+	return addrPrefix.IPAddrPrefixDefault.String()
 }
 
 // return IPv6Path's string representation
 func (ipv6p *IPv6Path) String() string {
 	str := fmt.Sprintf("IPv6Path Source: %v, ", ipv6p.getSource())
-	str = str + fmt.Sprintf(" NLRI: %s, ", ipv6p.getPrefix().String())
+	str = str + fmt.Sprintf(" NLRI: %s, ", ipv6p.getPrefix())
 	str = str + fmt.Sprintf(" nexthop: %s, ", ipv6p.getNexthop().String())
 	str = str + fmt.Sprintf(" withdraw: %s, ", ipv6p.IsWithdraw())
 	//str = str + fmt.Sprintf(" path attributes: %s, ", ipv6p.getPathAttributeMap())

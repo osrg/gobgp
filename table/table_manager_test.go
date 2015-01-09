@@ -104,8 +104,8 @@ func TestProcessBGPUpdate_0_select_onlypath_ipv4(t *testing.T) {
 	assert.Equal(t, 4, len(path.getPathAttrs()))
 
 	// check destination
-	expectedPrefix := "10.10.10.0"
-	assert.Equal(t, expectedPrefix, path.getPrefix().String())
+	expectedPrefix := "10.10.10.0/24"
+	assert.Equal(t, expectedPrefix, path.getPrefix())
 	// check nexthop
 	expectedNexthop := "192.168.50.1"
 	assert.Equal(t, expectedNexthop, path.getNexthop().String())
@@ -156,8 +156,8 @@ func TestProcessBGPUpdate_0_select_onlypath_ipv6(t *testing.T) {
 	assert.Equal(t, 4, len(path.getPathAttrs()))
 
 	// check destination
-	expectedPrefix := "2001:123:123:1::"
-	assert.Equal(t, expectedPrefix, path.getPrefix().String())
+	expectedPrefix := "2001:123:123:1::/64"
+	assert.Equal(t, expectedPrefix, path.getPrefix())
 	// check nexthop
 	expectedNexthop := "2001::192:168:50:1"
 	assert.Equal(t, expectedNexthop, path.getNexthop().String())
@@ -241,8 +241,8 @@ func TestProcessBGPUpdate_1_select_high_localpref_ipv4(t *testing.T) {
 	assert.Equal(t, len(pathAttributes2), len(path.getPathAttrs()))
 
 	// check destination
-	expectedPrefix := "10.10.10.0"
-	assert.Equal(t, expectedPrefix, path.getPrefix().String())
+	expectedPrefix := "10.10.10.0/24"
+	assert.Equal(t, expectedPrefix, path.getPrefix())
 	// check nexthop
 	expectedNexthop := "192.168.50.1"
 	assert.Equal(t, expectedNexthop, path.getNexthop().String())
@@ -328,8 +328,8 @@ func TestProcessBGPUpdate_1_select_high_localpref_ipv6(t *testing.T) {
 	assert.Equal(t, 5, len(path.getPathAttrs()))
 
 	// check destination
-	expectedPrefix := "2001:123:123:1::"
-	assert.Equal(t, expectedPrefix, path.getPrefix().String())
+	expectedPrefix := "2001:123:123:1::/64"
+	assert.Equal(t, expectedPrefix, path.getPrefix())
 	// check nexthop
 	expectedNexthop := "2001::192:168:100:1"
 	assert.Equal(t, expectedNexthop, path.getNexthop().String())
@@ -413,8 +413,8 @@ func TestProcessBGPUpdate_2_select_local_origin_ipv4(t *testing.T) {
 	assert.Equal(t, len(pathAttributes2), len(path.getPathAttrs()))
 
 	// check destination
-	expectedPrefix := "10.10.10.0"
-	assert.Equal(t, expectedPrefix, path.getPrefix().String())
+	expectedPrefix := "10.10.10.0/24"
+	assert.Equal(t, expectedPrefix, path.getPrefix())
 	// check nexthop
 	expectedNexthop := "0.0.0.0"
 	assert.Equal(t, expectedNexthop, path.getNexthop().String())
@@ -500,8 +500,8 @@ func TestProcessBGPUpdate_2_select_local_origin_ipv6(t *testing.T) {
 	assert.Equal(t, 5, len(path.getPathAttrs()))
 
 	// check destination
-	expectedPrefix := "2001:123:123:1::"
-	assert.Equal(t, expectedPrefix, path.getPrefix().String())
+	expectedPrefix := "2001:123:123:1::/64"
+	assert.Equal(t, expectedPrefix, path.getPrefix())
 	// check nexthop
 	expectedNexthop := "::"
 	assert.Equal(t, expectedNexthop, path.getNexthop().String())
@@ -558,8 +558,8 @@ func TestProcessBGPUpdate_3_select_aspath_ipv4(t *testing.T) {
 	assert.Equal(t, 4, len(path.getPathAttrs()))
 
 	// check destination
-	expectedPrefix := "20.20.20.0"
-	assert.Equal(t, expectedPrefix, path.getPrefix().String())
+	expectedPrefix := "20.20.20.0/24"
+	assert.Equal(t, expectedPrefix, path.getPrefix())
 	// check nexthop
 	expectedNexthop := "192.168.100.1"
 	assert.Equal(t, expectedNexthop, path.getNexthop().String())
@@ -616,8 +616,8 @@ func TestProcessBGPUpdate_3_select_aspath_ipv6(t *testing.T) {
 	assert.Equal(t, 4, len(path.getPathAttrs()))
 
 	// check destination
-	expectedPrefix := "2002:223:123:1::"
-	assert.Equal(t, expectedPrefix, path.getPrefix().String())
+	expectedPrefix := "2002:223:123:1::/64"
+	assert.Equal(t, expectedPrefix, path.getPrefix())
 	// check nexthop
 	expectedNexthop := "2001::192:168:100:1"
 	assert.Equal(t, expectedNexthop, path.getNexthop().String())
@@ -701,8 +701,8 @@ func TestProcessBGPUpdate_4_select_low_origin_ipv4(t *testing.T) {
 	assert.Equal(t, len(pathAttributes2), len(path.getPathAttrs()))
 
 	// check destination
-	expectedPrefix := "10.10.10.0"
-	assert.Equal(t, expectedPrefix, path.getPrefix().String())
+	expectedPrefix := "10.10.10.0/24"
+	assert.Equal(t, expectedPrefix, path.getPrefix())
 	// check nexthop
 	expectedNexthop := "192.168.100.1"
 	assert.Equal(t, expectedNexthop, path.getNexthop().String())
@@ -788,8 +788,8 @@ func TestProcessBGPUpdate_4_select_low_origin_ipv6(t *testing.T) {
 	assert.Equal(t, 5, len(path.getPathAttrs()))
 
 	// check destination
-	expectedPrefix := "2001:123:123:1::"
-	assert.Equal(t, expectedPrefix, path.getPrefix().String())
+	expectedPrefix := "2001:123:123:1::/64"
+	assert.Equal(t, expectedPrefix, path.getPrefix())
 	// check nexthop
 	expectedNexthop := "2001::192:168:100:1"
 	assert.Equal(t, expectedNexthop, path.getNexthop().String())
@@ -873,8 +873,8 @@ func TestProcessBGPUpdate_5_select_low_med_ipv4(t *testing.T) {
 	assert.Equal(t, len(pathAttributes2), len(path.getPathAttrs()))
 
 	// check destination
-	expectedPrefix := "10.10.10.0"
-	assert.Equal(t, expectedPrefix, path.getPrefix().String())
+	expectedPrefix := "10.10.10.0/24"
+	assert.Equal(t, expectedPrefix, path.getPrefix())
 	// check nexthop
 	expectedNexthop := "192.168.100.1"
 	assert.Equal(t, expectedNexthop, path.getNexthop().String())
@@ -960,8 +960,8 @@ func TestProcessBGPUpdate_5_select_low_med_ipv6(t *testing.T) {
 	assert.Equal(t, 5, len(path.getPathAttrs()))
 
 	// check destination
-	expectedPrefix := "2001:123:123:1::"
-	assert.Equal(t, expectedPrefix, path.getPrefix().String())
+	expectedPrefix := "2001:123:123:1::/64"
+	assert.Equal(t, expectedPrefix, path.getPrefix())
 	// check nexthop
 	expectedNexthop := "2001::192:168:100:1"
 	assert.Equal(t, expectedNexthop, path.getNexthop().String())
@@ -1047,8 +1047,8 @@ func TestProcessBGPUpdate_6_select_ebgp_path_ipv4(t *testing.T) {
 	assert.Equal(t, len(pathAttributes2), len(path.getPathAttrs()))
 
 	// check destination
-	expectedPrefix := "10.10.10.0"
-	assert.Equal(t, expectedPrefix, path.getPrefix().String())
+	expectedPrefix := "10.10.10.0/24"
+	assert.Equal(t, expectedPrefix, path.getPrefix())
 	// check nexthop
 	expectedNexthop := "192.168.100.1"
 	assert.Equal(t, expectedNexthop, path.getNexthop().String())
@@ -1135,8 +1135,8 @@ func TestProcessBGPUpdate_6_select_ebgp_path_ipv6(t *testing.T) {
 	assert.Equal(t, 5, len(path.getPathAttrs()))
 
 	// check destination
-	expectedPrefix := "2001:123:123:1::"
-	assert.Equal(t, expectedPrefix, path.getPrefix().String())
+	expectedPrefix := "2001:123:123:1::/64"
+	assert.Equal(t, expectedPrefix, path.getPrefix())
 	// check nexthop
 	expectedNexthop := "2001::192:168:100:1"
 	assert.Equal(t, expectedNexthop, path.getNexthop().String())
@@ -1224,8 +1224,8 @@ func TestProcessBGPUpdate_7_select_low_routerid_path_ipv4(t *testing.T) {
 	assert.Equal(t, len(pathAttributes2), len(path.getPathAttrs()))
 
 	// check destination
-	expectedPrefix := "10.10.10.0"
-	assert.Equal(t, expectedPrefix, path.getPrefix().String())
+	expectedPrefix := "10.10.10.0/24"
+	assert.Equal(t, expectedPrefix, path.getPrefix())
 	// check nexthop
 	expectedNexthop := "192.168.100.1"
 	assert.Equal(t, expectedNexthop, path.getNexthop().String())
@@ -1312,8 +1312,8 @@ func TestProcessBGPUpdate_7_select_low_routerid_path_ipv6(t *testing.T) {
 	assert.Equal(t, 5, len(path.getPathAttrs()))
 
 	// check destination
-	expectedPrefix := "2001:123:123:1::"
-	assert.Equal(t, expectedPrefix, path.getPrefix().String())
+	expectedPrefix := "2001:123:123:1::/64"
+	assert.Equal(t, expectedPrefix, path.getPrefix())
 	// check nexthop
 	expectedNexthop := "2001::192:168:100:1"
 	assert.Equal(t, expectedNexthop, path.getNexthop().String())
@@ -1400,8 +1400,8 @@ func TestProcessBGPUpdate_8_withdraw_path_ipv4(t *testing.T) {
 	}
 	checkPattr(bgpMessage2, path)
 	// check destination
-	expectedPrefix := "10.10.10.0"
-	assert.Equal(t, expectedPrefix, path.getPrefix().String())
+	expectedPrefix := "10.10.10.0/24"
+	assert.Equal(t, expectedPrefix, path.getPrefix())
 	// check nexthop
 	expectedNexthop := "192.168.100.1"
 	assert.Equal(t, expectedNexthop, path.getNexthop().String())
@@ -1422,8 +1422,8 @@ func TestProcessBGPUpdate_8_withdraw_path_ipv4(t *testing.T) {
 
 	checkPattr(bgpMessage1, path)
 	// check destination
-	expectedPrefix = "10.10.10.0"
-	assert.Equal(t, expectedPrefix, path.getPrefix().String())
+	expectedPrefix = "10.10.10.0/24"
+	assert.Equal(t, expectedPrefix, path.getPrefix())
 	// check nexthop
 	expectedNexthop = "192.168.50.1"
 	assert.Equal(t, expectedNexthop, path.getNexthop().String())
@@ -1535,8 +1535,8 @@ func TestProcessBGPUpdate_8_mpunreach_path_ipv6(t *testing.T) {
 	checkPattr(bgpMessage2, path)
 
 	// check destination
-	expectedPrefix := "2001:123:123:1::"
-	assert.Equal(t, expectedPrefix, path.getPrefix().String())
+	expectedPrefix := "2001:123:123:1::/64"
+	assert.Equal(t, expectedPrefix, path.getPrefix())
 	// check nexthop
 	expectedNexthop := "2001::192:168:100:1"
 	assert.Equal(t, expectedNexthop, path.getNexthop().String())
@@ -1557,8 +1557,8 @@ func TestProcessBGPUpdate_8_mpunreach_path_ipv6(t *testing.T) {
 
 	checkPattr(bgpMessage1, path)
 	// check destination
-	expectedPrefix = "2001:123:123:1::"
-	assert.Equal(t, expectedPrefix, path.getPrefix().String())
+	expectedPrefix = "2001:123:123:1::/64"
+	assert.Equal(t, expectedPrefix, path.getPrefix())
 	// check nexthop
 	expectedNexthop = "2001::192:168:50:1"
 	assert.Equal(t, expectedNexthop, path.getNexthop().String())
@@ -1635,8 +1635,8 @@ func TestProcessBGPUpdate_bestpath_lost_ipv4(t *testing.T) {
 
 	checkPattr(bgpMessage1, path)
 	// check destination
-	expectedPrefix := "10.10.10.0"
-	assert.Equal(t, expectedPrefix, path.getPrefix().String())
+	expectedPrefix := "10.10.10.0/24"
+	assert.Equal(t, expectedPrefix, path.getPrefix())
 }
 
 func TestProcessBGPUpdate_bestpath_lost_ipv6(t *testing.T) {
@@ -1710,8 +1710,8 @@ func TestProcessBGPUpdate_bestpath_lost_ipv6(t *testing.T) {
 	checkPattr(bgpMessage1, path)
 
 	// check destination
-	expectedPrefix := "2001:123:123:1::"
-	assert.Equal(t, expectedPrefix, path.getPrefix().String())
+	expectedPrefix := "2001:123:123:1::/64"
+	assert.Equal(t, expectedPrefix, path.getPrefix())
 }
 
 // test: implicit withdrawal case
@@ -1793,8 +1793,8 @@ func TestProcessBGPUpdate_implicit_withdrwal_ipv4(t *testing.T) {
 	}
 	checkPattr(bgpMessage2, path)
 	// check destination
-	expectedPrefix := "10.10.10.0"
-	assert.Equal(t, expectedPrefix, path.getPrefix().String())
+	expectedPrefix := "10.10.10.0/24"
+	assert.Equal(t, expectedPrefix, path.getPrefix())
 	// check nexthop
 	expectedNexthop := "192.168.50.1"
 	assert.Equal(t, expectedNexthop, path.getNexthop().String())
@@ -1905,8 +1905,8 @@ func TestProcessBGPUpdate_implicit_withdrwal_ipv6(t *testing.T) {
 	checkPattr(bgpMessage2, path)
 
 	// check destination
-	expectedPrefix := "2001:123:123:1::"
-	assert.Equal(t, expectedPrefix, path.getPrefix().String())
+	expectedPrefix := "2001:123:123:1::/64"
+	assert.Equal(t, expectedPrefix, path.getPrefix())
 	// check nexthop
 	expectedNexthop := "2001::192:168:50:1"
 	assert.Equal(t, expectedNexthop, path.getNexthop().String())
@@ -1964,7 +1964,7 @@ func TestProcessBGPUpdate_multiple_nlri_ipv4(t *testing.T) {
 		assert.Equal(t, reflect.TypeOf(p).String(), expectedType)
 		checkPattr(m, p)
 		// check destination
-		assert.Equal(t, prefix, p.getPrefix().String())
+		assert.Equal(t, prefix, p.getPrefix())
 		// check nexthop
 		assert.Equal(t, nexthop, p.getNexthop().String())
 	}
@@ -2010,22 +2010,22 @@ func TestProcessBGPUpdate_multiple_nlri_ipv4(t *testing.T) {
 	assert.Equal(t, 0, len(wList))
 	assert.NoError(t, err)
 
-	checkBestPathResult("*table.IPv4Path", "10.10.10.0", "192.168.50.1", pList[0], bgpMessage1)
-	checkBestPathResult("*table.IPv4Path", "20.20.20.0", "192.168.50.1", pList[1], bgpMessage1)
-	checkBestPathResult("*table.IPv4Path", "30.30.30.0", "192.168.50.1", pList[2], bgpMessage1)
-	checkBestPathResult("*table.IPv4Path", "40.40.40.0", "192.168.50.1", pList[3], bgpMessage1)
-	checkBestPathResult("*table.IPv4Path", "50.50.50.0", "192.168.50.1", pList[4], bgpMessage1)
+	checkBestPathResult("*table.IPv4Path", "10.10.10.0/24", "192.168.50.1", pList[0], bgpMessage1)
+	checkBestPathResult("*table.IPv4Path", "20.20.20.0/24", "192.168.50.1", pList[1], bgpMessage1)
+	checkBestPathResult("*table.IPv4Path", "30.30.30.0/24", "192.168.50.1", pList[2], bgpMessage1)
+	checkBestPathResult("*table.IPv4Path", "40.40.40.0/24", "192.168.50.1", pList[3], bgpMessage1)
+	checkBestPathResult("*table.IPv4Path", "50.50.50.0/24", "192.168.50.1", pList[4], bgpMessage1)
 
 	pList, wList, err = tm.ProcessUpdate(peer1, bgpMessage2)
 	assert.Equal(t, 5, len(pList))
 	assert.Equal(t, 0, len(wList))
 	assert.NoError(t, err)
 
-	checkBestPathResult("*table.IPv4Path", "11.11.11.0", "192.168.50.1", pList[0], bgpMessage2)
-	checkBestPathResult("*table.IPv4Path", "22.22.22.0", "192.168.50.1", pList[1], bgpMessage2)
-	checkBestPathResult("*table.IPv4Path", "33.33.33.0", "192.168.50.1", pList[2], bgpMessage2)
-	checkBestPathResult("*table.IPv4Path", "44.44.44.0", "192.168.50.1", pList[3], bgpMessage2)
-	checkBestPathResult("*table.IPv4Path", "55.55.55.0", "192.168.50.1", pList[4], bgpMessage2)
+	checkBestPathResult("*table.IPv4Path", "11.11.11.0/24", "192.168.50.1", pList[0], bgpMessage2)
+	checkBestPathResult("*table.IPv4Path", "22.22.22.0/24", "192.168.50.1", pList[1], bgpMessage2)
+	checkBestPathResult("*table.IPv4Path", "33.33.33.0/24", "192.168.50.1", pList[2], bgpMessage2)
+	checkBestPathResult("*table.IPv4Path", "44.44.44.0/24", "192.168.50.1", pList[3], bgpMessage2)
+	checkBestPathResult("*table.IPv4Path", "55.55.55.0/24", "192.168.50.1", pList[4], bgpMessage2)
 
 	pList, wList, err = tm.ProcessUpdate(peer1, bgpMessage3)
 	assert.Equal(t, 2, len(pList))
@@ -2099,7 +2099,7 @@ func TestProcessBGPUpdate_multiple_nlri_ipv6(t *testing.T) {
 		assert.Equal(t, reflect.TypeOf(p).String(), expectedType)
 		checkPattr(m, p)
 		// check destination
-		assert.Equal(t, prefix, p.getPrefix().String())
+		assert.Equal(t, prefix, p.getPrefix())
 		// check nexthop
 		assert.Equal(t, nexthop, p.getNexthop().String())
 	}
@@ -2151,22 +2151,22 @@ func TestProcessBGPUpdate_multiple_nlri_ipv6(t *testing.T) {
 	assert.Equal(t, 0, len(wList))
 	assert.NoError(t, err)
 
-	checkBestPathResult("*table.IPv6Path", "2001:123:1210:11::", "2001::192:168:50:1", pList[0], bgpMessage1)
-	checkBestPathResult("*table.IPv6Path", "2001:123:1220:11::", "2001::192:168:50:1", pList[1], bgpMessage1)
-	checkBestPathResult("*table.IPv6Path", "2001:123:1230:11::", "2001::192:168:50:1", pList[2], bgpMessage1)
-	checkBestPathResult("*table.IPv6Path", "2001:123:1240:11::", "2001::192:168:50:1", pList[3], bgpMessage1)
-	checkBestPathResult("*table.IPv6Path", "2001:123:1250:11::", "2001::192:168:50:1", pList[4], bgpMessage1)
+	checkBestPathResult("*table.IPv6Path", "2001:123:1210:11::/64", "2001::192:168:50:1", pList[0], bgpMessage1)
+	checkBestPathResult("*table.IPv6Path", "2001:123:1220:11::/64", "2001::192:168:50:1", pList[1], bgpMessage1)
+	checkBestPathResult("*table.IPv6Path", "2001:123:1230:11::/64", "2001::192:168:50:1", pList[2], bgpMessage1)
+	checkBestPathResult("*table.IPv6Path", "2001:123:1240:11::/64", "2001::192:168:50:1", pList[3], bgpMessage1)
+	checkBestPathResult("*table.IPv6Path", "2001:123:1250:11::/64", "2001::192:168:50:1", pList[4], bgpMessage1)
 
 	pList, wList, err = tm.ProcessUpdate(peer1, bgpMessage2)
 	assert.Equal(t, 5, len(pList))
 	assert.Equal(t, 0, len(wList))
 	assert.NoError(t, err)
 
-	checkBestPathResult("*table.IPv6Path", "2001:123:1211:11::", "2001::192:168:50:1", pList[0], bgpMessage2)
-	checkBestPathResult("*table.IPv6Path", "2001:123:1222:11::", "2001::192:168:50:1", pList[1], bgpMessage2)
-	checkBestPathResult("*table.IPv6Path", "2001:123:1233:11::", "2001::192:168:50:1", pList[2], bgpMessage2)
-	checkBestPathResult("*table.IPv6Path", "2001:123:1244:11::", "2001::192:168:50:1", pList[3], bgpMessage2)
-	checkBestPathResult("*table.IPv6Path", "2001:123:1255:11::", "2001::192:168:50:1", pList[4], bgpMessage2)
+	checkBestPathResult("*table.IPv6Path", "2001:123:1211:11::/64", "2001::192:168:50:1", pList[0], bgpMessage2)
+	checkBestPathResult("*table.IPv6Path", "2001:123:1222:11::/64", "2001::192:168:50:1", pList[1], bgpMessage2)
+	checkBestPathResult("*table.IPv6Path", "2001:123:1233:11::/64", "2001::192:168:50:1", pList[2], bgpMessage2)
+	checkBestPathResult("*table.IPv6Path", "2001:123:1244:11::/64", "2001::192:168:50:1", pList[3], bgpMessage2)
+	checkBestPathResult("*table.IPv6Path", "2001:123:1255:11::/64", "2001::192:168:50:1", pList[4], bgpMessage2)
 
 	pList, wList, err = tm.ProcessUpdate(peer1, bgpMessage3)
 	assert.Equal(t, 2, len(pList))

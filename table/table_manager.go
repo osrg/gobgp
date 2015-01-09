@@ -172,8 +172,8 @@ func (manager *TableManager) calculate(destinationList []Destination) ([]Path, [
 			}
 		} else {
 			log.Debugf("new best path: NLRI: %v, next_hop=%v, reason=%v",
-				newBestPath.getPrefix().String(),
-				newBestPath.getNexthop().String(),
+				newBestPath.getPrefix(),
+				newBestPath.getNexthop(),
 				reason)
 
 			bestPaths = append(bestPaths, newBestPath)
@@ -244,7 +244,7 @@ func NewAdjRib() *AdjRib {
 func (adj *AdjRib) update(rib map[bgp.RouteFamily]map[string]*ReceivedRoute, pathList []Path) {
 	for _, path := range pathList {
 		rf := path.GetRouteFamily()
-		key := path.getPrefix().String()
+		key := path.getPrefix()
 		if path.IsWithdraw() {
 			_, found := rib[rf][key]
 			if found {
@@ -293,7 +293,7 @@ type ReceivedRoute struct {
 }
 
 func (rr *ReceivedRoute) String() string {
-	return rr.path.(*PathDefault).getPrefix().String()
+	return rr.path.(*PathDefault).getPrefix()
 }
 
 func NewReceivedRoute(path Path, filtered bool) *ReceivedRoute {
