@@ -1892,12 +1892,12 @@ func parseExtended(data []byte) ExtendedCommunityInterface {
 		return e
 	case 3:
 		e := &OpaqueExtended{}
-		e.Value = data[2:8]
+		e.Value = data[1:8]
 		return e
 	}
 	e := &UnknownExtended{}
-	e.Type = BGPAttrType(data[1])
-	e.Value = data[2:8]
+	e.Type = BGPAttrType(data[0])
+	e.Value = data[1:8]
 	return e
 }
 
@@ -1911,6 +1911,19 @@ func (p *PathAttributeExtendedCommunities) DecodeFromBytes(data []byte) error {
 		value = value[8:]
 	}
 	return nil
+}
+
+func (p *PathAttributeExtendedCommunities) Serialize() ([]byte, error) {
+	buf := make([]byte, 0)
+	for _, p := range p.Value {
+		ebuf, err := p.Serialize()
+		if err != nil {
+			return nil, err
+		}
+		buf = append(buf, ebuf...)
+	}
+	p.PathAttribute.Value = buf
+	return p.PathAttribute.Serialize()
 }
 
 func NewPathAttributeExtendedCommunities(value []ExtendedCommunityInterface) *PathAttributeExtendedCommunities {
