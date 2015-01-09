@@ -203,6 +203,7 @@ func isSamePathAttrs(pList1 []bgp.PathAttributeInterface, pList2 []bgp.PathAttri
 }
 
 func isMergeable(p1 Path, p2 Path) bool {
+	return false
 	if p1 == nil {
 		return false
 	}
