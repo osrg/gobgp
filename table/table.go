@@ -16,9 +16,13 @@
 package table
 
 import (
+	"bytes"
 	"encoding/json"
+	"fmt"
 	log "github.com/Sirupsen/logrus"
 	"github.com/osrg/gobgp/packet"
+	"github.com/tchap/go-patricia/patricia"
+	"net"
 	"reflect"
 )
 
@@ -49,11 +53,28 @@ func NewTableDefault(scope_id int) *TableDefault {
 
 }
 
-func (td *TableDefault) MarshalJSON() ([]byte, error) {
-	destList := make([]Destination, 0)
-	for _, dest := range td.destinations {
-		destList = append(destList, dest)
+func cidr2prefix(cidr string) patricia.Prefix {
+	_, n, _ := net.ParseCIDR(cidr)
+	var buffer bytes.Buffer
+	for i := 0; i < len(n.IP); i++ {
+		buffer.WriteString(fmt.Sprintf("%08b", n.IP[i]))
 	}
+	ones, _ := n.Mask.Size()
+	return patricia.Prefix(buffer.String()[:ones])
+}
+
+func (td *TableDefault) MarshalJSON() ([]byte, error) {
+	trie := patricia.NewTrie()
+	for key, dest := range td.destinations {
+		trie.Insert(cidr2prefix(key), dest)
+	}
+
+	destList := make([]Destination, 0)
+	trie.Visit(func(prefix patricia.Prefix, item patricia.Item) error {
+		dest, _ := item.(Destination)
+		destList = append(destList, dest)
+		return nil
+	})
 
 	return json.Marshal(struct {
 		Destinations []Destination
