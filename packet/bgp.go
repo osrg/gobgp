@@ -1079,6 +1079,24 @@ const (
 	BGP_ERROR_SUB_OUT_OF_RESOURCES
 )
 
+var pathAttrFlags map[BGPAttrType]uint8 = map[BGPAttrType]uint8{
+	BGP_ATTR_TYPE_ORIGIN:               BGP_ATTR_FLAG_TRANSITIVE,
+	BGP_ATTR_TYPE_AS_PATH:              BGP_ATTR_FLAG_TRANSITIVE,
+	BGP_ATTR_TYPE_NEXT_HOP:             BGP_ATTR_FLAG_TRANSITIVE,
+	BGP_ATTR_TYPE_MULTI_EXIT_DISC:      BGP_ATTR_FLAG_OPTIONAL,
+	BGP_ATTR_TYPE_LOCAL_PREF:           BGP_ATTR_FLAG_TRANSITIVE,
+	BGP_ATTR_TYPE_ATOMIC_AGGREGATE:     BGP_ATTR_FLAG_TRANSITIVE,
+	BGP_ATTR_TYPE_AGGREGATOR:           BGP_ATTR_FLAG_TRANSITIVE | BGP_ATTR_FLAG_OPTIONAL,
+	BGP_ATTR_TYPE_COMMUNITIES:          BGP_ATTR_FLAG_TRANSITIVE | BGP_ATTR_FLAG_OPTIONAL,
+	BGP_ATTR_TYPE_ORIGINATOR_ID:        BGP_ATTR_FLAG_OPTIONAL,
+	BGP_ATTR_TYPE_CLUSTER_LIST:         BGP_ATTR_FLAG_OPTIONAL,
+	BGP_ATTR_TYPE_MP_REACH_NLRI:        BGP_ATTR_FLAG_OPTIONAL,
+	BGP_ATTR_TYPE_MP_UNREACH_NLRI:      BGP_ATTR_FLAG_OPTIONAL,
+	BGP_ATTR_TYPE_EXTENDED_COMMUNITIES: BGP_ATTR_FLAG_TRANSITIVE | BGP_ATTR_FLAG_OPTIONAL,
+	BGP_ATTR_TYPE_AS4_PATH:             BGP_ATTR_FLAG_TRANSITIVE | BGP_ATTR_FLAG_OPTIONAL,
+	BGP_ATTR_TYPE_AS4_AGGREGATOR:       BGP_ATTR_FLAG_TRANSITIVE | BGP_ATTR_FLAG_OPTIONAL,
+}
+
 type PathAttributeInterface interface {
 	DecodeFromBytes([]byte) error
 	Serialize() ([]byte, error)
@@ -1167,10 +1185,12 @@ func (p *PathAttributeOrigin) MarshalJSON() ([]byte, error) {
 }
 
 func NewPathAttributeOrigin(value uint8) *PathAttributeOrigin {
+	t := BGP_ATTR_TYPE_ORIGIN
 	return &PathAttributeOrigin{
+
 		PathAttribute: PathAttribute{
-			Flags: BGP_ATTR_FLAG_TRANSITIVE,
-			Type:  BGP_ATTR_TYPE_ORIGIN,
+			Flags: pathAttrFlags[t],
+			Type:  t,
 			Value: []byte{byte(value)},
 		},
 	}
@@ -1410,10 +1430,11 @@ func (p *PathAttributeAsPath) MarshalJSON() ([]byte, error) {
 }
 
 func NewPathAttributeAsPath(value []AsPathParamInterface) *PathAttributeAsPath {
+	t := BGP_ATTR_TYPE_AS_PATH
 	return &PathAttributeAsPath{
 		PathAttribute: PathAttribute{
-			Flags: BGP_ATTR_FLAG_TRANSITIVE,
-			Type:  BGP_ATTR_TYPE_AS_PATH,
+			Flags: pathAttrFlags[t],
+			Type:  t,
 		},
 		Value: value,
 	}
@@ -1454,10 +1475,11 @@ func (p *PathAttributeNextHop) MarshalJSON() ([]byte, error) {
 }
 
 func NewPathAttributeNextHop(value string) *PathAttributeNextHop {
+	t := BGP_ATTR_TYPE_NEXT_HOP
 	return &PathAttributeNextHop{
 		PathAttribute: PathAttribute{
-			Flags: BGP_ATTR_FLAG_TRANSITIVE,
-			Type:  BGP_ATTR_TYPE_NEXT_HOP,
+			Flags: pathAttrFlags[t],
+			Type:  t,
 		},
 		Value: net.ParseIP(value).To4(),
 	}
@@ -1500,10 +1522,11 @@ func (p *PathAttributeMultiExitDisc) MarshalJSON() ([]byte, error) {
 }
 
 func NewPathAttributeMultiExitDisc(value uint32) *PathAttributeMultiExitDisc {
+	t := BGP_ATTR_TYPE_MULTI_EXIT_DISC
 	return &PathAttributeMultiExitDisc{
 		PathAttribute: PathAttribute{
-			Flags: BGP_ATTR_FLAG_OPTIONAL,
-			Type:  BGP_ATTR_TYPE_MULTI_EXIT_DISC,
+			Flags: pathAttrFlags[t],
+			Type:  t,
 		},
 		Value: value,
 	}
@@ -1546,10 +1569,11 @@ func (p *PathAttributeLocalPref) MarshalJSON() ([]byte, error) {
 }
 
 func NewPathAttributeLocalPref(value uint32) *PathAttributeLocalPref {
+	t := BGP_ATTR_TYPE_LOCAL_PREF
 	return &PathAttributeLocalPref{
 		PathAttribute: PathAttribute{
-			Flags: BGP_ATTR_FLAG_TRANSITIVE,
-			Type:  BGP_ATTR_TYPE_LOCAL_PREF,
+			Flags: pathAttrFlags[t],
+			Type:  t,
 		},
 		Value: value,
 	}
@@ -1568,10 +1592,11 @@ func (p *PathAttributeAtomicAggregate) MarshalJSON() ([]byte, error) {
 }
 
 func NewPathAttributeAtomicAggregate() *PathAttributeAtomicAggregate {
+	t := BGP_ATTR_TYPE_ATOMIC_AGGREGATE
 	return &PathAttributeAtomicAggregate{
 		PathAttribute: PathAttribute{
-			Flags: BGP_ATTR_FLAG_TRANSITIVE,
-			Type:  BGP_ATTR_TYPE_ATOMIC_AGGREGATE,
+			Flags: pathAttrFlags[t],
+			Type:  t,
 		},
 	}
 }
@@ -1640,10 +1665,11 @@ func (p *PathAttributeAggregator) MarshalJSON() ([]byte, error) {
 
 func NewPathAttributeAggregator(as interface{}, address string) *PathAttributeAggregator {
 	v := reflect.ValueOf(as)
+	t := BGP_ATTR_TYPE_AGGREGATOR
 	return &PathAttributeAggregator{
 		PathAttribute: PathAttribute{
-			Flags: BGP_ATTR_FLAG_OPTIONAL | BGP_ATTR_FLAG_TRANSITIVE,
-			Type:  BGP_ATTR_TYPE_AGGREGATOR,
+			Flags: pathAttrFlags[t],
+			Type:  t,
 		},
 		Value: PathAttributeAggregatorParam{
 			AS:      uint32(v.Uint()),
@@ -1696,8 +1722,13 @@ func (p *PathAttributeCommunities) MarshalJSON() ([]byte, error) {
 }
 
 func NewPathAttributeCommunities(value []uint32) *PathAttributeCommunities {
+	t := BGP_ATTR_TYPE_COMMUNITIES
 	return &PathAttributeCommunities{
-		PathAttribute{BGP_ATTR_FLAG_OPTIONAL | BGP_ATTR_FLAG_TRANSITIVE, BGP_ATTR_TYPE_COMMUNITIES, 0, nil},
+		PathAttribute{
+			Flags:  pathAttrFlags[t],
+			Type:   t,
+			Length: 0,
+			Value:  nil},
 		value,
 	}
 }
@@ -1739,8 +1770,13 @@ func (p *PathAttributeOriginatorId) MarshalJSON() ([]byte, error) {
 }
 
 func NewPathAttributeOriginatorId(value string) *PathAttributeOriginatorId {
+	t := BGP_ATTR_TYPE_ORIGINATOR_ID
 	return &PathAttributeOriginatorId{
-		PathAttribute{BGP_ATTR_FLAG_OPTIONAL, BGP_ATTR_TYPE_ORIGINATOR_ID, 0, nil},
+		PathAttribute{
+			Flags:  pathAttrFlags[t],
+			Type:   t,
+			Length: 0,
+			Value:  nil},
 		net.ParseIP(value).To4(),
 	}
 }
@@ -1797,8 +1833,13 @@ func NewPathAttributeClusterList(value []string) *PathAttributeClusterList {
 	for i, v := range value {
 		l[i] = net.ParseIP(v).To4()
 	}
+	t := BGP_ATTR_TYPE_CLUSTER_LIST
 	return &PathAttributeClusterList{
-		PathAttribute{BGP_ATTR_FLAG_OPTIONAL, BGP_ATTR_TYPE_CLUSTER_LIST, 0, nil},
+		PathAttribute{
+			Flags:  pathAttrFlags[t],
+			Type:   t,
+			Length: 0,
+			Value:  nil},
 		l,
 	}
 }
@@ -1885,10 +1926,11 @@ func (p *PathAttributeMpReachNLRI) MarshalJSON() ([]byte, error) {
 }
 
 func NewPathAttributeMpReachNLRI(nexthop string, nlri []AddrPrefixInterface) *PathAttributeMpReachNLRI {
+	t := BGP_ATTR_TYPE_MP_REACH_NLRI
 	return &PathAttributeMpReachNLRI{
 		PathAttribute: PathAttribute{
-			Flags: BGP_ATTR_FLAG_OPTIONAL,
-			Type:  BGP_ATTR_TYPE_MP_REACH_NLRI,
+			Flags: pathAttrFlags[t],
+			Type:  t,
 		},
 		Nexthop: net.ParseIP(nexthop),
 		Value:   nlri,
@@ -1934,8 +1976,13 @@ func (p *PathAttributeMpUnreachNLRI) Serialize() ([]byte, error) {
 }
 
 func NewPathAttributeMpUnreachNLRI(nlri []AddrPrefixInterface) *PathAttributeMpUnreachNLRI {
+	t := BGP_ATTR_TYPE_MP_UNREACH_NLRI
 	return &PathAttributeMpUnreachNLRI{
-		PathAttribute{BGP_ATTR_FLAG_OPTIONAL, BGP_ATTR_TYPE_MP_UNREACH_NLRI, 0, nil},
+		PathAttribute{
+			Flags:  pathAttrFlags[t],
+			Type:   t,
+			Length: 0,
+			Value:  nil},
 		nlri,
 	}
 }
@@ -2075,10 +2122,11 @@ func (p *PathAttributeExtendedCommunities) Serialize() ([]byte, error) {
 }
 
 func NewPathAttributeExtendedCommunities(value []ExtendedCommunityInterface) *PathAttributeExtendedCommunities {
+	t := BGP_ATTR_TYPE_EXTENDED_COMMUNITIES
 	return &PathAttributeExtendedCommunities{
 		PathAttribute: PathAttribute{
-			Flags: BGP_ATTR_FLAG_OPTIONAL | BGP_ATTR_FLAG_TRANSITIVE,
-			Type:  BGP_ATTR_TYPE_EXTENDED_COMMUNITIES,
+			Flags: pathAttrFlags[t],
+			Type:  t,
 		},
 		Value: value,
 	}
@@ -2130,10 +2178,11 @@ func (p *PathAttributeAs4Path) MarshalJSON() ([]byte, error) {
 }
 
 func NewPathAttributeAs4Path(value []*As4PathParam) *PathAttributeAs4Path {
+	t := BGP_ATTR_TYPE_AS4_PATH
 	return &PathAttributeAs4Path{
 		PathAttribute: PathAttribute{
-			Flags: BGP_ATTR_FLAG_OPTIONAL | BGP_ATTR_FLAG_TRANSITIVE,
-			Type:  BGP_ATTR_TYPE_AS4_PATH,
+			Flags: pathAttrFlags[t],
+			Type:  t,
 		},
 		Value: value,
 	}
@@ -2161,10 +2210,11 @@ func (p *PathAttributeAs4Aggregator) Serialize() ([]byte, error) {
 }
 
 func NewPathAttributeAs4Aggregator(as uint32, address string) *PathAttributeAs4Aggregator {
+	t := BGP_ATTR_TYPE_AS4_AGGREGATOR
 	return &PathAttributeAs4Aggregator{
 		PathAttribute: PathAttribute{
-			Flags: BGP_ATTR_FLAG_OPTIONAL | BGP_ATTR_FLAG_TRANSITIVE,
-			Type:  BGP_ATTR_TYPE_AS4_AGGREGATOR,
+			Flags: pathAttrFlags[t],
+			Type:  t,
 		},
 		Value: PathAttributeAggregatorParam{
 			AS:      as,
