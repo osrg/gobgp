@@ -2096,7 +2096,7 @@ func (msg *BGPUpdate) DecodeFromBytes(data []byte) error {
 	// check withdrawn route length
 	if len(data) < 2 {
 		msg := "message length isn't enough for withdrawn route length"
-		e := NewPacketParseError(eCode, eSubCode, msg)
+		e := NewMessageError(eCode, eSubCode, nil, msg)
 		return e
 	}
 
@@ -2106,7 +2106,7 @@ func (msg *BGPUpdate) DecodeFromBytes(data []byte) error {
 	// check withdrawn route
 	if len(data) < int(msg.WithdrawnRoutesLen) {
 		msg := "withdrawn route length exceeds message length"
-		e := NewPacketParseError(eCode, eSubCode, msg)
+		e := NewMessageError(eCode, eSubCode, nil, msg)
 		return e
 	}
 
@@ -2121,7 +2121,7 @@ func (msg *BGPUpdate) DecodeFromBytes(data []byte) error {
 	// check path total attribute length
 	if len(data) < 2 {
 		msg := "message length isn't enough for path total attribute length"
-		e := NewPacketParseError(eCode, eSubCode, msg)
+		e := NewMessageError(eCode, eSubCode, nil, msg)
 		return e
 	}
 
@@ -2131,7 +2131,7 @@ func (msg *BGPUpdate) DecodeFromBytes(data []byte) error {
 	// check path attribute
 	if len(data) < int(msg.TotalPathAttributeLen) {
 		msg := "path total attribute length exceeds message length"
-		e := NewPacketParseError(eCode, eSubCode, msg)
+		e := NewMessageError(eCode, eSubCode, nil, msg)
 		return e
 	}
 
@@ -2698,21 +2698,22 @@ func ParseBMPMessage(data []byte) (*BMPMessage, error) {
 	return msg, nil
 }
 
-type PacketParseError struct {
+type MessageError struct {
 	TypeCode    uint8
 	SubTypeCode uint8
-	Message     string
+	Data        []byte
+	message     string
 }
 
-func NewPacketParseError(typeCode, subTypeCode uint8, msg string) error {
-	e := &PacketParseError{
+func NewMessageError(typeCode, subTypeCode uint8, data []byte, msg string) error {
+	return &MessageError{
 		TypeCode:    typeCode,
 		SubTypeCode: subTypeCode,
-		Message:     msg,
+		Data:        data,
+		message:     msg,
 	}
-	return e
 }
 
-func (e *PacketParseError) Error() string {
-	return e.Message
+func (e *MessageError) Error() string {
+	return e.message
 }
