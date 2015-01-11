@@ -445,6 +445,11 @@ type IPAddrPrefixDefault struct {
 
 func (r *IPAddrPrefixDefault) decodePrefix(data []byte, bitlen uint8, addrlen uint8) error {
 	bytelen := (bitlen + 7) / 8
+	if len(data) < int(bytelen) {
+		eCode := uint8(BGP_ERROR_UPDATE_MESSAGE_ERROR)
+		eSubCode := uint8(BGP_ERROR_SUB_MALFORMED_ATTRIBUTE_LIST)
+		return NewMessageError(eCode, eSubCode, nil, "network bytes is short")
+	}
 	b := make([]byte, addrlen)
 	copy(b, data[:bytelen])
 	r.Prefix = b
@@ -479,12 +484,16 @@ type IPAddrPrefix struct {
 }
 
 func (r *IPAddrPrefix) DecodeFromBytes(data []byte) error {
+	if len(data) < 1 {
+		eCode := uint8(BGP_ERROR_UPDATE_MESSAGE_ERROR)
+		eSubCode := uint8(BGP_ERROR_SUB_MALFORMED_ATTRIBUTE_LIST)
+		return NewMessageError(eCode, eSubCode, nil, "prefix misses length field")
+	}
 	r.Length = data[0]
 	if r.addrlen == 0 {
 		r.addrlen = 4
 	}
-	r.decodePrefix(data[1:], r.Length, r.addrlen)
-	return nil
+	return r.decodePrefix(data[1:], r.Length, r.addrlen)
 }
 
 func (r *IPAddrPrefix) Serialize() ([]byte, error) {
@@ -1094,15 +1103,29 @@ func (p *PathAttribute) Len() int {
 }
 
 func (p *PathAttribute) DecodeFromBytes(data []byte) error {
+	eCode := uint8(BGP_ERROR_UPDATE_MESSAGE_ERROR)
+	eSubCode := uint8(BGP_ERROR_SUB_ATTRIBUTE_LENGTH_ERROR)
+	if len(data) < 2 {
+		return NewMessageError(eCode, eSubCode, data, "attribute header length is short")
+	}
 	p.Flags = data[0]
 	p.Type = BGPAttrType(data[1])
 
 	if p.Flags&BGP_ATTR_FLAG_EXTENDED_LENGTH != 0 {
+		if len(data) < 4 {
+			return NewMessageError(eCode, eSubCode, data, "attribute header length is short")
+		}
 		p.Length = binary.BigEndian.Uint16(data[2:4])
 		data = data[4:]
 	} else {
+		if len(data) < 3 {
+			return NewMessageError(eCode, eSubCode, data, "attribute header length is short")
+		}
 		p.Length = uint16(data[2])
 		data = data[3:]
+	}
+	if len(data) < int(p.Length) {
+		return NewMessageError(eCode, eSubCode, data, "attribute value length is short")
 	}
 	p.Value = data[:p.Length]
 
@@ -1170,9 +1193,17 @@ func (a *AsPathParam) Serialize() ([]byte, error) {
 }
 
 func (a *AsPathParam) DecodeFromBytes(data []byte) error {
+	eCode := uint8(BGP_ERROR_UPDATE_MESSAGE_ERROR)
+	eSubCode := uint8(BGP_ERROR_SUB_MALFORMED_AS_PATH)
+	if len(data) < 2 {
+		return NewMessageError(eCode, eSubCode, nil, "AS param header length is short")
+	}
 	a.Type = data[0]
 	a.Num = data[1]
 	data = data[2:]
+	if len(data) < int(a.Num*2) {
+		return NewMessageError(eCode, eSubCode, nil, "AS param data length is short")
+	}
 	for i := 0; i < int(a.Num); i++ {
 		a.AS = append(a.AS, binary.BigEndian.Uint16(data))
 		data = data[2:]
@@ -1213,9 +1244,17 @@ func (a *As4PathParam) Serialize() ([]byte, error) {
 }
 
 func (a *As4PathParam) DecodeFromBytes(data []byte) error {
+	eCode := uint8(BGP_ERROR_UPDATE_MESSAGE_ERROR)
+	eSubCode := uint8(BGP_ERROR_SUB_MALFORMED_AS_PATH)
+	if len(data) < 2 {
+		return NewMessageError(eCode, eSubCode, nil, "AS4 param header length is short")
+	}
 	a.Type = data[0]
 	a.Num = data[1]
 	data = data[2:]
+	if len(data) < int(a.Num*4) {
+		return NewMessageError(eCode, eSubCode, nil, "AS4 param data length is short")
+	}
 	for i := 0; i < int(a.Num); i++ {
 		a.AS = append(a.AS, binary.BigEndian.Uint32(data))
 		data = data[4:]
@@ -1242,20 +1281,50 @@ func NewAs4PathParam(segType uint8, as []uint32) *As4PathParam {
 type DefaultAsPath struct {
 }
 
-func (p *DefaultAsPath) isValidAspath(data []byte) bool {
-	for len(data) > 0 {
-		segType := data[0]
-		asNum := data[1]
-		if segType == 0 || segType > 4 {
-			return false
-		}
-		data = data[2:]
-		if len(data) < int(asNum)*2 {
-			return false
-		}
-		data = data[2*asNum:]
+func (p *DefaultAsPath) isValidAspath(data []byte) (bool, error) {
+	eCode := uint8(BGP_ERROR_UPDATE_MESSAGE_ERROR)
+	eSubCode := uint8(BGP_ERROR_SUB_MALFORMED_AS_PATH)
+	if len(data)%2 != 0 {
+		return false, NewMessageError(eCode, eSubCode, nil, "AS PATH length is not odd")
 	}
-	return true
+
+	tryParse := func(data []byte, use4byte bool) (bool, error) {
+		for len(data) > 0 {
+			if len(data) < 2 {
+				return false, NewMessageError(eCode, eSubCode, nil, "AS PATH header is short")
+			}
+			segType := data[0]
+			if segType == 0 || segType > 4 {
+				return false, NewMessageError(eCode, eSubCode, nil, "unknown AS_PATH seg type")
+			}
+			asNum := data[1]
+			data = data[2:]
+			if asNum == 0 || int(asNum) > math.MaxUint8 {
+				return false, NewMessageError(eCode, eSubCode, nil, "AS PATH the number of AS is incorrect")
+			}
+			segLength := asNum
+			if use4byte == true {
+				segLength *= 4
+			} else {
+				segLength *= 2
+			}
+			if int(segLength) > len(data) {
+				return false, NewMessageError(eCode, eSubCode, nil, "seg length is short")
+			}
+			data = data[segLength:]
+		}
+		return true, nil
+	}
+	_, err := tryParse(data, true)
+	if err == nil {
+		return true, nil
+	}
+
+	_, err = tryParse(data, false)
+	if err == nil {
+		return false, nil
+	}
+	return false, NewMessageError(eCode, eSubCode, nil, "can't not parse")
 }
 
 type AsPathParamInterface interface {
@@ -1272,18 +1341,34 @@ type PathAttributeAsPath struct {
 }
 
 func (p *PathAttributeAsPath) DecodeFromBytes(data []byte) error {
-	p.PathAttribute.DecodeFromBytes(data)
-	validAs := p.DefaultAsPath.isValidAspath(p.PathAttribute.Value)
+	err := p.PathAttribute.DecodeFromBytes(data)
+	if err != nil {
+		return err
+	}
+	if p.PathAttribute.Length == 0 {
+		// ibgp or something
+		return nil
+	}
+	as4Bytes, err := p.DefaultAsPath.isValidAspath(p.PathAttribute.Value)
+	if err != nil {
+		return err
+	}
 	v := p.PathAttribute.Value
 	for len(v) > 0 {
 		var tuple AsPathParamInterface
-		if validAs == true {
-			tuple = &AsPathParam{}
-		} else {
+		if as4Bytes == true {
 			tuple = &As4PathParam{}
+		} else {
+			tuple = &AsPathParam{}
 		}
-		tuple.DecodeFromBytes(v)
+		err := tuple.DecodeFromBytes(v)
+		if err != nil {
+			return err
+		}
 		p.Value = append(p.Value, tuple)
+		if tuple.Len() > len(v) {
+
+		}
 		v = v[tuple.Len():]
 	}
 	return nil
@@ -1340,7 +1425,15 @@ type PathAttributeNextHop struct {
 }
 
 func (p *PathAttributeNextHop) DecodeFromBytes(data []byte) error {
-	p.PathAttribute.DecodeFromBytes(data)
+	err := p.PathAttribute.DecodeFromBytes(data)
+	if err != nil {
+		return err
+	}
+	if len(p.PathAttribute.Value) != 4 && len(p.PathAttribute.Value) != 16 {
+		eCode := uint8(BGP_ERROR_UPDATE_MESSAGE_ERROR)
+		eSubCode := uint8(BGP_ERROR_SUB_ATTRIBUTE_LENGTH_ERROR)
+		return NewMessageError(eCode, eSubCode, nil, "nexthop length isn't correct")
+	}
 	p.Value = p.PathAttribute.Value
 	return nil
 }
@@ -1376,7 +1469,15 @@ type PathAttributeMultiExitDisc struct {
 }
 
 func (p *PathAttributeMultiExitDisc) DecodeFromBytes(data []byte) error {
-	p.PathAttribute.DecodeFromBytes(data)
+	err := p.PathAttribute.DecodeFromBytes(data)
+	if err != nil {
+		return err
+	}
+	if len(p.PathAttribute.Value) != 4 {
+		eCode := uint8(BGP_ERROR_UPDATE_MESSAGE_ERROR)
+		eSubCode := uint8(BGP_ERROR_SUB_ATTRIBUTE_LENGTH_ERROR)
+		return NewMessageError(eCode, eSubCode, nil, "med length isn't correct")
+	}
 	p.Value = binary.BigEndian.Uint32(p.PathAttribute.Value)
 	return nil
 }
@@ -1414,7 +1515,15 @@ type PathAttributeLocalPref struct {
 }
 
 func (p *PathAttributeLocalPref) DecodeFromBytes(data []byte) error {
-	p.PathAttribute.DecodeFromBytes(data)
+	err := p.PathAttribute.DecodeFromBytes(data)
+	if err != nil {
+		return err
+	}
+	if len(p.PathAttribute.Value) != 4 {
+		eCode := uint8(BGP_ERROR_UPDATE_MESSAGE_ERROR)
+		eSubCode := uint8(BGP_ERROR_SUB_ATTRIBUTE_LENGTH_ERROR)
+		return NewMessageError(eCode, eSubCode, nil, "local pref length isn't correct")
+	}
 	p.Value = binary.BigEndian.Uint32(p.PathAttribute.Value)
 	return nil
 }
@@ -1479,7 +1588,15 @@ type PathAttributeAggregator struct {
 }
 
 func (p *PathAttributeAggregator) DecodeFromBytes(data []byte) error {
-	p.PathAttribute.DecodeFromBytes(data)
+	err := p.PathAttribute.DecodeFromBytes(data)
+	if err != nil {
+		return err
+	}
+	if len(p.PathAttribute.Value) != 6 && len(p.PathAttribute.Value) != 8 {
+		eCode := uint8(BGP_ERROR_UPDATE_MESSAGE_ERROR)
+		eSubCode := uint8(BGP_ERROR_SUB_ATTRIBUTE_LENGTH_ERROR)
+		return NewMessageError(eCode, eSubCode, nil, "aggregator length isn't correct")
+	}
 	if len(p.PathAttribute.Value) == 6 {
 		p.Value.AS = uint32(binary.BigEndian.Uint16(p.PathAttribute.Value[0:2]))
 		p.Value.Address = p.PathAttribute.Value[2:]
@@ -1542,7 +1659,15 @@ type PathAttributeCommunities struct {
 }
 
 func (p *PathAttributeCommunities) DecodeFromBytes(data []byte) error {
-	p.PathAttribute.DecodeFromBytes(data)
+	err := p.PathAttribute.DecodeFromBytes(data)
+	if err != nil {
+		return err
+	}
+	if len(p.PathAttribute.Value)%4 != 0 {
+		eCode := uint8(BGP_ERROR_UPDATE_MESSAGE_ERROR)
+		eSubCode := uint8(BGP_ERROR_SUB_ATTRIBUTE_LENGTH_ERROR)
+		return NewMessageError(eCode, eSubCode, nil, "communities length isn't correct")
+	}
 	value := p.PathAttribute.Value
 	for len(value) >= 4 {
 		p.Value = append(p.Value, binary.BigEndian.Uint32(value))
@@ -1583,7 +1708,15 @@ type PathAttributeOriginatorId struct {
 }
 
 func (p *PathAttributeOriginatorId) DecodeFromBytes(data []byte) error {
-	p.PathAttribute.DecodeFromBytes(data)
+	err := p.PathAttribute.DecodeFromBytes(data)
+	if err != nil {
+		return err
+	}
+	if len(p.PathAttribute.Value) != 4 && len(p.PathAttribute.Value) != 16 {
+		eCode := uint8(BGP_ERROR_UPDATE_MESSAGE_ERROR)
+		eSubCode := uint8(BGP_ERROR_SUB_ATTRIBUTE_LENGTH_ERROR)
+		return NewMessageError(eCode, eSubCode, nil, "originatorid length isn't correct")
+	}
 	p.Value = p.PathAttribute.Value
 	return nil
 }
@@ -1618,8 +1751,16 @@ type PathAttributeClusterList struct {
 }
 
 func (p *PathAttributeClusterList) DecodeFromBytes(data []byte) error {
-	p.PathAttribute.DecodeFromBytes(data)
+	err := p.PathAttribute.DecodeFromBytes(data)
+	if err != nil {
+		return err
+	}
 	value := p.PathAttribute.Value
+	if len(p.PathAttribute.Value)%4 != 0 {
+		eCode := uint8(BGP_ERROR_UPDATE_MESSAGE_ERROR)
+		eSubCode := uint8(BGP_ERROR_SUB_ATTRIBUTE_LENGTH_ERROR)
+		return NewMessageError(eCode, eSubCode, nil, "clusterlist length isn't correct")
+	}
 	for len(value) >= 4 {
 		p.Value = append(p.Value, value[:4])
 		value = value[4:]
@@ -1669,7 +1810,10 @@ type PathAttributeMpReachNLRI struct {
 }
 
 func (p *PathAttributeMpReachNLRI) DecodeFromBytes(data []byte) error {
-	p.PathAttribute.DecodeFromBytes(data)
+	err := p.PathAttribute.DecodeFromBytes(data)
+	if err != nil {
+		return err
+	}
 
 	value := p.PathAttribute.Value
 	afi := binary.BigEndian.Uint16(value[0:2])
@@ -2033,40 +2177,46 @@ type PathAttributeUnknown struct {
 	PathAttribute
 }
 
-func getPathAttribute(data []byte) PathAttributeInterface {
+func getPathAttribute(data []byte) (PathAttributeInterface, error) {
+	if len(data) < 1 {
+		eCode := uint8(BGP_ERROR_UPDATE_MESSAGE_ERROR)
+		eSubCode := uint8(BGP_ERROR_SUB_MALFORMED_ATTRIBUTE_LIST)
+		msg := "attribute type length is short"
+		return nil, NewMessageError(eCode, eSubCode, nil, msg)
+	}
 	switch BGPAttrType(data[1]) {
 	case BGP_ATTR_TYPE_ORIGIN:
-		return &PathAttributeOrigin{}
+		return &PathAttributeOrigin{}, nil
 	case BGP_ATTR_TYPE_AS_PATH:
-		return &PathAttributeAsPath{}
+		return &PathAttributeAsPath{}, nil
 	case BGP_ATTR_TYPE_NEXT_HOP:
-		return &PathAttributeNextHop{}
+		return &PathAttributeNextHop{}, nil
 	case BGP_ATTR_TYPE_MULTI_EXIT_DISC:
-		return &PathAttributeMultiExitDisc{}
+		return &PathAttributeMultiExitDisc{}, nil
 	case BGP_ATTR_TYPE_LOCAL_PREF:
-		return &PathAttributeLocalPref{}
+		return &PathAttributeLocalPref{}, nil
 	case BGP_ATTR_TYPE_ATOMIC_AGGREGATE:
-		return &PathAttributeAtomicAggregate{}
+		return &PathAttributeAtomicAggregate{}, nil
 	case BGP_ATTR_TYPE_AGGREGATOR:
-		return &PathAttributeAggregator{}
+		return &PathAttributeAggregator{}, nil
 	case BGP_ATTR_TYPE_COMMUNITIES:
-		return &PathAttributeCommunities{}
+		return &PathAttributeCommunities{}, nil
 	case BGP_ATTR_TYPE_ORIGINATOR_ID:
-		return &PathAttributeOriginatorId{}
+		return &PathAttributeOriginatorId{}, nil
 	case BGP_ATTR_TYPE_CLUSTER_LIST:
-		return &PathAttributeClusterList{}
+		return &PathAttributeClusterList{}, nil
 	case BGP_ATTR_TYPE_MP_REACH_NLRI:
-		return &PathAttributeMpReachNLRI{}
+		return &PathAttributeMpReachNLRI{}, nil
 	case BGP_ATTR_TYPE_MP_UNREACH_NLRI:
-		return &PathAttributeMpUnreachNLRI{}
+		return &PathAttributeMpUnreachNLRI{}, nil
 	case BGP_ATTR_TYPE_EXTENDED_COMMUNITIES:
-		return &PathAttributeExtendedCommunities{}
+		return &PathAttributeExtendedCommunities{}, nil
 	case BGP_ATTR_TYPE_AS4_PATH:
-		return &PathAttributeAs4Path{}
+		return &PathAttributeAs4Path{}, nil
 	case BGP_ATTR_TYPE_AS4_AGGREGATOR:
-		return &PathAttributeAs4Aggregator{}
+		return &PathAttributeAs4Aggregator{}, nil
 	}
-	return &PathAttributeUnknown{}
+	return &PathAttributeUnknown{}, nil
 }
 
 type NLRInfo struct {
@@ -2112,8 +2262,14 @@ func (msg *BGPUpdate) DecodeFromBytes(data []byte) error {
 
 	for routelen := msg.WithdrawnRoutesLen; routelen > 0; {
 		w := WithdrawnRoute{}
-		w.DecodeFromBytes(data)
+		err := w.DecodeFromBytes(data)
+		if err != nil {
+			return err
+		}
 		routelen -= uint16(w.Len())
+		if len(data) < w.Len() {
+			return NewMessageError(eCode, eSubCode, nil, "Withdrawn route length is short")
+		}
 		data = data[w.Len():]
 		msg.WithdrawnRoutes = append(msg.WithdrawnRoutes, w)
 	}
@@ -2136,17 +2292,32 @@ func (msg *BGPUpdate) DecodeFromBytes(data []byte) error {
 	}
 
 	for pathlen := msg.TotalPathAttributeLen; pathlen > 0; {
-		p := getPathAttribute(data)
-		p.DecodeFromBytes(data)
+		p, err := getPathAttribute(data)
+		if err != nil {
+			return err
+		}
+		err = p.DecodeFromBytes(data)
+		if err != nil {
+			return err
+		}
 		pathlen -= uint16(p.Len())
+		if len(data) < p.Len() {
+			return NewMessageError(eCode, BGP_ERROR_SUB_ATTRIBUTE_LENGTH_ERROR, data, "attribute length is short")
+		}
 		data = data[p.Len():]
 		msg.PathAttributes = append(msg.PathAttributes, p)
 	}
 
 	for restlen := len(data); restlen > 0; {
 		n := NLRInfo{}
-		n.DecodeFromBytes(data)
+		err := n.DecodeFromBytes(data)
+		if err != nil {
+			return err
+		}
 		restlen -= n.Len()
+		if len(data) < n.Len() {
+			return NewMessageError(eCode, BGP_ERROR_SUB_INVALID_NETWORK_FIELD, nil, "NLRI length is short")
+		}
 		data = data[n.Len():]
 		msg.NLRI = append(msg.NLRI, n)
 	}

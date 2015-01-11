@@ -121,7 +121,10 @@ func Test_Message(t *testing.T) {
 	for _, m := range l {
 		buf1, _ := m.Serialize()
 		t.Log("LEN =", len(buf1))
-		msg, _ := ParseBGPMessage(buf1)
+		msg, err := ParseBGPMessage(buf1)
+		if err != nil {
+			t.Error(err)
+		}
 		buf2, _ := msg.Serialize()
 		if bytes.Compare(buf1, buf2) == 0 {
 			t.Log("OK")
