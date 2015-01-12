@@ -1855,11 +1855,19 @@ func (p *PathAttributeMpReachNLRI) DecodeFromBytes(data []byte) error {
 	if err != nil {
 		return err
 	}
+	eCode := uint8(BGP_ERROR_UPDATE_MESSAGE_ERROR)
+	eSubCode := uint8(BGP_ERROR_SUB_ATTRIBUTE_LENGTH_ERROR)
 
 	value := p.PathAttribute.Value
+	if len(value) < 3 {
+		return NewMessageError(eCode, eSubCode, value, "mpreach header length is short")
+	}
 	afi := binary.BigEndian.Uint16(value[0:2])
 	safi := value[2]
 	nexthopLen := value[3]
+	if len(value) < int(4+nexthopLen) {
+		return NewMessageError(eCode, eSubCode, value, "mpreach nexthop length is short")
+	}
 	nexthopbin := value[4 : 4+nexthopLen]
 	value = value[4+nexthopLen:]
 	if nexthopLen > 0 {
@@ -1871,13 +1879,25 @@ func (p *PathAttributeMpReachNLRI) DecodeFromBytes(data []byte) error {
 		if afi == AFI_IP6 {
 			addrlen = 16
 		}
+		if len(nexthopbin) != offset+addrlen {
+			return NewMessageError(eCode, eSubCode, value, "mpreach nexthop length is incorrect")
+		}
 		p.Nexthop = nexthopbin[offset : +offset+addrlen]
 	}
 	// skip reserved
+	if len(value) == 0 {
+		return NewMessageError(eCode, eSubCode, value, "no skip byte")
+	}
 	value = value[1:]
 	for len(value) > 0 {
 		prefix := routeFamilyPrefix(afi, safi)
-		prefix.DecodeFromBytes(value)
+		err := prefix.DecodeFromBytes(value)
+		if err != nil {
+			return err
+		}
+		if prefix.Len() > len(value) {
+			return NewMessageError(eCode, eSubCode, value, "prefix length is incorrect")
+		}
 		value = value[prefix.Len():]
 		p.Value = append(p.Value, prefix)
 	}
@@ -1943,15 +1963,26 @@ type PathAttributeMpUnreachNLRI struct {
 }
 
 func (p *PathAttributeMpUnreachNLRI) DecodeFromBytes(data []byte) error {
-	p.PathAttribute.DecodeFromBytes(data)
+	err := p.PathAttribute.DecodeFromBytes(data)
+	if err != nil {
+		return nil
+	}
+	eCode := uint8(BGP_ERROR_UPDATE_MESSAGE_ERROR)
+	eSubCode := uint8(BGP_ERROR_SUB_ATTRIBUTE_LENGTH_ERROR)
 
 	value := p.PathAttribute.Value
+	if len(value) < 3 {
+		return NewMessageError(eCode, eSubCode, value, "unreach header length is incorrect")
+	}
 	afi := binary.BigEndian.Uint16(value[0:2])
 	safi := value[2]
 	value = value[3:]
 	for len(value) > 0 {
 		prefix := routeFamilyPrefix(afi, safi)
 		prefix.DecodeFromBytes(value)
+		if prefix.Len() > len(value) {
+			return NewMessageError(eCode, eSubCode, value, "prefix length is incorrect")
+		}
 		value = value[prefix.Len():]
 		p.Value = append(p.Value, prefix)
 	}
@@ -2097,8 +2128,15 @@ func parseExtended(data []byte) ExtendedCommunityInterface {
 }
 
 func (p *PathAttributeExtendedCommunities) DecodeFromBytes(data []byte) error {
-	p.PathAttribute.DecodeFromBytes(data)
-
+	err := p.PathAttribute.DecodeFromBytes(data)
+	if err != nil {
+		return err
+	}
+	if len(p.PathAttribute.Value)%8 != 0 {
+		eCode := uint8(BGP_ERROR_UPDATE_MESSAGE_ERROR)
+		eSubCode := uint8(BGP_ERROR_SUB_ATTRIBUTE_LENGTH_ERROR)
+		return NewMessageError(eCode, eSubCode, nil, "extendedcommunities length isn't correct")
+	}
 	value := p.PathAttribute.Value
 	for len(value) >= 8 {
 		e := parseExtended(value)
@@ -2139,12 +2177,27 @@ type PathAttributeAs4Path struct {
 }
 
 func (p *PathAttributeAs4Path) DecodeFromBytes(data []byte) error {
-	p.PathAttribute.DecodeFromBytes(data)
+	err := p.PathAttribute.DecodeFromBytes(data)
+	if err != nil {
+		return err
+	}
+	eCode := uint8(BGP_ERROR_UPDATE_MESSAGE_ERROR)
+	eSubCode := uint8(BGP_ERROR_SUB_MALFORMED_ATTRIBUTE_LIST)
 	v := p.PathAttribute.Value
+	as4Bytes, err := p.DefaultAsPath.isValidAspath(p.PathAttribute.Value)
+	if err != nil {
+		return err
+	}
+	if as4Bytes == false {
+		return NewMessageError(eCode, eSubCode, nil, "AS4 PATH param is malformed")
+	}
 	for len(v) > 0 {
 		tuple := &As4PathParam{}
 		tuple.DecodeFromBytes(v)
 		p.Value = append(p.Value, tuple)
+		if len(v) < tuple.Len() {
+			return NewMessageError(eCode, eSubCode, nil, "AS4 PATH param is malformed")
+		}
 		v = v[tuple.Len():]
 	}
 	return nil
@@ -2194,8 +2247,15 @@ type PathAttributeAs4Aggregator struct {
 }
 
 func (p *PathAttributeAs4Aggregator) DecodeFromBytes(data []byte) error {
-	p.PathAttribute.DecodeFromBytes(data)
-
+	err := p.PathAttribute.DecodeFromBytes(data)
+	if err != nil {
+		return err
+	}
+	if len(p.PathAttribute.Value) != 8 {
+		eCode := uint8(BGP_ERROR_UPDATE_MESSAGE_ERROR)
+		eSubCode := uint8(BGP_ERROR_SUB_MALFORMED_ATTRIBUTE_LIST)
+		return NewMessageError(eCode, eSubCode, nil, "AS4 Aggregator length is incorrect")
+	}
 	p.Value.AS = binary.BigEndian.Uint32(p.PathAttribute.Value[0:4])
 	p.Value.Address = p.PathAttribute.Value[4:]
 	return nil
