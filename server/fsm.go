@@ -347,9 +347,11 @@ func (h *FSMHandler) recvMessageloop() error {
 	for {
 		err := h.recvMessageWithError()
 		if err != nil {
-			e := err.(*bgp.MessageError)
-			m := bgp.NewBGPNotificationMessage(e.TypeCode, e.SubTypeCode, e.Data)
-			h.fsm.outgoing <- m
+			e, y := err.(*bgp.MessageError)
+			if y {
+				m := bgp.NewBGPNotificationMessage(e.TypeCode, e.SubTypeCode, e.Data)
+				h.fsm.outgoing <- m
+			}
 			return nil
 		}
 	}
