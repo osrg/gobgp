@@ -96,6 +96,13 @@ func NewDestinationDefault(nlri bgp.AddrPrefixInterface) *DestinationDefault {
 
 func (dd *DestinationDefault) MarshalJSON() ([]byte, error) {
 	prefix := dd.getNlri().(*bgp.NLRInfo).Prefix
+	for _, p := range dd.knownPathList {
+		if p == dd.getBestPath() {
+			p.setBest(true)
+		} else {
+			p.setBest(false)
+		}
+	}
 	return json.Marshal(struct {
 		Prefix string
 		Paths  []Path
@@ -135,9 +142,6 @@ func (dd *DestinationDefault) getBestPath() Path {
 
 func (dd *DestinationDefault) setBestPath(path Path) {
 	dd.bestPath = path
-	if path != nil {
-		path.setBest(true)
-	}
 }
 
 func (dd *DestinationDefault) getOldBestPath() Path {
@@ -146,9 +150,6 @@ func (dd *DestinationDefault) getOldBestPath() Path {
 
 func (dd *DestinationDefault) setOldBestPath(path Path) {
 	dd.oldBestPath = path
-	if path != nil {
-		path.setBest(false)
-	}
 }
 
 func (dd *DestinationDefault) getKnownPathList() []Path {

@@ -70,7 +70,6 @@ func NewPathDefault(rf bgp.RouteFamily, source *PeerInfo, nlri bgp.AddrPrefixInt
 	path.nexthop = nexthop
 	path.withdraw = isWithdraw
 	path.medSetByTargetNeighbor = medSetByTargetNeighbor
-	path.isBest = false
 	return path
 }
 
@@ -94,15 +93,12 @@ func (pd *PathDefault) MarshalJSON() ([]byte, error) {
 		Network string
 		Nexthop string
 		Attrs   []bgp.PathAttributeInterface
-		//Metric  string
-		//origin string
-		Best string
+		Best    string
 	}{
 		Network: prefix.String() + "/" + fmt.Sprint(prefixLen),
 		Nexthop: pd.nexthop.String(),
-		//Metric:  fmt.Sprint(med),
-		Attrs: pd.getPathAttrs(),
-		Best:  fmt.Sprint(pd.isBest),
+		Attrs:   pd.getPathAttrs(),
+		Best:    fmt.Sprint(pd.isBest),
 	})
 }
 
