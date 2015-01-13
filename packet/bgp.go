@@ -1104,6 +1104,8 @@ type PathAttributeInterface interface {
 	DecodeFromBytes([]byte) error
 	Serialize() ([]byte, error)
 	Len() int
+	getFlags() uint8
+	getType() BGPAttrType
 }
 
 type PathAttribute struct {
@@ -1121,6 +1123,14 @@ func (p *PathAttribute) Len() int {
 		l += 1
 	}
 	return int(l)
+}
+
+func (p *PathAttribute) getFlags() uint8 {
+	return p.Flags
+}
+
+func (p *PathAttribute) getType() BGPAttrType {
+	return p.Type
 }
 
 func (p *PathAttribute) DecodeFromBytes(data []byte) error {
