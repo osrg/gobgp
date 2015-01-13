@@ -78,24 +78,13 @@ func (pd *PathDefault) setBest(isBest bool) {
 }
 
 func (pd *PathDefault) MarshalJSON() ([]byte, error) {
-	var prefix net.IP
-	var prefixLen uint8
-	switch nlri := pd.nlri.(type) {
-	case *bgp.NLRInfo:
-		prefix = nlri.Prefix
-		prefixLen = nlri.Length
-	case *bgp.IPv6AddrPrefix:
-		prefix = nlri.Prefix
-		prefixLen = nlri.Length
-	}
-
 	return json.Marshal(struct {
 		Network string
 		Nexthop string
 		Attrs   []bgp.PathAttributeInterface
 		Best    string
 	}{
-		Network: prefix.String() + "/" + fmt.Sprint(prefixLen),
+		Network: pd.getPrefix(),
 		Nexthop: pd.nexthop.String(),
 		Attrs:   pd.getPathAttrs(),
 		Best:    fmt.Sprint(pd.isBest),
