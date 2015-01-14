@@ -2983,7 +2983,7 @@ type MessageError struct {
 	TypeCode    uint8
 	SubTypeCode uint8
 	Data        []byte
-	message     string
+	Message     string
 }
 
 func NewMessageError(typeCode, subTypeCode uint8, data []byte, msg string) error {
@@ -2991,10 +2991,10 @@ func NewMessageError(typeCode, subTypeCode uint8, data []byte, msg string) error
 		TypeCode:    typeCode,
 		SubTypeCode: subTypeCode,
 		Data:        data,
-		message:     msg,
+		Message:     msg,
 	}
 }
 
 func (e *MessageError) Error() string {
-	return e.message
+	return e.Message
 }

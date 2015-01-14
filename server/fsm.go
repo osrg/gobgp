@@ -217,6 +217,11 @@ func (h *FSMHandler) recvMessageWithError() error {
 
 	m, err := bgp.ParseBGPBody(hd, bodyBuf)
 	if err != nil {
+		log.WithFields(log.Fields{
+			"Topic": "Peer",
+			"Key":   h.fsm.peerConfig.NeighborAddress,
+			"error": err,
+		}).Warn("malformed BGP message")
 		h.errorCh <- true
 		return err
 	}
@@ -249,7 +254,7 @@ func (h *FSMHandler) opensent() bgp.FSMState {
 	nextState := bgp.BGP_FSM_IDLE
 	select {
 	case <-h.t.Dying():
-		fsm.passiveConn.Close()
+		h.conn.Close()
 		return 0
 	case e := <-h.msgCh:
 		m := e.MsgData.(*bgp.BGPMessage)
@@ -268,6 +273,7 @@ func (h *FSMHandler) opensent() bgp.FSMState {
 			// send error
 		}
 	case <-h.errorCh:
+		h.conn.Close()
 	}
 	return nextState
 }
@@ -285,7 +291,7 @@ func (h *FSMHandler) openconfirm() bgp.FSMState {
 	for {
 		select {
 		case <-h.t.Dying():
-			fsm.passiveConn.Close()
+			h.conn.Close()
 			return 0
 		case <-fsm.keepaliveTicker.C:
 			m := bgp.NewBGPKeepAliveMessage()
@@ -303,6 +309,7 @@ func (h *FSMHandler) openconfirm() bgp.FSMState {
 			}
 			return nextState
 		case <-h.errorCh:
+			h.conn.Close()
 			return bgp.BGP_FSM_IDLE
 		}
 	}
@@ -330,6 +337,10 @@ func (h *FSMHandler) sendMessageloop() error {
 				"data":  m,
 			}).Debug("sent")
 			fsm.bgpMessageStateUpdate(m.Header.Type, false)
+			if m.Header.Type == bgp.BGP_MSG_NOTIFICATION {
+				conn.Close()
+				return nil
+			}
 		case <-fsm.keepaliveTicker.C:
 			m := bgp.NewBGPKeepAliveMessage()
 			b, _ := m.Serialize()
