@@ -2,6 +2,7 @@ package bgp
 
 import (
 	"github.com/osrg/gobgp/config"
+	"net"
 	"strconv"
 )
 
@@ -10,7 +11,6 @@ func ValidateUpdateMsg(m *BGPUpdate) (bool, error) {
 	eCode := uint8(BGP_ERROR_UPDATE_MESSAGE_ERROR)
 	eSubCodeAttrList := uint8(BGP_ERROR_SUB_MALFORMED_ATTRIBUTE_LIST)
 	eSubCodeFlagsError := uint8(BGP_ERROR_SUB_ATTRIBUTE_FLAGS_ERROR)
-	eSubCodeInvalidNetField := uint8(BGP_ERROR_SUB_INVALID_NETWORK_FIELD)
 	eSubCodeMissing := uint8(BGP_ERROR_SUB_MISSING_WELL_KNOWN_ATTRIBUTE)
 
 	seen := make(map[BGPAttrType]PathAttributeInterface)
@@ -56,14 +56,6 @@ func ValidateUpdateMsg(m *BGPUpdate) (bool, error) {
 		return false, NewMessageError(eCode, eSubCodeMissing, data, eMsg)
 	}
 
-	// check NLRI
-	for _, n := range m.NLRI {
-		if n.Prefix.To4() == nil {
-			eMsg := "invalid nlri"
-			return false, NewMessageError(eCode, eSubCodeInvalidNetField, nil, eMsg)
-		}
-	}
-
 	return true, nil
 }
 
@@ -80,12 +72,24 @@ func ValidateAttribute(a PathAttributeInterface) (bool, error) {
 		if v != config.BGP_ORIGIN_ATTR_TYPE_IGP &&
 			v != config.BGP_ORIGIN_ATTR_TYPE_EGP &&
 			v != config.BGP_ORIGIN_ATTR_TYPE_INCOMPLETE {
+			data, _ := a.Serialize()
 			eMsg := "invalid origin attribute. value : " + strconv.Itoa(int(v))
-			return false, NewMessageError(eCode, eSubCodeBadOrigin, nil, eMsg)
+			return false, NewMessageError(eCode, eSubCodeBadOrigin, data, eMsg)
 		}
 	case *PathAttributeNextHop:
-		//check IP address syntax
-		if p.Value.To4() == nil {
+
+		isZero := func(ip net.IP) bool {
+			res := ip[0] & 0xff
+			return res == 0x00
+		}
+
+		isClassDorE := func(ip net.IP) bool {
+			res := ip[0] & 0xe0
+			return res == 0xe0
+		}
+
+		//check IP address represents host address
+		if p.Value.IsLoopback() || isZero(p.Value) || isClassDorE(p.Value) {
 			eMsg := "invalid nexthop address"
 			data, _ := a.Serialize()
 			return false, NewMessageError(eCode, eSubCodeBadNextHop, data, eMsg)
