@@ -136,6 +136,17 @@ func Test_Validate_mandatory_missing(t *testing.T) {
 	assert.Equal(1, missing)
 }
 
+func Test_Validate_mandatory_missing_nocheck(t *testing.T) {
+	assert := assert.New(t)
+	message := bgpupdate().Body.(*BGPUpdate)
+	message.PathAttributes = message.PathAttributes[1:]
+	message.NLRI = nil
+
+	res, err := ValidateUpdateMsg(message)
+	assert.Equal(true, res)
+	assert.NoError(err)
+}
+
 func Test_Validate_invalid_origin(t *testing.T) {
 	assert := assert.New(t)
 	message := bgpupdate().Body.(*BGPUpdate)

@@ -39,23 +39,24 @@ func ValidateUpdateMsg(m *BGPUpdate) (bool, error) {
 		}
 	}
 
-	// check the existence of well-known mandatory attributes
-	exist := func(attrs []BGPAttrType) (bool, BGPAttrType) {
-		for _, attr := range attrs {
-			_, ok := seen[attr]
-			if !ok {
-				return false, attr
+	if len(m.NLRI) > 0 {
+		// check the existence of well-known mandatory attributes
+		exist := func(attrs []BGPAttrType) (bool, BGPAttrType) {
+			for _, attr := range attrs {
+				_, ok := seen[attr]
+				if !ok {
+					return false, attr
+				}
 			}
+			return true, 0
 		}
-		return true, 0
+		mandatory := []BGPAttrType{BGP_ATTR_TYPE_ORIGIN, BGP_ATTR_TYPE_AS_PATH, BGP_ATTR_TYPE_NEXT_HOP}
+		if ok, t := exist(mandatory); !ok {
+			eMsg := "well-known mandatory attributes are not present. type : " + strconv.Itoa(int(t))
+			data := []byte{byte(t)}
+			return false, NewMessageError(eCode, eSubCodeMissing, data, eMsg)
+		}
 	}
-	mandatory := []BGPAttrType{BGP_ATTR_TYPE_ORIGIN, BGP_ATTR_TYPE_AS_PATH, BGP_ATTR_TYPE_NEXT_HOP}
-	if ok, t := exist(mandatory); !ok {
-		eMsg := "well-known mandatory attributes are not present. type : " + strconv.Itoa(int(t))
-		data := []byte{byte(t)}
-		return false, NewMessageError(eCode, eSubCodeMissing, data, eMsg)
-	}
-
 	return true, nil
 }
 
