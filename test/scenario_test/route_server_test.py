@@ -214,25 +214,25 @@ class GoBGPTest(unittest.TestCase):
                                     exist_n += 1
                             self.assertEqual(exist_n, 1)
 
-    def test_07_active_when_depend_quagga(self):
-        print "test_active_when_depend_quagga"
+    def test_07_active_when_quagga_removed(self):
+        print "test_active_when_removed_quagga"
 
         # remove quagga container
-        fab.docker_container_depend(self.deleting_quagga)
-        depend_quagga_address = "10.0.0." + str(self.deleting_quagga)
+        fab.docker_container_removed(self.deleting_quagga)
+        removed_quagga_address = "10.0.0." + str(self.deleting_quagga)
 
-        # get neighbor state and remote ip of depend quagga
-        print "check of [" + depend_quagga_address + " ]"
-        url = "http://" + self.gobgp_ip + ":" + self.gobgp_port + "/v1/bgp/neighbor/" + depend_quagga_address
+        # get neighbor state and remote ip of removed quagga
+        print "check of [" + removed_quagga_address + " ]"
+        url = "http://" + self.gobgp_ip + ":" + self.gobgp_port + "/v1/bgp/neighbor/" + removed_quagga_address
         r = requests.get(url)
         neighbor = json.loads(r.text)
         state = neighbor['info']['bgp_state']
         remote_ip = neighbor['conf']['remote_ip']
-        self.assertEqual(depend_quagga_address, remote_ip)
+        self.assertEqual(removed_quagga_address, remote_ip)
         self.assertEqual(state, "BGP_FSM_ACTIVE")
 
-    def test_08_received_route_when_depend_quagga(self):
-        print "test_received_route_when_depend_quagga"
+    def test_08_received_route_when_quagga_removed(self):
+        print "test_received_route_when_removed_quagga"
         if self.check_load_config() is False:
             return
 
@@ -269,8 +269,8 @@ class GoBGPTest(unittest.TestCase):
                                 exist_n += 1
                         self.assertEqual(exist_n, 1)
 
-    def test_09_advertising_route_when_depend_quagga(self):
-        print "test_advertising_route_when_depend_quagga"
+    def test_09_advertising_route_when_quagga_removed(self):
+        print "test_advertising_route_when_removed_quagga"
         if self.check_load_config() is False:
             return
 

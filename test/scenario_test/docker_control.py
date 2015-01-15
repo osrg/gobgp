@@ -14,6 +14,8 @@ BRIDGE_0 = "br0"
 BRIDGE_1 = "br1"
 BRIDGE_2 = "br2"
 
+sleep_time = 40
+
 def test_user_check():
     root = False
     outbuf = local("echo $USER", capture=True)
@@ -160,17 +162,15 @@ def docker_container_append(quagga_num):
     cmd = "docker exec gobgp /usr/bin/pkill gobgp -SIGHUP"
     local(cmd, capture=True)
     print "please wait"
-    sleep_time = 15
     time.sleep(sleep_time)
     print "complete append docker container."
 
 
-def docker_container_depend(quagga_num):
+def docker_container_removed(quagga_num):
     print "start remove docker container."
     quagga = "q" + str(quagga_num)
     docker_stop_quagga(quagga)
     print "please wait"
-    sleep_time = 15
     time.sleep(sleep_time)
     print "complete remove docker container."
 
@@ -222,7 +222,6 @@ def init_test_env_executor(quagga_num):
     gobgp_start()
 
     print "please wait"
-    sleep_time = 15
     time.sleep(sleep_time)
     print "complete initialization of test environment."
 
