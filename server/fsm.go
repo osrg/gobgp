@@ -215,6 +215,7 @@ func (h *FSMHandler) recvMessageWithError() error {
 		return err
 	}
 
+	var fmsg *fsmMsg
 	m, err := bgp.ParseBGPBody(hd, bodyBuf)
 	if err != nil {
 		log.WithFields(log.Fields{
@@ -222,16 +223,19 @@ func (h *FSMHandler) recvMessageWithError() error {
 			"Key":   h.fsm.peerConfig.NeighborAddress,
 			"error": err,
 		}).Warn("malformed BGP message")
-		h.errorCh <- true
-		return err
+		fmsg = &fsmMsg{
+			MsgType: FSM_MSG_BGP_MESSAGE,
+			MsgData: err,
+		}
+	} else {
+		fmsg = &fsmMsg{
+			MsgType: FSM_MSG_BGP_MESSAGE,
+			MsgData: m,
+		}
+		h.fsm.bgpMessageStateUpdate(m.Header.Type, true)
 	}
-	e := &fsmMsg{
-		MsgType: FSM_MSG_BGP_MESSAGE,
-		MsgData: m,
-	}
-	h.msgCh <- e
-	h.fsm.bgpMessageStateUpdate(m.Header.Type, true)
-	return nil
+	h.msgCh <- fmsg
+	return err
 }
 
 func (h *FSMHandler) recvMessage() error {
@@ -257,20 +261,33 @@ func (h *FSMHandler) opensent() bgp.FSMState {
 		h.conn.Close()
 		return 0
 	case e := <-h.msgCh:
-		m := e.MsgData.(*bgp.BGPMessage)
-		if m.Header.Type == bgp.BGP_MSG_OPEN {
-			e := &fsmMsg{
-				MsgType: FSM_MSG_BGP_MESSAGE,
-				MsgData: m,
+		switch e.MsgData.(type) {
+		case *bgp.BGPMessage:
+			m := e.MsgData.(*bgp.BGPMessage)
+			if m.Header.Type == bgp.BGP_MSG_OPEN {
+				e := &fsmMsg{
+					MsgType: FSM_MSG_BGP_MESSAGE,
+					MsgData: m,
+				}
+				fsm.incoming <- e
+				msg := bgp.NewBGPKeepAliveMessage()
+				b, _ := msg.Serialize()
+				fsm.passiveConn.Write(b)
+				nextState = bgp.BGP_FSM_OPENCONFIRM
+				fsm.bgpMessageStateUpdate(msg.Header.Type, false)
+			} else {
+				// send notification
 			}
-			fsm.incoming <- e
-			msg := bgp.NewBGPKeepAliveMessage()
-			b, _ := msg.Serialize()
-			fsm.passiveConn.Write(b)
-			nextState = bgp.BGP_FSM_OPENCONFIRM
-			fsm.bgpMessageStateUpdate(msg.Header.Type, false)
-		} else {
-			// send error
+		case *bgp.MessageError:
+			err := e.MsgData.(*bgp.MessageError)
+			m := bgp.NewBGPNotificationMessage(err.TypeCode, err.SubTypeCode, err.Data)
+			h.fsm.outgoing <- m
+		default:
+			log.WithFields(log.Fields{
+				"Topic": "Peer",
+				"Key":   fsm.peerConfig.NeighborAddress,
+				"Data":  e.MsgData,
+			}).Panic("unknonw msg type")
 		}
 	case <-h.errorCh:
 		h.conn.Close()
@@ -300,20 +317,39 @@ func (h *FSMHandler) openconfirm() bgp.FSMState {
 			fsm.passiveConn.Write(b)
 			fsm.bgpMessageStateUpdate(m.Header.Type, false)
 		case e := <-h.msgCh:
-			m := e.MsgData.(*bgp.BGPMessage)
-			nextState := bgp.BGP_FSM_IDLE
-			if m.Header.Type == bgp.BGP_MSG_KEEPALIVE {
-				nextState = bgp.BGP_FSM_ESTABLISHED
-			} else {
-				// send error
+			switch e.MsgData.(type) {
+			case *bgp.BGPMessage:
+				m := e.MsgData.(*bgp.BGPMessage)
+				nextState := bgp.BGP_FSM_IDLE
+				if m.Header.Type == bgp.BGP_MSG_KEEPALIVE {
+					nextState = bgp.BGP_FSM_ESTABLISHED
+				} else {
+					// send error
+				}
+				return nextState
+			case *bgp.MessageError:
+				err := e.MsgData.(*bgp.MessageError)
+				m := bgp.NewBGPNotificationMessage(err.TypeCode, err.SubTypeCode, err.Data)
+				h.fsm.outgoing <- m
+				// tx goroutine will close the tcp
+				// connection and state will be
+				// changed. so no need to change here.
+			default:
+				log.WithFields(log.Fields{
+					"Topic": "Peer",
+					"Key":   fsm.peerConfig.NeighborAddress,
+					"Data":  e.MsgData,
+				}).Panic("unknonw msg type")
 			}
-			return nextState
 		case <-h.errorCh:
 			h.conn.Close()
 			return bgp.BGP_FSM_IDLE
 		}
 	}
-	// panic
+	log.WithFields(log.Fields{
+		"Topic": "Peer",
+		"Key":   fsm.peerConfig.NeighborAddress,
+	}).Panic("code logic bug")
 	return 0
 }
 
@@ -337,8 +373,9 @@ func (h *FSMHandler) sendMessageloop() error {
 				"data":  m,
 			}).Debug("sent")
 			fsm.bgpMessageStateUpdate(m.Header.Type, false)
+
 			if m.Header.Type == bgp.BGP_MSG_NOTIFICATION {
-				conn.Close()
+				h.errorCh <- true
 				return nil
 			}
 		case <-fsm.keepaliveTicker.C:
@@ -358,11 +395,6 @@ func (h *FSMHandler) recvMessageloop() error {
 	for {
 		err := h.recvMessageWithError()
 		if err != nil {
-			e, y := err.(*bgp.MessageError)
-			if y {
-				m := bgp.NewBGPNotificationMessage(e.TypeCode, e.SubTypeCode, e.Data)
-				h.fsm.outgoing <- m
-			}
 			return nil
 		}
 	}

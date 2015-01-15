@@ -275,7 +275,18 @@ func (peer *Peer) loop() error {
 						}
 					}
 				case FSM_MSG_BGP_MESSAGE:
-					peer.handleBGPmessage(e.MsgData.(*bgp.BGPMessage))
+					switch m := e.MsgData.(type) {
+					case *bgp.MessageError:
+						h.fsm.outgoing <- bgp.NewBGPNotificationMessage(m.TypeCode, m.SubTypeCode, m.Data)
+					case *bgp.BGPMessage:
+						peer.handleBGPmessage(m)
+					default:
+						log.WithFields(log.Fields{
+							"Topic": "Peer",
+							"Key":   peer.peerConfig.NeighborAddress,
+							"Data":  e.MsgData,
+						}).Panic("unknonw msg type")
+					}
 				}
 			case m := <-peer.serverMsgCh:
 				peer.handleServerMsg(m)
