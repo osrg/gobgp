@@ -18,6 +18,7 @@ package bgp
 import (
 	"encoding/binary"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"math"
 	"net"
@@ -957,7 +958,7 @@ const (
 	RF_RTC_UC    RouteFamily = AFI_IP<<16 | SAFI_ROUTE_TARGET_CONSTRTAINS
 )
 
-func routeFamilyPrefix(afi uint16, safi uint8) (prefix AddrPrefixInterface) {
+func routeFamilyPrefix(afi uint16, safi uint8) (prefix AddrPrefixInterface, err error) {
 	switch rfshift(afi, safi) {
 	case RF_IPv4_UC:
 		prefix = NewIPAddrPrefix(0, "")
@@ -973,8 +974,10 @@ func routeFamilyPrefix(afi uint16, safi uint8) (prefix AddrPrefixInterface) {
 		prefix = NewLabelledIPv6AddrPrefix(0, "", *NewLabel())
 	case RF_RTC_UC:
 		prefix = &RouteTargetMembershipNLRI{}
+	default:
+		return nil, errors.New("unknown route family")
 	}
-	return prefix
+	return prefix, nil
 }
 
 const (
@@ -1890,8 +1893,11 @@ func (p *PathAttributeMpReachNLRI) DecodeFromBytes(data []byte) error {
 	}
 	value = value[1:]
 	for len(value) > 0 {
-		prefix := routeFamilyPrefix(afi, safi)
-		err := prefix.DecodeFromBytes(value)
+		prefix, err := routeFamilyPrefix(afi, safi)
+		if err != nil {
+			return NewMessageError(eCode, BGP_ERROR_SUB_ATTRIBUTE_FLAGS_ERROR, data[:p.PathAttribute.Len()], err.Error())
+		}
+		err = prefix.DecodeFromBytes(value)
 		if err != nil {
 			return err
 		}
@@ -1978,10 +1984,16 @@ func (p *PathAttributeMpUnreachNLRI) DecodeFromBytes(data []byte) error {
 	safi := value[2]
 	value = value[3:]
 	for len(value) > 0 {
-		prefix := routeFamilyPrefix(afi, safi)
-		prefix.DecodeFromBytes(value)
+		prefix, err := routeFamilyPrefix(afi, safi)
+		if err != nil {
+			return NewMessageError(eCode, BGP_ERROR_SUB_ATTRIBUTE_FLAGS_ERROR, data[:p.PathAttribute.Len()], err.Error())
+		}
+		err = prefix.DecodeFromBytes(value)
+		if err != nil {
+			return err
+		}
 		if prefix.Len() > len(value) {
-			return NewMessageError(eCode, eSubCode, value, "prefix length is incorrect")
+			return NewMessageError(eCode, eSubCode, data[:p.PathAttribute.Len()], "prefix length is incorrect")
 		}
 		value = value[prefix.Len():]
 		p.Value = append(p.Value, prefix)
