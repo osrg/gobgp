@@ -39,11 +39,12 @@ func main() {
 	signal.Notify(sigCh, syscall.SIGHUP)
 
 	var opts struct {
-		ConfigFile string `short:"f" long:"config-file" description:"specifying a config file"`
-		LogLevel   string `short:"l" long:"log-level" description:"specifying log level"`
-		LogPlain   bool   `short:"p" long:"log-plain" description:"use plain format for logging (json by default)"`
-		UseSyslog  string `short:"s" long:"syslog" description:"use syslogd"`
-		Facility   string `long:"syslog-facility" description:"specify syslog facility"`
+		ConfigFile    string `short:"f" long:"config-file" description:"specifying a config file"`
+		LogLevel      string `short:"l" long:"log-level" description:"specifying log level"`
+		LogPlain      bool   `short:"p" long:"log-plain" description:"use plain format for logging (json by default)"`
+		UseSyslog     string `short:"s" long:"syslog" description:"use syslogd"`
+		Facility      string `long:"syslog-facility" description:"specify syslog facility"`
+		DisableStdlog bool   `long:"disable-stdlog" description:"disable standard logging"`
 	}
 	_, err := flags.Parse(&opts)
 	if err != nil {
@@ -59,9 +60,13 @@ func main() {
 		log.SetLevel(log.InfoLevel)
 	}
 
-	if opts.UseSyslog == "" {
-		log.SetOutput(os.Stderr)
+	if opts.DisableStdlog == true {
+		log.SetOutput(ioutil.Discard)
 	} else {
+		log.SetOutput(os.Stdout)
+	}
+
+	if opts.UseSyslog != "" {
 		dst := strings.SplitN(opts.UseSyslog, ":", 2)
 		network := ""
 		addr := ""
@@ -120,7 +125,6 @@ func main() {
 			os.Exit(1)
 		} else {
 			log.AddHook(hook)
-			log.SetOutput(ioutil.Discard)
 		}
 	}
 
