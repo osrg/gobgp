@@ -50,9 +50,9 @@ class Action(object):
         self.base_url = self.options.url + ":" + str(self.options.port) + "/v1/bgp"
 
     def __call__(self):
-        if len(self.args) != 1:
+        if len(self.args) != 2:
             return 1
-        r = requests.post(self.base_url + "/neighbor/" + self.args[0] + "/" + self.command)
+        r = requests.post(self.base_url + "/neighbor/" + self.args[1] + "/" + self.command)
         if r.status_code == requests.codes.ok:
             print "Succeed"
         else:
