@@ -2584,7 +2584,8 @@ type BGPBody interface {
 }
 
 const (
-	BGP_HEADER_LENGTH = 19
+	BGP_HEADER_LENGTH      = 19
+	BGP_MAX_MESSAGE_LENGTH = 4096
 )
 
 type BGPHeader struct {

@@ -1,6 +1,7 @@
 package bgp
 
 import (
+	"encoding/binary"
 	"github.com/osrg/gobgp/config"
 	"net"
 	"strconv"
@@ -138,4 +139,13 @@ func ValidateFlags(t BGPAttrType, flags uint8) (bool, string) {
 		}
 	}
 	return true, ""
+}
+
+func ValidateBGPMessage(m *BGPMessage) error {
+	if m.Header.Len > BGP_MAX_MESSAGE_LENGTH {
+		buf := make([]byte, 2)
+		binary.BigEndian.PutUint16(buf, m.Header.Len)
+		return NewMessageError(BGP_ERROR_MESSAGE_HEADER_ERROR, BGP_ERROR_SUB_BAD_MESSAGE_LENGTH, buf, "too long length")
+	}
+	return nil
 }

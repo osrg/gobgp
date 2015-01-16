@@ -225,6 +225,9 @@ func (h *FSMHandler) recvMessageWithError() error {
 
 	var fmsg *fsmMsg
 	m, err := bgp.ParseBGPBody(hd, bodyBuf)
+	if err == nil {
+		err = bgp.ValidateBGPMessage(m)
+	}
 	if err != nil {
 		log.WithFields(log.Fields{
 			"Topic": "Peer",
