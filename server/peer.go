@@ -259,7 +259,8 @@ func (peer *Peer) loop() error {
 			select {
 			case <-peer.t.Dying():
 				close(peer.acceptedConnCh)
-				h.Stop()
+				h.fsm.outgoing <- bgp.NewBGPNotificationMessage(bgp.BGP_ERROR_CEASE, bgp.BGP_ERROR_SUB_PEER_DECONFIGURED, nil)
+				h.Wait()
 				close(peer.incoming)
 				close(peer.outgoing)
 				return nil

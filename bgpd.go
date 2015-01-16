@@ -157,7 +157,7 @@ func main() {
 				added = newConfig.NeighborList
 				deleted = []config.NeighborType{}
 			} else {
-				_, added, deleted = config.UpdateConfig(bgpConfig, &newConfig)
+				bgpConfig, added, deleted = config.UpdateConfig(bgpConfig, &newConfig)
 			}
 
 			for _, p := range added {
