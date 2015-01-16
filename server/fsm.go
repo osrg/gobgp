@@ -205,7 +205,15 @@ func (h *FSMHandler) recvMessageWithError() error {
 	hd := &bgp.BGPHeader{}
 	err = hd.DecodeFromBytes(headerBuf)
 	if err != nil {
-		h.errorCh <- true
+		log.WithFields(log.Fields{
+			"Topic": "Peer",
+			"Key":   h.fsm.peerConfig.NeighborAddress,
+			"error": err,
+		}).Warn("malformed BGP Header")
+		h.msgCh <- &fsmMsg{
+			MsgType: FSM_MSG_BGP_MESSAGE,
+			MsgData: err,
+		}
 		return err
 	}
 

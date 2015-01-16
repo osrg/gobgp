@@ -2625,6 +2625,8 @@ func parseBody(h *BGPHeader, data []byte) (*BGPMessage, error) {
 		msg.Body = &BGPKeepAlive{}
 	case BGP_MSG_ROUTE_REFRESH:
 		msg.Body = &BGPRouteRefresh{}
+	default:
+		return nil, NewMessageError(BGP_ERROR_MESSAGE_HEADER_ERROR, BGP_ERROR_SUB_BAD_MESSAGE_TYPE, nil, "unknown message type")
 	}
 	err := msg.Body.DecodeFromBytes(data)
 	if err != nil {
