@@ -78,6 +78,7 @@ func NewPeer(g config.GlobalType, peer config.NeighborType, serverMsgCh chan *se
 	}
 	p.fsm = NewFSM(&g, &peer, p.acceptedConnCh, p.incoming, p.outgoing)
 	peer.BgpNeighborCommonState.State = uint32(bgp.BGP_FSM_IDLE)
+	peer.BgpNeighborCommonState.Downtime = time.Now()
 	if peer.NeighborAddress.To4() != nil {
 		p.rf = bgp.RF_IPv4_UC
 	} else {
@@ -281,7 +282,7 @@ func (peer *Peer) loop() error {
 						peer.fsm.peerConfig.BgpNeighborCommonState.EstablishedCount++
 					}
 					if oldState == bgp.BGP_FSM_ESTABLISHED {
-						peer.fsm.peerConfig.BgpNeighborCommonState.Uptime = time.Time{}
+						peer.fsm.peerConfig.BgpNeighborCommonState.Downtime = time.Now()
 						peer.adjRib.DropAllIn(peer.rf)
 						pm := &peerMsg{
 							msgType: PEER_MSG_PEER_DOWN,
@@ -356,6 +357,11 @@ func (peer *Peer) MarshalJSON() ([]byte, error) {
 	if !s.Uptime.IsZero() {
 		uptime = time.Now().Sub(s.Uptime).Seconds()
 	}
+	downtime := float64(0)
+	if !s.Downtime.IsZero() {
+		downtime = time.Now().Sub(s.Downtime).Seconds()
+	}
+
 	p["info"] = struct {
 		BgpState                  string  `json:"bgp_state"`
 		FsmEstablishedTransitions uint32  `json:"fsm_established_transitions"`
@@ -372,7 +378,11 @@ func (peer *Peer) MarshalJSON() ([]byte, error) {
 		RefreshMessageOut         uint32  `json:"refresh_message_out"`
 		RefreshMessageIn          uint32  `json:"refresh_message_in"`
 		Uptime                    float64 `json:"uptime"`
+		Downtime                  float64 `json:"downtime"`
 		LastError                 string  `json:"last_error"`
+		Received                  uint32
+		Accepted                  uint32
+		Advertized                uint32
 	}{
 
 		BgpState:                  f.state.String(),
@@ -390,6 +400,10 @@ func (peer *Peer) MarshalJSON() ([]byte, error) {
 		RefreshMessageOut:         s.RefreshOut,
 		RefreshMessageIn:          s.RefreshIn,
 		Uptime:                    uptime,
+		Downtime:                  downtime,
+		Received:                  uint32(peer.adjRib.GetInCount(peer.rf)),
+		Accepted:                  uint32(peer.adjRib.GetInCount(peer.rf)),
+		Advertized:                uint32(peer.adjRib.GetOutCount(peer.rf)),
 	}
 
 	return json.Marshal(p)

@@ -77,7 +77,7 @@ class Show(object):
                 return f[1]()
         return 1
 
-    def _neighbors(self, neighbor=None):
+    def _neighbor(self, neighbor=None):
         capdict = {1: "MULTIPROTOCOL",
                    2: "ROUTE_REFRESH",
                    4: "CARRYING_LABEL_INFO",
@@ -122,10 +122,48 @@ class Show(object):
             print("")
         return 0
 
+    @staticmethod
+    def format_timedelta(sec):
+        days = timedelta(seconds=sec).days
+        t = timedelta(seconds=timedelta(seconds=sec).seconds)
+        if days == 0:
+            up = t
+        else:
+            up = str(days) + "d" + " " + t
+        return up
+
     def do_neighbors(self):
         if len(self.args) != 1:
             return 1
-        return self._neighbors()
+        r = requests.get(self.base_url + "/neighbors")
+        neighbors = r.json()
+        if self.options.debug:
+            print neighbors
+            return 0
+        print("{:40s} {:5s} {:11s}{:11s} {:8s} |#{:8s} {:8s} {:8s}".format("Peer", "AS", "Up", "Down", "State", "Advertised", "Received", "Accepted"))
+        for n in sorted(neighbors, key=lambda n: n["conf"]["remote_ip"]):
+            if n["info"]["uptime"] == 0:
+                up = "never"
+            else:
+                up = self.format_timedelta(n["info"]["uptime"])
+            down = self.format_timedelta(n["info"]["downtime"])
+
+            s = n["info"]["bgp_state"]
+            if s == "BGP_FSM_IDLE":
+                state = "Idle"
+            elif s == "BGP_FSM_CONNECT":
+                state = "Connect"
+            elif s == "BGP_FSM_ACTIVE":
+                state = "Active"
+            elif s == "BGP_FSM_OPENSENT":
+                state = "Sent"
+            elif s == "BGP_FSM_OPENCONFIRM":
+                state = "Confirm"
+            elif s == "BGP_FSM_ESTABLISHED":
+                state = "Establ"
+
+            print("{:40s} {:5d} {:11s}{:11s} {:8s} |   {:>8d} {:>8d} {:>8d}".format(n["conf"]["remote_ip"], n["conf"]["remote_as"], up, down, state, n["info"]["Advertized"], n["info"]["Received"], n["info"]["Accepted"]))
+        return 0
 
     def _format_attrs(self, attrlist):
         attrs = []
@@ -184,7 +222,7 @@ class Show(object):
         if len(self.args) != 2 and len(self.args) != 3:
             return 1
         if len(self.args) == 2:
-            return self._neighbors(neighbor=self.args[1])
+            return self._neighbor(neighbor=self.args[1])
         if self.args[2] == "local":
             self.args[2] = "local-rib"
         r = requests.get(self.base_url + "/neighbor/" + self.args[1] + "/" + self.args[2])

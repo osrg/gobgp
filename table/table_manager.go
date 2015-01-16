@@ -281,6 +281,14 @@ func (adj *AdjRib) GetOutPathList(rf bgp.RouteFamily) []Path {
 	return adj.getPathList(adj.adjRibOut[rf])
 }
 
+func (adj *AdjRib) GetInCount(rf bgp.RouteFamily) int {
+	return len(adj.adjRibIn[rf])
+}
+
+func (adj *AdjRib) GetOutCount(rf bgp.RouteFamily) int {
+	return len(adj.adjRibOut[rf])
+}
+
 func (adj *AdjRib) DropAllIn(rf bgp.RouteFamily) {
 	// replace old one
 	adj.adjRibIn[rf] = make(map[string]*ReceivedRoute)

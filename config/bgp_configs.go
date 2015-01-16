@@ -378,7 +378,8 @@ type BgpNeighborCommonStateType struct {
 	// peer-state
 	State uint32
 	// peer-uptime
-	Uptime time.Time
+	Uptime   time.Time
+	Downtime time.Time
 
 	// BGP statistics
 	// Open message input count
