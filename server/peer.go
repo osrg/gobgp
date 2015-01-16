@@ -27,6 +27,10 @@ import (
 	"time"
 )
 
+const (
+	FLOP_THRESHOLD = time.Second * 30
+)
+
 type peerMsgType int
 
 const (
@@ -282,7 +286,11 @@ func (peer *Peer) loop() error {
 						peer.fsm.peerConfig.BgpNeighborCommonState.EstablishedCount++
 					}
 					if oldState == bgp.BGP_FSM_ESTABLISHED {
-						peer.fsm.peerConfig.BgpNeighborCommonState.Downtime = time.Now()
+						t := time.Now()
+						peer.fsm.peerConfig.BgpNeighborCommonState.Downtime = t
+						if t.Sub(peer.fsm.peerConfig.BgpNeighborCommonState.Uptime) < FLOP_THRESHOLD {
+							peer.fsm.peerConfig.BgpNeighborCommonState.Flops++
+						}
 						peer.adjRib.DropAllIn(peer.rf)
 						pm := &peerMsg{
 							msgType: PEER_MSG_PEER_DOWN,
@@ -383,6 +391,8 @@ func (peer *Peer) MarshalJSON() ([]byte, error) {
 		Received                  uint32
 		Accepted                  uint32
 		Advertized                uint32
+		OutQ                      int
+		Flops                     uint32
 	}{
 
 		BgpState:                  f.state.String(),
@@ -404,6 +414,8 @@ func (peer *Peer) MarshalJSON() ([]byte, error) {
 		Received:                  uint32(peer.adjRib.GetInCount(peer.rf)),
 		Accepted:                  uint32(peer.adjRib.GetInCount(peer.rf)),
 		Advertized:                uint32(peer.adjRib.GetOutCount(peer.rf)),
+		OutQ:                      len(peer.outgoing),
+		Flops:                     s.Flops,
 	}
 
 	return json.Marshal(p)

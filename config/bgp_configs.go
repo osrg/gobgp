@@ -417,6 +417,7 @@ type BgpNeighborCommonStateType struct {
 	EstablishedCount uint32
 	// Dropped
 	DroppedCount uint32
+	Flops        uint32
 }
 
 //struct for container transport-options

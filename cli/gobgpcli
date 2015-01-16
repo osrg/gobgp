@@ -96,6 +96,7 @@ class Show(object):
             print("BGP neighbor is {:s}, remote AS {:d}".format(n["conf"]["remote_ip"], n["conf"]["remote_as"]))
             print("  BGP version 4, remote router ID {:s}".format(n["conf"]["id"]))
             print("  BGP state = {:s}, up for {:s}".format(n["info"]["bgp_state"], str(timedelta(seconds=n["info"]["uptime"]))))
+            print("  BGP OutQ = {:d}, Flops = {:d}".format(n["info"]["OutQ"], n["info"]["Flops"]))
             print("  Neighbor capabilities:")
             allcap = set(n["conf"]["RemoteCap"]) | set(n["conf"]["LocalCap"])
             for i in sorted(allcap):
