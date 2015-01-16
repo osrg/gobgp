@@ -21,6 +21,7 @@ import (
 	"github.com/gorilla/mux"
 	"net/http"
 	"strconv"
+	"strings"
 )
 
 const (
@@ -30,16 +31,17 @@ const (
 	REQ_ADJ_RIB_IN
 	REQ_ADJ_RIB_OUT
 	REQ_LOCAL_RIB
+	REQ_NEIGHBOR_SHUTDOWN
+	REQ_NEIGHBOR_RESET
+	REQ_NEIGHBOR_SOFT_RESET
+	REQ_NEIGHBOR_SOFT_RESET_IN
+	REQ_NEIGHBOR_SOFT_RESET_OUT
 )
 
 const (
-	BASE_VERSION       = "/v1"
-	NEIGHBOR           = "/bgp/neighbor"
-	NEIGHBORS          = "/bgp/neighbors"
-	ADJ_RIB_IN         = "/bgp/adj-rib-in"
-	ADJ_RIB_OUT        = "/bgp/adj-rib-out"
-	ADJ_RIB_LOCAL      = "/bgp/adj-rib-local"
-	ADJ_RIB_LOCAL_BEST = "/bgp/adj-rib-local/best"
+	BASE_VERSION = "/v1"
+	NEIGHBOR     = "/bgp/neighbor"
+	NEIGHBORS    = "/bgp/neighbors"
 
 	PARAM_REMOTE_PEER_ADDR = "remotePeerAddr"
 	STATS                  = "/stats"
@@ -102,18 +104,19 @@ func NewRestServer(port int, bgpServerCh chan *RestRequest) *RestServer {
 func (rs *RestServer) Serve() {
 	neighbor := BASE_VERSION + NEIGHBOR
 	neighbors := BASE_VERSION + NEIGHBORS
-	// adjRibIn := BASE_VERSION + ADJ_RIB_IN
-	// adjRibOut := BASE_VERSION + ADJ_RIB_OUT
-	// adjRibLocal := BASE_VERSION + ADJ_RIB_LOCAL
-	// adjRibLocalBest := BASE_VERSION + ADJ_RIB_LOCAL_BEST
 
 	r := mux.NewRouter()
-	// set URLs
+
+	perPeerURL := "/{" + PARAM_REMOTE_PEER_ADDR + "}"
 	r.HandleFunc(neighbors, rs.Neighbors).Methods("GET")
-	r.HandleFunc(neighbor+"/{"+PARAM_REMOTE_PEER_ADDR+"}", rs.Neighbor).Methods("GET")
-	// r.HandleFunc(adjRibIn+"/{"+PARAM_REMOTE_PEER_ADDR+"}", rs.AdjRibIn).Methods("GET")
-	// r.HandleFunc(adjRibOut+"/{"+PARAM_REMOTE_PEER_ADDR+"}", rs.AdjRibOut).Methods("GET")
-	r.HandleFunc(neighbor+"/{"+PARAM_REMOTE_PEER_ADDR+"}/"+"local-rib", rs.NeighborLocalRib).Methods("GET")
+	r.HandleFunc(neighbor+perPeerURL, rs.Neighbor).Methods("GET")
+	r.HandleFunc(neighbor+perPeerURL+"/"+"local-rib", rs.NeighborLocalRib).Methods("GET")
+	r.HandleFunc(neighbor+perPeerURL+"/"+"shutdown", rs.NeighborPostHandler).Methods("POST")
+	r.HandleFunc(neighbor+perPeerURL+"/"+"reset", rs.NeighborPostHandler).Methods("POST")
+	r.HandleFunc(neighbor+perPeerURL+"/"+"softreset", rs.NeighborPostHandler).Methods("POST")
+	r.HandleFunc(neighbor+perPeerURL+"/"+"softresetin", rs.NeighborPostHandler).Methods("POST")
+	r.HandleFunc(neighbor+perPeerURL+"/"+"softresetout", rs.NeighborPostHandler).Methods("POST")
+
 	// stats
 	r.HandleFunc(STATS, stats_api.Handler).Methods("GET")
 
@@ -152,6 +155,22 @@ func (rs *RestServer) neighbor(w http.ResponseWriter, r *http.Request, reqType i
 
 	w.Header().Set("Content-Type", "application/json; charset=utf-8")
 	w.Write(res.Data)
+}
+
+func (rs *RestServer) NeighborPostHandler(w http.ResponseWriter, r *http.Request) {
+	action := strings.Split(r.URL.Path, "/")
+	switch action[len(action)-1] {
+	case "shutdown":
+		rs.neighbor(w, r, REQ_NEIGHBOR_SHUTDOWN)
+	case "reset":
+		rs.neighbor(w, r, REQ_NEIGHBOR_RESET)
+	case "softreset":
+		rs.neighbor(w, r, REQ_NEIGHBOR_SOFT_RESET)
+	case "softresetin":
+		rs.neighbor(w, r, REQ_NEIGHBOR_SOFT_RESET_IN)
+	case "softresetout":
+		rs.neighbor(w, r, REQ_NEIGHBOR_SOFT_RESET_OUT)
+	}
 }
 
 func (rs *RestServer) Neighbor(w http.ResponseWriter, r *http.Request) {

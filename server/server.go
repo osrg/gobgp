@@ -228,7 +228,7 @@ func (server *BgpServer) handleRest(restReq *api.RestRequest) {
 		restReq.ResponseCh <- result
 		close(restReq.ResponseCh)
 
-	case api.REQ_NEIGHBOR: // get neighbor state
+	case api.REQ_NEIGHBOR:
 
 		remoteAddr := restReq.RemoteAddr
 		result := &api.RestResponse{}
@@ -241,7 +241,7 @@ func (server *BgpServer) handleRest(restReq *api.RestRequest) {
 		}
 		restReq.ResponseCh <- result
 		close(restReq.ResponseCh)
-	case api.REQ_LOCAL_RIB:
+	case api.REQ_LOCAL_RIB, api.REQ_NEIGHBOR_SHUTDOWN, api.REQ_NEIGHBOR_RESET, api.REQ_NEIGHBOR_SOFT_RESET_IN, api.REQ_NEIGHBOR_SOFT_RESET_OUT:
 		remoteAddr := restReq.RemoteAddr
 		result := &api.RestResponse{}
 		info, found := server.peerMap[remoteAddr]

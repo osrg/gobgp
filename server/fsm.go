@@ -122,7 +122,7 @@ type FSMHandler struct {
 func NewFSMHandler(fsm *FSM) *FSMHandler {
 	f := &FSMHandler{
 		fsm:     fsm,
-		errorCh: make(chan bool),
+		errorCh: make(chan bool, 2),
 	}
 	f.t.Go(f.loop)
 	return f
@@ -281,7 +281,11 @@ func (h *FSMHandler) opensent() bgp.FSMState {
 		case *bgp.MessageError:
 			err := e.MsgData.(*bgp.MessageError)
 			m := bgp.NewBGPNotificationMessage(err.TypeCode, err.SubTypeCode, err.Data)
-			h.fsm.outgoing <- m
+			b, _ := m.Serialize()
+			fsm.passiveConn.Write(b)
+			fsm.bgpMessageStateUpdate(m.Header.Type, false)
+			h.conn.Close()
+			nextState = bgp.BGP_FSM_IDLE
 		default:
 			log.WithFields(log.Fields{
 				"Topic": "Peer",
@@ -330,10 +334,11 @@ func (h *FSMHandler) openconfirm() bgp.FSMState {
 			case *bgp.MessageError:
 				err := e.MsgData.(*bgp.MessageError)
 				m := bgp.NewBGPNotificationMessage(err.TypeCode, err.SubTypeCode, err.Data)
-				h.fsm.outgoing <- m
-				// tx goroutine will close the tcp
-				// connection and state will be
-				// changed. so no need to change here.
+				b, _ := m.Serialize()
+				fsm.passiveConn.Write(b)
+				fsm.bgpMessageStateUpdate(m.Header.Type, false)
+				h.conn.Close()
+				return bgp.BGP_FSM_IDLE
 			default:
 				log.WithFields(log.Fields{
 					"Topic": "Peer",

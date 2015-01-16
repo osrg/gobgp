@@ -168,8 +168,24 @@ func (peer *Peer) sendMessages(msgs []*bgp.BGPMessage) {
 
 func (peer *Peer) handleREST(restReq *api.RestRequest) {
 	result := &api.RestResponse{}
-	j, _ := json.Marshal(peer.rib.Tables[peer.rf])
-	result.Data = j
+	switch restReq.RequestType {
+	case api.REQ_LOCAL_RIB:
+		j, _ := json.Marshal(peer.rib.Tables[peer.rf])
+		result.Data = j
+	case api.REQ_NEIGHBOR_SHUTDOWN:
+		peer.fsm.outgoing <- bgp.NewBGPNotificationMessage(bgp.BGP_ERROR_CEASE, bgp.BGP_ERROR_SUB_ADMINISTRATIVE_SHUTDOWN, nil)
+	case api.REQ_NEIGHBOR_RESET:
+		peer.fsm.outgoing <- bgp.NewBGPNotificationMessage(bgp.BGP_ERROR_CEASE, bgp.BGP_ERROR_SUB_ADMINISTRATIVE_RESET, nil)
+	case api.REQ_NEIGHBOR_SOFT_RESET:
+	case api.REQ_NEIGHBOR_SOFT_RESET_IN:
+		// check capability
+		// drop allIn and other peers?
+		// peer.adjRib.DropAllIn(peer.rf)
+		peer.fsm.outgoing <- bgp.NewBGPRouteRefreshMessage(uint16(int(peer.rf)>>16), 0, uint8(int(peer.rf)&0xff))
+	case api.REQ_NEIGHBOR_SOFT_RESET_OUT:
+		pathList := peer.adjRib.GetOutPathList(peer.rf)
+		peer.sendMessages(table.CreateUpdateMsgFromPaths(pathList))
+	}
 	restReq.ResponseCh <- result
 	close(restReq.ResponseCh)
 }

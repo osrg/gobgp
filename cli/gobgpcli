@@ -24,6 +24,14 @@
 # $ gobgpcli show neighbor 10.0.0.2
 # - get the local rib of a neighbor
 # $ gobgpcli show neighbor 10.0.0.2 local
+# - reset
+# $ gobgpcli reset neighbor 10.0.0.2
+# - softresetin
+# $ gobgpcli softresetin neighbor 10.0.0.2
+# - softresetout
+# $ gobgpcli softresetout neighbor 10.0.0.2
+# - shutdown
+# $ gobgpcli shutdown neighbor 10.0.0.2
 
 from optparse import OptionParser
 import requests
@@ -33,8 +41,27 @@ import json
 from datetime import timedelta
 
 
+class Action(object):
+    def __init__(self, command, options, args):
+        super(Action, self).__init__()
+        self.command = command
+        self.options = options
+        self.args = args
+        self.base_url = self.options.url + ":" + str(self.options.port) + "/v1/bgp"
+
+    def __call__(self):
+        if len(self.args) != 1:
+            return 1
+        r = requests.post(self.base_url + "/neighbor/" + self.args[0] + "/" + self.command)
+        if r.status_code == requests.codes.ok:
+            print "Succeed"
+        else:
+            print "Failed"
+        return 0
+
+
 class Show(object):
-    def __init__(self, options, args):
+    def __init__(self, _command, options, args):
         super(Show, self).__init__()
         self.options = options
         self.args = args
@@ -194,7 +221,7 @@ def main():
 
     (options, args) = parser.parse_args()
 
-    commands = {"show": Show}
+    commands = {"show": Show, "reset": Action, "shutdown": Action, "softreset": Action, "softresetin": Action, "softresetout": Action}
 
     if len(args) == 0:
         parser.print_help()
@@ -204,7 +231,7 @@ def main():
         parser.print_help()
         sys.exit(1)
 
-    ret = commands[args[0]](options, args[1:])()
+    ret = commands[args[0]](args[0], options, args[1:])()
     if ret != 0:
         parser.print_help()
         sys.exit(1)
