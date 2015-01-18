@@ -151,6 +151,12 @@ func (h *FSMHandler) idle() bgp.FSMState {
 		select {
 		case <-h.t.Dying():
 			return 0
+		case conn := <-fsm.passiveConnCh:
+			conn.Close()
+			log.WithFields(log.Fields{
+				"Topic": "Peer",
+				"Key":   fsm.peerConfig.NeighborAddress,
+			}).Warn("Closed an accepted connection")
 		case <-idleHoldTimer.C:
 			log.WithFields(log.Fields{
 				"Topic":    "Peer",
@@ -281,48 +287,57 @@ func (h *FSMHandler) opensent() bgp.FSMState {
 
 	h.t.Go(h.recvMessage)
 
-	nextState := bgp.BGP_FSM_IDLE
-	select {
-	case <-h.t.Dying():
-		h.conn.Close()
-		return 0
-	case e := <-h.msgCh:
-		switch e.MsgData.(type) {
-		case *bgp.BGPMessage:
-			m := e.MsgData.(*bgp.BGPMessage)
-			if m.Header.Type == bgp.BGP_MSG_OPEN {
-				e := &fsmMsg{
-					MsgType: FSM_MSG_BGP_MESSAGE,
-					MsgData: m,
-				}
-				h.incoming <- e
-				msg := bgp.NewBGPKeepAliveMessage()
-				b, _ := msg.Serialize()
-				fsm.passiveConn.Write(b)
-				nextState = bgp.BGP_FSM_OPENCONFIRM
-				fsm.bgpMessageStateUpdate(msg.Header.Type, false)
-			} else {
-				// send notification
-			}
-		case *bgp.MessageError:
-			err := e.MsgData.(*bgp.MessageError)
-			m := bgp.NewBGPNotificationMessage(err.TypeCode, err.SubTypeCode, err.Data)
-			b, _ := m.Serialize()
-			fsm.passiveConn.Write(b)
-			fsm.bgpMessageStateUpdate(m.Header.Type, false)
+	for {
+		select {
+		case <-h.t.Dying():
 			h.conn.Close()
-			nextState = bgp.BGP_FSM_IDLE
-		default:
+			return 0
+		case conn := <-fsm.passiveConnCh:
+			conn.Close()
 			log.WithFields(log.Fields{
 				"Topic": "Peer",
 				"Key":   fsm.peerConfig.NeighborAddress,
-				"Data":  e.MsgData,
-			}).Panic("unknonw msg type")
+			}).Warn("Closed an accepted connection")
+		case e := <-h.msgCh:
+			switch e.MsgData.(type) {
+			case *bgp.BGPMessage:
+				m := e.MsgData.(*bgp.BGPMessage)
+				if m.Header.Type == bgp.BGP_MSG_OPEN {
+					e := &fsmMsg{
+						MsgType: FSM_MSG_BGP_MESSAGE,
+						MsgData: m,
+					}
+					h.incoming <- e
+					msg := bgp.NewBGPKeepAliveMessage()
+					b, _ := msg.Serialize()
+					fsm.passiveConn.Write(b)
+					fsm.bgpMessageStateUpdate(msg.Header.Type, false)
+					return bgp.BGP_FSM_OPENCONFIRM
+				} else {
+					// send notification?
+					h.conn.Close()
+					return bgp.BGP_FSM_IDLE
+				}
+			case *bgp.MessageError:
+				err := e.MsgData.(*bgp.MessageError)
+				m := bgp.NewBGPNotificationMessage(err.TypeCode, err.SubTypeCode, err.Data)
+				b, _ := m.Serialize()
+				fsm.passiveConn.Write(b)
+				fsm.bgpMessageStateUpdate(m.Header.Type, false)
+				h.conn.Close()
+				return bgp.BGP_FSM_IDLE
+			default:
+				log.WithFields(log.Fields{
+					"Topic": "Peer",
+					"Key":   fsm.peerConfig.NeighborAddress,
+					"Data":  e.MsgData,
+				}).Panic("unknonw msg type")
+			}
+		case <-h.errorCh:
+			h.conn.Close()
+			return bgp.BGP_FSM_IDLE
 		}
-	case <-h.errorCh:
-		h.conn.Close()
 	}
-	return nextState
 }
 
 func (h *FSMHandler) openconfirm() bgp.FSMState {
@@ -340,6 +355,12 @@ func (h *FSMHandler) openconfirm() bgp.FSMState {
 		case <-h.t.Dying():
 			h.conn.Close()
 			return 0
+		case conn := <-fsm.passiveConnCh:
+			conn.Close()
+			log.WithFields(log.Fields{
+				"Topic": "Peer",
+				"Key":   fsm.peerConfig.NeighborAddress,
+			}).Warn("Closed an accepted connection")
 		case <-fsm.keepaliveTicker.C:
 			m := bgp.NewBGPKeepAliveMessage()
 			b, _ := m.Serialize()
@@ -354,7 +375,8 @@ func (h *FSMHandler) openconfirm() bgp.FSMState {
 				if m.Header.Type == bgp.BGP_MSG_KEEPALIVE {
 					nextState = bgp.BGP_FSM_ESTABLISHED
 				} else {
-					// send error
+					// send notification ?
+					h.conn.Close()
 				}
 				return nextState
 			case *bgp.MessageError:
@@ -442,12 +464,18 @@ func (h *FSMHandler) established() bgp.FSMState {
 
 	for {
 		select {
+		case <-h.t.Dying():
+			return 0
+		case conn := <-fsm.passiveConnCh:
+			conn.Close()
+			log.WithFields(log.Fields{
+				"Topic": "Peer",
+				"Key":   fsm.peerConfig.NeighborAddress,
+			}).Warn("Closed an accepted connection")
 		case <-h.errorCh:
 			h.conn.Close()
 			h.t.Kill(nil)
 			return bgp.BGP_FSM_IDLE
-		case <-h.t.Dying():
-			return 0
 		}
 	}
 	return 0

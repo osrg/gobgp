@@ -106,9 +106,7 @@ func (server *BgpServer) Serve() {
 	server.bgpConfig.Global = <-server.globalTypeCh
 
 	listenerMap := make(map[string]*net.TCPListener)
-	// workaround: we should close an accepted connection
-	// immediately if we are not in the state we continue?
-	acceptCh := make(chan *net.TCPConn, 4)
+	acceptCh := make(chan *net.TCPConn)
 	l4, err1 := listenAndAccept("tcp4", server.listenPort, acceptCh)
 	listenerMap["tcp4"] = l4
 	l6, err2 := listenAndAccept("tcp6", server.listenPort, acceptCh)
