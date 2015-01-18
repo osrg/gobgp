@@ -44,6 +44,7 @@ type FSM struct {
 	state           bgp.FSMState
 	passiveConn     *net.TCPConn
 	passiveConnCh   chan *net.TCPConn
+	idleHoldTime    float64
 }
 
 func (fsm *FSM) bgpMessageStateUpdate(MessageType uint8, isIn bool) {
@@ -139,13 +140,27 @@ func (h *FSMHandler) Stop() error {
 
 func (h *FSMHandler) idle() bgp.FSMState {
 	fsm := h.fsm
-	// TODO: support idle hold timer
 
 	if fsm.keepaliveTicker != nil {
 		fsm.keepaliveTicker.Stop()
 		fsm.keepaliveTicker = nil
 	}
-	return bgp.BGP_FSM_ACTIVE
+
+	idleHoldTimer := time.NewTimer(time.Second * time.Duration(fsm.idleHoldTime))
+	for {
+		select {
+		case <-h.t.Dying():
+			return 0
+		case <-idleHoldTimer.C:
+			log.WithFields(log.Fields{
+				"Topic":    "Peer",
+				"Key":      fsm.peerConfig.NeighborAddress,
+				"Duration": fsm.idleHoldTime,
+			}).Debug("IdleHoldTimer expired")
+			fsm.idleHoldTime = 0
+			return bgp.BGP_FSM_ACTIVE
+		}
+	}
 }
 
 func (h *FSMHandler) active() bgp.FSMState {

@@ -472,6 +472,8 @@ type TimersType struct {
 	// original -> bgp:send-update-delay
 	//send-update-delay's original type is decimal64
 	SendUpdateDelay float64
+
+	IdleHoldTImeAfterReset float64
 }
 
 //struct for container bgp-af-common-state

@@ -178,6 +178,7 @@ func (peer *Peer) handleREST(restReq *api.RestRequest) {
 	case api.REQ_NEIGHBOR_SHUTDOWN:
 		peer.outgoing <- bgp.NewBGPNotificationMessage(bgp.BGP_ERROR_CEASE, bgp.BGP_ERROR_SUB_ADMINISTRATIVE_SHUTDOWN, nil)
 	case api.REQ_NEIGHBOR_RESET:
+		peer.fsm.idleHoldTime = peer.peerConfig.Timers.IdleHoldTImeAfterReset
 		peer.outgoing <- bgp.NewBGPNotificationMessage(bgp.BGP_ERROR_CEASE, bgp.BGP_ERROR_SUB_ADMINISTRATIVE_RESET, nil)
 	case api.REQ_NEIGHBOR_SOFT_RESET:
 	case api.REQ_NEIGHBOR_SOFT_RESET_IN:
