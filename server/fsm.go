@@ -388,9 +388,10 @@ func (h *FSMHandler) sendMessageloop() error {
 	conn := h.conn
 	fsm := h.fsm
 	for {
+		// this function doesn't check Dying() because we
+		// can't die before sending notificaiton. After
+		// sending notification, we'll die.
 		select {
-		case <-h.t.Dying():
-			return nil
 		case m := <-h.outgoing:
 			b, _ := m.Serialize()
 			_, err := conn.Write(b)
@@ -407,6 +408,7 @@ func (h *FSMHandler) sendMessageloop() error {
 
 			if m.Header.Type == bgp.BGP_MSG_NOTIFICATION {
 				h.errorCh <- true
+				conn.Close()
 				return nil
 			}
 		case <-fsm.keepaliveTicker.C:
@@ -445,7 +447,6 @@ func (h *FSMHandler) established() bgp.FSMState {
 			h.t.Kill(nil)
 			return bgp.BGP_FSM_IDLE
 		case <-h.t.Dying():
-			h.conn.Close()
 			return 0
 		}
 	}

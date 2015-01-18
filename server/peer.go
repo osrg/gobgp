@@ -267,7 +267,10 @@ func (peer *Peer) loop() error {
 			case <-peer.t.Dying():
 				close(peer.acceptedConnCh)
 				peer.outgoing <- bgp.NewBGPNotificationMessage(bgp.BGP_ERROR_CEASE, bgp.BGP_ERROR_SUB_PEER_DECONFIGURED, nil)
-				h.Wait()
+				// h.t.Kill(nil) will be called
+				// internall so even goroutines in
+				// non-established will be killed.
+				h.Stop()
 				return nil
 			case e := <-incoming:
 				switch e.MsgType {
