@@ -42,8 +42,6 @@ type FSM struct {
 	peerConfig      *config.NeighborType
 	keepaliveTicker *time.Ticker
 	state           bgp.FSMState
-	incoming        chan *fsmMsg
-	outgoing        chan *bgp.BGPMessage
 	passiveConn     *net.TCPConn
 	passiveConnCh   chan *net.TCPConn
 }
@@ -90,12 +88,10 @@ func (fsm *FSM) bgpMessageStateUpdate(MessageType uint8, isIn bool) {
 	}
 }
 
-func NewFSM(gConfig *config.GlobalType, pConfig *config.NeighborType, connCh chan *net.TCPConn, incoming chan *fsmMsg, outgoing chan *bgp.BGPMessage) *FSM {
+func NewFSM(gConfig *config.GlobalType, pConfig *config.NeighborType, connCh chan *net.TCPConn) *FSM {
 	return &FSM{
 		globalConfig:  gConfig,
 		peerConfig:    pConfig,
-		incoming:      incoming,
-		outgoing:      outgoing,
 		state:         bgp.BGP_FSM_IDLE,
 		passiveConnCh: connCh,
 	}
@@ -112,17 +108,21 @@ func (fsm *FSM) StateChange(nextState bgp.FSMState) {
 }
 
 type FSMHandler struct {
-	t       tomb.Tomb
-	fsm     *FSM
-	conn    *net.TCPConn
-	msgCh   chan *fsmMsg
-	errorCh chan bool
+	t        tomb.Tomb
+	fsm      *FSM
+	conn     *net.TCPConn
+	msgCh    chan *fsmMsg
+	errorCh  chan bool
+	incoming chan *fsmMsg
+	outgoing chan *bgp.BGPMessage
 }
 
-func NewFSMHandler(fsm *FSM) *FSMHandler {
+func NewFSMHandler(fsm *FSM, incoming chan *fsmMsg, outgoing chan *bgp.BGPMessage) *FSMHandler {
 	f := &FSMHandler{
-		fsm:     fsm,
-		errorCh: make(chan bool, 2),
+		fsm:      fsm,
+		errorCh:  make(chan bool, 2),
+		incoming: incoming,
+		outgoing: outgoing,
 	}
 	f.t.Go(f.loop)
 	return f
@@ -280,7 +280,7 @@ func (h *FSMHandler) opensent() bgp.FSMState {
 					MsgType: FSM_MSG_BGP_MESSAGE,
 					MsgData: m,
 				}
-				fsm.incoming <- e
+				h.incoming <- e
 				msg := bgp.NewBGPKeepAliveMessage()
 				b, _ := msg.Serialize()
 				fsm.passiveConn.Write(b)
@@ -376,7 +376,7 @@ func (h *FSMHandler) sendMessageloop() error {
 		select {
 		case <-h.t.Dying():
 			return nil
-		case m := <-fsm.outgoing:
+		case m := <-h.outgoing:
 			b, _ := m.Serialize()
 			_, err := conn.Write(b)
 			if err != nil {
@@ -420,7 +420,7 @@ func (h *FSMHandler) established() bgp.FSMState {
 	fsm := h.fsm
 	h.conn = fsm.passiveConn
 	h.t.Go(h.sendMessageloop)
-	h.msgCh = fsm.incoming
+	h.msgCh = h.incoming
 	h.t.Go(h.recvMessageloop)
 
 	for {
@@ -461,7 +461,7 @@ func (h *FSMHandler) loop() error {
 			MsgType: FSM_MSG_STATE_CHANGE,
 			MsgData: nextState,
 		}
-		fsm.incoming <- e
+		h.incoming <- e
 	}
 	return nil
 }
