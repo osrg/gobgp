@@ -189,6 +189,27 @@ func (peer *Peer) handleREST(restReq *api.RestRequest) {
 	case api.REQ_NEIGHBOR_SOFT_RESET_OUT:
 		pathList := peer.adjRib.GetOutPathList(peer.rf)
 		peer.sendMessages(table.CreateUpdateMsgFromPaths(pathList))
+	case api.REQ_ADJ_RIB_IN:
+		fallthrough
+	case api.REQ_ADJ_RIB_OUT:
+		rfs := []bgp.RouteFamily{bgp.RF_IPv4_UC, bgp.RF_IPv6_UC}
+		adjrib := make(map[string][]table.Path)
+
+		if restReq.RequestType == api.REQ_ADJ_RIB_IN {
+			for _, rf := range rfs {
+				paths := peer.adjRib.GetInPathList(rf)
+				adjrib[rf.String()] = paths
+				log.Debugf("RouteFamily=%v adj-rib-in found : %d", rf.String(), len(paths))
+			}
+		} else {
+			for _, rf := range rfs {
+				paths := peer.adjRib.GetOutPathList(rf)
+				adjrib[rf.String()] = paths
+				log.Debugf("RouteFamily=%v adj-rib-out found : %d", rf.String(), len(paths))
+			}
+		}
+		j, _ := json.Marshal(adjrib)
+		result.Data = j
 	}
 	restReq.ResponseCh <- result
 	close(restReq.ResponseCh)

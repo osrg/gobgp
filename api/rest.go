@@ -111,6 +111,8 @@ func (rs *RestServer) Serve() {
 	r.HandleFunc(neighbors, rs.Neighbors).Methods("GET")
 	r.HandleFunc(neighbor+perPeerURL, rs.Neighbor).Methods("GET")
 	r.HandleFunc(neighbor+perPeerURL+"/"+"local-rib", rs.NeighborLocalRib).Methods("GET")
+	r.HandleFunc(neighbor+perPeerURL+"/"+"adj-rib-in", rs.NeighborAdjRibIn).Methods("GET")
+	r.HandleFunc(neighbor+perPeerURL+"/"+"adj-rib-out", rs.NeighborAdjRibOut).Methods("GET")
 	r.HandleFunc(neighbor+perPeerURL+"/"+"shutdown", rs.NeighborPostHandler).Methods("POST")
 	r.HandleFunc(neighbor+perPeerURL+"/"+"reset", rs.NeighborPostHandler).Methods("POST")
 	r.HandleFunc(neighbor+perPeerURL+"/"+"softreset", rs.NeighborPostHandler).Methods("POST")
@@ -179,6 +181,14 @@ func (rs *RestServer) Neighbor(w http.ResponseWriter, r *http.Request) {
 
 func (rs *RestServer) NeighborLocalRib(w http.ResponseWriter, r *http.Request) {
 	rs.neighbor(w, r, REQ_LOCAL_RIB)
+}
+
+func (rs *RestServer) NeighborAdjRibIn(w http.ResponseWriter, r *http.Request) {
+	rs.neighbor(w, r, REQ_ADJ_RIB_IN)
+}
+
+func (rs *RestServer) NeighborAdjRibOut(w http.ResponseWriter, r *http.Request) {
+	rs.neighbor(w, r, REQ_ADJ_RIB_OUT)
 }
 
 func (rs *RestServer) Neighbors(w http.ResponseWriter, r *http.Request) {
