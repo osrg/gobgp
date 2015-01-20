@@ -96,19 +96,27 @@ func NewDestinationDefault(nlri bgp.AddrPrefixInterface) *DestinationDefault {
 
 func (dd *DestinationDefault) MarshalJSON() ([]byte, error) {
 	prefix := dd.getNlri().(*bgp.NLRInfo).Prefix
-	for _, p := range dd.knownPathList {
-		if p == dd.getBestPath() {
-			p.setBest(true)
-		} else {
-			p.setBest(false)
+
+	idx := func() int {
+		for i, p := range dd.knownPathList {
+			if p == dd.getBestPath() {
+				return i
+			}
 		}
-	}
+		log.WithFields(log.Fields{
+			"Topic": "Table",
+			"Key":   prefix.String(),
+		}).Panic("no best path")
+		return 0
+	}()
 	return json.Marshal(struct {
-		Prefix string
-		Paths  []Path
+		Prefix      string
+		Paths       []Path
+		BestPathIdx int
 	}{
-		Prefix: prefix.String(),
-		Paths:  dd.knownPathList,
+		Prefix:      prefix.String(),
+		Paths:       dd.knownPathList,
+		BestPathIdx: idx,
 	})
 }
 

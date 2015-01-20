@@ -40,7 +40,6 @@ type Path interface {
 	setMedSetByTargetNeighbor(medSetByTargetNeighbor bool)
 	getMedSetByTargetNeighbor() bool
 	clone(IsWithdraw bool) Path
-	setBest(isBest bool)
 	MarshalJSON() ([]byte, error)
 }
 
@@ -52,7 +51,6 @@ type PathDefault struct {
 	nlri                   bgp.AddrPrefixInterface
 	pathAttrs              []bgp.PathAttributeInterface
 	medSetByTargetNeighbor bool
-	isBest                 bool
 }
 
 func NewPathDefault(rf bgp.RouteFamily, source *PeerInfo, nlri bgp.AddrPrefixInterface, nexthop net.IP, isWithdraw bool, pattrs []bgp.PathAttributeInterface, medSetByTargetNeighbor bool) *PathDefault {
@@ -73,21 +71,15 @@ func NewPathDefault(rf bgp.RouteFamily, source *PeerInfo, nlri bgp.AddrPrefixInt
 	return path
 }
 
-func (pd *PathDefault) setBest(isBest bool) {
-	pd.isBest = isBest
-}
-
 func (pd *PathDefault) MarshalJSON() ([]byte, error) {
 	return json.Marshal(struct {
 		Network string
 		Nexthop string
 		Attrs   []bgp.PathAttributeInterface
-		Best    string
 	}{
 		Network: pd.getPrefix(),
 		Nexthop: pd.nexthop.String(),
 		Attrs:   pd.getPathAttrs(),
-		Best:    fmt.Sprint(pd.isBest),
 	})
 }
 
