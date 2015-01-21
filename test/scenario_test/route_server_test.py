@@ -18,6 +18,7 @@ import requests
 import json
 import toml
 import os
+import time
 import quagga_access as qaccess
 from ciscoconfparse import CiscoConfParse
 import docker_control as fab
@@ -31,10 +32,13 @@ class GoBGPTest(unittest.TestCase):
     gobgp_config_file = "/usr/local/gobgp/gobgpd.conf"
     gobgp_config = None
     quagga_num = 3
-    appending_quagga = 10
-    deleting_quagga = 10
-    appending_quagga_best = 20
+    append_quagga = 10
+    remove_quagga = 10
+    append_quagga_best = 20
     fab.init_test_env_executor(quagga_num)
+    print "please wait"
+    sleep_time = 20
+    time.sleep(sleep_time)
 
     def __init__(self, *args, **kwargs):
         super(GoBGPTest, self).__init__(*args, **kwargs)
@@ -134,8 +138,10 @@ class GoBGPTest(unittest.TestCase):
         print "test_established_with_appended_quagga"
 
         # append new quagga container
-        fab.docker_container_append(self.appending_quagga)
-        append_quagga_address = "10.0.0." + str(self.appending_quagga)
+        fab.docker_container_quagga_append_executor(self.append_quagga)
+        print "please wait"
+        time.sleep(self.sleep_time)
+        append_quagga_address = "10.0.0." + str(self.append_quagga)
 
         # get neighbor state and remote ip of new quagga
         print "check of [" + append_quagga_address + " ]"
@@ -218,8 +224,10 @@ class GoBGPTest(unittest.TestCase):
         print "test_active_when_removed_quagga"
 
         # remove quagga container
-        fab.docker_container_removed(self.deleting_quagga)
-        removed_quagga_address = "10.0.0." + str(self.deleting_quagga)
+        fab.docker_container_quagga_removed_executor(self.remove_quagga)
+        print "please wait"
+        time.sleep(self.sleep_time)
+        removed_quagga_address = "10.0.0." + str(self.remove_quagga)
 
         # get neighbor state and remote ip of removed quagga
         print "check of [" + removed_quagga_address + " ]"
@@ -236,9 +244,9 @@ class GoBGPTest(unittest.TestCase):
         if self.check_load_config() is False:
             return
 
-        deleting_quagga_address = "10.0.0." + str(self.deleting_quagga)
+        remove_quagga_address = "10.0.0." + str(self.remove_quagga)
         for address in self.get_neighbor_address(self.gobgp_config):
-            if deleting_quagga_address == address:
+            if remove_quagga_address == address:
                 continue
 
             print "check of [ " + address + " ]"
@@ -260,7 +268,7 @@ class GoBGPTest(unittest.TestCase):
                         self.assertEqual(exist_n, 0)
                 else:
                     for c_dest in quagga_config.destinations.itervalues():
-                        # print "config : ", c_dest.prefix,"
+                        # print "config : ", c_dest.prefix
                         g_dests = local_rib['Destinations']
                         exist_n = 0
                         for g_dest in g_dests:
@@ -274,9 +282,9 @@ class GoBGPTest(unittest.TestCase):
         if self.check_load_config() is False:
             return
 
-        deleting_quagga_address = "10.0.0." + str(self.deleting_quagga)
+        remove_quagga_address = "10.0.0." + str(self.remove_quagga)
         for address in self.get_neighbor_address(self.gobgp_config):
-            if deleting_quagga_address == address:
+            if remove_quagga_address == address:
                 continue
 
             print "check of [ " + address + " ]"
@@ -304,8 +312,53 @@ class GoBGPTest(unittest.TestCase):
                                     exist_n += 1
                             self.assertEqual(exist_n, 1)
 
-    def test_10_bestpath_selection_by_received_route(self):
-        pass
+    def test_10_bestpath_selection_of_received_route(self):
+        print "test_bestpath_selection_of_received_route"
+        fab.docker_container_make_bestpath_env_executor(self.append_quagga_best)
+        print "please wait"
+        time.sleep(self.sleep_time)
+
+        print "add neighbor setting"
+        tn = qaccess.login("11.0.0.20")
+        qaccess.add_neighbor(tn, "65020", "11.0.0.2", "65002")
+        qaccess.add_neighbor(tn, "65020", "12.0.0.3", "65003")
+
+        tn = qaccess.login("10.0.0.2")
+        tn = qaccess.add_metric(tn, "200", "192.168.20.0")
+        qaccess.add_neighbor(tn, "65002", "11.0.0.20", "65020")
+        qaccess.add_neighbor_metric(tn, "65002", "10.0.255.1", "200")
+
+        tn = qaccess.login("10.0.0.3")
+        tn = qaccess.add_metric(tn, "100", "192.168.20.0")
+        qaccess.add_neighbor(tn, "65003", "12.0.0.20", "65020")
+        qaccess.add_neighbor_metric(tn, "65003", "10.0.255.1", "100")
+
+        print "please wait"
+        time.sleep(self.sleep_time*2)
+
+        check_address = "10.0.0.1"
+        target_network = "192.168.20.0"
+        ans_nexthop = "10.0.0.3"
+        rep_nexthop = ""
+        print "check of [ " + check_address + " ]"
+        # get local-rib
+        url = "http://" + self.gobgp_ip + ":" + self.gobgp_port + "/v1/bgp/neighbor/" + check_address + "/local-rib"
+        r = requests.get(url)
+        local_rib = json.loads(r.text)
+        g_dests = local_rib['Destinations']
+        for g_dest in g_dests:
+            # print "prefix : ", g_dest['Prefix']
+            best_path_idx = g_dest['BestPathIdx']
+            if target_network == g_dest['Prefix']:
+                g_paths = g_dest['Paths']
+                idx = 0
+                for g_path in g_paths:
+                    print "best_path_Idx: " + str(best_path_idx) + "idx: " + str(idx)
+                    print "pre: ", g_dest['Prefix'], "net: ", g_path['Network'], "next: ", g_path['Nexthop']
+                    if str(best_path_idx) == str(idx):
+                        rep_nexthop = g_path['Nexthop']
+                    idx += 1
+        self.assertEqual(ans_nexthop, rep_nexthop)
 
     # load configration from gobgp(gobgpd.conf)
     def load_gobgp_config(self):
