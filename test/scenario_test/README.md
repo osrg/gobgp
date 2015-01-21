@@ -1,17 +1,16 @@
-Route Server test
+Route Server Scenario Test
 ========================
 
 Preparation
 -----------
-Set up Ubuntu 14.04 Server Edition Virtual Machine environment.
-
-and Please prepare in  go language execution environment.
+Please set up Ubuntu 14.04 Server Edition virtual machine,
+and install golang environment inside the VM.
 
 Setup
 -----
-Open a terminal and execute the following commands:
+Execute the following commands on a shell inside the VM:
 
-We will install the python library required to run the test program.
+install the python packages and libraries required to run the test program and clone gobgp repository.
 ```
 % sudo su -
 # apt-get install python-pip
@@ -24,13 +23,13 @@ We will install the python library required to run the test program.
 ```
 
 
-We will install the package, such as Docker required to perform the test.
+This step installs other packages such as Docker container and generates some helper scripts needed by the scenario test.
 ```
 # fab -f docker_control.py install_docker_and_tools
 
 ```
 
-Please following package is sure that it is installed.
+Please make sure following packages are installed properly inside the VM.
 
  ・docker
 
@@ -41,16 +40,19 @@ Please following package is sure that it is installed.
 
 Start
 -----
-Please run the command nosetests.
+Please run the test script using nosetests as root.
+
+route_server_test.py is scenario test script.
 ```
 # nosetests -v route_server_test.py
 
 ```
 
-if you run the test of malformed when execute this command.
+If you want to do malformed packet test, please run route_server_malformed_test.py
 ```
 # nosetests -v route_server_malformed_test.py
 
 ```
 
-After the end of the test, gobgp is normally if OK is displayed.
+After the test, test results will be shown.
+
