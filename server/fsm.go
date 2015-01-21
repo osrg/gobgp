@@ -37,14 +37,20 @@ type fsmMsg struct {
 	MsgData interface{}
 }
 
+const (
+	HOLDTIME_OPENSENT = 240
+)
+
 type FSM struct {
-	globalConfig    *config.GlobalType
-	peerConfig      *config.NeighborType
-	keepaliveTicker *time.Ticker
-	state           bgp.FSMState
-	passiveConn     *net.TCPConn
-	passiveConnCh   chan *net.TCPConn
-	idleHoldTime    float64
+	globalConfig       *config.GlobalType
+	peerConfig         *config.NeighborType
+	keepaliveTicker    *time.Ticker
+	state              bgp.FSMState
+	passiveConn        net.Conn
+	passiveConnCh      chan net.Conn
+	idleHoldTime       float64
+	opensentHoldTime   float64
+	negotiatedHoldTime float64
 }
 
 func (fsm *FSM) bgpMessageStateUpdate(MessageType uint8, isIn bool) {
@@ -89,12 +95,13 @@ func (fsm *FSM) bgpMessageStateUpdate(MessageType uint8, isIn bool) {
 	}
 }
 
-func NewFSM(gConfig *config.GlobalType, pConfig *config.NeighborType, connCh chan *net.TCPConn) *FSM {
+func NewFSM(gConfig *config.GlobalType, pConfig *config.NeighborType, connCh chan net.Conn) *FSM {
 	return &FSM{
-		globalConfig:  gConfig,
-		peerConfig:    pConfig,
-		state:         bgp.BGP_FSM_IDLE,
-		passiveConnCh: connCh,
+		globalConfig:     gConfig,
+		peerConfig:       pConfig,
+		state:            bgp.BGP_FSM_IDLE,
+		passiveConnCh:    connCh,
+		opensentHoldTime: float64(HOLDTIME_OPENSENT),
 	}
 }
 
@@ -109,13 +116,14 @@ func (fsm *FSM) StateChange(nextState bgp.FSMState) {
 }
 
 type FSMHandler struct {
-	t        tomb.Tomb
-	fsm      *FSM
-	conn     *net.TCPConn
-	msgCh    chan *fsmMsg
-	errorCh  chan bool
-	incoming chan *fsmMsg
-	outgoing chan *bgp.BGPMessage
+	t         tomb.Tomb
+	fsm       *FSM
+	conn      net.Conn
+	msgCh     chan *fsmMsg
+	errorCh   chan bool
+	incoming  chan *fsmMsg
+	outgoing  chan *bgp.BGPMessage
+	holdTimer *time.Timer
 }
 
 func NewFSMHandler(fsm *FSM, incoming chan *fsmMsg, outgoing chan *bgp.BGPMessage) *FSMHandler {
@@ -204,7 +212,7 @@ func buildopen(global *config.GlobalType, peerConf *config.NeighborType) *bgp.BG
 		[]bgp.OptionParameterInterface{p1, p2, p3})
 }
 
-func readAll(conn *net.TCPConn, length int) ([]byte, error) {
+func readAll(conn net.Conn, length int) ([]byte, error) {
 	buf := make([]byte, length)
 	for cur := 0; cur < length; {
 		if num, err := conn.Read(buf); err != nil {
@@ -265,6 +273,12 @@ func (h *FSMHandler) recvMessageWithError() error {
 			MsgData: m,
 		}
 		h.fsm.bgpMessageStateUpdate(m.Header.Type, true)
+
+		if h.fsm.state == bgp.BGP_FSM_ESTABLISHED {
+			if m.Header.Type == bgp.BGP_MSG_KEEPALIVE || m.Header.Type == bgp.BGP_MSG_UPDATE {
+				h.holdTimer.Reset(time.Second * time.Duration(h.fsm.negotiatedHoldTime))
+			}
+		}
 	}
 	h.msgCh <- fmsg
 	return err
@@ -286,6 +300,12 @@ func (h *FSMHandler) opensent() bgp.FSMState {
 	h.conn = fsm.passiveConn
 
 	h.t.Go(h.recvMessage)
+
+	// RFC 4271 P.60
+	// sets its HoldTimer to a large value
+	// A HoldTimer value of 4 minutes is suggested as a "large value"
+	// for the HoldTimer
+	h.holdTimer = time.NewTimer(time.Second * time.Duration(fsm.opensentHoldTime))
 
 	for {
 		select {
@@ -336,6 +356,19 @@ func (h *FSMHandler) opensent() bgp.FSMState {
 		case <-h.errorCh:
 			h.conn.Close()
 			return bgp.BGP_FSM_IDLE
+		case <-h.holdTimer.C:
+			log.WithFields(log.Fields{
+				"Topic": "Peer",
+				"Key":   fsm.peerConfig.NeighborAddress,
+				"data":  bgp.BGP_FSM_OPENSENT,
+			}).Warn("hold timer expired")
+			m := bgp.NewBGPNotificationMessage(bgp.BGP_ERROR_HOLD_TIMER_EXPIRED, 0, nil)
+			b, _ := m.Serialize()
+			fsm.passiveConn.Write(b)
+			fsm.bgpMessageStateUpdate(m.Header.Type, false)
+			h.conn.Close()
+			h.t.Kill(nil)
+			return bgp.BGP_FSM_IDLE
 		}
 	}
 }
@@ -349,6 +382,10 @@ func (h *FSMHandler) openconfirm() bgp.FSMState {
 	h.conn = fsm.passiveConn
 
 	h.t.Go(h.recvMessage)
+
+	// RFC 4271 P.65
+	// sets the HoldTimer according to the negotiated value
+	h.holdTimer = time.NewTimer(time.Second * time.Duration(fsm.negotiatedHoldTime))
 
 	for {
 		select {
@@ -396,6 +433,19 @@ func (h *FSMHandler) openconfirm() bgp.FSMState {
 			}
 		case <-h.errorCh:
 			h.conn.Close()
+			return bgp.BGP_FSM_IDLE
+		case <-h.holdTimer.C:
+			log.WithFields(log.Fields{
+				"Topic": "Peer",
+				"Key":   fsm.peerConfig.NeighborAddress,
+				"data":  bgp.BGP_FSM_OPENCONFIRM,
+			}).Warn("hold timer expired")
+			m := bgp.NewBGPNotificationMessage(bgp.BGP_ERROR_HOLD_TIMER_EXPIRED, 0, nil)
+			b, _ := m.Serialize()
+			fsm.passiveConn.Write(b)
+			fsm.bgpMessageStateUpdate(m.Header.Type, false)
+			h.conn.Close()
+			h.t.Kill(nil)
 			return bgp.BGP_FSM_IDLE
 		}
 	}
@@ -462,6 +512,9 @@ func (h *FSMHandler) established() bgp.FSMState {
 	h.msgCh = h.incoming
 	h.t.Go(h.recvMessageloop)
 
+	// restart HoldTimer
+	h.holdTimer = time.NewTimer(time.Second * time.Duration(fsm.negotiatedHoldTime))
+
 	for {
 		select {
 		case <-h.t.Dying():
@@ -475,6 +528,15 @@ func (h *FSMHandler) established() bgp.FSMState {
 		case <-h.errorCh:
 			h.conn.Close()
 			h.t.Kill(nil)
+			return bgp.BGP_FSM_IDLE
+		case <-h.holdTimer.C:
+			log.WithFields(log.Fields{
+				"Topic": "Peer",
+				"Key":   fsm.peerConfig.NeighborAddress,
+				"data":  bgp.BGP_FSM_ESTABLISHED,
+			}).Warn("hold timer expired")
+			m := bgp.NewBGPNotificationMessage(bgp.BGP_ERROR_HOLD_TIMER_EXPIRED, 0, nil)
+			h.outgoing <- m
 			return bgp.BGP_FSM_IDLE
 		}
 	}

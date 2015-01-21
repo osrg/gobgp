@@ -49,7 +49,7 @@ type Peer struct {
 	t              tomb.Tomb
 	globalConfig   config.GlobalType
 	peerConfig     config.NeighborType
-	acceptedConnCh chan *net.TCPConn
+	acceptedConnCh chan net.Conn
 	serverMsgCh    chan *serverMsg
 	peerMsgCh      chan *peerMsg
 	fsm            *FSM
@@ -69,7 +69,7 @@ func NewPeer(g config.GlobalType, peer config.NeighborType, serverMsgCh chan *se
 	p := &Peer{
 		globalConfig:   g,
 		peerConfig:     peer,
-		acceptedConnCh: make(chan *net.TCPConn),
+		acceptedConnCh: make(chan net.Conn),
 		serverMsgCh:    serverMsgCh,
 		peerMsgCh:      peerMsgCh,
 		capMap:         make(map[bgp.BGPCapabilityCode]bgp.ParameterCapabilityInterface),
@@ -117,6 +117,19 @@ func (peer *Peer) handleBGPmessage(m *bgp.BGPMessage) {
 			for _, c := range paramCap.Capability {
 				peer.capMap[c.Code()] = c
 			}
+		}
+
+		// calculate HoldTime
+		// RFC 4271 P.13
+		// a BGP speaker MUST calculate the value of the Hold Timer
+		// by using the smaller of its configured Hold Time and the Hold Time
+		// received in the OPEN message.
+		holdTime := float64(body.HoldTime)
+		myHoldTime := peer.fsm.peerConfig.Timers.HoldTime
+		if holdTime > myHoldTime {
+			peer.fsm.negotiatedHoldTime = holdTime
+		} else {
+			peer.fsm.negotiatedHoldTime = myHoldTime
 		}
 
 	case bgp.BGP_MSG_ROUTE_REFRESH:
