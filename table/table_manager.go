@@ -298,7 +298,6 @@ func (adj *AdjRib) DropAllIn(rf bgp.RouteFamily) {
 type ReceivedRoute struct {
 	path      Path
 	filtered  bool
-	timestamp time.Time
 }
 
 func (rr *ReceivedRoute) String() string {
@@ -310,7 +309,6 @@ func NewReceivedRoute(path Path, filtered bool) *ReceivedRoute {
 	rroute := &ReceivedRoute{
 		path:      path,
 		filtered:  filtered,
-		timestamp: time.Now(),
 	}
 	return rroute
 }
