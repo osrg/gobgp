@@ -2184,6 +2184,61 @@ func TestProcessBGPUpdate_multiple_nlri_ipv6(t *testing.T) {
 
 }
 
+func TestProcessBGPUpdate_Timestamp(t *testing.T) {
+	tm := NewTableManager()
+
+	origin := bgp.NewPathAttributeOrigin(0)
+	aspathParam := []bgp.AsPathParamInterface{bgp.NewAs4PathParam(2, []uint32{65000})}
+	aspath := bgp.NewPathAttributeAsPath(aspathParam)
+	nexthop := bgp.NewPathAttributeNextHop("192.168.50.1")
+	med := bgp.NewPathAttributeMultiExitDisc(0)
+
+	pathAttributes := []bgp.PathAttributeInterface{
+		origin,
+		aspath,
+		nexthop,
+		med,
+	}
+
+	nlri := []bgp.NLRInfo{*bgp.NewNLRInfo(24, "10.10.10.0")}
+	withdrawnRoutes := []bgp.WithdrawnRoute{}
+
+	bgpMessage1 := bgp.NewBGPUpdateMessage(withdrawnRoutes, pathAttributes, nlri)
+
+	peer := peerR1()
+	pList, wList, err := tm.ProcessUpdate(peer, bgpMessage1)
+	assert.Equal(t, len(pList), 1)
+	assert.Equal(t, len(wList), 0)
+	assert.NoError(t, err)
+
+	path1 := pList[0].(*IPv4Path)
+
+	bgpMessage2 := bgp.NewBGPUpdateMessage(withdrawnRoutes, pathAttributes, nlri)
+	pList, wList, err = tm.ProcessUpdate(peer, bgpMessage2)
+	assert.Equal(t, len(pList), 1)
+	assert.Equal(t, len(wList), 0)
+
+	path2 := pList[0].(*IPv4Path)
+
+	assert.Equal(t, path1.timestamp, path2.timestamp)
+
+	med2 := bgp.NewPathAttributeMultiExitDisc(1)
+	pathAttributes2 := []bgp.PathAttributeInterface{
+		origin,
+		aspath,
+		nexthop,
+		med2,
+	}
+
+	bgpMessage3 := bgp.NewBGPUpdateMessage(withdrawnRoutes, pathAttributes2, nlri)
+	pList, wList, err = tm.ProcessUpdate(peer, bgpMessage3)
+	assert.Equal(t, len(pList), 1)
+	assert.Equal(t, len(wList), 0)
+
+	path3 := pList[0].(*IPv4Path)
+	assert.NotEqual(t, path2.timestamp, path3.timestamp)
+}
+
 func update_fromR1() *bgp.BGPMessage {
 
 	origin := bgp.NewPathAttributeOrigin(0)

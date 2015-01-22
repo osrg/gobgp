@@ -41,6 +41,8 @@ type Path interface {
 	setMedSetByTargetNeighbor(medSetByTargetNeighbor bool)
 	getMedSetByTargetNeighbor() bool
 	clone(IsWithdraw bool) Path
+	getTimestamp() time.Time
+	setTimestamp(t time.Time)
 	MarshalJSON() ([]byte, error)
 }
 
@@ -72,6 +74,14 @@ func NewPathDefault(rf bgp.RouteFamily, source *PeerInfo, nlri bgp.AddrPrefixInt
 	path.medSetByTargetNeighbor = medSetByTargetNeighbor
 	path.timestamp = now
 	return path
+}
+
+func (pd *PathDefault) getTimestamp() time.Time {
+	return pd.timestamp
+}
+
+func (pd *PathDefault) setTimestamp(t time.Time) {
+	pd.timestamp = t
 }
 
 func (pd *PathDefault) MarshalJSON() ([]byte, error) {

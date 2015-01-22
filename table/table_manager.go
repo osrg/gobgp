@@ -296,8 +296,8 @@ func (adj *AdjRib) DropAllIn(rf bgp.RouteFamily) {
 }
 
 type ReceivedRoute struct {
-	path      Path
-	filtered  bool
+	path     Path
+	filtered bool
 }
 
 func (rr *ReceivedRoute) String() string {
@@ -307,8 +307,8 @@ func (rr *ReceivedRoute) String() string {
 func NewReceivedRoute(path Path, filtered bool) *ReceivedRoute {
 
 	rroute := &ReceivedRoute{
-		path:      path,
-		filtered:  filtered,
+		path:     path,
+		filtered: filtered,
 	}
 	return rroute
 }
