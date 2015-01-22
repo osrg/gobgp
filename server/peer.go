@@ -282,6 +282,13 @@ func (peer *Peer) loop() error {
 		peer.outgoing = make(chan *bgp.BGPMessage, FSM_CHANNEL_LENGTH)
 
 		h := NewFSMHandler(peer.fsm, incoming, peer.outgoing)
+		if peer.peerConfig.BgpNeighborCommonState.State == uint32(bgp.BGP_FSM_ESTABLISHED) {
+			pathList := peer.adjRib.GetOutPathList(peer.rf)
+			peer.sendMessages(table.CreateUpdateMsgFromPaths(pathList))
+			peer.fsm.peerConfig.BgpNeighborCommonState.Uptime = time.Now()
+			peer.fsm.peerConfig.BgpNeighborCommonState.EstablishedCount++
+		}
+
 		sameState := true
 		for sameState {
 			select {
@@ -303,12 +310,6 @@ func (peer *Peer) loop() error {
 					peer.peerConfig.BgpNeighborCommonState.State = uint32(nextState)
 					peer.fsm.StateChange(nextState)
 					sameState = false
-					if nextState == bgp.BGP_FSM_ESTABLISHED {
-						pathList := peer.adjRib.GetOutPathList(peer.rf)
-						peer.sendMessages(table.CreateUpdateMsgFromPaths(pathList))
-						peer.fsm.peerConfig.BgpNeighborCommonState.Uptime = time.Now()
-						peer.fsm.peerConfig.BgpNeighborCommonState.EstablishedCount++
-					}
 					if oldState == bgp.BGP_FSM_ESTABLISHED {
 						t := time.Now()
 						peer.fsm.peerConfig.BgpNeighborCommonState.Downtime = t
