@@ -2185,8 +2185,6 @@ func TestProcessBGPUpdate_multiple_nlri_ipv6(t *testing.T) {
 }
 
 func TestProcessBGPUpdate_Timestamp(t *testing.T) {
-	tm := NewTableManager()
-
 	origin := bgp.NewPathAttributeOrigin(0)
 	aspathParam := []bgp.AsPathParamInterface{bgp.NewAs4PathParam(2, []uint32{65000})}
 	aspath := bgp.NewPathAttributeAsPath(aspathParam)
@@ -2203,24 +2201,25 @@ func TestProcessBGPUpdate_Timestamp(t *testing.T) {
 	nlri := []bgp.NLRInfo{*bgp.NewNLRInfo(24, "10.10.10.0")}
 	withdrawnRoutes := []bgp.WithdrawnRoute{}
 
-	bgpMessage1 := bgp.NewBGPUpdateMessage(withdrawnRoutes, pathAttributes, nlri)
-
+	adjRib := NewAdjRib()
+	m1 := bgp.NewBGPUpdateMessage(withdrawnRoutes, pathAttributes, nlri)
 	peer := peerR1()
-	pList, wList, err := tm.ProcessUpdate(peer, bgpMessage1)
-	assert.Equal(t, len(pList), 1)
-	assert.Equal(t, len(wList), 0)
-	assert.NoError(t, err)
+	msg1 := NewProcessMessage(m1, peer)
+	pList1 := msg1.ToPathList()
+	path1 := pList1[0].(*IPv4Path)
+	t1 := path1.timestamp
+	adjRib.UpdateIn(pList1)
 
-	path1 := pList[0].(*IPv4Path)
+	m2 := bgp.NewBGPUpdateMessage(withdrawnRoutes, pathAttributes, nlri)
+	msg2 := NewProcessMessage(m2, peer)
+	pList2 := msg2.ToPathList()
+	//path2 := pList2[0].(*IPv4Path)
+	//t2 = path2.timestamp
+	adjRib.UpdateIn(pList2)
 
-	bgpMessage2 := bgp.NewBGPUpdateMessage(withdrawnRoutes, pathAttributes, nlri)
-	pList, wList, err = tm.ProcessUpdate(peer, bgpMessage2)
-	assert.Equal(t, len(pList), 1)
-	assert.Equal(t, len(wList), 0)
-
-	path2 := pList[0].(*IPv4Path)
-
-	assert.Equal(t, path1.timestamp, path2.timestamp)
+	inList := adjRib.GetInPathList(bgp.RF_IPv4_UC)
+	assert.Equal(t, len(inList), 1)
+	assert.Equal(t, inList[0].getTimestamp(), t1)
 
 	med2 := bgp.NewPathAttributeMultiExitDisc(1)
 	pathAttributes2 := []bgp.PathAttributeInterface{
@@ -2230,13 +2229,15 @@ func TestProcessBGPUpdate_Timestamp(t *testing.T) {
 		med2,
 	}
 
-	bgpMessage3 := bgp.NewBGPUpdateMessage(withdrawnRoutes, pathAttributes2, nlri)
-	pList, wList, err = tm.ProcessUpdate(peer, bgpMessage3)
-	assert.Equal(t, len(pList), 1)
-	assert.Equal(t, len(wList), 0)
+	m3 := bgp.NewBGPUpdateMessage(withdrawnRoutes, pathAttributes2, nlri)
+	msg3 := NewProcessMessage(m3, peer)
+	pList3 := msg3.ToPathList()
+	t3 := pList3[0].getTimestamp()
+	adjRib.UpdateIn(pList3)
 
-	path3 := pList[0].(*IPv4Path)
-	assert.NotEqual(t, path2.timestamp, path3.timestamp)
+	inList = adjRib.GetInPathList(bgp.RF_IPv4_UC)
+	assert.Equal(t, len(inList), 1)
+	assert.Equal(t, inList[0].getTimestamp(), t3)
 }
 
 func update_fromR1() *bgp.BGPMessage {

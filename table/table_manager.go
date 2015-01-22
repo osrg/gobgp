@@ -18,6 +18,7 @@ package table
 import (
 	log "github.com/Sirupsen/logrus"
 	"github.com/osrg/gobgp/packet"
+	"reflect"
 	"time"
 )
 
@@ -246,12 +247,15 @@ func (adj *AdjRib) update(rib map[bgp.RouteFamily]map[string]*ReceivedRoute, pat
 	for _, path := range pathList {
 		rf := path.GetRouteFamily()
 		key := path.getPrefix()
+		old, found := rib[rf][key]
 		if path.IsWithdraw() {
-			_, found := rib[rf][key]
 			if found {
 				delete(rib[rf], key)
 			}
 		} else {
+			if found && reflect.DeepEqual(old.path.getPathAttrs(), path.getPathAttrs()) {
+				path.setTimestamp(old.path.getTimestamp())
+			}
 			rib[rf][key] = NewReceivedRoute(path, false)
 		}
 	}

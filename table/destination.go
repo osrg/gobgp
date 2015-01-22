@@ -368,9 +368,6 @@ func (dest *DestinationDefault) removeOldPaths() {
 			// paths and when doing RouteRefresh (not EnhancedRouteRefresh)
 			// we get same paths again.
 			if newPath.getSource() == path.getSource() {
-				if reflect.DeepEqual(newPath.getPathAttrs(), path.getPathAttrs()) {
-					newPath.setTimestamp(path.getTimestamp())
-				}
 				oldPaths = append(oldPaths, path)
 				break
 			}
