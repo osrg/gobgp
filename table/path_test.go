@@ -7,20 +7,21 @@ import (
 	"github.com/stretchr/testify/assert"
 	"net"
 	"testing"
+	"time"
 )
 
 func TestPathNewIPv4(t *testing.T) {
 	peerP := PathCreatePeer()
 	msgP := PathCreateMSG(peerP)
 	pathP := PathCreatePath(msgP)
-	ipv4p := NewIPv4Path(pathP[0].getSource(), pathP[0].getNlri(), true, pathP[0].getPathAttrs(), pathP[0].getMedSetByTargetNeighbor())
+	ipv4p := NewIPv4Path(pathP[0].getSource(), pathP[0].getNlri(), true, pathP[0].getPathAttrs(), pathP[0].getMedSetByTargetNeighbor(), time.Now())
 	assert.NotNil(t, ipv4p)
 }
 func TestPathNewIPv6(t *testing.T) {
 	peerP := PathCreatePeer()
 	msgP := PathCreateMSG(peerP)
 	pathP := PathCreatePath(msgP)
-	ipv6p := NewIPv6Path(pathP[0].getSource(), pathP[0].getNlri(), true, pathP[0].getPathAttrs(), pathP[0].getMedSetByTargetNeighbor())
+	ipv6p := NewIPv6Path(pathP[0].getSource(), pathP[0].getNlri(), true, pathP[0].getPathAttrs(), pathP[0].getMedSetByTargetNeighbor(), time.Now())
 	assert.NotNil(t, ipv6p)
 }
 
@@ -142,7 +143,7 @@ func TestPathCreatePath(t *testing.T) {
 	nlriList := updateMsgP.NLRI
 	pathAttributes := updateMsgP.PathAttributes
 	nlri_info := nlriList[0]
-	path := CreatePath(msgP[0].fromPeer, &nlri_info, pathAttributes, false)
+	path := CreatePath(msgP[0].fromPeer, &nlri_info, pathAttributes, false, time.Now())
 	assert.NotNil(t, path)
 
 }
@@ -189,7 +190,7 @@ func PathCreatePath(msgs []*ProcessMessage) []Path {
 		nlriList := updateMsgP.NLRI
 		pathAttributes := updateMsgP.PathAttributes
 		nlri_info := nlriList[0]
-		pathP[i] = CreatePath(msg.fromPeer, &nlri_info, pathAttributes, false)
+		pathP[i] = CreatePath(msg.fromPeer, &nlri_info, pathAttributes, false, time.Now())
 	}
 	return pathP
 }

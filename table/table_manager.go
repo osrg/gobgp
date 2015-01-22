@@ -33,7 +33,7 @@ func NewProcessMessage(m *bgp.BGPMessage, peerInfo *PeerInfo) *ProcessMessage {
 	}
 }
 
-func (p *ProcessMessage) nlri2Path() []Path {
+func (p *ProcessMessage) nlri2Path(now time.Time) []Path {
 	updateMsg := p.innerMessage.Body.(*bgp.BGPUpdate)
 	pathAttributes := updateMsg.PathAttributes
 	pathList := make([]Path, 0)
@@ -41,13 +41,13 @@ func (p *ProcessMessage) nlri2Path() []Path {
 		// define local variable to pass nlri's address to CreatePath
 		var nlri bgp.NLRInfo = nlri_info
 		// create Path object
-		path := CreatePath(p.fromPeer, &nlri, pathAttributes, false)
+		path := CreatePath(p.fromPeer, &nlri, pathAttributes, false, now)
 		pathList = append(pathList, path)
 	}
 	return pathList
 }
 
-func (p *ProcessMessage) withdraw2Path() []Path {
+func (p *ProcessMessage) withdraw2Path(now time.Time) []Path {
 	updateMsg := p.innerMessage.Body.(*bgp.BGPUpdate)
 	pathAttributes := updateMsg.PathAttributes
 	pathList := make([]Path, 0)
@@ -55,13 +55,13 @@ func (p *ProcessMessage) withdraw2Path() []Path {
 		// define local variable to pass nlri's address to CreatePath
 		var w bgp.WithdrawnRoute = nlriWithdraw
 		// create withdrawn Path object
-		path := CreatePath(p.fromPeer, &w, pathAttributes, true)
+		path := CreatePath(p.fromPeer, &w, pathAttributes, true, now)
 		pathList = append(pathList, path)
 	}
 	return pathList
 }
 
-func (p *ProcessMessage) mpreachNlri2Path() []Path {
+func (p *ProcessMessage) mpreachNlri2Path(now time.Time) []Path {
 	updateMsg := p.innerMessage.Body.(*bgp.BGPUpdate)
 	pathAttributes := updateMsg.PathAttributes
 	attrList := []*bgp.PathAttributeMpReachNLRI{}
@@ -78,14 +78,14 @@ func (p *ProcessMessage) mpreachNlri2Path() []Path {
 	for _, mp := range attrList {
 		nlri_info := mp.Value
 		for _, nlri := range nlri_info {
-			path := CreatePath(p.fromPeer, nlri, pathAttributes, false)
+			path := CreatePath(p.fromPeer, nlri, pathAttributes, false, now)
 			pathList = append(pathList, path)
 		}
 	}
 	return pathList
 }
 
-func (p *ProcessMessage) mpunreachNlri2Path() []Path {
+func (p *ProcessMessage) mpunreachNlri2Path(now time.Time) []Path {
 	updateMsg := p.innerMessage.Body.(*bgp.BGPUpdate)
 	pathAttributes := updateMsg.PathAttributes
 	attrList := []*bgp.PathAttributeMpUnreachNLRI{}
@@ -103,7 +103,7 @@ func (p *ProcessMessage) mpunreachNlri2Path() []Path {
 		nlri_info := mp.Value
 
 		for _, nlri := range nlri_info {
-			path := CreatePath(p.fromPeer, nlri, pathAttributes, true)
+			path := CreatePath(p.fromPeer, nlri, pathAttributes, true, now)
 			pathList = append(pathList, path)
 		}
 	}
@@ -112,10 +112,11 @@ func (p *ProcessMessage) mpunreachNlri2Path() []Path {
 
 func (p *ProcessMessage) ToPathList() []Path {
 	pathList := make([]Path, 0)
-	pathList = append(pathList, p.nlri2Path()...)
-	pathList = append(pathList, p.withdraw2Path()...)
-	pathList = append(pathList, p.mpreachNlri2Path()...)
-	pathList = append(pathList, p.mpunreachNlri2Path()...)
+	now := time.Now()
+	pathList = append(pathList, p.nlri2Path(now)...)
+	pathList = append(pathList, p.withdraw2Path(now)...)
+	pathList = append(pathList, p.mpreachNlri2Path(now)...)
+	pathList = append(pathList, p.mpunreachNlri2Path(now)...)
 	return pathList
 }
 

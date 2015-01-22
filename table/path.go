@@ -22,6 +22,7 @@ import (
 	"github.com/osrg/gobgp/packet"
 	"net"
 	"reflect"
+	"time"
 )
 
 type Path interface {
@@ -51,9 +52,10 @@ type PathDefault struct {
 	nlri                   bgp.AddrPrefixInterface
 	pathAttrs              []bgp.PathAttributeInterface
 	medSetByTargetNeighbor bool
+	timestamp              time.Time
 }
 
-func NewPathDefault(rf bgp.RouteFamily, source *PeerInfo, nlri bgp.AddrPrefixInterface, nexthop net.IP, isWithdraw bool, pattrs []bgp.PathAttributeInterface, medSetByTargetNeighbor bool) *PathDefault {
+func NewPathDefault(rf bgp.RouteFamily, source *PeerInfo, nlri bgp.AddrPrefixInterface, nexthop net.IP, isWithdraw bool, pattrs []bgp.PathAttributeInterface, medSetByTargetNeighbor bool, now time.Time) *PathDefault {
 
 	if !isWithdraw && pattrs == nil {
 		log.Error("Need to provide nexthop and patattrs for path that is not a withdraw.")
@@ -68,6 +70,7 @@ func NewPathDefault(rf bgp.RouteFamily, source *PeerInfo, nlri bgp.AddrPrefixInt
 	path.nexthop = nexthop
 	path.withdraw = isWithdraw
 	path.medSetByTargetNeighbor = medSetByTargetNeighbor
+	path.timestamp = now
 	return path
 }
 
@@ -76,10 +79,12 @@ func (pd *PathDefault) MarshalJSON() ([]byte, error) {
 		Network string
 		Nexthop string
 		Attrs   []bgp.PathAttributeInterface
+		Time    float64
 	}{
 		Network: pd.getPrefix(),
 		Nexthop: pd.nexthop.String(),
 		Attrs:   pd.getPathAttrs(),
+		Time:    time.Now().Sub(pd.timestamp).Seconds(),
 	})
 }
 
@@ -93,7 +98,7 @@ func (pd *PathDefault) clone(isWithdraw bool) Path {
 			nlri = &bgp.WithdrawnRoute{pd.nlri.(*bgp.NLRInfo).IPAddrPrefix}
 		}
 	}
-	return CreatePath(pd.source, nlri, pd.pathAttrs, isWithdraw)
+	return CreatePath(pd.source, nlri, pd.pathAttrs, isWithdraw, pd.timestamp)
 }
 
 func (pd *PathDefault) GetRouteFamily() bgp.RouteFamily {
@@ -188,7 +193,7 @@ func (pi *PathDefault) getPrefix() string {
 }
 
 // create Path object based on route family
-func CreatePath(source *PeerInfo, nlri bgp.AddrPrefixInterface, attrs []bgp.PathAttributeInterface, isWithdraw bool) Path {
+func CreatePath(source *PeerInfo, nlri bgp.AddrPrefixInterface, attrs []bgp.PathAttributeInterface, isWithdraw bool, now time.Time) Path {
 
 	rf := bgp.RouteFamily(int(nlri.AFI())<<16 | int(nlri.SAFI()))
 	log.Debugf("afi: %d, safi: %d ", int(nlri.AFI()), nlri.SAFI())
@@ -197,10 +202,10 @@ func CreatePath(source *PeerInfo, nlri bgp.AddrPrefixInterface, attrs []bgp.Path
 	switch rf {
 	case bgp.RF_IPv4_UC:
 		log.Debugf("RouteFamily : %s", bgp.RF_IPv4_UC.String())
-		path = NewIPv4Path(source, nlri, isWithdraw, attrs, false)
+		path = NewIPv4Path(source, nlri, isWithdraw, attrs, false, now)
 	case bgp.RF_IPv6_UC:
 		log.Debugf("RouteFamily : %s", bgp.RF_IPv6_UC.String())
-		path = NewIPv6Path(source, nlri, isWithdraw, attrs, false)
+		path = NewIPv6Path(source, nlri, isWithdraw, attrs, false, now)
 	}
 	return path
 }
@@ -212,9 +217,9 @@ type IPv4Path struct {
 	*PathDefault
 }
 
-func NewIPv4Path(source *PeerInfo, nlri bgp.AddrPrefixInterface, isWithdraw bool, attrs []bgp.PathAttributeInterface, medSetByTargetNeighbor bool) *IPv4Path {
+func NewIPv4Path(source *PeerInfo, nlri bgp.AddrPrefixInterface, isWithdraw bool, attrs []bgp.PathAttributeInterface, medSetByTargetNeighbor bool, now time.Time) *IPv4Path {
 	ipv4Path := &IPv4Path{}
-	ipv4Path.PathDefault = NewPathDefault(bgp.RF_IPv4_UC, source, nlri, nil, isWithdraw, attrs, medSetByTargetNeighbor)
+	ipv4Path.PathDefault = NewPathDefault(bgp.RF_IPv4_UC, source, nlri, nil, isWithdraw, attrs, medSetByTargetNeighbor, now)
 	if !isWithdraw {
 		_, nexthop_attr := ipv4Path.getPathAttr(bgp.BGP_ATTR_TYPE_NEXT_HOP)
 		ipv4Path.nexthop = nexthop_attr.(*bgp.PathAttributeNextHop).Value
@@ -233,9 +238,9 @@ type IPv6Path struct {
 	*PathDefault
 }
 
-func NewIPv6Path(source *PeerInfo, nlri bgp.AddrPrefixInterface, isWithdraw bool, attrs []bgp.PathAttributeInterface, medSetByTargetNeighbor bool) *IPv6Path {
+func NewIPv6Path(source *PeerInfo, nlri bgp.AddrPrefixInterface, isWithdraw bool, attrs []bgp.PathAttributeInterface, medSetByTargetNeighbor bool, now time.Time) *IPv6Path {
 	ipv6Path := &IPv6Path{}
-	ipv6Path.PathDefault = NewPathDefault(bgp.RF_IPv6_UC, source, nlri, nil, isWithdraw, attrs, medSetByTargetNeighbor)
+	ipv6Path.PathDefault = NewPathDefault(bgp.RF_IPv6_UC, source, nlri, nil, isWithdraw, attrs, medSetByTargetNeighbor, now)
 	if !isWithdraw {
 		_, mpattr := ipv6Path.getPathAttr(bgp.BGP_ATTR_TYPE_MP_REACH_NLRI)
 		ipv6Path.nexthop = mpattr.(*bgp.PathAttributeMpReachNLRI).Nexthop
@@ -250,7 +255,7 @@ func (ipv6p *IPv6Path) clone(isWithdraw bool) Path {
 			log.Fatal("Withdraw path is not supposed to be cloned")
 		}
 	}
-	return CreatePath(ipv6p.source, nlri, ipv6p.pathAttrs, isWithdraw)
+	return CreatePath(ipv6p.source, nlri, ipv6p.pathAttrs, isWithdraw, ipv6p.PathDefault.timestamp)
 }
 
 func (ipv6p *IPv6Path) setPathDefault(pd *PathDefault) {

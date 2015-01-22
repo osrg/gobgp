@@ -21,6 +21,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	//"net"
 	"testing"
+	"time"
 )
 
 func TestDestinationNewIPv4(t *testing.T) {
@@ -134,7 +135,7 @@ func DestCreatePath(msgs []*ProcessMessage) []Path {
 		nlriList := updateMsgD.NLRI
 		pathAttributes := updateMsgD.PathAttributes
 		nlri_info := nlriList[0]
-		pathD[i] = CreatePath(msg.fromPeer, &nlri_info, pathAttributes, false)
+		pathD[i] = CreatePath(msg.fromPeer, &nlri_info, pathAttributes, false, time.Now())
 	}
 	return pathD
 }

@@ -236,21 +236,30 @@ class Show(object):
             print r.json()
             return 0
 
-        f = "{:2s} {:18s} {:15s} {:10s} {:s}"
-        print(f.format("", "Network", "Next Hop", "AS_PATH", "Attrs"))
+        timestamp = True
+        if self.args[2] == "adj-rib-out":
+            timestamp = False
+
+        if timestamp:
+            f = "{:2s} {:18s} {:15s} {:10s} {:10s} {:s}"
+            print(f.format("", "Network", "Next Hop", "AS_PATH", "Time", "Attrs"))
+        else:
+            f = "{:2s} {:18s} {:15s} {:10s} {:s}"
+            print(f.format("", "Network", "Next Hop", "AS_PATH", "Attrs"))
+
         if self.args[2] == "local-rib":
             for d in r.json()["Destinations"]:
                 d["Paths"][d["BestPathIdx"]]["Best"] = True
-                self.show_routes(f, d["Paths"], True)
+                self.show_routes(f, d["Paths"], True, True)
 
         elif self.args[2] == "adj-rib-in" or self.args[2] == "adj-rib-out":
             rfs = ["RF_IPv4_UC", "RF_IPv6_UC"]
             for rf in rfs:
                 paths = r.json()[rf]
-                self.show_routes(f, paths)
+                self.show_routes(f, paths, False, timestamp)
         return 0
 
-    def show_routes(self, f, paths, showBest=False):
+    def show_routes(self, f, paths, showBest=False, timestamp=False):
         for p in paths:
             nexthop = ""
             AS = ""
@@ -264,7 +273,10 @@ class Show(object):
                     header = "*"
             else:
                 header = ""
-            print(f.format(header, p["Network"], p["Nexthop"], AS, self._format_attrs(p["Attrs"])))
+            if timestamp:
+                print(f.format(header, p["Network"], p["Nexthop"], AS, self.format_timedelta(p["Time"]), self._format_attrs(p["Attrs"])))
+            else:
+                print(f.format(header, p["Network"], p["Nexthop"], AS, self._format_attrs(p["Attrs"])))
 
 
 def main():

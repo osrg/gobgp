@@ -19,6 +19,7 @@ import (
 	"github.com/osrg/gobgp/packet"
 	"github.com/stretchr/testify/assert"
 	"testing"
+	"time"
 )
 
 func TestTableCreateDestDefault(t *testing.T) {
@@ -130,7 +131,7 @@ func TableCreatePath(msgs []*ProcessMessage) []Path {
 		nlriList := updateMsgT.NLRI
 		pathAttributes := updateMsgT.PathAttributes
 		nlri_info := nlriList[0]
-		pathT[i] = CreatePath(msg.fromPeer, &nlri_info, pathAttributes, false)
+		pathT[i] = CreatePath(msg.fromPeer, &nlri_info, pathAttributes, false, time.Now())
 	}
 	return pathT
 }
