@@ -89,12 +89,12 @@ func (pd *PathDefault) MarshalJSON() ([]byte, error) {
 		Network string
 		Nexthop string
 		Attrs   []bgp.PathAttributeInterface
-		Time    float64
+		Age     float64
 	}{
 		Network: pd.getPrefix(),
 		Nexthop: pd.nexthop.String(),
 		Attrs:   pd.getPathAttrs(),
-		Time:    time.Now().Sub(pd.timestamp).Seconds(),
+		Age:     time.Now().Sub(pd.timestamp).Seconds(),
 	})
 }
 

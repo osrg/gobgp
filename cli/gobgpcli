@@ -242,7 +242,7 @@ class Show(object):
 
         if timestamp:
             f = "{:2s} {:18s} {:15s} {:10s} {:10s} {:s}"
-            print(f.format("", "Network", "Next Hop", "AS_PATH", "Time", "Attrs"))
+            print(f.format("", "Network", "Next Hop", "AS_PATH", "Age", "Attrs"))
         else:
             f = "{:2s} {:18s} {:15s} {:10s} {:s}"
             print(f.format("", "Network", "Next Hop", "AS_PATH", "Attrs"))
@@ -274,7 +274,7 @@ class Show(object):
             else:
                 header = ""
             if timestamp:
-                print(f.format(header, p["Network"], p["Nexthop"], AS, self.format_timedelta(p["Time"]), self._format_attrs(p["Attrs"])))
+                print(f.format(header, p["Network"], p["Nexthop"], AS, self.format_timedelta(p["Age"]), self._format_attrs(p["Attrs"])))
             else:
                 print(f.format(header, p["Network"], p["Nexthop"], AS, self._format_attrs(p["Attrs"])))
 
