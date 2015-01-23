@@ -1878,7 +1878,7 @@ func (p *PathAttributeMpReachNLRI) DecodeFromBytes(data []byte) error {
 	afi := binary.BigEndian.Uint16(value[0:2])
 	safi := value[2]
 	nexthopLen := value[3]
-	if len(value) < int(4+nexthopLen) {
+	if len(value) < 4 + int(nexthopLen) {
 		return NewMessageError(eCode, eSubCode, value, "mpreach nexthop length is short")
 	}
 	nexthopbin := value[4 : 4+nexthopLen]
