@@ -19,9 +19,13 @@ import json
 import toml
 import os
 import time
+import sys
+import nose
 import quagga_access as qaccess
 from ciscoconfparse import CiscoConfParse
 import docker_control as fab
+from noseplugin import OptionParser
+from noseplugin import parser_option
 
 
 class GoBGPTest(unittest.TestCase):
@@ -35,10 +39,7 @@ class GoBGPTest(unittest.TestCase):
     append_quagga = 10
     remove_quagga = 10
     append_quagga_best = 20
-    fab.init_test_env_executor(quagga_num)
-    print "please wait"
     sleep_time = 20
-    time.sleep(sleep_time)
 
     def __init__(self, *args, **kwargs):
         super(GoBGPTest, self).__init__(*args, **kwargs)
@@ -51,8 +52,21 @@ class GoBGPTest(unittest.TestCase):
     # test each neighbor state is turned establish
     def test_01_neighbor_established(self):
         print "test_neighbor_established"
+        gobgp_local = parser_option.use_local
+
+        if gobgp_local:
+            print "execute gobgp program in local"
+        else:
+            print "execute gobgp program in gobgp container"
+        fab.init_test_env_executor(self.quagga_num, gobgp_local)
+
+        print "please wait"
+        time.sleep(self.sleep_time)
         if self.check_load_config() is False:
             return
+        self.load_gobgp_config()
+        self.load_quagga_config()
+
         addresses = self.get_neighbor_address(self.gobgp_config)
 
         for address in addresses:
@@ -373,6 +387,8 @@ class GoBGPTest(unittest.TestCase):
         try:
             content = os.listdir(self.base_dir)
             for item in content:
+                if "q" != item[0]:
+                    continue
                 if os.path.isdir(os.path.join(self.base_dir, item)):
                     dirs.append(item)
         except OSError, (errno, strerror):
@@ -415,6 +431,7 @@ class GoBGPTest(unittest.TestCase):
         neighbors_config = config['NeighborList']
         for neighbor_config in neighbors_config:
             neighbor_ip = neighbor_config['NeighborAddress']
+            print neighbor_ip
             address.append(neighbor_ip)
         return address
 
@@ -451,4 +468,5 @@ class Path:
         self.as_path = []
         self.metric = None
 
-
+if __name__ == '__main__':
+    nose.main(argv=sys.argv, addplugins=[OptionParser()], defaultTest=sys.argv[0])

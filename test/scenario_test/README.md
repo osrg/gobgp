@@ -40,19 +40,23 @@ Please make sure following packages are installed properly inside the VM.
 
 Start
 -----
-Please run the test script using nosetests as root.
+Please run the test script as root.
 
 route_server_test.py is scenario test script.
 ```
-# nosetests -v route_server_test.py
+# python route_server_test.py -v [ --use-local ]
 
 ```
+
 
 If you want to do malformed packet test, please run route_server_malformed_test.py
 ```
-# nosetests -v route_server_malformed_test.py
+# python route_server_malformed_test.py -v [ --use-local ]
 
 ```
 
 After the test, test results will be shown.
 
+Notes
+-----
+ use [ --use-local ] option when execute gobgp program of local system

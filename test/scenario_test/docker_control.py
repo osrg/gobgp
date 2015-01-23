@@ -16,6 +16,7 @@
 from fabric.api import local
 import re
 import os
+import sys
 
 GOBGP_CONTAINER_NAME = "gobgp"
 GOBGP_ADDRESS = "10.0.255.1/16"
@@ -34,6 +35,7 @@ BRIDGE_0 = {"BRIDGE_NAME": "br0", "BRIDGE_ADDRESS": "10.0.255.2"}
 BRIDGE_1 = {"BRIDGE_NAME": "br1", "BRIDGE_ADDRESS": "11.0.255.2"}
 BRIDGE_2 = {"BRIDGE_NAME": "br2", "BRIDGE_ADDRESS": "12.0.255.2"}
 BRIDGES = [BRIDGE_0, BRIDGE_1, BRIDGE_2]
+A_PART_OF_CURRENT_DIR = "/test/scenario_test"
 
 
 def test_user_check():
@@ -155,6 +157,20 @@ def make_startup_file():
     local(cmd, capture=True)
 
 
+def make_startup_file_use_local_gobgp():
+    file_buff = '#!/bin/bash' + '\n'
+    file_buff += 'rm -rf  /go/src/github.com/osrg/gobgp' + '\n'
+    file_buff += 'cp -r /mnt/gobgp /go/src/github.com/osrg/' + '\n'
+    file_buff += 'cd /go/src/github.com/osrg/gobgp' + '\n'
+    file_buff += 'go get -v' + '\n'
+    file_buff += 'go build' + '\n'
+    file_buff += './gobgp -f /mnt/gobgpd.conf > /mnt/gobgpd.log'
+    cmd = "echo \"" + file_buff + "\" > " + CONFIG_DIRR + STARTUP_FILE_NAME
+    local(cmd, capture=True)
+    cmd = "chmod 755 " + CONFIG_DIRR + STARTUP_FILE_NAME
+    local(cmd, capture=True)
+
+
 def docker_container_stop_quagga(quagga):
     cmd = "docker rm -f " + quagga
     local(cmd, capture=True)
@@ -189,7 +205,8 @@ def docker_containers_destroy():
 def docker_container_quagga_append(quagga_num, bridge):
     print "start append docker container."
     pwd = local("pwd", capture=True)
-    cmd = "$GOROOT/bin/go run " + pwd + "/quagga-rsconfig.go -a " + str(quagga_num) + " -c /usr/local/gobgp"
+    # cmd = "$GOROOT/bin/go run " + pwd + "/quagga-rsconfig.go -a " + str(quagga_num) + " -c /usr/local/gobgp"
+    cmd = "go run " + pwd + "/quagga-rsconfig.go -a " + str(quagga_num) + " -c /usr/local/gobgp"
     local(cmd, capture=True)
     docker_container_run_quagga(quagga_num, bridge)
     cmd = "docker exec gobgp /usr/bin/pkill gobgp -SIGHUP"
@@ -244,7 +261,7 @@ def get_notification_from_exabgp_log():
     return err_mgs
 
 
-def init_test_env_executor(quagga_num):
+def init_test_env_executor(quagga_num, gobgp_local):
     print "start initialization of test environment."
     if test_user_check() is False:
         print "you are not root"
@@ -259,19 +276,39 @@ def init_test_env_executor(quagga_num):
         print "make gobgp test environment."
         bridge_setting_for_docker_connection()
         pwd = local("pwd", capture=True)
-        cmd = "$GOROOT/bin/go run " + pwd + "/quagga-rsconfig.go -n " + str(quagga_num) + " -c /usr/local/gobgp"
+        # cmd = "$GOROOT/bin/go run " + pwd + "/quagga-rsconfig.go -n " + str(quagga_num) + " -c /usr/local/gobgp"
+        cmd = "go run " + pwd + "/quagga-rsconfig.go -n " + str(quagga_num) + " -c /usr/local/gobgp"
         local(cmd, capture=True)
+
+        # run each docker container
         for num in range(1, quagga_num + 1):
             docker_container_run_quagga(num, BRIDGE_0)
         docker_container_run_gobgp(BRIDGE_0)
-        make_startup_file()
+
+        # execute local gobgp program in the docker container if the input option is local
+        if gobgp_local:
+            print "use local-gobgp program in this test."
+            pwd = local("pwd", capture=True)
+            if A_PART_OF_CURRENT_DIR in pwd:
+                gobgp_path = re.sub(A_PART_OF_CURRENT_DIR, "", pwd)
+                cmd = "cp -r " + gobgp_path + " " + CONFIG_DIRR
+                local(cmd, capture=True)
+                make_startup_file_use_local_gobgp()
+            else:
+                print "current directory is not."
+                print "use gobgp in docker container."
+                make_startup_file()
+
+        else:
+            print "use docker-container-gobgp program in this test."
+            make_startup_file()
 
         start_gobgp()
 
         print "complete initialization of test environment."
 
 
-def init_malformed_test_env_executor(conf_file):
+def init_malformed_test_env_executor(conf_file, gobgp_local):
     print "start initialization of exabgp test environment."
     if test_user_check() is False:
         print "you are not root"
@@ -290,8 +327,25 @@ def init_malformed_test_env_executor(conf_file):
         cmd = "cp " + gobgp_file + " " + CONFIG_DIRR
         local(cmd, capture=True)
         docker_container_run_gobgp(BRIDGE_0)
-        make_startup_file()
         docker_container_run_exabgp(BRIDGE_0)
+
+        # execute local gobgp program in the docker container if the input option is local
+        if gobgp_local:
+            print "use local-gobgp program in this test."
+            pwd = local("pwd", capture=True)
+            if A_PART_OF_CURRENT_DIR in pwd:
+                gobgp_path = re.sub(A_PART_OF_CURRENT_DIR, "", pwd)
+                cmd = "cp -r " + gobgp_path + " " + CONFIG_DIRR
+                local(cmd, capture=True)
+                make_startup_file_use_local_gobgp()
+            else:
+                print "current directory is not."
+                print "use gobgp in docker container."
+                make_startup_file()
+
+        else:
+            print "use docker-container-gobgp program in this test."
+            make_startup_file()
         
         start_gobgp()
         start_exabgp(conf_file)

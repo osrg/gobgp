@@ -17,8 +17,12 @@ import os
 import time
 import re
 import sys
+import nose
 import collections
 import docker_control as fab
+from noseplugin import OptionParser
+from noseplugin import parser_option
+
 
 sleep_time = 20
 
@@ -42,14 +46,20 @@ def test_malformed_packet():
     pwd = os.getcwd()
     pattern = check_pattern()
     if len(pattern) <= 0:
-        print "read test patten is faild."
-        print "csv element is " + str(len(pattern))
+        print "read test pattern is faild."
+        print "pattern element is " + str(len(pattern))
         sys.exit(1)
+
+    gobgp_local = parser_option.use_local
+    if gobgp_local:
+        print "execute gobgp program in local"
+    else:
+        print "execute gobgp program in gobgp container"
 
     for pkey in pattern:
         conf_file = pwd + "/exabgp_test_conf/" + pkey
         if os.path.isfile(conf_file) is True:
-            fab.init_malformed_test_env_executor(pkey)
+            fab.init_malformed_test_env_executor(pkey, gobgp_local)
             print "please wait"
             time.sleep(sleep_time)
             yield check_em, pkey, pattern[pkey]
@@ -70,3 +80,6 @@ def check_em(exabgp_conf, result):
     notification = notification_src[1:-1]
 
     assert notification == result
+
+if __name__ == '__main__':
+    nose.main(argv=sys.argv, addplugins=[OptionParser()], defaultTest=sys.argv[0])
