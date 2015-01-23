@@ -1384,6 +1384,7 @@ func (p *PathAttributeAsPath) DecodeFromBytes(data []byte) error {
 	}
 	as4Bytes, err := p.DefaultAsPath.isValidAspath(p.PathAttribute.Value)
 	if err != nil {
+		err.(*MessageError).Data = data[:p.Len()]
 		return err
 	}
 	v := p.PathAttribute.Value
