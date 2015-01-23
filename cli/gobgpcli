@@ -130,7 +130,7 @@ class Show(object):
         if days == 0:
             up = t
         else:
-            up = str(days) + "d" + " " + t
+            up = str(days) + "d" + " " + str(t)
         return up
 
     def do_neighbors(self):
