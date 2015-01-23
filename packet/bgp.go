@@ -85,7 +85,7 @@ func (c *DefaultParameterCapability) Code() BGPCapabilityCode {
 func (c *DefaultParameterCapability) DecodeFromBytes(data []byte) error {
 	c.CapCode = BGPCapabilityCode(data[0])
 	c.CapLen = data[1]
-	if uint8(len(data)) < 2+c.CapLen {
+	if len(data) < 2+int(c.CapLen) {
 		return fmt.Errorf("Not all OptionParameterCapability bytes available")
 	}
 	c.CapValue = data[2 : 2+c.CapLen]
@@ -379,7 +379,7 @@ func (msg *BGPOpen) DecodeFromBytes(data []byte) error {
 	msg.ID = data[5:9]
 	msg.OptParamLen = data[9]
 	data = data[10:]
-	if uint8(len(data)) < msg.OptParamLen {
+	if len(data) < int(msg.OptParamLen) {
 		return fmt.Errorf("Not all BGP Open message bytes available")
 	}
 
@@ -1878,7 +1878,7 @@ func (p *PathAttributeMpReachNLRI) DecodeFromBytes(data []byte) error {
 	afi := binary.BigEndian.Uint16(value[0:2])
 	safi := value[2]
 	nexthopLen := value[3]
-	if len(value) < 4 + int(nexthopLen) {
+	if len(value) < 4+int(nexthopLen) {
 		return NewMessageError(eCode, eSubCode, value, "mpreach nexthop length is short")
 	}
 	nexthopbin := value[4 : 4+nexthopLen]
