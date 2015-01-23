@@ -1860,6 +1860,8 @@ func NewPathAttributeClusterList(value []string) *PathAttributeClusterList {
 type PathAttributeMpReachNLRI struct {
 	PathAttribute
 	Nexthop net.IP
+	AFI     uint16
+	SAFI    uint8
 	Value   []AddrPrefixInterface
 }
 
@@ -1877,6 +1879,8 @@ func (p *PathAttributeMpReachNLRI) DecodeFromBytes(data []byte) error {
 	}
 	afi := binary.BigEndian.Uint16(value[0:2])
 	safi := value[2]
+	p.AFI = afi
+	p.SAFI = safi
 	nexthopLen := value[3]
 	if len(value) < 4+int(nexthopLen) {
 		return NewMessageError(eCode, eSubCode, value, "mpreach nexthop length is short")
@@ -1921,8 +1925,12 @@ func (p *PathAttributeMpReachNLRI) DecodeFromBytes(data []byte) error {
 }
 
 func (p *PathAttributeMpReachNLRI) Serialize() ([]byte, error) {
-	afi := p.Value[0].AFI()
-	safi := p.Value[0].SAFI()
+	afi := p.AFI
+	safi := p.SAFI
+	if len(p.Value) > 0 && afi == 0 {
+		afi = p.Value[0].AFI()
+		safi = p.Value[0].SAFI()
+	}
 	nexthoplen := 4
 	if afi == AFI_IP6 {
 		nexthoplen = 16
