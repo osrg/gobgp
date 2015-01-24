@@ -1927,10 +1927,6 @@ func (p *PathAttributeMpReachNLRI) DecodeFromBytes(data []byte) error {
 func (p *PathAttributeMpReachNLRI) Serialize() ([]byte, error) {
 	afi := p.AFI
 	safi := p.SAFI
-	if len(p.Value) > 0 && afi == 0 {
-		afi = p.Value[0].AFI()
-		safi = p.Value[0].SAFI()
-	}
 	nexthoplen := 4
 	if afi == AFI_IP6 {
 		nexthoplen = 16
@@ -1971,7 +1967,7 @@ func (p *PathAttributeMpReachNLRI) MarshalJSON() ([]byte, error) {
 
 func NewPathAttributeMpReachNLRI(nexthop string, nlri []AddrPrefixInterface) *PathAttributeMpReachNLRI {
 	t := BGP_ATTR_TYPE_MP_REACH_NLRI
-	return &PathAttributeMpReachNLRI{
+	p := &PathAttributeMpReachNLRI{
 		PathAttribute: PathAttribute{
 			Flags: pathAttrFlags[t],
 			Type:  t,
@@ -1979,10 +1975,17 @@ func NewPathAttributeMpReachNLRI(nexthop string, nlri []AddrPrefixInterface) *Pa
 		Nexthop: net.ParseIP(nexthop),
 		Value:   nlri,
 	}
+	if len(nlri) > 0 {
+		p.AFI = nlri[0].AFI()
+		p.SAFI = nlri[0].SAFI()
+	}
+	return p
 }
 
 type PathAttributeMpUnreachNLRI struct {
 	PathAttribute
+	AFI   uint16
+	SAFI  uint8
 	Value []AddrPrefixInterface
 }
 
@@ -2001,6 +2004,8 @@ func (p *PathAttributeMpUnreachNLRI) DecodeFromBytes(data []byte) error {
 	afi := binary.BigEndian.Uint16(value[0:2])
 	safi := value[2]
 	value = value[3:]
+	p.AFI = afi
+	p.SAFI = safi
 	for len(value) > 0 {
 		prefix, err := routeFamilyPrefix(afi, safi)
 		if err != nil {
@@ -2021,10 +2026,8 @@ func (p *PathAttributeMpUnreachNLRI) DecodeFromBytes(data []byte) error {
 
 func (p *PathAttributeMpUnreachNLRI) Serialize() ([]byte, error) {
 	buf := make([]byte, 3)
-	afi := p.Value[0].AFI()
-	safi := p.Value[0].SAFI()
-	binary.BigEndian.PutUint16(buf, afi)
-	buf[2] = safi
+	binary.BigEndian.PutUint16(buf, p.AFI)
+	buf[2] = p.SAFI
 	for _, prefix := range p.Value {
 		pbuf, err := prefix.Serialize()
 		if err != nil {
@@ -2038,14 +2041,19 @@ func (p *PathAttributeMpUnreachNLRI) Serialize() ([]byte, error) {
 
 func NewPathAttributeMpUnreachNLRI(nlri []AddrPrefixInterface) *PathAttributeMpUnreachNLRI {
 	t := BGP_ATTR_TYPE_MP_UNREACH_NLRI
-	return &PathAttributeMpUnreachNLRI{
-		PathAttribute{
+	p := &PathAttributeMpUnreachNLRI{
+		PathAttribute: PathAttribute{
 			Flags:  pathAttrFlags[t],
 			Type:   t,
 			Length: 0,
-			Value:  nil},
-		nlri,
+		},
+		Value: nlri,
 	}
+	if len(nlri) > 0 {
+		p.AFI = nlri[0].AFI()
+		p.SAFI = nlri[0].SAFI()
+	}
+	return p
 }
 
 type ExtendedCommunityInterface interface {
