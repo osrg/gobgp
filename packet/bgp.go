@@ -1134,6 +1134,7 @@ func (p *PathAttribute) getType() BGPAttrType {
 }
 
 func (p *PathAttribute) DecodeFromBytes(data []byte) error {
+	odata := data
 	eCode := uint8(BGP_ERROR_UPDATE_MESSAGE_ERROR)
 	eSubCode := uint8(BGP_ERROR_SUB_ATTRIBUTE_LENGTH_ERROR)
 	if len(data) < 2 {
@@ -1160,6 +1161,10 @@ func (p *PathAttribute) DecodeFromBytes(data []byte) error {
 	}
 	p.Value = data[:p.Length]
 
+	ok, eMsg := ValidateFlags(p.Type, p.Flags)
+	if !ok {
+		return NewMessageError(eCode, BGP_ERROR_SUB_ATTRIBUTE_FLAGS_ERROR, odata[:p.Len()], eMsg)
+	}
 	return nil
 }
 
