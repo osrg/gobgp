@@ -2613,10 +2613,13 @@ type BGPHeader struct {
 
 func (msg *BGPHeader) DecodeFromBytes(data []byte) error {
 	// minimum BGP message length
-	if uint16(len(data)) < 19 {
+	if uint16(len(data)) < BGP_HEADER_LENGTH {
 		return fmt.Errorf("Not all BGP message header")
 	}
 	msg.Len = binary.BigEndian.Uint16(data[16:18])
+	if int(msg.Len) < BGP_HEADER_LENGTH {
+		return NewMessageError(BGP_ERROR_MESSAGE_HEADER_ERROR, BGP_ERROR_SUB_BAD_MESSAGE_LENGTH, nil, "unknown message type")
+	}
 	msg.Type = data[18]
 	return nil
 }
