@@ -1887,6 +1887,10 @@ func (p *PathAttributeMpReachNLRI) DecodeFromBytes(data []byte) error {
 	safi := value[2]
 	p.AFI = afi
 	p.SAFI = safi
+	_, err = routeFamilyPrefix(afi, safi)
+	if err != nil {
+		return NewMessageError(eCode, BGP_ERROR_SUB_ATTRIBUTE_FLAGS_ERROR, data[:p.PathAttribute.Len()], err.Error())
+	}
 	nexthopLen := value[3]
 	if len(value) < 4+int(nexthopLen) {
 		return NewMessageError(eCode, eSubCode, value, "mpreach nexthop length is short")
@@ -1998,7 +2002,7 @@ type PathAttributeMpUnreachNLRI struct {
 func (p *PathAttributeMpUnreachNLRI) DecodeFromBytes(data []byte) error {
 	err := p.PathAttribute.DecodeFromBytes(data)
 	if err != nil {
-		return nil
+		return err
 	}
 	eCode := uint8(BGP_ERROR_UPDATE_MESSAGE_ERROR)
 	eSubCode := uint8(BGP_ERROR_SUB_ATTRIBUTE_LENGTH_ERROR)
@@ -2009,6 +2013,10 @@ func (p *PathAttributeMpUnreachNLRI) DecodeFromBytes(data []byte) error {
 	}
 	afi := binary.BigEndian.Uint16(value[0:2])
 	safi := value[2]
+	_, err = routeFamilyPrefix(afi, safi)
+	if err != nil {
+		return NewMessageError(eCode, BGP_ERROR_SUB_ATTRIBUTE_FLAGS_ERROR, data[:p.PathAttribute.Len()], err.Error())
+	}
 	value = value[3:]
 	p.AFI = afi
 	p.SAFI = safi

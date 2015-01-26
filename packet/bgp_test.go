@@ -104,8 +104,8 @@ func update() *BGPMessage {
 		NewPathAttributeMpReachNLRI("fe80::", mp_nlri3),
 		NewPathAttributeMpReachNLRI("129.1.1.1", mp_nlri4),
 		NewPathAttributeMpUnreachNLRI(mp_nlri),
-		NewPathAttributeMpReachNLRI("112.22.2.0", []AddrPrefixInterface{}),
-		NewPathAttributeMpUnreachNLRI([]AddrPrefixInterface{}),
+		//NewPathAttributeMpReachNLRI("112.22.2.0", []AddrPrefixInterface{}),
+		//NewPathAttributeMpUnreachNLRI([]AddrPrefixInterface{}),
 		&PathAttributeUnknown{
 			PathAttribute: PathAttribute{
 				Flags: BGP_ATTR_FLAG_TRANSITIVE,
