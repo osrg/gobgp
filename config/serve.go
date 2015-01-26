@@ -2,6 +2,7 @@ package config
 
 import (
 	"github.com/BurntSushi/toml"
+	log "github.com/Sirupsen/logrus"
 )
 
 func ReadConfigfileServe(path string, configCh chan BgpType, reloadCh chan bool) {
@@ -10,7 +11,9 @@ func ReadConfigfileServe(path string, configCh chan BgpType, reloadCh chan bool)
 
 		b := BgpType{}
 		_, err := toml.DecodeFile(path, &b)
-		if err == nil {
+		if err != nil {
+			log.Fatal("can't read config file ", path)
+		} else {
 			// TODO: validate configuration
 			for i, _ := range b.NeighborList {
 				SetNeighborTypeDefault(&b.NeighborList[i])
