@@ -133,7 +133,7 @@ func ValidateFlags(t BGPAttrType, flags uint8) (bool, string) {
 
 	// check flags are correct
 	if f, ok := pathAttrFlags[t]; ok {
-		if f != flags {
+		if f != (flags & ^uint8(BGP_ATTR_FLAG_EXTENDED_LENGTH)) {
 			eMsg := "flags are invalid. attribtue type : " + strconv.Itoa(int(t))
 			return false, eMsg
 		}
