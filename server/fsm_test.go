@@ -44,6 +44,11 @@ func NewMockConnection() *MockConnection {
 func (m *MockConnection) Read(buf []byte) (int, error) {
 
 	data := <-m.recvCh
+	rest := len(buf) - m.readBytes
+	if len(data) > rest {
+		m.recvCh <- data[rest:]
+		data = data[:rest]
+	}
 
 	for _, val := range data {
 		buf[m.readBytes] = val
@@ -86,7 +91,7 @@ func showMessageType(t uint8) string {
 }
 
 func (m *MockConnection) Close() error {
-	fmt.Printf("close called")
+	fmt.Printf("close called\n")
 	return nil
 }
 
@@ -121,6 +126,56 @@ func TestReadAll(t *testing.T) {
 	assert.Equal(expected2, actual2)
 }
 
+func TestFSMHandlerOpensent_HoldTimerExpired(t *testing.T) {
+	assert := assert.New(t)
+	m := NewMockConnection()
+
+	p, h := makePeerAndHandler()
+
+	// push mock connection
+	p.fsm.passiveConn = m
+
+	// set up keepalive ticker
+	sec := time.Second * 2
+	p.fsm.keepaliveTicker = time.NewTicker(sec)
+
+	// set holdtime
+	p.fsm.opensentHoldTime = 5
+
+	state := h.opensent()
+
+	assert.Equal(bgp.BGP_FSM_IDLE, state)
+	lastMsg := m.sendBuf[len(m.sendBuf)-1]
+	sent, _ := bgp.ParseBGPMessage(lastMsg)
+	assert.Equal(bgp.BGP_MSG_NOTIFICATION, sent.Header.Type)
+	assert.Equal(bgp.BGP_ERROR_HOLD_TIMER_EXPIRED, sent.Body.(*bgp.BGPNotification).ErrorCode)
+
+}
+
+func TestFSMHandlerOpenconfirm_HoldTimerExpired(t *testing.T) {
+	assert := assert.New(t)
+	m := NewMockConnection()
+
+	p, h := makePeerAndHandler()
+
+	// push mock connection
+	p.fsm.passiveConn = m
+
+	// set up keepalive ticker
+	p.fsm.peerConfig.Timers.KeepaliveInterval = 2
+
+	// set holdtime
+	p.fsm.negotiatedHoldTime = 10
+	state := h.openconfirm()
+
+	assert.Equal(bgp.BGP_FSM_IDLE, state)
+	lastMsg := m.sendBuf[len(m.sendBuf)-1]
+	sent, _ := bgp.ParseBGPMessage(lastMsg)
+	assert.Equal(bgp.BGP_MSG_NOTIFICATION, sent.Header.Type)
+	assert.Equal(bgp.BGP_ERROR_HOLD_TIMER_EXPIRED, sent.Body.(*bgp.BGPNotification).ErrorCode)
+
+}
+
 func TestFSMHandlerEstablish_HoldTimerExpired(t *testing.T) {
 	assert := assert.New(t)
 	m := NewMockConnection()
@@ -140,10 +195,6 @@ func TestFSMHandlerEstablish_HoldTimerExpired(t *testing.T) {
 
 	pushPackets := func() {
 		// first keepalive from peer
-		m.recvCh <- header
-		m.recvCh <- body
-		time.Sleep(time.Second * 4)
-		// second keepalive from peer
 		m.recvCh <- header
 		m.recvCh <- body
 	}
