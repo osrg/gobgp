@@ -409,6 +409,11 @@ func (peer *Peer) MarshalJSON() ([]byte, error) {
 		downtime = time.Now().Sub(s.Downtime).Seconds()
 	}
 
+	advertized := uint32(0)
+	if f.state == bgp.BGP_FSM_ESTABLISHED {
+		advertized = uint32(peer.adjRib.GetOutCount(peer.rf))
+	}
+
 	p["info"] = struct {
 		BgpState                  string  `json:"bgp_state"`
 		FsmEstablishedTransitions uint32  `json:"fsm_established_transitions"`
@@ -452,7 +457,7 @@ func (peer *Peer) MarshalJSON() ([]byte, error) {
 		Downtime:                  downtime,
 		Received:                  uint32(peer.adjRib.GetInCount(peer.rf)),
 		Accepted:                  uint32(peer.adjRib.GetInCount(peer.rf)),
-		Advertized:                uint32(peer.adjRib.GetOutCount(peer.rf)),
+		Advertized:                advertized,
 		OutQ:                      len(peer.outgoing),
 		Flops:                     s.Flops,
 	}
