@@ -141,14 +141,8 @@ class Show(object):
         if self.options.debug:
             print neighbors
             return 0
-        print("{:40s} {:5s} {:11s}{:11s} {:8s} |#{:8s} {:8s} {:8s}".format("Peer", "AS", "Up", "Down", "State", "Advertised", "Received", "Accepted"))
+        print("{:40s} {:5s} {:13s} {:8s} |#{:8s} {:8s} {:8s}".format("Peer", "AS", "Up/Down", "State", "Advertised", "Received", "Accepted"))
         for n in sorted(neighbors, key=lambda n: n["conf"]["remote_ip"]):
-            if n["info"]["uptime"] == 0:
-                up = "never"
-            else:
-                up = self.format_timedelta(n["info"]["uptime"])
-            down = self.format_timedelta(n["info"]["downtime"])
-
             s = n["info"]["bgp_state"]
             if s == "BGP_FSM_IDLE":
                 state = "Idle"
@@ -163,7 +157,14 @@ class Show(object):
             elif s == "BGP_FSM_ESTABLISHED":
                 state = "Establ"
 
-            print("{:40s} {:5d} {:11s}{:11s} {:8s} |   {:>8d} {:>8d} {:>8d}".format(n["conf"]["remote_ip"], n["conf"]["remote_as"], up, down, state, n["info"]["Advertized"], n["info"]["Received"], n["info"]["Accepted"]))
+            if n["info"]["uptime"] == 0:
+                t = "never"
+            elif s == "BGP_FSM_ESTABLISHED":
+                t = self.format_timedelta(n["info"]["uptime"])
+            else:
+                t = self.format_timedelta(n["info"]["downtime"])
+
+            print("{:40s} {:5d} {:13s} {:8s} |   {:>8d} {:>8d} {:>8d}".format(n["conf"]["remote_ip"], n["conf"]["remote_as"], t, state, n["info"]["Advertized"], n["info"]["Received"], n["info"]["Accepted"]))
         return 0
 
     def _format_attrs(self, attrlist):

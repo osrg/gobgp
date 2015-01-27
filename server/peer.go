@@ -300,6 +300,8 @@ func (peer *Peer) loop() error {
 			peer.sendMessages(table.CreateUpdateMsgFromPaths(pathList))
 			peer.fsm.peerConfig.BgpNeighborCommonState.Uptime = time.Now()
 			peer.fsm.peerConfig.BgpNeighborCommonState.EstablishedCount++
+		} else {
+			peer.fsm.peerConfig.BgpNeighborCommonState.Downtime = time.Now()
 		}
 
 		sameState := true
@@ -325,7 +327,6 @@ func (peer *Peer) loop() error {
 					sameState = false
 					if oldState == bgp.BGP_FSM_ESTABLISHED {
 						t := time.Now()
-						peer.fsm.peerConfig.BgpNeighborCommonState.Downtime = t
 						if t.Sub(peer.fsm.peerConfig.BgpNeighborCommonState.Uptime) < FLOP_THRESHOLD {
 							peer.fsm.peerConfig.BgpNeighborCommonState.Flops++
 						}
