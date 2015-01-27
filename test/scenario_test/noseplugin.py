@@ -9,6 +9,7 @@ class OptionParser(Plugin):
     def options(self, parser, env=os.environ):
         super(OptionParser, self).options(parser, env=env)
         parser.add_option('--use-local', action="store_true", dest="use_local", default=False)
+        parser.add_option('--go-path', action="store", dest="go_path", default="")
 
     def configure(self, options, conf):
         super(OptionParser, self).configure(options, conf)

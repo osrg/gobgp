@@ -46,26 +46,19 @@ class GoBGPTest(unittest.TestCase):
 
     def setUp(self):
         self.quagga_configs = []
-        self.load_gobgp_config()
-        self.load_quagga_config()
 
     # test each neighbor state is turned establish
     def test_01_neighbor_established(self):
         print "test_neighbor_established"
-        gobgp_local = parser_option.use_local
 
-        if gobgp_local:
-            print "execute gobgp program in local"
-        else:
-            print "execute gobgp program in gobgp container"
-        fab.init_test_env_executor(self.quagga_num, gobgp_local)
+        use_local = parser_option.use_local
+        go_path = parser_option.go_path
+        fab.init_test_env_executor(self.quagga_num, use_local, go_path)
 
         print "please wait"
         time.sleep(self.sleep_time)
         if self.check_load_config() is False:
             return
-        self.load_gobgp_config()
-        self.load_quagga_config()
 
         addresses = self.get_neighbor_address(self.gobgp_config)
 
@@ -146,13 +139,16 @@ class GoBGPTest(unittest.TestCase):
                                 if c_path.network.split("/")[0] == q_path['Network'] and c_path.nexthop == q_path['Next Hop']:
                                     exist_n += 1
                             self.assertEqual(exist_n, 1)
-
+    """
     # check if quagga that is appended can establish connection with gobgp
     def test_04_established_with_appended_quagga(self):
         print "test_established_with_appended_quagga"
+        if self.check_load_config() is False:
+            return
 
+        go_path = parser_option.go_path
         # append new quagga container
-        fab.docker_container_quagga_append_executor(self.append_quagga)
+        fab.docker_container_quagga_append_executor(self.append_quagga, go_path)
         print "please wait"
         time.sleep(self.sleep_time)
         append_quagga_address = "10.0.0." + str(self.append_quagga)
@@ -236,6 +232,8 @@ class GoBGPTest(unittest.TestCase):
 
     def test_07_active_when_quagga_removed(self):
         print "test_active_when_removed_quagga"
+        if self.check_load_config() is False:
+            return
 
         # remove quagga container
         fab.docker_container_quagga_removed_executor(self.remove_quagga)
@@ -325,10 +323,15 @@ class GoBGPTest(unittest.TestCase):
                                 if c_path.network.split("/")[0] == q_path['Network'] and c_path.nexthop == q_path['Next Hop']:
                                     exist_n += 1
                             self.assertEqual(exist_n, 1)
+    """
 
     def test_10_bestpath_selection_of_received_route(self):
         print "test_bestpath_selection_of_received_route"
-        fab.docker_container_make_bestpath_env_executor(self.append_quagga_best)
+        if self.check_load_config() is False:
+            return
+
+        go_path = parser_option.go_path
+        fab.docker_container_make_bestpath_env_executor(self.append_quagga_best, go_path)
         print "please wait"
         time.sleep(self.sleep_time)
 
@@ -348,14 +351,20 @@ class GoBGPTest(unittest.TestCase):
         qaccess.add_neighbor_metric(tn, "65003", "10.0.255.1", "100")
 
         print "please wait"
-        time.sleep(self.sleep_time*2)
+        time.sleep(self.sleep_time)
 
         check_address = "10.0.0.1"
         target_network = "192.168.20.0"
         ans_nexthop = "10.0.0.3"
-        rep_nexthop = ""
+
         print "check of [ " + check_address + " ]"
+        self.check_bestpath(check_address, target_network, ans_nexthop)
+
+    # load configration from gobgp(gobgpd.conf)
+    def check_bestpath(self, check_address, target_network, ans_nexthop):
         # get local-rib
+        rep_nexthop = ""
+        target_exist = False
         url = "http://" + self.gobgp_ip + ":" + self.gobgp_port + "/v1/bgp/neighbor/" + check_address + "/local-rib"
         r = requests.get(url)
         local_rib = json.loads(r.text)
@@ -364,17 +373,30 @@ class GoBGPTest(unittest.TestCase):
             # print "prefix : ", g_dest['Prefix']
             best_path_idx = g_dest['BestPathIdx']
             if target_network == g_dest['Prefix']:
+                target_exist = True
                 g_paths = g_dest['Paths']
                 idx = 0
+                if len(g_paths) < 2:
+                    print "target path has not been bestpath selected yet."
+                    print "please wait more."
+                    time.sleep(self.sleep_time/2)
+                    self.check_bestpath(check_address, target_network, ans_nexthop)
+                    return
                 for g_path in g_paths:
                     print "best_path_Idx: " + str(best_path_idx) + "idx: " + str(idx)
                     print "pre: ", g_dest['Prefix'], "net: ", g_path['Network'], "next: ", g_path['Nexthop']
                     if str(best_path_idx) == str(idx):
                         rep_nexthop = g_path['Nexthop']
                     idx += 1
+        if target_exist is False:
+            print "target path has not been receive yet."
+            print "please wait more."
+            time.sleep(self.sleep_time/2)
+            self.check_bestpath(check_address, target_network, ans_nexthop)
+            return
         self.assertEqual(ans_nexthop, rep_nexthop)
 
-    # load configration from gobgp(gobgpd.conf)
+
     def load_gobgp_config(self):
         try:
             self.gobgp_config = toml.loads(open(self.gobgp_config_file).read())
@@ -431,11 +453,12 @@ class GoBGPTest(unittest.TestCase):
         neighbors_config = config['NeighborList']
         for neighbor_config in neighbors_config:
             neighbor_ip = neighbor_config['NeighborAddress']
-            print neighbor_ip
             address.append(neighbor_ip)
         return address
 
     def check_load_config(self):
+        self.load_gobgp_config()
+        self.load_quagga_config()
         if self.gobgp_config is None:
             print "Failed to read the gobgp configuration file"
             return False
@@ -469,4 +492,13 @@ class Path:
         self.metric = None
 
 if __name__ == '__main__':
+    if fab.test_user_check() is False:
+        print "you are not root."
+        sys.exit(1)
+    if fab.docker_pkg_check() is False:
+        print "not install docker package."
+        sys.exit(1)
+    if fab.go_path_check() is False:
+        print "can not find path of go"
+
     nose.main(argv=sys.argv, addplugins=[OptionParser()], defaultTest=sys.argv[0])

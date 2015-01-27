@@ -52,7 +52,7 @@ def install_docker_and_tools():
     print "start install packages of test environment."
     if test_user_check() is False:
         print "you are not root"
-        os.exit(1)
+        return
 
     local("apt-key adv --keyserver hkp://keyserver.ubuntu.com:80 --recv-keys "
           "36A1D7869245C8950F966E92D8576A8BA88D21E9", capture=True)
@@ -84,9 +84,17 @@ def docker_pkg_check():
     dpkg_list = outbuf.split('\n')
     for dpkg in dpkg_list:
         # print "lxc-docker in ",dpkg
-        if ("lxc-docker" in dpkg):
+        if "lxc-docker" in dpkg:
             docker_exists = True
     return docker_exists
+
+
+def go_path_check():
+    go_path_exist = False
+    outbuf = local("echo `which go`", capture=True)
+    if "go" in outbuf:
+        go_path_exist = True
+    return go_path_exist
 
 
 def docker_container_checks():
@@ -204,10 +212,6 @@ def docker_containers_destroy():
 
 def docker_container_quagga_append(quagga_num, bridge):
     print "start append docker container."
-    pwd = local("pwd", capture=True)
-    # cmd = "$GOROOT/bin/go run " + pwd + "/quagga-rsconfig.go -a " + str(quagga_num) + " -c /usr/local/gobgp"
-    cmd = "go run " + pwd + "/quagga-rsconfig.go -a " + str(quagga_num) + " -c /usr/local/gobgp"
-    local(cmd, capture=True)
     docker_container_run_quagga(quagga_num, bridge)
     cmd = "docker exec gobgp /usr/bin/pkill gobgp -SIGHUP"
     local(cmd, capture=True)
@@ -261,97 +265,109 @@ def get_notification_from_exabgp_log():
     return err_mgs
 
 
-def init_test_env_executor(quagga_num, gobgp_local):
+def make_config(quagga_num, go_path):
+    if go_path != "":
+        print "specified go path is [ " + go_path + " ]."
+        if os.path.isdir(go_path):
+            go_path += "/"
+        else:
+            print "specified go path do not use."
+    pwd = local("pwd", capture=True)
+    cmd = go_path + "go run " + pwd + "/quagga-rsconfig.go -n " + str(quagga_num) + " -c /usr/local/gobgp"
+    local(cmd, capture=True)
+
+
+def make_config_append(quagga_num, go_path):
+    if go_path != "":
+        print "specified go path is [ " + go_path + " ]."
+        if os.path.isdir(go_path):
+            go_path += "/"
+        else:
+            print "specified go path do not use."
+    pwd = local("pwd", capture=True)
+    cmd = go_path + "go run " + pwd + "/quagga-rsconfig.go -a " + str(quagga_num) + " -c /usr/local/gobgp"
+    local(cmd, capture=True)
+
+
+def init_test_env_executor(quagga_num, use_local, go_path):
     print "start initialization of test environment."
-    if test_user_check() is False:
-        print "you are not root"
-        os.exit(1)
 
-    if docker_pkg_check():
-        if docker_container_checks():
-            print "gobgp test environment already exists."
-            print "so that remake gobgp test environment."
-            docker_containers_destroy()
+    if docker_container_checks():
+        print "gobgp test environment already exists."
+        print "so that remake gobgp test environment."
+        docker_containers_destroy()
 
-        print "make gobgp test environment."
-        bridge_setting_for_docker_connection()
+    print "make gobgp test environment."
+    bridge_setting_for_docker_connection()
+    make_config(quagga_num, go_path)
+
+    # run each docker container
+    for num in range(1, quagga_num + 1):
+        docker_container_run_quagga(num, BRIDGE_0)
+    docker_container_run_gobgp(BRIDGE_0)
+
+    # execute local gobgp program in the docker container if the input option is local
+    if use_local:
+        print "execute gobgp program in local machine."
         pwd = local("pwd", capture=True)
-        # cmd = "$GOROOT/bin/go run " + pwd + "/quagga-rsconfig.go -n " + str(quagga_num) + " -c /usr/local/gobgp"
-        cmd = "go run " + pwd + "/quagga-rsconfig.go -n " + str(quagga_num) + " -c /usr/local/gobgp"
-        local(cmd, capture=True)
-
-        # run each docker container
-        for num in range(1, quagga_num + 1):
-            docker_container_run_quagga(num, BRIDGE_0)
-        docker_container_run_gobgp(BRIDGE_0)
-
-        # execute local gobgp program in the docker container if the input option is local
-        if gobgp_local:
-            print "use local-gobgp program in this test."
-            pwd = local("pwd", capture=True)
-            if A_PART_OF_CURRENT_DIR in pwd:
-                gobgp_path = re.sub(A_PART_OF_CURRENT_DIR, "", pwd)
-                cmd = "cp -r " + gobgp_path + " " + CONFIG_DIRR
-                local(cmd, capture=True)
-                make_startup_file_use_local_gobgp()
-            else:
-                print "current directory is not."
-                print "use gobgp in docker container."
-                make_startup_file()
-
+        if A_PART_OF_CURRENT_DIR in pwd:
+            gobgp_path = re.sub(A_PART_OF_CURRENT_DIR, "", pwd)
+            cmd = "cp -r " + gobgp_path + " " + CONFIG_DIRR
+            local(cmd, capture=True)
+            make_startup_file_use_local_gobgp()
         else:
-            print "use docker-container-gobgp program in this test."
+            print "scenario_test directory is not."
+            print "execute gobgp program of osrg/master in github."
             make_startup_file()
+    else:
+        print "execute gobgp program of osrg/master in github."
+        make_startup_file()
 
-        start_gobgp()
+    start_gobgp()
 
-        print "complete initialization of test environment."
+    print "complete initialization of test environment."
 
 
-def init_malformed_test_env_executor(conf_file, gobgp_local):
+def init_malformed_test_env_executor(conf_file, use_local):
     print "start initialization of exabgp test environment."
-    if test_user_check() is False:
-        print "you are not root"
-        os.exit(1)
+    if docker_container_checks():
+        print "gobgp test environment already exists."
+        print "so that remake gobgp test environment."
+        docker_containers_destroy()
 
-    if docker_pkg_check():
-        if docker_container_checks():
-            print "gobgp test environment already exists."
-            print "so that remake gobgp test environment."
-            docker_containers_destroy()
+    print "make gobgp test environment."
+    bridge_setting_for_docker_connection()
+    pwd = local("pwd", capture=True)
+    gobgp_file = pwd + "/exabgp_test_conf/gobgpd.conf"
+    cmd = "cp " + gobgp_file + " " + CONFIG_DIRR
+    local(cmd, capture=True)
+    docker_container_run_gobgp(BRIDGE_0)
+    docker_container_run_exabgp(BRIDGE_0)
 
-        print "make gobgp test environment."
-        bridge_setting_for_docker_connection()
+    # execute local gobgp program in the docker container if the input option is local
+    if use_local:
+        print "execute gobgp program in local machine."
         pwd = local("pwd", capture=True)
-        gobgp_file = pwd + "/exabgp_test_conf/gobgpd.conf"
-        cmd = "cp " + gobgp_file + " " + CONFIG_DIRR
-        local(cmd, capture=True)
-        docker_container_run_gobgp(BRIDGE_0)
-        docker_container_run_exabgp(BRIDGE_0)
-
-        # execute local gobgp program in the docker container if the input option is local
-        if gobgp_local:
-            print "use local-gobgp program in this test."
-            pwd = local("pwd", capture=True)
-            if A_PART_OF_CURRENT_DIR in pwd:
-                gobgp_path = re.sub(A_PART_OF_CURRENT_DIR, "", pwd)
-                cmd = "cp -r " + gobgp_path + " " + CONFIG_DIRR
-                local(cmd, capture=True)
-                make_startup_file_use_local_gobgp()
-            else:
-                print "current directory is not."
-                print "use gobgp in docker container."
-                make_startup_file()
-
+        if A_PART_OF_CURRENT_DIR in pwd:
+            gobgp_path = re.sub(A_PART_OF_CURRENT_DIR, "", pwd)
+            cmd = "cp -r " + gobgp_path + " " + CONFIG_DIRR
+            local(cmd, capture=True)
+            make_startup_file_use_local_gobgp()
         else:
-            print "use docker-container-gobgp program in this test."
+            print "scenario_test directory is not."
+            print "execute gobgp program of osrg/master in github."
             make_startup_file()
+
+    else:
+        print "execute gobgp program of osrg/master in github."
+        make_startup_file()
         
-        start_gobgp()
-        start_exabgp(conf_file)
+    start_gobgp()
+    start_exabgp(conf_file)
 
 
-def docker_container_quagga_append_executor(quagga_num):
+def docker_container_quagga_append_executor(quagga_num, go_path):
+    make_config_append(quagga_num, go_path)
     docker_container_quagga_append(quagga_num, BRIDGE_0)
 
 
@@ -359,8 +375,9 @@ def docker_container_quagga_removed_executor(quagga_num):
     docker_container_quagga_removed(quagga_num)
 
 
-def docker_container_make_bestpath_env_executor(append_quagga_num):
+def docker_container_make_bestpath_env_executor(append_quagga_num, go_path):
     print "start make bestpath environment"
+    make_config_append(append_quagga_num, go_path)
     append_quagga_name = "q" + str(append_quagga_num)
     docker_container_quagga_append(append_quagga_num, BRIDGE_1)
     docker_container_set_ipaddress(BRIDGE_1, "q2", "11.0.0.2/16")

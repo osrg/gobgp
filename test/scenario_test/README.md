@@ -44,14 +44,14 @@ Please run the test script as root.
 
 route_server_test.py is scenario test script.
 ```
-# python route_server_test.py -v [ --use-local ]
+# python route_server_test.py -v [ --use-local ] [--go-path=<path>]
 
 ```
 
 
 If you want to do malformed packet test, please run route_server_malformed_test.py
 ```
-# python route_server_malformed_test.py -v [ --use-local ]
+# python route_server_malformed_test.py -v [ --use-local ] [--go-path=<path>]
 
 ```
 
@@ -59,4 +59,6 @@ After the test, test results will be shown.
 
 Notes
 -----
- use [ --use-local ] option when execute gobgp program of local system
+ use [ --use-local ] option when execute gobgp program of local system.
+ 
+ use [ --go-path ] option when not root and use sudo command.

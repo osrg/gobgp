@@ -45,21 +45,26 @@ def check_pattern():
 def test_malformed_packet():
     pwd = os.getcwd()
     pattern = check_pattern()
+    if fab.test_user_check() is False:
+        print "you are not root"
+        sys.exit(1)
+
+    if fab.docker_pkg_check() is False:
+        print "not install docker package."
+        sys.exit(1)
+
     if len(pattern) <= 0:
         print "read test pattern is faild."
         print "pattern element is " + str(len(pattern))
         sys.exit(1)
 
-    gobgp_local = parser_option.use_local
-    if gobgp_local:
-        print "execute gobgp program in local"
-    else:
-        print "execute gobgp program in gobgp container"
+    use_local = parser_option.use_local
+    go_path = parser_option.go_path
 
     for pkey in pattern:
         conf_file = pwd + "/exabgp_test_conf/" + pkey
         if os.path.isfile(conf_file) is True:
-            fab.init_malformed_test_env_executor(pkey, gobgp_local)
+            fab.init_malformed_test_env_executor(pkey, use_local, go_path)
             print "please wait"
             time.sleep(sleep_time)
             yield check_em, pkey, pattern[pkey]
@@ -82,4 +87,10 @@ def check_em(exabgp_conf, result):
     assert notification == result
 
 if __name__ == '__main__':
+    if fab.test_user_check() is False:
+        print "you are not root."
+        sys.exit(1)
+    if fab.docker_pkg_check() is False:
+        print "not install docker package."
+        sys.exit(1)
     nose.main(argv=sys.argv, addplugins=[OptionParser()], defaultTest=sys.argv[0])
