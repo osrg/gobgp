@@ -2,6 +2,7 @@ package bgp
 
 import (
 	"bytes"
+	"encoding/binary"
 	"github.com/stretchr/testify/assert"
 	"net"
 	"testing"
@@ -145,4 +146,52 @@ func Test_IPAddrPrefixString(t *testing.T) {
 	assert.Equal(t, "3343:faba:3903::1/18", ipv6.String())
 	ipv6 = NewIPv6AddrPrefix(18, "3343:faba:3903::0")
 	assert.Equal(t, "3343:faba:3903::/18", ipv6.String())
+}
+
+func Test_RouteTargetMembershipNLRIString(t *testing.T) {
+	r := &RouteTargetMembershipNLRI{}
+
+	assert := assert.New(t)
+
+	// TwoOctetAsSpecificExtended
+	buf := make([]byte, 12)
+	binary.BigEndian.PutUint32(buf[:4], 65546)
+	buf[4] = 0x00 // typehigh
+	binary.BigEndian.PutUint16(buf[6:8], 65000)
+	binary.BigEndian.PutUint32(buf[8:], 65546)
+	r.DecodeFromBytes(buf)
+	assert.Equal("65546:65000:65546/96", r.String())
+
+	// IPv4AddressSpecificExtended
+	binary.BigEndian.PutUint32(buf[:4], 65546)
+	buf[4] = 0x01 // typehigh
+	ip := net.ParseIP("10.0.0.1").To4()
+	copy(buf[6:10], []byte(ip))
+	binary.BigEndian.PutUint16(buf[10:], 65000)
+	r.DecodeFromBytes(buf)
+	assert.Equal("65546:10.0.0.1:65000/96", r.String())
+
+	// FourOctetAsSpecificExtended
+	binary.BigEndian.PutUint32(buf[:4], 65546)
+	buf[4] = 0x02 // typehigh
+	buf[5] = 0x01 // subtype
+	binary.BigEndian.PutUint32(buf[6:], 65546)
+	binary.BigEndian.PutUint16(buf[10:], 65000)
+	r.DecodeFromBytes(buf)
+	assert.Equal("65546:1.10:65000/96", r.String())
+
+	// OpaqueExtended
+	binary.BigEndian.PutUint32(buf[:4], 65546)
+	buf[4] = 0x03 // typehigh
+	binary.BigEndian.PutUint32(buf[8:], 1000000)
+	r.DecodeFromBytes(buf)
+	assert.Equal("65546:281479272677952/96", r.String())
+
+	// Unknown
+	binary.BigEndian.PutUint32(buf[:4], 65546)
+	buf[4] = 0x04 // typehigh
+	binary.BigEndian.PutUint32(buf[8:], 1000000)
+	r.DecodeFromBytes(buf)
+	assert.Equal("65546:281479272677952/96", r.String())
+
 }

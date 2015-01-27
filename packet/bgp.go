@@ -437,6 +437,7 @@ type AddrPrefixInterface interface {
 	AFI() uint16
 	SAFI() uint8
 	Len() int
+	String() string
 }
 
 type IPAddrPrefixDefault struct {
@@ -941,6 +942,10 @@ func (n *RouteTargetMembershipNLRI) SAFI() uint8 {
 }
 
 func (n *RouteTargetMembershipNLRI) Len() int { return 12 }
+
+func (n *RouteTargetMembershipNLRI) String() string {
+	return fmt.Sprintf("%d:%s/%d", n.AS, n.RouteTarget.String(), n.Len()*8)
+}
 
 func rfshift(afi uint16, safi uint8) RouteFamily {
 	return RouteFamily(int(afi)<<16 | int(safi))
@@ -2072,6 +2077,7 @@ func NewPathAttributeMpUnreachNLRI(nlri []AddrPrefixInterface) *PathAttributeMpU
 
 type ExtendedCommunityInterface interface {
 	Serialize() ([]byte, error)
+	String() string
 }
 
 type TwoOctetAsSpecificExtended struct {
@@ -2089,6 +2095,10 @@ func (e *TwoOctetAsSpecificExtended) Serialize() ([]byte, error) {
 	return buf, nil
 }
 
+func (e *TwoOctetAsSpecificExtended) String() string {
+	return fmt.Sprintf("%d:%d", e.AS, e.LocalAdmin)
+}
+
 type IPv4AddressSpecificExtended struct {
 	SubType    uint8
 	IPv4       net.IP
@@ -2102,6 +2112,10 @@ func (e *IPv4AddressSpecificExtended) Serialize() ([]byte, error) {
 	copy(buf[2:6], e.IPv4)
 	binary.BigEndian.PutUint16(buf[6:], e.LocalAdmin)
 	return buf, nil
+}
+
+func (e *IPv4AddressSpecificExtended) String() string {
+	return fmt.Sprintf("%s:%d", e.IPv4.String(), e.LocalAdmin)
 }
 
 type FourOctetAsSpecificExtended struct {
@@ -2119,6 +2133,14 @@ func (e *FourOctetAsSpecificExtended) Serialize() ([]byte, error) {
 	return buf, nil
 }
 
+func (e *FourOctetAsSpecificExtended) String() string {
+	buf := make([]byte, 4)
+	binary.BigEndian.PutUint32(buf, e.AS)
+	asUpper := binary.BigEndian.Uint16(buf[0:2])
+	asLower := binary.BigEndian.Uint16(buf[2:])
+	return fmt.Sprintf("%d.%d:%d", asUpper, asLower, e.LocalAdmin)
+}
+
 type OpaqueExtended struct {
 	Value []byte
 }
@@ -2128,6 +2150,13 @@ func (e *OpaqueExtended) Serialize() ([]byte, error) {
 	buf[0] = 0x03
 	copy(buf[1:], e.Value)
 	return buf, nil
+}
+
+func (e *OpaqueExtended) String() string {
+	buf := make([]byte, 8)
+	copy(buf[1:], e.Value)
+	v := binary.BigEndian.Uint64(buf)
+	return fmt.Sprintf("%d", v)
 }
 
 type UnknownExtended struct {
@@ -2140,6 +2169,13 @@ func (e *UnknownExtended) Serialize() ([]byte, error) {
 	buf[0] = uint8(e.Type)
 	copy(buf[1:], e.Value)
 	return buf, nil
+}
+
+func (e *UnknownExtended) String() string {
+	buf := make([]byte, 8)
+	copy(buf[1:], e.Value)
+	v := binary.BigEndian.Uint64(buf)
+	return fmt.Sprintf("%d", v)
 }
 
 type PathAttributeExtendedCommunities struct {
