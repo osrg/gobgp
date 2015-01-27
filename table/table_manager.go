@@ -140,10 +140,21 @@ func (manager *TableManager) calculate(destinationList []Destination) ([]Path, [
 
 	for _, destination := range destinationList {
 		// compute best path
-		log.Infof("Processing destination: %v", destination.String())
+
+		log.WithFields(log.Fields{
+			"Topic": "table",
+			"Key":   destination.getPrefix().String(),
+		}).Info("Processing destination")
+
 		newBestPath, reason, err := destination.Calculate(manager.localAsn)
 
-		log.Debugf("new best path: %v, reason=%v", newBestPath, reason)
+		log.WithFields(log.Fields{
+			"Topic":  "table",
+			"Key":    destination.getPrefix().String(),
+			"new":    newBestPath,
+			"reason": reason,
+		}).Debug("new best path")
+
 		if err != nil {
 			log.Error(err)
 			continue
@@ -154,29 +165,46 @@ func (manager *TableManager) calculate(destinationList []Destination) ([]Path, [
 
 		if newBestPath != nil && currentBestPath == newBestPath {
 			// best path is not changed
-			log.Debug("best path is not changed")
+			log.WithFields(log.Fields{
+				"Topic": "table",
+				"Key":   destination.getPrefix().String(),
+			}).Debug("best path is not changed")
 			continue
 		}
 
 		if newBestPath == nil {
-			log.Debug("best path is nil")
+			log.WithFields(log.Fields{
+				"Topic": "table",
+				"Key":   destination.getPrefix().String(),
+			}).Debug("best path is nil")
+
 			if len(destination.getKnownPathList()) == 0 {
 				// create withdraw path
 				if currentBestPath != nil {
-					log.Debug("best path is lost")
+					log.WithFields(log.Fields{
+						"Topic": "table",
+						"Key":   destination.getPrefix().String(),
+					}).Debug("best path is lost")
+
 					p := destination.getBestPath()
 					destination.setOldBestPath(p)
 					lostPaths = append(lostPaths, p.clone(true))
 				}
 				destination.setBestPath(nil)
 			} else {
-				log.Error("known path list is not empty")
+
+				log.WithFields(log.Fields{
+					"Topic": "table",
+					"Key":   destination.getPrefix().String(),
+				}).Error("known path list is not empty")
 			}
 		} else {
-			log.Debugf("new best path: NLRI: %v, next_hop=%v, reason=%v",
-				newBestPath.getPrefix(),
-				newBestPath.getNexthop(),
-				reason)
+			log.WithFields(log.Fields{
+				"Topic":    "table",
+				"Key":      newBestPath.getPrefix(),
+				"next_hop": newBestPath.getNexthop(),
+				"reason":   reason,
+			}).Debug("new best path")
 
 			bestPaths = append(bestPaths, newBestPath)
 			destination.setBestPath(newBestPath)
@@ -186,7 +214,11 @@ func (manager *TableManager) calculate(destinationList []Destination) ([]Path, [
 			rf := destination.getRouteFamily()
 			t := manager.Tables[rf]
 			deleteDest(t, destination)
-			log.Debugf("destination removed route_family=%v, destination=%v", rf, destination)
+			log.WithFields(log.Fields{
+				"Topic":        "table",
+				"Key":          destination.getPrefix().String(),
+				"route_family": rf,
+			}).Debug("destination removed")
 		}
 	}
 	return bestPaths, lostPaths, nil
@@ -214,7 +246,11 @@ func (manager *TableManager) ProcessPaths(pathList []Path) ([]Path, []Path, erro
 func (manager *TableManager) ProcessUpdate(fromPeer *PeerInfo, message *bgp.BGPMessage) ([]Path, []Path, error) {
 	// check msg's type if it's BGPUpdate
 	if message.Header.Type != bgp.BGP_MSG_UPDATE {
-		log.Warn("message is not BGPUpdate")
+		log.WithFields(log.Fields{
+			"Topic": "table",
+			"key":   fromPeer.Address.String(),
+			"type":  message.Header.Type,
+		}).Warn("message is not BGPUpdate")
 		return []Path{}, []Path{}, nil
 	}
 

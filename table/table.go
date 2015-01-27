@@ -163,7 +163,19 @@ func deleteDest(table Table, dest Destination) {
 
 func (td *TableDefault) validatePath(path Path) {
 	if path == nil || path.GetRouteFamily() != td.ROUTE_FAMILY {
-		log.Errorf("Invalid path. Expected instance of %s route family path, got %s.", td.ROUTE_FAMILY, path)
+		if path == nil {
+			log.WithFields(log.Fields{
+				"Topic": "Table",
+				"Key":   td.ROUTE_FAMILY,
+			}).Error("path is nil")
+		} else if path.GetRouteFamily() != td.ROUTE_FAMILY {
+			log.WithFields(log.Fields{
+				"Topic":      "Table",
+				"Key":        td.ROUTE_FAMILY,
+				"Prefix":     path.getNlri().String(),
+				"ReceivedRf": path.GetRouteFamily().String(),
+			}).Error("Invalid path. RouteFamily mismatch")
+		}
 	}
 	_, attr := path.getPathAttr(bgp.BGP_ATTR_TYPE_AS_PATH)
 	if attr != nil {
@@ -171,30 +183,42 @@ func (td *TableDefault) validatePath(path Path) {
 		for _, as := range pathParam {
 			_, y := as.(*bgp.As4PathParam)
 			if !y {
-				log.Fatal("AsPathParam must be converted to As4PathParam, ", as)
+				log.WithFields(log.Fields{
+					"Topic": "Table",
+					"Key":   td.ROUTE_FAMILY,
+					"As":    as,
+				}).Fatal("AsPathParam must be converted to As4PathParam")
 			}
 		}
 	}
 
 	_, attr = path.getPathAttr(bgp.BGP_ATTR_TYPE_AS4_PATH)
 	if attr != nil {
-		log.Fatal("AS4_PATH must be converted to AS_PATH")
+		log.WithFields(log.Fields{
+			"Topic": "Table",
+			"Key":   td.ROUTE_FAMILY,
+		}).Fatal("AS4_PATH must be converted to AS_PATH")
 	}
 }
 
 func (td *TableDefault) validateNlri(nlri bgp.AddrPrefixInterface) {
 	if nlri == nil {
-		log.Error("Invalid Vpnv4 prefix given.")
+		log.WithFields(log.Fields{
+			"Topic": "Table",
+			"Key":   td.ROUTE_FAMILY,
+			"Nlri":  nlri,
+		}).Error("Invalid Vpnv4 prefix given.")
+
 	}
 }
 
 func getOrCreateDest(table Table, nlri bgp.AddrPrefixInterface) Destination {
-	log.Debugf("Table type : %s", reflect.TypeOf(table))
+	log.Debugf("getOrCreateDest Table type : %s", reflect.TypeOf(table))
 	tableKey := table.tableKey(nlri)
 	dest := table.getDestination(tableKey)
 	// If destination for given prefix does not exist we create it.
 	if dest == nil {
-		log.Debugf("dest with key %s is not found", tableKey)
+		log.Debugf("getOrCreateDest dest with key %s is not found", tableKey)
 		dest = table.createDest(nlri)
 		table.setDestination(tableKey, dest)
 	}

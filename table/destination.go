@@ -63,6 +63,7 @@ type Destination interface {
 	getKnownPathList() []Path
 	setKnownPathList([]Path)
 	String() string
+	getPrefix() net.IP
 	addWithdraw(withdraw Path)
 	addNewPath(newPath Path)
 	constructWithdrawPath() Path
@@ -195,7 +196,13 @@ func (dd *DestinationDefault) removeOldPathsFromSource(source *PeerInfo) []Path 
 
 func (dd *DestinationDefault) validatePath(path Path) {
 	if path == nil || path.GetRouteFamily() != dd.ROUTE_FAMILY {
-		log.Error("Invalid path. Expected %s path got %s.", dd.ROUTE_FAMILY, path)
+
+		log.WithFields(log.Fields{
+			"Topic":      "Table",
+			"Key":        dd.getNlri().String(),
+			"Path":       path,
+			"ExpectedRF": dd.ROUTE_FAMILY,
+		}).Error("path is nil or invalid route family")
 	}
 }
 
@@ -219,7 +226,12 @@ func (dest *DestinationDefault) Calculate(localAsn uint32) (Path, string, error)
 		// it becomes best path.
 		dest.knownPathList = append(dest.knownPathList, dest.newPathList[0])
 		dest.newPathList, _ = deleteAt(dest.newPathList, 0)
-		log.Debugf("best path : %s, reason=%s", dest.knownPathList[0], BPR_ONLY_PATH)
+		log.WithFields(log.Fields{
+			"Topic":  "Table",
+			"Key":    dest.getNlri().String(),
+			"Path":   dest.knownPathList[0],
+			"Reason": BPR_ONLY_PATH,
+		}).Debug("best path")
 
 		return dest.knownPathList[0], BPR_ONLY_PATH, nil
 	}
@@ -259,8 +271,11 @@ func (dest *DestinationDefault) Calculate(localAsn uint32) (Path, string, error)
 //"""
 func (dest *DestinationDefault) removeWithdrawls() {
 
-	log.Debugf("Removing %d withdrawals", len(dest.withdrawList))
-
+	log.WithFields(log.Fields{
+		"Topic":  "Table",
+		"Key":    dest.getNlri().String(),
+		"Length": len(dest.withdrawList),
+	}).Debug("Removing withdrawals")
 	// If we have no withdrawals, we have nothing to do.
 	if len(dest.withdrawList) == 0 {
 		return
@@ -269,7 +284,12 @@ func (dest *DestinationDefault) removeWithdrawls() {
 	// If we have some withdrawals and no know-paths, it means it is safe to
 	// delete these withdraws.
 	if len(dest.knownPathList) == 0 {
-		log.Debugf("Found %s withdrawals for path(s) that did not get installed", len(dest.withdrawList))
+		log.WithFields(log.Fields{
+			"Topic":  "Table",
+			"Key":    dest.getNlri().String(),
+			"Length": len(dest.withdrawList),
+		}).Debug("Found withdrawals for path(s) that did not get installed")
+
 		dest.withdrawList = dest.withdrawList[len(dest.withdrawList):]
 	}
 
@@ -294,15 +314,22 @@ func (dest *DestinationDefault) removeWithdrawls() {
 
 		// We do no have any match for this withdraw.
 		if !isFound {
-			log.Debugf("No matching path for withdraw found, may be path was not installed into table: %s", withdraw.String())
+			log.WithFields(log.Fields{
+				"Topic": "Table",
+				"Key":   dest.getNlri().String(),
+				"Path":  withdraw,
+			}).Debug("No matching path for withdraw found, may be path was not installed into table")
 		}
 	}
 
 	// If we have partial match.
 	if len(matches) != len(dest.withdrawList) {
-		log.Debugf(
-			"Did not find match for some withdrawals. Number of matches(%d), number of withdrawals (%d)",
-			len(matches), len(dest.withdrawList))
+		log.WithFields(log.Fields{
+			"Topic":          "Table",
+			"Key":            dest.getNlri().String(),
+			"MatchLength":    len(matches),
+			"WithdrawLength": len(dest.withdrawList),
+		}).Debug("Did not find match for some withdrawals.")
 	}
 
 	// Clear matching paths and withdrawals.
@@ -310,14 +337,22 @@ func (dest *DestinationDefault) removeWithdrawls() {
 		var result bool = false
 		dest.knownPathList, result = removeWithPath(dest.knownPathList, path)
 		if !result {
-			log.Debugf("could not remove path: %s from knownPathList", path.String())
+			log.WithFields(log.Fields{
+				"Topic": "Table",
+				"Key":   dest.getNlri().String(),
+				"Path":  path,
+			}).Debug("could not remove path from knownPathList")
 		}
 	}
 	for _, path := range wMatches {
 		var result bool = false
 		dest.withdrawList, result = removeWithPath(dest.withdrawList, path)
 		if !result {
-			log.Debugf("could not remove path: %s from withdrawList", path.String())
+			log.WithFields(log.Fields{
+				"Topic": "Table",
+				"Key":   dest.getNlri().String(),
+				"Path":  path,
+			}).Debug("could not remove path from withdrawList")
 		}
 	}
 }
@@ -376,11 +411,18 @@ func (dest *DestinationDefault) removeOldPaths() {
 			match := false
 			knownPaths, match = removeWithPath(knownPaths, oldPath)
 			if !match {
-				log.Debugf("not exist withdrawal of old path in known paths: %s ", oldPath.String())
+				log.WithFields(log.Fields{
+					"Topic": "Table",
+					"Key":   dest.getNlri().String(),
+					"Path":  oldPath,
+				}).Debug("not matched")
 
 			}
-			log.Debugf("Implicit withdrawal of old path, "+
-				"since we have learned new path from same source: %s", oldPath.String())
+			log.WithFields(log.Fields{
+				"Topic": "Table",
+				"Key":   dest.getNlri().String(),
+				"Path":  oldPath,
+			}).Debug("Implicit withdrawal of old path, since we have learned new path from the same peer")
 		}
 	}
 	dest.knownPathList = knownPaths
@@ -502,8 +544,7 @@ func compareByReachableNexthop(path1, path2 Path) Path {
 	//
 	//	If no path matches this criteria, return None.
 	//  However RouteServer doesn't need to check reachability, so return nil.
-	log.Debugf("enter compareByReachableNexthop")
-	log.Debugf("path1: %s, path2: %s", path1, path2)
+	log.Debugf("enter compareByReachableNexthop -- path1: %s, path2: %s", path1, path2)
 	return nil
 }
 
@@ -514,8 +555,7 @@ func compareByHighestWeight(path1, path2 Path) Path {
 	//	is configured.
 	//	Return:
 	//	nil if best path among given paths cannot be decided, else best path.
-	log.Debugf("enter compareByHighestWeight")
-	log.Debugf("path1: %s, path2: %s", path1, path2)
+	log.Debugf("enter compareByHighestWeight -- path1: %s, path2: %s", path1, path2)
 	return nil
 }
 
@@ -587,7 +627,12 @@ func compareByASPath(path1, path2 Path) Path {
 	asPath2 := attribute2.(*bgp.PathAttributeAsPath)
 
 	if asPath1 == nil || asPath2 == nil {
-		log.Error("it is not possible to compare asPath are not present")
+		log.WithFields(log.Fields{
+			"Topic":   "Table",
+			"Key":     "compareByASPath",
+			"ASPath1": asPath1,
+			"ASPath2": asPath2,
+		}).Error("can't compare ASPath because it's not present")
 	}
 
 	var l1, l2 int
@@ -599,7 +644,7 @@ func compareByASPath(path1, path2 Path) Path {
 		l2 += pathParam.ASLen()
 	}
 
-	log.Debugf("l1: %d, l2: %d", l1, l2)
+	log.Debugf("compareByASPath -- l1: %d, l2: %d", l1, l2)
 	log.Debug(reflect.TypeOf(asPath1.Value))
 	log.Debug(asPath1.Value)
 	if l1 > l2 {
@@ -621,14 +666,18 @@ func compareByOrigin(path1, path2 Path) Path {
 	_, attribute2 := path2.getPathAttr(bgp.BGP_ATTR_TYPE_ORIGIN)
 
 	if attribute1 == nil || attribute2 == nil {
-		log.Error("it is not possible to compare origin are not present")
+		log.WithFields(log.Fields{
+			"Topic":   "Table",
+			"Key":     "compareByOrigin",
+			"Origin1": attribute1,
+			"Origin2": attribute2,
+		}).Error("can't compare origin because it's not present")
 		return nil
 	}
 
 	origin1, n1 := binary.Uvarint(attribute1.(*bgp.PathAttributeOrigin).Value)
 	origin2, n2 := binary.Uvarint(attribute2.(*bgp.PathAttributeOrigin).Value)
-	log.Debugf("path1 origin value: %d, %d byte read", origin1, n1)
-	log.Debugf("path2 origin value: %d, %d byte read", origin2, n2)
+	log.Debugf("compareByOrigin -- origin1: %d(%d), origin2: %d(%d)", origin1, n1, origin2, n2)
 
 	// If both paths have same origins
 	if origin1 == origin2 {
@@ -661,7 +710,7 @@ func compareByMED(path1, path2 Path) Path {
 
 	med1 := getMed(path1)
 	med2 := getMed(path2)
-
+	log.Debugf("compareByMED -- med1: %d, med2: %d", med1, med2)
 	if med1 == med2 {
 		return nil
 	} else if med1 < med2 {
@@ -689,6 +738,7 @@ func compareByASNumber(localAsn uint32, path1, path2 Path) Path {
 
 	p1Asn := getPathSourceAsn(path1)
 	p2Asn := getPathSourceAsn(path2)
+	log.Debugf("compareByASNumber -- p1Asn: %d, p2Asn: %d", p1Asn, p2Asn)
 	// If path1 is from ibgp peer and path2 is from ebgp peer.
 	if (p1Asn == localAsn) && (p2Asn != localAsn) {
 		return path2
@@ -708,8 +758,7 @@ func compareByIGPCost(path1, path2 Path) Path {
 	//
 	//	Return None if igp cost is same.
 	// Currently BGPS has no concept of IGP and IGP cost.
-	log.Debugf("enter compareByIGPCost")
-	log.Debugf("path1: %s, path2: %s", path1, path2)
+	log.Debugf("enter compareByIGPCost -- path1: %v, path2: %v", path1, path2)
 	return nil
 }
 

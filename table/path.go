@@ -58,9 +58,13 @@ type PathDefault struct {
 }
 
 func NewPathDefault(rf bgp.RouteFamily, source *PeerInfo, nlri bgp.AddrPrefixInterface, nexthop net.IP, isWithdraw bool, pattrs []bgp.PathAttributeInterface, medSetByTargetNeighbor bool, now time.Time) *PathDefault {
-
 	if !isWithdraw && pattrs == nil {
-		log.Error("Need to provide nexthop and patattrs for path that is not a withdraw.")
+		log.WithFields(log.Fields{
+			"Topic":   "Table",
+			"Key":     nlri.String(),
+			"Peer":    source.Address.String(),
+			"Nexthop": nexthop.String(),
+		}).Error("Need to provide nexthop and patattrs for the path that is not withdraw.")
 		return nil
 	}
 
@@ -103,7 +107,11 @@ func (pd *PathDefault) clone(isWithdraw bool) Path {
 	nlri := pd.nlri
 	if isWithdraw {
 		if pd.IsWithdraw() {
-			log.Fatal("Withdraw path is not supposed to be cloned")
+			log.WithFields(log.Fields{
+				"Topic": "Table",
+				"Key":   pd.getNlri().String(),
+				"Peer":  pd.getSource().Address.String(),
+			}).Fatal("Withdraw path is not supposed to be cloned")
 		} else {
 			nlri = &bgp.WithdrawnRoute{pd.nlri.(*bgp.NLRInfo).IPAddrPrefix}
 		}
@@ -206,15 +214,15 @@ func (pi *PathDefault) getPrefix() string {
 func CreatePath(source *PeerInfo, nlri bgp.AddrPrefixInterface, attrs []bgp.PathAttributeInterface, isWithdraw bool, now time.Time) Path {
 
 	rf := bgp.RouteFamily(int(nlri.AFI())<<16 | int(nlri.SAFI()))
-	log.Debugf("afi: %d, safi: %d ", int(nlri.AFI()), nlri.SAFI())
+	log.Debugf("CreatePath afi: %d, safi: %d ", int(nlri.AFI()), nlri.SAFI())
 	var path Path
 
 	switch rf {
 	case bgp.RF_IPv4_UC:
-		log.Debugf("RouteFamily : %s", bgp.RF_IPv4_UC.String())
+		log.Debugf("CreatePath RouteFamily : %s", bgp.RF_IPv4_UC.String())
 		path = NewIPv4Path(source, nlri, isWithdraw, attrs, false, now)
 	case bgp.RF_IPv6_UC:
-		log.Debugf("RouteFamily : %s", bgp.RF_IPv6_UC.String())
+		log.Debugf("CreatePath RouteFamily : %s", bgp.RF_IPv6_UC.String())
 		path = NewIPv6Path(source, nlri, isWithdraw, attrs, false, now)
 	}
 	return path
@@ -262,7 +270,11 @@ func (ipv6p *IPv6Path) clone(isWithdraw bool) Path {
 	nlri := ipv6p.nlri
 	if isWithdraw {
 		if ipv6p.IsWithdraw() {
-			log.Fatal("Withdraw path is not supposed to be cloned")
+			log.WithFields(log.Fields{
+				"Topic": "Table",
+				"Key":   ipv6p.getNlri().String(),
+				"Peer":  ipv6p.getSource().Address.String(),
+			}).Fatal("Withdraw path is not supposed to be cloned")
 		}
 	}
 	return CreatePath(ipv6p.source, nlri, ipv6p.pathAttrs, isWithdraw, ipv6p.PathDefault.timestamp)
