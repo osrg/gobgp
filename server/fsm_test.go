@@ -105,8 +105,6 @@ func TestReadAll(t *testing.T) {
 	pushBytes := func() {
 		fmt.Println("push 5 bytes")
 		m.recvCh <- expected1[0:5]
-		fmt.Println("wait 5 seconds...")
-		time.Sleep(time.Second * 5)
 		fmt.Println("push rest")
 		m.recvCh <- expected1[5:]
 		fmt.Println("push bytes at once")
@@ -136,11 +134,11 @@ func TestFSMHandlerOpensent_HoldTimerExpired(t *testing.T) {
 	p.fsm.passiveConn = m
 
 	// set up keepalive ticker
-	sec := time.Second * 2
+	sec := time.Second * 1
 	p.fsm.keepaliveTicker = time.NewTicker(sec)
 
 	// set holdtime
-	p.fsm.opensentHoldTime = 5
+	p.fsm.opensentHoldTime = 2
 
 	state := h.opensent()
 
@@ -162,10 +160,10 @@ func TestFSMHandlerOpenconfirm_HoldTimerExpired(t *testing.T) {
 	p.fsm.passiveConn = m
 
 	// set up keepalive ticker
-	p.fsm.peerConfig.Timers.KeepaliveInterval = 2
+	p.fsm.peerConfig.Timers.KeepaliveInterval = 1
 
 	// set holdtime
-	p.fsm.negotiatedHoldTime = 10
+	p.fsm.negotiatedHoldTime = 2
 	state := h.openconfirm()
 
 	assert.Equal(bgp.BGP_FSM_IDLE, state)
@@ -186,7 +184,7 @@ func TestFSMHandlerEstablish_HoldTimerExpired(t *testing.T) {
 	p.fsm.passiveConn = m
 
 	// set up keepalive ticker
-	sec := time.Second * 2
+	sec := time.Second * 1
 	p.fsm.keepaliveTicker = time.NewTicker(sec)
 
 	msg := keepalive()
@@ -200,12 +198,12 @@ func TestFSMHandlerEstablish_HoldTimerExpired(t *testing.T) {
 	}
 
 	// set holdtime
-	p.fsm.peerConfig.Timers.HoldTime = 10
-	p.fsm.negotiatedHoldTime = 10
+	p.fsm.peerConfig.Timers.HoldTime = 2
+	p.fsm.negotiatedHoldTime = 2
 
 	go pushPackets()
 	state := h.established()
-	time.Sleep(time.Second * 4)
+	time.Sleep(time.Second * 1)
 	assert.Equal(bgp.BGP_FSM_IDLE, state)
 	lastMsg := m.sendBuf[len(m.sendBuf)-1]
 	sent, _ := bgp.ParseBGPMessage(lastMsg)
