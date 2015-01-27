@@ -63,7 +63,6 @@ type Destination interface {
 	getKnownPathList() []Path
 	setKnownPathList([]Path)
 	String() string
-	getPrefix() net.IP
 	addWithdraw(withdraw Path)
 	addNewPath(newPath Path)
 	constructWithdrawPath() Path

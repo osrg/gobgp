@@ -124,13 +124,15 @@ func (p *ProcessMessage) ToPathList() []Path {
 type TableManager struct {
 	Tables   map[bgp.RouteFamily]Table
 	localAsn uint32
+	owner    string
 }
 
-func NewTableManager() *TableManager {
+func NewTableManager(owner string) *TableManager {
 	t := &TableManager{}
 	t.Tables = make(map[bgp.RouteFamily]Table)
 	t.Tables[bgp.RF_IPv4_UC] = NewIPv4Table(0)
 	t.Tables[bgp.RF_IPv6_UC] = NewIPv6Table(0)
+	t.owner = owner
 	return t
 }
 
@@ -143,17 +145,11 @@ func (manager *TableManager) calculate(destinationList []Destination) ([]Path, [
 
 		log.WithFields(log.Fields{
 			"Topic": "table",
-			"Key":   destination.getPrefix().String(),
+			"Owner": manager.owner,
+			"Key":   destination.getNlri().String(),
 		}).Info("Processing destination")
 
 		newBestPath, reason, err := destination.Calculate(manager.localAsn)
-
-		log.WithFields(log.Fields{
-			"Topic":  "table",
-			"Key":    destination.getPrefix().String(),
-			"new":    newBestPath,
-			"reason": reason,
-		}).Debug("new best path")
 
 		if err != nil {
 			log.Error(err)
@@ -166,8 +162,12 @@ func (manager *TableManager) calculate(destinationList []Destination) ([]Path, [
 		if newBestPath != nil && currentBestPath == newBestPath {
 			// best path is not changed
 			log.WithFields(log.Fields{
-				"Topic": "table",
-				"Key":   destination.getPrefix().String(),
+				"Topic":    "table",
+				"Owner":    manager.owner,
+				"Key":      destination.getNlri().String(),
+				"peer":     newBestPath.getSource().Address,
+				"next_hop": newBestPath.getNexthop().String(),
+				"reason":   reason,
 			}).Debug("best path is not changed")
 			continue
 		}
@@ -175,15 +175,19 @@ func (manager *TableManager) calculate(destinationList []Destination) ([]Path, [
 		if newBestPath == nil {
 			log.WithFields(log.Fields{
 				"Topic": "table",
-				"Key":   destination.getPrefix().String(),
+				"Owner": manager.owner,
+				"Key":   destination.getNlri().String(),
 			}).Debug("best path is nil")
 
 			if len(destination.getKnownPathList()) == 0 {
 				// create withdraw path
 				if currentBestPath != nil {
 					log.WithFields(log.Fields{
-						"Topic": "table",
-						"Key":   destination.getPrefix().String(),
+						"Topic":    "table",
+						"Owner":    manager.owner,
+						"Key":      destination.getNlri().String(),
+						"peer":     currentBestPath.getSource().Address,
+						"next_hop": currentBestPath.getNexthop().String(),
 					}).Debug("best path is lost")
 
 					p := destination.getBestPath()
@@ -195,13 +199,16 @@ func (manager *TableManager) calculate(destinationList []Destination) ([]Path, [
 
 				log.WithFields(log.Fields{
 					"Topic": "table",
-					"Key":   destination.getPrefix().String(),
+					"Owner": manager.owner,
+					"Key":   destination.getNlri().String(),
 				}).Error("known path list is not empty")
 			}
 		} else {
 			log.WithFields(log.Fields{
 				"Topic":    "table",
-				"Key":      newBestPath.getPrefix(),
+				"Owner":    manager.owner,
+				"Key":      newBestPath.getNlri().String(),
+				"peer":     newBestPath.getSource().Address,
 				"next_hop": newBestPath.getNexthop(),
 				"reason":   reason,
 			}).Debug("new best path")
@@ -216,7 +223,8 @@ func (manager *TableManager) calculate(destinationList []Destination) ([]Path, [
 			deleteDest(t, destination)
 			log.WithFields(log.Fields{
 				"Topic":        "table",
-				"Key":          destination.getPrefix().String(),
+				"Owner":        manager.owner,
+				"Key":          destination.getNlri().String(),
 				"route_family": rf,
 			}).Debug("destination removed")
 		}
@@ -248,8 +256,9 @@ func (manager *TableManager) ProcessUpdate(fromPeer *PeerInfo, message *bgp.BGPM
 	if message.Header.Type != bgp.BGP_MSG_UPDATE {
 		log.WithFields(log.Fields{
 			"Topic": "table",
+			"Owner": manager.owner,
 			"key":   fromPeer.Address.String(),
-			"type":  message.Header.Type,
+			"Type":  message.Header.Type,
 		}).Warn("message is not BGPUpdate")
 		return []Path{}, []Path{}, nil
 	}
