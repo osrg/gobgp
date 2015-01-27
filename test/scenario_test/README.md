@@ -60,5 +60,5 @@ After the test, test results will be shown.
 Notes
 -----
  use [ --use-local ] option when execute gobgp program of local system.
- 
+
  use [ --go-path ] option when not root and use sudo command.
