@@ -290,3 +290,17 @@ func (ipv6p *IPv6Path) String() string {
 	//str = str + fmt.Sprintf(" path attributes: %s, ", ipv6p.getPathAttributeMap())
 	return str
 }
+
+func (ipv6p *IPv6Path) MarshalJSON() ([]byte, error) {
+	return json.Marshal(struct {
+		Network string
+		Nexthop string
+		Attrs   []bgp.PathAttributeInterface
+		Age     float64
+	}{
+		Network: ipv6p.getPrefix(),
+		Nexthop: ipv6p.PathDefault.nexthop.String(),
+		Attrs:   ipv6p.PathDefault.getPathAttrs(),
+		Age:     time.Now().Sub(ipv6p.PathDefault.timestamp).Seconds(),
+	})
+}

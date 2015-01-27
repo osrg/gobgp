@@ -867,11 +867,25 @@ func (ipv6d *IPv6Destination) getPrefix() net.IP {
 
 func (ipv6d *IPv6Destination) MarshalJSON() ([]byte, error) {
 	prefix := ipv6d.getNlri().(*bgp.IPv6AddrPrefix).Prefix
+	idx := func() int {
+		for i, p := range ipv6d.DestinationDefault.knownPathList {
+			if p == ipv6d.DestinationDefault.getBestPath() {
+				return i
+			}
+		}
+		log.WithFields(log.Fields{
+			"Topic": "Table",
+			"Key":   prefix.String(),
+		}).Panic("no best path")
+		return 0
+	}()
 	return json.Marshal(struct {
-		Prefix string
-		Paths  []Path
+		Prefix      string
+		Paths       []Path
+		BestPathIdx int
 	}{
-		Prefix: prefix.String(),
-		Paths:  ipv6d.knownPathList,
+		Prefix:      prefix.String(),
+		Paths:       ipv6d.knownPathList,
+		BestPathIdx: idx,
 	})
 }
