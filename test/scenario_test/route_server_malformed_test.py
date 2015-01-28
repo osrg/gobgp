@@ -36,8 +36,8 @@ def check_pattern():
     """
     pattern = collections.OrderedDict()
     pattern["malformed1-exabgp-gobgp-v4-MP_REACH_NLRI.conf"] = "UPDATE message error / Attribute Flags Error / 0x600F0411223344"
-    pattern["malformed1-exabgp-gobgp-v4-AS_PATH.conf"] = "UPDATE message error / Malformed AS_PATH"
-    pattern["malformed1-exabgp-gobgp-v4-AS4_PATH.conf"] = "UPDATE message error / Malformed AS_PATH"
+    pattern["malformed1-exabgp-gobgp-v4-AS_PATH.conf"] = "UPDATE message error / Attribute Flags Error / 0x60020411223344"
+    pattern["malformed1-exabgp-gobgp-v4-AS4_PATH.conf"] = "UPDATE message error / Attribute Flags Error / 0x60110411223344"
 
     return pattern
 
@@ -77,12 +77,15 @@ def test_malformed_packet():
 
 def check_em(exabgp_conf, result):
     err_msg = fab.get_notification_from_exabgp_log()
-    parse_msg = re.search(r'error.*', err_msg).group(0)
-    notification_src = parse_msg[5:]
+    # parse_msg = re.search(r'error.*', err_msg).group(0)
+    notification = None
+    parse_msg = re.search(r'error.*', err_msg)
+    if parse_msg is not None:
+        notification_src = parse_msg.group(0)[5:]
+        notification = notification_src[1:-1]
 
     print "notification message : "
-    print " >>> " + notification_src
-    notification = notification_src[1:-1]
+    print " >>> " + str(notification)
 
     assert notification == result
 

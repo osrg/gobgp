@@ -139,7 +139,7 @@ class GoBGPTest(unittest.TestCase):
                                 if c_path.network.split("/")[0] == q_path['Network'] and c_path.nexthop == q_path['Next Hop']:
                                     exist_n += 1
                             self.assertEqual(exist_n, 1)
-    """
+
     # check if quagga that is appended can establish connection with gobgp
     def test_04_established_with_appended_quagga(self):
         print "test_established_with_appended_quagga"
@@ -323,7 +323,6 @@ class GoBGPTest(unittest.TestCase):
                                 if c_path.network.split("/")[0] == q_path['Network'] and c_path.nexthop == q_path['Next Hop']:
                                     exist_n += 1
                             self.assertEqual(exist_n, 1)
-    """
 
     def test_10_bestpath_selection_of_received_route(self):
         print "test_bestpath_selection_of_received_route"
