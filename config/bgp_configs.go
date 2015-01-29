@@ -82,8 +82,7 @@ type ExtCommunityAttrType string
 type BgpOriginAttrType int
 
 const (
-	_ = iota
-	BGP_ORIGIN_ATTR_TYPE_IGP
+	BGP_ORIGIN_ATTR_TYPE_IGP = iota
 	BGP_ORIGIN_ATTR_TYPE_EGP
 	BGP_ORIGIN_ATTR_TYPE_INCOMPLETE
 )
