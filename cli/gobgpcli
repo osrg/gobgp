@@ -164,7 +164,7 @@ class Show(object):
                 maxtimelen = len(str(t))
             n["info"]["time"] = t
 
-        h = "{:%ds} {:%ds} {:%ds} {:8s} |" % (maxaddrlen, maxaslen, maxtimelen)
+        h = "{:%ds} {:>%ds} {:%ds} {:8s} |" % (maxaddrlen, maxaslen, maxtimelen)
         f1 = h + "#{:8s} {:8s} {:8s}"
         print(f1.format("Peer", "AS", "Up/Down", "State", "Advertised", "Received", "Accepted"))
         for n in sorted_neighbors:
