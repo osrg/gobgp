@@ -183,3 +183,31 @@ func ValidateBGPMessage(m *BGPMessage) error {
 
 	return nil
 }
+
+func ValidateOpenMsg(m *BGPOpen, expectedAS uint32) error {
+	if m.Version != 4 {
+		return NewMessageError(BGP_ERROR_OPEN_MESSAGE_ERROR, BGP_ERROR_SUB_UNSUPPORTED_VERSION_NUMBER, nil, fmt.Sprintf("upsuppored version %d", m.Version))
+	}
+
+	as := uint32(m.MyAS)
+	for _, p := range m.OptParams {
+		paramCap, y := p.(*OptionParameterCapability)
+		if !y {
+			continue
+		}
+		for _, c := range paramCap.Capability {
+			if c.Code() == BGP_CAP_FOUR_OCTET_AS_NUMBER {
+				cap := c.(*CapFourOctetASNumber)
+				as = cap.CapValue
+			}
+		}
+	}
+	if as != expectedAS {
+		return NewMessageError(BGP_ERROR_OPEN_MESSAGE_ERROR, BGP_ERROR_SUB_BAD_PEER_AS, nil, fmt.Sprintf("as number mismatch expected %u, received %u", expectedAS, as))
+	}
+
+	if m.HoldTime < 3 && m.HoldTime != 0 {
+		return NewMessageError(BGP_ERROR_OPEN_MESSAGE_ERROR, BGP_ERROR_SUB_UNACCEPTABLE_HOLD_TIME, nil, fmt.Sprintf("unacceptable hold time %u", m.HoldTime))
+	}
+	return nil
+}

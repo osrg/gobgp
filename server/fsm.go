@@ -323,6 +323,18 @@ func (h *FSMHandler) opensent() bgp.FSMState {
 			case *bgp.BGPMessage:
 				m := e.MsgData.(*bgp.BGPMessage)
 				if m.Header.Type == bgp.BGP_MSG_OPEN {
+					body := m.Body.(*bgp.BGPOpen)
+					err := bgp.ValidateOpenMsg(body, fsm.peerConfig.PeerAs)
+					if err != nil {
+						e := err.(*bgp.MessageError)
+						m := bgp.NewBGPNotificationMessage(e.TypeCode, e.SubTypeCode, e.Data)
+						b, _ := m.Serialize()
+						fsm.passiveConn.Write(b)
+						fsm.bgpMessageStateUpdate(m.Header.Type, false)
+						h.conn.Close()
+						return bgp.BGP_FSM_IDLE
+					}
+
 					e := &fsmMsg{
 						MsgType: FSM_MSG_BGP_MESSAGE,
 						MsgData: m,
