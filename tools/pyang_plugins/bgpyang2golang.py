@@ -273,9 +273,19 @@ def emit_typedef(ctx, module):
 
             const_prefix = convert_const_prefix(type_name_org)
             print >> o, 'const ('
-            print >> o, ' _ = iota'
+
+            already_added_iota = False
             for sub in t.substmts:
-                print >> o, ' %s_%s' % (const_prefix, sub.arg)
+                if sub.search_one('value'):
+                    enum_value_part = " = "+sub.search_one('value').arg
+                else:
+                    if already_added_iota:
+                        enum_value_part = ""
+                    else:
+                        enum_value_part = " = iota"
+                        already_added_iota = True
+
+                print >> o, ' %s_%s%s' % (const_prefix, sub.arg, enum_value_part)
             print >> o, ')'
         elif t.arg == 'union':
             print >> o, '// typedef for typedef %s:%s'\

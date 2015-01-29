@@ -22,8 +22,7 @@ import "time"
 type PeerTypeDef int
 
 const (
-	_ = iota
-	PEER_TYPE_INTERNAL
+	PEER_TYPE_INTERNAL = iota
 	PEER_TYPE_EXTERNAL
 )
 
@@ -37,8 +36,7 @@ type Percentage uint8
 type RemovePrivateAsOption int
 
 const (
-	_ = iota
-	REMOVE_PRIVATE_AS_OPTION_ALL
+	REMOVE_PRIVATE_AS_OPTION_ALL = iota
 	REMOVE_PRIVATE_AS_OPTION_REPLACE
 )
 
@@ -55,8 +53,7 @@ type StdCommunityAttrType string
 type MatchSetOptionsType int
 
 const (
-	_ = iota
-	MATCH_SET_OPTIONS_TYPE_ANY
+	MATCH_SET_OPTIONS_TYPE_ANY = iota
 	MATCH_SET_OPTIONS_TYPE_ALL
 	MATCH_SET_OPTIONS_TYPE_INVERT
 )
@@ -65,8 +62,7 @@ const (
 type SetCommunityOptionType int
 
 const (
-	_ = iota
-	SET_COMMUNITY_OPTION_TYPE_ADD
+	SET_COMMUNITY_OPTION_TYPE_ADD = iota
 	SET_COMMUNITY_OPTION_TYPE_REMOVE
 	SET_COMMUNITY_OPTION_TYPE_REPLACE
 	SET_COMMUNITY_OPTION_TYPE_NULL
@@ -82,17 +78,16 @@ type ExtCommunityAttrType string
 type BgpOriginAttrType int
 
 const (
-	BGP_ORIGIN_ATTR_TYPE_IGP = iota
-	BGP_ORIGIN_ATTR_TYPE_EGP
-	BGP_ORIGIN_ATTR_TYPE_INCOMPLETE
+	BGP_ORIGIN_ATTR_TYPE_IGP        = 0
+	BGP_ORIGIN_ATTR_TYPE_EGP        = 1
+	BGP_ORIGIN_ATTR_TYPE_INCOMPLETE = 2
 )
 
 // typedef for typedef bgp-policy:well-known-community-attr
 type WellKnownCommunityAttr int
 
 const (
-	_ = iota
-	WELL_KNOWN_COMMUNITY_ATTR_INTERNET
+	WELL_KNOWN_COMMUNITY_ATTR_INTERNET = iota
 	WELL_KNOWN_COMMUNITY_ATTR_NO_EXPORT
 	WELL_KNOWN_COMMUNITY_ATTR_NO_ADVERTISE
 	WELL_KNOWN_COMMUNITY_ATTR_NO_EXPORT_SUBCONFED
