@@ -141,8 +141,33 @@ class Show(object):
         if self.options.debug:
             print neighbors
             return 0
-        print("{:40s} {:5s} {:13s} {:8s} |#{:8s} {:8s} {:8s}".format("Peer", "AS", "Up/Down", "State", "Advertised", "Received", "Accepted"))
+        sorted_neighbors = []
+        maxaddrlen = 0
+        maxaslen = 0
+        maxtimelen = 0
+        maxtimelen = 0
         for n in sorted(neighbors, key=lambda n: n["conf"]["remote_ip"]):
+            sorted_neighbors.append(n)
+            if len(n["conf"]["remote_ip"]) > maxaddrlen:
+                maxaddrlen = len(n["conf"]["remote_ip"])
+            if len(str(n["conf"]["remote_as"])) > maxaslen:
+                maxaslen = len(str(n["conf"]["remote_as"]))
+
+            s = n["info"]["bgp_state"]
+            if n["info"]["uptime"] == 0:
+                t = "never"
+            elif s == "BGP_FSM_ESTABLISHED":
+                t = self.format_timedelta(n["info"]["uptime"])
+            else:
+                t = self.format_timedelta(n["info"]["downtime"])
+            if len(str(t)) > maxtimelen:
+                maxtimelen = len(str(t))
+            n["info"]["time"] = t
+
+        h = "{:%ds} {:%ds} {:%ds} {:8s} |" % (maxaddrlen, maxaslen, maxtimelen)
+        f1 = h + "#{:8s} {:8s} {:8s}"
+        print(f1.format("Peer", "AS", "Up/Down", "State", "Advertised", "Received", "Accepted"))
+        for n in sorted_neighbors:
             s = n["info"]["bgp_state"]
             if s == "BGP_FSM_IDLE":
                 state = "Idle"
@@ -157,14 +182,8 @@ class Show(object):
             elif s == "BGP_FSM_ESTABLISHED":
                 state = "Establ"
 
-            if n["info"]["uptime"] == 0:
-                t = "never"
-            elif s == "BGP_FSM_ESTABLISHED":
-                t = self.format_timedelta(n["info"]["uptime"])
-            else:
-                t = self.format_timedelta(n["info"]["downtime"])
-
-            print("{:40s} {:5d} {:13s} {:8s} |   {:>8d} {:>8d} {:>8d}".format(n["conf"]["remote_ip"], n["conf"]["remote_as"], t, state, n["info"]["Advertized"], n["info"]["Received"], n["info"]["Accepted"]))
+            f2 = h + "   {:>8d} {:>8d} {:>8d}"
+            print f2.format(n["conf"]["remote_ip"], str(n["conf"]["remote_as"]), n["info"]["time"], state, n["info"]["Advertized"], n["info"]["Received"], n["info"]["Accepted"])
         return 0
 
     def _format_attrs(self, attrlist):
