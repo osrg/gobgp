@@ -52,12 +52,17 @@ class Action(object):
     def __call__(self):
         if len(self.args) != 2:
             return 1
-        r = requests.post(self.base_url + "/neighbor/" + self.args[1] + "/" + self.command)
-        if r.status_code == requests.codes.ok:
-            print "Succeed"
+        try:
+            r = requests.post(self.base_url + "/neighbor/" + self.args[1] + "/" + self.command)
+        except:
+            print "Failed to connect to gobgpd. It runs?"
+            sys.exit(1)
         else:
-            print "Failed"
-        return 0
+            if r.status_code == requests.codes.ok:
+                print "Succeed"
+            else:
+                print "Failed"
+            return 0
 
 
 class Show(object):
@@ -85,7 +90,12 @@ class Show(object):
                    65: "FOUR_OCTET_AS_NUMBER",
                    70: "ENHANCED_ROUTE_REFRESH",
                    128: "ROUTE_REFRESH_CISCO"}
-        r = requests.get(self.base_url + "/neighbors")
+        try:
+            r = requests.get(self.base_url + "/neighbors")
+        except:
+            print "Failed to connect to gobgpd. It runs?"
+            sys.exit(1)
+
         neighbors = r.json()
         if self.options.debug:
             print neighbors
@@ -136,7 +146,12 @@ class Show(object):
     def do_neighbors(self):
         if len(self.args) != 1:
             return 1
-        r = requests.get(self.base_url + "/neighbors")
+        try:
+            r = requests.get(self.base_url + "/neighbors")
+        except:
+            print "Failed to connect to gobgpd. It runs?"
+            sys.exit(1)
+
         neighbors = r.json()
         if self.options.debug:
             print neighbors
@@ -250,8 +265,12 @@ class Show(object):
             self.args[2] = "adj-rib-in"
         if self.args[2] == "advertised-routes":
             self.args[2] = "adj-rib-out"
+        try:
+            r = requests.get(self.base_url + "/neighbor/" + self.args[1] + "/" + self.args[2])
+        except:
+            print "Failed to connect to gobgpd. It runs?"
+            sys.exit(1)
 
-        r = requests.get(self.base_url + "/neighbor/" + self.args[1] + "/" + self.args[2])
         if self.options.debug:
             print r.json()
             return 0
