@@ -1345,7 +1345,7 @@ func (p *DefaultAsPath) isValidAspath(data []byte) (bool, error) {
 			if asNum == 0 || int(asNum) > math.MaxUint8 {
 				return false, NewMessageError(eCode, eSubCode, nil, "AS PATH the number of AS is incorrect")
 			}
-			segLength := asNum
+			segLength := int(asNum)
 			if use4byte == true {
 				segLength *= 4
 			} else {
@@ -1367,7 +1367,7 @@ func (p *DefaultAsPath) isValidAspath(data []byte) (bool, error) {
 	if err == nil {
 		return false, nil
 	}
-	return false, NewMessageError(eCode, eSubCode, nil, "can't not parse")
+	return false, NewMessageError(eCode, eSubCode, nil, "==== can't not parse")
 }
 
 type AsPathParamInterface interface {
