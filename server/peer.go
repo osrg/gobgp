@@ -138,6 +138,19 @@ func (peer *Peer) handleBGPmessage(m *bgp.BGPMessage) {
 	case bgp.BGP_MSG_UPDATE:
 		peer.peerConfig.BgpNeighborCommonState.UpdateRecvTime = time.Now()
 		body := m.Body.(*bgp.BGPUpdate)
+		_, err := bgp.ValidateUpdateMsg(body, []bgp.RouteFamily{peer.rf})
+		if err != nil {
+			log.WithFields(log.Fields{
+				"Topic": "Peer",
+				"Key":   peer.peerConfig.NeighborAddress,
+				"error": err,
+			}).Warn("malformed BGP update message")
+			m := err.(*bgp.MessageError)
+			if m.TypeCode != 0 {
+				peer.outgoing <- bgp.NewBGPNotificationMessage(m.TypeCode, m.SubTypeCode, m.Data)
+			}
+			return
+		}
 		table.UpdatePathAttrs4ByteAs(body)
 		msg := table.NewProcessMessage(m, peer.peerInfo)
 		pathList := msg.ToPathList()

@@ -2,29 +2,36 @@ package bgp
 
 import (
 	"encoding/binary"
+	"fmt"
 	"github.com/osrg/gobgp/config"
 	"net"
 	"strconv"
 )
 
+func isRfSupported(rf RouteFamily, rfs []RouteFamily) bool {
+	for _, r := range rfs {
+		if rf == r {
+			return true
+		}
+	}
+	return false
+}
+
 // Validator for BGPUpdate
-func ValidateUpdateMsg(m *BGPUpdate) (bool, error) {
+func ValidateUpdateMsg(m *BGPUpdate, rfs []RouteFamily) (bool, error) {
 	eCode := uint8(BGP_ERROR_UPDATE_MESSAGE_ERROR)
 	eSubCodeAttrList := uint8(BGP_ERROR_SUB_MALFORMED_ATTRIBUTE_LIST)
-	eSubCodeFlagsError := uint8(BGP_ERROR_SUB_ATTRIBUTE_FLAGS_ERROR)
 	eSubCodeMissing := uint8(BGP_ERROR_SUB_MISSING_WELL_KNOWN_ATTRIBUTE)
+
+	if len(m.NLRI) > 0 || len(m.WithdrawnRoutes) > 0 {
+		if isRfSupported(RF_IPv4_UC, rfs) == false {
+			return false, NewMessageError(0, 0, nil, fmt.Sprintf("Address-family rf %d not avalible for session", RF_IPv4_UC))
+		}
+	}
 
 	seen := make(map[BGPAttrType]PathAttributeInterface)
 	// check path attribute
 	for _, a := range m.PathAttributes {
-
-		// check attribute flags
-		ok, eMsg := ValidateFlags(a.getType(), a.getFlags())
-		if !ok {
-			data, _ := a.Serialize()
-			return false, NewMessageError(eCode, eSubCodeFlagsError, data, eMsg)
-		}
-
 		// check duplication
 		if _, ok := seen[a.getType()]; !ok {
 			seen[a.getType()] = a
@@ -33,8 +40,8 @@ func ValidateUpdateMsg(m *BGPUpdate) (bool, error) {
 			return false, NewMessageError(eCode, eSubCodeAttrList, nil, eMsg)
 		}
 
-		// check specific path attribute
-		ok, e := ValidateAttribute(a)
+		//check specific path attribute
+		ok, e := ValidateAttribute(a, rfs)
 		if !ok {
 			return false, e
 		}
@@ -61,14 +68,40 @@ func ValidateUpdateMsg(m *BGPUpdate) (bool, error) {
 	return true, nil
 }
 
-func ValidateAttribute(a PathAttributeInterface) (bool, error) {
+func ValidateAttribute(a PathAttributeInterface, rfs []RouteFamily) (bool, error) {
 
 	eCode := uint8(BGP_ERROR_UPDATE_MESSAGE_ERROR)
 	eSubCodeBadOrigin := uint8(BGP_ERROR_SUB_INVALID_ORIGIN_ATTRIBUTE)
 	eSubCodeBadNextHop := uint8(BGP_ERROR_SUB_INVALID_NEXT_HOP_ATTRIBUTE)
 	eSubCodeUnknown := uint8(BGP_ERROR_SUB_UNRECOGNIZED_WELL_KNOWN_ATTRIBUTE)
 
+	checkPrefix := func(l []AddrPrefixInterface) bool {
+		for _, prefix := range l {
+			rf := rfshift(prefix.AFI(), prefix.SAFI())
+			if isRfSupported(rf, rfs) == false {
+				return false
+			}
+		}
+		return true
+	}
+
 	switch p := a.(type) {
+	case *PathAttributeMpUnreachNLRI:
+		rf := rfshift(p.AFI, p.SAFI)
+		if isRfSupported(rf, rfs) == false {
+			return false, NewMessageError(0, 0, nil, fmt.Sprintf("Address-family rf %d not avalible for session", rf))
+		}
+		if checkPrefix(p.Value) == false {
+			return false, NewMessageError(0, 0, nil, fmt.Sprintf("Address-family rf %d not avalible for session", rf))
+		}
+	case *PathAttributeMpReachNLRI:
+		rf := rfshift(p.AFI, p.SAFI)
+		if isRfSupported(rf, rfs) == false {
+			return false, NewMessageError(0, 0, nil, fmt.Sprintf("Address-family rf %d not avalible for session", rf))
+		}
+		if checkPrefix(p.Value) == false {
+			return false, NewMessageError(0, 0, nil, fmt.Sprintf("Address-family rf %d not avalible for session", rf))
+		}
 	case *PathAttributeOrigin:
 		v := uint8(p.Value[0])
 		if v != config.BGP_ORIGIN_ATTR_TYPE_IGP &&
@@ -147,5 +180,6 @@ func ValidateBGPMessage(m *BGPMessage) error {
 		binary.BigEndian.PutUint16(buf, m.Header.Len)
 		return NewMessageError(BGP_ERROR_MESSAGE_HEADER_ERROR, BGP_ERROR_SUB_BAD_MESSAGE_LENGTH, buf, "too long length")
 	}
+
 	return nil
 }
