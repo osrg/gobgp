@@ -16,7 +16,6 @@
 from fabric.api import local
 import re
 import os
-import sys
 
 GOBGP_CONTAINER_NAME = "gobgp"
 GOBGP_ADDRESS = "10.0.255.1/16"
@@ -75,7 +74,6 @@ def install_docker_and_tools():
     local("docker pull osrg/gobgp", capture=True)
     local("docker pull osrg/exabgp", capture=True)
     local("mkdir /usr/local/gobgp", capture=True)
-    # local("docker run --privileged=true -v /usr/local/gobgp:/mnt --name gobgp --rm osrg/gobgp go run /root/gobgp/tools/route-server/quagga-rsconfig.go -c /mnt", capture=True)
 
 
 def docker_pkg_check():
@@ -83,7 +81,6 @@ def docker_pkg_check():
     outbuf = local("dpkg -l | grep docker | awk '{print $2}'", capture=True)
     dpkg_list = outbuf.split('\n')
     for dpkg in dpkg_list:
-        # print "lxc-docker in ",dpkg
         if "lxc-docker" in dpkg:
             docker_exists = True
     return docker_exists
@@ -248,13 +245,12 @@ def bridge_unsetting_for_docker_connection():
 
 def start_gobgp():
     cmd = "docker exec gobgp " + STARTUP_FILE + " > /dev/null 2>&1 &"
-    # cmd = "docker exec gobgp " + STARTUP_FILE
     local(cmd, capture=True)
 
 
 def start_exabgp(conf_file):
     conf_path = EXABGP_CONFDIR + conf_file
-    cmd = "docker exec exabgp /usr/local/exabgp/sbin/exabgp " + conf_path + " > /dev/null 2>&1 &"
+    cmd = "docker exec exabgp /root/exabgp/sbin/exabgp " + conf_path + " > /dev/null 2>&1 &"
     local(cmd, capture=True)
 
 
@@ -341,6 +337,13 @@ def init_malformed_test_env_executor(conf_file, use_local):
     gobgp_file = pwd + "/exabgp_test_conf/gobgpd.conf"
     cmd = "cp " + gobgp_file + " " + CONFIG_DIRR
     local(cmd, capture=True)
+    quagga_dir = CONFIG_DIRR + "q1"
+    cmd = "mkdir " + quagga_dir
+    local(cmd, capture=True)
+    quagga_file = pwd + "/exabgp_test_conf/quagga.conf"
+    cmd = "cp " + quagga_file + " " + quagga_dir + "/bgpd.conf"
+    local(cmd, capture=True)
+    docker_container_run_quagga(1, BRIDGE_0)
     docker_container_run_gobgp(BRIDGE_0)
     docker_container_run_exabgp(BRIDGE_0)
 
