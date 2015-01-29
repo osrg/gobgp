@@ -1367,7 +1367,7 @@ func (p *DefaultAsPath) isValidAspath(data []byte) (bool, error) {
 	if err == nil {
 		return false, nil
 	}
-	return false, NewMessageError(eCode, eSubCode, nil, "==== can't not parse")
+	return false, NewMessageError(eCode, eSubCode, nil, "can't parse AS_PATH")
 }
 
 type AsPathParamInterface interface {
