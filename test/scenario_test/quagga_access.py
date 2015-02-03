@@ -82,13 +82,20 @@ def show_rib(tn):
     tn.write("show ip bgp\n")
     tn.read_until("   Network          Next Hop            Metric LocPrf Weight Path")
     rib = tn.read_until("bgpd#")
-    # print header
+    return rib_parser(rib)
+
+
+def show_ipv6_rib(tn):
+    tn.write("show bgp ipv6\n")
+    tn.read_until("   Network          Next Hop            Metric LocPrf Weight Path")
+    rib = tn.read_until("bgpd#")
     return rib_parser(rib)
 
 
 def clear_ip_bgp(tn):
     tn.write("clear ip bgp *\n")
     tn.read_until("bgpd#")
+
 
 def rib_parser(rib):
     lines = rib.split("\n")
@@ -99,10 +106,6 @@ def rib_parser(rib):
             elems = line.split()
             path['Network'] = elems[1]
             path['Next Hop'] = elems[2]
-            # path['Metric'] = elems[3]
-            # path['LocPrf'] = elems[4]
-            # path['Weight'] = elems[5]
-            # path['Path'] = elems[6]
         if len(path) > 0:
             paths.append(path)
     return paths

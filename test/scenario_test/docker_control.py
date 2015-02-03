@@ -18,22 +18,42 @@ import re
 import os
 
 GOBGP_CONTAINER_NAME = "gobgp"
-GOBGP_ADDRESS = "10.0.255.1/16"
+GOBGP_ADDRESS_0 = {"IPv4": "10.0.255.1",
+                   "IPv6": "2001::0:192:168:255:1"}
+GOBGP_ADDRESS_1 = {"IPv4": "11.0.255.1",
+                   "IPv6": "2001::1:192:168:255:1"}
+GOBGP_ADDRESS_2 = {"IPv4": "12.0.255.1",
+                   "IPv6": "2001::2:192:168:255:1"}
 GOBGP_CONFIG_FILE = "gobgpd.conf"
 EXABGP_CONTAINER_NAME = "exabgp"
 EXABGP_ADDRESS = "10.0.0.100/16"
 EXABGP_CONFDIR = "/etc/exabgp/"
 EXABGP_LOG_FILE = "exabgpd.log"
-BRIDGE_ADDRESS = "10.0.255.2"
 CONFIG_DIR = "/usr/local/gobgp"
 CONFIG_DIRR = "/usr/local/gobgp/"
 CONFIG_DIRRR = "/usr/local/gobgp/*"
 STARTUP_FILE_NAME = "gobgp_startup.sh"
 STARTUP_FILE = "/mnt/" + STARTUP_FILE_NAME
-BRIDGE_0 = {"BRIDGE_NAME": "br0", "BRIDGE_ADDRESS": "10.0.255.2"}
-BRIDGE_1 = {"BRIDGE_NAME": "br1", "BRIDGE_ADDRESS": "11.0.255.2"}
-BRIDGE_2 = {"BRIDGE_NAME": "br2", "BRIDGE_ADDRESS": "12.0.255.2"}
+
+IP_VERSION = "IPv4"
+IF_CONFIG_OPTION = {"IPv4": "inet", "IPv6": "inet6"}
+BRIDGE_0 = {"BRIDGE_NAME": "br0",
+            "IPv4": "10.0.255.2",
+            "IPv6": "2001::0:192:168:255:2"}
+BRIDGE_1 = {"BRIDGE_NAME": "br1",
+            "IPv4": "11.0.255.2",
+            "IPv6": "2001::1:192:168:255:2"}
+BRIDGE_2 = {"BRIDGE_NAME": "br2",
+            "IPv4": "12.0.255.2",
+            "IPv6": "2001::2:192:168:255:2"}
 BRIDGES = [BRIDGE_0, BRIDGE_1, BRIDGE_2]
+
+BASE_NET = {BRIDGE_0["BRIDGE_NAME"]: {"IPv4": "10.0.0.", "IPv6": "2001::0:192:168:0:"},
+            BRIDGE_1["BRIDGE_NAME"]: {"IPv4": "11.0.0.", "IPv6": "2001::1:192:168:0:"},
+            BRIDGE_2["BRIDGE_NAME"]: {"IPv4": "12.0.0.", "IPv6": "2001::2:192:168:0:"}}
+
+BASE_MASK = {"IPv4": "/16", "IPv6": "/64"}
+
 A_PART_OF_CURRENT_DIR = "/test/scenario_test"
 
 
@@ -94,7 +114,7 @@ def go_path_check():
     return go_path_exist
 
 
-def docker_container_checks():
+def docker_container_check():
     container_exists = False
     outbuf = local("docker ps -a", capture=True)
     docker_ps = outbuf.split('\n')
@@ -104,6 +124,17 @@ def docker_container_checks():
                 (container_name == EXABGP_CONTAINER_NAME) or ("q" in container_name):
             container_exists = True
     return container_exists
+
+
+def bridge_setting_check():
+    setting_exists = False
+    for bridge in BRIDGES:
+        sysfs_name = "/sys/class/net/" + bridge["BRIDGE_NAME"]
+        if os.path.exists(sysfs_name):
+            setting_exists = True
+            return setting_exists
+    return setting_exists
+
 
 
 def docker_containers_get():
@@ -117,9 +148,9 @@ def docker_containers_get():
     return containers
 
 
-def docker_container_set_ipaddress(bridge, quagga_name, address):
+def docker_container_set_ipaddress(bridge, name, address):
     cmd = "pipework " + bridge["BRIDGE_NAME"] + " -i eth-" + bridge["BRIDGE_NAME"]\
-          + " " + quagga_name + " " + address
+          + " " + name + " " + address
     local(cmd, capture=True)
 
 
@@ -128,8 +159,7 @@ def docker_container_run_quagga(quagga_num, bridge):
     cmd = "docker run --privileged=true -v " + CONFIG_DIR + "/" + quagga_name +\
           ":/etc/quagga --name " + quagga_name + " -id osrg/quagga"
     local(cmd, capture=True)
-    aff_net = bridge["BRIDGE_NAME"][-1]
-    quagga_address = "1" + aff_net + ".0.0." + str(quagga_num) + "/16"
+    quagga_address = BASE_NET[bridge["BRIDGE_NAME"]][IP_VERSION] + str(quagga_num) + BASE_MASK[IP_VERSION]
     docker_container_set_ipaddress(bridge, quagga_name, quagga_address)
 
 
@@ -137,7 +167,7 @@ def docker_container_run_gobgp(bridge):
     cmd = "docker run --privileged=true -v " + CONFIG_DIR + ":/mnt -d --name "\
           + GOBGP_CONTAINER_NAME + " -id osrg/gobgp"
     local(cmd, capture=True)
-    docker_container_set_ipaddress(bridge, GOBGP_CONTAINER_NAME, GOBGP_ADDRESS)
+    docker_container_set_ipaddress(bridge, GOBGP_CONTAINER_NAME, GOBGP_ADDRESS_0[IP_VERSION] + BASE_MASK[IP_VERSION])
 
 
 def docker_container_run_exabgp(bridge):
@@ -210,9 +240,6 @@ def docker_containers_destroy():
 def docker_container_quagga_append(quagga_num, bridge):
     print "start append docker container."
     docker_container_run_quagga(quagga_num, bridge)
-    cmd = "docker exec gobgp /usr/bin/pkill gobgp -SIGHUP"
-    local(cmd, capture=True)
-    print "complete append docker container."
 
 
 def docker_container_quagga_removed(quagga_num):
@@ -222,12 +249,16 @@ def docker_container_quagga_removed(quagga_num):
     print "complete removed docker container."
 
 
-def bridge_setting_for_docker_connection():
-    bridge_unsetting_for_docker_connection()
-    for bridge in BRIDGES:
+def bridge_setting_for_docker_connection(bridges):
+    # bridge_unsetting_for_docker_connection()
+    for bridge in bridges:
         cmd = "brctl addbr " + bridge["BRIDGE_NAME"]
         local(cmd, capture=True)
-        cmd = "ifconfig " + bridge["BRIDGE_NAME"] + " " + bridge["BRIDGE_ADDRESS"]
+        if IP_VERSION == "IPv6":
+            cmd = "ifconfig " + bridge["BRIDGE_NAME"] + " " + IF_CONFIG_OPTION[IP_VERSION] +\
+                " add " + bridge[IP_VERSION] + BASE_MASK[IP_VERSION]
+        else:
+            cmd = "ifconfig " + bridge["BRIDGE_NAME"] + " " + bridge[IP_VERSION]
         local(cmd, capture=True)
         cmd = "ifconfig " + bridge["BRIDGE_NAME"] + " up"
         local(cmd, capture=True)
@@ -261,7 +292,7 @@ def get_notification_from_exabgp_log():
     return err_mgs
 
 
-def make_config(quagga_num, go_path):
+def make_config(quagga_num, go_path, bridge):
     if go_path != "":
         print "specified go path is [ " + go_path + " ]."
         if os.path.isdir(go_path):
@@ -269,11 +300,12 @@ def make_config(quagga_num, go_path):
         else:
             print "specified go path do not use."
     pwd = local("pwd", capture=True)
-    cmd = go_path + "go run " + pwd + "/quagga-rsconfig.go -n " + str(quagga_num) + " -c /usr/local/gobgp"
+    cmd = go_path + "go run " + pwd + "/quagga-rsconfig.go -n " + str(quagga_num) +\
+          " -c /usr/local/gobgp -v " + IP_VERSION + " -i " + bridge["BRIDGE_NAME"][-1]
     local(cmd, capture=True)
 
 
-def make_config_append(quagga_num, go_path):
+def make_config_append(quagga_num, go_path, bridge):
     if go_path != "":
         print "specified go path is [ " + go_path + " ]."
         if os.path.isdir(go_path):
@@ -281,21 +313,67 @@ def make_config_append(quagga_num, go_path):
         else:
             print "specified go path do not use."
     pwd = local("pwd", capture=True)
-    cmd = go_path + "go run " + pwd + "/quagga-rsconfig.go -a " + str(quagga_num) + " -c /usr/local/gobgp"
+    cmd = go_path + "go run " + pwd + "/quagga-rsconfig.go -a " + str(quagga_num) +\
+          " -c /usr/local/gobgp -v " + IP_VERSION + " -i " + bridge["BRIDGE_NAME"][-1]
     local(cmd, capture=True)
+
+
+def reload_config():
+    cmd = "docker exec gobgp /usr/bin/pkill gobgp -SIGHUP"
+    local(cmd, capture=True)
+    print "complete append docker container."
 
 
 def init_test_env_executor(quagga_num, use_local, go_path):
     print "start initialization of test environment."
 
-    if docker_container_checks():
+    if docker_container_check() or bridge_setting_check():
         print "gobgp test environment already exists."
         print "so that remake gobgp test environment."
         docker_containers_destroy()
 
     print "make gobgp test environment."
-    bridge_setting_for_docker_connection()
-    make_config(quagga_num, go_path)
+    bridge_setting_for_docker_connection(BRIDGES)
+    make_config(quagga_num, go_path, BRIDGE_0)
+
+    # run each docker container
+    for num in range(1, quagga_num + 1):
+        docker_container_run_quagga(num, BRIDGE_0)
+    docker_container_run_gobgp(BRIDGE_0)
+
+    # execute local gobgp program in the docker container if the input option is local
+    if use_local:
+        print "execute gobgp program in local machine."
+        pwd = local("pwd", capture=True)
+        if A_PART_OF_CURRENT_DIR in pwd:
+            gobgp_path = re.sub(A_PART_OF_CURRENT_DIR, "", pwd)
+            cmd = "cp -r " + gobgp_path + " " + CONFIG_DIRR
+            local(cmd, capture=True)
+            make_startup_file_use_local_gobgp()
+        else:
+            print "scenario_test directory is not."
+            print "execute gobgp program of osrg/master in github."
+            make_startup_file()
+    else:
+        print "execute gobgp program of osrg/master in github."
+        make_startup_file()
+
+    start_gobgp()
+
+    print "complete initialization of test environment."
+
+
+def init_ipv6_test_env_executor(quagga_num, use_local, go_path):
+    print "start initialization of test environment."
+
+    if docker_container_check() or bridge_setting_check():
+        print "gobgp test environment already exists."
+        print "so that remake gobgp test environment."
+        docker_containers_destroy()
+
+    print "make gobgp test environment."
+    bridge_setting_for_docker_connection([BRIDGE_0])
+    make_config(quagga_num, go_path, BRIDGE_0)
 
     # run each docker container
     for num in range(1, quagga_num + 1):
@@ -326,13 +404,14 @@ def init_test_env_executor(quagga_num, use_local, go_path):
 
 def init_malformed_test_env_executor(conf_file, use_local):
     print "start initialization of exabgp test environment."
-    if docker_container_checks():
+
+    if docker_container_check() or bridge_setting_check():
         print "gobgp test environment already exists."
         print "so that remake gobgp test environment."
         docker_containers_destroy()
 
     print "make gobgp test environment."
-    bridge_setting_for_docker_connection()
+    bridge_setting_for_docker_connection(BRIDGES)
     pwd = local("pwd", capture=True)
     gobgp_file = pwd + "/exabgp_test_conf/gobgpd.conf"
     cmd = "cp " + gobgp_file + " " + CONFIG_DIRR
@@ -370,9 +449,21 @@ def init_malformed_test_env_executor(conf_file, use_local):
 
 
 def docker_container_quagga_append_executor(quagga_num, go_path):
-    make_config_append(quagga_num, go_path)
+    make_config_append(quagga_num, go_path, BRIDGE_0)
     docker_container_quagga_append(quagga_num, BRIDGE_0)
+    reload_config()
 
+
+def docker_container_ipv6_quagga_append_executor(quagga_nums, go_path):
+    print "append ipv6 quagga container."
+    global IP_VERSION
+    IP_VERSION = "IPv6"
+    bridge_setting_for_docker_connection([BRIDGE_1])
+    docker_container_set_ipaddress(BRIDGE_1, GOBGP_CONTAINER_NAME, GOBGP_ADDRESS_1[IP_VERSION] + BASE_MASK[IP_VERSION])
+    for quagga_num in quagga_nums:
+        make_config_append(quagga_num, go_path, BRIDGE_1)
+        docker_container_quagga_append(quagga_num, BRIDGE_1)
+    reload_config()
 
 def docker_container_quagga_removed_executor(quagga_num):
     docker_container_quagga_removed(quagga_num)
@@ -380,9 +471,10 @@ def docker_container_quagga_removed_executor(quagga_num):
 
 def docker_container_make_bestpath_env_executor(append_quagga_num, go_path):
     print "start make bestpath environment"
-    make_config_append(append_quagga_num, go_path)
+    make_config_append(append_quagga_num, go_path, BRIDGE_1)
     append_quagga_name = "q" + str(append_quagga_num)
     docker_container_quagga_append(append_quagga_num, BRIDGE_1)
+    reload_config()
     docker_container_set_ipaddress(BRIDGE_1, "q2", "11.0.0.2/16")
     docker_container_set_ipaddress(BRIDGE_2, append_quagga_name, "12.0.0.20/16")
     docker_container_set_ipaddress(BRIDGE_2, "q3", "12.0.0.3/16")

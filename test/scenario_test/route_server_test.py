@@ -22,6 +22,9 @@ import time
 import sys
 import nose
 import quagga_access as qaccess
+from peer_info import Peer
+from peer_info import Destination
+from peer_info import Path
 from ciscoconfparse import CiscoConfParse
 import docker_control as fab
 from noseplugin import OptionParser
@@ -395,7 +398,6 @@ class GoBGPTest(unittest.TestCase):
             return
         self.assertEqual(ans_nexthop, rep_nexthop)
 
-
     def load_gobgp_config(self):
         try:
             self.gobgp_config = toml.loads(open(self.gobgp_config_file).read())
@@ -418,10 +420,12 @@ class GoBGPTest(unittest.TestCase):
         for dir in dirs:
             config_path = self.base_dir + dir + "/bgpd.conf"
             config = CiscoConfParse(config_path)
-            peer_ip = "10.0.0." + str(dir).replace("q", "")
-            peer_id = config.find_objects(r"^bgp\srouter-id")[0].text
-            peer_as = config.find_objects(r"^router\sbgp")[0].text
-            quagga_config = Peer(peer_ip, peer_id, peer_as)
+
+            peer_ip = config.find_objects(r"^!\smy\saddress")[0].text.split(" ")[3]
+            peer_ip_version = config.find_objects(r"^!\smy\sip_version")[0].text.split(" ")[3]
+            peer_id = config.find_objects(r"^bgp\srouter-id")[0].text.split(" ")[2]
+            peer_as = config.find_objects(r"^router\sbgp")[0].text.split(" ")[2]
+            quagga_config = Peer(peer_ip, peer_id, peer_as, peer_ip_version)
 
             networks = config.find_objects(r"^network")
             if len(networks) == 0:
@@ -435,15 +439,17 @@ class GoBGPTest(unittest.TestCase):
                 dest = Destination(prefix)
                 dest.paths.append(path)
                 quagga_config.destinations[prefix] = dest
+                # print "prefix: " + prefix
+                # print "network: " + network
+                # print "nexthop: " + nexthop
 
             neighbors = config.find_objects(r"^neighbor\s.*\sremote-as")
             if len(neighbors) == 0:
                 continue
             for neighbor in neighbors:
                 elems = neighbor.text.split(" ")
-                neighbor = Peer(elems[1], None,  elems[3])
+                neighbor = Peer(elems[1], None,  elems[3], None)
                 quagga_config.neighbors.append(neighbor)
-
             self.quagga_configs.append(quagga_config)
 
     # get address of each neighbor from gobpg configration
@@ -467,29 +473,6 @@ class GoBGPTest(unittest.TestCase):
         return True
 
 
-class Peer:
-    def __init__(self, peer_ip, peer_id, peer_as):
-        self.peer_ip = peer_ip
-        self.peer_id = peer_id
-        self.peer_as = peer_as
-        self.neighbors = []
-        self.destinations = {}
-
-
-class Destination:
-    def __init__(self, prefix):
-        self.prefix = prefix
-        self.paths = []
-
-
-class Path:
-    def __init__(self, network, nexthop):
-        self.network = network
-        self.nexthop = nexthop
-        self.origin = None
-        self.as_path = []
-        self.metric = None
-
 if __name__ == '__main__':
     if fab.test_user_check() is False:
         print "you are not root."
@@ -497,7 +480,5 @@ if __name__ == '__main__':
     if fab.docker_pkg_check() is False:
         print "not install docker package."
         sys.exit(1)
-    if fab.go_path_check() is False:
-        print "can not find path of go"
 
     nose.main(argv=sys.argv, addplugins=[OptionParser()], defaultTest=sys.argv[0])
