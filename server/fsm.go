@@ -115,6 +115,27 @@ func (fsm *FSM) StateChange(nextState bgp.FSMState) {
 	fsm.state = nextState
 }
 
+func (fsm *FSM) sendNotificatonFromErrorMsg(conn net.Conn, e *bgp.MessageError) {
+	m := bgp.NewBGPNotificationMessage(e.TypeCode, e.SubTypeCode, e.Data)
+	b, _ := m.Serialize()
+	_, err := conn.Write(b)
+	if err != nil {
+		fsm.bgpMessageStateUpdate(m.Header.Type, false)
+	}
+	conn.Close()
+
+	log.WithFields(log.Fields{
+		"Topic": "Peer",
+		"Key":   fsm.peerConfig.NeighborAddress,
+		"Data":  e,
+	}).Warn("sent notification")
+}
+
+func (fsm *FSM) sendNotification(conn net.Conn, code, subType uint8, data []byte, msg string) {
+	e := bgp.NewMessageError(code, subType, data, msg)
+	fsm.sendNotificatonFromErrorMsg(conn, e.(*bgp.MessageError))
+}
+
 type FSMHandler struct {
 	t         tomb.Tomb
 	fsm       *FSM
@@ -326,12 +347,7 @@ func (h *FSMHandler) opensent() bgp.FSMState {
 					body := m.Body.(*bgp.BGPOpen)
 					err := bgp.ValidateOpenMsg(body, fsm.peerConfig.PeerAs)
 					if err != nil {
-						e := err.(*bgp.MessageError)
-						m := bgp.NewBGPNotificationMessage(e.TypeCode, e.SubTypeCode, e.Data)
-						b, _ := m.Serialize()
-						fsm.passiveConn.Write(b)
-						fsm.bgpMessageStateUpdate(m.Header.Type, false)
-						h.conn.Close()
+						fsm.sendNotificatonFromErrorMsg(h.conn, err.(*bgp.MessageError))
 						return bgp.BGP_FSM_IDLE
 					}
 
@@ -351,12 +367,7 @@ func (h *FSMHandler) opensent() bgp.FSMState {
 					return bgp.BGP_FSM_IDLE
 				}
 			case *bgp.MessageError:
-				err := e.MsgData.(*bgp.MessageError)
-				m := bgp.NewBGPNotificationMessage(err.TypeCode, err.SubTypeCode, err.Data)
-				b, _ := m.Serialize()
-				fsm.passiveConn.Write(b)
-				fsm.bgpMessageStateUpdate(m.Header.Type, false)
-				h.conn.Close()
+				fsm.sendNotificatonFromErrorMsg(h.conn, e.MsgData.(*bgp.MessageError))
 				return bgp.BGP_FSM_IDLE
 			default:
 				log.WithFields(log.Fields{
@@ -369,16 +380,7 @@ func (h *FSMHandler) opensent() bgp.FSMState {
 			h.conn.Close()
 			return bgp.BGP_FSM_IDLE
 		case <-h.holdTimer.C:
-			log.WithFields(log.Fields{
-				"Topic": "Peer",
-				"Key":   fsm.peerConfig.NeighborAddress,
-				"data":  bgp.BGP_FSM_OPENSENT,
-			}).Warn("hold timer expired")
-			m := bgp.NewBGPNotificationMessage(bgp.BGP_ERROR_HOLD_TIMER_EXPIRED, 0, nil)
-			b, _ := m.Serialize()
-			fsm.passiveConn.Write(b)
-			fsm.bgpMessageStateUpdate(m.Header.Type, false)
-			h.conn.Close()
+			fsm.sendNotification(h.conn, bgp.BGP_ERROR_HOLD_TIMER_EXPIRED, 0, nil, "hold timer expired")
 			h.t.Kill(nil)
 			return bgp.BGP_FSM_IDLE
 		}
@@ -429,12 +431,7 @@ func (h *FSMHandler) openconfirm() bgp.FSMState {
 				}
 				return nextState
 			case *bgp.MessageError:
-				err := e.MsgData.(*bgp.MessageError)
-				m := bgp.NewBGPNotificationMessage(err.TypeCode, err.SubTypeCode, err.Data)
-				b, _ := m.Serialize()
-				fsm.passiveConn.Write(b)
-				fsm.bgpMessageStateUpdate(m.Header.Type, false)
-				h.conn.Close()
+				fsm.sendNotificatonFromErrorMsg(h.conn, e.MsgData.(*bgp.MessageError))
 				return bgp.BGP_FSM_IDLE
 			default:
 				log.WithFields(log.Fields{
@@ -447,16 +444,7 @@ func (h *FSMHandler) openconfirm() bgp.FSMState {
 			h.conn.Close()
 			return bgp.BGP_FSM_IDLE
 		case <-h.holdTimer.C:
-			log.WithFields(log.Fields{
-				"Topic": "Peer",
-				"Key":   fsm.peerConfig.NeighborAddress,
-				"data":  bgp.BGP_FSM_OPENCONFIRM,
-			}).Warn("hold timer expired")
-			m := bgp.NewBGPNotificationMessage(bgp.BGP_ERROR_HOLD_TIMER_EXPIRED, 0, nil)
-			b, _ := m.Serialize()
-			fsm.passiveConn.Write(b)
-			fsm.bgpMessageStateUpdate(m.Header.Type, false)
-			h.conn.Close()
+			fsm.sendNotification(h.conn, bgp.BGP_ERROR_HOLD_TIMER_EXPIRED, 0, nil, "hold timer expired")
 			h.t.Kill(nil)
 			return bgp.BGP_FSM_IDLE
 		}
