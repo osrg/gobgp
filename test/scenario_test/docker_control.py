@@ -25,15 +25,15 @@ GOBGP_ADDRESS_1 = {"IPv4": "11.0.255.1",
 GOBGP_ADDRESS_2 = {"IPv4": "12.0.255.1",
                    "IPv6": "2001::2:192:168:255:1"}
 GOBGP_CONFIG_FILE = "gobgpd.conf"
+CONFIG_DIR = "/tmp/gobgp"
+CONFIG_DIRR = "/tmp/gobgp/"
+SHARE_VOLUME = "/root/share_volume"
 EXABGP_CONTAINER_NAME = "exabgp"
 EXABGP_ADDRESS = "10.0.0.100/16"
-EXABGP_CONFDIR = "/etc/exabgp/"
+EXABGP_CONFDIR = SHARE_VOLUME + "/exabgp_test_conf"
 EXABGP_LOG_FILE = "exabgpd.log"
-CONFIG_DIR = "/usr/local/gobgp"
-CONFIG_DIRR = "/usr/local/gobgp/"
-CONFIG_DIRRR = "/usr/local/gobgp/*"
 STARTUP_FILE_NAME = "gobgp_startup.sh"
-STARTUP_FILE = "/mnt/" + STARTUP_FILE_NAME
+STARTUP_FILE = SHARE_VOLUME + "/" + STARTUP_FILE_NAME
 
 IP_VERSION = "IPv4"
 IF_CONFIG_OPTION = {"IPv4": "inet", "IPv6": "inet6"}
@@ -93,7 +93,7 @@ def install_docker_and_tools():
     local("docker pull osrg/quagga", capture=True)
     local("docker pull osrg/gobgp", capture=True)
     local("docker pull osrg/exabgp", capture=True)
-    local("mkdir /usr/local/gobgp", capture=True)
+    local("mkdir /tmp/gobgp", capture=True)
 
 
 def docker_pkg_check():
@@ -136,7 +136,6 @@ def bridge_setting_check():
     return setting_exists
 
 
-
 def docker_containers_get():
     containers = []
     cmd = "docker ps -a | awk '{print $NF}'"
@@ -164,7 +163,7 @@ def docker_container_run_quagga(quagga_num, bridge):
 
 
 def docker_container_run_gobgp(bridge):
-    cmd = "docker run --privileged=true -v " + CONFIG_DIR + ":/mnt -d --name "\
+    cmd = "docker run --privileged=true -v " + CONFIG_DIR + ":" + SHARE_VOLUME + " -d --name "\
           + GOBGP_CONTAINER_NAME + " -id osrg/gobgp"
     local(cmd, capture=True)
     docker_container_set_ipaddress(bridge, GOBGP_CONTAINER_NAME, GOBGP_ADDRESS_0[IP_VERSION] + BASE_MASK[IP_VERSION])
@@ -173,10 +172,22 @@ def docker_container_run_gobgp(bridge):
 def docker_container_run_exabgp(bridge):
     pwd = local("pwd", capture=True)
     test_pattern_dir = pwd + "/exabgp_test_conf"
-    cmd = "docker run --privileged=true -v " + test_pattern_dir + ":/etc/exabgp -v " \
-          + CONFIG_DIR + ":/mnt -d --name " + EXABGP_CONTAINER_NAME + " -id osrg/exabgp"
+    cmd = "cp -r " + test_pattern_dir + " " + CONFIG_DIRR
+    local(cmd, capture=True)
+    cmd = "docker run --privileged=true -v " + CONFIG_DIR + ":" + SHARE_VOLUME + " -d --name "\
+          + EXABGP_CONTAINER_NAME + " -id osrg/exabgp"
     local(cmd, capture=True)
     docker_container_set_ipaddress(bridge, EXABGP_CONTAINER_NAME, EXABGP_ADDRESS)
+
+
+def change_owner_to_root(target):
+    cmd = "chown -R root:root " + target
+    local(cmd, capture=True)
+
+
+def create_config_dir():
+    cmd = "mkdir " + CONFIG_DIR
+    local(cmd, capture=True)
 
 
 def make_startup_file():
@@ -185,8 +196,8 @@ def make_startup_file():
     file_buff += 'git pull origin master' + '\n'
     file_buff += 'go get -v' + '\n'
     file_buff += 'go build' + '\n'
-    file_buff += './gobgp -f /mnt/gobgpd.conf > /mnt/gobgpd.log'
-    cmd = "echo \"" + file_buff + "\" > " + CONFIG_DIRR + STARTUP_FILE_NAME
+    file_buff += './gobgp -f ' + SHARE_VOLUME + '/gobgpd.conf > ' + SHARE_VOLUME + '/gobgpd.log'
+    cmd = "echo \"" + file_buff + "\" > " + CONFIG_DIR + "/" + STARTUP_FILE_NAME
     local(cmd, capture=True)
     cmd = "chmod 755 " + CONFIG_DIRR + STARTUP_FILE_NAME
     local(cmd, capture=True)
@@ -195,12 +206,12 @@ def make_startup_file():
 def make_startup_file_use_local_gobgp():
     file_buff = '#!/bin/bash' + '\n'
     file_buff += 'rm -rf  /go/src/github.com/osrg/gobgp' + '\n'
-    file_buff += 'cp -r /mnt/gobgp /go/src/github.com/osrg/' + '\n'
+    file_buff += 'cp -r ' + SHARE_VOLUME + '/gobgp /go/src/github.com/osrg/' + '\n'
     file_buff += 'cd /go/src/github.com/osrg/gobgp' + '\n'
     file_buff += 'go get -v' + '\n'
     file_buff += 'go build' + '\n'
-    file_buff += './gobgp -f /mnt/gobgpd.conf > /mnt/gobgpd.log'
-    cmd = "echo \"" + file_buff + "\" > " + CONFIG_DIRR + STARTUP_FILE_NAME
+    file_buff += './gobgp -f ' + SHARE_VOLUME + '/gobgpd.conf > ' + SHARE_VOLUME + '/gobgpd.log'
+    cmd = "echo \"" + file_buff + "\" > " + CONFIG_DIR + "/" + STARTUP_FILE_NAME
     local(cmd, capture=True)
     cmd = "chmod 755 " + CONFIG_DIRR + STARTUP_FILE_NAME
     local(cmd, capture=True)
@@ -233,7 +244,7 @@ def docker_containers_destroy():
         if container == EXABGP_CONTAINER_NAME:
             docker_container_stop_exabgp()
     bridge_unsetting_for_docker_connection()
-    cmd = "rm -rf " + CONFIG_DIRRR
+    cmd = "rm -rf " + CONFIG_DIRR
     local(cmd, capture=True)
 
 
@@ -280,7 +291,9 @@ def start_gobgp():
 
 
 def start_exabgp(conf_file):
-    conf_path = EXABGP_CONFDIR + conf_file
+    cmd = "docker exec exabgp cp -f " + SHARE_VOLUME + "/exabgp_test_conf/exabgp.env /root/exabgp/etc/exabgp/exabgp.env"
+    local(cmd, capture=True)
+    conf_path = EXABGP_CONFDIR + "/" + conf_file
     cmd = "docker exec exabgp /root/exabgp/sbin/exabgp " + conf_path + " > /dev/null 2>&1 &"
     local(cmd, capture=True)
 
@@ -301,7 +314,7 @@ def make_config(quagga_num, go_path, bridge):
             print "specified go path do not use."
     pwd = local("pwd", capture=True)
     cmd = go_path + "go run " + pwd + "/quagga-rsconfig.go -n " + str(quagga_num) +\
-          " -c /usr/local/gobgp -v " + IP_VERSION + " -i " + bridge["BRIDGE_NAME"][-1]
+          " -c /tmp/gobgp -v " + IP_VERSION + " -i " + bridge["BRIDGE_NAME"][-1]
     local(cmd, capture=True)
 
 
@@ -314,7 +327,7 @@ def make_config_append(quagga_num, go_path, bridge):
             print "specified go path do not use."
     pwd = local("pwd", capture=True)
     cmd = go_path + "go run " + pwd + "/quagga-rsconfig.go -a " + str(quagga_num) +\
-          " -c /usr/local/gobgp -v " + IP_VERSION + " -i " + bridge["BRIDGE_NAME"][-1]
+          " -c /tmp/gobgp -v " + IP_VERSION + " -i " + bridge["BRIDGE_NAME"][-1]
     local(cmd, capture=True)
 
 
@@ -333,6 +346,7 @@ def init_test_env_executor(quagga_num, use_local, go_path):
         docker_containers_destroy()
 
     print "make gobgp test environment."
+    create_config_dir()
     bridge_setting_for_docker_connection(BRIDGES)
     make_config(quagga_num, go_path, BRIDGE_0)
 
@@ -358,6 +372,7 @@ def init_test_env_executor(quagga_num, use_local, go_path):
         print "execute gobgp program of osrg/master in github."
         make_startup_file()
 
+    change_owner_to_root(CONFIG_DIR)
     start_gobgp()
 
     print "complete initialization of test environment."
@@ -372,6 +387,7 @@ def init_ipv6_test_env_executor(quagga_num, use_local, go_path):
         docker_containers_destroy()
 
     print "make gobgp test environment."
+    create_config_dir()
     bridge_setting_for_docker_connection([BRIDGE_0])
     make_config(quagga_num, go_path, BRIDGE_0)
 
@@ -397,6 +413,7 @@ def init_ipv6_test_env_executor(quagga_num, use_local, go_path):
         print "execute gobgp program of osrg/master in github."
         make_startup_file()
 
+    change_owner_to_root(CONFIG_DIR)
     start_gobgp()
 
     print "complete initialization of test environment."
@@ -411,6 +428,7 @@ def init_malformed_test_env_executor(conf_file, use_local):
         docker_containers_destroy()
 
     print "make gobgp test environment."
+    create_config_dir()
     bridge_setting_for_docker_connection(BRIDGES)
     pwd = local("pwd", capture=True)
     gobgp_file = pwd + "/exabgp_test_conf/gobgpd.conf"
@@ -439,11 +457,11 @@ def init_malformed_test_env_executor(conf_file, use_local):
             print "scenario_test directory is not."
             print "execute gobgp program of osrg/master in github."
             make_startup_file()
-
     else:
         print "execute gobgp program of osrg/master in github."
         make_startup_file()
-        
+
+    change_owner_to_root(CONFIG_DIR)
     start_gobgp()
     start_exabgp(conf_file)
 
@@ -464,6 +482,7 @@ def docker_container_ipv6_quagga_append_executor(quagga_nums, go_path):
         make_config_append(quagga_num, go_path, BRIDGE_1)
         docker_container_quagga_append(quagga_num, BRIDGE_1)
     reload_config()
+
 
 def docker_container_quagga_removed_executor(quagga_num):
     docker_container_quagga_removed(quagga_num)

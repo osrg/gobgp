@@ -35,8 +35,8 @@ class GoBGPIPv6Test(unittest.TestCase):
 
     gobgp_ip = "10.0.255.1"
     gobgp_port = "8080"
-    base_dir = "/usr/local/gobgp/"
-    gobgp_config_file = "/usr/local/gobgp/gobgpd.conf"
+    base_dir = "/tmp/gobgp/"
+    gobgp_config_file = "/tmp/gobgp/gobgpd.conf"
     gobgp_config = None
     quagga_num = 2
     append_quagga = 10

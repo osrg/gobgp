@@ -30,7 +30,7 @@ from noseplugin import parser_option
 sleep_time = 20
 gobgp_ip = "10.0.255.1"
 gobgp_port = "8080"
-gobgp_config_file = "/usr/local/gobgp/gobgpd.conf"
+gobgp_config_file = "/tmp/gobgp/gobgpd.conf"
 
 
 def check_pattern():
