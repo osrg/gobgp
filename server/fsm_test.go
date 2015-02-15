@@ -145,8 +145,8 @@ func TestFSMHandlerOpensent_HoldTimerExpired(t *testing.T) {
 	assert.Equal(bgp.BGP_FSM_IDLE, state)
 	lastMsg := m.sendBuf[len(m.sendBuf)-1]
 	sent, _ := bgp.ParseBGPMessage(lastMsg)
-	assert.Equal(bgp.BGP_MSG_NOTIFICATION, sent.Header.Type)
-	assert.Equal(bgp.BGP_ERROR_HOLD_TIMER_EXPIRED, sent.Body.(*bgp.BGPNotification).ErrorCode)
+	assert.Equal(uint8(bgp.BGP_MSG_NOTIFICATION), sent.Header.Type)
+	assert.Equal(uint8(bgp.BGP_ERROR_HOLD_TIMER_EXPIRED), sent.Body.(*bgp.BGPNotification).ErrorCode)
 
 }
 
@@ -169,8 +169,8 @@ func TestFSMHandlerOpenconfirm_HoldTimerExpired(t *testing.T) {
 	assert.Equal(bgp.BGP_FSM_IDLE, state)
 	lastMsg := m.sendBuf[len(m.sendBuf)-1]
 	sent, _ := bgp.ParseBGPMessage(lastMsg)
-	assert.Equal(bgp.BGP_MSG_NOTIFICATION, sent.Header.Type)
-	assert.Equal(bgp.BGP_ERROR_HOLD_TIMER_EXPIRED, sent.Body.(*bgp.BGPNotification).ErrorCode)
+	assert.Equal(uint8(bgp.BGP_MSG_NOTIFICATION), sent.Header.Type)
+	assert.Equal(uint8(bgp.BGP_ERROR_HOLD_TIMER_EXPIRED), sent.Body.(*bgp.BGPNotification).ErrorCode)
 
 }
 
@@ -207,8 +207,8 @@ func TestFSMHandlerEstablish_HoldTimerExpired(t *testing.T) {
 	assert.Equal(bgp.BGP_FSM_IDLE, state)
 	lastMsg := m.sendBuf[len(m.sendBuf)-1]
 	sent, _ := bgp.ParseBGPMessage(lastMsg)
-	assert.Equal(bgp.BGP_MSG_NOTIFICATION, sent.Header.Type)
-	assert.Equal(bgp.BGP_ERROR_HOLD_TIMER_EXPIRED, sent.Body.(*bgp.BGPNotification).ErrorCode)
+	assert.Equal(uint8(bgp.BGP_MSG_NOTIFICATION), sent.Header.Type)
+	assert.Equal(uint8(bgp.BGP_ERROR_HOLD_TIMER_EXPIRED), sent.Body.(*bgp.BGPNotification).ErrorCode)
 }
 
 func makePeerAndHandler() (*Peer, *FSMHandler) {

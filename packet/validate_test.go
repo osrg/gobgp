@@ -155,8 +155,8 @@ func Test_Validate_duplicate_attribute(t *testing.T) {
 	assert.Equal(false, res)
 	assert.Error(err)
 	e := err.(*MessageError)
-	assert.Equal(BGP_ERROR_UPDATE_MESSAGE_ERROR, e.TypeCode)
-	assert.Equal(BGP_ERROR_SUB_MALFORMED_ATTRIBUTE_LIST, e.SubTypeCode)
+	assert.Equal(uint8(BGP_ERROR_UPDATE_MESSAGE_ERROR), e.TypeCode)
+	assert.Equal(uint8(BGP_ERROR_SUB_MALFORMED_ATTRIBUTE_LIST), e.SubTypeCode)
 	assert.Nil(e.Data)
 }
 
@@ -168,10 +168,10 @@ func Test_Validate_mandatory_missing(t *testing.T) {
 	assert.Equal(false, res)
 	assert.Error(err)
 	e := err.(*MessageError)
-	assert.Equal(BGP_ERROR_UPDATE_MESSAGE_ERROR, e.TypeCode)
-	assert.Equal(BGP_ERROR_SUB_MISSING_WELL_KNOWN_ATTRIBUTE, e.SubTypeCode)
+	assert.Equal(uint8(BGP_ERROR_UPDATE_MESSAGE_ERROR), e.TypeCode)
+	assert.Equal(uint8(BGP_ERROR_SUB_MISSING_WELL_KNOWN_ATTRIBUTE), e.SubTypeCode)
 	missing, _ := binary.Uvarint(e.Data)
-	assert.Equal(1, missing)
+	assert.Equal(uint8(1), missing)
 }
 
 func Test_Validate_mandatory_missing_nocheck(t *testing.T) {
@@ -198,8 +198,8 @@ func Test_Validate_invalid_origin(t *testing.T) {
 	assert.Equal(false, res)
 	assert.Error(err)
 	e := err.(*MessageError)
-	assert.Equal(BGP_ERROR_UPDATE_MESSAGE_ERROR, e.TypeCode)
-	assert.Equal(BGP_ERROR_SUB_INVALID_ORIGIN_ATTRIBUTE, e.SubTypeCode)
+	assert.Equal(uint8(BGP_ERROR_UPDATE_MESSAGE_ERROR), e.TypeCode)
+	assert.Equal(uint8(BGP_ERROR_SUB_INVALID_ORIGIN_ATTRIBUTE), e.SubTypeCode)
 	assert.Equal(originBytes, e.Data)
 }
 
@@ -219,8 +219,8 @@ func Test_Validate_invalid_nexthop_zero(t *testing.T) {
 	assert.Equal(false, res)
 	assert.Error(err)
 	e := err.(*MessageError)
-	assert.Equal(BGP_ERROR_UPDATE_MESSAGE_ERROR, e.TypeCode)
-	assert.Equal(BGP_ERROR_SUB_INVALID_NEXT_HOP_ATTRIBUTE, e.SubTypeCode)
+	assert.Equal(uint8(BGP_ERROR_UPDATE_MESSAGE_ERROR), e.TypeCode)
+	assert.Equal(uint8(BGP_ERROR_SUB_INVALID_NEXT_HOP_ATTRIBUTE), e.SubTypeCode)
 	assert.Equal(nexthopBytes, e.Data)
 }
 
@@ -240,8 +240,8 @@ func Test_Validate_invalid_nexthop_lo(t *testing.T) {
 	assert.Equal(false, res)
 	assert.Error(err)
 	e := err.(*MessageError)
-	assert.Equal(BGP_ERROR_UPDATE_MESSAGE_ERROR, e.TypeCode)
-	assert.Equal(BGP_ERROR_SUB_INVALID_NEXT_HOP_ATTRIBUTE, e.SubTypeCode)
+	assert.Equal(uint8(BGP_ERROR_UPDATE_MESSAGE_ERROR), e.TypeCode)
+	assert.Equal(uint8(BGP_ERROR_SUB_INVALID_NEXT_HOP_ATTRIBUTE), e.SubTypeCode)
 	assert.Equal(nexthopBytes, e.Data)
 }
 
@@ -261,8 +261,8 @@ func Test_Validate_invalid_nexthop_de(t *testing.T) {
 	assert.Equal(false, res)
 	assert.Error(err)
 	e := err.(*MessageError)
-	assert.Equal(BGP_ERROR_UPDATE_MESSAGE_ERROR, e.TypeCode)
-	assert.Equal(BGP_ERROR_SUB_INVALID_NEXT_HOP_ATTRIBUTE, e.SubTypeCode)
+	assert.Equal(uint8(BGP_ERROR_UPDATE_MESSAGE_ERROR), e.TypeCode)
+	assert.Equal(uint8(BGP_ERROR_SUB_INVALID_NEXT_HOP_ATTRIBUTE), e.SubTypeCode)
 	assert.Equal(nexthopBytes, e.Data)
 
 }
@@ -281,7 +281,7 @@ func Test_Validate_unrecognized_well_known(t *testing.T) {
 	assert.Equal(false, res)
 	assert.Error(err)
 	e := err.(*MessageError)
-	assert.Equal(BGP_ERROR_UPDATE_MESSAGE_ERROR, e.TypeCode)
-	assert.Equal(BGP_ERROR_SUB_UNRECOGNIZED_WELL_KNOWN_ATTRIBUTE, e.SubTypeCode)
+	assert.Equal(uint8(BGP_ERROR_UPDATE_MESSAGE_ERROR), e.TypeCode)
+	assert.Equal(uint8(BGP_ERROR_SUB_UNRECOGNIZED_WELL_KNOWN_ATTRIBUTE), e.SubTypeCode)
 	assert.Equal(unknownBytes, e.Data)
 }
