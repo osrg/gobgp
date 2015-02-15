@@ -36,6 +36,8 @@ const (
 	REQ_NEIGHBOR_SOFT_RESET
 	REQ_NEIGHBOR_SOFT_RESET_IN
 	REQ_NEIGHBOR_SOFT_RESET_OUT
+	REQ_NEIGHBOR_ENABLE
+	REQ_NEIGHBOR_DISABLE
 )
 
 const (
@@ -118,6 +120,8 @@ func (rs *RestServer) Serve() {
 	r.HandleFunc(neighbor+perPeerURL+"/"+"softreset", rs.NeighborPostHandler).Methods("POST")
 	r.HandleFunc(neighbor+perPeerURL+"/"+"softresetin", rs.NeighborPostHandler).Methods("POST")
 	r.HandleFunc(neighbor+perPeerURL+"/"+"softresetout", rs.NeighborPostHandler).Methods("POST")
+	r.HandleFunc(neighbor+perPeerURL+"/"+"enable", rs.NeighborPostHandler).Methods("POST")
+	r.HandleFunc(neighbor+perPeerURL+"/"+"disable", rs.NeighborPostHandler).Methods("POST")
 
 	// stats
 	r.HandleFunc(STATS, stats_api.Handler).Methods("GET")
@@ -172,6 +176,10 @@ func (rs *RestServer) NeighborPostHandler(w http.ResponseWriter, r *http.Request
 		rs.neighbor(w, r, REQ_NEIGHBOR_SOFT_RESET_IN)
 	case "softresetout":
 		rs.neighbor(w, r, REQ_NEIGHBOR_SOFT_RESET_OUT)
+	case "enable":
+		rs.neighbor(w, r, REQ_NEIGHBOR_ENABLE)
+	case "disable":
+		rs.neighbor(w, r, REQ_NEIGHBOR_DISABLE)
 	}
 }
 
