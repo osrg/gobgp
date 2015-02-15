@@ -28,31 +28,52 @@ import (
 
 type MockConnection struct {
 	net.Conn
-	recvCh    chan []byte
+	recvCh    chan chan byte
 	sendBuf   [][]byte
+	currentCh chan byte
 	readBytes int
+	isClosed  bool
+	wait      int
 }
 
 func NewMockConnection() *MockConnection {
 	m := &MockConnection{
-		recvCh:  make(chan []byte, 128),
-		sendBuf: make([][]byte, 129),
+		recvCh:   make(chan chan byte, 128),
+		sendBuf:  make([][]byte, 128),
+		isClosed: false,
 	}
 	return m
 }
 
+func (m *MockConnection) setData(data []byte) int {
+	dataChan := make(chan byte, 4096)
+	for _, b := range data {
+		dataChan <- b
+	}
+	m.recvCh <- dataChan
+	return len(dataChan)
+}
+
 func (m *MockConnection) Read(buf []byte) (int, error) {
 
-	data := <-m.recvCh
-	rest := len(buf) - m.readBytes
-	if len(data) > rest {
-		m.recvCh <- data[rest:]
-		data = data[:rest]
+	if m.isClosed {
+		return 0, fmt.Errorf("already closed")
 	}
 
-	for _, val := range data {
-		buf[m.readBytes] = val
-		m.readBytes += 1
+	if m.currentCh == nil {
+		m.currentCh = <-m.recvCh
+	}
+
+	rest := len(buf) - m.readBytes
+	for i := 0; i < rest; i++ {
+		if len(m.currentCh) > 0 {
+			val := <-m.currentCh
+			buf[m.readBytes] = val
+			m.readBytes += 1
+		} else {
+			m.currentCh = nil
+			break
+		}
 	}
 
 	length := 0
@@ -62,12 +83,12 @@ func (m *MockConnection) Read(buf []byte) (int, error) {
 	} else {
 		length = m.readBytes
 	}
-
 	fmt.Printf("%d bytes read from peer\n", length)
 	return length, nil
 }
 
 func (m *MockConnection) Write(buf []byte) (int, error) {
+	time.Sleep(time.Duration(m.wait) * time.Millisecond)
 	m.sendBuf = append(m.sendBuf, buf)
 	msg, _ := bgp.ParseBGPMessage(buf)
 	fmt.Printf("%d bytes written by gobgp  message type : %s\n", len(buf), showMessageType(msg.Header.Type))
@@ -92,6 +113,10 @@ func showMessageType(t uint8) string {
 
 func (m *MockConnection) Close() error {
 	fmt.Printf("close called\n")
+	if !m.isClosed {
+		close(m.recvCh)
+		m.isClosed = true
+	}
 	return nil
 }
 
@@ -104,11 +129,11 @@ func TestReadAll(t *testing.T) {
 
 	pushBytes := func() {
 		fmt.Println("push 5 bytes")
-		m.recvCh <- expected1[0:5]
+		m.setData(expected1[0:5])
 		fmt.Println("push rest")
-		m.recvCh <- expected1[5:]
+		m.setData(expected1[5:])
 		fmt.Println("push bytes at once")
-		m.recvCh <- expected2
+		m.setData(expected2)
 	}
 
 	go pushBytes()
@@ -193,8 +218,8 @@ func TestFSMHandlerEstablish_HoldTimerExpired(t *testing.T) {
 
 	pushPackets := func() {
 		// first keepalive from peer
-		m.recvCh <- header
-		m.recvCh <- body
+		m.setData(header)
+		m.setData(body)
 	}
 
 	// set holdtime

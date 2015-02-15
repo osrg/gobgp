@@ -18,12 +18,17 @@ package server
 import (
 	"fmt"
 	//"encoding/json"
+	"encoding/json"
+	log "github.com/Sirupsen/logrus"
+	"github.com/osrg/gobgp/api"
+	"github.com/osrg/gobgp/config"
 	"github.com/osrg/gobgp/packet"
 	"github.com/osrg/gobgp/table"
 	"github.com/stretchr/testify/assert"
 	"net"
 	"reflect"
 	"testing"
+	"time"
 )
 
 func peerRC3() *table.PeerInfo {
@@ -92,4 +97,408 @@ func TestProcessBGPUpdate_fourbyteAS(t *testing.T) {
 	attrAS2 := update2.PathAttributes[1].(*bgp.PathAttributeAsPath)
 	assert.Equal(t, len(attrAS2.Value), 1)
 	assert.Equal(t, attrAS2.Value[0].(*bgp.As4PathParam).AS, []uint32{66003, 4000, 70000})
+}
+
+func TestPeerAdminShutdownWhileEstablished(t *testing.T) {
+	log.SetLevel(log.DebugLevel)
+	assert := assert.New(t)
+	m := NewMockConnection()
+	globalConfig := config.GlobalType{}
+	peerConfig := config.NeighborType{}
+	peerConfig.PeerAs = 100000
+	peerConfig.Timers.KeepaliveInterval = 5
+	peer := makePeer(globalConfig, peerConfig)
+	peer.fsm.opensentHoldTime = 10
+
+	peer.t.Go(peer.loop)
+	pushPackets := func() {
+		o, _ := open().Serialize()
+		m.setData(o)
+		k, _ := keepalive().Serialize()
+		m.setData(k)
+	}
+	go pushPackets()
+
+	waitUntil(assert, bgp.BGP_FSM_ACTIVE, peer, 1000)
+	peer.acceptedConnCh <- m
+	waitUntil(assert, bgp.BGP_FSM_ESTABLISHED, peer, 1000)
+
+	restReq := api.NewRestRequest(api.REQ_NEIGHBOR_DISABLE, "0.0.0.0")
+	msg := &serverMsg{
+		msgType: SRV_MSG_API,
+		msgData: restReq,
+	}
+
+	peer.serverMsgCh <- msg
+	result := <-restReq.ResponseCh
+	res := make(map[string]string)
+	json.Unmarshal(result.Data, &res)
+	assert.Equal("ADMIN_STATE_DOWN", res["result"])
+
+	waitUntil(assert, bgp.BGP_FSM_IDLE, peer, 1000)
+
+	assert.Equal(bgp.BGP_FSM_IDLE, peer.fsm.state)
+	assert.Equal(ADMIN_STATE_DOWN, peer.fsm.adminState)
+	lastMsg := m.sendBuf[len(m.sendBuf)-1]
+	sent, _ := bgp.ParseBGPMessage(lastMsg)
+	assert.Equal(uint8(bgp.BGP_MSG_NOTIFICATION), sent.Header.Type)
+	assert.Equal(uint8(bgp.BGP_ERROR_CEASE), sent.Body.(*bgp.BGPNotification).ErrorCode)
+	assert.Equal(uint8(bgp.BGP_ERROR_SUB_ADMINISTRATIVE_SHUTDOWN), sent.Body.(*bgp.BGPNotification).ErrorSubcode)
+	assert.True(m.isClosed)
+
+	// check counter
+	counter := peer.fsm.peerConfig.BgpNeighborCommonState
+	assertCounter(assert, counter)
+}
+
+func TestPeerAdminShutdownWhileIdle(t *testing.T) {
+	log.SetLevel(log.DebugLevel)
+	assert := assert.New(t)
+
+	globalConfig := config.GlobalType{}
+	peerConfig := config.NeighborType{}
+	peerConfig.PeerAs = 100000
+	peerConfig.Timers.KeepaliveInterval = 5
+	peer := makePeer(globalConfig, peerConfig)
+	peer.fsm.opensentHoldTime = 10
+	peer.fsm.idleHoldTime = 5
+	peer.t.Go(peer.loop)
+
+	waitUntil(assert, bgp.BGP_FSM_IDLE, peer, 1000)
+
+	restReq := api.NewRestRequest(api.REQ_NEIGHBOR_DISABLE, "0.0.0.0")
+	msg := &serverMsg{
+		msgType: SRV_MSG_API,
+		msgData: restReq,
+	}
+
+	peer.serverMsgCh <- msg
+	result := <-restReq.ResponseCh
+	res := make(map[string]string)
+	json.Unmarshal(result.Data, &res)
+	assert.Equal("ADMIN_STATE_DOWN", res["result"])
+
+	waitUntil(assert, bgp.BGP_FSM_IDLE, peer, 100)
+	assert.Equal(bgp.BGP_FSM_IDLE, peer.fsm.state)
+	assert.Equal(ADMIN_STATE_DOWN, peer.fsm.adminState)
+
+	// check counter
+	counter := peer.fsm.peerConfig.BgpNeighborCommonState
+	assertCounter(assert, counter)
+}
+
+func TestPeerAdminShutdownWhileActive(t *testing.T) {
+	log.SetLevel(log.DebugLevel)
+	assert := assert.New(t)
+
+	globalConfig := config.GlobalType{}
+	peerConfig := config.NeighborType{}
+	peerConfig.PeerAs = 100000
+	peerConfig.Timers.KeepaliveInterval = 5
+	peer := makePeer(globalConfig, peerConfig)
+	peer.fsm.opensentHoldTime = 10
+	peer.t.Go(peer.loop)
+
+	waitUntil(assert, bgp.BGP_FSM_ACTIVE, peer, 1000)
+
+	restReq := api.NewRestRequest(api.REQ_NEIGHBOR_DISABLE, "0.0.0.0")
+	msg := &serverMsg{
+		msgType: SRV_MSG_API,
+		msgData: restReq,
+	}
+
+	peer.serverMsgCh <- msg
+	result := <-restReq.ResponseCh
+	res := make(map[string]string)
+	json.Unmarshal(result.Data, &res)
+	assert.Equal("ADMIN_STATE_DOWN", res["result"])
+
+	waitUntil(assert, bgp.BGP_FSM_IDLE, peer, 100)
+	assert.Equal(bgp.BGP_FSM_IDLE, peer.fsm.state)
+	assert.Equal(ADMIN_STATE_DOWN, peer.fsm.adminState)
+
+	// check counter
+	counter := peer.fsm.peerConfig.BgpNeighborCommonState
+	assertCounter(assert, counter)
+}
+
+func TestPeerAdminShutdownWhileOpensent(t *testing.T) {
+	log.SetLevel(log.DebugLevel)
+	assert := assert.New(t)
+	m := NewMockConnection()
+	globalConfig := config.GlobalType{}
+	peerConfig := config.NeighborType{}
+	peerConfig.PeerAs = 100000
+	peerConfig.Timers.KeepaliveInterval = 5
+	peer := makePeer(globalConfig, peerConfig)
+	peer.fsm.opensentHoldTime = 1
+	peer.t.Go(peer.loop)
+
+	waitUntil(assert, bgp.BGP_FSM_ACTIVE, peer, 1000)
+	peer.acceptedConnCh <- m
+	waitUntil(assert, bgp.BGP_FSM_OPENSENT, peer, 1000)
+
+	restReq := api.NewRestRequest(api.REQ_NEIGHBOR_DISABLE, "0.0.0.0")
+	msg := &serverMsg{
+		msgType: SRV_MSG_API,
+		msgData: restReq,
+	}
+
+	peer.serverMsgCh <- msg
+	result := <-restReq.ResponseCh
+	res := make(map[string]string)
+	json.Unmarshal(result.Data, &res)
+	assert.Equal("ADMIN_STATE_DOWN", res["result"])
+
+	waitUntil(assert, bgp.BGP_FSM_IDLE, peer, 100)
+	assert.Equal(bgp.BGP_FSM_IDLE, peer.fsm.state)
+	assert.Equal(ADMIN_STATE_DOWN, peer.fsm.adminState)
+	lastMsg := m.sendBuf[len(m.sendBuf)-1]
+	sent, _ := bgp.ParseBGPMessage(lastMsg)
+	assert.NotEqual(bgp.BGP_MSG_NOTIFICATION, sent.Header.Type)
+	assert.True(m.isClosed)
+
+	// check counter
+	counter := peer.fsm.peerConfig.BgpNeighborCommonState
+	assertCounter(assert, counter)
+}
+
+func TestPeerAdminShutdownWhileOpenconfirm(t *testing.T) {
+	log.SetLevel(log.DebugLevel)
+	assert := assert.New(t)
+	m := NewMockConnection()
+	globalConfig := config.GlobalType{}
+	peerConfig := config.NeighborType{}
+	peerConfig.PeerAs = 100000
+	peerConfig.Timers.KeepaliveInterval = 5
+	peer := makePeer(globalConfig, peerConfig)
+	peer.fsm.opensentHoldTime = 10
+	peer.t.Go(peer.loop)
+	pushPackets := func() {
+		o, _ := open().Serialize()
+		m.setData(o)
+	}
+	go pushPackets()
+	waitUntil(assert, bgp.BGP_FSM_ACTIVE, peer, 1000)
+	peer.acceptedConnCh <- m
+	waitUntil(assert, bgp.BGP_FSM_OPENCONFIRM, peer, 1000)
+
+	restReq := api.NewRestRequest(api.REQ_NEIGHBOR_DISABLE, "0.0.0.0")
+	msg := &serverMsg{
+		msgType: SRV_MSG_API,
+		msgData: restReq,
+	}
+
+	peer.serverMsgCh <- msg
+	result := <-restReq.ResponseCh
+	res := make(map[string]string)
+	json.Unmarshal(result.Data, &res)
+	assert.Equal("ADMIN_STATE_DOWN", res["result"])
+
+	waitUntil(assert, bgp.BGP_FSM_IDLE, peer, 1000)
+	assert.Equal(bgp.BGP_FSM_IDLE, peer.fsm.state)
+	assert.Equal(ADMIN_STATE_DOWN, peer.fsm.adminState)
+	lastMsg := m.sendBuf[len(m.sendBuf)-1]
+	sent, _ := bgp.ParseBGPMessage(lastMsg)
+	assert.NotEqual(bgp.BGP_MSG_NOTIFICATION, sent.Header.Type)
+	assert.True(m.isClosed)
+
+	// check counter
+	counter := peer.fsm.peerConfig.BgpNeighborCommonState
+	assertCounter(assert, counter)
+
+}
+
+func TestPeerAdminEnable(t *testing.T) {
+	log.SetLevel(log.DebugLevel)
+	assert := assert.New(t)
+	m := NewMockConnection()
+	globalConfig := config.GlobalType{}
+	peerConfig := config.NeighborType{}
+	peerConfig.PeerAs = 100000
+	peerConfig.Timers.KeepaliveInterval = 5
+	peer := makePeer(globalConfig, peerConfig)
+
+	peer.fsm.opensentHoldTime = 5
+	peer.t.Go(peer.loop)
+	pushPackets := func() {
+		o, _ := open().Serialize()
+		m.setData(o)
+		k, _ := keepalive().Serialize()
+		m.setData(k)
+	}
+	go pushPackets()
+
+	waitUntil(assert, bgp.BGP_FSM_ACTIVE, peer, 1000)
+	peer.acceptedConnCh <- m
+	waitUntil(assert, bgp.BGP_FSM_ESTABLISHED, peer, 1000)
+
+	// shutdown peer at first
+	restReq := api.NewRestRequest(api.REQ_NEIGHBOR_DISABLE, "0.0.0.0")
+	msg := &serverMsg{
+		msgType: SRV_MSG_API,
+		msgData: restReq,
+	}
+	peer.serverMsgCh <- msg
+	result := <-restReq.ResponseCh
+	res := make(map[string]string)
+	json.Unmarshal(result.Data, &res)
+	assert.Equal("ADMIN_STATE_DOWN", res["result"])
+
+	waitUntil(assert, bgp.BGP_FSM_IDLE, peer, 100)
+	assert.Equal(bgp.BGP_FSM_IDLE, peer.fsm.state)
+	assert.Equal(ADMIN_STATE_DOWN, peer.fsm.adminState)
+
+	// enable peer
+	restReq = api.NewRestRequest(api.REQ_NEIGHBOR_ENABLE, "0.0.0.0")
+	msg = &serverMsg{
+		msgType: SRV_MSG_API,
+		msgData: restReq,
+	}
+	peer.serverMsgCh <- msg
+	result = <-restReq.ResponseCh
+	res = make(map[string]string)
+	json.Unmarshal(result.Data, &res)
+	assert.Equal("ADMIN_STATE_UP", res["result"])
+
+	waitUntil(assert, bgp.BGP_FSM_ACTIVE, peer, 1000)
+	assert.Equal(bgp.BGP_FSM_ACTIVE, peer.fsm.state)
+
+	m2 := NewMockConnection()
+	pushPackets = func() {
+		o, _ := open().Serialize()
+		m2.setData(o)
+		k, _ := keepalive().Serialize()
+		m2.setData(k)
+	}
+	go pushPackets()
+
+	peer.acceptedConnCh <- m2
+
+	waitUntil(assert, bgp.BGP_FSM_ESTABLISHED, peer, 1000)
+	assert.Equal(bgp.BGP_FSM_ESTABLISHED, peer.fsm.state)
+}
+
+func TestPeerAdminShutdownReject(t *testing.T) {
+	log.SetLevel(log.DebugLevel)
+	assert := assert.New(t)
+	m := NewMockConnection()
+	m.wait = 500
+
+	globalConfig := config.GlobalType{}
+	peerConfig := config.NeighborType{}
+	peerConfig.PeerAs = 100000
+	peerConfig.Timers.KeepaliveInterval = 5
+	peer := makePeer(globalConfig, peerConfig)
+	peer.fsm.opensentHoldTime = 1
+	peer.t.Go(peer.loop)
+
+	waitUntil(assert, bgp.BGP_FSM_ACTIVE, peer, 1000)
+	peer.acceptedConnCh <- m
+	waitUntil(assert, bgp.BGP_FSM_OPENSENT, peer, 1000)
+
+	restReq := api.NewRestRequest(api.REQ_NEIGHBOR_DISABLE, "0.0.0.0")
+	msg := &serverMsg{
+		msgType: SRV_MSG_API,
+		msgData: restReq,
+	}
+
+	peer.fsm.adminStateCh <- ADMIN_STATE_DOWN
+
+	peer.serverMsgCh <- msg
+	result := <-restReq.ResponseCh
+	res := make(map[string]string)
+	json.Unmarshal(result.Data, &res)
+	assert.Equal("previous request is still remaining", res["result"])
+
+	restReq = api.NewRestRequest(api.REQ_NEIGHBOR_ENABLE, "0.0.0.0")
+	msg = &serverMsg{
+		msgType: SRV_MSG_API,
+		msgData: restReq,
+	}
+
+	peer.serverMsgCh <- msg
+	result = <-restReq.ResponseCh
+	res = make(map[string]string)
+	json.Unmarshal(result.Data, &res)
+	assert.Equal("previous request is still remaining", res["result"])
+
+	waitUntil(assert, bgp.BGP_FSM_IDLE, peer, 1000)
+	assert.Equal(bgp.BGP_FSM_IDLE, peer.fsm.state)
+	assert.Equal(ADMIN_STATE_DOWN, peer.fsm.adminState)
+
+}
+
+func assertCounter(assert *assert.Assertions, counter config.BgpNeighborCommonStateType) {
+	assert.Equal(uint32(0), counter.OpenIn)
+	assert.Equal(uint32(0), counter.OpenOut)
+	assert.Equal(uint32(0), counter.UpdateIn)
+	assert.Equal(uint32(0), counter.UpdateOut)
+	assert.Equal(uint32(0), counter.KeepaliveIn)
+	assert.Equal(uint32(0), counter.KeepaliveOut)
+	assert.Equal(uint32(0), counter.NotifyIn)
+	assert.Equal(uint32(0), counter.NotifyOut)
+	assert.Equal(uint32(0), counter.EstablishedCount)
+	assert.Equal(uint32(0), counter.TotalIn)
+	assert.Equal(uint32(0), counter.TotalOut)
+	assert.Equal(uint32(0), counter.RefreshIn)
+	assert.Equal(uint32(0), counter.RefreshOut)
+	assert.Equal(uint32(0), counter.DynamicCapIn)
+	assert.Equal(uint32(0), counter.DynamicCapOut)
+	assert.Equal(uint32(0), counter.EstablishedCount)
+	assert.Equal(uint32(0), counter.DroppedCount)
+	assert.Equal(uint32(0), counter.Flops)
+}
+
+func waitUntil(assert *assert.Assertions, state bgp.FSMState, peer *Peer, timeout int64) {
+	isTimeout := false
+	expire := func() {
+		isTimeout = true
+	}
+	time.AfterFunc((time.Duration)(timeout)*time.Millisecond, expire)
+
+	for {
+		time.Sleep(1 * time.Millisecond)
+
+		if peer.fsm.state == state || isTimeout {
+			assert.Equal(state, peer.fsm.state, "timeout")
+			break
+		}
+	}
+}
+
+func makePeer(globalConfig config.GlobalType, peerConfig config.NeighborType) *Peer {
+
+	sch := make(chan *serverMsg, 8)
+	pch := make(chan *peerMsg, 4096)
+
+	p := &Peer{
+		globalConfig:   globalConfig,
+		peerConfig:     peerConfig,
+		acceptedConnCh: make(chan net.Conn),
+		serverMsgCh:    sch,
+		peerMsgCh:      pch,
+		capMap:         make(map[bgp.BGPCapabilityCode]bgp.ParameterCapabilityInterface),
+	}
+	p.siblings = make(map[string]*serverMsgDataPeer)
+
+	p.fsm = NewFSM(&globalConfig, &peerConfig, p.acceptedConnCh)
+	peerConfig.BgpNeighborCommonState.State = uint32(bgp.BGP_FSM_IDLE)
+	peerConfig.BgpNeighborCommonState.Downtime = time.Now()
+	if peerConfig.NeighborAddress.To4() != nil {
+		p.rf = bgp.RF_IPv4_UC
+	} else {
+		p.rf = bgp.RF_IPv6_UC
+	}
+
+	p.peerInfo = &table.PeerInfo{
+		AS:      peerConfig.PeerAs,
+		LocalID: globalConfig.RouterId,
+		RF:      p.rf,
+		Address: peerConfig.NeighborAddress,
+	}
+	p.adjRib = table.NewAdjRib()
+	p.rib = table.NewTableManager(p.peerConfig.NeighborAddress.String())
+
+	return p
 }

@@ -199,7 +199,17 @@ func (peer *Peer) handleREST(restReq *api.RestRequest) {
 	result := &api.RestResponse{}
 	switch restReq.RequestType {
 	case api.REQ_LOCAL_RIB:
-		j, _ := json.Marshal(peer.rib.Tables[peer.rf])
+		var t table.Table
+		if peer.fsm.adminState == ADMIN_STATE_DOWN {
+			if peer.rf == bgp.RF_IPv4_UC {
+				t = table.NewIPv4Table(0)
+			} else {
+				t = table.NewIPv6Table(0)
+			}
+		} else {
+			t = peer.rib.Tables[peer.rf]
+		}
+		j, _ := json.Marshal(t)
 		result.Data = j
 	case api.REQ_NEIGHBOR_SHUTDOWN:
 		peer.outgoing <- bgp.NewBGPNotificationMessage(bgp.BGP_ERROR_CEASE, bgp.BGP_ERROR_SUB_ADMINISTRATIVE_SHUTDOWN, nil)
@@ -215,9 +225,7 @@ func (peer *Peer) handleREST(restReq *api.RestRequest) {
 	case api.REQ_NEIGHBOR_SOFT_RESET_OUT:
 		pathList := peer.adjRib.GetOutPathList(peer.rf)
 		peer.sendMessages(table.CreateUpdateMsgFromPaths(pathList))
-	case api.REQ_ADJ_RIB_IN:
-		fallthrough
-	case api.REQ_ADJ_RIB_OUT:
+	case api.REQ_ADJ_RIB_IN, api.REQ_ADJ_RIB_OUT:
 		rfs := []bgp.RouteFamily{bgp.RF_IPv4_UC, bgp.RF_IPv6_UC}
 		adjrib := make(map[string][]table.Path)
 
@@ -235,6 +243,35 @@ func (peer *Peer) handleREST(restReq *api.RestRequest) {
 			}
 		}
 		j, _ := json.Marshal(adjrib)
+		result.Data = j
+	case api.REQ_NEIGHBOR_ENABLE, api.REQ_NEIGHBOR_DISABLE:
+		r := make(map[string]string)
+		if restReq.RequestType == api.REQ_NEIGHBOR_ENABLE {
+			select {
+			case peer.fsm.adminStateCh <- ADMIN_STATE_UP:
+				log.WithFields(log.Fields{
+					"Topic": "Peer",
+					"Key":   peer.peerConfig.NeighborAddress,
+				}).Debug("ADMIN_STATE_UP requested")
+				r["result"] = "ADMIN_STATE_UP"
+			default:
+				log.Warning("previous request is still remaining. : ", peer.peerConfig.NeighborAddress)
+				r["result"] = "previous request is still remaining"
+			}
+		} else {
+			select {
+			case peer.fsm.adminStateCh <- ADMIN_STATE_DOWN:
+				log.WithFields(log.Fields{
+					"Topic": "Peer",
+					"Key":   peer.peerConfig.NeighborAddress,
+				}).Debug("ADMIN_STATE_DOWN requested")
+				r["result"] = "ADMIN_STATE_DOWN"
+			default:
+				log.Warning("previous request is still remaining. : ", peer.peerConfig.NeighborAddress)
+				r["result"] = "previous request is still remaining"
+			}
+		}
+		j, _ := json.Marshal(r)
 		result.Data = j
 	}
 	restReq.ResponseCh <- result
@@ -352,6 +389,12 @@ func (peer *Peer) loop() error {
 							s.peerMsgCh <- pm
 						}
 					}
+
+					// clear counter
+					if h.fsm.adminState == ADMIN_STATE_DOWN {
+						h.fsm.peerConfig.BgpNeighborCommonState = config.BgpNeighborCommonStateType{}
+					}
+
 				case FSM_MSG_BGP_MESSAGE:
 					switch m := e.MsgData.(type) {
 					case *bgp.MessageError:
