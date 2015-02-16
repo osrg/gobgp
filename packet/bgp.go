@@ -2734,6 +2734,9 @@ func (msg *BGPMessage) Serialize() ([]byte, error) {
 		return nil, err
 	}
 	if msg.Header.Len == 0 {
+		if 19 + len(b) > BGP_MAX_MESSAGE_LENGTH {
+			return nil, NewMessageError(0, 0, nil, fmt.Sprintf("too long message length %d", 19 + len(b)))
+		}
 		msg.Header.Len = 19 + uint16(len(b))
 	}
 	h, err := msg.Header.Serialize()

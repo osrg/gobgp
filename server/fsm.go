@@ -567,8 +567,17 @@ func (h *FSMHandler) sendMessageloop() error {
 		// sending notification, we'll die.
 		select {
 		case m := <-h.outgoing:
-			b, _ := m.Serialize()
-			_, err := conn.Write(b)
+			b, err := m.Serialize()
+			if err != nil {
+				log.WithFields(log.Fields{
+					"Topic": "Peer",
+					"Key":   fsm.peerConfig.NeighborAddress,
+					"Data":  err,
+				}).Warn("failed to serialize")
+				fsm.bgpMessageStateUpdate(0, false)
+				continue
+			}
+			_, err = conn.Write(b)
 			if err != nil {
 				h.errorCh <- true
 				return nil
