@@ -129,6 +129,7 @@ class Show(object):
             print("    Updates:       {:>10d} {:>10d}".format(n["info"]["update_message_out"], n["info"]["update_message_in"]))
             print("    Keepalives:    {:>10d} {:>10d}".format(n["info"]["keepalive_message_out"], n["info"]["keepalive_message_in"]))
             print("    Route Refesh:  {:>10d} {:>10d}".format(n["info"]["refresh_message_out"], n["info"]["refresh_message_in"]))
+            print("    Discarded:     {:>10d} {:>10d}".format(n["info"]["DiscardedOut"], n["info"]["DiscardedIn"]))
             print("    Total:         {:>10d} {:>10d}".format(n["info"]["total_message_out"], n["info"]["total_message_in"]))
             print("")
         return 0

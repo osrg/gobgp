@@ -92,6 +92,12 @@ func (fsm *FSM) bgpMessageStateUpdate(MessageType uint8, isIn bool) {
 		} else {
 			state.RefreshOut++
 		}
+	default:
+		if isIn {
+			state.DiscardedIn++
+		} else {
+			state.DiscardedOut++
+		}
 	}
 }
 
@@ -255,6 +261,7 @@ func (h *FSMHandler) recvMessageWithError() error {
 	hd := &bgp.BGPHeader{}
 	err = hd.DecodeFromBytes(headerBuf)
 	if err != nil {
+		h.fsm.bgpMessageStateUpdate(0, true)
 		log.WithFields(log.Fields{
 			"Topic": "Peer",
 			"Key":   h.fsm.peerConfig.NeighborAddress,
@@ -276,7 +283,10 @@ func (h *FSMHandler) recvMessageWithError() error {
 	var fmsg *fsmMsg
 	m, err := bgp.ParseBGPBody(hd, bodyBuf)
 	if err == nil {
+		h.fsm.bgpMessageStateUpdate(m.Header.Type, true)
 		err = bgp.ValidateBGPMessage(m)
+	} else {
+		h.fsm.bgpMessageStateUpdate(0, true)
 	}
 	if err != nil {
 		log.WithFields(log.Fields{
@@ -293,8 +303,6 @@ func (h *FSMHandler) recvMessageWithError() error {
 			MsgType: FSM_MSG_BGP_MESSAGE,
 			MsgData: m,
 		}
-		h.fsm.bgpMessageStateUpdate(m.Header.Type, true)
-
 		if h.fsm.state == bgp.BGP_FSM_ESTABLISHED {
 			if m.Header.Type == bgp.BGP_MSG_KEEPALIVE || m.Header.Type == bgp.BGP_MSG_UPDATE {
 				h.holdTimer.Reset(time.Second * time.Duration(h.fsm.negotiatedHoldTime))

@@ -428,20 +428,22 @@ func (peer *Peer) MarshalJSON() ([]byte, error) {
 	}
 
 	p["info"] = struct {
-		BgpState                  string  `json:"bgp_state"`
-		FsmEstablishedTransitions uint32  `json:"fsm_established_transitions"`
-		TotalMessageOut           uint32  `json:"total_message_out"`
-		TotalMessageIn            uint32  `json:"total_message_in"`
-		UpdateMessageOut          uint32  `json:"update_message_out"`
-		UpdateMessageIn           uint32  `json:"update_message_in"`
-		KeepAliveMessageOut       uint32  `json:"keepalive_message_out"`
-		KeepAliveMessageIn        uint32  `json:"keepalive_message_in"`
-		OpenMessageOut            uint32  `json:"open_message_out"`
-		OpenMessageIn             uint32  `json:"open_message_in"`
-		NotificationOut           uint32  `json:"notification_out"`
-		NotificationIn            uint32  `json:"notification_in"`
-		RefreshMessageOut         uint32  `json:"refresh_message_out"`
-		RefreshMessageIn          uint32  `json:"refresh_message_in"`
+		BgpState                  string `json:"bgp_state"`
+		FsmEstablishedTransitions uint32 `json:"fsm_established_transitions"`
+		TotalMessageOut           uint32 `json:"total_message_out"`
+		TotalMessageIn            uint32 `json:"total_message_in"`
+		UpdateMessageOut          uint32 `json:"update_message_out"`
+		UpdateMessageIn           uint32 `json:"update_message_in"`
+		KeepAliveMessageOut       uint32 `json:"keepalive_message_out"`
+		KeepAliveMessageIn        uint32 `json:"keepalive_message_in"`
+		OpenMessageOut            uint32 `json:"open_message_out"`
+		OpenMessageIn             uint32 `json:"open_message_in"`
+		NotificationOut           uint32 `json:"notification_out"`
+		NotificationIn            uint32 `json:"notification_in"`
+		RefreshMessageOut         uint32 `json:"refresh_message_out"`
+		RefreshMessageIn          uint32 `json:"refresh_message_in"`
+		DiscardedOut              uint32
+		DiscardedIn               uint32
 		Uptime                    float64 `json:"uptime"`
 		Downtime                  float64 `json:"downtime"`
 		LastError                 string  `json:"last_error"`
@@ -466,6 +468,8 @@ func (peer *Peer) MarshalJSON() ([]byte, error) {
 		NotificationIn:            s.NotifyIn,
 		RefreshMessageOut:         s.RefreshOut,
 		RefreshMessageIn:          s.RefreshIn,
+		DiscardedOut:              s.DiscardedOut,
+		DiscardedIn:               s.DiscardedIn,
 		Uptime:                    uptime,
 		Downtime:                  downtime,
 		Received:                  uint32(peer.adjRib.GetInCount(peer.rf)),
