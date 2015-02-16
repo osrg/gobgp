@@ -446,8 +446,8 @@ type IPAddrPrefixDefault struct {
 }
 
 func (r *IPAddrPrefixDefault) decodePrefix(data []byte, bitlen uint8, addrlen uint8) error {
-	bytelen := (bitlen + 7) / 8
-	if len(data) < int(bytelen) {
+	bytelen := (int(bitlen) + 7) / 8
+	if len(data) < bytelen {
 		eCode := uint8(BGP_ERROR_UPDATE_MESSAGE_ERROR)
 		eSubCode := uint8(BGP_ERROR_SUB_MALFORMED_ATTRIBUTE_LIST)
 		return NewMessageError(eCode, eSubCode, nil, "network bytes is short")
@@ -459,7 +459,7 @@ func (r *IPAddrPrefixDefault) decodePrefix(data []byte, bitlen uint8, addrlen ui
 }
 
 func (r *IPAddrPrefixDefault) serializePrefix(bitlen uint8) ([]byte, error) {
-	bytelen := (bitlen + 7) / 8
+	bytelen := (int(bitlen) + 7) / 8
 	buf := make([]byte, bytelen)
 	copy(buf, r.Prefix)
 	// clear trailing bits in the last byte. rfc doesn't require
@@ -473,7 +473,7 @@ func (r *IPAddrPrefixDefault) serializePrefix(bitlen uint8) ([]byte, error) {
 }
 
 func (r *IPAddrPrefixDefault) Len() int {
-	return int(1 + ((r.Length + 7) / 8))
+	return 1 + ((int(r.Length) + 7) / 8)
 }
 
 func (r *IPAddrPrefixDefault) String() string {
@@ -2734,8 +2734,8 @@ func (msg *BGPMessage) Serialize() ([]byte, error) {
 		return nil, err
 	}
 	if msg.Header.Len == 0 {
-		if 19 + len(b) > BGP_MAX_MESSAGE_LENGTH {
-			return nil, NewMessageError(0, 0, nil, fmt.Sprintf("too long message length %d", 19 + len(b)))
+		if 19+len(b) > BGP_MAX_MESSAGE_LENGTH {
+			return nil, NewMessageError(0, 0, nil, fmt.Sprintf("too long message length %d", 19+len(b)))
 		}
 		msg.Header.Len = 19 + uint16(len(b))
 	}
