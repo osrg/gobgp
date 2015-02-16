@@ -332,7 +332,14 @@ def main():
 
     (options, args) = parser.parse_args()
 
-    commands = {"show": Show, "reset": Action, "shutdown": Action, "softreset": Action, "softresetin": Action, "softresetout": Action}
+    commands = {"show": Show,
+                "reset": Action,
+                "shutdown": Action,
+                "softreset": Action,
+                "softresetin": Action,
+                "softresetout": Action,
+                "enable": Action,
+                "disable": Action}
 
     if len(args) == 0:
         parser.print_help()
