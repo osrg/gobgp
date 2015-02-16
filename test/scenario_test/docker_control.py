@@ -160,6 +160,9 @@ def docker_container_run_quagga(quagga_num, bridge):
     local(cmd, capture=True)
     quagga_address = BASE_NET[bridge["BRIDGE_NAME"]][IP_VERSION] + str(quagga_num) + BASE_MASK[IP_VERSION]
     docker_container_set_ipaddress(bridge, quagga_name, quagga_address)
+    # restart quagga supervisord deamon in docker container for reset the retry of opensent message quagga sends
+    cmd = 'docker kill --signal="HUP" ' + quagga_name
+    local(cmd, capture=True)
 
 
 def docker_container_run_gobgp(bridge):
@@ -350,9 +353,7 @@ def init_test_env_executor(quagga_num, use_local, go_path):
     bridge_setting_for_docker_connection(BRIDGES)
     make_config(quagga_num, go_path, BRIDGE_0)
 
-    # run each docker container
-    for num in range(1, quagga_num + 1):
-        docker_container_run_quagga(num, BRIDGE_0)
+    # run gobgp docker container
     docker_container_run_gobgp(BRIDGE_0)
 
     # execute local gobgp program in the docker container if the input option is local
@@ -374,6 +375,10 @@ def init_test_env_executor(quagga_num, use_local, go_path):
 
     change_owner_to_root(CONFIG_DIR)
     start_gobgp()
+
+    # run quagga docker container
+    for num in range(1, quagga_num + 1):
+        docker_container_run_quagga(num, BRIDGE_0)
 
     print "complete initialization of test environment."
 
@@ -391,9 +396,7 @@ def init_ipv6_test_env_executor(quagga_num, use_local, go_path):
     bridge_setting_for_docker_connection([BRIDGE_0])
     make_config(quagga_num, go_path, BRIDGE_0)
 
-    # run each docker container
-    for num in range(1, quagga_num + 1):
-        docker_container_run_quagga(num, BRIDGE_0)
+    # run gobgp docker container
     docker_container_run_gobgp(BRIDGE_0)
 
     # execute local gobgp program in the docker container if the input option is local
@@ -415,6 +418,10 @@ def init_ipv6_test_env_executor(quagga_num, use_local, go_path):
 
     change_owner_to_root(CONFIG_DIR)
     start_gobgp()
+
+    # run quagga docker container
+    for num in range(1, quagga_num + 1):
+        docker_container_run_quagga(num, BRIDGE_0)
 
     print "complete initialization of test environment."
 
@@ -440,8 +447,9 @@ def init_malformed_test_env_executor(conf_file, use_local):
     quagga_file = pwd + "/exabgp_test_conf/quagga.conf"
     cmd = "cp " + quagga_file + " " + quagga_dir + "/bgpd.conf"
     local(cmd, capture=True)
-    docker_container_run_quagga(1, BRIDGE_0)
+    # run gobgp docker container
     docker_container_run_gobgp(BRIDGE_0)
+    # run exabgp docker container
     docker_container_run_exabgp(BRIDGE_0)
 
     # execute local gobgp program in the docker container if the input option is local
@@ -463,6 +471,8 @@ def init_malformed_test_env_executor(conf_file, use_local):
 
     change_owner_to_root(CONFIG_DIR)
     start_gobgp()
+    # run quagga docker container
+    docker_container_run_quagga(1, BRIDGE_0)
     start_exabgp(conf_file)
 
 

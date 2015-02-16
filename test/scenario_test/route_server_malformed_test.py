@@ -73,7 +73,7 @@ def test_malformed_packet():
         conf_file = pwd + "/exabgp_test_conf/" + pkey
         if os.path.isfile(conf_file) is True:
             fab.init_malformed_test_env_executor(pkey, use_local)
-            print "please wait"
+            print "please wait " + str(sleep_time) + " second"
             time.sleep(sleep_time)
             yield check_func, pkey, pattern[pkey]
 

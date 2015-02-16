@@ -58,7 +58,7 @@ class GoBGPTest(unittest.TestCase):
         go_path = parser_option.go_path
         fab.init_test_env_executor(self.quagga_num, use_local, go_path)
 
-        print "please wait"
+        print "please wait " + str(self.sleep_time) + " second"
         time.sleep(self.sleep_time)
         if self.check_load_config() is False:
             return
@@ -152,7 +152,7 @@ class GoBGPTest(unittest.TestCase):
         go_path = parser_option.go_path
         # append new quagga container
         fab.docker_container_quagga_append_executor(self.append_quagga, go_path)
-        print "please wait"
+        print "please wait " + str(self.sleep_time) + " second"
         time.sleep(self.sleep_time)
         append_quagga_address = "10.0.0." + str(self.append_quagga)
 
@@ -240,7 +240,7 @@ class GoBGPTest(unittest.TestCase):
 
         # remove quagga container
         fab.docker_container_quagga_removed_executor(self.remove_quagga)
-        print "please wait"
+        print "please wait " + str(self.sleep_time) + " second"
         time.sleep(self.sleep_time)
         removed_quagga_address = "10.0.0." + str(self.remove_quagga)
 
@@ -334,7 +334,7 @@ class GoBGPTest(unittest.TestCase):
 
         go_path = parser_option.go_path
         fab.docker_container_make_bestpath_env_executor(self.append_quagga_best, go_path)
-        print "please wait"
+        print "please wait " + str(self.sleep_time) + " second"
         time.sleep(self.sleep_time)
 
         print "add neighbor setting"
@@ -352,7 +352,7 @@ class GoBGPTest(unittest.TestCase):
         qaccess.add_neighbor(tn, "65003", "12.0.0.20", "65020")
         qaccess.add_neighbor_metric(tn, "65003", "10.0.255.1", "100")
 
-        print "please wait"
+        print "please wait " + str(self.sleep_time) + " second"
         time.sleep(self.sleep_time)
 
         check_address = "10.0.0.1"
@@ -380,7 +380,7 @@ class GoBGPTest(unittest.TestCase):
                 idx = 0
                 if len(g_paths) < 2:
                     print "target path has not been bestpath selected yet."
-                    print "please wait more."
+                    print "please wait " + str(self.sleep_time/2) + " second more."
                     time.sleep(self.sleep_time/2)
                     self.check_bestpath(check_address, target_network, ans_nexthop)
                     return
@@ -392,7 +392,7 @@ class GoBGPTest(unittest.TestCase):
                     idx += 1
         if target_exist is False:
             print "target path has not been receive yet."
-            print "please wait more."
+            print "please wait " + str(self.sleep_time/2) + " second more."
             time.sleep(self.sleep_time/2)
             self.check_bestpath(check_address, target_network, ans_nexthop)
             return

@@ -57,10 +57,10 @@ class GoBGPIPv6Test(unittest.TestCase):
         use_local = parser_option.use_local
         go_path = parser_option.go_path
         fab.init_ipv6_test_env_executor(self.quagga_num, use_local, go_path)
+        print "please wait " + str(self.sleep_time) + " second"
         time.sleep(self.sleep_time)
-        print "please wait"
         fab.docker_container_ipv6_quagga_append_executor([3, 4], go_path)
-        print "please wait"
+        print "please wait " + str(self.sleep_time) + " second"
         time.sleep(self.sleep_time)
         if self.check_load_config() is False:
             return
