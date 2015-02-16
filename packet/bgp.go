@@ -1295,7 +1295,7 @@ func (a *As4PathParam) DecodeFromBytes(data []byte) error {
 	a.Type = data[0]
 	a.Num = data[1]
 	data = data[2:]
-	if len(data) < int(a.Num*4) {
+	if len(data) < int(a.Num)*4 {
 		return NewMessageError(eCode, eSubCode, nil, "AS4 param data length is short")
 	}
 	for i := 0; i < int(a.Num); i++ {
