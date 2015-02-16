@@ -42,7 +42,9 @@ class GoBGPIPv6Test(unittest.TestCase):
     append_quagga = 10
     remove_quagga = 10
     append_quagga_best = 20
-    sleep_time = 20
+    initial_wait_time = 10
+    wait_per_retry = 5
+    retry_limit = (60 - initial_wait_time) / wait_per_retry
 
     def __init__(self, *args, **kwargs):
         super(GoBGPIPv6Test, self).__init__(*args, **kwargs)
@@ -57,15 +59,16 @@ class GoBGPIPv6Test(unittest.TestCase):
         use_local = parser_option.use_local
         go_path = parser_option.go_path
         fab.init_ipv6_test_env_executor(self.quagga_num, use_local, go_path)
-        print "please wait " + str(self.sleep_time) + " second"
-        time.sleep(self.sleep_time)
+        print "please wait (" + str(self.initial_wait_time) + " second)"
+        time.sleep(self.initial_wait_time)
         fab.docker_container_ipv6_quagga_append_executor([3, 4], go_path)
-        print "please wait " + str(self.sleep_time) + " second"
-        time.sleep(self.sleep_time)
+        print "please wait (" + str(self.initial_wait_time) + " second)"
+        time.sleep(self.initial_wait_time)
         if self.check_load_config() is False:
             return
 
         addresses = self.get_neighbor_address(self.gobgp_config)
+        self.retry_routine_for_stete(addresses)
 
         for address in addresses:
             # get neighbor state and remote ip from gobgp connections
@@ -77,6 +80,7 @@ class GoBGPIPv6Test(unittest.TestCase):
             remote_ip = neighbor['conf']['remote_ip']
             self.assertEqual(address[0], remote_ip)
             self.assertEqual(state, "BGP_FSM_ESTABLISHED")
+            print "state" + state
 
     def test_02_ipv4_ipv6_received_route(self):
         print "test_ipv4_ipv6_received_route"
@@ -151,6 +155,36 @@ class GoBGPIPv6Test(unittest.TestCase):
                                 if c_path.network == q_path['Network'] and c_path.nexthop == q_path['Next Hop']:
                                     exist_n += 1
                             self.assertEqual(exist_n, 1)
+
+    def retry_routine_for_stete(self, addresses):
+        inprepar_quagga = True
+        retry_count = 0
+        while inprepar_quagga:
+            if retry_count != 0:
+                print "please wait more (" + str(self.wait_per_retry) + " second)"
+                time.sleep(self.wait_per_retry)
+            if retry_count >= self.retry_limit:
+                print "retry limit"
+                break
+            retry_count += 1
+            success_count = 0
+            for address in addresses:
+                # get neighbor state and remote ip from gobgp connections
+                url = "http://" + self.gobgp_ip + ":" + self.gobgp_port + "/v1/bgp/neighbor/" + address[0]
+                try:
+                    r = requests.get(url)
+                    neighbor = json.loads(r.text)
+                except Exception:
+                    continue
+                if neighbor is None:
+                    continue
+                state = neighbor['info']['bgp_state']
+                remote_ip = neighbor['conf']['remote_ip']
+                if address[0] == remote_ip and state == "BGP_FSM_ESTABLISHED":
+                    success_count += 1
+            if success_count == len(addresses):
+                inprepar_quagga = False
+        time.sleep(self.wait_per_retry)
 
     def load_gobgp_config(self):
         try:

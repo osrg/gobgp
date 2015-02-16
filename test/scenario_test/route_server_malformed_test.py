@@ -27,7 +27,10 @@ from noseplugin import OptionParser
 from noseplugin import parser_option
 
 
-sleep_time = 20
+initial_wait_time = 10
+wait_per_retry = 5
+retry_limit = (60 - initial_wait_time) / wait_per_retry
+
 gobgp_ip = "10.0.255.1"
 gobgp_port = "8080"
 gobgp_config_file = "/tmp/gobgp/gobgpd.conf"
@@ -73,8 +76,8 @@ def test_malformed_packet():
         conf_file = pwd + "/exabgp_test_conf/" + pkey
         if os.path.isfile(conf_file) is True:
             fab.init_malformed_test_env_executor(pkey, use_local)
-            print "please wait " + str(sleep_time) + " second"
-            time.sleep(sleep_time)
+            print "please wait (" + str(initial_wait_time) + " second)"
+            time.sleep(initial_wait_time)
             yield check_func, pkey, pattern[pkey]
 
         else:
@@ -84,40 +87,62 @@ def test_malformed_packet():
 
 
 def check_func(exabgp_conf, result):
+    inprepar_quagga = True
+    inprepar_exabgp = True
+    retry_count = 0
     # get neighbor addresses from gobgpd.conf
     addresses = get_neighbor_address()
-    # check whether the service of gobgp is normally
     url = "http://" + gobgp_ip + ":" + gobgp_port + "/v1/bgp/neighbors"
-    r = requests.get(url)
-    neighbors = json.loads(r.text)
+    neighbors = None
+    q_address = ""
+    e_address = ""
+    q_transitions = 0
+    q_state = ""
+    notification = ""
+    while inprepar_quagga or inprepar_exabgp:
+        if retry_count != 0:
+            print "please wait more (" + str(wait_per_retry) + " second)"
+            time.sleep(wait_per_retry)
+        if retry_count >= retry_limit:
+            print "retry limit"
+            break
+        retry_count += 1
+        # check whether the service of gobgp is normally
+        try:
+            r = requests.get(url)
+            neighbors = json.loads(r.text)
+        except Exception:
+            continue
+        if neighbors is None:
+            continue
+        for neighbor in neighbors:
+            remote_ip = neighbor['conf']['remote_ip']
+            if remote_ip == "10.0.0.1":
+                q_state = neighbor['info']['bgp_state']
+                q_transitions = neighbor['info']['fsm_established_transitions']
+                q_address = remote_ip
+                if q_state == "BGP_FSM_ESTABLISHED":
+                    inprepar_quagga = False
+            else:
+                e_address = remote_ip
+        # get notification message from exabgp log
+        err_msg = fab.get_notification_from_exabgp_log()
+        parse_msg = re.search(r'error.*', err_msg)
+        if parse_msg is not None:
+            notification_src = parse_msg.group(0)[5:]
+            notification = notification_src[1:-1]
+            inprepar_exabgp = False
 
-    assert len(neighbors) == len(addresses)
-
-    for neighbor in neighbors:
-        state = neighbor['info']['bgp_state']
-        remote_ip = neighbor['conf']['remote_ip']
-        e_transitions = neighbor['info']['fsm_established_transitions']
-        if remote_ip == "10.0.0.1":
-            print "check of [ " + remote_ip + " ]"
-            assert state == "BGP_FSM_ESTABLISHED"
-            assert e_transitions == 1
-        else:
-            print "check of [ " + remote_ip + " ]"
-            assert remote_ip == "10.0.0.100"
-
-    # get notification message from exabgp log
-    err_msg = fab.get_notification_from_exabgp_log()
-    notification = None
-    parse_msg = re.search(r'error.*', err_msg)
-    if parse_msg is not None:
-        notification_src = parse_msg.group(0)[5:]
-        notification = notification_src[1:-1]
-
+    assert neighbors is not None, "neighbors is None"
+    assert len(neighbors) == len(addresses), "neighbors = " + len(neighbors) + ", addresses = " + len(addresses)
+    print "check of [ " + q_address + " ]"
+    assert q_state == "BGP_FSM_ESTABLISHED", "q_state = " + q_state
+    assert q_transitions == 1, "q_transitions = " + q_transitions
+    print "check of [ " + e_address + " ]"
     print "notification message : "
     print " >>> " + str(notification)
-
     # check notification messege
-    assert notification == result
+    assert notification == result, "notification = " + notification
 
 
 # get address of each neighbor from gobpg configration

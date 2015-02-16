@@ -16,6 +16,8 @@
 from fabric.api import local
 import re
 import os
+import time
+
 
 GOBGP_CONTAINER_NAME = "gobgp"
 GOBGP_ADDRESS_0 = {"IPv4": "10.0.255.1",
@@ -148,7 +150,7 @@ def docker_containers_get():
 
 
 def docker_container_set_ipaddress(bridge, name, address):
-    cmd = "pipework " + bridge["BRIDGE_NAME"] + " -i eth-" + bridge["BRIDGE_NAME"]\
+    cmd = "pipework " + bridge["BRIDGE_NAME"] + " -i e" + bridge["BRIDGE_NAME"]\
           + " " + name + " " + address
     local(cmd, capture=True)
 
@@ -160,7 +162,7 @@ def docker_container_run_quagga(quagga_num, bridge):
     local(cmd, capture=True)
     quagga_address = BASE_NET[bridge["BRIDGE_NAME"]][IP_VERSION] + str(quagga_num) + BASE_MASK[IP_VERSION]
     docker_container_set_ipaddress(bridge, quagga_name, quagga_address)
-    # restart quagga supervisord deamon in docker container for reset the retry of opensent message quagga sends
+    # restart the quagga after the docker container has become IP reachable
     cmd = 'docker kill --signal="HUP" ' + quagga_name
     local(cmd, capture=True)
 
@@ -334,6 +336,8 @@ def make_config_append(quagga_num, go_path, bridge):
     local(cmd, capture=True)
 
 
+
+
 def reload_config():
     cmd = "docker exec gobgp /usr/bin/pkill gobgp -SIGHUP"
     local(cmd, capture=True)
@@ -471,6 +475,7 @@ def init_malformed_test_env_executor(conf_file, use_local):
 
     change_owner_to_root(CONFIG_DIR)
     start_gobgp()
+    # time.sleep(5)
     # run quagga docker container
     docker_container_run_quagga(1, BRIDGE_0)
     start_exabgp(conf_file)

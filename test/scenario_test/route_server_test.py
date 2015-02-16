@@ -42,7 +42,9 @@ class GoBGPTest(unittest.TestCase):
     append_quagga = 10
     remove_quagga = 10
     append_quagga_best = 20
-    sleep_time = 20
+    initial_wait_time = 10
+    wait_per_retry = 5
+    retry_limit = (60 - initial_wait_time) / wait_per_retry
 
     def __init__(self, *args, **kwargs):
         super(GoBGPTest, self).__init__(*args, **kwargs)
@@ -58,12 +60,13 @@ class GoBGPTest(unittest.TestCase):
         go_path = parser_option.go_path
         fab.init_test_env_executor(self.quagga_num, use_local, go_path)
 
-        print "please wait " + str(self.sleep_time) + " second"
-        time.sleep(self.sleep_time)
+        print "please wait " + str(self.initial_wait_time) + " second"
+        time.sleep(self.initial_wait_time)
         if self.check_load_config() is False:
             return
 
         addresses = self.get_neighbor_address(self.gobgp_config)
+        self.retry_routine_for_state(addresses, "BGP_FSM_ESTABLISHED")
 
         for address in addresses:
             # get neighbor state and remote ip from gobgp connections
@@ -92,21 +95,17 @@ class GoBGPTest(unittest.TestCase):
             for quagga_config in self.quagga_configs:
                 if quagga_config.peer_ip == address:
                     for c_dest in quagga_config.destinations.itervalues():
-                        # print "config : ", c_dest.prefix, "my ip !!!"
                         g_dests = local_rib['Destinations']
                         exist_n = 0
                         for g_dest in g_dests:
-                            # print "gobgp : ", g_dest['Prefix']
                             if c_dest.prefix == g_dest['Prefix']:
                                 exist_n += 1
                         self.assertEqual(exist_n, 0)
                 else:
                     for c_dest in quagga_config.destinations.itervalues():
-                        # print "config : ", c_dest.prefix"
                         g_dests = local_rib['Destinations']
                         exist_n = 0
                         for g_dest in g_dests:
-                            # print "gobgp : ", g_dest['Prefix']
                             if c_dest.prefix == g_dest['Prefix']:
                                 exist_n += 1
                         self.assertEqual(exist_n, 1)
@@ -126,9 +125,7 @@ class GoBGPTest(unittest.TestCase):
                     for c_dest in quagga_config.destinations.itervalues():
                         exist_n = 0
                         for c_path in c_dest.paths:
-                            # print "conf : ", c_path.network, c_path.nexthop, "my ip !!!"
                             for q_path in q_rib:
-                                # print "quag : ", q_path['Network'], q_path['Next Hop']
                                 if c_path.network.split("/")[0] == q_path['Network'] and "0.0.0.0" == q_path['Next Hop']:
                                     exist_n += 1
                             self.assertEqual(exist_n, 1)
@@ -136,9 +133,7 @@ class GoBGPTest(unittest.TestCase):
                     for c_dest in quagga_config.destinations.itervalues():
                         exist_n = 0
                         for c_path in c_dest.paths:
-                            # print "conf : ", c_path.network, c_path.nexthop
                             for q_path in q_rib:
-                                # print "quag : ", q_path['Network'], q_path['Next Hop']
                                 if c_path.network.split("/")[0] == q_path['Network'] and c_path.nexthop == q_path['Next Hop']:
                                     exist_n += 1
                             self.assertEqual(exist_n, 1)
@@ -152,9 +147,10 @@ class GoBGPTest(unittest.TestCase):
         go_path = parser_option.go_path
         # append new quagga container
         fab.docker_container_quagga_append_executor(self.append_quagga, go_path)
-        print "please wait " + str(self.sleep_time) + " second"
-        time.sleep(self.sleep_time)
+        print "please wait " + str(self.initial_wait_time) + " second"
+        time.sleep(self.initial_wait_time)
         append_quagga_address = "10.0.0." + str(self.append_quagga)
+        self.retry_routine_for_state([append_quagga_address], "BGP_FSM_ESTABLISHED")
 
         # get neighbor state and remote ip of new quagga
         print "check of [" + append_quagga_address + " ]"
@@ -240,9 +236,10 @@ class GoBGPTest(unittest.TestCase):
 
         # remove quagga container
         fab.docker_container_quagga_removed_executor(self.remove_quagga)
-        print "please wait " + str(self.sleep_time) + " second"
-        time.sleep(self.sleep_time)
+        print "please wait " + str(self.initial_wait_time) + " second"
+        time.sleep(self.initial_wait_time)
         removed_quagga_address = "10.0.0." + str(self.remove_quagga)
+        self.retry_routine_for_state([removed_quagga_address], "BGP_FSM_ACTIVE")
 
         # get neighbor state and remote ip of removed quagga
         print "check of [" + removed_quagga_address + " ]"
@@ -334,8 +331,8 @@ class GoBGPTest(unittest.TestCase):
 
         go_path = parser_option.go_path
         fab.docker_container_make_bestpath_env_executor(self.append_quagga_best, go_path)
-        print "please wait " + str(self.sleep_time) + " second"
-        time.sleep(self.sleep_time)
+        print "please wait " + str(self.initial_wait_time) + " second"
+        time.sleep(self.initial_wait_time)
 
         print "add neighbor setting"
         tn = qaccess.login("11.0.0.20")
@@ -352,18 +349,48 @@ class GoBGPTest(unittest.TestCase):
         qaccess.add_neighbor(tn, "65003", "12.0.0.20", "65020")
         qaccess.add_neighbor_metric(tn, "65003", "10.0.255.1", "100")
 
-        print "please wait " + str(self.sleep_time) + " second"
-        time.sleep(self.sleep_time)
+        print "please wait " + str(self.initial_wait_time) + " second"
+        time.sleep(self.initial_wait_time)
 
         check_address = "10.0.0.1"
         target_network = "192.168.20.0"
         ans_nexthop = "10.0.0.3"
 
         print "check of [ " + check_address + " ]"
-        self.check_bestpath(check_address, target_network, ans_nexthop)
+        self.retry_routine_for_bestpath(check_address, target_network, ans_nexthop)
+
+    def retry_routine_for_state(self, addresses, allow_state):
+        inprepar_quagga = True
+        retry_count = 0
+        while inprepar_quagga:
+            if retry_count != 0:
+                print "please wait more (" + str(self.wait_per_retry) + " second)"
+                time.sleep(self.wait_per_retry)
+            if retry_count >= self.retry_limit:
+                print "retry limit"
+                break
+            retry_count += 1
+            success_count = 0
+            for address in addresses:
+                # get neighbor state and remote ip from gobgp connections
+                url = "http://" + self.gobgp_ip + ":" + self.gobgp_port + "/v1/bgp/neighbor/" + address
+                try:
+                    r = requests.get(url)
+                    neighbor = json.loads(r.text)
+                except Exception:
+                    continue
+                if neighbor is None:
+                    continue
+                state = neighbor['info']['bgp_state']
+                remote_ip = neighbor['conf']['remote_ip']
+                if address == remote_ip and state == allow_state:
+                    success_count += 1
+            if success_count == len(addresses):
+                inprepar_quagga = False
+        time.sleep(self.wait_per_retry)
 
     # load configration from gobgp(gobgpd.conf)
-    def check_bestpath(self, check_address, target_network, ans_nexthop):
+    def retry_routine_for_bestpath(self, check_address, target_network, ans_nexthop):
         # get local-rib
         rep_nexthop = ""
         target_exist = False
@@ -372,7 +399,6 @@ class GoBGPTest(unittest.TestCase):
         local_rib = json.loads(r.text)
         g_dests = local_rib['Destinations']
         for g_dest in g_dests:
-            # print "prefix : ", g_dest['Prefix']
             best_path_idx = g_dest['BestPathIdx']
             if target_network == g_dest['Prefix']:
                 target_exist = True
@@ -380,9 +406,9 @@ class GoBGPTest(unittest.TestCase):
                 idx = 0
                 if len(g_paths) < 2:
                     print "target path has not been bestpath selected yet."
-                    print "please wait " + str(self.sleep_time/2) + " second more."
-                    time.sleep(self.sleep_time/2)
-                    self.check_bestpath(check_address, target_network, ans_nexthop)
+                    print "please wait more (" + str(self.wait_per_retry) + " second)"
+                    time.sleep(self.wait_per_retry)
+                    self.retry_routine_for_bestpath(check_address, target_network, ans_nexthop)
                     return
                 for g_path in g_paths:
                     print "best_path_Idx: " + str(best_path_idx) + "idx: " + str(idx)
@@ -392,9 +418,9 @@ class GoBGPTest(unittest.TestCase):
                     idx += 1
         if target_exist is False:
             print "target path has not been receive yet."
-            print "please wait " + str(self.sleep_time/2) + " second more."
-            time.sleep(self.sleep_time/2)
-            self.check_bestpath(check_address, target_network, ans_nexthop)
+            print "please wait more (" + str(self.wait_per_retry) + " second)"
+            time.sleep(self.wait_per_retry)
+            self.retry_routine_for_bestpath(check_address, target_network, ans_nexthop)
             return
         self.assertEqual(ans_nexthop, rep_nexthop)
 
