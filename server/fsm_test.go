@@ -17,6 +17,7 @@ package server
 
 import (
 	"fmt"
+	log "github.com/Sirupsen/logrus"
 	"github.com/osrg/gobgp/config"
 	"github.com/osrg/gobgp/packet"
 	"github.com/stretchr/testify/assert"
@@ -39,7 +40,7 @@ type MockConnection struct {
 func NewMockConnection() *MockConnection {
 	m := &MockConnection{
 		recvCh:   make(chan chan byte, 128),
-		sendBuf:  make([][]byte, 128),
+		sendBuf:  make([][]byte, 0),
 		isClosed: false,
 	}
 	return m
@@ -234,6 +235,54 @@ func TestFSMHandlerEstablish_HoldTimerExpired(t *testing.T) {
 	sent, _ := bgp.ParseBGPMessage(lastMsg)
 	assert.Equal(uint8(bgp.BGP_MSG_NOTIFICATION), sent.Header.Type)
 	assert.Equal(uint8(bgp.BGP_ERROR_HOLD_TIMER_EXPIRED), sent.Body.(*bgp.BGPNotification).ErrorCode)
+}
+
+func TestFSMHandlerOpenconfirm_HoldtimeZero(t *testing.T) {
+	log.SetLevel(log.DebugLevel)
+	assert := assert.New(t)
+	m := NewMockConnection()
+
+	p, h := makePeerAndHandler()
+
+	// push mock connection
+	p.fsm.passiveConn = m
+
+	// set up keepalive ticker
+	p.fsm.peerConfig.Timers.KeepaliveInterval = 1
+	// set holdtime
+	p.fsm.negotiatedHoldTime = 0
+	go h.openconfirm()
+
+	time.Sleep(100 * time.Millisecond)
+
+	assert.False(h.holdTimer.Stop())
+	assert.Equal(0, len(m.sendBuf))
+
+}
+
+func TestFSMHandlerEstablished_HoldtimeZero(t *testing.T) {
+	log.SetLevel(log.DebugLevel)
+	assert := assert.New(t)
+	m := NewMockConnection()
+
+	p, h := makePeerAndHandler()
+
+	// push mock connection
+	p.fsm.passiveConn = m
+
+	// set up keepalive ticker
+	sec := time.Second * 1
+	p.fsm.keepaliveTicker = time.NewTicker(sec)
+	p.fsm.keepaliveTicker.Stop()
+
+	// set holdtime
+	p.fsm.negotiatedHoldTime = 0
+	go h.established()
+
+	time.Sleep(100 * time.Millisecond)
+
+	assert.False(h.holdTimer.Stop())
+	assert.Equal(0, len(m.sendBuf))
 }
 
 func makePeerAndHandler() (*Peer, *FSMHandler) {

@@ -429,6 +429,34 @@ func TestPeerAdminShutdownReject(t *testing.T) {
 
 }
 
+func TestPeerSelectSmallerHoldtime(t *testing.T) {
+	log.SetLevel(log.DebugLevel)
+	assert := assert.New(t)
+	m := NewMockConnection()
+
+	globalConfig := config.GlobalType{}
+	peerConfig := config.NeighborType{}
+	peerConfig.PeerAs = 65001
+	peerConfig.Timers.KeepaliveInterval = 5
+	peer := makePeer(globalConfig, peerConfig)
+	peer.fsm.opensentHoldTime = 1
+	peerConfig.Timers.HoldTime = 5
+	peer.t.Go(peer.loop)
+
+	pushPackets := func() {
+		opn := bgp.NewBGPOpenMessage(65001, 0, "10.0.0.1", []bgp.OptionParameterInterface{})
+		o, _ := opn.Serialize()
+		m.setData(o)
+	}
+	go pushPackets()
+
+	waitUntil(assert, bgp.BGP_FSM_ACTIVE, peer, 1000)
+	peer.acceptedConnCh <- m
+	waitUntil(assert, bgp.BGP_FSM_OPENCONFIRM, peer, 1000)
+
+	assert.Equal(float64(0), peer.fsm.negotiatedHoldTime)
+}
+
 func assertCounter(assert *assert.Assertions, counter config.BgpNeighborCommonStateType) {
 	assert.Equal(uint32(0), counter.OpenIn)
 	assert.Equal(uint32(0), counter.OpenOut)

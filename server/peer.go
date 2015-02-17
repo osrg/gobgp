@@ -127,9 +127,9 @@ func (peer *Peer) handleBGPmessage(m *bgp.BGPMessage) {
 		holdTime := float64(body.HoldTime)
 		myHoldTime := peer.fsm.peerConfig.Timers.HoldTime
 		if holdTime > myHoldTime {
-			peer.fsm.negotiatedHoldTime = holdTime
-		} else {
 			peer.fsm.negotiatedHoldTime = myHoldTime
+		} else {
+			peer.fsm.negotiatedHoldTime = holdTime
 		}
 
 	case bgp.BGP_MSG_ROUTE_REFRESH:

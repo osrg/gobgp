@@ -487,6 +487,13 @@ func (h *FSMHandler) openconfirm() bgp.FSMState {
 	// sets the HoldTimer according to the negotiated value
 	h.holdTimer = time.NewTimer(time.Second * time.Duration(fsm.negotiatedHoldTime))
 
+	log.Debug("negotiatedHoldTime : ", fsm.negotiatedHoldTime)
+	var isHoldtimeZero bool = fsm.negotiatedHoldTime == float64(0)
+	if isHoldtimeZero {
+		fsm.keepaliveTicker.Stop()
+		h.holdTimer.Stop()
+	}
+
 	for {
 		select {
 		case <-h.t.Dying():
@@ -499,11 +506,15 @@ func (h *FSMHandler) openconfirm() bgp.FSMState {
 				"Key":   fsm.peerConfig.NeighborAddress,
 			}).Warn("Closed an accepted connection")
 		case <-fsm.keepaliveTicker.C:
-			m := bgp.NewBGPKeepAliveMessage()
-			b, _ := m.Serialize()
-			// TODO: check error
-			fsm.passiveConn.Write(b)
-			fsm.bgpMessageStateUpdate(m.Header.Type, false)
+			if !isHoldtimeZero {
+				m := bgp.NewBGPKeepAliveMessage()
+				b, _ := m.Serialize()
+				// TODO: check error
+				fsm.passiveConn.Write(b)
+				fsm.bgpMessageStateUpdate(m.Header.Type, false)
+			} else {
+				log.Debug("keepaliveTicker expired, but negotiatedHoldTime is zero")
+			}
 		case e := <-h.msgCh:
 			switch e.MsgData.(type) {
 			case *bgp.BGPMessage:
@@ -530,9 +541,13 @@ func (h *FSMHandler) openconfirm() bgp.FSMState {
 			h.conn.Close()
 			return bgp.BGP_FSM_IDLE
 		case <-h.holdTimer.C:
-			fsm.sendNotification(h.conn, bgp.BGP_ERROR_HOLD_TIMER_EXPIRED, 0, nil, "hold timer expired")
-			h.t.Kill(nil)
-			return bgp.BGP_FSM_IDLE
+			if !isHoldtimeZero {
+				fsm.sendNotification(h.conn, bgp.BGP_ERROR_HOLD_TIMER_EXPIRED, 0, nil, "hold timer expired")
+				h.t.Kill(nil)
+				return bgp.BGP_FSM_IDLE
+			} else {
+				log.Debug("holdTimer expired, but negotiatedHoldTime is zero")
+			}
 		case s := <-fsm.adminStateCh:
 			err := h.changeAdminState(s)
 			if err == nil {
@@ -625,6 +640,10 @@ func (h *FSMHandler) established() bgp.FSMState {
 
 	// restart HoldTimer
 	h.holdTimer = time.NewTimer(time.Second * time.Duration(fsm.negotiatedHoldTime))
+	var isHoldtimeZero bool = fsm.negotiatedHoldTime == float64(0)
+	if isHoldtimeZero {
+		h.holdTimer.Stop()
+	}
 
 	for {
 		select {
@@ -641,14 +660,18 @@ func (h *FSMHandler) established() bgp.FSMState {
 			h.t.Kill(nil)
 			return bgp.BGP_FSM_IDLE
 		case <-h.holdTimer.C:
-			log.WithFields(log.Fields{
-				"Topic": "Peer",
-				"Key":   fsm.peerConfig.NeighborAddress,
-				"data":  bgp.BGP_FSM_ESTABLISHED,
-			}).Warn("hold timer expired")
-			m := bgp.NewBGPNotificationMessage(bgp.BGP_ERROR_HOLD_TIMER_EXPIRED, 0, nil)
-			h.outgoing <- m
-			return bgp.BGP_FSM_IDLE
+			if !isHoldtimeZero {
+				log.WithFields(log.Fields{
+					"Topic": "Peer",
+					"Key":   fsm.peerConfig.NeighborAddress,
+					"data":  bgp.BGP_FSM_ESTABLISHED,
+				}).Warn("hold timer expired")
+				m := bgp.NewBGPNotificationMessage(bgp.BGP_ERROR_HOLD_TIMER_EXPIRED, 0, nil)
+				h.outgoing <- m
+				return bgp.BGP_FSM_IDLE
+			} else {
+				log.Debug("holdTimer expired, but negotiatedHoldTime is zero")
+			}
 		case s := <-fsm.adminStateCh:
 			err := h.changeAdminState(s)
 			if err == nil {
