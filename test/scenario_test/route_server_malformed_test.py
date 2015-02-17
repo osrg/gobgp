@@ -51,6 +51,9 @@ def check_pattern():
     pattern["malformed1-exabgp-gobgp-v4-NEXTHOP_INVALID.conf"] = "UPDATE message error / Attribute Flags Error / 0x600E08010110FFFFFF0000"
     pattern["malformed1-exabgp-gobgp-v4-ROUTE_FAMILY_INVALID.conf"] = "UPDATE message error / Attribute Flags Error / 0x600E150002011020010DB800000000000000000000000100"
 
+    pattern["malformed1-exabgp-gobgp-v4-AS_PATH_SEGMENT_LENGTH_INVALID.conf"] = "UPDATE message error / Malformed AS_PATH / 0x4002040202FFDC"
+    pattern["malformed1-exabgp-gobgp-v4-NEXTHOP_LOOPBACK_ADDR_INVALID.conf"] = "UPDATE message error / Invalid NEXT_HOP Attribute / 0x4003047F000001"
+    pattern["malformed1-exabgp-gobgp-v4-ORIGIN_TYPE_INVALID.conf"] = "UPDATE message error / Invalid ORIGIN Attribute / 0x40010104"
     return pattern
 
 
@@ -87,8 +90,8 @@ def test_malformed_packet():
 
 
 def check_func(exabgp_conf, result):
-    inprepar_quagga = True
-    inprepar_exabgp = True
+    in_prepare_quagga = True
+    in_prepare_exabgp = True
     retry_count = 0
     # get neighbor addresses from gobgpd.conf
     addresses = get_neighbor_address()
@@ -99,7 +102,7 @@ def check_func(exabgp_conf, result):
     q_transitions = 0
     q_state = ""
     notification = ""
-    while inprepar_quagga or inprepar_exabgp:
+    while in_prepare_quagga or in_prepare_exabgp:
         if retry_count != 0:
             print "please wait more (" + str(wait_per_retry) + " second)"
             time.sleep(wait_per_retry)
@@ -122,7 +125,7 @@ def check_func(exabgp_conf, result):
                 q_transitions = neighbor['info']['fsm_established_transitions']
                 q_address = remote_ip
                 if q_state == "BGP_FSM_ESTABLISHED":
-                    inprepar_quagga = False
+                    in_prepare_quagga = False
             else:
                 e_address = remote_ip
         # get notification message from exabgp log
@@ -131,7 +134,7 @@ def check_func(exabgp_conf, result):
         if parse_msg is not None:
             notification_src = parse_msg.group(0)[5:]
             notification = notification_src[1:-1]
-            inprepar_exabgp = False
+            in_prepare_exabgp = False
 
     assert neighbors is not None, "neighbors is None"
     assert len(neighbors) == len(addresses), "neighbors = " + len(neighbors) + ", addresses = " + len(addresses)

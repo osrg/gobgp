@@ -360,9 +360,9 @@ class GoBGPTest(unittest.TestCase):
         self.retry_routine_for_bestpath(check_address, target_network, ans_nexthop)
 
     def retry_routine_for_state(self, addresses, allow_state):
-        inprepar_quagga = True
+        in_prepare_quagga = True
         retry_count = 0
-        while inprepar_quagga:
+        while in_prepare_quagga:
             if retry_count != 0:
                 print "please wait more (" + str(self.wait_per_retry) + " second)"
                 time.sleep(self.wait_per_retry)
@@ -386,7 +386,7 @@ class GoBGPTest(unittest.TestCase):
                 if address == remote_ip and state == allow_state:
                     success_count += 1
             if success_count == len(addresses):
-                inprepar_quagga = False
+                in_prepare_quagga = False
         time.sleep(self.wait_per_retry)
 
     # load configration from gobgp(gobgpd.conf)

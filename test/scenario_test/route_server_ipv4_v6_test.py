@@ -157,9 +157,9 @@ class GoBGPIPv6Test(unittest.TestCase):
                             self.assertEqual(exist_n, 1)
 
     def retry_routine_for_stete(self, addresses):
-        inprepar_quagga = True
+        in_prepare_quagga = True
         retry_count = 0
-        while inprepar_quagga:
+        while in_prepare_quagga:
             if retry_count != 0:
                 print "please wait more (" + str(self.wait_per_retry) + " second)"
                 time.sleep(self.wait_per_retry)
@@ -183,7 +183,7 @@ class GoBGPIPv6Test(unittest.TestCase):
                 if address[0] == remote_ip and state == "BGP_FSM_ESTABLISHED":
                     success_count += 1
             if success_count == len(addresses):
-                inprepar_quagga = False
+                in_prepare_quagga = False
         time.sleep(self.wait_per_retry)
 
     def load_gobgp_config(self):
