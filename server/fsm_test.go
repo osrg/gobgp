@@ -255,7 +255,6 @@ func TestFSMHandlerOpenconfirm_HoldtimeZero(t *testing.T) {
 
 	time.Sleep(100 * time.Millisecond)
 
-	assert.False(h.holdTimer.Stop())
 	assert.Equal(0, len(m.sendBuf))
 
 }
@@ -281,7 +280,6 @@ func TestFSMHandlerEstablished_HoldtimeZero(t *testing.T) {
 
 	time.Sleep(100 * time.Millisecond)
 
-	assert.False(h.holdTimer.Stop())
 	assert.Equal(0, len(m.sendBuf))
 }
 
