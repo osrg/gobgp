@@ -160,8 +160,7 @@ class Show(object):
         sorted_neighbors = []
         maxaddrlen = 0
         maxaslen = 0
-        maxtimelen = 0
-        maxtimelen = 0
+        maxtimelen = len("Up/Down")
         for n in sorted(neighbors, key=lambda n: n["conf"]["remote_ip"]):
             sorted_neighbors.append(n)
             if len(n["conf"]["remote_ip"]) > maxaddrlen:
