@@ -472,6 +472,7 @@ func (peer *Peer) MarshalJSON() ([]byte, error) {
 
 	p["info"] = struct {
 		BgpState                  string `json:"bgp_state"`
+		AdminState                string
 		FsmEstablishedTransitions uint32 `json:"fsm_established_transitions"`
 		TotalMessageOut           uint32 `json:"total_message_out"`
 		TotalMessageIn            uint32 `json:"total_message_in"`
@@ -498,6 +499,7 @@ func (peer *Peer) MarshalJSON() ([]byte, error) {
 	}{
 
 		BgpState:                  f.state.String(),
+		AdminState:                f.adminState.String(),
 		FsmEstablishedTransitions: s.EstablishedCount,
 		TotalMessageOut:           s.TotalOut,
 		TotalMessageIn:            s.TotalIn,

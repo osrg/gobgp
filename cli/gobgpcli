@@ -179,7 +179,7 @@ class Show(object):
                 maxtimelen = len(str(t))
             n["info"]["time"] = t
 
-        h = "{:%ds} {:>%ds} {:%ds} {:8s} |" % (maxaddrlen, maxaslen, maxtimelen)
+        h = "{:%ds} {:>%ds} {:%ds} {:11s} |" % (maxaddrlen, maxaslen, maxtimelen)
         f1 = h + "#{:8s} {:8s} {:8s}"
         print(f1.format("Peer", "AS", "Up/Down", "State", "Advertised", "Received", "Accepted"))
         for n in sorted_neighbors:
@@ -196,6 +196,9 @@ class Show(object):
                 state = "Confirm"
             elif s == "BGP_FSM_ESTABLISHED":
                 state = "Establ"
+
+            if n["info"]["AdminState"] == "ADMIN_STATE_DOWN":
+                state = "Idle(Admin)"
 
             f2 = h + "   {:>8d} {:>8d} {:>8d}"
             print f2.format(n["conf"]["remote_ip"], str(n["conf"]["remote_as"]), n["info"]["time"], state, n["info"]["Advertized"], n["info"]["Received"], n["info"]["Accepted"])
