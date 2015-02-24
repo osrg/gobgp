@@ -211,7 +211,10 @@ func (h *FSMHandler) idle() bgp.FSMState {
 		select {
 		case <-h.t.Dying():
 			return 0
-		case conn := <-fsm.passiveConnCh:
+		case conn, ok := <-fsm.passiveConnCh:
+			if !ok {
+				break
+			}
 			conn.Close()
 			log.WithFields(log.Fields{
 				"Topic": "Peer",
@@ -255,7 +258,10 @@ func (h *FSMHandler) active() bgp.FSMState {
 		select {
 		case <-h.t.Dying():
 			return 0
-		case conn := <-fsm.passiveConnCh:
+		case conn, ok := <-fsm.passiveConnCh:
+			if !ok {
+				break
+			}
 			fsm.passiveConn = conn
 			// we don't implement delayed open timer so move to opensent right
 			// away.
@@ -407,7 +413,10 @@ func (h *FSMHandler) opensent() bgp.FSMState {
 		case <-h.t.Dying():
 			h.conn.Close()
 			return 0
-		case conn := <-fsm.passiveConnCh:
+		case conn, ok := <-fsm.passiveConnCh:
+			if !ok {
+				break
+			}
 			conn.Close()
 			log.WithFields(log.Fields{
 				"Topic": "Peer",
@@ -502,7 +511,10 @@ func (h *FSMHandler) openconfirm() bgp.FSMState {
 		case <-h.t.Dying():
 			h.conn.Close()
 			return 0
-		case conn := <-fsm.passiveConnCh:
+		case conn, ok := <-fsm.passiveConnCh:
+			if !ok {
+				break
+			}
 			conn.Close()
 			log.WithFields(log.Fields{
 				"Topic": "Peer",
@@ -644,7 +656,10 @@ func (h *FSMHandler) established() bgp.FSMState {
 		select {
 		case <-h.t.Dying():
 			return 0
-		case conn := <-fsm.passiveConnCh:
+		case conn, ok := <-fsm.passiveConnCh:
+			if !ok {
+				break
+			}
 			conn.Close()
 			log.WithFields(log.Fields{
 				"Topic": "Peer",
