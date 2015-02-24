@@ -260,12 +260,16 @@ class Show(object):
             return 1
         if len(self.args) == 2:
             return self._neighbor(neighbor=self.args[1])
-        if self.args[2] == "local":
+        if self.args[2] in ("local", "local-rib"):
             self.args[2] = "local-rib"
-        if self.args[2] == "received-routes":
+        elif self.args[2] in ("received-routes", "adj-rib-in", "adj-in"):
             self.args[2] = "adj-rib-in"
-        if self.args[2] == "advertised-routes":
+        elif self.args[2] in ("advertised-routes", "adj-rib-out", "adj-out"):
             self.args[2] = "adj-rib-out"
+        else:
+            print self.args[2], ": No such command"
+            return 1
+
         try:
             r = requests.get(self.base_url + "/neighbor/" + self.args[1] + "/" + self.args[2])
         except:
