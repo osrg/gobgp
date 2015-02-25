@@ -10,14 +10,11 @@ func ReadConfigfileServe(path string, configCh chan BgpType, reloadCh chan bool)
 		<-reloadCh
 
 		b := BgpType{}
-		_, err := toml.DecodeFile(path, &b)
+		md, err := toml.DecodeFile(path, &b)
 		if err != nil {
-			log.Fatal("can't read config file ", path)
+			log.Fatal("can't read config file ", path, err)
 		} else {
-			// TODO: validate configuration
-			for i, _ := range b.NeighborList {
-				SetNeighborTypeDefault(&b.NeighborList[i])
-			}
+			SetDefaultConfigValues(md, &b)
 		}
 
 		configCh <- b
