@@ -604,11 +604,6 @@ func (h *FSMHandler) sendMessageloop() error {
 				h.errorCh <- true
 				return nil
 			}
-			log.WithFields(log.Fields{
-				"Topic": "Peer",
-				"Key":   fsm.peerConfig.NeighborAddress,
-				"data":  m,
-			}).Debug("sent")
 			fsm.bgpMessageStateUpdate(m.Header.Type, false)
 
 			if m.Header.Type == bgp.BGP_MSG_NOTIFICATION {
@@ -621,7 +616,14 @@ func (h *FSMHandler) sendMessageloop() error {
 				h.errorCh <- true
 				conn.Close()
 				return nil
+			} else {
+				log.WithFields(log.Fields{
+					"Topic": "Peer",
+					"Key":   fsm.peerConfig.NeighborAddress,
+					"data":  m,
+				}).Debug("sent")
 			}
+
 		case <-fsm.keepaliveTicker.C:
 			m := bgp.NewBGPKeepAliveMessage()
 			b, _ := m.Serialize()
