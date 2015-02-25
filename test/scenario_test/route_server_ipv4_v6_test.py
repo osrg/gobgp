@@ -58,7 +58,8 @@ class GoBGPIPv6Test(unittest.TestCase):
 
         use_local = parser_option.use_local
         go_path = parser_option.go_path
-        fab.init_ipv6_test_env_executor(self.quagga_num, use_local, go_path)
+        log_debug = parser_option.gobgp_log_debug
+        fab.init_ipv6_test_env_executor(self.quagga_num, use_local, go_path, log_debug)
         print "please wait (" + str(self.initial_wait_time) + " second)"
         time.sleep(self.initial_wait_time)
         fab.docker_container_ipv6_quagga_append_executor([3, 4], go_path)

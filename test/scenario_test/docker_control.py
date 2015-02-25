@@ -195,27 +195,29 @@ def create_config_dir():
     local(cmd, capture=True)
 
 
-def make_startup_file():
+def make_startup_file(log_opt=""):
+
     file_buff = '#!/bin/bash' + '\n'
     file_buff += 'cd /go/src/github.com/osrg/gobgp' + '\n'
     file_buff += 'git pull origin master' + '\n'
     file_buff += 'go get -v' + '\n'
     file_buff += 'go build' + '\n'
-    file_buff += './gobgp -f ' + SHARE_VOLUME + '/gobgpd.conf > ' + SHARE_VOLUME + '/gobgpd.log'
+    file_buff += './gobgp -f ' + SHARE_VOLUME + '/gobgpd.conf ' + log_opt + ' > ' + SHARE_VOLUME + '/gobgpd.log'
     cmd = "echo \"" + file_buff + "\" > " + CONFIG_DIR + "/" + STARTUP_FILE_NAME
     local(cmd, capture=True)
     cmd = "chmod 755 " + CONFIG_DIRR + STARTUP_FILE_NAME
     local(cmd, capture=True)
 
 
-def make_startup_file_use_local_gobgp():
+def make_startup_file_use_local_gobgp(log_opt=""):
+
     file_buff = '#!/bin/bash' + '\n'
     file_buff += 'rm -rf  /go/src/github.com/osrg/gobgp' + '\n'
     file_buff += 'cp -r ' + SHARE_VOLUME + '/gobgp /go/src/github.com/osrg/' + '\n'
     file_buff += 'cd /go/src/github.com/osrg/gobgp' + '\n'
     file_buff += 'go get -v' + '\n'
     file_buff += 'go build' + '\n'
-    file_buff += './gobgp -f ' + SHARE_VOLUME + '/gobgpd.conf > ' + SHARE_VOLUME + '/gobgpd.log'
+    file_buff += './gobgp -f ' + SHARE_VOLUME + '/gobgpd.conf ' + log_opt + ' > ' + SHARE_VOLUME + '/gobgpd.log'
     cmd = "echo \"" + file_buff + "\" > " + CONFIG_DIR + "/" + STARTUP_FILE_NAME
     local(cmd, capture=True)
     cmd = "chmod 755 " + CONFIG_DIRR + STARTUP_FILE_NAME
@@ -347,7 +349,7 @@ def reload_config():
     print "complete append docker container."
 
 
-def init_test_env_executor(quagga_num, use_local, go_path):
+def init_test_env_executor(quagga_num, use_local, go_path, log_debug=False):
     print "start initialization of test environment."
 
     if docker_container_check() or bridge_setting_check():
@@ -363,6 +365,9 @@ def init_test_env_executor(quagga_num, use_local, go_path):
     # run gobgp docker container
     docker_container_run_gobgp(BRIDGE_0)
 
+    # set log option
+    opt = "-l debug" if log_debug else ""
+
     # execute local gobgp program in the docker container if the input option is local
     if use_local:
         print "execute gobgp program in local machine."
@@ -371,14 +376,14 @@ def init_test_env_executor(quagga_num, use_local, go_path):
             gobgp_path = re.sub(A_PART_OF_CURRENT_DIR, "", pwd)
             cmd = "cp -r " + gobgp_path + " " + CONFIG_DIRR
             local(cmd, capture=True)
-            make_startup_file_use_local_gobgp()
+            make_startup_file_use_local_gobgp(log_opt=opt)
         else:
             print "scenario_test directory is not."
             print "execute gobgp program of osrg/master in github."
-            make_startup_file()
+            make_startup_file(log_opt=opt)
     else:
         print "execute gobgp program of osrg/master in github."
-        make_startup_file()
+        make_startup_file(log_opt=opt)
 
     change_owner_to_root(CONFIG_DIR)
     start_gobgp()
@@ -390,7 +395,7 @@ def init_test_env_executor(quagga_num, use_local, go_path):
     print "complete initialization of test environment."
 
 
-def init_ipv6_test_env_executor(quagga_num, use_local, go_path):
+def init_ipv6_test_env_executor(quagga_num, use_local, go_path, log_debug=False):
     print "start initialization of test environment."
 
     if docker_container_check() or bridge_setting_check():
@@ -406,6 +411,9 @@ def init_ipv6_test_env_executor(quagga_num, use_local, go_path):
     # run gobgp docker container
     docker_container_run_gobgp(BRIDGE_0)
 
+    # set log option
+    opt = "-l debug" if log_debug else ""
+
     # execute local gobgp program in the docker container if the input option is local
     if use_local:
         print "execute gobgp program in local machine."
@@ -414,14 +422,14 @@ def init_ipv6_test_env_executor(quagga_num, use_local, go_path):
             gobgp_path = re.sub(A_PART_OF_CURRENT_DIR, "", pwd)
             cmd = "cp -r " + gobgp_path + " " + CONFIG_DIRR
             local(cmd, capture=True)
-            make_startup_file_use_local_gobgp()
+            make_startup_file_use_local_gobgp(log_opt=opt)
         else:
             print "scenario_test directory is not."
             print "execute gobgp program of osrg/master in github."
-            make_startup_file()
+            make_startup_file(log_opt=opt)
     else:
         print "execute gobgp program of osrg/master in github."
-        make_startup_file()
+        make_startup_file(log_opt=opt)
 
     change_owner_to_root(CONFIG_DIR)
     start_gobgp()
@@ -433,7 +441,7 @@ def init_ipv6_test_env_executor(quagga_num, use_local, go_path):
     print "complete initialization of test environment."
 
 
-def init_malformed_test_env_executor(conf_file, use_local):
+def init_malformed_test_env_executor(conf_file, use_local, log_debug=False):
     print "start initialization of exabgp test environment."
 
     if docker_container_check() or bridge_setting_check():
@@ -459,6 +467,9 @@ def init_malformed_test_env_executor(conf_file, use_local):
     # run exabgp docker container
     docker_container_run_exabgp(BRIDGE_0)
 
+    # set log option
+    opt = "-l debug" if log_debug else ""
+
     # execute local gobgp program in the docker container if the input option is local
     if use_local:
         print "execute gobgp program in local machine."
@@ -467,14 +478,14 @@ def init_malformed_test_env_executor(conf_file, use_local):
             gobgp_path = re.sub(A_PART_OF_CURRENT_DIR, "", pwd)
             cmd = "cp -r " + gobgp_path + " " + CONFIG_DIRR
             local(cmd, capture=True)
-            make_startup_file_use_local_gobgp()
+            make_startup_file_use_local_gobgp(log_opt=opt)
         else:
             print "scenario_test directory is not."
             print "execute gobgp program of osrg/master in github."
-            make_startup_file()
+            make_startup_file(log_opt=opt)
     else:
         print "execute gobgp program of osrg/master in github."
-        make_startup_file()
+        make_startup_file(log_opt=opt)
 
     change_owner_to_root(CONFIG_DIR)
     change_exagbp_version()

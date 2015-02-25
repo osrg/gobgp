@@ -74,11 +74,11 @@ def test_malformed_packet():
         sys.exit(1)
 
     use_local = parser_option.use_local
-
+    log_debug = parser_option.gobgp_log_debug
     for pkey in pattern:
         conf_file = pwd + "/exabgp_test_conf/" + pkey
         if os.path.isfile(conf_file) is True:
-            fab.init_malformed_test_env_executor(pkey, use_local)
+            fab.init_malformed_test_env_executor(pkey, use_local, log_debug)
             print "please wait (" + str(initial_wait_time) + " second)"
             time.sleep(initial_wait_time)
             yield check_func, pkey, pattern[pkey]
