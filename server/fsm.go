@@ -612,6 +612,12 @@ func (h *FSMHandler) sendMessageloop() error {
 			fsm.bgpMessageStateUpdate(m.Header.Type, false)
 
 			if m.Header.Type == bgp.BGP_MSG_NOTIFICATION {
+				log.WithFields(log.Fields{
+					"Topic": "Peer",
+					"Key":   fsm.peerConfig.NeighborAddress,
+					"Data":  m,
+				}).Warn("sent notification")
+
 				h.errorCh <- true
 				conn.Close()
 				return nil
