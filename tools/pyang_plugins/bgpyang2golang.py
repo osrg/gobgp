@@ -19,11 +19,14 @@
 # cd $PYANG_INSTALL_DIR
 # source ./env.sh
 # PYTHONPATH=. ./bin/pyang --plugindir $GOBGP_PATH/tools/pyang_plugins \
-#  -f golang ./modules/bgp.yang > out.go
+#  -p $GOBGP_PATH/tools/yang/ -f golang \
+#  $GOBGP_PATH/tools/yang/bgp.yang > out.go
 # gofmt out.go > $GOBGP_PATH/config/bgp_configs.go
 #
 # NOTICE: copy related yang files into $PYANG_INSTALL_DIR/modules/ in advance.
 
+import StringIO
+from pyang import plugin
 
 _COPYRIGHT_NOTICE = """
 // Copyright (C) 2014 Nippon Telegraph and Telephone Corporation.
@@ -41,10 +44,6 @@ _COPYRIGHT_NOTICE = """
 // See the License for the specific language governing permissions and
 // limitations under the License.
 """
-
-
-import StringIO
-from pyang import plugin
 
 emitted_type_names = []
 
@@ -71,10 +70,14 @@ def emit_golang(ctx, module, fd):
     # visit typedef
     visit_typedef(ctx, module)
     visit_typedef(ctx, ctx.get_module('bgp-policy'))
+    #visit_typedef(ctx, ctx.get_module('routing-policy'))
     visit_typedef(ctx, ctx.get_module('bgp-multiprotocol'))
+    visit_typedef(ctx, ctx.get_module('bgp-operational'))
     # visit identity
     visit_identity(ctx, ctx.get_module('bgp-policy'))
+    #visit_identity(ctx, ctx.get_module('routing-policy'))
     visit_identity(ctx, ctx.get_module('bgp-multiprotocol'))
+    visit_identity(ctx, ctx.get_module('bgp-operational'))
 
     visit_children(ctx, module, module.i_children)
     ctx.golang_struct_def.reverse()
@@ -85,10 +88,14 @@ def emit_golang(ctx, module, fd):
 
     emit_typedef(ctx, module)
     emit_typedef(ctx, ctx.get_module('bgp-policy'))
+    # emit_typedef(ctx, ctx.get_module('routing-policy'))
     emit_typedef(ctx, ctx.get_module('bgp-multiprotocol'))
+    emit_typedef(ctx, ctx.get_module('bgp-operational'))
 
     emit_identity(ctx, ctx.get_module('bgp-policy'))
+    #emit_identity(ctx, ctx.get_module('routing-policy'))
     emit_identity(ctx, ctx.get_module('bgp-multiprotocol'))
+    emit_identity(ctx, ctx.get_module('bgp-operational'))
 
     for struct in ctx.golang_struct_def:
         struct_name = struct.arg
@@ -102,7 +109,7 @@ def emit_class_def(ctx, c, struct_name):
 
     o = StringIO.StringIO()
     struct_name_org = struct_name
-    struct_name = convert_to_gostruct(struct_name)
+    struct_name = convert_to_golang(struct_name)
 
     print >> o, '//struct for container %s' % struct_name_org
     print >> o, 'type %s struct {' % struct_name
@@ -183,7 +190,10 @@ def emit_class_def(ctx, c, struct_name):
             val_name_go = val_name_go + 'List'
             emit_type_name = '[]' + t.golang_name
 
-        print >> o, '  %s\t%s' % (val_name_go, emit_type_name)
+        if is_container(child):
+            print >> o, '  %s' % emit_type_name
+        else:
+            print >> o, '  %s\t%s' % (val_name_go, emit_type_name)
 
     print >> o, '}'
     print o.getvalue()
@@ -194,7 +204,8 @@ def visit_children(ctx, module, children, prefix=''):
         t = c.search_one('type')
         type_name = t.arg if t is not None else None
         if is_list(c) or is_container(c):
-            c.golang_name = convert_to_gostruct(c.arg)
+            c.golang_name = convert_to_golang(c.arg)
+            c.module_name = module.i_prefix
             ctx.golang_struct_def.append(c)
             ctx.golang_struct_names[c.arg] = c
         if hasattr(c, 'i_children'):
@@ -211,6 +222,7 @@ def visit_typedef(ctx, module):
             if stmts.golang_name == 'PeerType':
                 stmts.golang_name = 'PeerTypeDef'
             child_map[name] = stmts
+
     ctx.golang_typedef_map[prefix] = child_map
 
 
@@ -220,11 +232,7 @@ def visit_identity(ctx, module):
     for stmts in module.substmts:
         if stmts.keyword == 'identity':
             name = stmts.arg
-            stmts.golang_name = convert_to_golang(name)
-            if stmts.golang_name == 'SafiType':
-                stmts.golang_name = 'SafiTypeDef'
-            if stmts.golang_name == 'AfiType':
-                stmts.golang_name = 'AfiTypeDef'
+            stmts.golang_name = 'Id' + convert_to_golang(name)
             child_map[name] = stmts
     ctx.golang_identity_map[prefix] = child_map
 
@@ -277,15 +285,15 @@ def emit_typedef(ctx, module):
             already_added_iota = False
             for sub in t.substmts:
                 if sub.search_one('value'):
-                    enum_value_part = " = "+sub.search_one('value').arg
+                    enum_value = " = "+sub.search_one('value').arg
                 else:
                     if already_added_iota:
-                        enum_value_part = ""
+                        enum_value = ""
                     else:
-                        enum_value_part = " = iota"
+                        enum_value = " = iota"
                         already_added_iota = True
-
-                print >> o, ' %s_%s%s' % (const_prefix, sub.arg, enum_value_part)
+                enum_name = convert_const_prefix(sub.arg)
+                print >> o, ' %s_%s%s' % (const_prefix, enum_name, enum_value)
             print >> o, ')'
         elif t.arg == 'union':
             print >> o, '// typedef for typedef %s:%s'\
@@ -310,7 +318,12 @@ def emit_identity(ctx, module):
         o = StringIO.StringIO()
 
         print >> o, '// typedef for identity %s:%s' % (prefix, type_name_org)
-        print >> o, 'type %s struct {' % (type_name)
+
+        def_type_name = 'struct'
+        if prefix+':'+type_name_org in _use_interface:
+            def_type_name = 'interface'
+
+        print >> o, 'type %s %s {' % (type_name, def_type_name)
         if base is not None:
             base_obj = lookup_identity(ctx, prefix, base.arg)
             print >> o, ' // base_type -> %s' % (base.arg)
@@ -373,6 +386,10 @@ _type_builtin = ["union",
                  "uint64",
                  ]
 
+_use_interface = [
+    'bgp-mp:afi-safi-type',
+    ]
+
 
 def generate_header(ctx):
     print _COPYRIGHT_NOTICE
@@ -387,10 +404,6 @@ def translate_type(key):
         return _type_translation_map[key]
     else:
         return key
-
-
-def convert_to_gostruct(type_string):
-    return convert_to_golang(chop_suf(type_string, 'Type')) + 'Type'
 
 
 # 'hoge-hoge' -> 'HogeHoge'
