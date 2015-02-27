@@ -133,8 +133,10 @@ func (peer *Peer) handleBGPmessage(m *bgp.BGPMessage) {
 		}
 
 	case bgp.BGP_MSG_ROUTE_REFRESH:
-		pathList := peer.adjRib.GetOutPathList(peer.rf)
-		peer.sendMessages(table.CreateUpdateMsgFromPaths(pathList))
+		if _, ok := peer.capMap[bgp.BGP_CAP_ROUTE_REFRESH]; ok {
+			pathList := peer.adjRib.GetOutPathList(peer.rf)
+			peer.sendMessages(table.CreateUpdateMsgFromPaths(pathList))
+		}
 	case bgp.BGP_MSG_UPDATE:
 		peer.peerConfig.BgpNeighborCommonState.UpdateRecvTime = time.Now()
 		body := m.Body.(*bgp.BGPUpdate)
