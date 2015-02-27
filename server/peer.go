@@ -136,6 +136,11 @@ func (peer *Peer) handleBGPmessage(m *bgp.BGPMessage) {
 		if _, ok := peer.capMap[bgp.BGP_CAP_ROUTE_REFRESH]; ok {
 			pathList := peer.adjRib.GetOutPathList(peer.rf)
 			peer.sendMessages(table.CreateUpdateMsgFromPaths(pathList))
+		} else {
+			log.WithFields(log.Fields{
+				"Topic": "Peer",
+				"Key":   peer.peerConfig.NeighborAddress,
+			}).Warn("ROUTE_REFRESH received but the capability wasn't advertised")
 		}
 	case bgp.BGP_MSG_UPDATE:
 		peer.peerConfig.BgpNeighborCommonState.UpdateRecvTime = time.Now()
