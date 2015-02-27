@@ -223,12 +223,23 @@ func (peer *Peer) handleREST(restReq *api.RestRequest) {
 	case api.REQ_NEIGHBOR_RESET:
 		peer.fsm.idleHoldTime = peer.peerConfig.Timers.IdleHoldTImeAfterReset
 		peer.outgoing <- bgp.NewBGPNotificationMessage(bgp.BGP_ERROR_CEASE, bgp.BGP_ERROR_SUB_ADMINISTRATIVE_RESET, nil)
-	case api.REQ_NEIGHBOR_SOFT_RESET:
-	case api.REQ_NEIGHBOR_SOFT_RESET_IN:
-		// check capability
-		// drop allIn and other peers?
-		// peer.adjRib.DropAllIn(peer.rf)
-		peer.outgoing <- bgp.NewBGPRouteRefreshMessage(uint16(int(peer.rf)>>16), 0, uint8(int(peer.rf)&0xff))
+	case api.REQ_NEIGHBOR_SOFT_RESET, api.REQ_NEIGHBOR_SOFT_RESET_IN:
+		// soft-reconfiguration inbound
+		pathList := peer.adjRib.GetInPathList(peer.rf)
+		pm := &peerMsg{
+			msgType: PEER_MSG_PATH,
+			msgData: pathList,
+		}
+		for _, s := range peer.siblings {
+			if s.rf != peer.rf {
+				continue
+			}
+			s.peerMsgCh <- pm
+		}
+		if restReq.RequestType == api.REQ_NEIGHBOR_SOFT_RESET_IN {
+			break
+		}
+		fallthrough
 	case api.REQ_NEIGHBOR_SOFT_RESET_OUT:
 		pathList := peer.adjRib.GetOutPathList(peer.rf)
 		peer.sendMessages(table.CreateUpdateMsgFromPaths(pathList))
