@@ -92,10 +92,6 @@ def emit_golang(ctx, module, fd):
     emit_typedef(ctx, ctx.get_module('bgp-multiprotocol'))
     emit_typedef(ctx, ctx.get_module('bgp-operational'))
 
-    emit_identity(ctx, ctx.get_module('bgp-policy'))
-    #emit_identity(ctx, ctx.get_module('routing-policy'))
-    emit_identity(ctx, ctx.get_module('bgp-multiprotocol'))
-    emit_identity(ctx, ctx.get_module('bgp-operational'))
 
     for struct in ctx.golang_struct_def:
         struct_name = struct.arg
@@ -128,10 +124,7 @@ def emit_class_def(ctx, c, struct_name):
 
             # case identityref
             if type_name == 'identityref':
-                base_module = type_obj.i_orig_module.i_prefix
-                base_name = type_obj.i_type_spec.base.arg
-                ref = lookup_identity(ctx, base_module, base_name)
-                emit_type_name = ref.golang_name
+                emit_type_name = 'string'
 
             # case leafref
             elif type_name == 'leafref':
