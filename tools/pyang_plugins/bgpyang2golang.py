@@ -198,7 +198,6 @@ def visit_children(ctx, module, children, prefix=''):
         type_name = t.arg if t is not None else None
         if is_list(c) or is_container(c):
             c.golang_name = convert_to_golang(c.arg)
-            c.module_name = module.i_prefix
             ctx.golang_struct_def.append(c)
             ctx.golang_struct_names[c.arg] = c
         if hasattr(c, 'i_children'):
@@ -215,7 +214,6 @@ def visit_typedef(ctx, module):
             if stmts.golang_name == 'PeerType':
                 stmts.golang_name = 'PeerTypeDef'
             child_map[name] = stmts
-
     ctx.golang_typedef_map[prefix] = child_map
 
 
@@ -225,7 +223,7 @@ def visit_identity(ctx, module):
     for stmts in module.substmts:
         if stmts.keyword == 'identity':
             name = stmts.arg
-            stmts.golang_name = 'Id' + convert_to_golang(name)
+            stmts.golang_name = convert_to_golang(name)
             child_map[name] = stmts
     ctx.golang_identity_map[prefix] = child_map
 
@@ -311,12 +309,7 @@ def emit_identity(ctx, module):
         o = StringIO.StringIO()
 
         print >> o, '// typedef for identity %s:%s' % (prefix, type_name_org)
-
-        def_type_name = 'struct'
-        if prefix+':'+type_name_org in _use_interface:
-            def_type_name = 'interface'
-
-        print >> o, 'type %s %s {' % (type_name, def_type_name)
+        print >> o, 'type %s struct {' % (type_name)
         if base is not None:
             base_obj = lookup_identity(ctx, prefix, base.arg)
             print >> o, ' // base_type -> %s' % (base.arg)
@@ -378,10 +371,6 @@ _type_builtin = ["union",
                  "uint32",
                  "uint64",
                  ]
-
-_use_interface = [
-    'bgp-mp:afi-safi-type',
-    ]
 
 
 def generate_header(ctx):
