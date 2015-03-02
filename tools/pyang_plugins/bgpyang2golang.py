@@ -69,13 +69,13 @@ def emit_golang(ctx, module, fd):
 
     # visit typedef
     visit_typedef(ctx, module)
-    visit_typedef(ctx, ctx.get_module('bgp-policy'))
-    #visit_typedef(ctx, ctx.get_module('routing-policy'))
+    #visit_typedef(ctx, ctx.get_module('bgp-policy'))
+    visit_typedef(ctx, ctx.get_module('routing-policy'))
     visit_typedef(ctx, ctx.get_module('bgp-multiprotocol'))
     visit_typedef(ctx, ctx.get_module('bgp-operational'))
     # visit identity
-    visit_identity(ctx, ctx.get_module('bgp-policy'))
-    #visit_identity(ctx, ctx.get_module('routing-policy'))
+    #visit_identity(ctx, ctx.get_module('bgp-policy'))
+    visit_identity(ctx, ctx.get_module('routing-policy'))
     visit_identity(ctx, ctx.get_module('bgp-multiprotocol'))
     visit_identity(ctx, ctx.get_module('bgp-operational'))
 
@@ -87,8 +87,8 @@ def emit_golang(ctx, module, fd):
     generate_header(ctx)
 
     emit_typedef(ctx, module)
-    emit_typedef(ctx, ctx.get_module('bgp-policy'))
-    # emit_typedef(ctx, ctx.get_module('routing-policy'))
+    #emit_typedef(ctx, ctx.get_module('bgp-policy'))
+    emit_typedef(ctx, ctx.get_module('routing-policy'))
     emit_typedef(ctx, ctx.get_module('bgp-multiprotocol'))
     emit_typedef(ctx, ctx.get_module('bgp-operational'))
 
