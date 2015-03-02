@@ -732,8 +732,6 @@ type PeerGroupType struct {
 
 //struct for container bgp-global-state
 type BgpGlobalStateType struct {
-	// start time
-	StartTime time.Time
 }
 
 //struct for container confederation
