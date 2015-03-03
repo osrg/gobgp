@@ -1,4 +1,4 @@
-# Copyright (C) 2014 Nippon Telegraph and Telephone Corporation.
+# Copyright (C) 2014,2015 Nippon Telegraph and Telephone Corporation.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -13,23 +13,12 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-# this is a pyang plugin to generate $GOBGP_PATH/config/bgp_configs.go
-# usage example:
-# GOBGP_PATH=$GOPATH/src/github.com/osrg/gobgp
-# cd $PYANG_INSTALL_DIR
-# source ./env.sh
-# PYTHONPATH=. ./bin/pyang --plugindir $GOBGP_PATH/tools/pyang_plugins \
-#  -p $GOBGP_PATH/tools/yang/ -f golang \
-#  $GOBGP_PATH/tools/yang/bgp.yang > out.go
-# gofmt out.go > $GOBGP_PATH/config/bgp_configs.go
-#
-# NOTICE: copy related yang files into $PYANG_INSTALL_DIR/modules/ in advance.
 
 import StringIO
 from pyang import plugin
 
 _COPYRIGHT_NOTICE = """
-// Copyright (C) 2014 Nippon Telegraph and Telephone Corporation.
+// Copyright (C) 2014,2015 Nippon Telegraph and Telephone Corporation.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -69,12 +58,10 @@ def emit_golang(ctx, module, fd):
 
     # visit typedef
     visit_typedef(ctx, module)
-    #visit_typedef(ctx, ctx.get_module('bgp-policy'))
     visit_typedef(ctx, ctx.get_module('routing-policy'))
     visit_typedef(ctx, ctx.get_module('bgp-multiprotocol'))
     visit_typedef(ctx, ctx.get_module('bgp-operational'))
     # visit identity
-    #visit_identity(ctx, ctx.get_module('bgp-policy'))
     visit_identity(ctx, ctx.get_module('routing-policy'))
     visit_identity(ctx, ctx.get_module('bgp-multiprotocol'))
     visit_identity(ctx, ctx.get_module('bgp-operational'))
@@ -87,11 +74,9 @@ def emit_golang(ctx, module, fd):
     generate_header(ctx)
 
     emit_typedef(ctx, module)
-    #emit_typedef(ctx, ctx.get_module('bgp-policy'))
     emit_typedef(ctx, ctx.get_module('routing-policy'))
     emit_typedef(ctx, ctx.get_module('bgp-multiprotocol'))
     emit_typedef(ctx, ctx.get_module('bgp-operational'))
-
 
     for struct in ctx.golang_struct_def:
         struct_name = struct.arg
