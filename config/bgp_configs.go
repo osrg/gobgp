@@ -1,4 +1,4 @@
-// Copyright (C) 2014 Nippon Telegraph and Telephone Corporation.
+// Copyright (C) 2014,2015 Nippon Telegraph and Telephone Corporation.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -241,9 +241,9 @@ type PrefixLimit struct {
 //struct for container l2vpn-evpn
 type L2vpnEvpn struct {
 	// original -> rpol:apply-policy
-	ApplyPolicy
+	ApplyPolicy ApplyPolicy
 	// original -> bgp-mp:prefix-limit
-	PrefixLimit
+	PrefixLimit PrefixLimit
 }
 
 //struct for container l2vpn-vpls
@@ -252,9 +252,9 @@ type L2vpnVpls struct {
 	//enabled's original type is boolean
 	Enabled bool
 	// original -> rpol:apply-policy
-	ApplyPolicy
+	ApplyPolicy ApplyPolicy
 	// original -> bgp-mp:prefix-limit
-	PrefixLimit
+	PrefixLimit PrefixLimit
 }
 
 //struct for container l3vpn-ipv6-multicast
@@ -263,9 +263,9 @@ type L3vpnIpv6Multicast struct {
 	//enabled's original type is boolean
 	Enabled bool
 	// original -> rpol:apply-policy
-	ApplyPolicy
+	ApplyPolicy ApplyPolicy
 	// original -> bgp-mp:prefix-limit
-	PrefixLimit
+	PrefixLimit PrefixLimit
 }
 
 //struct for container l3vpn-ipv4-multicast
@@ -274,9 +274,9 @@ type L3vpnIpv4Multicast struct {
 	//enabled's original type is boolean
 	Enabled bool
 	// original -> rpol:apply-policy
-	ApplyPolicy
+	ApplyPolicy ApplyPolicy
 	// original -> bgp-mp:prefix-limit
-	PrefixLimit
+	PrefixLimit PrefixLimit
 }
 
 //struct for container l3vpn-ipv6-unicast
@@ -285,9 +285,9 @@ type L3vpnIpv6Unicast struct {
 	//enabled's original type is boolean
 	Enabled bool
 	// original -> rpol:apply-policy
-	ApplyPolicy
+	ApplyPolicy ApplyPolicy
 	// original -> bgp-mp:prefix-limit
-	PrefixLimit
+	PrefixLimit PrefixLimit
 }
 
 //struct for container l3vpn-ipv4-unicast
@@ -296,9 +296,9 @@ type L3vpnIpv4Unicast struct {
 	//enabled's original type is boolean
 	Enabled bool
 	// original -> rpol:apply-policy
-	ApplyPolicy
+	ApplyPolicy ApplyPolicy
 	// original -> bgp-mp:prefix-limit
-	PrefixLimit
+	PrefixLimit PrefixLimit
 }
 
 //struct for container ipv6-labelled-unicast
@@ -307,9 +307,9 @@ type Ipv6LabelledUnicast struct {
 	//enabled's original type is boolean
 	Enabled bool
 	// original -> rpol:apply-policy
-	ApplyPolicy
+	ApplyPolicy ApplyPolicy
 	// original -> bgp-mp:prefix-limit
-	PrefixLimit
+	PrefixLimit PrefixLimit
 }
 
 //struct for container ipv4-labelled-unicast
@@ -318,9 +318,9 @@ type Ipv4LabelledUnicast struct {
 	//enabled's original type is boolean
 	Enabled bool
 	// original -> rpol:apply-policy
-	ApplyPolicy
+	ApplyPolicy ApplyPolicy
 	// original -> bgp-mp:prefix-limit
-	PrefixLimit
+	PrefixLimit PrefixLimit
 }
 
 //struct for container ipv6-multicast
@@ -329,9 +329,9 @@ type Ipv6Multicast struct {
 	//enabled's original type is boolean
 	Enabled bool
 	// original -> rpol:apply-policy
-	ApplyPolicy
+	ApplyPolicy ApplyPolicy
 	// original -> bgp-mp:prefix-limit
-	PrefixLimit
+	PrefixLimit PrefixLimit
 }
 
 //struct for container ipv4-multicast
@@ -340,9 +340,9 @@ type Ipv4Multicast struct {
 	//enabled's original type is boolean
 	Enabled bool
 	// original -> rpol:apply-policy
-	ApplyPolicy
+	ApplyPolicy ApplyPolicy
 	// original -> bgp-mp:prefix-limit
-	PrefixLimit
+	PrefixLimit PrefixLimit
 }
 
 //struct for container ipv6-unicast
@@ -351,9 +351,9 @@ type Ipv6Unicast struct {
 	//enabled's original type is boolean
 	Enabled bool
 	// original -> rpol:apply-policy
-	ApplyPolicy
+	ApplyPolicy ApplyPolicy
 	// original -> bgp-mp:prefix-limit
-	PrefixLimit
+	PrefixLimit PrefixLimit
 	// original -> bgp-mp:send-default-route
 	//send-default-route's original type is boolean
 	SendDefaultRoute bool
@@ -365,9 +365,9 @@ type Ipv4Unicast struct {
 	//enabled's original type is boolean
 	Enabled bool
 	// original -> rpol:apply-policy
-	ApplyPolicy
+	ApplyPolicy ApplyPolicy
 	// original -> bgp-mp:prefix-limit
-	PrefixLimit
+	PrefixLimit PrefixLimit
 	// original -> bgp-mp:send-default-route
 	//send-default-route's original type is boolean
 	SendDefaultRoute bool
@@ -378,29 +378,29 @@ type AfiSafi struct {
 	// original -> bgp-mp:afi-safi-name
 	AfiSafiName string
 	// original -> bgp-mp:ipv4-unicast
-	Ipv4Unicast
+	Ipv4Unicast Ipv4Unicast
 	// original -> bgp-mp:ipv6-unicast
-	Ipv6Unicast
+	Ipv6Unicast Ipv6Unicast
 	// original -> bgp-mp:ipv4-multicast
-	Ipv4Multicast
+	Ipv4Multicast Ipv4Multicast
 	// original -> bgp-mp:ipv6-multicast
-	Ipv6Multicast
+	Ipv6Multicast Ipv6Multicast
 	// original -> bgp-mp:ipv4-labelled-unicast
-	Ipv4LabelledUnicast
+	Ipv4LabelledUnicast Ipv4LabelledUnicast
 	// original -> bgp-mp:ipv6-labelled-unicast
-	Ipv6LabelledUnicast
+	Ipv6LabelledUnicast Ipv6LabelledUnicast
 	// original -> bgp-mp:l3vpn-ipv4-unicast
-	L3vpnIpv4Unicast
+	L3vpnIpv4Unicast L3vpnIpv4Unicast
 	// original -> bgp-mp:l3vpn-ipv6-unicast
-	L3vpnIpv6Unicast
+	L3vpnIpv6Unicast L3vpnIpv6Unicast
 	// original -> bgp-mp:l3vpn-ipv4-multicast
-	L3vpnIpv4Multicast
+	L3vpnIpv4Multicast L3vpnIpv4Multicast
 	// original -> bgp-mp:l3vpn-ipv6-multicast
-	L3vpnIpv6Multicast
+	L3vpnIpv6Multicast L3vpnIpv6Multicast
 	// original -> bgp-mp:l2vpn-vpls
-	L2vpnVpls
+	L2vpnVpls L2vpnVpls
 	// original -> bgp-mp:l2vpn-evpn
-	L2vpnEvpn
+	L2vpnEvpn L2vpnEvpn
 }
 
 //struct for container graceful-restart
@@ -423,9 +423,9 @@ type Neighbor struct {
 	// original -> bgp:description
 	Description string
 	// original -> bgp:graceful-restart
-	GracefulRestart
+	GracefulRestart GracefulRestart
 	// original -> rpol:apply-policy
-	ApplyPolicy
+	ApplyPolicy ApplyPolicy
 	// original -> bgp-mp:afi-safi
 	AfiSafiList []AfiSafi
 	// original -> bgp:auth-password
@@ -433,19 +433,19 @@ type Neighbor struct {
 	// original -> bgp:peer-type
 	PeerType PeerTypeDef
 	// original -> bgp:timers
-	Timers
+	Timers Timers
 	// original -> bgp:ebgp-multihop
-	EbgpMultihop
+	EbgpMultihop EbgpMultihop
 	// original -> bgp:route-reflector
-	RouteReflector
+	RouteReflector RouteReflector
 	// original -> bgp:route-server
-	RouteServer
+	RouteServer RouteServer
 	// original -> bgp:remove-private-as
 	RemovePrivateAs RemovePrivateAsOption
 	// original -> bgp:bgp-logging-options
-	BgpLoggingOptions
+	BgpLoggingOptions BgpLoggingOptions
 	// original -> bgp:transport-options
-	TransportOptions
+	TransportOptions TransportOptions
 	// original -> bgp:local-address
 	//local-address's original type is inet:ip-address
 	LocalAddress net.IP
@@ -455,13 +455,13 @@ type Neighbor struct {
 	// original -> bgp:send-community
 	SendCommunity CommunityType
 	// original -> bgp:error-handling
-	ErrorHandling
+	ErrorHandling ErrorHandling
 	// original -> bgp:as-path-options
-	AsPathOptions
+	AsPathOptions AsPathOptions
 	// original -> bgp:add-paths
-	AddPaths
+	AddPaths AddPaths
 	// original -> bgp-op:bgp-neighbor-common-state
-	BgpNeighborCommonState
+	BgpNeighborCommonState BgpNeighborCommonState
 }
 
 //struct for container ibgp
@@ -482,9 +482,9 @@ type Ebgp struct {
 //struct for container use-multiple-paths
 type UseMultiplePaths struct {
 	// original -> bgp-mp:ebgp
-	Ebgp
+	Ebgp Ebgp
 	// original -> bgp-mp:ibgp
-	Ibgp
+	Ibgp Ibgp
 }
 
 //struct for container bgp-group-common-state
@@ -496,13 +496,13 @@ type PeerGroup struct {
 	// original -> bgp:group-name
 	GroupName string
 	// original -> bgp-op:bgp-group-common-state
-	BgpGroupCommonState
+	BgpGroupCommonState BgpGroupCommonState
 	// original -> bgp:description
 	Description string
 	// original -> bgp:graceful-restart
-	GracefulRestart
+	GracefulRestart GracefulRestart
 	// original -> rpol:apply-policy
-	ApplyPolicy
+	ApplyPolicy ApplyPolicy
 	// original -> bgp-mp:afi-safi
 	AfiSafiList []AfiSafi
 	// original -> bgp:auth-password
@@ -510,19 +510,19 @@ type PeerGroup struct {
 	// original -> bgp:peer-type
 	PeerType PeerTypeDef
 	// original -> bgp:timers
-	Timers
+	Timers Timers
 	// original -> bgp:ebgp-multihop
-	EbgpMultihop
+	EbgpMultihop EbgpMultihop
 	// original -> bgp:route-reflector
-	RouteReflector
+	RouteReflector RouteReflector
 	// original -> bgp:route-server
-	RouteServer
+	RouteServer RouteServer
 	// original -> bgp:remove-private-as
 	RemovePrivateAs RemovePrivateAsOption
 	// original -> bgp:bgp-logging-options
-	BgpLoggingOptions
+	BgpLoggingOptions BgpLoggingOptions
 	// original -> bgp:transport-options
-	TransportOptions
+	TransportOptions TransportOptions
 	// original -> bgp:local-address
 	//local-address's original type is inet:ip-address
 	LocalAddress net.IP
@@ -532,13 +532,13 @@ type PeerGroup struct {
 	// original -> bgp:send-community
 	SendCommunity CommunityType
 	// original -> bgp:error-handling
-	ErrorHandling
+	ErrorHandling ErrorHandling
 	// original -> bgp:as-path-options
-	AsPathOptions
+	AsPathOptions AsPathOptions
 	// original -> bgp:add-paths
-	AddPaths
+	AddPaths AddPaths
 	// original -> bgp-mp:use-multiple-paths
-	UseMultiplePaths
+	UseMultiplePaths UseMultiplePaths
 	// original -> bgp:neighbor
 	NeighborList []Neighbor
 }
@@ -596,25 +596,25 @@ type Global struct {
 	//router-id's original type is inet:ipv4-address
 	RouterId net.IP
 	// original -> bgp:default-route-distance
-	DefaultRouteDistance
+	DefaultRouteDistance DefaultRouteDistance
 	// original -> bgp:confederation
-	Confederation
+	Confederation Confederation
 	// original -> bgp-mp:use-multiple-paths
-	UseMultiplePaths
+	UseMultiplePaths UseMultiplePaths
 	// original -> bgp-mp:afi-safi
 	AfiSafiList []AfiSafi
 	// original -> bgp-op:bgp-global-state
-	BgpGlobalState
+	BgpGlobalState BgpGlobalState
 }
 
 //struct for container bgp
 type Bgp struct {
 	// original -> bgp:global
-	Global
+	Global Global
 	// original -> bgp:peer-group
 	PeerGroupList []PeerGroup
 	// original -> bgp:neighbor
 	NeighborList []Neighbor
 	// original -> rpol:apply-policy
-	ApplyPolicy
+	ApplyPolicy ApplyPolicy
 }

@@ -169,7 +169,7 @@ def emit_class_def(ctx, c, struct_name):
             emit_type_name = '[]' + t.golang_name
 
         if is_container(child):
-            print >> o, '  %s' % emit_type_name
+            print >> o, '  %s\t%s' % (emit_type_name, emit_type_name)
         else:
             print >> o, '  %s\t%s' % (val_name_go, emit_type_name)
 
