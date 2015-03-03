@@ -16,7 +16,6 @@
 package config
 
 import "net"
-import "time"
 
 // typedef for typedef bgp:peer-type
 type PeerTypeDef int
@@ -372,8 +371,8 @@ type BgpNeighborCommonStateType struct {
 	// peer-state
 	State uint32
 	// peer-uptime
-	Uptime   time.Time
-	Downtime time.Time
+	Uptime   int64
+	Downtime int64
 
 	// BGP statistics
 	// Open message input count
@@ -385,7 +384,7 @@ type BgpNeighborCommonStateType struct {
 	// Update message ouput count
 	UpdateOut uint32
 	// Update message received time
-	UpdateRecvTime time.Time
+	UpdateRecvTime int64
 	// Keepalive input count
 	KeepaliveIn uint32
 	// Keepalive output count

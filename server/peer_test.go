@@ -512,7 +512,7 @@ func makePeer(globalConfig config.GlobalType, peerConfig config.NeighborType) *P
 
 	p.fsm = NewFSM(&globalConfig, &peerConfig, p.acceptedConnCh)
 	peerConfig.BgpNeighborCommonState.State = uint32(bgp.BGP_FSM_IDLE)
-	peerConfig.BgpNeighborCommonState.Downtime = time.Now()
+	peerConfig.BgpNeighborCommonState.Downtime = time.Now().Unix()
 	if peerConfig.NeighborAddress.To4() != nil {
 		p.rf = bgp.RF_IPv4_UC
 	} else {

@@ -91,7 +91,7 @@ func (fsm *FSM) bgpMessageStateUpdate(MessageType uint8, isIn bool) {
 	case bgp.BGP_MSG_UPDATE:
 		if isIn {
 			state.UpdateIn++
-			state.UpdateRecvTime = time.Now()
+			state.UpdateRecvTime = time.Now().Unix()
 		} else {
 			state.UpdateOut++
 		}

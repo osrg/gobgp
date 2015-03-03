@@ -80,7 +80,7 @@ func NewPeer(g config.GlobalType, peer config.NeighborType, serverMsgCh chan *se
 	}
 	p.fsm = NewFSM(&g, &peer, p.acceptedConnCh)
 	peer.BgpNeighborCommonState.State = uint32(bgp.BGP_FSM_IDLE)
-	peer.BgpNeighborCommonState.Downtime = time.Now()
+	peer.BgpNeighborCommonState.Downtime = time.Now().Unix()
 	if peer.NeighborAddress.To4() != nil {
 		p.rf = bgp.RF_IPv4_UC
 	} else {
@@ -143,7 +143,7 @@ func (peer *Peer) handleBGPmessage(m *bgp.BGPMessage) {
 			}).Warn("ROUTE_REFRESH received but the capability wasn't advertised")
 		}
 	case bgp.BGP_MSG_UPDATE:
-		peer.peerConfig.BgpNeighborCommonState.UpdateRecvTime = time.Now()
+		peer.peerConfig.BgpNeighborCommonState.UpdateRecvTime = time.Now().Unix()
 		body := m.Body.(*bgp.BGPUpdate)
 		_, err := bgp.ValidateUpdateMsg(body, []bgp.RouteFamily{peer.rf})
 		if err != nil {
@@ -366,10 +366,10 @@ func (peer *Peer) loop() error {
 		if peer.peerConfig.BgpNeighborCommonState.State == uint32(bgp.BGP_FSM_ESTABLISHED) {
 			pathList := peer.adjRib.GetOutPathList(peer.rf)
 			peer.sendMessages(table.CreateUpdateMsgFromPaths(pathList))
-			peer.fsm.peerConfig.BgpNeighborCommonState.Uptime = time.Now()
+			peer.fsm.peerConfig.BgpNeighborCommonState.Uptime = time.Now().Unix()
 			peer.fsm.peerConfig.BgpNeighborCommonState.EstablishedCount++
 		} else {
-			peer.fsm.peerConfig.BgpNeighborCommonState.Downtime = time.Now()
+			peer.fsm.peerConfig.BgpNeighborCommonState.Downtime = time.Now().Unix()
 		}
 
 		sameState := true
@@ -395,7 +395,7 @@ func (peer *Peer) loop() error {
 					sameState = false
 					if oldState == bgp.BGP_FSM_ESTABLISHED {
 						t := time.Now()
-						if t.Sub(peer.fsm.peerConfig.BgpNeighborCommonState.Uptime) < FLOP_THRESHOLD {
+						if t.Sub(time.Unix(peer.fsm.peerConfig.BgpNeighborCommonState.Uptime, 0)) < FLOP_THRESHOLD {
 							peer.fsm.peerConfig.BgpNeighborCommonState.Flops++
 						}
 						peer.adjRib.DropAllIn(peer.rf)
@@ -474,13 +474,13 @@ func (peer *Peer) MarshalJSON() ([]byte, error) {
 
 	s := c.BgpNeighborCommonState
 
-	uptime := float64(0)
-	if !s.Uptime.IsZero() {
-		uptime = time.Now().Sub(s.Uptime).Seconds()
+	uptime := int64(0)
+	if s.Uptime != 0 {
+		uptime = int64(time.Now().Sub(time.Unix(s.Uptime, 0)).Seconds())
 	}
-	downtime := float64(0)
-	if !s.Downtime.IsZero() {
-		downtime = time.Now().Sub(s.Downtime).Seconds()
+	downtime := int64(0)
+	if s.Downtime != 0 {
+		downtime = int64(time.Now().Sub(time.Unix(s.Downtime, 0)).Seconds())
 	}
 
 	advertized := uint32(0)
@@ -506,9 +506,9 @@ func (peer *Peer) MarshalJSON() ([]byte, error) {
 		RefreshMessageIn          uint32 `json:"refresh_message_in"`
 		DiscardedOut              uint32
 		DiscardedIn               uint32
-		Uptime                    float64 `json:"uptime"`
-		Downtime                  float64 `json:"downtime"`
-		LastError                 string  `json:"last_error"`
+		Uptime                    int64  `json:"uptime"`
+		Downtime                  int64  `json:"downtime"`
+		LastError                 string `json:"last_error"`
 		Received                  uint32
 		Accepted                  uint32
 		Advertized                uint32
