@@ -25,12 +25,12 @@ const (
 
 type QuaggaConfig struct {
 	id          int
-	config      *config.NeighborType
-	gobgpConfig *config.GlobalType
+	config      *config.Neighbor
+	gobgpConfig *config.Global
 	serverIP    net.IP
 }
 
-func NewQuaggaConfig(id int, gConfig *config.GlobalType, myConfig *config.NeighborType, server net.IP) *QuaggaConfig {
+func NewQuaggaConfig(id int, gConfig *config.Global, myConfig *config.Neighbor, server net.IP) *QuaggaConfig {
 	return &QuaggaConfig{
 		id:          id,
 		config:      myConfig,
@@ -83,15 +83,15 @@ func (qt *QuaggaConfig) IPv6Config() *bytes.Buffer {
 func create_config_files(nr int, outputDir string, IPVersion string) {
 	quaggaConfigList := make([]*QuaggaConfig, 0)
 
-	gobgpConf := config.BgpType{
-		Global: config.GlobalType{
+	gobgpConf := config.Bgp{
+		Global: config.Global{
 			As:       65000,
 			RouterId: net.ParseIP("192.168.255.1"),
 		},
 	}
 
 	for i := 1; i < nr+1; i++ {
-		c := config.NeighborType{
+		c := config.Neighbor{
 			PeerAs:          65000 + uint32(i),
 			NeighborAddress: net.ParseIP(fmt.Sprintf("%s%d", baseNeighborAddress[IPVersion], i)),
 			AuthPassword:    fmt.Sprintf("hoge%d", i),
@@ -123,13 +123,13 @@ func create_config_files(nr int, outputDir string, IPVersion string) {
 
 func append_config_files(ar int, outputDir string, IPVersion string) {
 
-	gobgpConf := config.BgpType{
-		Global: config.GlobalType{
+	gobgpConf := config.Bgp{
+		Global: config.Global{
 			As:       65000,
 			RouterId: net.ParseIP("192.168.255.1"),
 		},
 	}
-	c := config.NeighborType{
+	c := config.Neighbor{
 		PeerAs:          65000 + uint32(ar),
 		NeighborAddress: net.ParseIP(fmt.Sprintf("%s%d", baseNeighborAddress[IPVersion], ar)),
 		AuthPassword:    fmt.Sprintf("hoge%d", ar),
@@ -145,7 +145,7 @@ func append_config_files(ar int, outputDir string, IPVersion string) {
 	if err != nil {
 		log.Fatal(err)
 	}
-	newConf := config.BgpType{}
+	newConf := config.Bgp{}
 	_, d_err := toml.DecodeFile(fmt.Sprintf("%s/gobgpd.conf", outputDir), &newConf)
 	if d_err != nil {
 		log.Fatal(err)

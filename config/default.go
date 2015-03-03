@@ -14,7 +14,7 @@ type neighbor struct {
 	attributes map[string]bool
 }
 
-func SetDefaultConfigValues(md toml.MetaData, bt *BgpType) {
+func SetDefaultConfigValues(md toml.MetaData, bt *Bgp) {
 	neighbors := []neighbor{}
 
 	nidx := 0
@@ -38,7 +38,7 @@ func SetDefaultConfigValues(md toml.MetaData, bt *BgpType) {
 		}
 
 		if _, ok := n.attributes["NeighborList.Timers.IdleHoldTImeAfterReset"]; !ok {
-			bt.NeighborList[i].Timers.IdleHoldTImeAfterReset = float64(DEFAULT_IDLE_HOLDTIME_AFTER_RESET)
+			bt.NeighborList[i].Timers.IdleHoldTimeAfterReset = float64(DEFAULT_IDLE_HOLDTIME_AFTER_RESET)
 		}
 	}
 }

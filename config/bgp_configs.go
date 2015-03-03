@@ -17,20 +17,6 @@ package config
 
 import "net"
 
-// typedef for typedef bgp:peer-type
-type PeerTypeDef int
-
-const (
-	PEER_TYPE_INTERNAL = iota
-	PEER_TYPE_EXTERNAL
-)
-
-// typedef for typedef bgp:rr-cluster-id-type
-type RrClusterIdType string
-
-// typedef for typedef bgp:percentage
-type Percentage uint8
-
 // typedef for typedef bgp:remove-private-as-option
 type RemovePrivateAsOption int
 
@@ -39,41 +25,31 @@ const (
 	REMOVE_PRIVATE_AS_OPTION_REPLACE
 )
 
-// typedef for typedef bgp-policy:bgp-next-hop-type
-type BgpNextHopType string
-
-// typedef for typedef bgp-policy:as-path-prepend-option-repeat
-type AsPathPrependOptionRepeat uint32
-
-// typedef for typedef bgp-policy:std-community-attr-type
-type StdCommunityAttrType string
-
-// typedef for typedef bgp-policy:match-set-options-type
-type MatchSetOptionsType int
+// typedef for typedef bgp:community-type
+type CommunityType int
 
 const (
-	MATCH_SET_OPTIONS_TYPE_ANY = iota
-	MATCH_SET_OPTIONS_TYPE_ALL
-	MATCH_SET_OPTIONS_TYPE_INVERT
+	COMMUNITY_TYPE_STANDARD = iota
+	COMMUNITY_TYPE_EXTENDED
+	COMMUNITY_TYPE_BOTH
+	COMMUNITY_TYPE_NONE
 )
 
-// typedef for typedef bgp-policy:set-community-option-type
-type SetCommunityOptionType int
+// typedef for typedef bgp:rr-cluster-id-type
+type RrClusterIdType string
+
+// typedef for typedef bgp:peer-type
+type PeerTypeDef int
 
 const (
-	SET_COMMUNITY_OPTION_TYPE_ADD = iota
-	SET_COMMUNITY_OPTION_TYPE_REMOVE
-	SET_COMMUNITY_OPTION_TYPE_REPLACE
-	SET_COMMUNITY_OPTION_TYPE_NULL
+	PEER_TYPE_INTERNAL = iota
+	PEER_TYPE_EXTERNAL
 )
 
-// typedef for typedef bgp-policy:community-regexp-type
-type CommunityRegexpType string
+// typedef for typedef bgp:percentage
+type Percentage uint8
 
-// typedef for typedef bgp-policy:ext-community-attr-type
-type ExtCommunityAttrType string
-
-// typedef for typedef bgp-policy:bgp-origin-attr-type
+// typedef for typedef bgp:bgp-origin-attr-type
 type BgpOriginAttrType int
 
 const (
@@ -82,342 +58,113 @@ const (
 	BGP_ORIGIN_ATTR_TYPE_INCOMPLETE = 2
 )
 
-// typedef for typedef bgp-policy:well-known-community-attr
-type WellKnownCommunityAttr int
+// typedef for typedef rpol:install-protocol-type
+type InstallProtocolType int
 
 const (
-	WELL_KNOWN_COMMUNITY_ATTR_INTERNET = iota
-	WELL_KNOWN_COMMUNITY_ATTR_NO_EXPORT
-	WELL_KNOWN_COMMUNITY_ATTR_NO_ADVERTISE
-	WELL_KNOWN_COMMUNITY_ATTR_NO_EXPORT_SUBCONFED
+	INSTALL_PROTOCOL_TYPE_ISIS = iota
+	INSTALL_PROTOCOL_TYPE_OSPF
+	INSTALL_PROTOCOL_TYPE_OSPF3
+	INSTALL_PROTOCOL_TYPE_STATIC
+	INSTALL_PROTOCOL_TYPE_DIRECTLY_CONNECTED
 )
 
-// typedef for identity bgp-policy:attribute-le
-type AttributeLe struct {
-	// base_type -> bgp-attribute-comparison
-	BgpAttributeComparison
-}
+// typedef for typedef rpol:default-policy-type
+type DefaultPolicyType int
 
-// typedef for identity bgp-policy:attribute-ge
-type AttributeGe struct {
-	// base_type -> bgp-attribute-comparison
-	BgpAttributeComparison
-}
+const (
+	DEFAULT_POLICY_TYPE_ACCEPT_ROUTE = iota
+	DEFAULT_POLICY_TYPE_REJECT_ROUTE
+)
 
-// typedef for identity bgp-policy:attribute-eq
-type AttributeEq struct {
-	// base_type -> bgp-attribute-comparison
-	BgpAttributeComparison
-}
-
-// typedef for identity bgp-policy:bgp-attribute-comparison
-type BgpAttributeComparison struct {
-}
-
-// typedef for identity bgp-mp:multicast-vpn-safi
-type MulticastVpnSafi struct {
-	// base_type -> safi-type
-	SafiTypeDef
-}
-
-// typedef for identity bgp-mp:ipv4-afi
-type Ipv4Afi struct {
-	// base_type -> bgp-mp:afi-type
-	AfiTypeDef
-}
-
-// typedef for identity bgp-mp:safi-type
-type SafiTypeDef struct {
-}
-
-// typedef for identity bgp-mp:multicast-safi
-type MulticastSafi struct {
-	// base_type -> safi-type
-	SafiTypeDef
-}
-
-// typedef for identity bgp-mp:l3vpn-unicast-safi
-type L3vpnUnicastSafi struct {
-	// base_type -> safi-type
-	SafiTypeDef
-}
-
-// typedef for identity bgp-mp:labeled-unicast-safi
-type LabeledUnicastSafi struct {
-	// base_type -> safi-type
-	SafiTypeDef
-}
-
-// typedef for identity bgp-mp:afi-type
-type AfiTypeDef struct {
-}
-
-// typedef for identity bgp-mp:ipv6-afi
-type Ipv6Afi struct {
-	// base_type -> bgp-mp:afi-type
-	AfiTypeDef
-}
-
-// typedef for identity bgp-mp:l2vpn-vpls-afi
-type L2vpnVplsAfi struct {
-	// base_type -> afi-type
-	AfiTypeDef
-}
-
-// typedef for identity bgp-mp:unicast-safi
-type UnicastSafi struct {
-	// base_type -> bgp-mp:safi-type
-	SafiTypeDef
-}
-
-// typedef for identity bgp-mp:l2vpn-vpls-safi
-type L2vpnVplsSafi struct {
-	// base_type -> safi-type
-	SafiTypeDef
-}
-
-//struct for container set-ext-community
-type SetExtCommunityType struct {
-	// original -> bgp-policy:communities
-	//original type is list of union
-	Communities []string
-	// original -> bgp-policy:options
-	Options SetCommunityOptionType
-}
-
-//struct for container set-community
-type SetCommunityType struct {
-	// original -> bgp-policy:communities
-	//original type is list of union
-	Communities []string
-	// original -> bgp-policy:options
-	Options SetCommunityOptionType
-}
-
-//struct for container set-as-path-prepend
-type SetAsPathPrependType struct {
-	// original -> bgp-policy:repeat-n
-	RepeatN uint8
-}
-
-//struct for container actions
-type ActionsType struct {
-	// original -> bgp-policy:set-as-path-prepend
-	SetAsPathPrepend SetAsPathPrependType
-	// original -> bgp-policy:set-community
-	SetCommunity SetCommunityType
-	// original -> bgp-policy:set-ext-community
-	SetExtCommunity SetExtCommunityType
-	// original -> bgp-policy:set-route-origin
-	SetRouteOrigin BgpOriginAttrType
-	// original -> bgp-policy:set-local-pref
-	SetLocalPref uint32
-	// original -> bgp-policy:set-next-hop
-	SetNextHop BgpNextHopType
-	// original -> bgp-policy:set-med
-	SetMed uint32
-	// original -> bgp-policy:accept-route
-	//accept-route's original type is empty
-	AcceptRoute bool
-	// original -> bgp-policy:reject-route
-	//reject-route's original type is empty
-	RejectRoute bool
-	// original -> bgp-policy:goto-next
-	//goto-next's original type is empty
-	GotoNext bool
-	// original -> bgp-policy:goto-policy
-	GotoPolicy string
-}
-
-//struct for container as-path-length
-type AsPathLengthType struct {
-	// original -> bgp-policy:operator
-	Operator BgpAttributeComparison
-	// original -> bgp-policy:value
-	Value uint32
-}
-
-//struct for container community-count
-type CommunityCountType struct {
-	// original -> bgp-policy:operator
-	Operator BgpAttributeComparison
-	// original -> bgp-policy:value
-	Value uint32
-}
-
-//struct for container conditions
-type ConditionsType struct {
-	// original -> bgp-policy:call-policy
-	CallPolicy string
-	// original -> bgp-policy:match-community-set
-	MatchCommunitySet string
-	// original -> bgp-policy:match-ext-community-set
-	MatchExtCommunitySet string
-	// original -> bgp-policy:match-as-path-set
-	MatchAsPathSet string
-	// original -> bgp-policy:match-prefix-set
-	MatchPrefixSet string
-	// original -> bgp-policy:match-set-options
-	MatchSetOptions MatchSetOptionsType
-	// original -> bgp-policy:med-eq
-	MedEq uint32
-	// original -> bgp-policy:origin-eq
-	OriginEq BgpOriginAttrType
-	// original -> bgp-policy:next-hop-in
-	//original type is list of inet:ip-address
-	NextHopIn []net.IP
-	// original -> bgp-policy:local-pref-eq
-	LocalPrefEq uint32
-	// original -> bgp-policy:community-count
-	CommunityCount CommunityCountType
-	// original -> bgp-policy:as-path-length
-	AsPathLength AsPathLengthType
-	// original -> bgp-policy:route-type
-	//route-type's original type is enumeration
-	RouteType string
-}
-
-//struct for container statements
-type StatementsType struct {
-	// original -> bgp-policy:name
-	Name string
-	// original -> bgp-policy:conditions
-	Conditions ConditionsType
-	// original -> bgp-policy:actions
-	Actions ActionsType
-}
-
-//struct for container policy-definition
-type PolicyDefinitionType struct {
-	// original -> bgp-policy:name
-	Name string
-	// original -> bgp-policy:statements
-	StatementsList []StatementsType
-}
-
-//struct for container policy-definitions
-type PolicyDefinitionsType struct {
-	// original -> bgp-policy:policy-definition
-	PolicyDefinitionList []PolicyDefinitionType
-}
-
-//struct for container as-path-set
-type AsPathSetType struct {
-	// original -> bgp-policy:as-path-set-name
-	AsPathSetName string
-	// original -> bgp-policy:as-path-set-members
-	AsPathSetMembers []string
-}
-
-//struct for container ext-community-set
-type ExtCommunitySetType struct {
-	// original -> bgp-policy:ext-community-set-name
-	ExtCommunitySetName string
-	// original -> bgp-policy:ext-community-members
-	//original type is list of union
-	ExtCommunityMembers []string
-}
-
-//struct for container community-set
-type CommunitySetType struct {
-	// original -> bgp-policy:community-set-name
-	CommunitySetName string
-	// original -> bgp-policy:community-members
-	//original type is list of union
-	CommunityMembers []string
-}
-
-//struct for container prefix
-type PrefixType struct {
-	// original -> bgp-policy:address
-	//address's original type is inet:ip-address
-	Address net.IP
-	// original -> bgp-policy:masklength
-	Masklength uint8
-	// original -> bgp-policy:masklength-range
-	MasklengthRange string
-}
-
-//struct for container prefix-set
-type PrefixSetType struct {
-	// original -> bgp-policy:prefix-set-name
-	PrefixSetName string
-	// original -> bgp-policy:prefix
-	PrefixList []PrefixType
-}
-
-//struct for container defined-sets
-type DefinedSetsType struct {
-	// original -> bgp-policy:prefix-set
-	PrefixSetList []PrefixSetType
-	// original -> bgp-policy:community-set
-	CommunitySetList []CommunitySetType
-	// original -> bgp-policy:ext-community-set
-	ExtCommunitySetList []ExtCommunitySetType
-	// original -> bgp-policy:as-path-set
-	AsPathSetList []AsPathSetType
-}
-
-//struct for container policy
-type PolicyType struct {
-	// original -> bgp-policy:defined-sets
-	DefinedSets DefinedSetsType
-	// original -> bgp-policy:policy-definitions
-	PolicyDefinitions PolicyDefinitionsType
+//struct for container apply-policy
+type ApplyPolicy struct {
+	// original -> rpol:import-policies
+	ImportPolicies []string
+	// original -> rpol:default-import-policy
+	DefaultImportPolicy DefaultPolicyType
+	// original -> rpol:export-policies
+	ExportPolicies []string
+	// original -> rpol:default-export-policy
+	DefaultExportPolicy DefaultPolicyType
 }
 
 //struct for container bgp-neighbor-common-state
-type BgpNeighborCommonStateType struct {
-	// peer-state
+type BgpNeighborCommonState struct {
+	// original -> bgp-op:state
 	State uint32
-	// peer-uptime
-	Uptime   int64
+	// original -> bgp-op:uptime
+	Uptime int64
+	// original -> bgp-op:downtime
 	Downtime int64
-
-	// BGP statistics
-	// Open message input count
+	// original -> bgp-op:open-in
 	OpenIn uint32
-	// Open message output count
+	// original -> bgp-op:open-out
 	OpenOut uint32
-	// Update message input count
+	// original -> bgp-op:update-in
 	UpdateIn uint32
-	// Update message ouput count
+	// original -> bgp-op:update-out
 	UpdateOut uint32
-	// Update message received time
+	// original -> bgp-op:update-recv-time
 	UpdateRecvTime int64
-	// Keepalive input count
+	// original -> bgp-op:keepalive-in
 	KeepaliveIn uint32
-	// Keepalive output count
+	// original -> bgp-op:keepalive-out
 	KeepaliveOut uint32
-	// Notify input count
+	// original -> bgp-op:notify-in
 	NotifyIn uint32
-	// Notify output count
+	// original -> bgp-op:notify-out
 	NotifyOut uint32
-	// Route Refresh input count
+	// original -> bgp-op:refresh-in
 	RefreshIn uint32
-	// Route Refresh output count
+	// original -> bgp-op:refresh-out
 	RefreshOut uint32
-	// Dynamic Capability input count
+	// original -> bgp-op:dynamic-cap-in
 	DynamicCapIn uint32
-	// Dynamic Capability output count
+	// original -> bgp-op:dynamic-cap-out
 	DynamicCapOut uint32
-
+	// original -> bgp-op:discarded-in
+	DiscardedIn uint32
+	// original -> bgp-op:discarded-out
 	DiscardedOut uint32
-	DiscardedIn  uint32
-
-	TotalIn  uint32
+	// original -> bgp-op:total-in
+	TotalIn uint32
+	// original -> bgp-op:total-out
 	TotalOut uint32
-
-	// BGP state count
-	// Established
+	// original -> bgp-op:established-count
 	EstablishedCount uint32
-	// Dropped
-	DroppedCount uint32
-	Flops        uint32
+	// original -> bgp-op:flops
+	Flops uint32
+}
+
+//struct for container add-paths
+type AddPaths struct {
+	// original -> bgp:receive
+	//receive's original type is empty
+	Receive bool
+	// original -> bgp:send-max
+	SendMax uint8
+}
+
+//struct for container as-path-options
+type AsPathOptions struct {
+	// original -> bgp:allow-own-as
+	//allow-own-as's original type is boolean
+	AllowOwnAs bool
+	// original -> bgp:replace-peer-as
+	//replace-peer-as's original type is boolean
+	ReplacePeerAs bool
+}
+
+//struct for container error-handling
+type ErrorHandling struct {
+	// original -> bgp:treat-as-withdraw
+	//treat-as-withdraw's original type is boolean
+	TreatAsWithdraw bool
 }
 
 //struct for container transport-options
-type TransportOptionsType struct {
+type TransportOptions struct {
 	// original -> bgp:tcp-mss
 	TcpMss uint16
 	// original -> bgp:mtu-discovery
@@ -429,14 +176,21 @@ type TransportOptionsType struct {
 }
 
 //struct for container bgp-logging-options
-type BgpLoggingOptionsType struct {
+type BgpLoggingOptions struct {
 	// original -> bgp:log-neighbor-state-changes
 	//log-neighbor-state-changes's original type is boolean
 	LogNeighborStateChanges bool
 }
 
+//struct for container route-server
+type RouteServer struct {
+	// original -> bgp:route-server-client
+	//route-server-client's original type is boolean
+	RouteServerClient bool
+}
+
 //struct for container route-reflector
-type RouteReflectorType struct {
+type RouteReflector struct {
 	// original -> bgp:route-reflector-cluster-id
 	//route-reflector-cluster-id's original type is rr-cluster-id-type
 	RouteReflectorClusterId uint32
@@ -446,19 +200,22 @@ type RouteReflectorType struct {
 }
 
 //struct for container ebgp-multihop
-type EbgpMultihopType struct {
+type EbgpMultihop struct {
 	// original -> bgp:multihop-ttl
 	MultihopTtl uint8
 }
 
 //struct for container timers
-type TimersType struct {
+type Timers struct {
 	// original -> bgp:connect-retry
 	//connect-retry's original type is decimal64
 	ConnectRetry float64
 	// original -> bgp:hold-time
 	//hold-time's original type is decimal64
 	HoldTime float64
+	// original -> bgp:idle-hold-time-after-reset
+	//idle-hold-time-after-reset's original type is decimal64
+	IdleHoldTimeAfterReset float64
 	// original -> bgp:keepalive-interval
 	//keepalive-interval's original type is decimal64
 	KeepaliveInterval float64
@@ -468,28 +225,10 @@ type TimersType struct {
 	// original -> bgp:send-update-delay
 	//send-update-delay's original type is decimal64
 	SendUpdateDelay float64
-
-	IdleHoldTImeAfterReset float64
-}
-
-//struct for container bgp-af-common-state
-type BgpAfCommonStateType struct {
-	// received prefix count
-	Pcount int64
-	// sent prefix count
-	Scount int64
-}
-
-//struct for container apply-policy
-type ApplyPolicyType struct {
-	// original -> bgp-policy:import-policies
-	ImportPolicies []string
-	// original -> bgp-policy:export-policies
-	ExportPolicies []string
 }
 
 //struct for container prefix-limit
-type PrefixLimitType struct {
+type PrefixLimit struct {
 	// original -> bgp-mp:max-prefixes
 	MaxPrefixes uint32
 	// original -> bgp-mp:shutdown-threshold-pct
@@ -499,85 +238,173 @@ type PrefixLimitType struct {
 	RestartTimer float64
 }
 
-//struct for container ipv6-multicast-vpn
-type Ipv6MulticastVpnType struct {
+//struct for container l2vpn-evpn
+type L2vpnEvpn struct {
+	// original -> rpol:apply-policy
+	ApplyPolicy
+	// original -> bgp-mp:prefix-limit
+	PrefixLimit
 }
 
-//struct for container ipv4-multicast-vpn
-type Ipv4MulticastVpnType struct {
+//struct for container l2vpn-vpls
+type L2vpnVpls struct {
+	// original -> bgp-mp:enabled
+	//enabled's original type is boolean
+	Enabled bool
+	// original -> rpol:apply-policy
+	ApplyPolicy
+	// original -> bgp-mp:prefix-limit
+	PrefixLimit
 }
 
-//struct for container l2vpn
-type L2vpnType struct {
+//struct for container l3vpn-ipv6-multicast
+type L3vpnIpv6Multicast struct {
+	// original -> bgp-mp:enabled
+	//enabled's original type is boolean
+	Enabled bool
+	// original -> rpol:apply-policy
+	ApplyPolicy
+	// original -> bgp-mp:prefix-limit
+	PrefixLimit
 }
 
-//struct for container ipv4-labeled-unicast
-type Ipv4LabeledUnicastType struct {
+//struct for container l3vpn-ipv4-multicast
+type L3vpnIpv4Multicast struct {
+	// original -> bgp-mp:enabled
+	//enabled's original type is boolean
+	Enabled bool
+	// original -> rpol:apply-policy
+	ApplyPolicy
+	// original -> bgp-mp:prefix-limit
+	PrefixLimit
 }
 
-//struct for container ipv6-l3vpn-unicast
-type Ipv6L3vpnUnicastType struct {
+//struct for container l3vpn-ipv6-unicast
+type L3vpnIpv6Unicast struct {
+	// original -> bgp-mp:enabled
+	//enabled's original type is boolean
+	Enabled bool
+	// original -> rpol:apply-policy
+	ApplyPolicy
+	// original -> bgp-mp:prefix-limit
+	PrefixLimit
 }
 
-//struct for container vrfs
-type VrfsType struct {
-	// original -> bgp-mp:name
-	Name string
-	// original -> bgp-mp:route-distinguisher
-	RouteDistinguisher uint64
-	// original -> bgp-policy:apply-policy
-	ApplyPolicy ApplyPolicyType
+//struct for container l3vpn-ipv4-unicast
+type L3vpnIpv4Unicast struct {
+	// original -> bgp-mp:enabled
+	//enabled's original type is boolean
+	Enabled bool
+	// original -> rpol:apply-policy
+	ApplyPolicy
+	// original -> bgp-mp:prefix-limit
+	PrefixLimit
 }
 
-//struct for container ipv4-l3vpn-unicast
-type Ipv4L3vpnUnicastType struct {
-	// original -> bgp-mp:vrfs
-	VrfsList []VrfsType
+//struct for container ipv6-labelled-unicast
+type Ipv6LabelledUnicast struct {
+	// original -> bgp-mp:enabled
+	//enabled's original type is boolean
+	Enabled bool
+	// original -> rpol:apply-policy
+	ApplyPolicy
+	// original -> bgp-mp:prefix-limit
+	PrefixLimit
 }
 
-//struct for container ipv4-ipv6-unicast
-type Ipv4Ipv6UnicastType struct {
+//struct for container ipv4-labelled-unicast
+type Ipv4LabelledUnicast struct {
+	// original -> bgp-mp:enabled
+	//enabled's original type is boolean
+	Enabled bool
+	// original -> rpol:apply-policy
+	ApplyPolicy
+	// original -> bgp-mp:prefix-limit
+	PrefixLimit
+}
+
+//struct for container ipv6-multicast
+type Ipv6Multicast struct {
+	// original -> bgp-mp:enabled
+	//enabled's original type is boolean
+	Enabled bool
+	// original -> rpol:apply-policy
+	ApplyPolicy
+	// original -> bgp-mp:prefix-limit
+	PrefixLimit
+}
+
+//struct for container ipv4-multicast
+type Ipv4Multicast struct {
+	// original -> bgp-mp:enabled
+	//enabled's original type is boolean
+	Enabled bool
+	// original -> rpol:apply-policy
+	ApplyPolicy
+	// original -> bgp-mp:prefix-limit
+	PrefixLimit
+}
+
+//struct for container ipv6-unicast
+type Ipv6Unicast struct {
+	// original -> bgp-mp:enabled
+	//enabled's original type is boolean
+	Enabled bool
+	// original -> rpol:apply-policy
+	ApplyPolicy
+	// original -> bgp-mp:prefix-limit
+	PrefixLimit
 	// original -> bgp-mp:send-default-route
 	//send-default-route's original type is boolean
 	SendDefaultRoute bool
 }
 
-//struct for container safi
-type SafiType struct {
-	// original -> bgp-mp:safi-name
-	SafiName SafiTypeDef
-	// original -> bgp-mp:ipv4-ipv6-unicast
-	Ipv4Ipv6Unicast Ipv4Ipv6UnicastType
-	// original -> bgp-mp:ipv4-l3vpn-unicast
-	Ipv4L3vpnUnicast Ipv4L3vpnUnicastType
-	// original -> bgp-mp:ipv6-l3vpn-unicast
-	Ipv6L3vpnUnicast Ipv6L3vpnUnicastType
-	// original -> bgp-mp:ipv4-labeled-unicast
-	Ipv4LabeledUnicast Ipv4LabeledUnicastType
-	// original -> bgp-mp:l2vpn
-	L2vpn L2vpnType
-	// original -> bgp-mp:ipv4-multicast-vpn
-	Ipv4MulticastVpn Ipv4MulticastVpnType
-	// original -> bgp-mp:ipv6-multicast-vpn
-	Ipv6MulticastVpn Ipv6MulticastVpnType
+//struct for container ipv4-unicast
+type Ipv4Unicast struct {
+	// original -> bgp-mp:enabled
+	//enabled's original type is boolean
+	Enabled bool
+	// original -> rpol:apply-policy
+	ApplyPolicy
 	// original -> bgp-mp:prefix-limit
-	PrefixLimit PrefixLimitType
-	// original -> bgp-policy:apply-policy
-	ApplyPolicy ApplyPolicyType
+	PrefixLimit
+	// original -> bgp-mp:send-default-route
+	//send-default-route's original type is boolean
+	SendDefaultRoute bool
 }
 
-//struct for container afi
-type AfiType struct {
-	// original -> bgp-mp:afi-name
-	AfiName AfiTypeDef
-	// original -> bgp-mp:safi
-	SafiList []SafiType
-	// original -> bgp-op:bgp-af-common-state
-	BgpAfCommonState BgpAfCommonStateType
+//struct for container afi-safi
+type AfiSafi struct {
+	// original -> bgp-mp:afi-safi-name
+	AfiSafiName string
+	// original -> bgp-mp:ipv4-unicast
+	Ipv4Unicast
+	// original -> bgp-mp:ipv6-unicast
+	Ipv6Unicast
+	// original -> bgp-mp:ipv4-multicast
+	Ipv4Multicast
+	// original -> bgp-mp:ipv6-multicast
+	Ipv6Multicast
+	// original -> bgp-mp:ipv4-labelled-unicast
+	Ipv4LabelledUnicast
+	// original -> bgp-mp:ipv6-labelled-unicast
+	Ipv6LabelledUnicast
+	// original -> bgp-mp:l3vpn-ipv4-unicast
+	L3vpnIpv4Unicast
+	// original -> bgp-mp:l3vpn-ipv6-unicast
+	L3vpnIpv6Unicast
+	// original -> bgp-mp:l3vpn-ipv4-multicast
+	L3vpnIpv4Multicast
+	// original -> bgp-mp:l3vpn-ipv6-multicast
+	L3vpnIpv6Multicast
+	// original -> bgp-mp:l2vpn-vpls
+	L2vpnVpls
+	// original -> bgp-mp:l2vpn-evpn
+	L2vpnEvpn
 }
 
 //struct for container graceful-restart
-type GracefulRestartType struct {
+type GracefulRestart struct {
 	// original -> bgp:restart-time
 	RestartTime uint16
 	// original -> bgp:stale-routes-time
@@ -585,58 +412,8 @@ type GracefulRestartType struct {
 	StaleRoutesTime float64
 }
 
-//struct for container eibgp
-type EibgpType struct {
-	// original -> bgp:maximum-paths
-	MaximumPaths uint32
-}
-
-//struct for container ibgp
-type IbgpType struct {
-	// original -> bgp:maximum-paths
-	MaximumPaths uint32
-}
-
-//struct for container ebgp
-type EbgpType struct {
-	// original -> bgp:allow-multiple-as
-	//allow-multiple-as's original type is boolean
-	AllowMultipleAs bool
-	// original -> bgp:maximum-paths
-	MaximumPaths uint32
-}
-
-//struct for container use-multiple-paths
-type UseMultiplePathsType struct {
-	// original -> bgp:ebgp
-	Ebgp EbgpType
-	// original -> bgp:ibgp
-	Ibgp IbgpType
-	// original -> bgp:eibgp
-	Eibgp EibgpType
-}
-
-//struct for container route-selection-options
-type RouteSelectionOptionsType struct {
-	// original -> bgp:always-compare-med
-	//always-compare-med's original type is boolean
-	AlwaysCompareMed bool
-	// original -> bgp:ignore-as-path-length
-	//ignore-as-path-length's original type is boolean
-	IgnoreAsPathLength bool
-	// original -> bgp:external-compare-router-id
-	//external-compare-router-id's original type is boolean
-	ExternalCompareRouterId bool
-	// original -> bgp:advertise-inactive-routes
-	//advertise-inactive-routes's original type is boolean
-	AdvertiseInactiveRoutes bool
-	// original -> bgp:enable-aigp
-	//enable-aigp's original type is empty
-	EnableAigp bool
-}
-
 //struct for container neighbor
-type NeighborType struct {
+type Neighbor struct {
 	// original -> bgp:neighbor-address
 	//neighbor-address's original type is inet:ip-address
 	NeighborAddress net.IP
@@ -645,96 +422,155 @@ type NeighborType struct {
 	PeerAs uint32
 	// original -> bgp:description
 	Description string
-	// original -> bgp:route-selection-options
-	RouteSelectionOptions RouteSelectionOptionsType
-	// original -> bgp:use-multiple-paths
-	UseMultiplePaths UseMultiplePathsType
 	// original -> bgp:graceful-restart
-	GracefulRestart GracefulRestartType
-	// original -> bgp-policy:apply-policy
-	ApplyPolicy ApplyPolicyType
-	// original -> bgp-mp:afi
-	AfiList []AfiType
+	GracefulRestart
+	// original -> rpol:apply-policy
+	ApplyPolicy
+	// original -> bgp-mp:afi-safi
+	AfiSafiList []AfiSafi
 	// original -> bgp:auth-password
 	AuthPassword string
 	// original -> bgp:peer-type
 	PeerType PeerTypeDef
 	// original -> bgp:timers
-	Timers TimersType
+	Timers
 	// original -> bgp:ebgp-multihop
-	EbgpMultihop EbgpMultihopType
+	EbgpMultihop
 	// original -> bgp:route-reflector
-	RouteReflector RouteReflectorType
+	RouteReflector
+	// original -> bgp:route-server
+	RouteServer
 	// original -> bgp:remove-private-as
 	RemovePrivateAs RemovePrivateAsOption
 	// original -> bgp:bgp-logging-options
-	BgpLoggingOptions BgpLoggingOptionsType
+	BgpLoggingOptions
 	// original -> bgp:transport-options
-	TransportOptions TransportOptionsType
+	TransportOptions
 	// original -> bgp:local-address
 	//local-address's original type is inet:ip-address
 	LocalAddress net.IP
 	// original -> bgp:route-flap-damping
 	//route-flap-damping's original type is boolean
 	RouteFlapDamping bool
+	// original -> bgp:send-community
+	SendCommunity CommunityType
+	// original -> bgp:error-handling
+	ErrorHandling
+	// original -> bgp:as-path-options
+	AsPathOptions
+	// original -> bgp:add-paths
+	AddPaths
 	// original -> bgp-op:bgp-neighbor-common-state
-	BgpNeighborCommonState BgpNeighborCommonStateType
+	BgpNeighborCommonState
+}
+
+//struct for container ibgp
+type Ibgp struct {
+	// original -> bgp-mp:maximum-paths
+	MaximumPaths uint32
+}
+
+//struct for container ebgp
+type Ebgp struct {
+	// original -> bgp-mp:allow-multiple-as
+	//allow-multiple-as's original type is boolean
+	AllowMultipleAs bool
+	// original -> bgp-mp:maximum-paths
+	MaximumPaths uint32
+}
+
+//struct for container use-multiple-paths
+type UseMultiplePaths struct {
+	// original -> bgp-mp:ebgp
+	Ebgp
+	// original -> bgp-mp:ibgp
+	Ibgp
 }
 
 //struct for container bgp-group-common-state
-type BgpGroupCommonStateType struct {
+type BgpGroupCommonState struct {
 }
 
 //struct for container peer-group
-type PeerGroupType struct {
+type PeerGroup struct {
 	// original -> bgp:group-name
 	GroupName string
 	// original -> bgp-op:bgp-group-common-state
-	BgpGroupCommonState BgpGroupCommonStateType
+	BgpGroupCommonState
 	// original -> bgp:description
 	Description string
-	// original -> bgp:route-selection-options
-	RouteSelectionOptions RouteSelectionOptionsType
-	// original -> bgp:use-multiple-paths
-	UseMultiplePaths UseMultiplePathsType
 	// original -> bgp:graceful-restart
-	GracefulRestart GracefulRestartType
-	// original -> bgp-policy:apply-policy
-	ApplyPolicy ApplyPolicyType
-	// original -> bgp-mp:afi
-	AfiList []AfiType
+	GracefulRestart
+	// original -> rpol:apply-policy
+	ApplyPolicy
+	// original -> bgp-mp:afi-safi
+	AfiSafiList []AfiSafi
 	// original -> bgp:auth-password
 	AuthPassword string
 	// original -> bgp:peer-type
 	PeerType PeerTypeDef
 	// original -> bgp:timers
-	Timers TimersType
+	Timers
 	// original -> bgp:ebgp-multihop
-	EbgpMultihop EbgpMultihopType
+	EbgpMultihop
 	// original -> bgp:route-reflector
-	RouteReflector RouteReflectorType
+	RouteReflector
+	// original -> bgp:route-server
+	RouteServer
 	// original -> bgp:remove-private-as
 	RemovePrivateAs RemovePrivateAsOption
 	// original -> bgp:bgp-logging-options
-	BgpLoggingOptions BgpLoggingOptionsType
+	BgpLoggingOptions
 	// original -> bgp:transport-options
-	TransportOptions TransportOptionsType
+	TransportOptions
 	// original -> bgp:local-address
 	//local-address's original type is inet:ip-address
 	LocalAddress net.IP
 	// original -> bgp:route-flap-damping
 	//route-flap-damping's original type is boolean
 	RouteFlapDamping bool
+	// original -> bgp:send-community
+	SendCommunity CommunityType
+	// original -> bgp:error-handling
+	ErrorHandling
+	// original -> bgp:as-path-options
+	AsPathOptions
+	// original -> bgp:add-paths
+	AddPaths
+	// original -> bgp-mp:use-multiple-paths
+	UseMultiplePaths
 	// original -> bgp:neighbor
-	NeighborList []NeighborType
+	NeighborList []Neighbor
 }
 
 //struct for container bgp-global-state
-type BgpGlobalStateType struct {
+type BgpGlobalState struct {
+}
+
+//struct for container route-selection-options
+type RouteSelectionOptions struct {
+	// original -> bgp-mp:always-compare-med
+	//always-compare-med's original type is boolean
+	AlwaysCompareMed bool
+	// original -> bgp-mp:ignore-as-path-length
+	//ignore-as-path-length's original type is boolean
+	IgnoreAsPathLength bool
+	// original -> bgp-mp:external-compare-router-id
+	//external-compare-router-id's original type is boolean
+	ExternalCompareRouterId bool
+	// original -> bgp-mp:advertise-inactive-routes
+	//advertise-inactive-routes's original type is boolean
+	AdvertiseInactiveRoutes bool
+	// original -> bgp-mp:enable-aigp
+	//enable-aigp's original type is empty
+	EnableAigp bool
+	// original -> bgp-mp:ignore-next-hop-igp-metric
+	//ignore-next-hop-igp-metric's original type is boolean
+	IgnoreNextHopIgpMetric bool
 }
 
 //struct for container confederation
-type ConfederationType struct {
+type Confederation struct {
 	// original -> bgp:identifier
 	//identifier's original type is inet:as-number
 	Identifier uint32
@@ -744,7 +580,7 @@ type ConfederationType struct {
 }
 
 //struct for container default-route-distance
-type DefaultRouteDistanceType struct {
+type DefaultRouteDistance struct {
 	// original -> bgp:external-route-distance
 	ExternalRouteDistance uint8
 	// original -> bgp:internal-route-distance
@@ -752,7 +588,7 @@ type DefaultRouteDistanceType struct {
 }
 
 //struct for container global
-type GlobalType struct {
+type Global struct {
 	// original -> bgp:as
 	//as's original type is inet:as-number
 	As uint32
@@ -760,23 +596,25 @@ type GlobalType struct {
 	//router-id's original type is inet:ipv4-address
 	RouterId net.IP
 	// original -> bgp:default-route-distance
-	DefaultRouteDistance DefaultRouteDistanceType
+	DefaultRouteDistance
 	// original -> bgp:confederation
-	Confederation ConfederationType
+	Confederation
+	// original -> bgp-mp:use-multiple-paths
+	UseMultiplePaths
+	// original -> bgp-mp:afi-safi
+	AfiSafiList []AfiSafi
 	// original -> bgp-op:bgp-global-state
-	BgpGlobalState BgpGlobalStateType
+	BgpGlobalState
 }
 
 //struct for container bgp
-type BgpType struct {
+type Bgp struct {
 	// original -> bgp:global
-	Global GlobalType
-	// original -> bgp-mp:afi
-	AfiList []AfiType
+	Global
 	// original -> bgp:peer-group
-	PeerGroupList []PeerGroupType
+	PeerGroupList []PeerGroup
 	// original -> bgp:neighbor
-	NeighborList []NeighborType
-	// original -> bgp-policy:policy
-	Policy PolicyType
+	NeighborList []Neighbor
+	// original -> rpol:apply-policy
+	ApplyPolicy
 }

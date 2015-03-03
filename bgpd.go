@@ -136,7 +136,7 @@ func main() {
 		opts.ConfigFile = "gobgpd.conf"
 	}
 
-	configCh := make(chan config.BgpType)
+	configCh := make(chan config.Bgp)
 	reloadCh := make(chan bool)
 	go config.ReadConfigfileServe(opts.ConfigFile, configCh, reloadCh)
 	reloadCh <- true
@@ -148,18 +148,18 @@ func main() {
 	restServer := api.NewRestServer(api.REST_PORT, bgpServer.RestReqCh)
 	go restServer.Serve()
 
-	var bgpConfig *config.BgpType = nil
+	var bgpConfig *config.Bgp = nil
 	for {
 		select {
 		case newConfig := <-configCh:
-			var added []config.NeighborType
-			var deleted []config.NeighborType
+			var added []config.Neighbor
+			var deleted []config.Neighbor
 
 			if bgpConfig == nil {
 				bgpServer.SetGlobalType(newConfig.Global)
 				bgpConfig = &newConfig
 				added = newConfig.NeighborList
-				deleted = []config.NeighborType{}
+				deleted = []config.Neighbor{}
 			} else {
 				bgpConfig, added, deleted = config.UpdateConfig(bgpConfig, &newConfig)
 			}

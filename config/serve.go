@@ -5,11 +5,11 @@ import (
 	log "github.com/Sirupsen/logrus"
 )
 
-func ReadConfigfileServe(path string, configCh chan BgpType, reloadCh chan bool) {
+func ReadConfigfileServe(path string, configCh chan Bgp, reloadCh chan bool) {
 	for {
 		<-reloadCh
 
-		b := BgpType{}
+		b := Bgp{}
 		md, err := toml.DecodeFile(path, &b)
 		if err != nil {
 			log.Fatal("can't read config file ", path, err)
@@ -21,7 +21,7 @@ func ReadConfigfileServe(path string, configCh chan BgpType, reloadCh chan bool)
 	}
 }
 
-func inSlice(n NeighborType, b []NeighborType) bool {
+func inSlice(n Neighbor, b []Neighbor) bool {
 	for _, nb := range b {
 		if nb.NeighborAddress.String() == n.NeighborAddress.String() {
 			return true
@@ -30,8 +30,8 @@ func inSlice(n NeighborType, b []NeighborType) bool {
 	return false
 }
 
-func UpdateConfig(curC *BgpType, newC *BgpType) (*BgpType, []NeighborType, []NeighborType) {
-	bgpConfig := BgpType{}
+func UpdateConfig(curC *Bgp, newC *Bgp) (*Bgp, []Neighbor, []Neighbor) {
+	bgpConfig := Bgp{}
 	if curC == nil {
 		bgpConfig.Global = newC.Global
 		curC = &bgpConfig
@@ -39,8 +39,8 @@ func UpdateConfig(curC *BgpType, newC *BgpType) (*BgpType, []NeighborType, []Nei
 		// can't update the global config
 		bgpConfig.Global = curC.Global
 	}
-	added := []NeighborType{}
-	deleted := []NeighborType{}
+	added := []Neighbor{}
+	deleted := []Neighbor{}
 
 	for _, n := range newC.NeighborList {
 		if inSlice(n, curC.NeighborList) == false {

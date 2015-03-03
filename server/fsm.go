@@ -61,8 +61,8 @@ func (s AdminState) String() string {
 }
 
 type FSM struct {
-	globalConfig       *config.GlobalType
-	peerConfig         *config.NeighborType
+	globalConfig       *config.Global
+	peerConfig         *config.Neighbor
 	keepaliveTicker    *time.Ticker
 	state              bgp.FSMState
 	passiveConn        net.Conn
@@ -122,7 +122,7 @@ func (fsm *FSM) bgpMessageStateUpdate(MessageType uint8, isIn bool) {
 	}
 }
 
-func NewFSM(gConfig *config.GlobalType, pConfig *config.NeighborType, connCh chan net.Conn) *FSM {
+func NewFSM(gConfig *config.Global, pConfig *config.Neighbor, connCh chan net.Conn) *FSM {
 	return &FSM{
 		globalConfig:     gConfig,
 		peerConfig:       pConfig,
@@ -287,7 +287,7 @@ func (h *FSMHandler) active() bgp.FSMState {
 	}
 }
 
-func buildopen(global *config.GlobalType, peerConf *config.NeighborType) *bgp.BGPMessage {
+func buildopen(global *config.Global, peerConf *config.Neighbor) *bgp.BGPMessage {
 	var afi int
 	if peerConf.NeighborAddress.To4() != nil {
 		afi = bgp.AFI_IP

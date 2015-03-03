@@ -15,12 +15,12 @@ import (
 
 type QuaggaConfig struct {
 	id          int
-	config      *config.NeighborType
-	gobgpConfig *config.GlobalType
+	config      *config.Neighbor
+	gobgpConfig *config.Global
 	serverIP    net.IP
 }
 
-func NewQuaggaConfig(id int, gConfig *config.GlobalType, myConfig *config.NeighborType, server net.IP) *QuaggaConfig {
+func NewQuaggaConfig(id int, gConfig *config.Global, myConfig *config.Neighbor, server net.IP) *QuaggaConfig {
 	return &QuaggaConfig{
 		id:          id,
 		config:      myConfig,
@@ -46,15 +46,15 @@ func (qt *QuaggaConfig) Config() *bytes.Buffer {
 func create_config_files(nr int, outputDir string) {
 	quaggaConfigList := make([]*QuaggaConfig, 0)
 
-	gobgpConf := config.BgpType{
-		Global: config.GlobalType{
+	gobgpConf := config.Bgp{
+		Global: config.Global{
 			As:       65000,
 			RouterId: net.ParseIP("192.168.255.1"),
 		},
 	}
 
 	for i := 1; i < nr+1; i++ {
-		c := config.NeighborType{
+		c := config.Neighbor{
 			PeerAs:          65000 + uint32(i),
 			NeighborAddress: net.ParseIP(fmt.Sprintf("10.0.0.%d", i)),
 			AuthPassword:    fmt.Sprintf("hoge%d", i),

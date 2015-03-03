@@ -1,31 +1,31 @@
 package main
 
 import (
-	"github.com/osrg/gobgp/config"
 	"bytes"
 	"fmt"
 	"github.com/BurntSushi/toml"
+	"github.com/osrg/gobgp/config"
 	"net"
 )
 
 func main() {
-	b := config.BgpType{
-		Global: config.GlobalType{
+	b := config.Bgp{
+		Global: config.Global{
 			As:       12332,
 			RouterId: net.ParseIP("10.0.0.1"),
 		},
-		NeighborList: []config.NeighborType{
-			config.NeighborType{
+		NeighborList: []config.Neighbor{
+			config.Neighbor{
 				PeerAs:          12333,
 				NeighborAddress: net.ParseIP("192.168.177.32"),
 				AuthPassword:    "apple",
 			},
-			config.NeighborType{
+			config.Neighbor{
 				PeerAs:          12334,
 				NeighborAddress: net.ParseIP("192.168.177.33"),
 				AuthPassword:    "orange",
 			},
-			config.NeighborType{
+			config.Neighbor{
 				PeerAs:          12335,
 				NeighborAddress: net.ParseIP("192.168.177.34"),
 				AuthPassword:    "grape",

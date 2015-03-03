@@ -47,8 +47,8 @@ type peerMsg struct {
 
 type Peer struct {
 	t              tomb.Tomb
-	globalConfig   config.GlobalType
-	peerConfig     config.NeighborType
+	globalConfig   config.Global
+	peerConfig     config.Neighbor
 	acceptedConnCh chan net.Conn
 	serverMsgCh    chan *serverMsg
 	peerMsgCh      chan *peerMsg
@@ -65,7 +65,7 @@ type Peer struct {
 	outgoing chan *bgp.BGPMessage
 }
 
-func NewPeer(g config.GlobalType, peer config.NeighborType, serverMsgCh chan *serverMsg, peerMsgCh chan *peerMsg, peerList []*serverMsgDataPeer) *Peer {
+func NewPeer(g config.Global, peer config.Neighbor, serverMsgCh chan *serverMsg, peerMsgCh chan *peerMsg, peerList []*serverMsgDataPeer) *Peer {
 	p := &Peer{
 		globalConfig:   g,
 		peerConfig:     peer,
@@ -221,7 +221,7 @@ func (peer *Peer) handleREST(restReq *api.RestRequest) {
 	case api.REQ_NEIGHBOR_SHUTDOWN:
 		peer.outgoing <- bgp.NewBGPNotificationMessage(bgp.BGP_ERROR_CEASE, bgp.BGP_ERROR_SUB_ADMINISTRATIVE_SHUTDOWN, nil)
 	case api.REQ_NEIGHBOR_RESET:
-		peer.fsm.idleHoldTime = peer.peerConfig.Timers.IdleHoldTImeAfterReset
+		peer.fsm.idleHoldTime = peer.peerConfig.Timers.IdleHoldTimeAfterReset
 		peer.outgoing <- bgp.NewBGPNotificationMessage(bgp.BGP_ERROR_CEASE, bgp.BGP_ERROR_SUB_ADMINISTRATIVE_RESET, nil)
 	case api.REQ_NEIGHBOR_SOFT_RESET, api.REQ_NEIGHBOR_SOFT_RESET_IN:
 		// soft-reconfiguration inbound
@@ -410,7 +410,7 @@ func (peer *Peer) loop() error {
 
 					// clear counter
 					if h.fsm.adminState == ADMIN_STATE_DOWN {
-						h.fsm.peerConfig.BgpNeighborCommonState = config.BgpNeighborCommonStateType{}
+						h.fsm.peerConfig.BgpNeighborCommonState = config.BgpNeighborCommonState{}
 					}
 
 				case FSM_MSG_BGP_MESSAGE:

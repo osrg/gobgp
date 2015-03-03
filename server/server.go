@@ -56,10 +56,10 @@ type peerMapInfo struct {
 }
 
 type BgpServer struct {
-	bgpConfig     config.BgpType
-	globalTypeCh  chan config.GlobalType
-	addedPeerCh   chan config.NeighborType
-	deletedPeerCh chan config.NeighborType
+	bgpConfig     config.Bgp
+	globalTypeCh  chan config.Global
+	addedPeerCh   chan config.Neighbor
+	deletedPeerCh chan config.Neighbor
 	RestReqCh     chan *api.RestRequest
 	listenPort    int
 	peerMap       map[string]peerMapInfo
@@ -67,9 +67,9 @@ type BgpServer struct {
 
 func NewBgpServer(port int) *BgpServer {
 	b := BgpServer{}
-	b.globalTypeCh = make(chan config.GlobalType)
-	b.addedPeerCh = make(chan config.NeighborType)
-	b.deletedPeerCh = make(chan config.NeighborType)
+	b.globalTypeCh = make(chan config.Global)
+	b.addedPeerCh = make(chan config.Neighbor)
+	b.deletedPeerCh = make(chan config.Neighbor)
 	b.RestReqCh = make(chan *api.RestRequest, 1)
 	b.listenPort = port
 	return &b
@@ -203,15 +203,15 @@ func sendServerMsgToAll(peerMap map[string]peerMapInfo, msg *serverMsg) {
 	}
 }
 
-func (server *BgpServer) SetGlobalType(g config.GlobalType) {
+func (server *BgpServer) SetGlobalType(g config.Global) {
 	server.globalTypeCh <- g
 }
 
-func (server *BgpServer) PeerAdd(peer config.NeighborType) {
+func (server *BgpServer) PeerAdd(peer config.Neighbor) {
 	server.addedPeerCh <- peer
 }
 
-func (server *BgpServer) PeerDelete(peer config.NeighborType) {
+func (server *BgpServer) PeerDelete(peer config.Neighbor) {
 	server.deletedPeerCh <- peer
 }
 

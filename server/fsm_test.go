@@ -284,8 +284,8 @@ func TestFSMHandlerEstablished_HoldtimeZero(t *testing.T) {
 }
 
 func makePeerAndHandler() (*Peer, *FSMHandler) {
-	globalConfig := config.GlobalType{}
-	neighborConfig := config.NeighborType{}
+	globalConfig := config.Global{}
+	neighborConfig := config.Neighbor{}
 
 	p := &Peer{
 		globalConfig:   globalConfig,

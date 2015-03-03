@@ -103,8 +103,8 @@ func TestPeerAdminShutdownWhileEstablished(t *testing.T) {
 	log.SetLevel(log.DebugLevel)
 	assert := assert.New(t)
 	m := NewMockConnection()
-	globalConfig := config.GlobalType{}
-	peerConfig := config.NeighborType{}
+	globalConfig := config.Global{}
+	peerConfig := config.Neighbor{}
 	peerConfig.PeerAs = 100000
 	peerConfig.Timers.KeepaliveInterval = 5
 	peer := makePeer(globalConfig, peerConfig)
@@ -155,8 +155,8 @@ func TestPeerAdminShutdownWhileIdle(t *testing.T) {
 	log.SetLevel(log.DebugLevel)
 	assert := assert.New(t)
 
-	globalConfig := config.GlobalType{}
-	peerConfig := config.NeighborType{}
+	globalConfig := config.Global{}
+	peerConfig := config.Neighbor{}
 	peerConfig.PeerAs = 100000
 	peerConfig.Timers.KeepaliveInterval = 5
 	peer := makePeer(globalConfig, peerConfig)
@@ -191,8 +191,8 @@ func TestPeerAdminShutdownWhileActive(t *testing.T) {
 	log.SetLevel(log.DebugLevel)
 	assert := assert.New(t)
 
-	globalConfig := config.GlobalType{}
-	peerConfig := config.NeighborType{}
+	globalConfig := config.Global{}
+	peerConfig := config.Neighbor{}
 	peerConfig.PeerAs = 100000
 	peerConfig.Timers.KeepaliveInterval = 5
 	peer := makePeer(globalConfig, peerConfig)
@@ -226,8 +226,8 @@ func TestPeerAdminShutdownWhileOpensent(t *testing.T) {
 	log.SetLevel(log.DebugLevel)
 	assert := assert.New(t)
 	m := NewMockConnection()
-	globalConfig := config.GlobalType{}
-	peerConfig := config.NeighborType{}
+	globalConfig := config.Global{}
+	peerConfig := config.Neighbor{}
 	peerConfig.PeerAs = 100000
 	peerConfig.Timers.KeepaliveInterval = 5
 	peer := makePeer(globalConfig, peerConfig)
@@ -267,8 +267,8 @@ func TestPeerAdminShutdownWhileOpenconfirm(t *testing.T) {
 	log.SetLevel(log.DebugLevel)
 	assert := assert.New(t)
 	m := NewMockConnection()
-	globalConfig := config.GlobalType{}
-	peerConfig := config.NeighborType{}
+	globalConfig := config.Global{}
+	peerConfig := config.Neighbor{}
 	peerConfig.PeerAs = 100000
 	peerConfig.Timers.KeepaliveInterval = 5
 	peer := makePeer(globalConfig, peerConfig)
@@ -313,8 +313,8 @@ func TestPeerAdminEnable(t *testing.T) {
 	log.SetLevel(log.DebugLevel)
 	assert := assert.New(t)
 	m := NewMockConnection()
-	globalConfig := config.GlobalType{}
-	peerConfig := config.NeighborType{}
+	globalConfig := config.Global{}
+	peerConfig := config.Neighbor{}
 	peerConfig.PeerAs = 100000
 	peerConfig.Timers.KeepaliveInterval = 5
 	peer := makePeer(globalConfig, peerConfig)
@@ -385,8 +385,8 @@ func TestPeerAdminShutdownReject(t *testing.T) {
 	m := NewMockConnection()
 	m.wait = 500
 
-	globalConfig := config.GlobalType{}
-	peerConfig := config.NeighborType{}
+	globalConfig := config.Global{}
+	peerConfig := config.Neighbor{}
 	peerConfig.PeerAs = 100000
 	peerConfig.Timers.KeepaliveInterval = 5
 	peer := makePeer(globalConfig, peerConfig)
@@ -434,8 +434,8 @@ func TestPeerSelectSmallerHoldtime(t *testing.T) {
 	assert := assert.New(t)
 	m := NewMockConnection()
 
-	globalConfig := config.GlobalType{}
-	peerConfig := config.NeighborType{}
+	globalConfig := config.Global{}
+	peerConfig := config.Neighbor{}
 	peerConfig.PeerAs = 65001
 	peerConfig.Timers.KeepaliveInterval = 5
 	peer := makePeer(globalConfig, peerConfig)
@@ -457,7 +457,7 @@ func TestPeerSelectSmallerHoldtime(t *testing.T) {
 	assert.Equal(float64(0), peer.fsm.negotiatedHoldTime)
 }
 
-func assertCounter(assert *assert.Assertions, counter config.BgpNeighborCommonStateType) {
+func assertCounter(assert *assert.Assertions, counter config.BgpNeighborCommonState) {
 	assert.Equal(uint32(0), counter.OpenIn)
 	assert.Equal(uint32(0), counter.OpenOut)
 	assert.Equal(uint32(0), counter.UpdateIn)
@@ -474,7 +474,6 @@ func assertCounter(assert *assert.Assertions, counter config.BgpNeighborCommonSt
 	assert.Equal(uint32(0), counter.DynamicCapIn)
 	assert.Equal(uint32(0), counter.DynamicCapOut)
 	assert.Equal(uint32(0), counter.EstablishedCount)
-	assert.Equal(uint32(0), counter.DroppedCount)
 	assert.Equal(uint32(0), counter.Flops)
 }
 
@@ -495,7 +494,7 @@ func waitUntil(assert *assert.Assertions, state bgp.FSMState, peer *Peer, timeou
 	}
 }
 
-func makePeer(globalConfig config.GlobalType, peerConfig config.NeighborType) *Peer {
+func makePeer(globalConfig config.Global, peerConfig config.Neighbor) *Peer {
 
 	sch := make(chan *serverMsg, 8)
 	pch := make(chan *peerMsg, 4096)
