@@ -10,11 +10,12 @@ Currently, we made some modifications to the yang files:
 
 How to use
 ==========
+::
+
    $ git clone -b gobgp https://github.com/osrg/yang
    $ YANG_DIR=`pwd`/yang/experimental/openconfig
    $ cd $PYANG_INSTALL_DIR
-   $ source ./env.sh 
+   $ source ./env.sh
    $ PYTHONPATH=. ./bin/pyang --plugindir $GOBGP_PATH/tools/pyang_plugins \
-     -p $YANG_DIR/bgp \
-     -p $YANG_DIR/policy \
-     -f golang $YANG_DIR/bgp/bgp.yang |gofmt > $GOBGP_PATH/config/bgp_configs.go
+   -p $YANG_DIR/bgp -p $YANG_DIR/policy \
+   -f golang $YANG_DIR/bgp/bgp.yang |gofmt > $GOBGP_PATH/config/bgp_configs.go
