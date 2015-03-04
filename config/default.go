@@ -37,7 +37,7 @@ func SetDefaultConfigValues(md toml.MetaData, bt *Bgp) {
 			bt.NeighborList[i].Timers.KeepaliveInterval = bt.NeighborList[i].Timers.HoldTime / 3
 		}
 
-		if _, ok := n.attributes["NeighborList.Timers.IdleHoldTImeAfterReset"]; !ok {
+		if _, ok := n.attributes["NeighborList.Timers.IdleHoldTimeAfterReset"]; !ok {
 			bt.NeighborList[i].Timers.IdleHoldTimeAfterReset = float64(DEFAULT_IDLE_HOLDTIME_AFTER_RESET)
 		}
 	}
