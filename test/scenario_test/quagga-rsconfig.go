@@ -92,9 +92,12 @@ func create_config_files(nr int, outputDir string, IPVersion string) {
 
 	for i := 1; i < nr+1; i++ {
 		c := config.Neighbor{
-			PeerAs:          65000 + uint32(i),
-			NeighborAddress: net.ParseIP(fmt.Sprintf("%s%d", baseNeighborAddress[IPVersion], i)),
-			AuthPassword:    fmt.Sprintf("hoge%d", i),
+			PeerAs:           65000 + uint32(i),
+			NeighborAddress:  net.ParseIP(fmt.Sprintf("%s%d", baseNeighborAddress[IPVersion], i)),
+			AuthPassword:     fmt.Sprintf("hoge%d", i),
+			RouteServer:      config.RouteServer{RouteServerClient: true},
+			TransportOptions: config.TransportOptions{PassiveMode: true},
+			Timers:           config.Timers{HoldTime: 30, KeepaliveInterval: 10, IdleHoldTimeAfterReset: 10},
 		}
 		gobgpConf.NeighborList = append(gobgpConf.NeighborList, c)
 		q := NewQuaggaConfig(i, &gobgpConf.Global, &c, net.ParseIP(serverAddress[IPVersion]))
@@ -130,9 +133,12 @@ func append_config_files(ar int, outputDir string, IPVersion string) {
 		},
 	}
 	c := config.Neighbor{
-		PeerAs:          65000 + uint32(ar),
-		NeighborAddress: net.ParseIP(fmt.Sprintf("%s%d", baseNeighborAddress[IPVersion], ar)),
-		AuthPassword:    fmt.Sprintf("hoge%d", ar),
+		PeerAs:           65000 + uint32(ar),
+		NeighborAddress:  net.ParseIP(fmt.Sprintf("%s%d", baseNeighborAddress[IPVersion], ar)),
+		AuthPassword:     fmt.Sprintf("hoge%d", ar),
+		RouteServer:      config.RouteServer{RouteServerClient: true},
+		TransportOptions: config.TransportOptions{PassiveMode: true},
+		Timers:           config.Timers{HoldTime: 30, KeepaliveInterval: 10, IdleHoldTimeAfterReset: 10},
 	}
 	q := NewQuaggaConfig(ar, &gobgpConf.Global, &c, net.ParseIP(serverAddress[IPVersion]))
 	os.Mkdir(fmt.Sprintf("%s/q%d", outputDir, ar), 0755)
