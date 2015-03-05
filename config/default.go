@@ -2,6 +2,7 @@ package config
 
 import (
 	"github.com/BurntSushi/toml"
+	"github.com/osrg/gobgp/packet"
 	"strings"
 )
 
@@ -14,7 +15,7 @@ type neighbor struct {
 	attributes map[string]bool
 }
 
-func SetDefaultConfigValues(md toml.MetaData, bt *Bgp) {
+func SetDefaultConfigValues(md toml.MetaData, bt *Bgp) error {
 	neighbors := []neighbor{}
 
 	nidx := 0
@@ -40,5 +41,23 @@ func SetDefaultConfigValues(md toml.MetaData, bt *Bgp) {
 		if _, ok := n.attributes["NeighborList.Timers.IdleHoldTimeAfterReset"]; !ok {
 			bt.NeighborList[i].Timers.IdleHoldTimeAfterReset = float64(DEFAULT_IDLE_HOLDTIME_AFTER_RESET)
 		}
+
+		if _, ok := n.attributes["NeighborList.AfiSafiList"]; !ok {
+			if bt.NeighborList[i].NeighborAddress.To4() != nil {
+				bt.NeighborList[i].AfiSafiList = []AfiSafi{
+					AfiSafi{AfiSafiName: "ipv4-unicast"}}
+			} else {
+				bt.NeighborList[i].AfiSafiList = []AfiSafi{
+					AfiSafi{AfiSafiName: "ipv6-unicast"}}
+			}
+		} else {
+			for _, rf := range bt.NeighborList[i].AfiSafiList {
+				_, err := bgp.GetRouteFamily(rf.AfiSafiName)
+				if err != nil {
+					return err
+				}
+			}
+		}
 	}
+	return nil
 }

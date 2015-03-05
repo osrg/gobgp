@@ -3,7 +3,6 @@ package bgp
 import (
 	"encoding/binary"
 	"fmt"
-	"github.com/osrg/gobgp/config"
 	"net"
 	"strconv"
 )
@@ -104,9 +103,9 @@ func ValidateAttribute(a PathAttributeInterface, rfs []RouteFamily) (bool, error
 		}
 	case *PathAttributeOrigin:
 		v := uint8(p.Value[0])
-		if v != config.BGP_ORIGIN_ATTR_TYPE_IGP &&
-			v != config.BGP_ORIGIN_ATTR_TYPE_EGP &&
-			v != config.BGP_ORIGIN_ATTR_TYPE_INCOMPLETE {
+		if v != BGP_ORIGIN_ATTR_TYPE_IGP &&
+			v != BGP_ORIGIN_ATTR_TYPE_EGP &&
+			v != BGP_ORIGIN_ATTR_TYPE_INCOMPLETE {
 			data, _ := a.Serialize()
 			eMsg := "invalid origin attribute. value : " + strconv.Itoa(int(v))
 			return false, NewMessageError(eCode, eSubCodeBadOrigin, data, eMsg)

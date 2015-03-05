@@ -25,19 +25,27 @@ import (
 	"reflect"
 )
 
-// move somewhere else
-
 const (
-	AFI_IP  = 1
-	AFI_IP6 = 2
+	AFI_IP    = 1
+	AFI_IP6   = 2
+	AFI_L2VPN = 25
 )
 
 const (
 	SAFI_UNICAST                  = 1
 	SAFI_MULTICAST                = 2
 	SAFI_MPLS_LABEL               = 4
+	SAFI_VPLS                     = 65
+	SAFI_EVPN                     = 70
 	SAFI_MPLS_VPN                 = 128
+	SAFI_MPLS_VPN_MULTICAST       = 129
 	SAFI_ROUTE_TARGET_CONSTRTAINS = 132
+)
+
+const (
+	BGP_ORIGIN_ATTR_TYPE_IGP        = 0
+	BGP_ORIGIN_ATTR_TYPE_EGP        = 1
+	BGP_ORIGIN_ATTR_TYPE_INCOMPLETE = 2
 )
 
 const (
@@ -954,14 +962,50 @@ func rfshift(afi uint16, safi uint8) RouteFamily {
 type RouteFamily int
 
 const (
-	RF_IPv4_UC   RouteFamily = AFI_IP<<16 | SAFI_UNICAST
-	RF_IPv6_UC   RouteFamily = AFI_IP6<<16 | SAFI_UNICAST
-	RF_IPv4_VPN  RouteFamily = AFI_IP<<16 | SAFI_MPLS_VPN
-	RF_IPv6_VPN  RouteFamily = AFI_IP6<<16 | SAFI_MPLS_VPN
-	RF_IPv4_MPLS RouteFamily = AFI_IP<<16 | SAFI_MPLS_LABEL
-	RF_IPv6_MPLS RouteFamily = AFI_IP6<<16 | SAFI_MPLS_LABEL
-	RF_RTC_UC    RouteFamily = AFI_IP<<16 | SAFI_ROUTE_TARGET_CONSTRTAINS
+	RF_IPv4_UC     RouteFamily = AFI_IP<<16 | SAFI_UNICAST
+	RF_IPv6_UC     RouteFamily = AFI_IP6<<16 | SAFI_UNICAST
+	RF_IPv4_MC     RouteFamily = AFI_IP<<16 | SAFI_MULTICAST
+	RF_IPv6_MC     RouteFamily = AFI_IP6<<16 | SAFI_MULTICAST
+	RF_IPv4_VPN    RouteFamily = AFI_IP<<16 | SAFI_MPLS_VPN
+	RF_IPv6_VPN    RouteFamily = AFI_IP6<<16 | SAFI_MPLS_VPN
+	RF_IPv4_VPN_MC RouteFamily = AFI_IP<<16 | SAFI_MPLS_VPN_MULTICAST
+	RF_IPv6_VPN_MC RouteFamily = AFI_IP6<<16 | SAFI_MPLS_VPN_MULTICAST
+	RF_IPv4_MPLS   RouteFamily = AFI_IP<<16 | SAFI_MPLS_LABEL
+	RF_IPv6_MPLS   RouteFamily = AFI_IP6<<16 | SAFI_MPLS_LABEL
+	RF_VPLS        RouteFamily = AFI_L2VPN<<16 | SAFI_VPLS
+	RF_EVPN        RouteFamily = AFI_L2VPN<<16 | SAFI_EVPN
+	RF_RTC_UC      RouteFamily = AFI_IP<<16 | SAFI_ROUTE_TARGET_CONSTRTAINS
 )
+
+func GetRouteFamily(name string) (RouteFamily, error) {
+	switch name {
+	case "ipv4-unicast":
+		return RF_IPv4_UC, nil
+	case "ipv6-unicast":
+		return RF_IPv6_UC, nil
+	case "ipv4-multicast":
+		return RF_IPv4_MC, nil
+	case "ipv6-multicast":
+		return RF_IPv6_MC, nil
+	case "ipv4-labelled-unicast":
+		return RF_IPv4_MPLS, nil
+	case "ipv6-labelled-unicast":
+		return RF_IPv6_MPLS, nil
+	case "l3vpn-ipv4-unicast":
+		return RF_IPv4_VPN, nil
+	case "l3vpn-ipv6-unicast":
+		return RF_IPv6_VPN, nil
+	case "l3vpn-ipv4-multicast":
+		return RF_IPv4_VPN_MC, nil
+	case "l3vpn-ipv6-multicast":
+		return RF_IPv6_VPN_MC, nil
+	case "l2vpn-vpls":
+		return RF_VPLS, nil
+	case "l2vpn-evpn":
+		return RF_EVPN, nil
+	}
+	return RouteFamily(0), fmt.Errorf("%s isn't a valid route family name", name)
+}
 
 func routeFamilyPrefix(afi uint16, safi uint8) (prefix AddrPrefixInterface, err error) {
 	switch rfshift(afi, safi) {

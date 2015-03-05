@@ -11,10 +11,11 @@ func ReadConfigfileServe(path string, configCh chan Bgp, reloadCh chan bool) {
 
 		b := Bgp{}
 		md, err := toml.DecodeFile(path, &b)
+		if err == nil {
+			err = SetDefaultConfigValues(md, &b)
+		}
 		if err != nil {
-			log.Fatal("can't read config file ", path, err)
-		} else {
-			SetDefaultConfigValues(md, &b)
+			log.Fatal("can't read config file ", path, ", ", err)
 		}
 
 		configCh <- b
