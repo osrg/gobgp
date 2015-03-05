@@ -19,6 +19,7 @@ func main() {
 				PeerAs:          12333,
 				NeighborAddress: net.ParseIP("192.168.177.32"),
 				AuthPassword:    "apple",
+				AfiSafiList:     []config.AfiSafi{config.AfiSafi{AfiSafiName: "ipv4-unicast"}, config.AfiSafi{AfiSafiName: "ipv6-unicast"}},
 			},
 			config.Neighbor{
 				PeerAs:          12334,
