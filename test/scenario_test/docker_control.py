@@ -312,7 +312,7 @@ def get_notification_from_exabgp_log():
     return err_mgs
 
 
-def make_config(quagga_num, go_path, bridge):
+def make_config(quagga_num, go_path, bridge, peer_opts=""):
     if go_path != "":
         print "specified go path is [ " + go_path + " ]."
         if os.path.isdir(go_path):
@@ -321,11 +321,11 @@ def make_config(quagga_num, go_path, bridge):
             print "specified go path do not use."
     pwd = local("pwd", capture=True)
     cmd = go_path + "go run " + pwd + "/quagga-rsconfig.go -n " + str(quagga_num) +\
-          " -c /tmp/gobgp -v " + IP_VERSION + " -i " + bridge["BRIDGE_NAME"][-1]
+          " -c /tmp/gobgp -v " + IP_VERSION + " -i " + bridge["BRIDGE_NAME"][-1] + " " + peer_opts
     local(cmd, capture=True)
 
 
-def make_config_append(quagga_num, go_path, bridge):
+def make_config_append(quagga_num, go_path, bridge, peer_opts=""):
     if go_path != "":
         print "specified go path is [ " + go_path + " ]."
         if os.path.isdir(go_path):
@@ -334,7 +334,7 @@ def make_config_append(quagga_num, go_path, bridge):
             print "specified go path do not use."
     pwd = local("pwd", capture=True)
     cmd = go_path + "go run " + pwd + "/quagga-rsconfig.go -a " + str(quagga_num) +\
-          " -c /tmp/gobgp -v " + IP_VERSION + " -i " + bridge["BRIDGE_NAME"][-1]
+          " -c /tmp/gobgp -v " + IP_VERSION + " -i " + bridge["BRIDGE_NAME"][-1] + " " + peer_opts
     local(cmd, capture=True)
 
 
@@ -441,7 +441,7 @@ def init_ipv6_test_env_executor(quagga_num, use_local, go_path, log_debug=False)
     print "complete initialization of test environment."
 
 
-def init_malformed_test_env_executor(conf_file, use_local, log_debug=False):
+def init_malformed_test_env_executor(conf_file, use_local,  go_path, log_debug=False):
     print "start initialization of exabgp test environment."
 
     if docker_container_check() or bridge_setting_check():
@@ -450,18 +450,12 @@ def init_malformed_test_env_executor(conf_file, use_local, log_debug=False):
         docker_containers_destroy()
 
     print "make gobgp test environment."
+    peer_opts = "--none-peer"
     create_config_dir()
     bridge_setting_for_docker_connection(BRIDGES)
-    pwd = local("pwd", capture=True)
-    gobgp_file = pwd + "/exabgp_test_conf/gobgpd.conf"
-    cmd = "cp " + gobgp_file + " " + CONFIG_DIRR
-    local(cmd, capture=True)
-    quagga_dir = CONFIG_DIRR + "q1"
-    cmd = "mkdir " + quagga_dir
-    local(cmd, capture=True)
-    quagga_file = pwd + "/exabgp_test_conf/quagga.conf"
-    cmd = "cp " + quagga_file + " " + quagga_dir + "/bgpd.conf"
-    local(cmd, capture=True)
+    make_config(1, go_path, BRIDGE_0)
+    make_config_append(100, go_path, BRIDGE_0, peer_opts)
+
     # run gobgp docker container
     docker_container_run_gobgp(BRIDGE_0)
     # run exabgp docker container

@@ -80,7 +80,7 @@ func (qt *QuaggaConfig) IPv6Config() *bytes.Buffer {
 	return buf
 }
 
-func create_config_files(nr int, outputDir string, IPVersion string) {
+func create_config_files(nr int, outputDir string, IPVersion string, nonePeer bool) {
 	quaggaConfigList := make([]*QuaggaConfig, 0)
 
 	gobgpConf := config.Bgp{
@@ -100,17 +100,19 @@ func create_config_files(nr int, outputDir string, IPVersion string) {
 			Timers:           config.Timers{HoldTime: 30, KeepaliveInterval: 10, IdleHoldTimeAfterReset: 10},
 		}
 		gobgpConf.NeighborList = append(gobgpConf.NeighborList, c)
-		q := NewQuaggaConfig(i, &gobgpConf.Global, &c, net.ParseIP(serverAddress[IPVersion]))
-		quaggaConfigList = append(quaggaConfigList, q)
-		os.Mkdir(fmt.Sprintf("%s/q%d", outputDir, i), 0755)
-		var err error
-		if IPVersion == "IPv6" {
-			err = ioutil.WriteFile(fmt.Sprintf("%s/q%d/bgpd.conf", outputDir, i), q.IPv6Config().Bytes(), 0644)
-		} else {
-			err = ioutil.WriteFile(fmt.Sprintf("%s/q%d/bgpd.conf", outputDir, i), q.IPv4Config().Bytes(), 0644)
-		}
-		if err != nil {
-			log.Fatal(err)
+		if !nonePeer {
+			q := NewQuaggaConfig(i, &gobgpConf.Global, &c, net.ParseIP(serverAddress[IPVersion]))
+			quaggaConfigList = append(quaggaConfigList, q)
+			os.Mkdir(fmt.Sprintf("%s/q%d", outputDir, i), 0755)
+			var err error
+			if IPVersion == "IPv6" {
+				err = ioutil.WriteFile(fmt.Sprintf("%s/q%d/bgpd.conf", outputDir, i), q.IPv6Config().Bytes(), 0644)
+			} else {
+				err = ioutil.WriteFile(fmt.Sprintf("%s/q%d/bgpd.conf", outputDir, i), q.IPv4Config().Bytes(), 0644)
+			}
+			if err != nil {
+				log.Fatal(err)
+			}
 		}
 	}
 
@@ -124,7 +126,7 @@ func create_config_files(nr int, outputDir string, IPVersion string) {
 	}
 }
 
-func append_config_files(ar int, outputDir string, IPVersion string) {
+func append_config_files(ar int, outputDir string, IPVersion string, nonePeer bool) {
 
 	gobgpConf := config.Bgp{
 		Global: config.Global{
@@ -140,21 +142,23 @@ func append_config_files(ar int, outputDir string, IPVersion string) {
 		TransportOptions: config.TransportOptions{PassiveMode: true},
 		Timers:           config.Timers{HoldTime: 30, KeepaliveInterval: 10, IdleHoldTimeAfterReset: 10},
 	}
-	q := NewQuaggaConfig(ar, &gobgpConf.Global, &c, net.ParseIP(serverAddress[IPVersion]))
-	os.Mkdir(fmt.Sprintf("%s/q%d", outputDir, ar), 0755)
-	var err error
-	if IPVersion == "IPv6" {
-		err = ioutil.WriteFile(fmt.Sprintf("%s/q%d/bgpd.conf", outputDir, ar), q.IPv6Config().Bytes(), 0644)
-	} else {
-		err = ioutil.WriteFile(fmt.Sprintf("%s/q%d/bgpd.conf", outputDir, ar), q.IPv4Config().Bytes(), 0644)
-	}
-	if err != nil {
-		log.Fatal(err)
+	if !nonePeer {
+		q := NewQuaggaConfig(ar, &gobgpConf.Global, &c, net.ParseIP(serverAddress[IPVersion]))
+		os.Mkdir(fmt.Sprintf("%s/q%d", outputDir, ar), 0755)
+		var err error
+		if IPVersion == "IPv6" {
+			err = ioutil.WriteFile(fmt.Sprintf("%s/q%d/bgpd.conf", outputDir, ar), q.IPv6Config().Bytes(), 0644)
+		} else {
+			err = ioutil.WriteFile(fmt.Sprintf("%s/q%d/bgpd.conf", outputDir, ar), q.IPv4Config().Bytes(), 0644)
+		}
+		if err != nil {
+			log.Fatal(err)
+		}
 	}
 	newConf := config.Bgp{}
 	_, d_err := toml.DecodeFile(fmt.Sprintf("%s/gobgpd.conf", outputDir), &newConf)
 	if d_err != nil {
-		log.Fatal(err)
+		log.Fatal(d_err)
 	}
 	newConf.NeighborList = append(newConf.NeighborList, c)
 	var buffer bytes.Buffer
@@ -162,7 +166,7 @@ func append_config_files(ar int, outputDir string, IPVersion string) {
 	encoder.Encode(newConf)
 	e_err := ioutil.WriteFile(fmt.Sprintf("%s/gobgpd.conf", outputDir), buffer.Bytes(), 0644)
 	if e_err != nil {
-		log.Fatal(err)
+		log.Fatal(e_err)
 	}
 }
 
@@ -173,15 +177,14 @@ func main() {
 		AppendClient  int    `short:"a" long:"append" description:"specifing the add client number" default:"0"`
 		IPVersion     string `short:"v" long:"ip-version" description:"specifing the use ip version" default:"IPv4"`
 		NetIdentifier int    `short:"i" long:"net-identifer" description:"specifing the use network identifier" default:"0"`
+		NonePeer      bool   `long:"none-peer" description:"disable make quagga config"`
 	}
 	parser := flags.NewParser(&opts, flags.Default)
-
 	_, err := parser.Parse()
 	if err != nil {
 		fmt.Print(err)
 		os.Exit(1)
 	}
-
 	if opts.OutputDir == "" {
 		opts.OutputDir, _ = filepath.Abs(".")
 	} else {
@@ -204,11 +207,11 @@ func main() {
 	}
 
 	if opts.AppendClient == 0 {
-		create_config_files(opts.ClientNumber, opts.OutputDir, opts.IPVersion)
+		create_config_files(opts.ClientNumber, opts.OutputDir, opts.IPVersion, opts.NonePeer)
 	} else {
 		if _, err := os.Stat(fmt.Sprintf("%s/gobgpd.conf", opts.OutputDir)); os.IsNotExist(err) {
 			log.Fatal(err)
 		}
-		append_config_files(opts.AppendClient, opts.OutputDir, opts.IPVersion)
+		append_config_files(opts.AppendClient, opts.OutputDir, opts.IPVersion, opts.NonePeer)
 	}
 }
