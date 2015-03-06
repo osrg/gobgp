@@ -955,7 +955,7 @@ func (n *RouteTargetMembershipNLRI) String() string {
 	return fmt.Sprintf("%d:%s/%d", n.AS, n.RouteTarget.String(), n.Len()*8)
 }
 
-func rfshift(afi uint16, safi uint8) RouteFamily {
+func AfiSafiToRouteFamily(afi uint16, safi uint8) RouteFamily {
 	return RouteFamily(int(afi)<<16 | int(safi))
 }
 
@@ -1008,7 +1008,7 @@ func GetRouteFamily(name string) (RouteFamily, error) {
 }
 
 func routeFamilyPrefix(afi uint16, safi uint8) (prefix AddrPrefixInterface, err error) {
-	switch rfshift(afi, safi) {
+	switch AfiSafiToRouteFamily(afi, safi) {
 	case RF_IPv4_UC:
 		prefix = NewIPAddrPrefix(0, "")
 	case RF_IPv6_UC:

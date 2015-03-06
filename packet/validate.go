@@ -76,7 +76,7 @@ func ValidateAttribute(a PathAttributeInterface, rfs []RouteFamily) (bool, error
 
 	checkPrefix := func(l []AddrPrefixInterface) bool {
 		for _, prefix := range l {
-			rf := rfshift(prefix.AFI(), prefix.SAFI())
+			rf := AfiSafiToRouteFamily(prefix.AFI(), prefix.SAFI())
 			if isRfSupported(rf, rfs) == false {
 				return false
 			}
@@ -86,7 +86,7 @@ func ValidateAttribute(a PathAttributeInterface, rfs []RouteFamily) (bool, error
 
 	switch p := a.(type) {
 	case *PathAttributeMpUnreachNLRI:
-		rf := rfshift(p.AFI, p.SAFI)
+		rf := AfiSafiToRouteFamily(p.AFI, p.SAFI)
 		if isRfSupported(rf, rfs) == false {
 			return false, NewMessageError(0, 0, nil, fmt.Sprintf("Address-family rf %d not avalible for session", rf))
 		}
@@ -94,7 +94,7 @@ func ValidateAttribute(a PathAttributeInterface, rfs []RouteFamily) (bool, error
 			return false, NewMessageError(0, 0, nil, fmt.Sprintf("Address-family rf %d not avalible for session", rf))
 		}
 	case *PathAttributeMpReachNLRI:
-		rf := rfshift(p.AFI, p.SAFI)
+		rf := AfiSafiToRouteFamily(p.AFI, p.SAFI)
 		if isRfSupported(rf, rfs) == false {
 			return false, NewMessageError(0, 0, nil, fmt.Sprintf("Address-family rf %d not avalible for session", rf))
 		}

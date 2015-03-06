@@ -132,6 +132,16 @@ func (peer *Peer) handleBGPmessage(m *bgp.BGPMessage) {
 		}
 
 	case bgp.BGP_MSG_ROUTE_REFRESH:
+		rr := m.Body.(*bgp.BGPRouteRefresh)
+		rf := bgp.AfiSafiToRouteFamily(rr.AFI, rr.SAFI)
+		if peer.rf != rf {
+			log.WithFields(log.Fields{
+				"Topic": "Peer",
+				"Key":   peer.peerConfig.NeighborAddress,
+				"Data":  rf,
+			}).Warn("Route family isn't supported")
+			return
+		}
 		if _, ok := peer.capMap[bgp.BGP_CAP_ROUTE_REFRESH]; ok {
 			pathList := peer.adjRib.GetOutPathList(peer.rf)
 			peer.sendMessages(table.CreateUpdateMsgFromPaths(pathList))
