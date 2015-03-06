@@ -62,7 +62,7 @@ func update_fromRC3() *bgp.BGPMessage {
 }
 
 func TestProcessBGPUpdate_fourbyteAS(t *testing.T) {
-	rib1 := table.NewTableManager("peer_test")
+	rib1 := table.NewTableManager("peer_test", []bgp.RouteFamily{bgp.RF_IPv4_UC, bgp.RF_IPv6_UC})
 
 	m := update_fromRC3()
 	peerInfo := peerRC3()
@@ -86,7 +86,7 @@ func TestProcessBGPUpdate_fourbyteAS(t *testing.T) {
 	assert.Equal(t, len(attrAS.Value), 1)
 	assert.Equal(t, attrAS.Value[0].(*bgp.AsPathParam).AS, []uint16{bgp.AS_TRANS, 4000, bgp.AS_TRANS})
 
-	rib2 := table.NewTableManager("peer_test")
+	rib2 := table.NewTableManager("peer_test", []bgp.RouteFamily{bgp.RF_IPv4_UC, bgp.RF_IPv6_UC})
 	pList2, wList2, _ := rib2.ProcessPaths(pathList)
 	assert.Equal(t, len(pList2), 1)
 	assert.Equal(t, len(wList2), 0)
@@ -524,7 +524,7 @@ func makePeer(globalConfig config.Global, peerConfig config.Neighbor) *Peer {
 		Address: peerConfig.NeighborAddress,
 	}
 	p.adjRib = table.NewAdjRib()
-	p.rib = table.NewTableManager(p.peerConfig.NeighborAddress.String())
+	p.rib = table.NewTableManager(p.peerConfig.NeighborAddress.String(), []bgp.RouteFamily{bgp.RF_IPv4_UC, bgp.RF_IPv6_UC})
 
 	return p
 }

@@ -92,7 +92,7 @@ func NewPeer(g config.Global, peer config.Neighbor, serverMsgCh chan *serverMsg,
 		Address: peer.NeighborAddress,
 	}
 	p.adjRib = table.NewAdjRib()
-	p.rib = table.NewTableManager(p.peerConfig.NeighborAddress.String())
+	p.rib = table.NewTableManager(p.peerConfig.NeighborAddress.String(), []bgp.RouteFamily{p.rf})
 	p.t.Go(p.loop)
 	return p
 }

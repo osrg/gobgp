@@ -128,11 +128,18 @@ type TableManager struct {
 	owner    string
 }
 
-func NewTableManager(owner string) *TableManager {
+func NewTableManager(owner string, rfList []bgp.RouteFamily) *TableManager {
 	t := &TableManager{}
 	t.Tables = make(map[bgp.RouteFamily]Table)
-	t.Tables[bgp.RF_IPv4_UC] = NewIPv4Table(0)
-	t.Tables[bgp.RF_IPv6_UC] = NewIPv6Table(0)
+	for _, rf := range rfList {
+		// FIXME: NewIPTable() should handle all cases.
+		switch rf {
+		case bgp.RF_IPv4_UC:
+			t.Tables[bgp.RF_IPv4_UC] = NewIPv4Table(0)
+		case bgp.RF_IPv6_UC:
+			t.Tables[bgp.RF_IPv6_UC] = NewIPv6Table(0)
+		}
+	}
 	t.owner = owner
 	return t
 }
