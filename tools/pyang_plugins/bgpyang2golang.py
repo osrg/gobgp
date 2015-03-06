@@ -15,6 +15,7 @@
 
 
 import StringIO
+import sys
 from pyang import plugin
 
 _COPYRIGHT_NOTICE = """
@@ -34,7 +35,7 @@ _COPYRIGHT_NOTICE = """
 // limitations under the License.
 """
 
-emitted_type_names = []
+emitted_type_names = {}
 
 
 def pyang_plugin_init():
@@ -46,61 +47,79 @@ class GolangPlugin(plugin.PyangPlugin):
         fmts['golang'] = self
 
     def emit(self, ctx, modules, fd):
-        emit_golang(ctx, modules[0], fd)
+
+        ctx.golang_identity_map = {}
+        ctx.golang_typedef_map = {}
+        ctx.golang_struct_def = []
+        ctx.golang_struct_names = {}
+
+        ctx.prefix_rel = {}
+        ctx.module_deps = []
+
+        check_module_deps(ctx, modules[0])
+        # visit yang statements
+        visit_modules(ctx)
+        # emit bgp_configs
+        emit_go(ctx)
 
 
-def emit_golang(ctx, module, fd):
+def visit_modules(ctx):
 
-    ctx.golang_identity_map = {}
-    ctx.golang_typedef_map = {}
-    ctx.golang_struct_def = []
-    ctx.golang_struct_names = {}
+    # visit typedef and identity
+    for module in ctx.module_deps:
+        visit_typedef(ctx, module)
+        visit_identity(ctx, module)
 
-    # visit typedef
-    visit_typedef(ctx, module)
-    visit_typedef(ctx, ctx.get_module('routing-policy'))
-    visit_typedef(ctx, ctx.get_module('bgp-multiprotocol'))
-    visit_typedef(ctx, ctx.get_module('bgp-operational'))
-    # visit identity
-    visit_identity(ctx, ctx.get_module('routing-policy'))
-    visit_identity(ctx, ctx.get_module('bgp-multiprotocol'))
-    visit_identity(ctx, ctx.get_module('bgp-operational'))
+    # visit container
+    for module in ctx.module_deps:
+        visit_children(ctx, module, module.i_children)
 
-    visit_children(ctx, module, module.i_children)
+
+def emit_go(ctx):
+
     ctx.golang_struct_def.reverse()
     done = set()
 
     # emit
     generate_header(ctx)
 
-    emit_typedef(ctx, module)
-    emit_typedef(ctx, ctx.get_module('routing-policy'))
-    emit_typedef(ctx, ctx.get_module('bgp-multiprotocol'))
-    emit_typedef(ctx, ctx.get_module('bgp-operational'))
+    for mod in ctx.module_deps:
+        if mod not in _module_excluded:
+            emit_typedef(ctx, mod)
 
     for struct in ctx.golang_struct_def:
         struct_name = struct.arg
         if struct_name in done:
             continue
-        emit_class_def(ctx, struct, struct_name)
+        emit_class_def(ctx, struct, struct_name, struct.module_prefix)
         done.add(struct_name)
 
 
-def emit_class_def(ctx, c, struct_name):
+def check_module_deps(ctx, module):
+
+    own_prefix = module.i_prefix
+    for k, v in module.i_prefixes.items():
+        mod = ctx.get_module(v[0])
+        if mod.i_prefix != own_prefix:
+            check_module_deps(ctx, mod)
+
+        ctx.prefix_rel[mod.i_prefix] = k
+        if mod not in ctx.module_deps \
+                and mod.i_modulename not in _module_excluded:
+            ctx.module_deps.append(mod)
+
+
+def emit_class_def(ctx, yang_statement, struct_name, prefix):
 
     o = StringIO.StringIO()
-    struct_name_org = struct_name
-    struct_name = convert_to_golang(struct_name)
-
-    print >> o, '//struct for container %s' % struct_name_org
-    print >> o, 'type %s struct {' % struct_name
-    for child in c.i_children:
-
-        val_name = child.arg
+    print >> o, '//struct for container %s:%s' % (prefix, struct_name)
+    print >> o, 'type %s struct {' % convert_to_golang(struct_name)
+    for child in yang_statement.i_children:
+        container_or_list_name = child.arg
         val_name_go = convert_to_golang(child.arg)
-        module_name = child.i_orig_module.i_prefix
-
-        print >> o, '  // original -> %s:%s' % (module_name, val_name)
+        child_prefix = get_orig_prefix(child.i_orig_module)
+        print >> o, '  // original -> %s:%s' % \
+                    (child_prefix, container_or_list_name)
 
         # case leaf
         if is_leaf(child):
@@ -118,8 +137,8 @@ def emit_class_def(ctx, c, struct_name):
 
             # case translation required
             elif is_translation_required(type_obj):
-                print >> o, '  //%s\'s original type is %s'\
-                            % (val_name, type_obj.arg)
+                print >> o, '  //%s:%s\'s original type is %s'\
+                            % (child_prefix, container_or_list_name, type_name)
                 emit_type_name = translate_type(type_name)
 
             # case other primitives
@@ -159,12 +178,14 @@ def emit_class_def(ctx, c, struct_name):
 
         # case container
         elif is_container(child):
-            t = ctx.golang_struct_names[val_name]
+            key = child_prefix+':'+container_or_list_name
+            t = ctx.golang_struct_names[key]
             emit_type_name = t.golang_name
 
         # case list
         elif is_list(child):
-            t = ctx.golang_struct_names[val_name]
+            key = child_prefix+':'+container_or_list_name
+            t = ctx.golang_struct_names[key]
             val_name_go = val_name_go + 'List'
             emit_type_name = '[]' + t.golang_name
 
@@ -177,16 +198,27 @@ def emit_class_def(ctx, c, struct_name):
     print o.getvalue()
 
 
-def visit_children(ctx, module, children, prefix=''):
+def get_orig_prefix(module):
+    orig = module.i_orig_module
+    if orig:
+        get_orig_prefix(orig)
+    else:
+        return module.i_prefix
+
+
+def visit_children(ctx, module, children):
     for c in children:
+        prefix = get_orig_prefix(c.i_orig_module)
         t = c.search_one('type')
         type_name = t.arg if t is not None else None
         if is_list(c) or is_container(c):
             c.golang_name = convert_to_golang(c.arg)
             ctx.golang_struct_def.append(c)
-            ctx.golang_struct_names[c.arg] = c
+            c.module_prefix = prefix
+            ctx.golang_struct_names[prefix+':'+c.arg] = c
+
         if hasattr(c, 'i_children'):
-            visit_children(ctx, module, c.i_children, prefix + '  ')
+            visit_children(ctx, module, c.i_children)
 
 
 def visit_typedef(ctx, module):
@@ -200,6 +232,8 @@ def visit_typedef(ctx, module):
                 stmts.golang_name = 'PeerTypeDef'
             child_map[name] = stmts
     ctx.golang_typedef_map[prefix] = child_map
+    if ctx.prefix_rel[prefix] != prefix:
+        ctx.golang_typedef_map[ctx.prefix_rel[prefix]] = child_map
 
 
 def visit_identity(ctx, module):
@@ -243,9 +277,13 @@ def emit_typedef(ctx, module):
         type_name_org = name
         type_name = stmt.golang_name
         if type_name in emitted_type_names:
+            warn = "warning %s: %s has already been emitted from %s.\n"\
+                   % (prefix+":"+type_name_org, type_name_org,
+                      emitted_type_names[type_name])
+            sys.stderr.write(warn)
             continue
 
-        emitted_type_names.append(type_name)
+        emitted_type_names[type_name] = prefix+":"+type_name_org
 
         t = stmt.search_one('type')
         o = StringIO.StringIO()
@@ -341,7 +379,6 @@ _type_translation_map = {
     'inet:ip-address': 'net.IP',
     'inet:ipv4-address': 'net.IP',
     'inet:as-number': 'uint32',
-    'rr-cluster-id-type': 'uint32',
 }
 
 
@@ -356,6 +393,11 @@ _type_builtin = ["union",
                  "uint32",
                  "uint64",
                  ]
+
+
+_module_excluded = ["ietf-inet-types",
+                    "ietf-yang-types",
+                    ]
 
 
 def generate_header(ctx):
