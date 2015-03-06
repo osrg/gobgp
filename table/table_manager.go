@@ -233,10 +233,9 @@ func (manager *TableManager) calculate(destinationList []Destination) ([]Path, [
 	return bestPaths, lostPaths, nil
 }
 
-func (manager *TableManager) DeletePathsforPeer(peerInfo *PeerInfo) ([]Path, []Path, error) {
-	destinationList := manager.Tables[peerInfo.RF].DeleteDestByPeer(peerInfo)
+func (manager *TableManager) DeletePathsforPeer(peerInfo *PeerInfo, rf bgp.RouteFamily) ([]Path, []Path, error) {
+	destinationList := manager.Tables[rf].DeleteDestByPeer(peerInfo)
 	return manager.calculate(destinationList)
-
 }
 
 func (manager *TableManager) ProcessPaths(pathList []Path) ([]Path, []Path, error) {

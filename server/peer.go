@@ -89,7 +89,6 @@ func NewPeer(g config.Global, peer config.Neighbor, serverMsgCh chan *serverMsg,
 	p.peerInfo = &table.PeerInfo{
 		AS:      peer.PeerAs,
 		LocalID: g.RouterId,
-		RF:      p.rf,
 		Address: peer.NeighborAddress,
 	}
 	p.adjRib = table.NewAdjRib()
@@ -315,7 +314,7 @@ func (peer *Peer) handlePeerMsg(m *peerMsg) {
 		pList, wList, _ := peer.rib.ProcessPaths(m.msgData.([]table.Path))
 		peer.sendUpdateMsgFromPaths(pList, wList)
 	case PEER_MSG_PEER_DOWN:
-		pList, wList, _ := peer.rib.DeletePathsforPeer(m.msgData.(*table.PeerInfo))
+		pList, wList, _ := peer.rib.DeletePathsforPeer(m.msgData.(*table.PeerInfo), peer.rf)
 		peer.sendUpdateMsgFromPaths(pList, wList)
 	}
 }
@@ -344,7 +343,7 @@ func (peer *Peer) handleServerMsg(m *serverMsg) {
 		_, found := peer.siblings[d.Address.String()]
 		if found {
 			delete(peer.siblings, d.Address.String())
-			pList, wList, _ := peer.rib.DeletePathsforPeer(d)
+			pList, wList, _ := peer.rib.DeletePathsforPeer(d, peer.rf)
 			peer.sendUpdateMsgFromPaths(pList, wList)
 		} else {
 			log.Warning("can not find peer: ", d.Address.String())

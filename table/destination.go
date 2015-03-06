@@ -44,7 +44,6 @@ type PeerInfo struct {
 	AS      uint32
 	ID      net.IP
 	LocalID net.IP
-	RF      bgp.RouteFamily
 	Address net.IP
 }
 

@@ -162,7 +162,7 @@ func (server *BgpServer) Serve() {
 			d := &serverMsgDataPeer{
 				address:   peer.NeighborAddress,
 				peerMsgCh: pch,
-				rf:        p.peerInfo.RF,
+				rf:        p.rf,
 			}
 			msg := &serverMsg{
 				msgType: SRV_MSG_PEER_ADDED,

@@ -521,7 +521,6 @@ func makePeer(globalConfig config.Global, peerConfig config.Neighbor) *Peer {
 	p.peerInfo = &table.PeerInfo{
 		AS:      peerConfig.PeerAs,
 		LocalID: globalConfig.RouterId,
-		RF:      p.rf,
 		Address: peerConfig.NeighborAddress,
 	}
 	p.adjRib = table.NewAdjRib()
