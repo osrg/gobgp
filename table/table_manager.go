@@ -249,9 +249,10 @@ func (manager *TableManager) ProcessPaths(pathList []Path) ([]Path, []Path, erro
 	destinationList := make([]Destination, 0)
 	for _, path := range pathList {
 		rf := path.GetRouteFamily()
-		// push Path into table
-		destination := insert(manager.Tables[rf], path)
-		destinationList = append(destinationList, destination)
+		if _, ok := manager.Tables[rf]; ok {
+			destination := insert(manager.Tables[rf], path)
+			destinationList = append(destinationList, destination)
+		}
 	}
 	return manager.calculate(destinationList)
 }

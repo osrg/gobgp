@@ -21,7 +21,6 @@ import (
 	log "github.com/Sirupsen/logrus"
 	"github.com/osrg/gobgp/api"
 	"github.com/osrg/gobgp/config"
-	"github.com/osrg/gobgp/packet"
 	"net"
 	"os"
 	"strconv"
@@ -45,7 +44,6 @@ type serverMsg struct {
 type serverMsgDataPeer struct {
 	peerMsgCh chan *peerMsg
 	address   net.IP
-	rf        bgp.RouteFamily
 }
 
 type peerMapInfo struct {
@@ -162,7 +160,6 @@ func (server *BgpServer) Serve() {
 			d := &serverMsgDataPeer{
 				address:   peer.NeighborAddress,
 				peerMsgCh: pch,
-				rf:        p.rf,
 			}
 			msg := &serverMsg{
 				msgType: SRV_MSG_PEER_ADDED,

@@ -179,9 +179,6 @@ func (peer *Peer) handleBGPmessage(m *bgp.BGPMessage) {
 			msgData: pathList,
 		}
 		for _, s := range peer.siblings {
-			if s.rf != peer.rf {
-				continue
-			}
 			s.peerMsgCh <- pm
 		}
 	}
@@ -240,9 +237,6 @@ func (peer *Peer) handleREST(restReq *api.RestRequest) {
 			msgData: pathList,
 		}
 		for _, s := range peer.siblings {
-			if s.rf != peer.rf {
-				continue
-			}
 			s.peerMsgCh <- pm
 		}
 		if restReq.RequestType == api.REQ_NEIGHBOR_SOFT_RESET_IN {
@@ -334,7 +328,7 @@ func (peer *Peer) handleServerMsg(m *serverMsg) {
 	case SRV_MSG_PEER_ADDED:
 		d := m.msgData.(*serverMsgDataPeer)
 		peer.siblings[d.address.String()] = d
-		pathList := peer.adjRib.GetInPathList(d.rf)
+		pathList := peer.adjRib.GetInPathList(peer.rf)
 		if len(pathList) == 0 {
 			return
 		}
@@ -343,9 +337,6 @@ func (peer *Peer) handleServerMsg(m *serverMsg) {
 			msgData: pathList,
 		}
 		for _, s := range peer.siblings {
-			if s.rf != peer.rf {
-				continue
-			}
 			s.peerMsgCh <- pm
 		}
 	case SRV_MSG_PEER_DELETED:
