@@ -1,4 +1,4 @@
-// Copyright (C) 2014 Nippon Telegraph and Telephone Corporation.
+// Copyright (C) 2014,2015 Nippon Telegraph and Telephone Corporation.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -21,7 +21,6 @@ import (
 	"github.com/gorilla/mux"
 	"net/http"
 	"strconv"
-	"strings"
 )
 
 const (
@@ -46,7 +45,10 @@ const (
 	NEIGHBORS    = "/bgp/neighbors"
 
 	PARAM_REMOTE_PEER_ADDR = "remotePeerAddr"
-	STATS                  = "/stats"
+	PARAM_SHOW_OBJECT      = "showObject"
+	PARAM_OPERATION        = "operation"
+
+	STATS = "/stats"
 )
 
 const REST_PORT = 8080
@@ -108,20 +110,13 @@ func (rs *RestServer) Serve() {
 	neighbors := BASE_VERSION + NEIGHBORS
 
 	r := mux.NewRouter()
-
 	perPeerURL := "/{" + PARAM_REMOTE_PEER_ADDR + "}"
-	r.HandleFunc(neighbors, rs.Neighbors).Methods("GET")
-	r.HandleFunc(neighbor+perPeerURL, rs.Neighbor).Methods("GET")
-	r.HandleFunc(neighbor+perPeerURL+"/"+"local-rib", rs.NeighborLocalRib).Methods("GET")
-	r.HandleFunc(neighbor+perPeerURL+"/"+"adj-rib-in", rs.NeighborAdjRibIn).Methods("GET")
-	r.HandleFunc(neighbor+perPeerURL+"/"+"adj-rib-out", rs.NeighborAdjRibOut).Methods("GET")
-	r.HandleFunc(neighbor+perPeerURL+"/"+"shutdown", rs.NeighborPostHandler).Methods("POST")
-	r.HandleFunc(neighbor+perPeerURL+"/"+"reset", rs.NeighborPostHandler).Methods("POST")
-	r.HandleFunc(neighbor+perPeerURL+"/"+"softreset", rs.NeighborPostHandler).Methods("POST")
-	r.HandleFunc(neighbor+perPeerURL+"/"+"softresetin", rs.NeighborPostHandler).Methods("POST")
-	r.HandleFunc(neighbor+perPeerURL+"/"+"softresetout", rs.NeighborPostHandler).Methods("POST")
-	r.HandleFunc(neighbor+perPeerURL+"/"+"enable", rs.NeighborPostHandler).Methods("POST")
-	r.HandleFunc(neighbor+perPeerURL+"/"+"disable", rs.NeighborPostHandler).Methods("POST")
+	showObjectURL := "/{" + PARAM_SHOW_OBJECT + "}"
+	operationURL := "/{" + PARAM_OPERATION + "}"
+	r.HandleFunc(neighbors, rs.NeighborGET).Methods("GET")
+	r.HandleFunc(neighbor+perPeerURL, rs.NeighborGET).Methods("GET")
+	r.HandleFunc(neighbor+perPeerURL+showObjectURL, rs.NeighborGET).Methods("GET")
+	r.HandleFunc(neighbor+perPeerURL+operationURL, rs.NeighborPOST).Methods("POST")
 
 	// stats
 	r.HandleFunc(STATS, stats_api.Handler).Methods("GET")
@@ -134,17 +129,9 @@ func (rs *RestServer) Serve() {
 
 }
 
-// TODO: merge the above function
 func (rs *RestServer) neighbor(w http.ResponseWriter, r *http.Request, reqType int) {
 	params := mux.Vars(r)
-	remoteAddr, found := params[PARAM_REMOTE_PEER_ADDR]
-	if !found {
-		errStr := "neighbor address is not specified"
-		log.Debug(errStr)
-		http.Error(w, errStr, http.StatusInternalServerError)
-		return
-	}
-
+	remoteAddr, _ := params[PARAM_REMOTE_PEER_ADDR]
 	log.Debugf("Look up neighbor with the remote address : %v", remoteAddr)
 
 	//Send channel of request parameter.
@@ -163,9 +150,9 @@ func (rs *RestServer) neighbor(w http.ResponseWriter, r *http.Request, reqType i
 	w.Write(res.Data)
 }
 
-func (rs *RestServer) NeighborPostHandler(w http.ResponseWriter, r *http.Request) {
-	action := strings.Split(r.URL.Path, "/")
-	switch action[len(action)-1] {
+func (rs *RestServer) NeighborPOST(w http.ResponseWriter, r *http.Request) {
+	params := mux.Vars(r)
+	switch params[PARAM_OPERATION] {
 	case "shutdown":
 		rs.neighbor(w, r, REQ_NEIGHBOR_SHUTDOWN)
 	case "reset":
@@ -180,40 +167,32 @@ func (rs *RestServer) NeighborPostHandler(w http.ResponseWriter, r *http.Request
 		rs.neighbor(w, r, REQ_NEIGHBOR_ENABLE)
 	case "disable":
 		rs.neighbor(w, r, REQ_NEIGHBOR_DISABLE)
+	default:
+		NotFoundHandler(w, r)
 	}
 }
 
-func (rs *RestServer) Neighbor(w http.ResponseWriter, r *http.Request) {
-	rs.neighbor(w, r, REQ_NEIGHBOR)
-}
-
-func (rs *RestServer) NeighborLocalRib(w http.ResponseWriter, r *http.Request) {
-	rs.neighbor(w, r, REQ_LOCAL_RIB)
-}
-
-func (rs *RestServer) NeighborAdjRibIn(w http.ResponseWriter, r *http.Request) {
-	rs.neighbor(w, r, REQ_ADJ_RIB_IN)
-}
-
-func (rs *RestServer) NeighborAdjRibOut(w http.ResponseWriter, r *http.Request) {
-	rs.neighbor(w, r, REQ_ADJ_RIB_OUT)
-}
-
-func (rs *RestServer) Neighbors(w http.ResponseWriter, r *http.Request) {
-	//Send channel of request parameter.
-	req := NewRestRequest(REQ_NEIGHBORS, "")
-	rs.bgpServerCh <- req
-
-	//Wait response
-	res := <-req.ResponseCh
-	if e := res.Err(); e != nil {
-		log.Debug(e.Error())
-		http.Error(w, e.Error(), http.StatusInternalServerError)
+func (rs *RestServer) NeighborGET(w http.ResponseWriter, r *http.Request) {
+	params := mux.Vars(r)
+	if _, ok := params[PARAM_REMOTE_PEER_ADDR]; !ok {
+		rs.neighbor(w, r, REQ_NEIGHBORS)
 		return
 	}
 
-	w.Header().Set("Content-Type", "application/json; charset=utf-8")
-	w.Write(res.Data)
+	if showObject, ok := params[PARAM_SHOW_OBJECT]; ok {
+		switch showObject {
+		case "local-rib":
+			rs.neighbor(w, r, REQ_LOCAL_RIB)
+		case "adj-rib-in":
+			rs.neighbor(w, r, REQ_ADJ_RIB_IN)
+		case "adj-rib-out":
+			rs.neighbor(w, r, REQ_ADJ_RIB_OUT)
+		default:
+			NotFoundHandler(w, r)
+		}
+	} else {
+		rs.neighbor(w, r, REQ_NEIGHBOR)
+	}
 }
 
 func NotFoundHandler(w http.ResponseWriter, r *http.Request) {
