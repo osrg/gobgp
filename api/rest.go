@@ -19,6 +19,7 @@ import (
 	log "github.com/Sirupsen/logrus"
 	"github.com/fukata/golang-stats-api-handler"
 	"github.com/gorilla/mux"
+	"github.com/osrg/gobgp/packet"
 	"net/http"
 	"strconv"
 )
@@ -47,6 +48,7 @@ const (
 	PARAM_REMOTE_PEER_ADDR = "remotePeerAddr"
 	PARAM_SHOW_OBJECT      = "showObject"
 	PARAM_OPERATION        = "operation"
+	PARAM_ROUTE_FAMILY     = "routeFamily"
 
 	STATS = "/stats"
 )
@@ -59,13 +61,15 @@ const REST_PORT = 8080
 type RestRequest struct {
 	RequestType int
 	RemoteAddr  string
+	RouteFamily bgp.RouteFamily
 	ResponseCh  chan *RestResponse
 	Err         error
 }
 
-func NewRestRequest(reqType int, remoteAddr string) *RestRequest {
+func NewRestRequest(reqType int, remoteAddr string, rf bgp.RouteFamily) *RestRequest {
 	r := &RestRequest{
 		RequestType: reqType,
+		RouteFamily: rf,
 		RemoteAddr:  remoteAddr,
 		ResponseCh:  make(chan *RestResponse),
 	}
@@ -100,11 +104,11 @@ func NewRestServer(port int, bgpServerCh chan *RestRequest) *RestServer {
 //   get state of neighbor.
 //     -- curl -i -X GET http://<ownIP>:8080/v1/bgp/neighbor/<remote address of target neighbor>
 //   get adj-rib-in of each neighbor.
-//     -- curl -i -X GET http://<ownIP>:8080/v1/bgp/neighbor/<remote address of target neighbor>/adj-rib-in
+//     -- curl -i -X GET http://<ownIP>:8080/v1/bgp/neighbor/<remote address of target neighbor>/adj-rib-in/<rf>
 //   get adj-rib-out of each neighbor.
-//     -- curl -i -X GET http://<ownIP>:8080/v1/bgp/neighbor/<remote address of target neighbor>/adj-rib-out
+//     -- curl -i -X GET http://<ownIP>:8080/v1/bgp/neighbor/<remote address of target neighbor>/adj-rib-out/<rf>
 //   get local-rib of each neighbor.
-//     -- curl -i -X GET http://<ownIP>:8080/v1/bgp/neighbor/<remote address of target neighbor>/local-rib
+//     -- curl -i -X GET http://<ownIP>:8080/v1/bgp/neighbor/<remote address of target neighbor>/local-rib/<rf>
 func (rs *RestServer) Serve() {
 	neighbor := BASE_VERSION + NEIGHBOR
 	neighbors := BASE_VERSION + NEIGHBORS
@@ -113,10 +117,12 @@ func (rs *RestServer) Serve() {
 	perPeerURL := "/{" + PARAM_REMOTE_PEER_ADDR + "}"
 	showObjectURL := "/{" + PARAM_SHOW_OBJECT + "}"
 	operationURL := "/{" + PARAM_OPERATION + "}"
+	routeFamilyURL := "/{" + PARAM_ROUTE_FAMILY + "}"
 	r.HandleFunc(neighbors, rs.NeighborGET).Methods("GET")
 	r.HandleFunc(neighbor+perPeerURL, rs.NeighborGET).Methods("GET")
-	r.HandleFunc(neighbor+perPeerURL+showObjectURL, rs.NeighborGET).Methods("GET")
+	r.HandleFunc(neighbor+perPeerURL+showObjectURL+routeFamilyURL, rs.NeighborGET).Methods("GET")
 	r.HandleFunc(neighbor+perPeerURL+operationURL, rs.NeighborPOST).Methods("POST")
+	r.HandleFunc(neighbor+perPeerURL+operationURL+routeFamilyURL, rs.NeighborPOST).Methods("POST")
 
 	// stats
 	r.HandleFunc(STATS, stats_api.Handler).Methods("GET")
@@ -133,9 +139,21 @@ func (rs *RestServer) neighbor(w http.ResponseWriter, r *http.Request, reqType i
 	params := mux.Vars(r)
 	remoteAddr, _ := params[PARAM_REMOTE_PEER_ADDR]
 	log.Debugf("Look up neighbor with the remote address : %v", remoteAddr)
+	var rf bgp.RouteFamily
+	routeFamily, ok := params[PARAM_ROUTE_FAMILY]
+	if ok {
+		switch routeFamily {
+		case "ipv4":
+			rf = bgp.RF_IPv4_UC
+		case "ipv6":
+			rf = bgp.RF_IPv6_UC
+		default:
+			NotFoundHandler(w, r)
+		}
+	}
 
 	//Send channel of request parameter.
-	req := NewRestRequest(reqType, remoteAddr)
+	req := NewRestRequest(reqType, remoteAddr, rf)
 	rs.bgpServerCh <- req
 
 	//Wait response

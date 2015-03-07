@@ -123,7 +123,7 @@ func TestPeerAdminShutdownWhileEstablished(t *testing.T) {
 	peer.acceptedConnCh <- m
 	waitUntil(assert, bgp.BGP_FSM_ESTABLISHED, peer, 1000)
 
-	restReq := api.NewRestRequest(api.REQ_NEIGHBOR_DISABLE, "0.0.0.0")
+	restReq := api.NewRestRequest(api.REQ_NEIGHBOR_DISABLE, "0.0.0.0", bgp.RF_IPv4_UC)
 	msg := &serverMsg{
 		msgType: SRV_MSG_API,
 		msgData: restReq,
@@ -166,7 +166,7 @@ func TestPeerAdminShutdownWhileIdle(t *testing.T) {
 
 	waitUntil(assert, bgp.BGP_FSM_IDLE, peer, 1000)
 
-	restReq := api.NewRestRequest(api.REQ_NEIGHBOR_DISABLE, "0.0.0.0")
+	restReq := api.NewRestRequest(api.REQ_NEIGHBOR_DISABLE, "0.0.0.0", bgp.RF_IPv4_UC)
 	msg := &serverMsg{
 		msgType: SRV_MSG_API,
 		msgData: restReq,
@@ -201,7 +201,7 @@ func TestPeerAdminShutdownWhileActive(t *testing.T) {
 
 	waitUntil(assert, bgp.BGP_FSM_ACTIVE, peer, 1000)
 
-	restReq := api.NewRestRequest(api.REQ_NEIGHBOR_DISABLE, "0.0.0.0")
+	restReq := api.NewRestRequest(api.REQ_NEIGHBOR_DISABLE, "0.0.0.0", bgp.RF_IPv4_UC)
 	msg := &serverMsg{
 		msgType: SRV_MSG_API,
 		msgData: restReq,
@@ -238,7 +238,7 @@ func TestPeerAdminShutdownWhileOpensent(t *testing.T) {
 	peer.acceptedConnCh <- m
 	waitUntil(assert, bgp.BGP_FSM_OPENSENT, peer, 1000)
 
-	restReq := api.NewRestRequest(api.REQ_NEIGHBOR_DISABLE, "0.0.0.0")
+	restReq := api.NewRestRequest(api.REQ_NEIGHBOR_DISABLE, "0.0.0.0", bgp.RF_IPv4_UC)
 	msg := &serverMsg{
 		msgType: SRV_MSG_API,
 		msgData: restReq,
@@ -283,7 +283,7 @@ func TestPeerAdminShutdownWhileOpenconfirm(t *testing.T) {
 	peer.acceptedConnCh <- m
 	waitUntil(assert, bgp.BGP_FSM_OPENCONFIRM, peer, 1000)
 
-	restReq := api.NewRestRequest(api.REQ_NEIGHBOR_DISABLE, "0.0.0.0")
+	restReq := api.NewRestRequest(api.REQ_NEIGHBOR_DISABLE, "0.0.0.0", bgp.RF_IPv4_UC)
 	msg := &serverMsg{
 		msgType: SRV_MSG_API,
 		msgData: restReq,
@@ -334,7 +334,7 @@ func TestPeerAdminEnable(t *testing.T) {
 	waitUntil(assert, bgp.BGP_FSM_ESTABLISHED, peer, 1000)
 
 	// shutdown peer at first
-	restReq := api.NewRestRequest(api.REQ_NEIGHBOR_DISABLE, "0.0.0.0")
+	restReq := api.NewRestRequest(api.REQ_NEIGHBOR_DISABLE, "0.0.0.0", bgp.RF_IPv4_UC)
 	msg := &serverMsg{
 		msgType: SRV_MSG_API,
 		msgData: restReq,
@@ -350,7 +350,7 @@ func TestPeerAdminEnable(t *testing.T) {
 	assert.Equal(ADMIN_STATE_DOWN, peer.fsm.adminState)
 
 	// enable peer
-	restReq = api.NewRestRequest(api.REQ_NEIGHBOR_ENABLE, "0.0.0.0")
+	restReq = api.NewRestRequest(api.REQ_NEIGHBOR_ENABLE, "0.0.0.0", bgp.RF_IPv4_UC)
 	msg = &serverMsg{
 		msgType: SRV_MSG_API,
 		msgData: restReq,
@@ -397,7 +397,7 @@ func TestPeerAdminShutdownReject(t *testing.T) {
 	peer.acceptedConnCh <- m
 	waitUntil(assert, bgp.BGP_FSM_OPENSENT, peer, 1000)
 
-	restReq := api.NewRestRequest(api.REQ_NEIGHBOR_DISABLE, "0.0.0.0")
+	restReq := api.NewRestRequest(api.REQ_NEIGHBOR_DISABLE, "0.0.0.0", bgp.RF_IPv4_UC)
 	msg := &serverMsg{
 		msgType: SRV_MSG_API,
 		msgData: restReq,
@@ -411,7 +411,7 @@ func TestPeerAdminShutdownReject(t *testing.T) {
 	json.Unmarshal(result.Data, &res)
 	assert.Equal("previous request is still remaining", res["result"])
 
-	restReq = api.NewRestRequest(api.REQ_NEIGHBOR_ENABLE, "0.0.0.0")
+	restReq = api.NewRestRequest(api.REQ_NEIGHBOR_ENABLE, "0.0.0.0", bgp.RF_IPv4_UC)
 	msg = &serverMsg{
 		msgType: SRV_MSG_API,
 		msgData: restReq,
