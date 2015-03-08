@@ -959,6 +959,10 @@ func AfiSafiToRouteFamily(afi uint16, safi uint8) RouteFamily {
 	return RouteFamily(int(afi)<<16 | int(safi))
 }
 
+func RouteFamilyToAfiSafi(rf RouteFamily) (uint16, uint8) {
+	return uint16(int(rf) >> 16), uint8(int(rf) & 0xff)
+}
+
 type RouteFamily int
 
 const (

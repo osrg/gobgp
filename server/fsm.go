@@ -288,16 +288,15 @@ func (h *FSMHandler) active() bgp.FSMState {
 }
 
 func buildopen(global *config.Global, peerConf *config.Neighbor) *bgp.BGPMessage {
-	var afi int
-	if peerConf.NeighborAddress.To4() != nil {
-		afi = bgp.AFI_IP
-	} else {
-		afi = bgp.AFI_IP6
-	}
 	p1 := bgp.NewOptionParameterCapability(
 		[]bgp.ParameterCapabilityInterface{bgp.NewCapRouteRefresh()})
-	p2 := bgp.NewOptionParameterCapability(
-		[]bgp.ParameterCapabilityInterface{bgp.NewCapMultiProtocol(uint16(afi), bgp.SAFI_UNICAST)})
+	c := []bgp.ParameterCapabilityInterface{}
+	for _, rf := range peerConf.AfiSafiList {
+		k, _ := bgp.GetRouteFamily(rf.AfiSafiName)
+		afi, safi := bgp.RouteFamilyToAfiSafi(k)
+		c = append(c, bgp.NewCapMultiProtocol(afi, safi))
+	}
+	p2 := bgp.NewOptionParameterCapability(c)
 	p3 := bgp.NewOptionParameterCapability(
 		[]bgp.ParameterCapabilityInterface{bgp.NewCapFourOctetASNumber(global.As)})
 	holdTime := uint16(peerConf.Timers.HoldTime)

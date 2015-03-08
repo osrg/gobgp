@@ -241,8 +241,11 @@ func (manager *TableManager) calculate(destinationList []Destination) ([]Path, [
 }
 
 func (manager *TableManager) DeletePathsforPeer(peerInfo *PeerInfo, rf bgp.RouteFamily) ([]Path, []Path, error) {
-	destinationList := manager.Tables[rf].DeleteDestByPeer(peerInfo)
-	return manager.calculate(destinationList)
+	if _, ok := manager.Tables[rf]; ok {
+		destinationList := manager.Tables[rf].DeleteDestByPeer(peerInfo)
+		return manager.calculate(destinationList)
+	}
+	return []Path{}, []Path{}, nil
 }
 
 func (manager *TableManager) ProcessPaths(pathList []Path) ([]Path, []Path, error) {
@@ -339,24 +342,38 @@ func (adj *AdjRib) getPathList(rib map[string]*ReceivedRoute) []Path {
 }
 
 func (adj *AdjRib) GetInPathList(rf bgp.RouteFamily) []Path {
+	if _, ok := adj.adjRibIn[rf]; !ok {
+		return []Path{}
+	}
 	return adj.getPathList(adj.adjRibIn[rf])
 }
 
 func (adj *AdjRib) GetOutPathList(rf bgp.RouteFamily) []Path {
+	if _, ok := adj.adjRibOut[rf]; !ok {
+		return []Path{}
+	}
 	return adj.getPathList(adj.adjRibOut[rf])
 }
 
 func (adj *AdjRib) GetInCount(rf bgp.RouteFamily) int {
+	if _, ok := adj.adjRibIn[rf]; !ok {
+		return 0
+	}
 	return len(adj.adjRibIn[rf])
 }
 
 func (adj *AdjRib) GetOutCount(rf bgp.RouteFamily) int {
+	if _, ok := adj.adjRibOut[rf]; !ok {
+		return 0
+	}
 	return len(adj.adjRibOut[rf])
 }
 
 func (adj *AdjRib) DropAllIn(rf bgp.RouteFamily) {
-	// replace old one
-	adj.adjRibIn[rf] = make(map[string]*ReceivedRoute)
+	if _, ok := adj.adjRibIn[rf]; ok {
+		// replace old one
+		adj.adjRibIn[rf] = make(map[string]*ReceivedRoute)
+	}
 }
 
 type ReceivedRoute struct {

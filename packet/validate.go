@@ -7,23 +7,14 @@ import (
 	"strconv"
 )
 
-func isRfSupported(rf RouteFamily, rfs []RouteFamily) bool {
-	for _, r := range rfs {
-		if rf == r {
-			return true
-		}
-	}
-	return false
-}
-
 // Validator for BGPUpdate
-func ValidateUpdateMsg(m *BGPUpdate, rfs []RouteFamily) (bool, error) {
+func ValidateUpdateMsg(m *BGPUpdate, rfs map[RouteFamily]bool) (bool, error) {
 	eCode := uint8(BGP_ERROR_UPDATE_MESSAGE_ERROR)
 	eSubCodeAttrList := uint8(BGP_ERROR_SUB_MALFORMED_ATTRIBUTE_LIST)
 	eSubCodeMissing := uint8(BGP_ERROR_SUB_MISSING_WELL_KNOWN_ATTRIBUTE)
 
 	if len(m.NLRI) > 0 || len(m.WithdrawnRoutes) > 0 {
-		if isRfSupported(RF_IPv4_UC, rfs) == false {
+		if _, ok := rfs[RF_IPv4_UC]; !ok {
 			return false, NewMessageError(0, 0, nil, fmt.Sprintf("Address-family rf %d not avalible for session", RF_IPv4_UC))
 		}
 	}
@@ -67,7 +58,7 @@ func ValidateUpdateMsg(m *BGPUpdate, rfs []RouteFamily) (bool, error) {
 	return true, nil
 }
 
-func ValidateAttribute(a PathAttributeInterface, rfs []RouteFamily) (bool, error) {
+func ValidateAttribute(a PathAttributeInterface, rfs map[RouteFamily]bool) (bool, error) {
 
 	eCode := uint8(BGP_ERROR_UPDATE_MESSAGE_ERROR)
 	eSubCodeBadOrigin := uint8(BGP_ERROR_SUB_INVALID_ORIGIN_ATTRIBUTE)
@@ -77,7 +68,7 @@ func ValidateAttribute(a PathAttributeInterface, rfs []RouteFamily) (bool, error
 	checkPrefix := func(l []AddrPrefixInterface) bool {
 		for _, prefix := range l {
 			rf := AfiSafiToRouteFamily(prefix.AFI(), prefix.SAFI())
-			if isRfSupported(rf, rfs) == false {
+			if _, ok := rfs[rf]; !ok {
 				return false
 			}
 		}
@@ -87,7 +78,7 @@ func ValidateAttribute(a PathAttributeInterface, rfs []RouteFamily) (bool, error
 	switch p := a.(type) {
 	case *PathAttributeMpUnreachNLRI:
 		rf := AfiSafiToRouteFamily(p.AFI, p.SAFI)
-		if isRfSupported(rf, rfs) == false {
+		if _, ok := rfs[rf]; !ok {
 			return false, NewMessageError(0, 0, nil, fmt.Sprintf("Address-family rf %d not avalible for session", rf))
 		}
 		if checkPrefix(p.Value) == false {
@@ -95,7 +86,7 @@ func ValidateAttribute(a PathAttributeInterface, rfs []RouteFamily) (bool, error
 		}
 	case *PathAttributeMpReachNLRI:
 		rf := AfiSafiToRouteFamily(p.AFI, p.SAFI)
-		if isRfSupported(rf, rfs) == false {
+		if _, ok := rfs[rf]; !ok {
 			return false, NewMessageError(0, 0, nil, fmt.Sprintf("Address-family rf %d not avalible for session", rf))
 		}
 		if checkPrefix(p.Value) == false {

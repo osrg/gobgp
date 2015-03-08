@@ -56,9 +56,8 @@ type Peer struct {
 	adjRib         *table.AdjRib
 	// peer and rib are always not one-to-one so should not be
 	// here but it's the simplest and works our first target.
-	rib *table.TableManager
-	// for now we support only the same afi as transport
-	rf       bgp.RouteFamily
+	rib      *table.TableManager
+	rfMap    map[bgp.RouteFamily]bool
 	capMap   map[bgp.BGPCapabilityCode]bgp.ParameterCapabilityInterface
 	peerInfo *table.PeerInfo
 	siblings map[string]*serverMsgDataPeer
@@ -72,6 +71,7 @@ func NewPeer(g config.Global, peer config.Neighbor, serverMsgCh chan *serverMsg,
 		acceptedConnCh: make(chan net.Conn),
 		serverMsgCh:    serverMsgCh,
 		peerMsgCh:      peerMsgCh,
+		rfMap:          make(map[bgp.RouteFamily]bool),
 		capMap:         make(map[bgp.BGPCapabilityCode]bgp.ParameterCapabilityInterface),
 	}
 	p.siblings = make(map[string]*serverMsgDataPeer)
@@ -81,10 +81,11 @@ func NewPeer(g config.Global, peer config.Neighbor, serverMsgCh chan *serverMsg,
 	p.fsm = NewFSM(&g, &peer, p.acceptedConnCh)
 	peer.BgpNeighborCommonState.State = uint32(bgp.BGP_FSM_IDLE)
 	peer.BgpNeighborCommonState.Downtime = time.Now().Unix()
-	if peer.NeighborAddress.To4() != nil {
-		p.rf = bgp.RF_IPv4_UC
-	} else {
-		p.rf = bgp.RF_IPv6_UC
+	rfList := []bgp.RouteFamily{}
+	for _, rf := range peer.AfiSafiList {
+		k, _ := bgp.GetRouteFamily(rf.AfiSafiName)
+		p.rfMap[k] = true
+		rfList = append(rfList, k)
 	}
 	p.peerInfo = &table.PeerInfo{
 		AS:      peer.PeerAs,
@@ -92,7 +93,7 @@ func NewPeer(g config.Global, peer config.Neighbor, serverMsgCh chan *serverMsg,
 		Address: peer.NeighborAddress,
 	}
 	p.adjRib = table.NewAdjRib()
-	p.rib = table.NewTableManager(p.peerConfig.NeighborAddress.String(), []bgp.RouteFamily{p.rf})
+	p.rib = table.NewTableManager(p.peerConfig.NeighborAddress.String(), rfList)
 	p.t.Go(p.loop)
 	return p
 }
@@ -134,7 +135,7 @@ func (peer *Peer) handleBGPmessage(m *bgp.BGPMessage) {
 	case bgp.BGP_MSG_ROUTE_REFRESH:
 		rr := m.Body.(*bgp.BGPRouteRefresh)
 		rf := bgp.AfiSafiToRouteFamily(rr.AFI, rr.SAFI)
-		if peer.rf != rf {
+		if _, ok := peer.rfMap[rf]; !ok {
 			log.WithFields(log.Fields{
 				"Topic": "Peer",
 				"Key":   peer.peerConfig.NeighborAddress,
@@ -143,7 +144,7 @@ func (peer *Peer) handleBGPmessage(m *bgp.BGPMessage) {
 			return
 		}
 		if _, ok := peer.capMap[bgp.BGP_CAP_ROUTE_REFRESH]; ok {
-			pathList := peer.adjRib.GetOutPathList(peer.rf)
+			pathList := peer.adjRib.GetOutPathList(rf)
 			peer.sendMessages(table.CreateUpdateMsgFromPaths(pathList))
 		} else {
 			log.WithFields(log.Fields{
@@ -154,7 +155,7 @@ func (peer *Peer) handleBGPmessage(m *bgp.BGPMessage) {
 	case bgp.BGP_MSG_UPDATE:
 		peer.peerConfig.BgpNeighborCommonState.UpdateRecvTime = time.Now().Unix()
 		body := m.Body.(*bgp.BGPUpdate)
-		_, err := bgp.ValidateUpdateMsg(body, []bgp.RouteFamily{peer.rf})
+		_, err := bgp.ValidateUpdateMsg(body, peer.rfMap)
 		if err != nil {
 			log.WithFields(log.Fields{
 				"Topic": "Peer",
@@ -212,17 +213,13 @@ func (peer *Peer) handleREST(restReq *api.RestRequest) {
 	result := &api.RestResponse{}
 	switch restReq.RequestType {
 	case api.REQ_LOCAL_RIB:
-		var t table.Table
-		if peer.fsm.adminState == ADMIN_STATE_DOWN {
-			if peer.rf == bgp.RF_IPv4_UC {
-				t = table.NewIPv4Table(0)
-			} else {
-				t = table.NewIPv6Table(0)
+		// just empty so we use ipv4 for any route family
+		j, _ := json.Marshal(table.NewIPv4Table(0))
+		if peer.fsm.adminState != ADMIN_STATE_DOWN {
+			if _, ok := peer.rfMap[restReq.RouteFamily]; ok {
+				j, _ = json.Marshal(peer.rib.Tables[restReq.RouteFamily])
 			}
-		} else {
-			t = peer.rib.Tables[peer.rf]
 		}
-		j, _ := json.Marshal(t)
 		result.Data = j
 	case api.REQ_NEIGHBOR_SHUTDOWN:
 		peer.outgoing <- bgp.NewBGPNotificationMessage(bgp.BGP_ERROR_CEASE, bgp.BGP_ERROR_SUB_ADMINISTRATIVE_SHUTDOWN, nil)
@@ -231,7 +228,7 @@ func (peer *Peer) handleREST(restReq *api.RestRequest) {
 		peer.outgoing <- bgp.NewBGPNotificationMessage(bgp.BGP_ERROR_CEASE, bgp.BGP_ERROR_SUB_ADMINISTRATIVE_RESET, nil)
 	case api.REQ_NEIGHBOR_SOFT_RESET, api.REQ_NEIGHBOR_SOFT_RESET_IN:
 		// soft-reconfiguration inbound
-		pathList := peer.adjRib.GetInPathList(peer.rf)
+		pathList := peer.adjRib.GetInPathList(restReq.RouteFamily)
 		pm := &peerMsg{
 			msgType: PEER_MSG_PATH,
 			msgData: pathList,
@@ -244,20 +241,17 @@ func (peer *Peer) handleREST(restReq *api.RestRequest) {
 		}
 		fallthrough
 	case api.REQ_NEIGHBOR_SOFT_RESET_OUT:
-		pathList := peer.adjRib.GetOutPathList(peer.rf)
+		pathList := peer.adjRib.GetOutPathList(restReq.RouteFamily)
 		peer.sendMessages(table.CreateUpdateMsgFromPaths(pathList))
 	case api.REQ_ADJ_RIB_IN, api.REQ_ADJ_RIB_OUT:
-		rfs := []bgp.RouteFamily{bgp.RF_IPv4_UC, bgp.RF_IPv6_UC}
 		adjrib := make(map[string][]table.Path)
-
-		if restReq.RequestType == api.REQ_ADJ_RIB_IN {
-			for _, rf := range rfs {
+		rf := restReq.RouteFamily
+		if _, ok := peer.rfMap[rf]; ok {
+			if restReq.RequestType == api.REQ_ADJ_RIB_IN {
 				paths := peer.adjRib.GetInPathList(rf)
 				adjrib[rf.String()] = paths
 				log.Debugf("RouteFamily=%v adj-rib-in found : %d", rf.String(), len(paths))
-			}
-		} else {
-			for _, rf := range rfs {
+			} else {
 				paths := peer.adjRib.GetOutPathList(rf)
 				adjrib[rf.String()] = paths
 				log.Debugf("RouteFamily=%v adj-rib-out found : %d", rf.String(), len(paths))
@@ -318,8 +312,10 @@ func (peer *Peer) handlePeerMsg(m *peerMsg) {
 		pList, wList, _ := peer.rib.ProcessPaths(m.msgData.([]table.Path))
 		peer.sendUpdateMsgFromPaths(pList, wList)
 	case PEER_MSG_PEER_DOWN:
-		pList, wList, _ := peer.rib.DeletePathsforPeer(m.msgData.(*table.PeerInfo), peer.rf)
-		peer.sendUpdateMsgFromPaths(pList, wList)
+		for rf, _ := range peer.rfMap {
+			pList, wList, _ := peer.rib.DeletePathsforPeer(m.msgData.(*table.PeerInfo), rf)
+			peer.sendUpdateMsgFromPaths(pList, wList)
+		}
 	}
 }
 
@@ -328,24 +324,27 @@ func (peer *Peer) handleServerMsg(m *serverMsg) {
 	case SRV_MSG_PEER_ADDED:
 		d := m.msgData.(*serverMsgDataPeer)
 		peer.siblings[d.address.String()] = d
-		pathList := peer.adjRib.GetInPathList(peer.rf)
-		if len(pathList) == 0 {
-			return
-		}
-		pm := &peerMsg{
-			msgType: PEER_MSG_PATH,
-			msgData: pathList,
-		}
-		for _, s := range peer.siblings {
-			s.peerMsgCh <- pm
+		for rf, _ := range peer.rfMap {
+			pathList := peer.adjRib.GetInPathList(rf)
+			if len(pathList) == 0 {
+				continue
+			}
+			pm := &peerMsg{
+				msgType: PEER_MSG_PATH,
+				msgData: pathList,
+			}
+			for _, s := range peer.siblings {
+				s.peerMsgCh <- pm
+			}
 		}
 	case SRV_MSG_PEER_DELETED:
 		d := m.msgData.(*table.PeerInfo)
-		_, found := peer.siblings[d.Address.String()]
-		if found {
+		if _, ok := peer.siblings[d.Address.String()]; ok {
 			delete(peer.siblings, d.Address.String())
-			pList, wList, _ := peer.rib.DeletePathsforPeer(d, peer.rf)
-			peer.sendUpdateMsgFromPaths(pList, wList)
+			for rf, _ := range peer.rfMap {
+				pList, wList, _ := peer.rib.DeletePathsforPeer(d, rf)
+				peer.sendUpdateMsgFromPaths(pList, wList)
+			}
 		} else {
 			log.Warning("can not find peer: ", d.Address.String())
 		}
@@ -364,8 +363,10 @@ func (peer *Peer) loop() error {
 
 		h := NewFSMHandler(peer.fsm, incoming, peer.outgoing)
 		if peer.peerConfig.BgpNeighborCommonState.State == uint32(bgp.BGP_FSM_ESTABLISHED) {
-			pathList := peer.adjRib.GetOutPathList(peer.rf)
-			peer.sendMessages(table.CreateUpdateMsgFromPaths(pathList))
+			for rf, _ := range peer.rfMap {
+				pathList := peer.adjRib.GetOutPathList(rf)
+				peer.sendMessages(table.CreateUpdateMsgFromPaths(pathList))
+			}
 			peer.fsm.peerConfig.BgpNeighborCommonState.Uptime = time.Now().Unix()
 			peer.fsm.peerConfig.BgpNeighborCommonState.EstablishedCount++
 		} else {
@@ -398,7 +399,10 @@ func (peer *Peer) loop() error {
 						if t.Sub(time.Unix(peer.fsm.peerConfig.BgpNeighborCommonState.Uptime, 0)) < FLOP_THRESHOLD {
 							peer.fsm.peerConfig.BgpNeighborCommonState.Flops++
 						}
-						peer.adjRib.DropAllIn(peer.rf)
+
+						for rf, _ := range peer.rfMap {
+							peer.adjRib.DropAllIn(rf)
+						}
 						pm := &peerMsg{
 							msgType: PEER_MSG_PEER_DOWN,
 							msgData: peer.peerInfo,
@@ -484,8 +488,14 @@ func (peer *Peer) MarshalJSON() ([]byte, error) {
 	}
 
 	advertized := uint32(0)
+	received := uint32(0)
+	accepted := uint32(0)
 	if f.state == bgp.BGP_FSM_ESTABLISHED {
-		advertized = uint32(peer.adjRib.GetOutCount(peer.rf))
+		for rf, _ := range peer.rfMap {
+			advertized += uint32(peer.adjRib.GetOutCount(rf))
+			received += uint32(peer.adjRib.GetInCount(rf))
+			accepted += uint32(peer.adjRib.GetInCount(rf))
+		}
 	}
 
 	p["info"] = struct {
@@ -535,8 +545,8 @@ func (peer *Peer) MarshalJSON() ([]byte, error) {
 		DiscardedIn:               s.DiscardedIn,
 		Uptime:                    uptime,
 		Downtime:                  downtime,
-		Received:                  uint32(peer.adjRib.GetInCount(peer.rf)),
-		Accepted:                  uint32(peer.adjRib.GetInCount(peer.rf)),
+		Received:                  received,
+		Accepted:                  accepted,
 		Advertized:                advertized,
 		OutQ:                      len(peer.outgoing),
 		Flops:                     s.Flops,

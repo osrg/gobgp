@@ -505,6 +505,7 @@ func makePeer(globalConfig config.Global, peerConfig config.Neighbor) *Peer {
 		acceptedConnCh: make(chan net.Conn),
 		serverMsgCh:    sch,
 		peerMsgCh:      pch,
+		rfMap:          make(map[bgp.RouteFamily]bool),
 		capMap:         make(map[bgp.BGPCapabilityCode]bgp.ParameterCapabilityInterface),
 	}
 	p.siblings = make(map[string]*serverMsgDataPeer)
@@ -513,9 +514,9 @@ func makePeer(globalConfig config.Global, peerConfig config.Neighbor) *Peer {
 	peerConfig.BgpNeighborCommonState.State = uint32(bgp.BGP_FSM_IDLE)
 	peerConfig.BgpNeighborCommonState.Downtime = time.Now().Unix()
 	if peerConfig.NeighborAddress.To4() != nil {
-		p.rf = bgp.RF_IPv4_UC
+		p.rfMap[bgp.RF_IPv4_UC] = true
 	} else {
-		p.rf = bgp.RF_IPv6_UC
+		p.rfMap[bgp.RF_IPv6_UC] = true
 	}
 
 	p.peerInfo = &table.PeerInfo{
