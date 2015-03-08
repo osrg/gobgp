@@ -287,15 +287,15 @@ type AdjRib struct {
 	adjRibOut map[bgp.RouteFamily]map[string]*ReceivedRoute
 }
 
-func NewAdjRib() *AdjRib {
+func NewAdjRib(rfList []bgp.RouteFamily) *AdjRib {
 	r := &AdjRib{
 		adjRibIn:  make(map[bgp.RouteFamily]map[string]*ReceivedRoute),
 		adjRibOut: make(map[bgp.RouteFamily]map[string]*ReceivedRoute),
 	}
-	r.adjRibIn[bgp.RF_IPv4_UC] = make(map[string]*ReceivedRoute)
-	r.adjRibIn[bgp.RF_IPv6_UC] = make(map[string]*ReceivedRoute)
-	r.adjRibOut[bgp.RF_IPv4_UC] = make(map[string]*ReceivedRoute)
-	r.adjRibOut[bgp.RF_IPv6_UC] = make(map[string]*ReceivedRoute)
+	for _, rf := range rfList {
+		r.adjRibIn[rf] = make(map[string]*ReceivedRoute)
+		r.adjRibOut[rf] = make(map[string]*ReceivedRoute)
+	}
 	return r
 }
 

@@ -524,8 +524,9 @@ func makePeer(globalConfig config.Global, peerConfig config.Neighbor) *Peer {
 		LocalID: globalConfig.RouterId,
 		Address: peerConfig.NeighborAddress,
 	}
-	p.adjRib = table.NewAdjRib()
-	p.rib = table.NewTableManager(p.peerConfig.NeighborAddress.String(), []bgp.RouteFamily{bgp.RF_IPv4_UC, bgp.RF_IPv6_UC})
+	rfList := []bgp.RouteFamily{bgp.RF_IPv4_UC, bgp.RF_IPv6_UC}
+	p.adjRib = table.NewAdjRib(rfList)
+	p.rib = table.NewTableManager(p.peerConfig.NeighborAddress.String(), rfList)
 
 	return p
 }

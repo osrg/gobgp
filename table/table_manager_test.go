@@ -2209,7 +2209,7 @@ func TestProcessBGPUpdate_Timestamp(t *testing.T) {
 	nlri := []bgp.NLRInfo{*bgp.NewNLRInfo(24, "10.10.10.0")}
 	withdrawnRoutes := []bgp.WithdrawnRoute{}
 
-	adjRib := NewAdjRib()
+	adjRib := NewAdjRib([]bgp.RouteFamily{bgp.RF_IPv4_UC, bgp.RF_IPv6_UC})
 	m1 := bgp.NewBGPUpdateMessage(withdrawnRoutes, pathAttributes, nlri)
 	peer := peerR1()
 	msg1 := NewProcessMessage(m1, peer)
