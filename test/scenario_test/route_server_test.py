@@ -89,7 +89,9 @@ class GoBGPTest(unittest.TestCase):
         for address in self.get_neighbor_address(self.gobgp_config):
             print "check of [ " + address + " ]"
             # get local-rib per peer
-            url = "http://" + self.gobgp_ip + ":" + self.gobgp_port + "/v1/bgp/neighbor/" + address + "/local-rib"
+            af = "/ipv4"
+            url = "http://" + self.gobgp_ip + ":" + self.gobgp_port +\
+                  "/v1/bgp/neighbor/" + address + "/local-rib" + af
             r = requests.get(url)
             local_rib = json.loads(r.text)
 
@@ -172,7 +174,9 @@ class GoBGPTest(unittest.TestCase):
         for address in self.get_neighbor_address(self.gobgp_config):
             print "check of [ " + address + " ]"
             # get local-rib per peer
-            url = "http://" + self.gobgp_ip + ":" + self.gobgp_port + "/v1/bgp/neighbor/" + address + "/local-rib"
+            af = "/ipv4"
+            url = "http://" + self.gobgp_ip + ":" + self.gobgp_port +\
+                  "/v1/bgp/neighbor/" + address + "/local-rib" + af
             r = requests.get(url)
             local_rib = json.loads(r.text)
 
@@ -264,7 +268,9 @@ class GoBGPTest(unittest.TestCase):
 
             print "check of [ " + address + " ]"
             # get local-rib per peer
-            url = "http://" + self.gobgp_ip + ":" + self.gobgp_port + "/v1/bgp/neighbor/" + address + "/local-rib"
+            af = "/ipv4"
+            url = "http://" + self.gobgp_ip + ":" + self.gobgp_port +\
+                  "/v1/bgp/neighbor/" + address + "/local-rib" + af
             r = requests.get(url)
             local_rib = json.loads(r.text)
 
@@ -395,7 +401,9 @@ class GoBGPTest(unittest.TestCase):
         # get local-rib
         rep_nexthop = ""
         target_exist = False
-        url = "http://" + self.gobgp_ip + ":" + self.gobgp_port + "/v1/bgp/neighbor/" + check_address + "/local-rib"
+        af = "/ipv4"
+        url = "http://" + self.gobgp_ip + ":" + self.gobgp_port +\
+              "/v1/bgp/neighbor/" + check_address + "/local-rib" + af
         r = requests.get(url)
         local_rib = json.loads(r.text)
         g_dests = local_rib['Destinations']

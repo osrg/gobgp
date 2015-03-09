@@ -91,7 +91,9 @@ class GoBGPIPv6Test(unittest.TestCase):
         for address in self.get_neighbor_address(self.gobgp_config):
             print "check of [ " + address[0] + " : " + address[1] + " ]"
             # get local-rib per peer
-            url = "http://" + self.gobgp_ip + ":" + self.gobgp_port + "/v1/bgp/neighbor/" + address[0] + "/local-rib"
+            af = "/ipv6" if address[1] == "IPv6" else "/ipv4"
+            url = "http://" + self.gobgp_ip + ":" + self.gobgp_port \
+                  + "/v1/bgp/neighbor/" + address[0] + "/local-rib" + af
             r = requests.get(url)
             local_rib = json.loads(r.text)
 
