@@ -106,6 +106,19 @@ func (peer *Peer) configuredRFlist() []bgp.RouteFamily {
 	return rfList
 }
 
+func (peer *Peer) sendPathsToSiblings(pathList []table.Path) {
+	if len(pathList) == 0 {
+		return
+	}
+	pm := &peerMsg{
+		msgType: PEER_MSG_PATH,
+		msgData: pathList,
+	}
+	for _, s := range peer.siblings {
+		s.peerMsgCh <- pm
+	}
+}
+
 func (peer *Peer) handleBGPmessage(m *bgp.BGPMessage) {
 	log.WithFields(log.Fields{
 		"Topic": "Peer",
@@ -194,17 +207,8 @@ func (peer *Peer) handleBGPmessage(m *bgp.BGPMessage) {
 		table.UpdatePathAttrs4ByteAs(body)
 		msg := table.NewProcessMessage(m, peer.peerInfo)
 		pathList := msg.ToPathList()
-		if len(pathList) == 0 {
-			return
-		}
 		peer.adjRib.UpdateIn(pathList)
-		pm := &peerMsg{
-			msgType: PEER_MSG_PATH,
-			msgData: pathList,
-		}
-		for _, s := range peer.siblings {
-			s.peerMsgCh <- pm
-		}
+		peer.sendPathsToSiblings(pathList)
 	}
 }
 
@@ -251,14 +255,7 @@ func (peer *Peer) handleREST(restReq *api.RestRequest) {
 		peer.outgoing <- bgp.NewBGPNotificationMessage(bgp.BGP_ERROR_CEASE, bgp.BGP_ERROR_SUB_ADMINISTRATIVE_RESET, nil)
 	case api.REQ_NEIGHBOR_SOFT_RESET, api.REQ_NEIGHBOR_SOFT_RESET_IN:
 		// soft-reconfiguration inbound
-		pathList := peer.adjRib.GetInPathList(restReq.RouteFamily)
-		pm := &peerMsg{
-			msgType: PEER_MSG_PATH,
-			msgData: pathList,
-		}
-		for _, s := range peer.siblings {
-			s.peerMsgCh <- pm
-		}
+		peer.sendPathsToSiblings(peer.adjRib.GetInPathList(restReq.RouteFamily))
 		if restReq.RequestType == api.REQ_NEIGHBOR_SOFT_RESET_IN {
 			break
 		}
@@ -352,17 +349,7 @@ func (peer *Peer) handleServerMsg(m *serverMsg) {
 		d := m.msgData.(*serverMsgDataPeer)
 		peer.siblings[d.address.String()] = d
 		for _, rf := range peer.configuredRFlist() {
-			pathList := peer.adjRib.GetInPathList(rf)
-			if len(pathList) == 0 {
-				continue
-			}
-			pm := &peerMsg{
-				msgType: PEER_MSG_PATH,
-				msgData: pathList,
-			}
-			for _, s := range peer.siblings {
-				s.peerMsgCh <- pm
-			}
+			peer.sendPathsToSiblings(peer.adjRib.GetInPathList(rf))
 		}
 	case SRV_MSG_PEER_DELETED:
 		d := m.msgData.(*table.PeerInfo)
