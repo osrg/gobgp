@@ -17,8 +17,8 @@ package table
 
 import (
 	log "github.com/Sirupsen/logrus"
-	"github.com/osrg/go-patricia/patricia"
 	"github.com/osrg/gobgp/packet"
+	"github.com/tchap/go-patricia/patricia"
 	"reflect"
 	"time"
 )
