@@ -197,7 +197,7 @@ type RoutingPolicy struct {
 	PolicyDefinitionList []PolicyDefinition
 }
 
-//struct for container bgp:apply-policy
+//struct for container rpol:apply-policy
 type ApplyPolicy struct {
 	// original -> rpol:import-policies
 	ImportPolicies []string
@@ -209,7 +209,7 @@ type ApplyPolicy struct {
 	DefaultExportPolicy DefaultPolicyType
 }
 
-//struct for container bgp:bgp-neighbor-common-state
+//struct for container bgp-op:bgp-neighbor-common-state
 type BgpNeighborCommonState struct {
 	// original -> bgp-op:state
 	State uint32
@@ -312,8 +312,7 @@ type RouteServer struct {
 //struct for container bgp:route-reflector
 type RouteReflector struct {
 	// original -> bgp:route-reflector-cluster-id
-	//bgp:route-reflector-cluster-id's original type is rr-cluster-id-type
-	RouteReflectorClusterId uint32
+	RouteReflectorClusterId RrClusterIdType
 	// original -> bgp:route-reflector-client
 	//bgp:route-reflector-client's original type is boolean
 	RouteReflectorClient bool
@@ -347,18 +346,18 @@ type Timers struct {
 	SendUpdateDelay float64
 }
 
-//struct for container bgp:prefix-limit
+//struct for container bgp-mp:prefix-limit
 type PrefixLimit struct {
 	// original -> bgp-mp:max-prefixes
 	MaxPrefixes uint32
 	// original -> bgp-mp:shutdown-threshold-pct
 	ShutdownThresholdPct Percentage
 	// original -> bgp-mp:restart-timer
-	//bgp:restart-timer's original type is decimal64
+	//bgp-mp:restart-timer's original type is decimal64
 	RestartTimer float64
 }
 
-//struct for container bgp:l2vpn-evpn
+//struct for container bgp-mp:l2vpn-evpn
 type L2vpnEvpn struct {
 	// original -> rpol:apply-policy
 	ApplyPolicy ApplyPolicy
@@ -366,10 +365,10 @@ type L2vpnEvpn struct {
 	PrefixLimit PrefixLimit
 }
 
-//struct for container bgp:l2vpn-vpls
+//struct for container bgp-mp:l2vpn-vpls
 type L2vpnVpls struct {
 	// original -> bgp-mp:enabled
-	//bgp:enabled's original type is boolean
+	//bgp-mp:enabled's original type is boolean
 	Enabled bool
 	// original -> rpol:apply-policy
 	ApplyPolicy ApplyPolicy
@@ -377,10 +376,10 @@ type L2vpnVpls struct {
 	PrefixLimit PrefixLimit
 }
 
-//struct for container bgp:l3vpn-ipv6-multicast
+//struct for container bgp-mp:l3vpn-ipv6-multicast
 type L3vpnIpv6Multicast struct {
 	// original -> bgp-mp:enabled
-	//bgp:enabled's original type is boolean
+	//bgp-mp:enabled's original type is boolean
 	Enabled bool
 	// original -> rpol:apply-policy
 	ApplyPolicy ApplyPolicy
@@ -388,10 +387,10 @@ type L3vpnIpv6Multicast struct {
 	PrefixLimit PrefixLimit
 }
 
-//struct for container bgp:l3vpn-ipv4-multicast
+//struct for container bgp-mp:l3vpn-ipv4-multicast
 type L3vpnIpv4Multicast struct {
 	// original -> bgp-mp:enabled
-	//bgp:enabled's original type is boolean
+	//bgp-mp:enabled's original type is boolean
 	Enabled bool
 	// original -> rpol:apply-policy
 	ApplyPolicy ApplyPolicy
@@ -399,10 +398,10 @@ type L3vpnIpv4Multicast struct {
 	PrefixLimit PrefixLimit
 }
 
-//struct for container bgp:l3vpn-ipv6-unicast
+//struct for container bgp-mp:l3vpn-ipv6-unicast
 type L3vpnIpv6Unicast struct {
 	// original -> bgp-mp:enabled
-	//bgp:enabled's original type is boolean
+	//bgp-mp:enabled's original type is boolean
 	Enabled bool
 	// original -> rpol:apply-policy
 	ApplyPolicy ApplyPolicy
@@ -410,10 +409,10 @@ type L3vpnIpv6Unicast struct {
 	PrefixLimit PrefixLimit
 }
 
-//struct for container bgp:l3vpn-ipv4-unicast
+//struct for container bgp-mp:l3vpn-ipv4-unicast
 type L3vpnIpv4Unicast struct {
 	// original -> bgp-mp:enabled
-	//bgp:enabled's original type is boolean
+	//bgp-mp:enabled's original type is boolean
 	Enabled bool
 	// original -> rpol:apply-policy
 	ApplyPolicy ApplyPolicy
@@ -421,10 +420,10 @@ type L3vpnIpv4Unicast struct {
 	PrefixLimit PrefixLimit
 }
 
-//struct for container bgp:ipv6-labelled-unicast
+//struct for container bgp-mp:ipv6-labelled-unicast
 type Ipv6LabelledUnicast struct {
 	// original -> bgp-mp:enabled
-	//bgp:enabled's original type is boolean
+	//bgp-mp:enabled's original type is boolean
 	Enabled bool
 	// original -> rpol:apply-policy
 	ApplyPolicy ApplyPolicy
@@ -432,10 +431,10 @@ type Ipv6LabelledUnicast struct {
 	PrefixLimit PrefixLimit
 }
 
-//struct for container bgp:ipv4-labelled-unicast
+//struct for container bgp-mp:ipv4-labelled-unicast
 type Ipv4LabelledUnicast struct {
 	// original -> bgp-mp:enabled
-	//bgp:enabled's original type is boolean
+	//bgp-mp:enabled's original type is boolean
 	Enabled bool
 	// original -> rpol:apply-policy
 	ApplyPolicy ApplyPolicy
@@ -443,10 +442,10 @@ type Ipv4LabelledUnicast struct {
 	PrefixLimit PrefixLimit
 }
 
-//struct for container bgp:ipv6-multicast
+//struct for container bgp-mp:ipv6-multicast
 type Ipv6Multicast struct {
 	// original -> bgp-mp:enabled
-	//bgp:enabled's original type is boolean
+	//bgp-mp:enabled's original type is boolean
 	Enabled bool
 	// original -> rpol:apply-policy
 	ApplyPolicy ApplyPolicy
@@ -454,10 +453,10 @@ type Ipv6Multicast struct {
 	PrefixLimit PrefixLimit
 }
 
-//struct for container bgp:ipv4-multicast
+//struct for container bgp-mp:ipv4-multicast
 type Ipv4Multicast struct {
 	// original -> bgp-mp:enabled
-	//bgp:enabled's original type is boolean
+	//bgp-mp:enabled's original type is boolean
 	Enabled bool
 	// original -> rpol:apply-policy
 	ApplyPolicy ApplyPolicy
@@ -465,38 +464,87 @@ type Ipv4Multicast struct {
 	PrefixLimit PrefixLimit
 }
 
-//struct for container bgp:ipv6-unicast
+//struct for container bgp-mp:ipv6-unicast
 type Ipv6Unicast struct {
 	// original -> bgp-mp:enabled
-	//bgp:enabled's original type is boolean
+	//bgp-mp:enabled's original type is boolean
 	Enabled bool
 	// original -> rpol:apply-policy
 	ApplyPolicy ApplyPolicy
 	// original -> bgp-mp:prefix-limit
 	PrefixLimit PrefixLimit
 	// original -> bgp-mp:send-default-route
-	//bgp:send-default-route's original type is boolean
+	//bgp-mp:send-default-route's original type is boolean
 	SendDefaultRoute bool
 }
 
-//struct for container bgp:ipv4-unicast
+//struct for container bgp-mp:ipv4-unicast
 type Ipv4Unicast struct {
 	// original -> bgp-mp:enabled
-	//bgp:enabled's original type is boolean
+	//bgp-mp:enabled's original type is boolean
 	Enabled bool
 	// original -> rpol:apply-policy
 	ApplyPolicy ApplyPolicy
 	// original -> bgp-mp:prefix-limit
 	PrefixLimit PrefixLimit
 	// original -> bgp-mp:send-default-route
-	//bgp:send-default-route's original type is boolean
+	//bgp-mp:send-default-route's original type is boolean
 	SendDefaultRoute bool
 }
 
-//struct for container bgp:afi-safi
+//struct for container bgp-mp:ibgp
+type Ibgp struct {
+	// original -> bgp-mp:maximum-paths
+	MaximumPaths uint32
+}
+
+//struct for container bgp-mp:ebgp
+type Ebgp struct {
+	// original -> bgp-mp:allow-multiple-as
+	//bgp-mp:allow-multiple-as's original type is boolean
+	AllowMultipleAs bool
+	// original -> bgp-mp:maximum-paths
+	MaximumPaths uint32
+}
+
+//struct for container bgp-mp:use-multiple-paths
+type UseMultiplePaths struct {
+	// original -> bgp-mp:ebgp
+	Ebgp Ebgp
+	// original -> bgp-mp:ibgp
+	Ibgp Ibgp
+}
+
+//struct for container bgp-mp:route-selection-options
+type RouteSelectionOptions struct {
+	// original -> bgp-mp:always-compare-med
+	//bgp-mp:always-compare-med's original type is boolean
+	AlwaysCompareMed bool
+	// original -> bgp-mp:ignore-as-path-length
+	//bgp-mp:ignore-as-path-length's original type is boolean
+	IgnoreAsPathLength bool
+	// original -> bgp-mp:external-compare-router-id
+	//bgp-mp:external-compare-router-id's original type is boolean
+	ExternalCompareRouterId bool
+	// original -> bgp-mp:advertise-inactive-routes
+	//bgp-mp:advertise-inactive-routes's original type is boolean
+	AdvertiseInactiveRoutes bool
+	// original -> bgp-mp:enable-aigp
+	//bgp-mp:enable-aigp's original type is empty
+	EnableAigp bool
+	// original -> bgp-mp:ignore-next-hop-igp-metric
+	//bgp-mp:ignore-next-hop-igp-metric's original type is boolean
+	IgnoreNextHopIgpMetric bool
+}
+
+//struct for container bgp-mp:afi-safi
 type AfiSafi struct {
 	// original -> bgp-mp:afi-safi-name
 	AfiSafiName string
+	// original -> bgp-mp:route-selection-options
+	RouteSelectionOptions RouteSelectionOptions
+	// original -> bgp-mp:use-multiple-paths
+	UseMultiplePaths UseMultiplePaths
 	// original -> bgp-mp:ipv4-unicast
 	Ipv4Unicast Ipv4Unicast
 	// original -> bgp-mp:ipv6-unicast
@@ -546,6 +594,8 @@ type Neighbor struct {
 	GracefulRestart GracefulRestart
 	// original -> rpol:apply-policy
 	ApplyPolicy ApplyPolicy
+	// original -> bgp-mp:use-multiple-paths
+	UseMultiplePaths UseMultiplePaths
 	// original -> bgp-mp:afi-safi
 	AfiSafiList []AfiSafi
 	// original -> bgp:auth-password
@@ -584,30 +634,7 @@ type Neighbor struct {
 	BgpNeighborCommonState BgpNeighborCommonState
 }
 
-//struct for container bgp:ibgp
-type Ibgp struct {
-	// original -> bgp-mp:maximum-paths
-	MaximumPaths uint32
-}
-
-//struct for container bgp:ebgp
-type Ebgp struct {
-	// original -> bgp-mp:allow-multiple-as
-	//bgp:allow-multiple-as's original type is boolean
-	AllowMultipleAs bool
-	// original -> bgp-mp:maximum-paths
-	MaximumPaths uint32
-}
-
-//struct for container bgp:use-multiple-paths
-type UseMultiplePaths struct {
-	// original -> bgp-mp:ebgp
-	Ebgp Ebgp
-	// original -> bgp-mp:ibgp
-	Ibgp Ibgp
-}
-
-//struct for container bgp:bgp-group-common-state
+//struct for container bgp-op:bgp-group-common-state
 type BgpGroupCommonState struct {
 }
 
@@ -623,6 +650,8 @@ type PeerGroup struct {
 	GracefulRestart GracefulRestart
 	// original -> rpol:apply-policy
 	ApplyPolicy ApplyPolicy
+	// original -> bgp-mp:use-multiple-paths
+	UseMultiplePaths UseMultiplePaths
 	// original -> bgp-mp:afi-safi
 	AfiSafiList []AfiSafi
 	// original -> bgp:auth-password
@@ -657,36 +686,12 @@ type PeerGroup struct {
 	AsPathOptions AsPathOptions
 	// original -> bgp:add-paths
 	AddPaths AddPaths
-	// original -> bgp-mp:use-multiple-paths
-	UseMultiplePaths UseMultiplePaths
 	// original -> bgp:neighbor
 	NeighborList []Neighbor
 }
 
-//struct for container bgp:bgp-global-state
+//struct for container bgp-op:bgp-global-state
 type BgpGlobalState struct {
-}
-
-//struct for container bgp:route-selection-options
-type RouteSelectionOptions struct {
-	// original -> bgp-mp:always-compare-med
-	//bgp:always-compare-med's original type is boolean
-	AlwaysCompareMed bool
-	// original -> bgp-mp:ignore-as-path-length
-	//bgp:ignore-as-path-length's original type is boolean
-	IgnoreAsPathLength bool
-	// original -> bgp-mp:external-compare-router-id
-	//bgp:external-compare-router-id's original type is boolean
-	ExternalCompareRouterId bool
-	// original -> bgp-mp:advertise-inactive-routes
-	//bgp:advertise-inactive-routes's original type is boolean
-	AdvertiseInactiveRoutes bool
-	// original -> bgp-mp:enable-aigp
-	//bgp:enable-aigp's original type is empty
-	EnableAigp bool
-	// original -> bgp-mp:ignore-next-hop-igp-metric
-	//bgp:ignore-next-hop-igp-metric's original type is boolean
-	IgnoreNextHopIgpMetric bool
 }
 
 //struct for container bgp:confederation
