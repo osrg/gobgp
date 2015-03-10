@@ -224,6 +224,9 @@ func CreatePath(source *PeerInfo, nlri bgp.AddrPrefixInterface, attrs []bgp.Path
 	case bgp.RF_IPv6_UC:
 		log.Debugf("CreatePath RouteFamily : %s", bgp.RF_IPv6_UC.String())
 		path = NewIPv6Path(source, nlri, isWithdraw, attrs, false, now)
+	case bgp.RF_IPv4_VPN:
+		log.Debugf("CreatePath RouteFamily : %s", bgp.RF_IPv4_VPN.String())
+		path = NewIPv4VPNPath(source, nlri, isWithdraw, attrs, false, now)
 	}
 	return path
 }
@@ -314,5 +317,70 @@ func (ipv6p *IPv6Path) MarshalJSON() ([]byte, error) {
 		Nexthop: ipv6p.PathDefault.nexthop.String(),
 		Attrs:   ipv6p.PathDefault.getPathAttrs(),
 		Age:     time.Now().Sub(ipv6p.PathDefault.timestamp).Seconds(),
+	})
+}
+
+type IPv4VPNPath struct {
+	*PathDefault
+}
+
+func NewIPv4VPNPath(source *PeerInfo, nlri bgp.AddrPrefixInterface, isWithdraw bool, attrs []bgp.PathAttributeInterface, medSetByTargetNeighbor bool, now time.Time) *IPv4VPNPath {
+	ipv4VPNPath := &IPv4VPNPath{}
+	ipv4VPNPath.PathDefault = NewPathDefault(bgp.RF_IPv4_VPN, source, nlri, nil, isWithdraw, attrs, medSetByTargetNeighbor, now)
+	if !isWithdraw {
+		_, mpattr := ipv4VPNPath.getPathAttr(bgp.BGP_ATTR_TYPE_MP_REACH_NLRI)
+		ipv4VPNPath.nexthop = mpattr.(*bgp.PathAttributeMpReachNLRI).Nexthop
+	}
+	return ipv4VPNPath
+}
+
+func (ipv4vpnp *IPv4VPNPath) clone(isWithdraw bool) Path {
+	nlri := ipv4vpnp.nlri
+	if isWithdraw {
+		if ipv4vpnp.IsWithdraw() {
+			log.WithFields(log.Fields{
+				"Topic": "Table",
+				"Key":   ipv4vpnp.getNlri().String(),
+				"Peer":  ipv4vpnp.getSource().Address.String(),
+			}).Fatal("Withdraw path is not supposed to be cloned")
+		}
+	}
+	return CreatePath(ipv4vpnp.source, nlri, ipv4vpnp.pathAttrs, isWithdraw, ipv4vpnp.PathDefault.timestamp)
+}
+
+func (ipv4vpnp *IPv4VPNPath) setPathDefault(pd *PathDefault) {
+	ipv4vpnp.PathDefault = pd
+}
+
+func (ipv4vpnp *IPv4VPNPath) getPathDefault() *PathDefault {
+	return ipv4vpnp.PathDefault
+}
+
+func (ipv4vpnp *IPv4VPNPath) getPrefix() string {
+	addrPrefix := ipv4vpnp.nlri.(*bgp.LabelledVPNIPAddrPrefix)
+	return addrPrefix.IPAddrPrefixDefault.String()
+}
+
+// return IPv4VPNPath's string representation
+func (ipv4vpnp *IPv4VPNPath) String() string {
+	str := fmt.Sprintf("IPv4VPNPath Source: %v, ", ipv4vpnp.getSource())
+	str = str + fmt.Sprintf(" NLRI: %s, ", ipv4vpnp.getPrefix())
+	str = str + fmt.Sprintf(" nexthop: %s, ", ipv4vpnp.getNexthop().String())
+	str = str + fmt.Sprintf(" withdraw: %s, ", ipv4vpnp.IsWithdraw())
+	//str = str + fmt.Sprintf(" path attributes: %s, ", ipv4vpnp.getPathAttributeMap())
+	return str
+}
+
+func (ipv4vpnp *IPv4VPNPath) MarshalJSON() ([]byte, error) {
+	return json.Marshal(struct {
+		Network string
+		Nexthop string
+		Attrs   []bgp.PathAttributeInterface
+		Age     float64
+	}{
+		Network: ipv4vpnp.getPrefix(),
+		Nexthop: ipv4vpnp.PathDefault.nexthop.String(),
+		Attrs:   ipv4vpnp.PathDefault.getPathAttrs(),
+		Age:     time.Now().Sub(ipv4vpnp.PathDefault.timestamp).Seconds(),
 	})
 }

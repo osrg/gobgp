@@ -138,6 +138,8 @@ func NewTableManager(owner string, rfList []bgp.RouteFamily) *TableManager {
 			t.Tables[bgp.RF_IPv4_UC] = NewIPv4Table(0)
 		case bgp.RF_IPv6_UC:
 			t.Tables[bgp.RF_IPv6_UC] = NewIPv6Table(0)
+		case bgp.RF_IPv4_VPN:
+			t.Tables[bgp.RF_IPv4_VPN] = NewIPv4VPNTable(0)
 		}
 	}
 	t.owner = owner
