@@ -17,6 +17,23 @@ type neighbor struct {
 
 func SetDefaultConfigValues(md toml.MetaData, bt *Bgp) error {
 	neighbors := []neighbor{}
+	global := make(map[string]bool)
+
+	for _, key := range md.Keys() {
+		if !strings.HasPrefix(key.String(), "Global") {
+			continue
+		}
+		if key.String() != "Global" {
+			global[key.String()] = true
+		}
+	}
+
+	if _, ok := global["Global.AfiSafiList"]; !ok {
+		bt.Global.AfiSafiList = []AfiSafi{
+			AfiSafi{AfiSafiName: "ipv4-unicast"},
+			AfiSafi{AfiSafiName: "ipv6-unicast"},
+		}
+	}
 
 	nidx := 0
 	for _, key := range md.Keys() {
