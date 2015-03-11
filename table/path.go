@@ -35,7 +35,7 @@ type Path interface {
 	setSource(source *PeerInfo)
 	getSource() *PeerInfo
 	setNexthop(nexthop net.IP)
-	getNexthop() net.IP
+	GetNexthop() net.IP
 	setWithdraw(withdraw bool)
 	IsWithdraw() bool
 	getNlri() bgp.AddrPrefixInterface
@@ -225,7 +225,7 @@ func (pd *PathDefault) setNexthop(nexthop net.IP) {
 	pd.nexthop = nexthop
 }
 
-func (pd *PathDefault) getNexthop() net.IP {
+func (pd *PathDefault) GetNexthop() net.IP {
 	return pd.nexthop
 }
 
@@ -284,7 +284,7 @@ func (pd *PathDefault) getPathAttr(pattrType bgp.BGPAttrType) (int, bgp.PathAttr
 func (pi *PathDefault) String() string {
 	str := fmt.Sprintf("IPv4Path Source: %v, ", pi.getSource())
 	str = str + fmt.Sprintf(" NLRI: %s, ", pi.getPrefix())
-	str = str + fmt.Sprintf(" nexthop: %s, ", pi.getNexthop().String())
+	str = str + fmt.Sprintf(" nexthop: %s, ", pi.GetNexthop().String())
 	str = str + fmt.Sprintf(" withdraw: %s, ", pi.IsWithdraw())
 	//str = str + fmt.Sprintf(" path attributes: %s, ", pi.getPathAttributeMap())
 	return str
@@ -382,7 +382,7 @@ func (ipv6p *IPv6Path) getPrefix() string {
 func (ipv6p *IPv6Path) String() string {
 	str := fmt.Sprintf("IPv6Path Source: %v, ", ipv6p.getSource())
 	str = str + fmt.Sprintf(" NLRI: %s, ", ipv6p.getPrefix())
-	str = str + fmt.Sprintf(" nexthop: %s, ", ipv6p.getNexthop().String())
+	str = str + fmt.Sprintf(" nexthop: %s, ", ipv6p.GetNexthop().String())
 	str = str + fmt.Sprintf(" withdraw: %s, ", ipv6p.IsWithdraw())
 	//str = str + fmt.Sprintf(" path attributes: %s, ", ipv6p.getPathAttributeMap())
 	return str
@@ -447,7 +447,7 @@ func (ipv4vpnp *IPv4VPNPath) getPrefix() string {
 func (ipv4vpnp *IPv4VPNPath) String() string {
 	str := fmt.Sprintf("IPv4VPNPath Source: %v, ", ipv4vpnp.getSource())
 	str = str + fmt.Sprintf(" NLRI: %s, ", ipv4vpnp.getPrefix())
-	str = str + fmt.Sprintf(" nexthop: %s, ", ipv4vpnp.getNexthop().String())
+	str = str + fmt.Sprintf(" nexthop: %s, ", ipv4vpnp.GetNexthop().String())
 	str = str + fmt.Sprintf(" withdraw: %s, ", ipv4vpnp.IsWithdraw())
 	//str = str + fmt.Sprintf(" path attributes: %s, ", ipv4vpnp.getPathAttributeMap())
 	return str

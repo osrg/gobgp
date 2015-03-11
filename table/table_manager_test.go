@@ -111,7 +111,7 @@ func TestProcessBGPUpdate_0_select_onlypath_ipv4(t *testing.T) {
 	assert.Equal(t, expectedPrefix, path.getPrefix())
 	// check nexthop
 	expectedNexthop := "192.168.50.1"
-	assert.Equal(t, expectedNexthop, path.getNexthop().String())
+	assert.Equal(t, expectedNexthop, path.GetNexthop().String())
 
 }
 
@@ -163,7 +163,7 @@ func TestProcessBGPUpdate_0_select_onlypath_ipv6(t *testing.T) {
 	assert.Equal(t, expectedPrefix, path.getPrefix())
 	// check nexthop
 	expectedNexthop := "2001::192:168:50:1"
-	assert.Equal(t, expectedNexthop, path.getNexthop().String())
+	assert.Equal(t, expectedNexthop, path.GetNexthop().String())
 
 }
 
@@ -248,7 +248,7 @@ func TestProcessBGPUpdate_1_select_high_localpref_ipv4(t *testing.T) {
 	assert.Equal(t, expectedPrefix, path.getPrefix())
 	// check nexthop
 	expectedNexthop := "192.168.50.1"
-	assert.Equal(t, expectedNexthop, path.getNexthop().String())
+	assert.Equal(t, expectedNexthop, path.GetNexthop().String())
 
 }
 
@@ -335,7 +335,7 @@ func TestProcessBGPUpdate_1_select_high_localpref_ipv6(t *testing.T) {
 	assert.Equal(t, expectedPrefix, path.getPrefix())
 	// check nexthop
 	expectedNexthop := "2001::192:168:100:1"
-	assert.Equal(t, expectedNexthop, path.getNexthop().String())
+	assert.Equal(t, expectedNexthop, path.GetNexthop().String())
 
 }
 
@@ -422,7 +422,7 @@ func TestProcessBGPUpdate_2_select_local_origin_ipv4(t *testing.T) {
 	assert.Equal(t, expectedPrefix, path.getPrefix())
 	// check nexthop
 	expectedNexthop := "0.0.0.0"
-	assert.Equal(t, expectedNexthop, path.getNexthop().String())
+	assert.Equal(t, expectedNexthop, path.GetNexthop().String())
 
 }
 
@@ -512,7 +512,7 @@ func TestProcessBGPUpdate_2_select_local_origin_ipv6(t *testing.T) {
 	assert.Equal(t, expectedPrefix, path.getPrefix())
 	// check nexthop
 	expectedNexthop := "::"
-	assert.Equal(t, expectedNexthop, path.getNexthop().String())
+	assert.Equal(t, expectedNexthop, path.GetNexthop().String())
 
 }
 
@@ -570,7 +570,7 @@ func TestProcessBGPUpdate_3_select_aspath_ipv4(t *testing.T) {
 	assert.Equal(t, expectedPrefix, path.getPrefix())
 	// check nexthop
 	expectedNexthop := "192.168.100.1"
-	assert.Equal(t, expectedNexthop, path.getNexthop().String())
+	assert.Equal(t, expectedNexthop, path.GetNexthop().String())
 
 }
 
@@ -628,7 +628,7 @@ func TestProcessBGPUpdate_3_select_aspath_ipv6(t *testing.T) {
 	assert.Equal(t, expectedPrefix, path.getPrefix())
 	// check nexthop
 	expectedNexthop := "2001::192:168:100:1"
-	assert.Equal(t, expectedNexthop, path.getNexthop().String())
+	assert.Equal(t, expectedNexthop, path.GetNexthop().String())
 
 }
 
@@ -713,7 +713,7 @@ func TestProcessBGPUpdate_4_select_low_origin_ipv4(t *testing.T) {
 	assert.Equal(t, expectedPrefix, path.getPrefix())
 	// check nexthop
 	expectedNexthop := "192.168.100.1"
-	assert.Equal(t, expectedNexthop, path.getNexthop().String())
+	assert.Equal(t, expectedNexthop, path.GetNexthop().String())
 
 }
 
@@ -800,7 +800,7 @@ func TestProcessBGPUpdate_4_select_low_origin_ipv6(t *testing.T) {
 	assert.Equal(t, expectedPrefix, path.getPrefix())
 	// check nexthop
 	expectedNexthop := "2001::192:168:100:1"
-	assert.Equal(t, expectedNexthop, path.getNexthop().String())
+	assert.Equal(t, expectedNexthop, path.GetNexthop().String())
 
 }
 
@@ -885,7 +885,7 @@ func TestProcessBGPUpdate_5_select_low_med_ipv4(t *testing.T) {
 	assert.Equal(t, expectedPrefix, path.getPrefix())
 	// check nexthop
 	expectedNexthop := "192.168.100.1"
-	assert.Equal(t, expectedNexthop, path.getNexthop().String())
+	assert.Equal(t, expectedNexthop, path.GetNexthop().String())
 
 }
 
@@ -972,7 +972,7 @@ func TestProcessBGPUpdate_5_select_low_med_ipv6(t *testing.T) {
 	assert.Equal(t, expectedPrefix, path.getPrefix())
 	// check nexthop
 	expectedNexthop := "2001::192:168:100:1"
-	assert.Equal(t, expectedNexthop, path.getNexthop().String())
+	assert.Equal(t, expectedNexthop, path.GetNexthop().String())
 
 }
 
@@ -1059,7 +1059,7 @@ func TestProcessBGPUpdate_6_select_ebgp_path_ipv4(t *testing.T) {
 	assert.Equal(t, expectedPrefix, path.getPrefix())
 	// check nexthop
 	expectedNexthop := "192.168.100.1"
-	assert.Equal(t, expectedNexthop, path.getNexthop().String())
+	assert.Equal(t, expectedNexthop, path.GetNexthop().String())
 
 }
 
@@ -1147,7 +1147,7 @@ func TestProcessBGPUpdate_6_select_ebgp_path_ipv6(t *testing.T) {
 	assert.Equal(t, expectedPrefix, path.getPrefix())
 	// check nexthop
 	expectedNexthop := "2001::192:168:100:1"
-	assert.Equal(t, expectedNexthop, path.getNexthop().String())
+	assert.Equal(t, expectedNexthop, path.GetNexthop().String())
 
 }
 
@@ -1236,7 +1236,7 @@ func TestProcessBGPUpdate_7_select_low_routerid_path_ipv4(t *testing.T) {
 	assert.Equal(t, expectedPrefix, path.getPrefix())
 	// check nexthop
 	expectedNexthop := "192.168.100.1"
-	assert.Equal(t, expectedNexthop, path.getNexthop().String())
+	assert.Equal(t, expectedNexthop, path.GetNexthop().String())
 
 }
 
@@ -1324,7 +1324,7 @@ func TestProcessBGPUpdate_7_select_low_routerid_path_ipv6(t *testing.T) {
 	assert.Equal(t, expectedPrefix, path.getPrefix())
 	// check nexthop
 	expectedNexthop := "2001::192:168:100:1"
-	assert.Equal(t, expectedNexthop, path.getNexthop().String())
+	assert.Equal(t, expectedNexthop, path.GetNexthop().String())
 
 }
 
@@ -1412,7 +1412,7 @@ func TestProcessBGPUpdate_8_withdraw_path_ipv4(t *testing.T) {
 	assert.Equal(t, expectedPrefix, path.getPrefix())
 	// check nexthop
 	expectedNexthop := "192.168.100.1"
-	assert.Equal(t, expectedNexthop, path.getNexthop().String())
+	assert.Equal(t, expectedNexthop, path.GetNexthop().String())
 
 	//withdraw path
 	w1 := bgp.WithdrawnRoute{*bgp.NewIPAddrPrefix(24, "10.10.10.0")}
@@ -1434,7 +1434,7 @@ func TestProcessBGPUpdate_8_withdraw_path_ipv4(t *testing.T) {
 	assert.Equal(t, expectedPrefix, path.getPrefix())
 	// check nexthop
 	expectedNexthop = "192.168.50.1"
-	assert.Equal(t, expectedNexthop, path.getNexthop().String())
+	assert.Equal(t, expectedNexthop, path.GetNexthop().String())
 }
 
 // TODO MP_UNREACH
@@ -1547,7 +1547,7 @@ func TestProcessBGPUpdate_8_mpunreach_path_ipv6(t *testing.T) {
 	assert.Equal(t, expectedPrefix, path.getPrefix())
 	// check nexthop
 	expectedNexthop := "2001::192:168:100:1"
-	assert.Equal(t, expectedNexthop, path.getNexthop().String())
+	assert.Equal(t, expectedNexthop, path.GetNexthop().String())
 
 	//mpunreach path
 	mp_unreach := createMpUNReach("2001:123:123:1::", 64)
@@ -1569,7 +1569,7 @@ func TestProcessBGPUpdate_8_mpunreach_path_ipv6(t *testing.T) {
 	assert.Equal(t, expectedPrefix, path.getPrefix())
 	// check nexthop
 	expectedNexthop = "2001::192:168:50:1"
-	assert.Equal(t, expectedNexthop, path.getNexthop().String())
+	assert.Equal(t, expectedNexthop, path.GetNexthop().String())
 
 }
 
@@ -1805,7 +1805,7 @@ func TestProcessBGPUpdate_implicit_withdrwal_ipv4(t *testing.T) {
 	assert.Equal(t, expectedPrefix, path.getPrefix())
 	// check nexthop
 	expectedNexthop := "192.168.50.1"
-	assert.Equal(t, expectedNexthop, path.getNexthop().String())
+	assert.Equal(t, expectedNexthop, path.GetNexthop().String())
 
 }
 
@@ -1917,7 +1917,7 @@ func TestProcessBGPUpdate_implicit_withdrwal_ipv6(t *testing.T) {
 	assert.Equal(t, expectedPrefix, path.getPrefix())
 	// check nexthop
 	expectedNexthop := "2001::192:168:50:1"
-	assert.Equal(t, expectedNexthop, path.getNexthop().String())
+	assert.Equal(t, expectedNexthop, path.GetNexthop().String())
 
 }
 
@@ -1974,7 +1974,7 @@ func TestProcessBGPUpdate_multiple_nlri_ipv4(t *testing.T) {
 		// check destination
 		assert.Equal(t, prefix, p.getPrefix())
 		// check nexthop
-		assert.Equal(t, nexthop, p.getNexthop().String())
+		assert.Equal(t, nexthop, p.GetNexthop().String())
 	}
 
 	// path1
@@ -2115,7 +2115,7 @@ func TestProcessBGPUpdate_multiple_nlri_ipv6(t *testing.T) {
 		// check destination
 		assert.Equal(t, prefix, p.getPrefix())
 		// check nexthop
-		assert.Equal(t, nexthop, p.getNexthop().String())
+		assert.Equal(t, nexthop, p.GetNexthop().String())
 	}
 
 	// path1

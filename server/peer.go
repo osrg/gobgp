@@ -320,7 +320,17 @@ func (peer *Peer) sendUpdateMsgFromPaths(pList []table.Path) {
 	peer.adjRib.UpdateOut(pList)
 	sendpathList := []table.Path{}
 	for _, p := range pList {
-		if _, ok := peer.rfMap[p.GetRouteFamily()]; ok {
+		_, ok := peer.rfMap[p.GetRouteFamily()]
+
+		if peer.peerConfig.NeighborAddress.Equal(p.GetNexthop()) {
+			log.WithFields(log.Fields{
+				"Topic": "Peer",
+				"Key":   peer.peerConfig.NeighborAddress,
+			}).Debugf("From me. Ignore: %s", p)
+			ok = false
+		}
+
+		if ok {
 			sendpathList = append(sendpathList, p)
 		}
 	}
