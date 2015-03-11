@@ -175,7 +175,7 @@ func (manager *TableManager) calculate(destinationList []Destination) ([]Path, e
 				"Owner":    manager.owner,
 				"Key":      destination.getNlri().String(),
 				"peer":     newBestPath.getSource().Address,
-				"next_hop": newBestPath.getNexthop().String(),
+				"next_hop": newBestPath.GetNexthop().String(),
 				"reason":   reason,
 			}).Debug("best path is not changed")
 			continue
@@ -196,7 +196,7 @@ func (manager *TableManager) calculate(destinationList []Destination) ([]Path, e
 						"Owner":    manager.owner,
 						"Key":      destination.getNlri().String(),
 						"peer":     currentBestPath.getSource().Address,
-						"next_hop": currentBestPath.getNexthop().String(),
+						"next_hop": currentBestPath.GetNexthop().String(),
 					}).Debug("best path is lost")
 
 					p := destination.getBestPath()
@@ -218,7 +218,7 @@ func (manager *TableManager) calculate(destinationList []Destination) ([]Path, e
 				"Owner":    manager.owner,
 				"Key":      newBestPath.getNlri().String(),
 				"peer":     newBestPath.getSource().Address,
-				"next_hop": newBestPath.getNexthop(),
+				"next_hop": newBestPath.GetNexthop(),
 				"reason":   reason,
 			}).Debug("new best path")
 
