@@ -242,7 +242,7 @@ func (peer *Peer) sendMessages(msgs []*bgp.BGPMessage) {
 func (peer *Peer) handleREST(restReq *api.RestRequest) {
 	result := &api.RestResponse{}
 	switch restReq.RequestType {
-	case api.REQ_LOCAL_RIB:
+	case api.REQ_LOCAL_RIB, api.REQ_GLOBAL_RIB:
 		// just empty so we use ipv4 for any route family
 		j, _ := json.Marshal(table.NewIPv4Table(0))
 		if peer.fsm.adminState != ADMIN_STATE_DOWN {

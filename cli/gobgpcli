@@ -82,6 +82,31 @@ class Show(object):
                 return f[1]()
         return 1
 
+    def do_global(self):
+        if len(self.args) != 1 and len(self.args) != 2:
+            return 1
+
+        url = self.base_url + "/global/rib"
+        if len(self.args) == 2:
+            url += "/" + self.args[1]
+        else:
+            url += "/ipv4"
+
+        try:
+            r = requests.get(url)
+        except:
+            print "Failed to connect to gobgpd. It runs?"
+            sys.exit(1)
+
+        f = "{:2s} {:18s} {:15s} {:10s} {:10s} {:s}"
+        print(f.format("", "Network", "Next Hop", "AS_PATH", "Age", "Attrs"))
+
+        for d in r.json()["Destinations"]:
+            d["Paths"][d["BestPathIdx"]]["Best"] = True
+            self.show_routes(f, d["Paths"], True, True)
+
+        return 0
+
     def _neighbor(self, neighbor=None):
         capdict = {1: "MULTIPROTOCOL",
                    2: "ROUTE_REFRESH",
