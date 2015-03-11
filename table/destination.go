@@ -936,3 +936,59 @@ func (ipv6d *IPv6Destination) MarshalJSON() ([]byte, error) {
 		BestPathIdx: idx,
 	})
 }
+
+type IPv4VPNDestination struct {
+	*DestinationDefault
+	//need structure
+}
+
+func NewIPv4VPNDestination(nlri bgp.AddrPrefixInterface) *IPv4VPNDestination {
+	ipv4VPNDestination := &IPv4VPNDestination{}
+	ipv4VPNDestination.DestinationDefault = NewDestinationDefault(nlri)
+	ipv4VPNDestination.DestinationDefault.ROUTE_FAMILY = bgp.RF_IPv4_VPN
+	//need Processing
+	return ipv4VPNDestination
+}
+
+func (ipv4vpnd *IPv4VPNDestination) String() string {
+
+	str := fmt.Sprintf("Destination NLRI: %s", ipv4vpnd.getPrefix().String())
+	return str
+}
+
+func (ipv4vpnd *IPv4VPNDestination) getPrefix() net.IP {
+	var ip net.IP
+	log.Debugf("type %s", reflect.TypeOf(ipv4vpnd.nlri))
+	switch p := ipv4vpnd.nlri.(type) {
+	case *bgp.IPv6AddrPrefix:
+		ip = p.IPAddrPrefix.IPAddrPrefixDefault.Prefix
+	case *bgp.WithdrawnRoute:
+		ip = p.IPAddrPrefix.IPAddrPrefixDefault.Prefix
+	}
+	return ip
+}
+
+func (ipv4vpnd *IPv4VPNDestination) MarshalJSON() ([]byte, error) {
+	prefix := ipv4vpnd.getNlri().(*bgp.LabelledVPNIPAddrPrefix).Prefix
+	idx := func() int {
+		for i, p := range ipv4vpnd.DestinationDefault.knownPathList {
+			if p == ipv4vpnd.DestinationDefault.getBestPath() {
+				return i
+			}
+		}
+		log.WithFields(log.Fields{
+			"Topic": "Table",
+			"Key":   prefix.String(),
+		}).Panic("no best path")
+		return 0
+	}()
+	return json.Marshal(struct {
+		Prefix      string
+		Paths       []Path
+		BestPathIdx int
+	}{
+		Prefix:      prefix.String(),
+		Paths:       ipv4vpnd.knownPathList,
+		BestPathIdx: idx,
+	})
+}

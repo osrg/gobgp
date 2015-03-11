@@ -24,6 +24,8 @@ import (
 	"github.com/tchap/go-patricia/patricia"
 	"net"
 	"reflect"
+	"strconv"
+	"strings"
 )
 
 type Table interface {
@@ -313,5 +315,69 @@ func (ipv6t *IPv6Table) tableKey(nlri bgp.AddrPrefixInterface) string {
 
 	addrPrefix := nlri.(*bgp.IPv6AddrPrefix)
 	return addrPrefix.IPAddrPrefixDefault.String()
+
+}
+
+type IPv4VPNTable struct {
+	*TableDefault
+	//need structure
+}
+
+func NewIPv4VPNTable(scope_id int) *IPv4VPNTable {
+	ipv4VPNTable := &IPv4VPNTable{}
+	ipv4VPNTable.TableDefault = NewTableDefault(scope_id)
+	ipv4VPNTable.TableDefault.ROUTE_FAMILY = bgp.RF_IPv4_VPN
+	//need Processing
+	return ipv4VPNTable
+}
+
+//Creates destination
+//Implements interface
+func (ipv4vpnt *IPv4VPNTable) createDest(nlri bgp.AddrPrefixInterface) Destination {
+	return Destination(NewIPv4VPNDestination(nlri))
+}
+
+//make tablekey
+//Implements interface
+func (ipv4vpnt *IPv4VPNTable) tableKey(nlri bgp.AddrPrefixInterface) string {
+
+	addrPrefix := nlri.(*bgp.LabelledVPNIPAddrPrefix)
+	return addrPrefix.IPAddrPrefixDefault.String()
+
+}
+
+func ParseLabbelledVpnPrefix(key string) patricia.Prefix {
+	vpnaddrprefix := strings.Split(key, "/")
+	length, _ := strconv.ParseInt(vpnaddrprefix[1], 10, 0)
+	_, n, _ := net.ParseCIDR(vpnaddrprefix[0] + "/" + strconv.FormatInt((int64(length)-88), 10))
+
+	var buffer bytes.Buffer
+	for i := 0; i < len(n.IP); i++ {
+		buffer.WriteString(fmt.Sprintf("%08b", n.IP[i]))
+	}
+	ones, _ := n.Mask.Size()
+	return patricia.Prefix(buffer.String()[:ones])
+
+}
+
+func (ipv4vpnt *IPv4VPNTable) MarshalJSON() ([]byte, error) {
+
+	trie := patricia.NewTrie()
+	for key, dest := range ipv4vpnt.destinations {
+		trie.Insert(ParseLabbelledVpnPrefix(key), dest)
+	}
+
+	destList := make([]Destination, 0)
+	trie.Visit(func(prefix patricia.Prefix, item patricia.Item) error {
+		dest, _ := item.(Destination)
+		destList = append(destList, dest)
+		return nil
+	})
+
+	return json.Marshal(struct {
+		Destinations []Destination
+	}{
+		Destinations: destList,
+	})
 
 }
