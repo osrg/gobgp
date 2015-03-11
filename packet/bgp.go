@@ -705,6 +705,16 @@ func getRouteDistinguisher(data []byte) RouteDistinguisherInterface {
 	return rd
 }
 
+func labelDecode(data []byte) uint32 {
+	return uint32(data[0]<<16 | data[1]<<8 | data[2])
+}
+
+func labelSerialize(label uint32, buf []byte) {
+	buf[0] = byte((label >> 16) & 0xff)
+	buf[1] = byte((label >> 8) & 0xff)
+	buf[2] = byte(label & 0xff)
+}
+
 type Label struct {
 	Labels []uint32
 }
@@ -953,6 +963,293 @@ func (n *RouteTargetMembershipNLRI) Len() int { return 12 }
 
 func (n *RouteTargetMembershipNLRI) String() string {
 	return fmt.Sprintf("%d:%s/%d", n.AS, n.RouteTarget.String(), n.Len()*8)
+}
+
+type EthernetSegmentIdentifier struct {
+	Type  uint8
+	Value []byte
+}
+
+func (esi *EthernetSegmentIdentifier) DecodeFromBytes(data []byte) error {
+	esi.Type = data[0]
+	esi.Value = data[1:10]
+	return nil
+}
+
+func (esi *EthernetSegmentIdentifier) Serialize() ([]byte, error) {
+	buf := make([]byte, 10)
+	buf[0] = esi.Type
+	copy(buf[1:], esi.Value)
+	return buf, nil
+}
+
+type EVPNEthernetAutoDiscoveryRoute struct {
+	RD    RouteDistinguisherInterface
+	EST   EthernetSegmentIdentifier
+	ETag  uint32
+	Label uint32
+}
+
+func (er *EVPNEthernetAutoDiscoveryRoute) DecodeFromBytes(data []byte) error {
+	er.RD = getRouteDistinguisher(data)
+	data = data[er.RD.Len():]
+	err := er.EST.DecodeFromBytes(data)
+	if err != nil {
+		return err
+	}
+	data = data[10:]
+	er.ETag = binary.BigEndian.Uint32(data[0:4])
+	data = data[4:]
+	er.Label = labelDecode(data)
+	return nil
+}
+
+func (er *EVPNEthernetAutoDiscoveryRoute) Serialize() ([]byte, error) {
+	buf, err := er.RD.Serialize()
+	if err != nil {
+		return nil, err
+	}
+
+	tbuf, err := er.EST.Serialize()
+	if err != nil {
+		return nil, err
+	}
+	buf = append(buf, tbuf...)
+
+	tbuf = make([]byte, 4)
+	binary.BigEndian.PutUint32(tbuf, er.ETag)
+	buf = append(buf, tbuf...)
+
+	tbuf = make([]byte, 3)
+	labelSerialize(er.Label, tbuf)
+	buf = append(buf, tbuf...)
+
+	return buf, nil
+}
+
+type EVPNMacIPAdvertisementRoute struct {
+	EST              EthernetSegmentIdentifier
+	ETag             uint32
+	MacAddressLength uint8
+	MacAddress       []byte
+	IPAddressLength  uint8
+	IPAddress        IPAddrPrefix
+	Labels           []uint32
+}
+
+func (er *EVPNMacIPAdvertisementRoute) DecodeFromBytes(data []byte) error {
+	err := er.EST.DecodeFromBytes(data)
+	if err != nil {
+		return err
+	}
+
+	data = data[10:]
+	er.ETag = binary.BigEndian.Uint32(data[0:4])
+	data = data[4:]
+
+	er.MacAddressLength = data[0]
+	er.MacAddress = data[1:7]
+	er.IPAddressLength = data[8]
+	data = data[9:]
+	switch er.IPAddressLength {
+	case 0:
+		// do nothing
+	case 4:
+		er.IPAddress.DecodeFromBytes(data)
+	case 6:
+		er.IPAddress.DecodeFromBytes(data)
+	default:
+		return fmt.Errorf("Invalid IP address length", er.IPAddressLength)
+	}
+	data = data[er.IPAddressLength:]
+	label1 := labelDecode(data)
+	er.Labels = append(er.Labels, label1)
+	data = data[3:]
+	if len(data) == 3 {
+		label2 := labelDecode(data)
+		er.Labels = append(er.Labels, label2)
+
+	}
+	return nil
+}
+
+func (er *EVPNMacIPAdvertisementRoute) Serialize() ([]byte, error) {
+	buf, err := er.EST.Serialize()
+	if err != nil {
+		return nil, err
+	}
+
+	tbuf := make([]byte, 4)
+	binary.BigEndian.PutUint32(tbuf, er.ETag)
+	buf = append(buf, tbuf...)
+
+	tbuf = make([]byte, 7)
+	tbuf[0] = er.MacAddressLength
+	copy(tbuf[1:], er.MacAddress)
+	buf = append(buf, tbuf...)
+
+	tbuf = make([]byte, 1)
+	tbuf[0] = er.IPAddressLength
+	buf = append(buf, tbuf...)
+
+	if er.IPAddressLength != 0 {
+		tbuf, err := er.IPAddress.Serialize()
+		if err != nil {
+			return nil, err
+		}
+		buf = append(buf, tbuf...)
+	}
+
+	for _, l := range er.Labels {
+		tbuf = make([]byte, 3)
+		labelSerialize(l, tbuf)
+		buf = append(buf, tbuf...)
+	}
+	return buf, nil
+}
+
+type EVPNMulticastEthernetTagRoute struct {
+	RD              RouteDistinguisherInterface
+	ETag            uint32
+	IPAddressLength uint8
+	IPAddress       IPAddrPrefix
+}
+
+func (er *EVPNMulticastEthernetTagRoute) DecodeFromBytes(data []byte) error {
+	er.RD = getRouteDistinguisher(data)
+	data = data[er.RD.Len():]
+	er.ETag = binary.BigEndian.Uint32(data[0:4])
+	er.IPAddressLength = data[4]
+	data = data[5:]
+	err := er.IPAddress.DecodeFromBytes(data)
+	if err != nil {
+		return err
+	}
+	return nil
+}
+
+func (er *EVPNMulticastEthernetTagRoute) Serialize() ([]byte, error) {
+	buf, err := er.RD.Serialize()
+	if err != nil {
+		return nil, err
+	}
+	tbuf := make([]byte, 5)
+	binary.BigEndian.PutUint32(tbuf, er.ETag)
+	tbuf[4] = er.IPAddressLength
+	buf = append(buf, tbuf...)
+
+	tbuf, err = er.IPAddress.Serialize()
+	if err != nil {
+		return nil, err
+	}
+	buf = append(buf, tbuf...)
+
+	return buf, nil
+}
+
+type EVPNEthernetSegmentRoute struct {
+	RD              RouteDistinguisherInterface
+	EST             EthernetSegmentIdentifier
+	IPAddressLength uint8
+	IPAddress       IPAddrPrefix
+}
+
+func (er *EVPNEthernetSegmentRoute) DecodeFromBytes(data []byte) error {
+	er.RD = getRouteDistinguisher(data)
+	data = data[er.RD.Len():]
+	er.EST.DecodeFromBytes(data)
+	data = data[10:]
+	er.IPAddressLength = data[0]
+	err := er.IPAddress.DecodeFromBytes(data[1:])
+	if err != nil {
+		return err
+	}
+	return nil
+}
+
+func (er *EVPNEthernetSegmentRoute) Serialize() ([]byte, error) {
+	buf, err := er.RD.Serialize()
+	if err != nil {
+		return nil, err
+	}
+	tbuf, err := er.EST.Serialize()
+	if err != nil {
+		return nil, err
+	}
+	buf = append(buf, tbuf...)
+
+	tbuf = make([]byte, 1)
+	tbuf[0] = er.IPAddressLength
+	buf = append(buf, tbuf...)
+
+	tbuf, err = er.IPAddress.Serialize()
+	if err != nil {
+		return nil, err
+	}
+	buf = append(buf, tbuf...)
+
+	return buf, nil
+}
+
+type EVPNRouteTypeInterface interface {
+	DecodeFromBytes([]byte) error
+	Serialize() ([]byte, error)
+}
+
+func getEVPNRouteType(t uint8) (EVPNRouteTypeInterface, error) {
+	switch t {
+	case EVPN_ROUTE_TYPE_ETHERNET_AUTO_DISCOVERY:
+		return &EVPNEthernetAutoDiscoveryRoute{}, nil
+	case EVPN_ROUTE_TYPE_MAC_IP_ADVERTISEMENT:
+		return &EVPNMacIPAdvertisementRoute{}, nil
+	case EVPN_INCLUSIVE_MULTICAST_ETHERNET_TAG:
+		return &EVPNMulticastEthernetTagRoute{}, nil
+	case EVPN_ETHERNET_SEGMENT_ROUTE:
+		return &EVPNEthernetSegmentRoute{}, nil
+	}
+	return nil, fmt.Errorf("Unknown EVPN Route type", t)
+}
+
+const (
+	EVPN_ROUTE_TYPE_ETHERNET_AUTO_DISCOVERY = 1
+	EVPN_ROUTE_TYPE_MAC_IP_ADVERTISEMENT    = 2
+	EVPN_INCLUSIVE_MULTICAST_ETHERNET_TAG   = 3
+	EVPN_ETHERNET_SEGMENT_ROUTE             = 4
+)
+
+type EVPNNLRI struct {
+	RouteType     uint8
+	Length        uint8
+	RouteTypeData EVPNRouteTypeInterface
+}
+
+func (n *EVPNNLRI) DecodeFromBytes(data []byte) error {
+	if len(data) < 2 {
+		return fmt.Errorf("Not all EVPNNLRI bytes available")
+	}
+	n.RouteType = data[0]
+	n.Length = data[1]
+	data = data[2:]
+	if len(data) < int(n.Length) {
+		return fmt.Errorf("Not all EVPNNLRI Route type bytes available")
+	}
+	r, err := getEVPNRouteType(n.RouteType)
+	if err != nil {
+		return err
+	}
+	return r.DecodeFromBytes(data)
+}
+
+func (n *EVPNNLRI) Serialize() ([]byte, error) {
+	buf := make([]byte, 2)
+	buf[0] = n.RouteType
+	buf[1] = n.Length
+	tbuf, err := n.RouteTypeData.Serialize()
+	if err != nil {
+		return nil, err
+	}
+	buf = append(buf, tbuf...)
+	return buf, nil
 }
 
 func AfiSafiToRouteFamily(afi uint16, safi uint8) RouteFamily {
