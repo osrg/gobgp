@@ -37,7 +37,7 @@ const (
 type MaskLengthRangeType int
 
 const (
-	MASK_LENGTH_RANGE_MIN = iota
+	MASK_LENGTH_RANGE_MIN MaskLengthRangeType = iota
 	MASK_LENGTH_RANGE_MAX
 )
 
@@ -46,42 +46,48 @@ type Policy struct {
 	Statements []Statement
 }
 
-func NewPolicy(name string, pd config.PolicyDefinition, cdf config.DefinedSets) *Policy {
-	cst := pd.StatementList
+func NewPolicy(name string, pd config.PolicyDefinition, ds config.DefinedSets) *Policy {
+	stmtList := pd.StatementList
 	st := make([]Statement, 0)
 	p := &Policy{
-		Name:       name,
-		Statements: st,
+		Name: name,
 	}
-	for _, cs := range cst {
-		pName := cs.Conditions.MatchPrefixSet
-		npl := make([]Prefix, 0)
-		for _, psl := range cdf.PrefixSetList {
-			if psl.PrefixSetName == pName {
-				for _, ps := range psl.PrefixList {
-					npl = append(npl, NewPrefix(ps.Address, ps.Masklength, ps.MasklengthRange))
+	for _, statement := range stmtList {
+		prefixSetName := statement.Conditions.MatchPrefixSet
+
+		prefixList := make([]Prefix, 0)
+		for _, ps := range ds.PrefixSetList {
+			if ps.PrefixSetName == prefixSetName {
+				for _, pl := range ps.PrefixList {
+					prefixList = append(prefixList, NewPrefix(pl.Address, pl.Masklength, pl.MasklengthRange))
 				}
 			}
 		}
-		nName := cs.Conditions.MatchNeighborSet
-		nnl := make([]net.IP, 0)
-		for _, nsl := range cdf.NeighborSetList {
-			if nsl.NeighborSetName == nName {
-				for _, nl := range nsl.NeighborInfoList {
-					nnl = append(nnl, nl.Address)
+
+		neighborSetName := statement.Conditions.MatchNeighborSet
+		neighborList := make([]net.IP, 0)
+		for _, neighborSet := range ds.NeighborSetList {
+			if neighborSet.NeighborSetName == neighborSetName {
+				for _, nl := range neighborSet.NeighborInfoList {
+					neighborList = append(neighborList, nl.Address)
 				}
 			}
 		}
-		con := Conditions{
-			PrefixList:   npl,
-			NeighborList: nnl,
+		con := &PrefixConditions{
+			PrefixList:      prefixList,
+			NeighborList:    neighborList,
+			MatchSetOptions: statement.Conditions.MatchSetOptions,
 		}
-		act := Actions{
-			AcceptRoute: cs.Actions.AcceptRoute,
-			RejectRoute: cs.Actions.RejectRoute,
+
+		act := &RoutingActions{
+			AcceptRoute: false,
 		}
+		if statement.Actions.AcceptRoute {
+			act.AcceptRoute = true
+		}
+
 		s := Statement{
-			Name:       cs.Name,
+			Name:       statement.Name,
 			Conditions: con,
 			Actions:    act,
 		}
@@ -97,15 +103,109 @@ type Statement struct {
 	Actions    Actions
 }
 
-type Conditions struct {
-	//CallPolicy       string
-	PrefixList   []Prefix
-	NeighborList []net.IP
+type Conditions interface {
+	evaluate(table.Path) bool
 }
 
-type Actions struct {
+type DefaultConditions struct {
+	CallPolicy string
+}
+
+func (c *DefaultConditions) evaluate(path table.Path) bool {
+	return false
+}
+
+type PrefixConditions struct {
+	DefaultConditions
+	PrefixList      []Prefix
+	NeighborList    []net.IP
+	MatchSetOptions config.MatchSetOptionsType
+}
+
+// evaluate path's prefix and neighbor's address with conditions
+// return value depends on MatchSetOptions
+func (c *PrefixConditions) evaluate(path table.Path) bool {
+	pref := c.evaluatePrefix(path)
+	log.Debug("evaluate prefix : ", pref)
+	neigh := c.evaluateNeighbor(path)
+	log.Debug("evaluate neighbor : ", neigh)
+
+	switch c.MatchSetOptions {
+	case config.MATCH_SET_OPTIONS_TYPE_ALL:
+		return pref && neigh
+	case config.MATCH_SET_OPTIONS_TYPE_ANY:
+		return pref || neigh
+	case config.MATCH_SET_OPTIONS_TYPE_INVERT:
+		return !(pref || neigh)
+	default:
+		return false
+	}
+}
+
+// compare prefixes in this condition and nlri of path and
+// subsequent comparison is skipped if that matches the conditions.
+// If PrefixList's length is zero, return true.
+func (c *PrefixConditions) evaluatePrefix(path table.Path) bool {
+
+	if len(c.PrefixList) == 0 {
+		return true
+	}
+
+	for _, cp := range c.PrefixList {
+		if IpPrefixCalculate(path, cp) {
+			return true
+		}
+	}
+	return false
+}
+
+// compare neighbor ipaddress of this condition and source address of path
+// and, subsequent comparisons are skipped if that matches the conditions.
+// If NeighborList's length is zero, return true.
+func (c *PrefixConditions) evaluateNeighbor(path table.Path) bool {
+
+	if len(c.NeighborList) == 0 {
+		return true
+	}
+
+	for _, neighbor := range c.NeighborList {
+		cAddr := neighbor
+		pAddr := path.GetSource().Address
+		if pAddr.Equal(cAddr) {
+			return true
+		}
+	}
+	return false
+}
+
+type Actions interface {
+	apply(table.Path) table.Path
+}
+
+type DefaultActions struct {
+}
+
+func (a *DefaultActions) apply(path table.Path) table.Path {
+	return path
+}
+
+type RoutingActions struct {
+	DefaultActions
 	AcceptRoute bool
-	RejectRoute bool
+}
+
+func (r *RoutingActions) apply(path table.Path) table.Path {
+	if r.AcceptRoute {
+		return path
+	} else {
+		return nil
+	}
+}
+
+type ModificationActions struct {
+	DefaultActions
+	AttrType bgp.BGPAttrType
+	Value    string
 }
 
 type Prefix struct {
@@ -121,13 +221,16 @@ func NewPrefix(addr net.IP, maskLen uint8, maskRange string) Prefix {
 		Masklength:      maskLen,
 		MasklengthRange: make(map[MaskLengthRangeType]uint8),
 	}
+
+	// TODO: validate mask length by using regexp
+
 	idx := strings.Index(maskRange, "..")
 	if idx == -1 {
 		log.WithFields(log.Fields{
 			"Topic":      "Policy",
 			"Address":    addr,
 			"Masklength": maskLen,
-		}).Warn("mask length range of condition is invalid format")
+		}).Warn("mask length range of condition is invalid format. mask length is not defined.")
 		return p
 	}
 	if idx != 0 {
@@ -160,51 +263,20 @@ func NewPrefix(addr net.IP, maskLen uint8, maskRange string) Prefix {
 //and, subsequent comparison skip if that matches the conditions.
 func (p *Policy) Apply(path table.Path) (bool, RouteType, table.Path) {
 	for _, statement := range p.Statements {
-		matchPrefix := false
-		matchNeighbor := false
-		if len(statement.Conditions.PrefixList) <= 0 && len(statement.Conditions.NeighborList) <= 0 {
-			return false, ROUTE_TYPE_NONE, nil
-		} else if len(statement.Conditions.PrefixList) <= 0 && len(statement.Conditions.NeighborList) > 0 {
-			matchPrefix = true
-			matchNeighbor = statement.compareNeighbor(path)
-		} else if len(statement.Conditions.NeighborList) <= 0 && len(statement.Conditions.PrefixList) > 0 {
-			matchPrefix = statement.comparePrefix(path)
-			matchNeighbor = true
-		} else {
-			matchPrefix = statement.comparePrefix(path)
-			matchNeighbor = statement.compareNeighbor(path)
-		}
-		an := statement.Actions
 
-		//if match the one of the prefix list and match to any of tye neighbor list,
-		//determines that matches the conditions of the statement
-		if matchPrefix && matchNeighbor {
-			if an.AcceptRoute {
-				// accept the path
-				// and return the path updated in acction definition
-				// TODO update path using acction definition.
-				//      implementation waiting for yang.
-				newPath := path
-				log.WithFields(log.Fields{
-					"Topic":   "Policy",
-					"Type":    "ROUTE_ACCEPT",
-					"OldPath": path,
-					"NewPath": newPath,
-				}).Debug("Apply policy to path")
-				return true, ROUTE_TYPE_ACCEPT, newPath
+		result := statement.Conditions.evaluate(path)
+		log.WithFields(log.Fields{
+			"Topic":      "Policy",
+			"Path":       path,
+			"PolicyName": p.Name,
+		}).Debug("statement.Conditions.evaluate : ", result)
 
+		var p table.Path
+		if result {
+			p = statement.Actions.apply(path)
+			if p != nil {
+				return true, ROUTE_TYPE_ACCEPT, p
 			} else {
-				// reject the path
-				// and return the path updated in acction definition
-				// TODO update path using acction definition.
-				//      implementation waiting for yang.
-				newPath := path
-				log.WithFields(log.Fields{
-					"Topic":   "Policy",
-					"Type":    "ROUTE_REJECT",
-					"OldPath": path,
-					"NewPath": newPath,
-				}).Debug("Apply policy to path")
 				return true, ROUTE_TYPE_REJECT, nil
 			}
 		}
@@ -212,32 +284,7 @@ func (p *Policy) Apply(path table.Path) (bool, RouteType, table.Path) {
 	return false, ROUTE_TYPE_NONE, nil
 }
 
-//compare prefix of condition policy and nlri of path
-//and, subsequent comparison skip if that matches the conditions.
-func (s *Statement) comparePrefix(path table.Path) bool {
-	for _, cp := range s.Conditions.PrefixList {
-		if IpPrefixCalcurate(path, cp) {
-			return true
-		}
-	}
-	return false
-}
-
-//compare neighbor ipaddress of condition policy and source of path
-//and, subsequent comparison skip if that matches the conditions.
-func (s *Statement) compareNeighbor(path table.Path) bool {
-	for _, neighbor := range s.Conditions.NeighborList {
-		cAddr := neighbor
-		pAddr := path.GetSource().Address
-		if pAddr.Equal(cAddr) {
-			return true
-		}
-
-	}
-	return false
-}
-
-func IpPrefixCalcurate(path table.Path, cPrefix Prefix) bool {
+func IpPrefixCalculate(path table.Path, cPrefix Prefix) bool {
 	pAddr := path.GetNlri().(*bgp.NLRInfo).IPAddrPrefix.Prefix
 	pMaskLen := path.GetNlri().(*bgp.NLRInfo).IPAddrPrefix.Length
 	cp := fmt.Sprintf("%s/%d", cPrefix.Address, cPrefix.Masklength)

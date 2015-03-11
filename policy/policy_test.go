@@ -16,6 +16,7 @@
 package policy
 
 import (
+	log "github.com/Sirupsen/logrus"
 	"github.com/osrg/gobgp/config"
 	"github.com/osrg/gobgp/packet"
 	"github.com/osrg/gobgp/table"
@@ -25,6 +26,7 @@ import (
 )
 
 func TestPrefixCalcurateNoRange(t *testing.T) {
+	log.SetLevel(log.DebugLevel)
 	// creatae path
 	peer := &table.PeerInfo{AS: 65001, Address: net.ParseIP("10.0.0.1")}
 	origin := bgp.NewPathAttributeOrigin(0)
@@ -40,13 +42,13 @@ func TestPrefixCalcurateNoRange(t *testing.T) {
 	path := msg.ToPathList()[0]
 	// test
 	pl1 := NewPrefix(net.ParseIP("10.10.0.0"), 24, "")
-	match1 := IpPrefixCalcurate(path, pl1)
+	match1 := IpPrefixCalculate(path, pl1)
 	assert.Equal(t, match1, false)
 	pl2 := NewPrefix(net.ParseIP("10.10.0.101"), 24, "")
-	match2 := IpPrefixCalcurate(path, pl2)
+	match2 := IpPrefixCalculate(path, pl2)
 	assert.Equal(t, match2, true)
 	pl3 := NewPrefix(net.ParseIP("10.10.0.0"), 16, "21..24")
-	match3 := IpPrefixCalcurate(path, pl3)
+	match3 := IpPrefixCalculate(path, pl3)
 	assert.Equal(t, match3, true)
 }
 
@@ -66,10 +68,10 @@ func TestPrefixCalcurateInAddress(t *testing.T) {
 	path := msg.ToPathList()[0]
 	// test
 	pl1 := NewPrefix(net.ParseIP("10.11.0.0"), 16, "21..24")
-	match1 := IpPrefixCalcurate(path, pl1)
+	match1 := IpPrefixCalculate(path, pl1)
 	assert.Equal(t, match1, false)
 	pl2 := NewPrefix(net.ParseIP("10.10.0.0"), 16, "21..24")
-	match2 := IpPrefixCalcurate(path, pl2)
+	match2 := IpPrefixCalculate(path, pl2)
 	assert.Equal(t, match2, true)
 }
 
@@ -89,10 +91,10 @@ func TestPrefixCalcurateInLength(t *testing.T) {
 	path := msg.ToPathList()[0]
 	// test
 	pl1 := NewPrefix(net.ParseIP("10.10.64.0"), 24, "21..24")
-	match1 := IpPrefixCalcurate(path, pl1)
+	match1 := IpPrefixCalculate(path, pl1)
 	assert.Equal(t, match1, false)
 	pl2 := NewPrefix(net.ParseIP("10.10.64.0"), 16, "21..24")
-	match2 := IpPrefixCalcurate(path, pl2)
+	match2 := IpPrefixCalculate(path, pl2)
 	assert.Equal(t, match2, true)
 }
 
@@ -112,13 +114,13 @@ func TestPrefixCalcurateInLengthRange(t *testing.T) {
 	path := msg.ToPathList()[0]
 	// test
 	pl1 := NewPrefix(net.ParseIP("10.10.0.0"), 16, "21..23")
-	match1 := IpPrefixCalcurate(path, pl1)
+	match1 := IpPrefixCalculate(path, pl1)
 	assert.Equal(t, match1, false)
 	pl2 := NewPrefix(net.ParseIP("10.10.0.0"), 16, "25..26")
-	match2 := IpPrefixCalcurate(path, pl2)
+	match2 := IpPrefixCalculate(path, pl2)
 	assert.Equal(t, match2, false)
 	pl3 := NewPrefix(net.ParseIP("10.10.0.0"), 16, "21..24")
-	match3 := IpPrefixCalcurate(path, pl3)
+	match3 := IpPrefixCalculate(path, pl3)
 	assert.Equal(t, match3, true)
 }
 
@@ -162,6 +164,7 @@ func TestPolicyNotMatchL(t *testing.T) {
 		Conditions: config.Conditions{
 			MatchPrefixSet:   "ps1",
 			MatchNeighborSet: "ns1",
+			MatchSetOptions:  config.MATCH_SET_OPTIONS_TYPE_ALL,
 		},
 		Actions: config.Actions{
 			AcceptRoute: false,
@@ -220,6 +223,7 @@ func TestPolicyMatchAndReject(t *testing.T) {
 		Conditions: config.Conditions{
 			MatchPrefixSet:   "ps1",
 			MatchNeighborSet: "ns1",
+			MatchSetOptions:  config.MATCH_SET_OPTIONS_TYPE_ALL,
 		},
 		Actions: config.Actions{
 			AcceptRoute: false,
@@ -278,6 +282,7 @@ func TestPolicyMatchAndAccept(t *testing.T) {
 		Conditions: config.Conditions{
 			MatchPrefixSet:   "ps1",
 			MatchNeighborSet: "ns1",
+			MatchSetOptions:  config.MATCH_SET_OPTIONS_TYPE_ALL,
 		},
 		Actions: config.Actions{
 			AcceptRoute: true,
@@ -318,7 +323,7 @@ func TestPolicyRejectOnlyPrefixList(t *testing.T) {
 	nexthop = bgp.NewPathAttributeNextHop("10.0.2.2")
 	med = bgp.NewPathAttributeMultiExitDisc(0)
 	pathAttributes = []bgp.PathAttributeInterface{origin, aspath, nexthop, med}
-	nlri = []bgp.NLRInfo{*bgp.NewNLRInfo(24, "10.10.2.102")}
+	nlri = []bgp.NLRInfo{*bgp.NewNLRInfo(24, "10.9.2.102")}
 	withdrawnRoutes = []bgp.WithdrawnRoute{}
 	updateMsg = bgp.NewBGPUpdateMessage(withdrawnRoutes, pathAttributes, nlri)
 	msg = table.NewProcessMessage(updateMsg, peer)
@@ -330,7 +335,7 @@ func TestPolicyRejectOnlyPrefixList(t *testing.T) {
 		PrefixList: []config.Prefix{
 			config.Prefix{
 				Address:         net.ParseIP("10.10.1.0"),
-				Masklength:      24,
+				Masklength:      16,
 				MasklengthRange: "21..24",
 			}},
 	}
@@ -343,6 +348,7 @@ func TestPolicyRejectOnlyPrefixList(t *testing.T) {
 		Conditions: config.Conditions{
 			MatchPrefixSet:   "ps1",
 			MatchNeighborSet: "ns1",
+			MatchSetOptions:  config.MATCH_SET_OPTIONS_TYPE_ALL,
 		},
 		Actions: config.Actions{
 			AcceptRoute: false,
@@ -411,6 +417,7 @@ func TestPolicyRejectOnlyNeighborList(t *testing.T) {
 		Conditions: config.Conditions{
 			MatchPrefixSet:   "ps1",
 			MatchNeighborSet: "ns1",
+			MatchSetOptions:  config.MATCH_SET_OPTIONS_TYPE_ALL,
 		},
 		Actions: config.Actions{
 			AcceptRoute: false,
