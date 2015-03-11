@@ -24,8 +24,8 @@ import (
 	"github.com/tchap/go-patricia/patricia"
 	"net"
 	"reflect"
-	"strings"
 	"strconv"
+	"strings"
 )
 
 type Table interface {
@@ -347,9 +347,9 @@ func (ipv4vpnt *IPv4VPNTable) tableKey(nlri bgp.AddrPrefixInterface) string {
 }
 
 func ParseLabbelledVpnPrefix(key string) patricia.Prefix {
-	vpnaddrprefix := strings.Split(key,"/")
-	length, _ := strconv.ParseInt( vpnaddrprefix[1],10,0)
-	_, n, _ := net.ParseCIDR( vpnaddrprefix[0] +"/"+ strconv.FormatInt( (int64(length)-88),10))
+	vpnaddrprefix := strings.Split(key, "/")
+	length, _ := strconv.ParseInt(vpnaddrprefix[1], 10, 0)
+	_, n, _ := net.ParseCIDR(vpnaddrprefix[0] + "/" + strconv.FormatInt((int64(length)-88), 10))
 
 	var buffer bytes.Buffer
 	for i := 0; i < len(n.IP); i++ {

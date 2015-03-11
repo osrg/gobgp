@@ -17,6 +17,8 @@ _cgo_defun.c
 _cgo_gotypes.go
 _cgo_export.*
 
+gobgpd.conf
+
 _testmain.go
 
 *.exe
