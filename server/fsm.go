@@ -582,47 +582,67 @@ func (h *FSMHandler) openconfirm() bgp.FSMState {
 func (h *FSMHandler) sendMessageloop() error {
 	conn := h.conn
 	fsm := h.fsm
+	send := func(m *bgp.BGPMessage) error {
+		b, err := m.Serialize()
+		if err != nil {
+			log.WithFields(log.Fields{
+				"Topic": "Peer",
+				"Key":   fsm.peerConfig.NeighborAddress,
+				"Data":  err,
+			}).Warn("failed to serialize")
+			fsm.bgpMessageStateUpdate(0, false)
+			return nil
+		}
+		_, err = conn.Write(b)
+		if err != nil {
+			h.errorCh <- true
+			return fmt.Errorf("closed")
+		}
+		fsm.bgpMessageStateUpdate(m.Header.Type, false)
+
+		if m.Header.Type == bgp.BGP_MSG_NOTIFICATION {
+			log.WithFields(log.Fields{
+				"Topic": "Peer",
+				"Key":   fsm.peerConfig.NeighborAddress,
+				"Data":  m,
+			}).Warn("sent notification")
+
+			h.errorCh <- true
+			conn.Close()
+			return fmt.Errorf("closed")
+		} else {
+			log.WithFields(log.Fields{
+				"Topic": "Peer",
+				"Key":   fsm.peerConfig.NeighborAddress,
+				"data":  m,
+			}).Debug("sent")
+		}
+		return nil
+	}
+
 	for {
-		// this function doesn't check Dying() because we
-		// can't die before sending notificaiton. After
-		// sending notification, we'll die.
 		select {
+		case <-h.t.Dying():
+			// a) if a configuration is deleted, we need
+			// to send notification before we die.
+			//
+			// b) if a recv goroutin found that the
+			// connection is closed and tried to kill us,
+			// we need to die immediately. Otherwise fms
+			// doesn't go to idle.
+			for len(h.outgoing) > 0 {
+				m := <-h.outgoing
+				err := send(m)
+				if err != nil {
+					return nil
+				}
+			}
+			return nil
 		case m := <-h.outgoing:
-			b, err := m.Serialize()
+			err := send(m)
 			if err != nil {
-				log.WithFields(log.Fields{
-					"Topic": "Peer",
-					"Key":   fsm.peerConfig.NeighborAddress,
-					"Data":  err,
-				}).Warn("failed to serialize")
-				fsm.bgpMessageStateUpdate(0, false)
-				continue
-			}
-			_, err = conn.Write(b)
-			if err != nil {
-				h.errorCh <- true
 				return nil
 			}
-			fsm.bgpMessageStateUpdate(m.Header.Type, false)
-
-			if m.Header.Type == bgp.BGP_MSG_NOTIFICATION {
-				log.WithFields(log.Fields{
-					"Topic": "Peer",
-					"Key":   fsm.peerConfig.NeighborAddress,
-					"Data":  m,
-				}).Warn("sent notification")
-
-				h.errorCh <- true
-				conn.Close()
-				return nil
-			} else {
-				log.WithFields(log.Fields{
-					"Topic": "Peer",
-					"Key":   fsm.peerConfig.NeighborAddress,
-					"data":  m,
-				}).Debug("sent")
-			}
-
 		case <-fsm.keepaliveTicker.C:
 			m := bgp.NewBGPKeepAliveMessage()
 			b, _ := m.Serialize()
