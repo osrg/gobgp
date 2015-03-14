@@ -83,7 +83,7 @@ func TestPathSetNexthop(t *testing.T) {
 	pd := &PathDefault{}
 	ip := net.ParseIP("192.168.0.1")
 	pd.setNexthop(ip)
-	nh := pd.getNexthop()
+	nh := pd.GetNexthop()
 	assert.Equal(t, nh, ip)
 }
 
@@ -91,7 +91,7 @@ func TestPathgetNexthop(t *testing.T) {
 	pd := &PathDefault{}
 	ip := net.ParseIP("192.168.0.2")
 	pd.setNexthop(ip)
-	nh := pd.getNexthop()
+	nh := pd.GetNexthop()
 	assert.Equal(t, nh, ip)
 }
 
