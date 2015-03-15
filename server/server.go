@@ -61,6 +61,7 @@ type BgpServer struct {
 	RestReqCh     chan *api.RestRequest
 	listenPort    int
 	peerMap       map[string]peerMapInfo
+	globalRib     *Peer
 }
 
 func NewBgpServer(port int) *BgpServer {
@@ -100,8 +101,21 @@ func listenAndAccept(proto string, port int, ch chan *net.TCPConn) (*net.TCPList
 	return l, nil
 }
 
+func generateLocalNeighborConf(g *config.Global) config.Neighbor {
+	return config.Neighbor{
+		NeighborAddress: g.RouterId,
+		AfiSafiList: g.AfiSafiList,
+	}
+}
+
 func (server *BgpServer) Serve() {
-	server.bgpConfig.Global = <-server.globalTypeCh
+	g := <-server.globalTypeCh
+	server.bgpConfig.Global = g
+
+	globalSch := make(chan *serverMsg, 8)
+	globalPch := make(chan *peerMsg, 4096)
+	neighConf := generateLocalNeighborConf(&g)
+	server.globalRib = NewPeer(g, neighConf, globalSch, globalPch, nil, true)
 
 	listenerMap := make(map[string]*net.TCPListener)
 	acceptCh := make(chan *net.TCPConn)
@@ -150,13 +164,22 @@ func (server *BgpServer) Serve() {
 			SetTcpMD5SigSockopts(int(f.Fd()), addr, peer.AuthPassword)
 			sch := make(chan *serverMsg, 8)
 			pch := make(chan *peerMsg, 4096)
-			l := make([]*serverMsgDataPeer, len(server.peerMap))
-			i := 0
-			for _, v := range server.peerMap {
-				l[i] = v.peerMsgData
-				i++
+			var l []*serverMsgDataPeer
+			if peer.RouteServer.RouteServerClient {
+				l = make([]*serverMsgDataPeer, len(server.peerMap))
+				i := 0
+				for _, v := range server.peerMap {
+					l[i] = v.peerMsgData
+					i++
+				}
+			} else {
+				globalRib := &serverMsgDataPeer{
+					address:   server.bgpConfig.Global.RouterId,
+					peerMsgCh: globalPch,
+				}
+				l = []*serverMsgDataPeer{globalRib}
 			}
-			p := NewPeer(server.bgpConfig.Global, peer, sch, pch, l)
+			p := NewPeer(server.bgpConfig.Global, peer, sch, pch, l, false)
 			d := &serverMsgDataPeer{
 				address:   peer.NeighborAddress,
 				peerMsgCh: pch,
@@ -166,6 +189,8 @@ func (server *BgpServer) Serve() {
 				msgData: d,
 			}
 			sendServerMsgToAll(server.peerMap, msg)
+			globalSch <- msg
+
 			server.peerMap[peer.NeighborAddress.String()] = peerMapInfo{
 				peer:        p,
 				serverMsgCh: sch,
