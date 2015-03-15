@@ -992,3 +992,60 @@ func (ipv4vpnd *IPv4VPNDestination) MarshalJSON() ([]byte, error) {
 		BestPathIdx: idx,
 	})
 }
+
+
+type EVPNDestination struct {
+	*DestinationDefault
+	//need structure
+}
+
+func NewEVPNDestination(nlri bgp.AddrPrefixInterface) *EVPNDestination {
+	EVPNDestination := &EVPNDestination{}
+	EVPNDestination.DestinationDefault = NewDestinationDefault(nlri)
+	EVPNDestination.DestinationDefault.ROUTE_FAMILY = bgp.RF_EVPN
+	//need Processing
+	return EVPNDestination
+}
+
+// func (evpnd *EVPNDestination) String() string {
+
+// 	str := fmt.Sprintf("Destination NLRI: %s", evpnd.getPrefix().String())
+// 	return str
+// }
+
+// func (evpnd *EVPNDestination) getPrefix() net.IP {
+// 	var ip net.IP
+// 	log.Debugf("type %s", reflect.TypeOf(evpnd.nlri))
+// 	switch p := evpnd.nlri.(type) {
+// 	case *bgp.EVPNNLRI:
+// 		// ip = p.Prefix
+// 	case *bgp.WithdrawnRoute:
+// 		// ip = p.Prefix
+// 	}
+// 	return ip
+// }
+
+// func (evpnd *EVPNDestination) MarshalJSON() ([]byte, error) {
+// 	prefix := evpnd.getNlri().(*bgp.EVPNNLRI).Prefix
+// 	idx := func() int {
+// 		for i, p := range evpnd.DestinationDefault.knownPathList {
+// 			if p == evpnd.DestinationDefault.getBestPath() {
+// 				return i
+// 			}
+// 		}
+// 		log.WithFields(log.Fields{
+// 			"Topic": "Table",
+// 			"Key":   prefix.String(),
+// 		}).Panic("no best path")
+// 		return 0
+// 	}()
+// 	return json.Marshal(struct {
+// 		Prefix      string
+// 		Paths       []Path
+// 		BestPathIdx int
+// 	}{
+// 		Prefix:      prefix.String(),
+// 		Paths:       evpnd.knownPathList,
+// 		BestPathIdx: idx,
+// 	})
+// }

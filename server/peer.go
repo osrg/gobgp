@@ -93,6 +93,11 @@ func NewPeer(g config.Global, peer config.Neighbor, serverMsgCh chan *serverMsg,
 	rfList := p.configuredRFlist()
 	p.adjRib = table.NewAdjRib(rfList)
 	p.rib = table.NewTableManager(p.peerConfig.NeighborAddress.String(), rfList)
+	log.WithFields(log.Fields{
+		"Topic": "Peer",
+		"rfList": rfList,
+		"Key":   p.rib.Tables[bgp.RF_EVPN],
+	}).Debug("NewPeer......")
 	p.t.Go(p.loop)
 	return p
 }
@@ -107,6 +112,10 @@ func (peer *Peer) configuredRFlist() []bgp.RouteFamily {
 }
 
 func (peer *Peer) sendPathsToSiblings(pathList []table.Path) {
+	log.WithFields(log.Fields{
+		"Topic": "Peer",
+		"Key":   pathList,
+	}).Debug("sendPath......")
 	if len(pathList) == 0 {
 		return
 	}
