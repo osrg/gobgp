@@ -27,6 +27,7 @@ import (
 
 type Path interface {
 	String() string
+	setPathAttrs(pathAttrs []bgp.PathAttributeInterface)
 	getPathAttrs() []bgp.PathAttributeInterface
 	getPathAttr(bgp.BGPAttrType) (int, bgp.PathAttributeInterface)
 	GetRouteFamily() bgp.RouteFamily
@@ -156,6 +157,10 @@ func (pd *PathDefault) setMedSetByTargetNeighbor(medSetByTargetNeighbor bool) {
 
 func (pd *PathDefault) getMedSetByTargetNeighbor() bool {
 	return pd.medSetByTargetNeighbor
+}
+
+func (pd *PathDefault) setPathAttrs(pathAttrs []bgp.PathAttributeInterface) {
+	pd.pathAttrs = pathAttrs
 }
 
 func (pd *PathDefault) getPathAttrs() []bgp.PathAttributeInterface {
