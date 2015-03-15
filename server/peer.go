@@ -311,18 +311,10 @@ func (peer *Peer) handleREST(restReq *api.RestRequest) {
 	close(restReq.ResponseCh)
 }
 
-func (peer *Peer) sendUpdateMsgFromPaths(pList []table.Path, wList []table.Path) {
-	pathList := append([]table.Path(nil), pList...)
-	pathList = append(pathList, wList...)
-
-	for _, p := range wList {
-		if !p.IsWithdraw() {
-			log.Fatal("withdraw pathlist has non withdraw path")
-		}
-	}
-	peer.adjRib.UpdateOut(pathList)
+func (peer *Peer) sendUpdateMsgFromPaths(pList []table.Path) {
+	peer.adjRib.UpdateOut(pList)
 	sendpathList := []table.Path{}
-	for _, p := range pathList {
+	for _, p := range pList {
 		if _, ok := peer.rfMap[p.GetRouteFamily()]; ok {
 			sendpathList = append(sendpathList, p)
 		}
@@ -333,12 +325,12 @@ func (peer *Peer) sendUpdateMsgFromPaths(pList []table.Path, wList []table.Path)
 func (peer *Peer) handlePeerMsg(m *peerMsg) {
 	switch m.msgType {
 	case PEER_MSG_PATH:
-		pList, wList, _ := peer.rib.ProcessPaths(m.msgData.([]table.Path))
-		peer.sendUpdateMsgFromPaths(pList, wList)
+		pList, _ := peer.rib.ProcessPaths(m.msgData.([]table.Path))
+		peer.sendUpdateMsgFromPaths(pList)
 	case PEER_MSG_PEER_DOWN:
 		for _, rf := range peer.configuredRFlist() {
-			pList, wList, _ := peer.rib.DeletePathsforPeer(m.msgData.(*table.PeerInfo), rf)
-			peer.sendUpdateMsgFromPaths(pList, wList)
+			pList, _ := peer.rib.DeletePathsforPeer(m.msgData.(*table.PeerInfo), rf)
+			peer.sendUpdateMsgFromPaths(pList)
 		}
 	}
 }
@@ -356,8 +348,8 @@ func (peer *Peer) handleServerMsg(m *serverMsg) {
 		if _, ok := peer.siblings[d.Address.String()]; ok {
 			delete(peer.siblings, d.Address.String())
 			for _, rf := range peer.configuredRFlist() {
-				pList, wList, _ := peer.rib.DeletePathsforPeer(d, rf)
-				peer.sendUpdateMsgFromPaths(pList, wList)
+				pList, _ := peer.rib.DeletePathsforPeer(d, rf)
+				peer.sendUpdateMsgFromPaths(pList)
 			}
 		} else {
 			log.Warning("can not find peer: ", d.Address.String())
