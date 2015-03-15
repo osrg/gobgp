@@ -146,9 +146,8 @@ func NewTableManager(owner string, rfList []bgp.RouteFamily) *TableManager {
 	return t
 }
 
-func (manager *TableManager) calculate(destinationList []Destination) ([]Path, []Path, error) {
-	bestPaths := make([]Path, 0)
-	lostPaths := make([]Path, 0)
+func (manager *TableManager) calculate(destinationList []Destination) ([]Path, error) {
+	newPaths := make([]Path, 0)
 
 	for _, destination := range destinationList {
 		// compute best path
@@ -176,7 +175,7 @@ func (manager *TableManager) calculate(destinationList []Destination) ([]Path, [
 				"Owner":    manager.owner,
 				"Key":      destination.getNlri().String(),
 				"peer":     newBestPath.getSource().Address,
-				"next_hop": newBestPath.getNexthop().String(),
+				"next_hop": newBestPath.GetNexthop().String(),
 				"reason":   reason,
 			}).Debug("best path is not changed")
 			continue
@@ -197,12 +196,12 @@ func (manager *TableManager) calculate(destinationList []Destination) ([]Path, [
 						"Owner":    manager.owner,
 						"Key":      destination.getNlri().String(),
 						"peer":     currentBestPath.getSource().Address,
-						"next_hop": currentBestPath.getNexthop().String(),
+						"next_hop": currentBestPath.GetNexthop().String(),
 					}).Debug("best path is lost")
 
 					p := destination.getBestPath()
 					destination.setOldBestPath(p)
-					lostPaths = append(lostPaths, p.clone(true))
+					newPaths = append(newPaths, p.clone(true))
 				}
 				destination.setBestPath(nil)
 			} else {
@@ -219,11 +218,11 @@ func (manager *TableManager) calculate(destinationList []Destination) ([]Path, [
 				"Owner":    manager.owner,
 				"Key":      newBestPath.getNlri().String(),
 				"peer":     newBestPath.getSource().Address,
-				"next_hop": newBestPath.getNexthop(),
+				"next_hop": newBestPath.GetNexthop(),
 				"reason":   reason,
 			}).Debug("new best path")
 
-			bestPaths = append(bestPaths, newBestPath)
+			newPaths = append(newPaths, newBestPath)
 			destination.setBestPath(newBestPath)
 		}
 
@@ -239,18 +238,18 @@ func (manager *TableManager) calculate(destinationList []Destination) ([]Path, [
 			}).Debug("destination removed")
 		}
 	}
-	return bestPaths, lostPaths, nil
+	return newPaths, nil
 }
 
-func (manager *TableManager) DeletePathsforPeer(peerInfo *PeerInfo, rf bgp.RouteFamily) ([]Path, []Path, error) {
+func (manager *TableManager) DeletePathsforPeer(peerInfo *PeerInfo, rf bgp.RouteFamily) ([]Path, error) {
 	if _, ok := manager.Tables[rf]; ok {
 		destinationList := manager.Tables[rf].DeleteDestByPeer(peerInfo)
 		return manager.calculate(destinationList)
 	}
-	return []Path{}, []Path{}, nil
+	return []Path{}, nil
 }
 
-func (manager *TableManager) ProcessPaths(pathList []Path) ([]Path, []Path, error) {
+func (manager *TableManager) ProcessPaths(pathList []Path) ([]Path, error) {
 	destinationList := make([]Destination, 0)
 	for _, path := range pathList {
 		rf := path.GetRouteFamily()
@@ -262,9 +261,20 @@ func (manager *TableManager) ProcessPaths(pathList []Path) ([]Path, []Path, erro
 	return manager.calculate(destinationList)
 }
 
+func (manager *TableManager) GetPathList(rf bgp.RouteFamily) []Path {
+	if _, ok := manager.Tables[rf]; !ok {
+		return []Path{}
+	}
+	var paths []Path
+	for _, dest := range manager.Tables[rf].getDestinations() {
+		paths = append(paths, dest.getBestPath())
+	}
+	return paths
+}
+
 // process BGPUpdate message
 // this function processes only BGPUpdate
-func (manager *TableManager) ProcessUpdate(fromPeer *PeerInfo, message *bgp.BGPMessage) ([]Path, []Path, error) {
+func (manager *TableManager) ProcessUpdate(fromPeer *PeerInfo, message *bgp.BGPMessage) ([]Path, error) {
 	// check msg's type if it's BGPUpdate
 	if message.Header.Type != bgp.BGP_MSG_UPDATE {
 		log.WithFields(log.Fields{
@@ -273,7 +283,7 @@ func (manager *TableManager) ProcessUpdate(fromPeer *PeerInfo, message *bgp.BGPM
 			"key":   fromPeer.Address.String(),
 			"Type":  message.Header.Type,
 		}).Warn("message is not BGPUpdate")
-		return []Path{}, []Path{}, nil
+		return []Path{}, nil
 	}
 
 	msg := &ProcessMessage{

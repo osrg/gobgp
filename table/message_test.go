@@ -50,16 +50,21 @@ func TestAsPathAsTrans(t *testing.T) {
 	m.PathAttributes[3] = bgp.NewPathAttributeAs4Path(aspathParam)
 	assert.Equal(t, len(m.PathAttributes), 5)
 
-	UpdatePathAttrs4ByteAs(m)
-	assert.Equal(t, len(m.PathAttributes), 4)
+	pm := NewProcessMessage(&bgp.BGPMessage{Body: m}, nil)
+	pl := pm.ToPathList()
+	p := pl[0]
+	UpdatePathAttrs4ByteAs(&p)
+	pathAttrs := p.getPathAttrs()
 
-	assert.Equal(t, reflect.TypeOf(m.PathAttributes[0]).String(), "*bgp.PathAttributeOrigin")
-	assert.Equal(t, reflect.TypeOf(m.PathAttributes[1]).String(), "*bgp.PathAttributeAsPath")
-	assert.Equal(t, reflect.TypeOf(m.PathAttributes[2]).String(), "*bgp.PathAttributeNextHop")
-	assert.Equal(t, reflect.TypeOf(m.PathAttributes[3]).String(), "*bgp.PathAttributeMultiExitDisc")
+	assert.Equal(t, len(pathAttrs), 4)
+
+	assert.Equal(t, reflect.TypeOf(pathAttrs[0]).String(), "*bgp.PathAttributeOrigin")
+	assert.Equal(t, reflect.TypeOf(pathAttrs[1]).String(), "*bgp.PathAttributeAsPath")
+	assert.Equal(t, reflect.TypeOf(pathAttrs[2]).String(), "*bgp.PathAttributeNextHop")
+	assert.Equal(t, reflect.TypeOf(pathAttrs[3]).String(), "*bgp.PathAttributeMultiExitDisc")
 
 	newAS := []uint32{65000, 4000, 400000, 300000, 40001}
-	asAttr := m.PathAttributes[1].(*bgp.PathAttributeAsPath)
+	asAttr := pathAttrs[1].(*bgp.PathAttributeAsPath)
 	assert.Equal(t, len(asAttr.Value), 1)
 	for _, param := range asAttr.Value {
 		asParam := param.(*bgp.As4PathParam)
@@ -67,12 +72,14 @@ func TestAsPathAsTrans(t *testing.T) {
 			assert.Equal(t, v, newAS[i])
 		}
 	}
-	UpdatePathAttrs2ByteAs(m)
-	assert.Equal(t, len(m.PathAttributes), 5)
-	attr := m.PathAttributes[1].(*bgp.PathAttributeAsPath)
+
+	UpdatePathAttrs2ByteAs(&p)
+	pathAttrs = p.getPathAttrs()
+	assert.Equal(t, len(pathAttrs), 5)
+	attr := pathAttrs[1].(*bgp.PathAttributeAsPath)
 	assert.Equal(t, len(attr.Value), 1)
 	assert.Equal(t, attr.Value[0].(*bgp.AsPathParam).AS, as)
-	attr2 := m.PathAttributes[4].(*bgp.PathAttributeAs4Path)
+	attr2 := pathAttrs[4].(*bgp.PathAttributeAs4Path)
 	assert.Equal(t, len(attr2.Value), 1)
 	assert.Equal(t, attr2.Value[0].AS, as4)
 }
@@ -82,7 +89,9 @@ func TestAs4PathUnchanged(t *testing.T) {
 	m := updateMsg1([]uint16{}).Body.(*bgp.BGPUpdate)
 	aspathParam := []bgp.AsPathParamInterface{bgp.NewAs4PathParam(2, as4)}
 	m.PathAttributes[1] = bgp.NewPathAttributeAsPath(aspathParam)
-	UpdatePathAttrs4ByteAs(m)
+	pm := NewProcessMessage(&bgp.BGPMessage{Body: m}, nil)
+	pl := pm.ToPathList()
+	UpdatePathAttrs4ByteAs(&pl[0])
 	assert.Equal(t, len(m.PathAttributes), 4)
 
 	assert.Equal(t, reflect.TypeOf(m.PathAttributes[0]).String(), "*bgp.PathAttributeOrigin")

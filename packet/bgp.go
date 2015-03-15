@@ -49,6 +49,11 @@ const (
 )
 
 const (
+	BGP_ASPATH_ATTR_TYPE_SET = 1
+	BGP_ASPATH_ATTR_TYPE_SEQ = 2
+)
+
+const (
 	_ = iota
 	BGP_MSG_OPEN
 	BGP_MSG_UPDATE
