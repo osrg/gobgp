@@ -19,6 +19,7 @@ import (
 	"encoding/json"
 	"fmt"
 	log "github.com/Sirupsen/logrus"
+	"github.com/osrg/gobgp/config"
 	"github.com/osrg/gobgp/packet"
 	"net"
 	"reflect"
@@ -30,6 +31,7 @@ type Path interface {
 	setPathAttrs(pathAttrs []bgp.PathAttributeInterface)
 	getPathAttrs() []bgp.PathAttributeInterface
 	getPathAttr(bgp.BGPAttrType) (int, bgp.PathAttributeInterface)
+	updatePathAttrs(global *config.Global, peer *config.Neighbor)
 	GetRouteFamily() bgp.RouteFamily
 	setSource(source *PeerInfo)
 	getSource() *PeerInfo
@@ -79,6 +81,99 @@ func NewPathDefault(rf bgp.RouteFamily, source *PeerInfo, nlri bgp.AddrPrefixInt
 	path.medSetByTargetNeighbor = medSetByTargetNeighbor
 	path.timestamp = now
 	return path
+}
+
+func cloneAsPath(asAttr *bgp.PathAttributeAsPath) *bgp.PathAttributeAsPath {
+	newASparams := make([]bgp.AsPathParamInterface, len(asAttr.Value))
+	for i, param := range asAttr.Value {
+		asParam := param.(*bgp.As4PathParam)
+		as := make([]uint32, len(asParam.AS))
+		copy(as, asParam.AS)
+		newASparams[i] = bgp.NewAs4PathParam(asParam.Type, as)
+	}
+	return bgp.NewPathAttributeAsPath(newASparams)
+}
+
+func (pd *PathDefault) updatePathAttrs(global *config.Global, peer *config.Neighbor) {
+	newPathAttrs := make([]bgp.PathAttributeInterface, len(pd.pathAttrs))
+	for i, v := range pd.pathAttrs {
+		newPathAttrs[i] = v
+	}
+
+	if peer.RouteServer.RouteServerClient {
+		return
+	}
+
+	if peer.PeerType == config.PEER_TYPE_EXTERNAL {
+		// NEXTHOP handling
+		idx, _ := pd.getPathAttr(bgp.BGP_ATTR_TYPE_NEXT_HOP)
+		if idx < 0 {
+			log.Fatal("missing NEXTHOP mandatory attribute")
+		}
+		newNexthop := bgp.NewPathAttributeNextHop(peer.LocalAddress.String())
+		newPathAttrs[idx] = newNexthop
+
+		// AS_PATH handling
+		//
+		//  When a given BGP speaker advertises the route to an external
+		//  peer, the advertising speaker updates the AS_PATH attribute
+		//  as follows:
+		//  1) if the first path segment of the AS_PATH is of type
+		//     AS_SEQUENCE, the local system prepends its own AS num as
+		//     the last element of the sequence (put it in the left-most
+		//     position with respect to the position of  octets in the
+		//     protocol message).  If the act of prepending will cause an
+		//     overflow in the AS_PATH segment (i.e.,  more than 255
+		//     ASes), it SHOULD prepend a new segment of type AS_SEQUENCE
+		//     and prepend its own AS number to this new segment.
+		//
+		//  2) if the first path segment of the AS_PATH is of type AS_SET
+		//     , the local system prepends a new path segment of type
+		//     AS_SEQUENCE to the AS_PATH, including its own AS number in
+		//     that segment.
+		//
+		//  3) if the AS_PATH is empty, the local system creates a path
+		//     segment of type AS_SEQUENCE, places its own AS into that
+		//     segment, and places that segment into the AS_PATH.
+		idx, originalAsPath := pd.getPathAttr(bgp.BGP_ATTR_TYPE_AS_PATH)
+		if idx < 0 {
+			log.Fatal("missing AS_PATH mandatory attribute")
+		}
+		asPath := cloneAsPath(originalAsPath.(*bgp.PathAttributeAsPath))
+		newPathAttrs[idx] = asPath
+		fst := asPath.Value[0].(*bgp.As4PathParam)
+		if len(asPath.Value) > 0 && fst.Type == bgp.BGP_ASPATH_ATTR_TYPE_SEQ &&
+			fst.ASLen() < 255 {
+			fst.AS = append([]uint32{global.As}, fst.AS...)
+			fst.Num += 1
+		} else {
+			p := bgp.NewAs4PathParam(bgp.BGP_ASPATH_ATTR_TYPE_SEQ, []uint32{global.As})
+			asPath.Value = append([]bgp.AsPathParamInterface{p}, asPath.Value...)
+		}
+
+		// MED Handling
+		idx, _ = pd.getPathAttr(bgp.BGP_ATTR_TYPE_MULTI_EXIT_DISC)
+		if idx >= 0 {
+			newPathAttrs = append(newPathAttrs[:idx], newPathAttrs[idx+1:]...)
+		}
+	} else if peer.PeerType == config.PEER_TYPE_INTERNAL {
+		// For iBGP peers we are required to send local-pref attribute
+		// for connected or local prefixes.
+		// We set default local-pref 100.
+		p := bgp.NewPathAttributeLocalPref(100)
+		idx, _ := pd.getPathAttr(bgp.BGP_ATTR_TYPE_LOCAL_PREF)
+		if idx < 0 {
+			newPathAttrs = append(newPathAttrs, p)
+		} else {
+			newPathAttrs[idx] = p
+		}
+	} else {
+		log.WithFields(log.Fields{
+			"Topic": "Peer",
+			"Key":   peer.NeighborAddress,
+		}).Warnf("invalid peer type: %d", peer.PeerType)
+	}
+	pd.pathAttrs = newPathAttrs
 }
 
 func (pd *PathDefault) getTimestamp() time.Time {
