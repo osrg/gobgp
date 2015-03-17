@@ -256,7 +256,6 @@ func (manager *TableManager) DeletePathsforPeer(peerInfo *PeerInfo, rf bgp.Route
 func (manager *TableManager) ProcessPaths(pathList []Path) ([]Path, []Path, error) {
 	destinationList := make([]Destination, 0)
 
-
 	for _, path := range pathList {
 		rf := path.GetRouteFamily()
 		if _, ok := manager.Tables[rf]; ok {
@@ -336,6 +335,7 @@ func (adj *AdjRib) getPathList(rib map[string]*ReceivedRoute) []Path {
 	trie := patricia.NewTrie()
 	for _, rr := range rib {
 		key := rr.path.getNlri().String()
+
 		trie.Insert(cidr2prefix(key), rr.path)
 	}
 

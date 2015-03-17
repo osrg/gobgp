@@ -993,7 +993,6 @@ func (ipv4vpnd *IPv4VPNDestination) MarshalJSON() ([]byte, error) {
 	})
 }
 
-
 type EVPNDestination struct {
 	*DestinationDefault
 	//need structure

@@ -148,7 +148,7 @@ func (rs *RestServer) neighbor(w http.ResponseWriter, r *http.Request, reqType i
 		case "ipv6":
 			rf = bgp.RF_IPv6_UC
 		case "evpn":
-			rf =bgp.RF_EVPN
+			rf = bgp.RF_EVPN
 		default:
 			NotFoundHandler(w, r)
 		}

@@ -100,10 +100,6 @@ func (td *TableDefault) createDest(nlri *bgp.NLRInfo) Destination {
 func insert(table Table, path Path) Destination {
 	var dest Destination
 
-	log.WithFields(log.Fields{
-		"Topic":      "Table",
-	}).Debug("Insert....")
-
 	table.validatePath(path)
 	table.validateNlri(path.getNlri())
 	dest = getOrCreateDest(table, path.getNlri())
@@ -385,7 +381,6 @@ func (ipv4vpnt *IPv4VPNTable) MarshalJSON() ([]byte, error) {
 	})
 
 }
-
 
 type EVPNTable struct {
 	*TableDefault
