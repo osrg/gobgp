@@ -359,6 +359,9 @@ type PrefixLimit struct {
 
 //struct for container bgp-mp:l2vpn-evpn
 type L2vpnEvpn struct {
+	// original -> bgp-mp:enabled
+	//bgp-mp:enabled's original type is boolean
+	Enabled bool
 	// original -> rpol:apply-policy
 	ApplyPolicy ApplyPolicy
 	// original -> bgp-mp:prefix-limit

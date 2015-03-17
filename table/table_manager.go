@@ -140,6 +140,9 @@ func NewTableManager(owner string, rfList []bgp.RouteFamily) *TableManager {
 			t.Tables[bgp.RF_IPv6_UC] = NewIPv6Table(0)
 		case bgp.RF_IPv4_VPN:
 			t.Tables[bgp.RF_IPv4_VPN] = NewIPv4VPNTable(0)
+		case bgp.RF_EVPN:
+			t.Tables[bgp.RF_EVPN] = NewEVPNTable(0)
+
 		}
 	}
 	t.owner = owner
@@ -252,6 +255,7 @@ func (manager *TableManager) DeletePathsforPeer(peerInfo *PeerInfo, rf bgp.Route
 
 func (manager *TableManager) ProcessPaths(pathList []Path) ([]Path, []Path, error) {
 	destinationList := make([]Destination, 0)
+
 	for _, path := range pathList {
 		rf := path.GetRouteFamily()
 		if _, ok := manager.Tables[rf]; ok {
@@ -331,6 +335,7 @@ func (adj *AdjRib) getPathList(rib map[string]*ReceivedRoute) []Path {
 	trie := patricia.NewTrie()
 	for _, rr := range rib {
 		key := rr.path.getNlri().String()
+
 		trie.Insert(cidr2prefix(key), rr.path)
 	}
 

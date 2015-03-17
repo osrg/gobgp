@@ -381,3 +381,67 @@ func (ipv4vpnt *IPv4VPNTable) MarshalJSON() ([]byte, error) {
 	})
 
 }
+
+type EVPNTable struct {
+	*TableDefault
+	//need structure
+}
+
+func NewEVPNTable(scope_id int) *EVPNTable {
+	EVPNTable := &EVPNTable{}
+	EVPNTable.TableDefault = NewTableDefault(scope_id)
+	EVPNTable.TableDefault.ROUTE_FAMILY = bgp.RF_EVPN
+	//need Processing
+	return EVPNTable
+}
+
+//Creates destination
+//Implements interface
+func (ipv4vpnt *EVPNTable) createDest(nlri bgp.AddrPrefixInterface) Destination {
+	return Destination(NewEVPNDestination(nlri))
+}
+
+//make tablekey
+//Implements interface
+func (ipv4vpnt *EVPNTable) tableKey(nlri bgp.AddrPrefixInterface) string {
+
+	addrPrefix := nlri.(*bgp.EVPNNLRI)
+	return addrPrefix.String()
+
+}
+
+func ParseEVPNPrefix(key string) patricia.Prefix {
+	vpnaddrprefix := strings.Split(key, "/")
+	length, _ := strconv.ParseInt(vpnaddrprefix[1], 10, 0)
+	_, n, _ := net.ParseCIDR(vpnaddrprefix[0] + "/" + strconv.FormatInt((int64(length)-88), 10))
+
+	var buffer bytes.Buffer
+	for i := 0; i < len(n.IP); i++ {
+		buffer.WriteString(fmt.Sprintf("%08b", n.IP[i]))
+	}
+	ones, _ := n.Mask.Size()
+	return patricia.Prefix(buffer.String()[:ones])
+
+}
+
+// func (ipv4vpnt *EVPNTable) MarshalJSON() ([]byte, error) {
+
+// 	trie := patricia.NewTrie()
+// 	for key, dest := range ipv4vpnt.destinations {
+// 		trie.Insert(ParseLabbelledVpnPrefix(key), dest)
+// 	}
+
+// 	destList := make([]Destination, 0)
+// 	trie.Visit(func(prefix patricia.Prefix, item patricia.Item) error {
+// 		dest, _ := item.(Destination)
+// 		destList = append(destList, dest)
+// 		return nil
+// 	})
+
+// 	return json.Marshal(struct {
+// 		Destinations []Destination
+// 	}{
+// 		Destinations: destList,
+// 	})
+
+// }
