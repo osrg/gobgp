@@ -9,6 +9,7 @@ import (
 const (
 	DEFAULT_HOLDTIME                  = 90
 	DEFAULT_IDLE_HOLDTIME_AFTER_RESET = 30
+	DEFAULT_CONNECT_RETRY             = 120
 )
 
 type neighbor struct {
@@ -49,6 +50,9 @@ func SetDefaultConfigValues(md toml.MetaData, bt *Bgp) error {
 		}
 	}
 	for i, n := range neighbors {
+		if _, ok := n.attributes["NeighborList.Timers.ConnectRetry"]; !ok {
+			bt.NeighborList[i].Timers.HoldTime = float64(DEFAULT_CONNECT_RETRY)
+		}
 		if _, ok := n.attributes["NeighborList.Timers.HoldTime"]; !ok {
 			bt.NeighborList[i].Timers.HoldTime = float64(DEFAULT_HOLDTIME)
 		}
