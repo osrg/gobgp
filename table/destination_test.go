@@ -28,14 +28,14 @@ func TestDestinationNewIPv4(t *testing.T) {
 	peerD := DestCreatePeer()
 	msgD := DestCreateMSG(peerD)
 	pathD := DestCreatePath(msgD)
-	ipv4d := NewIPv4Destination(pathD[0].getNlri())
+	ipv4d := NewIPv4Destination(pathD[0].GetNlri())
 	assert.NotNil(t, ipv4d)
 }
 func TestDestinationNewIPv6(t *testing.T) {
 	peerD := DestCreatePeer()
 	msgD := DestCreateMSG(peerD)
 	pathD := DestCreatePath(msgD)
-	ipv6d := NewIPv6Destination(pathD[0].getNlri())
+	ipv6d := NewIPv6Destination(pathD[0].GetNlri())
 	assert.NotNil(t, ipv6d)
 }
 
@@ -83,7 +83,7 @@ func TestDestinationSetBestPath(t *testing.T) {
 	peerD := DestCreatePeer()
 	msgD := DestCreateMSG(peerD)
 	pathD := DestCreatePath(msgD)
-	ipv4d := NewIPv4Destination(pathD[0].getNlri())
+	ipv4d := NewIPv4Destination(pathD[0].GetNlri())
 	ipv4d.setBestPath(pathD[0])
 	r_pathD := ipv4d.getBestPath()
 	assert.Equal(t, r_pathD, pathD[0])
@@ -92,7 +92,7 @@ func TestDestinationGetBestPath(t *testing.T) {
 	peerD := DestCreatePeer()
 	msgD := DestCreateMSG(peerD)
 	pathD := DestCreatePath(msgD)
-	ipv4d := NewIPv4Destination(pathD[0].getNlri())
+	ipv4d := NewIPv4Destination(pathD[0].GetNlri())
 	ipv4d.setBestPath(pathD[0])
 	r_pathD := ipv4d.getBestPath()
 	assert.Equal(t, r_pathD, pathD[0])
@@ -101,7 +101,7 @@ func TestDestinationCalculate(t *testing.T) {
 	peerD := DestCreatePeer()
 	msgD := DestCreateMSG(peerD)
 	pathD := DestCreatePath(msgD)
-	ipv4d := NewIPv4Destination(pathD[0].getNlri())
+	ipv4d := NewIPv4Destination(pathD[0].GetNlri())
 	//best path selection
 	ipv4d.addNewPath(pathD[0])
 	ipv4d.addNewPath(pathD[1])
