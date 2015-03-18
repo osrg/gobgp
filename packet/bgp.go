@@ -1028,6 +1028,7 @@ func (er *EVPNEthernetAutoDiscoveryRoute) Serialize() ([]byte, error) {
 }
 
 type EVPNMacIPAdvertisementRoute struct {
+	RD               RouteDistinguisherInterface
 	EST              EthernetSegmentIdentifier
 	ETag             uint32
 	MacAddressLength uint8
@@ -1038,30 +1039,27 @@ type EVPNMacIPAdvertisementRoute struct {
 }
 
 func (er *EVPNMacIPAdvertisementRoute) DecodeFromBytes(data []byte) error {
+	er.RD = getRouteDistinguisher(data)
+	data = data[er.RD.Len():]
 	err := er.EST.DecodeFromBytes(data)
 	if err != nil {
 		return err
 	}
-
 	data = data[10:]
 	er.ETag = binary.BigEndian.Uint32(data[0:4])
 	data = data[4:]
-
 	er.MacAddressLength = data[0]
 	er.MacAddress = data[1:7]
-	er.IPAddressLength = data[8]
-	data = data[9:]
-	switch er.IPAddressLength {
-	case 0:
-		// do nothing
-	case 4:
-		er.IPAddress.DecodeFromBytes(data)
-	case 6:
-		er.IPAddress.DecodeFromBytes(data)
-	default:
+	er.IPAddressLength = data[7]
+	data = data[7:]
+	if er.IPAddressLength == 32 {
+		er.IPAddress.DecodeFromBytes(data[0 : ((er.IPAddressLength)/8)+1])
+	} else if er.IPAddressLength == 128 {
+		er.IPAddress.DecodeFromBytes(data[0 : ((er.IPAddressLength)/8)+1])
+	} else {
 		return fmt.Errorf("Invalid IP address length", er.IPAddressLength)
 	}
-	data = data[er.IPAddressLength:]
+	data = data[(er.IPAddressLength/8)+1:]
 	label1 := labelDecode(data)
 	er.Labels = append(er.Labels, label1)
 	data = data[3:]
@@ -1074,23 +1072,26 @@ func (er *EVPNMacIPAdvertisementRoute) DecodeFromBytes(data []byte) error {
 }
 
 func (er *EVPNMacIPAdvertisementRoute) Serialize() ([]byte, error) {
-	buf, err := er.EST.Serialize()
+	buf, err := er.RD.Serialize()
 	if err != nil {
 		return nil, err
 	}
 
-	tbuf := make([]byte, 4)
+	tbuf, err := er.EST.Serialize()
+	if err != nil {
+		return nil, err
+	}
+
+	buf = append(buf, tbuf...)
+	tbuf = make([]byte, 4)
 	binary.BigEndian.PutUint32(tbuf, er.ETag)
 	buf = append(buf, tbuf...)
-
 	tbuf = make([]byte, 7)
 	tbuf[0] = er.MacAddressLength
 	copy(tbuf[1:], er.MacAddress)
 	buf = append(buf, tbuf...)
 
 	tbuf = make([]byte, 1)
-	tbuf[0] = er.IPAddressLength
-	buf = append(buf, tbuf...)
 
 	if er.IPAddressLength != 0 {
 		tbuf, err := er.IPAddress.Serialize()
@@ -1120,7 +1121,7 @@ func (er *EVPNMulticastEthernetTagRoute) DecodeFromBytes(data []byte) error {
 	data = data[er.RD.Len():]
 	er.ETag = binary.BigEndian.Uint32(data[0:4])
 	er.IPAddressLength = data[4]
-	data = data[5:]
+	data = data[4:]
 	err := er.IPAddress.DecodeFromBytes(data)
 	if err != nil {
 		return err
@@ -1133,17 +1134,14 @@ func (er *EVPNMulticastEthernetTagRoute) Serialize() ([]byte, error) {
 	if err != nil {
 		return nil, err
 	}
-	tbuf := make([]byte, 5)
+	tbuf := make([]byte, 4)
 	binary.BigEndian.PutUint32(tbuf, er.ETag)
-	tbuf[4] = er.IPAddressLength
 	buf = append(buf, tbuf...)
-
 	tbuf, err = er.IPAddress.Serialize()
 	if err != nil {
 		return nil, err
 	}
 	buf = append(buf, tbuf...)
-
 	return buf, nil
 }
 
@@ -1177,11 +1175,7 @@ func (er *EVPNEthernetSegmentRoute) Serialize() ([]byte, error) {
 		return nil, err
 	}
 	buf = append(buf, tbuf...)
-
 	tbuf = make([]byte, 1)
-	tbuf[0] = er.IPAddressLength
-	buf = append(buf, tbuf...)
-
 	tbuf, err = er.IPAddress.Serialize()
 	if err != nil {
 		return nil, err
@@ -1237,7 +1231,8 @@ func (n *EVPNNLRI) DecodeFromBytes(data []byte) error {
 	if err != nil {
 		return err
 	}
-	return r.DecodeFromBytes(data)
+	n.RouteTypeData = r
+	return n.RouteTypeData.DecodeFromBytes(data)
 }
 
 func (n *EVPNNLRI) Serialize() ([]byte, error) {
@@ -1252,6 +1247,53 @@ func (n *EVPNNLRI) Serialize() ([]byte, error) {
 	return buf, nil
 }
 
+func (n *EVPNNLRI) AFI() uint16 {
+	return AFI_L2VPN
+}
+
+func (n *EVPNNLRI) SAFI() uint8 {
+	return SAFI_EVPN
+}
+
+func (n *EVPNNLRI) Len() int {
+	return int(n.Length) + 2
+}
+
+func (n *EVPNNLRI) String() string {
+
+	switch n.RouteType {
+
+	case EVPN_ROUTE_TYPE_ETHERNET_AUTO_DISCOVERY:
+		return fmt.Sprintf("%d:%d", n.RouteType, n.Length)
+
+	case EVPN_ROUTE_TYPE_MAC_IP_ADVERTISEMENT:
+		m := n.RouteTypeData.(*EVPNMacIPAdvertisementRoute)
+		switch m.RD.(type) {
+		case *RouteDistinguisherIPAddressAS:
+			return fmt.Sprintf("%s", m.IPAddress.String())
+		}
+
+	case EVPN_INCLUSIVE_MULTICAST_ETHERNET_TAG:
+		m := n.RouteTypeData.(*EVPNMulticastEthernetTagRoute)
+		switch m.RD.(type) {
+		case *RouteDistinguisherIPAddressAS:
+			return fmt.Sprintf("%s", m.IPAddress.String())
+		}
+
+	case EVPN_ETHERNET_SEGMENT_ROUTE:
+		return fmt.Sprintf("%d:%d", n.RouteType, n.Length)
+
+	}
+	return fmt.Sprintf("%d:%d", n.RouteType, n.Length)
+}
+
+func NewEVPNNLRI(routetype uint8, length uint8, routetypedata EVPNRouteTypeInterface) *EVPNNLRI {
+	return &EVPNNLRI{
+		routetype,
+		length,
+		routetypedata,
+	}
+}
 func AfiSafiToRouteFamily(afi uint16, safi uint8) RouteFamily {
 	return RouteFamily(int(afi)<<16 | int(safi))
 }
@@ -1322,6 +1364,8 @@ func routeFamilyPrefix(afi uint16, safi uint8) (prefix AddrPrefixInterface, err 
 		prefix = NewLabelledIPAddrPrefix(0, "", *NewLabel())
 	case RF_IPv6_MPLS:
 		prefix = NewLabelledIPv6AddrPrefix(0, "", *NewLabel())
+	case RF_EVPN:
+		prefix = NewEVPNNLRI(0, 0, nil)
 	case RF_RTC_UC:
 		prefix = &RouteTargetMembershipNLRI{}
 	default:
