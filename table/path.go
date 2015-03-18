@@ -340,8 +340,8 @@ func (ipv4vpnp *IPv4VPNPath) clone(isWithdraw bool) Path {
 		if ipv4vpnp.IsWithdraw() {
 			log.WithFields(log.Fields{
 				"Topic": "Table",
-				"Key":   ipv4vpnp.getNlri().String(),
-				"Peer":  ipv4vpnp.getSource().Address.String(),
+				"Key":   ipv4vpnp.GetNlri().String(),
+				"Peer":  ipv4vpnp.GetSource().Address.String(),
 			}).Fatal("Withdraw path is not supposed to be cloned")
 		}
 	}
@@ -363,7 +363,7 @@ func (ipv4vpnp *IPv4VPNPath) getPrefix() string {
 
 // return IPv4VPNPath's string representation
 func (ipv4vpnp *IPv4VPNPath) String() string {
-	str := fmt.Sprintf("IPv4VPNPath Source: %v, ", ipv4vpnp.getSource())
+	str := fmt.Sprintf("IPv4VPNPath Source: %v, ", ipv4vpnp.GetSource())
 	str = str + fmt.Sprintf(" NLRI: %s, ", ipv4vpnp.getPrefix())
 	str = str + fmt.Sprintf(" nexthop: %s, ", ipv4vpnp.getNexthop().String())
 	str = str + fmt.Sprintf(" withdraw: %s, ", ipv4vpnp.IsWithdraw())
