@@ -42,13 +42,13 @@ func TestTableDeleteDestByNlri(t *testing.T) {
 	pathT := TableCreatePath(msgT)
 	ipv4t := NewIPv4Table(0)
 	for _, path := range pathT {
-		tableKey := ipv4t.tableKey(path.getNlri())
-		dest := ipv4t.createDest(path.getNlri())
+		tableKey := ipv4t.tableKey(path.GetNlri())
+		dest := ipv4t.createDest(path.GetNlri())
 		ipv4t.setDestination(tableKey, dest)
 	}
-	tableKey := ipv4t.tableKey(pathT[0].getNlri())
+	tableKey := ipv4t.tableKey(pathT[0].GetNlri())
 	gdest := ipv4t.getDestination(tableKey)
-	rdest := deleteDestByNlri(ipv4t, pathT[0].getNlri())
+	rdest := deleteDestByNlri(ipv4t, pathT[0].GetNlri())
 	assert.Equal(t, rdest, gdest)
 }
 
@@ -58,12 +58,12 @@ func TestTableDeleteDest(t *testing.T) {
 	pathT := TableCreatePath(msgT)
 	ipv4t := NewIPv4Table(0)
 	for _, path := range pathT {
-		tableKey := ipv4t.tableKey(path.getNlri())
-		dest := ipv4t.createDest(path.getNlri())
+		tableKey := ipv4t.tableKey(path.GetNlri())
+		dest := ipv4t.createDest(path.GetNlri())
 		ipv4t.setDestination(tableKey, dest)
 	}
-	tableKey := ipv4t.tableKey(pathT[0].getNlri())
-	dest := ipv4t.createDest(pathT[0].getNlri())
+	tableKey := ipv4t.tableKey(pathT[0].GetNlri())
+	dest := ipv4t.createDest(pathT[0].GetNlri())
 	ipv4t.setDestination(tableKey, dest)
 	deleteDest(ipv4t, dest)
 	gdest := ipv4t.getDestination(tableKey)
@@ -83,8 +83,8 @@ func TestTableSetDestinations(t *testing.T) {
 	ipv4t := NewIPv4Table(0)
 	destinations := make(map[string]Destination)
 	for _, path := range pathT {
-		tableKey := ipv4t.tableKey(path.getNlri())
-		dest := ipv4t.createDest(path.getNlri())
+		tableKey := ipv4t.tableKey(path.GetNlri())
+		dest := ipv4t.createDest(path.GetNlri())
 		destinations[tableKey] = dest
 	}
 	ipv4t.setDestinations(destinations)
@@ -98,8 +98,8 @@ func TestTableGetDestinations(t *testing.T) {
 	ipv4t := NewIPv4Table(0)
 	destinations := make(map[string]Destination)
 	for _, path := range pathT {
-		tableKey := ipv4t.tableKey(path.getNlri())
-		dest := ipv4t.createDest(path.getNlri())
+		tableKey := ipv4t.tableKey(path.GetNlri())
+		dest := ipv4t.createDest(path.GetNlri())
 		destinations[tableKey] = dest
 	}
 	ipv4t.setDestinations(destinations)

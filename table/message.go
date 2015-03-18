@@ -132,7 +132,7 @@ func createUpdateMsgFromPath(path Path, msg *bgp.BGPMessage) *bgp.BGPMessage {
 
 	if rf == bgp.RF_IPv4_UC {
 		if path.IsWithdraw() {
-			draw := path.getNlri().(*bgp.WithdrawnRoute)
+			draw := path.GetNlri().(*bgp.WithdrawnRoute)
 			if msg != nil {
 				u := msg.Body.(*bgp.BGPUpdate)
 				u.WithdrawnRoutes = append(u.WithdrawnRoutes, *draw)
@@ -141,7 +141,7 @@ func createUpdateMsgFromPath(path Path, msg *bgp.BGPMessage) *bgp.BGPMessage {
 				return bgp.NewBGPUpdateMessage([]bgp.WithdrawnRoute{*draw}, []bgp.PathAttributeInterface{}, []bgp.NLRInfo{})
 			}
 		} else {
-			nlri := path.getNlri().(*bgp.NLRInfo)
+			nlri := path.GetNlri().(*bgp.NLRInfo)
 			if msg != nil {
 				u := msg.Body.(*bgp.BGPUpdate)
 				u.NLRI = append(u.NLRI, *nlri)
@@ -156,7 +156,7 @@ func createUpdateMsgFromPath(path Path, msg *bgp.BGPMessage) *bgp.BGPMessage {
 				idx, _ := path.getPathAttr(bgp.BGP_ATTR_TYPE_MP_REACH_NLRI)
 				u := msg.Body.(*bgp.BGPUpdate)
 				unreach := u.PathAttributes[idx].(*bgp.PathAttributeMpUnreachNLRI)
-				unreach.Value = append(unreach.Value, path.getNlri())
+				unreach.Value = append(unreach.Value, path.GetNlri())
 			} else {
 				clonedAttrs := cloneAttrSlice(path.getPathAttrs())
 				idx, attr := path.getPathAttr(bgp.BGP_ATTR_TYPE_MP_REACH_NLRI)
@@ -170,7 +170,7 @@ func createUpdateMsgFromPath(path Path, msg *bgp.BGPMessage) *bgp.BGPMessage {
 				u := msg.Body.(*bgp.BGPUpdate)
 				reachAttr := u.PathAttributes[idx].(*bgp.PathAttributeMpReachNLRI)
 				u.PathAttributes[idx] = bgp.NewPathAttributeMpReachNLRI(reachAttr.Nexthop.String(),
-					append(reachAttr.Value, path.getNlri()))
+					append(reachAttr.Value, path.GetNlri()))
 			} else {
 				// we don't need to clone here but we
 				// might merge path to this message in
@@ -210,7 +210,7 @@ func isMergeable(p1 Path, p2 Path) bool {
 	if p1.GetRouteFamily() != bgp.RF_IPv4_UC {
 		return false
 	}
-	if p1.getSource() == p2.getSource() && isSamePathAttrs(p1.getPathAttrs(), p2.getPathAttrs()) {
+	if p1.GetSource() == p2.GetSource() && isSamePathAttrs(p1.getPathAttrs(), p2.getPathAttrs()) {
 		return true
 	}
 	return false

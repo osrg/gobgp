@@ -3,9 +3,15 @@ package config
 import (
 	"github.com/BurntSushi/toml"
 	log "github.com/Sirupsen/logrus"
+	"reflect"
 )
 
-func ReadConfigfileServe(path string, configCh chan Bgp, reloadCh chan bool) {
+type BgpConfigSet struct {
+	Bgp    Bgp
+	Policy RoutingPolicy
+}
+
+func ReadConfigfileServe(path string, configCh chan BgpConfigSet, reloadCh chan bool) {
 	for {
 		<-reloadCh
 
@@ -18,7 +24,14 @@ func ReadConfigfileServe(path string, configCh chan Bgp, reloadCh chan bool) {
 			log.Fatal("can't read config file ", path, ", ", err)
 		}
 
-		configCh <- b
+		p := RoutingPolicy{}
+		md, err = toml.DecodeFile(path, &p)
+		if err != nil {
+			log.Fatal("can't read config file ", path, ", ", err)
+		}
+
+		bgpConfig := BgpConfigSet{Bgp: b, Policy: p}
+		configCh <- bgpConfig
 	}
 }
 
@@ -57,4 +70,24 @@ func UpdateConfig(curC *Bgp, newC *Bgp) (*Bgp, []Neighbor, []Neighbor) {
 
 	bgpConfig.NeighborList = newC.NeighborList
 	return &bgpConfig, added, deleted
+}
+
+func CheckPolicyDifference(currentPolicy *RoutingPolicy, newPolicy *RoutingPolicy) bool {
+
+	log.Debug("current policy : ", currentPolicy)
+	log.Debug("newPolicy policy : ", newPolicy)
+
+	var result bool = false
+	if currentPolicy == nil && newPolicy == nil {
+
+		result = false
+	} else {
+		if currentPolicy != nil && newPolicy != nil {
+			// TODO: reconsider the way of policy object comparison
+			result = !reflect.DeepEqual(*currentPolicy, *newPolicy)
+		} else {
+			result = true
+		}
+	}
+	return result
 }
