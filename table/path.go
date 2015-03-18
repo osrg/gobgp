@@ -227,6 +227,9 @@ func CreatePath(source *PeerInfo, nlri bgp.AddrPrefixInterface, attrs []bgp.Path
 	case bgp.RF_IPv4_VPN:
 		log.Debugf("CreatePath RouteFamily : %s", bgp.RF_IPv4_VPN.String())
 		path = NewIPv4VPNPath(source, nlri, isWithdraw, attrs, false, now)
+	case bgp.RF_EVPN:
+		log.Debugf("CreatePath RouteFamily : %s", bgp.RF_EVPN.String())
+		path = NewEVPNPath(source, nlri, isWithdraw, attrs, false, now)
 	}
 	return path
 }
@@ -382,5 +385,71 @@ func (ipv4vpnp *IPv4VPNPath) MarshalJSON() ([]byte, error) {
 		Nexthop: ipv4vpnp.PathDefault.nexthop.String(),
 		Attrs:   ipv4vpnp.PathDefault.getPathAttrs(),
 		Age:     time.Now().Sub(ipv4vpnp.PathDefault.timestamp).Seconds(),
+	})
+}
+
+type EVPNPath struct {
+	*PathDefault
+}
+
+func NewEVPNPath(source *PeerInfo, nlri bgp.AddrPrefixInterface, isWithdraw bool, attrs []bgp.PathAttributeInterface, medSetByTargetNeighbor bool, now time.Time) *EVPNPath {
+	EVPNPath := &EVPNPath{}
+	EVPNPath.PathDefault = NewPathDefault(bgp.RF_EVPN, source, nlri, nil, isWithdraw, attrs, medSetByTargetNeighbor, now)
+	if !isWithdraw {
+		_, mpattr := EVPNPath.getPathAttr(bgp.BGP_ATTR_TYPE_MP_REACH_NLRI)
+		EVPNPath.nexthop = mpattr.(*bgp.PathAttributeMpReachNLRI).Nexthop
+	}
+
+	return EVPNPath
+}
+
+func (evpnp *EVPNPath) clone(isWithdraw bool) Path {
+	nlri := evpnp.nlri
+	if isWithdraw {
+		if evpnp.IsWithdraw() {
+			log.WithFields(log.Fields{
+				"Topic": "Table",
+				"Key":   evpnp.getNlri().String(),
+				"Peer":  evpnp.getSource().Address.String(),
+			}).Fatal("Withdraw path is not supposed to be cloned")
+		}
+	}
+	return CreatePath(evpnp.source, nlri, evpnp.pathAttrs, isWithdraw, evpnp.PathDefault.timestamp)
+}
+
+func (evpnp *EVPNPath) setPathDefault(pd *PathDefault) {
+	evpnp.PathDefault = pd
+}
+
+func (evpnp *EVPNPath) getPathDefault() *PathDefault {
+	return evpnp.PathDefault
+}
+
+func (evpnp *EVPNPath) getPrefix() string {
+	addrPrefix := evpnp.nlri.(*bgp.EVPNNLRI)
+	return addrPrefix.String()
+}
+
+// return EVPNPath's string representation
+func (evpnp *EVPNPath) String() string {
+	str := fmt.Sprintf("EVPNPath Source: %v, ", evpnp.getSource())
+	str = str + fmt.Sprintf(" NLRI: %s, ", evpnp.getPrefix())
+	str = str + fmt.Sprintf(" nexthop: %s, ", evpnp.getNexthop().String())
+	str = str + fmt.Sprintf(" withdraw: %s, ", evpnp.IsWithdraw())
+	//str = str + fmt.Sprintf(" path attributes: %s, ", evpnp.getPathAttributeMap())
+	return str
+}
+
+func (evpnp *EVPNPath) MarshalJSON() ([]byte, error) {
+	return json.Marshal(struct {
+		Network string
+		Nexthop string
+		Attrs   []bgp.PathAttributeInterface
+		Age     float64
+	}{
+		Network: evpnp.getPrefix(),
+		Nexthop: evpnp.PathDefault.nexthop.String(),
+		Attrs:   evpnp.PathDefault.getPathAttrs(),
+		Age:     time.Now().Sub(evpnp.PathDefault.timestamp).Seconds(),
 	})
 }

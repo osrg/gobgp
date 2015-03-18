@@ -992,3 +992,16 @@ func (ipv4vpnd *IPv4VPNDestination) MarshalJSON() ([]byte, error) {
 		BestPathIdx: idx,
 	})
 }
+
+type EVPNDestination struct {
+	*DestinationDefault
+	//need structure
+}
+
+func NewEVPNDestination(nlri bgp.AddrPrefixInterface) *EVPNDestination {
+	EVPNDestination := &EVPNDestination{}
+	EVPNDestination.DestinationDefault = NewDestinationDefault(nlri)
+	EVPNDestination.DestinationDefault.ROUTE_FAMILY = bgp.RF_EVPN
+	//need Processing
+	return EVPNDestination
+}
