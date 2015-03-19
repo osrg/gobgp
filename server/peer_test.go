@@ -69,9 +69,9 @@ func TestProcessBGPUpdate_fourbyteAS(t *testing.T) {
 	msg := table.NewProcessMessage(m, peerInfo)
 	pathList := msg.ToPathList()
 
-	pList, wList, _ := rib1.ProcessPaths(pathList)
+	pList, _ := rib1.ProcessPaths(pathList)
 	assert.Equal(t, len(pList), 1)
-	assert.Equal(t, len(wList), 0)
+	assert.Equal(t, pList[0].IsWithdraw(), false)
 	fmt.Println(pList)
 	sendMsg := table.CreateUpdateMsgFromPaths(pList)
 	assert.Equal(t, len(sendMsg), 1)
@@ -87,9 +87,9 @@ func TestProcessBGPUpdate_fourbyteAS(t *testing.T) {
 	assert.Equal(t, attrAS.Value[0].(*bgp.AsPathParam).AS, []uint16{bgp.AS_TRANS, 4000, bgp.AS_TRANS})
 
 	rib2 := table.NewTableManager("peer_test", []bgp.RouteFamily{bgp.RF_IPv4_UC, bgp.RF_IPv6_UC})
-	pList2, wList2, _ := rib2.ProcessPaths(pathList)
+	pList2, _ := rib2.ProcessPaths(pathList)
 	assert.Equal(t, len(pList2), 1)
-	assert.Equal(t, len(wList2), 0)
+	assert.Equal(t, pList[0].IsWithdraw(), false)
 	sendMsg2 := table.CreateUpdateMsgFromPaths(pList2)
 	assert.Equal(t, len(sendMsg2), 1)
 	update2 := sendMsg2[0].Body.(*bgp.BGPUpdate)
