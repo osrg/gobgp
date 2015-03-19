@@ -24,6 +24,7 @@ import (
 	"github.com/osrg/gobgp/table"
 	"gopkg.in/tomb.v2"
 	"net"
+	"strings"
 	"time"
 )
 
@@ -56,15 +57,16 @@ type Peer struct {
 	adjRib         *table.AdjRib
 	// peer and rib are always not one-to-one so should not be
 	// here but it's the simplest and works our first target.
-	rib      *table.TableManager
-	rfMap    map[bgp.RouteFamily]bool
-	capMap   map[bgp.BGPCapabilityCode]bgp.ParameterCapabilityInterface
-	peerInfo *table.PeerInfo
-	siblings map[string]*serverMsgDataPeer
-	outgoing chan *bgp.BGPMessage
+	rib         *table.TableManager
+	isGlobalRib bool
+	rfMap       map[bgp.RouteFamily]bool
+	capMap      map[bgp.BGPCapabilityCode]bgp.ParameterCapabilityInterface
+	peerInfo    *table.PeerInfo
+	siblings    map[string]*serverMsgDataPeer
+	outgoing    chan *bgp.BGPMessage
 }
 
-func NewPeer(g config.Global, peer config.Neighbor, serverMsgCh chan *serverMsg, peerMsgCh chan *peerMsg, peerList []*serverMsgDataPeer) *Peer {
+func NewPeer(g config.Global, peer config.Neighbor, serverMsgCh chan *serverMsg, peerMsgCh chan *peerMsg, peerList []*serverMsgDataPeer, isGlobalRib bool) *Peer {
 	p := &Peer{
 		globalConfig:   g,
 		peerConfig:     peer,
@@ -73,6 +75,7 @@ func NewPeer(g config.Global, peer config.Neighbor, serverMsgCh chan *serverMsg,
 		peerMsgCh:      peerMsgCh,
 		rfMap:          make(map[bgp.RouteFamily]bool),
 		capMap:         make(map[bgp.BGPCapabilityCode]bgp.ParameterCapabilityInterface),
+		isGlobalRib:    isGlobalRib,
 	}
 	p.siblings = make(map[string]*serverMsgDataPeer)
 	for _, s := range peerList {
@@ -110,6 +113,11 @@ func (peer *Peer) sendPathsToSiblings(pathList []table.Path) {
 	if len(pathList) == 0 {
 		return
 	}
+
+	for _, p := range pathList {
+		table.UpdatePathAttrs4ByteAs(&p)
+	}
+
 	pm := &peerMsg{
 		msgType: PEER_MSG_PATH,
 		msgData: pathList,
@@ -204,7 +212,6 @@ func (peer *Peer) handleBGPmessage(m *bgp.BGPMessage) {
 			}
 			return
 		}
-		table.UpdatePathAttrs4ByteAs(body)
 		msg := table.NewProcessMessage(m, peer.peerInfo)
 		pathList := msg.ToPathList()
 		peer.adjRib.UpdateIn(pathList)
@@ -222,16 +229,6 @@ func (peer *Peer) sendMessages(msgs []*bgp.BGPMessage) {
 			log.Fatal("not update message ", m.Header.Type)
 		}
 
-		_, y := peer.capMap[bgp.BGP_CAP_FOUR_OCTET_AS_NUMBER]
-		if !y {
-			log.WithFields(log.Fields{
-				"Topic": "Peer",
-				"Key":   peer.peerConfig.NeighborAddress,
-				"data":  m,
-			}).Debug("update for 2byte AS peer")
-			table.UpdatePathAttrs2ByteAs(m.Body.(*bgp.BGPUpdate))
-		}
-
 		peer.outgoing <- m
 	}
 }
@@ -239,7 +236,7 @@ func (peer *Peer) sendMessages(msgs []*bgp.BGPMessage) {
 func (peer *Peer) handleREST(restReq *api.RestRequest) {
 	result := &api.RestResponse{}
 	switch restReq.RequestType {
-	case api.REQ_LOCAL_RIB:
+	case api.REQ_LOCAL_RIB, api.REQ_GLOBAL_RIB:
 		// just empty so we use ipv4 for any route family
 		j, _ := json.Marshal(table.NewIPv4Table(0))
 		if peer.fsm.adminState != ADMIN_STATE_DOWN {
@@ -311,34 +308,61 @@ func (peer *Peer) handleREST(restReq *api.RestRequest) {
 	close(restReq.ResponseCh)
 }
 
-func (peer *Peer) sendUpdateMsgFromPaths(pList []table.Path, wList []table.Path) {
-	pathList := append([]table.Path(nil), pList...)
-	pathList = append(pathList, wList...)
-
-	for _, p := range wList {
-		if !p.IsWithdraw() {
-			log.Fatal("withdraw pathlist has non withdraw path")
-		}
-	}
-	peer.adjRib.UpdateOut(pathList)
+func (peer *Peer) sendUpdateMsgFromPaths(pList []table.Path) {
 	sendpathList := []table.Path{}
-	for _, p := range pathList {
-		if _, ok := peer.rfMap[p.GetRouteFamily()]; ok {
+	for _, p := range pList {
+		_, ok := peer.rfMap[p.GetRouteFamily()]
+
+		if peer.peerConfig.NeighborAddress.Equal(p.GetNexthop()) {
+			log.WithFields(log.Fields{
+				"Topic": "Peer",
+				"Key":   peer.peerConfig.NeighborAddress,
+			}).Debugf("From me. Ignore: %s", p)
+			ok = false
+		}
+
+		if ok {
 			sendpathList = append(sendpathList, p)
 		}
 	}
-	peer.sendMessages(table.CreateUpdateMsgFromPaths(sendpathList))
+
+	sendpathList = table.CloneAndUpdatePathAttrs(sendpathList, &peer.globalConfig, &peer.peerConfig)
+
+	_, y := peer.capMap[bgp.BGP_CAP_FOUR_OCTET_AS_NUMBER]
+	if !y {
+		for _, p := range sendpathList {
+			log.WithFields(log.Fields{
+				"Topic": "Peer",
+				"Key":   peer.peerConfig.NeighborAddress,
+				"data":  p,
+			}).Debug("update for 2byte AS peer")
+			table.UpdatePathAttrs2ByteAs(&p)
+		}
+	}
+
+	peer.adjRib.UpdateOut(sendpathList)
+	updateMsgs := table.CreateUpdateMsgFromPaths(sendpathList)
+	peer.sendMessages(updateMsgs)
 }
 
 func (peer *Peer) handlePeerMsg(m *peerMsg) {
 	switch m.msgType {
 	case PEER_MSG_PATH:
-		pList, wList, _ := peer.rib.ProcessPaths(m.msgData.([]table.Path))
-		peer.sendUpdateMsgFromPaths(pList, wList)
+		pList := m.msgData.([]table.Path)
+		if peer.peerConfig.RouteServer.RouteServerClient || peer.isGlobalRib {
+			pList, _ = peer.rib.ProcessPaths(pList)
+		}
+
+		if peer.isGlobalRib {
+			peer.sendPathsToSiblings(pList)
+		} else {
+			peer.sendUpdateMsgFromPaths(pList)
+		}
+
 	case PEER_MSG_PEER_DOWN:
 		for _, rf := range peer.configuredRFlist() {
-			pList, wList, _ := peer.rib.DeletePathsforPeer(m.msgData.(*table.PeerInfo), rf)
-			peer.sendUpdateMsgFromPaths(pList, wList)
+			pList, _ := peer.rib.DeletePathsforPeer(m.msgData.(*table.PeerInfo), rf)
+			peer.sendUpdateMsgFromPaths(pList)
 		}
 	}
 }
@@ -346,21 +370,33 @@ func (peer *Peer) handlePeerMsg(m *peerMsg) {
 func (peer *Peer) handleServerMsg(m *serverMsg) {
 	switch m.msgType {
 	case SRV_MSG_PEER_ADDED:
-		d := m.msgData.(*serverMsgDataPeer)
-		peer.siblings[d.address.String()] = d
-		for _, rf := range peer.configuredRFlist() {
-			peer.sendPathsToSiblings(peer.adjRib.GetInPathList(rf))
+		if peer.peerConfig.RouteServer.RouteServerClient {
+			d := m.msgData.(*serverMsgDataPeer)
+			peer.siblings[d.address.String()] = d
+			for _, rf := range peer.configuredRFlist() {
+				peer.sendPathsToSiblings(peer.adjRib.GetInPathList(rf))
+			}
+		} else if peer.isGlobalRib {
+			d := m.msgData.(*serverMsgDataPeer)
+			peer.siblings[d.address.String()] = d
+			for _, rf := range peer.configuredRFlist() {
+				peer.sendPathsToSiblings(peer.rib.GetPathList(rf))
+			}
 		}
 	case SRV_MSG_PEER_DELETED:
-		d := m.msgData.(*table.PeerInfo)
-		if _, ok := peer.siblings[d.Address.String()]; ok {
-			delete(peer.siblings, d.Address.String())
-			for _, rf := range peer.configuredRFlist() {
-				pList, wList, _ := peer.rib.DeletePathsforPeer(d, rf)
-				peer.sendUpdateMsgFromPaths(pList, wList)
+		if peer.peerConfig.RouteServer.RouteServerClient {
+			d := m.msgData.(*table.PeerInfo)
+			if _, ok := peer.siblings[d.Address.String()]; ok {
+				delete(peer.siblings, d.Address.String())
+				for _, rf := range peer.configuredRFlist() {
+					pList, _ := peer.rib.DeletePathsforPeer(d, rf)
+					peer.sendUpdateMsgFromPaths(pList)
+				}
+			} else {
+				log.Warning("can not find peer: ", d.Address.String())
 			}
-		} else {
-			log.Warning("can not find peer: ", d.Address.String())
+		} else if peer.isGlobalRib {
+			//TODO: delete from rib and call sendPathsToSiblings
 		}
 	case SRV_MSG_API:
 		peer.handleREST(m.msgData.(*api.RestRequest))
@@ -460,6 +496,15 @@ func (peer *Peer) Stop() error {
 }
 
 func (peer *Peer) PassConn(conn *net.TCPConn) {
+	localAddr := func(addrPort string) string {
+		if strings.Index(addrPort, "[") == -1 {
+			return strings.Split(addrPort, ":")[0]
+		}
+		idx := strings.LastIndex(addrPort, ":")
+		return addrPort[1 : idx-1]
+	}(conn.LocalAddr().String())
+
+	peer.peerConfig.LocalAddress = net.ParseIP(localAddr)
 	peer.acceptedConnCh <- conn
 }
 

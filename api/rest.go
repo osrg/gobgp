@@ -38,10 +38,12 @@ const (
 	REQ_NEIGHBOR_SOFT_RESET_OUT
 	REQ_NEIGHBOR_ENABLE
 	REQ_NEIGHBOR_DISABLE
+	REQ_GLOBAL_RIB
 )
 
 const (
 	BASE_VERSION = "/v1"
+	GLOBAL       = "/bgp/global"
 	NEIGHBOR     = "/bgp/neighbor"
 	NEIGHBORS    = "/bgp/neighbors"
 
@@ -110,6 +112,7 @@ func NewRestServer(port int, bgpServerCh chan *RestRequest) *RestServer {
 //   get local-rib of each neighbor.
 //     -- curl -i -X GET http://<ownIP>:8080/v1/bgp/neighbor/<remote address of target neighbor>/local-rib/<rf>
 func (rs *RestServer) Serve() {
+	global := BASE_VERSION + GLOBAL
 	neighbor := BASE_VERSION + NEIGHBOR
 	neighbors := BASE_VERSION + NEIGHBORS
 
@@ -118,6 +121,7 @@ func (rs *RestServer) Serve() {
 	showObjectURL := "/{" + PARAM_SHOW_OBJECT + "}"
 	operationURL := "/{" + PARAM_OPERATION + "}"
 	routeFamilyURL := "/{" + PARAM_ROUTE_FAMILY + "}"
+	r.HandleFunc(global+showObjectURL+routeFamilyURL, rs.GlobalGET).Methods("GET")
 	r.HandleFunc(neighbors, rs.NeighborGET).Methods("GET")
 	r.HandleFunc(neighbor+perPeerURL, rs.NeighborGET).Methods("GET")
 	r.HandleFunc(neighbor+perPeerURL+showObjectURL+routeFamilyURL, rs.NeighborGET).Methods("GET")
@@ -211,6 +215,19 @@ func (rs *RestServer) NeighborGET(w http.ResponseWriter, r *http.Request) {
 	} else {
 		rs.neighbor(w, r, REQ_NEIGHBOR)
 	}
+}
+
+func (rs *RestServer) GlobalGET(w http.ResponseWriter, r *http.Request) {
+	params := mux.Vars(r)
+	if showObject, ok := params[PARAM_SHOW_OBJECT]; ok {
+		switch showObject {
+		case "rib":
+			rs.neighbor(w, r, REQ_GLOBAL_RIB)
+		default:
+			NotFoundHandler(w, r)
+		}
+	}
+
 }
 
 func NotFoundHandler(w http.ResponseWriter, r *http.Request) {
