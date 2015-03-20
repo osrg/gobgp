@@ -24,6 +24,7 @@ import (
 	"github.com/osrg/gobgp/table"
 	"gopkg.in/tomb.v2"
 	"net"
+	"strings"
 	"time"
 )
 
@@ -314,6 +315,8 @@ func (peer *Peer) handleREST(restReq *api.RestRequest) {
 }
 
 func (peer *Peer) sendUpdateMsgFromPaths(pList []table.Path) {
+	pList = table.CloneAndUpdatePathAttrs(pList, &peer.globalConfig, &peer.peerConfig)
+
 	peer.adjRib.UpdateOut(pList)
 	sendpathList := []table.Path{}
 	for _, p := range pList {
@@ -475,6 +478,15 @@ func (peer *Peer) Stop() error {
 }
 
 func (peer *Peer) PassConn(conn *net.TCPConn) {
+	localAddr := func(addrPort string) string {
+		if strings.Index(addrPort, "[") == -1 {
+			return strings.Split(addrPort, ":")[0]
+		}
+		idx := strings.LastIndex(addrPort, ":")
+		return addrPort[1 : idx-1]
+	}(conn.LocalAddr().String())
+
+	peer.peerConfig.LocalAddress = net.ParseIP(localAddr)
 	peer.acceptedConnCh <- conn
 }
 
