@@ -261,6 +261,17 @@ func (manager *TableManager) ProcessPaths(pathList []Path) ([]Path, error) {
 	return manager.calculate(destinationList)
 }
 
+func (manager *TableManager) GetPathList(rf bgp.RouteFamily) []Path {
+	if _, ok := manager.Tables[rf]; !ok {
+		return []Path{}
+	}
+	var paths []Path
+	for _, dest := range manager.Tables[rf].getDestinations() {
+		paths = append(paths, dest.getBestPath())
+	}
+	return paths
+}
+
 // process BGPUpdate message
 // this function processes only BGPUpdate
 func (manager *TableManager) ProcessUpdate(fromPeer *PeerInfo, message *bgp.BGPMessage) ([]Path, error) {

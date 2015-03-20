@@ -47,10 +47,11 @@ type serverMsgDataPeer struct {
 }
 
 type peerMapInfo struct {
-	peer        *Peer
-	serverMsgCh chan *serverMsg
-	peerMsgCh   chan *peerMsg
-	peerMsgData *serverMsgDataPeer
+	peer                *Peer
+	serverMsgCh         chan *serverMsg
+	peerMsgCh           chan *peerMsg
+	peerMsgData         *serverMsgDataPeer
+	isRouteServerClient bool
 }
 
 type BgpServer struct {
@@ -61,6 +62,7 @@ type BgpServer struct {
 	RestReqCh     chan *api.RestRequest
 	listenPort    int
 	peerMap       map[string]peerMapInfo
+	globalRib     *Peer
 }
 
 func NewBgpServer(port int) *BgpServer {
@@ -101,7 +103,16 @@ func listenAndAccept(proto string, port int, ch chan *net.TCPConn) (*net.TCPList
 }
 
 func (server *BgpServer) Serve() {
-	server.bgpConfig.Global = <-server.globalTypeCh
+	g := <-server.globalTypeCh
+	server.bgpConfig.Global = g
+
+	globalSch := make(chan *serverMsg, 8)
+	globalPch := make(chan *peerMsg, 4096)
+	neighConf := config.Neighbor{
+		NeighborAddress: g.RouterId,
+		AfiSafiList:     g.AfiSafiList,
+	}
+	server.globalRib = NewPeer(g, neighConf, globalSch, globalPch, nil, true)
 
 	listenerMap := make(map[string]*net.TCPListener)
 	acceptCh := make(chan *net.TCPConn)
@@ -150,13 +161,21 @@ func (server *BgpServer) Serve() {
 			SetTcpMD5SigSockopts(int(f.Fd()), addr, peer.AuthPassword)
 			sch := make(chan *serverMsg, 8)
 			pch := make(chan *peerMsg, 4096)
-			l := make([]*serverMsgDataPeer, len(server.peerMap))
-			i := 0
-			for _, v := range server.peerMap {
-				l[i] = v.peerMsgData
-				i++
+			var l []*serverMsgDataPeer
+			if peer.RouteServer.RouteServerClient {
+				for _, v := range server.peerMap {
+					if v.isRouteServerClient {
+						l = append(l, v.peerMsgData)
+					}
+				}
+			} else {
+				globalRib := &serverMsgDataPeer{
+					address:   server.bgpConfig.Global.RouterId,
+					peerMsgCh: globalPch,
+				}
+				l = []*serverMsgDataPeer{globalRib}
 			}
-			p := NewPeer(server.bgpConfig.Global, peer, sch, pch, l)
+			p := NewPeer(server.bgpConfig.Global, peer, sch, pch, l, false)
 			d := &serverMsgDataPeer{
 				address:   peer.NeighborAddress,
 				peerMsgCh: pch,
@@ -165,11 +184,17 @@ func (server *BgpServer) Serve() {
 				msgType: SRV_MSG_PEER_ADDED,
 				msgData: d,
 			}
-			sendServerMsgToAll(server.peerMap, msg)
+			if peer.RouteServer.RouteServerClient {
+				sendServerMsgToRSClients(server.peerMap, msg)
+			} else {
+				globalSch <- msg
+			}
+
 			server.peerMap[peer.NeighborAddress.String()] = peerMapInfo{
-				peer:        p,
-				serverMsgCh: sch,
-				peerMsgData: d,
+				peer:                p,
+				serverMsgCh:         sch,
+				peerMsgData:         d,
+				isRouteServerClient: peer.RouteServer.RouteServerClient,
 			}
 		case peer := <-server.deletedPeerCh:
 			addr := peer.NeighborAddress.String()
@@ -184,7 +209,11 @@ func (server *BgpServer) Serve() {
 					msgType: SRV_MSG_PEER_DELETED,
 					msgData: info.peer.peerInfo,
 				}
-				sendServerMsgToAll(server.peerMap, msg)
+				if info.isRouteServerClient {
+					sendServerMsgToRSClients(server.peerMap, msg)
+				} else {
+					globalSch <- msg
+				}
 			} else {
 				log.Info("Can't delete a peer configuration for ", addr)
 			}
@@ -194,9 +223,11 @@ func (server *BgpServer) Serve() {
 	}
 }
 
-func sendServerMsgToAll(peerMap map[string]peerMapInfo, msg *serverMsg) {
+func sendServerMsgToRSClients(peerMap map[string]peerMapInfo, msg *serverMsg) {
 	for _, info := range peerMap {
-		info.serverMsgCh <- msg
+		if info.isRouteServerClient {
+			info.serverMsgCh <- msg
+		}
 	}
 }
 
