@@ -59,7 +59,16 @@ func NewPolicy(name string, pd config.PolicyDefinition, ds config.DefinedSets) *
 		for _, ps := range ds.PrefixSetList {
 			if ps.PrefixSetName == prefixSetName {
 				for _, pl := range ps.PrefixList {
-					prefixList = append(prefixList, NewPrefix(pl.Address, pl.Masklength, pl.MasklengthRange))
+					prefix, e := NewPrefix(pl.Address, pl.Masklength, pl.MasklengthRange)
+					if e != nil {
+						log.WithFields(log.Fields{
+							"Topic":  "Policy",
+							"prefix": prefix,
+							"msg":    e,
+						}).Warn("failed to generate a NewPrefix from configration.")
+						continue
+					}
+					prefixList = append(prefixList, prefix)
 				}
 			}
 		}
@@ -210,11 +219,12 @@ type ModificationActions struct {
 
 type Prefix struct {
 	Address         net.IP
+	AddressFamily   bgp.RouteFamily
 	Masklength      uint8
 	MasklengthRange map[MaskLengthRangeType]uint8
 }
 
-func NewPrefix(addr net.IP, maskLen uint8, maskRange string) Prefix {
+func NewPrefix(addr net.IP, maskLen uint8, maskRange string) (Prefix, error) {
 	mlr := make(map[MaskLengthRangeType]uint8)
 	p := Prefix{
 		Address:         addr,
@@ -222,41 +232,36 @@ func NewPrefix(addr net.IP, maskLen uint8, maskRange string) Prefix {
 		MasklengthRange: make(map[MaskLengthRangeType]uint8),
 	}
 
+	if ipv4Family := addr.To4(); ipv4Family != nil {
+		p.AddressFamily, _ = bgp.GetRouteFamily("ipv4-unicast")
+	} else if ipv6Family := addr.To16(); ipv6Family != nil {
+		p.AddressFamily, _ = bgp.GetRouteFamily("ipv6-unicast")
+	} else {
+		return p, fmt.Errorf("can not determine the address family.")
+	}
+
 	// TODO: validate mask length by using regexp
 
 	idx := strings.Index(maskRange, "..")
 	if idx == -1 {
-		log.WithFields(log.Fields{
-			"Topic":      "Policy",
-			"Address":    addr,
-			"Masklength": maskLen,
-		}).Warn("mask length range of condition is invalid format. mask length is not defined.")
-		return p
+		return p, fmt.Errorf("mask length range of condition is invalid format. mask length is not defined.")
 	}
 	if idx != 0 {
 		min, e := strconv.ParseUint(maskRange[:idx], 10, 8)
 		if e != nil {
-			log.WithFields(log.Fields{
-				"Topic": "Policy",
-				"Error": e,
-			}).Error("failed to parse the min length of mask length range")
-			return p
+			return p, e
 		}
 		mlr[MASK_LENGTH_RANGE_MIN] = uint8(min)
 	}
 	if idx != len(maskRange)-1 {
 		max, e := strconv.ParseUint(maskRange[idx+2:], 10, 8)
 		if e != nil {
-			log.WithFields(log.Fields{
-				"Topic": "Policy",
-				"Error": e,
-			}).Error("failed to parse the max length of mask length range")
-			return p
+			return p, e
 		}
 		mlr[MASK_LENGTH_RANGE_MAX] = uint8(max)
 	}
 	p.MasklengthRange = mlr
-	return p
+	return p, nil
 }
 
 //compare path and condition of policy
@@ -285,24 +290,35 @@ func (p *Policy) Apply(path table.Path) (bool, RouteType, table.Path) {
 }
 
 func IpPrefixCalculate(path table.Path, cPrefix Prefix) bool {
-	pAddr := path.GetNlri().(*bgp.NLRInfo).IPAddrPrefix.Prefix
-	pMaskLen := path.GetNlri().(*bgp.NLRInfo).IPAddrPrefix.Length
+	rf := path.GetRouteFamily()
+	log.Debug("path routefamily : ", rf.String())
+	var pAddr net.IP
+	var pMasklen uint8
+
+	if rf != cPrefix.AddressFamily {
+		return false
+	}
+
+	switch rf {
+	case bgp.RF_IPv4_UC:
+		pAddr = path.GetNlri().(*bgp.NLRInfo).IPAddrPrefix.Prefix
+		pMasklen = path.GetNlri().(*bgp.NLRInfo).IPAddrPrefix.Length
+	case bgp.RF_IPv6_UC:
+		pAddr = path.GetNlri().(*bgp.IPv6AddrPrefix).Prefix
+		pMasklen = path.GetNlri().(*bgp.IPv6AddrPrefix).Length
+	default:
+		return false
+	}
+
 	cp := fmt.Sprintf("%s/%d", cPrefix.Address, cPrefix.Masklength)
 	rMin, okMin := cPrefix.MasklengthRange[MASK_LENGTH_RANGE_MIN]
 	rMax, okMax := cPrefix.MasklengthRange[MASK_LENGTH_RANGE_MAX]
-
-	//TODO add conditional processing by RouteFamily.
-
 	if !okMin && !okMax {
-		if pAddr.Equal(cPrefix.Address) && pMaskLen == cPrefix.Masklength {
+		if pAddr.Equal(cPrefix.Address) && pMasklen == cPrefix.Masklength {
 			return true
 		} else {
 			return false
 		}
-	} else if !okMin {
-		rMin = uint8(0)
-	} else if !okMax {
-		rMax = uint8(32)
 	}
 
 	_, ipNet, e := net.ParseCIDR(cp)
@@ -314,7 +330,7 @@ func IpPrefixCalculate(path table.Path, cPrefix Prefix) bool {
 		}).Error("failed to parse the prefix of condition")
 		return false
 	}
-	if ipNet.Contains(pAddr) && (rMin <= pMaskLen && pMaskLen <= rMax) {
+	if ipNet.Contains(pAddr) && (rMin <= pMasklen && pMasklen <= rMax) {
 		return true
 	}
 	return false
