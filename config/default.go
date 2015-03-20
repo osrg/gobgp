@@ -75,6 +75,14 @@ func SetDefaultConfigValues(md toml.MetaData, bt *Bgp) error {
 				}
 			}
 		}
+
+		if _, ok := n.attributes["NeighborList.PeerType"]; !ok {
+			if bt.NeighborList[i].PeerAs != bt.Global.As {
+				bt.NeighborList[i].PeerType = PEER_TYPE_EXTERNAL
+			} else {
+				bt.NeighborList[i].PeerType = PEER_TYPE_INTERNAL
+			}
+		}
 	}
 	return nil
 }
