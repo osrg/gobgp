@@ -32,6 +32,7 @@ func SetDefaultConfigValues(md toml.MetaData, bt *Bgp) error {
 		bt.Global.AfiSafiList = []AfiSafi{
 			AfiSafi{AfiSafiName: "ipv4-unicast"},
 			AfiSafi{AfiSafiName: "ipv6-unicast"},
+			AfiSafi{AfiSafiName: "l2vpn-evpn"},
 		}
 	}
 
