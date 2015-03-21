@@ -107,6 +107,7 @@ func TestPeerAdminShutdownWhileEstablished(t *testing.T) {
 	peerConfig := config.Neighbor{}
 	peerConfig.PeerAs = 100000
 	peerConfig.Timers.KeepaliveInterval = 5
+	peerConfig.TransportOptions.PassiveMode = true
 	peer := makePeer(globalConfig, peerConfig)
 	peer.fsm.opensentHoldTime = 10
 
@@ -159,6 +160,7 @@ func TestPeerAdminShutdownWhileIdle(t *testing.T) {
 	peerConfig := config.Neighbor{}
 	peerConfig.PeerAs = 100000
 	peerConfig.Timers.KeepaliveInterval = 5
+	peerConfig.TransportOptions.PassiveMode = true
 	peer := makePeer(globalConfig, peerConfig)
 	peer.fsm.opensentHoldTime = 10
 	peer.fsm.idleHoldTime = 5
@@ -195,6 +197,7 @@ func TestPeerAdminShutdownWhileActive(t *testing.T) {
 	peerConfig := config.Neighbor{}
 	peerConfig.PeerAs = 100000
 	peerConfig.Timers.KeepaliveInterval = 5
+	peerConfig.TransportOptions.PassiveMode = true
 	peer := makePeer(globalConfig, peerConfig)
 	peer.fsm.opensentHoldTime = 10
 	peer.t.Go(peer.loop)
@@ -230,6 +233,7 @@ func TestPeerAdminShutdownWhileOpensent(t *testing.T) {
 	peerConfig := config.Neighbor{}
 	peerConfig.PeerAs = 100000
 	peerConfig.Timers.KeepaliveInterval = 5
+	peerConfig.TransportOptions.PassiveMode = true
 	peer := makePeer(globalConfig, peerConfig)
 	peer.fsm.opensentHoldTime = 1
 	peer.t.Go(peer.loop)
@@ -271,6 +275,7 @@ func TestPeerAdminShutdownWhileOpenconfirm(t *testing.T) {
 	peerConfig := config.Neighbor{}
 	peerConfig.PeerAs = 100000
 	peerConfig.Timers.KeepaliveInterval = 5
+	peerConfig.TransportOptions.PassiveMode = true
 	peer := makePeer(globalConfig, peerConfig)
 	peer.fsm.opensentHoldTime = 10
 	peer.t.Go(peer.loop)
@@ -317,6 +322,7 @@ func TestPeerAdminEnable(t *testing.T) {
 	peerConfig := config.Neighbor{}
 	peerConfig.PeerAs = 100000
 	peerConfig.Timers.KeepaliveInterval = 5
+	peerConfig.TransportOptions.PassiveMode = true
 	peer := makePeer(globalConfig, peerConfig)
 
 	peer.fsm.opensentHoldTime = 5
@@ -361,7 +367,7 @@ func TestPeerAdminEnable(t *testing.T) {
 	json.Unmarshal(result.Data, &res)
 	assert.Equal("ADMIN_STATE_UP", res["result"])
 
-	waitUntil(assert, bgp.BGP_FSM_ACTIVE, peer, 1000)
+	waitUntil(assert, bgp.BGP_FSM_ACTIVE, peer, HOLDTIME_IDLE*1000)
 	assert.Equal(bgp.BGP_FSM_ACTIVE, peer.fsm.state)
 
 	m2 := NewMockConnection()
@@ -389,6 +395,7 @@ func TestPeerAdminShutdownReject(t *testing.T) {
 	peerConfig := config.Neighbor{}
 	peerConfig.PeerAs = 100000
 	peerConfig.Timers.KeepaliveInterval = 5
+	peerConfig.TransportOptions.PassiveMode = true
 	peer := makePeer(globalConfig, peerConfig)
 	peer.fsm.opensentHoldTime = 1
 	peer.t.Go(peer.loop)
@@ -438,6 +445,7 @@ func TestPeerSelectSmallerHoldtime(t *testing.T) {
 	peerConfig := config.Neighbor{}
 	peerConfig.PeerAs = 65001
 	peerConfig.Timers.KeepaliveInterval = 5
+	peerConfig.TransportOptions.PassiveMode = true
 	peer := makePeer(globalConfig, peerConfig)
 	peer.fsm.opensentHoldTime = 1
 	peerConfig.Timers.HoldTime = 5
