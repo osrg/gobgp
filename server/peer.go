@@ -562,16 +562,20 @@ func (peer *Peer) loop() error {
 		incoming := make(chan *fsmMsg, FSM_CHANNEL_LENGTH)
 		peer.outgoing = make(chan *bgp.BGPMessage, FSM_CHANNEL_LENGTH)
 
-		h := NewFSMHandler(peer.fsm, incoming, peer.outgoing)
-		if peer.peerConfig.BgpNeighborCommonState.State == uint32(bgp.BGP_FSM_ESTABLISHED) {
-			for rf, _ := range peer.rfMap {
-				pathList := peer.adjRib.GetOutPathList(rf)
-				peer.sendMessages(table.CreateUpdateMsgFromPaths(pathList))
+		var h *FSMHandler
+
+		if !peer.isGlobalRib {
+			h = NewFSMHandler(peer.fsm, incoming, peer.outgoing)
+			if peer.peerConfig.BgpNeighborCommonState.State == uint32(bgp.BGP_FSM_ESTABLISHED) {
+				for rf, _ := range peer.rfMap {
+					pathList := peer.adjRib.GetOutPathList(rf)
+					peer.sendMessages(table.CreateUpdateMsgFromPaths(pathList))
+				}
+				peer.fsm.peerConfig.BgpNeighborCommonState.Uptime = time.Now().Unix()
+				peer.fsm.peerConfig.BgpNeighborCommonState.EstablishedCount++
+			} else {
+				peer.fsm.peerConfig.BgpNeighborCommonState.Downtime = time.Now().Unix()
 			}
-			peer.fsm.peerConfig.BgpNeighborCommonState.Uptime = time.Now().Unix()
-			peer.fsm.peerConfig.BgpNeighborCommonState.EstablishedCount++
-		} else {
-			peer.fsm.peerConfig.BgpNeighborCommonState.Downtime = time.Now().Unix()
 		}
 
 		sameState := true
