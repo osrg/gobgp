@@ -183,11 +183,17 @@ class Show(object):
             print neighbors
             return 0
         sorted_neighbors = []
+        for n in sorted(neighbors, key=lambda n: n["conf"]["remote_ip"]):
+            sorted_neighbors.append(n)
+        if self.options.quiet:
+            sorted_neighbors_ip = []
+            for n in sorted_neighbors:
+                print str(n["conf"]["remote_ip"])
+            return 0
         maxaddrlen = 0
         maxaslen = 0
         maxtimelen = len("Up/Down")
-        for n in sorted(neighbors, key=lambda n: n["conf"]["remote_ip"]):
-            sorted_neighbors.append(n)
+        for n in sorted_neighbors:
             if len(n["conf"]["remote_ip"]) > maxaddrlen:
                 maxaddrlen = len(n["conf"]["remote_ip"])
             if len(str(n["conf"]["remote_as"])) > maxaslen:
@@ -370,6 +376,8 @@ def main():
                       help="specifying a port (8080 by default)")
     parser.add_option("-d", "--debug", dest="debug", action="store_true",
                       help="dump raw json")
+    parser.add_option("-q", "--quiet", dest="quiet", action="store_true",
+                      help="for shell completion")
 
     (options, args) = parser.parse_args()
 
