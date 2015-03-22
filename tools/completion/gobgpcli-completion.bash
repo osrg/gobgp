@@ -44,16 +44,16 @@ __gobgpcli_neighbr_list() {
 		;;
 	esac
 	__ltrim_colon_completions "$cur"
-	return
+	return 0
     fi
+    return 1
 }
 
 _gobgpcli_show_neighbor() {
    __gobgpcli_neighbr_list
-    if [ -z ${COMPREPLY} ]; then
-	__gobgpcli_table_list
-	return
-    fi
+   if [ $? -ne 0 ] ; then
+       __gobgpcli_table_list
+   fi
 }
 
 _gobgpcli_show_neighbors() {
