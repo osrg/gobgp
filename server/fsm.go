@@ -22,6 +22,7 @@ import (
 	"github.com/osrg/gobgp/packet"
 	"gopkg.in/tomb.v2"
 	"net"
+	"strconv"
 	"time"
 )
 
@@ -40,6 +41,7 @@ type fsmMsg struct {
 
 const (
 	HOLDTIME_OPENSENT = 240
+	HOLDTIME_IDLE     = 5
 )
 
 type AdminState int
@@ -65,7 +67,7 @@ type FSM struct {
 	peerConfig         *config.Neighbor
 	keepaliveTicker    *time.Ticker
 	state              bgp.FSMState
-	passiveConn        net.Conn
+	conn               net.Conn
 	passiveConnCh      chan net.Conn
 	idleHoldTime       float64
 	opensentHoldTime   float64
@@ -228,7 +230,7 @@ func (h *FSMHandler) idle() bgp.FSMState {
 					"Key":      fsm.peerConfig.NeighborAddress,
 					"Duration": fsm.idleHoldTime,
 				}).Debug("IdleHoldTimer expired")
-				fsm.idleHoldTime = 0
+				fsm.idleHoldTime = HOLDTIME_IDLE
 				return bgp.BGP_FSM_ACTIVE
 
 			} else {
@@ -252,19 +254,56 @@ func (h *FSMHandler) idle() bgp.FSMState {
 	}
 }
 
+func (h *FSMHandler) connectLoop(ch chan net.Conn, t *tomb.Tomb) error {
+	for {
+		select {
+		case <-t.Dying():
+			return nil
+		default:
+			if h.fsm.state != bgp.BGP_FSM_ACTIVE {
+				return nil
+			}
+			conn, err := net.DialTimeout("tcp", h.fsm.peerConfig.NeighborAddress.String()+":"+strconv.Itoa(bgp.BGP_PORT), time.Second)
+			if err == nil {
+				ch <- conn
+				return nil
+			}
+			log.Debugf("failed to connect: %s", err)
+			time.Sleep(time.Duration(h.fsm.peerConfig.Timers.ConnectRetry) * time.Second)
+		}
+	}
+}
+
 func (h *FSMHandler) active() bgp.FSMState {
+
+	activeConnCh := make(chan net.Conn)
+	t := &tomb.Tomb{}
+
+	if !h.fsm.peerConfig.TransportOptions.PassiveMode {
+		t.Go(func() error {
+			return h.connectLoop(activeConnCh, t)
+		})
+	}
+
 	fsm := h.fsm
 	for {
 		select {
 		case <-h.t.Dying():
+			t.Kill(nil)
 			return 0
 		case conn, ok := <-fsm.passiveConnCh:
 			if !ok {
 				break
 			}
-			fsm.passiveConn = conn
+			fsm.conn = conn
 			// we don't implement delayed open timer so move to opensent right
 			// away.
+			return bgp.BGP_FSM_OPENSENT
+		case conn, ok := <-activeConnCh:
+			if !ok {
+				break
+			}
+			fsm.conn = conn
 			return bgp.BGP_FSM_OPENSENT
 		case <-h.errorCh:
 			return bgp.BGP_FSM_IDLE
@@ -393,11 +432,13 @@ func (h *FSMHandler) opensent() bgp.FSMState {
 	fsm := h.fsm
 	m := buildopen(fsm.globalConfig, fsm.peerConfig)
 	b, _ := m.Serialize()
-	fsm.passiveConn.Write(b)
+	fsm.conn.Write(b)
 	fsm.bgpMessageStateUpdate(m.Header.Type, false)
 
 	h.msgCh = make(chan *fsmMsg)
-	h.conn = fsm.passiveConn
+	h.conn = fsm.conn
+	addr, _, _ := net.SplitHostPort(h.conn.LocalAddr().String())
+	h.fsm.peerConfig.LocalAddress = net.ParseIP(addr)
 
 	h.t.Go(h.recvMessage)
 
@@ -440,7 +481,7 @@ func (h *FSMHandler) opensent() bgp.FSMState {
 					h.incoming <- e
 					msg := bgp.NewBGPKeepAliveMessage()
 					b, _ := msg.Serialize()
-					fsm.passiveConn.Write(b)
+					fsm.conn.Write(b)
 					fsm.bgpMessageStateUpdate(msg.Header.Type, false)
 					return bgp.BGP_FSM_OPENCONFIRM
 				} else {
@@ -489,7 +530,7 @@ func (h *FSMHandler) openconfirm() bgp.FSMState {
 	fsm := h.fsm
 
 	h.msgCh = make(chan *fsmMsg)
-	h.conn = fsm.passiveConn
+	h.conn = fsm.conn
 
 	h.t.Go(h.recvMessage)
 
@@ -523,7 +564,7 @@ func (h *FSMHandler) openconfirm() bgp.FSMState {
 			m := bgp.NewBGPKeepAliveMessage()
 			b, _ := m.Serialize()
 			// TODO: check error
-			fsm.passiveConn.Write(b)
+			fsm.conn.Write(b)
 			fsm.bgpMessageStateUpdate(m.Header.Type, false)
 		case e := <-h.msgCh:
 			switch e.MsgData.(type) {
@@ -667,7 +708,7 @@ func (h *FSMHandler) recvMessageloop() error {
 
 func (h *FSMHandler) established() bgp.FSMState {
 	fsm := h.fsm
-	h.conn = fsm.passiveConn
+	h.conn = fsm.conn
 	h.t.Go(h.sendMessageloop)
 	h.msgCh = h.incoming
 	h.t.Go(h.recvMessageloop)

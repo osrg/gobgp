@@ -24,7 +24,6 @@ import (
 	"github.com/osrg/gobgp/table"
 	"gopkg.in/tomb.v2"
 	"net"
-	"strings"
 	"time"
 )
 
@@ -81,7 +80,7 @@ func NewPeer(g config.Global, peer config.Neighbor, serverMsgCh chan *serverMsg,
 	for _, s := range peerList {
 		p.siblings[s.address.String()] = s
 	}
-	p.fsm = NewFSM(&g, &peer, p.acceptedConnCh)
+	p.fsm = NewFSM(&g, &p.peerConfig, p.acceptedConnCh)
 	peer.BgpNeighborCommonState.State = uint32(bgp.BGP_FSM_IDLE)
 	peer.BgpNeighborCommonState.Downtime = time.Now().Unix()
 	for _, rf := range peer.AfiSafiList {
@@ -403,16 +402,20 @@ func (peer *Peer) loop() error {
 		incoming := make(chan *fsmMsg, FSM_CHANNEL_LENGTH)
 		peer.outgoing = make(chan *bgp.BGPMessage, FSM_CHANNEL_LENGTH)
 
-		h := NewFSMHandler(peer.fsm, incoming, peer.outgoing)
-		if peer.peerConfig.BgpNeighborCommonState.State == uint32(bgp.BGP_FSM_ESTABLISHED) {
-			for rf, _ := range peer.rfMap {
-				pathList := peer.adjRib.GetOutPathList(rf)
-				peer.sendMessages(table.CreateUpdateMsgFromPaths(pathList))
+		var h *FSMHandler
+
+		if !peer.isGlobalRib {
+			h = NewFSMHandler(peer.fsm, incoming, peer.outgoing)
+			if peer.peerConfig.BgpNeighborCommonState.State == uint32(bgp.BGP_FSM_ESTABLISHED) {
+				for rf, _ := range peer.rfMap {
+					pathList := peer.adjRib.GetOutPathList(rf)
+					peer.sendMessages(table.CreateUpdateMsgFromPaths(pathList))
+				}
+				peer.fsm.peerConfig.BgpNeighborCommonState.Uptime = time.Now().Unix()
+				peer.fsm.peerConfig.BgpNeighborCommonState.EstablishedCount++
+			} else {
+				peer.fsm.peerConfig.BgpNeighborCommonState.Downtime = time.Now().Unix()
 			}
-			peer.fsm.peerConfig.BgpNeighborCommonState.Uptime = time.Now().Unix()
-			peer.fsm.peerConfig.BgpNeighborCommonState.EstablishedCount++
-		} else {
-			peer.fsm.peerConfig.BgpNeighborCommonState.Downtime = time.Now().Unix()
 		}
 
 		sameState := true
@@ -488,15 +491,6 @@ func (peer *Peer) Stop() error {
 }
 
 func (peer *Peer) PassConn(conn *net.TCPConn) {
-	localAddr := func(addrPort string) string {
-		if strings.Index(addrPort, "[") == -1 {
-			return strings.Split(addrPort, ":")[0]
-		}
-		idx := strings.LastIndex(addrPort, ":")
-		return addrPort[1 : idx-1]
-	}(conn.LocalAddr().String())
-
-	peer.peerConfig.LocalAddress = net.ParseIP(localAddr)
 	peer.acceptedConnCh <- conn
 }
 

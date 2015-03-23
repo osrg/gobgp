@@ -121,6 +121,12 @@ func (m *MockConnection) Close() error {
 	return nil
 }
 
+func (m *MockConnection) LocalAddr() net.Addr {
+	return &net.TCPAddr{
+		IP:   net.ParseIP("10.10.10.10"),
+		Port: bgp.BGP_PORT}
+}
+
 func TestReadAll(t *testing.T) {
 	assert := assert.New(t)
 	m := NewMockConnection()
@@ -157,7 +163,7 @@ func TestFSMHandlerOpensent_HoldTimerExpired(t *testing.T) {
 	p, h := makePeerAndHandler()
 
 	// push mock connection
-	p.fsm.passiveConn = m
+	p.fsm.conn = m
 
 	// set up keepalive ticker
 	sec := time.Second * 1
@@ -183,7 +189,7 @@ func TestFSMHandlerOpenconfirm_HoldTimerExpired(t *testing.T) {
 	p, h := makePeerAndHandler()
 
 	// push mock connection
-	p.fsm.passiveConn = m
+	p.fsm.conn = m
 
 	// set up keepalive ticker
 	p.fsm.peerConfig.Timers.KeepaliveInterval = 1
@@ -207,7 +213,7 @@ func TestFSMHandlerEstablish_HoldTimerExpired(t *testing.T) {
 	p, h := makePeerAndHandler()
 
 	// push mock connection
-	p.fsm.passiveConn = m
+	p.fsm.conn = m
 
 	// set up keepalive ticker
 	sec := time.Second * 1
@@ -245,7 +251,7 @@ func TestFSMHandlerOpenconfirm_HoldtimeZero(t *testing.T) {
 	p, h := makePeerAndHandler()
 
 	// push mock connection
-	p.fsm.passiveConn = m
+	p.fsm.conn = m
 
 	// set up keepalive ticker
 	p.fsm.peerConfig.Timers.KeepaliveInterval = 1
@@ -267,7 +273,7 @@ func TestFSMHandlerEstablished_HoldtimeZero(t *testing.T) {
 	p, h := makePeerAndHandler()
 
 	// push mock connection
-	p.fsm.passiveConn = m
+	p.fsm.conn = m
 
 	// set up keepalive ticker
 	sec := time.Second * 1

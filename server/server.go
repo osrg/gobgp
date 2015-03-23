@@ -24,7 +24,6 @@ import (
 	"net"
 	"os"
 	"strconv"
-	"strings"
 )
 
 type serverMsgType int
@@ -140,13 +139,7 @@ func (server *BgpServer) Serve() {
 	for {
 		select {
 		case conn := <-acceptCh:
-			remoteAddr := func(addrPort string) string {
-				if strings.Index(addrPort, "[") == -1 {
-					return strings.Split(addrPort, ":")[0]
-				}
-				idx := strings.LastIndex(addrPort, ":")
-				return addrPort[1 : idx-1]
-			}(conn.RemoteAddr().String())
+			remoteAddr, _, _ := net.SplitHostPort(conn.RemoteAddr().String())
 			info, found := server.peerMap[remoteAddr]
 			if found {
 				log.Info("accepted a new passive connection from ", remoteAddr)
