@@ -421,15 +421,6 @@ func NewIPv4VPNPath(source *PeerInfo, nlri bgp.AddrPrefixInterface, isWithdraw b
 
 func (ipv4vpnp *IPv4VPNPath) clone(isWithdraw bool) Path {
 	nlri := ipv4vpnp.nlri
-	if isWithdraw {
-		if ipv4vpnp.IsWithdraw() {
-			log.WithFields(log.Fields{
-				"Topic": "Table",
-				"Key":   ipv4vpnp.getNlri().String(),
-				"Peer":  ipv4vpnp.getSource().Address.String(),
-			}).Fatal("Withdraw path is not supposed to be cloned")
-		}
-	}
 	return CreatePath(ipv4vpnp.source, nlri, ipv4vpnp.pathAttrs, isWithdraw, ipv4vpnp.PathDefault.timestamp)
 }
 
@@ -487,15 +478,6 @@ func NewEVPNPath(source *PeerInfo, nlri bgp.AddrPrefixInterface, isWithdraw bool
 
 func (evpnp *EVPNPath) clone(isWithdraw bool) Path {
 	nlri := evpnp.nlri
-	if isWithdraw {
-		if evpnp.IsWithdraw() {
-			log.WithFields(log.Fields{
-				"Topic": "Table",
-				"Key":   evpnp.getNlri().String(),
-				"Peer":  evpnp.getSource().Address.String(),
-			}).Fatal("Withdraw path is not supposed to be cloned")
-		}
-	}
 	return CreatePath(evpnp.source, nlri, evpnp.pathAttrs, isWithdraw, evpnp.PathDefault.timestamp)
 }
 
