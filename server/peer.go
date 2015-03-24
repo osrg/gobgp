@@ -115,8 +115,10 @@ func (peer *Peer) setPolicy(policyMap map[string]*policy.Policy) {
 			"Key":        peer.peerConfig.NeighborAddress,
 			"PolicyName": policyName,
 		}).Info("import policy installed")
-		log.Debug("import policy : ", policyMap[policyName])
-		inPolicies = append(inPolicies, policyMap[policyName])
+		if pol, ok := policyMap[policyName]; ok {
+			log.Debug("import policy : ", pol)
+			inPolicies = append(inPolicies, pol)
+		}
 	}
 	peer.importPolicies = inPolicies
 
@@ -128,8 +130,10 @@ func (peer *Peer) setPolicy(policyMap map[string]*policy.Policy) {
 			"Key":        peer.peerConfig.NeighborAddress,
 			"PolicyName": policyName,
 		}).Info("export policy installed")
-		log.Debug("export policy : ", policyMap[policyName])
-		outPolicies = append(outPolicies, policyMap[policyName])
+		if pol, ok := policyMap[policyName]; ok {
+			log.Debug("export policy : ", pol)
+			outPolicies = append(outPolicies, pol)
+		}
 	}
 	peer.exportPolicies = outPolicies
 }
