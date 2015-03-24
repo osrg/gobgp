@@ -21,6 +21,7 @@ import (
 	log "github.com/Sirupsen/logrus"
 	"github.com/osrg/gobgp/api"
 	"github.com/osrg/gobgp/config"
+	"github.com/osrg/gobgp/policy"
 	"net"
 	"os"
 	"strconv"
@@ -34,6 +35,7 @@ const (
 	SRV_MSG_PEER_ADDED
 	SRV_MSG_PEER_DELETED
 	SRV_MSG_API
+	SRV_MSG_POLICY_UPDATED
 )
 
 type serverMsg struct {
@@ -55,14 +57,16 @@ type peerMapInfo struct {
 }
 
 type BgpServer struct {
-	bgpConfig     config.Bgp
-	globalTypeCh  chan config.Global
-	addedPeerCh   chan config.Neighbor
-	deletedPeerCh chan config.Neighbor
-	RestReqCh     chan *api.RestRequest
-	listenPort    int
-	peerMap       map[string]peerMapInfo
-	globalRib     *Peer
+	bgpConfig      config.Bgp
+	globalTypeCh   chan config.Global
+	addedPeerCh    chan config.Neighbor
+	deletedPeerCh  chan config.Neighbor
+	RestReqCh      chan *api.RestRequest
+	listenPort     int
+	peerMap        map[string]peerMapInfo
+	globalRib      *Peer
+	policyUpdateCh chan config.RoutingPolicy
+	policyMap      map[string]*policy.Policy
 }
 
 func NewBgpServer(port int) *BgpServer {
@@ -71,6 +75,7 @@ func NewBgpServer(port int) *BgpServer {
 	b.addedPeerCh = make(chan config.Neighbor)
 	b.deletedPeerCh = make(chan config.Neighbor)
 	b.RestReqCh = make(chan *api.RestRequest, 1)
+	b.policyUpdateCh = make(chan config.RoutingPolicy)
 	b.listenPort = port
 	return &b
 }
@@ -112,7 +117,7 @@ func (server *BgpServer) Serve() {
 		NeighborAddress: g.RouterId,
 		AfiSafiList:     g.AfiSafiList,
 	}
-	server.globalRib = NewPeer(g, neighConf, globalSch, globalPch, nil, true)
+	server.globalRib = NewPeer(g, neighConf, globalSch, globalPch, nil, true, make(map[string]*policy.Policy))
 
 	listenerMap := make(map[string]*net.TCPListener)
 	acceptCh := make(chan *net.TCPConn)
@@ -175,7 +180,7 @@ func (server *BgpServer) Serve() {
 				}
 				l = []*serverMsgDataPeer{globalRib}
 			}
-			p := NewPeer(server.bgpConfig.Global, peer, sch, pch, l, false)
+			p := NewPeer(server.bgpConfig.Global, peer, sch, pch, l, false, server.policyMap)
 			d := &serverMsgDataPeer{
 				address:   peer.NeighborAddress,
 				peerMsgCh: pch,
@@ -219,7 +224,20 @@ func (server *BgpServer) Serve() {
 			}
 		case restReq := <-server.RestReqCh:
 			server.handleRest(restReq)
+		case pl := <-server.policyUpdateCh:
+			server.SetPolicy(pl)
+			msg := &serverMsg{
+				msgType: SRV_MSG_POLICY_UPDATED,
+				msgData: server.policyMap,
+			}
+			sendServerMsgToAll(server.peerMap, msg)
 		}
+	}
+}
+
+func sendServerMsgToAll(peerMap map[string]peerMapInfo, msg *serverMsg) {
+	for _, info := range peerMap {
+		info.serverMsgCh <- msg
 	}
 }
 
@@ -241,6 +259,19 @@ func (server *BgpServer) PeerAdd(peer config.Neighbor) {
 
 func (server *BgpServer) PeerDelete(peer config.Neighbor) {
 	server.deletedPeerCh <- peer
+}
+
+func (server *BgpServer) UpdatePolicy(policy config.RoutingPolicy) {
+	server.policyUpdateCh <- policy
+}
+
+func (server *BgpServer) SetPolicy(pl config.RoutingPolicy) {
+	pMap := make(map[string]*policy.Policy)
+	df := pl.DefinedSets
+	for _, p := range pl.PolicyDefinitionList {
+		pMap[p.Name] = policy.NewPolicy(p.Name, p, df)
+	}
+	server.policyMap = pMap
 }
 
 func (server *BgpServer) handleRest(restReq *api.RestRequest) {

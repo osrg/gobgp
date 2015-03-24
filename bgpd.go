@@ -136,11 +136,10 @@ func main() {
 		opts.ConfigFile = "gobgpd.conf"
 	}
 
-	configCh := make(chan config.Bgp)
+	configCh := make(chan config.BgpConfigSet)
 	reloadCh := make(chan bool)
 	go config.ReadConfigfileServe(opts.ConfigFile, configCh, reloadCh)
 	reloadCh <- true
-
 	bgpServer := server.NewBgpServer(bgp.BGP_PORT)
 	go bgpServer.Serve()
 
@@ -149,6 +148,7 @@ func main() {
 	go restServer.Serve()
 
 	var bgpConfig *config.Bgp = nil
+	var policyConfig *config.RoutingPolicy = nil
 	for {
 		select {
 		case newConfig := <-configCh:
@@ -156,12 +156,22 @@ func main() {
 			var deleted []config.Neighbor
 
 			if bgpConfig == nil {
-				bgpServer.SetGlobalType(newConfig.Global)
-				bgpConfig = &newConfig
-				added = newConfig.NeighborList
+				bgpServer.SetGlobalType(newConfig.Bgp.Global)
+				bgpConfig = &newConfig.Bgp
+				added = newConfig.Bgp.NeighborList
 				deleted = []config.Neighbor{}
 			} else {
-				bgpConfig, added, deleted = config.UpdateConfig(bgpConfig, &newConfig)
+				bgpConfig, added, deleted = config.UpdateConfig(bgpConfig, &newConfig.Bgp)
+			}
+
+			if policyConfig == nil {
+				policyConfig = &newConfig.Policy
+				bgpServer.SetPolicy(newConfig.Policy)
+			} else {
+				if res := config.CheckPolicyDifference(policyConfig, &newConfig.Policy); res {
+					log.Info("Policy config is updated")
+					bgpServer.UpdatePolicy(newConfig.Policy)
+				}
 			}
 
 			for _, p := range added {

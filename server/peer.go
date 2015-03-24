@@ -21,6 +21,7 @@ import (
 	"github.com/osrg/gobgp/api"
 	"github.com/osrg/gobgp/config"
 	"github.com/osrg/gobgp/packet"
+	"github.com/osrg/gobgp/policy"
 	"github.com/osrg/gobgp/table"
 	"gopkg.in/tomb.v2"
 	"net"
@@ -57,16 +58,20 @@ type Peer struct {
 	adjRib         *table.AdjRib
 	// peer and rib are always not one-to-one so should not be
 	// here but it's the simplest and works our first target.
-	rib         *table.TableManager
-	isGlobalRib bool
-	rfMap       map[bgp.RouteFamily]bool
-	capMap      map[bgp.BGPCapabilityCode]bgp.ParameterCapabilityInterface
-	peerInfo    *table.PeerInfo
-	siblings    map[string]*serverMsgDataPeer
-	outgoing    chan *bgp.BGPMessage
+	rib                 *table.TableManager
+	isGlobalRib         bool
+	rfMap               map[bgp.RouteFamily]bool
+	capMap              map[bgp.BGPCapabilityCode]bgp.ParameterCapabilityInterface
+	peerInfo            *table.PeerInfo
+	siblings            map[string]*serverMsgDataPeer
+	outgoing            chan *bgp.BGPMessage
+	importPolicies      []*policy.Policy
+	defaultImportPolicy config.DefaultPolicyType
+	exportPolicies      []*policy.Policy
+	defaultExportPolicy config.DefaultPolicyType
 }
 
-func NewPeer(g config.Global, peer config.Neighbor, serverMsgCh chan *serverMsg, peerMsgCh chan *peerMsg, peerList []*serverMsgDataPeer, isGlobalRib bool) *Peer {
+func NewPeer(g config.Global, peer config.Neighbor, serverMsgCh chan *serverMsg, peerMsgCh chan *peerMsg, peerList []*serverMsgDataPeer, isGlobalRib bool, policyMap map[string]*policy.Policy) *Peer {
 	p := &Peer{
 		globalConfig:   g,
 		peerConfig:     peer,
@@ -96,8 +101,38 @@ func NewPeer(g config.Global, peer config.Neighbor, serverMsgCh chan *serverMsg,
 	rfList := p.configuredRFlist()
 	p.adjRib = table.NewAdjRib(rfList)
 	p.rib = table.NewTableManager(p.peerConfig.NeighborAddress.String(), rfList)
+	p.setPolicy(policyMap)
 	p.t.Go(p.loop)
 	return p
+}
+
+func (peer *Peer) setPolicy(policyMap map[string]*policy.Policy) {
+	// configure import policy
+	policyConfig := peer.peerConfig.ApplyPolicy
+	inPolicies := make([]*policy.Policy, 0)
+	for _, policyName := range policyConfig.ImportPolicies {
+		log.WithFields(log.Fields{
+			"Topic":      "Peer",
+			"Key":        peer.peerConfig.NeighborAddress,
+			"PolicyName": policyName,
+		}).Info("import policy installed")
+		log.Debug("import policy : ", policyMap[policyName])
+		inPolicies = append(inPolicies, policyMap[policyName])
+	}
+	peer.importPolicies = inPolicies
+
+	// configure export policy
+	outPolicies := make([]*policy.Policy, 0)
+	for _, policyName := range policyConfig.ExportPolicies {
+		log.WithFields(log.Fields{
+			"Topic":      "Peer",
+			"Key":        peer.peerConfig.NeighborAddress,
+			"PolicyName": policyName,
+		}).Info("export policy installed")
+		log.Debug("export policy : ", policyMap[policyName])
+		outPolicies = append(outPolicies, policyMap[policyName])
+	}
+	peer.exportPolicies = outPolicies
 }
 
 func (peer *Peer) configuredRFlist() []bgp.RouteFamily {
@@ -317,9 +352,44 @@ func (peer *Peer) handleREST(restReq *api.RestRequest) {
 func (peer *Peer) sendUpdateMsgFromPaths(pList []table.Path) {
 	pList = table.CloneAndUpdatePathAttrs(pList, &peer.globalConfig, &peer.peerConfig)
 
-	peer.adjRib.UpdateOut(pList)
-	sendpathList := []table.Path{}
+	paths := []table.Path{}
+	policies := peer.exportPolicies
+	log.WithFields(log.Fields{
+		"Topic": "Peer",
+		"Key":   peer.peerConfig.NeighborAddress,
+	}).Debug("Export Policies :", policies)
 	for _, p := range pList {
+		if p.IsWithdraw() {
+			paths = append(paths, p)
+			continue
+		}
+		log.Debug("p: ", p)
+		if len(policies) != 0 {
+			applied, newPath := applyPolicies(policies, &p)
+
+			if applied {
+				if newPath != nil {
+					log.Debug("path accepted")
+					paths = append(paths, *newPath)
+				} else {
+					log.Debug("path was rejected: ", p)
+				}
+
+			} else {
+				if peer.defaultExportPolicy == config.DEFAULT_POLICY_TYPE_ACCEPT_ROUTE {
+					paths = append(paths, p)
+					log.Debug("path is emitted by default export policy: ", p)
+				}
+			}
+		} else {
+			paths = append(paths, p)
+		}
+
+	}
+
+	peer.adjRib.UpdateOut(paths)
+	sendpathList := []table.Path{}
+	for _, p := range paths {
 		_, ok := peer.rfMap[p.GetRouteFamily()]
 
 		if peer.peerConfig.NeighborAddress.Equal(p.GetNexthop()) {
@@ -337,18 +407,99 @@ func (peer *Peer) sendUpdateMsgFromPaths(pList []table.Path) {
 	peer.sendMessages(table.CreateUpdateMsgFromPaths(sendpathList))
 }
 
+// apply policies to the path
+// if multiple policies are defined,
+// this function applies each policy to the path in the order that
+// policies are stored in the array passed to this function.
+//
+// the way of applying statements inside a single policy
+//   - apply statement until the condition in the statement matches.
+//     if the condition matches the path, apply the action on the statement and
+//     return value that indicates 'applied' to caller of this function
+//   - if no statement applied, then process the next policy
+//
+// if no policy applied, return value that indicates 'not applied' to the caller of this function
+//
+// return values:
+//	bool -- indicates that any of policy applied to the path that is passed to this function
+//  table.Path -- indicates new path object that is the result of modification according to
+//                policy's action.
+//                If the applied policy doesn't have a modification action,
+//                then return the path itself that is passed to this function, otherwise return
+//                modified path.
+//                If action of the policy is 'reject', return nil
+//
+func applyPolicies(policies []*policy.Policy, original *table.Path) (bool, *table.Path) {
+
+	var applied bool = true
+
+	for _, pol := range policies {
+		if result, action, newpath := pol.Apply(*original); result {
+			log.Debug("newpath: ", newpath)
+			if action == policy.ROUTE_TYPE_REJECT {
+				log.Debug("path was rejected: ", original)
+				// return applied, nil, this means path was rejected
+				return applied, nil
+			} else {
+				// return applied, new path
+				return applied, &newpath
+			}
+		}
+	}
+	log.Debug("no policy applied.", original)
+	// return not applied, original path
+	return !applied, original
+}
+
 func (peer *Peer) handlePeerMsg(m *peerMsg) {
 	switch m.msgType {
 	case PEER_MSG_PATH:
 		pList := m.msgData.([]table.Path)
+		paths := []table.Path{}
+
+		policies := peer.importPolicies
+		log.WithFields(log.Fields{
+			"Topic": "Peer",
+			"Key":   peer.peerConfig.NeighborAddress,
+		}).Debug("Import Policies :", policies)
+
+		for _, p := range pList {
+			log.Debug("p: ", p)
+			if !p.IsWithdraw() {
+				log.Debug("is not withdraw")
+
+				if len(policies) != 0 {
+					applied, newPath := applyPolicies(policies, &p)
+
+					if applied {
+						if newPath != nil {
+							log.Debug("path accepted")
+							paths = append(paths, *newPath)
+						}
+					} else {
+						if peer.defaultImportPolicy == config.DEFAULT_POLICY_TYPE_ACCEPT_ROUTE {
+							paths = append(paths, p)
+							log.Debug("path accepted by default import policy: ", p)
+						}
+					}
+				} else {
+					paths = append(paths, p)
+				}
+			} else {
+				log.Debug("is withdraw")
+				paths = append(paths, p)
+			}
+		}
+		log.Debug("length of paths: ", len(paths))
+
 		if peer.peerConfig.RouteServer.RouteServerClient || peer.isGlobalRib {
-			pList, _ = peer.rib.ProcessPaths(pList)
+			paths, _ = peer.rib.ProcessPaths(paths)
 		}
 
 		if peer.isGlobalRib {
-			peer.sendPathsToSiblings(pList)
+			peer.sendPathsToSiblings(paths)
 		} else {
-			peer.sendUpdateMsgFromPaths(pList)
+			peer.sendUpdateMsgFromPaths(paths)
 		}
 
 	case PEER_MSG_PEER_DOWN:
@@ -392,6 +543,10 @@ func (peer *Peer) handleServerMsg(m *serverMsg) {
 		}
 	case SRV_MSG_API:
 		peer.handleREST(m.msgData.(*api.RestRequest))
+	case SRV_MSG_POLICY_UPDATED:
+		log.Debug("policy updated")
+		d := m.msgData.(map[string]*policy.Policy)
+		peer.setPolicy(d)
 	default:
 		log.Fatal("unknown server msg type ", m.msgType)
 	}
