@@ -14,14 +14,14 @@ func TestPathNewIPv4(t *testing.T) {
 	peerP := PathCreatePeer()
 	msgP := PathCreateMSG(peerP)
 	pathP := PathCreatePath(msgP)
-	ipv4p := NewIPv4Path(pathP[0].getSource(), pathP[0].getNlri(), true, pathP[0].getPathAttrs(), pathP[0].getMedSetByTargetNeighbor(), time.Now())
+	ipv4p := NewIPv4Path(pathP[0].GetSource(), pathP[0].GetNlri(), true, pathP[0].getPathAttrs(), pathP[0].getMedSetByTargetNeighbor(), time.Now())
 	assert.NotNil(t, ipv4p)
 }
 func TestPathNewIPv6(t *testing.T) {
 	peerP := PathCreatePeer()
 	msgP := PathCreateMSG(peerP)
 	pathP := PathCreatePath(msgP)
-	ipv6p := NewIPv6Path(pathP[0].getSource(), pathP[0].getNlri(), true, pathP[0].getPathAttrs(), pathP[0].getMedSetByTargetNeighbor(), time.Now())
+	ipv6p := NewIPv6Path(pathP[0].GetSource(), pathP[0].GetNlri(), true, pathP[0].getPathAttrs(), pathP[0].getMedSetByTargetNeighbor(), time.Now())
 	assert.NotNil(t, ipv6p)
 }
 
@@ -67,7 +67,7 @@ func TestPathSetSource(t *testing.T) {
 	pd := &PathDefault{}
 	pr := &PeerInfo{AS: 65000}
 	pd.setSource(pr)
-	r_pr := pd.getSource()
+	r_pr := pd.GetSource()
 	assert.Equal(t, r_pr, pr)
 }
 
@@ -75,7 +75,7 @@ func TestPathGetSource(t *testing.T) {
 	pd := &PathDefault{}
 	pr := &PeerInfo{AS: 65001}
 	pd.setSource(pr)
-	r_pr := pd.getSource()
+	r_pr := pd.GetSource()
 	assert.Equal(t, r_pr, pr)
 }
 
@@ -116,7 +116,7 @@ func TestPathGetNlri(t *testing.T) {
 	pd := &PathDefault{
 		nlri: nlri,
 	}
-	r_nlri := pd.getNlri()
+	r_nlri := pd.GetNlri()
 	assert.Equal(t, r_nlri, nlri)
 }
 

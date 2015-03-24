@@ -33,12 +33,12 @@ type Path interface {
 	updatePathAttrs(global *config.Global, peer *config.Neighbor)
 	GetRouteFamily() bgp.RouteFamily
 	setSource(source *PeerInfo)
-	getSource() *PeerInfo
+	GetSource() *PeerInfo
 	setNexthop(nexthop net.IP)
 	GetNexthop() net.IP
 	setWithdraw(withdraw bool)
 	IsWithdraw() bool
-	getNlri() bgp.AddrPrefixInterface
+	GetNlri() bgp.AddrPrefixInterface
 	getPrefix() string
 	setMedSetByTargetNeighbor(medSetByTargetNeighbor bool)
 	getMedSetByTargetNeighbor() bool
@@ -217,7 +217,7 @@ func (pd *PathDefault) GetRouteFamily() bgp.RouteFamily {
 func (pd *PathDefault) setSource(source *PeerInfo) {
 	pd.source = source
 }
-func (pd *PathDefault) getSource() *PeerInfo {
+func (pd *PathDefault) GetSource() *PeerInfo {
 	return pd.source
 }
 
@@ -237,7 +237,7 @@ func (pd *PathDefault) IsWithdraw() bool {
 	return pd.withdraw
 }
 
-func (pd *PathDefault) getNlri() bgp.AddrPrefixInterface {
+func (pd *PathDefault) GetNlri() bgp.AddrPrefixInterface {
 	return pd.nlri
 }
 
@@ -282,7 +282,7 @@ func (pd *PathDefault) getPathAttr(pattrType bgp.BGPAttrType) (int, bgp.PathAttr
 
 // return Path's string representation
 func (pi *PathDefault) String() string {
-	str := fmt.Sprintf("IPv4Path Source: %v, ", pi.getSource())
+	str := fmt.Sprintf("IPv4Path Source: %v, ", pi.GetSource())
 	str = str + fmt.Sprintf(" NLRI: %s, ", pi.getPrefix())
 	str = str + fmt.Sprintf(" nexthop: %s, ", pi.GetNexthop().String())
 	str = str + fmt.Sprintf(" withdraw: %s, ", pi.IsWithdraw())
@@ -383,7 +383,7 @@ func (ipv6p *IPv6Path) getPrefix() string {
 
 // return IPv6Path's string representation
 func (ipv6p *IPv6Path) String() string {
-	str := fmt.Sprintf("IPv6Path Source: %v, ", ipv6p.getSource())
+	str := fmt.Sprintf("IPv6Path Source: %v, ", ipv6p.GetSource())
 	str = str + fmt.Sprintf(" NLRI: %s, ", ipv6p.getPrefix())
 	str = str + fmt.Sprintf(" nexthop: %s, ", ipv6p.GetNexthop().String())
 	str = str + fmt.Sprintf(" withdraw: %s, ", ipv6p.IsWithdraw())
@@ -439,7 +439,7 @@ func (ipv4vpnp *IPv4VPNPath) getPrefix() string {
 
 // return IPv4VPNPath's string representation
 func (ipv4vpnp *IPv4VPNPath) String() string {
-	str := fmt.Sprintf("IPv4VPNPath Source: %v, ", ipv4vpnp.getSource())
+	str := fmt.Sprintf("IPv4VPNPath Source: %v, ", ipv4vpnp.GetSource())
 	str = str + fmt.Sprintf(" NLRI: %s, ", ipv4vpnp.getPrefix())
 	str = str + fmt.Sprintf(" nexthop: %s, ", ipv4vpnp.GetNexthop().String())
 	str = str + fmt.Sprintf(" withdraw: %s, ", ipv4vpnp.IsWithdraw())
@@ -496,7 +496,7 @@ func (evpnp *EVPNPath) getPrefix() string {
 
 // return EVPNPath's string representation
 func (evpnp *EVPNPath) String() string {
-	str := fmt.Sprintf("EVPNPath Source: %v, ", evpnp.getSource())
+	str := fmt.Sprintf("EVPNPath Source: %v, ", evpnp.GetSource())
 	str = str + fmt.Sprintf(" NLRI: %s, ", evpnp.getPrefix())
 	str = str + fmt.Sprintf(" nexthop: %s, ", evpnp.GetNexthop().String())
 	str = str + fmt.Sprintf(" withdraw: %s, ", evpnp.IsWithdraw())

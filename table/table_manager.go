@@ -177,7 +177,7 @@ func (manager *TableManager) calculate(destinationList []Destination) ([]Path, e
 				"Topic":    "table",
 				"Owner":    manager.owner,
 				"Key":      destination.getNlri().String(),
-				"peer":     newBestPath.getSource().Address,
+				"peer":     newBestPath.GetSource().Address,
 				"next_hop": newBestPath.GetNexthop().String(),
 				"reason":   reason,
 			}).Debug("best path is not changed")
@@ -198,7 +198,7 @@ func (manager *TableManager) calculate(destinationList []Destination) ([]Path, e
 						"Topic":    "table",
 						"Owner":    manager.owner,
 						"Key":      destination.getNlri().String(),
-						"peer":     currentBestPath.getSource().Address,
+						"peer":     currentBestPath.GetSource().Address,
 						"next_hop": currentBestPath.GetNexthop().String(),
 					}).Debug("best path is lost")
 
@@ -219,8 +219,8 @@ func (manager *TableManager) calculate(destinationList []Destination) ([]Path, e
 			log.WithFields(log.Fields{
 				"Topic":    "table",
 				"Owner":    manager.owner,
-				"Key":      newBestPath.getNlri().String(),
-				"peer":     newBestPath.getSource().Address,
+				"Key":      newBestPath.GetNlri().String(),
+				"peer":     newBestPath.GetSource().Address,
 				"next_hop": newBestPath.GetNexthop(),
 				"reason":   reason,
 			}).Debug("new best path")
@@ -343,7 +343,7 @@ func (adj *AdjRib) UpdateOut(pathList []Path) {
 func (adj *AdjRib) getPathList(rib map[string]*ReceivedRoute) []Path {
 	trie := patricia.NewTrie()
 	for _, rr := range rib {
-		key := rr.path.getNlri().String()
+		key := rr.path.GetNlri().String()
 		trie.Insert(cidr2prefix(key), rr.path)
 	}
 

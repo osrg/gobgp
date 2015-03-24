@@ -182,7 +182,7 @@ func (dd *DestinationDefault) removeOldPathsFromSource(source *PeerInfo) []Path 
 	tempKnownPathList := make([]Path, 0)
 
 	for _, path := range dd.knownPathList {
-		if path.getSource() == source {
+		if path.GetSource() == source {
 			removePaths = append(removePaths, path)
 		} else {
 			tempKnownPathList = append(tempKnownPathList, path)
@@ -301,7 +301,7 @@ func (dest *DestinationDefault) removeWithdrawls() {
 		for _, path := range dest.knownPathList {
 			// We have a match if the source are same.
 			// TODO add GetSource to Path interface
-			if path.getSource() == withdraw.getSource() {
+			if path.GetSource() == withdraw.GetSource() {
 				isFound = true
 				matches[path.String()] = path
 				wMatches[withdraw.String()] = withdraw
@@ -400,7 +400,7 @@ func (dest *DestinationDefault) removeOldPaths() {
 			// version num. as newPaths are implicit withdrawal of old
 			// paths and when doing RouteRefresh (not EnhancedRouteRefresh)
 			// we get same paths again.
-			if newPath.getSource() == path.getSource() {
+			if newPath.GetSource() == path.GetSource() {
 				oldPaths = append(oldPaths, path)
 				break
 			}
@@ -596,17 +596,17 @@ func compareByLocalOrigin(path1, path2 Path) Path {
 	//	"""
 	//	# If both paths are from same sources we cannot compare them here.
 	log.Debugf("enter compareByLocalOrigin")
-	if path1.getSource() == path2.getSource() {
+	if path1.GetSource() == path2.GetSource() {
 		return nil
 	}
 
 	//	# Here we consider prefix from NC as locally originating static route.
 	//	# Hence it is preferred.
-	if path1.getSource() == nil {
+	if path1.GetSource() == nil {
 		return path1
 	}
 
-	if path2.getSource() == nil {
+	if path2.GetSource() == nil {
 		return path2
 	}
 	return nil
@@ -726,10 +726,10 @@ func compareByASNumber(localAsn uint32, path1, path2 Path) Path {
 	log.Debugf("enter compareByASNumber")
 	getPathSourceAsn := func(path Path) uint32 {
 		var asn uint32
-		if path.getSource() == nil {
+		if path.GetSource() == nil {
 			asn = localAsn
 		} else {
-			asn = path.getSource().AS
+			asn = path.GetSource().AS
 		}
 		return asn
 	}
@@ -786,8 +786,8 @@ func compareByRouterID(localAsn uint32, path1, path2 Path) (Path, error) {
 		}
 	}
 
-	pathSource1 := path1.getSource()
-	pathSource2 := path2.getSource()
+	pathSource1 := path1.GetSource()
+	pathSource2 := path2.GetSource()
 
 	// If both paths are from NC we have same router Id, hence cannot compare.
 	if pathSource1 == nil && pathSource2 == nil {

@@ -101,8 +101,8 @@ func insert(table Table, path Path) Destination {
 	var dest Destination
 
 	table.validatePath(path)
-	table.validateNlri(path.getNlri())
-	dest = getOrCreateDest(table, path.getNlri())
+	table.validateNlri(path.GetNlri())
+	dest = getOrCreateDest(table, path.GetNlri())
 
 	if path.IsWithdraw() {
 		// withdraw insert
@@ -136,7 +136,7 @@ func (td *TableDefault) DeleteDestByPeer(peerInfo *PeerInfo) []Destination {
 	for _, dest := range td.destinations {
 		newKnownPathList := make([]Path, 0)
 		for _, p := range dest.getKnownPathList() {
-			if p.getSource() != peerInfo {
+			if p.GetSource() != peerInfo {
 				newKnownPathList = append(newKnownPathList, p)
 			}
 		}
@@ -174,7 +174,7 @@ func (td *TableDefault) validatePath(path Path) {
 			log.WithFields(log.Fields{
 				"Topic":      "Table",
 				"Key":        td.ROUTE_FAMILY,
-				"Prefix":     path.getNlri().String(),
+				"Prefix":     path.GetNlri().String(),
 				"ReceivedRf": path.GetRouteFamily().String(),
 			}).Error("Invalid path. RouteFamily mismatch")
 		}
