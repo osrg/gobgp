@@ -2264,10 +2264,11 @@ func NewPathAttributeClusterList(value []string) *PathAttributeClusterList {
 
 type PathAttributeMpReachNLRI struct {
 	PathAttribute
-	Nexthop net.IP
-	AFI     uint16
-	SAFI    uint8
-	Value   []AddrPrefixInterface
+	Nexthop          net.IP
+	LinkLocalNexthop net.IP
+	AFI              uint16
+	SAFI             uint8
+	Value            []AddrPrefixInterface
 }
 
 func (p *PathAttributeMpReachNLRI) DecodeFromBytes(data []byte) error {
@@ -2302,13 +2303,22 @@ func (p *PathAttributeMpReachNLRI) DecodeFromBytes(data []byte) error {
 			offset = 8
 		}
 		addrlen := 4
+		hasLinkLocal := false
+
 		if afi == AFI_IP6 {
 			addrlen = 16
+			hasLinkLocal = len(nexthopbin) == offset+2*addrlen
 		}
-		if len(nexthopbin) != offset+addrlen {
+
+		isValid := len(nexthopbin) == offset+addrlen || hasLinkLocal
+
+		if !isValid {
 			return NewMessageError(eCode, eSubCode, value, "mpreach nexthop length is incorrect")
 		}
 		p.Nexthop = nexthopbin[offset : +offset+addrlen]
+		if hasLinkLocal {
+			p.LinkLocalNexthop = nexthopbin[offset+addrlen : offset+2*addrlen]
+		}
 	}
 	// skip reserved
 	if len(value) == 0 {
