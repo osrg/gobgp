@@ -40,6 +40,7 @@ type fsmMsg struct {
 
 const (
 	HOLDTIME_OPENSENT = 240
+	HOLDTIME_IDLE     = 5
 )
 
 type AdminState int
@@ -65,8 +66,8 @@ type FSM struct {
 	peerConfig         *config.Neighbor
 	keepaliveTicker    *time.Ticker
 	state              bgp.FSMState
-	passiveConn        net.Conn
-	passiveConnCh      chan net.Conn
+	conn               net.Conn
+	connCh             chan net.Conn
 	idleHoldTime       float64
 	opensentHoldTime   float64
 	negotiatedHoldTime float64
@@ -127,7 +128,7 @@ func NewFSM(gConfig *config.Global, pConfig *config.Neighbor, connCh chan net.Co
 		globalConfig:     gConfig,
 		peerConfig:       pConfig,
 		state:            bgp.BGP_FSM_IDLE,
-		passiveConnCh:    connCh,
+		connCh:           connCh,
 		opensentHoldTime: float64(HOLDTIME_OPENSENT),
 		adminState:       ADMIN_STATE_UP,
 		adminStateCh:     make(chan AdminState, 1),
@@ -142,6 +143,18 @@ func (fsm *FSM) StateChange(nextState bgp.FSMState) {
 		"new":   nextState.String(),
 	}).Debug("state changed")
 	fsm.state = nextState
+}
+
+func (fsm *FSM) LocalAddr() net.IP {
+	addr := fsm.conn.LocalAddr()
+	if addr != nil {
+		host, _, err := net.SplitHostPort(addr.String())
+		if err != nil {
+			return nil
+		}
+		return net.ParseIP(host)
+	}
+	return nil
 }
 
 func (fsm *FSM) sendNotificatonFromErrorMsg(conn net.Conn, e *bgp.MessageError) {
@@ -211,7 +224,7 @@ func (h *FSMHandler) idle() bgp.FSMState {
 		select {
 		case <-h.t.Dying():
 			return 0
-		case conn, ok := <-fsm.passiveConnCh:
+		case conn, ok := <-fsm.connCh:
 			if !ok {
 				break
 			}
@@ -228,7 +241,7 @@ func (h *FSMHandler) idle() bgp.FSMState {
 					"Key":      fsm.peerConfig.NeighborAddress,
 					"Duration": fsm.idleHoldTime,
 				}).Debug("IdleHoldTimer expired")
-				fsm.idleHoldTime = 0
+				fsm.idleHoldTime = HOLDTIME_IDLE
 				return bgp.BGP_FSM_ACTIVE
 
 			} else {
@@ -258,11 +271,11 @@ func (h *FSMHandler) active() bgp.FSMState {
 		select {
 		case <-h.t.Dying():
 			return 0
-		case conn, ok := <-fsm.passiveConnCh:
+		case conn, ok := <-fsm.connCh:
 			if !ok {
 				break
 			}
-			fsm.passiveConn = conn
+			fsm.conn = conn
 			// we don't implement delayed open timer so move to opensent right
 			// away.
 			return bgp.BGP_FSM_OPENSENT
@@ -393,11 +406,11 @@ func (h *FSMHandler) opensent() bgp.FSMState {
 	fsm := h.fsm
 	m := buildopen(fsm.globalConfig, fsm.peerConfig)
 	b, _ := m.Serialize()
-	fsm.passiveConn.Write(b)
+	fsm.conn.Write(b)
 	fsm.bgpMessageStateUpdate(m.Header.Type, false)
 
 	h.msgCh = make(chan *fsmMsg)
-	h.conn = fsm.passiveConn
+	h.conn = fsm.conn
 
 	h.t.Go(h.recvMessage)
 
@@ -412,7 +425,7 @@ func (h *FSMHandler) opensent() bgp.FSMState {
 		case <-h.t.Dying():
 			h.conn.Close()
 			return 0
-		case conn, ok := <-fsm.passiveConnCh:
+		case conn, ok := <-fsm.connCh:
 			if !ok {
 				break
 			}
@@ -440,7 +453,7 @@ func (h *FSMHandler) opensent() bgp.FSMState {
 					h.incoming <- e
 					msg := bgp.NewBGPKeepAliveMessage()
 					b, _ := msg.Serialize()
-					fsm.passiveConn.Write(b)
+					fsm.conn.Write(b)
 					fsm.bgpMessageStateUpdate(msg.Header.Type, false)
 					return bgp.BGP_FSM_OPENCONFIRM
 				} else {
@@ -489,7 +502,7 @@ func (h *FSMHandler) openconfirm() bgp.FSMState {
 	fsm := h.fsm
 
 	h.msgCh = make(chan *fsmMsg)
-	h.conn = fsm.passiveConn
+	h.conn = fsm.conn
 
 	h.t.Go(h.recvMessage)
 
@@ -510,7 +523,7 @@ func (h *FSMHandler) openconfirm() bgp.FSMState {
 		case <-h.t.Dying():
 			h.conn.Close()
 			return 0
-		case conn, ok := <-fsm.passiveConnCh:
+		case conn, ok := <-fsm.connCh:
 			if !ok {
 				break
 			}
@@ -523,7 +536,7 @@ func (h *FSMHandler) openconfirm() bgp.FSMState {
 			m := bgp.NewBGPKeepAliveMessage()
 			b, _ := m.Serialize()
 			// TODO: check error
-			fsm.passiveConn.Write(b)
+			fsm.conn.Write(b)
 			fsm.bgpMessageStateUpdate(m.Header.Type, false)
 		case e := <-h.msgCh:
 			switch e.MsgData.(type) {
@@ -667,7 +680,7 @@ func (h *FSMHandler) recvMessageloop() error {
 
 func (h *FSMHandler) established() bgp.FSMState {
 	fsm := h.fsm
-	h.conn = fsm.passiveConn
+	h.conn = fsm.conn
 	h.t.Go(h.sendMessageloop)
 	h.msgCh = h.incoming
 	h.t.Go(h.recvMessageloop)
@@ -683,7 +696,7 @@ func (h *FSMHandler) established() bgp.FSMState {
 		select {
 		case <-h.t.Dying():
 			return 0
-		case conn, ok := <-fsm.passiveConnCh:
+		case conn, ok := <-fsm.connCh:
 			if !ok {
 				break
 			}

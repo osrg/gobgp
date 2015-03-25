@@ -121,6 +121,12 @@ func (m *MockConnection) Close() error {
 	return nil
 }
 
+func (m *MockConnection) LocalAddr() net.Addr {
+	return &net.TCPAddr{
+		IP:   net.ParseIP("10.10.10.10"),
+		Port: bgp.BGP_PORT}
+}
+
 func TestReadAll(t *testing.T) {
 	assert := assert.New(t)
 	m := NewMockConnection()
@@ -157,7 +163,7 @@ func TestFSMHandlerOpensent_HoldTimerExpired(t *testing.T) {
 	p, h := makePeerAndHandler()
 
 	// push mock connection
-	p.fsm.passiveConn = m
+	p.fsm.conn = m
 
 	// set up keepalive ticker
 	sec := time.Second * 1
@@ -183,7 +189,7 @@ func TestFSMHandlerOpenconfirm_HoldTimerExpired(t *testing.T) {
 	p, h := makePeerAndHandler()
 
 	// push mock connection
-	p.fsm.passiveConn = m
+	p.fsm.conn = m
 
 	// set up keepalive ticker
 	p.fsm.peerConfig.Timers.KeepaliveInterval = 1
@@ -207,7 +213,7 @@ func TestFSMHandlerEstablish_HoldTimerExpired(t *testing.T) {
 	p, h := makePeerAndHandler()
 
 	// push mock connection
-	p.fsm.passiveConn = m
+	p.fsm.conn = m
 
 	// set up keepalive ticker
 	sec := time.Second * 1
@@ -245,7 +251,7 @@ func TestFSMHandlerOpenconfirm_HoldtimeZero(t *testing.T) {
 	p, h := makePeerAndHandler()
 
 	// push mock connection
-	p.fsm.passiveConn = m
+	p.fsm.conn = m
 
 	// set up keepalive ticker
 	p.fsm.peerConfig.Timers.KeepaliveInterval = 1
@@ -267,7 +273,7 @@ func TestFSMHandlerEstablished_HoldtimeZero(t *testing.T) {
 	p, h := makePeerAndHandler()
 
 	// push mock connection
-	p.fsm.passiveConn = m
+	p.fsm.conn = m
 
 	// set up keepalive ticker
 	sec := time.Second * 1
@@ -288,16 +294,17 @@ func makePeerAndHandler() (*Peer, *FSMHandler) {
 	neighborConfig := config.Neighbor{}
 
 	p := &Peer{
-		globalConfig:   globalConfig,
-		peerConfig:     neighborConfig,
-		acceptedConnCh: make(chan net.Conn),
-		serverMsgCh:    make(chan *serverMsg),
-		peerMsgCh:      make(chan *peerMsg),
-		capMap:         make(map[bgp.BGPCapabilityCode]bgp.ParameterCapabilityInterface),
+		globalConfig: globalConfig,
+		peerConfig:   neighborConfig,
+		connCh:       make(chan net.Conn),
+		serverMsgCh:  make(chan *serverMsg),
+		peerMsgCh:    make(chan *peerMsg),
+		getActiveCh:  make(chan struct{}),
+		capMap:       make(map[bgp.BGPCapabilityCode]bgp.ParameterCapabilityInterface),
 	}
 
 	p.siblings = make(map[string]*serverMsgDataPeer)
-	p.fsm = NewFSM(&globalConfig, &neighborConfig, p.acceptedConnCh)
+	p.fsm = NewFSM(&globalConfig, &neighborConfig, p.connCh)
 
 	incoming := make(chan *fsmMsg, FSM_CHANNEL_LENGTH)
 	p.outgoing = make(chan *bgp.BGPMessage, FSM_CHANNEL_LENGTH)
@@ -308,6 +315,7 @@ func makePeerAndHandler() (*Peer, *FSMHandler) {
 		incoming: incoming,
 		outgoing: p.outgoing,
 	}
+	p.t.Go(p.connectLoop)
 
 	return p, h
 
