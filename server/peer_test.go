@@ -120,7 +120,7 @@ func TestPeerAdminShutdownWhileEstablished(t *testing.T) {
 	go pushPackets()
 
 	waitUntil(assert, bgp.BGP_FSM_ACTIVE, peer, 1000)
-	peer.acceptedConnCh <- m
+	peer.connCh <- m
 	waitUntil(assert, bgp.BGP_FSM_ESTABLISHED, peer, 1000)
 
 	restReq := api.NewRestRequest(api.REQ_NEIGHBOR_DISABLE, "0.0.0.0", bgp.RF_IPv4_UC)
@@ -235,7 +235,7 @@ func TestPeerAdminShutdownWhileOpensent(t *testing.T) {
 	peer.t.Go(peer.loop)
 
 	waitUntil(assert, bgp.BGP_FSM_ACTIVE, peer, 1000)
-	peer.acceptedConnCh <- m
+	peer.connCh <- m
 	waitUntil(assert, bgp.BGP_FSM_OPENSENT, peer, 1000)
 
 	restReq := api.NewRestRequest(api.REQ_NEIGHBOR_DISABLE, "0.0.0.0", bgp.RF_IPv4_UC)
@@ -280,7 +280,7 @@ func TestPeerAdminShutdownWhileOpenconfirm(t *testing.T) {
 	}
 	go pushPackets()
 	waitUntil(assert, bgp.BGP_FSM_ACTIVE, peer, 1000)
-	peer.acceptedConnCh <- m
+	peer.connCh <- m
 	waitUntil(assert, bgp.BGP_FSM_OPENCONFIRM, peer, 1000)
 
 	restReq := api.NewRestRequest(api.REQ_NEIGHBOR_DISABLE, "0.0.0.0", bgp.RF_IPv4_UC)
@@ -330,7 +330,7 @@ func TestPeerAdminEnable(t *testing.T) {
 	go pushPackets()
 
 	waitUntil(assert, bgp.BGP_FSM_ACTIVE, peer, 1000)
-	peer.acceptedConnCh <- m
+	peer.connCh <- m
 	waitUntil(assert, bgp.BGP_FSM_ESTABLISHED, peer, 1000)
 
 	// shutdown peer at first
@@ -361,7 +361,7 @@ func TestPeerAdminEnable(t *testing.T) {
 	json.Unmarshal(result.Data, &res)
 	assert.Equal("ADMIN_STATE_UP", res["result"])
 
-	waitUntil(assert, bgp.BGP_FSM_ACTIVE, peer, 1000)
+	waitUntil(assert, bgp.BGP_FSM_ACTIVE, peer, (HOLDTIME_IDLE+1)*1000)
 	assert.Equal(bgp.BGP_FSM_ACTIVE, peer.fsm.state)
 
 	m2 := NewMockConnection()
@@ -373,7 +373,7 @@ func TestPeerAdminEnable(t *testing.T) {
 	}
 	go pushPackets()
 
-	peer.acceptedConnCh <- m2
+	peer.connCh <- m2
 
 	waitUntil(assert, bgp.BGP_FSM_ESTABLISHED, peer, 1000)
 	assert.Equal(bgp.BGP_FSM_ESTABLISHED, peer.fsm.state)
@@ -394,7 +394,7 @@ func TestPeerAdminShutdownReject(t *testing.T) {
 	peer.t.Go(peer.loop)
 
 	waitUntil(assert, bgp.BGP_FSM_ACTIVE, peer, 1000)
-	peer.acceptedConnCh <- m
+	peer.connCh <- m
 	waitUntil(assert, bgp.BGP_FSM_OPENSENT, peer, 1000)
 
 	restReq := api.NewRestRequest(api.REQ_NEIGHBOR_DISABLE, "0.0.0.0", bgp.RF_IPv4_UC)
@@ -451,7 +451,7 @@ func TestPeerSelectSmallerHoldtime(t *testing.T) {
 	go pushPackets()
 
 	waitUntil(assert, bgp.BGP_FSM_ACTIVE, peer, 1000)
-	peer.acceptedConnCh <- m
+	peer.connCh <- m
 	waitUntil(assert, bgp.BGP_FSM_OPENCONFIRM, peer, 1000)
 
 	assert.Equal(float64(0), peer.fsm.negotiatedHoldTime)
@@ -500,17 +500,18 @@ func makePeer(globalConfig config.Global, peerConfig config.Neighbor) *Peer {
 	pch := make(chan *peerMsg, 4096)
 
 	p := &Peer{
-		globalConfig:   globalConfig,
-		peerConfig:     peerConfig,
-		acceptedConnCh: make(chan net.Conn),
-		serverMsgCh:    sch,
-		peerMsgCh:      pch,
-		rfMap:          make(map[bgp.RouteFamily]bool),
-		capMap:         make(map[bgp.BGPCapabilityCode]bgp.ParameterCapabilityInterface),
+		globalConfig: globalConfig,
+		peerConfig:   peerConfig,
+		connCh:       make(chan net.Conn),
+		serverMsgCh:  sch,
+		peerMsgCh:    pch,
+		getActiveCh:  make(chan struct{}),
+		rfMap:        make(map[bgp.RouteFamily]bool),
+		capMap:       make(map[bgp.BGPCapabilityCode]bgp.ParameterCapabilityInterface),
 	}
 	p.siblings = make(map[string]*serverMsgDataPeer)
 
-	p.fsm = NewFSM(&globalConfig, &peerConfig, p.acceptedConnCh)
+	p.fsm = NewFSM(&globalConfig, &peerConfig, p.connCh)
 	peerConfig.BgpNeighborCommonState.State = uint32(bgp.BGP_FSM_IDLE)
 	peerConfig.BgpNeighborCommonState.Downtime = time.Now().Unix()
 	if peerConfig.NeighborAddress.To4() != nil {
@@ -527,6 +528,7 @@ func makePeer(globalConfig config.Global, peerConfig config.Neighbor) *Peer {
 	rfList := []bgp.RouteFamily{bgp.RF_IPv4_UC, bgp.RF_IPv6_UC}
 	p.adjRib = table.NewAdjRib(rfList)
 	p.rib = table.NewTableManager(p.peerConfig.NeighborAddress.String(), rfList)
+	p.t.Go(p.connectLoop)
 
 	return p
 }
