@@ -5,7 +5,6 @@ import (
 	//"fmt"
 	"github.com/osrg/gobgp/packet"
 	"github.com/stretchr/testify/assert"
-	"net"
 	"testing"
 	"time"
 )
@@ -77,22 +76,6 @@ func TestPathGetSource(t *testing.T) {
 	pd.setSource(pr)
 	r_pr := pd.GetSource()
 	assert.Equal(t, r_pr, pr)
-}
-
-func TestPathSetNexthop(t *testing.T) {
-	pd := &PathDefault{}
-	ip := net.ParseIP("192.168.0.1")
-	pd.setNexthop(ip)
-	nh := pd.GetNexthop()
-	assert.Equal(t, nh, ip)
-}
-
-func TestPathgetNexthop(t *testing.T) {
-	pd := &PathDefault{}
-	ip := net.ParseIP("192.168.0.2")
-	pd.setNexthop(ip)
-	nh := pd.GetNexthop()
-	assert.Equal(t, nh, ip)
 }
 
 func TestPathSetWithdraw(t *testing.T) {
