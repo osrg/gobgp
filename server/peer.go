@@ -401,7 +401,7 @@ func (peer *Peer) sendUpdateMsgFromPaths(pList []table.Path) {
 	for _, p := range paths {
 		_, ok := peer.rfMap[p.GetRouteFamily()]
 
-		if peer.peerConfig.NeighborAddress.Equal(p.GetNexthop()) {
+		if peer.peerConfig.NeighborAddress.Equal(p.GetSource().Address) {
 			log.WithFields(log.Fields{
 				"Topic": "Peer",
 				"Key":   peer.peerConfig.NeighborAddress,
