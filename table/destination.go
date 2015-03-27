@@ -215,7 +215,7 @@ func (dest *DestinationDefault) Calculate(localAsn uint32) (Path, string, error)
 	// First remove the withdrawn paths.
 	// Note: If we want to support multiple paths per destination we may
 	// have to maintain sent-routes per path.
-	dest.removeWithdrawls()
+	dest.removeWithdrawals()
 
 	//	Have to select best-path from available paths and new paths.
 	//	If we do not have any paths, then we no longer have best path.
@@ -267,7 +267,7 @@ func (dest *DestinationDefault) Calculate(localAsn uint32) (Path, string, error)
 //we can receive withdraws for such paths and withdrawals may not be
 //stopped by the same policies.
 //"""
-func (dest *DestinationDefault) removeWithdrawls() {
+func (dest *DestinationDefault) removeWithdrawals() {
 
 	log.WithFields(log.Fields{
 		"Topic":  "Table",
