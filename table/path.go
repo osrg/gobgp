@@ -106,12 +106,26 @@ func (pd *PathDefault) updatePathAttrs(global *config.Global, peer *config.Neigh
 
 	if peer.PeerType == config.PEER_TYPE_EXTERNAL {
 		// NEXTHOP handling
-		idx, _ := pd.getPathAttr(bgp.BGP_ATTR_TYPE_NEXT_HOP)
-		if idx < 0 {
-			log.Fatal("missing NEXTHOP mandatory attribute")
+		switch pd.routeFamily {
+		case bgp.RF_IPv4_UC:
+			idx, _ := pd.getPathAttr(bgp.BGP_ATTR_TYPE_NEXT_HOP)
+			if idx < 0 {
+				log.Warn("missing NEXTHOP mandatory attribute, check MP_REACH_NLRI instead.")
+			} else {
+				newNexthop := bgp.NewPathAttributeNextHop(peer.LocalAddress.String())
+				pd.pathAttrs[idx] = newNexthop
+				break
+			}
+			fallthrough
+		default:
+			idx, attr := pd.getPathAttr(bgp.BGP_ATTR_TYPE_MP_REACH_NLRI)
+			if attr == nil {
+				log.Fatal("missing MP_REACH_NLRI mandatory attribute")
+			}
+			oldNlri := attr.(*bgp.PathAttributeMpReachNLRI)
+			newNlri := bgp.NewPathAttributeMpReachNLRI(peer.LocalAddress.String(), oldNlri.Value)
+			pd.pathAttrs[idx] = newNlri
 		}
-		newNexthop := bgp.NewPathAttributeNextHop(peer.LocalAddress.String())
-		newPathAttrs[idx] = newNexthop
 
 		// AS_PATH handling
 		//
@@ -140,7 +154,7 @@ func (pd *PathDefault) updatePathAttrs(global *config.Global, peer *config.Neigh
 			log.Fatal("missing AS_PATH mandatory attribute")
 		}
 		asPath := cloneAsPath(originalAsPath.(*bgp.PathAttributeAsPath))
-		newPathAttrs[idx] = asPath
+		pd.pathAttrs[idx] = asPath
 		fst := asPath.Value[0].(*bgp.As4PathParam)
 		if len(asPath.Value) > 0 && fst.Type == bgp.BGP_ASPATH_ATTR_TYPE_SEQ &&
 			fst.ASLen() < 255 {
@@ -154,7 +168,7 @@ func (pd *PathDefault) updatePathAttrs(global *config.Global, peer *config.Neigh
 		// MED Handling
 		idx, _ = pd.getPathAttr(bgp.BGP_ATTR_TYPE_MULTI_EXIT_DISC)
 		if idx >= 0 {
-			newPathAttrs = append(newPathAttrs[:idx], newPathAttrs[idx+1:]...)
+			pd.pathAttrs = append(pd.pathAttrs[:idx], pd.pathAttrs[idx+1:]...)
 		}
 	} else if peer.PeerType == config.PEER_TYPE_INTERNAL {
 		// For iBGP peers we are required to send local-pref attribute
@@ -163,9 +177,9 @@ func (pd *PathDefault) updatePathAttrs(global *config.Global, peer *config.Neigh
 		p := bgp.NewPathAttributeLocalPref(100)
 		idx, _ := pd.getPathAttr(bgp.BGP_ATTR_TYPE_LOCAL_PREF)
 		if idx < 0 {
-			newPathAttrs = append(newPathAttrs, p)
+			pd.pathAttrs = append(pd.pathAttrs, p)
 		} else {
-			newPathAttrs[idx] = p
+			pd.pathAttrs[idx] = p
 		}
 	} else {
 		log.WithFields(log.Fields{
