@@ -50,6 +50,10 @@ func (qt *QuaggaConfig) IPv4Config() *bytes.Buffer {
 	buf.WriteString(fmt.Sprintf("network %s%d%s\n", baseNeighborNetwork["IPv4"], qt.id, baseNeighborNetMask["IPv4"]))
 	buf.WriteString(fmt.Sprintf("neighbor %s remote-as %d\n", qt.serverIP, qt.gobgpConfig.As))
 	buf.WriteString(fmt.Sprintf("neighbor %s password %s\n", qt.serverIP, qt.config.AuthPassword))
+	buf.WriteString("debug bgp as4\n")
+	buf.WriteString("debug bgp fsm\n")
+	buf.WriteString("debug bgp updates\n")
+	buf.WriteString("debug bgp events\n")
 	buf.WriteString("log file /var/log/quagga/bgpd.log\n")
 
 	return buf
@@ -75,6 +79,10 @@ func (qt *QuaggaConfig) IPv6Config() *bytes.Buffer {
 	buf.WriteString("route-map IPV6-OUT permit 10\n")
 	buf.WriteString("match ipv6 address prefix-list pl-ipv6\n")
 	buf.WriteString(fmt.Sprintf("set ipv6 next-hop global %s\n", qt.config.NeighborAddress))
+	buf.WriteString("debug bgp as4\n")
+	buf.WriteString("debug bgp fsm\n")
+	buf.WriteString("debug bgp updates\n")
+	buf.WriteString("debug bgp events\n")
 	buf.WriteString("log file /var/log/quagga/bgpd.log\n")
 
 	return buf
