@@ -349,7 +349,7 @@ def reload_config():
     print "complete append docker container."
 
 
-def init_test_env_executor(quagga_num, use_local, go_path, log_debug=False):
+def init_test_env_executor(quagga_num, use_local, go_path, log_debug=False, is_route_server=True):
     print "start initialization of test environment."
 
     if docker_container_check() or bridge_setting_check():
@@ -360,7 +360,7 @@ def init_test_env_executor(quagga_num, use_local, go_path, log_debug=False):
     print "make gobgp test environment."
     create_config_dir()
     bridge_setting_for_docker_connection(BRIDGES)
-    make_config(quagga_num, go_path, BRIDGE_0)
+    make_config(quagga_num, go_path, BRIDGE_0, ("" if is_route_server else "--normal-bgp"))
 
     # run gobgp docker container
     docker_container_run_gobgp(BRIDGE_0)
@@ -498,8 +498,8 @@ def init_malformed_test_env_executor(conf_file, use_local,  go_path, exabgp_path
     start_exabgp(conf_file)
 
 
-def docker_container_quagga_append_executor(quagga_num, go_path):
-    make_config_append(quagga_num, go_path, BRIDGE_0)
+def docker_container_quagga_append_executor(quagga_num, go_path, is_route_server=True):
+    make_config_append(quagga_num, go_path, BRIDGE_0, ("" if is_route_server else "--normal-bgp"))
     docker_container_quagga_append(quagga_num, BRIDGE_0)
     reload_config()
 
@@ -520,9 +520,9 @@ def docker_container_quagga_removed_executor(quagga_num):
     docker_container_quagga_removed(quagga_num)
 
 
-def docker_container_make_bestpath_env_executor(append_quagga_num, go_path):
+def docker_container_make_bestpath_env_executor(append_quagga_num, go_path, is_route_server=True):
     print "start make bestpath environment"
-    make_config_append(append_quagga_num, go_path, BRIDGE_1)
+    make_config_append(append_quagga_num, go_path, BRIDGE_1, ("" if is_route_server else "--normal-bgp"))
     append_quagga_name = "q" + str(append_quagga_num)
     docker_container_quagga_append(append_quagga_num, BRIDGE_1)
     reload_config()

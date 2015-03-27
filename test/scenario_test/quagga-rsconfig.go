@@ -88,7 +88,7 @@ func (qt *QuaggaConfig) IPv6Config() *bytes.Buffer {
 	return buf
 }
 
-func create_config_files(nr int, outputDir string, IPVersion string, nonePeer bool) {
+func create_config_files(nr int, outputDir string, IPVersion string, nonePeer bool, normalBGP bool) {
 	quaggaConfigList := make([]*QuaggaConfig, 0)
 
 	gobgpConf := config.Bgp{
@@ -103,8 +103,8 @@ func create_config_files(nr int, outputDir string, IPVersion string, nonePeer bo
 			PeerAs:           65000 + uint32(i),
 			NeighborAddress:  net.ParseIP(fmt.Sprintf("%s%d", baseNeighborAddress[IPVersion], i)),
 			AuthPassword:     fmt.Sprintf("hoge%d", i),
-			RouteServer:      config.RouteServer{RouteServerClient: true},
 			TransportOptions: config.TransportOptions{PassiveMode: true},
+			RouteServer:      config.RouteServer{RouteServerClient: !normalBGP},
 			Timers:           config.Timers{HoldTime: 30, KeepaliveInterval: 10, IdleHoldTimeAfterReset: 10},
 			PeerType:         config.PEER_TYPE_EXTERNAL,
 		}
@@ -135,7 +135,7 @@ func create_config_files(nr int, outputDir string, IPVersion string, nonePeer bo
 	}
 }
 
-func append_config_files(ar int, outputDir string, IPVersion string, nonePeer bool) {
+func append_config_files(ar int, outputDir string, IPVersion string, nonePeer bool, normalBGP bool) {
 
 	gobgpConf := config.Bgp{
 		Global: config.Global{
@@ -147,7 +147,7 @@ func append_config_files(ar int, outputDir string, IPVersion string, nonePeer bo
 		PeerAs:           65000 + uint32(ar),
 		NeighborAddress:  net.ParseIP(fmt.Sprintf("%s%d", baseNeighborAddress[IPVersion], ar)),
 		AuthPassword:     fmt.Sprintf("hoge%d", ar),
-		RouteServer:      config.RouteServer{RouteServerClient: true},
+		RouteServer:      config.RouteServer{RouteServerClient: !normalBGP},
 		TransportOptions: config.TransportOptions{PassiveMode: true},
 		Timers:           config.Timers{HoldTime: 30, KeepaliveInterval: 10, IdleHoldTimeAfterReset: 10},
 		PeerType:         config.PEER_TYPE_EXTERNAL,
@@ -188,6 +188,7 @@ func main() {
 		IPVersion     string `short:"v" long:"ip-version" description:"specifing the use ip version" default:"IPv4"`
 		NetIdentifier int    `short:"i" long:"net-identifer" description:"specifing the use network identifier" default:"0"`
 		NonePeer      bool   `long:"none-peer" description:"disable make quagga config"`
+		NormalBGP     bool   `long:"normal-bgp" description:"generate normal bgp server configuration"`
 	}
 	parser := flags.NewParser(&opts, flags.Default)
 	_, err := parser.Parse()
@@ -217,11 +218,11 @@ func main() {
 	}
 
 	if opts.AppendClient == 0 {
-		create_config_files(opts.ClientNumber, opts.OutputDir, opts.IPVersion, opts.NonePeer)
+		create_config_files(opts.ClientNumber, opts.OutputDir, opts.IPVersion, opts.NonePeer, opts.NormalBGP)
 	} else {
 		if _, err := os.Stat(fmt.Sprintf("%s/gobgpd.conf", opts.OutputDir)); os.IsNotExist(err) {
 			log.Fatal(err)
 		}
-		append_config_files(opts.AppendClient, opts.OutputDir, opts.IPVersion, opts.NonePeer)
+		append_config_files(opts.AppendClient, opts.OutputDir, opts.IPVersion, opts.NonePeer, opts.NormalBGP)
 	}
 }
