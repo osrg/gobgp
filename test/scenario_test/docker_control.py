@@ -338,7 +338,7 @@ def make_config_append(quagga_num, go_path, bridge, peer_opts=""):
     local(cmd, capture=True)
 
 
-def change_exagbp_version():
+def change_exabgp_version():
     cmd = "docker exec exabgp git -C /root/exabgp pull origin master"
     local(cmd, capture=True)
 
@@ -482,7 +482,7 @@ def init_malformed_test_env_executor(conf_file, use_local,  go_path, log_debug=F
         make_startup_file(log_opt=opt)
 
     change_owner_to_root(CONFIG_DIR)
-    change_exagbp_version()
+    change_exabgp_version()
 
     start_gobgp()
 
