@@ -106,6 +106,7 @@ func create_config_files(nr int, outputDir string, IPVersion string, nonePeer bo
 			RouteServer:      config.RouteServer{RouteServerClient: true},
 			TransportOptions: config.TransportOptions{PassiveMode: true},
 			Timers:           config.Timers{HoldTime: 30, KeepaliveInterval: 10, IdleHoldTimeAfterReset: 10},
+			PeerType:         config.PEER_TYPE_EXTERNAL,
 		}
 		gobgpConf.NeighborList = append(gobgpConf.NeighborList, c)
 		if !nonePeer {
@@ -149,6 +150,7 @@ func append_config_files(ar int, outputDir string, IPVersion string, nonePeer bo
 		RouteServer:      config.RouteServer{RouteServerClient: true},
 		TransportOptions: config.TransportOptions{PassiveMode: true},
 		Timers:           config.Timers{HoldTime: 30, KeepaliveInterval: 10, IdleHoldTimeAfterReset: 10},
+		PeerType:         config.PEER_TYPE_EXTERNAL,
 	}
 	if !nonePeer {
 		q := NewQuaggaConfig(ar, &gobgpConf.Global, &c, net.ParseIP(serverAddress[IPVersion]))
