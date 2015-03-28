@@ -397,7 +397,7 @@ type ReceivedRoute struct {
 }
 
 func (rr *ReceivedRoute) String() string {
-	return rr.path.(*PathDefault).getPrefix()
+	return rr.path.getPrefix()
 }
 
 func NewReceivedRoute(path Path, filtered bool) *ReceivedRoute {
