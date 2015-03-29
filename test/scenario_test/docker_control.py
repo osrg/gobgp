@@ -441,7 +441,7 @@ def init_ipv6_test_env_executor(quagga_num, use_local, go_path, log_debug=False)
     print "complete initialization of test environment."
 
 
-def init_malformed_test_env_executor(conf_file, use_local,  go_path, log_debug=False):
+def init_malformed_test_env_executor(conf_file, use_local,  go_path, exabgp_path, log_debug=False):
     print "start initialization of exabgp test environment."
 
     if docker_container_check() or bridge_setting_check():
@@ -482,7 +482,14 @@ def init_malformed_test_env_executor(conf_file, use_local,  go_path, log_debug=F
         make_startup_file(log_opt=opt)
 
     change_owner_to_root(CONFIG_DIR)
-    change_exabgp_version()
+
+    if exabgp_path != "":
+        cmd = "cp -rf %s %s" % (exabgp_path, CONFIG_DIR)
+        local(cmd, capture=True)
+        cmd = "docker exec exabgp cp -rf " + SHARE_VOLUME + "/exabgp /root/"
+        local(cmd, capture=True)
+    else:
+        change_exabgp_version()
 
     start_gobgp()
 
