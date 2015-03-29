@@ -627,7 +627,7 @@ func (peer *Peer) loop() error {
 				peer.peerConfig.LocalAddress = peer.fsm.LocalAddr()
 				for rf, _ := range peer.rfMap {
 					pathList := peer.adjRib.GetOutPathList(rf)
-					peer.sendMessages(table.CreateUpdateMsgFromPaths(pathList))
+					peer.sendUpdateMsgFromPaths(pathList)
 				}
 				peer.fsm.peerConfig.BgpNeighborCommonState.Uptime = time.Now().Unix()
 				peer.fsm.peerConfig.BgpNeighborCommonState.EstablishedCount++
