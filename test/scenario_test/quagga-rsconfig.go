@@ -19,8 +19,8 @@ var baseNeighborNetwork = make(map[string]string)
 var baseNeighborNetMask = make(map[string]string)
 
 const (
-	IPv4 = "IPv4"
-	IPv6 = "IPv6"
+	IPv4 = "ipv4"
+	IPv6 = "ipv6"
 )
 
 type QuaggaConfig struct {
@@ -42,12 +42,12 @@ func NewQuaggaConfig(id int, gConfig *config.Global, myConfig *config.Neighbor, 
 func (qt *QuaggaConfig) IPv4Config() *bytes.Buffer {
 	buf := bytes.NewBuffer(nil)
 	buf.WriteString(fmt.Sprintf("! my address %s\n", qt.config.NeighborAddress))
-	buf.WriteString("! my ip_version IPv4\n")
+	buf.WriteString(fmt.Sprintf("! my ip_version %s\n", IPv4))
 	buf.WriteString("hostname bgpd\n")
 	buf.WriteString("password zebra\n")
 	buf.WriteString(fmt.Sprintf("router bgp %d\n", qt.config.PeerAs))
 	buf.WriteString(fmt.Sprintf("bgp router-id 192.168.0.%d\n", qt.id))
-	buf.WriteString(fmt.Sprintf("network %s%d%s\n", baseNeighborNetwork["IPv4"], qt.id, baseNeighborNetMask["IPv4"]))
+	buf.WriteString(fmt.Sprintf("network %s%d%s\n", baseNeighborNetwork[IPv4], qt.id, baseNeighborNetMask[IPv4]))
 	buf.WriteString(fmt.Sprintf("neighbor %s remote-as %d\n", qt.serverIP, qt.gobgpConfig.As))
 	buf.WriteString(fmt.Sprintf("neighbor %s password %s\n", qt.serverIP, qt.config.AuthPassword))
 	buf.WriteString("debug bgp as4\n")
@@ -62,7 +62,7 @@ func (qt *QuaggaConfig) IPv4Config() *bytes.Buffer {
 func (qt *QuaggaConfig) IPv6Config() *bytes.Buffer {
 	buf := bytes.NewBuffer(nil)
 	buf.WriteString(fmt.Sprintf("! my address %s\n", qt.config.NeighborAddress))
-	buf.WriteString("! my ip_version IPv6\n")
+	buf.WriteString(fmt.Sprintf("! my ip_version %s\n", IPv6))
 	buf.WriteString("hostname bgpd\n")
 	buf.WriteString("password zebra\n")
 	buf.WriteString(fmt.Sprintf("router bgp %d\n", qt.config.PeerAs))
@@ -71,7 +71,7 @@ func (qt *QuaggaConfig) IPv6Config() *bytes.Buffer {
 	buf.WriteString(fmt.Sprintf("neighbor %s remote-as %d\n", qt.serverIP, qt.gobgpConfig.As))
 	buf.WriteString(fmt.Sprintf("neighbor %s password %s\n", qt.serverIP, qt.config.AuthPassword))
 	buf.WriteString("address-family ipv6\n")
-	buf.WriteString(fmt.Sprintf("network %s%d%s\n", baseNeighborNetwork["IPv6"], qt.id, baseNeighborNetMask["IPv6"]))
+	buf.WriteString(fmt.Sprintf("network %s%d%s\n", baseNeighborNetwork[IPv6], qt.id, baseNeighborNetMask[IPv6]))
 	buf.WriteString(fmt.Sprintf("neighbor %s activate\n", qt.serverIP))
 	buf.WriteString(fmt.Sprintf("neighbor %s route-map IPV6-OUT out\n", qt.serverIP))
 	buf.WriteString("exit-address-family\n")
@@ -114,7 +114,7 @@ func create_config_files(nr int, outputDir string, IPVersion string, nonePeer bo
 			quaggaConfigList = append(quaggaConfigList, q)
 			os.Mkdir(fmt.Sprintf("%s/q%d", outputDir, i), 0755)
 			var err error
-			if IPVersion == "IPv6" {
+			if IPVersion == IPv6 {
 				err = ioutil.WriteFile(fmt.Sprintf("%s/q%d/bgpd.conf", outputDir, i), q.IPv6Config().Bytes(), 0644)
 			} else {
 				err = ioutil.WriteFile(fmt.Sprintf("%s/q%d/bgpd.conf", outputDir, i), q.IPv4Config().Bytes(), 0644)
@@ -156,7 +156,7 @@ func append_config_files(ar int, outputDir string, IPVersion string, nonePeer bo
 		q := NewQuaggaConfig(ar, &gobgpConf.Global, &c, net.ParseIP(serverAddress[IPVersion]))
 		os.Mkdir(fmt.Sprintf("%s/q%d", outputDir, ar), 0755)
 		var err error
-		if IPVersion == "IPv6" {
+		if IPVersion == IPv6 {
 			err = ioutil.WriteFile(fmt.Sprintf("%s/q%d/bgpd.conf", outputDir, ar), q.IPv6Config().Bytes(), 0644)
 		} else {
 			err = ioutil.WriteFile(fmt.Sprintf("%s/q%d/bgpd.conf", outputDir, ar), q.IPv4Config().Bytes(), 0644)

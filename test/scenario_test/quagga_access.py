@@ -15,6 +15,7 @@
 
 import sys
 import telnetlib
+from constant import *
 
 PASSWORD = "zebra"
 CONN_PASSWORD = "hogehoge"
@@ -78,15 +79,14 @@ def show_config(tn):
     print tn.read_all()
 
 
-def show_rib(tn):
-    tn.write("show ip bgp\n")
-    tn.read_until("   Network          Next Hop            Metric LocPrf Weight Path")
-    rib = tn.read_until("bgpd#")
-    return rib_parser(rib)
-
-
-def show_ipv6_rib(tn):
-    tn.write("show bgp ipv6\n")
+def show_rib(tn, af=IPv4):
+    if af == IPv4:
+        tn.write("show ip bgp\n")
+    elif af == IPv6:
+        tn.write("show bgp ipv6\n")
+    else:
+        print "invalid af: ", af
+        return
     tn.read_until("   Network          Next Hop            Metric LocPrf Weight Path")
     rib = tn.read_until("bgpd#")
     return rib_parser(rib)

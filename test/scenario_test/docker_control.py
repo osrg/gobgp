@@ -17,47 +17,7 @@ from fabric.api import local
 import re
 import os
 import time
-
-
-GOBGP_CONTAINER_NAME = "gobgp"
-GOBGP_ADDRESS_0 = {"IPv4": "10.0.255.1",
-                   "IPv6": "2001::0:192:168:255:1"}
-GOBGP_ADDRESS_1 = {"IPv4": "11.0.255.1",
-                   "IPv6": "2001::1:192:168:255:1"}
-GOBGP_ADDRESS_2 = {"IPv4": "12.0.255.1",
-                   "IPv6": "2001::2:192:168:255:1"}
-GOBGP_CONFIG_FILE = "gobgpd.conf"
-CONFIG_DIR = "/tmp/gobgp"
-CONFIG_DIRR = "/tmp/gobgp/"
-SHARE_VOLUME = "/root/share_volume"
-EXABGP_CONTAINER_NAME = "exabgp"
-EXABGP_ADDRESS = "10.0.0.100/16"
-EXABGP_CONFDIR = SHARE_VOLUME + "/exabgp_test_conf"
-EXABGP_LOG_FILE = "exabgpd.log"
-STARTUP_FILE_NAME = "gobgp_startup.sh"
-STARTUP_FILE = SHARE_VOLUME + "/" + STARTUP_FILE_NAME
-
-IP_VERSION = "IPv4"
-IF_CONFIG_OPTION = {"IPv4": "inet", "IPv6": "inet6"}
-BRIDGE_0 = {"BRIDGE_NAME": "br0",
-            "IPv4": "10.0.255.2",
-            "IPv6": "2001::0:192:168:255:2"}
-BRIDGE_1 = {"BRIDGE_NAME": "br1",
-            "IPv4": "11.0.255.2",
-            "IPv6": "2001::1:192:168:255:2"}
-BRIDGE_2 = {"BRIDGE_NAME": "br2",
-            "IPv4": "12.0.255.2",
-            "IPv6": "2001::2:192:168:255:2"}
-BRIDGES = [BRIDGE_0, BRIDGE_1, BRIDGE_2]
-
-BASE_NET = {BRIDGE_0["BRIDGE_NAME"]: {"IPv4": "10.0.0.", "IPv6": "2001::0:192:168:0:"},
-            BRIDGE_1["BRIDGE_NAME"]: {"IPv4": "11.0.0.", "IPv6": "2001::1:192:168:0:"},
-            BRIDGE_2["BRIDGE_NAME"]: {"IPv4": "12.0.0.", "IPv6": "2001::2:192:168:0:"}}
-
-BASE_MASK = {"IPv4": "/16", "IPv6": "/64"}
-
-A_PART_OF_CURRENT_DIR = "/test/scenario_test"
-
+from constant import *
 
 def test_user_check():
     root = False
@@ -272,7 +232,7 @@ def bridge_setting_for_docker_connection(bridges):
     for bridge in bridges:
         cmd = "brctl addbr " + bridge["BRIDGE_NAME"]
         local(cmd, capture=True)
-        if IP_VERSION == "IPv6":
+        if IP_VERSION == IPv6:
             cmd = "ifconfig " + bridge["BRIDGE_NAME"] + " " + IF_CONFIG_OPTION[IP_VERSION] +\
                 " add " + bridge[IP_VERSION] + BASE_MASK[IP_VERSION]
         else:
@@ -507,7 +467,7 @@ def docker_container_quagga_append_executor(quagga_num, go_path, is_route_server
 def docker_container_ipv6_quagga_append_executor(quagga_nums, go_path):
     print "append ipv6 quagga container."
     global IP_VERSION
-    IP_VERSION = "IPv6"
+    IP_VERSION = IPv6
     bridge_setting_for_docker_connection([BRIDGE_1])
     docker_container_set_ipaddress(BRIDGE_1, GOBGP_CONTAINER_NAME, GOBGP_ADDRESS_1[IP_VERSION] + BASE_MASK[IP_VERSION])
     for quagga_num in quagga_nums:

@@ -13,44 +13,25 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import unittest
-import requests
-import json
-import toml
-import os
 import time
 import sys
 import nose
 import quagga_access as qaccess
-from peer_info import Peer
-from peer_info import Destination
-from peer_info import Path
-from ciscoconfparse import CiscoConfParse
 import docker_control as fab
+from gobgp_test import GoBGPTestBase
+from gobgp_test import ADJ_RIB_IN, ADJ_RIB_OUT, LOCAL_RIB, GLOBAL_RIB
+from gobgp_test import NEIGHBOR
 from noseplugin import OptionParser
 from noseplugin import parser_option
 
-
-class GoBGPTest(unittest.TestCase):
-
-    gobgp_ip = "10.0.255.1"
-    gobgp_port = "8080"
-    base_dir = "/tmp/gobgp/"
-    gobgp_config_file = "/tmp/gobgp/gobgpd.conf"
-    gobgp_config = None
+class GoBGPTest(GoBGPTestBase):
     quagga_num = 3
     append_quagga = 10
     remove_quagga = 10
     append_quagga_best = 20
-    initial_wait_time = 10
-    wait_per_retry = 5
-    retry_limit = (60 - initial_wait_time) / wait_per_retry
 
     def __init__(self, *args, **kwargs):
         super(GoBGPTest, self).__init__(*args, **kwargs)
-
-    def setUp(self):
-        self.quagga_configs = []
 
     # test each neighbor state is turned establish
     def test_01_neighbor_established(self):
@@ -72,9 +53,7 @@ class GoBGPTest(unittest.TestCase):
         for address in addresses:
             # get neighbor state and remote ip from gobgp connections
             print "check of [ " + address + " ]"
-            url = "http://" + self.gobgp_ip + ":" + self.gobgp_port + "/v1/bgp/neighbor/" + address
-            r = requests.get(url)
-            neighbor = json.loads(r.text)
+            neighbor = self.ask_gobgp(NEIGHBOR, address)
             state = neighbor['info']['bgp_state']
             remote_ip = neighbor['conf']['remote_ip']
             self.assertEqual(address, remote_ip)
@@ -89,11 +68,7 @@ class GoBGPTest(unittest.TestCase):
         for address in self.get_neighbor_address(self.gobgp_config):
             print "check of [ " + address + " ]"
             # get local-rib per peer
-            af = "/ipv4"
-            url = "http://" + self.gobgp_ip + ":" + self.gobgp_port +\
-                  "/v1/bgp/neighbor/" + address + "/local-rib" + af
-            r = requests.get(url)
-            local_rib = json.loads(r.text)
+            local_rib = self.ask_gobgp(LOCAL_RIB, address)
 
             for quagga_config in self.quagga_configs:
                 if quagga_config.peer_ip == address:
@@ -157,9 +132,7 @@ class GoBGPTest(unittest.TestCase):
 
         # get neighbor state and remote ip of new quagga
         print "check of [" + append_quagga_address + " ]"
-        url = "http://" + self.gobgp_ip + ":" + self.gobgp_port + "/v1/bgp/neighbor/" + append_quagga_address
-        r = requests.get(url)
-        neighbor = json.loads(r.text)
+        neighbor = self.ask_gobgp(NEIGHBOR, append_quagga_address)
         state = neighbor['info']['bgp_state']
         remote_ip = neighbor['conf']['remote_ip']
         self.assertEqual(append_quagga_address, remote_ip)
@@ -174,11 +147,7 @@ class GoBGPTest(unittest.TestCase):
         for address in self.get_neighbor_address(self.gobgp_config):
             print "check of [ " + address + " ]"
             # get local-rib per peer
-            af = "/ipv4"
-            url = "http://" + self.gobgp_ip + ":" + self.gobgp_port +\
-                  "/v1/bgp/neighbor/" + address + "/local-rib" + af
-            r = requests.get(url)
-            local_rib = json.loads(r.text)
+            local_rib = self.ask_gobgp(LOCAL_RIB, address)
 
             for quagga_config in self.quagga_configs:
                 if quagga_config.peer_ip == address:
@@ -248,9 +217,7 @@ class GoBGPTest(unittest.TestCase):
 
         # get neighbor state and remote ip of removed quagga
         print "check of [" + removed_quagga_address + " ]"
-        url = "http://" + self.gobgp_ip + ":" + self.gobgp_port + "/v1/bgp/neighbor/" + removed_quagga_address
-        r = requests.get(url)
-        neighbor = json.loads(r.text)
+        neighbor = self.ask_gobgp(NEIGHBOR, removed_quagga_address)
         state = neighbor['info']['bgp_state']
         remote_ip = neighbor['conf']['remote_ip']
         self.assertEqual(removed_quagga_address, remote_ip)
@@ -268,11 +235,7 @@ class GoBGPTest(unittest.TestCase):
 
             print "check of [ " + address + " ]"
             # get local-rib per peer
-            af = "/ipv4"
-            url = "http://" + self.gobgp_ip + ":" + self.gobgp_port +\
-                  "/v1/bgp/neighbor/" + address + "/local-rib" + af
-            r = requests.get(url)
-            local_rib = json.loads(r.text)
+            local_rib = self.ask_gobgp(LOCAL_RIB, address)
 
             for quagga_config in self.quagga_configs:
                 if quagga_config.peer_ip == address:
@@ -365,148 +328,6 @@ class GoBGPTest(unittest.TestCase):
 
         print "check of [ " + check_address + " ]"
         self.retry_routine_for_bestpath(check_address, target_network, ans_nexthop)
-
-    def retry_routine_for_state(self, addresses, allow_state):
-        in_prepare_quagga = True
-        retry_count = 0
-        while in_prepare_quagga:
-            if retry_count != 0:
-                print "please wait more (" + str(self.wait_per_retry) + " second)"
-                time.sleep(self.wait_per_retry)
-            if retry_count >= self.retry_limit:
-                print "retry limit"
-                break
-            retry_count += 1
-            success_count = 0
-            for address in addresses:
-                # get neighbor state and remote ip from gobgp connections
-                url = "http://" + self.gobgp_ip + ":" + self.gobgp_port + "/v1/bgp/neighbor/" + address
-                try:
-                    r = requests.get(url)
-                    neighbor = json.loads(r.text)
-                except Exception:
-                    continue
-                if neighbor is None:
-                    continue
-                state = neighbor['info']['bgp_state']
-                remote_ip = neighbor['conf']['remote_ip']
-                if address == remote_ip and state == allow_state:
-                    success_count += 1
-            if success_count == len(addresses):
-                in_prepare_quagga = False
-        time.sleep(self.wait_per_retry)
-
-    # load configration from gobgp(gobgpd.conf)
-    def retry_routine_for_bestpath(self, check_address, target_network, ans_nexthop):
-        # get local-rib
-        rep_nexthop = ""
-        target_exist = False
-        af = "/ipv4"
-        url = "http://" + self.gobgp_ip + ":" + self.gobgp_port +\
-              "/v1/bgp/neighbor/" + check_address + "/local-rib" + af
-        r = requests.get(url)
-        local_rib = json.loads(r.text)
-        g_dests = local_rib['Destinations']
-        for g_dest in g_dests:
-            best_path_idx = g_dest['BestPathIdx']
-            if target_network == g_dest['Prefix']:
-                target_exist = True
-                g_paths = g_dest['Paths']
-                idx = 0
-                if len(g_paths) < 2:
-                    print "target path has not been bestpath selected yet."
-                    print "please wait more (" + str(self.wait_per_retry) + " second)"
-                    time.sleep(self.wait_per_retry)
-                    self.retry_routine_for_bestpath(check_address, target_network, ans_nexthop)
-                    return
-                for g_path in g_paths:
-                    print "best_path_Idx: " + str(best_path_idx) + "idx: " + str(idx)
-                    print "pre: ", g_dest['Prefix'], "net: ", g_path['Network'], "next: ", g_path['Nexthop']
-                    if str(best_path_idx) == str(idx):
-                        rep_nexthop = g_path['Nexthop']
-                    idx += 1
-        if target_exist is False:
-            print "target path has not been receive yet."
-            print "please wait more (" + str(self.wait_per_retry) + " second)"
-            time.sleep(self.wait_per_retry)
-            self.retry_routine_for_bestpath(check_address, target_network, ans_nexthop)
-            return
-        self.assertEqual(ans_nexthop, rep_nexthop)
-
-    def load_gobgp_config(self):
-        try:
-            self.gobgp_config = toml.loads(open(self.gobgp_config_file).read())
-        except IOError, (errno, strerror):
-            print "I/O error(%s): %s" % (errno, strerror)
-
-    # load configration from quagga(bgpd.conf)
-    def load_quagga_config(self):
-        dirs = []
-        try:
-            content = os.listdir(self.base_dir)
-            for item in content:
-                if "q" != item[0]:
-                    continue
-                if os.path.isdir(os.path.join(self.base_dir, item)):
-                    dirs.append(item)
-        except OSError, (errno, strerror):
-            print "I/O error(%s): %s" % (errno, strerror)
-
-        for dir in dirs:
-            config_path = self.base_dir + dir + "/bgpd.conf"
-            config = CiscoConfParse(config_path)
-
-            peer_ip = config.find_objects(r"^!\smy\saddress")[0].text.split(" ")[3]
-            peer_ip_version = config.find_objects(r"^!\smy\sip_version")[0].text.split(" ")[3]
-            peer_id = config.find_objects(r"^bgp\srouter-id")[0].text.split(" ")[2]
-            peer_as = config.find_objects(r"^router\sbgp")[0].text.split(" ")[2]
-            quagga_config = Peer(peer_ip, peer_id, peer_as, peer_ip_version)
-
-            networks = config.find_objects(r"^network")
-            if len(networks) == 0:
-                continue
-            for network in networks:
-                elems = network.text.split(" ")
-                prefix = elems[1].split("/")[0]
-                network = elems[1]
-                nexthop = peer_ip
-                path = Path(network, nexthop)
-                dest = Destination(prefix)
-                dest.paths.append(path)
-                quagga_config.destinations[prefix] = dest
-                # print "prefix: " + prefix
-                # print "network: " + network
-                # print "nexthop: " + nexthop
-
-            neighbors = config.find_objects(r"^neighbor\s.*\sremote-as")
-            if len(neighbors) == 0:
-                continue
-            for neighbor in neighbors:
-                elems = neighbor.text.split(" ")
-                neighbor = Peer(elems[1], None,  elems[3], None)
-                quagga_config.neighbors.append(neighbor)
-            self.quagga_configs.append(quagga_config)
-
-    # get address of each neighbor from gobpg configration
-    def get_neighbor_address(self, config):
-        address = []
-        neighbors_config = config['NeighborList']
-        for neighbor_config in neighbors_config:
-            neighbor_ip = neighbor_config['NeighborAddress']
-            address.append(neighbor_ip)
-        return address
-
-    def check_load_config(self):
-        self.load_gobgp_config()
-        self.load_quagga_config()
-        if self.gobgp_config is None:
-            print "Failed to read the gobgp configuration file"
-            return False
-        if len(self.quagga_configs) == 0:
-            print "Failed to read the quagga configuration file"
-            return False
-        return True
-
 
 if __name__ == '__main__':
     if fab.test_user_check() is False:
