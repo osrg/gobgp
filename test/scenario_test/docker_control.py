@@ -156,7 +156,7 @@ def create_config_dir():
 
 
 def _make_startup_file(log_opt):
-    file_buff += 'cd gobgpd' + '\n'
+    file_buff += 'cd /go/src/github.com/osrg/gobgp/gobgpd' + '\n'
     file_buff += 'go get -v' + '\n'
     file_buff += 'go build' + '\n'
     file_buff += './gobgpd -f ' + SHARE_VOLUME + '/gobgpd.conf ' + log_opt + ' > ' + SHARE_VOLUME + '/gobgpd.log'
