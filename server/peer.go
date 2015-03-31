@@ -17,6 +17,7 @@ package server
 
 import (
 	"encoding/json"
+	"fmt"
 	log "github.com/Sirupsen/logrus"
 	"github.com/osrg/gobgp/api"
 	"github.com/osrg/gobgp/config"
@@ -287,6 +288,74 @@ func (peer *Peer) sendMessages(msgs []*bgp.BGPMessage) {
 func (peer *Peer) handleREST(restReq *api.RestRequest) {
 	result := &api.RestResponse{}
 	switch restReq.RequestType {
+	case api.REQ_GLOBAL_ADD, api.REQ_GLOBAL_DELETE:
+		rf := restReq.RouteFamily
+		prefixes := restReq.Data["prefix"].([]string)
+		var isWithdraw bool
+		if restReq.RequestType == api.REQ_GLOBAL_DELETE {
+			isWithdraw = true
+		}
+
+		info := &table.PeerInfo{
+			AS:      peer.globalConfig.As,
+			LocalID: peer.globalConfig.RouterId,
+			ID:      peer.globalConfig.RouterId,
+			Address: peer.peerConfig.LocalAddress,
+		}
+
+		pList := make([]table.Path, 0, len(prefixes))
+		for _, prefix := range prefixes {
+			var nlri bgp.AddrPrefixInterface
+			pattr := make([]bgp.PathAttributeInterface, 0)
+			pattr = append(pattr, bgp.NewPathAttributeOrigin(bgp.BGP_ORIGIN_ATTR_TYPE_IGP))
+			asparam := bgp.NewAs4PathParam(bgp.BGP_ASPATH_ATTR_TYPE_SEQ, []uint32{info.AS})
+			pattr = append(pattr, bgp.NewPathAttributeAsPath([]bgp.AsPathParamInterface{asparam}))
+
+			if rf == bgp.RF_IPv4_UC {
+				ip, net, _ := net.ParseCIDR(prefix)
+				if ip.To4() == nil {
+					result.ResponseErr = fmt.Errorf("Invalid ipv4 prefix: %s", prefix)
+					restReq.ResponseCh <- result
+					close(restReq.ResponseCh)
+					return
+				}
+				ones, _ := net.Mask.Size()
+				nlri = &bgp.NLRInfo{
+					IPAddrPrefix: *bgp.NewIPAddrPrefix(uint8(ones), ip.String()),
+				}
+
+				pattr = append(pattr, bgp.NewPathAttributeNextHop("0.0.0.0"))
+
+			} else if rf == bgp.RF_IPv6_UC {
+				ip, net, _ := net.ParseCIDR(prefix)
+				if ip.To16() == nil {
+					result.ResponseErr = fmt.Errorf("Invalid ipv6 prefix: %s", prefix)
+					restReq.ResponseCh <- result
+					close(restReq.ResponseCh)
+					return
+				}
+				ones, _ := net.Mask.Size()
+				nlri = bgp.NewIPv6AddrPrefix(uint8(ones), ip.String())
+
+				pattr = append(pattr, bgp.NewPathAttributeMpReachNLRI("0.0.0.0", []bgp.AddrPrefixInterface{nlri}))
+
+			} else {
+				result.ResponseErr = fmt.Errorf("Unsupported address family: %s", rf)
+				restReq.ResponseCh <- result
+				close(restReq.ResponseCh)
+				return
+			}
+
+			p := table.CreatePath(info, nlri, pattr, isWithdraw, time.Now())
+			pList = append(pList, p)
+		}
+
+		pm := &peerMsg{
+			msgType: PEER_MSG_PATH,
+			msgData: pList,
+		}
+		peer.peerMsgCh <- pm
+
 	case api.REQ_LOCAL_RIB, api.REQ_GLOBAL_RIB:
 		// just empty so we use ipv4 for any route family
 		j, _ := json.Marshal(table.NewIPv4Table(0))

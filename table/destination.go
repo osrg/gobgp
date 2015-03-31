@@ -47,6 +47,10 @@ type PeerInfo struct {
 	Address net.IP
 }
 
+func (lhs *PeerInfo) Equal(rhs *PeerInfo) bool {
+	return lhs.AS == rhs.AS && lhs.ID.Equal(rhs.ID) && lhs.LocalID.Equal(rhs.LocalID) && lhs.Address.Equal(lhs.Address)
+}
+
 type Destination interface {
 	Calculate(localAsn uint32) (Path, string, error)
 	getRouteFamily() bgp.RouteFamily
@@ -300,8 +304,7 @@ func (dest *DestinationDefault) removeWithdrawals() {
 		var isFound bool = false
 		for _, path := range dest.knownPathList {
 			// We have a match if the source are same.
-			// TODO add GetSource to Path interface
-			if path.GetSource() == withdraw.GetSource() {
+			if path.GetSource().Equal(withdraw.GetSource()) {
 				isFound = true
 				matches[path.String()] = path
 				wMatches[withdraw.String()] = withdraw
