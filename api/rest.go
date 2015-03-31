@@ -155,6 +155,7 @@ func (rs *RestServer) neighbor(w http.ResponseWriter, r *http.Request, reqType i
 			rf = bgp.RF_EVPN
 		default:
 			NotFoundHandler(w, r)
+			return
 		}
 	}
 
