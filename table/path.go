@@ -42,7 +42,7 @@ type Path interface {
 	getPrefix() string
 	setMedSetByTargetNeighbor(medSetByTargetNeighbor bool)
 	getMedSetByTargetNeighbor() bool
-	clone(IsWithdraw bool) Path
+	Clone(IsWithdraw bool) Path
 	getTimestamp() time.Time
 	setTimestamp(t time.Time)
 	MarshalJSON() ([]byte, error)
@@ -94,11 +94,6 @@ func cloneAsPath(asAttr *bgp.PathAttributeAsPath) *bgp.PathAttributeAsPath {
 }
 
 func (pd *PathDefault) updatePathAttrs(global *config.Global, peer *config.Neighbor) {
-	newPathAttrs := make([]bgp.PathAttributeInterface, len(pd.pathAttrs))
-	for i, v := range pd.pathAttrs {
-		newPathAttrs[i] = v
-	}
-	pd.pathAttrs = newPathAttrs
 
 	if peer.RouteServer.RouteServerClient {
 		return
@@ -212,7 +207,7 @@ func (pd *PathDefault) MarshalJSON() ([]byte, error) {
 }
 
 // create new PathAttributes
-func (pd *PathDefault) clone(isWithdraw bool) Path {
+func (pd *PathDefault) Clone(isWithdraw bool) Path {
 	nlri := pd.nlri
 	if isWithdraw {
 		if pd.IsWithdraw() {
@@ -221,7 +216,13 @@ func (pd *PathDefault) clone(isWithdraw bool) Path {
 			nlri = &bgp.WithdrawnRoute{pd.nlri.(*bgp.NLRInfo).IPAddrPrefix}
 		}
 	}
-	return CreatePath(pd.source, nlri, pd.pathAttrs, isWithdraw, pd.timestamp)
+
+	newPathAttrs := make([]bgp.PathAttributeInterface, len(pd.pathAttrs))
+	for i, v := range pd.pathAttrs {
+		newPathAttrs[i] = v
+	}
+
+	return CreatePath(pd.source, nlri, newPathAttrs, isWithdraw, pd.timestamp)
 }
 
 func (pd *PathDefault) GetRouteFamily() bgp.RouteFamily {
@@ -377,7 +378,7 @@ func NewIPv6Path(source *PeerInfo, nlri bgp.AddrPrefixInterface, isWithdraw bool
 	return ipv6Path
 }
 
-func (ipv6p *IPv6Path) clone(isWithdraw bool) Path {
+func (ipv6p *IPv6Path) Clone(isWithdraw bool) Path {
 	nlri := ipv6p.nlri
 	return CreatePath(ipv6p.source, nlri, ipv6p.pathAttrs, isWithdraw, ipv6p.PathDefault.timestamp)
 }
@@ -433,7 +434,7 @@ func NewIPv4VPNPath(source *PeerInfo, nlri bgp.AddrPrefixInterface, isWithdraw b
 	return ipv4VPNPath
 }
 
-func (ipv4vpnp *IPv4VPNPath) clone(isWithdraw bool) Path {
+func (ipv4vpnp *IPv4VPNPath) Clone(isWithdraw bool) Path {
 	nlri := ipv4vpnp.nlri
 	return CreatePath(ipv4vpnp.source, nlri, ipv4vpnp.pathAttrs, isWithdraw, ipv4vpnp.PathDefault.timestamp)
 }
@@ -490,7 +491,7 @@ func NewEVPNPath(source *PeerInfo, nlri bgp.AddrPrefixInterface, isWithdraw bool
 	return EVPNPath
 }
 
-func (evpnp *EVPNPath) clone(isWithdraw bool) Path {
+func (evpnp *EVPNPath) Clone(isWithdraw bool) Path {
 	nlri := evpnp.nlri
 	return CreatePath(evpnp.source, nlri, evpnp.pathAttrs, isWithdraw, evpnp.PathDefault.timestamp)
 }

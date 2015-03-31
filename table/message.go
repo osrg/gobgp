@@ -131,7 +131,7 @@ func cloneAttrSlice(attrs []bgp.PathAttributeInterface) []bgp.PathAttributeInter
 func CloneAndUpdatePathAttrs(pathList []Path, global *config.Global, peer *config.Neighbor) []Path {
 	newPathList := make([]Path, 0, len(pathList))
 	for _, p := range pathList {
-		clone := p.clone(p.IsWithdraw())
+		clone := p.Clone(p.IsWithdraw())
 		clone.updatePathAttrs(global, peer)
 		newPathList = append(newPathList, clone)
 	}
