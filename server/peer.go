@@ -360,61 +360,68 @@ func (peer *Peer) handleREST(restReq *api.RestRequest) {
 }
 
 func (peer *Peer) sendUpdateMsgFromPaths(pList []table.Path) {
-	pList = table.CloneAndUpdatePathAttrs(pList, &peer.globalConfig, &peer.peerConfig)
 
-	paths := []table.Path{}
-	policies := peer.exportPolicies
-	log.WithFields(log.Fields{
-		"Topic": "Peer",
-		"Key":   peer.peerConfig.NeighborAddress,
-	}).Debug("Export Policies :", policies)
-	for _, p := range pList {
-		if p.IsWithdraw() {
-			paths = append(paths, p)
-			continue
-		}
-		log.Debug("p: ", p)
-		if len(policies) != 0 {
-			applied, newPath := applyPolicies(policies, p)
+	pList = func(arg []table.Path) []table.Path {
+		ret := make([]table.Path, 0, len(arg))
+		for _, path := range arg {
+			if _, ok := peer.rfMap[path.GetRouteFamily()]; !ok {
+				continue
+			}
+			if peer.peerConfig.NeighborAddress.Equal(path.GetSource().Address) {
+				log.WithFields(log.Fields{
+					"Topic": "Peer",
+					"Key":   peer.peerConfig.NeighborAddress,
+					"Data":  path,
+				}).Debug("From me, ignore.")
+				continue
+			}
 
-			if applied {
-				if newPath != nil {
-					log.Debug("path accepted")
-					paths = append(paths, newPath)
-				} else {
-					log.Debug("path was rejected: ", p)
-				}
-
-			} else {
-				if peer.defaultExportPolicy == config.DEFAULT_POLICY_TYPE_ACCEPT_ROUTE {
-					paths = append(paths, p)
-					log.Debug("path is emitted by default export policy: ", p)
+			if !path.IsWithdraw() {
+				applied, path := applyPolicies(peer.exportPolicies, path)
+				if applied && path == nil {
+					log.WithFields(log.Fields{
+						"Topic": "Peer",
+						"Key":   peer.peerConfig.NeighborAddress,
+						"Data":  path,
+					}).Debug("Export policy applied, reject.")
+					continue
+				} else if peer.defaultExportPolicy != config.DEFAULT_POLICY_TYPE_ACCEPT_ROUTE {
+					log.WithFields(log.Fields{
+						"Topic": "Peer",
+						"Key":   peer.peerConfig.NeighborAddress,
+						"Data":  path,
+					}).Debug("Default export policy applied, reject.")
+					continue
 				}
 			}
-		} else {
-			paths = append(paths, p)
-		}
 
+			ret = append(ret, path.Clone(path.IsWithdraw()))
+		}
+		return ret
+	}(pList)
+
+	peer.adjRib.UpdateOut(pList)
+
+	if bgp.FSMState(peer.peerConfig.BgpNeighborCommonState.State) != bgp.BGP_FSM_ESTABLISHED || len(pList) == 0 {
+		return
 	}
 
-	peer.adjRib.UpdateOut(paths)
-	sendpathList := []table.Path{}
-	for _, p := range paths {
-		_, ok := peer.rfMap[p.GetRouteFamily()]
+	pList = func(arg []table.Path) []table.Path {
+		ret := make([]table.Path, 0, len(arg))
+		for _, path := range pList {
+			isLocal := path.GetSource().ID.Equal(peer.peerInfo.LocalID)
+			if isLocal {
+				path.SetNexthop(peer.peerConfig.LocalAddress)
+			} else {
+				table.UpdatePathAttrs(path, &peer.globalConfig, &peer.peerConfig)
+			}
 
-		if peer.peerConfig.NeighborAddress.Equal(p.GetSource().Address) {
-			log.WithFields(log.Fields{
-				"Topic": "Peer",
-				"Key":   peer.peerConfig.NeighborAddress,
-			}).Debugf("From me. Ignore: %s", p)
-			ok = false
+			ret = append(ret, path)
 		}
+		return ret
+	}(pList)
 
-		if ok {
-			sendpathList = append(sendpathList, p)
-		}
-	}
-	peer.sendMessages(table.CreateUpdateMsgFromPaths(sendpathList))
+	peer.sendMessages(table.CreateUpdateMsgFromPaths(pList))
 }
 
 // apply policies to the path
