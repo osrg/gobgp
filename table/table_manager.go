@@ -204,7 +204,7 @@ func (manager *TableManager) calculate(destinationList []Destination) ([]Path, e
 
 					p := destination.getBestPath()
 					destination.setOldBestPath(p)
-					newPaths = append(newPaths, p.clone(true))
+					newPaths = append(newPaths, p.Clone(true))
 				}
 				destination.setBestPath(nil)
 			} else {
