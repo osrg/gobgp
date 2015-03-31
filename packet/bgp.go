@@ -535,7 +535,7 @@ type IPv6AddrPrefix struct {
 
 func NewIPAddrPrefix(length uint8, prefix string) *IPAddrPrefix {
 	return &IPAddrPrefix{
-		IPAddrPrefixDefault{length, net.ParseIP(prefix)},
+		IPAddrPrefixDefault{length, net.ParseIP(prefix).To4()},
 		4,
 	}
 }

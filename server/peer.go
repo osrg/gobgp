@@ -17,6 +17,7 @@ package server
 
 import (
 	"encoding/json"
+	"fmt"
 	log "github.com/Sirupsen/logrus"
 	"github.com/osrg/gobgp/api"
 	"github.com/osrg/gobgp/config"
@@ -287,6 +288,74 @@ func (peer *Peer) sendMessages(msgs []*bgp.BGPMessage) {
 func (peer *Peer) handleREST(restReq *api.RestRequest) {
 	result := &api.RestResponse{}
 	switch restReq.RequestType {
+	case api.REQ_GLOBAL_ADD, api.REQ_GLOBAL_DELETE:
+		rf := restReq.RouteFamily
+		prefixes := restReq.Data["prefix"].([]string)
+		var isWithdraw bool
+		if restReq.RequestType == api.REQ_GLOBAL_DELETE {
+			isWithdraw = true
+		}
+
+		info := &table.PeerInfo{
+			AS:      peer.globalConfig.As,
+			LocalID: peer.globalConfig.RouterId,
+			ID:      peer.globalConfig.RouterId,
+			Address: peer.peerConfig.LocalAddress,
+		}
+
+		pList := make([]table.Path, 0, len(prefixes))
+		for _, prefix := range prefixes {
+			var nlri bgp.AddrPrefixInterface
+			pattr := make([]bgp.PathAttributeInterface, 0)
+			pattr = append(pattr, bgp.NewPathAttributeOrigin(bgp.BGP_ORIGIN_ATTR_TYPE_IGP))
+			asparam := bgp.NewAs4PathParam(bgp.BGP_ASPATH_ATTR_TYPE_SEQ, []uint32{info.AS})
+			pattr = append(pattr, bgp.NewPathAttributeAsPath([]bgp.AsPathParamInterface{asparam}))
+
+			if rf == bgp.RF_IPv4_UC {
+				ip, net, _ := net.ParseCIDR(prefix)
+				if ip.To4() == nil {
+					result.ResponseErr = fmt.Errorf("Invalid ipv4 prefix: %s", prefix)
+					restReq.ResponseCh <- result
+					close(restReq.ResponseCh)
+					return
+				}
+				ones, _ := net.Mask.Size()
+				nlri = &bgp.NLRInfo{
+					IPAddrPrefix: *bgp.NewIPAddrPrefix(uint8(ones), ip.String()),
+				}
+
+				pattr = append(pattr, bgp.NewPathAttributeNextHop("0.0.0.0"))
+
+			} else if rf == bgp.RF_IPv6_UC {
+				ip, net, _ := net.ParseCIDR(prefix)
+				if ip.To16() == nil {
+					result.ResponseErr = fmt.Errorf("Invalid ipv6 prefix: %s", prefix)
+					restReq.ResponseCh <- result
+					close(restReq.ResponseCh)
+					return
+				}
+				ones, _ := net.Mask.Size()
+				nlri = bgp.NewIPv6AddrPrefix(uint8(ones), ip.String())
+
+				pattr = append(pattr, bgp.NewPathAttributeMpReachNLRI("0.0.0.0", []bgp.AddrPrefixInterface{nlri}))
+
+			} else {
+				result.ResponseErr = fmt.Errorf("Unsupported address family: %s", rf)
+				restReq.ResponseCh <- result
+				close(restReq.ResponseCh)
+				return
+			}
+
+			p := table.CreatePath(info, nlri, pattr, isWithdraw, time.Now())
+			pList = append(pList, p)
+		}
+
+		pm := &peerMsg{
+			msgType: PEER_MSG_PATH,
+			msgData: pList,
+		}
+		peer.peerMsgCh <- pm
+
 	case api.REQ_LOCAL_RIB, api.REQ_GLOBAL_RIB:
 		// just empty so we use ipv4 for any route family
 		j, _ := json.Marshal(table.NewIPv4Table(0))
@@ -360,61 +429,68 @@ func (peer *Peer) handleREST(restReq *api.RestRequest) {
 }
 
 func (peer *Peer) sendUpdateMsgFromPaths(pList []table.Path) {
-	pList = table.CloneAndUpdatePathAttrs(pList, &peer.globalConfig, &peer.peerConfig)
 
-	paths := []table.Path{}
-	policies := peer.exportPolicies
-	log.WithFields(log.Fields{
-		"Topic": "Peer",
-		"Key":   peer.peerConfig.NeighborAddress,
-	}).Debug("Export Policies :", policies)
-	for _, p := range pList {
-		if p.IsWithdraw() {
-			paths = append(paths, p)
-			continue
-		}
-		log.Debug("p: ", p)
-		if len(policies) != 0 {
-			applied, newPath := applyPolicies(policies, &p)
+	pList = func(arg []table.Path) []table.Path {
+		ret := make([]table.Path, 0, len(arg))
+		for _, path := range arg {
+			if _, ok := peer.rfMap[path.GetRouteFamily()]; !ok {
+				continue
+			}
+			if peer.peerConfig.NeighborAddress.Equal(path.GetSource().Address) {
+				log.WithFields(log.Fields{
+					"Topic": "Peer",
+					"Key":   peer.peerConfig.NeighborAddress,
+					"Data":  path,
+				}).Debug("From me, ignore.")
+				continue
+			}
 
-			if applied {
-				if newPath != nil {
-					log.Debug("path accepted")
-					paths = append(paths, *newPath)
-				} else {
-					log.Debug("path was rejected: ", p)
-				}
-
-			} else {
-				if peer.defaultExportPolicy == config.DEFAULT_POLICY_TYPE_ACCEPT_ROUTE {
-					paths = append(paths, p)
-					log.Debug("path is emitted by default export policy: ", p)
+			if !path.IsWithdraw() {
+				applied, path := applyPolicies(peer.exportPolicies, path)
+				if applied && path == nil {
+					log.WithFields(log.Fields{
+						"Topic": "Peer",
+						"Key":   peer.peerConfig.NeighborAddress,
+						"Data":  path,
+					}).Debug("Export policy applied, reject.")
+					continue
+				} else if peer.defaultExportPolicy != config.DEFAULT_POLICY_TYPE_ACCEPT_ROUTE {
+					log.WithFields(log.Fields{
+						"Topic": "Peer",
+						"Key":   peer.peerConfig.NeighborAddress,
+						"Data":  path,
+					}).Debug("Default export policy applied, reject.")
+					continue
 				}
 			}
-		} else {
-			paths = append(paths, p)
-		}
 
+			ret = append(ret, path.Clone(path.IsWithdraw()))
+		}
+		return ret
+	}(pList)
+
+	peer.adjRib.UpdateOut(pList)
+
+	if bgp.FSMState(peer.peerConfig.BgpNeighborCommonState.State) != bgp.BGP_FSM_ESTABLISHED || len(pList) == 0 {
+		return
 	}
 
-	peer.adjRib.UpdateOut(paths)
-	sendpathList := []table.Path{}
-	for _, p := range paths {
-		_, ok := peer.rfMap[p.GetRouteFamily()]
+	pList = func(arg []table.Path) []table.Path {
+		ret := make([]table.Path, 0, len(arg))
+		for _, path := range pList {
+			isLocal := path.GetSource().ID.Equal(peer.peerInfo.LocalID)
+			if isLocal {
+				path.SetNexthop(peer.peerConfig.LocalAddress)
+			} else {
+				table.UpdatePathAttrs(path, &peer.globalConfig, &peer.peerConfig)
+			}
 
-		if peer.peerConfig.NeighborAddress.Equal(p.GetNexthop()) {
-			log.WithFields(log.Fields{
-				"Topic": "Peer",
-				"Key":   peer.peerConfig.NeighborAddress,
-			}).Debugf("From me. Ignore: %s", p)
-			ok = false
+			ret = append(ret, path)
 		}
+		return ret
+	}(pList)
 
-		if ok {
-			sendpathList = append(sendpathList, p)
-		}
-	}
-	peer.sendMessages(table.CreateUpdateMsgFromPaths(sendpathList))
+	peer.sendMessages(table.CreateUpdateMsgFromPaths(pList))
 }
 
 // apply policies to the path
@@ -439,20 +515,16 @@ func (peer *Peer) sendUpdateMsgFromPaths(pList []table.Path) {
 //                modified path.
 //                If action of the policy is 'reject', return nil
 //
-func applyPolicies(policies []*policy.Policy, original *table.Path) (bool, *table.Path) {
+func applyPolicies(policies []*policy.Policy, original table.Path) (bool, table.Path) {
 
 	var applied bool = true
 
 	for _, pol := range policies {
-		if result, action, newpath := pol.Apply(*original); result {
-			log.Debug("newpath: ", newpath)
+		if result, action, newpath := pol.Apply(original); result {
 			if action == policy.ROUTE_TYPE_REJECT {
-				log.Debug("path was rejected: ", original)
-				// return applied, nil, this means path was rejected
 				return applied, nil
 			} else {
-				// return applied, new path
-				return applied, &newpath
+				return applied, newpath
 			}
 		}
 	}
@@ -479,12 +551,12 @@ func (peer *Peer) handlePeerMsg(m *peerMsg) {
 				log.Debug("is not withdraw")
 
 				if len(policies) != 0 {
-					applied, newPath := applyPolicies(policies, &p)
+					applied, newPath := applyPolicies(policies, p)
 
 					if applied {
 						if newPath != nil {
 							log.Debug("path accepted")
-							paths = append(paths, *newPath)
+							paths = append(paths, newPath)
 						}
 					} else {
 						if peer.defaultImportPolicy == config.DEFAULT_POLICY_TYPE_ACCEPT_ROUTE {
@@ -627,6 +699,11 @@ func (peer *Peer) loop() error {
 				peer.peerConfig.LocalAddress = peer.fsm.LocalAddr()
 				for rf, _ := range peer.rfMap {
 					pathList := peer.adjRib.GetOutPathList(rf)
+					if !peer.peerConfig.RouteServer.RouteServerClient {
+						for _, path := range pathList {
+							path.SetNexthop(peer.peerConfig.LocalAddress)
+						}
+					}
 					peer.sendMessages(table.CreateUpdateMsgFromPaths(pathList))
 				}
 				peer.fsm.peerConfig.BgpNeighborCommonState.Uptime = time.Now().Unix()

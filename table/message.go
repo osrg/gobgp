@@ -128,14 +128,8 @@ func cloneAttrSlice(attrs []bgp.PathAttributeInterface) []bgp.PathAttributeInter
 	return clonedAttrs
 }
 
-func CloneAndUpdatePathAttrs(pathList []Path, global *config.Global, peer *config.Neighbor) []Path {
-	newPathList := make([]Path, 0, len(pathList))
-	for _, p := range pathList {
-		clone := p.clone(p.IsWithdraw())
-		clone.updatePathAttrs(global, peer)
-		newPathList = append(newPathList, clone)
-	}
-	return newPathList
+func UpdatePathAttrs(path Path, global *config.Global, peer *config.Neighbor) {
+	path.updatePathAttrs(global, peer)
 }
 
 func createUpdateMsgFromPath(path Path, msg *bgp.BGPMessage) *bgp.BGPMessage {
@@ -164,7 +158,7 @@ func createUpdateMsgFromPath(path Path, msg *bgp.BGPMessage) *bgp.BGPMessage {
 	} else if rf == bgp.RF_IPv6_UC || rf == bgp.RF_EVPN {
 		if path.IsWithdraw() {
 			if msg != nil {
-				idx, _ := path.getPathAttr(bgp.BGP_ATTR_TYPE_MP_REACH_NLRI)
+				idx, _ := path.getPathAttr(bgp.BGP_ATTR_TYPE_MP_UNREACH_NLRI)
 				u := msg.Body.(*bgp.BGPUpdate)
 				unreach := u.PathAttributes[idx].(*bgp.PathAttributeMpUnreachNLRI)
 				unreach.Value = append(unreach.Value, path.GetNlri())

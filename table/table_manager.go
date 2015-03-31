@@ -204,7 +204,7 @@ func (manager *TableManager) calculate(destinationList []Destination) ([]Path, e
 
 					p := destination.getBestPath()
 					destination.setOldBestPath(p)
-					newPaths = append(newPaths, p.clone(true))
+					newPaths = append(newPaths, p.Clone(true))
 				}
 				destination.setBestPath(nil)
 			} else {
@@ -397,7 +397,7 @@ type ReceivedRoute struct {
 }
 
 func (rr *ReceivedRoute) String() string {
-	return rr.path.(*PathDefault).getPrefix()
+	return rr.path.getPrefix()
 }
 
 func NewReceivedRoute(path Path, filtered bool) *ReceivedRoute {

@@ -98,6 +98,10 @@ class Show(object):
             print "Failed to connect to gobgpd. It runs?"
             sys.exit(1)
 
+        if r.status_code != requests.codes.ok:
+            print r.content.strip()
+            return 0
+
         f = "{:2s} {:18s} {:15s} {:10s} {:10s} {:s}"
         print(f.format("", "Network", "Next Hop", "AS_PATH", "Age", "Attrs"))
 
@@ -320,6 +324,10 @@ class Show(object):
 
         if self.options.debug:
             print r.json()
+            return 0
+
+        if r.status_code != requests.codes.ok:
+            print r.content.strip()
             return 0
 
         timestamp = True
