@@ -155,33 +155,29 @@ def create_config_dir():
     local(cmd, capture=True)
 
 
-def make_startup_file(log_opt=""):
-
-    file_buff = '#!/bin/bash' + '\n'
-    file_buff += 'cd /go/src/github.com/osrg/gobgp' + '\n'
-    file_buff += 'git pull origin master' + '\n'
+def _make_startup_file(log_opt):
     file_buff += 'go get -v' + '\n'
-    file_buff += 'go build' + '\n'
-    file_buff += './gobgp -f ' + SHARE_VOLUME + '/gobgpd.conf ' + log_opt + ' > ' + SHARE_VOLUME + '/gobgpd.log'
+    file_buff += 'go build -o gobgpd/gobgpd ./gobgpd' + '\n'
+    file_buff += './gobgpd/gobgpd -f ' + SHARE_VOLUME + '/gobgpd.conf ' + log_opt + ' > ' + SHARE_VOLUME + '/gobgpd.log'
     cmd = "echo \"" + file_buff + "\" > " + CONFIG_DIR + "/" + STARTUP_FILE_NAME
     local(cmd, capture=True)
     cmd = "chmod 755 " + CONFIG_DIRR + STARTUP_FILE_NAME
     local(cmd, capture=True)
 
 
-def make_startup_file_use_local_gobgp(log_opt=""):
+def make_startup_file(log_opt=""):
+    file_buff = '#!/bin/bash' + '\n'
+    file_buff += 'cd /go/src/github.com/osrg/gobgp' + '\n'
+    file_buff += 'git pull origin master' + '\n'
+    _make_startup_file(log_opt)
 
+
+def make_startup_file_use_local_gobgp(log_opt=""):
     file_buff = '#!/bin/bash' + '\n'
     file_buff += 'rm -rf  /go/src/github.com/osrg/gobgp' + '\n'
     file_buff += 'cp -r ' + SHARE_VOLUME + '/gobgp /go/src/github.com/osrg/' + '\n'
     file_buff += 'cd /go/src/github.com/osrg/gobgp' + '\n'
-    file_buff += 'go get -v' + '\n'
-    file_buff += 'go build' + '\n'
-    file_buff += './gobgp -f ' + SHARE_VOLUME + '/gobgpd.conf ' + log_opt + ' > ' + SHARE_VOLUME + '/gobgpd.log'
-    cmd = "echo \"" + file_buff + "\" > " + CONFIG_DIR + "/" + STARTUP_FILE_NAME
-    local(cmd, capture=True)
-    cmd = "chmod 755 " + CONFIG_DIRR + STARTUP_FILE_NAME
-    local(cmd, capture=True)
+    _make_startup_file(log_opt)
 
 
 def docker_container_stop_quagga(quagga):
