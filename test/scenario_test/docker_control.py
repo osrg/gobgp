@@ -156,9 +156,10 @@ def create_config_dir():
 
 
 def _make_startup_file(log_opt):
+    file_buff += 'cd gobgpd' + '\n'
     file_buff += 'go get -v' + '\n'
-    file_buff += 'go build -o gobgpd/gobgpd ./gobgpd' + '\n'
-    file_buff += './gobgpd/gobgpd -f ' + SHARE_VOLUME + '/gobgpd.conf ' + log_opt + ' > ' + SHARE_VOLUME + '/gobgpd.log'
+    file_buff += 'go build' + '\n'
+    file_buff += './gobgpd -f ' + SHARE_VOLUME + '/gobgpd.conf ' + log_opt + ' > ' + SHARE_VOLUME + '/gobgpd.log'
     cmd = "echo \"" + file_buff + "\" > " + CONFIG_DIR + "/" + STARTUP_FILE_NAME
     local(cmd, capture=True)
     cmd = "chmod 755 " + CONFIG_DIRR + STARTUP_FILE_NAME
