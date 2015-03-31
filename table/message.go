@@ -164,7 +164,7 @@ func createUpdateMsgFromPath(path Path, msg *bgp.BGPMessage) *bgp.BGPMessage {
 	} else if rf == bgp.RF_IPv6_UC || rf == bgp.RF_EVPN {
 		if path.IsWithdraw() {
 			if msg != nil {
-				idx, _ := path.getPathAttr(bgp.BGP_ATTR_TYPE_MP_REACH_NLRI)
+				idx, _ := path.getPathAttr(bgp.BGP_ATTR_TYPE_MP_UNREACH_NLRI)
 				u := msg.Body.(*bgp.BGPUpdate)
 				unreach := u.PathAttributes[idx].(*bgp.PathAttributeMpUnreachNLRI)
 				unreach.Value = append(unreach.Value, path.GetNlri())
