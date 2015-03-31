@@ -320,7 +320,7 @@ func (server *BgpServer) handleRest(restReq *api.RestRequest) {
 		}
 		restReq.ResponseCh <- result
 		close(restReq.ResponseCh)
-	case api.REQ_GLOBAL_RIB:
+	case api.REQ_GLOBAL_RIB, api.REQ_GLOBAL_ADD, api.REQ_GLOBAL_DELETE:
 		msg := &serverMsg{
 			msgType: SRV_MSG_API,
 			msgData: restReq,
