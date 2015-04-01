@@ -375,12 +375,12 @@ func (peer *Peer) sendUpdateMsgFromPaths(pList []table.Path) {
 		}
 		log.Debug("p: ", p)
 		if len(policies) != 0 {
-			applied, newPath := applyPolicies(policies, &p)
+			applied, newPath := peer.applyPolicies(policies, p)
 
 			if applied {
 				if newPath != nil {
 					log.Debug("path accepted")
-					paths = append(paths, *newPath)
+					paths = append(paths, newPath)
 				} else {
 					log.Debug("path was rejected: ", p)
 				}
@@ -439,20 +439,24 @@ func (peer *Peer) sendUpdateMsgFromPaths(pList []table.Path) {
 //                modified path.
 //                If action of the policy is 'reject', return nil
 //
-func applyPolicies(policies []*policy.Policy, original *table.Path) (bool, *table.Path) {
+func (peer *Peer) applyPolicies(policies []*policy.Policy, original table.Path) (bool, table.Path) {
 
 	var applied bool = true
 
 	for _, pol := range policies {
-		if result, action, newpath := pol.Apply(*original); result {
+		if result, action, newpath := pol.Apply(original); result {
 			log.Debug("newpath: ", newpath)
 			if action == policy.ROUTE_TYPE_REJECT {
-				log.Debug("path was rejected: ", original)
+                log.WithFields(log.Fields{
+                    "Topic": "Peer",
+                    "Key":   peer.peerConfig.NeighborAddress,
+                    "NRLI": original.GetNlri(),
+                }).Debug("path was rejected")
 				// return applied, nil, this means path was rejected
 				return applied, nil
 			} else {
 				// return applied, new path
-				return applied, &newpath
+				return applied, newpath
 			}
 		}
 	}
@@ -479,12 +483,12 @@ func (peer *Peer) handlePeerMsg(m *peerMsg) {
 				log.Debug("is not withdraw")
 
 				if len(policies) != 0 {
-					applied, newPath := applyPolicies(policies, &p)
+					applied, newPath := peer.applyPolicies(policies, p)
 
 					if applied {
 						if newPath != nil {
 							log.Debug("path accepted")
-							paths = append(paths, *newPath)
+							paths = append(paths, newPath)
 						}
 					} else {
 						if peer.defaultImportPolicy == config.DEFAULT_POLICY_TYPE_ACCEPT_ROUTE {
