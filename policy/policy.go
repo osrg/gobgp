@@ -66,7 +66,6 @@ func NewPolicy(name string, pd config.PolicyDefinition, ds config.DefinedSets) *
 							"prefix": prefix,
 							"msg":    e,
 						}).Warn("failed to generate a NewPrefix from configration.")
-						continue
 					}
 					prefixList = append(prefixList, prefix)
 				}
@@ -162,6 +161,7 @@ func (c *PrefixConditions) evaluatePrefix(path table.Path) bool {
 
 	for _, cp := range c.PrefixList {
 		if IpPrefixCalculate(path, cp) {
+            log.Debug("prefix matched : ",cp)
 			return true
 		}
 	}
