@@ -30,6 +30,11 @@ def login(host):
     return tn
 
 
+def logout(tn):
+    tn.write("exit\n")
+    tn.read_all()
+
+
 def add_neighbor(tn, as_number, neighbor_address, remote_as):
     tn.write("configure terminal\n")
     tn.write("router bgp "+str(as_number)+"\n")
@@ -55,7 +60,7 @@ def add_network(tn, as_number, network):
     tn.write("network "+ network + " \n")
     tn.write("exit\n")
     tn.write("exit\n")
-    print tn.read_until("bgpd#")
+    tn.read_until("bgpd#")
 
 
 def add_metric(tn, metric, network):

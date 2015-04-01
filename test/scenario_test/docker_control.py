@@ -287,6 +287,34 @@ def make_config(quagga_num, go_path, bridge, peer_opts=""):
     local(cmd, capture=True)
 
 
+def make_config_with_policy(quagga_num, go_path, bridge, peer_opts="", policy_pattern=""):
+    if go_path != "":
+        print "specified go path is [ " + go_path + " ]."
+        if os.path.isdir(go_path):
+            go_path += "/"
+        else:
+            print "specified go path is not used."
+    pwd = local("pwd", capture=True)
+    cmd = go_path + "go run " + pwd + "/quagga-rsconfig.go "+" -p "+ policy_pattern + " -n " + str(quagga_num) + \
+          " -c /tmp/gobgp -v " + IP_VERSION + " -i " + bridge["BRIDGE_NAME"][-1] + " " + peer_opts
+    local(cmd, capture=True)
+
+
+def update_policy_config(go_path, policy_pattern=""):
+    if go_path != "":
+        print "specified go path is [ " + go_path + " ]."
+        if os.path.isdir(go_path):
+            go_path += "/"
+        else:
+            print "specified go path is not used."
+
+    pwd = local("pwd", capture=True)
+    cmd = go_path + "go run " + pwd + "/quagga-rsconfig.go --update-policy "+" -p "+ policy_pattern + \
+          " -c /tmp/gobgp "
+    local(cmd, capture=True)
+    reload_config()
+
+
 def make_config_append(quagga_num, go_path, bridge, peer_opts=""):
     if go_path != "":
         print "specified go path is [ " + go_path + " ]."
@@ -323,6 +351,52 @@ def init_test_env_executor(quagga_num, use_local, go_path, log_debug=False, is_r
     create_config_dir()
     bridge_setting_for_docker_connection(BRIDGES)
     make_config(quagga_num, go_path, BRIDGE_0, ("" if is_route_server else "--normal-bgp"))
+
+    # run gobgp docker container
+    docker_container_run_gobgp(BRIDGE_0)
+
+    # set log option
+    opt = "-l debug" if log_debug else ""
+
+    # execute local gobgp program in the docker container if the input option is local
+    if use_local:
+        print "execute gobgp program in local machine."
+        pwd = local("pwd", capture=True)
+        if A_PART_OF_CURRENT_DIR in pwd:
+            gobgp_path = re.sub(A_PART_OF_CURRENT_DIR, "", pwd)
+            cmd = "cp -r " + gobgp_path + " " + CONFIG_DIRR
+            local(cmd, capture=True)
+            make_startup_file_use_local_gobgp(log_opt=opt)
+        else:
+            print "scenario_test directory is not."
+            print "execute gobgp program of osrg/master in github."
+            make_startup_file(log_opt=opt)
+    else:
+        print "execute gobgp program of osrg/master in github."
+        make_startup_file(log_opt=opt)
+
+    change_owner_to_root(CONFIG_DIR)
+    start_gobgp()
+
+    # run quagga docker container
+    for num in range(1, quagga_num + 1):
+        docker_container_run_quagga(num, BRIDGE_0)
+
+    print "complete initialization of test environment."
+
+
+def init_policy_test_env_executor(quagga_num, use_local, go_path, log_debug=False, policy=""):
+    print "start initialization of test environment."
+
+    if docker_container_check() or bridge_setting_check():
+        print "gobgp test environment already exists."
+        print "so that remake gobgp test environment."
+        docker_containers_destroy()
+
+    print "make gobgp policy test environment."
+    create_config_dir()
+    bridge_setting_for_docker_connection(BRIDGES)
+    make_config_with_policy(quagga_num, go_path, BRIDGE_0, policy_pattern=policy)
 
     # run gobgp docker container
     docker_container_run_gobgp(BRIDGE_0)

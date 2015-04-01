@@ -88,7 +88,7 @@ func (qt *QuaggaConfig) IPv6Config() *bytes.Buffer {
 	return buf
 }
 
-func create_config_files(nr int, outputDir string, IPVersion string, nonePeer bool, normalBGP bool) {
+func create_config_files(nr int, outputDir string, IPVersion string, nonePeer bool, normalBGP bool, policyPattern string) {
 	quaggaConfigList := make([]*QuaggaConfig, 0)
 
 	gobgpConf := config.Bgp{
@@ -96,6 +96,11 @@ func create_config_files(nr int, outputDir string, IPVersion string, nonePeer bo
 			As:       65000,
 			RouterId: net.ParseIP("192.168.255.1"),
 		},
+	}
+
+	var binding *PolicyBinding
+	if policyPattern != "" {
+		binding = bindPolicy(policyPattern)
 	}
 
 	for i := 1; i < nr+1; i++ {
@@ -108,6 +113,19 @@ func create_config_files(nr int, outputDir string, IPVersion string, nonePeer bo
 			Timers:           config.Timers{HoldTime: 30, KeepaliveInterval: 10, IdleHoldTimeAfterReset: 10},
 			PeerType:         config.PEER_TYPE_EXTERNAL,
 		}
+
+		if binding != nil {
+
+			if binding.NeighborAddress == c.NeighborAddress.String() {
+				ap := config.ApplyPolicy{
+					ImportPolicies: binding.ImportPolicyNames,
+					ExportPolicies: binding.ExportPolicyNames,
+				}
+				c.ApplyPolicy = ap
+			}
+
+		}
+
 		gobgpConf.NeighborList = append(gobgpConf.NeighborList, c)
 		if !nonePeer {
 			q := NewQuaggaConfig(i, &gobgpConf.Global, &c, net.ParseIP(serverAddress[IPVersion]))
@@ -128,6 +146,9 @@ func create_config_files(nr int, outputDir string, IPVersion string, nonePeer bo
 	var buffer bytes.Buffer
 	encoder := toml.NewEncoder(&buffer)
 	encoder.Encode(gobgpConf)
+	if binding != nil {
+		encoder.Encode(binding.Policy)
+	}
 
 	err := ioutil.WriteFile(fmt.Sprintf("%s/gobgpd.conf", outputDir), buffer.Bytes(), 0644)
 	if err != nil {
@@ -180,6 +201,180 @@ func append_config_files(ar int, outputDir string, IPVersion string, nonePeer bo
 	}
 }
 
+func createPolicyConfig() *config.RoutingPolicy {
+
+	ps0 := config.PrefixSet{
+		PrefixSetName: "ps0",
+		PrefixList: []config.Prefix{
+			config.Prefix{
+				Address:         net.ParseIP("192.168.0.0"),
+				Masklength:      16,
+				MasklengthRange: "16..24",
+			}},
+	}
+
+	ps1 := config.PrefixSet{
+		PrefixSetName: "ps1",
+		PrefixList: []config.Prefix{
+			config.Prefix{
+				Address:    net.ParseIP("192.168.20.0"),
+				Masklength: 24,
+			}, config.Prefix{
+				Address:    net.ParseIP("192.168.200.0"),
+				Masklength: 24,
+			}},
+	}
+
+	ps2 := config.PrefixSet{
+		PrefixSetName: "ps2",
+		PrefixList: []config.Prefix{
+			config.Prefix{
+				Address:    net.ParseIP("192.168.20.0"),
+				Masklength: 24,
+			}},
+	}
+
+	ns0 := config.NeighborSet{
+		NeighborSetName: "ns0",
+		NeighborInfoList: []config.NeighborInfo{
+			config.NeighborInfo{
+				Address: net.ParseIP("10.0.0.2"),
+			}},
+	}
+
+	ds := config.DefinedSets{
+		PrefixSetList:   []config.PrefixSet{ps0, ps1, ps2},
+		NeighborSetList: []config.NeighborSet{ns0},
+	}
+
+	st0 := config.Statement{
+		Name: "st0",
+		Conditions: config.Conditions{
+			MatchPrefixSet:   "ps0",
+			MatchNeighborSet: "ns0",
+			MatchSetOptions:  config.MATCH_SET_OPTIONS_TYPE_ALL,
+		},
+		Actions: config.Actions{
+			AcceptRoute: false,
+			RejectRoute: true,
+		},
+	}
+
+	st1 := config.Statement{
+		Name: "st1",
+		Conditions: config.Conditions{
+			MatchPrefixSet:   "ps1",
+			MatchNeighborSet: "ns0",
+			MatchSetOptions:  config.MATCH_SET_OPTIONS_TYPE_ALL,
+		},
+		Actions: config.Actions{
+			AcceptRoute: false,
+			RejectRoute: true,
+		},
+	}
+
+	pd0 := config.PolicyDefinition{
+		Name:          "policy0",
+		StatementList: []config.Statement{st0},
+	}
+
+	pd1 := config.PolicyDefinition{
+		Name:          "policy1",
+		StatementList: []config.Statement{st1},
+	}
+
+	p := &config.RoutingPolicy{
+		DefinedSets:          ds,
+		PolicyDefinitionList: []config.PolicyDefinition{pd0, pd1},
+	}
+	return p
+}
+
+func updatePolicyConfig(outputDir string, pattern string) {
+
+	newConf := config.Bgp{}
+	policyConf := config.RoutingPolicy{}
+
+	_, d_err := toml.DecodeFile(fmt.Sprintf("%s/gobgpd.conf", outputDir), &newConf)
+	if d_err != nil {
+		log.Fatal(d_err)
+	}
+	_, d_err = toml.DecodeFile(fmt.Sprintf("%s/gobgpd.conf", outputDir), &policyConf)
+	if d_err != nil {
+		log.Fatal(d_err)
+	}
+
+	fmt.Println(policyConf)
+
+	st2 := config.Statement{
+		Name: "st2",
+		Conditions: config.Conditions{
+			MatchPrefixSet:   "ps2",
+			MatchNeighborSet: "ns0",
+			MatchSetOptions:  config.MATCH_SET_OPTIONS_TYPE_ALL,
+		},
+		Actions: config.Actions{
+			AcceptRoute: false,
+			RejectRoute: true,
+		},
+	}
+
+	if pattern == "p3" || pattern == "p4" {
+		policyConf.PolicyDefinitionList[1].StatementList = []config.Statement{st2}
+	}
+
+	var buffer bytes.Buffer
+	encoder := toml.NewEncoder(&buffer)
+	encoder.Encode(newConf)
+	encoder.Encode(policyConf)
+	e_err := ioutil.WriteFile(fmt.Sprintf("%s/gobgpd.conf", outputDir), buffer.Bytes(), 0644)
+	if e_err != nil {
+		log.Fatal(e_err)
+	}
+
+	return
+}
+
+type PolicyBinding struct {
+	NeighborAddress   string
+	Policy            *config.RoutingPolicy
+	ImportPolicyNames []string
+	ExportPolicyNames []string
+}
+
+func bindPolicy(pattern string) *PolicyBinding {
+
+	var pb *PolicyBinding = &PolicyBinding{Policy: createPolicyConfig()}
+
+	switch pattern {
+	case "p1":
+		pb.NeighborAddress = "10.0.0.3"
+		pb.ImportPolicyNames = []string{"policy0"}
+		pb.ExportPolicyNames = nil
+
+	case "p2":
+		pb.NeighborAddress = "10.0.0.3"
+		pb.ImportPolicyNames = nil
+		pb.ExportPolicyNames = []string{"policy0"}
+
+	case "p3":
+		pb.NeighborAddress = "10.0.0.3"
+		pb.ImportPolicyNames = []string{"policy1"}
+		pb.ExportPolicyNames = nil
+
+	case "p4":
+		pb.NeighborAddress = "10.0.0.3"
+		pb.ImportPolicyNames = nil
+		pb.ExportPolicyNames = []string{"policy1"}
+
+	default:
+		pb = nil
+	}
+
+	return pb
+
+}
+
 func main() {
 	var opts struct {
 		ClientNumber  int    `short:"n" long:"client-number" description:"specfying the number of clients" default:"8"`
@@ -189,6 +384,8 @@ func main() {
 		NetIdentifier int    `short:"i" long:"net-identifer" description:"specifing the use network identifier" default:"0"`
 		NonePeer      bool   `long:"none-peer" description:"disable make quagga config"`
 		NormalBGP     bool   `long:"normal-bgp" description:"generate normal bgp server configuration"`
+		PolicyPattern string `short:"p" long:"policy-pattern" description:"specify policy pattern" default:""`
+		UpdatePolicy  bool   `long:"update-policy" description:"update exsisting policy config" default:"false"`
 	}
 	parser := flags.NewParser(&opts, flags.Default)
 	_, err := parser.Parse()
@@ -217,12 +414,18 @@ func main() {
 		baseNeighborNetMask[IPv4] = ".0/24"
 	}
 
-	if opts.AppendClient == 0 {
-		create_config_files(opts.ClientNumber, opts.OutputDir, opts.IPVersion, opts.NonePeer, opts.NormalBGP)
+	isCreateMode := opts.AppendClient == 0 && !opts.UpdatePolicy
+
+	if isCreateMode {
+		create_config_files(opts.ClientNumber, opts.OutputDir, opts.IPVersion, opts.NonePeer, opts.NormalBGP, opts.PolicyPattern)
 	} else {
 		if _, err := os.Stat(fmt.Sprintf("%s/gobgpd.conf", opts.OutputDir)); os.IsNotExist(err) {
 			log.Fatal(err)
 		}
-		append_config_files(opts.AppendClient, opts.OutputDir, opts.IPVersion, opts.NonePeer, opts.NormalBGP)
+		if opts.UpdatePolicy {
+			updatePolicyConfig(opts.OutputDir, opts.PolicyPattern)
+		} else {
+			append_config_files(opts.AppendClient, opts.OutputDir, opts.IPVersion, opts.NonePeer, opts.NormalBGP)
+		}
 	}
 }
