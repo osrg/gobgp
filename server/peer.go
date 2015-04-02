@@ -446,11 +446,11 @@ func (peer *Peer) applyPolicies(policies []*policy.Policy, original table.Path) 
 		if result, action, newpath := pol.Apply(original); result {
 			log.Debug("newpath: ", newpath)
 			if action == policy.ROUTE_TYPE_REJECT {
-                log.WithFields(log.Fields{
-                    "Topic": "Peer",
-                    "Key":   peer.peerConfig.NeighborAddress,
-                    "NRLI": original.GetNlri(),
-                }).Debug("path was rejected")
+				log.WithFields(log.Fields{
+					"Topic": "Peer",
+					"Key":   peer.peerConfig.NeighborAddress,
+					"NRLI":  original.GetNlri(),
+				}).Debug("path was rejected")
 				// return applied, nil, this means path was rejected
 				return applied, nil
 			} else {
