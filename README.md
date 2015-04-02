@@ -3,7 +3,7 @@ GoBGP: BGP implementation in Go
 
 GoBGP is an open source BGP implementation designed from scratch for
 modern environment and implemented in a modern programming language,
-[The Go Programming Language](http://golang.org/).
+[the Go Programming Language](http://golang.org/).
 
 Getting started
 ===============
