@@ -339,11 +339,7 @@ class Show(object):
                 self.show_routes(f, d["Paths"], True, True)
 
         elif self.args[2] == "adj-rib-in" or self.args[2] == "adj-rib-out":
-            rfs = ["RF_IPv4_UC", "RF_IPv6_UC"]
-            for rf in rfs:
-                if rf in r.json():
-                    paths = r.json()[rf]
-                    self.show_routes(f, paths, False, timestamp)
+            self.show_routes(f, r.json(), False, timestamp)
         return 0
 
     def show_routes(self, f, paths, showBest=False, timestamp=False):

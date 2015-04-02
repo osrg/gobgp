@@ -312,19 +312,18 @@ func (peer *Peer) handleREST(restReq *api.RestRequest) {
 		pathList := peer.adjRib.GetOutPathList(restReq.RouteFamily)
 		peer.sendMessages(table.CreateUpdateMsgFromPaths(pathList))
 	case api.REQ_ADJ_RIB_IN, api.REQ_ADJ_RIB_OUT:
-		adjrib := make(map[string][]table.Path)
 		rf := restReq.RouteFamily
 		if restReq.RequestType == api.REQ_ADJ_RIB_IN {
 			paths := peer.adjRib.GetInPathList(rf)
-			adjrib[rf.String()] = paths
+			j, _ := json.Marshal(paths)
+			result.Data = j
 			log.Debugf("RouteFamily=%v adj-rib-in found : %d", rf.String(), len(paths))
 		} else {
 			paths := peer.adjRib.GetOutPathList(rf)
-			adjrib[rf.String()] = paths
+			j, _ := json.Marshal(paths)
+			result.Data = j
 			log.Debugf("RouteFamily=%v adj-rib-out found : %d", rf.String(), len(paths))
 		}
-		j, _ := json.Marshal(adjrib)
-		result.Data = j
 	case api.REQ_NEIGHBOR_ENABLE, api.REQ_NEIGHBOR_DISABLE:
 		r := make(map[string]string)
 		if restReq.RequestType == api.REQ_NEIGHBOR_ENABLE {
