@@ -115,8 +115,8 @@ func create_config_files(nr int, outputDir string, IPVersion string, nonePeer bo
 		}
 
 		if binding != nil {
-
-			if binding.NeighborAddress == c.NeighborAddress.String() {
+            ip := net.ParseIP(binding.NeighborAddress)
+			if ip.String() == c.NeighborAddress.String() {
 				ap := config.ApplyPolicy{
 					ImportPolicies: binding.ImportPolicyNames,
 					ExportPolicies: binding.ExportPolicyNames,
@@ -234,6 +234,37 @@ func createPolicyConfig() *config.RoutingPolicy {
 			}},
 	}
 
+	ps3 := config.PrefixSet{
+		PrefixSetName: "ps3",
+		PrefixList: []config.Prefix{
+			config.Prefix{
+				Address:         net.ParseIP("2001:0:10:2::"),
+				Masklength:      64,
+				MasklengthRange: "64..128",
+			}},
+	}
+
+	ps4 := config.PrefixSet{
+		PrefixSetName: "ps4",
+		PrefixList: []config.Prefix{
+			config.Prefix{
+				Address:    net.ParseIP("2001:0:10:20::"),
+				Masklength: 64,
+			}, config.Prefix{
+				Address:    net.ParseIP("2001:0:10:200::"),
+				Masklength: 64,
+			}},
+	}
+
+	ps5 := config.PrefixSet{
+		PrefixSetName: "ps5",
+		PrefixList: []config.Prefix{
+			config.Prefix{
+				Address:    net.ParseIP("2001:0:10:20::"),
+				Masklength: 64,
+			}},
+	}
+
 	ns0 := config.NeighborSet{
 		NeighborSetName: "ns0",
 		NeighborInfoList: []config.NeighborInfo{
@@ -242,9 +273,12 @@ func createPolicyConfig() *config.RoutingPolicy {
 			}},
 	}
 
-	ds := config.DefinedSets{
-		PrefixSetList:   []config.PrefixSet{ps0, ps1, ps2},
-		NeighborSetList: []config.NeighborSet{ns0},
+	ns1 := config.NeighborSet{
+		NeighborSetName: "ns1",
+		NeighborInfoList: []config.NeighborInfo{
+			config.NeighborInfo{
+				Address: net.ParseIP("2001::0:192:168:0:2"),
+			}},
 	}
 
 	st0 := config.Statement{
@@ -273,6 +307,32 @@ func createPolicyConfig() *config.RoutingPolicy {
 		},
 	}
 
+	st3 := config.Statement{
+		Name: "st3",
+		Conditions: config.Conditions{
+			MatchPrefixSet:   "ps3",
+			MatchNeighborSet: "ns1",
+			MatchSetOptions:  config.MATCH_SET_OPTIONS_TYPE_ALL,
+		},
+		Actions: config.Actions{
+			AcceptRoute: false,
+			RejectRoute: true,
+		},
+	}
+
+	st4 := config.Statement{
+		Name: "st4",
+		Conditions: config.Conditions{
+			MatchPrefixSet:   "ps4",
+			MatchNeighborSet: "ns1",
+			MatchSetOptions:  config.MATCH_SET_OPTIONS_TYPE_ALL,
+		},
+		Actions: config.Actions{
+			AcceptRoute: false,
+			RejectRoute: true,
+		},
+	}
+
 	pd0 := config.PolicyDefinition{
 		Name:          "policy0",
 		StatementList: []config.Statement{st0},
@@ -283,9 +343,24 @@ func createPolicyConfig() *config.RoutingPolicy {
 		StatementList: []config.Statement{st1},
 	}
 
+	pd2 := config.PolicyDefinition{
+		Name:          "policy2",
+		StatementList: []config.Statement{st3},
+	}
+
+	pd3 := config.PolicyDefinition{
+		Name:          "policy3",
+		StatementList: []config.Statement{st4},
+	}
+
+	ds := config.DefinedSets{
+		PrefixSetList:   []config.PrefixSet{ps0, ps1, ps2, ps3, ps4, ps5},
+		NeighborSetList: []config.NeighborSet{ns0, ns1},
+	}
+
 	p := &config.RoutingPolicy{
 		DefinedSets:          ds,
-		PolicyDefinitionList: []config.PolicyDefinition{pd0, pd1},
+		PolicyDefinitionList: []config.PolicyDefinition{pd0, pd1, pd2, pd3},
 	}
 	return p
 }
@@ -319,8 +394,25 @@ func updatePolicyConfig(outputDir string, pattern string) {
 		},
 	}
 
+	st5 := config.Statement{
+		Name: "st5",
+		Conditions: config.Conditions{
+			MatchPrefixSet:   "ps5",
+			MatchNeighborSet: "ns1",
+			MatchSetOptions:  config.MATCH_SET_OPTIONS_TYPE_ALL,
+		},
+		Actions: config.Actions{
+			AcceptRoute: false,
+			RejectRoute: true,
+		},
+	}
+
 	if pattern == "p3" || pattern == "p4" {
 		policyConf.PolicyDefinitionList[1].StatementList = []config.Statement{st2}
+	}
+
+	if pattern == "p7" || pattern == "p8" {
+		policyConf.PolicyDefinitionList[3].StatementList = []config.Statement{st5}
 	}
 
 	var buffer bytes.Buffer
@@ -366,6 +458,26 @@ func bindPolicy(pattern string) *PolicyBinding {
 		pb.NeighborAddress = "10.0.0.3"
 		pb.ImportPolicyNames = nil
 		pb.ExportPolicyNames = []string{"policy1"}
+
+	case "p5":
+		pb.NeighborAddress = "2001::0:192:168:0:3"
+		pb.ImportPolicyNames = []string{"policy2"}
+		pb.ExportPolicyNames = nil
+
+	case "p6":
+		pb.NeighborAddress = "2001::0:192:168:0:3"
+		pb.ImportPolicyNames = nil
+		pb.ExportPolicyNames = []string{"policy2"}
+
+	case "p7":
+		pb.NeighborAddress = "2001::0:192:168:0:3"
+		pb.ImportPolicyNames = []string{"policy3"}
+		pb.ExportPolicyNames = nil
+
+	case "p8":
+		pb.NeighborAddress = "2001::0:192:168:0:3"
+		pb.ImportPolicyNames = nil
+		pb.ExportPolicyNames = []string{"policy3"}
 
 	default:
 		pb = nil
