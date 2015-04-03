@@ -16,6 +16,7 @@
 package bgp
 
 import (
+	"bytes"
 	"encoding/binary"
 	"encoding/json"
 	"errors"
@@ -970,27 +971,69 @@ func (n *RouteTargetMembershipNLRI) String() string {
 	return fmt.Sprintf("%d:%s/%d", n.AS, n.RouteTarget.String(), n.Len()*8)
 }
 
+type ESIType uint8
+
+const (
+	ESI_ARBITRARY ESIType = iota
+	ESI_LACP
+	ESI_MSTP
+	ESI_MAC
+	ESI_ROUTERID
+	ESI_AS
+)
+
 type EthernetSegmentIdentifier struct {
-	Type  uint8
+	Type  ESIType
 	Value []byte
 }
 
 func (esi *EthernetSegmentIdentifier) DecodeFromBytes(data []byte) error {
-	esi.Type = data[0]
+	esi.Type = ESIType(data[0])
 	esi.Value = data[1:10]
+	switch esi.Type {
+	case ESI_LACP, ESI_MSTP, ESI_ROUTERID, ESI_AS:
+		if esi.Value[8] != 0x00 {
+			return fmt.Errorf("invalid %s. last octet must be 0x00 (0x%02x)", esi.Type, esi.Value[8])
+		}
+	}
 	return nil
 }
 
 func (esi *EthernetSegmentIdentifier) Serialize() ([]byte, error) {
 	buf := make([]byte, 10)
-	buf[0] = esi.Type
+	buf[0] = uint8(esi.Type)
 	copy(buf[1:], esi.Value)
 	return buf, nil
 }
 
+func (esi *EthernetSegmentIdentifier) String() string {
+	s := bytes.NewBuffer(make([]byte, 0, 64))
+	s.WriteString(fmt.Sprintf("%s | ", esi.Type))
+	switch esi.Type {
+	case ESI_LACP:
+		s.WriteString(fmt.Sprintf("system mac %s, ", net.HardwareAddr(esi.Value[:6]).String()))
+		s.WriteString(fmt.Sprintf("port key %d", binary.BigEndian.Uint16(esi.Value[6:8])))
+	case ESI_MSTP:
+		s.WriteString(fmt.Sprintf("bridge mac %s, ", net.HardwareAddr(esi.Value[:6]).String()))
+		s.WriteString(fmt.Sprintf("priority %d", binary.BigEndian.Uint16(esi.Value[6:8])))
+	case ESI_MAC:
+		s.WriteString(fmt.Sprintf("system mac %s, ", net.HardwareAddr(esi.Value[:6]).String()))
+		s.WriteString(fmt.Sprintf("local discriminator %d", esi.Value[6]<<16|esi.Value[7]<<8|esi.Value[8]))
+	case ESI_ROUTERID:
+		s.WriteString(fmt.Sprintf("router id %s, ", net.IP(esi.Value[:4])))
+		s.WriteString(fmt.Sprintf("local discriminator %d", binary.BigEndian.Uint32(esi.Value[4:8])))
+	case ESI_AS:
+		s.WriteString(fmt.Sprintf("as %d:%d, ", binary.BigEndian.Uint16(esi.Value[:2]), binary.BigEndian.Uint16(esi.Value[2:4])))
+		s.WriteString(fmt.Sprintf("local discriminator %d", binary.BigEndian.Uint32(esi.Value[4:8])))
+	default:
+		s.WriteString(fmt.Sprintf("value %s", esi.Value))
+	}
+	return s.String()
+}
+
 type EVPNEthernetAutoDiscoveryRoute struct {
 	RD    RouteDistinguisherInterface
-	EST   EthernetSegmentIdentifier
+	ESI   EthernetSegmentIdentifier
 	ETag  uint32
 	Label uint32
 }
@@ -998,7 +1041,7 @@ type EVPNEthernetAutoDiscoveryRoute struct {
 func (er *EVPNEthernetAutoDiscoveryRoute) DecodeFromBytes(data []byte) error {
 	er.RD = getRouteDistinguisher(data)
 	data = data[er.RD.Len():]
-	err := er.EST.DecodeFromBytes(data)
+	err := er.ESI.DecodeFromBytes(data)
 	if err != nil {
 		return err
 	}
@@ -1015,7 +1058,7 @@ func (er *EVPNEthernetAutoDiscoveryRoute) Serialize() ([]byte, error) {
 		return nil, err
 	}
 
-	tbuf, err := er.EST.Serialize()
+	tbuf, err := er.ESI.Serialize()
 	if err != nil {
 		return nil, err
 	}
@@ -1034,19 +1077,19 @@ func (er *EVPNEthernetAutoDiscoveryRoute) Serialize() ([]byte, error) {
 
 type EVPNMacIPAdvertisementRoute struct {
 	RD               RouteDistinguisherInterface
-	EST              EthernetSegmentIdentifier
+	ESI              EthernetSegmentIdentifier
 	ETag             uint32
 	MacAddressLength uint8
-	MacAddress       []byte
+	MacAddress       net.HardwareAddr
 	IPAddressLength  uint8
-	IPAddress        IPAddrPrefix
+	IPAddress        net.IP
 	Labels           []uint32
 }
 
 func (er *EVPNMacIPAdvertisementRoute) DecodeFromBytes(data []byte) error {
 	er.RD = getRouteDistinguisher(data)
 	data = data[er.RD.Len():]
-	err := er.EST.DecodeFromBytes(data)
+	err := er.ESI.DecodeFromBytes(data)
 	if err != nil {
 		return err
 	}
@@ -1054,17 +1097,15 @@ func (er *EVPNMacIPAdvertisementRoute) DecodeFromBytes(data []byte) error {
 	er.ETag = binary.BigEndian.Uint32(data[0:4])
 	data = data[4:]
 	er.MacAddressLength = data[0]
-	er.MacAddress = data[1:7]
+	er.MacAddress = net.HardwareAddr(data[1:7])
 	er.IPAddressLength = data[7]
-	data = data[7:]
-	if er.IPAddressLength == 32 {
-		er.IPAddress.DecodeFromBytes(data[0 : ((er.IPAddressLength)/8)+1])
-	} else if er.IPAddressLength == 128 {
-		er.IPAddress.DecodeFromBytes(data[0 : ((er.IPAddressLength)/8)+1])
-	} else {
+	data = data[8:]
+	if er.IPAddressLength == 32 || er.IPAddressLength == 128 {
+		er.IPAddress = net.IP(data[0:((er.IPAddressLength) / 8)])
+	} else if er.IPAddressLength != 0 {
 		return fmt.Errorf("Invalid IP address length", er.IPAddressLength)
 	}
-	data = data[(er.IPAddressLength/8)+1:]
+	data = data[(er.IPAddressLength / 8):]
 	label1 := labelDecode(data)
 	er.Labels = append(er.Labels, label1)
 	data = data[3:]
@@ -1082,7 +1123,7 @@ func (er *EVPNMacIPAdvertisementRoute) Serialize() ([]byte, error) {
 		return nil, err
 	}
 
-	tbuf, err := er.EST.Serialize()
+	tbuf, err := er.ESI.Serialize()
 	if err != nil {
 		return nil, err
 	}
@@ -1096,14 +1137,14 @@ func (er *EVPNMacIPAdvertisementRoute) Serialize() ([]byte, error) {
 	copy(tbuf[1:], er.MacAddress)
 	buf = append(buf, tbuf...)
 
-	tbuf = make([]byte, 1)
-
-	if er.IPAddressLength != 0 {
-		tbuf, err := er.IPAddress.Serialize()
-		if err != nil {
-			return nil, err
+	if er.IPAddressLength == 32 || er.IPAddressLength == 128 {
+		buf = append(buf, er.IPAddressLength)
+		if er.IPAddressLength == 32 {
+			er.IPAddress = er.IPAddress.To4()
 		}
-		buf = append(buf, tbuf...)
+		buf = append(buf, []byte(er.IPAddress)...)
+	} else if er.IPAddressLength != 0 {
+		return nil, fmt.Errorf("Invalid IP address length", er.IPAddressLength)
 	}
 
 	for _, l := range er.Labels {
@@ -1118,7 +1159,7 @@ type EVPNMulticastEthernetTagRoute struct {
 	RD              RouteDistinguisherInterface
 	ETag            uint32
 	IPAddressLength uint8
-	IPAddress       IPAddrPrefix
+	IPAddress       net.IP
 }
 
 func (er *EVPNMulticastEthernetTagRoute) DecodeFromBytes(data []byte) error {
@@ -1126,10 +1167,11 @@ func (er *EVPNMulticastEthernetTagRoute) DecodeFromBytes(data []byte) error {
 	data = data[er.RD.Len():]
 	er.ETag = binary.BigEndian.Uint32(data[0:4])
 	er.IPAddressLength = data[4]
-	data = data[4:]
-	err := er.IPAddress.DecodeFromBytes(data)
-	if err != nil {
-		return err
+	data = data[5:]
+	if er.IPAddressLength == 32 || er.IPAddressLength == 128 {
+		er.IPAddress = net.IP(data)
+	} else {
+		return fmt.Errorf("Invalid IP address length", er.IPAddressLength)
 	}
 	return nil
 }
@@ -1142,7 +1184,16 @@ func (er *EVPNMulticastEthernetTagRoute) Serialize() ([]byte, error) {
 	tbuf := make([]byte, 4)
 	binary.BigEndian.PutUint32(tbuf, er.ETag)
 	buf = append(buf, tbuf...)
-	tbuf, err = er.IPAddress.Serialize()
+	if er.IPAddressLength == 32 || er.IPAddressLength == 128 {
+		buf = append(buf, er.IPAddressLength)
+		if er.IPAddressLength == 32 {
+			er.IPAddress = er.IPAddress.To4()
+		}
+		buf = append(buf, []byte(er.IPAddress)...)
+	} else {
+		return nil, fmt.Errorf("Invalid IP address length", er.IPAddressLength)
+	}
+
 	if err != nil {
 		return nil, err
 	}
@@ -1152,7 +1203,7 @@ func (er *EVPNMulticastEthernetTagRoute) Serialize() ([]byte, error) {
 
 type EVPNEthernetSegmentRoute struct {
 	RD              RouteDistinguisherInterface
-	EST             EthernetSegmentIdentifier
+	ESI             EthernetSegmentIdentifier
 	IPAddressLength uint8
 	IPAddress       IPAddrPrefix
 }
@@ -1160,7 +1211,7 @@ type EVPNEthernetSegmentRoute struct {
 func (er *EVPNEthernetSegmentRoute) DecodeFromBytes(data []byte) error {
 	er.RD = getRouteDistinguisher(data)
 	data = data[er.RD.Len():]
-	er.EST.DecodeFromBytes(data)
+	er.ESI.DecodeFromBytes(data)
 	data = data[10:]
 	er.IPAddressLength = data[0]
 	err := er.IPAddress.DecodeFromBytes(data[1:])
@@ -1175,7 +1226,7 @@ func (er *EVPNEthernetSegmentRoute) Serialize() ([]byte, error) {
 	if err != nil {
 		return nil, err
 	}
-	tbuf, err := er.EST.Serialize()
+	tbuf, err := er.ESI.Serialize()
 	if err != nil {
 		return nil, err
 	}
@@ -1243,8 +1294,9 @@ func (n *EVPNNLRI) DecodeFromBytes(data []byte) error {
 func (n *EVPNNLRI) Serialize() ([]byte, error) {
 	buf := make([]byte, 2)
 	buf[0] = n.RouteType
-	buf[1] = n.Length
 	tbuf, err := n.RouteTypeData.Serialize()
+	n.Length = uint8(len(tbuf))
+	buf[1] = n.Length
 	if err != nil {
 		return nil, err
 	}
