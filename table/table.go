@@ -56,7 +56,10 @@ func NewTableDefault(scope_id int) *TableDefault {
 }
 
 func cidr2prefix(cidr string) patricia.Prefix {
-	_, n, _ := net.ParseCIDR(cidr)
+	_, n, err := net.ParseCIDR(cidr)
+	if err != nil {
+		return patricia.Prefix(cidr)
+	}
 	var buffer bytes.Buffer
 	for i := 0; i < len(n.IP); i++ {
 		buffer.WriteString(fmt.Sprintf("%08b", n.IP[i]))

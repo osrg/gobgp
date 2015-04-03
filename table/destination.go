@@ -1005,3 +1005,28 @@ func NewEVPNDestination(nlri bgp.AddrPrefixInterface) *EVPNDestination {
 	//need Processing
 	return EVPNDestination
 }
+
+func (evpnd *EVPNDestination) MarshalJSON() ([]byte, error) {
+	nlri := evpnd.getNlri().(*bgp.EVPNNLRI)
+	idx := func() int {
+		for i, p := range evpnd.DestinationDefault.knownPathList {
+			if p == evpnd.DestinationDefault.getBestPath() {
+				return i
+			}
+		}
+		log.WithFields(log.Fields{
+			"Topic": "Table",
+			"Key":   nlri.String(),
+		}).Panic("no best path")
+		return 0
+	}()
+	return json.Marshal(struct {
+		Prefix      string
+		Paths       []Path
+		BestPathIdx int
+	}{
+		Prefix:      nlri.String(),
+		Paths:       evpnd.knownPathList,
+		BestPathIdx: idx,
+	})
+}
