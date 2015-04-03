@@ -1,7 +1,7 @@
 #!bash
 
-__gobgpcli_q() {
-    gobgpcli 2>/dev/null "$@"
+__gobgp_q() {
+    gobgp 2>/dev/null "$@"
 }
 
 __search_target() {
@@ -19,7 +19,7 @@ __search_target() {
     done
 }    
 
-__gobgpcli_table_list() {
+__gobgp_table_list() {
     local table_list=("local adj-in adj-out")
     local table="$(__search_target "${table_list}")"
     if [ -z "$table" ]; then
@@ -34,8 +34,8 @@ __gobgpcli_table_list() {
     return
 }
 
-__gobgpcli_neighbr_list() {
-    local neighbor_list=( $(__gobgpcli_q show --quiet neighbors) )
+__gobgp_neighbr_list() {
+    local neighbor_list=( $(__gobgp_q --quiet show neighbors) )
     local target="$(__search_target "${neighbor_list[*]}")"
     if [ -z "$target" ]; then
 	case "$cur" in
@@ -49,14 +49,14 @@ __gobgpcli_neighbr_list() {
     return 1
 }
 
-_gobgpcli_show_neighbor() {
-   __gobgpcli_neighbr_list
+_gobgp_show_neighbor() {
+   __gobgp_neighbr_list
    if [ $? -ne 0 ] ; then
-       __gobgpcli_table_list
+       __gobgp_table_list
    fi
 }
 
-_gobgpcli_show_neighbors() {
+_gobgp_show_neighbors() {
     case "$cur" in
 	*)
 	    ;;
@@ -64,7 +64,7 @@ _gobgpcli_show_neighbors() {
     return
 }
 
-_gobgpcli_show_global() {
+_gobgp_show_global() {
     local targets="ipv4 ipv6 evpn"
     local target="$(__search_target "$targets")"
     if [ -z "$target" ]; then
@@ -77,7 +77,7 @@ _gobgpcli_show_global() {
     fi
 }
 
-_gobgpcli_show() {
+_gobgp_show() {
     local targets="neighbor neighbors global"
     local target="$(__search_target "$targets")"
     if [ -z "$target" ]; then
@@ -88,10 +88,10 @@ _gobgpcli_show() {
 	esac
 	return
     fi
-    _gobgpcli_show_${target}
+    _gobgp_show_${target}
 }
 
-__gobgpcli_generic_reset() {
+__gobgp_generic_reset() {
     local targets="neighbor"
     local target="$(__search_target "$targets")"
     if [ -z "$target" ]; then
@@ -102,26 +102,38 @@ __gobgpcli_generic_reset() {
 	esac
 	return
     fi
-    __gobgpcli_neighbr_list
+    __gobgp_neighbr_list
 }
 
-_gobgpcli_reset() {
-    __gobgpcli_generic_reset
+_gobgp_reset() {
+    __gobgp_generic_reset
 }
 
-_gobgpcli_softresetin() {
-    __gobgpcli_generic_reset
+_gobgp_softreset() {
+    __gobgp_generic_reset
 }
 
-_gobgpcli_softresetout() {
-    __gobgpcli_generic_reset
+_gobgp_softresetin() {
+    __gobgp_generic_reset
 }
 
-_gobgpcli_shutdown() {
-    __gobgpcli_generic_reset
+_gobgp_softresetout() {
+    __gobgp_generic_reset
 }
 
-_gobgpcli_gobgpcli() {
+_gobgp_shutdown() {
+    __gobgp_generic_reset
+}
+
+_gobgp_enable() {
+    __gobgp_generic_reset
+}
+
+_gobgp_disable() {
+    __gobgp_generic_reset
+}
+
+_gobgp_gobgp() {
     case "$prev" in
 	-h)
 	    return
@@ -140,20 +152,23 @@ _gobgpcli_gobgpcli() {
 	esac
 }
 
-_gobgpcli() {
+_gobgp() {
     local commands=(
 	show
 	reset
+	softreset
 	softresetin
 	softresetout
 	shutdown
+	enable
+	disable
     )
 
     COMPREPLY=()
     local cur prev words cword
     _get_comp_words_by_ref -n : cur prev words cword
 
-    local command='gobgpcli'
+    local command='gobgp'
     local counter=1
     while [ $counter -lt $cword ]; do
 	case "${words[$counter]}" in
@@ -171,10 +186,10 @@ _gobgpcli() {
 	esac
 	(( counter++ ))
     done
-    local completions_func=_gobgpcli_${command}
+    local completions_func=_gobgp_${command}
     declare -F $completions_func > /dev/null && $completions_func
 
     return 0
 }
 
-complete -F _gobgpcli gobgpcli
+complete -F _gobgp gobgp
