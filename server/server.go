@@ -24,6 +24,7 @@ import (
 	"github.com/osrg/gobgp/policy"
 	"net"
 	"os"
+	"sort"
 	"strconv"
 	"strings"
 )
@@ -274,14 +275,40 @@ func (server *BgpServer) SetPolicy(pl config.RoutingPolicy) {
 	server.policyMap = pMap
 }
 
+type peers []*Peer
+
+func (p peers) Len() int {
+	return len(p)
+}
+
+func (p peers) Swap(i, j int) {
+	p[i], p[j] = p[j], p[i]
+}
+
+func (p peers) Less(i, j int) bool {
+	p1 := p[i].peerConfig.NeighborAddress
+	p2 := p[j].peerConfig.NeighborAddress
+	p1Isv4 := p1.To4() != nil
+	p2Isv4 := p2.To4() != nil
+	if p1Isv4 != p2Isv4 {
+		if p1Isv4 == true {
+			return true
+		}
+		return false
+	}
+	strings := sort.StringSlice{p1.String(), p2.String()}
+	return strings.Less(0, 1)
+}
+
 func (server *BgpServer) handleRest(restReq *api.RestRequest) {
 	switch restReq.RequestType {
 	case api.REQ_NEIGHBORS:
 		result := &api.RestResponse{}
-		peerList := make([]*Peer, 0)
+		peerList := peers{}
 		for _, info := range server.peerMap {
 			peerList = append(peerList, info.peer)
 		}
+		sort.Sort(peerList)
 		j, _ := json.Marshal(peerList)
 		result.Data = j
 		restReq.ResponseCh <- result
