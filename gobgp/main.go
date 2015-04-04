@@ -21,9 +21,14 @@ import (
 	"github.com/jessevdk/go-flags"
 	"github.com/parnurzeal/gorequest"
 	"net"
+	"net/http"
 	"os"
 	"sort"
 )
+
+func isError(resp *http.Response) bool {
+	return resp.StatusCode != http.StatusOK && resp.StatusCode != http.StatusCreated
+}
 
 func execute(resource string, callback func(url string, r *gorequest.SuperAgent) *gorequest.SuperAgent) []byte {
 	r := gorequest.New()
@@ -32,7 +37,7 @@ func execute(resource string, callback func(url string, r *gorequest.SuperAgent)
 		fmt.Println(url)
 	}
 	r = callback(url, r)
-	_, body, err := r.End()
+	resp, body, err := r.End()
 	if err != nil {
 		fmt.Print("Failed to connect to gobgpd. It runs?\n")
 		if globalOpts.Debug {
@@ -40,8 +45,11 @@ func execute(resource string, callback func(url string, r *gorequest.SuperAgent)
 		}
 		os.Exit(1)
 	}
-	if globalOpts.Debug {
+	if globalOpts.Debug || isError(resp) {
 		fmt.Println(body)
+		if isError(resp) {
+			os.Exit(1)
+		}
 	}
 	return []byte(body)
 }
