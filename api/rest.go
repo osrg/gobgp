@@ -16,11 +16,13 @@
 package api
 
 import (
+	"bytes"
 	log "github.com/Sirupsen/logrus"
 	"github.com/fukata/golang-stats-api-handler"
 	"github.com/gorilla/mux"
 	"github.com/osrg/gobgp/packet"
 	"net/http"
+	"net/url"
 	"strconv"
 )
 
@@ -39,6 +41,8 @@ const (
 	REQ_NEIGHBOR_ENABLE
 	REQ_NEIGHBOR_DISABLE
 	REQ_GLOBAL_RIB
+	REQ_GLOBAL_ADD
+	REQ_GLOBAL_DELETE
 )
 
 const (
@@ -66,14 +70,16 @@ type RestRequest struct {
 	RouteFamily bgp.RouteFamily
 	ResponseCh  chan *RestResponse
 	Err         error
+	Data        map[string]interface{}
 }
 
-func NewRestRequest(reqType int, remoteAddr string, rf bgp.RouteFamily) *RestRequest {
+func NewRestRequest(reqType int, remoteAddr string, rf bgp.RouteFamily, d map[string]interface{}) *RestRequest {
 	r := &RestRequest{
 		RequestType: reqType,
 		RouteFamily: rf,
 		RemoteAddr:  remoteAddr,
 		ResponseCh:  make(chan *RestResponse),
+		Data:        d,
 	}
 	return r
 }
@@ -122,6 +128,8 @@ func (rs *RestServer) Serve() {
 	operationURL := "/{" + PARAM_OPERATION + "}"
 	routeFamilyURL := "/{" + PARAM_ROUTE_FAMILY + "}"
 	r.HandleFunc(global+showObjectURL+routeFamilyURL, rs.GlobalGET).Methods("GET")
+	r.HandleFunc(global+routeFamilyURL, rs.GlobalPOST).Methods("POST")
+	r.HandleFunc(global+routeFamilyURL, rs.GlobalDELETE).Methods("DELETE")
 	r.HandleFunc(neighbors, rs.NeighborGET).Methods("GET")
 	r.HandleFunc(neighbor+perPeerURL, rs.NeighborGET).Methods("GET")
 	r.HandleFunc(neighbor+perPeerURL+showObjectURL+routeFamilyURL, rs.NeighborGET).Methods("GET")
@@ -160,7 +168,7 @@ func (rs *RestServer) neighbor(w http.ResponseWriter, r *http.Request, reqType i
 	}
 
 	//Send channel of request parameter.
-	req := NewRestRequest(reqType, remoteAddr, rf)
+	req := NewRestRequest(reqType, remoteAddr, rf, nil)
 	rs.bgpServerCh <- req
 
 	//Wait response
@@ -231,6 +239,53 @@ func (rs *RestServer) GlobalGET(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
+}
+
+func (rs *RestServer) global(w http.ResponseWriter, r *http.Request, reqType int) {
+	params := mux.Vars(r)
+	var rf bgp.RouteFamily
+	routeFamily, ok := params[PARAM_ROUTE_FAMILY]
+	if ok {
+		switch routeFamily {
+		case "ipv4":
+			rf = bgp.RF_IPv4_UC
+		case "ipv6":
+			rf = bgp.RF_IPv6_UC
+		case "evpn":
+			rf = bgp.RF_EVPN
+		default:
+			NotFoundHandler(w, r)
+			return
+		}
+	}
+	var buf bytes.Buffer
+	buf.ReadFrom(r.Body)
+	query, _ := url.ParseQuery(buf.String())
+	d := make(map[string]interface{})
+	for k, v := range query {
+		d[k] = v
+	}
+	req := NewRestRequest(reqType, "", rf, d)
+	rs.bgpServerCh <- req
+
+	//Wait response
+	res := <-req.ResponseCh
+	if e := res.Err(); e != nil {
+		log.Debug(e.Error())
+		http.Error(w, e.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	w.Header().Set("Content-Type", "application/json; charset=utf-8")
+	w.Write(res.Data)
+}
+
+func (rs *RestServer) GlobalPOST(w http.ResponseWriter, r *http.Request) {
+	rs.global(w, r, REQ_GLOBAL_ADD)
+}
+
+func (rs *RestServer) GlobalDELETE(w http.ResponseWriter, r *http.Request) {
+	rs.global(w, r, REQ_GLOBAL_DELETE)
 }
 
 func NotFoundHandler(w http.ResponseWriter, r *http.Request) {

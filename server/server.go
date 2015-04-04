@@ -116,6 +116,7 @@ func (server *BgpServer) Serve() {
 	neighConf := config.Neighbor{
 		NeighborAddress: g.RouterId,
 		AfiSafiList:     g.AfiSafiList,
+		PeerAs:          g.As,
 	}
 	server.globalRib = NewPeer(g, neighConf, globalSch, globalPch, nil, true, make(map[string]*policy.Policy))
 
@@ -320,7 +321,7 @@ func (server *BgpServer) handleRest(restReq *api.RestRequest) {
 		}
 		restReq.ResponseCh <- result
 		close(restReq.ResponseCh)
-	case api.REQ_GLOBAL_RIB:
+	case api.REQ_GLOBAL_RIB, api.REQ_GLOBAL_ADD, api.REQ_GLOBAL_DELETE:
 		msg := &serverMsg{
 			msgType: SRV_MSG_API,
 			msgData: restReq,
