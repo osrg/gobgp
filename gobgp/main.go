@@ -355,7 +355,7 @@ func (x *ShowNeighborRibCommand) Execute(args []string) error {
 			rt = "ipv6"
 		}
 	} else {
-		rt = args[1]
+		rt = args[0]
 	}
 	b := get("neighbor/" + x.remoteIP.String() + "/" + x.resource + "/" + rt)
 
