@@ -111,7 +111,7 @@ func (dd *DestinationDefault) MarshalJSON() ([]byte, error) {
 	return json.Marshal(struct {
 		Prefix      string
 		Paths       []Path
-		BestPathIdx int
+		BestPathIdx int `json:"best_path_idx"`
 	}{
 		Prefix:      prefix.String(),
 		Paths:       dd.knownPathList,
@@ -929,7 +929,7 @@ func (ipv6d *IPv6Destination) MarshalJSON() ([]byte, error) {
 	return json.Marshal(struct {
 		Prefix      string
 		Paths       []Path
-		BestPathIdx int
+		BestPathIdx int `json:"best_path_idx"`
 	}{
 		Prefix:      prefix.String(),
 		Paths:       ipv6d.knownPathList,
@@ -985,7 +985,7 @@ func (ipv4vpnd *IPv4VPNDestination) MarshalJSON() ([]byte, error) {
 	return json.Marshal(struct {
 		Prefix      string
 		Paths       []Path
-		BestPathIdx int
+		BestPathIdx int `json:"best_path_idx"`
 	}{
 		Prefix:      prefix.String(),
 		Paths:       ipv4vpnd.knownPathList,
@@ -1023,7 +1023,7 @@ func (evpnd *EVPNDestination) MarshalJSON() ([]byte, error) {
 	return json.Marshal(struct {
 		Prefix      string
 		Paths       []Path
-		BestPathIdx int
+		BestPathIdx int `json:"best_path_idx"`
 	}{
 		Prefix:      nlri.String(),
 		Paths:       evpnd.knownPathList,

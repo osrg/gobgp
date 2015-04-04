@@ -17,8 +17,6 @@ package server
 
 import (
 	"fmt"
-	//"encoding/json"
-	"encoding/json"
 	log "github.com/Sirupsen/logrus"
 	"github.com/osrg/gobgp/api"
 	"github.com/osrg/gobgp/config"
@@ -123,17 +121,16 @@ func TestPeerAdminShutdownWhileEstablished(t *testing.T) {
 	peer.connCh <- m
 	waitUntil(assert, bgp.BGP_FSM_ESTABLISHED, peer, 1000)
 
-	restReq := api.NewRestRequest(api.REQ_NEIGHBOR_DISABLE, "0.0.0.0", bgp.RF_IPv4_UC, nil)
+	grpcReq := api.NewGrpcRequest(api.REQ_NEIGHBOR_DISABLE, "0.0.0.0", bgp.RF_IPv4_UC, nil)
 	msg := &serverMsg{
 		msgType: SRV_MSG_API,
-		msgData: restReq,
+		msgData: grpcReq,
 	}
 
 	peer.serverMsgCh <- msg
-	result := <-restReq.ResponseCh
-	res := make(map[string]string)
-	json.Unmarshal(result.Data, &res)
-	assert.Equal("ADMIN_STATE_DOWN", res["result"])
+	result := <-grpcReq.ResponseCh
+	err := result.Data.(api.Error)
+	assert.Equal(err.Code, api.Error_SUCCESS)
 
 	waitUntil(assert, bgp.BGP_FSM_IDLE, peer, 1000)
 
@@ -166,17 +163,16 @@ func TestPeerAdminShutdownWhileIdle(t *testing.T) {
 
 	waitUntil(assert, bgp.BGP_FSM_IDLE, peer, 1000)
 
-	restReq := api.NewRestRequest(api.REQ_NEIGHBOR_DISABLE, "0.0.0.0", bgp.RF_IPv4_UC, nil)
+	grpcReq := api.NewGrpcRequest(api.REQ_NEIGHBOR_DISABLE, "0.0.0.0", bgp.RF_IPv4_UC, nil)
 	msg := &serverMsg{
 		msgType: SRV_MSG_API,
-		msgData: restReq,
+		msgData: grpcReq,
 	}
 
 	peer.serverMsgCh <- msg
-	result := <-restReq.ResponseCh
-	res := make(map[string]string)
-	json.Unmarshal(result.Data, &res)
-	assert.Equal("ADMIN_STATE_DOWN", res["result"])
+	result := <-grpcReq.ResponseCh
+	err := result.Data.(api.Error)
+	assert.Equal(err.Code, api.Error_SUCCESS)
 
 	waitUntil(assert, bgp.BGP_FSM_IDLE, peer, 100)
 	assert.Equal(bgp.BGP_FSM_IDLE, peer.fsm.state)
@@ -201,17 +197,16 @@ func TestPeerAdminShutdownWhileActive(t *testing.T) {
 
 	waitUntil(assert, bgp.BGP_FSM_ACTIVE, peer, 1000)
 
-	restReq := api.NewRestRequest(api.REQ_NEIGHBOR_DISABLE, "0.0.0.0", bgp.RF_IPv4_UC, nil)
+	grpcReq := api.NewGrpcRequest(api.REQ_NEIGHBOR_DISABLE, "0.0.0.0", bgp.RF_IPv4_UC, nil)
 	msg := &serverMsg{
 		msgType: SRV_MSG_API,
-		msgData: restReq,
+		msgData: grpcReq,
 	}
 
 	peer.serverMsgCh <- msg
-	result := <-restReq.ResponseCh
-	res := make(map[string]string)
-	json.Unmarshal(result.Data, &res)
-	assert.Equal("ADMIN_STATE_DOWN", res["result"])
+	result := <-grpcReq.ResponseCh
+	err := result.Data.(api.Error)
+	assert.Equal(err.Code, api.Error_SUCCESS)
 
 	waitUntil(assert, bgp.BGP_FSM_IDLE, peer, 100)
 	assert.Equal(bgp.BGP_FSM_IDLE, peer.fsm.state)
@@ -238,17 +233,16 @@ func TestPeerAdminShutdownWhileOpensent(t *testing.T) {
 	peer.connCh <- m
 	waitUntil(assert, bgp.BGP_FSM_OPENSENT, peer, 1000)
 
-	restReq := api.NewRestRequest(api.REQ_NEIGHBOR_DISABLE, "0.0.0.0", bgp.RF_IPv4_UC, nil)
+	grpcReq := api.NewGrpcRequest(api.REQ_NEIGHBOR_DISABLE, "0.0.0.0", bgp.RF_IPv4_UC, nil)
 	msg := &serverMsg{
 		msgType: SRV_MSG_API,
-		msgData: restReq,
+		msgData: grpcReq,
 	}
 
 	peer.serverMsgCh <- msg
-	result := <-restReq.ResponseCh
-	res := make(map[string]string)
-	json.Unmarshal(result.Data, &res)
-	assert.Equal("ADMIN_STATE_DOWN", res["result"])
+	result := <-grpcReq.ResponseCh
+	err := result.Data.(api.Error)
+	assert.Equal(err.Code, api.Error_SUCCESS)
 
 	waitUntil(assert, bgp.BGP_FSM_IDLE, peer, 100)
 	assert.Equal(bgp.BGP_FSM_IDLE, peer.fsm.state)
@@ -283,17 +277,16 @@ func TestPeerAdminShutdownWhileOpenconfirm(t *testing.T) {
 	peer.connCh <- m
 	waitUntil(assert, bgp.BGP_FSM_OPENCONFIRM, peer, 1000)
 
-	restReq := api.NewRestRequest(api.REQ_NEIGHBOR_DISABLE, "0.0.0.0", bgp.RF_IPv4_UC, nil)
+	grpcReq := api.NewGrpcRequest(api.REQ_NEIGHBOR_DISABLE, "0.0.0.0", bgp.RF_IPv4_UC, nil)
 	msg := &serverMsg{
 		msgType: SRV_MSG_API,
-		msgData: restReq,
+		msgData: grpcReq,
 	}
 
 	peer.serverMsgCh <- msg
-	result := <-restReq.ResponseCh
-	res := make(map[string]string)
-	json.Unmarshal(result.Data, &res)
-	assert.Equal("ADMIN_STATE_DOWN", res["result"])
+	result := <-grpcReq.ResponseCh
+	err := result.Data.(api.Error)
+	assert.Equal(err.Code, api.Error_SUCCESS)
 
 	waitUntil(assert, bgp.BGP_FSM_IDLE, peer, 1000)
 	assert.Equal(bgp.BGP_FSM_IDLE, peer.fsm.state)
@@ -334,32 +327,30 @@ func TestPeerAdminEnable(t *testing.T) {
 	waitUntil(assert, bgp.BGP_FSM_ESTABLISHED, peer, 1000)
 
 	// shutdown peer at first
-	restReq := api.NewRestRequest(api.REQ_NEIGHBOR_DISABLE, "0.0.0.0", bgp.RF_IPv4_UC, nil)
+	grpcReq := api.NewGrpcRequest(api.REQ_NEIGHBOR_DISABLE, "0.0.0.0", bgp.RF_IPv4_UC, nil)
 	msg := &serverMsg{
 		msgType: SRV_MSG_API,
-		msgData: restReq,
+		msgData: grpcReq,
 	}
 	peer.serverMsgCh <- msg
-	result := <-restReq.ResponseCh
-	res := make(map[string]string)
-	json.Unmarshal(result.Data, &res)
-	assert.Equal("ADMIN_STATE_DOWN", res["result"])
+	result := <-grpcReq.ResponseCh
+	err := result.Data.(api.Error)
+	assert.Equal(err.Code, api.Error_SUCCESS)
 
 	waitUntil(assert, bgp.BGP_FSM_IDLE, peer, 100)
 	assert.Equal(bgp.BGP_FSM_IDLE, peer.fsm.state)
 	assert.Equal(ADMIN_STATE_DOWN, peer.fsm.adminState)
 
 	// enable peer
-	restReq = api.NewRestRequest(api.REQ_NEIGHBOR_ENABLE, "0.0.0.0", bgp.RF_IPv4_UC, nil)
+	grpcReq = api.NewGrpcRequest(api.REQ_NEIGHBOR_ENABLE, "0.0.0.0", bgp.RF_IPv4_UC, nil)
 	msg = &serverMsg{
 		msgType: SRV_MSG_API,
-		msgData: restReq,
+		msgData: grpcReq,
 	}
 	peer.serverMsgCh <- msg
-	result = <-restReq.ResponseCh
-	res = make(map[string]string)
-	json.Unmarshal(result.Data, &res)
-	assert.Equal("ADMIN_STATE_UP", res["result"])
+	result = <-grpcReq.ResponseCh
+	err = result.Data.(api.Error)
+	assert.Equal(err.Code, api.Error_SUCCESS)
 
 	waitUntil(assert, bgp.BGP_FSM_ACTIVE, peer, (HOLDTIME_IDLE+1)*1000)
 	assert.Equal(bgp.BGP_FSM_ACTIVE, peer.fsm.state)
@@ -397,31 +388,29 @@ func TestPeerAdminShutdownReject(t *testing.T) {
 	peer.connCh <- m
 	waitUntil(assert, bgp.BGP_FSM_OPENSENT, peer, 1000)
 
-	restReq := api.NewRestRequest(api.REQ_NEIGHBOR_DISABLE, "0.0.0.0", bgp.RF_IPv4_UC, nil)
+	grpcReq := api.NewGrpcRequest(api.REQ_NEIGHBOR_DISABLE, "0.0.0.0", bgp.RF_IPv4_UC, nil)
 	msg := &serverMsg{
 		msgType: SRV_MSG_API,
-		msgData: restReq,
+		msgData: grpcReq,
 	}
 
 	peer.fsm.adminStateCh <- ADMIN_STATE_DOWN
 
 	peer.serverMsgCh <- msg
-	result := <-restReq.ResponseCh
-	res := make(map[string]string)
-	json.Unmarshal(result.Data, &res)
-	assert.Equal("previous request is still remaining", res["result"])
+	result := <-grpcReq.ResponseCh
+	err := result.Data.(api.Error)
+	assert.Equal(err.Code, api.Error_FAIL)
 
-	restReq = api.NewRestRequest(api.REQ_NEIGHBOR_ENABLE, "0.0.0.0", bgp.RF_IPv4_UC, nil)
+	grpcReq = api.NewGrpcRequest(api.REQ_NEIGHBOR_ENABLE, "0.0.0.0", bgp.RF_IPv4_UC, nil)
 	msg = &serverMsg{
 		msgType: SRV_MSG_API,
-		msgData: restReq,
+		msgData: grpcReq,
 	}
 
 	peer.serverMsgCh <- msg
-	result = <-restReq.ResponseCh
-	res = make(map[string]string)
-	json.Unmarshal(result.Data, &res)
-	assert.Equal("previous request is still remaining", res["result"])
+	result = <-grpcReq.ResponseCh
+	err = result.Data.(api.Error)
+	assert.Equal(err.Code, api.Error_FAIL)
 
 	waitUntil(assert, bgp.BGP_FSM_IDLE, peer, 1000)
 	assert.Equal(bgp.BGP_FSM_IDLE, peer.fsm.state)
