@@ -76,21 +76,16 @@ class GoBGPIPv6Test(GoBGPTestBase):
                 if quagga_config.peer_ip == address or quagga_config.ip_version != af:
                     for c_dest in quagga_config.destinations.itervalues():
                         # print "config : ", c_dest.prefix, "my ip or different ip version!!!"
-                        g_dests = local_rib['Destinations']
                         exist_n = 0
-                        for g_dest in g_dests:
-                            # print "gobgp : ", g_dest['Prefix']
-                            if c_dest.prefix == g_dest['Prefix']:
+                        for g_dest in local_rib:
+                            if c_dest.prefix == g_dest['prefix']:
                                 exist_n += 1
                         self.assertEqual(exist_n, 0)
                 else:
                     for c_dest in quagga_config.destinations.itervalues():
-                        # print "config : ", c_dest.prefix"
-                        g_dests = local_rib['Destinations']
                         exist_n = 0
-                        for g_dest in g_dests:
-                            # print "gobgp : ", g_dest['Prefix']
-                            if c_dest.prefix == g_dest['Prefix']:
+                        for g_dest in local_rib:
+                            if c_dest.prefix == g_dest['prefix']:
                                 exist_n += 1
                         self.assertEqual(exist_n, 1)
 

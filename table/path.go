@@ -175,12 +175,12 @@ func (pd *PathDefault) MarshalJSON() ([]byte, error) {
 		Network string
 		Nexthop string
 		Attrs   []bgp.PathAttributeInterface
-		Age     float64
+		Age     int64
 	}{
 		Network: pd.getPrefix(),
 		Nexthop: pd.GetNexthop().String(),
 		Attrs:   pd.getPathAttrs(),
-		Age:     time.Now().Sub(pd.timestamp).Seconds(),
+		Age:     int64(time.Now().Sub(pd.timestamp).Seconds()),
 	})
 }
 
@@ -399,12 +399,12 @@ func (ipv6p *IPv6Path) MarshalJSON() ([]byte, error) {
 		Network string
 		Nexthop string
 		Attrs   []bgp.PathAttributeInterface
-		Age     float64
+		Age     int64
 	}{
 		Network: ipv6p.getPrefix(),
 		Nexthop: ipv6p.PathDefault.GetNexthop().String(),
 		Attrs:   ipv6p.PathDefault.getPathAttrs(),
-		Age:     time.Now().Sub(ipv6p.PathDefault.timestamp).Seconds(),
+		Age:     int64(time.Now().Sub(ipv6p.PathDefault.timestamp).Seconds()),
 	})
 }
 
@@ -451,12 +451,12 @@ func (ipv4vpnp *IPv4VPNPath) MarshalJSON() ([]byte, error) {
 		Network string
 		Nexthop string
 		Attrs   []bgp.PathAttributeInterface
-		Age     float64
+		Age     int64
 	}{
 		Network: ipv4vpnp.getPrefix(),
 		Nexthop: ipv4vpnp.PathDefault.GetNexthop().String(),
 		Attrs:   ipv4vpnp.PathDefault.getPathAttrs(),
-		Age:     time.Now().Sub(ipv4vpnp.PathDefault.timestamp).Seconds(),
+		Age:     int64(time.Now().Sub(ipv4vpnp.PathDefault.timestamp).Seconds()),
 	})
 }
 
@@ -503,11 +503,11 @@ func (evpnp *EVPNPath) MarshalJSON() ([]byte, error) {
 		Network string
 		Nexthop string
 		Attrs   []bgp.PathAttributeInterface
-		Age     float64
+		Age     int64
 	}{
 		Network: evpnp.getPrefix(),
 		Nexthop: evpnp.PathDefault.GetNexthop().String(),
 		Attrs:   evpnp.PathDefault.getPathAttrs(),
-		Age:     time.Now().Sub(evpnp.PathDefault.timestamp).Seconds(),
+		Age:     int64(time.Now().Sub(evpnp.PathDefault.timestamp).Seconds()),
 	})
 }
