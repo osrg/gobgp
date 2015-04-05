@@ -8,7 +8,7 @@
     <meta name="description" content="">
     <meta name="author" content="">
     <!-- <link rel="icon" href="../../favicon.ico"> -->
-
+    <link rel="stylesheet" href="./font-awesome/css/font-awesome.min.css">
     <title>GoBGP</title>
 
     <!-- Bootstrap core CSS -->
@@ -17,6 +17,7 @@
     <!-- Custom styles for this template -->
     <link href="justified-nav.css" rel="stylesheet">
 
+    <link href="nav.css" rel="stylesheet">
     <!-- Just for debugging purposes. Don't actually copy these 2 lines! -->
     <!--[if lt IE 9]><script src="../../assets/js/ie8-responsive-file-warning.js"></script><![endif]-->
     <script src="assets/js/ie-emulation-modes-warning.js"></script>
@@ -32,18 +33,12 @@
 
     <div class="container">
 
-      <!-- The justified navigation menu is meant for single line per list item.
-           Multiple lines will require custom code not provided by Bootstrap. -->
-      <div class="masthead">
-<!--         <h3 class="text-muted">GoBGP</h3> -->
+      <div class="header clearfix">
         <nav>
-          <ul class="nav nav-justified">
-            <li class="active"><a href="#">Home</a></li>
-            <li><a href="http://github.com/osrg/gobgp">Github</a></li>
-            <li><a href="#">Overview</a></li>
-            <li><a href="#">Get started</a></li>
-<!--             <li><a href="#">About</a></li> -->
-            <li><a href="#">Contact</a></li>
+          <ul class="nav nav-pills pull-right">
+            <li role="presentation"><a href="http://github.com/osrg/gobgp"><i class="fa fa-github fa-fw"></i>&nbsp; Github</a></li>
+            <li role="presentation"><a href="https://lists.sourceforge.net/lists/listinfo/gobgp-devel"><i class="fa fa-envelope-o fa-fw"></i>&nbsp; Mailing List</a></li>
+            <li role="presentation"><a href="https://twitter.com/ryusdn"><i class="fa fa-twitter fa-fw"></i>&nbsp; Twitter</a></li>
           </ul>
         </nav>
       </div>
@@ -52,7 +47,7 @@
       <div class="jumbotron">
         <h1>GoBGP</h1>
         <p class="lead">Designed from scratch for modern environment so implemented in the Go programming language.</p>
-        <p><a class="btn btn-lg btn-success" href="http://github.com/osrg/gobgp" role="button">Get started today</a></p>
+        <p><a class="btn btn-lg btn-success" href="http://github.com/osrg/gobgp/" role="button">Get started today</a></p>
       </div>
 
       <!-- Example row of columns -->
@@ -60,17 +55,17 @@
         <div class="col-lg-4">
           <h2>Multicore CPUs</h2>
           <p>GoBGP is designed to exploit todays multicore processors. <a href="http://golang.org">Golang</a> makes it extremly easy and simple to write concurrent code. </p>
-          <p><a class="btn btn-primary" href="#" role="button">View details &raquo;</a></p>
+<!--           <p><a class="btn btn-primary" href="#" role="button">View details &raquo;</a></p> -->
         </div>
         <div class="col-lg-4">
           <h2>Automation Friendly</h2>
           <p>GoBGP is designed to be easily integrated with other software with its JSON REST APIs instead of manually changing its config via CLI. GoBGP also supports its CLI though.</p>
-          <p><a class="btn btn-primary" href="#" role="button">View details &raquo;</a></p>
+<!--           <p><a class="btn btn-primary" href="#" role="button">View details &raquo;</a></p> -->
        </div>
         <div class="col-lg-4">
           <h2>Standard Config Model</h2>
           <p>GoBGP is implemented based on <a href="https://datatracker.ietf.org/doc/draft-shaikh-idr-bgp-model/?include_text=1">an IETF draft</a>, vendor-neutral model for network configuration and policy. Imagine that you can configure BGP across multiple vendors' gear with the single model.</p>
-          <p><a class="btn btn-primary" href="#" role="button">View details &raquo;</a></p>
+<!--           <p><a class="btn btn-primary" href="#" role="button">View details &raquo;</a></p> -->
         </div>
       </div>
 

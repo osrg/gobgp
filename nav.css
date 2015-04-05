@@ -1,0 +1,7 @@
+body > div > div.header.clearfix > nav > ul {
+  font-size: 1.4em;
+}
+
+body > div > div.header.clearfix > nav > ul > li > a {
+  color: #000000;
+}
