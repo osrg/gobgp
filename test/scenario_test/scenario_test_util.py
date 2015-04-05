@@ -77,7 +77,7 @@ def get_adj_rib(base_url, neighbor_address, target_prefix, retry, interval, type
         r = requests.get(url)
         in_rib = json.loads(r.text)
         print in_rib
-        paths = [p for p in in_rib['RF_IPv4_UC'] if p['Network'] == target_prefix]
+        paths = [p for p in in_rib if p['Network'] == target_prefix]
 
         if len(paths) > 0:
             assert len(paths) == 1
