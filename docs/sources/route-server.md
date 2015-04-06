@@ -38,8 +38,8 @@ $ cat gobgpd.conf
     PassiveMode = true
 ```
 
-Starting GoBGP
-==============
+## Starting GoBGP
+
 Let's start gobgpd:
 
 ```

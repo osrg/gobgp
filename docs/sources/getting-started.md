@@ -1,18 +1,15 @@
-Running GoBGP
-=============
+# Running GoBGP
 
 This page explains how to run GoBGP. This example sets up GoBGP to
 connect with two eBGP peers for IPv4 routes. Even if you are
 interested in other GoBGP use cases (such as IPv6 routes, EVPN, and
 Route Server), this example gives you the basics of GoBGP usage.
 
-Prerequisites
-=============
+## Prerequisites
 
 You need to install [Go 1.3 or later](http://golang.org/doc/install). After installing Go, make sure that `$GOPATH/bin` in included in your `$PATH`.
 
-Installing GoBGP
-================
+## Installing GoBGP
 
 ```bash
 $ go get github.com/osrg/gobgp/gobgpd
@@ -31,8 +28,7 @@ $ wget https://raw.githubusercontent.com/osrg/gobgp/master/tools/completion/gobg
 $ source gobgp-completion.bash
 ```
 
-Configuration
-=============
+## Configuration
 
 Currently, GoBGP can be configured via a configuration file. This example
 uses the following very simple configuration file, `gobgpd.conf`:
@@ -50,8 +46,8 @@ $ cat gobgpd.conf
   PeerAs = 65002
 ```
 
-Starting GoBGP
-==============
+## Starting GoBGP
+
 Let's start gobgpd:
 
 ```
