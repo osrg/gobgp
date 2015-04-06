@@ -15,17 +15,17 @@ $ go get github.com/osrg/gobgp/gobgpd
 $ go get github.com/osrg/gobgp/gobgp
 ```
 
-No dependency hell (library, package, etc) thanks to Go. Now ready to [configure](http://osrg.github.io/gobgp/get-started/).
-
-## Contributing to GoBGP
-
-Awesome! Create a pull request. No CLA, board members, governance, or
-other mess.
+No dependency hell (library, package, etc) thanks to Go.
 
 ## Documentation
 
 ### Using GoBGP
  * [Getting Started](https://github.com/osrg/gobgp/blob/master/docs/sources/getting-started.md)
+
+## Contributing to GoBGP
+
+Awesome! Create a pull request. No CLA, board members, governance, or
+other mess.
 
 ## Licensing
 
