@@ -21,6 +21,7 @@ No dependency hell (library, package, etc) thanks to Go.
 
 ### Using GoBGP
  * [Getting Started](https://github.com/osrg/gobgp/blob/master/docs/sources/getting-started.md)
+ * [Route Server](https://github.com/osrg/gobgp/blob/master/docs/sources/route-server.md)
 
 ## Contributing to GoBGP
 
