@@ -24,10 +24,14 @@ No dependency hell (library, package, etc) thanks to Go.
  * [CLI operations](https://github.com/osrg/gobgp/blob/master/docs/sources/cli-operations.md)
  * [Route Server](https://github.com/osrg/gobgp/blob/master/docs/sources/route-server.md)
  
-## Contributing to GoBGP
+## Community, discussion and support
 
-Awesome! Create a pull request. No CLA, board members, governance, or
-other mess.
+We have the [the mailing
+list](https://lists.sourceforge.net/lists/listinfo/gobgp-devel) for
+questions, discussion, suggestions, etc.
+
+You have to code or documentation for GoBGP? Awesome! Send a pull
+request. No CLA, board members, governance, or other mess.
 
 ## Licensing
 
