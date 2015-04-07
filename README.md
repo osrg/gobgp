@@ -30,7 +30,7 @@ We have the [the mailing
 list](https://lists.sourceforge.net/lists/listinfo/gobgp-devel) for
 questions, discussion, suggestions, etc.
 
-You have to code or documentation for GoBGP? Awesome! Send a pull
+You have code or documentation for GoBGP? Awesome! Send a pull
 request. No CLA, board members, governance, or other mess.
 
 ## Licensing
