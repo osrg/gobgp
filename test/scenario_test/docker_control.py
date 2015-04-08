@@ -258,9 +258,10 @@ def bridge_unsetting_for_docker_connection():
 
 
 def start_gobgp():
-    cmd = "docker exec -it gobgp " + INSTALL_FILE
-    local(cmd, capture=True)
-    cmd = "docker exec -it gobgp " + STARTUP_FILE + "&"
+    # cmd = "docker exec -it gobgp " + INSTALL_FILE
+    # local(cmd, capture=True)
+    # cmd = "docker exec -it gobgp " + STARTUP_FILE + "&"
+    cmd = "docker exec -it gobgp " + INSTALL_FILE + " && sleep 40 && docker exec -d gobgp " + STARTUP_FILE
     local(cmd, capture=True)
 
 
