@@ -157,7 +157,7 @@ def create_config_dir():
 def make_startup_file(log_opt=""):
     file_buff = '#!/bin/bash' + '\n'
     file_buff += "cd /go/src/github.com/osrg/gobgp/gobgpd" + '\n'
-    file_buff += "./gobgpd -f " + SHARE_VOLUME + "/gobgpd.conf " + log_opt + " > " + SHARE_VOLUME + "/gobgpd.log"
+    file_buff += "./gobgpd -f " + SHARE_VOLUME + "/gobgpd.conf " + log_opt + " > " + SHARE_VOLUME + "/gobgpd.log 2>&1 "
 
     cmd = "echo \"" + file_buff + "\" > " + CONFIG_DIR + "/" + STARTUP_FILE_NAME
     local(cmd, capture=True)
@@ -508,6 +508,7 @@ def init_malformed_test_env_executor(conf_file, use_local,  go_path, exabgp_path
     # set log option
     opt = "-l debug" if log_debug else ""
 
+    make_startup_file(log_opt=opt)
     # execute local gobgp program in the docker container if the input option is local
     if use_local:
         print "execute gobgp program in local machine."
