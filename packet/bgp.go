@@ -1169,7 +1169,7 @@ func (er *EVPNMulticastEthernetTagRoute) DecodeFromBytes(data []byte) error {
 	er.IPAddressLength = data[4]
 	data = data[5:]
 	if er.IPAddressLength == 32 || er.IPAddressLength == 128 {
-		er.IPAddress = net.IP(data)
+		er.IPAddress = net.IP(data[:er.IPAddressLength/8])
 	} else {
 		return fmt.Errorf("Invalid IP address length", er.IPAddressLength)
 	}
@@ -1203,7 +1203,7 @@ type EVPNEthernetSegmentRoute struct {
 	RD              RouteDistinguisherInterface
 	ESI             EthernetSegmentIdentifier
 	IPAddressLength uint8
-	IPAddress       IPAddrPrefix
+	IPAddress       net.IP
 }
 
 func (er *EVPNEthernetSegmentRoute) DecodeFromBytes(data []byte) error {
@@ -1212,9 +1212,11 @@ func (er *EVPNEthernetSegmentRoute) DecodeFromBytes(data []byte) error {
 	er.ESI.DecodeFromBytes(data)
 	data = data[10:]
 	er.IPAddressLength = data[0]
-	err := er.IPAddress.DecodeFromBytes(data[1:])
-	if err != nil {
-		return err
+	data = data[1:]
+	if er.IPAddressLength == 32 || er.IPAddressLength == 128 {
+		er.IPAddress = net.IP(data[:er.IPAddressLength/8])
+	} else {
+		return fmt.Errorf("Invalid IP address length", er.IPAddressLength)
 	}
 	return nil
 }
@@ -1229,13 +1231,15 @@ func (er *EVPNEthernetSegmentRoute) Serialize() ([]byte, error) {
 		return nil, err
 	}
 	buf = append(buf, tbuf...)
-	tbuf = make([]byte, 1)
-	tbuf, err = er.IPAddress.Serialize()
-	if err != nil {
-		return nil, err
+	buf = append(buf, er.IPAddressLength)
+	if er.IPAddressLength == 32 || er.IPAddressLength == 128 {
+		if er.IPAddressLength == 32 {
+			er.IPAddress = er.IPAddress.To4()
+		}
+		buf = append(buf, []byte(er.IPAddress)...)
+	} else {
+		return nil, fmt.Errorf("Invalid IP address length", er.IPAddressLength)
 	}
-	buf = append(buf, tbuf...)
-
 	return buf, nil
 }
 

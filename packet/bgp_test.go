@@ -83,6 +83,24 @@ func update() *BGPMessage {
 	mp_nlri4 := []AddrPrefixInterface{NewLabelledIPAddrPrefix(25, "192.168.0.0",
 		*NewLabel(5, 6, 7))}
 
+	mac, _ := net.ParseMAC("01:23:45:67:89:ab")
+	mp_nlri5 := []AddrPrefixInterface{
+		NewEVPNNLRI(EVPN_ROUTE_TYPE_ETHERNET_AUTO_DISCOVERY, 0,
+			&EVPNEthernetAutoDiscoveryRoute{NewRouteDistinguisherFourOctetAS(5, 6),
+				EthernetSegmentIdentifier{ESI_ARBITRARY, make([]byte, 9)}, 2, 2}),
+		NewEVPNNLRI(EVPN_ROUTE_TYPE_MAC_IP_ADVERTISEMENT, 0,
+			&EVPNMacIPAdvertisementRoute{NewRouteDistinguisherFourOctetAS(5, 6),
+				EthernetSegmentIdentifier{ESI_ARBITRARY, make([]byte, 9)}, 3, 48,
+				mac, 32, net.ParseIP("192.2.1.2"),
+				[]uint32{3}}),
+		NewEVPNNLRI(EVPN_INCLUSIVE_MULTICAST_ETHERNET_TAG, 0,
+			&EVPNMulticastEthernetTagRoute{NewRouteDistinguisherFourOctetAS(5, 6), 3, 32, net.ParseIP("192.2.1.2")}),
+		NewEVPNNLRI(EVPN_ETHERNET_SEGMENT_ROUTE, 0,
+			&EVPNEthernetSegmentRoute{NewRouteDistinguisherFourOctetAS(5, 6),
+				EthernetSegmentIdentifier{ESI_ARBITRARY, make([]byte, 9)},
+				32, net.ParseIP("192.2.1.1")}),
+	}
+
 	p := []PathAttributeInterface{
 		NewPathAttributeOrigin(3),
 		NewPathAttributeAsPath(aspath1),
@@ -104,6 +122,7 @@ func update() *BGPMessage {
 		NewPathAttributeMpReachNLRI("1023::", mp_nlri2),
 		NewPathAttributeMpReachNLRI("fe80::", mp_nlri3),
 		NewPathAttributeMpReachNLRI("129.1.1.1", mp_nlri4),
+		NewPathAttributeMpReachNLRI("129.1.1.1", mp_nlri5),
 		NewPathAttributeMpUnreachNLRI(mp_nlri),
 		//NewPathAttributeMpReachNLRI("112.22.2.0", []AddrPrefixInterface{}),
 		//NewPathAttributeMpUnreachNLRI([]AddrPrefixInterface{}),
