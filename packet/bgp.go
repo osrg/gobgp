@@ -1290,7 +1290,7 @@ func (n *EVPNNLRI) DecodeFromBytes(data []byte) error {
 		return err
 	}
 	n.RouteTypeData = r
-	return n.RouteTypeData.DecodeFromBytes(data)
+	return n.RouteTypeData.DecodeFromBytes(data[:n.Length])
 }
 
 func (n *EVPNNLRI) Serialize() ([]byte, error) {
