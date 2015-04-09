@@ -36,6 +36,7 @@ class GoBGPTestBase(unittest.TestCase):
     initial_wait_time = 10
     wait_per_retry = 5
     retry_limit = (60 - initial_wait_time) / wait_per_retry
+    dest_check_limit = 3
 
     def __init__(self, *args, **kwargs):
         super(GoBGPTestBase, self).__init__(*args, **kwargs)
@@ -281,3 +282,48 @@ class GoBGPTestBase(unittest.TestCase):
 
         print "route : %s is none" % target_prefix
         return None
+
+    def compare_rib_with_quagga_configs(self, rib_owner_addr, local_rib):
+
+        for quagga_config in self.quagga_configs:
+            if quagga_config.peer_ip == rib_owner_addr:
+                # check local_rib doesn't contain own destinations.
+                for destination in quagga_config.destinations.itervalues():
+                    for rib_destination in local_rib:
+                        if destination.prefix == rib_destination['prefix']:
+                            return False
+
+            else:
+                # check local_rib contains destinations that other quaggas
+                # advertised.
+                for destination in quagga_config.destinations.itervalues():
+                    found = False
+                    for rib_destination in local_rib:
+                        if destination.prefix == rib_destination['prefix']:
+                            found = True
+                            break
+
+                    if not found:
+                        return False
+
+        return True
+
+    def compare_route_with_quagga_configs(self, address, quagga_rib):
+        for quagga_config in self.quagga_configs:
+            for destination in quagga_config.destinations.itervalues():
+                for path in destination.paths:
+                    network = path.network.split("/")[0]
+                    nexthop = path.nexthop
+
+                    if quagga_config.peer_ip == address:
+                        nexthop = "0.0.0.0"
+
+                    found = False
+                    for quagga_path in quagga_rib:
+                        if network == quagga_path['Network'] and nexthop == quagga_path['Next Hop']:
+                            found = True
+                            break
+                    if not found:
+                        return False
+
+        return True
