@@ -1193,11 +1193,9 @@ func (er *EVPNMulticastEthernetTagRoute) Serialize() ([]byte, error) {
 	} else {
 		return nil, fmt.Errorf("Invalid IP address length", er.IPAddressLength)
 	}
-
 	if err != nil {
 		return nil, err
 	}
-	buf = append(buf, tbuf...)
 	return buf, nil
 }
 
