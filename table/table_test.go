@@ -88,7 +88,7 @@ func TestTableSetDestinations(t *testing.T) {
 		destinations[tableKey] = dest
 	}
 	ipv4t.setDestinations(destinations)
-	ds := ipv4t.getDestinations()
+	ds := ipv4t.GetDestinations()
 	assert.Equal(t, ds, destinations)
 }
 func TestTableGetDestinations(t *testing.T) {
@@ -103,7 +103,7 @@ func TestTableGetDestinations(t *testing.T) {
 		destinations[tableKey] = dest
 	}
 	ipv4t.setDestinations(destinations)
-	ds := ipv4t.getDestinations()
+	ds := ipv4t.GetDestinations()
 	assert.Equal(t, ds, destinations)
 }
 

@@ -269,7 +269,7 @@ func (manager *TableManager) GetPathList(rf bgp.RouteFamily) []Path {
 		return []Path{}
 	}
 	var paths []Path
-	for _, dest := range manager.Tables[rf].getDestinations() {
+	for _, dest := range manager.Tables[rf].GetDestinations() {
 		paths = append(paths, dest.getBestPath())
 	}
 	return paths

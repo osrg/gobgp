@@ -30,7 +30,7 @@ import (
 
 type Table interface {
 	createDest(nlri bgp.AddrPrefixInterface) Destination
-	getDestinations() map[string]Destination
+	GetDestinations() map[string]Destination
 	setDestinations(destinations map[string]Destination)
 	getDestination(key string) Destination
 	setDestination(key string, dest Destination)
@@ -153,7 +153,7 @@ func (td *TableDefault) DeleteDestByPeer(peerInfo *PeerInfo) []Destination {
 
 func deleteDestByNlri(table Table, nlri bgp.AddrPrefixInterface) Destination {
 	table.validateNlri(nlri)
-	destinations := table.getDestinations()
+	destinations := table.GetDestinations()
 	dest := destinations[table.tableKey(nlri)]
 	if dest != nil {
 		delete(destinations, table.tableKey(nlri))
@@ -162,7 +162,7 @@ func deleteDestByNlri(table Table, nlri bgp.AddrPrefixInterface) Destination {
 }
 
 func deleteDest(table Table, dest Destination) {
-	destinations := table.getDestinations()
+	destinations := table.GetDestinations()
 	delete(destinations, table.tableKey(dest.getNlri()))
 }
 
@@ -230,7 +230,7 @@ func getOrCreateDest(table Table, nlri bgp.AddrPrefixInterface) Destination {
 	return dest
 }
 
-func (td *TableDefault) getDestinations() map[string]Destination {
+func (td *TableDefault) GetDestinations() map[string]Destination {
 	return td.destinations
 }
 func (td *TableDefault) setDestinations(destinations map[string]Destination) {

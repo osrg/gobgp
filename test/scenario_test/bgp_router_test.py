@@ -73,12 +73,12 @@ class GoBGPTest(GoBGPTestBase):
                 for p in d.paths:
                     print "check of %s's route %s existance in gobgp global rib" % (peer_ip, p.network)
                     exist = False
-                    for dst in rib['Destinations']:
-                        for path in dst['Paths']:
-                            if path['Network'] == p.network:
+                    for dst in rib:
+                        for path in dst['paths']:
+                            if path['network'] == p.network:
                                 exist = True
                                 if exist:
-                                    self.assertEqual(path['Nexthop'] == p.nexthop, True)
+                                    self.assertEqual(path['nexthop'] == p.nexthop, True)
                     self.assertEqual(exist, True)
 
     # Test of advertising route to each quagga form gobgp
@@ -150,12 +150,12 @@ class GoBGPTest(GoBGPTestBase):
                 for p in d.paths:
                     print "check of %s's route %s existance in gobgp global rib" % (peer_ip, p.network)
                     exist = False
-                    for dst in rib['Destinations']:
-                        for path in dst['Paths']:
-                            if path['Network'] == p.network:
+                    for dst in rib:
+                        for path in dst['paths']:
+                            if path['nlri']['prefix'] == p.network:
                                 exist = True
                                 if exist:
-                                    self.assertEqual(path['Nexthop'] == p.nexthop, True)
+                                    self.assertEqual(path['nexthop'] == p.nexthop, True)
                     self.assertEqual(exist, True)
 
     # Test of advertising route to each quagga form gobgp when append quagga container
@@ -215,9 +215,9 @@ class GoBGPTest(GoBGPTestBase):
 
         removed_prefix = "10.0.0.%d/24" % self.remove_quagga
         still_exists = False
-        for dst in rib['Destinations']:
-            for path in dst['Paths']:
-                if path['Network'] == removed_prefix:
+        for dst in rib:
+            for path in dst['paths']:
+                if path['network'] == removed_prefix:
                     still_exists = True
         self.assertEqual(still_exists, False)
 
@@ -291,7 +291,7 @@ class GoBGPTest(GoBGPTestBase):
         print "please wait " + str(self.initial_wait_time) + " second"
         time.sleep(self.initial_wait_time)
 
-        target_network = "192.168.20.0"
+        target_network = "192.168.20.0/24"
         ans_nexthop = "10.0.0.3"
 
         print "check whether target network %s 's nexthop is %s" % (target_network, ans_nexthop)

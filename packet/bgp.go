@@ -21,9 +21,11 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"github.com/osrg/gobgp/api"
 	"math"
 	"net"
 	"reflect"
+	"strings"
 )
 
 const (
@@ -452,6 +454,7 @@ type AddrPrefixInterface interface {
 	SAFI() uint8
 	Len() int
 	String() string
+	ToAPI() *api.Nlri
 }
 
 type IPAddrPrefixDefault struct {
@@ -528,6 +531,13 @@ func (r *IPAddrPrefix) AFI() uint16 {
 
 func (r *IPAddrPrefix) SAFI() uint8 {
 	return SAFI_UNICAST
+}
+
+func (r *IPAddrPrefix) ToAPI() *api.Nlri {
+	return &api.Nlri{
+		Af:     &api.AddressFamily{api.AFI(r.AFI()), api.SAFI(r.SAFI())},
+		Prefix: r.String(),
+	}
 }
 
 type IPv6AddrPrefix struct {
@@ -815,6 +825,13 @@ func (l *LabelledVPNIPAddrPrefix) SAFI() uint8 {
 	return SAFI_MPLS_VPN
 }
 
+func (l *LabelledVPNIPAddrPrefix) ToAPI() *api.Nlri {
+	return &api.Nlri{
+		Af:     &api.AddressFamily{api.AFI(l.AFI()), api.SAFI(l.SAFI())},
+		Prefix: l.String(),
+	}
+}
+
 func NewLabelledVPNIPAddrPrefix(length uint8, prefix string, label Label, rd RouteDistinguisherInterface) *LabelledVPNIPAddrPrefix {
 	rdlen := 0
 	if rd != nil {
@@ -863,6 +880,13 @@ func (r *LabelledIPAddrPrefix) AFI() uint16 {
 
 func (r *LabelledIPAddrPrefix) SAFI() uint8 {
 	return SAFI_MPLS_LABEL
+}
+
+func (r *LabelledIPAddrPrefix) ToAPI() *api.Nlri {
+	return &api.Nlri{
+		Af:     &api.AddressFamily{api.AFI(r.AFI()), api.SAFI(r.SAFI())},
+		Prefix: r.String(),
+	}
 }
 
 func (r *IPAddrPrefix) decodeNextHop(data []byte) net.IP {
@@ -969,6 +993,13 @@ func (n *RouteTargetMembershipNLRI) Len() int { return 12 }
 
 func (n *RouteTargetMembershipNLRI) String() string {
 	return fmt.Sprintf("%d:%s/%d", n.AS, n.RouteTarget.String(), n.Len()*8)
+}
+
+func (n *RouteTargetMembershipNLRI) ToAPI() *api.Nlri {
+	return &api.Nlri{
+		Af:     &api.AddressFamily{api.AFI(n.AFI()), api.SAFI(n.SAFI())},
+		Prefix: n.String(),
+	}
 }
 
 type ESIType uint8
@@ -1327,10 +1358,13 @@ func (n *EVPNNLRI) String() string {
 
 	case EVPN_ROUTE_TYPE_MAC_IP_ADVERTISEMENT:
 		m := n.RouteTypeData.(*EVPNMacIPAdvertisementRoute)
+		var ss []string
 		switch m.RD.(type) {
 		case *RouteDistinguisherIPAddressAS:
-			return fmt.Sprintf("%s", m.IPAddress.String())
+			ss = append(ss, fmt.Sprintf("%s", m.IPAddress.String()))
 		}
+		ss = append(ss, m.MacAddress.String())
+		return strings.Join(ss, ".")
 
 	case EVPN_INCLUSIVE_MULTICAST_ETHERNET_TAG:
 		m := n.RouteTypeData.(*EVPNMulticastEthernetTagRoute)
@@ -1344,6 +1378,13 @@ func (n *EVPNNLRI) String() string {
 
 	}
 	return fmt.Sprintf("%d:%d", n.RouteType, n.Length)
+}
+
+func (n *EVPNNLRI) ToAPI() *api.Nlri {
+	return &api.Nlri{
+		Af:     &api.AddressFamily{api.AFI(n.AFI()), api.SAFI(n.SAFI())},
+		Prefix: n.String(),
+	}
 }
 
 func NewEVPNNLRI(routetype uint8, length uint8, routetypedata EVPNRouteTypeInterface) *EVPNNLRI {
@@ -1559,6 +1600,7 @@ type PathAttributeInterface interface {
 	Len() int
 	getFlags() uint8
 	getType() BGPAttrType
+	ToAPI() *api.PathAttr
 }
 
 type PathAttribute struct {
@@ -1645,14 +1687,15 @@ type PathAttributeOrigin struct {
 	PathAttribute
 }
 
+func (p *PathAttributeOrigin) ToAPI() *api.PathAttr {
+	return &api.PathAttr{
+		Type:   api.BGP_ATTR_TYPE_ORIGIN,
+		Origin: api.Origin(uint8(p.Value[0])),
+	}
+}
+
 func (p *PathAttributeOrigin) MarshalJSON() ([]byte, error) {
-	return json.Marshal(struct {
-		Type  string
-		Value uint8
-	}{
-		Type:  p.Type.String(),
-		Value: uint8(p.Value[0]),
-	})
+	return json.Marshal(p.ToAPI())
 }
 
 func NewPathAttributeOrigin(value uint8) *PathAttributeOrigin {
@@ -1879,7 +1922,7 @@ func (p *PathAttributeAsPath) Serialize() ([]byte, error) {
 	return p.PathAttribute.Serialize()
 }
 
-func (p *PathAttributeAsPath) MarshalJSON() ([]byte, error) {
+func (p *PathAttributeAsPath) ToAPI() *api.PathAttr {
 	aslist := make([]uint32, 0)
 	for _, a := range p.Value {
 		path, y := a.(*As4PathParam)
@@ -1892,13 +1935,14 @@ func (p *PathAttributeAsPath) MarshalJSON() ([]byte, error) {
 			}
 		}
 	}
-	return json.Marshal(struct {
-		Type   string
-		AsPath []uint32
-	}{
-		Type:   p.Type.String(),
+	return &api.PathAttr{
+		Type:   api.BGP_ATTR_TYPE_AS_PATH,
 		AsPath: aslist,
-	})
+	}
+}
+
+func (p *PathAttributeAsPath) MarshalJSON() ([]byte, error) {
+	return json.Marshal(p.ToAPI())
 }
 
 func NewPathAttributeAsPath(value []AsPathParamInterface) *PathAttributeAsPath {
@@ -1936,14 +1980,15 @@ func (p *PathAttributeNextHop) Serialize() ([]byte, error) {
 	return p.PathAttribute.Serialize()
 }
 
-func (p *PathAttributeNextHop) MarshalJSON() ([]byte, error) {
-	return json.Marshal(struct {
-		Type    string
-		Nexthop string
-	}{
-		Type:    p.Type.String(),
+func (p *PathAttributeNextHop) ToAPI() *api.PathAttr {
+	return &api.PathAttr{
+		Type:    api.BGP_ATTR_TYPE_NEXT_HOP,
 		Nexthop: p.Value.String(),
-	})
+	}
+}
+
+func (p *PathAttributeNextHop) MarshalJSON() ([]byte, error) {
+	return json.Marshal(p.ToAPI())
 }
 
 func NewPathAttributeNextHop(value string) *PathAttributeNextHop {
@@ -1983,14 +2028,15 @@ func (p *PathAttributeMultiExitDisc) Serialize() ([]byte, error) {
 	return p.PathAttribute.Serialize()
 }
 
-func (p *PathAttributeMultiExitDisc) MarshalJSON() ([]byte, error) {
-	return json.Marshal(struct {
-		Type   string
-		Metric uint32
-	}{
-		Type:   p.Type.String(),
+func (p *PathAttributeMultiExitDisc) ToAPI() *api.PathAttr {
+	return &api.PathAttr{
+		Type:   api.BGP_ATTR_TYPE_MULTI_EXIT_DISC,
 		Metric: p.Value,
-	})
+	}
+}
+
+func (p *PathAttributeMultiExitDisc) MarshalJSON() ([]byte, error) {
+	return json.Marshal(p.ToAPI())
 }
 
 func NewPathAttributeMultiExitDisc(value uint32) *PathAttributeMultiExitDisc {
@@ -2030,14 +2076,15 @@ func (p *PathAttributeLocalPref) Serialize() ([]byte, error) {
 	return p.PathAttribute.Serialize()
 }
 
-func (p *PathAttributeLocalPref) MarshalJSON() ([]byte, error) {
-	return json.Marshal(struct {
-		Type string
-		Pref uint32
-	}{
-		Type: p.Type.String(),
+func (p *PathAttributeLocalPref) ToAPI() *api.PathAttr {
+	return &api.PathAttr{
+		Type: api.BGP_ATTR_TYPE_LOCAL_PREF,
 		Pref: p.Value,
-	})
+	}
+}
+
+func (p *PathAttributeLocalPref) MarshalJSON() ([]byte, error) {
+	return json.Marshal(p.ToAPI())
 }
 
 func NewPathAttributeLocalPref(value uint32) *PathAttributeLocalPref {
@@ -2055,12 +2102,14 @@ type PathAttributeAtomicAggregate struct {
 	PathAttribute
 }
 
+func (p *PathAttributeAtomicAggregate) ToAPI() *api.PathAttr {
+	return &api.PathAttr{
+		Type: api.BGP_ATTR_TYPE_ATOMIC_AGGREGATE,
+	}
+}
+
 func (p *PathAttributeAtomicAggregate) MarshalJSON() ([]byte, error) {
-	return json.Marshal(struct {
-		Type string
-	}{
-		Type: p.Type.String(),
-	})
+	return json.Marshal(p.ToAPI())
 }
 
 func NewPathAttributeAtomicAggregate() *PathAttributeAtomicAggregate {
@@ -2123,16 +2172,18 @@ func (p *PathAttributeAggregator) Serialize() ([]byte, error) {
 	return p.PathAttribute.Serialize()
 }
 
+func (p *PathAttributeAggregator) ToAPI() *api.PathAttr {
+	return &api.PathAttr{
+		Type: api.BGP_ATTR_TYPE_AGGREGATOR,
+		Aggregator: &api.Aggregator{
+			As:      p.Value.AS,
+			Address: p.Value.Address.String(),
+		},
+	}
+}
+
 func (p *PathAttributeAggregator) MarshalJSON() ([]byte, error) {
-	return json.Marshal(struct {
-		Type    string
-		AS      uint32
-		Address net.IP
-	}{
-		Type:    p.Type.String(),
-		AS:      p.Value.AS,
-		Address: p.Value.Address,
-	})
+	return json.Marshal(p.ToAPI())
 }
 
 func NewPathAttributeAggregator(as interface{}, address string) *PathAttributeAggregator {
@@ -2183,14 +2234,15 @@ func (p *PathAttributeCommunities) Serialize() ([]byte, error) {
 	return p.PathAttribute.Serialize()
 }
 
+func (p *PathAttributeCommunities) ToAPI() *api.PathAttr {
+	return &api.PathAttr{
+		Type:       api.BGP_ATTR_TYPE_COMMUNITIES,
+		Communites: p.Value,
+	}
+}
+
 func (p *PathAttributeCommunities) MarshalJSON() ([]byte, error) {
-	return json.Marshal(struct {
-		Type  string
-		Value []uint32
-	}{
-		Type:  p.Type.String(),
-		Value: p.Value,
-	})
+	return json.Marshal(p.ToAPI())
 }
 
 func NewPathAttributeCommunities(value []uint32) *PathAttributeCommunities {
@@ -2231,14 +2283,15 @@ func (p *PathAttributeOriginatorId) Serialize() ([]byte, error) {
 	return p.PathAttribute.Serialize()
 }
 
+func (p *PathAttributeOriginatorId) ToAPI() *api.PathAttr {
+	return &api.PathAttr{
+		Type:       api.BGP_ATTR_TYPE_ORIGINATOR_ID,
+		Originator: p.Value.String(),
+	}
+}
+
 func (p *PathAttributeOriginatorId) MarshalJSON() ([]byte, error) {
-	return json.Marshal(struct {
-		Type    string
-		Address string
-	}{
-		Type:    p.Type.String(),
-		Address: p.Value.String(),
-	})
+	return json.Marshal(p.ToAPI())
 }
 
 func NewPathAttributeOriginatorId(value string) *PathAttributeOriginatorId {
@@ -2285,19 +2338,19 @@ func (p *PathAttributeClusterList) Serialize() ([]byte, error) {
 	return p.PathAttribute.Serialize()
 }
 
-func (p *PathAttributeClusterList) MarshalJSON() ([]byte, error) {
+func (p *PathAttributeClusterList) ToAPI() *api.PathAttr {
 	l := make([]string, 0)
 	for _, addr := range p.Value {
 		l = append(l, addr.String())
 	}
+	return &api.PathAttr{
+		Type:    api.BGP_ATTR_TYPE_CLUSTER_LIST,
+		Cluster: l,
+	}
+}
 
-	return json.Marshal(struct {
-		Type    string
-		Address []string
-	}{
-		Type:    p.Type.String(),
-		Address: l,
-	})
+func (p *PathAttributeClusterList) MarshalJSON() ([]byte, error) {
+	return json.Marshal(p.ToAPI())
 }
 
 func NewPathAttributeClusterList(value []string) *PathAttributeClusterList {
@@ -2426,26 +2479,29 @@ func (p *PathAttributeMpReachNLRI) Serialize() ([]byte, error) {
 	return p.PathAttribute.Serialize()
 }
 
-func (p *PathAttributeMpReachNLRI) MarshalJSON() ([]byte, error) {
-	// TODO: fix address printing
-	return json.Marshal(struct {
-		Type    string
-		Nexthop string
-		Address []string
-	}{
-		Type:    p.Type.String(),
+func (p *PathAttributeMpReachNLRI) ToAPI() *api.PathAttr {
+	return &api.PathAttr{
+		Type:    api.BGP_ATTR_TYPE_MP_REACH_NLRI,
 		Nexthop: p.Nexthop.String(),
-	})
+	}
+}
+
+func (p *PathAttributeMpReachNLRI) MarshalJSON() ([]byte, error) {
+	return json.Marshal(p.ToAPI())
 }
 
 func NewPathAttributeMpReachNLRI(nexthop string, nlri []AddrPrefixInterface) *PathAttributeMpReachNLRI {
 	t := BGP_ATTR_TYPE_MP_REACH_NLRI
+	ip := net.ParseIP(nexthop)
+	if ip.To4() != nil {
+		ip = ip.To4()
+	}
 	p := &PathAttributeMpReachNLRI{
 		PathAttribute: PathAttribute{
 			Flags: pathAttrFlags[t],
 			Type:  t,
 		},
-		Nexthop: net.ParseIP(nexthop),
+		Nexthop: ip,
 		Value:   nlri,
 	}
 	if len(nlri) > 0 {
@@ -2514,6 +2570,16 @@ func (p *PathAttributeMpUnreachNLRI) Serialize() ([]byte, error) {
 	}
 	p.PathAttribute.Value = buf
 	return p.PathAttribute.Serialize()
+}
+
+func (p *PathAttributeMpUnreachNLRI) ToAPI() *api.PathAttr {
+	return &api.PathAttr{
+		Type: api.BGP_ATTR_TYPE_MP_UNREACH_NLRI,
+	}
+}
+
+func (p *PathAttributeMpUnreachNLRI) MarshalJSON() ([]byte, error) {
+	return json.Marshal(p.ToAPI())
 }
 
 func NewPathAttributeMpUnreachNLRI(nlri []AddrPrefixInterface) *PathAttributeMpUnreachNLRI {
@@ -2705,6 +2771,24 @@ func (p *PathAttributeExtendedCommunities) Serialize() ([]byte, error) {
 	return p.PathAttribute.Serialize()
 }
 
+func (p *PathAttributeExtendedCommunities) ToAPI() *api.PathAttr {
+	value := func(arg []ExtendedCommunityInterface) []string {
+		ret := make([]string, 0, len(arg))
+		for _, v := range p.Value {
+			ret = append(ret, v.String())
+		}
+		return ret
+	}(p.Value)
+	return &api.PathAttr{
+		Type:  api.BGP_ATTR_TYPE_EXTENDED_COMMUNITIES,
+		Value: value,
+	}
+}
+
+func (p *PathAttributeExtendedCommunities) MarshalJSON() ([]byte, error) {
+	return json.Marshal(p.ToAPI())
+}
+
 func NewPathAttributeExtendedCommunities(value []ExtendedCommunityInterface) *PathAttributeExtendedCommunities {
 	t := BGP_ATTR_TYPE_EXTENDED_COMMUNITIES
 	return &PathAttributeExtendedCommunities{
@@ -2762,18 +2846,19 @@ func (p *PathAttributeAs4Path) Serialize() ([]byte, error) {
 	return p.PathAttribute.Serialize()
 }
 
-func (p *PathAttributeAs4Path) MarshalJSON() ([]byte, error) {
+func (p *PathAttributeAs4Path) ToAPI() *api.PathAttr {
 	aslist := make([]uint32, 0)
 	for _, a := range p.Value {
 		aslist = append(aslist, a.AS...)
 	}
-	return json.Marshal(struct {
-		Type   string
-		AsPath []uint32
-	}{
-		Type:   p.Type.String(),
+	return &api.PathAttr{
+		Type:   api.BGP_ATTR_TYPE_AS4_PATH,
 		AsPath: aslist,
-	})
+	}
+}
+
+func (p *PathAttributeAs4Path) MarshalJSON() ([]byte, error) {
+	return json.Marshal(p.ToAPI())
 }
 
 func NewPathAttributeAs4Path(value []*As4PathParam) *PathAttributeAs4Path {
@@ -2815,6 +2900,20 @@ func (p *PathAttributeAs4Aggregator) Serialize() ([]byte, error) {
 	return p.PathAttribute.Serialize()
 }
 
+func (p *PathAttributeAs4Aggregator) ToAPI() *api.PathAttr {
+	return &api.PathAttr{
+		Type: api.BGP_ATTR_TYPE_AS4_AGGREGATOR,
+		Aggregator: &api.Aggregator{
+			As:      p.Value.AS,
+			Address: p.Value.Address.String(),
+		},
+	}
+}
+
+func (p *PathAttributeAs4Aggregator) MarshalJSON() ([]byte, error) {
+	return json.Marshal(p.ToAPI())
+}
+
 func NewPathAttributeAs4Aggregator(as uint32, address string) *PathAttributeAs4Aggregator {
 	t := BGP_ATTR_TYPE_AS4_AGGREGATOR
 	return &PathAttributeAs4Aggregator{
@@ -2831,6 +2930,17 @@ func NewPathAttributeAs4Aggregator(as uint32, address string) *PathAttributeAs4A
 
 type PathAttributeUnknown struct {
 	PathAttribute
+}
+
+func (p *PathAttributeUnknown) ToAPI() *api.PathAttr {
+	return &api.PathAttr{
+		Type:  api.BGP_ATTR_TYPE_UNKNOWN_ATTR,
+		Value: []string{string(p.Value)},
+	}
+}
+
+func (p *PathAttributeUnknown) MarshalJSON() ([]byte, error) {
+	return json.Marshal(p.ToAPI())
 }
 
 func getPathAttribute(data []byte) (PathAttributeInterface, error) {

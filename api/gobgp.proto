@@ -1,0 +1,223 @@
+// Copyright (C) 2015 Nippon Telegraph and Telephone Corporation.
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//    http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or
+// implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+syntax = "proto3";
+
+package api;
+
+// Interface exported by the server.
+
+service Grpc {
+  rpc GetNeighbors(Arguments) returns (stream Peer) {}
+  rpc GetNeighbor(Arguments) returns (Peer) {}
+  rpc GetRib(Arguments) returns (stream Destination) {}
+  rpc GetAdjRib(Arguments) returns (stream Path) {}
+  rpc Reset(Arguments) returns (Error) {}
+  rpc SoftReset(Arguments) returns (Error) {}
+  rpc SoftResetIn(Arguments) returns (Error) {}
+  rpc SoftResetOut(Arguments) returns (Error) {}
+  rpc Shutdown(Arguments) returns (Error) {}
+  rpc Enable(Arguments) returns (Error) {}
+  rpc Disable(Arguments) returns (Error) {}
+  rpc ModPath(stream ModPathArguments) returns (stream Error) {}
+}
+
+message Error {
+    enum ErrorCode {
+        SUCCESS = 0;
+        FAIL = 1;
+    }
+    ErrorCode code = 1;
+    string msg = 2;
+}
+
+message Arguments {
+    Resource resource = 1;
+    AddressFamily af = 2;
+    string router_id = 3;
+}
+
+message ModPathArguments {
+    Resource resource = 1;
+    Path path = 2;
+}
+
+enum Resource {
+    GLOBAL = 0;
+    LOCAL = 1;
+    ADJ_IN = 2;
+    ADJ_OUT = 3;
+}
+
+enum AFI {
+    UNKNOWN_AFI = 0;
+    IP = 1;
+    IP6 = 2;
+    L2VPN = 25;
+}
+
+enum SAFI {
+    UNKNOWN_SAFI = 0;
+    UNICAST = 1;
+    MULTICAST = 2;
+    MPLS_LABEL = 4;
+    VPLS = 65;
+    EVPN = 70;
+    MPLS_VPN = 128;
+    MPLS_VPN_MULTICAST = 129;
+    ROUTE_TARGET_CONSTRTAINS = 132;
+}
+
+message AddressFamily {
+    AFI Afi = 1;
+    SAFI Safi = 2;
+}
+
+enum Origin {
+    IGP = 0;
+    EGP = 1;
+    INCOMPLETE = 2;
+}
+
+message Aggregator {
+    uint32 as = 1;
+    string address = 2;
+}
+
+enum EVPN_TYPE {
+    _ = 0;
+    ROUTE_TYPE_ETHERNET_AUTO_DISCOVERY = 1;
+    ROUTE_TYPE_MAC_IP_ADVERTISEMENT    = 2;
+    INCLUSIVE_MULTICAST_ETHERNET_TAG   = 3;
+    ETHERNET_SEGMENT_ROUTE             = 4;
+}
+
+message EVPNNlri {
+    EVPN_TYPE type = 1;
+//    EvpnAutoDiscoveryRoute = 2;
+    EvpnMacIpAdvertisement mac_ip_adv = 3;
+//    EvpnInclusiveMulticastEthernetTag = 4;
+//    EvpnEthernetSegmentRoute = 5;
+}
+
+message EvpnMacIpAdvertisement {
+    string mac_addr = 1;
+    uint32 mac_addr_len = 2;
+    string ip_addr = 3;
+    uint32 ip_addr_len = 4;
+    string rd = 5;
+    string esi = 6;
+    uint32 etag = 7;
+    repeated uint32 labels = 8;
+}
+
+message Nlri {
+    AddressFamily af = 1;
+    string prefix = 2;
+    EVPNNlri evpn_nlri = 3;
+    string nexthop = 4;
+}
+
+enum BGP_ATTR_TYPE {
+    UNKNOWN_ATTR = 0;
+    ORIGIN = 1;
+    AS_PATH = 2;
+    NEXT_HOP = 3;
+    MULTI_EXIT_DISC = 4;
+    LOCAL_PREF = 5;
+    ATOMIC_AGGREGATE = 6;
+    AGGREGATOR = 7;
+    COMMUNITIES = 8;
+    ORIGINATOR_ID = 9;
+    CLUSTER_LIST = 10;
+    MP_REACH_NLRI = 14;
+    MP_UNREACH_NLRI = 15;
+    EXTENDED_COMMUNITIES = 16;
+    AS4_PATH = 17;
+    AS4_AGGREGATOR = 18;
+}
+
+message PathAttr {
+    BGP_ATTR_TYPE type = 1;
+    repeated string value = 2;
+    Origin origin = 3;
+    repeated uint32 as_path = 4;
+    string nexthop = 5;
+    uint32 metric = 6;
+    uint32 pref = 7;
+    Aggregator aggregator = 8;
+    repeated uint32 communites = 9;
+    string originator = 10;
+    repeated string cluster = 11;
+    Nlri nlri = 12;
+}
+
+message Path {
+    Nlri nlri = 1;
+    repeated PathAttr attrs = 2;
+    string nexthop = 3;
+    int64 age = 4;
+    bool best = 5;
+    bool is_withdraw = 6;
+}
+
+message Destination {
+    string prefix = 1;
+    repeated Path paths = 2;
+    uint32 best_path_idx = 3;
+}
+
+message PeerConf {
+    string remote_ip = 1;
+    string id = 2;
+    uint32 remote_as = 3;
+    bool cap_refresh = 4;
+    bool cap_enhanced_refresh = 5;
+    repeated int32 remote_cap = 6;
+    repeated int32 local_cap = 7;
+}
+
+message PeerInfo {
+    string bgp_state = 1;
+    string admin_state = 2;
+    uint32 fsm_established_transitions = 3;
+    uint32 total_message_out = 4;
+    uint32 total_message_in = 5;
+    uint32 update_message_out = 6;
+    uint32 update_message_in = 7;
+    uint32 keep_alive_message_out = 8;
+    uint32 keep_alive_message_in = 9;
+    uint32 open_message_out = 10;
+    uint32 open_message_in = 11;
+    uint32 notification_out = 12;
+    uint32 notification_in = 13;
+    uint32 refresh_message_out = 14;
+    uint32 refresh_message_in = 15;
+    uint32 discarded_out = 16;
+    uint32 discarded_in = 17;
+    int64 uptime = 18;
+    int64 downtime = 19;
+    string last_error = 20;
+    uint32 received = 21;
+    uint32 accepted = 22;
+    uint32 advertized = 23;
+    uint32 out_q = 24;
+    uint32 flops = 25;
+}
+
+message Peer {
+    PeerConf conf = 1;
+    PeerInfo info = 2;
+}
