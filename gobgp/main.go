@@ -52,6 +52,66 @@ func formatTimedelta(d int64) string {
 	}
 }
 
+func cidr2prefix(cidr string) string {
+	_, n, err := net.ParseCIDR(cidr)
+	if err != nil {
+		return cidr
+	}
+	var buffer bytes.Buffer
+	for i := 0; i < len(n.IP); i++ {
+		buffer.WriteString(fmt.Sprintf("%08b", n.IP[i]))
+	}
+	ones, _ := n.Mask.Size()
+	return buffer.String()[:ones]
+}
+
+type paths []*api.Path
+
+func (p paths) Len() int {
+	return len(p)
+}
+
+func (p paths) Swap(i, j int) {
+	p[i], p[j] = p[j], p[i]
+}
+
+func (p paths) Less(i, j int) bool {
+	if p[i].Nlri.Prefix == p[j].Nlri.Prefix {
+		if p[i].Best {
+			return true
+		}
+	}
+	strings := sort.StringSlice{cidr2prefix(p[i].Nlri.Prefix),
+		cidr2prefix(p[j].Nlri.Prefix)}
+	return strings.Less(0, 1)
+}
+
+type peers []*api.Peer
+
+func (p peers) Len() int {
+	return len(p)
+}
+
+func (p peers) Swap(i, j int) {
+	p[i], p[j] = p[j], p[i]
+}
+
+func (p peers) Less(i, j int) bool {
+	p1 := net.ParseIP(p[i].Conf.RemoteIp)
+	p2 := net.ParseIP(p[j].Conf.RemoteIp)
+	p1Isv4 := p1.To4() != nil
+	p2Isv4 := p2.To4() != nil
+	if p1Isv4 != p2Isv4 {
+		if p1Isv4 {
+			return true
+		}
+		return false
+	}
+	strings := sort.StringSlice{cidr2prefix(fmt.Sprintf("%s/32", p1.String())),
+		cidr2prefix(fmt.Sprintf("%s/32", p2.String()))}
+	return strings.Less(0, 1)
+}
+
 var client api.GrpcClient
 
 type ShowNeighborCommand struct {
@@ -283,7 +343,7 @@ func (x *ShowNeighborRibCommand) Execute(args []string) error {
 		RouterId: x.remoteIP.String(),
 	}
 
-	ps := []*api.Path{}
+	ps := paths{}
 	showBest := false
 	showAge := true
 
@@ -344,6 +404,8 @@ func (x *ShowNeighborRibCommand) Execute(args []string) error {
 		}
 	}
 
+	sort.Sort(ps)
+
 	showRoute(ps, showAge, showBest)
 	return nil
 }
@@ -365,7 +427,7 @@ func (x *ShowNeighborsCommand) Execute(args []string) error {
 		fmt.Println(e)
 		return e
 	}
-	m := []*api.Peer{}
+	m := peers{}
 	for {
 		p, e := stream.Recv()
 		if e == io.EOF {
@@ -392,6 +454,9 @@ func (x *ShowNeighborsCommand) Execute(args []string) error {
 	maxaslen := 0
 	maxtimelen := len("Up/Down")
 	timedelta := []string{}
+
+	sort.Sort(m)
+
 	for _, p := range m {
 		if len(p.Conf.RemoteIp) > maxaddrlen {
 			maxaddrlen = len(p.Conf.RemoteIp)
@@ -487,7 +552,7 @@ func (x *ShowGlobalCommand) Execute(args []string) error {
 		return nil
 	}
 
-	ps := []*api.Path{}
+	ps := paths{}
 	for _, d := range ds {
 		for idx, p := range d.Paths {
 			if idx == int(d.BestPathIdx) {
@@ -496,6 +561,8 @@ func (x *ShowGlobalCommand) Execute(args []string) error {
 			ps = append(ps, p)
 		}
 	}
+
+	sort.Sort(ps)
 
 	showRoute(ps, true, true)
 	return nil

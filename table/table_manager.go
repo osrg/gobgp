@@ -18,7 +18,6 @@ package table
 import (
 	log "github.com/Sirupsen/logrus"
 	"github.com/osrg/gobgp/packet"
-	"github.com/tchap/go-patricia/patricia"
 	"reflect"
 	"time"
 )
@@ -341,18 +340,10 @@ func (adj *AdjRib) UpdateOut(pathList []Path) {
 }
 
 func (adj *AdjRib) getPathList(rib map[string]*ReceivedRoute) []Path {
-	trie := patricia.NewTrie()
+	pathList := make([]Path, 0, len(rib))
 	for _, rr := range rib {
-		key := rr.path.GetNlri().String()
-		trie.Insert(cidr2prefix(key), rr.path)
+		pathList = append(pathList, rr.path)
 	}
-
-	pathList := []Path{}
-	trie.Visit(func(prefix patricia.Prefix, item patricia.Item) error {
-		path, _ := item.(Path)
-		pathList = append(pathList, path)
-		return nil
-	})
 	return pathList
 }
 
