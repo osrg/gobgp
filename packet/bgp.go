@@ -1894,7 +1894,7 @@ func (p *PathAttributeAsPath) MarshalJSON() ([]byte, error) {
 	}
 	return json.Marshal(struct {
 		Type   string
-		AsPath []uint32
+		AsPath []uint32 `json:"as_path,omitempty"`
 	}{
 		Type:   p.Type.String(),
 		AsPath: aslist,

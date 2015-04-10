@@ -73,18 +73,16 @@ class GoBGPTest(GoBGPTestBase):
             for quagga_config in self.quagga_configs:
                 if quagga_config.peer_ip == address:
                     for c_dest in quagga_config.destinations.itervalues():
-                        g_dests = local_rib['Destinations']
                         exist_n = 0
-                        for g_dest in g_dests:
-                            if c_dest.prefix == g_dest['Prefix']:
+                        for g_dest in local_rib:
+                            if c_dest.prefix == g_dest['prefix']:
                                 exist_n += 1
                         self.assertEqual(exist_n, 0)
                 else:
                     for c_dest in quagga_config.destinations.itervalues():
-                        g_dests = local_rib['Destinations']
                         exist_n = 0
-                        for g_dest in g_dests:
-                            if c_dest.prefix == g_dest['Prefix']:
+                        for g_dest in local_rib:
+                            if c_dest.prefix == g_dest['prefix']:
                                 exist_n += 1
                         self.assertEqual(exist_n, 1)
 
@@ -152,22 +150,17 @@ class GoBGPTest(GoBGPTestBase):
             for quagga_config in self.quagga_configs:
                 if quagga_config.peer_ip == address:
                     for c_dest in quagga_config.destinations.itervalues():
-                        # print "config : ", c_dest.prefix, "my ip !!!"
-                        g_dests = local_rib['Destinations']
                         exist_n = 0
-                        for g_dest in g_dests:
-                            # print "gobgp : ", g_dest['Prefix']
-                            if c_dest.prefix == g_dest['Prefix']:
+                        for g_dest in local_rib:
+                            if c_dest.prefix == g_dest['prefix']:
                                 exist_n += 1
                         self.assertEqual(exist_n, 0)
                 else:
                     for c_dest in quagga_config.destinations.itervalues():
                         # print "config : ", c_dest.prefix,"
-                        g_dests = local_rib['Destinations']
                         exist_n = 0
-                        for g_dest in g_dests:
-                            # print "gobgp : ", g_dest['Prefix']
-                            if c_dest.prefix == g_dest['Prefix']:
+                        for g_dest in local_rib:
+                            if c_dest.prefix == g_dest['prefix']:
                                 exist_n += 1
                         self.assertEqual(exist_n, 1)
 
@@ -241,21 +234,18 @@ class GoBGPTest(GoBGPTestBase):
                 if quagga_config.peer_ip == address:
                     for c_dest in quagga_config.destinations.itervalues():
                         # print "config : ", c_dest.prefix, "my ip !!!"
-                        g_dests = local_rib['Destinations']
                         exist_n = 0
-                        for g_dest in g_dests:
-                            # print "gobgp : ", g_dest['Prefix']
-                            if c_dest.prefix == g_dest['Prefix']:
+                        for g_dest in local_rib:
+                            if c_dest.prefix == g_dest['prefix']:
                                 exist_n += 1
                         self.assertEqual(exist_n, 0)
                 else:
                     for c_dest in quagga_config.destinations.itervalues():
                         # print "config : ", c_dest.prefix
-                        g_dests = local_rib['Destinations']
                         exist_n = 0
-                        for g_dest in g_dests:
+                        for g_dest in local_rib:
                             # print "gobgp : ", g_dest['Prefix']
-                            if c_dest.prefix == g_dest['Prefix']:
+                            if c_dest.prefix == g_dest['prefix']:
                                 exist_n += 1
                         self.assertEqual(exist_n, 1)
 

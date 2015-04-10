@@ -16,7 +16,6 @@
 package server
 
 import (
-	"encoding/json"
 	"fmt"
 	log "github.com/Sirupsen/logrus"
 	"github.com/osrg/gobgp/api"
@@ -61,7 +60,7 @@ type BgpServer struct {
 	globalTypeCh   chan config.Global
 	addedPeerCh    chan config.Neighbor
 	deletedPeerCh  chan config.Neighbor
-	RestReqCh      chan *api.RestRequest
+	GrpcReqCh      chan *api.GrpcRequest
 	listenPort     int
 	peerMap        map[string]peerMapInfo
 	globalRib      *Peer
@@ -74,7 +73,7 @@ func NewBgpServer(port int) *BgpServer {
 	b.globalTypeCh = make(chan config.Global)
 	b.addedPeerCh = make(chan config.Neighbor)
 	b.deletedPeerCh = make(chan config.Neighbor)
-	b.RestReqCh = make(chan *api.RestRequest, 1)
+	b.GrpcReqCh = make(chan *api.GrpcRequest, 1)
 	b.policyUpdateCh = make(chan config.RoutingPolicy)
 	b.listenPort = port
 	return &b
@@ -217,8 +216,8 @@ func (server *BgpServer) Serve() {
 			} else {
 				log.Info("Can't delete a peer configuration for ", addr)
 			}
-		case restReq := <-server.RestReqCh:
-			server.handleRest(restReq)
+		case grpcReq := <-server.GrpcReqCh:
+			server.handleGrpc(grpcReq)
 		case pl := <-server.policyUpdateCh:
 			server.SetPolicy(pl)
 			msg := &serverMsg{
@@ -294,37 +293,44 @@ func (p peers) Less(i, j int) bool {
 	return strings.Less(0, 1)
 }
 
-func (server *BgpServer) handleRest(restReq *api.RestRequest) {
-	switch restReq.RequestType {
+func (server *BgpServer) handleGrpc(grpcReq *api.GrpcRequest) {
+	switch grpcReq.RequestType {
 	case api.REQ_NEIGHBORS:
-		result := &api.RestResponse{}
 		peerList := peers{}
 		for _, info := range server.peerMap {
 			peerList = append(peerList, info.peer)
 		}
 		sort.Sort(peerList)
-		j, _ := json.Marshal(peerList)
-		result.Data = j
-		restReq.ResponseCh <- result
-		close(restReq.ResponseCh)
-
+		for _, peer := range peerList {
+			data, err := peer.ToGrpc()
+			result := &api.GrpcResponse{
+				ResponseErr: err,
+				Data:        data,
+			}
+			grpcReq.ResponseCh <- result
+		}
+		close(grpcReq.ResponseCh)
 	case api.REQ_NEIGHBOR:
-
-		remoteAddr := restReq.RemoteAddr
-		result := &api.RestResponse{}
+		remoteAddr := grpcReq.RemoteAddr
+		var result *api.GrpcResponse
 		info, found := server.peerMap[remoteAddr]
 		if found {
-			j, _ := json.Marshal(info.peer)
-			result.Data = j
+			data, err := info.peer.ToGrpc()
+			result = &api.GrpcResponse{
+				ResponseErr: err,
+				Data:        data,
+			}
 		} else {
-			result.ResponseErr = fmt.Errorf("Neighbor that has %v does not exist.", remoteAddr)
+			result = &api.GrpcResponse{
+				ResponseErr: fmt.Errorf("Neighbor that has %v does not exist.", remoteAddr),
+			}
 		}
-		restReq.ResponseCh <- result
-		close(restReq.ResponseCh)
+		grpcReq.ResponseCh <- result
+		close(grpcReq.ResponseCh)
 	case api.REQ_GLOBAL_RIB, api.REQ_GLOBAL_ADD, api.REQ_GLOBAL_DELETE:
 		msg := &serverMsg{
 			msgType: SRV_MSG_API,
-			msgData: restReq,
+			msgData: grpcReq,
 		}
 		server.globalRib.serverMsgCh <- msg
 	case api.REQ_LOCAL_RIB, api.REQ_NEIGHBOR_SHUTDOWN, api.REQ_NEIGHBOR_RESET,
@@ -332,19 +338,19 @@ func (server *BgpServer) handleRest(restReq *api.RestRequest) {
 		api.REQ_ADJ_RIB_IN, api.REQ_ADJ_RIB_OUT,
 		api.REQ_NEIGHBOR_ENABLE, api.REQ_NEIGHBOR_DISABLE:
 
-		remoteAddr := restReq.RemoteAddr
-		result := &api.RestResponse{}
+		remoteAddr := grpcReq.RemoteAddr
+		result := &api.GrpcResponse{}
 		info, found := server.peerMap[remoteAddr]
 		if found {
 			msg := &serverMsg{
 				msgType: SRV_MSG_API,
-				msgData: restReq,
+				msgData: grpcReq,
 			}
 			info.peer.serverMsgCh <- msg
 		} else {
 			result.ResponseErr = fmt.Errorf("Neighbor that has %v does not exist.", remoteAddr)
-			restReq.ResponseCh <- result
-			close(restReq.ResponseCh)
+			grpcReq.ResponseCh <- result
+			close(grpcReq.ResponseCh)
 		}
 	}
 }
