@@ -58,6 +58,8 @@ class GoBGPTest(GoBGPTestBase):
             remote_ip = neighbor['conf']['remote_ip']
             self.assertEqual(address, remote_ip)
             self.assertEqual(state, "BGP_FSM_ESTABLISHED")
+        print "please wait " + str(self.wait_after_state_changed) + " second after established"
+        time.sleep(self.wait_after_state_changed)
 
     # Test of advertised route gobgp from each quagga
     def test_02_received_route(self):
@@ -135,6 +137,8 @@ class GoBGPTest(GoBGPTestBase):
         remote_ip = neighbor['conf']['remote_ip']
         self.assertEqual(append_quagga_address, remote_ip)
         self.assertEqual(state, "BGP_FSM_ESTABLISHED")
+        print "please wait " + str(self.wait_after_state_changed) + " second after established"
+        time.sleep(self.wait_after_state_changed)
 
     # Test of advertised route gobgp from each quagga when append quagga container
     def test_05_received_route_when_appended_quagga(self):
@@ -205,6 +209,8 @@ class GoBGPTest(GoBGPTestBase):
         remote_ip = neighbor['conf']['remote_ip']
         self.assertEqual(removed_quagga_address, remote_ip)
         self.assertEqual(state, "BGP_FSM_ACTIVE")
+        print "please wait " + str(self.wait_after_state_changed) + " second after removed"
+        time.sleep(self.wait_after_state_changed)
 
     def test_08_received_route_when_quagga_removed(self):
         print "test_received_route_when_removed_quagga"

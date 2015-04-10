@@ -34,6 +34,7 @@ class GoBGPTestBase(unittest.TestCase):
     gobgp_config = None
     initial_wait_time = 10
     wait_per_retry = 5
+    wait_after_state_changed = 5
     retry_limit = (60 - initial_wait_time) / wait_per_retry
 
     def __init__(self, *args, **kwargs):
