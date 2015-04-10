@@ -308,15 +308,19 @@ class GoBGPTestBase(unittest.TestCase):
 
         return True
 
-    def compare_route_with_quagga_configs(self, address, quagga_rib):
+    def compare_route_with_quagga_configs(self, address, quagga_rib, route_server=True):
         for quagga_config in self.quagga_configs:
             for destination in quagga_config.destinations.itervalues():
                 for path in destination.paths:
                     network = path.network.split("/")[0]
-                    nexthop = path.nexthop
 
                     if quagga_config.peer_ip == address:
                         nexthop = "0.0.0.0"
+                    else:
+                        if route_server:
+                            nexthop = path.nexthop
+                        else:
+                            nexthop = self.gobgp_ip
 
                     found = False
                     for quagga_path in quagga_rib:
@@ -326,4 +330,24 @@ class GoBGPTestBase(unittest.TestCase):
                     if not found:
                         return False
 
+        return True
+
+    def compare_global_rib_with_quagga_configs(self, rib):
+        for quagga_config in self.quagga_configs:
+            peer_ip = quagga_config.peer_ip
+            for d in quagga_config.destinations.itervalues():
+                for p in d.paths:
+                    print "check of %s's route %s existence in gobgp global rib" % (
+                    peer_ip, p.network)
+                    exist = False
+                    for dst in rib:
+                        for path in dst['paths']:
+                            if path['network'] == p.network:
+                                exist = True
+                                if exist:
+                                    is_nexthop_same = path['nexthop'] == p.nexthop
+                                    if not is_nexthop_same:
+                                        return False
+                    if not exist:
+                        return False
         return True
