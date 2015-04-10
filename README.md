@@ -24,6 +24,7 @@ No dependency hell (library, package, etc) thanks to Go.
  * [CLI operations](https://github.com/osrg/gobgp/blob/master/docs/sources/cli-operations.md)
  * [Route Server](https://github.com/osrg/gobgp/blob/master/docs/sources/route-server.md)
  * [Policy Filter](https://github.com/osrg/gobgp/blob/master/docs/sources/filter.md)
+ * [EVPN](https://github.com/osrg/gobgp/blob/master/docs/sources/evpn.md)
  
 ## Community, discussion and support
 
