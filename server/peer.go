@@ -288,120 +288,168 @@ func (peer *Peer) sendMessages(msgs []*bgp.BGPMessage) {
 	}
 }
 
-func (peer *Peer) handleREST(restReq *api.RestRequest) {
-	result := &api.RestResponse{}
-	switch restReq.RequestType {
-	case api.REQ_GLOBAL_ADD, api.REQ_GLOBAL_DELETE:
-		rf := restReq.RouteFamily
-		prefixes := restReq.Data["prefix"].([]string)
+func (peer *Peer) handleApi(apiReq *ApiRequest) {
+	result := &ApiResponse{}
+	switch apiReq.RequestType {
+	case REQ_GLOBAL_ADD, REQ_GLOBAL_DELETE:
+		path, ok := apiReq.Data.(*api.Path)
+		if !ok {
+			result.ResponseErr = fmt.Errorf("Conversion failed")
+			apiReq.ResponseCh <- result
+			close(apiReq.ResponseCh)
+			return
+		}
+		rf := apiReq.RouteFamily
 		var isWithdraw bool
-		if restReq.RequestType == api.REQ_GLOBAL_DELETE {
+		if apiReq.RequestType == REQ_GLOBAL_DELETE {
 			isWithdraw = true
 		}
 
-		pList := make([]table.Path, 0, len(prefixes))
-		for _, prefix := range prefixes {
-			var nlri bgp.AddrPrefixInterface
-			pattr := make([]bgp.PathAttributeInterface, 0)
-			pattr = append(pattr, bgp.NewPathAttributeOrigin(bgp.BGP_ORIGIN_ATTR_TYPE_IGP))
-			asparam := bgp.NewAs4PathParam(bgp.BGP_ASPATH_ATTR_TYPE_SEQ, []uint32{peer.peerInfo.AS})
-			pattr = append(pattr, bgp.NewPathAttributeAsPath([]bgp.AsPathParamInterface{asparam}))
+		var nlri bgp.AddrPrefixInterface
+		pattr := make([]bgp.PathAttributeInterface, 0)
+		pattr = append(pattr, bgp.NewPathAttributeOrigin(bgp.BGP_ORIGIN_ATTR_TYPE_IGP))
+		asparam := bgp.NewAs4PathParam(bgp.BGP_ASPATH_ATTR_TYPE_SEQ, []uint32{peer.peerInfo.AS})
+		pattr = append(pattr, bgp.NewPathAttributeAsPath([]bgp.AsPathParamInterface{asparam}))
 
-			if rf == bgp.RF_IPv4_UC {
-				ip, net, _ := net.ParseCIDR(prefix)
-				if ip.To4() == nil {
-					result.ResponseErr = fmt.Errorf("Invalid ipv4 prefix: %s", prefix)
-					restReq.ResponseCh <- result
-					close(restReq.ResponseCh)
-					return
-				}
-				ones, _ := net.Mask.Size()
-				nlri = &bgp.NLRInfo{
-					IPAddrPrefix: *bgp.NewIPAddrPrefix(uint8(ones), ip.String()),
-				}
-
-				pattr = append(pattr, bgp.NewPathAttributeNextHop("0.0.0.0"))
-
-			} else if rf == bgp.RF_IPv6_UC {
-				ip, net, _ := net.ParseCIDR(prefix)
-				if ip.To16() == nil {
-					result.ResponseErr = fmt.Errorf("Invalid ipv6 prefix: %s", prefix)
-					restReq.ResponseCh <- result
-					close(restReq.ResponseCh)
-					return
-				}
-				ones, _ := net.Mask.Size()
-				nlri = bgp.NewIPv6AddrPrefix(uint8(ones), ip.String())
-
-				pattr = append(pattr, bgp.NewPathAttributeMpReachNLRI("::", []bgp.AddrPrefixInterface{nlri}))
-
-			} else {
-				result.ResponseErr = fmt.Errorf("Unsupported address family: %s", rf)
-				restReq.ResponseCh <- result
-				close(restReq.ResponseCh)
+		switch rf {
+		case bgp.RF_IPv4_UC:
+			ip, net, _ := net.ParseCIDR(path.Nlri.Prefix)
+			if ip.To4() == nil {
+				result.ResponseErr = fmt.Errorf("Invalid ipv4 prefix: %s", path.Nlri.Prefix)
+				apiReq.ResponseCh <- result
+				close(apiReq.ResponseCh)
 				return
 			}
+			ones, _ := net.Mask.Size()
+			nlri = &bgp.NLRInfo{
+				IPAddrPrefix: *bgp.NewIPAddrPrefix(uint8(ones), ip.String()),
+			}
 
-			p := table.CreatePath(peer.peerInfo, nlri, pattr, isWithdraw, time.Now())
-			pList = append(pList, p)
+			pattr = append(pattr, bgp.NewPathAttributeNextHop("0.0.0.0"))
+		case bgp.RF_IPv6_UC:
+			ip, net, _ := net.ParseCIDR(path.Nlri.Prefix)
+			if ip.To16() == nil {
+				result.ResponseErr = fmt.Errorf("Invalid ipv6 prefix: %s", path.Nlri.Prefix)
+				apiReq.ResponseCh <- result
+				close(apiReq.ResponseCh)
+				return
+			}
+			ones, _ := net.Mask.Size()
+			nlri = bgp.NewIPv6AddrPrefix(uint8(ones), ip.String())
+
+			pattr = append(pattr, bgp.NewPathAttributeMpReachNLRI("::", []bgp.AddrPrefixInterface{nlri}))
+		case bgp.RF_EVPN:
+			mac, err := net.ParseMAC(path.Nlri.EvpnNlri.MacIpAdv.MacAddr)
+			if err != nil {
+				result.ResponseErr = fmt.Errorf("Invalid mac: %s", path.Nlri.EvpnNlri.MacIpAdv.MacAddr)
+				apiReq.ResponseCh <- result
+				close(apiReq.ResponseCh)
+				return
+			}
+			ip := net.ParseIP(path.Nlri.EvpnNlri.MacIpAdv.IpAddr)
+			if ip == nil {
+				result.ResponseErr = fmt.Errorf("Invalid ip prefix: %s", path.Nlri.EvpnNlri.MacIpAdv.IpAddr)
+				apiReq.ResponseCh <- result
+				close(apiReq.ResponseCh)
+				return
+			}
+			iplen := net.IPv4len * 8
+			if ip.To4() == nil {
+				iplen = net.IPv6len * 8
+			}
+			macIpAdv := &bgp.EVPNMacIPAdvertisementRoute{
+				RD: bgp.NewRouteDistinguisherTwoOctetAS(0, 0),
+				ESI: bgp.EthernetSegmentIdentifier{
+					Type: bgp.ESI_ARBITRARY,
+				},
+				MacAddressLength: 48,
+				MacAddress:       mac,
+				IPAddressLength:  uint8(iplen),
+				IPAddress:        ip,
+				Labels:           []uint32{0},
+			}
+			nlri = bgp.NewEVPNNLRI(bgp.EVPN_ROUTE_TYPE_MAC_IP_ADVERTISEMENT, 0, macIpAdv)
+			pattr = append(pattr, bgp.NewPathAttributeMpReachNLRI("0.0.0.0", []bgp.AddrPrefixInterface{nlri}))
+		default:
+			result.ResponseErr = fmt.Errorf("Unsupported address family: %s", rf)
+			apiReq.ResponseCh <- result
+			close(apiReq.ResponseCh)
+			return
 		}
+
+		p := table.CreatePath(peer.peerInfo, nlri, pattr, isWithdraw, time.Now())
 
 		pm := &peerMsg{
 			msgType: PEER_MSG_PATH,
-			msgData: pList,
+			msgData: []table.Path{p},
 		}
 		peer.peerMsgCh <- pm
 
-	case api.REQ_LOCAL_RIB, api.REQ_GLOBAL_RIB:
-		// just empty so we use ipv4 for any route family
-		j, _ := json.Marshal(table.NewIPv4Table(0))
-		if peer.fsm.adminState != ADMIN_STATE_DOWN {
-			if t, ok := peer.rib.Tables[restReq.RouteFamily]; ok {
-				j, _ = json.Marshal(t)
-			}
+	case REQ_LOCAL_RIB, REQ_GLOBAL_RIB:
+		if peer.fsm.adminState == ADMIN_STATE_DOWN {
+			close(apiReq.ResponseCh)
+			return
 		}
-		result.Data = j
-	case api.REQ_NEIGHBOR_SHUTDOWN:
+		if t, ok := peer.rib.Tables[apiReq.RouteFamily]; ok {
+			for _, dst := range t.GetDestinations() {
+				result := &ApiResponse{
+					Data: dst.ToAPI(),
+				}
+				apiReq.ResponseCh <- result
+			}
+			close(apiReq.ResponseCh)
+			return
+		}
+	case REQ_NEIGHBOR_SHUTDOWN:
 		peer.outgoing <- bgp.NewBGPNotificationMessage(bgp.BGP_ERROR_CEASE, bgp.BGP_ERROR_SUB_ADMINISTRATIVE_SHUTDOWN, nil)
-	case api.REQ_NEIGHBOR_RESET:
+	case REQ_NEIGHBOR_RESET:
 		peer.fsm.idleHoldTime = peer.peerConfig.Timers.IdleHoldTimeAfterReset
 		peer.outgoing <- bgp.NewBGPNotificationMessage(bgp.BGP_ERROR_CEASE, bgp.BGP_ERROR_SUB_ADMINISTRATIVE_RESET, nil)
-	case api.REQ_NEIGHBOR_SOFT_RESET, api.REQ_NEIGHBOR_SOFT_RESET_IN:
+	case REQ_NEIGHBOR_SOFT_RESET, REQ_NEIGHBOR_SOFT_RESET_IN:
 		// soft-reconfiguration inbound
-		peer.sendPathsToSiblings(peer.adjRib.GetInPathList(restReq.RouteFamily))
-		if restReq.RequestType == api.REQ_NEIGHBOR_SOFT_RESET_IN {
+		peer.sendPathsToSiblings(peer.adjRib.GetInPathList(apiReq.RouteFamily))
+		if apiReq.RequestType == REQ_NEIGHBOR_SOFT_RESET_IN {
 			break
 		}
 		fallthrough
-	case api.REQ_NEIGHBOR_SOFT_RESET_OUT:
-		pathList := peer.adjRib.GetOutPathList(restReq.RouteFamily)
+	case REQ_NEIGHBOR_SOFT_RESET_OUT:
+		pathList := peer.adjRib.GetOutPathList(apiReq.RouteFamily)
 		peer.sendMessages(table.CreateUpdateMsgFromPaths(pathList))
-	case api.REQ_ADJ_RIB_IN, api.REQ_ADJ_RIB_OUT:
-		rf := restReq.RouteFamily
-		if restReq.RequestType == api.REQ_ADJ_RIB_IN {
-			paths := peer.adjRib.GetInPathList(rf)
-			j, _ := json.Marshal(paths)
-			result.Data = j
+	case REQ_ADJ_RIB_IN, REQ_ADJ_RIB_OUT:
+		rf := apiReq.RouteFamily
+		var paths []table.Path
+
+		if apiReq.RequestType == REQ_ADJ_RIB_IN {
+			paths = peer.adjRib.GetInPathList(rf)
 			log.Debugf("RouteFamily=%v adj-rib-in found : %d", rf.String(), len(paths))
 		} else {
-			paths := peer.adjRib.GetOutPathList(rf)
-			j, _ := json.Marshal(paths)
-			result.Data = j
+			paths = peer.adjRib.GetOutPathList(rf)
 			log.Debugf("RouteFamily=%v adj-rib-out found : %d", rf.String(), len(paths))
 		}
-	case api.REQ_NEIGHBOR_ENABLE, api.REQ_NEIGHBOR_DISABLE:
-		r := make(map[string]string)
-		if restReq.RequestType == api.REQ_NEIGHBOR_ENABLE {
+
+		for _, p := range paths {
+			result := &ApiResponse{
+				Data: p.ToAPI(),
+			}
+			apiReq.ResponseCh <- result
+		}
+		close(apiReq.ResponseCh)
+		return
+	case REQ_NEIGHBOR_ENABLE, REQ_NEIGHBOR_DISABLE:
+		var err api.Error
+		if apiReq.RequestType == REQ_NEIGHBOR_ENABLE {
 			select {
 			case peer.fsm.adminStateCh <- ADMIN_STATE_UP:
 				log.WithFields(log.Fields{
 					"Topic": "Peer",
 					"Key":   peer.peerConfig.NeighborAddress,
 				}).Debug("ADMIN_STATE_UP requested")
-				r["result"] = "ADMIN_STATE_UP"
+				err.Code = api.Error_SUCCESS
+				err.Msg = "ADMIN_STATE_UP"
 			default:
 				log.Warning("previous request is still remaining. : ", peer.peerConfig.NeighborAddress)
-				r["result"] = "previous request is still remaining"
+				err.Code = api.Error_FAIL
+				err.Msg = "previous request is still remaining"
 			}
 		} else {
 			select {
@@ -410,17 +458,18 @@ func (peer *Peer) handleREST(restReq *api.RestRequest) {
 					"Topic": "Peer",
 					"Key":   peer.peerConfig.NeighborAddress,
 				}).Debug("ADMIN_STATE_DOWN requested")
-				r["result"] = "ADMIN_STATE_DOWN"
+				err.Code = api.Error_SUCCESS
+				err.Msg = "ADMIN_STATE_DOWN"
 			default:
 				log.Warning("previous request is still remaining. : ", peer.peerConfig.NeighborAddress)
-				r["result"] = "previous request is still remaining"
+				err.Code = api.Error_FAIL
+				err.Msg = "previous request is still remaining"
 			}
 		}
-		j, _ := json.Marshal(r)
-		result.Data = j
+		result.Data = err
 	}
-	restReq.ResponseCh <- result
-	close(restReq.ResponseCh)
+	apiReq.ResponseCh <- result
+	close(apiReq.ResponseCh)
 }
 
 func (peer *Peer) sendUpdateMsgFromPaths(pList []table.Path) {
@@ -626,7 +675,7 @@ func (peer *Peer) handleServerMsg(m *serverMsg) {
 			log.Warning("can not find peer: ", d.Address.String())
 		}
 	case SRV_MSG_API:
-		peer.handleREST(m.msgData.(*api.RestRequest))
+		peer.handleApi(m.msgData.(*ApiRequest))
 	case SRV_MSG_POLICY_UPDATED:
 		log.Debug("policy updated")
 		d := m.msgData.(map[string]*policy.Policy)
@@ -797,30 +846,25 @@ func (peer *Peer) PassConn(conn *net.TCPConn) {
 }
 
 func (peer *Peer) MarshalJSON() ([]byte, error) {
+	return json.Marshal(peer.ToAPI())
+}
+
+func (peer *Peer) ToAPI() *api.Peer {
 
 	f := peer.fsm
 	c := f.peerConfig
 
-	p := make(map[string]interface{})
-	capList := make([]int, 0)
+	capList := make([]int32, 0, len(peer.capMap))
 	for k, _ := range peer.capMap {
-		capList = append(capList, int(k))
+		capList = append(capList, int32(k))
 	}
 
-	p["conf"] = struct {
-		RemoteIP           string `json:"remote_ip"`
-		Id                 string `json:"id"`
-		RemoteAS           uint32 `json:"remote_as"`
-		CapRefresh         bool   `json:"cap_refresh"`
-		CapEnhancedRefresh bool   `json:"cap_enhanced_refresh"`
-		RemoteCap          []int
-		LocalCap           []int
-	}{
-		RemoteIP:  c.NeighborAddress.String(),
+	conf := &api.PeerConf{
+		RemoteIp:  c.NeighborAddress.String(),
 		Id:        peer.peerInfo.ID.To4().String(),
-		RemoteAS:  c.PeerAs,
+		RemoteAs:  c.PeerAs,
 		RemoteCap: capList,
-		LocalCap:  []int{int(bgp.BGP_CAP_MULTIPROTOCOL), int(bgp.BGP_CAP_ROUTE_REFRESH), int(bgp.BGP_CAP_FOUR_OCTET_AS_NUMBER)},
+		LocalCap:  []int32{int32(bgp.BGP_CAP_MULTIPROTOCOL), int32(bgp.BGP_CAP_ROUTE_REFRESH), int32(bgp.BGP_CAP_FOUR_OCTET_AS_NUMBER)},
 	}
 
 	s := c.BgpNeighborCommonState
@@ -845,34 +889,7 @@ func (peer *Peer) MarshalJSON() ([]byte, error) {
 		}
 	}
 
-	p["info"] = struct {
-		BgpState                  string `json:"bgp_state"`
-		AdminState                string
-		FsmEstablishedTransitions uint32 `json:"fsm_established_transitions"`
-		TotalMessageOut           uint32 `json:"total_message_out"`
-		TotalMessageIn            uint32 `json:"total_message_in"`
-		UpdateMessageOut          uint32 `json:"update_message_out"`
-		UpdateMessageIn           uint32 `json:"update_message_in"`
-		KeepAliveMessageOut       uint32 `json:"keepalive_message_out"`
-		KeepAliveMessageIn        uint32 `json:"keepalive_message_in"`
-		OpenMessageOut            uint32 `json:"open_message_out"`
-		OpenMessageIn             uint32 `json:"open_message_in"`
-		NotificationOut           uint32 `json:"notification_out"`
-		NotificationIn            uint32 `json:"notification_in"`
-		RefreshMessageOut         uint32 `json:"refresh_message_out"`
-		RefreshMessageIn          uint32 `json:"refresh_message_in"`
-		DiscardedOut              uint32
-		DiscardedIn               uint32
-		Uptime                    int64  `json:"uptime"`
-		Downtime                  int64  `json:"downtime"`
-		LastError                 string `json:"last_error"`
-		Received                  uint32
-		Accepted                  uint32
-		Advertized                uint32
-		OutQ                      int
-		Flops                     uint32
-	}{
-
+	info := &api.PeerInfo{
 		BgpState:                  f.state.String(),
 		AdminState:                f.adminState.String(),
 		FsmEstablishedTransitions: s.EstablishedCount,
@@ -895,9 +912,12 @@ func (peer *Peer) MarshalJSON() ([]byte, error) {
 		Received:                  received,
 		Accepted:                  accepted,
 		Advertized:                advertized,
-		OutQ:                      len(peer.outgoing),
+		OutQ:                      uint32(len(peer.outgoing)),
 		Flops:                     s.Flops,
 	}
 
-	return json.Marshal(p)
+	return &api.Peer{
+		Conf: conf,
+		Info: info,
+	}
 }

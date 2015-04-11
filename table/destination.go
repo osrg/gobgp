@@ -20,6 +20,7 @@ import (
 	"encoding/json"
 	"fmt"
 	log "github.com/Sirupsen/logrus"
+	"github.com/osrg/gobgp/api"
 	"github.com/osrg/gobgp/packet"
 	"net"
 	"reflect"
@@ -66,6 +67,7 @@ type Destination interface {
 	addNewPath(newPath Path)
 	constructWithdrawPath() Path
 	removeOldPathsFromSource(source *PeerInfo) []Path
+	ToAPI() *api.Destination
 	MarshalJSON() ([]byte, error)
 }
 
@@ -94,7 +96,11 @@ func NewDestinationDefault(nlri bgp.AddrPrefixInterface) *DestinationDefault {
 }
 
 func (dd *DestinationDefault) MarshalJSON() ([]byte, error) {
-	prefix := dd.getNlri().(*bgp.NLRInfo).Prefix
+	return json.Marshal(dd.ToAPI())
+}
+
+func (dd *DestinationDefault) ToAPI() *api.Destination {
+	prefix := dd.getNlri().String()
 
 	idx := func() int {
 		for i, p := range dd.knownPathList {
@@ -104,19 +110,24 @@ func (dd *DestinationDefault) MarshalJSON() ([]byte, error) {
 		}
 		log.WithFields(log.Fields{
 			"Topic": "Table",
-			"Key":   prefix.String(),
+			"Key":   prefix,
 		}).Panic("no best path")
 		return 0
 	}()
-	return json.Marshal(struct {
-		Prefix      string
-		Paths       []Path
-		BestPathIdx int
-	}{
-		Prefix:      prefix.String(),
-		Paths:       dd.knownPathList,
-		BestPathIdx: idx,
-	})
+
+	paths := func(arg []Path) []*api.Path {
+		ret := make([]*api.Path, 0, len(arg))
+		for _, p := range arg {
+			ret = append(ret, p.ToAPI())
+		}
+		return ret
+	}(dd.knownPathList)
+
+	return &api.Destination{
+		Prefix:      prefix,
+		Paths:       paths,
+		BestPathIdx: uint32(idx),
+	}
 }
 
 func (dd *DestinationDefault) getRouteFamily() bgp.RouteFamily {

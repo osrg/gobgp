@@ -16,21 +16,14 @@
 package table
 
 import (
-	"bytes"
-	"encoding/json"
-	"fmt"
 	log "github.com/Sirupsen/logrus"
 	"github.com/osrg/gobgp/packet"
-	"github.com/tchap/go-patricia/patricia"
-	"net"
 	"reflect"
-	"strconv"
-	"strings"
 )
 
 type Table interface {
 	createDest(nlri bgp.AddrPrefixInterface) Destination
-	getDestinations() map[string]Destination
+	GetDestinations() map[string]Destination
 	setDestinations(destinations map[string]Destination)
 	getDestination(key string) Destination
 	setDestination(key string, dest Destination)
@@ -38,7 +31,6 @@ type Table interface {
 	validatePath(path Path)
 	validateNlri(nlri bgp.AddrPrefixInterface)
 	DeleteDestByPeer(*PeerInfo) []Destination
-	MarshalJSON() ([]byte, error)
 }
 
 type TableDefault struct {
@@ -53,39 +45,6 @@ func NewTableDefault(scope_id int) *TableDefault {
 	table.destinations = make(map[string]Destination)
 	return table
 
-}
-
-func cidr2prefix(cidr string) patricia.Prefix {
-	_, n, err := net.ParseCIDR(cidr)
-	if err != nil {
-		return patricia.Prefix(cidr)
-	}
-	var buffer bytes.Buffer
-	for i := 0; i < len(n.IP); i++ {
-		buffer.WriteString(fmt.Sprintf("%08b", n.IP[i]))
-	}
-	ones, _ := n.Mask.Size()
-	return patricia.Prefix(buffer.String()[:ones])
-}
-
-func (td *TableDefault) MarshalJSON() ([]byte, error) {
-	trie := patricia.NewTrie()
-	for key, dest := range td.destinations {
-		trie.Insert(cidr2prefix(key), dest)
-	}
-
-	destList := make([]Destination, 0)
-	trie.Visit(func(prefix patricia.Prefix, item patricia.Item) error {
-		dest, _ := item.(Destination)
-		destList = append(destList, dest)
-		return nil
-	})
-
-	return json.Marshal(struct {
-		Destinations []Destination
-	}{
-		Destinations: destList,
-	})
 }
 
 func (td *TableDefault) GetRoutefamily() bgp.RouteFamily {
@@ -153,7 +112,7 @@ func (td *TableDefault) DeleteDestByPeer(peerInfo *PeerInfo) []Destination {
 
 func deleteDestByNlri(table Table, nlri bgp.AddrPrefixInterface) Destination {
 	table.validateNlri(nlri)
-	destinations := table.getDestinations()
+	destinations := table.GetDestinations()
 	dest := destinations[table.tableKey(nlri)]
 	if dest != nil {
 		delete(destinations, table.tableKey(nlri))
@@ -162,7 +121,7 @@ func deleteDestByNlri(table Table, nlri bgp.AddrPrefixInterface) Destination {
 }
 
 func deleteDest(table Table, dest Destination) {
-	destinations := table.getDestinations()
+	destinations := table.GetDestinations()
 	delete(destinations, table.tableKey(dest.getNlri()))
 }
 
@@ -230,7 +189,7 @@ func getOrCreateDest(table Table, nlri bgp.AddrPrefixInterface) Destination {
 	return dest
 }
 
-func (td *TableDefault) getDestinations() map[string]Destination {
+func (td *TableDefault) GetDestinations() map[string]Destination {
 	return td.destinations
 }
 func (td *TableDefault) setDestinations(destinations map[string]Destination) {
@@ -349,42 +308,6 @@ func (ipv4vpnt *IPv4VPNTable) tableKey(nlri bgp.AddrPrefixInterface) string {
 
 }
 
-func ParseLabbelledVpnPrefix(key string) patricia.Prefix {
-	vpnaddrprefix := strings.Split(key, "/")
-	length, _ := strconv.ParseInt(vpnaddrprefix[1], 10, 0)
-	_, n, _ := net.ParseCIDR(vpnaddrprefix[0] + "/" + strconv.FormatInt((int64(length)-88), 10))
-
-	var buffer bytes.Buffer
-	for i := 0; i < len(n.IP); i++ {
-		buffer.WriteString(fmt.Sprintf("%08b", n.IP[i]))
-	}
-	ones, _ := n.Mask.Size()
-	return patricia.Prefix(buffer.String()[:ones])
-
-}
-
-func (ipv4vpnt *IPv4VPNTable) MarshalJSON() ([]byte, error) {
-
-	trie := patricia.NewTrie()
-	for key, dest := range ipv4vpnt.destinations {
-		trie.Insert(ParseLabbelledVpnPrefix(key), dest)
-	}
-
-	destList := make([]Destination, 0)
-	trie.Visit(func(prefix patricia.Prefix, item patricia.Item) error {
-		dest, _ := item.(Destination)
-		destList = append(destList, dest)
-		return nil
-	})
-
-	return json.Marshal(struct {
-		Destinations []Destination
-	}{
-		Destinations: destList,
-	})
-
-}
-
 type EVPNTable struct {
 	*TableDefault
 	//need structure
@@ -410,17 +333,4 @@ func (ipv4vpnt *EVPNTable) tableKey(nlri bgp.AddrPrefixInterface) string {
 
 	addrPrefix := nlri.(*bgp.EVPNNLRI)
 	return addrPrefix.String()
-}
-
-func ParseEVPNPrefix(key string) patricia.Prefix {
-	vpnaddrprefix := strings.Split(key, "/")
-	length, _ := strconv.ParseInt(vpnaddrprefix[1], 10, 0)
-	_, n, _ := net.ParseCIDR(vpnaddrprefix[0] + "/" + strconv.FormatInt((int64(length)-88), 10))
-
-	var buffer bytes.Buffer
-	for i := 0; i < len(n.IP); i++ {
-		buffer.WriteString(fmt.Sprintf("%08b", n.IP[i]))
-	}
-	ones, _ := n.Mask.Size()
-	return patricia.Prefix(buffer.String()[:ones])
 }
