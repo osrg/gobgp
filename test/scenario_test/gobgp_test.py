@@ -36,6 +36,7 @@ class GoBGPTestBase(unittest.TestCase):
     initial_wait_time = 10
     wait_per_retry = 5
     retry_limit = (60 - initial_wait_time) / wait_per_retry
+    dest_check_limit = 3
 
     def __init__(self, *args, **kwargs):
         super(GoBGPTestBase, self).__init__(*args, **kwargs)
@@ -281,3 +282,20 @@ class GoBGPTestBase(unittest.TestCase):
 
         print "route : %s is none" % target_prefix
         return None
+
+    def retry_check(self, check_func):
+        retry_count = 0
+        check_result = False
+        while retry_count < self.dest_check_limit:
+
+            # execute check function
+            check_result = check_func()
+            if check_result:
+                print "check OK"
+                break
+            else:
+                retry_count += 1
+                print "check NG -> retry ( %d / %d )" % (retry_count, self.dest_check_limit)
+                time.sleep(self.wait_per_retry)
+
+        return check_result
