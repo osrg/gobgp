@@ -65,21 +65,31 @@ class GoBGPTest(GoBGPTestBase):
         if self.check_load_config() is False:
             return
 
-        rib = self.ask_gobgp(GLOBAL_RIB)
+        def check_func():
+            rib = self.ask_gobgp(GLOBAL_RIB)
 
-        for quagga_config in self.quagga_configs:
-            peer_ip = quagga_config.peer_ip
-            for d in quagga_config.destinations.itervalues():
-                for p in d.paths:
-                    print "check of %s's route %s existance in gobgp global rib" % (peer_ip, p.network)
-                    exist = False
-                    for dst in rib:
-                        for path in dst['paths']:
-                            if path['network'] == p.network:
-                                exist = True
-                                if exist:
-                                    self.assertEqual(path['nexthop'] == p.nexthop, True)
-                    self.assertEqual(exist, True)
+            for quagga_config in self.quagga_configs:
+                peer_ip = quagga_config.peer_ip
+                for d in quagga_config.destinations.itervalues():
+                    for p in d.paths:
+                        print "check of %s's route %s existance in gobgp global rib" % (peer_ip, p.network)
+                        exist = False
+                        for dst in rib:
+                            for path in dst['paths']:
+                                if path['network'] == p.network:
+                                    exist = True
+                                    if exist:
+                                        #self.assertEqual(path['nexthop'] == p.nexthop, True)
+                                        if path['nexthop'] != p.nexthop:
+                                            return False
+                        #self.assertEqual(exist, True)
+                        if not exist:
+                            return False
+
+            return True
+
+        result = self.retry_check(check_func)
+        self.assertEqual(result, True)
 
     # Test of advertising route to each quagga form gobgp
     def test_03_advertising_route(self):
@@ -90,29 +100,38 @@ class GoBGPTest(GoBGPTestBase):
         for address in self.get_neighbor_address(self.gobgp_config):
             print "check of [ " + address + " ]"
 
-            rib = self.ask_gobgp(ADJ_RIB_OUT, address)
+            def check_func():
+                rib = self.ask_gobgp(ADJ_RIB_OUT, address)
 
-            print rib
+                print rib
 
-            tn = qaccess.login(address)
-            q_rib = qaccess.show_rib(tn)
-            for quagga_config in self.quagga_configs:
-                if quagga_config.peer_ip == address:
-                    for c_dest in quagga_config.destinations.itervalues():
-                        exist_n = 0
-                        for c_path in c_dest.paths:
-                            for q_path in q_rib:
-                                if c_path.network.split("/")[0] == q_path['Network'] and "0.0.0.0" == q_path['Next Hop']:
-                                    exist_n += 1
-                            self.assertEqual(exist_n, 1)
-                else:
-                    for c_dest in quagga_config.destinations.itervalues():
-                        exist_n = 0
-                        for c_path in c_dest.paths:
-                            for q_path in q_rib:
-                                if c_path.network.split("/")[0] == q_path['Network'] and self.gobgp_ip == q_path['Next Hop']:
-                                    exist_n += 1
-                            self.assertEqual(exist_n, 1)
+                tn = qaccess.login(address)
+                q_rib = qaccess.show_rib(tn)
+                for quagga_config in self.quagga_configs:
+                    if quagga_config.peer_ip == address:
+                        for c_dest in quagga_config.destinations.itervalues():
+                            exist_n = 0
+                            for c_path in c_dest.paths:
+                                for q_path in q_rib:
+                                    if c_path.network.split("/")[0] == q_path['Network'] and "0.0.0.0" == q_path['Next Hop']:
+                                        exist_n += 1
+                                #self.assertEqual(exist_n, 1)
+                                if exist_n != 1:
+                                    return False
+                    else:
+                        for c_dest in quagga_config.destinations.itervalues():
+                            exist_n = 0
+                            for c_path in c_dest.paths:
+                                for q_path in q_rib:
+                                    if c_path.network.split("/")[0] == q_path['Network'] and self.gobgp_ip == q_path['Next Hop']:
+                                        exist_n += 1
+                                #self.assertEqual(exist_n, 1)
+                                if exist_n != 1:
+                                    return False
+                return True
+
+            result = self.retry_check(check_func)
+            self.assertEqual(result, True)
 
     # check if quagga that is appended can establish connection with gobgp
     def test_04_established_with_appended_quagga(self):
@@ -142,21 +161,31 @@ class GoBGPTest(GoBGPTestBase):
         if self.check_load_config() is False:
             return
 
-        rib = self.ask_gobgp(GLOBAL_RIB)
+        def check_func():
+            rib = self.ask_gobgp(GLOBAL_RIB)
 
-        for quagga_config in self.quagga_configs:
-            peer_ip = quagga_config.peer_ip
-            for d in quagga_config.destinations.itervalues():
-                for p in d.paths:
-                    print "check of %s's route %s existance in gobgp global rib" % (peer_ip, p.network)
-                    exist = False
-                    for dst in rib:
-                        for path in dst['paths']:
-                            if path['network'] == p.network:
-                                exist = True
-                                if exist:
-                                    self.assertEqual(path['nexthop'] == p.nexthop, True)
-                    self.assertEqual(exist, True)
+            for quagga_config in self.quagga_configs:
+                peer_ip = quagga_config.peer_ip
+                for d in quagga_config.destinations.itervalues():
+                    for p in d.paths:
+                        print "check of %s's route %s existance in gobgp global rib" % (peer_ip, p.network)
+                        exist = False
+                        for dst in rib:
+                            for path in dst['paths']:
+                                if path['network'] == p.network:
+                                    exist = True
+                                    if exist:
+                                        #self.assertEqual(path['nexthop'] == p.nexthop, True)
+                                        if path['nexthop'] != p.nexthop:
+                                            return False
+                        #self.assertEqual(exist, True)
+                        if not exist:
+                            return False
+
+            return True
+
+        result = self.retry_check(check_func)
+        self.assertEqual(result, True)
 
     # Test of advertising route to each quagga form gobgp when append quagga container
     def test_06_advertising_route_when_appended_quagga(self):
@@ -166,25 +195,35 @@ class GoBGPTest(GoBGPTestBase):
 
         for address in self.get_neighbor_address(self.gobgp_config):
             print "check of [ " + address + " ]"
-            tn = qaccess.login(address)
-            q_rib = qaccess.show_rib(tn)
-            for quagga_config in self.quagga_configs:
-                if quagga_config.peer_ip == address:
-                    for c_dest in quagga_config.destinations.itervalues():
-                        exist_n = 0
-                        for c_path in c_dest.paths:
-                            for q_path in q_rib:
-                                if c_path.network.split("/")[0] == q_path['Network'] and "0.0.0.0" == q_path['Next Hop']:
-                                    exist_n += 1
-                            self.assertEqual(exist_n, 1)
-                else:
-                    for c_dest in quagga_config.destinations.itervalues():
-                        exist_n = 0
-                        for c_path in c_dest.paths:
-                            for q_path in q_rib:
-                                if c_path.network.split("/")[0] == q_path['Network'] and self.gobgp_ip == q_path['Next Hop']:
-                                    exist_n += 1
-                            self.assertEqual(exist_n, 1)
+
+            def check_func():
+                tn = qaccess.login(address)
+                q_rib = qaccess.show_rib(tn)
+                for quagga_config in self.quagga_configs:
+                    if quagga_config.peer_ip == address:
+                        for c_dest in quagga_config.destinations.itervalues():
+                            exist_n = 0
+                            for c_path in c_dest.paths:
+                                for q_path in q_rib:
+                                    if c_path.network.split("/")[0] == q_path['Network'] and "0.0.0.0" == q_path['Next Hop']:
+                                        exist_n += 1
+                                #self.assertEqual(exist_n, 1)
+                                if exist_n != 1:
+                                    return False
+                    else:
+                        for c_dest in quagga_config.destinations.itervalues():
+                            exist_n = 0
+                            for c_path in c_dest.paths:
+                                for q_path in q_rib:
+                                    if c_path.network.split("/")[0] == q_path['Network'] and self.gobgp_ip == q_path['Next Hop']:
+                                        exist_n += 1
+                                #self.assertEqual(exist_n, 1)
+                                if exist_n != 1:
+                                    return False
+                return True
+
+            result = self.retry_check(check_func)
+            self.assertEqual(result, True)
 
     def test_07_active_when_quagga_removed(self):
         print "test_active_when_removed_quagga"
@@ -211,15 +250,23 @@ class GoBGPTest(GoBGPTestBase):
         if self.check_load_config() is False:
             return
 
-        rib = self.ask_gobgp(GLOBAL_RIB)
+        def check_func():
+            rib = self.ask_gobgp(GLOBAL_RIB)
 
-        removed_prefix = "10.0.0.%d/24" % self.remove_quagga
-        still_exists = False
-        for dst in rib:
-            for path in dst['paths']:
-                if path['network'] == removed_prefix:
-                    still_exists = True
-        self.assertEqual(still_exists, False)
+            removed_prefix = "10.0.0.%d/24" % self.remove_quagga
+            still_exists = False
+            for dst in rib:
+                for path in dst['paths']:
+                    if path['network'] == removed_prefix:
+                        still_exists = True
+            #self.assertEqual(still_exists, False)
+            if still_exists:
+                return False
+
+            return True
+
+        result = self.retry_check(check_func)
+        self.assertEqual(result, True)
 
     def test_09_advertising_route_when_quagga_removed(self):
         print "test_advertising_route_when_removed_quagga"
@@ -233,35 +280,46 @@ class GoBGPTest(GoBGPTestBase):
                 continue
 
             print "check of [ " + address + " ]"
-            tn = qaccess.login(address)
-            q_rib = qaccess.show_rib(tn)
-            still_exists = False
-            for q_path in q_rib:
-                if q_path['Network'] == removed_prefix:
-                    still_exists = True
-            self.assertEqual(still_exists, False)
 
-            for quagga_config in self.quagga_configs:
-                if quagga_config.peer_ip == address:
-                    for c_dest in quagga_config.destinations.itervalues():
-                        exist_n = 0
-                        for c_path in c_dest.paths:
-                            # print "conf : ", c_path.network, c_path.nexthop, "my ip !!!"
-                            for q_path in q_rib:
-                                # print "quag : ", q_path['Network'], q_path['Next Hop']
-                                if c_path.network.split("/")[0] == q_path['Network'] and "0.0.0.0" == q_path['Next Hop']:
-                                    exist_n += 1
-                            self.assertEqual(exist_n, 1)
-                else:
-                    for c_dest in quagga_config.destinations.itervalues():
-                        exist_n = 0
-                        for c_path in c_dest.paths:
-                            # print "conf : ", c_path.network, c_path.nexthop
-                            for q_path in q_rib:
-                                # print "quag : ", q_path['Network'], q_path['Next Hop']
-                                if c_path.network.split("/")[0] == q_path['Network'] and self.gobgp_ip == q_path['Next Hop']:
-                                    exist_n += 1
-                            self.assertEqual(exist_n, 1)
+            def check_func():
+                tn = qaccess.login(address)
+                q_rib = qaccess.show_rib(tn)
+                still_exists = False
+                for q_path in q_rib:
+                    if q_path['Network'] == removed_prefix:
+                        still_exists = True
+                self.assertEqual(still_exists, False)
+
+                for quagga_config in self.quagga_configs:
+                    if quagga_config.peer_ip == address:
+                        for c_dest in quagga_config.destinations.itervalues():
+                            exist_n = 0
+                            for c_path in c_dest.paths:
+                                # print "conf : ", c_path.network, c_path.nexthop, "my ip !!!"
+                                for q_path in q_rib:
+                                    # print "quag : ", q_path['Network'], q_path['Next Hop']
+                                    if c_path.network.split("/")[0] == q_path['Network'] and "0.0.0.0" == q_path['Next Hop']:
+                                        exist_n += 1
+                                #self.assertEqual(exist_n, 1)
+                                if exist_n != 1:
+                                    return False
+                    else:
+                        for c_dest in quagga_config.destinations.itervalues():
+                            exist_n = 0
+                            for c_path in c_dest.paths:
+                                # print "conf : ", c_path.network, c_path.nexthop
+                                for q_path in q_rib:
+                                    # print "quag : ", q_path['Network'], q_path['Next Hop']
+                                    if c_path.network.split("/")[0] == q_path['Network'] and self.gobgp_ip == q_path['Next Hop']:
+                                        exist_n += 1
+                                #self.assertEqual(exist_n, 1)
+                                if exist_n != 1:
+                                    return False
+                return True
+
+            result = self.retry_check(check_func)
+            self.assertEqual(result, True)
+
 
     def test_10_bestpath_selection_of_received_route(self):
         print "test_bestpath_selection_of_received_route"
