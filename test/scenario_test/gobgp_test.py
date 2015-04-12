@@ -14,7 +14,7 @@
 # limitations under the License.
 
 import unittest
-import requests
+from fabric.api import local
 import json
 import toml
 import os
@@ -24,6 +24,7 @@ from peer_info import Peer
 from peer_info import Destination
 from peer_info import Path
 from constant import *
+import quagga_access as qaccess
 
 class GoBGPTestBase(unittest.TestCase):
 
@@ -35,12 +36,26 @@ class GoBGPTestBase(unittest.TestCase):
     initial_wait_time = 10
     wait_per_retry = 5
     retry_limit = (60 - initial_wait_time) / wait_per_retry
+    dest_check_limit = 3
 
     def __init__(self, *args, **kwargs):
         super(GoBGPTestBase, self).__init__(*args, **kwargs)
 
     def setUp(self):
         self.quagga_configs = []
+
+    def get_neighbor_state(self, neighbor_address):
+        print "check neighbor state for %s" % (neighbor_address)
+        state = None
+        try:
+            neighbor = self.ask_gobgp(NEIGHBOR, neighbor_address)
+            state = neighbor['info']['bgp_state']
+            remote_ip = neighbor['conf']['remote_ip']
+            assert remote_ip == neighbor_address
+            return state
+        except Exception as e:
+            print e
+        return state
 
     def retry_routine_for_state(self, addresses, allow_state):
         in_prepare_quagga = True
@@ -56,15 +71,8 @@ class GoBGPTestBase(unittest.TestCase):
             success_count = 0
             for address in addresses:
                 # get neighbor state and remote ip from gobgp connections
-                try:
-                    neighbor = self.ask_gobgp(NEIGHBOR, address)
-                except Exception:
-                    continue
-                if neighbor is None:
-                    continue
-                state = neighbor['info']['bgp_state']
-                remote_ip = neighbor['conf']['remote_ip']
-                if address == remote_ip and state == allow_state:
+                state = self.get_neighbor_state(address)
+                if state == allow_state:
                     success_count += 1
             if success_count == len(addresses):
                 in_prepare_quagga = False
@@ -77,12 +85,11 @@ class GoBGPTestBase(unittest.TestCase):
             rib = self.ask_gobgp(LOCAL_RIB, check_address)
 
         target_exist = False
-        g_dests = rib['Destinations']
-        for g_dest in g_dests:
-            best_path_idx = g_dest['BestPathIdx']
-            if target_network == g_dest['Prefix']:
+        for g_dest in rib:
+            best_path_idx = g_dest['best_path_idx'] if 'best_path_idx' in g_dest else 0
+            if target_network == g_dest['prefix']:
                 target_exist = True
-                g_paths = g_dest['Paths']
+                g_paths = g_dest['paths']
                 idx = 0
                 if len(g_paths) < 2:
                     print "target path has not been bestpath selected yet."
@@ -91,10 +98,11 @@ class GoBGPTestBase(unittest.TestCase):
                     self.retry_routine_for_bestpath(check_address, target_network, ans_nexthop)
                     return
                 for g_path in g_paths:
-                    print "best_path_Idx: " + str(best_path_idx) + "idx: " + str(idx)
-                    print "pre: ", g_dest['Prefix'], "net: ", g_path['Network'], "next: ", g_path['Nexthop']
+                    print "best_path_Idx: " + str(best_path_idx) + ", idx: " + str(idx)
+                    print g_dest
+                    print "pre: ", g_dest['prefix'], "net: ", g_path['network'], "next: ", g_path['nexthop']
                     if str(best_path_idx) == str(idx):
-                        rep_nexthop = g_path['Nexthop']
+                        rep_nexthop = g_path['nexthop']
                     idx += 1
         if target_exist is False:
             print "target path has not been receive yet."
@@ -179,13 +187,115 @@ class GoBGPTestBase(unittest.TestCase):
         return True
 
     def ask_gobgp(self, what, who="", af="ipv4"):
-        url = "http://" + self.gobgp_ip + ":" + self.gobgp_port + "/v1/bgp/"
+        cmd = "%s/%s -j -u %s -p %s show " % (CONFIG_DIR, CLI_CMD, self.gobgp_ip, self.gobgp_port)
         if what == GLOBAL_RIB:
-            url += "/".join([what, af])
+            cmd += " ".join([what, af])
         elif what == NEIGHBOR:
-            url += "/".join([NEIGHBOR, who])
+            cmd += " ".join([NEIGHBOR, who])
         else:
-            url += "/".join([NEIGHBOR, who, what, af])
-        r = requests.get(url)
-        result = json.loads(r.text)
+            cmd += " ".join([NEIGHBOR, who, what, af])
+        j = local(cmd, capture=True)
+        result = json.loads(j)
         return result
+
+    def soft_reset(self, neighbor_address, route_family, type="in"):
+        cmd = "%s/%s -j -u %s -p %s softreset%s " % (CONFIG_DIR, CLI_CMD, self.gobgp_ip, self.gobgp_port, type)
+        cmd += "neighbor %s %s" % (neighbor_address, route_family)
+        local(cmd)
+
+    def get_paths_in_localrib(self, neighbor_address, target_prefix, retry=3, interval=5):
+        retry_count = 0
+        while True:
+            local_rib = self.ask_gobgp(LOCAL_RIB, neighbor_address)
+            g_dest = [dest for dest in local_rib if dest['prefix'] == target_prefix]
+            if len(g_dest) > 0:
+                assert len(g_dest) == 1
+                d = g_dest[0]
+                return d['paths']
+            else:
+                retry_count += 1
+                if retry_count > retry:
+                    break
+                else:
+                    print "destination is none : %s" % neighbor_address
+                    print "please wait more (" + str(interval) + " second)"
+                    time.sleep(interval)
+
+        print "destination is none"
+        return None
+
+    def get_adj_rib_in(self, neighbor_address, target_prefix, retry=3, interval=-1):
+        if interval < 0:
+            interval = self.wait_per_retry
+        return self.get_adj_rib(neighbor_address, target_prefix, retry, interval, type=ADJ_RIB_IN)
+
+
+    def get_adj_rib_out(self, neighbor_address, target_prefix, retry=3, interval=-1):
+        if interval < 0:
+            interval = self.wait_per_retry
+        return self.get_adj_rib(neighbor_address, target_prefix, retry, interval, type=ADJ_RIB_OUT)
+
+
+    def get_adj_rib(self, neighbor_address, target_prefix, retry, interval, type=ADJ_RIB_IN):
+        retry_count = 0
+        while True:
+            rib = self.ask_gobgp(type, neighbor_address)
+            paths = [p for p in rib if p['network'] == target_prefix]
+
+            if len(paths) > 0:
+                assert len(paths) == 1
+                return paths[0]
+            else:
+                retry_count += 1
+                if retry_count > retry:
+                    break
+                else:
+                    print "adj_rib_%s is none" % type
+                    print "wait (" + str(interval) + " seconds)"
+                    time.sleep(interval)
+
+        print "adj_rib_%s is none" % type
+        return None
+
+
+    # get route information on quagga
+    def get_routing_table(self, neighbor_address, target_prefix, retry=3, interval=-1):
+        if interval < 0:
+            interval = self.wait_per_retry
+        print "check route %s on quagga : %s" % (target_prefix, neighbor_address)
+        retry_count = 0
+        while True:
+            tn = qaccess.login(neighbor_address)
+            q_rib = qaccess.show_rib(tn)
+            qaccess.logout(tn)
+            for q_path in q_rib:
+                if target_prefix == q_path['Network']:
+                    return q_path
+
+            retry_count += 1
+            if retry_count > retry:
+                break
+            else:
+                print "target_prefix %s is none" % target_prefix
+                print "wait (" + str(interval) + " seconds)"
+                time.sleep(interval)
+
+        print "route : %s is none" % target_prefix
+        return None
+
+    def retry_check(self, check_func):
+        retry_count = 0
+        check_result = False
+        while retry_count < self.dest_check_limit:
+
+            # execute check function
+            check_result = check_func()
+            if check_result:
+                print "check OK"
+                break
+            else:
+                retry_count += 1
+                print "check NG -> retry ( %d / %d )" % (retry_count, self.dest_check_limit)
+                time.sleep(self.wait_per_retry)
+
+        return check_result

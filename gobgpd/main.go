@@ -143,9 +143,9 @@ func main() {
 	bgpServer := server.NewBgpServer(bgp.BGP_PORT)
 	go bgpServer.Serve()
 
-	// start Rest Server
-	restServer := api.NewRestServer(api.REST_PORT, bgpServer.RestReqCh)
-	go restServer.Serve()
+	// start grpc Server
+	grpcServer := api.NewGrpcServer(api.GRPC_PORT, bgpServer.GrpcReqCh)
+	go grpcServer.Serve()
 
 	var bgpConfig *config.Bgp = nil
 	var policyConfig *config.RoutingPolicy = nil

@@ -70,29 +70,35 @@ class GoBGPIPv6Test(GoBGPTestBase):
         for address in self.get_neighbor_address(self.gobgp_config):
             print "check of [ " + address + " ]"
             af = fab.IPv6 if ":" in address else fab.IPv4
-            local_rib = self.ask_gobgp(LOCAL_RIB, address, af)
 
-            for quagga_config in self.quagga_configs:
-                if quagga_config.peer_ip == address or quagga_config.ip_version != af:
-                    for c_dest in quagga_config.destinations.itervalues():
-                        # print "config : ", c_dest.prefix, "my ip or different ip version!!!"
-                        g_dests = local_rib['Destinations']
-                        exist_n = 0
-                        for g_dest in g_dests:
-                            # print "gobgp : ", g_dest['Prefix']
-                            if c_dest.prefix == g_dest['Prefix']:
-                                exist_n += 1
-                        self.assertEqual(exist_n, 0)
-                else:
-                    for c_dest in quagga_config.destinations.itervalues():
-                        # print "config : ", c_dest.prefix"
-                        g_dests = local_rib['Destinations']
-                        exist_n = 0
-                        for g_dest in g_dests:
-                            # print "gobgp : ", g_dest['Prefix']
-                            if c_dest.prefix == g_dest['Prefix']:
-                                exist_n += 1
-                        self.assertEqual(exist_n, 1)
+            def check_func():
+                local_rib = self.ask_gobgp(LOCAL_RIB, address, af)
+
+                for quagga_config in self.quagga_configs:
+                    if quagga_config.peer_ip == address or quagga_config.ip_version != af:
+                        for c_dest in quagga_config.destinations.itervalues():
+                            # print "config : ", c_dest.prefix, "my ip or different ip version!!!"
+                            exist_n = 0
+                            for g_dest in local_rib:
+                                if c_dest.prefix == g_dest['prefix']:
+                                    exist_n += 1
+                            #self.assertEqual(exist_n, 0)
+                            if exist_n != 0:
+                                return False
+                    else:
+                        for c_dest in quagga_config.destinations.itervalues():
+                            exist_n = 0
+                            for g_dest in local_rib:
+                                if c_dest.prefix == g_dest['prefix']:
+                                    exist_n += 1
+                            self.assertEqual(exist_n, 1)
+                            if exist_n != 1:
+                                return False
+                return True
+
+            result = self.retry_check(check_func)
+            self.assertEqual(result, True)
+
 
     def test_03_advertising_route(self):
         print "test_advertising_route"
@@ -102,35 +108,46 @@ class GoBGPIPv6Test(GoBGPTestBase):
         for address in self.get_neighbor_address(self.gobgp_config):
             print "check of [ " + address + " ]"
             af = fab.IPv6 if ":" in address else fab.IPv4
-            tn = qaccess.login(address)
-            q_rib = qaccess.show_rib(tn, af)
 
-            for quagga_config in self.quagga_configs:
-                if quagga_config.peer_ip == address or quagga_config.ip_version != af:
-                    for c_dest in quagga_config.destinations.itervalues():
-                        exist_n = 0
-                        for c_path in c_dest.paths:
-                            # print "conf : ", c_path.network, c_path.nexthop, "my ip  or different ip version!!!"
-                            for q_path in q_rib:
-                                # print "quag : ", q_path['Network'], q_path['Next Hop']
-                                if "0.0.0.0" == q_path['Next Hop'] or "::" == q_path['Next Hop']:
-                                    continue
-                                if c_path.network.split("/")[0] == q_path['Network']:
-                                    exist_n += 1
-                            self.assertEqual(exist_n, 0)
+            def check_func():
+                tn = qaccess.login(address)
+                q_rib = qaccess.show_rib(tn, af)
 
-                else:
-                    for c_dest in quagga_config.destinations.itervalues():
-                        exist_n = 0
-                        for c_path in c_dest.paths:
-                            # print "conf : ", c_path.network, c_path.nexthop
-                            for q_path in q_rib:
-                                # print "quag : ", q_path['Network'], q_path['Next Hop']
-                                if quagga_config.ip_version != fab.IPv6:
-                                    c_path.network = c_path.network.split("/")[0]
-                                if c_path.network == q_path['Network'] and c_path.nexthop == q_path['Next Hop']:
-                                    exist_n += 1
-                            self.assertEqual(exist_n, 1)
+                for quagga_config in self.quagga_configs:
+                    if quagga_config.peer_ip == address or quagga_config.ip_version != af:
+                        for c_dest in quagga_config.destinations.itervalues():
+                            exist_n = 0
+                            for c_path in c_dest.paths:
+                                # print "conf : ", c_path.network, c_path.nexthop, "my ip  or different ip version!!!"
+                                for q_path in q_rib:
+                                    # print "quag : ", q_path['Network'], q_path['Next Hop']
+                                    if "0.0.0.0" == q_path['Next Hop'] or "::" == q_path['Next Hop']:
+                                        continue
+                                    if c_path.network.split("/")[0] == q_path['Network']:
+                                        exist_n += 1
+                                #self.assertEqual(exist_n, 0)
+                                if exist_n != 0:
+                                    return False
+
+                    else:
+                        for c_dest in quagga_config.destinations.itervalues():
+                            exist_n = 0
+                            for c_path in c_dest.paths:
+                                # print "conf : ", c_path.network, c_path.nexthop
+                                for q_path in q_rib:
+                                    # print "quag : ", q_path['Network'], q_path['Next Hop']
+                                    if quagga_config.ip_version != fab.IPv6:
+                                        c_path.network = c_path.network.split("/")[0]
+                                    if c_path.network == q_path['Network'] and c_path.nexthop == q_path['Next Hop']:
+                                        exist_n += 1
+                                #self.assertEqual(exist_n, 1)
+                                if exist_n != 1:
+                                    return False
+
+                return True
+
+            result = self.retry_check(check_func)
+            self.assertEqual(result, True)
 
 if __name__ == '__main__':
     if fab.test_user_check() is False:

@@ -20,12 +20,13 @@ import sys
 import nose
 import collections
 import docker_control as fab
+from fabric.api import local
 import requests
 import json
 import toml
 from noseplugin import OptionParser
 from noseplugin import parser_option
-
+from constant import CONFIG_DIR, CLI_CMD
 
 initial_wait_time = 10
 wait_per_retry = 5
@@ -98,13 +99,13 @@ def check_func(exabgp_conf, result):
     retry_count = 0
     # get neighbor addresses from gobgpd.conf
     addresses = get_neighbor_address()
-    url = "http://" + gobgp_ip + ":" + gobgp_port + "/v1/bgp/neighbors"
     neighbors = None
     q_address = ""
     e_address = ""
     q_transitions = 0
     q_state = ""
     notification = ""
+
     while in_prepare_quagga or in_prepare_exabgp:
         if retry_count != 0:
             print "please wait more (" + str(wait_per_retry) + " second)"
@@ -115,8 +116,9 @@ def check_func(exabgp_conf, result):
         retry_count += 1
         # check whether the service of gobgp is normally
         try:
-            r = requests.get(url)
-            neighbors = json.loads(r.text)
+            cmd = "%s/%s -j -u %s -p %s show neighbors" % (CONFIG_DIR, CLI_CMD, gobgp_ip, gobgp_port)
+            j = local(cmd, capture=True)
+            neighbors = json.loads(j)
         except Exception:
             continue
         if neighbors is None:

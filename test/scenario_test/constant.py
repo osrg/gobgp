@@ -1,3 +1,19 @@
+# Copyright (C) 2015 Nippon Telegraph and Telephone Corporation.
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#    http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or
+# implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+
 IPv4 = 'ipv4'
 IPv6 = 'ipv6'
 GOBGP_IP = "10.0.255.1"
@@ -12,12 +28,15 @@ GOBGP_CONFIG_FILE = "gobgpd.conf"
 CONFIG_DIR = "/tmp/gobgp"
 CONFIG_DIRR = "/tmp/gobgp/"
 SHARE_VOLUME = "/root/share_volume"
+CLI_CMD = "gobgpcli"
 EXABGP_CONTAINER_NAME = "exabgp"
 EXABGP_ADDRESS = "10.0.0.100/16"
 EXABGP_CONFDIR = SHARE_VOLUME + "/exabgp_test_conf"
 EXABGP_LOG_FILE = "exabgpd.log"
 STARTUP_FILE_NAME = "gobgp_startup.sh"
 STARTUP_FILE = SHARE_VOLUME + "/" + STARTUP_FILE_NAME
+INSTALL_FILE_NAME = "gobgp_install.sh"
+INSTALL_FILE = SHARE_VOLUME + "/" + INSTALL_FILE_NAME
 
 IP_VERSION = IPv4
 IF_CONFIG_OPTION = {IPv4: "inet", IPv6: "inet6"}
@@ -40,8 +59,8 @@ BASE_MASK = {IPv4: "/16", IPv6: "/64"}
 
 A_PART_OF_CURRENT_DIR = "/test/scenario_test"
 
-ADJ_RIB_IN = "adj-rib-in"
-ADJ_RIB_OUT = "adj-rib-out"
-LOCAL_RIB = "local-rib"
-GLOBAL_RIB = "global/rib"
+ADJ_RIB_IN = "adj-in"
+ADJ_RIB_OUT = "adj-out"
+LOCAL_RIB = "local"
+GLOBAL_RIB = "global"
 NEIGHBOR = "neighbor"

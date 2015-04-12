@@ -1,0 +1,145 @@
+// Copyright (C) 2015 Nippon Telegraph and Telephone Corporation.
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//    http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or
+// implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+syntax = "proto3";
+
+package api;
+
+// Interface exported by the server.
+
+service Grpc {
+  rpc GetNeighbors(Arguments) returns (stream Peer) {}
+  rpc GetNeighbor(Arguments) returns (Peer) {}
+  rpc GetRib(Arguments) returns (stream Destination) {}
+  rpc GetAdjRib(Arguments) returns (stream Path) {}
+  rpc Reset(Arguments) returns (Error) {}
+  rpc SoftReset(Arguments) returns (Error) {}
+  rpc SoftResetIn(Arguments) returns (Error) {}
+  rpc SoftResetOut(Arguments) returns (Error) {}
+  rpc Shutdown(Arguments) returns (Error) {}
+  rpc Enable(Arguments) returns (Error) {}
+  rpc Disable(Arguments) returns (Error) {}
+  rpc AddPath(stream Arguments) returns (Error) {}
+  rpc DeletePath(stream Arguments) returns (Error) {}
+}
+
+message Error {
+    enum ErrorCode {
+        SUCCESS = 0;
+        FAIL = 1;
+    }
+    ErrorCode code = 1;
+    string msg = 2;
+}
+
+message Arguments {
+    Resource resource = 1;
+    AddressFamily af = 2;
+    string router_id = 3;
+    string prefix = 4;
+}
+
+enum Resource {
+    GLOBAL = 0;
+    LOCAL = 1;
+    ADJ_IN = 2;
+    ADJ_OUT = 3;
+}
+
+enum AddressFamily {
+    IPV4 = 0;
+    IPV6 = 1;
+    EVPN = 2;
+}
+
+message PathAttr {
+
+    string type = 1;
+    enum Origin {
+        IGP = 0;
+        EGP = 1;
+        INCOMPLETE = 2;
+    }
+    message Aggregator {
+        uint32 as = 1;
+        string address = 2;
+    }
+    Origin origin = 2;
+    repeated uint32 as_path = 3;
+    uint32 metric = 4;
+    uint32 pref = 5;
+    Aggregator aggregator = 6;
+    repeated uint32 communites = 7;
+    string originator = 8;
+    string cluster = 9;
+    uint32 value = 10;
+}
+
+message Path {
+    string network = 1;
+    string nexthop = 2;
+    int64 age = 3;
+    repeated PathAttr attrs = 4;
+    bool best = 5;
+}
+
+message Destination {
+    string prefix = 1;
+    repeated Path paths = 2;
+    int32 best_path_idx = 3;
+}
+
+message PeerConf {
+    string remote_ip = 1;
+    string id = 2;
+    uint32 remote_as = 3;
+    bool cap_refresh = 4;
+    bool cap_enhanced_refresh = 5;
+    repeated int32 remote_cap = 6;
+    repeated int32 local_cap = 7;
+}
+
+message PeerInfo {
+    string bgp_state = 1;
+    string admin_state = 2;
+    uint32 fsm_established_transitions = 3;
+    uint32 total_message_out = 4;
+    uint32 total_message_in = 5;
+    uint32 update_message_out = 6;
+    uint32 update_message_in = 7;
+    uint32 keep_alive_message_out = 8;
+    uint32 keep_alive_message_in = 9;
+    uint32 open_message_out = 10;
+    uint32 open_message_in = 11;
+    uint32 notification_out = 12;
+    uint32 notification_in = 13;
+    uint32 refresh_message_out = 14;
+    uint32 refresh_message_in = 15;
+    uint32 discarded_out = 16;
+    uint32 discarded_in = 17;
+    int64 uptime = 18;
+    int64 downtime = 19;
+    string last_error = 20;
+    uint32 received = 21;
+    uint32 accepted = 22;
+    uint32 advertized = 23;
+    uint32 out_q = 24;
+    uint32 flops = 25;
+}
+
+message Peer {
+    PeerConf conf = 1;
+    PeerInfo info = 2;
+}
