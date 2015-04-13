@@ -385,7 +385,7 @@ def init_test_env_executor(quagga_num, use_local, go_path, log_debug=False, is_r
     print "complete initialization of test environment."
 
 
-def init_policy_test_env_executor(quagga_num, use_local, go_path, log_debug=False, policy=""):
+def init_policy_test_env_executor(quagga_num, use_local, go_path, log_debug=False, policy="", use_ipv6=False):
     print "start initialization of test environment."
 
     if docker_container_check() or bridge_setting_check():
@@ -395,6 +395,11 @@ def init_policy_test_env_executor(quagga_num, use_local, go_path, log_debug=Fals
 
     print "make gobgp policy test environment."
     create_config_dir()
+
+    if use_ipv6:
+        global IP_VERSION
+        IP_VERSION = IPv6
+
     bridge_setting_for_docker_connection(BRIDGES)
     make_config_with_policy(quagga_num, go_path, BRIDGE_0, policy_pattern=policy)
 

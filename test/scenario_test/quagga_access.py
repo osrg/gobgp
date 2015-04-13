@@ -27,6 +27,7 @@ def login(host):
     tn.read_until("Password: ")
     tn.write(PASSWORD + "\n")
     tn.write("enable\n")
+    tn.read_until("bgpd#")
     return tn
 
 
@@ -54,10 +55,16 @@ def add_neighbor_metric(tn, as_number, neighbor_address, metric):
     tn.read_until("bgpd#")
 
 
-def add_network(tn, as_number, network):
+def add_network(tn, as_number, network, use_ipv6=False):
     tn.write("configure terminal\n")
     tn.write("router bgp "+str(as_number)+"\n")
-    tn.write("network "+ network + " \n")
+    if use_ipv6:
+        tn.write("address-family ipv6\n")
+        tn.write("network "+ network + " \n")
+        tn.write("exit\n")
+    else:
+        tn.write("network "+ network + " \n")
+
     tn.write("exit\n")
     tn.write("exit\n")
     tn.read_until("bgpd#")
@@ -95,6 +102,28 @@ def show_rib(tn, af=IPv4):
     tn.read_until("   Network          Next Hop            Metric LocPrf Weight Path")
     rib = tn.read_until("bgpd#")
     return rib_parser(rib)
+
+
+def lookup_prefix(tn, prefix, af):
+    if af == IPv4:
+        tn.write("show ip bgp " + prefix + "\n")
+    elif af == IPv6:
+        tn.write("show bgp ipv6 " + prefix + "\n")
+    else:
+        print "invalid af: ", af
+        return
+
+    info = tn.read_until("bgpd#")
+    paths = []
+    for line in info.split("\n"):
+        path = {}
+        if "from" in line:
+            nexthop = line.split()[0]
+            path['Network'] = prefix
+            path['Next Hop'] = nexthop
+            paths.append(path)
+
+    return paths
 
 
 def clear_ip_bgp(tn):

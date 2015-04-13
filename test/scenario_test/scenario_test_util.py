@@ -23,6 +23,7 @@ from peer_info import Peer
 from peer_info import Destination
 from peer_info import Path
 from ciscoconfparse import CiscoConfParse
+from constant import *
 
 
 # get address of each neighbor from gobpg configration
@@ -36,47 +37,47 @@ def get_neighbor_address(config):
 
 
 # get route information on quagga
-def get_routing_table(neighbor_address, target_prefix, retry=3, interval=5):
+def get_route(neighbor_address, target_prefix, retry=3, interval=5, rf=IPv4):
     print "check route %s on quagga : %s" % (target_prefix, neighbor_address)
     retry_count = 0
     while True:
 
         tn = qaccess.login(neighbor_address)
-        q_rib = qaccess.show_rib(tn)
+        q_rib = qaccess.lookup_prefix(tn, target_prefix, rf)
         qaccess.logout(tn)
         for q_path in q_rib:
             if target_prefix == q_path['Network']:
                 return q_path
 
         retry_count += 1
+        print "route %s doesn't exist in %s's routing table" % (target_prefix, neighbor_address)
         if retry_count > retry:
             break
         else:
-            print "target_prefix %s is none" % target_prefix
             print "wait (" + str(interval) + " seconds)"
             time.sleep(interval)
 
-    print "route : %s is none" % target_prefix
     return None
 
 
-def get_adj_rib_in(url, neighbor_address, target_prefix, retry=3, interval=5):
-    return get_adj_rib(url, neighbor_address, target_prefix, retry, interval, type="in")
+def get_adj_rib_in(url, neighbor_address, target_prefix, retry=3, interval=5, rf=IPv4):
+    return _get_adj_rib(url, neighbor_address, target_prefix, rf,
+                       retry, interval, type="in")
 
 
-def get_adj_rib_out(url, neighbor_address, target_prefix, retry=3, interval=5):
-    return get_adj_rib(url, neighbor_address, target_prefix, retry, interval, type="out")
+def get_adj_rib_out(url, neighbor_address, target_prefix, retry=3, interval=5, rf=IPv4):
+    return _get_adj_rib(url, neighbor_address, target_prefix, rf,
+                       retry, interval, type="out")
 
 
-def get_adj_rib(base_url, neighbor_address, target_prefix, retry, interval, type="in"):
-    url = base_url + neighbor_address + "/adj-rib-" +type +"/ipv4"
+def _get_adj_rib(base_url, neighbor_address, target_prefix, rf, retry, interval, type="in"):
+    url = base_url + neighbor_address + "/adj-rib-" +type +"/" + rf
 
     retry_count = 0
     while True:
 
         r = requests.get(url)
         in_rib = json.loads(r.text)
-        print in_rib
         paths = [p for p in in_rib if p['Network'] == target_prefix]
 
         if len(paths) > 0:
@@ -84,14 +85,14 @@ def get_adj_rib(base_url, neighbor_address, target_prefix, retry, interval, type
             return paths[0]
         else:
             retry_count += 1
+            print "%s doesn't exist in %s's adj_rib_%s" % (target_prefix, neighbor_address, type)
             if retry_count > retry:
                 break
             else:
-                print "adj_rib_%s is none" % type
+
                 print "wait (" + str(interval) + " seconds)"
                 time.sleep(interval)
 
-    print "adj_rib_%s is none" % type
     return None
 
 
@@ -102,6 +103,7 @@ def get_neighbor_state(base_url, neighbor_address):
     try:
         r = requests.get(url)
         neighbor = json.loads(r.text)
+
         state = neighbor['info']['bgp_state']
         remote_ip = neighbor['conf']['remote_ip']
         assert remote_ip == neighbor_address
@@ -111,12 +113,11 @@ def get_neighbor_state(base_url, neighbor_address):
     return state
 
 
-def get_paths_in_localrib(base_url, neighbor_address, target_prefix, retry=3, interval=5):
-    url = base_url + neighbor_address + "/local-rib" + "/ipv4"
+def get_paths_in_localrib(base_url, neighbor_address, target_prefix, retry=3, interval=5, rf=IPv4):
+    url = base_url + neighbor_address + "/local-rib" + "/" + rf
 
     retry_count = 0
     while True:
-
         r = requests.get(url)
         local_rib = json.loads(r.text)
         g_dests = local_rib['Destinations']
@@ -127,14 +128,13 @@ def get_paths_in_localrib(base_url, neighbor_address, target_prefix, retry=3, in
             return d['Paths']
         else:
             retry_count += 1
+            print "destination %s doesn't exist in %s's local-rib" % (target_prefix, neighbor_address)
             if retry_count > retry:
                 break
             else:
-                print "destination is none : %s" % neighbor_address
                 print "please wait more (" + str(interval) + " second)"
                 time.sleep(interval)
 
-    print "destination is none"
     return None
 
 
@@ -185,9 +185,6 @@ def load_quagga_config(base_dir):
             dest = Destination(prefix)
             dest.paths.append(path)
             quagga_config.destinations[prefix] = dest
-            # print "prefix: " + prefix
-            # print "network: " + network
-            # print "nexthop: " + nexthop
 
         neighbors = config.find_objects(r"^neighbor\s.*\sremote-as")
         if len(neighbors) == 0:
