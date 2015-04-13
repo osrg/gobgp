@@ -18,8 +18,8 @@ package table
 import (
 	log "github.com/Sirupsen/logrus"
 	"github.com/osrg/gobgp/packet"
-	"github.com/tchap/go-patricia/patricia"
 	"reflect"
+	"sort"
 	"time"
 )
 
@@ -340,19 +340,28 @@ func (adj *AdjRib) UpdateOut(pathList []Path) {
 	adj.update(adj.adjRibOut, pathList)
 }
 
-func (adj *AdjRib) getPathList(rib map[string]*ReceivedRoute) []Path {
-	trie := patricia.NewTrie()
-	for _, rr := range rib {
-		key := rr.path.GetNlri().String()
-		trie.Insert(cidr2prefix(key), rr.path)
-	}
+type paths []Path
 
-	pathList := []Path{}
-	trie.Visit(func(prefix patricia.Prefix, item patricia.Item) error {
-		path, _ := item.(Path)
-		pathList = append(pathList, path)
-		return nil
-	})
+func (p paths) Len() int {
+	return len(p)
+}
+
+func (p paths) Swap(i, j int) {
+	p[i], p[j] = p[j], p[i]
+}
+
+func (p paths) Less(i, j int) bool {
+	strings := sort.StringSlice{string(cidr2prefix(p[i].GetNlri().String())),
+		string(cidr2prefix(p[j].GetNlri().String()))}
+	return strings.Less(0, 1)
+}
+
+func (adj *AdjRib) getPathList(rib map[string]*ReceivedRoute) []Path {
+	pathList := paths{}
+	for _, rr := range rib {
+		pathList = append(pathList, rr.path)
+	}
+	sort.Sort(pathList)
 	return pathList
 }
 
