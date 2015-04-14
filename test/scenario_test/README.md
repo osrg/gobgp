@@ -8,17 +8,21 @@ and install golang environment inside the VM.
 
 Setup
 -----
-Execute the following commands on a python inside the VM:
+Execute the following commands inside the VM:
 
 install the python packages and libraries required to run the test program and clone gobgp repository.
 ```
 % sudo su -
+# apt-get update
+# apt-get install git
 # apt-get install python-pip
 # apt-get install python-dev
 # git clone https://github.com/osrg/gobgp.git
 # cd ./gobgp
+# GOBGP_DIR=`pwd`
+# cd $GOBGP_DIR/gobgpd
 # go get -v
-# cd ./test/scenario_test
+# cd $GOBGP_DIR/test/scenario_test
 # pip install -r pip-requires.txt
 ```
 
