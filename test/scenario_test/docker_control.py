@@ -55,7 +55,6 @@ def install_docker_and_tools():
     local("docker pull osrg/quagga", capture=True)
     local("docker pull osrg/gobgp", capture=True)
     local("docker pull osrg/exabgp", capture=True)
-    local("mkdir /tmp/gobgp", capture=True)
 
 
 def docker_pkg_check():
