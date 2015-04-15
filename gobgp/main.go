@@ -598,6 +598,8 @@ func (x *PathCommand) Execute(args []string) error {
 		rt = api.AF_IPV4_UC
 	case "ipv6", "v6", "6":
 		rt = api.AF_IPV6_UC
+	case "evpn":
+		rt = api.AF_EVPN
 	default:
 		return fmt.Errorf("unsupported address family: %s", args[1])
 	}
@@ -609,6 +611,17 @@ func (x *PathCommand) Execute(args []string) error {
 		path.Nlri = &api.Nlri{
 			Af:     rt,
 			Prefix: args[2],
+		}
+	case api.AF_EVPN:
+		path.Nlri = &api.Nlri{
+			Af: rt,
+			EvpnNlri: &api.EVPNNlri{
+				Type: api.EVPN_TYPE_ROUTE_TYPE_MAC_IP_ADVERTISEMENT,
+				MacIpAdv: &api.EvpnMacIpAdvertisement{
+					MacAddr: args[2],
+					IpAddr:  args[3],
+				},
+			},
 		}
 	}
 

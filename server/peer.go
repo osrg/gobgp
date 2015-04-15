@@ -311,7 +311,8 @@ func (peer *Peer) handleGrpc(grpcReq *GrpcRequest) {
 		asparam := bgp.NewAs4PathParam(bgp.BGP_ASPATH_ATTR_TYPE_SEQ, []uint32{peer.peerInfo.AS})
 		pattr = append(pattr, bgp.NewPathAttributeAsPath([]bgp.AsPathParamInterface{asparam}))
 
-		if rf == bgp.RF_IPv4_UC {
+		switch rf {
+		case bgp.RF_IPv4_UC:
 			ip, net, _ := net.ParseCIDR(path.Nlri.Prefix)
 			if ip.To4() == nil {
 				result.ResponseErr = fmt.Errorf("Invalid ipv4 prefix: %s", path.Nlri.Prefix)
@@ -326,7 +327,8 @@ func (peer *Peer) handleGrpc(grpcReq *GrpcRequest) {
 
 			pattr = append(pattr, bgp.NewPathAttributeNextHop("0.0.0.0"))
 
-		} else if rf == bgp.RF_IPv6_UC {
+		case bgp.RF_IPv6_UC:
+
 			ip, net, _ := net.ParseCIDR(path.Nlri.Prefix)
 			if ip.To16() == nil {
 				result.ResponseErr = fmt.Errorf("Invalid ipv6 prefix: %s", path.Nlri.Prefix)
@@ -339,7 +341,40 @@ func (peer *Peer) handleGrpc(grpcReq *GrpcRequest) {
 
 			pattr = append(pattr, bgp.NewPathAttributeMpReachNLRI("::", []bgp.AddrPrefixInterface{nlri}))
 
-		} else {
+		case bgp.RF_EVPN:
+			mac, err := net.ParseMAC(path.Nlri.EvpnNlri.MacIpAdv.MacAddr)
+			if err != nil {
+				result.ResponseErr = fmt.Errorf("Invalid mac: %s", path.Nlri.EvpnNlri.MacIpAdv.MacAddr)
+				grpcReq.ResponseCh <- result
+				close(grpcReq.ResponseCh)
+				return
+			}
+			ip := net.ParseIP(path.Nlri.EvpnNlri.MacIpAdv.IpAddr)
+			if ip == nil {
+				result.ResponseErr = fmt.Errorf("Invalid ip prefix: %s", path.Nlri.EvpnNlri.MacIpAdv.IpAddr)
+				grpcReq.ResponseCh <- result
+				close(grpcReq.ResponseCh)
+				return
+			}
+			iplen := net.IPv4len * 8
+			if ip.To4() == nil {
+				iplen = net.IPv6len * 8
+			}
+
+			macIpAdv := &bgp.EVPNMacIPAdvertisementRoute{
+				RD: bgp.NewRouteDistinguisherTwoOctetAS(0, 0),
+				ESI: bgp.EthernetSegmentIdentifier{
+					Type: bgp.ESI_ARBITRARY,
+				},
+				MacAddressLength: 48,
+				MacAddress:       mac,
+				IPAddressLength:  uint8(iplen),
+				IPAddress:        ip,
+				Labels:           []uint32{0},
+			}
+			nlri = bgp.NewEVPNNLRI(bgp.EVPN_ROUTE_TYPE_MAC_IP_ADVERTISEMENT, 0, macIpAdv)
+			pattr = append(pattr, bgp.NewPathAttributeMpReachNLRI("0.0.0.0", []bgp.AddrPrefixInterface{nlri}))
+		default:
 			result.ResponseErr = fmt.Errorf("Unsupported address family: %s", rf)
 			grpcReq.ResponseCh <- result
 			close(grpcReq.ResponseCh)
