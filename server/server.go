@@ -18,7 +18,6 @@ package server
 import (
 	"fmt"
 	log "github.com/Sirupsen/logrus"
-	"github.com/osrg/gobgp/api"
 	"github.com/osrg/gobgp/config"
 	"github.com/osrg/gobgp/policy"
 	"net"
@@ -60,7 +59,7 @@ type BgpServer struct {
 	globalTypeCh   chan config.Global
 	addedPeerCh    chan config.Neighbor
 	deletedPeerCh  chan config.Neighbor
-	GrpcReqCh      chan *api.GrpcRequest
+	GrpcReqCh      chan *GrpcRequest
 	listenPort     int
 	peerMap        map[string]peerMapInfo
 	globalRib      *Peer
@@ -73,7 +72,7 @@ func NewBgpServer(port int) *BgpServer {
 	b.globalTypeCh = make(chan config.Global)
 	b.addedPeerCh = make(chan config.Neighbor)
 	b.deletedPeerCh = make(chan config.Neighbor)
-	b.GrpcReqCh = make(chan *api.GrpcRequest, 1)
+	b.GrpcReqCh = make(chan *GrpcRequest, 1)
 	b.policyUpdateCh = make(chan config.RoutingPolicy)
 	b.listenPort = port
 	return &b
@@ -293,53 +292,49 @@ func (p peers) Less(i, j int) bool {
 	return strings.Less(0, 1)
 }
 
-func (server *BgpServer) handleGrpc(grpcReq *api.GrpcRequest) {
+func (server *BgpServer) handleGrpc(grpcReq *GrpcRequest) {
 	switch grpcReq.RequestType {
-	case api.REQ_NEIGHBORS:
+	case REQ_NEIGHBORS:
 		peerList := peers{}
 		for _, info := range server.peerMap {
 			peerList = append(peerList, info.peer)
 		}
 		sort.Sort(peerList)
 		for _, peer := range peerList {
-			data, err := peer.ToGrpc()
-			result := &api.GrpcResponse{
-				ResponseErr: err,
-				Data:        data,
+			result := &GrpcResponse{
+				Data: peer.ToApiStruct(),
 			}
 			grpcReq.ResponseCh <- result
 		}
 		close(grpcReq.ResponseCh)
-	case api.REQ_NEIGHBOR:
+	case REQ_NEIGHBOR:
 		remoteAddr := grpcReq.RemoteAddr
-		var result *api.GrpcResponse
+		var result *GrpcResponse
 		info, found := server.peerMap[remoteAddr]
 		if found {
-			data, err := info.peer.ToGrpc()
-			result = &api.GrpcResponse{
-				ResponseErr: err,
-				Data:        data,
+			result = &GrpcResponse{
+				Data: info.peer.ToApiStruct(),
 			}
 		} else {
-			result = &api.GrpcResponse{
+			result = &GrpcResponse{
 				ResponseErr: fmt.Errorf("Neighbor that has %v does not exist.", remoteAddr),
 			}
 		}
 		grpcReq.ResponseCh <- result
 		close(grpcReq.ResponseCh)
-	case api.REQ_GLOBAL_RIB, api.REQ_GLOBAL_ADD, api.REQ_GLOBAL_DELETE:
+	case REQ_GLOBAL_RIB, REQ_GLOBAL_ADD, REQ_GLOBAL_DELETE:
 		msg := &serverMsg{
 			msgType: SRV_MSG_API,
 			msgData: grpcReq,
 		}
 		server.globalRib.serverMsgCh <- msg
-	case api.REQ_LOCAL_RIB, api.REQ_NEIGHBOR_SHUTDOWN, api.REQ_NEIGHBOR_RESET,
-		api.REQ_NEIGHBOR_SOFT_RESET, api.REQ_NEIGHBOR_SOFT_RESET_IN, api.REQ_NEIGHBOR_SOFT_RESET_OUT,
-		api.REQ_ADJ_RIB_IN, api.REQ_ADJ_RIB_OUT,
-		api.REQ_NEIGHBOR_ENABLE, api.REQ_NEIGHBOR_DISABLE:
+	case REQ_LOCAL_RIB, REQ_NEIGHBOR_SHUTDOWN, REQ_NEIGHBOR_RESET,
+		REQ_NEIGHBOR_SOFT_RESET, REQ_NEIGHBOR_SOFT_RESET_IN, REQ_NEIGHBOR_SOFT_RESET_OUT,
+		REQ_ADJ_RIB_IN, REQ_ADJ_RIB_OUT,
+		REQ_NEIGHBOR_ENABLE, REQ_NEIGHBOR_DISABLE:
 
 		remoteAddr := grpcReq.RemoteAddr
-		result := &api.GrpcResponse{}
+		result := &GrpcResponse{}
 		info, found := server.peerMap[remoteAddr]
 		if found {
 			msg := &serverMsg{

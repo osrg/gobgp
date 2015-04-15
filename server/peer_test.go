@@ -121,7 +121,7 @@ func TestPeerAdminShutdownWhileEstablished(t *testing.T) {
 	peer.connCh <- m
 	waitUntil(assert, bgp.BGP_FSM_ESTABLISHED, peer, 1000)
 
-	grpcReq := api.NewGrpcRequest(api.REQ_NEIGHBOR_DISABLE, "0.0.0.0", bgp.RF_IPv4_UC, nil)
+	grpcReq := NewGrpcRequest(REQ_NEIGHBOR_DISABLE, "0.0.0.0", bgp.RF_IPv4_UC, nil)
 	msg := &serverMsg{
 		msgType: SRV_MSG_API,
 		msgData: grpcReq,
@@ -163,7 +163,7 @@ func TestPeerAdminShutdownWhileIdle(t *testing.T) {
 
 	waitUntil(assert, bgp.BGP_FSM_IDLE, peer, 1000)
 
-	grpcReq := api.NewGrpcRequest(api.REQ_NEIGHBOR_DISABLE, "0.0.0.0", bgp.RF_IPv4_UC, nil)
+	grpcReq := NewGrpcRequest(REQ_NEIGHBOR_DISABLE, "0.0.0.0", bgp.RF_IPv4_UC, nil)
 	msg := &serverMsg{
 		msgType: SRV_MSG_API,
 		msgData: grpcReq,
@@ -197,7 +197,7 @@ func TestPeerAdminShutdownWhileActive(t *testing.T) {
 
 	waitUntil(assert, bgp.BGP_FSM_ACTIVE, peer, 1000)
 
-	grpcReq := api.NewGrpcRequest(api.REQ_NEIGHBOR_DISABLE, "0.0.0.0", bgp.RF_IPv4_UC, nil)
+	grpcReq := NewGrpcRequest(REQ_NEIGHBOR_DISABLE, "0.0.0.0", bgp.RF_IPv4_UC, nil)
 	msg := &serverMsg{
 		msgType: SRV_MSG_API,
 		msgData: grpcReq,
@@ -233,7 +233,7 @@ func TestPeerAdminShutdownWhileOpensent(t *testing.T) {
 	peer.connCh <- m
 	waitUntil(assert, bgp.BGP_FSM_OPENSENT, peer, 1000)
 
-	grpcReq := api.NewGrpcRequest(api.REQ_NEIGHBOR_DISABLE, "0.0.0.0", bgp.RF_IPv4_UC, nil)
+	grpcReq := NewGrpcRequest(REQ_NEIGHBOR_DISABLE, "0.0.0.0", bgp.RF_IPv4_UC, nil)
 	msg := &serverMsg{
 		msgType: SRV_MSG_API,
 		msgData: grpcReq,
@@ -277,7 +277,7 @@ func TestPeerAdminShutdownWhileOpenconfirm(t *testing.T) {
 	peer.connCh <- m
 	waitUntil(assert, bgp.BGP_FSM_OPENCONFIRM, peer, 1000)
 
-	grpcReq := api.NewGrpcRequest(api.REQ_NEIGHBOR_DISABLE, "0.0.0.0", bgp.RF_IPv4_UC, nil)
+	grpcReq := NewGrpcRequest(REQ_NEIGHBOR_DISABLE, "0.0.0.0", bgp.RF_IPv4_UC, nil)
 	msg := &serverMsg{
 		msgType: SRV_MSG_API,
 		msgData: grpcReq,
@@ -327,7 +327,7 @@ func TestPeerAdminEnable(t *testing.T) {
 	waitUntil(assert, bgp.BGP_FSM_ESTABLISHED, peer, 1000)
 
 	// shutdown peer at first
-	grpcReq := api.NewGrpcRequest(api.REQ_NEIGHBOR_DISABLE, "0.0.0.0", bgp.RF_IPv4_UC, nil)
+	grpcReq := NewGrpcRequest(REQ_NEIGHBOR_DISABLE, "0.0.0.0", bgp.RF_IPv4_UC, nil)
 	msg := &serverMsg{
 		msgType: SRV_MSG_API,
 		msgData: grpcReq,
@@ -342,7 +342,7 @@ func TestPeerAdminEnable(t *testing.T) {
 	assert.Equal(ADMIN_STATE_DOWN, peer.fsm.adminState)
 
 	// enable peer
-	grpcReq = api.NewGrpcRequest(api.REQ_NEIGHBOR_ENABLE, "0.0.0.0", bgp.RF_IPv4_UC, nil)
+	grpcReq = NewGrpcRequest(REQ_NEIGHBOR_ENABLE, "0.0.0.0", bgp.RF_IPv4_UC, nil)
 	msg = &serverMsg{
 		msgType: SRV_MSG_API,
 		msgData: grpcReq,
@@ -388,7 +388,7 @@ func TestPeerAdminShutdownReject(t *testing.T) {
 	peer.connCh <- m
 	waitUntil(assert, bgp.BGP_FSM_OPENSENT, peer, 1000)
 
-	grpcReq := api.NewGrpcRequest(api.REQ_NEIGHBOR_DISABLE, "0.0.0.0", bgp.RF_IPv4_UC, nil)
+	grpcReq := NewGrpcRequest(REQ_NEIGHBOR_DISABLE, "0.0.0.0", bgp.RF_IPv4_UC, nil)
 	msg := &serverMsg{
 		msgType: SRV_MSG_API,
 		msgData: grpcReq,
@@ -401,7 +401,7 @@ func TestPeerAdminShutdownReject(t *testing.T) {
 	err := result.Data.(api.Error)
 	assert.Equal(err.Code, api.Error_FAIL)
 
-	grpcReq = api.NewGrpcRequest(api.REQ_NEIGHBOR_ENABLE, "0.0.0.0", bgp.RF_IPv4_UC, nil)
+	grpcReq = NewGrpcRequest(REQ_NEIGHBOR_ENABLE, "0.0.0.0", bgp.RF_IPv4_UC, nil)
 	msg = &serverMsg{
 		msgType: SRV_MSG_API,
 		msgData: grpcReq,

@@ -19,6 +19,7 @@ import (
 	"encoding/json"
 	"fmt"
 	log "github.com/Sirupsen/logrus"
+	"github.com/osrg/gobgp/api"
 	"github.com/osrg/gobgp/config"
 	"github.com/osrg/gobgp/packet"
 	"net"
@@ -45,6 +46,7 @@ type Path interface {
 	Clone(IsWithdraw bool) Path
 	getTimestamp() time.Time
 	setTimestamp(t time.Time)
+	ToApiStruct() *api.Path
 	MarshalJSON() ([]byte, error)
 }
 
@@ -170,18 +172,25 @@ func (pd *PathDefault) setTimestamp(t time.Time) {
 	pd.timestamp = t
 }
 
+func (pd *PathDefault) ToApiStruct() *api.Path {
+	pathAttrs := func(arg []bgp.PathAttributeInterface) []*api.PathAttr {
+		ret := make([]*api.PathAttr, 0, len(arg))
+		for _, a := range arg {
+			ret = append(ret, a.ToApiStruct())
+		}
+		return ret
+	}(pd.getPathAttrs())
+	return &api.Path{
+		Nlri:       pd.GetNlri().ToApiStruct(),
+		Nexthop:    pd.GetNexthop().String(),
+		Attrs:      pathAttrs,
+		Age:        int64(time.Now().Sub(pd.timestamp).Seconds()),
+		IsWithdraw: pd.IsWithdraw(),
+	}
+}
+
 func (pd *PathDefault) MarshalJSON() ([]byte, error) {
-	return json.Marshal(struct {
-		Network string
-		Nexthop string
-		Attrs   []bgp.PathAttributeInterface
-		Age     int64
-	}{
-		Network: pd.getPrefix(),
-		Nexthop: pd.GetNexthop().String(),
-		Attrs:   pd.getPathAttrs(),
-		Age:     int64(time.Now().Sub(pd.timestamp).Seconds()),
-	})
+	return json.Marshal(pd.ToApiStruct())
 }
 
 // create new PathAttributes

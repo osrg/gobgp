@@ -19,7 +19,6 @@ import (
 	log "github.com/Sirupsen/logrus"
 	"github.com/Sirupsen/logrus/hooks/syslog"
 	"github.com/jessevdk/go-flags"
-	"github.com/osrg/gobgp/api"
 	"github.com/osrg/gobgp/config"
 	"github.com/osrg/gobgp/packet"
 	"github.com/osrg/gobgp/server"
@@ -144,7 +143,7 @@ func main() {
 	go bgpServer.Serve()
 
 	// start grpc Server
-	grpcServer := api.NewGrpcServer(api.GRPC_PORT, bgpServer.GrpcReqCh)
+	grpcServer := server.NewGrpcServer(server.GRPC_PORT, bgpServer.GrpcReqCh)
 	go grpcServer.Serve()
 
 	var bgpConfig *config.Bgp = nil

@@ -69,7 +69,6 @@ class GoBGPTest(GoBGPTestBase):
 
         self.assert_global_rib()
 
-
     # Test of advertising route to each quagga form gobgp
     def test_03_advertising_route(self):
         print "test_advertising_route"
@@ -157,7 +156,7 @@ class GoBGPTest(GoBGPTestBase):
             still_exists = False
             for dst in rib:
                 for path in dst['paths']:
-                    if path['network'] == removed_prefix:
+                    if path['nlri']['prefix'] == removed_prefix:
                         still_exists = True
 
             if not still_exists:
@@ -236,7 +235,7 @@ class GoBGPTest(GoBGPTestBase):
         print "please wait " + str(self.initial_wait_time) + " second"
         time.sleep(self.initial_wait_time)
 
-        target_network = "192.168.20.0"
+        target_network = "192.168.20.0/24"
         ans_nexthop = "10.0.0.3"
 
         print "check whether target network %s 's nexthop is %s" % (target_network, ans_nexthop)

@@ -288,14 +288,20 @@ func (peer *Peer) sendMessages(msgs []*bgp.BGPMessage) {
 	}
 }
 
-func (peer *Peer) handleGrpc(grpcReq *api.GrpcRequest) {
-	result := &api.GrpcResponse{}
+func (peer *Peer) handleGrpc(grpcReq *GrpcRequest) {
+	result := &GrpcResponse{}
 	switch grpcReq.RequestType {
-	case api.REQ_GLOBAL_ADD, api.REQ_GLOBAL_DELETE:
+	case REQ_GLOBAL_ADD, REQ_GLOBAL_DELETE:
 		rf := grpcReq.RouteFamily
-		prefix := grpcReq.Data["prefix"].(string)
+		path, ok := grpcReq.Data.(*api.Path)
+		if !ok {
+			result.ResponseErr = fmt.Errorf("type assertion failed")
+			grpcReq.ResponseCh <- result
+			close(grpcReq.ResponseCh)
+			return
+		}
 		var isWithdraw bool
-		if grpcReq.RequestType == api.REQ_GLOBAL_DELETE {
+		if grpcReq.RequestType == REQ_GLOBAL_DELETE {
 			isWithdraw = true
 		}
 
@@ -306,9 +312,9 @@ func (peer *Peer) handleGrpc(grpcReq *api.GrpcRequest) {
 		pattr = append(pattr, bgp.NewPathAttributeAsPath([]bgp.AsPathParamInterface{asparam}))
 
 		if rf == bgp.RF_IPv4_UC {
-			ip, net, _ := net.ParseCIDR(prefix)
+			ip, net, _ := net.ParseCIDR(path.Nlri.Prefix)
 			if ip.To4() == nil {
-				result.ResponseErr = fmt.Errorf("Invalid ipv4 prefix: %s", prefix)
+				result.ResponseErr = fmt.Errorf("Invalid ipv4 prefix: %s", path.Nlri.Prefix)
 				grpcReq.ResponseCh <- result
 				close(grpcReq.ResponseCh)
 				return
@@ -321,9 +327,9 @@ func (peer *Peer) handleGrpc(grpcReq *api.GrpcRequest) {
 			pattr = append(pattr, bgp.NewPathAttributeNextHop("0.0.0.0"))
 
 		} else if rf == bgp.RF_IPv6_UC {
-			ip, net, _ := net.ParseCIDR(prefix)
+			ip, net, _ := net.ParseCIDR(path.Nlri.Prefix)
 			if ip.To16() == nil {
-				result.ResponseErr = fmt.Errorf("Invalid ipv6 prefix: %s", prefix)
+				result.ResponseErr = fmt.Errorf("Invalid ipv6 prefix: %s", path.Nlri.Prefix)
 				grpcReq.ResponseCh <- result
 				close(grpcReq.ResponseCh)
 				return
@@ -348,53 +354,40 @@ func (peer *Peer) handleGrpc(grpcReq *api.GrpcRequest) {
 		}
 		peer.peerMsgCh <- pm
 
-	case api.REQ_LOCAL_RIB, api.REQ_GLOBAL_RIB:
+	case REQ_LOCAL_RIB, REQ_GLOBAL_RIB:
 		if peer.fsm.adminState == ADMIN_STATE_DOWN {
 			close(grpcReq.ResponseCh)
 			return
 		}
 		if t, ok := peer.rib.Tables[grpcReq.RouteFamily]; ok {
-			type table struct {
-				Destinations []*api.Destination
-			}
-			var tt table
-			j, _ := json.Marshal(t)
-			err := json.Unmarshal(j, &tt)
-			if err != nil {
-				result := &api.GrpcResponse{}
-				result.ResponseErr = err
-				grpcReq.ResponseCh <- result
-				close(grpcReq.ResponseCh)
-				return
-			}
-			for _, dst := range tt.Destinations {
-				result := &api.GrpcResponse{}
-				result.Data = dst
+			for _, dst := range t.GetDestinations() {
+				result := &GrpcResponse{}
+				result.Data = dst.ToApiStruct()
 				grpcReq.ResponseCh <- result
 			}
 			close(grpcReq.ResponseCh)
 			return
 		}
-	case api.REQ_NEIGHBOR_SHUTDOWN:
+	case REQ_NEIGHBOR_SHUTDOWN:
 		peer.outgoing <- bgp.NewBGPNotificationMessage(bgp.BGP_ERROR_CEASE, bgp.BGP_ERROR_SUB_ADMINISTRATIVE_SHUTDOWN, nil)
-	case api.REQ_NEIGHBOR_RESET:
+	case REQ_NEIGHBOR_RESET:
 		peer.fsm.idleHoldTime = peer.peerConfig.Timers.IdleHoldTimeAfterReset
 		peer.outgoing <- bgp.NewBGPNotificationMessage(bgp.BGP_ERROR_CEASE, bgp.BGP_ERROR_SUB_ADMINISTRATIVE_RESET, nil)
-	case api.REQ_NEIGHBOR_SOFT_RESET, api.REQ_NEIGHBOR_SOFT_RESET_IN:
+	case REQ_NEIGHBOR_SOFT_RESET, REQ_NEIGHBOR_SOFT_RESET_IN:
 		// soft-reconfiguration inbound
 		peer.sendPathsToSiblings(peer.adjRib.GetInPathList(grpcReq.RouteFamily))
-		if grpcReq.RequestType == api.REQ_NEIGHBOR_SOFT_RESET_IN {
+		if grpcReq.RequestType == REQ_NEIGHBOR_SOFT_RESET_IN {
 			break
 		}
 		fallthrough
-	case api.REQ_NEIGHBOR_SOFT_RESET_OUT:
+	case REQ_NEIGHBOR_SOFT_RESET_OUT:
 		pathList := peer.adjRib.GetOutPathList(grpcReq.RouteFamily)
 		peer.sendMessages(table.CreateUpdateMsgFromPaths(pathList))
-	case api.REQ_ADJ_RIB_IN, api.REQ_ADJ_RIB_OUT:
+	case REQ_ADJ_RIB_IN, REQ_ADJ_RIB_OUT:
 		rf := grpcReq.RouteFamily
 		var paths []table.Path
 
-		if grpcReq.RequestType == api.REQ_ADJ_RIB_IN {
+		if grpcReq.RequestType == REQ_ADJ_RIB_IN {
 			paths = peer.adjRib.GetInPathList(rf)
 			log.Debugf("RouteFamily=%v adj-rib-in found : %d", rf.String(), len(paths))
 		} else {
@@ -403,7 +396,7 @@ func (peer *Peer) handleGrpc(grpcReq *api.GrpcRequest) {
 		}
 
 		for _, p := range paths {
-			result := &api.GrpcResponse{}
+			result := &GrpcResponse{}
 			path := &api.Path{}
 			j, _ := json.Marshal(p)
 			err := json.Unmarshal(j, path)
@@ -416,9 +409,9 @@ func (peer *Peer) handleGrpc(grpcReq *api.GrpcRequest) {
 		}
 		close(grpcReq.ResponseCh)
 		return
-	case api.REQ_NEIGHBOR_ENABLE, api.REQ_NEIGHBOR_DISABLE:
+	case REQ_NEIGHBOR_ENABLE, REQ_NEIGHBOR_DISABLE:
 		var err api.Error
-		if grpcReq.RequestType == api.REQ_NEIGHBOR_ENABLE {
+		if grpcReq.RequestType == REQ_NEIGHBOR_ENABLE {
 			select {
 			case peer.fsm.adminStateCh <- ADMIN_STATE_UP:
 				log.WithFields(log.Fields{
@@ -656,7 +649,7 @@ func (peer *Peer) handleServerMsg(m *serverMsg) {
 			log.Warning("can not find peer: ", d.Address.String())
 		}
 	case SRV_MSG_API:
-		peer.handleGrpc(m.msgData.(*api.GrpcRequest))
+		peer.handleGrpc(m.msgData.(*GrpcRequest))
 	case SRV_MSG_POLICY_UPDATED:
 		log.Debug("policy updated")
 		d := m.msgData.(map[string]*policy.Policy)
@@ -827,14 +820,10 @@ func (peer *Peer) PassConn(conn *net.TCPConn) {
 }
 
 func (peer *Peer) MarshalJSON() ([]byte, error) {
-	p, err := peer.ToGrpc()
-	if err != nil {
-		return nil, err
-	}
-	return json.Marshal(p)
+	return json.Marshal(peer.ToApiStruct())
 }
 
-func (peer *Peer) ToGrpc() (*api.Peer, error) {
+func (peer *Peer) ToApiStruct() *api.Peer {
 
 	f := peer.fsm
 	c := f.peerConfig
@@ -904,5 +893,5 @@ func (peer *Peer) ToGrpc() (*api.Peer, error) {
 	return &api.Peer{
 		Conf: conf,
 		Info: info,
-	}, nil
+	}
 }

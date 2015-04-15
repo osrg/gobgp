@@ -188,7 +188,7 @@ class GoBGPTest(GoBGPTestBase):
         time.sleep(self.initial_wait_time)
 
         check_address = "10.0.0.1"
-        target_network = "192.168.20.0"
+        target_network = "192.168.20.0/24"
         ans_nexthop = "10.0.0.3"
 
         print "check of [ " + check_address + " ]"

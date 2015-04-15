@@ -31,8 +31,7 @@ service Grpc {
   rpc Shutdown(Arguments) returns (Error) {}
   rpc Enable(Arguments) returns (Error) {}
   rpc Disable(Arguments) returns (Error) {}
-  rpc AddPath(stream Arguments) returns (Error) {}
-  rpc DeletePath(stream Arguments) returns (Error) {}
+  rpc ModPath(stream ModPathArguments) returns (stream Error) {}
 }
 
 message Error {
@@ -48,7 +47,11 @@ message Arguments {
     Resource resource = 1;
     AddressFamily af = 2;
     string router_id = 3;
-    string prefix = 4;
+}
+
+message ModPathArguments {
+    Resource resource = 1;
+    Path path = 2;
 }
 
 enum Resource {
@@ -58,41 +61,116 @@ enum Resource {
     ADJ_OUT = 3;
 }
 
-enum AddressFamily {
-    IPV4 = 0;
-    IPV6 = 1;
-    EVPN = 2;
+enum AFI {
+    UNKNOWN_AFI = 0;
+    IP = 1;
+    IP6 = 2;
+    L2VPN = 25;
+}
+
+enum SAFI {
+    UNKNOWN_SAFI = 0;
+    UNICAST = 1;
+    MULTICAST = 2;
+    MPLS_LABEL = 4;
+    VPLS = 65;
+    EVPN = 70;
+    MPLS_VPN = 128;
+    MPLS_VPN_MULTICAST = 129;
+    ROUTE_TARGET_CONSTRTAINS = 132;
+}
+
+message AddressFamily {
+    AFI Afi = 1;
+    SAFI Safi = 2;
+}
+
+enum Origin {
+    IGP = 0;
+    EGP = 1;
+    INCOMPLETE = 2;
+}
+
+message Aggregator {
+    uint32 as = 1;
+    string address = 2;
+}
+
+enum EVPN_TYPE {
+    UNKNOWN_EVPN_TYPE = 0;
+    ROUTE_TYPE_ETHERNET_AUTO_DISCOVERY = 1;
+    ROUTE_TYPE_MAC_IP_ADVERTISEMENT    = 2;
+    INCLUSIVE_MULTICAST_ETHERNET_TAG   = 3;
+    ETHERNET_SEGMENT_ROUTE             = 4;
+}
+
+message EVPNNlri {
+    EVPN_TYPE type = 1;
+//    EvpnAutoDiscoveryRoute = 2;
+    EvpnMacIpAdvertisement mac_ip_adv = 3;
+//    EvpnInclusiveMulticastEthernetTag = 4;
+//    EvpnEthernetSegmentRoute = 5;
+}
+
+message EvpnMacIpAdvertisement {
+    string mac_addr = 1;
+    uint32 mac_addr_len = 2;
+    string ip_addr = 3;
+    uint32 ip_addr_len = 4;
+    string rd = 5;
+    string esi = 6;
+    uint32 etag = 7;
+    repeated uint32 labels = 8;
+}
+
+message Nlri {
+    AddressFamily af = 1;
+    string prefix = 2;
+    EVPNNlri evpn_nlri = 3;
+    string nexthop = 4;
+}
+
+enum BGP_ATTR_TYPE {
+    UNKNOWN_ATTR = 0;
+    ORIGIN = 1;
+    AS_PATH = 2;
+    NEXT_HOP = 3;
+    MULTI_EXIT_DISC = 4;
+    LOCAL_PREF = 5;
+    ATOMIC_AGGREGATE = 6;
+    AGGREGATOR = 7;
+    COMMUNITIES = 8;
+    ORIGINATOR_ID = 9;
+    CLUSTER_LIST = 10;
+    MP_REACH_NLRI = 14;
+    MP_UNREACH_NLRI = 15;
+    EXTENDED_COMMUNITIES = 16;
+    AS4_PATH = 17;
+    AS4_AGGREGATOR = 18;
 }
 
 message PathAttr {
-
-    string type = 1;
-    enum Origin {
-        IGP = 0;
-        EGP = 1;
-        INCOMPLETE = 2;
-    }
-    message Aggregator {
-        uint32 as = 1;
-        string address = 2;
-    }
-    Origin origin = 2;
-    repeated uint32 as_path = 3;
-    uint32 metric = 4;
-    uint32 pref = 5;
-    Aggregator aggregator = 6;
-    repeated uint32 communites = 7;
-    string originator = 8;
-    string cluster = 9;
-    uint32 value = 10;
+    BGP_ATTR_TYPE type = 1;
+    repeated string value = 2;
+    Origin origin = 3;
+    repeated uint32 as_path = 4;
+    string nexthop = 5;
+    uint32 metric = 6;
+    uint32 pref = 7;
+    Aggregator aggregator = 8;
+    repeated uint32 communites = 9;
+    string originator = 10;
+    repeated string cluster = 11;
+    Nlri nlri = 12;
 }
 
 message Path {
-    string network = 1;
+    Nlri nlri = 1;
     string nexthop = 2;
     int64 age = 3;
     repeated PathAttr attrs = 4;
     bool best = 5;
+    bool is_withdraw = 6;
 }
 
 message Destination {

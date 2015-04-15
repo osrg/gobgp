@@ -13,11 +13,12 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package api
+package server
 
 import (
 	"fmt"
 	log "github.com/Sirupsen/logrus"
+	"github.com/osrg/gobgp/api"
 	"github.com/osrg/gobgp/packet"
 	"golang.org/x/net/context"
 	"google.golang.org/grpc"
@@ -46,6 +47,18 @@ const (
 
 const GRPC_PORT = 8080
 
+func convertAf2Rf(af *api.AddressFamily) (bgp.RouteFamily, error) {
+	if af.Equal(api.AF_IPV4_UC) {
+		return bgp.RF_IPv4_UC, nil
+	} else if af.Equal(api.AF_IPV6_UC) {
+		return bgp.RF_IPv6_UC, nil
+	} else if af.Equal(api.AF_EVPN) {
+		return bgp.RF_EVPN, nil
+	}
+
+	return bgp.RouteFamily(0), fmt.Errorf("unsupported address family: %v", af)
+}
+
 type Server struct {
 	grpcServer  *grpc.Server
 	bgpServerCh chan *GrpcRequest
@@ -60,7 +73,7 @@ func (s *Server) Serve() error {
 	return nil
 }
 
-func (s *Server) GetNeighbor(ctx context.Context, arg *Arguments) (*Peer, error) {
+func (s *Server) GetNeighbor(ctx context.Context, arg *api.Arguments) (*api.Peer, error) {
 	var rf bgp.RouteFamily
 	req := NewGrpcRequest(REQ_NEIGHBOR, arg.RouterId, rf, nil)
 	s.bgpServerCh <- req
@@ -71,10 +84,10 @@ func (s *Server) GetNeighbor(ctx context.Context, arg *Arguments) (*Peer, error)
 		return nil, err
 	}
 
-	return res.Data.(*Peer), nil
+	return res.Data.(*api.Peer), nil
 }
 
-func (s *Server) GetNeighbors(_ *Arguments, stream Grpc_GetNeighborsServer) error {
+func (s *Server) GetNeighbors(_ *api.Arguments, stream api.Grpc_GetNeighborsServer) error {
 	var rf bgp.RouteFamily
 	req := NewGrpcRequest(REQ_NEIGHBORS, "", rf, nil)
 	s.bgpServerCh <- req
@@ -84,7 +97,7 @@ func (s *Server) GetNeighbors(_ *Arguments, stream Grpc_GetNeighborsServer) erro
 			log.Debug(err.Error())
 			return err
 		}
-		if err := stream.Send(res.Data.(*Peer)); err != nil {
+		if err := stream.Send(res.Data.(*api.Peer)); err != nil {
 			return err
 		}
 	}
@@ -92,27 +105,20 @@ func (s *Server) GetNeighbors(_ *Arguments, stream Grpc_GetNeighborsServer) erro
 	return nil
 }
 
-func (s *Server) GetAdjRib(arg *Arguments, stream Grpc_GetAdjRibServer) error {
+func (s *Server) GetAdjRib(arg *api.Arguments, stream api.Grpc_GetAdjRibServer) error {
 	var reqType int
 	switch arg.Resource {
-	case Resource_ADJ_IN:
+	case api.Resource_ADJ_IN:
 		reqType = REQ_ADJ_RIB_IN
-	case Resource_ADJ_OUT:
+	case api.Resource_ADJ_OUT:
 		reqType = REQ_ADJ_RIB_OUT
 	default:
 		return fmt.Errorf("unsupported resource type: %v", arg.Resource)
 	}
 
-	var rf bgp.RouteFamily
-	switch arg.Af {
-	case AddressFamily_IPV4:
-		rf = bgp.RF_IPv4_UC
-	case AddressFamily_IPV6:
-		rf = bgp.RF_IPv6_UC
-	case AddressFamily_EVPN:
-		rf = bgp.RF_EVPN
-	default:
-		return fmt.Errorf("unsupported resource type: %v", arg.Af)
+	rf, err := convertAf2Rf(arg.Af)
+	if err != nil {
+		return err
 	}
 
 	req := NewGrpcRequest(reqType, arg.RouterId, rf, nil)
@@ -123,7 +129,7 @@ func (s *Server) GetAdjRib(arg *Arguments, stream Grpc_GetAdjRibServer) error {
 			log.Debug(err.Error())
 			return err
 		}
-		if err := stream.Send(res.Data.(*Path)); err != nil {
+		if err := stream.Send(res.Data.(*api.Path)); err != nil {
 			return err
 		}
 	}
@@ -131,27 +137,20 @@ func (s *Server) GetAdjRib(arg *Arguments, stream Grpc_GetAdjRibServer) error {
 	return nil
 }
 
-func (s *Server) GetRib(arg *Arguments, stream Grpc_GetRibServer) error {
+func (s *Server) GetRib(arg *api.Arguments, stream api.Grpc_GetRibServer) error {
 	var reqType int
 	switch arg.Resource {
-	case Resource_LOCAL:
+	case api.Resource_LOCAL:
 		reqType = REQ_LOCAL_RIB
-	case Resource_GLOBAL:
+	case api.Resource_GLOBAL:
 		reqType = REQ_GLOBAL_RIB
 	default:
 		return fmt.Errorf("unsupported resource type: %v", arg.Resource)
 	}
 
-	var rf bgp.RouteFamily
-	switch arg.Af {
-	case AddressFamily_IPV4:
-		rf = bgp.RF_IPv4_UC
-	case AddressFamily_IPV6:
-		rf = bgp.RF_IPv6_UC
-	case AddressFamily_EVPN:
-		rf = bgp.RF_EVPN
-	default:
-		return fmt.Errorf("unsupported resource type: %v", arg.Af)
+	rf, err := convertAf2Rf(arg.Af)
+	if err != nil {
+		return err
 	}
 
 	req := NewGrpcRequest(reqType, arg.RouterId, rf, nil)
@@ -162,27 +161,20 @@ func (s *Server) GetRib(arg *Arguments, stream Grpc_GetRibServer) error {
 			log.Debug(err.Error())
 			return err
 		}
-		if err := stream.Send(res.Data.(*Destination)); err != nil {
+		if err := stream.Send(res.Data.(*api.Destination)); err != nil {
 			return err
 		}
 	}
 	return nil
 }
 
-func (s *Server) neighbor(reqType int, arg *Arguments) (*Error, error) {
-	var rf bgp.RouteFamily
-	switch arg.Af {
-	case AddressFamily_IPV4:
-		rf = bgp.RF_IPv4_UC
-	case AddressFamily_IPV6:
-		rf = bgp.RF_IPv6_UC
-	case AddressFamily_EVPN:
-		rf = bgp.RF_EVPN
-	default:
-		return nil, fmt.Errorf("unsupported resource type: %v", arg.Af)
+func (s *Server) neighbor(reqType int, arg *api.Arguments) (*api.Error, error) {
+	rf, err := convertAf2Rf(arg.Af)
+	if err != nil {
+		return nil, err
 	}
 
-	none := &Error{}
+	none := &api.Error{}
 	req := NewGrpcRequest(reqType, arg.RouterId, rf, nil)
 	s.bgpServerCh <- req
 
@@ -194,46 +186,37 @@ func (s *Server) neighbor(reqType int, arg *Arguments) (*Error, error) {
 	return none, nil
 }
 
-func (s *Server) Reset(ctx context.Context, arg *Arguments) (*Error, error) {
+func (s *Server) Reset(ctx context.Context, arg *api.Arguments) (*api.Error, error) {
 	return s.neighbor(REQ_NEIGHBOR_RESET, arg)
 }
 
-func (s *Server) SoftReset(ctx context.Context, arg *Arguments) (*Error, error) {
+func (s *Server) SoftReset(ctx context.Context, arg *api.Arguments) (*api.Error, error) {
 	return s.neighbor(REQ_NEIGHBOR_SOFT_RESET, arg)
 }
 
-func (s *Server) SoftResetIn(ctx context.Context, arg *Arguments) (*Error, error) {
+func (s *Server) SoftResetIn(ctx context.Context, arg *api.Arguments) (*api.Error, error) {
 	return s.neighbor(REQ_NEIGHBOR_SOFT_RESET_IN, arg)
 }
 
-func (s *Server) SoftResetOut(ctx context.Context, arg *Arguments) (*Error, error) {
+func (s *Server) SoftResetOut(ctx context.Context, arg *api.Arguments) (*api.Error, error) {
 	return s.neighbor(REQ_NEIGHBOR_SOFT_RESET_OUT, arg)
 }
 
-func (s *Server) Shutdown(ctx context.Context, arg *Arguments) (*Error, error) {
+func (s *Server) Shutdown(ctx context.Context, arg *api.Arguments) (*api.Error, error) {
 	return s.neighbor(REQ_NEIGHBOR_SHUTDOWN, arg)
 }
 
-func (s *Server) Enable(ctx context.Context, arg *Arguments) (*Error, error) {
+func (s *Server) Enable(ctx context.Context, arg *api.Arguments) (*api.Error, error) {
 	return s.neighbor(REQ_NEIGHBOR_ENABLE, arg)
 }
 
-func (s *Server) Disable(ctx context.Context, arg *Arguments) (*Error, error) {
+func (s *Server) Disable(ctx context.Context, arg *api.Arguments) (*api.Error, error) {
 	return s.neighbor(REQ_NEIGHBOR_DISABLE, arg)
 }
 
-func (s *Server) modPath(reqType int, stream grpc.ServerStream) error {
+func (s *Server) ModPath(stream api.Grpc_ModPathServer) error {
 	for {
-		var err error
-		var arg *Arguments
-
-		if reqType == REQ_GLOBAL_ADD {
-			arg, err = stream.(Grpc_AddPathServer).Recv()
-		} else if reqType == REQ_GLOBAL_DELETE {
-			arg, err = stream.(Grpc_DeletePathServer).Recv()
-		} else {
-			return fmt.Errorf("unsupportd req: %d", reqType)
-		}
+		arg, err := stream.Recv()
 
 		if err == io.EOF {
 			return nil
@@ -241,25 +224,20 @@ func (s *Server) modPath(reqType int, stream grpc.ServerStream) error {
 			return err
 		}
 
-		if arg.Resource != Resource_GLOBAL {
+		if arg.Resource != api.Resource_GLOBAL {
 			return fmt.Errorf("unsupported resource: %s", arg.Resource)
 		}
-		prefix := make(map[string]interface{}, 1)
-		prefix["prefix"] = arg.Prefix
 
-		var rf bgp.RouteFamily
-		switch arg.Af {
-		case AddressFamily_IPV4:
-			rf = bgp.RF_IPv4_UC
-		case AddressFamily_IPV6:
-			rf = bgp.RF_IPv6_UC
-		case AddressFamily_EVPN:
-			rf = bgp.RF_EVPN
-		default:
-			return fmt.Errorf("unsupported resource type: %v", arg.Af)
+		reqType := REQ_GLOBAL_ADD
+		if arg.Path.IsWithdraw {
+			reqType = REQ_GLOBAL_DELETE
 		}
 
-		req := NewGrpcRequest(reqType, arg.RouterId, rf, prefix)
+		rf, err := convertAf2Rf(arg.Path.Nlri.Af)
+		if err != nil {
+			return nil
+		}
+		req := NewGrpcRequest(reqType, "", rf, arg.Path)
 		s.bgpServerCh <- req
 
 		res := <-req.ResponseCh
@@ -267,15 +245,15 @@ func (s *Server) modPath(reqType int, stream grpc.ServerStream) error {
 			log.Debug(err.Error())
 			return err
 		}
+
+		err = stream.Send(&api.Error{
+			Code: api.Error_SUCCESS,
+		})
+
+		if err != nil {
+			return err
+		}
 	}
-}
-
-func (s *Server) AddPath(stream Grpc_AddPathServer) error {
-	return s.modPath(REQ_GLOBAL_ADD, stream)
-}
-
-func (s *Server) DeletePath(stream Grpc_DeletePathServer) error {
-	return s.modPath(REQ_GLOBAL_DELETE, stream)
 }
 
 type GrpcRequest struct {
@@ -284,10 +262,10 @@ type GrpcRequest struct {
 	RouteFamily bgp.RouteFamily
 	ResponseCh  chan *GrpcResponse
 	Err         error
-	Data        map[string]interface{}
+	Data        interface{}
 }
 
-func NewGrpcRequest(reqType int, remoteAddr string, rf bgp.RouteFamily, d map[string]interface{}) *GrpcRequest {
+func NewGrpcRequest(reqType int, remoteAddr string, rf bgp.RouteFamily, d interface{}) *GrpcRequest {
 	r := &GrpcRequest{
 		RequestType: reqType,
 		RouteFamily: rf,
@@ -313,6 +291,6 @@ func NewGrpcServer(port int, bgpServerCh chan *GrpcRequest) *Server {
 		grpcServer:  grpcServer,
 		bgpServerCh: bgpServerCh,
 	}
-	RegisterGrpcServer(grpcServer, server)
+	api.RegisterGrpcServer(grpcServer, server)
 	return server
 }

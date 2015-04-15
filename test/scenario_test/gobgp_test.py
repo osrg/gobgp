@@ -100,7 +100,7 @@ class GoBGPTestBase(unittest.TestCase):
                 for g_path in g_paths:
                     print "best_path_Idx: " + str(best_path_idx) + ", idx: " + str(idx)
                     print g_dest
-                    print "pre: ", g_dest['prefix'], "net: ", g_path['network'], "next: ", g_path['nexthop']
+                    print "pre: ", g_dest['prefix'], "net: ", g_path['nlri']['prefix'], "next: ", g_path['nexthop']
                     if str(best_path_idx) == str(idx):
                         rep_nexthop = g_path['nexthop']
                     idx += 1
@@ -146,13 +146,12 @@ class GoBGPTestBase(unittest.TestCase):
                 continue
             for network in networks:
                 elems = network.text.split(" ")
-                prefix = elems[1].split("/")[0]
                 network = elems[1]
                 nexthop = peer_ip
                 path = Path(network, nexthop)
-                dest = Destination(prefix)
+                dest = Destination(network)
                 dest.paths.append(path)
-                quagga_config.destinations[prefix] = dest
+                quagga_config.destinations[network] = dest
                 # print "prefix: " + prefix
                 # print "network: " + network
                 # print "nexthop: " + nexthop
@@ -240,7 +239,7 @@ class GoBGPTestBase(unittest.TestCase):
         retry_count = 0
         while True:
             rib = self.ask_gobgp(type, neighbor_address)
-            paths = [p for p in rib if p['network'] == target_prefix]
+            paths = [p for p in rib if p['nlri']['prefix'] == target_prefix]
 
             if len(paths) > 0:
                 assert len(paths) == 1
@@ -264,12 +263,15 @@ class GoBGPTestBase(unittest.TestCase):
             interval = self.wait_per_retry
         print "check route %s on quagga : %s" % (target_prefix, neighbor_address)
         retry_count = 0
+
+        # quagga cli doesn't show prefix's netmask
+        quagga_prefix = target_prefix.split('/')[0]
         while True:
             tn = qaccess.login(neighbor_address)
             q_rib = qaccess.show_rib(tn)
             qaccess.logout(tn)
             for q_path in q_rib:
-                if target_prefix == q_path['Network']:
+                if quagga_prefix == q_path['Network']:
                     return q_path
 
             retry_count += 1
@@ -342,7 +344,7 @@ class GoBGPTestBase(unittest.TestCase):
                     exist = False
                     for dst in rib:
                         for path in dst['paths']:
-                            if path['network'] == p.network:
+                            if path['nlri']['prefix'] == p.network:
                                 exist = True
                                 if exist:
                                     is_nexthop_same = path['nexthop'] == p.nexthop

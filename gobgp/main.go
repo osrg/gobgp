@@ -181,7 +181,7 @@ func showRoute(pathList []*api.Path, showAge bool, showBest bool) {
 			s := bytes.NewBuffer(make([]byte, 0, 64))
 			s.WriteString("[")
 			for _, a := range attrs {
-				if a.Type == "BGP_ATTR_TYPE_AS_PATH" {
+				if a.Type == api.BGP_ATTR_TYPE_AS_PATH {
 					var ss []string
 					for _, as := range a.AsPath {
 						ss = append(ss, fmt.Sprintf("%d", as))
@@ -196,17 +196,17 @@ func showRoute(pathList []*api.Path, showAge bool, showBest bool) {
 			s := []string{}
 			for _, a := range attrs {
 				switch a.Type {
-				case "BGP_ATTR_TYPE_ORIGIN":
+				case api.BGP_ATTR_TYPE_ORIGIN:
 					s = append(s, fmt.Sprintf("{Origin: %s}", a.Origin))
-				case "BGP_ATTR_TYPE_MULTI_EXIT_DISC":
+				case api.BGP_ATTR_TYPE_MULTI_EXIT_DISC:
 					s = append(s, fmt.Sprintf("{Med: %d}", a.Metric))
-				case "BGP_ATTR_TYPE_LOCAL_PREF":
+				case api.BGP_ATTR_TYPE_LOCAL_PREF:
 					s = append(s, fmt.Sprintf("{LocalPref: %v}", a.Pref))
-				case "BGP_ATTR_TYPE_ATOMIC_AGGREGATE":
+				case api.BGP_ATTR_TYPE_ATOMIC_AGGREGATE:
 					s = append(s, "AtomicAggregate")
-				case "BGP_ATTR_TYPE_AGGREGATOR":
+				case api.BGP_ATTR_TYPE_AGGREGATOR:
 					s = append(s, fmt.Sprintf("{Aggregate: {AS: %d, Address: %s}", a.GetAggregator().As, a.GetAggregator().Address))
-				case "BGP_ATTR_TYPE_COMMUNITIES":
+				case api.BGP_ATTR_TYPE_COMMUNITIES:
 					l := []string{}
 					known := map[uint32]string{
 						0xffff0000: "planned-shut",
@@ -231,11 +231,11 @@ func showRoute(pathList []*api.Path, showAge bool, showBest bool) {
 						}
 					}
 					s = append(s, fmt.Sprintf("{Cummunity: %v}", l))
-				case "BGP_ATTR_TYPE_ORIGINATOR_ID":
+				case api.BGP_ATTR_TYPE_ORIGINATOR_ID:
 					s = append(s, fmt.Sprintf("{Originator: %v|", a.Originator))
-				case "BGP_ATTR_TYPE_CLUSTER_LIST":
+				case api.BGP_ATTR_TYPE_CLUSTER_LIST:
 					s = append(s, fmt.Sprintf("{Cluster: %v|", a.Cluster))
-				case "BGP_ATTR_TYPE_AS4_PATH", "BGP_ATTR_TYPE_MP_UNREACH_NLRI", "BGP_ATTR_TYPE_MP_REACH_NLRI", "BGP_ATTR_TYPE_NEXT_HOP", "BGP_ATTR_TYPE_AS_PATH":
+				case api.BGP_ATTR_TYPE_AS4_PATH, api.BGP_ATTR_TYPE_MP_REACH_NLRI, api.BGP_ATTR_TYPE_MP_UNREACH_NLRI, api.BGP_ATTR_TYPE_NEXT_HOP, api.BGP_ATTR_TYPE_AS_PATH:
 				default:
 					s = append(s, fmt.Sprintf("{%v: %v}", a.Type, a.Value))
 				}
@@ -251,29 +251,29 @@ func showRoute(pathList []*api.Path, showAge bool, showBest bool) {
 			}
 		}
 		if showAge {
-			fmt.Printf(format, best, p.Network, p.Nexthop, aspath(p.Attrs), formatTimedelta(p.Age), formatAttrs(p.Attrs))
+			fmt.Printf(format, best, p.Nlri.Prefix, p.Nexthop, aspath(p.Attrs), formatTimedelta(p.Age), formatAttrs(p.Attrs))
 		} else {
-			fmt.Printf(format, best, p.Network, p.Nexthop, aspath(p.Attrs), formatAttrs(p.Attrs))
+			fmt.Printf(format, best, p.Nlri.Prefix, p.Nexthop, aspath(p.Attrs), formatAttrs(p.Attrs))
 		}
 	}
 }
 
 func (x *ShowNeighborRibCommand) Execute(args []string) error {
-	var rt api.AddressFamily
+	var rt *api.AddressFamily
 	if len(args) == 0 {
 		if x.remoteIP.To4() != nil {
-			rt = api.AddressFamily_IPV4
+			rt = api.AF_IPV4_UC
 		} else {
-			rt = api.AddressFamily_IPV6
+			rt = api.AF_IPV6_UC
 		}
 	} else {
 		switch args[0] {
 		case "ipv4":
-			rt = api.AddressFamily_IPV4
+			rt = api.AF_IPV4_UC
 		case "ipv6":
-			rt = api.AddressFamily_IPV6
+			rt = api.AF_IPV6_UC
 		case "evpn":
-			rt = api.AddressFamily_EVPN
+			rt = api.AF_EVPN
 		}
 	}
 
@@ -441,6 +441,10 @@ func (x *ShowNeighborsCommand) Execute(args []string) error {
 		fmt.Printf(format, p.Conf.RemoteIp, fmt.Sprint(p.Conf.RemoteAs), timedelta[i], format_fsm(p.Info.AdminState, p.Info.BgpState), fmt.Sprint(p.Info.Advertized), fmt.Sprint(p.Info.Received), fmt.Sprint(p.Info.Accepted))
 	}
 
+	for i, p := range m {
+		fmt.Printf(format, p.Conf.RemoteIp, fmt.Sprint(p.Conf.RemoteAs), timedelta[i], format_fsm(p.Info.AdminState, p.Info.BgpState), fmt.Sprint(p.Info.Advertized), fmt.Sprint(p.Info.Received), fmt.Sprint(p.Info.Accepted))
+	}
+
 	return nil
 }
 
@@ -448,17 +452,17 @@ type ShowGlobalCommand struct {
 }
 
 func (x *ShowGlobalCommand) Execute(args []string) error {
-	var rt api.AddressFamily
+	var rt *api.AddressFamily
 	if len(args) == 0 {
-		rt = api.AddressFamily_IPV4
+		rt = api.AF_IPV4_UC
 	} else {
 		switch args[0] {
 		case "ipv4":
-			rt = api.AddressFamily_IPV4
+			rt = api.AF_IPV4_UC
 		case "ipv6":
-			rt = api.AddressFamily_IPV6
+			rt = api.AF_IPV6_UC
 		case "evpn":
-			rt = api.AddressFamily_EVPN
+			rt = api.AF_EVPN
 		}
 	}
 
@@ -524,19 +528,19 @@ func (x *ResetCommand) Execute(args []string) error {
 		return fmt.Errorf("usage: %s neighbor <router_id> [ipv4|ipv6]", x.resource)
 	}
 
-	var rt api.AddressFamily
+	var rt *api.AddressFamily
 	switch x.resource {
 	case "softreset", "softresetin", "softresetout":
 		if len(args) == 2 {
-			rt = api.AddressFamily_IPV4
+			rt = api.AF_IPV4_UC
 		} else {
 			switch args[2] {
 			case "ipv4":
-				rt = api.AddressFamily_IPV4
+				rt = api.AF_IPV4_UC
 			case "ipv6":
-				rt = api.AddressFamily_IPV6
+				rt = api.AF_IPV6_UC
 			case "evpn":
-				rt = api.AddressFamily_EVPN
+				rt = api.AF_EVPN
 			default:
 				return fmt.Errorf("unsupported rf: %s", args[2])
 			}
@@ -547,8 +551,6 @@ func (x *ResetCommand) Execute(args []string) error {
 		RouterId: args[1],
 		Af:       rt,
 	}
-
-	fmt.Println(arg)
 
 	switch x.resource {
 	case "reset":
@@ -582,53 +584,66 @@ type PathCommand struct {
 }
 
 func (x *PathCommand) Execute(args []string) error {
-	if len(args) != 3 {
+	if len(args) < 3 {
 		return fmt.Errorf("usage: %s global <af> <prefix>", x.modtype)
 	}
-	var rt api.AddressFamily
-	switch args[1] {
-	case "ipv4":
-		rt = api.AddressFamily_IPV4
-	case "ipv6":
-		rt = api.AddressFamily_IPV6
-	case "evpn":
-		rt = api.AddressFamily_EVPN
+
+	if args[0] != "global" {
+		return fmt.Errorf("unsupported resource (currently only 'global' is supported): %s", args[0])
 	}
 
-	arg := &api.Arguments{
-		Resource: api.Resource_GLOBAL,
-		Af:       rt,
-		Prefix:   args[2],
+	var rt *api.AddressFamily
+	switch args[1] {
+	case "ipv4", "v4", "4":
+		rt = api.AF_IPV4_UC
+	case "ipv6", "v6", "6":
+		rt = api.AF_IPV6_UC
+	default:
+		return fmt.Errorf("unsupported address family: %s", args[1])
+	}
+
+	path := &api.Path{}
+
+	switch rt {
+	case api.AF_IPV4_UC, api.AF_IPV6_UC:
+		path.Nlri = &api.Nlri{
+			Af:     rt,
+			Prefix: args[2],
+		}
 	}
 
 	switch x.modtype {
 	case "add":
-		stream, err := client.AddPath(context.Background())
-		if err != nil {
-			return err
-		}
-		err = stream.Send(arg)
-		if err != nil {
-			return err
-		}
-		_, err = stream.CloseAndRecv()
-		if err != nil {
-			return err
-		}
+		path.IsWithdraw = false
 	case "delete":
-		stream, err := client.DeletePath(context.Background())
-		if err != nil {
-			return err
-		}
-		err = stream.Send(arg)
-		if err != nil {
-			return err
-		}
-		_, err = stream.CloseAndRecv()
-		if err != nil {
-			return err
-		}
+		path.IsWithdraw = true
 	}
+
+	arg := &api.ModPathArguments{
+		Resource: api.Resource_GLOBAL,
+		Path:     path,
+	}
+
+	stream, err := client.ModPath(context.Background())
+	if err != nil {
+		return err
+	}
+
+	err = stream.Send(arg)
+	if err != nil {
+		return err
+	}
+
+	stream.CloseSend()
+
+	res, e := stream.Recv()
+	if e != nil {
+		return e
+	}
+	if res.Code != api.Error_SUCCESS {
+		return fmt.Errorf("error: code: %d, msg: %s", res.Code, res.Msg)
+	}
+
 	return nil
 }
 
