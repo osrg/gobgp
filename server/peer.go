@@ -72,6 +72,7 @@ type Peer struct {
 	defaultImportPolicy config.DefaultPolicyType
 	exportPolicies      []*policy.Policy
 	defaultExportPolicy config.DefaultPolicyType
+	broadcaster         Broadcaster
 }
 
 func NewPeer(g config.Global, peer config.Neighbor, serverMsgCh chan *serverMsg, peerMsgCh chan *peerMsg, peerList []*serverMsgDataPeer, isGlobalRib bool, policyMap map[string]*policy.Policy) *Peer {
@@ -85,6 +86,7 @@ func NewPeer(g config.Global, peer config.Neighbor, serverMsgCh chan *serverMsg,
 		rfMap:        make(map[bgp.RouteFamily]bool),
 		capMap:       make(map[bgp.BGPCapabilityCode]bgp.ParameterCapabilityInterface),
 		isGlobalRib:  isGlobalRib,
+		broadcaster:  NewBroadcaster(),
 	}
 	p.siblings = make(map[string]*serverMsgDataPeer)
 	for _, s := range peerList {
@@ -457,6 +459,29 @@ func (peer *Peer) handleGrpc(grpcReq *GrpcRequest) {
 		}
 		close(grpcReq.ResponseCh)
 		return
+	case REQ_MONITOR_BEST_CHANGED:
+		peer.t.Go(func() error {
+			r := peer.broadcaster.Listen()
+			for {
+				select {
+				case <-peer.t.Dying():
+					break
+				case b := <-r.C:
+					v := b.v
+					r.C <- b
+					r.C = b.c
+					for _, path := range v.([]table.Path) {
+						result := &GrpcResponse{
+							Data: path.ToApiStruct(),
+						}
+						grpcReq.ResponseCh <- result
+					}
+				}
+			}
+			close(grpcReq.ResponseCh)
+			return nil
+		})
+		return
 	case REQ_NEIGHBOR_SHUTDOWN:
 		peer.outgoing <- bgp.NewBGPNotificationMessage(bgp.BGP_ERROR_CEASE, bgp.BGP_ERROR_SUB_ADMINISTRATIVE_SHUTDOWN, nil)
 	case REQ_NEIGHBOR_RESET:
@@ -691,6 +716,7 @@ func (peer *Peer) handlePeerMsg(m *peerMsg) {
 
 		if peer.peerConfig.RouteServer.RouteServerClient || peer.isGlobalRib {
 			pList, _ = peer.rib.ProcessPaths(pList)
+			peer.broadcaster.Write(pList)
 		}
 
 		if peer.isGlobalRib {

@@ -291,7 +291,7 @@ func (server *BgpServer) handleGrpc(grpcReq *GrpcRequest) {
 		}
 		grpcReq.ResponseCh <- result
 		close(grpcReq.ResponseCh)
-	case REQ_GLOBAL_RIB, REQ_GLOBAL_ADD, REQ_GLOBAL_DELETE:
+	case REQ_GLOBAL_RIB, REQ_GLOBAL_ADD, REQ_GLOBAL_DELETE, REQ_MONITOR_BEST_CHANGED:
 		msg := &serverMsg{
 			msgType: SRV_MSG_API,
 			msgData: grpcReq,

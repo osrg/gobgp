@@ -43,6 +43,7 @@ const (
 	REQ_GLOBAL_RIB
 	REQ_GLOBAL_ADD
 	REQ_GLOBAL_DELETE
+	REQ_MONITOR_BEST_CHANGED
 )
 
 const GRPC_PORT = 8080
@@ -164,6 +165,27 @@ func (s *Server) GetRib(arg *api.Arguments, stream api.Grpc_GetRibServer) error 
 			return err
 		}
 		if err := stream.Send(res.Data.(*api.Destination)); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func (s *Server) MonitorBestChanged(arg *api.Arguments, stream api.Grpc_MonitorBestChangedServer) error {
+	rf, err := convertAf2Rf(arg.Af)
+	if err != nil {
+		return err
+	}
+
+	req := NewGrpcRequest(REQ_MONITOR_BEST_CHANGED, arg.RouterId, rf, nil)
+	s.bgpServerCh <- req
+
+	for res := range req.ResponseCh {
+		if err := res.Err(); err != nil {
+			log.Debug(err.Error())
+			return err
+		}
+		if err := stream.Send(res.Data.(*api.Path)); err != nil {
 			return err
 		}
 	}
