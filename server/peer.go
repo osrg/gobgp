@@ -400,9 +400,9 @@ func (peer *Peer) handleGrpc(grpcReq *GrpcRequest) {
 				result.Data = dst.ToApiStruct()
 				grpcReq.ResponseCh <- result
 			}
-			close(grpcReq.ResponseCh)
-			return
 		}
+		close(grpcReq.ResponseCh)
+		return
 	case REQ_NEIGHBOR_SHUTDOWN:
 		peer.outgoing <- bgp.NewBGPNotificationMessage(bgp.BGP_ERROR_CEASE, bgp.BGP_ERROR_SUB_ADMINISTRATIVE_SHUTDOWN, nil)
 	case REQ_NEIGHBOR_RESET:
