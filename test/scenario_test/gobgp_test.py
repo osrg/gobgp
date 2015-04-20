@@ -186,7 +186,8 @@ class GoBGPTestBase(unittest.TestCase):
         return True
 
     def ask_gobgp(self, what, who="", af="ipv4"):
-        cmd = "%s/%s -j -u %s -p %s show " % (CONFIG_DIR, CLI_CMD, self.gobgp_ip, self.gobgp_port)
+        af = "-a %s" % af
+        cmd = "%s/%s -j -u %s -p %s  " % (CONFIG_DIR, CLI_CMD, self.gobgp_ip, self.gobgp_port)
         if what == GLOBAL_RIB:
             cmd += " ".join([what, af])
         elif what == NEIGHBOR:
@@ -198,8 +199,9 @@ class GoBGPTestBase(unittest.TestCase):
         return result
 
     def soft_reset(self, neighbor_address, route_family, type="in"):
-        cmd = "%s/%s -j -u %s -p %s softreset%s " % (CONFIG_DIR, CLI_CMD, self.gobgp_ip, self.gobgp_port, type)
-        cmd += "neighbor %s %s" % (neighbor_address, route_family)
+        cmd = "%s/%s -j -u %s -p %s " % (CONFIG_DIR, CLI_CMD, self.gobgp_ip, self.gobgp_port)
+        cmd += "neighbor %s " % neighbor_address
+        cmd += "softreset%s -a %s" % (type, route_family)
         local(cmd)
 
     def get_paths_in_localrib(self, neighbor_address, target_prefix, retry=3, interval=5):
