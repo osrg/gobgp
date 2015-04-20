@@ -31,6 +31,24 @@ import (
 	"time"
 )
 
+const (
+	CMD_GLOBAL         = "global"
+	CMD_NEIGHBOR       = "neighbor"
+	CMD_RIB            = "rib"
+	CMD_ADD            = "add"
+	CMD_DEL            = "del"
+	CMD_LOCAL          = "local"
+	CMD_ADJ_IN         = "adj-in"
+	CMD_ADJ_OUT        = "adj-out"
+	CMD_RESET          = "reset"
+	CMD_SOFT_RESET     = "softreset"
+	CMD_SOFT_RESET_IN  = "softresetin"
+	CMD_SOFT_RESET_OUT = "softresetout"
+	CMD_SHUTDOWN       = "shutdown"
+	CMD_ENABLE         = "enable"
+	CMD_DISABLE        = "disable"
+)
+
 func formatTimedelta(d int64) string {
 	u := uint64(d)
 	neg := d < 0
@@ -112,9 +130,409 @@ func (p peers) Less(i, j int) bool {
 	return strings.Less(0, 1)
 }
 
+func connGrpc() *grpc.ClientConn {
+	timeout := grpc.WithTimeout(time.Second)
+	conn, err := grpc.Dial(fmt.Sprintf("%s:%d", globalOpts.Host, globalOpts.Port), timeout)
+	if err != nil {
+		fmt.Println(err)
+		os.Exit(1)
+	}
+	return conn
+}
+
+func requestGrpc(cmd string, eArgs []string, remoteIP net.IP) error {
+	conn := connGrpc()
+	defer conn.Close()
+	client = api.NewGrpcClient(conn)
+
+	switch cmd {
+	case CMD_GLOBAL + "_" + CMD_RIB:
+		return showGlobalRib()
+	case CMD_GLOBAL + "_" + CMD_RIB + "_" + CMD_ADD:
+		return modPath(CMD_ADD, eArgs)
+	case CMD_GLOBAL + "_" + CMD_RIB + "_" + CMD_DEL:
+		return modPath(CMD_DEL, eArgs)
+	case CMD_NEIGHBOR:
+		if len(eArgs) == 0 {
+			showNeighbors()
+		} else {
+			showNeighbor(eArgs)
+		}
+	case CMD_NEIGHBOR + "_" + CMD_LOCAL:
+		return showNeighborRib(api.Resource_LOCAL, remoteIP)
+	case CMD_NEIGHBOR + "_" + CMD_ADJ_IN:
+		return showNeighborRib(api.Resource_ADJ_IN, remoteIP)
+	case CMD_NEIGHBOR + "_" + CMD_ADJ_OUT:
+		return showNeighborRib(api.Resource_ADJ_OUT, remoteIP)
+	case CMD_NEIGHBOR + "_" + CMD_RESET:
+		return resetNeighbor(CMD_RESET, remoteIP)
+	case CMD_NEIGHBOR + "_" + CMD_SOFT_RESET:
+		return resetNeighbor(CMD_SOFT_RESET, remoteIP)
+	case CMD_NEIGHBOR + "_" + CMD_SOFT_RESET_IN:
+		return resetNeighbor(CMD_SOFT_RESET_IN, remoteIP)
+	case CMD_NEIGHBOR + "_" + CMD_SOFT_RESET_OUT:
+		return resetNeighbor(CMD_SOFT_RESET_OUT, remoteIP)
+	case CMD_NEIGHBOR + "_" + CMD_SHUTDOWN:
+		return stateChangeNeighbor(CMD_SHUTDOWN, remoteIP)
+	case CMD_NEIGHBOR + "_" + CMD_ENABLE:
+		return stateChangeNeighbor(CMD_ENABLE, remoteIP)
+	case CMD_NEIGHBOR + "_" + CMD_DISABLE:
+		return stateChangeNeighbor(CMD_DISABLE, remoteIP)
+	}
+	return nil
+}
+
+var cmds []string
+
+func extractArgs(head string) []string {
+	eArgs := make([]string, 0)
+	existHead := false
+	existRear := false
+	if head == "" {
+		existHead = true
+	}
+	for _, arg := range os.Args {
+		if existHead {
+			eArgs = append(eArgs, arg)
+			for _, cmd := range cmds {
+				if arg == cmd {
+					existRear = true
+					break
+				}
+			}
+			if existRear {
+				break
+			}
+		} else {
+			if arg == head {
+				existHead = true
+			}
+		}
+	}
+	return eArgs
+}
+
+func checkAddressFamily() (*api.AddressFamily, error) {
+	var rf *api.AddressFamily
+	var e error
+	switch subOpts.AddressFamily {
+	case "ipv4", "v4", "4":
+		rf = api.AF_IPV4_UC
+	case "ipv6", "v6", "6":
+		rf = api.AF_IPV6_UC
+	case "evpn":
+		rf = api.AF_EVPN
+	case "":
+		e = fmt.Errorf("address family is not specified")
+	default:
+		e = fmt.Errorf("unsupported address family: %s", subOpts.AddressFamily)
+	}
+	return rf, e
+}
+
 var client api.GrpcClient
 
-type ShowNeighborCommand struct {
+type GlobalCommand struct {
+}
+
+func (x *GlobalCommand) Execute(args []string) error {
+	eArgs := extractArgs(CMD_GLOBAL)
+	parser := flags.NewParser(nil, flags.Default)
+	parser.Usage = "global"
+	parser.AddCommand(CMD_RIB, "subcommand for rib of global", "", NewGlobalRibCommand(api.Resource_GLOBAL))
+	if _, err := parser.ParseArgs(eArgs); err != nil {
+		os.Exit(1)
+	}
+	return nil
+}
+
+type GlobalRibCommand struct {
+	resource api.Resource
+}
+
+func NewGlobalRibCommand(resource api.Resource) *GlobalRibCommand {
+	return &GlobalRibCommand{
+		resource: resource,
+	}
+}
+func showGlobalRib() error {
+	rt, err := checkAddressFamily()
+	if err != nil {
+		return err
+	}
+	arg := &api.Arguments{
+		Resource: api.Resource_GLOBAL,
+		Af:       rt,
+	}
+
+	stream, e := client.GetRib(context.Background(), arg)
+	if e != nil {
+		return e
+	}
+	ds := []*api.Destination{}
+	for {
+		d, e := stream.Recv()
+		if e == io.EOF {
+			break
+		} else if e != nil {
+			return e
+		}
+		ds = append(ds, d)
+	}
+
+	if globalOpts.Json {
+		j, _ := json.Marshal(ds)
+		fmt.Println(string(j))
+		return nil
+	}
+
+	ps := paths{}
+	for _, d := range ds {
+		for idx, p := range d.Paths {
+			if idx == int(d.BestPathIdx) {
+				p.Best = true
+			}
+			ps = append(ps, p)
+		}
+	}
+
+	sort.Sort(ps)
+
+	showRoute(ps, true, true)
+	return nil
+}
+func (x *GlobalRibCommand) Execute(args []string) error {
+
+	eArgs := extractArgs(CMD_RIB)
+	parser := flags.NewParser(&subOpts, flags.Default)
+	parser.Usage = "global rib [OPTIONS]\n  gobgpcli global rib"
+	parser.AddCommand(CMD_ADD, "subcommand for add route to global rib", "", NewGlobalRibAddCommand(x.resource))
+	parser.AddCommand(CMD_DEL, "subcommand for delete route from global rib", "", NewGlobalRibDelCommand(x.resource))
+	parser.ParseArgs(eArgs)
+	if len(eArgs) == 0 || (len(eArgs) < 3 && eArgs[0] == "-a") {
+		if err := requestGrpc(CMD_GLOBAL+"_"+CMD_RIB, eArgs, nil); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+type GlobalRibAddCommand struct {
+	resource api.Resource
+}
+
+func NewGlobalRibAddCommand(resource api.Resource) *GlobalRibAddCommand {
+	return &GlobalRibAddCommand{
+		resource: resource,
+	}
+}
+
+func modPath(modtype string, eArgs []string) error {
+	rf, err := checkAddressFamily()
+	if err != nil {
+		return err
+	}
+
+	path := &api.Path{}
+	var prefix, macAddr, ipAddr string
+	switch rf {
+	case api.AF_IPV4_UC, api.AF_IPV6_UC:
+		if len(eArgs) == 1 || len(eArgs) == 3 {
+			prefix = eArgs[0]
+		} else {
+			return fmt.Errorf("usage: global rib add <prefix> -a { ipv4 | ipv6 }")
+		}
+		path.Nlri = &api.Nlri{
+			Af:     rf,
+			Prefix: prefix,
+		}
+	case api.AF_EVPN:
+		if len(eArgs) == 4 {
+			macAddr = eArgs[0]
+			ipAddr = eArgs[1]
+		} else {
+			return fmt.Errorf("usage: global rib add <mac address> <ip address> -a evpn")
+		}
+		path.Nlri = &api.Nlri{
+			Af: rf,
+			EvpnNlri: &api.EVPNNlri{
+				Type: api.EVPN_TYPE_ROUTE_TYPE_MAC_IP_ADVERTISEMENT,
+				MacIpAdv: &api.EvpnMacIpAdvertisement{
+					MacAddr: macAddr,
+					IpAddr:  ipAddr,
+				},
+			},
+		}
+	}
+	switch modtype {
+	case "add":
+		path.IsWithdraw = false
+	case "del":
+		path.IsWithdraw = true
+	}
+
+	arg := &api.ModPathArguments{
+		Resource: api.Resource_GLOBAL,
+		Path:     path,
+	}
+	stream, err := client.ModPath(context.Background())
+	if err != nil {
+		return err
+	}
+	err = stream.Send(arg)
+	if err != nil {
+		return err
+	}
+	stream.CloseSend()
+
+	res, e := stream.Recv()
+	if e != nil {
+		return e
+	}
+	if res.Code != api.Error_SUCCESS {
+		return fmt.Errorf("error: code: %d, msg: %s", res.Code, res.Msg)
+	}
+	return nil
+}
+
+func (x *GlobalRibAddCommand) Execute(args []string) error {
+	eArgs := extractArgs(CMD_ADD)
+	parser := flags.NewParser(&subOpts, flags.Default)
+	parser.Usage = "global rib add <prefix> -a { ipv4 | ipv6 }\n" +
+		"    -> if -a option is ipv4 or ipv6\n" +
+		"  gobgpcli global rib add <mac address> <ip address> -a evpn\n" +
+		"    -> if -a option is evpn"
+	parser.ParseArgs(eArgs)
+	if len(eArgs) == 1 {
+		if eArgs[0] == "-h" || eArgs[0] == "--help" {
+			return nil
+		}
+	}
+	if err := requestGrpc(CMD_GLOBAL+"_"+CMD_RIB+"_"+CMD_ADD, eArgs, nil); err != nil {
+		return err
+	}
+	return nil
+}
+
+type GlobalRibDelCommand struct {
+	resource api.Resource
+}
+
+func NewGlobalRibDelCommand(resource api.Resource) *GlobalRibDelCommand {
+	return &GlobalRibDelCommand{
+		resource: resource,
+	}
+}
+
+func (x *GlobalRibDelCommand) Execute(args []string) error {
+	eArgs := extractArgs(CMD_DEL)
+	parser := flags.NewParser(&subOpts, flags.Default)
+	parser.Usage = "global rib del <prefix> -a { ipv4 | ipv6 }\n" +
+		"    -> if -a option is ipv4 or ipv6\n" +
+		"  gobgpcli global rib del <mac address> <ip address> -a evpn\n" +
+		"    -> if -a option is evpn"
+	parser.ParseArgs(eArgs)
+	if len(eArgs) == 1 {
+		if eArgs[0] == "-h" || eArgs[0] == "--help" {
+			return nil
+		}
+	}
+	if err := requestGrpc(CMD_GLOBAL+"_"+CMD_RIB+"_"+CMD_DEL, eArgs, nil); err != nil {
+		return err
+	}
+	return nil
+}
+
+type NeighborCommand struct {
+}
+
+func showNeighbors() error {
+	arg := &api.Arguments{}
+	stream, e := client.GetNeighbors(context.Background(), arg)
+	if e != nil {
+		fmt.Println(e)
+		return e
+	}
+	m := peers{}
+	for {
+		p, e := stream.Recv()
+		if e == io.EOF {
+			break
+		} else if e != nil {
+			return e
+		}
+		m = append(m, p)
+	}
+
+	if globalOpts.Json {
+		j, _ := json.Marshal(m)
+		fmt.Println(string(j))
+		return nil
+	}
+
+	if globalOpts.Quiet {
+		for _, p := range m {
+			fmt.Println(p.Conf.RemoteIp)
+		}
+		return nil
+	}
+	maxaddrlen := 0
+	maxaslen := 0
+	maxtimelen := len("Up/Down")
+	timedelta := []string{}
+
+	sort.Sort(m)
+
+	for _, p := range m {
+		if len(p.Conf.RemoteIp) > maxaddrlen {
+			maxaddrlen = len(p.Conf.RemoteIp)
+		}
+
+		if len(fmt.Sprint(p.Conf.RemoteAs)) > maxaslen {
+			maxaslen = len(fmt.Sprint(p.Conf.RemoteAs))
+		}
+		var t string
+		if p.Info.Uptime == 0 {
+			t = "never"
+		} else if p.Info.BgpState == "BGP_FSM_ESTABLISHED" {
+			t = formatTimedelta(p.Info.Uptime)
+		} else {
+			t = formatTimedelta(p.Info.Downtime)
+		}
+		if len(t) > maxtimelen {
+			maxtimelen = len(t)
+		}
+		timedelta = append(timedelta, t)
+	}
+	var format string
+	format = "%-" + fmt.Sprint(maxaddrlen) + "s" + " %" + fmt.Sprint(maxaslen) + "s" + " %" + fmt.Sprint(maxtimelen) + "s"
+	format += " %-11s |%11s %8s %8s\n"
+	fmt.Printf(format, "Peer", "AS", "Up/Down", "State", "#Advertised", "Received", "Accepted")
+	format_fsm := func(admin, fsm string) string {
+		if admin == "ADMIN_STATE_DOWN" {
+			return "Idle(Admin)"
+		}
+
+		if fsm == "BGP_FSM_IDLE" {
+			return "Idle"
+		} else if fsm == "BGP_FSM_CONNECT" {
+			return "Connect"
+		} else if fsm == "BGP_FSM_ACTIVE" {
+			return "Active"
+		} else if fsm == "BGP_FSM_OPENSENT" {
+			return "Sent"
+		} else if fsm == "BGP_FSM_OPENCONFIRM" {
+			return "Confirm"
+		} else {
+			return "Establ"
+		}
+	}
+
+	for i, p := range m {
+		fmt.Printf(format, p.Conf.RemoteIp, fmt.Sprint(p.Conf.RemoteAs), timedelta[i], format_fsm(p.Info.AdminState, p.Info.BgpState), fmt.Sprint(p.Info.Advertized), fmt.Sprint(p.Info.Received), fmt.Sprint(p.Info.Accepted))
+	}
+
+	return nil
 }
 
 func showNeighbor(args []string) error {
@@ -200,30 +618,49 @@ func showNeighbor(args []string) error {
 	return nil
 }
 
-func (x *ShowNeighborCommand) Execute(args []string) error {
-	if len(args) < 1 || len(args) > 3 {
-		// TODO: proper help
-		fmt.Print("syntax error\n")
-		return nil
-	}
+func (x *NeighborCommand) Execute(args []string) error {
+	eArgs := extractArgs(CMD_NEIGHBOR)
 
-	if len(args) == 1 {
-		showNeighbor(args)
+	if len(eArgs) == 0 {
+		if err := requestGrpc(CMD_NEIGHBOR, eArgs, nil); err != nil {
+			return err
+		}
+	} else if len(eArgs) == 1 && !(eArgs[0] == "-h" || eArgs[0] == "--help") {
+		if err := requestGrpc(CMD_NEIGHBOR, eArgs, nil); err != nil {
+			return err
+		}
 	} else {
 		parser := flags.NewParser(nil, flags.Default)
-		parser.AddCommand("local", "", "", NewShowNeighborRibCommand(args[0], api.Resource_LOCAL))
-		parser.AddCommand("adj-in", "", "", NewShowNeighborRibCommand(args[0], api.Resource_ADJ_IN))
-		parser.AddCommand("adj-out", "", "", NewShowNeighborRibCommand(args[0], api.Resource_ADJ_OUT))
-		if _, err := parser.ParseArgs(args[1:]); err != nil {
+		parser.Usage = "neighbor [ <neighbor address> ]\n  gobgpcli neighbor"
+		parser.AddCommand(CMD_LOCAL, "subcommand for local-rib of neighbor", "", NewNeighborRibCommand(eArgs[0], api.Resource_LOCAL, CMD_LOCAL))
+		parser.AddCommand(CMD_ADJ_IN, "subcommand for adj-rib-in of neighbor", "", NewNeighborRibCommand(eArgs[0], api.Resource_ADJ_IN, CMD_ADJ_IN))
+		parser.AddCommand(CMD_ADJ_OUT, "subcommand for adj-rib-out of neighbor", "", NewNeighborRibCommand(eArgs[0], api.Resource_ADJ_OUT, CMD_ADJ_OUT))
+		parser.AddCommand(CMD_RESET, "subcommand for reset the rib of neighbor", "", NewNeighborResetCommand(eArgs[0], CMD_RESET))
+		parser.AddCommand(CMD_SOFT_RESET, "subcommand for softreset the rib of neighbor", "", NewNeighborResetCommand(eArgs[0], CMD_SOFT_RESET))
+		parser.AddCommand(CMD_SOFT_RESET_IN, "subcommand for softreset the adj-rib-in of neighbor", "", NewNeighborResetCommand(eArgs[0], CMD_SOFT_RESET_IN))
+		parser.AddCommand(CMD_SOFT_RESET_OUT, "subcommand for softreset the adj-rib-out of neighbor", "", NewNeighborResetCommand(eArgs[0], CMD_SOFT_RESET_OUT))
+		parser.AddCommand(CMD_SHUTDOWN, "subcommand for shutdown to neighbor", "", NewNeighborChangeStateCommand(eArgs[0], CMD_SHUTDOWN))
+		parser.AddCommand(CMD_ENABLE, "subcommand for enable to neighbor", "", NewNeighborChangeStateCommand(eArgs[0], CMD_ENABLE))
+		parser.AddCommand(CMD_DISABLE, "subcommand for disable to neighbor", "", NewNeighborChangeStateCommand(eArgs[0], CMD_DISABLE))
+		if _, err := parser.ParseArgs(eArgs); err != nil {
 			os.Exit(1)
 		}
 	}
 	return nil
 }
 
-type ShowNeighborRibCommand struct {
+type NeighborRibCommand struct {
 	remoteIP net.IP
 	resource api.Resource
+	command  string
+}
+
+func NewNeighborRibCommand(addr string, resource api.Resource, cmd string) *NeighborRibCommand {
+	return &NeighborRibCommand{
+		remoteIP: net.ParseIP(addr),
+		resource: resource,
+		command:  cmd,
+	}
 }
 
 func showRoute(pathList []*api.Path, showAge bool, showBest bool) {
@@ -318,36 +755,21 @@ func showRoute(pathList []*api.Path, showAge bool, showBest bool) {
 	}
 }
 
-func (x *ShowNeighborRibCommand) Execute(args []string) error {
-	var rt *api.AddressFamily
-	if len(args) == 0 {
-		if x.remoteIP.To4() != nil {
-			rt = api.AF_IPV4_UC
-		} else {
-			rt = api.AF_IPV6_UC
-		}
-	} else {
-		switch args[0] {
-		case "ipv4":
-			rt = api.AF_IPV4_UC
-		case "ipv6":
-			rt = api.AF_IPV6_UC
-		case "evpn":
-			rt = api.AF_EVPN
-		}
+func showNeighborRib(resource api.Resource, remoteIP net.IP) error {
+	rt, err := checkAddressFamily()
+	if err != nil {
+		return err
 	}
-
 	arg := &api.Arguments{
-		Resource: x.resource,
+		Resource: resource,
 		Af:       rt,
-		RouterId: x.remoteIP.String(),
+		RouterId: remoteIP.String(),
 	}
 
 	ps := paths{}
 	showBest := false
 	showAge := true
-
-	switch x.resource {
+	switch resource {
 	case api.Resource_LOCAL:
 		showBest = true
 		stream, e := client.GetRib(context.Background(), arg)
@@ -405,363 +827,129 @@ func (x *ShowNeighborRibCommand) Execute(args []string) error {
 	}
 
 	sort.Sort(ps)
-
 	showRoute(ps, showAge, showBest)
 	return nil
 }
 
-func NewShowNeighborRibCommand(addr string, resource api.Resource) *ShowNeighborRibCommand {
-	return &ShowNeighborRibCommand{
+func (x *NeighborRibCommand) Execute(args []string) error {
+	eArgs := extractArgs(x.command)
+	parser := flags.NewParser(&subOpts, flags.Default)
+	parser.Usage = fmt.Sprintf("neighbor <neighbor address> %s [OPTIONS]", x.command)
+	parser.ParseArgs(eArgs)
+	if len(eArgs) != 0 && (eArgs[0] == "-h" || eArgs[0] == "--help") {
+		return nil
+	}
+	if err := requestGrpc(CMD_NEIGHBOR+"_"+x.command, eArgs, x.remoteIP); err != nil {
+		return err
+	}
+	return nil
+}
+
+type NeighborResetCommand struct {
+	remoteIP net.IP
+	command  string
+}
+
+func NewNeighborResetCommand(addr string, cmd string) *NeighborResetCommand {
+	return &NeighborResetCommand{
 		remoteIP: net.ParseIP(addr),
-		resource: resource,
+		command:  cmd,
 	}
 }
 
-type ShowNeighborsCommand struct {
-}
-
-func (x *ShowNeighborsCommand) Execute(args []string) error {
-	arg := &api.Arguments{}
-	stream, e := client.GetNeighbors(context.Background(), arg)
-	if e != nil {
-		fmt.Println(e)
-		return e
+func resetNeighbor(cmd string, remoteIP net.IP) error {
+	rt, err := checkAddressFamily()
+	if err != nil {
+		return err
 	}
-	m := peers{}
-	for {
-		p, e := stream.Recv()
-		if e == io.EOF {
-			break
-		} else if e != nil {
-			return e
-		}
-		m = append(m, p)
-	}
-
-	if globalOpts.Json {
-		j, _ := json.Marshal(m)
-		fmt.Println(string(j))
-		return nil
-	}
-
-	if globalOpts.Quiet {
-		for _, p := range m {
-			fmt.Println(p.Conf.RemoteIp)
-		}
-		return nil
-	}
-	maxaddrlen := 0
-	maxaslen := 0
-	maxtimelen := len("Up/Down")
-	timedelta := []string{}
-
-	sort.Sort(m)
-
-	for _, p := range m {
-		if len(p.Conf.RemoteIp) > maxaddrlen {
-			maxaddrlen = len(p.Conf.RemoteIp)
-		}
-
-		if len(fmt.Sprint(p.Conf.RemoteAs)) > maxaslen {
-			maxaslen = len(fmt.Sprint(p.Conf.RemoteAs))
-		}
-		var t string
-		if p.Info.Uptime == 0 {
-			t = "never"
-		} else if p.Info.BgpState == "BGP_FSM_ESTABLISHED" {
-			t = formatTimedelta(p.Info.Uptime)
-		} else {
-			t = formatTimedelta(p.Info.Downtime)
-		}
-		if len(t) > maxtimelen {
-			maxtimelen = len(t)
-		}
-		timedelta = append(timedelta, t)
-	}
-	var format string
-	format = "%-" + fmt.Sprint(maxaddrlen) + "s" + " %" + fmt.Sprint(maxaslen) + "s" + " %" + fmt.Sprint(maxtimelen) + "s"
-	format += " %-11s |%11s %8s %8s\n"
-	fmt.Printf(format, "Peer", "AS", "Up/Down", "State", "#Advertised", "Received", "Accepted")
-	format_fsm := func(admin, fsm string) string {
-		if admin == "ADMIN_STATE_DOWN" {
-			return "Idle(Admin)"
-		}
-
-		if fsm == "BGP_FSM_IDLE" {
-			return "Idle"
-		} else if fsm == "BGP_FSM_CONNECT" {
-			return "Connect"
-		} else if fsm == "BGP_FSM_ACTIVE" {
-			return "Active"
-		} else if fsm == "BGP_FSM_OPENSENT" {
-			return "Sent"
-		} else if fsm == "BGP_FSM_OPENCONFIRM" {
-			return "Confirm"
-		} else {
-			return "Establ"
-		}
-	}
-
-	for i, p := range m {
-		fmt.Printf(format, p.Conf.RemoteIp, fmt.Sprint(p.Conf.RemoteAs), timedelta[i], format_fsm(p.Info.AdminState, p.Info.BgpState), fmt.Sprint(p.Info.Advertized), fmt.Sprint(p.Info.Received), fmt.Sprint(p.Info.Accepted))
-	}
-
-	return nil
-}
-
-type ShowGlobalCommand struct {
-}
-
-func (x *ShowGlobalCommand) Execute(args []string) error {
-	var rt *api.AddressFamily
-	if len(args) == 0 {
-		rt = api.AF_IPV4_UC
-	} else {
-		switch args[0] {
-		case "ipv4":
-			rt = api.AF_IPV4_UC
-		case "ipv6":
-			rt = api.AF_IPV6_UC
-		case "evpn":
-			rt = api.AF_EVPN
-		}
-	}
-
 	arg := &api.Arguments{
-		Resource: api.Resource_GLOBAL,
+		RouterId: remoteIP.String(),
 		Af:       rt,
 	}
-	stream, e := client.GetRib(context.Background(), arg)
-	if e != nil {
-		return e
-	}
-	ds := []*api.Destination{}
-	for {
-		d, e := stream.Recv()
-		if e == io.EOF {
-			break
-		} else if e != nil {
-			return e
-		}
-		ds = append(ds, d)
-	}
-
-	if globalOpts.Json {
-		j, _ := json.Marshal(ds)
-		fmt.Println(string(j))
-		return nil
-	}
-
-	ps := paths{}
-	for _, d := range ds {
-		for idx, p := range d.Paths {
-			if idx == int(d.BestPathIdx) {
-				p.Best = true
-			}
-			ps = append(ps, p)
-		}
-	}
-
-	sort.Sort(ps)
-
-	showRoute(ps, true, true)
-	return nil
-}
-
-type ShowCommand struct {
-}
-
-func (x *ShowCommand) Execute(args []string) error {
-	parser := flags.NewParser(nil, flags.Default)
-	parser.AddCommand("neighbor", "", "", &ShowNeighborCommand{})
-	parser.AddCommand("neighbors", "", "", &ShowNeighborsCommand{})
-	parser.AddCommand("global", "", "", &ShowGlobalCommand{})
-	if _, err := parser.ParseArgs(args); err != nil {
-		os.Exit(1)
-	}
-	return nil
-}
-
-type ResetCommand struct {
-	resource string
-}
-
-func (x *ResetCommand) Execute(args []string) error {
-	if len(args) < 2 {
-		return fmt.Errorf("usage: %s neighbor <router_id> [ipv4|ipv6]", x.resource)
-	}
-
-	var rt *api.AddressFamily
-	switch x.resource {
-	case "softreset", "softresetin", "softresetout":
-		if len(args) == 2 {
-			rt = api.AF_IPV4_UC
-		} else {
-			switch args[2] {
-			case "ipv4":
-				rt = api.AF_IPV4_UC
-			case "ipv6":
-				rt = api.AF_IPV6_UC
-			case "evpn":
-				rt = api.AF_EVPN
-			default:
-				return fmt.Errorf("unsupported rf: %s", args[2])
-			}
-		}
-	}
-
-	arg := &api.Arguments{
-		RouterId: args[1],
-		Af:       rt,
-	}
-
-	switch x.resource {
-	case "reset":
+	switch cmd {
+	case CMD_RESET:
 		client.Reset(context.Background(), arg)
-	case "softreset":
+	case CMD_SOFT_RESET:
 		client.SoftReset(context.Background(), arg)
-	case "softresetin":
+	case CMD_SOFT_RESET_IN:
 		client.SoftResetIn(context.Background(), arg)
-	case "softresetout":
+	case CMD_SOFT_RESET_OUT:
 		client.SoftResetOut(context.Background(), arg)
-	case "shutdown":
+	}
+	return nil
+}
+
+func (x *NeighborResetCommand) Execute(args []string) error {
+	eArgs := extractArgs(x.command)
+	parser := flags.NewParser(&subOpts, flags.Default)
+	parser.Usage = fmt.Sprintf("neighbor <neighbor address> %s [OPTIONS]", x.command)
+	parser.ParseArgs(eArgs)
+	if len(eArgs) != 0 && (eArgs[0] == "-h" || eArgs[0] == "--help") {
+		return nil
+	}
+	if err := requestGrpc(CMD_NEIGHBOR+"_"+x.command, eArgs, x.remoteIP); err != nil {
+		return err
+	}
+	return nil
+}
+
+type NeighborChangeStateCommand struct {
+	remoteIP net.IP
+	command  string
+}
+
+func NewNeighborChangeStateCommand(addr string, cmd string) *NeighborChangeStateCommand {
+	return &NeighborChangeStateCommand{
+		remoteIP: net.ParseIP(addr),
+		command:  cmd,
+	}
+}
+
+func stateChangeNeighbor(cmd string, remoteIP net.IP) error {
+	arg := &api.Arguments{
+		RouterId: remoteIP.String(),
+	}
+	switch cmd {
+	case CMD_SHUTDOWN:
 		client.Shutdown(context.Background(), arg)
-	case "enable":
+	case CMD_ENABLE:
 		client.Enable(context.Background(), arg)
-	case "disable":
+	case CMD_DISABLE:
 		client.Disable(context.Background(), arg)
-	default:
-		return fmt.Errorf("unsupported command: %s", x.resource)
 	}
 	return nil
 }
 
-func NewResetCommand(resource string) *ResetCommand {
-	return &ResetCommand{
-		resource: resource,
-	}
-}
-
-type PathCommand struct {
-	modtype string
-}
-
-func (x *PathCommand) Execute(args []string) error {
-	if len(args) < 3 {
-		return fmt.Errorf("usage: %s global <af> <prefix>", x.modtype)
-	}
-
-	if args[0] != "global" {
-		return fmt.Errorf("unsupported resource (currently only 'global' is supported): %s", args[0])
-	}
-
-	var rt *api.AddressFamily
-	switch args[1] {
-	case "ipv4", "v4", "4":
-		rt = api.AF_IPV4_UC
-	case "ipv6", "v6", "6":
-		rt = api.AF_IPV6_UC
-	case "evpn":
-		rt = api.AF_EVPN
-	default:
-		return fmt.Errorf("unsupported address family: %s", args[1])
-	}
-
-	path := &api.Path{}
-
-	switch rt {
-	case api.AF_IPV4_UC, api.AF_IPV6_UC:
-		path.Nlri = &api.Nlri{
-			Af:     rt,
-			Prefix: args[2],
-		}
-	case api.AF_EVPN:
-		path.Nlri = &api.Nlri{
-			Af: rt,
-			EvpnNlri: &api.EVPNNlri{
-				Type: api.EVPN_TYPE_ROUTE_TYPE_MAC_IP_ADVERTISEMENT,
-				MacIpAdv: &api.EvpnMacIpAdvertisement{
-					MacAddr: args[2],
-					IpAddr:  args[3],
-				},
-			},
-		}
-	}
-
-	switch x.modtype {
-	case "add":
-		path.IsWithdraw = false
-	case "delete":
-		path.IsWithdraw = true
-	}
-
-	arg := &api.ModPathArguments{
-		Resource: api.Resource_GLOBAL,
-		Path:     path,
-	}
-
-	stream, err := client.ModPath(context.Background())
-	if err != nil {
+func (x *NeighborChangeStateCommand) Execute(args []string) error {
+	eArgs := extractArgs(x.command)
+	if err := requestGrpc(CMD_NEIGHBOR+"_"+x.command, eArgs, x.remoteIP); err != nil {
 		return err
 	}
-
-	err = stream.Send(arg)
-	if err != nil {
-		return err
-	}
-
-	stream.CloseSend()
-
-	res, e := stream.Recv()
-	if e != nil {
-		return e
-	}
-	if res.Code != api.Error_SUCCESS {
-		return fmt.Errorf("error: code: %d, msg: %s", res.Code, res.Msg)
-	}
-
 	return nil
-}
-
-func NewPathCommand(modtype string) *PathCommand {
-	return &PathCommand{
-		modtype: modtype,
-	}
 }
 
 var globalOpts struct {
 	Host  string `short:"u" long:"url" description:"specifying an url" default:"127.0.0.1"`
 	Port  int    `short:"p" long:"port" description:"specifying a port" default:"8080"`
-	Debug bool   `short:"d" long:"debug"`
-	Quiet bool   `short:"q" long:"quiet"`
-	Json  bool   `short:"j" long:"json"`
+	Debug bool   `short:"d" long:"debug" description:"use debug"`
+	Quiet bool   `short:"q" long:"quiet" description:"use quiet"`
+	Json  bool   `short:"j" long:"json" description:"use json format to output format"`
+}
+
+var subOpts struct {
+	AddressFamily string `short:"a" long:"address-family" description:"specifying an address family" default:"ipv4"`
 }
 
 func main() {
+	cmds = []string{CMD_GLOBAL, CMD_NEIGHBOR, CMD_RIB, CMD_ADD, CMD_DEL, CMD_LOCAL, CMD_ADJ_IN, CMD_ADJ_OUT,
+		CMD_RESET, CMD_SOFT_RESET, CMD_SOFT_RESET_IN, CMD_SOFT_RESET_OUT, CMD_SHUTDOWN, CMD_ENABLE, CMD_DISABLE}
+
+	eArgs := extractArgs("")
 	parser := flags.NewParser(&globalOpts, flags.Default)
-	parser.Parse()
-	timeout := grpc.WithTimeout(time.Second)
-	conn, err := grpc.Dial(fmt.Sprintf("%s:%d", globalOpts.Host, globalOpts.Port), timeout)
-	if err != nil {
-		fmt.Println(err)
+	parser.AddCommand(CMD_GLOBAL, "subcommand for global", "", &GlobalCommand{})
+	parser.AddCommand(CMD_NEIGHBOR, "subcommand for neighbor", "", &NeighborCommand{})
+	if _, err := parser.ParseArgs(eArgs); err != nil {
 		os.Exit(1)
 	}
-	defer conn.Close()
-	client = api.NewGrpcClient(conn)
 
-	parser.AddCommand("show", "show stuff", "get information", &ShowCommand{})
-	parser.AddCommand("reset", "show stuff", "get information", NewResetCommand("reset"))
-	parser.AddCommand("softreset", "show stuff", "get information", NewResetCommand("softreset"))
-	parser.AddCommand("softresetin", "show stuff", "get information", NewResetCommand("softresetin"))
-	parser.AddCommand("softresetout", "show stuff", "get information", NewResetCommand("softresetout"))
-	parser.AddCommand("shutdown", "show stuff", "get information", NewResetCommand("shutdown"))
-	parser.AddCommand("enable", "show stuff", "get information", NewResetCommand("enable"))
-	parser.AddCommand("disable", "show stuff", "get information", NewResetCommand("disable"))
-	parser.AddCommand("add", "show stuff", "get information", NewPathCommand("add"))
-	parser.AddCommand("delete", "show stuff", "get information", NewPathCommand("delete"))
-
-	if _, err := parser.Parse(); err != nil {
-		fmt.Println(err)
-		os.Exit(1)
-	}
 }
