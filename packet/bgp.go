@@ -719,6 +719,7 @@ type RouteDistinguisherInterface interface {
 	DecodeFromBytes([]byte) error
 	Serialize() ([]byte, error)
 	Len() int
+	String() string
 }
 
 type DefaultRouteDistinguisher struct {
@@ -739,95 +740,93 @@ func (rd *DefaultRouteDistinguisher) Serialize() ([]byte, error) {
 	return buf, nil
 }
 
+func (rd *DefaultRouteDistinguisher) String() string {
+	return fmt.Sprintf("%v", rd.Value)
+}
+
 func (rd *DefaultRouteDistinguisher) Len() int { return 8 }
 
-type RouteDistinguisherTwoOctetASValue struct {
+type RouteDistinguisherTwoOctetAS struct {
+	DefaultRouteDistinguisher
 	Admin    uint16
 	Assigned uint32
 }
 
-type RouteDistinguisherTwoOctetAS struct {
-	DefaultRouteDistinguisher
-	Value RouteDistinguisherTwoOctetASValue
-}
-
 func (rd *RouteDistinguisherTwoOctetAS) Serialize() ([]byte, error) {
 	buf := make([]byte, 6)
-	binary.BigEndian.PutUint16(buf[0:], rd.Value.Admin)
-	binary.BigEndian.PutUint32(buf[2:], rd.Value.Assigned)
-	rd.DefaultRouteDistinguisher.Value = buf
+	binary.BigEndian.PutUint16(buf[0:], rd.Admin)
+	binary.BigEndian.PutUint32(buf[2:], rd.Assigned)
+	rd.Value = buf
 	return rd.DefaultRouteDistinguisher.Serialize()
+}
+
+func (rd *RouteDistinguisherTwoOctetAS) String() string {
+	return fmt.Sprintf("%d:%d", rd.Admin, rd.Assigned)
 }
 
 func NewRouteDistinguisherTwoOctetAS(admin uint16, assigned uint32) *RouteDistinguisherTwoOctetAS {
 	return &RouteDistinguisherTwoOctetAS{
-		DefaultRouteDistinguisher{
+		DefaultRouteDistinguisher: DefaultRouteDistinguisher{
 			Type: BGP_RD_TWO_OCTET_AS,
 		},
-		RouteDistinguisherTwoOctetASValue{
-			Admin:    admin,
-			Assigned: assigned,
-		},
+		Admin:    admin,
+		Assigned: assigned,
 	}
-}
-
-type RouteDistinguisherIPAddressASValue struct {
-	Admin    net.IP
-	Assigned uint16
 }
 
 type RouteDistinguisherIPAddressAS struct {
 	DefaultRouteDistinguisher
-	Value RouteDistinguisherIPAddressASValue
+	Admin    net.IP
+	Assigned uint16
 }
 
 func (rd *RouteDistinguisherIPAddressAS) Serialize() ([]byte, error) {
 	buf := make([]byte, 6)
-	copy(buf[0:], rd.Value.Admin.To4())
-	binary.BigEndian.PutUint16(buf[4:], rd.Value.Assigned)
-	rd.DefaultRouteDistinguisher.Value = buf
+	copy(buf[0:], rd.Admin.To4())
+	binary.BigEndian.PutUint16(buf[4:], rd.Assigned)
+	rd.Value = buf
 	return rd.DefaultRouteDistinguisher.Serialize()
+}
+
+func (rd *RouteDistinguisherIPAddressAS) String() string {
+	return fmt.Sprintf("%s:%d", rd.Admin.String(), rd.Assigned)
 }
 
 func NewRouteDistinguisherIPAddressAS(admin string, assigned uint16) *RouteDistinguisherIPAddressAS {
 	return &RouteDistinguisherIPAddressAS{
-		DefaultRouteDistinguisher{
+		DefaultRouteDistinguisher: DefaultRouteDistinguisher{
 			Type: BGP_RD_IPV4_ADDRESS,
 		},
-		RouteDistinguisherIPAddressASValue{
-			Admin:    net.ParseIP(admin),
-			Assigned: assigned,
-		},
+		Admin:    net.ParseIP(admin),
+		Assigned: assigned,
 	}
-}
-
-type RouteDistinguisherFourOctetASValue struct {
-	Admin    uint32
-	Assigned uint16
 }
 
 type RouteDistinguisherFourOctetAS struct {
 	DefaultRouteDistinguisher
-	Value RouteDistinguisherFourOctetASValue
+	Admin    uint32
+	Assigned uint16
 }
 
 func (rd *RouteDistinguisherFourOctetAS) Serialize() ([]byte, error) {
 	buf := make([]byte, 6)
-	binary.BigEndian.PutUint32(buf[0:], rd.Value.Admin)
-	binary.BigEndian.PutUint16(buf[4:], rd.Value.Assigned)
-	rd.DefaultRouteDistinguisher.Value = buf
+	binary.BigEndian.PutUint32(buf[0:], rd.Admin)
+	binary.BigEndian.PutUint16(buf[4:], rd.Assigned)
+	rd.Value = buf
 	return rd.DefaultRouteDistinguisher.Serialize()
+}
+
+func (rd *RouteDistinguisherFourOctetAS) String() string {
+	return fmt.Sprintf("%d:%d", rd.Admin, rd.Assigned)
 }
 
 func NewRouteDistinguisherFourOctetAS(admin uint32, assigned uint16) *RouteDistinguisherFourOctetAS {
 	return &RouteDistinguisherFourOctetAS{
-		DefaultRouteDistinguisher{
+		DefaultRouteDistinguisher: DefaultRouteDistinguisher{
 			Type: BGP_RD_FOUR_OCTET_AS,
 		},
-		RouteDistinguisherFourOctetASValue{
-			Admin:    admin,
-			Assigned: assigned,
-		},
+		Admin:    admin,
+		Assigned: assigned,
 	}
 }
 
@@ -839,23 +838,11 @@ func getRouteDistinguisher(data []byte) RouteDistinguisherInterface {
 	rdtype := binary.BigEndian.Uint16(data[0:2])
 	switch rdtype {
 	case BGP_RD_TWO_OCTET_AS:
-		rd := &RouteDistinguisherTwoOctetAS{}
-		rd.Type = rdtype
-		rd.Value.Admin = binary.BigEndian.Uint16(data[2:4])
-		rd.Value.Assigned = binary.BigEndian.Uint32(data[4:8])
-		return rd
+		return NewRouteDistinguisherTwoOctetAS(binary.BigEndian.Uint16(data[2:4]), binary.BigEndian.Uint32(data[4:8]))
 	case BGP_RD_IPV4_ADDRESS:
-		rd := &RouteDistinguisherIPAddressAS{}
-		rd.Type = rdtype
-		rd.Value.Admin = data[2:6]
-		rd.Value.Assigned = binary.BigEndian.Uint16(data[6:8])
-		return rd
+		return NewRouteDistinguisherIPAddressAS(net.IP(data[2:6]).String(), binary.BigEndian.Uint16(data[6:8]))
 	case BGP_RD_FOUR_OCTET_AS:
-		rd := &RouteDistinguisherFourOctetAS{}
-		rd.Type = rdtype
-		rd.Value.Admin = binary.BigEndian.Uint32(data[2:6])
-		rd.Value.Assigned = binary.BigEndian.Uint16(data[6:8])
-		return rd
+		return NewRouteDistinguisherFourOctetAS(binary.BigEndian.Uint32(data[2:6]), binary.BigEndian.Uint16(data[6:8]))
 	}
 	rd := &RouteDistinguisherUnknown{}
 	rd.Type = rdtype
