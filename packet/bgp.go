@@ -1441,6 +1441,19 @@ func (er *EVPNMacIPAdvertisementRoute) Serialize() ([]byte, error) {
 	return buf, nil
 }
 
+func (er *EVPNMacIPAdvertisementRoute) ToApiStruct() *api.EvpnMacIpAdvertisement {
+	return &api.EvpnMacIpAdvertisement{
+		MacAddr:    er.MacAddress.String(),
+		MacAddrLen: uint32(er.MacAddressLength),
+		IpAddr:     er.IPAddress.String(),
+		IpAddrLen:  uint32(er.IPAddressLength),
+		Rd:         er.RD.String(),
+		Esi:        er.ESI.String(),
+		Etag:       er.ETag,
+		Labels:     er.Labels,
+	}
+}
+
 func (er *EVPNMacIPAdvertisementRoute) String() string {
 	return fmt.Sprintf("[type:macadv][rd:%s][esi:%s][etag:%d][mac:%s][ip:%s][labels:%v]", er.RD, er.ESI.String(), er.ETag, er.MacAddress, er.IPAddress, er.Labels)
 }
@@ -1487,6 +1500,15 @@ func (er *EVPNMulticastEthernetTagRoute) Serialize() ([]byte, error) {
 		return nil, err
 	}
 	return buf, nil
+}
+
+func (er *EVPNMulticastEthernetTagRoute) ToApiStruct() *api.EvpnInclusiveMulticastEthernetTag {
+	return &api.EvpnInclusiveMulticastEthernetTag{
+		Rd:        er.RD.String(),
+		Etag:      er.ETag,
+		IpAddr:    er.IPAddress.String(),
+		IpAddrLen: uint32(er.IPAddressLength),
+	}
 }
 
 func (er *EVPNMulticastEthernetTagRoute) String() string {
@@ -1625,9 +1647,21 @@ func (n *EVPNNLRI) String() string {
 }
 
 func (n *EVPNNLRI) ToApiStruct() *api.Nlri {
+	evpn := &api.EVPNNlri{}
+	switch n.RouteType {
+	case EVPN_ROUTE_TYPE_MAC_IP_ADVERTISEMENT:
+		evpn.Type = api.EVPN_TYPE_ROUTE_TYPE_MAC_IP_ADVERTISEMENT
+		macIpAdv := n.RouteTypeData.(*EVPNMacIPAdvertisementRoute).ToApiStruct()
+		evpn.MacIpAdv = macIpAdv
+	case EVPN_INCLUSIVE_MULTICAST_ETHERNET_TAG:
+		evpn.Type = api.EVPN_TYPE_INCLUSIVE_MULTICAST_ETHERNET_TAG
+		eTag := n.RouteTypeData.(*EVPNMulticastEthernetTagRoute).ToApiStruct()
+		evpn.MulticastEtag = eTag
+	}
 	return &api.Nlri{
-		Af:     &api.AddressFamily{api.AFI(n.AFI()), api.SAFI(n.SAFI())},
-		Prefix: n.String(),
+		Af:       &api.AddressFamily{api.AFI(n.AFI()), api.SAFI(n.SAFI())},
+		Prefix:   n.String(),
+		EvpnNlri: evpn,
 	}
 }
 
