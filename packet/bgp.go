@@ -1292,6 +1292,19 @@ func (er *EVPNMacIPAdvertisementRoute) Serialize() ([]byte, error) {
 	return buf, nil
 }
 
+func (er *EVPNMacIPAdvertisementRoute) ToApiStruct() *api.EvpnMacIpAdvertisement {
+	return &api.EvpnMacIpAdvertisement{
+		MacAddr:    er.MacAddress.String(),
+		MacAddrLen: uint32(er.MacAddressLength),
+		IpAddr:     er.IPAddress.String(),
+		IpAddrLen:  uint32(er.IPAddressLength),
+		Rd:         er.RD.String(),
+		Esi:        er.ESI.String(),
+		Etag:       er.ETag,
+		Labels:     er.Labels,
+	}
+}
+
 type EVPNMulticastEthernetTagRoute struct {
 	RD              RouteDistinguisherInterface
 	ETag            uint32
@@ -1487,9 +1500,17 @@ func (n *EVPNNLRI) String() string {
 }
 
 func (n *EVPNNLRI) ToApiStruct() *api.Nlri {
+	evpn := &api.EVPNNlri{}
+	switch n.RouteType {
+	case EVPN_ROUTE_TYPE_MAC_IP_ADVERTISEMENT:
+		evpn.Type = api.EVPN_TYPE_ROUTE_TYPE_MAC_IP_ADVERTISEMENT
+		macIpAdv := n.RouteTypeData.(*EVPNMacIPAdvertisementRoute).ToApiStruct()
+		evpn.MacIpAdv = macIpAdv
+	}
 	return &api.Nlri{
-		Af:     &api.AddressFamily{api.AFI(n.AFI()), api.SAFI(n.SAFI())},
-		Prefix: n.String(),
+		Af:       &api.AddressFamily{api.AFI(n.AFI()), api.SAFI(n.SAFI())},
+		Prefix:   n.String(),
+		EvpnNlri: evpn,
 	}
 }
 
