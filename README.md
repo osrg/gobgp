@@ -21,7 +21,9 @@ No dependency hell (library, package, etc) thanks to Go.
 
 ### Using GoBGP
  * [Getting Started](https://github.com/osrg/gobgp/blob/master/docs/sources/getting-started.md)
- * [CLI operations](https://github.com/osrg/gobgp/blob/master/docs/sources/cli-operations.md)
+ * CLI
+  * [Typical operation examples](https://github.com/osrg/gobgp/blob/master/docs/sources/cli-operations.md)
+  * [Complete syntax](https://github.com/osrg/gobgp/blob/master/docs/sources/cli-command-syntax.md)
  * [Route Server](https://github.com/osrg/gobgp/blob/master/docs/sources/route-server.md)
  * [Policy Filter](https://github.com/osrg/gobgp/blob/master/docs/sources/filter.md)
  * [EVPN](https://github.com/osrg/gobgp/blob/master/docs/sources/evpn.md)
