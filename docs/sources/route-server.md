@@ -52,14 +52,14 @@ GoBGP implements multiple RIBs, that is, each peer has own local
 RIB. Let's check respectively.
 
 ```
-$ gobgp show neighbor 10.0.255.1 local
+$ gobgp neighbor 10.0.255.1 local
    Network            Next Hop        AS_PATH    Age        Attrs
 *> 10.3.0.0/24        10.0.255.2      [65002]    00:05:50   [{Origin: 0} {Med: 0}]
 *> 192.168.2.0/24     10.0.255.2      [65002]    00:05:50   [{Origin: 0} {Med: 0}]
 ```
 
 ```
-$ gobgp show neighbor 10.0.255.2 local
+$ gobgp neighbor 10.0.255.2 local
    Network            Next Hop        AS_PATH    Age        Attrs
 *> 10.3.0.0/16        10.0.255.1      [65001]    00:06:12   [{Origin: 0} {Med: 0}]
 *> 10.3.0.1/32        10.0.255.1      [65001]    00:06:12   [{Origin: 0} {Med: 0}]

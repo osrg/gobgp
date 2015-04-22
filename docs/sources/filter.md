@@ -92,7 +92,7 @@ If the *pd2* sets *MatchSetOptions* to 0, any of match conditions meets, the pol
 Confirm that 10.0.255.1 neighbor advertises two routes.
 
 ```
-$ gobgp show neighbor 10.0.255.1 adj-in
+$ gobgp neighbor 10.0.255.1 adj-in
    Network            Next Hop        AS_PATH    Age        Attrs
    10.3.0.0/16        10.0.255.1      [65001]    00:51:57   [{Origin: 0} {Med: 0}]
    10.33.0.0/16       10.0.255.1      [65001]    00:51:57   [{Origin: 0} {Med: 0}]
@@ -101,10 +101,10 @@ $ gobgp show neighbor 10.0.255.1 adj-in
 Now let's check out if the policy works as expected.
    
 ```
-$ gobgp show neighbor 10.0.255.2 local
+$ gobgp neighbor 10.0.255.2 local
    Network            Next Hop        AS_PATH    Age        Attrs
 *> 10.3.0.0/16        10.0.255.1      [65001]    00:49:36   [{Origin: 0} {Med: 0}]
-$ gobgp show neighbor 10.0.255.3 local
+$ gobgp neighbor 10.0.255.3 local
    Network            Next Hop        AS_PATH    Age        Attrs
 *> 10.3.0.0/16        10.0.255.1      [65001]    00:49:38   [{Origin: 0} {Med: 0}]
 *> 10.33.0.0/16       10.0.255.1      [65001]    00:49:38   [{Origin: 0} {Med: 0}]

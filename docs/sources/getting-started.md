@@ -59,7 +59,7 @@ $ sudo -E gobgpd -f gobgpd.conf
 Let's show the information of all the peers.
 
 ```
-$ gobgp show neighbors
+$ gobgp neighbor
 Peer          AS  Up/Down State       |#Advertised Received Accepted
 10.0.255.1 65001 00:00:14 Establ      |          1        5        5
 10.0.255.2 65002 00:00:14 Establ      |          5        2        2
@@ -68,7 +68,7 @@ Peer          AS  Up/Down State       |#Advertised Received Accepted
 Want to the details of a particular peer?
 
 ```
-$ gobgp show neighbor 10.0.255.1
+$ gobgp neighbor 10.0.255.1
 BGP neighbor is 10.0.255.1, remote AS 65001
   BGP version 4, remote router ID 192.168.0.1
   BGP state = BGP_FSM_ESTABLISHED, up for 00:01:49
@@ -106,14 +106,14 @@ Check out the global table.
 You also can look at adjacent rib-in and rib-out:
 
 ```
-$ gobgp show neighbor 10.0.255.1 adj-in
+$ gobgp neighbor 10.0.255.1 adj-in
    Network            Next Hop        AS_PATH    Age        Attrs
    10.3.0.0/16        10.0.255.1      [65001]    00:06:55   [{Origin: 0} {Med: 0}]
    10.3.0.0/24        10.0.255.1      [65001]    00:06:55   [{Origin: 0} {Med: 0}]
    10.3.0.0/32        10.0.255.1      [65001]    00:06:55   [{Origin: 0} {Med: 0}]
    10.3.0.1/32        10.0.255.1      [65001]    00:06:55   [{Origin: 0} {Med: 0}]
    10.33.0.0/16       10.0.255.1      [65001]    00:06:55   [{Origin: 0} {Med: 0}]
-$ gobgp show neighbor 10.0.255.1 adj-out
+$ gobgp neighbor 10.0.255.1 adj-out
    Network            Next Hop        AS_PATH    Attrs
    192.168.2.0/24     10.0.255.254    [64512 65002] [{Origin: 0} {Cummunity: [65001:65002 NO_EXPORT]}]
 ```
