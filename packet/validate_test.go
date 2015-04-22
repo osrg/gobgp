@@ -171,7 +171,7 @@ func Test_Validate_mandatory_missing(t *testing.T) {
 	assert.Equal(uint8(BGP_ERROR_UPDATE_MESSAGE_ERROR), e.TypeCode)
 	assert.Equal(uint8(BGP_ERROR_SUB_MISSING_WELL_KNOWN_ATTRIBUTE), e.SubTypeCode)
 	missing, _ := binary.Uvarint(e.Data)
-	assert.Equal(uint8(1), missing)
+	assert.Equal(uint64(1), missing)
 }
 
 func Test_Validate_mandatory_missing_nocheck(t *testing.T) {

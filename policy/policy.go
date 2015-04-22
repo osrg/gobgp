@@ -29,7 +29,7 @@ import (
 type RouteType int
 
 const (
-	ROUTE_TYPE_NONE = iota
+	ROUTE_TYPE_NONE RouteType = iota
 	ROUTE_TYPE_ACCEPT
 	ROUTE_TYPE_REJECT
 )
@@ -161,7 +161,7 @@ func (c *PrefixConditions) evaluatePrefix(path table.Path) bool {
 
 	for _, cp := range c.PrefixList {
 		if IpPrefixCalculate(path, cp) {
-            log.Debug("prefix matched : ",cp)
+			log.Debug("prefix matched : ", cp)
 			return true
 		}
 	}
