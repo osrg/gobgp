@@ -29,6 +29,7 @@ import quagga_access as qaccess
 class GoBGPTestBase(unittest.TestCase):
 
     gobgp_ip = GOBGP_IP
+    gobgp_ipv6 = GOBGP_ADDRESS_0[IPv6]
     gobgp_port = "8080"
     base_dir = CONFIG_DIRR
     gobgp_config_file = CONFIG_DIRR + "gobgpd.conf"
@@ -43,6 +44,7 @@ class GoBGPTestBase(unittest.TestCase):
 
     def setUp(self):
         self.quagga_configs = []
+        self.use_ipv6_gobgp = False
 
     def get_neighbor_state(self, neighbor_address):
         print "check neighbor state for %s" % (neighbor_address)
@@ -187,7 +189,12 @@ class GoBGPTestBase(unittest.TestCase):
 
     def ask_gobgp(self, what, who="", af="ipv4"):
         af = "-a %s" % af
-        cmd = "%s/%s -j -u %s -p %s  " % (CONFIG_DIR, CLI_CMD, self.gobgp_ip, self.gobgp_port)
+
+        gobgp_ip = self.gobgp_ip
+        if self.use_ipv6_gobgp:
+            gobgp_ip = self.gobgp_ipv6
+
+        cmd = "%s/%s -j -u %s -p %s  " % (CONFIG_DIR, CLI_CMD, gobgp_ip, self.gobgp_port)
         if what == GLOBAL_RIB:
             cmd += " ".join([what, af])
         elif what == NEIGHBOR:
@@ -198,16 +205,21 @@ class GoBGPTestBase(unittest.TestCase):
         result = json.loads(j)
         return result
 
-    def soft_reset(self, neighbor_address, route_family, type="in"):
-        cmd = "%s/%s -j -u %s -p %s " % (CONFIG_DIR, CLI_CMD, self.gobgp_ip, self.gobgp_port)
+    def soft_reset(self, neighbor_address, af, type="in"):
+
+        gobgp_ip = self.gobgp_ip
+        if self.use_ipv6_gobgp:
+            gobgp_ip = self.gobgp_ipv6
+
+        cmd = "%s/%s -j -u %s -p %s " % (CONFIG_DIR, CLI_CMD, gobgp_ip, self.gobgp_port)
         cmd += "neighbor %s " % neighbor_address
-        cmd += "softreset%s -a %s" % (type, route_family)
+        cmd += "softreset%s -a %s" % (type, af)
         local(cmd)
 
-    def get_paths_in_localrib(self, neighbor_address, target_prefix, retry=3, interval=5):
+    def get_paths_in_localrib(self, neighbor_address, target_prefix, af="ipv4", retry=3, interval=5):
         retry_count = 0
         while True:
-            local_rib = self.ask_gobgp(LOCAL_RIB, neighbor_address)
+            local_rib = self.ask_gobgp(LOCAL_RIB, neighbor_address, af)
             g_dest = [dest for dest in local_rib if dest['prefix'] == target_prefix]
             if len(g_dest) > 0:
                 assert len(g_dest) == 1
@@ -225,22 +237,22 @@ class GoBGPTestBase(unittest.TestCase):
         print "destination is none"
         return None
 
-    def get_adj_rib_in(self, neighbor_address, target_prefix, retry=3, interval=-1):
+    def get_adj_rib_in(self, neighbor_address, target_prefix, retry=3, interval=-1, af=IPv4):
         if interval < 0:
             interval = self.wait_per_retry
-        return self.get_adj_rib(neighbor_address, target_prefix, retry, interval, type=ADJ_RIB_IN)
+        return self.get_adj_rib(neighbor_address, target_prefix, af, retry, interval, type=ADJ_RIB_IN)
 
 
-    def get_adj_rib_out(self, neighbor_address, target_prefix, retry=3, interval=-1):
+    def get_adj_rib_out(self, neighbor_address, target_prefix, retry=3, interval=-1, af=IPv4):
         if interval < 0:
             interval = self.wait_per_retry
-        return self.get_adj_rib(neighbor_address, target_prefix, retry, interval, type=ADJ_RIB_OUT)
+        return self.get_adj_rib(neighbor_address, target_prefix, af, retry, interval, type=ADJ_RIB_OUT)
 
 
-    def get_adj_rib(self, neighbor_address, target_prefix, retry, interval, type=ADJ_RIB_IN):
+    def get_adj_rib(self, neighbor_address, target_prefix, af, retry, interval, type=ADJ_RIB_IN):
         retry_count = 0
         while True:
-            rib = self.ask_gobgp(type, neighbor_address)
+            rib = self.ask_gobgp(type, neighbor_address, af)
             paths = [p for p in rib if p['nlri']['prefix'] == target_prefix]
 
             if len(paths) > 0:
@@ -260,20 +272,18 @@ class GoBGPTestBase(unittest.TestCase):
 
 
     # get route information on quagga
-    def get_routing_table(self, neighbor_address, target_prefix, retry=3, interval=-1):
+    def get_route(self, neighbor_address, target_prefix, retry=3, interval=-1, af=IPv4):
         if interval < 0:
             interval = self.wait_per_retry
         print "check route %s on quagga : %s" % (target_prefix, neighbor_address)
         retry_count = 0
 
-        # quagga cli doesn't show prefix's netmask
-        quagga_prefix = target_prefix.split('/')[0]
         while True:
             tn = qaccess.login(neighbor_address)
-            q_rib = qaccess.show_rib(tn)
+            q_rib = qaccess.lookup_prefix(tn, target_prefix, af)
             qaccess.logout(tn)
             for q_path in q_rib:
-                if quagga_prefix == q_path['Network']:
+                if target_prefix == q_path['Network']:
                     return q_path
 
             retry_count += 1
