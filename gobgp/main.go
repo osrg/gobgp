@@ -132,7 +132,15 @@ func (p peers) Less(i, j int) bool {
 
 func connGrpc() *grpc.ClientConn {
 	timeout := grpc.WithTimeout(time.Second)
-	conn, err := grpc.Dial(fmt.Sprintf("%s:%d", globalOpts.Host, globalOpts.Port), timeout)
+
+	// determine IP address version
+	host := net.ParseIP(globalOpts.Host)
+	target := fmt.Sprintf("%s:%d", globalOpts.Host, globalOpts.Port)
+	if host.To4() == nil {
+		target = fmt.Sprintf("[%s]:%d", globalOpts.Host, globalOpts.Port)
+	}
+
+	conn, err := grpc.Dial(target, timeout)
 	if err != nil {
 		fmt.Println(err)
 		os.Exit(1)
