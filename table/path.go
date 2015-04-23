@@ -403,20 +403,6 @@ func (ipv6p *IPv6Path) String() string {
 	return str
 }
 
-func (ipv6p *IPv6Path) MarshalJSON() ([]byte, error) {
-	return json.Marshal(struct {
-		Network string
-		Nexthop string
-		Attrs   []bgp.PathAttributeInterface
-		Age     int64
-	}{
-		Network: ipv6p.getPrefix(),
-		Nexthop: ipv6p.PathDefault.GetNexthop().String(),
-		Attrs:   ipv6p.PathDefault.getPathAttrs(),
-		Age:     int64(time.Now().Sub(ipv6p.PathDefault.timestamp).Seconds()),
-	})
-}
-
 type IPv4VPNPath struct {
 	*PathDefault
 }
