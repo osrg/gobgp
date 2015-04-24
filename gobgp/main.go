@@ -125,8 +125,12 @@ func (p peers) Less(i, j int) bool {
 		}
 		return false
 	}
-	strings := sort.StringSlice{cidr2prefix(fmt.Sprintf("%s/32", p1.String())),
-		cidr2prefix(fmt.Sprintf("%s/32", p2.String()))}
+	addrlen := 128
+	if p1Isv4 {
+		addrlen = 32
+	}
+	strings := sort.StringSlice{cidr2prefix(fmt.Sprintf("%s/%d", p1.String(), addrlen)),
+		cidr2prefix(fmt.Sprintf("%s/%d", p2.String(), addrlen))}
 	return strings.Less(0, 1)
 }
 
