@@ -96,11 +96,11 @@ Check out the global table.
    Network            Next Hop        AS_PATH    Age        Attrs
 *> 10.3.0.0/16        10.0.255.1      [65001]    00:05:41   [{Origin: 0} {Med: 0}]
 *> 10.3.0.0/24        10.0.255.1      [65001]    00:05:41   [{Origin: 0} {Med: 0}]
-*  10.3.0.0/24        10.0.255.2      [65002]    00:05:41   [{Origin: 0} {Med: 111} {Cummunity: [65001:65002 NO_EXPORT]}]
+*  10.3.0.0/24        10.0.255.2      [65002]    00:05:41   [{Origin: 0} {Med: 111} {Community: [65001:65002 NO_EXPORT]}]
 *> 10.3.0.0/32        10.0.255.1      [65001]    00:05:41   [{Origin: 0} {Med: 0}]
 *> 10.3.0.1/32        10.0.255.1      [65001]    00:05:41   [{Origin: 0} {Med: 0}]
 *> 10.33.0.0/16       10.0.255.1      [65001]    00:05:41   [{Origin: 0} {Med: 0}]
-*> 192.168.2.0/24     10.0.255.2      [65002]    00:05:41   [{Origin: 0} {Med: 111} {Cummunity: [65001:65002 NO_EXPORT]}]
+*> 192.168.2.0/24     10.0.255.2      [65002]    00:05:41   [{Origin: 0} {Med: 111} {Community: [65001:65002 NO_EXPORT]}]
 ```
 
 You also can look at adjacent rib-in and rib-out:
@@ -115,5 +115,5 @@ $ gobgp neighbor 10.0.255.1 adj-in
    10.33.0.0/16       10.0.255.1      [65001]    00:06:55   [{Origin: 0} {Med: 0}]
 $ gobgp neighbor 10.0.255.1 adj-out
    Network            Next Hop        AS_PATH    Attrs
-   192.168.2.0/24     10.0.255.254    [64512 65002] [{Origin: 0} {Cummunity: [65001:65002 NO_EXPORT]}]
+   192.168.2.0/24     10.0.255.254    [64512 65002] [{Origin: 0} {Community: [65001:65002 NO_EXPORT]}]
 ```

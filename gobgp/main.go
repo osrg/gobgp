@@ -739,7 +739,7 @@ func showRoute(pathList []*api.Path, showAge bool, showBest bool) {
 							l = append(l, fmt.Sprintf("%d:%d", (0xffff0000&v)>>16, 0xffff&v))
 						}
 					}
-					s = append(s, fmt.Sprintf("{Cummunity: %v}", l))
+					s = append(s, fmt.Sprintf("{Community: %v}", l))
 				case api.BGP_ATTR_TYPE_ORIGINATOR_ID:
 					s = append(s, fmt.Sprintf("{Originator: %v|", a.Originator))
 				case api.BGP_ATTR_TYPE_CLUSTER_LIST:
