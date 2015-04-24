@@ -18,4 +18,5 @@ How to use
    $ source ./env.sh
    $ PYTHONPATH=. ./bin/pyang --plugindir $GOBGP_PATH/tools/pyang_plugins \
    -p $YANG_DIR/bgp -p $YANG_DIR/policy \
-   -f golang $YANG_DIR/bgp/bgp.yang |gofmt > $GOBGP_PATH/config/bgp_configs.go
+   -f golang $YANG_DIR/bgp/bgp.yang \
+   --augment $YANG_DIR/bgp/bgp-policy.yang |gofmt > $GOBGP_PATH/config/bgp_configs.go

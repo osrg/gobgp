@@ -14,6 +14,7 @@
 # limitations under the License.
 
 
+import optparse
 import StringIO
 import sys
 from pyang import plugin
@@ -46,6 +47,19 @@ class GolangPlugin(plugin.PyangPlugin):
     def add_output_format(self, fmts):
         fmts['golang'] = self
 
+
+
+    def add_opts(self, optparser):
+        optlist = [
+            optparse.make_option("--augment",
+                                 dest="augment",
+                                 help="Yang file which has augment statements"),
+            ]
+        g = optparser.add_option_group("GolangPlugin specific options")
+        g.add_options(optlist)
+
+
+
     def emit(self, ctx, modules, fd):
 
         ctx.golang_identity_map = {}
@@ -57,6 +71,19 @@ class GolangPlugin(plugin.PyangPlugin):
         ctx.module_deps = []
 
         check_module_deps(ctx, modules[0])
+
+        # load augment module
+        if ctx.opts.augment:
+            aug_mod_path = ctx.opts.augment
+            try:
+                fd = open(aug_mod_path)
+                text = fd.read()
+            except IOError as ex:
+                sys.stderr.write("error %s: %s\n" % (aug_mod_path, str(ex)))
+                sys.exit(1)
+            aug_mod = ctx.add_module(aug_mod_path, text)
+            check_module_deps(ctx, aug_mod)
+
         # visit yang statements
         visit_modules(ctx)
         # emit bgp_configs

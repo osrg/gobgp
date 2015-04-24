@@ -89,6 +89,86 @@ const (
 	DEFAULT_POLICY_TYPE_REJECT_ROUTE
 )
 
+// typedef for typedef bgp-pol:bgp-set-community-option-type
+type BgpSetCommunityOptionType int
+
+const (
+	BGP_SET_COMMUNITY_OPTION_TYPE_ADD = iota
+	BGP_SET_COMMUNITY_OPTION_TYPE_REMOVE
+	BGP_SET_COMMUNITY_OPTION_TYPE_REPLACE
+	BGP_SET_COMMUNITY_OPTION_TYPE_NULL
+)
+
+// typedef for typedef bgp-pol:bgp-community-regexp-type
+type BgpCommunityRegexpType string
+
+// typedef for typedef bgp-pol:bgp-set-med-type
+type BgpSetMedType string
+
+// typedef for typedef bgp-pol:bgp-ext-community-type
+type BgpExtCommunityType string
+
+// typedef for typedef bgp-pol:bgp-as-path-prepend-repeat
+type BgpAsPathPrependRepeat uint8
+
+// typedef for typedef bgp-pol:bgp-std-community-type
+type BgpStdCommunityType string
+
+// typedef for typedef bgp-pol:bgp-next-hop-type
+type BgpNextHopType string
+
+// typedef for typedef bgp-pol:bgp-well-known-community-type
+type BgpWellKnownCommunityType int
+
+const (
+	BGP_WELL_KNOWN_COMMUNITY_TYPE_INTERNET = iota
+	BGP_WELL_KNOWN_COMMUNITY_TYPE_NO_EXPORT
+	BGP_WELL_KNOWN_COMMUNITY_TYPE_NO_ADVERTISE
+	BGP_WELL_KNOWN_COMMUNITY_TYPE_NO_EXPORT_SUBCONFED
+)
+
+//struct for container bgp-pol:set-ext-community
+type SetExtCommunity struct {
+	// original -> bgp-pol:communities
+	//original type is list of union
+	Communities []string
+	// original -> bgp-pol:options
+	Options BgpSetCommunityOptionType
+}
+
+//struct for container bgp-pol:set-community
+type SetCommunity struct {
+	// original -> bgp-pol:communities
+	//original type is list of union
+	Communities []string
+	// original -> bgp-pol:options
+	Options BgpSetCommunityOptionType
+}
+
+//struct for container bgp-pol:set-as-path-prepend
+type SetAsPathPrepend struct {
+	// original -> bgp-pol:repeat-n
+	RepeatN uint8
+}
+
+//struct for container bgp-pol:bgp-actions
+type BgpActions struct {
+	// original -> bgp-pol:set-as-path-prepend
+	SetAsPathPrepend SetAsPathPrepend
+	// original -> bgp-pol:set-community
+	SetCommunity SetCommunity
+	// original -> bgp-pol:set-ext-community
+	SetExtCommunity SetExtCommunity
+	// original -> bgp-pol:set-route-origin
+	SetRouteOrigin BgpOriginAttrType
+	// original -> bgp-pol:set-local-pref
+	SetLocalPref uint32
+	// original -> bgp-pol:set-next-hop
+	SetNextHop BgpNextHopType
+	// original -> bgp-pol:set-med
+	SetMed BgpSetMedType
+}
+
 //struct for container rpol:igp-actions
 type IgpActions struct {
 	// original -> rpol:set-tag
@@ -105,6 +185,50 @@ type Actions struct {
 	RejectRoute bool
 	// original -> rpol:igp-actions
 	IgpActions IgpActions
+	// original -> bgp-pol:bgp-actions
+	BgpActions BgpActions
+}
+
+//struct for container bgp-pol:as-path-length
+type AsPathLength struct {
+	// original -> ptypes:operator
+	Operator string
+	// original -> ptypes:value
+	Value uint32
+}
+
+//struct for container bgp-pol:community-count
+type CommunityCount struct {
+	// original -> ptypes:operator
+	Operator string
+	// original -> ptypes:value
+	Value uint32
+}
+
+//struct for container bgp-pol:bgp-conditions
+type BgpConditions struct {
+	// original -> bgp-pol:match-community-set
+	MatchCommunitySet string
+	// original -> bgp-pol:match-ext-community-set
+	MatchExtCommunitySet string
+	// original -> bgp-pol:match-as-path-set
+	MatchAsPathSet string
+	// original -> bgp-pol:med-eq
+	MedEq uint32
+	// original -> bgp-pol:origin-eq
+	OriginEq BgpOriginAttrType
+	// original -> bgp-pol:next-hop-in
+	//original type is list of inet:ip-address
+	NextHopIn []net.IP
+	// original -> bgp-pol:local-pref-eq
+	LocalPrefEq uint32
+	// original -> bgp-pol:community-count
+	CommunityCount CommunityCount
+	// original -> bgp-pol:as-path-length
+	AsPathLength AsPathLength
+	// original -> bgp-pol:route-type
+	//bgp-pol:route-type's original type is enumeration
+	RouteType string
 }
 
 //struct for container rpol:igp-conditions
@@ -127,6 +251,8 @@ type Conditions struct {
 	InstallProtocolEq InstallProtocolType
 	// original -> rpol:igp-conditions
 	IgpConditions IgpConditions
+	// original -> bgp-pol:bgp-conditions
+	BgpConditions BgpConditions
 }
 
 //struct for container rpol:statement
@@ -145,6 +271,42 @@ type PolicyDefinition struct {
 	Name string
 	// original -> rpol:statement
 	StatementList []Statement
+}
+
+//struct for container bgp-pol:as-path-set
+type AsPathSet struct {
+	// original -> bgp-pol:as-path-set-name
+	AsPathSetName string
+	// original -> bgp-pol:as-path-set-members
+	AsPathSetMembers []string
+}
+
+//struct for container bgp-pol:ext-community-set
+type ExtCommunitySet struct {
+	// original -> bgp-pol:ext-community-set-name
+	ExtCommunitySetName string
+	// original -> bgp-pol:ext-community-members
+	//original type is list of union
+	ExtCommunityMembers []string
+}
+
+//struct for container bgp-pol:community-set
+type CommunitySet struct {
+	// original -> bgp-pol:community-set-name
+	CommunitySetName string
+	// original -> bgp-pol:community-members
+	//original type is list of union
+	CommunityMembers []string
+}
+
+//struct for container bgp-pol:bgp-defined-sets
+type BgpDefinedSets struct {
+	// original -> bgp-pol:community-set
+	CommunitySetList []CommunitySet
+	// original -> bgp-pol:ext-community-set
+	ExtCommunitySetList []ExtCommunitySet
+	// original -> bgp-pol:as-path-set
+	AsPathSetList []AsPathSet
 }
 
 //struct for container rpol:neighbor-info
@@ -187,6 +349,8 @@ type DefinedSets struct {
 	PrefixSetList []PrefixSet
 	// original -> rpol:neighbor-set
 	NeighborSetList []NeighborSet
+	// original -> bgp-pol:bgp-defined-sets
+	BgpDefinedSets BgpDefinedSets
 }
 
 //struct for container rpol:routing-policy
