@@ -54,6 +54,8 @@ func convertAf2Rf(af *api.AddressFamily) (bgp.RouteFamily, error) {
 		return bgp.RF_IPv6_UC, nil
 	} else if af.Equal(api.AF_EVPN) {
 		return bgp.RF_EVPN, nil
+	} else if af.Equal(api.AF_ENCAP) {
+		return bgp.RF_ENCAP, nil
 	}
 
 	return bgp.RouteFamily(0), fmt.Errorf("unsupported address family: %v", af)
@@ -235,7 +237,7 @@ func (s *Server) ModPath(stream api.Grpc_ModPathServer) error {
 
 		rf, err := convertAf2Rf(arg.Path.Nlri.Af)
 		if err != nil {
-			return nil
+			return err
 		}
 		req := NewGrpcRequest(reqType, "", rf, arg.Path)
 		s.bgpServerCh <- req

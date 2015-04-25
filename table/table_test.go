@@ -131,7 +131,7 @@ func TableCreatePath(msgs []*ProcessMessage) []Path {
 		nlriList := updateMsgT.NLRI
 		pathAttributes := updateMsgT.PathAttributes
 		nlri_info := nlriList[0]
-		pathT[i] = CreatePath(msg.fromPeer, &nlri_info, pathAttributes, false, time.Now())
+		pathT[i], _ = CreatePath(msg.fromPeer, &nlri_info, pathAttributes, false, time.Now())
 	}
 	return pathT
 }

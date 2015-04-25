@@ -133,6 +133,14 @@ const (
 	TUNNEL_TYPE_VXLAN_GRE   TunnelType = 12
 )
 
+type EncapSubTLVType uint8
+
+const (
+	ENCAP_SUBTLV_TYPE_ENCAPSULATION EncapSubTLVType = 1
+	ENCAP_SUBTLV_TYPE_PROTOCOL      EncapSubTLVType = 2
+	ENCAP_SUBTLV_TYPE_COLOR         EncapSubTLVType = 4
+)
+
 const (
 	_ = iota
 	BGP_MSG_OPEN
@@ -3219,26 +3227,131 @@ func NewPathAttributeAs4Aggregator(as uint32, address string) *PathAttributeAs4A
 	}
 }
 
-type TunnelEncapSubTLV struct {
-	Type  uint8
-	Len   int
+type TunnelEncapSubTLVValue interface {
+	Serialize() ([]byte, error)
+	ToApiStruct() *api.TunnelEncapSubTLV
+}
+
+type TunnelEncapSubTLVDefault struct {
 	Value []byte
 }
 
+func (t *TunnelEncapSubTLVDefault) Serialize() ([]byte, error) {
+	return t.Value, nil
+}
+
+func (t *TunnelEncapSubTLVDefault) ToApiStruct() *api.TunnelEncapSubTLV {
+	return &api.TunnelEncapSubTLV{
+		Type:  api.ENCAP_SUBTLV_TYPE_UNKNOWN_SUBTLV_TYPE,
+		Value: string(t.Value),
+	}
+}
+
+type TunnelEncapSubTLVEncapuslation struct {
+	Key    uint32 // this represent both SessionID for L2TPv3 case and GRE-key for GRE case (RFC5512 4.)
+	Cookie []byte
+}
+
+func (t *TunnelEncapSubTLVEncapuslation) Serialize() ([]byte, error) {
+	buf := make([]byte, 4)
+	binary.BigEndian.PutUint32(buf, t.Key)
+	return append(buf, t.Cookie...), nil
+}
+
+func (t *TunnelEncapSubTLVEncapuslation) ToApiStruct() *api.TunnelEncapSubTLV {
+	return &api.TunnelEncapSubTLV{
+		Type:   api.ENCAP_SUBTLV_TYPE_ENCAPSULATION,
+		Key:    t.Key,
+		Cookie: string(t.Cookie),
+	}
+}
+
+type TunnelEncapSubTLVProtocol struct {
+	Protocol uint16
+}
+
+func (t *TunnelEncapSubTLVProtocol) Serialize() ([]byte, error) {
+	buf := make([]byte, 2)
+	binary.BigEndian.PutUint16(buf, t.Protocol)
+	return buf, nil
+}
+
+func (t *TunnelEncapSubTLVProtocol) ToApiStruct() *api.TunnelEncapSubTLV {
+	return &api.TunnelEncapSubTLV{
+		Type:     api.ENCAP_SUBTLV_TYPE_PROTOCOL,
+		Protocol: uint32(t.Protocol),
+	}
+}
+
+type TunnelEncapSubTLVColor struct {
+	Color uint32
+}
+
+func (t *TunnelEncapSubTLVColor) Serialize() ([]byte, error) {
+	buf := make([]byte, 8)
+	buf[0] = byte(EC_TYPE_TRANSITIVE_OPAQUE)
+	buf[1] = byte(EC_SUBTYPE_COLOR)
+	binary.BigEndian.PutUint32(buf[4:], t.Color)
+	return buf, nil
+}
+
+func (t *TunnelEncapSubTLVColor) ToApiStruct() *api.TunnelEncapSubTLV {
+	return &api.TunnelEncapSubTLV{
+		Type:  api.ENCAP_SUBTLV_TYPE_COLOR,
+		Color: t.Color,
+	}
+}
+
+type TunnelEncapSubTLV struct {
+	Type  EncapSubTLVType
+	Len   int
+	Value TunnelEncapSubTLVValue
+}
+
 func (p *TunnelEncapSubTLV) Serialize() ([]byte, error) {
-	buf := make([]byte, 2, 2+len(p.Value))
-	buf = append(buf, p.Value...)
-	buf[0] = p.Type
+	buf := make([]byte, 2)
+	bbuf, err := p.Value.Serialize()
+	if err != nil {
+		return nil, err
+	}
+	buf = append(buf, bbuf...)
+	buf[0] = byte(p.Type)
 	p.Len = len(buf) - 2
 	buf[1] = byte(p.Len)
 	return buf, nil
 }
 
-func (p *TunnelEncapSubTLV) ToApiStruct() *api.TunnelEncapSubTLV {
-	return &api.TunnelEncapSubTLV{
-		Type:  uint32(p.Type),
-		Value: string(p.Value),
+func (p *TunnelEncapSubTLV) DecodeFromBytes(data []byte) error {
+	switch p.Type {
+	case ENCAP_SUBTLV_TYPE_ENCAPSULATION:
+		if len(data) < 4 {
+			return fmt.Errorf("Not all TunnelEncapSubTLV bytes available")
+		}
+		key := binary.BigEndian.Uint32(data[:4])
+		p.Value = &TunnelEncapSubTLVEncapuslation{
+			Key:    key,
+			Cookie: data[4:],
+		}
+	case ENCAP_SUBTLV_TYPE_PROTOCOL:
+		if len(data) < 2 {
+			return fmt.Errorf("Not all TunnelEncapSubTLV bytes available")
+		}
+		protocol := binary.BigEndian.Uint16(data[:2])
+		p.Value = &TunnelEncapSubTLVProtocol{protocol}
+	case ENCAP_SUBTLV_TYPE_COLOR:
+		if len(data) < 8 {
+			return fmt.Errorf("Not all TunnelEncapSubTLV bytes available")
+		}
+		color := binary.BigEndian.Uint32(data[4:])
+		p.Value = &TunnelEncapSubTLVColor{color}
+	default:
+		p.Value = &TunnelEncapSubTLVDefault{data}
 	}
+	return nil
+}
+
+func (p *TunnelEncapSubTLV) ToApiStruct() *api.TunnelEncapSubTLV {
+	return p.Value.ToApiStruct()
 }
 
 type TunnelEncapTLV struct {
@@ -3253,16 +3366,18 @@ func (t *TunnelEncapTLV) DecodeFromBytes(data []byte) error {
 		if len(data) < curr+2 {
 			break
 		}
-		subType := data[curr]
+		subType := EncapSubTLVType(data[curr])
 		l := int(data[curr+1])
 		if len(data) < curr+2+l {
 			return fmt.Errorf("Not all TunnelEncapSubTLV bytes available")
 		}
 		v := data[curr+2 : curr+2+l]
 		subTlv := &TunnelEncapSubTLV{
-			Type:  subType,
-			Len:   l,
-			Value: v,
+			Type: subType,
+		}
+		err := subTlv.DecodeFromBytes(v)
+		if err != nil {
+			return err
 		}
 		t.Value = append(t.Value, subTlv)
 		curr += 2 + l

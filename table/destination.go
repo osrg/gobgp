@@ -1041,3 +1041,15 @@ func (evpnd *EVPNDestination) MarshalJSON() ([]byte, error) {
 		BestPathIdx: idx,
 	})
 }
+
+type EncapDestination struct {
+	*DestinationDefault
+}
+
+func NewEncapDestination(nlri bgp.AddrPrefixInterface) *EncapDestination {
+	d := NewDestinationDefault(nlri)
+	d.ROUTE_FAMILY = bgp.RF_ENCAP
+	return &EncapDestination{
+		DestinationDefault: d,
+	}
+}

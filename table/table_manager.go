@@ -42,7 +42,7 @@ func (p *ProcessMessage) nlri2Path(now time.Time) []Path {
 		// define local variable to pass nlri's address to CreatePath
 		var nlri bgp.NLRInfo = nlri_info
 		// create Path object
-		path := CreatePath(p.fromPeer, &nlri, pathAttributes, false, now)
+		path, _ := CreatePath(p.fromPeer, &nlri, pathAttributes, false, now)
 		pathList = append(pathList, path)
 	}
 	return pathList
@@ -56,7 +56,7 @@ func (p *ProcessMessage) withdraw2Path(now time.Time) []Path {
 		// define local variable to pass nlri's address to CreatePath
 		var w bgp.WithdrawnRoute = nlriWithdraw
 		// create withdrawn Path object
-		path := CreatePath(p.fromPeer, &w, pathAttributes, true, now)
+		path, _ := CreatePath(p.fromPeer, &w, pathAttributes, true, now)
 		pathList = append(pathList, path)
 	}
 	return pathList
@@ -79,7 +79,7 @@ func (p *ProcessMessage) mpreachNlri2Path(now time.Time) []Path {
 	for _, mp := range attrList {
 		nlri_info := mp.Value
 		for _, nlri := range nlri_info {
-			path := CreatePath(p.fromPeer, nlri, pathAttributes, false, now)
+			path, _ := CreatePath(p.fromPeer, nlri, pathAttributes, false, now)
 			pathList = append(pathList, path)
 		}
 	}
@@ -104,7 +104,7 @@ func (p *ProcessMessage) mpunreachNlri2Path(now time.Time) []Path {
 		nlri_info := mp.Value
 
 		for _, nlri := range nlri_info {
-			path := CreatePath(p.fromPeer, nlri, pathAttributes, true, now)
+			path, _ := CreatePath(p.fromPeer, nlri, pathAttributes, true, now)
 			pathList = append(pathList, path)
 		}
 	}
@@ -141,7 +141,8 @@ func NewTableManager(owner string, rfList []bgp.RouteFamily) *TableManager {
 			t.Tables[bgp.RF_IPv4_VPN] = NewIPv4VPNTable(0)
 		case bgp.RF_EVPN:
 			t.Tables[bgp.RF_EVPN] = NewEVPNTable(0)
-
+		case bgp.RF_ENCAP:
+			t.Tables[bgp.RF_ENCAP] = NewEncapTable()
 		}
 	}
 	t.owner = owner

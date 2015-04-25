@@ -209,7 +209,8 @@ func (pd *PathDefault) Clone(isWithdraw bool) Path {
 		newPathAttrs[i] = v
 	}
 
-	return CreatePath(pd.source, nlri, newPathAttrs, isWithdraw, pd.timestamp)
+	path, _ := CreatePath(pd.source, nlri, newPathAttrs, isWithdraw, pd.timestamp)
+	return path
 }
 
 func (pd *PathDefault) GetRouteFamily() bgp.RouteFamily {
@@ -311,18 +312,11 @@ func (pi *PathDefault) String() string {
 }
 
 func (pi *PathDefault) getPrefix() string {
-	switch nlri := pi.nlri.(type) {
-	case *bgp.NLRInfo:
-		return nlri.IPAddrPrefix.IPAddrPrefixDefault.String()
-	case *bgp.WithdrawnRoute:
-		return nlri.IPAddrPrefix.IPAddrPrefixDefault.String()
-	}
-	log.Fatal()
-	return ""
+	return pi.nlri.String()
 }
 
 // create Path object based on route family
-func CreatePath(source *PeerInfo, nlri bgp.AddrPrefixInterface, attrs []bgp.PathAttributeInterface, isWithdraw bool, now time.Time) Path {
+func CreatePath(source *PeerInfo, nlri bgp.AddrPrefixInterface, attrs []bgp.PathAttributeInterface, isWithdraw bool, now time.Time) (Path, error) {
 
 	rf := bgp.RouteFamily(int(nlri.AFI())<<16 | int(nlri.SAFI()))
 	log.Debugf("CreatePath afi: %d, safi: %d ", int(nlri.AFI()), nlri.SAFI())
@@ -341,8 +335,13 @@ func CreatePath(source *PeerInfo, nlri bgp.AddrPrefixInterface, attrs []bgp.Path
 	case bgp.RF_EVPN:
 		log.Debugf("CreatePath RouteFamily : %s", bgp.RF_EVPN.String())
 		path = NewEVPNPath(source, nlri, isWithdraw, attrs, false, now)
+	case bgp.RF_ENCAP:
+		log.Debugf("CreatePath RouteFamily : %s", bgp.RF_ENCAP.String())
+		path = NewEncapPath(source, nlri, isWithdraw, attrs, false, now)
+	default:
+		return path, fmt.Errorf("Unsupported RouteFamily: %s", rf)
 	}
-	return path
+	return path, nil
 }
 
 /*
@@ -377,7 +376,8 @@ func NewIPv6Path(source *PeerInfo, nlri bgp.AddrPrefixInterface, isWithdraw bool
 
 func (ipv6p *IPv6Path) Clone(isWithdraw bool) Path {
 	nlri := ipv6p.nlri
-	return CreatePath(ipv6p.source, nlri, ipv6p.pathAttrs, isWithdraw, ipv6p.PathDefault.timestamp)
+	path, _ := CreatePath(ipv6p.source, nlri, ipv6p.pathAttrs, isWithdraw, ipv6p.PathDefault.timestamp)
+	return path
 }
 
 func (ipv6p *IPv6Path) setPathDefault(pd *PathDefault) {
@@ -386,11 +386,6 @@ func (ipv6p *IPv6Path) setPathDefault(pd *PathDefault) {
 
 func (ipv6p *IPv6Path) getPathDefault() *PathDefault {
 	return ipv6p.PathDefault
-}
-
-func (ipv6p *IPv6Path) getPrefix() string {
-	addrPrefix := ipv6p.nlri.(*bgp.IPv6AddrPrefix)
-	return addrPrefix.IPAddrPrefixDefault.String()
 }
 
 // return IPv6Path's string representation
@@ -415,7 +410,8 @@ func NewIPv4VPNPath(source *PeerInfo, nlri bgp.AddrPrefixInterface, isWithdraw b
 
 func (ipv4vpnp *IPv4VPNPath) Clone(isWithdraw bool) Path {
 	nlri := ipv4vpnp.nlri
-	return CreatePath(ipv4vpnp.source, nlri, ipv4vpnp.pathAttrs, isWithdraw, ipv4vpnp.PathDefault.timestamp)
+	path, _ := CreatePath(ipv4vpnp.source, nlri, ipv4vpnp.pathAttrs, isWithdraw, ipv4vpnp.PathDefault.timestamp)
+	return path
 }
 
 func (ipv4vpnp *IPv4VPNPath) setPathDefault(pd *PathDefault) {
@@ -424,11 +420,6 @@ func (ipv4vpnp *IPv4VPNPath) setPathDefault(pd *PathDefault) {
 
 func (ipv4vpnp *IPv4VPNPath) getPathDefault() *PathDefault {
 	return ipv4vpnp.PathDefault
-}
-
-func (ipv4vpnp *IPv4VPNPath) getPrefix() string {
-	addrPrefix := ipv4vpnp.nlri.(*bgp.LabelledVPNIPAddrPrefix)
-	return addrPrefix.IPAddrPrefixDefault.String()
 }
 
 // return IPv4VPNPath's string representation
@@ -467,7 +458,8 @@ func NewEVPNPath(source *PeerInfo, nlri bgp.AddrPrefixInterface, isWithdraw bool
 
 func (evpnp *EVPNPath) Clone(isWithdraw bool) Path {
 	nlri := evpnp.nlri
-	return CreatePath(evpnp.source, nlri, evpnp.pathAttrs, isWithdraw, evpnp.PathDefault.timestamp)
+	path, _ := CreatePath(evpnp.source, nlri, evpnp.pathAttrs, isWithdraw, evpnp.PathDefault.timestamp)
+	return path
 }
 
 func (evpnp *EVPNPath) setPathDefault(pd *PathDefault) {
@@ -476,11 +468,6 @@ func (evpnp *EVPNPath) setPathDefault(pd *PathDefault) {
 
 func (evpnp *EVPNPath) getPathDefault() *PathDefault {
 	return evpnp.PathDefault
-}
-
-func (evpnp *EVPNPath) getPrefix() string {
-	addrPrefix := evpnp.nlri.(*bgp.EVPNNLRI)
-	return addrPrefix.String()
 }
 
 // return EVPNPath's string representation
@@ -505,4 +492,26 @@ func (evpnp *EVPNPath) MarshalJSON() ([]byte, error) {
 		Attrs:   evpnp.PathDefault.getPathAttrs(),
 		Age:     int64(time.Now().Sub(evpnp.PathDefault.timestamp).Seconds()),
 	})
+}
+
+type EncapPath struct {
+	*PathDefault
+}
+
+func NewEncapPath(source *PeerInfo, nlri bgp.AddrPrefixInterface, isWithdraw bool, attrs []bgp.PathAttributeInterface, medSetByTargetNeighbor bool, now time.Time) *EncapPath {
+	return &EncapPath{
+		PathDefault: NewPathDefault(bgp.RF_ENCAP, source, nlri, isWithdraw, attrs, medSetByTargetNeighbor, now),
+	}
+}
+
+func (p *EncapPath) setPathDefault(pd *PathDefault) {
+	p.PathDefault = pd
+}
+func (p *EncapPath) getPathDefault() *PathDefault {
+	return p.PathDefault
+}
+
+func (p *EncapPath) Clone(isWithdraw bool) Path {
+	path, _ := CreatePath(p.source, p.nlri, p.pathAttrs, isWithdraw, p.PathDefault.timestamp)
+	return path
 }

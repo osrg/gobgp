@@ -135,7 +135,7 @@ func DestCreatePath(msgs []*ProcessMessage) []Path {
 		nlriList := updateMsgD.NLRI
 		pathAttributes := updateMsgD.PathAttributes
 		nlri_info := nlriList[0]
-		pathD[i] = CreatePath(msg.fromPeer, &nlri_info, pathAttributes, false, time.Now())
+		pathD[i], _ = CreatePath(msg.fromPeer, &nlri_info, pathAttributes, false, time.Now())
 	}
 	return pathD
 }

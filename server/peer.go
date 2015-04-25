@@ -374,6 +374,55 @@ func (peer *Peer) handleGrpc(grpcReq *GrpcRequest) {
 			}
 			nlri = bgp.NewEVPNNLRI(bgp.EVPN_ROUTE_TYPE_MAC_IP_ADVERTISEMENT, 0, macIpAdv)
 			pattr = append(pattr, bgp.NewPathAttributeMpReachNLRI("0.0.0.0", []bgp.AddrPrefixInterface{nlri}))
+		case bgp.RF_ENCAP:
+			endpoint := net.ParseIP(path.Nlri.Prefix)
+			if endpoint == nil {
+				result.ResponseErr = fmt.Errorf("Invalid endpoint ip address: %s", path.Nlri.Prefix)
+				grpcReq.ResponseCh <- result
+				close(grpcReq.ResponseCh)
+				return
+
+			}
+			nlri = bgp.NewEncapNLRI(endpoint.String())
+			pattr = append(pattr, bgp.NewPathAttributeMpReachNLRI("0.0.0.0", []bgp.AddrPrefixInterface{nlri}))
+
+			iterSubTlvs := func(subTlvs []*api.TunnelEncapSubTLV) {
+				for _, subTlv := range subTlvs {
+					if subTlv.Type == api.ENCAP_SUBTLV_TYPE_COLOR {
+						color := subTlv.Color
+						subTlv := &bgp.TunnelEncapSubTLV{
+							Type:  bgp.ENCAP_SUBTLV_TYPE_COLOR,
+							Value: &bgp.TunnelEncapSubTLVColor{color},
+						}
+						tlv := &bgp.TunnelEncapTLV{
+							Type:  bgp.TUNNEL_TYPE_VXLAN,
+							Value: []*bgp.TunnelEncapSubTLV{subTlv},
+						}
+						attr := bgp.NewPathAttributeTunnelEncap([]*bgp.TunnelEncapTLV{tlv})
+						pattr = append(pattr, attr)
+						break
+					}
+				}
+			}
+
+			iterTlvs := func(tlvs []*api.TunnelEncapTLV) {
+				for _, tlv := range tlvs {
+					if tlv.Type == api.TUNNEL_TYPE_VXLAN {
+						iterSubTlvs(tlv.SubTlv)
+						break
+					}
+				}
+			}
+
+			func(attrs []*api.PathAttr) {
+				for _, attr := range attrs {
+					if attr.Type == api.BGP_ATTR_TYPE_TUNNEL_ENCAP {
+						iterTlvs(attr.TunnelEncap)
+						break
+					}
+				}
+			}(path.Attrs)
+
 		default:
 			result.ResponseErr = fmt.Errorf("Unsupported address family: %s", rf)
 			grpcReq.ResponseCh <- result
@@ -381,7 +430,13 @@ func (peer *Peer) handleGrpc(grpcReq *GrpcRequest) {
 			return
 		}
 
-		p := table.CreatePath(peer.peerInfo, nlri, pattr, isWithdraw, time.Now())
+		p, err := table.CreatePath(peer.peerInfo, nlri, pattr, isWithdraw, time.Now())
+		if err != nil {
+			result.ResponseErr = err
+			grpcReq.ResponseCh <- result
+			close(grpcReq.ResponseCh)
+			return
+		}
 
 		pm := &peerMsg{
 			msgType: PEER_MSG_PATH,

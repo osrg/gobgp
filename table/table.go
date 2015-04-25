@@ -334,3 +334,22 @@ func (ipv4vpnt *EVPNTable) tableKey(nlri bgp.AddrPrefixInterface) string {
 	addrPrefix := nlri.(*bgp.EVPNNLRI)
 	return addrPrefix.String()
 }
+
+type EncapTable struct {
+	*TableDefault
+}
+
+func NewEncapTable() *EncapTable {
+	EncapTable := &EncapTable{}
+	EncapTable.TableDefault = NewTableDefault(0)
+	EncapTable.TableDefault.ROUTE_FAMILY = bgp.RF_ENCAP
+	return EncapTable
+}
+
+func (t *EncapTable) createDest(nlri bgp.AddrPrefixInterface) Destination {
+	return Destination(NewEncapDestination(nlri))
+}
+
+func (t *EncapTable) tableKey(nlri bgp.AddrPrefixInterface) string {
+	return nlri.String()
+}

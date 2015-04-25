@@ -101,6 +101,7 @@ const (
 	SAFI_UNICAST                  SAFI = 1
 	SAFI_MULTICAST                SAFI = 2
 	SAFI_MPLS_LABEL               SAFI = 4
+	SAFI_ENCAP                    SAFI = 7
 	SAFI_VPLS                     SAFI = 65
 	SAFI_EVPN                     SAFI = 70
 	SAFI_MPLS_VPN                 SAFI = 128
@@ -113,6 +114,7 @@ var SAFI_name = map[int32]string{
 	1:   "UNICAST",
 	2:   "MULTICAST",
 	4:   "MPLS_LABEL",
+	7:   "ENCAP",
 	65:  "VPLS",
 	70:  "EVPN",
 	128: "MPLS_VPN",
@@ -124,6 +126,7 @@ var SAFI_value = map[string]int32{
 	"UNICAST":                  1,
 	"MULTICAST":                2,
 	"MPLS_LABEL":               4,
+	"ENCAP":                    7,
 	"VPLS":                     65,
 	"EVPN":                     70,
 	"MPLS_VPN":                 128,
@@ -226,6 +229,32 @@ var EVPN_TYPE_value = map[string]int32{
 
 func (x EVPN_TYPE) String() string {
 	return proto.EnumName(EVPN_TYPE_name, int32(x))
+}
+
+type ENCAP_SUBTLV_TYPE int32
+
+const (
+	ENCAP_SUBTLV_TYPE_UNKNOWN_SUBTLV_TYPE ENCAP_SUBTLV_TYPE = 0
+	ENCAP_SUBTLV_TYPE_ENCAPSULATION       ENCAP_SUBTLV_TYPE = 1
+	ENCAP_SUBTLV_TYPE_PROTOCOL            ENCAP_SUBTLV_TYPE = 2
+	ENCAP_SUBTLV_TYPE_COLOR               ENCAP_SUBTLV_TYPE = 4
+)
+
+var ENCAP_SUBTLV_TYPE_name = map[int32]string{
+	0: "UNKNOWN_SUBTLV_TYPE",
+	1: "ENCAPSULATION",
+	2: "PROTOCOL",
+	4: "COLOR",
+}
+var ENCAP_SUBTLV_TYPE_value = map[string]int32{
+	"UNKNOWN_SUBTLV_TYPE": 0,
+	"ENCAPSULATION":       1,
+	"PROTOCOL":            2,
+	"COLOR":               4,
+}
+
+func (x ENCAP_SUBTLV_TYPE) String() string {
+	return proto.EnumName(ENCAP_SUBTLV_TYPE_name, int32(x))
 }
 
 type BGP_ATTR_TYPE int32
@@ -431,8 +460,12 @@ func (m *Nlri) GetEvpnNlri() *EVPNNlri {
 }
 
 type TunnelEncapSubTLV struct {
-	Type  uint32 `protobuf:"varint,1,opt,name=type" json:"type,omitempty"`
-	Value string `protobuf:"bytes,2,opt,name=value" json:"value,omitempty"`
+	Type     ENCAP_SUBTLV_TYPE `protobuf:"varint,1,opt,name=type,enum=api.ENCAP_SUBTLV_TYPE" json:"type,omitempty"`
+	Value    string            `protobuf:"bytes,2,opt,name=value" json:"value,omitempty"`
+	Key      uint32            `protobuf:"varint,3,opt,name=key" json:"key,omitempty"`
+	Cookie   string            `protobuf:"bytes,4,opt,name=cookie" json:"cookie,omitempty"`
+	Protocol uint32            `protobuf:"varint,5,opt,name=protocol" json:"protocol,omitempty"`
+	Color    uint32            `protobuf:"varint,6,opt,name=color" json:"color,omitempty"`
 }
 
 func (m *TunnelEncapSubTLV) Reset()         { *m = TunnelEncapSubTLV{} }
@@ -616,6 +649,7 @@ func init() {
 	proto.RegisterEnum("api.Origin", Origin_name, Origin_value)
 	proto.RegisterEnum("api.TUNNEL_TYPE", TUNNEL_TYPE_name, TUNNEL_TYPE_value)
 	proto.RegisterEnum("api.EVPN_TYPE", EVPN_TYPE_name, EVPN_TYPE_value)
+	proto.RegisterEnum("api.ENCAP_SUBTLV_TYPE", ENCAP_SUBTLV_TYPE_name, ENCAP_SUBTLV_TYPE_value)
 	proto.RegisterEnum("api.BGP_ATTR_TYPE", BGP_ATTR_TYPE_name, BGP_ATTR_TYPE_value)
 	proto.RegisterEnum("api.Error_ErrorCode", Error_ErrorCode_name, Error_ErrorCode_value)
 }

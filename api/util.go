@@ -18,6 +18,7 @@ package api
 var AF_IPV4_UC *AddressFamily = &AddressFamily{AFI_IP, SAFI_UNICAST}
 var AF_IPV6_UC *AddressFamily = &AddressFamily{AFI_IP6, SAFI_UNICAST}
 var AF_EVPN *AddressFamily = &AddressFamily{AFI_L2VPN, SAFI_EVPN}
+var AF_ENCAP *AddressFamily = &AddressFamily{AFI_IP, SAFI_ENCAP}
 
 func (lhs *AddressFamily) Equal(rhs *AddressFamily) bool {
 	return lhs.Afi == rhs.Afi && lhs.Safi == rhs.Safi

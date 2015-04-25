@@ -27,6 +27,7 @@ import (
 	"net"
 	"os"
 	"sort"
+	"strconv"
 	"strings"
 	"time"
 )
@@ -234,6 +235,8 @@ func checkAddressFamily() (*api.AddressFamily, error) {
 		rf = api.AF_IPV6_UC
 	case "evpn":
 		rf = api.AF_EVPN
+	case "encap":
+		rf = api.AF_ENCAP
 	case "":
 		e = fmt.Errorf("address family is not specified")
 	default:
@@ -374,6 +377,37 @@ func modPath(modtype string, eArgs []string) error {
 					IpAddr:  ipAddr,
 				},
 			},
+		}
+	case api.AF_ENCAP:
+		if len(eArgs) < 3 {
+			return fmt.Errorf("usage: global rib add <end point ip address> [<vni>] -a encap")
+		}
+		prefix = eArgs[0]
+
+		path.Nlri = &api.Nlri{
+			Af:     rf,
+			Prefix: prefix,
+		}
+
+		if len(eArgs) > 3 {
+			vni, err := strconv.Atoi(eArgs[1])
+			if err != nil {
+				return fmt.Errorf("invalid vni: %s", eArgs[1])
+			}
+			subTlv := &api.TunnelEncapSubTLV{
+				Type:  api.ENCAP_SUBTLV_TYPE_COLOR,
+				Color: uint32(vni),
+			}
+			tlv := &api.TunnelEncapTLV{
+				Type:   api.TUNNEL_TYPE_VXLAN,
+				SubTlv: []*api.TunnelEncapSubTLV{subTlv},
+			}
+			attr := &api.PathAttr{
+				Type:        api.BGP_ATTR_TYPE_TUNNEL_ENCAP,
+				TunnelEncap: []*api.TunnelEncapTLV{tlv},
+			}
+
+			path.Attrs = append(path.Attrs, attr)
 		}
 	}
 	switch modtype {
@@ -741,9 +775,29 @@ func showRoute(pathList []*api.Path, showAge bool, showBest bool) {
 					}
 					s = append(s, fmt.Sprintf("{Community: %v}", l))
 				case api.BGP_ATTR_TYPE_ORIGINATOR_ID:
-					s = append(s, fmt.Sprintf("{Originator: %v|", a.Originator))
+					s = append(s, fmt.Sprintf("{Originator: %v}", a.Originator))
 				case api.BGP_ATTR_TYPE_CLUSTER_LIST:
-					s = append(s, fmt.Sprintf("{Cluster: %v|", a.Cluster))
+					s = append(s, fmt.Sprintf("{Cluster: %v}", a.Cluster))
+				case api.BGP_ATTR_TYPE_TUNNEL_ENCAP:
+					s1 := bytes.NewBuffer(make([]byte, 0, 64))
+					s1.WriteString("{Encap: ")
+					var s2 []string
+					for _, tlv := range a.TunnelEncap {
+						s3 := bytes.NewBuffer(make([]byte, 0, 64))
+						s3.WriteString(fmt.Sprintf("< %s | ", tlv.Type))
+						var s4 []string
+						for _, subTlv := range tlv.SubTlv {
+							if subTlv.Type == api.ENCAP_SUBTLV_TYPE_COLOR {
+								s4 = append(s4, fmt.Sprintf("color: %d", subTlv.Color))
+							}
+						}
+						s3.WriteString(strings.Join(s4, ","))
+						s3.WriteString(" >")
+						s2 = append(s2, s3.String())
+					}
+					s1.WriteString(strings.Join(s2, "|"))
+					s1.WriteString("}")
+					s = append(s, s1.String())
 				case api.BGP_ATTR_TYPE_AS4_PATH, api.BGP_ATTR_TYPE_MP_REACH_NLRI, api.BGP_ATTR_TYPE_MP_UNREACH_NLRI, api.BGP_ATTR_TYPE_NEXT_HOP, api.BGP_ATTR_TYPE_AS_PATH:
 				default:
 					s = append(s, fmt.Sprintf("{%v: %v}", a.Type, a.Value))

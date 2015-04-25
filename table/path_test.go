@@ -126,7 +126,7 @@ func TestPathCreatePath(t *testing.T) {
 	nlriList := updateMsgP.NLRI
 	pathAttributes := updateMsgP.PathAttributes
 	nlri_info := nlriList[0]
-	path := CreatePath(msgP[0].fromPeer, &nlri_info, pathAttributes, false, time.Now())
+	path, _ := CreatePath(msgP[0].fromPeer, &nlri_info, pathAttributes, false, time.Now())
 	assert.NotNil(t, path)
 
 }
@@ -173,7 +173,7 @@ func PathCreatePath(msgs []*ProcessMessage) []Path {
 		nlriList := updateMsgP.NLRI
 		pathAttributes := updateMsgP.PathAttributes
 		nlri_info := nlriList[0]
-		pathP[i] = CreatePath(msg.fromPeer, &nlri_info, pathAttributes, false, time.Now())
+		pathP[i], _ = CreatePath(msg.fromPeer, &nlri_info, pathAttributes, false, time.Now())
 	}
 	return pathP
 }

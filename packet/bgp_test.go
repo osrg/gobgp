@@ -247,12 +247,12 @@ func Test_RFC5512(t *testing.T) {
 	assert.Equal([]byte{0x3, 0xc, 0x0, 0x0, 0x0, 0x0, 0x0, 0x8}, buf)
 
 	subTlv := &TunnelEncapSubTLV{
-		Type:  1,
-		Value: []byte{0, 1, 2, 3},
+		Type:  ENCAP_SUBTLV_TYPE_COLOR,
+		Value: &TunnelEncapSubTLVColor{10},
 	}
 
 	tlv := &TunnelEncapTLV{
-		Type:  1,
+		Type:  TUNNEL_TYPE_VXLAN,
 		Value: []*TunnelEncapSubTLV{subTlv},
 	}
 

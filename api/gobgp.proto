@@ -73,6 +73,7 @@ enum SAFI {
     UNICAST = 1;
     MULTICAST = 2;
     MPLS_LABEL = 4;
+    ENCAP = 7;
     VPLS = 65;
     EVPN = 70;
     MPLS_VPN = 128;
@@ -142,9 +143,20 @@ message Nlri {
     string nexthop = 4;
 }
 
+enum ENCAP_SUBTLV_TYPE {
+    UNKNOWN_SUBTLV_TYPE = 0;
+    ENCAPSULATION = 1;
+    PROTOCOL = 2;
+    COLOR = 4;
+}
+
 message TunnelEncapSubTLV {
-    uint32 type = 1;
+    ENCAP_SUBTLV_TYPE type = 1;
     string value = 2;
+    uint32 key = 3;
+    string cookie = 4;
+    uint32 protocol = 5;
+    uint32 color = 6;
 }
 
 message TunnelEncapTLV {
