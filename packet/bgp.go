@@ -38,6 +38,7 @@ const (
 	SAFI_UNICAST                  = 1
 	SAFI_MULTICAST                = 2
 	SAFI_MPLS_LABEL               = 4
+	SAFI_ENCAPSULATION            = 7
 	SAFI_VPLS                     = 65
 	SAFI_EVPN                     = 70
 	SAFI_MPLS_VPN                 = 128
@@ -54,6 +55,82 @@ const (
 const (
 	BGP_ASPATH_ATTR_TYPE_SET = 1
 	BGP_ASPATH_ATTR_TYPE_SEQ = 2
+)
+
+// RFC7153 5.1. Registries for the "Type" Field
+// RANGE	REGISTRACTION PROCEDURES
+// 0x00-0x3F	Transitive First Come First Served
+// 0x40-0x7F	Non-Transitive First Come First Served
+// 0x80-0x8F	Transitive Experimental Use
+// 0x90-0xBF	Transitive Standards Action
+// 0xC0-0xCF	Non-Transitive Experimental Use
+// 0xD0-0xFF	Non-Transitive Standards Action
+type ExtendedCommunityAttrType uint8
+
+const (
+	EC_TYPE_TRANSITIVE_TWO_OCTET_AS_SPECIFIC      ExtendedCommunityAttrType = 0x00
+	EC_TYPE_TRANSITIVE_IP4_SPECIFIC               ExtendedCommunityAttrType = 0x01
+	EC_TYPE_TRANSITIVE_FOUR_OCTET_AS_SPECIFIC     ExtendedCommunityAttrType = 0x02
+	EC_TYPE_TRANSITIVE_OPAQUE                     ExtendedCommunityAttrType = 0x03
+	EC_TYPE_TRANSITIVE_QOS_MARKING                ExtendedCommunityAttrType = 0x04
+	EC_TYPE_COS_CAPABILITY                        ExtendedCommunityAttrType = 0x05
+	EC_TYPE_EVPN                                  ExtendedCommunityAttrType = 0x06
+	EC_TYPE_FLOWSPEC_REDIRECT_MIRROR              ExtendedCommunityAttrType = 0x08
+	EC_TYPE_NON_TRANSITIVE_TWO_OCTET_AS_SPECIFIC  ExtendedCommunityAttrType = 0x40
+	EC_TYPE_NON_TRANSITIVE_IP4_SPECIFIC           ExtendedCommunityAttrType = 0x41
+	EC_TYPE_NON_TRANSITIVE_FOUR_OCTET_AS_SPECIFIC ExtendedCommunityAttrType = 0x42
+	EC_TYPE_NON_TRANSITIVE_OPAQUE                 ExtendedCommunityAttrType = 0x43
+	EC_TYPE_NON_TRANSITIVE_QOS_MARKING            ExtendedCommunityAttrType = 0x44
+	EC_TYPE_GENERIC_TRANSITIVE_EXPERIMENTAL       ExtendedCommunityAttrType = 0x80
+)
+
+// RFC7153 5.2. Registraction for the "Sub-Type" Field
+// RANGE	REGISTRACTION PROCEDURES
+// 0x00-0xBF	First Come First Served
+// 0xC0-0xFF	IETF Review
+type ExtendedCommunityAttrSubType uint8
+
+const (
+	EC_SUBTYPE_ORIGIN_VALIDATION       ExtendedCommunityAttrSubType = 0x00
+	EC_SUBTYPE_ROUTE_TARGET            ExtendedCommunityAttrSubType = 0x02
+	EC_SUBTYPE_ROUTE_ORIGIN            ExtendedCommunityAttrSubType = 0x03
+	EC_SUBTYPE_LINK_BANDWIDTH          ExtendedCommunityAttrSubType = 0x04
+	EC_SUBTYPE_GENERIC                 ExtendedCommunityAttrSubType = 0x04
+	EC_SUBTYPE_OSPF_DOMAIN_ID          ExtendedCommunityAttrSubType = 0x05
+	EC_SUBTYPE_OSPF_ROUTE_TYPE         ExtendedCommunityAttrSubType = 0x06
+	EC_SUBTYPE_OSPF_ROUTE_ID           ExtendedCommunityAttrSubType = 0x07
+	EC_SUBTYPE_BGP_DATA_COLLECTION     ExtendedCommunityAttrSubType = 0x08
+	EC_SUBTYPE_SOURCE_AS               ExtendedCommunityAttrSubType = 0x09
+	EC_SUBTYPE_L2VPN_ID                ExtendedCommunityAttrSubType = 0x0A
+	EC_SUBTYPE_L2_INFO                 ExtendedCommunityAttrSubType = 0x0A
+	EC_SUBTYPE_VRF_ROUTE_IMPORT        ExtendedCommunityAttrSubType = 0x0B
+	EC_SUBTYPE_COLOR                   ExtendedCommunityAttrSubType = 0x0B
+	EC_SUBTYPE_ENCAPSULATION           ExtendedCommunityAttrSubType = 0x0C
+	EC_SUBTYPE_DEFAULT_GATEWAY         ExtendedCommunityAttrSubType = 0x0D
+	EC_SUBTYPE_CISCO_VPN_DISTINGUISHER ExtendedCommunityAttrSubType = 0x10
+	EC_SUBTYPE_UUID_BASED_RT           ExtendedCommunityAttrSubType = 0x11
+
+	EC_SUBTYPE_FLOWSPEC_TRAFFIC_RATE   ExtendedCommunityAttrSubType = 0x06
+	EC_SUBTYPE_FLOWSPEC_TRAFFIC_ACTION ExtendedCommunityAttrSubType = 0x07
+	EC_SUBTYPE_FLOWSPEC_REDIRECT       ExtendedCommunityAttrSubType = 0x08
+	EC_SUBTYPE_FLOWSPEC_TRAFFIC_REMARK ExtendedCommunityAttrSubType = 0x09
+
+	EC_SUBTYPE_MAC_MOBILITY   ExtendedCommunityAttrSubType = 0x00
+	EC_SUBTYPE_ESI_MPLS_LABEL ExtendedCommunityAttrSubType = 0x01
+	EC_SUBTYPE_ES_IMPORT      ExtendedCommunityAttrSubType = 0x02
+)
+
+type TunnelType uint16
+
+const (
+	TUNNEL_TYPE_L2TP3       TunnelType = 1
+	TUNNEL_TYPE_GRE         TunnelType = 2
+	TUNNEL_TYPE_IP_IN_IP    TunnelType = 7
+	TUNNEL_TYPE_VXLAN       TunnelType = 8
+	TUNNEL_TYPE_NVGRE       TunnelType = 9
+	TUNNEL_TYPE_MPLS        TunnelType = 10
+	TUNNEL_TYPE_MPLS_IN_GRE TunnelType = 11
+	TUNNEL_TYPE_VXLAN_GRE   TunnelType = 12
 )
 
 const (
@@ -540,15 +617,15 @@ func (r *IPAddrPrefix) ToApiStruct() *api.Nlri {
 	}
 }
 
-type IPv6AddrPrefix struct {
-	IPAddrPrefix
-}
-
 func NewIPAddrPrefix(length uint8, prefix string) *IPAddrPrefix {
 	return &IPAddrPrefix{
 		IPAddrPrefixDefault{length, net.ParseIP(prefix).To4()},
 		4,
 	}
+}
+
+type IPv6AddrPrefix struct {
+	IPAddrPrefix
 }
 
 func (r *IPv6AddrPrefix) AFI() uint16 {
@@ -967,7 +1044,11 @@ type RouteTargetMembershipNLRI struct {
 
 func (n *RouteTargetMembershipNLRI) DecodeFromBytes(data []byte) error {
 	n.AS = binary.BigEndian.Uint32(data[0:4])
-	n.RouteTarget = parseExtended(data[4:])
+	rt, err := parseExtended(data[4:])
+	n.RouteTarget = rt
+	if err != nil {
+		return err
+	}
 	return nil
 }
 
@@ -1394,6 +1475,64 @@ func NewEVPNNLRI(routetype uint8, length uint8, routetypedata EVPNRouteTypeInter
 		routetypedata,
 	}
 }
+
+type EncapNLRI struct {
+	IPAddrPrefixDefault
+}
+
+func (n *EncapNLRI) DecodeFromBytes(data []byte) error {
+	if len(data) < 4 {
+		eCode := uint8(BGP_ERROR_UPDATE_MESSAGE_ERROR)
+		eSubCode := uint8(BGP_ERROR_SUB_MALFORMED_ATTRIBUTE_LIST)
+		return NewMessageError(eCode, eSubCode, nil, "prefix misses length field")
+	}
+	n.Length = data[0]
+	return n.decodePrefix(data[1:], n.Length, n.Length/8)
+}
+
+func (n *EncapNLRI) Serialize() ([]byte, error) {
+	buf := make([]byte, 1)
+	buf[0] = net.IPv6len * 8
+	if n.Prefix.To4() != nil {
+		buf[0] = net.IPv4len * 8
+		n.Prefix = n.Prefix.To4()
+	}
+	n.Length = buf[0]
+	pbuf, err := n.serializePrefix(n.Length)
+	if err != nil {
+		return nil, err
+	}
+	return append(buf, pbuf...), nil
+}
+
+func (n *EncapNLRI) String() string {
+	return n.Prefix.String()
+}
+
+func (n *EncapNLRI) AFI() uint16 {
+	if n.Prefix.To4() != nil {
+		return AFI_IP
+	}
+	return AFI_IP6
+}
+
+func (n *EncapNLRI) SAFI() uint8 {
+	return SAFI_ENCAPSULATION
+}
+
+func (n *EncapNLRI) ToApiStruct() *api.Nlri {
+	return &api.Nlri{
+		Af:     &api.AddressFamily{api.AFI(n.AFI()), api.SAFI(n.SAFI())},
+		Prefix: n.String(),
+	}
+}
+
+func NewEncapNLRI(endpoint string) *EncapNLRI {
+	return &EncapNLRI{
+		IPAddrPrefixDefault{0, net.ParseIP(endpoint)},
+	}
+}
+
 func AfiSafiToRouteFamily(afi uint16, safi uint8) RouteFamily {
 	return RouteFamily(int(afi)<<16 | int(safi))
 }
@@ -1418,6 +1557,7 @@ const (
 	RF_VPLS        RouteFamily = AFI_L2VPN<<16 | SAFI_VPLS
 	RF_EVPN        RouteFamily = AFI_L2VPN<<16 | SAFI_EVPN
 	RF_RTC_UC      RouteFamily = AFI_IP<<16 | SAFI_ROUTE_TARGET_CONSTRTAINS
+	RF_ENCAP       RouteFamily = AFI_IP<<16 | SAFI_ENCAPSULATION
 )
 
 func GetRouteFamily(name string) (RouteFamily, error) {
@@ -1446,6 +1586,8 @@ func GetRouteFamily(name string) (RouteFamily, error) {
 		return RF_VPLS, nil
 	case "l2vpn-evpn":
 		return RF_EVPN, nil
+	case "encap":
+		return RF_ENCAP, nil
 	}
 	return RouteFamily(0), fmt.Errorf("%s isn't a valid route family name", name)
 }
@@ -1468,6 +1610,8 @@ func routeFamilyPrefix(afi uint16, safi uint8) (prefix AddrPrefixInterface, err 
 		prefix = NewEVPNNLRI(0, 0, nil)
 	case RF_RTC_UC:
 		prefix = &RouteTargetMembershipNLRI{}
+	case RF_ENCAP:
+		prefix = NewEncapNLRI("")
 	default:
 		return nil, errors.New("unknown route family")
 	}
@@ -1498,11 +1642,16 @@ const (
 	_
 	_
 	_
-	BGP_ATTR_TYPE_MP_REACH_NLRI
+	BGP_ATTR_TYPE_MP_REACH_NLRI // = 14
 	BGP_ATTR_TYPE_MP_UNREACH_NLRI
 	BGP_ATTR_TYPE_EXTENDED_COMMUNITIES
 	BGP_ATTR_TYPE_AS4_PATH
 	BGP_ATTR_TYPE_AS4_AGGREGATOR
+	_
+	_
+	_
+	_
+	BGP_ATTR_TYPE_TUNNEL_ENCAP // = 23
 )
 
 // NOTIFICATION Error Code  RFC 4271 4.5.
@@ -1592,6 +1741,7 @@ var pathAttrFlags map[BGPAttrType]uint8 = map[BGPAttrType]uint8{
 	BGP_ATTR_TYPE_EXTENDED_COMMUNITIES: BGP_ATTR_FLAG_TRANSITIVE | BGP_ATTR_FLAG_OPTIONAL,
 	BGP_ATTR_TYPE_AS4_PATH:             BGP_ATTR_FLAG_TRANSITIVE | BGP_ATTR_FLAG_OPTIONAL,
 	BGP_ATTR_TYPE_AS4_AGGREGATOR:       BGP_ATTR_FLAG_TRANSITIVE | BGP_ATTR_FLAG_OPTIONAL,
+	BGP_ATTR_TYPE_TUNNEL_ENCAP:         BGP_ATTR_FLAG_TRANSITIVE | BGP_ATTR_FLAG_OPTIONAL,
 }
 
 type PathAttributeInterface interface {
@@ -2605,14 +2755,19 @@ type ExtendedCommunityInterface interface {
 }
 
 type TwoOctetAsSpecificExtended struct {
-	SubType    uint8
-	AS         uint16
-	LocalAdmin uint32
+	SubType      uint8
+	AS           uint16
+	LocalAdmin   uint32
+	IsTransitive bool
 }
 
 func (e *TwoOctetAsSpecificExtended) Serialize() ([]byte, error) {
 	buf := make([]byte, 8)
-	buf[0] = 0x00
+	if e.IsTransitive {
+		buf[0] = byte(EC_TYPE_TRANSITIVE_TWO_OCTET_AS_SPECIFIC)
+	} else {
+		buf[0] = byte(EC_TYPE_NON_TRANSITIVE_TWO_OCTET_AS_SPECIFIC)
+	}
 	buf[1] = e.SubType
 	binary.BigEndian.PutUint16(buf[2:], e.AS)
 	binary.BigEndian.PutUint32(buf[4:], e.LocalAdmin)
@@ -2624,14 +2779,19 @@ func (e *TwoOctetAsSpecificExtended) String() string {
 }
 
 type IPv4AddressSpecificExtended struct {
-	SubType    uint8
-	IPv4       net.IP
-	LocalAdmin uint16
+	SubType      uint8
+	IPv4         net.IP
+	LocalAdmin   uint16
+	IsTransitive bool
 }
 
 func (e *IPv4AddressSpecificExtended) Serialize() ([]byte, error) {
 	buf := make([]byte, 8)
-	buf[0] = 0x01
+	if e.IsTransitive {
+		buf[0] = byte(EC_TYPE_TRANSITIVE_IP4_SPECIFIC)
+	} else {
+		buf[0] = byte(EC_TYPE_NON_TRANSITIVE_IP4_SPECIFIC)
+	}
 	buf[1] = e.SubType
 	copy(buf[2:6], e.IPv4)
 	binary.BigEndian.PutUint16(buf[6:], e.LocalAdmin)
@@ -2643,14 +2803,19 @@ func (e *IPv4AddressSpecificExtended) String() string {
 }
 
 type FourOctetAsSpecificExtended struct {
-	SubType    uint8
-	AS         uint32
-	LocalAdmin uint16
+	SubType      uint8
+	AS           uint32
+	LocalAdmin   uint16
+	IsTransitive bool
 }
 
 func (e *FourOctetAsSpecificExtended) Serialize() ([]byte, error) {
 	buf := make([]byte, 8)
-	buf[0] = 0x02
+	if e.IsTransitive {
+		buf[0] = byte(EC_TYPE_TRANSITIVE_FOUR_OCTET_AS_SPECIFIC)
+	} else {
+		buf[0] = byte(EC_TYPE_NON_TRANSITIVE_FOUR_OCTET_AS_SPECIFIC)
+	}
 	buf[1] = e.SubType
 	binary.BigEndian.PutUint32(buf[2:], e.AS)
 	binary.BigEndian.PutUint16(buf[6:], e.LocalAdmin)
@@ -2665,22 +2830,128 @@ func (e *FourOctetAsSpecificExtended) String() string {
 	return fmt.Sprintf("%d.%d:%d", asUpper, asLower, e.LocalAdmin)
 }
 
-type OpaqueExtended struct {
+type OpaqueExtendedValueInterface interface {
+	Serialize() ([]byte, error)
+	String() string
+}
+
+type DefaultOpaqueExtendedValue struct {
 	Value []byte
 }
 
-func (e *OpaqueExtended) Serialize() ([]byte, error) {
+func (v *DefaultOpaqueExtendedValue) Serialize() ([]byte, error) {
+	return v.Value[:7], nil
+}
+
+func (v *DefaultOpaqueExtendedValue) String() string {
 	buf := make([]byte, 8)
-	buf[0] = 0x03
-	copy(buf[1:], e.Value)
+	copy(buf[1:], v.Value)
+	d := binary.BigEndian.Uint64(buf)
+	return fmt.Sprintf("%d", d)
+}
+
+type ColorExtended struct {
+	Value uint32
+}
+
+func (e *ColorExtended) Serialize() ([]byte, error) {
+	buf := make([]byte, 7)
+	buf[0] = byte(EC_SUBTYPE_COLOR)
+	binary.BigEndian.PutUint32(buf[3:], uint32(e.Value))
+	return buf, nil
+}
+
+func (e *ColorExtended) String() string {
+	return fmt.Sprintf("%d", e.Value)
+}
+
+type EncapExtended struct {
+	TunnelType TunnelType
+}
+
+func (e *EncapExtended) Serialize() ([]byte, error) {
+	buf := make([]byte, 7)
+	buf[0] = byte(EC_SUBTYPE_ENCAPSULATION)
+	binary.BigEndian.PutUint16(buf[5:], uint16(e.TunnelType))
+	return buf, nil
+}
+
+func (e *EncapExtended) String() string {
+	switch e.TunnelType {
+	case TUNNEL_TYPE_L2TP3:
+		return "L2TPv3 over IP"
+	case TUNNEL_TYPE_GRE:
+		return "GRE"
+	case TUNNEL_TYPE_IP_IN_IP:
+		return "IP in IP"
+	case TUNNEL_TYPE_VXLAN:
+		return "VXLAN"
+	case TUNNEL_TYPE_NVGRE:
+		return "NVGRE"
+	case TUNNEL_TYPE_MPLS:
+		return "MPLS"
+	case TUNNEL_TYPE_MPLS_IN_GRE:
+		return "MPLS in GRE"
+	case TUNNEL_TYPE_VXLAN_GRE:
+		return "VXLAN GRE"
+	default:
+		return fmt.Sprintf("TUNNEL TYPE: %d", e.TunnelType)
+	}
+}
+
+type OpaqueExtended struct {
+	IsTransitive bool
+	Value        OpaqueExtendedValueInterface
+}
+
+func (e *OpaqueExtended) DecodeFromBytes(data []byte) error {
+	if len(data) != 7 {
+		return fmt.Errorf("Invalid OpaqueExtended bytes len: %d", len(data))
+	}
+	subType := ExtendedCommunityAttrSubType(data[0])
+
+	switch subType {
+	case EC_SUBTYPE_COLOR:
+		v := binary.BigEndian.Uint32(data[3:7])
+		e.Value = &ColorExtended{
+			Value: v,
+		}
+	case EC_SUBTYPE_ENCAPSULATION:
+		t := TunnelType(binary.BigEndian.Uint16(data[5:7]))
+		e.Value = &EncapExtended{
+			TunnelType: t,
+		}
+	default:
+		e.Value = &DefaultOpaqueExtendedValue{
+			Value: data, //7byte
+		}
+	}
+	return nil
+}
+
+func (e *OpaqueExtended) Serialize() ([]byte, error) {
+	buf := make([]byte, 1, 7)
+	if e.IsTransitive {
+		buf[0] = byte(EC_TYPE_TRANSITIVE_OPAQUE)
+	} else {
+		buf[0] = byte(EC_TYPE_NON_TRANSITIVE_OPAQUE)
+	}
+	bbuf, err := e.Value.Serialize()
+	if err != nil {
+		return nil, err
+	}
+	buf = append(buf, bbuf...)
 	return buf, nil
 }
 
 func (e *OpaqueExtended) String() string {
-	buf := make([]byte, 8)
-	copy(buf[1:], e.Value)
-	v := binary.BigEndian.Uint64(buf)
-	return fmt.Sprintf("%d", v)
+	return e.Value.String()
+}
+
+func NewOpaqueExtended(isTransitive bool) *OpaqueExtended {
+	return &OpaqueExtended{
+		IsTransitive: isTransitive,
+	}
 }
 
 type UnknownExtended struct {
@@ -2707,36 +2978,53 @@ type PathAttributeExtendedCommunities struct {
 	Value []ExtendedCommunityInterface
 }
 
-func parseExtended(data []byte) ExtendedCommunityInterface {
-	typehigh := data[0] & ^uint8(0x40)
-	switch typehigh {
-	case 0:
+func parseExtended(data []byte) (ExtendedCommunityInterface, error) {
+	attrType := ExtendedCommunityAttrType(data[0])
+	transitive := false
+	switch attrType {
+	case EC_TYPE_TRANSITIVE_TWO_OCTET_AS_SPECIFIC:
+		transitive = true
+		fallthrough
+	case EC_TYPE_NON_TRANSITIVE_TWO_OCTET_AS_SPECIFIC:
 		e := &TwoOctetAsSpecificExtended{}
+		e.IsTransitive = transitive
 		e.SubType = data[1]
 		e.AS = binary.BigEndian.Uint16(data[2:4])
 		e.LocalAdmin = binary.BigEndian.Uint32(data[4:8])
-		return e
-	case 1:
+		return e, nil
+	case EC_TYPE_TRANSITIVE_IP4_SPECIFIC:
+		transitive = true
+		fallthrough
+	case EC_TYPE_NON_TRANSITIVE_IP4_SPECIFIC:
 		e := &IPv4AddressSpecificExtended{}
+		e.IsTransitive = transitive
 		e.SubType = data[1]
 		e.IPv4 = data[2:6]
 		e.LocalAdmin = binary.BigEndian.Uint16(data[6:8])
-		return e
-	case 2:
+		return e, nil
+	case EC_TYPE_TRANSITIVE_FOUR_OCTET_AS_SPECIFIC:
+		transitive = true
+		fallthrough
+	case EC_TYPE_NON_TRANSITIVE_FOUR_OCTET_AS_SPECIFIC:
 		e := &FourOctetAsSpecificExtended{}
+		e.IsTransitive = transitive
 		e.SubType = data[1]
 		e.AS = binary.BigEndian.Uint32(data[2:6])
 		e.LocalAdmin = binary.BigEndian.Uint16(data[6:8])
-		return e
-	case 3:
-		e := &OpaqueExtended{}
+		return e, nil
+	case EC_TYPE_TRANSITIVE_OPAQUE:
+		transitive = true
+		fallthrough
+	case EC_TYPE_NON_TRANSITIVE_OPAQUE:
+		e := NewOpaqueExtended(transitive)
+		err := e.DecodeFromBytes(data[1:8])
+		return e, err
+	default:
+		e := &UnknownExtended{}
+		e.Type = BGPAttrType(data[0])
 		e.Value = data[1:8]
-		return e
+		return e, nil
 	}
-	e := &UnknownExtended{}
-	e.Type = BGPAttrType(data[0])
-	e.Value = data[1:8]
-	return e
 }
 
 func (p *PathAttributeExtendedCommunities) DecodeFromBytes(data []byte) error {
@@ -2751,7 +3039,10 @@ func (p *PathAttributeExtendedCommunities) DecodeFromBytes(data []byte) error {
 	}
 	value := p.PathAttribute.Value
 	for len(value) >= 8 {
-		e := parseExtended(value)
+		e, err := parseExtended(value)
+		if err != nil {
+			return err
+		}
 		p.Value = append(p.Value, e)
 		value = value[8:]
 	}
@@ -2928,6 +3219,158 @@ func NewPathAttributeAs4Aggregator(as uint32, address string) *PathAttributeAs4A
 	}
 }
 
+type TunnelEncapSubTLV struct {
+	Type  uint8
+	Len   int
+	Value []byte
+}
+
+func (p *TunnelEncapSubTLV) Serialize() ([]byte, error) {
+	buf := make([]byte, 2, 2+len(p.Value))
+	buf = append(buf, p.Value...)
+	buf[0] = p.Type
+	p.Len = len(buf) - 2
+	buf[1] = byte(p.Len)
+	return buf, nil
+}
+
+func (p *TunnelEncapSubTLV) ToApiStruct() *api.TunnelEncapSubTLV {
+	return &api.TunnelEncapSubTLV{
+		Type:  uint32(p.Type),
+		Value: string(p.Value),
+	}
+}
+
+type TunnelEncapTLV struct {
+	Type  TunnelType
+	Len   int
+	Value []*TunnelEncapSubTLV
+}
+
+func (t *TunnelEncapTLV) DecodeFromBytes(data []byte) error {
+	curr := 0
+	for {
+		if len(data) < curr+2 {
+			break
+		}
+		subType := data[curr]
+		l := int(data[curr+1])
+		if len(data) < curr+2+l {
+			return fmt.Errorf("Not all TunnelEncapSubTLV bytes available")
+		}
+		v := data[curr+2 : curr+2+l]
+		subTlv := &TunnelEncapSubTLV{
+			Type:  subType,
+			Len:   l,
+			Value: v,
+		}
+		t.Value = append(t.Value, subTlv)
+		curr += 2 + l
+	}
+	return nil
+}
+
+func (p *TunnelEncapTLV) Serialize() ([]byte, error) {
+	buf := make([]byte, 4)
+	for _, s := range p.Value {
+		bbuf, err := s.Serialize()
+		if err != nil {
+			return nil, err
+		}
+		buf = append(buf, bbuf...)
+	}
+	binary.BigEndian.PutUint16(buf, uint16(p.Type))
+	p.Len = len(buf) - 4
+	binary.BigEndian.PutUint16(buf[2:], uint16(p.Len))
+	return buf, nil
+}
+
+func (p *TunnelEncapTLV) ToApiStruct() *api.TunnelEncapTLV {
+	subTlvs := make([]*api.TunnelEncapSubTLV, 0, len(p.Value))
+	for _, v := range p.Value {
+		subTlvs = append(subTlvs, v.ToApiStruct())
+	}
+	return &api.TunnelEncapTLV{
+		Type:   api.TUNNEL_TYPE(p.Type),
+		SubTlv: subTlvs,
+	}
+}
+
+type PathAttributeTunnelEncap struct {
+	PathAttribute
+	Value []*TunnelEncapTLV
+}
+
+func (p *PathAttributeTunnelEncap) DecodeFromBytes(data []byte) error {
+	err := p.PathAttribute.DecodeFromBytes(data)
+	if err != nil {
+		return err
+	}
+	curr := 0
+	for {
+		if len(p.PathAttribute.Value) < curr+4 {
+			break
+		}
+		t := binary.BigEndian.Uint16(p.PathAttribute.Value[curr : curr+2])
+		tunnelType := TunnelType(t)
+		l := int(binary.BigEndian.Uint16(p.PathAttribute.Value[curr+2 : curr+4]))
+		if len(p.PathAttribute.Value) < curr+4+l {
+			return fmt.Errorf("Not all TunnelEncapTLV bytes available. %d < %d", len(p.PathAttribute.Value), curr+4+l)
+		}
+		v := p.PathAttribute.Value[curr+4 : curr+4+l]
+		tlv := &TunnelEncapTLV{
+			Type: tunnelType,
+			Len:  l,
+		}
+		err = tlv.DecodeFromBytes(v)
+		if err != nil {
+			return err
+		}
+		p.Value = append(p.Value, tlv)
+		curr += 4 + l
+	}
+	return nil
+}
+
+func (p *PathAttributeTunnelEncap) Serialize() ([]byte, error) {
+	buf := make([]byte, 0)
+	for _, t := range p.Value {
+		bbuf, err := t.Serialize()
+		if err != nil {
+			return nil, err
+		}
+		buf = append(buf, bbuf...)
+	}
+	p.PathAttribute.Value = buf
+	return p.PathAttribute.Serialize()
+}
+
+func (p *PathAttributeTunnelEncap) ToApiStruct() *api.PathAttr {
+	tlvs := make([]*api.TunnelEncapTLV, 0, len(p.Value))
+	for _, v := range p.Value {
+		tlvs = append(tlvs, v.ToApiStruct())
+	}
+	return &api.PathAttr{
+		Type:        api.BGP_ATTR_TYPE_TUNNEL_ENCAP,
+		TunnelEncap: tlvs,
+	}
+}
+
+func (p *PathAttributeTunnelEncap) MarshalJSON() ([]byte, error) {
+	return json.Marshal(p.ToApiStruct())
+}
+
+func NewPathAttributeTunnelEncap(value []*TunnelEncapTLV) *PathAttributeTunnelEncap {
+	t := BGP_ATTR_TYPE_TUNNEL_ENCAP
+	return &PathAttributeTunnelEncap{
+		PathAttribute: PathAttribute{
+			Flags: pathAttrFlags[t],
+			Type:  t,
+		},
+		Value: value,
+	}
+}
+
 type PathAttributeUnknown struct {
 	PathAttribute
 }
@@ -2981,6 +3424,8 @@ func getPathAttribute(data []byte) (PathAttributeInterface, error) {
 		return &PathAttributeAs4Path{}, nil
 	case BGP_ATTR_TYPE_AS4_AGGREGATOR:
 		return &PathAttributeAs4Aggregator{}, nil
+	case BGP_ATTR_TYPE_TUNNEL_ENCAP:
+		return &PathAttributeTunnelEncap{}, nil
 	}
 	return &PathAttributeUnknown{}, nil
 }
