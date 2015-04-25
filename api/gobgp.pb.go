@@ -17,6 +17,8 @@ It has these top-level messages:
 	EVPNNlri
 	EvpnMacIpAdvertisement
 	Nlri
+	TunnelEncapSubTLV
+	TunnelEncapTLV
 	PathAttr
 	Path
 	Destination
@@ -156,10 +158,51 @@ func (x Origin) String() string {
 	return proto.EnumName(Origin_name, int32(x))
 }
 
+type TUNNEL_TYPE int32
+
+const (
+	TUNNEL_TYPE_UNKNOWN_TUNNEL_TYPE TUNNEL_TYPE = 0
+	TUNNEL_TYPE_L2TPV3_OVER_IP      TUNNEL_TYPE = 1
+	TUNNEL_TYPE_GRE                 TUNNEL_TYPE = 2
+	TUNNEL_TYPE_IP_IN_IP            TUNNEL_TYPE = 7
+	TUNNEL_TYPE_VXLAN               TUNNEL_TYPE = 8
+	TUNNEL_TYPE_NVGRE               TUNNEL_TYPE = 9
+	TUNNEL_TYPE_MPLS                TUNNEL_TYPE = 10
+	TUNNEL_TYPE_MPLS_IN_GRE         TUNNEL_TYPE = 11
+	TUNNEL_TYPE_VXLAN_GRE           TUNNEL_TYPE = 12
+)
+
+var TUNNEL_TYPE_name = map[int32]string{
+	0:  "UNKNOWN_TUNNEL_TYPE",
+	1:  "L2TPV3_OVER_IP",
+	2:  "GRE",
+	7:  "IP_IN_IP",
+	8:  "VXLAN",
+	9:  "NVGRE",
+	10: "MPLS",
+	11: "MPLS_IN_GRE",
+	12: "VXLAN_GRE",
+}
+var TUNNEL_TYPE_value = map[string]int32{
+	"UNKNOWN_TUNNEL_TYPE": 0,
+	"L2TPV3_OVER_IP":      1,
+	"GRE":                 2,
+	"IP_IN_IP":            7,
+	"VXLAN":               8,
+	"NVGRE":               9,
+	"MPLS":                10,
+	"MPLS_IN_GRE":         11,
+	"VXLAN_GRE":           12,
+}
+
+func (x TUNNEL_TYPE) String() string {
+	return proto.EnumName(TUNNEL_TYPE_name, int32(x))
+}
+
 type EVPN_TYPE int32
 
 const (
-	EVPN_TYPE__                                  EVPN_TYPE = 0
+	EVPN_TYPE_UNKNOWN_EVPN_TYPE                  EVPN_TYPE = 0
 	EVPN_TYPE_ROUTE_TYPE_ETHERNET_AUTO_DISCOVERY EVPN_TYPE = 1
 	EVPN_TYPE_ROUTE_TYPE_MAC_IP_ADVERTISEMENT    EVPN_TYPE = 2
 	EVPN_TYPE_INCLUSIVE_MULTICAST_ETHERNET_TAG   EVPN_TYPE = 3
@@ -167,14 +210,14 @@ const (
 )
 
 var EVPN_TYPE_name = map[int32]string{
-	0: "_",
+	0: "UNKNOWN_EVPN_TYPE",
 	1: "ROUTE_TYPE_ETHERNET_AUTO_DISCOVERY",
 	2: "ROUTE_TYPE_MAC_IP_ADVERTISEMENT",
 	3: "INCLUSIVE_MULTICAST_ETHERNET_TAG",
 	4: "ETHERNET_SEGMENT_ROUTE",
 }
 var EVPN_TYPE_value = map[string]int32{
-	"_": 0,
+	"UNKNOWN_EVPN_TYPE":                  0,
 	"ROUTE_TYPE_ETHERNET_AUTO_DISCOVERY": 1,
 	"ROUTE_TYPE_MAC_IP_ADVERTISEMENT":    2,
 	"INCLUSIVE_MULTICAST_ETHERNET_TAG":   3,
@@ -204,6 +247,7 @@ const (
 	BGP_ATTR_TYPE_EXTENDED_COMMUNITIES BGP_ATTR_TYPE = 16
 	BGP_ATTR_TYPE_AS4_PATH             BGP_ATTR_TYPE = 17
 	BGP_ATTR_TYPE_AS4_AGGREGATOR       BGP_ATTR_TYPE = 18
+	BGP_ATTR_TYPE_TUNNEL_ENCAP         BGP_ATTR_TYPE = 23
 )
 
 var BGP_ATTR_TYPE_name = map[int32]string{
@@ -223,6 +267,7 @@ var BGP_ATTR_TYPE_name = map[int32]string{
 	16: "EXTENDED_COMMUNITIES",
 	17: "AS4_PATH",
 	18: "AS4_AGGREGATOR",
+	23: "TUNNEL_ENCAP",
 }
 var BGP_ATTR_TYPE_value = map[string]int32{
 	"UNKNOWN_ATTR":         0,
@@ -241,6 +286,7 @@ var BGP_ATTR_TYPE_value = map[string]int32{
 	"EXTENDED_COMMUNITIES": 16,
 	"AS4_PATH":             17,
 	"AS4_AGGREGATOR":       18,
+	"TUNNEL_ENCAP":         23,
 }
 
 func (x BGP_ATTR_TYPE) String() string {
@@ -384,19 +430,45 @@ func (m *Nlri) GetEvpnNlri() *EVPNNlri {
 	return nil
 }
 
+type TunnelEncapSubTLV struct {
+	Type  uint32 `protobuf:"varint,1,opt,name=type" json:"type,omitempty"`
+	Value string `protobuf:"bytes,2,opt,name=value" json:"value,omitempty"`
+}
+
+func (m *TunnelEncapSubTLV) Reset()         { *m = TunnelEncapSubTLV{} }
+func (m *TunnelEncapSubTLV) String() string { return proto.CompactTextString(m) }
+func (*TunnelEncapSubTLV) ProtoMessage()    {}
+
+type TunnelEncapTLV struct {
+	Type   TUNNEL_TYPE          `protobuf:"varint,1,opt,name=type,enum=api.TUNNEL_TYPE" json:"type,omitempty"`
+	SubTlv []*TunnelEncapSubTLV `protobuf:"bytes,2,rep,name=sub_tlv" json:"sub_tlv,omitempty"`
+}
+
+func (m *TunnelEncapTLV) Reset()         { *m = TunnelEncapTLV{} }
+func (m *TunnelEncapTLV) String() string { return proto.CompactTextString(m) }
+func (*TunnelEncapTLV) ProtoMessage()    {}
+
+func (m *TunnelEncapTLV) GetSubTlv() []*TunnelEncapSubTLV {
+	if m != nil {
+		return m.SubTlv
+	}
+	return nil
+}
+
 type PathAttr struct {
-	Type       BGP_ATTR_TYPE `protobuf:"varint,1,opt,name=type,enum=api.BGP_ATTR_TYPE" json:"type,omitempty"`
-	Value      []string      `protobuf:"bytes,2,rep,name=value" json:"value,omitempty"`
-	Origin     Origin        `protobuf:"varint,3,opt,name=origin,enum=api.Origin" json:"origin,omitempty"`
-	AsPath     []uint32      `protobuf:"varint,4,rep,name=as_path" json:"as_path,omitempty"`
-	Nexthop    string        `protobuf:"bytes,5,opt,name=nexthop" json:"nexthop,omitempty"`
-	Metric     uint32        `protobuf:"varint,6,opt,name=metric" json:"metric,omitempty"`
-	Pref       uint32        `protobuf:"varint,7,opt,name=pref" json:"pref,omitempty"`
-	Aggregator *Aggregator   `protobuf:"bytes,8,opt,name=aggregator" json:"aggregator,omitempty"`
-	Communites []uint32      `protobuf:"varint,9,rep,name=communites" json:"communites,omitempty"`
-	Originator string        `protobuf:"bytes,10,opt,name=originator" json:"originator,omitempty"`
-	Cluster    []string      `protobuf:"bytes,11,rep,name=cluster" json:"cluster,omitempty"`
-	Nlri       *Nlri         `protobuf:"bytes,12,opt,name=nlri" json:"nlri,omitempty"`
+	Type        BGP_ATTR_TYPE     `protobuf:"varint,1,opt,name=type,enum=api.BGP_ATTR_TYPE" json:"type,omitempty"`
+	Value       []string          `protobuf:"bytes,2,rep,name=value" json:"value,omitempty"`
+	Origin      Origin            `protobuf:"varint,3,opt,name=origin,enum=api.Origin" json:"origin,omitempty"`
+	AsPath      []uint32          `protobuf:"varint,4,rep,name=as_path" json:"as_path,omitempty"`
+	Nexthop     string            `protobuf:"bytes,5,opt,name=nexthop" json:"nexthop,omitempty"`
+	Metric      uint32            `protobuf:"varint,6,opt,name=metric" json:"metric,omitempty"`
+	Pref        uint32            `protobuf:"varint,7,opt,name=pref" json:"pref,omitempty"`
+	Aggregator  *Aggregator       `protobuf:"bytes,8,opt,name=aggregator" json:"aggregator,omitempty"`
+	Communites  []uint32          `protobuf:"varint,9,rep,name=communites" json:"communites,omitempty"`
+	Originator  string            `protobuf:"bytes,10,opt,name=originator" json:"originator,omitempty"`
+	Cluster     []string          `protobuf:"bytes,11,rep,name=cluster" json:"cluster,omitempty"`
+	Nlri        *Nlri             `protobuf:"bytes,12,opt,name=nlri" json:"nlri,omitempty"`
+	TunnelEncap []*TunnelEncapTLV `protobuf:"bytes,13,rep,name=tunnel_encap" json:"tunnel_encap,omitempty"`
 }
 
 func (m *PathAttr) Reset()         { *m = PathAttr{} }
@@ -417,11 +489,18 @@ func (m *PathAttr) GetNlri() *Nlri {
 	return nil
 }
 
+func (m *PathAttr) GetTunnelEncap() []*TunnelEncapTLV {
+	if m != nil {
+		return m.TunnelEncap
+	}
+	return nil
+}
+
 type Path struct {
 	Nlri       *Nlri       `protobuf:"bytes,1,opt,name=nlri" json:"nlri,omitempty"`
-	Attrs      []*PathAttr `protobuf:"bytes,2,rep,name=attrs" json:"attrs,omitempty"`
-	Nexthop    string      `protobuf:"bytes,3,opt,name=nexthop" json:"nexthop,omitempty"`
-	Age        int64       `protobuf:"varint,4,opt,name=age" json:"age,omitempty"`
+	Nexthop    string      `protobuf:"bytes,2,opt,name=nexthop" json:"nexthop,omitempty"`
+	Age        int64       `protobuf:"varint,3,opt,name=age" json:"age,omitempty"`
+	Attrs      []*PathAttr `protobuf:"bytes,4,rep,name=attrs" json:"attrs,omitempty"`
 	Best       bool        `protobuf:"varint,5,opt,name=best" json:"best,omitempty"`
 	IsWithdraw bool        `protobuf:"varint,6,opt,name=is_withdraw" json:"is_withdraw,omitempty"`
 }
@@ -535,6 +614,7 @@ func init() {
 	proto.RegisterEnum("api.AFI", AFI_name, AFI_value)
 	proto.RegisterEnum("api.SAFI", SAFI_name, SAFI_value)
 	proto.RegisterEnum("api.Origin", Origin_name, Origin_value)
+	proto.RegisterEnum("api.TUNNEL_TYPE", TUNNEL_TYPE_name, TUNNEL_TYPE_value)
 	proto.RegisterEnum("api.EVPN_TYPE", EVPN_TYPE_name, EVPN_TYPE_value)
 	proto.RegisterEnum("api.BGP_ATTR_TYPE", BGP_ATTR_TYPE_name, BGP_ATTR_TYPE_value)
 	proto.RegisterEnum("api.Error_ErrorCode", Error_ErrorCode_name, Error_ErrorCode_value)

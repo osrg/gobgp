@@ -62,7 +62,9 @@ func update() *BGPMessage {
 		&TwoOctetAsSpecificExtended{SubType: 1, AS: 10003, LocalAdmin: 3 << 20},
 		&FourOctetAsSpecificExtended{SubType: 2, AS: 1 << 20, LocalAdmin: 300},
 		&IPv4AddressSpecificExtended{SubType: 3, IPv4: net.ParseIP("192.2.1.2").To4(), LocalAdmin: 3000},
-		&OpaqueExtended{Value: []byte{0, 1, 2, 3, 4, 5, 6, 7}},
+		&OpaqueExtended{
+			Value: &DefaultOpaqueExtendedValue{[]byte{0, 1, 2, 3, 4, 5, 6, 7}},
+		},
 		&UnknownExtended{Type: 99, Value: []byte{0, 1, 2, 3, 4, 5, 6, 7}},
 	}
 
@@ -175,15 +177,16 @@ func Test_RouteTargetMembershipNLRIString(t *testing.T) {
 	// TwoOctetAsSpecificExtended
 	buf := make([]byte, 12)
 	binary.BigEndian.PutUint32(buf[:4], 65546)
-	buf[4] = 0x00 // typehigh
+	buf[4] = byte(EC_TYPE_TRANSITIVE_TWO_OCTET_AS_SPECIFIC) // typehigh
 	binary.BigEndian.PutUint16(buf[6:8], 65000)
 	binary.BigEndian.PutUint32(buf[8:], 65546)
 	r.DecodeFromBytes(buf)
 	assert.Equal("65546:65000:65546/96", r.String())
 
 	// IPv4AddressSpecificExtended
+	buf = make([]byte, 12)
 	binary.BigEndian.PutUint32(buf[:4], 65546)
-	buf[4] = 0x01 // typehigh
+	buf[4] = byte(EC_TYPE_TRANSITIVE_IP4_SPECIFIC) // typehigh
 	ip := net.ParseIP("10.0.0.1").To4()
 	copy(buf[6:10], []byte(ip))
 	binary.BigEndian.PutUint16(buf[10:], 65000)
@@ -191,26 +194,98 @@ func Test_RouteTargetMembershipNLRIString(t *testing.T) {
 	assert.Equal("65546:10.0.0.1:65000/96", r.String())
 
 	// FourOctetAsSpecificExtended
+	buf = make([]byte, 12)
 	binary.BigEndian.PutUint32(buf[:4], 65546)
-	buf[4] = 0x02 // typehigh
-	buf[5] = 0x01 // subtype
+	buf[4] = byte(EC_TYPE_TRANSITIVE_FOUR_OCTET_AS_SPECIFIC) // typehigh
+	buf[5] = byte(EC_SUBTYPE_ROUTE_TARGET)                   // subtype
 	binary.BigEndian.PutUint32(buf[6:], 65546)
 	binary.BigEndian.PutUint16(buf[10:], 65000)
 	r.DecodeFromBytes(buf)
 	assert.Equal("65546:1.10:65000/96", r.String())
 
 	// OpaqueExtended
+	buf = make([]byte, 12)
 	binary.BigEndian.PutUint32(buf[:4], 65546)
-	buf[4] = 0x03 // typehigh
+	buf[4] = byte(EC_TYPE_TRANSITIVE_OPAQUE) // typehigh
 	binary.BigEndian.PutUint32(buf[8:], 1000000)
 	r.DecodeFromBytes(buf)
-	assert.Equal("65546:281479272677952/96", r.String())
+	assert.Equal("65546:1000000/96", r.String())
 
 	// Unknown
+	buf = make([]byte, 12)
 	binary.BigEndian.PutUint32(buf[:4], 65546)
 	buf[4] = 0x04 // typehigh
 	binary.BigEndian.PutUint32(buf[8:], 1000000)
 	r.DecodeFromBytes(buf)
-	assert.Equal("65546:281479272677952/96", r.String())
+	assert.Equal("65546:1000000/96", r.String())
 
+}
+
+func Test_RFC5512(t *testing.T) {
+	assert := assert.New(t)
+
+	buf := make([]byte, 8)
+	buf[0] = byte(EC_TYPE_TRANSITIVE_OPAQUE)
+	buf[1] = byte(EC_SUBTYPE_COLOR)
+	binary.BigEndian.PutUint32(buf[4:], 1000000)
+	ec, err := parseExtended(buf)
+	assert.Equal(nil, err)
+	assert.Equal("1000000", ec.String())
+	buf, err = ec.Serialize()
+	assert.Equal(nil, err)
+	assert.Equal([]byte{0x3, 0xb, 0x0, 0x0, 0x0, 0xf, 0x42, 0x40}, buf)
+
+	buf = make([]byte, 8)
+	buf[0] = byte(EC_TYPE_TRANSITIVE_OPAQUE)
+	buf[1] = byte(EC_SUBTYPE_ENCAPSULATION)
+	binary.BigEndian.PutUint16(buf[6:], uint16(TUNNEL_TYPE_VXLAN))
+	ec, err = parseExtended(buf)
+	assert.Equal(nil, err)
+	assert.Equal("VXLAN", ec.String())
+	buf, err = ec.Serialize()
+	assert.Equal(nil, err)
+	assert.Equal([]byte{0x3, 0xc, 0x0, 0x0, 0x0, 0x0, 0x0, 0x8}, buf)
+
+	subTlv := &TunnelEncapSubTLV{
+		Type:  1,
+		Value: []byte{0, 1, 2, 3},
+	}
+
+	tlv := &TunnelEncapTLV{
+		Type:  1,
+		Value: []*TunnelEncapSubTLV{subTlv},
+	}
+
+	attr := NewPathAttributeTunnelEncap([]*TunnelEncapTLV{tlv})
+
+	buf1, err := attr.Serialize()
+	assert.Equal(nil, err)
+
+	p, err := getPathAttribute(buf1)
+	assert.Equal(nil, err)
+
+	err = p.DecodeFromBytes(buf1)
+	assert.Equal(nil, err)
+
+	buf2, err := p.Serialize()
+	assert.Equal(nil, err)
+	assert.Equal(buf1, buf2)
+
+	n1 := NewEncapNLRI("10.0.0.1")
+	buf1, err = n1.Serialize()
+	assert.Equal(nil, err)
+
+	n2 := NewEncapNLRI("")
+	err = n2.DecodeFromBytes(buf1)
+	assert.Equal(nil, err)
+	assert.Equal("10.0.0.1", n2.String())
+
+	n1 = NewEncapNLRI("2001::1")
+	buf1, err = n1.Serialize()
+	assert.Equal(nil, err)
+
+	n2 = NewEncapNLRI("")
+	err = n2.DecodeFromBytes(buf1)
+	assert.Equal(nil, err)
+	assert.Equal("2001::1", n2.String())
 }

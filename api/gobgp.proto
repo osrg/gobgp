@@ -96,6 +96,18 @@ message Aggregator {
     string address = 2;
 }
 
+enum TUNNEL_TYPE {
+    UNKNOWN_TUNNEL_TYPE = 0;
+    L2TPV3_OVER_IP = 1;
+    GRE = 2;
+    IP_IN_IP = 7;
+    VXLAN = 8;
+    NVGRE = 9;
+    MPLS = 10;
+    MPLS_IN_GRE = 11;
+    VXLAN_GRE = 12;
+}
+
 enum EVPN_TYPE {
     UNKNOWN_EVPN_TYPE = 0;
     ROUTE_TYPE_ETHERNET_AUTO_DISCOVERY = 1;
@@ -130,6 +142,16 @@ message Nlri {
     string nexthop = 4;
 }
 
+message TunnelEncapSubTLV {
+    uint32 type = 1;
+    string value = 2;
+}
+
+message TunnelEncapTLV {
+    TUNNEL_TYPE type = 1;
+    repeated TunnelEncapSubTLV sub_tlv = 2;
+}
+
 enum BGP_ATTR_TYPE {
     UNKNOWN_ATTR = 0;
     ORIGIN = 1;
@@ -147,6 +169,7 @@ enum BGP_ATTR_TYPE {
     EXTENDED_COMMUNITIES = 16;
     AS4_PATH = 17;
     AS4_AGGREGATOR = 18;
+    TUNNEL_ENCAP = 23;
 }
 
 message PathAttr {
@@ -162,6 +185,7 @@ message PathAttr {
     string originator = 10;
     repeated string cluster = 11;
     Nlri nlri = 12;
+    repeated TunnelEncapTLV tunnel_encap = 13;
 }
 
 message Path {
@@ -176,7 +200,7 @@ message Path {
 message Destination {
     string prefix = 1;
     repeated Path paths = 2;
-    int32 best_path_idx = 3;
+    uint32 best_path_idx = 3;
 }
 
 message PeerConf {
