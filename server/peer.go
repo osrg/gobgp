@@ -660,51 +660,43 @@ func (peer *Peer) handlePeerMsg(m *peerMsg) {
 	switch m.msgType {
 	case PEER_MSG_PATH:
 		pList := m.msgData.([]table.Path)
-		paths := []table.Path{}
 
-		policies := peer.importPolicies
-		log.WithFields(log.Fields{
-			"Topic": "Peer",
-			"Key":   peer.peerConfig.NeighborAddress,
-		}).Debug("Import Policies :", policies)
-
-		for _, p := range pList {
-			log.Debug("p: ", p)
-			if !p.IsWithdraw() {
-				log.Debug("is not withdraw")
-
-				if len(policies) != 0 {
-					applied, newPath := peer.applyPolicies(policies, p)
-
-					if applied {
-						if newPath != nil {
-							log.Debug("path accepted")
-							paths = append(paths, newPath)
-						}
-					} else {
-						if peer.defaultImportPolicy == config.DEFAULT_POLICY_TYPE_ACCEPT_ROUTE {
-							paths = append(paths, p)
-							log.Debug("path accepted by default import policy: ", p)
-						}
-					}
-				} else {
-					paths = append(paths, p)
-				}
-			} else {
-				log.Debug("is withdraw")
-				paths = append(paths, p)
+		tmp := make([]table.Path, 0, len(pList))
+		for _, path := range pList {
+			if path.IsWithdraw() {
+				tmp = append(tmp, path)
+				continue
 			}
+
+			applied, path := peer.applyPolicies(peer.importPolicies, path)
+			if applied && path == nil {
+				log.WithFields(log.Fields{
+					"Topic": "Peer",
+					"Key":   peer.peerConfig.NeighborAddress,
+					"Data":  path,
+				}).Debug("Import policy applied, reject.")
+				continue
+			} else if peer.defaultImportPolicy != config.DEFAULT_POLICY_TYPE_ACCEPT_ROUTE {
+				log.WithFields(log.Fields{
+					"Topic": "Peer",
+					"Key":   peer.peerConfig.NeighborAddress,
+					"Data":  path,
+				}).Debug("Default import policy applied, reject.")
+				continue
+			}
+
+			tmp = append(tmp, path)
 		}
-		log.Debug("length of paths: ", len(paths))
+		pList = tmp
 
 		if peer.peerConfig.RouteServer.RouteServerClient || peer.isGlobalRib {
-			paths, _ = peer.rib.ProcessPaths(paths)
+			pList, _ = peer.rib.ProcessPaths(pList)
 		}
 
 		if peer.isGlobalRib {
-			peer.sendPathsToSiblings(paths)
+			peer.sendPathsToSiblings(pList)
 		} else {
-			peer.sendUpdateMsgFromPaths(paths)
+			peer.sendUpdateMsgFromPaths(pList)
 		}
 
 	case PEER_MSG_PEER_DOWN:
