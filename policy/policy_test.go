@@ -38,8 +38,7 @@ func TestPrefixCalcurateNoRange(t *testing.T) {
 	nlri := []bgp.NLRInfo{*bgp.NewNLRInfo(24, "10.10.0.101")}
 	withdrawnRoutes := []bgp.WithdrawnRoute{}
 	updateMsg := bgp.NewBGPUpdateMessage(withdrawnRoutes, pathAttributes, nlri)
-	msg := table.NewProcessMessage(updateMsg, peer)
-	path := msg.ToPathList()[0]
+	path := table.ProcessMessage(updateMsg, peer)[0]
 	// test
 	pl1, _ := NewPrefix(net.ParseIP("10.10.0.0"), 24, "")
 	match1 := IpPrefixCalculate(path, pl1)
@@ -64,8 +63,7 @@ func TestPrefixCalcurateAddress(t *testing.T) {
 	nlri := []bgp.NLRInfo{*bgp.NewNLRInfo(24, "10.10.0.101")}
 	withdrawnRoutes := []bgp.WithdrawnRoute{}
 	updateMsg := bgp.NewBGPUpdateMessage(withdrawnRoutes, pathAttributes, nlri)
-	msg := table.NewProcessMessage(updateMsg, peer)
-	path := msg.ToPathList()[0]
+	path := table.ProcessMessage(updateMsg, peer)[0]
 	// test
 	pl1, _ := NewPrefix(net.ParseIP("10.11.0.0"), 16, "21..24")
 	match1 := IpPrefixCalculate(path, pl1)
@@ -87,8 +85,7 @@ func TestPrefixCalcurateLength(t *testing.T) {
 	nlri := []bgp.NLRInfo{*bgp.NewNLRInfo(24, "10.10.0.101")}
 	withdrawnRoutes := []bgp.WithdrawnRoute{}
 	updateMsg := bgp.NewBGPUpdateMessage(withdrawnRoutes, pathAttributes, nlri)
-	msg := table.NewProcessMessage(updateMsg, peer)
-	path := msg.ToPathList()[0]
+	path := table.ProcessMessage(updateMsg, peer)[0]
 	// test
 	pl1, _ := NewPrefix(net.ParseIP("10.10.64.0"), 24, "21..24")
 	match1 := IpPrefixCalculate(path, pl1)
@@ -110,8 +107,7 @@ func TestPrefixCalcurateLengthRange(t *testing.T) {
 	nlri := []bgp.NLRInfo{*bgp.NewNLRInfo(24, "10.10.0.101")}
 	withdrawnRoutes := []bgp.WithdrawnRoute{}
 	updateMsg := bgp.NewBGPUpdateMessage(withdrawnRoutes, pathAttributes, nlri)
-	msg := table.NewProcessMessage(updateMsg, peer)
-	path := msg.ToPathList()[0]
+	path := table.ProcessMessage(updateMsg, peer)[0]
 	// test
 	pl1, _ := NewPrefix(net.ParseIP("10.10.0.0"), 16, "21..23")
 	match1 := IpPrefixCalculate(path, pl1)
@@ -138,8 +134,7 @@ func TestPrefixCalcurateNoRangeIPv6(t *testing.T) {
 	nlri := []bgp.NLRInfo{}
 	withdrawnRoutes := []bgp.WithdrawnRoute{}
 	updateMsg := bgp.NewBGPUpdateMessage(withdrawnRoutes, pathAttributes, nlri)
-	msg := table.NewProcessMessage(updateMsg, peer)
-	path := msg.ToPathList()[0]
+	path := table.ProcessMessage(updateMsg, peer)[0]
 	// test
 	pl1, _ := NewPrefix(net.ParseIP("2001:123:123::"), 48, "")
 	match1 := IpPrefixCalculate(path, pl1)
@@ -165,8 +160,7 @@ func TestPrefixCalcurateAddressIPv6(t *testing.T) {
 	nlri := []bgp.NLRInfo{}
 	withdrawnRoutes := []bgp.WithdrawnRoute{}
 	updateMsg := bgp.NewBGPUpdateMessage(withdrawnRoutes, pathAttributes, nlri)
-	msg := table.NewProcessMessage(updateMsg, peer)
-	path := msg.ToPathList()[0]
+	path := table.ProcessMessage(updateMsg, peer)[0]
 	// test
 	pl1, _ := NewPrefix(net.ParseIP("2001:123:128::"), 48, "64..80")
 	match1 := IpPrefixCalculate(path, pl1)
@@ -189,8 +183,7 @@ func TestPrefixCalcurateLengthIPv6(t *testing.T) {
 	nlri := []bgp.NLRInfo{}
 	withdrawnRoutes := []bgp.WithdrawnRoute{}
 	updateMsg := bgp.NewBGPUpdateMessage(withdrawnRoutes, pathAttributes, nlri)
-	msg := table.NewProcessMessage(updateMsg, peer)
-	path := msg.ToPathList()[0]
+	path := table.ProcessMessage(updateMsg, peer)[0]
 	// test
 	pl1, _ := NewPrefix(net.ParseIP("2001:123:123:64::"), 64, "64..80")
 	match1 := IpPrefixCalculate(path, pl1)
@@ -213,8 +206,7 @@ func TestPrefixCalcurateLengthRangeIPv6(t *testing.T) {
 	nlri := []bgp.NLRInfo{}
 	withdrawnRoutes := []bgp.WithdrawnRoute{}
 	updateMsg := bgp.NewBGPUpdateMessage(withdrawnRoutes, pathAttributes, nlri)
-	msg := table.NewProcessMessage(updateMsg, peer)
-	path := msg.ToPathList()[0]
+	path := table.ProcessMessage(updateMsg, peer)[0]
 	// test
 	pl1, _ := NewPrefix(net.ParseIP("2001:123:123::"), 48, "62..63")
 	match1 := IpPrefixCalculate(path, pl1)
@@ -239,8 +231,7 @@ func TestPolicyNotMatch(t *testing.T) {
 	nlri := []bgp.NLRInfo{*bgp.NewNLRInfo(24, "10.10.0.101")}
 	withdrawnRoutes := []bgp.WithdrawnRoute{}
 	updateMsg := bgp.NewBGPUpdateMessage(withdrawnRoutes, pathAttributes, nlri)
-	msg := table.NewProcessMessage(updateMsg, peer)
-	path := msg.ToPathList()[0]
+	path := table.ProcessMessage(updateMsg, peer)[0]
 	// create policy
 	ps := config.PrefixSet{
 		PrefixSetName: "ps1",
@@ -298,8 +289,7 @@ func TestPolicyMatchAndReject(t *testing.T) {
 	nlri := []bgp.NLRInfo{*bgp.NewNLRInfo(24, "10.10.0.101")}
 	withdrawnRoutes := []bgp.WithdrawnRoute{}
 	updateMsg := bgp.NewBGPUpdateMessage(withdrawnRoutes, pathAttributes, nlri)
-	msg := table.NewProcessMessage(updateMsg, peer)
-	path := msg.ToPathList()[0]
+	path := table.ProcessMessage(updateMsg, peer)[0]
 	// create policy
 	ps := config.PrefixSet{
 		PrefixSetName: "ps1",
@@ -357,8 +347,7 @@ func TestPolicyMatchAndAccept(t *testing.T) {
 	nlri := []bgp.NLRInfo{*bgp.NewNLRInfo(24, "10.10.0.101")}
 	withdrawnRoutes := []bgp.WithdrawnRoute{}
 	updateMsg := bgp.NewBGPUpdateMessage(withdrawnRoutes, pathAttributes, nlri)
-	msg := table.NewProcessMessage(updateMsg, peer)
-	path := msg.ToPathList()[0]
+	path := table.ProcessMessage(updateMsg, peer)[0]
 	// create policy
 	ps := config.PrefixSet{
 		PrefixSetName: "ps1",
@@ -416,8 +405,7 @@ func TestPolicyRejectOnlyPrefixSet(t *testing.T) {
 	nlri := []bgp.NLRInfo{*bgp.NewNLRInfo(24, "10.10.1.101")}
 	withdrawnRoutes := []bgp.WithdrawnRoute{}
 	updateMsg := bgp.NewBGPUpdateMessage(withdrawnRoutes, pathAttributes, nlri)
-	msg := table.NewProcessMessage(updateMsg, peer)
-	path1 := msg.ToPathList()[0]
+	path1 := table.ProcessMessage(updateMsg, peer)[0]
 
 	peer = &table.PeerInfo{AS: 65002, Address: net.ParseIP("10.0.2.2")}
 	origin = bgp.NewPathAttributeOrigin(0)
@@ -429,8 +417,7 @@ func TestPolicyRejectOnlyPrefixSet(t *testing.T) {
 	nlri = []bgp.NLRInfo{*bgp.NewNLRInfo(24, "10.9.2.102")}
 	withdrawnRoutes = []bgp.WithdrawnRoute{}
 	updateMsg = bgp.NewBGPUpdateMessage(withdrawnRoutes, pathAttributes, nlri)
-	msg = table.NewProcessMessage(updateMsg, peer)
-	path2 := msg.ToPathList()[0]
+	path2 := table.ProcessMessage(updateMsg, peer)[0]
 
 	// create policy
 	ps := config.PrefixSet{
@@ -487,8 +474,7 @@ func TestPolicyRejectOnlyNeighborSet(t *testing.T) {
 	nlri := []bgp.NLRInfo{*bgp.NewNLRInfo(24, "10.10.1.101")}
 	withdrawnRoutes := []bgp.WithdrawnRoute{}
 	updateMsg := bgp.NewBGPUpdateMessage(withdrawnRoutes, pathAttributes, nlri)
-	msg := table.NewProcessMessage(updateMsg, peer)
-	path1 := msg.ToPathList()[0]
+	path1 := table.ProcessMessage(updateMsg, peer)[0]
 
 	peer = &table.PeerInfo{AS: 65002, Address: net.ParseIP("10.0.2.2")}
 	origin = bgp.NewPathAttributeOrigin(0)
@@ -500,8 +486,7 @@ func TestPolicyRejectOnlyNeighborSet(t *testing.T) {
 	nlri = []bgp.NLRInfo{*bgp.NewNLRInfo(24, "10.10.2.102")}
 	withdrawnRoutes = []bgp.WithdrawnRoute{}
 	updateMsg = bgp.NewBGPUpdateMessage(withdrawnRoutes, pathAttributes, nlri)
-	msg = table.NewProcessMessage(updateMsg, peer)
-	path2 := msg.ToPathList()[0]
+	path2 := table.ProcessMessage(updateMsg, peer)[0]
 
 	// create policy
 	ns := config.NeighborSet{
@@ -556,8 +541,7 @@ func TestPolicyDifferentRoutefamilyOfPathAndPolicy(t *testing.T) {
 	nlriIPv4 := []bgp.NLRInfo{*bgp.NewNLRInfo(24, "10.10.0.101")}
 	withdrawnRoutesIPv4 := []bgp.WithdrawnRoute{}
 	updateMsgIPv4 := bgp.NewBGPUpdateMessage(withdrawnRoutesIPv4, pathAttributesIPv4, nlriIPv4)
-	msgIPv4 := table.NewProcessMessage(updateMsgIPv4, peerIPv4)
-	pathIPv4 := msgIPv4.ToPathList()[0]
+	pathIPv4 := table.ProcessMessage(updateMsgIPv4, peerIPv4)[0]
 	// creatae path ipv6
 	peerIPv6 := &table.PeerInfo{AS: 65001, Address: net.ParseIP("2001::192:168:50:1")}
 	originIPv6 := bgp.NewPathAttributeOrigin(0)
@@ -570,8 +554,7 @@ func TestPolicyDifferentRoutefamilyOfPathAndPolicy(t *testing.T) {
 	nlriIPv6 := []bgp.NLRInfo{}
 	withdrawnRoutesIPv6 := []bgp.WithdrawnRoute{}
 	updateMsgIPv6 := bgp.NewBGPUpdateMessage(withdrawnRoutesIPv6, pathAttributesIPv6, nlriIPv6)
-	msgIPv6 := table.NewProcessMessage(updateMsgIPv6, peerIPv6)
-	pathIPv6 := msgIPv6.ToPathList()[0]
+	pathIPv6 := table.ProcessMessage(updateMsgIPv6, peerIPv6)[0]
 	// create policy
 	psIPv4 := config.PrefixSet{
 		PrefixSetName: "psIPv4",

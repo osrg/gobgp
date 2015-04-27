@@ -38,8 +38,7 @@ func TestTableTableKeyDefault(t *testing.T) {
 
 func TestTableDeleteDestByNlri(t *testing.T) {
 	peerT := TableCreatePeer()
-	msgT := TableCreateMSG(peerT)
-	pathT := TableCreatePath(msgT)
+	pathT := TableCreatePath(peerT)
 	ipv4t := NewIPv4Table(0)
 	for _, path := range pathT {
 		tableKey := ipv4t.tableKey(path.GetNlri())
@@ -54,8 +53,7 @@ func TestTableDeleteDestByNlri(t *testing.T) {
 
 func TestTableDeleteDest(t *testing.T) {
 	peerT := TableCreatePeer()
-	msgT := TableCreateMSG(peerT)
-	pathT := TableCreatePath(msgT)
+	pathT := TableCreatePath(peerT)
 	ipv4t := NewIPv4Table(0)
 	for _, path := range pathT {
 		tableKey := ipv4t.tableKey(path.GetNlri())
@@ -78,8 +76,7 @@ func TestTableGetRouteFamily(t *testing.T) {
 
 func TestTableSetDestinations(t *testing.T) {
 	peerT := TableCreatePeer()
-	msgT := TableCreateMSG(peerT)
-	pathT := TableCreatePath(msgT)
+	pathT := TableCreatePath(peerT)
 	ipv4t := NewIPv4Table(0)
 	destinations := make(map[string]Destination)
 	for _, path := range pathT {
@@ -93,8 +90,7 @@ func TestTableSetDestinations(t *testing.T) {
 }
 func TestTableGetDestinations(t *testing.T) {
 	peerT := DestCreatePeer()
-	msgT := DestCreateMSG(peerT)
-	pathT := DestCreatePath(msgT)
+	pathT := DestCreatePath(peerT)
 	ipv4t := NewIPv4Table(0)
 	destinations := make(map[string]Destination)
 	for _, path := range pathT {
@@ -114,24 +110,18 @@ func TableCreatePeer() []*PeerInfo {
 	peerT := []*PeerInfo{peerT1, peerT2, peerT3}
 	return peerT
 }
-func TableCreateMSG(peerT []*PeerInfo) []*ProcessMessage {
+
+func TableCreatePath(peerT []*PeerInfo) []Path {
 	bgpMsgT1 := updateMsgT1()
 	bgpMsgT2 := updateMsgT2()
 	bgpMsgT3 := updateMsgT3()
-	msgT1 := &ProcessMessage{innerMessage: bgpMsgT1, fromPeer: peerT[0]}
-	msgT2 := &ProcessMessage{innerMessage: bgpMsgT2, fromPeer: peerT[1]}
-	msgT3 := &ProcessMessage{innerMessage: bgpMsgT3, fromPeer: peerT[2]}
-	msgT := []*ProcessMessage{msgT1, msgT2, msgT3}
-	return msgT
-}
-func TableCreatePath(msgs []*ProcessMessage) []Path {
 	pathT := make([]Path, 3)
-	for i, msg := range msgs {
-		updateMsgT := msg.innerMessage.Body.(*bgp.BGPUpdate)
+	for i, msg := range []*bgp.BGPMessage{bgpMsgT1, bgpMsgT2, bgpMsgT3} {
+		updateMsgT := msg.Body.(*bgp.BGPUpdate)
 		nlriList := updateMsgT.NLRI
 		pathAttributes := updateMsgT.PathAttributes
 		nlri_info := nlriList[0]
-		pathT[i], _ = CreatePath(msg.fromPeer, &nlri_info, pathAttributes, false, time.Now())
+		pathT[i], _ = CreatePath(peerT[i], &nlri_info, pathAttributes, false, time.Now())
 	}
 	return pathT
 }

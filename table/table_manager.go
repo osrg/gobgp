@@ -22,48 +22,36 @@ import (
 	"time"
 )
 
-type ProcessMessage struct {
-	innerMessage *bgp.BGPMessage
-	fromPeer     *PeerInfo
-}
-
-func NewProcessMessage(m *bgp.BGPMessage, peerInfo *PeerInfo) *ProcessMessage {
-	return &ProcessMessage{
-		innerMessage: m,
-		fromPeer:     peerInfo,
-	}
-}
-
-func (p *ProcessMessage) nlri2Path(now time.Time) []Path {
-	updateMsg := p.innerMessage.Body.(*bgp.BGPUpdate)
+func nlri2Path(m *bgp.BGPMessage, p *PeerInfo, now time.Time) []Path {
+	updateMsg := m.Body.(*bgp.BGPUpdate)
 	pathAttributes := updateMsg.PathAttributes
 	pathList := make([]Path, 0)
 	for _, nlri_info := range updateMsg.NLRI {
 		// define local variable to pass nlri's address to CreatePath
 		var nlri bgp.NLRInfo = nlri_info
 		// create Path object
-		path, _ := CreatePath(p.fromPeer, &nlri, pathAttributes, false, now)
+		path, _ := CreatePath(p, &nlri, pathAttributes, false, now)
 		pathList = append(pathList, path)
 	}
 	return pathList
 }
 
-func (p *ProcessMessage) withdraw2Path(now time.Time) []Path {
-	updateMsg := p.innerMessage.Body.(*bgp.BGPUpdate)
+func withdraw2Path(m *bgp.BGPMessage, p *PeerInfo, now time.Time) []Path {
+	updateMsg := m.Body.(*bgp.BGPUpdate)
 	pathAttributes := updateMsg.PathAttributes
 	pathList := make([]Path, 0)
 	for _, nlriWithdraw := range updateMsg.WithdrawnRoutes {
 		// define local variable to pass nlri's address to CreatePath
 		var w bgp.WithdrawnRoute = nlriWithdraw
 		// create withdrawn Path object
-		path, _ := CreatePath(p.fromPeer, &w, pathAttributes, true, now)
+		path, _ := CreatePath(p, &w, pathAttributes, true, now)
 		pathList = append(pathList, path)
 	}
 	return pathList
 }
 
-func (p *ProcessMessage) mpreachNlri2Path(now time.Time) []Path {
-	updateMsg := p.innerMessage.Body.(*bgp.BGPUpdate)
+func mpreachNlri2Path(m *bgp.BGPMessage, p *PeerInfo, now time.Time) []Path {
+	updateMsg := m.Body.(*bgp.BGPUpdate)
 	pathAttributes := updateMsg.PathAttributes
 	attrList := []*bgp.PathAttributeMpReachNLRI{}
 
@@ -79,15 +67,15 @@ func (p *ProcessMessage) mpreachNlri2Path(now time.Time) []Path {
 	for _, mp := range attrList {
 		nlri_info := mp.Value
 		for _, nlri := range nlri_info {
-			path, _ := CreatePath(p.fromPeer, nlri, pathAttributes, false, now)
+			path, _ := CreatePath(p, nlri, pathAttributes, false, now)
 			pathList = append(pathList, path)
 		}
 	}
 	return pathList
 }
 
-func (p *ProcessMessage) mpunreachNlri2Path(now time.Time) []Path {
-	updateMsg := p.innerMessage.Body.(*bgp.BGPUpdate)
+func mpunreachNlri2Path(m *bgp.BGPMessage, p *PeerInfo, now time.Time) []Path {
+	updateMsg := m.Body.(*bgp.BGPUpdate)
 	pathAttributes := updateMsg.PathAttributes
 	attrList := []*bgp.PathAttributeMpUnreachNLRI{}
 
@@ -104,20 +92,20 @@ func (p *ProcessMessage) mpunreachNlri2Path(now time.Time) []Path {
 		nlri_info := mp.Value
 
 		for _, nlri := range nlri_info {
-			path, _ := CreatePath(p.fromPeer, nlri, pathAttributes, true, now)
+			path, _ := CreatePath(p, nlri, pathAttributes, true, now)
 			pathList = append(pathList, path)
 		}
 	}
 	return pathList
 }
 
-func (p *ProcessMessage) ToPathList() []Path {
+func ProcessMessage(m *bgp.BGPMessage, peerInfo *PeerInfo) []Path {
 	pathList := make([]Path, 0)
 	now := time.Now()
-	pathList = append(pathList, p.nlri2Path(now)...)
-	pathList = append(pathList, p.withdraw2Path(now)...)
-	pathList = append(pathList, p.mpreachNlri2Path(now)...)
-	pathList = append(pathList, p.mpunreachNlri2Path(now)...)
+	pathList = append(pathList, nlri2Path(m, peerInfo, now)...)
+	pathList = append(pathList, withdraw2Path(m, peerInfo, now)...)
+	pathList = append(pathList, mpreachNlri2Path(m, peerInfo, now)...)
+	pathList = append(pathList, mpunreachNlri2Path(m, peerInfo, now)...)
 	return pathList
 }
 
@@ -289,12 +277,7 @@ func (manager *TableManager) ProcessUpdate(fromPeer *PeerInfo, message *bgp.BGPM
 		return []Path{}, nil
 	}
 
-	msg := &ProcessMessage{
-		innerMessage: message,
-		fromPeer:     fromPeer,
-	}
-
-	return manager.ProcessPaths(msg.ToPathList())
+	return manager.ProcessPaths(ProcessMessage(message, fromPeer))
 }
 
 type AdjRib struct {

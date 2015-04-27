@@ -2224,15 +2224,13 @@ func TestProcessBGPUpdate_Timestamp(t *testing.T) {
 	adjRib := NewAdjRib([]bgp.RouteFamily{bgp.RF_IPv4_UC, bgp.RF_IPv6_UC})
 	m1 := bgp.NewBGPUpdateMessage(withdrawnRoutes, pathAttributes, nlri)
 	peer := peerR1()
-	msg1 := NewProcessMessage(m1, peer)
-	pList1 := msg1.ToPathList()
+	pList1 := ProcessMessage(m1, peer)
 	path1 := pList1[0].(*IPv4Path)
 	t1 := path1.timestamp
 	adjRib.UpdateIn(pList1)
 
 	m2 := bgp.NewBGPUpdateMessage(withdrawnRoutes, pathAttributes, nlri)
-	msg2 := NewProcessMessage(m2, peer)
-	pList2 := msg2.ToPathList()
+	pList2 := ProcessMessage(m2, peer)
 	//path2 := pList2[0].(*IPv4Path)
 	//t2 = path2.timestamp
 	adjRib.UpdateIn(pList2)
@@ -2250,8 +2248,7 @@ func TestProcessBGPUpdate_Timestamp(t *testing.T) {
 	}
 
 	m3 := bgp.NewBGPUpdateMessage(withdrawnRoutes, pathAttributes2, nlri)
-	msg3 := NewProcessMessage(m3, peer)
-	pList3 := msg3.ToPathList()
+	pList3 := ProcessMessage(m3, peer)
 	t3 := pList3[0].getTimestamp()
 	adjRib.UpdateIn(pList3)
 

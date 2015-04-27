@@ -257,8 +257,7 @@ func (peer *Peer) handleBGPmessage(m *bgp.BGPMessage) {
 			return
 		}
 		table.UpdatePathAttrs4ByteAs(body)
-		msg := table.NewProcessMessage(m, peer.peerInfo)
-		pathList := msg.ToPathList()
+		pathList := table.ProcessMessage(m, peer.peerInfo)
 		peer.adjRib.UpdateIn(pathList)
 		peer.sendPathsToSiblings(pathList)
 	}

@@ -11,15 +11,13 @@ import (
 
 func TestPathNewIPv4(t *testing.T) {
 	peerP := PathCreatePeer()
-	msgP := PathCreateMSG(peerP)
-	pathP := PathCreatePath(msgP)
+	pathP := PathCreatePath(peerP)
 	ipv4p := NewIPv4Path(pathP[0].GetSource(), pathP[0].GetNlri(), true, pathP[0].getPathAttrs(), pathP[0].getMedSetByTargetNeighbor(), time.Now())
 	assert.NotNil(t, ipv4p)
 }
 func TestPathNewIPv6(t *testing.T) {
 	peerP := PathCreatePeer()
-	msgP := PathCreateMSG(peerP)
-	pathP := PathCreatePath(msgP)
+	pathP := PathCreatePath(peerP)
 	ipv6p := NewIPv6Path(pathP[0].GetSource(), pathP[0].GetNlri(), true, pathP[0].getPathAttrs(), pathP[0].getMedSetByTargetNeighbor(), time.Now())
 	assert.NotNil(t, ipv6p)
 }
@@ -121,28 +119,26 @@ func TestPathGetMedSetByTargetNeighbor(t *testing.T) {
 
 func TestPathCreatePath(t *testing.T) {
 	peerP := PathCreatePeer()
-	msgP := PathCreateMSG(peerP)
-	updateMsgP := msgP[0].innerMessage.Body.(*bgp.BGPUpdate)
+	msg := updateMsgP1()
+	updateMsgP := msg.Body.(*bgp.BGPUpdate)
 	nlriList := updateMsgP.NLRI
 	pathAttributes := updateMsgP.PathAttributes
 	nlri_info := nlriList[0]
-	path, _ := CreatePath(msgP[0].fromPeer, &nlri_info, pathAttributes, false, time.Now())
+	path, _ := CreatePath(peerP[0], &nlri_info, pathAttributes, false, time.Now())
 	assert.NotNil(t, path)
 
 }
 
 func TestPathGetPrefix(t *testing.T) {
 	peerP := PathCreatePeer()
-	msgP := PathCreateMSG(peerP)
-	pathP := PathCreatePath(msgP)
+	pathP := PathCreatePath(peerP)
 	prefix := "10.10.10.0/24"
 	r_prefix := pathP[0].getPrefix()
 	assert.Equal(t, r_prefix, prefix)
 }
 func TestPathGetAttribute(t *testing.T) {
 	peerP := PathCreatePeer()
-	msgP := PathCreateMSG(peerP)
-	pathP := PathCreatePath(msgP)
+	pathP := PathCreatePath(peerP)
 	nh := "192.168.50.1"
 	_, pa := pathP[0].getPathAttr(bgp.BGP_ATTR_TYPE_NEXT_HOP)
 	r_nh := pa.(*bgp.PathAttributeNextHop).Value.String()
@@ -156,24 +152,18 @@ func PathCreatePeer() []*PeerInfo {
 	peerP := []*PeerInfo{peerP1, peerP2, peerP3}
 	return peerP
 }
-func PathCreateMSG(peerP []*PeerInfo) []*ProcessMessage {
+
+func PathCreatePath(peerP []*PeerInfo) []Path {
 	bgpMsgP1 := updateMsgP1()
 	bgpMsgP2 := updateMsgP2()
 	bgpMsgP3 := updateMsgP3()
-	msgP1 := &ProcessMessage{innerMessage: bgpMsgP1, fromPeer: peerP[0]}
-	msgP2 := &ProcessMessage{innerMessage: bgpMsgP2, fromPeer: peerP[1]}
-	msgP3 := &ProcessMessage{innerMessage: bgpMsgP3, fromPeer: peerP[2]}
-	msgP := []*ProcessMessage{msgP1, msgP2, msgP3}
-	return msgP
-}
-func PathCreatePath(msgs []*ProcessMessage) []Path {
 	pathP := make([]Path, 3)
-	for i, msg := range msgs {
-		updateMsgP := msg.innerMessage.Body.(*bgp.BGPUpdate)
+	for i, msg := range []*bgp.BGPMessage{bgpMsgP1, bgpMsgP2, bgpMsgP3} {
+		updateMsgP := msg.Body.(*bgp.BGPUpdate)
 		nlriList := updateMsgP.NLRI
 		pathAttributes := updateMsgP.PathAttributes
 		nlri_info := nlriList[0]
-		pathP[i], _ = CreatePath(msg.fromPeer, &nlri_info, pathAttributes, false, time.Now())
+		pathP[i], _ = CreatePath(peerP[i], &nlri_info, pathAttributes, false, time.Now())
 	}
 	return pathP
 }

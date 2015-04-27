@@ -26,15 +26,13 @@ import (
 
 func TestDestinationNewIPv4(t *testing.T) {
 	peerD := DestCreatePeer()
-	msgD := DestCreateMSG(peerD)
-	pathD := DestCreatePath(msgD)
+	pathD := DestCreatePath(peerD)
 	ipv4d := NewIPv4Destination(pathD[0].GetNlri())
 	assert.NotNil(t, ipv4d)
 }
 func TestDestinationNewIPv6(t *testing.T) {
 	peerD := DestCreatePeer()
-	msgD := DestCreateMSG(peerD)
-	pathD := DestCreatePath(msgD)
+	pathD := DestCreatePath(peerD)
 	ipv6d := NewIPv6Destination(pathD[0].GetNlri())
 	assert.NotNil(t, ipv6d)
 }
@@ -81,8 +79,7 @@ func TestDestinationGetBestPathReason(t *testing.T) {
 }
 func TestDestinationSetBestPath(t *testing.T) {
 	peerD := DestCreatePeer()
-	msgD := DestCreateMSG(peerD)
-	pathD := DestCreatePath(msgD)
+	pathD := DestCreatePath(peerD)
 	ipv4d := NewIPv4Destination(pathD[0].GetNlri())
 	ipv4d.setBestPath(pathD[0])
 	r_pathD := ipv4d.getBestPath()
@@ -90,8 +87,7 @@ func TestDestinationSetBestPath(t *testing.T) {
 }
 func TestDestinationGetBestPath(t *testing.T) {
 	peerD := DestCreatePeer()
-	msgD := DestCreateMSG(peerD)
-	pathD := DestCreatePath(msgD)
+	pathD := DestCreatePath(peerD)
 	ipv4d := NewIPv4Destination(pathD[0].GetNlri())
 	ipv4d.setBestPath(pathD[0])
 	r_pathD := ipv4d.getBestPath()
@@ -99,8 +95,7 @@ func TestDestinationGetBestPath(t *testing.T) {
 }
 func TestDestinationCalculate(t *testing.T) {
 	peerD := DestCreatePeer()
-	msgD := DestCreateMSG(peerD)
-	pathD := DestCreatePath(msgD)
+	pathD := DestCreatePath(peerD)
 	ipv4d := NewIPv4Destination(pathD[0].GetNlri())
 	//best path selection
 	ipv4d.addNewPath(pathD[0])
@@ -118,24 +113,18 @@ func DestCreatePeer() []*PeerInfo {
 	peerD := []*PeerInfo{peerD1, peerD2, peerD3}
 	return peerD
 }
-func DestCreateMSG(peerD []*PeerInfo) []*ProcessMessage {
+
+func DestCreatePath(peerD []*PeerInfo) []Path {
 	bgpMsgD1 := updateMsgD1()
 	bgpMsgD2 := updateMsgD2()
 	bgpMsgD3 := updateMsgD3()
-	msgD1 := &ProcessMessage{innerMessage: bgpMsgD1, fromPeer: peerD[0]}
-	msgD2 := &ProcessMessage{innerMessage: bgpMsgD2, fromPeer: peerD[1]}
-	msgD3 := &ProcessMessage{innerMessage: bgpMsgD3, fromPeer: peerD[2]}
-	msgD := []*ProcessMessage{msgD1, msgD2, msgD3}
-	return msgD
-}
-func DestCreatePath(msgs []*ProcessMessage) []Path {
 	pathD := make([]Path, 3)
-	for i, msg := range msgs {
-		updateMsgD := msg.innerMessage.Body.(*bgp.BGPUpdate)
+	for i, msg := range []*bgp.BGPMessage{bgpMsgD1, bgpMsgD2, bgpMsgD3} {
+		updateMsgD := msg.Body.(*bgp.BGPUpdate)
 		nlriList := updateMsgD.NLRI
 		pathAttributes := updateMsgD.PathAttributes
 		nlri_info := nlriList[0]
-		pathD[i], _ = CreatePath(msg.fromPeer, &nlri_info, pathAttributes, false, time.Now())
+		pathD[i], _ = CreatePath(peerD[i], &nlri_info, pathAttributes, false, time.Now())
 	}
 	return pathD
 }

@@ -64,8 +64,7 @@ func TestProcessBGPUpdate_fourbyteAS(t *testing.T) {
 
 	m := update_fromRC3()
 	peerInfo := peerRC3()
-	msg := table.NewProcessMessage(m, peerInfo)
-	pathList := msg.ToPathList()
+	pathList := table.ProcessMessage(m, peerInfo)
 
 	pList, _ := rib1.ProcessPaths(pathList)
 	assert.Equal(t, len(pList), 1)
