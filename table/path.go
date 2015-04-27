@@ -35,6 +35,7 @@ type Path interface {
 	GetRouteFamily() bgp.RouteFamily
 	setSource(source *PeerInfo)
 	GetSource() *PeerInfo
+	GetSourceAs() uint32
 	GetNexthop() net.IP
 	SetNexthop(net.IP)
 	setWithdraw(withdraw bool)
@@ -222,6 +223,22 @@ func (pd *PathDefault) setSource(source *PeerInfo) {
 }
 func (pd *PathDefault) GetSource() *PeerInfo {
 	return pd.source
+}
+
+func (pd *PathDefault) GetSourceAs() uint32 {
+	_, attr := pd.getPathAttr(bgp.BGP_ATTR_TYPE_AS_PATH)
+	if attr != nil {
+		asPathParam := attr.(*bgp.PathAttributeAsPath).Value
+		if len(asPathParam) == 0 {
+			return 0
+		}
+		asPath := asPathParam[len(asPathParam)-1].(*bgp.As4PathParam)
+		if asPath.Num == 0 {
+			return 0
+		}
+		return asPath.AS[asPath.Num-1]
+	}
+	return 0
 }
 
 func (pd *PathDefault) GetNexthop() net.IP {

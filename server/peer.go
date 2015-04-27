@@ -551,6 +551,15 @@ func (peer *Peer) sendUpdateMsgFromPaths(pList []table.Path) {
 				continue
 			}
 
+			if peer.peerConfig.PeerAs == path.GetSourceAs() {
+				log.WithFields(log.Fields{
+					"Topic": "Peer",
+					"Key":   peer.peerConfig.NeighborAddress,
+					"Data":  path,
+				}).Debug("AS PATH loop, ignore.")
+				continue
+			}
+
 			if !path.IsWithdraw() {
 				applied, path := peer.applyPolicies(peer.exportPolicies, path)
 				if applied && path == nil {
