@@ -793,7 +793,6 @@ func (peer *Peer) connectLoop() error {
 		case <-ticker.C:
 			connect()
 		case <-peer.getActiveCh:
-			connect()
 			ticker = time.NewTicker(time.Duration(tick) * time.Second)
 		}
 	}
