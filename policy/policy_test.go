@@ -41,13 +41,13 @@ func TestPrefixCalcurateNoRange(t *testing.T) {
 	path := table.ProcessMessage(updateMsg, peer)[0]
 	// test
 	pl1, _ := NewPrefix(net.ParseIP("10.10.0.0"), 24, "")
-	match1 := IpPrefixCalculate(path, pl1)
+	match1 := ipPrefixCalculate(path, pl1)
 	assert.Equal(t, false, match1)
 	pl2, _ := NewPrefix(net.ParseIP("10.10.0.101"), 24, "")
-	match2 := IpPrefixCalculate(path, pl2)
+	match2 := ipPrefixCalculate(path, pl2)
 	assert.Equal(t, true, match2)
 	pl3, _ := NewPrefix(net.ParseIP("10.10.0.0"), 16, "21..24")
-	match3 := IpPrefixCalculate(path, pl3)
+	match3 := ipPrefixCalculate(path, pl3)
 	assert.Equal(t, true, match3)
 }
 
@@ -66,10 +66,10 @@ func TestPrefixCalcurateAddress(t *testing.T) {
 	path := table.ProcessMessage(updateMsg, peer)[0]
 	// test
 	pl1, _ := NewPrefix(net.ParseIP("10.11.0.0"), 16, "21..24")
-	match1 := IpPrefixCalculate(path, pl1)
+	match1 := ipPrefixCalculate(path, pl1)
 	assert.Equal(t, false, match1)
 	pl2, _ := NewPrefix(net.ParseIP("10.10.0.0"), 16, "21..24")
-	match2 := IpPrefixCalculate(path, pl2)
+	match2 := ipPrefixCalculate(path, pl2)
 	assert.Equal(t, true, match2)
 }
 
@@ -88,10 +88,10 @@ func TestPrefixCalcurateLength(t *testing.T) {
 	path := table.ProcessMessage(updateMsg, peer)[0]
 	// test
 	pl1, _ := NewPrefix(net.ParseIP("10.10.64.0"), 24, "21..24")
-	match1 := IpPrefixCalculate(path, pl1)
+	match1 := ipPrefixCalculate(path, pl1)
 	assert.Equal(t, false, match1)
 	pl2, _ := NewPrefix(net.ParseIP("10.10.64.0"), 16, "21..24")
-	match2 := IpPrefixCalculate(path, pl2)
+	match2 := ipPrefixCalculate(path, pl2)
 	assert.Equal(t, true, match2)
 }
 
@@ -110,13 +110,13 @@ func TestPrefixCalcurateLengthRange(t *testing.T) {
 	path := table.ProcessMessage(updateMsg, peer)[0]
 	// test
 	pl1, _ := NewPrefix(net.ParseIP("10.10.0.0"), 16, "21..23")
-	match1 := IpPrefixCalculate(path, pl1)
+	match1 := ipPrefixCalculate(path, pl1)
 	assert.Equal(t, false, match1)
 	pl2, _ := NewPrefix(net.ParseIP("10.10.0.0"), 16, "25..26")
-	match2 := IpPrefixCalculate(path, pl2)
+	match2 := ipPrefixCalculate(path, pl2)
 	assert.Equal(t, false, match2)
 	pl3, _ := NewPrefix(net.ParseIP("10.10.0.0"), 16, "21..24")
-	match3 := IpPrefixCalculate(path, pl3)
+	match3 := ipPrefixCalculate(path, pl3)
 	assert.Equal(t, true, match3)
 }
 
@@ -137,13 +137,13 @@ func TestPrefixCalcurateNoRangeIPv6(t *testing.T) {
 	path := table.ProcessMessage(updateMsg, peer)[0]
 	// test
 	pl1, _ := NewPrefix(net.ParseIP("2001:123:123::"), 48, "")
-	match1 := IpPrefixCalculate(path, pl1)
+	match1 := ipPrefixCalculate(path, pl1)
 	assert.Equal(t, false, match1)
 	pl2, _ := NewPrefix(net.ParseIP("2001:123:123:1::"), 64, "")
-	match2 := IpPrefixCalculate(path, pl2)
+	match2 := ipPrefixCalculate(path, pl2)
 	assert.Equal(t, true, match2)
 	pl3, _ := NewPrefix(net.ParseIP("2001:123:123::"), 48, "64..80")
-	match3 := IpPrefixCalculate(path, pl3)
+	match3 := ipPrefixCalculate(path, pl3)
 	assert.Equal(t, true, match3)
 }
 
@@ -163,10 +163,10 @@ func TestPrefixCalcurateAddressIPv6(t *testing.T) {
 	path := table.ProcessMessage(updateMsg, peer)[0]
 	// test
 	pl1, _ := NewPrefix(net.ParseIP("2001:123:128::"), 48, "64..80")
-	match1 := IpPrefixCalculate(path, pl1)
+	match1 := ipPrefixCalculate(path, pl1)
 	assert.Equal(t, false, match1)
 	pl2, _ := NewPrefix(net.ParseIP("2001:123:123::"), 48, "64..80")
-	match2 := IpPrefixCalculate(path, pl2)
+	match2 := ipPrefixCalculate(path, pl2)
 	assert.Equal(t, true, match2)
 }
 
@@ -186,10 +186,10 @@ func TestPrefixCalcurateLengthIPv6(t *testing.T) {
 	path := table.ProcessMessage(updateMsg, peer)[0]
 	// test
 	pl1, _ := NewPrefix(net.ParseIP("2001:123:123:64::"), 64, "64..80")
-	match1 := IpPrefixCalculate(path, pl1)
+	match1 := ipPrefixCalculate(path, pl1)
 	assert.Equal(t, false, match1)
 	pl2, _ := NewPrefix(net.ParseIP("2001:123:123:64::"), 48, "64..80")
-	match2 := IpPrefixCalculate(path, pl2)
+	match2 := ipPrefixCalculate(path, pl2)
 	assert.Equal(t, true, match2)
 }
 
@@ -209,13 +209,13 @@ func TestPrefixCalcurateLengthRangeIPv6(t *testing.T) {
 	path := table.ProcessMessage(updateMsg, peer)[0]
 	// test
 	pl1, _ := NewPrefix(net.ParseIP("2001:123:123::"), 48, "62..63")
-	match1 := IpPrefixCalculate(path, pl1)
+	match1 := ipPrefixCalculate(path, pl1)
 	assert.Equal(t, false, match1)
 	pl2, _ := NewPrefix(net.ParseIP("2001:123:123::"), 48, "65..66")
-	match2 := IpPrefixCalculate(path, pl2)
+	match2 := ipPrefixCalculate(path, pl2)
 	assert.Equal(t, false, match2)
 	pl3, _ := NewPrefix(net.ParseIP("2001:123:123::"), 48, "63..65")
-	match3 := IpPrefixCalculate(path, pl3)
+	match3 := ipPrefixCalculate(path, pl3)
 	assert.Equal(t, true, match3)
 }
 
@@ -631,4 +631,134 @@ func TestPolicyDifferentRoutefamilyOfPathAndPolicy(t *testing.T) {
 	assert.Equal(t, true, match2)
 	assert.Equal(t, ROUTE_TYPE_REJECT, pType2)
 	assert.Equal(t, nil, newPath2)
+}
+
+func TestAsPathLengthConditionEvaluate(t *testing.T) {
+	// setup
+	// create path
+	peer := &table.PeerInfo{AS: 65001, Address: net.ParseIP("10.0.0.1")}
+	origin := bgp.NewPathAttributeOrigin(0)
+	aspathParam := []bgp.AsPathParamInterface{
+		bgp.NewAsPathParam(2, []uint16{65001, 65000, 65004, 65005}),
+		bgp.NewAsPathParam(1, []uint16{65001, 65000, 65004, 65005}),
+	}
+	aspath := bgp.NewPathAttributeAsPath(aspathParam)
+	nexthop := bgp.NewPathAttributeNextHop("10.0.0.1")
+	med := bgp.NewPathAttributeMultiExitDisc(0)
+	pathAttributes := []bgp.PathAttributeInterface{origin, aspath, nexthop, med}
+	nlri := []bgp.NLRInfo{*bgp.NewNLRInfo(24, "10.10.0.101")}
+	withdrawnRoutes := []bgp.WithdrawnRoute{}
+	updateMsg := bgp.NewBGPUpdateMessage(withdrawnRoutes, pathAttributes, nlri)
+	table.UpdatePathAttrs4ByteAs(updateMsg.Body.(*bgp.BGPUpdate))
+	msg := table.NewProcessMessage(updateMsg, peer)
+	path := msg.ToPathList()[0]
+
+	// create match condition
+	asPathLength := config.AsPathLength{
+		Operator: "eq",
+		Value:    8,
+	}
+	c := NewAsPathLengthCondition(asPathLength)
+
+	// test
+	assert.Equal(t, true, c.evaluate(path))
+
+	// create match condition
+	asPathLength = config.AsPathLength{
+		Operator: "ge",
+		Value:    3,
+	}
+	c = NewAsPathLengthCondition(asPathLength)
+
+	// test
+	assert.Equal(t, true, c.evaluate(path))
+
+	// create match condition
+	asPathLength = config.AsPathLength{
+		Operator: "le",
+		Value:    3,
+	}
+	c = NewAsPathLengthCondition(asPathLength)
+
+	// test
+	assert.Equal(t, false, c.evaluate(path))
+}
+
+func TestAsPathLengthConditionWithOtherCondition(t *testing.T) {
+	// setup
+	// create path
+	peer := &table.PeerInfo{AS: 65001, Address: net.ParseIP("10.0.0.1")}
+	origin := bgp.NewPathAttributeOrigin(0)
+	aspathParam := []bgp.AsPathParamInterface{
+		bgp.NewAsPathParam(2, []uint16{65001, 65000, 65004, 65004, 65005}),
+		bgp.NewAsPathParam(1, []uint16{65001, 65000, 65004, 65005}),
+	}
+	aspath := bgp.NewPathAttributeAsPath(aspathParam)
+	nexthop := bgp.NewPathAttributeNextHop("10.0.0.1")
+	med := bgp.NewPathAttributeMultiExitDisc(0)
+	pathAttributes := []bgp.PathAttributeInterface{origin, aspath, nexthop, med}
+	nlri := []bgp.NLRInfo{*bgp.NewNLRInfo(24, "10.10.0.101")}
+	withdrawnRoutes := []bgp.WithdrawnRoute{}
+	updateMsg := bgp.NewBGPUpdateMessage(withdrawnRoutes, pathAttributes, nlri)
+	table.UpdatePathAttrs4ByteAs(updateMsg.Body.(*bgp.BGPUpdate))
+	msg := table.NewProcessMessage(updateMsg, peer)
+	path := msg.ToPathList()[0]
+
+	// create policy
+	ps := config.PrefixSet{
+		PrefixSetName: "ps1",
+		PrefixList: []config.Prefix{
+			config.Prefix{
+				Address:         net.ParseIP("10.10.1.0"),
+				Masklength:      16,
+				MasklengthRange: "21..24",
+			}},
+	}
+	ns := config.NeighborSet{
+		NeighborSetName: "ns1",
+		NeighborInfoList: []config.NeighborInfo{
+			config.NeighborInfo{
+				Address: net.ParseIP("10.0.1.1"),
+			}},
+	}
+
+	ds := config.DefinedSets{
+		PrefixSetList:   []config.PrefixSet{ps},
+		NeighborSetList: []config.NeighborSet{ns},
+	}
+
+	// create match condition
+	asPathLength := config.AsPathLength{
+		Operator: "le",
+		Value:    10,
+	}
+
+	bgpCondition := config.BgpConditions{
+		AsPathLength: asPathLength,
+	}
+
+	s := config.Statement{
+		Name: "statement1",
+		Conditions: config.Conditions{
+			MatchPrefixSet:   "ps1",
+			MatchNeighborSet: "ns1",
+			MatchSetOptions:  config.MATCH_SET_OPTIONS_TYPE_ANY,
+			BgpConditions:    bgpCondition,
+		},
+		Actions: config.Actions{
+			RejectRoute: true,
+		},
+	}
+	pd := config.PolicyDefinition{"pd1", []config.Statement{s}}
+	pl := config.RoutingPolicy{ds, []config.PolicyDefinition{pd}}
+
+	//test
+	pName := "pd1"
+	df := pl.DefinedSets
+	p := NewPolicy(pName, pl.PolicyDefinitionList[0], df)
+	match, pType, newPath := p.Apply(path)
+	assert.Equal(t, true, match)
+	assert.Equal(t, ROUTE_TYPE_REJECT, pType)
+	assert.Equal(t, nil, newPath)
+
 }
