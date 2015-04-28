@@ -1016,9 +1016,9 @@ func (x *grpcGetNeighborsServer) Send(m *Peer) error {
 	return x.ServerStream.SendMsg(m)
 }
 
-func _Grpc_GetNeighbor_Handler(srv interface{}, ctx context.Context, buf []byte) (interface{}, error) {
+func _Grpc_GetNeighbor_Handler(srv interface{}, ctx context.Context, codec grpc.Codec, buf []byte) (interface{}, error) {
 	in := new(Arguments)
-	if err := proto.Unmarshal(buf, in); err != nil {
+	if err := codec.Unmarshal(buf, in); err != nil {
 		return nil, err
 	}
 	out, err := srv.(GrpcServer).GetNeighbor(ctx, in)
@@ -1091,9 +1091,9 @@ func (x *grpcMonitorBestChangedServer) Send(m *Path) error {
 	return x.ServerStream.SendMsg(m)
 }
 
-func _Grpc_Reset_Handler(srv interface{}, ctx context.Context, buf []byte) (interface{}, error) {
+func _Grpc_Reset_Handler(srv interface{}, ctx context.Context, codec grpc.Codec, buf []byte) (interface{}, error) {
 	in := new(Arguments)
-	if err := proto.Unmarshal(buf, in); err != nil {
+	if err := codec.Unmarshal(buf, in); err != nil {
 		return nil, err
 	}
 	out, err := srv.(GrpcServer).Reset(ctx, in)
@@ -1103,9 +1103,9 @@ func _Grpc_Reset_Handler(srv interface{}, ctx context.Context, buf []byte) (inte
 	return out, nil
 }
 
-func _Grpc_SoftReset_Handler(srv interface{}, ctx context.Context, buf []byte) (interface{}, error) {
+func _Grpc_SoftReset_Handler(srv interface{}, ctx context.Context, codec grpc.Codec, buf []byte) (interface{}, error) {
 	in := new(Arguments)
-	if err := proto.Unmarshal(buf, in); err != nil {
+	if err := codec.Unmarshal(buf, in); err != nil {
 		return nil, err
 	}
 	out, err := srv.(GrpcServer).SoftReset(ctx, in)
@@ -1115,9 +1115,9 @@ func _Grpc_SoftReset_Handler(srv interface{}, ctx context.Context, buf []byte) (
 	return out, nil
 }
 
-func _Grpc_SoftResetIn_Handler(srv interface{}, ctx context.Context, buf []byte) (interface{}, error) {
+func _Grpc_SoftResetIn_Handler(srv interface{}, ctx context.Context, codec grpc.Codec, buf []byte) (interface{}, error) {
 	in := new(Arguments)
-	if err := proto.Unmarshal(buf, in); err != nil {
+	if err := codec.Unmarshal(buf, in); err != nil {
 		return nil, err
 	}
 	out, err := srv.(GrpcServer).SoftResetIn(ctx, in)
@@ -1127,9 +1127,9 @@ func _Grpc_SoftResetIn_Handler(srv interface{}, ctx context.Context, buf []byte)
 	return out, nil
 }
 
-func _Grpc_SoftResetOut_Handler(srv interface{}, ctx context.Context, buf []byte) (interface{}, error) {
+func _Grpc_SoftResetOut_Handler(srv interface{}, ctx context.Context, codec grpc.Codec, buf []byte) (interface{}, error) {
 	in := new(Arguments)
-	if err := proto.Unmarshal(buf, in); err != nil {
+	if err := codec.Unmarshal(buf, in); err != nil {
 		return nil, err
 	}
 	out, err := srv.(GrpcServer).SoftResetOut(ctx, in)
@@ -1139,9 +1139,9 @@ func _Grpc_SoftResetOut_Handler(srv interface{}, ctx context.Context, buf []byte
 	return out, nil
 }
 
-func _Grpc_Shutdown_Handler(srv interface{}, ctx context.Context, buf []byte) (interface{}, error) {
+func _Grpc_Shutdown_Handler(srv interface{}, ctx context.Context, codec grpc.Codec, buf []byte) (interface{}, error) {
 	in := new(Arguments)
-	if err := proto.Unmarshal(buf, in); err != nil {
+	if err := codec.Unmarshal(buf, in); err != nil {
 		return nil, err
 	}
 	out, err := srv.(GrpcServer).Shutdown(ctx, in)
@@ -1151,9 +1151,9 @@ func _Grpc_Shutdown_Handler(srv interface{}, ctx context.Context, buf []byte) (i
 	return out, nil
 }
 
-func _Grpc_Enable_Handler(srv interface{}, ctx context.Context, buf []byte) (interface{}, error) {
+func _Grpc_Enable_Handler(srv interface{}, ctx context.Context, codec grpc.Codec, buf []byte) (interface{}, error) {
 	in := new(Arguments)
-	if err := proto.Unmarshal(buf, in); err != nil {
+	if err := codec.Unmarshal(buf, in); err != nil {
 		return nil, err
 	}
 	out, err := srv.(GrpcServer).Enable(ctx, in)
@@ -1163,9 +1163,9 @@ func _Grpc_Enable_Handler(srv interface{}, ctx context.Context, buf []byte) (int
 	return out, nil
 }
 
-func _Grpc_Disable_Handler(srv interface{}, ctx context.Context, buf []byte) (interface{}, error) {
+func _Grpc_Disable_Handler(srv interface{}, ctx context.Context, codec grpc.Codec, buf []byte) (interface{}, error) {
 	in := new(Arguments)
-	if err := proto.Unmarshal(buf, in); err != nil {
+	if err := codec.Unmarshal(buf, in); err != nil {
 		return nil, err
 	}
 	out, err := srv.(GrpcServer).Disable(ctx, in)
