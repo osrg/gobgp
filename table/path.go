@@ -320,17 +320,18 @@ func (pd *PathDefault) getPathAttr(pattrType bgp.BGPAttrType) (int, bgp.PathAttr
 }
 
 // return Path's string representation
-func (pi *PathDefault) String() string {
-	str := fmt.Sprintf("IPv4Path Source: %v, ", pi.GetSource())
-	str = str + fmt.Sprintf(" NLRI: %s, ", pi.getPrefix())
-	str = str + fmt.Sprintf(" nexthop: %s, ", pi.GetNexthop().String())
-	str = str + fmt.Sprintf(" withdraw: %s, ", pi.IsWithdraw())
+func (pd *PathDefault) String() string {
+	str := fmt.Sprintf("IPv4Path Source: %v, ", pd.GetSource())
+	str = str + fmt.Sprintf(" NLRI: %s, ", pd.getPrefix())
+	str = str + fmt.Sprintf(" nexthop: %s, ", pd.GetNexthop().String())
+	str = str + fmt.Sprintf(" withdraw: %s, ", pd.IsWithdraw())
 	//str = str + fmt.Sprintf(" path attributes: %s, ", pi.getPathAttributeMap())
 	return str
 }
 
-func (pi *PathDefault) getPrefix() string {
-	return pi.nlri.String()
+func (pd *PathDefault) getPrefix() string {
+	return pd.nlri.String()
+}
 
 func (pd *PathDefault) Equal(p Path) bool {
 	if p == nil {
