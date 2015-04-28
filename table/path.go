@@ -198,7 +198,7 @@ func (pd *PathDefault) MarshalJSON() ([]byte, error) {
 // create new PathAttributes
 func (pd *PathDefault) Clone(isWithdraw bool) Path {
 	nlri := pd.nlri
-	if isWithdraw {
+	if pd.GetRouteFamily() == bgp.RF_IPv4_UC && isWithdraw {
 		if pd.IsWithdraw() {
 			nlri = pd.nlri
 		} else {
@@ -407,12 +407,6 @@ func NewIPv6Path(source *PeerInfo, nlri bgp.AddrPrefixInterface, isWithdraw bool
 	return ipv6Path
 }
 
-func (ipv6p *IPv6Path) Clone(isWithdraw bool) Path {
-	nlri := ipv6p.nlri
-	path, _ := CreatePath(ipv6p.source, nlri, ipv6p.pathAttrs, isWithdraw, ipv6p.PathDefault.timestamp)
-	return path
-}
-
 func (ipv6p *IPv6Path) setPathDefault(pd *PathDefault) {
 	ipv6p.PathDefault = pd
 }
@@ -439,12 +433,6 @@ func NewIPv4VPNPath(source *PeerInfo, nlri bgp.AddrPrefixInterface, isWithdraw b
 	ipv4VPNPath := &IPv4VPNPath{}
 	ipv4VPNPath.PathDefault = NewPathDefault(bgp.RF_IPv4_VPN, source, nlri, isWithdraw, attrs, medSetByTargetNeighbor, now)
 	return ipv4VPNPath
-}
-
-func (ipv4vpnp *IPv4VPNPath) Clone(isWithdraw bool) Path {
-	nlri := ipv4vpnp.nlri
-	path, _ := CreatePath(ipv4vpnp.source, nlri, ipv4vpnp.pathAttrs, isWithdraw, ipv4vpnp.PathDefault.timestamp)
-	return path
 }
 
 func (ipv4vpnp *IPv4VPNPath) setPathDefault(pd *PathDefault) {
@@ -487,12 +475,6 @@ func NewEVPNPath(source *PeerInfo, nlri bgp.AddrPrefixInterface, isWithdraw bool
 	EVPNPath := &EVPNPath{}
 	EVPNPath.PathDefault = NewPathDefault(bgp.RF_EVPN, source, nlri, isWithdraw, attrs, medSetByTargetNeighbor, now)
 	return EVPNPath
-}
-
-func (evpnp *EVPNPath) Clone(isWithdraw bool) Path {
-	nlri := evpnp.nlri
-	path, _ := CreatePath(evpnp.source, nlri, evpnp.pathAttrs, isWithdraw, evpnp.PathDefault.timestamp)
-	return path
 }
 
 func (evpnp *EVPNPath) setPathDefault(pd *PathDefault) {
@@ -542,9 +524,4 @@ func (p *EncapPath) setPathDefault(pd *PathDefault) {
 }
 func (p *EncapPath) getPathDefault() *PathDefault {
 	return p.PathDefault
-}
-
-func (p *EncapPath) Clone(isWithdraw bool) Path {
-	path, _ := CreatePath(p.source, p.nlri, p.pathAttrs, isWithdraw, p.PathDefault.timestamp)
-	return path
 }
