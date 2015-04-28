@@ -1195,10 +1195,7 @@ func (er *EVPNEthernetAutoDiscoveryRoute) Serialize() ([]byte, error) {
 	buf = append(buf, tbuf...)
 
 	tbuf = make([]byte, 3)
-	err = labelSerialize(er.Label, tbuf)
-	if err != nil {
-		return nil, err
-	}
+	labelSerialize(er.Label, tbuf)
 	buf = append(buf, tbuf...)
 
 	return buf, nil
