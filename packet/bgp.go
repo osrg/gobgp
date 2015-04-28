@@ -810,10 +810,16 @@ func labelDecode(data []byte) uint32 {
 	return uint32(data[0]<<16 | data[1]<<8 | data[2])
 }
 
-func labelSerialize(label uint32, buf []byte) {
+func labelSerialize(label uint32, buf []byte) error {
+	if ((label >> 24) & 0xff) != 0 {
+		return fmt.Errorf("Label must not exceed 3 octets")
+	}
+
 	buf[0] = byte((label >> 16) & 0xff)
 	buf[1] = byte((label >> 8) & 0xff)
 	buf[2] = byte(label & 0xff)
+
+	return nil
 }
 
 type Label struct {
@@ -1269,7 +1275,10 @@ func (er *EVPNMacIPAdvertisementRoute) Serialize() ([]byte, error) {
 
 	for _, l := range er.Labels {
 		tbuf = make([]byte, 3)
-		labelSerialize(l, tbuf)
+		err = labelSerialize(l, tbuf)
+		if err != nil {
+			return nil, err
+		}
 		buf = append(buf, tbuf...)
 	}
 	return buf, nil
