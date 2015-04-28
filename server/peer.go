@@ -369,7 +369,7 @@ func (peer *Peer) handleGrpc(grpcReq *GrpcRequest) {
 				MacAddress:       mac,
 				IPAddressLength:  uint8(iplen),
 				IPAddress:        ip,
-				Labels:           []uint32{0},
+				Labels:           *(bgp.NewLabel(0)),
 			}
 			nlri = bgp.NewEVPNNLRI(bgp.EVPN_ROUTE_TYPE_MAC_IP_ADVERTISEMENT, 0, macIpAdv)
 			pattr = append(pattr, bgp.NewPathAttributeMpReachNLRI("0.0.0.0", []bgp.AddrPrefixInterface{nlri}))
