@@ -41,6 +41,17 @@ const (
 	MASK_LENGTH_RANGE_MAX
 )
 
+type AttributeComparison int
+
+const (
+	// "== comparison"
+	ATTRIBUTE_EQ AttributeComparison = iota
+	// ">= comparison"
+	ATTRIBUTE_GE
+	// "<= comparison"
+	ATTRIBUTE_LE
+)
+
 type Policy struct {
 	Name       string
 	Statements []*Statement
@@ -55,7 +66,7 @@ func NewPolicy(name string, pd config.PolicyDefinition, ds config.DefinedSets) *
 
 	for _, statement := range stmtList {
 
-		conditions := make([]Condition,0)
+		conditions := make([]Condition, 0)
 
 		// prefix match
 		prefixSetName := statement.Conditions.MatchPrefixSet
@@ -67,6 +78,13 @@ func NewPolicy(name string, pd config.PolicyDefinition, ds config.DefinedSets) *
 		nc := NewNeighborCondition(neighborSetName, ds.NeighborSetList)
 		conditions = append(conditions, nc)
 
+		// AsPathLengthCondition
+		c := statement.Conditions.BgpConditions.AsPathLength
+		ac := NewAsPathLengthCondition(c)
+		if ac != nil {
+			conditions = append(conditions, ac)
+		}
+
 		action := &RoutingActions{
 			AcceptRoute: false,
 		}
@@ -76,9 +94,9 @@ func NewPolicy(name string, pd config.PolicyDefinition, ds config.DefinedSets) *
 		}
 
 		s := &Statement{
-			Name:       statement.Name,
-			Conditions: conditions,
-			Actions:    action,
+			Name:            statement.Name,
+			Conditions:      conditions,
+			Actions:         action,
 			MatchSetOptions: statement.Conditions.MatchSetOptions,
 		}
 
@@ -169,7 +187,7 @@ func NewPrefixCondition(prefixSetName string, defPrefixList []config.PrefixSet) 
 						"Topic":  "Policy",
 						"prefix": prefix,
 						"msg":    e,
-					}).Warn("failed to generate a NewPrefix from configration.")
+					}).Error("failed to generate a NewPrefix from configration.")
 				} else {
 					prefixList = append(prefixList, prefix)
 				}
@@ -196,7 +214,7 @@ func (c *PrefixCondition) evaluate(path table.Path) bool {
 	}
 
 	for _, cp := range c.PrefixList {
-		if IpPrefixCalculate(path, cp) {
+		if ipPrefixCalculate(path, cp) {
 			log.Debug("prefix matched : ", cp)
 			return true
 		}
@@ -245,6 +263,60 @@ func (c *NeighborCondition) evaluate(path table.Path) bool {
 		}
 	}
 	return false
+}
+
+type AsPathLengthCondition struct {
+	DefaultCondition
+	Value    uint32
+	Operator AttributeComparison
+}
+
+// create AsPathLengthCondition object
+func NewAsPathLengthCondition(defAsPathLength config.AsPathLength) *AsPathLengthCondition {
+
+	value := defAsPathLength.Value
+	var op AttributeComparison
+
+	switch defAsPathLength.Operator {
+		case "eq":
+		op = ATTRIBUTE_EQ
+
+		case "ge":
+		op = ATTRIBUTE_GE
+
+		case "le":
+		op = ATTRIBUTE_LE
+		default:
+			return nil
+	}
+
+	ac := &AsPathLengthCondition{
+		Value: value,
+		Operator: op,
+	}
+
+	return ac
+}
+
+// compare AS_PATH length in the message's AS_PATH attribute with
+// the one in condition.
+func (c *AsPathLengthCondition) evaluate(path table.Path) bool {
+
+	length := uint32(path.GetAsPathLen())
+
+	switch c.Operator {
+		case ATTRIBUTE_EQ:
+			return c.Value == length
+
+		case ATTRIBUTE_GE:
+			return c.Value <= length
+
+		case ATTRIBUTE_LE:
+			return c.Value >= length
+		default:
+			return false
+	}
+
 }
 
 type Actions interface {
@@ -330,8 +402,9 @@ func NewPrefix(addr net.IP, maskLen uint8, maskRange string) (Prefix, error) {
 	return p, nil
 }
 
-//compare path and condition of policy
-//and, subsequent comparison skip if that matches the conditions.
+// Compare path with a policy's condition in stored order in the policy.
+// If a condition match, then this function stops evaluation and
+// subsequent conditions are skipped.
 func (p *Policy) Apply(path table.Path) (bool, RouteType, table.Path) {
 	for _, statement := range p.Statements {
 
@@ -355,7 +428,7 @@ func (p *Policy) Apply(path table.Path) (bool, RouteType, table.Path) {
 	return false, ROUTE_TYPE_NONE, nil
 }
 
-func IpPrefixCalculate(path table.Path, cPrefix Prefix) bool {
+func ipPrefixCalculate(path table.Path, cPrefix Prefix) bool {
 	rf := path.GetRouteFamily()
 	log.Debug("path routefamily : ", rf.String())
 	var pAddr net.IP
