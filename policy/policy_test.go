@@ -42,13 +42,13 @@ func TestPrefixCalcurateNoRange(t *testing.T) {
 	// test
 	pl1, _ := NewPrefix(net.ParseIP("10.10.0.0"), 24, "")
 	match1 := IpPrefixCalculate(path, pl1)
-	assert.Equal(t, match1, false)
+	assert.Equal(t, false, match1)
 	pl2, _ := NewPrefix(net.ParseIP("10.10.0.101"), 24, "")
 	match2 := IpPrefixCalculate(path, pl2)
-	assert.Equal(t, match2, true)
+	assert.Equal(t, true, match2)
 	pl3, _ := NewPrefix(net.ParseIP("10.10.0.0"), 16, "21..24")
 	match3 := IpPrefixCalculate(path, pl3)
-	assert.Equal(t, match3, true)
+	assert.Equal(t, true, match3)
 }
 
 func TestPrefixCalcurateAddress(t *testing.T) {
@@ -67,10 +67,10 @@ func TestPrefixCalcurateAddress(t *testing.T) {
 	// test
 	pl1, _ := NewPrefix(net.ParseIP("10.11.0.0"), 16, "21..24")
 	match1 := IpPrefixCalculate(path, pl1)
-	assert.Equal(t, match1, false)
+	assert.Equal(t, false, match1)
 	pl2, _ := NewPrefix(net.ParseIP("10.10.0.0"), 16, "21..24")
 	match2 := IpPrefixCalculate(path, pl2)
-	assert.Equal(t, match2, true)
+	assert.Equal(t, true, match2)
 }
 
 func TestPrefixCalcurateLength(t *testing.T) {
@@ -89,10 +89,10 @@ func TestPrefixCalcurateLength(t *testing.T) {
 	// test
 	pl1, _ := NewPrefix(net.ParseIP("10.10.64.0"), 24, "21..24")
 	match1 := IpPrefixCalculate(path, pl1)
-	assert.Equal(t, match1, false)
+	assert.Equal(t, false, match1)
 	pl2, _ := NewPrefix(net.ParseIP("10.10.64.0"), 16, "21..24")
 	match2 := IpPrefixCalculate(path, pl2)
-	assert.Equal(t, match2, true)
+	assert.Equal(t, true, match2)
 }
 
 func TestPrefixCalcurateLengthRange(t *testing.T) {
@@ -111,13 +111,13 @@ func TestPrefixCalcurateLengthRange(t *testing.T) {
 	// test
 	pl1, _ := NewPrefix(net.ParseIP("10.10.0.0"), 16, "21..23")
 	match1 := IpPrefixCalculate(path, pl1)
-	assert.Equal(t, match1, false)
+	assert.Equal(t, false, match1)
 	pl2, _ := NewPrefix(net.ParseIP("10.10.0.0"), 16, "25..26")
 	match2 := IpPrefixCalculate(path, pl2)
-	assert.Equal(t, match2, false)
+	assert.Equal(t, false, match2)
 	pl3, _ := NewPrefix(net.ParseIP("10.10.0.0"), 16, "21..24")
 	match3 := IpPrefixCalculate(path, pl3)
-	assert.Equal(t, match3, true)
+	assert.Equal(t, true, match3)
 }
 
 func TestPrefixCalcurateNoRangeIPv6(t *testing.T) {
@@ -138,13 +138,13 @@ func TestPrefixCalcurateNoRangeIPv6(t *testing.T) {
 	// test
 	pl1, _ := NewPrefix(net.ParseIP("2001:123:123::"), 48, "")
 	match1 := IpPrefixCalculate(path, pl1)
-	assert.Equal(t, match1, false)
+	assert.Equal(t, false, match1)
 	pl2, _ := NewPrefix(net.ParseIP("2001:123:123:1::"), 64, "")
 	match2 := IpPrefixCalculate(path, pl2)
-	assert.Equal(t, match2, true)
+	assert.Equal(t, true, match2)
 	pl3, _ := NewPrefix(net.ParseIP("2001:123:123::"), 48, "64..80")
 	match3 := IpPrefixCalculate(path, pl3)
-	assert.Equal(t, match3, true)
+	assert.Equal(t, true, match3)
 }
 
 func TestPrefixCalcurateAddressIPv6(t *testing.T) {
@@ -164,10 +164,10 @@ func TestPrefixCalcurateAddressIPv6(t *testing.T) {
 	// test
 	pl1, _ := NewPrefix(net.ParseIP("2001:123:128::"), 48, "64..80")
 	match1 := IpPrefixCalculate(path, pl1)
-	assert.Equal(t, match1, false)
+	assert.Equal(t, false, match1)
 	pl2, _ := NewPrefix(net.ParseIP("2001:123:123::"), 48, "64..80")
 	match2 := IpPrefixCalculate(path, pl2)
-	assert.Equal(t, match2, true)
+	assert.Equal(t, true, match2)
 }
 
 func TestPrefixCalcurateLengthIPv6(t *testing.T) {
@@ -187,10 +187,10 @@ func TestPrefixCalcurateLengthIPv6(t *testing.T) {
 	// test
 	pl1, _ := NewPrefix(net.ParseIP("2001:123:123:64::"), 64, "64..80")
 	match1 := IpPrefixCalculate(path, pl1)
-	assert.Equal(t, match1, false)
+	assert.Equal(t, false, match1)
 	pl2, _ := NewPrefix(net.ParseIP("2001:123:123:64::"), 48, "64..80")
 	match2 := IpPrefixCalculate(path, pl2)
-	assert.Equal(t, match2, true)
+	assert.Equal(t, true, match2)
 }
 
 func TestPrefixCalcurateLengthRangeIPv6(t *testing.T) {
@@ -210,13 +210,13 @@ func TestPrefixCalcurateLengthRangeIPv6(t *testing.T) {
 	// test
 	pl1, _ := NewPrefix(net.ParseIP("2001:123:123::"), 48, "62..63")
 	match1 := IpPrefixCalculate(path, pl1)
-	assert.Equal(t, match1, false)
+	assert.Equal(t, false, match1)
 	pl2, _ := NewPrefix(net.ParseIP("2001:123:123::"), 48, "65..66")
 	match2 := IpPrefixCalculate(path, pl2)
-	assert.Equal(t, match2, false)
+	assert.Equal(t, false, match2)
 	pl3, _ := NewPrefix(net.ParseIP("2001:123:123::"), 48, "63..65")
 	match3 := IpPrefixCalculate(path, pl3)
-	assert.Equal(t, match3, true)
+	assert.Equal(t, true, match3)
 }
 
 func TestPolicyNotMatch(t *testing.T) {
@@ -272,9 +272,9 @@ func TestPolicyNotMatch(t *testing.T) {
 	df := pl.DefinedSets
 	p := NewPolicy(pName, pl.PolicyDefinitionList[0], df)
 	match, pType, newPath := p.Apply(path)
-	assert.Equal(t, match, false)
-	assert.Equal(t, pType, ROUTE_TYPE_NONE)
-	assert.Equal(t, newPath, nil)
+	assert.Equal(t, false, match)
+	assert.Equal(t, ROUTE_TYPE_NONE, pType)
+	assert.Equal(t, nil, newPath)
 }
 
 func TestPolicyMatchAndReject(t *testing.T) {
@@ -330,9 +330,9 @@ func TestPolicyMatchAndReject(t *testing.T) {
 	df := pl.DefinedSets
 	p := NewPolicy(pName, pl.PolicyDefinitionList[0], df)
 	match, pType, newPath := p.Apply(path)
-	assert.Equal(t, match, true)
-	assert.Equal(t, pType, ROUTE_TYPE_REJECT)
-	assert.Equal(t, newPath, nil)
+	assert.Equal(t, true, match)
+	assert.Equal(t, ROUTE_TYPE_REJECT, pType)
+	assert.Equal(t, nil, newPath)
 }
 
 func TestPolicyMatchAndAccept(t *testing.T) {
@@ -388,9 +388,9 @@ func TestPolicyMatchAndAccept(t *testing.T) {
 	df := pl.DefinedSets
 	p := NewPolicy(pName, pl.PolicyDefinitionList[0], df)
 	match, pType, newPath := p.Apply(path)
-	assert.Equal(t, match, true)
-	assert.Equal(t, pType, ROUTE_TYPE_ACCEPT)
-	assert.Equal(t, newPath, path)
+	assert.Equal(t, true, match)
+	assert.Equal(t, ROUTE_TYPE_ACCEPT, pType)
+	assert.Equal(t, path, newPath)
 }
 
 func TestPolicyRejectOnlyPrefixSet(t *testing.T) {
@@ -452,14 +452,14 @@ func TestPolicyRejectOnlyPrefixSet(t *testing.T) {
 	df := pl.DefinedSets
 	p := NewPolicy(pName, pl.PolicyDefinitionList[0], df)
 	match, pType, newPath := p.Apply(path1)
-	assert.Equal(t, match, true)
-	assert.Equal(t, pType, ROUTE_TYPE_REJECT)
-	assert.Equal(t, newPath, nil)
+	assert.Equal(t, true, match)
+	assert.Equal(t, ROUTE_TYPE_REJECT, pType)
+	assert.Equal(t, nil, newPath)
 
 	match2, pType2, newPath2 := p.Apply(path2)
-	assert.Equal(t, match2, false)
-	assert.Equal(t, pType2, ROUTE_TYPE_NONE)
-	assert.Equal(t, newPath2, nil)
+	assert.Equal(t, false, match2)
+	assert.Equal(t, ROUTE_TYPE_NONE, pType2)
+	assert.Equal(t, nil, newPath2)
 }
 
 func TestPolicyRejectOnlyNeighborSet(t *testing.T) {
@@ -519,14 +519,14 @@ func TestPolicyRejectOnlyNeighborSet(t *testing.T) {
 	df := pl.DefinedSets
 	p := NewPolicy(pName, pl.PolicyDefinitionList[0], df)
 	match, pType, newPath := p.Apply(path1)
-	assert.Equal(t, match, true)
-	assert.Equal(t, pType, ROUTE_TYPE_REJECT)
-	assert.Equal(t, newPath, nil)
+	assert.Equal(t, true, match)
+	assert.Equal(t, ROUTE_TYPE_REJECT, pType)
+	assert.Equal(t, nil, newPath)
 
 	match2, pType2, newPath2 := p.Apply(path2)
-	assert.Equal(t, match2, false)
-	assert.Equal(t, pType2, ROUTE_TYPE_NONE)
-	assert.Equal(t, newPath2, nil)
+	assert.Equal(t, false, match2)
+	assert.Equal(t, ROUTE_TYPE_NONE, pType2)
+	assert.Equal(t, nil, newPath2)
 }
 
 func TestPolicyDifferentRoutefamilyOfPathAndPolicy(t *testing.T) {
@@ -623,12 +623,12 @@ func TestPolicyDifferentRoutefamilyOfPathAndPolicy(t *testing.T) {
 	df := pl.DefinedSets
 	p := NewPolicy(pName, pl.PolicyDefinitionList[0], df)
 	match1, pType1, newPath1 := p.Apply(pathIPv4)
-	assert.Equal(t, match1, true)
-	assert.Equal(t, pType1, ROUTE_TYPE_REJECT)
-	assert.Equal(t, newPath1, nil)
+	assert.Equal(t, true, match1)
+	assert.Equal(t, ROUTE_TYPE_REJECT, pType1)
+	assert.Equal(t, nil, newPath1)
 
 	match2, pType2, newPath2 := p.Apply(pathIPv6)
-	assert.Equal(t, match2, true)
-	assert.Equal(t, pType2, ROUTE_TYPE_REJECT)
-	assert.Equal(t, newPath2, nil)
+	assert.Equal(t, true, match2)
+	assert.Equal(t, ROUTE_TYPE_REJECT, pType2)
+	assert.Equal(t, nil, newPath2)
 }
