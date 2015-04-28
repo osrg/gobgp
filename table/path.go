@@ -49,6 +49,7 @@ type Path interface {
 	setTimestamp(t time.Time)
 	ToApiStruct() *api.Path
 	MarshalJSON() ([]byte, error)
+	Equal(p Path) bool
 }
 
 type PathDefault struct {
@@ -330,6 +331,21 @@ func (pi *PathDefault) String() string {
 
 func (pi *PathDefault) getPrefix() string {
 	return pi.nlri.String()
+
+func (pd *PathDefault) Equal(p Path) bool {
+	if p == nil {
+		return false
+	} else if pd == p {
+		return true
+	}
+	serialize := func(p Path) string {
+		a := p.ToApiStruct()
+		a.Age = 0
+		a.Best = false
+		j, _ := json.Marshal(a)
+		return string(j)
+	}
+	return serialize(pd) == serialize(p)
 }
 
 // create Path object based on route family
