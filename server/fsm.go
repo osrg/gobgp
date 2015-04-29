@@ -300,25 +300,28 @@ func (h *FSMHandler) active() bgp.FSMState {
 	}
 }
 
-func buildopen(global *config.Global, peerConf *config.Neighbor) *bgp.BGPMessage {
-	p1 := bgp.NewOptionParameterCapability(
-		[]bgp.ParameterCapabilityInterface{bgp.NewCapRouteRefresh()})
-	c := []bgp.ParameterCapabilityInterface{}
+func capabilitiesFromConfig(global *config.Global, peerConf *config.Neighbor) []bgp.ParameterCapabilityInterface {
+	caps := make([]bgp.ParameterCapabilityInterface, 0, 4)
+	caps = append(caps, bgp.NewCapRouteRefresh())
 	for _, rf := range peerConf.AfiSafiList {
 		k, _ := bgp.GetRouteFamily(rf.AfiSafiName)
 		afi, safi := bgp.RouteFamilyToAfiSafi(k)
-		c = append(c, bgp.NewCapMultiProtocol(afi, safi))
+		caps = append(caps, bgp.NewCapMultiProtocol(afi, safi))
 	}
-	p2 := bgp.NewOptionParameterCapability(c)
-	p3 := bgp.NewOptionParameterCapability(
-		[]bgp.ParameterCapabilityInterface{bgp.NewCapFourOctetASNumber(global.As)})
+	caps = append(caps, bgp.NewCapFourOctetASNumber(global.As))
+	return caps
+}
+
+func buildopen(global *config.Global, peerConf *config.Neighbor) *bgp.BGPMessage {
+	caps := capabilitiesFromConfig(global, peerConf)
+	opt := bgp.NewOptionParameterCapability(caps)
 	holdTime := uint16(peerConf.Timers.HoldTime)
 	as := global.As
 	if as > (1<<16)-1 {
 		as = bgp.AS_TRANS
 	}
 	return bgp.NewBGPOpenMessage(uint16(as), holdTime, global.RouterId.String(),
-		[]bgp.OptionParameterInterface{p1, p2, p3})
+		[]bgp.OptionParameterInterface{opt})
 }
 
 func readAll(conn net.Conn, length int) ([]byte, error) {

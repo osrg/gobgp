@@ -171,6 +171,7 @@ type ParameterCapabilityInterface interface {
 	Serialize() ([]byte, error)
 	Len() int
 	Code() BGPCapabilityCode
+	ToApiStruct() *api.Capability
 }
 
 type DefaultParameterCapability struct {
@@ -206,6 +207,12 @@ func (c *DefaultParameterCapability) Len() int {
 	return int(c.CapLen + 2)
 }
 
+func (c *DefaultParameterCapability) ToApiStruct() *api.Capability {
+	return &api.Capability{
+		Code: api.BGP_CAPABILITY(c.Code()),
+	}
+}
+
 type CapMultiProtocolValue struct {
 	AFI  uint16
 	SAFI uint8
@@ -233,6 +240,13 @@ func (c *CapMultiProtocol) Serialize() ([]byte, error) {
 	buf[3] = c.CapValue.SAFI
 	c.DefaultParameterCapability.CapValue = buf
 	return c.DefaultParameterCapability.Serialize()
+}
+
+func (c *CapMultiProtocol) ToApiStruct() *api.Capability {
+	return &api.Capability{
+		Code:          api.BGP_CAPABILITY(c.Code()),
+		MultiProtocol: &api.AddressFamily{api.AFI(c.CapValue.AFI), api.SAFI(c.CapValue.SAFI)},
+	}
 }
 
 func NewCapMultiProtocol(afi uint16, safi uint8) *CapMultiProtocol {
@@ -310,6 +324,27 @@ func (c *CapGracefulRestart) Serialize() ([]byte, error) {
 	return c.DefaultParameterCapability.Serialize()
 }
 
+func (c *CapGracefulRestart) ToApiStruct() *api.Capability {
+	value := &api.GracefulRestart{
+		Flags: uint32(c.CapValue.Flags),
+		Time:  uint32(c.CapValue.Time),
+	}
+	tuples := []*api.GracefulRestartTuple{}
+	for _, t := range c.CapValue.Tuples {
+		tuple := &api.GracefulRestartTuple{
+			Af:    &api.AddressFamily{api.AFI(t.AFI), api.SAFI(t.SAFI)},
+			Flags: uint32(t.Flags),
+		}
+		tuples = append(tuples, tuple)
+
+	}
+	value.Tuples = tuples
+	return &api.Capability{
+		Code:            api.BGP_CAPABILITY(c.Code()),
+		GracefulRestart: value,
+	}
+}
+
 func NewCapGracefulRestart(flags uint8, time uint16, tuples []CapGracefulRestartTuples) *CapGracefulRestart {
 	return &CapGracefulRestart{
 		DefaultParameterCapability{
@@ -343,6 +378,13 @@ func (c *CapFourOctetASNumber) Serialize() ([]byte, error) {
 	binary.BigEndian.PutUint32(buf, c.CapValue)
 	c.DefaultParameterCapability.CapValue = buf
 	return c.DefaultParameterCapability.Serialize()
+}
+
+func (c *CapFourOctetASNumber) ToApiStruct() *api.Capability {
+	return &api.Capability{
+		Code: api.BGP_CAPABILITY(c.Code()),
+		Asn:  c.CapValue,
+	}
 }
 
 func NewCapFourOctetASNumber(asnum uint32) *CapFourOctetASNumber {

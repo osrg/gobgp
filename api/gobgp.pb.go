@@ -13,6 +13,9 @@ It has these top-level messages:
 	Arguments
 	ModPathArguments
 	AddressFamily
+	GracefulRestartTuple
+	GracefulRestart
+	Capability
 	Aggregator
 	ExtendedCommunity
 	EVPNNlri
@@ -138,6 +141,44 @@ var SAFI_value = map[string]int32{
 
 func (x SAFI) String() string {
 	return proto.EnumName(SAFI_name, int32(x))
+}
+
+type BGP_CAPABILITY int32
+
+const (
+	BGP_CAPABILITY_UNKNOWN_CAP            BGP_CAPABILITY = 0
+	BGP_CAPABILITY_MULTIPROTOCOL          BGP_CAPABILITY = 1
+	BGP_CAPABILITY_ROUTE_REFRESH          BGP_CAPABILITY = 2
+	BGP_CAPABILITY_CARRYING_LABEL_INFO    BGP_CAPABILITY = 4
+	BGP_CAPABILITY_GRACEFUL_RESTART       BGP_CAPABILITY = 64
+	BGP_CAPABILITY_FOUR_OCTET_AS_NUMBER   BGP_CAPABILITY = 65
+	BGP_CAPABILITY_ENHANCED_ROUTE_REFRESH BGP_CAPABILITY = 70
+	BGP_CAPABILITY_ROUTE_REFRESH_CISCO    BGP_CAPABILITY = 128
+)
+
+var BGP_CAPABILITY_name = map[int32]string{
+	0:   "UNKNOWN_CAP",
+	1:   "MULTIPROTOCOL",
+	2:   "ROUTE_REFRESH",
+	4:   "CARRYING_LABEL_INFO",
+	64:  "GRACEFUL_RESTART",
+	65:  "FOUR_OCTET_AS_NUMBER",
+	70:  "ENHANCED_ROUTE_REFRESH",
+	128: "ROUTE_REFRESH_CISCO",
+}
+var BGP_CAPABILITY_value = map[string]int32{
+	"UNKNOWN_CAP":            0,
+	"MULTIPROTOCOL":          1,
+	"ROUTE_REFRESH":          2,
+	"CARRYING_LABEL_INFO":    4,
+	"GRACEFUL_RESTART":       64,
+	"FOUR_OCTET_AS_NUMBER":   65,
+	"ENHANCED_ROUTE_REFRESH": 70,
+	"ROUTE_REFRESH_CISCO":    128,
+}
+
+func (x BGP_CAPABILITY) String() string {
+	return proto.EnumName(BGP_CAPABILITY_name, int32(x))
 }
 
 type Origin int32
@@ -444,6 +485,64 @@ func (m *AddressFamily) Reset()         { *m = AddressFamily{} }
 func (m *AddressFamily) String() string { return proto.CompactTextString(m) }
 func (*AddressFamily) ProtoMessage()    {}
 
+type GracefulRestartTuple struct {
+	Af    *AddressFamily `protobuf:"bytes,1,opt,name=af" json:"af,omitempty"`
+	Flags uint32         `protobuf:"varint,2,opt,name=flags" json:"flags,omitempty"`
+}
+
+func (m *GracefulRestartTuple) Reset()         { *m = GracefulRestartTuple{} }
+func (m *GracefulRestartTuple) String() string { return proto.CompactTextString(m) }
+func (*GracefulRestartTuple) ProtoMessage()    {}
+
+func (m *GracefulRestartTuple) GetAf() *AddressFamily {
+	if m != nil {
+		return m.Af
+	}
+	return nil
+}
+
+type GracefulRestart struct {
+	Flags  uint32                  `protobuf:"varint,1,opt,name=flags" json:"flags,omitempty"`
+	Time   uint32                  `protobuf:"varint,2,opt,name=time" json:"time,omitempty"`
+	Tuples []*GracefulRestartTuple `protobuf:"bytes,3,rep,name=tuples" json:"tuples,omitempty"`
+}
+
+func (m *GracefulRestart) Reset()         { *m = GracefulRestart{} }
+func (m *GracefulRestart) String() string { return proto.CompactTextString(m) }
+func (*GracefulRestart) ProtoMessage()    {}
+
+func (m *GracefulRestart) GetTuples() []*GracefulRestartTuple {
+	if m != nil {
+		return m.Tuples
+	}
+	return nil
+}
+
+type Capability struct {
+	Code            BGP_CAPABILITY   `protobuf:"varint,1,opt,name=code,enum=api.BGP_CAPABILITY" json:"code,omitempty"`
+	MultiProtocol   *AddressFamily   `protobuf:"bytes,2,opt,name=multi_protocol" json:"multi_protocol,omitempty"`
+	GracefulRestart *GracefulRestart `protobuf:"bytes,3,opt,name=graceful_restart" json:"graceful_restart,omitempty"`
+	Asn             uint32           `protobuf:"varint,4,opt,name=asn" json:"asn,omitempty"`
+}
+
+func (m *Capability) Reset()         { *m = Capability{} }
+func (m *Capability) String() string { return proto.CompactTextString(m) }
+func (*Capability) ProtoMessage()    {}
+
+func (m *Capability) GetMultiProtocol() *AddressFamily {
+	if m != nil {
+		return m.MultiProtocol
+	}
+	return nil
+}
+
+func (m *Capability) GetGracefulRestart() *GracefulRestart {
+	if m != nil {
+		return m.GracefulRestart
+	}
+	return nil
+}
+
 type Aggregator struct {
 	As      uint32 `protobuf:"varint,1,opt,name=as" json:"as,omitempty"`
 	Address string `protobuf:"bytes,2,opt,name=address" json:"address,omitempty"`
@@ -663,20 +762,34 @@ func (m *Destination) GetPaths() []*Path {
 }
 
 type PeerConf struct {
-	RemoteIp           string  `protobuf:"bytes,1,opt,name=remote_ip" json:"remote_ip,omitempty"`
-	Id                 string  `protobuf:"bytes,2,opt,name=id" json:"id,omitempty"`
-	RemoteAs           uint32  `protobuf:"varint,3,opt,name=remote_as" json:"remote_as,omitempty"`
-	CapRefresh         bool    `protobuf:"varint,4,opt,name=cap_refresh" json:"cap_refresh,omitempty"`
-	CapEnhancedRefresh bool    `protobuf:"varint,5,opt,name=cap_enhanced_refresh" json:"cap_enhanced_refresh,omitempty"`
-	RemoteCap          []int32 `protobuf:"varint,6,rep,name=remote_cap" json:"remote_cap,omitempty"`
-	LocalCap           []int32 `protobuf:"varint,7,rep,name=local_cap" json:"local_cap,omitempty"`
-	Holdtime           uint32  `protobuf:"varint,8,opt,name=holdtime" json:"holdtime,omitempty"`
-	KeepaliveInterval  uint32  `protobuf:"varint,9,opt,name=keepalive_interval" json:"keepalive_interval,omitempty"`
+	RemoteIp           string        `protobuf:"bytes,1,opt,name=remote_ip" json:"remote_ip,omitempty"`
+	Id                 string        `protobuf:"bytes,2,opt,name=id" json:"id,omitempty"`
+	RemoteAs           uint32        `protobuf:"varint,3,opt,name=remote_as" json:"remote_as,omitempty"`
+	CapRefresh         bool          `protobuf:"varint,4,opt,name=cap_refresh" json:"cap_refresh,omitempty"`
+	CapEnhancedRefresh bool          `protobuf:"varint,5,opt,name=cap_enhanced_refresh" json:"cap_enhanced_refresh,omitempty"`
+	RemoteCap          []*Capability `protobuf:"bytes,6,rep,name=remote_cap" json:"remote_cap,omitempty"`
+	LocalCap           []*Capability `protobuf:"bytes,7,rep,name=local_cap" json:"local_cap,omitempty"`
+	Holdtime           uint32        `protobuf:"varint,8,opt,name=holdtime" json:"holdtime,omitempty"`
+	KeepaliveInterval  uint32        `protobuf:"varint,9,opt,name=keepalive_interval" json:"keepalive_interval,omitempty"`
 }
 
 func (m *PeerConf) Reset()         { *m = PeerConf{} }
 func (m *PeerConf) String() string { return proto.CompactTextString(m) }
 func (*PeerConf) ProtoMessage()    {}
+
+func (m *PeerConf) GetRemoteCap() []*Capability {
+	if m != nil {
+		return m.RemoteCap
+	}
+	return nil
+}
+
+func (m *PeerConf) GetLocalCap() []*Capability {
+	if m != nil {
+		return m.LocalCap
+	}
+	return nil
+}
 
 type PeerInfo struct {
 	BgpState                  string `protobuf:"bytes,1,opt,name=bgp_state" json:"bgp_state,omitempty"`
@@ -739,6 +852,7 @@ func init() {
 	proto.RegisterEnum("api.Resource", Resource_name, Resource_value)
 	proto.RegisterEnum("api.AFI", AFI_name, AFI_value)
 	proto.RegisterEnum("api.SAFI", SAFI_name, SAFI_value)
+	proto.RegisterEnum("api.BGP_CAPABILITY", BGP_CAPABILITY_name, BGP_CAPABILITY_value)
 	proto.RegisterEnum("api.Origin", Origin_name, Origin_value)
 	proto.RegisterEnum("api.EXTENDED_COMMUNITIE_TYPE", EXTENDED_COMMUNITIE_TYPE_name, EXTENDED_COMMUNITIE_TYPE_value)
 	proto.RegisterEnum("api.EXTENDED_COMMUNITIE_SUBTYPE", EXTENDED_COMMUNITIE_SUBTYPE_name, EXTENDED_COMMUNITIE_SUBTYPE_value)

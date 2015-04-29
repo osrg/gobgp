@@ -622,6 +622,20 @@ func showNeighbors() error {
 	return nil
 }
 
+type capabilities []*api.Capability
+
+func (c capabilities) Len() int {
+	return len(c)
+}
+
+func (c capabilities) Swap(i, j int) {
+	c[i], c[j] = c[j], c[i]
+}
+
+func (c capabilities) Less(i, j int) bool {
+	return c[i].Code < c[j].Code
+}
+
 func showNeighbor(args []string) error {
 	id := &api.Arguments{
 		RouterId: args[0],
@@ -646,54 +660,47 @@ func showNeighbor(args []string) error {
 	fmt.Printf("  Configured hold time is %d, keepalive interval is %d seconds\n", p.Conf.Holdtime, p.Conf.KeepaliveInterval)
 
 	fmt.Printf("  Neighbor capabilities:\n")
-	caps := []int32{}
-	lookup := func(val int32, l []int32) bool {
+	caps := capabilities{}
+	lookup := func(val *api.Capability, l capabilities) *api.Capability {
 		for _, v := range l {
-			if v == val {
-				return true
+			if v.Code == val.Code {
+				if v.Code == api.BGP_CAPABILITY_MULTIPROTOCOL {
+					if v.MultiProtocol.Equal(val.MultiProtocol) {
+						return v
+					}
+					continue
+				}
+				return v
 			}
 		}
-		return false
+		return nil
 	}
 	caps = append(caps, p.Conf.LocalCap...)
 	for _, v := range p.Conf.RemoteCap {
-		if !lookup(v, caps) {
+		if lookup(v, caps) == nil {
 			caps = append(caps, v)
 		}
 	}
 
-	toInt := func(arg []int32) []int {
-		ret := make([]int, 0, len(arg))
-		for _, v := range arg {
-			ret = append(ret, int(v))
-		}
-		return ret
-	}
+	sort.Sort(caps)
 
-	sort.Sort(sort.IntSlice(toInt(caps)))
-	capdict := map[int]string{1: "MULTIPROTOCOL",
-		2:   "ROUTE_REFRESH",
-		4:   "CARRYING_LABEL_INFO",
-		64:  "GRACEFUL_RESTART",
-		65:  "FOUR_OCTET_AS_NUMBER",
-		70:  "ENHANCED_ROUTE_REFRESH",
-		128: "ROUTE_REFRESH_CISCO"}
 	for _, c := range caps {
-		k, found := capdict[int(c)]
-		if !found {
-			k = "UNKNOWN (" + fmt.Sprint(c) + ")"
-		}
 		support := ""
-		if lookup(c, p.Conf.LocalCap) {
+		if m := lookup(c, p.Conf.LocalCap); m != nil {
 			support += "advertised"
 		}
-		if lookup(c, p.Conf.RemoteCap) {
+		if lookup(c, p.Conf.RemoteCap) != nil {
 			if len(support) != 0 {
 				support += " and "
 			}
 			support += "received"
 		}
-		fmt.Printf("    %s: %s\n", k, support)
+
+		if c.Code != api.BGP_CAPABILITY_MULTIPROTOCOL {
+			fmt.Printf("    %s: %s\n", c.Code, support)
+		} else {
+			fmt.Printf("    %s(%s,%s): %s\n", c.Code, c.MultiProtocol.Afi, c.MultiProtocol.Safi, support)
+		}
 	}
 	fmt.Print("  Message statistics:\n")
 	fmt.Print("                         Sent       Rcvd\n")

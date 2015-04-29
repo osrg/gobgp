@@ -944,17 +944,23 @@ func (peer *Peer) ToApiStruct() *api.Peer {
 	f := peer.fsm
 	c := f.peerConfig
 
-	capList := make([]int32, 0, len(peer.capMap))
-	for k, _ := range peer.capMap {
-		capList = append(capList, int32(k))
+	remoteCap := make([]*api.Capability, 0, len(peer.capMap))
+	for _, c := range peer.capMap {
+		remoteCap = append(remoteCap, c.ToApiStruct())
+	}
+
+	caps := capabilitiesFromConfig(&peer.globalConfig, &peer.peerConfig)
+	localCap := make([]*api.Capability, 0, len(caps))
+	for _, c := range caps {
+		localCap = append(localCap, c.ToApiStruct())
 	}
 
 	conf := &api.PeerConf{
 		RemoteIp:          c.NeighborAddress.String(),
 		Id:                peer.peerInfo.ID.To4().String(),
 		RemoteAs:          c.PeerAs,
-		RemoteCap:         capList,
-		LocalCap:          []int32{int32(bgp.BGP_CAP_MULTIPROTOCOL), int32(bgp.BGP_CAP_ROUTE_REFRESH), int32(bgp.BGP_CAP_FOUR_OCTET_AS_NUMBER)},
+		RemoteCap:         remoteCap,
+		LocalCap:          localCap,
 		KeepaliveInterval: uint32(peer.fsm.peerConfig.Timers.KeepaliveInterval),
 		Holdtime:          uint32(peer.fsm.peerConfig.Timers.HoldTime),
 	}

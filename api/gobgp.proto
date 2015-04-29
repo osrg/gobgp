@@ -86,6 +86,35 @@ message AddressFamily {
     SAFI Safi = 2;
 }
 
+enum BGP_CAPABILITY {
+    UNKNOWN_CAP = 0;
+    MULTIPROTOCOL = 1;
+    ROUTE_REFRESH = 2;
+    CARRYING_LABEL_INFO = 4;
+    GRACEFUL_RESTART = 64;
+    FOUR_OCTET_AS_NUMBER = 65;
+    ENHANCED_ROUTE_REFRESH = 70;
+    ROUTE_REFRESH_CISCO = 128;
+}
+
+message GracefulRestartTuple {
+    AddressFamily af = 1;
+    uint32 flags = 2;
+}
+
+message GracefulRestart {
+    uint32 flags = 1;
+    uint32 time = 2;
+    repeated GracefulRestartTuple tuples = 3;
+}
+
+message Capability {
+    BGP_CAPABILITY code = 1;
+    AddressFamily multi_protocol = 2;
+    GracefulRestart graceful_restart = 3;
+    uint32 asn = 4;
+}
+
 enum Origin {
     IGP = 0;
     EGP = 1;
@@ -250,8 +279,8 @@ message PeerConf {
     uint32 remote_as = 3;
     bool cap_refresh = 4;
     bool cap_enhanced_refresh = 5;
-    repeated int32 remote_cap = 6;
-    repeated int32 local_cap = 7;
+    repeated Capability remote_cap = 6;
+    repeated Capability local_cap = 7;
     uint32 holdtime = 8;
     uint32 keepalive_interval = 9;
 }
