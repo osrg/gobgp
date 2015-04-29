@@ -109,8 +109,8 @@ func (dd *DestinationDefault) ToApiStruct() *api.Destination {
 		log.WithFields(log.Fields{
 			"Topic": "Table",
 			"Key":   prefix,
-		}).Panic("no best path")
-		return 0
+		}).Error("no best path")
+		return len(dd.knownPathList)
 	}()
 
 	paths := func(arg []Path) []*api.Path {
