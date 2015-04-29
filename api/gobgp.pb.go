@@ -19,6 +19,7 @@ It has these top-level messages:
 	Nlri
 	TunnelEncapSubTLV
 	TunnelEncapTLV
+	PmsiTunnel
 	PathAttr
 	Path
 	Destination
@@ -202,6 +203,44 @@ func (x TUNNEL_TYPE) String() string {
 	return proto.EnumName(TUNNEL_TYPE_name, int32(x))
 }
 
+type PMSI_TUNNEL_TYPE int32
+
+const (
+	PMSI_TUNNEL_TYPE_NO_TUNNEL      PMSI_TUNNEL_TYPE = 0
+	PMSI_TUNNEL_TYPE_RSVP_TE_P2MP   PMSI_TUNNEL_TYPE = 1
+	PMSI_TUNNEL_TYPE_MLDP_P2MP      PMSI_TUNNEL_TYPE = 2
+	PMSI_TUNNEL_TYPE_PIM_SSM_TREE   PMSI_TUNNEL_TYPE = 3
+	PMSI_TUNNEL_TYPE_PIM_SM_TREE    PMSI_TUNNEL_TYPE = 4
+	PMSI_TUNNEL_TYPE_BIDIR_PIM_TREE PMSI_TUNNEL_TYPE = 5
+	PMSI_TUNNEL_TYPE_INGRESS_REPL   PMSI_TUNNEL_TYPE = 6
+	PMSI_TUNNEL_TYPE_MLDP_MP2MP     PMSI_TUNNEL_TYPE = 7
+)
+
+var PMSI_TUNNEL_TYPE_name = map[int32]string{
+	0: "NO_TUNNEL",
+	1: "RSVP_TE_P2MP",
+	2: "MLDP_P2MP",
+	3: "PIM_SSM_TREE",
+	4: "PIM_SM_TREE",
+	5: "BIDIR_PIM_TREE",
+	6: "INGRESS_REPL",
+	7: "MLDP_MP2MP",
+}
+var PMSI_TUNNEL_TYPE_value = map[string]int32{
+	"NO_TUNNEL":      0,
+	"RSVP_TE_P2MP":   1,
+	"MLDP_P2MP":      2,
+	"PIM_SSM_TREE":   3,
+	"PIM_SM_TREE":    4,
+	"BIDIR_PIM_TREE": 5,
+	"INGRESS_REPL":   6,
+	"MLDP_MP2MP":     7,
+}
+
+func (x PMSI_TUNNEL_TYPE) String() string {
+	return proto.EnumName(PMSI_TUNNEL_TYPE_name, int32(x))
+}
+
 type EVPN_TYPE int32
 
 const (
@@ -276,6 +315,7 @@ const (
 	BGP_ATTR_TYPE_EXTENDED_COMMUNITIES BGP_ATTR_TYPE = 16
 	BGP_ATTR_TYPE_AS4_PATH             BGP_ATTR_TYPE = 17
 	BGP_ATTR_TYPE_AS4_AGGREGATOR       BGP_ATTR_TYPE = 18
+	BGP_ATTR_TYPE_PMSI_TUNNEL          BGP_ATTR_TYPE = 22
 	BGP_ATTR_TYPE_TUNNEL_ENCAP         BGP_ATTR_TYPE = 23
 )
 
@@ -296,6 +336,7 @@ var BGP_ATTR_TYPE_name = map[int32]string{
 	16: "EXTENDED_COMMUNITIES",
 	17: "AS4_PATH",
 	18: "AS4_AGGREGATOR",
+	22: "PMSI_TUNNEL",
 	23: "TUNNEL_ENCAP",
 }
 var BGP_ATTR_TYPE_value = map[string]int32{
@@ -315,6 +356,7 @@ var BGP_ATTR_TYPE_value = map[string]int32{
 	"EXTENDED_COMMUNITIES": 16,
 	"AS4_PATH":             17,
 	"AS4_AGGREGATOR":       18,
+	"PMSI_TUNNEL":          22,
 	"TUNNEL_ENCAP":         23,
 }
 
@@ -488,6 +530,17 @@ func (m *TunnelEncapTLV) GetSubTlv() []*TunnelEncapSubTLV {
 	return nil
 }
 
+type PmsiTunnel struct {
+	IsLeafInfoRequired bool             `protobuf:"varint,1,opt,name=is_leaf_info_required" json:"is_leaf_info_required,omitempty"`
+	Type               PMSI_TUNNEL_TYPE `protobuf:"varint,2,opt,name=type,enum=api.PMSI_TUNNEL_TYPE" json:"type,omitempty"`
+	Label              uint32           `protobuf:"varint,3,opt,name=label" json:"label,omitempty"`
+	TunnelId           string           `protobuf:"bytes,4,opt,name=tunnel_id" json:"tunnel_id,omitempty"`
+}
+
+func (m *PmsiTunnel) Reset()         { *m = PmsiTunnel{} }
+func (m *PmsiTunnel) String() string { return proto.CompactTextString(m) }
+func (*PmsiTunnel) ProtoMessage()    {}
+
 type PathAttr struct {
 	Type        BGP_ATTR_TYPE     `protobuf:"varint,1,opt,name=type,enum=api.BGP_ATTR_TYPE" json:"type,omitempty"`
 	Value       []string          `protobuf:"bytes,2,rep,name=value" json:"value,omitempty"`
@@ -502,6 +555,7 @@ type PathAttr struct {
 	Cluster     []string          `protobuf:"bytes,11,rep,name=cluster" json:"cluster,omitempty"`
 	Nlri        *Nlri             `protobuf:"bytes,12,opt,name=nlri" json:"nlri,omitempty"`
 	TunnelEncap []*TunnelEncapTLV `protobuf:"bytes,13,rep,name=tunnel_encap" json:"tunnel_encap,omitempty"`
+	PmsiTunnel  *PmsiTunnel       `protobuf:"bytes,14,opt,name=pmsi_tunnel" json:"pmsi_tunnel,omitempty"`
 }
 
 func (m *PathAttr) Reset()         { *m = PathAttr{} }
@@ -525,6 +579,13 @@ func (m *PathAttr) GetNlri() *Nlri {
 func (m *PathAttr) GetTunnelEncap() []*TunnelEncapTLV {
 	if m != nil {
 		return m.TunnelEncap
+	}
+	return nil
+}
+
+func (m *PathAttr) GetPmsiTunnel() *PmsiTunnel {
+	if m != nil {
+		return m.PmsiTunnel
 	}
 	return nil
 }
@@ -648,6 +709,7 @@ func init() {
 	proto.RegisterEnum("api.SAFI", SAFI_name, SAFI_value)
 	proto.RegisterEnum("api.Origin", Origin_name, Origin_value)
 	proto.RegisterEnum("api.TUNNEL_TYPE", TUNNEL_TYPE_name, TUNNEL_TYPE_value)
+	proto.RegisterEnum("api.PMSI_TUNNEL_TYPE", PMSI_TUNNEL_TYPE_name, PMSI_TUNNEL_TYPE_value)
 	proto.RegisterEnum("api.EVPN_TYPE", EVPN_TYPE_name, EVPN_TYPE_value)
 	proto.RegisterEnum("api.ENCAP_SUBTLV_TYPE", ENCAP_SUBTLV_TYPE_name, ENCAP_SUBTLV_TYPE_value)
 	proto.RegisterEnum("api.BGP_ATTR_TYPE", BGP_ATTR_TYPE_name, BGP_ATTR_TYPE_value)
