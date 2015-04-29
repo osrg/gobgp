@@ -134,6 +134,19 @@ const (
 	TUNNEL_TYPE_VXLAN_GRE   TunnelType = 12
 )
 
+type PmsiTunnelType uint8
+
+const (
+	PMSI_TUNNEL_TYPE_NO_TUNNEL      PmsiTunnelType = 0
+	PMSI_TUNNEL_TYPE_RSVP_TE_P2MP   PmsiTunnelType = 1
+	PMSI_TUNNEL_TYPE_MLDP_P2MP      PmsiTunnelType = 2
+	PMSI_TUNNEL_TYPE_PIM_SSM_TREE   PmsiTunnelType = 3
+	PMSI_TUNNEL_TYPE_PIM_SM_TREE    PmsiTunnelType = 4
+	PMSI_TUNNEL_TYPE_BIDIR_PIM_TREE PmsiTunnelType = 5
+	PMSI_TUNNEL_TYPE_INGRESS_REPL   PmsiTunnelType = 6
+	PMSI_TUNNEL_TYPE_MLDP_MP2MP     PmsiTunnelType = 7
+)
+
 type EncapSubTLVType uint8
 
 const (
@@ -1765,8 +1778,8 @@ const (
 	_
 	_
 	_
-	_
-	BGP_ATTR_TYPE_TUNNEL_ENCAP // = 23
+	BGP_ATTR_TYPE_PMSI_TUNNEL // = 22
+	BGP_ATTR_TYPE_TUNNEL_ENCAP
 )
 
 // NOTIFICATION Error Code  RFC 4271 4.5.
@@ -1856,6 +1869,7 @@ var pathAttrFlags map[BGPAttrType]BGPAttrFlag = map[BGPAttrType]BGPAttrFlag{
 	BGP_ATTR_TYPE_EXTENDED_COMMUNITIES: BGP_ATTR_FLAG_TRANSITIVE | BGP_ATTR_FLAG_OPTIONAL,
 	BGP_ATTR_TYPE_AS4_PATH:             BGP_ATTR_FLAG_TRANSITIVE | BGP_ATTR_FLAG_OPTIONAL,
 	BGP_ATTR_TYPE_AS4_AGGREGATOR:       BGP_ATTR_FLAG_TRANSITIVE | BGP_ATTR_FLAG_OPTIONAL,
+	BGP_ATTR_TYPE_PMSI_TUNNEL:          BGP_ATTR_FLAG_TRANSITIVE | BGP_ATTR_FLAG_OPTIONAL,
 	BGP_ATTR_TYPE_TUNNEL_ENCAP:         BGP_ATTR_FLAG_TRANSITIVE | BGP_ATTR_FLAG_OPTIONAL,
 }
 
@@ -3666,6 +3680,101 @@ func NewPathAttributeTunnelEncap(value []*TunnelEncapTLV) *PathAttributeTunnelEn
 	}
 }
 
+type PmsiTunnelIDInterface interface {
+	Serialize() ([]byte, error)
+	String() string
+}
+
+type DefaultPmsiTunnelID struct {
+	Value []byte
+}
+
+func (i *DefaultPmsiTunnelID) Serialize() ([]byte, error) {
+	return i.Value, nil
+}
+
+func (i *DefaultPmsiTunnelID) String() string {
+	return string(i.Value)
+}
+
+type IngressReplTunnelID struct {
+	Value net.IP
+}
+
+func (i *IngressReplTunnelID) Serialize() ([]byte, error) {
+	if i.Value.To4() != nil {
+		return []byte(i.Value.To4()), nil
+	}
+	return []byte(i.Value), nil
+}
+
+func (i *IngressReplTunnelID) String() string {
+	return i.Value.String()
+}
+
+type PathAttributePmsiTunnel struct {
+	PathAttribute
+	IsLeafInfoRequired bool
+	TunnelType         PmsiTunnelType
+	Label              uint32
+	TunnelID           PmsiTunnelIDInterface
+}
+
+func (p *PathAttributePmsiTunnel) DecodeFromBytes(data []byte) error {
+	err := p.PathAttribute.DecodeFromBytes(data)
+	if err != nil {
+		return err
+	}
+	if len(p.PathAttribute.Value) < 5 {
+		eCode := uint8(BGP_ERROR_UPDATE_MESSAGE_ERROR)
+		eSubCode := uint8(BGP_ERROR_SUB_MALFORMED_ATTRIBUTE_LIST)
+		return NewMessageError(eCode, eSubCode, nil, "PMSI Tunnel length is incorrect")
+	}
+
+	if (p.PathAttribute.Value[0] & 0x01) > 0 {
+		p.IsLeafInfoRequired = true
+	}
+	p.TunnelType = PmsiTunnelType(p.PathAttribute.Value[1])
+	p.Label = labelDecode(p.PathAttribute.Value[2:5])
+
+	switch p.TunnelType {
+	case PMSI_TUNNEL_TYPE_INGRESS_REPL:
+		p.TunnelID = &IngressReplTunnelID{net.IP(p.PathAttribute.Value[5:])}
+	default:
+		p.TunnelID = &DefaultPmsiTunnelID{p.PathAttribute.Value[5:]}
+	}
+	return nil
+}
+
+func (p *PathAttributePmsiTunnel) Serialize() ([]byte, error) {
+	buf := make([]byte, 2)
+	if p.IsLeafInfoRequired {
+		buf[0] = 0x01
+	}
+	buf[1] = byte(p.TunnelType)
+	lbuf := make([]byte, 3)
+	labelSerialize(p.Label, lbuf)
+	buf = append(buf, lbuf...)
+	ibuf, err := p.TunnelID.Serialize()
+	if err != nil {
+		return nil, err
+	}
+	buf = append(buf, ibuf...)
+	return buf, nil
+}
+
+func (p *PathAttributePmsiTunnel) ToApiStruct() *api.PathAttr {
+	return &api.PathAttr{
+		Type: api.BGP_ATTR_TYPE_PMSI_TUNNEL,
+		PmsiTunnel: &api.PmsiTunnel{
+			IsLeafInfoRequired: p.IsLeafInfoRequired,
+			Type:               api.PMSI_TUNNEL_TYPE(p.TunnelType),
+			Label:              p.Label,
+			TunnelId:           p.TunnelID.String(),
+		},
+	}
+}
+
 type PathAttributeUnknown struct {
 	PathAttribute
 }
@@ -3720,6 +3829,8 @@ func GetPathAttribute(data []byte) (PathAttributeInterface, error) {
 		return &PathAttributeAs4Aggregator{}, nil
 	case BGP_ATTR_TYPE_TUNNEL_ENCAP:
 		return &PathAttributeTunnelEncap{}, nil
+	case BGP_ATTR_TYPE_PMSI_TUNNEL:
+		return &PathAttributePmsiTunnel{}, nil
 	}
 	return &PathAttributeUnknown{}, nil
 }

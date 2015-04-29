@@ -305,6 +305,18 @@ func showRoute(pathList []*api.Path, showAge bool, showBest bool, isMonitor bool
 					s = append(s, fmt.Sprintf("{Originator: %v}", a.Originator))
 				case api.BGP_ATTR_TYPE_CLUSTER_LIST:
 					s = append(s, fmt.Sprintf("{Cluster: %v}", a.Cluster))
+				case api.BGP_ATTR_TYPE_PMSI_TUNNEL:
+					info := a.PmsiTunnel
+					s1 := bytes.NewBuffer(make([]byte, 0, 64))
+					s1.WriteString(fmt.Sprintf("{PMSI Tunnel: {Type: %s, ID: %s", info.Type, info.TunnelId))
+					if info.Label > 0 {
+						s1.WriteString(fmt.Sprintf(", Label: %d", info.Label))
+					}
+					if info.IsLeafInfoRequired {
+						s1.WriteString(fmt.Sprintf(", Leaf Info Required"))
+					}
+					s1.WriteString("}}")
+					s = append(s, s1.String())
 				case api.BGP_ATTR_TYPE_TUNNEL_ENCAP:
 					s1 := bytes.NewBuffer(make([]byte, 0, 64))
 					s1.WriteString("{Encap: ")

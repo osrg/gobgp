@@ -187,6 +187,17 @@ enum TUNNEL_TYPE {
     VXLAN_GRE = 12;
 }
 
+enum PMSI_TUNNEL_TYPE {
+    NO_TUNNEL = 0;
+    RSVP_TE_P2MP = 1;
+    MLDP_P2MP = 2;
+    PIM_SSM_TREE = 3;
+    PIM_SM_TREE = 4;
+    BIDIR_PIM_TREE = 5;
+    INGRESS_REPL = 6;
+    MLDP_MP2MP = 7;
+}
+
 enum EVPN_TYPE {
     UNKNOWN_EVPN_TYPE = 0;
     ROUTE_TYPE_ETHERNET_AUTO_DISCOVERY = 1;
@@ -249,6 +260,13 @@ message TunnelEncapTLV {
     repeated TunnelEncapSubTLV sub_tlv = 2;
 }
 
+message PmsiTunnel {
+    bool is_leaf_info_required = 1;
+    PMSI_TUNNEL_TYPE type = 2;
+    uint32 label = 3;
+    string tunnel_id = 4;
+}
+
 enum BGP_ATTR_TYPE {
     UNKNOWN_ATTR = 0;
     ORIGIN = 1;
@@ -266,6 +284,7 @@ enum BGP_ATTR_TYPE {
     EXTENDED_COMMUNITIES = 16;
     AS4_PATH = 17;
     AS4_AGGREGATOR = 18;
+    PMSI_TUNNEL = 22;
     TUNNEL_ENCAP = 23;
 }
 
@@ -283,6 +302,7 @@ message PathAttr {
     repeated string cluster = 11;
     repeated Nlri nlri = 12;
     repeated TunnelEncapTLV tunnel_encap = 13;
+    PmsiTunnel pmsi_tunnel = 14;
 }
 
 message AsPath {
