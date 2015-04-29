@@ -25,7 +25,6 @@ import (
 	"math"
 	"net"
 	"reflect"
-	"strings"
 )
 
 const (
@@ -1156,10 +1155,24 @@ func (esi *EthernetSegmentIdentifier) Serialize() ([]byte, error) {
 	return buf, nil
 }
 
+func isZeroBuf(buf []byte) bool {
+	for _, b := range buf {
+		if b != 0 {
+			return false
+		}
+	}
+	return true
+}
+
 func (esi *EthernetSegmentIdentifier) String() string {
 	s := bytes.NewBuffer(make([]byte, 0, 64))
 	s.WriteString(fmt.Sprintf("%s | ", esi.Type))
 	switch esi.Type {
+	case ESI_ARBITRARY:
+		if isZeroBuf(esi.Value) {
+			return "single-homed"
+		}
+		s.WriteString(fmt.Sprintf("%s", esi.Value))
 	case ESI_LACP:
 		s.WriteString(fmt.Sprintf("system mac %s, ", net.HardwareAddr(esi.Value[:6]).String()))
 		s.WriteString(fmt.Sprintf("port key %d", binary.BigEndian.Uint16(esi.Value[6:8])))
@@ -1223,6 +1236,10 @@ func (er *EVPNEthernetAutoDiscoveryRoute) Serialize() ([]byte, error) {
 	buf = append(buf, tbuf...)
 
 	return buf, nil
+}
+
+func (er *EVPNEthernetAutoDiscoveryRoute) String() string {
+	return fmt.Sprintf("[type:A-D][rd:%s][esi:%s][etag:%d][label:%d]", er.RD, er.ESI, er.ETag, er.Label)
 }
 
 type EVPNMacIPAdvertisementRoute struct {
@@ -1318,6 +1335,10 @@ func (er *EVPNMacIPAdvertisementRoute) ToApiStruct() *api.EvpnMacIpAdvertisement
 	}
 }
 
+func (er *EVPNMacIPAdvertisementRoute) String() string {
+	return fmt.Sprintf("[type:macadv][rd:%s][esi:%s][etag:%d][mac:%s][ip:%s][labels:%v]", er.RD, er.ESI.String(), er.ETag, er.MacAddress, er.IPAddress, er.Labels)
+}
+
 type EVPNMulticastEthernetTagRoute struct {
 	RD              RouteDistinguisherInterface
 	ETag            uint32
@@ -1360,6 +1381,10 @@ func (er *EVPNMulticastEthernetTagRoute) Serialize() ([]byte, error) {
 		return nil, err
 	}
 	return buf, nil
+}
+
+func (er *EVPNMulticastEthernetTagRoute) String() string {
+	return fmt.Sprintf("[type:multicast][rd:%s][etag:%d][ip:%s]", er.RD, er.ETag, er.IPAddress)
 }
 
 type EVPNEthernetSegmentRoute struct {
@@ -1406,9 +1431,14 @@ func (er *EVPNEthernetSegmentRoute) Serialize() ([]byte, error) {
 	return buf, nil
 }
 
+func (er *EVPNEthernetSegmentRoute) String() string {
+	return fmt.Sprintf("[type:esi][rd:%s][esi:%d][ip:%s]", er.RD, er.ESI, er.IPAddress)
+}
+
 type EVPNRouteTypeInterface interface {
 	DecodeFromBytes([]byte) error
 	Serialize() ([]byte, error)
+	String() string
 }
 
 func getEVPNRouteType(t uint8) (EVPNRouteTypeInterface, error) {
@@ -1482,32 +1512,8 @@ func (n *EVPNNLRI) Len() int {
 }
 
 func (n *EVPNNLRI) String() string {
-
-	switch n.RouteType {
-
-	case EVPN_ROUTE_TYPE_ETHERNET_AUTO_DISCOVERY:
-		return fmt.Sprintf("%d:%d", n.RouteType, n.Length)
-
-	case EVPN_ROUTE_TYPE_MAC_IP_ADVERTISEMENT:
-		m := n.RouteTypeData.(*EVPNMacIPAdvertisementRoute)
-		var ss []string
-		switch m.RD.(type) {
-		case *RouteDistinguisherIPAddressAS:
-			ss = append(ss, fmt.Sprintf("%s", m.IPAddress.String()))
-		}
-		ss = append(ss, m.MacAddress.String())
-		return strings.Join(ss, ".")
-
-	case EVPN_INCLUSIVE_MULTICAST_ETHERNET_TAG:
-		m := n.RouteTypeData.(*EVPNMulticastEthernetTagRoute)
-		switch m.RD.(type) {
-		case *RouteDistinguisherIPAddressAS:
-			return fmt.Sprintf("%s", m.IPAddress.String())
-		}
-
-	case EVPN_ETHERNET_SEGMENT_ROUTE:
-		return fmt.Sprintf("%d:%d", n.RouteType, n.Length)
-
+	if n.RouteTypeData != nil {
+		return n.RouteTypeData.String()
 	}
 	return fmt.Sprintf("%d:%d", n.RouteType, n.Length)
 }
