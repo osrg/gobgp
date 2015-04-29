@@ -322,13 +322,19 @@ func (x *GlobalRibCommand) Execute(args []string) error {
 
 	eArgs := extractArgs(CMD_RIB)
 	parser := flags.NewParser(&subOpts, flags.Default)
-	parser.Usage = "global rib [OPTIONS]\n  gobgp global rib"
-	parser.AddCommand(CMD_ADD, "subcommand for add route to global rib", "", NewGlobalRibAddCommand(x.resource))
-	parser.AddCommand(CMD_DEL, "subcommand for delete route from global rib", "", NewGlobalRibDelCommand(x.resource))
-	parser.ParseArgs(eArgs)
 	if len(eArgs) == 0 || (len(eArgs) < 3 && eArgs[0] == "-a") {
+		if _, err := parser.ParseArgs(eArgs); err != nil {
+			os.Exit(1)
+		}
 		if err := requestGrpc(CMD_GLOBAL+"_"+CMD_RIB, eArgs, nil); err != nil {
 			return err
+		}
+	} else {
+		parser.Usage = "global rib [OPTIONS]\n  gobgp global rib"
+		parser.AddCommand(CMD_ADD, "subcommand for add route to global rib", "", NewGlobalRibAddCommand(x.resource))
+		parser.AddCommand(CMD_DEL, "subcommand for delete route from global rib", "", NewGlobalRibDelCommand(x.resource))
+		if _, err := parser.ParseArgs(eArgs); err != nil {
+			os.Exit(1)
 		}
 	}
 	return nil
