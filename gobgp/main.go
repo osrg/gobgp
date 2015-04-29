@@ -765,14 +765,11 @@ func NewNeighborRibCommand(addr string, resource api.Resource, cmd string) *Neig
 }
 
 func showRoute(pathList []*api.Path, showAge bool, showBest bool) {
-	var format string
-	if showAge {
-		format = "%-2s %-18s %-15s %-10s %-10s %-s\n"
-		fmt.Printf(format, "", "Network", "Next Hop", "AS_PATH", "Age", "Attrs")
-	} else {
-		format = "%-2s %-18s %-15s %-10s %-s\n"
-		fmt.Printf(format, "", "Network", "Next Hop", "AS_PATH", "Attrs")
-	}
+
+	var pathStrs [][]interface{}
+	maxPrefixLen := len("Network")
+	maxNexthopLen := len("Next Hop")
+	maxAsPathLen := len("AS_PATH")
 
 	for _, p := range pathList {
 		aspath := func(attrs []*api.PathAttr) string {
@@ -868,11 +865,37 @@ func showRoute(pathList []*api.Path, showAge bool, showBest bool) {
 				best = "* "
 			}
 		}
-		if showAge {
-			fmt.Printf(format, best, p.Nlri.Prefix, p.Nexthop, aspath(p.Attrs), formatTimedelta(p.Age), formatAttrs(p.Attrs))
-		} else {
-			fmt.Printf(format, best, p.Nlri.Prefix, p.Nexthop, aspath(p.Attrs), formatAttrs(p.Attrs))
+
+		if maxPrefixLen < len(p.Nlri.Prefix) {
+			maxPrefixLen = len(p.Nlri.Prefix)
 		}
+
+		if maxNexthopLen < len(p.Nexthop) {
+			maxNexthopLen = len(p.Nexthop)
+		}
+
+		if maxAsPathLen < len(aspath(p.Attrs)) {
+			maxAsPathLen = len(aspath(p.Attrs))
+		}
+
+		if showAge {
+			pathStrs = append(pathStrs, []interface{}{best, p.Nlri.Prefix, p.Nexthop, aspath(p.Attrs), formatTimedelta(p.Age), formatAttrs(p.Attrs)})
+		} else {
+			pathStrs = append(pathStrs, []interface{}{best, p.Nlri.Prefix, p.Nexthop, aspath(p.Attrs), formatAttrs(p.Attrs)})
+		}
+	}
+
+	var format string
+	if showAge {
+		format = fmt.Sprintf("%%-2s %%-%ds %%-%ds %%-%ds %%-10s %%-s\n", maxPrefixLen, maxNexthopLen, maxAsPathLen)
+		fmt.Printf(format, "", "Network", "Next Hop", "AS_PATH", "Age", "Attrs")
+	} else {
+		format = fmt.Sprintf("%%-2s %%-%ds %%-%ds %%-%ds %%-s\n", maxPrefixLen, maxNexthopLen, maxAsPathLen)
+		fmt.Printf(format, "", "Network", "Next Hop", "AS_PATH", "Attrs")
+	}
+
+	for _, pathStr := range pathStrs {
+		fmt.Printf(format, pathStr...)
 	}
 }
 
