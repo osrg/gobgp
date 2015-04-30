@@ -650,8 +650,7 @@ func TestAsPathLengthConditionEvaluate(t *testing.T) {
 	withdrawnRoutes := []bgp.WithdrawnRoute{}
 	updateMsg := bgp.NewBGPUpdateMessage(withdrawnRoutes, pathAttributes, nlri)
 	table.UpdatePathAttrs4ByteAs(updateMsg.Body.(*bgp.BGPUpdate))
-	msg := table.NewProcessMessage(updateMsg, peer)
-	path := msg.ToPathList()[0]
+	path := table.ProcessMessage(updateMsg, peer)[0]
 
 	// create match condition
 	asPathLength := config.AsPathLength{
@@ -701,8 +700,7 @@ func TestAsPathLengthConditionWithOtherCondition(t *testing.T) {
 	withdrawnRoutes := []bgp.WithdrawnRoute{}
 	updateMsg := bgp.NewBGPUpdateMessage(withdrawnRoutes, pathAttributes, nlri)
 	table.UpdatePathAttrs4ByteAs(updateMsg.Body.(*bgp.BGPUpdate))
-	msg := table.NewProcessMessage(updateMsg, peer)
-	path := msg.ToPathList()[0]
+	path := table.ProcessMessage(updateMsg, peer)[0]
 
 	// create policy
 	ps := config.PrefixSet{
