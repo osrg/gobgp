@@ -344,6 +344,7 @@ func (peer *Peer) handleGrpc(grpcReq *GrpcRequest) {
 
 		case bgp.RF_EVPN:
 			mac, err := net.ParseMAC(path.Nlri.EvpnNlri.MacIpAdv.MacAddr)
+
 			if err != nil {
 				result.ResponseErr = fmt.Errorf("Invalid mac: %s", path.Nlri.EvpnNlri.MacIpAdv.MacAddr)
 				grpcReq.ResponseCh <- result
@@ -371,7 +372,7 @@ func (peer *Peer) handleGrpc(grpcReq *GrpcRequest) {
 				MacAddress:       mac,
 				IPAddressLength:  uint8(iplen),
 				IPAddress:        ip,
-				Labels:           []uint32{0},
+				Labels:           path.Nlri.EvpnNlri.MacIpAdv.Labels,
 			}
 			nlri = bgp.NewEVPNNLRI(bgp.EVPN_ROUTE_TYPE_MAC_IP_ADVERTISEMENT, 0, macIpAdv)
 			pattr = append(pattr, bgp.NewPathAttributeMpReachNLRI("0.0.0.0", []bgp.AddrPrefixInterface{nlri}))
