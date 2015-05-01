@@ -384,6 +384,9 @@ func CreatePath(source *PeerInfo, nlri bgp.AddrPrefixInterface, attrs []bgp.Path
 	case bgp.RF_ENCAP:
 		log.Debugf("CreatePath RouteFamily : %s", bgp.RF_ENCAP.String())
 		path = NewEncapPath(source, nlri, isWithdraw, attrs, false, now)
+	case bgp.RF_RTC_UC:
+		log.Debugf("CreatePath RouteFamily : %s", bgp.RF_RTC_UC)
+		path = NewRouteTargetPath(source, nlri, isWithdraw, attrs, false, now)
 	default:
 		return path, fmt.Errorf("Unsupported RouteFamily: %s", rf)
 	}
@@ -536,5 +539,22 @@ func (p *EncapPath) setPathDefault(pd *PathDefault) {
 	p.PathDefault = pd
 }
 func (p *EncapPath) getPathDefault() *PathDefault {
+	return p.PathDefault
+}
+
+type RouteTargetPath struct {
+	*PathDefault
+}
+
+func NewRouteTargetPath(source *PeerInfo, nlri bgp.AddrPrefixInterface, isWithdraw bool, attrs []bgp.PathAttributeInterface, medSetByTargetNeighbor bool, now time.Time) *RouteTargetPath {
+	return &RouteTargetPath{
+		PathDefault: NewPathDefault(bgp.RF_RTC_UC, source, nlri, isWithdraw, attrs, medSetByTargetNeighbor, now),
+	}
+}
+
+func (p *RouteTargetPath) setPathDefault(pd *PathDefault) {
+	p.PathDefault = pd
+}
+func (p *RouteTargetPath) getPathDefault() *PathDefault {
 	return p.PathDefault
 }

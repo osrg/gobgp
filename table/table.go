@@ -353,3 +353,22 @@ func (t *EncapTable) createDest(nlri bgp.AddrPrefixInterface) Destination {
 func (t *EncapTable) tableKey(nlri bgp.AddrPrefixInterface) string {
 	return nlri.String()
 }
+
+type RouteTargetTable struct {
+	*TableDefault
+}
+
+func NewRouteTargetTable() *RouteTargetTable {
+	routeTargetTable := &RouteTargetTable{}
+	routeTargetTable.TableDefault = NewTableDefault(0)
+	routeTargetTable.TableDefault.ROUTE_FAMILY = bgp.RF_RTC_UC
+	return routeTargetTable
+}
+
+func (t *RouteTargetTable) createDest(nlri bgp.AddrPrefixInterface) Destination {
+	return Destination(NewRouteTargetDestination(nlri))
+}
+
+func (t *RouteTargetTable) tableKey(nlri bgp.AddrPrefixInterface) string {
+	return nlri.String()
+}

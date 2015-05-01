@@ -56,6 +56,8 @@ func convertAf2Rf(af *api.AddressFamily) (bgp.RouteFamily, error) {
 		return bgp.RF_EVPN, nil
 	} else if af.Equal(api.AF_ENCAP) {
 		return bgp.RF_ENCAP, nil
+	} else if af.Equal(api.AF_RTC) {
+		return bgp.RF_RTC_UC, nil
 	}
 
 	return bgp.RouteFamily(0), fmt.Errorf("unsupported address family: %v", af)

@@ -237,6 +237,8 @@ func checkAddressFamily() (*api.AddressFamily, error) {
 		rf = api.AF_EVPN
 	case "encap":
 		rf = api.AF_ENCAP
+	case "rtc":
+		rf = api.AF_RTC
 	case "":
 		e = fmt.Errorf("address family is not specified")
 	default:
@@ -408,6 +410,33 @@ func modPath(modtype string, eArgs []string) error {
 			}
 
 			path.Attrs = append(path.Attrs, attr)
+		}
+	case api.AF_RTC:
+		if !(len(eArgs) == 3 && eArgs[0] == "default") && len(eArgs) < 4 {
+			return fmt.Errorf("usage: global rib add <asn> <local admin> -a rtc")
+		}
+		var asn, admin int
+
+		if eArgs[0] != "default" {
+			asn, err = strconv.Atoi(eArgs[0])
+			if err != nil {
+				return fmt.Errorf("invalid asn: %s", eArgs[0])
+			}
+			admin, err = strconv.Atoi(eArgs[1])
+			if err != nil {
+				return fmt.Errorf("invalid local admin: %s", eArgs[1])
+			}
+		}
+		path.Nlri = &api.Nlri{
+			Af: rf,
+			RtNlri: &api.RTNlri{
+				Target: &api.ExtendedCommunity{
+					Type:       api.EXTENDED_COMMUNITIE_TYPE_TWO_OCTET_AS_SPECIFIC,
+					Subtype:    api.EXTENDED_COMMUNITIE_SUBTYPE_ROUTE_TARGET,
+					Asn:        uint32(asn),
+					LocalAdmin: uint32(admin),
+				},
+			},
 		}
 	}
 	switch modtype {

@@ -422,6 +422,33 @@ func (peer *Peer) handleGrpc(grpcReq *GrpcRequest) {
 				}
 			}(path.Attrs)
 
+		case bgp.RF_RTC_UC:
+			var ec bgp.ExtendedCommunityInterface
+			target := path.Nlri.RtNlri.Target
+			ec_type := target.Type
+			ec_subtype := target.Subtype
+			switch ec_type {
+			case api.EXTENDED_COMMUNITIE_TYPE_TWO_OCTET_AS_SPECIFIC:
+				if target.Asn == 0 && target.LocalAdmin == 0 {
+					break
+				}
+				ec = &bgp.TwoOctetAsSpecificExtended{
+					SubType:      bgp.ExtendedCommunityAttrSubType(ec_subtype),
+					AS:           uint16(target.Asn),
+					LocalAdmin:   target.LocalAdmin,
+					IsTransitive: true,
+				}
+			default:
+				result.ResponseErr = fmt.Errorf("Invalid endpoint ip address: %s", path.Nlri.Prefix)
+				grpcReq.ResponseCh <- result
+				close(grpcReq.ResponseCh)
+				return
+			}
+
+			nlri = bgp.NewRouteTargetMembershipNLRI(peer.globalConfig.As, ec)
+
+			pattr = append(pattr, bgp.NewPathAttributeMpReachNLRI("0.0.0.0", []bgp.AddrPrefixInterface{nlri}))
+
 		default:
 			result.ResponseErr = fmt.Errorf("Unsupported address family: %s", rf)
 			grpcReq.ResponseCh <- result

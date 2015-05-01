@@ -1043,3 +1043,15 @@ func NewEncapDestination(nlri bgp.AddrPrefixInterface) *EncapDestination {
 		DestinationDefault: d,
 	}
 }
+
+type RouteTargetDestination struct {
+	*DestinationDefault
+}
+
+func NewRouteTargetDestination(nlri bgp.AddrPrefixInterface) *RouteTargetDestination {
+	d := NewDestinationDefault(nlri)
+	d.ROUTE_FAMILY = bgp.RF_RTC_UC
+	return &RouteTargetDestination{
+		DestinationDefault: d,
+	}
+}

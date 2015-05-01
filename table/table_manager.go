@@ -131,6 +131,8 @@ func NewTableManager(owner string, rfList []bgp.RouteFamily) *TableManager {
 			t.Tables[bgp.RF_EVPN] = NewEVPNTable(0)
 		case bgp.RF_ENCAP:
 			t.Tables[bgp.RF_ENCAP] = NewEncapTable()
+		case bgp.RF_RTC_UC:
+			t.Tables[bgp.RF_RTC_UC] = NewRouteTargetTable()
 		}
 	}
 	t.owner = owner
