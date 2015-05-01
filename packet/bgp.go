@@ -1046,11 +1046,19 @@ func NewLabelledIPv6AddrPrefix(length uint8, prefix string, label Label) *Labell
 }
 
 type RouteTargetMembershipNLRI struct {
+	Length      uint8
 	AS          uint32
 	RouteTarget ExtendedCommunityInterface
 }
 
 func (n *RouteTargetMembershipNLRI) DecodeFromBytes(data []byte) error {
+	n.Length = data[0]
+	data = data[1:]
+	if len(data) == 0 {
+		return nil
+	} else if len(data) != 12 {
+		return fmt.Errorf("Not all RouteTargetMembershipNLRI bytes available")
+	}
 	n.AS = binary.BigEndian.Uint32(data[0:4])
 	rt, err := parseExtended(data[4:])
 	n.RouteTarget = rt
@@ -1061,13 +1069,18 @@ func (n *RouteTargetMembershipNLRI) DecodeFromBytes(data []byte) error {
 }
 
 func (n *RouteTargetMembershipNLRI) Serialize() ([]byte, error) {
-	buf := make([]byte, 4)
-	binary.BigEndian.PutUint32(buf, n.AS)
+	if n.RouteTarget == nil {
+		return []byte{0}, nil
+	}
+	buf := make([]byte, 5)
+	buf[0] = 12 * 8
+	binary.BigEndian.PutUint32(buf[1:], n.AS)
 	ebuf, err := n.RouteTarget.Serialize()
 	if err != nil {
 		return nil, err
 	}
-	return append(buf, ebuf...), nil
+	buf = append(buf, ebuf...)
+	return buf, nil
 }
 
 func (n *RouteTargetMembershipNLRI) AFI() uint16 {
@@ -1078,7 +1091,12 @@ func (n *RouteTargetMembershipNLRI) SAFI() uint8 {
 	return SAFI_ROUTE_TARGET_CONSTRTAINS
 }
 
-func (n *RouteTargetMembershipNLRI) Len() int { return 12 }
+func (n *RouteTargetMembershipNLRI) Len() int {
+	if n.AS == 0 && n.RouteTarget == nil {
+		return 1
+	}
+	return 13
+}
 
 func (n *RouteTargetMembershipNLRI) String() string {
 	return fmt.Sprintf("%d:%s/%d", n.AS, n.RouteTarget.String(), n.Len()*8)
