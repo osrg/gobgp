@@ -78,7 +78,7 @@ enum SAFI {
     EVPN = 70;
     MPLS_VPN = 128;
     MPLS_VPN_MULTICAST = 129;
-    ROUTE_TARGET_CONSTRTAINS = 132;
+    ROUTE_TARGET_CONSTRAINTS = 132;
 }
 
 message AddressFamily {
@@ -95,6 +95,28 @@ enum Origin {
 message Aggregator {
     uint32 as = 1;
     string address = 2;
+}
+
+enum EXTENDED_COMMUNITIE_TYPE {
+    TWO_OCTET_AS_SPECIFIC = 0;
+    IP4_SPECIFIC = 1;
+    FOUR_OCTET_AS_SPECIFIC = 2;
+    OPAQUE = 3;
+}
+
+enum EXTENDED_COMMUNITIE_SUBTYPE {
+    ORIGIN_VALIDATION = 0;
+    ROUTE_TARGET = 2;
+    ROUTE_ORIGIN = 3;
+}
+
+message ExtendedCommunity {
+    EXTENDED_COMMUNITIE_TYPE type = 1;
+    EXTENDED_COMMUNITIE_SUBTYPE subtype = 2;
+    bool is_transitive = 3;
+    uint32 asn = 4;
+    string ipv4 = 5;
+    uint32 local_admin = 6;
 }
 
 enum TUNNEL_TYPE {
@@ -136,11 +158,18 @@ message EvpnMacIpAdvertisement {
     repeated uint32 labels = 8;
 }
 
+message RTNlri {
+    uint32 asn = 1;
+    ExtendedCommunity target = 2;
+    uint32 length = 3;
+}
+
 message Nlri {
     AddressFamily af = 1;
     string prefix = 2;
-    EVPNNlri evpn_nlri = 3;
-    string nexthop = 4;
+    string nexthop = 3;
+    EVPNNlri evpn_nlri = 4;
+    RTNlri rt_nlri = 5;
 }
 
 enum ENCAP_SUBTLV_TYPE {
@@ -196,7 +225,7 @@ message PathAttr {
     repeated uint32 communites = 9;
     string originator = 10;
     repeated string cluster = 11;
-    Nlri nlri = 12;
+    repeated Nlri nlri = 12;
     repeated TunnelEncapTLV tunnel_encap = 13;
 }
 

@@ -1099,13 +1099,38 @@ func (n *RouteTargetMembershipNLRI) Len() int {
 }
 
 func (n *RouteTargetMembershipNLRI) String() string {
-	return fmt.Sprintf("%d:%s/%d", n.AS, n.RouteTarget.String(), n.Len()*8)
+	target := "default"
+	if n.RouteTarget != nil {
+		target = n.RouteTarget.String()
+	}
+	return fmt.Sprintf("%d:%s", n.AS, target)
 }
 
 func (n *RouteTargetMembershipNLRI) ToApiStruct() *api.Nlri {
+	var target *api.ExtendedCommunity
+	if n.RouteTarget != nil {
+		target = n.RouteTarget.ToApiStruct()
+	}
 	return &api.Nlri{
 		Af:     &api.AddressFamily{api.AFI(n.AFI()), api.SAFI(n.SAFI())},
 		Prefix: n.String(),
+		RtNlri: &api.RTNlri{
+			Asn:    n.AS,
+			Target: target,
+			Length: uint32(n.Length),
+		},
+	}
+}
+
+func NewRouteTargetMembershipNLRI(as uint32, target ExtendedCommunityInterface) *RouteTargetMembershipNLRI {
+	l := 12 * 8
+	if as == 0 && target == nil {
+		l = 1
+	}
+	return &RouteTargetMembershipNLRI{
+		Length:      uint8(l),
+		AS:          as,
+		RouteTarget: target,
 	}
 }
 
@@ -1612,6 +1637,8 @@ func GetRouteFamily(name string) (RouteFamily, error) {
 		return RF_VPLS, nil
 	case "l2vpn-evpn":
 		return RF_EVPN, nil
+	case "rtc":
+		return RF_RTC_UC, nil
 	case "encap":
 		return RF_ENCAP, nil
 	}
@@ -2656,9 +2683,14 @@ func (p *PathAttributeMpReachNLRI) Serialize() ([]byte, error) {
 }
 
 func (p *PathAttributeMpReachNLRI) ToApiStruct() *api.PathAttr {
+	nlri := make([]*api.Nlri, 0, len(p.Value))
+	for _, v := range p.Value {
+		nlri = append(nlri, v.ToApiStruct())
+	}
 	return &api.PathAttr{
 		Type:    api.BGP_ATTR_TYPE_MP_REACH_NLRI,
 		Nexthop: p.Nexthop.String(),
+		Nlri:    nlri,
 	}
 }
 
@@ -2778,10 +2810,11 @@ func NewPathAttributeMpUnreachNLRI(nlri []AddrPrefixInterface) *PathAttributeMpU
 type ExtendedCommunityInterface interface {
 	Serialize() ([]byte, error)
 	String() string
+	ToApiStruct() *api.ExtendedCommunity
 }
 
 type TwoOctetAsSpecificExtended struct {
-	SubType      uint8
+	SubType      ExtendedCommunityAttrSubType
 	AS           uint16
 	LocalAdmin   uint32
 	IsTransitive bool
@@ -2794,7 +2827,7 @@ func (e *TwoOctetAsSpecificExtended) Serialize() ([]byte, error) {
 	} else {
 		buf[0] = byte(EC_TYPE_NON_TRANSITIVE_TWO_OCTET_AS_SPECIFIC)
 	}
-	buf[1] = e.SubType
+	buf[1] = byte(e.SubType)
 	binary.BigEndian.PutUint16(buf[2:], e.AS)
 	binary.BigEndian.PutUint32(buf[4:], e.LocalAdmin)
 	return buf, nil
@@ -2804,8 +2837,18 @@ func (e *TwoOctetAsSpecificExtended) String() string {
 	return fmt.Sprintf("%d:%d", e.AS, e.LocalAdmin)
 }
 
+func (e *TwoOctetAsSpecificExtended) ToApiStruct() *api.ExtendedCommunity {
+	return &api.ExtendedCommunity{
+		Type:         api.EXTENDED_COMMUNITIE_TYPE_TWO_OCTET_AS_SPECIFIC,
+		Subtype:      api.EXTENDED_COMMUNITIE_SUBTYPE(e.SubType),
+		IsTransitive: e.IsTransitive,
+		Asn:          uint32(e.AS),
+		LocalAdmin:   e.LocalAdmin,
+	}
+}
+
 type IPv4AddressSpecificExtended struct {
-	SubType      uint8
+	SubType      ExtendedCommunityAttrSubType
 	IPv4         net.IP
 	LocalAdmin   uint16
 	IsTransitive bool
@@ -2818,7 +2861,7 @@ func (e *IPv4AddressSpecificExtended) Serialize() ([]byte, error) {
 	} else {
 		buf[0] = byte(EC_TYPE_NON_TRANSITIVE_IP4_SPECIFIC)
 	}
-	buf[1] = e.SubType
+	buf[1] = byte(e.SubType)
 	copy(buf[2:6], e.IPv4)
 	binary.BigEndian.PutUint16(buf[6:], e.LocalAdmin)
 	return buf, nil
@@ -2828,8 +2871,18 @@ func (e *IPv4AddressSpecificExtended) String() string {
 	return fmt.Sprintf("%s:%d", e.IPv4.String(), e.LocalAdmin)
 }
 
+func (e *IPv4AddressSpecificExtended) ToApiStruct() *api.ExtendedCommunity {
+	return &api.ExtendedCommunity{
+		Type:         api.EXTENDED_COMMUNITIE_TYPE_IP4_SPECIFIC,
+		Subtype:      api.EXTENDED_COMMUNITIE_SUBTYPE(e.SubType),
+		IsTransitive: e.IsTransitive,
+		Ipv4:         e.IPv4.String(),
+		LocalAdmin:   uint32(e.LocalAdmin),
+	}
+}
+
 type FourOctetAsSpecificExtended struct {
-	SubType      uint8
+	SubType      ExtendedCommunityAttrSubType
 	AS           uint32
 	LocalAdmin   uint16
 	IsTransitive bool
@@ -2842,7 +2895,7 @@ func (e *FourOctetAsSpecificExtended) Serialize() ([]byte, error) {
 	} else {
 		buf[0] = byte(EC_TYPE_NON_TRANSITIVE_FOUR_OCTET_AS_SPECIFIC)
 	}
-	buf[1] = e.SubType
+	buf[1] = byte(e.SubType)
 	binary.BigEndian.PutUint32(buf[2:], e.AS)
 	binary.BigEndian.PutUint16(buf[6:], e.LocalAdmin)
 	return buf, nil
@@ -2854,6 +2907,16 @@ func (e *FourOctetAsSpecificExtended) String() string {
 	asUpper := binary.BigEndian.Uint16(buf[0:2])
 	asLower := binary.BigEndian.Uint16(buf[2:])
 	return fmt.Sprintf("%d.%d:%d", asUpper, asLower, e.LocalAdmin)
+}
+
+func (e *FourOctetAsSpecificExtended) ToApiStruct() *api.ExtendedCommunity {
+	return &api.ExtendedCommunity{
+		Type:         api.EXTENDED_COMMUNITIE_TYPE_FOUR_OCTET_AS_SPECIFIC,
+		Subtype:      api.EXTENDED_COMMUNITIE_SUBTYPE(e.SubType),
+		IsTransitive: e.IsTransitive,
+		Asn:          e.AS,
+		LocalAdmin:   uint32(e.LocalAdmin),
+	}
 }
 
 type OpaqueExtendedValueInterface interface {
@@ -2974,6 +3037,12 @@ func (e *OpaqueExtended) String() string {
 	return e.Value.String()
 }
 
+func (e *OpaqueExtended) ToApiStruct() *api.ExtendedCommunity {
+	return &api.ExtendedCommunity{
+		Type: api.EXTENDED_COMMUNITIE_TYPE_OPAQUE,
+	}
+}
+
 func NewOpaqueExtended(isTransitive bool) *OpaqueExtended {
 	return &OpaqueExtended{
 		IsTransitive: isTransitive,
@@ -2999,6 +3068,10 @@ func (e *UnknownExtended) String() string {
 	return fmt.Sprintf("%d", v)
 }
 
+func (e *UnknownExtended) ToApiStruct() *api.ExtendedCommunity {
+	return &api.ExtendedCommunity{}
+}
+
 type PathAttributeExtendedCommunities struct {
 	PathAttribute
 	Value []ExtendedCommunityInterface
@@ -3014,7 +3087,7 @@ func parseExtended(data []byte) (ExtendedCommunityInterface, error) {
 	case EC_TYPE_NON_TRANSITIVE_TWO_OCTET_AS_SPECIFIC:
 		e := &TwoOctetAsSpecificExtended{}
 		e.IsTransitive = transitive
-		e.SubType = data[1]
+		e.SubType = ExtendedCommunityAttrSubType(data[1])
 		e.AS = binary.BigEndian.Uint16(data[2:4])
 		e.LocalAdmin = binary.BigEndian.Uint32(data[4:8])
 		return e, nil
@@ -3024,7 +3097,7 @@ func parseExtended(data []byte) (ExtendedCommunityInterface, error) {
 	case EC_TYPE_NON_TRANSITIVE_IP4_SPECIFIC:
 		e := &IPv4AddressSpecificExtended{}
 		e.IsTransitive = transitive
-		e.SubType = data[1]
+		e.SubType = ExtendedCommunityAttrSubType(data[1])
 		e.IPv4 = data[2:6]
 		e.LocalAdmin = binary.BigEndian.Uint16(data[6:8])
 		return e, nil
@@ -3034,7 +3107,7 @@ func parseExtended(data []byte) (ExtendedCommunityInterface, error) {
 	case EC_TYPE_NON_TRANSITIVE_FOUR_OCTET_AS_SPECIFIC:
 		e := &FourOctetAsSpecificExtended{}
 		e.IsTransitive = transitive
-		e.SubType = data[1]
+		e.SubType = ExtendedCommunityAttrSubType(data[1])
 		e.AS = binary.BigEndian.Uint32(data[2:6])
 		e.LocalAdmin = binary.BigEndian.Uint16(data[6:8])
 		return e, nil

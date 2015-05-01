@@ -14,8 +14,10 @@ It has these top-level messages:
 	ModPathArguments
 	AddressFamily
 	Aggregator
+	ExtendedCommunity
 	EVPNNlri
 	EvpnMacIpAdvertisement
+	RTNlri
 	Nlri
 	TunnelEncapSubTLV
 	TunnelEncapTLV
@@ -106,7 +108,7 @@ const (
 	SAFI_EVPN                     SAFI = 70
 	SAFI_MPLS_VPN                 SAFI = 128
 	SAFI_MPLS_VPN_MULTICAST       SAFI = 129
-	SAFI_ROUTE_TARGET_CONSTRTAINS SAFI = 132
+	SAFI_ROUTE_TARGET_CONSTRAINTS SAFI = 132
 )
 
 var SAFI_name = map[int32]string{
@@ -119,7 +121,7 @@ var SAFI_name = map[int32]string{
 	70:  "EVPN",
 	128: "MPLS_VPN",
 	129: "MPLS_VPN_MULTICAST",
-	132: "ROUTE_TARGET_CONSTRTAINS",
+	132: "ROUTE_TARGET_CONSTRAINTS",
 }
 var SAFI_value = map[string]int32{
 	"UNKNOWN_SAFI":             0,
@@ -131,7 +133,7 @@ var SAFI_value = map[string]int32{
 	"EVPN":                     70,
 	"MPLS_VPN":                 128,
 	"MPLS_VPN_MULTICAST":       129,
-	"ROUTE_TARGET_CONSTRTAINS": 132,
+	"ROUTE_TARGET_CONSTRAINTS": 132,
 }
 
 func (x SAFI) String() string {
@@ -159,6 +161,55 @@ var Origin_value = map[string]int32{
 
 func (x Origin) String() string {
 	return proto.EnumName(Origin_name, int32(x))
+}
+
+type EXTENDED_COMMUNITIE_TYPE int32
+
+const (
+	EXTENDED_COMMUNITIE_TYPE_TWO_OCTET_AS_SPECIFIC  EXTENDED_COMMUNITIE_TYPE = 0
+	EXTENDED_COMMUNITIE_TYPE_IP4_SPECIFIC           EXTENDED_COMMUNITIE_TYPE = 1
+	EXTENDED_COMMUNITIE_TYPE_FOUR_OCTET_AS_SPECIFIC EXTENDED_COMMUNITIE_TYPE = 2
+	EXTENDED_COMMUNITIE_TYPE_OPAQUE                 EXTENDED_COMMUNITIE_TYPE = 3
+)
+
+var EXTENDED_COMMUNITIE_TYPE_name = map[int32]string{
+	0: "TWO_OCTET_AS_SPECIFIC",
+	1: "IP4_SPECIFIC",
+	2: "FOUR_OCTET_AS_SPECIFIC",
+	3: "OPAQUE",
+}
+var EXTENDED_COMMUNITIE_TYPE_value = map[string]int32{
+	"TWO_OCTET_AS_SPECIFIC":  0,
+	"IP4_SPECIFIC":           1,
+	"FOUR_OCTET_AS_SPECIFIC": 2,
+	"OPAQUE":                 3,
+}
+
+func (x EXTENDED_COMMUNITIE_TYPE) String() string {
+	return proto.EnumName(EXTENDED_COMMUNITIE_TYPE_name, int32(x))
+}
+
+type EXTENDED_COMMUNITIE_SUBTYPE int32
+
+const (
+	EXTENDED_COMMUNITIE_SUBTYPE_ORIGIN_VALIDATION EXTENDED_COMMUNITIE_SUBTYPE = 0
+	EXTENDED_COMMUNITIE_SUBTYPE_ROUTE_TARGET      EXTENDED_COMMUNITIE_SUBTYPE = 2
+	EXTENDED_COMMUNITIE_SUBTYPE_ROUTE_ORIGIN      EXTENDED_COMMUNITIE_SUBTYPE = 3
+)
+
+var EXTENDED_COMMUNITIE_SUBTYPE_name = map[int32]string{
+	0: "ORIGIN_VALIDATION",
+	2: "ROUTE_TARGET",
+	3: "ROUTE_ORIGIN",
+}
+var EXTENDED_COMMUNITIE_SUBTYPE_value = map[string]int32{
+	"ORIGIN_VALIDATION": 0,
+	"ROUTE_TARGET":      2,
+	"ROUTE_ORIGIN":      3,
+}
+
+func (x EXTENDED_COMMUNITIE_SUBTYPE) String() string {
+	return proto.EnumName(EXTENDED_COMMUNITIE_SUBTYPE_name, int32(x))
 }
 
 type TUNNEL_TYPE int32
@@ -402,6 +453,19 @@ func (m *Aggregator) Reset()         { *m = Aggregator{} }
 func (m *Aggregator) String() string { return proto.CompactTextString(m) }
 func (*Aggregator) ProtoMessage()    {}
 
+type ExtendedCommunity struct {
+	Type         EXTENDED_COMMUNITIE_TYPE    `protobuf:"varint,1,opt,name=type,enum=api.EXTENDED_COMMUNITIE_TYPE" json:"type,omitempty"`
+	Subtype      EXTENDED_COMMUNITIE_SUBTYPE `protobuf:"varint,2,opt,name=subtype,enum=api.EXTENDED_COMMUNITIE_SUBTYPE" json:"subtype,omitempty"`
+	IsTransitive bool                        `protobuf:"varint,3,opt,name=is_transitive" json:"is_transitive,omitempty"`
+	Asn          uint32                      `protobuf:"varint,4,opt,name=asn" json:"asn,omitempty"`
+	Ipv4         string                      `protobuf:"bytes,5,opt,name=ipv4" json:"ipv4,omitempty"`
+	LocalAdmin   uint32                      `protobuf:"varint,6,opt,name=local_admin" json:"local_admin,omitempty"`
+}
+
+func (m *ExtendedCommunity) Reset()         { *m = ExtendedCommunity{} }
+func (m *ExtendedCommunity) String() string { return proto.CompactTextString(m) }
+func (*ExtendedCommunity) ProtoMessage()    {}
+
 type EVPNNlri struct {
 	Type EVPN_TYPE `protobuf:"varint,1,opt,name=type,enum=api.EVPN_TYPE" json:"type,omitempty"`
 	//    EvpnAutoDiscoveryRoute = 2;
@@ -434,11 +498,29 @@ func (m *EvpnMacIpAdvertisement) Reset()         { *m = EvpnMacIpAdvertisement{}
 func (m *EvpnMacIpAdvertisement) String() string { return proto.CompactTextString(m) }
 func (*EvpnMacIpAdvertisement) ProtoMessage()    {}
 
+type RTNlri struct {
+	Asn    uint32             `protobuf:"varint,1,opt,name=asn" json:"asn,omitempty"`
+	Target *ExtendedCommunity `protobuf:"bytes,2,opt,name=target" json:"target,omitempty"`
+	Length uint32             `protobuf:"varint,3,opt,name=length" json:"length,omitempty"`
+}
+
+func (m *RTNlri) Reset()         { *m = RTNlri{} }
+func (m *RTNlri) String() string { return proto.CompactTextString(m) }
+func (*RTNlri) ProtoMessage()    {}
+
+func (m *RTNlri) GetTarget() *ExtendedCommunity {
+	if m != nil {
+		return m.Target
+	}
+	return nil
+}
+
 type Nlri struct {
 	Af       *AddressFamily `protobuf:"bytes,1,opt,name=af" json:"af,omitempty"`
 	Prefix   string         `protobuf:"bytes,2,opt,name=prefix" json:"prefix,omitempty"`
-	EvpnNlri *EVPNNlri      `protobuf:"bytes,3,opt,name=evpn_nlri" json:"evpn_nlri,omitempty"`
-	Nexthop  string         `protobuf:"bytes,4,opt,name=nexthop" json:"nexthop,omitempty"`
+	Nexthop  string         `protobuf:"bytes,3,opt,name=nexthop" json:"nexthop,omitempty"`
+	EvpnNlri *EVPNNlri      `protobuf:"bytes,4,opt,name=evpn_nlri" json:"evpn_nlri,omitempty"`
+	RtNlri   *RTNlri        `protobuf:"bytes,5,opt,name=rt_nlri" json:"rt_nlri,omitempty"`
 }
 
 func (m *Nlri) Reset()         { *m = Nlri{} }
@@ -455,6 +537,13 @@ func (m *Nlri) GetAf() *AddressFamily {
 func (m *Nlri) GetEvpnNlri() *EVPNNlri {
 	if m != nil {
 		return m.EvpnNlri
+	}
+	return nil
+}
+
+func (m *Nlri) GetRtNlri() *RTNlri {
+	if m != nil {
+		return m.RtNlri
 	}
 	return nil
 }
@@ -500,7 +589,7 @@ type PathAttr struct {
 	Communites  []uint32          `protobuf:"varint,9,rep,name=communites" json:"communites,omitempty"`
 	Originator  string            `protobuf:"bytes,10,opt,name=originator" json:"originator,omitempty"`
 	Cluster     []string          `protobuf:"bytes,11,rep,name=cluster" json:"cluster,omitempty"`
-	Nlri        *Nlri             `protobuf:"bytes,12,opt,name=nlri" json:"nlri,omitempty"`
+	Nlri        []*Nlri           `protobuf:"bytes,12,rep,name=nlri" json:"nlri,omitempty"`
 	TunnelEncap []*TunnelEncapTLV `protobuf:"bytes,13,rep,name=tunnel_encap" json:"tunnel_encap,omitempty"`
 }
 
@@ -515,7 +604,7 @@ func (m *PathAttr) GetAggregator() *Aggregator {
 	return nil
 }
 
-func (m *PathAttr) GetNlri() *Nlri {
+func (m *PathAttr) GetNlri() []*Nlri {
 	if m != nil {
 		return m.Nlri
 	}
@@ -647,6 +736,8 @@ func init() {
 	proto.RegisterEnum("api.AFI", AFI_name, AFI_value)
 	proto.RegisterEnum("api.SAFI", SAFI_name, SAFI_value)
 	proto.RegisterEnum("api.Origin", Origin_name, Origin_value)
+	proto.RegisterEnum("api.EXTENDED_COMMUNITIE_TYPE", EXTENDED_COMMUNITIE_TYPE_name, EXTENDED_COMMUNITIE_TYPE_value)
+	proto.RegisterEnum("api.EXTENDED_COMMUNITIE_SUBTYPE", EXTENDED_COMMUNITIE_SUBTYPE_name, EXTENDED_COMMUNITIE_SUBTYPE_value)
 	proto.RegisterEnum("api.TUNNEL_TYPE", TUNNEL_TYPE_name, TUNNEL_TYPE_value)
 	proto.RegisterEnum("api.EVPN_TYPE", EVPN_TYPE_name, EVPN_TYPE_value)
 	proto.RegisterEnum("api.ENCAP_SUBTLV_TYPE", ENCAP_SUBTLV_TYPE_name, ENCAP_SUBTLV_TYPE_value)
