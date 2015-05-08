@@ -149,7 +149,7 @@ func (manager *TableManager) calculate(destinationList []Destination) ([]Path, e
 			"Topic": "table",
 			"Owner": manager.owner,
 			"Key":   destination.getNlri().String(),
-		}).Info("Processing destination")
+		}).Debug("Processing destination")
 
 		newBestPath, reason, err := destination.Calculate(manager.localAsn)
 
