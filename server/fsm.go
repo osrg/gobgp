@@ -511,6 +511,9 @@ func (h *FSMHandler) openconfirm() bgp.FSMState {
 		h.holdTimer = &time.Timer{}
 	} else {
 		sec := time.Second * time.Duration(fsm.peerConfig.Timers.KeepaliveInterval)
+		if fsm.negotiatedHoldTime < fsm.peerConfig.Timers.HoldTime {
+			sec = time.Second * time.Duration(fsm.negotiatedHoldTime) / 3
+		}
 		fsm.keepaliveTicker = time.NewTicker(sec)
 
 		// RFC 4271 P.65
