@@ -630,6 +630,9 @@ func showNeighbor(args []string) error {
 	fmt.Printf("  BGP version 4, remote router ID %s\n", p.Conf.Id)
 	fmt.Printf("  BGP state = %s, up for %s\n", p.Info.BgpState, formatTimedelta(p.Info.Uptime))
 	fmt.Printf("  BGP OutQ = %d, Flops = %d\n", p.Info.OutQ, p.Info.Flops)
+	fmt.Printf("  Hold time is %d, keepalive interval is %d seconds\n", p.Conf.Holdtime, p.Conf.KeepaliveInterval)
+	fmt.Printf("  Configured hold time is %d, keepalive interval is %d seconds\n", p.Info.NegotiatedHoldtime, p.Info.KeepaliveInterval)
+
 	fmt.Printf("  Neighbor capabilities:\n")
 	caps := []int32{}
 	lookup := func(val int32, l []int32) bool {
