@@ -252,6 +252,8 @@ message PeerConf {
     bool cap_enhanced_refresh = 5;
     repeated int32 remote_cap = 6;
     repeated int32 local_cap = 7;
+    uint32 holdtime = 8;
+    uint32 keepalive_interval = 9;
 }
 
 message PeerInfo {
@@ -280,6 +282,8 @@ message PeerInfo {
     uint32 advertized = 23;
     uint32 out_q = 24;
     uint32 flops = 25;
+    uint32 negotiated_holdtime = 26;
+    uint32 keepalive_interval = 27;
 }
 
 message Peer {
