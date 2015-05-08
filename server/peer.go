@@ -950,11 +950,13 @@ func (peer *Peer) ToApiStruct() *api.Peer {
 	}
 
 	conf := &api.PeerConf{
-		RemoteIp:  c.NeighborAddress.String(),
-		Id:        peer.peerInfo.ID.To4().String(),
-		RemoteAs:  c.PeerAs,
-		RemoteCap: capList,
-		LocalCap:  []int32{int32(bgp.BGP_CAP_MULTIPROTOCOL), int32(bgp.BGP_CAP_ROUTE_REFRESH), int32(bgp.BGP_CAP_FOUR_OCTET_AS_NUMBER)},
+		RemoteIp:          c.NeighborAddress.String(),
+		Id:                peer.peerInfo.ID.To4().String(),
+		RemoteAs:          c.PeerAs,
+		RemoteCap:         capList,
+		LocalCap:          []int32{int32(bgp.BGP_CAP_MULTIPROTOCOL), int32(bgp.BGP_CAP_ROUTE_REFRESH), int32(bgp.BGP_CAP_FOUR_OCTET_AS_NUMBER)},
+		KeepaliveInterval: uint32(peer.fsm.peerConfig.Timers.KeepaliveInterval),
+		Holdtime:          uint32(peer.fsm.peerConfig.Timers.HoldTime),
 	}
 
 	s := c.BgpNeighborCommonState
@@ -976,6 +978,15 @@ func (peer *Peer) ToApiStruct() *api.Peer {
 			advertized += uint32(peer.adjRib.GetOutCount(rf))
 			received += uint32(peer.adjRib.GetInCount(rf))
 			accepted += uint32(peer.adjRib.GetInCount(rf))
+		}
+	}
+
+	keepalive := uint32(0)
+	if f.negotiatedHoldTime != 0 {
+		if f.negotiatedHoldTime < f.peerConfig.Timers.HoldTime {
+			keepalive = uint32(f.negotiatedHoldTime / 3)
+		} else {
+			keepalive = uint32(f.peerConfig.Timers.KeepaliveInterval)
 		}
 	}
 
@@ -1004,6 +1015,8 @@ func (peer *Peer) ToApiStruct() *api.Peer {
 		Advertized:                advertized,
 		OutQ:                      uint32(len(peer.outgoing)),
 		Flops:                     s.Flops,
+		NegotiatedHoldtime:        uint32(f.negotiatedHoldTime),
+		KeepaliveInterval:         keepalive,
 	}
 
 	return &api.Peer{

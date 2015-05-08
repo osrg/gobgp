@@ -670,6 +670,8 @@ type PeerConf struct {
 	CapEnhancedRefresh bool    `protobuf:"varint,5,opt,name=cap_enhanced_refresh" json:"cap_enhanced_refresh,omitempty"`
 	RemoteCap          []int32 `protobuf:"varint,6,rep,name=remote_cap" json:"remote_cap,omitempty"`
 	LocalCap           []int32 `protobuf:"varint,7,rep,name=local_cap" json:"local_cap,omitempty"`
+	Holdtime           uint32  `protobuf:"varint,8,opt,name=holdtime" json:"holdtime,omitempty"`
+	KeepaliveInterval  uint32  `protobuf:"varint,9,opt,name=keepalive_interval" json:"keepalive_interval,omitempty"`
 }
 
 func (m *PeerConf) Reset()         { *m = PeerConf{} }
@@ -702,6 +704,8 @@ type PeerInfo struct {
 	Advertized                uint32 `protobuf:"varint,23,opt,name=advertized" json:"advertized,omitempty"`
 	OutQ                      uint32 `protobuf:"varint,24,opt,name=out_q" json:"out_q,omitempty"`
 	Flops                     uint32 `protobuf:"varint,25,opt,name=flops" json:"flops,omitempty"`
+	NegotiatedHoldtime        uint32 `protobuf:"varint,26,opt,name=negotiated_holdtime" json:"negotiated_holdtime,omitempty"`
+	KeepaliveInterval         uint32 `protobuf:"varint,27,opt,name=keepalive_interval" json:"keepalive_interval,omitempty"`
 }
 
 func (m *PeerInfo) Reset()         { *m = PeerInfo{} }
