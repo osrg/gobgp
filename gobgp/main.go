@@ -322,7 +322,7 @@ func (x *GlobalRibCommand) Execute(args []string) error {
 
 	eArgs := extractArgs(CMD_RIB)
 	parser := flags.NewParser(&subOpts, flags.Default)
-	parser.Usage = "global rib [OPTIONS]\n  gobgpcli global rib"
+	parser.Usage = "global rib [OPTIONS]\n  gobgp global rib"
 	parser.AddCommand(CMD_ADD, "subcommand for add route to global rib", "", NewGlobalRibAddCommand(x.resource))
 	parser.AddCommand(CMD_DEL, "subcommand for delete route from global rib", "", NewGlobalRibDelCommand(x.resource))
 	parser.ParseArgs(eArgs)
@@ -475,7 +475,7 @@ func (x *GlobalRibAddCommand) Execute(args []string) error {
 	parser := flags.NewParser(&subOpts, flags.Default)
 	parser.Usage = "global rib add <prefix> -a { ipv4 | ipv6 }\n" +
 		"    -> if -a option is ipv4 or ipv6\n" +
-		"  gobgpcli global rib add <mac address> <ip address> -a evpn\n" +
+		"  gobgp global rib add <mac address> <ip address> -a evpn\n" +
 		"    -> if -a option is evpn"
 	parser.ParseArgs(eArgs)
 	if len(eArgs) == 1 {
@@ -504,7 +504,7 @@ func (x *GlobalRibDelCommand) Execute(args []string) error {
 	parser := flags.NewParser(&subOpts, flags.Default)
 	parser.Usage = "global rib del <prefix> -a { ipv4 | ipv6 }\n" +
 		"    -> if -a option is ipv4 or ipv6\n" +
-		"  gobgpcli global rib del <mac address> <ip address> -a evpn\n" +
+		"  gobgp global rib del <mac address> <ip address> -a evpn\n" +
 		"    -> if -a option is evpn"
 	parser.ParseArgs(eArgs)
 	if len(eArgs) == 1 {
@@ -709,7 +709,7 @@ func (x *NeighborCommand) Execute(args []string) error {
 		}
 	} else {
 		parser := flags.NewParser(nil, flags.Default)
-		parser.Usage = "neighbor [ <neighbor address> ]\n  gobgpcli neighbor"
+		parser.Usage = "neighbor [ <neighbor address> ]\n  gobgp neighbor"
 		parser.AddCommand(CMD_LOCAL, "subcommand for local-rib of neighbor", "", NewNeighborRibCommand(eArgs[0], api.Resource_LOCAL, CMD_LOCAL))
 		parser.AddCommand(CMD_ADJ_IN, "subcommand for adj-rib-in of neighbor", "", NewNeighborRibCommand(eArgs[0], api.Resource_ADJ_IN, CMD_ADJ_IN))
 		parser.AddCommand(CMD_ADJ_OUT, "subcommand for adj-rib-out of neighbor", "", NewNeighborRibCommand(eArgs[0], api.Resource_ADJ_OUT, CMD_ADJ_OUT))
