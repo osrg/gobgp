@@ -536,6 +536,18 @@ func showNeighbors() error {
 		} else if e != nil {
 			return e
 		}
+		if neighborsOpts.Transport != "" {
+			addr := net.ParseIP(p.Conf.RemoteIp)
+			if addr.To4() != nil {
+				if neighborsOpts.Transport != "ipv4" {
+					continue
+				}
+			} else {
+				if neighborsOpts.Transport != "ipv6" {
+					continue
+				}
+			}
+		}
 		m = append(m, p)
 	}
 
@@ -699,8 +711,12 @@ func showNeighbor(args []string) error {
 func (x *NeighborCommand) Execute(args []string) error {
 	eArgs := extractArgs(CMD_NEIGHBOR)
 
-	if len(eArgs) == 0 {
-		if err := requestGrpc(CMD_NEIGHBOR, eArgs, nil); err != nil {
+	if len(eArgs) == 0 || (strings.HasPrefix(eArgs[0], "-") && !(eArgs[0] == "-h" || eArgs[0] == "--help")) {
+		parser := flags.NewParser(&neighborsOpts, flags.Default)
+		if _, err := parser.ParseArgs(eArgs); err != nil {
+			os.Exit(1)
+		}
+		if err := requestGrpc(CMD_NEIGHBOR, []string{}, nil); err != nil {
 			return err
 		}
 	} else if len(eArgs) == 1 && !(eArgs[0] == "-h" || eArgs[0] == "--help") {
@@ -1036,6 +1052,10 @@ var globalOpts struct {
 
 var subOpts struct {
 	AddressFamily string `short:"a" long:"address-family" description:"specifying an address family" default:"ipv4"`
+}
+
+var neighborsOpts struct {
+	Transport string `short:"t" long:"transport" description:"specifying a transport protocol"`
 }
 
 func main() {
