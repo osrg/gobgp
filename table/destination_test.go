@@ -82,7 +82,7 @@ func TestDestinationSetBestPath(t *testing.T) {
 	pathD := DestCreatePath(peerD)
 	ipv4d := NewIPv4Destination(pathD[0].GetNlri())
 	ipv4d.setBestPath(pathD[0])
-	r_pathD := ipv4d.getBestPath()
+	r_pathD := ipv4d.GetBestPath()
 	assert.Equal(t, r_pathD, pathD[0])
 }
 func TestDestinationGetBestPath(t *testing.T) {
@@ -90,7 +90,7 @@ func TestDestinationGetBestPath(t *testing.T) {
 	pathD := DestCreatePath(peerD)
 	ipv4d := NewIPv4Destination(pathD[0].GetNlri())
 	ipv4d.setBestPath(pathD[0])
-	r_pathD := ipv4d.getBestPath()
+	r_pathD := ipv4d.GetBestPath()
 	assert.Equal(t, r_pathD, pathD[0])
 }
 func TestDestinationCalculate(t *testing.T) {

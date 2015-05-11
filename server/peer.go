@@ -42,7 +42,14 @@ const (
 	_ peerMsgType = iota
 	PEER_MSG_PATH
 	PEER_MSG_PEER_DOWN
+	PEER_MSG_RESEND_REQ
+	PEER_MSG_RESEND
 )
+
+type resendMsgData struct {
+	address net.IP
+	rfs     []bgp.RouteFamily
+}
 
 type peerMsg struct {
 	msgType peerMsgType
@@ -63,6 +70,7 @@ type Peer struct {
 	// here but it's the simplest and works our first target.
 	rib                 *table.TableManager
 	isGlobalRib         bool
+	drainingPeerMsgPath bool
 	rfMap               map[bgp.RouteFamily]bool
 	capMap              map[bgp.BGPCapabilityCode]bgp.ParameterCapabilityInterface
 	peerInfo            *table.PeerInfo
@@ -166,6 +174,40 @@ func (peer *Peer) sendPathsToSiblings(pathList []table.Path) {
 		msgType: PEER_MSG_PATH,
 		msgData: pathList,
 	}
+	for _, s := range peer.siblings {
+		s.peerMsgCh <- pm
+	}
+}
+
+func (peer *Peer) getBestsFromRib(rf bgp.RouteFamily) ([]table.Path, error) {
+	t, ok := peer.rib.Tables[rf]
+	if !ok {
+		return nil, fmt.Errorf("RF %s is not configured", rf)
+	}
+
+	dsts := t.GetDestinations()
+	pathList := make([]table.Path, 0, len(dsts))
+	for _, dst := range dsts {
+		pathList = append(pathList, dst.GetBestPath())
+	}
+	return pathList, nil
+}
+
+func (peer *Peer) requestResendToSiblings(rfs []bgp.RouteFamily) {
+	pm := &peerMsg{
+		msgType: PEER_MSG_RESEND_REQ,
+		msgData: resendMsgData{
+			address: peer.peerConfig.NeighborAddress,
+			rfs:     rfs,
+		},
+	}
+
+	if len(peer.siblings) > 1 {
+		fmt.Errorf("can't request resend when len(peer.siblings) > 1")
+		return
+	}
+
+	peer.drainingPeerMsgPath = true
 	for _, s := range peer.siblings {
 		s.peerMsgCh <- pm
 	}
@@ -611,11 +653,11 @@ func (peer *Peer) sendUpdateMsgFromPaths(pList []table.Path) {
 		return ret
 	}(pList)
 
-	peer.adjRib.UpdateOut(pList)
-
 	if bgp.FSMState(peer.peerConfig.BgpNeighborCommonState.State) != bgp.BGP_FSM_ESTABLISHED || len(pList) == 0 {
 		return
 	}
+
+	peer.adjRib.UpdateOut(pList)
 
 	pList = func(arg []table.Path) []table.Path {
 		ret := make([]table.Path, 0, len(arg))
@@ -685,7 +727,19 @@ func (peer *Peer) applyPolicies(policies []*policy.Policy, original table.Path) 
 
 func (peer *Peer) handlePeerMsg(m *peerMsg) {
 	switch m.msgType {
-	case PEER_MSG_PATH:
+	case PEER_MSG_PATH, PEER_MSG_RESEND:
+		if !peer.peerConfig.RouteServer.RouteServerClient {
+			if peer.drainingPeerMsgPath {
+				if m.msgType == PEER_MSG_PATH {
+					log.WithFields(log.Fields{
+						"Topic": "Peer",
+						"Key":   peer.peerConfig.NeighborAddress,
+					}).Debug("Draining PEER_MSG_PATH")
+					return
+				}
+				peer.drainingPeerMsgPath = false
+			}
+		}
 		pList := m.msgData.([]table.Path)
 
 		tmp := make([]table.Path, 0, len(pList))
@@ -734,6 +788,46 @@ func (peer *Peer) handlePeerMsg(m *peerMsg) {
 			} else if peer.isGlobalRib {
 				peer.sendPathsToSiblings(pList)
 			}
+		}
+	case PEER_MSG_RESEND_REQ:
+		if peer.fsm.adminState == ADMIN_STATE_DOWN {
+			return
+		}
+		data := m.msgData.(resendMsgData)
+		rfs := data.rfs
+		peerAddr := data.address
+
+		if _, ok := peer.siblings[peerAddr.String()]; !ok {
+			log.WithFields(log.Fields{
+				"Topic": "Peer",
+				"Key":   peer.peerConfig.NeighborAddress,
+			}).Errorf("Resend request from unconfigured peer %s", peerAddr)
+			return
+		}
+
+		log.WithFields(log.Fields{
+			"Topic": "Peer",
+			"Key":   peer.peerConfig.NeighborAddress,
+		}).Debugf("Resend request from %s", peerAddr)
+
+		pathList := make([]table.Path, 0)
+
+		for _, rf := range rfs {
+			tmp, err := peer.getBestsFromRib(rf)
+			if err != nil {
+				log.WithFields(log.Fields{
+					"Topic": "Peer",
+					"Key":   peer.peerConfig.NeighborAddress,
+				}).Errorf("Failed to get bests: %s", err)
+				continue
+			}
+			pathList = append(pathList, tmp...)
+		}
+
+		ch := peer.siblings[peerAddr.String()].peerMsgCh
+		ch <- &peerMsg{
+			msgType: PEER_MSG_RESEND,
+			msgData: pathList,
 		}
 	}
 }
@@ -838,15 +932,16 @@ func (peer *Peer) loop() error {
 			switch peer.peerConfig.BgpNeighborCommonState.State {
 			case uint32(bgp.BGP_FSM_ESTABLISHED):
 				peer.peerConfig.LocalAddress = peer.fsm.LocalAddr()
-				for rf, _ := range peer.rfMap {
-					pathList := peer.adjRib.GetOutPathList(rf)
-					if !peer.peerConfig.RouteServer.RouteServerClient {
-						for _, path := range pathList {
-							path.SetNexthop(peer.peerConfig.LocalAddress)
-						}
+				if peer.peerConfig.RouteServer.RouteServerClient {
+					for rf, _ := range peer.rfMap {
+						pathList, _ := peer.getBestsFromRib(rf)
+						peer.sendUpdateMsgFromPaths(pathList)
 					}
-					peer.sendMessages(table.CreateUpdateMsgFromPaths(pathList))
+				} else {
+					rfs := peer.configuredRFlist()
+					peer.requestResendToSiblings(rfs)
 				}
+
 				peer.fsm.peerConfig.BgpNeighborCommonState.Uptime = time.Now().Unix()
 				peer.fsm.peerConfig.BgpNeighborCommonState.EstablishedCount++
 			case uint32(bgp.BGP_FSM_ACTIVE):
@@ -885,10 +980,9 @@ func (peer *Peer) loop() error {
 						if t.Sub(time.Unix(peer.fsm.peerConfig.BgpNeighborCommonState.Uptime, 0)) < FLOP_THRESHOLD {
 							peer.fsm.peerConfig.BgpNeighborCommonState.Flops++
 						}
+						rfList := peer.configuredRFlist()
+						peer.adjRib = table.NewAdjRib(rfList)
 
-						for _, rf := range peer.configuredRFlist() {
-							peer.adjRib.DropAllIn(rf)
-						}
 						pm := &peerMsg{
 							msgType: PEER_MSG_PEER_DOWN,
 							msgData: peer.peerInfo,
