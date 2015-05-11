@@ -43,6 +43,11 @@ const (
 	REQ_GLOBAL_RIB
 	REQ_GLOBAL_ADD
 	REQ_GLOBAL_DELETE
+	REQ_POLICY_PREFIX
+	REQ_POLICY_PREFIXES
+	REQ_POLICY_PREFIX_ADD
+	REQ_POLICY_PREFIX_DELETE
+	REQ_POLICY_PREFIXES_DELETE
 )
 
 const GRPC_PORT = 8080
@@ -257,6 +262,116 @@ func (s *Server) ModPath(stream api.Grpc_ModPathServer) error {
 		if err != nil {
 			return err
 		}
+	}
+}
+func (s *Server) getPolicies(reqType int, arg *api.PolicyArguments, stream interface{}) error {
+	var rf bgp.RouteFamily
+	req := NewGrpcRequest(reqType, "", rf, nil)
+	s.bgpServerCh <- req
+	for res := range req.ResponseCh {
+		if err := res.Err(); err != nil {
+			log.Debug(err.Error())
+			return err
+		}
+		var err error
+		switch arg.Resource {
+		case api.Resource_POLICY_PREFIX:
+			err = stream.(api.Grpc_GetPolicyPrefixesServer).Send(res.Data.(*api.PrefixSet))
+		default:
+			return fmt.Errorf("unsupported resource type: %v", arg.Resource)
+		}
+		if err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func (s *Server) getPolicy(arg *api.PolicyArguments) (interface{}, error) {
+	var rf bgp.RouteFamily
+	var reqType int
+	switch arg.Resource {
+	case api.Resource_POLICY_PREFIX:
+		reqType = REQ_POLICY_PREFIX
+	default:
+		return nil, fmt.Errorf("unsupported resource type: %v", arg.Resource)
+	}
+	req := NewGrpcRequest(reqType, "", rf, arg.Name)
+	s.bgpServerCh <- req
+
+	res := <-req.ResponseCh
+	if err := res.Err(); err != nil {
+		log.Debug(err.Error())
+		return nil, err
+	}
+	return res.Data, nil
+}
+
+func (s *Server) modPolicy(arg *api.PolicyArguments, stream interface{}) error {
+	var rf bgp.RouteFamily
+	var reqType int
+	switch arg.Resource {
+	case api.Resource_POLICY_PREFIX:
+		switch arg.Operation {
+		case api.Operation_ADD:
+			reqType = REQ_POLICY_PREFIX_ADD
+		case api.Operation_DEL:
+			reqType = REQ_POLICY_PREFIX_DELETE
+		case api.Operation_DEL_ALL:
+			reqType = REQ_POLICY_PREFIXES_DELETE
+		default:
+			return fmt.Errorf("unsupported operation: %s", arg.Operation)
+		}
+		req := NewGrpcRequest(reqType, "", rf, arg.PrefixSet)
+		s.bgpServerCh <- req
+
+		res := <-req.ResponseCh
+		if err := res.Err(); err != nil {
+			log.Debug(err.Error())
+			return err
+		}
+
+		err := stream.(api.Grpc_ModPolicyPrefixServer).Send(&api.Error{
+			Code: api.Error_SUCCESS,
+		})
+
+		if err != nil {
+			return err
+		}
+	default:
+		return fmt.Errorf("unsupported resource type: %v", arg.Resource)
+	}
+	return nil
+
+}
+
+func (s *Server) GetPolicyPrefixes(arg *api.PolicyArguments, stream api.Grpc_GetPolicyPrefixesServer) error {
+	if err := s.getPolicies(REQ_POLICY_PREFIXES, arg, stream); err != nil {
+		return err
+	}
+	return nil
+}
+
+func (s *Server) GetPolicyPrefix(ctx context.Context, arg *api.PolicyArguments) (*api.PrefixSet, error) {
+	data, err := s.getPolicy(arg)
+	if err != nil {
+		return nil, err
+	}
+	return data.(*api.PrefixSet), nil
+}
+
+func (s *Server) ModPolicyPrefix(stream api.Grpc_ModPolicyPrefixServer) error {
+	for {
+		arg, err := stream.Recv()
+		if err == io.EOF {
+			return nil
+		} else if err != nil {
+			return err
+		}
+		if err := s.modPolicy(arg, stream); err != nil {
+			return err
+		}
+		return nil
 	}
 }
 

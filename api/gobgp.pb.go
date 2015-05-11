@@ -12,6 +12,7 @@ It has these top-level messages:
 	Error
 	Arguments
 	ModPathArguments
+	PolicyArguments
 	AddressFamily
 	GracefulRestartTuple
 	GracefulRestart
@@ -30,6 +31,8 @@ It has these top-level messages:
 	PeerConf
 	PeerInfo
 	Peer
+	Prefix
+	PrefixSet
 */
 package api
 
@@ -50,10 +53,11 @@ var _ = proto.Marshal
 type Resource int32
 
 const (
-	Resource_GLOBAL  Resource = 0
-	Resource_LOCAL   Resource = 1
-	Resource_ADJ_IN  Resource = 2
-	Resource_ADJ_OUT Resource = 3
+	Resource_GLOBAL        Resource = 0
+	Resource_LOCAL         Resource = 1
+	Resource_ADJ_IN        Resource = 2
+	Resource_ADJ_OUT       Resource = 3
+	Resource_POLICY_PREFIX Resource = 4
 )
 
 var Resource_name = map[int32]string{
@@ -61,16 +65,41 @@ var Resource_name = map[int32]string{
 	1: "LOCAL",
 	2: "ADJ_IN",
 	3: "ADJ_OUT",
+	4: "POLICY_PREFIX",
 }
 var Resource_value = map[string]int32{
-	"GLOBAL":  0,
-	"LOCAL":   1,
-	"ADJ_IN":  2,
-	"ADJ_OUT": 3,
+	"GLOBAL":        0,
+	"LOCAL":         1,
+	"ADJ_IN":        2,
+	"ADJ_OUT":       3,
+	"POLICY_PREFIX": 4,
 }
 
 func (x Resource) String() string {
 	return proto.EnumName(Resource_name, int32(x))
+}
+
+type Operation int32
+
+const (
+	Operation_ADD     Operation = 0
+	Operation_DEL     Operation = 1
+	Operation_DEL_ALL Operation = 2
+)
+
+var Operation_name = map[int32]string{
+	0: "ADD",
+	1: "DEL",
+	2: "DEL_ALL",
+}
+var Operation_value = map[string]int32{
+	"ADD":     0,
+	"DEL":     1,
+	"DEL_ALL": 2,
+}
+
+func (x Operation) String() string {
+	return proto.EnumName(Operation_name, int32(x))
 }
 
 type AFI int32
@@ -476,6 +505,24 @@ func (m *ModPathArguments) GetPath() *Path {
 	return nil
 }
 
+type PolicyArguments struct {
+	Resource  Resource   `protobuf:"varint,1,opt,name=resource,enum=api.Resource" json:"resource,omitempty"`
+	Operation Operation  `protobuf:"varint,2,opt,name=operation,enum=api.Operation" json:"operation,omitempty"`
+	Name      string     `protobuf:"bytes,3,opt,name=name" json:"name,omitempty"`
+	PrefixSet *PrefixSet `protobuf:"bytes,4,opt,name=prefix_set" json:"prefix_set,omitempty"`
+}
+
+func (m *PolicyArguments) Reset()         { *m = PolicyArguments{} }
+func (m *PolicyArguments) String() string { return proto.CompactTextString(m) }
+func (*PolicyArguments) ProtoMessage()    {}
+
+func (m *PolicyArguments) GetPrefixSet() *PrefixSet {
+	if m != nil {
+		return m.PrefixSet
+	}
+	return nil
+}
+
 type AddressFamily struct {
 	Afi  AFI  `protobuf:"varint,1,opt,enum=api.AFI" json:"Afi,omitempty"`
 	Safi SAFI `protobuf:"varint,2,opt,enum=api.SAFI" json:"Safi,omitempty"`
@@ -848,8 +895,35 @@ func (m *Peer) GetInfo() *PeerInfo {
 	return nil
 }
 
+type Prefix struct {
+	Address         string `protobuf:"bytes,1,opt,name=address" json:"address,omitempty"`
+	MaskLength      uint32 `protobuf:"varint,2,opt,name=mask_length" json:"mask_length,omitempty"`
+	MaskLengthRange string `protobuf:"bytes,3,opt,name=mask_length_range" json:"mask_length_range,omitempty"`
+}
+
+func (m *Prefix) Reset()         { *m = Prefix{} }
+func (m *Prefix) String() string { return proto.CompactTextString(m) }
+func (*Prefix) ProtoMessage()    {}
+
+type PrefixSet struct {
+	PrefixSetName string    `protobuf:"bytes,1,opt,name=prefix_set_name" json:"prefix_set_name,omitempty"`
+	PrefixList    []*Prefix `protobuf:"bytes,2,rep,name=prefix_list" json:"prefix_list,omitempty"`
+}
+
+func (m *PrefixSet) Reset()         { *m = PrefixSet{} }
+func (m *PrefixSet) String() string { return proto.CompactTextString(m) }
+func (*PrefixSet) ProtoMessage()    {}
+
+func (m *PrefixSet) GetPrefixList() []*Prefix {
+	if m != nil {
+		return m.PrefixList
+	}
+	return nil
+}
+
 func init() {
 	proto.RegisterEnum("api.Resource", Resource_name, Resource_value)
+	proto.RegisterEnum("api.Operation", Operation_name, Operation_value)
 	proto.RegisterEnum("api.AFI", AFI_name, AFI_value)
 	proto.RegisterEnum("api.SAFI", SAFI_name, SAFI_value)
 	proto.RegisterEnum("api.BGP_CAPABILITY", BGP_CAPABILITY_name, BGP_CAPABILITY_value)
@@ -878,6 +952,9 @@ type GrpcClient interface {
 	Enable(ctx context.Context, in *Arguments, opts ...grpc.CallOption) (*Error, error)
 	Disable(ctx context.Context, in *Arguments, opts ...grpc.CallOption) (*Error, error)
 	ModPath(ctx context.Context, opts ...grpc.CallOption) (Grpc_ModPathClient, error)
+	GetPolicyPrefixes(ctx context.Context, in *PolicyArguments, opts ...grpc.CallOption) (Grpc_GetPolicyPrefixesClient, error)
+	GetPolicyPrefix(ctx context.Context, in *PolicyArguments, opts ...grpc.CallOption) (*PrefixSet, error)
+	ModPolicyPrefix(ctx context.Context, opts ...grpc.CallOption) (Grpc_ModPolicyPrefixClient, error)
 }
 
 type grpcClient struct {
@@ -1087,6 +1164,78 @@ func (x *grpcModPathClient) Recv() (*Error, error) {
 	return m, nil
 }
 
+func (c *grpcClient) GetPolicyPrefixes(ctx context.Context, in *PolicyArguments, opts ...grpc.CallOption) (Grpc_GetPolicyPrefixesClient, error) {
+	stream, err := grpc.NewClientStream(ctx, &_Grpc_serviceDesc.Streams[4], c.cc, "/api.Grpc/GetPolicyPrefixes", opts...)
+	if err != nil {
+		return nil, err
+	}
+	x := &grpcGetPolicyPrefixesClient{stream}
+	if err := x.ClientStream.SendMsg(in); err != nil {
+		return nil, err
+	}
+	if err := x.ClientStream.CloseSend(); err != nil {
+		return nil, err
+	}
+	return x, nil
+}
+
+type Grpc_GetPolicyPrefixesClient interface {
+	Recv() (*PrefixSet, error)
+	grpc.ClientStream
+}
+
+type grpcGetPolicyPrefixesClient struct {
+	grpc.ClientStream
+}
+
+func (x *grpcGetPolicyPrefixesClient) Recv() (*PrefixSet, error) {
+	m := new(PrefixSet)
+	if err := x.ClientStream.RecvMsg(m); err != nil {
+		return nil, err
+	}
+	return m, nil
+}
+
+func (c *grpcClient) GetPolicyPrefix(ctx context.Context, in *PolicyArguments, opts ...grpc.CallOption) (*PrefixSet, error) {
+	out := new(PrefixSet)
+	err := grpc.Invoke(ctx, "/api.Grpc/GetPolicyPrefix", in, out, c.cc, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *grpcClient) ModPolicyPrefix(ctx context.Context, opts ...grpc.CallOption) (Grpc_ModPolicyPrefixClient, error) {
+	stream, err := grpc.NewClientStream(ctx, &_Grpc_serviceDesc.Streams[5], c.cc, "/api.Grpc/ModPolicyPrefix", opts...)
+	if err != nil {
+		return nil, err
+	}
+	x := &grpcModPolicyPrefixClient{stream}
+	return x, nil
+}
+
+type Grpc_ModPolicyPrefixClient interface {
+	Send(*PolicyArguments) error
+	Recv() (*Error, error)
+	grpc.ClientStream
+}
+
+type grpcModPolicyPrefixClient struct {
+	grpc.ClientStream
+}
+
+func (x *grpcModPolicyPrefixClient) Send(m *PolicyArguments) error {
+	return x.ClientStream.SendMsg(m)
+}
+
+func (x *grpcModPolicyPrefixClient) Recv() (*Error, error) {
+	m := new(Error)
+	if err := x.ClientStream.RecvMsg(m); err != nil {
+		return nil, err
+	}
+	return m, nil
+}
+
 // Server API for Grpc service
 
 type GrpcServer interface {
@@ -1102,6 +1251,9 @@ type GrpcServer interface {
 	Enable(context.Context, *Arguments) (*Error, error)
 	Disable(context.Context, *Arguments) (*Error, error)
 	ModPath(Grpc_ModPathServer) error
+	GetPolicyPrefixes(*PolicyArguments, Grpc_GetPolicyPrefixesServer) error
+	GetPolicyPrefix(context.Context, *PolicyArguments) (*PrefixSet, error)
+	ModPolicyPrefix(Grpc_ModPolicyPrefixServer) error
 }
 
 func RegisterGrpcServer(s *grpc.Server, srv GrpcServer) {
@@ -1293,6 +1445,65 @@ func (x *grpcModPathServer) Recv() (*ModPathArguments, error) {
 	return m, nil
 }
 
+func _Grpc_GetPolicyPrefixes_Handler(srv interface{}, stream grpc.ServerStream) error {
+	m := new(PolicyArguments)
+	if err := stream.RecvMsg(m); err != nil {
+		return err
+	}
+	return srv.(GrpcServer).GetPolicyPrefixes(m, &grpcGetPolicyPrefixesServer{stream})
+}
+
+type Grpc_GetPolicyPrefixesServer interface {
+	Send(*PrefixSet) error
+	grpc.ServerStream
+}
+
+type grpcGetPolicyPrefixesServer struct {
+	grpc.ServerStream
+}
+
+func (x *grpcGetPolicyPrefixesServer) Send(m *PrefixSet) error {
+	return x.ServerStream.SendMsg(m)
+}
+
+func _Grpc_GetPolicyPrefix_Handler(srv interface{}, ctx context.Context, codec grpc.Codec, buf []byte) (interface{}, error) {
+	in := new(PolicyArguments)
+	if err := codec.Unmarshal(buf, in); err != nil {
+		return nil, err
+	}
+	out, err := srv.(GrpcServer).GetPolicyPrefix(ctx, in)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func _Grpc_ModPolicyPrefix_Handler(srv interface{}, stream grpc.ServerStream) error {
+	return srv.(GrpcServer).ModPolicyPrefix(&grpcModPolicyPrefixServer{stream})
+}
+
+type Grpc_ModPolicyPrefixServer interface {
+	Send(*Error) error
+	Recv() (*PolicyArguments, error)
+	grpc.ServerStream
+}
+
+type grpcModPolicyPrefixServer struct {
+	grpc.ServerStream
+}
+
+func (x *grpcModPolicyPrefixServer) Send(m *Error) error {
+	return x.ServerStream.SendMsg(m)
+}
+
+func (x *grpcModPolicyPrefixServer) Recv() (*PolicyArguments, error) {
+	m := new(PolicyArguments)
+	if err := x.ServerStream.RecvMsg(m); err != nil {
+		return nil, err
+	}
+	return m, nil
+}
+
 var _Grpc_serviceDesc = grpc.ServiceDesc{
 	ServiceName: "api.Grpc",
 	HandlerType: (*GrpcServer)(nil),
@@ -1329,6 +1540,10 @@ var _Grpc_serviceDesc = grpc.ServiceDesc{
 			MethodName: "Disable",
 			Handler:    _Grpc_Disable_Handler,
 		},
+		{
+			MethodName: "GetPolicyPrefix",
+			Handler:    _Grpc_GetPolicyPrefix_Handler,
+		},
 	},
 	Streams: []grpc.StreamDesc{
 		{
@@ -1349,6 +1564,17 @@ var _Grpc_serviceDesc = grpc.ServiceDesc{
 		{
 			StreamName:    "ModPath",
 			Handler:       _Grpc_ModPath_Handler,
+			ServerStreams: true,
+			ClientStreams: true,
+		},
+		{
+			StreamName:    "GetPolicyPrefixes",
+			Handler:       _Grpc_GetPolicyPrefixes_Handler,
+			ServerStreams: true,
+		},
+		{
+			StreamName:    "ModPolicyPrefix",
+			Handler:       _Grpc_ModPolicyPrefix_Handler,
 			ServerStreams: true,
 			ClientStreams: true,
 		},

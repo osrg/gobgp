@@ -35,6 +35,7 @@ import (
 const (
 	CMD_GLOBAL         = "global"
 	CMD_NEIGHBOR       = "neighbor"
+	CMD_POLICY         = "policy"
 	CMD_RIB            = "rib"
 	CMD_ADD            = "add"
 	CMD_DEL            = "del"
@@ -48,6 +49,8 @@ const (
 	CMD_SHUTDOWN       = "shutdown"
 	CMD_ENABLE         = "enable"
 	CMD_DISABLE        = "disable"
+	CMD_PREFIX         = "prefix"
+	CMD_ALL            = "all"
 )
 
 func formatTimedelta(d int64) string {
@@ -134,6 +137,20 @@ func (p peers) Less(i, j int) bool {
 	return strings.Less(0, 1)
 }
 
+type prefixes []*api.PrefixSet
+
+func (p prefixes) Len() int {
+	return len(p)
+}
+
+func (p prefixes) Swap(i, j int) {
+	p[i], p[j] = p[j], p[i]
+}
+
+func (p prefixes) Less(i, j int) bool {
+	return p[i].PrefixSetName < p[j].PrefixSetName
+}
+
 func connGrpc() *grpc.ClientConn {
 	timeout := grpc.WithTimeout(time.Second)
 
@@ -166,9 +183,9 @@ func requestGrpc(cmd string, eArgs []string, remoteIP net.IP) error {
 		return modPath(CMD_DEL, eArgs)
 	case CMD_NEIGHBOR:
 		if len(eArgs) == 0 {
-			showNeighbors()
+			return showNeighbors()
 		} else {
-			showNeighbor(eArgs)
+			return showNeighbor(eArgs)
 		}
 	case CMD_NEIGHBOR + "_" + CMD_LOCAL:
 		return showNeighborRib(api.Resource_LOCAL, remoteIP)
@@ -190,6 +207,16 @@ func requestGrpc(cmd string, eArgs []string, remoteIP net.IP) error {
 		return stateChangeNeighbor(CMD_ENABLE, remoteIP)
 	case CMD_NEIGHBOR + "_" + CMD_DISABLE:
 		return stateChangeNeighbor(CMD_DISABLE, remoteIP)
+	case CMD_POLICY + "_" + CMD_PREFIX:
+		if len(eArgs) == 0 {
+			return showPolicyPrefixes()
+		} else {
+			return showPolicyPrefix(eArgs)
+		}
+	case CMD_POLICY + "_" + CMD_PREFIX + "_" + CMD_ADD:
+		return modPolicyPrefix(CMD_ADD, eArgs)
+	case CMD_POLICY + "_" + CMD_PREFIX + "_" + CMD_DEL:
+		return modPolicyPrefix(CMD_DEL, eArgs)
 	}
 	return nil
 }
@@ -252,29 +279,21 @@ func checkAddressFamily(ip net.IP) (*api.AddressFamily, error) {
 
 var client api.GrpcClient
 
-type GlobalCommand struct {
-}
+type GlobalCommand struct{}
 
 func (x *GlobalCommand) Execute(args []string) error {
 	eArgs := extractArgs(CMD_GLOBAL)
 	parser := flags.NewParser(nil, flags.Default)
 	parser.Usage = "global"
-	parser.AddCommand(CMD_RIB, "subcommand for rib of global", "", NewGlobalRibCommand(api.Resource_GLOBAL))
+	parser.AddCommand(CMD_RIB, "subcommand for rib of global", "", &GlobalRibCommand{})
 	if _, err := parser.ParseArgs(eArgs); err != nil {
 		os.Exit(1)
 	}
 	return nil
 }
 
-type GlobalRibCommand struct {
-	resource api.Resource
-}
+type GlobalRibCommand struct{}
 
-func NewGlobalRibCommand(resource api.Resource) *GlobalRibCommand {
-	return &GlobalRibCommand{
-		resource: resource,
-	}
-}
 func showGlobalRib() error {
 	rt, err := checkAddressFamily(net.IP{})
 	if err != nil {
@@ -334,8 +353,8 @@ func (x *GlobalRibCommand) Execute(args []string) error {
 		}
 	} else {
 		parser.Usage = "global rib [OPTIONS]\n  gobgp global rib"
-		parser.AddCommand(CMD_ADD, "subcommand for add route to global rib", "", NewGlobalRibAddCommand(x.resource))
-		parser.AddCommand(CMD_DEL, "subcommand for delete route from global rib", "", NewGlobalRibDelCommand(x.resource))
+		parser.AddCommand(CMD_ADD, "subcommand for add route to global rib", "", &GlobalRibAddCommand{})
+		parser.AddCommand(CMD_DEL, "subcommand for delete route from global rib", "", &GlobalRibDelCommand{})
 		if _, err := parser.ParseArgs(eArgs); err != nil {
 			os.Exit(1)
 		}
@@ -343,15 +362,7 @@ func (x *GlobalRibCommand) Execute(args []string) error {
 	return nil
 }
 
-type GlobalRibAddCommand struct {
-	resource api.Resource
-}
-
-func NewGlobalRibAddCommand(resource api.Resource) *GlobalRibAddCommand {
-	return &GlobalRibAddCommand{
-		resource: resource,
-	}
-}
+type GlobalRibAddCommand struct{}
 
 func modPath(modtype string, eArgs []string) error {
 	rf, err := checkAddressFamily(net.IP{})
@@ -366,7 +377,7 @@ func modPath(modtype string, eArgs []string) error {
 		if len(eArgs) == 1 || len(eArgs) == 3 {
 			prefix = eArgs[0]
 		} else {
-			return fmt.Errorf("usage: global rib add <prefix> -a { ipv4 | ipv6 }")
+			return fmt.Errorf("usage: global rib %s <prefix> -a { ipv4 | ipv6 }", modtype)
 		}
 		path.Nlri = &api.Nlri{
 			Af:     rf,
@@ -377,7 +388,7 @@ func modPath(modtype string, eArgs []string) error {
 			macAddr = eArgs[0]
 			ipAddr = eArgs[1]
 		} else {
-			return fmt.Errorf("usage: global rib add <mac address> <ip address> -a evpn")
+			return fmt.Errorf("usage: global rib %s <mac address> <ip address> -a evpn", modtype)
 		}
 		path.Nlri = &api.Nlri{
 			Af: rf,
@@ -391,7 +402,7 @@ func modPath(modtype string, eArgs []string) error {
 		}
 	case api.AF_ENCAP:
 		if len(eArgs) < 3 {
-			return fmt.Errorf("usage: global rib add <end point ip address> [<vni>] -a encap")
+			return fmt.Errorf("usage: global rib %s <end point ip address> [<vni>] -a encap", modtype)
 		}
 		prefix = eArgs[0]
 
@@ -498,15 +509,7 @@ func (x *GlobalRibAddCommand) Execute(args []string) error {
 	return nil
 }
 
-type GlobalRibDelCommand struct {
-	resource api.Resource
-}
-
-func NewGlobalRibDelCommand(resource api.Resource) *GlobalRibDelCommand {
-	return &GlobalRibDelCommand{
-		resource: resource,
-	}
-}
+type GlobalRibDelCommand struct{}
 
 func (x *GlobalRibDelCommand) Execute(args []string) error {
 	eArgs := extractArgs(CMD_DEL)
@@ -1081,6 +1084,309 @@ func (x *NeighborChangeStateCommand) Execute(args []string) error {
 	return nil
 }
 
+type PolicyCommand struct{}
+
+func (x *PolicyCommand) Execute(args []string) error {
+	eArgs := extractArgs(CMD_POLICY)
+	parser := flags.NewParser(nil, flags.Default)
+	parser.Usage = "policy"
+	parser.AddCommand(CMD_PREFIX, "subcommand for prefix of policy", "", &PolicyPrefixCommand{})
+	if _, err := parser.ParseArgs(eArgs); err != nil {
+		os.Exit(1)
+	}
+	return nil
+}
+
+type PolicyPrefixCommand struct{}
+
+func showPolicyPrefixes() error {
+	arg := &api.PolicyArguments{
+		Resource: api.Resource_POLICY_PREFIX,
+	}
+	stream, e := client.GetPolicyPrefixes(context.Background(), arg)
+	if e != nil {
+		fmt.Println(e)
+		return e
+	}
+	m := prefixes{}
+	for {
+		p, e := stream.Recv()
+		if e == io.EOF {
+			break
+		} else if e != nil {
+			return e
+		}
+		m = append(m, p)
+	}
+
+	if globalOpts.Json {
+		j, _ := json.Marshal(m)
+		fmt.Println(string(j))
+		return nil
+	}
+
+	if globalOpts.Quiet {
+		for _, p := range m {
+			fmt.Println(p.PrefixSetName)
+		}
+		return nil
+	}
+	maxnamelen := len("Name")
+	maxprefixlen := len("Prefix")
+	maxrangelen := len("MaskRange")
+
+	sort.Sort(m)
+
+	for _, ps := range m {
+		if len(ps.PrefixSetName) > maxnamelen {
+			maxnamelen = len(ps.PrefixSetName)
+		}
+		for _, p := range ps.PrefixList {
+			if len(p.Address)+len(fmt.Sprint(p.MaskLength)) > maxprefixlen {
+				maxprefixlen = len(p.Address) + len(fmt.Sprint(p.MaskLength))
+			}
+			if len(p.MaskLengthRange) > maxrangelen {
+				maxrangelen = len(p.MaskLengthRange)
+			}
+		}
+	}
+	var format string
+	format = "%" + fmt.Sprint(maxnamelen) + "s  %-" + fmt.Sprint(maxprefixlen) + "s  %-" + fmt.Sprint(maxrangelen) + "s\n"
+	fmt.Printf(format, "Name", "Prefix", "MaskRange")
+	for _, ps := range m {
+		for i, p := range ps.PrefixList {
+			prefix := fmt.Sprintf("%s/%d", p.Address, p.MaskLength)
+			if i == 0 {
+				fmt.Printf(format, ps.PrefixSetName, prefix, p.MaskLengthRange)
+			} else {
+				fmt.Printf(format, "", prefix, p.MaskLengthRange)
+			}
+		}
+	}
+	return nil
+}
+
+func showPolicyPrefix(args []string) error {
+	arg := &api.PolicyArguments{
+		Resource: api.Resource_POLICY_PREFIX,
+		Name:     args[0],
+	}
+	ps, e := client.GetPolicyPrefix(context.Background(), arg)
+	if e != nil {
+		return e
+	}
+
+	if globalOpts.Json {
+		j, _ := json.Marshal(ps)
+		fmt.Println(string(j))
+		return nil
+	}
+
+	maxprefixlen := len("Prefix")
+	maxrangelen := len("MaskRange")
+
+	for _, p := range ps.PrefixList {
+		if len(p.Address)+len(fmt.Sprint(p.MaskLength)) > maxprefixlen {
+			maxprefixlen = len(p.Address) + len(fmt.Sprint(p.MaskLength))
+		}
+		if len(p.MaskLengthRange) > maxrangelen {
+			maxrangelen = len(p.MaskLengthRange)
+		}
+	}
+	var format string
+	format = "%-" + fmt.Sprint(maxprefixlen) + "s  %-" + fmt.Sprint(maxrangelen) + "s\n"
+	fmt.Printf(format, "Prefix", "MaskRange")
+
+	for _, p := range ps.PrefixList {
+		prefix := fmt.Sprintf("%s/%d", p.Address, p.MaskLength)
+		fmt.Printf(format, prefix, p.MaskLengthRange)
+	}
+	return nil
+}
+
+func (x *PolicyPrefixCommand) Execute(args []string) error {
+	eArgs := extractArgs(CMD_PREFIX)
+	if len(eArgs) == 0 {
+		if err := requestGrpc(CMD_POLICY+"_"+CMD_PREFIX, eArgs, nil); err != nil {
+			return err
+		}
+		return nil
+	} else if len(eArgs) == 1 && !(eArgs[0] == "-h" || eArgs[0] == "--help" || eArgs[0] == "add" || eArgs[0] == "del") {
+		if err := requestGrpc(CMD_POLICY+"_"+CMD_PREFIX, eArgs, nil); err != nil {
+			return err
+		}
+		return nil
+	}
+	parser := flags.NewParser(nil, flags.Default)
+	parser.Usage = "policy prefix [OPTIONS]\n  gobgp policy prefix"
+	parser.AddCommand(CMD_ADD, "subcommand for add route to policy prefix", "", &PolicyPrefixAddCommand{})
+	parser.AddCommand(CMD_DEL, "subcommand for delete route from policy prefix", "", &PolicyPrefixDelCommand{})
+	parser.ParseArgs(eArgs)
+	return nil
+}
+
+type PolicyPrefixAddCommand struct{}
+
+func parsePrefixSet(eArgs []string) (*api.PrefixSet, error) {
+	_, ipNet, e := net.ParseCIDR(eArgs[1])
+	if e != nil {
+		return nil, fmt.Errorf("prefix is invalid format %s\nplease enter ipv4 or ipv6 format", eArgs[1])
+	}
+	mask, _ := ipNet.Mask.Size()
+	prefix := &api.Prefix{
+		Address:    ipNet.IP.String(),
+		MaskLength: uint32(mask),
+	}
+
+	if len(eArgs) == 3 {
+		maskRange := eArgs[2]
+		idx := strings.Index(maskRange, "..")
+		if idx == -1 {
+			return nil, fmt.Errorf("mask length range invalid format %s", maskRange)
+		}
+		var min, max int
+		var e error
+		if idx != 0 {
+			if min, e = strconv.Atoi(maskRange[:idx]); e != nil {
+				return nil, fmt.Errorf("mask length range invalid format %s", maskRange)
+			}
+		}
+		if idx != len(maskRange)-1 {
+			if max, e = strconv.Atoi(maskRange[idx+2:]); e != nil {
+				return nil, fmt.Errorf("mask length range invalid format %s", maskRange)
+			}
+		}
+		if ipv4 := ipNet.IP.To4(); ipv4 != nil {
+			if min < 0 || 32 < max {
+				return nil, fmt.Errorf("ipv4 mask length range outside scope %s", maskRange)
+			}
+		} else {
+			if min < 0 || 128 < max {
+				return nil, fmt.Errorf("ipv6 mask length range outside scope %s", maskRange)
+			}
+		}
+		if min >= max {
+			return nil, fmt.Errorf("mask length range invalid format %s\nTo a large value to the right from the left", maskRange)
+		}
+		prefix.MaskLengthRange = maskRange
+	}
+	prefixList := []*api.Prefix{prefix}
+	prefixSet := &api.PrefixSet{
+		PrefixSetName: eArgs[0],
+		PrefixList:    prefixList,
+	}
+	return prefixSet, nil
+}
+
+func modPolicyPrefix(modtype string, eArgs []string) error {
+	prefixSet := &api.PrefixSet{}
+	var e error
+	var operation api.Operation
+
+	switch modtype {
+	case CMD_ADD:
+		if len(eArgs) < 2 {
+			return fmt.Errorf("policy prefix add <prefix name> <prefix> [<mask length renge>]")
+		}
+		if prefixSet, e = parsePrefixSet(eArgs); e != nil {
+			return e
+		}
+		operation = api.Operation_ADD
+	case CMD_DEL:
+		if len(eArgs) == 0 {
+			operation = api.Operation_DEL_ALL
+		} else if len(eArgs) == 1 {
+			prefixSet = &api.PrefixSet{
+				PrefixSetName: eArgs[0],
+				PrefixList:    nil,
+			}
+			operation = api.Operation_DEL
+		} else {
+			if prefixSet, e = parsePrefixSet(eArgs); e != nil {
+				return e
+			}
+			operation = api.Operation_DEL
+		}
+	}
+
+	arg := &api.PolicyArguments{
+		Resource:  api.Resource_POLICY_PREFIX,
+		Operation: operation,
+		PrefixSet: prefixSet,
+	}
+	stream, err := client.ModPolicyPrefix(context.Background())
+	if err != nil {
+		return err
+	}
+	err = stream.Send(arg)
+	if err != nil {
+		return err
+	}
+	stream.CloseSend()
+
+	res, e := stream.Recv()
+	if e != nil {
+		return e
+	}
+	if res.Code != api.Error_SUCCESS {
+		return fmt.Errorf("error: code: %d, msg: %s", res.Code, res.Msg)
+	}
+	return nil
+}
+
+func (x *PolicyPrefixAddCommand) Execute(args []string) error {
+	eArgs := extractArgs(CMD_ADD)
+	if len(eArgs) == 0 || len(eArgs) > 3 {
+		return fmt.Errorf("policy prefix add <prefix name> <prefix> [<mask length renge>]")
+	} else if !(eArgs[0] == "-h" || eArgs[0] == "--help") {
+		if err := requestGrpc(CMD_POLICY+"_"+CMD_PREFIX+"_"+CMD_ADD, eArgs, nil); err != nil {
+			return err
+		}
+		return nil
+	}
+	parser := flags.NewParser(nil, flags.Default)
+	parser.Usage = "policy prefix add <prefix name> <prefix> [mask length renge]"
+	parser.ParseArgs(eArgs)
+	return nil
+}
+
+type PolicyPrefixDelCommand struct{}
+
+func (x *PolicyPrefixDelCommand) Execute(args []string) error {
+	eArgs := extractArgs(CMD_DEL)
+	if len(eArgs) > 3 {
+		return fmt.Errorf("policy prefix del [<prefix name> [<prefix> [<mask length range>]]] ")
+	} else if len(eArgs) > 0 && !(eArgs[0] == "-h" || eArgs[0] == "--help" || eArgs[0] == "all") {
+		if err := requestGrpc(CMD_POLICY+"_"+CMD_PREFIX+"_"+CMD_DEL, eArgs, nil); err != nil {
+			return err
+		}
+		return nil
+	}
+	parser := flags.NewParser(nil, flags.Default)
+	parser.Usage = "policy prefix del [ <prefix name> <prefix> ]\n  policy prefix del"
+	parser.AddCommand(CMD_ALL, "subcommand for delete all route from policy prefix", "", &PolicyPrefixDelAllCommand{})
+	parser.ParseArgs(eArgs)
+	return nil
+}
+
+type PolicyPrefixDelAllCommand struct{}
+
+func (x *PolicyPrefixDelAllCommand) Execute(args []string) error {
+	eArgs := extractArgs(CMD_ALL)
+	if len(eArgs) > 0 && !(eArgs[0] == "-h" || eArgs[0] == "--help") {
+		return fmt.Errorf("Argument dose not input")
+	} else if len(eArgs) == 0 {
+		if err := requestGrpc(CMD_POLICY+"_"+CMD_PREFIX+"_"+CMD_DEL, eArgs, nil); err != nil {
+			return err
+		}
+	}
+
+	parser := flags.NewParser(nil, flags.Default)
+	parser.Usage = "policy prefix del all"
+	parser.ParseArgs(eArgs)
+	return nil
+}
+
 var globalOpts struct {
 	Host  string `short:"u" long:"url" description:"specifying an url" default:"127.0.0.1"`
 	Port  int    `short:"p" long:"port" description:"specifying a port" default:"8080"`
@@ -1098,13 +1404,15 @@ var neighborsOpts struct {
 }
 
 func main() {
-	cmds = []string{CMD_GLOBAL, CMD_NEIGHBOR, CMD_RIB, CMD_ADD, CMD_DEL, CMD_LOCAL, CMD_ADJ_IN, CMD_ADJ_OUT,
-		CMD_RESET, CMD_SOFT_RESET, CMD_SOFT_RESET_IN, CMD_SOFT_RESET_OUT, CMD_SHUTDOWN, CMD_ENABLE, CMD_DISABLE}
+	cmds = []string{CMD_GLOBAL, CMD_NEIGHBOR, CMD_POLICY, CMD_RIB, CMD_ADD, CMD_DEL, CMD_LOCAL, CMD_ADJ_IN, CMD_ADJ_OUT,
+		CMD_RESET, CMD_SOFT_RESET, CMD_SOFT_RESET_IN, CMD_SOFT_RESET_OUT, CMD_SHUTDOWN, CMD_ENABLE, CMD_DISABLE,
+		CMD_PREFIX, CMD_ALL}
 
 	eArgs := extractArgs("")
 	parser := flags.NewParser(&globalOpts, flags.Default)
 	parser.AddCommand(CMD_GLOBAL, "subcommand for global", "", &GlobalCommand{})
 	parser.AddCommand(CMD_NEIGHBOR, "subcommand for neighbor", "", &NeighborCommand{})
+	parser.AddCommand(CMD_POLICY, "subcommand for policy", "", &PolicyCommand{})
 	if _, err := parser.ParseArgs(eArgs); err != nil {
 		os.Exit(1)
 	}
