@@ -37,6 +37,8 @@ service Grpc {
   rpc ModPolicyPrefix(stream PolicyArguments) returns (stream Error) {}
   rpc GetPolicyNeighbors(PolicyArguments) returns (stream NeighborSet) {}
   rpc GetPolicyNeighbor(PolicyArguments) returns (NeighborSet) {}
+  rpc GetPolicyRoutePolicies(PolicyArguments) returns (stream PolicyDefinition) {}
+  rpc GetPolicyRoutePolicy(PolicyArguments) returns (PolicyDefinition) {}
 }
 
 message Error {
@@ -65,6 +67,7 @@ message PolicyArguments {
 	string name = 3;
 	PrefixSet prefix_set = 4;
 	NeighborSet neighbor_set = 5;
+	PolicyDefinition policy_difinition = 6;
 }
 
 enum Resource {
@@ -74,6 +77,7 @@ enum Resource {
     ADJ_OUT = 3;
 	POLICY_PREFIX = 4;
 	POLICY_NEIGHBOR = 5;
+	POLICY_ROUTEPOLICY = 6;
 }
 
 enum Operation {
@@ -361,3 +365,28 @@ message NeighborSet {
 	repeated Neighbor neighbor_list = 2;
 }
 
+message Conditions {
+	PrefixSet match_prefix_set = 1;
+	NeighborSet match_neighbor_set = 2;
+	int64 match_set_options = 3;
+}
+
+message Actions {
+	bool accept_route = 1;
+	bool reject_route = 2;
+}
+
+message Statement {
+	string statement_neme = 1;
+	Conditions conditions = 2;
+	Actions actions = 3;
+}
+
+message PolicyDefinition{
+	string policy_definition_name = 1;
+	repeated Statement statement_list = 2;
+}
+
+message RoutingPolicy {
+	repeated PolicyDefinition policy_difinition = 1;
+}

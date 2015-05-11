@@ -35,6 +35,11 @@ It has these top-level messages:
 	PrefixSet
 	Neighbor
 	NeighborSet
+	Conditions
+	Actions
+	Statement
+	PolicyDefinition
+	RoutingPolicy
 */
 package api
 
@@ -55,12 +60,13 @@ var _ = proto.Marshal
 type Resource int32
 
 const (
-	Resource_GLOBAL          Resource = 0
-	Resource_LOCAL           Resource = 1
-	Resource_ADJ_IN          Resource = 2
-	Resource_ADJ_OUT         Resource = 3
-	Resource_POLICY_PREFIX   Resource = 4
-	Resource_POLICY_NEIGHBOR Resource = 5
+	Resource_GLOBAL             Resource = 0
+	Resource_LOCAL              Resource = 1
+	Resource_ADJ_IN             Resource = 2
+	Resource_ADJ_OUT            Resource = 3
+	Resource_POLICY_PREFIX      Resource = 4
+	Resource_POLICY_NEIGHBOR    Resource = 5
+	Resource_POLICY_ROUTEPOLICY Resource = 6
 )
 
 var Resource_name = map[int32]string{
@@ -70,14 +76,16 @@ var Resource_name = map[int32]string{
 	3: "ADJ_OUT",
 	4: "POLICY_PREFIX",
 	5: "POLICY_NEIGHBOR",
+	6: "POLICY_ROUTEPOLICY",
 }
 var Resource_value = map[string]int32{
-	"GLOBAL":          0,
-	"LOCAL":           1,
-	"ADJ_IN":          2,
-	"ADJ_OUT":         3,
-	"POLICY_PREFIX":   4,
-	"POLICY_NEIGHBOR": 5,
+	"GLOBAL":             0,
+	"LOCAL":              1,
+	"ADJ_IN":             2,
+	"ADJ_OUT":            3,
+	"POLICY_PREFIX":      4,
+	"POLICY_NEIGHBOR":    5,
+	"POLICY_ROUTEPOLICY": 6,
 }
 
 func (x Resource) String() string {
@@ -511,11 +519,12 @@ func (m *ModPathArguments) GetPath() *Path {
 }
 
 type PolicyArguments struct {
-	Resource    Resource     `protobuf:"varint,1,opt,name=resource,enum=api.Resource" json:"resource,omitempty"`
-	Operation   Operation    `protobuf:"varint,2,opt,name=operation,enum=api.Operation" json:"operation,omitempty"`
-	Name        string       `protobuf:"bytes,3,opt,name=name" json:"name,omitempty"`
-	PrefixSet   *PrefixSet   `protobuf:"bytes,4,opt,name=prefix_set" json:"prefix_set,omitempty"`
-	NeighborSet *NeighborSet `protobuf:"bytes,5,opt,name=neighbor_set" json:"neighbor_set,omitempty"`
+	Resource         Resource          `protobuf:"varint,1,opt,name=resource,enum=api.Resource" json:"resource,omitempty"`
+	Operation        Operation         `protobuf:"varint,2,opt,name=operation,enum=api.Operation" json:"operation,omitempty"`
+	Name             string            `protobuf:"bytes,3,opt,name=name" json:"name,omitempty"`
+	PrefixSet        *PrefixSet        `protobuf:"bytes,4,opt,name=prefix_set" json:"prefix_set,omitempty"`
+	NeighborSet      *NeighborSet      `protobuf:"bytes,5,opt,name=neighbor_set" json:"neighbor_set,omitempty"`
+	PolicyDifinition *PolicyDefinition `protobuf:"bytes,6,opt,name=policy_difinition" json:"policy_difinition,omitempty"`
 }
 
 func (m *PolicyArguments) Reset()         { *m = PolicyArguments{} }
@@ -532,6 +541,13 @@ func (m *PolicyArguments) GetPrefixSet() *PrefixSet {
 func (m *PolicyArguments) GetNeighborSet() *NeighborSet {
 	if m != nil {
 		return m.NeighborSet
+	}
+	return nil
+}
+
+func (m *PolicyArguments) GetPolicyDifinition() *PolicyDefinition {
+	if m != nil {
+		return m.PolicyDifinition
 	}
 	return nil
 }
@@ -958,6 +974,94 @@ func (m *NeighborSet) GetNeighborList() []*Neighbor {
 	return nil
 }
 
+type Conditions struct {
+	MatchPrefixSet   *PrefixSet   `protobuf:"bytes,1,opt,name=match_prefix_set" json:"match_prefix_set,omitempty"`
+	MatchNeighborSet *NeighborSet `protobuf:"bytes,2,opt,name=match_neighbor_set" json:"match_neighbor_set,omitempty"`
+	MatchSetOptions  int64        `protobuf:"varint,3,opt,name=match_set_options" json:"match_set_options,omitempty"`
+}
+
+func (m *Conditions) Reset()         { *m = Conditions{} }
+func (m *Conditions) String() string { return proto.CompactTextString(m) }
+func (*Conditions) ProtoMessage()    {}
+
+func (m *Conditions) GetMatchPrefixSet() *PrefixSet {
+	if m != nil {
+		return m.MatchPrefixSet
+	}
+	return nil
+}
+
+func (m *Conditions) GetMatchNeighborSet() *NeighborSet {
+	if m != nil {
+		return m.MatchNeighborSet
+	}
+	return nil
+}
+
+type Actions struct {
+	AcceptRoute bool `protobuf:"varint,1,opt,name=accept_route" json:"accept_route,omitempty"`
+	RejectRoute bool `protobuf:"varint,2,opt,name=reject_route" json:"reject_route,omitempty"`
+}
+
+func (m *Actions) Reset()         { *m = Actions{} }
+func (m *Actions) String() string { return proto.CompactTextString(m) }
+func (*Actions) ProtoMessage()    {}
+
+type Statement struct {
+	StatementNeme string      `protobuf:"bytes,1,opt,name=statement_neme" json:"statement_neme,omitempty"`
+	Conditions    *Conditions `protobuf:"bytes,2,opt,name=conditions" json:"conditions,omitempty"`
+	Actions       *Actions    `protobuf:"bytes,3,opt,name=actions" json:"actions,omitempty"`
+}
+
+func (m *Statement) Reset()         { *m = Statement{} }
+func (m *Statement) String() string { return proto.CompactTextString(m) }
+func (*Statement) ProtoMessage()    {}
+
+func (m *Statement) GetConditions() *Conditions {
+	if m != nil {
+		return m.Conditions
+	}
+	return nil
+}
+
+func (m *Statement) GetActions() *Actions {
+	if m != nil {
+		return m.Actions
+	}
+	return nil
+}
+
+type PolicyDefinition struct {
+	PolicyDefinitionName string       `protobuf:"bytes,1,opt,name=policy_definition_name" json:"policy_definition_name,omitempty"`
+	StatementList        []*Statement `protobuf:"bytes,2,rep,name=statement_list" json:"statement_list,omitempty"`
+}
+
+func (m *PolicyDefinition) Reset()         { *m = PolicyDefinition{} }
+func (m *PolicyDefinition) String() string { return proto.CompactTextString(m) }
+func (*PolicyDefinition) ProtoMessage()    {}
+
+func (m *PolicyDefinition) GetStatementList() []*Statement {
+	if m != nil {
+		return m.StatementList
+	}
+	return nil
+}
+
+type RoutingPolicy struct {
+	PolicyDifinition []*PolicyDefinition `protobuf:"bytes,1,rep,name=policy_difinition" json:"policy_difinition,omitempty"`
+}
+
+func (m *RoutingPolicy) Reset()         { *m = RoutingPolicy{} }
+func (m *RoutingPolicy) String() string { return proto.CompactTextString(m) }
+func (*RoutingPolicy) ProtoMessage()    {}
+
+func (m *RoutingPolicy) GetPolicyDifinition() []*PolicyDefinition {
+	if m != nil {
+		return m.PolicyDifinition
+	}
+	return nil
+}
+
 func init() {
 	proto.RegisterEnum("api.Resource", Resource_name, Resource_value)
 	proto.RegisterEnum("api.Operation", Operation_name, Operation_value)
@@ -994,6 +1098,8 @@ type GrpcClient interface {
 	ModPolicyPrefix(ctx context.Context, opts ...grpc.CallOption) (Grpc_ModPolicyPrefixClient, error)
 	GetPolicyNeighbors(ctx context.Context, in *PolicyArguments, opts ...grpc.CallOption) (Grpc_GetPolicyNeighborsClient, error)
 	GetPolicyNeighbor(ctx context.Context, in *PolicyArguments, opts ...grpc.CallOption) (*NeighborSet, error)
+	GetPolicyRoutePolicies(ctx context.Context, in *PolicyArguments, opts ...grpc.CallOption) (Grpc_GetPolicyRoutePoliciesClient, error)
+	GetPolicyRoutePolicy(ctx context.Context, in *PolicyArguments, opts ...grpc.CallOption) (*PolicyDefinition, error)
 }
 
 type grpcClient struct {
@@ -1316,6 +1422,47 @@ func (c *grpcClient) GetPolicyNeighbor(ctx context.Context, in *PolicyArguments,
 	return out, nil
 }
 
+func (c *grpcClient) GetPolicyRoutePolicies(ctx context.Context, in *PolicyArguments, opts ...grpc.CallOption) (Grpc_GetPolicyRoutePoliciesClient, error) {
+	stream, err := grpc.NewClientStream(ctx, &_Grpc_serviceDesc.Streams[7], c.cc, "/api.Grpc/GetPolicyRoutePolicies", opts...)
+	if err != nil {
+		return nil, err
+	}
+	x := &grpcGetPolicyRoutePoliciesClient{stream}
+	if err := x.ClientStream.SendMsg(in); err != nil {
+		return nil, err
+	}
+	if err := x.ClientStream.CloseSend(); err != nil {
+		return nil, err
+	}
+	return x, nil
+}
+
+type Grpc_GetPolicyRoutePoliciesClient interface {
+	Recv() (*PolicyDefinition, error)
+	grpc.ClientStream
+}
+
+type grpcGetPolicyRoutePoliciesClient struct {
+	grpc.ClientStream
+}
+
+func (x *grpcGetPolicyRoutePoliciesClient) Recv() (*PolicyDefinition, error) {
+	m := new(PolicyDefinition)
+	if err := x.ClientStream.RecvMsg(m); err != nil {
+		return nil, err
+	}
+	return m, nil
+}
+
+func (c *grpcClient) GetPolicyRoutePolicy(ctx context.Context, in *PolicyArguments, opts ...grpc.CallOption) (*PolicyDefinition, error) {
+	out := new(PolicyDefinition)
+	err := grpc.Invoke(ctx, "/api.Grpc/GetPolicyRoutePolicy", in, out, c.cc, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 // Server API for Grpc service
 
 type GrpcServer interface {
@@ -1336,6 +1483,8 @@ type GrpcServer interface {
 	ModPolicyPrefix(Grpc_ModPolicyPrefixServer) error
 	GetPolicyNeighbors(*PolicyArguments, Grpc_GetPolicyNeighborsServer) error
 	GetPolicyNeighbor(context.Context, *PolicyArguments) (*NeighborSet, error)
+	GetPolicyRoutePolicies(*PolicyArguments, Grpc_GetPolicyRoutePoliciesServer) error
+	GetPolicyRoutePolicy(context.Context, *PolicyArguments) (*PolicyDefinition, error)
 }
 
 func RegisterGrpcServer(s *grpc.Server, srv GrpcServer) {
@@ -1619,6 +1768,39 @@ func _Grpc_GetPolicyNeighbor_Handler(srv interface{}, ctx context.Context, codec
 	return out, nil
 }
 
+func _Grpc_GetPolicyRoutePolicies_Handler(srv interface{}, stream grpc.ServerStream) error {
+	m := new(PolicyArguments)
+	if err := stream.RecvMsg(m); err != nil {
+		return err
+	}
+	return srv.(GrpcServer).GetPolicyRoutePolicies(m, &grpcGetPolicyRoutePoliciesServer{stream})
+}
+
+type Grpc_GetPolicyRoutePoliciesServer interface {
+	Send(*PolicyDefinition) error
+	grpc.ServerStream
+}
+
+type grpcGetPolicyRoutePoliciesServer struct {
+	grpc.ServerStream
+}
+
+func (x *grpcGetPolicyRoutePoliciesServer) Send(m *PolicyDefinition) error {
+	return x.ServerStream.SendMsg(m)
+}
+
+func _Grpc_GetPolicyRoutePolicy_Handler(srv interface{}, ctx context.Context, codec grpc.Codec, buf []byte) (interface{}, error) {
+	in := new(PolicyArguments)
+	if err := codec.Unmarshal(buf, in); err != nil {
+		return nil, err
+	}
+	out, err := srv.(GrpcServer).GetPolicyRoutePolicy(ctx, in)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 var _Grpc_serviceDesc = grpc.ServiceDesc{
 	ServiceName: "api.Grpc",
 	HandlerType: (*GrpcServer)(nil),
@@ -1663,6 +1845,10 @@ var _Grpc_serviceDesc = grpc.ServiceDesc{
 			MethodName: "GetPolicyNeighbor",
 			Handler:    _Grpc_GetPolicyNeighbor_Handler,
 		},
+		{
+			MethodName: "GetPolicyRoutePolicy",
+			Handler:    _Grpc_GetPolicyRoutePolicy_Handler,
+		},
 	},
 	Streams: []grpc.StreamDesc{
 		{
@@ -1700,6 +1886,11 @@ var _Grpc_serviceDesc = grpc.ServiceDesc{
 		{
 			StreamName:    "GetPolicyNeighbors",
 			Handler:       _Grpc_GetPolicyNeighbors_Handler,
+			ServerStreams: true,
+		},
+		{
+			StreamName:    "GetPolicyRoutePolicies",
+			Handler:       _Grpc_GetPolicyRoutePolicies_Handler,
 			ServerStreams: true,
 		},
 	},
