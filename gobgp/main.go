@@ -225,7 +225,7 @@ func extractArgs(head string) []string {
 	return eArgs
 }
 
-func checkAddressFamily() (*api.AddressFamily, error) {
+func checkAddressFamily(ip net.IP) (*api.AddressFamily, error) {
 	var rf *api.AddressFamily
 	var e error
 	switch subOpts.AddressFamily {
@@ -240,7 +240,12 @@ func checkAddressFamily() (*api.AddressFamily, error) {
 	case "rtc":
 		rf = api.AF_RTC
 	case "":
-		e = fmt.Errorf("address family is not specified")
+		fmt.Println("hello", ip.To16())
+		if len(ip) == 0 || ip.To4() != nil {
+			rf = api.AF_IPV4_UC
+		} else {
+			rf = api.AF_IPV6_UC
+		}
 	default:
 		e = fmt.Errorf("unsupported address family: %s", subOpts.AddressFamily)
 	}
@@ -273,7 +278,7 @@ func NewGlobalRibCommand(resource api.Resource) *GlobalRibCommand {
 	}
 }
 func showGlobalRib() error {
-	rt, err := checkAddressFamily()
+	rt, err := checkAddressFamily(net.IP{})
 	if err != nil {
 		return err
 	}
@@ -351,7 +356,7 @@ func NewGlobalRibAddCommand(resource api.Resource) *GlobalRibAddCommand {
 }
 
 func modPath(modtype string, eArgs []string) error {
-	rf, err := checkAddressFamily()
+	rf, err := checkAddressFamily(net.IP{})
 	if err != nil {
 		return err
 	}
@@ -906,7 +911,7 @@ func showRoute(pathList []*api.Path, showAge bool, showBest bool) {
 }
 
 func showNeighborRib(resource api.Resource, remoteIP net.IP) error {
-	rt, err := checkAddressFamily()
+	rt, err := checkAddressFamily(remoteIP)
 	if err != nil {
 		return err
 	}
@@ -1008,7 +1013,7 @@ func NewNeighborResetCommand(addr string, cmd string) *NeighborResetCommand {
 }
 
 func resetNeighbor(cmd string, remoteIP net.IP) error {
-	rt, err := checkAddressFamily()
+	rt, err := checkAddressFamily(remoteIP)
 	if err != nil {
 		return err
 	}
@@ -1087,7 +1092,7 @@ var globalOpts struct {
 }
 
 var subOpts struct {
-	AddressFamily string `short:"a" long:"address-family" description:"specifying an address family" default:"ipv4"`
+	AddressFamily string `short:"a" long:"address-family" description:"specifying an address family"`
 }
 
 var neighborsOpts struct {
