@@ -239,7 +239,6 @@ func checkAddressFamily(ip net.IP) (*api.AddressFamily, error) {
 	case "rtc":
 		rf = api.AF_RTC
 	case "":
-		fmt.Println("hello", ip.To16())
 		if len(ip) == 0 || ip.To4() != nil {
 			rf = api.AF_IPV4_UC
 		} else {
