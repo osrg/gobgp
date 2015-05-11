@@ -32,6 +32,9 @@ service Grpc {
   rpc Enable(Arguments) returns (Error) {}
   rpc Disable(Arguments) returns (Error) {}
   rpc ModPath(stream ModPathArguments) returns (stream Error) {}
+  rpc GetPolicyPrefixes(PolicyArguments) returns (stream PrefixSet) {}
+  rpc GetPolicyPrefix(PolicyArguments) returns (PrefixSet) {}
+  rpc ModPolicyPrefix(stream PolicyArguments) returns (stream Error) {}
 }
 
 message Error {
@@ -54,11 +57,25 @@ message ModPathArguments {
     Path path = 2;
 }
 
+message PolicyArguments {
+    Resource resource = 1;
+	Operation operation = 2;
+	string name = 3;
+	PrefixSet prefix_set = 4;
+}
+
 enum Resource {
     GLOBAL = 0;
     LOCAL = 1;
     ADJ_IN = 2;
     ADJ_OUT = 3;
+	POLICY_PREFIX = 4;
+}
+
+enum Operation {
+    ADD = 0;
+    DEL = 1;
+    DEL_ALL = 2;
 }
 
 enum AFI {
@@ -318,4 +335,15 @@ message PeerInfo {
 message Peer {
     PeerConf conf = 1;
     PeerInfo info = 2;
+}
+
+message Prefix {
+	string address  = 1;
+	uint32 mask_length = 2;
+	string mask_length_range = 3;
+}
+
+message PrefixSet {
+	string prefix_set_name = 1;
+    repeated Prefix prefix_list = 2;
 }

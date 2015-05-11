@@ -18,10 +18,12 @@ package server
 import (
 	"fmt"
 	log "github.com/Sirupsen/logrus"
+	"github.com/osrg/gobgp/api"
 	"github.com/osrg/gobgp/config"
 	"github.com/osrg/gobgp/policy"
 	"net"
 	"os"
+	"reflect"
 	"strconv"
 )
 
@@ -65,6 +67,7 @@ type BgpServer struct {
 	globalRib      *Peer
 	policyUpdateCh chan config.RoutingPolicy
 	policyMap      map[string]*policy.Policy
+	routingPolicy  config.RoutingPolicy
 }
 
 func NewBgpServer(port int) *BgpServer {
@@ -219,12 +222,7 @@ func (server *BgpServer) Serve() {
 		case grpcReq := <-server.GrpcReqCh:
 			server.handleGrpc(grpcReq)
 		case pl := <-server.policyUpdateCh:
-			server.SetPolicy(pl)
-			msg := &serverMsg{
-				msgType: SRV_MSG_POLICY_UPDATED,
-				msgData: server.policyMap,
-			}
-			sendServerMsgToAll(server.peerMap, msg)
+			server.handlePolicy(pl)
 		}
 	}
 }
@@ -266,6 +264,16 @@ func (server *BgpServer) SetPolicy(pl config.RoutingPolicy) {
 		pMap[p.Name] = policy.NewPolicy(p.Name, p, df)
 	}
 	server.policyMap = pMap
+	server.routingPolicy = pl
+}
+
+func (server *BgpServer) handlePolicy(pl config.RoutingPolicy) {
+	server.SetPolicy(pl)
+	msg := &serverMsg{
+		msgType: SRV_MSG_POLICY_UPDATED,
+		msgData: server.policyMap,
+	}
+	sendServerMsgToAll(server.peerMap, msg)
 }
 
 func (server *BgpServer) handleGrpc(grpcReq *GrpcRequest) {
@@ -318,5 +326,169 @@ func (server *BgpServer) handleGrpc(grpcReq *GrpcRequest) {
 			grpcReq.ResponseCh <- result
 			close(grpcReq.ResponseCh)
 		}
+	case REQ_POLICY_PREFIXES:
+		info := server.routingPolicy.DefinedSets.PrefixSetList
+		result := &GrpcResponse{}
+		if len(info) > 0 {
+			for _, ps := range info {
+				resPrefixSet := prefixToApiStruct(ps)
+				result = &GrpcResponse{
+					Data: resPrefixSet,
+				}
+				grpcReq.ResponseCh <- result
+			}
+		} else {
+			result.ResponseErr = fmt.Errorf("Policy Prefix is not exist.")
+			grpcReq.ResponseCh <- result
+		}
+		close(grpcReq.ResponseCh)
+	case REQ_POLICY_PREFIX:
+		name := grpcReq.Data.(string)
+		info := server.routingPolicy.DefinedSets.PrefixSetList
+		result := &GrpcResponse{}
+		resPrefixSet := &api.PrefixSet{}
+		for _, ps := range info {
+			if ps.PrefixSetName == name {
+				resPrefixSet = prefixToApiStruct(ps)
+				break
+			}
+		}
+		if len(resPrefixSet.PrefixList) > 0 {
+			result = &GrpcResponse{
+				Data: resPrefixSet,
+			}
+			grpcReq.ResponseCh <- result
+		} else {
+			result.ResponseErr = fmt.Errorf("Policy Prefix that has %v does not exist.", name)
+			grpcReq.ResponseCh <- result
+		}
+		close(grpcReq.ResponseCh)
+	case REQ_POLICY_PREFIX_ADD:
+		reqPrefixSet := grpcReq.Data.(*api.PrefixSet)
+		conPrefixSetList := server.routingPolicy.DefinedSets.PrefixSetList
+		result := &GrpcResponse{}
+		isReqPrefixSet, prefixSet := prefixToConfigStruct(reqPrefixSet)
+		if !isReqPrefixSet {
+			result.ResponseErr = fmt.Errorf("dose not reqest of policy prefix.")
+			grpcReq.ResponseCh <- result
+			close(grpcReq.ResponseCh)
+		}
+		idxPrefixSet, idxPrefix := findPrefixSet(conPrefixSetList, reqPrefixSet, prefixSet)
+		if idxPrefixSet == -1 {
+			conPrefixSetList = append(conPrefixSetList, prefixSet)
+		} else {
+			if idxPrefix == -1 {
+				conPrefixSetList[idxPrefixSet].PrefixList = append(conPrefixSetList[idxPrefixSet].PrefixList, prefixSet.PrefixList[0])
+			}
+		}
+		server.routingPolicy.DefinedSets.PrefixSetList = conPrefixSetList
+		server.handlePolicy(server.routingPolicy)
+		grpcReq.ResponseCh <- result
+		close(grpcReq.ResponseCh)
+	case REQ_POLICY_PREFIX_DELETE:
+		reqPrefixSet := grpcReq.Data.(*api.PrefixSet)
+		conPrefixSetList := server.routingPolicy.DefinedSets.PrefixSetList
+		result := &GrpcResponse{}
+		isReqPrefixSet, prefixSet := prefixToConfigStruct(reqPrefixSet)
+		if isReqPrefixSet {
+			idxPrefixSet, idxPrefix := findPrefixSet(conPrefixSetList, reqPrefixSet, prefixSet)
+			if idxPrefixSet == -1 {
+				result.ResponseErr = fmt.Errorf("Policy Prefix %v %v/%v %v does not exist.", prefixSet.PrefixSetName,
+					prefixSet.PrefixList[0].Address, prefixSet.PrefixList[0].Masklength, prefixSet.PrefixList[0].MasklengthRange)
+			} else {
+				if idxPrefix == -1 {
+					result.ResponseErr = fmt.Errorf("Policy Prefix %v %v/%v %v does not exist.", prefixSet.PrefixSetName,
+						prefixSet.PrefixList[0].Address, prefixSet.PrefixList[0].Masklength, prefixSet.PrefixList[0].MasklengthRange)
+				} else {
+					copy(conPrefixSetList[idxPrefixSet].PrefixList[idxPrefix:], conPrefixSetList[idxPrefixSet].PrefixList[idxPrefix+1:])
+					conPrefixSetList[idxPrefixSet].PrefixList = conPrefixSetList[idxPrefixSet].PrefixList[:len(conPrefixSetList[idxPrefixSet].PrefixList)-1]
+				}
+			}
+		} else {
+			idxPrefixSet := -1
+			for i, conPrefixSet := range conPrefixSetList {
+				if conPrefixSet.PrefixSetName == reqPrefixSet.PrefixSetName {
+					idxPrefixSet = i
+					break
+				}
+			}
+			if idxPrefixSet == -1 {
+				result.ResponseErr = fmt.Errorf("Policy Prefix %v does not exist.", prefixSet.PrefixSetName)
+			} else {
+				copy(conPrefixSetList[idxPrefixSet:], conPrefixSetList[idxPrefixSet+1:])
+				conPrefixSetList = conPrefixSetList[:len(conPrefixSetList)-1]
+			}
+		}
+		server.routingPolicy.DefinedSets.PrefixSetList = conPrefixSetList
+		server.handlePolicy(server.routingPolicy)
+		grpcReq.ResponseCh <- result
+		close(grpcReq.ResponseCh)
+	case REQ_POLICY_PREFIXES_DELETE:
+		result := &GrpcResponse{}
+		pl := config.RoutingPolicy{}
+		server.handlePolicy(pl)
+		grpcReq.ResponseCh <- result
+		close(grpcReq.ResponseCh)
 	}
+}
+
+func findPrefixSet(conPrefixSetList []config.PrefixSet, reqPrefixSet *api.PrefixSet, prefixSet config.PrefixSet) (int, int) {
+	idxPrefixSet := -1
+	idxPrefix := -1
+	for i, conPrefixSet := range conPrefixSetList {
+		if conPrefixSet.PrefixSetName == reqPrefixSet.PrefixSetName {
+			idxPrefixSet = i
+			for j, conPrefix := range conPrefixSet.PrefixList {
+				if reflect.DeepEqual(conPrefix.Address, prefixSet.PrefixList[0].Address) && conPrefix.Masklength == prefixSet.PrefixList[0].Masklength &&
+					conPrefix.MasklengthRange == prefixSet.PrefixList[0].MasklengthRange {
+					idxPrefix = j
+					break
+				}
+			}
+		}
+	}
+	return idxPrefixSet, idxPrefix
+}
+
+func prefixToApiStruct(ps config.PrefixSet) *api.PrefixSet {
+	resPrefixList := make([]*api.Prefix, 0)
+	for _, p := range ps.PrefixList {
+		resPrefix := &api.Prefix{
+			Address:         p.Address.String(),
+			MaskLength:      uint32(p.Masklength),
+			MaskLengthRange: p.MasklengthRange,
+		}
+		resPrefixList = append(resPrefixList, resPrefix)
+	}
+	resPrefixSet := &api.PrefixSet{
+		PrefixSetName: ps.PrefixSetName,
+		PrefixList:    resPrefixList,
+	}
+	return resPrefixSet
+}
+
+func prefixToConfigStruct(reqPrefixSet *api.PrefixSet) (bool, config.PrefixSet) {
+	var prefix config.Prefix
+	var prefixSet config.PrefixSet
+	isReqPrefixSet := true
+	if reqPrefixSet.PrefixList != nil {
+		prefix = config.Prefix{
+			Address:         net.ParseIP(reqPrefixSet.PrefixList[0].Address),
+			Masklength:      uint8(reqPrefixSet.PrefixList[0].MaskLength),
+			MasklengthRange: reqPrefixSet.PrefixList[0].MaskLengthRange,
+		}
+		prefixList := []config.Prefix{prefix}
+
+		prefixSet = config.PrefixSet{
+			PrefixSetName: reqPrefixSet.PrefixSetName,
+			PrefixList:    prefixList,
+		}
+	} else {
+		isReqPrefixSet = false
+		prefixSet = config.PrefixSet{
+			PrefixSetName: reqPrefixSet.PrefixSetName,
+			PrefixList:    nil,
+		}
+	}
+	return isReqPrefixSet, prefixSet
 }
