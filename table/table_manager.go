@@ -215,9 +215,6 @@ func (manager *TableManager) calculate(destinationList []Destination) ([]Path, e
 			}).Debug("new best path")
 
 			newPaths = append(newPaths, newBestPath)
-			if currentBestPath != nil {
-				newPaths = append(newPaths, currentBestPath.Clone(true))
-			}
 			destination.setBestPath(newBestPath)
 		}
 
