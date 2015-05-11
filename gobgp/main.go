@@ -151,6 +151,20 @@ func (p prefixes) Less(i, j int) bool {
 	return p[i].PrefixSetName < p[j].PrefixSetName
 }
 
+type neighbors []*api.NeighborSet
+
+func (n neighbors) Len() int {
+	return len(n)
+}
+
+func (n neighbors) Swap(i, j int) {
+	n[i], n[j] = n[j], n[i]
+}
+
+func (n neighbors) Less(i, j int) bool {
+	return n[i].NeighborSetName < n[j].NeighborSetName
+}
+
 func connGrpc() *grpc.ClientConn {
 	timeout := grpc.WithTimeout(time.Second)
 
@@ -217,6 +231,12 @@ func requestGrpc(cmd string, eArgs []string, remoteIP net.IP) error {
 		return modPolicyPrefix(CMD_ADD, eArgs)
 	case CMD_POLICY + "_" + CMD_PREFIX + "_" + CMD_DEL:
 		return modPolicyPrefix(CMD_DEL, eArgs)
+	case CMD_POLICY + "_" + CMD_NEIGHBOR:
+		if len(eArgs) == 0 {
+			return showPolicyNeighbors()
+		} else {
+			return showPolicyNeighbor(eArgs)
+		}
 	}
 	return nil
 }
@@ -1091,6 +1111,7 @@ func (x *PolicyCommand) Execute(args []string) error {
 	parser := flags.NewParser(nil, flags.Default)
 	parser.Usage = "policy"
 	parser.AddCommand(CMD_PREFIX, "subcommand for prefix of policy", "", &PolicyPrefixCommand{})
+	parser.AddCommand(CMD_NEIGHBOR, "subcommand for prefix of neighbor", "", &PolicyNeighborCommand{})
 	if _, err := parser.ParseArgs(eArgs); err != nil {
 		os.Exit(1)
 	}
@@ -1383,6 +1404,124 @@ func (x *PolicyPrefixDelAllCommand) Execute(args []string) error {
 
 	parser := flags.NewParser(nil, flags.Default)
 	parser.Usage = "policy prefix del all"
+	parser.ParseArgs(eArgs)
+	return nil
+}
+
+type PolicyNeighborCommand struct{}
+
+func showPolicyNeighbors() error {
+	arg := &api.PolicyArguments{
+		Resource: api.Resource_POLICY_NEIGHBOR,
+	}
+	stream, e := client.GetPolicyNeighbors(context.Background(), arg)
+	if e != nil {
+		fmt.Println(e)
+		return e
+	}
+	m := neighbors{}
+	for {
+		n, e := stream.Recv()
+		if e == io.EOF {
+			break
+		} else if e != nil {
+			return e
+		}
+		m = append(m, n)
+	}
+
+	if globalOpts.Json {
+		j, _ := json.Marshal(m)
+		fmt.Println(string(j))
+		return nil
+	}
+
+	if globalOpts.Quiet {
+		for _, n := range m {
+			fmt.Println(n.NeighborSetName)
+		}
+		return nil
+	}
+	maxnamelen := len("Name")
+	maxaddresslen := len("Address")
+
+	sort.Sort(m)
+
+	for _, ns := range m {
+		if len(ns.NeighborSetName) > maxnamelen {
+			maxnamelen = len(ns.NeighborSetName)
+		}
+		for _, n := range ns.NeighborList {
+			if len(n.Address) > maxaddresslen {
+				maxaddresslen = len(n.Address)
+			}
+		}
+	}
+	var format string
+	format = "%" + fmt.Sprint(maxnamelen) + "s  %-" + fmt.Sprint(maxaddresslen) + "s\n"
+	fmt.Printf(format, "Name", "Address")
+	for _, ns := range m {
+		for i, n := range ns.NeighborList {
+			if i == 0 {
+				fmt.Printf(format, ns.NeighborSetName, n.Address)
+			} else {
+				fmt.Printf(format, "", n.Address)
+			}
+		}
+	}
+	return nil
+}
+
+func showPolicyNeighbor(args []string) error {
+	arg := &api.PolicyArguments{
+		Resource: api.Resource_POLICY_NEIGHBOR,
+		Name:     args[0],
+	}
+	ns, e := client.GetPolicyNeighbor(context.Background(), arg)
+	if e != nil {
+		return e
+	}
+
+	if globalOpts.Json {
+		j, _ := json.Marshal(ns)
+		fmt.Println(string(j))
+		return nil
+	}
+
+	maxaddresslen := len("Address")
+
+	for _, n := range ns.NeighborList {
+		if len(n.Address) > maxaddresslen {
+			maxaddresslen = len(n.Address)
+		}
+	}
+	var format string
+	format = "%-" + fmt.Sprint(maxaddresslen) + "s\n"
+	fmt.Printf(format, "Address")
+
+	for _, n := range ns.NeighborList {
+		fmt.Printf(format, n.Address)
+	}
+	return nil
+}
+
+func (x *PolicyNeighborCommand) Execute(args []string) error {
+	eArgs := extractArgs(CMD_NEIGHBOR)
+	if len(eArgs) == 0 {
+		if err := requestGrpc(CMD_POLICY+"_"+CMD_NEIGHBOR, eArgs, nil); err != nil {
+			return err
+		}
+		return nil
+	} else if len(eArgs) == 1 && !(eArgs[0] == "-h" || eArgs[0] == "--help" || eArgs[0] == "add" || eArgs[0] == "del") {
+		if err := requestGrpc(CMD_POLICY+"_"+CMD_NEIGHBOR, eArgs, nil); err != nil {
+			return err
+		}
+		return nil
+	}
+	parser := flags.NewParser(nil, flags.Default)
+	parser.Usage = "policy neighbor [OPTIONS]\n  gobgp policy neighbor"
+	//parser.AddCommand(CMD_ADD, "subcommand for add route to policy neighbor", "", &PolicyNeighborAddCommand{})
+	//parser.AddCommand(CMD_DEL, "subcommand for delete route from policy neighbor", "", &PolicyNeighborDelCommand{})
 	parser.ParseArgs(eArgs)
 	return nil
 }

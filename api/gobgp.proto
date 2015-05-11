@@ -35,6 +35,8 @@ service Grpc {
   rpc GetPolicyPrefixes(PolicyArguments) returns (stream PrefixSet) {}
   rpc GetPolicyPrefix(PolicyArguments) returns (PrefixSet) {}
   rpc ModPolicyPrefix(stream PolicyArguments) returns (stream Error) {}
+  rpc GetPolicyNeighbors(PolicyArguments) returns (stream NeighborSet) {}
+  rpc GetPolicyNeighbor(PolicyArguments) returns (NeighborSet) {}
 }
 
 message Error {
@@ -62,6 +64,7 @@ message PolicyArguments {
 	Operation operation = 2;
 	string name = 3;
 	PrefixSet prefix_set = 4;
+	NeighborSet neighbor_set = 5;
 }
 
 enum Resource {
@@ -70,6 +73,7 @@ enum Resource {
     ADJ_IN = 2;
     ADJ_OUT = 3;
 	POLICY_PREFIX = 4;
+	POLICY_NEIGHBOR = 5;
 }
 
 enum Operation {
@@ -347,3 +351,13 @@ message PrefixSet {
 	string prefix_set_name = 1;
     repeated Prefix prefix_list = 2;
 }
+
+message Neighbor {
+	string address = 1;
+}
+
+message NeighborSet {
+	string neighbor_set_name = 1;
+	repeated Neighbor neighbor_list = 2;
+}
+
