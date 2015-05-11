@@ -91,6 +91,49 @@ _gobgp_neighbor() {
    fi
 
 }
+_gobgp_policy_prefix_add(){
+    return
+}
+_gobgp_policy_prefix_del(){
+    local targets="all"
+    local target="$(__search_target "$targets")"
+    if [ -z "$target" ]; then
+        case "$cur" in
+            *)
+                COMPREPLY=( $( compgen -W "${targets[*]}" -- "$cur" ) )
+                ;;
+        esac
+        return
+    fi
+}
+
+_gobgp_policy_prefix(){
+    local targets="add del"
+    local target="$(__search_target "$targets")"
+    if [ -z "$target" ]; then
+        case "$cur" in
+            *)
+                COMPREPLY=( $( compgen -W "${targets[*]}" -- "$cur" ) )
+                ;;
+        esac
+        return
+    fi
+	_gobgp_policy_prefix_${target}
+}
+
+_gobgp_policy() {
+    local targets="prefix"
+    local target="$(__search_target "$targets")"
+    if [ -z "$target" ]; then
+        case "$cur" in
+            *)
+                COMPREPLY=( $( compgen -W "${targets[*]}" -- "$cur" ) )
+                ;;
+        esac
+        return
+    fi
+    _gobgp_policy_${target}
+}
 
 _gobgp_gobgp() {
     case "$prev" in
@@ -115,6 +158,7 @@ _gobgp() {
     local commands=(
         global
         neighbor
+        policy
     )
 
     COMPREPLY=()
