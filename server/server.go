@@ -429,6 +429,43 @@ func (server *BgpServer) handleGrpc(grpcReq *GrpcRequest) {
 		server.handlePolicy(pl)
 		grpcReq.ResponseCh <- result
 		close(grpcReq.ResponseCh)
+	case REQ_POLICY_NEIGHBORS:
+		info := server.routingPolicy.DefinedSets.NeighborSetList
+		result := &GrpcResponse{}
+		if len(info) > 0 {
+			for _, ns := range info {
+				resNeighborSet := neighborToApiStruct(ns)
+				result = &GrpcResponse{
+					Data: resNeighborSet,
+				}
+				grpcReq.ResponseCh <- result
+			}
+		} else {
+			result.ResponseErr = fmt.Errorf("Policy Neighbor is not exist.")
+			grpcReq.ResponseCh <- result
+		}
+		close(grpcReq.ResponseCh)
+	case REQ_POLICY_NEIGHBOR:
+		name := grpcReq.Data.(string)
+		info := server.routingPolicy.DefinedSets.NeighborSetList
+		result := &GrpcResponse{}
+		resNeighborSet := &api.NeighborSet{}
+		for _, ns := range info {
+			if ns.NeighborSetName == name {
+				resNeighborSet = neighborToApiStruct(ns)
+				break
+			}
+		}
+		if len(resNeighborSet.NeighborList) > 0 {
+			result = &GrpcResponse{
+				Data: resNeighborSet,
+			}
+			grpcReq.ResponseCh <- result
+		} else {
+			result.ResponseErr = fmt.Errorf("Policy Neighbor that has %v does not exist.", name)
+			grpcReq.ResponseCh <- result
+		}
+		close(grpcReq.ResponseCh)
 	}
 }
 
@@ -491,4 +528,19 @@ func prefixToConfigStruct(reqPrefixSet *api.PrefixSet) (bool, config.PrefixSet) 
 		}
 	}
 	return isReqPrefixSet, prefixSet
+}
+
+func neighborToApiStruct(ns config.NeighborSet) *api.NeighborSet {
+	resNeighborList := make([]*api.Neighbor, 0)
+	for _, n := range ns.NeighborInfoList {
+		resNeighbor := &api.Neighbor{
+			Address: n.Address.String(),
+		}
+		resNeighborList = append(resNeighborList, resNeighbor)
+	}
+	resNeighborSet := &api.NeighborSet{
+		NeighborSetName: ns.NeighborSetName,
+		NeighborList:    resNeighborList,
+	}
+	return resNeighborSet
 }

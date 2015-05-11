@@ -48,6 +48,8 @@ const (
 	REQ_POLICY_PREFIX_ADD
 	REQ_POLICY_PREFIX_DELETE
 	REQ_POLICY_PREFIXES_DELETE
+	REQ_POLICY_NEIGHBOR
+	REQ_POLICY_NEIGHBORS
 )
 
 const GRPC_PORT = 8080
@@ -277,6 +279,8 @@ func (s *Server) getPolicies(reqType int, arg *api.PolicyArguments, stream inter
 		switch arg.Resource {
 		case api.Resource_POLICY_PREFIX:
 			err = stream.(api.Grpc_GetPolicyPrefixesServer).Send(res.Data.(*api.PrefixSet))
+		case api.Resource_POLICY_NEIGHBOR:
+			err = stream.(api.Grpc_GetPolicyNeighborsServer).Send(res.Data.(*api.NeighborSet))
 		default:
 			return fmt.Errorf("unsupported resource type: %v", arg.Resource)
 		}
@@ -293,6 +297,8 @@ func (s *Server) getPolicy(arg *api.PolicyArguments) (interface{}, error) {
 	switch arg.Resource {
 	case api.Resource_POLICY_PREFIX:
 		reqType = REQ_POLICY_PREFIX
+	case api.Resource_POLICY_NEIGHBOR:
+		reqType = REQ_POLICY_NEIGHBOR
 	default:
 		return nil, fmt.Errorf("unsupported resource type: %v", arg.Resource)
 	}
@@ -373,6 +379,21 @@ func (s *Server) ModPolicyPrefix(stream api.Grpc_ModPolicyPrefixServer) error {
 		}
 		return nil
 	}
+}
+
+func (s *Server) GetPolicyNeighbors(arg *api.PolicyArguments, stream api.Grpc_GetPolicyNeighborsServer) error {
+	if err := s.getPolicies(REQ_POLICY_NEIGHBORS, arg, stream); err != nil {
+		return err
+	}
+	return nil
+}
+
+func (s *Server) GetPolicyNeighbor(ctx context.Context, arg *api.PolicyArguments) (*api.NeighborSet, error) {
+	data, err := s.getPolicy(arg)
+	if err != nil {
+		return nil, err
+	}
+	return data.(*api.NeighborSet), nil
 }
 
 type GrpcRequest struct {
