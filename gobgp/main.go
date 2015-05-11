@@ -60,13 +60,12 @@ func formatTimedelta(d int64) string {
 	u /= 60
 	mins := u % 60
 	u /= 60
-	hours := u % 60
+	hours := u % 24
 	days := u / 24
 
 	if days == 0 {
 		return fmt.Sprintf("%02d:%02d:%02d", hours, mins, secs)
 	} else {
-		hours -= days * 24
 		return fmt.Sprintf("%dd ", days) + fmt.Sprintf("%02d:%02d:%02d", hours, mins, secs)
 	}
 }
