@@ -43,6 +43,7 @@ type serverMsg struct {
 type serverMsgDataPeer struct {
 	peerMsgCh chan *peerMsg
 	address   net.IP
+	As        uint32
 }
 
 type peerMapInfo struct {
@@ -176,6 +177,7 @@ func (server *BgpServer) Serve() {
 			d := &serverMsgDataPeer{
 				address:   peer.NeighborAddress,
 				peerMsgCh: pch,
+				As:        peer.PeerAs,
 			}
 			msg := &serverMsg{
 				msgType: SRV_MSG_PEER_ADDED,

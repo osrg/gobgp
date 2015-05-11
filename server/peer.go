@@ -167,6 +167,10 @@ func (peer *Peer) sendPathsToSiblings(pathList []table.Path) {
 		msgData: pathList,
 	}
 	for _, s := range peer.siblings {
+		if peer.peerConfig.RouteServer.RouteServerClient && peer.peerConfig.PeerAs == s.As {
+			// don't send to a peer having the same AS number.
+			continue
+		}
 		s.peerMsgCh <- pm
 	}
 }
