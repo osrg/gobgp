@@ -50,6 +50,8 @@ const (
 	REQ_POLICY_PREFIXES_DELETE
 	REQ_POLICY_NEIGHBOR
 	REQ_POLICY_NEIGHBORS
+	REQ_POLICY_ROUTEPOLICIES
+	REQ_POLICY_ROUTEPOLICY
 )
 
 const GRPC_PORT = 8080
@@ -281,6 +283,8 @@ func (s *Server) getPolicies(reqType int, arg *api.PolicyArguments, stream inter
 			err = stream.(api.Grpc_GetPolicyPrefixesServer).Send(res.Data.(*api.PrefixSet))
 		case api.Resource_POLICY_NEIGHBOR:
 			err = stream.(api.Grpc_GetPolicyNeighborsServer).Send(res.Data.(*api.NeighborSet))
+		case api.Resource_POLICY_ROUTEPOLICY:
+			err = stream.(api.Grpc_GetPolicyRoutePoliciesServer).Send(res.Data.(*api.PolicyDefinition))
 		default:
 			return fmt.Errorf("unsupported resource type: %v", arg.Resource)
 		}
@@ -299,6 +303,8 @@ func (s *Server) getPolicy(arg *api.PolicyArguments) (interface{}, error) {
 		reqType = REQ_POLICY_PREFIX
 	case api.Resource_POLICY_NEIGHBOR:
 		reqType = REQ_POLICY_NEIGHBOR
+	case api.Resource_POLICY_ROUTEPOLICY:
+		reqType = REQ_POLICY_ROUTEPOLICY
 	default:
 		return nil, fmt.Errorf("unsupported resource type: %v", arg.Resource)
 	}
@@ -394,6 +400,21 @@ func (s *Server) GetPolicyNeighbor(ctx context.Context, arg *api.PolicyArguments
 		return nil, err
 	}
 	return data.(*api.NeighborSet), nil
+}
+
+func (s *Server) GetPolicyRoutePolicies(arg *api.PolicyArguments, stream api.Grpc_GetPolicyRoutePoliciesServer) error {
+	if err := s.getPolicies(REQ_POLICY_ROUTEPOLICIES, arg, stream); err != nil {
+		return err
+	}
+	return nil
+}
+
+func (s *Server) GetPolicyRoutePolicy(ctx context.Context, arg *api.PolicyArguments) (*api.PolicyDefinition, error) {
+	data, err := s.getPolicy(arg)
+	if err != nil {
+		return nil, err
+	}
+	return data.(*api.PolicyDefinition), nil
 }
 
 type GrpcRequest struct {

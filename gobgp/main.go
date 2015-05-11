@@ -39,6 +39,7 @@ const (
 	CMD_RIB            = "rib"
 	CMD_ADD            = "add"
 	CMD_DEL            = "del"
+	CMD_ALL            = "all"
 	CMD_LOCAL          = "local"
 	CMD_ADJ_IN         = "adj-in"
 	CMD_ADJ_OUT        = "adj-out"
@@ -50,7 +51,7 @@ const (
 	CMD_ENABLE         = "enable"
 	CMD_DISABLE        = "disable"
 	CMD_PREFIX         = "prefix"
-	CMD_ALL            = "all"
+	CMD_ROUTEPOLICY    = "routepolicy"
 )
 
 func formatTimedelta(d int64) string {
@@ -165,6 +166,20 @@ func (n neighbors) Less(i, j int) bool {
 	return n[i].NeighborSetName < n[j].NeighborSetName
 }
 
+type policyDefinitions []*api.PolicyDefinition
+
+func (p policyDefinitions) Len() int {
+	return len(p)
+}
+
+func (p policyDefinitions) Swap(i, j int) {
+	p[i], p[j] = p[j], p[i]
+}
+
+func (p policyDefinitions) Less(i, j int) bool {
+	return p[i].PolicyDefinitionName < p[j].PolicyDefinitionName
+}
+
 func connGrpc() *grpc.ClientConn {
 	timeout := grpc.WithTimeout(time.Second)
 
@@ -236,6 +251,12 @@ func requestGrpc(cmd string, eArgs []string, remoteIP net.IP) error {
 			return showPolicyNeighbors()
 		} else {
 			return showPolicyNeighbor(eArgs)
+		}
+	case CMD_POLICY + "_" + CMD_ROUTEPOLICY:
+		if len(eArgs) == 0 {
+			return showPolicyRoutePolicies()
+		} else {
+			return showPolicyRoutePolicy(eArgs)
 		}
 	}
 	return nil
@@ -1112,6 +1133,7 @@ func (x *PolicyCommand) Execute(args []string) error {
 	parser.Usage = "policy"
 	parser.AddCommand(CMD_PREFIX, "subcommand for prefix of policy", "", &PolicyPrefixCommand{})
 	parser.AddCommand(CMD_NEIGHBOR, "subcommand for prefix of neighbor", "", &PolicyNeighborCommand{})
+	parser.AddCommand(CMD_ROUTEPOLICY, "subcommand for prefix of routepolicy", "", &PolicyRoutePolicyCommand{})
 	if _, err := parser.ParseArgs(eArgs); err != nil {
 		os.Exit(1)
 	}
@@ -1119,6 +1141,27 @@ func (x *PolicyCommand) Execute(args []string) error {
 }
 
 type PolicyPrefixCommand struct{}
+
+func formatPolicyPrefix(prefixSetList []*api.PrefixSet) string {
+	maxNameLen := len("Name")
+	maxPrefixLen := len("Prefix")
+	maxRangeLen := len("MaskRange")
+	for _, ps := range prefixSetList {
+		if len(ps.PrefixSetName) > maxNameLen {
+			maxNameLen = len(ps.PrefixSetName)
+		}
+		for _, p := range ps.PrefixList {
+			if len(p.Address)+len(fmt.Sprint(p.MaskLength))+1 > maxPrefixLen {
+				maxPrefixLen = len(p.Address) + len(fmt.Sprint(p.MaskLength)) + 1
+			}
+			if len(p.MaskLengthRange) > maxRangeLen {
+				maxRangeLen = len(p.MaskLengthRange)
+			}
+		}
+	}
+	format := "%-" + fmt.Sprint(maxNameLen) + "s  %-" + fmt.Sprint(maxPrefixLen) + "s  %-" + fmt.Sprint(maxRangeLen) + "s\n"
+	return format
+}
 
 func showPolicyPrefixes() error {
 	arg := &api.PolicyArguments{
@@ -1152,27 +1195,9 @@ func showPolicyPrefixes() error {
 		}
 		return nil
 	}
-	maxnamelen := len("Name")
-	maxprefixlen := len("Prefix")
-	maxrangelen := len("MaskRange")
-
 	sort.Sort(m)
 
-	for _, ps := range m {
-		if len(ps.PrefixSetName) > maxnamelen {
-			maxnamelen = len(ps.PrefixSetName)
-		}
-		for _, p := range ps.PrefixList {
-			if len(p.Address)+len(fmt.Sprint(p.MaskLength)) > maxprefixlen {
-				maxprefixlen = len(p.Address) + len(fmt.Sprint(p.MaskLength))
-			}
-			if len(p.MaskLengthRange) > maxrangelen {
-				maxrangelen = len(p.MaskLengthRange)
-			}
-		}
-	}
-	var format string
-	format = "%" + fmt.Sprint(maxnamelen) + "s  %-" + fmt.Sprint(maxprefixlen) + "s  %-" + fmt.Sprint(maxrangelen) + "s\n"
+	format := formatPolicyPrefix(m)
 	fmt.Printf(format, "Name", "Prefix", "MaskRange")
 	for _, ps := range m {
 		for i, p := range ps.PrefixList {
@@ -1203,24 +1228,15 @@ func showPolicyPrefix(args []string) error {
 		return nil
 	}
 
-	maxprefixlen := len("Prefix")
-	maxrangelen := len("MaskRange")
-
-	for _, p := range ps.PrefixList {
-		if len(p.Address)+len(fmt.Sprint(p.MaskLength)) > maxprefixlen {
-			maxprefixlen = len(p.Address) + len(fmt.Sprint(p.MaskLength))
-		}
-		if len(p.MaskLengthRange) > maxrangelen {
-			maxrangelen = len(p.MaskLengthRange)
-		}
-	}
-	var format string
-	format = "%-" + fmt.Sprint(maxprefixlen) + "s  %-" + fmt.Sprint(maxrangelen) + "s\n"
-	fmt.Printf(format, "Prefix", "MaskRange")
-
-	for _, p := range ps.PrefixList {
+	format := formatPolicyPrefix([]*api.PrefixSet{ps})
+	fmt.Printf(format, "Name", "Prefix", "MaskRange")
+	for i, p := range ps.PrefixList {
 		prefix := fmt.Sprintf("%s/%d", p.Address, p.MaskLength)
-		fmt.Printf(format, prefix, p.MaskLengthRange)
+		if i == 0 {
+			fmt.Printf(format, ps.PrefixSetName, prefix, p.MaskLengthRange)
+		} else {
+			fmt.Printf(format, "", prefix, p.MaskLengthRange)
+		}
 	}
 	return nil
 }
@@ -1410,6 +1426,23 @@ func (x *PolicyPrefixDelAllCommand) Execute(args []string) error {
 
 type PolicyNeighborCommand struct{}
 
+func formatPolicyNeighbor(neighborSetList []*api.NeighborSet) string {
+	maxNameLen := len("Name")
+	maxAddressLen := len("Address")
+	for _, ns := range neighborSetList {
+		if len(ns.NeighborSetName) > maxNameLen {
+			maxNameLen = len(ns.NeighborSetName)
+		}
+		for _, n := range ns.NeighborList {
+			if len(n.Address) > maxAddressLen {
+				maxAddressLen = len(n.Address)
+			}
+		}
+	}
+	format := "%-" + fmt.Sprint(maxNameLen) + "s  %-" + fmt.Sprint(maxAddressLen) + "s\n"
+	return format
+}
+
 func showPolicyNeighbors() error {
 	arg := &api.PolicyArguments{
 		Resource: api.Resource_POLICY_NEIGHBOR,
@@ -1442,23 +1475,9 @@ func showPolicyNeighbors() error {
 		}
 		return nil
 	}
-	maxnamelen := len("Name")
-	maxaddresslen := len("Address")
-
 	sort.Sort(m)
 
-	for _, ns := range m {
-		if len(ns.NeighborSetName) > maxnamelen {
-			maxnamelen = len(ns.NeighborSetName)
-		}
-		for _, n := range ns.NeighborList {
-			if len(n.Address) > maxaddresslen {
-				maxaddresslen = len(n.Address)
-			}
-		}
-	}
-	var format string
-	format = "%" + fmt.Sprint(maxnamelen) + "s  %-" + fmt.Sprint(maxaddresslen) + "s\n"
+	format := formatPolicyNeighbor(m)
 	fmt.Printf(format, "Name", "Address")
 	for _, ns := range m {
 		for i, n := range ns.NeighborList {
@@ -1488,19 +1507,15 @@ func showPolicyNeighbor(args []string) error {
 		return nil
 	}
 
-	maxaddresslen := len("Address")
+	format := formatPolicyNeighbor([]*api.NeighborSet{ns})
+	fmt.Printf(format, "Name", "Address")
+	for i, n := range ns.NeighborList {
+		if i == 0 {
+			fmt.Printf(format, ns.NeighborSetName, n.Address)
+		} else {
+			fmt.Printf(format, "", n.Address)
 
-	for _, n := range ns.NeighborList {
-		if len(n.Address) > maxaddresslen {
-			maxaddresslen = len(n.Address)
 		}
-	}
-	var format string
-	format = "%-" + fmt.Sprint(maxaddresslen) + "s\n"
-	fmt.Printf(format, "Address")
-
-	for _, n := range ns.NeighborList {
-		fmt.Printf(format, n.Address)
 	}
 	return nil
 }
@@ -1520,8 +1535,148 @@ func (x *PolicyNeighborCommand) Execute(args []string) error {
 	}
 	parser := flags.NewParser(nil, flags.Default)
 	parser.Usage = "policy neighbor [OPTIONS]\n  gobgp policy neighbor"
-	//parser.AddCommand(CMD_ADD, "subcommand for add route to policy neighbor", "", &PolicyNeighborAddCommand{})
-	//parser.AddCommand(CMD_DEL, "subcommand for delete route from policy neighbor", "", &PolicyNeighborDelCommand{})
+	//parser.AddCommand(CMD_ADD, "subcommand for add policy of neighbor", "", &PolicyNeighborAddCommand{})
+	//parser.AddCommand(CMD_DEL, "subcommand for delete policy of neighbor", "", &PolicyNeighborDelCommand{})
+	parser.ParseArgs(eArgs)
+	return nil
+}
+
+type PolicyRoutePolicyCommand struct{}
+
+func showPolicyStatement(pd *api.PolicyDefinition) {
+	for _, st := range pd.StatementList {
+		fmt.Printf("  StatementName %s:\n", st.StatementNeme)
+		fmt.Println("    Conditions:")
+		prefixSet := st.Conditions.MatchPrefixSet
+		fmt.Print("      PrefixSet:   ")
+		if len(prefixSet.PrefixList) != 0 {
+			format := formatPolicyPrefix([]*api.PrefixSet{st.Conditions.MatchPrefixSet})
+			for i, prefix := range prefixSet.PrefixList {
+				p := fmt.Sprintf("%s/%d", prefix.Address, prefix.MaskLength)
+				if i == 0 {
+					fmt.Printf(format, prefixSet.PrefixSetName, p, prefix.MaskLengthRange)
+				} else {
+					fmt.Print("                   ")
+					fmt.Printf(format, "", p, prefix.MaskLengthRange)
+				}
+
+			}
+		} else {
+			fmt.Print("\n")
+		}
+		neighborSet := st.Conditions.MatchNeighborSet
+		fmt.Print("      NeighborSet: ")
+		if len(neighborSet.NeighborList) != 0 {
+			format := formatPolicyNeighbor([]*api.NeighborSet{st.Conditions.MatchNeighborSet})
+			for i, neighbor := range neighborSet.NeighborList {
+				if i == 0 {
+					fmt.Printf(format, neighborSet.NeighborSetName, neighbor.Address)
+				} else {
+					fmt.Print("               ")
+					fmt.Printf(format, "", neighbor.Address)
+				}
+
+			}
+		} else {
+			fmt.Print("\n")
+		}
+		var option string
+		switch st.Conditions.MatchSetOptions {
+		case 0:
+			option = "ANY"
+		case 1:
+			option = "ALL"
+		case 2:
+			option = "INVERT"
+		}
+		fmt.Printf("      MatchOption: %s\n", option)
+		fmt.Println("    Actions:")
+		action := "REJECT"
+		if st.Actions.AcceptRoute {
+			action = "ACCEPT"
+		}
+		fmt.Printf("      %s\n", action)
+	}
+
+}
+
+func showPolicyRoutePolicies() error {
+	arg := &api.PolicyArguments{
+		Resource: api.Resource_POLICY_ROUTEPOLICY,
+	}
+	stream, e := client.GetPolicyRoutePolicies(context.Background(), arg)
+	if e != nil {
+		fmt.Println(e)
+		return e
+	}
+	m := policyDefinitions{}
+	for {
+		n, e := stream.Recv()
+		if e == io.EOF {
+			break
+		} else if e != nil {
+			return e
+		}
+		m = append(m, n)
+	}
+
+	if globalOpts.Json {
+		j, _ := json.Marshal(m)
+		fmt.Println(string(j))
+		return nil
+	}
+	if globalOpts.Quiet {
+		for _, p := range m {
+			fmt.Println(p.PolicyDefinitionName)
+		}
+		return nil
+	}
+	sort.Sort(m)
+
+	for _, pd := range m {
+		fmt.Printf("PolicyName %s:\n", pd.PolicyDefinitionName)
+		showPolicyStatement(pd)
+	}
+	return nil
+}
+
+func showPolicyRoutePolicy(args []string) error {
+	arg := &api.PolicyArguments{
+		Resource: api.Resource_POLICY_ROUTEPOLICY,
+		Name:     args[0],
+	}
+	pd, e := client.GetPolicyRoutePolicy(context.Background(), arg)
+	if e != nil {
+		return e
+	}
+
+	if globalOpts.Json {
+		j, _ := json.Marshal(pd)
+		fmt.Println(string(j))
+		return nil
+	}
+	fmt.Printf("PolicyName %s:\n", pd.PolicyDefinitionName)
+	showPolicyStatement(pd)
+	return nil
+}
+
+func (x *PolicyRoutePolicyCommand) Execute(args []string) error {
+	eArgs := extractArgs(CMD_ROUTEPOLICY)
+	if len(eArgs) == 0 {
+		if err := requestGrpc(CMD_POLICY+"_"+CMD_ROUTEPOLICY, eArgs, nil); err != nil {
+			return err
+		}
+		return nil
+	} else if len(eArgs) == 1 && !(eArgs[0] == "-h" || eArgs[0] == "--help" || eArgs[0] == "add" || eArgs[0] == "del") {
+		if err := requestGrpc(CMD_POLICY+"_"+CMD_ROUTEPOLICY, eArgs, nil); err != nil {
+			return err
+		}
+		return nil
+	}
+	parser := flags.NewParser(nil, flags.Default)
+	parser.Usage = "policy routepolicy [OPTIONS]\n  gobgp policy routepolicy"
+	//parser.AddCommand(CMD_ADD, "subcommand for add policy of routepolicy", "", &PolicyRoutePolicyAddCommand{})
+	//parser.AddCommand(CMD_DEL, "subcommand for delete policy of routepolicy", "", &PolicyRoutePolicyDelCommand{})
 	parser.ParseArgs(eArgs)
 	return nil
 }
@@ -1543,9 +1698,9 @@ var neighborsOpts struct {
 }
 
 func main() {
-	cmds = []string{CMD_GLOBAL, CMD_NEIGHBOR, CMD_POLICY, CMD_RIB, CMD_ADD, CMD_DEL, CMD_LOCAL, CMD_ADJ_IN, CMD_ADJ_OUT,
-		CMD_RESET, CMD_SOFT_RESET, CMD_SOFT_RESET_IN, CMD_SOFT_RESET_OUT, CMD_SHUTDOWN, CMD_ENABLE, CMD_DISABLE,
-		CMD_PREFIX, CMD_ALL}
+	cmds = []string{CMD_GLOBAL, CMD_NEIGHBOR, CMD_POLICY, CMD_RIB, CMD_ADD, CMD_DEL, CMD_ALL, CMD_LOCAL, CMD_ADJ_IN,
+		CMD_ADJ_OUT, CMD_RESET, CMD_SOFT_RESET, CMD_SOFT_RESET_IN, CMD_SOFT_RESET_OUT, CMD_SHUTDOWN, CMD_ENABLE,
+		CMD_DISABLE, CMD_PREFIX, CMD_ROUTEPOLICY}
 
 	eArgs := extractArgs("")
 	parser := flags.NewParser(&globalOpts, flags.Default)
