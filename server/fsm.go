@@ -179,22 +179,23 @@ func (fsm *FSM) sendNotification(conn net.Conn, code, subType uint8, data []byte
 }
 
 type FSMHandler struct {
-	t         tomb.Tomb
-	fsm       *FSM
-	conn      net.Conn
-	msgCh     chan *fsmMsg
-	errorCh   chan bool
-	incoming  chan *fsmMsg
-	outgoing  chan *bgp.BGPMessage
-	holdTimer *time.Timer
+	t                tomb.Tomb
+	fsm              *FSM
+	conn             net.Conn
+	msgCh            chan *fsmMsg
+	errorCh          chan bool
+	incoming         chan *fsmMsg
+	outgoing         chan *bgp.BGPMessage
+	holdTimerResetCh chan bool
 }
 
 func NewFSMHandler(fsm *FSM, incoming chan *fsmMsg, outgoing chan *bgp.BGPMessage) *FSMHandler {
 	f := &FSMHandler{
-		fsm:      fsm,
-		errorCh:  make(chan bool, 2),
-		incoming: incoming,
-		outgoing: outgoing,
+		fsm:              fsm,
+		errorCh:          make(chan bool, 2),
+		incoming:         incoming,
+		outgoing:         outgoing,
+		holdTimerResetCh: make(chan bool, 2),
 	}
 	f.t.Go(f.loop)
 	return f
@@ -390,8 +391,11 @@ func (h *FSMHandler) recvMessageWithError() error {
 		}
 		if h.fsm.state == bgp.BGP_FSM_ESTABLISHED {
 			if m.Header.Type == bgp.BGP_MSG_KEEPALIVE || m.Header.Type == bgp.BGP_MSG_UPDATE {
-				if h.fsm.negotiatedHoldTime != 0 {
-					h.holdTimer.Reset(time.Second * time.Duration(h.fsm.negotiatedHoldTime))
+				// if the lenght of h.holdTimerResetCh
+				// isn't zero, the timer will be reset
+				// soon anyway.
+				if len(h.holdTimerResetCh) == 0 {
+					h.holdTimerResetCh <- true
 				}
 			}
 		}
@@ -421,7 +425,7 @@ func (h *FSMHandler) opensent() bgp.FSMState {
 	// sets its HoldTimer to a large value
 	// A HoldTimer value of 4 minutes is suggested as a "large value"
 	// for the HoldTimer
-	h.holdTimer = time.NewTimer(time.Second * time.Duration(fsm.opensentHoldTime))
+	holdTimer := time.NewTimer(time.Second * time.Duration(fsm.opensentHoldTime))
 
 	for {
 		select {
@@ -477,7 +481,7 @@ func (h *FSMHandler) opensent() bgp.FSMState {
 		case <-h.errorCh:
 			h.conn.Close()
 			return bgp.BGP_FSM_IDLE
-		case <-h.holdTimer.C:
+		case <-holdTimer.C:
 			fsm.sendNotification(h.conn, bgp.BGP_ERROR_HOLD_TIMER_EXPIRED, 0, nil, "hold timer expired")
 			h.t.Kill(nil)
 			return bgp.BGP_FSM_IDLE
@@ -509,9 +513,10 @@ func (h *FSMHandler) openconfirm() bgp.FSMState {
 
 	h.t.Go(h.recvMessage)
 
+	var holdTimer *time.Timer
 	if fsm.negotiatedHoldTime == 0 {
 		fsm.keepaliveTicker = &time.Ticker{}
-		h.holdTimer = &time.Timer{}
+		holdTimer = &time.Timer{}
 	} else {
 		sec := time.Second * time.Duration(fsm.peerConfig.Timers.KeepaliveInterval)
 		if fsm.negotiatedHoldTime < fsm.peerConfig.Timers.HoldTime {
@@ -521,7 +526,7 @@ func (h *FSMHandler) openconfirm() bgp.FSMState {
 
 		// RFC 4271 P.65
 		// sets the HoldTimer according to the negotiated value
-		h.holdTimer = time.NewTimer(time.Second * time.Duration(fsm.negotiatedHoldTime))
+		holdTimer = time.NewTimer(time.Second * time.Duration(fsm.negotiatedHoldTime))
 	}
 
 	for {
@@ -569,7 +574,7 @@ func (h *FSMHandler) openconfirm() bgp.FSMState {
 		case <-h.errorCh:
 			h.conn.Close()
 			return bgp.BGP_FSM_IDLE
-		case <-h.holdTimer.C:
+		case <-holdTimer.C:
 			fsm.sendNotification(h.conn, bgp.BGP_ERROR_HOLD_TIMER_EXPIRED, 0, nil, "hold timer expired")
 			h.t.Kill(nil)
 			return bgp.BGP_FSM_IDLE
@@ -691,11 +696,11 @@ func (h *FSMHandler) established() bgp.FSMState {
 	h.msgCh = h.incoming
 	h.t.Go(h.recvMessageloop)
 
-	// restart HoldTimer
+	var holdTimer *time.Timer
 	if fsm.negotiatedHoldTime == 0 {
-		h.holdTimer = &time.Timer{}
+		holdTimer = &time.Timer{}
 	} else {
-		h.holdTimer = time.NewTimer(time.Second * time.Duration(fsm.negotiatedHoldTime))
+		holdTimer = time.NewTimer(time.Second * time.Duration(fsm.negotiatedHoldTime))
 	}
 
 	for {
@@ -715,7 +720,7 @@ func (h *FSMHandler) established() bgp.FSMState {
 			h.conn.Close()
 			h.t.Kill(nil)
 			return bgp.BGP_FSM_IDLE
-		case <-h.holdTimer.C:
+		case <-holdTimer.C:
 			log.WithFields(log.Fields{
 				"Topic": "Peer",
 				"Key":   fsm.peerConfig.NeighborAddress,
@@ -724,6 +729,10 @@ func (h *FSMHandler) established() bgp.FSMState {
 			m := bgp.NewBGPNotificationMessage(bgp.BGP_ERROR_HOLD_TIMER_EXPIRED, 0, nil)
 			h.outgoing <- m
 			return bgp.BGP_FSM_IDLE
+		case <-h.holdTimerResetCh:
+			if fsm.negotiatedHoldTime != 0 {
+				holdTimer.Reset(time.Second * time.Duration(fsm.negotiatedHoldTime))
+			}
 		case s := <-fsm.adminStateCh:
 			err := h.changeAdminState(s)
 			if err == nil {
