@@ -21,6 +21,7 @@ import (
 	"github.com/osrg/gobgp/config"
 	"github.com/osrg/gobgp/packet"
 	"gopkg.in/tomb.v2"
+	"io"
 	"net"
 	"time"
 )
@@ -326,12 +327,9 @@ func buildopen(global *config.Global, peerConf *config.Neighbor) *bgp.BGPMessage
 
 func readAll(conn net.Conn, length int) ([]byte, error) {
 	buf := make([]byte, length)
-	for cur := 0; cur < length; {
-		if num, err := conn.Read(buf); err != nil {
-			return nil, err
-		} else {
-			cur += num
-		}
+	_, err := io.ReadFull(conn, buf)
+	if err != nil {
+		return nil, err
 	}
 	return buf, nil
 }
