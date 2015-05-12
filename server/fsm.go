@@ -188,6 +188,7 @@ type FSMHandler struct {
 	incoming         chan *fsmMsg
 	outgoing         chan *bgp.BGPMessage
 	holdTimerResetCh chan bool
+	reason           string
 }
 
 func NewFSMHandler(fsm *FSM, incoming chan *fsmMsg, outgoing chan *bgp.BGPMessage) *FSMHandler {
@@ -395,6 +396,8 @@ func (h *FSMHandler) recvMessageWithError() error {
 				if len(h.holdTimerResetCh) == 0 {
 					h.holdTimerResetCh <- true
 				}
+			} else if m.Header.Type == bgp.BGP_MSG_NOTIFICATION {
+				h.reason = "Notification received"
 			}
 		}
 	}
@@ -630,6 +633,7 @@ func (h *FSMHandler) sendMessageloop() error {
 			}).Warn("sent notification")
 
 			h.errorCh <- true
+			h.reason = "Notificaiton sent"
 			conn.Close()
 			return fmt.Errorf("closed")
 		} else {
@@ -717,6 +721,7 @@ func (h *FSMHandler) established() bgp.FSMState {
 		case <-h.errorCh:
 			h.conn.Close()
 			h.t.Kill(nil)
+			h.reason = "Peer closed the session"
 			return bgp.BGP_FSM_IDLE
 		case <-holdTimer.C:
 			log.WithFields(log.Fields{
@@ -726,6 +731,7 @@ func (h *FSMHandler) established() bgp.FSMState {
 			}).Warn("hold timer expired")
 			m := bgp.NewBGPNotificationMessage(bgp.BGP_ERROR_HOLD_TIMER_EXPIRED, 0, nil)
 			h.outgoing <- m
+			h.reason = "HoldTimer expired"
 			return bgp.BGP_FSM_IDLE
 		case <-h.holdTimerResetCh:
 			if fsm.negotiatedHoldTime != 0 {
@@ -749,6 +755,7 @@ func (h *FSMHandler) established() bgp.FSMState {
 func (h *FSMHandler) loop() error {
 	fsm := h.fsm
 	nextState := bgp.FSMState(0)
+	oldState := fsm.state
 	switch fsm.state {
 	case bgp.BGP_FSM_IDLE:
 		nextState = h.idle()
@@ -762,6 +769,21 @@ func (h *FSMHandler) loop() error {
 		nextState = h.openconfirm()
 	case bgp.BGP_FSM_ESTABLISHED:
 		nextState = h.established()
+	}
+
+	if nextState == bgp.BGP_FSM_ESTABLISHED && oldState == bgp.BGP_FSM_OPENCONFIRM {
+		log.WithFields(log.Fields{
+			"Topic": "Peer",
+			"Key":   fsm.peerConfig.NeighborAddress,
+		}).Info("Peer Up")
+	}
+
+	if oldState == bgp.BGP_FSM_ESTABLISHED {
+		log.WithFields(log.Fields{
+			"Topic":  "Peer",
+			"Key":    fsm.peerConfig.NeighborAddress,
+			"Reason": h.reason,
+		}).Info("Peer Down")
 	}
 
 	// zero means that tomb.Dying()

@@ -150,7 +150,7 @@ func (server *BgpServer) Serve() {
 			remoteAddr, _, _ := net.SplitHostPort(conn.RemoteAddr().String())
 			info, found := server.peerMap[remoteAddr]
 			if found {
-				log.Info("accepted a new passive connection from ", remoteAddr)
+				log.Debug("accepted a new passive connection from ", remoteAddr)
 				info.peer.PassConn(conn)
 			} else {
 				log.Info("can't find configuration for a new passive connection from ", remoteAddr)
