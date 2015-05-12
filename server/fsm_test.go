@@ -65,25 +65,19 @@ func (m *MockConnection) Read(buf []byte) (int, error) {
 		m.currentCh = <-m.recvCh
 	}
 
-	rest := len(buf) - m.readBytes
+	length := 0
+	rest := len(buf)
 	for i := 0; i < rest; i++ {
 		if len(m.currentCh) > 0 {
 			val := <-m.currentCh
-			buf[m.readBytes] = val
-			m.readBytes += 1
+			buf[i] = val
+			length++
 		} else {
 			m.currentCh = nil
 			break
 		}
 	}
 
-	length := 0
-	if m.readBytes == len(buf) {
-		m.readBytes = 0
-		length = len(buf)
-	} else {
-		length = m.readBytes
-	}
 	fmt.Printf("%d bytes read from peer\n", length)
 	return length, nil
 }
