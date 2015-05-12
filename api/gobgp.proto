@@ -32,6 +32,7 @@ service Grpc {
   rpc Enable(Arguments) returns (Error) {}
   rpc Disable(Arguments) returns (Error) {}
   rpc ModPath(stream ModPathArguments) returns (stream Error) {}
+  rpc GetNeighborPolicy(Arguments) returns (ApplyPolicy) {}
   rpc GetPolicyPrefixes(PolicyArguments) returns (stream PrefixSet) {}
   rpc GetPolicyPrefix(PolicyArguments) returns (PrefixSet) {}
   rpc ModPolicyPrefix(stream PolicyArguments) returns (stream Error) {}
@@ -382,11 +383,18 @@ message Statement {
 	Actions actions = 3;
 }
 
-message PolicyDefinition{
+message PolicyDefinition {
 	string policy_definition_name = 1;
 	repeated Statement statement_list = 2;
 }
 
 message RoutingPolicy {
 	repeated PolicyDefinition policy_difinition = 1;
+}
+
+message ApplyPolicy {
+    repeated PolicyDefinition import_policies = 1;
+    int64 default_import_policy = 2;
+    repeated PolicyDefinition export_policies = 3;
+    int64 default_export_policy = 4;
 }

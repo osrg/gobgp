@@ -587,6 +587,47 @@ func (peer *Peer) handleGrpc(grpcReq *GrpcRequest) {
 			}
 		}
 		result.Data = err
+	case REQ_NEIGHBOR_POLICY:
+		result := &GrpcResponse{}
+		resInPolicies := []*api.PolicyDefinition{}
+		resOutPolicies := []*api.PolicyDefinition{}
+
+		// Add importpolies that has been set in the configuration file to the list.
+		// However, peer haven't target importpolicy when add PolicyDefinition of name only to the list.
+		conInPolicyNames := peer.peerConfig.ApplyPolicy.ImportPolicies
+		for _, conInPolicyName := range conInPolicyNames {
+			for _, inPolicy := range peer.importPolicies {
+				if conInPolicyName == inPolicy.Name {
+					resInPolicies = append(resInPolicies, inPolicy.ToApiStruct())
+				} else {
+					resInPolicies = append(resInPolicies, &api.PolicyDefinition{PolicyDefinitionName: conInPolicyName})
+				}
+
+			}
+		}
+		// Add importpolies that has been set in the configuration file to the list.
+		// However, peer haven't target importpolicy when add PolicyDefinition of name only to the list.
+		conOutPolicyNames := peer.peerConfig.ApplyPolicy.ExportPolicies
+		for _, conOutPolicyName := range conOutPolicyNames {
+			for _, outPolicy := range peer.exportPolicies {
+				if conOutPolicyName == outPolicy.Name {
+					resOutPolicies = append(resOutPolicies, outPolicy.ToApiStruct())
+				} else {
+					resOutPolicies = append(resOutPolicies, &api.PolicyDefinition{PolicyDefinitionName: conOutPolicyName})
+				}
+
+			}
+		}
+		result.Data = &api.ApplyPolicy{
+			DefaultImportPolicy: int64(peer.defaultImportPolicy),
+			ImportPolicies:      resInPolicies,
+			DefaultExportPolicy: int64(peer.defaultExportPolicy),
+			ExportPolicies:      resOutPolicies,
+		}
+		grpcReq.ResponseCh <- result
+
+		close(grpcReq.ResponseCh)
+		return
 	}
 	grpcReq.ResponseCh <- result
 	close(grpcReq.ResponseCh)

@@ -18,10 +18,12 @@ package policy
 import (
 	"fmt"
 	log "github.com/Sirupsen/logrus"
+	"github.com/osrg/gobgp/api"
 	"github.com/osrg/gobgp/config"
 	"github.com/osrg/gobgp/packet"
 	"github.com/osrg/gobgp/table"
 	"net"
+	"reflect"
 	"strconv"
 	"strings"
 )
@@ -172,7 +174,8 @@ func (c *DefaultCondition) evaluate(path table.Path) bool {
 
 type PrefixCondition struct {
 	DefaultCondition
-	PrefixList []Prefix
+	PrefixConditionName string
+	PrefixList          []Prefix
 }
 
 func NewPrefixCondition(prefixSetName string, defPrefixList []config.PrefixSet) *PrefixCondition {
@@ -196,7 +199,8 @@ func NewPrefixCondition(prefixSetName string, defPrefixList []config.PrefixSet) 
 	}
 
 	pc := &PrefixCondition{
-		PrefixList: prefixList,
+		PrefixConditionName: prefixSetName,
+		PrefixList:          prefixList,
 	}
 
 	return pc
@@ -224,7 +228,8 @@ func (c *PrefixCondition) evaluate(path table.Path) bool {
 
 type NeighborCondition struct {
 	DefaultCondition
-	NeighborList []net.IP
+	NeighborConditionName string
+	NeighborList          []net.IP
 }
 
 func NewNeighborCondition(neighborSetName string, defNeighborSetList []config.NeighborSet) *NeighborCondition {
@@ -239,7 +244,8 @@ func NewNeighborCondition(neighborSetName string, defNeighborSetList []config.Ne
 	}
 
 	nc := &NeighborCondition{
-		NeighborList: neighborList,
+		NeighborConditionName: neighborSetName,
+		NeighborList:          neighborList,
 	}
 
 	return nc
@@ -278,20 +284,20 @@ func NewAsPathLengthCondition(defAsPathLength config.AsPathLength) *AsPathLength
 	var op AttributeComparison
 
 	switch defAsPathLength.Operator {
-		case "eq":
+	case "eq":
 		op = ATTRIBUTE_EQ
 
-		case "ge":
+	case "ge":
 		op = ATTRIBUTE_GE
 
-		case "le":
+	case "le":
 		op = ATTRIBUTE_LE
-		default:
-			return nil
+	default:
+		return nil
 	}
 
 	ac := &AsPathLengthCondition{
-		Value: value,
+		Value:    value,
 		Operator: op,
 	}
 
@@ -305,16 +311,16 @@ func (c *AsPathLengthCondition) evaluate(path table.Path) bool {
 	length := uint32(path.GetAsPathLen())
 
 	switch c.Operator {
-		case ATTRIBUTE_EQ:
-			return c.Value == length
+	case ATTRIBUTE_EQ:
+		return c.Value == length
 
-		case ATTRIBUTE_GE:
-			return c.Value <= length
+	case ATTRIBUTE_GE:
+		return c.Value <= length
 
-		case ATTRIBUTE_LE:
-			return c.Value >= length
-		default:
-			return false
+	case ATTRIBUTE_LE:
+		return c.Value >= length
+	default:
+		return false
 	}
 
 }
@@ -473,4 +479,74 @@ func ipPrefixCalculate(path table.Path, cPrefix Prefix) bool {
 		return true
 	}
 	return false
+}
+
+func (p *Policy) ToApiStruct() *api.PolicyDefinition {
+	resStatements := make([]*api.Statement, 0)
+	for _, st := range p.Statements {
+		resPrefixSet := &api.PrefixSet{}
+		resNeighborSet := &api.NeighborSet{}
+		for _, condition := range st.Conditions {
+			switch reflect.TypeOf(condition) {
+			case reflect.TypeOf(&PrefixCondition{}):
+				prefixCondition := condition.(*PrefixCondition)
+				resPrefixList := make([]*api.Prefix, 0)
+				for _, prefix := range prefixCondition.PrefixList {
+
+					resPrefix := &api.Prefix{
+						Address:    prefix.Address.String(),
+						MaskLength: uint32(prefix.Masklength),
+					}
+					if min, ok := prefix.MasklengthRange[MASK_LENGTH_RANGE_MIN]; ok {
+						if max, ok := prefix.MasklengthRange[MASK_LENGTH_RANGE_MAX]; ok {
+							resPrefix.MaskLengthRange = fmt.Sprintf("%d..%d", min, max)
+						}
+					}
+
+					resPrefixList = append(resPrefixList, resPrefix)
+				}
+				resPrefixSet = &api.PrefixSet{
+					PrefixSetName: prefixCondition.PrefixConditionName,
+					PrefixList:    resPrefixList,
+				}
+			case reflect.TypeOf(&NeighborCondition{}):
+				neighborCondition := condition.(*NeighborCondition)
+				resNeighborList := make([]*api.Neighbor, 0)
+				for _, neighbor := range neighborCondition.NeighborList {
+					resNeighbor := &api.Neighbor{
+						Address: neighbor.String(),
+					}
+					resNeighborList = append(resNeighborList, resNeighbor)
+				}
+				resNeighborSet = &api.NeighborSet{
+					NeighborSetName: neighborCondition.NeighborConditionName,
+					NeighborList:    resNeighborList,
+				}
+			}
+		}
+		resCondition := &api.Conditions{
+			MatchPrefixSet:   resPrefixSet,
+			MatchNeighborSet: resNeighborSet,
+			MatchSetOptions:  int64(st.MatchSetOptions),
+		}
+		resAction := &api.Actions{
+			AcceptRoute: false,
+			RejectRoute: true,
+		}
+		if st.Actions.(*RoutingActions).AcceptRoute {
+			resAction.AcceptRoute = true
+			resAction.RejectRoute = false
+		}
+		resStatement := &api.Statement{
+			StatementNeme: st.Name,
+			Conditions:    resCondition,
+			Actions:       resAction,
+		}
+		resStatements = append(resStatements, resStatement)
+	}
+
+	return &api.PolicyDefinition{
+		PolicyDefinitionName: p.Name,
+		StatementList:        resStatements,
+	}
 }

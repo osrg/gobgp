@@ -40,6 +40,7 @@ const (
 	REQ_NEIGHBOR_SOFT_RESET_OUT
 	REQ_NEIGHBOR_ENABLE
 	REQ_NEIGHBOR_DISABLE
+	REQ_NEIGHBOR_POLICY
 	REQ_GLOBAL_RIB
 	REQ_GLOBAL_ADD
 	REQ_GLOBAL_DELETE
@@ -268,6 +269,24 @@ func (s *Server) ModPath(stream api.Grpc_ModPathServer) error {
 		}
 	}
 }
+
+func (s *Server) GetNeighborPolicy(ctx context.Context, arg *api.Arguments) (*api.ApplyPolicy, error) {
+	rf, err := convertAf2Rf(arg.Af)
+	if err != nil {
+		return nil, err
+	}
+
+	req := NewGrpcRequest(REQ_NEIGHBOR_POLICY, arg.RouterId, rf, nil)
+	s.bgpServerCh <- req
+
+	res := <-req.ResponseCh
+	if err := res.Err(); err != nil {
+		log.Debug(err.Error())
+		return nil, err
+	}
+	return res.Data.(*api.ApplyPolicy), nil
+}
+
 func (s *Server) getPolicies(reqType int, arg *api.PolicyArguments, stream interface{}) error {
 	var rf bgp.RouteFamily
 	req := NewGrpcRequest(reqType, "", rf, nil)
