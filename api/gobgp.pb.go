@@ -40,6 +40,7 @@ It has these top-level messages:
 	Statement
 	PolicyDefinition
 	RoutingPolicy
+	ApplyPolicy
 */
 package api
 
@@ -1062,6 +1063,31 @@ func (m *RoutingPolicy) GetPolicyDifinition() []*PolicyDefinition {
 	return nil
 }
 
+type ApplyPolicy struct {
+	ImportPolicies      []*PolicyDefinition `protobuf:"bytes,1,rep,name=import_policies" json:"import_policies,omitempty"`
+	DefaultImportPolicy int64               `protobuf:"varint,2,opt,name=default_import_policy" json:"default_import_policy,omitempty"`
+	ExportPolicies      []*PolicyDefinition `protobuf:"bytes,3,rep,name=export_policies" json:"export_policies,omitempty"`
+	DefaultExportPolicy int64               `protobuf:"varint,4,opt,name=default_export_policy" json:"default_export_policy,omitempty"`
+}
+
+func (m *ApplyPolicy) Reset()         { *m = ApplyPolicy{} }
+func (m *ApplyPolicy) String() string { return proto.CompactTextString(m) }
+func (*ApplyPolicy) ProtoMessage()    {}
+
+func (m *ApplyPolicy) GetImportPolicies() []*PolicyDefinition {
+	if m != nil {
+		return m.ImportPolicies
+	}
+	return nil
+}
+
+func (m *ApplyPolicy) GetExportPolicies() []*PolicyDefinition {
+	if m != nil {
+		return m.ExportPolicies
+	}
+	return nil
+}
+
 func init() {
 	proto.RegisterEnum("api.Resource", Resource_name, Resource_value)
 	proto.RegisterEnum("api.Operation", Operation_name, Operation_value)
@@ -1093,6 +1119,7 @@ type GrpcClient interface {
 	Enable(ctx context.Context, in *Arguments, opts ...grpc.CallOption) (*Error, error)
 	Disable(ctx context.Context, in *Arguments, opts ...grpc.CallOption) (*Error, error)
 	ModPath(ctx context.Context, opts ...grpc.CallOption) (Grpc_ModPathClient, error)
+	GetNeighborPolicy(ctx context.Context, in *Arguments, opts ...grpc.CallOption) (*ApplyPolicy, error)
 	GetPolicyPrefixes(ctx context.Context, in *PolicyArguments, opts ...grpc.CallOption) (Grpc_GetPolicyPrefixesClient, error)
 	GetPolicyPrefix(ctx context.Context, in *PolicyArguments, opts ...grpc.CallOption) (*PrefixSet, error)
 	ModPolicyPrefix(ctx context.Context, opts ...grpc.CallOption) (Grpc_ModPolicyPrefixClient, error)
@@ -1309,6 +1336,15 @@ func (x *grpcModPathClient) Recv() (*Error, error) {
 	return m, nil
 }
 
+func (c *grpcClient) GetNeighborPolicy(ctx context.Context, in *Arguments, opts ...grpc.CallOption) (*ApplyPolicy, error) {
+	out := new(ApplyPolicy)
+	err := grpc.Invoke(ctx, "/api.Grpc/GetNeighborPolicy", in, out, c.cc, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 func (c *grpcClient) GetPolicyPrefixes(ctx context.Context, in *PolicyArguments, opts ...grpc.CallOption) (Grpc_GetPolicyPrefixesClient, error) {
 	stream, err := grpc.NewClientStream(ctx, &_Grpc_serviceDesc.Streams[4], c.cc, "/api.Grpc/GetPolicyPrefixes", opts...)
 	if err != nil {
@@ -1478,6 +1514,7 @@ type GrpcServer interface {
 	Enable(context.Context, *Arguments) (*Error, error)
 	Disable(context.Context, *Arguments) (*Error, error)
 	ModPath(Grpc_ModPathServer) error
+	GetNeighborPolicy(context.Context, *Arguments) (*ApplyPolicy, error)
 	GetPolicyPrefixes(*PolicyArguments, Grpc_GetPolicyPrefixesServer) error
 	GetPolicyPrefix(context.Context, *PolicyArguments) (*PrefixSet, error)
 	ModPolicyPrefix(Grpc_ModPolicyPrefixServer) error
@@ -1676,6 +1713,18 @@ func (x *grpcModPathServer) Recv() (*ModPathArguments, error) {
 	return m, nil
 }
 
+func _Grpc_GetNeighborPolicy_Handler(srv interface{}, ctx context.Context, codec grpc.Codec, buf []byte) (interface{}, error) {
+	in := new(Arguments)
+	if err := codec.Unmarshal(buf, in); err != nil {
+		return nil, err
+	}
+	out, err := srv.(GrpcServer).GetNeighborPolicy(ctx, in)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 func _Grpc_GetPolicyPrefixes_Handler(srv interface{}, stream grpc.ServerStream) error {
 	m := new(PolicyArguments)
 	if err := stream.RecvMsg(m); err != nil {
@@ -1836,6 +1885,10 @@ var _Grpc_serviceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "Disable",
 			Handler:    _Grpc_Disable_Handler,
+		},
+		{
+			MethodName: "GetNeighborPolicy",
+			Handler:    _Grpc_GetNeighborPolicy_Handler,
 		},
 		{
 			MethodName: "GetPolicyPrefix",

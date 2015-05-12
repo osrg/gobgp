@@ -236,6 +236,8 @@ func requestGrpc(cmd string, eArgs []string, remoteIP net.IP) error {
 		return stateChangeNeighbor(CMD_ENABLE, remoteIP)
 	case CMD_NEIGHBOR + "_" + CMD_DISABLE:
 		return stateChangeNeighbor(CMD_DISABLE, remoteIP)
+	case CMD_NEIGHBOR + "_" + CMD_POLICY:
+		return showNeighborPolicy(remoteIP)
 	case CMD_POLICY + "_" + CMD_PREFIX:
 		if len(eArgs) == 0 {
 			return showPolicyPrefixes()
@@ -796,6 +798,7 @@ func (x *NeighborCommand) Execute(args []string) error {
 		parser.AddCommand(CMD_SHUTDOWN, "subcommand for shutdown to neighbor", "", NewNeighborChangeStateCommand(eArgs[0], CMD_SHUTDOWN))
 		parser.AddCommand(CMD_ENABLE, "subcommand for enable to neighbor", "", NewNeighborChangeStateCommand(eArgs[0], CMD_ENABLE))
 		parser.AddCommand(CMD_DISABLE, "subcommand for disable to neighbor", "", NewNeighborChangeStateCommand(eArgs[0], CMD_DISABLE))
+		parser.AddCommand(CMD_POLICY, "subcommand for policy of neighbor", "", NewNeighborPolicyCommand(eArgs[0]))
 		if _, err := parser.ParseArgs(eArgs); err != nil {
 			os.Exit(1)
 		}
@@ -1121,6 +1124,87 @@ func (x *NeighborChangeStateCommand) Execute(args []string) error {
 	eArgs := extractArgs(x.command)
 	if err := requestGrpc(CMD_NEIGHBOR+"_"+x.command, eArgs, x.remoteIP); err != nil {
 		return err
+	}
+	return nil
+}
+
+type NeighborPolicyCommand struct {
+	remoteIP net.IP
+}
+
+func NewNeighborPolicyCommand(addr string) *NeighborPolicyCommand {
+	return &NeighborPolicyCommand{
+		remoteIP: net.ParseIP(addr),
+	}
+}
+
+func showNeighborPolicy(remoteIP net.IP) error {
+	rt, err := checkAddressFamily(net.IP{})
+	if err != nil {
+		return err
+	}
+	arg := &api.Arguments{
+		Af:       rt,
+		RouterId: remoteIP.String(),
+	}
+
+	ap, e := client.GetNeighborPolicy(context.Background(), arg)
+	if e != nil {
+		return e
+	}
+
+	if globalOpts.Json {
+		j, _ := json.Marshal(ap)
+		fmt.Println(string(j))
+		return nil
+	}
+	var defaultInPolicy, defaultOutPolicy string
+	switch ap.DefaultImportPolicy {
+	case 0:
+		defaultInPolicy = "ACCEPT"
+	case 1:
+		defaultInPolicy = "REJECT"
+	}
+	switch ap.DefaultExportPolicy {
+	case 0:
+		defaultOutPolicy = "ACCEPT"
+	case 1:
+		defaultOutPolicy = "REJECT"
+	}
+
+	fmt.Printf("DefaultImportPolicy: %s\n", defaultInPolicy)
+	fmt.Printf("DefaultImportPolicy: %s\n", defaultOutPolicy)
+	fmt.Printf("ImportPolicies:\n")
+	space := "  "
+	for _, inPolicy := range ap.ImportPolicies {
+		fmt.Printf("%sPolicyName %s:\n", space, inPolicy.PolicyDefinitionName)
+		showPolicyStatement(space, inPolicy)
+	}
+	fmt.Printf("ExportPolicies:\n")
+	for _, outPolicy := range ap.ExportPolicies {
+		fmt.Printf("%sPolicyName %s:\n", space, outPolicy.PolicyDefinitionName)
+		showPolicyStatement(space, outPolicy)
+	}
+	return nil
+}
+
+func (x *NeighborPolicyCommand) Execute(args []string) error {
+	eArgs := extractArgs(CMD_POLICY)
+	parser := flags.NewParser(nil, flags.Default)
+	if len(eArgs) == 0 {
+		if _, err := parser.ParseArgs(eArgs); err != nil {
+			os.Exit(1)
+		}
+		if err := requestGrpc(CMD_NEIGHBOR+"_"+CMD_POLICY, eArgs, x.remoteIP); err != nil {
+			return err
+		}
+	} else {
+		parser.Usage = "neighbor [ <neighbor address> ] policy \n  gobgp neighbor [ <neighbor address> ]"
+		//parser.AddCommand(CMD_ADD, "subcommand for add policy to neighbor", "", &NeighborPolicyAddCommand{})
+		//parser.AddCommand(CMD_DEL, "subcommand for delete policy from neighbor", "", &NeighborPolicyDelCommand{})
+		if _, err := parser.ParseArgs(eArgs); err != nil {
+			os.Exit(1)
+		}
 	}
 	return nil
 }
@@ -1543,12 +1627,12 @@ func (x *PolicyNeighborCommand) Execute(args []string) error {
 
 type PolicyRoutePolicyCommand struct{}
 
-func showPolicyStatement(pd *api.PolicyDefinition) {
+func showPolicyStatement(head string, pd *api.PolicyDefinition) {
 	for _, st := range pd.StatementList {
-		fmt.Printf("  StatementName %s:\n", st.StatementNeme)
-		fmt.Println("    Conditions:")
+		fmt.Printf("%s  StatementName %s:\n", head, st.StatementNeme)
+		fmt.Printf("%s    Conditions:\n", head)
 		prefixSet := st.Conditions.MatchPrefixSet
-		fmt.Print("      PrefixSet:   ")
+		fmt.Printf("%s      PrefixSet:   ", head)
 		if len(prefixSet.PrefixList) != 0 {
 			format := formatPolicyPrefix([]*api.PrefixSet{st.Conditions.MatchPrefixSet})
 			for i, prefix := range prefixSet.PrefixList {
@@ -1556,7 +1640,7 @@ func showPolicyStatement(pd *api.PolicyDefinition) {
 				if i == 0 {
 					fmt.Printf(format, prefixSet.PrefixSetName, p, prefix.MaskLengthRange)
 				} else {
-					fmt.Print("                   ")
+					fmt.Printf("%s                   ", head)
 					fmt.Printf(format, "", p, prefix.MaskLengthRange)
 				}
 
@@ -1565,14 +1649,14 @@ func showPolicyStatement(pd *api.PolicyDefinition) {
 			fmt.Print("\n")
 		}
 		neighborSet := st.Conditions.MatchNeighborSet
-		fmt.Print("      NeighborSet: ")
+		fmt.Printf("%s      NeighborSet: ", head)
 		if len(neighborSet.NeighborList) != 0 {
 			format := formatPolicyNeighbor([]*api.NeighborSet{st.Conditions.MatchNeighborSet})
 			for i, neighbor := range neighborSet.NeighborList {
 				if i == 0 {
 					fmt.Printf(format, neighborSet.NeighborSetName, neighbor.Address)
 				} else {
-					fmt.Print("               ")
+					fmt.Printf("%s               ", head)
 					fmt.Printf(format, "", neighbor.Address)
 				}
 
@@ -1589,13 +1673,13 @@ func showPolicyStatement(pd *api.PolicyDefinition) {
 		case 2:
 			option = "INVERT"
 		}
-		fmt.Printf("      MatchOption: %s\n", option)
-		fmt.Println("    Actions:")
+		fmt.Printf("%s      MatchOption: %s\n", head, option)
+		fmt.Printf("%s    Actions:\n", head)
 		action := "REJECT"
 		if st.Actions.AcceptRoute {
 			action = "ACCEPT"
 		}
-		fmt.Printf("      %s\n", action)
+		fmt.Printf("%s      %s\n", head, action)
 	}
 
 }
@@ -1632,10 +1716,10 @@ func showPolicyRoutePolicies() error {
 		return nil
 	}
 	sort.Sort(m)
-
+	space := ""
 	for _, pd := range m {
 		fmt.Printf("PolicyName %s:\n", pd.PolicyDefinitionName)
-		showPolicyStatement(pd)
+		showPolicyStatement(space, pd)
 	}
 	return nil
 }
@@ -1655,8 +1739,9 @@ func showPolicyRoutePolicy(args []string) error {
 		fmt.Println(string(j))
 		return nil
 	}
+	space := ""
 	fmt.Printf("PolicyName %s:\n", pd.PolicyDefinitionName)
-	showPolicyStatement(pd)
+	showPolicyStatement(space, pd)
 	return nil
 }
 

@@ -296,7 +296,7 @@ func (server *BgpServer) handleGrpc(grpcReq *GrpcRequest) {
 			}
 		} else {
 			result = &GrpcResponse{
-				ResponseErr: fmt.Errorf("Neighbor that has %v does not exist.", remoteAddr),
+				ResponseErr: fmt.Errorf("Neighbor that has %v doesn't  exist.", remoteAddr),
 			}
 		}
 		grpcReq.ResponseCh <- result
@@ -310,8 +310,9 @@ func (server *BgpServer) handleGrpc(grpcReq *GrpcRequest) {
 	case REQ_LOCAL_RIB, REQ_NEIGHBOR_SHUTDOWN, REQ_NEIGHBOR_RESET,
 		REQ_NEIGHBOR_SOFT_RESET, REQ_NEIGHBOR_SOFT_RESET_IN, REQ_NEIGHBOR_SOFT_RESET_OUT,
 		REQ_ADJ_RIB_IN, REQ_ADJ_RIB_OUT,
-		REQ_NEIGHBOR_ENABLE, REQ_NEIGHBOR_DISABLE:
-
+		REQ_NEIGHBOR_ENABLE, REQ_NEIGHBOR_DISABLE,
+		REQ_NEIGHBOR_POLICY:
+		log.Info("### in server")
 		remoteAddr := grpcReq.RemoteAddr
 		result := &GrpcResponse{}
 		info, found := server.peerMap[remoteAddr]
@@ -322,7 +323,7 @@ func (server *BgpServer) handleGrpc(grpcReq *GrpcRequest) {
 			}
 			info.peer.serverMsgCh <- msg
 		} else {
-			result.ResponseErr = fmt.Errorf("Neighbor that has %v does not exist.", remoteAddr)
+			result.ResponseErr = fmt.Errorf("Neighbor that has %v doesn't  exist.", remoteAddr)
 			grpcReq.ResponseCh <- result
 			close(grpcReq.ResponseCh)
 		}
@@ -338,7 +339,7 @@ func (server *BgpServer) handleGrpc(grpcReq *GrpcRequest) {
 				grpcReq.ResponseCh <- result
 			}
 		} else {
-			result.ResponseErr = fmt.Errorf("Prefix is not exist.")
+			result.ResponseErr = fmt.Errorf("Prefix doesn't  exist.")
 			grpcReq.ResponseCh <- result
 		}
 		close(grpcReq.ResponseCh)
@@ -359,7 +360,7 @@ func (server *BgpServer) handleGrpc(grpcReq *GrpcRequest) {
 			}
 			grpcReq.ResponseCh <- result
 		} else {
-			result.ResponseErr = fmt.Errorf("Prefix that has %v does not exist.", name)
+			result.ResponseErr = fmt.Errorf("Prefix that has %v doesn't  exist.", name)
 			grpcReq.ResponseCh <- result
 		}
 		close(grpcReq.ResponseCh)
@@ -373,6 +374,9 @@ func (server *BgpServer) handleGrpc(grpcReq *GrpcRequest) {
 			grpcReq.ResponseCh <- result
 			close(grpcReq.ResponseCh)
 		}
+
+		// If the same PrefixSet is not set, add PrefixSet of request to the end.
+		// If only name of the PrefixSet is same, Overwrite with PrefixSet of request
 		idxPrefixSet, idxPrefix := findPrefixSet(conPrefixSetList, prefixSet)
 		if idxPrefixSet == -1 {
 			conPrefixSetList = append(conPrefixSetList, prefixSet)
@@ -391,13 +395,16 @@ func (server *BgpServer) handleGrpc(grpcReq *GrpcRequest) {
 		result := &GrpcResponse{}
 		isReqPrefixSet, prefixSet := prefixToConfigStruct(reqPrefixSet)
 		if isReqPrefixSet {
+
+			// If only name of the PrefixSet is same, delete all of the elements of the PrefixSet.
+			// If the same PrefixSet is not set, delete the elements in PrefixSet.
 			idxPrefixSet, idxPrefix := findPrefixSet(conPrefixSetList, prefixSet)
 			if idxPrefixSet == -1 {
-				result.ResponseErr = fmt.Errorf("Prefix %v %v/%v %v does not exist.", prefixSet.PrefixSetName,
+				result.ResponseErr = fmt.Errorf("Prefix %v %v/%v %v doesn't  exist.", prefixSet.PrefixSetName,
 					prefixSet.PrefixList[0].Address, prefixSet.PrefixList[0].Masklength, prefixSet.PrefixList[0].MasklengthRange)
 			} else {
 				if idxPrefix == -1 {
-					result.ResponseErr = fmt.Errorf("Prefix %v %v/%v %v does not exist.", prefixSet.PrefixSetName,
+					result.ResponseErr = fmt.Errorf("Prefix %v %v/%v %v doesn't  exist.", prefixSet.PrefixSetName,
 						prefixSet.PrefixList[0].Address, prefixSet.PrefixList[0].Masklength, prefixSet.PrefixList[0].MasklengthRange)
 				} else {
 					copy(conPrefixSetList[idxPrefixSet].PrefixList[idxPrefix:], conPrefixSetList[idxPrefixSet].PrefixList[idxPrefix+1:])
@@ -413,7 +420,7 @@ func (server *BgpServer) handleGrpc(grpcReq *GrpcRequest) {
 				}
 			}
 			if idxPrefixSet == -1 {
-				result.ResponseErr = fmt.Errorf("Prefix %v does not exist.", prefixSet.PrefixSetName)
+				result.ResponseErr = fmt.Errorf("Prefix %v doesn't  exist.", prefixSet.PrefixSetName)
 			} else {
 				copy(conPrefixSetList[idxPrefixSet:], conPrefixSetList[idxPrefixSet+1:])
 				conPrefixSetList = conPrefixSetList[:len(conPrefixSetList)-1]
@@ -441,7 +448,7 @@ func (server *BgpServer) handleGrpc(grpcReq *GrpcRequest) {
 				grpcReq.ResponseCh <- result
 			}
 		} else {
-			result.ResponseErr = fmt.Errorf("Neighbor is not exist.")
+			result.ResponseErr = fmt.Errorf("Neighbor doesn't  exist.")
 			grpcReq.ResponseCh <- result
 		}
 		close(grpcReq.ResponseCh)
@@ -462,7 +469,7 @@ func (server *BgpServer) handleGrpc(grpcReq *GrpcRequest) {
 			}
 			grpcReq.ResponseCh <- result
 		} else {
-			result.ResponseErr = fmt.Errorf("Neighbor that has %v does not exist.", name)
+			result.ResponseErr = fmt.Errorf("Neighbor that has %v doesn't  exist.", name)
 			grpcReq.ResponseCh <- result
 		}
 		close(grpcReq.ResponseCh)
@@ -479,7 +486,7 @@ func (server *BgpServer) handleGrpc(grpcReq *GrpcRequest) {
 				grpcReq.ResponseCh <- result
 			}
 		} else {
-			result.ResponseErr = fmt.Errorf("Route Policy is not exist.")
+			result.ResponseErr = fmt.Errorf("Route Policy doesn't  exist.")
 			grpcReq.ResponseCh <- result
 		}
 		close(grpcReq.ResponseCh)
@@ -501,13 +508,16 @@ func (server *BgpServer) handleGrpc(grpcReq *GrpcRequest) {
 			}
 			grpcReq.ResponseCh <- result
 		} else {
-			result.ResponseErr = fmt.Errorf("Route Policy that has %v does not exist.", name)
+			result.ResponseErr = fmt.Errorf("Route Policy that has %v doesn't  exist.", name)
 			grpcReq.ResponseCh <- result
 		}
 		close(grpcReq.ResponseCh)
 	}
 }
 
+// find PrefixSet of request from PrefixSet of configuration file.
+// Return the idxPrefixSet of the location where the name of PrefixSet matches and,
+// idxPrefix of the location where elements of PrefixSet matches
 func findPrefixSet(conPrefixSetList []config.PrefixSet, reqPrefixSet config.PrefixSet) (int, int) {
 	idxPrefixSet := -1
 	idxPrefix := -1
@@ -529,6 +539,9 @@ func findPrefixSet(conPrefixSetList []config.PrefixSet, reqPrefixSet config.Pref
 	return idxPrefixSet, idxPrefix
 }
 
+// find NeighborSet of request from NeighborSet of configuration file.
+// Return the idxNeighborSet of the location where the name of NeighborSet matches and,
+// idxNeighbor of the location where elements of NeighborSet matches
 func findNeighborSet(conNeighborSetList []config.NeighborSet, reqNeighborSet config.NeighborSet) (int, int) {
 	idxNeighborSet := -1
 	idxNeighbor := -1
