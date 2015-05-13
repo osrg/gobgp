@@ -3638,8 +3638,7 @@ func getPathAttribute(data []byte) (PathAttributeInterface, error) {
 	if len(data) < 1 {
 		eCode := uint8(BGP_ERROR_UPDATE_MESSAGE_ERROR)
 		eSubCode := uint8(BGP_ERROR_SUB_MALFORMED_ATTRIBUTE_LIST)
-		msg := "attribute type length is short"
-		return nil, NewMessageError(eCode, eSubCode, nil, msg)
+		return nil, NewMessageError(eCode, eSubCode, nil, "attribute type length is short")
 	}
 	switch BGPAttrType(data[1]) {
 	case BGP_ATTR_TYPE_ORIGIN:
@@ -3704,9 +3703,7 @@ func (msg *BGPUpdate) DecodeFromBytes(data []byte) error {
 
 	// check withdrawn route length
 	if len(data) < 2 {
-		msg := "message length isn't enough for withdrawn route length"
-		e := NewMessageError(eCode, eSubCode, nil, msg)
-		return e
+		return NewMessageError(eCode, eSubCode, nil, "message length isn't enough for withdrawn route length")
 	}
 
 	msg.WithdrawnRoutesLen = binary.BigEndian.Uint16(data[0:2])
@@ -3714,9 +3711,7 @@ func (msg *BGPUpdate) DecodeFromBytes(data []byte) error {
 
 	// check withdrawn route
 	if len(data) < int(msg.WithdrawnRoutesLen) {
-		msg := "withdrawn route length exceeds message length"
-		e := NewMessageError(eCode, eSubCode, nil, msg)
-		return e
+		return NewMessageError(eCode, eSubCode, nil, "withdrawn route length exceeds message length")
 	}
 
 	for routelen := msg.WithdrawnRoutesLen; routelen > 0; {
@@ -3735,9 +3730,7 @@ func (msg *BGPUpdate) DecodeFromBytes(data []byte) error {
 
 	// check path total attribute length
 	if len(data) < 2 {
-		msg := "message length isn't enough for path total attribute length"
-		e := NewMessageError(eCode, eSubCode, nil, msg)
-		return e
+		return NewMessageError(eCode, eSubCode, nil, "message length isn't enough for path total attribute length")
 	}
 
 	msg.TotalPathAttributeLen = binary.BigEndian.Uint16(data[0:2])
@@ -3745,9 +3738,7 @@ func (msg *BGPUpdate) DecodeFromBytes(data []byte) error {
 
 	// check path attribute
 	if len(data) < int(msg.TotalPathAttributeLen) {
-		msg := "path total attribute length exceeds message length"
-		e := NewMessageError(eCode, eSubCode, nil, msg)
-		return e
+		return NewMessageError(eCode, eSubCode, nil, "path total attribute length exceeds message length")
 	}
 
 	for pathlen := msg.TotalPathAttributeLen; pathlen > 0; {
