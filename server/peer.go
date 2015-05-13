@@ -162,14 +162,40 @@ func (peer *Peer) sendPathsToSiblings(pathList []table.Path) {
 	if len(pathList) == 0 {
 		return
 	}
-	pm := &peerMsg{
-		msgType: PEER_MSG_PATH,
-		msgData: pathList,
-	}
 	for _, s := range peer.siblings {
-		if peer.peerConfig.RouteServer.RouteServerClient && peer.peerConfig.PeerAs == s.As {
-			// don't send to a peer having the same AS number.
-			continue
+		var pm *peerMsg
+		if peer.peerConfig.RouteServer.RouteServerClient {
+			checkas := func(asnum uint32, p []table.Path) []table.Path {
+				plist := []table.Path{}
+				for _, path := range p {
+					asList := path.GetAsList()
+					send := true
+					for _, as := range asList {
+						if as == asnum {
+							send = false
+							break
+						}
+					}
+					if send {
+						plist = append(plist, path)
+					}
+				}
+				return plist
+			}
+			p := checkas(s.As, pathList)
+			if len(p) == 0 {
+				continue
+			} else {
+				pm = &peerMsg{
+					msgType: PEER_MSG_PATH,
+					msgData: p,
+				}
+			}
+		} else {
+			pm = &peerMsg{
+				msgType: PEER_MSG_PATH,
+				msgData: pathList,
+			}
 		}
 		s.peerMsgCh <- pm
 	}

@@ -34,6 +34,7 @@ type Path interface {
 	updatePathAttrs(global *config.Global, peer *config.Neighbor)
 	GetRouteFamily() bgp.RouteFamily
 	GetAsPathLen() int
+	GetAsList() []uint32
 	setSource(source *PeerInfo)
 	GetSource() *PeerInfo
 	GetSourceAs() uint32
@@ -359,6 +360,19 @@ func (pd *PathDefault) GetAsPathLen() int {
 		}
 	}
 	return length
+}
+
+func (pd *PathDefault) GetAsList() []uint32 {
+	asList := []uint32{}
+	if _, attr := pd.getPathAttr(bgp.BGP_ATTR_TYPE_AS_PATH); attr != nil {
+		aspath := attr.(*bgp.PathAttributeAsPath)
+		for _, paramIf := range aspath.Value {
+			segment := paramIf.(*bgp.As4PathParam)
+			asList = append(asList, segment.AS...)
+		}
+
+	}
+	return asList
 }
 
 // create Path object based on route family
