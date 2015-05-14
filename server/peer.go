@@ -596,26 +596,32 @@ func (peer *Peer) handleGrpc(grpcReq *GrpcRequest) {
 		// However, peer haven't target importpolicy when add PolicyDefinition of name only to the list.
 		conInPolicyNames := peer.peerConfig.ApplyPolicy.ImportPolicies
 		for _, conInPolicyName := range conInPolicyNames {
+			match := false
 			for _, inPolicy := range peer.importPolicies {
 				if conInPolicyName == inPolicy.Name {
+					match = true
 					resInPolicies = append(resInPolicies, inPolicy.ToApiStruct())
-				} else {
-					resInPolicies = append(resInPolicies, &api.PolicyDefinition{PolicyDefinitionName: conInPolicyName})
+					break
 				}
-
+			}
+			if !match {
+				resInPolicies = append(resInPolicies, &api.PolicyDefinition{PolicyDefinitionName: conInPolicyName})
 			}
 		}
 		// Add importpolies that has been set in the configuration file to the list.
 		// However, peer haven't target importpolicy when add PolicyDefinition of name only to the list.
 		conOutPolicyNames := peer.peerConfig.ApplyPolicy.ExportPolicies
 		for _, conOutPolicyName := range conOutPolicyNames {
+			match := false
 			for _, outPolicy := range peer.exportPolicies {
 				if conOutPolicyName == outPolicy.Name {
+					match = true
 					resOutPolicies = append(resOutPolicies, outPolicy.ToApiStruct())
-				} else {
-					resOutPolicies = append(resOutPolicies, &api.PolicyDefinition{PolicyDefinitionName: conOutPolicyName})
+					break
 				}
-
+			}
+			if !match {
+				resOutPolicies = append(resOutPolicies, &api.PolicyDefinition{PolicyDefinitionName: conOutPolicyName})
 			}
 		}
 		result.Data = &api.ApplyPolicy{

@@ -486,6 +486,7 @@ func (p *Policy) ToApiStruct() *api.PolicyDefinition {
 	for _, st := range p.Statements {
 		resPrefixSet := &api.PrefixSet{}
 		resNeighborSet := &api.NeighborSet{}
+		resAsPathLength := &api.AsPathLength{}
 		for _, condition := range st.Conditions {
 			switch reflect.TypeOf(condition) {
 			case reflect.TypeOf(&PrefixCondition{}):
@@ -522,12 +523,28 @@ func (p *Policy) ToApiStruct() *api.PolicyDefinition {
 					NeighborSetName: neighborCondition.NeighborConditionName,
 					NeighborList:    resNeighborList,
 				}
+			case reflect.TypeOf(&AsPathLengthCondition{}):
+				asPathLengthCondition := condition.(*AsPathLengthCondition)
+				var op string
+				switch asPathLengthCondition.Operator {
+				case ATTRIBUTE_EQ:
+					op = "eq"
+				case ATTRIBUTE_GE:
+					op = "ge"
+				case ATTRIBUTE_LE:
+					op = "le"
+				}
+				resAsPathLength = &api.AsPathLength{
+					Value:    fmt.Sprintf("%d", asPathLengthCondition.Value),
+					Operator: op,
+				}
 			}
 		}
 		resCondition := &api.Conditions{
-			MatchPrefixSet:   resPrefixSet,
-			MatchNeighborSet: resNeighborSet,
-			MatchSetOptions:  int64(st.MatchSetOptions),
+			MatchPrefixSet:    resPrefixSet,
+			MatchNeighborSet:  resNeighborSet,
+			MatchAsPathLength: resAsPathLength,
+			MatchSetOptions:   int64(st.MatchSetOptions),
 		}
 		resAction := &api.Actions{
 			AcceptRoute: false,
@@ -549,4 +566,196 @@ func (p *Policy) ToApiStruct() *api.PolicyDefinition {
 		PolicyDefinitionName: p.Name,
 		StatementList:        resStatements,
 	}
+}
+
+// find index PrefixSet of request from PrefixSet of configuration file.
+// Return the idxPrefixSet of the location where the name of PrefixSet matches,
+// and idxPrefix of the location where element of PrefixSet matches
+func IndexOfPrefixSet(conPrefixSetList []config.PrefixSet, reqPrefixSet config.PrefixSet) (int, int) {
+	idxPrefixSet := -1
+	idxPrefix := -1
+	for i, conPrefixSet := range conPrefixSetList {
+		if conPrefixSet.PrefixSetName == reqPrefixSet.PrefixSetName {
+			idxPrefixSet = i
+			if reqPrefixSet.PrefixList == nil {
+				return idxPrefixSet, idxPrefix
+			}
+			for j, conPrefix := range conPrefixSet.PrefixList {
+				if reflect.DeepEqual(conPrefix.Address, reqPrefixSet.PrefixList[0].Address) && conPrefix.Masklength == reqPrefixSet.PrefixList[0].Masklength &&
+					conPrefix.MasklengthRange == reqPrefixSet.PrefixList[0].MasklengthRange {
+					idxPrefix = j
+					return idxPrefixSet, idxPrefix
+				}
+			}
+		}
+	}
+	return idxPrefixSet, idxPrefix
+}
+
+// find index NeighborSet of request from NeighborSet of configuration file.
+// Return the idxNeighborSet of the location where the name of NeighborSet matches,
+// and idxNeighbor of the location where element of NeighborSet matches
+func IndexOfNeighborSet(conNeighborSetList []config.NeighborSet, reqNeighborSet config.NeighborSet) (int, int) {
+	idxNeighborSet := -1
+	idxNeighbor := -1
+	for i, conNeighborSet := range conNeighborSetList {
+		if conNeighborSet.NeighborSetName == reqNeighborSet.NeighborSetName {
+			idxNeighborSet = i
+			if reqNeighborSet.NeighborInfoList == nil {
+				return idxNeighborSet, idxNeighbor
+			}
+			for j, conNeighbor := range conNeighborSet.NeighborInfoList {
+				if reflect.DeepEqual(conNeighbor.Address, reqNeighborSet.NeighborInfoList[0].Address) {
+					idxNeighbor = j
+					return idxNeighborSet, idxNeighbor
+				}
+			}
+		}
+	}
+	return idxNeighborSet, idxNeighbor
+}
+
+func PrefixSetToApiStruct(ps config.PrefixSet) *api.PrefixSet {
+	resPrefixList := make([]*api.Prefix, 0)
+	for _, p := range ps.PrefixList {
+		resPrefix := &api.Prefix{
+			Address:         p.Address.String(),
+			MaskLength:      uint32(p.Masklength),
+			MaskLengthRange: p.MasklengthRange,
+		}
+		resPrefixList = append(resPrefixList, resPrefix)
+	}
+	resPrefixSet := &api.PrefixSet{
+		PrefixSetName: ps.PrefixSetName,
+		PrefixList:    resPrefixList,
+	}
+	return resPrefixSet
+}
+
+func PrefixSetToConfigStruct(reqPrefixSet *api.PrefixSet) (bool, config.PrefixSet) {
+	var prefix config.Prefix
+	var prefixSet config.PrefixSet
+	isReqPrefixSet := true
+	if reqPrefixSet.PrefixList != nil {
+		prefix = config.Prefix{
+			Address:         net.ParseIP(reqPrefixSet.PrefixList[0].Address),
+			Masklength:      uint8(reqPrefixSet.PrefixList[0].MaskLength),
+			MasklengthRange: reqPrefixSet.PrefixList[0].MaskLengthRange,
+		}
+		prefixList := []config.Prefix{prefix}
+
+		prefixSet = config.PrefixSet{
+			PrefixSetName: reqPrefixSet.PrefixSetName,
+			PrefixList:    prefixList,
+		}
+	} else {
+		isReqPrefixSet = false
+		prefixSet = config.PrefixSet{
+			PrefixSetName: reqPrefixSet.PrefixSetName,
+			PrefixList:    nil,
+		}
+	}
+	return isReqPrefixSet, prefixSet
+}
+
+func NeighborSetToApiStruct(ns config.NeighborSet) *api.NeighborSet {
+	resNeighborList := make([]*api.Neighbor, 0)
+	for _, n := range ns.NeighborInfoList {
+		resNeighbor := &api.Neighbor{
+			Address: n.Address.String(),
+		}
+		resNeighborList = append(resNeighborList, resNeighbor)
+	}
+	resNeighborSet := &api.NeighborSet{
+		NeighborSetName: ns.NeighborSetName,
+		NeighborList:    resNeighborList,
+	}
+	return resNeighborSet
+}
+
+func NeighborSetToConfigStruct(reqNeighborSet *api.NeighborSet) (bool, config.NeighborSet) {
+	var neighbor config.NeighborInfo
+	var neighborSet config.NeighborSet
+	isReqNeighborSet := true
+	if reqNeighborSet.NeighborList != nil {
+		neighbor = config.NeighborInfo{
+			Address: net.ParseIP(reqNeighborSet.NeighborList[0].Address),
+		}
+		neighborList := []config.NeighborInfo{neighbor}
+
+		neighborSet = config.NeighborSet{
+			NeighborSetName:  reqNeighborSet.NeighborSetName,
+			NeighborInfoList: neighborList,
+		}
+	} else {
+		isReqNeighborSet = false
+		neighborSet = config.NeighborSet{
+			NeighborSetName:  reqNeighborSet.NeighborSetName,
+			NeighborInfoList: nil,
+		}
+	}
+	return isReqNeighborSet, neighborSet
+}
+
+func AsPathLengthToApiStruct(asPathLength config.AsPathLength) *api.AsPathLength {
+	value := ""
+	if asPathLength.Operator != "" {
+		value = fmt.Sprintf("%d", asPathLength.Value)
+	}
+	resAsPathLength := &api.AsPathLength{
+		Value:    value,
+		Operator: asPathLength.Operator,
+	}
+	return resAsPathLength
+}
+
+func PolicyDefinitionToApiStruct(pd config.PolicyDefinition, df config.DefinedSets) *api.PolicyDefinition {
+	conPrefixSetList := df.PrefixSetList
+	conNeighborSetList := df.NeighborSetList
+	resStatementList := make([]*api.Statement, 0)
+	for _, st := range pd.StatementList {
+		conditions := st.Conditions
+		actions := st.Actions
+
+		prefixSet := &api.PrefixSet{
+			PrefixSetName: conditions.MatchPrefixSet,
+		}
+		neighborSet := &api.NeighborSet{
+			NeighborSetName: conditions.MatchNeighborSet,
+		}
+		_, conPrefixSet := PrefixSetToConfigStruct(prefixSet)
+		_, conNeighborSet := NeighborSetToConfigStruct(neighborSet)
+		idxPrefixSet, _ := IndexOfPrefixSet(conPrefixSetList, conPrefixSet)
+		idxNeighborSet, _ := IndexOfNeighborSet(conNeighborSetList, conNeighborSet)
+
+		if idxPrefixSet != -1 {
+			prefixSet = PrefixSetToApiStruct(conPrefixSetList[idxPrefixSet])
+		}
+		if idxNeighborSet != -1 {
+			neighborSet = NeighborSetToApiStruct(conNeighborSetList[idxNeighborSet])
+		}
+		asPathLength := AsPathLengthToApiStruct(st.Conditions.BgpConditions.AsPathLength)
+
+		resConditions := &api.Conditions{
+			MatchPrefixSet:    prefixSet,
+			MatchNeighborSet:  neighborSet,
+			MatchAsPathLength: asPathLength,
+			MatchSetOptions:   int64(conditions.MatchSetOptions),
+		}
+		resActions := &api.Actions{
+			AcceptRoute: actions.AcceptRoute,
+			RejectRoute: actions.RejectRoute,
+		}
+		resStatement := &api.Statement{
+			StatementNeme: st.Name,
+			Conditions:    resConditions,
+			Actions:       resActions,
+		}
+		resStatementList = append(resStatementList, resStatement)
+	}
+	resPolicyDefinition := &api.PolicyDefinition{
+		PolicyDefinitionName: pd.Name,
+		StatementList:        resStatementList,
+	}
+	return resPolicyDefinition
 }

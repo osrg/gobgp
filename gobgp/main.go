@@ -21,6 +21,8 @@ import (
 	"fmt"
 	"github.com/jessevdk/go-flags"
 	"github.com/osrg/gobgp/api"
+	"github.com/osrg/gobgp/config"
+	"github.com/osrg/gobgp/policy"
 	"golang.org/x/net/context"
 	"google.golang.org/grpc"
 	"io"
@@ -1160,30 +1162,30 @@ func showNeighborPolicy(remoteIP net.IP) error {
 	}
 	var defaultInPolicy, defaultOutPolicy string
 	switch ap.DefaultImportPolicy {
-	case 0:
+	case int64(policy.ROUTE_TYPE_ACCEPT):
 		defaultInPolicy = "ACCEPT"
-	case 1:
+	case int64(policy.ROUTE_TYPE_REJECT):
 		defaultInPolicy = "REJECT"
 	}
 	switch ap.DefaultExportPolicy {
-	case 0:
+	case int64(policy.ROUTE_TYPE_ACCEPT):
 		defaultOutPolicy = "ACCEPT"
-	case 1:
+	case int64(policy.ROUTE_TYPE_REJECT):
 		defaultOutPolicy = "REJECT"
 	}
 
 	fmt.Printf("DefaultImportPolicy: %s\n", defaultInPolicy)
 	fmt.Printf("DefaultImportPolicy: %s\n", defaultOutPolicy)
 	fmt.Printf("ImportPolicies:\n")
-	space := "  "
+
 	for _, inPolicy := range ap.ImportPolicies {
-		fmt.Printf("%sPolicyName %s:\n", space, inPolicy.PolicyDefinitionName)
-		showPolicyStatement(space, inPolicy)
+		fmt.Printf("  PolicyName %s:\n", inPolicy.PolicyDefinitionName)
+		showPolicyStatement("  ", inPolicy)
 	}
 	fmt.Printf("ExportPolicies:\n")
 	for _, outPolicy := range ap.ExportPolicies {
-		fmt.Printf("%sPolicyName %s:\n", space, outPolicy.PolicyDefinitionName)
-		showPolicyStatement(space, outPolicy)
+		fmt.Printf("  PolicyName %s:\n", outPolicy.PolicyDefinitionName)
+		showPolicyStatement("  ", outPolicy)
 	}
 	return nil
 }
@@ -1200,8 +1202,6 @@ func (x *NeighborPolicyCommand) Execute(args []string) error {
 		}
 	} else {
 		parser.Usage = "neighbor [ <neighbor address> ] policy \n  gobgp neighbor [ <neighbor address> ]"
-		//parser.AddCommand(CMD_ADD, "subcommand for add policy to neighbor", "", &NeighborPolicyAddCommand{})
-		//parser.AddCommand(CMD_DEL, "subcommand for delete policy from neighbor", "", &NeighborPolicyDelCommand{})
 		if _, err := parser.ParseArgs(eArgs); err != nil {
 			os.Exit(1)
 		}
@@ -1619,8 +1619,6 @@ func (x *PolicyNeighborCommand) Execute(args []string) error {
 	}
 	parser := flags.NewParser(nil, flags.Default)
 	parser.Usage = "policy neighbor [OPTIONS]\n  gobgp policy neighbor"
-	//parser.AddCommand(CMD_ADD, "subcommand for add policy of neighbor", "", &PolicyNeighborAddCommand{})
-	//parser.AddCommand(CMD_DEL, "subcommand for delete policy of neighbor", "", &PolicyNeighborDelCommand{})
 	parser.ParseArgs(eArgs)
 	return nil
 }
@@ -1632,7 +1630,7 @@ func showPolicyStatement(head string, pd *api.PolicyDefinition) {
 		fmt.Printf("%s  StatementName %s:\n", head, st.StatementNeme)
 		fmt.Printf("%s    Conditions:\n", head)
 		prefixSet := st.Conditions.MatchPrefixSet
-		fmt.Printf("%s      PrefixSet:   ", head)
+		fmt.Printf("%s      PrefixSet:    ", head)
 		if len(prefixSet.PrefixList) != 0 {
 			format := formatPolicyPrefix([]*api.PrefixSet{st.Conditions.MatchPrefixSet})
 			for i, prefix := range prefixSet.PrefixList {
@@ -1640,7 +1638,7 @@ func showPolicyStatement(head string, pd *api.PolicyDefinition) {
 				if i == 0 {
 					fmt.Printf(format, prefixSet.PrefixSetName, p, prefix.MaskLengthRange)
 				} else {
-					fmt.Printf("%s                   ", head)
+					fmt.Printf("%s                    ", head)
 					fmt.Printf(format, "", p, prefix.MaskLengthRange)
 				}
 
@@ -1649,14 +1647,14 @@ func showPolicyStatement(head string, pd *api.PolicyDefinition) {
 			fmt.Print("\n")
 		}
 		neighborSet := st.Conditions.MatchNeighborSet
-		fmt.Printf("%s      NeighborSet: ", head)
+		fmt.Printf("%s      NeighborSet:  ", head)
 		if len(neighborSet.NeighborList) != 0 {
 			format := formatPolicyNeighbor([]*api.NeighborSet{st.Conditions.MatchNeighborSet})
 			for i, neighbor := range neighborSet.NeighborList {
 				if i == 0 {
 					fmt.Printf(format, neighborSet.NeighborSetName, neighbor.Address)
 				} else {
-					fmt.Printf("%s               ", head)
+					fmt.Printf("%s                ", head)
 					fmt.Printf(format, "", neighbor.Address)
 				}
 
@@ -1664,16 +1662,18 @@ func showPolicyStatement(head string, pd *api.PolicyDefinition) {
 		} else {
 			fmt.Print("\n")
 		}
+		asPathLentgh := st.Conditions.MatchAsPathLength
+		fmt.Printf("%s      AsPathLength: %s    %s\n", head, asPathLentgh.Value, asPathLentgh.Operator)
 		var option string
 		switch st.Conditions.MatchSetOptions {
-		case 0:
+		case config.MATCH_SET_OPTIONS_TYPE_ANY:
 			option = "ANY"
-		case 1:
+		case config.MATCH_SET_OPTIONS_TYPE_ALL:
 			option = "ALL"
-		case 2:
+		case config.MATCH_SET_OPTIONS_TYPE_INVERT:
 			option = "INVERT"
 		}
-		fmt.Printf("%s      MatchOption: %s\n", head, option)
+		fmt.Printf("%s      MatchOption:  %s\n", head, option)
 		fmt.Printf("%s    Actions:\n", head)
 		action := "REJECT"
 		if st.Actions.AcceptRoute {
@@ -1716,10 +1716,10 @@ func showPolicyRoutePolicies() error {
 		return nil
 	}
 	sort.Sort(m)
-	space := ""
+
 	for _, pd := range m {
 		fmt.Printf("PolicyName %s:\n", pd.PolicyDefinitionName)
-		showPolicyStatement(space, pd)
+		showPolicyStatement("", pd)
 	}
 	return nil
 }
@@ -1739,9 +1739,9 @@ func showPolicyRoutePolicy(args []string) error {
 		fmt.Println(string(j))
 		return nil
 	}
-	space := ""
+
 	fmt.Printf("PolicyName %s:\n", pd.PolicyDefinitionName)
-	showPolicyStatement(space, pd)
+	showPolicyStatement("", pd)
 	return nil
 }
 
@@ -1760,8 +1760,6 @@ func (x *PolicyRoutePolicyCommand) Execute(args []string) error {
 	}
 	parser := flags.NewParser(nil, flags.Default)
 	parser.Usage = "policy routepolicy [OPTIONS]\n  gobgp policy routepolicy"
-	//parser.AddCommand(CMD_ADD, "subcommand for add policy of routepolicy", "", &PolicyRoutePolicyAddCommand{})
-	//parser.AddCommand(CMD_DEL, "subcommand for delete policy of routepolicy", "", &PolicyRoutePolicyDelCommand{})
 	parser.ParseArgs(eArgs)
 	return nil
 }

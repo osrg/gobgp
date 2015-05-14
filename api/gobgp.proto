@@ -366,10 +366,16 @@ message NeighborSet {
 	repeated Neighbor neighbor_list = 2;
 }
 
+message AsPathLength {
+	string value = 1;
+	string operator = 2;
+}
+
 message Conditions {
 	PrefixSet match_prefix_set = 1;
 	NeighborSet match_neighbor_set = 2;
-	int64 match_set_options = 3;
+	AsPathLength match_as_path_length = 3;
+	int64 match_set_options = 4;
 }
 
 message Actions {

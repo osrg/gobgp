@@ -35,6 +35,7 @@ It has these top-level messages:
 	PrefixSet
 	Neighbor
 	NeighborSet
+	AsPathLength
 	Conditions
 	Actions
 	Statement
@@ -975,10 +976,20 @@ func (m *NeighborSet) GetNeighborList() []*Neighbor {
 	return nil
 }
 
+type AsPathLength struct {
+	Value    string `protobuf:"bytes,1,opt,name=value" json:"value,omitempty"`
+	Operator string `protobuf:"bytes,2,opt,name=operator" json:"operator,omitempty"`
+}
+
+func (m *AsPathLength) Reset()         { *m = AsPathLength{} }
+func (m *AsPathLength) String() string { return proto.CompactTextString(m) }
+func (*AsPathLength) ProtoMessage()    {}
+
 type Conditions struct {
-	MatchPrefixSet   *PrefixSet   `protobuf:"bytes,1,opt,name=match_prefix_set" json:"match_prefix_set,omitempty"`
-	MatchNeighborSet *NeighborSet `protobuf:"bytes,2,opt,name=match_neighbor_set" json:"match_neighbor_set,omitempty"`
-	MatchSetOptions  int64        `protobuf:"varint,3,opt,name=match_set_options" json:"match_set_options,omitempty"`
+	MatchPrefixSet    *PrefixSet    `protobuf:"bytes,1,opt,name=match_prefix_set" json:"match_prefix_set,omitempty"`
+	MatchNeighborSet  *NeighborSet  `protobuf:"bytes,2,opt,name=match_neighbor_set" json:"match_neighbor_set,omitempty"`
+	MatchAsPathLength *AsPathLength `protobuf:"bytes,3,opt,name=match_as_path_length" json:"match_as_path_length,omitempty"`
+	MatchSetOptions   int64         `protobuf:"varint,4,opt,name=match_set_options" json:"match_set_options,omitempty"`
 }
 
 func (m *Conditions) Reset()         { *m = Conditions{} }
@@ -995,6 +1006,13 @@ func (m *Conditions) GetMatchPrefixSet() *PrefixSet {
 func (m *Conditions) GetMatchNeighborSet() *NeighborSet {
 	if m != nil {
 		return m.MatchNeighborSet
+	}
+	return nil
+}
+
+func (m *Conditions) GetMatchAsPathLength() *AsPathLength {
+	if m != nil {
+		return m.MatchAsPathLength
 	}
 	return nil
 }
