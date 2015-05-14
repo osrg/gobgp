@@ -23,7 +23,6 @@ import (
 	"github.com/osrg/gobgp/policy"
 	"net"
 	"os"
-	"reflect"
 	"strconv"
 )
 
@@ -312,7 +311,6 @@ func (server *BgpServer) handleGrpc(grpcReq *GrpcRequest) {
 		REQ_ADJ_RIB_IN, REQ_ADJ_RIB_OUT,
 		REQ_NEIGHBOR_ENABLE, REQ_NEIGHBOR_DISABLE,
 		REQ_NEIGHBOR_POLICY:
-		log.Info("### in server")
 		remoteAddr := grpcReq.RemoteAddr
 		result := &GrpcResponse{}
 		info, found := server.peerMap[remoteAddr]
@@ -332,7 +330,7 @@ func (server *BgpServer) handleGrpc(grpcReq *GrpcRequest) {
 		result := &GrpcResponse{}
 		if len(info) > 0 {
 			for _, ps := range info {
-				resPrefixSet := prefixToApiStruct(ps)
+				resPrefixSet := policy.PrefixSetToApiStruct(ps)
 				result = &GrpcResponse{
 					Data: resPrefixSet,
 				}
@@ -350,7 +348,7 @@ func (server *BgpServer) handleGrpc(grpcReq *GrpcRequest) {
 		resPrefixSet := &api.PrefixSet{}
 		for _, ps := range info {
 			if ps.PrefixSetName == name {
-				resPrefixSet = prefixToApiStruct(ps)
+				resPrefixSet = policy.PrefixSetToApiStruct(ps)
 				break
 			}
 		}
@@ -368,7 +366,7 @@ func (server *BgpServer) handleGrpc(grpcReq *GrpcRequest) {
 		reqPrefixSet := grpcReq.Data.(*api.PrefixSet)
 		conPrefixSetList := server.routingPolicy.DefinedSets.PrefixSetList
 		result := &GrpcResponse{}
-		isReqPrefixSet, prefixSet := prefixToConfigStruct(reqPrefixSet)
+		isReqPrefixSet, prefixSet := policy.PrefixSetToConfigStruct(reqPrefixSet)
 		if !isReqPrefixSet {
 			result.ResponseErr = fmt.Errorf("dose not reqest of policy prefix.")
 			grpcReq.ResponseCh <- result
@@ -376,8 +374,8 @@ func (server *BgpServer) handleGrpc(grpcReq *GrpcRequest) {
 		}
 
 		// If the same PrefixSet is not set, add PrefixSet of request to the end.
-		// If only name of the PrefixSet is same, Overwrite with PrefixSet of request
-		idxPrefixSet, idxPrefix := findPrefixSet(conPrefixSetList, prefixSet)
+		// If only name of the PrefixSet is same, overwrite with PrefixSet of request
+		idxPrefixSet, idxPrefix := policy.IndexOfPrefixSet(conPrefixSetList, prefixSet)
 		if idxPrefixSet == -1 {
 			conPrefixSetList = append(conPrefixSetList, prefixSet)
 		} else {
@@ -393,12 +391,12 @@ func (server *BgpServer) handleGrpc(grpcReq *GrpcRequest) {
 		reqPrefixSet := grpcReq.Data.(*api.PrefixSet)
 		conPrefixSetList := server.routingPolicy.DefinedSets.PrefixSetList
 		result := &GrpcResponse{}
-		isReqPrefixSet, prefixSet := prefixToConfigStruct(reqPrefixSet)
+		isReqPrefixSet, prefixSet := policy.PrefixSetToConfigStruct(reqPrefixSet)
 		if isReqPrefixSet {
 
 			// If only name of the PrefixSet is same, delete all of the elements of the PrefixSet.
-			// If the same PrefixSet is not set, delete the elements in PrefixSet.
-			idxPrefixSet, idxPrefix := findPrefixSet(conPrefixSetList, prefixSet)
+			// If the same element PrefixSet, delete the it's element from PrefixSet.
+			idxPrefixSet, idxPrefix := policy.IndexOfPrefixSet(conPrefixSetList, prefixSet)
 			if idxPrefixSet == -1 {
 				result.ResponseErr = fmt.Errorf("Prefix %v %v/%v %v doesn't  exist.", prefixSet.PrefixSetName,
 					prefixSet.PrefixList[0].Address, prefixSet.PrefixList[0].Masklength, prefixSet.PrefixList[0].MasklengthRange)
@@ -441,7 +439,7 @@ func (server *BgpServer) handleGrpc(grpcReq *GrpcRequest) {
 		result := &GrpcResponse{}
 		if len(info) > 0 {
 			for _, ns := range info {
-				resNeighborSet := neighborToApiStruct(ns)
+				resNeighborSet := policy.NeighborSetToApiStruct(ns)
 				result = &GrpcResponse{
 					Data: resNeighborSet,
 				}
@@ -459,7 +457,7 @@ func (server *BgpServer) handleGrpc(grpcReq *GrpcRequest) {
 		resNeighborSet := &api.NeighborSet{}
 		for _, ns := range info {
 			if ns.NeighborSetName == name {
-				resNeighborSet = neighborToApiStruct(ns)
+				resNeighborSet = policy.NeighborSetToApiStruct(ns)
 				break
 			}
 		}
@@ -479,7 +477,7 @@ func (server *BgpServer) handleGrpc(grpcReq *GrpcRequest) {
 		result := &GrpcResponse{}
 		if len(info) > 0 {
 			for _, pd := range info {
-				resPolicyDefinition := policyDefinitionToApiStruct(pd, df)
+				resPolicyDefinition := policy.PolicyDefinitionToApiStruct(pd, df)
 				result = &GrpcResponse{
 					Data: resPolicyDefinition,
 				}
@@ -498,7 +496,7 @@ func (server *BgpServer) handleGrpc(grpcReq *GrpcRequest) {
 		resPolicyDefinition := &api.PolicyDefinition{}
 		for _, pd := range info {
 			if pd.Name == name {
-				resPolicyDefinition = policyDefinitionToApiStruct(pd, df)
+				resPolicyDefinition = policy.PolicyDefinitionToApiStruct(pd, df)
 				break
 			}
 		}
@@ -513,182 +511,4 @@ func (server *BgpServer) handleGrpc(grpcReq *GrpcRequest) {
 		}
 		close(grpcReq.ResponseCh)
 	}
-}
-
-// find PrefixSet of request from PrefixSet of configuration file.
-// Return the idxPrefixSet of the location where the name of PrefixSet matches and,
-// idxPrefix of the location where elements of PrefixSet matches
-func findPrefixSet(conPrefixSetList []config.PrefixSet, reqPrefixSet config.PrefixSet) (int, int) {
-	idxPrefixSet := -1
-	idxPrefix := -1
-	for i, conPrefixSet := range conPrefixSetList {
-		if conPrefixSet.PrefixSetName == reqPrefixSet.PrefixSetName {
-			idxPrefixSet = i
-			if reqPrefixSet.PrefixList == nil {
-				return idxPrefixSet, idxPrefix
-			}
-			for j, conPrefix := range conPrefixSet.PrefixList {
-				if reflect.DeepEqual(conPrefix.Address, reqPrefixSet.PrefixList[0].Address) && conPrefix.Masklength == reqPrefixSet.PrefixList[0].Masklength &&
-					conPrefix.MasklengthRange == reqPrefixSet.PrefixList[0].MasklengthRange {
-					idxPrefix = j
-					return idxPrefixSet, idxPrefix
-				}
-			}
-		}
-	}
-	return idxPrefixSet, idxPrefix
-}
-
-// find NeighborSet of request from NeighborSet of configuration file.
-// Return the idxNeighborSet of the location where the name of NeighborSet matches and,
-// idxNeighbor of the location where elements of NeighborSet matches
-func findNeighborSet(conNeighborSetList []config.NeighborSet, reqNeighborSet config.NeighborSet) (int, int) {
-	idxNeighborSet := -1
-	idxNeighbor := -1
-	for i, conNeighborSet := range conNeighborSetList {
-		if conNeighborSet.NeighborSetName == reqNeighborSet.NeighborSetName {
-			idxNeighborSet = i
-			if reqNeighborSet.NeighborInfoList == nil {
-				return idxNeighborSet, idxNeighbor
-			}
-			for j, conNeighbor := range conNeighborSet.NeighborInfoList {
-				if reflect.DeepEqual(conNeighbor.Address, reqNeighborSet.NeighborInfoList[0].Address) {
-					idxNeighbor = j
-					return idxNeighborSet, idxNeighbor
-				}
-			}
-		}
-	}
-	return idxNeighborSet, idxNeighbor
-}
-
-func prefixToApiStruct(ps config.PrefixSet) *api.PrefixSet {
-	resPrefixList := make([]*api.Prefix, 0)
-	for _, p := range ps.PrefixList {
-		resPrefix := &api.Prefix{
-			Address:         p.Address.String(),
-			MaskLength:      uint32(p.Masklength),
-			MaskLengthRange: p.MasklengthRange,
-		}
-		resPrefixList = append(resPrefixList, resPrefix)
-	}
-	resPrefixSet := &api.PrefixSet{
-		PrefixSetName: ps.PrefixSetName,
-		PrefixList:    resPrefixList,
-	}
-	return resPrefixSet
-}
-
-func prefixToConfigStruct(reqPrefixSet *api.PrefixSet) (bool, config.PrefixSet) {
-	var prefix config.Prefix
-	var prefixSet config.PrefixSet
-	isReqPrefixSet := true
-	if reqPrefixSet.PrefixList != nil {
-		prefix = config.Prefix{
-			Address:         net.ParseIP(reqPrefixSet.PrefixList[0].Address),
-			Masklength:      uint8(reqPrefixSet.PrefixList[0].MaskLength),
-			MasklengthRange: reqPrefixSet.PrefixList[0].MaskLengthRange,
-		}
-		prefixList := []config.Prefix{prefix}
-
-		prefixSet = config.PrefixSet{
-			PrefixSetName: reqPrefixSet.PrefixSetName,
-			PrefixList:    prefixList,
-		}
-	} else {
-		isReqPrefixSet = false
-		prefixSet = config.PrefixSet{
-			PrefixSetName: reqPrefixSet.PrefixSetName,
-			PrefixList:    nil,
-		}
-	}
-	return isReqPrefixSet, prefixSet
-}
-
-func neighborToApiStruct(ns config.NeighborSet) *api.NeighborSet {
-	resNeighborList := make([]*api.Neighbor, 0)
-	for _, n := range ns.NeighborInfoList {
-		resNeighbor := &api.Neighbor{
-			Address: n.Address.String(),
-		}
-		resNeighborList = append(resNeighborList, resNeighbor)
-	}
-	resNeighborSet := &api.NeighborSet{
-		NeighborSetName: ns.NeighborSetName,
-		NeighborList:    resNeighborList,
-	}
-	return resNeighborSet
-}
-
-func neighborToConfigStruct(reqNeighborSet *api.NeighborSet) (bool, config.NeighborSet) {
-	var neighbor config.NeighborInfo
-	var neighborSet config.NeighborSet
-	isReqNeighborSet := true
-	if reqNeighborSet.NeighborList != nil {
-		neighbor = config.NeighborInfo{
-			Address: net.ParseIP(reqNeighborSet.NeighborList[0].Address),
-		}
-		neighborList := []config.NeighborInfo{neighbor}
-
-		neighborSet = config.NeighborSet{
-			NeighborSetName:  reqNeighborSet.NeighborSetName,
-			NeighborInfoList: neighborList,
-		}
-	} else {
-		isReqNeighborSet = false
-		neighborSet = config.NeighborSet{
-			NeighborSetName:  reqNeighborSet.NeighborSetName,
-			NeighborInfoList: nil,
-		}
-	}
-	return isReqNeighborSet, neighborSet
-}
-
-func policyDefinitionToApiStruct(pd config.PolicyDefinition, df config.DefinedSets) *api.PolicyDefinition {
-	conPrefixSetList := df.PrefixSetList
-	conNeighborSetList := df.NeighborSetList
-	resStatementList := make([]*api.Statement, 0)
-	for _, st := range pd.StatementList {
-		conditions := st.Conditions
-		actions := st.Actions
-
-		prefixSet := &api.PrefixSet{
-			PrefixSetName: conditions.MatchPrefixSet,
-		}
-		neighborSet := &api.NeighborSet{
-			NeighborSetName: conditions.MatchNeighborSet,
-		}
-		_, conPrefixSet := prefixToConfigStruct(prefixSet)
-		_, conNeighborSet := neighborToConfigStruct(neighborSet)
-		idxPrefixSet, _ := findPrefixSet(conPrefixSetList, conPrefixSet)
-		idxNeighborSet, _ := findNeighborSet(conNeighborSetList, conNeighborSet)
-
-		if idxPrefixSet != -1 {
-			prefixSet = prefixToApiStruct(conPrefixSetList[idxPrefixSet])
-		}
-		if idxNeighborSet != -1 {
-			neighborSet = neighborToApiStruct(conNeighborSetList[idxNeighborSet])
-		}
-
-		resConditions := &api.Conditions{
-			MatchPrefixSet:   prefixSet,
-			MatchNeighborSet: neighborSet,
-			MatchSetOptions:  int64(conditions.MatchSetOptions),
-		}
-		resActions := &api.Actions{
-			AcceptRoute: actions.AcceptRoute,
-			RejectRoute: actions.RejectRoute,
-		}
-		resStatement := &api.Statement{
-			StatementNeme: st.Name,
-			Conditions:    resConditions,
-			Actions:       resActions,
-		}
-		resStatementList = append(resStatementList, resStatement)
-	}
-	resPolicyDefinition := &api.PolicyDefinition{
-		PolicyDefinitionName: pd.Name,
-		StatementList:        resStatementList,
-	}
-	return resPolicyDefinition
 }
