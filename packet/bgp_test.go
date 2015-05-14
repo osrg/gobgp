@@ -94,7 +94,7 @@ func update() *BGPMessage {
 			&EVPNMacIPAdvertisementRoute{NewRouteDistinguisherFourOctetAS(5, 6),
 				EthernetSegmentIdentifier{ESI_ARBITRARY, make([]byte, 9)}, 3, 48,
 				mac, 32, net.ParseIP("192.2.1.2"),
-				[]uint32{3, 4}}),
+				*NewLabel(3, 4)}),
 		NewEVPNNLRI(EVPN_INCLUSIVE_MULTICAST_ETHERNET_TAG, 0,
 			&EVPNMulticastEthernetTagRoute{NewRouteDistinguisherFourOctetAS(5, 6), 3, 32, net.ParseIP("192.2.1.2")}),
 		NewEVPNNLRI(EVPN_ETHERNET_SEGMENT_ROUTE, 0,

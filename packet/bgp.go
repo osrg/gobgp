@@ -852,10 +852,14 @@ func labelDecode(data []byte) uint32 {
 	return uint32(data[0]<<16 | data[1]<<8 | data[2])
 }
 
-func labelSerialize(label uint32, buf []byte) {
+func labelSerialize(label uint32) []byte {
+	buf := make([]byte, 3)
+
 	buf[0] = byte((label >> 16) & 0xff)
 	buf[1] = byte((label >> 8) & 0xff)
 	buf[2] = byte(label & 0xff)
+
+	return buf
 }
 
 type Label struct {
@@ -897,6 +901,11 @@ func (l *Label) Serialize() ([]byte, error) {
 func (l *Label) Len() int { return 3 * len(l.Labels) }
 
 func NewLabel(labels ...uint32) *Label {
+	for _, l := range labels {
+		if ((l>>24) & 0xff) != 0 {
+			return nil
+		}
+	}
 	return &Label{labels}
 }
 
@@ -1273,8 +1282,7 @@ func (er *EVPNEthernetAutoDiscoveryRoute) Serialize() ([]byte, error) {
 	binary.BigEndian.PutUint32(tbuf, er.ETag)
 	buf = append(buf, tbuf...)
 
-	tbuf = make([]byte, 3)
-	labelSerialize(er.Label, tbuf)
+	tbuf = labelSerialize(er.Label)
 	buf = append(buf, tbuf...)
 
 	return buf, nil
@@ -1288,7 +1296,7 @@ type EVPNMacIPAdvertisementRoute struct {
 	MacAddress       net.HardwareAddr
 	IPAddressLength  uint8
 	IPAddress        net.IP
-	Labels           []uint32
+	Labels           Label
 }
 
 func (er *EVPNMacIPAdvertisementRoute) DecodeFromBytes(data []byte) error {
@@ -1312,13 +1320,14 @@ func (er *EVPNMacIPAdvertisementRoute) DecodeFromBytes(data []byte) error {
 	}
 	data = data[(er.IPAddressLength / 8):]
 	label1 := labelDecode(data)
-	er.Labels = append(er.Labels, label1)
 	data = data[3:]
 	if len(data) == 3 {
 		label2 := labelDecode(data)
-		er.Labels = append(er.Labels, label2)
-
+		er.Labels = *NewLabel(label1, label2)
+	} else {
+		er.Labels = *NewLabel(label1)
 	}
+
 	return nil
 }
 
@@ -1352,9 +1361,8 @@ func (er *EVPNMacIPAdvertisementRoute) Serialize() ([]byte, error) {
 		return nil, fmt.Errorf("Invalid IP address length", er.IPAddressLength)
 	}
 
-	for _, l := range er.Labels {
-		tbuf = make([]byte, 3)
-		labelSerialize(l, tbuf)
+	for _, l := range er.Labels.Labels {
+		tbuf := labelSerialize(l)
 		buf = append(buf, tbuf...)
 	}
 	return buf, nil
