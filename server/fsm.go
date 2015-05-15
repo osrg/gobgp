@@ -678,16 +678,24 @@ func (h *FSMHandler) sendMessageloop() error {
 			log.WithFields(log.Fields{
 				"Topic": "Peer",
 				"Key":   h.fsm.peerConfig.NeighborAddress,
-			}).Info("send loop is dead")
+			}).Info("send loop is dead due to Dying()")
 			return nil
 		case m := <-h.outgoing:
 			err := send(m)
 			if err != nil {
+				log.WithFields(log.Fields{
+					"Topic": "Peer",
+					"Key":   h.fsm.peerConfig.NeighborAddress,
+				}).Info("send loop is dead due to io failure")
 				return nil
 			}
 		case <-fsm.keepaliveTicker.C:
 			err := send(bgp.NewBGPKeepAliveMessage())
 			if err != nil {
+				log.WithFields(log.Fields{
+					"Topic": "Peer",
+					"Key":   h.fsm.peerConfig.NeighborAddress,
+				}).Info("send loop is dead due to io failure about keepalive")
 				return nil
 			}
 		}
