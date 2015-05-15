@@ -1143,6 +1143,7 @@ type GrpcClient interface {
 	ModPolicyPrefix(ctx context.Context, opts ...grpc.CallOption) (Grpc_ModPolicyPrefixClient, error)
 	GetPolicyNeighbors(ctx context.Context, in *PolicyArguments, opts ...grpc.CallOption) (Grpc_GetPolicyNeighborsClient, error)
 	GetPolicyNeighbor(ctx context.Context, in *PolicyArguments, opts ...grpc.CallOption) (*NeighborSet, error)
+	ModPolicyNeighbor(ctx context.Context, opts ...grpc.CallOption) (Grpc_ModPolicyNeighborClient, error)
 	GetPolicyRoutePolicies(ctx context.Context, in *PolicyArguments, opts ...grpc.CallOption) (Grpc_GetPolicyRoutePoliciesClient, error)
 	GetPolicyRoutePolicy(ctx context.Context, in *PolicyArguments, opts ...grpc.CallOption) (*PolicyDefinition, error)
 }
@@ -1476,8 +1477,39 @@ func (c *grpcClient) GetPolicyNeighbor(ctx context.Context, in *PolicyArguments,
 	return out, nil
 }
 
+func (c *grpcClient) ModPolicyNeighbor(ctx context.Context, opts ...grpc.CallOption) (Grpc_ModPolicyNeighborClient, error) {
+	stream, err := grpc.NewClientStream(ctx, &_Grpc_serviceDesc.Streams[7], c.cc, "/api.Grpc/ModPolicyNeighbor", opts...)
+	if err != nil {
+		return nil, err
+	}
+	x := &grpcModPolicyNeighborClient{stream}
+	return x, nil
+}
+
+type Grpc_ModPolicyNeighborClient interface {
+	Send(*PolicyArguments) error
+	Recv() (*Error, error)
+	grpc.ClientStream
+}
+
+type grpcModPolicyNeighborClient struct {
+	grpc.ClientStream
+}
+
+func (x *grpcModPolicyNeighborClient) Send(m *PolicyArguments) error {
+	return x.ClientStream.SendMsg(m)
+}
+
+func (x *grpcModPolicyNeighborClient) Recv() (*Error, error) {
+	m := new(Error)
+	if err := x.ClientStream.RecvMsg(m); err != nil {
+		return nil, err
+	}
+	return m, nil
+}
+
 func (c *grpcClient) GetPolicyRoutePolicies(ctx context.Context, in *PolicyArguments, opts ...grpc.CallOption) (Grpc_GetPolicyRoutePoliciesClient, error) {
-	stream, err := grpc.NewClientStream(ctx, &_Grpc_serviceDesc.Streams[7], c.cc, "/api.Grpc/GetPolicyRoutePolicies", opts...)
+	stream, err := grpc.NewClientStream(ctx, &_Grpc_serviceDesc.Streams[8], c.cc, "/api.Grpc/GetPolicyRoutePolicies", opts...)
 	if err != nil {
 		return nil, err
 	}
@@ -1538,6 +1570,7 @@ type GrpcServer interface {
 	ModPolicyPrefix(Grpc_ModPolicyPrefixServer) error
 	GetPolicyNeighbors(*PolicyArguments, Grpc_GetPolicyNeighborsServer) error
 	GetPolicyNeighbor(context.Context, *PolicyArguments) (*NeighborSet, error)
+	ModPolicyNeighbor(Grpc_ModPolicyNeighborServer) error
 	GetPolicyRoutePolicies(*PolicyArguments, Grpc_GetPolicyRoutePoliciesServer) error
 	GetPolicyRoutePolicy(context.Context, *PolicyArguments) (*PolicyDefinition, error)
 }
@@ -1835,6 +1868,32 @@ func _Grpc_GetPolicyNeighbor_Handler(srv interface{}, ctx context.Context, codec
 	return out, nil
 }
 
+func _Grpc_ModPolicyNeighbor_Handler(srv interface{}, stream grpc.ServerStream) error {
+	return srv.(GrpcServer).ModPolicyNeighbor(&grpcModPolicyNeighborServer{stream})
+}
+
+type Grpc_ModPolicyNeighborServer interface {
+	Send(*Error) error
+	Recv() (*PolicyArguments, error)
+	grpc.ServerStream
+}
+
+type grpcModPolicyNeighborServer struct {
+	grpc.ServerStream
+}
+
+func (x *grpcModPolicyNeighborServer) Send(m *Error) error {
+	return x.ServerStream.SendMsg(m)
+}
+
+func (x *grpcModPolicyNeighborServer) Recv() (*PolicyArguments, error) {
+	m := new(PolicyArguments)
+	if err := x.ServerStream.RecvMsg(m); err != nil {
+		return nil, err
+	}
+	return m, nil
+}
+
 func _Grpc_GetPolicyRoutePolicies_Handler(srv interface{}, stream grpc.ServerStream) error {
 	m := new(PolicyArguments)
 	if err := stream.RecvMsg(m); err != nil {
@@ -1958,6 +2017,12 @@ var _Grpc_serviceDesc = grpc.ServiceDesc{
 			StreamName:    "GetPolicyNeighbors",
 			Handler:       _Grpc_GetPolicyNeighbors_Handler,
 			ServerStreams: true,
+		},
+		{
+			StreamName:    "ModPolicyNeighbor",
+			Handler:       _Grpc_ModPolicyNeighbor_Handler,
+			ServerStreams: true,
+			ClientStreams: true,
 		},
 		{
 			StreamName:    "GetPolicyRoutePolicies",

@@ -38,6 +38,7 @@ service Grpc {
   rpc ModPolicyPrefix(stream PolicyArguments) returns (stream Error) {}
   rpc GetPolicyNeighbors(PolicyArguments) returns (stream NeighborSet) {}
   rpc GetPolicyNeighbor(PolicyArguments) returns (NeighborSet) {}
+  rpc ModPolicyNeighbor(stream PolicyArguments) returns (stream Error) {}
   rpc GetPolicyRoutePolicies(PolicyArguments) returns (stream PolicyDefinition) {}
   rpc GetPolicyRoutePolicy(PolicyArguments) returns (PolicyDefinition) {}
 }

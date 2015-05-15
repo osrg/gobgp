@@ -51,6 +51,9 @@ const (
 	REQ_POLICY_PREFIXES_DELETE
 	REQ_POLICY_NEIGHBOR
 	REQ_POLICY_NEIGHBORS
+	REQ_POLICY_NEIGHBOR_ADD
+	REQ_POLICY_NEIGHBOR_DELETE
+	REQ_POLICY_NEIGHBORS_DELETE
 	REQ_POLICY_ROUTEPOLICIES
 	REQ_POLICY_ROUTEPOLICY
 )
@@ -341,6 +344,7 @@ func (s *Server) getPolicy(arg *api.PolicyArguments) (interface{}, error) {
 func (s *Server) modPolicy(arg *api.PolicyArguments, stream interface{}) error {
 	var rf bgp.RouteFamily
 	var reqType int
+	var err error
 	switch arg.Resource {
 	case api.Resource_POLICY_PREFIX:
 		switch arg.Operation {
@@ -361,16 +365,37 @@ func (s *Server) modPolicy(arg *api.PolicyArguments, stream interface{}) error {
 			log.Debug(err.Error())
 			return err
 		}
-
-		err := stream.(api.Grpc_ModPolicyPrefixServer).Send(&api.Error{
+		err = stream.(api.Grpc_ModPolicyPrefixServer).Send(&api.Error{
 			Code: api.Error_SUCCESS,
 		})
+	case api.Resource_POLICY_NEIGHBOR:
+		switch arg.Operation {
+		case api.Operation_ADD:
+			reqType = REQ_POLICY_NEIGHBOR_ADD
+		case api.Operation_DEL:
+			reqType = REQ_POLICY_NEIGHBOR_DELETE
+		case api.Operation_DEL_ALL:
+			reqType = REQ_POLICY_NEIGHBORS_DELETE
+		default:
+			return fmt.Errorf("unsupported operation: %s", arg.Operation)
+		}
+		req := NewGrpcRequest(reqType, "", rf, arg.NeighborSet)
+		s.bgpServerCh <- req
 
-		if err != nil {
+		res := <-req.ResponseCh
+		if err := res.Err(); err != nil {
+			log.Debug(err.Error())
 			return err
 		}
+		err = stream.(api.Grpc_ModPolicyNeighborServer).Send(&api.Error{
+			Code: api.Error_SUCCESS,
+		})
 	default:
 		return fmt.Errorf("unsupported resource type: %v", arg.Resource)
+	}
+
+	if err != nil {
+		return err
 	}
 	return nil
 
@@ -419,6 +444,21 @@ func (s *Server) GetPolicyNeighbor(ctx context.Context, arg *api.PolicyArguments
 		return nil, err
 	}
 	return data.(*api.NeighborSet), nil
+}
+
+func (s *Server) ModPolicyNeighbor(stream api.Grpc_ModPolicyNeighborServer) error {
+	for {
+		arg, err := stream.Recv()
+		if err == io.EOF {
+			return nil
+		} else if err != nil {
+			return err
+		}
+		if err := s.modPolicy(arg, stream); err != nil {
+			return err
+		}
+		return nil
+	}
 }
 
 func (s *Server) GetPolicyRoutePolicies(arg *api.PolicyArguments, stream api.Grpc_GetPolicyRoutePoliciesServer) error {

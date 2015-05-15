@@ -256,6 +256,10 @@ func requestGrpc(cmd string, eArgs []string, remoteIP net.IP) error {
 		} else {
 			return showPolicyNeighbor(eArgs)
 		}
+	case CMD_POLICY + "_" + CMD_NEIGHBOR + "_" + CMD_ADD:
+		return modPolicyNeighbor(CMD_ADD, eArgs)
+	case CMD_POLICY + "_" + CMD_NEIGHBOR + "_" + CMD_DEL:
+		return modPolicyNeighbor(CMD_DEL, eArgs)
 	case CMD_POLICY + "_" + CMD_ROUTEPOLICY:
 		if len(eArgs) == 0 {
 			return showPolicyRoutePolicies()
@@ -1216,8 +1220,8 @@ func (x *PolicyCommand) Execute(args []string) error {
 	parser := flags.NewParser(nil, flags.Default)
 	parser.Usage = "policy"
 	parser.AddCommand(CMD_PREFIX, "subcommand for prefix of policy", "", &PolicyPrefixCommand{})
-	parser.AddCommand(CMD_NEIGHBOR, "subcommand for prefix of neighbor", "", &PolicyNeighborCommand{})
-	parser.AddCommand(CMD_ROUTEPOLICY, "subcommand for prefix of routepolicy", "", &PolicyRoutePolicyCommand{})
+	parser.AddCommand(CMD_NEIGHBOR, "subcommand for neighbor of policy", "", &PolicyNeighborCommand{})
+	parser.AddCommand(CMD_ROUTEPOLICY, "subcommand for routepolicy of policy", "", &PolicyRoutePolicyCommand{})
 	if _, err := parser.ParseArgs(eArgs); err != nil {
 		os.Exit(1)
 	}
@@ -1226,7 +1230,7 @@ func (x *PolicyCommand) Execute(args []string) error {
 
 type PolicyPrefixCommand struct{}
 
-func formatPolicyPrefix(prefixSetList []*api.PrefixSet) string {
+func formatPolicyPrefix(prefixSetList []*api.PrefixSet) (string, string) {
 	maxNameLen := len("Name")
 	maxPrefixLen := len("Prefix")
 	maxRangeLen := len("MaskRange")
@@ -1243,8 +1247,9 @@ func formatPolicyPrefix(prefixSetList []*api.PrefixSet) string {
 			}
 		}
 	}
-	format := "%-" + fmt.Sprint(maxNameLen) + "s  %-" + fmt.Sprint(maxPrefixLen) + "s  %-" + fmt.Sprint(maxRangeLen) + "s\n"
-	return format
+	formatPrefixSet := "%-" + fmt.Sprint(maxNameLen) + "s  %-" + fmt.Sprint(maxPrefixLen) + "s  %-" + fmt.Sprint(maxRangeLen) + "s\n"
+	formatPrefixListOnly := "%-" + fmt.Sprint(maxPrefixLen) + "s  %-" + fmt.Sprint(maxRangeLen) + "s\n"
+	return formatPrefixSet, formatPrefixListOnly
 }
 
 func showPolicyPrefixes() error {
@@ -1281,7 +1286,7 @@ func showPolicyPrefixes() error {
 	}
 	sort.Sort(m)
 
-	format := formatPolicyPrefix(m)
+	format, _ := formatPolicyPrefix(m)
 	fmt.Printf(format, "Name", "Prefix", "MaskRange")
 	for _, ps := range m {
 		for i, p := range ps.PrefixList {
@@ -1312,7 +1317,7 @@ func showPolicyPrefix(args []string) error {
 		return nil
 	}
 
-	format := formatPolicyPrefix([]*api.PrefixSet{ps})
+	format, _ := formatPolicyPrefix([]*api.PrefixSet{ps})
 	fmt.Printf(format, "Name", "Prefix", "MaskRange")
 	for i, p := range ps.PrefixList {
 		prefix := fmt.Sprintf("%s/%d", p.Address, p.MaskLength)
@@ -1340,8 +1345,8 @@ func (x *PolicyPrefixCommand) Execute(args []string) error {
 	}
 	parser := flags.NewParser(nil, flags.Default)
 	parser.Usage = "policy prefix [OPTIONS]\n  gobgp policy prefix"
-	parser.AddCommand(CMD_ADD, "subcommand for add route to policy prefix", "", &PolicyPrefixAddCommand{})
-	parser.AddCommand(CMD_DEL, "subcommand for delete route from policy prefix", "", &PolicyPrefixDelCommand{})
+	parser.AddCommand(CMD_ADD, "subcommand for add prefix condition to policy", "", &PolicyPrefixAddCommand{})
+	parser.AddCommand(CMD_DEL, "subcommand for delete prefix condition from policy", "", &PolicyPrefixDelCommand{})
 	parser.ParseArgs(eArgs)
 	return nil
 }
@@ -1407,7 +1412,7 @@ func modPolicyPrefix(modtype string, eArgs []string) error {
 	switch modtype {
 	case CMD_ADD:
 		if len(eArgs) < 2 {
-			return fmt.Errorf("policy prefix add <prefix name> <prefix> [<mask length renge>]")
+			return fmt.Errorf("policy prefix add <prefix set name> <prefix> [<mask length renge>]")
 		}
 		if prefixSet, e = parsePrefixSet(eArgs); e != nil {
 			return e
@@ -1458,7 +1463,7 @@ func modPolicyPrefix(modtype string, eArgs []string) error {
 func (x *PolicyPrefixAddCommand) Execute(args []string) error {
 	eArgs := extractArgs(CMD_ADD)
 	if len(eArgs) == 0 || len(eArgs) > 3 {
-		return fmt.Errorf("policy prefix add <prefix name> <prefix> [<mask length renge>]")
+		return fmt.Errorf("policy prefix add <prefix set name> <prefix> [<mask length renge> ]")
 	} else if !(eArgs[0] == "-h" || eArgs[0] == "--help") {
 		if err := requestGrpc(CMD_POLICY+"_"+CMD_PREFIX+"_"+CMD_ADD, eArgs, nil); err != nil {
 			return err
@@ -1466,7 +1471,7 @@ func (x *PolicyPrefixAddCommand) Execute(args []string) error {
 		return nil
 	}
 	parser := flags.NewParser(nil, flags.Default)
-	parser.Usage = "policy prefix add <prefix name> <prefix> [mask length renge]"
+	parser.Usage = "policy prefix add <prefix set name> <prefix> [mask length renge]"
 	parser.ParseArgs(eArgs)
 	return nil
 }
@@ -1476,7 +1481,7 @@ type PolicyPrefixDelCommand struct{}
 func (x *PolicyPrefixDelCommand) Execute(args []string) error {
 	eArgs := extractArgs(CMD_DEL)
 	if len(eArgs) > 3 {
-		return fmt.Errorf("policy prefix del [<prefix name> [<prefix> [<mask length range>]]] ")
+		return fmt.Errorf("policy prefix del <prefix set name> [<prefix> [<mask length range>]] ")
 	} else if len(eArgs) > 0 && !(eArgs[0] == "-h" || eArgs[0] == "--help" || eArgs[0] == "all") {
 		if err := requestGrpc(CMD_POLICY+"_"+CMD_PREFIX+"_"+CMD_DEL, eArgs, nil); err != nil {
 			return err
@@ -1484,8 +1489,8 @@ func (x *PolicyPrefixDelCommand) Execute(args []string) error {
 		return nil
 	}
 	parser := flags.NewParser(nil, flags.Default)
-	parser.Usage = "policy prefix del [ <prefix name> <prefix> ]\n  policy prefix del"
-	parser.AddCommand(CMD_ALL, "subcommand for delete all route from policy prefix", "", &PolicyPrefixDelAllCommand{})
+	parser.Usage = "policy prefix del  <prefix set name> [<prefix> [<mask length range>]]"
+	parser.AddCommand(CMD_ALL, "subcommand for delete all prefix condition from policy", "", &PolicyPrefixDelAllCommand{})
 	parser.ParseArgs(eArgs)
 	return nil
 }
@@ -1495,7 +1500,7 @@ type PolicyPrefixDelAllCommand struct{}
 func (x *PolicyPrefixDelAllCommand) Execute(args []string) error {
 	eArgs := extractArgs(CMD_ALL)
 	if len(eArgs) > 0 && !(eArgs[0] == "-h" || eArgs[0] == "--help") {
-		return fmt.Errorf("Argument dose not input")
+		return fmt.Errorf("Argument can not be entered")
 	} else if len(eArgs) == 0 {
 		if err := requestGrpc(CMD_POLICY+"_"+CMD_PREFIX+"_"+CMD_DEL, eArgs, nil); err != nil {
 			return err
@@ -1619,6 +1624,138 @@ func (x *PolicyNeighborCommand) Execute(args []string) error {
 	}
 	parser := flags.NewParser(nil, flags.Default)
 	parser.Usage = "policy neighbor [OPTIONS]\n  gobgp policy neighbor"
+	parser.AddCommand(CMD_ADD, "subcommand for add neighbor condition to policy", "", &PolicyNeighborAddCommand{})
+	parser.AddCommand(CMD_DEL, "subcommand for delete neighbor condition from policy", "", &PolicyNeighborDelCommand{})
+	parser.ParseArgs(eArgs)
+	return nil
+}
+
+type PolicyNeighborAddCommand struct{}
+
+func parseNeighborSet(eArgs []string) (*api.NeighborSet, error) {
+	address := net.ParseIP(eArgs[1])
+	if address.To4() == nil {
+		if address.To16() == nil {
+			return nil, fmt.Errorf("address is invalid format %s\nplease enter ipv4 or ipv6 format", eArgs[1])
+		}
+	}
+
+	neighbor := &api.Neighbor{
+		Address: address.String(),
+	}
+	neighborList := []*api.Neighbor{neighbor}
+	neighborSet := &api.NeighborSet{
+		NeighborSetName: eArgs[0],
+		NeighborList:    neighborList,
+	}
+	return neighborSet, nil
+}
+
+func modPolicyNeighbor(modtype string, eArgs []string) error {
+	neighborSet := &api.NeighborSet{}
+	var e error
+	var operation api.Operation
+
+	switch modtype {
+	case CMD_ADD:
+		if len(eArgs) < 2 {
+			return fmt.Errorf("policy neighbor add <neighbor set name> <address>")
+		}
+		if neighborSet, e = parseNeighborSet(eArgs); e != nil {
+			return e
+		}
+		operation = api.Operation_ADD
+	case CMD_DEL:
+		if len(eArgs) == 0 {
+			operation = api.Operation_DEL_ALL
+		} else if len(eArgs) == 1 {
+			neighborSet = &api.NeighborSet{
+				NeighborSetName: eArgs[0],
+				NeighborList:    nil,
+			}
+			operation = api.Operation_DEL
+		} else {
+			if neighborSet, e = parseNeighborSet(eArgs); e != nil {
+				return e
+			}
+			operation = api.Operation_DEL
+		}
+	}
+
+	arg := &api.PolicyArguments{
+		Resource:    api.Resource_POLICY_NEIGHBOR,
+		Operation:   operation,
+		NeighborSet: neighborSet,
+	}
+	stream, err := client.ModPolicyNeighbor(context.Background())
+	if err != nil {
+		return err
+	}
+	err = stream.Send(arg)
+	if err != nil {
+		return err
+	}
+	stream.CloseSend()
+
+	res, e := stream.Recv()
+	if e != nil {
+		return e
+	}
+	if res.Code != api.Error_SUCCESS {
+		return fmt.Errorf("error: code: %d, msg: %s", res.Code, res.Msg)
+	}
+	return nil
+}
+
+func (x *PolicyNeighborAddCommand) Execute(args []string) error {
+	eArgs := extractArgs(CMD_ADD)
+	if len(eArgs) == 0 || len(eArgs) > 2 {
+		return fmt.Errorf("policy neighbor add <neighbor set name> <address>")
+	} else if !(eArgs[0] == "-h" || eArgs[0] == "--help") {
+		if err := requestGrpc(CMD_POLICY+"_"+CMD_NEIGHBOR+"_"+CMD_ADD, eArgs, nil); err != nil {
+			return err
+		}
+		return nil
+	}
+	parser := flags.NewParser(nil, flags.Default)
+	parser.Usage = "policy neighbor add <neighbor set name> <address>"
+	parser.ParseArgs(eArgs)
+	return nil
+}
+
+type PolicyNeighborDelCommand struct{}
+
+func (x *PolicyNeighborDelCommand) Execute(args []string) error {
+	eArgs := extractArgs(CMD_DEL)
+	if len(eArgs) > 3 {
+		return fmt.Errorf("policy neighbor del [<neighbor set name> [<address>]] ")
+	} else if len(eArgs) > 0 && !(eArgs[0] == "-h" || eArgs[0] == "--help" || eArgs[0] == "all") {
+		if err := requestGrpc(CMD_POLICY+"_"+CMD_NEIGHBOR+"_"+CMD_DEL, eArgs, nil); err != nil {
+			return err
+		}
+		return nil
+	}
+	parser := flags.NewParser(nil, flags.Default)
+	parser.Usage = "policy neighbor del [<neighbor set name> [<address>]]"
+	parser.AddCommand(CMD_ALL, "subcommand for delete all neighbor condition from policy", "", &PolicyNeighborDelAllCommand{})
+	parser.ParseArgs(eArgs)
+	return nil
+}
+
+type PolicyNeighborDelAllCommand struct{}
+
+func (x *PolicyNeighborDelAllCommand) Execute(args []string) error {
+	eArgs := extractArgs(CMD_ALL)
+	if len(eArgs) > 0 && !(eArgs[0] == "-h" || eArgs[0] == "--help") {
+		return fmt.Errorf("Argument can not be entered")
+	} else if len(eArgs) == 0 {
+		if err := requestGrpc(CMD_POLICY+"_"+CMD_NEIGHBOR+"_"+CMD_DEL, eArgs, nil); err != nil {
+			return err
+		}
+	}
+
+	parser := flags.NewParser(nil, flags.Default)
+	parser.Usage = "policy neighbor del all"
 	parser.ParseArgs(eArgs)
 	return nil
 }
@@ -1630,34 +1767,31 @@ func showPolicyStatement(head string, pd *api.PolicyDefinition) {
 		fmt.Printf("%s  StatementName %s:\n", head, st.StatementNeme)
 		fmt.Printf("%s    Conditions:\n", head)
 		prefixSet := st.Conditions.MatchPrefixSet
-		fmt.Printf("%s      PrefixSet:    ", head)
+		fmt.Printf("%s      PrefixSet:    %s  ", head, prefixSet.PrefixSetName)
 		if len(prefixSet.PrefixList) != 0 {
-			format := formatPolicyPrefix([]*api.PrefixSet{st.Conditions.MatchPrefixSet})
+			nameFormat := "%-" + fmt.Sprint(len(prefixSet.PrefixSetName)+2) + "s"
+			_, format := formatPolicyPrefix([]*api.PrefixSet{st.Conditions.MatchPrefixSet})
 			for i, prefix := range prefixSet.PrefixList {
 				p := fmt.Sprintf("%s/%d", prefix.Address, prefix.MaskLength)
-				if i == 0 {
-					fmt.Printf(format, prefixSet.PrefixSetName, p, prefix.MaskLengthRange)
-				} else {
+				if i != 0 {
 					fmt.Printf("%s                    ", head)
-					fmt.Printf(format, "", p, prefix.MaskLengthRange)
+					fmt.Printf(nameFormat, "")
 				}
-
+				fmt.Printf(format, p, prefix.MaskLengthRange)
 			}
 		} else {
 			fmt.Print("\n")
 		}
 		neighborSet := st.Conditions.MatchNeighborSet
-		fmt.Printf("%s      NeighborSet:  ", head)
+		fmt.Printf("%s      NeighborSet:  %s  ", head, neighborSet.NeighborSetName)
 		if len(neighborSet.NeighborList) != 0 {
-			format := formatPolicyNeighbor([]*api.NeighborSet{st.Conditions.MatchNeighborSet})
+			nameFormat := "%-" + fmt.Sprint(len(neighborSet.NeighborSetName)+2) + "s"
 			for i, neighbor := range neighborSet.NeighborList {
-				if i == 0 {
-					fmt.Printf(format, neighborSet.NeighborSetName, neighbor.Address)
-				} else {
+				if i != 0 {
 					fmt.Printf("%s                ", head)
-					fmt.Printf(format, "", neighbor.Address)
+					fmt.Printf(nameFormat, "")
 				}
-
+				fmt.Println(neighbor.Address)
 			}
 		} else {
 			fmt.Print("\n")
