@@ -20,7 +20,7 @@ __search_target() {
 }
 
 __gobgp_table_list() {
-    local targets=("local adj-in adj-out reset softreset softresetin softresetout shutdown enable disable")
+    local targets=("local adj-in adj-out reset softreset softresetin softresetout shutdown enable disable policy")
     local target="$(__search_target "$targets")"
     if [ -z "$target" ]; then
         case "$cur" in
@@ -91,6 +91,15 @@ _gobgp_neighbor() {
    fi
 
 }
+
+_gobgp_policy_routepolicy(){
+    return
+}
+
+_gobgp_policy_neighbor(){
+    return
+}
+
 _gobgp_policy_prefix_add(){
     return
 }
@@ -122,7 +131,7 @@ _gobgp_policy_prefix(){
 }
 
 _gobgp_policy() {
-    local targets="prefix"
+    local targets="prefix neighbor routepolicy"
     local target="$(__search_target "$targets")"
     if [ -z "$target" ]; then
         case "$cur" in
