@@ -76,9 +76,9 @@ enum Resource {
     LOCAL = 1;
     ADJ_IN = 2;
     ADJ_OUT = 3;
-	POLICY_PREFIX = 4;
-	POLICY_NEIGHBOR = 5;
-	POLICY_ROUTEPOLICY = 6;
+    POLICY_PREFIX = 4;
+    POLICY_NEIGHBOR = 5;
+    POLICY_ROUTEPOLICY = 6;
 }
 
 enum Operation {
