@@ -55,6 +55,14 @@ func (m *MockConnection) setData(data []byte) int {
 	return len(dataChan)
 }
 
+func (m *MockConnection) SetWriteDeadline(t time.Time) error {
+	return nil
+}
+
+func (m *MockConnection) SetReadDeadline(t time.Time) error {
+	return nil
+}
+
 func (m *MockConnection) Read(buf []byte) (int, error) {
 
 	if m.isClosed {
@@ -140,12 +148,12 @@ func TestReadAll(t *testing.T) {
 	go pushBytes()
 
 	var actual1 []byte
-	actual1, _ = readAll(m, bgp.BGP_HEADER_LENGTH)
+	actual1, _ = readAll(m, bgp.BGP_HEADER_LENGTH, 0)
 	fmt.Println(actual1)
 	assert.Equal(expected1, actual1)
 
 	var actual2 []byte
-	actual2, _ = readAll(m, len(expected2))
+	actual2, _ = readAll(m, len(expected2), 0)
 	fmt.Println(actual2)
 	assert.Equal(expected2, actual2)
 }
