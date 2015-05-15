@@ -194,7 +194,7 @@ type FSMHandler struct {
 func NewFSMHandler(fsm *FSM, incoming chan *fsmMsg, outgoing chan *bgp.BGPMessage) *FSMHandler {
 	f := &FSMHandler{
 		fsm:              fsm,
-		errorCh:          make(chan bool, 2),
+		errorCh:          make(chan bool, 4),
 		incoming:         incoming,
 		outgoing:         outgoing,
 		holdTimerResetCh: make(chan bool, 2),
@@ -327,9 +327,13 @@ func buildopen(global *config.Global, peerConf *config.Neighbor) *bgp.BGPMessage
 		[]bgp.OptionParameterInterface{opt})
 }
 
-func readAll(conn net.Conn, length int) ([]byte, error) {
+func readAll(conn net.Conn, length int, timeoutSec float64) ([]byte, error) {
 	buf := make([]byte, length)
+	if timeoutSec != 0 {
+		conn.SetReadDeadline(time.Now().Add(time.Second * time.Duration(timeoutSec)))
+	}
 	_, err := io.ReadFull(conn, buf)
+	conn.SetReadDeadline(time.Time{})
 	if err != nil {
 		return nil, err
 	}
@@ -337,7 +341,8 @@ func readAll(conn net.Conn, length int) ([]byte, error) {
 }
 
 func (h *FSMHandler) recvMessageWithError() error {
-	headerBuf, err := readAll(h.conn, bgp.BGP_HEADER_LENGTH)
+	timeout := h.fsm.negotiatedHoldTime
+	headerBuf, err := readAll(h.conn, bgp.BGP_HEADER_LENGTH, timeout)
 	if err != nil {
 		h.errorCh <- true
 		return err
@@ -359,7 +364,7 @@ func (h *FSMHandler) recvMessageWithError() error {
 		return err
 	}
 
-	bodyBuf, err := readAll(h.conn, int(hd.Len)-bgp.BGP_HEADER_LENGTH)
+	bodyBuf, err := readAll(h.conn, int(hd.Len)-bgp.BGP_HEADER_LENGTH, timeout)
 	if err != nil {
 		h.errorCh <- true
 		return err
@@ -618,8 +623,15 @@ func (h *FSMHandler) sendMessageloop() error {
 			fsm.bgpMessageStateUpdate(0, false)
 			return nil
 		}
+		conn.SetWriteDeadline(time.Now().Add(time.Second * 30))
 		_, err = conn.Write(b)
+		conn.SetWriteDeadline(time.Time{})
 		if err != nil {
+			log.WithFields(log.Fields{
+				"Topic": "Peer",
+				"Key":   fsm.peerConfig.NeighborAddress,
+				"Data":  err,
+			}).Warn("failed to send")
 			h.errorCh <- true
 			return fmt.Errorf("closed")
 		}
@@ -663,21 +675,29 @@ func (h *FSMHandler) sendMessageloop() error {
 					return nil
 				}
 			}
+			log.WithFields(log.Fields{
+				"Topic": "Peer",
+				"Key":   h.fsm.peerConfig.NeighborAddress,
+			}).Info("send loop is dead due to Dying()")
 			return nil
 		case m := <-h.outgoing:
 			err := send(m)
 			if err != nil {
+				log.WithFields(log.Fields{
+					"Topic": "Peer",
+					"Key":   h.fsm.peerConfig.NeighborAddress,
+				}).Info("send loop is dead due to io failure")
 				return nil
 			}
 		case <-fsm.keepaliveTicker.C:
-			m := bgp.NewBGPKeepAliveMessage()
-			b, _ := m.Serialize()
-			_, err := conn.Write(b)
+			err := send(bgp.NewBGPKeepAliveMessage())
 			if err != nil {
-				h.errorCh <- true
+				log.WithFields(log.Fields{
+					"Topic": "Peer",
+					"Key":   h.fsm.peerConfig.NeighborAddress,
+				}).Info("send loop is dead due to io failure about keepalive")
 				return nil
 			}
-			fsm.bgpMessageStateUpdate(m.Header.Type, false)
 		}
 	}
 }
@@ -686,6 +706,10 @@ func (h *FSMHandler) recvMessageloop() error {
 	for {
 		err := h.recvMessageWithError()
 		if err != nil {
+			log.WithFields(log.Fields{
+				"Topic": "Peer",
+				"Key":   h.fsm.peerConfig.NeighborAddress,
+			}).Info("recv loop is dead")
 			return nil
 		}
 	}
