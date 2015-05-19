@@ -23,6 +23,7 @@ import (
 	"github.com/osrg/gobgp/packet"
 	"github.com/osrg/gobgp/table"
 	"net"
+	"regexp"
 	"reflect"
 	"strconv"
 	"strings"
@@ -59,11 +60,11 @@ type Policy struct {
 	Statements []*Statement
 }
 
-func NewPolicy(name string, pd config.PolicyDefinition, ds config.DefinedSets) *Policy {
+func NewPolicy(pd config.PolicyDefinition, ds config.DefinedSets) *Policy {
 	stmtList := pd.StatementList
 	st := make([]*Statement, 0)
 	p := &Policy{
-		Name: name,
+		Name: pd.Name,
 	}
 
 	for _, statement := range stmtList {
@@ -85,6 +86,20 @@ func NewPolicy(name string, pd config.PolicyDefinition, ds config.DefinedSets) *
 		ac := NewAsPathLengthCondition(c)
 		if ac != nil {
 			conditions = append(conditions, ac)
+		}
+
+		// AsPathCondition
+		asPathSetName := statement.Conditions.BgpConditions.MatchAsPathSet
+		asc := NewAsPathCondition(asPathSetName, ds.BgpDefinedSets.AsPathSetList)
+		if asc != nil {
+			conditions = append(conditions, asc)
+		}
+
+		// CommunityCondition
+		communitySetName := statement.Conditions.BgpConditions.MatchCommunitySet
+		cc := NewCommunityCondition(communitySetName, ds.BgpDefinedSets.CommunitySetList)
+		if cc != nil {
+			conditions = append(conditions, cc)
 		}
 
 		action := &RoutingActions{
@@ -265,6 +280,7 @@ func (c *NeighborCondition) evaluate(path table.Path) bool {
 		cAddr := neighbor
 		pAddr := path.GetSource().Address
 		if pAddr.Equal(cAddr) {
+			log.Debug("neighbor matched : ", pAddr.String())
 			return true
 		}
 	}
@@ -323,6 +339,291 @@ func (c *AsPathLengthCondition) evaluate(path table.Path) bool {
 		return false
 	}
 
+}
+
+type AsPathCondition struct {
+	DefaultCondition
+	AsPathList []*AsPathElement
+}
+
+type AsnPos int
+
+const (
+	AS_FROM AsnPos = iota
+	AS_ANY
+	AS_ORIGIN
+	AS_ONLY
+)
+
+type AsPathElement struct {
+	postiion AsnPos
+	asn      uint32
+}
+
+// create AsPathCondition object
+// AsPathCondition supports only following regexp:
+// - ^100  (from as100)
+// - ^100$ (from as100 and originated by as100)
+// - 100$  (originated by as100)
+// - 100   (from or through or originated by as100)
+func NewAsPathCondition(asPathSetName string, defAsPathSetList []config.AsPathSet) *AsPathCondition {
+
+	regAsn, _ := regexp.Compile("^(\\^?)([0-9]+)(\\$?)$")
+
+	asPathList := make([]*AsPathElement, 0)
+	for _, asPathSet := range defAsPathSetList {
+		if asPathSet.AsPathSetName == asPathSetName {
+			for _, as := range asPathSet.AsPathSetMembers {
+				if regAsn.MatchString(as) {
+
+					group := regAsn.FindStringSubmatch(as)
+					asn, err := strconv.Atoi(group[2])
+					if err != nil {
+						log.WithFields(log.Fields{
+							"Topic": "Policy",
+							"Type":  "AsPath Condition",
+						}).Error("cannot parse AS Number.")
+						return nil
+					}
+					e := &AsPathElement{}
+					e.asn = uint32(asn)
+
+					if len(group[1]) == 0 && len(group[3]) == 0 {
+						e.postiion = AS_ANY
+					} else if len(group[1]) == 1 && len(group[3]) == 0 {
+						e.postiion = AS_FROM
+					} else if len(group[1]) == 0 && len(group[3]) == 1 {
+						e.postiion = AS_ORIGIN
+					} else {
+						e.postiion = AS_ONLY
+					}
+
+					asPathList = append(asPathList, e)
+
+				} else {
+					log.WithFields(log.Fields{
+						"Topic": "Policy",
+						"Type":  "AsPath Condition",
+					}).Error("cannot parse AS_PATH condition value.")
+
+					return nil
+				}
+			}
+
+			c := &AsPathCondition{
+				AsPathList: asPathList,
+			}
+			return c
+		}
+	}
+	return nil
+}
+
+// compare AS_PATH in the message's AS_PATH attribute with
+// the one in condition.
+func (c *AsPathCondition) evaluate(path table.Path) bool {
+
+	aspath := path.GetAsSeqList()
+
+	if len(aspath) == 0 {
+		return false
+	}
+
+	matched := false
+	for _, member := range c.AsPathList {
+
+		switch member.postiion {
+		case AS_FROM:
+			matched = aspath[0] == member.asn
+		case AS_ANY:
+			for _, n := range aspath {
+				if n == member.asn {
+					matched = true
+					break
+				}
+			}
+		case AS_ORIGIN:
+			matched = aspath[len(aspath)-1] == member.asn
+
+		case AS_ONLY:
+			matched = len(aspath) == 1 && aspath[0] == member.asn
+
+		}
+
+		if matched {
+			log.Debugf("aspath matched : asn=%d, pos=%v)", member.asn, member.postiion)
+			return true
+		}
+
+	}
+	return false
+}
+
+type CommunityCondition struct {
+	DefaultCondition
+	CommunityList []*CommunityElement
+}
+
+const (
+	COMMUNITY_INTERNET            string = "INTERNET"
+	COMMUNITY_NO_EXPORT           string = "NO_EXPORT"
+	COMMUNITY_NO_ADVERTISE        string = "NO_ADVERTISE"
+	COMMUNITY_NO_EXPORT_SUBCONFED string = "NO_EXPORT_SUBCONFED"
+)
+
+const (
+	COMMUNITY_INTERNET_VAL            uint32 = 0x00000000
+	COMMUNITY_NO_EXPORT_VAL                  = 0xFFFFFF01
+	COMMUNITY_NO_ADVERTISE_VAL               = 0xFFFFFF02
+	COMMUNITY_NO_EXPORT_SUBCONFED_VAL        = 0xFFFFFF03
+)
+
+type CommunityElement struct {
+	community       uint32
+	communityStr    string
+	isRegExp        bool
+	communityRegExp *regexp.Regexp
+}
+
+// create CommunityCondition object
+// CommunityCondition supports uint and string like 65000:100
+// and also supports regular expressions that are available in golang.
+// if GoBGP can't parse the regular expression, it return nil and an error message is logged.
+func NewCommunityCondition(communitySetName string, defAsPathSetList []config.CommunitySet) *CommunityCondition {
+
+	// check format
+	regUint, _ := regexp.Compile("^([0-9]+)$")
+	regString, _ := regexp.Compile("([0-9]+):([0-9]+)")
+	regWellKnown, _ := regexp.Compile("^(" +
+		COMMUNITY_INTERNET + "|" +
+		COMMUNITY_NO_EXPORT + "|" +
+		COMMUNITY_NO_ADVERTISE + "|" +
+		COMMUNITY_NO_EXPORT_SUBCONFED + ")$")
+
+	communityList := make([]*CommunityElement, 0)
+	for _, asPathSet := range defAsPathSetList {
+		if asPathSet.CommunitySetName == communitySetName {
+			for _, as := range asPathSet.CommunityMembers {
+
+				e := &CommunityElement{
+					isRegExp: false,
+				}
+
+				if regUint.MatchString(as) {
+					// specified by Uint
+					community, err := strconv.ParseUint(as, 10, 32)
+					if err != nil {
+						log.WithFields(log.Fields{
+							"Topic": "Policy",
+							"Type":  "Community Condition",
+						}).Error("failed to parse the community value.")
+						return nil
+					}
+
+					e.community = uint32(community)
+					e.communityStr = as
+
+				} else if regString.MatchString(as) {
+					// specified by string containing ":"
+					group := regString.FindStringSubmatch(as)
+					asn, errAsn := strconv.ParseUint(group[1], 10, 16)
+					val, errVal := strconv.ParseUint(group[2], 10, 16)
+
+					if errAsn != nil || errVal != nil {
+						log.WithFields(log.Fields{
+							"Topic": "Policy",
+							"Type":  "Community Condition",
+						}).Error("failed to parser as number or community value.")
+						return nil
+					}
+					e.community = uint32(asn<<16 | val)
+					e.communityStr = as
+
+				} else if regWellKnown.MatchString(as) {
+					// specified by well known community name
+					e.communityStr = as
+					switch as {
+					case COMMUNITY_INTERNET:
+						e.community = COMMUNITY_INTERNET_VAL
+					case COMMUNITY_NO_EXPORT:
+						e.community = COMMUNITY_NO_EXPORT_VAL
+					case COMMUNITY_NO_ADVERTISE:
+						e.community = COMMUNITY_NO_ADVERTISE_VAL
+					case COMMUNITY_NO_EXPORT_SUBCONFED:
+						e.community = COMMUNITY_NO_EXPORT_SUBCONFED_VAL
+					}
+
+				} else {
+					// specified by regular expression
+					e.isRegExp = true
+					e.communityStr = as
+					reg, err := regexp.Compile(as)
+					if err != nil {
+						log.WithFields(log.Fields{
+							"Topic": "Policy",
+							"Type":  "Community Condition",
+						}).Error("Regular expression can't be compiled.")
+						return nil
+					}
+					e.communityRegExp = reg
+				}
+				communityList = append(communityList, e)
+			}
+
+			c := &CommunityCondition{
+				CommunityList: communityList,
+			}
+			return c
+		}
+	}
+	return nil
+}
+
+// compare community in the message's attribute with
+// the one in the condition.
+func (c *CommunityCondition) evaluate(path table.Path) bool {
+
+	communities := path.GetCommunities()
+
+	if len(communities) == 0 {
+		return false
+	}
+
+	// create community string in advance.
+	strCommunities := make([]string, len(communities))
+	for i, c := range communities {
+		upper := strconv.FormatUint(uint64(c&0xFFFF0000>>16), 10)
+		lower := strconv.FormatUint(uint64(c&0x0000FFFF), 10)
+		strCommunities[i] = upper + ":" + lower
+	}
+
+	matched := false
+	idx := -1
+	for _, member := range c.CommunityList {
+		if member.isRegExp {
+			for i, c := range strCommunities {
+				if member.communityRegExp.MatchString(c) {
+					matched = true
+					idx = i
+					break
+				}
+			}
+		} else {
+			for i, c := range communities {
+				if c == member.community {
+					matched = true
+					idx = i
+					break
+				}
+			}
+		}
+
+		if matched {
+			log.Debugf("community matched : community=%s)", strCommunities[idx])
+			return true
+		}
+	}
+	return false
 }
 
 type Actions interface {

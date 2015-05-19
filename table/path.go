@@ -35,6 +35,8 @@ type Path interface {
 	GetRouteFamily() bgp.RouteFamily
 	GetAsPathLen() int
 	GetAsList() []uint32
+	GetAsSeqList() []uint32
+	GetCommunities() []uint32
 	setSource(source *PeerInfo)
 	GetSource() *PeerInfo
 	GetSourceAs() uint32
@@ -363,16 +365,40 @@ func (pd *PathDefault) GetAsPathLen() int {
 }
 
 func (pd *PathDefault) GetAsList() []uint32 {
+	return pd.getAsListofSpecificType(true, true)
+
+}
+
+func (pd *PathDefault) GetAsSeqList() []uint32 {
+	return pd.getAsListofSpecificType(true, false)
+
+}
+
+func (pd *PathDefault) getAsListofSpecificType(getAsSeq, getAsSet bool) []uint32 {
 	asList := []uint32{}
 	if _, attr := pd.getPathAttr(bgp.BGP_ATTR_TYPE_AS_PATH); attr != nil {
 		aspath := attr.(*bgp.PathAttributeAsPath)
 		for _, paramIf := range aspath.Value {
 			segment := paramIf.(*bgp.As4PathParam)
-			asList = append(asList, segment.AS...)
+			if getAsSeq && segment.Type == bgp.BGP_ASPATH_ATTR_TYPE_SEQ{
+				asList = append(asList, segment.AS...)
+				continue
+			}
+			if getAsSet && segment.Type == bgp.BGP_ASPATH_ATTR_TYPE_SET{
+				asList = append(asList, segment.AS...)
+			}
 		}
-
 	}
 	return asList
+}
+
+func (pd *PathDefault) GetCommunities() []uint32 {
+	communityList := []uint32{}
+	if _, attr := pd.getPathAttr(bgp.BGP_ATTR_TYPE_COMMUNITIES); attr != nil {
+		communities := attr.(*bgp.PathAttributeCommunities)
+		communityList = append(communityList, communities.Value...)
+	}
+	return communityList
 }
 
 // create Path object based on route family
