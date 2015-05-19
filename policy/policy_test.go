@@ -268,9 +268,8 @@ func TestPolicyNotMatch(t *testing.T) {
 	pd := config.PolicyDefinition{"pd1", []config.Statement{s}}
 	pl := config.RoutingPolicy{ds, []config.PolicyDefinition{pd}}
 	//test
-	pName := "pd1"
 	df := pl.DefinedSets
-	p := NewPolicy(pName, pl.PolicyDefinitionList[0], df)
+	p := NewPolicy(pl.PolicyDefinitionList[0], df)
 	match, pType, newPath := p.Apply(path)
 	assert.Equal(t, false, match)
 	assert.Equal(t, ROUTE_TYPE_NONE, pType)
@@ -326,9 +325,8 @@ func TestPolicyMatchAndReject(t *testing.T) {
 	pd := config.PolicyDefinition{"pd1", []config.Statement{s}}
 	pl := config.RoutingPolicy{ds, []config.PolicyDefinition{pd}}
 	//test
-	pName := "pd1"
 	df := pl.DefinedSets
-	p := NewPolicy(pName, pl.PolicyDefinitionList[0], df)
+	p := NewPolicy(pl.PolicyDefinitionList[0], df)
 	match, pType, newPath := p.Apply(path)
 	assert.Equal(t, true, match)
 	assert.Equal(t, ROUTE_TYPE_REJECT, pType)
@@ -384,9 +382,8 @@ func TestPolicyMatchAndAccept(t *testing.T) {
 	pd := config.PolicyDefinition{"pd1", []config.Statement{s}}
 	pl := config.RoutingPolicy{ds, []config.PolicyDefinition{pd}}
 	//test
-	pName := "pd1"
 	df := pl.DefinedSets
-	p := NewPolicy(pName, pl.PolicyDefinitionList[0], df)
+	p := NewPolicy(pl.PolicyDefinitionList[0], df)
 	match, pType, newPath := p.Apply(path)
 	assert.Equal(t, true, match)
 	assert.Equal(t, ROUTE_TYPE_ACCEPT, pType)
@@ -448,9 +445,8 @@ func TestPolicyRejectOnlyPrefixSet(t *testing.T) {
 	pd := config.PolicyDefinition{"pd1", []config.Statement{s}}
 	pl := config.RoutingPolicy{ds, []config.PolicyDefinition{pd}}
 	//test
-	pName := "pd1"
 	df := pl.DefinedSets
-	p := NewPolicy(pName, pl.PolicyDefinitionList[0], df)
+	p := NewPolicy(pl.PolicyDefinitionList[0], df)
 	match, pType, newPath := p.Apply(path1)
 	assert.Equal(t, true, match)
 	assert.Equal(t, ROUTE_TYPE_REJECT, pType)
@@ -515,9 +511,8 @@ func TestPolicyRejectOnlyNeighborSet(t *testing.T) {
 	pd := config.PolicyDefinition{"pd1", []config.Statement{s}}
 	pl := config.RoutingPolicy{ds, []config.PolicyDefinition{pd}}
 	//test
-	pName := "pd1"
 	df := pl.DefinedSets
-	p := NewPolicy(pName, pl.PolicyDefinitionList[0], df)
+	p := NewPolicy(pl.PolicyDefinitionList[0], df)
 	match, pType, newPath := p.Apply(path1)
 	assert.Equal(t, true, match)
 	assert.Equal(t, ROUTE_TYPE_REJECT, pType)
@@ -619,9 +614,8 @@ func TestPolicyDifferentRoutefamilyOfPathAndPolicy(t *testing.T) {
 	pd := config.PolicyDefinition{"pd1", []config.Statement{stIPv4, stIPv6}}
 	pl := config.RoutingPolicy{ds, []config.PolicyDefinition{pd}}
 	//test
-	pName := "pd1"
 	df := pl.DefinedSets
-	p := NewPolicy(pName, pl.PolicyDefinitionList[0], df)
+	p := NewPolicy(pl.PolicyDefinitionList[0], df)
 	match1, pType1, newPath1 := p.Apply(pathIPv4)
 	assert.Equal(t, true, match1)
 	assert.Equal(t, ROUTE_TYPE_REJECT, pType1)
@@ -751,9 +745,174 @@ func TestAsPathLengthConditionWithOtherCondition(t *testing.T) {
 	pl := config.RoutingPolicy{ds, []config.PolicyDefinition{pd}}
 
 	//test
-	pName := "pd1"
 	df := pl.DefinedSets
-	p := NewPolicy(pName, pl.PolicyDefinitionList[0], df)
+	p := NewPolicy(pl.PolicyDefinitionList[0], df)
+	match, pType, newPath := p.Apply(path)
+	assert.Equal(t, true, match)
+	assert.Equal(t, ROUTE_TYPE_REJECT, pType)
+	assert.Equal(t, nil, newPath)
+
+}
+
+func TestAsPathConditionEvaluate(t *testing.T) {
+
+	// setup
+	// create path
+	peer := &table.PeerInfo{AS: 65001, Address: net.ParseIP("10.0.0.1")}
+	origin := bgp.NewPathAttributeOrigin(0)
+	aspathParam1 := []bgp.AsPathParamInterface{
+		bgp.NewAsPathParam(2, []uint16{65001, 65000, 65004, 65005}),
+		bgp.NewAsPathParam(1, []uint16{65001, 65010, 65004, 65005}),
+	}
+	aspath := bgp.NewPathAttributeAsPath(aspathParam1)
+	nexthop := bgp.NewPathAttributeNextHop("10.0.0.1")
+	med := bgp.NewPathAttributeMultiExitDisc(0)
+	pathAttributes := []bgp.PathAttributeInterface{origin, aspath, nexthop, med}
+	nlri := []bgp.NLRInfo{*bgp.NewNLRInfo(24, "10.10.0.101")}
+	withdrawnRoutes := []bgp.WithdrawnRoute{}
+	updateMsg1 := bgp.NewBGPUpdateMessage(withdrawnRoutes, pathAttributes, nlri)
+	table.UpdatePathAttrs4ByteAs(updateMsg1.Body.(*bgp.BGPUpdate))
+	path1 := table.ProcessMessage(updateMsg1, peer)[0]
+
+	aspathParam2 := []bgp.AsPathParamInterface{
+		bgp.NewAsPathParam(2, []uint16{65010}),
+		bgp.NewAsPathParam(1, []uint16{65010}),
+	}
+	aspath2 := bgp.NewPathAttributeAsPath(aspathParam2)
+	pathAttributes = []bgp.PathAttributeInterface{origin, aspath2, nexthop, med}
+	updateMsg2 := bgp.NewBGPUpdateMessage(withdrawnRoutes, pathAttributes, nlri)
+	table.UpdatePathAttrs4ByteAs(updateMsg2.Body.(*bgp.BGPUpdate))
+	path2 := table.ProcessMessage(updateMsg2, peer)[0]
+
+	// create match condition
+	asPathSet1 := config.AsPathSet{
+		AsPathSetName:    "asset1",
+		AsPathSetMembers: []string{"^65001"},
+	}
+
+	asPathSet2 := config.AsPathSet{
+		AsPathSetName:    "asset2",
+		AsPathSetMembers: []string{"65005$"},
+	}
+
+	asPathSet3 := config.AsPathSet{
+		AsPathSetName:    "asset3",
+		AsPathSetMembers: []string{"65004", "65005$"},
+	}
+
+	asPathSet4 := config.AsPathSet{
+		AsPathSetName:    "asset4",
+		AsPathSetMembers: []string{"65000$"},
+	}
+
+	asPathSet5 := config.AsPathSet{
+		AsPathSetName:    "asset5",
+		AsPathSetMembers: []string{"65010"},
+	}
+
+	asPathSet6 := config.AsPathSet{
+		AsPathSetName:    "asset6",
+		AsPathSetMembers: []string{"^65010$"},
+	}
+
+	asPathSetList := []config.AsPathSet{asPathSet1, asPathSet2, asPathSet3,
+		asPathSet4, asPathSet5, asPathSet6}
+
+	p1 := NewAsPathCondition("asset1", asPathSetList)
+	p2 := NewAsPathCondition("asset2", asPathSetList)
+	p3 := NewAsPathCondition("asset3", asPathSetList)
+	p4 := NewAsPathCondition("asset4", asPathSetList)
+	p5 := NewAsPathCondition("asset5", asPathSetList)
+	p6 := NewAsPathCondition("asset6", asPathSetList)
+
+	// test
+	assert.Equal(t, true, p1.evaluate(path1))
+	assert.Equal(t, true, p2.evaluate(path1))
+	assert.Equal(t, true, p3.evaluate(path1))
+	assert.Equal(t, false, p4.evaluate(path1))
+	assert.Equal(t, false, p5.evaluate(path1))
+	assert.Equal(t, false, p6.evaluate(path1))
+	assert.Equal(t, true, p6.evaluate(path2))
+
+}
+
+func TestAsPathConditionWithOtherCondition(t *testing.T) {
+
+	// setup
+	// create path
+	peer := &table.PeerInfo{AS: 65001, Address: net.ParseIP("10.0.0.1")}
+	origin := bgp.NewPathAttributeOrigin(0)
+	aspathParam := []bgp.AsPathParamInterface{
+		bgp.NewAsPathParam(2, []uint16{65001, 65000, 65004, 65004, 65005}),
+		bgp.NewAsPathParam(1, []uint16{65001, 65000, 65004, 65005}),
+	}
+	aspath := bgp.NewPathAttributeAsPath(aspathParam)
+	nexthop := bgp.NewPathAttributeNextHop("10.0.0.1")
+	med := bgp.NewPathAttributeMultiExitDisc(0)
+	pathAttributes := []bgp.PathAttributeInterface{origin, aspath, nexthop, med}
+	nlri := []bgp.NLRInfo{*bgp.NewNLRInfo(24, "10.10.0.101")}
+	withdrawnRoutes := []bgp.WithdrawnRoute{}
+	updateMsg := bgp.NewBGPUpdateMessage(withdrawnRoutes, pathAttributes, nlri)
+	table.UpdatePathAttrs4ByteAs(updateMsg.Body.(*bgp.BGPUpdate))
+	path := table.ProcessMessage(updateMsg, peer)[0]
+
+	// create policy
+	asPathSet := config.AsPathSet{
+		AsPathSetName:    "asset1",
+		AsPathSetMembers: []string{"65005$"},
+	}
+
+	prefixSet := config.PrefixSet{
+		PrefixSetName: "ps1",
+		PrefixList: []config.Prefix{
+			config.Prefix{
+				Address:         net.ParseIP("10.11.1.0"),
+				Masklength:      16,
+				MasklengthRange: "21..24",
+			}},
+	}
+
+	neighborSet := config.NeighborSet{
+		NeighborSetName: "ns1",
+		NeighborInfoList: []config.NeighborInfo{
+			config.NeighborInfo{
+				Address: net.ParseIP("10.2.1.1"),
+			}},
+	}
+
+	ds := config.DefinedSets{
+		PrefixSetList:   []config.PrefixSet{prefixSet},
+		NeighborSetList: []config.NeighborSet{neighborSet},
+		BgpDefinedSets: config.BgpDefinedSets{
+			AsPathSetList: []config.AsPathSet{asPathSet},
+		},
+	}
+
+	s := config.Statement{
+		Name: "statement1",
+		Conditions: config.Conditions{
+			MatchPrefixSet:   "ps1",
+			MatchNeighborSet: "ns1",
+			BgpConditions: config.BgpConditions{
+				MatchAsPathSet: "asset1",
+			},
+			MatchSetOptions: config.MATCH_SET_OPTIONS_TYPE_ANY,
+		},
+		Actions: config.Actions{
+			AcceptRoute: false,
+			RejectRoute: true,
+		},
+	}
+
+	pd := config.PolicyDefinition{"pd1", []config.Statement{s}}
+	pl := config.RoutingPolicy{
+		DefinedSets:          ds,
+		PolicyDefinitionList: []config.PolicyDefinition{pd},
+	}
+
+	//test
+	df := pl.DefinedSets
+	p := NewPolicy(pl.PolicyDefinitionList[0], df)
 	match, pType, newPath := p.Apply(path)
 	assert.Equal(t, true, match)
 	assert.Equal(t, ROUTE_TYPE_REJECT, pType)

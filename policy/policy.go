@@ -23,6 +23,7 @@ import (
 	"github.com/osrg/gobgp/packet"
 	"github.com/osrg/gobgp/table"
 	"net"
+	"regexp"
 	"reflect"
 	"strconv"
 	"strings"
@@ -59,11 +60,11 @@ type Policy struct {
 	Statements []*Statement
 }
 
-func NewPolicy(name string, pd config.PolicyDefinition, ds config.DefinedSets) *Policy {
+func NewPolicy(pd config.PolicyDefinition, ds config.DefinedSets) *Policy {
 	stmtList := pd.StatementList
 	st := make([]*Statement, 0)
 	p := &Policy{
-		Name: name,
+		Name: pd.Name,
 	}
 
 	for _, statement := range stmtList {
@@ -85,6 +86,13 @@ func NewPolicy(name string, pd config.PolicyDefinition, ds config.DefinedSets) *
 		ac := NewAsPathLengthCondition(c)
 		if ac != nil {
 			conditions = append(conditions, ac)
+		}
+
+		// AsPathCondition
+		asPathSetName := statement.Conditions.BgpConditions.MatchAsPathSet
+		asc := NewAsPathCondition(asPathSetName, ds.BgpDefinedSets.AsPathSetList)
+		if asc != nil {
+			conditions = append(conditions, asc)
 		}
 
 		action := &RoutingActions{
@@ -265,6 +273,7 @@ func (c *NeighborCondition) evaluate(path table.Path) bool {
 		cAddr := neighbor
 		pAddr := path.GetSource().Address
 		if pAddr.Equal(cAddr) {
+			log.Debug("neighbor matched : ", pAddr.String())
 			return true
 		}
 	}
@@ -323,6 +332,124 @@ func (c *AsPathLengthCondition) evaluate(path table.Path) bool {
 		return false
 	}
 
+}
+
+type AsPathCondition struct {
+	DefaultCondition
+	AsPathList []*AsPathElement
+}
+
+type AsnPos int
+
+const (
+	AS_FROM AsnPos = iota
+	AS_ANY
+	AS_ORIGIN
+	AS_ONLY
+)
+
+type AsPathElement struct {
+	postiion AsnPos
+	asn      uint32
+}
+
+// create AsPathCondition object
+// AsPathCondition supports only following regexp:
+// - ^100  (from as100)
+// - ^100$ (from as100 and originated by as100)
+// - 100$  (originated by as100)
+// - 100   (from or through or originated by as100)
+func NewAsPathCondition(asPathSetName string, defAsPathSetList []config.AsPathSet) *AsPathCondition {
+
+	regAsn, _ := regexp.Compile("^(\\^?)([0-9]+)(\\$?)$")
+
+	asPathList := make([]*AsPathElement, 0)
+	for _, asPathSet := range defAsPathSetList {
+		if asPathSet.AsPathSetName == asPathSetName {
+			for _, as := range asPathSet.AsPathSetMembers {
+				if regAsn.MatchString(as) {
+
+					group := regAsn.FindStringSubmatch(as)
+					asn, err := strconv.Atoi(group[2])
+					if err != nil {
+						log.WithFields(log.Fields{
+							"Topic": "Policy",
+							"Type":  "AsPath Condition",
+						}).Error("cannot parse AS Number.")
+						return nil
+					}
+					e := &AsPathElement{}
+					e.asn = uint32(asn)
+
+					if len(group[1]) == 0 && len(group[3]) == 0 {
+						e.postiion = AS_ANY
+					} else if len(group[1]) == 1 && len(group[3]) == 0 {
+						e.postiion = AS_FROM
+					} else if len(group[1]) == 0 && len(group[3]) == 1 {
+						e.postiion = AS_ORIGIN
+					} else {
+						e.postiion = AS_ONLY
+					}
+
+					asPathList = append(asPathList, e)
+
+				} else {
+					log.WithFields(log.Fields{
+						"Topic": "Policy",
+						"Type":  "AsPath Condition",
+					}).Error("cannot parse AS_PATH condition value.")
+
+					return nil
+				}
+			}
+
+			c := &AsPathCondition{
+				AsPathList: asPathList,
+			}
+			return c
+		}
+	}
+	return nil
+}
+
+// compare AS_PATH in the message's AS_PATH attribute with
+// the one in condition.
+func (c *AsPathCondition) evaluate(path table.Path) bool {
+
+	aspath := path.GetAsSeqList()
+
+	if len(aspath) == 0 {
+		return false
+	}
+
+	matched := false
+	for _, member := range c.AsPathList {
+
+		switch member.postiion {
+		case AS_FROM:
+			matched = aspath[0] == member.asn
+		case AS_ANY:
+			for _, n := range aspath {
+				if n == member.asn {
+					matched = true
+					break
+				}
+			}
+		case AS_ORIGIN:
+			matched = aspath[len(aspath)-1] == member.asn
+
+		case AS_ONLY:
+			matched = len(aspath) == 1 && aspath[0] == member.asn
+
+		}
+
+		if matched {
+			log.Debugf("aspath matched : asn=%d, pos=%v)", member.asn, member.postiion)
+			return true
+		}
+
+	}
+	return false
 }
 
 type Actions interface {

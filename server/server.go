@@ -260,7 +260,7 @@ func (server *BgpServer) SetPolicy(pl config.RoutingPolicy) {
 	pMap := make(map[string]*policy.Policy)
 	df := pl.DefinedSets
 	for _, p := range pl.PolicyDefinitionList {
-		pMap[p.Name] = policy.NewPolicy(p.Name, p, df)
+		pMap[p.Name] = policy.NewPolicy(p, df)
 	}
 	server.policyMap = pMap
 	server.routingPolicy = pl
