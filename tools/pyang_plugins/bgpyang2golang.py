@@ -406,6 +406,7 @@ _type_translation_map = {
     'inet:ip-address': 'net.IP',
     'inet:ipv4-address': 'net.IP',
     'inet:as-number': 'uint32',
+    'bgp-set-community-option-type' : 'string',
 }
 
 

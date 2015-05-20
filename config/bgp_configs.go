@@ -133,7 +133,8 @@ type SetExtCommunity struct {
 	//original type is list of union
 	Communities []string
 	// original -> bgp-pol:options
-	Options BgpSetCommunityOptionType
+	//bgp-pol:options's original type is bgp-set-community-option-type
+	Options string
 }
 
 //struct for container bgp-pol:set-community
@@ -142,7 +143,8 @@ type SetCommunity struct {
 	//original type is list of union
 	Communities []string
 	// original -> bgp-pol:options
-	Options BgpSetCommunityOptionType
+	//bgp-pol:options's original type is bgp-set-community-option-type
+	Options string
 }
 
 //struct for container bgp-pol:set-as-path-prepend
