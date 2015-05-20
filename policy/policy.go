@@ -23,8 +23,8 @@ import (
 	"github.com/osrg/gobgp/packet"
 	"github.com/osrg/gobgp/table"
 	"net"
-	"regexp"
 	"reflect"
+	"regexp"
 	"strconv"
 	"strings"
 )
@@ -102,19 +102,22 @@ func NewPolicy(pd config.PolicyDefinition, ds config.DefinedSets) *Policy {
 			conditions = append(conditions, cc)
 		}
 
-		action := &RoutingActions{
-			AcceptRoute: false,
-		}
+		// routeing action
+		ra := NewRoutingAction(statement.Actions)
 
-		if statement.Actions.AcceptRoute {
-			action.AcceptRoute = true
+		// modification action
+		mda := make([]Action, 0)
+		com := NewCommunityAction(statement.Actions.BgpActions.SetCommunity)
+		if com != nil {
+			mda = append(mda, com)
 		}
 
 		s := &Statement{
-			Name:            statement.Name,
-			Conditions:      conditions,
-			Actions:         action,
-			MatchSetOptions: statement.Conditions.MatchSetOptions,
+			Name:                statement.Name,
+			Conditions:          conditions,
+			routingAction:       ra,
+			modificationActions: mda,
+			MatchSetOptions:     statement.Conditions.MatchSetOptions,
 		}
 
 		st = append(st, s)
@@ -124,10 +127,11 @@ func NewPolicy(pd config.PolicyDefinition, ds config.DefinedSets) *Policy {
 }
 
 type Statement struct {
-	Name            string
-	Conditions      []Condition
-	Actions         Actions
-	MatchSetOptions config.MatchSetOptionsType
+	Name                string
+	Conditions          []Condition
+	routingAction       *RoutingAction
+	modificationActions []Action
+	MatchSetOptions     config.MatchSetOptionsType
 }
 
 // evaluate each condition in the statement according to MatchSetOptions
@@ -489,75 +493,24 @@ type CommunityElement struct {
 // CommunityCondition supports uint and string like 65000:100
 // and also supports regular expressions that are available in golang.
 // if GoBGP can't parse the regular expression, it return nil and an error message is logged.
-func NewCommunityCondition(communitySetName string, defAsPathSetList []config.CommunitySet) *CommunityCondition {
-
-	// check format
-	regUint, _ := regexp.Compile("^([0-9]+)$")
-	regString, _ := regexp.Compile("([0-9]+):([0-9]+)")
-	regWellKnown, _ := regexp.Compile("^(" +
-		COMMUNITY_INTERNET + "|" +
-		COMMUNITY_NO_EXPORT + "|" +
-		COMMUNITY_NO_ADVERTISE + "|" +
-		COMMUNITY_NO_EXPORT_SUBCONFED + ")$")
+func NewCommunityCondition(communitySetName string, defCommunitySetList []config.CommunitySet) *CommunityCondition {
 
 	communityList := make([]*CommunityElement, 0)
-	for _, asPathSet := range defAsPathSetList {
-		if asPathSet.CommunitySetName == communitySetName {
-			for _, as := range asPathSet.CommunityMembers {
+	for _, communitySet := range defCommunitySetList {
+		if communitySet.CommunitySetName == communitySetName {
+			for _, c := range communitySet.CommunityMembers {
 
 				e := &CommunityElement{
-					isRegExp: false,
+					isRegExp:     false,
+					communityStr: c,
 				}
 
-				if regUint.MatchString(as) {
-					// specified by Uint
-					community, err := strconv.ParseUint(as, 10, 32)
-					if err != nil {
-						log.WithFields(log.Fields{
-							"Topic": "Policy",
-							"Type":  "Community Condition",
-						}).Error("failed to parse the community value.")
-						return nil
-					}
-
-					e.community = uint32(community)
-					e.communityStr = as
-
-				} else if regString.MatchString(as) {
-					// specified by string containing ":"
-					group := regString.FindStringSubmatch(as)
-					asn, errAsn := strconv.ParseUint(group[1], 10, 16)
-					val, errVal := strconv.ParseUint(group[2], 10, 16)
-
-					if errAsn != nil || errVal != nil {
-						log.WithFields(log.Fields{
-							"Topic": "Policy",
-							"Type":  "Community Condition",
-						}).Error("failed to parser as number or community value.")
-						return nil
-					}
-					e.community = uint32(asn<<16 | val)
-					e.communityStr = as
-
-				} else if regWellKnown.MatchString(as) {
-					// specified by well known community name
-					e.communityStr = as
-					switch as {
-					case COMMUNITY_INTERNET:
-						e.community = COMMUNITY_INTERNET_VAL
-					case COMMUNITY_NO_EXPORT:
-						e.community = COMMUNITY_NO_EXPORT_VAL
-					case COMMUNITY_NO_ADVERTISE:
-						e.community = COMMUNITY_NO_ADVERTISE_VAL
-					case COMMUNITY_NO_EXPORT_SUBCONFED:
-						e.community = COMMUNITY_NO_EXPORT_SUBCONFED_VAL
-					}
-
+				if matched, v := getCommunityValue(c); matched {
+					e.community = v
 				} else {
 					// specified by regular expression
 					e.isRegExp = true
-					e.communityStr = as
-					reg, err := regexp.Compile(as)
+					reg, err := regexp.Compile(c)
 					if err != nil {
 						log.WithFields(log.Fields{
 							"Topic": "Policy",
@@ -577,6 +530,63 @@ func NewCommunityCondition(communitySetName string, defAsPathSetList []config.Co
 		}
 	}
 	return nil
+}
+
+// getCommunityValue returns uint32 community value converted from the string.
+// if the string doesn't match a number or string like "65000:1000" or well known
+// community name, it returns false and 0, otherwise returns true and its uint32 value.
+func getCommunityValue(comStr string) (bool, uint32) {
+	// community regexp
+	regUint, _ := regexp.Compile("^([0-9]+)$")
+	regString, _ := regexp.Compile("([0-9]+):([0-9]+)")
+	regWellKnown, _ := regexp.Compile("^(" +
+		COMMUNITY_INTERNET + "|" +
+		COMMUNITY_NO_EXPORT + "|" +
+		COMMUNITY_NO_ADVERTISE + "|" +
+		COMMUNITY_NO_EXPORT_SUBCONFED + ")$")
+
+	if regUint.MatchString(comStr) {
+		// specified by Uint
+		community, err := strconv.ParseUint(comStr, 10, 32)
+		if err != nil {
+			log.WithFields(log.Fields{
+				"Topic": "Policy",
+				"Type":  "Community Condition",
+			}).Error("failed to parse the community value.")
+		}
+		return true, uint32(community)
+
+	} else if regString.MatchString(comStr) {
+		// specified by string containing ":"
+		group := regString.FindStringSubmatch(comStr)
+		asn, errAsn := strconv.ParseUint(group[1], 10, 16)
+		val, errVal := strconv.ParseUint(group[2], 10, 16)
+
+		if errAsn != nil || errVal != nil {
+			log.WithFields(log.Fields{
+				"Topic": "Policy",
+				"Type":  "Community Condition",
+			}).Error("failed to parser as number or community value.")
+		}
+		community := uint32(asn<<16 | val)
+		return true, community
+
+	} else if regWellKnown.MatchString(comStr) {
+		// specified by well known community name
+		var community uint32
+		switch comStr {
+		case COMMUNITY_INTERNET:
+			community = COMMUNITY_INTERNET_VAL
+		case COMMUNITY_NO_EXPORT:
+			community = COMMUNITY_NO_EXPORT_VAL
+		case COMMUNITY_NO_ADVERTISE:
+			community = COMMUNITY_NO_ADVERTISE_VAL
+		case COMMUNITY_NO_EXPORT_SUBCONFED:
+			community = COMMUNITY_NO_EXPORT_SUBCONFED_VAL
+		}
+		return true, community
+	}
+	return false, 0
 }
 
 // compare community in the message's attribute with
@@ -626,23 +636,30 @@ func (c *CommunityCondition) evaluate(path table.Path) bool {
 	return false
 }
 
-type Actions interface {
+type Action interface {
 	apply(table.Path) table.Path
 }
 
-type DefaultActions struct {
+type DefaultAction struct {
 }
 
-func (a *DefaultActions) apply(path table.Path) table.Path {
+func (a *DefaultAction) apply(path table.Path) table.Path {
 	return path
 }
 
-type RoutingActions struct {
-	DefaultActions
+type RoutingAction struct {
+	DefaultAction
 	AcceptRoute bool
 }
 
-func (r *RoutingActions) apply(path table.Path) table.Path {
+func NewRoutingAction(action config.Actions) *RoutingAction {
+	r := &RoutingAction{
+		AcceptRoute: action.AcceptRoute,
+	}
+	return r
+}
+
+func (r *RoutingAction) apply(path table.Path) table.Path {
 	if r.AcceptRoute {
 		return path
 	} else {
@@ -650,10 +667,76 @@ func (r *RoutingActions) apply(path table.Path) table.Path {
 	}
 }
 
-type ModificationActions struct {
-	DefaultActions
-	AttrType bgp.BGPAttrType
-	Value    string
+type ActionType int
+
+type CommunityAction struct {
+	DefaultAction
+	Values []uint32
+	action ActionType
+}
+
+const (
+	COMMUNITY_ACTION_ADD     string = "ADD"
+	COMMUNITY_ACTION_REPLACE        = "REPLACE"
+	COMMUNITY_ACTION_REMOVE         = "REMOVE"
+	COMMUNITY_ACTION_NULL           = "NULL"
+)
+
+// NewCommunityAction creates CommunityAction object.
+// If it cannot parse community string, then return nil.
+// Similarly, if option string is invalid, return nil.
+func NewCommunityAction(action config.SetCommunity) *CommunityAction {
+
+	m := &CommunityAction{}
+
+	values := make([]uint32, len(action.Communities))
+	for i, com := range action.Communities {
+		matched, value := getCommunityValue(com)
+		if matched {
+			values[i] = value
+		} else {
+			log.WithFields(log.Fields{
+				"Topic": "Policy",
+				"Type":  "Community Action",
+			}).Error("community string invalid.")
+			return nil
+		}
+	}
+	m.Values = values
+
+	switch action.Options {
+	case COMMUNITY_ACTION_ADD:
+		m.action = config.BGP_SET_COMMUNITY_OPTION_TYPE_ADD
+	case COMMUNITY_ACTION_REMOVE:
+		m.action = config.BGP_SET_COMMUNITY_OPTION_TYPE_REMOVE
+	case COMMUNITY_ACTION_REPLACE:
+		m.action = config.BGP_SET_COMMUNITY_OPTION_TYPE_REPLACE
+	case COMMUNITY_ACTION_NULL:
+		m.action = config.BGP_SET_COMMUNITY_OPTION_TYPE_NULL
+	default:
+		log.WithFields(log.Fields{
+			"Topic": "Policy",
+			"Type":  "Community Action",
+		}).Error("action string should be ADD or REMOVE or REPLACE or NULL.")
+		return nil
+	}
+	return m
+}
+
+func (a *CommunityAction) apply(path table.Path) table.Path {
+
+	list := a.Values
+	switch a.action {
+	case config.BGP_SET_COMMUNITY_OPTION_TYPE_ADD:
+		path.SetCommunities(list, false)
+	case config.BGP_SET_COMMUNITY_OPTION_TYPE_REMOVE:
+		path.RemoveCommunities(list)
+	case config.BGP_SET_COMMUNITY_OPTION_TYPE_REPLACE:
+		path.SetCommunities(list, true)
+	case config.BGP_SET_COMMUNITY_OPTION_TYPE_NULL:
+		path.ClearCommunities()
+	}
+	return path
 }
 
 type Prefix struct {
@@ -724,8 +807,13 @@ func (p *Policy) Apply(path table.Path) (bool, RouteType, table.Path) {
 
 		var p table.Path
 		if result {
-			p = statement.Actions.apply(path)
+			//Routing action
+			p = statement.routingAction.apply(path)
 			if p != nil {
+				// apply all modification actions
+				for _, action := range statement.modificationActions {
+					p = action.apply(p)
+				}
 				return true, ROUTE_TYPE_ACCEPT, p
 			} else {
 				return true, ROUTE_TYPE_REJECT, nil
@@ -851,7 +939,8 @@ func (p *Policy) ToApiStruct() *api.PolicyDefinition {
 			AcceptRoute: false,
 			RejectRoute: true,
 		}
-		if st.Actions.(*RoutingActions).AcceptRoute {
+
+		if st.routingAction.AcceptRoute {
 			resAction.AcceptRoute = true
 			resAction.RejectRoute = false
 		}

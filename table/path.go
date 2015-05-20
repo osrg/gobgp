@@ -37,6 +37,9 @@ type Path interface {
 	GetAsList() []uint32
 	GetAsSeqList() []uint32
 	GetCommunities() []uint32
+	SetCommunities([]uint32, bool)
+	RemoveCommunities([]uint32) int
+	ClearCommunities()
 	setSource(source *PeerInfo)
 	GetSource() *PeerInfo
 	GetSourceAs() uint32
@@ -380,11 +383,11 @@ func (pd *PathDefault) getAsListofSpecificType(getAsSeq, getAsSet bool) []uint32
 		aspath := attr.(*bgp.PathAttributeAsPath)
 		for _, paramIf := range aspath.Value {
 			segment := paramIf.(*bgp.As4PathParam)
-			if getAsSeq && segment.Type == bgp.BGP_ASPATH_ATTR_TYPE_SEQ{
+			if getAsSeq && segment.Type == bgp.BGP_ASPATH_ATTR_TYPE_SEQ {
 				asList = append(asList, segment.AS...)
 				continue
 			}
-			if getAsSet && segment.Type == bgp.BGP_ASPATH_ATTR_TYPE_SET{
+			if getAsSet && segment.Type == bgp.BGP_ASPATH_ATTR_TYPE_SET {
 				asList = append(asList, segment.AS...)
 			}
 		}
@@ -399,6 +402,86 @@ func (pd *PathDefault) GetCommunities() []uint32 {
 		communityList = append(communityList, communities.Value...)
 	}
 	return communityList
+}
+
+// SetCommunities adds or replaces communities with new ones.
+// If the length of communites is 0, it does nothing.
+func (pd *PathDefault) SetCommunities(communities []uint32, doReplace bool) {
+
+	if len(communities) == 0 {
+		// do nothing
+		return
+	}
+
+	newList := make([]uint32, 0)
+	idx, attr := pd.getPathAttr(bgp.BGP_ATTR_TYPE_COMMUNITIES)
+	if attr != nil {
+		c := attr.(*bgp.PathAttributeCommunities)
+		if doReplace {
+			newList = append(newList, communities...)
+		} else {
+			newList = append(newList, c.Value...)
+			newList = append(newList, communities...)
+		}
+		newCommunities := bgp.NewPathAttributeCommunities(newList)
+		pd.pathAttrs[idx] = newCommunities
+	} else {
+		newList = append(newList, communities...)
+		newCommunities := bgp.NewPathAttributeCommunities(newList)
+		pd.pathAttrs = append(pd.pathAttrs, newCommunities)
+	}
+
+}
+
+// RemoveCommunities removes specific communities.
+// If the length of communites is 0, it does nothing.
+// If all communities are removed, it removes Communities path attribute itself.
+func (pd *PathDefault) RemoveCommunities(communities []uint32) int {
+
+	if len(communities) == 0 {
+		// do nothing
+		return 0
+	}
+
+	find := func(val uint32) bool {
+		for _, com := range communities {
+			if com == val {
+				return true
+			}
+		}
+		return false
+	}
+
+	count := 0
+	idx, attr := pd.getPathAttr(bgp.BGP_ATTR_TYPE_COMMUNITIES)
+	if attr != nil {
+		newList := make([]uint32, 0)
+		c := attr.(*bgp.PathAttributeCommunities)
+
+		for _, value := range c.Value {
+			if find(value) {
+				count += 1
+			} else {
+				newList = append(newList, value)
+			}
+		}
+
+		if len(newList) != 0 {
+			newCommunities := bgp.NewPathAttributeCommunities(newList)
+			pd.pathAttrs[idx] = newCommunities
+		} else {
+			pd.pathAttrs = append(pd.pathAttrs[:idx], pd.pathAttrs[idx+1:]...)
+		}
+	}
+	return count
+}
+
+// ClearCommunities removes Communities path attribute.
+func (pd *PathDefault) ClearCommunities() {
+	idx, _ := pd.getPathAttr(bgp.BGP_ATTR_TYPE_COMMUNITIES)
+	if idx >= 0 {
+		pd.pathAttrs = append(pd.pathAttrs[:idx], pd.pathAttrs[idx+1:]...)
+	}
 }
 
 // create Path object based on route family
