@@ -4,6 +4,27 @@ __gobgp_q() {
     gobgp 2>/dev/null "$@"
 }
 
+__gobgp_address() {
+    url=""
+    port=""
+    if [ ! -z "$gobgp_ip" ]; then
+        url="-u $gobgp_ip"
+    fi
+    if [ ! -z "$gobgp_port" ]; then
+        port="-p $gobgp_port"
+    fi
+}
+
+__compreply() {
+    targets="$@"
+    case "$cur" in
+        *)
+            COMPREPLY=( $( compgen -W "${targets[*]}" -- "$cur" ) )
+            ;;
+    esac
+    return
+}
+
 __search_target() {
     local word target c=1
 
@@ -20,52 +41,60 @@ __search_target() {
 }
 
 __gobgp_table_list() {
-    local targets=("local adj-in adj-out reset softreset softresetin softresetout shutdown enable disable policy")
+    local targets="local adj-in adj-out reset softreset softresetin softresetout shutdown enable disable policy"
     local target="$(__search_target "$targets")"
     if [ -z "$target" ]; then
-        case "$cur" in
-            *)
-                COMPREPLY=( $( compgen -W "${targets[*]}" -- "$cur") )
-                ;;
-        esac
+        __compreply ${targets}
         return
     fi
+    if [ "$target" = "policy" ]; then
+	    _gobgp_neighbor_policy
+	fi
     return
 }
 
 __gobgp_neighbr_list() {
-    local url=""
-    local port=""
-    if [ ! -z "$gobgp_ip" ]; then
-        url="-u $gobgp_ip"
-    fi
-    if [ ! -z "$gobgp_port" ]; then
-        port="-p $gobgp_port"
-    fi
-    local neighbor_list=( $(__gobgp_q $url $port --quiet neighbor) )
-    local target="$(__search_target "${neighbor_list[*]}")"
+    __gobgp_address
+    local targets=( $(__gobgp_q $url $port --quiet neighbor) )
+    local target="$(__search_target "${targets[*]}")"
     if [ -z "$target" ]; then
-        case "$cur" in
-            *)
-                COMPREPLY=( $( compgen -W "${neighbor_list[*]}" -- "$cur") )
-                ;;
-        esac
+        __compreply ${targets}
         __ltrim_colon_completions "$cur"
         return 0
     fi
     return 1
 }
 
+__gobgp_policy_list() {
+    __gobgp_address
+    local targets=( $(__gobgp_q $url $port --quiet policy "${policy_kind}") )
+    local target="$(__search_target "${targets[*]}")"
+    if [ -z "$target" ]; then
+        __compreply ${targets}
+        __ltrim_colon_completions "$cur"
+        return 0
+    fi
+    latest_word="$target"
+    return 1
+}
+
+__gobgp_policy_statement_list() {
+    __gobgp_address
+    local targets=( $(__gobgp_q $url $port --quiet policy routepolicy "${policy}") )
+    local target="$(__search_target "${targets[*]}")"
+    if [ -z "$target" ]; then
+        __compreply ${targets}
+        __ltrim_colon_completions "$cur"
+        return 0
+    fi
+    return 1
+}
 
 _gobgp_global_rib(){
     local targets="add del"
     local target="$(__search_target "$targets")"
     if [ -z "$target" ]; then
-        case "$cur" in
-            *)
-                COMPREPLY=( $( compgen -W "${targets[*]}" -- "$cur" ) )
-                ;;
-        esac
+        __compreply ${targets}
         return
     fi
 }
@@ -74,11 +103,7 @@ _gobgp_global() {
     local targets="rib"
     local target="$(__search_target "$targets")"
     if [ -z "$target" ]; then
-        case "$cur" in
-            *)
-                COMPREPLY=( $( compgen -W "${targets[*]}" -- "$cur" ) )
-                ;;
-        esac
+        __compreply ${targets}
         return
     fi
     _gobgp_global_${target}
@@ -89,56 +114,86 @@ _gobgp_neighbor() {
    if [ $? -ne 0 ] ; then
        __gobgp_table_list
    fi
+}
 
+_gobgp_neighbor_policy_op() {
+    local targets="import export"
+    local target="$(__search_target "$targets")"
+    if [ -z "$target" ]; then
+        __compreply ${targets}
+        return
+    fi
+}
+
+_gobgp_neighbor_policy() {
+   local targets="add del"
+    local target="$(__search_target "$targets")"
+    if [ -z "$target" ]; then
+        __compreply ${targets}
+        return
+    fi
+    _gobgp_neighbor_policy_op
+}
+
+_gobgp_policy_routepolicy_op(){
+    policy="${latest_word}"
+    __gobgp_policy_statement_list
+    if [ $? -ne 0 ] ; then
+        targets="conditions actions"
+        local target="$(__search_target "$targets")"
+        if [ -z "$target" ]; then
+            __compreply ${targets}
+            return
+        fi
+        return
+    fi
 }
 
 _gobgp_policy_routepolicy(){
-    return
+    local targets="add del"
+    local target="$(__search_target "$targets")"
+    if [ -z "$target" ]; then
+        __compreply ${targets}
+        return
+    fi
+    policy_kind="routepolicy"
+    __gobgp_policy_list
+    if [ $? -ne 0 ] ; then
+	    _gobgp_policy_routepolicy_op
+	fi
 }
 
 _gobgp_policy_neighbor(){
-    return
-}
-
-_gobgp_policy_prefix_add(){
-    return
-}
-_gobgp_policy_prefix_del(){
-    local targets="all"
+    local targets="add del"
     local target="$(__search_target "$targets")"
     if [ -z "$target" ]; then
-        case "$cur" in
-            *)
-                COMPREPLY=( $( compgen -W "${targets[*]}" -- "$cur" ) )
-                ;;
-        esac
+        __compreply ${targets}
         return
     fi
+    if [ "$target" = "del" ]; then
+        policy_kind="neighbor"
+	    __gobgp_policy_list
+	fi
 }
 
 _gobgp_policy_prefix(){
     local targets="add del"
     local target="$(__search_target "$targets")"
     if [ -z "$target" ]; then
-        case "$cur" in
-            *)
-                COMPREPLY=( $( compgen -W "${targets[*]}" -- "$cur" ) )
-                ;;
-        esac
+        __compreply ${targets}
         return
     fi
-	_gobgp_policy_prefix_${target}
+    if [ "$target" = "del" ]; then
+        policy_kind="prefix"
+	    __gobgp_policy_list
+	fi
 }
 
 _gobgp_policy() {
     local targets="prefix neighbor routepolicy"
     local target="$(__search_target "$targets")"
     if [ -z "$target" ]; then
-        case "$cur" in
-            *)
-                COMPREPLY=( $( compgen -W "${targets[*]}" -- "$cur" ) )
-                ;;
-        esac
+        __compreply ${targets}
         return
     fi
     _gobgp_policy_${target}
