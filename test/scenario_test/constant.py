@@ -33,6 +33,7 @@ EXABGP_CONTAINER_NAME = "exabgp"
 EXABGP_ADDRESS = "10.0.0.100/16"
 EXABGP_CONFDIR = SHARE_VOLUME + "/exabgp_test_conf"
 EXABGP_LOG_FILE = "exabgpd.log"
+EXABGP_COMMON_CONF = "exabgp-gobgp-common.conf"
 STARTUP_FILE_NAME = "gobgp_startup.sh"
 STARTUP_FILE = SHARE_VOLUME + "/" + STARTUP_FILE_NAME
 INSTALL_FILE_NAME = "gobgp_install.sh"
@@ -58,6 +59,7 @@ BASE_NET = {BRIDGE_0["BRIDGE_NAME"]: {IPv4: "10.0.0.", IPv6: "2001::0:192:168:0:
 BASE_MASK = {IPv4: "/16", IPv6: "/64"}
 
 A_PART_OF_CURRENT_DIR = "/test/scenario_test"
+
 
 ADJ_RIB_IN = "adj-in"
 ADJ_RIB_OUT = "adj-out"

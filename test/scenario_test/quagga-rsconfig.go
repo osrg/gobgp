@@ -98,10 +98,7 @@ func create_config_files(nr int, outputDir string, IPVersion string, nonePeer bo
 		},
 	}
 
-	var binding *PolicyBinding
-	if policyPattern != "" {
-		binding = bindPolicy(policyPattern)
-	}
+	var policyConf *config.RoutingPolicy
 
 	for i := 1; i < nr+1; i++ {
 		c := config.Neighbor{
@@ -114,17 +111,7 @@ func create_config_files(nr int, outputDir string, IPVersion string, nonePeer bo
 			PeerType:         config.PEER_TYPE_EXTERNAL,
 		}
 
-		if binding != nil {
-            ip := net.ParseIP(binding.NeighborAddress)
-			if ip.String() == c.NeighborAddress.String() {
-				ap := config.ApplyPolicy{
-					ImportPolicies: binding.ImportPolicyNames,
-					ExportPolicies: binding.ExportPolicyNames,
-				}
-				c.ApplyPolicy = ap
-			}
-
-		}
+		policyConf = bindPolicy(&c, policyPattern)
 
 		gobgpConf.NeighborList = append(gobgpConf.NeighborList, c)
 		if !nonePeer {
@@ -146,8 +133,8 @@ func create_config_files(nr int, outputDir string, IPVersion string, nonePeer bo
 	var buffer bytes.Buffer
 	encoder := toml.NewEncoder(&buffer)
 	encoder.Encode(gobgpConf)
-	if binding != nil {
-		encoder.Encode(binding.Policy)
+	if policyConf != nil {
+		encoder.Encode(policyConf)
 	}
 
 	err := ioutil.WriteFile(fmt.Sprintf("%s/gobgpd.conf", outputDir), buffer.Bytes(), 0644)
@@ -156,7 +143,7 @@ func create_config_files(nr int, outputDir string, IPVersion string, nonePeer bo
 	}
 }
 
-func append_config_files(ar int, outputDir string, IPVersion string, nonePeer bool, normalBGP bool) {
+func append_config_files(ar int, outputDir string, IPVersion string, noQuagga bool, normalBGP bool, policyPattern string) {
 
 	gobgpConf := config.Bgp{
 		Global: config.Global{
@@ -173,7 +160,10 @@ func append_config_files(ar int, outputDir string, IPVersion string, nonePeer bo
 		Timers:           config.Timers{HoldTime: 30, KeepaliveInterval: 10, IdleHoldTimeAfterReset: 10},
 		PeerType:         config.PEER_TYPE_EXTERNAL,
 	}
-	if !nonePeer {
+
+	bindPolicy(&c, policyPattern)
+
+	if !noQuagga {
 		q := NewQuaggaConfig(ar, &gobgpConf.Global, &c, net.ParseIP(serverAddress[IPVersion]))
 		os.Mkdir(fmt.Sprintf("%s/q%d", outputDir, ar), 0755)
 		var err error
@@ -195,6 +185,17 @@ func append_config_files(ar int, outputDir string, IPVersion string, nonePeer bo
 	var buffer bytes.Buffer
 	encoder := toml.NewEncoder(&buffer)
 	encoder.Encode(newConf)
+
+	policyConf := &config.RoutingPolicy{}
+	_, p_err := toml.DecodeFile(fmt.Sprintf("%s/gobgpd.conf", outputDir), policyConf)
+	if p_err != nil {
+		log.Fatal(p_err)
+	}
+
+	if policyConf != nil && len(policyConf.PolicyDefinitionList) != 0 {
+		encoder.Encode(policyConf)
+	}
+
 	e_err := ioutil.WriteFile(fmt.Sprintf("%s/gobgpd.conf", outputDir), buffer.Bytes(), 0644)
 	if e_err != nil {
 		log.Fatal(e_err)
@@ -265,32 +266,79 @@ func createPolicyConfig() *config.RoutingPolicy {
 			}},
 	}
 
-	ns0 := config.NeighborSet{
-		NeighborSetName: "ns0",
+	nsPeer2 := config.NeighborSet{
+		NeighborSetName: "nsPeer2",
 		NeighborInfoList: []config.NeighborInfo{
 			config.NeighborInfo{
 				Address: net.ParseIP("10.0.0.2"),
 			}},
 	}
 
-	ns1 := config.NeighborSet{
-		NeighborSetName: "ns1",
+	nsPeer2V6 := config.NeighborSet{
+		NeighborSetName: "nsPeer2V6",
 		NeighborInfoList: []config.NeighborInfo{
 			config.NeighborInfo{
 				Address: net.ParseIP("2001::0:192:168:0:2"),
 			}},
 	}
 
+	nsExabgp := config.NeighborSet{
+		NeighborSetName: "nsExabgp",
+		NeighborInfoList: []config.NeighborInfo{
+			config.NeighborInfo{
+				Address: net.ParseIP("10.0.0.100"),
+			}},
+	}
+
+	psExabgp := config.PrefixSet{
+		PrefixSetName: "psExabgp",
+		PrefixList: []config.Prefix{
+			config.Prefix{
+				Address:         net.ParseIP("192.168.100.0"),
+				Masklength:      24,
+				MasklengthRange: "16..24",
+			}},
+	}
+
+	aspathFrom := config.AsPathSet{
+		AsPathSetName:    "aspathFrom",
+		AsPathSetMembers: []string{"^65100"},
+	}
+
+	aspathAny := config.AsPathSet{
+		AsPathSetName:    "aspAny",
+		AsPathSetMembers: []string{"65098"},
+	}
+
+	aspathOrigin := config.AsPathSet{
+		AsPathSetName:    "aspOrigin",
+		AsPathSetMembers: []string{"65091$"},
+	}
+
+	aspathOnly := config.AsPathSet{
+		AsPathSetName:    "aspOnly",
+		AsPathSetMembers: []string{"^65100$"},
+	}
+
+	comStr := config.CommunitySet{
+		CommunitySetName: "comStr",
+		CommunityMembers: []string{"65100:10"},
+	}
+
+	comRegExp := config.CommunitySet{
+		CommunitySetName: "comRegExp",
+		CommunityMembers: []string{"6[0-9]+:[0-9]+"},
+	}
+
 	st0 := config.Statement{
 		Name: "st0",
 		Conditions: config.Conditions{
 			MatchPrefixSet:   "ps0",
-			MatchNeighborSet: "ns0",
+			MatchNeighborSet: "nsPeer2",
 			MatchSetOptions:  config.MATCH_SET_OPTIONS_TYPE_ALL,
 		},
 		Actions: config.Actions{
 			AcceptRoute: false,
-			RejectRoute: true,
 		},
 	}
 
@@ -298,12 +346,11 @@ func createPolicyConfig() *config.RoutingPolicy {
 		Name: "st1",
 		Conditions: config.Conditions{
 			MatchPrefixSet:   "ps1",
-			MatchNeighborSet: "ns0",
+			MatchNeighborSet: "nsPeer2",
 			MatchSetOptions:  config.MATCH_SET_OPTIONS_TYPE_ALL,
 		},
 		Actions: config.Actions{
 			AcceptRoute: false,
-			RejectRoute: true,
 		},
 	}
 
@@ -311,12 +358,11 @@ func createPolicyConfig() *config.RoutingPolicy {
 		Name: "st3",
 		Conditions: config.Conditions{
 			MatchPrefixSet:   "ps3",
-			MatchNeighborSet: "ns1",
+			MatchNeighborSet: "nsPeer2V6",
 			MatchSetOptions:  config.MATCH_SET_OPTIONS_TYPE_ALL,
 		},
 		Actions: config.Actions{
 			AcceptRoute: false,
-			RejectRoute: true,
 		},
 	}
 
@@ -324,44 +370,297 @@ func createPolicyConfig() *config.RoutingPolicy {
 		Name: "st4",
 		Conditions: config.Conditions{
 			MatchPrefixSet:   "ps4",
-			MatchNeighborSet: "ns1",
+			MatchNeighborSet: "nsPeer2V6",
 			MatchSetOptions:  config.MATCH_SET_OPTIONS_TYPE_ALL,
 		},
 		Actions: config.Actions{
 			AcceptRoute: false,
-			RejectRoute: true,
 		},
 	}
 
-	pd0 := config.PolicyDefinition{
-		Name:          "policy0",
+	st_aspathlen := config.Statement{
+		Name: "st_aspathlen",
+		Conditions: config.Conditions{
+			MatchPrefixSet:   "psExabgp",
+			MatchNeighborSet: "nsExabgp",
+			BgpConditions: config.BgpConditions{
+				AsPathLength: config.AsPathLength{
+					Operator: "ge",
+					Value:    10,
+				},
+			},
+			MatchSetOptions: config.MATCH_SET_OPTIONS_TYPE_ALL,
+		},
+		Actions: config.Actions{
+			AcceptRoute: false,
+		},
+	}
+
+	st_aspathFrom := config.Statement{
+		Name: "st_aspathlen",
+		Conditions: config.Conditions{
+			MatchPrefixSet:   "psExabgp",
+			MatchNeighborSet: "nsExabgp",
+			BgpConditions: config.BgpConditions{
+				MatchAsPathSet: "aspathFrom",
+			},
+			MatchSetOptions: config.MATCH_SET_OPTIONS_TYPE_ALL,
+		},
+		Actions: config.Actions{
+			AcceptRoute: false,
+		},
+	}
+
+	st_aspathAny := config.Statement{
+		Name: "st_aspathlen",
+		Conditions: config.Conditions{
+			MatchPrefixSet:   "psExabgp",
+			MatchNeighborSet: "nsExabgp",
+			BgpConditions: config.BgpConditions{
+				MatchAsPathSet: "aspAny",
+			},
+			MatchSetOptions: config.MATCH_SET_OPTIONS_TYPE_ALL,
+		},
+		Actions: config.Actions{
+			AcceptRoute: false,
+		},
+	}
+
+	st_aspathOrigin := config.Statement{
+		Name: "st_aspathlen",
+		Conditions: config.Conditions{
+			MatchPrefixSet:   "psExabgp",
+			MatchNeighborSet: "nsExabgp",
+			BgpConditions: config.BgpConditions{
+				MatchAsPathSet: "aspOrigin",
+			},
+			MatchSetOptions: config.MATCH_SET_OPTIONS_TYPE_ALL,
+		},
+		Actions: config.Actions{
+			AcceptRoute: false,
+		},
+	}
+
+	st_aspathOnly := config.Statement{
+		Name: "st_aspathlen",
+		Conditions: config.Conditions{
+			MatchPrefixSet:   "psExabgp",
+			MatchNeighborSet: "nsExabgp",
+			BgpConditions: config.BgpConditions{
+				MatchAsPathSet: "aspOnly",
+			},
+			MatchSetOptions: config.MATCH_SET_OPTIONS_TYPE_ALL,
+		},
+		Actions: config.Actions{
+			AcceptRoute: false,
+		},
+	}
+
+	st_comStr := config.Statement{
+		Name: "st_community",
+		Conditions: config.Conditions{
+			MatchPrefixSet:   "psExabgp",
+			MatchNeighborSet: "nsExabgp",
+			BgpConditions: config.BgpConditions{
+				MatchCommunitySet: "comStr",
+			},
+			MatchSetOptions: config.MATCH_SET_OPTIONS_TYPE_ALL,
+		},
+		Actions: config.Actions{
+			AcceptRoute: false,
+		},
+	}
+
+	st_comRegExp := config.Statement{
+		Name: "st_community_regexp",
+		Conditions: config.Conditions{
+			MatchPrefixSet:   "psExabgp",
+			MatchNeighborSet: "nsExabgp",
+			BgpConditions: config.BgpConditions{
+				MatchCommunitySet: "comRegExp",
+			},
+			MatchSetOptions: config.MATCH_SET_OPTIONS_TYPE_ALL,
+		},
+		Actions: config.Actions{
+			AcceptRoute: false,
+		},
+	}
+
+	st_comAdd := config.Statement{
+		Name: "st_community_regexp",
+		Conditions: config.Conditions{
+			MatchPrefixSet:   "psExabgp",
+			MatchNeighborSet: "nsExabgp",
+			BgpConditions: config.BgpConditions{
+				MatchCommunitySet: "comStr",
+			},
+			MatchSetOptions: config.MATCH_SET_OPTIONS_TYPE_ALL,
+		},
+		Actions: config.Actions{
+			AcceptRoute: true,
+			BgpActions: config.BgpActions{
+				SetCommunity: config.SetCommunity{
+					Communities: []string{"65100:20"},
+					Options:     "ADD",
+				},
+			},
+		},
+	}
+
+	st_comReplace := config.Statement{
+		Name: "st_community_regexp",
+		Conditions: config.Conditions{
+			MatchPrefixSet:   "psExabgp",
+			MatchNeighborSet: "nsExabgp",
+			BgpConditions: config.BgpConditions{
+				MatchCommunitySet: "comStr",
+			},
+			MatchSetOptions: config.MATCH_SET_OPTIONS_TYPE_ALL,
+		},
+		Actions: config.Actions{
+			AcceptRoute: true,
+			BgpActions: config.BgpActions{
+				SetCommunity: config.SetCommunity{
+					Communities: []string{"65100:20", "65100:30"},
+					Options:     "REPLACE",
+				},
+			},
+		},
+	}
+
+	st_comRemove := config.Statement{
+		Name: "st_community_regexp",
+		Conditions: config.Conditions{
+			MatchPrefixSet:   "psExabgp",
+			MatchNeighborSet: "nsExabgp",
+			BgpConditions: config.BgpConditions{
+				MatchCommunitySet: "comStr",
+			},
+			MatchSetOptions: config.MATCH_SET_OPTIONS_TYPE_ALL,
+		},
+		Actions: config.Actions{
+			AcceptRoute: true,
+			BgpActions: config.BgpActions{
+				SetCommunity: config.SetCommunity{
+					Communities: []string{"65100:20", "65100:30"},
+					Options:     "REMOVE",
+				},
+			},
+		},
+	}
+
+	st_comNull := config.Statement{
+		Name: "st_community_regexp",
+		Conditions: config.Conditions{
+			MatchPrefixSet:   "psExabgp",
+			MatchNeighborSet: "nsExabgp",
+			BgpConditions: config.BgpConditions{
+				MatchCommunitySet: "comStr",
+			},
+			MatchSetOptions: config.MATCH_SET_OPTIONS_TYPE_ALL,
+		},
+		Actions: config.Actions{
+			AcceptRoute: true,
+			BgpActions: config.BgpActions{
+				SetCommunity: config.SetCommunity{
+					Communities: []string{},
+					Options:     "NULL",
+				},
+			},
+		},
+	}
+
+	pdImportV4 := config.PolicyDefinition{
+		Name:          "policy_use_ps0",
 		StatementList: []config.Statement{st0},
 	}
 
-	pd1 := config.PolicyDefinition{
-		Name:          "policy1",
+	pdExportV4 := config.PolicyDefinition{
+		Name:          "policy_use_ps1",
 		StatementList: []config.Statement{st1},
 	}
 
-	pd2 := config.PolicyDefinition{
-		Name:          "policy2",
+	pdImportV6 := config.PolicyDefinition{
+		Name:          "policy_use_ps3",
 		StatementList: []config.Statement{st3},
 	}
 
-	pd3 := config.PolicyDefinition{
-		Name:          "policy3",
+	pdExportV6 := config.PolicyDefinition{
+		Name:          "policy_use_ps4",
 		StatementList: []config.Statement{st4},
 	}
 
+	pdAspathlen := config.PolicyDefinition{
+		Name:          "policy_aspathlen",
+		StatementList: []config.Statement{st_aspathlen},
+	}
+
+	pdaspathFrom := config.PolicyDefinition{
+		Name:          "policy_aspathFrom",
+		StatementList: []config.Statement{st_aspathFrom},
+	}
+
+	pdaspathAny := config.PolicyDefinition{
+		Name:          "policy_aspathAny",
+		StatementList: []config.Statement{st_aspathAny},
+	}
+
+	pdaspathOrigin := config.PolicyDefinition{
+		Name:          "policy_aspathOrigin",
+		StatementList: []config.Statement{st_aspathOrigin},
+	}
+
+	pdaspathOnly := config.PolicyDefinition{
+		Name:          "policy_aspathOnly",
+		StatementList: []config.Statement{st_aspathOnly},
+	}
+
+	pdCommunity := config.PolicyDefinition{
+		Name:          "policy_community",
+		StatementList: []config.Statement{st_comStr},
+	}
+
+	pdCommunityRegExp := config.PolicyDefinition{
+		Name:          "policy_community_regexp",
+		StatementList: []config.Statement{st_comRegExp},
+	}
+
+	pdCommunityAdd := config.PolicyDefinition{
+		Name:          "policy_community_add",
+		StatementList: []config.Statement{st_comAdd},
+	}
+
+	pdCommunityReplace := config.PolicyDefinition{
+		Name:          "policy_community_replace",
+		StatementList: []config.Statement{st_comReplace},
+	}
+
+	pdCommunityRemove := config.PolicyDefinition{
+		Name:          "policy_community_remove",
+		StatementList: []config.Statement{st_comRemove},
+	}
+
+	pdCommunityNull := config.PolicyDefinition{
+		Name:          "policy_community_null",
+		StatementList: []config.Statement{st_comNull},
+	}
+
 	ds := config.DefinedSets{
-		PrefixSetList:   []config.PrefixSet{ps0, ps1, ps2, ps3, ps4, ps5},
-		NeighborSetList: []config.NeighborSet{ns0, ns1},
+		PrefixSetList:   []config.PrefixSet{ps0, ps1, ps2, ps3, ps4, ps5, psExabgp},
+		NeighborSetList: []config.NeighborSet{nsPeer2, nsPeer2V6, nsExabgp},
+		BgpDefinedSets: config.BgpDefinedSets{
+			AsPathSetList:    []config.AsPathSet{aspathFrom, aspathAny, aspathOrigin, aspathOnly},
+			CommunitySetList: []config.CommunitySet{comStr, comRegExp},
+		},
 	}
 
 	p := &config.RoutingPolicy{
-		DefinedSets:          ds,
-		PolicyDefinitionList: []config.PolicyDefinition{pd0, pd1, pd2, pd3},
+		DefinedSets: ds,
+		PolicyDefinitionList: []config.PolicyDefinition{pdImportV4, pdExportV4, pdImportV6, pdExportV6,
+			pdAspathlen, pdaspathFrom, pdaspathAny, pdaspathOrigin, pdaspathOnly,
+			pdCommunity, pdCommunityRegExp, pdCommunityAdd, pdCommunityReplace, pdCommunityRemove, pdCommunityNull},
 	}
+
 	return p
 }
 
@@ -385,7 +684,7 @@ func updatePolicyConfig(outputDir string, pattern string) {
 		Name: "st2",
 		Conditions: config.Conditions{
 			MatchPrefixSet:   "ps2",
-			MatchNeighborSet: "ns0",
+			MatchNeighborSet: "nsPeer2",
 			MatchSetOptions:  config.MATCH_SET_OPTIONS_TYPE_ALL,
 		},
 		Actions: config.Actions{
@@ -398,7 +697,7 @@ func updatePolicyConfig(outputDir string, pattern string) {
 		Name: "st5",
 		Conditions: config.Conditions{
 			MatchPrefixSet:   "ps5",
-			MatchNeighborSet: "ns1",
+			MatchNeighborSet: "nsPeer2V6",
 			MatchSetOptions:  config.MATCH_SET_OPTIONS_TYPE_ALL,
 		},
 		Actions: config.Actions{
@@ -407,11 +706,11 @@ func updatePolicyConfig(outputDir string, pattern string) {
 		},
 	}
 
-	if pattern == "p3" || pattern == "p4" {
+	if pattern == "test_03_import_policy_update" || pattern == "test_04_export_policy_update" {
 		policyConf.PolicyDefinitionList[1].StatementList = []config.Statement{st2}
 	}
 
-	if pattern == "p7" || pattern == "p8" {
+	if pattern == "test_07_import_policy_update" || pattern == "test_08_export_policy_update" {
 		policyConf.PolicyDefinitionList[3].StatementList = []config.Statement{st5}
 	}
 
@@ -434,57 +733,156 @@ type PolicyBinding struct {
 	ExportPolicyNames []string
 }
 
-func bindPolicy(pattern string) *PolicyBinding {
+func getPolicyBinding(pattern string) *PolicyBinding {
 
 	var pb *PolicyBinding = &PolicyBinding{Policy: createPolicyConfig()}
 
 	switch pattern {
-	case "p1":
+	case "test_01_import_policy_initial":
 		pb.NeighborAddress = "10.0.0.3"
-		pb.ImportPolicyNames = []string{"policy0"}
+		pb.ImportPolicyNames = []string{"policy_use_ps0"}
 		pb.ExportPolicyNames = nil
 
-	case "p2":
+	case "test_02_export_policy_initial":
 		pb.NeighborAddress = "10.0.0.3"
 		pb.ImportPolicyNames = nil
-		pb.ExportPolicyNames = []string{"policy0"}
+		pb.ExportPolicyNames = []string{"policy_use_ps0"}
 
-	case "p3":
+	case "test_03_import_policy_update":
 		pb.NeighborAddress = "10.0.0.3"
-		pb.ImportPolicyNames = []string{"policy1"}
+		pb.ImportPolicyNames = []string{"policy_use_ps1"}
 		pb.ExportPolicyNames = nil
 
-	case "p4":
+	case "test_04_export_policy_update":
 		pb.NeighborAddress = "10.0.0.3"
 		pb.ImportPolicyNames = nil
-		pb.ExportPolicyNames = []string{"policy1"}
+		pb.ExportPolicyNames = []string{"policy_use_ps1"}
 
-	case "p5":
+	case "test_05_import_policy_initial_ipv6":
 		pb.NeighborAddress = "2001::0:192:168:0:3"
-		pb.ImportPolicyNames = []string{"policy2"}
+		pb.ImportPolicyNames = []string{"policy_use_ps3"}
 		pb.ExportPolicyNames = nil
 
-	case "p6":
+	case "test_06_export_policy_initial_ipv6":
 		pb.NeighborAddress = "2001::0:192:168:0:3"
 		pb.ImportPolicyNames = nil
-		pb.ExportPolicyNames = []string{"policy2"}
+		pb.ExportPolicyNames = []string{"policy_use_ps3"}
 
-	case "p7":
+	case "test_07_import_policy_update":
 		pb.NeighborAddress = "2001::0:192:168:0:3"
-		pb.ImportPolicyNames = []string{"policy3"}
+		pb.ImportPolicyNames = []string{"policy_use_ps4"}
 		pb.ExportPolicyNames = nil
 
-	case "p8":
+	case "test_08_export_policy_update":
 		pb.NeighborAddress = "2001::0:192:168:0:3"
 		pb.ImportPolicyNames = nil
-		pb.ExportPolicyNames = []string{"policy3"}
+		pb.ExportPolicyNames = []string{"policy_use_ps4"}
 
+	case "test_09_aspath_length_condition_import":
+		pb.NeighborAddress = "10.0.0.2"
+		pb.ImportPolicyNames = []string{"policy_aspathlen"}
+		pb.ExportPolicyNames = nil
+
+	case "test_10_aspath_from_condition_import":
+		pb.NeighborAddress = "10.0.0.2"
+		pb.ImportPolicyNames = []string{"policy_aspathFrom"}
+		pb.ExportPolicyNames = nil
+
+	case "test_11_aspath_any_condition_import":
+		pb.NeighborAddress = "10.0.0.2"
+		pb.ImportPolicyNames = []string{"policy_aspathAny"}
+		pb.ExportPolicyNames = nil
+
+	case "test_12_aspath_origin_condition_import":
+		pb.NeighborAddress = "10.0.0.2"
+		pb.ImportPolicyNames = []string{"policy_aspathOrigin"}
+		pb.ExportPolicyNames = nil
+
+	case "test_13_aspath_only_condition_import":
+		pb.NeighborAddress = "10.0.0.2"
+		pb.ImportPolicyNames = []string{"policy_aspathOnly"}
+		pb.ExportPolicyNames = nil
+
+	case "test_14_aspath_only_condition_import":
+		pb.NeighborAddress = "10.0.0.2"
+		pb.ImportPolicyNames = []string{"policy_aspathOnly"}
+		pb.ExportPolicyNames = nil
+
+	case "test_15_community_condition_import":
+		pb.NeighborAddress = "10.0.0.2"
+		pb.ImportPolicyNames = []string{"policy_community"}
+		pb.ExportPolicyNames = nil
+
+	case "test_16_community_condition_regexp_import":
+		pb.NeighborAddress = "10.0.0.2"
+		pb.ImportPolicyNames = []string{"policy_community_regexp"}
+		pb.ExportPolicyNames = nil
+
+	case "test_17_community_add_action_import":
+		pb.NeighborAddress = "10.0.0.2"
+		pb.ImportPolicyNames = []string{"policy_community_add"}
+		pb.ExportPolicyNames = nil
+
+	case "test_18_community_replace_action_import":
+		pb.NeighborAddress = "10.0.0.2"
+		pb.ImportPolicyNames = []string{"policy_community_replace"}
+		pb.ExportPolicyNames = nil
+
+	case "test_19_community_remove_action_import":
+		pb.NeighborAddress = "10.0.0.2"
+		pb.ImportPolicyNames = []string{"policy_community_remove"}
+		pb.ExportPolicyNames = nil
+
+	case "test_20_community_null_action_import":
+		pb.NeighborAddress = "10.0.0.2"
+		pb.ImportPolicyNames = []string{"policy_community_null"}
+		pb.ExportPolicyNames = nil
+
+	case "test_21_community_add_action_export":
+		pb.NeighborAddress = "10.0.0.2"
+		pb.ImportPolicyNames = nil
+		pb.ExportPolicyNames = []string{"policy_community_add"}
+
+	case "test_22_community_replace_action_export":
+		pb.NeighborAddress = "10.0.0.2"
+		pb.ImportPolicyNames = nil
+		pb.ExportPolicyNames = []string{"policy_community_replace"}
+
+	case "test_23_community_remove_action_export":
+		pb.NeighborAddress = "10.0.0.2"
+		pb.ImportPolicyNames = nil
+		pb.ExportPolicyNames = []string{"policy_community_remove"}
+
+	case "test_24_community_null_action_export":
+		pb.NeighborAddress = "10.0.0.2"
+		pb.ImportPolicyNames = nil
+		pb.ExportPolicyNames = []string{"policy_community_null"}
 	default:
 		pb = nil
 	}
 
 	return pb
 
+}
+
+func bindPolicy(c *config.Neighbor, policyPattern string) *config.RoutingPolicy {
+	var binding *PolicyBinding
+	if policyPattern != "" {
+		binding = getPolicyBinding(policyPattern)
+	}
+
+	if binding != nil {
+		ip := net.ParseIP(binding.NeighborAddress)
+		if ip.String() == c.NeighborAddress.String() {
+			ap := config.ApplyPolicy{
+				ImportPolicies: binding.ImportPolicyNames,
+				ExportPolicies: binding.ExportPolicyNames,
+			}
+			c.ApplyPolicy = ap
+			return binding.Policy
+		}
+	}
+	return nil
 }
 
 func main() {
@@ -537,7 +935,7 @@ func main() {
 		if opts.UpdatePolicy {
 			updatePolicyConfig(opts.OutputDir, opts.PolicyPattern)
 		} else {
-			append_config_files(opts.AppendClient, opts.OutputDir, opts.IPVersion, opts.NonePeer, opts.NormalBGP)
+			append_config_files(opts.AppendClient, opts.OutputDir, opts.IPVersion, opts.NonePeer, opts.NormalBGP, opts.PolicyPattern)
 		}
 	}
 }

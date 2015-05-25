@@ -695,20 +695,23 @@ func (peer *Peer) sendUpdateMsgFromPaths(pList []table.Path) {
 			}
 
 			if !path.IsWithdraw() {
-				applied, path := peer.applyPolicies(peer.exportPolicies, path)
-				if applied && path == nil {
-					log.WithFields(log.Fields{
-						"Topic": "Peer",
-						"Key":   peer.peerConfig.NeighborAddress,
-						"Data":  path,
-					}).Debug("Export policy applied, reject.")
-					continue
+				var applied bool = false
+				applied, path = peer.applyPolicies(peer.exportPolicies, path)
+				if applied {
+					if path == nil {
+						log.WithFields(log.Fields{
+							"Topic": "Peer",
+							"Key":   peer.peerConfig.NeighborAddress,
+							"Data":  path,
+						}).Debug("Export policy applied and rejected.")
+						continue
+					}
 				} else if peer.defaultExportPolicy != config.DEFAULT_POLICY_TYPE_ACCEPT_ROUTE {
 					log.WithFields(log.Fields{
 						"Topic": "Peer",
 						"Key":   peer.peerConfig.NeighborAddress,
 						"Data":  path,
-					}).Debug("Default export policy applied, reject.")
+					}).Debug("Default export policy applied and rejected.")
 					continue
 				}
 			}

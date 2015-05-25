@@ -143,3 +143,18 @@ def lookup_prefix(tn, prefix, af):
             paths.append(path)
 
     return paths
+
+def check_community(tn, addr, community, af=IPv4):
+    if af == IPv4:
+        tn.write("show ip bgp community " + community + "\n")
+    elif af == IPv6:
+        tn.write("show bgp ipv6 community " + community + "\n")
+    else:
+        print "invalid af: ", af
+        return
+    result = tn.read_until("bgpd#")
+    for line in result.split("\n"):
+        if addr in line:
+            return True
+
+    return False

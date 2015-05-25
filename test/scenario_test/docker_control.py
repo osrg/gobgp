@@ -278,7 +278,7 @@ def get_notification_from_exabgp_log():
     return err_mgs
 
 
-def make_config(quagga_num, go_path, bridge, peer_opts=""):
+def make_config(quagga_num, go_path, bridge, peer_opts="", policy_pattern=""):
     if go_path != "":
         print "specified go path is [ " + go_path + " ]."
         if os.path.isdir(go_path):
@@ -286,8 +286,13 @@ def make_config(quagga_num, go_path, bridge, peer_opts=""):
         else:
             print "specified go path do not use."
     pwd = local("pwd", capture=True)
+
+    pp = ''
+    if policy_pattern:
+        pp = " -p " + policy_pattern
+
     cmd = go_path + "go run " + pwd + "/quagga-rsconfig.go -n " + str(quagga_num) +\
-          " -c /tmp/gobgp -v " + IP_VERSION + " -i " + bridge["BRIDGE_NAME"][-1] + " " + peer_opts
+          " -c /tmp/gobgp -v " + IP_VERSION + pp +" -i " + bridge["BRIDGE_NAME"][-1] + " " + peer_opts
     local(cmd, capture=True)
 
 
@@ -319,7 +324,7 @@ def update_policy_config(go_path, policy_pattern=""):
     reload_config()
 
 
-def make_config_append(quagga_num, go_path, bridge, peer_opts=""):
+def make_config_append(quagga_num, go_path, bridge, peer_opts="", policy_pattern=""):
     if go_path != "":
         print "specified go path is [ " + go_path + " ]."
         if os.path.isdir(go_path):
@@ -327,8 +332,13 @@ def make_config_append(quagga_num, go_path, bridge, peer_opts=""):
         else:
             print "specified go path do not use."
     pwd = local("pwd", capture=True)
+
+    pp = ''
+    if policy_pattern:
+        pp = " -p " + policy_pattern
+
     cmd = go_path + "go run " + pwd + "/quagga-rsconfig.go -a " + str(quagga_num) +\
-          " -c /tmp/gobgp -v " + IP_VERSION + " -i " + bridge["BRIDGE_NAME"][-1] + " " + peer_opts
+          " -c /tmp/gobgp -v " + IP_VERSION + pp +" -i " + bridge["BRIDGE_NAME"][-1] + " " + peer_opts
     local(cmd, capture=True)
 
 
@@ -390,7 +400,8 @@ def init_test_env_executor(quagga_num, use_local, go_path, log_debug=False, is_r
     print "complete initialization of test environment."
 
 
-def init_policy_test_env_executor(quagga_num, use_local, go_path, log_debug=False, policy="", use_ipv6=False):
+def init_policy_test_env_executor(quagga_num, use_local, go_path, log_debug=False, policy="",
+                                  use_ipv6=False, use_exabgp=False):
     print "start initialization of test environment."
 
     if docker_container_check() or bridge_setting_check():
@@ -404,12 +415,22 @@ def init_policy_test_env_executor(quagga_num, use_local, go_path, log_debug=Fals
     if use_ipv6:
         global IP_VERSION
         IP_VERSION = IPv6
+    else:
+        global IP_VERSION
+        IP_VERSION = IPv4
 
     bridge_setting_for_docker_connection(BRIDGES)
-    make_config_with_policy(quagga_num, go_path, BRIDGE_0, policy_pattern=policy)
+    make_config(quagga_num, go_path, BRIDGE_0, policy_pattern=policy)
 
     # run gobgp docker container
     docker_container_run_gobgp(BRIDGE_0)
+
+    if use_exabgp:
+        # run exabgp
+        make_config_append(100, go_path, BRIDGE_0, peer_opts="--none-peer", policy_pattern=policy)
+        docker_container_run_exabgp(BRIDGE_0)
+        cmd = "docker exec exabgp cp -rf " + SHARE_VOLUME + "/exabgp /root/"
+        local(cmd, capture=True)
 
     # set log option
     opt = "-l debug" if log_debug else ""
@@ -425,8 +446,8 @@ def init_policy_test_env_executor(quagga_num, use_local, go_path, log_debug=Fals
             local(cmd, capture=True)
             make_install_file(use_local=True)
         else:
-            print "scenario_test directory is not."
-            print "execute gobgp program of osrg/master in github."
+            print "local gobgp dosen't exist."
+            print "get the latest master gobgp from github."
             make_install_file()
     else:
         print "execute gobgp program of osrg/master in github."
@@ -438,6 +459,10 @@ def init_policy_test_env_executor(quagga_num, use_local, go_path, log_debug=Fals
     # run quagga docker container
     for num in range(1, quagga_num + 1):
         docker_container_run_quagga(num, BRIDGE_0)
+
+    # start exabgp
+    if use_exabgp:
+        start_exabgp(EXABGP_COMMON_CONF)
 
     print "complete initialization of test environment."
 

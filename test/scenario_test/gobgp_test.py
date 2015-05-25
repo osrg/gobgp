@@ -297,6 +297,34 @@ class GoBGPTestBase(unittest.TestCase):
         print "route : %s is none" % target_prefix
         return None
 
+
+    # get route information on quagga
+    def check_community(self, neighbor_address, target_addr, community, retry=3, interval=-1, af=IPv4):
+        if interval < 0:
+            interval = self.wait_per_retry
+        print "check route %s on quagga : %s" % (target_addr, neighbor_address)
+        retry_count = 0
+
+        while True:
+            tn = qaccess.login(neighbor_address)
+            result = qaccess.check_community(tn, target_addr, community, af)
+            qaccess.logout(tn)
+
+            if result:
+                return True
+            else:
+                print "target path %s with community %s is none" % (target_addr, community)
+
+            retry_count += 1
+            if retry_count > retry:
+                break
+            else:
+                print "wait (" + str(interval) + " seconds)"
+                time.sleep(interval)
+
+        return False
+
+
     def compare_rib_with_quagga_configs(self, rib_owner_addr, local_rib):
 
         for quagga_config in self.quagga_configs:

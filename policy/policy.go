@@ -238,7 +238,11 @@ func (c *PrefixCondition) evaluate(path table.Path) bool {
 
 	for _, cp := range c.PrefixList {
 		if ipPrefixCalculate(path, cp) {
-			log.Debug("prefix matched : ", cp)
+			log.WithFields(log.Fields{
+				"Topic":  "Policy",
+				"Prefix": cp.Address.String(),
+			}).Debug("prefix matched")
+
 			return true
 		}
 	}
@@ -284,7 +288,10 @@ func (c *NeighborCondition) evaluate(path table.Path) bool {
 		cAddr := neighbor
 		pAddr := path.GetSource().Address
 		if pAddr.Equal(cAddr) {
-			log.Debug("neighbor matched : ", pAddr.String())
+			log.WithFields(log.Fields{
+				"Topic":           "Policy",
+				"NeighborAddress": pAddr.String(),
+			}).Debug("neighbor matched")
 			return true
 		}
 	}
@@ -329,20 +336,30 @@ func NewAsPathLengthCondition(defAsPathLength config.AsPathLength) *AsPathLength
 func (c *AsPathLengthCondition) evaluate(path table.Path) bool {
 
 	length := uint32(path.GetAsPathLen())
+	result := false
 
 	switch c.Operator {
 	case ATTRIBUTE_EQ:
-		return c.Value == length
+		result = c.Value == length
 
 	case ATTRIBUTE_GE:
-		return c.Value <= length
+		result = c.Value <= length
 
 	case ATTRIBUTE_LE:
-		return c.Value >= length
+		result = c.Value >= length
 	default:
 		return false
 	}
 
+	if result {
+		log.WithFields(log.Fields{
+			"Topic":  "Policy",
+			"Condition": "aspath length",
+			"Reason": c.Operator,
+		}).Debug("condition matched")
+	}
+
+	return result
 }
 
 type AsPathCondition struct {
@@ -455,7 +472,12 @@ func (c *AsPathCondition) evaluate(path table.Path) bool {
 		}
 
 		if matched {
-			log.Debugf("aspath matched : asn=%d, pos=%v)", member.asn, member.postiion)
+			log.WithFields(log.Fields{
+				"Topic":  "Policy",
+				"Condition": "aspath length",
+				"ASN": member.asn,
+				"Position": member.postiion,
+			}).Debug("condition matched")
 			return true
 		}
 
@@ -599,25 +621,38 @@ func (c *CommunityCondition) evaluate(path table.Path) bool {
 		return false
 	}
 
-	// create community string in advance.
-	strCommunities := make([]string, len(communities))
-	for i, c := range communities {
+	makeStr := func(c uint32) string {
 		upper := strconv.FormatUint(uint64(c&0xFFFF0000>>16), 10)
 		lower := strconv.FormatUint(uint64(c&0x0000FFFF), 10)
-		strCommunities[i] = upper + ":" + lower
+		return upper + ":" + lower
 	}
 
+	var strCommunities []string = nil
 	matched := false
 	idx := -1
 	for _, member := range c.CommunityList {
 		if member.isRegExp {
+
+			if strCommunities == nil {
+				// create community string.
+				strCommunities = make([]string, len(communities))
+				for i, c := range communities {
+					strCommunities[i] = makeStr(c)
+				}
+			}
+
 			for i, c := range strCommunities {
 				if member.communityRegExp.MatchString(c) {
 					matched = true
 					idx = i
+					log.WithFields(log.Fields{
+						"Topic":  "Policy",
+						"RegExp": member.communityRegExp.String(),
+					}).Debug("community regexp used")
 					break
 				}
 			}
+
 		} else {
 			for i, c := range communities {
 				if c == member.community {
@@ -629,7 +664,12 @@ func (c *CommunityCondition) evaluate(path table.Path) bool {
 		}
 
 		if matched {
-			log.Debugf("community matched : community=%s)", strCommunities[idx])
+			log.WithFields(log.Fields{
+				"Topic":  "Policy",
+				"Condition": "Community",
+				"Community": makeStr(communities[idx]),
+			}).Debug("condition matched")
+
 			return true
 		}
 	}
@@ -688,6 +728,10 @@ const (
 func NewCommunityAction(action config.SetCommunity) *CommunityAction {
 
 	m := &CommunityAction{}
+
+	if len(action.Communities) == 0 && action.Options != COMMUNITY_ACTION_NULL{
+		return nil
+	}
 
 	values := make([]uint32, len(action.Communities))
 	for i, com := range action.Communities {
@@ -811,10 +855,11 @@ func (p *Policy) Apply(path table.Path) (bool, RouteType, table.Path) {
 			p = statement.routingAction.apply(path)
 			if p != nil {
 				// apply all modification actions
+				cloned := path.Clone(p.IsWithdraw())
 				for _, action := range statement.modificationActions {
-					p = action.apply(p)
+					cloned = action.apply(cloned)
 				}
-				return true, ROUTE_TYPE_ACCEPT, p
+				return true, ROUTE_TYPE_ACCEPT, cloned
 			} else {
 				return true, ROUTE_TYPE_REJECT, nil
 			}
