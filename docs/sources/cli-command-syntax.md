@@ -62,15 +62,15 @@ Note: Currently gobgp supports only **global** and **neighbor** subcommand.
 ### Operations for Policy  - add/del/show -
 ```shell
 # add policy to import-policy configuration
-% gobgp neighbor <neighbor address> policy add import <import policy name> <default import policy> -a <address family>
+% gobgp neighbor <neighbor address> policy add import <import policy name> <default import policy>
 # add policy to export-policy configuration
-% gobgp neighbor <neighbor address> policy add export <export policy name> <default export policy> -a <address family>
+% gobgp neighbor <neighbor address> policy add export <export policy name> <default export policy>
 # delete import-policy configuration from specific neighbor
-% gobgp neighbor <neighbor address> policy del import -a <address family>
+% gobgp neighbor <neighbor address> policy del import
 # delete export-policy configuration from specific neighbor
-% gobgp neighbor <neighbor address> policy del export -a <address family>
-# show a specific policy  information
-% gobgp neighbor <neighbor address> policy -a <address family>
+% gobgp neighbor <neighbor address> policy del export
+# show a specific policy information
+% gobgp neighbor <neighbor address> policy
 ```
 
 ### Operations for Static Route - add/del/show -
@@ -93,9 +93,10 @@ Note: Currently gobgp supports only **global** and **neighbor** subcommand.
 # add PrefixSet
 % gobgp policy prefix add <prefix set name> <prefix>
 # delete all PrefixSet
-% gobgp policy prefix del
+% gobgp policy prefix del all
 # delete a specific PrefixSet
 % gobgp policy prefix del <prefix set name>
+% gobgp policy prefix del <prefix set name> <prefix> <mask length range>
 # show all PrefixSet information
 % gobgp policy prefix
 # show a specific PrefixSet
@@ -104,11 +105,12 @@ Note: Currently gobgp supports only **global** and **neighbor** subcommand.
 ### Operations for NeighborSet - add/del/show -
 ```shell
 # add NeighborSet
-% gobgp policy neighbor add <neighbor-set name> <neighbor address>
+% gobgp policy neighbor add <neighbor set name> <neighbor address>
 # delete all NeighborSet
-% gobgp policy neighbor del
+% gobgp policy neighbor del all
 # delete a specific NeighborSet
 % gobgp policy neighbor del <neighbor set name>
+% gobgp policy neighbor del <neighbor set name> <address>
 # show all NeighborSet information
 % gobgp policy neighbor
 # show a specific NeighborSet information
@@ -116,12 +118,15 @@ Note: Currently gobgp supports only **global** and **neighbor** subcommand.
 ```
 ### Operations for RoutePolicy - add/del/show -
 ```shell
-# add RoutePolicy
-% gobgp policy routepoilcy add <route policy name> condition <condtion> action <aciton>
+# add conditions to RoutePolicy
+% gobgp policy routepoilcy add <route policy name> <statement name> condition <condtion>
+# add actions to RoutePolicy
+% gobgp policy routepoilcy add <route policy name> <statement name> action <aciton>
 # delete all RoutePolicy
-% gobgp policy routepoilcy del
+% gobgp policy routepoilcy del all
 # delete a specific RoutePolicy
 % gobgp policy routepoilcy del <route policy name>
+% gobgp policy routepoilcy del <route policy name> <statement name>
 # show all RoutePolicy information
 % gobgp policy routepoilcy
 # show a specific RoutePolicy information
