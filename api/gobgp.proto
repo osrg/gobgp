@@ -33,6 +33,7 @@ service Grpc {
   rpc Disable(Arguments) returns (Error) {}
   rpc ModPath(stream ModPathArguments) returns (stream Error) {}
   rpc GetNeighborPolicy(Arguments) returns (ApplyPolicy) {}
+  rpc ModNeighborPolicy(stream PolicyArguments) returns (stream Error) {}
   rpc GetPolicyPrefixes(PolicyArguments) returns (stream PrefixSet) {}
   rpc GetPolicyPrefix(PolicyArguments) returns (PrefixSet) {}
   rpc ModPolicyPrefix(stream PolicyArguments) returns (stream Error) {}
@@ -66,11 +67,13 @@ message ModPathArguments {
 
 message PolicyArguments {
     Resource resource = 1;
-	Operation operation = 2;
-	string name = 3;
-	PrefixSet prefix_set = 4;
-	NeighborSet neighbor_set = 5;
-	PolicyDefinition policy_difinition = 6;
+    Operation operation = 2;
+    string router_id = 3;
+    string name = 4;
+    PrefixSet prefix_set = 5;
+    NeighborSet neighbor_set = 6;
+    PolicyDefinition policy_difinition = 7;
+    ApplyPolicy apply_policy = 8;
 }
 
 enum Resource {

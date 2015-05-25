@@ -132,6 +132,7 @@ func (peer *Peer) setPolicy(policyMap map[string]*policy.Policy) {
 		}
 	}
 	peer.importPolicies = inPolicies
+	peer.defaultImportPolicy = policyConfig.DefaultImportPolicy
 
 	// configure export policy
 	outPolicies := make([]*policy.Policy, 0)
@@ -147,6 +148,7 @@ func (peer *Peer) setPolicy(policyMap map[string]*policy.Policy) {
 		}
 	}
 	peer.exportPolicies = outPolicies
+	peer.defaultExportPolicy = policyConfig.DefaultExportPolicy
 }
 
 func (peer *Peer) configuredRFlist() []bgp.RouteFamily {
@@ -588,10 +590,8 @@ func (peer *Peer) handleGrpc(grpcReq *GrpcRequest) {
 		}
 		result.Data = err
 	case REQ_NEIGHBOR_POLICY:
-		result := &GrpcResponse{}
 		resInPolicies := []*api.PolicyDefinition{}
 		resOutPolicies := []*api.PolicyDefinition{}
-
 		// Add importpolies that has been set in the configuration file to the list.
 		// However, peer haven't target importpolicy when add PolicyDefinition of name only to the list.
 		conInPolicyNames := peer.peerConfig.ApplyPolicy.ImportPolicies
@@ -624,13 +624,13 @@ func (peer *Peer) handleGrpc(grpcReq *GrpcRequest) {
 				resOutPolicies = append(resOutPolicies, &api.PolicyDefinition{PolicyDefinitionName: conOutPolicyName})
 			}
 		}
-		defaultInPolicy := "REJECT"
-		defaultOutPolicy := "REJECT"
-		if peer.defaultImportPolicy == 0 {
-			defaultInPolicy = "ACCEPT"
+		defaultInPolicy := policy.ROUTE_REJECT
+		defaultOutPolicy := policy.ROUTE_REJECT
+		if peer.defaultImportPolicy == config.DEFAULT_POLICY_TYPE_ACCEPT_ROUTE {
+			defaultInPolicy = policy.ROUTE_ACCEPT
 		}
-		if peer.defaultExportPolicy == 0 {
-			defaultOutPolicy = "ACCEPT"
+		if peer.defaultExportPolicy == config.DEFAULT_POLICY_TYPE_ACCEPT_ROUTE {
+			defaultOutPolicy = policy.ROUTE_ACCEPT
 		}
 		result.Data = &api.ApplyPolicy{
 			DefaultImportPolicy: defaultInPolicy,
@@ -638,10 +638,32 @@ func (peer *Peer) handleGrpc(grpcReq *GrpcRequest) {
 			DefaultExportPolicy: defaultOutPolicy,
 			ExportPolicies:      resOutPolicies,
 		}
-		grpcReq.ResponseCh <- result
-
-		close(grpcReq.ResponseCh)
-		return
+	case REQ_NEIGHBOR_POLICY_ADD_IMPORT, REQ_NEIGHBOR_POLICY_ADD_EXPORT, REQ_NEIGHBOR_POLICY_DEL_IMPORT, REQ_NEIGHBOR_POLICY_DEL_EXPORT:
+		data := grpcReq.Data.([]interface{})
+		reqApplyPolicy := data[0].(*api.ApplyPolicy)
+		reqPolicyMap := data[1].(map[string]*policy.Policy)
+		applyPolicy := &peer.peerConfig.ApplyPolicy
+		var defInPolicy, defOutPolicy config.DefaultPolicyType
+		if grpcReq.RequestType == REQ_NEIGHBOR_POLICY_ADD_IMPORT {
+			if reqApplyPolicy.DefaultImportPolicy != policy.ROUTE_ACCEPT {
+				defInPolicy = config.DEFAULT_POLICY_TYPE_REJECT_ROUTE
+			}
+			peer.peerConfig.ApplyPolicy.DefaultImportPolicy = defInPolicy
+			applyPolicy.ImportPolicies = policy.PoliciesToString(reqApplyPolicy.ImportPolicies)
+		} else if grpcReq.RequestType == REQ_NEIGHBOR_POLICY_ADD_EXPORT {
+			if reqApplyPolicy.DefaultExportPolicy != policy.ROUTE_ACCEPT {
+				defOutPolicy = config.DEFAULT_POLICY_TYPE_REJECT_ROUTE
+			}
+			peer.peerConfig.ApplyPolicy.DefaultExportPolicy = defOutPolicy
+			applyPolicy.ExportPolicies = policy.PoliciesToString(reqApplyPolicy.ExportPolicies)
+		} else if grpcReq.RequestType == REQ_NEIGHBOR_POLICY_DEL_IMPORT {
+			peer.peerConfig.ApplyPolicy.DefaultImportPolicy = config.DEFAULT_POLICY_TYPE_ACCEPT_ROUTE
+			peer.peerConfig.ApplyPolicy.ImportPolicies = make([]string, 0)
+		} else if grpcReq.RequestType == REQ_NEIGHBOR_POLICY_DEL_EXPORT {
+			peer.peerConfig.ApplyPolicy.DefaultExportPolicy = config.DEFAULT_POLICY_TYPE_ACCEPT_ROUTE
+			peer.peerConfig.ApplyPolicy.ExportPolicies = make([]string, 0)
+		}
+		peer.setPolicy(reqPolicyMap)
 	}
 	grpcReq.ResponseCh <- result
 	close(grpcReq.ResponseCh)

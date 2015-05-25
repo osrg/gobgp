@@ -870,6 +870,30 @@ func ipPrefixCalculate(path table.Path, cPrefix Prefix) bool {
 	return false
 }
 
+const (
+	ROUTE_ACCEPT string = "ACCEPT"
+	ROUTE_REJECT        = "REJECT"
+)
+
+const (
+	OPTIONS_ALL    string = "ALL"
+	OPTIONS_ANY           = "ANY"
+	OPTIONS_INVERT        = "INVERT"
+)
+
+func MatchSetOptionToString(option config.MatchSetOptionsType) string {
+	var op string
+	switch option {
+	case config.MATCH_SET_OPTIONS_TYPE_ALL:
+		op = OPTIONS_ALL
+	case config.MATCH_SET_OPTIONS_TYPE_ANY:
+		op = OPTIONS_ANY
+	case config.MATCH_SET_OPTIONS_TYPE_INVERT:
+		op = OPTIONS_INVERT
+	}
+	return op
+}
+
 func (p *Policy) ToApiStruct() *api.PolicyDefinition {
 	resStatements := make([]*api.Statement, 0)
 	for _, st := range p.Statements {
@@ -929,26 +953,17 @@ func (p *Policy) ToApiStruct() *api.PolicyDefinition {
 				}
 			}
 		}
-		var op string
-		switch st.MatchSetOptions {
-		case config.MATCH_SET_OPTIONS_TYPE_ALL:
-			op = "ALL"
-		case config.MATCH_SET_OPTIONS_TYPE_ANY:
-			op = "ANY"
-		case config.MATCH_SET_OPTIONS_TYPE_INVERT:
-			op = "INVERT"
-		}
 		resConditions := &api.Conditions{
 			MatchPrefixSet:    resPrefixSet,
 			MatchNeighborSet:  resNeighborSet,
 			MatchAsPathLength: resAsPathLength,
-			MatchSetOptions:   op,
+			MatchSetOptions:   MatchSetOptionToString(st.MatchSetOptions),
 		}
 		resActions := &api.Actions{
-			RouteAction: "REJECT",
+			RouteAction: ROUTE_REJECT,
 		}
-		if st.Actions.(*RoutingActions).AcceptRoute {
-			resActions.RouteAction = "ACCEPT"
+		if st.routingAction.AcceptRoute {
+			resActions.RouteAction = ROUTE_ACCEPT
 		}
 		resStatement := &api.Statement{
 			StatementNeme: st.Name,
@@ -1156,11 +1171,11 @@ func ConditionsToConfigStruct(reqConditions *api.Conditions) config.Conditions {
 	}
 	var setOption config.MatchSetOptionsType
 	switch reqConditions.MatchSetOptions {
-	case "ALL":
+	case OPTIONS_ALL:
 		setOption = config.MATCH_SET_OPTIONS_TYPE_ALL
-	case "ANY":
+	case OPTIONS_ANY:
 		setOption = config.MATCH_SET_OPTIONS_TYPE_ANY
-	case "INVERT":
+	case OPTIONS_INVERT:
 		setOption = config.MATCH_SET_OPTIONS_TYPE_INVERT
 	}
 	conditions.MatchSetOptions = setOption
@@ -1171,9 +1186,9 @@ func ActionsToConfigStruct(reqActions *api.Actions) config.Actions {
 	acceptRoute := false
 	rejectRoute := false
 	switch reqActions.RouteAction {
-	case "ACCEPT":
+	case ROUTE_ACCEPT:
 		acceptRoute = true
-	case "REJECT":
+	case ROUTE_REJECT:
 		rejectRoute = true
 	}
 	actions := config.Actions{
@@ -1236,26 +1251,17 @@ func PolicyDefinitionToApiStruct(pd config.PolicyDefinition, df config.DefinedSe
 			neighborSet = NeighborSetToApiStruct(conNeighborSetList[idxNeighborSet])
 		}
 		asPathLength := AsPathLengthToApiStruct(st.Conditions.BgpConditions.AsPathLength)
-		var op string
-		switch conditions.MatchSetOptions {
-		case config.MATCH_SET_OPTIONS_TYPE_ALL:
-			op = "ALL"
-		case config.MATCH_SET_OPTIONS_TYPE_ANY:
-			op = "ANY"
-		case config.MATCH_SET_OPTIONS_TYPE_INVERT:
-			op = "INVERT"
-		}
 		resConditions := &api.Conditions{
 			MatchPrefixSet:    prefixSet,
 			MatchNeighborSet:  neighborSet,
 			MatchAsPathLength: asPathLength,
-			MatchSetOptions:   op,
+			MatchSetOptions:   MatchSetOptionToString(conditions.MatchSetOptions),
 		}
 		resActions := &api.Actions{
-			RouteAction: "REJECT",
+			RouteAction: ROUTE_REJECT,
 		}
 		if actions.AcceptRoute {
-			resActions.RouteAction = "ACCEPT"
+			resActions.RouteAction = ROUTE_ACCEPT
 		}
 		resStatement := &api.Statement{
 			StatementNeme: st.Name,
@@ -1269,4 +1275,12 @@ func PolicyDefinitionToApiStruct(pd config.PolicyDefinition, df config.DefinedSe
 		StatementList:        resStatementList,
 	}
 	return resPolicyDefinition
+}
+
+func PoliciesToString(reqPolicies []*api.PolicyDefinition) []string {
+	policies := make([]string, 0)
+	for _, reqPolicy := range reqPolicies {
+		policies = append(policies, reqPolicy.PolicyDefinitionName)
+	}
+	return policies
 }

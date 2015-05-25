@@ -41,6 +41,10 @@ const (
 	REQ_NEIGHBOR_ENABLE
 	REQ_NEIGHBOR_DISABLE
 	REQ_NEIGHBOR_POLICY
+	REQ_NEIGHBOR_POLICY_ADD_IMPORT
+	REQ_NEIGHBOR_POLICY_ADD_EXPORT
+	REQ_NEIGHBOR_POLICY_DEL_IMPORT
+	REQ_NEIGHBOR_POLICY_DEL_EXPORT
 	REQ_GLOBAL_RIB
 	REQ_GLOBAL_ADD
 	REQ_GLOBAL_DELETE
@@ -291,6 +295,52 @@ func (s *Server) GetNeighborPolicy(ctx context.Context, arg *api.Arguments) (*ap
 		return nil, err
 	}
 	return res.Data.(*api.ApplyPolicy), nil
+}
+
+func (s *Server) ModNeighborPolicy(stream api.Grpc_ModNeighborPolicyServer) error {
+	for {
+		arg, err := stream.Recv()
+		if err == io.EOF {
+			return nil
+		} else if err != nil {
+			return err
+		}
+
+		if arg.Resource != api.Resource_POLICY_ROUTEPOLICY {
+			return fmt.Errorf("unsupported resource: %s", arg.Resource)
+		}
+		var rf bgp.RouteFamily
+		var reqType int
+		switch arg.Operation {
+		case api.Operation_ADD:
+			switch arg.Name {
+			case "import":
+				reqType = REQ_NEIGHBOR_POLICY_ADD_IMPORT
+			case "export":
+				reqType = REQ_NEIGHBOR_POLICY_ADD_EXPORT
+			}
+		case api.Operation_DEL:
+			switch arg.Name {
+			case "import":
+				reqType = REQ_NEIGHBOR_POLICY_DEL_IMPORT
+			case "export":
+				reqType = REQ_NEIGHBOR_POLICY_DEL_EXPORT
+			}
+		}
+		req := NewGrpcRequest(reqType, arg.RouterId, rf, arg.ApplyPolicy)
+		s.bgpServerCh <- req
+		res := <-req.ResponseCh
+		if err := res.Err(); err != nil {
+			log.Debug(err.Error())
+			return err
+		}
+		err = stream.Send(&api.Error{
+			Code: api.Error_SUCCESS,
+		})
+		if err != nil {
+			return err
+		}
+	}
 }
 
 func (s *Server) getPolicies(reqType int, arg *api.PolicyArguments, stream interface{}) error {

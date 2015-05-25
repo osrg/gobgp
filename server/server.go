@@ -325,6 +325,23 @@ func (server *BgpServer) handleGrpc(grpcReq *GrpcRequest) {
 			grpcReq.ResponseCh <- result
 			close(grpcReq.ResponseCh)
 		}
+	case REQ_NEIGHBOR_POLICY_ADD_IMPORT, REQ_NEIGHBOR_POLICY_ADD_EXPORT, REQ_NEIGHBOR_POLICY_DEL_IMPORT, REQ_NEIGHBOR_POLICY_DEL_EXPORT:
+		remoteAddr := grpcReq.RemoteAddr
+		result := &GrpcResponse{}
+		info, found := server.peerMap[remoteAddr]
+		if found {
+			reqApplyPolicy := grpcReq.Data.(*api.ApplyPolicy)
+			grpcReq.Data = []interface{}{reqApplyPolicy, server.policyMap}
+			msg := &serverMsg{
+				msgType: SRV_MSG_API,
+				msgData: grpcReq,
+			}
+			info.peer.serverMsgCh <- msg
+		} else {
+			result.ResponseErr = fmt.Errorf("Neighbor that has %v doesn't  exist.", remoteAddr)
+			grpcReq.ResponseCh <- result
+			close(grpcReq.ResponseCh)
+		}
 	case REQ_POLICY_PREFIXES:
 		info := server.routingPolicy.DefinedSets.PrefixSetList
 		result := &GrpcResponse{}
@@ -395,16 +412,17 @@ func (server *BgpServer) handleGrpc(grpcReq *GrpcRequest) {
 			// If only name of the PrefixSet is same, delete all of the elements of the PrefixSet.
 			// If the same element PrefixSet, delete the it's element from PrefixSet.
 			idxPrefixSet, idxPrefix := policy.IndexOfPrefixSet(conPrefixSetList, prefixSet)
+			prefix := prefixSet.PrefixList[0]
 			if idxPrefixSet == -1 {
 				result.ResponseErr = fmt.Errorf("Policy prefix that has %v %v/%v %v doesn't exist.", prefixSet.PrefixSetName,
-					prefixSet.PrefixList[0].Address, prefixSet.PrefixList[0].Masklength, prefixSet.PrefixList[0].MasklengthRange)
+					prefix.Address, prefix.Masklength, prefix.MasklengthRange)
 			} else {
 				if idxPrefix == -1 {
 					result.ResponseErr = fmt.Errorf("Policy prefix that has %v %v/%v %v doesn't exist.", prefixSet.PrefixSetName,
-						prefixSet.PrefixList[0].Address, prefixSet.PrefixList[0].Masklength, prefixSet.PrefixList[0].MasklengthRange)
+						prefix.Address, prefix.Masklength, prefix.MasklengthRange)
 				} else {
-					copy(conPrefixSetList[idxPrefixSet].PrefixList[idxPrefix:], conPrefixSetList[idxPrefixSet].PrefixList[idxPrefix+1:])
-					conPrefixSetList[idxPrefixSet].PrefixList = conPrefixSetList[idxPrefixSet].PrefixList[:len(conPrefixSetList[idxPrefixSet].PrefixList)-1]
+					conPrefixSetList[idxPrefixSet].PrefixList =
+						append(conPrefixSetList[idxPrefixSet].PrefixList[:idxPrefix], conPrefixSetList[idxPrefixSet].PrefixList[idxPrefix+1:]...)
 				}
 			}
 		} else {
@@ -418,8 +436,7 @@ func (server *BgpServer) handleGrpc(grpcReq *GrpcRequest) {
 			if idxPrefixSet == -1 {
 				result.ResponseErr = fmt.Errorf("Policy prefix that has %v doesn't exist.", prefixSet.PrefixSetName)
 			} else {
-				copy(conPrefixSetList[idxPrefixSet:], conPrefixSetList[idxPrefixSet+1:])
-				conPrefixSetList = conPrefixSetList[:len(conPrefixSetList)-1]
+				conPrefixSetList = append(conPrefixSetList[:idxPrefixSet], conPrefixSetList[idxPrefixSet+1:]...)
 			}
 		}
 		server.routingPolicy.DefinedSets.PrefixSetList = conPrefixSetList
@@ -511,10 +528,9 @@ func (server *BgpServer) handleGrpc(grpcReq *GrpcRequest) {
 					result.ResponseErr = fmt.Errorf("Policy neighbor that has %v %v doesn't exist.", neighborSet.NeighborSetName,
 						neighborSet.NeighborInfoList[0].Address)
 				} else {
-					copy(conNeighborSetList[idxNeighborSet].NeighborInfoList[idxNeighbor:],
-						conNeighborSetList[idxNeighborSet].NeighborInfoList[idxNeighbor+1:])
 					conNeighborSetList[idxNeighborSet].NeighborInfoList =
-						conNeighborSetList[idxNeighborSet].NeighborInfoList[:len(conNeighborSetList[idxNeighborSet].NeighborInfoList)-1]
+						append(conNeighborSetList[idxNeighborSet].NeighborInfoList[:idxNeighbor],
+							conNeighborSetList[idxNeighborSet].NeighborInfoList[idxNeighbor+1:]...)
 				}
 			}
 		} else {
@@ -528,8 +544,7 @@ func (server *BgpServer) handleGrpc(grpcReq *GrpcRequest) {
 			if idxNeighborSet == -1 {
 				result.ResponseErr = fmt.Errorf("Policy neighbor %v doesn't  exist.", neighborSet.NeighborSetName)
 			} else {
-				copy(conNeighborSetList[idxNeighborSet:], conNeighborSetList[idxNeighborSet+1:])
-				conNeighborSetList = conNeighborSetList[:len(conNeighborSetList)-1]
+				conNeighborSetList = append(conNeighborSetList[:idxNeighborSet], conNeighborSetList[idxNeighborSet+1:]...)
 			}
 		}
 		server.routingPolicy.DefinedSets.NeighborSetList = conNeighborSetList
@@ -583,6 +598,8 @@ func (server *BgpServer) handleGrpc(grpcReq *GrpcRequest) {
 		close(grpcReq.ResponseCh)
 	case REQ_POLICY_ROUTEPOLICY_ADD:
 		reqPolicy := grpcReq.Data.(*api.PolicyDefinition)
+		reqConditions := reqPolicy.StatementList[0].Conditions
+		reqActions := reqPolicy.StatementList[0].Actions
 		conPolicyList := server.routingPolicy.PolicyDefinitionList
 		result := &GrpcResponse{}
 		_, policyDef := policy.PolicyDefinitionToConfigStruct(reqPolicy)
@@ -595,13 +612,23 @@ func (server *BgpServer) handleGrpc(grpcReq *GrpcRequest) {
 				conPolicyList[idxPolicy].StatementList =
 					append(conPolicyList[idxPolicy].StatementList, statement)
 			} else {
-				if reqPolicy.StatementList[0].Conditions != nil {
-					conPolicyList[idxPolicy].StatementList[idxStatement].Conditions =
-						statement.Conditions
+				conStatement := &conPolicyList[idxPolicy].StatementList[idxStatement]
+				if reqConditions != nil {
+					if reqConditions.MatchPrefixSet != nil {
+						conStatement.Conditions.MatchPrefixSet = statement.Conditions.MatchPrefixSet
+					}
+					if reqConditions.MatchNeighborSet != nil {
+						conStatement.Conditions.MatchNeighborSet = statement.Conditions.MatchNeighborSet
+					}
+					if reqConditions.MatchSetOptions != "" {
+						conStatement.Conditions.MatchSetOptions = statement.Conditions.MatchSetOptions
+					}
+					if reqConditions.MatchAsPathLength != nil {
+						conStatement.Conditions.BgpConditions.AsPathLength = statement.Conditions.BgpConditions.AsPathLength
+					}
 				}
-				if reqPolicy.StatementList[0].Actions != nil {
-					conPolicyList[idxPolicy].StatementList[idxStatement].Actions =
-						statement.Actions
+				if reqActions != nil {
+					conStatement.Actions = statement.Actions
 				}
 			}
 		}
@@ -623,10 +650,8 @@ func (server *BgpServer) handleGrpc(grpcReq *GrpcRequest) {
 				if idxStatement == -1 {
 					result.ResponseErr = fmt.Errorf("Policy Statment that has %v doesn't exist.", policyDef.StatementList[0].Name)
 				} else {
-					copy(conPolicyList[idxPolicy].StatementList[idxStatement:],
-						conPolicyList[idxPolicy].StatementList[idxStatement+1:])
 					conPolicyList[idxPolicy].StatementList =
-						conPolicyList[idxPolicy].StatementList[:len(conPolicyList[idxPolicy].StatementList)-1]
+						append(conPolicyList[idxPolicy].StatementList[:idxStatement], conPolicyList[idxPolicy].StatementList[idxStatement+1:]...)
 				}
 			}
 		} else {
@@ -640,8 +665,7 @@ func (server *BgpServer) handleGrpc(grpcReq *GrpcRequest) {
 			if idxPolicy == -1 {
 				result.ResponseErr = fmt.Errorf("Policy that has %v doesn't exist.", policyDef.Name)
 			} else {
-				copy(conPolicyList[idxPolicy:], conPolicyList[idxPolicy+1:])
-				conPolicyList = conPolicyList[:len(conPolicyList)-1]
+				conPolicyList = append(conPolicyList[:idxPolicy], conPolicyList[idxPolicy+1:]...)
 			}
 		}
 		server.routingPolicy.PolicyDefinitionList = conPolicyList
