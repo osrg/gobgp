@@ -929,25 +929,31 @@ func (p *Policy) ToApiStruct() *api.PolicyDefinition {
 				}
 			}
 		}
-		resCondition := &api.Conditions{
+		var op string
+		switch st.MatchSetOptions {
+		case config.MATCH_SET_OPTIONS_TYPE_ALL:
+			op = "ALL"
+		case config.MATCH_SET_OPTIONS_TYPE_ANY:
+			op = "ANY"
+		case config.MATCH_SET_OPTIONS_TYPE_INVERT:
+			op = "INVERT"
+		}
+		resConditions := &api.Conditions{
 			MatchPrefixSet:    resPrefixSet,
 			MatchNeighborSet:  resNeighborSet,
 			MatchAsPathLength: resAsPathLength,
-			MatchSetOptions:   int64(st.MatchSetOptions),
+			MatchSetOptions:   op,
 		}
-		resAction := &api.Actions{
-			AcceptRoute: false,
-			RejectRoute: true,
+		resActions := &api.Actions{
+			RouteAction: "REJECT",
 		}
-
-		if st.routingAction.AcceptRoute {
-			resAction.AcceptRoute = true
-			resAction.RejectRoute = false
+		if st.Actions.(*RoutingActions).AcceptRoute {
+			resActions.RouteAction = "ACCEPT"
 		}
 		resStatement := &api.Statement{
 			StatementNeme: st.Name,
-			Conditions:    resCondition,
-			Actions:       resAction,
+			Conditions:    resConditions,
+			Actions:       resActions,
 		}
 		resStatements = append(resStatements, resStatement)
 	}
@@ -1003,6 +1009,29 @@ func IndexOfNeighborSet(conNeighborSetList []config.NeighborSet, reqNeighborSet 
 		}
 	}
 	return idxNeighborSet, idxNeighbor
+}
+
+// find index PolicyDefinition of request from PolicyDefinition of configuration file.
+// Return the idxPolicyDefinition of the location where the name of PolicyDefinition matches,
+// and idxStatement of the location where Statement of PolicyDefinition matches
+func IndexOfPolicyDefinition(conPolicyList []config.PolicyDefinition, reqPolicy config.PolicyDefinition) (int, int) {
+	idxPolicyDefinition := -1
+	idxStatement := -1
+	for i, conPolicy := range conPolicyList {
+		if conPolicy.Name == reqPolicy.Name {
+			idxPolicyDefinition = i
+			if reqPolicy.StatementList == nil {
+				return idxPolicyDefinition, idxStatement
+			}
+			for j, conStatement := range conPolicy.StatementList {
+				if conStatement.Name == reqPolicy.StatementList[0].Name {
+					idxStatement = j
+					return idxPolicyDefinition, idxStatement
+				}
+			}
+		}
+	}
+	return idxPolicyDefinition, idxStatement
 }
 
 func PrefixSetToApiStruct(ps config.PrefixSet) *api.PrefixSet {
@@ -1087,6 +1116,17 @@ func NeighborSetToConfigStruct(reqNeighborSet *api.NeighborSet) (bool, config.Ne
 	return isReqNeighborSet, neighborSet
 }
 
+func AsPathLengthToConfigStruct(reqAsPathLength *api.AsPathLength) config.AsPathLength {
+	operator := reqAsPathLength.Operator
+	value := reqAsPathLength.Value
+	valueUint, _ := strconv.ParseUint(value, 10, 32)
+	asPathLength := config.AsPathLength{
+		Operator: operator,
+		Value:    uint32(valueUint),
+	}
+	return asPathLength
+}
+
 func AsPathLengthToApiStruct(asPathLength config.AsPathLength) *api.AsPathLength {
 	value := ""
 	if asPathLength.Operator != "" {
@@ -1097,6 +1137,77 @@ func AsPathLengthToApiStruct(asPathLength config.AsPathLength) *api.AsPathLength
 		Operator: asPathLength.Operator,
 	}
 	return resAsPathLength
+}
+
+func ConditionsToConfigStruct(reqConditions *api.Conditions) config.Conditions {
+	conditions := config.Conditions{}
+	if reqConditions.MatchPrefixSet != nil {
+		conditions.MatchPrefixSet = reqConditions.MatchPrefixSet.PrefixSetName
+	}
+	if reqConditions.MatchNeighborSet != nil {
+		conditions.MatchNeighborSet = reqConditions.MatchNeighborSet.NeighborSetName
+	}
+	if reqConditions.MatchAsPathLength != nil {
+		asPathLength := AsPathLengthToConfigStruct(reqConditions.MatchAsPathLength)
+		bgpConditions := config.BgpConditions{
+			AsPathLength: asPathLength,
+		}
+		conditions.BgpConditions = bgpConditions
+	}
+	var setOption config.MatchSetOptionsType
+	switch reqConditions.MatchSetOptions {
+	case "ALL":
+		setOption = config.MATCH_SET_OPTIONS_TYPE_ALL
+	case "ANY":
+		setOption = config.MATCH_SET_OPTIONS_TYPE_ANY
+	case "INVERT":
+		setOption = config.MATCH_SET_OPTIONS_TYPE_INVERT
+	}
+	conditions.MatchSetOptions = setOption
+	return conditions
+}
+
+func ActionsToConfigStruct(reqActions *api.Actions) config.Actions {
+	acceptRoute := false
+	rejectRoute := false
+	switch reqActions.RouteAction {
+	case "ACCEPT":
+		acceptRoute = true
+	case "REJECT":
+		rejectRoute = true
+	}
+	actions := config.Actions{
+		AcceptRoute: acceptRoute,
+		RejectRoute: rejectRoute,
+	}
+	return actions
+}
+
+func StatementToConfigStruct(reqStatement *api.Statement) config.Statement {
+	statement := config.Statement{
+		Name: reqStatement.StatementNeme,
+	}
+	if reqStatement.Conditions != nil {
+		statement.Conditions = ConditionsToConfigStruct(reqStatement.Conditions)
+	}
+	if reqStatement.Actions != nil {
+		statement.Actions = ActionsToConfigStruct(reqStatement.Actions)
+	}
+	return statement
+}
+
+func PolicyDefinitionToConfigStruct(reqPolicy *api.PolicyDefinition) (bool, config.PolicyDefinition) {
+	isReqStatement := true
+	policy := config.PolicyDefinition{
+		Name: reqPolicy.PolicyDefinitionName,
+	}
+	if reqPolicy.StatementList != nil {
+		statement := StatementToConfigStruct(reqPolicy.StatementList[0])
+		policy.StatementList = []config.Statement{statement}
+	} else {
+		isReqStatement = false
+	}
+	return isReqStatement, policy
 }
 
 func PolicyDefinitionToApiStruct(pd config.PolicyDefinition, df config.DefinedSets) *api.PolicyDefinition {
@@ -1125,16 +1236,26 @@ func PolicyDefinitionToApiStruct(pd config.PolicyDefinition, df config.DefinedSe
 			neighborSet = NeighborSetToApiStruct(conNeighborSetList[idxNeighborSet])
 		}
 		asPathLength := AsPathLengthToApiStruct(st.Conditions.BgpConditions.AsPathLength)
-
+		var op string
+		switch conditions.MatchSetOptions {
+		case config.MATCH_SET_OPTIONS_TYPE_ALL:
+			op = "ALL"
+		case config.MATCH_SET_OPTIONS_TYPE_ANY:
+			op = "ANY"
+		case config.MATCH_SET_OPTIONS_TYPE_INVERT:
+			op = "INVERT"
+		}
 		resConditions := &api.Conditions{
 			MatchPrefixSet:    prefixSet,
 			MatchNeighborSet:  neighborSet,
 			MatchAsPathLength: asPathLength,
-			MatchSetOptions:   int64(conditions.MatchSetOptions),
+			MatchSetOptions:   op,
 		}
 		resActions := &api.Actions{
-			AcceptRoute: actions.AcceptRoute,
-			RejectRoute: actions.RejectRoute,
+			RouteAction: "REJECT",
+		}
+		if actions.AcceptRoute {
+			resActions.RouteAction = "ACCEPT"
 		}
 		resStatement := &api.Statement{
 			StatementNeme: st.Name,

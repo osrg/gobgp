@@ -21,8 +21,6 @@ import (
 	"fmt"
 	"github.com/jessevdk/go-flags"
 	"github.com/osrg/gobgp/api"
-	"github.com/osrg/gobgp/config"
-	"github.com/osrg/gobgp/policy"
 	"golang.org/x/net/context"
 	"google.golang.org/grpc"
 	"io"
@@ -54,6 +52,8 @@ const (
 	CMD_DISABLE        = "disable"
 	CMD_PREFIX         = "prefix"
 	CMD_ROUTEPOLICY    = "routepolicy"
+	CMD_CONDITIONS     = "conditions"
+	CMD_ACTIONS        = "actions"
 )
 
 func formatTimedelta(d int64) string {
@@ -200,7 +200,7 @@ func connGrpc() *grpc.ClientConn {
 	return conn
 }
 
-func requestGrpc(cmd string, eArgs []string, remoteIP net.IP) error {
+func requestGrpc(cmd string, eArgs []string, request interface{}) error {
 	conn := connGrpc()
 	defer conn.Close()
 	client = api.NewGrpcClient(conn)
@@ -219,27 +219,27 @@ func requestGrpc(cmd string, eArgs []string, remoteIP net.IP) error {
 			return showNeighbor(eArgs)
 		}
 	case CMD_NEIGHBOR + "_" + CMD_LOCAL:
-		return showNeighborRib(api.Resource_LOCAL, remoteIP)
+		return showNeighborRib(api.Resource_LOCAL, request.(*NeighborRibCommand).remoteIP)
 	case CMD_NEIGHBOR + "_" + CMD_ADJ_IN:
-		return showNeighborRib(api.Resource_ADJ_IN, remoteIP)
+		return showNeighborRib(api.Resource_ADJ_IN, request.(*NeighborRibCommand).remoteIP)
 	case CMD_NEIGHBOR + "_" + CMD_ADJ_OUT:
-		return showNeighborRib(api.Resource_ADJ_OUT, remoteIP)
+		return showNeighborRib(api.Resource_ADJ_OUT, request.(*NeighborRibCommand).remoteIP)
 	case CMD_NEIGHBOR + "_" + CMD_RESET:
-		return resetNeighbor(CMD_RESET, remoteIP)
+		return resetNeighbor(CMD_RESET, request.(*NeighborResetCommand).remoteIP)
 	case CMD_NEIGHBOR + "_" + CMD_SOFT_RESET:
-		return resetNeighbor(CMD_SOFT_RESET, remoteIP)
+		return resetNeighbor(CMD_SOFT_RESET, request.(*NeighborResetCommand).remoteIP)
 	case CMD_NEIGHBOR + "_" + CMD_SOFT_RESET_IN:
-		return resetNeighbor(CMD_SOFT_RESET_IN, remoteIP)
+		return resetNeighbor(CMD_SOFT_RESET_IN, request.(*NeighborResetCommand).remoteIP)
 	case CMD_NEIGHBOR + "_" + CMD_SOFT_RESET_OUT:
-		return resetNeighbor(CMD_SOFT_RESET_OUT, remoteIP)
+		return resetNeighbor(CMD_SOFT_RESET_OUT, request.(*NeighborResetCommand).remoteIP)
 	case CMD_NEIGHBOR + "_" + CMD_SHUTDOWN:
-		return stateChangeNeighbor(CMD_SHUTDOWN, remoteIP)
+		return stateChangeNeighbor(CMD_SHUTDOWN, request.(*NeighborChangeStateCommand).remoteIP)
 	case CMD_NEIGHBOR + "_" + CMD_ENABLE:
-		return stateChangeNeighbor(CMD_ENABLE, remoteIP)
+		return stateChangeNeighbor(CMD_ENABLE, request.(*NeighborChangeStateCommand).remoteIP)
 	case CMD_NEIGHBOR + "_" + CMD_DISABLE:
-		return stateChangeNeighbor(CMD_DISABLE, remoteIP)
+		return stateChangeNeighbor(CMD_DISABLE, request.(*NeighborChangeStateCommand).remoteIP)
 	case CMD_NEIGHBOR + "_" + CMD_POLICY:
-		return showNeighborPolicy(remoteIP)
+		return showNeighborPolicy(request.(*NeighborPolicyCommand).remoteIP)
 	case CMD_POLICY + "_" + CMD_PREFIX:
 		if len(eArgs) == 0 {
 			return showPolicyPrefixes()
@@ -266,6 +266,16 @@ func requestGrpc(cmd string, eArgs []string, remoteIP net.IP) error {
 		} else {
 			return showPolicyRoutePolicy(eArgs)
 		}
+	case CMD_POLICY + "_" + CMD_ROUTEPOLICY + "_" + CMD_ADD + "_" + CMD_CONDITIONS:
+		return modPolicyRoutePolicy(CMD_ADD, CMD_CONDITIONS, eArgs,
+			request.(*PolicyRoutePolicyAddConditionsCommand).policyName,
+			request.(*PolicyRoutePolicyAddConditionsCommand).statementName)
+	case CMD_POLICY + "_" + CMD_ROUTEPOLICY + "_" + CMD_ADD + "_" + CMD_ACTIONS:
+		return modPolicyRoutePolicy(CMD_ADD, CMD_ACTIONS, eArgs,
+			request.(*PolicyRoutePolicyAddActionsCommand).policyName,
+			request.(*PolicyRoutePolicyAddActionsCommand).statementName)
+	case CMD_POLICY + "_" + CMD_ROUTEPOLICY + "_" + CMD_DEL:
+		return modPolicyRoutePolicy(CMD_DEL, "", eArgs, "", "")
 	}
 	return nil
 }
@@ -509,9 +519,9 @@ func modPath(modtype string, eArgs []string) error {
 		}
 	}
 	switch modtype {
-	case "add":
+	case CMD_ADD:
 		path.IsWithdraw = false
-	case "del":
+	case CMD_DEL:
 		path.IsWithdraw = true
 	}
 
@@ -1045,7 +1055,7 @@ func (x *NeighborRibCommand) Execute(args []string) error {
 	if len(eArgs) != 0 && (eArgs[0] == "-h" || eArgs[0] == "--help") {
 		return nil
 	}
-	if err := requestGrpc(CMD_NEIGHBOR+"_"+x.command, eArgs, x.remoteIP); err != nil {
+	if err := requestGrpc(CMD_NEIGHBOR+"_"+x.command, eArgs, x); err != nil {
 		return err
 	}
 	return nil
@@ -1093,7 +1103,7 @@ func (x *NeighborResetCommand) Execute(args []string) error {
 	if len(eArgs) != 0 && (eArgs[0] == "-h" || eArgs[0] == "--help") {
 		return nil
 	}
-	if err := requestGrpc(CMD_NEIGHBOR+"_"+x.command, eArgs, x.remoteIP); err != nil {
+	if err := requestGrpc(CMD_NEIGHBOR+"_"+x.command, eArgs, x); err != nil {
 		return err
 	}
 	return nil
@@ -1128,7 +1138,7 @@ func stateChangeNeighbor(cmd string, remoteIP net.IP) error {
 
 func (x *NeighborChangeStateCommand) Execute(args []string) error {
 	eArgs := extractArgs(x.command)
-	if err := requestGrpc(CMD_NEIGHBOR+"_"+x.command, eArgs, x.remoteIP); err != nil {
+	if err := requestGrpc(CMD_NEIGHBOR+"_"+x.command, eArgs, x); err != nil {
 		return err
 	}
 	return nil
@@ -1164,22 +1174,9 @@ func showNeighborPolicy(remoteIP net.IP) error {
 		fmt.Println(string(j))
 		return nil
 	}
-	var defaultInPolicy, defaultOutPolicy string
-	switch ap.DefaultImportPolicy {
-	case int64(policy.ROUTE_TYPE_ACCEPT):
-		defaultInPolicy = "ACCEPT"
-	case int64(policy.ROUTE_TYPE_REJECT):
-		defaultInPolicy = "REJECT"
-	}
-	switch ap.DefaultExportPolicy {
-	case int64(policy.ROUTE_TYPE_ACCEPT):
-		defaultOutPolicy = "ACCEPT"
-	case int64(policy.ROUTE_TYPE_REJECT):
-		defaultOutPolicy = "REJECT"
-	}
 
-	fmt.Printf("DefaultImportPolicy: %s\n", defaultInPolicy)
-	fmt.Printf("DefaultImportPolicy: %s\n", defaultOutPolicy)
+	fmt.Printf("DefaultImportPolicy: %s\n", ap.DefaultImportPolicy)
+	fmt.Printf("DefaultImportPolicy: %s\n", ap.DefaultExportPolicy)
 	fmt.Printf("ImportPolicies:\n")
 
 	for _, inPolicy := range ap.ImportPolicies {
@@ -1201,7 +1198,7 @@ func (x *NeighborPolicyCommand) Execute(args []string) error {
 		if _, err := parser.ParseArgs(eArgs); err != nil {
 			os.Exit(1)
 		}
-		if err := requestGrpc(CMD_NEIGHBOR+"_"+CMD_POLICY, eArgs, x.remoteIP); err != nil {
+		if err := requestGrpc(CMD_NEIGHBOR+"_"+CMD_POLICY, eArgs, x); err != nil {
 			return err
 		}
 	} else {
@@ -1337,7 +1334,7 @@ func (x *PolicyPrefixCommand) Execute(args []string) error {
 			return err
 		}
 		return nil
-	} else if len(eArgs) == 1 && !(eArgs[0] == "-h" || eArgs[0] == "--help" || eArgs[0] == "add" || eArgs[0] == "del") {
+	} else if len(eArgs) == 1 && !(eArgs[0] == "-h" || eArgs[0] == "--help" || eArgs[0] == CMD_ADD || eArgs[0] == CMD_DEL) {
 		if err := requestGrpc(CMD_POLICY+"_"+CMD_PREFIX, eArgs, nil); err != nil {
 			return err
 		}
@@ -1356,7 +1353,7 @@ type PolicyPrefixAddCommand struct{}
 func parsePrefixSet(eArgs []string) (*api.PrefixSet, error) {
 	_, ipNet, e := net.ParseCIDR(eArgs[1])
 	if e != nil {
-		return nil, fmt.Errorf("prefix is invalid format %s\nplease enter ipv4 or ipv6 format", eArgs[1])
+		return nil, fmt.Errorf("invalid prefix: %s\nplease enter ipv4 or ipv6 format", eArgs[1])
 	}
 	mask, _ := ipNet.Mask.Size()
 	prefix := &api.Prefix{
@@ -1368,31 +1365,31 @@ func parsePrefixSet(eArgs []string) (*api.PrefixSet, error) {
 		maskRange := eArgs[2]
 		idx := strings.Index(maskRange, "..")
 		if idx == -1 {
-			return nil, fmt.Errorf("mask length range invalid format %s", maskRange)
+			return nil, fmt.Errorf("invalid mask length range: %s", maskRange)
 		}
 		var min, max int
 		var e error
 		if idx != 0 {
 			if min, e = strconv.Atoi(maskRange[:idx]); e != nil {
-				return nil, fmt.Errorf("mask length range invalid format %s", maskRange)
+				return nil, fmt.Errorf("invalid mask length range: %s", maskRange)
 			}
 		}
 		if idx != len(maskRange)-1 {
 			if max, e = strconv.Atoi(maskRange[idx+2:]); e != nil {
-				return nil, fmt.Errorf("mask length range invalid format %s", maskRange)
+				return nil, fmt.Errorf("invalid mask length range: %s", maskRange)
 			}
 		}
 		if ipv4 := ipNet.IP.To4(); ipv4 != nil {
 			if min < 0 || 32 < max {
-				return nil, fmt.Errorf("ipv4 mask length range outside scope %s", maskRange)
+				return nil, fmt.Errorf("ipv4 mask length range outside scope :%s", maskRange)
 			}
 		} else {
 			if min < 0 || 128 < max {
-				return nil, fmt.Errorf("ipv6 mask length range outside scope %s", maskRange)
+				return nil, fmt.Errorf("ipv6 mask length range outside scope :%s", maskRange)
 			}
 		}
 		if min >= max {
-			return nil, fmt.Errorf("mask length range invalid format %s\nTo a large value to the right from the left", maskRange)
+			return nil, fmt.Errorf("invalid mask length range: %s\nTo a large value to the right from the left", maskRange)
 		}
 		prefix.MaskLengthRange = maskRange
 	}
@@ -1616,7 +1613,7 @@ func (x *PolicyNeighborCommand) Execute(args []string) error {
 			return err
 		}
 		return nil
-	} else if len(eArgs) == 1 && !(eArgs[0] == "-h" || eArgs[0] == "--help" || eArgs[0] == "add" || eArgs[0] == "del") {
+	} else if len(eArgs) == 1 && !(eArgs[0] == "-h" || eArgs[0] == "--help" || eArgs[0] == CMD_ADD || eArgs[0] == CMD_DEL) {
 		if err := requestGrpc(CMD_POLICY+"_"+CMD_NEIGHBOR, eArgs, nil); err != nil {
 			return err
 		}
@@ -1636,7 +1633,7 @@ func parseNeighborSet(eArgs []string) (*api.NeighborSet, error) {
 	address := net.ParseIP(eArgs[1])
 	if address.To4() == nil {
 		if address.To16() == nil {
-			return nil, fmt.Errorf("address is invalid format %s\nplease enter ipv4 or ipv6 format", eArgs[1])
+			return nil, fmt.Errorf("invalid address: %s\nplease enter ipv4 or ipv6 format", eArgs[1])
 		}
 	}
 
@@ -1798,22 +1795,9 @@ func showPolicyStatement(head string, pd *api.PolicyDefinition) {
 		}
 		asPathLentgh := st.Conditions.MatchAsPathLength
 		fmt.Printf("%s      AsPathLength: %s    %s\n", head, asPathLentgh.Value, asPathLentgh.Operator)
-		var option string
-		switch st.Conditions.MatchSetOptions {
-		case config.MATCH_SET_OPTIONS_TYPE_ANY:
-			option = "ANY"
-		case config.MATCH_SET_OPTIONS_TYPE_ALL:
-			option = "ALL"
-		case config.MATCH_SET_OPTIONS_TYPE_INVERT:
-			option = "INVERT"
-		}
-		fmt.Printf("%s      MatchOption:  %s\n", head, option)
+		fmt.Printf("%s      MatchOption:  %s\n", head, st.Conditions.MatchSetOptions)
 		fmt.Printf("%s    Actions:\n", head)
-		action := "REJECT"
-		if st.Actions.AcceptRoute {
-			action = "ACCEPT"
-		}
-		fmt.Printf("%s      %s\n", head, action)
+		fmt.Printf("%s      %s\n", head, st.Actions.RouteAction)
 	}
 
 }
@@ -1886,7 +1870,7 @@ func (x *PolicyRoutePolicyCommand) Execute(args []string) error {
 			return err
 		}
 		return nil
-	} else if len(eArgs) == 1 && !(eArgs[0] == "-h" || eArgs[0] == "--help" || eArgs[0] == "add" || eArgs[0] == "del") {
+	} else if len(eArgs) == 1 && !(eArgs[0] == "-h" || eArgs[0] == "--help" || eArgs[0] == CMD_ADD || eArgs[0] == CMD_DEL) {
 		if err := requestGrpc(CMD_POLICY+"_"+CMD_ROUTEPOLICY, eArgs, nil); err != nil {
 			return err
 		}
@@ -1894,6 +1878,243 @@ func (x *PolicyRoutePolicyCommand) Execute(args []string) error {
 	}
 	parser := flags.NewParser(nil, flags.Default)
 	parser.Usage = "policy routepolicy [OPTIONS]\n  gobgp policy routepolicy"
+	parser.AddCommand(CMD_ADD, "subcommand for add routing policy", "", &PolicyRoutePolicyAddCommand{})
+	parser.AddCommand(CMD_DEL, "subcommand for delete routing policy", "", &PolicyRoutePolicyDelCommand{})
+	parser.ParseArgs(eArgs)
+	return nil
+}
+
+type PolicyRoutePolicyAddCommand struct{}
+
+func parseConditions() (*api.Conditions, error) {
+	conditions := &api.Conditions{}
+	if conditionOpts.Prefix != "" {
+		conditions.MatchPrefixSet = &api.PrefixSet{
+			PrefixSetName: conditionOpts.Prefix,
+		}
+	}
+	if conditionOpts.Neighbor != "" {
+		conditions.MatchNeighborSet = &api.NeighborSet{
+			NeighborSetName: conditionOpts.Neighbor,
+		}
+	}
+	if conditionOpts.AsPathLength != "" {
+		asPathLen := conditionOpts.AsPathLength
+		idx := strings.Index(asPathLen, ",")
+		if idx == -1 {
+			return nil, fmt.Errorf("invalid as path length: %s\nPlease enter the <value>,<operator>", asPathLen)
+		}
+		value := asPathLen[:idx]
+		if _, err := strconv.ParseUint(value, 10, 32); err != nil {
+			return nil, fmt.Errorf("invalid as path length: %s\nPlease enter a numeric", value)
+		}
+		operator := asPathLen[idx+1:]
+		conditions.MatchAsPathLength = &api.AsPathLength{
+			Value:    value,
+			Operator: operator,
+		}
+	}
+	if conditionOpts.Option != "" {
+		optionUpper := strings.ToUpper(conditionOpts.Option)
+		var option string
+		switch optionUpper {
+		case "ANY", "ALL", "INVERT":
+			option = optionUpper
+		default:
+			return nil, fmt.Errorf("invalid condition option: %s\nPlease enter the any or all or invert",
+				conditionOpts.Option)
+		}
+		conditions.MatchSetOptions = option
+	}
+	return conditions, nil
+}
+
+func parseActions() (*api.Actions, error) {
+	actions := &api.Actions{}
+	if actionOpts.RouteType != "" {
+		routeTypeUpper := strings.ToUpper(actionOpts.RouteType)
+		var routeType string
+		switch routeTypeUpper {
+		case "ACCEPT", "REJECT":
+			routeType = routeTypeUpper
+		default:
+			return nil, fmt.Errorf("invalid route type: %s\nPlease enter the accept or reject",
+				actionOpts.RouteType)
+		}
+		actions.RouteAction = routeType
+	}
+	return actions, nil
+}
+
+func modPolicyRoutePolicy(modtype string, stmtType string, eArgs []string, pName string, sName string) error {
+	var e error
+	var operation api.Operation
+	pd := &api.PolicyDefinition{}
+	switch modtype {
+	case CMD_ADD:
+		stmt := &api.Statement{
+			StatementNeme: sName,
+		}
+		switch stmtType {
+		case CMD_CONDITIONS:
+			conditions, err := parseConditions()
+			if err != nil {
+				return err
+			}
+			stmt.Conditions = conditions
+		case CMD_ACTIONS:
+			actions, err := parseActions()
+			if err != nil {
+				return err
+			}
+			stmt.Actions = actions
+		}
+
+		pd.PolicyDefinitionName = pName
+		pd.StatementList = []*api.Statement{stmt}
+		operation = api.Operation_ADD
+
+	case CMD_DEL:
+		if len(eArgs) == 0 {
+			operation = api.Operation_DEL_ALL
+		} else if len(eArgs) == 1 {
+			pd.PolicyDefinitionName = eArgs[0]
+			operation = api.Operation_DEL
+		} else if len(eArgs) == 2 {
+			stmt := &api.Statement{
+				StatementNeme: eArgs[1],
+			}
+			pd.PolicyDefinitionName = eArgs[0]
+			pd.StatementList = []*api.Statement{stmt}
+			operation = api.Operation_DEL
+		}
+	}
+	arg := &api.PolicyArguments{
+		Resource:         api.Resource_POLICY_ROUTEPOLICY,
+		Operation:        operation,
+		PolicyDifinition: pd,
+	}
+	stream, err := client.ModPolicyNeighbor(context.Background())
+	if err != nil {
+		return err
+	}
+	err = stream.Send(arg)
+	if err != nil {
+		return err
+	}
+	stream.CloseSend()
+
+	res, e := stream.Recv()
+	if e != nil {
+		return e
+	}
+	if res.Code != api.Error_SUCCESS {
+		return fmt.Errorf("error: code: %d, msg: %s", res.Code, res.Msg)
+	}
+	return nil
+}
+
+func (x *PolicyRoutePolicyAddCommand) Execute(args []string) error {
+	eArgs := extractArgs(CMD_ADD)
+	if len(eArgs) < 2 {
+		return fmt.Errorf("policy routepolicy add <routing policy name> <statement name>")
+	}
+	parser := flags.NewParser(nil, flags.Default)
+	parser.Usage = "policy routepolicy add <routing policy name>"
+	parser.AddCommand(CMD_CONDITIONS, "subcommand for routing policy conditions", "", NewPolicyRoutePolicyAddConditionsCommand(eArgs[0], eArgs[1]))
+	parser.AddCommand(CMD_ACTIONS, "subcommand for routing policy actions", "", NewPolicyRoutePolicyAddActionsCommand(eArgs[0], eArgs[1]))
+	parser.ParseArgs(eArgs)
+	return nil
+}
+
+type PolicyRoutePolicyAddConditionsCommand struct {
+	policyName    string
+	statementName string
+}
+
+func NewPolicyRoutePolicyAddConditionsCommand(pName string, sName string) *PolicyRoutePolicyAddConditionsCommand {
+	return &PolicyRoutePolicyAddConditionsCommand{
+		policyName:    pName,
+		statementName: sName,
+	}
+}
+
+func (x *PolicyRoutePolicyAddConditionsCommand) Execute(args []string) error {
+	eArgs := extractArgs(CMD_CONDITIONS)
+	parser := flags.NewParser(&conditionOpts, flags.Default)
+	parser.Usage = "policy routepolicy add <routing policy name> <statement name> conditions [OPTIONS]"
+	parser.ParseArgs(eArgs)
+	if len(eArgs) == 0 {
+		return fmt.Errorf("policy routepolicy add <routing policy name> <statement name> conditions [OPTIONS]")
+	} else if !(eArgs[0] == "-h" || eArgs[0] == "--help") {
+		if err := requestGrpc(CMD_POLICY+"_"+CMD_ROUTEPOLICY+"_"+CMD_ADD+"_"+CMD_CONDITIONS, eArgs, x); err != nil {
+			return err
+		}
+	}
+
+	return nil
+}
+
+type PolicyRoutePolicyAddActionsCommand struct {
+	policyName    string
+	statementName string
+}
+
+func NewPolicyRoutePolicyAddActionsCommand(pName string, sName string) *PolicyRoutePolicyAddActionsCommand {
+	return &PolicyRoutePolicyAddActionsCommand{
+		policyName:    pName,
+		statementName: sName,
+	}
+}
+
+func (x *PolicyRoutePolicyAddActionsCommand) Execute(args []string) error {
+	eArgs := extractArgs(CMD_ACTIONS)
+	parser := flags.NewParser(&actionOpts, flags.Default)
+	parser.Usage = "policy routepolicy add <routing policy name> <statement name> actions [OPTIONS]"
+	parser.ParseArgs(eArgs)
+	if len(eArgs) == 0 {
+		return fmt.Errorf("policy routepolicy add <routing policy name> <statement name> actions [OPTIONS]")
+	} else if !(eArgs[0] == "-h" || eArgs[0] == "--help") {
+		if err := requestGrpc(CMD_POLICY+"_"+CMD_ROUTEPOLICY+"_"+CMD_ADD+"_"+CMD_ACTIONS, eArgs, x); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+type PolicyRoutePolicyDelCommand struct{}
+
+func (x *PolicyRoutePolicyDelCommand) Execute(args []string) error {
+	eArgs := extractArgs(CMD_DEL)
+	if len(eArgs) > 2 {
+		return fmt.Errorf("policy routepolicy del <routing policy name> [<statement name>]")
+	} else if len(eArgs) > 0 && !(eArgs[0] == "-h" || eArgs[0] == "--help" || eArgs[0] == "all") {
+		if err := requestGrpc(CMD_POLICY+"_"+CMD_ROUTEPOLICY+"_"+CMD_DEL, eArgs, nil); err != nil {
+			return err
+		}
+		return nil
+	}
+	parser := flags.NewParser(nil, flags.Default)
+	parser.Usage = "policy routepolicy del <routing policy name> [<statement name>]"
+	parser.AddCommand(CMD_ALL, "subcommand for delete all routing policy", "", &PolicyRoutePolicyDelAllCommand{})
+	parser.ParseArgs(eArgs)
+	return nil
+}
+
+type PolicyRoutePolicyDelAllCommand struct{}
+
+func (x *PolicyRoutePolicyDelAllCommand) Execute(args []string) error {
+	eArgs := extractArgs(CMD_ALL)
+	if len(eArgs) > 0 && !(eArgs[0] == "-h" || eArgs[0] == "--help") {
+		return fmt.Errorf("Argument can not be entered")
+	} else if len(eArgs) == 0 {
+		if err := requestGrpc(CMD_POLICY+"_"+CMD_ROUTEPOLICY+"_"+CMD_DEL, eArgs, nil); err != nil {
+			return err
+		}
+	}
+
+	parser := flags.NewParser(nil, flags.Default)
+	parser.Usage = "policy routepolicy del all"
 	parser.ParseArgs(eArgs)
 	return nil
 }
@@ -1914,10 +2135,21 @@ var neighborsOpts struct {
 	Transport string `short:"t" long:"transport" description:"specifying a transport protocol"`
 }
 
+var conditionOpts struct {
+	Prefix       string `short:"p" long:"prefix" description:"specifying a prefix set name of policy"`
+	Neighbor     string `short:"n" long:"neighbor" description:"specifying a neighbor set name of policy"`
+	AsPathLength string `short:"a" long:"aspath-len" description:"specifying an as path length of policy"`
+	Option       string `short:"o" long:"option" description:"specifying an option of policy"`
+}
+
+var actionOpts struct {
+	RouteType string `short:"r" long:"route-type" description:"specifying a route type of policy (accept | reject)"`
+}
+
 func main() {
 	cmds = []string{CMD_GLOBAL, CMD_NEIGHBOR, CMD_POLICY, CMD_RIB, CMD_ADD, CMD_DEL, CMD_ALL, CMD_LOCAL, CMD_ADJ_IN,
 		CMD_ADJ_OUT, CMD_RESET, CMD_SOFT_RESET, CMD_SOFT_RESET_IN, CMD_SOFT_RESET_OUT, CMD_SHUTDOWN, CMD_ENABLE,
-		CMD_DISABLE, CMD_PREFIX, CMD_ROUTEPOLICY}
+		CMD_DISABLE, CMD_PREFIX, CMD_ROUTEPOLICY, CMD_CONDITIONS, CMD_ACTIONS}
 
 	eArgs := extractArgs("")
 	parser := flags.NewParser(&globalOpts, flags.Default)

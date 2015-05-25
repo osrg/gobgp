@@ -624,10 +624,18 @@ func (peer *Peer) handleGrpc(grpcReq *GrpcRequest) {
 				resOutPolicies = append(resOutPolicies, &api.PolicyDefinition{PolicyDefinitionName: conOutPolicyName})
 			}
 		}
+		defaultInPolicy := "REJECT"
+		defaultOutPolicy := "REJECT"
+		if peer.defaultImportPolicy == 0 {
+			defaultInPolicy = "ACCEPT"
+		}
+		if peer.defaultExportPolicy == 0 {
+			defaultOutPolicy = "ACCEPT"
+		}
 		result.Data = &api.ApplyPolicy{
-			DefaultImportPolicy: int64(peer.defaultImportPolicy),
+			DefaultImportPolicy: defaultInPolicy,
 			ImportPolicies:      resInPolicies,
-			DefaultExportPolicy: int64(peer.defaultExportPolicy),
+			DefaultExportPolicy: defaultOutPolicy,
 			ExportPolicies:      resOutPolicies,
 		}
 		grpcReq.ResponseCh <- result

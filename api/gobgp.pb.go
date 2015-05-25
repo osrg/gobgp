@@ -989,7 +989,7 @@ type Conditions struct {
 	MatchPrefixSet    *PrefixSet    `protobuf:"bytes,1,opt,name=match_prefix_set" json:"match_prefix_set,omitempty"`
 	MatchNeighborSet  *NeighborSet  `protobuf:"bytes,2,opt,name=match_neighbor_set" json:"match_neighbor_set,omitempty"`
 	MatchAsPathLength *AsPathLength `protobuf:"bytes,3,opt,name=match_as_path_length" json:"match_as_path_length,omitempty"`
-	MatchSetOptions   int64         `protobuf:"varint,4,opt,name=match_set_options" json:"match_set_options,omitempty"`
+	MatchSetOptions   string        `protobuf:"bytes,4,opt,name=match_set_options" json:"match_set_options,omitempty"`
 }
 
 func (m *Conditions) Reset()         { *m = Conditions{} }
@@ -1018,8 +1018,7 @@ func (m *Conditions) GetMatchAsPathLength() *AsPathLength {
 }
 
 type Actions struct {
-	AcceptRoute bool `protobuf:"varint,1,opt,name=accept_route" json:"accept_route,omitempty"`
-	RejectRoute bool `protobuf:"varint,2,opt,name=reject_route" json:"reject_route,omitempty"`
+	RouteAction string `protobuf:"bytes,1,opt,name=route_action" json:"route_action,omitempty"`
 }
 
 func (m *Actions) Reset()         { *m = Actions{} }
@@ -1083,9 +1082,9 @@ func (m *RoutingPolicy) GetPolicyDifinition() []*PolicyDefinition {
 
 type ApplyPolicy struct {
 	ImportPolicies      []*PolicyDefinition `protobuf:"bytes,1,rep,name=import_policies" json:"import_policies,omitempty"`
-	DefaultImportPolicy int64               `protobuf:"varint,2,opt,name=default_import_policy" json:"default_import_policy,omitempty"`
+	DefaultImportPolicy string              `protobuf:"bytes,2,opt,name=default_import_policy" json:"default_import_policy,omitempty"`
 	ExportPolicies      []*PolicyDefinition `protobuf:"bytes,3,rep,name=export_policies" json:"export_policies,omitempty"`
-	DefaultExportPolicy int64               `protobuf:"varint,4,opt,name=default_export_policy" json:"default_export_policy,omitempty"`
+	DefaultExportPolicy string              `protobuf:"bytes,4,opt,name=default_export_policy" json:"default_export_policy,omitempty"`
 }
 
 func (m *ApplyPolicy) Reset()         { *m = ApplyPolicy{} }
@@ -1146,6 +1145,7 @@ type GrpcClient interface {
 	ModPolicyNeighbor(ctx context.Context, opts ...grpc.CallOption) (Grpc_ModPolicyNeighborClient, error)
 	GetPolicyRoutePolicies(ctx context.Context, in *PolicyArguments, opts ...grpc.CallOption) (Grpc_GetPolicyRoutePoliciesClient, error)
 	GetPolicyRoutePolicy(ctx context.Context, in *PolicyArguments, opts ...grpc.CallOption) (*PolicyDefinition, error)
+	ModPolicyRoutePolicy(ctx context.Context, opts ...grpc.CallOption) (Grpc_ModPolicyRoutePolicyClient, error)
 }
 
 type grpcClient struct {
@@ -1549,6 +1549,37 @@ func (c *grpcClient) GetPolicyRoutePolicy(ctx context.Context, in *PolicyArgumen
 	return out, nil
 }
 
+func (c *grpcClient) ModPolicyRoutePolicy(ctx context.Context, opts ...grpc.CallOption) (Grpc_ModPolicyRoutePolicyClient, error) {
+	stream, err := grpc.NewClientStream(ctx, &_Grpc_serviceDesc.Streams[9], c.cc, "/api.Grpc/ModPolicyRoutePolicy", opts...)
+	if err != nil {
+		return nil, err
+	}
+	x := &grpcModPolicyRoutePolicyClient{stream}
+	return x, nil
+}
+
+type Grpc_ModPolicyRoutePolicyClient interface {
+	Send(*PolicyArguments) error
+	Recv() (*Error, error)
+	grpc.ClientStream
+}
+
+type grpcModPolicyRoutePolicyClient struct {
+	grpc.ClientStream
+}
+
+func (x *grpcModPolicyRoutePolicyClient) Send(m *PolicyArguments) error {
+	return x.ClientStream.SendMsg(m)
+}
+
+func (x *grpcModPolicyRoutePolicyClient) Recv() (*Error, error) {
+	m := new(Error)
+	if err := x.ClientStream.RecvMsg(m); err != nil {
+		return nil, err
+	}
+	return m, nil
+}
+
 // Server API for Grpc service
 
 type GrpcServer interface {
@@ -1573,6 +1604,7 @@ type GrpcServer interface {
 	ModPolicyNeighbor(Grpc_ModPolicyNeighborServer) error
 	GetPolicyRoutePolicies(*PolicyArguments, Grpc_GetPolicyRoutePoliciesServer) error
 	GetPolicyRoutePolicy(context.Context, *PolicyArguments) (*PolicyDefinition, error)
+	ModPolicyRoutePolicy(Grpc_ModPolicyRoutePolicyServer) error
 }
 
 func RegisterGrpcServer(s *grpc.Server, srv GrpcServer) {
@@ -1927,6 +1959,32 @@ func _Grpc_GetPolicyRoutePolicy_Handler(srv interface{}, ctx context.Context, co
 	return out, nil
 }
 
+func _Grpc_ModPolicyRoutePolicy_Handler(srv interface{}, stream grpc.ServerStream) error {
+	return srv.(GrpcServer).ModPolicyRoutePolicy(&grpcModPolicyRoutePolicyServer{stream})
+}
+
+type Grpc_ModPolicyRoutePolicyServer interface {
+	Send(*Error) error
+	Recv() (*PolicyArguments, error)
+	grpc.ServerStream
+}
+
+type grpcModPolicyRoutePolicyServer struct {
+	grpc.ServerStream
+}
+
+func (x *grpcModPolicyRoutePolicyServer) Send(m *Error) error {
+	return x.ServerStream.SendMsg(m)
+}
+
+func (x *grpcModPolicyRoutePolicyServer) Recv() (*PolicyArguments, error) {
+	m := new(PolicyArguments)
+	if err := x.ServerStream.RecvMsg(m); err != nil {
+		return nil, err
+	}
+	return m, nil
+}
+
 var _Grpc_serviceDesc = grpc.ServiceDesc{
 	ServiceName: "api.Grpc",
 	HandlerType: (*GrpcServer)(nil),
@@ -2028,6 +2086,12 @@ var _Grpc_serviceDesc = grpc.ServiceDesc{
 			StreamName:    "GetPolicyRoutePolicies",
 			Handler:       _Grpc_GetPolicyRoutePolicies_Handler,
 			ServerStreams: true,
+		},
+		{
+			StreamName:    "ModPolicyRoutePolicy",
+			Handler:       _Grpc_ModPolicyRoutePolicy_Handler,
+			ServerStreams: true,
+			ClientStreams: true,
 		},
 	},
 }

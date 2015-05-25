@@ -581,5 +581,79 @@ func (server *BgpServer) handleGrpc(grpcReq *GrpcRequest) {
 			grpcReq.ResponseCh <- result
 		}
 		close(grpcReq.ResponseCh)
+	case REQ_POLICY_ROUTEPOLICY_ADD:
+		reqPolicy := grpcReq.Data.(*api.PolicyDefinition)
+		conPolicyList := server.routingPolicy.PolicyDefinitionList
+		result := &GrpcResponse{}
+		_, policyDef := policy.PolicyDefinitionToConfigStruct(reqPolicy)
+		idxPolicy, idxStatement := policy.IndexOfPolicyDefinition(conPolicyList, policyDef)
+		if idxPolicy == -1 {
+			conPolicyList = append(conPolicyList, policyDef)
+		} else {
+			statement := policyDef.StatementList[0]
+			if idxStatement == -1 {
+				conPolicyList[idxPolicy].StatementList =
+					append(conPolicyList[idxPolicy].StatementList, statement)
+			} else {
+				if reqPolicy.StatementList[0].Conditions != nil {
+					conPolicyList[idxPolicy].StatementList[idxStatement].Conditions =
+						statement.Conditions
+				}
+				if reqPolicy.StatementList[0].Actions != nil {
+					conPolicyList[idxPolicy].StatementList[idxStatement].Actions =
+						statement.Actions
+				}
+			}
+		}
+		server.routingPolicy.PolicyDefinitionList = conPolicyList
+		server.handlePolicy(server.routingPolicy)
+		grpcReq.ResponseCh <- result
+		close(grpcReq.ResponseCh)
+
+	case REQ_POLICY_ROUTEPOLICY_DELETE:
+		reqPolicy := grpcReq.Data.(*api.PolicyDefinition)
+		conPolicyList := server.routingPolicy.PolicyDefinitionList
+		result := &GrpcResponse{}
+		isStatement, policyDef := policy.PolicyDefinitionToConfigStruct(reqPolicy)
+		idxPolicy, idxStatement := policy.IndexOfPolicyDefinition(conPolicyList, policyDef)
+		if isStatement {
+			if idxPolicy == -1 {
+				result.ResponseErr = fmt.Errorf("Policy that has %v doesn't exist.", policyDef.Name)
+			} else {
+				if idxStatement == -1 {
+					result.ResponseErr = fmt.Errorf("Policy Statment that has %v doesn't exist.", policyDef.StatementList[0].Name)
+				} else {
+					copy(conPolicyList[idxPolicy].StatementList[idxStatement:],
+						conPolicyList[idxPolicy].StatementList[idxStatement+1:])
+					conPolicyList[idxPolicy].StatementList =
+						conPolicyList[idxPolicy].StatementList[:len(conPolicyList[idxPolicy].StatementList)-1]
+				}
+			}
+		} else {
+			idxPolicy := -1
+			for i, conPolicy := range conPolicyList {
+				if conPolicy.Name == reqPolicy.PolicyDefinitionName {
+					idxPolicy = i
+					break
+				}
+			}
+			if idxPolicy == -1 {
+				result.ResponseErr = fmt.Errorf("Policy that has %v doesn't exist.", policyDef.Name)
+			} else {
+				copy(conPolicyList[idxPolicy:], conPolicyList[idxPolicy+1:])
+				conPolicyList = conPolicyList[:len(conPolicyList)-1]
+			}
+		}
+		server.routingPolicy.PolicyDefinitionList = conPolicyList
+		server.handlePolicy(server.routingPolicy)
+		grpcReq.ResponseCh <- result
+		close(grpcReq.ResponseCh)
+
+	case REQ_POLICY_ROUTEPOLICIES_DELETE:
+		result := &GrpcResponse{}
+		server.routingPolicy.PolicyDefinitionList = make([]config.PolicyDefinition, 0)
+		server.handlePolicy(server.routingPolicy)
+		grpcReq.ResponseCh <- result
+		close(grpcReq.ResponseCh)
 	}
 }

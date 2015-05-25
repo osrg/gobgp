@@ -56,6 +56,9 @@ const (
 	REQ_POLICY_NEIGHBORS_DELETE
 	REQ_POLICY_ROUTEPOLICIES
 	REQ_POLICY_ROUTEPOLICY
+	REQ_POLICY_ROUTEPOLICY_ADD
+	REQ_POLICY_ROUTEPOLICY_DELETE
+	REQ_POLICY_ROUTEPOLICIES_DELETE
 )
 
 const GRPC_PORT = 8080
@@ -390,6 +393,28 @@ func (s *Server) modPolicy(arg *api.PolicyArguments, stream interface{}) error {
 		err = stream.(api.Grpc_ModPolicyNeighborServer).Send(&api.Error{
 			Code: api.Error_SUCCESS,
 		})
+	case api.Resource_POLICY_ROUTEPOLICY:
+		switch arg.Operation {
+		case api.Operation_ADD:
+			reqType = REQ_POLICY_ROUTEPOLICY_ADD
+		case api.Operation_DEL:
+			reqType = REQ_POLICY_ROUTEPOLICY_DELETE
+		case api.Operation_DEL_ALL:
+			reqType = REQ_POLICY_ROUTEPOLICIES_DELETE
+		default:
+			return fmt.Errorf("unsupported operation: %s", arg.Operation)
+		}
+		req := NewGrpcRequest(reqType, "", rf, arg.PolicyDifinition)
+		s.bgpServerCh <- req
+
+		res := <-req.ResponseCh
+		if err := res.Err(); err != nil {
+			log.Debug(err.Error())
+			return err
+		}
+		err = stream.(api.Grpc_ModPolicyRoutePolicyServer).Send(&api.Error{
+			Code: api.Error_SUCCESS,
+		})
 	default:
 		return fmt.Errorf("unsupported resource type: %v", arg.Resource)
 	}
@@ -474,6 +499,21 @@ func (s *Server) GetPolicyRoutePolicy(ctx context.Context, arg *api.PolicyArgume
 		return nil, err
 	}
 	return data.(*api.PolicyDefinition), nil
+}
+
+func (s *Server) ModPolicyRoutePolicy(stream api.Grpc_ModPolicyRoutePolicyServer) error {
+	for {
+		arg, err := stream.Recv()
+		if err == io.EOF {
+			return nil
+		} else if err != nil {
+			return err
+		}
+		if err := s.modPolicy(arg, stream); err != nil {
+			return err
+		}
+		return nil
+	}
 }
 
 type GrpcRequest struct {
