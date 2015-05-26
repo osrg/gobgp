@@ -160,7 +160,7 @@ func (server *BgpServer) Serve() {
 			f := listenFile(peer.NeighborAddress)
 			SetTcpMD5SigSockopts(int(f.Fd()), addr, peer.AuthPassword)
 			sch := make(chan *serverMsg, 8)
-			pch := make(chan *peerMsg, 4096)
+			pch := make(chan *peerMsg)
 			var l []*serverMsgDataPeer
 			if peer.RouteServer.RouteServerClient {
 				for _, v := range server.peerMap {
