@@ -2,6 +2,8 @@ package server
 
 import (
 	"net"
+	"os"
+	"reflect"
 	"strings"
 	"syscall"
 	"unsafe"
@@ -45,6 +47,15 @@ func SetTcpMD5SigSockopts(fd int, address string, key string) error {
 	return e
 }
 
+func TCPConnToFd(tcp *net.TCPConn) int {
+	n := reflect.ValueOf(*tcp)
+	conn := n.FieldByName("conn")
+	fd := conn.FieldByName("fd")
+	p := reflect.Indirect(fd)
+	sysfd := p.FieldByName("sysfd")
+	return int(sysfd.Int())
+}
+
 func SetTcpTTLSockopts(conn *net.TCPConn, ttl int) error {
 	level := syscall.IPPROTO_IP
 	name := syscall.IP_TTL
@@ -52,9 +63,5 @@ func SetTcpTTLSockopts(conn *net.TCPConn, ttl int) error {
 		level = syscall.IPPROTO_IPV6
 		name = syscall.IPV6_UNICAST_HOPS
 	}
-	file, _ := conn.File()
-	_, _, e := syscall.Syscall6(syscall.SYS_SETSOCKOPT, uintptr(int(file.Fd())),
-		uintptr(level), uintptr(name),
-		uintptr(unsafe.Pointer(&ttl)), unsafe.Sizeof(ttl), 0)
-	return e
+	return os.NewSyscallError("setsockopt", syscall.SetsockoptInt(TCPConnToFd(conn), level, name, ttl))
 }
