@@ -39,21 +39,28 @@ func buildTcpMD5Sig(address string, key string) (tcpmd5sig, error) {
 	return t, nil
 }
 
-func SetTcpMD5SigSockopts(fd int, address string, key string) error {
-	t, _ := buildTcpMD5Sig(address, key)
-	_, _, e := syscall.Syscall6(syscall.SYS_SETSOCKOPT, uintptr(fd),
-		uintptr(syscall.IPPROTO_TCP), uintptr(TCP_MD5SIG),
-		uintptr(unsafe.Pointer(&t)), unsafe.Sizeof(t), 0)
-	return e
-}
-
-func TCPConnToFd(tcp *net.TCPConn) int {
-	n := reflect.ValueOf(*tcp)
-	conn := n.FieldByName("conn")
-	fd := conn.FieldByName("fd")
+func connToFd(v reflect.Value) int {
+	fd := v.FieldByName("fd")
 	p := reflect.Indirect(fd)
 	sysfd := p.FieldByName("sysfd")
 	return int(sysfd.Int())
+}
+
+func listenerToFd(l *net.TCPListener) int {
+	return connToFd(reflect.ValueOf(*l))
+}
+
+func tcpConnToFd(tcp *net.TCPConn) int {
+	n := reflect.ValueOf(*tcp)
+	return connToFd(n.FieldByName("conn"))
+}
+
+func SetTcpMD5SigSockopts(l *net.TCPListener, address string, key string) error {
+	t, _ := buildTcpMD5Sig(address, key)
+	_, _, e := syscall.Syscall6(syscall.SYS_SETSOCKOPT, uintptr(listenerToFd(l)),
+		uintptr(syscall.IPPROTO_TCP), uintptr(TCP_MD5SIG),
+		uintptr(unsafe.Pointer(&t)), unsafe.Sizeof(t), 0)
+	return e
 }
 
 func SetTcpTTLSockopts(conn *net.TCPConn, ttl int) error {
@@ -63,5 +70,5 @@ func SetTcpTTLSockopts(conn *net.TCPConn, ttl int) error {
 		level = syscall.IPPROTO_IPV6
 		name = syscall.IPV6_UNICAST_HOPS
 	}
-	return os.NewSyscallError("setsockopt", syscall.SetsockoptInt(TCPConnToFd(conn), level, name, ttl))
+	return os.NewSyscallError("setsockopt", syscall.SetsockoptInt(tcpConnToFd(conn), level, name, ttl))
 }

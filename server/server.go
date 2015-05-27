@@ -131,15 +131,14 @@ func (server *BgpServer) Serve() {
 		os.Exit(1)
 	}
 
-	listenFile := func(addr net.IP) *os.File {
+	listener := func(addr net.IP) *net.TCPListener {
 		var l *net.TCPListener
 		if addr.To4() != nil {
 			l = listenerMap["tcp4"]
 		} else {
 			l = listenerMap["tcp6"]
 		}
-		f, _ := l.File()
-		return f
+		return l
 	}
 
 	server.peerMap = make(map[string]peerMapInfo)
@@ -157,8 +156,7 @@ func (server *BgpServer) Serve() {
 			}
 		case peer := <-server.addedPeerCh:
 			addr := peer.NeighborAddress.String()
-			f := listenFile(peer.NeighborAddress)
-			SetTcpMD5SigSockopts(int(f.Fd()), addr, peer.AuthPassword)
+			SetTcpMD5SigSockopts(listener(peer.NeighborAddress), addr, peer.AuthPassword)
 			sch := make(chan *serverMsg, 8)
 			pch := make(chan *peerMsg, 4096)
 			var l []*serverMsgDataPeer
@@ -199,8 +197,7 @@ func (server *BgpServer) Serve() {
 			}
 		case peer := <-server.deletedPeerCh:
 			addr := peer.NeighborAddress.String()
-			f := listenFile(peer.NeighborAddress)
-			SetTcpMD5SigSockopts(int(f.Fd()), addr, "")
+			SetTcpMD5SigSockopts(listener(peer.NeighborAddress), addr, "")
 			info, found := server.peerMap[addr]
 			if found {
 				log.Info("Delete a peer configuration for ", addr)
