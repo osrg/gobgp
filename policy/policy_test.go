@@ -1216,7 +1216,8 @@ func TestPolicyMatchAndAddCommunities(t *testing.T) {
 	assert.Equal(t, true, match)
 	assert.Equal(t, ROUTE_TYPE_ACCEPT, pType)
 	assert.NotEqual(t, nil, newPath)
-	assert.Equal(t, []uint32{stringToCommunityValue(community)}, path.GetCommunities())
+	log.Debug(newPath)
+	assert.Equal(t, []uint32{stringToCommunityValue(community)}, newPath.GetCommunities())
 }
 
 
@@ -1288,7 +1289,7 @@ func TestPolicyMatchAndReplaceCommunities(t *testing.T) {
 	assert.Equal(t, true, match)
 	assert.Equal(t, ROUTE_TYPE_ACCEPT, pType)
 	assert.NotEqual(t, nil, newPath)
-	assert.Equal(t, []uint32{stringToCommunityValue(community)}, path.GetCommunities())
+	assert.Equal(t, []uint32{stringToCommunityValue(community)}, newPath.GetCommunities())
 }
 
 func TestPolicyMatchAndRemoveCommunities(t *testing.T) {
@@ -1360,7 +1361,7 @@ func TestPolicyMatchAndRemoveCommunities(t *testing.T) {
 	assert.Equal(t, true, match)
 	assert.Equal(t, ROUTE_TYPE_ACCEPT, pType)
 	assert.NotEqual(t, nil, newPath)
-	assert.Equal(t, []uint32{stringToCommunityValue(community2)}, path.GetCommunities())
+	assert.Equal(t, []uint32{stringToCommunityValue(community2)}, newPath.GetCommunities())
 }
 
 func TestPolicyMatchAndClearCommunities(t *testing.T) {
@@ -1432,7 +1433,7 @@ func TestPolicyMatchAndClearCommunities(t *testing.T) {
 	assert.Equal(t, true, match)
 	assert.Equal(t, ROUTE_TYPE_ACCEPT, pType)
 	assert.NotEqual(t, nil, newPath)
-	assert.Equal(t, []uint32{}, path.GetCommunities())
+	assert.Equal(t, []uint32{}, newPath.GetCommunities())
 }
 
 func stringToCommunityValue(comStr string) uint32 {
