@@ -307,6 +307,18 @@ def start_exabgp(conf_file):
     local(cmd, capture=True)
 
 
+def stop_exabgp():
+    cmd = "docker exec exabgp pkill -9 python"
+    local(cmd, capture=True)
+    log_path = CONFIG_DIRR + EXABGP_LOG_FILE
+    clean_log(log_path)
+
+
+def clean_log(file_path):
+    cmd = ": > " + file_path
+    local(cmd, capture=True)
+
+
 def get_notification_from_exabgp_log():
     log_path = CONFIG_DIRR + EXABGP_LOG_FILE
     cmd = "grep notification " + log_path + " | head -1"
@@ -564,7 +576,7 @@ def init_ipv6_test_env_executor(quagga_num, use_local, go_path, log_debug=False)
     print "complete initialization of test environment."
 
 
-def init_malformed_test_env_executor(conf_file, use_local,  go_path, exabgp_path, log_debug=False):
+def init_malformed_test_env_executor(use_local,  go_path, exabgp_path, log_debug=False):
     print "start initialization of exabgp test environment."
 
     if docker_container_check() or bridge_setting_check():
@@ -617,7 +629,6 @@ def init_malformed_test_env_executor(conf_file, use_local,  go_path, exabgp_path
 
     # run quagga docker container
     docker_container_run_quagga(1, BRIDGE_0)
-    start_exabgp(conf_file)
 
 
 def docker_container_quagga_append_executor(quagga_num, go_path, is_route_server=True):

@@ -28,9 +28,8 @@ from noseplugin import OptionParser
 from noseplugin import parser_option
 from constant import CONFIG_DIR, CLI_CMD
 
-initial_wait_time = 10
-wait_per_retry = 5
-retry_limit = (60 - initial_wait_time) / wait_per_retry
+wait_per_retry = 2
+retry_limit = 60 / wait_per_retry
 
 gobgp_ip = "10.0.255.1"
 gobgp_port = "8080"
@@ -79,14 +78,14 @@ def test_malformed_packet():
     go_path = parser_option.go_path
     exabgp_path = parser_option.exabgp_path
 
+    fab.init_malformed_test_env_executor(use_local, go_path, exabgp_path, log_debug)
+
     for pkey in pattern:
         conf_file = pwd + "/exabgp_test_conf/" + pkey
         if os.path.isfile(conf_file) is True:
-            fab.init_malformed_test_env_executor(pkey, use_local, go_path, exabgp_path, log_debug)
-            print "please wait (" + str(initial_wait_time) + " second)"
-            time.sleep(initial_wait_time)
+            fab.start_exabgp(pkey)
             yield check_func, pkey, pattern[pkey]
-
+            fab.stop_exabgp()
         else:
             print "config file not exists."
             print conf_file
@@ -127,9 +126,9 @@ def check_func(exabgp_conf, result):
             remote_ip = neighbor['conf']['remote_ip']
             if remote_ip == "10.0.0.1":
                 q_state = neighbor['info']['bgp_state']
-                q_transitions = neighbor['info']['fsm_established_transitions']
                 q_address = remote_ip
                 if q_state == "BGP_FSM_ESTABLISHED":
+                    q_transitions = neighbor['info']['fsm_established_transitions']
                     in_prepare_quagga = False
             else:
                 e_address = remote_ip
