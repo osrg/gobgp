@@ -277,7 +277,7 @@ message PathAttr {
     BGP_ATTR_TYPE type = 1;
     repeated string value = 2;
     Origin origin = 3;
-    repeated uint32 as_path = 4;
+    repeated AsPath as_paths = 4;
     string nexthop = 5;
     uint32 metric = 6;
     uint32 pref = 7;
@@ -287,6 +287,11 @@ message PathAttr {
     repeated string cluster = 11;
     repeated Nlri nlri = 12;
     repeated TunnelEncapTLV tunnel_encap = 13;
+}
+
+message AsPath {
+    uint32 segment_type = 1;
+    repeated uint32 asns = 2;
 }
 
 message Path {

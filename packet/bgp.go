@@ -55,6 +55,8 @@ const (
 const (
 	BGP_ASPATH_ATTR_TYPE_SET = 1
 	BGP_ASPATH_ATTR_TYPE_SEQ = 2
+	BGP_ASPATH_ATTR_TYPE_CONFED_SEQ = 3
+	BGP_ASPATH_ATTR_TYPE_CONFED_SET = 4
 )
 
 // RFC7153 5.1. Registries for the "Type" Field
@@ -2168,21 +2170,27 @@ func (p *PathAttributeAsPath) Serialize() ([]byte, error) {
 }
 
 func (p *PathAttributeAsPath) ToApiStruct() *api.PathAttr {
-	aslist := make([]uint32, 0)
+	aspaths := make([]*api.AsPath, 0)
 	for _, a := range p.Value {
 		path, y := a.(*As4PathParam)
+		aspath := &api.AsPath{}
 		if y {
-			aslist = append(aslist, path.AS...)
+			aspath.Asns = path.AS
+			aspath.SegmentType = uint32(path.Type)
 		} else {
 			path := a.(*AsPathParam)
+			asns := make([]uint32, 0)
 			for _, v := range path.AS {
-				aslist = append(aslist, uint32(v))
+				asns = append(asns, uint32(v))
 			}
+			aspath.Asns = asns
+			aspath.SegmentType = uint32(path.Type)
 		}
+		aspaths = append(aspaths, aspath)
 	}
 	return &api.PathAttr{
 		Type:   api.BGP_ATTR_TYPE_AS_PATH,
-		AsPath: aslist,
+		AsPaths: aspaths,
 	}
 }
 
@@ -3279,13 +3287,18 @@ func (p *PathAttributeAs4Path) Serialize() ([]byte, error) {
 }
 
 func (p *PathAttributeAs4Path) ToApiStruct() *api.PathAttr {
-	aslist := make([]uint32, 0)
-	for _, a := range p.Value {
-		aslist = append(aslist, a.AS...)
+	aspaths := make([]*api.AsPath, 0)
+	aspath := &api.AsPath{
+		SegmentType: uint32(p.Type),
+		Asns: make([]uint32, 0),
 	}
+	for _, a := range p.Value {
+		aspath.Asns = append(aspath.Asns, a.AS...)
+	}
+	aspaths = append(aspaths, aspath)
 	return &api.PathAttr{
-		Type:   api.BGP_ATTR_TYPE_AS4_PATH,
-		AsPath: aslist,
+		Type:   api.BGP_ATTR_TYPE_AS_PATH,
+		AsPaths: aspaths,
 	}
 }
 

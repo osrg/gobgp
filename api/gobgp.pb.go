@@ -26,6 +26,7 @@ It has these top-level messages:
 	TunnelEncapSubTLV
 	TunnelEncapTLV
 	PathAttr
+	AsPath
 	Path
 	Destination
 	PeerConf
@@ -767,7 +768,7 @@ type PathAttr struct {
 	Type        BGP_ATTR_TYPE     `protobuf:"varint,1,opt,name=type,enum=api.BGP_ATTR_TYPE" json:"type,omitempty"`
 	Value       []string          `protobuf:"bytes,2,rep,name=value" json:"value,omitempty"`
 	Origin      Origin            `protobuf:"varint,3,opt,name=origin,enum=api.Origin" json:"origin,omitempty"`
-	AsPath      []uint32          `protobuf:"varint,4,rep,name=as_path" json:"as_path,omitempty"`
+	AsPaths     []*AsPath         `protobuf:"bytes,4,rep,name=as_paths" json:"as_paths,omitempty"`
 	Nexthop     string            `protobuf:"bytes,5,opt,name=nexthop" json:"nexthop,omitempty"`
 	Metric      uint32            `protobuf:"varint,6,opt,name=metric" json:"metric,omitempty"`
 	Pref        uint32            `protobuf:"varint,7,opt,name=pref" json:"pref,omitempty"`
@@ -782,6 +783,13 @@ type PathAttr struct {
 func (m *PathAttr) Reset()         { *m = PathAttr{} }
 func (m *PathAttr) String() string { return proto.CompactTextString(m) }
 func (*PathAttr) ProtoMessage()    {}
+
+func (m *PathAttr) GetAsPaths() []*AsPath {
+	if m != nil {
+		return m.AsPaths
+	}
+	return nil
+}
 
 func (m *PathAttr) GetAggregator() *Aggregator {
 	if m != nil {
@@ -803,6 +811,15 @@ func (m *PathAttr) GetTunnelEncap() []*TunnelEncapTLV {
 	}
 	return nil
 }
+
+type AsPath struct {
+	SegmentType uint32   `protobuf:"varint,1,opt,name=segment_type" json:"segment_type,omitempty"`
+	Asns        []uint32 `protobuf:"varint,2,rep,name=asns" json:"asns,omitempty"`
+}
+
+func (m *AsPath) Reset()         { *m = AsPath{} }
+func (m *AsPath) String() string { return proto.CompactTextString(m) }
+func (*AsPath) ProtoMessage()    {}
 
 type Path struct {
 	Nlri       *Nlri       `protobuf:"bytes,1,opt,name=nlri" json:"nlri,omitempty"`
