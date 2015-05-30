@@ -159,7 +159,7 @@ func (manager *TableManager) calculate(destinationList []Destination) ([]Path, e
 		}
 
 		destination.setBestPathReason(reason)
-		currentBestPath := destination.getBestPath()
+		currentBestPath := destination.GetBestPath()
 
 		if newBestPath != nil && currentBestPath == newBestPath {
 			// best path is not changed
@@ -192,7 +192,7 @@ func (manager *TableManager) calculate(destinationList []Destination) ([]Path, e
 						"next_hop": currentBestPath.GetNexthop().String(),
 					}).Debug("best path is lost")
 
-					p := destination.getBestPath()
+					p := destination.GetBestPath()
 					newPaths = append(newPaths, p.Clone(true))
 				}
 				destination.setBestPath(nil)
@@ -218,7 +218,7 @@ func (manager *TableManager) calculate(destinationList []Destination) ([]Path, e
 			destination.setBestPath(newBestPath)
 		}
 
-		if len(destination.getKnownPathList()) == 0 && destination.getBestPath() == nil {
+		if len(destination.getKnownPathList()) == 0 && destination.GetBestPath() == nil {
 			rf := destination.getRouteFamily()
 			t := manager.Tables[rf]
 			deleteDest(t, destination)
@@ -259,7 +259,7 @@ func (manager *TableManager) GetPathList(rf bgp.RouteFamily) []Path {
 	}
 	var paths []Path
 	for _, dest := range manager.Tables[rf].GetDestinations() {
-		paths = append(paths, dest.getBestPath())
+		paths = append(paths, dest.GetBestPath())
 	}
 	return paths
 }
@@ -358,13 +358,6 @@ func (adj *AdjRib) GetOutCount(rf bgp.RouteFamily) int {
 		return 0
 	}
 	return len(adj.adjRibOut[rf])
-}
-
-func (adj *AdjRib) DropAllIn(rf bgp.RouteFamily) {
-	if _, ok := adj.adjRibIn[rf]; ok {
-		// replace old one
-		adj.adjRibIn[rf] = make(map[string]*ReceivedRoute)
-	}
 }
 
 type ReceivedRoute struct {
