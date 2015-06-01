@@ -21,6 +21,7 @@ import (
 	"fmt"
 	"github.com/jessevdk/go-flags"
 	"github.com/osrg/gobgp/api"
+	"github.com/osrg/gobgp/packet"
 	"github.com/osrg/gobgp/policy"
 	"golang.org/x/net/context"
 	"io"
@@ -262,6 +263,12 @@ func NewNeighborRibCommand(addr string, resource api.Resource, cmd string) *Neig
 	}
 }
 
+type AsPathFormat struct {
+	start string
+	end string
+	separator string
+}
+
 func showRoute(pathList []*api.Path, showAge bool, showBest bool) {
 
 	var pathStrs [][]interface{}
@@ -271,19 +278,57 @@ func showRoute(pathList []*api.Path, showAge bool, showBest bool) {
 
 	for _, p := range pathList {
 		aspath := func(attrs []*api.PathAttr) string {
-			s := bytes.NewBuffer(make([]byte, 0, 64))
-			s.WriteString("[")
+
+			delimiter := make(map[int]*AsPathFormat)
+			delimiter[bgp.BGP_ASPATH_ATTR_TYPE_SET] = &AsPathFormat{"{", "}", ","}
+			delimiter[bgp.BGP_ASPATH_ATTR_TYPE_SEQ] = &AsPathFormat{"", "", " "}
+			delimiter[bgp.BGP_ASPATH_ATTR_TYPE_CONFED_SEQ] = &AsPathFormat{"(", ")", " "}
+			delimiter[bgp.BGP_ASPATH_ATTR_TYPE_CONFED_SET] = &AsPathFormat{"[", "]", ","}
+
+			var segments []string = make([]string, 0)
 			for _, a := range attrs {
 				if a.Type == api.BGP_ATTR_TYPE_AS_PATH {
-					var ss []string
-					for _, as := range a.AsPath {
-						ss = append(ss, fmt.Sprintf("%d", as))
+
+					outAspath := func(aspath *api.AsPath) string {
+						s := bytes.NewBuffer(make([]byte, 0, 64))
+
+						t := int(aspath.SegmentType)
+						start := delimiter[t].start
+						end := delimiter[t].end
+						separator := delimiter[t].separator
+						s.WriteString(start)
+
+						var asnsStr []string
+						for _, asn := range aspath.Asns {
+							asnsStr = append(asnsStr, fmt.Sprintf("%d", asn))
+						}
+
+						s.WriteString(strings.Join(asnsStr, separator))
+						s.WriteString(end)
+						return s.String()
 					}
-					s.WriteString(strings.Join(ss, " "))
+
+					// convert to map
+					m := make(map[int]*api.AsPath)
+					for _, aspath := range a.AsPaths {
+						m[int(aspath.SegmentType)] = aspath
+					}
+
+					if s, ok := m[bgp.BGP_ASPATH_ATTR_TYPE_SEQ]; ok {
+						segments = append(segments, outAspath(s))
+					}
+					if s, ok := m[bgp.BGP_ASPATH_ATTR_TYPE_SET]; ok {
+						segments = append(segments, outAspath(s))
+					}
+					if s, ok := m[bgp.BGP_ASPATH_ATTR_TYPE_CONFED_SEQ]; ok {
+						segments = append(segments, outAspath(s))
+					}
+					if s, ok := m[bgp.BGP_ASPATH_ATTR_TYPE_CONFED_SET]; ok {
+						segments = append(segments, outAspath(s))
+					}
 				}
 			}
-			s.WriteString("]")
-			return s.String()
+			return strings.Join(segments, " ")
 		}
 		formatAttrs := func(attrs []*api.PathAttr) string {
 			s := []string{}
