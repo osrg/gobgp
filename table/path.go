@@ -349,13 +349,6 @@ func (pd *PathDefault) GetAsPathLen() int {
 			segment := paramIf.(*bgp.As4PathParam)
 			length += segment.ASLen()
 		}
-
-	} else {
-		_, attr := pd.getPathAttr(bgp.BGP_ATTR_TYPE_AS4_PATH)
-		aspath := attr.(*bgp.PathAttributeAs4Path)
-		for _, segment := range aspath.Value {
-			length += segment.ASLen()
-		}
 	}
 	return length
 }
