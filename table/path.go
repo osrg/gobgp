@@ -339,29 +339,22 @@ func (pi *PathDefault) getPrefix() string {
 	return pi.nlri.String()
 }
 
-// return total length of AS_PATH whose type is AS_SEQ or AS_SET
+// GetAsPathLen returns the number of AS_PATH
 func (pd *PathDefault) GetAsPathLen() int {
-
-	aslen := func(p *bgp.As4PathParam) int {
-		if p.Type == bgp.BGP_ASPATH_ATTR_TYPE_SEQ || p.Type == bgp.BGP_ASPATH_ATTR_TYPE_SET {
-			return p.ASLen()
-		}
-		return 0
-	}
 
 	var length int = 0
 	if _, attr := pd.getPathAttr(bgp.BGP_ATTR_TYPE_AS_PATH); attr != nil {
 		aspath := attr.(*bgp.PathAttributeAsPath)
 		for _, paramIf := range aspath.Value {
 			segment := paramIf.(*bgp.As4PathParam)
-			length += aslen(segment)
+			length += segment.ASLen()
 		}
 
 	} else {
 		_, attr := pd.getPathAttr(bgp.BGP_ATTR_TYPE_AS4_PATH)
 		aspath := attr.(*bgp.PathAttributeAs4Path)
 		for _, segment := range aspath.Value {
-			length += aslen(segment)
+			length += segment.ASLen()
 		}
 	}
 	return length

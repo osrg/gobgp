@@ -622,30 +622,19 @@ func compareByASPath(path1, path2 Path) Path {
 	_, attribute1 := path1.getPathAttr(bgp.BGP_ATTR_TYPE_AS_PATH)
 	_, attribute2 := path2.getPathAttr(bgp.BGP_ATTR_TYPE_AS_PATH)
 
-	asPath1 := attribute1.(*bgp.PathAttributeAsPath)
-	asPath2 := attribute2.(*bgp.PathAttributeAsPath)
-
-	if asPath1 == nil || asPath2 == nil {
+	if attribute1 == nil || attribute2 == nil {
 		log.WithFields(log.Fields{
 			"Topic":   "Table",
 			"Key":     "compareByASPath",
-			"ASPath1": asPath1,
-			"ASPath2": asPath2,
+			"ASPath1": attribute1,
+			"ASPath2": attribute2,
 		}).Error("can't compare ASPath because it's not present")
 	}
 
-	var l1, l2 int
-	for _, pathParam := range asPath1.Value {
-		l1 += pathParam.ASLen()
-	}
-
-	for _, pathParam := range asPath2.Value {
-		l2 += pathParam.ASLen()
-	}
+	l1 := path1.GetAsPathLen()
+	l2 := path2.GetAsPathLen()
 
 	log.Debugf("compareByASPath -- l1: %d, l2: %d", l1, l2)
-	log.Debug(reflect.TypeOf(asPath1.Value))
-	log.Debug(asPath1.Value)
 	if l1 > l2 {
 		return path2
 	} else if l1 < l2 {

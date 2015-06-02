@@ -145,6 +145,35 @@ func TestPathGetAttribute(t *testing.T) {
 	assert.Equal(t, r_nh, nh)
 }
 
+func TestASPathLen(t *testing.T) {
+	assert := assert.New(t)
+	origin := bgp.NewPathAttributeOrigin(0)
+	aspathParam := []bgp.AsPathParamInterface{
+		bgp.NewAsPathParam(bgp.BGP_ASPATH_ATTR_TYPE_SEQ, []uint16{65001, 65002, 65003, 65004, 65004, 65004, 65004, 65004, 65005}),
+		bgp.NewAsPathParam(bgp.BGP_ASPATH_ATTR_TYPE_SET, []uint16{65001, 65002, 65003, 65004, 65005}),
+		bgp.NewAsPathParam(bgp.BGP_ASPATH_ATTR_TYPE_CONFED_SEQ, []uint16{65100, 65101, 65102}),
+		bgp.NewAsPathParam(bgp.BGP_ASPATH_ATTR_TYPE_CONFED_SET, []uint16{65100, 65101}),}
+	aspath := bgp.NewPathAttributeAsPath(aspathParam)
+	nexthop := bgp.NewPathAttributeNextHop("192.168.50.1")
+	med := bgp.NewPathAttributeMultiExitDisc(0)
+
+	pathAttributes := []bgp.PathAttributeInterface{
+		origin,
+		aspath,
+		nexthop,
+		med,
+	}
+
+	nlri := []bgp.NLRInfo{*bgp.NewNLRInfo(24, "10.10.10.0")}
+	withdrawnRoutes := []bgp.WithdrawnRoute{}
+	bgpmsg := bgp.NewBGPUpdateMessage(withdrawnRoutes, pathAttributes, nlri)
+	update := bgpmsg.Body.(*bgp.BGPUpdate)
+	UpdatePathAttrs4ByteAs(update)
+	peer := PathCreatePeer()
+	p, _:= CreatePath(peer[0], &update.NLRI[0], update.PathAttributes, false, time.Now())
+	assert.Equal(10, p.GetAsPathLen())
+}
+
 func PathCreatePeer() []*PeerInfo {
 	peerP1 := &PeerInfo{AS: 65000}
 	peerP2 := &PeerInfo{AS: 65001}

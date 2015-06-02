@@ -527,7 +527,7 @@ func TestPolicyRejectOnlyNeighborSet(t *testing.T) {
 }
 
 func TestPolicyDifferentRoutefamilyOfPathAndPolicy(t *testing.T) {
-	// creatae path ipv4
+	// create path ipv4
 	peerIPv4 := &table.PeerInfo{AS: 65001, Address: net.ParseIP("10.0.0.1")}
 	originIPv4 := bgp.NewPathAttributeOrigin(0)
 	aspathParamIPv4 := []bgp.AsPathParamInterface{bgp.NewAsPathParam(2, []uint16{65001})}
@@ -539,7 +539,7 @@ func TestPolicyDifferentRoutefamilyOfPathAndPolicy(t *testing.T) {
 	withdrawnRoutesIPv4 := []bgp.WithdrawnRoute{}
 	updateMsgIPv4 := bgp.NewBGPUpdateMessage(withdrawnRoutesIPv4, pathAttributesIPv4, nlriIPv4)
 	pathIPv4 := table.ProcessMessage(updateMsgIPv4, peerIPv4)[0]
-	// creatae path ipv6
+	// create path ipv6
 	peerIPv6 := &table.PeerInfo{AS: 65001, Address: net.ParseIP("2001::192:168:50:1")}
 	originIPv6 := bgp.NewPathAttributeOrigin(0)
 	aspathParamIPv6 := []bgp.AsPathParamInterface{bgp.NewAsPathParam(2, []uint16{65001})}
@@ -651,7 +651,7 @@ func TestAsPathLengthConditionEvaluate(t *testing.T) {
 	// create match condition
 	asPathLength := config.AsPathLength{
 		Operator: "eq",
-		Value:    8,
+		Value:    5,
 	}
 	c := NewAsPathLengthCondition(asPathLength)
 

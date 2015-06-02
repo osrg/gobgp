@@ -323,3 +323,42 @@ func Test_RFC5512(t *testing.T) {
 	assert.Equal(nil, err)
 	assert.Equal("2001::1", n2.String())
 }
+
+func Test_ASLen(t *testing.T) {
+	assert := assert.New(t)
+
+	aspath := AsPathParam{
+		Num: 2,
+		AS: []uint16{65000, 65001},
+	}
+	aspath.Type = BGP_ASPATH_ATTR_TYPE_SEQ
+	assert.Equal(2, aspath.ASLen())
+
+	aspath.Type = BGP_ASPATH_ATTR_TYPE_SET
+	assert.Equal(1, aspath.ASLen())
+
+	aspath.Type = BGP_ASPATH_ATTR_TYPE_CONFED_SEQ
+	assert.Equal(0, aspath.ASLen())
+
+	aspath.Type = BGP_ASPATH_ATTR_TYPE_CONFED_SET
+	assert.Equal(0, aspath.ASLen())
+
+
+	as4path := As4PathParam{
+		Num: 2,
+		AS: []uint32{65000, 65001},
+	}
+	as4path.Type = BGP_ASPATH_ATTR_TYPE_SEQ
+	assert.Equal(2, as4path.ASLen())
+
+	as4path.Type = BGP_ASPATH_ATTR_TYPE_SET
+	assert.Equal(1, as4path.ASLen())
+
+	as4path.Type = BGP_ASPATH_ATTR_TYPE_CONFED_SEQ
+	assert.Equal(0, as4path.ASLen())
+
+	as4path.Type = BGP_ASPATH_ATTR_TYPE_CONFED_SET
+	assert.Equal(0, as4path.ASLen())
+
+}
+

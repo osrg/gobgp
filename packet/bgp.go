@@ -1997,7 +1997,15 @@ func (a *AsPathParam) Len() int {
 }
 
 func (a *AsPathParam) ASLen() int {
-	return len(a.AS)
+	switch a.Type {
+		case BGP_ASPATH_ATTR_TYPE_SEQ:
+		return len(a.AS)
+		case BGP_ASPATH_ATTR_TYPE_SET:
+		return 1
+		case BGP_ASPATH_ATTR_TYPE_CONFED_SET,BGP_ASPATH_ATTR_TYPE_CONFED_SEQ:
+		return 0
+	}
+	return 0
 }
 
 func NewAsPathParam(segType uint8, as []uint16) *AsPathParam {
@@ -2048,7 +2056,15 @@ func (a *As4PathParam) Len() int {
 }
 
 func (a *As4PathParam) ASLen() int {
-	return len(a.AS)
+	switch a.Type {
+		case BGP_ASPATH_ATTR_TYPE_SEQ:
+		return len(a.AS)
+		case BGP_ASPATH_ATTR_TYPE_SET:
+		return 1
+		case BGP_ASPATH_ATTR_TYPE_CONFED_SET,BGP_ASPATH_ATTR_TYPE_CONFED_SEQ:
+		return 0
+	}
+	return 0
 }
 
 func NewAs4PathParam(segType uint8, as []uint32) *As4PathParam {
