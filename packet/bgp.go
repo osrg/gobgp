@@ -851,7 +851,7 @@ func getRouteDistinguisher(data []byte) RouteDistinguisherInterface {
 }
 
 func labelDecode(data []byte) uint32 {
-	return uint32(data[0]<<16 | data[1]<<8 | data[2])
+	return uint32(data[0])<<16 | uint32(data[1])<<8 | uint32(data[2])
 }
 
 func labelSerialize(label uint32, buf []byte) {
