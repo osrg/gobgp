@@ -61,17 +61,19 @@ type Peer struct {
 	adjRib       *table.AdjRib
 	// peer and rib are always not one-to-one so should not be
 	// here but it's the simplest and works our first target.
-	rib                 *table.TableManager
-	isGlobalRib         bool
-	rfMap               map[bgp.RouteFamily]bool
-	capMap              map[bgp.BGPCapabilityCode]bgp.ParameterCapabilityInterface
-	peerInfo            *table.PeerInfo
-	siblings            map[string]*serverMsgDataPeer
-	outgoing            chan *bgp.BGPMessage
-	importPolicies      []*policy.Policy
-	defaultImportPolicy config.DefaultPolicyType
-	exportPolicies      []*policy.Policy
-	defaultExportPolicy config.DefaultPolicyType
+	rib                   *table.TableManager
+	isGlobalRib           bool
+	rfMap                 map[bgp.RouteFamily]bool
+	capMap                map[bgp.BGPCapabilityCode]bgp.ParameterCapabilityInterface
+	peerInfo              *table.PeerInfo
+	siblings              map[string]*serverMsgDataPeer
+	outgoing              chan *bgp.BGPMessage
+	importPolicies        []*policy.Policy
+	defaultImportPolicy   config.DefaultPolicyType
+	exportPolicies        []*policy.Policy
+	defaultExportPolicy   config.DefaultPolicyType
+	isConfederationMember bool
+	isEBGP                bool
 }
 
 func NewPeer(g config.Global, peer config.Neighbor, serverMsgCh chan *serverMsg, peerMsgCh chan *peerMsg, peerList []*serverMsgDataPeer, isGlobalRib bool, policyMap map[string]*policy.Policy) *Peer {
@@ -109,6 +111,17 @@ func NewPeer(g config.Global, peer config.Neighbor, serverMsgCh chan *serverMsg,
 	p.adjRib = table.NewAdjRib(rfList)
 	p.rib = table.NewTableManager(p.peerConfig.NeighborAddress.String(), rfList)
 	p.setPolicy(policyMap)
+
+	if peer.PeerAs != g.As {
+		p.isEBGP = true
+		for _, member := range g.Confederation.MemberAs {
+			if member == peer.PeerAs {
+				p.isConfederationMember = true
+				break
+			}
+		}
+	}
+
 	p.t.Go(p.loop)
 	if !peer.TransportOptions.PassiveMode && !isGlobalRib {
 		p.t.Go(p.connectLoop)
@@ -275,7 +288,8 @@ func (peer *Peer) handleBGPmessage(m *bgp.BGPMessage) {
 	case bgp.BGP_MSG_UPDATE:
 		peer.peerConfig.BgpNeighborCommonState.UpdateRecvTime = time.Now().Unix()
 		body := m.Body.(*bgp.BGPUpdate)
-		_, err := bgp.ValidateUpdateMsg(body, peer.rfMap)
+		confedCheckRequired := !peer.isConfederationMember && peer.isEBGP
+		_, err := bgp.ValidateUpdateMsg(body, peer.rfMap, confedCheckRequired)
 		if err != nil {
 			log.WithFields(log.Fields{
 				"Topic": "Peer",
