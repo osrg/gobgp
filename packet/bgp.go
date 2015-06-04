@@ -771,7 +771,7 @@ type RouteDistinguisherIPAddressAS struct {
 
 func (rd *RouteDistinguisherIPAddressAS) Serialize() ([]byte, error) {
 	buf := make([]byte, 6)
-	copy(buf[0:], rd.Value.Admin)
+	copy(buf[0:], rd.Value.Admin.To4())
 	binary.BigEndian.PutUint16(buf[4:], rd.Value.Assigned)
 	rd.DefaultRouteDistinguisher.Value = buf
 	return rd.DefaultRouteDistinguisher.Serialize()
