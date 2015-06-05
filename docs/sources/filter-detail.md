@@ -187,7 +187,7 @@ Neighbor Match needs be defined within DefinedSets as follows.
  - This example checks if a route comes from neighbor 10.0.255.1 **or** 10.0.255.2.
 
 ---
-### 1. Defining BgpDefinedSets
+### 2. Defining BgpDefinedSets
 
 BgpDefinedSets has Community information and AS_PATH information in CommunitySetList and AsPathSetList section respectively. And it is a child element of DefinedSets.
 AsPathSetList and CommunitySetList section are AS_PATH match part and community match part.
@@ -275,7 +275,7 @@ AsPathSetList has AS numbers as its element. The numbers are used to evaluate AS
    ```
 
 ---
-### 2. Defining PolicyDefinitionList
+### 3. Defining PolicyDefinitionList
 PolicyDefinitionList consists of condition and action of the policy. The condition part evaluates routes from neighbors and applies action if the routes match conditions. You can use DefinedSets above and other conditions to specify conditions in the PolicyDefinitionList.
 
 PolicyDefinitionList has PolicyDefinition as its element and the PolicyDefinition is a policy itself.
@@ -440,7 +440,7 @@ Options = "ADD"
 
 ---
 
-### 3. Attaching policy
+### 4. Attaching policy
 You can attach policies to a neighbor after defining policy.
 To attach policies to a neighbor, you need to add policy's name to NeighborList.ApplyPolicy in the neighbor's setting.
 
