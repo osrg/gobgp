@@ -251,10 +251,10 @@ AsPathSetList has AS numbers as its element. The numbers are used to evaluate AS
 
   CommunitySetList has 2 elements.
 
-  | Parent                                   | Element          |Description        | Example    | Optional |
-  | ---------------------------------------- |------------------|-------------------|------------|----------|
-  | DefinedSets.BgpDefinedSets.AsPathSetList | AsPathSetName    | name of AsPathSet | "aspath1"  |          |
-  |                                          | AsPathSetMembers | list of AS number | ["^65100"] |          |
+| Parent                                   | Element          |Description        | Example    | Optional |
+| ---------------------------------------- |------------------|-------------------|------------|----------|
+| DefinedSets.BgpDefinedSets.AsPathSetList | AsPathSetName    | name of AsPathSet | "aspath1"  |          |
+|                                          | AsPathSetMembers | list of AS number | ["^65100"] |          |
 
   You can specify the position using regexp-like expression as follows:
   - From: "^65100" means the route is passed from AS 65100 directly.
