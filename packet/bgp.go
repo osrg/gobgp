@@ -557,6 +557,7 @@ func (msg *BGPOpen) Serialize() ([]byte, error) {
 	binary.BigEndian.PutUint16(buf[1:3], msg.MyAS)
 	binary.BigEndian.PutUint16(buf[3:5], msg.HoldTime)
 	copy(buf[5:9], msg.ID)
+	buf[9] = msg.OptParamLen
 	pbuf := make([]byte, 0)
 	for _, p := range msg.OptParams {
 		onepbuf, err := p.Serialize()
@@ -565,14 +566,19 @@ func (msg *BGPOpen) Serialize() ([]byte, error) {
 		}
 		pbuf = append(pbuf, onepbuf...)
 	}
-	buf[9] = uint8(len(pbuf))
 	return append(buf, pbuf...), nil
 }
 
 func NewBGPOpenMessage(myas uint16, holdtime uint16, id string, optparams []OptionParameterInterface) *BGPMessage {
+	length := 0
+	for _, p := range optparams {
+		serialized, _ := p.Serialize()
+		length += len(serialized)
+	}
+
 	return &BGPMessage{
 		Header: BGPHeader{Type: BGP_MSG_OPEN},
-		Body:   &BGPOpen{4, myas, holdtime, net.ParseIP(id).To4(), 0, optparams},
+		Body:   &BGPOpen{4, myas, holdtime, net.ParseIP(id).To4(), uint8(length), optparams},
 	}
 }
 
