@@ -3356,7 +3356,7 @@ func (p *PathAttributeAs4Aggregator) DecodeFromBytes(data []byte) error {
 func (p *PathAttributeAs4Aggregator) Serialize() ([]byte, error) {
 	buf := make([]byte, 8)
 	binary.BigEndian.PutUint32(buf[0:], p.Value.AS)
-	copy(buf[4:], p.Value.Address)
+	copy(buf[4:], p.Value.Address.To4())
 	p.PathAttribute.Value = buf
 	return p.PathAttribute.Serialize()
 }
