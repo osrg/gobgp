@@ -473,7 +473,7 @@ func (o *OptionParameterCapability) DecodeFromBytes(data []byte) error {
 func (o *OptionParameterCapability) Serialize() ([]byte, error) {
 	buf := make([]byte, 2)
 	buf[0] = o.ParamType
-	//buf[1] = o.ParamLen
+	buf[1] = o.ParamLen
 	for _, p := range o.Capability {
 		pbuf, err := p.Serialize()
 		if err != nil {
@@ -481,13 +481,20 @@ func (o *OptionParameterCapability) Serialize() ([]byte, error) {
 		}
 		buf = append(buf, pbuf...)
 	}
-	buf[1] = uint8(len(buf) - 2)
 	return buf, nil
 }
 
 func NewOptionParameterCapability(capability []ParameterCapabilityInterface) *OptionParameterCapability {
+	length := 0
+
+	for _, p := range capability {
+		serialized, _ := p.Serialize()
+		length += len(serialized)
+	}
+
 	return &OptionParameterCapability{
 		ParamType:  BGP_OPT_CAPABILITY,
+	        ParamLen: uint8(length),
 		Capability: capability,
 	}
 }
