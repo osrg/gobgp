@@ -3850,9 +3850,21 @@ func (msg *BGPUpdate) Serialize() ([]byte, error) {
 }
 
 func NewBGPUpdateMessage(withdrawnRoutes []WithdrawnRoute, pathattrs []PathAttributeInterface, nlri []NLRInfo) *BGPMessage {
+	wlen := 0
+	for _, w := range withdrawnRoutes {
+		serialized, _ := w.Serialize()
+		wlen += len(serialized)
+	}
+
+	palen := 0
+	for _, pa := range pathattrs {
+		serialized, _ := pa.Serialize()
+		palen += len(serialized)
+	}
+	
 	return &BGPMessage{
 		Header: BGPHeader{Type: BGP_MSG_UPDATE},
-		Body:   &BGPUpdate{0, withdrawnRoutes, 0, pathattrs, nlri},
+		Body:   &BGPUpdate{uint16(wlen), withdrawnRoutes, uint16(palen), pathattrs, nlri},
 	}
 }
 
