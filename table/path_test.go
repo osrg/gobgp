@@ -152,7 +152,7 @@ func TestASPathLen(t *testing.T) {
 		bgp.NewAsPathParam(bgp.BGP_ASPATH_ATTR_TYPE_SEQ, []uint16{65001, 65002, 65003, 65004, 65004, 65004, 65004, 65004, 65005}),
 		bgp.NewAsPathParam(bgp.BGP_ASPATH_ATTR_TYPE_SET, []uint16{65001, 65002, 65003, 65004, 65005}),
 		bgp.NewAsPathParam(bgp.BGP_ASPATH_ATTR_TYPE_CONFED_SEQ, []uint16{65100, 65101, 65102}),
-		bgp.NewAsPathParam(bgp.BGP_ASPATH_ATTR_TYPE_CONFED_SET, []uint16{65100, 65101}),}
+		bgp.NewAsPathParam(bgp.BGP_ASPATH_ATTR_TYPE_CONFED_SET, []uint16{65100, 65101})}
 	aspath := bgp.NewPathAttributeAsPath(aspathParam)
 	nexthop := bgp.NewPathAttributeNextHop("192.168.50.1")
 	med := bgp.NewPathAttributeMultiExitDisc(0)
@@ -170,7 +170,7 @@ func TestASPathLen(t *testing.T) {
 	update := bgpmsg.Body.(*bgp.BGPUpdate)
 	UpdatePathAttrs4ByteAs(update)
 	peer := PathCreatePeer()
-	p, _:= CreatePath(peer[0], &update.NLRI[0], update.PathAttributes, false, time.Now())
+	p, _ := CreatePath(peer[0], &update.NLRI[0], update.PathAttributes, false, time.Now())
 	assert.Equal(10, p.GetAsPathLen())
 }
 
