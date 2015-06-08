@@ -405,37 +405,37 @@ The elements of PolicyDefinitionList are as follows:
  RejectRoute = true
  ```
 
- - example 4
-  - This PolicyDefinition has conditions as follows. If
-   - PrefixSet: *ps1*
-   - NeighborSet: *ns1*
-   - CommunitySet: *community1*
-   - AsPathSet: *aspath1*
-   - AsPath length: *equal 2*
+- example 4
+  - This PolicyDefinition has conditions as follows.
+    - PrefixSet: *ps1*
+    - NeighborSet: *ns1*
+    - CommunitySet: *community1*
+    - AsPathSet: *aspath1*
+    - AsPath length: *equal 2*
   - If a route matches all these conditions, the route is accepted and added community.
  ```
-# example 4
-[[PolicyDefinitionList]]
-Name = "policy4"
-[[PolicyDefinitionList.StatementList]]
-Name = "statement1"
-[PolicyDefinitionList.StatementList.Conditions]
-MatchPrefixSet = "ps1"
-MatchNeighborSet = "ns1"
-MatchSetOptions = 1
-[PolicyDefinitionList.StatementList.Conditions.BgpConditions]
-MatchCommunitySet = "community1"
-MatchAsPathSet = "aspath1"
-[PolicyDefinitionList.StatementList.Conditions.BgpConditions.AsPathLength]
-Operator = "eq"
-Value = 2
-[PolicyDefinitionList.StatementList.Actions]
-AcceptRoute = true
-[PolicyDefinitionList.StatementList.Actions.BgpActions]
-[PolicyDefinitionList.StatementList.Actions.BgpActions.SetCommunity]
-Communities = ["65100:20"]
-Options = "ADD"
- ```
+ # example 4
+ [[PolicyDefinitionList]]
+    Name = "policy4"
+ [[PolicyDefinitionList.StatementList]]
+    Name = "statement1"
+ [PolicyDefinitionList.StatementList.Conditions]
+    MatchPrefixSet = "ps1"
+    MatchNeighborSet = "ns1"
+    MatchSetOptions = 1
+ [PolicyDefinitionList.StatementList.Conditions.BgpConditions]
+    MatchCommunitySet = "community1"
+    MatchAsPathSet = "aspath1"
+ [PolicyDefinitionList.StatementList.Conditions.BgpConditions.AsPathLength]
+    Operator = "eq"
+    Value = 2
+ [PolicyDefinitionList.StatementList.Actions]
+    AcceptRoute = true
+ [PolicyDefinitionList.StatementList.Actions.BgpActions]
+ [PolicyDefinitionList.StatementList.Actions.BgpActions.SetCommunity]
+    Communities = ["65100:20"]
+    Options = "ADD"
+  ```
 
 
 ---
