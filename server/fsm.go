@@ -729,19 +729,14 @@ func (h *FSMHandler) sendMessageloop() error {
 			}
 			return nil
 		case m := <-h.outgoing:
-			err := send(m)
-			if err != nil {
+			if err := send(m); err != nil {
 				return nil
 			}
 		case <-fsm.keepaliveTicker.C:
-			m := bgp.NewBGPKeepAliveMessage()
-			b, _ := m.Serialize()
-			_, err := conn.Write(b)
-			if err != nil {
-				h.errorCh <- true
+			if err := send(bgp.NewBGPKeepAliveMessage()); err != nil {
 				return nil
 			}
-			fsm.bgpMessageStateUpdate(m.Header.Type, false)
+
 		}
 	}
 }
