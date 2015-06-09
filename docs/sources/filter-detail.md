@@ -68,12 +68,12 @@ PrefixSetList has PrefixList as its element. PrefixList has prefix information t
 
 PrefixList has 3 elements.
 
-| Parent                                | Element         |Description        | Example    | Optional   |
-| ------------------------------------- |-----------------|-------------------|------------|------------|
-| DefinedSets.PrefixSetList             | PrefixSetName   | name of PrefixSet | "10.33.0.0"|            |
-| DefinedSets.PrefixSetList.PrefixList  | Address         | prefix address    | "10.33.0.0"|            |
-|                                       | Masklength      | prefix length     | 16         |            |
-|                                       | MasklengthRange | range of length   | "25..28"   | Yes        |
+| Element         |Description        | Example    | Optional   |
+|-----------------|-------------------|------------|------------|
+| PrefixSetName   | name of PrefixSet | "10.33.0.0"|            |
+| Address         | prefix address    | "10.33.0.0"|            |
+| Masklength      | prefix length     | 16         |            |
+| MasklengthRange | range of length   | "25..28"   | Yes        |
 
 
 ##### Examples
@@ -140,12 +140,13 @@ PrefixList has 3 elements.
 
 NeighborSetList has NeighborInfoList as its element and NeighborInfoList has neighbor information to match the sender of the routes.
 It is necessary to specify a neighbor address in NeighborInfoList.
-NeighborInfoList has 1 elements.
 
-| Parent                                        | Element  |Description         | Example     | Optional   |
-| --------------------------------------------- |----------|--------------------|-------------|------------|
-| DefinedSets.NeighborSetList                   | NeighborSetName     | name of NeighborSet| "ns1       "|            |
-| DefinedSets.NeighborSetList.NeighborInfoList  | Address  | neighbor's address | "10.0.255.1"|            |
+NeighborInfoList has 2 elements.
+
+| Element         |Description          | Example      | Optional   |
+|-----------------|---------------------|--------------|------------|
+| NeighborSetName | name of NeighborSet | "ns1"        |            |
+| Address         | neighbor's address  | "10.0.255.1" |            |
 
 ##### Examples
 
@@ -162,7 +163,8 @@ NeighborInfoList has 1 elements.
 
 - example 2
   - Match routes which come from the neighbor 10.0.255.1
-Neighbor Match needs be defined within DefinedSets as follows.
+  - Neighbor Match needs be defined within DefinedSets as follows.
+
  ```
  # example 2
  [[DefinedSets.NeighborSetList]]
@@ -172,7 +174,7 @@ Neighbor Match needs be defined within DefinedSets as follows.
  ```
 
 - example 3
-  - As with PrefixSet, NeighborSet can have multiple NeighborInfoList like this;
+  - As with PrefixSet, NeighborSet can have multiple NeighborInfoList like this.
 
  ```
  # example 3
@@ -213,10 +215,10 @@ CommunitySetList has Community value as its element. The values are used to eval
 
 CommunitySetList has 2 elements.
 
-| Parent                                      | Element          |Description              | Example    | Optional |
-| ------------------------------------------- |------------------|-------------------------|------------|----------|
-| DefinedSets.BgpDefinedSets.CommunitySetList | CommunitySetName | name of CommunitySet    |"community1"|          |
-|                                             | CommunityMembers | list of Community value |["65100:10"]|          |
+| Element          | Description             | Example      | Optional |
+|------------------|-------------------------|--------------|----------|
+| CommunitySetName | name of CommunitySet    | "community1" |          |
+| CommunityMembers | list of Community value | ["65100:10"] |          |
 
 You can use regular expressions to specify communities in CommunityMembers.
 
@@ -251,16 +253,16 @@ AsPathSetList has AS numbers as its element. The numbers are used to evaluate AS
 
   CommunitySetList has 2 elements.
 
-| Parent                                   | Element          |Description        | Example    | Optional |
-| ---------------------------------------- |------------------|-------------------|------------|----------|
-| DefinedSets.BgpDefinedSets.AsPathSetList | AsPathSetName    | name of AsPathSet | "aspath1"  |          |
-|                                          | AsPathSetMembers | list of AS number | ["^65100"] |          |
+| Element          | Description       | Example    | Optional |
+|------------------|-------------------|------------|----------|
+| AsPathSetName    | name of AsPathSet | "aspath1"  |          |
+| AsPathSetMembers | list of AS number | ["^65100"] |          |
 
   You can specify the position using regexp-like expression as follows:
   - From: "^65100" means the route is passed from AS 65100 directly.
   - Any: "65100" means the route comes through AS 65100.
   - Origin: "65100$" means the route is originated by AS 65100.
-  - Only: "^65100$" means the route is originated by AS 65100 and comes from it directly.  
+  - Only: "^65100$" means the route is originated by AS 65100 and comes from it directly.
 
   ##### Examples
   - example 1
@@ -297,7 +299,7 @@ You can write condition and action under StatementList.
   MatchAsPathSet = "aspath1"
   [PolicyDefinitionList.StatementList.Conditions.BgpConditions.AsPathLength]
     Operator = "eq"
-    Value = 2  
+    Value = 2
  [PolicyDefinitionList.StatementList.Actions]
   AcceptRoute = true
   [PolicyDefinitionList.StatementList.Actions.BgpActions]
@@ -308,24 +310,54 @@ You can write condition and action under StatementList.
 
 The elements of PolicyDefinitionList are as follows:
 
-| Parent                                                                  | Element           |Description                                                                                 |Example       |
-| ----------------------------------------------------------------------- |-------------------|--------------------------------------------------------------------------------------------|--------------|
-| PolicyDefinitionList                                                    | name              | policy's name                                                                              | "pd1"        |
-| PolicyDefinitionList.StatementList                                      | name              | statements's name                                                                          | "pd1"        |
-| PolicyDefinitionList.StatementList.Conditions                           | MatchPrefixSet    | name for DefinedSets.PrefixSetList that is used in this policy                             | "ps2"        |
-|                                                                         | MatchNeighborSet  | name for DefinedSets.NeighborSetList that is used in this policy                           |"ns1"         |
-|                                                                         | MatchSetOptions   | option for the check;<br> 0 means **ANY**,<br>  1 means **ALL**,<br>  2 means **INVERT**   | 1            |
-|PolicyDefinitionList.StatementList.Conditions.BgpConditions              | MatchCommunitySet | name for DefinedSets.BgpDefinedSets.CommunitySetList that is used in this policy           | "community1" |
-|                                                                         | MatchAsPathSet    | name for DefinedSets.BgpDefinedSets.AsPathSetList that is used in this policy              | "aspath1"    |
-|PolicyDefinitionList.StatementList.Conditions.BgpConditions.AsPathLength | Operator          | operator to compare the length of AS number in AS_PATH attribute. <br> "eq","ge","le" can be used.                         | "eq"         |
-|                                                                         | Value             | value used to compare with the length of AS number in AS_PATH attribute                    | "aspath1"    |
-|PolicyDefinitionList.StatementList.Actions                               | AcceptRoute       | action to accept the route if matches conditions. If true, this route is accepted          | true         |
-|PolicyDefinitionList.StatementList.Actions.BgpActions.SetCommunity       | Communities       | communities used to manipulate the route's community accodriong to Options below           | ["65100:20"] |
-|                                                                         | Options           | operator to manipulate Community attribute in the route                                    | "ADD"        |
+ - PolicyDefinitionList
 
- - - AsPathLength
+| Element | Description   | Example          |
+|---------|---------------|------------------|
+| name    | policy's name | "example-policy" |
 
+ - PolicyDefinitionList.StatementList
 
+| Element | Description   | Example            |
+|---------|---------------|--------------------|
+| name    | statements's name | "statement1"   |
+
+ - PolicyDefinitionList.StatementList.Conditions
+
+| Element          | Description                                                                              | Example |
+|------------------|------------------------------------------------------------------------------------------|---------|
+| MatchPrefixSet   | name for DefinedSets.PrefixSetList that is used in this policy                           | "ps2"   |
+| MatchNeighborSet | name for DefinedSets.NeighborSetList that is used in this policy                         | "ns1"   |
+| MatchSetOptions  | option for the check;<br> 0 means **ANY**,<br>  1 means **ALL**,<br>  2 means **INVERT** | 1       |
+
+ - PolicyDefinitionList.StatementList.Conditions.BgpConditions
+
+| Element           | Description                                                                      | Example      |
+|-------------------|----------------------------------------------------------------------------------|--------------|
+| MatchCommunitySet | name for DefinedSets.BgpDefinedSets.CommunitySetList that is used in this policy | "community1" |
+| MatchAsPathSet    | name for DefinedSets.BgpDefinedSets.AsPathSetList that is used in this policy    | "aspath1"    |
+
+ - PolicyDefinitionList.StatementList.Conditions.BgpConditions.AsPathLength
+
+| Element  | Description                                                                                        | Example |
+|----------|----------------------------------------------------------------------------------------------------|---------|
+| Operator | operator to compare the length of AS number in AS_PATH attribute. <br> "eq","ge","le" can be used. <br> "eq" means that length of AS number is equal to Value element <br> "ge" means that length of AS number is equal or greater than the Value element <br> "le" means that length of AS number is equal or smaller than the Value element| "eq"    |
+| Value    | value used to compare with the length of AS number in AS_PATH attribute                            | 2       |
+
+ - PolicyDefinitionList.StatementList.Actions
+
+| Element     | Description                                                                       | Example |
+|-------------|-----------------------------------------------------------------------------------|---------|
+| AcceptRoute | action to accept the route if matches conditions. If true, this route is accepted | true    |
+
+ - PolicyDefinitionList.StatementList.Actions.BgpActions.SetCommunity
+
+| Element     | Description                                                                      | Example |
+|-------------|----------------------------------------------------------------------------------|---------|
+| Communities | communities used to manipulate the route's community accodriong to Options below | "eq"    |
+| Options     | operator to manipulate Community attribute in the route                          | 2       |
+
+<br>
 
 ##### Examples
  - example 1
@@ -375,7 +407,8 @@ The elements of PolicyDefinitionList are as follows:
 
 
 - example 3
- - If you want to add other policies, just add PolicyDefinitionList block following the first one like this;
+ - If you want to add other policies, just add PolicyDefinitionList block following the first one like this
+
  ```
  # example 3
  # first policy
@@ -391,7 +424,7 @@ The elements of PolicyDefinitionList are as follows:
  [PolicyDefinitionList.StatementList.Actions]
  RejectRoute = true
 
-# second policy
+ # second policy
  [[PolicyDefinitionList]]
  Name = "policy2"
 
@@ -405,36 +438,38 @@ The elements of PolicyDefinitionList are as follows:
  RejectRoute = true
  ```
 
- - example 4
-  - This PolicyDefinition has conditions as follows. If
-   - PrefixSet: *ps1*
-   - NeighborSet: *ns1*
-   - CommunitySet: *community1*
-   - AsPathSet: *aspath1*
-   - AsPath length: *equal 2*
-  - If a route matches all these conditions, the route is accepted and added community.
+- example 4
+  - This PolicyDefinition has multiple conditions including BgpConditions as follows:
+    - PrefixSet: *ps1*
+    - NeighborSet: *ns1*
+    - CommunitySet: *community1*
+    - AsPathSet: *aspath1*
+    - AsPath length: *equal 2*
+
+ - If a route matches all these conditions, the route is accepted and added community "65100:20".
+
  ```
-# example 4
-[[PolicyDefinitionList]]
-Name = "policy4"
-[[PolicyDefinitionList.StatementList]]
-Name = "statement1"
-[PolicyDefinitionList.StatementList.Conditions]
-MatchPrefixSet = "ps1"
-MatchNeighborSet = "ns1"
-MatchSetOptions = 1
-[PolicyDefinitionList.StatementList.Conditions.BgpConditions]
-MatchCommunitySet = "community1"
-MatchAsPathSet = "aspath1"
-[PolicyDefinitionList.StatementList.Conditions.BgpConditions.AsPathLength]
-Operator = "eq"
-Value = 2
-[PolicyDefinitionList.StatementList.Actions]
-AcceptRoute = true
-[PolicyDefinitionList.StatementList.Actions.BgpActions]
-[PolicyDefinitionList.StatementList.Actions.BgpActions.SetCommunity]
-Communities = ["65100:20"]
-Options = "ADD"
+ # example 4
+ [[PolicyDefinitionList]]
+ Name = "policy4"
+ [[PolicyDefinitionList.StatementList]]
+ Name = "statement1"
+ [PolicyDefinitionList.StatementList.Conditions]
+ MatchPrefixSet = "ps1"
+ MatchNeighborSet = "ns1"
+ MatchSetOptions = 1
+ [PolicyDefinitionList.StatementList.Conditions.BgpConditions]
+ MatchCommunitySet = "community1"
+ MatchAsPathSet = "aspath1"
+ [PolicyDefinitionList.StatementList.Conditions.BgpConditions.AsPathLength]
+ Operator = "eq"
+ Value = 2
+ [PolicyDefinitionList.StatementList.Actions]
+ AcceptRoute = true
+ [PolicyDefinitionList.StatementList.Actions.BgpActions]
+ [PolicyDefinitionList.StatementList.Actions.BgpActions.SetCommunity]
+ Communities = ["65100:20"]
+ Options = "ADD"
  ```
 
 
@@ -463,9 +498,9 @@ DefaultExportPolicy = 0
 NeighborList has a section to specify policies and the section's name is ApplyPolicy.
 The ApplyPolicy has 4 elements.
 
-| Parent                    | Element             | Description                                                                   | Example    |
-|---------------------------|---------------------|-------------------------------------------------------------------------------|------------|
-| NeighborList.ApplyPolicy  | ImportPolicies      | PolicyDefinitionList.name for import policy                                   | "policy1"  |
-|                           | ExportPolicies      | PolicyDefinitionList.name for export policy                                   | "policy1"  |
-|                           | DefaultImportPolicy | action if the route isn't applied any policy;<br> 0 means import,<br>  1 means reject  | 0 |
-|                           | DefaultExportPolicy | action if the route isn't applied any policy;<br> 0 means export,<br>  1 means discard | 0 |
+| Element             | Description                                                                   | Example    |
+|---------------------|-------------------------------------------------------------------------------|------------|
+| ImportPolicies      | PolicyDefinitionList.name for import policy                                   | "policy1"  |
+| ExportPolicies      | PolicyDefinitionList.name for export policy                                   | "policy2"  |
+| DefaultImportPolicy | action if the route isn't applied any policy;<br> 0 means import,<br>  1 means reject  | 0 |
+| DefaultExportPolicy | action if the route isn't applied any policy;<br> 0 means export,<br>  1 means discard | 0 |
