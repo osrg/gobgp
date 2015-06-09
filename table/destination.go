@@ -56,7 +56,7 @@ type Destination interface {
 	setNlri(nlri bgp.AddrPrefixInterface)
 	getBestPathReason() string
 	setBestPathReason(string)
-	getBestPath() Path
+	GetBestPath() Path
 	setBestPath(path Path)
 	getKnownPathList() []Path
 	setKnownPathList([]Path)
@@ -102,7 +102,7 @@ func (dd *DestinationDefault) ToApiStruct() *api.Destination {
 
 	idx := func() int {
 		for i, p := range dd.knownPathList {
-			if p == dd.getBestPath() {
+			if p == dd.GetBestPath() {
 				return i
 			}
 		}
@@ -152,7 +152,7 @@ func (dd *DestinationDefault) setBestPathReason(reason string) {
 	dd.bestPathReason = reason
 }
 
-func (dd *DestinationDefault) getBestPath() Path {
+func (dd *DestinationDefault) GetBestPath() Path {
 	return dd.bestPath
 }
 
@@ -906,7 +906,7 @@ func (ipv6d *IPv6Destination) MarshalJSON() ([]byte, error) {
 	prefix := ipv6d.getNlri().(*bgp.IPv6AddrPrefix).Prefix
 	idx := func() int {
 		for i, p := range ipv6d.DestinationDefault.knownPathList {
-			if p == ipv6d.DestinationDefault.getBestPath() {
+			if p == ipv6d.DestinationDefault.GetBestPath() {
 				return i
 			}
 		}
@@ -962,7 +962,7 @@ func (ipv4vpnd *IPv4VPNDestination) MarshalJSON() ([]byte, error) {
 	prefix := ipv4vpnd.getNlri().(*bgp.LabelledVPNIPAddrPrefix).Prefix
 	idx := func() int {
 		for i, p := range ipv4vpnd.DestinationDefault.knownPathList {
-			if p == ipv4vpnd.DestinationDefault.getBestPath() {
+			if p == ipv4vpnd.DestinationDefault.GetBestPath() {
 				return i
 			}
 		}
@@ -1000,7 +1000,7 @@ func (evpnd *EVPNDestination) MarshalJSON() ([]byte, error) {
 	nlri := evpnd.getNlri().(*bgp.EVPNNLRI)
 	idx := func() int {
 		for i, p := range evpnd.DestinationDefault.knownPathList {
-			if p == evpnd.DestinationDefault.getBestPath() {
+			if p == evpnd.DestinationDefault.GetBestPath() {
 				return i
 			}
 		}
