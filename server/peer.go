@@ -80,7 +80,8 @@ func (peer *Peer) configuredRFlist() []bgp.RouteFamily {
 	return rfList
 }
 
-func (peer *Peer) handleBGPmessage(m *bgp.BGPMessage) ([]table.Path, bool) {
+func (peer *Peer) handleBGPmessage(m *bgp.BGPMessage) ([]table.Path, bool, []*bgp.BGPMessage) {
+	bgpMsgList := []*bgp.BGPMessage{}
 	pathList := []table.Path{}
 	log.WithFields(log.Fields{
 		"Topic": "Peer",
@@ -164,7 +165,7 @@ func (peer *Peer) handleBGPmessage(m *bgp.BGPMessage) ([]table.Path, bool) {
 			}).Warn("malformed BGP update message")
 			m := err.(*bgp.MessageError)
 			if m.TypeCode != 0 {
-				peer.outgoing <- bgp.NewBGPNotificationMessage(m.TypeCode, m.SubTypeCode, m.Data)
+				bgpMsgList = append(bgpMsgList, bgp.NewBGPNotificationMessage(m.TypeCode, m.SubTypeCode, m.Data))
 			}
 			break
 		}
@@ -172,7 +173,7 @@ func (peer *Peer) handleBGPmessage(m *bgp.BGPMessage) ([]table.Path, bool) {
 		pathList = table.ProcessMessage(m, peer.peerInfo)
 		peer.adjRib.UpdateIn(pathList)
 	}
-	return pathList, update
+	return pathList, update, bgpMsgList
 }
 
 func (peer *Peer) getBests(loc *LocalRib) []table.Path {
