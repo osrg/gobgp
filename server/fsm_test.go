@@ -289,19 +289,14 @@ func makePeerAndHandler() (*Peer, *FSMHandler) {
 
 	p := &Peer{
 		globalConfig: globalConfig,
-		peerConfig:   neighborConfig,
-		connCh:       make(chan net.Conn),
-		serverMsgCh:  make(chan *serverMsg),
-		peerMsgCh:    make(chan *peerMsg),
-		getActiveCh:  make(chan struct{}),
+		config:       neighborConfig,
 		capMap:       make(map[bgp.BGPCapabilityCode]bgp.ParameterCapabilityInterface),
 	}
 
-	p.siblings = make(map[string]*serverMsgDataPeer)
-	p.fsm = NewFSM(&globalConfig, &neighborConfig, p.connCh)
+	p.fsm = NewFSM(&globalConfig, &neighborConfig)
 
-	incoming := make(chan *fsmMsg, FSM_CHANNEL_LENGTH)
-	p.outgoing = make(chan *bgp.BGPMessage, FSM_CHANNEL_LENGTH)
+	incoming := make(chan *fsmMsg, 4096)
+	p.outgoing = make(chan *bgp.BGPMessage, 4096)
 
 	h := &FSMHandler{
 		fsm:      p.fsm,
@@ -309,7 +304,6 @@ func makePeerAndHandler() (*Peer, *FSMHandler) {
 		incoming: incoming,
 		outgoing: p.outgoing,
 	}
-	p.t.Go(p.connectLoop)
 
 	return p, h
 
