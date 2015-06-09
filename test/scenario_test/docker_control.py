@@ -189,19 +189,31 @@ def make_install_file(use_local=False):
 
 
 def docker_container_stop_quagga(quagga):
-    cmd = "docker rm -f " + quagga
+    if docker_check_running(quagga):
+        cmd = "docker stop " + quagga
+        local(cmd, capture=True)
+
+    cmd = "docker rm " + quagga
     local(cmd, capture=True)
     cmd = "rm -rf " + CONFIG_DIRR + quagga
     local(cmd, capture=True)
 
 
 def docker_container_stop_gobgp():
-    cmd = "docker rm -f " + GOBGP_CONTAINER_NAME
+    if docker_check_running(GOBGP_CONTAINER_NAME):
+        cmd = "docker stop " + GOBGP_CONTAINER_NAME
+        local(cmd, capture=True)
+
+    cmd = "docker rm " + GOBGP_CONTAINER_NAME
     local(cmd, capture=True)
 
 
 def docker_container_stop_exabgp():
-    cmd = "docker rm -f " + EXABGP_CONTAINER_NAME
+    if docker_check_running(EXABGP_CONTAINER_NAME):
+        cmd = "docker stop " + EXABGP_CONTAINER_NAME
+        local(cmd, capture=True)
+
+    cmd = "docker rm  " + EXABGP_CONTAINER_NAME
     local(cmd, capture=True)
 
 
@@ -217,6 +229,14 @@ def docker_containers_destroy():
     bridge_unsetting_for_docker_connection()
     cmd = "rm -rf " + CONFIG_DIRR
     local(cmd, capture=True)
+
+
+def docker_check_running(cname):
+    cmd = "docker ps | awk '{print $NF}'"
+    outbuf = local(cmd, capture=True)
+    docker_ps = outbuf.split('\n')
+    if cname in docker_ps:
+        return True
 
 
 def docker_container_quagga_append(quagga_num, bridge):
@@ -339,11 +359,6 @@ def make_config_append(quagga_num, go_path, bridge, peer_opts="", policy_pattern
 
     cmd = go_path + "go run " + pwd + "/quagga-rsconfig.go -a " + str(quagga_num) +\
           " -c /tmp/gobgp -v " + IP_VERSION + pp +" -i " + bridge["BRIDGE_NAME"][-1] + " " + peer_opts
-    local(cmd, capture=True)
-
-
-def change_exabgp_version():
-    cmd = "docker exec exabgp git -C /root/exabgp pull origin master"
     local(cmd, capture=True)
 
 
@@ -562,8 +577,6 @@ def init_malformed_test_env_executor(conf_file, use_local,  go_path, exabgp_path
         local(cmd, capture=True)
         cmd = "docker exec exabgp cp -rf " + SHARE_VOLUME + "/exabgp /root/"
         local(cmd, capture=True)
-    else:
-        change_exabgp_version()
 
     start_gobgp()
 
