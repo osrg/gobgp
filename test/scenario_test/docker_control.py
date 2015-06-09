@@ -153,6 +153,14 @@ def create_config_dir():
     cmd = "mkdir " + CONFIG_DIR
     local(cmd, capture=True)
 
+
+def recreate_conf_dir(dirname):
+    cmd = "rm -rf " + dirname
+    local(cmd, capture=True)
+    cmd = "mkdir " + dirname
+    local(cmd, capture=True)
+
+
 def make_startup_file(log_opt=""):
     file_buff = '#!/bin/bash' + '\n'
     file_buff += "cd /go/src/github.com/osrg/gobgp/gobgpd" + '\n'
@@ -199,18 +207,19 @@ def docker_container_stop_quagga(quagga):
     local(cmd, capture=True)
 
 
-def docker_container_stop_gobgp():
+def docker_container_stop_gobgp(remove=True):
     if docker_check_running(GOBGP_CONTAINER_NAME):
-        cmd = "docker stop " + GOBGP_CONTAINER_NAME
+        cmd = "docker stop --time=1 " + GOBGP_CONTAINER_NAME
         local(cmd, capture=True)
 
-    cmd = "docker rm " + GOBGP_CONTAINER_NAME
-    local(cmd, capture=True)
+    if remove:
+        cmd = "docker rm " + GOBGP_CONTAINER_NAME
+        local(cmd, capture=True)
 
 
 def docker_container_stop_exabgp():
     if docker_check_running(EXABGP_CONTAINER_NAME):
-        cmd = "docker stop " + EXABGP_CONTAINER_NAME
+        cmd = "docker stop --time=1 " + EXABGP_CONTAINER_NAME
         local(cmd, capture=True)
 
     cmd = "docker rm  " + EXABGP_CONTAINER_NAME
@@ -276,9 +285,16 @@ def bridge_unsetting_for_docker_connection():
             local(cmd, capture=True)
 
 
-def start_gobgp():
+def build_gobgp():
     cmd = "docker exec gobgp " + INSTALL_FILE
     local(cmd, capture=True)
+
+
+def start_gobgp(build=True):
+    if build:
+        cmd = "docker exec gobgp " + INSTALL_FILE
+        local(cmd, capture=True)
+
     cmd = "docker exec -d gobgp " + STARTUP_FILE
     local(cmd, capture=True)
 
@@ -368,6 +384,39 @@ def reload_config():
     print "gobgp config reloaded."
 
 
+def prepare_gobgp(log_debug, use_local):
+
+    # cleanup gobgp container
+    docker_container_stop_gobgp(remove=True)
+    recreate_conf_dir(CONFIG_DIRR)
+
+    # set log option
+    opt = "-l debug" if log_debug else ""
+    # execute local gobgp program in the docker container if the input option is local
+    make_startup_file(log_opt=opt)
+    if use_local:
+        print "execute gobgp program in local machine."
+        pwd = local("pwd", capture=True)
+        if A_PART_OF_CURRENT_DIR in pwd:
+            gobgp_path = re.sub(A_PART_OF_CURRENT_DIR, "", pwd)
+            cmd = "cp -r " + gobgp_path + " " + CONFIG_DIRR
+            local(cmd, capture=True)
+            make_install_file(use_local=True)
+        else:
+            print "local gobgp dosen't exist."
+            print "get the latest master gobgp from github."
+            make_install_file()
+    else:
+        print "execute gobgp program of osrg/master in github."
+        make_install_file()
+    change_owner_to_root(CONFIG_DIR)
+
+    cmd = "docker run --privileged=true -v " + CONFIG_DIR + ":" + SHARE_VOLUME + " -d --name " \
+          + GOBGP_CONTAINER_NAME + " -id osrg/gobgp"
+    local(cmd, capture=True)
+    build_gobgp()
+
+
 def init_test_env_executor(quagga_num, use_local, go_path, log_debug=False, is_route_server=True):
     print "start initialization of test environment."
 
@@ -420,25 +469,33 @@ def init_policy_test_env_executor(quagga_num, use_local, go_path, log_debug=Fals
     print "start initialization of test environment."
 
     if docker_container_check() or bridge_setting_check():
-        print "gobgp test environment already exists."
-        print "so that remake gobgp test environment."
-        docker_containers_destroy()
+        print "gobgp test environment already exists. clean up..."
+        containers = docker_containers_get()
+        for container in containers:
+            if re.match(r'q[0-9][0-9]*', container) is not None:
+                docker_container_stop_quagga(container)
+            if container == GOBGP_CONTAINER_NAME:
+                docker_container_stop_gobgp(remove=False)
+            if container == EXABGP_CONTAINER_NAME:
+                docker_container_stop_exabgp()
+        bridge_unsetting_for_docker_connection()
+        # cmd = "rm -rf " + CONFIG_DIRR
+        # local(cmd, capture=True)
 
-    print "make gobgp policy test environment."
-    create_config_dir()
+    # print "make gobgp policy test environment."
+    # create_config_dir()
 
-    if use_ipv6:
-        global IP_VERSION
-        IP_VERSION = IPv6
-    else:
-        global IP_VERSION
-        IP_VERSION = IPv4
+    global IP_VERSION
+    IP_VERSION = IPv6 if use_ipv6 else IPv4
 
     bridge_setting_for_docker_connection(BRIDGES)
     make_config(quagga_num, go_path, BRIDGE_0, policy_pattern=policy)
 
     # run gobgp docker container
-    docker_container_run_gobgp(BRIDGE_0)
+    # docker_container_run_gobgp(BRIDGE_0)
+    cmd = "docker start %s" % GOBGP_CONTAINER_NAME
+    local(cmd, capture=True)
+    docker_container_set_ipaddress(BRIDGE_0, GOBGP_CONTAINER_NAME, GOBGP_ADDRESS_0[IP_VERSION] + BASE_MASK[IP_VERSION])
 
     if use_exabgp:
         # run exabgp
@@ -447,29 +504,7 @@ def init_policy_test_env_executor(quagga_num, use_local, go_path, log_debug=Fals
         cmd = "docker exec exabgp cp -rf " + SHARE_VOLUME + "/exabgp /root/"
         local(cmd, capture=True)
 
-    # set log option
-    opt = "-l debug" if log_debug else ""
-
-    # execute local gobgp program in the docker container if the input option is local
-    make_startup_file(log_opt=opt)
-    if use_local:
-        print "execute gobgp program in local machine."
-        pwd = local("pwd", capture=True)
-        if A_PART_OF_CURRENT_DIR in pwd:
-            gobgp_path = re.sub(A_PART_OF_CURRENT_DIR, "", pwd)
-            cmd = "cp -r " + gobgp_path + " " + CONFIG_DIRR
-            local(cmd, capture=True)
-            make_install_file(use_local=True)
-        else:
-            print "local gobgp dosen't exist."
-            print "get the latest master gobgp from github."
-            make_install_file()
-    else:
-        print "execute gobgp program of osrg/master in github."
-        make_install_file()
-
-    change_owner_to_root(CONFIG_DIR)
-    start_gobgp()
+    start_gobgp(build=False)
 
     # run quagga docker container
     for num in range(1, quagga_num + 1):
