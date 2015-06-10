@@ -1,20 +1,29 @@
-# Detail of Policy configuration
+# Detail of Policy Configuration
 
 This page shows how to write your own policies.
 
-As [Policy configuration](https://github.com/osrg/gobgp/blob/master/docs/sources/policy.md) shows, you can put import or export policies to control the route advertisement. Basically a policy has condition part and an action part, and a condition part has prefix match and neighbor match. An action part has the rule to accept or reject(if it's import, otherwise discard) routes.
+As [Policy configuration](https://github.com/osrg/gobgp/blob/master/docs/sources/policy.md) shows, you can define import or export policies to control the route advertisement. Basically a policy has condition part and an action part. A condition part can be defined with attributes below.
+ - prefix
+ - neighbor
+ - aspath
+ - aspath length
+ - community
 
-The policy configuration on GoBGP consists of DefinedSets and PolicyDefinitionList in its configuration file.
+A action part is below.
+ - accept or reject
+ - add/replace/remove community or remove all communities
+
+
+GoBGP's configuration file has two parts named DefinedSets and PolicyDefinitionList as its policy configuration.
 
  - DefinedSets
 
- A single DefinedSets entry has prefix match thas is named PrefixSetList and neighbor match part that is named NeighborSetList and combines 2 parts with the name.
- It is possible to refer the combination using its name from policy.
+ A single DefinedSets entry has prefix match that is named PrefixSetList and neighbor match part that is named NeighborSetList. It also has BgpDefinedSets, a subset of DefinedSets that defines conditions referring BGP attributes such as aspath. This DefinedSets has a name and it's used to refer DefinedSets from outside.
 
  - PolicyDefinitionList
 
  PolicyDefinitionList is a list of policy.
- A single element of PolicyDefinitionList has statements that combine a condition with an action and we can say it's policy.
+ A single element of PolicyDefinitionList has a statement part that combines conditions with an action.
 
 
 ## Definition Steps
@@ -22,10 +31,13 @@ The policy configuration on GoBGP consists of DefinedSets and PolicyDefinitionLi
 These are steps to define policy;
 
 1. define DefinedSets
-  - define PrefixSetList
-  - define NeighborSetList
-2. define PolicyDefinitionList
-3. attach policies to a neighbor
+  1. define PrefixSetList
+  1. define NeighborSetList
+1.  define BgpDefinedSets
+  1. define CommunitySetList
+  1. define AsPathSetList
+1. define PolicyDefinitionList
+1. attach policies to a neighbor
 
 ### 1. Defining DefinedSets
 DefineSets has prefix information and neighbor information in PrefixSetList and NeighborSetList section, and GoBGP uses these information to evaluate routes.
@@ -132,7 +144,7 @@ NeighborInfoList has 1 elements.
 
 | Parent                                        | Element  |Description         | Example     | Optional   |
 | --------------------------------------------- |----------|--------------------|-------------|------------|
-| DefinedSets.NeighborSetList                   | Name     | name of NeighborSet| "ns1       "|            |
+| DefinedSets.NeighborSetList                   | NeighborSetName     | name of NeighborSet| "ns1       "|            |
 | DefinedSets.NeighborSetList.NeighborInfoList  | Address  | neighbor's address | "10.0.255.1"|            |
 
 ##### Examples
@@ -172,14 +184,101 @@ Neighbor Match needs be defined within DefinedSets as follows.
    Address = "10.0.255.2"
  ```
 
- - - This example checks if a route comes from neighbor 10.0.255.1 **or** 10.0.255.2.
+ - This example checks if a route comes from neighbor 10.0.255.1 **or** 10.0.255.2.
+
+---
+### 2. Defining BgpDefinedSets
+
+BgpDefinedSets has Community information and AS_PATH information in CommunitySetList and AsPathSetList section respectively. And it is a child element of DefinedSets.
+AsPathSetList and CommunitySetList section are AS_PATH match part and community match part.
+
+- BgpDefinedSets example
+
+ ```
+   [DefinedSets.BgpDefinedSets]
+     # Community match part
+     [[DefinedSets.BgpDefinedSets.CommunitySetList]]
+       CommunitySetName = "community1"
+       CommunityMembers = ["65100:10"]
+     # AS_PATH match part
+     [[DefinedSets.BgpDefinedSets.AsPathSetList]]
+       AsPathSetName = "aspath1"
+       AsPathSetMembers = ["^65100"]
+ ```
 
 ---
 
-### 2. Defining PolicyDefinitionList
-PolicyDefinitionList consists of condition and action of the policy. The condition part evaluates routes from neighbors and applies action if the routes match a condition. For the definition of PolicyDefinitionList, you can use DefinedSets above to specify conditions.
+#### CommunitySetList
+CommunitySetList has Community value as its element. The values are used to evaluate communities held by the destination.
 
-PolicyDefinitionList has PolicyDefinition as its element and the PolicyDefinition is just a policy.
+CommunitySetList has 2 elements.
+
+| Parent                                      | Element          |Description              | Example    | Optional |
+| ------------------------------------------- |------------------|-------------------------|------------|----------|
+| DefinedSets.BgpDefinedSets.CommunitySetList | CommunitySetName | name of CommunitySet    |"community1"|          |
+|                                             | CommunityMembers | list of Community value |["65100:10"]|          |
+
+You can use regular expressions to specify communities in CommunityMembers.
+
+##### Examples
+- example 1
+  - Match routes which has "65100:10" as a community value.
+
+ ```
+ # example 1
+[DefinedSets.BgpDefinedSets]
+  [[DefinedSets.BgpDefinedSets.CommunitySetList]]
+    CommunitySetName = "community1"
+    CommunityMembers = ["65100:10"]
+ ```
+
+- example 2
+  - Specifying community by regular expression
+
+ ```
+ # example 2
+ [DefinedSets.BgpDefinedSets]
+  [[DefinedSets.BgpDefinedSets.CommunitySetList]]
+  CommunitySetName = "community2"
+  CommunityMembers = ["6[0-9]+:[0-9]+"]
+ ```
+  - You can use regular expressions that is available in Golang.
+
+  ---
+
+#### AsPathSetList
+AsPathSetList has AS numbers as its element. The numbers are used to evaluate AS numbers in the destination's AS_PATH attribute.
+
+  CommunitySetList has 2 elements.
+
+| Parent                                   | Element          |Description        | Example    | Optional |
+| ---------------------------------------- |------------------|-------------------|------------|----------|
+| DefinedSets.BgpDefinedSets.AsPathSetList | AsPathSetName    | name of AsPathSet | "aspath1"  |          |
+|                                          | AsPathSetMembers | list of AS number | ["^65100"] |          |
+
+  You can specify the position using regexp-like expression as follows:
+  - From: "^65100" means the route is passed from AS 65100 directly.
+  - Any: "65100" means the route comes through AS 65100.
+  - Origin: "65100$" means the route is originated by AS 65100.
+  - Only: "^65100$" means the route is originated by AS 65100 and comes from it directly.  
+
+  ##### Examples
+  - example 1
+    - Match routes which come from AS 65100.
+
+   ```
+   # example 1
+  [DefinedSets.BgpDefinedSets]
+    [[DefinedSets.BgpDefinedSets.AsPathSetList]]
+    AsPathSetName = "aspath1"
+    AsPathSetMembers = ["^65100"]
+   ```
+
+---
+### 3. Defining PolicyDefinitionList
+PolicyDefinitionList consists of condition and action of the policy. The condition part evaluates routes from neighbors and applies action if the routes match conditions. You can use DefinedSets above and other conditions to specify conditions in the PolicyDefinitionList.
+
+PolicyDefinitionList has PolicyDefinition as its element and the PolicyDefinition is a policy itself.
 You can write condition and action under StatementList.
 
  - an example of PolicyDefinitionList
@@ -193,20 +292,40 @@ You can write condition and action under StatementList.
   MatchPrefixSet = "ps2"
   MatchNeighborSet = "ns1"
   MatchSetOptions = 1
+  [PolicyDefinitionList.StatementList.Conditions.BgpConditions]
+  MatchCommunitySet = "community1"
+  MatchAsPathSet = "aspath1"
+  [PolicyDefinitionList.StatementList.Conditions.BgpConditions.AsPathLength]
+    Operator = "eq"
+    Value = 2  
  [PolicyDefinitionList.StatementList.Actions]
-  RejectRoute = true
+  AcceptRoute = true
+  [PolicyDefinitionList.StatementList.Actions.BgpActions]
+    [PolicyDefinitionList.StatementList.Actions.BgpActions.SetCommunity]
+      Communities = ["65100:20"]
+      Options = "ADD"
  ```
 
-The elements of PolicyDefinitionList are as follows;
+The elements of PolicyDefinitionList are as follows:
 
-| Parent                                         | Element          |Description                                                                                   |Example|
-| ---------------------------------------------- |------------------|-----------------------------------------------------------------------------------------------|------|
-| PolicyDefinitionList                           | name             | policy's name                                                                                 | "pd1"|
-| PolicyDefinitionList.StatementList             | name             | statements's name                                                                             | "pd1"|
-| PolicyDefinitionList.StatementList.Conditions  | MatchPrefixSet   | prefix match name used in its policy definition                                               | "ps2"|
-|                                                | MatchNeighborSet | neighbor match name used in its policy definition                                             |"ns1" |
-|                                                | MatchSetOptions  | option for the check;<br> 0 means **ANY**,<br>  1 means **ALL**,<br>  2 means **INVERT**                    | 1    |
-|PolicyDefinitionList.StatementList.Actions      | RejectRoute      | action for the route which matches PrefixSet and NeighborSet. if true, this route is rejected | true |
+| Parent                                                                  | Element           |Description                                                                                 |Example       |
+| ----------------------------------------------------------------------- |-------------------|--------------------------------------------------------------------------------------------|--------------|
+| PolicyDefinitionList                                                    | name              | policy's name                                                                              | "pd1"        |
+| PolicyDefinitionList.StatementList                                      | name              | statements's name                                                                          | "pd1"        |
+| PolicyDefinitionList.StatementList.Conditions                           | MatchPrefixSet    | name for DefinedSets.PrefixSetList that is used in this policy                             | "ps2"        |
+|                                                                         | MatchNeighborSet  | name for DefinedSets.NeighborSetList that is used in this policy                           |"ns1"         |
+|                                                                         | MatchSetOptions   | option for the check;<br> 0 means **ANY**,<br>  1 means **ALL**,<br>  2 means **INVERT**   | 1            |
+|PolicyDefinitionList.StatementList.Conditions.BgpConditions              | MatchCommunitySet | name for DefinedSets.BgpDefinedSets.CommunitySetList that is used in this policy           | "community1" |
+|                                                                         | MatchAsPathSet    | name for DefinedSets.BgpDefinedSets.AsPathSetList that is used in this policy              | "aspath1"    |
+|PolicyDefinitionList.StatementList.Conditions.BgpConditions.AsPathLength | Operator          | operator to compare the length of AS number in AS_PATH attribute. <br> "eq","ge","le" can be used.                         | "eq"         |
+|                                                                         | Value             | value used to compare with the length of AS number in AS_PATH attribute                    | "aspath1"    |
+|PolicyDefinitionList.StatementList.Actions                               | AcceptRoute       | action to accept the route if matches conditions. If true, this route is accepted          | true         |
+|PolicyDefinitionList.StatementList.Actions.BgpActions.SetCommunity       | Communities       | communities used to manipulate the route's community accodriong to Options below           | ["65100:20"] |
+|                                                                         | Options           | operator to manipulate Community attribute in the route                                    | "ADD"        |
+
+ - - AsPathLength
+
+
 
 ##### Examples
  - example 1
@@ -286,9 +405,42 @@ The elements of PolicyDefinitionList are as follows;
  RejectRoute = true
  ```
 
+- example 4
+  - This PolicyDefinition has conditions as follows.
+    - PrefixSet: *ps1*
+    - NeighborSet: *ns1*
+    - CommunitySet: *community1*
+    - AsPathSet: *aspath1*
+    - AsPath length: *equal 2*
+  - If a route matches all these conditions, the route is accepted and added community.
+ ```
+ # example 4
+ [[PolicyDefinitionList]]
+    Name = "policy4"
+ [[PolicyDefinitionList.StatementList]]
+    Name = "statement1"
+ [PolicyDefinitionList.StatementList.Conditions]
+    MatchPrefixSet = "ps1"
+    MatchNeighborSet = "ns1"
+    MatchSetOptions = 1
+ [PolicyDefinitionList.StatementList.Conditions.BgpConditions]
+    MatchCommunitySet = "community1"
+    MatchAsPathSet = "aspath1"
+ [PolicyDefinitionList.StatementList.Conditions.BgpConditions.AsPathLength]
+    Operator = "eq"
+    Value = 2
+ [PolicyDefinitionList.StatementList.Actions]
+    AcceptRoute = true
+ [PolicyDefinitionList.StatementList.Actions.BgpActions]
+ [PolicyDefinitionList.StatementList.Actions.BgpActions.SetCommunity]
+    Communities = ["65100:20"]
+    Options = "ADD"
+  ```
+
+
 ---
 
-### 3. Attaching policy
+### 4. Attaching policy
 You can attach policies to a neighbor after defining policy.
 To attach policies to a neighbor, you need to add policy's name to NeighborList.ApplyPolicy in the neighbor's setting.
 
