@@ -191,7 +191,15 @@ func (peer *Peer) startFSMHandler(incoming chan *fsmMsg) {
 }
 
 func (peer *Peer) PassConn(conn *net.TCPConn) {
-	peer.fsm.connCh <- conn
+	select {
+	case peer.fsm.connCh <- conn:
+	default:
+		conn.Close()
+		log.WithFields(log.Fields{
+			"Topic": "Peer",
+			"Key":   peer.config.NeighborAddress,
+		}).Warn("accepted conn is closed to avoid be blocked")
+	}
 }
 
 func (peer *Peer) MarshalJSON() ([]byte, error) {
