@@ -21,7 +21,6 @@ import nose
 import collections
 import docker_control as fab
 from fabric.api import local
-import requests
 import json
 import toml
 from noseplugin import OptionParser

@@ -300,6 +300,9 @@ def start_gobgp(build=True):
 
 
 def start_exabgp(conf_file):
+    # run exabgp docker container
+    docker_container_run_exabgp(BRIDGE_0)
+
     cmd = "docker exec exabgp cp -f " + SHARE_VOLUME + "/exabgp_test_conf/exabgp.env /root/exabgp/etc/exabgp/exabgp.env"
     local(cmd, capture=True)
     conf_path = EXABGP_CONFDIR + "/" + conf_file
@@ -308,8 +311,7 @@ def start_exabgp(conf_file):
 
 
 def stop_exabgp():
-    cmd = "docker exec exabgp pkill -9 python"
-    local(cmd, capture=True)
+    docker_container_stop_exabgp()
     log_path = CONFIG_DIRR + EXABGP_LOG_FILE
     clean_log(log_path)
 
@@ -512,19 +514,13 @@ def init_policy_test_env_executor(quagga_num, use_local, go_path, log_debug=Fals
     if use_exabgp:
         # run exabgp
         make_config_append(100, go_path, BRIDGE_0, peer_opts="--none-peer", policy_pattern=policy)
-        docker_container_run_exabgp(BRIDGE_0)
-        cmd = "docker exec exabgp cp -rf " + SHARE_VOLUME + "/exabgp /root/"
-        local(cmd, capture=True)
+        start_exabgp(EXABGP_COMMON_CONF)
 
     start_gobgp(build=False)
 
     # run quagga docker container
     for num in range(1, quagga_num + 1):
         docker_container_run_quagga(num, BRIDGE_0)
-
-    # start exabgp
-    if use_exabgp:
-        start_exabgp(EXABGP_COMMON_CONF)
 
     print "complete initialization of test environment."
 
@@ -593,8 +589,6 @@ def init_malformed_test_env_executor(use_local,  go_path, exabgp_path, log_debug
 
     # run gobgp docker container
     docker_container_run_gobgp(BRIDGE_0)
-    # run exabgp docker container
-    docker_container_run_exabgp(BRIDGE_0)
 
     # set log option
     opt = "-l debug" if log_debug else ""
