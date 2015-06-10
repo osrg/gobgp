@@ -18,7 +18,7 @@ GoBGP's configuration file has two parts named DefinedSets and PolicyDefinitionL
 
  - DefinedSets
 
- A single DefinedSets entry has prefix match that is named PrefixSetList and neighbor match part that is named NeighborSetList. It also has BgpDefinedSets, a subset of DefinedSets that defines conditions referring BGP attributes such as aspath. This DefinedSets has a name and it's used to refer DefinedSets from outside.
+ A single DefinedSets entry has prefix match that is named PrefixSetList and neighbor match part that is named NeighborSetList. It also has BgpDefinedSets, a subset of DefinedSets that defines conditions referring to BGP attributes such as aspath. This DefinedSets has a name and it's used to refer to DefinedSets items from outside.
 
  - PolicyDefinitionList
 
@@ -38,6 +38,8 @@ These are steps to define policy;
   1. define AsPathSetList
 1. define PolicyDefinitionList
 1. attach policies to a neighbor
+
+----
 
 ### 1. Defining DefinedSets
 DefineSets has prefix information and neighbor information in PrefixSetList and NeighborSetList section, and GoBGP uses these information to evaluate routes.
@@ -61,134 +63,133 @@ PrefixSetList and NeighborSetList section are prefix match part and neighbor mat
    Address = "10.0.255.1"
  ```
 
----
+  ----
 
-#### PrefixSetList
-PrefixSetList has PrefixList as its element. PrefixList has prefix information to match destination's address and we can specify route's NLRI inside.
+ #### PrefixSetList
+ PrefixSetList has PrefixList as its element. PrefixList has prefix information to match destination's address and we can specify route's NLRI inside.
 
-PrefixList has 3 elements.
+ PrefixList has 3 elements.
 
-| Element         |Description        | Example    | Optional   |
-|-----------------|-------------------|------------|------------|
-| PrefixSetName   | name of PrefixSet | "10.33.0.0"|            |
-| Address         | prefix address    | "10.33.0.0"|            |
-| Masklength      | prefix length     | 16         |            |
-| MasklengthRange | range of length   | "25..28"   | Yes        |
+ | Element         |Description        | Example    | Optional   |
+ |-----------------|-------------------|------------|------------|
+ | PrefixSetName   | name of PrefixSet | "10.33.0.0"|            |
+ | Address         | prefix address    | "10.33.0.0"|            |
+ | Masklength      | prefix length     | 16         |            |
+ | MasklengthRange | range of length   | "25..28"   | Yes        |
 
 
-##### Examples
-- example 1
-  - Match routes whose high order 2 octets of NLRI is 10.33 and its prefix length is between from 21 to 24
+ ##### Examples
+ - example 1
+   - Match routes whose high order 2 octets of NLRI is 10.33 and its prefix length is between from 21 to 24
 
- ```
- # example 1
- [[DefinedSets.PrefixSetList]]
+  ```
+  # example 1
+  [[DefinedSets.PrefixSetList]]
+   PrefixSetName = "ps1"
+  [[DefinedSets.PrefixSetList.PrefixList]]
+   Address = "10.33.0.0"
+   Masklength = 16
+   MasklengthRange = "21...24"
+  ```
+
+   - If you define a PrefixList that doesn't have MasklengthRange, it matches routes that have just 10.33.0.0/16 as NLRI.
+
+
+ - example 2
+   - If you want to evaluate multiple routes with a single PrefixSetList, you can do this by adding an another PrefixList like this;
+
+  ```
+  # example 2
+  [[DefinedSets.PrefixSetList]]
+   PrefixSetName = "ps1"
+  [[DefinedSets.PrefixSetList.PrefixList]]
+   Address = "10.33.0.0"
+   Masklength = 16
+   MasklengthRange = "21...24"
+  [[DefinedSets.PrefixSetList.PrefixList]]
+   Address = "10.50.0.0"
+   Masklength = 16
+   MasklengthRange = "21...24"
+  ```
+   - This prefix match checks if a route has 10.33.0.0/21 to 24 **or** 10.50.0.0/21 to 24.
+
+
+ - example 3
+   - PrefixSetName under PrefixSetList is reference to a single PrefixSet.
+   - If you want to add different PrefixSet more, you can add other blocks that form the same structure with example 1.
+
+  ```
+  # example 3
+  # PrefixSetList
+  [[DefinedSets.PrefixSetList]]
   PrefixSetName = "ps1"
- [[DefinedSets.PrefixSetList.PrefixList]]
+  [[DefinedSets.PrefixSetList.PrefixList]]
   Address = "10.33.0.0"
   Masklength = 16
   MasklengthRange = "21...24"
- ```
-
-  - If you define a PrefixList that doesn't have MasklengthRange, it matches routes that have just 10.33.0.0/16 as NLRI.
-
-
-- example 2
-  - If you want to evaluate multiple routes with a single PrefixSetList, you can do this by adding an another PrefixList like this;
-
- ```
- # example 2
- [[DefinedSets.PrefixSetList]]
-  PrefixSetName = "ps1"
- [[DefinedSets.PrefixSetList.PrefixList]]
-  Address = "10.33.0.0"
-  Masklength = 16
-  MasklengthRange = "21...24"
- [[DefinedSets.PrefixSetList.PrefixList]]
+  # another PrefixSetList
+  [[DefinedSets.PrefixSetList]]
+  PrefixSetName = "ps2"
+  [[DefinedSets.PrefixSetList.PrefixList]]
   Address = "10.50.0.0"
   Masklength = 16
   MasklengthRange = "21...24"
- ```
-  - This prefix match checks if a route has 10.33.0.0/21 to 24 **or** 10.50.0.0/21 to 24.
+  ```
 
+  ----
 
-- example 3
-  - PrefixSetName under PrefixSetList is reference to a single PrefixSet.
-  - If you want to add different PrefixSet more, you can add other blocks that form the same structure with example 1.
+ #### NeighborSetList
 
- ```
- # example 3
- # PrefixSetList
- [[DefinedSets.PrefixSetList]]
- PrefixSetName = "ps1"
- [[DefinedSets.PrefixSetList.PrefixList]]
- Address = "10.33.0.0"
- Masklength = 16
- MasklengthRange = "21...24"
- # another PrefixSetList
- [[DefinedSets.PrefixSetList]]
- PrefixSetName = "ps2"
- [[DefinedSets.PrefixSetList.PrefixList]]
- Address = "10.50.0.0"
- Masklength = 16
- MasklengthRange = "21...24"
- ```
+ NeighborSetList has NeighborInfoList as its element and NeighborInfoList has neighbor information to match the sender of the routes.
+ It is necessary to specify a neighbor address in NeighborInfoList.
 
----
+ NeighborInfoList has 2 elements.
 
-#### NeighborSetList
+ | Element         |Description          | Example      | Optional   |
+ |-----------------|---------------------|--------------|------------|
+ | NeighborSetName | name of NeighborSet | "ns1"        |            |
+ | Address         | neighbor's address  | "10.0.255.1" |            |
 
-NeighborSetList has NeighborInfoList as its element and NeighborInfoList has neighbor information to match the sender of the routes.
-It is necessary to specify a neighbor address in NeighborInfoList.
+ ##### Examples
 
-NeighborInfoList has 2 elements.
+ - example 1
+   - Match routes which come from the neighbor 10.0.255.1
 
-| Element         |Description          | Example      | Optional   |
-|-----------------|---------------------|--------------|------------|
-| NeighborSetName | name of NeighborSet | "ns1"        |            |
-| Address         | neighbor's address  | "10.0.255.1" |            |
+  ```
+  # example 1
+  [[DefinedSets.NeighborSetList]]
+   NeighborSetName = "ns1"
+   [[DefinedSets.NeighborSetList.NeighborInfoList]]
+    Address = "10.0.255.1"
+  ```
 
-##### Examples
+ - example 2
+   - Match routes which come from the neighbor 10.0.255.1
 
-- example 1
-  - Match routes which come from the neighbor 10.0.255.1
+  ```
+  # example 2
+  [[DefinedSets.NeighborSetList]]
+  NeighborSetName = "ns2"
+   [[DefinedSets.NeighborSetList.NeighborInfoList]]
+    Address = "10.0.255.1"
+  ```
 
- ```
- # example 1
- [[DefinedSets.NeighborSetList]]
-  NeighborSetName = "ns1"
-  [[DefinedSets.NeighborSetList.NeighborInfoList]]
-   Address = "10.0.255.1"
- ```
+ - example 3
+    - As with PrefixSet, NeighborSet can have multiple NeighborInfoList like this.
+    - This example checks if a route comes from neighbor 10.0.255.1 **or** 10.0.255.2.
 
-- example 2
-  - Match routes which come from the neighbor 10.0.255.1
-  - Neighbor Match needs be defined within DefinedSets as follows.
-
- ```
- # example 2
- [[DefinedSets.NeighborSetList]]
- NeighborSetName = "ns2"
-  [[DefinedSets.NeighborSetList.NeighborInfoList]]
-   Address = "10.0.255.1"
- ```
-
-- example 3
-  - As with PrefixSet, NeighborSet can have multiple NeighborInfoList like this.
-
- ```
- # example 3
- [[DefinedSets.NeighborSetList]]
- NeighborSetName = "ns3"
-  [[DefinedSets.NeighborSetList.NeighborInfoList]]
-   Address = "10.0.255.1"
-  [[DefinedSets.NeighborSetList.NeighborInfoList]]
-   Address = "10.0.255.2"
- ```
-
- - This example checks if a route comes from neighbor 10.0.255.1 **or** 10.0.255.2.
+  ```
+  # example 3
+  [[DefinedSets.NeighborSetList]]
+  NeighborSetName = "ns3"
+   [[DefinedSets.NeighborSetList.NeighborInfoList]]
+    Address = "10.0.255.1"
+   [[DefinedSets.NeighborSetList.NeighborInfoList]]
+    Address = "10.0.255.2"
+  ```
 
 ---
+
 ### 2. Defining BgpDefinedSets
 
 BgpDefinedSets has Community information and AS_PATH information in CommunitySetList and AsPathSetList section respectively. And it is a child element of DefinedSets.
@@ -208,75 +209,76 @@ AsPathSetList and CommunitySetList section are AS_PATH match part and community 
        AsPathSetMembers = ["^65100"]
  ```
 
----
+  ----
 
-#### CommunitySetList
-CommunitySetList has Community value as its element. The values are used to evaluate communities held by the destination.
+ #### CommunitySetList
+ CommunitySetList has Community value as its element. The values are used to evaluate communities held by the destination.
 
-CommunitySetList has 2 elements.
+ CommunitySetList has 2 elements.
 
-| Element          | Description             | Example      | Optional |
-|------------------|-------------------------|--------------|----------|
-| CommunitySetName | name of CommunitySet    | "community1" |          |
-| CommunityMembers | list of Community value | ["65100:10"] |          |
+ | Element          | Description             | Example      | Optional |
+ |------------------|-------------------------|--------------|----------|
+ | CommunitySetName | name of CommunitySet    | "community1" |          |
+ | CommunityMembers | list of Community value | ["65100:10"] |          |
 
-You can use regular expressions to specify communities in CommunityMembers.
+ You can use regular expressions to specify communities in CommunityMembers element.
 
-##### Examples
-- example 1
-  - Match routes which has "65100:10" as a community value.
+ ##### Examples
+ - example 1
+   - Match routes which has "65100:10" as a community value.
 
- ```
- # example 1
-[DefinedSets.BgpDefinedSets]
-  [[DefinedSets.BgpDefinedSets.CommunitySetList]]
-    CommunitySetName = "community1"
-    CommunityMembers = ["65100:10"]
- ```
-
-- example 2
-  - Specifying community by regular expression
-
- ```
- # example 2
+  ```
+  # example 1
  [DefinedSets.BgpDefinedSets]
-  [[DefinedSets.BgpDefinedSets.CommunitySetList]]
-  CommunitySetName = "community2"
-  CommunityMembers = ["6[0-9]+:[0-9]+"]
- ```
-  - You can use regular expressions that is available in Golang.
+   [[DefinedSets.BgpDefinedSets.CommunitySetList]]
+     CommunitySetName = "community1"
+     CommunityMembers = ["65100:10"]
+  ```
 
-  ---
+ - example 2
+    - Specifying community by regular expression
+    - You can use regular expressions that is available in Golang.
 
-#### AsPathSetList
-AsPathSetList has AS numbers as its element. The numbers are used to evaluate AS numbers in the destination's AS_PATH attribute.
-
-  CommunitySetList has 2 elements.
-
-| Element          | Description       | Example    | Optional |
-|------------------|-------------------|------------|----------|
-| AsPathSetName    | name of AsPathSet | "aspath1"  |          |
-| AsPathSetMembers | list of AS number | ["^65100"] |          |
-
-  You can specify the position using regexp-like expression as follows:
-  - From: "^65100" means the route is passed from AS 65100 directly.
-  - Any: "65100" means the route comes through AS 65100.
-  - Origin: "65100$" means the route is originated by AS 65100.
-  - Only: "^65100$" means the route is originated by AS 65100 and comes from it directly.
-
-  ##### Examples
-  - example 1
-    - Match routes which come from AS 65100.
-
-   ```
-   # example 1
+  ```
+  # example 2
   [DefinedSets.BgpDefinedSets]
-    [[DefinedSets.BgpDefinedSets.AsPathSetList]]
-    AsPathSetName = "aspath1"
-    AsPathSetMembers = ["^65100"]
-   ```
+   [[DefinedSets.BgpDefinedSets.CommunitySetList]]
+   CommunitySetName = "community2"
+   CommunityMembers = ["6[0-9]+:[0-9]+"]
+  ```
+
+   ----
+
+ #### AsPathSetList
+ AsPathSetList has AS numbers as its element. The numbers are used to evaluate AS numbers in the destination's AS_PATH attribute.
+
+   CommunitySetList has 2 elements.
+
+ | Element          | Description       | Example    | Optional |
+ |------------------|-------------------|------------|----------|
+ | AsPathSetName    | name of AsPathSet | "aspath1"  |          |
+ | AsPathSetMembers | list of AS number | ["^65100"] |          |
+
+   You can specify the position using regexp-like expression as follows:
+   - From: "^65100" means the route is passed from AS 65100 directly.
+   - Any: "65100" means the route comes through AS 65100.
+   - Origin: "65100$" means the route is originated by AS 65100.
+   - Only: "^65100$" means the route is originated by AS 65100 and comes from it directly.
+
+   ##### Examples
+   - example 1
+     - Match routes which come from AS 65100.
+
+    ```
+    # example 1
+   [DefinedSets.BgpDefinedSets]
+     [[DefinedSets.BgpDefinedSets.AsPathSetList]]
+     AsPathSetName = "aspath1"
+     AsPathSetMembers = ["^65100"]
+    ```
 
 ---
+
 ### 3. Defining PolicyDefinitionList
 PolicyDefinitionList consists of condition and action of the policy. The condition part evaluates routes from neighbors and applies action if the routes match conditions. You can use DefinedSets above and other conditions to specify conditions in the PolicyDefinitionList.
 
@@ -308,56 +310,60 @@ You can write condition and action under StatementList.
       Options = "ADD"
  ```
 
-The elements of PolicyDefinitionList are as follows:
+ The elements of PolicyDefinitionList are as follows:
 
- - PolicyDefinitionList
+  - PolicyDefinitionList
 
-| Element | Description   | Example          |
-|---------|---------------|------------------|
-| name    | policy's name | "example-policy" |
+ | Element | Description   | Example          |
+ |---------|---------------|------------------|
+ | name    | policy's name | "example-policy" |
 
- - PolicyDefinitionList.StatementList
+  - PolicyDefinitionList.StatementList
 
-| Element | Description   | Example            |
-|---------|---------------|--------------------|
-| name    | statements's name | "statement1"   |
+ | Element | Description   | Example            |
+ |---------|---------------|--------------------|
+ | name    | statements's name | "statement1"   |
 
- - PolicyDefinitionList.StatementList.Conditions
+  - PolicyDefinitionList.StatementList.Conditions
 
-| Element          | Description                                                                              | Example |
-|------------------|------------------------------------------------------------------------------------------|---------|
-| MatchPrefixSet   | name for DefinedSets.PrefixSetList that is used in this policy                           | "ps2"   |
-| MatchNeighborSet | name for DefinedSets.NeighborSetList that is used in this policy                         | "ns1"   |
-| MatchSetOptions  | option for the check;<br> 0 means **ANY**,<br>  1 means **ALL**,<br>  2 means **INVERT** | 1       |
+ | Element          | Description                                                                              | Example |
+ |------------------|------------------------------------------------------------------------------------------|---------|
+ | MatchPrefixSet   | name for DefinedSets.PrefixSetList that is used in this policy                           | "ps2"   |
+ | MatchNeighborSet | name for DefinedSets.NeighborSetList that is used in this policy                         | "ns1"   |
+ | MatchSetOptions  | option for the check;<br> 0 means **ANY**,<br>  1 means **ALL**,<br>  2 means **INVERT** | 1       |
 
- - PolicyDefinitionList.StatementList.Conditions.BgpConditions
 
-| Element           | Description                                                                      | Example      |
-|-------------------|----------------------------------------------------------------------------------|--------------|
-| MatchCommunitySet | name for DefinedSets.BgpDefinedSets.CommunitySetList that is used in this policy | "community1" |
-| MatchAsPathSet    | name for DefinedSets.BgpDefinedSets.AsPathSetList that is used in this policy    | "aspath1"    |
+  - PolicyDefinitionList.StatementList.Conditions.BgpConditions
 
- - PolicyDefinitionList.StatementList.Conditions.BgpConditions.AsPathLength
+ | Element           | Description                                                                      | Example      |
+ |-------------------|----------------------------------------------------------------------------------|--------------|
+ | MatchCommunitySet | name for DefinedSets.BgpDefinedSets.CommunitySetList that is used in this policy | "community1" |
+ | MatchAsPathSet    | name for DefinedSets.BgpDefinedSets.AsPathSetList that is used in this policy    | "aspath1"    |
 
-| Element  | Description                                                                                        | Example |
-|----------|----------------------------------------------------------------------------------------------------|---------|
-| Operator | operator to compare the length of AS number in AS_PATH attribute. <br> "eq","ge","le" can be used. <br> "eq" means that length of AS number is equal to Value element <br> "ge" means that length of AS number is equal or greater than the Value element <br> "le" means that length of AS number is equal or smaller than the Value element| "eq"    |
-| Value    | value used to compare with the length of AS number in AS_PATH attribute                            | 2       |
 
- - PolicyDefinitionList.StatementList.Actions
+  - PolicyDefinitionList.StatementList.Conditions.BgpConditions.AsPathLength
 
-| Element     | Description                                                                       | Example |
-|-------------|-----------------------------------------------------------------------------------|---------|
-| AcceptRoute | action to accept the route if matches conditions. If true, this route is accepted | true    |
+ | Element  | Description                                                                                        | Example |
+ |----------|----------------------------------------------------------------------------------------------------|---------|
+ | Operator | operator to compare the length of AS number in AS_PATH attribute. <br> "eq","ge","le" can be used. <br> "eq" means that length of AS number is equal to Value element <br> "ge" means that length of AS number is equal or greater than the Value element <br> "le" means that length of AS number is equal or smaller than the Value element| "eq"    |
+ | Value    | value used to compare with the length of AS number in AS_PATH attribute                            | 2       |
 
- - PolicyDefinitionList.StatementList.Actions.BgpActions.SetCommunity
 
-| Element     | Description                                                                      | Example |
-|-------------|----------------------------------------------------------------------------------|---------|
-| Communities | communities used to manipulate the route's community accodriong to Options below | "eq"    |
-| Options     | operator to manipulate Community attribute in the route                          | 2       |
+  - PolicyDefinitionList.StatementList.Actions
 
-<br>
+ | Element     | Description                                                                       | Example |
+ |-------------|-----------------------------------------------------------------------------------|---------|
+ | AcceptRoute | action to accept the route if matches conditions. If true, this route is accepted | true    |
+
+
+  - PolicyDefinitionList.StatementList.Actions.BgpActions.SetCommunity
+
+ | Element     | Description                                                                      | Example |
+ |-------------|----------------------------------------------------------------------------------|---------|
+ | Communities | communities used to manipulate the route's community accodriong to Options below | "eq"    |
+ | Options     | operator to manipulate Community attribute in the route                          | 2       |
+
+ <br>
 
 ##### Examples
  - example 1
@@ -377,8 +383,8 @@ The elements of PolicyDefinitionList are as follows:
  RejectRoute = true
  ```
 
-- example 2
- - PolicyDefinition has two statements
+ - example 2
+  - PolicyDefinition has two statements
 
  ```
  # example 2
@@ -406,8 +412,8 @@ The elements of PolicyDefinitionList are as follows:
   - if a route matches the condition inside the first statement(1), GoBGP applies its action and quits the policy evaluation.
 
 
-- example 3
- - If you want to add other policies, just add PolicyDefinitionList block following the first one like this
+ - example 3
+  - If you want to add other policies, just add PolicyDefinitionList block following the first one like this
 
  ```
  # example 3
@@ -438,7 +444,7 @@ The elements of PolicyDefinitionList are as follows:
  RejectRoute = true
  ```
 
-- example 4
+ - example 4
   - This PolicyDefinition has multiple conditions including BgpConditions as follows:
     - PrefixSet: *ps1*
     - NeighborSet: *ns1*
@@ -446,7 +452,7 @@ The elements of PolicyDefinitionList are as follows:
     - AsPathSet: *aspath1*
     - AsPath length: *equal 2*
 
- - If a route matches all these conditions, the route is accepted and added community "65100:20".
+  - If a route matches all these conditions, the route is accepted and added community "65100:20".
 
  ```
  # example 4
