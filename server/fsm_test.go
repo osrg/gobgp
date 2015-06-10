@@ -46,6 +46,10 @@ func NewMockConnection() *MockConnection {
 	return m
 }
 
+func (m *MockConnection) SetWriteDeadline(t time.Time) error {
+	return nil
+}
+
 func (m *MockConnection) setData(data []byte) int {
 	dataChan := make(chan byte, 4096)
 	for _, b := range data {

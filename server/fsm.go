@@ -682,9 +682,20 @@ func (h *FSMHandler) sendMessageloop() error {
 			fsm.bgpMessageStateUpdate(0, false)
 			return nil
 		}
+		if err := conn.SetWriteDeadline(time.Now().Add(time.Second * 30)); err != nil {
+			h.errorCh <- true
+			conn.Close()
+			return fmt.Errorf("failed to set write deadline")
+		}
 		_, err = conn.Write(b)
 		if err != nil {
+			log.WithFields(log.Fields{
+				"Topic": "Peer",
+				"Key":   fsm.peerConfig.NeighborAddress,
+				"Data":  err,
+			}).Warn("failed to send")
 			h.errorCh <- true
+			conn.Close()
 			return fmt.Errorf("closed")
 		}
 		fsm.bgpMessageStateUpdate(m.Header.Type, false)
