@@ -114,7 +114,7 @@ def check_func(exabgp_conf, result):
         retry_count += 1
         # check whether the service of gobgp is normally
         try:
-            cmd = "%s/%s -j -u %s -p %s neighbor" % (CONFIG_DIR, CLI_CMD, gobgp_ip, gobgp_port)
+            cmd = "%s -j neighbor" % CLI_CMD
             j = local(cmd, capture=True)
             neighbors = json.loads(j)
         except Exception:

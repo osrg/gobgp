@@ -30,7 +30,6 @@ class GoBGPTestBase(unittest.TestCase):
 
     gobgp_ip = GOBGP_IP
     gobgp_ipv6 = GOBGP_ADDRESS_0[IPv6]
-    gobgp_port = "8080"
     base_dir = CONFIG_DIRR
     gobgp_config_file = CONFIG_DIRR + "gobgpd.conf"
     gobgp_config = None
@@ -189,12 +188,7 @@ class GoBGPTestBase(unittest.TestCase):
 
     def ask_gobgp(self, what, who="", af="ipv4"):
         af = "-a %s" % af
-
-        gobgp_ip = self.gobgp_ip
-        if self.use_ipv6_gobgp:
-            gobgp_ip = self.gobgp_ipv6
-
-        cmd = "%s/%s -j -u %s -p %s  " % (CONFIG_DIR, CLI_CMD, gobgp_ip, self.gobgp_port)
+        cmd = "%s -j " % CLI_CMD
         if what == GLOBAL_RIB:
             cmd += " ".join([what, af])
         elif what == NEIGHBOR:
@@ -206,12 +200,7 @@ class GoBGPTestBase(unittest.TestCase):
         return result
 
     def soft_reset(self, neighbor_address, af, type="in"):
-
-        gobgp_ip = self.gobgp_ip
-        if self.use_ipv6_gobgp:
-            gobgp_ip = self.gobgp_ipv6
-
-        cmd = "%s/%s -j -u %s -p %s " % (CONFIG_DIR, CLI_CMD, gobgp_ip, self.gobgp_port)
+        cmd = "%s -j  " % CLI_CMD
         cmd += "neighbor %s " % neighbor_address
         cmd += "softreset%s -a %s" % (type, af)
         local(cmd)

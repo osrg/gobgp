@@ -186,7 +186,6 @@ def make_install_file(use_local=False):
     file_buff += 'cd gobgp' + '\n'
     file_buff += 'go get -v' + '\n'
     file_buff += 'go build' + '\n'
-    file_buff += 'cp gobgp ' + SHARE_VOLUME + '/' + CLI_CMD + '\n'
     file_buff += 'cd ../gobgpd' + '\n'
     file_buff += 'go get -v' + '\n'
     file_buff += 'go build'
