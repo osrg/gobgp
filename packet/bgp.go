@@ -473,7 +473,7 @@ func (o *OptionParameterCapability) DecodeFromBytes(data []byte) error {
 func (o *OptionParameterCapability) Serialize() ([]byte, error) {
 	buf := make([]byte, 2)
 	buf[0] = o.ParamType
-	//buf[1] = o.ParamLen
+	buf[1] = o.ParamLen
 	for _, p := range o.Capability {
 		pbuf, err := p.Serialize()
 		if err != nil {
@@ -481,13 +481,20 @@ func (o *OptionParameterCapability) Serialize() ([]byte, error) {
 		}
 		buf = append(buf, pbuf...)
 	}
-	buf[1] = uint8(len(buf) - 2)
 	return buf, nil
 }
 
 func NewOptionParameterCapability(capability []ParameterCapabilityInterface) *OptionParameterCapability {
+	length := 0
+
+	for _, p := range capability {
+		serialized, _ := p.Serialize()
+		length += len(serialized)
+	}
+
 	return &OptionParameterCapability{
 		ParamType:  BGP_OPT_CAPABILITY,
+	        ParamLen: uint8(length),
 		Capability: capability,
 	}
 }
@@ -557,6 +564,7 @@ func (msg *BGPOpen) Serialize() ([]byte, error) {
 	binary.BigEndian.PutUint16(buf[1:3], msg.MyAS)
 	binary.BigEndian.PutUint16(buf[3:5], msg.HoldTime)
 	copy(buf[5:9], msg.ID)
+	buf[9] = msg.OptParamLen
 	pbuf := make([]byte, 0)
 	for _, p := range msg.OptParams {
 		onepbuf, err := p.Serialize()
@@ -565,14 +573,19 @@ func (msg *BGPOpen) Serialize() ([]byte, error) {
 		}
 		pbuf = append(pbuf, onepbuf...)
 	}
-	buf[9] = uint8(len(pbuf))
 	return append(buf, pbuf...), nil
 }
 
 func NewBGPOpenMessage(myas uint16, holdtime uint16, id string, optparams []OptionParameterInterface) *BGPMessage {
+	length := 0
+	for _, p := range optparams {
+		serialized, _ := p.Serialize()
+		length += len(serialized)
+	}
+
 	return &BGPMessage{
 		Header: BGPHeader{Type: BGP_MSG_OPEN},
-		Body:   &BGPOpen{4, myas, holdtime, net.ParseIP(id).To4(), 0, optparams},
+		Body:   &BGPOpen{4, myas, holdtime, net.ParseIP(id).To4(), uint8(length), optparams},
 	}
 }
 
@@ -3837,9 +3850,21 @@ func (msg *BGPUpdate) Serialize() ([]byte, error) {
 }
 
 func NewBGPUpdateMessage(withdrawnRoutes []WithdrawnRoute, pathattrs []PathAttributeInterface, nlri []NLRInfo) *BGPMessage {
+	wlen := 0
+	for _, w := range withdrawnRoutes {
+		serialized, _ := w.Serialize()
+		wlen += len(serialized)
+	}
+
+	palen := 0
+	for _, pa := range pathattrs {
+		serialized, _ := pa.Serialize()
+		palen += len(serialized)
+	}
+	
 	return &BGPMessage{
 		Header: BGPHeader{Type: BGP_MSG_UPDATE},
-		Body:   &BGPUpdate{0, withdrawnRoutes, 0, pathattrs, nlri},
+		Body:   &BGPUpdate{uint16(wlen), withdrawnRoutes, uint16(palen), pathattrs, nlri},
 	}
 }
 
