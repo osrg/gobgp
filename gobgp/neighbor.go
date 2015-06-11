@@ -19,10 +19,10 @@ import (
 	"bytes"
 	"encoding/json"
 	"fmt"
-	"github.com/jessevdk/go-flags"
 	"github.com/osrg/gobgp/api"
 	"github.com/osrg/gobgp/packet"
 	"github.com/osrg/gobgp/policy"
+	"github.com/spf13/cobra"
 	"golang.org/x/net/context"
 	"io"
 	"net"
@@ -31,15 +31,12 @@ import (
 	"strings"
 )
 
-type NeighborCommand struct {
-}
-
-func showNeighbors() error {
+func getNeighbors() (peers, error) {
 	arg := &api.Arguments{}
 	stream, e := client.GetNeighbors(context.Background(), arg)
 	if e != nil {
 		fmt.Println(e)
-		return e
+		return nil, e
 	}
 	m := peers{}
 	for {
@@ -47,7 +44,7 @@ func showNeighbors() error {
 		if e == io.EOF {
 			break
 		} else if e != nil {
-			return e
+			return nil, e
 		}
 		if neighborsOpts.Transport != "" {
 			addr := net.ParseIP(p.Conf.RemoteIp)
@@ -63,7 +60,14 @@ func showNeighbors() error {
 		}
 		m = append(m, p)
 	}
+	return m, nil
+}
 
+func showNeighbors() error {
+	m, err := getNeighbors()
+	if err != nil {
+		return err
+	}
 	if globalOpts.Json {
 		j, _ := json.Marshal(m)
 		fmt.Println(string(j))
@@ -213,59 +217,9 @@ func showNeighbor(args []string) error {
 	return nil
 }
 
-func (x *NeighborCommand) Execute(args []string) error {
-	eArgs := extractArgs(CMD_NEIGHBOR)
-
-	if len(eArgs) == 0 || (strings.HasPrefix(eArgs[0], "-") && !(eArgs[0] == "-h" || eArgs[0] == "--help")) {
-		parser := flags.NewParser(&neighborsOpts, flags.Default)
-		if _, err := parser.ParseArgs(eArgs); err != nil {
-			os.Exit(1)
-		}
-		if err := requestGrpc(CMD_NEIGHBOR, []string{}, nil); err != nil {
-			return err
-		}
-	} else if len(eArgs) == 1 && !(eArgs[0] == "-h" || eArgs[0] == "--help") {
-		if err := requestGrpc(CMD_NEIGHBOR, eArgs, nil); err != nil {
-			return err
-		}
-	} else {
-		parser := flags.NewParser(nil, flags.Default)
-		parser.Usage = "neighbor [ <neighbor address> ]\n  gobgp neighbor"
-		parser.AddCommand(CMD_LOCAL, "subcommand for local-rib of neighbor", "", NewNeighborRibCommand(eArgs[0], api.Resource_LOCAL, CMD_LOCAL))
-		parser.AddCommand(CMD_ADJ_IN, "subcommand for adj-rib-in of neighbor", "", NewNeighborRibCommand(eArgs[0], api.Resource_ADJ_IN, CMD_ADJ_IN))
-		parser.AddCommand(CMD_ADJ_OUT, "subcommand for adj-rib-out of neighbor", "", NewNeighborRibCommand(eArgs[0], api.Resource_ADJ_OUT, CMD_ADJ_OUT))
-		parser.AddCommand(CMD_RESET, "subcommand for reset the rib of neighbor", "", NewNeighborResetCommand(eArgs[0], CMD_RESET))
-		parser.AddCommand(CMD_SOFT_RESET, "subcommand for softreset the rib of neighbor", "", NewNeighborResetCommand(eArgs[0], CMD_SOFT_RESET))
-		parser.AddCommand(CMD_SOFT_RESET_IN, "subcommand for softreset the adj-rib-in of neighbor", "", NewNeighborResetCommand(eArgs[0], CMD_SOFT_RESET_IN))
-		parser.AddCommand(CMD_SOFT_RESET_OUT, "subcommand for softreset the adj-rib-out of neighbor", "", NewNeighborResetCommand(eArgs[0], CMD_SOFT_RESET_OUT))
-		parser.AddCommand(CMD_SHUTDOWN, "subcommand for shutdown to neighbor", "", NewNeighborChangeStateCommand(eArgs[0], CMD_SHUTDOWN))
-		parser.AddCommand(CMD_ENABLE, "subcommand for enable to neighbor", "", NewNeighborChangeStateCommand(eArgs[0], CMD_ENABLE))
-		parser.AddCommand(CMD_DISABLE, "subcommand for disable to neighbor", "", NewNeighborChangeStateCommand(eArgs[0], CMD_DISABLE))
-		parser.AddCommand(CMD_POLICY, "subcommand for policy of neighbor", "", NewNeighborPolicyCommand(eArgs[0]))
-		if _, err := parser.ParseArgs(eArgs); err != nil {
-			os.Exit(1)
-		}
-	}
-	return nil
-}
-
-type NeighborRibCommand struct {
-	remoteIP net.IP
-	resource api.Resource
-	command  string
-}
-
-func NewNeighborRibCommand(addr string, resource api.Resource, cmd string) *NeighborRibCommand {
-	return &NeighborRibCommand{
-		remoteIP: net.ParseIP(addr),
-		resource: resource,
-		command:  cmd,
-	}
-}
-
 type AsPathFormat struct {
-	start string
-	end string
+	start     string
+	end       string
 	separator string
 }
 
@@ -420,8 +374,16 @@ func showRoute(pathList []*api.Path, showAge bool, showBest bool) {
 	}
 }
 
-func showNeighborRib(resource api.Resource, request *NeighborRibCommand) error {
-	remoteIP := request.remoteIP
+func showNeighborRib(r string, remoteIP net.IP) error {
+	var resource api.Resource
+	switch r {
+	case CMD_LOCAL:
+		resource = api.Resource_LOCAL
+	case CMD_ADJ_IN:
+		resource = api.Resource_ADJ_IN
+	case CMD_ADJ_OUT:
+		resource = api.Resource_ADJ_OUT
+	}
 	rt, err := checkAddressFamily(remoteIP)
 	if err != nil {
 		return err
@@ -497,35 +459,7 @@ func showNeighborRib(resource api.Resource, request *NeighborRibCommand) error {
 	return nil
 }
 
-func (x *NeighborRibCommand) Execute(args []string) error {
-	eArgs := extractArgs(x.command)
-	parser := flags.NewParser(&subOpts, flags.Default)
-	parser.Usage = fmt.Sprintf("neighbor <neighbor address> %s [OPTIONS]", x.command)
-	parser.ParseArgs(eArgs)
-	if len(eArgs) != 0 && (eArgs[0] == "-h" || eArgs[0] == "--help") {
-		return nil
-	}
-	if err := requestGrpc(CMD_NEIGHBOR+"_"+x.command, eArgs, x); err != nil {
-		return err
-	}
-	return nil
-}
-
-type NeighborResetCommand struct {
-	remoteIP net.IP
-	command  string
-}
-
-func NewNeighborResetCommand(addr string, cmd string) *NeighborResetCommand {
-	return &NeighborResetCommand{
-		remoteIP: net.ParseIP(addr),
-		command:  cmd,
-	}
-}
-
-func resetNeighbor(request *NeighborResetCommand) error {
-	remoteIP := request.remoteIP
-	cmd := request.command
+func resetNeighbor(cmd string, remoteIP net.IP) error {
 	rt, err := checkAddressFamily(remoteIP)
 	if err != nil {
 		return err
@@ -547,69 +481,24 @@ func resetNeighbor(request *NeighborResetCommand) error {
 	return nil
 }
 
-func (x *NeighborResetCommand) Execute(args []string) error {
-	eArgs := extractArgs(x.command)
-	parser := flags.NewParser(&subOpts, flags.Default)
-	parser.Usage = fmt.Sprintf("neighbor <neighbor address> %s [OPTIONS]", x.command)
-	parser.ParseArgs(eArgs)
-	if len(eArgs) != 0 && (eArgs[0] == "-h" || eArgs[0] == "--help") {
-		return nil
-	}
-	if err := requestGrpc(CMD_NEIGHBOR+"_"+x.command, eArgs, x); err != nil {
-		return err
-	}
-	return nil
-}
-
-type NeighborChangeStateCommand struct {
-	remoteIP net.IP
-	command  string
-}
-
-func NewNeighborChangeStateCommand(addr string, cmd string) *NeighborChangeStateCommand {
-	return &NeighborChangeStateCommand{
-		remoteIP: net.ParseIP(addr),
-		command:  cmd,
-	}
-}
-
-func stateChangeNeighbor(request *NeighborChangeStateCommand) error {
-	remoteIP := request.remoteIP
-	cmd := request.command
+func stateChangeNeighbor(cmd string, remoteIP net.IP) error {
 	arg := &api.Arguments{
+		Af:       api.AF_IPV4_UC,
 		RouterId: remoteIP.String(),
 	}
+	var err error
 	switch cmd {
 	case CMD_SHUTDOWN:
-		client.Shutdown(context.Background(), arg)
+		_, err = client.Shutdown(context.Background(), arg)
 	case CMD_ENABLE:
-		client.Enable(context.Background(), arg)
+		_, err = client.Enable(context.Background(), arg)
 	case CMD_DISABLE:
-		client.Disable(context.Background(), arg)
+		_, err = client.Disable(context.Background(), arg)
 	}
-	return nil
+	return err
 }
 
-func (x *NeighborChangeStateCommand) Execute(args []string) error {
-	eArgs := extractArgs(x.command)
-	if err := requestGrpc(CMD_NEIGHBOR+"_"+x.command, eArgs, x); err != nil {
-		return err
-	}
-	return nil
-}
-
-type NeighborPolicyCommand struct {
-	remoteIP net.IP
-}
-
-func NewNeighborPolicyCommand(addr string) *NeighborPolicyCommand {
-	return &NeighborPolicyCommand{
-		remoteIP: net.ParseIP(addr),
-	}
-}
-
-func showNeighborPolicy(request *NeighborPolicyCommand) error {
-	remoteIP := request.remoteIP
+func showNeighborPolicy(remoteIP net.IP) error {
 	rt, err := checkAddressFamily(net.IP{})
 	if err != nil {
 		return err
@@ -646,84 +535,6 @@ func showNeighborPolicy(request *NeighborPolicyCommand) error {
 	return nil
 }
 
-func (x *NeighborPolicyCommand) Execute(args []string) error {
-	eArgs := extractArgs(CMD_POLICY)
-	parser := flags.NewParser(nil, flags.Default)
-	if len(eArgs) == 0 {
-		if _, err := parser.ParseArgs(eArgs); err != nil {
-			os.Exit(1)
-		}
-		if err := requestGrpc(CMD_NEIGHBOR+"_"+CMD_POLICY, eArgs, x); err != nil {
-			return err
-		}
-	} else {
-		parser.Usage = "neighbor <neighbor address> policy \n  gobgp neighbor <neighbor address> policy"
-		parser.AddCommand(CMD_ADD, "subcommand to add routing policy", "", NewNeighborPolicyAddCommand(x.remoteIP))
-		parser.AddCommand(CMD_DEL, "subcommand to delete routing policy", "", NewNeighborPolicyDelCommand(x.remoteIP))
-		if _, err := parser.ParseArgs(eArgs); err != nil {
-			os.Exit(1)
-		}
-	}
-	return nil
-}
-
-type NeighborPolicyAddCommand struct {
-	remoteIP net.IP
-}
-
-func NewNeighborPolicyAddCommand(addr net.IP) *NeighborPolicyAddCommand {
-	return &NeighborPolicyAddCommand{
-		remoteIP: addr,
-	}
-}
-func (x *NeighborPolicyAddCommand) Execute(args []string) error {
-	eArgs := extractArgs(CMD_ADD)
-	parser := flags.NewParser(nil, flags.Default)
-	parser.Usage = "neighbor <neighbor address> policy add"
-	parser.AddCommand(CMD_IMPORT, "subcommand to add import policies to neighbor", "", NewNeighborPolicyChangeCommand(CMD_ADD, CMD_IMPORT, x.remoteIP))
-	parser.AddCommand(CMD_EXPORT, "subcommand to add export policies to neighbor", "", NewNeighborPolicyChangeCommand(CMD_ADD, CMD_EXPORT, x.remoteIP))
-	if _, err := parser.ParseArgs(eArgs); err != nil {
-		os.Exit(1)
-	}
-	return nil
-}
-
-type NeighborPolicyDelCommand struct {
-	remoteIP net.IP
-}
-
-func NewNeighborPolicyDelCommand(addr net.IP) *NeighborPolicyDelCommand {
-	return &NeighborPolicyDelCommand{
-		remoteIP: addr,
-	}
-}
-
-func (x *NeighborPolicyDelCommand) Execute(args []string) error {
-	eArgs := extractArgs(CMD_DEL)
-	parser := flags.NewParser(nil, flags.Default)
-	parser.Usage = "neighbor <neighbor address> policy del"
-	parser.AddCommand(CMD_IMPORT, "subcommand to delete import policies from neighbor", "", NewNeighborPolicyChangeCommand(CMD_DEL, CMD_IMPORT, x.remoteIP))
-	parser.AddCommand(CMD_EXPORT, "subcommand to delete export policies from neighbor", "", NewNeighborPolicyChangeCommand(CMD_DEL, CMD_EXPORT, x.remoteIP))
-	if _, err := parser.ParseArgs(eArgs); err != nil {
-		os.Exit(1)
-	}
-	return nil
-}
-
-type NeighborPolicyChangeCommand struct {
-	operation       string
-	policyOperation string
-	remoteIP        net.IP
-}
-
-func NewNeighborPolicyChangeCommand(operation string, pOperation string, addr net.IP) *NeighborPolicyChangeCommand {
-	return &NeighborPolicyChangeCommand{
-		operation:       operation,
-		policyOperation: pOperation,
-		remoteIP:        addr,
-	}
-}
-
 func parseRouteAction(rType string) (string, error) {
 	routeActionUpper := strings.ToUpper(rType)
 	var routeAction string
@@ -738,7 +549,7 @@ func parseRouteAction(rType string) (string, error) {
 
 func parsePolicy(pNames string) []*api.PolicyDefinition {
 	pList := strings.Split(pNames, ",")
-	policyList := make([]*api.PolicyDefinition, 0)
+	policyList := make([]*api.PolicyDefinition, 0, len(pList))
 	for _, p := range pList {
 		if p != "" {
 			policy := &api.PolicyDefinition{
@@ -750,17 +561,20 @@ func parsePolicy(pNames string) []*api.PolicyDefinition {
 	return policyList
 }
 
-func modNeighborPolicy(eArg []string, request *NeighborPolicyChangeCommand) error {
+func modNeighborPolicy(remoteIP net.IP, cmdType string, eArg []string) error {
 	var operation api.Operation
 	pol := &api.ApplyPolicy{}
-	switch request.operation {
+	switch cmdType {
 	case CMD_ADD:
-		policies := parsePolicy(eArg[0])
-		defaultPolicy, err := parseRouteAction(eArg[1])
+		if len(eArg) < 4 {
+			return fmt.Errorf("Usage: gobgp neighbor <ipaddr> policy %s {%s|%s} <policies> {%s|%s}", cmdType, CMD_IMPORT, CMD_EXPORT, policy.ROUTE_ACCEPT, policy.ROUTE_REJECT)
+		}
+		policies := parsePolicy(eArg[1])
+		defaultPolicy, err := parseRouteAction(eArg[2])
 		if err != nil {
 			return err
 		}
-		switch request.policyOperation {
+		switch eArg[0] {
 		case CMD_IMPORT:
 			pol.ImportPolicies = policies
 			pol.DefaultImportPolicy = defaultPolicy
@@ -776,8 +590,8 @@ func modNeighborPolicy(eArg []string, request *NeighborPolicyChangeCommand) erro
 	arg := &api.PolicyArguments{
 		Resource:    api.Resource_POLICY_ROUTEPOLICY,
 		Operation:   operation,
-		RouterId:    request.remoteIP.String(),
-		Name:        request.policyOperation,
+		RouterId:    remoteIP.String(),
+		Name:        eArg[0],
 		ApplyPolicy: pol,
 	}
 	stream, err := client.ModNeighborPolicy(context.Background())
@@ -800,17 +614,105 @@ func modNeighborPolicy(eArg []string, request *NeighborPolicyChangeCommand) erro
 	return nil
 }
 
-func (x *NeighborPolicyChangeCommand) Execute(args []string) error {
-	eArgs := extractArgs(x.policyOperation)
-	if x.operation == CMD_ADD && len(eArgs) != 2 {
-		return fmt.Errorf("usage: neighbor <neighbor address> policy %s %s <%s policy name> <default %s policy>",
-			x.operation, x.policyOperation, x.policyOperation, x.policyOperation)
-	} else if x.operation == CMD_DEL && len(eArgs) != 0 {
-		return fmt.Errorf("usage: neighbor <neighbor address> policy %s %s", x.operation, x.policyOperation)
-	} else {
-		if err := requestGrpc(CMD_NEIGHBOR+"_"+CMD_POLICY+"_"+x.operation, eArgs, x); err != nil {
-			return err
+func NewNeighborCmd() *cobra.Command {
+
+	neighborCmdImpl := &cobra.Command{}
+
+	type cmds struct {
+		names []string
+		f     func(string, net.IP) error
+	}
+
+	c := make([]cmds, 0, 3)
+	c = append(c, cmds{[]string{CMD_LOCAL, CMD_ADJ_IN, CMD_ADJ_OUT}, showNeighborRib})
+	c = append(c, cmds{[]string{CMD_RESET, CMD_SOFT_RESET, CMD_SOFT_RESET_IN, CMD_SOFT_RESET_OUT}, resetNeighbor})
+	c = append(c, cmds{[]string{CMD_SHUTDOWN, CMD_ENABLE, CMD_DISABLE}, stateChangeNeighbor})
+
+	for _, v := range c {
+		f := v.f
+		for _, name := range v.names {
+			c := &cobra.Command{
+				Use: name,
+				Run: func(cmd *cobra.Command, args []string) {
+					remoteIP := net.ParseIP(args[len(args)-1])
+					if remoteIP == nil {
+						fmt.Println("invalid ip address:", args[len(args)-1])
+						os.Exit(1)
+					}
+					err := f(cmd.Use, remoteIP)
+					if err != nil {
+						fmt.Println(err)
+						os.Exit(1)
+					}
+				},
+			}
+			neighborCmdImpl.AddCommand(c)
 		}
 	}
-	return nil
+
+	policyCmd := &cobra.Command{
+		Use: CMD_POLICY,
+		Run: func(cmd *cobra.Command, args []string) {
+			var err error
+			remoteIP := net.ParseIP(args[0])
+			if remoteIP == nil {
+				err = fmt.Errorf("invalid ip address: %s", args[0])
+			} else {
+				err = showNeighborPolicy(remoteIP)
+			}
+			if err != nil {
+				fmt.Println(err)
+				os.Exit(1)
+			}
+		},
+	}
+
+	for _, v := range []string{CMD_ADD, CMD_DEL} {
+		cmd := &cobra.Command{
+			Use: v,
+			Run: func(cmd *cobra.Command, args []string) {
+				var err error
+				remoteIP := net.ParseIP(args[len(args)-1])
+				if remoteIP == nil {
+					fmt.Println("invalid ip address:", args[len(args)-1])
+					os.Exit(1)
+				}
+				err = modNeighborPolicy(remoteIP, cmd.Use, args)
+				if err != nil {
+					fmt.Println(err)
+					os.Exit(1)
+				}
+			},
+		}
+		policyCmd.AddCommand(cmd)
+	}
+
+	neighborCmdImpl.AddCommand(policyCmd)
+
+	neighborCmd := &cobra.Command{
+		Use: CMD_NEIGHBOR,
+		Run: func(cmd *cobra.Command, args []string) {
+			var err error
+			if len(args) == 0 {
+				err = showNeighbors()
+			} else if len(args) == 1 {
+				remoteIP := net.ParseIP(args[0])
+				if remoteIP == nil {
+					err = fmt.Errorf("invalid ip address: %s", args[0])
+				} else {
+					err = showNeighbor(args)
+				}
+			} else {
+				args = append(args[1:], args[0])
+				neighborCmdImpl.SetArgs(args)
+				err = neighborCmdImpl.Execute()
+			}
+			if err != nil {
+				fmt.Println(err)
+				os.Exit(1)
+			}
+		},
+	}
+	neighborCmd.PersistentFlags().StringVarP(&subOpts.AddressFamily, "address-family", "a", "", "address family")
+	return neighborCmd
 }

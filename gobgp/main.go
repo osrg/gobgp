@@ -16,8 +16,8 @@
 package main
 
 import (
-	"github.com/jessevdk/go-flags"
-	"os"
+	"github.com/osrg/gobgp/api"
+	"github.com/spf13/cobra"
 )
 
 var globalOpts struct {
@@ -29,19 +29,29 @@ var globalOpts struct {
 }
 
 var cmds []string
+var client api.GrpcClient
 
 func main() {
-	cmds = []string{CMD_GLOBAL, CMD_NEIGHBOR, CMD_POLICY, CMD_RIB, CMD_ADD, CMD_DEL, CMD_ALL, CMD_LOCAL, CMD_ADJ_IN,
-		CMD_ADJ_OUT, CMD_RESET, CMD_SOFT_RESET, CMD_SOFT_RESET_IN, CMD_SOFT_RESET_OUT, CMD_SHUTDOWN, CMD_ENABLE,
-		CMD_DISABLE, CMD_PREFIX, CMD_ROUTEPOLICY, CMD_CONDITIONS, CMD_ACTIONS, CMD_IMPORT, CMD_EXPORT}
-
-	eArgs := extractArgs("")
-	parser := flags.NewParser(&globalOpts, flags.Default)
-	parser.AddCommand(CMD_GLOBAL, "subcommand for global", "", &GlobalCommand{})
-	parser.AddCommand(CMD_NEIGHBOR, "subcommand for neighbor", "", &NeighborCommand{})
-	parser.AddCommand(CMD_POLICY, "subcommand for policy", "", &PolicyCommand{})
-	if _, err := parser.ParseArgs(eArgs); err != nil {
-		os.Exit(1)
+	rootCmd := &cobra.Command{
+		Use: "gobgp",
+		PersistentPreRun: func(cmd *cobra.Command, args []string) {
+			conn := connGrpc()
+			client = api.NewGrpcClient(conn)
+		},
 	}
 
+	rootCmd.PersistentFlags().StringVarP(&globalOpts.Host, "host", "u", "127.0.0.1", "host")
+	rootCmd.PersistentFlags().IntVarP(&globalOpts.Port, "port", "p", 8080, "port")
+	rootCmd.PersistentFlags().BoolVarP(&globalOpts.Json, "json", "j", false, "use json format to output format")
+	rootCmd.PersistentFlags().BoolVarP(&globalOpts.Debug, "debug", "d", false, "use debug")
+	rootCmd.PersistentFlags().BoolVarP(&globalOpts.Quiet, "quiet", "q", false, "use quiet")
+
+	globalCmd := NewGlobalCmd()
+	neighborCmd := NewNeighborCmd()
+	policyCmd := NewPolicyCmd()
+	rootCmd.AddCommand(globalCmd)
+	rootCmd.AddCommand(neighborCmd)
+	rootCmd.AddCommand(policyCmd)
+
+	rootCmd.Execute()
 }
