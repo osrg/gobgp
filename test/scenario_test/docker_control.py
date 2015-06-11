@@ -163,7 +163,7 @@ def recreate_conf_dir(dirname):
 
 def make_startup_file(log_opt=""):
     file_buff = '#!/bin/bash' + '\n'
-    file_buff += "cd /go/src/github.com/osrg/gobgp/gobgpd" + '\n'
+    file_buff += "cd /go/bin" + '\n'
     file_buff += "./gobgpd -f " + SHARE_VOLUME + "/gobgpd.conf " + log_opt + " > " + SHARE_VOLUME + "/gobgpd.log 2>&1 "
 
     cmd = "echo \"" + file_buff + "\" > " + CONFIG_DIR + "/" + STARTUP_FILE_NAME
@@ -172,23 +172,12 @@ def make_startup_file(log_opt=""):
     local(cmd, capture=True)
 
 
-def make_install_file(use_local=False):
+def make_install_file():
     file_buff = '#!/bin/bash' + '\n'
-
-    if use_local:
-        file_buff += 'rm -rf  /go/src/github.com/osrg/gobgp' + '\n'
-        file_buff += 'cp -r ' + SHARE_VOLUME + '/gobgp /go/src/github.com/osrg/' + '\n'
-        file_buff += 'cd /go/src/github.com/osrg/gobgp' + '\n'
-    else:
-        file_buff += 'cd /go/src/github.com/osrg/gobgp' + '\n'
-        file_buff += 'git pull origin master' + '\n'
-
-    file_buff += 'cd gobgp' + '\n'
-    file_buff += 'go get -v' + '\n'
-    file_buff += 'go build' + '\n'
-    file_buff += 'cd ../gobgpd' + '\n'
-    file_buff += 'go get -v' + '\n'
-    file_buff += 'go build'
+    file_buff += 'rm -rf  /go/src/github.com/osrg/gobgp' + '\n'
+    file_buff += 'cp -r ' + SHARE_VOLUME + '/gobgp /go/src/github.com/osrg/' + '\n'
+    file_buff += 'go get github.com/osrg/gobgp/gobgpd' + '\n'
+    file_buff += 'go get github.com/osrg/gobgp/gobgp' + '\n'
     cmd = "echo \"" + file_buff + "\" > " + CONFIG_DIR + "/" + INSTALL_FILE_NAME
     local(cmd, capture=True)
     cmd = "chmod 755 " + CONFIG_DIRR + INSTALL_FILE_NAME
@@ -289,11 +278,9 @@ def build_gobgp():
     local(cmd, capture=True)
 
 
-def start_gobgp(build=True):
+def start_gobgp(build=False):
     if build:
-        cmd = "docker exec gobgp " + INSTALL_FILE
-        local(cmd, capture=True)
-
+        build_gobgp()
     cmd = "docker exec -d gobgp " + STARTUP_FILE
     local(cmd, capture=True)
 
@@ -402,9 +389,9 @@ def prepare_gobgp(log_debug, use_local):
     # cleanup gobgp container
     docker_container_stop_gobgp(remove=True)
     recreate_conf_dir(CONFIG_DIRR)
-
     # set log option
     opt = "-l debug" if log_debug else ""
+    do_build = False
     # execute local gobgp program in the docker container if the input option is local
     make_startup_file(log_opt=opt)
     if use_local:
@@ -414,20 +401,20 @@ def prepare_gobgp(log_debug, use_local):
             gobgp_path = re.sub(A_PART_OF_CURRENT_DIR, "", pwd)
             cmd = "cp -r " + gobgp_path + " " + CONFIG_DIRR
             local(cmd, capture=True)
-            make_install_file(use_local=True)
+            make_install_file()
+            do_build = True
         else:
             print "local gobgp dosen't exist."
             print "get the latest master gobgp from github."
-            make_install_file()
     else:
         print "execute gobgp program of osrg/master in github."
-        make_install_file()
     change_owner_to_root(CONFIG_DIR)
 
     cmd = "docker run --privileged=true -v " + CONFIG_DIR + ":" + SHARE_VOLUME + " -d --name " \
           + GOBGP_CONTAINER_NAME + " -id osrg/gobgp"
     local(cmd, capture=True)
-    build_gobgp()
+    if do_build:
+        build_gobgp()
 
 
 def init_test_env_executor(quagga_num, use_local, go_path, log_debug=False, is_route_server=True):
@@ -448,7 +435,7 @@ def init_test_env_executor(quagga_num, use_local, go_path, log_debug=False, is_r
 
     # set log option
     opt = "-l debug" if log_debug else ""
-
+    do_build = False
     # execute local gobgp program in the docker container if the input option is local
     make_startup_file(log_opt=opt)
     if use_local:
@@ -458,17 +445,16 @@ def init_test_env_executor(quagga_num, use_local, go_path, log_debug=False, is_r
             gobgp_path = re.sub(A_PART_OF_CURRENT_DIR, "", pwd)
             cmd = "cp -r " + gobgp_path + " " + CONFIG_DIRR
             local(cmd, capture=True)
-            make_install_file(use_local=True)
+            make_install_file()
+            do_build = True
         else:
             print "scenario_test directory is not."
             print "execute gobgp program of osrg/master in github."
-            make_install_file()
     else:
         print "execute gobgp program of osrg/master in github."
-        make_install_file()
 
     change_owner_to_root(CONFIG_DIR)
-    start_gobgp()
+    start_gobgp(build=do_build)
 
     # run quagga docker container
     for num in range(1, quagga_num + 1):
@@ -515,7 +501,7 @@ def init_policy_test_env_executor(quagga_num, use_local, go_path, log_debug=Fals
         make_config_append(100, go_path, BRIDGE_0, peer_opts="--none-peer", policy_pattern=policy)
         start_exabgp(EXABGP_COMMON_CONF)
 
-    start_gobgp(build=False)
+    start_gobgp()
 
     # run quagga docker container
     for num in range(1, quagga_num + 1):
@@ -542,7 +528,7 @@ def init_ipv6_test_env_executor(quagga_num, use_local, go_path, log_debug=False)
 
     # set log option
     opt = "-l debug" if log_debug else ""
-
+    do_build = False
     # execute local gobgp program in the docker container if the input option is local
     make_startup_file(log_opt=opt)
     if use_local:
@@ -552,17 +538,16 @@ def init_ipv6_test_env_executor(quagga_num, use_local, go_path, log_debug=False)
             gobgp_path = re.sub(A_PART_OF_CURRENT_DIR, "", pwd)
             cmd = "cp -r " + gobgp_path + " " + CONFIG_DIRR
             local(cmd, capture=True)
-            make_install_file(use_local=True)
+            make_install_file()
+            do_build = True
         else:
             print "scenario_test directory is not."
             print "execute gobgp program of osrg/master in github."
-            make_install_file()
     else:
         print "execute gobgp program of osrg/master in github."
-        make_install_file()
 
     change_owner_to_root(CONFIG_DIR)
-    start_gobgp()
+    start_gobgp(do_build)
 
     # run quagga docker container
     for num in range(1, quagga_num + 1):
@@ -591,7 +576,7 @@ def init_malformed_test_env_executor(use_local,  go_path, exabgp_path, log_debug
 
     # set log option
     opt = "-l debug" if log_debug else ""
-
+    do_build = False
     make_startup_file(log_opt=opt)
     # execute local gobgp program in the docker container if the input option is local
     if use_local:
@@ -601,14 +586,13 @@ def init_malformed_test_env_executor(use_local,  go_path, exabgp_path, log_debug
             gobgp_path = re.sub(A_PART_OF_CURRENT_DIR, "", pwd)
             cmd = "cp -r " + gobgp_path + " " + CONFIG_DIRR
             local(cmd, capture=True)
-            make_install_file(use_local=True)
+            make_install_file()
+            do_build = True
         else:
             print "scenario_test directory is not."
             print "execute gobgp program of osrg/master in github."
-            make_install_file()
     else:
         print "execute gobgp program of osrg/master in github."
-        make_install_file()
 
     change_owner_to_root(CONFIG_DIR)
 
@@ -618,7 +602,7 @@ def init_malformed_test_env_executor(use_local,  go_path, exabgp_path, log_debug
         cmd = "docker exec exabgp cp -rf " + SHARE_VOLUME + "/exabgp /root/"
         local(cmd, capture=True)
 
-    start_gobgp()
+    start_gobgp(do_build)
 
     # run quagga docker container
     docker_container_run_quagga(1, BRIDGE_0)
