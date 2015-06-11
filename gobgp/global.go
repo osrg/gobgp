@@ -18,30 +18,14 @@ package main
 import (
 	"encoding/json"
 	"fmt"
-	"github.com/jessevdk/go-flags"
 	"github.com/osrg/gobgp/api"
+	"github.com/spf13/cobra"
 	"golang.org/x/net/context"
 	"io"
 	"net"
-	"os"
 	"sort"
 	"strconv"
 )
-
-type GlobalCommand struct{}
-
-func (x *GlobalCommand) Execute(args []string) error {
-	eArgs := extractArgs(CMD_GLOBAL)
-	parser := flags.NewParser(nil, flags.Default)
-	parser.Usage = "global"
-	parser.AddCommand(CMD_RIB, "subcommand for rib of global", "", &GlobalRibCommand{})
-	if _, err := parser.ParseArgs(eArgs); err != nil {
-		os.Exit(1)
-	}
-	return nil
-}
-
-type GlobalRibCommand struct{}
 
 func showGlobalRib() error {
 	rt, err := checkAddressFamily(net.IP{})
@@ -89,29 +73,6 @@ func showGlobalRib() error {
 	showRoute(ps, true, true)
 	return nil
 }
-func (x *GlobalRibCommand) Execute(args []string) error {
-
-	eArgs := extractArgs(CMD_RIB)
-	parser := flags.NewParser(&subOpts, flags.Default)
-	if len(eArgs) == 0 || (len(eArgs) < 3 && eArgs[0] == "-a") {
-		if _, err := parser.ParseArgs(eArgs); err != nil {
-			os.Exit(1)
-		}
-		if err := requestGrpc(CMD_GLOBAL+"_"+CMD_RIB, eArgs, nil); err != nil {
-			return err
-		}
-	} else {
-		parser.Usage = "global rib [OPTIONS]\n  gobgp global rib"
-		parser.AddCommand(CMD_ADD, "subcommand to add route to global rib", "", &GlobalRibAddCommand{})
-		parser.AddCommand(CMD_DEL, "subcommand to delete route from global rib", "", &GlobalRibDelCommand{})
-		if _, err := parser.ParseArgs(eArgs); err != nil {
-			os.Exit(1)
-		}
-	}
-	return nil
-}
-
-type GlobalRibAddCommand struct{}
 
 func modPath(modtype string, eArgs []string) error {
 	rf, err := checkAddressFamily(net.IP{})
@@ -239,42 +200,35 @@ func modPath(modtype string, eArgs []string) error {
 	return nil
 }
 
-func (x *GlobalRibAddCommand) Execute(args []string) error {
-	eArgs := extractArgs(CMD_ADD)
-	parser := flags.NewParser(&subOpts, flags.Default)
-	parser.Usage = "global rib add <prefix> -a { ipv4 | ipv6 }\n" +
-		"    -> if -a option is ipv4 or ipv6\n" +
-		"  gobgp global rib add <mac address> <ip address> -a evpn\n" +
-		"    -> if -a option is evpn"
-	parser.ParseArgs(eArgs)
-	if len(eArgs) == 1 {
-		if eArgs[0] == "-h" || eArgs[0] == "--help" {
-			return nil
-		}
+func NewGlobalCmd() *cobra.Command {
+	globalCmd := &cobra.Command{
+		Use: CMD_GLOBAL,
 	}
-	if err := requestGrpc(CMD_GLOBAL+"_"+CMD_RIB+"_"+CMD_ADD, eArgs, nil); err != nil {
-		return err
-	}
-	return nil
-}
 
-type GlobalRibDelCommand struct{}
+	ribCmd := &cobra.Command{
+		Use: CMD_RIB,
+		Run: func(cmd *cobra.Command, args []string) {
+			showGlobalRib()
+		},
+	}
 
-func (x *GlobalRibDelCommand) Execute(args []string) error {
-	eArgs := extractArgs(CMD_DEL)
-	parser := flags.NewParser(&subOpts, flags.Default)
-	parser.Usage = "global rib del <prefix> -a { ipv4 | ipv6 }\n" +
-		"    -> if -a option is ipv4 or ipv6\n" +
-		"  gobgp global rib del <mac address> <ip address> -a evpn\n" +
-		"    -> if -a option is evpn"
-	parser.ParseArgs(eArgs)
-	if len(eArgs) == 1 {
-		if eArgs[0] == "-h" || eArgs[0] == "--help" {
-			return nil
-		}
+	ribCmd.PersistentFlags().StringVarP(&subOpts.AddressFamily, "address-family", "a", "", "address family")
+
+	addCmd := &cobra.Command{
+		Use: CMD_ADD,
+		Run: func(cmd *cobra.Command, args []string) {
+			modPath(CMD_ADD, args)
+		},
 	}
-	if err := requestGrpc(CMD_GLOBAL+"_"+CMD_RIB+"_"+CMD_DEL, eArgs, nil); err != nil {
-		return err
+
+	delCmd := &cobra.Command{
+		Use: CMD_DEL,
+		Run: func(cmd *cobra.Command, args []string) {
+			modPath(CMD_DEL, args)
+		},
 	}
-	return nil
+
+	ribCmd.AddCommand(addCmd, delCmd)
+	globalCmd.AddCommand(ribCmd)
+	return globalCmd
 }

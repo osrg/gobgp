@@ -211,8 +211,6 @@ func (p policyDefinitions) Less(i, j int) bool {
 	return p[i].PolicyDefinitionName < p[j].PolicyDefinitionName
 }
 
-var client api.GrpcClient
-
 func connGrpc() *grpc.ClientConn {
 	timeout := grpc.WithTimeout(time.Second)
 
@@ -229,114 +227,6 @@ func connGrpc() *grpc.ClientConn {
 		os.Exit(1)
 	}
 	return conn
-}
-
-func requestGrpc(cmd string, eArgs []string, request interface{}) error {
-	conn := connGrpc()
-	defer conn.Close()
-	client = api.NewGrpcClient(conn)
-
-	switch cmd {
-	case CMD_GLOBAL + "_" + CMD_RIB:
-		return showGlobalRib()
-	case CMD_GLOBAL + "_" + CMD_RIB + "_" + CMD_ADD:
-		return modPath(CMD_ADD, eArgs)
-	case CMD_GLOBAL + "_" + CMD_RIB + "_" + CMD_DEL:
-		return modPath(CMD_DEL, eArgs)
-	case CMD_NEIGHBOR:
-		if len(eArgs) == 0 {
-			return showNeighbors()
-		} else {
-			return showNeighbor(eArgs)
-		}
-	case CMD_NEIGHBOR + "_" + CMD_LOCAL:
-		return showNeighborRib(api.Resource_LOCAL, request.(*NeighborRibCommand))
-	case CMD_NEIGHBOR + "_" + CMD_ADJ_IN:
-		return showNeighborRib(api.Resource_ADJ_IN, request.(*NeighborRibCommand))
-	case CMD_NEIGHBOR + "_" + CMD_ADJ_OUT:
-		return showNeighborRib(api.Resource_ADJ_OUT, request.(*NeighborRibCommand))
-	case CMD_NEIGHBOR + "_" + CMD_RESET:
-		return resetNeighbor(request.(*NeighborResetCommand))
-	case CMD_NEIGHBOR + "_" + CMD_SOFT_RESET:
-		return resetNeighbor(request.(*NeighborResetCommand))
-	case CMD_NEIGHBOR + "_" + CMD_SOFT_RESET_IN:
-		return resetNeighbor(request.(*NeighborResetCommand))
-	case CMD_NEIGHBOR + "_" + CMD_SOFT_RESET_OUT:
-		return resetNeighbor(request.(*NeighborResetCommand))
-	case CMD_NEIGHBOR + "_" + CMD_SHUTDOWN:
-		return stateChangeNeighbor(request.(*NeighborChangeStateCommand))
-	case CMD_NEIGHBOR + "_" + CMD_ENABLE:
-		return stateChangeNeighbor(request.(*NeighborChangeStateCommand))
-	case CMD_NEIGHBOR + "_" + CMD_DISABLE:
-		return stateChangeNeighbor(request.(*NeighborChangeStateCommand))
-	case CMD_NEIGHBOR + "_" + CMD_POLICY:
-		return showNeighborPolicy(request.(*NeighborPolicyCommand))
-	case CMD_NEIGHBOR + "_" + CMD_POLICY + "_" + CMD_ADD:
-		return modNeighborPolicy(eArgs, request.(*NeighborPolicyChangeCommand))
-	case CMD_NEIGHBOR + "_" + CMD_POLICY + "_" + CMD_DEL:
-		return modNeighborPolicy(eArgs, request.(*NeighborPolicyChangeCommand))
-	case CMD_POLICY + "_" + CMD_PREFIX:
-		if len(eArgs) == 0 {
-			return showPolicyPrefixes()
-		} else {
-			return showPolicyPrefix(eArgs)
-		}
-	case CMD_POLICY + "_" + CMD_PREFIX + "_" + CMD_ADD:
-		return modPolicyPrefix(CMD_ADD, eArgs)
-	case CMD_POLICY + "_" + CMD_PREFIX + "_" + CMD_DEL:
-		return modPolicyPrefix(CMD_DEL, eArgs)
-	case CMD_POLICY + "_" + CMD_NEIGHBOR:
-		if len(eArgs) == 0 {
-			return showPolicyNeighbors()
-		} else {
-			return showPolicyNeighbor(eArgs)
-		}
-	case CMD_POLICY + "_" + CMD_NEIGHBOR + "_" + CMD_ADD:
-		return modPolicyNeighbor(CMD_ADD, eArgs)
-	case CMD_POLICY + "_" + CMD_NEIGHBOR + "_" + CMD_DEL:
-		return modPolicyNeighbor(CMD_DEL, eArgs)
-	case CMD_POLICY + "_" + CMD_ROUTEPOLICY:
-		if len(eArgs) == 0 {
-			return showPolicyRoutePolicies()
-		} else {
-			return showPolicyRoutePolicy(eArgs)
-		}
-	case CMD_POLICY + "_" + CMD_ROUTEPOLICY + "_" + CMD_ADD + "_" + CMD_CONDITIONS:
-		return modPolicyRoutePolicy(CMD_ADD, CMD_CONDITIONS, eArgs, request)
-	case CMD_POLICY + "_" + CMD_ROUTEPOLICY + "_" + CMD_ADD + "_" + CMD_ACTIONS:
-		return modPolicyRoutePolicy(CMD_ADD, CMD_ACTIONS, eArgs, request)
-	case CMD_POLICY + "_" + CMD_ROUTEPOLICY + "_" + CMD_DEL:
-		return modPolicyRoutePolicy(CMD_DEL, "", eArgs, nil)
-	}
-	return nil
-}
-
-func extractArgs(head string) []string {
-	eArgs := make([]string, 0)
-	existHead := false
-	existRear := false
-	if head == "" {
-		existHead = true
-	}
-	for _, arg := range os.Args {
-		if existHead {
-			eArgs = append(eArgs, arg)
-			for _, cmd := range cmds {
-				if arg == cmd {
-					existRear = true
-					break
-				}
-			}
-			if existRear {
-				break
-			}
-		} else {
-			if arg == head {
-				existHead = true
-			}
-		}
-	}
-	return eArgs
 }
 
 func checkAddressFamily(ip net.IP) (*api.AddressFamily, error) {
