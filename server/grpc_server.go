@@ -68,6 +68,9 @@ const (
 const GRPC_PORT = 8080
 
 func convertAf2Rf(af *api.AddressFamily) (bgp.RouteFamily, error) {
+	if af == nil {
+		return bgp.RouteFamily(0), fmt.Errorf("address family is nil")
+	}
 	if af.Equal(api.AF_IPV4_UC) {
 		return bgp.RF_IPv4_UC, nil
 	} else if af.Equal(api.AF_IPV6_UC) {

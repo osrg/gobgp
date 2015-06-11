@@ -1384,6 +1384,13 @@ func (server *BgpServer) handleGrpc(grpcReq *GrpcRequest) []*SenderMsg {
 		server.handlePolicy(server.routingPolicy)
 		grpcReq.ResponseCh <- result
 		close(grpcReq.ResponseCh)
+	default:
+		errmsg := "Unknown request type"
+		result := &GrpcResponse{
+			ResponseErr: fmt.Errorf(errmsg),
+		}
+		grpcReq.ResponseCh <- result
+		close(grpcReq.ResponseCh)
 	}
 	return msgs
 }
