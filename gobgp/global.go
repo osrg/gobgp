@@ -70,7 +70,7 @@ func showGlobalRib() error {
 
 	sort.Sort(ps)
 
-	showRoute(ps, true, true)
+	showRoute(ps, true, true, false)
 	return nil
 }
 
