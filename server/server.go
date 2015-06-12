@@ -52,6 +52,7 @@ type BgpServer struct {
 	policyUpdateCh chan config.RoutingPolicy
 	policyMap      map[string]*policy.Policy
 	routingPolicy  config.RoutingPolicy
+	broadcastReqs  []*GrpcRequest
 
 	neighborMap map[string]*Peer
 	localRibMap map[string]*LocalRib
@@ -354,6 +355,9 @@ func (server *BgpServer) dropPeerAllRoutes(peer *Peer) []*SenderMsg {
 			if len(pathList) == 0 {
 				continue
 			}
+
+			server.broadcastBests(pathList)
+
 			msgList := table.CreateUpdateMsgFromPaths(pathList)
 			for _, targetPeer := range server.neighborMap {
 				if targetPeer.isRouteServerClient() || targetPeer.fsm.state != bgp.BGP_FSM_ESTABLISHED {
@@ -404,6 +408,24 @@ func applyPolicies(peer *Peer, loc *LocalRib, isExport bool, pathList []table.Pa
 	return ret
 }
 
+func (server *BgpServer) broadcastBests(bests []table.Path) {
+	for _, path := range bests {
+		result := &GrpcResponse{
+			Data: path.ToApiStruct(),
+		}
+		remainReqs := make([]*GrpcRequest, 0, len(server.broadcastReqs))
+		for _, req := range server.broadcastReqs {
+			select {
+			case <-req.EndCh:
+				continue
+			case req.ResponseCh <- result:
+			}
+			remainReqs = append(remainReqs, req)
+		}
+		server.broadcastReqs = remainReqs
+	}
+}
+
 func (server *BgpServer) propagateUpdate(neighborAddress string, RouteServerClient bool, pathList []table.Path) []*SenderMsg {
 	msgs := make([]*SenderMsg, 0)
 
@@ -431,6 +453,8 @@ func (server *BgpServer) propagateUpdate(neighborAddress string, RouteServerClie
 		if len(sendPathList) == 0 {
 			return msgs
 		}
+
+		server.broadcastBests(sendPathList)
 
 		for _, targetPeer := range server.neighborMap {
 			if targetPeer.isRouteServerClient() || targetPeer.fsm.state != bgp.BGP_FSM_ESTABLISHED {
@@ -790,6 +814,8 @@ func (server *BgpServer) handleGrpc(grpcReq *GrpcRequest) []*SenderMsg {
 			close(grpcReq.ResponseCh)
 		}
 
+	case REQ_GLOBAL_MONITOR_BEST_CHANGED:
+		server.broadcastReqs = append(server.broadcastReqs, grpcReq)
 	case REQ_NEIGHBORS:
 		for _, peer := range server.neighborMap {
 			result := &GrpcResponse{
