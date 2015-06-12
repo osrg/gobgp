@@ -21,11 +21,13 @@ import (
 )
 
 var globalOpts struct {
-	Host  string `short:"u" long:"url" description:"specifying an url" default:"127.0.0.1"`
-	Port  int    `short:"p" long:"port" description:"specifying a port" default:"8080"`
-	Debug bool   `short:"d" long:"debug" description:"use debug"`
-	Quiet bool   `short:"q" long:"quiet" description:"use quiet"`
-	Json  bool   `short:"j" long:"json" description:"use json format to output format"`
+	Host         string `short:"u" long:"url" description:"specifying an url" default:"127.0.0.1"`
+	Port         int    `short:"p" long:"port" description:"specifying a port" default:"8080"`
+	Debug        bool   `short:"d" long:"debug" description:"use debug"`
+	Quiet        bool   `short:"q" long:"quiet" description:"use quiet"`
+	Json         bool   `short:"j" long:"json" description:"use json format to output format"`
+	GenCmpl      bool   `short:"c" long:"genbashcmpl" description:"use json format to output format"`
+	BashCmplFile string
 }
 
 var cmds []string
@@ -35,8 +37,13 @@ func main() {
 	rootCmd := &cobra.Command{
 		Use: "gobgp",
 		PersistentPreRun: func(cmd *cobra.Command, args []string) {
-			conn := connGrpc()
-			client = api.NewGrpcClient(conn)
+			if !globalOpts.GenCmpl {
+				conn := connGrpc()
+				client = api.NewGrpcClient(conn)
+			}
+		},
+		Run: func(cmd *cobra.Command, args []string) {
+			cmd.GenBashCompletionFile(globalOpts.BashCmplFile)
 		},
 	}
 
@@ -45,6 +52,8 @@ func main() {
 	rootCmd.PersistentFlags().BoolVarP(&globalOpts.Json, "json", "j", false, "use json format to output format")
 	rootCmd.PersistentFlags().BoolVarP(&globalOpts.Debug, "debug", "d", false, "use debug")
 	rootCmd.PersistentFlags().BoolVarP(&globalOpts.Quiet, "quiet", "q", false, "use quiet")
+	rootCmd.PersistentFlags().BoolVarP(&globalOpts.GenCmpl, "gen-cmpl", "c", false, "generate completion file")
+	rootCmd.PersistentFlags().StringVarP(&globalOpts.BashCmplFile, "bash-cmpl-file", "", "gobgp_completion.bash", "bash cmpl filename")
 
 	globalCmd := NewGlobalCmd()
 	neighborCmd := NewNeighborCmd()
