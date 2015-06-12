@@ -48,6 +48,7 @@ const (
 	REQ_GLOBAL_RIB
 	REQ_GLOBAL_ADD
 	REQ_GLOBAL_DELETE
+	REQ_GLOBAL_MONITOR_BEST_CHANGED
 	REQ_POLICY_PREFIX
 	REQ_POLICY_PREFIXES
 	REQ_POLICY_PREFIX_ADD
@@ -193,6 +194,37 @@ func (s *Server) GetRib(arg *api.Arguments, stream api.Grpc_GetRibServer) error 
 		}
 	}
 	return nil
+}
+
+func (s *Server) MonitorBestChanged(arg *api.Arguments, stream api.Grpc_MonitorBestChangedServer) error {
+	var reqType int
+	switch arg.Resource {
+	case api.Resource_GLOBAL:
+		reqType = REQ_GLOBAL_MONITOR_BEST_CHANGED
+	default:
+		return fmt.Errorf("unsupported resource type: %v", arg.Resource)
+	}
+
+	rf, err := convertAf2Rf(arg.Af)
+	if err != nil {
+		return err
+	}
+
+	req := NewGrpcRequest(reqType, "", rf, nil)
+	s.bgpServerCh <- req
+
+	for res := range req.ResponseCh {
+		if err = res.Err(); err != nil {
+			log.Debug(err.Error())
+			goto END
+		}
+		if err = stream.Send(res.Data.(*api.Path)); err != nil {
+			goto END
+		}
+	}
+END:
+	req.EndCh <- struct{}{}
+	return err
 }
 
 func (s *Server) neighbor(reqType int, arg *api.Arguments) (*api.Error, error) {
@@ -574,6 +606,7 @@ type GrpcRequest struct {
 	RemoteAddr  string
 	RouteFamily bgp.RouteFamily
 	ResponseCh  chan *GrpcResponse
+	EndCh       chan struct{}
 	Err         error
 	Data        interface{}
 }
@@ -584,6 +617,7 @@ func NewGrpcRequest(reqType int, remoteAddr string, rf bgp.RouteFamily, d interf
 		RouteFamily: rf,
 		RemoteAddr:  remoteAddr,
 		ResponseCh:  make(chan *GrpcResponse),
+		EndCh:       make(chan struct{}),
 		Data:        d,
 	}
 	return r
