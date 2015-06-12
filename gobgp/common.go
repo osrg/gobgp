@@ -50,6 +50,7 @@ const (
 	CMD_ACTIONS        = "actions"
 	CMD_IMPORT         = "import"
 	CMD_EXPORT         = "export"
+	CMD_MONITOR        = "monitor"
 )
 
 var subOpts struct {

@@ -223,7 +223,7 @@ type AsPathFormat struct {
 	separator string
 }
 
-func showRoute(pathList []*api.Path, showAge bool, showBest bool) {
+func showRoute(pathList []*api.Path, showAge bool, showBest bool, isMonitor bool) {
 
 	var pathStrs [][]interface{}
 	maxPrefixLen := len("Network")
@@ -352,8 +352,13 @@ func showRoute(pathList []*api.Path, showAge bool, showBest bool) {
 		if maxAsPathLen < len(aspath(p.Attrs)) {
 			maxAsPathLen = len(aspath(p.Attrs))
 		}
-
-		if showAge {
+		if isMonitor {
+			title := "ROUTE"
+			if p.IsWithdraw {
+				title = "DELROUTE"
+			}
+			pathStrs = append(pathStrs, []interface{}{title, p.Nlri.Prefix, p.Nexthop, aspath(p.Attrs), formatAttrs(p.Attrs)})
+		} else if showAge {
 			pathStrs = append(pathStrs, []interface{}{best, p.Nlri.Prefix, p.Nexthop, aspath(p.Attrs), formatTimedelta(p.Age), formatAttrs(p.Attrs)})
 		} else {
 			pathStrs = append(pathStrs, []interface{}{best, p.Nlri.Prefix, p.Nexthop, aspath(p.Attrs), formatAttrs(p.Attrs)})
@@ -361,7 +366,9 @@ func showRoute(pathList []*api.Path, showAge bool, showBest bool) {
 	}
 
 	var format string
-	if showAge {
+	if isMonitor {
+		format = "[%s] %s via %s aspath [%s] attrs %s\n"
+	} else if showAge {
 		format = fmt.Sprintf("%%-2s %%-%ds %%-%ds %%-%ds %%-10s %%-s\n", maxPrefixLen, maxNexthopLen, maxAsPathLen)
 		fmt.Printf(format, "", "Network", "Next Hop", "AS_PATH", "Age", "Attrs")
 	} else {
@@ -455,7 +462,7 @@ func showNeighborRib(r string, remoteIP net.IP) error {
 	}
 
 	sort.Sort(ps)
-	showRoute(ps, showAge, showBest)
+	showRoute(ps, showAge, showBest, false)
 	return nil
 }
 

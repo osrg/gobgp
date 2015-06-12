@@ -58,9 +58,10 @@ func main() {
 	globalCmd := NewGlobalCmd()
 	neighborCmd := NewNeighborCmd()
 	policyCmd := NewPolicyCmd()
+	monitorCmd := NewMonitorCmd()
 	rootCmd.AddCommand(globalCmd)
 	rootCmd.AddCommand(neighborCmd)
 	rootCmd.AddCommand(policyCmd)
-
+	rootCmd.AddCommand(monitorCmd)
 	rootCmd.Execute()
 }
