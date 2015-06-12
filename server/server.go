@@ -957,6 +957,14 @@ func (server *BgpServer) handleGrpc(grpcReq *GrpcRequest) []*SenderMsg {
 		// However, peer haven't target importpolicy when add PolicyDefinition of name only to the list.
 		conInPolicyNames := peer.config.ApplyPolicy.ImportPolicies
 		loc := server.localRibMap[peer.config.NeighborAddress.String()]
+		if loc == nil {
+			result := &GrpcResponse{
+				ResponseErr: fmt.Errorf("no local rib for %s", peer.config.NeighborAddress.String()),
+			}
+			grpcReq.ResponseCh <- result
+			close(grpcReq.ResponseCh)
+			break
+		}
 		for _, conInPolicyName := range conInPolicyNames {
 			match := false
 			for _, inPolicy := range loc.importPolicies {
