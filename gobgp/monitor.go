@@ -16,6 +16,7 @@
 package main
 
 import (
+	"encoding/json"
 	"fmt"
 	"github.com/osrg/gobgp/api"
 	"github.com/spf13/cobra"
@@ -52,7 +53,12 @@ func NewMonitorCmd() *cobra.Command {
 					fmt.Println(err)
 					os.Exit(1)
 				}
-				showRoute([]*api.Path{p}, false, false, true)
+				if globalOpts.Json {
+					j, _ := json.Marshal(p)
+					fmt.Println(string(j))
+				} else {
+					showRoute([]*api.Path{p}, false, false, true)
+				}
 			}
 
 		},
@@ -88,7 +94,12 @@ func NewMonitorCmd() *cobra.Command {
 					fmt.Println(err)
 					os.Exit(1)
 				}
-				fmt.Printf("[NEIGH] %s fsm: %s admin: %s\n", s.Conf.RemoteIp, s.Info.BgpState, s.Info.AdminState)
+				if globalOpts.Json {
+					j, _ := json.Marshal(s)
+					fmt.Println(string(j))
+				} else {
+					fmt.Printf("[NEIGH] %s fsm: %s admin: %s\n", s.Conf.RemoteIp, s.Info.BgpState, s.Info.AdminState)
+				}
 			}
 		},
 	}
