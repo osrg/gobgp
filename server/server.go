@@ -52,6 +52,7 @@ type BgpServer struct {
 	policyUpdateCh chan config.RoutingPolicy
 	policyMap      map[string]*policy.Policy
 	routingPolicy  config.RoutingPolicy
+	broadcastReqs  []*GrpcRequest
 
 	neighborMap map[string]*Peer
 	localRibMap map[string]*LocalRib
@@ -218,7 +219,7 @@ func (server *BgpServer) Serve() {
 			server.neighborMap[name] = peer
 			peer.outgoing = make(chan *bgp.BGPMessage, 128)
 			peer.startFSMHandler(incoming)
-
+			server.broadcastPeerState(peer)
 		case config := <-server.deletedPeerCh:
 			addr := config.NeighborAddress.String()
 			SetTcpMD5SigSockopts(listener(config.NeighborAddress), addr, "")
@@ -354,6 +355,9 @@ func (server *BgpServer) dropPeerAllRoutes(peer *Peer) []*SenderMsg {
 			if len(pathList) == 0 {
 				continue
 			}
+
+			server.broadcastBests(pathList)
+
 			msgList := table.CreateUpdateMsgFromPaths(pathList)
 			for _, targetPeer := range server.neighborMap {
 				if targetPeer.isRouteServerClient() || targetPeer.fsm.state != bgp.BGP_FSM_ESTABLISHED {
@@ -404,6 +408,50 @@ func applyPolicies(peer *Peer, loc *LocalRib, isExport bool, pathList []table.Pa
 	return ret
 }
 
+func (server *BgpServer) broadcastBests(bests []table.Path) {
+	for _, path := range bests {
+		result := &GrpcResponse{
+			Data: path.ToApiStruct(),
+		}
+		remainReqs := make([]*GrpcRequest, 0, len(server.broadcastReqs))
+		for _, req := range server.broadcastReqs {
+			if req.RequestType != REQ_MONITOR_GLOBAL_BEST_CHANGED {
+				remainReqs = append(remainReqs, req)
+				continue
+			}
+			select {
+			case <-req.EndCh:
+				continue
+			case req.ResponseCh <- result:
+			}
+			remainReqs = append(remainReqs, req)
+		}
+		server.broadcastReqs = remainReqs
+	}
+}
+
+func (server *BgpServer) broadcastPeerState(peer *Peer) {
+	result := &GrpcResponse{
+		Data: peer.ToApiStruct(),
+	}
+	remainReqs := make([]*GrpcRequest, 0, len(server.broadcastReqs))
+	for _, req := range server.broadcastReqs {
+		ignore := req.RequestType != REQ_MONITOR_NEIGHBOR_PEER_STATE
+		ignore = ignore || (req.RemoteAddr != "" && req.RemoteAddr != peer.config.NeighborAddress.String())
+		if ignore {
+			remainReqs = append(remainReqs, req)
+			continue
+		}
+		select {
+		case <-req.EndCh:
+			continue
+		case req.ResponseCh <- result:
+		}
+		remainReqs = append(remainReqs, req)
+	}
+	server.broadcastReqs = remainReqs
+}
+
 func (server *BgpServer) propagateUpdate(neighborAddress string, RouteServerClient bool, pathList []table.Path) []*SenderMsg {
 	msgs := make([]*SenderMsg, 0)
 
@@ -431,6 +479,8 @@ func (server *BgpServer) propagateUpdate(neighborAddress string, RouteServerClie
 		if len(sendPathList) == 0 {
 			return msgs
 		}
+
+		server.broadcastBests(sendPathList)
 
 		for _, targetPeer := range server.neighborMap {
 			if targetPeer.isRouteServerClient() || targetPeer.fsm.state != bgp.BGP_FSM_ESTABLISHED {
@@ -504,6 +554,7 @@ func (server *BgpServer) handleFSMMessage(peer *Peer, e *fsmMsg, incoming chan *
 			peer.config.BgpNeighborCommonState = config.BgpNeighborCommonState{}
 		}
 		peer.startFSMHandler(incoming)
+		server.broadcastPeerState(peer)
 
 	case FSM_MSG_BGP_MESSAGE:
 		switch m := e.MsgData.(type) {
@@ -957,6 +1008,14 @@ func (server *BgpServer) handleGrpc(grpcReq *GrpcRequest) []*SenderMsg {
 		// However, peer haven't target importpolicy when add PolicyDefinition of name only to the list.
 		conInPolicyNames := peer.config.ApplyPolicy.ImportPolicies
 		loc := server.localRibMap[peer.config.NeighborAddress.String()]
+		if loc == nil {
+			result := &GrpcResponse{
+				ResponseErr: fmt.Errorf("no local rib for %s", peer.config.NeighborAddress.String()),
+			}
+			grpcReq.ResponseCh <- result
+			close(grpcReq.ResponseCh)
+			break
+		}
 		for _, conInPolicyName := range conInPolicyNames {
 			match := false
 			for _, inPolicy := range loc.importPolicies {
@@ -1382,6 +1441,15 @@ func (server *BgpServer) handleGrpc(grpcReq *GrpcRequest) []*SenderMsg {
 		result := &GrpcResponse{}
 		server.routingPolicy.PolicyDefinitionList = make([]config.PolicyDefinition, 0)
 		server.handlePolicy(server.routingPolicy)
+		grpcReq.ResponseCh <- result
+		close(grpcReq.ResponseCh)
+	case REQ_MONITOR_GLOBAL_BEST_CHANGED, REQ_MONITOR_NEIGHBOR_PEER_STATE:
+		server.broadcastReqs = append(server.broadcastReqs, grpcReq)
+	default:
+		errmsg := "Unknown request type"
+		result := &GrpcResponse{
+			ResponseErr: fmt.Errorf(errmsg),
+		}
 		grpcReq.ResponseCh <- result
 		close(grpcReq.ResponseCh)
 	}

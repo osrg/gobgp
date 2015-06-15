@@ -1173,6 +1173,8 @@ type GrpcClient interface {
 	GetPolicyRoutePolicies(ctx context.Context, in *PolicyArguments, opts ...grpc.CallOption) (Grpc_GetPolicyRoutePoliciesClient, error)
 	GetPolicyRoutePolicy(ctx context.Context, in *PolicyArguments, opts ...grpc.CallOption) (*PolicyDefinition, error)
 	ModPolicyRoutePolicy(ctx context.Context, opts ...grpc.CallOption) (Grpc_ModPolicyRoutePolicyClient, error)
+	MonitorBestChanged(ctx context.Context, in *Arguments, opts ...grpc.CallOption) (Grpc_MonitorBestChangedClient, error)
+	MonitorPeerState(ctx context.Context, in *Arguments, opts ...grpc.CallOption) (Grpc_MonitorPeerStateClient, error)
 }
 
 type grpcClient struct {
@@ -1638,6 +1640,70 @@ func (x *grpcModPolicyRoutePolicyClient) Recv() (*Error, error) {
 	return m, nil
 }
 
+func (c *grpcClient) MonitorBestChanged(ctx context.Context, in *Arguments, opts ...grpc.CallOption) (Grpc_MonitorBestChangedClient, error) {
+	stream, err := grpc.NewClientStream(ctx, &_Grpc_serviceDesc.Streams[11], c.cc, "/api.Grpc/MonitorBestChanged", opts...)
+	if err != nil {
+		return nil, err
+	}
+	x := &grpcMonitorBestChangedClient{stream}
+	if err := x.ClientStream.SendMsg(in); err != nil {
+		return nil, err
+	}
+	if err := x.ClientStream.CloseSend(); err != nil {
+		return nil, err
+	}
+	return x, nil
+}
+
+type Grpc_MonitorBestChangedClient interface {
+	Recv() (*Path, error)
+	grpc.ClientStream
+}
+
+type grpcMonitorBestChangedClient struct {
+	grpc.ClientStream
+}
+
+func (x *grpcMonitorBestChangedClient) Recv() (*Path, error) {
+	m := new(Path)
+	if err := x.ClientStream.RecvMsg(m); err != nil {
+		return nil, err
+	}
+	return m, nil
+}
+
+func (c *grpcClient) MonitorPeerState(ctx context.Context, in *Arguments, opts ...grpc.CallOption) (Grpc_MonitorPeerStateClient, error) {
+	stream, err := grpc.NewClientStream(ctx, &_Grpc_serviceDesc.Streams[12], c.cc, "/api.Grpc/MonitorPeerState", opts...)
+	if err != nil {
+		return nil, err
+	}
+	x := &grpcMonitorPeerStateClient{stream}
+	if err := x.ClientStream.SendMsg(in); err != nil {
+		return nil, err
+	}
+	if err := x.ClientStream.CloseSend(); err != nil {
+		return nil, err
+	}
+	return x, nil
+}
+
+type Grpc_MonitorPeerStateClient interface {
+	Recv() (*Peer, error)
+	grpc.ClientStream
+}
+
+type grpcMonitorPeerStateClient struct {
+	grpc.ClientStream
+}
+
+func (x *grpcMonitorPeerStateClient) Recv() (*Peer, error) {
+	m := new(Peer)
+	if err := x.ClientStream.RecvMsg(m); err != nil {
+		return nil, err
+	}
+	return m, nil
+}
+
 // Server API for Grpc service
 
 type GrpcServer interface {
@@ -1664,6 +1730,8 @@ type GrpcServer interface {
 	GetPolicyRoutePolicies(*PolicyArguments, Grpc_GetPolicyRoutePoliciesServer) error
 	GetPolicyRoutePolicy(context.Context, *PolicyArguments) (*PolicyDefinition, error)
 	ModPolicyRoutePolicy(Grpc_ModPolicyRoutePolicyServer) error
+	MonitorBestChanged(*Arguments, Grpc_MonitorBestChangedServer) error
+	MonitorPeerState(*Arguments, Grpc_MonitorPeerStateServer) error
 }
 
 func RegisterGrpcServer(s *grpc.Server, srv GrpcServer) {
@@ -2070,6 +2138,48 @@ func (x *grpcModPolicyRoutePolicyServer) Recv() (*PolicyArguments, error) {
 	return m, nil
 }
 
+func _Grpc_MonitorBestChanged_Handler(srv interface{}, stream grpc.ServerStream) error {
+	m := new(Arguments)
+	if err := stream.RecvMsg(m); err != nil {
+		return err
+	}
+	return srv.(GrpcServer).MonitorBestChanged(m, &grpcMonitorBestChangedServer{stream})
+}
+
+type Grpc_MonitorBestChangedServer interface {
+	Send(*Path) error
+	grpc.ServerStream
+}
+
+type grpcMonitorBestChangedServer struct {
+	grpc.ServerStream
+}
+
+func (x *grpcMonitorBestChangedServer) Send(m *Path) error {
+	return x.ServerStream.SendMsg(m)
+}
+
+func _Grpc_MonitorPeerState_Handler(srv interface{}, stream grpc.ServerStream) error {
+	m := new(Arguments)
+	if err := stream.RecvMsg(m); err != nil {
+		return err
+	}
+	return srv.(GrpcServer).MonitorPeerState(m, &grpcMonitorPeerStateServer{stream})
+}
+
+type Grpc_MonitorPeerStateServer interface {
+	Send(*Peer) error
+	grpc.ServerStream
+}
+
+type grpcMonitorPeerStateServer struct {
+	grpc.ServerStream
+}
+
+func (x *grpcMonitorPeerStateServer) Send(m *Peer) error {
+	return x.ServerStream.SendMsg(m)
+}
+
 var _Grpc_serviceDesc = grpc.ServiceDesc{
 	ServiceName: "api.Grpc",
 	HandlerType: (*GrpcServer)(nil),
@@ -2183,6 +2293,16 @@ var _Grpc_serviceDesc = grpc.ServiceDesc{
 			Handler:       _Grpc_ModPolicyRoutePolicy_Handler,
 			ServerStreams: true,
 			ClientStreams: true,
+		},
+		{
+			StreamName:    "MonitorBestChanged",
+			Handler:       _Grpc_MonitorBestChanged_Handler,
+			ServerStreams: true,
+		},
+		{
+			StreamName:    "MonitorPeerState",
+			Handler:       _Grpc_MonitorPeerState_Handler,
+			ServerStreams: true,
 		},
 	},
 }

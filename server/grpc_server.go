@@ -63,11 +63,16 @@ const (
 	REQ_POLICY_ROUTEPOLICY_ADD
 	REQ_POLICY_ROUTEPOLICY_DELETE
 	REQ_POLICY_ROUTEPOLICIES_DELETE
+	REQ_MONITOR_GLOBAL_BEST_CHANGED
+	REQ_MONITOR_NEIGHBOR_PEER_STATE
 )
 
 const GRPC_PORT = 8080
 
 func convertAf2Rf(af *api.AddressFamily) (bgp.RouteFamily, error) {
+	if af == nil {
+		return bgp.RouteFamily(0), fmt.Errorf("address family is nil")
+	}
 	if af.Equal(api.AF_IPV4_UC) {
 		return bgp.RF_IPv4_UC, nil
 	} else if af.Equal(api.AF_IPV6_UC) {
@@ -190,6 +195,58 @@ func (s *Server) GetRib(arg *api.Arguments, stream api.Grpc_GetRibServer) error 
 		}
 	}
 	return nil
+}
+
+func (s *Server) MonitorBestChanged(arg *api.Arguments, stream api.Grpc_MonitorBestChangedServer) error {
+	var reqType int
+	switch arg.Resource {
+	case api.Resource_GLOBAL:
+		reqType = REQ_MONITOR_GLOBAL_BEST_CHANGED
+	default:
+		return fmt.Errorf("unsupported resource type: %v", arg.Resource)
+	}
+
+	rf, err := convertAf2Rf(arg.Af)
+	if err != nil {
+		return err
+	}
+
+	req := NewGrpcRequest(reqType, "", rf, nil)
+	s.bgpServerCh <- req
+
+	for res := range req.ResponseCh {
+		if err = res.Err(); err != nil {
+			log.Debug(err.Error())
+			goto END
+		}
+		if err = stream.Send(res.Data.(*api.Path)); err != nil {
+			goto END
+		}
+	}
+END:
+	req.EndCh <- struct{}{}
+	return err
+}
+
+func (s *Server) MonitorPeerState(arg *api.Arguments, stream api.Grpc_MonitorPeerStateServer) error {
+	var rf bgp.RouteFamily
+	req := NewGrpcRequest(REQ_MONITOR_NEIGHBOR_PEER_STATE, arg.RouterId, rf, nil)
+	s.bgpServerCh <- req
+
+	var err error
+
+	for res := range req.ResponseCh {
+		if err = res.Err(); err != nil {
+			log.Debug(err.Error())
+			goto END
+		}
+		if err = stream.Send(res.Data.(*api.Peer)); err != nil {
+			goto END
+		}
+	}
+END:
+	req.EndCh <- struct{}{}
+	return err
 }
 
 func (s *Server) neighbor(reqType int, arg *api.Arguments) (*api.Error, error) {
@@ -571,6 +628,7 @@ type GrpcRequest struct {
 	RemoteAddr  string
 	RouteFamily bgp.RouteFamily
 	ResponseCh  chan *GrpcResponse
+	EndCh       chan struct{}
 	Err         error
 	Data        interface{}
 }
@@ -581,6 +639,7 @@ func NewGrpcRequest(reqType int, remoteAddr string, rf bgp.RouteFamily, d interf
 		RouteFamily: rf,
 		RemoteAddr:  remoteAddr,
 		ResponseCh:  make(chan *GrpcResponse),
+		EndCh:       make(chan struct{}, 1),
 		Data:        d,
 	}
 	return r
