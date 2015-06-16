@@ -238,19 +238,25 @@ func modPolicyPrefix(modtype string, eArgs []string) error {
 		operation = api.Operation_ADD
 	case CMD_DEL:
 		if len(eArgs) == 0 {
-			operation = api.Operation_DEL_ALL
+			return fmt.Errorf("usage: policy prefix del <prefix set name> [<prefix> [<mask length renge>]]")
 		} else if len(eArgs) == 1 {
 			prefixSet = &api.PrefixSet{
 				PrefixSetName: eArgs[0],
 				PrefixList:    nil,
 			}
-			operation = api.Operation_DEL
 		} else {
 			if prefixSet, e = parsePrefixSet(eArgs); e != nil {
 				return e
 			}
-			operation = api.Operation_DEL
 		}
+		operation = api.Operation_DEL
+	case CMD_ALL:
+		if len(eArgs) > 0 {
+			return fmt.Errorf("Argument can not be entered: %s", eArgs[0:])
+		}
+		operation = api.Operation_DEL_ALL
+	default:
+		return fmt.Errorf("invalid modType %s", modtype)
 	}
 	if e = modPolicy(api.Resource_POLICY_PREFIX, operation, prefixSet); e != nil {
 		return e
@@ -391,19 +397,25 @@ func modPolicyNeighbor(modtype string, eArgs []string) error {
 		operation = api.Operation_ADD
 	case CMD_DEL:
 		if len(eArgs) == 0 {
-			operation = api.Operation_DEL_ALL
+			return fmt.Errorf("usage: policy neighbor del <neighbor set name> [<address>]")
 		} else if len(eArgs) == 1 {
 			neighborSet = &api.NeighborSet{
 				NeighborSetName: eArgs[0],
 				NeighborList:    nil,
 			}
-			operation = api.Operation_DEL
 		} else {
 			if neighborSet, e = parseNeighborSet(eArgs); e != nil {
 				return e
 			}
-			operation = api.Operation_DEL
 		}
+		operation = api.Operation_DEL
+	case CMD_ALL:
+		if len(eArgs) > 0 {
+			return fmt.Errorf("Argument can not be entered: %s", eArgs[0:])
+		}
+		operation = api.Operation_DEL_ALL
+	default:
+		return fmt.Errorf("invalid modType %s", modtype)
 	}
 	if e = modPolicy(api.Resource_POLICY_NEIGHBOR, operation, neighborSet); e != nil {
 		return e
@@ -585,35 +597,29 @@ func modPolicyRoutePolicy(modtype string, eArgs []string) error {
 
 	switch modtype {
 	case CMD_ADD:
-		if len(eArgs) < 3 {
-			return fmt.Errorf("usage:  gobgp policy routepoilcy add <route policy name> <statement name> [conditions|actions]")
+		if len(eArgs) != 2 {
+			return fmt.Errorf("usage:  gobgp policy routepoilcy add <route policy name> <statement name>")
 		}
-		stmtType := eArgs[2]
 		stmt := &api.Statement{}
-		switch stmtType {
-		case CMD_CONDITIONS:
-			conditions, err := parseConditions()
-			if err != nil {
-				return err
-			}
-			stmt.StatementNeme = eArgs[1]
-			stmt.Conditions = conditions
-		case CMD_ACTIONS:
-			actions, err := parseActions()
-			if err != nil {
-				return err
-			}
-			stmt.StatementNeme = eArgs[1]
-			stmt.Actions = actions
-		default:
-			return fmt.Errorf("invalid statement type %s", stmtType)
+		conditions, err := parseConditions()
+		if err != nil {
+			return err
 		}
+		stmt.Conditions = conditions
+
+		actions, err := parseActions()
+		if err != nil {
+			return err
+		}
+		stmt.StatementNeme = eArgs[1]
+		stmt.Actions = actions
+
 		pd.StatementList = []*api.Statement{stmt}
 		operation = api.Operation_ADD
 
 	case CMD_DEL:
 		if len(eArgs) == 0 {
-			operation = api.Operation_DEL_ALL
+			return fmt.Errorf("usage: policy neighbor del <route policy name> [<statement name>]")
 		} else if len(eArgs) == 1 {
 			operation = api.Operation_DEL
 		} else if len(eArgs) == 2 {
@@ -623,6 +629,11 @@ func modPolicyRoutePolicy(modtype string, eArgs []string) error {
 			pd.StatementList = []*api.Statement{stmt}
 			operation = api.Operation_DEL
 		}
+	case CMD_ALL:
+		if len(eArgs) > 0 {
+			return fmt.Errorf("Argument can not be entered: %s", eArgs[0:])
+		}
+		operation = api.Operation_DEL_ALL
 	default:
 		return fmt.Errorf("invalid modType %s", modtype)
 	}
@@ -632,9 +643,54 @@ func modPolicyRoutePolicy(modtype string, eArgs []string) error {
 	return nil
 }
 
+func NewPolicyAddCmd(v string, mod func(string, []string) error) *cobra.Command {
+	policyAddCmd := &cobra.Command{
+		Use: CMD_ADD,
+		Run: func(cmd *cobra.Command, args []string) {
+			err := mod(cmd.Use, args)
+			if err != nil {
+				fmt.Println(err)
+			}
+		},
+	}
+	if v == CMD_ROUTEPOLICY {
+		policyAddCmd.Flags().StringVarP(&conditionOpts.Prefix, "c-prefix", "", "", "a prefix set name of policy condition")
+		policyAddCmd.Flags().StringVarP(&conditionOpts.Neighbor, "c-neighbor", "", "", "a neighbor set name of policy condition")
+		policyAddCmd.Flags().StringVarP(&conditionOpts.AsPathLength, "c-aslen", "", "", "an as path length of policy condition (<operator>,<numeric>)")
+		policyAddCmd.Flags().StringVarP(&conditionOpts.Option, "c-option", "", "", "an option of policy condition")
+		policyAddCmd.Flags().StringVarP(&actionOpts.RouteAction, "a-route", "", "", "a route action of policy action (accept | reject)")
+	}
+
+	return policyAddCmd
+}
+
+func NewPolicyDelCmd(mod func(string, []string) error) *cobra.Command {
+	policyDelCmd := &cobra.Command{
+		Use: CMD_DEL,
+		Run: func(cmd *cobra.Command, args []string) {
+			err := mod(cmd.Use, args)
+			if err != nil {
+				fmt.Println(err)
+			}
+		},
+	}
+
+	subcmd := &cobra.Command{
+		Use: CMD_ALL,
+		Run: func(cmd *cobra.Command, args []string) {
+			err := mod(cmd.Use, args)
+			if err != nil {
+				fmt.Println(err)
+			}
+		},
+	}
+	policyDelCmd.AddCommand(subcmd)
+	return policyDelCmd
+}
+
 func NewPolicyCmd() *cobra.Command {
 	policyCmd := &cobra.Command{
-		Use: "policy",
+		Use: CMD_POLICY,
 	}
 
 	for _, v := range []string{CMD_PREFIX, CMD_NEIGHBOR, CMD_ROUTEPOLICY} {
@@ -671,24 +727,10 @@ func NewPolicyCmd() *cobra.Command {
 			},
 		}
 
-		for _, w := range []string{CMD_ADD, CMD_DEL} {
-			subcmd := &cobra.Command{
-				Use: w,
-				Run: func(cmd *cobra.Command, args []string) {
-					err := mod(cmd.Use, args)
-					if err != nil {
-						fmt.Println(err)
-					}
-				},
-			}
-			cmd.AddCommand(subcmd)
-			if w == CMD_ADD {
-				subcmd.Flags().StringVarP(&conditionOpts.Prefix, "prefix", "", "", "a prefix set name of policy")
-				subcmd.Flags().StringVarP(&conditionOpts.Neighbor, "neighbor", "", "", "a neighbor set name of policy")
-				subcmd.Flags().StringVarP(&conditionOpts.AsPathLength, "aspath-len", "", "", "an AS path length of policy")
-				subcmd.Flags().StringVarP(&conditionOpts.Option, "option", "", "", "an option of policy")
-			}
-		}
+		policyAddCmd := NewPolicyAddCmd(v, mod)
+		cmd.AddCommand(policyAddCmd)
+		policyDelCmd := NewPolicyDelCmd(mod)
+		cmd.AddCommand(policyDelCmd)
 
 		policyCmd.AddCommand(cmd)
 	}
