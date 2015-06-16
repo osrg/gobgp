@@ -37,6 +37,7 @@ It has these top-level messages:
 	Neighbor
 	NeighborSet
 	AsPathLength
+	AsPathSet
 	Conditions
 	Actions
 	Statement
@@ -68,7 +69,8 @@ const (
 	Resource_ADJ_OUT            Resource = 3
 	Resource_POLICY_PREFIX      Resource = 4
 	Resource_POLICY_NEIGHBOR    Resource = 5
-	Resource_POLICY_ROUTEPOLICY Resource = 6
+	Resource_POLICY_ASPATH      Resource = 6
+	Resource_POLICY_ROUTEPOLICY Resource = 7
 )
 
 var Resource_name = map[int32]string{
@@ -78,7 +80,8 @@ var Resource_name = map[int32]string{
 	3: "ADJ_OUT",
 	4: "POLICY_PREFIX",
 	5: "POLICY_NEIGHBOR",
-	6: "POLICY_ROUTEPOLICY",
+	6: "POLICY_ASPATH",
+	7: "POLICY_ROUTEPOLICY",
 }
 var Resource_value = map[string]int32{
 	"GLOBAL":             0,
@@ -87,7 +90,8 @@ var Resource_value = map[string]int32{
 	"ADJ_OUT":            3,
 	"POLICY_PREFIX":      4,
 	"POLICY_NEIGHBOR":    5,
-	"POLICY_ROUTEPOLICY": 6,
+	"POLICY_ASPATH":      6,
+	"POLICY_ROUTEPOLICY": 7,
 }
 
 func (x Resource) String() string {
@@ -994,11 +998,21 @@ func (m *AsPathLength) Reset()         { *m = AsPathLength{} }
 func (m *AsPathLength) String() string { return proto.CompactTextString(m) }
 func (*AsPathLength) ProtoMessage()    {}
 
+type AsPathSet struct {
+	AsPathSetName string   `protobuf:"bytes,1,opt,name=as_path_set_name" json:"as_path_set_name,omitempty"`
+	AsPathMembers []string `protobuf:"bytes,2,rep,name=as_path_members" json:"as_path_members,omitempty"`
+}
+
+func (m *AsPathSet) Reset()         { *m = AsPathSet{} }
+func (m *AsPathSet) String() string { return proto.CompactTextString(m) }
+func (*AsPathSet) ProtoMessage()    {}
+
 type Conditions struct {
 	MatchPrefixSet    *PrefixSet    `protobuf:"bytes,1,opt,name=match_prefix_set" json:"match_prefix_set,omitempty"`
 	MatchNeighborSet  *NeighborSet  `protobuf:"bytes,2,opt,name=match_neighbor_set" json:"match_neighbor_set,omitempty"`
 	MatchAsPathLength *AsPathLength `protobuf:"bytes,3,opt,name=match_as_path_length" json:"match_as_path_length,omitempty"`
-	MatchSetOptions   string        `protobuf:"bytes,4,opt,name=match_set_options" json:"match_set_options,omitempty"`
+	MatchAsPathSet    *AsPathSet    `protobuf:"bytes,4,opt,name=match_as_path_set" json:"match_as_path_set,omitempty"`
+	MatchSetOptions   string        `protobuf:"bytes,5,opt,name=match_set_options" json:"match_set_options,omitempty"`
 }
 
 func (m *Conditions) Reset()         { *m = Conditions{} }
@@ -1022,6 +1036,13 @@ func (m *Conditions) GetMatchNeighborSet() *NeighborSet {
 func (m *Conditions) GetMatchAsPathLength() *AsPathLength {
 	if m != nil {
 		return m.MatchAsPathLength
+	}
+	return nil
+}
+
+func (m *Conditions) GetMatchAsPathSet() *AsPathSet {
+	if m != nil {
+		return m.MatchAsPathSet
 	}
 	return nil
 }

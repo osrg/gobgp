@@ -1048,15 +1048,15 @@ func (server *BgpServer) handleGrpc(grpcReq *GrpcRequest) []*SenderMsg {
 		grpcReq.ResponseCh <- &GrpcResponse{}
 		close(grpcReq.ResponseCh)
 
-	case REQ_POLICY_PREFIXES, REQ_POLICY_NEIGHBORS, REQ_POLICY_ROUTEPOLICIES:
+	case REQ_POLICY_PREFIXES, REQ_POLICY_NEIGHBORS, REQ_POLICY_ASPATHS, REQ_POLICY_ROUTEPOLICIES:
 		server.handleGrpcShowPolicies(grpcReq)
-	case REQ_POLICY_PREFIX, REQ_POLICY_NEIGHBOR, REQ_POLICY_ROUTEPOLICY:
+	case REQ_POLICY_PREFIX, REQ_POLICY_NEIGHBOR, REQ_POLICY_ASPATH, REQ_POLICY_ROUTEPOLICY:
 		server.handleGrpcShowPolicy(grpcReq)
-	case REQ_POLICY_PREFIX_ADD, REQ_POLICY_NEIGHBOR_ADD, REQ_POLICY_ROUTEPOLICY_ADD:
+	case REQ_POLICY_PREFIX_ADD, REQ_POLICY_NEIGHBOR_ADD, REQ_POLICY_ASPATH_ADD, REQ_POLICY_ROUTEPOLICY_ADD:
 		server.handleGrpcAddPolicy(grpcReq)
-	case REQ_POLICY_PREFIX_DELETE, REQ_POLICY_NEIGHBOR_DELETE, REQ_POLICY_ROUTEPOLICY_DELETE:
+	case REQ_POLICY_PREFIX_DELETE, REQ_POLICY_NEIGHBOR_DELETE, REQ_POLICY_ASPATH_DELETE, REQ_POLICY_ROUTEPOLICY_DELETE:
 		server.handleGrpcDelPolicy(grpcReq)
-	case REQ_POLICY_PREFIXES_DELETE, REQ_POLICY_NEIGHBORS_DELETE, REQ_POLICY_ROUTEPOLICIES_DELETE:
+	case REQ_POLICY_PREFIXES_DELETE, REQ_POLICY_NEIGHBORS_DELETE, REQ_POLICY_ASPATHS_DELETE, REQ_POLICY_ROUTEPOLICIES_DELETE:
 		server.handleGrpcDelPolicies(grpcReq)
 	default:
 		errmsg := "Unknown request type"
@@ -1102,6 +1102,22 @@ func (server *BgpServer) handleGrpcShowPolicies(grpcReq *GrpcRequest) {
 			}
 		} else {
 			result.ResponseErr = fmt.Errorf("Policy neighbor doesn't exist.")
+			grpcReq.ResponseCh <- result
+		}
+	case REQ_POLICY_ASPATHS:
+		info := server.routingPolicy.DefinedSets.BgpDefinedSets.AsPathSetList
+		if len(info) > 0 {
+			for _, as := range info {
+				resAsPathSet := policy.AsPathSetToApiStruct(as)
+				pd := &api.PolicyDefinition{}
+				pd.StatementList = []*api.Statement{{Conditions: &api.Conditions{MatchAsPathSet: resAsPathSet}}}
+				result = &GrpcResponse{
+					Data: pd,
+				}
+				grpcReq.ResponseCh <- result
+			}
+		} else {
+			result.ResponseErr = fmt.Errorf("Policy aspath doesn't exist.")
 			grpcReq.ResponseCh <- result
 		}
 	case REQ_POLICY_ROUTEPOLICIES:
@@ -1162,6 +1178,24 @@ func (server *BgpServer) handleGrpcShowPolicy(grpcReq *GrpcRequest) {
 			}
 		} else {
 			result.ResponseErr = fmt.Errorf("policy neighbor that has %v doesn't exist.", name)
+		}
+	case REQ_POLICY_ASPATH:
+		info := server.routingPolicy.DefinedSets.BgpDefinedSets.AsPathSetList
+		resAsPathSet := &api.AsPathSet{}
+		for _, as := range info {
+			if as.AsPathSetName == name {
+				resAsPathSet = policy.AsPathSetToApiStruct(as)
+				break
+			}
+		}
+		if len(resAsPathSet.AsPathMembers) > 0 {
+			pd := &api.PolicyDefinition{}
+			pd.StatementList = []*api.Statement{{Conditions: &api.Conditions{MatchAsPathSet: resAsPathSet}}}
+			result = &GrpcResponse{
+				Data: pd,
+			}
+		} else {
+			result.ResponseErr = fmt.Errorf("policy aspath that has %v doesn't exist.", name)
 		}
 	case REQ_POLICY_ROUTEPOLICY:
 		log.Error("IN RoutePolicy")
@@ -1232,6 +1266,27 @@ func (server *BgpServer) handleGrpcAddPolicy(grpcReq *GrpcRequest) {
 			}
 		}
 		server.routingPolicy.DefinedSets.NeighborSetList = conNeighborSetList
+	case REQ_POLICY_ASPATH_ADD:
+		reqAsPathSet := grpcReq.Data.(*api.PolicyDefinition).StatementList[0].Conditions.MatchAsPathSet
+		conAsPathSetList := server.routingPolicy.DefinedSets.BgpDefinedSets.AsPathSetList
+		isReqAsPathSet, asPathSet := policy.AsPathSetToConfigStruct(reqAsPathSet)
+		if !isReqAsPathSet {
+			result.ResponseErr = fmt.Errorf("doesn't reqest of policy aspath.")
+			grpcReq.ResponseCh <- result
+			close(grpcReq.ResponseCh)
+		}
+		// If the same NeighborSet is not set, add NeighborSet of request to the end.
+		// If only name of the NeighborSet is same, overwrite with NeighborSet of request
+		idxAsPathSet, idxAsPath := policy.IndexOfAsPathSet(conAsPathSetList, asPathSet)
+		if idxAsPathSet == -1 {
+			conAsPathSetList = append(conAsPathSetList, asPathSet)
+		} else {
+			if idxAsPath == -1 {
+				conAsPathSetList[idxAsPathSet].AsPathSetMembers =
+					append(conAsPathSetList[idxAsPathSet].AsPathSetMembers, asPathSet.AsPathSetMembers[0])
+			}
+		}
+		server.routingPolicy.DefinedSets.BgpDefinedSets.AsPathSetList = conAsPathSetList
 	case REQ_POLICY_ROUTEPOLICY_ADD:
 		reqPolicy := grpcReq.Data.(*api.PolicyDefinition)
 		reqConditions := reqPolicy.StatementList[0].Conditions
@@ -1257,6 +1312,9 @@ func (server *BgpServer) handleGrpcAddPolicy(grpcReq *GrpcRequest) {
 					}
 					if reqConditions.MatchSetOptions != "" {
 						conStatement.Conditions.MatchSetOptions = statement.Conditions.MatchSetOptions
+					}
+					if reqConditions.MatchAsPathSet != nil {
+						conStatement.Conditions.BgpConditions.MatchAsPathSet = statement.Conditions.BgpConditions.MatchAsPathSet
 					}
 					if reqConditions.MatchAsPathLength != nil {
 						conStatement.Conditions.BgpConditions.AsPathLength = statement.Conditions.BgpConditions.AsPathLength
@@ -1353,6 +1411,36 @@ func (server *BgpServer) handleGrpcDelPolicy(grpcReq *GrpcRequest) {
 			}
 		}
 		server.routingPolicy.DefinedSets.NeighborSetList = conNeighborSetList
+	case REQ_POLICY_ASPATH_DELETE:
+		reqAsPathSet := grpcReq.Data.(*api.PolicyDefinition).StatementList[0].Conditions.MatchAsPathSet
+		conAsPathSetList := server.routingPolicy.DefinedSets.BgpDefinedSets.AsPathSetList
+		result := &GrpcResponse{}
+		isReqAsPathSet, asPathSet := policy.AsPathSetToConfigStruct(reqAsPathSet)
+		// If only name of the NeighborSet is same, delete all of the elements of the NeighborSet.
+		// If the same element NeighborSet, delete the it's element from NeighborSet.
+		idxAsPathSet, idxAsPath := policy.IndexOfAsPathSet(conAsPathSetList, asPathSet)
+		if isReqAsPathSet {
+			if idxAsPathSet == -1 {
+				result.ResponseErr = fmt.Errorf("Policy aspath that has %v %v doesn't exist.", asPathSet.AsPathSetName,
+					asPathSet.AsPathSetMembers[0])
+			} else {
+				if idxAsPath == -1 {
+					result.ResponseErr = fmt.Errorf("Policy aspath that has %v %v doesn't exist.", asPathSet.AsPathSetName,
+						asPathSet.AsPathSetMembers[0])
+				} else {
+					conAsPathSetList[idxAsPathSet].AsPathSetMembers =
+						append(conAsPathSetList[idxAsPathSet].AsPathSetMembers[:idxAsPath],
+							conAsPathSetList[idxAsPathSet].AsPathSetMembers[idxAsPath+1:]...)
+				}
+			}
+		} else {
+			if idxAsPathSet == -1 {
+				result.ResponseErr = fmt.Errorf("Policy aspath %v doesn't  exist.", asPathSet.AsPathSetName)
+			} else {
+				conAsPathSetList = append(conAsPathSetList[:idxAsPathSet], conAsPathSetList[idxAsPathSet+1:]...)
+			}
+		}
+		server.routingPolicy.DefinedSets.BgpDefinedSets.AsPathSetList = conAsPathSetList
 	case REQ_POLICY_ROUTEPOLICY_DELETE:
 		reqPolicy := grpcReq.Data.(*api.PolicyDefinition)
 		conPolicyList := server.routingPolicy.PolicyDefinitionList
@@ -1398,6 +1486,8 @@ func (server *BgpServer) handleGrpcDelPolicies(grpcReq *GrpcRequest) {
 		server.routingPolicy.DefinedSets.PrefixSetList = make([]config.PrefixSet, 0)
 	case REQ_POLICY_NEIGHBORS_DELETE:
 		server.routingPolicy.DefinedSets.NeighborSetList = make([]config.NeighborSet, 0)
+	case REQ_POLICY_ASPATHS_DELETE:
+		server.routingPolicy.DefinedSets.BgpDefinedSets.AsPathSetList = make([]config.AsPathSet, 0)
 	case REQ_POLICY_ROUTEPOLICIES_DELETE:
 		server.routingPolicy.PolicyDefinitionList = make([]config.PolicyDefinition, 0)
 	}

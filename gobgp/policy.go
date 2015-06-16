@@ -27,6 +27,7 @@ import (
 	"sort"
 	"strconv"
 	"strings"
+	"regexp"
 )
 
 func formatPolicyPrefix(prefixSetList []*api.PrefixSet) (string, string) {
@@ -192,6 +193,8 @@ func modPolicy(resource api.Resource, op api.Operation, data interface{}) error 
 			co.MatchPrefixSet = data.(*api.PrefixSet)
 		case api.Resource_POLICY_NEIGHBOR:
 			co.MatchNeighborSet = data.(*api.NeighborSet)
+		case api.Resource_POLICY_ASPATH:
+			co.MatchAsPathSet = data.(*api.AsPathSet)
 		}
 		pd.StatementList = []*api.Statement{{Conditions: co}}
 	} else {
@@ -423,6 +426,156 @@ func modPolicyNeighbor(modtype string, eArgs []string) error {
 	return nil
 }
 
+func formatPolicyAsPath(asPathSetList []*api.AsPathSet) string {
+	maxNameLen := len("Name")
+	maxPathLen := len("AsPath")
+	for _, as := range asPathSetList {
+		if len(as.AsPathSetName) > maxNameLen {
+			maxNameLen = len(as.AsPathSetName)
+		}
+		for _, m := range as.AsPathMembers {
+			if len(m) > maxPathLen {
+				maxPathLen = len(m)
+			}
+		}
+	}
+	format := "%-" + fmt.Sprint(maxNameLen) + "s  %-" + fmt.Sprint(maxPathLen) + "s\n"
+	return format
+}
+
+
+func showPolicyAsPaths() error {
+	arg := &api.PolicyArguments{
+		Resource: api.Resource_POLICY_ASPATH,
+	}
+	stream, e := client.GetPolicyRoutePolicies(context.Background(), arg)
+	if e != nil {
+		return e
+	}
+	m := aspaths{}
+	for {
+		a, e := stream.Recv()
+		if e == io.EOF {
+			break
+		} else if e != nil {
+			return e
+		}
+		m = append(m, a.StatementList[0].Conditions.MatchAsPathSet)
+	}
+	if globalOpts.Json {
+		j, _ := json.Marshal(m)
+		fmt.Println(string(j))
+		return nil
+	}
+	if globalOpts.Quiet {
+		for _, a := range m {
+			fmt.Println(a.AsPathSetName)
+		}
+		return nil
+	}
+	sort.Sort(m)
+
+	format := formatPolicyAsPath(m)
+	fmt.Printf(format, "Name", "AsPath")
+	for _, as := range m {
+		for i, m := range as.AsPathMembers {
+			if i == 0 {
+				fmt.Printf(format, as.AsPathSetName, m)
+			} else {
+				fmt.Printf(format, "", m)
+			}
+		}
+	}
+	return nil
+}
+
+func showPolicyAsPath(args []string) error {
+	arg := &api.PolicyArguments{
+		Resource: api.Resource_POLICY_ASPATH,
+		Name:     args[0],
+	}
+	pd, e := client.GetPolicyRoutePolicy(context.Background(), arg)
+	if e != nil {
+		return e
+	}
+	as := pd.StatementList[0].Conditions.MatchAsPathSet
+	if globalOpts.Json {
+		j, _ := json.Marshal(as)
+		fmt.Println(string(j))
+		return nil
+	}
+	if globalOpts.Quiet {
+		for _, a := range as.AsPathMembers {
+			fmt.Println(a)
+		}
+		return nil
+	}
+	format := formatPolicyAsPath([]*api.AsPathSet{as})
+	fmt.Printf(format, "Name", "AsPath")
+	for i, m := range as.AsPathMembers {
+		if i == 0 {
+			fmt.Printf(format, as.AsPathSetName, m)
+		} else {
+			fmt.Printf(format, "", m)
+		}
+	}
+	return nil
+}
+
+func parseAsPathSet(eArgs []string) (*api.AsPathSet, error) {
+	regAsn, _ := regexp.Compile("^(\\^?)([0-9]+)(\\$?)$")
+	if !regAsn.MatchString(eArgs[1]) {
+		return nil, fmt.Errorf("invalid aspath: %s\nplease enter aspath format", eArgs[1])
+	}
+	asPathSet := &api.AsPathSet{
+		AsPathSetName: eArgs[0],
+		AsPathMembers: []string{eArgs[1]},
+	}
+	return asPathSet, nil
+}
+
+func modPolicyAsPath(modtype string, eArgs []string) error {
+	asPathSet := &api.AsPathSet{}
+	var e error
+	var operation api.Operation
+
+	switch modtype {
+	case CMD_ADD:
+		if len(eArgs) < 2 {
+			return fmt.Errorf("usage: policy aspath add <aspath set name> <aspath>")
+		}
+		if asPathSet, e = parseAsPathSet(eArgs); e != nil {
+			return e
+		}
+		operation = api.Operation_ADD
+	case CMD_DEL:
+		if len(eArgs) == 0 {
+			return fmt.Errorf("usage: policy aspath del <aspath set name> [<aspath>]")
+		} else if len(eArgs) == 1 {
+			asPathSet = &api.AsPathSet{
+				AsPathSetName: eArgs[0],
+				AsPathMembers: nil,
+			}
+		} else {
+			if asPathSet, e = parseAsPathSet(eArgs); e != nil {
+				return e
+			}
+		}
+		operation = api.Operation_DEL
+	case CMD_ALL:
+		if len(eArgs) > 0 {
+			return fmt.Errorf("Argument can not be entered: %s", eArgs[0:])
+		}
+		operation = api.Operation_DEL_ALL
+	default:
+		return fmt.Errorf("invalid modType %s", modtype)
+	}
+	if e = modPolicy(api.Resource_POLICY_ASPATH, operation, asPathSet); e != nil {
+		return e
+	}
+	return nil
+}
+
 func showPolicyStatement(head string, pd *api.PolicyDefinition) {
 	for _, st := range pd.StatementList {
 		fmt.Printf("%s  StatementName %s:\n", head, st.StatementNeme)
@@ -453,6 +606,20 @@ func showPolicyStatement(head string, pd *api.PolicyDefinition) {
 					fmt.Printf(nameFormat, "")
 				}
 				fmt.Println(neighbor.Address)
+			}
+		} else {
+			fmt.Print("\n")
+		}
+		asPathSet := st.Conditions.MatchAsPathSet
+		fmt.Printf("%s      AsPathSet:    %s  ", head, asPathSet.AsPathSetName)
+		if len(asPathSet.AsPathMembers) != 0 {
+			nameFormat := "%-" + fmt.Sprint(len(asPathSet.AsPathSetName)+2) + "s"
+			for i, asPath := range asPathSet.AsPathMembers {
+				if i != 0 {
+					fmt.Printf("%s                    ", head)
+					fmt.Printf(nameFormat, "")
+				}
+				fmt.Println(asPath)
 			}
 		} else {
 			fmt.Print("\n")
@@ -543,6 +710,11 @@ func parseConditions() (*api.Conditions, error) {
 	if conditionOpts.Neighbor != "" {
 		conditions.MatchNeighborSet = &api.NeighborSet{
 			NeighborSetName: conditionOpts.Neighbor,
+		}
+	}
+	if conditionOpts.AsPath != "" {
+		conditions.MatchAsPathSet = &api.AsPathSet{
+			AsPathSetName: conditionOpts.AsPath,
 		}
 	}
 	if conditionOpts.AsPathLength != "" {
@@ -656,6 +828,7 @@ func NewPolicyAddCmd(v string, mod func(string, []string) error) *cobra.Command 
 	if v == CMD_ROUTEPOLICY {
 		policyAddCmd.Flags().StringVarP(&conditionOpts.Prefix, "c-prefix", "", "", "a prefix set name of policy condition")
 		policyAddCmd.Flags().StringVarP(&conditionOpts.Neighbor, "c-neighbor", "", "", "a neighbor set name of policy condition")
+		policyAddCmd.Flags().StringVarP(&conditionOpts.Neighbor, "c-aspath", "", "", "as set name of policy condition")
 		policyAddCmd.Flags().StringVarP(&conditionOpts.AsPathLength, "c-aslen", "", "", "an as path length of policy condition (<operator>,<numeric>)")
 		policyAddCmd.Flags().StringVarP(&conditionOpts.Option, "c-option", "", "", "an option of policy condition")
 		policyAddCmd.Flags().StringVarP(&actionOpts.RouteAction, "a-route", "", "", "a route action of policy action (accept | reject)")
@@ -693,7 +866,7 @@ func NewPolicyCmd() *cobra.Command {
 		Use: CMD_POLICY,
 	}
 
-	for _, v := range []string{CMD_PREFIX, CMD_NEIGHBOR, CMD_ROUTEPOLICY} {
+	for _, v := range []string{CMD_PREFIX, CMD_NEIGHBOR, CMD_ASPATH, CMD_ROUTEPOLICY} {
 		var showAll func() error
 		var showOne func([]string) error
 		var mod func(string, []string) error
@@ -706,6 +879,10 @@ func NewPolicyCmd() *cobra.Command {
 			showAll = showPolicyNeighbors
 			showOne = showPolicyNeighbor
 			mod = modPolicyNeighbor
+		case CMD_ASPATH:
+			showAll = showPolicyAsPaths
+			showOne = showPolicyAsPath
+			mod = modPolicyAsPath
 		case CMD_ROUTEPOLICY:
 			showAll = showPolicyRoutePolicies
 			showOne = showPolicyRoutePolicy

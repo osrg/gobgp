@@ -986,6 +986,29 @@ func IndexOfNeighborSet(conNeighborSetList []config.NeighborSet, reqNeighborSet 
 	return idxNeighborSet, idxNeighbor
 }
 
+// find index AsPathSet of request from AsPathSet of configuration file.
+// Return the idxAsPathSet of the location where the name of AsPathSet matches,
+// and idxAsPath of the location where element of AsPathSet matches
+func IndexOfAsPathSet(conAsPathSetList []config.AsPathSet, reqAsPathSet config.AsPathSet) (int, int) {
+	idxAsPathSet := -1
+	idxAsPath := -1
+	for i, conAsPathSet := range conAsPathSetList {
+		if conAsPathSet.AsPathSetName == reqAsPathSet.AsPathSetName {
+			idxAsPathSet = i
+			if len(reqAsPathSet.AsPathSetMembers) == 0 {
+				return idxAsPathSet, idxAsPath
+			}
+			for j, conAsPath := range conAsPathSet.AsPathSetMembers {
+				if conAsPath == reqAsPathSet.AsPathSetMembers[0] {
+					idxAsPath = j
+					return idxAsPathSet, idxAsPath
+				}
+			}
+		}
+	}
+	return idxAsPathSet, idxAsPath
+}
+
 // find index PolicyDefinition of request from PolicyDefinition of configuration file.
 // Return the idxPolicyDefinition of the location where the name of PolicyDefinition matches,
 // and idxStatement of the location where Statement of PolicyDefinition matches
@@ -1091,15 +1114,28 @@ func NeighborSetToConfigStruct(reqNeighborSet *api.NeighborSet) (bool, config.Ne
 	return isReqNeighborSet, neighborSet
 }
 
-func AsPathLengthToConfigStruct(reqAsPathLength *api.AsPathLength) config.AsPathLength {
-	operator := reqAsPathLength.Operator
-	value := reqAsPathLength.Value
-	valueUint, _ := strconv.ParseUint(value, 10, 32)
-	asPathLength := config.AsPathLength{
-		Operator: operator,
-		Value:    uint32(valueUint),
+func AsPathSetToApiStruct(as config.AsPathSet) *api.AsPathSet {
+	resAsPathMembers := make([]string, 0)
+	for _, m := range as.AsPathSetMembers {
+		resAsPathMembers = append(resAsPathMembers, m)
 	}
-	return asPathLength
+	resAsPathSet := &api.AsPathSet{
+		AsPathSetName: as.AsPathSetName,
+		AsPathMembers: resAsPathMembers,
+	}
+	return resAsPathSet
+}
+
+func AsPathSetToConfigStruct(reqAsPathSet *api.AsPathSet) (bool, config.AsPathSet) {
+	isAsPathSetSet := true
+	if len(reqAsPathSet.AsPathMembers) == 0 {
+		isAsPathSetSet = false
+	}
+	asPathSet := config.AsPathSet{
+		AsPathSetName:    reqAsPathSet.AsPathSetName,
+		AsPathSetMembers: reqAsPathSet.AsPathMembers,
+	}
+	return isAsPathSetSet, asPathSet
 }
 
 func AsPathLengthToApiStruct(asPathLength config.AsPathLength) *api.AsPathLength {
@@ -1114,6 +1150,17 @@ func AsPathLengthToApiStruct(asPathLength config.AsPathLength) *api.AsPathLength
 	return resAsPathLength
 }
 
+func AsPathLengthToConfigStruct(reqAsPathLength *api.AsPathLength) config.AsPathLength {
+	operator := reqAsPathLength.Operator
+	value := reqAsPathLength.Value
+	valueUint, _ := strconv.ParseUint(value, 10, 32)
+	asPathLength := config.AsPathLength{
+		Operator: operator,
+		Value:    uint32(valueUint),
+	}
+	return asPathLength
+}
+
 func ConditionsToConfigStruct(reqConditions *api.Conditions) config.Conditions {
 	conditions := config.Conditions{}
 	if reqConditions.MatchPrefixSet != nil {
@@ -1121,6 +1168,9 @@ func ConditionsToConfigStruct(reqConditions *api.Conditions) config.Conditions {
 	}
 	if reqConditions.MatchNeighborSet != nil {
 		conditions.MatchNeighborSet = reqConditions.MatchNeighborSet.NeighborSetName
+	}
+	if reqConditions.MatchAsPathSet != nil {
+		conditions.BgpConditions.MatchAsPathSet = reqConditions.MatchAsPathSet.AsPathSetName
 	}
 	if reqConditions.MatchAsPathLength != nil {
 		conditions.BgpConditions.AsPathLength =
@@ -1180,6 +1230,7 @@ func PolicyDefinitionToConfigStruct(reqPolicy *api.PolicyDefinition) (bool, conf
 func PolicyDefinitionToApiStruct(pd config.PolicyDefinition, df config.DefinedSets) *api.PolicyDefinition {
 	conPrefixSetList := df.PrefixSetList
 	conNeighborSetList := df.NeighborSetList
+	conAsPathSetList := df.BgpDefinedSets.AsPathSetList
 	resStatementList := make([]*api.Statement, 0)
 	for _, st := range pd.StatementList {
 		conditions := st.Conditions
@@ -1191,20 +1242,29 @@ func PolicyDefinitionToApiStruct(pd config.PolicyDefinition, df config.DefinedSe
 		neighborSet := &api.NeighborSet{
 			NeighborSetName: conditions.MatchNeighborSet,
 		}
+		asPathSet := &api.AsPathSet{
+			AsPathSetName: conditions.BgpConditions.MatchAsPathSet,
+		}
+		// consider later whether treatment of here need
 		_, conPrefixSet := PrefixSetToConfigStruct(prefixSet)
 		_, conNeighborSet := NeighborSetToConfigStruct(neighborSet)
+		_, conAsPathSet := AsPathSetToConfigStruct(asPathSet)
 		idxPrefixSet, _ := IndexOfPrefixSet(conPrefixSetList, conPrefixSet)
 		idxNeighborSet, _ := IndexOfNeighborSet(conNeighborSetList, conNeighborSet)
-
+		idxAsPathSet, _ := IndexOfAsPathSet(conAsPathSetList, conAsPathSet)
 		if idxPrefixSet != -1 {
 			prefixSet = PrefixSetToApiStruct(conPrefixSetList[idxPrefixSet])
 		}
 		if idxNeighborSet != -1 {
 			neighborSet = NeighborSetToApiStruct(conNeighborSetList[idxNeighborSet])
 		}
+		if idxAsPathSet != -1 {
+			asPathSet = AsPathSetToApiStruct(conAsPathSetList[idxAsPathSet])
+		}
 		resConditions := &api.Conditions{
 			MatchPrefixSet:    prefixSet,
 			MatchNeighborSet:  neighborSet,
+			MatchAsPathSet:    asPathSet,
 			MatchAsPathLength: AsPathLengthToApiStruct(st.Conditions.BgpConditions.AsPathLength),
 			MatchSetOptions:   MatchSetOptionToString(conditions.MatchSetOptions),
 		}

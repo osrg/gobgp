@@ -45,6 +45,7 @@ const (
 	CMD_ENABLE         = "enable"
 	CMD_DISABLE        = "disable"
 	CMD_PREFIX         = "prefix"
+	CMD_ASPATH         = "aspath"
 	CMD_ROUTEPOLICY    = "routepolicy"
 	CMD_CONDITIONS     = "conditions"
 	CMD_ACTIONS        = "actions"
@@ -63,6 +64,7 @@ var neighborsOpts struct {
 var conditionOpts struct {
 	Prefix       string `long:"prefix" description:"specifying a prefix set name of policy"`
 	Neighbor     string `long:"neighbor" description:"specifying a neighbor set name of policy"`
+	AsPath       string `long:"aspath" description:"specifying an as set name of policy"`
 	AsPathLength string `long:"aspath-len" description:"specifying an as path length of policy (<operator>,<numeric>)"`
 	Option       string `long:"option" description:"specifying an option of policy (any | all | invert)"`
 }
@@ -195,6 +197,20 @@ func (n neighbors) Swap(i, j int) {
 
 func (n neighbors) Less(i, j int) bool {
 	return n[i].NeighborSetName < n[j].NeighborSetName
+}
+
+type aspaths []*api.AsPathSet
+
+func (a aspaths) Len() int {
+	return len(a)
+}
+
+func (a aspaths) Swap(i, j int) {
+	a[i], a[j] = a[j], a[i]
+}
+
+func (a aspaths) Less(i, j int) bool {
+	return a[i].AsPathSetName < a[j].AsPathSetName
 }
 
 type policyDefinitions []*api.PolicyDefinition
