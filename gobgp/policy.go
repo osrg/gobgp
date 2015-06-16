@@ -55,9 +55,8 @@ func showPolicyPrefixes() error {
 	arg := &api.PolicyArguments{
 		Resource: api.Resource_POLICY_PREFIX,
 	}
-	stream, e := client.GetPolicyPrefixes(context.Background(), arg)
+	stream, e := client.GetPolicyRoutePolicies(context.Background(), arg)
 	if e != nil {
-		fmt.Println(e)
 		return e
 	}
 	m := prefixes{}
@@ -68,7 +67,7 @@ func showPolicyPrefixes() error {
 		} else if e != nil {
 			return e
 		}
-		m = append(m, p)
+		m = append(m, p.StatementList[0].Conditions.MatchPrefixSet)
 	}
 
 	if globalOpts.Json {
@@ -105,11 +104,11 @@ func showPolicyPrefix(args []string) error {
 		Resource: api.Resource_POLICY_PREFIX,
 		Name:     args[0],
 	}
-	ps, e := client.GetPolicyPrefix(context.Background(), arg)
+	pd, e := client.GetPolicyRoutePolicy(context.Background(), arg)
 	if e != nil {
 		return e
 	}
-
+	ps := pd.StatementList[0].Conditions.MatchPrefixSet
 	if globalOpts.Json {
 		j, _ := json.Marshal(ps)
 		fmt.Println(string(j))
@@ -184,6 +183,44 @@ func parsePrefixSet(eArgs []string) (*api.PrefixSet, error) {
 	}
 	return prefixSet, nil
 }
+func modPolicy(resource api.Resource, op api.Operation, data interface{}) error {
+	pd := &api.PolicyDefinition{}
+	if resource != api.Resource_POLICY_ROUTEPOLICY {
+		co := &api.Conditions{}
+		switch resource {
+		case api.Resource_POLICY_PREFIX:
+			co.MatchPrefixSet = data.(*api.PrefixSet)
+		case api.Resource_POLICY_NEIGHBOR:
+			co.MatchNeighborSet = data.(*api.NeighborSet)
+		}
+		pd.StatementList = []*api.Statement{{Conditions: co}}
+	} else {
+		pd = data.(*api.PolicyDefinition)
+	}
+	arg := &api.PolicyArguments{
+		Resource:         resource,
+		Operation:        op,
+		PolicyDefinition: pd,
+	}
+	stream, err := client.ModPolicyRoutePolicy(context.Background())
+	if err != nil {
+		return err
+	}
+	err = stream.Send(arg)
+	if err != nil {
+		return err
+	}
+	stream.CloseSend()
+
+	res, e := stream.Recv()
+	if e != nil {
+		return e
+	}
+	if res.Code != api.Error_SUCCESS {
+		return fmt.Errorf("error: code: %d, msg: %s", res.Code, res.Msg)
+	}
+	return nil
+}
 
 func modPolicyPrefix(modtype string, eArgs []string) error {
 	prefixSet := &api.PrefixSet{}
@@ -215,28 +252,8 @@ func modPolicyPrefix(modtype string, eArgs []string) error {
 			operation = api.Operation_DEL
 		}
 	}
-
-	arg := &api.PolicyArguments{
-		Resource:  api.Resource_POLICY_PREFIX,
-		Operation: operation,
-		PrefixSet: prefixSet,
-	}
-	stream, err := client.ModPolicyPrefix(context.Background())
-	if err != nil {
-		return err
-	}
-	err = stream.Send(arg)
-	if err != nil {
-		return err
-	}
-	stream.CloseSend()
-
-	res, e := stream.Recv()
-	if e != nil {
+	if e = modPolicy(api.Resource_POLICY_PREFIX, operation, prefixSet); e != nil {
 		return e
-	}
-	if res.Code != api.Error_SUCCESS {
-		return fmt.Errorf("error: code: %d, msg: %s", res.Code, res.Msg)
 	}
 	return nil
 }
@@ -262,20 +279,19 @@ func showPolicyNeighbors() error {
 	arg := &api.PolicyArguments{
 		Resource: api.Resource_POLICY_NEIGHBOR,
 	}
-	stream, e := client.GetPolicyNeighbors(context.Background(), arg)
+	stream, e := client.GetPolicyRoutePolicies(context.Background(), arg)
 	if e != nil {
-		fmt.Println(e)
 		return e
 	}
 	m := neighbors{}
 	for {
-		n, e := stream.Recv()
+		p, e := stream.Recv()
 		if e == io.EOF {
 			break
 		} else if e != nil {
 			return e
 		}
-		m = append(m, n)
+		m = append(m, p.StatementList[0].Conditions.MatchNeighborSet)
 	}
 
 	if globalOpts.Json {
@@ -311,11 +327,11 @@ func showPolicyNeighbor(args []string) error {
 		Resource: api.Resource_POLICY_NEIGHBOR,
 		Name:     args[0],
 	}
-	ns, e := client.GetPolicyNeighbor(context.Background(), arg)
+	pd, e := client.GetPolicyRoutePolicy(context.Background(), arg)
 	if e != nil {
 		return e
 	}
-
+	ns := pd.StatementList[0].Conditions.MatchNeighborSet
 	if globalOpts.Json {
 		j, _ := json.Marshal(ns)
 		fmt.Println(string(j))
@@ -389,28 +405,8 @@ func modPolicyNeighbor(modtype string, eArgs []string) error {
 			operation = api.Operation_DEL
 		}
 	}
-
-	arg := &api.PolicyArguments{
-		Resource:    api.Resource_POLICY_NEIGHBOR,
-		Operation:   operation,
-		NeighborSet: neighborSet,
-	}
-	stream, err := client.ModPolicyNeighbor(context.Background())
-	if err != nil {
-		return err
-	}
-	err = stream.Send(arg)
-	if err != nil {
-		return err
-	}
-	stream.CloseSend()
-
-	res, e := stream.Recv()
-	if e != nil {
+	if e = modPolicy(api.Resource_POLICY_NEIGHBOR, operation, neighborSet); e != nil {
 		return e
-	}
-	if res.Code != api.Error_SUCCESS {
-		return fmt.Errorf("error: code: %d, msg: %s", res.Code, res.Msg)
 	}
 	return nil
 }
@@ -464,7 +460,6 @@ func showPolicyRoutePolicies() error {
 	}
 	stream, e := client.GetPolicyRoutePolicies(context.Background(), arg)
 	if e != nil {
-		fmt.Println(e)
 		return e
 	}
 	m := policyDefinitions{}
@@ -631,27 +626,8 @@ func modPolicyRoutePolicy(modtype string, eArgs []string) error {
 	default:
 		return fmt.Errorf("invalid modType %s", modtype)
 	}
-	arg := &api.PolicyArguments{
-		Resource:         api.Resource_POLICY_ROUTEPOLICY,
-		Operation:        operation,
-		PolicyDifinition: pd,
-	}
-	stream, err := client.ModPolicyNeighbor(context.Background())
-	if err != nil {
-		return err
-	}
-	err = stream.Send(arg)
-	if err != nil {
-		return err
-	}
-	stream.CloseSend()
-
-	res, e := stream.Recv()
-	if e != nil {
+	if e := modPolicy(api.Resource_POLICY_ROUTEPOLICY, operation, pd); e != nil {
 		return e
-	}
-	if res.Code != api.Error_SUCCESS {
-		return fmt.Errorf("error: code: %d, msg: %s", res.Code, res.Msg)
 	}
 	return nil
 }

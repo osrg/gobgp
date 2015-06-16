@@ -939,91 +939,6 @@ func MatchSetOptionToString(option config.MatchSetOptionsType) string {
 	return op
 }
 
-func (p *Policy) ToApiStruct() *api.PolicyDefinition {
-	resStatements := make([]*api.Statement, 0)
-	for _, st := range p.Statements {
-		resPrefixSet := &api.PrefixSet{}
-		resNeighborSet := &api.NeighborSet{}
-		resAsPathLength := &api.AsPathLength{}
-		for _, condition := range st.Conditions {
-			switch reflect.TypeOf(condition) {
-			case reflect.TypeOf(&PrefixCondition{}):
-				prefixCondition := condition.(*PrefixCondition)
-				resPrefixList := make([]*api.Prefix, 0)
-				for _, prefix := range prefixCondition.PrefixList {
-
-					resPrefix := &api.Prefix{
-						Address:    prefix.Address.String(),
-						MaskLength: uint32(prefix.Masklength),
-					}
-					if min, ok := prefix.MasklengthRange[MASK_LENGTH_RANGE_MIN]; ok {
-						if max, ok := prefix.MasklengthRange[MASK_LENGTH_RANGE_MAX]; ok {
-							resPrefix.MaskLengthRange = fmt.Sprintf("%d..%d", min, max)
-						}
-					}
-
-					resPrefixList = append(resPrefixList, resPrefix)
-				}
-				resPrefixSet = &api.PrefixSet{
-					PrefixSetName: prefixCondition.PrefixConditionName,
-					PrefixList:    resPrefixList,
-				}
-			case reflect.TypeOf(&NeighborCondition{}):
-				neighborCondition := condition.(*NeighborCondition)
-				resNeighborList := make([]*api.Neighbor, 0)
-				for _, neighbor := range neighborCondition.NeighborList {
-					resNeighbor := &api.Neighbor{
-						Address: neighbor.String(),
-					}
-					resNeighborList = append(resNeighborList, resNeighbor)
-				}
-				resNeighborSet = &api.NeighborSet{
-					NeighborSetName: neighborCondition.NeighborConditionName,
-					NeighborList:    resNeighborList,
-				}
-			case reflect.TypeOf(&AsPathLengthCondition{}):
-				asPathLengthCondition := condition.(*AsPathLengthCondition)
-				var op string
-				switch asPathLengthCondition.Operator {
-				case ATTRIBUTE_EQ:
-					op = "eq"
-				case ATTRIBUTE_GE:
-					op = "ge"
-				case ATTRIBUTE_LE:
-					op = "le"
-				}
-				resAsPathLength = &api.AsPathLength{
-					Value:    fmt.Sprintf("%d", asPathLengthCondition.Value),
-					Operator: op,
-				}
-			}
-		}
-		resConditions := &api.Conditions{
-			MatchPrefixSet:    resPrefixSet,
-			MatchNeighborSet:  resNeighborSet,
-			MatchAsPathLength: resAsPathLength,
-			MatchSetOptions:   MatchSetOptionToString(st.MatchSetOptions),
-		}
-		resActions := &api.Actions{
-			RouteAction: ROUTE_REJECT,
-		}
-		if st.routingAction.AcceptRoute {
-			resActions.RouteAction = ROUTE_ACCEPT
-		}
-		resStatement := &api.Statement{
-			StatementNeme: st.Name,
-			Conditions:    resConditions,
-			Actions:       resActions,
-		}
-		resStatements = append(resStatements, resStatement)
-	}
-
-	return &api.PolicyDefinition{
-		PolicyDefinitionName: p.Name,
-		StatementList:        resStatements,
-	}
-}
-
 // find index PrefixSet of request from PrefixSet of configuration file.
 // Return the idxPrefixSet of the location where the name of PrefixSet matches,
 // and idxPrefix of the location where element of PrefixSet matches
@@ -1208,11 +1123,8 @@ func ConditionsToConfigStruct(reqConditions *api.Conditions) config.Conditions {
 		conditions.MatchNeighborSet = reqConditions.MatchNeighborSet.NeighborSetName
 	}
 	if reqConditions.MatchAsPathLength != nil {
-		asPathLength := AsPathLengthToConfigStruct(reqConditions.MatchAsPathLength)
-		bgpConditions := config.BgpConditions{
-			AsPathLength: asPathLength,
-		}
-		conditions.BgpConditions = bgpConditions
+		conditions.BgpConditions.AsPathLength =
+			AsPathLengthToConfigStruct(reqConditions.MatchAsPathLength)
 	}
 	var setOption config.MatchSetOptionsType
 	switch reqConditions.MatchSetOptions {
@@ -1228,17 +1140,12 @@ func ConditionsToConfigStruct(reqConditions *api.Conditions) config.Conditions {
 }
 
 func ActionsToConfigStruct(reqActions *api.Actions) config.Actions {
-	acceptRoute := false
-	rejectRoute := false
+	actions := config.Actions{}
 	switch reqActions.RouteAction {
 	case ROUTE_ACCEPT:
-		acceptRoute = true
+		actions.AcceptRoute = true
 	case ROUTE_REJECT:
-		rejectRoute = true
-	}
-	actions := config.Actions{
-		AcceptRoute: acceptRoute,
-		RejectRoute: rejectRoute,
+		actions.RejectRoute = true
 	}
 	return actions
 }
@@ -1295,11 +1202,10 @@ func PolicyDefinitionToApiStruct(pd config.PolicyDefinition, df config.DefinedSe
 		if idxNeighborSet != -1 {
 			neighborSet = NeighborSetToApiStruct(conNeighborSetList[idxNeighborSet])
 		}
-		asPathLength := AsPathLengthToApiStruct(st.Conditions.BgpConditions.AsPathLength)
 		resConditions := &api.Conditions{
 			MatchPrefixSet:    prefixSet,
 			MatchNeighborSet:  neighborSet,
-			MatchAsPathLength: asPathLength,
+			MatchAsPathLength: AsPathLengthToApiStruct(st.Conditions.BgpConditions.AsPathLength),
 			MatchSetOptions:   MatchSetOptionToString(conditions.MatchSetOptions),
 		}
 		resActions := &api.Actions{

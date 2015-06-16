@@ -950,12 +950,6 @@ func (server *BgpServer) handleGrpc(grpcReq *GrpcRequest) []*SenderMsg {
 		if err != nil {
 			break
 		}
-
-		resInPolicies := []*api.PolicyDefinition{}
-		resOutPolicies := []*api.PolicyDefinition{}
-		// Add importpolies that has been set in the configuration file to the list.
-		// However, peer haven't target importpolicy when add PolicyDefinition of name only to the list.
-		conInPolicyNames := peer.config.ApplyPolicy.ImportPolicies
 		loc := server.localRibMap[peer.config.NeighborAddress.String()]
 		if loc == nil {
 			result := &GrpcResponse{
@@ -965,12 +959,19 @@ func (server *BgpServer) handleGrpc(grpcReq *GrpcRequest) []*SenderMsg {
 			close(grpcReq.ResponseCh)
 			break
 		}
+		resInPolicies := []*api.PolicyDefinition{}
+		resOutPolicies := []*api.PolicyDefinition{}
+		pdList := server.routingPolicy.PolicyDefinitionList
+		df := server.routingPolicy.DefinedSets
+		// Add importpolies that has been set in the configuration file to the list.
+		// However, peer haven't target importpolicy when add PolicyDefinition of name only to the list.
+		conInPolicyNames := peer.config.ApplyPolicy.ImportPolicies
 		for _, conInPolicyName := range conInPolicyNames {
 			match := false
-			for _, inPolicy := range loc.importPolicies {
-				if conInPolicyName == inPolicy.Name {
+			for _, pd := range pdList {
+				if conInPolicyName == pd.Name {
 					match = true
-					resInPolicies = append(resInPolicies, inPolicy.ToApiStruct())
+					resInPolicies = append(resInPolicies, policy.PolicyDefinitionToApiStruct(pd, df))
 					break
 				}
 			}
@@ -983,10 +984,10 @@ func (server *BgpServer) handleGrpc(grpcReq *GrpcRequest) []*SenderMsg {
 		conOutPolicyNames := peer.config.ApplyPolicy.ExportPolicies
 		for _, conOutPolicyName := range conOutPolicyNames {
 			match := false
-			for _, outPolicy := range loc.exportPolicies {
-				if conOutPolicyName == outPolicy.Name {
+			for _, pd := range pdList {
+				if conOutPolicyName == pd.Name {
 					match = true
-					resOutPolicies = append(resOutPolicies, outPolicy.ToApiStruct())
+					resOutPolicies = append(resOutPolicies, policy.PolicyDefinitionToApiStruct(pd, df))
 					break
 				}
 			}
@@ -994,6 +995,7 @@ func (server *BgpServer) handleGrpc(grpcReq *GrpcRequest) []*SenderMsg {
 				resOutPolicies = append(resOutPolicies, &api.PolicyDefinition{PolicyDefinitionName: conOutPolicyName})
 			}
 		}
+
 		defaultInPolicy := policy.ROUTE_REJECT
 		defaultOutPolicy := policy.ROUTE_REJECT
 		if loc.defaultImportPolicy == config.DEFAULT_POLICY_TYPE_ACCEPT_ROUTE {
@@ -1019,8 +1021,6 @@ func (server *BgpServer) handleGrpc(grpcReq *GrpcRequest) []*SenderMsg {
 			break
 		}
 		reqApplyPolicy := grpcReq.Data.(*api.ApplyPolicy)
-		grpcReq.Data = []interface{}{reqApplyPolicy, server.policyMap}
-
 		reqPolicyMap := server.policyMap
 		applyPolicy := &peer.config.ApplyPolicy
 		var defInPolicy, defOutPolicy config.DefaultPolicyType
@@ -1048,14 +1048,39 @@ func (server *BgpServer) handleGrpc(grpcReq *GrpcRequest) []*SenderMsg {
 		grpcReq.ResponseCh <- &GrpcResponse{}
 		close(grpcReq.ResponseCh)
 
+	case REQ_POLICY_PREFIXES, REQ_POLICY_NEIGHBORS, REQ_POLICY_ROUTEPOLICIES:
+		server.handleGrpcShowPolicies(grpcReq)
+	case REQ_POLICY_PREFIX, REQ_POLICY_NEIGHBOR, REQ_POLICY_ROUTEPOLICY:
+		server.handleGrpcShowPolicy(grpcReq)
+	case REQ_POLICY_PREFIX_ADD, REQ_POLICY_NEIGHBOR_ADD, REQ_POLICY_ROUTEPOLICY_ADD:
+		server.handleGrpcAddPolicy(grpcReq)
+	case REQ_POLICY_PREFIX_DELETE, REQ_POLICY_NEIGHBOR_DELETE, REQ_POLICY_ROUTEPOLICY_DELETE:
+		server.handleGrpcDelPolicy(grpcReq)
+	case REQ_POLICY_PREFIXES_DELETE, REQ_POLICY_NEIGHBORS_DELETE, REQ_POLICY_ROUTEPOLICIES_DELETE:
+		server.handleGrpcDelPolicies(grpcReq)
+	default:
+		errmsg := "Unknown request type"
+		result := &GrpcResponse{
+			ResponseErr: fmt.Errorf(errmsg),
+		}
+		grpcReq.ResponseCh <- result
+		close(grpcReq.ResponseCh)
+	}
+	return msgs
+}
+
+func (server *BgpServer) handleGrpcShowPolicies(grpcReq *GrpcRequest) {
+	result := &GrpcResponse{}
+	switch grpcReq.RequestType {
 	case REQ_POLICY_PREFIXES:
 		info := server.routingPolicy.DefinedSets.PrefixSetList
-		result := &GrpcResponse{}
 		if len(info) > 0 {
 			for _, ps := range info {
 				resPrefixSet := policy.PrefixSetToApiStruct(ps)
+				pd := &api.PolicyDefinition{}
+				pd.StatementList = []*api.Statement{{Conditions: &api.Conditions{MatchPrefixSet: resPrefixSet}}}
 				result = &GrpcResponse{
-					Data: resPrefixSet,
+					Data: pd,
 				}
 				grpcReq.ResponseCh <- result
 			}
@@ -1063,213 +1088,22 @@ func (server *BgpServer) handleGrpc(grpcReq *GrpcRequest) []*SenderMsg {
 			result.ResponseErr = fmt.Errorf("Policy prefix doesn't exist.")
 			grpcReq.ResponseCh <- result
 		}
-		close(grpcReq.ResponseCh)
-
-	case REQ_POLICY_PREFIX:
-		name := grpcReq.Data.(string)
-		info := server.routingPolicy.DefinedSets.PrefixSetList
-		result := &GrpcResponse{}
-		resPrefixSet := &api.PrefixSet{}
-		for _, ps := range info {
-			if ps.PrefixSetName == name {
-				resPrefixSet = policy.PrefixSetToApiStruct(ps)
-				break
-			}
-		}
-		if len(resPrefixSet.PrefixList) > 0 {
-			result = &GrpcResponse{
-				Data: resPrefixSet,
-			}
-			grpcReq.ResponseCh <- result
-		} else {
-			result.ResponseErr = fmt.Errorf("Policy prefix that has %v doesn't exist.", name)
-			grpcReq.ResponseCh <- result
-		}
-		close(grpcReq.ResponseCh)
-
-	case REQ_POLICY_PREFIX_ADD:
-		reqPrefixSet := grpcReq.Data.(*api.PrefixSet)
-		conPrefixSetList := server.routingPolicy.DefinedSets.PrefixSetList
-		result := &GrpcResponse{}
-		isReqPrefixSet, prefixSet := policy.PrefixSetToConfigStruct(reqPrefixSet)
-		if !isReqPrefixSet {
-			result.ResponseErr = fmt.Errorf("doesn't reqest of policy prefix.")
-			grpcReq.ResponseCh <- result
-			close(grpcReq.ResponseCh)
-		}
-		// If the same PrefixSet is not set, add PrefixSet of request to the end.
-		// If only name of the PrefixSet is same, overwrite with PrefixSet of request
-		idxPrefixSet, idxPrefix := policy.IndexOfPrefixSet(conPrefixSetList, prefixSet)
-		if idxPrefixSet == -1 {
-			conPrefixSetList = append(conPrefixSetList, prefixSet)
-		} else {
-			if idxPrefix == -1 {
-				conPrefixSetList[idxPrefixSet].PrefixList = append(conPrefixSetList[idxPrefixSet].PrefixList, prefixSet.PrefixList[0])
-			}
-		}
-		server.routingPolicy.DefinedSets.PrefixSetList = conPrefixSetList
-		server.handlePolicy(server.routingPolicy)
-		grpcReq.ResponseCh <- result
-		close(grpcReq.ResponseCh)
-
-	case REQ_POLICY_PREFIX_DELETE:
-		reqPrefixSet := grpcReq.Data.(*api.PrefixSet)
-		conPrefixSetList := server.routingPolicy.DefinedSets.PrefixSetList
-		result := &GrpcResponse{}
-		isReqPrefixSet, prefixSet := policy.PrefixSetToConfigStruct(reqPrefixSet)
-		if isReqPrefixSet {
-			// If only name of the PrefixSet is same, delete all of the elements of the PrefixSet.
-			//If the same element PrefixSet, delete the it's element from PrefixSet.
-			idxPrefixSet, idxPrefix := policy.IndexOfPrefixSet(conPrefixSetList, prefixSet)
-			prefix := prefixSet.PrefixList[0]
-			if idxPrefixSet == -1 {
-				result.ResponseErr = fmt.Errorf("Policy prefix that has %v %v/%v %v doesn't exist.", prefixSet.PrefixSetName,
-					prefix.Address, prefix.Masklength, prefix.MasklengthRange)
-			} else {
-				if idxPrefix == -1 {
-					result.ResponseErr = fmt.Errorf("Policy prefix that has %v %v/%v %v doesn't exist.", prefixSet.PrefixSetName,
-						prefix.Address, prefix.Masklength, prefix.MasklengthRange)
-				} else {
-					conPrefixSetList[idxPrefixSet].PrefixList =
-						append(conPrefixSetList[idxPrefixSet].PrefixList[:idxPrefix], conPrefixSetList[idxPrefixSet].PrefixList[idxPrefix+1:]...)
-				}
-			}
-		} else {
-			idxPrefixSet := -1
-			for i, conPrefixSet := range conPrefixSetList {
-				if conPrefixSet.PrefixSetName == reqPrefixSet.PrefixSetName {
-					idxPrefixSet = i
-					break
-				}
-			}
-			if idxPrefixSet == -1 {
-				result.ResponseErr = fmt.Errorf("Policy prefix that has %v doesn't exist.", prefixSet.PrefixSetName)
-			} else {
-				conPrefixSetList = append(conPrefixSetList[:idxPrefixSet], conPrefixSetList[idxPrefixSet+1:]...)
-			}
-		}
-		server.routingPolicy.DefinedSets.PrefixSetList = conPrefixSetList
-		server.handlePolicy(server.routingPolicy)
-		grpcReq.ResponseCh <- result
-		close(grpcReq.ResponseCh)
-
-	case REQ_POLICY_PREFIXES_DELETE:
-		result := &GrpcResponse{}
-		server.routingPolicy.DefinedSets.PrefixSetList = make([]config.PrefixSet, 0)
-		server.handlePolicy(server.routingPolicy)
-		grpcReq.ResponseCh <- result
-		close(grpcReq.ResponseCh)
-
 	case REQ_POLICY_NEIGHBORS:
 		info := server.routingPolicy.DefinedSets.NeighborSetList
-		result := &GrpcResponse{}
 		if len(info) > 0 {
 			for _, ns := range info {
 				resNeighborSet := policy.NeighborSetToApiStruct(ns)
+				pd := &api.PolicyDefinition{}
+				pd.StatementList = []*api.Statement{{Conditions: &api.Conditions{MatchNeighborSet: resNeighborSet}}}
 				result = &GrpcResponse{
-					Data: resNeighborSet,
+					Data: pd,
 				}
 				grpcReq.ResponseCh <- result
 			}
 		} else {
-			result.ResponseErr = fmt.Errorf("Policy neighbor doesn't  exist.")
+			result.ResponseErr = fmt.Errorf("Policy neighbor doesn't exist.")
 			grpcReq.ResponseCh <- result
 		}
-		close(grpcReq.ResponseCh)
-
-	case REQ_POLICY_NEIGHBOR:
-		name := grpcReq.Data.(string)
-		info := server.routingPolicy.DefinedSets.NeighborSetList
-		result := &GrpcResponse{}
-		resNeighborSet := &api.NeighborSet{}
-		for _, ns := range info {
-			if ns.NeighborSetName == name {
-				resNeighborSet = policy.NeighborSetToApiStruct(ns)
-				break
-			}
-		}
-		if len(resNeighborSet.NeighborList) > 0 {
-			result = &GrpcResponse{
-				Data: resNeighborSet,
-			}
-			grpcReq.ResponseCh <- result
-		} else {
-			result.ResponseErr = fmt.Errorf("Policy neighbor that has %v doesn't exist.", name)
-			grpcReq.ResponseCh <- result
-		}
-		close(grpcReq.ResponseCh)
-
-	case REQ_POLICY_NEIGHBOR_ADD:
-		reqNeighborSet := grpcReq.Data.(*api.NeighborSet)
-		conNeighborSetList := server.routingPolicy.DefinedSets.NeighborSetList
-		result := &GrpcResponse{}
-		isReqNeighborSet, neighborSet := policy.NeighborSetToConfigStruct(reqNeighborSet)
-		if !isReqNeighborSet {
-			result.ResponseErr = fmt.Errorf("doesn't reqest of policy neighbor.")
-			grpcReq.ResponseCh <- result
-			close(grpcReq.ResponseCh)
-		}
-		// If the same NeighborSet is not set, add NeighborSet of request to the end.
-		// If only name of the NeighborSet is same, overwrite with NeighborSet of request
-		idxNeighborSet, idxNeighbor := policy.IndexOfNeighborSet(conNeighborSetList, neighborSet)
-		if idxNeighborSet == -1 {
-			conNeighborSetList = append(conNeighborSetList, neighborSet)
-		} else {
-			if idxNeighbor == -1 {
-				conNeighborSetList[idxNeighborSet].NeighborInfoList =
-					append(conNeighborSetList[idxNeighborSet].NeighborInfoList, neighborSet.NeighborInfoList[0])
-			}
-		}
-		server.routingPolicy.DefinedSets.NeighborSetList = conNeighborSetList
-		server.handlePolicy(server.routingPolicy)
-		grpcReq.ResponseCh <- result
-		close(grpcReq.ResponseCh)
-	case REQ_POLICY_NEIGHBOR_DELETE:
-		reqNeighborSet := grpcReq.Data.(*api.NeighborSet)
-		conNeighborSetList := server.routingPolicy.DefinedSets.NeighborSetList
-		result := &GrpcResponse{}
-		isReqNeighborSet, neighborSet := policy.NeighborSetToConfigStruct(reqNeighborSet)
-		if isReqNeighborSet {
-			// If only name of the NeighborSet is same, delete all of the elements of the NeighborSet.
-			// If the same element NeighborSet, delete the it's element from NeighborSet.
-			idxNeighborSet, idxNeighbor := policy.IndexOfNeighborSet(conNeighborSetList, neighborSet)
-			if idxNeighborSet == -1 {
-				result.ResponseErr = fmt.Errorf("Policy neighbor that has %v %v doesn't exist.", neighborSet.NeighborSetName,
-					neighborSet.NeighborInfoList[0].Address)
-			} else {
-				if idxNeighbor == -1 {
-					result.ResponseErr = fmt.Errorf("Policy neighbor that has %v %v doesn't exist.", neighborSet.NeighborSetName,
-						neighborSet.NeighborInfoList[0].Address)
-				} else {
-					conNeighborSetList[idxNeighborSet].NeighborInfoList =
-						append(conNeighborSetList[idxNeighborSet].NeighborInfoList[:idxNeighbor],
-							conNeighborSetList[idxNeighborSet].NeighborInfoList[idxNeighbor+1:]...)
-				}
-			}
-		} else {
-			idxNeighborSet := -1
-			for i, conNeighborSet := range conNeighborSetList {
-				if conNeighborSet.NeighborSetName == reqNeighborSet.NeighborSetName {
-					idxNeighborSet = i
-					break
-				}
-			}
-			if idxNeighborSet == -1 {
-				result.ResponseErr = fmt.Errorf("Policy neighbor %v doesn't  exist.", neighborSet.NeighborSetName)
-			} else {
-				conNeighborSetList = append(conNeighborSetList[:idxNeighborSet], conNeighborSetList[idxNeighborSet+1:]...)
-			}
-		}
-		server.routingPolicy.DefinedSets.NeighborSetList = conNeighborSetList
-		server.handlePolicy(server.routingPolicy)
-		grpcReq.ResponseCh <- result
-		close(grpcReq.ResponseCh)
-	case REQ_POLICY_NEIGHBORS_DELETE:
-		result := &GrpcResponse{}
-		server.routingPolicy.DefinedSets.NeighborSetList = make([]config.NeighborSet, 0)
-		server.handlePolicy(server.routingPolicy)
-		grpcReq.ResponseCh <- result
-		close(grpcReq.ResponseCh)
 	case REQ_POLICY_ROUTEPOLICIES:
 		info := server.routingPolicy.PolicyDefinitionList
 		df := server.routingPolicy.DefinedSets
@@ -1286,12 +1120,53 @@ func (server *BgpServer) handleGrpc(grpcReq *GrpcRequest) []*SenderMsg {
 			result.ResponseErr = fmt.Errorf("Route Policy doesn't exist.")
 			grpcReq.ResponseCh <- result
 		}
-		close(grpcReq.ResponseCh)
+	}
+	close(grpcReq.ResponseCh)
+}
+func (server *BgpServer) handleGrpcShowPolicy(grpcReq *GrpcRequest) {
+	name := grpcReq.Data.(string)
+	result := &GrpcResponse{}
+	switch grpcReq.RequestType {
+	case REQ_POLICY_PREFIX:
+		info := server.routingPolicy.DefinedSets.PrefixSetList
+		resPrefixSet := &api.PrefixSet{}
+		for _, ps := range info {
+			if ps.PrefixSetName == name {
+				resPrefixSet = policy.PrefixSetToApiStruct(ps)
+				break
+			}
+		}
+		if len(resPrefixSet.PrefixList) > 0 {
+			pd := &api.PolicyDefinition{}
+			pd.StatementList = []*api.Statement{{Conditions: &api.Conditions{MatchPrefixSet: resPrefixSet}}}
+			result = &GrpcResponse{
+				Data: pd,
+			}
+		} else {
+			result.ResponseErr = fmt.Errorf("policy prefix that has %v doesn't exist.", name)
+		}
+	case REQ_POLICY_NEIGHBOR:
+		info := server.routingPolicy.DefinedSets.NeighborSetList
+		resNeighborSet := &api.NeighborSet{}
+		for _, ns := range info {
+			if ns.NeighborSetName == name {
+				resNeighborSet = policy.NeighborSetToApiStruct(ns)
+				break
+			}
+		}
+		if len(resNeighborSet.NeighborList) > 0 {
+			pd := &api.PolicyDefinition{}
+			pd.StatementList = []*api.Statement{{Conditions: &api.Conditions{MatchNeighborSet: resNeighborSet}}}
+			result = &GrpcResponse{
+				Data: pd,
+			}
+		} else {
+			result.ResponseErr = fmt.Errorf("policy neighbor that has %v doesn't exist.", name)
+		}
 	case REQ_POLICY_ROUTEPOLICY:
-		name := grpcReq.Data.(string)
+		log.Error("IN RoutePolicy")
 		info := server.routingPolicy.PolicyDefinitionList
 		df := server.routingPolicy.DefinedSets
-		result := &GrpcResponse{}
 		resPolicyDefinition := &api.PolicyDefinition{}
 		for _, pd := range info {
 			if pd.Name == name {
@@ -1299,22 +1174,69 @@ func (server *BgpServer) handleGrpc(grpcReq *GrpcRequest) []*SenderMsg {
 				break
 			}
 		}
+		log.Error("IN RoutePolicy: ",len(resPolicyDefinition.StatementList))
 		if len(resPolicyDefinition.StatementList) > 0 {
 			result = &GrpcResponse{
 				Data: resPolicyDefinition,
 			}
-			grpcReq.ResponseCh <- result
 		} else {
 			result.ResponseErr = fmt.Errorf("Route Policy that has %v doesn't  exist.", name)
-			grpcReq.ResponseCh <- result
 		}
-		close(grpcReq.ResponseCh)
+	}
+	grpcReq.ResponseCh <- result
+	close(grpcReq.ResponseCh)
+}
+
+func (server *BgpServer) handleGrpcAddPolicy(grpcReq *GrpcRequest) {
+	result := &GrpcResponse{}
+	switch grpcReq.RequestType {
+	case REQ_POLICY_PREFIX_ADD:
+		reqPrefixSet := grpcReq.Data.(*api.PolicyDefinition).StatementList[0].Conditions.MatchPrefixSet
+		conPrefixSetList := server.routingPolicy.DefinedSets.PrefixSetList
+		isReqPrefixSet, prefixSet := policy.PrefixSetToConfigStruct(reqPrefixSet)
+		if !isReqPrefixSet {
+			result.ResponseErr = fmt.Errorf("doesn't reqest of policy prefix.")
+			grpcReq.ResponseCh <- result
+			close(grpcReq.ResponseCh)
+		}
+		// If the same PrefixSet is not set, add PrefixSet of request to the end.
+		// If only name of the PrefixSet is same, overwrite with PrefixSet of request
+		idxPrefixSet, idxPrefix := policy.IndexOfPrefixSet(conPrefixSetList, prefixSet)
+		if idxPrefixSet == -1 {
+			conPrefixSetList = append(conPrefixSetList, prefixSet)
+		} else {
+			if idxPrefix == -1 {
+				conPrefixSetList[idxPrefixSet].PrefixList =
+				append(conPrefixSetList[idxPrefixSet].PrefixList, prefixSet.PrefixList[0])
+			}
+		}
+		server.routingPolicy.DefinedSets.PrefixSetList = conPrefixSetList
+	case REQ_POLICY_NEIGHBOR_ADD:
+		reqNeighborSet := grpcReq.Data.(*api.PolicyDefinition).StatementList[0].Conditions.MatchNeighborSet
+		conNeighborSetList := server.routingPolicy.DefinedSets.NeighborSetList
+		isReqNeighborSet, neighborSet := policy.NeighborSetToConfigStruct(reqNeighborSet)
+		if !isReqNeighborSet {
+			result.ResponseErr = fmt.Errorf("doesn't reqest of policy neighbor.")
+			grpcReq.ResponseCh <- result
+			close(grpcReq.ResponseCh)
+		}
+		// If the same NeighborSet is not set, add NeighborSet of request to the end.
+		// If only name of the NeighborSet is same, overwrite with NeighborSet of request
+		idxNeighborSet, idxNeighbor := policy.IndexOfNeighborSet(conNeighborSetList, neighborSet)
+		if idxNeighborSet == -1 {
+			conNeighborSetList = append(conNeighborSetList, neighborSet)
+		} else {
+			if idxNeighbor == -1 {
+				conNeighborSetList[idxNeighborSet].NeighborInfoList =
+				append(conNeighborSetList[idxNeighborSet].NeighborInfoList, neighborSet.NeighborInfoList[0])
+			}
+		}
+		server.routingPolicy.DefinedSets.NeighborSetList = conNeighborSetList
 	case REQ_POLICY_ROUTEPOLICY_ADD:
 		reqPolicy := grpcReq.Data.(*api.PolicyDefinition)
 		reqConditions := reqPolicy.StatementList[0].Conditions
 		reqActions := reqPolicy.StatementList[0].Actions
 		conPolicyList := server.routingPolicy.PolicyDefinitionList
-		result := &GrpcResponse{}
 		_, policyDef := policy.PolicyDefinitionToConfigStruct(reqPolicy)
 		idxPolicy, idxStatement := policy.IndexOfPolicyDefinition(conPolicyList, policyDef)
 		if idxPolicy == -1 {
@@ -1323,7 +1245,7 @@ func (server *BgpServer) handleGrpc(grpcReq *GrpcRequest) []*SenderMsg {
 			statement := policyDef.StatementList[0]
 			if idxStatement == -1 {
 				conPolicyList[idxPolicy].StatementList =
-					append(conPolicyList[idxPolicy].StatementList, statement)
+				append(conPolicyList[idxPolicy].StatementList, statement)
 			} else {
 				conStatement := &conPolicyList[idxPolicy].StatementList[idxStatement]
 				if reqConditions != nil {
@@ -1341,15 +1263,96 @@ func (server *BgpServer) handleGrpc(grpcReq *GrpcRequest) []*SenderMsg {
 					}
 				}
 				if reqActions != nil {
+					if reqActions.RouteAction != "" {
+						conStatement.Actions.AcceptRoute = statement.Actions.AcceptRoute
+						conStatement.Actions.RejectRoute = statement.Actions.RejectRoute
+					}
 					conStatement.Actions = statement.Actions
 				}
 			}
 		}
 		server.routingPolicy.PolicyDefinitionList = conPolicyList
-		server.handlePolicy(server.routingPolicy)
-		grpcReq.ResponseCh <- result
-		close(grpcReq.ResponseCh)
+	}
+	server.handlePolicy(server.routingPolicy)
+	grpcReq.ResponseCh <- result
+	close(grpcReq.ResponseCh)
+}
 
+func (server *BgpServer) handleGrpcDelPolicy(grpcReq *GrpcRequest) {
+	result := &GrpcResponse{}
+	switch grpcReq.RequestType {
+	case REQ_POLICY_PREFIX_DELETE:
+		reqPrefixSet := grpcReq.Data.(*api.PolicyDefinition).StatementList[0].Conditions.MatchPrefixSet
+		conPrefixSetList := server.routingPolicy.DefinedSets.PrefixSetList
+		isReqPrefixSet, prefixSet := policy.PrefixSetToConfigStruct(reqPrefixSet)
+		if isReqPrefixSet {
+			// If only name of the PrefixSet is same, delete all of the elements of the PrefixSet.
+			// If the same element PrefixSet, delete the it's element from PrefixSet.
+			idxPrefixSet, idxPrefix := policy.IndexOfPrefixSet(conPrefixSetList, prefixSet)
+			prefix := prefixSet.PrefixList[0]
+			if idxPrefixSet == -1 {
+				result.ResponseErr = fmt.Errorf("Policy prefix that has %v %v/%v %v doesn't exist.", prefixSet.PrefixSetName,
+					prefix.Address, prefix.Masklength, prefix.MasklengthRange)
+			} else {
+				if idxPrefix == -1 {
+					result.ResponseErr = fmt.Errorf("Policy prefix that has %v %v/%v %v doesn't exist.", prefixSet.PrefixSetName,
+						prefix.Address, prefix.Masklength, prefix.MasklengthRange)
+				} else {
+					conPrefixSetList[idxPrefixSet].PrefixList =
+					append(conPrefixSetList[idxPrefixSet].PrefixList[:idxPrefix], conPrefixSetList[idxPrefixSet].PrefixList[idxPrefix+1:]...)
+				}
+			}
+		} else {
+			idxPrefixSet := -1
+			for i, conPrefixSet := range conPrefixSetList {
+				if conPrefixSet.PrefixSetName == reqPrefixSet.PrefixSetName {
+					idxPrefixSet = i
+					break
+				}
+			}
+			if idxPrefixSet == -1 {
+				result.ResponseErr = fmt.Errorf("Policy prefix that has %v doesn't exist.", prefixSet.PrefixSetName)
+			} else {
+				conPrefixSetList = append(conPrefixSetList[:idxPrefixSet], conPrefixSetList[idxPrefixSet+1:]...)
+			}
+		}
+		server.routingPolicy.DefinedSets.PrefixSetList = conPrefixSetList
+	case REQ_POLICY_NEIGHBOR_DELETE:
+		reqNeighborSet := grpcReq.Data.(*api.PolicyDefinition).StatementList[0].Conditions.MatchNeighborSet
+		conNeighborSetList := server.routingPolicy.DefinedSets.NeighborSetList
+		isReqNeighborSet, neighborSet := policy.NeighborSetToConfigStruct(reqNeighborSet)
+		if isReqNeighborSet {
+			// If only name of the NeighborSet is same, delete all of the elements of the NeighborSet.
+			// If the same element NeighborSet, delete the it's element from NeighborSet.
+			idxNeighborSet, idxNeighbor := policy.IndexOfNeighborSet(conNeighborSetList, neighborSet)
+			if idxNeighborSet == -1 {
+				result.ResponseErr = fmt.Errorf("Policy neighbor that has %v %v doesn't exist.", neighborSet.NeighborSetName,
+					neighborSet.NeighborInfoList[0].Address)
+			} else {
+				if idxNeighbor == -1 {
+					result.ResponseErr = fmt.Errorf("Policy neighbor that has %v %v doesn't exist.", neighborSet.NeighborSetName,
+						neighborSet.NeighborInfoList[0].Address)
+				} else {
+					conNeighborSetList[idxNeighborSet].NeighborInfoList =
+					append(conNeighborSetList[idxNeighborSet].NeighborInfoList[:idxNeighbor],
+						conNeighborSetList[idxNeighborSet].NeighborInfoList[idxNeighbor+1:]...)
+				}
+			}
+		} else {
+			idxNeighborSet := -1
+			for i, conNeighborSet := range conNeighborSetList {
+				if conNeighborSet.NeighborSetName == reqNeighborSet.NeighborSetName {
+					idxNeighborSet = i
+					break
+				}
+			}
+			if idxNeighborSet == -1 {
+				result.ResponseErr = fmt.Errorf("Policy neighbor %v doesn't  exist.", neighborSet.NeighborSetName)
+			} else {
+				conNeighborSetList = append(conNeighborSetList[:idxNeighborSet], conNeighborSetList[idxNeighborSet+1:]...)
+			}
+		}
+		server.routingPolicy.DefinedSets.NeighborSetList = conNeighborSetList
 	case REQ_POLICY_ROUTEPOLICY_DELETE:
 		reqPolicy := grpcReq.Data.(*api.PolicyDefinition)
 		conPolicyList := server.routingPolicy.PolicyDefinitionList
@@ -1364,7 +1367,7 @@ func (server *BgpServer) handleGrpc(grpcReq *GrpcRequest) []*SenderMsg {
 					result.ResponseErr = fmt.Errorf("Policy Statment that has %v doesn't exist.", policyDef.StatementList[0].Name)
 				} else {
 					conPolicyList[idxPolicy].StatementList =
-						append(conPolicyList[idxPolicy].StatementList[:idxStatement], conPolicyList[idxPolicy].StatementList[idxStatement+1:]...)
+					append(conPolicyList[idxPolicy].StatementList[:idxStatement], conPolicyList[idxPolicy].StatementList[idxStatement+1:]...)
 				}
 			}
 		} else {
@@ -1382,23 +1385,23 @@ func (server *BgpServer) handleGrpc(grpcReq *GrpcRequest) []*SenderMsg {
 			}
 		}
 		server.routingPolicy.PolicyDefinitionList = conPolicyList
-		server.handlePolicy(server.routingPolicy)
-		grpcReq.ResponseCh <- result
-		close(grpcReq.ResponseCh)
-
-	case REQ_POLICY_ROUTEPOLICIES_DELETE:
-		result := &GrpcResponse{}
-		server.routingPolicy.PolicyDefinitionList = make([]config.PolicyDefinition, 0)
-		server.handlePolicy(server.routingPolicy)
-		grpcReq.ResponseCh <- result
-		close(grpcReq.ResponseCh)
-	default:
-		errmsg := "Unknown request type"
-		result := &GrpcResponse{
-			ResponseErr: fmt.Errorf(errmsg),
-		}
-		grpcReq.ResponseCh <- result
-		close(grpcReq.ResponseCh)
 	}
-	return msgs
+	server.handlePolicy(server.routingPolicy)
+	grpcReq.ResponseCh <- result
+	close(grpcReq.ResponseCh)
+}
+
+func (server *BgpServer) handleGrpcDelPolicies(grpcReq *GrpcRequest) {
+	result := &GrpcResponse{}
+	switch grpcReq.RequestType {
+	case REQ_POLICY_PREFIXES_DELETE:
+		server.routingPolicy.DefinedSets.PrefixSetList = make([]config.PrefixSet, 0)
+	case REQ_POLICY_NEIGHBORS_DELETE:
+		server.routingPolicy.DefinedSets.NeighborSetList = make([]config.NeighborSet, 0)
+	case REQ_POLICY_ROUTEPOLICIES_DELETE:
+		server.routingPolicy.PolicyDefinitionList = make([]config.PolicyDefinition, 0)
+	}
+	server.handlePolicy(server.routingPolicy)
+	grpcReq.ResponseCh <- result
+	close(grpcReq.ResponseCh)
 }
