@@ -68,6 +68,11 @@ const (
 	REQ_POLICY_ROUTEPOLICY_ADD
 	REQ_POLICY_ROUTEPOLICY_DELETE
 	REQ_POLICY_ROUTEPOLICIES_DELETE
+	REQ_POLICY_COMMUNITY
+	REQ_POLICY_COMMUNITIES
+	REQ_POLICY_COMMUNITY_ADD
+	REQ_POLICY_COMMUNITY_DELETE
+	REQ_POLICY_COMMUNITIES_DELETE
 )
 
 const GRPC_PORT = 8080
@@ -389,6 +394,17 @@ func (s *Server) modPolicy(arg *api.PolicyArguments, stream interface{}) error {
 		default:
 			return fmt.Errorf("unsupported operation: %s", arg.Operation)
 		}
+	case api.Resource_POLICY_COMMUNITY:
+		switch arg.Operation {
+		case api.Operation_ADD:
+			reqType = REQ_POLICY_COMMUNITY_ADD
+		case api.Operation_DEL:
+			reqType = REQ_POLICY_COMMUNITY_DELETE
+		case api.Operation_DEL_ALL:
+			reqType = REQ_POLICY_COMMUNITIES_DELETE
+		default:
+			return fmt.Errorf("unsupported operation: %s", arg.Operation)
+		}
 	case api.Resource_POLICY_ROUTEPOLICY:
 		switch arg.Operation {
 		case api.Operation_ADD:
@@ -400,6 +416,8 @@ func (s *Server) modPolicy(arg *api.PolicyArguments, stream interface{}) error {
 		default:
 			return fmt.Errorf("unsupported operation: %s", arg.Operation)
 		}
+	default:
+		return fmt.Errorf("unsupported resource type: %v", arg.Resource)
 	}
 	req := NewGrpcRequest(reqType, "", rf, arg.PolicyDefinition)
 	s.bgpServerCh <- req
@@ -428,6 +446,8 @@ func (s *Server) GetPolicyRoutePolicies(arg *api.PolicyArguments, stream api.Grp
 		reqType = REQ_POLICY_NEIGHBORS
 	case api.Resource_POLICY_ASPATH:
 		reqType = REQ_POLICY_ASPATHS
+	case api.Resource_POLICY_COMMUNITY:
+		reqType = REQ_POLICY_COMMUNITIES
 	case api.Resource_POLICY_ROUTEPOLICY:
 		reqType = REQ_POLICY_ROUTEPOLICIES
 	default:
@@ -457,6 +477,8 @@ func (s *Server) GetPolicyRoutePolicy(ctx context.Context, arg *api.PolicyArgume
 		reqType = REQ_POLICY_NEIGHBOR
 	case api.Resource_POLICY_ASPATH:
 		reqType = REQ_POLICY_ASPATH
+	case api.Resource_POLICY_COMMUNITY:
+		reqType = REQ_POLICY_COMMUNITY
 	case api.Resource_POLICY_ROUTEPOLICY:
 		reqType = REQ_POLICY_ROUTEPOLICY
 	default:

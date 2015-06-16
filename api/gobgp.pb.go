@@ -38,7 +38,9 @@ It has these top-level messages:
 	NeighborSet
 	AsPathLength
 	AsPathSet
+	CommunitySet
 	Conditions
+	CommunityAction
 	Actions
 	Statement
 	PolicyDefinition
@@ -70,7 +72,8 @@ const (
 	Resource_POLICY_PREFIX      Resource = 4
 	Resource_POLICY_NEIGHBOR    Resource = 5
 	Resource_POLICY_ASPATH      Resource = 6
-	Resource_POLICY_ROUTEPOLICY Resource = 7
+	Resource_POLICY_COMMUNITY   Resource = 7
+	Resource_POLICY_ROUTEPOLICY Resource = 8
 )
 
 var Resource_name = map[int32]string{
@@ -81,7 +84,8 @@ var Resource_name = map[int32]string{
 	4: "POLICY_PREFIX",
 	5: "POLICY_NEIGHBOR",
 	6: "POLICY_ASPATH",
-	7: "POLICY_ROUTEPOLICY",
+	7: "POLICY_COMMUNITY",
+	8: "POLICY_ROUTEPOLICY",
 }
 var Resource_value = map[string]int32{
 	"GLOBAL":             0,
@@ -91,7 +95,8 @@ var Resource_value = map[string]int32{
 	"POLICY_PREFIX":      4,
 	"POLICY_NEIGHBOR":    5,
 	"POLICY_ASPATH":      6,
-	"POLICY_ROUTEPOLICY": 7,
+	"POLICY_COMMUNITY":   7,
+	"POLICY_ROUTEPOLICY": 8,
 }
 
 func (x Resource) String() string {
@@ -1007,12 +1012,22 @@ func (m *AsPathSet) Reset()         { *m = AsPathSet{} }
 func (m *AsPathSet) String() string { return proto.CompactTextString(m) }
 func (*AsPathSet) ProtoMessage()    {}
 
+type CommunitySet struct {
+	CommunitySetName string   `protobuf:"bytes,1,opt,name=community_set_name" json:"community_set_name,omitempty"`
+	CommunityMembers []string `protobuf:"bytes,2,rep,name=community_members" json:"community_members,omitempty"`
+}
+
+func (m *CommunitySet) Reset()         { *m = CommunitySet{} }
+func (m *CommunitySet) String() string { return proto.CompactTextString(m) }
+func (*CommunitySet) ProtoMessage()    {}
+
 type Conditions struct {
 	MatchPrefixSet    *PrefixSet    `protobuf:"bytes,1,opt,name=match_prefix_set" json:"match_prefix_set,omitempty"`
 	MatchNeighborSet  *NeighborSet  `protobuf:"bytes,2,opt,name=match_neighbor_set" json:"match_neighbor_set,omitempty"`
 	MatchAsPathLength *AsPathLength `protobuf:"bytes,3,opt,name=match_as_path_length" json:"match_as_path_length,omitempty"`
 	MatchAsPathSet    *AsPathSet    `protobuf:"bytes,4,opt,name=match_as_path_set" json:"match_as_path_set,omitempty"`
-	MatchSetOptions   string        `protobuf:"bytes,5,opt,name=match_set_options" json:"match_set_options,omitempty"`
+	MatchCommunitySet *CommunitySet `protobuf:"bytes,5,opt,name=match_community_set" json:"match_community_set,omitempty"`
+	MatchSetOptions   string        `protobuf:"bytes,6,opt,name=match_set_options" json:"match_set_options,omitempty"`
 }
 
 func (m *Conditions) Reset()         { *m = Conditions{} }
@@ -1047,13 +1062,37 @@ func (m *Conditions) GetMatchAsPathSet() *AsPathSet {
 	return nil
 }
 
+func (m *Conditions) GetMatchCommunitySet() *CommunitySet {
+	if m != nil {
+		return m.MatchCommunitySet
+	}
+	return nil
+}
+
+type CommunityAction struct {
+	Communities []string `protobuf:"bytes,1,rep,name=communities" json:"communities,omitempty"`
+	Options     string   `protobuf:"bytes,2,opt,name=options" json:"options,omitempty"`
+}
+
+func (m *CommunityAction) Reset()         { *m = CommunityAction{} }
+func (m *CommunityAction) String() string { return proto.CompactTextString(m) }
+func (*CommunityAction) ProtoMessage()    {}
+
 type Actions struct {
-	RouteAction string `protobuf:"bytes,1,opt,name=route_action" json:"route_action,omitempty"`
+	RouteAction string           `protobuf:"bytes,1,opt,name=route_action" json:"route_action,omitempty"`
+	Community   *CommunityAction `protobuf:"bytes,2,opt,name=community" json:"community,omitempty"`
 }
 
 func (m *Actions) Reset()         { *m = Actions{} }
 func (m *Actions) String() string { return proto.CompactTextString(m) }
 func (*Actions) ProtoMessage()    {}
+
+func (m *Actions) GetCommunity() *CommunityAction {
+	if m != nil {
+		return m.Community
+	}
+	return nil
+}
 
 type Statement struct {
 	StatementNeme string      `protobuf:"bytes,1,opt,name=statement_neme" json:"statement_neme,omitempty"`

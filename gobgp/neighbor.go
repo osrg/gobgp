@@ -535,18 +535,6 @@ func showNeighborPolicy(remoteIP net.IP) error {
 	return nil
 }
 
-func parseRouteAction(rType string) (string, error) {
-	routeActionUpper := strings.ToUpper(rType)
-	var routeAction string
-	switch routeActionUpper {
-	case policy.ROUTE_ACCEPT, policy.ROUTE_REJECT:
-		routeAction = routeActionUpper
-	default:
-		return "", fmt.Errorf("invalid route action: %s\nPlease enter the accept or reject", rType)
-	}
-	return routeAction, nil
-}
-
 func parsePolicy(pNames string) []*api.PolicyDefinition {
 	pList := strings.Split(pNames, ",")
 	policyList := make([]*api.PolicyDefinition, 0, len(pList))

@@ -76,7 +76,8 @@ enum Resource {
     POLICY_PREFIX = 4;
     POLICY_NEIGHBOR = 5;
     POLICY_ASPATH = 6;
-    POLICY_ROUTEPOLICY = 7;
+    POLICY_COMMUNITY = 7;
+    POLICY_ROUTEPOLICY = 8;
 }
 
 enum Operation {
@@ -379,16 +380,28 @@ message AsPathSet {
     repeated string as_path_members = 2;
 }
 
+message CommunitySet {
+    string community_set_name = 1;
+    repeated string community_members = 2;
+}
+
 message Conditions {
     PrefixSet match_prefix_set = 1;
     NeighborSet match_neighbor_set = 2;
     AsPathLength match_as_path_length = 3;
     AsPathSet match_as_path_set = 4;
-    string match_set_options = 5;
+    CommunitySet match_community_set = 5;
+    string match_set_options = 6;
+}
+
+message CommunityAction {
+    repeated string communities = 1;
+    string options = 2;
 }
 
 message Actions {
     string route_action = 1;
+    CommunityAction community = 2;
 }
 
 message Statement {

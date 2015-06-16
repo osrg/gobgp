@@ -1048,20 +1048,25 @@ func (server *BgpServer) handleGrpc(grpcReq *GrpcRequest) []*SenderMsg {
 		grpcReq.ResponseCh <- &GrpcResponse{}
 		close(grpcReq.ResponseCh)
 
-	case REQ_POLICY_PREFIXES, REQ_POLICY_NEIGHBORS, REQ_POLICY_ASPATHS, REQ_POLICY_ROUTEPOLICIES:
+	case REQ_POLICY_PREFIXES, REQ_POLICY_NEIGHBORS, REQ_POLICY_ASPATHS,
+		REQ_POLICY_COMMUNITIES, REQ_POLICY_ROUTEPOLICIES:
 		server.handleGrpcShowPolicies(grpcReq)
-	case REQ_POLICY_PREFIX, REQ_POLICY_NEIGHBOR, REQ_POLICY_ASPATH, REQ_POLICY_ROUTEPOLICY:
+	case REQ_POLICY_PREFIX, REQ_POLICY_NEIGHBOR, REQ_POLICY_ASPATH,
+		REQ_POLICY_COMMUNITY, REQ_POLICY_ROUTEPOLICY:
 		server.handleGrpcShowPolicy(grpcReq)
-	case REQ_POLICY_PREFIX_ADD, REQ_POLICY_NEIGHBOR_ADD, REQ_POLICY_ASPATH_ADD, REQ_POLICY_ROUTEPOLICY_ADD:
+	case REQ_POLICY_PREFIX_ADD, REQ_POLICY_NEIGHBOR_ADD, REQ_POLICY_ASPATH_ADD,
+		REQ_POLICY_COMMUNITY_ADD, REQ_POLICY_ROUTEPOLICY_ADD:
 		server.handleGrpcAddPolicy(grpcReq)
-	case REQ_POLICY_PREFIX_DELETE, REQ_POLICY_NEIGHBOR_DELETE, REQ_POLICY_ASPATH_DELETE, REQ_POLICY_ROUTEPOLICY_DELETE:
+	case REQ_POLICY_PREFIX_DELETE, REQ_POLICY_NEIGHBOR_DELETE, REQ_POLICY_ASPATH_DELETE,
+		REQ_POLICY_COMMUNITY_DELETE, REQ_POLICY_ROUTEPOLICY_DELETE:
 		server.handleGrpcDelPolicy(grpcReq)
-	case REQ_POLICY_PREFIXES_DELETE, REQ_POLICY_NEIGHBORS_DELETE, REQ_POLICY_ASPATHS_DELETE, REQ_POLICY_ROUTEPOLICIES_DELETE:
+	case REQ_POLICY_PREFIXES_DELETE, REQ_POLICY_NEIGHBORS_DELETE, REQ_POLICY_ASPATHS_DELETE,
+		REQ_POLICY_COMMUNITIES_DELETE, REQ_POLICY_ROUTEPOLICIES_DELETE:
 		server.handleGrpcDelPolicies(grpcReq)
 	default:
-		errmsg := "Unknown request type"
+		errmsg := fmt.Errorf("Unknown request type: %v", grpcReq.RequestType)
 		result := &GrpcResponse{
-			ResponseErr: fmt.Errorf(errmsg),
+			ResponseErr: errmsg,
 		}
 		grpcReq.ResponseCh <- result
 		close(grpcReq.ResponseCh)
@@ -1118,6 +1123,22 @@ func (server *BgpServer) handleGrpcShowPolicies(grpcReq *GrpcRequest) {
 			}
 		} else {
 			result.ResponseErr = fmt.Errorf("Policy aspath doesn't exist.")
+			grpcReq.ResponseCh <- result
+		}
+	case REQ_POLICY_COMMUNITIES:
+		info := server.routingPolicy.DefinedSets.BgpDefinedSets.CommunitySetList
+		if len(info) > 0 {
+			for _, cs := range info {
+				resCommunitySet := policy.CommunitySetToApiStruct(cs)
+				pd := &api.PolicyDefinition{}
+				pd.StatementList = []*api.Statement{{Conditions: &api.Conditions{MatchCommunitySet: resCommunitySet}}}
+				result = &GrpcResponse{
+					Data: pd,
+				}
+				grpcReq.ResponseCh <- result
+			}
+		} else {
+			result.ResponseErr = fmt.Errorf("Policy community doesn't exist.")
 			grpcReq.ResponseCh <- result
 		}
 	case REQ_POLICY_ROUTEPOLICIES:
@@ -1197,6 +1218,24 @@ func (server *BgpServer) handleGrpcShowPolicy(grpcReq *GrpcRequest) {
 		} else {
 			result.ResponseErr = fmt.Errorf("policy aspath that has %v doesn't exist.", name)
 		}
+	case REQ_POLICY_COMMUNITY:
+		info := server.routingPolicy.DefinedSets.BgpDefinedSets.CommunitySetList
+		resCommunitySet := &api.CommunitySet{}
+		for _, cs := range info {
+			if cs.CommunitySetName == name {
+				resCommunitySet = policy.CommunitySetToApiStruct(cs)
+				break
+			}
+		}
+		if len(resCommunitySet.CommunityMembers) > 0 {
+			pd := &api.PolicyDefinition{}
+			pd.StatementList = []*api.Statement{{Conditions: &api.Conditions{MatchCommunitySet: resCommunitySet}}}
+			result = &GrpcResponse{
+				Data: pd,
+			}
+		} else {
+			result.ResponseErr = fmt.Errorf("policy community that has %v doesn't exist.", name)
+		}
 	case REQ_POLICY_ROUTEPOLICY:
 		log.Error("IN RoutePolicy")
 		info := server.routingPolicy.PolicyDefinitionList
@@ -1208,7 +1247,7 @@ func (server *BgpServer) handleGrpcShowPolicy(grpcReq *GrpcRequest) {
 				break
 			}
 		}
-		log.Error("IN RoutePolicy: ",len(resPolicyDefinition.StatementList))
+		log.Error("IN RoutePolicy: ", len(resPolicyDefinition.StatementList))
 		if len(resPolicyDefinition.StatementList) > 0 {
 			result = &GrpcResponse{
 				Data: resPolicyDefinition,
@@ -1241,7 +1280,7 @@ func (server *BgpServer) handleGrpcAddPolicy(grpcReq *GrpcRequest) {
 		} else {
 			if idxPrefix == -1 {
 				conPrefixSetList[idxPrefixSet].PrefixList =
-				append(conPrefixSetList[idxPrefixSet].PrefixList, prefixSet.PrefixList[0])
+					append(conPrefixSetList[idxPrefixSet].PrefixList, prefixSet.PrefixList[0])
 			}
 		}
 		server.routingPolicy.DefinedSets.PrefixSetList = conPrefixSetList
@@ -1262,7 +1301,7 @@ func (server *BgpServer) handleGrpcAddPolicy(grpcReq *GrpcRequest) {
 		} else {
 			if idxNeighbor == -1 {
 				conNeighborSetList[idxNeighborSet].NeighborInfoList =
-				append(conNeighborSetList[idxNeighborSet].NeighborInfoList, neighborSet.NeighborInfoList[0])
+					append(conNeighborSetList[idxNeighborSet].NeighborInfoList, neighborSet.NeighborInfoList[0])
 			}
 		}
 		server.routingPolicy.DefinedSets.NeighborSetList = conNeighborSetList
@@ -1287,6 +1326,27 @@ func (server *BgpServer) handleGrpcAddPolicy(grpcReq *GrpcRequest) {
 			}
 		}
 		server.routingPolicy.DefinedSets.BgpDefinedSets.AsPathSetList = conAsPathSetList
+	case REQ_POLICY_COMMUNITY_ADD:
+		reqCommunitySet := grpcReq.Data.(*api.PolicyDefinition).StatementList[0].Conditions.MatchCommunitySet
+		conCommunitySetList := server.routingPolicy.DefinedSets.BgpDefinedSets.CommunitySetList
+		isReqCommunitySet, communitySet := policy.CommunitySetToConfigStruct(reqCommunitySet)
+		if !isReqCommunitySet {
+			result.ResponseErr = fmt.Errorf("doesn't reqest of policy community.")
+			grpcReq.ResponseCh <- result
+			close(grpcReq.ResponseCh)
+		}
+		// If the same NeighborSet is not set, add NeighborSet of request to the end.
+		// If only name of the NeighborSet is same, overwrite with NeighborSet of request
+		idxCommunitySet, idxCommunity := policy.IndexOfCommunitySet(conCommunitySetList, communitySet)
+		if idxCommunitySet == -1 {
+			conCommunitySetList = append(conCommunitySetList, communitySet)
+		} else {
+			if idxCommunity == -1 {
+				conCommunitySetList[idxCommunitySet].CommunityMembers =
+					append(conCommunitySetList[idxCommunitySet].CommunityMembers, communitySet.CommunityMembers[0])
+			}
+		}
+		server.routingPolicy.DefinedSets.BgpDefinedSets.CommunitySetList = conCommunitySetList
 	case REQ_POLICY_ROUTEPOLICY_ADD:
 		reqPolicy := grpcReq.Data.(*api.PolicyDefinition)
 		reqConditions := reqPolicy.StatementList[0].Conditions
@@ -1300,32 +1360,33 @@ func (server *BgpServer) handleGrpcAddPolicy(grpcReq *GrpcRequest) {
 			statement := policyDef.StatementList[0]
 			if idxStatement == -1 {
 				conPolicyList[idxPolicy].StatementList =
-				append(conPolicyList[idxPolicy].StatementList, statement)
+					append(conPolicyList[idxPolicy].StatementList, statement)
 			} else {
 				conStatement := &conPolicyList[idxPolicy].StatementList[idxStatement]
-				if reqConditions != nil {
-					if reqConditions.MatchPrefixSet != nil {
-						conStatement.Conditions.MatchPrefixSet = statement.Conditions.MatchPrefixSet
-					}
-					if reqConditions.MatchNeighborSet != nil {
-						conStatement.Conditions.MatchNeighborSet = statement.Conditions.MatchNeighborSet
-					}
-					if reqConditions.MatchSetOptions != "" {
-						conStatement.Conditions.MatchSetOptions = statement.Conditions.MatchSetOptions
-					}
-					if reqConditions.MatchAsPathSet != nil {
-						conStatement.Conditions.BgpConditions.MatchAsPathSet = statement.Conditions.BgpConditions.MatchAsPathSet
-					}
-					if reqConditions.MatchAsPathLength != nil {
-						conStatement.Conditions.BgpConditions.AsPathLength = statement.Conditions.BgpConditions.AsPathLength
-					}
+				if reqConditions.MatchPrefixSet != nil {
+					conStatement.Conditions.MatchPrefixSet = statement.Conditions.MatchPrefixSet
 				}
-				if reqActions != nil {
-					if reqActions.RouteAction != "" {
-						conStatement.Actions.AcceptRoute = statement.Actions.AcceptRoute
-						conStatement.Actions.RejectRoute = statement.Actions.RejectRoute
-					}
-					conStatement.Actions = statement.Actions
+				if reqConditions.MatchNeighborSet != nil {
+					conStatement.Conditions.MatchNeighborSet = statement.Conditions.MatchNeighborSet
+				}
+				if reqConditions.MatchSetOptions != "" {
+					conStatement.Conditions.MatchSetOptions = statement.Conditions.MatchSetOptions
+				}
+				if reqConditions.MatchAsPathSet != nil {
+					conStatement.Conditions.BgpConditions.MatchAsPathSet = statement.Conditions.BgpConditions.MatchAsPathSet
+				}
+				if reqConditions.MatchCommunitySet != nil {
+					conStatement.Conditions.BgpConditions.MatchCommunitySet = statement.Conditions.BgpConditions.MatchCommunitySet
+				}
+				if reqConditions.MatchAsPathLength != nil {
+					conStatement.Conditions.BgpConditions.AsPathLength = statement.Conditions.BgpConditions.AsPathLength
+				}
+				if reqActions.RouteAction != "" {
+					conStatement.Actions.AcceptRoute = statement.Actions.AcceptRoute
+					conStatement.Actions.RejectRoute = statement.Actions.RejectRoute
+				}
+				if reqActions.Community != nil {
+					conStatement.Actions.BgpActions.SetCommunity = statement.Actions.BgpActions.SetCommunity
 				}
 			}
 		}
@@ -1357,7 +1418,7 @@ func (server *BgpServer) handleGrpcDelPolicy(grpcReq *GrpcRequest) {
 						prefix.Address, prefix.Masklength, prefix.MasklengthRange)
 				} else {
 					conPrefixSetList[idxPrefixSet].PrefixList =
-					append(conPrefixSetList[idxPrefixSet].PrefixList[:idxPrefix], conPrefixSetList[idxPrefixSet].PrefixList[idxPrefix+1:]...)
+						append(conPrefixSetList[idxPrefixSet].PrefixList[:idxPrefix], conPrefixSetList[idxPrefixSet].PrefixList[idxPrefix+1:]...)
 				}
 			}
 		} else {
@@ -1392,8 +1453,8 @@ func (server *BgpServer) handleGrpcDelPolicy(grpcReq *GrpcRequest) {
 						neighborSet.NeighborInfoList[0].Address)
 				} else {
 					conNeighborSetList[idxNeighborSet].NeighborInfoList =
-					append(conNeighborSetList[idxNeighborSet].NeighborInfoList[:idxNeighbor],
-						conNeighborSetList[idxNeighborSet].NeighborInfoList[idxNeighbor+1:]...)
+						append(conNeighborSetList[idxNeighborSet].NeighborInfoList[:idxNeighbor],
+							conNeighborSetList[idxNeighborSet].NeighborInfoList[idxNeighbor+1:]...)
 				}
 			}
 		} else {
@@ -1441,6 +1502,35 @@ func (server *BgpServer) handleGrpcDelPolicy(grpcReq *GrpcRequest) {
 			}
 		}
 		server.routingPolicy.DefinedSets.BgpDefinedSets.AsPathSetList = conAsPathSetList
+	case REQ_POLICY_COMMUNITY_DELETE:
+		reqCommunitySet := grpcReq.Data.(*api.PolicyDefinition).StatementList[0].Conditions.MatchCommunitySet
+		conCommunitySetList := server.routingPolicy.DefinedSets.BgpDefinedSets.CommunitySetList
+		isReqCommunitySet, CommunitySet := policy.CommunitySetToConfigStruct(reqCommunitySet)
+		// If only name of the NeighborSet is same, delete all of the elements of the NeighborSet.
+		// If the same element NeighborSet, delete the it's element from NeighborSet.
+		idxCommunitySet, idxCommunity := policy.IndexOfCommunitySet(conCommunitySetList, CommunitySet)
+		if isReqCommunitySet {
+			if idxCommunitySet == -1 {
+				result.ResponseErr = fmt.Errorf("Policy aspath that has %v %v doesn't exist.", CommunitySet.CommunitySetName,
+					CommunitySet.CommunityMembers[0])
+			} else {
+				if idxCommunity == -1 {
+					result.ResponseErr = fmt.Errorf("Policy aspath that has %v %v doesn't exist.", CommunitySet.CommunitySetName,
+						CommunitySet.CommunityMembers[0])
+				} else {
+					conCommunitySetList[idxCommunitySet].CommunityMembers =
+						append(conCommunitySetList[idxCommunitySet].CommunityMembers[:idxCommunity],
+							conCommunitySetList[idxCommunitySet].CommunityMembers[idxCommunity+1:]...)
+				}
+			}
+		} else {
+			if idxCommunitySet == -1 {
+				result.ResponseErr = fmt.Errorf("Policy aspath %v doesn't  exist.", CommunitySet.CommunitySetName)
+			} else {
+				conCommunitySetList = append(conCommunitySetList[:idxCommunitySet], conCommunitySetList[idxCommunitySet+1:]...)
+			}
+		}
+		server.routingPolicy.DefinedSets.BgpDefinedSets.CommunitySetList = conCommunitySetList
 	case REQ_POLICY_ROUTEPOLICY_DELETE:
 		reqPolicy := grpcReq.Data.(*api.PolicyDefinition)
 		conPolicyList := server.routingPolicy.PolicyDefinitionList
@@ -1455,7 +1545,7 @@ func (server *BgpServer) handleGrpcDelPolicy(grpcReq *GrpcRequest) {
 					result.ResponseErr = fmt.Errorf("Policy Statment that has %v doesn't exist.", policyDef.StatementList[0].Name)
 				} else {
 					conPolicyList[idxPolicy].StatementList =
-					append(conPolicyList[idxPolicy].StatementList[:idxStatement], conPolicyList[idxPolicy].StatementList[idxStatement+1:]...)
+						append(conPolicyList[idxPolicy].StatementList[:idxStatement], conPolicyList[idxPolicy].StatementList[idxStatement+1:]...)
 				}
 			}
 		} else {
@@ -1488,6 +1578,8 @@ func (server *BgpServer) handleGrpcDelPolicies(grpcReq *GrpcRequest) {
 		server.routingPolicy.DefinedSets.NeighborSetList = make([]config.NeighborSet, 0)
 	case REQ_POLICY_ASPATHS_DELETE:
 		server.routingPolicy.DefinedSets.BgpDefinedSets.AsPathSetList = make([]config.AsPathSet, 0)
+	case REQ_POLICY_COMMUNITIES_DELETE:
+		server.routingPolicy.DefinedSets.BgpDefinedSets.CommunitySetList = make([]config.CommunitySet, 0)
 	case REQ_POLICY_ROUTEPOLICIES_DELETE:
 		server.routingPolicy.PolicyDefinitionList = make([]config.PolicyDefinition, 0)
 	}

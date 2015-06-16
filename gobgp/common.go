@@ -46,6 +46,7 @@ const (
 	CMD_DISABLE        = "disable"
 	CMD_PREFIX         = "prefix"
 	CMD_ASPATH         = "aspath"
+	CMD_COMMUNITY      = "community"
 	CMD_ROUTEPOLICY    = "routepolicy"
 	CMD_CONDITIONS     = "conditions"
 	CMD_ACTIONS        = "actions"
@@ -65,12 +66,14 @@ var conditionOpts struct {
 	Prefix       string `long:"prefix" description:"specifying a prefix set name of policy"`
 	Neighbor     string `long:"neighbor" description:"specifying a neighbor set name of policy"`
 	AsPath       string `long:"aspath" description:"specifying an as set name of policy"`
+	Community    string `long:"community" description:"specifying a community set name of policy"`
 	AsPathLength string `long:"aspath-len" description:"specifying an as path length of policy (<operator>,<numeric>)"`
 	Option       string `long:"option" description:"specifying an option of policy (any | all | invert)"`
 }
 
 var actionOpts struct {
-	RouteAction string `long:"route-action" description:"specifying a route action of policy (accept | reject)"`
+	RouteAction     string `long:"route-action" description:"specifying a route action of policy (accept | reject)"`
+	CommunityAction string `long:"community" description:"specifying a community action of policy"`
 }
 
 func formatTimedelta(d int64) string {
@@ -211,6 +214,20 @@ func (a aspaths) Swap(i, j int) {
 
 func (a aspaths) Less(i, j int) bool {
 	return a[i].AsPathSetName < a[j].AsPathSetName
+}
+
+type communities []*api.CommunitySet
+
+func (c communities) Len() int {
+	return len(c)
+}
+
+func (c communities) Swap(i, j int) {
+	c[i], c[j] = c[j], c[i]
+}
+
+func (c communities) Less(i, j int) bool {
+	return c[i].CommunitySetName < c[j].CommunitySetName
 }
 
 type policyDefinitions []*api.PolicyDefinition

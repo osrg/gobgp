@@ -353,9 +353,9 @@ func (c *AsPathLengthCondition) evaluate(path table.Path) bool {
 
 	if result {
 		log.WithFields(log.Fields{
-			"Topic":  "Policy",
+			"Topic":     "Policy",
 			"Condition": "aspath length",
-			"Reason": c.Operator,
+			"Reason":    c.Operator,
 		}).Debug("condition matched")
 	}
 
@@ -473,10 +473,10 @@ func (c *AsPathCondition) evaluate(path table.Path) bool {
 
 		if matched {
 			log.WithFields(log.Fields{
-				"Topic":  "Policy",
+				"Topic":     "Policy",
 				"Condition": "aspath length",
-				"ASN": member.asn,
-				"Position": member.postiion,
+				"ASN":       member.asn,
+				"Position":  member.postiion,
 			}).Debug("condition matched")
 			return true
 		}
@@ -665,7 +665,7 @@ func (c *CommunityCondition) evaluate(path table.Path) bool {
 
 		if matched {
 			log.WithFields(log.Fields{
-				"Topic":  "Policy",
+				"Topic":     "Policy",
 				"Condition": "Community",
 				"Community": makeStr(communities[idx]),
 			}).Debug("condition matched")
@@ -729,7 +729,7 @@ func NewCommunityAction(action config.SetCommunity) *CommunityAction {
 
 	m := &CommunityAction{}
 
-	if len(action.Communities) == 0 && action.Options != COMMUNITY_ACTION_NULL{
+	if len(action.Communities) == 0 && action.Options != COMMUNITY_ACTION_NULL {
 		return nil
 	}
 
@@ -1009,6 +1009,29 @@ func IndexOfAsPathSet(conAsPathSetList []config.AsPathSet, reqAsPathSet config.A
 	return idxAsPathSet, idxAsPath
 }
 
+// find index CommunitySet of request from CommunitySet of configuration file.
+// Return the idxCommunitySet of the location where the name of CommunitySet matches,
+// and idxCommunity of the location where element of CommunitySet matches
+func IndexOfCommunitySet(conCommunitySetList []config.CommunitySet, reqCommunitySet config.CommunitySet) (int, int) {
+	idxCommunitySet := -1
+	idxCommunity := -1
+	for i, conCommunitySet := range conCommunitySetList {
+		if conCommunitySet.CommunitySetName == reqCommunitySet.CommunitySetName {
+			idxCommunitySet = i
+			if len(reqCommunitySet.CommunityMembers) == 0 {
+				return idxCommunitySet, idxCommunity
+			}
+			for j, conCommunity := range conCommunitySet.CommunityMembers {
+				if conCommunity == reqCommunitySet.CommunityMembers[0] {
+					idxCommunity = j
+					return idxCommunitySet, idxCommunity
+				}
+			}
+		}
+	}
+	return idxCommunitySet, idxCommunity
+}
+
 // find index PolicyDefinition of request from PolicyDefinition of configuration file.
 // Return the idxPolicyDefinition of the location where the name of PolicyDefinition matches,
 // and idxStatement of the location where Statement of PolicyDefinition matches
@@ -1138,6 +1161,30 @@ func AsPathSetToConfigStruct(reqAsPathSet *api.AsPathSet) (bool, config.AsPathSe
 	return isAsPathSetSet, asPathSet
 }
 
+func CommunitySetToApiStruct(cs config.CommunitySet) *api.CommunitySet {
+	resCommunityMembers := make([]string, 0)
+	for _, m := range cs.CommunityMembers {
+		resCommunityMembers = append(resCommunityMembers, m)
+	}
+	resCommunitySet := &api.CommunitySet{
+		CommunitySetName: cs.CommunitySetName,
+		CommunityMembers: resCommunityMembers,
+	}
+	return resCommunitySet
+}
+
+func CommunitySetToConfigStruct(reqCommunitySet *api.CommunitySet) (bool, config.CommunitySet) {
+	isCommunitySet := true
+	if len(reqCommunitySet.CommunityMembers) == 0 {
+		isCommunitySet = false
+	}
+	communitySet := config.CommunitySet{
+		CommunitySetName: reqCommunitySet.CommunitySetName,
+		CommunityMembers: reqCommunitySet.CommunityMembers,
+	}
+	return isCommunitySet, communitySet
+}
+
 func AsPathLengthToApiStruct(asPathLength config.AsPathLength) *api.AsPathLength {
 	value := ""
 	if asPathLength.Operator != "" {
@@ -1172,6 +1219,9 @@ func ConditionsToConfigStruct(reqConditions *api.Conditions) config.Conditions {
 	if reqConditions.MatchAsPathSet != nil {
 		conditions.BgpConditions.MatchAsPathSet = reqConditions.MatchAsPathSet.AsPathSetName
 	}
+	if reqConditions.MatchCommunitySet != nil {
+		conditions.BgpConditions.MatchCommunitySet = reqConditions.MatchCommunitySet.CommunitySetName
+	}
 	if reqConditions.MatchAsPathLength != nil {
 		conditions.BgpConditions.AsPathLength =
 			AsPathLengthToConfigStruct(reqConditions.MatchAsPathLength)
@@ -1189,8 +1239,28 @@ func ConditionsToConfigStruct(reqConditions *api.Conditions) config.Conditions {
 	return conditions
 }
 
+func ActionsToApiStruct(conActions config.Actions) *api.Actions {
+	action := ROUTE_REJECT
+	if conActions.AcceptRoute {
+		action = ROUTE_ACCEPT
+	}
+	communityAction := &api.CommunityAction{
+		Communities: conActions.BgpActions.SetCommunity.Communities,
+		Options:     conActions.BgpActions.SetCommunity.Options,
+	}
+	resActions := &api.Actions{
+		RouteAction: action,
+		Community:   communityAction,
+	}
+	return resActions
+}
+
 func ActionsToConfigStruct(reqActions *api.Actions) config.Actions {
 	actions := config.Actions{}
+	if reqActions.Community != nil {
+		actions.BgpActions.SetCommunity.Communities = reqActions.Community.Communities
+		actions.BgpActions.SetCommunity.Options = reqActions.Community.Options
+	}
 	switch reqActions.RouteAction {
 	case ROUTE_ACCEPT:
 		actions.AcceptRoute = true
@@ -1202,13 +1272,9 @@ func ActionsToConfigStruct(reqActions *api.Actions) config.Actions {
 
 func StatementToConfigStruct(reqStatement *api.Statement) config.Statement {
 	statement := config.Statement{
-		Name: reqStatement.StatementNeme,
-	}
-	if reqStatement.Conditions != nil {
-		statement.Conditions = ConditionsToConfigStruct(reqStatement.Conditions)
-	}
-	if reqStatement.Actions != nil {
-		statement.Actions = ActionsToConfigStruct(reqStatement.Actions)
+		Name:       reqStatement.StatementNeme,
+		Conditions: ConditionsToConfigStruct(reqStatement.Conditions),
+		Actions:    ActionsToConfigStruct(reqStatement.Actions),
 	}
 	return statement
 }
@@ -1231,6 +1297,7 @@ func PolicyDefinitionToApiStruct(pd config.PolicyDefinition, df config.DefinedSe
 	conPrefixSetList := df.PrefixSetList
 	conNeighborSetList := df.NeighborSetList
 	conAsPathSetList := df.BgpDefinedSets.AsPathSetList
+	conCommunitySetList := df.BgpDefinedSets.CommunitySetList
 	resStatementList := make([]*api.Statement, 0)
 	for _, st := range pd.StatementList {
 		conditions := st.Conditions
@@ -1245,13 +1312,18 @@ func PolicyDefinitionToApiStruct(pd config.PolicyDefinition, df config.DefinedSe
 		asPathSet := &api.AsPathSet{
 			AsPathSetName: conditions.BgpConditions.MatchAsPathSet,
 		}
+		communitySet := &api.CommunitySet{
+			CommunitySetName: conditions.BgpConditions.MatchCommunitySet,
+		}
 		// consider later whether treatment of here need
 		_, conPrefixSet := PrefixSetToConfigStruct(prefixSet)
 		_, conNeighborSet := NeighborSetToConfigStruct(neighborSet)
 		_, conAsPathSet := AsPathSetToConfigStruct(asPathSet)
+		_, conCommunitySet := CommunitySetToConfigStruct(communitySet)
 		idxPrefixSet, _ := IndexOfPrefixSet(conPrefixSetList, conPrefixSet)
 		idxNeighborSet, _ := IndexOfNeighborSet(conNeighborSetList, conNeighborSet)
 		idxAsPathSet, _ := IndexOfAsPathSet(conAsPathSetList, conAsPathSet)
+		idxCommunitySet, _ := IndexOfCommunitySet(conCommunitySetList, conCommunitySet)
 		if idxPrefixSet != -1 {
 			prefixSet = PrefixSetToApiStruct(conPrefixSetList[idxPrefixSet])
 		}
@@ -1261,19 +1333,18 @@ func PolicyDefinitionToApiStruct(pd config.PolicyDefinition, df config.DefinedSe
 		if idxAsPathSet != -1 {
 			asPathSet = AsPathSetToApiStruct(conAsPathSetList[idxAsPathSet])
 		}
+		if idxCommunitySet != -1 {
+			communitySet = CommunitySetToApiStruct(conCommunitySetList[idxCommunitySet])
+		}
 		resConditions := &api.Conditions{
 			MatchPrefixSet:    prefixSet,
 			MatchNeighborSet:  neighborSet,
 			MatchAsPathSet:    asPathSet,
+			MatchCommunitySet: communitySet,
 			MatchAsPathLength: AsPathLengthToApiStruct(st.Conditions.BgpConditions.AsPathLength),
 			MatchSetOptions:   MatchSetOptionToString(conditions.MatchSetOptions),
 		}
-		resActions := &api.Actions{
-			RouteAction: ROUTE_REJECT,
-		}
-		if actions.AcceptRoute {
-			resActions.RouteAction = ROUTE_ACCEPT
-		}
+		resActions := ActionsToApiStruct(actions)
 		resStatement := &api.Statement{
 			StatementNeme: st.Name,
 			Conditions:    resConditions,

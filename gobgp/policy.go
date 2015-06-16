@@ -24,10 +24,10 @@ import (
 	"golang.org/x/net/context"
 	"io"
 	"net"
+	"regexp"
 	"sort"
 	"strconv"
 	"strings"
-	"regexp"
 )
 
 func formatPolicyPrefix(prefixSetList []*api.PrefixSet) (string, string) {
@@ -195,6 +195,8 @@ func modPolicy(resource api.Resource, op api.Operation, data interface{}) error 
 			co.MatchNeighborSet = data.(*api.NeighborSet)
 		case api.Resource_POLICY_ASPATH:
 			co.MatchAsPathSet = data.(*api.AsPathSet)
+		case api.Resource_POLICY_COMMUNITY:
+			co.MatchCommunitySet = data.(*api.CommunitySet)
 		}
 		pd.StatementList = []*api.Statement{{Conditions: co}}
 	} else {
@@ -443,7 +445,6 @@ func formatPolicyAsPath(asPathSetList []*api.AsPathSet) string {
 	return format
 }
 
-
 func showPolicyAsPaths() error {
 	arg := &api.PolicyArguments{
 		Resource: api.Resource_POLICY_ASPATH,
@@ -576,6 +577,171 @@ func modPolicyAsPath(modtype string, eArgs []string) error {
 	return nil
 }
 
+func formatPolicyCommunity(CommunitySetList []*api.CommunitySet) string {
+	maxNameLen := len("Name")
+	maxCommunityLen := len("Community")
+	for _, cs := range CommunitySetList {
+		if len(cs.CommunitySetName) > maxNameLen {
+			maxNameLen = len(cs.CommunitySetName)
+		}
+		for _, m := range cs.CommunityMembers {
+			if len(m) > maxCommunityLen {
+				maxCommunityLen = len(m)
+			}
+		}
+	}
+	format := "%-" + fmt.Sprint(maxNameLen) + "s  %-" + fmt.Sprint(maxCommunityLen) + "s\n"
+	return format
+}
+
+func showPolicyCommunities() error {
+	arg := &api.PolicyArguments{
+		Resource: api.Resource_POLICY_COMMUNITY,
+	}
+	stream, e := client.GetPolicyRoutePolicies(context.Background(), arg)
+	if e != nil {
+		return e
+	}
+	m := communities{}
+	for {
+		a, e := stream.Recv()
+		if e == io.EOF {
+			break
+		} else if e != nil {
+			return e
+		}
+		m = append(m, a.StatementList[0].Conditions.MatchCommunitySet)
+	}
+	if globalOpts.Json {
+		j, _ := json.Marshal(m)
+		fmt.Println(string(j))
+		return nil
+	}
+	if globalOpts.Quiet {
+		for _, c := range m {
+			fmt.Println(c.CommunitySetName)
+		}
+		return nil
+	}
+	sort.Sort(m)
+
+	format := formatPolicyCommunity(m)
+	fmt.Printf(format, "Name", "Community")
+	for _, cs := range m {
+		for i, m := range cs.CommunityMembers {
+			if i == 0 {
+				fmt.Printf(format, cs.CommunitySetName, m)
+			} else {
+				fmt.Printf(format, "", m)
+			}
+		}
+	}
+	return nil
+}
+
+func showPolicyCommunity(args []string) error {
+	arg := &api.PolicyArguments{
+		Resource: api.Resource_POLICY_COMMUNITY,
+		Name:     args[0],
+	}
+	pd, e := client.GetPolicyRoutePolicy(context.Background(), arg)
+	if e != nil {
+		return e
+	}
+	cs := pd.StatementList[0].Conditions.GetMatchCommunitySet()
+	if globalOpts.Json {
+		j, _ := json.Marshal(cs)
+		fmt.Println(string(j))
+		return nil
+	}
+	if globalOpts.Quiet {
+		for _, c := range cs.CommunityMembers {
+			fmt.Println(c)
+		}
+		return nil
+	}
+	format := formatPolicyCommunity([]*api.CommunitySet{cs})
+	fmt.Printf(format, "Name", "Community")
+	for i, m := range cs.CommunityMembers {
+		if i == 0 {
+			fmt.Printf(format, cs.CommunitySetName, m)
+		} else {
+			fmt.Printf(format, "", m)
+		}
+	}
+	return nil
+}
+
+func checkCommunityFormat(comStr string) bool {
+	// community regexp
+	regUint, _ := regexp.Compile("^([0-9]+)$")
+	regString, _ := regexp.Compile("([0-9]+):([0-9]+)")
+	regWellKnown, _ := regexp.Compile("^(" +
+		policy.COMMUNITY_INTERNET + "|" +
+		policy.COMMUNITY_NO_EXPORT + "|" +
+		policy.COMMUNITY_NO_ADVERTISE + "|" +
+		policy.COMMUNITY_NO_EXPORT_SUBCONFED + ")$")
+	if regUint.MatchString(comStr) || regString.MatchString(comStr) || regWellKnown.MatchString(comStr) {
+		return true
+	}
+	return false
+}
+
+func parseCommunitySet(eArgs []string) (*api.CommunitySet, error) {
+	if !checkCommunityFormat(eArgs[1]) {
+		if _, err := regexp.Compile(eArgs[1]); err != nil {
+			return nil, fmt.Errorf("invalid community: %s\nplease enter community format", eArgs[1])
+		}
+	}
+	communitySet := &api.CommunitySet{
+		CommunitySetName: eArgs[0],
+		CommunityMembers: []string{eArgs[1]},
+	}
+	return communitySet, nil
+}
+
+func modPolicyCommunity(modtype string, eArgs []string) error {
+	communitySet := &api.CommunitySet{}
+	var e error
+	var operation api.Operation
+
+	switch modtype {
+	case CMD_ADD:
+		if len(eArgs) < 2 {
+			return fmt.Errorf("usage: policy community add <community set name> <community>")
+		}
+		if communitySet, e = parseCommunitySet(eArgs); e != nil {
+			return e
+		}
+		operation = api.Operation_ADD
+	case CMD_DEL:
+		if len(eArgs) == 0 {
+			return fmt.Errorf("usage: policy community add <community set name> [<community>]")
+		} else if len(eArgs) == 1 {
+			communitySet = &api.CommunitySet{
+				CommunitySetName: eArgs[0],
+				CommunityMembers: nil,
+			}
+		} else {
+			if communitySet, e = parseCommunitySet(eArgs); e != nil {
+				return e
+			}
+		}
+		operation = api.Operation_DEL
+	case CMD_ALL:
+		if len(eArgs) > 0 {
+			return fmt.Errorf("Argument can not be entered: %s", eArgs[0:])
+		}
+		operation = api.Operation_DEL_ALL
+	default:
+		return fmt.Errorf("invalid modType %s", modtype)
+	}
+	if e = modPolicy(api.Resource_POLICY_COMMUNITY, operation, communitySet); e != nil {
+		return e
+	}
+	return nil
+}
+
 func showPolicyStatement(head string, pd *api.PolicyDefinition) {
 	for _, st := range pd.StatementList {
 		fmt.Printf("%s  StatementName %s:\n", head, st.StatementNeme)
@@ -624,10 +790,31 @@ func showPolicyStatement(head string, pd *api.PolicyDefinition) {
 		} else {
 			fmt.Print("\n")
 		}
+		communitySet := st.Conditions.MatchCommunitySet
+		fmt.Printf("%s      CommunitySet: %s  ", head, communitySet.CommunitySetName)
+		if len(communitySet.CommunityMembers) != 0 {
+			nameFormat := "%-" + fmt.Sprint(len(communitySet.CommunitySetName)+2) + "s"
+			for i, community := range communitySet.CommunityMembers {
+				if i != 0 {
+					fmt.Printf("%s                    ", head)
+					fmt.Printf(nameFormat, "")
+				}
+				fmt.Println(community)
+			}
+		} else {
+			fmt.Print("\n")
+		}
 		asPathLentgh := st.Conditions.MatchAsPathLength
 		fmt.Printf("%s      AsPathLength: %s   %s\n", head, asPathLentgh.Operator, asPathLentgh.Value)
 		fmt.Printf("%s      MatchOption:  %s\n", head, st.Conditions.MatchSetOptions)
 		fmt.Printf("%s    Actions:\n", head)
+
+		communityAction := st.Actions.Community.Options
+		if len(st.Actions.Community.Communities) != 0 || st.Actions.Community.Options == "NULL" {
+			communities := strings.Join(st.Actions.Community.Communities, ",")
+			communityAction = fmt.Sprintf("%s[%s]", st.Actions.Community.Options, communities)
+		}
+		fmt.Printf("%s      Community:    %s\n", head, communityAction)
 		fmt.Printf("%s      %s\n", head, st.Actions.RouteAction)
 	}
 
@@ -717,6 +904,11 @@ func parseConditions() (*api.Conditions, error) {
 			AsPathSetName: conditionOpts.AsPath,
 		}
 	}
+	if conditionOpts.Community != "" {
+		conditions.MatchCommunitySet = &api.CommunitySet{
+			CommunitySetName: conditionOpts.Community,
+		}
+	}
 	if conditionOpts.AsPathLength != "" {
 		asPathLen := conditionOpts.AsPathLength
 		idx := strings.Index(asPathLen, ",")
@@ -748,6 +940,64 @@ func parseConditions() (*api.Conditions, error) {
 	return conditions, nil
 }
 
+func parseRouteAction(rType string) (string, error) {
+	routeActionUpper := strings.ToUpper(rType)
+	var routeAction string
+	switch routeActionUpper {
+	case policy.ROUTE_ACCEPT, policy.ROUTE_REJECT:
+		routeAction = routeActionUpper
+	default:
+		return "", fmt.Errorf("invalid route action: %s\nPlease enter the accept or reject", rType)
+	}
+	return routeAction, nil
+}
+
+func parseCommunityAction(communityStr string) (*api.CommunityAction, error) {
+	regStr, _ := regexp.Compile("^(.*)\\[(.*)\\]$")
+	var communities, option string
+	communityList := make([]string, 0)
+	if regStr.MatchString(communityStr) {
+		group := regStr.FindStringSubmatch(communityStr)
+		option = group[1]
+		communities = group[2]
+
+		// check options
+		communityActionTypes := policy.COMMUNITY_ACTION_ADD + "|" +
+			policy.COMMUNITY_ACTION_REPLACE + "|" +
+			policy.COMMUNITY_ACTION_REMOVE + "|" +
+			policy.COMMUNITY_ACTION_NULL
+		regOption, _ := regexp.Compile(fmt.Sprintf("^(%s)$", communityActionTypes))
+		if !regOption.MatchString(option) {
+			e := fmt.Sprintf("invalid Option: %s\n", option)
+			e += fmt.Sprintf("please enter the (%s)", communityActionTypes)
+			return nil, fmt.Errorf("%s", e)
+		}
+		// check the relationship between the community and the option
+		if option == "NULL" && communities != "" {
+			e := "invalid relationship between  community and option\n"
+			e += "When the option is NULL, community should not be input"
+			return nil, fmt.Errorf("%s", e)
+		} else if !(communities == "" && option == "NULL") {
+			// check communities
+			communityList = strings.Split(communities, ",")
+			for _, community := range communityList {
+				if !checkCommunityFormat(community) {
+					return nil, fmt.Errorf("invalid Community %s:", community)
+				}
+			}
+		}
+	} else {
+		e := fmt.Sprintf("invalid format: %s\n", communityStr)
+		e += "please enter the <option>[<comunity>,<comunity>,...]"
+		return nil, fmt.Errorf("%s", e)
+	}
+	communityAction := &api.CommunityAction{
+		Communities: communityList,
+		Options:     option,
+	}
+	return communityAction, nil
+}
+
 func parseActions() (*api.Actions, error) {
 	actions := &api.Actions{}
 	if actionOpts.RouteAction != "" {
@@ -756,6 +1006,14 @@ func parseActions() (*api.Actions, error) {
 			return nil, e
 		}
 		actions.RouteAction = routeAction
+	}
+	if actionOpts.CommunityAction != "" {
+		community, e := parseCommunityAction(actionOpts.CommunityAction)
+		if e != nil {
+			return nil, e
+		}
+
+		actions.Community = community
 	}
 	return actions, nil
 }
@@ -772,18 +1030,18 @@ func modPolicyRoutePolicy(modtype string, eArgs []string) error {
 		if len(eArgs) != 2 {
 			return fmt.Errorf("usage:  gobgp policy routepoilcy add <route policy name> <statement name>")
 		}
-		stmt := &api.Statement{}
+		stmt := &api.Statement{
+			StatementNeme: eArgs[1],
+		}
 		conditions, err := parseConditions()
 		if err != nil {
 			return err
 		}
-		stmt.Conditions = conditions
-
 		actions, err := parseActions()
 		if err != nil {
 			return err
 		}
-		stmt.StatementNeme = eArgs[1]
+		stmt.Conditions = conditions
 		stmt.Actions = actions
 
 		pd.StatementList = []*api.Statement{stmt}
@@ -828,10 +1086,12 @@ func NewPolicyAddCmd(v string, mod func(string, []string) error) *cobra.Command 
 	if v == CMD_ROUTEPOLICY {
 		policyAddCmd.Flags().StringVarP(&conditionOpts.Prefix, "c-prefix", "", "", "a prefix set name of policy condition")
 		policyAddCmd.Flags().StringVarP(&conditionOpts.Neighbor, "c-neighbor", "", "", "a neighbor set name of policy condition")
-		policyAddCmd.Flags().StringVarP(&conditionOpts.Neighbor, "c-aspath", "", "", "as set name of policy condition")
+		policyAddCmd.Flags().StringVarP(&conditionOpts.AsPath, "c-aspath", "", "", "an as path set name of policy condition")
+		policyAddCmd.Flags().StringVarP(&conditionOpts.Community, "c-community", "", "", "a community set name of policy condition")
 		policyAddCmd.Flags().StringVarP(&conditionOpts.AsPathLength, "c-aslen", "", "", "an as path length of policy condition (<operator>,<numeric>)")
 		policyAddCmd.Flags().StringVarP(&conditionOpts.Option, "c-option", "", "", "an option of policy condition")
 		policyAddCmd.Flags().StringVarP(&actionOpts.RouteAction, "a-route", "", "", "a route action of policy action (accept | reject)")
+		policyAddCmd.Flags().StringVarP(&actionOpts.CommunityAction, "a-community", "", "", "a community of policy action")
 	}
 
 	return policyAddCmd
@@ -866,7 +1126,7 @@ func NewPolicyCmd() *cobra.Command {
 		Use: CMD_POLICY,
 	}
 
-	for _, v := range []string{CMD_PREFIX, CMD_NEIGHBOR, CMD_ASPATH, CMD_ROUTEPOLICY} {
+	for _, v := range []string{CMD_PREFIX, CMD_NEIGHBOR, CMD_ASPATH, CMD_COMMUNITY, CMD_ROUTEPOLICY} {
 		var showAll func() error
 		var showOne func([]string) error
 		var mod func(string, []string) error
@@ -883,6 +1143,10 @@ func NewPolicyCmd() *cobra.Command {
 			showAll = showPolicyAsPaths
 			showOne = showPolicyAsPath
 			mod = modPolicyAsPath
+		case CMD_COMMUNITY:
+			showAll = showPolicyCommunities
+			showOne = showPolicyCommunity
+			mod = modPolicyCommunity
 		case CMD_ROUTEPOLICY:
 			showAll = showPolicyRoutePolicies
 			showOne = showPolicyRoutePolicy
