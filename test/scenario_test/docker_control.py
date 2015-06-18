@@ -197,7 +197,7 @@ def docker_container_stop_quagga(quagga):
 
 def docker_container_stop_gobgp(remove=True):
     if docker_check_running(GOBGP_CONTAINER_NAME):
-        cmd = "docker stop --time=1 " + GOBGP_CONTAINER_NAME
+        cmd = "docker stop --time=0 " + GOBGP_CONTAINER_NAME
         local(cmd, capture=True)
 
     if remove:
@@ -207,7 +207,7 @@ def docker_container_stop_gobgp(remove=True):
 
 def docker_container_stop_exabgp():
     if docker_check_running(EXABGP_CONTAINER_NAME):
-        cmd = "docker stop --time=1 " + EXABGP_CONTAINER_NAME
+        cmd = "docker stop --time=0 " + EXABGP_CONTAINER_NAME
         local(cmd, capture=True)
 
     cmd = "docker rm  " + EXABGP_CONTAINER_NAME
@@ -387,7 +387,9 @@ def reload_config():
 def prepare_gobgp(log_debug, use_local):
 
     # cleanup gobgp container
-    docker_container_stop_gobgp(remove=True)
+    containers = docker_containers_get()
+    if GOBGP_CONTAINER_NAME in containers:
+        docker_container_stop_gobgp(remove=True)
     recreate_conf_dir(CONFIG_DIRR)
     # set log option
     opt = "-l debug" if log_debug else ""

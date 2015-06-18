@@ -25,6 +25,16 @@ from constant import *
 from fabric.api import local
 
 
+def print_elapsed_time(f):
+    def wrapped(*args, **kwargs):
+        start = time.time()
+        f(*args, **kwargs)
+        elapsed_time = time.time() - start
+        print "%s: elapsed_time:%d sec" % (f.__name__, elapsed_time)
+
+    return wrapped
+
+
 class GoBGPTest(GoBGPTestBase):
 
     quagga_num = 3
@@ -45,12 +55,12 @@ class GoBGPTest(GoBGPTestBase):
 
 
     @classmethod
+    @print_elapsed_time
     def setUpClass(cls):
-        'called once, before any tests'
         print 'prepare gobgp'
         fab.prepare_gobgp(parser_option.gobgp_log_debug, parser_option.use_local)
 
-
+    @print_elapsed_time
     def initialize(self, policy_pattern=None):
         use_local = parser_option.use_local
         go_path = parser_option.go_path
@@ -86,26 +96,24 @@ class GoBGPTest(GoBGPTestBase):
         peer2 = "10.0.0.2"
         peer3 = "10.0.0.3"
         prefix1 = "192.168.2.0/24"
+        w = self.wait_per_retry
+
         path = self.get_paths_in_localrib(peer1, prefix1, retry=self.retry_count_common)
         self.assertIsNotNone(path)
 
         # check show ip bgp on peer1(quagga1)
         qpath = self.get_route(peer1,prefix1, retry=self.retry_count_common)
-        print qpath
         self.assertIsNotNone(qpath)
 
-        # check adj-rib-out in peer2
+        # check adj-rib-in in peer2
         path = self.get_adj_rib_in(peer2, prefix1, retry=self.retry_count_common)
-        # print path
         self.assertIsNotNone(path)
 
         path = self.get_paths_in_localrib(peer3, prefix1,retry=0)
-        # print path
         self.assertIsNone(path)
 
         # check show ip bgp on peer1(quagga3)
-        qpath = self.get_route(peer3,prefix1, retry=self.retry_count_common)
-        # print qpath
+        qpath = self.get_route(peer3, prefix1, retry=self.retry_count_common, interval=w)
         self.assertIsNone(qpath)
 
 
@@ -130,23 +138,20 @@ class GoBGPTest(GoBGPTestBase):
         peer2 = "10.0.0.2"
         peer3 = "10.0.0.3"
         prefix1 = "192.168.2.0/24"
+        w = self.wait_per_retry
 
         paths = self.get_paths_in_localrib(peer1, prefix1, retry=self.retry_count_common)
-        # print paths
         self.assertIsNotNone(paths)
 
         # check show ip bgp on peer1(quagga1)
         qpath = self.get_route(peer1, prefix1, retry=self.retry_count_common)
-        # print qpath
         self.assertIsNotNone(qpath)
 
         # check adj-rib-out in peer2
         path = self.get_adj_rib_in(peer2, prefix1, retry=1)
-        # print path
         self.assertIsNotNone(path)
 
         path = self.get_paths_in_localrib(peer3, prefix1)
-        # print path
         self.assertIsNotNone(path)
 
         path = self.get_adj_rib_out(peer3, prefix1, retry=1)
@@ -154,8 +159,7 @@ class GoBGPTest(GoBGPTestBase):
         self.assertIsNone(path)
 
         # check show ip bgp on peer1(quagga3)
-        qpath = self.get_route(peer3,prefix1, retry=self.retry_count_common)
-        # print qpath
+        qpath = self.get_route(peer3, prefix1, retry=self.retry_count_common, interval=w)
         self.assertIsNone(qpath)
 
 
@@ -193,16 +197,17 @@ class GoBGPTest(GoBGPTestBase):
         peer1 = "10.0.0.1"
         peer2 = "10.0.0.2"
         peer3 = "10.0.0.3"
-        prefix1 = "192.168.2.0/24"
-        prefix2 = "192.168.20.0/24"
-        prefix3 = "192.168.200.0/24"
+        r1 = "192.168.2.0/24"
+        r2 = "192.168.20.0/24"
+        r3 = "192.168.200.0/24"
+        w = self.wait_per_retry
 
         # add other network
         tn = qaccess.login(peer2)
         print "add network 192.168.20.0/24"
-        qaccess.add_network(tn, 65002, prefix2)
+        qaccess.add_network(tn, 65002, r2)
         print "add network 192.168.200.0/24"
-        qaccess.add_network(tn, 65002, prefix3)
+        qaccess.add_network(tn, 65002, r3)
         qaccess.logout(tn)
 
         addresses = self.get_neighbor_address(self.gobgp_config) 
@@ -211,40 +216,40 @@ class GoBGPTest(GoBGPTestBase):
         time.sleep(self.initial_wait_time)
 
         def path_exists_in_localrib(peer, prefix,r=10):
-            paths = self.get_paths_in_localrib(peer, prefix, retry=r)
+            paths = self.get_paths_in_localrib(peer, prefix, retry=r, interval=w)
             return paths is not None
 
         def path_exists_in_routing_table(peer, prefix,r=10):
-            qpath = self.get_route(peer, prefix, retry=r)
+            qpath = self.get_route(peer, prefix, retry=r, interval=w)
             return qpath is not None
 
         def path_exists_in_adj_rib_in(peer, prefix,r=10):
-            path = self.get_adj_rib_in(peer, prefix, retry=r)
+            path = self.get_adj_rib_in(peer, prefix, retry=r, interval=w)
             return path is not None
 
 
-        self.assertTrue(path_exists_in_localrib(peer1,prefix1))
-        self.assertTrue(path_exists_in_localrib(peer1,prefix2))
-        self.assertTrue(path_exists_in_localrib(peer1,prefix3))
+        self.assertTrue(path_exists_in_localrib(peer1,r1))
+        self.assertTrue(path_exists_in_localrib(peer1,r2))
+        self.assertTrue(path_exists_in_localrib(peer1,r3))
 
-        self.assertTrue(path_exists_in_localrib(peer3,prefix1))
-        self.assertFalse(path_exists_in_localrib(peer3,prefix2,r=1))
-        self.assertFalse(path_exists_in_localrib(peer3,prefix3,r=0))
+        self.assertTrue(path_exists_in_localrib(peer3,r1))
+        self.assertFalse(path_exists_in_localrib(peer3,r2, r=1))
+        self.assertFalse(path_exists_in_localrib(peer3,r3, r=0))
 
         # check show ip bgp on peer1(quagga1)
-        self.assertTrue(path_exists_in_routing_table(peer1, prefix1))
-        self.assertTrue(path_exists_in_routing_table(peer1, prefix2))
-        self.assertTrue(path_exists_in_routing_table(peer1, prefix3))
+        self.assertTrue(path_exists_in_routing_table(peer1, r1))
+        self.assertTrue(path_exists_in_routing_table(peer1, r2))
+        self.assertTrue(path_exists_in_routing_table(peer1, r3))
 
         # check show ip bgp on peer3(quagga3)
-        self.assertTrue(path_exists_in_routing_table(peer3, prefix1))
-        self.assertFalse(path_exists_in_routing_table(peer3, prefix2,r=1))
-        self.assertFalse(path_exists_in_routing_table(peer3, prefix3,r=0))
+        self.assertTrue(path_exists_in_routing_table(peer3, r1))
+        self.assertFalse(path_exists_in_routing_table(peer3, r2, r=1))
+        self.assertFalse(path_exists_in_routing_table(peer3, r3, r=0))
 
         # check adj-rib-out in peer2
-        self.assertTrue(path_exists_in_adj_rib_in(peer2, prefix1))
-        self.assertTrue(path_exists_in_adj_rib_in(peer2, prefix2))
-        self.assertTrue(path_exists_in_adj_rib_in(peer2, prefix3))
+        self.assertTrue(path_exists_in_adj_rib_in(peer2, r1))
+        self.assertTrue(path_exists_in_adj_rib_in(peer2, r2))
+        self.assertTrue(path_exists_in_adj_rib_in(peer2, r3))
 
         # update policy
         print "update_policy_config"
@@ -256,14 +261,14 @@ class GoBGPTest(GoBGPTestBase):
         self.soft_reset(peer2, IPv4)
 
         # check local-rib
-        self.assertTrue(path_exists_in_localrib(peer3,prefix1))
-        self.assertFalse(path_exists_in_localrib(peer3,prefix2,r=1))
-        self.assertTrue(path_exists_in_localrib(peer3,prefix3))
+        self.assertTrue(path_exists_in_localrib(peer3,r1))
+        self.assertFalse(path_exists_in_localrib(peer3,r2,r=1))
+        self.assertTrue(path_exists_in_localrib(peer3,r3))
 
         # check show ip bgp on peer3(quagga3)
-        self.assertTrue(path_exists_in_routing_table(peer3, prefix1))
-        self.assertFalse(path_exists_in_routing_table(peer3, prefix2,r=1))
-        self.assertTrue(path_exists_in_routing_table(peer3, prefix3))
+        self.assertTrue(path_exists_in_routing_table(peer3, r1))
+        self.assertFalse(path_exists_in_routing_table(peer3, r2, r=1))
+        self.assertTrue(path_exists_in_routing_table(peer3, r3))
 
 
     """
@@ -301,16 +306,17 @@ class GoBGPTest(GoBGPTestBase):
         peer1 = "10.0.0.1"
         peer2 = "10.0.0.2"
         peer3 = "10.0.0.3"
-        prefix1 = "192.168.2.0/24"
-        prefix2 = "192.168.20.0/24"
-        prefix3 = "192.168.200.0/24"
+        r1 = "192.168.2.0/24"
+        r2 = "192.168.20.0/24"
+        r3 = "192.168.200.0/24"
+        w = self.wait_per_retry
 
         # add other network
         tn = qaccess.login(peer2)
         print "add network 192.168.20.0/24"
-        qaccess.add_network(tn, 65002, prefix2)
+        qaccess.add_network(tn, 65002, r2)
         print "add network 192.168.200.0/24"
-        qaccess.add_network(tn, 65002, prefix3)
+        qaccess.add_network(tn, 65002, r3)
         qaccess.logout(tn)
 
         addresses = self.get_neighbor_address(self.gobgp_config) 
@@ -323,47 +329,47 @@ class GoBGPTest(GoBGPTestBase):
             return paths is not None
 
         def path_exists_in_routing_table(peer, prefix,r=10):
-            qpath = self.get_route(peer, prefix, retry=r)
+            qpath = self.get_route(peer, prefix, retry=r, interval=w)
             return qpath is not None
 
         def path_exists_in_adj_rib_in(peer, prefix,r=10):
-            path = self.get_adj_rib_in(peer, prefix, retry=r)
+            path = self.get_adj_rib_in(peer, prefix, retry=r, interval=w)
             return path is not None
 
         def path_exists_in_adj_rib_out(peer, prefix,r=10):
-            path = self.get_adj_rib_out(peer, prefix, retry=r)
+            path = self.get_adj_rib_out(peer, prefix, retry=r, interval=w)
             return path is not None
 
 
-        self.assertTrue(path_exists_in_localrib(peer1,prefix1))
-        self.assertTrue(path_exists_in_localrib(peer1,prefix2))
-        self.assertTrue(path_exists_in_localrib(peer1,prefix3))
+        self.assertTrue(path_exists_in_localrib(peer1,r1))
+        self.assertTrue(path_exists_in_localrib(peer1,r2))
+        self.assertTrue(path_exists_in_localrib(peer1,r3))
 
         # check peer3 local-rib
-        self.assertTrue(path_exists_in_localrib(peer3,prefix1))
-        self.assertTrue(path_exists_in_localrib(peer3,prefix2))
-        self.assertTrue(path_exists_in_localrib(peer3,prefix3))
+        self.assertTrue(path_exists_in_localrib(peer3,r1))
+        self.assertTrue(path_exists_in_localrib(peer3,r2))
+        self.assertTrue(path_exists_in_localrib(peer3,r3))
 
         # check peer3 rib-out
-        self.assertTrue(path_exists_in_adj_rib_out(peer3,prefix1))
-        self.assertFalse(path_exists_in_adj_rib_out(peer3,prefix2,r=1))
-        self.assertFalse(path_exists_in_adj_rib_out(peer3,prefix3,r=1))
+        self.assertTrue(path_exists_in_adj_rib_out(peer3,r1))
+        self.assertFalse(path_exists_in_adj_rib_out(peer3,r2,r=1))
+        self.assertFalse(path_exists_in_adj_rib_out(peer3,r3,r=1))
 
         # check show ip bgp on peer1(quagga1)
-        self.assertTrue(path_exists_in_routing_table(peer1, prefix1))
-        self.assertTrue(path_exists_in_routing_table(peer1, prefix2))
-        self.assertTrue(path_exists_in_routing_table(peer1, prefix3))
+        self.assertTrue(path_exists_in_routing_table(peer1, r1))
+        self.assertTrue(path_exists_in_routing_table(peer1, r2))
+        self.assertTrue(path_exists_in_routing_table(peer1, r3))
 
         # check show ip bgp on peer3(quagga3)
-        self.assertTrue(path_exists_in_routing_table(peer3, prefix1))
-        self.assertFalse(path_exists_in_routing_table(peer3, prefix2,r=1))
-        self.assertFalse(path_exists_in_routing_table(peer3, prefix3,r=1))
+        self.assertTrue(path_exists_in_routing_table(peer3, r1))
+        self.assertFalse(path_exists_in_routing_table(peer3, r2,r=1))
+        self.assertFalse(path_exists_in_routing_table(peer3, r3,r=1))
 
         # check adj-rib-out in peer2
         peer2 = "10.0.0.2"
-        self.assertTrue(path_exists_in_adj_rib_in(peer2, prefix1))
-        self.assertTrue(path_exists_in_adj_rib_in(peer2, prefix2))
-        self.assertTrue(path_exists_in_adj_rib_in(peer2, prefix3))
+        self.assertTrue(path_exists_in_adj_rib_in(peer2, r1))
+        self.assertTrue(path_exists_in_adj_rib_in(peer2, r2))
+        self.assertTrue(path_exists_in_adj_rib_in(peer2, r3))
 
         # update policy
         print "update_policy_config"
@@ -375,19 +381,19 @@ class GoBGPTest(GoBGPTestBase):
         self.soft_reset(peer2, IPv4)
 
         # check local-rib
-        self.assertTrue(path_exists_in_localrib(peer3,prefix1))
-        self.assertTrue(path_exists_in_localrib(peer3,prefix2))
-        self.assertTrue(path_exists_in_localrib(peer3,prefix3))
+        self.assertTrue(path_exists_in_localrib(peer3,r1))
+        self.assertTrue(path_exists_in_localrib(peer3,r2))
+        self.assertTrue(path_exists_in_localrib(peer3,r3))
 
         # check local-adj-out-rib
-        self.assertTrue(path_exists_in_adj_rib_out(peer3, prefix1))
-        self.assertFalse(path_exists_in_adj_rib_out(peer3, prefix2,r=1))
-        self.assertTrue(path_exists_in_adj_rib_out(peer3, prefix3))
+        self.assertTrue(path_exists_in_adj_rib_out(peer3, r1))
+        self.assertFalse(path_exists_in_adj_rib_out(peer3, r2, r=1))
+        self.assertTrue(path_exists_in_adj_rib_out(peer3, r3))
 
         # check show ip bgp on peer3(quagga3)
-        self.assertTrue(path_exists_in_routing_table(peer3, prefix1))
-        self.assertFalse(path_exists_in_routing_table(peer3, prefix2,r=1))
-        self.assertTrue(path_exists_in_routing_table(peer3, prefix3))
+        self.assertTrue(path_exists_in_routing_table(peer3, r1))
+        self.assertFalse(path_exists_in_routing_table(peer3, r2, r=1))
+        self.assertTrue(path_exists_in_routing_table(peer3, r3))
 
     """
        import-policy test
@@ -425,17 +431,13 @@ class GoBGPTest(GoBGPTestBase):
 
         # check adj-rib-out in peer2
         path = self.get_adj_rib_in(peer2, r1, retry=self.retry_count_common, af=IPv6)
-        # print path
         self.assertIsNotNone(path)
 
-        # path = util.get_paths_in_localrib(base_url, peer3, r1, retry=0, interval=w, rf=IPv6)
         path = self.get_paths_in_localrib(peer3, r1, retry=0, af=IPv6)
-        # print path
         self.assertIsNone(path)
 
         # check show ip bgp on peer1(quagga3)
         qpath = self.get_route(peer3, r1, retry=1, interval=w, af=IPv6)
-        print qpath
         self.assertIsNone(qpath)
 
 
@@ -465,31 +467,24 @@ class GoBGPTest(GoBGPTestBase):
         w = self.wait_per_retry
 
         paths = self.get_paths_in_localrib(peer1, r1, retry=self.retry_count_common, interval=w, af=IPv6)
-
-        # print paths
         self.assertIsNotNone(paths)
 
         # check show ip bgp on peer1(quagga1)
         qpath = self.get_route(peer1, r1, retry=self.retry_count_common, interval=w, af=IPv6)
-        # print qpath
         self.assertIsNotNone(qpath)
 
         # check adj-rib-out in peer2
         path = self.get_adj_rib_in(peer2, r1, retry=1, interval=w, af=IPv6)
-        # print path
         self.assertIsNotNone(path)
 
-        path = self.get_paths_in_localrib(peer3, r1, af=IPv6)
-        # print path
+        path = self.get_paths_in_localrib(peer3, r1, af=IPv6, interval=w)
         self.assertIsNotNone(path)
 
         path = self.get_adj_rib_out(peer3, r1, retry=1, interval=w, af=IPv6)
-        # print path
         self.assertIsNone(path)
 
         # check show ip bgp on peer1(quagga3)
         qpath = self.get_route(peer3, r1, retry=1, interval=w, af=IPv6)
-        # print qpath
         self.assertIsNone(qpath)
 
 
@@ -763,6 +758,7 @@ class GoBGPTest(GoBGPTestBase):
 
         peer1 = "10.0.0.1"
         peer2 = "10.0.0.2"
+        w = self.wait_per_retry
 
         path = self.get_paths_in_localrib(peer1, prefix1, retry=self.retry_count_common)
         self.assertIsNotNone(path)
@@ -772,14 +768,12 @@ class GoBGPTest(GoBGPTestBase):
         print qpath
         self.assertIsNotNone(qpath)
 
-        # check adj-rib-out in peer2
+        # check local-rib in peer2
         path = self.get_paths_in_localrib(peer2, prefix1, retry=0)
-        # print path
         self.assertIsNone(path)
 
         # check show ip bgp on peer2(quagga2)
-        qpath = self.get_route(peer2,prefix1, retry=1)
-        # print qpath
+        qpath = self.get_route(peer2,prefix1, retry=1, interval=w)
         self.assertIsNone(qpath)
 
 
@@ -814,23 +808,21 @@ class GoBGPTest(GoBGPTestBase):
 
         peer1 = "10.0.0.1"
         peer2 = "10.0.0.2"
+        w = self.wait_per_retry
 
         path = self.get_paths_in_localrib(peer1, prefix1, retry=self.retry_count_common)
         self.assertIsNotNone(path)
 
         # check show ip bgp on peer1(quagga1)
         qpath = self.get_route(peer1,prefix1, retry=self.retry_count_common)
-        print qpath
         self.assertIsNotNone(qpath)
 
-        # check adj-rib-out in peer2
+        # check local-rib in peer2
         path = self.get_paths_in_localrib(peer2, prefix1, retry=0)
-        # print path
         self.assertIsNone(path)
 
         # check show ip bgp on peer2(quagga2)
-        qpath = self.get_route(peer2,prefix1, retry=1)
-        # print qpath
+        qpath = self.get_route(peer2,prefix1, retry=1, interval=w)
         self.assertIsNone(qpath)
 
 
@@ -865,6 +857,7 @@ class GoBGPTest(GoBGPTestBase):
 
         peer1 = "10.0.0.1"
         peer2 = "10.0.0.2"
+        w = self.wait_per_retry
 
         path = self.get_paths_in_localrib(peer1, prefix1, retry=self.retry_count_common)
         self.assertIsNotNone(path)
@@ -873,12 +866,12 @@ class GoBGPTest(GoBGPTestBase):
         qpath = self.get_route(peer1,prefix1, retry=self.retry_count_common)
         self.assertIsNotNone(qpath)
 
-        # check adj-rib-out in peer2
+        # check local-rib in peer2
         path = self.get_paths_in_localrib(peer2, prefix1, retry=0)
         self.assertIsNone(path)
 
         # check show ip bgp on peer2(quagga2)
-        qpath = self.get_route(peer2,prefix1, retry=1)
+        qpath = self.get_route(peer2,prefix1, retry=1, interval=w)
         self.assertIsNone(qpath)
 
     """
@@ -912,21 +905,21 @@ class GoBGPTest(GoBGPTestBase):
 
         peer1 = "10.0.0.1"
         peer2 = "10.0.0.2"
+        w = self.wait_per_retry
 
         path = self.get_paths_in_localrib(peer1, prefix1, retry=self.retry_count_common)
         self.assertIsNotNone(path)
 
         # check show ip bgp on peer1(quagga1)
         qpath = self.get_route(peer1,prefix1, retry=self.retry_count_common)
-        print qpath
         self.assertIsNotNone(qpath)
 
-        # check adj-rib-out in peer2
+        # check local-rib in peer2
         path = self.get_paths_in_localrib(peer2, prefix1,retry=0)
         self.assertIsNone(path)
 
         # check show ip bgp on peer2(quagga2)
-        qpath = self.get_route(peer2,prefix1, retry=1)
+        qpath = self.get_route(peer2,prefix1, retry=1, interval=w)
         self.assertIsNone(qpath)
 
 
@@ -960,6 +953,7 @@ class GoBGPTest(GoBGPTestBase):
 
         peer1 = "10.0.0.1"
         peer2 = "10.0.0.2"
+        w = self.wait_per_retry
 
         path = self.get_paths_in_localrib(peer1, prefix1, retry=self.retry_count_common)
         self.assertIsNotNone(path)
@@ -968,12 +962,12 @@ class GoBGPTest(GoBGPTestBase):
         qpath = self.get_route(peer1,prefix1, retry=self.retry_count_common)
         self.assertIsNotNone(qpath)
 
-        # check adj-rib-out in peer2
+        # check local-rib in peer2
         path = self.get_paths_in_localrib(peer2, prefix1,retry=0)
         self.assertIsNone(path)
 
         # check show ip bgp on peer2(quagga2)
-        qpath = self.get_route(peer2,prefix1, retry=1)
+        qpath = self.get_route(peer2, prefix1, retry=1, interval=w)
         self.assertIsNone(qpath)
 
 
@@ -1021,7 +1015,7 @@ class GoBGPTest(GoBGPTestBase):
         self.assertIsNotNone(path)
 
         # check show ip bgp on peer2(quagga2)
-        qpath = self.get_route(peer2,prefix1, retry=self.retry_count_common)
+        qpath = self.get_route(peer2, prefix1, retry=self.retry_count_common)
         self.assertIsNotNone(qpath)
 
 
@@ -1056,6 +1050,7 @@ class GoBGPTest(GoBGPTestBase):
 
         peer1 = "10.0.0.1"
         peer2 = "10.0.0.2"
+        w = self.wait_per_retry
 
         path = self.get_paths_in_localrib(peer1, prefix1, retry=self.retry_count_common)
         self.assertIsNotNone(path)
@@ -1064,14 +1059,12 @@ class GoBGPTest(GoBGPTestBase):
         qpath = self.get_route(peer1,prefix1, retry=self.retry_count_common)
         self.assertIsNotNone(qpath)
 
-        # check adj-rib-out in peer2
-        path = self.get_paths_in_localrib(peer2, prefix1,retry=1)
-        # print path
+        # check local-rib in peer2
+        path = self.get_paths_in_localrib(peer2, prefix1, retry=1, interval=w)
         self.assertIsNone(path)
 
         # check show ip bgp on peer2(quagga2)
-        qpath = self.get_route(peer2,prefix1, retry=1)
-        # print qpath
+        qpath = self.get_route(peer2, prefix1, retry=1, interval=w)
         self.assertIsNone(qpath)
 
 
@@ -1107,6 +1100,7 @@ class GoBGPTest(GoBGPTestBase):
 
         peer1 = "10.0.0.1"
         peer2 = "10.0.0.2"
+        w = self.wait_per_retry
 
         path = self.get_paths_in_localrib(peer1, prefix1, retry=self.retry_count_common)
         self.assertIsNotNone(path)
@@ -1116,14 +1110,12 @@ class GoBGPTest(GoBGPTestBase):
         print qpath
         self.assertIsNotNone(qpath)
 
-        # check adj-rib-out in peer2
-        path = self.get_paths_in_localrib(peer2, prefix1, retry=1, interval=3)
-        # print path
+        # check local-rib in peer2
+        path = self.get_paths_in_localrib(peer2, prefix1, retry=1, interval=w)
         self.assertIsNone(path)
 
         # check show ip bgp on peer2(quagga2)
-        qpath = self.get_route(peer2,prefix1, retry=1)
-        # print qpath
+        qpath = self.get_route(peer2, prefix1, retry=1, interval=w)
         self.assertIsNone(qpath)
 
     """
@@ -1173,7 +1165,7 @@ class GoBGPTest(GoBGPTestBase):
         self.assertTrue((65100 << 16 | 20) in attrs[0]['communites'])
 
         # check show ip bgp on peer2(quagga2)
-        qpath = self.get_route(peer2,prefix1, retry=self.retry_count_common)
+        qpath = self.get_route(peer2, prefix1, retry=self.retry_count_common)
         self.assertIsNotNone(qpath)
         self.assertTrue(self.check_community(peer2, prefix1.split('/')[0], '65100:20'))
 
@@ -1230,7 +1222,7 @@ class GoBGPTest(GoBGPTestBase):
         self.assertIsNotNone(qpath)
         self.assertTrue(self.check_community(peer2, prefix1.split('/')[0], '65100:20'))
         self.assertTrue(self.check_community(peer2, prefix1.split('/')[0], '65100:30'))
-        self.assertFalse(self.check_community(peer2, prefix1.split('/')[0], '65100:10', retry=1))
+        self.assertFalse(self.check_community(peer2, prefix1.split('/')[0], '65100:10', retry=0))
 
     """
       import-policy test
@@ -1282,9 +1274,10 @@ class GoBGPTest(GoBGPTestBase):
         # check show ip bgp on peer2(quagga2)
         qpath = self.get_route(peer2,prefix1, retry=self.retry_count_common)
         self.assertIsNotNone(qpath)
-        self.assertFalse(self.check_community(peer2, prefix1.split('/')[0], '65100:20', retry=1))
-        self.assertFalse(self.check_community(peer2, prefix1.split('/')[0], '65100:30', retry=1))
         self.assertTrue(self.check_community(peer2, prefix1.split('/')[0], '65100:10', retry=1))
+        self.assertFalse(self.check_community(peer2, prefix1.split('/')[0], '65100:20', retry=0))
+        self.assertFalse(self.check_community(peer2, prefix1.split('/')[0], '65100:30', retry=0))
+
 
 
     """
@@ -1336,9 +1329,9 @@ class GoBGPTest(GoBGPTestBase):
         # check show ip bgp on peer2(quagga2)
         qpath = self.get_route(peer2,prefix1, retry=self.retry_count_common)
         self.assertIsNotNone(qpath)
-        self.assertFalse(self.check_community(peer2, prefix1.split('/')[0], '65100:20', retry=1))
-        self.assertFalse(self.check_community(peer2, prefix1.split('/')[0], '65100:30', retry=1))
-        self.assertFalse(self.check_community(peer2, prefix1.split('/')[0], '65100:10', retry=1))
+        self.assertFalse(self.check_community(peer2, prefix1.split('/')[0], '65100:20', retry=0))
+        self.assertFalse(self.check_community(peer2, prefix1.split('/')[0], '65100:30', retry=0))
+        self.assertFalse(self.check_community(peer2, prefix1.split('/')[0], '65100:10', retry=0))
 
     """
       import-policy test
@@ -1434,12 +1427,10 @@ class GoBGPTest(GoBGPTestBase):
 
         # check show ip bgp on peer1(quagga1)
         qpath = self.get_route(peer1,prefix1, retry=self.retry_count_common)
-        print qpath
         self.assertIsNotNone(qpath)
 
         # check adj-rib-out in peer2
-        path = self.get_paths_in_localrib(peer2, prefix1,retry=0)
-        print path
+        path = self.get_paths_in_localrib(peer2, prefix1, retry=0)
         self.assertIsNotNone(path)
         attrs = [x for x in path[0]['attrs'] if 'communites' in x ]
         self.assertFalse((65100 << 16 | 20) in attrs[0]['communites'])
@@ -1453,11 +1444,10 @@ class GoBGPTest(GoBGPTestBase):
 
         # check show ip bgp on peer2(quagga2)
         qpath = self.get_route(peer2,prefix1, retry=self.retry_count_common)
-        print qpath
         self.assertIsNotNone(qpath)
         self.assertTrue(self.check_community(peer2, prefix1.split('/')[0], '65100:20'))
         self.assertTrue(self.check_community(peer2, prefix1.split('/')[0], '65100:30'))
-        self.assertFalse(self.check_community(peer2, prefix1.split('/')[0], '65100:10', retry=1))
+        self.assertFalse(self.check_community(peer2, prefix1.split('/')[0], '65100:10', retry=0))
 
     """
       import-policy test
@@ -1500,7 +1490,7 @@ class GoBGPTest(GoBGPTestBase):
         self.assertIsNotNone(qpath)
 
         # check adj-rib-out in peer2
-        path = self.get_paths_in_localrib(peer2, prefix1,retry=1)
+        path = self.get_paths_in_localrib(peer2, prefix1, retry=1)
         self.assertIsNotNone(path)
         attrs = [x for x in path[0]['attrs'] if 'communites' in x ]
         self.assertTrue((65100 << 16 | 20) in attrs[0]['communites'])
@@ -1515,9 +1505,10 @@ class GoBGPTest(GoBGPTestBase):
         # check show ip bgp on peer2(quagga2)
         qpath = self.get_route(peer2,prefix1, retry=self.retry_count_common)
         self.assertIsNotNone(qpath)
-        self.assertFalse(self.check_community(peer2, prefix1.split('/')[0], '65100:20', retry=1))
-        self.assertFalse(self.check_community(peer2, prefix1.split('/')[0], '65100:30', retry=1))
-        self.assertTrue(self.check_community(peer2, prefix1.split('/')[0], '65100:10', retry=1))
+        self.assertTrue(self.check_community(peer2, prefix1.split('/')[0], '65100:10', retry=0))
+        self.assertFalse(self.check_community(peer2, prefix1.split('/')[0], '65100:20', retry=0))
+        self.assertFalse(self.check_community(peer2, prefix1.split('/')[0], '65100:30', retry=0))
+
 
 
     """
@@ -1561,7 +1552,7 @@ class GoBGPTest(GoBGPTestBase):
         self.assertIsNotNone(qpath)
 
         # check adj-rib-out in peer2
-        path = self.get_paths_in_localrib(peer2, prefix1,retry=0)
+        path = self.get_paths_in_localrib(peer2, prefix1,  retry=0)
         self.assertIsNotNone(path)
         attrs = [x for x in path[0]['attrs'] if 'communites' in x ]
         self.assertTrue((65100 << 16 | 10) in attrs[0]['communites'])
@@ -1575,9 +1566,9 @@ class GoBGPTest(GoBGPTestBase):
         # check show ip bgp on peer2(quagga2)
         qpath = self.get_route(peer2,prefix1, retry=self.retry_count_common)
         self.assertIsNotNone(qpath)
-        self.assertFalse(self.check_community(peer2, prefix1.split('/')[0], '65100:20', retry=1))
-        self.assertFalse(self.check_community(peer2, prefix1.split('/')[0], '65100:30', retry=1))
-        self.assertFalse(self.check_community(peer2, prefix1.split('/')[0], '65100:10', retry=1))
+        self.assertFalse(self.check_community(peer2, prefix1.split('/')[0], '65100:20', retry=0))
+        self.assertFalse(self.check_community(peer2, prefix1.split('/')[0], '65100:30', retry=0))
+        self.assertFalse(self.check_community(peer2, prefix1.split('/')[0], '65100:10', retry=0))
 
 
 def generate_exabgp_config(pref, aspath='', community=''):
