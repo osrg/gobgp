@@ -329,7 +329,7 @@ func Test_ASLen(t *testing.T) {
 
 	aspath := AsPathParam{
 		Num: 2,
-		AS: []uint16{65000, 65001},
+		AS:  []uint16{65000, 65001},
 	}
 	aspath.Type = BGP_ASPATH_ATTR_TYPE_SEQ
 	assert.Equal(2, aspath.ASLen())
@@ -343,10 +343,9 @@ func Test_ASLen(t *testing.T) {
 	aspath.Type = BGP_ASPATH_ATTR_TYPE_CONFED_SET
 	assert.Equal(0, aspath.ASLen())
 
-
 	as4path := As4PathParam{
 		Num: 2,
-		AS: []uint32{65000, 65001},
+		AS:  []uint32{65000, 65001},
 	}
 	as4path.Type = BGP_ASPATH_ATTR_TYPE_SEQ
 	assert.Equal(2, as4path.ASLen())
@@ -361,4 +360,3 @@ func Test_ASLen(t *testing.T) {
 	assert.Equal(0, as4path.ASLen())
 
 }
-

@@ -53,8 +53,8 @@ const (
 )
 
 const (
-	BGP_ASPATH_ATTR_TYPE_SET = 1
-	BGP_ASPATH_ATTR_TYPE_SEQ = 2
+	BGP_ASPATH_ATTR_TYPE_SET        = 1
+	BGP_ASPATH_ATTR_TYPE_SEQ        = 2
 	BGP_ASPATH_ATTR_TYPE_CONFED_SEQ = 3
 	BGP_ASPATH_ATTR_TYPE_CONFED_SET = 4
 )
@@ -1998,11 +1998,11 @@ func (a *AsPathParam) Len() int {
 
 func (a *AsPathParam) ASLen() int {
 	switch a.Type {
-		case BGP_ASPATH_ATTR_TYPE_SEQ:
+	case BGP_ASPATH_ATTR_TYPE_SEQ:
 		return len(a.AS)
-		case BGP_ASPATH_ATTR_TYPE_SET:
+	case BGP_ASPATH_ATTR_TYPE_SET:
 		return 1
-		case BGP_ASPATH_ATTR_TYPE_CONFED_SET,BGP_ASPATH_ATTR_TYPE_CONFED_SEQ:
+	case BGP_ASPATH_ATTR_TYPE_CONFED_SET, BGP_ASPATH_ATTR_TYPE_CONFED_SEQ:
 		return 0
 	}
 	return 0
@@ -2057,11 +2057,11 @@ func (a *As4PathParam) Len() int {
 
 func (a *As4PathParam) ASLen() int {
 	switch a.Type {
-		case BGP_ASPATH_ATTR_TYPE_SEQ:
+	case BGP_ASPATH_ATTR_TYPE_SEQ:
 		return len(a.AS)
-		case BGP_ASPATH_ATTR_TYPE_SET:
+	case BGP_ASPATH_ATTR_TYPE_SET:
 		return 1
-		case BGP_ASPATH_ATTR_TYPE_CONFED_SET,BGP_ASPATH_ATTR_TYPE_CONFED_SEQ:
+	case BGP_ASPATH_ATTR_TYPE_CONFED_SET, BGP_ASPATH_ATTR_TYPE_CONFED_SEQ:
 		return 0
 	}
 	return 0
@@ -2205,7 +2205,7 @@ func (p *PathAttributeAsPath) ToApiStruct() *api.PathAttr {
 		aspaths = append(aspaths, aspath)
 	}
 	return &api.PathAttr{
-		Type:   api.BGP_ATTR_TYPE_AS_PATH,
+		Type:    api.BGP_ATTR_TYPE_AS_PATH,
 		AsPaths: aspaths,
 	}
 }
@@ -3306,14 +3306,14 @@ func (p *PathAttributeAs4Path) ToApiStruct() *api.PathAttr {
 	aspaths := make([]*api.AsPath, 0)
 	aspath := &api.AsPath{
 		SegmentType: uint32(p.Type),
-		Asns: make([]uint32, 0),
+		Asns:        make([]uint32, 0),
 	}
 	for _, a := range p.Value {
 		aspath.Asns = append(aspath.Asns, a.AS...)
 	}
 	aspaths = append(aspaths, aspath)
 	return &api.PathAttr{
-		Type:   api.BGP_ATTR_TYPE_AS_PATH,
+		Type:    api.BGP_ATTR_TYPE_AS_PATH,
 		AsPaths: aspaths,
 	}
 }
