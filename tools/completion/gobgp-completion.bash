@@ -1,261 +1,707 @@
-#!bash
+#!/bin/bash
 
-__gobgp_q() {
-    gobgp 2>/dev/null "$@"
-}
 
-__gobgp_address() {
-    url=""
-    port=""
-    if [ ! -z "$gobgp_ip" ]; then
-        url="-u $gobgp_ip"
-    fi
-    if [ ! -z "$gobgp_port" ]; then
-        port="-p $gobgp_port"
+__debug()
+{
+    if [[ -n ${BASH_COMP_DEBUG_FILE} ]]; then
+        echo "$*" >> "${BASH_COMP_DEBUG_FILE}"
     fi
 }
 
-__compreply() {
-    targets="$@"
-    case "$cur" in
-        *)
-            COMPREPLY=( $( compgen -W "${targets[*]}" -- "$cur" ) )
+__index_of_word()
+{
+    local w word=$1
+    shift
+    index=0
+    for w in "$@"; do
+        [[ $w = "$word" ]] && return
+        index=$((index+1))
+    done
+    index=-1
+}
+
+__contains_word()
+{
+    local w word=$1; shift
+    for w in "$@"; do
+        [[ $w = "$word" ]] && return
+    done
+    return 1
+}
+
+__handle_reply()
+{
+    __debug "${FUNCNAME}"
+    case $cur in
+        -*)
+            compopt -o nospace
+            local allflags
+            if [ ${#must_have_one_flag[@]} -ne 0 ]; then
+                allflags=("${must_have_one_flag[@]}")
+            else
+                allflags=("${flags[*]} ${two_word_flags[*]}")
+            fi
+            COMPREPLY=( $(compgen -W "${allflags[*]}" -- "$cur") )
+            [[ $COMPREPLY == *= ]] || compopt +o nospace
+            return 0;
             ;;
     esac
-    return
-}
 
-__search_target() {
-    local word target c=1
-
-    while [ $c -lt $cword ]; do
-        word="${words[c]}"
-        for target in $1; do
-            if [ "$target" = "$word" ]; then
-                echo "$target"
-                return
-            fi
-        done
-        ((c++))
-    done
-}
-
-__gobgp_table_list() {
-    local targets="local adj-in adj-out reset softreset softresetin softresetout shutdown enable disable policy"
-    local target="$(__search_target "$targets")"
-    if [ -z "$target" ]; then
-        __compreply ${targets}
+    # check if we are handling a flag with special work handling
+    local index
+    __index_of_word "${prev}" "${flags_with_completion[@]}"
+    if [[ ${index} -ge 0 ]]; then
+        ${flags_completion[${index}]}
         return
     fi
-    if [ "$target" = "policy" ]; then
-	    _gobgp_neighbor_policy
-	fi
-    return
-}
 
-__gobgp_neighbr_list() {
-    __gobgp_address
-    local targets=( $(__gobgp_q $url $port --quiet neighbor) )
-    local target="$(__search_target "${targets[*]}")"
-    if [ -z "$target" ]; then
-        __compreply ${targets}
-        __ltrim_colon_completions "$cur"
-        return 0
-    fi
-    return 1
-}
-
-__gobgp_policy_list() {
-    __gobgp_address
-    local targets=( $(__gobgp_q $url $port --quiet policy "${policy_kind}") )
-    local target="$(__search_target "${targets[*]}")"
-    if [ -z "$target" ]; then
-        __compreply ${targets}
-        __ltrim_colon_completions "$cur"
-        return 0
-    fi
-    latest_word="$target"
-    return 1
-}
-
-__gobgp_policy_statement_list() {
-    __gobgp_address
-    local targets=( $(__gobgp_q $url $port --quiet policy routepolicy "${policy}") )
-    local target="$(__search_target "${targets[*]}")"
-    if [ -z "$target" ]; then
-        __compreply ${targets}
-        __ltrim_colon_completions "$cur"
-        return 0
-    fi
-    return 1
-}
-
-_gobgp_global_rib(){
-    local targets="add del"
-    local target="$(__search_target "$targets")"
-    if [ -z "$target" ]; then
-        __compreply ${targets}
+    # we are parsing a flag and don't have a special handler, no completion
+    if [[ ${cur} != "${words[cword]}" ]]; then
         return
     fi
-}
 
-_gobgp_global() {
-    local targets="rib"
-    local target="$(__search_target "$targets")"
-    if [ -z "$target" ]; then
-        __compreply ${targets}
-        return
+    local completions
+    if [[ ${#must_have_one_flag[@]} -ne 0 ]]; then
+        completions=("${must_have_one_flag[@]}")
+    elif [[ ${#must_have_one_noun[@]} -ne 0 ]]; then
+        completions=("${must_have_one_noun[@]}")
+    else
+        completions=("${commands[@]}")
     fi
-    _gobgp_global_${target}
-}
+    COMPREPLY=( $(compgen -W "${completions[*]}" -- "$cur") )
 
-_gobgp_neighbor() {
-   __gobgp_neighbr_list
-   if [ $? -ne 0 ] ; then
-       __gobgp_table_list
-   fi
-}
-
-_gobgp_neighbor_policy_op() {
-    local targets="import export"
-    local target="$(__search_target "$targets")"
-    if [ -z "$target" ]; then
-        __compreply ${targets}
-        return
+    if [[ ${#COMPREPLY[@]} -eq 0 ]]; then
+        declare -F __custom_func >/dev/null && __custom_func
     fi
 }
 
-_gobgp_neighbor_policy() {
-   local targets="add del"
-    local target="$(__search_target "$targets")"
-    if [ -z "$target" ]; then
-        __compreply ${targets}
-        return
-    fi
-    _gobgp_neighbor_policy_op
+# The arguments should be in the form "ext1|ext2|extn"
+__handle_filename_extension_flag()
+{
+    local ext="$1"
+    _filedir "@(${ext})"
 }
 
-_gobgp_policy_routepolicy_op(){
-    policy="${latest_word}"
-    __gobgp_policy_statement_list
-    if [ $? -ne 0 ] ; then
-        targets="conditions actions"
-        local target="$(__search_target "$targets")"
-        if [ -z "$target" ]; then
-            __compreply ${targets}
-            return
+__handle_flag()
+{
+    __debug "${FUNCNAME}: c is $c words[c] is ${words[c]}"
+
+    # if a command required a flag, and we found it, unset must_have_one_flag()
+    local flagname=${words[c]}
+    # if the word contained an =
+    if [[ ${words[c]} == *"="* ]]; then
+        flagname=${flagname%=*} # strip everything after the =
+        flagname="${flagname}=" # but put the = back
+    fi
+    __debug "${FUNCNAME}: looking for ${flagname}"
+    if __contains_word "${flagname}" "${must_have_one_flag[@]}"; then
+        must_have_one_flag=()
+    fi
+
+    # skip the argument to a two word flag
+    if __contains_word "${words[c]}" "${two_word_flags[@]}"; then
+        c=$((c+1))
+        # if we are looking for a flags value, don't show commands
+        if [[ $c -eq $cword ]]; then
+            commands=()
         fi
-        return
     fi
+
+    # skip the flag itself
+    c=$((c+1))
+
 }
 
-_gobgp_policy_routepolicy(){
-    local targets="add del"
-    local target="$(__search_target "$targets")"
-    if [ -z "$target" ]; then
-        __compreply ${targets}
-        return
+__handle_noun()
+{
+    __debug "${FUNCNAME}: c is $c words[c] is ${words[c]}"
+
+    if __contains_word "${words[c]}" "${must_have_one_noun[@]}"; then
+        must_have_one_noun=()
     fi
-    policy_kind="routepolicy"
-    __gobgp_policy_list
-    if [ $? -ne 0 ] ; then
-	    _gobgp_policy_routepolicy_op
-	fi
+
+    nouns+=("${words[c]}")
+    c=$((c+1))
 }
 
-_gobgp_policy_neighbor(){
-    local targets="add del"
-    local target="$(__search_target "$targets")"
-    if [ -z "$target" ]; then
-        __compreply ${targets}
-        return
+__handle_command()
+{
+    __debug "${FUNCNAME}: c is $c words[c] is ${words[c]}"
+
+    local next_command
+    if [[ -n ${last_command} ]]; then
+        next_command="_${last_command}_${words[c]}"
+    else
+        next_command="_${words[c]}"
     fi
-    if [ "$target" = "del" ]; then
-        policy_kind="neighbor"
-	    __gobgp_policy_list
-	fi
+    c=$((c+1))
+    __debug "${FUNCNAME}: looking for ${next_command}"
+    declare -F $next_command >/dev/null && $next_command
 }
 
-_gobgp_policy_prefix(){
-    local targets="add del"
-    local target="$(__search_target "$targets")"
-    if [ -z "$target" ]; then
-        __compreply ${targets}
-        return
+__handle_word()
+{
+    if [[ $c -ge $cword ]]; then
+        __handle_reply
+	return
     fi
-    if [ "$target" = "del" ]; then
-        policy_kind="prefix"
-	    __gobgp_policy_list
-	fi
-}
-
-_gobgp_policy() {
-    local targets="prefix neighbor routepolicy"
-    local target="$(__search_target "$targets")"
-    if [ -z "$target" ]; then
-        __compreply ${targets}
-        return
+    __debug "${FUNCNAME}: c is $c words[c] is ${words[c]}"
+    if [[ "${words[c]}" == -* ]]; then
+	__handle_flag
+    elif __contains_word "${words[c]}" "${commands[@]}"; then
+        __handle_command
+    else
+        __handle_noun
     fi
-    _gobgp_policy_${target}
+    __handle_word
 }
 
-_gobgp_gobgp() {
-    case "$prev" in
-	-h)
-	    return
-	    ;;
-	*)
-	    ;;
-	esac
+_gobgp_global_rib_add()
+{
+    last_command="gobgp_global_rib_add"
+    commands=()
 
-	case "$cur" in
-	    -*)
-		COMPREPLY=( $( compgen -W "-h" -- "$cur" ) )
-		;;
-	    *)
-		COMPREPLY=( $( compgen -W "${commands[*]} " -- "$cur" ) )
-		;;
-	esac
+    flags=()
+    two_word_flags=()
+    flags_with_completion=()
+    flags_completion=()
+
+    flags+=("--help")
+    flags+=("-h")
+
+    must_have_one_flag=()
+    must_have_one_noun=()
 }
 
-_gobgp() {
-    local commands=(
-        global
-        neighbor
-        policy
-    )
+_gobgp_global_rib_del()
+{
+    last_command="gobgp_global_rib_del"
+    commands=()
 
-    COMPREPLY=()
+    flags=()
+    two_word_flags=()
+    flags_with_completion=()
+    flags_completion=()
+
+    flags+=("--help")
+    flags+=("-h")
+
+    must_have_one_flag=()
+    must_have_one_noun=()
+}
+
+_gobgp_global_rib()
+{
+    last_command="gobgp_global_rib"
+    commands=()
+    commands+=("add")
+    commands+=("del")
+
+    flags=()
+    two_word_flags=()
+    flags_with_completion=()
+    flags_completion=()
+
+    flags+=("--address-family=")
+    two_word_flags+=("-a")
+    flags+=("--help")
+    flags+=("-h")
+
+    must_have_one_flag=()
+    must_have_one_noun=()
+}
+
+_gobgp_global()
+{
+    last_command="gobgp_global"
+    commands=()
+    commands+=("rib")
+
+    flags=()
+    two_word_flags=()
+    flags_with_completion=()
+    flags_completion=()
+
+    flags+=("--help")
+    flags+=("-h")
+
+    must_have_one_flag=()
+    must_have_one_noun=()
+}
+
+_gobgp_neighbor()
+{
+    last_command="gobgp_neighbor"
+    commands=()
+
+    flags=()
+    two_word_flags=()
+    flags_with_completion=()
+    flags_completion=()
+
+    flags+=("--address-family=")
+    two_word_flags+=("-a")
+    flags+=("--help")
+    flags+=("-h")
+
+    must_have_one_flag=()
+    must_have_one_noun=()
+}
+
+_gobgp_policy_prefix_add()
+{
+    last_command="gobgp_policy_prefix_add"
+    commands=()
+
+    flags=()
+    two_word_flags=()
+    flags_with_completion=()
+    flags_completion=()
+
+    flags+=("--help")
+    flags+=("-h")
+
+    must_have_one_flag=()
+    must_have_one_noun=()
+}
+
+_gobgp_policy_prefix_del_all()
+{
+    last_command="gobgp_policy_prefix_del_all"
+    commands=()
+
+    flags=()
+    two_word_flags=()
+    flags_with_completion=()
+    flags_completion=()
+
+    flags+=("--help")
+    flags+=("-h")
+
+    must_have_one_flag=()
+    must_have_one_noun=()
+}
+
+_gobgp_policy_prefix_del()
+{
+    last_command="gobgp_policy_prefix_del"
+    commands=()
+    commands+=("all")
+
+    flags=()
+    two_word_flags=()
+    flags_with_completion=()
+    flags_completion=()
+
+    flags+=("--help")
+    flags+=("-h")
+
+    must_have_one_flag=()
+    must_have_one_noun=()
+}
+
+_gobgp_policy_prefix()
+{
+    last_command="gobgp_policy_prefix"
+    commands=()
+    commands+=("add")
+    commands+=("del")
+
+    flags=()
+    two_word_flags=()
+    flags_with_completion=()
+    flags_completion=()
+
+    flags+=("--help")
+    flags+=("-h")
+
+    must_have_one_flag=()
+    must_have_one_noun=()
+}
+
+_gobgp_policy_neighbor_add()
+{
+    last_command="gobgp_policy_neighbor_add"
+    commands=()
+
+    flags=()
+    two_word_flags=()
+    flags_with_completion=()
+    flags_completion=()
+
+    flags+=("--help")
+    flags+=("-h")
+
+    must_have_one_flag=()
+    must_have_one_noun=()
+}
+
+_gobgp_policy_neighbor_del_all()
+{
+    last_command="gobgp_policy_neighbor_del_all"
+    commands=()
+
+    flags=()
+    two_word_flags=()
+    flags_with_completion=()
+    flags_completion=()
+
+    flags+=("--help")
+    flags+=("-h")
+
+    must_have_one_flag=()
+    must_have_one_noun=()
+}
+
+_gobgp_policy_neighbor_del()
+{
+    last_command="gobgp_policy_neighbor_del"
+    commands=()
+    commands+=("all")
+
+    flags=()
+    two_word_flags=()
+    flags_with_completion=()
+    flags_completion=()
+
+    flags+=("--help")
+    flags+=("-h")
+
+    must_have_one_flag=()
+    must_have_one_noun=()
+}
+
+_gobgp_policy_neighbor()
+{
+    last_command="gobgp_policy_neighbor"
+    commands=()
+    commands+=("add")
+    commands+=("del")
+
+    flags=()
+    two_word_flags=()
+    flags_with_completion=()
+    flags_completion=()
+
+    flags+=("--help")
+    flags+=("-h")
+
+    must_have_one_flag=()
+    must_have_one_noun=()
+}
+
+_gobgp_policy_aspath_add()
+{
+    last_command="gobgp_policy_aspath_add"
+    commands=()
+
+    flags=()
+    two_word_flags=()
+    flags_with_completion=()
+    flags_completion=()
+
+    flags+=("--help")
+    flags+=("-h")
+
+    must_have_one_flag=()
+    must_have_one_noun=()
+}
+
+_gobgp_policy_aspath_del_all()
+{
+    last_command="gobgp_policy_aspath_del_all"
+    commands=()
+
+    flags=()
+    two_word_flags=()
+    flags_with_completion=()
+    flags_completion=()
+
+    flags+=("--help")
+    flags+=("-h")
+
+    must_have_one_flag=()
+    must_have_one_noun=()
+}
+
+_gobgp_policy_aspath_del()
+{
+    last_command="gobgp_policy_aspath_del"
+    commands=()
+    commands+=("all")
+
+    flags=()
+    two_word_flags=()
+    flags_with_completion=()
+    flags_completion=()
+
+    flags+=("--help")
+    flags+=("-h")
+
+    must_have_one_flag=()
+    must_have_one_noun=()
+}
+
+_gobgp_policy_aspath()
+{
+    last_command="gobgp_policy_aspath"
+    commands=()
+    commands+=("add")
+    commands+=("del")
+
+    flags=()
+    two_word_flags=()
+    flags_with_completion=()
+    flags_completion=()
+
+    flags+=("--help")
+    flags+=("-h")
+
+    must_have_one_flag=()
+    must_have_one_noun=()
+}
+
+_gobgp_policy_community_add()
+{
+    last_command="gobgp_policy_community_add"
+    commands=()
+
+    flags=()
+    two_word_flags=()
+    flags_with_completion=()
+    flags_completion=()
+
+    flags+=("--help")
+    flags+=("-h")
+
+    must_have_one_flag=()
+    must_have_one_noun=()
+}
+
+_gobgp_policy_community_del_all()
+{
+    last_command="gobgp_policy_community_del_all"
+    commands=()
+
+    flags=()
+    two_word_flags=()
+    flags_with_completion=()
+    flags_completion=()
+
+    flags+=("--help")
+    flags+=("-h")
+
+    must_have_one_flag=()
+    must_have_one_noun=()
+}
+
+_gobgp_policy_community_del()
+{
+    last_command="gobgp_policy_community_del"
+    commands=()
+    commands+=("all")
+
+    flags=()
+    two_word_flags=()
+    flags_with_completion=()
+    flags_completion=()
+
+    flags+=("--help")
+    flags+=("-h")
+
+    must_have_one_flag=()
+    must_have_one_noun=()
+}
+
+_gobgp_policy_community()
+{
+    last_command="gobgp_policy_community"
+    commands=()
+    commands+=("add")
+    commands+=("del")
+
+    flags=()
+    two_word_flags=()
+    flags_with_completion=()
+    flags_completion=()
+
+    flags+=("--help")
+    flags+=("-h")
+
+    must_have_one_flag=()
+    must_have_one_noun=()
+}
+
+_gobgp_policy_routepolicy_add()
+{
+    last_command="gobgp_policy_routepolicy_add"
+    commands=()
+
+    flags=()
+    two_word_flags=()
+    flags_with_completion=()
+    flags_completion=()
+
+    flags+=("--a-community=")
+    flags+=("--a-route=")
+    flags+=("--c-aslen=")
+    flags+=("--c-aspath=")
+    flags+=("--c-community=")
+    flags+=("--c-neighbor=")
+    flags+=("--c-option=")
+    flags+=("--c-prefix=")
+    flags+=("--help")
+    flags+=("-h")
+
+    must_have_one_flag=()
+    must_have_one_noun=()
+}
+
+_gobgp_policy_routepolicy_del_all()
+{
+    last_command="gobgp_policy_routepolicy_del_all"
+    commands=()
+
+    flags=()
+    two_word_flags=()
+    flags_with_completion=()
+    flags_completion=()
+
+    flags+=("--help")
+    flags+=("-h")
+
+    must_have_one_flag=()
+    must_have_one_noun=()
+}
+
+_gobgp_policy_routepolicy_del()
+{
+    last_command="gobgp_policy_routepolicy_del"
+    commands=()
+    commands+=("all")
+
+    flags=()
+    two_word_flags=()
+    flags_with_completion=()
+    flags_completion=()
+
+    flags+=("--help")
+    flags+=("-h")
+
+    must_have_one_flag=()
+    must_have_one_noun=()
+}
+
+_gobgp_policy_routepolicy()
+{
+    last_command="gobgp_policy_routepolicy"
+    commands=()
+    commands+=("add")
+    commands+=("del")
+
+    flags=()
+    two_word_flags=()
+    flags_with_completion=()
+    flags_completion=()
+
+    flags+=("--help")
+    flags+=("-h")
+
+    must_have_one_flag=()
+    must_have_one_noun=()
+}
+
+_gobgp_policy()
+{
+    last_command="gobgp_policy"
+    commands=()
+    commands+=("prefix")
+    commands+=("neighbor")
+    commands+=("aspath")
+    commands+=("community")
+    commands+=("routepolicy")
+
+    flags=()
+    two_word_flags=()
+    flags_with_completion=()
+    flags_completion=()
+
+    flags+=("--help")
+    flags+=("-h")
+
+    must_have_one_flag=()
+    must_have_one_noun=()
+}
+
+_gobgp_help()
+{
+    last_command="gobgp_help"
+    commands=()
+
+    flags=()
+    two_word_flags=()
+    flags_with_completion=()
+    flags_completion=()
+
+    flags+=("--help")
+    flags+=("-h")
+
+    must_have_one_flag=()
+    must_have_one_noun=()
+}
+
+_gobgp()
+{
+    last_command="gobgp"
+    commands=()
+    commands+=("global")
+    commands+=("neighbor")
+    commands+=("policy")
+    commands+=("help")
+
+    flags=()
+    two_word_flags=()
+    flags_with_completion=()
+    flags_completion=()
+
+    flags+=("--bash-cmpl-file=")
+    flags+=("--debug")
+    flags+=("-d")
+    flags+=("--gen-cmpl")
+    flags+=("-c")
+    flags+=("--help")
+    flags+=("-h")
+    flags+=("--host=")
+    two_word_flags+=("-u")
+    flags+=("--json")
+    flags+=("-j")
+    flags+=("--port=")
+    two_word_flags+=("-p")
+    flags+=("--quiet")
+    flags+=("-q")
+
+    must_have_one_flag=()
+    must_have_one_noun=()
+}
+
+__start_gobgp()
+{
     local cur prev words cword
-    _get_comp_words_by_ref -n : cur prev words cword
+    _init_completion -s || return
 
-    local command='gobgp'
-    local counter=1
-    while [ $counter -lt $cword ]; do
-	case "${words[$counter]}" in
-            -u)
-                (( counter++ ))
-                gobgp_ip="${words[$counter]}"
-                ;;
-            -p)
-                (( counter++ ))
-                gobgp_port="${words[$counter]}"
-                ;;
-	    -*)
-		;;
-	    *)
-		command="${words[$counter]}"
-		cpos=$counter
-		(( cpos++ ))
-		break
-		;;
-	esac
-	(( counter++ ))
-    done
-    local completions_func=_gobgp_${command}
-    declare -F $completions_func > /dev/null && $completions_func
+    local c=0
+    local flags=()
+    local two_word_flags=()
+    local flags_with_completion=()
+    local flags_completion=()
+    local commands=("gobgp")
+    local must_have_one_flag=()
+    local must_have_one_noun=()
+    local last_command
+    local nouns=()
 
-    return 0
+    __handle_word
 }
 
-complete -F _gobgp gobgp
+complete -F __start_gobgp gobgp
+# ex: ts=4 sw=4 et filetype=sh
