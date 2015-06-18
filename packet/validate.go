@@ -132,7 +132,7 @@ func ValidateAttribute(a PathAttributeInterface, rfs map[RouteFamily]bool) (bool
 }
 
 // validator for PathAttribute
-func ValidateFlags(t BGPAttrType, flags uint8) (bool, string) {
+func ValidateFlags(t BGPAttrType, flags BGPAttrFlag) (bool, string) {
 
 	/*
 	 * RFC 4271 P.17 For well-known attributes, the Transitive bit MUST be set to 1.
@@ -156,8 +156,8 @@ func ValidateFlags(t BGPAttrType, flags uint8) (bool, string) {
 
 	// check flags are correct
 	if f, ok := pathAttrFlags[t]; ok {
-		if f != (flags & ^uint8(BGP_ATTR_FLAG_EXTENDED_LENGTH)) {
-			eMsg := "flags are invalid. attribtue type : " + strconv.Itoa(int(t))
+		if f != BGPAttrFlag(uint8(flags) & ^uint8(BGP_ATTR_FLAG_EXTENDED_LENGTH)) {
+			eMsg := fmt.Sprintf("flags are invalid. attribute type: %d, expect: %s, actual: %s", t, f, flags)
 			return false, eMsg
 		}
 	}

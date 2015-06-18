@@ -1715,12 +1715,31 @@ func routeFamilyPrefix(afi uint16, safi uint8) (prefix AddrPrefixInterface, err 
 	return prefix, nil
 }
 
+type BGPAttrFlag uint8
+
 const (
-	BGP_ATTR_FLAG_EXTENDED_LENGTH = 1 << 4
-	BGP_ATTR_FLAG_PARTIAL         = 1 << 5
-	BGP_ATTR_FLAG_TRANSITIVE      = 1 << 6
-	BGP_ATTR_FLAG_OPTIONAL        = 1 << 7
+	BGP_ATTR_FLAG_EXTENDED_LENGTH BGPAttrFlag = 1 << 4
+	BGP_ATTR_FLAG_PARTIAL         BGPAttrFlag = 1 << 5
+	BGP_ATTR_FLAG_TRANSITIVE      BGPAttrFlag = 1 << 6
+	BGP_ATTR_FLAG_OPTIONAL        BGPAttrFlag = 1 << 7
 )
+
+func (f BGPAttrFlag) String() string {
+	var strs []string = make([]string, 0, 4)
+	if f&BGP_ATTR_FLAG_EXTENDED_LENGTH > 0 {
+		strs = append(strs, "EXTENDED_LENGTH")
+	}
+	if f&BGP_ATTR_FLAG_PARTIAL > 0 {
+		strs = append(strs, "PARTIAL")
+	}
+	if f&BGP_ATTR_FLAG_TRANSITIVE > 0 {
+		strs = append(strs, "TRANSITIVE")
+	}
+	if f&BGP_ATTR_FLAG_OPTIONAL > 0 {
+		strs = append(strs, "OPTIONAL")
+	}
+	return strings.Join(strs, "|")
+}
 
 type BGPAttrType uint8
 
@@ -1822,7 +1841,7 @@ const (
 	BGP_ERROR_SUB_OUT_OF_RESOURCES
 )
 
-var pathAttrFlags map[BGPAttrType]uint8 = map[BGPAttrType]uint8{
+var pathAttrFlags map[BGPAttrType]BGPAttrFlag = map[BGPAttrType]BGPAttrFlag{
 	BGP_ATTR_TYPE_ORIGIN:               BGP_ATTR_FLAG_TRANSITIVE,
 	BGP_ATTR_TYPE_AS_PATH:              BGP_ATTR_FLAG_TRANSITIVE,
 	BGP_ATTR_TYPE_NEXT_HOP:             BGP_ATTR_FLAG_TRANSITIVE,
@@ -1845,13 +1864,13 @@ type PathAttributeInterface interface {
 	DecodeFromBytes([]byte) error
 	Serialize() ([]byte, error)
 	Len() int
-	getFlags() uint8
+	getFlags() BGPAttrFlag
 	getType() BGPAttrType
 	ToApiStruct() *api.PathAttr
 }
 
 type PathAttribute struct {
-	Flags  uint8
+	Flags  BGPAttrFlag
 	Type   BGPAttrType
 	Length uint16
 	Value  []byte
@@ -1867,7 +1886,7 @@ func (p *PathAttribute) Len() int {
 	return int(l)
 }
 
-func (p *PathAttribute) getFlags() uint8 {
+func (p *PathAttribute) getFlags() BGPAttrFlag {
 	return p.Flags
 }
 
@@ -1882,7 +1901,7 @@ func (p *PathAttribute) DecodeFromBytes(data []byte) error {
 	if len(data) < 2 {
 		return NewMessageError(eCode, eSubCode, data, "attribute header length is short")
 	}
-	p.Flags = data[0]
+	p.Flags = BGPAttrFlag(data[0])
 	p.Type = BGPAttrType(data[1])
 
 	if p.Flags&BGP_ATTR_FLAG_EXTENDED_LENGTH != 0 {
@@ -1918,7 +1937,7 @@ func (p *PathAttribute) Serialize() ([]byte, error) {
 		p.Flags &^= BGP_ATTR_FLAG_EXTENDED_LENGTH
 	}
 	buf := make([]byte, p.Len())
-	buf[0] = p.Flags
+	buf[0] = uint8(p.Flags)
 	buf[1] = uint8(p.Type)
 	if p.Flags&BGP_ATTR_FLAG_EXTENDED_LENGTH != 0 {
 		binary.BigEndian.PutUint16(buf[2:4], p.Length)

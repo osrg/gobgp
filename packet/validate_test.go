@@ -146,7 +146,7 @@ func Test_Validate_duplicate_attribute(t *testing.T) {
 	assert := assert.New(t)
 	message := bgpupdate().Body.(*BGPUpdate)
 	// duplicate origin path attribute
-	originBytes := []byte{pathAttrFlags[BGP_ATTR_TYPE_ORIGIN], 1, 1, 1}
+	originBytes := []byte{byte(pathAttrFlags[BGP_ATTR_TYPE_ORIGIN]), 1, 1, 1}
 	origin := &PathAttributeOrigin{}
 	origin.DecodeFromBytes(originBytes)
 	message.PathAttributes = append(message.PathAttributes, origin)
@@ -189,7 +189,7 @@ func Test_Validate_invalid_origin(t *testing.T) {
 	assert := assert.New(t)
 	message := bgpupdate().Body.(*BGPUpdate)
 	// origin needs to be well-known
-	originBytes := []byte{pathAttrFlags[BGP_ATTR_TYPE_ORIGIN], 1, 1, 5}
+	originBytes := []byte{byte(pathAttrFlags[BGP_ATTR_TYPE_ORIGIN]), 1, 1, 5}
 	origin := &PathAttributeOrigin{}
 	origin.DecodeFromBytes(originBytes)
 	message.PathAttributes[0] = origin
@@ -209,7 +209,7 @@ func Test_Validate_invalid_nexthop_zero(t *testing.T) {
 
 	// invalid nexthop
 	addr := net.ParseIP("0.0.0.1").To4()
-	nexthopBytes := []byte{pathAttrFlags[BGP_ATTR_TYPE_NEXT_HOP], 3, 4}
+	nexthopBytes := []byte{byte(pathAttrFlags[BGP_ATTR_TYPE_NEXT_HOP]), 3, 4}
 	nexthopBytes = append(nexthopBytes, addr...)
 	nexthop := &PathAttributeNextHop{}
 	nexthop.DecodeFromBytes(nexthopBytes)
@@ -230,7 +230,7 @@ func Test_Validate_invalid_nexthop_lo(t *testing.T) {
 
 	// invalid nexthop
 	addr := net.ParseIP("127.0.0.1").To4()
-	nexthopBytes := []byte{pathAttrFlags[BGP_ATTR_TYPE_NEXT_HOP], 3, 4}
+	nexthopBytes := []byte{byte(pathAttrFlags[BGP_ATTR_TYPE_NEXT_HOP]), 3, 4}
 	nexthopBytes = append(nexthopBytes, addr...)
 	nexthop := &PathAttributeNextHop{}
 	nexthop.DecodeFromBytes(nexthopBytes)
@@ -251,7 +251,7 @@ func Test_Validate_invalid_nexthop_de(t *testing.T) {
 
 	// invalid nexthop
 	addr := net.ParseIP("224.0.0.1").To4()
-	nexthopBytes := []byte{pathAttrFlags[BGP_ATTR_TYPE_NEXT_HOP], 3, 4}
+	nexthopBytes := []byte{byte(pathAttrFlags[BGP_ATTR_TYPE_NEXT_HOP]), 3, 4}
 	nexthopBytes = append(nexthopBytes, addr...)
 	nexthop := &PathAttributeNextHop{}
 	nexthop.DecodeFromBytes(nexthopBytes)
