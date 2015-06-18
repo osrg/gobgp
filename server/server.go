@@ -785,7 +785,7 @@ func (server *BgpServer) handleGrpc(grpcReq *GrpcRequest) []*SenderMsg {
 		}
 		pathList := handleGlobalRibRequest(grpcReq, pi)
 		if len(pathList) > 0 {
-			server.propagateUpdate("", false, pathList)
+			msgs = append(msgs, server.propagateUpdate("", false, pathList)...)
 			grpcReq.ResponseCh <- &GrpcResponse{}
 			close(grpcReq.ResponseCh)
 		}
