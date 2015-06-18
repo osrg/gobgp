@@ -1,5 +1,15 @@
 #!/bin/bash
 
+__gobgp_q() {
+    gobgp 2>/dev/null "$@"
+}
+
+__gobgp_q_neighbor() {
+    neighbors=( $(__gobgp_q $url $port --quiet $q_type) )
+    for n in ${neighbors[*]}; do
+        must_have_one_noun+=($n)
+    done
+}
 
 __debug()
 {
@@ -106,7 +116,12 @@ __handle_flag()
             commands=()
         fi
     fi
-
+    if [ ${words[(c-1)]} == "-u" ]; then
+        url="-u ${words[(c)]}"
+    fi
+    if [ ${words[(c-1)]} == "-p" ]; then
+        port="-p ${words[(c)]}"
+    fi
     # skip the flag itself
     c=$((c+1))
 
@@ -233,6 +248,16 @@ _gobgp_neighbor()
 {
     last_command="gobgp_neighbor"
     commands=()
+    commands+=("local")
+    commands+=("adj-in")
+    commands+=("adj-out")
+    commands+=("reset")
+    commands+=("softreset")
+    commands+=("softresetin")
+    commands+=("softresetout")
+    commands+=("shutdown")
+    commands+=("enable")
+    commands+=("disable")
 
     flags=()
     two_word_flags=()
@@ -246,6 +271,8 @@ _gobgp_neighbor()
 
     must_have_one_flag=()
     must_have_one_noun=()
+    q_type="neighbor"
+    __gobgp_q_neighbor
 }
 
 _gobgp_policy_prefix_add()
@@ -652,12 +679,14 @@ _gobgp_help()
 
 _gobgp()
 {
+    url=""
+    port=""
+    q_type=""
     last_command="gobgp"
     commands=()
     commands+=("global")
     commands+=("neighbor")
     commands+=("policy")
-    commands+=("help")
 
     flags=()
     two_word_flags=()
