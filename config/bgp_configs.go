@@ -373,6 +373,10 @@ type ApplyPolicy struct {
 	ExportPolicies []string
 	// original -> rpol:default-export-policy
 	DefaultExportPolicy DefaultPolicyType
+	// original -> rpol:distribute-policies
+	DistributePolicies []string
+	// original -> rpol:default-distribute-policy
+	DefaultDistributePolicy DefaultPolicyType
 }
 
 //struct for container bgp-op:bgp-neighbor-common-state
