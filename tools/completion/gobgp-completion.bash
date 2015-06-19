@@ -7,9 +7,27 @@ __gobgp_q() {
 __gobgp_q_neighbor() {
     neighbors=( $(__gobgp_q $url $port --quiet $q_type) )
     for n in ${neighbors[*]}; do
-        must_have_one_noun+=($n)
+        commands+=($n)
     done
+    neighbor_searched="True"
+    last_command="gobgp_neighbor"
 }
+
+__gobgp_q_policy() {
+    policies=( $(__gobgp_q $url $port --quiet policy $q_type) )
+    for ps in ${policies[*]}; do
+        commands+=($ps)
+    done
+    if [[ ${want_state} == "True" ]]; then
+        want_state="False"
+    fi
+    if [[ ${last_command} == "gobgp_policy_routepolicy_add" ]]; then
+        want_state="True"
+    else
+        policy_searched="True"
+    fi
+}
+
 
 __debug()
 {
@@ -149,6 +167,23 @@ __handle_command()
     else
         next_command="_${words[c]}"
     fi
+
+    if [[ ${last_command} == "gobgp_neighbor_someone" ]]; then
+        commands=()
+    fi
+
+    if [[ ${neighbor_searched} == "True" ]]; then
+        next_command="_${last_command}_someone"
+    fi
+
+    if [[ ${policy_searched} == "True" ]]; then
+        commands=()
+    fi
+    if [[ ${want_state} == "True" ]]; then
+        routepolicy="${words[c]}"
+        next_command="_${last_command}_state"
+    fi
+
     c=$((c+1))
     __debug "${FUNCNAME}: looking for ${next_command}"
     declare -F $next_command >/dev/null && $next_command
@@ -160,7 +195,8 @@ __handle_word()
         __handle_reply
 	return
     fi
-    __debug "${FUNCNAME}: c is $c words[c] is ${words[c]}"
+    # __debug "${FUNCNAME}: c is $c words[c] is ${words[c]}"
+    # echo "${FUNCNAME}: c is $c words[c] is ${words[c]} cword is ${cword}"
     if [[ "${words[c]}" == -* ]]; then
 	__handle_flag
     elif __contains_word "${words[c]}" "${commands[@]}"; then
@@ -244,9 +280,9 @@ _gobgp_global()
     must_have_one_noun=()
 }
 
-_gobgp_neighbor()
+_gobgp_neighbor_someone()
 {
-    last_command="gobgp_neighbor"
+    last_command="gobgp_neighbor_someone"
     commands=()
     commands+=("local")
     commands+=("adj-in")
@@ -259,6 +295,24 @@ _gobgp_neighbor()
     commands+=("enable")
     commands+=("disable")
 
+    flags=()
+    two_word_flags=()
+    flags_with_completion=()
+    flags_completion=()
+
+    flags+=("--address-family=")
+    two_word_flags+=("-a")
+    flags+=("--help")
+    flags+=("-h")
+
+    must_have_one_flag=()
+    must_have_one_noun=()
+}
+
+_gobgp_neighbor()
+{
+    last_command="gobgp_neighbor"
+    commands=()
     flags=()
     two_word_flags=()
     flags_with_completion=()
@@ -314,6 +368,8 @@ _gobgp_policy_prefix_del()
     last_command="gobgp_policy_prefix_del"
     commands=()
     commands+=("all")
+    q_type="prefix"
+    __gobgp_q_policy
 
     flags=()
     two_word_flags=()
@@ -333,6 +389,8 @@ _gobgp_policy_prefix()
     commands=()
     commands+=("add")
     commands+=("del")
+    q_type="prefix"
+    __gobgp_q_policy
 
     flags=()
     two_word_flags=()
@@ -385,6 +443,8 @@ _gobgp_policy_neighbor_del()
     last_command="gobgp_policy_neighbor_del"
     commands=()
     commands+=("all")
+     q_type="neighbor"
+    __gobgp_q_policy
 
     flags=()
     two_word_flags=()
@@ -404,6 +464,8 @@ _gobgp_policy_neighbor()
     commands=()
     commands+=("add")
     commands+=("del")
+     q_type="neighbor"
+    __gobgp_q_policy
 
     flags=()
     two_word_flags=()
@@ -456,6 +518,8 @@ _gobgp_policy_aspath_del()
     last_command="gobgp_policy_aspath_del"
     commands=()
     commands+=("all")
+    q_type="aspath"
+    __gobgp_q_policy
 
     flags=()
     two_word_flags=()
@@ -475,6 +539,8 @@ _gobgp_policy_aspath()
     commands=()
     commands+=("add")
     commands+=("del")
+    q_type="aspath"
+    __gobgp_q_policy
 
     flags=()
     two_word_flags=()
@@ -527,6 +593,8 @@ _gobgp_policy_community_del()
     last_command="gobgp_policy_community_del"
     commands=()
     commands+=("all")
+    q_type="community"
+    __gobgp_q_policy
 
     flags=()
     two_word_flags=()
@@ -546,6 +614,8 @@ _gobgp_policy_community()
     commands=()
     commands+=("add")
     commands+=("del")
+    q_type="community"
+    __gobgp_q_policy
 
     flags=()
     two_word_flags=()
@@ -559,10 +629,39 @@ _gobgp_policy_community()
     must_have_one_noun=()
 }
 
+_gobgp_policy_routepolicy_add_state()
+{
+    last_command="gobgp_policy_routepolicy_add_stat"
+    commands=()
+    q_type="routepolicy ${routepolicy}"
+    __gobgp_q_policy
+
+    flags=()
+    two_word_flags=()
+    flags_with_completion=()
+    flags_completion=()
+
+    flags+=("--a-community=")
+    flags+=("--a-route=")
+    flags+=("--c-aslen=")
+    flags+=("--c-aspath=")
+    flags+=("--c-community=")
+    flags+=("--c-neighbor=")
+    flags+=("--c-option=")
+    flags+=("--c-prefix=")
+    flags+=("--help")
+    flags+=("-h")
+
+    must_have_one_flag=()
+    must_have_one_noun=()
+}
+
 _gobgp_policy_routepolicy_add()
 {
     last_command="gobgp_policy_routepolicy_add"
     commands=()
+    q_type="routepolicy"
+    __gobgp_q_policy
 
     flags=()
     two_word_flags=()
@@ -606,6 +705,8 @@ _gobgp_policy_routepolicy_del()
     last_command="gobgp_policy_routepolicy_del"
     commands=()
     commands+=("all")
+    q_type="routepolicy"
+    __gobgp_q_policy
 
     flags=()
     two_word_flags=()
@@ -625,6 +726,8 @@ _gobgp_policy_routepolicy()
     commands=()
     commands+=("add")
     commands+=("del")
+    q_type="routepolicy"
+    __gobgp_q_policy
 
     flags=()
     two_word_flags=()
@@ -717,7 +820,6 @@ __start_gobgp()
 {
     local cur prev words cword
     _init_completion -s || return
-
     local c=0
     local flags=()
     local two_word_flags=()
@@ -728,6 +830,12 @@ __start_gobgp()
     local must_have_one_noun=()
     local last_command
     local nouns=()
+
+    neighbor_searched="False"
+    policy_searched="False"
+    want_state="False"
+    routepolicy=""
+
 
     __handle_word
 }
