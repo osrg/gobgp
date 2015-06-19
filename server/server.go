@@ -35,6 +35,14 @@ const (
 	GLOBAL_RIB_NAME = "global"
 )
 
+type Direction string
+
+const (
+	POLICY_DIRECTION_IMPORT     Direction = "import"
+	POLICY_DIRECTION_EXPORT               = "export"
+	POLICY_DIRECTION_DISTRIBUTE           = "distribute"
+)
+
 type SenderMsg struct {
 	messages    []*bgp.BGPMessage
 	sendCh      chan *bgp.BGPMessage
@@ -201,6 +209,8 @@ func (server *BgpServer) Serve() {
 				loc := NewLocalRib(name, peer.configuredRFlist(), make(map[string]*policy.Policy))
 				server.addLocalRib(loc)
 				loc.setPolicy(peer, server.policyMap)
+				// set distribute policy
+				peer.setPolicy(server.policyMap)
 
 				pathList := make([]table.Path, 0)
 				for _, p := range server.neighborMap {
@@ -211,7 +221,7 @@ func (server *BgpServer) Serve() {
 						pathList = append(pathList, p.adjRib.GetInPathList(rf)...)
 					}
 				}
-				pathList = applyPolicies(peer, loc, false, pathList)
+				pathList = applyPolicies(peer, loc, POLICY_DIRECTION_IMPORT, pathList)
 				if len(pathList) > 0 {
 					loc.rib.ProcessPaths(pathList)
 				}
@@ -371,19 +381,32 @@ func (server *BgpServer) dropPeerAllRoutes(peer *Peer) []*SenderMsg {
 	return msgs
 }
 
-func applyPolicies(peer *Peer, loc *LocalRib, isExport bool, pathList []table.Path) []table.Path {
+func applyPolicies(peer *Peer, loc *LocalRib, d Direction, pathList []table.Path) []table.Path {
 	var defaultPolicy config.DefaultPolicyType
-	if isExport == true {
+	switch d {
+	case POLICY_DIRECTION_EXPORT:
 		defaultPolicy = loc.defaultExportPolicy
-	} else {
+	case POLICY_DIRECTION_IMPORT:
 		defaultPolicy = loc.defaultImportPolicy
+	case POLICY_DIRECTION_DISTRIBUTE:
+		defaultPolicy = peer.defaultDistributePolicy
+	default:
+		log.WithFields(log.Fields{
+			"Topic": "Server",
+			"Key":   peer.config.NeighborAddress,
+		}).Error("direction is not specified.")
 	}
 
 	ret := make([]table.Path, 0, len(pathList))
 	for _, path := range pathList {
 		if !path.IsWithdraw() {
 			var applied bool = false
-			applied, path = loc.applyPolicies(isExport, path)
+			if d == POLICY_DIRECTION_DISTRIBUTE {
+				applied, path = peer.applyPolicies(path)
+			} else {
+				applied, path = loc.applyPolicies(d, path)
+			}
+
 			if applied {
 				if path == nil {
 					log.WithFields(log.Fields{
@@ -463,11 +486,11 @@ func (server *BgpServer) propagateUpdate(neighborAddress string, RouteServerClie
 			if loc.isGlobal() || loc.OwnerName() == neighborAddress {
 				continue
 			}
-			sendPathList, _ := loc.rib.ProcessPaths(applyPolicies(targetPeer, loc, false, dropSameAsPath(targetPeer.config.PeerAs, filterpath(targetPeer, pathList))))
+			sendPathList, _ := loc.rib.ProcessPaths(applyPolicies(targetPeer, loc, POLICY_DIRECTION_IMPORT, dropSameAsPath(targetPeer.config.PeerAs, filterpath(targetPeer, pathList))))
 			if targetPeer.fsm.state != bgp.BGP_FSM_ESTABLISHED || len(sendPathList) == 0 {
 				continue
 			}
-			sendPathList = applyPolicies(targetPeer, loc, true, sendPathList)
+			sendPathList = applyPolicies(targetPeer, loc, POLICY_DIRECTION_EXPORT, sendPathList)
 			if len(sendPathList) == 0 {
 				continue
 			}
@@ -535,7 +558,7 @@ func (server *BgpServer) handleFSMMessage(peer *Peer, e *fsmMsg, incoming chan *
 			pathList := make([]table.Path, 0)
 			if peer.isRouteServerClient() {
 				loc := server.localRibMap[peer.config.NeighborAddress.String()]
-				pathList = applyPolicies(peer, loc, true, peer.getBests(loc))
+				pathList = applyPolicies(peer, loc, POLICY_DIRECTION_EXPORT, peer.getBests(loc))
 			} else {
 				peer.config.LocalAddress = peer.fsm.LocalAddr()
 				for _, path := range peer.getBests(globalRib) {
@@ -622,6 +645,8 @@ func (server *BgpServer) handlePolicy(pl config.RoutingPolicy) {
 		}
 		targetPeer := server.neighborMap[loc.OwnerName()]
 		loc.setPolicy(targetPeer, server.policyMap)
+		// set distribute policy
+		targetPeer.setPolicy(server.policyMap)
 	}
 }
 
