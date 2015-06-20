@@ -19,7 +19,6 @@ import (
 	"bytes"
 	"encoding/binary"
 	"encoding/json"
-	"errors"
 	"fmt"
 	"github.com/osrg/gobgp/api"
 	"math"
@@ -1710,7 +1709,7 @@ func routeFamilyPrefix(afi uint16, safi uint8) (prefix AddrPrefixInterface, err 
 	case RF_ENCAP:
 		prefix = NewEncapNLRI("")
 	default:
-		return nil, errors.New("unknown route family")
+		return nil, fmt.Errorf("unknown route family. AFI: %d, SAFI: %d", afi, safi)
 	}
 	return prefix, nil
 }
