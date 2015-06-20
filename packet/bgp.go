@@ -1690,9 +1690,9 @@ func GetRouteFamily(name string) (RouteFamily, error) {
 
 func routeFamilyPrefix(afi uint16, safi uint8) (prefix AddrPrefixInterface, err error) {
 	switch AfiSafiToRouteFamily(afi, safi) {
-	case RF_IPv4_UC:
+	case RF_IPv4_UC, RF_IPv4_MC:
 		prefix = NewIPAddrPrefix(0, "")
-	case RF_IPv6_UC:
+	case RF_IPv6_UC, RF_IPv6_MC:
 		prefix = NewIPv6AddrPrefix(0, "")
 	case RF_IPv4_VPN:
 		prefix = NewLabelledVPNIPAddrPrefix(0, "", *NewLabel(), nil)
