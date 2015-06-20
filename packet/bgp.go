@@ -1688,7 +1688,7 @@ func GetRouteFamily(name string) (RouteFamily, error) {
 	return RouteFamily(0), fmt.Errorf("%s isn't a valid route family name", name)
 }
 
-func routeFamilyPrefix(afi uint16, safi uint8) (prefix AddrPrefixInterface, err error) {
+func NewPrefixFromRouteFamily(afi uint16, safi uint8) (prefix AddrPrefixInterface, err error) {
 	switch AfiSafiToRouteFamily(afi, safi) {
 	case RF_IPv4_UC, RF_IPv4_MC:
 		prefix = NewIPAddrPrefix(0, "")
@@ -2681,7 +2681,7 @@ func (p *PathAttributeMpReachNLRI) DecodeFromBytes(data []byte) error {
 	safi := value[2]
 	p.AFI = afi
 	p.SAFI = safi
-	_, err = routeFamilyPrefix(afi, safi)
+	_, err = NewPrefixFromRouteFamily(afi, safi)
 	if err != nil {
 		return NewMessageError(eCode, BGP_ERROR_SUB_ATTRIBUTE_FLAGS_ERROR, data[:p.PathAttribute.Len()], err.Error())
 	}
@@ -2720,7 +2720,7 @@ func (p *PathAttributeMpReachNLRI) DecodeFromBytes(data []byte) error {
 	}
 	value = value[1:]
 	for len(value) > 0 {
-		prefix, err := routeFamilyPrefix(afi, safi)
+		prefix, err := NewPrefixFromRouteFamily(afi, safi)
 		if err != nil {
 			return NewMessageError(eCode, BGP_ERROR_SUB_ATTRIBUTE_FLAGS_ERROR, data[:p.PathAttribute.Len()], err.Error())
 		}
@@ -2824,7 +2824,7 @@ func (p *PathAttributeMpUnreachNLRI) DecodeFromBytes(data []byte) error {
 	}
 	afi := binary.BigEndian.Uint16(value[0:2])
 	safi := value[2]
-	_, err = routeFamilyPrefix(afi, safi)
+	_, err = NewPrefixFromRouteFamily(afi, safi)
 	if err != nil {
 		return NewMessageError(eCode, BGP_ERROR_SUB_ATTRIBUTE_FLAGS_ERROR, data[:p.PathAttribute.Len()], err.Error())
 	}
@@ -2832,7 +2832,7 @@ func (p *PathAttributeMpUnreachNLRI) DecodeFromBytes(data []byte) error {
 	p.AFI = afi
 	p.SAFI = safi
 	for len(value) > 0 {
-		prefix, err := routeFamilyPrefix(afi, safi)
+		prefix, err := NewPrefixFromRouteFamily(afi, safi)
 		if err != nil {
 			return NewMessageError(eCode, BGP_ERROR_SUB_ATTRIBUTE_FLAGS_ERROR, data[:p.PathAttribute.Len()], err.Error())
 		}
