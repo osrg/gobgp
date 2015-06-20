@@ -3681,7 +3681,7 @@ func (p *PathAttributeUnknown) MarshalJSON() ([]byte, error) {
 	return json.Marshal(p.ToApiStruct())
 }
 
-func getPathAttribute(data []byte) (PathAttributeInterface, error) {
+func GetPathAttribute(data []byte) (PathAttributeInterface, error) {
 	if len(data) < 1 {
 		eCode := uint8(BGP_ERROR_UPDATE_MESSAGE_ERROR)
 		eSubCode := uint8(BGP_ERROR_SUB_MALFORMED_ATTRIBUTE_LIST)
@@ -3789,7 +3789,7 @@ func (msg *BGPUpdate) DecodeFromBytes(data []byte) error {
 	}
 
 	for pathlen := msg.TotalPathAttributeLen; pathlen > 0; {
-		p, err := getPathAttribute(data)
+		p, err := GetPathAttribute(data)
 		if err != nil {
 			return err
 		}
