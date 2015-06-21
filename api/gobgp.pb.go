@@ -1384,7 +1384,7 @@ func (c *grpcClient) ModPath(ctx context.Context, opts ...grpc.CallOption) (Grpc
 
 type Grpc_ModPathClient interface {
 	Send(*ModPathArguments) error
-	Recv() (*Error, error)
+	CloseAndRecv() (*Error, error)
 	grpc.ClientStream
 }
 
@@ -1396,7 +1396,10 @@ func (x *grpcModPathClient) Send(m *ModPathArguments) error {
 	return x.ClientStream.SendMsg(m)
 }
 
-func (x *grpcModPathClient) Recv() (*Error, error) {
+func (x *grpcModPathClient) CloseAndRecv() (*Error, error) {
+	if err := x.ClientStream.CloseSend(); err != nil {
+		return nil, err
+	}
 	m := new(Error)
 	if err := x.ClientStream.RecvMsg(m); err != nil {
 		return nil, err
@@ -1706,7 +1709,7 @@ func _Grpc_ModPath_Handler(srv interface{}, stream grpc.ServerStream) error {
 }
 
 type Grpc_ModPathServer interface {
-	Send(*Error) error
+	SendAndClose(*Error) error
 	Recv() (*ModPathArguments, error)
 	grpc.ServerStream
 }
@@ -1715,7 +1718,7 @@ type grpcModPathServer struct {
 	grpc.ServerStream
 }
 
-func (x *grpcModPathServer) Send(m *Error) error {
+func (x *grpcModPathServer) SendAndClose(m *Error) error {
 	return x.ServerStream.SendMsg(m)
 }
 
@@ -1888,7 +1891,6 @@ var _Grpc_serviceDesc = grpc.ServiceDesc{
 		{
 			StreamName:    "ModPath",
 			Handler:       _Grpc_ModPath_Handler,
-			ServerStreams: true,
 			ClientStreams: true,
 		},
 		{

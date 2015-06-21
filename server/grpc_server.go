@@ -256,7 +256,7 @@ func (s *Server) ModPath(stream api.Grpc_ModPathServer) error {
 		arg, err := stream.Recv()
 
 		if err == io.EOF {
-			return nil
+			break
 		} else if err != nil {
 			return err
 		}
@@ -282,15 +282,12 @@ func (s *Server) ModPath(stream api.Grpc_ModPathServer) error {
 			log.Debug(err.Error())
 			return err
 		}
-
-		err = stream.Send(&api.Error{
-			Code: api.Error_SUCCESS,
-		})
-
-		if err != nil {
-			return err
-		}
 	}
+	err := stream.SendAndClose(&api.Error{
+		Code: api.Error_SUCCESS,
+	})
+
+	return err
 }
 
 func (s *Server) GetNeighborPolicy(ctx context.Context, arg *api.Arguments) (*api.ApplyPolicy, error) {

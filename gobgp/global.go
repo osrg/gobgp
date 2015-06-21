@@ -190,7 +190,7 @@ func modPath(modtype string, eArgs []string) error {
 	}
 	stream.CloseSend()
 
-	res, e := stream.Recv()
+	res, e := stream.CloseAndRecv()
 	if e != nil {
 		return e
 	}

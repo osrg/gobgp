@@ -141,15 +141,6 @@ func main() {
 						os.Exit(1)
 					}
 
-					res, err := stream.Recv()
-					if err != nil {
-						fmt.Println("failed to send:", err)
-						os.Exit(1)
-					}
-					if res.Code != api.Error_SUCCESS {
-						fmt.Errorf("error: code: %d, msg: %s", res.Code, res.Msg)
-						os.Exit(1)
-					}
 				}
 
 				idx += 1
@@ -158,6 +149,17 @@ func main() {
 					break
 				}
 			}
+
+			res, err := stream.CloseAndRecv()
+			if err != nil {
+				fmt.Println("failed to send:", err)
+				os.Exit(1)
+			}
+			if res.Code != api.Error_SUCCESS {
+				fmt.Errorf("error: code: %d, msg: %s", res.Code, res.Msg)
+				os.Exit(1)
+			}
+
 		},
 	}
 
