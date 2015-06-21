@@ -5,6 +5,7 @@
 *.pyc
 gobgp
 gobgpd
+gomrt/gomrt
 
 # Folders
 _obj
