@@ -72,81 +72,91 @@ func main() {
 
 			idx := 0
 
+			ch := make(chan *api.Path, 1024)
+
+			go func() {
+
+				for {
+					buf := make([]byte, mrt.COMMON_HEADER_LEN)
+					_, err := file.Read(buf)
+					if err == io.EOF {
+						break
+					} else if err != nil {
+						fmt.Println("failed to read:", err)
+						os.Exit(1)
+					}
+
+					h := &mrt.Header{}
+					err = h.DecodeFromBytes(buf)
+					if err != nil {
+						fmt.Println("failed to parse")
+						os.Exit(1)
+					}
+
+					buf = make([]byte, h.Len)
+					_, err = file.Read(buf)
+					if err != nil {
+						fmt.Println("failed to read")
+						os.Exit(1)
+					}
+
+					msg, err := mrt.ParseBody(h, buf)
+					if err != nil {
+						fmt.Println("failed to parse:", err)
+						os.Exit(1)
+					}
+
+					if msg.Header.Type == mrt.TABLE_DUMPv2 {
+						subType := mrt.SubTypeTableDumpv2(msg.Header.SubType)
+						var af *api.AddressFamily
+						switch subType {
+						case mrt.PEER_INDEX_TABLE:
+							continue
+						case mrt.RIB_IPV4_UNICAST:
+							af = api.AF_IPV4_UC
+						case mrt.RIB_IPV6_UNICAST:
+							af = api.AF_IPV6_UC
+						default:
+							fmt.Println("unsupported subType:", subType)
+							os.Exit(1)
+						}
+						rib := msg.Body.(*mrt.Rib)
+						prefix := rib.Prefix.String()
+						path := &api.Path{}
+						path.Nlri = &api.Nlri{
+							Af:     af,
+							Prefix: prefix,
+						}
+
+						ch <- path
+					}
+
+					idx += 1
+
+					if idx == globalOpts.Count {
+						break
+					}
+				}
+
+				close(ch)
+			}()
+
 			stream, err := client.ModPath(context.Background())
 			if err != nil {
 				fmt.Println("failed to modpath:", err)
 				os.Exit(1)
 			}
 
-			for {
-				buf := make([]byte, mrt.COMMON_HEADER_LEN)
-				_, err := file.Read(buf)
-				if err == io.EOF {
-					break
-				} else if err != nil {
-					fmt.Println("failed to read:", err)
-					os.Exit(1)
+			for path := range ch {
+				arg := &api.ModPathArguments{
+					Resource: api.Resource_GLOBAL,
+					Path:     path,
 				}
 
-				h := &mrt.Header{}
-				err = h.DecodeFromBytes(buf)
+				err = stream.Send(arg)
 				if err != nil {
-					fmt.Println("failed to parse")
+					fmt.Println("failed to send:", err)
 					os.Exit(1)
-				}
-
-				buf = make([]byte, h.Len)
-				_, err = file.Read(buf)
-				if err != nil {
-					fmt.Println("failed to read")
-					os.Exit(1)
-				}
-
-				msg, err := mrt.ParseBody(h, buf)
-				if err != nil {
-					fmt.Println("failed to parse:", err)
-					os.Exit(1)
-				}
-
-				if msg.Header.Type == mrt.TABLE_DUMPv2 {
-					subType := mrt.SubTypeTableDumpv2(msg.Header.SubType)
-					var af *api.AddressFamily
-					switch subType {
-					case mrt.PEER_INDEX_TABLE:
-						continue
-					case mrt.RIB_IPV4_UNICAST:
-						af = api.AF_IPV4_UC
-					case mrt.RIB_IPV6_UNICAST:
-						af = api.AF_IPV6_UC
-					default:
-						fmt.Println("unsupported subType:", subType)
-						os.Exit(1)
-					}
-					rib := msg.Body.(*mrt.Rib)
-					prefix := rib.Prefix.String()
-					path := &api.Path{}
-					path.Nlri = &api.Nlri{
-						Af:     af,
-						Prefix: prefix,
-					}
-
-					arg := &api.ModPathArguments{
-						Resource: api.Resource_GLOBAL,
-						Path:     path,
-					}
-
-					err = stream.Send(arg)
-					if err != nil {
-						fmt.Println("failed to send:", err)
-						os.Exit(1)
-					}
-
-				}
-
-				idx += 1
-
-				if idx == globalOpts.Count {
-					break
 				}
 			}
 
