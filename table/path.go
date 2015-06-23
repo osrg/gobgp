@@ -54,6 +54,7 @@ type Path interface {
 	Clone(IsWithdraw bool) Path
 	getTimestamp() time.Time
 	setTimestamp(t time.Time)
+	isLocal() bool
 	ToApiStruct() *api.Path
 	MarshalJSON() ([]byte, error)
 }
@@ -178,6 +179,14 @@ func (pd *PathDefault) getTimestamp() time.Time {
 
 func (pd *PathDefault) setTimestamp(t time.Time) {
 	pd.timestamp = t
+}
+
+func (pd *PathDefault) isLocal() bool {
+	var ret bool
+	if pd.source.Address == nil {
+		ret = true
+	}
+	return ret
 }
 
 func (pd *PathDefault) ToApiStruct() *api.Path {

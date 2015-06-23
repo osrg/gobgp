@@ -48,6 +48,21 @@ type PeerInfo struct {
 	Address net.IP
 }
 
+func (lhs *PeerInfo) Equal(rhs *PeerInfo) bool {
+	if lhs == rhs {
+		return true
+	}
+
+	if rhs == nil {
+		return false
+	}
+
+	if (lhs.AS == rhs.AS) && lhs.ID.Equal(rhs.ID) && lhs.LocalID.Equal(rhs.LocalID) && lhs.Address.Equal(rhs.Address) {
+		return true
+	}
+	return false
+}
+
 type Destination interface {
 	Calculate(localAsn uint32) (Path, string, error)
 	getRouteFamily() bgp.RouteFamily
@@ -183,7 +198,7 @@ func (dd *DestinationDefault) removeOldPathsFromSource(source *PeerInfo) []Path 
 	tempKnownPathList := make([]Path, 0)
 
 	for _, path := range dd.knownPathList {
-		if path.GetSource() == source {
+		if path.GetSource().Equal(source) {
 			removePaths = append(removePaths, path)
 		} else {
 			tempKnownPathList = append(tempKnownPathList, path)
@@ -302,7 +317,7 @@ func (dest *DestinationDefault) removeWithdrawals() {
 		for _, path := range dest.knownPathList {
 			// We have a match if the source are same.
 			// TODO add GetSource to Path interface
-			if path.GetSource() == withdraw.GetSource() {
+			if path.GetSource().Equal(withdraw.GetSource()) {
 				isFound = true
 				matches[path.String()] = path
 				wMatches[withdraw.String()] = withdraw
@@ -401,7 +416,7 @@ func (dest *DestinationDefault) removeOldPaths() {
 			// version num. as newPaths are implicit withdrawal of old
 			// paths and when doing RouteRefresh (not EnhancedRouteRefresh)
 			// we get same paths again.
-			if newPath.GetSource() == path.GetSource() {
+			if newPath.GetSource().Equal(path.GetSource()) {
 				oldPaths = append(oldPaths, path)
 				break
 			}
@@ -590,14 +605,14 @@ func compareByLocalPref(path1, path2 Path) Path {
 
 func compareByLocalOrigin(path1, path2 Path) Path {
 
-	// """Select locally originating path as best path.
-	//	Locally originating routes are network routes, redistributed routes,
-	//	or aggregated routes.
-	//	Returns None if given paths have same source.
-	//	"""
-	//	# If both paths are from same sources we cannot compare them here.
+	// Select locally originating path as best path.
+	// Locally originating routes are network routes, redistributed routes,
+	// or aggregated routes.
+	// Returns None if given paths have same source.
+	//
+	// If both paths are from same sources we cannot compare them here.
 	log.Debugf("enter compareByLocalOrigin")
-	if path1.GetSource() == path2.GetSource() {
+	if path1.GetSource().Equal(path2.GetSource()) {
 		return nil
 	}
 

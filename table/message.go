@@ -215,7 +215,7 @@ func isMergeable(p1 Path, p2 Path) bool {
 	if p1.GetRouteFamily() != bgp.RF_IPv4_UC {
 		return false
 	}
-	if p1.GetSource() == p2.GetSource() && isSamePathAttrs(p1.getPathAttrs(), p2.getPathAttrs()) {
+	if p1.GetSource().Equal(p2.GetSource()) && isSamePathAttrs(p1.getPathAttrs(), p2.getPathAttrs()) {
 		return true
 	}
 	return false
