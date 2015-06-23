@@ -423,6 +423,7 @@ func (server *BgpServer) broadcastBests(bests []table.Path) {
 			case <-req.EndCh:
 				continue
 			case req.ResponseCh <- result:
+			default:
 			}
 			remainReqs = append(remainReqs, req)
 		}
@@ -446,6 +447,7 @@ func (server *BgpServer) broadcastPeerState(peer *Peer) {
 		case <-req.EndCh:
 			continue
 		case req.ResponseCh <- result:
+		default:
 		}
 		remainReqs = append(remainReqs, req)
 	}
