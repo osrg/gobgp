@@ -277,6 +277,7 @@ func (server *BgpServer) Serve() {
 				senderMsgs = append(senderMsgs, m...)
 			}
 		case pl := <-server.policyUpdateCh:
+			log.Info("handle policy update ")
 			server.handlePolicy(pl)
 		}
 	}
@@ -644,6 +645,10 @@ func (server *BgpServer) handlePolicy(pl config.RoutingPolicy) {
 			continue
 		}
 		targetPeer := server.neighborMap[loc.OwnerName()]
+		log.WithFields(log.Fields{
+			"Topic":      "Peer",
+			"Key":        targetPeer.config.NeighborAddress,
+		}).Info("call set policy")
 		loc.setPolicy(targetPeer, server.policyMap)
 		// set distribute policy
 		targetPeer.setPolicy(server.policyMap)

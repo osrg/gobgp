@@ -214,18 +214,19 @@ def docker_container_stop_exabgp():
     local(cmd, capture=True)
 
 
-def docker_containers_destroy():
+def docker_containers_destroy(gobgp_remove=True, confdir_remove=True):
     containers = docker_containers_get()
     for container in containers:
         if re.match(r'q[0-9][0-9]*', container) is not None:
             docker_container_stop_quagga(container)
         if container == GOBGP_CONTAINER_NAME:
-            docker_container_stop_gobgp()
+            docker_container_stop_gobgp(remove=gobgp_remove)
         if container == EXABGP_CONTAINER_NAME:
             docker_container_stop_exabgp()
     bridge_unsetting_for_docker_connection()
-    cmd = "rm -rf " + CONFIG_DIRR
-    local(cmd, capture=True)
+    if confdir_remove:
+        cmd = "rm -rf " + CONFIG_DIRR
+        local(cmd, capture=True)
 
 
 def docker_check_running(cname):
@@ -314,7 +315,7 @@ def get_notification_from_exabgp_log():
     return err_mgs
 
 
-def make_config(quagga_num, go_path, bridge, peer_opts="", policy_pattern=""):
+def make_config(quagga_num, go_path, bridge, peer_opts="", use_compiled=False):
     if go_path != "":
         print "specified go path is [ " + go_path + " ]."
         if os.path.isdir(go_path):
@@ -323,29 +324,16 @@ def make_config(quagga_num, go_path, bridge, peer_opts="", policy_pattern=""):
             print "specified go path do not use."
     pwd = local("pwd", capture=True)
 
-    pp = ''
-    if policy_pattern:
-        pp = " -p " + policy_pattern
+    tool = go_path + "go run " + pwd + "/quagga-rsconfig.go "
+    if use_compiled:
+        tool = pwd + "/quagga-rsconfig "
 
-    cmd = go_path + "go run " + pwd + "/quagga-rsconfig.go -n " + str(quagga_num) +\
-          " -c /tmp/gobgp -v " + IP_VERSION + pp +" -i " + bridge["BRIDGE_NAME"][-1] + " " + peer_opts
-    local(cmd, capture=True)
-
-
-def make_config_with_policy(quagga_num, go_path, bridge, peer_opts="", policy_pattern=""):
-    if go_path != "":
-        print "specified go path is [ " + go_path + " ]."
-        if os.path.isdir(go_path):
-            go_path += "/"
-        else:
-            print "specified go path is not used."
-    pwd = local("pwd", capture=True)
-    cmd = go_path + "go run " + pwd + "/quagga-rsconfig.go "+" -p "+ policy_pattern + " -n " + str(quagga_num) + \
+    cmd = tool + " -n " + str(quagga_num) +\
           " -c /tmp/gobgp -v " + IP_VERSION + " -i " + bridge["BRIDGE_NAME"][-1] + " " + peer_opts
     local(cmd, capture=True)
 
 
-def update_policy_config(go_path, policy_pattern=""):
+def update_policy_config(go_path, neighbor, policy_name, target, isReplace=False):
     if go_path != "":
         print "specified go path is [ " + go_path + " ]."
         if os.path.isdir(go_path):
@@ -354,13 +342,13 @@ def update_policy_config(go_path, policy_pattern=""):
             print "specified go path is not used."
 
     pwd = local("pwd", capture=True)
-    cmd = go_path + "go run " + pwd + "/quagga-rsconfig.go --update-policy "+" -p "+ policy_pattern + \
-          " -c /tmp/gobgp "
+    replace = ' -r' if isReplace else ''
+    cmd = pwd + "/policy_generator -d /tmp/gobgp -n " + neighbor + " -t " + target + " -p " + policy_name + replace
     local(cmd, capture=True)
-    reload_config()
+    # reload_config()
 
 
-def make_config_append(quagga_num, go_path, bridge, peer_opts="", policy_pattern=""):
+def make_config_append(quagga_num, go_path, bridge, peer_opts=""):
     if go_path != "":
         print "specified go path is [ " + go_path + " ]."
         if os.path.isdir(go_path):
@@ -369,12 +357,8 @@ def make_config_append(quagga_num, go_path, bridge, peer_opts="", policy_pattern
             print "specified go path do not use."
     pwd = local("pwd", capture=True)
 
-    pp = ''
-    if policy_pattern:
-        pp = " -p " + policy_pattern
-
     cmd = go_path + "go run " + pwd + "/quagga-rsconfig.go -a " + str(quagga_num) +\
-          " -c /tmp/gobgp -v " + IP_VERSION + pp +" -i " + bridge["BRIDGE_NAME"][-1] + " " + peer_opts
+          " -c /tmp/gobgp -v " + IP_VERSION + " -i " + bridge["BRIDGE_NAME"][-1] + " " + peer_opts
     local(cmd, capture=True)
 
 
@@ -382,6 +366,21 @@ def reload_config():
     cmd = "docker exec gobgp /usr/bin/pkill gobgpd -SIGHUP"
     local(cmd, capture=True)
     print "gobgp config reloaded."
+
+
+def build_config_tools(go_path):
+    if go_path != "":
+        print "specified go path is [ " + go_path + " ]."
+        if os.path.isdir(go_path):
+            go_path += "/"
+        else:
+            print "the specified go path is not directory.."
+
+    pwd = local("pwd", capture=True)
+    cmd = go_path + "go build " + pwd + "/quagga-rsconfig.go"
+    local(cmd, capture=True)
+    cmd = go_path + "go build " + pwd + "/policy_generator.go"
+    local(cmd, capture=True)
 
 
 def prepare_gobgp(log_debug, use_local):
@@ -465,42 +464,20 @@ def init_test_env_executor(quagga_num, use_local, go_path, log_debug=False, is_r
     print "complete initialization of test environment."
 
 
-def init_policy_test_env_executor(quagga_num, use_local, go_path, log_debug=False, policy="",
-                                  use_ipv6=False, use_exabgp=False):
+def init_policy_test_env_executor(quagga_num, use_ipv6=False, use_exabgp=False):
     print "start initialization of test environment."
-
-    if docker_container_check() or bridge_setting_check():
-        print "gobgp test environment already exists. clean up..."
-        containers = docker_containers_get()
-        for container in containers:
-            if re.match(r'q[0-9][0-9]*', container) is not None:
-                docker_container_stop_quagga(container)
-            if container == GOBGP_CONTAINER_NAME:
-                docker_container_stop_gobgp(remove=False)
-            if container == EXABGP_CONTAINER_NAME:
-                docker_container_stop_exabgp()
-        bridge_unsetting_for_docker_connection()
-        # cmd = "rm -rf " + CONFIG_DIRR
-        # local(cmd, capture=True)
-
-    # print "make gobgp policy test environment."
-    # create_config_dir()
 
     global IP_VERSION
     IP_VERSION = IPv6 if use_ipv6 else IPv4
 
     bridge_setting_for_docker_connection(BRIDGES)
-    make_config(quagga_num, go_path, BRIDGE_0, policy_pattern=policy)
 
-    # run gobgp docker container
-    # docker_container_run_gobgp(BRIDGE_0)
     cmd = "docker start %s" % GOBGP_CONTAINER_NAME
     local(cmd, capture=True)
     docker_container_set_ipaddress(BRIDGE_0, GOBGP_CONTAINER_NAME, GOBGP_ADDRESS_0[IP_VERSION] + BASE_MASK[IP_VERSION])
 
     if use_exabgp:
         # run exabgp
-        make_config_append(100, go_path, BRIDGE_0, peer_opts="--none-peer", policy_pattern=policy)
         start_exabgp(EXABGP_COMMON_CONF)
 
     start_gobgp()
