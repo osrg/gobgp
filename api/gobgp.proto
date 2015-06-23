@@ -24,7 +24,6 @@ service Grpc {
   rpc GetNeighbor(Arguments) returns (Peer) {}
   rpc GetRib(Arguments) returns (stream Destination) {}
   rpc GetAdjRib(Arguments) returns (stream Path) {}
-  rpc MonitorBestChanged(Arguments) returns (stream Path) {}
   rpc Reset(Arguments) returns (Error) {}
   rpc SoftReset(Arguments) returns (Error) {}
   rpc SoftResetIn(Arguments) returns (Error) {}
@@ -38,6 +37,8 @@ service Grpc {
   rpc GetPolicyRoutePolicies(PolicyArguments) returns (stream PolicyDefinition) {}
   rpc GetPolicyRoutePolicy(PolicyArguments) returns (PolicyDefinition) {}
   rpc ModPolicyRoutePolicy(stream PolicyArguments) returns (stream Error) {}
+  rpc MonitorBestChanged(Arguments) returns (stream Path) {}
+  rpc MonitorPeerState(Arguments) returns (stream Peer) {}
 }
 
 message Error {

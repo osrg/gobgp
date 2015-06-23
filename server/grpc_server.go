@@ -48,7 +48,6 @@ const (
 	REQ_GLOBAL_RIB
 	REQ_GLOBAL_ADD
 	REQ_GLOBAL_DELETE
-	REQ_GLOBAL_MONITOR_BEST_CHANGED
 	REQ_POLICY_PREFIX
 	REQ_POLICY_PREFIXES
 	REQ_POLICY_PREFIX_ADD
@@ -74,6 +73,8 @@ const (
 	REQ_POLICY_COMMUNITY_ADD
 	REQ_POLICY_COMMUNITY_DELETE
 	REQ_POLICY_COMMUNITIES_DELETE
+	REQ_MONITOR_GLOBAL_BEST_CHANGED
+	REQ_MONITOR_NEIGHBOR_PEER_STATE
 )
 
 const GRPC_PORT = 8080
@@ -210,7 +211,7 @@ func (s *Server) MonitorBestChanged(arg *api.Arguments, stream api.Grpc_MonitorB
 	var reqType int
 	switch arg.Resource {
 	case api.Resource_GLOBAL:
-		reqType = REQ_GLOBAL_MONITOR_BEST_CHANGED
+		reqType = REQ_MONITOR_GLOBAL_BEST_CHANGED
 	default:
 		return fmt.Errorf("unsupported resource type: %v", arg.Resource)
 	}
@@ -229,6 +230,27 @@ func (s *Server) MonitorBestChanged(arg *api.Arguments, stream api.Grpc_MonitorB
 			goto END
 		}
 		if err = stream.Send(res.Data.(*api.Path)); err != nil {
+			goto END
+		}
+	}
+END:
+	req.EndCh <- struct{}{}
+	return err
+}
+
+func (s *Server) MonitorPeerState(arg *api.Arguments, stream api.Grpc_MonitorPeerStateServer) error {
+	var rf bgp.RouteFamily
+	req := NewGrpcRequest(REQ_MONITOR_NEIGHBOR_PEER_STATE, arg.RouterId, rf, nil)
+	s.bgpServerCh <- req
+
+	var err error
+
+	for res := range req.ResponseCh {
+		if err = res.Err(); err != nil {
+			log.Debug(err.Error())
+			goto END
+		}
+		if err = stream.Send(res.Data.(*api.Peer)); err != nil {
 			goto END
 		}
 	}
@@ -555,7 +577,7 @@ func NewGrpcRequest(reqType int, remoteAddr string, rf bgp.RouteFamily, d interf
 		RouteFamily: rf,
 		RemoteAddr:  remoteAddr,
 		ResponseCh:  make(chan *GrpcResponse),
-		EndCh:       make(chan struct{}),
+		EndCh:       make(chan struct{}, 1),
 		Data:        d,
 	}
 	return r

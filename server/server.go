@@ -219,7 +219,7 @@ func (server *BgpServer) Serve() {
 			server.neighborMap[name] = peer
 			peer.outgoing = make(chan *bgp.BGPMessage, 128)
 			peer.startFSMHandler(incoming)
-
+			server.broadcastPeerState(peer)
 		case config := <-server.deletedPeerCh:
 			addr := config.NeighborAddress.String()
 			SetTcpMD5SigSockopts(listener(config.NeighborAddress), addr, "")
@@ -415,6 +415,10 @@ func (server *BgpServer) broadcastBests(bests []table.Path) {
 		}
 		remainReqs := make([]*GrpcRequest, 0, len(server.broadcastReqs))
 		for _, req := range server.broadcastReqs {
+			if req.RequestType != REQ_MONITOR_GLOBAL_BEST_CHANGED {
+				remainReqs = append(remainReqs, req)
+				continue
+			}
 			select {
 			case <-req.EndCh:
 				continue
@@ -424,6 +428,28 @@ func (server *BgpServer) broadcastBests(bests []table.Path) {
 		}
 		server.broadcastReqs = remainReqs
 	}
+}
+
+func (server *BgpServer) broadcastPeerState(peer *Peer) {
+	result := &GrpcResponse{
+		Data: peer.ToApiStruct(),
+	}
+	remainReqs := make([]*GrpcRequest, 0, len(server.broadcastReqs))
+	for _, req := range server.broadcastReqs {
+		ignore := req.RequestType != REQ_MONITOR_NEIGHBOR_PEER_STATE
+		ignore = ignore || (req.RemoteAddr != "" && req.RemoteAddr != peer.config.NeighborAddress.String())
+		if ignore {
+			remainReqs = append(remainReqs, req)
+			continue
+		}
+		select {
+		case <-req.EndCh:
+			continue
+		case req.ResponseCh <- result:
+		}
+		remainReqs = append(remainReqs, req)
+	}
+	server.broadcastReqs = remainReqs
 }
 
 func (server *BgpServer) propagateUpdate(neighborAddress string, RouteServerClient bool, pathList []table.Path) []*SenderMsg {
@@ -528,6 +554,7 @@ func (server *BgpServer) handleFSMMessage(peer *Peer, e *fsmMsg, incoming chan *
 			peer.config.BgpNeighborCommonState = config.BgpNeighborCommonState{}
 		}
 		peer.startFSMHandler(incoming)
+		server.broadcastPeerState(peer)
 
 	case FSM_MSG_BGP_MESSAGE:
 		switch m := e.MsgData.(type) {
@@ -814,8 +841,6 @@ func (server *BgpServer) handleGrpc(grpcReq *GrpcRequest) []*SenderMsg {
 			close(grpcReq.ResponseCh)
 		}
 
-	case REQ_GLOBAL_MONITOR_BEST_CHANGED:
-		server.broadcastReqs = append(server.broadcastReqs, grpcReq)
 	case REQ_NEIGHBORS:
 		for _, peer := range server.neighborMap {
 			result := &GrpcResponse{
@@ -1089,6 +1114,8 @@ func (server *BgpServer) handleGrpc(grpcReq *GrpcRequest) []*SenderMsg {
 	case REQ_POLICY_PREFIXES_DELETE, REQ_POLICY_NEIGHBORS_DELETE, REQ_POLICY_ASPATHS_DELETE,
 		REQ_POLICY_COMMUNITIES_DELETE, REQ_POLICY_ROUTEPOLICIES_DELETE:
 		server.handleGrpcDelPolicies(grpcReq)
+	case REQ_MONITOR_GLOBAL_BEST_CHANGED, REQ_MONITOR_NEIGHBOR_PEER_STATE:
+		server.broadcastReqs = append(server.broadcastReqs, grpcReq)
 	default:
 		errmsg := fmt.Errorf("Unknown request type: %v", grpcReq.RequestType)
 		result := &GrpcResponse{
