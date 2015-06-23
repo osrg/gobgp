@@ -105,11 +105,17 @@ func NewPolicy(pd config.PolicyDefinition, ds config.DefinedSets) *Policy {
 		// routeing action
 		ra := NewRoutingAction(statement.Actions)
 
-		// modification action
+		// Community action
 		mda := make([]Action, 0)
 		com := NewCommunityAction(statement.Actions.BgpActions.SetCommunity)
 		if com != nil {
 			mda = append(mda, com)
+		}
+
+		// Med Action
+		med := NewMedAction(statement.Actions.BgpActions.SetMed)
+		if med != nil {
+			mda = append(mda, med)
 		}
 
 		s := &Statement{
@@ -780,6 +786,101 @@ func (a *CommunityAction) apply(path table.Path) table.Path {
 	case config.BGP_SET_COMMUNITY_OPTION_TYPE_NULL:
 		path.ClearCommunities()
 	}
+	return path
+}
+
+type MedAction struct {
+	DefaultAction
+	Value uint32
+	action ActionType
+}
+
+const (
+	MED_ACTION_NONE ActionType = iota
+	MED_ACTION_ADD
+	MED_ACTION_SUB
+//	MED_ACTION_IGP
+)
+
+//const (
+//	MED_IGP string = "IGP"
+//)
+
+// NewMedAction creates MedAction object.
+// If it cannot parse med string, then return nil.
+// Similarly, if option string is invalid, return nil.
+func NewMedAction(med config.BgpSetMedType) *MedAction {
+
+	m := &MedAction{}
+	matched, value, action := getMedValue(fmt.Sprintf("%v", med))
+	if !matched {
+		log.WithFields(log.Fields{
+			"Topic": "Policy",
+			"Type":  "Med Action",
+		}).Error("med string invalid.")
+		return nil
+	}
+	m.Value = value
+	m.action = action
+	return m
+}
+
+// getMedValue returns uint32 med value and action type (+ or -).
+// if the string doesn't match a number or operator or well known med name,
+// it returns false and 0 and MED_ACTION_NONE.
+func getMedValue(medStr string) (bool, uint32, ActionType) {
+	regUint, _ := regexp.Compile("^([0-9]+)$")
+	regUintAc, _ := regexp.Compile("^(\\+|\\-)([0-9]+)$")
+//	regIGP, _ := regexp.Compile("^(IGP)$")
+	if regUint.MatchString(medStr) {
+		val, err := strconv.ParseUint(medStr, 10, 32)
+		if err != nil {
+			log.WithFields(log.Fields{
+				"Topic": "Policy",
+				"Type":  "Med Action",
+			}).Error("failed to parser as number or med value.")
+		}
+		return true, uint32(val), MED_ACTION_NONE
+	}
+	if regUintAc.MatchString(medStr) {
+		group := regUintAc.FindStringSubmatch(medStr)
+		action := MED_ACTION_ADD
+		if group[1] == "-" {
+			action = MED_ACTION_SUB
+		}
+		val, err := strconv.ParseUint(group[2], 10, 32)
+		if err != nil {
+			log.WithFields(log.Fields{
+				"Topic": "Policy",
+				"Type":  "Med Action",
+			}).Error("failed to parser as number or med value.")
+		}
+		return true, uint32(val), action
+	}
+//	if regIGP.MatchString(medStr) {
+//		return true, uint32(0), MED_IGP
+//	}
+	return false, uint32(0), MED_ACTION_NONE
+}
+
+func (a *MedAction) apply(path table.Path) table.Path {
+
+	var err error
+	switch a.action {
+	case MED_ACTION_NONE:
+		err = path.SetMed(a.Value, true, false)
+	case MED_ACTION_ADD:
+		err = path.SetMed(a.Value, false, false)
+	case MED_ACTION_SUB:
+		err = path.SetMed(a.Value, false, true)
+	}
+	if err != nil {
+		log.WithFields(log.Fields{
+			"Topic": "Policy",
+			"Type":  "Med Action",
+		}).Error(err)
+	}
+
 	return path
 }
 
