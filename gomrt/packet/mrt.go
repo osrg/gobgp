@@ -481,21 +481,23 @@ func (m *BGP4MPHeader) decodeFromBytes(data []byte) ([]byte, error) {
 	if m.isAS4 {
 		m.PeerAS = binary.BigEndian.Uint32(data[:4])
 		m.LocalAS = binary.BigEndian.Uint32(data[4:8])
+		data = data[8:]
 	} else {
 		m.PeerAS = uint32(binary.BigEndian.Uint16(data[:2]))
 		m.LocalAS = uint32(binary.BigEndian.Uint16(data[2:4]))
+		data = data[4:]
 	}
-	m.InterfaceIndex = binary.BigEndian.Uint16(data[4:6])
-	m.AddressFamily = binary.BigEndian.Uint16(data[6:8])
+	m.InterfaceIndex = binary.BigEndian.Uint16(data[:2])
+	m.AddressFamily = binary.BigEndian.Uint16(data[2:4])
 	switch m.AddressFamily {
 	case bgp.AFI_IP:
-		m.PeerIpAddress = net.IP(data[8:12])
-		m.LocalIpAddress = net.IP(data[12:16])
-		data = data[16:]
+		m.PeerIpAddress = net.IP(data[4:8])
+		m.LocalIpAddress = net.IP(data[8:12])
+		data = data[12:]
 	case bgp.AFI_IP6:
-		m.PeerIpAddress = net.IP(data[8:24])
-		m.LocalIpAddress = net.IP(data[24:40])
-		data = data[40:]
+		m.PeerIpAddress = net.IP(data[4:20])
+		m.LocalIpAddress = net.IP(data[20:36])
+		data = data[36:]
 	default:
 		return nil, fmt.Errorf("unsupported address family: %d", m.AddressFamily)
 	}
