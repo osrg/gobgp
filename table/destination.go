@@ -616,23 +616,23 @@ func compareByLocalOrigin(path1, path2 Path) Path {
 		return nil
 	}
 
-	//	# Here we consider prefix from NC as locally originating static route.
-	//	# Hence it is preferred.
-	if path1.GetSource() == nil {
+	// Here we consider prefix from NC as locally originating static route.
+	// Hence it is preferred.
+	if path1.isLocal() {
 		return path1
 	}
 
-	if path2.GetSource() == nil {
+	if path2.isLocal() {
 		return path2
 	}
 	return nil
 }
 
 func compareByASPath(path1, path2 Path) Path {
-	//	Calculated the best-paths by comparing as-path lengths.
+	// Calculated the best-paths by comparing as-path lengths.
 	//
-	//	Shortest as-path length is preferred. If both path have same lengths,
-	//	we return None.
+	// Shortest as-path length is preferred. If both path have same lengths,
+	// we return None.
 	log.Debugf("enter compareByASPath")
 	_, attribute1 := path1.getPathAttr(bgp.BGP_ATTR_TYPE_AS_PATH)
 	_, attribute2 := path2.getPathAttr(bgp.BGP_ATTR_TYPE_AS_PATH)
@@ -729,18 +729,10 @@ func compareByASNumber(localAsn uint32, path1, path2 Path) Path {
 	//eBGP path is preferred over iBGP. If both paths are from same kind of
 	//peers, return None.
 	log.Debugf("enter compareByASNumber")
-	getPathSourceAsn := func(path Path) uint32 {
-		var asn uint32
-		if path.GetSource() == nil {
-			asn = localAsn
-		} else {
-			asn = path.GetSource().AS
-		}
-		return asn
-	}
 
-	p1Asn := getPathSourceAsn(path1)
-	p2Asn := getPathSourceAsn(path2)
+	p1Asn := path1.GetSource().AS
+	p2Asn := path2.GetSource().AS
+
 	log.Debugf("compareByASNumber -- p1Asn: %d, p2Asn: %d", p1Asn, p2Asn)
 	// If path1 is from ibgp peer and path2 is from ebgp peer.
 	if (p1Asn == localAsn) && (p2Asn != localAsn) {
@@ -773,34 +765,17 @@ func compareByRouterID(localAsn uint32, path1, path2 Path) (Path, error) {
 	//	RFC: http://tools.ietf.org/html/rfc5004
 	//	We pick best path between two iBGP paths as usual.
 	log.Debugf("enter compareByRouterID")
-	getAsn := func(pathSource *PeerInfo) uint32 {
-		if pathSource == nil {
-			return localAsn
-		} else {
-			return pathSource.AS
-		}
-	}
 
-	getRouterId := func(pathSource *PeerInfo, localBgpId uint32) uint32 {
-		if pathSource == nil {
-			return localBgpId
-		} else {
-			routerId := pathSource.ID
-			routerId_u32 := binary.BigEndian.Uint32(routerId)
-			return routerId_u32
-		}
-	}
-
-	pathSource1 := path1.GetSource()
-	pathSource2 := path2.GetSource()
+	source1 := path1.GetSource()
+	source2 := path2.GetSource()
 
 	// If both paths are from NC we have same router Id, hence cannot compare.
-	if pathSource1 == nil && pathSource2 == nil {
+	if path1.isLocal() && path2.isLocal() {
 		return nil, nil
 	}
 
-	asn1 := getAsn(pathSource1)
-	asn2 := getAsn(pathSource2)
+	asn1 := source1.AS
+	asn2 := source2.AS
 
 	isEbgp1 := asn1 != localAsn
 	isEbgp2 := asn2 != localAsn
@@ -810,32 +785,19 @@ func compareByRouterID(localAsn uint32, path1, path2 Path) (Path, error) {
 		return nil, nil
 	}
 
-	if (isEbgp1 == true && isEbgp2 == false) ||
-		(isEbgp1 == false && isEbgp2 == true) {
+	if isEbgp1 != isEbgp2 {
 		return nil, fmt.Errorf("This method does not support comparing ebgp with ibgp path")
 	}
 
 	// At least one path is not coming from NC, so we get local bgp id.
-	var localBgpId_u32 uint32
-	if pathSource1 != nil {
-		localBgpId := pathSource1.LocalID
-		localBgpId_u32 = binary.BigEndian.Uint32(localBgpId)
-	} else {
-		localBgpId := pathSource2.LocalID
-		localBgpId_u32 = binary.BigEndian.Uint32(localBgpId)
-	}
-
-	// Get router ids.
-	routerId1_u32 := getRouterId(pathSource1, localBgpId_u32)
-	routerId2_u32 := getRouterId(pathSource2, localBgpId_u32)
+	id1 := binary.BigEndian.Uint32(source1.ID)
+	id2 := binary.BigEndian.Uint32(source2.ID)
 
 	// If both router ids are same/equal we cannot decide.
 	// This case is possible since router ids are arbitrary.
-	if routerId1_u32 == routerId2_u32 {
+	if id1 == id2 {
 		return nil, nil
-	}
-
-	if routerId1_u32 < routerId2_u32 {
+	} else if id1 < id2 {
 		return path1, nil
 	} else {
 		return path2, nil
