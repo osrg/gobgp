@@ -41,7 +41,8 @@ type Path interface {
 	SetCommunities([]uint32, bool)
 	RemoveCommunities([]uint32) int
 	ClearCommunities()
-	SetMed(uint32, bool, bool) error
+	GetMed() uint32
+	SetMed(int64, bool) error
 	setSource(source *PeerInfo)
 	GetSource() *PeerInfo
 	GetSourceAs() uint32
@@ -481,37 +482,46 @@ func (pd *PathDefault) ClearCommunities() {
 	}
 }
 
+func (pd *PathDefault) GetMed() uint32 {
+	_, attr := pd.getPathAttr(bgp.BGP_ATTR_TYPE_MULTI_EXIT_DISC)
+	med := attr.(*bgp.PathAttributeMultiExitDisc).Value
+	return med
+}
+
 // SetMed replace, add or subtraction med with new ones.
-func (pd *PathDefault) SetMed(med uint32, doReplace bool, doSubstruction bool) error {
-	newMed := &bgp.PathAttributeMultiExitDisc{}
+func (pd *PathDefault) SetMed(med int64, doReplace bool) error {
+
+	parseMed := func(orgMed uint32, med int64, doReplace bool) (*bgp.PathAttributeMultiExitDisc, error) {
+		newMed := &bgp.PathAttributeMultiExitDisc{}
+		if doReplace {
+			newMed = bgp.NewPathAttributeMultiExitDisc(uint32(med))
+		} else {
+			if int64(orgMed) + med < 0 {
+				return nil, fmt.Errorf("med value invalid. it's underflow threshold.")
+			} else if int64(orgMed) + med > int64(math.MaxUint32) {
+				return nil, fmt.Errorf("med value invalid. it's overflow threshold.")
+			}
+			newMed = bgp.NewPathAttributeMultiExitDisc(uint32(int64(orgMed) + med))
+		}
+		return newMed, nil
+	}
+
 	idx, attr := pd.getPathAttr(bgp.BGP_ATTR_TYPE_MULTI_EXIT_DISC)
 	if attr != nil{
 		m := attr.(*bgp.PathAttributeMultiExitDisc)
-		if doReplace {
-			newMed = bgp.NewPathAttributeMultiExitDisc(med)
-		} else {
-			if doSubstruction {
-				if m.Value - med < 0 {
-					return fmt.Errorf("med value invalid. the underflow threshold")
-				}
-				newMed = bgp.NewPathAttributeMultiExitDisc(m.Value - med)
-			} else {
-				if m.Value + med > math.MaxUint32 {
-					return fmt.Errorf("med value invalid. the overflow threshold")
-				}
-				newMed = bgp.NewPathAttributeMultiExitDisc(m.Value + med)
-			}
+		newMed, err := parseMed(m.Value, med, doReplace)
+		if err !=  nil{
+			return err
 		}
 		pd.pathAttrs[idx] = newMed
 	} else {
-		if doReplace {
-			newMed = bgp.NewPathAttributeMultiExitDisc(med)
-		} else {
-			if !doSubstruction {
-				newMed = bgp.NewPathAttributeMultiExitDisc(med)
-			}
+		m := 0
+		newMed, err := parseMed(uint32(m), med, doReplace)
+		if err !=  nil{
+			pd.pathAttrs = append(pd.pathAttrs, &bgp.PathAttributeMultiExitDisc{})
+			return err
 		}
-		pd.pathAttrs[idx] = newMed
+		pd.pathAttrs = append(pd.pathAttrs, newMed)
 	}
 	return nil
 }

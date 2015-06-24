@@ -25,6 +25,8 @@ import (
 	"strconv"
 	"strings"
 	"testing"
+	"fmt"
+	"math"
 )
 
 func TestPrefixCalcurateNoRange(t *testing.T) {
@@ -1441,4 +1443,409 @@ func stringToCommunityValue(comStr string) uint32 {
 	asn, _ := strconv.ParseUint(elem[0], 10, 16)
 	val, _ := strconv.ParseUint(elem[1], 10, 16)
 	return uint32(asn<<16 | val)
+}
+
+func TestPolicyMatchAndReplaceMed(t *testing.T) {
+
+	// create path
+	peer := &table.PeerInfo{AS: 65001, Address: net.ParseIP("10.0.0.1")}
+	origin := bgp.NewPathAttributeOrigin(0)
+	aspathParam := []bgp.AsPathParamInterface{bgp.NewAsPathParam(2, []uint16{65001})}
+	aspath := bgp.NewPathAttributeAsPath(aspathParam)
+	nexthop := bgp.NewPathAttributeNextHop("10.0.0.1")
+	med := bgp.NewPathAttributeMultiExitDisc(100)
+
+	pathAttributes := []bgp.PathAttributeInterface{origin, aspath, nexthop, med}
+	nlri := []bgp.NLRInfo{*bgp.NewNLRInfo(24, "10.10.0.101")}
+	withdrawnRoutes := []bgp.WithdrawnRoute{}
+	updateMsg := bgp.NewBGPUpdateMessage(withdrawnRoutes, pathAttributes, nlri)
+	path := table.ProcessMessage(updateMsg, peer)[0]
+	// create policy
+	ps := config.PrefixSet{
+		PrefixSetName: "ps1",
+		PrefixList: []config.Prefix{
+			config.Prefix{
+				Address:         net.ParseIP("10.10.0.0"),
+				Masklength:      16,
+				MasklengthRange: "21..24",
+			}},
+	}
+	ns := config.NeighborSet{
+		NeighborSetName: "ns1",
+		NeighborInfoList: []config.NeighborInfo{
+			config.NeighborInfo{
+				Address: net.ParseIP("10.0.0.1"),
+			}},
+	}
+	ds := config.DefinedSets{
+		PrefixSetList:   []config.PrefixSet{ps},
+		NeighborSetList: []config.NeighborSet{ns},
+	}
+
+	m := "200"
+	s := config.Statement{
+		Name: "statement1",
+		Conditions: config.Conditions{
+			MatchPrefixSet:   "ps1",
+			MatchNeighborSet: "ns1",
+			MatchSetOptions:  config.MATCH_SET_OPTIONS_TYPE_ALL,
+		},
+		Actions: config.Actions{
+			AcceptRoute: true,
+			BgpActions: config.BgpActions{
+				SetMed: config.BgpSetMedType(m),
+			},
+		},
+	}
+
+	pd := config.PolicyDefinition{"pd1", []config.Statement{s}}
+	pl := config.RoutingPolicy{ds, []config.PolicyDefinition{pd}}
+	//test
+	df := pl.DefinedSets
+	p := NewPolicy(pl.PolicyDefinitionList[0], df)
+	match, pType, newPath := p.Apply(path)
+	assert.Equal(t, true, match)
+	assert.Equal(t, ROUTE_TYPE_ACCEPT, pType)
+	assert.NotEqual(t, nil, newPath)
+
+	newMed := fmt.Sprintf("%d", newPath.GetMed())
+	assert.Equal(t, m, newMed)
+}
+
+func TestPolicyMatchAndAddingMed(t *testing.T) {
+
+	// create path
+	peer := &table.PeerInfo{AS: 65001, Address: net.ParseIP("10.0.0.1")}
+	origin := bgp.NewPathAttributeOrigin(0)
+	aspathParam := []bgp.AsPathParamInterface{bgp.NewAsPathParam(2, []uint16{65001})}
+	aspath := bgp.NewPathAttributeAsPath(aspathParam)
+	nexthop := bgp.NewPathAttributeNextHop("10.0.0.1")
+	med := bgp.NewPathAttributeMultiExitDisc(100)
+
+	pathAttributes := []bgp.PathAttributeInterface{origin, aspath, nexthop, med}
+	nlri := []bgp.NLRInfo{*bgp.NewNLRInfo(24, "10.10.0.101")}
+	withdrawnRoutes := []bgp.WithdrawnRoute{}
+	updateMsg := bgp.NewBGPUpdateMessage(withdrawnRoutes, pathAttributes, nlri)
+	path := table.ProcessMessage(updateMsg, peer)[0]
+	// create policy
+	ps := config.PrefixSet{
+		PrefixSetName: "ps1",
+		PrefixList: []config.Prefix{
+			config.Prefix{
+				Address:         net.ParseIP("10.10.0.0"),
+				Masklength:      16,
+				MasklengthRange: "21..24",
+			}},
+	}
+	ns := config.NeighborSet{
+		NeighborSetName: "ns1",
+		NeighborInfoList: []config.NeighborInfo{
+			config.NeighborInfo{
+				Address: net.ParseIP("10.0.0.1"),
+			}},
+	}
+	ds := config.DefinedSets{
+		PrefixSetList:   []config.PrefixSet{ps},
+		NeighborSetList: []config.NeighborSet{ns},
+	}
+
+	m := "+200"
+	ma := "300"
+	s := config.Statement{
+		Name: "statement1",
+		Conditions: config.Conditions{
+			MatchPrefixSet:   "ps1",
+			MatchNeighborSet: "ns1",
+			MatchSetOptions:  config.MATCH_SET_OPTIONS_TYPE_ALL,
+		},
+		Actions: config.Actions{
+			AcceptRoute: true,
+			BgpActions: config.BgpActions{
+				SetMed: config.BgpSetMedType(m),
+			},
+		},
+	}
+
+	pd := config.PolicyDefinition{"pd1", []config.Statement{s}}
+	pl := config.RoutingPolicy{ds, []config.PolicyDefinition{pd}}
+	//test
+	df := pl.DefinedSets
+	p := NewPolicy(pl.PolicyDefinitionList[0], df)
+	match, pType, newPath := p.Apply(path)
+	assert.Equal(t, true, match)
+	assert.Equal(t, ROUTE_TYPE_ACCEPT, pType)
+	assert.NotEqual(t, nil, newPath)
+
+	newMed := fmt.Sprintf("%d", newPath.GetMed())
+	assert.Equal(t, ma, newMed)
+}
+
+func TestPolicyMatchAndAddingMedOverFlow(t *testing.T) {
+
+	// create path
+	peer := &table.PeerInfo{AS: 65001, Address: net.ParseIP("10.0.0.1")}
+	origin := bgp.NewPathAttributeOrigin(0)
+	aspathParam := []bgp.AsPathParamInterface{bgp.NewAsPathParam(2, []uint16{65001})}
+	aspath := bgp.NewPathAttributeAsPath(aspathParam)
+	nexthop := bgp.NewPathAttributeNextHop("10.0.0.1")
+	med := bgp.NewPathAttributeMultiExitDisc(1)
+
+	pathAttributes := []bgp.PathAttributeInterface{origin, aspath, nexthop, med}
+	nlri := []bgp.NLRInfo{*bgp.NewNLRInfo(24, "10.10.0.101")}
+	withdrawnRoutes := []bgp.WithdrawnRoute{}
+	updateMsg := bgp.NewBGPUpdateMessage(withdrawnRoutes, pathAttributes, nlri)
+	path := table.ProcessMessage(updateMsg, peer)[0]
+	// create policy
+	ps := config.PrefixSet{
+		PrefixSetName: "ps1",
+		PrefixList: []config.Prefix{
+			config.Prefix{
+				Address:         net.ParseIP("10.10.0.0"),
+				Masklength:      16,
+				MasklengthRange: "21..24",
+			}},
+	}
+	ns := config.NeighborSet{
+		NeighborSetName: "ns1",
+		NeighborInfoList: []config.NeighborInfo{
+			config.NeighborInfo{
+				Address: net.ParseIP("10.0.0.1"),
+			}},
+	}
+	ds := config.DefinedSets{
+		PrefixSetList:   []config.PrefixSet{ps},
+		NeighborSetList: []config.NeighborSet{ns},
+	}
+
+	m := fmt.Sprintf("+%d",math.MaxUint32)
+	ma := "1"
+	s := config.Statement{
+		Name: "statement1",
+		Conditions: config.Conditions{
+			MatchPrefixSet:   "ps1",
+			MatchNeighborSet: "ns1",
+			MatchSetOptions:  config.MATCH_SET_OPTIONS_TYPE_ALL,
+		},
+		Actions: config.Actions{
+			AcceptRoute: true,
+			BgpActions: config.BgpActions{
+				SetMed: config.BgpSetMedType(m),
+			},
+		},
+	}
+
+	pd := config.PolicyDefinition{"pd1", []config.Statement{s}}
+	pl := config.RoutingPolicy{ds, []config.PolicyDefinition{pd}}
+	//test
+	df := pl.DefinedSets
+	p := NewPolicy(pl.PolicyDefinitionList[0], df)
+	match, pType, newPath := p.Apply(path)
+	assert.Equal(t, true, match)
+	assert.Equal(t, ROUTE_TYPE_ACCEPT, pType)
+	assert.NotEqual(t, nil, newPath)
+
+	newMed := fmt.Sprintf("%d", newPath.GetMed())
+	assert.Equal(t, ma, newMed)
+}
+
+func TestPolicyMatchAndSubtractMed(t *testing.T) {
+
+	// create path
+	peer := &table.PeerInfo{AS: 65001, Address: net.ParseIP("10.0.0.1")}
+	origin := bgp.NewPathAttributeOrigin(0)
+	aspathParam := []bgp.AsPathParamInterface{bgp.NewAsPathParam(2, []uint16{65001})}
+	aspath := bgp.NewPathAttributeAsPath(aspathParam)
+	nexthop := bgp.NewPathAttributeNextHop("10.0.0.1")
+	med := bgp.NewPathAttributeMultiExitDisc(100)
+
+	pathAttributes := []bgp.PathAttributeInterface{origin, aspath, nexthop, med}
+	nlri := []bgp.NLRInfo{*bgp.NewNLRInfo(24, "10.10.0.101")}
+	withdrawnRoutes := []bgp.WithdrawnRoute{}
+	updateMsg := bgp.NewBGPUpdateMessage(withdrawnRoutes, pathAttributes, nlri)
+	path := table.ProcessMessage(updateMsg, peer)[0]
+	// create policy
+	ps := config.PrefixSet{
+		PrefixSetName: "ps1",
+		PrefixList: []config.Prefix{
+			config.Prefix{
+				Address:         net.ParseIP("10.10.0.0"),
+				Masklength:      16,
+				MasklengthRange: "21..24",
+			}},
+	}
+	ns := config.NeighborSet{
+		NeighborSetName: "ns1",
+		NeighborInfoList: []config.NeighborInfo{
+			config.NeighborInfo{
+				Address: net.ParseIP("10.0.0.1"),
+			}},
+	}
+	ds := config.DefinedSets{
+		PrefixSetList:   []config.PrefixSet{ps},
+		NeighborSetList: []config.NeighborSet{ns},
+	}
+
+	m := "-50"
+	ma := "50"
+	s := config.Statement{
+		Name: "statement1",
+		Conditions: config.Conditions{
+			MatchPrefixSet:   "ps1",
+			MatchNeighborSet: "ns1",
+			MatchSetOptions:  config.MATCH_SET_OPTIONS_TYPE_ALL,
+		},
+		Actions: config.Actions{
+			AcceptRoute: true,
+			BgpActions: config.BgpActions{
+				SetMed: config.BgpSetMedType(m),
+			},
+		},
+	}
+
+	pd := config.PolicyDefinition{"pd1", []config.Statement{s}}
+	pl := config.RoutingPolicy{ds, []config.PolicyDefinition{pd}}
+	//test
+	df := pl.DefinedSets
+	p := NewPolicy(pl.PolicyDefinitionList[0], df)
+	match, pType, newPath := p.Apply(path)
+	assert.Equal(t, true, match)
+	assert.Equal(t, ROUTE_TYPE_ACCEPT, pType)
+	assert.NotEqual(t, nil, newPath)
+
+	newMed := fmt.Sprintf("%d", newPath.GetMed())
+	assert.Equal(t, ma, newMed)
+}
+
+func TestPolicyMatchAndSubtractMedUnderFlow(t *testing.T) {
+
+	// create path
+	peer := &table.PeerInfo{AS: 65001, Address: net.ParseIP("10.0.0.1")}
+	origin := bgp.NewPathAttributeOrigin(0)
+	aspathParam := []bgp.AsPathParamInterface{bgp.NewAsPathParam(2, []uint16{65001})}
+	aspath := bgp.NewPathAttributeAsPath(aspathParam)
+	nexthop := bgp.NewPathAttributeNextHop("10.0.0.1")
+	med := bgp.NewPathAttributeMultiExitDisc(100)
+
+	pathAttributes := []bgp.PathAttributeInterface{origin, aspath, nexthop, med}
+	nlri := []bgp.NLRInfo{*bgp.NewNLRInfo(24, "10.10.0.101")}
+	withdrawnRoutes := []bgp.WithdrawnRoute{}
+	updateMsg := bgp.NewBGPUpdateMessage(withdrawnRoutes, pathAttributes, nlri)
+	path := table.ProcessMessage(updateMsg, peer)[0]
+	// create policy
+	ps := config.PrefixSet{
+		PrefixSetName: "ps1",
+		PrefixList: []config.Prefix{
+			config.Prefix{
+				Address:         net.ParseIP("10.10.0.0"),
+				Masklength:      16,
+				MasklengthRange: "21..24",
+			}},
+	}
+	ns := config.NeighborSet{
+		NeighborSetName: "ns1",
+		NeighborInfoList: []config.NeighborInfo{
+			config.NeighborInfo{
+				Address: net.ParseIP("10.0.0.1"),
+			}},
+	}
+	ds := config.DefinedSets{
+		PrefixSetList:   []config.PrefixSet{ps},
+		NeighborSetList: []config.NeighborSet{ns},
+	}
+
+	m := "-101"
+	ma := "100"
+	s := config.Statement{
+		Name: "statement1",
+		Conditions: config.Conditions{
+			MatchPrefixSet:   "ps1",
+			MatchNeighborSet: "ns1",
+			MatchSetOptions:  config.MATCH_SET_OPTIONS_TYPE_ALL,
+		},
+		Actions: config.Actions{
+			AcceptRoute: true,
+			BgpActions: config.BgpActions{
+				SetMed: config.BgpSetMedType(m),
+			},
+		},
+	}
+
+	pd := config.PolicyDefinition{"pd1", []config.Statement{s}}
+	pl := config.RoutingPolicy{ds, []config.PolicyDefinition{pd}}
+	//test
+	df := pl.DefinedSets
+	p := NewPolicy(pl.PolicyDefinitionList[0], df)
+	match, pType, newPath := p.Apply(path)
+	assert.Equal(t, true, match)
+	assert.Equal(t, ROUTE_TYPE_ACCEPT, pType)
+	assert.NotEqual(t, nil, newPath)
+
+	newMed := fmt.Sprintf("%d", newPath.GetMed())
+	assert.Equal(t, ma, newMed)
+}
+
+func TestPolicyMatchWhenPathHaveNotMed(t *testing.T) {
+
+	// create path
+	peer := &table.PeerInfo{AS: 65001, Address: net.ParseIP("10.0.0.1")}
+	origin := bgp.NewPathAttributeOrigin(0)
+	aspathParam := []bgp.AsPathParamInterface{bgp.NewAsPathParam(2, []uint16{65001})}
+	aspath := bgp.NewPathAttributeAsPath(aspathParam)
+	nexthop := bgp.NewPathAttributeNextHop("10.0.0.1")
+
+	pathAttributes := []bgp.PathAttributeInterface{origin, aspath, nexthop}
+	nlri := []bgp.NLRInfo{*bgp.NewNLRInfo(24, "10.10.0.101")}
+	withdrawnRoutes := []bgp.WithdrawnRoute{}
+	updateMsg := bgp.NewBGPUpdateMessage(withdrawnRoutes, pathAttributes, nlri)
+	path := table.ProcessMessage(updateMsg, peer)[0]
+	// create policy
+	ps := config.PrefixSet{
+		PrefixSetName: "ps1",
+		PrefixList: []config.Prefix{
+			config.Prefix{
+				Address:         net.ParseIP("10.10.0.0"),
+				Masklength:      16,
+				MasklengthRange: "21..24",
+			}},
+	}
+	ns := config.NeighborSet{
+		NeighborSetName: "ns1",
+		NeighborInfoList: []config.NeighborInfo{
+			config.NeighborInfo{
+				Address: net.ParseIP("10.0.0.1"),
+			}},
+	}
+	ds := config.DefinedSets{
+		PrefixSetList:   []config.PrefixSet{ps},
+		NeighborSetList: []config.NeighborSet{ns},
+	}
+
+	m := "-50"
+	s := config.Statement{
+		Name: "statement1",
+		Conditions: config.Conditions{
+			MatchPrefixSet:   "ps1",
+			MatchNeighborSet: "ns1",
+			MatchSetOptions:  config.MATCH_SET_OPTIONS_TYPE_ALL,
+		},
+		Actions: config.Actions{
+			AcceptRoute: true,
+			BgpActions: config.BgpActions{
+				SetMed: config.BgpSetMedType(m),
+			},
+		},
+	}
+
+	pd := config.PolicyDefinition{"pd1", []config.Statement{s}}
+	pl := config.RoutingPolicy{ds, []config.PolicyDefinition{pd}}
+	//test
+	df := pl.DefinedSets
+	p := NewPolicy(pl.PolicyDefinitionList[0], df)
+	match, pType, newPath := p.Apply(path)
+	assert.Equal(t, true, match)
+	assert.Equal(t, ROUTE_TYPE_ACCEPT, pType)
+	assert.NotEqual(t, nil, newPath)
+
+	newMed := fmt.Sprintf("%d", newPath.GetMed())
+	assert.Equal(t, "0", newMed)
 }

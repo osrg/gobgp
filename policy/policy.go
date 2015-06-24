@@ -791,28 +791,29 @@ func (a *CommunityAction) apply(path table.Path) table.Path {
 
 type MedAction struct {
 	DefaultAction
-	Value uint32
+	Value int64
 	action ActionType
 }
 
 const (
 	MED_ACTION_NONE ActionType = iota
+	MED_ACTION_REPLACE
 	MED_ACTION_ADD
 	MED_ACTION_SUB
-//	MED_ACTION_IGP
 )
 
-//const (
-//	MED_IGP string = "IGP"
-//)
 
 // NewMedAction creates MedAction object.
 // If it cannot parse med string, then return nil.
-// Similarly, if option string is invalid, return nil.
 func NewMedAction(med config.BgpSetMedType) *MedAction {
 
+	if med == ""{
+		return nil
+	}
+
 	m := &MedAction{}
-	matched, value, action := getMedValue(fmt.Sprintf("%v", med))
+
+	matched, value, action := getMedValue(fmt.Sprintf("%s", med))
 	if !matched {
 		log.WithFields(log.Fields{
 			"Topic": "Policy",
@@ -826,59 +827,45 @@ func NewMedAction(med config.BgpSetMedType) *MedAction {
 }
 
 // getMedValue returns uint32 med value and action type (+ or -).
-// if the string doesn't match a number or operator or well known med name,
-// it returns false and 0 and MED_ACTION_NONE.
-func getMedValue(medStr string) (bool, uint32, ActionType) {
-	regUint, _ := regexp.Compile("^([0-9]+)$")
-	regUintAc, _ := regexp.Compile("^(\\+|\\-)([0-9]+)$")
-//	regIGP, _ := regexp.Compile("^(IGP)$")
-	if regUint.MatchString(medStr) {
-		val, err := strconv.ParseUint(medStr, 10, 32)
-		if err != nil {
-			log.WithFields(log.Fields{
-				"Topic": "Policy",
-				"Type":  "Med Action",
-			}).Error("failed to parser as number or med value.")
-		}
-		return true, uint32(val), MED_ACTION_NONE
-	}
-	if regUintAc.MatchString(medStr) {
-		group := regUintAc.FindStringSubmatch(medStr)
-		action := MED_ACTION_ADD
-		if group[1] == "-" {
+// if the string doesn't match a number or operator,
+// it returns false and 0.
+func getMedValue(medStr string) (bool, int64, ActionType) {
+	regMed, _ := regexp.Compile("^(\\+|\\-)?([0-9]+)$")
+	if regMed.MatchString(medStr) {
+		group := regMed.FindStringSubmatch(medStr)
+		action := MED_ACTION_REPLACE
+		if group[1] == "+" {
+			action = MED_ACTION_ADD
+		} else if group[1] == "-" {
 			action = MED_ACTION_SUB
 		}
-		val, err := strconv.ParseUint(group[2], 10, 32)
+		val, err := strconv.ParseInt(medStr, 10, 64)
 		if err != nil {
 			log.WithFields(log.Fields{
 				"Topic": "Policy",
 				"Type":  "Med Action",
 			}).Error("failed to parser as number or med value.")
 		}
-		return true, uint32(val), action
+		return true, int64(val), action
 	}
-//	if regIGP.MatchString(medStr) {
-//		return true, uint32(0), MED_IGP
-//	}
-	return false, uint32(0), MED_ACTION_NONE
+	return false, int64(0), MED_ACTION_NONE
 }
-
 func (a *MedAction) apply(path table.Path) table.Path {
 
 	var err error
 	switch a.action {
-	case MED_ACTION_NONE:
-		err = path.SetMed(a.Value, true, false)
+	case MED_ACTION_REPLACE:
+		err = path.SetMed(a.Value, true)
 	case MED_ACTION_ADD:
-		err = path.SetMed(a.Value, false, false)
+		err = path.SetMed(a.Value, false)
 	case MED_ACTION_SUB:
-		err = path.SetMed(a.Value, false, true)
+		err = path.SetMed(a.Value, false)
 	}
 	if err != nil {
 		log.WithFields(log.Fields{
 			"Topic": "Policy",
 			"Type":  "Med Action",
-		}).Error(err)
+		}).Warn(err)
 	}
 
 	return path
