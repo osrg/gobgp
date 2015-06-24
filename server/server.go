@@ -276,7 +276,6 @@ func (server *BgpServer) Serve() {
 				senderMsgs = append(senderMsgs, m...)
 			}
 		case pl := <-server.policyUpdateCh:
-			log.Info("handle policy update ")
 			server.handlePolicy(pl)
 		}
 	}
@@ -383,6 +382,8 @@ func (server *BgpServer) dropPeerAllRoutes(peer *Peer) []*SenderMsg {
 
 func applyPolicies(peer *Peer, loc *LocalRib, d Direction, pathList []*table.Path) []*table.Path {
 	var defaultPolicy config.DefaultPolicyType
+	ret := make([]*table.Path, 0, len(pathList))
+
 	switch d {
 	case POLICY_DIRECTION_EXPORT:
 		defaultPolicy = loc.defaultExportPolicy
@@ -395,9 +396,9 @@ func applyPolicies(peer *Peer, loc *LocalRib, d Direction, pathList []*table.Pat
 			"Topic": "Server",
 			"Key":   peer.config.NeighborAddress,
 		}).Error("direction is not specified.")
+		return ret
 	}
 
-	ret := make([]*table.Path, 0, len(pathList))
 	for _, path := range pathList {
 		if !path.IsWithdraw {
 			var applied bool = false

@@ -12,8 +12,7 @@ import (
 	"os"
 )
 
-
-func bindPolicy(outputDir, peer, target, policyName string, isReplace bool) {
+func bindPolicy(outputDir, peer, target, policyName string, isReplace bool, defaultReject bool) {
 
 	newConf := config.Bgp{}
 	_, d_err := toml.DecodeFile(fmt.Sprintf("%s/gobgpd.conf", outputDir), &newConf)
@@ -33,11 +32,17 @@ func bindPolicy(outputDir, peer, target, policyName string, isReplace bool) {
 				} else {
 					ap.ImportPolicies = append(ap.ImportPolicies, policyName)
 				}
+				if defaultReject {
+					ap.DefaultImportPolicy = 1
+				}
 			case "export":
 				if isReplace {
 					ap.ExportPolicies = []string{policyName}
 				} else {
 					ap.ExportPolicies = append(ap.ExportPolicies, policyName)
+				}
+				if defaultReject {
+					ap.DefaultExportPolicy = 1
 				}
 			case "distribute":
 				if isReplace {
@@ -45,16 +50,19 @@ func bindPolicy(outputDir, peer, target, policyName string, isReplace bool) {
 				} else {
 					ap.DistributePolicies = append(ap.DistributePolicies, policyName)
 				}
+				if defaultReject {
+					ap.DefaultDistributePolicy = 1
+				}
 			}
 			newConf.NeighborList[idx] = neighbor
 		}
 	}
 
 	policyConf := createPolicyConfig()
-    var buffer bytes.Buffer
-    encoder := toml.NewEncoder(&buffer)
-    encoder.Encode(newConf)
-    encoder.Encode(policyConf)
+	var buffer bytes.Buffer
+	encoder := toml.NewEncoder(&buffer)
+	encoder.Encode(newConf)
+	encoder.Encode(policyConf)
 
 	e_err := ioutil.WriteFile(fmt.Sprintf("%s/gobgpd.conf", outputDir), buffer.Bytes(), 0644)
 	if e_err != nil {
@@ -123,6 +131,15 @@ func createPolicyConfig() *config.RoutingPolicy {
 			config.Prefix{
 				Address:    net.ParseIP("2001:0:10:20::"),
 				Masklength: 64,
+			}},
+	}
+
+	ps6 := config.PrefixSet{
+		PrefixSetName: "ps6",
+		PrefixList: []config.Prefix{
+			config.Prefix{
+				Address:    net.ParseIP("192.168.10.0"),
+				Masklength: 24,
 			}},
 	}
 
@@ -456,6 +473,49 @@ func createPolicyConfig() *config.RoutingPolicy {
 		},
 	}
 
+	st_distribute_reject := config.Statement{
+		Name: "st_community_distriibute",
+		Conditions: config.Conditions{
+			BgpConditions: config.BgpConditions{
+				MatchCommunitySet: "comStr",
+			},
+			MatchSetOptions: config.MATCH_SET_OPTIONS_TYPE_ALL,
+		},
+		Actions: config.Actions{
+			AcceptRoute: false,
+		},
+	}
+
+	st_distribute_accept := config.Statement{
+		Name: "st_distriibute_accept",
+		Conditions: config.Conditions{
+			MatchPrefixSet:   "ps6",
+			MatchSetOptions: config.MATCH_SET_OPTIONS_TYPE_ALL,
+		},
+		Actions: config.Actions{
+			AcceptRoute: true,
+		},
+	}
+
+
+	st_distribute_comm_add := config.Statement{
+		Name: "st_distribute_comm_add",
+		Conditions: config.Conditions{
+			BgpConditions: config.BgpConditions{
+				MatchCommunitySet: "comStr",
+			},
+			MatchSetOptions: config.MATCH_SET_OPTIONS_TYPE_ALL,
+		},
+		Actions: config.Actions{
+			AcceptRoute: true,
+			BgpActions: config.BgpActions{
+				SetCommunity: config.SetCommunity{
+					Communities: []string{"65100:20"},
+					Options:     "ADD",
+				},
+			},
+		},
+	}
 
 	test_01_import_policy_initial := config.PolicyDefinition{
 		Name:          "test_01_import_policy_initial",
@@ -597,8 +657,23 @@ func createPolicyConfig() *config.RoutingPolicy {
 		StatementList: []config.Statement{st_comNull},
 	}
 
+	test_25_distribute_reject := config.PolicyDefinition{
+		Name:          "test_25_distribute_reject",
+		StatementList: []config.Statement{st_distribute_reject},
+	}
+
+	test_26_distribute_accept := config.PolicyDefinition{
+		Name:          "test_26_distribute_accept",
+		StatementList: []config.Statement{st_distribute_accept},
+	}
+
+	test_27_distribute_set_community_action := config.PolicyDefinition{
+		Name:          "test_27_distribute_set_community_action",
+		StatementList: []config.Statement{st_distribute_comm_add},
+	}
+
 	ds := config.DefinedSets{
-		PrefixSetList:   []config.PrefixSet{ps0, ps1, ps2, ps3, ps4, ps5, psExabgp},
+		PrefixSetList:   []config.PrefixSet{ps0, ps1, ps2, ps3, ps4, ps5, ps6, psExabgp},
 		NeighborSetList: []config.NeighborSet{nsPeer2, nsPeer2V6, nsExabgp},
 		BgpDefinedSets: config.BgpDefinedSets{
 			AsPathSetList:    []config.AsPathSet{aspathFrom, aspathAny, aspathOrigin, aspathOnly},
@@ -615,20 +690,20 @@ func createPolicyConfig() *config.RoutingPolicy {
 			test_03_import_policy_update_softreset,
 			test_04_export_policy_update,
 			test_04_export_policy_update_softreset,
-            test_05_import_policy_initial_ipv6,
+			test_05_import_policy_initial_ipv6,
 			test_06_export_policy_initial_ipv6,
-            test_07_import_policy_update,
+			test_07_import_policy_update,
 			test_07_import_policy_update_softreset,
-            test_08_export_policy_update,
+			test_08_export_policy_update,
 			test_08_export_policy_update_softreset,
-            test_09_aspath_length_condition_import,
-            test_10_aspath_from_condition_import,
+			test_09_aspath_length_condition_import,
+			test_10_aspath_from_condition_import,
 			test_11_aspath_any_condition_import,
-            test_12_aspath_origin_condition_import,
-            test_13_aspath_only_condition_import,
-            test_14_aspath_only_condition_import,
-            test_15_community_condition_import,
-            test_16_community_condition_regexp_import,
+			test_12_aspath_origin_condition_import,
+			test_13_aspath_only_condition_import,
+			test_14_aspath_only_condition_import,
+			test_15_community_condition_import,
+			test_16_community_condition_regexp_import,
 			test_17_community_add_action_import,
 			test_18_community_replace_action_import,
 			test_19_community_remove_action_import,
@@ -637,19 +712,22 @@ func createPolicyConfig() *config.RoutingPolicy {
 			test_22_community_replace_action_export,
 			test_23_community_remove_action_export,
 			test_24_community_null_action_export,
-        },
+			test_25_distribute_reject,
+			test_26_distribute_accept,
+			test_27_distribute_set_community_action,
+		},
 	}
 	return p
 }
 
-
 func main() {
 	var opts struct {
 		OutputDir  string `short:"d" long:"output" description:"specifing the output directory"`
-		Neighbor       string `short:"n" long:"neighbor" description:"neighbor ip adress to which add policy config"`
+		Neighbor   string `short:"n" long:"neighbor" description:"neighbor ip adress to which add policy config"`
 		Target     string `short:"t" long:"target" description:"target such as export or import to which add policy"`
 		PolicyName string `short:"p" long:"policy" description:"policy name bound to peer"`
 		Replace    bool   `short:"r" long:"replace" description:"Replace existing policy with new one" default:"false"`
+		Reject    bool   `short:"j" long:"reject" description:"Set default policy reject" default:"false"`
 	}
 
 	parser := flags.NewParser(&opts, flags.Default)
@@ -663,5 +741,5 @@ func main() {
 		log.Fatal(err)
 	}
 
-	bindPolicy(opts.OutputDir, opts.Neighbor, opts.Target, opts.PolicyName, opts.Replace)
+	bindPolicy(opts.OutputDir, opts.Neighbor, opts.Target, opts.PolicyName, opts.Replace, opts.Reject)
 }

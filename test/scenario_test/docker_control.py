@@ -315,7 +315,7 @@ def get_notification_from_exabgp_log():
     return err_mgs
 
 
-def make_config(quagga_num, go_path, bridge, peer_opts="", use_compiled=False):
+def make_config(quagga_num, go_path, bridge, peer_opts="", use_compiled=False, ipver=''):
     if go_path != "":
         print "specified go path is [ " + go_path + " ]."
         if os.path.isdir(go_path):
@@ -328,12 +328,14 @@ def make_config(quagga_num, go_path, bridge, peer_opts="", use_compiled=False):
     if use_compiled:
         tool = pwd + "/quagga-rsconfig "
 
+    # I want to avoid a global variable.
+    ip_version = ipver if ipver else IP_VERSION
     cmd = tool + " -n " + str(quagga_num) +\
-          " -c /tmp/gobgp -v " + IP_VERSION + " -i " + bridge["BRIDGE_NAME"][-1] + " " + peer_opts
+          " -c /tmp/gobgp -v " + ip_version + " -i " + bridge["BRIDGE_NAME"][-1] + " " + peer_opts
     local(cmd, capture=True)
 
 
-def update_policy_config(go_path, neighbor, policy_name, target, isReplace=False):
+def update_policy_config(go_path, neighbor, policy_name, target, isReplace=False, defaultReject=False):
     if go_path != "":
         print "specified go path is [ " + go_path + " ]."
         if os.path.isdir(go_path):
@@ -343,12 +345,13 @@ def update_policy_config(go_path, neighbor, policy_name, target, isReplace=False
 
     pwd = local("pwd", capture=True)
     replace = ' -r' if isReplace else ''
-    cmd = pwd + "/policy_generator -d /tmp/gobgp -n " + neighbor + " -t " + target + " -p " + policy_name + replace
+    reject = ' -j' if defaultReject else ''
+    cmd = pwd + "/policy_generator -d /tmp/gobgp -n " + neighbor + " -t " + target + " -p " + policy_name + replace + reject
     local(cmd, capture=True)
     # reload_config()
 
 
-def make_config_append(quagga_num, go_path, bridge, peer_opts=""):
+def make_config_append(quagga_num, go_path, bridge, peer_opts="", use_compiled=False, ipver=''):
     if go_path != "":
         print "specified go path is [ " + go_path + " ]."
         if os.path.isdir(go_path):
@@ -356,9 +359,14 @@ def make_config_append(quagga_num, go_path, bridge, peer_opts=""):
         else:
             print "specified go path do not use."
     pwd = local("pwd", capture=True)
+    ip_version = ipver if ipver else IP_VERSION
 
-    cmd = go_path + "go run " + pwd + "/quagga-rsconfig.go -a " + str(quagga_num) +\
-          " -c /tmp/gobgp -v " + IP_VERSION + " -i " + bridge["BRIDGE_NAME"][-1] + " " + peer_opts
+    tool = go_path + "go run " + pwd + "/quagga-rsconfig.go "
+    if use_compiled:
+        tool = pwd + "/quagga-rsconfig "
+
+    cmd = tool + " -a " + str(quagga_num) +\
+          " -c /tmp/gobgp -v " + ip_version + " -i " + bridge["BRIDGE_NAME"][-1] + " " + peer_opts
     local(cmd, capture=True)
 
 
@@ -379,7 +387,7 @@ def build_config_tools(go_path):
     pwd = local("pwd", capture=True)
     cmd = go_path + "go build " + pwd + "/quagga-rsconfig.go"
     local(cmd, capture=True)
-    cmd = go_path + "go build " + pwd + "/policy_generator.go"
+    cmd = go_path + "go build " + pwd + "/policy/policy_generator.go"
     local(cmd, capture=True)
 
 
