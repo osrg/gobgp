@@ -27,6 +27,7 @@ No dependency hell (library, package, etc) thanks to Go.
  * [Route Server](https://github.com/osrg/gobgp/blob/master/docs/sources/route-server.md)
  * [Policy Filter](https://github.com/osrg/gobgp/blob/master/docs/sources/filter.md)
  * [EVPN](https://github.com/osrg/gobgp/blob/master/docs/sources/evpn.md)
+ * [MRT Route Injector](https://github.com/osrg/gobgp/blob/master/docs/sources/mrt.md)
  
 ## Community, discussion and support
 
