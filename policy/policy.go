@@ -102,7 +102,7 @@ func NewPolicy(pd config.PolicyDefinition, ds config.DefinedSets) *Policy {
 			conditions = append(conditions, cc)
 		}
 
-		// routeing action
+		// routing action
 		ra := NewRoutingAction(statement.Actions)
 
 		// modification action
