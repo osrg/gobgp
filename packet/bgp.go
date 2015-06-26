@@ -583,6 +583,7 @@ type AddrPrefixInterface interface {
 	Len() int
 	String() string
 	ToApiStruct() *api.Nlri
+	Equal(AddrPrefixInterface) bool
 }
 
 type IPAddrPrefixDefault struct {
@@ -623,6 +624,10 @@ func (r *IPAddrPrefixDefault) Len() int {
 
 func (r *IPAddrPrefixDefault) String() string {
 	return fmt.Sprintf("%s/%d", r.Prefix.String(), r.Length)
+}
+
+func (lhs IPAddrPrefixDefault) equal(rhs *IPAddrPrefixDefault) bool {
+	return lhs.Length == rhs.Length && lhs.Prefix.Equal(rhs.Prefix)
 }
 
 type IPAddrPrefix struct {
@@ -668,6 +673,15 @@ func (r *IPAddrPrefix) ToApiStruct() *api.Nlri {
 	}
 }
 
+func (lhs *IPAddrPrefix) Equal(rhsIntf AddrPrefixInterface) bool {
+	rhs, ok := rhsIntf.(*IPAddrPrefix)
+	if !ok {
+		return false
+	}
+	return lhs.addrlen == rhs.addrlen && lhs.IPAddrPrefixDefault.equal(&rhs.IPAddrPrefixDefault)
+
+}
+
 func NewIPAddrPrefix(length uint8, prefix string) *IPAddrPrefix {
 	return &IPAddrPrefix{
 		IPAddrPrefixDefault{length, net.ParseIP(prefix).To4()},
@@ -681,6 +695,14 @@ type IPv6AddrPrefix struct {
 
 func (r *IPv6AddrPrefix) AFI() uint16 {
 	return AFI_IP6
+}
+
+func (lhs *IPv6AddrPrefix) Equal(rhsIntf AddrPrefixInterface) bool {
+	rhs, ok := rhsIntf.(*IPv6AddrPrefix)
+	if !ok {
+		return false
+	}
+	return lhs.addrlen == rhs.addrlen && lhs.IPAddrPrefixDefault.equal(&rhs.IPAddrPrefixDefault)
 }
 
 func NewIPv6AddrPrefix(length uint8, prefix string) *IPv6AddrPrefix {
@@ -706,6 +728,8 @@ type RouteDistinguisherInterface interface {
 	DecodeFromBytes([]byte) error
 	Serialize() ([]byte, error)
 	Len() int
+	raw() *DefaultRouteDistinguisher
+	Equal(RouteDistinguisherInterface) bool
 }
 
 type DefaultRouteDistinguisher struct {
@@ -728,93 +752,107 @@ func (rd *DefaultRouteDistinguisher) Serialize() ([]byte, error) {
 
 func (rd *DefaultRouteDistinguisher) Len() int { return 8 }
 
-type RouteDistinguisherTwoOctetASValue struct {
-	Admin    uint16
-	Assigned uint32
+func (rd *DefaultRouteDistinguisher) raw() *DefaultRouteDistinguisher {
+	return rd
+}
+
+func (lhs *DefaultRouteDistinguisher) Equal(rhs RouteDistinguisherInterface) bool {
+	return lhs.Type == rhs.raw().Type && bytes.Equal(lhs.Value, rhs.raw().Value)
 }
 
 type RouteDistinguisherTwoOctetAS struct {
 	DefaultRouteDistinguisher
-	Value RouteDistinguisherTwoOctetASValue
+	Admin    uint16
+	Assigned uint32
 }
 
 func (rd *RouteDistinguisherTwoOctetAS) Serialize() ([]byte, error) {
 	buf := make([]byte, 6)
-	binary.BigEndian.PutUint16(buf[0:], rd.Value.Admin)
-	binary.BigEndian.PutUint32(buf[2:], rd.Value.Assigned)
+	binary.BigEndian.PutUint16(buf[0:], rd.Admin)
+	binary.BigEndian.PutUint32(buf[2:], rd.Assigned)
 	rd.DefaultRouteDistinguisher.Value = buf
 	return rd.DefaultRouteDistinguisher.Serialize()
+}
+
+func (lhs *RouteDistinguisherTwoOctetAS) Equal(rhsIntf RouteDistinguisherInterface) bool {
+	rhs, ok := rhsIntf.(*RouteDistinguisherTwoOctetAS)
+	if !ok {
+		return false
+	}
+	return lhs.Admin == rhs.Admin && lhs.Assigned == rhs.Assigned
 }
 
 func NewRouteDistinguisherTwoOctetAS(admin uint16, assigned uint32) *RouteDistinguisherTwoOctetAS {
 	return &RouteDistinguisherTwoOctetAS{
-		DefaultRouteDistinguisher{
+		DefaultRouteDistinguisher: DefaultRouteDistinguisher{
 			Type: BGP_RD_TWO_OCTET_AS,
 		},
-		RouteDistinguisherTwoOctetASValue{
-			Admin:    admin,
-			Assigned: assigned,
-		},
+		Admin:    admin,
+		Assigned: assigned,
 	}
-}
-
-type RouteDistinguisherIPAddressASValue struct {
-	Admin    net.IP
-	Assigned uint16
 }
 
 type RouteDistinguisherIPAddressAS struct {
 	DefaultRouteDistinguisher
-	Value RouteDistinguisherIPAddressASValue
+	Admin    net.IP
+	Assigned uint16
 }
 
 func (rd *RouteDistinguisherIPAddressAS) Serialize() ([]byte, error) {
 	buf := make([]byte, 6)
-	copy(buf[0:], rd.Value.Admin.To4())
-	binary.BigEndian.PutUint16(buf[4:], rd.Value.Assigned)
+	copy(buf[0:], rd.Admin.To4())
+	binary.BigEndian.PutUint16(buf[4:], rd.Assigned)
 	rd.DefaultRouteDistinguisher.Value = buf
 	return rd.DefaultRouteDistinguisher.Serialize()
+}
+
+func (lhs *RouteDistinguisherIPAddressAS) Equal(rhsIntf RouteDistinguisherInterface) bool {
+	rhs, ok := rhsIntf.(*RouteDistinguisherIPAddressAS)
+	if !ok {
+		return false
+	}
+	return lhs.Admin.Equal(rhs.Admin) && lhs.Assigned == rhs.Assigned
 }
 
 func NewRouteDistinguisherIPAddressAS(admin string, assigned uint16) *RouteDistinguisherIPAddressAS {
 	return &RouteDistinguisherIPAddressAS{
-		DefaultRouteDistinguisher{
+		DefaultRouteDistinguisher: DefaultRouteDistinguisher{
 			Type: BGP_RD_IPV4_ADDRESS,
 		},
-		RouteDistinguisherIPAddressASValue{
-			Admin:    net.ParseIP(admin),
-			Assigned: assigned,
-		},
+		Admin:    net.ParseIP(admin),
+		Assigned: assigned,
 	}
-}
-
-type RouteDistinguisherFourOctetASValue struct {
-	Admin    uint32
-	Assigned uint16
 }
 
 type RouteDistinguisherFourOctetAS struct {
 	DefaultRouteDistinguisher
-	Value RouteDistinguisherFourOctetASValue
+	Admin    uint32
+	Assigned uint16
 }
 
 func (rd *RouteDistinguisherFourOctetAS) Serialize() ([]byte, error) {
 	buf := make([]byte, 6)
-	binary.BigEndian.PutUint32(buf[0:], rd.Value.Admin)
-	binary.BigEndian.PutUint16(buf[4:], rd.Value.Assigned)
+	binary.BigEndian.PutUint32(buf[0:], rd.Admin)
+	binary.BigEndian.PutUint16(buf[4:], rd.Assigned)
 	rd.DefaultRouteDistinguisher.Value = buf
 	return rd.DefaultRouteDistinguisher.Serialize()
 }
 
+func (lhs *RouteDistinguisherFourOctetAS) Equal(rhsIntf RouteDistinguisherInterface) bool {
+	rhs, ok := rhsIntf.(*RouteDistinguisherFourOctetAS)
+	if !ok {
+		return false
+	}
+	return lhs.Admin == rhs.Admin && lhs.Assigned == rhs.Assigned
+}
+
 func NewRouteDistinguisherFourOctetAS(admin uint32, assigned uint16) *RouteDistinguisherFourOctetAS {
 	return &RouteDistinguisherFourOctetAS{
-		DefaultRouteDistinguisher{
+		DefaultRouteDistinguisher: DefaultRouteDistinguisher{
 			Type: BGP_RD_FOUR_OCTET_AS,
 		},
-		RouteDistinguisherFourOctetASValue{
-			Admin:    admin,
-			Assigned: assigned,
-		},
+		Admin:    admin,
+		Assigned: assigned,
 	}
 }
 
@@ -828,20 +866,20 @@ func getRouteDistinguisher(data []byte) RouteDistinguisherInterface {
 	case BGP_RD_TWO_OCTET_AS:
 		rd := &RouteDistinguisherTwoOctetAS{}
 		rd.Type = rdtype
-		rd.Value.Admin = binary.BigEndian.Uint16(data[2:4])
-		rd.Value.Assigned = binary.BigEndian.Uint32(data[4:8])
+		rd.Admin = binary.BigEndian.Uint16(data[2:4])
+		rd.Assigned = binary.BigEndian.Uint32(data[4:8])
 		return rd
 	case BGP_RD_IPV4_ADDRESS:
 		rd := &RouteDistinguisherIPAddressAS{}
 		rd.Type = rdtype
-		rd.Value.Admin = data[2:6]
-		rd.Value.Assigned = binary.BigEndian.Uint16(data[6:8])
+		rd.Admin = data[2:6]
+		rd.Assigned = binary.BigEndian.Uint16(data[6:8])
 		return rd
 	case BGP_RD_FOUR_OCTET_AS:
 		rd := &RouteDistinguisherFourOctetAS{}
 		rd.Type = rdtype
-		rd.Value.Admin = binary.BigEndian.Uint32(data[2:6])
-		rd.Value.Assigned = binary.BigEndian.Uint16(data[6:8])
+		rd.Admin = binary.BigEndian.Uint32(data[2:6])
+		rd.Assigned = binary.BigEndian.Uint16(data[6:8])
 		return rd
 	}
 	rd := &RouteDistinguisherUnknown{}
@@ -849,25 +887,38 @@ func getRouteDistinguisher(data []byte) RouteDistinguisherInterface {
 	return rd
 }
 
-func labelDecode(data []byte) uint32 {
-	return uint32(data[0])<<16 | uint32(data[1])<<8 | uint32(data[2])
-}
+//
+// RFC3107 Carrying Label Information in BGP-4
+//
+// 4. Carrying Label Mapping Information
+//
+// b) Label:
+//
+// The Label field carries one or more labels (that corresponds to
+// the stack of labels [MPLS-ENCAPS(RFC3032)]). Each label is encoded as
+// 4 octets, where the high-order 20 bits contain the label value, and
+// the low order bit contains "Bottom of Stack"
+//
+// RFC3032 MPLS Label Stack Encoding
+//
+// 2.1. Encoding the Label Stack
+//
+//  0       1       2               3
+//  0 ... 9 0 ... 9 0 1 2 3 4 ... 9 0 1
+// +-----+-+-+---+-+-+-+-+-+-----+-+-+-+
+// |     Label     | Exp |S|    TTL    |
+// +-----+-+-+---+-+-+-+-+-+-----+-+-+-+
+//
 
-func labelSerialize(label uint32, buf []byte) {
-	buf[0] = byte((label >> 16) & 0xff)
-	buf[1] = byte((label >> 8) & 0xff)
-	buf[2] = byte(label & 0xff)
-}
-
-type Label struct {
+type MPLSLabelStack struct {
 	Labels []uint32
 }
 
-func (l *Label) DecodeFromBytes(data []byte) error {
+func (l *MPLSLabelStack) DecodeFromBytes(data []byte) error {
 	labels := []uint32{}
 	foundBottom := false
-	for len(data) >= 4 {
-		label := uint32(data[0]<<16 | data[1]<<8 | data[2])
+	for len(data) >= 3 {
+		label := uint32(data[0])<<16 | uint32(data[1])<<8 | uint32(data[2])
 		data = data[3:]
 		labels = append(labels, label>>4)
 		if label&1 == 1 {
@@ -883,7 +934,7 @@ func (l *Label) DecodeFromBytes(data []byte) error {
 	return nil
 }
 
-func (l *Label) Serialize() ([]byte, error) {
+func (l *MPLSLabelStack) Serialize() ([]byte, error) {
 	buf := make([]byte, len(l.Labels)*3)
 	for i, label := range l.Labels {
 		label = label << 4
@@ -895,15 +946,52 @@ func (l *Label) Serialize() ([]byte, error) {
 	return buf, nil
 }
 
-func (l *Label) Len() int { return 3 * len(l.Labels) }
+func (l *MPLSLabelStack) Len() int { return 3 * len(l.Labels) }
 
-func NewLabel(labels ...uint32) *Label {
-	return &Label{labels}
+func (lhs *MPLSLabelStack) Equal(rhs *MPLSLabelStack) bool {
+	if len(lhs.Labels) != len(rhs.Labels) {
+		return false
+	}
+
+	for i, v := range lhs.Labels {
+		if v != rhs.Labels[i] {
+			return false
+		}
+	}
+	return true
 }
+
+func NewMPLSLabelStack(labels ...uint32) *MPLSLabelStack {
+	return &MPLSLabelStack{labels}
+}
+
+//
+// RFC3107 Carrying Label Information in BGP-4
+//
+// 3. Carrying Label Mapping Information
+//
+// +----------------------+
+// |   Length (1 octet)   |
+// +----------------------+
+// |   Label (3 octets)   |
+// +----------------------+
+// .......................
+// +----------------------+
+// |   Prefix (variable)  |
+// +----------------------+
+//
+// RFC4364 BGP/MPLS IP VPNs
+//
+// 4.3.4. How VPN-IPv4 NLRI Is Carried in BGP
+//
+// The labeled VPN-IPv4 NLRI itself is encoded as specified in
+// [MPLS-BGP(RFC3107)], where the prefix consists of an 8-byte RD
+// followed by an IPv4 prefix.
+//
 
 type LabelledVPNIPAddrPrefix struct {
 	IPAddrPrefixDefault
-	Labels  Label
+	Labels  MPLSLabelStack
 	RD      RouteDistinguisherInterface
 	addrlen uint8
 }
@@ -912,13 +1000,14 @@ func (l *LabelledVPNIPAddrPrefix) DecodeFromBytes(data []byte) error {
 	l.Length = uint8(data[0])
 	data = data[1:]
 	l.Labels.DecodeFromBytes(data)
-	if int(l.Length)-8*(l.Labels.Len()) < 0 {
+	restbits := int(l.Length) - 8*(l.Labels.Len())
+	if restbits < 0 {
 		l.Labels.Labels = []uint32{}
 	}
 	data = data[l.Labels.Len():]
 	l.RD = getRouteDistinguisher(data)
 	data = data[l.RD.Len():]
-	restbits := int(l.Length) - 8*(l.Labels.Len()+l.RD.Len())
+	restbits = restbits - 8*(l.RD.Len())
 	l.decodePrefix(data, uint8(restbits), l.addrlen)
 	return nil
 }
@@ -960,7 +1049,15 @@ func (l *LabelledVPNIPAddrPrefix) ToApiStruct() *api.Nlri {
 	}
 }
 
-func NewLabelledVPNIPAddrPrefix(length uint8, prefix string, label Label, rd RouteDistinguisherInterface) *LabelledVPNIPAddrPrefix {
+func (lhs *LabelledVPNIPAddrPrefix) Equal(rhsIntf AddrPrefixInterface) bool {
+	rhs, ok := rhsIntf.(*LabelledVPNIPAddrPrefix)
+	if !ok {
+		return false
+	}
+	return lhs.addrlen == rhs.addrlen && lhs.IPAddrPrefixDefault.equal(&rhs.IPAddrPrefixDefault) && lhs.Labels.Equal(&rhs.Labels) && lhs.RD.Equal(rhs.RD)
+}
+
+func NewLabelledVPNIPAddrPrefix(length uint8, prefix string, label MPLSLabelStack, rd RouteDistinguisherInterface) *LabelledVPNIPAddrPrefix {
 	rdlen := 0
 	if rd != nil {
 		rdlen = rd.Len()
@@ -981,7 +1078,15 @@ func (l *LabelledVPNIPv6AddrPrefix) AFI() uint16 {
 	return AFI_IP6
 }
 
-func NewLabelledVPNIPv6AddrPrefix(length uint8, prefix string, label Label, rd RouteDistinguisherInterface) *LabelledVPNIPv6AddrPrefix {
+func (lhs *LabelledVPNIPv6AddrPrefix) Equal(rhsIntf AddrPrefixInterface) bool {
+	rhs, ok := rhsIntf.(*LabelledVPNIPv6AddrPrefix)
+	if !ok {
+		return false
+	}
+	return lhs.addrlen == rhs.addrlen && lhs.IPAddrPrefixDefault.equal(&rhs.IPAddrPrefixDefault) && lhs.Labels.Equal(&rhs.Labels) && lhs.RD.Equal(rhs.RD)
+}
+
+func NewLabelledVPNIPv6AddrPrefix(length uint8, prefix string, label MPLSLabelStack, rd RouteDistinguisherInterface) *LabelledVPNIPv6AddrPrefix {
 	rdlen := 0
 	if rd != nil {
 		rdlen = rd.Len()
@@ -998,7 +1103,7 @@ func NewLabelledVPNIPv6AddrPrefix(length uint8, prefix string, label Label, rd R
 
 type LabelledIPAddrPrefix struct {
 	IPAddrPrefixDefault
-	Labels  Label
+	Labels  MPLSLabelStack
 	addrlen uint8
 }
 
@@ -1015,25 +1120,6 @@ func (r *LabelledIPAddrPrefix) ToApiStruct() *api.Nlri {
 		Af:     &api.AddressFamily{api.AFI(r.AFI()), api.SAFI(r.SAFI())},
 		Prefix: r.String(),
 	}
-}
-
-func (r *IPAddrPrefix) decodeNextHop(data []byte) net.IP {
-	if r.addrlen == 0 {
-		r.addrlen = 4
-	}
-	var next net.IP = data[0:r.addrlen]
-	return next
-}
-
-func (r *LabelledVPNIPAddrPrefix) decodeNextHop(data []byte) net.IP {
-	// skip rd
-	var next net.IP = data[8 : 8+r.addrlen]
-	return next
-}
-
-func (r *LabelledIPAddrPrefix) decodeNextHop(data []byte) net.IP {
-	var next net.IP = data[0:r.addrlen]
-	return next
 }
 
 func (l *LabelledIPAddrPrefix) DecodeFromBytes(data []byte) error {
@@ -1066,7 +1152,15 @@ func (l *LabelledIPAddrPrefix) Serialize() ([]byte, error) {
 	return buf, nil
 }
 
-func NewLabelledIPAddrPrefix(length uint8, prefix string, label Label) *LabelledIPAddrPrefix {
+func (lhs *LabelledIPAddrPrefix) Equal(rhsIntf AddrPrefixInterface) bool {
+	rhs, ok := rhsIntf.(*LabelledIPAddrPrefix)
+	if !ok {
+		return false
+	}
+	return lhs.addrlen == rhs.addrlen && lhs.IPAddrPrefixDefault.equal(&rhs.IPAddrPrefixDefault) && lhs.Labels.Equal(&rhs.Labels)
+}
+
+func NewLabelledIPAddrPrefix(length uint8, prefix string, label MPLSLabelStack) *LabelledIPAddrPrefix {
 	return &LabelledIPAddrPrefix{
 		IPAddrPrefixDefault{length + uint8(label.Len()*8), net.ParseIP(prefix)},
 		label,
@@ -1078,7 +1172,15 @@ type LabelledIPv6AddrPrefix struct {
 	LabelledIPAddrPrefix
 }
 
-func NewLabelledIPv6AddrPrefix(length uint8, prefix string, label Label) *LabelledIPv6AddrPrefix {
+func (lhs *LabelledIPv6AddrPrefix) Equal(rhsIntf AddrPrefixInterface) bool {
+	rhs, ok := rhsIntf.(*LabelledIPv6AddrPrefix)
+	if !ok {
+		return false
+	}
+	return lhs.addrlen == rhs.addrlen && lhs.IPAddrPrefixDefault.equal(&rhs.IPAddrPrefixDefault) && lhs.Labels.Equal(&rhs.Labels)
+}
+
+func NewLabelledIPv6AddrPrefix(length uint8, prefix string, label MPLSLabelStack) *LabelledIPv6AddrPrefix {
 	return &LabelledIPv6AddrPrefix{
 		LabelledIPAddrPrefix{
 			IPAddrPrefixDefault{length + uint8(label.Len()*8), net.ParseIP(prefix)},
@@ -1165,6 +1267,14 @@ func (n *RouteTargetMembershipNLRI) ToApiStruct() *api.Nlri {
 	}
 }
 
+func (lhs *RouteTargetMembershipNLRI) Equal(rhsIntf AddrPrefixInterface) bool {
+	rhs, ok := rhsIntf.(*RouteTargetMembershipNLRI)
+	if !ok {
+		return false
+	}
+	return lhs.Length == rhs.Length && lhs.AS == rhs.AS && lhs.RouteTarget.Equal(rhs.RouteTarget)
+}
+
 func NewRouteTargetMembershipNLRI(as uint32, target ExtendedCommunityInterface) *RouteTargetMembershipNLRI {
 	l := 12 * 8
 	if as == 0 && target == nil {
@@ -1237,6 +1347,20 @@ func (esi *EthernetSegmentIdentifier) String() string {
 	return s.String()
 }
 
+func (lhs *EthernetSegmentIdentifier) Equal(rhs *EthernetSegmentIdentifier) bool {
+	return lhs.Type == rhs.Type && bytes.Equal(lhs.Value, rhs.Value)
+}
+
+func labelDecode(data []byte) uint32 {
+	return uint32(data[0])<<16 | uint32(data[1])<<8 | uint32(data[2])
+}
+
+func labelSerialize(label uint32, buf []byte) {
+	buf[0] = byte((label >> 16) & 0xff)
+	buf[1] = byte((label >> 8) & 0xff)
+	buf[2] = byte(label & 0xff)
+}
+
 type EVPNEthernetAutoDiscoveryRoute struct {
 	RD    RouteDistinguisherInterface
 	ESI   EthernetSegmentIdentifier
@@ -1279,6 +1403,15 @@ func (er *EVPNEthernetAutoDiscoveryRoute) Serialize() ([]byte, error) {
 	buf = append(buf, tbuf...)
 
 	return buf, nil
+}
+
+func (lhs *EVPNEthernetAutoDiscoveryRoute) Equal(rhsIntf EVPNRouteTypeInterface) bool {
+	rhs, ok := rhsIntf.(*EVPNEthernetAutoDiscoveryRoute)
+	if !ok {
+		return false
+	}
+	return lhs.ETag == rhs.ETag && lhs.Label == rhs.Label && lhs.RD.Equal(rhs.RD) && lhs.ESI.Equal(&rhs.ESI)
+
 }
 
 type EVPNMacIPAdvertisementRoute struct {
@@ -1361,6 +1494,24 @@ func (er *EVPNMacIPAdvertisementRoute) Serialize() ([]byte, error) {
 	return buf, nil
 }
 
+func (lhs *EVPNMacIPAdvertisementRoute) Equal(rhsIntf EVPNRouteTypeInterface) bool {
+	rhs, ok := rhsIntf.(*EVPNMacIPAdvertisementRoute)
+	if !ok {
+		return false
+	}
+	if len(lhs.Labels) != len(rhs.Labels) {
+		return false
+	}
+	for i, v := range lhs.Labels {
+		if v != rhs.Labels[i] {
+			return false
+		}
+	}
+	return lhs.RD.Equal(rhs.RD) && lhs.ESI.Equal(&rhs.ESI) && lhs.ETag == rhs.ETag &&
+		lhs.MacAddressLength == rhs.MacAddressLength && bytes.Equal(lhs.MacAddress, rhs.MacAddress) &&
+		lhs.IPAddressLength == rhs.IPAddressLength && lhs.IPAddress.Equal(rhs.IPAddress)
+}
+
 type EVPNMulticastEthernetTagRoute struct {
 	RD              RouteDistinguisherInterface
 	ETag            uint32
@@ -1403,6 +1554,15 @@ func (er *EVPNMulticastEthernetTagRoute) Serialize() ([]byte, error) {
 		return nil, err
 	}
 	return buf, nil
+}
+
+func (lhs *EVPNMulticastEthernetTagRoute) Equal(rhsIntf EVPNRouteTypeInterface) bool {
+	rhs, ok := rhsIntf.(*EVPNMulticastEthernetTagRoute)
+	if !ok {
+		return false
+	}
+	return lhs.RD.Equal(rhs.RD) && lhs.ETag == rhs.ETag &&
+		lhs.IPAddressLength == rhs.IPAddressLength && lhs.IPAddress.Equal(rhs.IPAddress)
 }
 
 type EVPNEthernetSegmentRoute struct {
@@ -1449,9 +1609,19 @@ func (er *EVPNEthernetSegmentRoute) Serialize() ([]byte, error) {
 	return buf, nil
 }
 
+func (lhs *EVPNEthernetSegmentRoute) Equal(rhsIntf EVPNRouteTypeInterface) bool {
+	rhs, ok := rhsIntf.(*EVPNEthernetSegmentRoute)
+	if !ok {
+		return false
+	}
+	return lhs.RD.Equal(rhs.RD) && lhs.ESI.Equal(&rhs.ESI) &&
+		lhs.IPAddressLength == rhs.IPAddressLength && lhs.IPAddress.Equal(rhs.IPAddress)
+}
+
 type EVPNRouteTypeInterface interface {
 	DecodeFromBytes([]byte) error
 	Serialize() ([]byte, error)
+	Equal(EVPNRouteTypeInterface) bool
 }
 
 func getEVPNRouteType(t uint8) (EVPNRouteTypeInterface, error) {
@@ -1562,6 +1732,14 @@ func (n *EVPNNLRI) ToApiStruct() *api.Nlri {
 	}
 }
 
+func (lhs *EVPNNLRI) Equal(rhsIntf AddrPrefixInterface) bool {
+	rhs, ok := rhsIntf.(*EVPNNLRI)
+	if !ok {
+		return false
+	}
+	return lhs.RouteType == rhs.RouteType && lhs.Length == rhs.Length && lhs.RouteTypeData.Equal(rhs.RouteTypeData)
+}
+
 func NewEVPNNLRI(routetype uint8, length uint8, routetypedata EVPNRouteTypeInterface) *EVPNNLRI {
 	return &EVPNNLRI{
 		routetype,
@@ -1619,6 +1797,14 @@ func (n *EncapNLRI) ToApiStruct() *api.Nlri {
 		Af:     &api.AddressFamily{api.AFI(n.AFI()), api.SAFI(n.SAFI())},
 		Prefix: n.String(),
 	}
+}
+
+func (lhs *EncapNLRI) Equal(rhsIntf AddrPrefixInterface) bool {
+	rhs, ok := rhsIntf.(*EncapNLRI)
+	if !ok {
+		return false
+	}
+	return lhs.IPAddrPrefixDefault.equal(&rhs.IPAddrPrefixDefault)
 }
 
 func NewEncapNLRI(endpoint string) *EncapNLRI {
@@ -1695,13 +1881,13 @@ func NewPrefixFromRouteFamily(afi uint16, safi uint8) (prefix AddrPrefixInterfac
 	case RF_IPv6_UC, RF_IPv6_MC:
 		prefix = NewIPv6AddrPrefix(0, "")
 	case RF_IPv4_VPN:
-		prefix = NewLabelledVPNIPAddrPrefix(0, "", *NewLabel(), nil)
+		prefix = NewLabelledVPNIPAddrPrefix(0, "", *NewMPLSLabelStack(), nil)
 	case RF_IPv6_VPN:
-		prefix = NewLabelledVPNIPv6AddrPrefix(0, "", *NewLabel(), nil)
+		prefix = NewLabelledVPNIPv6AddrPrefix(0, "", *NewMPLSLabelStack(), nil)
 	case RF_IPv4_MPLS:
-		prefix = NewLabelledIPAddrPrefix(0, "", *NewLabel())
+		prefix = NewLabelledIPAddrPrefix(0, "", *NewMPLSLabelStack())
 	case RF_IPv6_MPLS:
-		prefix = NewLabelledIPv6AddrPrefix(0, "", *NewLabel())
+		prefix = NewLabelledIPv6AddrPrefix(0, "", *NewMPLSLabelStack())
 	case RF_EVPN:
 		prefix = NewEVPNNLRI(0, 0, nil)
 	case RF_RTC_UC:
@@ -2895,6 +3081,7 @@ type ExtendedCommunityInterface interface {
 	Serialize() ([]byte, error)
 	String() string
 	ToApiStruct() *api.ExtendedCommunity
+	Equal(ExtendedCommunityInterface) bool
 }
 
 type TwoOctetAsSpecificExtended struct {
@@ -2931,6 +3118,14 @@ func (e *TwoOctetAsSpecificExtended) ToApiStruct() *api.ExtendedCommunity {
 	}
 }
 
+func (lhs *TwoOctetAsSpecificExtended) Equal(rhsIntf ExtendedCommunityInterface) bool {
+	rhs, ok := rhsIntf.(*TwoOctetAsSpecificExtended)
+	if !ok {
+		return false
+	}
+	return lhs.SubType == rhs.SubType && lhs.AS == rhs.AS && lhs.LocalAdmin == rhs.LocalAdmin && lhs.IsTransitive == lhs.IsTransitive
+}
+
 type IPv4AddressSpecificExtended struct {
 	SubType      ExtendedCommunityAttrSubType
 	IPv4         net.IP
@@ -2963,6 +3158,14 @@ func (e *IPv4AddressSpecificExtended) ToApiStruct() *api.ExtendedCommunity {
 		Ipv4:         e.IPv4.String(),
 		LocalAdmin:   uint32(e.LocalAdmin),
 	}
+}
+
+func (lhs *IPv4AddressSpecificExtended) Equal(rhsIntf ExtendedCommunityInterface) bool {
+	rhs, ok := rhsIntf.(*IPv4AddressSpecificExtended)
+	if !ok {
+		return false
+	}
+	return lhs.SubType == rhs.SubType && lhs.IPv4.Equal(rhs.IPv4) && lhs.LocalAdmin == rhs.LocalAdmin && lhs.IsTransitive == lhs.IsTransitive
 }
 
 type FourOctetAsSpecificExtended struct {
@@ -3003,9 +3206,18 @@ func (e *FourOctetAsSpecificExtended) ToApiStruct() *api.ExtendedCommunity {
 	}
 }
 
+func (lhs *FourOctetAsSpecificExtended) Equal(rhsIntf ExtendedCommunityInterface) bool {
+	rhs, ok := rhsIntf.(*FourOctetAsSpecificExtended)
+	if !ok {
+		return false
+	}
+	return lhs.SubType == rhs.SubType && lhs.AS == rhs.AS && lhs.LocalAdmin == rhs.LocalAdmin && lhs.IsTransitive == lhs.IsTransitive
+}
+
 type OpaqueExtendedValueInterface interface {
 	Serialize() ([]byte, error)
 	String() string
+	Equal(OpaqueExtendedValueInterface) bool
 }
 
 type DefaultOpaqueExtendedValue struct {
@@ -3023,6 +3235,14 @@ func (v *DefaultOpaqueExtendedValue) String() string {
 	return fmt.Sprintf("%d", d)
 }
 
+func (lhs *DefaultOpaqueExtendedValue) Equal(rhsIntf OpaqueExtendedValueInterface) bool {
+	rhs, ok := rhsIntf.(*DefaultOpaqueExtendedValue)
+	if !ok {
+		return false
+	}
+	return bytes.Equal(lhs.Value, rhs.Value)
+}
+
 type ColorExtended struct {
 	Value uint32
 }
@@ -3036,6 +3256,14 @@ func (e *ColorExtended) Serialize() ([]byte, error) {
 
 func (e *ColorExtended) String() string {
 	return fmt.Sprintf("%d", e.Value)
+}
+
+func (lhs *ColorExtended) Equal(rhsIntf OpaqueExtendedValueInterface) bool {
+	rhs, ok := rhsIntf.(*ColorExtended)
+	if !ok {
+		return false
+	}
+	return lhs.Value == rhs.Value
 }
 
 type EncapExtended struct {
@@ -3070,6 +3298,14 @@ func (e *EncapExtended) String() string {
 	default:
 		return fmt.Sprintf("TUNNEL TYPE: %d", e.TunnelType)
 	}
+}
+
+func (lhs *EncapExtended) Equal(rhsIntf OpaqueExtendedValueInterface) bool {
+	rhs, ok := rhsIntf.(*EncapExtended)
+	if !ok {
+		return false
+	}
+	return lhs.TunnelType == rhs.TunnelType
 }
 
 type OpaqueExtended struct {
@@ -3127,6 +3363,14 @@ func (e *OpaqueExtended) ToApiStruct() *api.ExtendedCommunity {
 	}
 }
 
+func (lhs *OpaqueExtended) Equal(rhsIntf ExtendedCommunityInterface) bool {
+	rhs, ok := rhsIntf.(*OpaqueExtended)
+	if !ok {
+		return false
+	}
+	return lhs.Value.Equal(rhs.Value)
+}
+
 func NewOpaqueExtended(isTransitive bool) *OpaqueExtended {
 	return &OpaqueExtended{
 		IsTransitive: isTransitive,
@@ -3154,6 +3398,14 @@ func (e *UnknownExtended) String() string {
 
 func (e *UnknownExtended) ToApiStruct() *api.ExtendedCommunity {
 	return &api.ExtendedCommunity{}
+}
+
+func (lhs *UnknownExtended) Equal(rhsIntf ExtendedCommunityInterface) bool {
+	rhs, ok := rhsIntf.(*UnknownExtended)
+	if !ok {
+		return false
+	}
+	return bytes.Equal(lhs.Value, rhs.Value)
 }
 
 type PathAttributeExtendedCommunities struct {

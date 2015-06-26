@@ -69,9 +69,9 @@ func update() *BGPMessage {
 	}
 
 	mp_nlri := []AddrPrefixInterface{
-		NewLabelledVPNIPAddrPrefix(20, "192.0.9.0", *NewLabel(1, 2, 3),
+		NewLabelledVPNIPAddrPrefix(20, "192.0.9.0", *NewMPLSLabelStack(1, 2, 3),
 			NewRouteDistinguisherTwoOctetAS(256, 10000)),
-		NewLabelledVPNIPAddrPrefix(26, "192.10.8.192", *NewLabel(5, 6, 7, 8),
+		NewLabelledVPNIPAddrPrefix(26, "192.10.8.192", *NewMPLSLabelStack(5, 6, 7, 8),
 			NewRouteDistinguisherIPAddressAS("10.0.1.1", 10001)),
 	}
 
@@ -79,11 +79,11 @@ func update() *BGPMessage {
 		"fe80:1234:1234:5667:8967:af12:8912:1023")}
 
 	mp_nlri3 := []AddrPrefixInterface{NewLabelledVPNIPv6AddrPrefix(100,
-		"fe80:1234:1234:5667:8967:af12:1203:33a1", *NewLabel(5, 6),
+		"fe80:1234:1234:5667:8967:af12:1203:33a1", *NewMPLSLabelStack(5, 6),
 		NewRouteDistinguisherFourOctetAS(5, 6))}
 
 	mp_nlri4 := []AddrPrefixInterface{NewLabelledIPAddrPrefix(25, "192.168.0.0",
-		*NewLabel(5, 6, 7))}
+		*NewMPLSLabelStack(5, 6, 7))}
 
 	mac, _ := net.ParseMAC("01:23:45:67:89:ab")
 	mp_nlri5 := []AddrPrefixInterface{
@@ -359,4 +359,163 @@ func Test_ASLen(t *testing.T) {
 	as4path.Type = BGP_ASPATH_ATTR_TYPE_CONFED_SET
 	assert.Equal(0, as4path.ASLen())
 
+}
+
+func Test_NLRIEqual(t *testing.T) {
+	assert := assert.New(t)
+	p1 := NewIPAddrPrefix(24, "192.168.10.0")
+	p2 := NewIPAddrPrefix(24, "192.168.10.0")
+	p3 := NewIPAddrPrefix(25, "192.168.10.0")
+	assert.Equal(true, p1.Equal(p2))
+	assert.Equal(false, p1.Equal(p3))
+
+	p4 := NewIPv6AddrPrefix(128, "2001::")
+	p5 := NewIPv6AddrPrefix(128, "2001::")
+	p6 := NewIPv6AddrPrefix(129, "2001::")
+	assert.Equal(true, p4.Equal(p5))
+	assert.Equal(false, p4.Equal(p6))
+
+	rd1 := NewRouteDistinguisherTwoOctetAS(1000, 1000)
+	rd2 := NewRouteDistinguisherTwoOctetAS(1000, 1000)
+	rd3 := NewRouteDistinguisherTwoOctetAS(1000, 2000)
+	assert.Equal(true, rd1.Equal(rd2))
+	assert.Equal(false, rd1.Equal(rd3))
+
+	rd4 := NewRouteDistinguisherIPAddressAS("10.0.0.1", 1000)
+	rd5 := NewRouteDistinguisherIPAddressAS("10.0.0.1", 1000)
+	rd6 := NewRouteDistinguisherIPAddressAS("10.0.0.10", 1000)
+	assert.Equal(true, rd4.Equal(rd5))
+	assert.Equal(false, rd4.Equal(rd6))
+
+	rd7 := NewRouteDistinguisherFourOctetAS(70000, 1000)
+	rd8 := NewRouteDistinguisherFourOctetAS(70000, 1000)
+	rd9 := NewRouteDistinguisherFourOctetAS(70000, 2000)
+	assert.Equal(true, rd7.Equal(rd8))
+	assert.Equal(false, rd7.Equal(rd9))
+
+	ls1 := NewMPLSLabelStack(1, 2, 3, 4)
+	ls2 := NewMPLSLabelStack(1, 2, 3, 4)
+	ls3 := NewMPLSLabelStack(5, 6, 7, 8)
+	assert.Equal(true, ls1.Equal(ls2))
+	assert.Equal(false, ls1.Equal(ls3))
+
+	p7 := NewLabelledVPNIPAddrPrefix(24, "192.168.0.0", *ls1, rd1)
+	p8 := NewLabelledVPNIPAddrPrefix(24, "192.168.0.0", *ls1, rd1)
+	p9 := NewLabelledVPNIPAddrPrefix(25, "192.168.0.0", *ls1, rd1)
+	assert.Equal(true, p7.Equal(p8))
+	assert.Equal(false, p7.Equal(p9))
+
+	p10 := NewLabelledVPNIPv6AddrPrefix(128, "2001::", *ls1, rd1)
+	p11 := NewLabelledVPNIPv6AddrPrefix(128, "2001::", *ls1, rd1)
+	p12 := NewLabelledVPNIPv6AddrPrefix(129, "2001::", *ls1, rd1)
+	assert.Equal(true, p10.Equal(p11))
+	assert.Equal(false, p10.Equal(p12))
+
+	p13 := NewLabelledIPAddrPrefix(24, "192.168.0.0", *ls2)
+	p14 := NewLabelledIPAddrPrefix(24, "192.168.0.0", *ls2)
+	p15 := NewLabelledIPAddrPrefix(24, "192.168.10.0", *ls3)
+	assert.Equal(true, p13.Equal(p14))
+	assert.Equal(false, p13.Equal(p15))
+
+	p16 := NewLabelledIPv6AddrPrefix(128, "2001::", *ls2)
+	p17 := NewLabelledIPv6AddrPrefix(128, "2001::", *ls2)
+	p18 := NewLabelledIPv6AddrPrefix(129, "2001::", *ls3)
+	assert.Equal(true, p16.Equal(p17))
+	assert.Equal(false, p16.Equal(p18))
+
+	rt1 := &TwoOctetAsSpecificExtended{
+		AS:         65000,
+		LocalAdmin: 10000,
+	}
+	rt2 := &TwoOctetAsSpecificExtended{
+		AS:         65000,
+		LocalAdmin: 10000,
+	}
+	rt3 := &TwoOctetAsSpecificExtended{
+		AS:         65000,
+		LocalAdmin: 20000,
+	}
+	assert.Equal(true, rt1.Equal(rt2))
+	assert.Equal(false, rt1.Equal(rt3))
+
+	p19 := NewRouteTargetMembershipNLRI(20000, rt1)
+	p20 := NewRouteTargetMembershipNLRI(20000, rt2)
+	p21 := NewRouteTargetMembershipNLRI(20001, rt3)
+	assert.Equal(true, p19.Equal(p20))
+	assert.Equal(false, p19.Equal(p21))
+
+	esi1 := &EthernetSegmentIdentifier{
+		Type:  ESI_ARBITRARY,
+		Value: []byte{1, 2, 3, 4, 5, 6, 7, 8, 9},
+	}
+	esi2 := &EthernetSegmentIdentifier{
+		Type:  ESI_ARBITRARY,
+		Value: []byte{1, 2, 3, 4, 5, 6, 7, 8, 9},
+	}
+	esi3 := &EthernetSegmentIdentifier{
+		Type:  ESI_ARBITRARY,
+		Value: []byte{1, 2, 3, 4, 5, 6, 7, 8, 10},
+	}
+	assert.Equal(true, esi1.Equal(esi2))
+	assert.Equal(false, esi1.Equal(esi3))
+
+	ad1 := &EVPNEthernetAutoDiscoveryRoute{
+		RD:    rd1,
+		ESI:   *esi1,
+		ETag:  1000,
+		Label: 1000,
+	}
+	ad2 := &EVPNEthernetAutoDiscoveryRoute{
+		RD:    rd1,
+		ESI:   *esi1,
+		ETag:  1000,
+		Label: 1000,
+	}
+	ad3 := &EVPNEthernetAutoDiscoveryRoute{
+		RD:    rd1,
+		ESI:   *esi1,
+		ETag:  1010,
+		Label: 1000,
+	}
+	assert.Equal(true, ad1.Equal(ad2))
+	assert.Equal(false, ad1.Equal(ad3))
+
+	evpn1 := &EVPNNLRI{
+		RouteType:     EVPN_ROUTE_TYPE_ETHERNET_AUTO_DISCOVERY,
+		Length:        24,
+		RouteTypeData: ad1,
+	}
+	evpn2 := &EVPNNLRI{
+		RouteType:     EVPN_ROUTE_TYPE_ETHERNET_AUTO_DISCOVERY,
+		Length:        24,
+		RouteTypeData: ad2,
+	}
+	evpn3 := &EVPNNLRI{
+		RouteType:     EVPN_ROUTE_TYPE_ETHERNET_AUTO_DISCOVERY,
+		Length:        25,
+		RouteTypeData: ad2,
+	}
+	assert.Equal(true, evpn1.Equal(evpn2))
+	assert.Equal(false, evpn1.Equal(evpn3))
+
+	encap1 := &EncapNLRI{
+		IPAddrPrefixDefault: IPAddrPrefixDefault{
+			Length: 24,
+			Prefix: net.ParseIP("192.168.0.0"),
+		},
+	}
+	encap2 := &EncapNLRI{
+		IPAddrPrefixDefault: IPAddrPrefixDefault{
+			Length: 24,
+			Prefix: net.ParseIP("192.168.0.0"),
+		},
+	}
+	encap3 := &EncapNLRI{
+		IPAddrPrefixDefault: IPAddrPrefixDefault{
+			Length: 24,
+			Prefix: net.ParseIP("192.168.10.0"),
+		},
+	}
+	assert.Equal(true, encap1.Equal(encap2))
+	assert.Equal(false, encap1.Equal(encap3))
 }
