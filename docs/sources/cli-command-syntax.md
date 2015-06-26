@@ -26,6 +26,8 @@ Note: Currently gobgp supports only **global** and **neighbor** subcommand.
 % gobgp global rib del <prefix> [-a <address family>]
 # show all Route information
 % gobgp global rib [-a <address family>]
+# show a specific route information
+% gobgp global rib [<prefix>|<host>] [-a <address family>]
 ```
  - **Option**
   - \-a , \-\-address-family: specify the ipv4, ipv6, evpn, encap, or rtc
@@ -58,9 +60,10 @@ Note: Currently gobgp supports only **global** and **neighbor** subcommand.
 
 ### Show Rib - local-rib/adj-rib-in/adj-rib-out -
 ```shell
-% gobgp neighbor <neighbor address> local [-a <address family>]
-% gobgp neighbor <neighbor address> adj-in [-a <address family>]
-% gobgp neighbor <neighbor address> adj-out [-a <address family>]
+# show all routes in [local|adj-in|adj-out] table
+% gobgp neighbor <neighbor address> [local|adj-in|adj-out] [-a <address family>]
+# show a specific route in [local|adj-in|adj-out] table
+% gobgp neighbor <neighbor address> [local|adj-in|adj-out] [<prefix>|<host>] [-a <address family>]
 ```
  - **Option**
   - \-a , \-\-address-family: specify the ipv4 or ipv6

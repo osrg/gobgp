@@ -16,62 +16,17 @@
 package main
 
 import (
-	"encoding/json"
 	"fmt"
 	"github.com/osrg/gobgp/api"
 	"github.com/spf13/cobra"
 	"golang.org/x/net/context"
-	"io"
 	"net"
-	"sort"
 	"strconv"
 )
 
-func showGlobalRib() error {
-	rt, err := checkAddressFamily(net.IP{})
-	if err != nil {
-		return err
-	}
-	arg := &api.Arguments{
-		Resource: api.Resource_GLOBAL,
-		Af:       rt,
-	}
-
-	stream, e := client.GetRib(context.Background(), arg)
-	if e != nil {
-		return e
-	}
-	ds := []*api.Destination{}
-	for {
-		d, e := stream.Recv()
-		if e == io.EOF {
-			break
-		} else if e != nil {
-			return e
-		}
-		ds = append(ds, d)
-	}
-
-	if globalOpts.Json {
-		j, _ := json.Marshal(ds)
-		fmt.Println(string(j))
-		return nil
-	}
-
-	ps := paths{}
-	for _, d := range ds {
-		for idx, p := range d.Paths {
-			if idx == int(d.BestPathIdx) {
-				p.Best = true
-			}
-			ps = append(ps, p)
-		}
-	}
-
-	sort.Sort(ps)
-
-	showRoute(ps, true, true, false)
-	return nil
+func showGlobalRib(args []string) error {
+	bogusIp := net.IP{}
+	return showNeighborRib(CMD_GLOBAL, bogusIp, args)
 }
 
 func modPath(modtype string, eArgs []string) error {
@@ -208,7 +163,7 @@ func NewGlobalCmd() *cobra.Command {
 	ribCmd := &cobra.Command{
 		Use: CMD_RIB,
 		Run: func(cmd *cobra.Command, args []string) {
-			showGlobalRib()
+			showGlobalRib(args)
 		},
 	}
 
