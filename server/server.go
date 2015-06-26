@@ -400,7 +400,6 @@ func applyPolicies(peer *Peer, loc *LocalRib, d Direction, pathList []table.Path
 		return ret
 	}
 
-
 	for _, path := range pathList {
 		if !path.IsWithdraw() {
 			var applied bool = false
@@ -648,8 +647,8 @@ func (server *BgpServer) handlePolicy(pl config.RoutingPolicy) {
 		}
 		targetPeer := server.neighborMap[loc.OwnerName()]
 		log.WithFields(log.Fields{
-			"Topic":      "Peer",
-			"Key":        targetPeer.config.NeighborAddress,
+			"Topic": "Peer",
+			"Key":   targetPeer.config.NeighborAddress,
 		}).Info("call set policy")
 		loc.setPolicy(targetPeer, server.policyMap)
 		// set distribute policy

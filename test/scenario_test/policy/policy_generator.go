@@ -489,14 +489,13 @@ func createPolicyConfig() *config.RoutingPolicy {
 	st_distribute_accept := config.Statement{
 		Name: "st_distriibute_accept",
 		Conditions: config.Conditions{
-			MatchPrefixSet:   "ps6",
+			MatchPrefixSet:  "ps6",
 			MatchSetOptions: config.MATCH_SET_OPTIONS_TYPE_ALL,
 		},
 		Actions: config.Actions{
 			AcceptRoute: true,
 		},
 	}
-
 
 	st_distribute_comm_add := config.Statement{
 		Name: "st_distribute_comm_add",
@@ -727,7 +726,7 @@ func main() {
 		Target     string `short:"t" long:"target" description:"target such as export or import to which add policy"`
 		PolicyName string `short:"p" long:"policy" description:"policy name bound to peer"`
 		Replace    bool   `short:"r" long:"replace" description:"Replace existing policy with new one" default:"false"`
-		Reject    bool   `short:"j" long:"reject" description:"Set default policy reject" default:"false"`
+		Reject     bool   `short:"j" long:"reject" description:"Set default policy reject" default:"false"`
 	}
 
 	parser := flags.NewParser(&opts, flags.Default)
