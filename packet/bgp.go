@@ -2052,6 +2052,8 @@ type PathAttributeInterface interface {
 	getFlags() BGPAttrFlag
 	getType() BGPAttrType
 	ToApiStruct() *api.PathAttr
+	Equal(PathAttributeInterface) bool
+	raw() *PathAttribute
 }
 
 type PathAttribute struct {
@@ -2134,6 +2136,14 @@ func (p *PathAttribute) Serialize() ([]byte, error) {
 	return buf, nil
 }
 
+func (p *PathAttribute) raw() *PathAttribute {
+	return p
+}
+
+func (lhs PathAttribute) Equal(rhs PathAttributeInterface) bool {
+	return lhs.Flags == rhs.raw().Flags && lhs.Type == rhs.raw().Type && lhs.Length == rhs.raw().Length && bytes.Equal(lhs.Value, rhs.raw().Value)
+}
+
 type PathAttributeOrigin struct {
 	PathAttribute
 }
@@ -2212,6 +2222,22 @@ func (a *AsPathParam) ASLen() int {
 	return 0
 }
 
+func (lhs *AsPathParam) Equal(rhsIntf AsPathParamInterface) bool {
+	rhs, ok := rhsIntf.(*AsPathParam)
+	if !ok {
+		return false
+	}
+	if len(lhs.AS) != len(rhs.AS) {
+		return false
+	}
+	for i, v := range lhs.AS {
+		if v != rhs.AS[i] {
+			return false
+		}
+	}
+	return lhs.Type == rhs.Type && lhs.Num == rhs.Num
+}
+
 func NewAsPathParam(segType uint8, as []uint16) *AsPathParam {
 	return &AsPathParam{
 		Type: segType,
@@ -2269,6 +2295,22 @@ func (a *As4PathParam) ASLen() int {
 		return 0
 	}
 	return 0
+}
+
+func (lhs *As4PathParam) Equal(rhsIntf AsPathParamInterface) bool {
+	rhs, ok := rhsIntf.(*As4PathParam)
+	if !ok {
+		return false
+	}
+	if len(lhs.AS) != len(rhs.AS) {
+		return false
+	}
+	for i, v := range lhs.AS {
+		if v != rhs.AS[i] {
+			return false
+		}
+	}
+	return lhs.Type == rhs.Type && lhs.Num == rhs.Num
 }
 
 func NewAs4PathParam(segType uint8, as []uint32) *As4PathParam {
@@ -2333,6 +2375,7 @@ type AsPathParamInterface interface {
 	DecodeFromBytes([]byte) error
 	Len() int
 	ASLen() int
+	Equal(AsPathParamInterface) bool
 }
 
 type PathAttributeAsPath struct {
@@ -2418,6 +2461,25 @@ func (p *PathAttributeAsPath) MarshalJSON() ([]byte, error) {
 	return json.Marshal(p.ToApiStruct())
 }
 
+func (lhs *PathAttributeAsPath) Equal(rhsIntf PathAttributeInterface) bool {
+	rhs, ok := rhsIntf.(*PathAttributeAsPath)
+	if !ok {
+		return false
+	}
+	isSameValue := func() bool {
+		if len(lhs.Value) != len(rhs.Value) {
+			return false
+		}
+		for i, v := range lhs.Value {
+			if !v.Equal(rhs.Value[i]) {
+				return false
+			}
+		}
+		return true
+	}
+	return isSameValue() && lhs.PathAttribute.Equal(rhs)
+}
+
 func NewPathAttributeAsPath(value []AsPathParamInterface) *PathAttributeAsPath {
 	t := BGP_ATTR_TYPE_AS_PATH
 	return &PathAttributeAsPath{
@@ -2462,6 +2524,14 @@ func (p *PathAttributeNextHop) ToApiStruct() *api.PathAttr {
 
 func (p *PathAttributeNextHop) MarshalJSON() ([]byte, error) {
 	return json.Marshal(p.ToApiStruct())
+}
+
+func (lhs *PathAttributeNextHop) Equal(rhsIntf PathAttributeInterface) bool {
+	rhs, ok := rhsIntf.(*PathAttributeNextHop)
+	if !ok {
+		return false
+	}
+	return lhs.Value.Equal(rhs.Value) && lhs.PathAttribute.Equal(rhs)
 }
 
 func NewPathAttributeNextHop(value string) *PathAttributeNextHop {
@@ -2512,6 +2582,14 @@ func (p *PathAttributeMultiExitDisc) MarshalJSON() ([]byte, error) {
 	return json.Marshal(p.ToApiStruct())
 }
 
+func (lhs *PathAttributeMultiExitDisc) Equal(rhsIntf PathAttributeInterface) bool {
+	rhs, ok := rhsIntf.(*PathAttributeMultiExitDisc)
+	if !ok {
+		return false
+	}
+	return lhs.Value == rhs.Value && lhs.PathAttribute.Equal(rhs)
+}
+
 func NewPathAttributeMultiExitDisc(value uint32) *PathAttributeMultiExitDisc {
 	t := BGP_ATTR_TYPE_MULTI_EXIT_DISC
 	return &PathAttributeMultiExitDisc{
@@ -2560,6 +2638,14 @@ func (p *PathAttributeLocalPref) MarshalJSON() ([]byte, error) {
 	return json.Marshal(p.ToApiStruct())
 }
 
+func (lhs *PathAttributeLocalPref) Equal(rhsIntf PathAttributeInterface) bool {
+	rhs, ok := rhsIntf.(*PathAttributeLocalPref)
+	if !ok {
+		return false
+	}
+	return lhs.Value == rhs.Value && lhs.PathAttribute.Equal(rhs)
+}
+
 func NewPathAttributeLocalPref(value uint32) *PathAttributeLocalPref {
 	t := BGP_ATTR_TYPE_LOCAL_PREF
 	return &PathAttributeLocalPref{
@@ -2599,6 +2685,10 @@ type PathAttributeAggregatorParam struct {
 	AS      uint32
 	askind  reflect.Kind
 	Address net.IP
+}
+
+func (lhs *PathAttributeAggregatorParam) Equal(rhs *PathAttributeAggregatorParam) bool {
+	return lhs.AS == rhs.AS && lhs.askind == rhs.askind && lhs.Address.Equal(rhs.Address)
 }
 
 type PathAttributeAggregator struct {
@@ -2657,6 +2747,14 @@ func (p *PathAttributeAggregator) ToApiStruct() *api.PathAttr {
 
 func (p *PathAttributeAggregator) MarshalJSON() ([]byte, error) {
 	return json.Marshal(p.ToApiStruct())
+}
+
+func (lhs *PathAttributeAggregator) Equal(rhsIntf PathAttributeInterface) bool {
+	rhs, ok := rhsIntf.(*PathAttributeAggregator)
+	if !ok {
+		return false
+	}
+	return lhs.Value.Equal(&rhs.Value) && lhs.PathAttribute.Equal(rhs)
 }
 
 func NewPathAttributeAggregator(as interface{}, address string) *PathAttributeAggregator {
@@ -2718,6 +2816,22 @@ func (p *PathAttributeCommunities) MarshalJSON() ([]byte, error) {
 	return json.Marshal(p.ToApiStruct())
 }
 
+func (lhs *PathAttributeCommunities) Equal(rhsIntf PathAttributeInterface) bool {
+	rhs, ok := rhsIntf.(*PathAttributeCommunities)
+	if !ok {
+		return false
+	}
+	if len(lhs.Value) != len(rhs.Value) {
+		return false
+	}
+	for i, v := range lhs.Value {
+		if v != rhs.Value[i] {
+			return false
+		}
+	}
+	return lhs.PathAttribute.Equal(rhs)
+}
+
 func NewPathAttributeCommunities(value []uint32) *PathAttributeCommunities {
 	t := BGP_ATTR_TYPE_COMMUNITIES
 	return &PathAttributeCommunities{
@@ -2765,6 +2879,14 @@ func (p *PathAttributeOriginatorId) ToApiStruct() *api.PathAttr {
 
 func (p *PathAttributeOriginatorId) MarshalJSON() ([]byte, error) {
 	return json.Marshal(p.ToApiStruct())
+}
+
+func (lhs *PathAttributeOriginatorId) Equal(rhsIntf PathAttributeInterface) bool {
+	rhs, ok := rhsIntf.(*PathAttributeOriginatorId)
+	if !ok {
+		return false
+	}
+	return lhs.Value.Equal(rhs.Value) && lhs.PathAttribute.Equal(rhs)
 }
 
 func NewPathAttributeOriginatorId(value string) *PathAttributeOriginatorId {
@@ -2824,6 +2946,22 @@ func (p *PathAttributeClusterList) ToApiStruct() *api.PathAttr {
 
 func (p *PathAttributeClusterList) MarshalJSON() ([]byte, error) {
 	return json.Marshal(p.ToApiStruct())
+}
+
+func (lhs *PathAttributeClusterList) Equal(rhsIntf PathAttributeInterface) bool {
+	rhs, ok := rhsIntf.(*PathAttributeClusterList)
+	if !ok {
+		return false
+	}
+	if len(lhs.Value) != len(rhs.Value) {
+		return false
+	}
+	for i, v := range lhs.Value {
+		if !v.Equal(rhs.Value[i]) {
+			return false
+		}
+	}
+	return lhs.PathAttribute.Equal(rhs)
 }
 
 func NewPathAttributeClusterList(value []string) *PathAttributeClusterList {
@@ -2968,6 +3106,26 @@ func (p *PathAttributeMpReachNLRI) MarshalJSON() ([]byte, error) {
 	return json.Marshal(p.ToApiStruct())
 }
 
+func (lhs *PathAttributeMpReachNLRI) Equal(rhsIntf PathAttributeInterface) bool {
+	rhs, ok := rhsIntf.(*PathAttributeMpReachNLRI)
+	if !ok {
+		return false
+	}
+	isSameValue := func() bool {
+		if len(lhs.Value) != len(rhs.Value) {
+			return false
+		}
+		for i, v := range lhs.Value {
+			if !v.Equal(rhs.Value[i]) {
+				return false
+			}
+		}
+		return true
+	}
+	return lhs.Nexthop.Equal(rhs.Nexthop) && lhs.LinkLocalNexthop.Equal(rhs.LinkLocalNexthop) &&
+		lhs.AFI == rhs.AFI && lhs.SAFI == rhs.SAFI && isSameValue() && lhs.PathAttribute.Equal(rhs)
+}
+
 func NewPathAttributeMpReachNLRI(nexthop string, nlri []AddrPrefixInterface) *PathAttributeMpReachNLRI {
 	t := BGP_ATTR_TYPE_MP_REACH_NLRI
 	ip := net.ParseIP(nexthop)
@@ -3058,6 +3216,25 @@ func (p *PathAttributeMpUnreachNLRI) ToApiStruct() *api.PathAttr {
 
 func (p *PathAttributeMpUnreachNLRI) MarshalJSON() ([]byte, error) {
 	return json.Marshal(p.ToApiStruct())
+}
+
+func (lhs *PathAttributeMpUnreachNLRI) Equal(rhsIntf PathAttributeInterface) bool {
+	rhs, ok := rhsIntf.(*PathAttributeMpUnreachNLRI)
+	if !ok {
+		return false
+	}
+	isSameValue := func() bool {
+		if len(lhs.Value) != len(rhs.Value) {
+			return false
+		}
+		for i, v := range lhs.Value {
+			if !v.Equal(rhs.Value[i]) {
+				return false
+			}
+		}
+		return true
+	}
+	return lhs.AFI == rhs.AFI && lhs.SAFI == rhs.SAFI && isSameValue() && lhs.PathAttribute.Equal(rhs)
 }
 
 func NewPathAttributeMpUnreachNLRI(nlri []AddrPrefixInterface) *PathAttributeMpUnreachNLRI {
@@ -3515,6 +3692,25 @@ func (p *PathAttributeExtendedCommunities) MarshalJSON() ([]byte, error) {
 	return json.Marshal(p.ToApiStruct())
 }
 
+func (lhs *PathAttributeExtendedCommunities) Equal(rhsIntf PathAttributeInterface) bool {
+	rhs, ok := rhsIntf.(*PathAttributeExtendedCommunities)
+	if !ok {
+		return false
+	}
+	isSameValue := func() bool {
+		if len(lhs.Value) != len(rhs.Value) {
+			return false
+		}
+		for i, v := range lhs.Value {
+			if v != rhs.Value[i] {
+				return false
+			}
+		}
+		return true
+	}
+	return isSameValue() && lhs.PathAttribute.Equal(rhs)
+}
+
 func NewPathAttributeExtendedCommunities(value []ExtendedCommunityInterface) *PathAttributeExtendedCommunities {
 	t := BGP_ATTR_TYPE_EXTENDED_COMMUNITIES
 	return &PathAttributeExtendedCommunities{
@@ -3592,6 +3788,25 @@ func (p *PathAttributeAs4Path) MarshalJSON() ([]byte, error) {
 	return json.Marshal(p.ToApiStruct())
 }
 
+func (lhs *PathAttributeAs4Path) Equal(rhsIntf PathAttributeInterface) bool {
+	rhs, ok := rhsIntf.(*PathAttributeAs4Path)
+	if !ok {
+		return false
+	}
+	isSameValue := func() bool {
+		if len(lhs.Value) != len(rhs.Value) {
+			return false
+		}
+		for i, v := range lhs.Value {
+			if !v.Equal(rhs.Value[i]) {
+				return false
+			}
+		}
+		return true
+	}
+	return isSameValue() && lhs.PathAttribute.Equal(rhs)
+}
+
 func NewPathAttributeAs4Path(value []*As4PathParam) *PathAttributeAs4Path {
 	t := BGP_ATTR_TYPE_AS4_PATH
 	return &PathAttributeAs4Path{
@@ -3645,6 +3860,14 @@ func (p *PathAttributeAs4Aggregator) MarshalJSON() ([]byte, error) {
 	return json.Marshal(p.ToApiStruct())
 }
 
+func (lhs *PathAttributeAs4Aggregator) Equal(rhsIntf PathAttributeInterface) bool {
+	rhs, ok := rhsIntf.(*PathAttributeAs4Aggregator)
+	if !ok {
+		return false
+	}
+	return lhs.Value.Equal(&rhs.Value) && lhs.PathAttribute.Equal(rhs)
+}
+
 func NewPathAttributeAs4Aggregator(as uint32, address string) *PathAttributeAs4Aggregator {
 	t := BGP_ATTR_TYPE_AS4_AGGREGATOR
 	return &PathAttributeAs4Aggregator{
@@ -3662,6 +3885,7 @@ func NewPathAttributeAs4Aggregator(as uint32, address string) *PathAttributeAs4A
 type TunnelEncapSubTLVValue interface {
 	Serialize() ([]byte, error)
 	ToApiStruct() *api.TunnelEncapSubTLV
+	Equal(TunnelEncapSubTLVValue) bool
 }
 
 type TunnelEncapSubTLVDefault struct {
@@ -3677,6 +3901,14 @@ func (t *TunnelEncapSubTLVDefault) ToApiStruct() *api.TunnelEncapSubTLV {
 		Type:  api.ENCAP_SUBTLV_TYPE_UNKNOWN_SUBTLV_TYPE,
 		Value: string(t.Value),
 	}
+}
+
+func (lhs *TunnelEncapSubTLVDefault) Equal(rhsIntf TunnelEncapSubTLVValue) bool {
+	rhs, ok := rhsIntf.(*TunnelEncapSubTLVDefault)
+	if !ok {
+		return false
+	}
+	return bytes.Equal(lhs.Value, rhs.Value)
 }
 
 type TunnelEncapSubTLVEncapuslation struct {
@@ -3698,6 +3930,14 @@ func (t *TunnelEncapSubTLVEncapuslation) ToApiStruct() *api.TunnelEncapSubTLV {
 	}
 }
 
+func (lhs *TunnelEncapSubTLVEncapuslation) Equal(rhsIntf TunnelEncapSubTLVValue) bool {
+	rhs, ok := rhsIntf.(*TunnelEncapSubTLVEncapuslation)
+	if !ok {
+		return false
+	}
+	return lhs.Key == rhs.Key && bytes.Equal(lhs.Cookie, rhs.Cookie)
+}
+
 type TunnelEncapSubTLVProtocol struct {
 	Protocol uint16
 }
@@ -3713,6 +3953,14 @@ func (t *TunnelEncapSubTLVProtocol) ToApiStruct() *api.TunnelEncapSubTLV {
 		Type:     api.ENCAP_SUBTLV_TYPE_PROTOCOL,
 		Protocol: uint32(t.Protocol),
 	}
+}
+
+func (lhs *TunnelEncapSubTLVProtocol) Equal(rhsIntf TunnelEncapSubTLVValue) bool {
+	rhs, ok := rhsIntf.(*TunnelEncapSubTLVProtocol)
+	if !ok {
+		return false
+	}
+	return lhs.Protocol == rhs.Protocol
 }
 
 type TunnelEncapSubTLVColor struct {
@@ -3732,6 +3980,14 @@ func (t *TunnelEncapSubTLVColor) ToApiStruct() *api.TunnelEncapSubTLV {
 		Type:  api.ENCAP_SUBTLV_TYPE_COLOR,
 		Color: t.Color,
 	}
+}
+
+func (lhs *TunnelEncapSubTLVColor) Equal(rhsIntf TunnelEncapSubTLVValue) bool {
+	rhs, ok := rhsIntf.(*TunnelEncapSubTLVColor)
+	if !ok {
+		return false
+	}
+	return lhs.Color == rhs.Color
 }
 
 type TunnelEncapSubTLV struct {
@@ -3784,6 +4040,10 @@ func (p *TunnelEncapSubTLV) DecodeFromBytes(data []byte) error {
 
 func (p *TunnelEncapSubTLV) ToApiStruct() *api.TunnelEncapSubTLV {
 	return p.Value.ToApiStruct()
+}
+
+func (lhs *TunnelEncapSubTLV) Equal(rhs *TunnelEncapSubTLV) bool {
+	return lhs.Type == rhs.Type && lhs.Len == rhs.Len && lhs.Value.Equal(rhs.Value)
 }
 
 type TunnelEncapTLV struct {
@@ -3841,6 +4101,21 @@ func (p *TunnelEncapTLV) ToApiStruct() *api.TunnelEncapTLV {
 		Type:   api.TUNNEL_TYPE(p.Type),
 		SubTlv: subTlvs,
 	}
+}
+
+func (lhs *TunnelEncapTLV) Equal(rhs *TunnelEncapTLV) bool {
+	isSameValue := func() bool {
+		if len(lhs.Value) != len(rhs.Value) {
+			return false
+		}
+		for i, v := range lhs.Value {
+			if !v.Equal(rhs.Value[i]) {
+				return false
+			}
+		}
+		return true
+	}
+	return lhs.Type == rhs.Type && lhs.Len == rhs.Len && isSameValue()
 }
 
 type PathAttributeTunnelEncap struct {
@@ -3905,6 +4180,25 @@ func (p *PathAttributeTunnelEncap) ToApiStruct() *api.PathAttr {
 
 func (p *PathAttributeTunnelEncap) MarshalJSON() ([]byte, error) {
 	return json.Marshal(p.ToApiStruct())
+}
+
+func (lhs *PathAttributeTunnelEncap) Equal(rhsIntf PathAttributeInterface) bool {
+	rhs, ok := rhsIntf.(*PathAttributeTunnelEncap)
+	if !ok {
+		return false
+	}
+	isSameValue := func() bool {
+		if len(lhs.Value) != len(rhs.Value) {
+			return false
+		}
+		for i, v := range lhs.Value {
+			if !v.Equal(rhs.Value[i]) {
+				return false
+			}
+		}
+		return true
+	}
+	return isSameValue() && lhs.PathAttribute.Equal(rhs)
 }
 
 func NewPathAttributeTunnelEncap(value []*TunnelEncapTLV) *PathAttributeTunnelEncap {

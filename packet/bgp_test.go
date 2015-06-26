@@ -519,3 +519,182 @@ func Test_NLRIEqual(t *testing.T) {
 	assert.Equal(true, encap1.Equal(encap2))
 	assert.Equal(false, encap1.Equal(encap3))
 }
+
+func Test_PathAttrEqual(t *testing.T) {
+	assert := assert.New(t)
+	o1 := NewPathAttributeOrigin(0)
+	o2 := NewPathAttributeOrigin(0)
+	o3 := NewPathAttributeOrigin(1)
+	assert.Equal(true, o1.Equal(o2))
+	assert.Equal(false, o1.Equal(o3))
+
+	asp1 := NewAsPathParam(BGP_ASPATH_ATTR_TYPE_SEQ, []uint16{65000})
+	asp2 := NewAsPathParam(BGP_ASPATH_ATTR_TYPE_SEQ, []uint16{65000})
+	asp3 := NewAsPathParam(BGP_ASPATH_ATTR_TYPE_SEQ, []uint16{65000, 65001})
+	assert.Equal(true, asp1.Equal(asp2))
+	assert.Equal(false, asp1.Equal(asp3))
+
+	aspath1 := NewPathAttributeAsPath([]AsPathParamInterface{asp1, asp2, asp3})
+	aspath2 := NewPathAttributeAsPath([]AsPathParamInterface{asp1, asp2, asp3})
+	aspath3 := NewPathAttributeAsPath([]AsPathParamInterface{asp1, asp2})
+	assert.Equal(true, aspath1.Equal(aspath2))
+	assert.Equal(false, aspath1.Equal(aspath3))
+
+	nh1 := NewPathAttributeNextHop("192.168.0.1")
+	nh2 := NewPathAttributeNextHop("192.168.0.1")
+	nh3 := NewPathAttributeNextHop("192.168.0.2")
+	assert.Equal(true, nh1.Equal(nh2))
+	assert.Equal(false, nh1.Equal(nh3))
+
+	med1 := NewPathAttributeMultiExitDisc(100)
+	med2 := NewPathAttributeMultiExitDisc(100)
+	med3 := NewPathAttributeMultiExitDisc(200)
+	assert.Equal(true, med1.Equal(med2))
+	assert.Equal(false, med1.Equal(med3))
+
+	lp1 := NewPathAttributeLocalPref(100)
+	lp2 := NewPathAttributeLocalPref(100)
+	lp3 := NewPathAttributeLocalPref(200)
+	assert.Equal(true, lp1.Equal(lp2))
+	assert.Equal(false, lp1.Equal(lp3))
+
+	aa1 := NewPathAttributeAtomicAggregate()
+	aa2 := NewPathAttributeAtomicAggregate()
+	assert.Equal(true, aa1.Equal(aa2))
+
+	ag1 := NewPathAttributeAggregator(uint16(30002), "129.0.2.99")
+	ag2 := NewPathAttributeAggregator(uint16(30002), "129.0.2.99")
+	ag3 := NewPathAttributeAggregator(uint16(30002), "129.0.2.100")
+	assert.Equal(true, ag1.Equal(ag2))
+	assert.Equal(false, ag1.Equal(ag3))
+
+	c1 := NewPathAttributeCommunities([]uint32{1, 3})
+	c2 := NewPathAttributeCommunities([]uint32{1, 3})
+	c3 := NewPathAttributeCommunities([]uint32{1, 10})
+	assert.Equal(true, c1.Equal(c2))
+	assert.Equal(false, c1.Equal(c3))
+
+	oid1 := NewPathAttributeOriginatorId("10.10.0.1")
+	oid2 := NewPathAttributeOriginatorId("10.10.0.1")
+	oid3 := NewPathAttributeOriginatorId("10.10.0.2")
+	assert.Equal(true, oid1.Equal(oid2))
+	assert.Equal(false, oid1.Equal(oid3))
+
+	cli1 := NewPathAttributeClusterList([]string{"10.10.0.2", "10.10.0.3"})
+	cli2 := NewPathAttributeClusterList([]string{"10.10.0.2", "10.10.0.3"})
+	cli3 := NewPathAttributeClusterList([]string{"10.10.0.2", "10.10.0.4"})
+	assert.Equal(true, cli1.Equal(cli2))
+	assert.Equal(false, cli1.Equal(cli3))
+
+	ps1 := []AddrPrefixInterface{
+		NewLabelledVPNIPAddrPrefix(20, "192.0.9.0", *NewMPLSLabelStack(1, 2, 3),
+			NewRouteDistinguisherTwoOctetAS(256, 10000)),
+	}
+	ps2 := []AddrPrefixInterface{
+		NewLabelledVPNIPAddrPrefix(20, "192.0.9.1", *NewMPLSLabelStack(1, 2, 3),
+			NewRouteDistinguisherTwoOctetAS(256, 10000)),
+	}
+
+	nlri1 := NewPathAttributeMpReachNLRI("112.22.2.0", ps1)
+	nlri2 := NewPathAttributeMpReachNLRI("112.22.2.0", ps1)
+	nlri3 := NewPathAttributeMpReachNLRI("112.22.2.0", ps2)
+	assert.Equal(true, nlri1.Equal(nlri2))
+	assert.Equal(false, nlri1.Equal(nlri3))
+
+	nlri4 := NewPathAttributeMpUnreachNLRI(ps1)
+	nlri5 := NewPathAttributeMpUnreachNLRI(ps1)
+	nlri6 := NewPathAttributeMpUnreachNLRI(ps2)
+	assert.Equal(true, nlri4.Equal(nlri5))
+	assert.Equal(false, nlri4.Equal(nlri6))
+
+	e1 := []ExtendedCommunityInterface{
+		&TwoOctetAsSpecificExtended{SubType: 1, AS: 10003, LocalAdmin: 3 << 20},
+	}
+	e2 := []ExtendedCommunityInterface{
+		&FourOctetAsSpecificExtended{SubType: 2, AS: 1 << 20, LocalAdmin: 300},
+	}
+
+	ec1 := NewPathAttributeExtendedCommunities(e1)
+	ec2 := NewPathAttributeExtendedCommunities(e1)
+	ec3 := NewPathAttributeExtendedCommunities(e2)
+	assert.Equal(true, ec1.Equal(ec2))
+	assert.Equal(false, ec1.Equal(ec3))
+
+	asp4 := NewAs4PathParam(BGP_ASPATH_ATTR_TYPE_SEQ, []uint32{650000})
+	asp5 := NewAs4PathParam(BGP_ASPATH_ATTR_TYPE_SEQ, []uint32{650000})
+	asp6 := NewAs4PathParam(BGP_ASPATH_ATTR_TYPE_SEQ, []uint32{650000, 650001})
+	assert.Equal(true, asp4.Equal(asp5))
+	assert.Equal(false, asp4.Equal(asp6))
+
+	aspath4 := NewPathAttributeAs4Path([]*As4PathParam{asp4, asp5, asp6})
+	aspath5 := NewPathAttributeAs4Path([]*As4PathParam{asp4, asp5, asp6})
+	aspath6 := NewPathAttributeAs4Path([]*As4PathParam{asp4, asp5})
+	assert.Equal(true, aspath4.Equal(aspath5))
+	assert.Equal(false, aspath4.Equal(aspath6))
+
+	ag4 := NewPathAttributeAs4Aggregator(10000, "112.22.2.1")
+	ag5 := NewPathAttributeAs4Aggregator(10000, "112.22.2.1")
+	ag6 := NewPathAttributeAs4Aggregator(10000, "112.22.2.2")
+	assert.Equal(true, ag4.Equal(ag5))
+	assert.Equal(false, ag4.Equal(ag6))
+
+	subTlv1 := &TunnelEncapSubTLV{
+		Type:  ENCAP_SUBTLV_TYPE_COLOR,
+		Value: &TunnelEncapSubTLVColor{10},
+	}
+	subTlv2 := &TunnelEncapSubTLV{
+		Type:  ENCAP_SUBTLV_TYPE_COLOR,
+		Value: &TunnelEncapSubTLVColor{10},
+	}
+	subTlv3 := &TunnelEncapSubTLV{
+		Type:  ENCAP_SUBTLV_TYPE_COLOR,
+		Value: &TunnelEncapSubTLVColor{20},
+	}
+	assert.Equal(true, subTlv1.Equal(subTlv2))
+	assert.Equal(false, subTlv1.Equal(subTlv3))
+
+	tlv1 := &TunnelEncapTLV{
+		Type:  TUNNEL_TYPE_VXLAN,
+		Value: []*TunnelEncapSubTLV{subTlv1},
+	}
+	tlv2 := &TunnelEncapTLV{
+		Type:  TUNNEL_TYPE_VXLAN,
+		Value: []*TunnelEncapSubTLV{subTlv2},
+	}
+	tlv3 := &TunnelEncapTLV{
+		Type:  TUNNEL_TYPE_VXLAN,
+		Value: []*TunnelEncapSubTLV{subTlv3},
+	}
+	assert.Equal(true, tlv1.Equal(tlv2))
+	assert.Equal(false, tlv1.Equal(tlv3))
+
+	encap1 := NewPathAttributeTunnelEncap([]*TunnelEncapTLV{tlv1})
+	encap2 := NewPathAttributeTunnelEncap([]*TunnelEncapTLV{tlv2})
+	encap3 := NewPathAttributeTunnelEncap([]*TunnelEncapTLV{tlv3})
+	assert.Equal(true, encap1.Equal(encap2))
+	assert.Equal(false, encap1.Equal(encap3))
+
+	unknown1 := &PathAttributeUnknown{
+		PathAttribute: PathAttribute{
+			Flags: BGP_ATTR_FLAG_TRANSITIVE,
+			Type:  100,
+			Value: []byte{0, 1, 2, 3, 4, 5, 6, 7, 8, 9},
+		},
+	}
+	unknown2 := &PathAttributeUnknown{
+		PathAttribute: PathAttribute{
+			Flags: BGP_ATTR_FLAG_TRANSITIVE,
+			Type:  100,
+			Value: []byte{0, 1, 2, 3, 4, 5, 6, 7, 8, 9},
+		},
+	}
+	unknown3 := &PathAttributeUnknown{
+		PathAttribute: PathAttribute{
+			Flags: BGP_ATTR_FLAG_TRANSITIVE,
+			Type:  100,
+			Value: []byte{0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10},
+		},
+	}
+	assert.Equal(true, unknown1.Equal(unknown2))
+	assert.Equal(false, unknown1.Equal(unknown3))
+}
