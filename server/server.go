@@ -646,8 +646,8 @@ func (server *BgpServer) handlePolicy(pl config.RoutingPolicy) {
 		}
 		targetPeer := server.neighborMap[loc.OwnerName()]
 		log.WithFields(log.Fields{
-			"Topic":      "Peer",
-			"Key":        targetPeer.config.NeighborAddress,
+			"Topic": "Peer",
+			"Key":   targetPeer.config.NeighborAddress,
 		}).Info("call set policy")
 		loc.setPolicy(targetPeer, server.policyMap)
 		// set distribute policy

@@ -33,16 +33,16 @@ const (
 )
 
 type Peer struct {
-	globalConfig config.Global
-	config       config.Neighbor
-	fsm          *FSM
-	rfMap        map[bgp.RouteFamily]bool
-	capMap       map[bgp.BGPCapabilityCode]bgp.ParameterCapabilityInterface
-	adjRib       *table.AdjRib
-	peerInfo     *table.PeerInfo
-	outgoing     chan *bgp.BGPMessage
-    distPolicies     []*policy.Policy
-    defaultDistributePolicy config.DefaultPolicyType
+	globalConfig            config.Global
+	config                  config.Neighbor
+	fsm                     *FSM
+	rfMap                   map[bgp.RouteFamily]bool
+	capMap                  map[bgp.BGPCapabilityCode]bgp.ParameterCapabilityInterface
+	adjRib                  *table.AdjRib
+	peerInfo                *table.PeerInfo
+	outgoing                chan *bgp.BGPMessage
+	distPolicies            []*policy.Policy
+	defaultDistributePolicy config.DefaultPolicyType
 }
 
 func NewPeer(g config.Global, config config.Neighbor) *Peer {
@@ -174,8 +174,8 @@ func (peer *Peer) handleBGPmessage(m *bgp.BGPMessage) ([]*table.Path, bool, []*b
 		table.UpdatePathAttrs4ByteAs(body)
 		originalPaths := table.ProcessMessage(m, peer.peerInfo)
 		peer.adjRib.UpdateIn(originalPaths)
-        // apply distribute filter before propagate
-        pathList = applyPolicies(peer, nil, POLICY_DIRECTION_DISTRIBUTE, originalPaths)
+		// apply distribute filter before propagate
+		pathList = applyPolicies(peer, nil, POLICY_DIRECTION_DISTRIBUTE, originalPaths)
 	}
 	return pathList, update, bgpMsgList
 }
@@ -303,33 +303,31 @@ func (peer *Peer) ToApiStruct() *api.Peer {
 }
 
 func (peer *Peer) setPolicy(policyMap map[string]*policy.Policy) {
-    // configure distribute policy
-    policyConfig := peer.config.ApplyPolicy
-    distPolicies := make([]*policy.Policy, 0)
-    for _, policyName := range policyConfig.DistributePolicies {
-        log.WithFields(log.Fields{
-            "Topic":      "Peer",
-            "Key":        peer.config.NeighborAddress,
-            "PolicyName": policyName,
-        }).Info("distribute policy installed")
-        if pol, ok := policyMap[policyName]; ok {
-            log.Debug("distribute policy : ", pol)
-            distPolicies = append(distPolicies, pol)
-        }
-    }
-    peer.distPolicies = distPolicies
-    peer.defaultDistributePolicy = policyConfig.DefaultDistributePolicy
+	// configure distribute policy
+	policyConfig := peer.config.ApplyPolicy
+	distPolicies := make([]*policy.Policy, 0)
+	for _, policyName := range policyConfig.DistributePolicies {
+		log.WithFields(log.Fields{
+			"Topic":      "Peer",
+			"Key":        peer.config.NeighborAddress,
+			"PolicyName": policyName,
+		}).Info("distribute policy installed")
+		if pol, ok := policyMap[policyName]; ok {
+			log.Debug("distribute policy : ", pol)
+			distPolicies = append(distPolicies, pol)
+		}
+	}
+	peer.distPolicies = distPolicies
+	peer.defaultDistributePolicy = policyConfig.DefaultDistributePolicy
 
 }
-
 
 func (peer *Peer) applyPolicies(original table.Path) (bool, table.Path) {
-    policies := peer.distPolicies
-    var d Direction = POLICY_DIRECTION_DISTRIBUTE
+	policies := peer.distPolicies
+	var d Direction = POLICY_DIRECTION_DISTRIBUTE
 
-    return applyPolicy("Peer", peer.config.NeighborAddress.String(), d, policies, original)
+	return applyPolicy("Peer", peer.config.NeighborAddress.String(), d, policies, original)
 }
-
 
 type LocalRib struct {
 	rib                 *table.TableManager
@@ -412,42 +410,42 @@ func (loc *LocalRib) setPolicy(peer *Peer, policyMap map[string]*policy.Policy) 
 //
 func (loc *LocalRib) applyPolicies(d Direction, original *table.Path) (bool, *table.Path) {
 	var policies []*policy.Policy
-    switch(d) {
-        case POLICY_DIRECTION_EXPORT:
-        policies = loc.exportPolicies
-        case POLICY_DIRECTION_IMPORT:
-        policies = loc.importPolicies
-    }
-    return applyPolicy("Loc", loc.OwnerName(), d, policies, original)
+	switch d {
+	case POLICY_DIRECTION_EXPORT:
+		policies = loc.exportPolicies
+	case POLICY_DIRECTION_IMPORT:
+		policies = loc.importPolicies
+	}
+	return applyPolicy("Loc", loc.OwnerName(), d, policies, original)
 }
 
-func applyPolicy(component, owner string, d Direction, policies []*policy.Policy, original table.Path) (bool, table.Path){
-    var applied bool = true
-    for _, pol := range policies {
-        if result, action, newpath := pol.Apply(original); result {
-            log.Debug("newpath: ", newpath)
-            if action == policy.ROUTE_TYPE_REJECT {
-                log.WithFields(log.Fields{
-                    "Topic": component,
-                    "Key":   owner,
-                    "NRLI":  original.GetNlri(),
-                    "Dir":   d,
-                }).Debug("path was rejected")
-                // return applied, nil, this means path was rejected
-                return applied, nil
-            } else {
-                // return applied, new path
-                return applied, newpath
-            }
-        }
-    }
+func applyPolicy(component, owner string, d Direction, policies []*policy.Policy, original table.Path) (bool, table.Path) {
+	var applied bool = true
+	for _, pol := range policies {
+		if result, action, newpath := pol.Apply(original); result {
+			log.Debug("newpath: ", newpath)
+			if action == policy.ROUTE_TYPE_REJECT {
+				log.WithFields(log.Fields{
+					"Topic": component,
+					"Key":   owner,
+					"NRLI":  original.GetNlri(),
+					"Dir":   d,
+				}).Debug("path was rejected")
+				// return applied, nil, this means path was rejected
+				return applied, nil
+			} else {
+				// return applied, new path
+				return applied, newpath
+			}
+		}
+	}
 
-    log.WithFields(log.Fields{
-        "Topic": component,
-        "Key":   owner,
-        "Len":   len(policies),
-        "NRLI":  original,
-        "Dir":   d,
-    }).Debug("no policy applied")
-    return !applied, original
+	log.WithFields(log.Fields{
+		"Topic": component,
+		"Key":   owner,
+		"Len":   len(policies),
+		"NRLI":  original,
+		"Dir":   d,
+	}).Debug("no policy applied")
+	return !applied, original
 }
