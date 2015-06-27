@@ -1423,13 +1423,15 @@ func (er *EVPNMacIPAdvertisementRoute) Serialize() ([]byte, error) {
 	copy(tbuf[1:], er.MacAddress)
 	buf = append(buf, tbuf...)
 
-	if er.IPAddressLength == 32 || er.IPAddressLength == 128 {
+	if er.IPAddressLength == 0 {
+		buf = append(buf, 0)
+	} else if er.IPAddressLength == 32 || er.IPAddressLength == 128 {
 		buf = append(buf, er.IPAddressLength)
 		if er.IPAddressLength == 32 {
 			er.IPAddress = er.IPAddress.To4()
 		}
 		buf = append(buf, []byte(er.IPAddress)...)
-	} else if er.IPAddressLength != 0 {
+	} else {
 		return nil, fmt.Errorf("Invalid IP address length", er.IPAddressLength)
 	}
 
