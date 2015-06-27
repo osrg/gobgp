@@ -22,7 +22,6 @@ import (
 	"github.com/stretchr/testify/assert"
 	"net"
 	"os"
-	"reflect"
 	"testing"
 )
 
@@ -73,13 +72,12 @@ func TestProcessBGPUpdate_0_select_onlypath_ipv4(t *testing.T) {
 	peer := peerR1()
 	pList, err := tm.ProcessUpdate(peer, bgpMessage)
 	assert.Equal(t, len(pList), 1)
-	assert.Equal(t, pList[0].IsWithdraw(), false)
+	assert.Equal(t, pList[0].IsWithdraw, false)
 	assert.NoError(t, err)
 
 	// check type
 	path := pList[0]
-	expectedType := "*table.IPv4Path"
-	assert.Equal(t, reflect.TypeOf(path).String(), expectedType)
+	assert.Equal(t, path.GetRouteFamily(), bgp.RF_IPv4_UC)
 
 	// check PathAttribute
 	pathAttributes := bgpMessage.Body.(*bgp.BGPUpdate).PathAttributes
@@ -124,13 +122,12 @@ func TestProcessBGPUpdate_0_select_onlypath_ipv6(t *testing.T) {
 	peer := peerR1()
 	pList, err := tm.ProcessUpdate(peer, bgpMessage)
 	assert.Equal(t, 1, len(pList))
-	assert.Equal(t, pList[0].IsWithdraw(), false)
+	assert.Equal(t, pList[0].IsWithdraw, false)
 	assert.NoError(t, err)
 
 	// check type
 	path := pList[0]
-	expectedType := "*table.IPv6Path"
-	assert.Equal(t, expectedType, reflect.TypeOf(path).String())
+	assert.Equal(t, path.GetRouteFamily(), bgp.RF_IPv6_UC)
 
 	// check PathAttribute
 	pathAttributes := bgpMessage.Body.(*bgp.BGPUpdate).PathAttributes
@@ -204,19 +201,18 @@ func TestProcessBGPUpdate_1_select_high_localpref_ipv4(t *testing.T) {
 	peer1 := peerR1()
 	pList, err := tm.ProcessUpdate(peer1, bgpMessage1)
 	assert.Equal(t, 1, len(pList))
-	assert.Equal(t, pList[0].IsWithdraw(), false)
+	assert.Equal(t, pList[0].IsWithdraw, false)
 	assert.NoError(t, err)
 
 	peer2 := peerR2()
 	pList, err = tm.ProcessUpdate(peer2, bgpMessage2)
 	assert.Equal(t, 1, len(pList))
-	assert.Equal(t, pList[0].IsWithdraw(), false)
+	assert.Equal(t, pList[0].IsWithdraw, false)
 	assert.NoError(t, err)
 
 	// check type
 	path := pList[0]
-	expectedType := "*table.IPv4Path"
-	assert.Equal(t, reflect.TypeOf(path).String(), expectedType)
+	assert.Equal(t, path.GetRouteFamily(), bgp.RF_IPv4_UC)
 
 	// check PathAttribute
 	pathAttributes := bgpMessage2.Body.(*bgp.BGPUpdate).PathAttributes
@@ -290,19 +286,18 @@ func TestProcessBGPUpdate_1_select_high_localpref_ipv6(t *testing.T) {
 	peer1 := peerR1()
 	pList, err := tm.ProcessUpdate(peer1, bgpMessage1)
 	assert.Equal(t, 1, len(pList))
-	assert.Equal(t, pList[0].IsWithdraw(), false)
+	assert.Equal(t, pList[0].IsWithdraw, false)
 	assert.NoError(t, err)
 
 	peer2 := peerR2()
 	pList, err = tm.ProcessUpdate(peer2, bgpMessage2)
 	assert.Equal(t, 1, len(pList))
-	assert.Equal(t, pList[0].IsWithdraw(), false)
+	assert.Equal(t, pList[0].IsWithdraw, false)
 	assert.NoError(t, err)
 
 	// check type
 	path := pList[0]
-	expectedType := "*table.IPv6Path"
-	assert.Equal(t, reflect.TypeOf(path).String(), expectedType)
+	assert.Equal(t, path.GetRouteFamily(), bgp.RF_IPv6_UC)
 
 	// check PathAttribute
 	pathAttributes := bgpMessage2.Body.(*bgp.BGPUpdate).PathAttributes
@@ -376,7 +371,7 @@ func TestProcessBGPUpdate_2_select_local_origin_ipv4(t *testing.T) {
 	peer1 := peerR1()
 	pList, err := tm.ProcessUpdate(peer1, bgpMessage1)
 	assert.Equal(t, 1, len(pList))
-	assert.Equal(t, pList[0].IsWithdraw(), false)
+	assert.Equal(t, pList[0].IsWithdraw, false)
 	assert.NoError(t, err)
 
 	var peer2 *PeerInfo = &PeerInfo{
@@ -384,13 +379,12 @@ func TestProcessBGPUpdate_2_select_local_origin_ipv4(t *testing.T) {
 	}
 	pList, err = tm.ProcessUpdate(peer2, bgpMessage2)
 	assert.Equal(t, 1, len(pList))
-	assert.Equal(t, pList[0].IsWithdraw(), false)
+	assert.Equal(t, pList[0].IsWithdraw, false)
 	assert.NoError(t, err)
 
 	// check type
 	path := pList[0]
-	expectedType := "*table.IPv4Path"
-	assert.Equal(t, reflect.TypeOf(path).String(), expectedType)
+	assert.Equal(t, path.GetRouteFamily(), bgp.RF_IPv4_UC)
 
 	// check PathAttribute
 	pathAttributes := bgpMessage2.Body.(*bgp.BGPUpdate).PathAttributes
@@ -464,7 +458,7 @@ func TestProcessBGPUpdate_2_select_local_origin_ipv6(t *testing.T) {
 	peer1 := peerR1()
 	pList, err := tm.ProcessUpdate(peer1, bgpMessage1)
 	assert.Equal(t, 1, len(pList))
-	assert.Equal(t, pList[0].IsWithdraw(), false)
+	assert.Equal(t, pList[0].IsWithdraw, false)
 	assert.NoError(t, err)
 
 	var peer2 *PeerInfo = &PeerInfo{
@@ -473,13 +467,12 @@ func TestProcessBGPUpdate_2_select_local_origin_ipv6(t *testing.T) {
 
 	pList, err = tm.ProcessUpdate(peer2, bgpMessage2)
 	assert.Equal(t, 1, len(pList))
-	assert.Equal(t, pList[0].IsWithdraw(), false)
+	assert.Equal(t, pList[0].IsWithdraw, false)
 	assert.NoError(t, err)
 
 	// check type
 	path := pList[0]
-	expectedType := "*table.IPv6Path"
-	assert.Equal(t, reflect.TypeOf(path).String(), expectedType)
+	assert.Equal(t, path.GetRouteFamily(), bgp.RF_IPv6_UC)
 
 	// check PathAttribute
 	pathAttributes := bgpMessage2.Body.(*bgp.BGPUpdate).PathAttributes
@@ -526,19 +519,18 @@ func TestProcessBGPUpdate_3_select_aspath_ipv4(t *testing.T) {
 	peer1 := peerR1()
 	pList, err := tm.ProcessUpdate(peer1, bgpMessage1)
 	assert.Equal(t, 1, len(pList))
-	assert.Equal(t, pList[0].IsWithdraw(), false)
+	assert.Equal(t, pList[0].IsWithdraw, false)
 	assert.NoError(t, err)
 	bgpMessage2 := update_fromR2()
 	peer2 := peerR2()
 	pList, err = tm.ProcessUpdate(peer2, bgpMessage2)
 	assert.Equal(t, 1, len(pList))
-	assert.Equal(t, pList[0].IsWithdraw(), false)
+	assert.Equal(t, pList[0].IsWithdraw, false)
 	assert.NoError(t, err)
 
 	// check type
 	path := pList[0]
-	expectedType := "*table.IPv4Path"
-	assert.Equal(t, reflect.TypeOf(path).String(), expectedType)
+	assert.Equal(t, path.GetRouteFamily(), bgp.RF_IPv4_UC)
 
 	// check PathAttribute
 	pathAttributes := bgpMessage2.Body.(*bgp.BGPUpdate).PathAttributes
@@ -583,19 +575,18 @@ func TestProcessBGPUpdate_3_select_aspath_ipv6(t *testing.T) {
 	peer1 := peerR1()
 	pList, err := tm.ProcessUpdate(peer1, bgpMessage1)
 	assert.Equal(t, 1, len(pList))
-	assert.Equal(t, pList[0].IsWithdraw(), false)
+	assert.Equal(t, pList[0].IsWithdraw, false)
 	assert.NoError(t, err)
 	bgpMessage2 := update_fromR2_ipv6()
 	peer2 := peerR2()
 	pList, err = tm.ProcessUpdate(peer2, bgpMessage2)
 	assert.Equal(t, 1, len(pList))
-	assert.Equal(t, pList[0].IsWithdraw(), false)
+	assert.Equal(t, pList[0].IsWithdraw, false)
 	assert.NoError(t, err)
 
 	// check type
 	path := pList[0]
-	expectedType := "*table.IPv6Path"
-	assert.Equal(t, expectedType, reflect.TypeOf(path).String())
+	assert.Equal(t, path.GetRouteFamily(), bgp.RF_IPv6_UC)
 
 	// check PathAttribute
 	pathAttributes := bgpMessage2.Body.(*bgp.BGPUpdate).PathAttributes
@@ -669,19 +660,18 @@ func TestProcessBGPUpdate_4_select_low_origin_ipv4(t *testing.T) {
 	peer1 := peerR1()
 	pList, err := tm.ProcessUpdate(peer1, bgpMessage1)
 	assert.Equal(t, 1, len(pList))
-	assert.Equal(t, pList[0].IsWithdraw(), false)
+	assert.Equal(t, pList[0].IsWithdraw, false)
 	assert.NoError(t, err)
 
 	peer2 := peerR2()
 	pList, err = tm.ProcessUpdate(peer2, bgpMessage2)
 	assert.Equal(t, 1, len(pList))
-	assert.Equal(t, pList[0].IsWithdraw(), false)
+	assert.Equal(t, pList[0].IsWithdraw, false)
 	assert.NoError(t, err)
 
 	// check type
 	path := pList[0]
-	expectedType := "*table.IPv4Path"
-	assert.Equal(t, reflect.TypeOf(path).String(), expectedType)
+	assert.Equal(t, path.GetRouteFamily(), bgp.RF_IPv4_UC)
 
 	// check PathAttribute
 	pathAttributes := bgpMessage2.Body.(*bgp.BGPUpdate).PathAttributes
@@ -755,19 +745,18 @@ func TestProcessBGPUpdate_4_select_low_origin_ipv6(t *testing.T) {
 	peer1 := peerR1()
 	pList, err := tm.ProcessUpdate(peer1, bgpMessage1)
 	assert.Equal(t, 1, len(pList))
-	assert.Equal(t, pList[0].IsWithdraw(), false)
+	assert.Equal(t, pList[0].IsWithdraw, false)
 	assert.NoError(t, err)
 
 	peer2 := peerR2()
 	pList, err = tm.ProcessUpdate(peer2, bgpMessage2)
 	assert.Equal(t, 1, len(pList))
-	assert.Equal(t, pList[0].IsWithdraw(), false)
+	assert.Equal(t, pList[0].IsWithdraw, false)
 	assert.NoError(t, err)
 
 	// check type
 	path := pList[0]
-	expectedType := "*table.IPv6Path"
-	assert.Equal(t, reflect.TypeOf(path).String(), expectedType)
+	assert.Equal(t, path.GetRouteFamily(), bgp.RF_IPv6_UC)
 
 	// check PathAttribute
 	pathAttributes := bgpMessage2.Body.(*bgp.BGPUpdate).PathAttributes
@@ -841,19 +830,18 @@ func TestProcessBGPUpdate_5_select_low_med_ipv4(t *testing.T) {
 	peer1 := peerR1()
 	pList, err := tm.ProcessUpdate(peer1, bgpMessage1)
 	assert.Equal(t, 1, len(pList))
-	assert.Equal(t, pList[0].IsWithdraw(), false)
+	assert.Equal(t, pList[0].IsWithdraw, false)
 	assert.NoError(t, err)
 
 	peer2 := peerR2()
 	pList, err = tm.ProcessUpdate(peer2, bgpMessage2)
 	assert.Equal(t, 1, len(pList))
-	assert.Equal(t, pList[0].IsWithdraw(), false)
+	assert.Equal(t, pList[0].IsWithdraw, false)
 	assert.NoError(t, err)
 
 	// check type
 	path := pList[0]
-	expectedType := "*table.IPv4Path"
-	assert.Equal(t, reflect.TypeOf(path).String(), expectedType)
+	assert.Equal(t, path.GetRouteFamily(), bgp.RF_IPv4_UC)
 
 	// check PathAttribute
 	pathAttributes := bgpMessage2.Body.(*bgp.BGPUpdate).PathAttributes
@@ -927,19 +915,18 @@ func TestProcessBGPUpdate_5_select_low_med_ipv6(t *testing.T) {
 	peer1 := peerR1()
 	pList, err := tm.ProcessUpdate(peer1, bgpMessage1)
 	assert.Equal(t, 1, len(pList))
-	assert.Equal(t, pList[0].IsWithdraw(), false)
+	assert.Equal(t, pList[0].IsWithdraw, false)
 	assert.NoError(t, err)
 
 	peer2 := peerR2()
 	pList, err = tm.ProcessUpdate(peer2, bgpMessage2)
 	assert.Equal(t, 1, len(pList))
-	assert.Equal(t, pList[0].IsWithdraw(), false)
+	assert.Equal(t, pList[0].IsWithdraw, false)
 	assert.NoError(t, err)
 
 	// check type
 	path := pList[0]
-	expectedType := "*table.IPv6Path"
-	assert.Equal(t, reflect.TypeOf(path).String(), expectedType)
+	assert.Equal(t, path.GetRouteFamily(), bgp.RF_IPv6_UC)
 
 	// check PathAttribute
 	pathAttributes := bgpMessage2.Body.(*bgp.BGPUpdate).PathAttributes
@@ -1015,19 +1002,18 @@ func TestProcessBGPUpdate_6_select_ebgp_path_ipv4(t *testing.T) {
 	peer1 := peerR1()
 	pList, err := tm.ProcessUpdate(peer1, bgpMessage1)
 	assert.Equal(t, 1, len(pList))
-	assert.Equal(t, pList[0].IsWithdraw(), false)
+	assert.Equal(t, pList[0].IsWithdraw, false)
 	assert.NoError(t, err)
 
 	peer2 := peerR2()
 	pList, err = tm.ProcessUpdate(peer2, bgpMessage2)
 	assert.Equal(t, 1, len(pList))
-	assert.Equal(t, pList[0].IsWithdraw(), false)
+	assert.Equal(t, pList[0].IsWithdraw, false)
 	assert.NoError(t, err)
 
 	// check type
 	path := pList[0]
-	expectedType := "*table.IPv4Path"
-	assert.Equal(t, reflect.TypeOf(path).String(), expectedType)
+	assert.Equal(t, path.GetRouteFamily(), bgp.RF_IPv4_UC)
 
 	// check PathAttribute
 	pathAttributes := bgpMessage2.Body.(*bgp.BGPUpdate).PathAttributes
@@ -1102,19 +1088,18 @@ func TestProcessBGPUpdate_6_select_ebgp_path_ipv6(t *testing.T) {
 	peer1 := peerR1()
 	pList, err := tm.ProcessUpdate(peer1, bgpMessage1)
 	assert.Equal(t, 1, len(pList))
-	assert.Equal(t, pList[0].IsWithdraw(), false)
+	assert.Equal(t, pList[0].IsWithdraw, false)
 	assert.NoError(t, err)
 
 	peer2 := peerR2()
 	pList, err = tm.ProcessUpdate(peer2, bgpMessage2)
 	assert.Equal(t, 1, len(pList))
-	assert.Equal(t, pList[0].IsWithdraw(), false)
+	assert.Equal(t, pList[0].IsWithdraw, false)
 	assert.NoError(t, err)
 
 	// check type
 	path := pList[0]
-	expectedType := "*table.IPv6Path"
-	assert.Equal(t, reflect.TypeOf(path).String(), expectedType)
+	assert.Equal(t, path.GetRouteFamily(), bgp.RF_IPv6_UC)
 
 	// check PathAttribute
 	pathAttributes := bgpMessage2.Body.(*bgp.BGPUpdate).PathAttributes
@@ -1192,19 +1177,18 @@ func TestProcessBGPUpdate_7_select_low_routerid_path_ipv4(t *testing.T) {
 	peer1 := peerR1()
 	pList, err := tm.ProcessUpdate(peer1, bgpMessage1)
 	assert.Equal(t, 1, len(pList))
-	assert.Equal(t, pList[0].IsWithdraw(), false)
+	assert.Equal(t, pList[0].IsWithdraw, false)
 	assert.NoError(t, err)
 
 	peer3 := peerR3()
 	pList, err = tm.ProcessUpdate(peer3, bgpMessage2)
 	assert.Equal(t, 1, len(pList))
-	assert.Equal(t, pList[0].IsWithdraw(), false)
+	assert.Equal(t, pList[0].IsWithdraw, false)
 	assert.NoError(t, err)
 
 	// check type
 	path := pList[0]
-	expectedType := "*table.IPv4Path"
-	assert.Equal(t, reflect.TypeOf(path).String(), expectedType)
+	assert.Equal(t, path.GetRouteFamily(), bgp.RF_IPv4_UC)
 
 	// check PathAttribute
 	pathAttributes := bgpMessage2.Body.(*bgp.BGPUpdate).PathAttributes
@@ -1279,19 +1263,18 @@ func TestProcessBGPUpdate_7_select_low_routerid_path_ipv6(t *testing.T) {
 	peer1 := peerR1()
 	pList, err := tm.ProcessUpdate(peer1, bgpMessage1)
 	assert.Equal(t, 1, len(pList))
-	assert.Equal(t, pList[0].IsWithdraw(), false)
+	assert.Equal(t, pList[0].IsWithdraw, false)
 	assert.NoError(t, err)
 
 	peer3 := peerR3()
 	pList, err = tm.ProcessUpdate(peer3, bgpMessage2)
 	assert.Equal(t, 1, len(pList))
-	assert.Equal(t, pList[0].IsWithdraw(), false)
+	assert.Equal(t, pList[0].IsWithdraw, false)
 	assert.NoError(t, err)
 
 	// check type
 	path := pList[0]
-	expectedType := "*table.IPv6Path"
-	assert.Equal(t, reflect.TypeOf(path).String(), expectedType)
+	assert.Equal(t, path.GetRouteFamily(), bgp.RF_IPv6_UC)
 
 	// check PathAttribute
 	pathAttributes := bgpMessage2.Body.(*bgp.BGPUpdate).PathAttributes
@@ -1366,22 +1349,21 @@ func TestProcessBGPUpdate_8_withdraw_path_ipv4(t *testing.T) {
 	peer1 := peerR1()
 	pList, err := tm.ProcessUpdate(peer1, bgpMessage1)
 	assert.Equal(t, 1, len(pList))
-	assert.Equal(t, pList[0].IsWithdraw(), false)
+	assert.Equal(t, pList[0].IsWithdraw, false)
 	assert.NoError(t, err)
 
 	peer2 := peerR2()
 	pList, err = tm.ProcessUpdate(peer2, bgpMessage2)
 	assert.Equal(t, 1, len(pList))
-	assert.Equal(t, pList[0].IsWithdraw(), false)
+	assert.Equal(t, pList[0].IsWithdraw, false)
 	assert.NoError(t, err)
 
 	// check type
 	path := pList[0]
-	expectedType := "*table.IPv4Path"
-	assert.Equal(t, reflect.TypeOf(path).String(), expectedType)
+	assert.Equal(t, path.GetRouteFamily(), bgp.RF_IPv4_UC)
 
 	// check PathAttribute
-	checkPattr := func(expected *bgp.BGPMessage, actual Path) {
+	checkPattr := func(expected *bgp.BGPMessage, actual *Path) {
 		pathAttributes := expected.Body.(*bgp.BGPUpdate).PathAttributes
 		expectedOrigin := pathAttributes[0]
 		_, attr := actual.getPathAttr(bgp.BGP_ATTR_TYPE_ORIGIN)
@@ -1421,12 +1403,11 @@ func TestProcessBGPUpdate_8_withdraw_path_ipv4(t *testing.T) {
 
 	pList, err = tm.ProcessUpdate(peer2, bgpMessage3)
 	assert.Equal(t, 1, len(pList))
-	assert.Equal(t, pList[0].IsWithdraw(), false)
+	assert.Equal(t, pList[0].IsWithdraw, false)
 	assert.NoError(t, err)
 
 	path = pList[0]
-	expectedType = "*table.IPv4Path"
-	assert.Equal(t, reflect.TypeOf(path).String(), expectedType)
+	assert.Equal(t, path.GetRouteFamily(), bgp.RF_IPv4_UC)
 
 	checkPattr(bgpMessage1, path)
 	// check destination
@@ -1476,19 +1457,18 @@ func TestProcessBGPUpdate_8_mpunreach_path_ipv6(t *testing.T) {
 	peer1 := peerR1()
 	pList, err := tm.ProcessUpdate(peer1, bgpMessage1)
 	assert.Equal(t, 1, len(pList))
-	assert.Equal(t, pList[0].IsWithdraw(), false)
+	assert.Equal(t, pList[0].IsWithdraw, false)
 	assert.NoError(t, err)
 
 	peer2 := peerR2()
 	pList, err = tm.ProcessUpdate(peer2, bgpMessage2)
 	assert.Equal(t, 1, len(pList))
-	assert.Equal(t, pList[0].IsWithdraw(), false)
+	assert.Equal(t, pList[0].IsWithdraw, false)
 	assert.NoError(t, err)
 
 	// check type
 	path := pList[0]
-	expectedType := "*table.IPv6Path"
-	assert.Equal(t, reflect.TypeOf(path).String(), expectedType)
+	assert.Equal(t, path.GetRouteFamily(), bgp.RF_IPv6_UC)
 
 	// check PathAttribute
 	pathAttributes := bgpMessage2.Body.(*bgp.BGPUpdate).PathAttributes
@@ -1514,7 +1494,7 @@ func TestProcessBGPUpdate_8_mpunreach_path_ipv6(t *testing.T) {
 	assert.Equal(t, expectedMed, pathMed)
 
 	// check PathAttribute
-	checkPattr := func(expected *bgp.BGPMessage, actual Path) {
+	checkPattr := func(expected *bgp.BGPMessage, actual *Path) {
 		pathAttributes := expected.Body.(*bgp.BGPUpdate).PathAttributes
 
 		expectedNexthopAttr := pathAttributes[0]
@@ -1556,12 +1536,11 @@ func TestProcessBGPUpdate_8_mpunreach_path_ipv6(t *testing.T) {
 
 	pList, err = tm.ProcessUpdate(peer2, bgpMessage3)
 	assert.Equal(t, 1, len(pList))
-	assert.Equal(t, pList[0].IsWithdraw(), false)
+	assert.Equal(t, pList[0].IsWithdraw, false)
 	assert.NoError(t, err)
 
 	path = pList[0]
-	expectedType = "*table.IPv6Path"
-	assert.Equal(t, reflect.TypeOf(path).String(), expectedType)
+	assert.Equal(t, path.GetRouteFamily(), bgp.RF_IPv6_UC)
 
 	checkPattr(bgpMessage1, path)
 	// check destination
@@ -1601,21 +1580,20 @@ func TestProcessBGPUpdate_bestpath_lost_ipv4(t *testing.T) {
 	peer1 := peerR1()
 	pList, err := tm.ProcessUpdate(peer1, bgpMessage1)
 	assert.Equal(t, 1, len(pList))
-	assert.Equal(t, pList[0].IsWithdraw(), false)
+	assert.Equal(t, pList[0].IsWithdraw, false)
 	assert.NoError(t, err)
 
 	pList, err = tm.ProcessUpdate(peer1, bgpMessage1_w)
 	assert.Equal(t, 1, len(pList))
-	assert.Equal(t, pList[0].IsWithdraw(), true)
+	assert.Equal(t, pList[0].IsWithdraw, true)
 	assert.NoError(t, err)
 
 	// check old best path
 	path := pList[0]
-	expectedType := "*table.IPv4Path"
-	assert.Equal(t, reflect.TypeOf(path).String(), expectedType)
+	assert.Equal(t, path.GetRouteFamily(), bgp.RF_IPv4_UC)
 
 	// check PathAttribute
-	checkPattr := func(expected *bgp.BGPMessage, actual Path) {
+	checkPattr := func(expected *bgp.BGPMessage, actual *Path) {
 		pathAttributes := expected.Body.(*bgp.BGPUpdate).PathAttributes
 		expectedOrigin := pathAttributes[0]
 		_, attr := actual.getPathAttr(bgp.BGP_ATTR_TYPE_ORIGIN)
@@ -1670,7 +1648,7 @@ func TestProcessBGPUpdate_bestpath_lost_ipv6(t *testing.T) {
 	peer1 := peerR1()
 	pList, err := tm.ProcessUpdate(peer1, bgpMessage1)
 	assert.Equal(t, 1, len(pList))
-	assert.Equal(t, pList[0].IsWithdraw(), false)
+	assert.Equal(t, pList[0].IsWithdraw, false)
 	assert.NoError(t, err)
 
 	// path1 mpunreach
@@ -1680,16 +1658,15 @@ func TestProcessBGPUpdate_bestpath_lost_ipv6(t *testing.T) {
 
 	pList, err = tm.ProcessUpdate(peer1, bgpMessage1_w)
 	assert.Equal(t, 1, len(pList))
-	assert.Equal(t, pList[0].IsWithdraw(), true)
+	assert.Equal(t, pList[0].IsWithdraw, true)
 	assert.NoError(t, err)
 
 	// check old best path
 	path := pList[0]
-	expectedType := "*table.IPv6Path"
-	assert.Equal(t, reflect.TypeOf(path).String(), expectedType)
+	assert.Equal(t, path.GetRouteFamily(), bgp.RF_IPv6_UC)
 
 	// check PathAttribute
-	checkPattr := func(expected *bgp.BGPMessage, actual Path) {
+	checkPattr := func(expected *bgp.BGPMessage, actual *Path) {
 		pathAttributes := expected.Body.(*bgp.BGPUpdate).PathAttributes
 
 		expectedNexthopAttr := pathAttributes[0]
@@ -1760,21 +1737,20 @@ func TestProcessBGPUpdate_implicit_withdrwal_ipv4(t *testing.T) {
 	peer1 := peerR1()
 	pList, err := tm.ProcessUpdate(peer1, bgpMessage1)
 	assert.Equal(t, 1, len(pList))
-	assert.Equal(t, pList[0].IsWithdraw(), false)
+	assert.Equal(t, pList[0].IsWithdraw, false)
 	assert.NoError(t, err)
 
 	pList, err = tm.ProcessUpdate(peer1, bgpMessage2)
 	assert.Equal(t, 1, len(pList))
-	assert.Equal(t, pList[0].IsWithdraw(), false)
+	assert.Equal(t, pList[0].IsWithdraw, false)
 	assert.NoError(t, err)
 
 	// check type
 	path := pList[0]
-	expectedType := "*table.IPv4Path"
-	assert.Equal(t, reflect.TypeOf(path).String(), expectedType)
+	assert.Equal(t, path.GetRouteFamily(), bgp.RF_IPv4_UC)
 
 	// check PathAttribute
-	checkPattr := func(expected *bgp.BGPMessage, actual Path) {
+	checkPattr := func(expected *bgp.BGPMessage, actual *Path) {
 		pathAttributes := expected.Body.(*bgp.BGPUpdate).PathAttributes
 		expectedOrigin := pathAttributes[0]
 		_, attr := actual.getPathAttr(bgp.BGP_ATTR_TYPE_ORIGIN)
@@ -1847,18 +1823,17 @@ func TestProcessBGPUpdate_implicit_withdrwal_ipv6(t *testing.T) {
 	peer1 := peerR1()
 	pList, err := tm.ProcessUpdate(peer1, bgpMessage1)
 	assert.Equal(t, 1, len(pList))
-	assert.Equal(t, pList[0].IsWithdraw(), false)
+	assert.Equal(t, pList[0].IsWithdraw, false)
 	assert.NoError(t, err)
 
 	pList, err = tm.ProcessUpdate(peer1, bgpMessage2)
 	assert.Equal(t, 1, len(pList))
-	assert.Equal(t, pList[0].IsWithdraw(), false)
+	assert.Equal(t, pList[0].IsWithdraw, false)
 	assert.NoError(t, err)
 
 	// check type
 	path := pList[0]
-	expectedType := "*table.IPv6Path"
-	assert.Equal(t, reflect.TypeOf(path).String(), expectedType)
+	assert.Equal(t, path.GetRouteFamily(), bgp.RF_IPv6_UC)
 
 	// check PathAttribute
 	pathAttributes := bgpMessage2.Body.(*bgp.BGPUpdate).PathAttributes
@@ -1884,7 +1859,7 @@ func TestProcessBGPUpdate_implicit_withdrwal_ipv6(t *testing.T) {
 	assert.Equal(t, expectedMed, pathMed)
 
 	// check PathAttribute
-	checkPattr := func(expected *bgp.BGPMessage, actual Path) {
+	checkPattr := func(expected *bgp.BGPMessage, actual *Path) {
 		pathAttributes := expected.Body.(*bgp.BGPUpdate).PathAttributes
 
 		expectedNexthopAttr := pathAttributes[0]
@@ -1941,7 +1916,7 @@ func TestProcessBGPUpdate_multiple_nlri_ipv4(t *testing.T) {
 	}
 
 	// check PathAttribute
-	checkPattr := func(expected *bgp.BGPMessage, actual Path) {
+	checkPattr := func(expected *bgp.BGPMessage, actual *Path) {
 		pathAttributes := expected.Body.(*bgp.BGPUpdate).PathAttributes
 		expectedOrigin := pathAttributes[0]
 		_, attr := actual.getPathAttr(bgp.BGP_ATTR_TYPE_ORIGIN)
@@ -1967,9 +1942,8 @@ func TestProcessBGPUpdate_multiple_nlri_ipv4(t *testing.T) {
 		assert.Equal(t, len(pathAttributes), len(actual.getPathAttrs()))
 	}
 
-	checkBestPathResult := func(pType, prefix, nexthop string, p Path, m *bgp.BGPMessage) {
-		expectedType := pType
-		assert.Equal(t, reflect.TypeOf(p).String(), expectedType)
+	checkBestPathResult := func(rf bgp.RouteFamily, prefix, nexthop string, p *Path, m *bgp.BGPMessage) {
+		assert.Equal(t, p.GetRouteFamily(), rf)
 		checkPattr(m, p)
 		// check destination
 		assert.Equal(t, prefix, p.getPrefix())
@@ -2016,39 +1990,39 @@ func TestProcessBGPUpdate_multiple_nlri_ipv4(t *testing.T) {
 	pList, err := tm.ProcessUpdate(peer1, bgpMessage1)
 	assert.Equal(t, 5, len(pList))
 	for _, p := range pList {
-		assert.Equal(t, p.IsWithdraw(), false)
+		assert.Equal(t, p.IsWithdraw, false)
 	}
 	assert.NoError(t, err)
 
-	checkBestPathResult("*table.IPv4Path", "10.10.10.0/24", "192.168.50.1", pList[0], bgpMessage1)
-	checkBestPathResult("*table.IPv4Path", "20.20.20.0/24", "192.168.50.1", pList[1], bgpMessage1)
-	checkBestPathResult("*table.IPv4Path", "30.30.30.0/24", "192.168.50.1", pList[2], bgpMessage1)
-	checkBestPathResult("*table.IPv4Path", "40.40.40.0/24", "192.168.50.1", pList[3], bgpMessage1)
-	checkBestPathResult("*table.IPv4Path", "50.50.50.0/24", "192.168.50.1", pList[4], bgpMessage1)
+	checkBestPathResult(bgp.RF_IPv4_UC, "10.10.10.0/24", "192.168.50.1", pList[0], bgpMessage1)
+	checkBestPathResult(bgp.RF_IPv4_UC, "20.20.20.0/24", "192.168.50.1", pList[1], bgpMessage1)
+	checkBestPathResult(bgp.RF_IPv4_UC, "30.30.30.0/24", "192.168.50.1", pList[2], bgpMessage1)
+	checkBestPathResult(bgp.RF_IPv4_UC, "40.40.40.0/24", "192.168.50.1", pList[3], bgpMessage1)
+	checkBestPathResult(bgp.RF_IPv4_UC, "50.50.50.0/24", "192.168.50.1", pList[4], bgpMessage1)
 
 	pList, err = tm.ProcessUpdate(peer1, bgpMessage2)
 	assert.Equal(t, 5, len(pList))
 	for _, p := range pList {
-		assert.Equal(t, p.IsWithdraw(), false)
+		assert.Equal(t, p.IsWithdraw, false)
 	}
 	assert.NoError(t, err)
 
-	checkBestPathResult("*table.IPv4Path", "11.11.11.0/24", "192.168.50.1", pList[0], bgpMessage2)
-	checkBestPathResult("*table.IPv4Path", "22.22.22.0/24", "192.168.50.1", pList[1], bgpMessage2)
-	checkBestPathResult("*table.IPv4Path", "33.33.33.0/24", "192.168.50.1", pList[2], bgpMessage2)
-	checkBestPathResult("*table.IPv4Path", "44.44.44.0/24", "192.168.50.1", pList[3], bgpMessage2)
-	checkBestPathResult("*table.IPv4Path", "55.55.55.0/24", "192.168.50.1", pList[4], bgpMessage2)
+	checkBestPathResult(bgp.RF_IPv4_UC, "11.11.11.0/24", "192.168.50.1", pList[0], bgpMessage2)
+	checkBestPathResult(bgp.RF_IPv4_UC, "22.22.22.0/24", "192.168.50.1", pList[1], bgpMessage2)
+	checkBestPathResult(bgp.RF_IPv4_UC, "33.33.33.0/24", "192.168.50.1", pList[2], bgpMessage2)
+	checkBestPathResult(bgp.RF_IPv4_UC, "44.44.44.0/24", "192.168.50.1", pList[3], bgpMessage2)
+	checkBestPathResult(bgp.RF_IPv4_UC, "55.55.55.0/24", "192.168.50.1", pList[4], bgpMessage2)
 
 	pList, err = tm.ProcessUpdate(peer1, bgpMessage3)
 	assert.Equal(t, 2, len(pList))
 	for _, p := range pList {
-		assert.Equal(t, p.IsWithdraw(), false)
+		assert.Equal(t, p.IsWithdraw, false)
 	}
 	assert.NoError(t, err)
 
 	pList, err = tm.ProcessUpdate(peer1, bgpMessage4)
 	assert.Equal(t, 1, len(pList))
-	assert.Equal(t, pList[0].IsWithdraw(), false)
+	assert.Equal(t, pList[0].IsWithdraw, false)
 	assert.NoError(t, err)
 
 	// check table
@@ -2076,7 +2050,7 @@ func TestProcessBGPUpdate_multiple_nlri_ipv6(t *testing.T) {
 	}
 
 	// check PathAttribute
-	checkPattr := func(expected *bgp.BGPMessage, actual Path) {
+	checkPattr := func(expected *bgp.BGPMessage, actual *Path) {
 		pathAttributes := expected.Body.(*bgp.BGPUpdate).PathAttributes
 		pathNexthop := pathAttributes[4]
 		_, attr := actual.getPathAttr(bgp.BGP_ATTR_TYPE_MP_REACH_NLRI)
@@ -2108,9 +2082,8 @@ func TestProcessBGPUpdate_multiple_nlri_ipv6(t *testing.T) {
 
 	}
 
-	checkBestPathResult := func(pType, prefix, nexthop string, p Path, m *bgp.BGPMessage) {
-		expectedType := pType
-		assert.Equal(t, reflect.TypeOf(p).String(), expectedType)
+	checkBestPathResult := func(rf bgp.RouteFamily, prefix, nexthop string, p *Path, m *bgp.BGPMessage) {
+		assert.Equal(t, p.GetRouteFamily(), rf)
 		checkPattr(m, p)
 		// check destination
 		assert.Equal(t, prefix, p.getPrefix())
@@ -2163,39 +2136,39 @@ func TestProcessBGPUpdate_multiple_nlri_ipv6(t *testing.T) {
 	pList, err := tm.ProcessUpdate(peer1, bgpMessage1)
 	assert.Equal(t, 5, len(pList))
 	for _, p := range pList {
-		assert.Equal(t, p.IsWithdraw(), false)
+		assert.Equal(t, p.IsWithdraw, false)
 	}
 	assert.NoError(t, err)
 
-	checkBestPathResult("*table.IPv6Path", "2001:123:1210:11::/64", "2001::192:168:50:1", pList[0], bgpMessage1)
-	checkBestPathResult("*table.IPv6Path", "2001:123:1220:11::/64", "2001::192:168:50:1", pList[1], bgpMessage1)
-	checkBestPathResult("*table.IPv6Path", "2001:123:1230:11::/64", "2001::192:168:50:1", pList[2], bgpMessage1)
-	checkBestPathResult("*table.IPv6Path", "2001:123:1240:11::/64", "2001::192:168:50:1", pList[3], bgpMessage1)
-	checkBestPathResult("*table.IPv6Path", "2001:123:1250:11::/64", "2001::192:168:50:1", pList[4], bgpMessage1)
+	checkBestPathResult(bgp.RF_IPv6_UC, "2001:123:1210:11::/64", "2001::192:168:50:1", pList[0], bgpMessage1)
+	checkBestPathResult(bgp.RF_IPv6_UC, "2001:123:1220:11::/64", "2001::192:168:50:1", pList[1], bgpMessage1)
+	checkBestPathResult(bgp.RF_IPv6_UC, "2001:123:1230:11::/64", "2001::192:168:50:1", pList[2], bgpMessage1)
+	checkBestPathResult(bgp.RF_IPv6_UC, "2001:123:1240:11::/64", "2001::192:168:50:1", pList[3], bgpMessage1)
+	checkBestPathResult(bgp.RF_IPv6_UC, "2001:123:1250:11::/64", "2001::192:168:50:1", pList[4], bgpMessage1)
 
 	pList, err = tm.ProcessUpdate(peer1, bgpMessage2)
 	assert.Equal(t, 5, len(pList))
 	for _, p := range pList {
-		assert.Equal(t, p.IsWithdraw(), false)
+		assert.Equal(t, p.IsWithdraw, false)
 	}
 	assert.NoError(t, err)
 
-	checkBestPathResult("*table.IPv6Path", "2001:123:1211:11::/64", "2001::192:168:50:1", pList[0], bgpMessage2)
-	checkBestPathResult("*table.IPv6Path", "2001:123:1222:11::/64", "2001::192:168:50:1", pList[1], bgpMessage2)
-	checkBestPathResult("*table.IPv6Path", "2001:123:1233:11::/64", "2001::192:168:50:1", pList[2], bgpMessage2)
-	checkBestPathResult("*table.IPv6Path", "2001:123:1244:11::/64", "2001::192:168:50:1", pList[3], bgpMessage2)
-	checkBestPathResult("*table.IPv6Path", "2001:123:1255:11::/64", "2001::192:168:50:1", pList[4], bgpMessage2)
+	checkBestPathResult(bgp.RF_IPv6_UC, "2001:123:1211:11::/64", "2001::192:168:50:1", pList[0], bgpMessage2)
+	checkBestPathResult(bgp.RF_IPv6_UC, "2001:123:1222:11::/64", "2001::192:168:50:1", pList[1], bgpMessage2)
+	checkBestPathResult(bgp.RF_IPv6_UC, "2001:123:1233:11::/64", "2001::192:168:50:1", pList[2], bgpMessage2)
+	checkBestPathResult(bgp.RF_IPv6_UC, "2001:123:1244:11::/64", "2001::192:168:50:1", pList[3], bgpMessage2)
+	checkBestPathResult(bgp.RF_IPv6_UC, "2001:123:1255:11::/64", "2001::192:168:50:1", pList[4], bgpMessage2)
 
 	pList, err = tm.ProcessUpdate(peer1, bgpMessage3)
 	assert.Equal(t, 2, len(pList))
 	for _, p := range pList {
-		assert.Equal(t, p.IsWithdraw(), false)
+		assert.Equal(t, p.IsWithdraw, false)
 	}
 	assert.NoError(t, err)
 
 	pList, err = tm.ProcessUpdate(peer1, bgpMessage4)
 	assert.Equal(t, 1, len(pList))
-	assert.Equal(t, pList[0].IsWithdraw(), false)
+	assert.Equal(t, pList[0].IsWithdraw, false)
 	assert.NoError(t, err)
 
 	// check table
@@ -2225,7 +2198,7 @@ func TestProcessBGPUpdate_Timestamp(t *testing.T) {
 	m1 := bgp.NewBGPUpdateMessage(withdrawnRoutes, pathAttributes, nlri)
 	peer := peerR1()
 	pList1 := ProcessMessage(m1, peer)
-	path1 := pList1[0].(*IPv4Path)
+	path1 := pList1[0]
 	t1 := path1.timestamp
 	adjRib.UpdateIn(pList1)
 

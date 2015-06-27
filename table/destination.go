@@ -23,7 +23,6 @@ import (
 	"github.com/osrg/gobgp/api"
 	"github.com/osrg/gobgp/packet"
 	"net"
-	"reflect"
 )
 
 const (
@@ -63,56 +62,32 @@ func (lhs *PeerInfo) Equal(rhs *PeerInfo) bool {
 	return false
 }
 
-type Destination interface {
-	Calculate(localAsn uint32) (Path, string, error)
-	getRouteFamily() bgp.RouteFamily
-	setRouteFamily(ROUTE_FAMILY bgp.RouteFamily)
-	getNlri() bgp.AddrPrefixInterface
-	setNlri(nlri bgp.AddrPrefixInterface)
-	getBestPathReason() string
-	setBestPathReason(string)
-	GetBestPath() Path
-	setBestPath(path Path)
-	getKnownPathList() []Path
-	setKnownPathList([]Path)
-	String() string
-	addWithdraw(withdraw Path)
-	addNewPath(newPath Path)
-	constructWithdrawPath() Path
-	removeOldPathsFromSource(source *PeerInfo) []Path
-	ToApiStruct() *api.Destination
-	MarshalJSON() ([]byte, error)
-}
-
-type DestinationDefault struct {
-	ROUTE_FAMILY   bgp.RouteFamily
+type Destination struct {
+	routeFamily    bgp.RouteFamily
 	nlri           bgp.AddrPrefixInterface
-	knownPathList  []Path
-	withdrawList   []Path
-	newPathList    []Path
-	bestPath       Path
+	knownPathList  []*Path
+	withdrawList   []*Path
+	newPathList    []*Path
+	bestPath       *Path
 	bestPathReason string
-	oldBestPath    Path
+	oldBestPath    *Path
 }
 
-func NewDestinationDefault(nlri bgp.AddrPrefixInterface) *DestinationDefault {
-	destination := &DestinationDefault{}
-	destination.ROUTE_FAMILY = bgp.RF_IPv4_UC
-	destination.nlri = nlri
-	destination.knownPathList = make([]Path, 0)
-	destination.withdrawList = make([]Path, 0)
-	destination.newPathList = make([]Path, 0)
-	destination.bestPath = nil
-	destination.bestPathReason = ""
-	destination.oldBestPath = nil
-	return destination
+func NewDestination(nlri bgp.AddrPrefixInterface) *Destination {
+	return &Destination{
+		routeFamily:   bgp.AfiSafiToRouteFamily(nlri.AFI(), nlri.SAFI()),
+		nlri:          nlri,
+		knownPathList: make([]*Path, 0),
+		withdrawList:  make([]*Path, 0),
+		newPathList:   make([]*Path, 0),
+	}
 }
 
-func (dd *DestinationDefault) MarshalJSON() ([]byte, error) {
+func (dd *Destination) MarshalJSON() ([]byte, error) {
 	return json.Marshal(dd.ToApiStruct())
 }
 
-func (dd *DestinationDefault) ToApiStruct() *api.Destination {
+func (dd *Destination) ToApiStruct() *api.Destination {
 	prefix := dd.getNlri().String()
 
 	idx := func() int {
@@ -128,7 +103,7 @@ func (dd *DestinationDefault) ToApiStruct() *api.Destination {
 		return 0
 	}()
 
-	paths := func(arg []Path) []*api.Path {
+	paths := func(arg []*Path) []*api.Path {
 		ret := make([]*api.Path, 0, len(arg))
 		for _, p := range arg {
 			ret = append(ret, p.ToApiStruct())
@@ -143,59 +118,59 @@ func (dd *DestinationDefault) ToApiStruct() *api.Destination {
 	}
 }
 
-func (dd *DestinationDefault) getRouteFamily() bgp.RouteFamily {
-	return dd.ROUTE_FAMILY
+func (dd *Destination) getRouteFamily() bgp.RouteFamily {
+	return dd.routeFamily
 }
 
-func (dd *DestinationDefault) setRouteFamily(ROUTE_FAMILY bgp.RouteFamily) {
-	dd.ROUTE_FAMILY = ROUTE_FAMILY
+func (dd *Destination) setRouteFamily(routeFamily bgp.RouteFamily) {
+	dd.routeFamily = routeFamily
 }
 
-func (dd *DestinationDefault) getNlri() bgp.AddrPrefixInterface {
+func (dd *Destination) getNlri() bgp.AddrPrefixInterface {
 	return dd.nlri
 }
 
-func (dd *DestinationDefault) setNlri(nlri bgp.AddrPrefixInterface) {
+func (dd *Destination) setNlri(nlri bgp.AddrPrefixInterface) {
 	dd.nlri = nlri
 }
 
-func (dd *DestinationDefault) getBestPathReason() string {
+func (dd *Destination) getBestPathReason() string {
 	return dd.bestPathReason
 }
 
-func (dd *DestinationDefault) setBestPathReason(reason string) {
+func (dd *Destination) setBestPathReason(reason string) {
 	dd.bestPathReason = reason
 }
 
-func (dd *DestinationDefault) GetBestPath() Path {
+func (dd *Destination) GetBestPath() *Path {
 	return dd.bestPath
 }
 
-func (dd *DestinationDefault) setBestPath(path Path) {
+func (dd *Destination) setBestPath(path *Path) {
 	dd.bestPath = path
 }
 
-func (dd *DestinationDefault) getKnownPathList() []Path {
+func (dd *Destination) getKnownPathList() []*Path {
 	return dd.knownPathList
 }
 
-func (dd *DestinationDefault) setKnownPathList(List []Path) {
+func (dd *Destination) setKnownPathList(List []*Path) {
 	dd.knownPathList = List
 }
 
-func (dd *DestinationDefault) addWithdraw(withdraw Path) {
+func (dd *Destination) addWithdraw(withdraw *Path) {
 	dd.validatePath(withdraw)
 	dd.withdrawList = append(dd.withdrawList, withdraw)
 }
 
-func (dd *DestinationDefault) addNewPath(newPath Path) {
+func (dd *Destination) addNewPath(newPath *Path) {
 	dd.validatePath(newPath)
 	dd.newPathList = append(dd.newPathList, newPath)
 }
 
-func (dd *DestinationDefault) removeOldPathsFromSource(source *PeerInfo) []Path {
-	removePaths := make([]Path, 0)
-	tempKnownPathList := make([]Path, 0)
+func (dd *Destination) removeOldPathsFromSource(source *PeerInfo) []*Path {
+	removePaths := make([]*Path, 0)
+	tempKnownPathList := make([]*Path, 0)
 
 	for _, path := range dd.knownPathList {
 		if path.GetSource().Equal(source) {
@@ -208,14 +183,14 @@ func (dd *DestinationDefault) removeOldPathsFromSource(source *PeerInfo) []Path 
 	return removePaths
 }
 
-func (dd *DestinationDefault) validatePath(path Path) {
-	if path == nil || path.GetRouteFamily() != dd.ROUTE_FAMILY {
+func (dd *Destination) validatePath(path *Path) {
+	if path == nil || path.GetRouteFamily() != dd.routeFamily {
 
 		log.WithFields(log.Fields{
 			"Topic":      "Table",
 			"Key":        dd.getNlri().String(),
 			"Path":       path,
-			"ExpectedRF": dd.ROUTE_FAMILY,
+			"ExpectedRF": dd.routeFamily,
 		}).Error("path is nil or invalid route family")
 	}
 }
@@ -226,7 +201,7 @@ func (dd *DestinationDefault) validatePath(path Path) {
 //
 // Modifies destination's state related to stored paths. Removes withdrawn
 // paths from known paths. Also, adds new paths to known paths.
-func (dest *DestinationDefault) Calculate(localAsn uint32) (Path, string, error) {
+func (dest *Destination) Calculate(localAsn uint32) (*Path, string, error) {
 
 	// First remove the withdrawn paths.
 	// Note: If we want to support multiple paths per destination we may
@@ -258,7 +233,7 @@ func (dest *DestinationDefault) Calculate(localAsn uint32) (Path, string, error)
 	dest.knownPathList = append(dest.knownPathList, dest.newPathList...)
 
 	// Clear new paths as we copied them.
-	dest.newPathList = make([]Path, 0)
+	dest.newPathList = make([]*Path, 0)
 
 	// If we do not have any paths to this destination, then we do not have
 	// new best path.
@@ -283,7 +258,7 @@ func (dest *DestinationDefault) Calculate(localAsn uint32) (Path, string, error)
 //we can receive withdraws for such paths and withdrawals may not be
 //stopped by the same policies.
 //"""
-func (dest *DestinationDefault) removeWithdrawals() {
+func (dest *Destination) removeWithdrawals() {
 
 	log.WithFields(log.Fields{
 		"Topic":  "Table",
@@ -309,8 +284,8 @@ func (dest *DestinationDefault) removeWithdrawals() {
 
 	//	If we have some known paths and some withdrawals, we find matches and
 	//	delete them first.
-	matches := make(map[string]Path)
-	wMatches := make(map[string]Path)
+	matches := make(map[string]*Path)
+	wMatches := make(map[string]*Path)
 	// Match all withdrawals from destination paths.
 	for _, withdraw := range dest.withdrawList {
 		var isFound bool = false
@@ -371,7 +346,7 @@ func (dest *DestinationDefault) removeWithdrawals() {
 	}
 }
 
-func (dest *DestinationDefault) computeKnownBestPath(localAsn uint32) (Path, string, error) {
+func (dest *Destination) computeKnownBestPath(localAsn uint32) (*Path, string, error) {
 
 	//	"""Computes the best path among known paths.
 	//
@@ -399,7 +374,7 @@ func (dest *DestinationDefault) computeKnownBestPath(localAsn uint32) (Path, str
 	return currentBestPath, bestPathReason, nil
 }
 
-func (dest *DestinationDefault) removeOldPaths() {
+func (dest *Destination) removeOldPaths() {
 	//	"""Identifies which of known paths are old and removes them.
 	//
 	//	Known paths will no longer have paths whose new version is present in
@@ -410,7 +385,7 @@ func (dest *DestinationDefault) removeOldPaths() {
 	knownPaths := dest.knownPathList
 
 	for _, newPath := range newPaths {
-		oldPaths := make([]Path, 0)
+		oldPaths := make([]*Path, 0)
 		for _, path := range knownPaths {
 			// Here we just check if source is same and not check if path
 			// version num. as newPaths are implicit withdrawal of old
@@ -442,7 +417,7 @@ func (dest *DestinationDefault) removeOldPaths() {
 	dest.knownPathList = knownPaths
 }
 
-func deleteAt(list []Path, pos int) ([]Path, bool) {
+func deleteAt(list []*Path, pos int) ([]*Path, bool) {
 	if list != nil {
 		list = append(list[:pos], list[pos+1:]...)
 		return list, true
@@ -451,7 +426,7 @@ func deleteAt(list []Path, pos int) ([]Path, bool) {
 }
 
 // remove item from slice by object itself
-func removeWithPath(list []Path, path Path) ([]Path, bool) {
+func removeWithPath(list []*Path, path *Path) ([]*Path, bool) {
 
 	for index, p := range list {
 		if p == path {
@@ -462,7 +437,7 @@ func removeWithPath(list []Path, path Path) ([]Path, bool) {
 	return list, false
 }
 
-func computeBestPath(localAsn uint32, path1, path2 Path) (Path, string) {
+func computeBestPath(localAsn uint32, path1, path2 *Path) (*Path, string) {
 
 	//Compares given paths and returns best path.
 	//
@@ -495,7 +470,7 @@ func computeBestPath(localAsn uint32, path1, path2 Path) (Path, string) {
 	//	Assumes paths from NC has source equal to None.
 	//
 
-	var bestPath Path
+	var bestPath *Path
 	bestPathReason := BPR_UNKNOWN
 
 	// Follow best path calculation algorithm steps.
@@ -553,7 +528,7 @@ func computeBestPath(localAsn uint32, path1, path2 Path) (Path, string) {
 	return bestPath, bestPathReason
 }
 
-func compareByReachableNexthop(path1, path2 Path) Path {
+func compareByReachableNexthop(path1, path2 *Path) *Path {
 	//	Compares given paths and selects best path based on reachable next-hop.
 	//
 	//	If no path matches this criteria, return None.
@@ -562,7 +537,7 @@ func compareByReachableNexthop(path1, path2 Path) Path {
 	return nil
 }
 
-func compareByHighestWeight(path1, path2 Path) Path {
+func compareByHighestWeight(path1, path2 *Path) *Path {
 	//	Selects a path with highest weight.
 	//
 	//	Weight is BGPS specific parameter. It is local to the router on which it
@@ -573,7 +548,7 @@ func compareByHighestWeight(path1, path2 Path) Path {
 	return nil
 }
 
-func compareByLocalPref(path1, path2 Path) Path {
+func compareByLocalPref(path1, path2 *Path) *Path {
 	//	Selects a path with highest local-preference.
 	//
 	//	Unlike the weight attribute, which is only relevant to the local
@@ -603,7 +578,7 @@ func compareByLocalPref(path1, path2 Path) Path {
 	}
 }
 
-func compareByLocalOrigin(path1, path2 Path) Path {
+func compareByLocalOrigin(path1, path2 *Path) *Path {
 
 	// Select locally originating path as best path.
 	// Locally originating routes are network routes, redistributed routes,
@@ -628,7 +603,7 @@ func compareByLocalOrigin(path1, path2 Path) Path {
 	return nil
 }
 
-func compareByASPath(path1, path2 Path) Path {
+func compareByASPath(path1, path2 *Path) *Path {
 	// Calculated the best-paths by comparing as-path lengths.
 	//
 	// Shortest as-path length is preferred. If both path have same lengths,
@@ -659,7 +634,7 @@ func compareByASPath(path1, path2 Path) Path {
 	}
 }
 
-func compareByOrigin(path1, path2 Path) Path {
+func compareByOrigin(path1, path2 *Path) *Path {
 	//	Select the best path based on origin attribute.
 	//
 	//	IGP is preferred over EGP; EGP is preferred over Incomplete.
@@ -692,7 +667,7 @@ func compareByOrigin(path1, path2 Path) Path {
 	}
 }
 
-func compareByMED(path1, path2 Path) Path {
+func compareByMED(path1, path2 *Path) *Path {
 	//	Select the path based with lowest MED value.
 	//
 	//	If both paths have same MED, return None.
@@ -702,7 +677,7 @@ func compareByMED(path1, path2 Path) Path {
 	//  compare MED among not only same AS path but also all path,
 	//  like bgp always-compare-med
 	log.Debugf("enter compareByMED")
-	getMed := func(path Path) uint32 {
+	getMed := func(path *Path) uint32 {
 		_, attribute := path.getPathAttr(bgp.BGP_ATTR_TYPE_MULTI_EXIT_DISC)
 		if attribute == nil {
 			return 0
@@ -722,7 +697,7 @@ func compareByMED(path1, path2 Path) Path {
 	return path2
 }
 
-func compareByASNumber(localAsn uint32, path1, path2 Path) Path {
+func compareByASNumber(localAsn uint32, path1, path2 *Path) *Path {
 
 	//Select the path based on source (iBGP/eBGP) peer.
 	//
@@ -748,7 +723,7 @@ func compareByASNumber(localAsn uint32, path1, path2 Path) Path {
 	return nil
 }
 
-func compareByIGPCost(path1, path2 Path) Path {
+func compareByIGPCost(path1, path2 *Path) *Path {
 	//	Select the route with the lowest IGP cost to the next hop.
 	//
 	//	Return None if igp cost is same.
@@ -757,7 +732,7 @@ func compareByIGPCost(path1, path2 Path) Path {
 	return nil
 }
 
-func compareByRouterID(localAsn uint32, path1, path2 Path) (Path, error) {
+func compareByRouterID(localAsn uint32, path1, path2 *Path) (*Path, error) {
 	//	Select the route received from the peer with the lowest BGP router ID.
 	//
 	//	If both paths are eBGP paths, then we do not do any tie breaking, i.e we do
@@ -804,220 +779,6 @@ func compareByRouterID(localAsn uint32, path1, path2 Path) (Path, error) {
 	}
 }
 
-// return Destination's string representation
-func (dest *DestinationDefault) String() string {
-	str := fmt.Sprintf("Destination NLRI: %s", dest.getPrefix().String())
-	return str
-}
-
-func (dest *DestinationDefault) constructWithdrawPath() Path {
-	path := &IPv4Path{}
-	return path
-}
-
-func (dest *DestinationDefault) getPrefix() net.IP {
-	var ip net.IP
-	switch p := dest.nlri.(type) {
-	case *bgp.NLRInfo:
-		ip = p.IPAddrPrefix.IPAddrPrefixDefault.Prefix
-	case *bgp.WithdrawnRoute:
-		ip = p.IPAddrPrefix.IPAddrPrefixDefault.Prefix
-	}
-	return ip
-}
-
-/*
-* 	Definition of inherited Destination interface
- */
-
-type IPv4Destination struct {
-	*DestinationDefault
-	//need structure
-}
-
-func NewIPv4Destination(nlri bgp.AddrPrefixInterface) *IPv4Destination {
-	ipv4Destination := &IPv4Destination{}
-	ipv4Destination.DestinationDefault = NewDestinationDefault(nlri)
-	ipv4Destination.DestinationDefault.ROUTE_FAMILY = bgp.RF_IPv4_UC
-	//need Processing
-	return ipv4Destination
-}
-
-func (ipv4d *IPv4Destination) String() string {
-	str := fmt.Sprintf("Destination NLRI: %s", ipv4d.getPrefix().String())
-	return str
-}
-
-type IPv6Destination struct {
-	*DestinationDefault
-	//need structure
-}
-
-func NewIPv6Destination(nlri bgp.AddrPrefixInterface) *IPv6Destination {
-	ipv6Destination := &IPv6Destination{}
-	ipv6Destination.DestinationDefault = NewDestinationDefault(nlri)
-	ipv6Destination.DestinationDefault.ROUTE_FAMILY = bgp.RF_IPv6_UC
-	//need Processing
-	return ipv6Destination
-}
-
-func (ipv6d *IPv6Destination) String() string {
-
-	str := fmt.Sprintf("Destination NLRI: %s", ipv6d.getPrefix().String())
-	return str
-}
-
-func (ipv6d *IPv6Destination) getPrefix() net.IP {
-	var ip net.IP
-	log.Debugf("type %s", reflect.TypeOf(ipv6d.nlri))
-	switch p := ipv6d.nlri.(type) {
-	case *bgp.IPv6AddrPrefix:
-		ip = p.IPAddrPrefix.IPAddrPrefixDefault.Prefix
-	case *bgp.WithdrawnRoute:
-		ip = p.IPAddrPrefix.IPAddrPrefixDefault.Prefix
-	}
-	return ip
-}
-
-func (ipv6d *IPv6Destination) MarshalJSON() ([]byte, error) {
-	prefix := ipv6d.getNlri().(*bgp.IPv6AddrPrefix).Prefix
-	idx := func() int {
-		for i, p := range ipv6d.DestinationDefault.knownPathList {
-			if p == ipv6d.DestinationDefault.GetBestPath() {
-				return i
-			}
-		}
-		log.WithFields(log.Fields{
-			"Topic": "Table",
-			"Key":   prefix.String(),
-		}).Panic("no best path")
-		return 0
-	}()
-	return json.Marshal(struct {
-		Prefix      string
-		Paths       []Path
-		BestPathIdx int `json:"best_path_idx"`
-	}{
-		Prefix:      prefix.String(),
-		Paths:       ipv6d.knownPathList,
-		BestPathIdx: idx,
-	})
-}
-
-type IPv4VPNDestination struct {
-	*DestinationDefault
-	//need structure
-}
-
-func NewIPv4VPNDestination(nlri bgp.AddrPrefixInterface) *IPv4VPNDestination {
-	ipv4VPNDestination := &IPv4VPNDestination{}
-	ipv4VPNDestination.DestinationDefault = NewDestinationDefault(nlri)
-	ipv4VPNDestination.DestinationDefault.ROUTE_FAMILY = bgp.RF_IPv4_VPN
-	//need Processing
-	return ipv4VPNDestination
-}
-
-func (ipv4vpnd *IPv4VPNDestination) String() string {
-
-	str := fmt.Sprintf("Destination NLRI: %s", ipv4vpnd.getPrefix().String())
-	return str
-}
-
-func (ipv4vpnd *IPv4VPNDestination) getPrefix() net.IP {
-	var ip net.IP
-	log.Debugf("type %s", reflect.TypeOf(ipv4vpnd.nlri))
-	switch p := ipv4vpnd.nlri.(type) {
-	case *bgp.IPv6AddrPrefix:
-		ip = p.IPAddrPrefix.IPAddrPrefixDefault.Prefix
-	case *bgp.WithdrawnRoute:
-		ip = p.IPAddrPrefix.IPAddrPrefixDefault.Prefix
-	}
-	return ip
-}
-
-func (ipv4vpnd *IPv4VPNDestination) MarshalJSON() ([]byte, error) {
-	prefix := ipv4vpnd.getNlri().(*bgp.LabelledVPNIPAddrPrefix).Prefix
-	idx := func() int {
-		for i, p := range ipv4vpnd.DestinationDefault.knownPathList {
-			if p == ipv4vpnd.DestinationDefault.GetBestPath() {
-				return i
-			}
-		}
-		log.WithFields(log.Fields{
-			"Topic": "Table",
-			"Key":   prefix.String(),
-		}).Panic("no best path")
-		return 0
-	}()
-	return json.Marshal(struct {
-		Prefix      string
-		Paths       []Path
-		BestPathIdx int `json:"best_path_idx"`
-	}{
-		Prefix:      prefix.String(),
-		Paths:       ipv4vpnd.knownPathList,
-		BestPathIdx: idx,
-	})
-}
-
-type EVPNDestination struct {
-	*DestinationDefault
-	//need structure
-}
-
-func NewEVPNDestination(nlri bgp.AddrPrefixInterface) *EVPNDestination {
-	EVPNDestination := &EVPNDestination{}
-	EVPNDestination.DestinationDefault = NewDestinationDefault(nlri)
-	EVPNDestination.DestinationDefault.ROUTE_FAMILY = bgp.RF_EVPN
-	//need Processing
-	return EVPNDestination
-}
-
-func (evpnd *EVPNDestination) MarshalJSON() ([]byte, error) {
-	nlri := evpnd.getNlri().(*bgp.EVPNNLRI)
-	idx := func() int {
-		for i, p := range evpnd.DestinationDefault.knownPathList {
-			if p == evpnd.DestinationDefault.GetBestPath() {
-				return i
-			}
-		}
-		log.WithFields(log.Fields{
-			"Topic": "Table",
-			"Key":   nlri.String(),
-		}).Panic("no best path")
-		return 0
-	}()
-	return json.Marshal(struct {
-		Prefix      string
-		Paths       []Path
-		BestPathIdx int `json:"best_path_idx"`
-	}{
-		Prefix:      nlri.String(),
-		Paths:       evpnd.knownPathList,
-		BestPathIdx: idx,
-	})
-}
-
-type EncapDestination struct {
-	*DestinationDefault
-}
-
-func NewEncapDestination(nlri bgp.AddrPrefixInterface) *EncapDestination {
-	d := NewDestinationDefault(nlri)
-	d.ROUTE_FAMILY = bgp.RF_ENCAP
-	return &EncapDestination{
-		DestinationDefault: d,
-	}
-}
-
-type RouteTargetDestination struct {
-	*DestinationDefault
-}
-
-func NewRouteTargetDestination(nlri bgp.AddrPrefixInterface) *RouteTargetDestination {
-	d := NewDestinationDefault(nlri)
-	d.ROUTE_FAMILY = bgp.RF_RTC_UC
-	return &RouteTargetDestination{
-		DestinationDefault: d,
-	}
+func (dest *Destination) String() string {
+	return fmt.Sprintf("Destination NLRI: %s", dest.nlri.String())
 }

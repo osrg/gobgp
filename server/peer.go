@@ -80,9 +80,9 @@ func (peer *Peer) configuredRFlist() []bgp.RouteFamily {
 	return rfList
 }
 
-func (peer *Peer) handleBGPmessage(m *bgp.BGPMessage) ([]table.Path, bool, []*bgp.BGPMessage) {
+func (peer *Peer) handleBGPmessage(m *bgp.BGPMessage) ([]*table.Path, bool, []*bgp.BGPMessage) {
 	bgpMsgList := []*bgp.BGPMessage{}
-	pathList := []table.Path{}
+	pathList := []*table.Path{}
 	log.WithFields(log.Fields{
 		"Topic": "Peer",
 		"Key":   peer.config.NeighborAddress,
@@ -176,11 +176,11 @@ func (peer *Peer) handleBGPmessage(m *bgp.BGPMessage) ([]table.Path, bool, []*bg
 	return pathList, update, bgpMsgList
 }
 
-func (peer *Peer) getBests(loc *LocalRib) []table.Path {
-	pathList := []table.Path{}
+func (peer *Peer) getBests(loc *LocalRib) []*table.Path {
+	pathList := []*table.Path{}
 	for _, rf := range peer.configuredRFlist() {
-		for _, dst := range loc.rib.Tables[rf].GetDestinations() {
-			pathList = append(pathList, dst.GetBestPath())
+		for _, paths := range loc.rib.GetPathList(rf) {
+			pathList = append(pathList, paths)
 		}
 	}
 	return pathList
@@ -377,7 +377,7 @@ func (loc *LocalRib) setPolicy(peer *Peer, policyMap map[string]*policy.Policy) 
 //                modified path.
 //                If action of the policy is 'reject', return nil
 //
-func (loc *LocalRib) applyPolicies(isExport bool, original table.Path) (bool, table.Path) {
+func (loc *LocalRib) applyPolicies(isExport bool, original *table.Path) (bool, *table.Path) {
 
 	var applied bool = true
 	var policies []*policy.Policy

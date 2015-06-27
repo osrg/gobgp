@@ -21,52 +21,30 @@ import (
 	"reflect"
 )
 
-type Table interface {
-	createDest(nlri bgp.AddrPrefixInterface) Destination
-	GetDestinations() map[string]Destination
-	setDestinations(destinations map[string]Destination)
-	getDestination(key string) Destination
-	setDestination(key string, dest Destination)
-	tableKey(nlri bgp.AddrPrefixInterface) string
-	validatePath(path Path)
-	validateNlri(nlri bgp.AddrPrefixInterface)
-	DeleteDestByPeer(*PeerInfo) []Destination
+type Table struct {
+	routeFamily  bgp.RouteFamily
+	destinations map[string]*Destination
 }
 
-type TableDefault struct {
-	ROUTE_FAMILY bgp.RouteFamily
-	destinations map[string]Destination
-	//need SignalBus
+func NewTable(rf bgp.RouteFamily) *Table {
+	return &Table{
+		routeFamily:  rf,
+		destinations: make(map[string]*Destination),
+	}
 }
 
-func NewTableDefault(scope_id int) *TableDefault {
-	table := &TableDefault{}
-	table.ROUTE_FAMILY = bgp.RF_IPv4_UC
-	table.destinations = make(map[string]Destination)
-	return table
-
+func (t *Table) GetRoutefamily() bgp.RouteFamily {
+	return t.routeFamily
 }
 
-func (td *TableDefault) GetRoutefamily() bgp.RouteFamily {
-	return td.ROUTE_FAMILY
-}
+func (t *Table) insert(path *Path) *Destination {
+	var dest *Destination
 
-//Creates destination
-//Implements interface
-func (td *TableDefault) createDest(nlri *bgp.NLRInfo) Destination {
-	//return NewDestination(td, nlri)
-	log.Error("CreateDest NotImplementedError")
-	return nil
-}
+	t.validatePath(path)
+	t.validateNlri(path.GetNlri())
+	dest = t.getOrCreateDest(path.GetNlri())
 
-func insert(table Table, path Path) Destination {
-	var dest Destination
-
-	table.validatePath(path)
-	table.validateNlri(path.GetNlri())
-	dest = getOrCreateDest(table, path.GetNlri())
-
-	if path.IsWithdraw() {
+	if path.IsWithdraw {
 		// withdraw insert
 		dest.addWithdraw(path)
 	} else {
@@ -76,27 +54,10 @@ func insert(table Table, path Path) Destination {
 	return dest
 }
 
-/*
-//Cleans table of any path that do not have any RT in common with interested_rts
-// Commented out because it is a VPN-related processing
-func (td *TableDefault) cleanUninterestingPaths(interested_rts) int  {
-	uninterestingDestCount = 0
-	for _, dest := range td.destinations {
-		addedWithdraw :=dest.withdrawUnintrestingPaths(interested_rts)
-		if addedWithdraw{
-			//need _signal_bus.dest_changed(dest)
-			uninterestingDestCount += 1
-		}
-	}
-	return uninterestingDestCount
-	// need content
-}
-*/
-
-func (td *TableDefault) DeleteDestByPeer(peerInfo *PeerInfo) []Destination {
-	changedDests := make([]Destination, 0)
-	for _, dest := range td.destinations {
-		newKnownPathList := make([]Path, 0)
+func (t *Table) DeleteDestByPeer(peerInfo *PeerInfo) []*Destination {
+	changedDests := make([]*Destination, 0)
+	for _, dest := range t.destinations {
+		newKnownPathList := make([]*Path, 0)
 		for _, p := range dest.getKnownPathList() {
 			if !p.GetSource().Equal(peerInfo) {
 				newKnownPathList = append(newKnownPathList, p)
@@ -110,32 +71,32 @@ func (td *TableDefault) DeleteDestByPeer(peerInfo *PeerInfo) []Destination {
 	return changedDests
 }
 
-func deleteDestByNlri(table Table, nlri bgp.AddrPrefixInterface) Destination {
-	table.validateNlri(nlri)
-	destinations := table.GetDestinations()
-	dest := destinations[table.tableKey(nlri)]
+func (t *Table) deleteDestByNlri(nlri bgp.AddrPrefixInterface) *Destination {
+	t.validateNlri(nlri)
+	destinations := t.GetDestinations()
+	dest := destinations[t.tableKey(nlri)]
 	if dest != nil {
-		delete(destinations, table.tableKey(nlri))
+		delete(destinations, t.tableKey(nlri))
 	}
 	return dest
 }
 
-func deleteDest(table Table, dest Destination) {
-	destinations := table.GetDestinations()
-	delete(destinations, table.tableKey(dest.getNlri()))
+func (t *Table) deleteDest(dest *Destination) {
+	destinations := t.GetDestinations()
+	delete(destinations, t.tableKey(dest.getNlri()))
 }
 
-func (td *TableDefault) validatePath(path Path) {
-	if path == nil || path.GetRouteFamily() != td.ROUTE_FAMILY {
+func (t *Table) validatePath(path *Path) {
+	if path == nil || path.GetRouteFamily() != t.routeFamily {
 		if path == nil {
 			log.WithFields(log.Fields{
 				"Topic": "Table",
-				"Key":   td.ROUTE_FAMILY,
+				"Key":   t.routeFamily,
 			}).Error("path is nil")
-		} else if path.GetRouteFamily() != td.ROUTE_FAMILY {
+		} else if path.GetRouteFamily() != t.routeFamily {
 			log.WithFields(log.Fields{
 				"Topic":      "Table",
-				"Key":        td.ROUTE_FAMILY,
+				"Key":        t.routeFamily,
 				"Prefix":     path.GetNlri().String(),
 				"ReceivedRf": path.GetRouteFamily().String(),
 			}).Error("Invalid path. RouteFamily mismatch")
@@ -149,7 +110,7 @@ func (td *TableDefault) validatePath(path Path) {
 			if !y {
 				log.WithFields(log.Fields{
 					"Topic": "Table",
-					"Key":   td.ROUTE_FAMILY,
+					"Key":   t.routeFamily,
 					"As":    as,
 				}).Fatal("AsPathParam must be converted to As4PathParam")
 			}
@@ -160,43 +121,43 @@ func (td *TableDefault) validatePath(path Path) {
 	if attr != nil {
 		log.WithFields(log.Fields{
 			"Topic": "Table",
-			"Key":   td.ROUTE_FAMILY,
+			"Key":   t.routeFamily,
 		}).Fatal("AS4_PATH must be converted to AS_PATH")
 	}
 }
 
-func (td *TableDefault) validateNlri(nlri bgp.AddrPrefixInterface) {
+func (t *Table) validateNlri(nlri bgp.AddrPrefixInterface) {
 	if nlri == nil {
 		log.WithFields(log.Fields{
 			"Topic": "Table",
-			"Key":   td.ROUTE_FAMILY,
+			"Key":   t.routeFamily,
 			"Nlri":  nlri,
 		}).Error("Invalid Vpnv4 prefix given.")
 
 	}
 }
 
-func getOrCreateDest(table Table, nlri bgp.AddrPrefixInterface) Destination {
-	log.Debugf("getOrCreateDest Table type : %s", reflect.TypeOf(table))
-	tableKey := table.tableKey(nlri)
-	dest := table.getDestination(tableKey)
+func (t *Table) getOrCreateDest(nlri bgp.AddrPrefixInterface) *Destination {
+	log.Debugf("getOrCreateDest Table type : %s", reflect.TypeOf(t))
+	tableKey := t.tableKey(nlri)
+	dest := t.getDestination(tableKey)
 	// If destination for given prefix does not exist we create it.
 	if dest == nil {
 		log.Debugf("getOrCreateDest dest with key %s is not found", tableKey)
-		dest = table.createDest(nlri)
-		table.setDestination(tableKey, dest)
+		dest = NewDestination(nlri)
+		t.setDestination(tableKey, dest)
 	}
 	return dest
 }
 
-func (td *TableDefault) GetDestinations() map[string]Destination {
-	return td.destinations
+func (t *Table) GetDestinations() map[string]*Destination {
+	return t.destinations
 }
-func (td *TableDefault) setDestinations(destinations map[string]Destination) {
-	td.destinations = destinations
+func (t *Table) setDestinations(destinations map[string]*Destination) {
+	t.destinations = destinations
 }
-func (td *TableDefault) getDestination(key string) Destination {
-	dest, ok := td.destinations[key]
+func (t *Table) getDestination(key string) *Destination {
+	dest, ok := t.destinations[key]
 	if ok {
 		return dest
 	} else {
@@ -204,171 +165,10 @@ func (td *TableDefault) getDestination(key string) Destination {
 	}
 }
 
-func (td *TableDefault) setDestination(key string, dest Destination) {
-	td.destinations[key] = dest
+func (t *Table) setDestination(key string, dest *Destination) {
+	t.destinations[key] = dest
 }
 
-//Implements interface
-func (td *TableDefault) tableKey(nlri bgp.AddrPrefixInterface) string {
-	//need Inheritance over ride
-	//return &nlri.IPAddrPrefix.IPAddrPrefixDefault.Prefix
-	log.Error("CreateDest NotImplementedError")
-	return ""
-}
-
-/*
-* 	Definition of inherited Table interface
- */
-
-type IPv4Table struct {
-	*TableDefault
-	//need structure
-}
-
-func NewIPv4Table(scope_id int) *IPv4Table {
-	ipv4Table := &IPv4Table{}
-	ipv4Table.TableDefault = NewTableDefault(scope_id)
-	ipv4Table.TableDefault.ROUTE_FAMILY = bgp.RF_IPv4_UC
-	//need Processing
-	return ipv4Table
-}
-
-//Creates destination
-//Implements interface
-func (ipv4t *IPv4Table) createDest(nlri bgp.AddrPrefixInterface) Destination {
-	return NewIPv4Destination(nlri)
-}
-
-//make tablekey
-//Implements interface
-func (ipv4t *IPv4Table) tableKey(nlri bgp.AddrPrefixInterface) string {
-	switch p := nlri.(type) {
-	case *bgp.NLRInfo:
-		return p.IPAddrPrefix.IPAddrPrefixDefault.String()
-	case *bgp.WithdrawnRoute:
-		return p.IPAddrPrefix.IPAddrPrefixDefault.String()
-	}
-	log.Fatal()
-	return ""
-}
-
-type IPv6Table struct {
-	*TableDefault
-	//need structure
-}
-
-func NewIPv6Table(scope_id int) *IPv6Table {
-	ipv6Table := &IPv6Table{}
-	ipv6Table.TableDefault = NewTableDefault(scope_id)
-	ipv6Table.TableDefault.ROUTE_FAMILY = bgp.RF_IPv6_UC
-	//need Processing
-	return ipv6Table
-}
-
-//Creates destination
-//Implements interface
-func (ipv6t *IPv6Table) createDest(nlri bgp.AddrPrefixInterface) Destination {
-	return Destination(NewIPv6Destination(nlri))
-}
-
-//make tablekey
-//Implements interface
-func (ipv6t *IPv6Table) tableKey(nlri bgp.AddrPrefixInterface) string {
-
-	addrPrefix := nlri.(*bgp.IPv6AddrPrefix)
-	return addrPrefix.IPAddrPrefixDefault.String()
-
-}
-
-type IPv4VPNTable struct {
-	*TableDefault
-	//need structure
-}
-
-func NewIPv4VPNTable(scope_id int) *IPv4VPNTable {
-	ipv4VPNTable := &IPv4VPNTable{}
-	ipv4VPNTable.TableDefault = NewTableDefault(scope_id)
-	ipv4VPNTable.TableDefault.ROUTE_FAMILY = bgp.RF_IPv4_VPN
-	//need Processing
-	return ipv4VPNTable
-}
-
-//Creates destination
-//Implements interface
-func (ipv4vpnt *IPv4VPNTable) createDest(nlri bgp.AddrPrefixInterface) Destination {
-	return Destination(NewIPv4VPNDestination(nlri))
-}
-
-//make tablekey
-//Implements interface
-func (ipv4vpnt *IPv4VPNTable) tableKey(nlri bgp.AddrPrefixInterface) string {
-
-	addrPrefix := nlri.(*bgp.LabelledVPNIPAddrPrefix)
-	return addrPrefix.IPAddrPrefixDefault.String()
-
-}
-
-type EVPNTable struct {
-	*TableDefault
-	//need structure
-}
-
-func NewEVPNTable(scope_id int) *EVPNTable {
-	EVPNTable := &EVPNTable{}
-	EVPNTable.TableDefault = NewTableDefault(scope_id)
-	EVPNTable.TableDefault.ROUTE_FAMILY = bgp.RF_EVPN
-	//need Processing
-	return EVPNTable
-}
-
-//Creates destination
-//Implements interface
-func (ipv4vpnt *EVPNTable) createDest(nlri bgp.AddrPrefixInterface) Destination {
-	return Destination(NewEVPNDestination(nlri))
-}
-
-//make tablekey
-//Implements interface
-func (ipv4vpnt *EVPNTable) tableKey(nlri bgp.AddrPrefixInterface) string {
-
-	addrPrefix := nlri.(*bgp.EVPNNLRI)
-	return addrPrefix.String()
-}
-
-type EncapTable struct {
-	*TableDefault
-}
-
-func NewEncapTable() *EncapTable {
-	EncapTable := &EncapTable{}
-	EncapTable.TableDefault = NewTableDefault(0)
-	EncapTable.TableDefault.ROUTE_FAMILY = bgp.RF_ENCAP
-	return EncapTable
-}
-
-func (t *EncapTable) createDest(nlri bgp.AddrPrefixInterface) Destination {
-	return Destination(NewEncapDestination(nlri))
-}
-
-func (t *EncapTable) tableKey(nlri bgp.AddrPrefixInterface) string {
-	return nlri.String()
-}
-
-type RouteTargetTable struct {
-	*TableDefault
-}
-
-func NewRouteTargetTable() *RouteTargetTable {
-	routeTargetTable := &RouteTargetTable{}
-	routeTargetTable.TableDefault = NewTableDefault(0)
-	routeTargetTable.TableDefault.ROUTE_FAMILY = bgp.RF_RTC_UC
-	return routeTargetTable
-}
-
-func (t *RouteTargetTable) createDest(nlri bgp.AddrPrefixInterface) Destination {
-	return Destination(NewRouteTargetDestination(nlri))
-}
-
-func (t *RouteTargetTable) tableKey(nlri bgp.AddrPrefixInterface) string {
+func (t *Table) tableKey(nlri bgp.AddrPrefixInterface) string {
 	return nlri.String()
 }

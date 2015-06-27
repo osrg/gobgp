@@ -128,15 +128,15 @@ func cloneAttrSlice(attrs []bgp.PathAttributeInterface) []bgp.PathAttributeInter
 	return clonedAttrs
 }
 
-func UpdatePathAttrs(path Path, global *config.Global, peer *config.Neighbor) {
+func UpdatePathAttrs(path *Path, global *config.Global, peer *config.Neighbor) {
 	path.updatePathAttrs(global, peer)
 }
 
-func createUpdateMsgFromPath(path Path, msg *bgp.BGPMessage) *bgp.BGPMessage {
+func createUpdateMsgFromPath(path *Path, msg *bgp.BGPMessage) *bgp.BGPMessage {
 	rf := path.GetRouteFamily()
 
 	if rf == bgp.RF_IPv4_UC {
-		if path.IsWithdraw() {
+		if path.IsWithdraw {
 			draw := path.GetNlri().(*bgp.WithdrawnRoute)
 			if msg != nil {
 				u := msg.Body.(*bgp.BGPUpdate)
@@ -156,7 +156,7 @@ func createUpdateMsgFromPath(path Path, msg *bgp.BGPMessage) *bgp.BGPMessage {
 			}
 		}
 	} else if rf == bgp.RF_IPv6_UC || rf == bgp.RF_EVPN || rf == bgp.RF_ENCAP || rf == bgp.RF_RTC_UC {
-		if path.IsWithdraw() {
+		if path.IsWithdraw {
 			if msg != nil {
 				idx, _ := path.getPathAttr(bgp.BGP_ATTR_TYPE_MP_UNREACH_NLRI)
 				u := msg.Body.(*bgp.BGPUpdate)
@@ -207,7 +207,7 @@ func isSamePathAttrs(pList1 []bgp.PathAttributeInterface, pList2 []bgp.PathAttri
 	return true
 }
 
-func isMergeable(p1 Path, p2 Path) bool {
+func isMergeable(p1, p2 *Path) bool {
 	return false
 	if p1 == nil {
 		return false
@@ -221,8 +221,8 @@ func isMergeable(p1 Path, p2 Path) bool {
 	return false
 }
 
-func CreateUpdateMsgFromPaths(pathList []Path) []*bgp.BGPMessage {
-	var pre Path
+func CreateUpdateMsgFromPaths(pathList []*Path) []*bgp.BGPMessage {
+	var pre *Path
 	var msgs []*bgp.BGPMessage
 	for _, path := range pathList {
 		y := isMergeable(pre, path)

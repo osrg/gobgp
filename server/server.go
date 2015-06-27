@@ -201,7 +201,7 @@ func (server *BgpServer) Serve() {
 				server.addLocalRib(loc)
 				loc.setPolicy(peer, server.policyMap)
 
-				pathList := make([]table.Path, 0)
+				pathList := make([]*table.Path, 0)
 				for _, p := range server.neighborMap {
 					if p.isRouteServerClient() == false {
 						continue
@@ -271,8 +271,8 @@ func (server *BgpServer) Serve() {
 	}
 }
 
-func dropSameAsPath(asnum uint32, p []table.Path) []table.Path {
-	pathList := []table.Path{}
+func dropSameAsPath(asnum uint32, p []*table.Path) []*table.Path {
+	pathList := []*table.Path{}
 	for _, path := range p {
 		asList := path.GetAsList()
 		send := true
@@ -299,8 +299,8 @@ func newSenderMsg(peer *Peer, messages []*bgp.BGPMessage) *SenderMsg {
 	}
 }
 
-func filterpath(peer *Peer, pathList []table.Path) []table.Path {
-	filtered := make([]table.Path, 0)
+func filterpath(peer *Peer, pathList []*table.Path) []*table.Path {
+	filtered := make([]*table.Path, 0)
 
 	for _, path := range pathList {
 		if _, ok := peer.rfMap[path.GetRouteFamily()]; !ok {
@@ -324,7 +324,7 @@ func filterpath(peer *Peer, pathList []table.Path) []table.Path {
 			}).Debug("AS PATH loop, ignore.")
 			continue
 		}
-		filtered = append(filtered, path.Clone(path.IsWithdraw()))
+		filtered = append(filtered, path.Clone(path.IsWithdraw))
 	}
 	return filtered
 }
@@ -370,7 +370,7 @@ func (server *BgpServer) dropPeerAllRoutes(peer *Peer) []*SenderMsg {
 	return msgs
 }
 
-func applyPolicies(peer *Peer, loc *LocalRib, isExport bool, pathList []table.Path) []table.Path {
+func applyPolicies(peer *Peer, loc *LocalRib, isExport bool, pathList []*table.Path) []*table.Path {
 	var defaultPolicy config.DefaultPolicyType
 	if isExport == true {
 		defaultPolicy = loc.defaultExportPolicy
@@ -378,9 +378,9 @@ func applyPolicies(peer *Peer, loc *LocalRib, isExport bool, pathList []table.Pa
 		defaultPolicy = loc.defaultImportPolicy
 	}
 
-	ret := make([]table.Path, 0, len(pathList))
+	ret := make([]*table.Path, 0, len(pathList))
 	for _, path := range pathList {
-		if !path.IsWithdraw() {
+		if !path.IsWithdraw {
 			var applied bool = false
 			applied, path = loc.applyPolicies(isExport, path)
 			if applied {
@@ -402,12 +402,12 @@ func applyPolicies(peer *Peer, loc *LocalRib, isExport bool, pathList []table.Pa
 			}
 		}
 		// FIXME: probably we already clone.
-		ret = append(ret, path.Clone(path.IsWithdraw()))
+		ret = append(ret, path.Clone(path.IsWithdraw))
 	}
 	return ret
 }
 
-func (server *BgpServer) broadcastBests(bests []table.Path) {
+func (server *BgpServer) broadcastBests(bests []*table.Path) {
 	for _, path := range bests {
 		result := &GrpcResponse{
 			Data: path.ToApiStruct(),
@@ -453,7 +453,7 @@ func (server *BgpServer) broadcastPeerState(peer *Peer) {
 	server.broadcastReqs = remainReqs
 }
 
-func (server *BgpServer) propagateUpdate(neighborAddress string, RouteServerClient bool, pathList []table.Path) []*SenderMsg {
+func (server *BgpServer) propagateUpdate(neighborAddress string, RouteServerClient bool, pathList []*table.Path) []*SenderMsg {
 	msgs := make([]*SenderMsg, 0)
 
 	if RouteServerClient {
@@ -531,14 +531,14 @@ func (server *BgpServer) handleFSMMessage(peer *Peer, e *fsmMsg, incoming chan *
 		close(peer.outgoing)
 		peer.outgoing = make(chan *bgp.BGPMessage, 128)
 		if nextState == bgp.BGP_FSM_ESTABLISHED {
-			pathList := make([]table.Path, 0)
+			pathList := make([]*table.Path, 0)
 			if peer.isRouteServerClient() {
 				loc := server.localRibMap[peer.config.NeighborAddress.String()]
 				pathList = applyPolicies(peer, loc, true, peer.getBests(loc))
 			} else {
 				peer.config.LocalAddress = peer.fsm.LocalAddr()
 				for _, path := range peer.getBests(globalRib) {
-					p := path.Clone(path.IsWithdraw())
+					p := path.Clone(path.IsWithdraw)
 					p.SetNexthop(peer.config.LocalAddress)
 					pathList = append(pathList, p)
 				}
@@ -637,8 +637,8 @@ func (server *BgpServer) checkNeighborRequest(grpcReq *GrpcRequest) (*Peer, erro
 	return peer, nil
 }
 
-func handleGlobalRibRequest(grpcReq *GrpcRequest, peerInfo *table.PeerInfo) []table.Path {
-	pathList := []table.Path{}
+func handleGlobalRibRequest(grpcReq *GrpcRequest, peerInfo *table.PeerInfo) []*table.Path {
+	pathList := []*table.Path{}
 	result := &GrpcResponse{}
 
 	rf := grpcReq.RouteFamily
@@ -806,14 +806,8 @@ func handleGlobalRibRequest(grpcReq *GrpcRequest, peerInfo *table.PeerInfo) []ta
 		return pathList
 	}
 
-	p, err := table.CreatePath(peerInfo, nlri, pattr, isWithdraw, time.Now())
-	if err != nil {
-		result.ResponseErr = err
-		grpcReq.ResponseCh <- result
-		close(grpcReq.ResponseCh)
-		return pathList
-	}
-	return []table.Path{p}
+	p := table.NewPath(peerInfo, nlri, isWithdraw, pattr, false, time.Now())
+	return []*table.Path{p}
 }
 
 func (server *BgpServer) handleGrpc(grpcReq *GrpcRequest) []*SenderMsg {
@@ -885,7 +879,7 @@ func (server *BgpServer) handleGrpc(grpcReq *GrpcRequest) []*SenderMsg {
 			break
 		}
 		rf := grpcReq.RouteFamily
-		var paths []table.Path
+		var paths []*table.Path
 
 		if grpcReq.RequestType == REQ_ADJ_RIB_IN {
 			paths = peer.adjRib.GetInPathList(rf)
