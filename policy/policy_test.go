@@ -277,7 +277,7 @@ func TestPolicyNotMatch(t *testing.T) {
 	match, pType, newPath := p.Apply(path)
 	assert.Equal(t, false, match)
 	assert.Equal(t, ROUTE_TYPE_NONE, pType)
-	assert.Equal(t, nil, newPath)
+	assert.Nil(t, newPath)
 }
 
 func TestPolicyMatchAndReject(t *testing.T) {
@@ -334,7 +334,7 @@ func TestPolicyMatchAndReject(t *testing.T) {
 	match, pType, newPath := p.Apply(path)
 	assert.Equal(t, true, match)
 	assert.Equal(t, ROUTE_TYPE_REJECT, pType)
-	assert.Equal(t, nil, newPath)
+	assert.Nil(t, newPath)
 }
 
 func TestPolicyMatchAndAccept(t *testing.T) {
@@ -454,12 +454,12 @@ func TestPolicyRejectOnlyPrefixSet(t *testing.T) {
 	match, pType, newPath := p.Apply(path1)
 	assert.Equal(t, true, match)
 	assert.Equal(t, ROUTE_TYPE_REJECT, pType)
-	assert.Equal(t, nil, newPath)
+	assert.Nil(t, newPath)
 
 	match2, pType2, newPath2 := p.Apply(path2)
 	assert.Equal(t, false, match2)
 	assert.Equal(t, ROUTE_TYPE_NONE, pType2)
-	assert.Equal(t, nil, newPath2)
+	assert.Nil(t, newPath2)
 }
 
 func TestPolicyRejectOnlyNeighborSet(t *testing.T) {
@@ -520,12 +520,12 @@ func TestPolicyRejectOnlyNeighborSet(t *testing.T) {
 	match, pType, newPath := p.Apply(path1)
 	assert.Equal(t, true, match)
 	assert.Equal(t, ROUTE_TYPE_REJECT, pType)
-	assert.Equal(t, nil, newPath)
+	assert.Nil(t, newPath)
 
 	match2, pType2, newPath2 := p.Apply(path2)
 	assert.Equal(t, false, match2)
 	assert.Equal(t, ROUTE_TYPE_NONE, pType2)
-	assert.Equal(t, nil, newPath2)
+	assert.Nil(t, newPath2)
 }
 
 func TestPolicyDifferentRoutefamilyOfPathAndPolicy(t *testing.T) {
@@ -623,12 +623,12 @@ func TestPolicyDifferentRoutefamilyOfPathAndPolicy(t *testing.T) {
 	match1, pType1, newPath1 := p.Apply(pathIPv4)
 	assert.Equal(t, true, match1)
 	assert.Equal(t, ROUTE_TYPE_REJECT, pType1)
-	assert.Equal(t, nil, newPath1)
+	assert.Nil(t, newPath1)
 
 	match2, pType2, newPath2 := p.Apply(pathIPv6)
 	assert.Equal(t, true, match2)
 	assert.Equal(t, ROUTE_TYPE_REJECT, pType2)
-	assert.Equal(t, nil, newPath2)
+	assert.Nil(t, newPath2)
 }
 
 func TestAsPathLengthConditionEvaluate(t *testing.T) {
@@ -754,7 +754,7 @@ func TestAsPathLengthConditionWithOtherCondition(t *testing.T) {
 	match, pType, newPath := p.Apply(path)
 	assert.Equal(t, true, match)
 	assert.Equal(t, ROUTE_TYPE_REJECT, pType)
-	assert.Equal(t, nil, newPath)
+	assert.Nil(t, newPath)
 
 }
 
@@ -920,7 +920,7 @@ func TestAsPathConditionWithOtherCondition(t *testing.T) {
 	match, pType, newPath := p.Apply(path)
 	assert.Equal(t, true, match)
 	assert.Equal(t, ROUTE_TYPE_REJECT, pType)
-	assert.Equal(t, nil, newPath)
+	assert.Nil(t, newPath)
 
 }
 
@@ -1141,17 +1141,16 @@ func TestConditionConditionEvaluateWithOtherCondition(t *testing.T) {
 	match, pType, newPath := p.Apply(path)
 	assert.Equal(t, true, match)
 	assert.Equal(t, ROUTE_TYPE_REJECT, pType)
-	assert.Equal(t, nil, newPath)
+	assert.Nil(t, newPath)
 
 	df = pl.DefinedSets
 	p = NewPolicy(pl.PolicyDefinitionList[1], df)
 	match, pType, newPath = p.Apply(path)
 	assert.Equal(t, false, match)
 	assert.Equal(t, ROUTE_TYPE_NONE, pType)
-	assert.Equal(t, nil, newPath)
+	assert.Nil(t, newPath)
 
 }
-
 
 func TestPolicyMatchAndAddCommunities(t *testing.T) {
 
@@ -1203,7 +1202,7 @@ func TestPolicyMatchAndAddCommunities(t *testing.T) {
 			BgpActions: config.BgpActions{
 				SetCommunity: config.SetCommunity{
 					Communities: []string{community},
-					Options: "ADD",
+					Options:     "ADD",
 				},
 			},
 		},
@@ -1221,7 +1220,6 @@ func TestPolicyMatchAndAddCommunities(t *testing.T) {
 	log.Debug(newPath)
 	assert.Equal(t, []uint32{stringToCommunityValue(community)}, newPath.GetCommunities())
 }
-
 
 func TestPolicyMatchAndReplaceCommunities(t *testing.T) {
 
@@ -1276,7 +1274,7 @@ func TestPolicyMatchAndReplaceCommunities(t *testing.T) {
 			BgpActions: config.BgpActions{
 				SetCommunity: config.SetCommunity{
 					Communities: []string{community},
-					Options: "REPLACE",
+					Options:     "REPLACE",
 				},
 			},
 		},
@@ -1348,7 +1346,7 @@ func TestPolicyMatchAndRemoveCommunities(t *testing.T) {
 			BgpActions: config.BgpActions{
 				SetCommunity: config.SetCommunity{
 					Communities: []string{community1},
-					Options: "REMOVE",
+					Options:     "REMOVE",
 				},
 			},
 		},
@@ -1420,7 +1418,7 @@ func TestPolicyMatchAndClearCommunities(t *testing.T) {
 			BgpActions: config.BgpActions{
 				SetCommunity: config.SetCommunity{
 					Communities: []string{community1},
-					Options: "NULL",
+					Options:     "NULL",
 				},
 			},
 		},
