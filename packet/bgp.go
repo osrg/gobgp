@@ -2050,7 +2050,7 @@ type PathAttributeInterface interface {
 	Serialize() ([]byte, error)
 	Len() int
 	getFlags() BGPAttrFlag
-	getType() BGPAttrType
+	GetType() BGPAttrType
 	ToApiStruct() *api.PathAttr
 	Equal(PathAttributeInterface) bool
 	raw() *PathAttribute
@@ -2077,7 +2077,7 @@ func (p *PathAttribute) getFlags() BGPAttrFlag {
 	return p.Flags
 }
 
-func (p *PathAttribute) getType() BGPAttrType {
+func (p *PathAttribute) GetType() BGPAttrType {
 	return p.Type
 }
 

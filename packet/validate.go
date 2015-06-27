@@ -23,10 +23,10 @@ func ValidateUpdateMsg(m *BGPUpdate, rfs map[RouteFamily]bool) (bool, error) {
 	// check path attribute
 	for _, a := range m.PathAttributes {
 		// check duplication
-		if _, ok := seen[a.getType()]; !ok {
-			seen[a.getType()] = a
+		if _, ok := seen[a.GetType()]; !ok {
+			seen[a.GetType()] = a
 		} else {
-			eMsg := "the path attribute apears twice. Type : " + strconv.Itoa(int(a.getType()))
+			eMsg := "the path attribute apears twice. Type : " + strconv.Itoa(int(a.GetType()))
 			return false, NewMessageError(eCode, eSubCodeAttrList, nil, eMsg)
 		}
 
