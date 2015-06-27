@@ -57,6 +57,7 @@ type Path interface {
 	isLocal() bool
 	ToApiStruct() *api.Path
 	MarshalJSON() ([]byte, error)
+	Equal(p Path) bool
 }
 
 type PathDefault struct {
@@ -477,6 +478,26 @@ func (pd *PathDefault) ClearCommunities() {
 	if idx >= 0 {
 		pd.pathAttrs = append(pd.pathAttrs[:idx], pd.pathAttrs[idx+1:]...)
 	}
+}
+
+func (lhs *PathDefault) Equal(rhs Path) bool {
+	if rhs == nil {
+		return false
+	} else if lhs == rhs {
+		return true
+	}
+	isSamePathAttrs := func() bool {
+		if len(lhs.pathAttrs) != len(rhs.getPathAttrs()) {
+			return false
+		}
+		for i, v := range rhs.getPathAttrs() {
+			if !v.Equal(lhs.pathAttrs[i]) {
+				return false
+			}
+		}
+		return true
+	}
+	return lhs.withdraw == rhs.IsWithdraw() && lhs.nlri.Equal(rhs.GetNlri()) && isSamePathAttrs()
 }
 
 // create Path object based on route family

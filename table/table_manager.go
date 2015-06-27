@@ -165,7 +165,7 @@ func (manager *TableManager) calculate(destinationList []Destination) ([]Path, e
 		destination.setBestPathReason(reason)
 		currentBestPath := destination.GetBestPath()
 
-		if newBestPath != nil && currentBestPath == newBestPath {
+		if newBestPath != nil && newBestPath.Equal(currentBestPath) {
 			// best path is not changed
 			log.WithFields(log.Fields{
 				"Topic":    "table",
@@ -175,6 +175,7 @@ func (manager *TableManager) calculate(destinationList []Destination) ([]Path, e
 				"next_hop": newBestPath.GetNexthop().String(),
 				"reason":   reason,
 			}).Debug("best path is not changed")
+			destination.setBestPath(newBestPath)
 			continue
 		}
 
