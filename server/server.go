@@ -668,36 +668,32 @@ func (server *BgpServer) checkNeighborRequest(grpcReq *GrpcRequest) (*Peer, erro
 }
 
 func handleGlobalRibRequest(grpcReq *GrpcRequest, peerInfo *table.PeerInfo) []*table.Path {
-	pathList := []*table.Path{}
+	var isWithdraw bool
+	var p *table.Path
+	var nlri bgp.AddrPrefixInterface
 	result := &GrpcResponse{}
+
+	pattr := make([]bgp.PathAttributeInterface, 0)
+	pattr = append(pattr, bgp.NewPathAttributeOrigin(bgp.BGP_ORIGIN_ATTR_TYPE_IGP))
+	asparam := bgp.NewAs4PathParam(bgp.BGP_ASPATH_ATTR_TYPE_SEQ, []uint32{peerInfo.AS})
+	pattr = append(pattr, bgp.NewPathAttributeAsPath([]bgp.AsPathParamInterface{asparam}))
 
 	rf := grpcReq.RouteFamily
 	path, ok := grpcReq.Data.(*api.Path)
 	if !ok {
 		result.ResponseErr = fmt.Errorf("type assertion failed")
-		grpcReq.ResponseCh <- result
-		close(grpcReq.ResponseCh)
-		return pathList
+		goto ERR
 	}
-	var isWithdraw bool
 	if grpcReq.RequestType == REQ_GLOBAL_DELETE {
 		isWithdraw = true
 	}
-
-	var nlri bgp.AddrPrefixInterface
-	pattr := make([]bgp.PathAttributeInterface, 0)
-	pattr = append(pattr, bgp.NewPathAttributeOrigin(bgp.BGP_ORIGIN_ATTR_TYPE_IGP))
-	asparam := bgp.NewAs4PathParam(bgp.BGP_ASPATH_ATTR_TYPE_SEQ, []uint32{peerInfo.AS})
-	pattr = append(pattr, bgp.NewPathAttributeAsPath([]bgp.AsPathParamInterface{asparam}))
 
 	switch rf {
 	case bgp.RF_IPv4_UC:
 		ip, net, _ := net.ParseCIDR(path.Nlri.Prefix)
 		if ip.To4() == nil {
 			result.ResponseErr = fmt.Errorf("Invalid ipv4 prefix: %s", path.Nlri.Prefix)
-			grpcReq.ResponseCh <- result
-			close(grpcReq.ResponseCh)
-			return pathList
+			goto ERR
 		}
 		ones, _ := net.Mask.Size()
 		nlri = &bgp.NLRInfo{
@@ -711,9 +707,7 @@ func handleGlobalRibRequest(grpcReq *GrpcRequest, peerInfo *table.PeerInfo) []*t
 		ip, net, _ := net.ParseCIDR(path.Nlri.Prefix)
 		if ip.To16() == nil {
 			result.ResponseErr = fmt.Errorf("Invalid ipv6 prefix: %s", path.Nlri.Prefix)
-			grpcReq.ResponseCh <- result
-			close(grpcReq.ResponseCh)
-			return pathList
+			goto ERR
 		}
 		ones, _ := net.Mask.Size()
 		nlri = bgp.NewIPv6AddrPrefix(uint8(ones), ip.String())
@@ -721,45 +715,80 @@ func handleGlobalRibRequest(grpcReq *GrpcRequest, peerInfo *table.PeerInfo) []*t
 		pattr = append(pattr, bgp.NewPathAttributeMpReachNLRI("::", []bgp.AddrPrefixInterface{nlri}))
 
 	case bgp.RF_EVPN:
-		mac, err := net.ParseMAC(path.Nlri.EvpnNlri.MacIpAdv.MacAddr)
-		if err != nil {
-			result.ResponseErr = fmt.Errorf("Invalid mac: %s", path.Nlri.EvpnNlri.MacIpAdv.MacAddr)
-			grpcReq.ResponseCh <- result
-			close(grpcReq.ResponseCh)
-			return pathList
+		if peerInfo.AS > (1<<16 - 1) {
+			result.ResponseErr = fmt.Errorf("evpn path can't be created in 4byte-AS env")
 		}
-		ip := net.ParseIP(path.Nlri.EvpnNlri.MacIpAdv.IpAddr)
-		if ip == nil {
-			result.ResponseErr = fmt.Errorf("Invalid ip prefix: %s", path.Nlri.EvpnNlri.MacIpAdv.IpAddr)
-			grpcReq.ResponseCh <- result
-			close(grpcReq.ResponseCh)
-			return pathList
-		}
-		iplen := net.IPv4len * 8
-		if ip.To4() == nil {
-			iplen = net.IPv6len * 8
-		}
+		asn := uint16(peerInfo.AS)
+		routerId := peerInfo.LocalID
+		var eTag uint32
 
-		macIpAdv := &bgp.EVPNMacIPAdvertisementRoute{
-			RD: bgp.NewRouteDistinguisherTwoOctetAS(0, 0),
-			ESI: bgp.EthernetSegmentIdentifier{
-				Type: bgp.ESI_ARBITRARY,
-			},
-			MacAddressLength: 48,
-			MacAddress:       mac,
-			IPAddressLength:  uint8(iplen),
-			IPAddress:        ip,
-			Labels:           []uint32{0},
+		switch path.Nlri.EvpnNlri.Type {
+		case bgp.EVPN_ROUTE_TYPE_MAC_IP_ADVERTISEMENT:
+			mac, err := net.ParseMAC(path.Nlri.EvpnNlri.MacIpAdv.MacAddr)
+			if err != nil {
+				result.ResponseErr = fmt.Errorf("Invalid mac: %s", path.Nlri.EvpnNlri.MacIpAdv.MacAddr)
+				goto ERR
+			}
+			var ip net.IP
+			iplen := 0
+			if path.Nlri.EvpnNlri.MacIpAdv.IpAddr != "0.0.0.0" {
+				ip = net.ParseIP(path.Nlri.EvpnNlri.MacIpAdv.IpAddr)
+				if ip == nil {
+					result.ResponseErr = fmt.Errorf("Invalid ip prefix: %s", path.Nlri.EvpnNlri.MacIpAdv.IpAddr)
+					goto ERR
+				}
+				iplen = net.IPv4len * 8
+				if ip.To4() == nil {
+					iplen = net.IPv6len * 8
+				}
+			}
+
+			var labels []uint32
+			if len(path.Nlri.EvpnNlri.MacIpAdv.Labels) == 0 {
+				labels = []uint32{0}
+			} else {
+				labels = path.Nlri.EvpnNlri.MacIpAdv.Labels
+			}
+
+			eTag = path.Nlri.EvpnNlri.MacIpAdv.Etag
+			macIpAdv := &bgp.EVPNMacIPAdvertisementRoute{
+				RD: bgp.NewRouteDistinguisherIPAddressAS(routerId.String(), 0),
+				ESI: bgp.EthernetSegmentIdentifier{
+					Type: bgp.ESI_ARBITRARY,
+				},
+				MacAddressLength: 48,
+				MacAddress:       mac,
+				IPAddressLength:  uint8(iplen),
+				IPAddress:        ip,
+				Labels:           labels,
+				ETag:             eTag,
+			}
+			nlri = bgp.NewEVPNNLRI(bgp.EVPN_ROUTE_TYPE_MAC_IP_ADVERTISEMENT, 0, macIpAdv)
+		case bgp.EVPN_INCLUSIVE_MULTICAST_ETHERNET_TAG:
+			eTag = path.Nlri.EvpnNlri.MulticastEtag.Etag
+			ip := peerInfo.LocalID
+			iplen := net.IPv4len * 8
+			if ip.To4() == nil {
+				iplen = net.IPv6len * 8
+			}
+			multicastEtag := &bgp.EVPNMulticastEthernetTagRoute{
+				RD:              bgp.NewRouteDistinguisherIPAddressAS(routerId.String(), 0),
+				IPAddressLength: uint8(iplen),
+				IPAddress:       ip,
+				ETag:            eTag,
+			}
+			nlri = bgp.NewEVPNNLRI(bgp.EVPN_INCLUSIVE_MULTICAST_ETHERNET_TAG, 0, multicastEtag)
 		}
-		nlri = bgp.NewEVPNNLRI(bgp.EVPN_ROUTE_TYPE_MAC_IP_ADVERTISEMENT, 0, macIpAdv)
 		pattr = append(pattr, bgp.NewPathAttributeMpReachNLRI("0.0.0.0", []bgp.AddrPrefixInterface{nlri}))
+		isTransitive := true
+		rt := bgp.NewTwoOctetAsSpecificExtended(asn, eTag, isTransitive)
+		encap := &bgp.OpaqueExtended{isTransitive, &bgp.EncapExtended{bgp.TUNNEL_TYPE_VXLAN}}
+		pattr = append(pattr, bgp.NewPathAttributeExtendedCommunities([]bgp.ExtendedCommunityInterface{rt, encap}))
 	case bgp.RF_ENCAP:
 		endpoint := net.ParseIP(path.Nlri.Prefix)
 		if endpoint == nil {
 			result.ResponseErr = fmt.Errorf("Invalid endpoint ip address: %s", path.Nlri.Prefix)
-			grpcReq.ResponseCh <- result
-			close(grpcReq.ResponseCh)
-			return pathList
+			goto ERR
 
 		}
 		nlri = bgp.NewEncapNLRI(endpoint.String())
@@ -820,9 +849,7 @@ func handleGlobalRibRequest(grpcReq *GrpcRequest, peerInfo *table.PeerInfo) []*t
 			}
 		default:
 			result.ResponseErr = fmt.Errorf("Invalid endpoint ip address: %s", path.Nlri.Prefix)
-			grpcReq.ResponseCh <- result
-			close(grpcReq.ResponseCh)
-			return pathList
+			goto ERR
 		}
 
 		nlri = bgp.NewRouteTargetMembershipNLRI(peerInfo.AS, ec)
@@ -831,13 +858,16 @@ func handleGlobalRibRequest(grpcReq *GrpcRequest, peerInfo *table.PeerInfo) []*t
 
 	default:
 		result.ResponseErr = fmt.Errorf("Unsupported address family: %s", rf)
-		grpcReq.ResponseCh <- result
-		close(grpcReq.ResponseCh)
-		return pathList
+		goto ERR
 	}
 
-	p := table.NewPath(peerInfo, nlri, isWithdraw, pattr, false, time.Now())
+	p = table.NewPath(peerInfo, nlri, isWithdraw, pattr, false, time.Now())
 	return []*table.Path{p}
+ERR:
+	grpcReq.ResponseCh <- result
+	close(grpcReq.ResponseCh)
+	return []*table.Path{}
+
 }
 
 func (server *BgpServer) handleGrpc(grpcReq *GrpcRequest) []*SenderMsg {

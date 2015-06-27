@@ -21,6 +21,7 @@ It has these top-level messages:
 	ExtendedCommunity
 	EVPNNlri
 	EvpnMacIpAdvertisement
+	EvpnInclusiveMulticastEthernetTag
 	RTNlri
 	Nlri
 	TunnelEncapSubTLV
@@ -690,7 +691,8 @@ func (*ExtendedCommunity) ProtoMessage()    {}
 type EVPNNlri struct {
 	Type EVPN_TYPE `protobuf:"varint,1,opt,name=type,enum=api.EVPN_TYPE" json:"type,omitempty"`
 	//    EvpnAutoDiscoveryRoute = 2;
-	MacIpAdv *EvpnMacIpAdvertisement `protobuf:"bytes,3,opt,name=mac_ip_adv" json:"mac_ip_adv,omitempty"`
+	MacIpAdv      *EvpnMacIpAdvertisement            `protobuf:"bytes,3,opt,name=mac_ip_adv" json:"mac_ip_adv,omitempty"`
+	MulticastEtag *EvpnInclusiveMulticastEthernetTag `protobuf:"bytes,4,opt,name=multicast_etag" json:"multicast_etag,omitempty"`
 }
 
 func (m *EVPNNlri) Reset()         { *m = EVPNNlri{} }
@@ -700,6 +702,13 @@ func (*EVPNNlri) ProtoMessage()    {}
 func (m *EVPNNlri) GetMacIpAdv() *EvpnMacIpAdvertisement {
 	if m != nil {
 		return m.MacIpAdv
+	}
+	return nil
+}
+
+func (m *EVPNNlri) GetMulticastEtag() *EvpnInclusiveMulticastEthernetTag {
+	if m != nil {
+		return m.MulticastEtag
 	}
 	return nil
 }
@@ -718,6 +727,17 @@ type EvpnMacIpAdvertisement struct {
 func (m *EvpnMacIpAdvertisement) Reset()         { *m = EvpnMacIpAdvertisement{} }
 func (m *EvpnMacIpAdvertisement) String() string { return proto.CompactTextString(m) }
 func (*EvpnMacIpAdvertisement) ProtoMessage()    {}
+
+type EvpnInclusiveMulticastEthernetTag struct {
+	Rd        string `protobuf:"bytes,1,opt,name=rd" json:"rd,omitempty"`
+	Etag      uint32 `protobuf:"varint,2,opt,name=etag" json:"etag,omitempty"`
+	IpAddr    string `protobuf:"bytes,3,opt,name=ip_addr" json:"ip_addr,omitempty"`
+	IpAddrLen uint32 `protobuf:"varint,4,opt,name=ip_addr_len" json:"ip_addr_len,omitempty"`
+}
+
+func (m *EvpnInclusiveMulticastEthernetTag) Reset()         { *m = EvpnInclusiveMulticastEthernetTag{} }
+func (m *EvpnInclusiveMulticastEthernetTag) String() string { return proto.CompactTextString(m) }
+func (*EvpnInclusiveMulticastEthernetTag) ProtoMessage()    {}
 
 type RTNlri struct {
 	Asn    uint32             `protobuf:"varint,1,opt,name=asn" json:"asn,omitempty"`

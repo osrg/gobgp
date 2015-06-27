@@ -21,6 +21,7 @@ import (
 	"github.com/spf13/cobra"
 	"golang.org/x/net/context"
 	"net"
+	"os"
 	"strconv"
 )
 
@@ -36,7 +37,7 @@ func modPath(modtype string, eArgs []string) error {
 	}
 
 	path := &api.Path{}
-	var prefix, macAddr, ipAddr string
+	var prefix string
 	switch rf {
 	case api.AF_IPV4_UC, api.AF_IPV6_UC:
 		if len(eArgs) == 1 || len(eArgs) == 3 {
@@ -49,21 +50,71 @@ func modPath(modtype string, eArgs []string) error {
 			Prefix: prefix,
 		}
 	case api.AF_EVPN:
-		if len(eArgs) == 4 {
-			macAddr = eArgs[0]
-			ipAddr = eArgs[1]
-		} else {
-			return fmt.Errorf("usage: global rib %s <mac address> <ip address> -a evpn", modtype)
+		var nlri *api.EVPNNlri
+
+		if len(eArgs) < 1 {
+			return fmt.Errorf("usage: global rib %s { macadv | multicast } ... -a evpn", modtype)
 		}
-		path.Nlri = &api.Nlri{
-			Af: rf,
-			EvpnNlri: &api.EVPNNlri{
+		subtype := eArgs[0]
+
+		switch subtype {
+		case "macadv":
+			if len(eArgs) < 5 {
+				return fmt.Errorf("usage: global rib %s macadv <mac address> <ip address> <etag> <label> -a evpn", modtype)
+			}
+			macAddr := eArgs[1]
+			ipAddr := eArgs[2]
+			eTag, err := strconv.Atoi(eArgs[3])
+			if err != nil {
+				return fmt.Errorf("invalid eTag: %s. err: %s", eArgs[3], err)
+			}
+			label, err := strconv.Atoi(eArgs[4])
+			if err != nil {
+				return fmt.Errorf("invalid label: %s. err: %s", eArgs[4], err)
+			}
+			nlri = &api.EVPNNlri{
 				Type: api.EVPN_TYPE_ROUTE_TYPE_MAC_IP_ADVERTISEMENT,
 				MacIpAdv: &api.EvpnMacIpAdvertisement{
 					MacAddr: macAddr,
 					IpAddr:  ipAddr,
+					Etag:    uint32(eTag),
+					Labels:  []uint32{uint32(label)},
 				},
-			},
+			}
+		case "multicast":
+			if len(eArgs) < 3 {
+				return fmt.Errorf("usage : global rib %s multicast <etag> <label> -a evpn", modtype)
+			}
+			eTag, err := strconv.Atoi(eArgs[1])
+			if err != nil {
+				return fmt.Errorf("invalid eTag: %s. err: %s", eArgs[1], err)
+			}
+			label, err := strconv.Atoi(eArgs[2])
+			if err != nil {
+				return fmt.Errorf("invalid label: %s. err: %s", eArgs[2], err)
+			}
+			nlri = &api.EVPNNlri{
+				Type: api.EVPN_TYPE_INCLUSIVE_MULTICAST_ETHERNET_TAG,
+				MulticastEtag: &api.EvpnInclusiveMulticastEthernetTag{
+					Etag: uint32(eTag),
+				},
+			}
+
+			attr := &api.PathAttr{
+				Type: api.BGP_ATTR_TYPE_PMSI_TUNNEL,
+				PmsiTunnel: &api.PmsiTunnel{
+					Type:  api.PMSI_TUNNEL_TYPE_INGRESS_REPL,
+					Label: uint32(label),
+				},
+			}
+
+			path.Attrs = append(path.Attrs, attr)
+		default:
+			return fmt.Errorf("usage: global rib add { macadv | multicast | ... -a evpn")
+		}
+		path.Nlri = &api.Nlri{
+			Af:       rf,
+			EvpnNlri: nlri,
 		}
 	case api.AF_ENCAP:
 		if len(eArgs) < 3 {
@@ -172,14 +223,22 @@ func NewGlobalCmd() *cobra.Command {
 	addCmd := &cobra.Command{
 		Use: CMD_ADD,
 		Run: func(cmd *cobra.Command, args []string) {
-			modPath(CMD_ADD, args)
+			err := modPath(CMD_ADD, args)
+			if err != nil {
+				fmt.Println(err)
+				os.Exit(1)
+			}
 		},
 	}
 
 	delCmd := &cobra.Command{
 		Use: CMD_DEL,
 		Run: func(cmd *cobra.Command, args []string) {
-			modPath(CMD_DEL, args)
+			err := modPath(CMD_DEL, args)
+			if err != nil {
+				fmt.Println(err)
+				os.Exit(1)
+			}
 		},
 	}
 
