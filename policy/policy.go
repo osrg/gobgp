@@ -141,7 +141,7 @@ type Statement struct {
 }
 
 // evaluate each condition in the statement according to MatchSetOptions
-func (s *Statement) evaluate(p table.Path) bool {
+func (s *Statement) evaluate(p *table.Path) bool {
 
 	optionType := s.MatchSetOptions
 
@@ -186,14 +186,14 @@ func (s *Statement) evaluate(p table.Path) bool {
 }
 
 type Condition interface {
-	evaluate(table.Path) bool
+	evaluate(*table.Path) bool
 }
 
 type DefaultCondition struct {
 	CallPolicy string
 }
 
-func (c *DefaultCondition) evaluate(path table.Path) bool {
+func (c *DefaultCondition) evaluate(path *table.Path) bool {
 	return false
 }
 
@@ -235,7 +235,7 @@ func NewPrefixCondition(prefixSetName string, defPrefixList []config.PrefixSet) 
 // compare prefixes in this condition and nlri of path and
 // subsequent comparison is skipped if that matches the conditions.
 // If PrefixList's length is zero, return true.
-func (c *PrefixCondition) evaluate(path table.Path) bool {
+func (c *PrefixCondition) evaluate(path *table.Path) bool {
 
 	if len(c.PrefixList) == 0 {
 		log.Debug("PrefixList doesn't have elements")
@@ -283,7 +283,7 @@ func NewNeighborCondition(neighborSetName string, defNeighborSetList []config.Ne
 // compare neighbor ipaddress of this condition and source address of path
 // and, subsequent comparisons are skipped if that matches the conditions.
 // If NeighborList's length is zero, return true.
-func (c *NeighborCondition) evaluate(path table.Path) bool {
+func (c *NeighborCondition) evaluate(path *table.Path) bool {
 
 	if len(c.NeighborList) == 0 {
 		log.Debug("NeighborList doesn't have elements")
@@ -339,7 +339,7 @@ func NewAsPathLengthCondition(defAsPathLength config.AsPathLength) *AsPathLength
 
 // compare AS_PATH length in the message's AS_PATH attribute with
 // the one in condition.
-func (c *AsPathLengthCondition) evaluate(path table.Path) bool {
+func (c *AsPathLengthCondition) evaluate(path *table.Path) bool {
 
 	length := uint32(path.GetAsPathLen())
 	result := false
@@ -448,7 +448,7 @@ func NewAsPathCondition(asPathSetName string, defAsPathSetList []config.AsPathSe
 
 // compare AS_PATH in the message's AS_PATH attribute with
 // the one in condition.
-func (c *AsPathCondition) evaluate(path table.Path) bool {
+func (c *AsPathCondition) evaluate(path *table.Path) bool {
 
 	aspath := path.GetAsSeqList()
 
@@ -619,7 +619,7 @@ func getCommunityValue(comStr string) (bool, uint32) {
 
 // compare community in the message's attribute with
 // the one in the condition.
-func (c *CommunityCondition) evaluate(path table.Path) bool {
+func (c *CommunityCondition) evaluate(path *table.Path) bool {
 
 	communities := path.GetCommunities()
 
@@ -683,13 +683,13 @@ func (c *CommunityCondition) evaluate(path table.Path) bool {
 }
 
 type Action interface {
-	apply(table.Path) table.Path
+	apply(*table.Path) *table.Path
 }
 
 type DefaultAction struct {
 }
 
-func (a *DefaultAction) apply(path table.Path) table.Path {
+func (a *DefaultAction) apply(path *table.Path) *table.Path {
 	return path
 }
 
@@ -705,7 +705,7 @@ func NewRoutingAction(action config.Actions) *RoutingAction {
 	return r
 }
 
-func (r *RoutingAction) apply(path table.Path) table.Path {
+func (r *RoutingAction) apply(path *table.Path) *table.Path {
 	if r.AcceptRoute {
 		return path
 	} else {
@@ -773,7 +773,7 @@ func NewCommunityAction(action config.SetCommunity) *CommunityAction {
 	return m
 }
 
-func (a *CommunityAction) apply(path table.Path) table.Path {
+func (a *CommunityAction) apply(path *table.Path) *table.Path {
 
 	list := a.Values
 	switch a.action {
@@ -791,7 +791,7 @@ func (a *CommunityAction) apply(path table.Path) table.Path {
 
 type MedAction struct {
 	DefaultAction
-	Value int64
+	Value  int64
 	action ActionType
 }
 
@@ -802,12 +802,11 @@ const (
 	MED_ACTION_SUB
 )
 
-
 // NewMedAction creates MedAction object.
 // If it cannot parse med string, then return nil.
 func NewMedAction(med config.BgpSetMedType) *MedAction {
 
-	if med == ""{
+	if med == "" {
 		return nil
 	}
 
@@ -850,7 +849,7 @@ func getMedValue(medStr string) (bool, int64, ActionType) {
 	}
 	return false, int64(0), MED_ACTION_NONE
 }
-func (a *MedAction) apply(path table.Path) table.Path {
+func (a *MedAction) apply(path *table.Path) *table.Path {
 
 	var err error
 	switch a.action {
@@ -927,7 +926,7 @@ func NewPrefix(addr net.IP, maskLen uint8, maskRange string) (Prefix, error) {
 // Compare path with a policy's condition in stored order in the policy.
 // If a condition match, then this function stops evaluation and
 // subsequent conditions are skipped.
-func (p *Policy) Apply(path table.Path) (bool, RouteType, table.Path) {
+func (p *Policy) Apply(path *table.Path) (bool, RouteType, *table.Path) {
 	for _, statement := range p.Statements {
 
 		result := statement.evaluate(path)
@@ -937,13 +936,13 @@ func (p *Policy) Apply(path table.Path) (bool, RouteType, table.Path) {
 			"PolicyName": p.Name,
 		}).Debug("statement.Conditions.evaluate : ", result)
 
-		var p table.Path
+		var p *table.Path
 		if result {
 			//Routing action
 			p = statement.routingAction.apply(path)
 			if p != nil {
 				// apply all modification actions
-				cloned := path.Clone(p.IsWithdraw())
+				cloned := path.Clone(p.IsWithdraw)
 				for _, action := range statement.modificationActions {
 					cloned = action.apply(cloned)
 				}
@@ -956,7 +955,7 @@ func (p *Policy) Apply(path table.Path) (bool, RouteType, table.Path) {
 	return false, ROUTE_TYPE_NONE, nil
 }
 
-func ipPrefixCalculate(path table.Path, cPrefix Prefix) bool {
+func ipPrefixCalculate(path *table.Path, cPrefix Prefix) bool {
 	rf := path.GetRouteFamily()
 	log.Debug("path routefamily : ", rf.String())
 	var pAddr net.IP

@@ -12,56 +12,18 @@ import (
 func TestPathNewIPv4(t *testing.T) {
 	peerP := PathCreatePeer()
 	pathP := PathCreatePath(peerP)
-	ipv4p := NewIPv4Path(pathP[0].GetSource(), pathP[0].GetNlri(), true, pathP[0].getPathAttrs(), pathP[0].getMedSetByTargetNeighbor(), time.Now())
+	ipv4p := NewPath(pathP[0].GetSource(), pathP[0].GetNlri(), true, pathP[0].getPathAttrs(), pathP[0].getMedSetByTargetNeighbor(), time.Now())
 	assert.NotNil(t, ipv4p)
 }
 func TestPathNewIPv6(t *testing.T) {
 	peerP := PathCreatePeer()
 	pathP := PathCreatePath(peerP)
-	ipv6p := NewIPv6Path(pathP[0].GetSource(), pathP[0].GetNlri(), true, pathP[0].getPathAttrs(), pathP[0].getMedSetByTargetNeighbor(), time.Now())
+	ipv6p := NewPath(pathP[0].GetSource(), pathP[0].GetNlri(), true, pathP[0].getPathAttrs(), pathP[0].getMedSetByTargetNeighbor(), time.Now())
 	assert.NotNil(t, ipv6p)
 }
 
-func TestPathIPv4SetDefault(t *testing.T) {
-	pd := &PathDefault{withdraw: true}
-	ipv4p := &IPv4Path{}
-	ipv4p.setPathDefault(pd)
-	r_pd := ipv4p.getPathDefault()
-	assert.Equal(t, r_pd, pd)
-}
-
-func TestPathIPv4GetDefault(t *testing.T) {
-	pd := &PathDefault{withdraw: false}
-	ipv4p := &IPv4Path{}
-	ipv4p.setPathDefault(pd)
-	r_pd := ipv4p.getPathDefault()
-	assert.Equal(t, r_pd, pd)
-}
-
-func TestPathIPv6SetDefault(t *testing.T) {
-	pd := &PathDefault{}
-	ipv6p := &IPv6Path{}
-	ipv6p.setPathDefault(pd)
-	r_pd := ipv6p.getPathDefault()
-	assert.Equal(t, r_pd, pd)
-}
-
-func TestPathIPv6GetDefault(t *testing.T) {
-	pd := &PathDefault{}
-	ipv6p := &IPv6Path{}
-	ipv6p.setPathDefault(pd)
-	r_pd := ipv6p.getPathDefault()
-	assert.Equal(t, r_pd, pd)
-}
-
-func TestPathGetRouteFamily(t *testing.T) {
-	pd := &PathDefault{routeFamily: bgp.RF_IPv6_UC}
-	rf := pd.GetRouteFamily()
-	assert.Equal(t, rf, bgp.RF_IPv6_UC)
-}
-
 func TestPathSetSource(t *testing.T) {
-	pd := &PathDefault{}
+	pd := &Path{}
 	pr := &PeerInfo{AS: 65000}
 	pd.setSource(pr)
 	r_pr := pd.GetSource()
@@ -69,32 +31,16 @@ func TestPathSetSource(t *testing.T) {
 }
 
 func TestPathGetSource(t *testing.T) {
-	pd := &PathDefault{}
+	pd := &Path{}
 	pr := &PeerInfo{AS: 65001}
 	pd.setSource(pr)
 	r_pr := pd.GetSource()
 	assert.Equal(t, r_pr, pr)
 }
 
-func TestPathSetWithdraw(t *testing.T) {
-	pd := &PathDefault{}
-	wd := true
-	pd.setWithdraw(wd)
-	r_wd := pd.IsWithdraw()
-	assert.Equal(t, r_wd, wd)
-}
-
-func TestPathGetWithdaw(t *testing.T) {
-	pd := &PathDefault{}
-	wd := false
-	pd.setWithdraw(wd)
-	r_wd := pd.IsWithdraw()
-	assert.Equal(t, r_wd, wd)
-}
-
 func TestPathGetNlri(t *testing.T) {
 	nlri := bgp.NewNLRInfo(24, "13.2.3.2")
-	pd := &PathDefault{
+	pd := &Path{
 		nlri: nlri,
 	}
 	r_nlri := pd.GetNlri()
@@ -102,7 +48,7 @@ func TestPathGetNlri(t *testing.T) {
 }
 
 func TestPathSetMedSetByTargetNeighbor(t *testing.T) {
-	pd := &PathDefault{}
+	pd := &Path{}
 	msbt := true
 	pd.setMedSetByTargetNeighbor(msbt)
 	r_msbt := pd.getMedSetByTargetNeighbor()
@@ -110,7 +56,7 @@ func TestPathSetMedSetByTargetNeighbor(t *testing.T) {
 }
 
 func TestPathGetMedSetByTargetNeighbor(t *testing.T) {
-	pd := &PathDefault{}
+	pd := &Path{}
 	msbt := true
 	pd.setMedSetByTargetNeighbor(msbt)
 	r_msbt := pd.getMedSetByTargetNeighbor()
@@ -124,7 +70,7 @@ func TestPathCreatePath(t *testing.T) {
 	nlriList := updateMsgP.NLRI
 	pathAttributes := updateMsgP.PathAttributes
 	nlri_info := nlriList[0]
-	path, _ := CreatePath(peerP[0], &nlri_info, pathAttributes, false, time.Now())
+	path := NewPath(peerP[0], &nlri_info, false, pathAttributes, false, time.Now())
 	assert.NotNil(t, path)
 
 }
@@ -170,7 +116,7 @@ func TestASPathLen(t *testing.T) {
 	update := bgpmsg.Body.(*bgp.BGPUpdate)
 	UpdatePathAttrs4ByteAs(update)
 	peer := PathCreatePeer()
-	p, _ := CreatePath(peer[0], &update.NLRI[0], update.PathAttributes, false, time.Now())
+	p := NewPath(peer[0], &update.NLRI[0], false, update.PathAttributes, false, time.Now())
 	assert.Equal(10, p.GetAsPathLen())
 }
 
@@ -182,17 +128,17 @@ func PathCreatePeer() []*PeerInfo {
 	return peerP
 }
 
-func PathCreatePath(peerP []*PeerInfo) []Path {
+func PathCreatePath(peerP []*PeerInfo) []*Path {
 	bgpMsgP1 := updateMsgP1()
 	bgpMsgP2 := updateMsgP2()
 	bgpMsgP3 := updateMsgP3()
-	pathP := make([]Path, 3)
+	pathP := make([]*Path, 3)
 	for i, msg := range []*bgp.BGPMessage{bgpMsgP1, bgpMsgP2, bgpMsgP3} {
 		updateMsgP := msg.Body.(*bgp.BGPUpdate)
 		nlriList := updateMsgP.NLRI
 		pathAttributes := updateMsgP.PathAttributes
 		nlri_info := nlriList[0]
-		pathP[i], _ = CreatePath(peerP[i], &nlri_info, pathAttributes, false, time.Now())
+		pathP[i] = NewPath(peerP[i], &nlri_info, false, pathAttributes, false, time.Now())
 	}
 	return pathP
 }

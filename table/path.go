@@ -16,63 +16,27 @@
 package table
 
 import (
-	"encoding/json"
 	"fmt"
 	log "github.com/Sirupsen/logrus"
 	"github.com/osrg/gobgp/api"
 	"github.com/osrg/gobgp/config"
 	"github.com/osrg/gobgp/packet"
+	"math"
 	"net"
 	"reflect"
 	"time"
-	"math"
 )
 
-type Path interface {
-	String() string
-	getPathAttrs() []bgp.PathAttributeInterface
-	getPathAttr(bgp.BGPAttrType) (int, bgp.PathAttributeInterface)
-	updatePathAttrs(global *config.Global, peer *config.Neighbor)
-	GetRouteFamily() bgp.RouteFamily
-	GetAsPathLen() int
-	GetAsList() []uint32
-	GetAsSeqList() []uint32
-	GetCommunities() []uint32
-	SetCommunities([]uint32, bool)
-	RemoveCommunities([]uint32) int
-	ClearCommunities()
-	GetMed() uint32
-	SetMed(int64, bool) error
-	setSource(source *PeerInfo)
-	GetSource() *PeerInfo
-	GetSourceAs() uint32
-	GetNexthop() net.IP
-	SetNexthop(net.IP)
-	setWithdraw(withdraw bool)
-	IsWithdraw() bool
-	GetNlri() bgp.AddrPrefixInterface
-	getPrefix() string
-	setMedSetByTargetNeighbor(medSetByTargetNeighbor bool)
-	getMedSetByTargetNeighbor() bool
-	Clone(IsWithdraw bool) Path
-	getTimestamp() time.Time
-	setTimestamp(t time.Time)
-	isLocal() bool
-	ToApiStruct() *api.Path
-	MarshalJSON() ([]byte, error)
-}
-
-type PathDefault struct {
-	routeFamily            bgp.RouteFamily
+type Path struct {
 	source                 *PeerInfo
-	withdraw               bool
+	IsWithdraw             bool
 	nlri                   bgp.AddrPrefixInterface
 	pathAttrs              []bgp.PathAttributeInterface
 	medSetByTargetNeighbor bool
 	timestamp              time.Time
 }
 
-func NewPathDefault(rf bgp.RouteFamily, source *PeerInfo, nlri bgp.AddrPrefixInterface, isWithdraw bool, pattrs []bgp.PathAttributeInterface, medSetByTargetNeighbor bool, now time.Time) *PathDefault {
+func NewPath(source *PeerInfo, nlri bgp.AddrPrefixInterface, isWithdraw bool, pattrs []bgp.PathAttributeInterface, medSetByTargetNeighbor bool, timestamp time.Time) *Path {
 	if !isWithdraw && pattrs == nil {
 		log.WithFields(log.Fields{
 			"Topic": "Table",
@@ -82,15 +46,14 @@ func NewPathDefault(rf bgp.RouteFamily, source *PeerInfo, nlri bgp.AddrPrefixInt
 		return nil
 	}
 
-	path := &PathDefault{}
-	path.routeFamily = rf
-	path.pathAttrs = pattrs
-	path.nlri = nlri
-	path.source = source
-	path.withdraw = isWithdraw
-	path.medSetByTargetNeighbor = medSetByTargetNeighbor
-	path.timestamp = now
-	return path
+	return &Path{
+		source:                 source,
+		IsWithdraw:             isWithdraw,
+		nlri:                   nlri,
+		pathAttrs:              pattrs,
+		medSetByTargetNeighbor: medSetByTargetNeighbor,
+		timestamp:              timestamp,
+	}
 }
 
 func cloneAsPath(asAttr *bgp.PathAttributeAsPath) *bgp.PathAttributeAsPath {
@@ -104,7 +67,7 @@ func cloneAsPath(asAttr *bgp.PathAttributeAsPath) *bgp.PathAttributeAsPath {
 	return bgp.NewPathAttributeAsPath(newASparams)
 }
 
-func (pd *PathDefault) updatePathAttrs(global *config.Global, peer *config.Neighbor) {
+func (path *Path) updatePathAttrs(global *config.Global, peer *config.Neighbor) {
 
 	if peer.RouteServer.RouteServerClient {
 		return
@@ -112,7 +75,7 @@ func (pd *PathDefault) updatePathAttrs(global *config.Global, peer *config.Neigh
 
 	if peer.PeerType == config.PEER_TYPE_EXTERNAL {
 		// NEXTHOP handling
-		pd.SetNexthop(peer.LocalAddress)
+		path.SetNexthop(peer.LocalAddress)
 
 		// AS_PATH handling
 		//
@@ -136,12 +99,12 @@ func (pd *PathDefault) updatePathAttrs(global *config.Global, peer *config.Neigh
 		//  3) if the AS_PATH is empty, the local system creates a path
 		//     segment of type AS_SEQUENCE, places its own AS into that
 		//     segment, and places that segment into the AS_PATH.
-		idx, originalAsPath := pd.getPathAttr(bgp.BGP_ATTR_TYPE_AS_PATH)
+		idx, originalAsPath := path.getPathAttr(bgp.BGP_ATTR_TYPE_AS_PATH)
 		if idx < 0 {
 			log.Fatal("missing AS_PATH mandatory attribute")
 		}
 		asPath := cloneAsPath(originalAsPath.(*bgp.PathAttributeAsPath))
-		pd.pathAttrs[idx] = asPath
+		path.pathAttrs[idx] = asPath
 		fst := asPath.Value[0].(*bgp.As4PathParam)
 		if len(asPath.Value) > 0 && fst.Type == bgp.BGP_ASPATH_ATTR_TYPE_SEQ &&
 			fst.ASLen() < 255 {
@@ -153,20 +116,20 @@ func (pd *PathDefault) updatePathAttrs(global *config.Global, peer *config.Neigh
 		}
 
 		// MED Handling
-		idx, _ = pd.getPathAttr(bgp.BGP_ATTR_TYPE_MULTI_EXIT_DISC)
+		idx, _ = path.getPathAttr(bgp.BGP_ATTR_TYPE_MULTI_EXIT_DISC)
 		if idx >= 0 {
-			pd.pathAttrs = append(pd.pathAttrs[:idx], pd.pathAttrs[idx+1:]...)
+			path.pathAttrs = append(path.pathAttrs[:idx], path.pathAttrs[idx+1:]...)
 		}
 	} else if peer.PeerType == config.PEER_TYPE_INTERNAL {
 		// For iBGP peers we are required to send local-pref attribute
 		// for connected or local prefixes.
 		// We set default local-pref 100.
 		p := bgp.NewPathAttributeLocalPref(100)
-		idx, _ := pd.getPathAttr(bgp.BGP_ATTR_TYPE_LOCAL_PREF)
+		idx, _ := path.getPathAttr(bgp.BGP_ATTR_TYPE_LOCAL_PREF)
 		if idx < 0 {
-			pd.pathAttrs = append(pd.pathAttrs, p)
+			path.pathAttrs = append(path.pathAttrs, p)
 		} else {
-			pd.pathAttrs[idx] = p
+			path.pathAttrs[idx] = p
 		}
 	} else {
 		log.WithFields(log.Fields{
@@ -176,76 +139,71 @@ func (pd *PathDefault) updatePathAttrs(global *config.Global, peer *config.Neigh
 	}
 }
 
-func (pd *PathDefault) getTimestamp() time.Time {
-	return pd.timestamp
+func (path *Path) getTimestamp() time.Time {
+	return path.timestamp
 }
 
-func (pd *PathDefault) setTimestamp(t time.Time) {
-	pd.timestamp = t
+func (path *Path) setTimestamp(t time.Time) {
+	path.timestamp = t
 }
 
-func (pd *PathDefault) isLocal() bool {
+func (path *Path) isLocal() bool {
 	var ret bool
-	if pd.source.Address == nil {
+	if path.source.Address == nil {
 		ret = true
 	}
 	return ret
 }
 
-func (pd *PathDefault) ToApiStruct() *api.Path {
+func (path *Path) ToApiStruct() *api.Path {
 	pathAttrs := func(arg []bgp.PathAttributeInterface) []*api.PathAttr {
 		ret := make([]*api.PathAttr, 0, len(arg))
 		for _, a := range arg {
 			ret = append(ret, a.ToApiStruct())
 		}
 		return ret
-	}(pd.getPathAttrs())
+	}(path.getPathAttrs())
 	return &api.Path{
-		Nlri:       pd.GetNlri().ToApiStruct(),
-		Nexthop:    pd.GetNexthop().String(),
+		Nlri:       path.GetNlri().ToApiStruct(),
+		Nexthop:    path.GetNexthop().String(),
 		Attrs:      pathAttrs,
-		Age:        int64(time.Now().Sub(pd.timestamp).Seconds()),
-		IsWithdraw: pd.IsWithdraw(),
+		Age:        int64(time.Now().Sub(path.timestamp).Seconds()),
+		IsWithdraw: path.IsWithdraw,
 	}
-}
-
-func (pd *PathDefault) MarshalJSON() ([]byte, error) {
-	return json.Marshal(pd.ToApiStruct())
 }
 
 // create new PathAttributes
-func (pd *PathDefault) Clone(isWithdraw bool) Path {
-	nlri := pd.nlri
-	if pd.GetRouteFamily() == bgp.RF_IPv4_UC && isWithdraw {
-		if pd.IsWithdraw() {
-			nlri = pd.nlri
+func (path *Path) Clone(isWithdraw bool) *Path {
+	nlri := path.nlri
+	if path.GetRouteFamily() == bgp.RF_IPv4_UC && isWithdraw {
+		if path.IsWithdraw {
+			nlri = path.nlri
 		} else {
-			nlri = &bgp.WithdrawnRoute{pd.nlri.(*bgp.NLRInfo).IPAddrPrefix}
+			nlri = &bgp.WithdrawnRoute{path.nlri.(*bgp.NLRInfo).IPAddrPrefix}
 		}
 	}
 
-	newPathAttrs := make([]bgp.PathAttributeInterface, len(pd.pathAttrs))
-	for i, v := range pd.pathAttrs {
+	newPathAttrs := make([]bgp.PathAttributeInterface, len(path.pathAttrs))
+	for i, v := range path.pathAttrs {
 		newPathAttrs[i] = v
 	}
 
-	path, _ := CreatePath(pd.source, nlri, newPathAttrs, isWithdraw, pd.timestamp)
-	return path
+	return NewPath(path.source, nlri, isWithdraw, newPathAttrs, false, path.timestamp)
 }
 
-func (pd *PathDefault) GetRouteFamily() bgp.RouteFamily {
-	return pd.routeFamily
+func (path *Path) GetRouteFamily() bgp.RouteFamily {
+	return bgp.AfiSafiToRouteFamily(path.nlri.AFI(), path.nlri.SAFI())
 }
 
-func (pd *PathDefault) setSource(source *PeerInfo) {
-	pd.source = source
+func (path *Path) setSource(source *PeerInfo) {
+	path.source = source
 }
-func (pd *PathDefault) GetSource() *PeerInfo {
-	return pd.source
+func (path *Path) GetSource() *PeerInfo {
+	return path.source
 }
 
-func (pd *PathDefault) GetSourceAs() uint32 {
-	_, attr := pd.getPathAttr(bgp.BGP_ATTR_TYPE_AS_PATH)
+func (path *Path) GetSourceAs() uint32 {
+	_, attr := path.getPathAttr(bgp.BGP_ATTR_TYPE_AS_PATH)
 	if attr != nil {
 		asPathParam := attr.(*bgp.PathAttributeAsPath).Value
 		if len(asPathParam) == 0 {
@@ -260,57 +218,49 @@ func (pd *PathDefault) GetSourceAs() uint32 {
 	return 0
 }
 
-func (pd *PathDefault) GetNexthop() net.IP {
-	_, attr := pd.getPathAttr(bgp.BGP_ATTR_TYPE_NEXT_HOP)
+func (path *Path) GetNexthop() net.IP {
+	_, attr := path.getPathAttr(bgp.BGP_ATTR_TYPE_NEXT_HOP)
 	if attr != nil {
 		return attr.(*bgp.PathAttributeNextHop).Value
 	}
-	_, attr = pd.getPathAttr(bgp.BGP_ATTR_TYPE_MP_REACH_NLRI)
+	_, attr = path.getPathAttr(bgp.BGP_ATTR_TYPE_MP_REACH_NLRI)
 	if attr != nil {
 		return attr.(*bgp.PathAttributeMpReachNLRI).Nexthop
 	}
 	return net.IP{}
 }
 
-func (pd *PathDefault) SetNexthop(nexthop net.IP) {
-	idx, attr := pd.getPathAttr(bgp.BGP_ATTR_TYPE_NEXT_HOP)
+func (path *Path) SetNexthop(nexthop net.IP) {
+	idx, attr := path.getPathAttr(bgp.BGP_ATTR_TYPE_NEXT_HOP)
 	if attr != nil {
 		newNexthop := bgp.NewPathAttributeNextHop(nexthop.String())
-		pd.pathAttrs[idx] = newNexthop
+		path.pathAttrs[idx] = newNexthop
 	}
-	idx, attr = pd.getPathAttr(bgp.BGP_ATTR_TYPE_MP_REACH_NLRI)
+	idx, attr = path.getPathAttr(bgp.BGP_ATTR_TYPE_MP_REACH_NLRI)
 	if attr != nil {
 		oldNlri := attr.(*bgp.PathAttributeMpReachNLRI)
 		newNlri := bgp.NewPathAttributeMpReachNLRI(nexthop.String(), oldNlri.Value)
-		pd.pathAttrs[idx] = newNlri
+		path.pathAttrs[idx] = newNlri
 	}
 }
 
-func (pd *PathDefault) setWithdraw(withdraw bool) {
-	pd.withdraw = withdraw
+func (path *Path) GetNlri() bgp.AddrPrefixInterface {
+	return path.nlri
 }
 
-func (pd *PathDefault) IsWithdraw() bool {
-	return pd.withdraw
+func (path *Path) setMedSetByTargetNeighbor(medSetByTargetNeighbor bool) {
+	path.medSetByTargetNeighbor = medSetByTargetNeighbor
 }
 
-func (pd *PathDefault) GetNlri() bgp.AddrPrefixInterface {
-	return pd.nlri
+func (path *Path) getMedSetByTargetNeighbor() bool {
+	return path.medSetByTargetNeighbor
 }
 
-func (pd *PathDefault) setMedSetByTargetNeighbor(medSetByTargetNeighbor bool) {
-	pd.medSetByTargetNeighbor = medSetByTargetNeighbor
+func (path *Path) getPathAttrs() []bgp.PathAttributeInterface {
+	return path.pathAttrs
 }
 
-func (pd *PathDefault) getMedSetByTargetNeighbor() bool {
-	return pd.medSetByTargetNeighbor
-}
-
-func (pd *PathDefault) getPathAttrs() []bgp.PathAttributeInterface {
-	return pd.pathAttrs
-}
-
-func (pd *PathDefault) getPathAttr(pattrType bgp.BGPAttrType) (int, bgp.PathAttributeInterface) {
+func (path *Path) getPathAttr(pattrType bgp.BGPAttrType) (int, bgp.PathAttributeInterface) {
 	attrMap := [bgp.BGP_ATTR_TYPE_AS4_AGGREGATOR + 1]reflect.Type{}
 	attrMap[bgp.BGP_ATTR_TYPE_ORIGIN] = reflect.TypeOf(&bgp.PathAttributeOrigin{})
 	attrMap[bgp.BGP_ATTR_TYPE_AS_PATH] = reflect.TypeOf(&bgp.PathAttributeAsPath{})
@@ -329,7 +279,7 @@ func (pd *PathDefault) getPathAttr(pattrType bgp.BGPAttrType) (int, bgp.PathAttr
 	attrMap[bgp.BGP_ATTR_TYPE_AS4_AGGREGATOR] = reflect.TypeOf(&bgp.PathAttributeAs4Aggregator{})
 
 	t := attrMap[pattrType]
-	for i, p := range pd.pathAttrs {
+	for i, p := range path.pathAttrs {
 		if t == reflect.TypeOf(p) {
 			return i, p
 		}
@@ -338,24 +288,23 @@ func (pd *PathDefault) getPathAttr(pattrType bgp.BGPAttrType) (int, bgp.PathAttr
 }
 
 // return Path's string representation
-func (pi *PathDefault) String() string {
-	str := fmt.Sprintf("IPv4Path Source: %v, ", pi.GetSource())
-	str = str + fmt.Sprintf(" NLRI: %s, ", pi.getPrefix())
-	str = str + fmt.Sprintf(" nexthop: %s, ", pi.GetNexthop().String())
-	str = str + fmt.Sprintf(" withdraw: %s, ", pi.IsWithdraw())
-	//str = str + fmt.Sprintf(" path attributes: %s, ", pi.getPathAttributeMap())
+func (path *Path) String() string {
+	str := fmt.Sprintf("Source: %v, ", path.GetSource())
+	str += fmt.Sprintf(" NLRI: %s, ", path.getPrefix())
+	str += fmt.Sprintf(" nexthop: %s, ", path.GetNexthop())
+	str += fmt.Sprintf(" withdraw: %s, ", path.IsWithdraw)
 	return str
 }
 
-func (pi *PathDefault) getPrefix() string {
-	return pi.nlri.String()
+func (path *Path) getPrefix() string {
+	return path.nlri.String()
 }
 
 // GetAsPathLen returns the number of AS_PATH
-func (pd *PathDefault) GetAsPathLen() int {
+func (path *Path) GetAsPathLen() int {
 
 	var length int = 0
-	if _, attr := pd.getPathAttr(bgp.BGP_ATTR_TYPE_AS_PATH); attr != nil {
+	if _, attr := path.getPathAttr(bgp.BGP_ATTR_TYPE_AS_PATH); attr != nil {
 		aspath := attr.(*bgp.PathAttributeAsPath)
 		for _, paramIf := range aspath.Value {
 			segment := paramIf.(*bgp.As4PathParam)
@@ -365,19 +314,19 @@ func (pd *PathDefault) GetAsPathLen() int {
 	return length
 }
 
-func (pd *PathDefault) GetAsList() []uint32 {
-	return pd.getAsListofSpecificType(true, true)
+func (path *Path) GetAsList() []uint32 {
+	return path.getAsListofSpecificType(true, true)
 
 }
 
-func (pd *PathDefault) GetAsSeqList() []uint32 {
-	return pd.getAsListofSpecificType(true, false)
+func (path *Path) GetAsSeqList() []uint32 {
+	return path.getAsListofSpecificType(true, false)
 
 }
 
-func (pd *PathDefault) getAsListofSpecificType(getAsSeq, getAsSet bool) []uint32 {
+func (path *Path) getAsListofSpecificType(getAsSeq, getAsSet bool) []uint32 {
 	asList := []uint32{}
-	if _, attr := pd.getPathAttr(bgp.BGP_ATTR_TYPE_AS_PATH); attr != nil {
+	if _, attr := path.getPathAttr(bgp.BGP_ATTR_TYPE_AS_PATH); attr != nil {
 		aspath := attr.(*bgp.PathAttributeAsPath)
 		for _, paramIf := range aspath.Value {
 			segment := paramIf.(*bgp.As4PathParam)
@@ -393,9 +342,9 @@ func (pd *PathDefault) getAsListofSpecificType(getAsSeq, getAsSet bool) []uint32
 	return asList
 }
 
-func (pd *PathDefault) GetCommunities() []uint32 {
+func (path *Path) GetCommunities() []uint32 {
 	communityList := []uint32{}
-	if _, attr := pd.getPathAttr(bgp.BGP_ATTR_TYPE_COMMUNITIES); attr != nil {
+	if _, attr := path.getPathAttr(bgp.BGP_ATTR_TYPE_COMMUNITIES); attr != nil {
 		communities := attr.(*bgp.PathAttributeCommunities)
 		communityList = append(communityList, communities.Value...)
 	}
@@ -404,7 +353,7 @@ func (pd *PathDefault) GetCommunities() []uint32 {
 
 // SetCommunities adds or replaces communities with new ones.
 // If the length of communites is 0, it does nothing.
-func (pd *PathDefault) SetCommunities(communities []uint32, doReplace bool) {
+func (path *Path) SetCommunities(communities []uint32, doReplace bool) {
 
 	if len(communities) == 0 {
 		// do nothing
@@ -412,7 +361,7 @@ func (pd *PathDefault) SetCommunities(communities []uint32, doReplace bool) {
 	}
 
 	newList := make([]uint32, 0)
-	idx, attr := pd.getPathAttr(bgp.BGP_ATTR_TYPE_COMMUNITIES)
+	idx, attr := path.getPathAttr(bgp.BGP_ATTR_TYPE_COMMUNITIES)
 	if attr != nil {
 		c := attr.(*bgp.PathAttributeCommunities)
 		if doReplace {
@@ -422,11 +371,11 @@ func (pd *PathDefault) SetCommunities(communities []uint32, doReplace bool) {
 			newList = append(newList, communities...)
 		}
 		newCommunities := bgp.NewPathAttributeCommunities(newList)
-		pd.pathAttrs[idx] = newCommunities
+		path.pathAttrs[idx] = newCommunities
 	} else {
 		newList = append(newList, communities...)
 		newCommunities := bgp.NewPathAttributeCommunities(newList)
-		pd.pathAttrs = append(pd.pathAttrs, newCommunities)
+		path.pathAttrs = append(path.pathAttrs, newCommunities)
 	}
 
 }
@@ -434,7 +383,7 @@ func (pd *PathDefault) SetCommunities(communities []uint32, doReplace bool) {
 // RemoveCommunities removes specific communities.
 // If the length of communites is 0, it does nothing.
 // If all communities are removed, it removes Communities path attribute itself.
-func (pd *PathDefault) RemoveCommunities(communities []uint32) int {
+func (path *Path) RemoveCommunities(communities []uint32) int {
 
 	if len(communities) == 0 {
 		// do nothing
@@ -451,7 +400,7 @@ func (pd *PathDefault) RemoveCommunities(communities []uint32) int {
 	}
 
 	count := 0
-	idx, attr := pd.getPathAttr(bgp.BGP_ATTR_TYPE_COMMUNITIES)
+	idx, attr := path.getPathAttr(bgp.BGP_ATTR_TYPE_COMMUNITIES)
 	if attr != nil {
 		newList := make([]uint32, 0)
 		c := attr.(*bgp.PathAttributeCommunities)
@@ -466,39 +415,41 @@ func (pd *PathDefault) RemoveCommunities(communities []uint32) int {
 
 		if len(newList) != 0 {
 			newCommunities := bgp.NewPathAttributeCommunities(newList)
-			pd.pathAttrs[idx] = newCommunities
+			path.pathAttrs[idx] = newCommunities
 		} else {
-			pd.pathAttrs = append(pd.pathAttrs[:idx], pd.pathAttrs[idx+1:]...)
+			path.pathAttrs = append(path.pathAttrs[:idx], path.pathAttrs[idx+1:]...)
 		}
 	}
 	return count
 }
 
 // ClearCommunities removes Communities path attribute.
-func (pd *PathDefault) ClearCommunities() {
-	idx, _ := pd.getPathAttr(bgp.BGP_ATTR_TYPE_COMMUNITIES)
+func (path *Path) ClearCommunities() {
+	idx, _ := path.getPathAttr(bgp.BGP_ATTR_TYPE_COMMUNITIES)
 	if idx >= 0 {
-		pd.pathAttrs = append(pd.pathAttrs[:idx], pd.pathAttrs[idx+1:]...)
+		path.pathAttrs = append(path.pathAttrs[:idx], path.pathAttrs[idx+1:]...)
 	}
 }
 
-func (pd *PathDefault) GetMed() uint32 {
-	_, attr := pd.getPathAttr(bgp.BGP_ATTR_TYPE_MULTI_EXIT_DISC)
-	med := attr.(*bgp.PathAttributeMultiExitDisc).Value
-	return med
+func (path *Path) GetMed() (uint32, error) {
+	_, attr := path.getPathAttr(bgp.BGP_ATTR_TYPE_MULTI_EXIT_DISC)
+	if attr == nil {
+		return 0, fmt.Errorf("no med path attr")
+	}
+	return attr.(*bgp.PathAttributeMultiExitDisc).Value, nil
 }
 
 // SetMed replace, add or subtraction med with new ones.
-func (pd *PathDefault) SetMed(med int64, doReplace bool) error {
+func (path *Path) SetMed(med int64, doReplace bool) error {
 
 	parseMed := func(orgMed uint32, med int64, doReplace bool) (*bgp.PathAttributeMultiExitDisc, error) {
 		newMed := &bgp.PathAttributeMultiExitDisc{}
 		if doReplace {
 			newMed = bgp.NewPathAttributeMultiExitDisc(uint32(med))
 		} else {
-			if int64(orgMed) + med < 0 {
+			if int64(orgMed)+med < 0 {
 				return nil, fmt.Errorf("med value invalid. it's underflow threshold.")
-			} else if int64(orgMed) + med > int64(math.MaxUint32) {
+			} else if int64(orgMed)+med > int64(math.MaxUint32) {
 				return nil, fmt.Errorf("med value invalid. it's overflow threshold.")
 			}
 			newMed = bgp.NewPathAttributeMultiExitDisc(uint32(int64(orgMed) + med))
@@ -506,220 +457,21 @@ func (pd *PathDefault) SetMed(med int64, doReplace bool) error {
 		return newMed, nil
 	}
 
-	idx, attr := pd.getPathAttr(bgp.BGP_ATTR_TYPE_MULTI_EXIT_DISC)
-	if attr != nil{
+	idx, attr := path.getPathAttr(bgp.BGP_ATTR_TYPE_MULTI_EXIT_DISC)
+	if attr != nil {
 		m := attr.(*bgp.PathAttributeMultiExitDisc)
 		newMed, err := parseMed(m.Value, med, doReplace)
-		if err !=  nil{
+		if err != nil {
 			return err
 		}
-		pd.pathAttrs[idx] = newMed
+		path.pathAttrs[idx] = newMed
 	} else {
 		m := 0
 		newMed, err := parseMed(uint32(m), med, doReplace)
-		if err !=  nil{
-			pd.pathAttrs = append(pd.pathAttrs, &bgp.PathAttributeMultiExitDisc{})
+		if err != nil {
 			return err
 		}
-		pd.pathAttrs = append(pd.pathAttrs, newMed)
+		path.pathAttrs = append(path.pathAttrs, newMed)
 	}
 	return nil
-}
-
-// create Path object based on route family
-func CreatePath(source *PeerInfo, nlri bgp.AddrPrefixInterface, attrs []bgp.PathAttributeInterface, isWithdraw bool, now time.Time) (Path, error) {
-
-	rf := bgp.RouteFamily(int(nlri.AFI())<<16 | int(nlri.SAFI()))
-	log.Debugf("CreatePath afi: %d, safi: %d ", int(nlri.AFI()), nlri.SAFI())
-	var path Path
-
-	switch rf {
-	case bgp.RF_IPv4_UC:
-		log.Debugf("CreatePath RouteFamily : %s", bgp.RF_IPv4_UC.String())
-		path = NewIPv4Path(source, nlri, isWithdraw, attrs, false, now)
-	case bgp.RF_IPv6_UC:
-		log.Debugf("CreatePath RouteFamily : %s", bgp.RF_IPv6_UC.String())
-		path = NewIPv6Path(source, nlri, isWithdraw, attrs, false, now)
-	case bgp.RF_IPv4_VPN:
-		log.Debugf("CreatePath RouteFamily : %s", bgp.RF_IPv4_VPN.String())
-		path = NewIPv4VPNPath(source, nlri, isWithdraw, attrs, false, now)
-	case bgp.RF_EVPN:
-		log.Debugf("CreatePath RouteFamily : %s", bgp.RF_EVPN.String())
-		path = NewEVPNPath(source, nlri, isWithdraw, attrs, false, now)
-	case bgp.RF_ENCAP:
-		log.Debugf("CreatePath RouteFamily : %s", bgp.RF_ENCAP.String())
-		path = NewEncapPath(source, nlri, isWithdraw, attrs, false, now)
-	case bgp.RF_RTC_UC:
-		log.Debugf("CreatePath RouteFamily : %s", bgp.RF_RTC_UC)
-		path = NewRouteTargetPath(source, nlri, isWithdraw, attrs, false, now)
-	default:
-		return path, fmt.Errorf("Unsupported RouteFamily: %s", rf)
-	}
-	return path, nil
-}
-
-/*
-* 	Definition of inherited Path  interface
- */
-type IPv4Path struct {
-	*PathDefault
-}
-
-func NewIPv4Path(source *PeerInfo, nlri bgp.AddrPrefixInterface, isWithdraw bool, attrs []bgp.PathAttributeInterface, medSetByTargetNeighbor bool, now time.Time) *IPv4Path {
-	ipv4Path := &IPv4Path{}
-	ipv4Path.PathDefault = NewPathDefault(bgp.RF_IPv4_UC, source, nlri, isWithdraw, attrs, medSetByTargetNeighbor, now)
-	return ipv4Path
-}
-
-func (ipv4p *IPv4Path) setPathDefault(pd *PathDefault) {
-	ipv4p.PathDefault = pd
-}
-func (ipv4p *IPv4Path) getPathDefault() *PathDefault {
-	return ipv4p.PathDefault
-}
-
-type IPv6Path struct {
-	*PathDefault
-}
-
-func NewIPv6Path(source *PeerInfo, nlri bgp.AddrPrefixInterface, isWithdraw bool, attrs []bgp.PathAttributeInterface, medSetByTargetNeighbor bool, now time.Time) *IPv6Path {
-	ipv6Path := &IPv6Path{}
-	ipv6Path.PathDefault = NewPathDefault(bgp.RF_IPv6_UC, source, nlri, isWithdraw, attrs, medSetByTargetNeighbor, now)
-	return ipv6Path
-}
-
-func (ipv6p *IPv6Path) setPathDefault(pd *PathDefault) {
-	ipv6p.PathDefault = pd
-}
-
-func (ipv6p *IPv6Path) getPathDefault() *PathDefault {
-	return ipv6p.PathDefault
-}
-
-// return IPv6Path's string representation
-func (ipv6p *IPv6Path) String() string {
-	str := fmt.Sprintf("IPv6Path Source: %v, ", ipv6p.GetSource())
-	str = str + fmt.Sprintf(" NLRI: %s, ", ipv6p.getPrefix())
-	str = str + fmt.Sprintf(" nexthop: %s, ", ipv6p.GetNexthop().String())
-	str = str + fmt.Sprintf(" withdraw: %s, ", ipv6p.IsWithdraw())
-	//str = str + fmt.Sprintf(" path attributes: %s, ", ipv6p.getPathAttributeMap())
-	return str
-}
-
-type IPv4VPNPath struct {
-	*PathDefault
-}
-
-func NewIPv4VPNPath(source *PeerInfo, nlri bgp.AddrPrefixInterface, isWithdraw bool, attrs []bgp.PathAttributeInterface, medSetByTargetNeighbor bool, now time.Time) *IPv4VPNPath {
-	ipv4VPNPath := &IPv4VPNPath{}
-	ipv4VPNPath.PathDefault = NewPathDefault(bgp.RF_IPv4_VPN, source, nlri, isWithdraw, attrs, medSetByTargetNeighbor, now)
-	return ipv4VPNPath
-}
-
-func (ipv4vpnp *IPv4VPNPath) setPathDefault(pd *PathDefault) {
-	ipv4vpnp.PathDefault = pd
-}
-
-func (ipv4vpnp *IPv4VPNPath) getPathDefault() *PathDefault {
-	return ipv4vpnp.PathDefault
-}
-
-// return IPv4VPNPath's string representation
-func (ipv4vpnp *IPv4VPNPath) String() string {
-	str := fmt.Sprintf("IPv4VPNPath Source: %v, ", ipv4vpnp.GetSource())
-	str = str + fmt.Sprintf(" NLRI: %s, ", ipv4vpnp.getPrefix())
-	str = str + fmt.Sprintf(" nexthop: %s, ", ipv4vpnp.GetNexthop().String())
-	str = str + fmt.Sprintf(" withdraw: %s, ", ipv4vpnp.IsWithdraw())
-	//str = str + fmt.Sprintf(" path attributes: %s, ", ipv4vpnp.getPathAttributeMap())
-	return str
-}
-
-func (ipv4vpnp *IPv4VPNPath) MarshalJSON() ([]byte, error) {
-	return json.Marshal(struct {
-		Network string
-		Nexthop string
-		Attrs   []bgp.PathAttributeInterface
-		Age     int64
-	}{
-		Network: ipv4vpnp.getPrefix(),
-		Nexthop: ipv4vpnp.PathDefault.GetNexthop().String(),
-		Attrs:   ipv4vpnp.PathDefault.getPathAttrs(),
-		Age:     int64(time.Now().Sub(ipv4vpnp.PathDefault.timestamp).Seconds()),
-	})
-}
-
-type EVPNPath struct {
-	*PathDefault
-}
-
-func NewEVPNPath(source *PeerInfo, nlri bgp.AddrPrefixInterface, isWithdraw bool, attrs []bgp.PathAttributeInterface, medSetByTargetNeighbor bool, now time.Time) *EVPNPath {
-	EVPNPath := &EVPNPath{}
-	EVPNPath.PathDefault = NewPathDefault(bgp.RF_EVPN, source, nlri, isWithdraw, attrs, medSetByTargetNeighbor, now)
-	return EVPNPath
-}
-
-func (evpnp *EVPNPath) setPathDefault(pd *PathDefault) {
-	evpnp.PathDefault = pd
-}
-
-func (evpnp *EVPNPath) getPathDefault() *PathDefault {
-	return evpnp.PathDefault
-}
-
-// return EVPNPath's string representation
-func (evpnp *EVPNPath) String() string {
-	str := fmt.Sprintf("EVPNPath Source: %v, ", evpnp.GetSource())
-	str = str + fmt.Sprintf(" NLRI: %s, ", evpnp.getPrefix())
-	str = str + fmt.Sprintf(" nexthop: %s, ", evpnp.GetNexthop().String())
-	str = str + fmt.Sprintf(" withdraw: %s, ", evpnp.IsWithdraw())
-	//str = str + fmt.Sprintf(" path attributes: %s, ", evpnp.getPathAttributeMap())
-	return str
-}
-
-func (evpnp *EVPNPath) MarshalJSON() ([]byte, error) {
-	return json.Marshal(struct {
-		Network string
-		Nexthop string
-		Attrs   []bgp.PathAttributeInterface
-		Age     int64
-	}{
-		Network: evpnp.getPrefix(),
-		Nexthop: evpnp.PathDefault.GetNexthop().String(),
-		Attrs:   evpnp.PathDefault.getPathAttrs(),
-		Age:     int64(time.Now().Sub(evpnp.PathDefault.timestamp).Seconds()),
-	})
-}
-
-type EncapPath struct {
-	*PathDefault
-}
-
-func NewEncapPath(source *PeerInfo, nlri bgp.AddrPrefixInterface, isWithdraw bool, attrs []bgp.PathAttributeInterface, medSetByTargetNeighbor bool, now time.Time) *EncapPath {
-	return &EncapPath{
-		PathDefault: NewPathDefault(bgp.RF_ENCAP, source, nlri, isWithdraw, attrs, medSetByTargetNeighbor, now),
-	}
-}
-
-func (p *EncapPath) setPathDefault(pd *PathDefault) {
-	p.PathDefault = pd
-}
-func (p *EncapPath) getPathDefault() *PathDefault {
-	return p.PathDefault
-}
-
-type RouteTargetPath struct {
-	*PathDefault
-}
-
-func NewRouteTargetPath(source *PeerInfo, nlri bgp.AddrPrefixInterface, isWithdraw bool, attrs []bgp.PathAttributeInterface, medSetByTargetNeighbor bool, now time.Time) *RouteTargetPath {
-	return &RouteTargetPath{
-		PathDefault: NewPathDefault(bgp.RF_RTC_UC, source, nlri, isWithdraw, attrs, medSetByTargetNeighbor, now),
-	}
-}
-
-func (p *RouteTargetPath) setPathDefault(pd *PathDefault) {
-	p.PathDefault = pd
-}
-func (p *RouteTargetPath) getPathDefault() *PathDefault {
-	return p.PathDefault
 }

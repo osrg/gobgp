@@ -22,35 +22,35 @@ import (
 	"time"
 )
 
-func nlri2Path(m *bgp.BGPMessage, p *PeerInfo, now time.Time) []Path {
+func nlri2Path(m *bgp.BGPMessage, p *PeerInfo, now time.Time) []*Path {
 	updateMsg := m.Body.(*bgp.BGPUpdate)
 	pathAttributes := updateMsg.PathAttributes
-	pathList := make([]Path, 0)
+	pathList := make([]*Path, 0)
 	for _, nlri_info := range updateMsg.NLRI {
 		// define local variable to pass nlri's address to CreatePath
 		var nlri bgp.NLRInfo = nlri_info
 		// create Path object
-		path, _ := CreatePath(p, &nlri, pathAttributes, false, now)
+		path := NewPath(p, &nlri, false, pathAttributes, false, now)
 		pathList = append(pathList, path)
 	}
 	return pathList
 }
 
-func withdraw2Path(m *bgp.BGPMessage, p *PeerInfo, now time.Time) []Path {
+func withdraw2Path(m *bgp.BGPMessage, p *PeerInfo, now time.Time) []*Path {
 	updateMsg := m.Body.(*bgp.BGPUpdate)
 	pathAttributes := updateMsg.PathAttributes
-	pathList := make([]Path, 0)
+	pathList := make([]*Path, 0)
 	for _, nlriWithdraw := range updateMsg.WithdrawnRoutes {
 		// define local variable to pass nlri's address to CreatePath
 		var w bgp.WithdrawnRoute = nlriWithdraw
 		// create withdrawn Path object
-		path, _ := CreatePath(p, &w, pathAttributes, true, now)
+		path := NewPath(p, &w, true, pathAttributes, false, now)
 		pathList = append(pathList, path)
 	}
 	return pathList
 }
 
-func mpreachNlri2Path(m *bgp.BGPMessage, p *PeerInfo, now time.Time) []Path {
+func mpreachNlri2Path(m *bgp.BGPMessage, p *PeerInfo, now time.Time) []*Path {
 	updateMsg := m.Body.(*bgp.BGPUpdate)
 	pathAttributes := updateMsg.PathAttributes
 	attrList := []*bgp.PathAttributeMpReachNLRI{}
@@ -62,19 +62,19 @@ func mpreachNlri2Path(m *bgp.BGPMessage, p *PeerInfo, now time.Time) []Path {
 			break
 		}
 	}
-	pathList := make([]Path, 0)
+	pathList := make([]*Path, 0)
 
 	for _, mp := range attrList {
 		nlri_info := mp.Value
 		for _, nlri := range nlri_info {
-			path, _ := CreatePath(p, nlri, pathAttributes, false, now)
+			path := NewPath(p, nlri, false, pathAttributes, false, now)
 			pathList = append(pathList, path)
 		}
 	}
 	return pathList
 }
 
-func mpunreachNlri2Path(m *bgp.BGPMessage, p *PeerInfo, now time.Time) []Path {
+func mpunreachNlri2Path(m *bgp.BGPMessage, p *PeerInfo, now time.Time) []*Path {
 	updateMsg := m.Body.(*bgp.BGPUpdate)
 	pathAttributes := updateMsg.PathAttributes
 	attrList := []*bgp.PathAttributeMpUnreachNLRI{}
@@ -86,21 +86,21 @@ func mpunreachNlri2Path(m *bgp.BGPMessage, p *PeerInfo, now time.Time) []Path {
 			break
 		}
 	}
-	pathList := make([]Path, 0)
+	pathList := make([]*Path, 0)
 
 	for _, mp := range attrList {
 		nlri_info := mp.Value
 
 		for _, nlri := range nlri_info {
-			path, _ := CreatePath(p, nlri, pathAttributes, true, now)
+			path := NewPath(p, nlri, true, pathAttributes, false, now)
 			pathList = append(pathList, path)
 		}
 	}
 	return pathList
 }
 
-func ProcessMessage(m *bgp.BGPMessage, peerInfo *PeerInfo) []Path {
-	pathList := make([]Path, 0)
+func ProcessMessage(m *bgp.BGPMessage, peerInfo *PeerInfo) []*Path {
+	pathList := make([]*Path, 0)
 	now := time.Now()
 	pathList = append(pathList, nlri2Path(m, peerInfo, now)...)
 	pathList = append(pathList, withdraw2Path(m, peerInfo, now)...)
@@ -110,30 +110,16 @@ func ProcessMessage(m *bgp.BGPMessage, peerInfo *PeerInfo) []Path {
 }
 
 type TableManager struct {
-	Tables   map[bgp.RouteFamily]Table
+	Tables   map[bgp.RouteFamily]*Table
 	localAsn uint32
 	owner    string
 }
 
 func NewTableManager(owner string, rfList []bgp.RouteFamily) *TableManager {
 	t := &TableManager{}
-	t.Tables = make(map[bgp.RouteFamily]Table)
+	t.Tables = make(map[bgp.RouteFamily]*Table)
 	for _, rf := range rfList {
-		// FIXME: NewIPTable() should handle all cases.
-		switch rf {
-		case bgp.RF_IPv4_UC:
-			t.Tables[bgp.RF_IPv4_UC] = NewIPv4Table(0)
-		case bgp.RF_IPv6_UC:
-			t.Tables[bgp.RF_IPv6_UC] = NewIPv6Table(0)
-		case bgp.RF_IPv4_VPN:
-			t.Tables[bgp.RF_IPv4_VPN] = NewIPv4VPNTable(0)
-		case bgp.RF_EVPN:
-			t.Tables[bgp.RF_EVPN] = NewEVPNTable(0)
-		case bgp.RF_ENCAP:
-			t.Tables[bgp.RF_ENCAP] = NewEncapTable()
-		case bgp.RF_RTC_UC:
-			t.Tables[bgp.RF_RTC_UC] = NewRouteTargetTable()
-		}
+		t.Tables[rf] = NewTable(rf)
 	}
 	t.owner = owner
 	return t
@@ -143,8 +129,8 @@ func (manager *TableManager) OwnerName() string {
 	return manager.owner
 }
 
-func (manager *TableManager) calculate(destinationList []Destination) ([]Path, error) {
-	newPaths := make([]Path, 0)
+func (manager *TableManager) calculate(destinationList []*Destination) ([]*Path, error) {
+	newPaths := make([]*Path, 0)
 
 	for _, destination := range destinationList {
 		// compute best path
@@ -201,7 +187,6 @@ func (manager *TableManager) calculate(destinationList []Destination) ([]Path, e
 				}
 				destination.setBestPath(nil)
 			} else {
-
 				log.WithFields(log.Fields{
 					"Topic": "table",
 					"Owner": manager.owner,
@@ -225,7 +210,7 @@ func (manager *TableManager) calculate(destinationList []Destination) ([]Path, e
 		if len(destination.getKnownPathList()) == 0 && destination.GetBestPath() == nil {
 			rf := destination.getRouteFamily()
 			t := manager.Tables[rf]
-			deleteDest(t, destination)
+			t.deleteDest(destination)
 			log.WithFields(log.Fields{
 				"Topic":        "table",
 				"Owner":        manager.owner,
@@ -237,32 +222,32 @@ func (manager *TableManager) calculate(destinationList []Destination) ([]Path, e
 	return newPaths, nil
 }
 
-func (manager *TableManager) DeletePathsforPeer(peerInfo *PeerInfo, rf bgp.RouteFamily) ([]Path, error) {
-	if _, ok := manager.Tables[rf]; ok {
-		destinationList := manager.Tables[rf].DeleteDestByPeer(peerInfo)
+func (manager *TableManager) DeletePathsforPeer(peerInfo *PeerInfo, rf bgp.RouteFamily) ([]*Path, error) {
+	if t, ok := manager.Tables[rf]; ok {
+		destinationList := t.DeleteDestByPeer(peerInfo)
 		return manager.calculate(destinationList)
 	}
-	return []Path{}, nil
+	return []*Path{}, nil
 }
 
-func (manager *TableManager) ProcessPaths(pathList []Path) ([]Path, error) {
-	destinationList := make([]Destination, 0)
+func (manager *TableManager) ProcessPaths(pathList []*Path) ([]*Path, error) {
+	destinationList := make([]*Destination, 0, len(pathList))
 	for _, path := range pathList {
 		rf := path.GetRouteFamily()
-		if _, ok := manager.Tables[rf]; ok {
-			destination := insert(manager.Tables[rf], path)
-			destinationList = append(destinationList, destination)
+		if t, ok := manager.Tables[rf]; ok {
+			destinationList = append(destinationList, t.insert(path))
 		}
 	}
 	return manager.calculate(destinationList)
 }
 
-func (manager *TableManager) GetPathList(rf bgp.RouteFamily) []Path {
+func (manager *TableManager) GetPathList(rf bgp.RouteFamily) []*Path {
 	if _, ok := manager.Tables[rf]; !ok {
-		return []Path{}
+		return []*Path{}
 	}
-	var paths []Path
-	for _, dest := range manager.Tables[rf].GetDestinations() {
+	destinations := manager.Tables[rf].GetDestinations()
+	paths := make([]*Path, 0, len(destinations))
+	for _, dest := range destinations {
 		paths = append(paths, dest.GetBestPath())
 	}
 	return paths
@@ -270,7 +255,7 @@ func (manager *TableManager) GetPathList(rf bgp.RouteFamily) []Path {
 
 // process BGPUpdate message
 // this function processes only BGPUpdate
-func (manager *TableManager) ProcessUpdate(fromPeer *PeerInfo, message *bgp.BGPMessage) ([]Path, error) {
+func (manager *TableManager) ProcessUpdate(fromPeer *PeerInfo, message *bgp.BGPMessage) ([]*Path, error) {
 	// check msg's type if it's BGPUpdate
 	if message.Header.Type != bgp.BGP_MSG_UPDATE {
 		log.WithFields(log.Fields{
@@ -279,7 +264,7 @@ func (manager *TableManager) ProcessUpdate(fromPeer *PeerInfo, message *bgp.BGPM
 			"key":   fromPeer.Address.String(),
 			"Type":  message.Header.Type,
 		}).Warn("message is not BGPUpdate")
-		return []Path{}, nil
+		return []*Path{}, nil
 	}
 
 	return manager.ProcessPaths(ProcessMessage(message, fromPeer))
@@ -302,12 +287,12 @@ func NewAdjRib(rfList []bgp.RouteFamily) *AdjRib {
 	return r
 }
 
-func (adj *AdjRib) update(rib map[bgp.RouteFamily]map[string]*ReceivedRoute, pathList []Path) {
+func (adj *AdjRib) update(rib map[bgp.RouteFamily]map[string]*ReceivedRoute, pathList []*Path) {
 	for _, path := range pathList {
 		rf := path.GetRouteFamily()
 		key := path.getPrefix()
 		old, found := rib[rf][key]
-		if path.IsWithdraw() {
+		if path.IsWithdraw {
 			if found {
 				delete(rib[rf], key)
 			}
@@ -320,32 +305,32 @@ func (adj *AdjRib) update(rib map[bgp.RouteFamily]map[string]*ReceivedRoute, pat
 	}
 }
 
-func (adj *AdjRib) UpdateIn(pathList []Path) {
+func (adj *AdjRib) UpdateIn(pathList []*Path) {
 	adj.update(adj.adjRibIn, pathList)
 }
 
-func (adj *AdjRib) UpdateOut(pathList []Path) {
+func (adj *AdjRib) UpdateOut(pathList []*Path) {
 	adj.update(adj.adjRibOut, pathList)
 }
 
-func (adj *AdjRib) getPathList(rib map[string]*ReceivedRoute) []Path {
-	pathList := make([]Path, 0, len(rib))
+func (adj *AdjRib) getPathList(rib map[string]*ReceivedRoute) []*Path {
+	pathList := make([]*Path, 0, len(rib))
 	for _, rr := range rib {
 		pathList = append(pathList, rr.path)
 	}
 	return pathList
 }
 
-func (adj *AdjRib) GetInPathList(rf bgp.RouteFamily) []Path {
+func (adj *AdjRib) GetInPathList(rf bgp.RouteFamily) []*Path {
 	if _, ok := adj.adjRibIn[rf]; !ok {
-		return []Path{}
+		return []*Path{}
 	}
 	return adj.getPathList(adj.adjRibIn[rf])
 }
 
-func (adj *AdjRib) GetOutPathList(rf bgp.RouteFamily) []Path {
+func (adj *AdjRib) GetOutPathList(rf bgp.RouteFamily) []*Path {
 	if _, ok := adj.adjRibOut[rf]; !ok {
-		return []Path{}
+		return []*Path{}
 	}
 	return adj.getPathList(adj.adjRibOut[rf])
 }
@@ -373,7 +358,7 @@ func (adj *AdjRib) DropAll(rf bgp.RouteFamily) {
 }
 
 type ReceivedRoute struct {
-	path     Path
+	path     *Path
 	filtered bool
 }
 
@@ -381,7 +366,7 @@ func (rr *ReceivedRoute) String() string {
 	return rr.path.getPrefix()
 }
 
-func NewReceivedRoute(path Path, filtered bool) *ReceivedRoute {
+func NewReceivedRoute(path *Path, filtered bool) *ReceivedRoute {
 
 	rroute := &ReceivedRoute{
 		path:     path,
