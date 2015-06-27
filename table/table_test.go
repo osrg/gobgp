@@ -22,54 +22,40 @@ import (
 	"time"
 )
 
-func TestTableCreateDestDefault(t *testing.T) {
-	td := NewTableDefault(0)
-	nlri := bgp.NewNLRInfo(24, "13.2.3.1")
-	cd := td.createDest(nlri)
-	assert.Nil(t, cd)
-}
-
-func TestTableTableKeyDefault(t *testing.T) {
-	td := NewTableDefault(0)
-	nlri := bgp.NewNLRInfo(24, "13.2.3.1")
-	tk := td.tableKey(nlri)
-	assert.Equal(t, tk, "")
-}
-
 func TestTableDeleteDestByNlri(t *testing.T) {
 	peerT := TableCreatePeer()
 	pathT := TableCreatePath(peerT)
-	ipv4t := NewIPv4Table(0)
+	ipv4t := NewTable(bgp.RF_IPv4_UC)
 	for _, path := range pathT {
 		tableKey := ipv4t.tableKey(path.GetNlri())
-		dest := ipv4t.createDest(path.GetNlri())
+		dest := NewDestination(path.GetNlri())
 		ipv4t.setDestination(tableKey, dest)
 	}
 	tableKey := ipv4t.tableKey(pathT[0].GetNlri())
 	gdest := ipv4t.getDestination(tableKey)
-	rdest := deleteDestByNlri(ipv4t, pathT[0].GetNlri())
+	rdest := ipv4t.deleteDestByNlri(pathT[0].GetNlri())
 	assert.Equal(t, rdest, gdest)
 }
 
 func TestTableDeleteDest(t *testing.T) {
 	peerT := TableCreatePeer()
 	pathT := TableCreatePath(peerT)
-	ipv4t := NewIPv4Table(0)
+	ipv4t := NewTable(bgp.RF_IPv4_UC)
 	for _, path := range pathT {
 		tableKey := ipv4t.tableKey(path.GetNlri())
-		dest := ipv4t.createDest(path.GetNlri())
+		dest := NewDestination(path.GetNlri())
 		ipv4t.setDestination(tableKey, dest)
 	}
 	tableKey := ipv4t.tableKey(pathT[0].GetNlri())
-	dest := ipv4t.createDest(pathT[0].GetNlri())
+	dest := NewDestination(pathT[0].GetNlri())
 	ipv4t.setDestination(tableKey, dest)
-	deleteDest(ipv4t, dest)
+	ipv4t.deleteDest(dest)
 	gdest := ipv4t.getDestination(tableKey)
 	assert.Nil(t, gdest)
 }
 
 func TestTableGetRouteFamily(t *testing.T) {
-	ipv4t := NewIPv4Table(0)
+	ipv4t := NewTable(bgp.RF_IPv4_UC)
 	rf := ipv4t.GetRoutefamily()
 	assert.Equal(t, rf, bgp.RF_IPv4_UC)
 }
@@ -77,11 +63,11 @@ func TestTableGetRouteFamily(t *testing.T) {
 func TestTableSetDestinations(t *testing.T) {
 	peerT := TableCreatePeer()
 	pathT := TableCreatePath(peerT)
-	ipv4t := NewIPv4Table(0)
-	destinations := make(map[string]Destination)
+	ipv4t := NewTable(bgp.RF_IPv4_UC)
+	destinations := make(map[string]*Destination)
 	for _, path := range pathT {
 		tableKey := ipv4t.tableKey(path.GetNlri())
-		dest := ipv4t.createDest(path.GetNlri())
+		dest := NewDestination(path.GetNlri())
 		destinations[tableKey] = dest
 	}
 	ipv4t.setDestinations(destinations)
@@ -91,11 +77,11 @@ func TestTableSetDestinations(t *testing.T) {
 func TestTableGetDestinations(t *testing.T) {
 	peerT := DestCreatePeer()
 	pathT := DestCreatePath(peerT)
-	ipv4t := NewIPv4Table(0)
-	destinations := make(map[string]Destination)
+	ipv4t := NewTable(bgp.RF_IPv4_UC)
+	destinations := make(map[string]*Destination)
 	for _, path := range pathT {
 		tableKey := ipv4t.tableKey(path.GetNlri())
-		dest := ipv4t.createDest(path.GetNlri())
+		dest := NewDestination(path.GetNlri())
 		destinations[tableKey] = dest
 	}
 	ipv4t.setDestinations(destinations)
@@ -111,17 +97,17 @@ func TableCreatePeer() []*PeerInfo {
 	return peerT
 }
 
-func TableCreatePath(peerT []*PeerInfo) []Path {
+func TableCreatePath(peerT []*PeerInfo) []*Path {
 	bgpMsgT1 := updateMsgT1()
 	bgpMsgT2 := updateMsgT2()
 	bgpMsgT3 := updateMsgT3()
-	pathT := make([]Path, 3)
+	pathT := make([]*Path, 3)
 	for i, msg := range []*bgp.BGPMessage{bgpMsgT1, bgpMsgT2, bgpMsgT3} {
 		updateMsgT := msg.Body.(*bgp.BGPUpdate)
 		nlriList := updateMsgT.NLRI
 		pathAttributes := updateMsgT.PathAttributes
 		nlri_info := nlriList[0]
-		pathT[i], _ = CreatePath(peerT[i], &nlri_info, pathAttributes, false, time.Now())
+		pathT[i] = NewPath(peerT[i], &nlri_info, false, pathAttributes, false, time.Now())
 	}
 	return pathT
 }

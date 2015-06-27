@@ -27,51 +27,51 @@ import (
 func TestDestinationNewIPv4(t *testing.T) {
 	peerD := DestCreatePeer()
 	pathD := DestCreatePath(peerD)
-	ipv4d := NewIPv4Destination(pathD[0].GetNlri())
+	ipv4d := NewDestination(pathD[0].GetNlri())
 	assert.NotNil(t, ipv4d)
 }
 func TestDestinationNewIPv6(t *testing.T) {
 	peerD := DestCreatePeer()
 	pathD := DestCreatePath(peerD)
-	ipv6d := NewIPv6Destination(pathD[0].GetNlri())
+	ipv6d := NewDestination(pathD[0].GetNlri())
 	assert.NotNil(t, ipv6d)
 }
 
 func TestDestinationSetRouteFamily(t *testing.T) {
-	dd := &DestinationDefault{}
+	dd := &Destination{}
 	dd.setRouteFamily(bgp.RF_IPv4_UC)
 	rf := dd.getRouteFamily()
 	assert.Equal(t, rf, bgp.RF_IPv4_UC)
 }
 func TestDestinationGetRouteFamily(t *testing.T) {
-	dd := &DestinationDefault{}
+	dd := &Destination{}
 	dd.setRouteFamily(bgp.RF_IPv6_UC)
 	rf := dd.getRouteFamily()
 	assert.Equal(t, rf, bgp.RF_IPv6_UC)
 }
 func TestDestinationSetNlri(t *testing.T) {
-	dd := &DestinationDefault{}
+	dd := &Destination{}
 	nlri := bgp.NewNLRInfo(24, "13.2.3.1")
 	dd.setNlri(nlri)
 	r_nlri := dd.getNlri()
 	assert.Equal(t, r_nlri, nlri)
 }
 func TestDestinationGetNlri(t *testing.T) {
-	dd := &DestinationDefault{}
+	dd := &Destination{}
 	nlri := bgp.NewNLRInfo(24, "10.110.123.1")
 	dd.setNlri(nlri)
 	r_nlri := dd.getNlri()
 	assert.Equal(t, r_nlri, nlri)
 }
 func TestDestinationSetBestPathReason(t *testing.T) {
-	dd := &DestinationDefault{}
+	dd := &Destination{}
 	reason := "reason1"
 	dd.setBestPathReason(reason)
 	r_reason := dd.getBestPathReason()
 	assert.Equal(t, r_reason, reason)
 }
 func TestDestinationGetBestPathReason(t *testing.T) {
-	dd := &DestinationDefault{}
+	dd := &Destination{}
 	reason := "reason2"
 	dd.setBestPathReason(reason)
 	r_reason := dd.getBestPathReason()
@@ -80,7 +80,7 @@ func TestDestinationGetBestPathReason(t *testing.T) {
 func TestDestinationSetBestPath(t *testing.T) {
 	peerD := DestCreatePeer()
 	pathD := DestCreatePath(peerD)
-	ipv4d := NewIPv4Destination(pathD[0].GetNlri())
+	ipv4d := NewDestination(pathD[0].GetNlri())
 	ipv4d.setBestPath(pathD[0])
 	r_pathD := ipv4d.GetBestPath()
 	assert.Equal(t, r_pathD, pathD[0])
@@ -88,7 +88,7 @@ func TestDestinationSetBestPath(t *testing.T) {
 func TestDestinationGetBestPath(t *testing.T) {
 	peerD := DestCreatePeer()
 	pathD := DestCreatePath(peerD)
-	ipv4d := NewIPv4Destination(pathD[0].GetNlri())
+	ipv4d := NewDestination(pathD[0].GetNlri())
 	ipv4d.setBestPath(pathD[0])
 	r_pathD := ipv4d.GetBestPath()
 	assert.Equal(t, r_pathD, pathD[0])
@@ -96,7 +96,7 @@ func TestDestinationGetBestPath(t *testing.T) {
 func TestDestinationCalculate(t *testing.T) {
 	peerD := DestCreatePeer()
 	pathD := DestCreatePath(peerD)
-	ipv4d := NewIPv4Destination(pathD[0].GetNlri())
+	ipv4d := NewDestination(pathD[0].GetNlri())
 	//best path selection
 	ipv4d.addNewPath(pathD[0])
 	ipv4d.addNewPath(pathD[1])
@@ -114,17 +114,17 @@ func DestCreatePeer() []*PeerInfo {
 	return peerD
 }
 
-func DestCreatePath(peerD []*PeerInfo) []Path {
+func DestCreatePath(peerD []*PeerInfo) []*Path {
 	bgpMsgD1 := updateMsgD1()
 	bgpMsgD2 := updateMsgD2()
 	bgpMsgD3 := updateMsgD3()
-	pathD := make([]Path, 3)
+	pathD := make([]*Path, 3)
 	for i, msg := range []*bgp.BGPMessage{bgpMsgD1, bgpMsgD2, bgpMsgD3} {
 		updateMsgD := msg.Body.(*bgp.BGPUpdate)
 		nlriList := updateMsgD.NLRI
 		pathAttributes := updateMsgD.PathAttributes
 		nlri_info := nlriList[0]
-		pathD[i], _ = CreatePath(peerD[i], &nlri_info, pathAttributes, false, time.Now())
+		pathD[i] = NewPath(peerD[i], &nlri_info, false, pathAttributes, false, time.Now())
 	}
 	return pathD
 }
