@@ -210,7 +210,7 @@ message EVPNNlri {
     EVPN_TYPE type = 1;
 //    EvpnAutoDiscoveryRoute = 2;
     EvpnMacIpAdvertisement mac_ip_adv = 3;
-//    EvpnInclusiveMulticastEthernetTag = 4;
+    EvpnInclusiveMulticastEthernetTag multicast_etag = 4;
 //    EvpnEthernetSegmentRoute = 5;
 }
 
@@ -223,6 +223,13 @@ message EvpnMacIpAdvertisement {
     string esi = 6;
     uint32 etag = 7;
     repeated uint32 labels = 8;
+}
+
+message EvpnInclusiveMulticastEthernetTag {
+    string rd = 1;
+    uint32 etag = 2;
+    string ip_addr = 3;
+    uint32 ip_addr_len = 4;
 }
 
 message RTNlri {

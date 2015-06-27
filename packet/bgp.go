@@ -797,7 +797,7 @@ func NewRouteDistinguisherIPAddressAS(admin string, assigned uint16) *RouteDisti
 		DefaultRouteDistinguisher: DefaultRouteDistinguisher{
 			Type: BGP_RD_IPV4_ADDRESS,
 		},
-		Admin:    net.ParseIP(admin),
+		Admin:    net.ParseIP(admin).To4(),
 		Assigned: assigned,
 	}
 }
@@ -3034,6 +3034,15 @@ func (e *TwoOctetAsSpecificExtended) ToApiStruct() *api.ExtendedCommunity {
 		IsTransitive: e.IsTransitive,
 		Asn:          uint32(e.AS),
 		LocalAdmin:   e.LocalAdmin,
+	}
+}
+
+func NewTwoOctetAsSpecificExtended(as uint16, rt uint32, isTransitive bool) *TwoOctetAsSpecificExtended {
+	return &TwoOctetAsSpecificExtended{
+		SubType:      ExtendedCommunityAttrSubType(EC_SUBTYPE_ROUTE_TARGET),
+		AS:           as,
+		LocalAdmin:   rt,
+		IsTransitive: isTransitive,
 	}
 }
 
