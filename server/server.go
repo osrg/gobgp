@@ -1045,61 +1045,68 @@ func (server *BgpServer) handleGrpc(grpcReq *GrpcRequest) []*SenderMsg {
 		}
 		resInPolicies := []*api.PolicyDefinition{}
 		resOutPolicies := []*api.PolicyDefinition{}
+		resDistPolicies := []*api.PolicyDefinition{}
 		pdList := server.routingPolicy.PolicyDefinitionList
 		df := server.routingPolicy.DefinedSets
+
+		extract := func(policies []string) []*api.PolicyDefinition {
+			extracted := []*api.PolicyDefinition{}
+			for _, conInPolicyName := range policies {
+				match := false
+				for _, pd := range pdList {
+					if conInPolicyName == pd.Name {
+						match = true
+						extracted = append(extracted, policy.PolicyDefinitionToApiStruct(pd, df))
+						break
+					}
+				}
+				if !match {
+					extracted = append(extracted, &api.PolicyDefinition{PolicyDefinitionName: conInPolicyName})
+				}
+			}
+			return extracted
+		}
+
 		// Add importpolies that has been set in the configuration file to the list.
 		// However, peer haven't target importpolicy when add PolicyDefinition of name only to the list.
 		conInPolicyNames := peer.config.ApplyPolicy.ImportPolicies
-		for _, conInPolicyName := range conInPolicyNames {
-			match := false
-			for _, pd := range pdList {
-				if conInPolicyName == pd.Name {
-					match = true
-					resInPolicies = append(resInPolicies, policy.PolicyDefinitionToApiStruct(pd, df))
-					break
-				}
-			}
-			if !match {
-				resInPolicies = append(resInPolicies, &api.PolicyDefinition{PolicyDefinitionName: conInPolicyName})
-			}
-		}
+		resInPolicies = extract(conInPolicyNames)
+
 		// Add importpolies that has been set in the configuration file to the list.
 		// However, peer haven't target importpolicy when add PolicyDefinition of name only to the list.
 		conOutPolicyNames := peer.config.ApplyPolicy.ExportPolicies
-		for _, conOutPolicyName := range conOutPolicyNames {
-			match := false
-			for _, pd := range pdList {
-				if conOutPolicyName == pd.Name {
-					match = true
-					resOutPolicies = append(resOutPolicies, policy.PolicyDefinitionToApiStruct(pd, df))
-					break
-				}
-			}
-			if !match {
-				resOutPolicies = append(resOutPolicies, &api.PolicyDefinition{PolicyDefinitionName: conOutPolicyName})
-			}
-		}
+		resOutPolicies = extract(conOutPolicyNames)
+
+		distPolicyNames := peer.config.ApplyPolicy.DistributePolicies
+		resDistPolicies = extract(distPolicyNames)
 
 		defaultInPolicy := policy.ROUTE_REJECT
 		defaultOutPolicy := policy.ROUTE_REJECT
+		defaultDistPolicy := policy.ROUTE_REJECT
 		if loc.defaultImportPolicy == config.DEFAULT_POLICY_TYPE_ACCEPT_ROUTE {
 			defaultInPolicy = policy.ROUTE_ACCEPT
 		}
 		if loc.defaultExportPolicy == config.DEFAULT_POLICY_TYPE_ACCEPT_ROUTE {
 			defaultOutPolicy = policy.ROUTE_ACCEPT
 		}
+		if peer.defaultDistributePolicy == config.DEFAULT_POLICY_TYPE_ACCEPT_ROUTE {
+			defaultDistPolicy = policy.ROUTE_ACCEPT
+		}
 		result := &GrpcResponse{
 			Data: &api.ApplyPolicy{
-				DefaultImportPolicy: defaultInPolicy,
-				ImportPolicies:      resInPolicies,
-				DefaultExportPolicy: defaultOutPolicy,
-				ExportPolicies:      resOutPolicies,
+				DefaultImportPolicy:     defaultInPolicy,
+				ImportPolicies:          resInPolicies,
+				DefaultExportPolicy:     defaultOutPolicy,
+				ExportPolicies:          resOutPolicies,
+				DefaultDistributePolicy: defaultDistPolicy,
+				DistributePolicies:      resDistPolicies,
 			},
 		}
 		grpcReq.ResponseCh <- result
 		close(grpcReq.ResponseCh)
 
-	case REQ_NEIGHBOR_POLICY_ADD_IMPORT, REQ_NEIGHBOR_POLICY_ADD_EXPORT, REQ_NEIGHBOR_POLICY_DEL_IMPORT, REQ_NEIGHBOR_POLICY_DEL_EXPORT:
+	case REQ_NEIGHBOR_POLICY_ADD_IMPORT, REQ_NEIGHBOR_POLICY_ADD_EXPORT, REQ_NEIGHBOR_POLICY_ADD_DISTRIBUTE,
+		REQ_NEIGHBOR_POLICY_DEL_IMPORT, REQ_NEIGHBOR_POLICY_DEL_EXPORT, REQ_NEIGHBOR_POLICY_DEL_DISTRIBUTE:
 		peer, err := server.checkNeighborRequest(grpcReq)
 		if err != nil {
 			break
@@ -1107,7 +1114,7 @@ func (server *BgpServer) handleGrpc(grpcReq *GrpcRequest) []*SenderMsg {
 		reqApplyPolicy := grpcReq.Data.(*api.ApplyPolicy)
 		reqPolicyMap := server.policyMap
 		applyPolicy := &peer.config.ApplyPolicy
-		var defInPolicy, defOutPolicy config.DefaultPolicyType
+		var defInPolicy, defOutPolicy, defDistPolicy config.DefaultPolicyType
 		if grpcReq.RequestType == REQ_NEIGHBOR_POLICY_ADD_IMPORT {
 			if reqApplyPolicy.DefaultImportPolicy != policy.ROUTE_ACCEPT {
 				defInPolicy = config.DEFAULT_POLICY_TYPE_REJECT_ROUTE
@@ -1120,15 +1127,31 @@ func (server *BgpServer) handleGrpc(grpcReq *GrpcRequest) []*SenderMsg {
 			}
 			peer.config.ApplyPolicy.DefaultExportPolicy = defOutPolicy
 			applyPolicy.ExportPolicies = policy.PoliciesToString(reqApplyPolicy.ExportPolicies)
+		} else if grpcReq.RequestType == REQ_NEIGHBOR_POLICY_ADD_DISTRIBUTE {
+			if reqApplyPolicy.DefaultDistributePolicy != policy.ROUTE_ACCEPT {
+				defDistPolicy = config.DEFAULT_POLICY_TYPE_REJECT_ROUTE
+			}
+			peer.config.ApplyPolicy.DefaultDistributePolicy = defDistPolicy
+			applyPolicy.DistributePolicies = policy.PoliciesToString(reqApplyPolicy.DistributePolicies)
 		} else if grpcReq.RequestType == REQ_NEIGHBOR_POLICY_DEL_IMPORT {
 			peer.config.ApplyPolicy.DefaultImportPolicy = config.DEFAULT_POLICY_TYPE_ACCEPT_ROUTE
 			peer.config.ApplyPolicy.ImportPolicies = make([]string, 0)
 		} else if grpcReq.RequestType == REQ_NEIGHBOR_POLICY_DEL_EXPORT {
 			peer.config.ApplyPolicy.DefaultExportPolicy = config.DEFAULT_POLICY_TYPE_ACCEPT_ROUTE
 			peer.config.ApplyPolicy.ExportPolicies = make([]string, 0)
+		} else if grpcReq.RequestType == REQ_NEIGHBOR_POLICY_DEL_DISTRIBUTE {
+			peer.config.ApplyPolicy.DefaultDistributePolicy = config.DEFAULT_POLICY_TYPE_ACCEPT_ROUTE
+			peer.config.ApplyPolicy.DistributePolicies = make([]string, 0)
 		}
-		loc := server.localRibMap[peer.config.NeighborAddress.String()]
-		loc.setPolicy(peer, reqPolicyMap)
+
+		if grpcReq.RequestType == REQ_NEIGHBOR_POLICY_ADD_DISTRIBUTE ||
+			grpcReq.RequestType == REQ_NEIGHBOR_POLICY_DEL_DISTRIBUTE {
+			peer.setPolicy(reqPolicyMap)
+		} else {
+			loc := server.localRibMap[peer.config.NeighborAddress.String()]
+			loc.setPolicy(peer, reqPolicyMap)
+		}
+
 		grpcReq.ResponseCh <- &GrpcResponse{}
 		close(grpcReq.ResponseCh)
 
