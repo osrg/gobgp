@@ -25,6 +25,7 @@ import (
 	"net"
 	"reflect"
 	"time"
+	"math"
 )
 
 type Path interface {
@@ -40,6 +41,8 @@ type Path interface {
 	SetCommunities([]uint32, bool)
 	RemoveCommunities([]uint32) int
 	ClearCommunities()
+	GetMed() uint32
+	SetMed(int64, bool) error
 	setSource(source *PeerInfo)
 	GetSource() *PeerInfo
 	GetSourceAs() uint32
@@ -477,6 +480,50 @@ func (pd *PathDefault) ClearCommunities() {
 	if idx >= 0 {
 		pd.pathAttrs = append(pd.pathAttrs[:idx], pd.pathAttrs[idx+1:]...)
 	}
+}
+
+func (pd *PathDefault) GetMed() uint32 {
+	_, attr := pd.getPathAttr(bgp.BGP_ATTR_TYPE_MULTI_EXIT_DISC)
+	med := attr.(*bgp.PathAttributeMultiExitDisc).Value
+	return med
+}
+
+// SetMed replace, add or subtraction med with new ones.
+func (pd *PathDefault) SetMed(med int64, doReplace bool) error {
+
+	parseMed := func(orgMed uint32, med int64, doReplace bool) (*bgp.PathAttributeMultiExitDisc, error) {
+		newMed := &bgp.PathAttributeMultiExitDisc{}
+		if doReplace {
+			newMed = bgp.NewPathAttributeMultiExitDisc(uint32(med))
+		} else {
+			if int64(orgMed) + med < 0 {
+				return nil, fmt.Errorf("med value invalid. it's underflow threshold.")
+			} else if int64(orgMed) + med > int64(math.MaxUint32) {
+				return nil, fmt.Errorf("med value invalid. it's overflow threshold.")
+			}
+			newMed = bgp.NewPathAttributeMultiExitDisc(uint32(int64(orgMed) + med))
+		}
+		return newMed, nil
+	}
+
+	idx, attr := pd.getPathAttr(bgp.BGP_ATTR_TYPE_MULTI_EXIT_DISC)
+	if attr != nil{
+		m := attr.(*bgp.PathAttributeMultiExitDisc)
+		newMed, err := parseMed(m.Value, med, doReplace)
+		if err !=  nil{
+			return err
+		}
+		pd.pathAttrs[idx] = newMed
+	} else {
+		m := 0
+		newMed, err := parseMed(uint32(m), med, doReplace)
+		if err !=  nil{
+			pd.pathAttrs = append(pd.pathAttrs, &bgp.PathAttributeMultiExitDisc{})
+			return err
+		}
+		pd.pathAttrs = append(pd.pathAttrs, newMed)
+	}
+	return nil
 }
 
 // create Path object based on route family

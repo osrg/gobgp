@@ -105,11 +105,17 @@ func NewPolicy(pd config.PolicyDefinition, ds config.DefinedSets) *Policy {
 		// routeing action
 		ra := NewRoutingAction(statement.Actions)
 
-		// modification action
+		// Community action
 		mda := make([]Action, 0)
 		com := NewCommunityAction(statement.Actions.BgpActions.SetCommunity)
 		if com != nil {
 			mda = append(mda, com)
+		}
+
+		// Med Action
+		med := NewMedAction(statement.Actions.BgpActions.SetMed)
+		if med != nil {
+			mda = append(mda, med)
 		}
 
 		s := &Statement{
@@ -780,6 +786,88 @@ func (a *CommunityAction) apply(path table.Path) table.Path {
 	case config.BGP_SET_COMMUNITY_OPTION_TYPE_NULL:
 		path.ClearCommunities()
 	}
+	return path
+}
+
+type MedAction struct {
+	DefaultAction
+	Value int64
+	action ActionType
+}
+
+const (
+	MED_ACTION_NONE ActionType = iota
+	MED_ACTION_REPLACE
+	MED_ACTION_ADD
+	MED_ACTION_SUB
+)
+
+
+// NewMedAction creates MedAction object.
+// If it cannot parse med string, then return nil.
+func NewMedAction(med config.BgpSetMedType) *MedAction {
+
+	if med == ""{
+		return nil
+	}
+
+	m := &MedAction{}
+
+	matched, value, action := getMedValue(fmt.Sprintf("%s", med))
+	if !matched {
+		log.WithFields(log.Fields{
+			"Topic": "Policy",
+			"Type":  "Med Action",
+		}).Error("med string invalid.")
+		return nil
+	}
+	m.Value = value
+	m.action = action
+	return m
+}
+
+// getMedValue returns uint32 med value and action type (+ or -).
+// if the string doesn't match a number or operator,
+// it returns false and 0.
+func getMedValue(medStr string) (bool, int64, ActionType) {
+	regMed, _ := regexp.Compile("^(\\+|\\-)?([0-9]+)$")
+	if regMed.MatchString(medStr) {
+		group := regMed.FindStringSubmatch(medStr)
+		action := MED_ACTION_REPLACE
+		if group[1] == "+" {
+			action = MED_ACTION_ADD
+		} else if group[1] == "-" {
+			action = MED_ACTION_SUB
+		}
+		val, err := strconv.ParseInt(medStr, 10, 64)
+		if err != nil {
+			log.WithFields(log.Fields{
+				"Topic": "Policy",
+				"Type":  "Med Action",
+			}).Error("failed to parser as number or med value.")
+		}
+		return true, int64(val), action
+	}
+	return false, int64(0), MED_ACTION_NONE
+}
+func (a *MedAction) apply(path table.Path) table.Path {
+
+	var err error
+	switch a.action {
+	case MED_ACTION_REPLACE:
+		err = path.SetMed(a.Value, true)
+	case MED_ACTION_ADD:
+		err = path.SetMed(a.Value, false)
+	case MED_ACTION_SUB:
+		err = path.SetMed(a.Value, false)
+	}
+	if err != nil {
+		log.WithFields(log.Fields{
+			"Topic": "Policy",
+			"Type":  "Med Action",
+		}).Warn(err)
+	}
+
 	return path
 }
 

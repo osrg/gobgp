@@ -72,9 +72,30 @@ func policy() config.RoutingPolicy {
 			}},
 	}
 
+	cs := config.CommunitySet{
+		CommunitySetName: "community1",
+		CommunityMembers: []string{"65100:10"},
+	}
+
+	as := config.AsPathSet{
+		AsPathSetName: "aspath1",
+		AsPathSetMembers: []string{"^65100"},
+	}
+
+	bds := config.BgpDefinedSets{
+		CommunitySetList: []config.CommunitySet{cs},
+		AsPathSetList:	[]config.AsPathSet{as},
+	}
+
 	ds := config.DefinedSets{
 		PrefixSetList:   []config.PrefixSet{ps},
 		NeighborSetList: []config.NeighborSet{ns},
+		BgpDefinedSets: bds,
+	}
+
+	al := config.AsPathLength{
+		Operator: "eq",
+		Value: 2,
 	}
 
 	s := config.Statement{
@@ -83,10 +104,22 @@ func policy() config.RoutingPolicy {
 			MatchPrefixSet:   "ps1",
 			MatchNeighborSet: "ns1",
 			MatchSetOptions:  config.MATCH_SET_OPTIONS_TYPE_ALL,
+			BgpConditions: config.BgpConditions{
+				MatchCommunitySet: "community1",
+				MatchAsPathSet: "aspath1",
+				AsPathLength: al,
+			},
 		},
 		Actions: config.Actions{
 			AcceptRoute: false,
 			RejectRoute: true,
+			BgpActions: config.BgpActions{
+				SetCommunity: config.SetCommunity{
+					Communities: []string{"65100:20"},
+					Options: "ADD",
+				},
+				SetMed: "-200",
+			},
 		},
 	}
 
