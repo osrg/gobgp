@@ -442,4 +442,6 @@ message ApplyPolicy {
     string default_import_policy = 2;
     repeated PolicyDefinition export_policies = 3;
     string default_export_policy = 4;
+    repeated PolicyDefinition distribute_policies = 5;
+    string default_distribute_policy = 6;
 }

@@ -43,8 +43,10 @@ const (
 	REQ_NEIGHBOR_POLICY
 	REQ_NEIGHBOR_POLICY_ADD_IMPORT
 	REQ_NEIGHBOR_POLICY_ADD_EXPORT
+	REQ_NEIGHBOR_POLICY_ADD_DISTRIBUTE
 	REQ_NEIGHBOR_POLICY_DEL_IMPORT
 	REQ_NEIGHBOR_POLICY_DEL_EXPORT
+	REQ_NEIGHBOR_POLICY_DEL_DISTRIBUTE
 	REQ_GLOBAL_RIB
 	REQ_GLOBAL_ADD
 	REQ_GLOBAL_DELETE
@@ -382,6 +384,8 @@ func (s *Server) ModNeighborPolicy(stream api.Grpc_ModNeighborPolicyServer) erro
 				reqType = REQ_NEIGHBOR_POLICY_ADD_IMPORT
 			case "export":
 				reqType = REQ_NEIGHBOR_POLICY_ADD_EXPORT
+			case "distribute":
+				reqType = REQ_NEIGHBOR_POLICY_ADD_DISTRIBUTE
 			}
 		case api.Operation_DEL:
 			switch arg.Name {
@@ -389,6 +393,8 @@ func (s *Server) ModNeighborPolicy(stream api.Grpc_ModNeighborPolicyServer) erro
 				reqType = REQ_NEIGHBOR_POLICY_DEL_IMPORT
 			case "export":
 				reqType = REQ_NEIGHBOR_POLICY_DEL_EXPORT
+			case "distribute":
+				reqType = REQ_NEIGHBOR_POLICY_DEL_DISTRIBUTE
 			}
 		}
 		req := NewGrpcRequest(reqType, arg.RouterId, rf, arg.ApplyPolicy)

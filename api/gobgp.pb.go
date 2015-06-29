@@ -1196,10 +1196,12 @@ func (m *PolicyDefinition) GetStatementList() []*Statement {
 }
 
 type ApplyPolicy struct {
-	ImportPolicies      []*PolicyDefinition `protobuf:"bytes,1,rep,name=import_policies" json:"import_policies,omitempty"`
-	DefaultImportPolicy string              `protobuf:"bytes,2,opt,name=default_import_policy" json:"default_import_policy,omitempty"`
-	ExportPolicies      []*PolicyDefinition `protobuf:"bytes,3,rep,name=export_policies" json:"export_policies,omitempty"`
-	DefaultExportPolicy string              `protobuf:"bytes,4,opt,name=default_export_policy" json:"default_export_policy,omitempty"`
+	ImportPolicies          []*PolicyDefinition `protobuf:"bytes,1,rep,name=import_policies" json:"import_policies,omitempty"`
+	DefaultImportPolicy     string              `protobuf:"bytes,2,opt,name=default_import_policy" json:"default_import_policy,omitempty"`
+	ExportPolicies          []*PolicyDefinition `protobuf:"bytes,3,rep,name=export_policies" json:"export_policies,omitempty"`
+	DefaultExportPolicy     string              `protobuf:"bytes,4,opt,name=default_export_policy" json:"default_export_policy,omitempty"`
+	DistributePolicies      []*PolicyDefinition `protobuf:"bytes,5,rep,name=distribute_policies" json:"distribute_policies,omitempty"`
+	DefaultDistributePolicy string              `protobuf:"bytes,6,opt,name=default_distribute_policy" json:"default_distribute_policy,omitempty"`
 }
 
 func (m *ApplyPolicy) Reset()         { *m = ApplyPolicy{} }
@@ -1216,6 +1218,13 @@ func (m *ApplyPolicy) GetImportPolicies() []*PolicyDefinition {
 func (m *ApplyPolicy) GetExportPolicies() []*PolicyDefinition {
 	if m != nil {
 		return m.ExportPolicies
+	}
+	return nil
+}
+
+func (m *ApplyPolicy) GetDistributePolicies() []*PolicyDefinition {
+	if m != nil {
+		return m.DistributePolicies
 	}
 	return nil
 }
