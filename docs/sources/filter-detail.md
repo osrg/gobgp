@@ -305,6 +305,7 @@ You can write condition and action under StatementList.
  [PolicyDefinitionList.StatementList.Actions]
   AcceptRoute = true
   [PolicyDefinitionList.StatementList.Actions.BgpActions]
+    SetMed = "-200"
     [PolicyDefinitionList.StatementList.Actions.BgpActions.SetCommunity]
       Communities = ["65100:20"]
       Options = "ADD"
@@ -355,13 +356,18 @@ You can write condition and action under StatementList.
  |-------------|-----------------------------------------------------------------------------------|---------|
  | AcceptRoute | action to accept the route if matches conditions. If true, this route is accepted | true    |
 
+  - PolicyDefinitionList.StatementList.Actions.BgpActions
+
+ | Element | Description                                                                      | Example |
+ |---------|----------------------------------------------------------------------------------|---------|
+ | SetMed  | SetMed used to change the med value of the route. <br> If only numbers have been specified, replace the med value of route.<br> if number and operater(+ or -) have been specified, adding or subtracting the med value of route. | "-200"    |
 
   - PolicyDefinitionList.StatementList.Actions.BgpActions.SetCommunity
 
  | Element     | Description                                                                      | Example |
  |-------------|----------------------------------------------------------------------------------|---------|
- | Communities | communities used to manipulate the route's community accodriong to Options below | "eq"    |
- | Options     | operator to manipulate Community attribute in the route                          | 2       |
+ | Communities | communities used to manipulate the route's community accodriong to Options below | "65100:20"    |
+ | Options     | operator to manipulate Community attribute in the route                          | "ADD"       |
 
  <br>
 
@@ -452,7 +458,7 @@ You can write condition and action under StatementList.
     - AsPathSet: *aspath1*
     - AsPath length: *equal 2*
 
-  - If a route matches all these conditions, the route is accepted and added community "65100:20".
+  - If a route matches all these conditions, the route is accepted and added community "65100:20" and subtract 200 from med value.
 
  ```
  # example 4
@@ -473,6 +479,7 @@ You can write condition and action under StatementList.
  [PolicyDefinitionList.StatementList.Actions]
  AcceptRoute = true
  [PolicyDefinitionList.StatementList.Actions.BgpActions]
+ SetMed = "-200"
  [PolicyDefinitionList.StatementList.Actions.BgpActions.SetCommunity]
  Communities = ["65100:20"]
  Options = "ADD"
