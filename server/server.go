@@ -1631,9 +1631,9 @@ func (server *BgpServer) handleGrpcDelPolicy(grpcReq *GrpcRequest) {
 	case REQ_POLICY_ROUTEPOLICY_DELETE:
 		reqPolicy := grpcReq.Data.(*api.PolicyDefinition)
 		conPolicyList := server.routingPolicy.PolicyDefinitionList
-		result := &GrpcResponse{}
 		isStatement, policyDef := policy.PolicyDefinitionToConfigStruct(reqPolicy)
 		idxPolicy, idxStatement := policy.IndexOfPolicyDefinition(conPolicyList, policyDef)
+		log.Error(fmt.Sprintf("isStatament=%v, idxPolicy=%d, idxStatement=%d", isStatement, idxPolicy, idxStatement))
 		if isStatement {
 			if idxPolicy == -1 {
 				result.ResponseErr = fmt.Errorf("Policy that has %v doesn't exist.", policyDef.Name)
