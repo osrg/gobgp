@@ -209,7 +209,7 @@ func (server *BgpServer) Serve() {
 				server.addLocalRib(loc)
 				loc.setPolicy(peer, server.policyMap)
 				// set distribute policy
-				peer.setPolicy(server.policyMap)
+				peer.setDistributePolicy(server.policyMap)
 
 				pathList := make([]*table.Path, 0)
 				for _, p := range server.neighborMap {
@@ -403,7 +403,7 @@ func applyPolicies(peer *Peer, loc *LocalRib, d Direction, pathList []*table.Pat
 		if !path.IsWithdraw {
 			var applied bool = false
 			if d == POLICY_DIRECTION_DISTRIBUTE {
-				applied, path = peer.applyPolicies(path)
+				applied, path = peer.applyDistributePolicies(path)
 			} else {
 				applied, path = loc.applyPolicies(d, path)
 			}
@@ -482,12 +482,14 @@ func (server *BgpServer) propagateUpdate(neighborAddress string, RouteServerClie
 	msgs := make([]*SenderMsg, 0)
 
 	if RouteServerClient {
+		p := server.neighborMap[neighborAddress]
+		newPathList := applyPolicies(p, nil, POLICY_DIRECTION_DISTRIBUTE, pathList)
 		for _, loc := range server.localRibMap {
 			targetPeer := server.neighborMap[loc.OwnerName()]
 			if loc.isGlobal() || loc.OwnerName() == neighborAddress {
 				continue
 			}
-			sendPathList, _ := loc.rib.ProcessPaths(applyPolicies(targetPeer, loc, POLICY_DIRECTION_IMPORT, dropSameAsPath(targetPeer.config.PeerAs, filterpath(targetPeer, pathList))))
+			sendPathList, _ := loc.rib.ProcessPaths(applyPolicies(targetPeer, loc, POLICY_DIRECTION_IMPORT, dropSameAsPath(targetPeer.config.PeerAs, filterpath(targetPeer, newPathList))))
 			if targetPeer.fsm.state != bgp.BGP_FSM_ESTABLISHED || len(sendPathList) == 0 {
 				continue
 			}
@@ -651,7 +653,7 @@ func (server *BgpServer) handlePolicy(pl config.RoutingPolicy) {
 		}).Info("call set policy")
 		loc.setPolicy(targetPeer, server.policyMap)
 		// set distribute policy
-		targetPeer.setPolicy(server.policyMap)
+		targetPeer.setDistributePolicy(server.policyMap)
 	}
 }
 
@@ -1132,7 +1134,7 @@ func (server *BgpServer) handleGrpc(grpcReq *GrpcRequest) []*SenderMsg {
 
 		if grpcReq.RequestType == REQ_NEIGHBOR_POLICY_ADD_DISTRIBUTE ||
 			grpcReq.RequestType == REQ_NEIGHBOR_POLICY_DEL_DISTRIBUTE {
-			peer.setPolicy(reqPolicyMap)
+			peer.setDistributePolicy(reqPolicyMap)
 		} else {
 			loc := server.localRibMap[peer.config.NeighborAddress.String()]
 			loc.setPolicy(peer, reqPolicyMap)
