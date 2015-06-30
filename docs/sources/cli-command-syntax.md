@@ -171,3 +171,4 @@ Note: Currently gobgp supports only **global** and **neighbor** subcommand.
   Specify the options of action when you use the routepolicy add subcommand.
   - \-\-a-route     : specify the action(accept, reject) of the route that match to the conditions
   - \-\-a-community : specify the community operation of the route that match to the conditions
+  - \-\-a-med       : specify the med operation of the route that match to the conditions
