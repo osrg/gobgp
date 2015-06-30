@@ -70,7 +70,6 @@ type Destination struct {
 	newPathList    []*Path
 	bestPath       *Path
 	bestPathReason string
-	oldBestPath    *Path
 }
 
 func NewDestination(nlri bgp.AddrPrefixInterface) *Destination {
@@ -166,21 +165,6 @@ func (dd *Destination) addWithdraw(withdraw *Path) {
 func (dd *Destination) addNewPath(newPath *Path) {
 	dd.validatePath(newPath)
 	dd.newPathList = append(dd.newPathList, newPath)
-}
-
-func (dd *Destination) removeOldPathsFromSource(source *PeerInfo) []*Path {
-	removePaths := make([]*Path, 0)
-	tempKnownPathList := make([]*Path, 0)
-
-	for _, path := range dd.knownPathList {
-		if path.GetSource().Equal(source) {
-			removePaths = append(removePaths, path)
-		} else {
-			tempKnownPathList = append(tempKnownPathList, path)
-		}
-	}
-	dd.knownPathList = tempKnownPathList
-	return removePaths
 }
 
 func (dd *Destination) validatePath(path *Path) {
