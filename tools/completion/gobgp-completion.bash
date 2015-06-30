@@ -195,8 +195,7 @@ __handle_word()
         __handle_reply
 	return
     fi
-    # __debug "${FUNCNAME}: c is $c words[c] is ${words[c]}"
-    # echo "${FUNCNAME}: c is $c words[c] is ${words[c]} cword is ${cword}"
+    __debug "${FUNCNAME}: c is $c words[c] is ${words[c]}"
     if [[ "${words[c]}" == -* ]]; then
 	__handle_flag
     elif __contains_word "${words[c]}" "${commands[@]}"; then
@@ -313,6 +312,7 @@ _gobgp_neighbor()
 {
     last_command="gobgp_neighbor"
     commands=()
+
     flags=()
     two_word_flags=()
     flags_with_completion=()
@@ -642,6 +642,7 @@ _gobgp_policy_routepolicy_add_state()
     flags_completion=()
 
     flags+=("--a-community=")
+    flags+=("--a-med=")
     flags+=("--a-route=")
     flags+=("--c-aslen=")
     flags+=("--c-aspath=")
@@ -669,6 +670,7 @@ _gobgp_policy_routepolicy_add()
     flags_completion=()
 
     flags+=("--a-community=")
+    flags+=("--a-med=")
     flags+=("--a-route=")
     flags+=("--c-aslen=")
     flags+=("--c-aspath=")
@@ -763,6 +765,77 @@ _gobgp_policy()
     must_have_one_noun=()
 }
 
+_gobgp_monitor_global_rib()
+{
+    last_command="gobgp_monitor_global_rib"
+    commands=()
+
+    flags=()
+    two_word_flags=()
+    flags_with_completion=()
+    flags_completion=()
+
+    flags+=("--help")
+    flags+=("-h")
+
+    must_have_one_flag=()
+    must_have_one_noun=()
+}
+
+_gobgp_monitor_global()
+{
+    last_command="gobgp_monitor_global"
+    commands=()
+    commands+=("rib")
+
+    flags=()
+    two_word_flags=()
+    flags_with_completion=()
+    flags_completion=()
+
+    flags+=("--help")
+    flags+=("-h")
+
+    must_have_one_flag=()
+    must_have_one_noun=()
+}
+
+_gobgp_monitor_neighbor()
+{
+    last_command="gobgp_monitor_neighbor"
+    commands=()
+
+    flags=()
+    two_word_flags=()
+    flags_with_completion=()
+    flags_completion=()
+
+    flags+=("--help")
+    flags+=("-h")
+
+    must_have_one_flag=()
+    must_have_one_noun=()
+}
+
+_gobgp_monitor()
+{
+    last_command="gobgp_monitor"
+    commands=()
+    commands+=("global")
+    commands+=("neighbor")
+
+    flags=()
+    two_word_flags=()
+    flags_with_completion=()
+    flags_completion=()
+
+    flags+=("--help")
+    flags+=("-h")
+
+    must_have_one_flag=()
+    must_have_one_noun=()
+}
+
 _gobgp_help()
 {
     last_command="gobgp_help"
@@ -790,6 +863,8 @@ _gobgp()
     commands+=("global")
     commands+=("neighbor")
     commands+=("policy")
+    commands+=("monitor")
+    commands+=("help")
 
     flags=()
     two_word_flags=()
@@ -820,6 +895,7 @@ __start_gobgp()
 {
     local cur prev words cword
     _init_completion -s || return
+
     local c=0
     local flags=()
     local two_word_flags=()
