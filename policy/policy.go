@@ -1297,6 +1297,9 @@ func AsPathLengthToConfigStruct(reqAsPathLength *api.AsPathLength) config.AsPath
 
 func ConditionsToConfigStruct(reqConditions *api.Conditions) config.Conditions {
 	conditions := config.Conditions{}
+	if reqConditions == nil {
+		return conditions
+	}
 	if reqConditions.MatchPrefixSet != nil {
 		conditions.MatchPrefixSet = reqConditions.MatchPrefixSet.PrefixSetName
 	}
@@ -1346,6 +1349,9 @@ func ActionsToApiStruct(conActions config.Actions) *api.Actions {
 
 func ActionsToConfigStruct(reqActions *api.Actions) config.Actions {
 	actions := config.Actions{}
+	if reqActions ==  nil{
+		return actions
+	}
 	if reqActions.Community != nil {
 		actions.BgpActions.SetCommunity.Communities = reqActions.Community.Communities
 		actions.BgpActions.SetCommunity.Options = reqActions.Community.Options
