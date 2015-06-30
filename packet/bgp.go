@@ -849,25 +849,38 @@ func getRouteDistinguisher(data []byte) RouteDistinguisherInterface {
 	return rd
 }
 
-func labelDecode(data []byte) uint32 {
-	return uint32(data[0])<<16 | uint32(data[1])<<8 | uint32(data[2])
-}
+//
+// RFC3107 Carrying Label Information in BGP-4
+//
+// 4. Carrying Label Mapping Information
+//
+// b) Label:
+//
+// The Label field carries one or more labels (that corresponds to
+// the stack of labels [MPLS-ENCAPS(RFC3032)]). Each label is encoded as
+// 4 octets, where the high-order 20 bits contain the label value, and
+// the low order bit contains "Bottom of Stack"
+//
+// RFC3032 MPLS Label Stack Encoding
+//
+// 2.1. Encoding the Label Stack
+//
+//  0       1       2               3
+//  0 ... 9 0 ... 9 0 1 2 3 4 ... 9 0 1
+// +-----+-+-+---+-+-+-+-+-+-----+-+-+-+
+// |     Label     | Exp |S|    TTL    |
+// +-----+-+-+---+-+-+-+-+-+-----+-+-+-+
+//
 
-func labelSerialize(label uint32, buf []byte) {
-	buf[0] = byte((label >> 16) & 0xff)
-	buf[1] = byte((label >> 8) & 0xff)
-	buf[2] = byte(label & 0xff)
-}
-
-type Label struct {
+type MPLSLabelStack struct {
 	Labels []uint32
 }
 
-func (l *Label) DecodeFromBytes(data []byte) error {
+func (l *MPLSLabelStack) DecodeFromBytes(data []byte) error {
 	labels := []uint32{}
 	foundBottom := false
-	for len(data) >= 4 {
-		label := uint32(data[0]<<16 | data[1]<<8 | data[2])
+	for len(data) >= 3 {
+		label := uint32(data[0])<<16 | uint32(data[1])<<8 | uint32(data[2])
 		data = data[3:]
 		labels = append(labels, label>>4)
 		if label&1 == 1 {
@@ -883,7 +896,7 @@ func (l *Label) DecodeFromBytes(data []byte) error {
 	return nil
 }
 
-func (l *Label) Serialize() ([]byte, error) {
+func (l *MPLSLabelStack) Serialize() ([]byte, error) {
 	buf := make([]byte, len(l.Labels)*3)
 	for i, label := range l.Labels {
 		label = label << 4
@@ -895,15 +908,39 @@ func (l *Label) Serialize() ([]byte, error) {
 	return buf, nil
 }
 
-func (l *Label) Len() int { return 3 * len(l.Labels) }
+func (l *MPLSLabelStack) Len() int { return 3 * len(l.Labels) }
 
-func NewLabel(labels ...uint32) *Label {
-	return &Label{labels}
+func NewMPLSLabelStack(labels ...uint32) *MPLSLabelStack {
+	return &MPLSLabelStack{labels}
 }
+
+//
+// RFC3107 Carrying Label Information in BGP-4
+//
+// 3. Carrying Label Mapping Information
+//
+// +----------------------+
+// |   Length (1 octet)   |
+// +----------------------+
+// |   Label (3 octets)   |
+// +----------------------+
+// .......................
+// +----------------------+
+// |   Prefix (variable)  |
+// +----------------------+
+//
+// RFC4364 BGP/MPLS IP VPNs
+//
+// 4.3.4. How VPN-IPv4 NLRI Is Carried in BGP
+//
+// The labeled VPN-IPv4 NLRI itself is encoded as specified in
+// [MPLS-BGP(RFC3107)], where the prefix consists of an 8-byte RD
+// followed by an IPv4 prefix.
+//
 
 type LabelledVPNIPAddrPrefix struct {
 	IPAddrPrefixDefault
-	Labels  Label
+	Labels  MPLSLabelStack
 	RD      RouteDistinguisherInterface
 	addrlen uint8
 }
@@ -960,7 +997,7 @@ func (l *LabelledVPNIPAddrPrefix) ToApiStruct() *api.Nlri {
 	}
 }
 
-func NewLabelledVPNIPAddrPrefix(length uint8, prefix string, label Label, rd RouteDistinguisherInterface) *LabelledVPNIPAddrPrefix {
+func NewLabelledVPNIPAddrPrefix(length uint8, prefix string, label MPLSLabelStack, rd RouteDistinguisherInterface) *LabelledVPNIPAddrPrefix {
 	rdlen := 0
 	if rd != nil {
 		rdlen = rd.Len()
@@ -981,7 +1018,7 @@ func (l *LabelledVPNIPv6AddrPrefix) AFI() uint16 {
 	return AFI_IP6
 }
 
-func NewLabelledVPNIPv6AddrPrefix(length uint8, prefix string, label Label, rd RouteDistinguisherInterface) *LabelledVPNIPv6AddrPrefix {
+func NewLabelledVPNIPv6AddrPrefix(length uint8, prefix string, label MPLSLabelStack, rd RouteDistinguisherInterface) *LabelledVPNIPv6AddrPrefix {
 	rdlen := 0
 	if rd != nil {
 		rdlen = rd.Len()
@@ -998,7 +1035,7 @@ func NewLabelledVPNIPv6AddrPrefix(length uint8, prefix string, label Label, rd R
 
 type LabelledIPAddrPrefix struct {
 	IPAddrPrefixDefault
-	Labels  Label
+	Labels  MPLSLabelStack
 	addrlen uint8
 }
 
@@ -1066,7 +1103,7 @@ func (l *LabelledIPAddrPrefix) Serialize() ([]byte, error) {
 	return buf, nil
 }
 
-func NewLabelledIPAddrPrefix(length uint8, prefix string, label Label) *LabelledIPAddrPrefix {
+func NewLabelledIPAddrPrefix(length uint8, prefix string, label MPLSLabelStack) *LabelledIPAddrPrefix {
 	return &LabelledIPAddrPrefix{
 		IPAddrPrefixDefault{length + uint8(label.Len()*8), net.ParseIP(prefix)},
 		label,
@@ -1078,7 +1115,7 @@ type LabelledIPv6AddrPrefix struct {
 	LabelledIPAddrPrefix
 }
 
-func NewLabelledIPv6AddrPrefix(length uint8, prefix string, label Label) *LabelledIPv6AddrPrefix {
+func NewLabelledIPv6AddrPrefix(length uint8, prefix string, label MPLSLabelStack) *LabelledIPv6AddrPrefix {
 	return &LabelledIPv6AddrPrefix{
 		LabelledIPAddrPrefix{
 			IPAddrPrefixDefault{length + uint8(label.Len()*8), net.ParseIP(prefix)},
@@ -1235,6 +1272,31 @@ func (esi *EthernetSegmentIdentifier) String() string {
 		s.WriteString(fmt.Sprintf("value %s", esi.Value))
 	}
 	return s.String()
+}
+
+//
+// I-D bess-evpn-overlay-01
+//
+// 5.1.3 Constructing EVPN BGP Routes
+//
+// For the balance of this memo, the MPLS label field will be
+// referred to as the VNI/VSID field. The VNI/VSID field is used for
+// both local and global VNIs/VSIDs, and for either case the entire 24-
+// bit field is used to encode the VNI/VSID value.
+//
+// We can't use type MPLSLabelStack for EVPN NLRI, because EVPN NLRI's MPLS
+// field can be filled with VXLAN VNI. In that case, we must avoid modifying
+// bottom of stack bit.
+//
+
+func labelDecode(data []byte) uint32 {
+	return uint32(data[0])<<16 | uint32(data[1])<<8 | uint32(data[2])
+}
+
+func labelSerialize(label uint32, buf []byte) {
+	buf[0] = byte((label >> 16) & 0xff)
+	buf[1] = byte((label >> 8) & 0xff)
+	buf[2] = byte(label & 0xff)
 }
 
 type EVPNEthernetAutoDiscoveryRoute struct {
@@ -1695,13 +1757,13 @@ func NewPrefixFromRouteFamily(afi uint16, safi uint8) (prefix AddrPrefixInterfac
 	case RF_IPv6_UC, RF_IPv6_MC:
 		prefix = NewIPv6AddrPrefix(0, "")
 	case RF_IPv4_VPN:
-		prefix = NewLabelledVPNIPAddrPrefix(0, "", *NewLabel(), nil)
+		prefix = NewLabelledVPNIPAddrPrefix(0, "", *NewMPLSLabelStack(), nil)
 	case RF_IPv6_VPN:
-		prefix = NewLabelledVPNIPv6AddrPrefix(0, "", *NewLabel(), nil)
+		prefix = NewLabelledVPNIPv6AddrPrefix(0, "", *NewMPLSLabelStack(), nil)
 	case RF_IPv4_MPLS:
-		prefix = NewLabelledIPAddrPrefix(0, "", *NewLabel())
+		prefix = NewLabelledIPAddrPrefix(0, "", *NewMPLSLabelStack())
 	case RF_IPv6_MPLS:
-		prefix = NewLabelledIPv6AddrPrefix(0, "", *NewLabel())
+		prefix = NewLabelledIPv6AddrPrefix(0, "", *NewMPLSLabelStack())
 	case RF_EVPN:
 		prefix = NewEVPNNLRI(0, 0, nil)
 	case RF_RTC_UC:
