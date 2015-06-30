@@ -16,7 +16,6 @@
 package server
 
 import (
-	"encoding/json"
 	"fmt"
 	log "github.com/Sirupsen/logrus"
 	"github.com/osrg/gobgp/api"
@@ -898,14 +897,7 @@ func (server *BgpServer) handleGrpc(grpcReq *GrpcRequest) []*SenderMsg {
 
 		for _, p := range paths {
 			result := &GrpcResponse{}
-			path := &api.Path{}
-			j, _ := json.Marshal(p)
-			err := json.Unmarshal(j, path)
-			if err != nil {
-				result.ResponseErr = err
-			} else {
-				result.Data = path
-			}
+			result.Data = p.ToApiStruct()
 			grpcReq.ResponseCh <- result
 		}
 		close(grpcReq.ResponseCh)
