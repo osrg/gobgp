@@ -431,6 +431,7 @@ message CommunityAction {
 message Actions {
     string route_action = 1;
     CommunityAction community = 2;
+    string med = 3;
 }
 
 message Statement {
