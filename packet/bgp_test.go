@@ -69,9 +69,9 @@ func update() *BGPMessage {
 	}
 
 	mp_nlri := []AddrPrefixInterface{
-		NewLabelledVPNIPAddrPrefix(20, "192.0.9.0", *NewLabel(1, 2, 3),
+		NewLabelledVPNIPAddrPrefix(20, "192.0.9.0", *NewMPLSLabelStack(1, 2, 3),
 			NewRouteDistinguisherTwoOctetAS(256, 10000)),
-		NewLabelledVPNIPAddrPrefix(26, "192.10.8.192", *NewLabel(5, 6, 7, 8),
+		NewLabelledVPNIPAddrPrefix(26, "192.10.8.192", *NewMPLSLabelStack(5, 6, 7, 8),
 			NewRouteDistinguisherIPAddressAS("10.0.1.1", 10001)),
 	}
 
@@ -79,11 +79,11 @@ func update() *BGPMessage {
 		"fe80:1234:1234:5667:8967:af12:8912:1023")}
 
 	mp_nlri3 := []AddrPrefixInterface{NewLabelledVPNIPv6AddrPrefix(100,
-		"fe80:1234:1234:5667:8967:af12:1203:33a1", *NewLabel(5, 6),
+		"fe80:1234:1234:5667:8967:af12:1203:33a1", *NewMPLSLabelStack(5, 6),
 		NewRouteDistinguisherFourOctetAS(5, 6))}
 
 	mp_nlri4 := []AddrPrefixInterface{NewLabelledIPAddrPrefix(25, "192.168.0.0",
-		*NewLabel(5, 6, 7))}
+		*NewMPLSLabelStack(5, 6, 7))}
 
 	mac, _ := net.ParseMAC("01:23:45:67:89:ab")
 	mp_nlri5 := []AddrPrefixInterface{
