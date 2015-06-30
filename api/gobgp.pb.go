@@ -1142,6 +1142,7 @@ func (*CommunityAction) ProtoMessage()    {}
 type Actions struct {
 	RouteAction string           `protobuf:"bytes,1,opt,name=route_action" json:"route_action,omitempty"`
 	Community   *CommunityAction `protobuf:"bytes,2,opt,name=community" json:"community,omitempty"`
+	Med         string           `protobuf:"bytes,3,opt,name=med" json:"med,omitempty"`
 }
 
 func (m *Actions) Reset()         { *m = Actions{} }

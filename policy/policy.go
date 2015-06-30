@@ -1335,9 +1335,11 @@ func ActionsToApiStruct(conActions config.Actions) *api.Actions {
 		Communities: conActions.BgpActions.SetCommunity.Communities,
 		Options:     conActions.BgpActions.SetCommunity.Options,
 	}
+	medAction := fmt.Sprintf("%s", conActions.BgpActions.SetMed)
 	resActions := &api.Actions{
 		RouteAction: action,
 		Community:   communityAction,
+		Med:         medAction,
 	}
 	return resActions
 }
@@ -1348,6 +1350,10 @@ func ActionsToConfigStruct(reqActions *api.Actions) config.Actions {
 		actions.BgpActions.SetCommunity.Communities = reqActions.Community.Communities
 		actions.BgpActions.SetCommunity.Options = reqActions.Community.Options
 	}
+	if reqActions.Med != "" {
+		actions.BgpActions.SetMed = config.BgpSetMedType(reqActions.Med)
+	}
+
 	switch reqActions.RouteAction {
 	case ROUTE_ACCEPT:
 		actions.AcceptRoute = true

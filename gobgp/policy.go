@@ -815,6 +815,7 @@ func showPolicyStatement(head string, pd *api.PolicyDefinition) {
 			communityAction = fmt.Sprintf("%s[%s]", st.Actions.Community.Options, communities)
 		}
 		fmt.Printf("%s      Community:    %s\n", head, communityAction)
+		fmt.Printf("%s      Med:          %s\n", head, st.Actions.Med)
 		fmt.Printf("%s      %s\n", head, st.Actions.RouteAction)
 	}
 
@@ -998,6 +999,16 @@ func parseCommunityAction(communityStr string) (*api.CommunityAction, error) {
 	return communityAction, nil
 }
 
+func checkMedAction(medStr string) error {
+	regMed, _ := regexp.Compile("^(\\+|\\-)?([0-9]+)$")
+	if !regMed.MatchString(medStr) {
+		e := fmt.Sprintf("invalid format: %s\n", medStr)
+		e += "please enter the [+|-]<med>"
+		return fmt.Errorf("%s", e)
+	}
+	return nil
+}
+
 func parseActions() (*api.Actions, error) {
 	actions := &api.Actions{}
 	if actionOpts.RouteAction != "" {
@@ -1014,6 +1025,13 @@ func parseActions() (*api.Actions, error) {
 		}
 
 		actions.Community = community
+	}
+	if actionOpts.MedAction != "" {
+		e := checkMedAction(actionOpts.MedAction)
+		if e != nil {
+			return nil, e
+		}
+		actions.Med = actionOpts.MedAction
 	}
 	return actions, nil
 }
@@ -1092,6 +1110,7 @@ func NewPolicyAddCmd(v string, mod func(string, []string) error) *cobra.Command 
 		policyAddCmd.Flags().StringVarP(&conditionOpts.Option, "c-option", "", "", "an option of policy condition")
 		policyAddCmd.Flags().StringVarP(&actionOpts.RouteAction, "a-route", "", "", "a route action of policy action (accept | reject)")
 		policyAddCmd.Flags().StringVarP(&actionOpts.CommunityAction, "a-community", "", "", "a community of policy action")
+		policyAddCmd.Flags().StringVarP(&actionOpts.MedAction, "a-med", "", "", "a med of policy action")
 	}
 
 	return policyAddCmd

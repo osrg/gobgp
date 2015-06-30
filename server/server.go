@@ -1482,6 +1482,9 @@ func (server *BgpServer) handleGrpcAddPolicy(grpcReq *GrpcRequest) {
 				if reqActions.Community != nil {
 					conStatement.Actions.BgpActions.SetCommunity = statement.Actions.BgpActions.SetCommunity
 				}
+				if reqActions.Med != "" {
+					conStatement.Actions.BgpActions.SetMed = statement.Actions.BgpActions.SetMed
+				}
 			}
 		}
 		server.routingPolicy.PolicyDefinitionList = conPolicyList
