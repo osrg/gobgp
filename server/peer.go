@@ -172,10 +172,8 @@ func (peer *Peer) handleBGPmessage(m *bgp.BGPMessage) ([]table.Path, bool, []*bg
 			break
 		}
 		table.UpdatePathAttrs4ByteAs(body)
-		originalPaths := table.ProcessMessage(m, peer.peerInfo)
-		peer.adjRib.UpdateIn(originalPaths)
-		// apply distribute filter before propagate
-		pathList = applyPolicies(peer, nil, POLICY_DIRECTION_DISTRIBUTE, originalPaths)
+		pathList = table.ProcessMessage(m, peer.peerInfo)
+		peer.adjRib.UpdateIn(pathList)
 	}
 	return pathList, update, bgpMsgList
 }
@@ -302,7 +300,7 @@ func (peer *Peer) ToApiStruct() *api.Peer {
 	}
 }
 
-func (peer *Peer) setPolicy(policyMap map[string]*policy.Policy) {
+func (peer *Peer) setDistributePolicy(policyMap map[string]*policy.Policy) {
 	// configure distribute policy
 	policyConfig := peer.config.ApplyPolicy
 	distPolicies := make([]*policy.Policy, 0)
@@ -322,7 +320,7 @@ func (peer *Peer) setPolicy(policyMap map[string]*policy.Policy) {
 
 }
 
-func (peer *Peer) applyPolicies(original table.Path) (bool, table.Path) {
+func (peer *Peer) applyDistributePolicies(original table.Path) (bool, table.Path) {
 	policies := peer.distPolicies
 	var d Direction = POLICY_DIRECTION_DISTRIBUTE
 
