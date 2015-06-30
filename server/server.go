@@ -1035,19 +1035,19 @@ func (server *BgpServer) handleGrpc(grpcReq *GrpcRequest) []*SenderMsg {
 		pdList := server.routingPolicy.PolicyDefinitionList
 		df := server.routingPolicy.DefinedSets
 
-		extract := func(policies []string) []*api.PolicyDefinition {
+		extract := func(policyNames []string) []*api.PolicyDefinition {
 			extracted := []*api.PolicyDefinition{}
-			for _, conInPolicyName := range policies {
+			for _, policyName := range policyNames {
 				match := false
 				for _, pd := range pdList {
-					if conInPolicyName == pd.Name {
+					if policyName == pd.Name {
 						match = true
 						extracted = append(extracted, policy.PolicyDefinitionToApiStruct(pd, df))
 						break
 					}
 				}
 				if !match {
-					extracted = append(extracted, &api.PolicyDefinition{PolicyDefinitionName: conInPolicyName})
+					extracted = append(extracted, &api.PolicyDefinition{PolicyDefinitionName: policyName})
 				}
 			}
 			return extracted

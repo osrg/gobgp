@@ -671,7 +671,18 @@ func createPolicyConfig() *config.RoutingPolicy {
 		StatementList: []config.Statement{st_distribute_comm_add},
 	}
 
-	ds := config.DefinedSets{
+    test_28_distribute_policy_update := config.PolicyDefinition{
+        Name:          "test_28_distribute_policy_update",
+        StatementList: []config.Statement{st1},
+    }
+
+    test_28_distribute_policy_update_softreset := config.PolicyDefinition{
+        Name:          "test_28_distribute_policy_update_softreset",
+        StatementList: []config.Statement{st2},
+    }
+
+
+    ds := config.DefinedSets{
 		PrefixSetList:   []config.PrefixSet{ps0, ps1, ps2, ps3, ps4, ps5, ps6, psExabgp},
 		NeighborSetList: []config.NeighborSet{nsPeer2, nsPeer2V6, nsExabgp},
 		BgpDefinedSets: config.BgpDefinedSets{
@@ -714,6 +725,8 @@ func createPolicyConfig() *config.RoutingPolicy {
 			test_25_distribute_reject,
 			test_26_distribute_accept,
 			test_27_distribute_set_community_action,
+            test_28_distribute_policy_update,
+            test_28_distribute_policy_update_softreset,
 		},
 	}
 	return p

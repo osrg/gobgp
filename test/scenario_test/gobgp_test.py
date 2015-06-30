@@ -200,7 +200,7 @@ class GoBGPTestBase(unittest.TestCase):
         return result
 
     def soft_reset(self, neighbor_address, af, type="in"):
-        cmd = "%s -j  " % CLI_CMD
+        cmd = "%s -j " % CLI_CMD
         cmd += "neighbor %s " % neighbor_address
         cmd += "softreset%s -a %s" % (type, af)
         local(cmd)

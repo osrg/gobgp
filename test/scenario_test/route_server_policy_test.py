@@ -105,17 +105,15 @@ class GoBGPTest(GoBGPTestBase):
     """
     def test_01_import_policy_initial(self):
 
-        # initialize test environment
-        # policy_pattern:p1 attaches a policy to reject route 192.168.0.0/16 (16...24)
-        # coming from peer2(10.0.0.2) to peer3(10.0.0.3)'s import-policy.
-
-
         peer1 = "10.0.0.1"
         peer2 = "10.0.0.2"
         peer3 = "10.0.0.3"
         prefix1 = "192.168.2.0/24"
         w = self.wait_per_retry
 
+        # policy:test_02_export_policy_initial which rejects paths
+        # that are 192.168.0.0/16 (16...24) and coming from peer2(10.0.0.2)
+        # is attached to peer3(10.0.0.3)'s import-policy.
         self.setup_config(peer3, "test_01_import_policy_initial", "import")
         self.initialize()
 
@@ -152,15 +150,15 @@ class GoBGPTest(GoBGPTestBase):
     """
     def test_02_export_policy_initial(self):
 
-        # initialize test environment
-        # policy_pattern:p1 attaches a policy to reject route 192.168.0.0/16 (16...24)
-        # coming from peer2(10.0.0.2) to peer3(10.0.0.3)'s export-policy.
         peer1 = "10.0.0.1"
         peer2 = "10.0.0.2"
         peer3 = "10.0.0.3"
         prefix1 = "192.168.2.0/24"
         w = self.wait_per_retry
 
+        # policy:test_02_export_policy_initial which rejects paths
+        # that are 192.168.0.0/16 (16...24) and coming from peer2(10.0.0.2)
+        # is attached to peer3(10.0.0.3)'s export-policy.
         self.setup_config(peer3, "test_02_export_policy_initial", "export")
         self.initialize()
 
@@ -215,10 +213,6 @@ class GoBGPTest(GoBGPTestBase):
                            -------------------------------------------------
     """
     def test_03_import_policy_update(self):
-        # initialize test environment
-        # policy_pattern:p3 attaches a policy to reject route
-        # 192.168.2.0/24, 192.168.20.0/24, 192.168.200.0/24
-        # coming from peer2(10.0.0.2) to peer3(10.0.0.3)'s import-policy.
 
         peer1 = "10.0.0.1"
         peer2 = "10.0.0.2"
@@ -228,6 +222,10 @@ class GoBGPTest(GoBGPTestBase):
         r3 = "192.168.200.0/24"
         w = self.wait_per_retry
 
+        # policy:test_03_import_policy_update which rejects paths
+        # that are 192.168.2.0/24, 192.168.20.0/24, 192.168.200.0/24
+        # and coming from peer2(10.0.0.2)
+        # is attached to peer3(10.0.0.3)'s import-policy.
         self.setup_config(peer3, "test_03_import_policy_update", "import")
         self.initialize()
 
@@ -326,10 +324,6 @@ class GoBGPTest(GoBGPTestBase):
     """
     @nose.tools.nottest
     def test_04_export_policy_update(self):
-        # initialize test environment
-        # policy_pattern:p4 attaches a policy to reject route
-        # 192.168.2.0/24, 192.168.20.0/24, 192.168.200.0/24
-        # coming from peer2(10.0.0.2) to peer3(10.0.0.3)'s export-policy.
 
         peer1 = "10.0.0.1"
         peer2 = "10.0.0.2"
@@ -339,6 +333,10 @@ class GoBGPTest(GoBGPTestBase):
         r3 = "192.168.200.0/24"
         w = self.wait_per_retry
 
+        # policy:test_04_export_policy_update which rejects paths
+        # that are 192.168.2.0/24, 192.168.20.0/24, 192.168.200.0/24
+        # and coming from peer2(10.0.0.2)
+        # is attached to peer3(10.0.0.3)'s export-policy.
         self.setup_config(peer3, "test_04_export_policy_update", "export")
         self.initialize()
 
@@ -437,12 +435,6 @@ class GoBGPTest(GoBGPTestBase):
     """
     def test_05_import_policy_initial_ipv6(self):
 
-        # initialize test environment
-        # policy_pattern:p5 attaches a policy to reject route 2001:0:10:2:: (64...128)
-        # coming from peer2(2001::192:168:0:2) to peer3(2001::192:168:0:3)'s
-        # import-policy.
-
-
         peer1 = "2001::192:168:0:1"
         peer2 = "2001::192:168:0:2"
         peer3 = "2001::192:168:0:3"
@@ -450,6 +442,10 @@ class GoBGPTest(GoBGPTestBase):
         w = self.wait_per_retry
 
         self.use_ipv6_gobgp = True
+
+        # policy:test_06_export_policy_initial_ipv6 which rejects paths
+        # that are 2001:0:10:2:: (64...128) and coming from peer2(2001::192:168:0:2)
+        # is attached to peer3(2001::192:168:0:3)'s import-policy.
         self.setup_config(peer3, "test_05_import_policy_initial_ipv6", "import")
         self.initialize()
 
@@ -486,10 +482,6 @@ class GoBGPTest(GoBGPTestBase):
     """
     def test_06_export_policy_initial_ipv6(self):
 
-        # initialize test environment
-        # policy_pattern:p6 attaches a policy to reject route 2001:0:10:2:: (64...128)
-        # coming from peer2(2001::192:168:0:2) to peer3(2001::192:168:0:3)'s export-policy.
-
         peer1 = "2001::192:168:0:1"
         peer2 = "2001::192:168:0:2"
         peer3 = "2001::192:168:0:3"
@@ -497,6 +489,10 @@ class GoBGPTest(GoBGPTestBase):
         w = self.wait_per_retry
 
         self.use_ipv6_gobgp = True
+
+        # policy:test_06_export_policy_initial_ipv6 which rejects paths
+        # that are 2001:0:10:2:: (64...128) and coming from peer2(2001::192:168:0:2)
+        # is attached to peer3(2001::192:168:0:3)'s export-policy.
         self.setup_config(peer3, "test_06_export_policy_initial_ipv6", "export")
         self.initialize()
 
@@ -550,11 +546,6 @@ class GoBGPTest(GoBGPTestBase):
                            -------------------------------------------------
     """
     def test_07_import_policy_update(self):
-        # initialize test environment
-        # policy_pattern:p7 attaches a policy to reject route
-        # 2001:0:10:2::/64, 2001:0:10:20::/64, 2001:0:10:200::/64
-        # coming from peer2(2001::192:168:0:2) to peer3(2001::192:168:0:3)'s
-        # import-policy.
 
         peer1 = "2001::192:168:0:1"
         peer2 = "2001::192:168:0:2"
@@ -565,6 +556,11 @@ class GoBGPTest(GoBGPTestBase):
         w = self.wait_per_retry
 
         self.use_ipv6_gobgp = True
+
+        # policy:test_07_import_policy_update which rejects paths
+        # that are 2001:0:10:2::/64, 2001:0:10:20::/64, 2001:0:10:200::/64
+        # and coming from peer2(2001::192:168:0:2)
+        # is attached to peer3(2001::192:168:0:3)'s import-policy.
         self.setup_config(peer3, "test_07_import_policy_update", "import")
         self.initialize()
 
@@ -663,11 +659,6 @@ class GoBGPTest(GoBGPTestBase):
     """
     @nose.tools.nottest
     def test_08_export_policy_update(self):
-        # initialize test environment
-        # policy_pattern:p8 attaches a policy to reject route
-        # 2001:0:10:2::/64, 2001:0:10:20::/64, 2001:0:10:200::/64
-        # coming from peer2(2001::192:168:0:2) to peer3(2001::192:168:0:3)'s
-        # export-policy.
 
         peer1 = "2001::192:168:0:1"
         peer2 = "2001::192:168:0:2"
@@ -678,6 +669,11 @@ class GoBGPTest(GoBGPTestBase):
         w = self.wait_per_retry
 
         self.use_ipv6_gobgp = True
+
+        # policy:test_08_export_policy_update which rejects paths
+        # that are 2001:0:10:2::/64, 2001:0:10:20::/64, 2001:0:10:200::/64
+        # and coming from peer2(2001::192:168:0:2)
+        # is attached to peer3(2001::192:168:0:3)'s export-policy.
         self.setup_config(peer3, "test_08_export_policy_update", "export")
         self.initialize()
 
@@ -779,10 +775,6 @@ class GoBGPTest(GoBGPTestBase):
     """
     def test_09_aspath_length_condition_import(self):
 
-        # initialize test environment
-        # policy_pattern:p9 attaches a policy to reject a path whose aspath length is greater than or equal 10
-        # to peer2(10.0.0.2)'s import-policy.
-
         # generate exabgp configuration file
         prefix1 = "192.168.100.0/24"
         asns = ['65100'] + [ str(asn) for asn in range(65099, 65090, -1) ]
@@ -797,6 +789,10 @@ class GoBGPTest(GoBGPTestBase):
         w = self.wait_per_retry
 
         self.quagga_num = 2
+
+        # policy:test_09_aspath_length_condition_import which rejects paths
+        # whose aspath length is greater than or equal 10
+        # is attached to peer2(10.0.0.2)'s import-policy.
         self.setup_config(peer2, "test_09_aspath_length_condition_import", "import", add_exabgp=True)
         self.initialize()
 
@@ -831,10 +827,6 @@ class GoBGPTest(GoBGPTestBase):
     """
     def test_10_aspath_from_condition_import(self):
 
-        # initialize test environment
-        # policy_pattern:AspFrom attaches a policy to reject a path that is from 65100
-        # to peer2(10.0.0.2)'s import-policy.
-
         # generate exabgp configuration file
         prefix1 = "192.168.100.0/24"
         asns = ['65100'] + [ str(asn) for asn in range(65099, 65090, -1) ]
@@ -850,6 +842,8 @@ class GoBGPTest(GoBGPTestBase):
         peer2 = "10.0.0.2"
         w = self.wait_per_retry
 
+        # policy:test_10_aspath_from_condition_import which rejects paths
+        # that come from AS65100 is attached to peer2(10.0.0.2)'s import-policy.
         self.setup_config(peer2, "test_10_aspath_from_condition_import", "import", add_exabgp=True)
         self.initialize()
 
@@ -883,10 +877,6 @@ class GoBGPTest(GoBGPTestBase):
     """
     def test_11_aspath_any_condition_import(self):
 
-        # initialize test environment
-        # policy_pattern:AspFrom attaches a policy to reject a path that contains 65098 in its aspath attr
-        # to peer2(10.0.0.2)'s import-policy.
-
         # generate exabgp configuration file
         prefix1 = "192.168.100.0/24"
         asns = ['65100'] + [ str(asn) for asn in range(65099, 65090, -1) ]
@@ -902,6 +892,9 @@ class GoBGPTest(GoBGPTestBase):
         peer2 = "10.0.0.2"
         w = self.wait_per_retry
 
+        # policy:test_11_aspath_any_condition_import which rejects paths
+        # that contain 65098 in its aspath attr
+        # is attached to peer2(10.0.0.2)'s import-policy.
         self.setup_config(peer2, "test_11_aspath_any_condition_import", "import", add_exabgp=True)
         self.initialize()
 
@@ -953,6 +946,9 @@ class GoBGPTest(GoBGPTestBase):
         peer2 = "10.0.0.2"
         w = self.wait_per_retry
 
+        # policy:test_12_aspath_origin_condition_import which rejects paths
+        # that have 65090 at last in its aspath attr
+        # is attached to peer2(10.0.0.2)'s import-policy.
         self.setup_config(peer2, "test_12_aspath_origin_condition_import", "import", add_exabgp=True)
         self.initialize()
 
@@ -986,10 +982,6 @@ class GoBGPTest(GoBGPTestBase):
     """
     def test_13_aspath_only_condition_import(self):
 
-        # initialize test environment
-        # policy_pattern:AspFrom attaches a policy for rejecting a path that has only 65100 in its aspath attr
-        # to peer2(10.0.0.2)'s import-policy.
-
         # generate exabgp configuration file
         prefix1 = "192.168.100.0/24"
         asn = '65100'
@@ -1004,6 +996,9 @@ class GoBGPTest(GoBGPTestBase):
         peer2 = "10.0.0.2"
         w = self.wait_per_retry
 
+        # policy:test_13_aspath_only_condition_import which rejects paths
+        # that have only 65100 in its aspath attr
+        # is attached to peer2(10.0.0.2)'s import-policy.
         self.setup_config(peer2, "test_13_aspath_only_condition_import", "import", add_exabgp=True)
         self.initialize()
 
@@ -1037,10 +1032,6 @@ class GoBGPTest(GoBGPTestBase):
     """
     def test_14_aspath_only_condition_import(self):
 
-        # initialize test environment
-        # policy_pattern:AspFrom attaches a policy for rejecting a path that has 65090 at last in its aspath attr
-        # to peer2(10.0.0.2)'s import-policy.
-
         # generate exabgp configuration file
         prefix1 = "192.168.100.0/24"
         asns = ['65100'] + [ str(asn) for asn in range(65099, 65090, -1) ]
@@ -1056,6 +1047,9 @@ class GoBGPTest(GoBGPTestBase):
         peer2 = "10.0.0.2"
         w = self.wait_per_retry
 
+        # policy:test_16_community_condition_regexp_import which rejects paths
+        # that have 65090 at last in its aspath attr
+        # is attached to peer2(10.0.0.2)'s import-policy.
         self.setup_config(peer2, "test_14_aspath_only_condition_import", "import", add_exabgp=True)
         self.initialize()
 
@@ -1088,10 +1082,6 @@ class GoBGPTest(GoBGPTestBase):
     """
     def test_15_community_condition_import(self):
 
-        # initialize test environment
-        # policy_pattern:AspFrom attaches a policy for rejecting a path that has 65100:10 in its community attr
-        # to peer2(10.0.0.2)'s import-policy.
-
         # generate exabgp configuration file
         prefix1 = "192.168.100.0/24"
         asns = ['65100'] + [ str(asn) for asn in range(65099, 65090, -1) ]
@@ -1108,6 +1098,9 @@ class GoBGPTest(GoBGPTestBase):
         peer2 = "10.0.0.2"
         w = self.wait_per_retry
 
+        # policy:test_15_community_condition_import which rejects paths
+        # that have 65100:10 in its community attr
+        # is attached to peer2(10.0.0.2)'s import-policy.
         self.setup_config(peer2, "test_15_community_condition_import", "import", add_exabgp=True)
         self.initialize()
 
@@ -1140,11 +1133,6 @@ class GoBGPTest(GoBGPTestBase):
     """
     def test_16_community_condition_regexp_import(self):
 
-        # initialize test environment
-        # policy_pattern:AspFrom attaches a policy for rejecting a path that has 65100:10 in its community attr
-        # to peer2(10.0.0.2)'s import-policy.
-        # this policy uses a regexp as the community condition.
-
         # generate exabgp configuration file
         prefix1 = "192.168.100.0/24"
         asns = ['65100'] + [ str(asn) for asn in range(65099, 65090, -1) ]
@@ -1161,6 +1149,10 @@ class GoBGPTest(GoBGPTestBase):
         peer2 = "10.0.0.2"
         w = self.wait_per_retry
 
+        # policy:test_16_community_condition_regexp_import which rejects paths
+        # that have 65100:10 in its community attr
+        # is attached to peer2(10.0.0.2)'s import-policy.
+        # This policy uses a regexp as the community condition.
         self.setup_config(peer2, "test_16_community_condition_regexp_import", "import", add_exabgp=True)
         self.initialize()
 
@@ -1194,10 +1186,6 @@ class GoBGPTest(GoBGPTestBase):
     """
     def test_17_community_add_action_import(self):
 
-        # initialize test environment
-        # policy_pattern:AspFrom attaches a policy for addition community 65100:10 to its community attr
-        # to peer2(10.0.0.2)'s import-policy.
-
         # generate exabgp configuration file
         prefix1 = "192.168.100.0/24"
         asns = ['65100'] + [ str(asn) for asn in range(65099, 65090, -1) ]
@@ -1214,6 +1202,8 @@ class GoBGPTest(GoBGPTestBase):
         peer2 = "10.0.0.2"
         w = self.wait_per_retry
 
+        # policy:test_17_community_add_action_import which adds community 65100:10
+        # is attached to peer2(10.0.0.2)'s import-policy.
         self.setup_config(peer2, "test_17_community_add_action_import", "import", add_exabgp=True)
         self.initialize()
 
@@ -1236,7 +1226,7 @@ class GoBGPTest(GoBGPTestBase):
         # check show ip bgp on peer2(quagga2)
         qpath = self.get_route(peer2, prefix1, retry=self.retry_count_common)
         self.assertIsNotNone(qpath)
-        self.assertTrue(self.check_community(peer2, prefix1.split('/')[0], '65100:20'))
+        self.assertTrue(self.check_community(peer2, prefix1.split('/')[0], '65100:20', retry=0))
 
 
     """
@@ -1249,10 +1239,6 @@ class GoBGPTest(GoBGPTestBase):
                                      ---------------------------------------
     """
     def test_18_community_replace_action_import(self):
-
-        # initialize test environment
-        # policy_pattern:AspFrom attaches a policy to replace community 65100:10 in its community attr
-        # to peer2(10.0.0.2)'s import-policy.
 
         # generate exabgp configuration file
         prefix1 = "192.168.100.0/24"
@@ -1270,6 +1256,8 @@ class GoBGPTest(GoBGPTestBase):
         peer2 = "10.0.0.2"
         w = self.wait_per_retry
 
+        # policy:test_18_community_replace_action_import which replace with
+        # community 65100:10 is attached to peer2(10.0.0.2)'s import-policy.
         self.setup_config(peer2, "test_18_community_replace_action_import", "import", add_exabgp=True)
         self.initialize()
 
@@ -1293,8 +1281,8 @@ class GoBGPTest(GoBGPTestBase):
         # check show ip bgp on peer2(quagga2)
         qpath = self.get_route(peer2,prefix1, retry=self.retry_count_common)
         self.assertIsNotNone(qpath)
-        self.assertTrue(self.check_community(peer2, prefix1.split('/')[0], '65100:20'))
-        self.assertTrue(self.check_community(peer2, prefix1.split('/')[0], '65100:30'))
+        self.assertTrue(self.check_community(peer2, prefix1.split('/')[0], '65100:20', retry=0))
+        self.assertTrue(self.check_community(peer2, prefix1.split('/')[0], '65100:30', retry=0))
         self.assertFalse(self.check_community(peer2, prefix1.split('/')[0], '65100:10', retry=0))
 
     """
@@ -1307,10 +1295,6 @@ class GoBGPTest(GoBGPTestBase):
                                      ---------------------------------------
     """
     def test_19_community_remove_action_import(self):
-
-        # initialize test environment
-        # policy_pattern:AspFrom attaches a policy to remove community 65100:20 65100:30 in its community attr
-        # to peer2(10.0.0.2)'s import-policy.
 
         # generate exabgp configuration file
         prefix1 = "192.168.100.0/24"
@@ -1328,6 +1312,8 @@ class GoBGPTest(GoBGPTestBase):
         peer2 = "10.0.0.2"
         w = self.wait_per_retry
 
+        # policy:test_19_community_remove_action_import which removes
+        # community 65100:20 65100:30 is attached to peer2(10.0.0.2)'s import-policy.
         self.setup_config(peer2, "test_19_community_remove_action_import", "import", add_exabgp=True)
         self.initialize()
 
@@ -1351,7 +1337,7 @@ class GoBGPTest(GoBGPTestBase):
         # check show ip bgp on peer2(quagga2)
         qpath = self.get_route(peer2,prefix1, retry=self.retry_count_common)
         self.assertIsNotNone(qpath)
-        self.assertTrue(self.check_community(peer2, prefix1.split('/')[0], '65100:10', retry=1))
+        self.assertTrue(self.check_community(peer2, prefix1.split('/')[0], '65100:10', retry=0))
         self.assertFalse(self.check_community(peer2, prefix1.split('/')[0], '65100:20', retry=0))
         self.assertFalse(self.check_community(peer2, prefix1.split('/')[0], '65100:30', retry=0))
 
@@ -1367,10 +1353,6 @@ class GoBGPTest(GoBGPTestBase):
                                      ---------------------------------------
     """
     def test_20_community_null_action_import(self):
-
-        # initialize test environment
-        # policy_pattern:AspFrom attaches a policy to remove its community attr
-        # to peer2(10.0.0.2)'s import-policy.
 
         # generate exabgp configuration file
         prefix1 = "192.168.100.0/24"
@@ -1388,6 +1370,8 @@ class GoBGPTest(GoBGPTestBase):
         peer2 = "10.0.0.2"
         w = self.wait_per_retry
 
+        # policy:test_20_community_null_action_import which removes all community
+        # is attached to peer2(10.0.0.2)'s import-policy.
         self.setup_config(peer2, "test_20_community_null_action_import", "import", add_exabgp=True)
         self.initialize()
 
@@ -1425,10 +1409,6 @@ class GoBGPTest(GoBGPTestBase):
     """
     def test_21_community_add_action_export(self):
 
-        # initialize test environment
-        # policy_pattern:CommunityAddEXP attaches a policy to add community 65100:20 into its community attr
-        # to peer2(10.0.0.2)'s export-policy.
-
         # generate exabgp configuration file
         prefix1 = "192.168.100.0/24"
         asns = ['65100'] + [ str(asn) for asn in range(65099, 65090, -1) ]
@@ -1445,6 +1425,8 @@ class GoBGPTest(GoBGPTestBase):
         peer2 = "10.0.0.2"
         w = self.wait_per_retry
 
+        # policy:test_21_community_add_action_export which adds community 65100:20
+        # is attached to peer2(10.0.0.2)'s export-policy.
         self.setup_config(peer2, "test_21_community_add_action_export", "export", add_exabgp=True)
         self.initialize()
 
@@ -1485,10 +1467,6 @@ class GoBGPTest(GoBGPTestBase):
     """
     def test_22_community_replace_action_export(self):
 
-        # initialize test environment
-        # policy_pattern:CommunityReplaceEXP attaches a policy to replace its community
-        # with 65100:20 and 65100:30 in its community attr to peer2(10.0.0.2)'s export-policy.
-
         # generate exabgp configuration file
         prefix1 = "192.168.100.0/24"
         asns = ['65100'] + [ str(asn) for asn in range(65099, 65090, -1) ]
@@ -1505,6 +1483,9 @@ class GoBGPTest(GoBGPTestBase):
         peer2 = "10.0.0.2"
         w = self.wait_per_retry
 
+        # policy:test_22_community_replace_action_export which replaces
+        # communities with 65100:20 and 65100:30 is attached to
+        # peer2(10.0.0.2)'s export-policy.
         self.setup_config(peer2, "test_22_community_replace_action_export", "export", add_exabgp=True)
         self.initialize()
 
@@ -1549,10 +1530,6 @@ class GoBGPTest(GoBGPTestBase):
     """
     def test_23_community_remove_action_export(self):
 
-        # initialize test environment
-        # policy_pattern:CommunityRemoveEXP attaches a policy to remove 65100:20 and 65100:30
-        # in its community attr to peer2(10.0.0.2)'s import-policy.
-
         # generate exabgp configuration file
         prefix1 = "192.168.100.0/24"
         asns = ['65100'] + [ str(asn) for asn in range(65099, 65090, -1) ]
@@ -1569,6 +1546,9 @@ class GoBGPTest(GoBGPTestBase):
         peer2 = "10.0.0.2"
         w = self.wait_per_retry
 
+        # policy:test_23_community_remove_action_export which removes
+        # community 65100:20 and 65100:30 is attached to
+        # peer2(10.0.0.2)'s export-policy.
         self.setup_config(peer2, "test_23_community_remove_action_export", "export", add_exabgp=True)
         self.initialize()
 
@@ -1615,10 +1595,6 @@ class GoBGPTest(GoBGPTestBase):
     """
     def test_24_community_null_action_export(self):
 
-        # initialize test environment
-        # policy_pattern:CommunityNullEXP attaches a policy to remove its community attr
-        # to peer2(10.0.0.2)'s export-policy.
-
         # generate exabgp configuration file
         prefix1 = "192.168.100.0/24"
         asns = ['65100'] + [ str(asn) for asn in range(65099, 65090, -1) ]
@@ -1635,6 +1611,8 @@ class GoBGPTest(GoBGPTestBase):
         peer2 = "10.0.0.2"
         w = self.wait_per_retry
 
+        # policy:test_24_community_null_action_export which removes its community attr
+        # is attached to peer2(10.0.0.2)'s export-policy.
         self.setup_config(peer2, "test_24_community_null_action_export", "export", add_exabgp=True)
         self.initialize()
 
@@ -1679,10 +1657,6 @@ class GoBGPTest(GoBGPTestBase):
     """
     def test_25_distribute_reject(self):
 
-        # initialize test environment
-        # policy_pattern:CommunityNullEXP attaches a policy to remove its community attr
-        # to peer2(10.0.0.2)'s export-policy.
-
         # generate exabgp configuration file
         r1 = "192.168.100.0/24"
         r2 = "192.168.10.0/24"
@@ -1704,12 +1678,13 @@ class GoBGPTest(GoBGPTestBase):
         exabgp = "10.0.0.100"
         w = self.wait_per_retry
 
+        # policy:test_25_distribute_reject which rejects routes that have community=65100:10
+        # is attached to exabgp(10.0.0.100)'s distribute policy.
         self.setup_config(exabgp, "test_25_distribute_reject", "distribute", add_exabgp=True)
         self.initialize()
 
         addresses = self.get_neighbor_address(self.gobgp_config)
         self.retry_routine_for_state(addresses, "BGP_FSM_ESTABLISHED")
-
 
         path = self.get_paths_in_localrib(peer1, r1, retry=self.retry_count_common, interval=w)
         self.assertIsNone(path)
@@ -1750,11 +1725,6 @@ class GoBGPTest(GoBGPTestBase):
                                             ---------------------
     """
     def test_26_distribute_accept(self):
-
-        # initialize test environment
-        # policy_pattern:CommunityNullEXP attaches a policy to remove its community attr
-        # to peer2(10.0.0.2)'s export-policy.
-
         # generate exabgp configuration file
         r1 = "192.168.100.0/24"
         r2 = "192.168.10.0/24"
@@ -1767,7 +1737,6 @@ class GoBGPTest(GoBGPTestBase):
         e.add_route(r2, aspath='65100')
         e.write()
 
-
         self.quagga_num = 2
         self.use_exa_bgp = True
         self.use_ipv6_gobgp = False
@@ -1777,6 +1746,8 @@ class GoBGPTest(GoBGPTestBase):
         exabgp = "10.0.0.100"
         w = self.wait_per_retry
 
+        # policy:test_26_distribute_accept which accepts 192.168.10.0/24
+        # is attached to exabgp(10.0.0.100)'s distribute policy.
         self.setup_config(exabgp, "test_26_distribute_accept", "distribute", add_exabgp=True, defaultReject=True)
         self.initialize()
 
@@ -1824,10 +1795,6 @@ class GoBGPTest(GoBGPTestBase):
     """
     def test_27_distribute_set_community_action(self):
 
-        # initialize test environment
-        # policy_pattern:CommunityNullEXP attaches a policy to remove its community attr
-        # to peer2(10.0.0.2)'s export-policy.
-
         # generate exabgp configuration file
         r1 = "192.168.100.0/24"
         r2 = "192.168.10.0/24"
@@ -1849,12 +1816,13 @@ class GoBGPTest(GoBGPTestBase):
         exabgp = "10.0.0.100"
         w = self.wait_per_retry
 
+        # policy:test_27_distribute_set_community_action which set community
+        # attr is attached to exabgp(10.0.0.100)'s distribute policy.
         self.setup_config(exabgp, "test_27_distribute_set_community_action", "distribute", add_exabgp=True)
         self.initialize()
 
         addresses = self.get_neighbor_address(self.gobgp_config)
         self.retry_routine_for_state(addresses, "BGP_FSM_ESTABLISHED")
-
 
         path = self.get_paths_in_localrib(peer1, r1, retry=self.retry_count_common, interval=w)
         self.assertIsNotNone(path)
@@ -1889,6 +1857,128 @@ class GoBGPTest(GoBGPTestBase):
         self.assertTrue(self.check_community(peer1, r1.split('/')[0], '65100:20', retry=0))
         self.assertTrue(self.check_community(peer2, r1.split('/')[0], '65100:10', retry=0))
         self.assertTrue(self.check_community(peer2, r1.split('/')[0], '65100:20', retry=0))
+
+
+
+    """
+      import-policy test
+      r1:192.168.2.0
+      r2:192.168.20.0
+      r3:192.168.200.0
+                           -------------------------------------------------
+                           |peer1                                          |
+      peer2 ->(r1,r2,r3)-> | ->(r1,r2,r3)-> rib ->(r1,r2,r3)-> adj-rib-out | ->(r1,r2,r3)-> peer1
+                           |                                               |
+                           |peer3                                          |
+                           | ->(r1)->       rib ->(r1)->       adj-rib-out | ->(r1)-> peer3
+                           -------------------------------------------------
+                   |
+        update distribute policy
+                   |
+                   V
+                           -------------------------------------------------
+                           |peer1                                          |
+      peer2 ->(r1,r2,r3)-> | ->(r1,r2,r3)-> rib ->(r1,r2,r3)-> adj-rib-out | ->(r1,r2,r3)-> peer1
+                           |                                               |
+                           |peer3                                          |
+                           | ->(r1,r3)->    rib ->(r1,r3)->    adj-rib-out | ->(r1,r3)-> peer3
+                           -------------------------------------------------
+    """
+    def test_28_distribute_policy_update(self):
+        # initialize test environment
+
+
+        peer1 = "10.0.0.1"
+        peer2 = "10.0.0.2"
+        peer3 = "10.0.0.3"
+        r1 = "192.168.2.0/24"
+        r2 = "192.168.20.0/24"
+        r3 = "192.168.200.0/24"
+        w = self.wait_per_retry
+
+        # policy:test_28_distribute_policy_update which rejects routes
+        # 192.168.20.0/24, 192.168.200.0/24 from peer2 is attached to peer2.
+        # After policy's update, 192.168.200.0/24 can go through.
+        self.setup_config(peer2, "test_28_distribute_policy_update", "distribute")
+        self.initialize()
+
+        # add other network
+        tn = qaccess.login(peer2)
+        print "add network 192.168.20.0/24"
+        qaccess.add_network(tn, 65002, r2)
+        print "add network 192.168.200.0/24"
+        qaccess.add_network(tn, 65002, r3)
+        qaccess.logout(tn)
+
+        addresses = self.get_neighbor_address(self.gobgp_config)
+        self.retry_routine_for_state(addresses, "BGP_FSM_ESTABLISHED")
+
+        time.sleep(self.initial_wait_time)
+
+        def path_exists_in_localrib(peer, prefix,r=10):
+            paths = self.get_paths_in_localrib(peer, prefix, retry=r, interval=w)
+            return paths is not None
+
+        def path_exists_in_routing_table(peer, prefix,r=10):
+            qpath = self.get_route(peer, prefix, retry=r, interval=w)
+            return qpath is not None
+
+        def path_exists_in_adj_rib_in(peer, prefix,r=10):
+            path = self.get_adj_rib_in(peer, prefix, retry=r, interval=w)
+            return path is not None
+
+
+        self.assertTrue(path_exists_in_localrib(peer1,r1))
+        self.assertFalse(path_exists_in_localrib(peer1,r2, r=1))
+        self.assertFalse(path_exists_in_localrib(peer1,r3, r=0))
+
+        self.assertTrue(path_exists_in_localrib(peer3,r1))
+        self.assertFalse(path_exists_in_localrib(peer3,r2, r=1))
+        self.assertFalse(path_exists_in_localrib(peer3,r3, r=0))
+
+        # check show ip bgp on peer1(quagga1)
+        self.assertTrue(path_exists_in_routing_table(peer1, r1))
+        self.assertFalse(path_exists_in_routing_table(peer1, r2, r=1))
+        self.assertFalse(path_exists_in_routing_table(peer1, r3, r=0))
+
+        # check show ip bgp on peer3(quagga3)
+        self.assertTrue(path_exists_in_routing_table(peer3, r1))
+        self.assertFalse(path_exists_in_routing_table(peer3, r2, r=1))
+        self.assertFalse(path_exists_in_routing_table(peer3, r3, r=0))
+
+        # check adj-rib-in in peer2
+        self.assertTrue(path_exists_in_adj_rib_in(peer2, r1))
+        self.assertTrue(path_exists_in_adj_rib_in(peer2, r2))
+        self.assertTrue(path_exists_in_adj_rib_in(peer2, r3))
+
+        # update policy
+        print "update_policy_config"
+        self.set_policy(peer2, "distribute", "test_28_distribute_policy_update_softreset")
+        time.sleep(self.initial_wait_time)
+
+        # soft reset
+        print "soft_reset"
+        self.soft_reset(peer2, IPv4)
+
+        # check local-rib
+        self.assertTrue(path_exists_in_localrib(peer1,r1))
+        self.assertFalse(path_exists_in_localrib(peer1,r2, r=1))
+        self.assertTrue(path_exists_in_localrib(peer1,r3))
+
+        # check show ip bgp on peer3(quagga3)
+        self.assertTrue(path_exists_in_routing_table(peer1, r1))
+        self.assertFalse(path_exists_in_routing_table(peer1, r2, r=1))
+        self.assertTrue(path_exists_in_routing_table(peer1, r3))
+
+        # check local-rib
+        self.assertTrue(path_exists_in_localrib(peer3,r1))
+        self.assertFalse(path_exists_in_localrib(peer3,r2,r=1))
+        self.assertTrue(path_exists_in_localrib(peer3,r3))
+
+        # check show ip bgp on peer3(quagga3)
+        self.assertTrue(path_exists_in_routing_table(peer3, r1))
+        self.assertFalse(path_exists_in_routing_table(peer3, r2, r=1))
+        self.assertTrue(path_exists_in_routing_table(peer3, r3))
 
 
 class ExabgpConfig(object):
