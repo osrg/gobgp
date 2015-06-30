@@ -92,7 +92,7 @@ func (dd *Destination) ToApiStruct() *api.Destination {
 
 	idx := func() int {
 		for i, p := range dd.knownPathList {
-			if p == dd.GetBestPath() {
+			if dd.GetBestPath().Equal(p) {
 				return i
 			}
 		}

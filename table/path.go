@@ -16,6 +16,8 @@
 package table
 
 import (
+	"bytes"
+	"encoding/json"
 	"fmt"
 	log "github.com/Sirupsen/logrus"
 	"github.com/osrg/gobgp/api"
@@ -455,4 +457,19 @@ func (path *Path) SetMed(med int64, doReplace bool) error {
 		path.pathAttrs = append(path.pathAttrs, newMed)
 	}
 	return nil
+}
+
+func (lhs *Path) Equal(rhs *Path) bool {
+	if rhs == nil {
+		return false
+	} else if lhs == rhs {
+		return true
+	}
+	f := func(p *Path) []byte {
+		s := p.ToApiStruct()
+		s.Age = 0
+		buf, _ := json.Marshal(s)
+		return buf
+	}
+	return bytes.Equal(f(lhs), f(rhs))
 }
