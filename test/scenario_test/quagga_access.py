@@ -144,6 +144,7 @@ def lookup_prefix(tn, prefix, af):
 
     return paths
 
+
 def check_community(tn, addr, community, af=IPv4):
     if af == IPv4:
         tn.write("show ip bgp community " + community + "\n")
@@ -156,5 +157,22 @@ def check_community(tn, addr, community, af=IPv4):
     for line in result.split("\n"):
         if addr in line:
             return True
+
+    return False
+
+
+def check_med(tn, addr, med, af=IPv4):
+    if af == IPv4:
+        tn.write("show ip bgp " + addr[0] + "\n")
+    elif af == IPv6:
+        tn.write("show bgp ipv6 " + addr[0] + "\n")
+    else:
+        print "invalid af: ", af
+        return
+    result = tn.read_until("bgpd#")
+    for line in result.split("\n"):
+        if "metric" in line:
+            if str(med) in line.split()[3]:
+                return True
 
     return False

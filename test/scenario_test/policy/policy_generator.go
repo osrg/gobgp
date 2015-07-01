@@ -473,6 +473,51 @@ func createPolicyConfig() *config.RoutingPolicy {
 		},
 	}
 
+	st_medReplace := config.Statement{
+		Name: "st_medReplace",
+		Conditions: config.Conditions{
+			MatchPrefixSet:   "psExabgp",
+			MatchNeighborSet: "nsExabgp",
+			MatchSetOptions: config.MATCH_SET_OPTIONS_TYPE_ALL,
+		},
+		Actions: config.Actions{
+			AcceptRoute: true,
+			BgpActions: config.BgpActions{
+				SetMed: "100",
+			},
+		},
+	}
+
+	st_medAdd := config.Statement{
+		Name: "st_medAdd",
+		Conditions: config.Conditions{
+			MatchPrefixSet:   "psExabgp",
+			MatchNeighborSet: "nsExabgp",
+			MatchSetOptions: config.MATCH_SET_OPTIONS_TYPE_ALL,
+		},
+		Actions: config.Actions{
+			AcceptRoute: true,
+			BgpActions: config.BgpActions{
+				SetMed: "+100",
+			},
+		},
+	}
+
+	st_medSub := config.Statement{
+		Name: "st_medSub",
+		Conditions: config.Conditions{
+			MatchPrefixSet:   "psExabgp",
+			MatchNeighborSet: "nsExabgp",
+			MatchSetOptions: config.MATCH_SET_OPTIONS_TYPE_ALL,
+		},
+		Actions: config.Actions{
+			AcceptRoute: true,
+			BgpActions: config.BgpActions{
+				SetMed: "-100",
+			},
+		},
+	}
+
 	st_distribute_reject := config.Statement{
 		Name: "st_community_distriibute",
 		Conditions: config.Conditions{
@@ -512,6 +557,21 @@ func createPolicyConfig() *config.RoutingPolicy {
 					Communities: []string{"65100:20"},
 					Options:     "ADD",
 				},
+			},
+		},
+	}
+
+	st_distribute_med_add := config.Statement{
+		Name: "st_distribute_med_add",
+		Conditions: config.Conditions{
+			MatchPrefixSet:   "psExabgp",
+			MatchNeighborSet: "nsExabgp",
+			MatchSetOptions: config.MATCH_SET_OPTIONS_TYPE_ALL,
+		},
+		Actions: config.Actions{
+			AcceptRoute: true,
+			BgpActions: config.BgpActions{
+				SetMed: "+100",
 			},
 		},
 	}
@@ -656,28 +716,64 @@ func createPolicyConfig() *config.RoutingPolicy {
 		StatementList: []config.Statement{st_comNull},
 	}
 
-	test_25_distribute_reject := config.PolicyDefinition{
-		Name:          "test_25_distribute_reject",
+
+	test_25_med_replace_action_import := config.PolicyDefinition{
+		Name:          "test_25_med_replace_action_import",
+		StatementList: []config.Statement{st_medReplace},
+	}
+
+	test_26_med_add_action_import := config.PolicyDefinition{
+		Name:          "test_26_med_add_action_import",
+		StatementList: []config.Statement{st_medAdd},
+	}
+
+	test_27_med_subtract_action_import := config.PolicyDefinition{
+		Name:          "test_27_med_subtract_action_import",
+		StatementList: []config.Statement{st_medSub},
+	}
+
+	test_28_med_replace_action_export := config.PolicyDefinition{
+		Name:          "test_28_med_replace_action_export",
+		StatementList: []config.Statement{st_medReplace},
+	}
+
+	test_29_med_add_action_export := config.PolicyDefinition{
+		Name:          "test_29_med_add_action_export",
+		StatementList: []config.Statement{st_medAdd},
+	}
+
+	test_30_med_subtract_action_export := config.PolicyDefinition{
+		Name:          "test_30_med_subtract_action_export",
+		StatementList: []config.Statement{st_medSub},
+	}
+
+	test_31_distribute_reject := config.PolicyDefinition{
+		Name:          "test_31_distribute_reject",
 		StatementList: []config.Statement{st_distribute_reject},
 	}
 
-	test_26_distribute_accept := config.PolicyDefinition{
-		Name:          "test_26_distribute_accept",
+	test_32_distribute_accept := config.PolicyDefinition{
+		Name:          "test_32_distribute_accept",
 		StatementList: []config.Statement{st_distribute_accept},
 	}
 
-	test_27_distribute_set_community_action := config.PolicyDefinition{
-		Name:          "test_27_distribute_set_community_action",
+	test_33_distribute_set_community_action := config.PolicyDefinition{
+		Name:          "test_33_distribute_set_community_action",
 		StatementList: []config.Statement{st_distribute_comm_add},
 	}
 
-    test_28_distribute_policy_update := config.PolicyDefinition{
-        Name:          "test_28_distribute_policy_update",
+	test_34_distribute_set_med_action := config.PolicyDefinition{
+		Name:          "test_34_distribute_set_med_action",
+		StatementList: []config.Statement{st_distribute_med_add},
+	}
+
+    test_35_distribute_policy_update := config.PolicyDefinition{
+        Name:          "test_35_distribute_policy_update",
         StatementList: []config.Statement{st1},
     }
 
-    test_28_distribute_policy_update_softreset := config.PolicyDefinition{
-        Name:          "test_28_distribute_policy_update_softreset",
+    test_35_distribute_policy_update_softreset := config.PolicyDefinition{
+        Name:          "test_35_distribute_policy_update_softreset",
         StatementList: []config.Statement{st2},
     }
 
@@ -722,11 +818,18 @@ func createPolicyConfig() *config.RoutingPolicy {
 			test_22_community_replace_action_export,
 			test_23_community_remove_action_export,
 			test_24_community_null_action_export,
-			test_25_distribute_reject,
-			test_26_distribute_accept,
-			test_27_distribute_set_community_action,
-            test_28_distribute_policy_update,
-            test_28_distribute_policy_update_softreset,
+			test_25_med_replace_action_import,
+			test_26_med_add_action_import,
+			test_27_med_subtract_action_import,
+			test_28_med_replace_action_export,
+			test_29_med_add_action_export,
+			test_30_med_subtract_action_export,
+			test_31_distribute_reject,
+			test_32_distribute_accept,
+			test_33_distribute_set_community_action,
+			test_34_distribute_set_med_action,
+            test_35_distribute_policy_update,
+            test_35_distribute_policy_update_softreset,
 		},
 	}
 	return p

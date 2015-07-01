@@ -1646,6 +1646,340 @@ class GoBGPTest(GoBGPTestBase):
         self.assertFalse(self.check_community(peer2, prefix1.split('/')[0], '65100:10', retry=0))
 
 
+    """
+      import-policy test
+                          ---------------------------------------
+      exabgp ->(med=300)->| ->  peer1-rib ->  peer1-adj-rib-out | --> peer1
+                          |                                     |
+                          | ->  peer2-rib ->  peer2-adj-rib-out | --> peer2
+                          |     apply action                    |
+                          ---------------------------------------
+    """
+    def test_25_med_replace_action_import(self):
+
+        # generate exabgp configuration file
+        prefix1 = "192.168.100.0/24"
+        asns = ['65100'] + [ str(asn) for asn in range(65099, 65090, -1) ]
+        community = '65100:10'
+        as_path =  reduce(lambda a,b: a + " " + b, asns)
+        med = "300"
+        e = ExabgpConfig(EXABGP_COMMON_CONF)
+        e.add_route(prefix1, aspath=as_path, community=community, med=med)
+        e.write()
+
+        self.quagga_num = 2
+
+        peer1 = "10.0.0.1"
+        peer2 = "10.0.0.2"
+        w = self.wait_per_retry
+
+        # policy:test_25_med_replace_action_import which replace 100 in its med attr
+        # is attached to  peer2(10.0.0.2)'s import-policy.
+        self.setup_config(peer2, "test_25_med_replace_action_import", "import", add_exabgp=True)
+        self.initialize()
+
+        addresses = self.get_neighbor_address(self.gobgp_config)
+        self.retry_routine_for_state(addresses, "BGP_FSM_ESTABLISHED")
+
+        path = self.get_paths_in_localrib(peer1, prefix1, retry=self.retry_count_common)
+        self.assertIsNotNone(path)
+
+        # check show ip bgp on peer1(quagga1)
+        qpath = self.get_route(peer1,prefix1, retry=self.retry_count_common)
+        self.assertIsNotNone(qpath)
+
+        # check local-rib in peer2
+        path = self.get_paths_in_localrib(peer2, prefix1, retry=0)
+        self.assertIsNotNone(path)
+        attrs = [x for x in path[0]['attrs'] if 'metric' in x]
+        self.assertTrue(100 == attrs[0]['metric'])
+
+        # check show ip bgp on peer2(quagga2)
+        qpath = self.get_route(peer2, prefix1, retry=self.retry_count_common)
+        self.assertIsNotNone(qpath)
+        self.assertTrue(self.check_med(peer2, prefix1.split('/'), 100, retry=0))
+
+    """
+      import-policy test
+                          ---------------------------------------
+      exabgp ->(med=300)->| ->  peer1-rib ->  peer1-adj-rib-out | --> peer1
+                          |                                     |
+                          | ->  peer2-rib ->  peer2-adj-rib-out | --> peer2
+                          |     apply action                    |
+                          ---------------------------------------
+    """
+    def test_26_med_add_action_import(self):
+
+        # generate exabgp configuration file
+        prefix1 = "192.168.100.0/24"
+        asns = ['65100'] + [ str(asn) for asn in range(65099, 65090, -1) ]
+        community = '65100:10'
+        as_path =  reduce(lambda a,b: a + " " + b, asns)
+        med = "300"
+        e = ExabgpConfig(EXABGP_COMMON_CONF)
+        e.add_route(prefix1, aspath=as_path, community=community, med=med)
+        e.write()
+
+        self.quagga_num = 2
+
+        peer1 = "10.0.0.1"
+        peer2 = "10.0.0.2"
+        w = self.wait_per_retry
+
+        # policy:test_26_med_add_action_import which add 100 in its med attr
+        # is attached to  peer2(10.0.0.2)'s import-policy.
+        self.setup_config(peer2, "test_26_med_add_action_import", "import", add_exabgp=True)
+        self.initialize()
+
+        addresses = self.get_neighbor_address(self.gobgp_config)
+        self.retry_routine_for_state(addresses, "BGP_FSM_ESTABLISHED")
+
+        path = self.get_paths_in_localrib(peer1, prefix1, retry=self.retry_count_common)
+        self.assertIsNotNone(path)
+
+        # check show ip bgp on peer1(quagga1)
+        qpath = self.get_route(peer1,prefix1, retry=self.retry_count_common)
+        self.assertIsNotNone(qpath)
+
+        # check local-rib in peer2
+        path = self.get_paths_in_localrib(peer2, prefix1, retry=0)
+        self.assertIsNotNone(path)
+        attrs = [x for x in path[0]['attrs'] if 'metric' in x]
+        self.assertTrue(400 == attrs[0]['metric'])
+
+        # check show ip bgp on peer2(quagga2)
+        qpath = self.get_route(peer2, prefix1, retry=self.retry_count_common)
+        self.assertIsNotNone(qpath)
+        self.assertTrue(self.check_med(peer2, prefix1.split('/'), 400, retry=0))
+
+    """
+      import-policy test
+                          ---------------------------------------
+      exabgp ->(med=300)->| ->  peer1-rib ->  peer1-adj-rib-out | --> peer1
+                          |                                     |
+                          | ->  peer2-rib ->  peer2-adj-rib-out | --> peer2
+                          |     apply action                    |
+                          ---------------------------------------
+    """
+    def test_27_med_subtract_action_import(self):
+
+        # generate exabgp configuration file
+        prefix1 = "192.168.100.0/24"
+        asns = ['65100'] + [ str(asn) for asn in range(65099, 65090, -1) ]
+        community = '65100:10'
+        as_path =  reduce(lambda a,b: a + " " + b, asns)
+        med = "300"
+        e = ExabgpConfig(EXABGP_COMMON_CONF)
+        e.add_route(prefix1, aspath=as_path, community=community, med=med)
+        e.write()
+
+        self.quagga_num = 2
+
+        peer1 = "10.0.0.1"
+        peer2 = "10.0.0.2"
+        w = self.wait_per_retry
+
+        # policy:test_27_med_subtract_action_import which subtract 100 in its med attr
+        # is attached to  peer2(10.0.0.2)'s import-policy.
+        self.setup_config(peer2, "test_27_med_subtract_action_import", "import", add_exabgp=True)
+        self.initialize()
+
+        addresses = self.get_neighbor_address(self.gobgp_config)
+        self.retry_routine_for_state(addresses, "BGP_FSM_ESTABLISHED")
+
+        path = self.get_paths_in_localrib(peer1, prefix1, retry=self.retry_count_common)
+        self.assertIsNotNone(path)
+
+        # check show ip bgp on peer1(quagga1)
+        qpath = self.get_route(peer1,prefix1, retry=self.retry_count_common)
+        self.assertIsNotNone(qpath)
+
+        # check local-rib in peer2
+        path = self.get_paths_in_localrib(peer2, prefix1, retry=0)
+        self.assertIsNotNone(path)
+        attrs = [x for x in path[0]['attrs'] if 'metric' in x]
+        self.assertTrue(200 == attrs[0]['metric'])
+
+        # check show ip bgp on peer2(quagga2)
+        qpath = self.get_route(peer2, prefix1, retry=self.retry_count_common)
+        self.assertIsNotNone(qpath)
+        self.assertTrue(self.check_med(peer2, prefix1.split('/'), 200, retry=0))
+
+    """
+      export-policy test
+                          ---------------------------------------
+      exabgp ->(med=300)->| ->  peer1-rib ->  peer1-adj-rib-out | --> peer1
+                          |                                     |
+                          | ->  peer2-rib ->  peer2-adj-rib-out | --> peer2
+                          |                   apply action      |
+                          ---------------------------------------
+    """
+    def test_28_med_replace_action_export(self):
+
+        # generate exabgp configuration file
+        prefix1 = "192.168.100.0/24"
+        asns = ['65100'] + [ str(asn) for asn in range(65099, 65090, -1) ]
+        community = '65100:10'
+        as_path =  reduce(lambda a,b: a + " " + b, asns)
+        med = "300"
+        e = ExabgpConfig(EXABGP_COMMON_CONF)
+        e.add_route(prefix1, aspath=as_path, community=community, med=med)
+        e.write()
+
+
+        self.quagga_num = 2
+
+        peer1 = "10.0.0.1"
+        peer2 = "10.0.0.2"
+        w = self.wait_per_retry
+
+        # policy:test_28_med_replace_action_export which replace 100 in its med attr
+        # is attached to  peer2(10.0.0.2)'s export-policy.
+        self.setup_config(peer2, "test_28_med_replace_action_export", "export", add_exabgp=True)
+        self.initialize()
+
+        addresses = self.get_neighbor_address(self.gobgp_config)
+        self.retry_routine_for_state(addresses, "BGP_FSM_ESTABLISHED")
+
+        path = self.get_paths_in_localrib(peer1, prefix1, retry=self.retry_count_common)
+        self.assertIsNotNone(path)
+
+        # check show ip bgp on peer1(quagga1)
+        qpath = self.get_route(peer1,prefix1, retry=self.retry_count_common)
+        self.assertIsNotNone(qpath)
+
+        # check local-rib in peer2
+        path = self.get_paths_in_localrib(peer2, prefix1, retry=1)
+        self.assertIsNotNone(path)
+        attrs = [x for x in path[0]['attrs'] if 'metric' in x]
+        self.assertFalse(100 == attrs[0]['metric'])
+        # check adj-rib-out
+        path = self.get_adj_rib_out(peer2, prefix1, retry=1)
+        attrs = [x for x in path['attrs'] if 'metric' in x]
+        self.assertTrue(100 == attrs[0]['metric'])
+
+
+        # check show ip bgp on peer2(quagga2)
+        qpath = self.get_route(peer2,prefix1, retry=self.retry_count_common)
+        self.assertIsNotNone(qpath)
+        self.assertTrue(self.check_med(peer2, prefix1.split('/'), 100, retry=0))
+
+    """
+      export-policy test
+                          ---------------------------------------
+      exabgp ->(med=300)->| ->  peer1-rib ->  peer1-adj-rib-out | --> peer1
+                          |                                     |
+                          | ->  peer2-rib ->  peer2-adj-rib-out | --> peer2
+                          |                   apply action      |
+                          ---------------------------------------
+    """
+    def test_29_med_add_action_export(self):
+
+        # generate exabgp configuration file
+        prefix1 = "192.168.100.0/24"
+        asns = ['65100'] + [ str(asn) for asn in range(65099, 65090, -1) ]
+        community = '65100:10'
+        as_path =  reduce(lambda a,b: a + " " + b, asns)
+        med = "300"
+        e = ExabgpConfig(EXABGP_COMMON_CONF)
+        e.add_route(prefix1, aspath=as_path, community=community, med=med)
+        e.write()
+
+
+        self.quagga_num = 2
+
+        peer1 = "10.0.0.1"
+        peer2 = "10.0.0.2"
+        w = self.wait_per_retry
+
+        # policy:test_29_med_add_action_export which add 100 in its med attr
+        # is attached to  peer2(10.0.0.2)'s export-policy.
+        self.setup_config(peer2, "test_29_med_add_action_export", "export", add_exabgp=True)
+        self.initialize()
+
+        addresses = self.get_neighbor_address(self.gobgp_config)
+        self.retry_routine_for_state(addresses, "BGP_FSM_ESTABLISHED")
+
+        path = self.get_paths_in_localrib(peer1, prefix1, retry=self.retry_count_common)
+        self.assertIsNotNone(path)
+
+        # check show ip bgp on peer1(quagga1)
+        qpath = self.get_route(peer1,prefix1, retry=self.retry_count_common)
+        self.assertIsNotNone(qpath)
+
+       # check local-rib in peer2
+        path = self.get_paths_in_localrib(peer2, prefix1, retry=1)
+        self.assertIsNotNone(path)
+        attrs = [x for x in path[0]['attrs'] if 'metric' in x]
+        self.assertFalse(400 == attrs[0]['metric'])
+        # check adj-rib-out
+        path = self.get_adj_rib_out(peer2, prefix1, retry=1)
+        attrs = [x for x in path['attrs'] if 'metric' in x]
+        self.assertTrue(400 == attrs[0]['metric'])
+
+
+        # check show ip bgp on peer2(quagga2)
+        qpath = self.get_route(peer2,prefix1, retry=self.retry_count_common)
+        self.assertIsNotNone(qpath)
+        self.assertTrue(self.check_med(peer2, prefix1.split('/'), 400, retry=0))
+
+    """
+      export-policy test
+                          ---------------------------------------
+      exabgp ->(med=300)->| ->  peer1-rib ->  peer1-adj-rib-out | --> peer1
+                          |                                     |
+                          | ->  peer2-rib ->  peer2-adj-rib-out | --> peer2
+                          |                   apply action      |
+                          ---------------------------------------
+    """
+    def test_30_med_subtract_action_export(self):
+
+        # generate exabgp configuration file
+        prefix1 = "192.168.100.0/24"
+        asns = ['65100'] + [ str(asn) for asn in range(65099, 65090, -1) ]
+        community = '65100:10'
+        as_path =  reduce(lambda a,b: a + " " + b, asns)
+        med = "300"
+        e = ExabgpConfig(EXABGP_COMMON_CONF)
+        e.add_route(prefix1, aspath=as_path, community=community, med=med)
+        e.write()
+
+
+        self.quagga_num = 2
+
+        peer1 = "10.0.0.1"
+        peer2 = "10.0.0.2"
+        w = self.wait_per_retry
+
+        # policy:test_30_med_subtract_action_export which subtract 100 in its med attr
+        # is attached to  peer2(10.0.0.2)'s export-policy.
+        self.setup_config(peer2, "test_30_med_subtract_action_export", "export", add_exabgp=True)
+        self.initialize()
+
+        addresses = self.get_neighbor_address(self.gobgp_config)
+        self.retry_routine_for_state(addresses, "BGP_FSM_ESTABLISHED")
+
+        path = self.get_paths_in_localrib(peer1, prefix1, retry=self.retry_count_common)
+        self.assertIsNotNone(path)
+
+        # check show ip bgp on peer1(quagga1)
+        qpath = self.get_route(peer1,prefix1, retry=self.retry_count_common)
+        self.assertIsNotNone(qpath)
+
+       # check local-rib in peer2
+        path = self.get_paths_in_localrib(peer2, prefix1, retry=1)
+        self.assertIsNotNone(path)
+        attrs = [x for x in path[0]['attrs'] if 'metric' in x]
+        self.assertFalse(200 == attrs[0]['metric'])
+        # check adj-rib-out
+        path = self.get_adj_rib_out(peer2, prefix1, retry=1)
+        attrs = [x for x in path['attrs'] if 'metric' in x]
+        self.assertTrue(200 == attrs[0]['metric'])
+
+        # check show ip bgp on peer2(quagga2)
+        qpath = self.get_route(peer2,prefix1, retry=self.retry_count_common)
+        self.assertIsNotNone(qpath)
+        self.assertTrue(self.check_med(peer2, prefix1.split('/'), 200, retry=0))
 
     """
       distribute-policy test
@@ -1655,7 +1989,7 @@ class GoBGPTest(GoBGPTestBase):
                                             | ->  peer2-rib ->  | -> r2 --> peer2
                                             ---------------------
     """
-    def test_25_distribute_reject(self):
+    def test_31_distribute_reject(self):
 
         # generate exabgp configuration file
         r1 = "192.168.100.0/24"
@@ -1678,9 +2012,9 @@ class GoBGPTest(GoBGPTestBase):
         exabgp = "10.0.0.100"
         w = self.wait_per_retry
 
-        # policy:test_25_distribute_reject which rejects routes that have community=65100:10
+        # policy:test_31_distribute_reject which rejects routes that have community=65100:10
         # is attached to exabgp(10.0.0.100)'s distribute policy.
-        self.setup_config(exabgp, "test_25_distribute_reject", "distribute", add_exabgp=True)
+        self.setup_config(exabgp, "test_31_distribute_reject", "distribute", add_exabgp=True)
         self.initialize()
 
         addresses = self.get_neighbor_address(self.gobgp_config)
@@ -1724,7 +2058,7 @@ class GoBGPTest(GoBGPTestBase):
                                             | ->  peer2-rib ->  | -> r2 --> peer2
                                             ---------------------
     """
-    def test_26_distribute_accept(self):
+    def test_32_distribute_accept(self):
         # generate exabgp configuration file
         r1 = "192.168.100.0/24"
         r2 = "192.168.10.0/24"
@@ -1746,9 +2080,9 @@ class GoBGPTest(GoBGPTestBase):
         exabgp = "10.0.0.100"
         w = self.wait_per_retry
 
-        # policy:test_26_distribute_accept which accepts 192.168.10.0/24
+        # policy:test_32_distribute_accept which accepts 192.168.10.0/24
         # is attached to exabgp(10.0.0.100)'s distribute policy.
-        self.setup_config(exabgp, "test_26_distribute_accept", "distribute", add_exabgp=True, defaultReject=True)
+        self.setup_config(exabgp, "test_32_distribute_accept", "distribute", add_exabgp=True, defaultReject=True)
         self.initialize()
 
         addresses = self.get_neighbor_address(self.gobgp_config)
@@ -1782,7 +2116,6 @@ class GoBGPTest(GoBGPTestBase):
         # check show ip bgp on peer1(quagga1)
         qpath = self.get_route(peer2, r2, retry=self.retry_count_common, interval=w)
         self.assertIsNotNone(qpath)
-
 
 
     """
@@ -1793,7 +2126,7 @@ class GoBGPTest(GoBGPTestBase):
                                             | ->  peer2-rib ->  | -> r1(community=65100:10, 65100:20), r2 --> peer2
                                             ---------------------
     """
-    def test_27_distribute_set_community_action(self):
+    def test_33_distribute_set_community_action(self):
 
         # generate exabgp configuration file
         r1 = "192.168.100.0/24"
@@ -1816,9 +2149,9 @@ class GoBGPTest(GoBGPTestBase):
         exabgp = "10.0.0.100"
         w = self.wait_per_retry
 
-        # policy:test_27_distribute_set_community_action which set community
+        # policy:test_33_distribute_set_community_action which set community
         # attr is attached to exabgp(10.0.0.100)'s distribute policy.
-        self.setup_config(exabgp, "test_27_distribute_set_community_action", "distribute", add_exabgp=True)
+        self.setup_config(exabgp, "test_33_distribute_set_community_action", "distribute", add_exabgp=True)
         self.initialize()
 
         addresses = self.get_neighbor_address(self.gobgp_config)
@@ -1859,6 +2192,79 @@ class GoBGPTest(GoBGPTestBase):
         self.assertTrue(self.check_community(peer2, r1.split('/')[0], '65100:20', retry=0))
 
 
+    """
+      distribute-policy test
+                                         ---------------------
+      exabgp ->r1(med=300)         ->  o | ->  peer1-rib ->  | -> r1(med=400), r2 --> peer1
+               r2(192.168.10.0/24) ->  o |                   |
+                                         | ->  peer2-rib ->  | -> r1(med=400), r2 --> peer2
+                                         ---------------------
+    """
+    def test_34_distribute_set_med_action(self):
+
+        # generate exabgp configuration file
+        r1 = "192.168.100.0/24"
+        r2 = "192.168.10.0/24"
+        asns = ['65100'] + [ str(asn) for asn in range(65099, 65090, -1) ]
+        community = ' 65100:10 '
+        as_path = reduce(lambda a, b: a + " " + b, asns)
+        med = "300"
+        e = ExabgpConfig(EXABGP_COMMON_CONF)
+        e.add_route(r1, aspath=as_path, community=community, med=med)
+        e.add_route(r2, aspath='65100')
+        e.write()
+
+        self.quagga_num = 2
+        self.use_exa_bgp = True
+        self.use_ipv6_gobgp = False
+
+        peer1 = "10.0.0.1"
+        peer2 = "10.0.0.2"
+        exabgp = "10.0.0.100"
+        w = self.wait_per_retry
+
+        # policy:test_34_distribute_set_med_action which subtract 100 in its med attr
+        # is attached to  peer2(10.0.0.2)'s distribute-policy.
+        self.setup_config(exabgp, "test_34_distribute_set_med_action", "distribute", add_exabgp=True)
+        self.initialize()
+
+        addresses = self.get_neighbor_address(self.gobgp_config)
+        self.retry_routine_for_state(addresses, "BGP_FSM_ESTABLISHED")
+
+
+        path = self.get_paths_in_localrib(peer1, r1, retry=self.retry_count_common, interval=w)
+        self.assertIsNotNone(path)
+
+        # check show ip bgp on peer1(quagga1)
+        qpath = self.get_route(peer1, r1, retry=self.retry_count_common, interval=w)
+        self.assertIsNotNone(qpath)
+
+        path = self.get_paths_in_localrib(peer2, r1, retry=self.retry_count_common, interval=w)
+        self.assertIsNotNone(path)
+
+        # check show ip bgp on peer2(quagga2)
+        qpath = self.get_route(peer2, r1, retry=self.retry_count_common, interval=w)
+        self.assertIsNotNone(qpath)
+
+        path = self.get_paths_in_localrib(peer1, r2, retry=self.retry_count_common, interval=w)
+        self.assertIsNotNone(path)
+
+        # check show ip bgp on peer1(quagga1)
+        qpath = self.get_route(peer1, r2, retry=self.retry_count_common, interval=w)
+        self.assertIsNotNone(qpath)
+
+        path = self.get_paths_in_localrib(peer2, r2, retry=self.retry_count_common, interval=w)
+        self.assertIsNotNone(path)
+
+        # check show ip bgp on peer1(quagga1)
+        qpath = self.get_route(peer2, r2, retry=self.retry_count_common, interval=w)
+        self.assertIsNotNone(qpath)
+
+        # check show ip bgp on peer2(quagga2)
+        self.assertTrue(self.check_med(peer1, r1.split('/'), 400, retry=0))
+        self.assertTrue(self.check_med(peer2, r1.split('/'), 400, retry=0))
+
+
 
     """
       import-policy test
@@ -1884,7 +2290,7 @@ class GoBGPTest(GoBGPTestBase):
                            | ->(r1,r3)->    rib ->(r1,r3)->    adj-rib-out | ->(r1,r3)-> peer3
                            -------------------------------------------------
     """
-    def test_28_distribute_policy_update(self):
+    def test_35_distribute_policy_update(self):
         # initialize test environment
 
 
@@ -1899,7 +2305,7 @@ class GoBGPTest(GoBGPTestBase):
         # policy:test_28_distribute_policy_update which rejects routes
         # 192.168.20.0/24, 192.168.200.0/24 from peer2 is attached to peer2.
         # After policy's update, 192.168.200.0/24 can go through.
-        self.setup_config(peer2, "test_28_distribute_policy_update", "distribute")
+        self.setup_config(peer2, "test_35_distribute_policy_update", "distribute")
         self.initialize()
 
         # add other network
@@ -1953,7 +2359,7 @@ class GoBGPTest(GoBGPTestBase):
 
         # update policy
         print "update_policy_config"
-        self.set_policy(peer2, "distribute", "test_28_distribute_policy_update_softreset")
+        self.set_policy(peer2, "distribute", "test_35_distribute_policy_update_softreset")
         time.sleep(self.initial_wait_time)
 
         # soft reset
@@ -2010,11 +2416,12 @@ neighbor 10.0.255.1 {
         self.config_name = config_name
         print >> self.o, self.basic_conf_begin
 
-    def add_route(self, prefix, aspath='', community=''):
+    def add_route(self, prefix, aspath='', community='', med='0'):
         value = {'prefix': prefix,
                  'aspath': aspath,
-                 'community': community}
-        r = "route %(prefix)s next-hop 10.0.0.100 as-path [%(aspath)s] community [%(community)s];" % value
+                 'community': community,
+                 'med': med}
+        r = "route %(prefix)s next-hop 10.0.0.100 as-path [%(aspath)s] community [%(community)s] med %(med)s;" % value
         print >> self.o, r
 
     def write(self):
