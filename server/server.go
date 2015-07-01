@@ -95,9 +95,6 @@ func listenAndAccept(proto string, port int, ch chan *net.TCPConn) (*net.TCPList
 				log.Info(err)
 				continue
 			}
-			// TODO: check ebgp or not
-			ttl := 1
-			SetTcpTTLSockopts(conn, ttl)
 			ch <- conn
 		}
 	}()

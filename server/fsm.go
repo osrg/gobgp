@@ -221,6 +221,11 @@ func (fsm *FSM) connectLoop() error {
 
 			conn, err := net.DialTimeout("tcp", host, time.Duration(MIN_CONNECT_RETRY-1)*time.Second)
 			if err == nil {
+				isEBGP := fsm.globalConfig.As != fsm.peerConfig.PeerAs
+				if isEBGP {
+					ttl := 1
+					SetTcpTTLSockopts(conn.(*net.TCPConn), ttl)
+				}
 				fsm.connCh <- conn
 			} else {
 				log.WithFields(log.Fields{
