@@ -8,7 +8,7 @@ import (
 )
 
 // Validator for BGPUpdate
-func ValidateUpdateMsg(m *BGPUpdate, rfs map[RouteFamily]bool) (bool, error) {
+func ValidateUpdateMsg(m *BGPUpdate, rfs map[RouteFamily]bool, doConfedCheck bool) (bool, error) {
 	eCode := uint8(BGP_ERROR_UPDATE_MESSAGE_ERROR)
 	eSubCodeAttrList := uint8(BGP_ERROR_SUB_MALFORMED_ATTRIBUTE_LIST)
 	eSubCodeMissing := uint8(BGP_ERROR_SUB_MISSING_WELL_KNOWN_ATTRIBUTE)
@@ -31,7 +31,7 @@ func ValidateUpdateMsg(m *BGPUpdate, rfs map[RouteFamily]bool) (bool, error) {
 		}
 
 		//check specific path attribute
-		ok, e := ValidateAttribute(a, rfs)
+		ok, e := ValidateAttribute(a, rfs, doConfedCheck)
 		if !ok {
 			return false, e
 		}
@@ -58,12 +58,13 @@ func ValidateUpdateMsg(m *BGPUpdate, rfs map[RouteFamily]bool) (bool, error) {
 	return true, nil
 }
 
-func ValidateAttribute(a PathAttributeInterface, rfs map[RouteFamily]bool) (bool, error) {
+func ValidateAttribute(a PathAttributeInterface, rfs map[RouteFamily]bool, doConfedCheck bool) (bool, error) {
 
 	eCode := uint8(BGP_ERROR_UPDATE_MESSAGE_ERROR)
 	eSubCodeBadOrigin := uint8(BGP_ERROR_SUB_INVALID_ORIGIN_ATTRIBUTE)
 	eSubCodeBadNextHop := uint8(BGP_ERROR_SUB_INVALID_NEXT_HOP_ATTRIBUTE)
 	eSubCodeUnknown := uint8(BGP_ERROR_SUB_UNRECOGNIZED_WELL_KNOWN_ATTRIBUTE)
+	eSubCodeMalformedAspath := uint8(BGP_ERROR_SUB_MALFORMED_AS_PATH)
 
 	checkPrefix := func(l []AddrPrefixInterface) bool {
 		for _, prefix := range l {
@@ -119,6 +120,23 @@ func ValidateAttribute(a PathAttributeInterface, rfs map[RouteFamily]bool) (bool
 			data, _ := a.Serialize()
 			return false, NewMessageError(eCode, eSubCodeBadNextHop, data, eMsg)
 		}
+	case *PathAttributeAsPath:
+		if doConfedCheck {
+			for _, paramIf := range p.Value {
+				var segType uint8
+				asParam, y := paramIf.(*As4PathParam)
+				if y {
+					segType = asParam.Type
+				} else {
+					segType = paramIf.(*AsPathParam).Type
+				}
+
+				if segType == BGP_ASPATH_ATTR_TYPE_CONFED_SET || segType == BGP_ASPATH_ATTR_TYPE_CONFED_SEQ {
+					return false, NewMessageError(eCode, eSubCodeMalformedAspath, nil, fmt.Sprintf("segment type confederation(%d) found", segType))
+				}
+			}
+		}
+
 	case *PathAttributeUnknown:
 		if p.getFlags()&BGP_ATTR_FLAG_OPTIONAL == 0 {
 			eMsg := "unrecognized well-known attribute"
