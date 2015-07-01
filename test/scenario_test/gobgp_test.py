@@ -200,9 +200,16 @@ class GoBGPTestBase(unittest.TestCase):
         return result
 
     def soft_reset(self, neighbor_address, af, type="in"):
-        cmd = "%s -j  " % CLI_CMD
+        cmd = "%s -j " % CLI_CMD
         cmd += "neighbor %s " % neighbor_address
         cmd += "softreset%s -a %s" % (type, af)
+        local(cmd)
+
+    def set_policy(self, peer, target, policy_name, default_accept=True):
+        default_policy = "ACCEPT" if default_accept else "REJECT"
+        cmd = "%s " % CLI_CMD
+        cmd += NEIGHBOR + " %s " % peer
+        cmd += POLICY + " add %s %s %s" % (target, policy_name, default_policy)
         local(cmd)
 
     def get_paths_in_localrib(self, neighbor_address, target_prefix, af="ipv4", retry=3, interval=5):

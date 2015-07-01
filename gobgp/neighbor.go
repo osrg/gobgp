@@ -586,8 +586,8 @@ func showNeighborPolicy(remoteIP net.IP) error {
 
 	fmt.Printf("DefaultImportPolicy: %s\n", ap.DefaultImportPolicy)
 	fmt.Printf("DefaultExportPolicy: %s\n", ap.DefaultExportPolicy)
+    fmt.Printf("DefaultDistributePolicy: %s\n", ap.DefaultDistributePolicy)
 	fmt.Printf("ImportPolicies:\n")
-
 	for _, inPolicy := range ap.ImportPolicies {
 		fmt.Printf("  PolicyName %s:\n", inPolicy.PolicyDefinitionName)
 		showPolicyStatement("  ", inPolicy)
@@ -597,6 +597,11 @@ func showNeighborPolicy(remoteIP net.IP) error {
 		fmt.Printf("  PolicyName %s:\n", outPolicy.PolicyDefinitionName)
 		showPolicyStatement("  ", outPolicy)
 	}
+    fmt.Printf("DistributePolicies:\n")
+    for _, distPolicy := range ap.DistributePolicies {
+        fmt.Printf("  PolicyName %s:\n", distPolicy.PolicyDefinitionName)
+        showPolicyStatement("  ", distPolicy)
+    }
 	return nil
 }
 
@@ -620,7 +625,7 @@ func modNeighborPolicy(remoteIP net.IP, cmdType string, eArg []string) error {
 	switch cmdType {
 	case CMD_ADD:
 		if len(eArg) < 4 {
-			return fmt.Errorf("Usage: gobgp neighbor <ipaddr> policy %s {%s|%s} <policies> {%s|%s}", cmdType, CMD_IMPORT, CMD_EXPORT, policy.ROUTE_ACCEPT, policy.ROUTE_REJECT)
+			return fmt.Errorf("Usage: gobgp neighbor <ipaddr> policy %s {%s|%s|%s} <policies> {%s|%s}", cmdType, CMD_IMPORT, CMD_EXPORT, CMD_DISTRIBUTE, policy.ROUTE_ACCEPT, policy.ROUTE_REJECT)
 		}
 		policies := parsePolicy(eArg[1])
 		defaultPolicy, err := parseRouteAction(eArg[2])
@@ -634,6 +639,9 @@ func modNeighborPolicy(remoteIP net.IP, cmdType string, eArg []string) error {
 		case CMD_EXPORT:
 			pol.ExportPolicies = policies
 			pol.DefaultExportPolicy = defaultPolicy
+		case CMD_DISTRIBUTE:
+			pol.DistributePolicies = policies
+			pol.DefaultDistributePolicy = defaultPolicy
 		}
 		operation = api.Operation_ADD
 
