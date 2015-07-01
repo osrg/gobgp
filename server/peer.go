@@ -320,7 +320,7 @@ func (peer *Peer) setDistributePolicy(policyMap map[string]*policy.Policy) {
 
 }
 
-func (peer *Peer) applyDistributePolicies(original table.Path) (bool, table.Path) {
+func (peer *Peer) applyDistributePolicies(original *table.Path) (bool, *table.Path) {
 	policies := peer.distPolicies
 	var d Direction = POLICY_DIRECTION_DISTRIBUTE
 
@@ -417,7 +417,7 @@ func (loc *LocalRib) applyPolicies(d Direction, original *table.Path) (bool, *ta
 	return applyPolicy("Loc", loc.OwnerName(), d, policies, original)
 }
 
-func applyPolicy(component, owner string, d Direction, policies []*policy.Policy, original table.Path) (bool, table.Path) {
+func applyPolicy(component, owner string, d Direction, policies []*policy.Policy, original *table.Path) (bool, *table.Path) {
 	var applied bool = true
 	for _, pol := range policies {
 		if result, action, newpath := pol.Apply(original); result {
