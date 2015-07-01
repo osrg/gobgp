@@ -43,6 +43,8 @@ type Peer struct {
 	outgoing                chan *bgp.BGPMessage
 	distPolicies            []*policy.Policy
 	defaultDistributePolicy config.DefaultPolicyType
+	isConfederationMember   bool
+	isEBGP                  bool
 }
 
 func NewPeer(g config.Global, config config.Neighbor) *Peer {
@@ -66,6 +68,17 @@ func NewPeer(g config.Global, config config.Neighbor) *Peer {
 	}
 	peer.adjRib = table.NewAdjRib(peer.configuredRFlist())
 	peer.fsm = NewFSM(&g, &config)
+
+	if config.PeerAs != g.As {
+		peer.isEBGP = true
+		for _, member := range g.Confederation.MemberAs {
+			if member == config.PeerAs {
+				peer.isConfederationMember = true
+				break
+			}
+		}
+	}
+
 	return peer
 }
 
@@ -158,7 +171,8 @@ func (peer *Peer) handleBGPmessage(m *bgp.BGPMessage) ([]*table.Path, bool, []*b
 		update = true
 		peer.config.BgpNeighborCommonState.UpdateRecvTime = time.Now().Unix()
 		body := m.Body.(*bgp.BGPUpdate)
-		_, err := bgp.ValidateUpdateMsg(body, peer.rfMap)
+		confedCheckRequired := !peer.isConfederationMember && peer.isEBGP
+		_, err := bgp.ValidateUpdateMsg(body, peer.rfMap, confedCheckRequired)
 		if err != nil {
 			log.WithFields(log.Fields{
 				"Topic": "Peer",
