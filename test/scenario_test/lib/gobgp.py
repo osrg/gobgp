@@ -70,10 +70,25 @@ class GoBGPContainer(BGPContainer):
                                                                     gobgp,
                                                                     prefix,
                                                                     rf)
-
         output = local(cmd, capture=True)
-        n = json.loads(output)
-        return n
+        return json.loads(output)
+
+    def _get_adj_rib(self, adj_type, peer, prefix='', rf='ipv4'):
+        if peer not in self.peers:
+            raise Exception('not found peer {0}'.format(peer.router_id))
+        peer_addr = self.peers[peer]['neigh_addr'].split('/')[0]
+        gobgp = '/go/bin/gobgp'
+        cmd = 'docker exec {0} {1} neighbor {2}'\
+              ' adj-{3} {4} -a {5} -j'.format(self.name, gobgp, peer_addr,
+                                           adj_type, prefix, rf)
+        output = local(cmd, capture=True)
+        return json.loads(output)
+
+    def get_adj_rib_in(self, peer, prefix='', rf='ipv4'):
+        return self._get_adj_rib('in', peer, prefix, rf)
+
+    def get_adj_rib_out(self, peer, prefix='', rf='ipv4'):
+        return self._get_adj_rib('out', peer, prefix, rf)
 
     def get_neighbor_state(self, peer):
         if peer not in self.peers:
