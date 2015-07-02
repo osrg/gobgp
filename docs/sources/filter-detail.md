@@ -2,16 +2,22 @@
 
 This page shows how to write your own policies.
 
-As [Policy configuration](https://github.com/osrg/gobgp/blob/master/docs/sources/policy.md) shows, you can define import or export policies to control the route advertisement. Basically a policy has condition part and an action part. A condition part can be defined with attributes below.
+As [Policy configuration](https://github.com/osrg/gobgp/blob/master/docs/sources/policy.md) shows, 
+you can define import or export policies or distribute policies to control the route advertisement. 
+
+Note: The distribute policy is applied only when the peer is Route Server client.
+
+Basically a policy has condition part and an action part. The condition part can be defined with attributes below:
  - prefix
  - neighbor
  - aspath
  - aspath length
  - community
 
-A action part is below.
+A action part is below:
  - accept or reject
  - add/replace/remove community or remove all communities
+ - add/subtract or replace MED value
 
 
 GoBGP's configuration file has two parts named DefinedSets and PolicyDefinitionList as its policy configuration.
@@ -28,7 +34,7 @@ GoBGP's configuration file has two parts named DefinedSets and PolicyDefinitionL
 
 ## Definition Steps
 
-These are steps to define policy;
+These are steps to define policy:
 
 1. define DefinedSets
   1. define PrefixSetList
@@ -96,7 +102,7 @@ PrefixSetList and NeighborSetList section are prefix match part and neighbor mat
 
 
  - example 2
-   - If you want to evaluate multiple routes with a single PrefixSetList, you can do this by adding an another PrefixList like this;
+   - If you want to evaluate multiple routes with a single PrefixSetList, you can do this by adding an another PrefixList like this:
 
   ```
   # example 2
@@ -331,7 +337,7 @@ You can write condition and action under StatementList.
  |------------------|------------------------------------------------------------------------------------------|---------|
  | MatchPrefixSet   | name for DefinedSets.PrefixSetList that is used in this policy                           | "ps2"   |
  | MatchNeighborSet | name for DefinedSets.NeighborSetList that is used in this policy                         | "ns1"   |
- | MatchSetOptions  | option for the check;<br> 0 means **ANY**,<br>  1 means **ALL**,<br>  2 means **INVERT** | 1       |
+ | MatchSetOptions  | option for the check:<br> 0 means **ANY**,<br>  1 means **ALL**,<br>  2 means **INVERT** | 1       |
 
 
   - PolicyDefinitionList.StatementList.Conditions.BgpConditions
@@ -395,7 +401,7 @@ You can write condition and action under StatementList.
  ```
  # example 2
  [[PolicyDefinitionList]]
- Name = "pd1"
+ Name = "policy1"
  # first statement - (1)
  [[PolicyDefinitionList.StatementList]]
   Name = "statement1"
@@ -463,7 +469,7 @@ You can write condition and action under StatementList.
  ```
  # example 4
  [[PolicyDefinitionList]]
- Name = "policy4"
+ Name = "policy1"
  [[PolicyDefinitionList.StatementList]]
  Name = "statement1"
  [PolicyDefinitionList.StatementList.Conditions]
@@ -489,11 +495,13 @@ You can write condition and action under StatementList.
 ---
 
 ### 4. Attaching policy
-You can attach policies to a neighbor after defining policy.
-To attach policies to a neighbor, you need to add policy's name to NeighborList.ApplyPolicy in the neighbor's setting.
+You can use policies defined above as import or export or distribtue policy by
+attaching them to neighbors.
 
-You can attach policies to the import policy or the export policy inside the neighbor configuration.
-This example attatches *policy1* to import policy and *policy2* to export policy.
+   Note: The distribute policy is applied only when the peer is Route Server client.
+
+To attach policies to neighbors, you need to add policy's name to NeighborList.ApplyPolicy in the neighbor's setting.
+This example attatches *policy1* to import policy and *policy2* to export policy and *policy3* is used as the distribute policy.
 
 ```
 [[NeighborList]]
@@ -504,16 +512,20 @@ RouteServerClient = true
 [NeighborList.ApplyPolicy]
 ImportPolicies = ["policy1"]
 ExportPolicies = ["policy2"]
+DistributePolicies = ["policy3"]
 DefaultImportPolicy = 0
 DefaultExportPolicy = 0
+DefaultDistributePolicy = 0
 ```
 
 NeighborList has a section to specify policies and the section's name is ApplyPolicy.
-The ApplyPolicy has 4 elements.
+The ApplyPolicy has 6 elements.
 
-| Element             | Description                                                                   | Example    |
-|---------------------|-------------------------------------------------------------------------------|------------|
-| ImportPolicies      | PolicyDefinitionList.name for import policy                                   | "policy1"  |
-| ExportPolicies      | PolicyDefinitionList.name for export policy                                   | "policy2"  |
-| DefaultImportPolicy | action if the route isn't applied any policy;<br> 0 means import,<br>  1 means reject  | 0 |
-| DefaultExportPolicy | action if the route isn't applied any policy;<br> 0 means export,<br>  1 means discard | 0 |
+| Element                 | Description                                                                                 | Example    |
+|-------------------------|---------------------------------------------------------------------------------------------|------------|
+| ImportPolicies          | PolicyDefinitionList.name for import policy                                                 | "policy1"  |
+| ExportPolicies          | PolicyDefinitionList.name for export policy                                                 | "policy2"  |
+| DistributePolicies      | PolicyDefinitionList.name for distribute policy                                             | "policy3"  |
+| DefaultImportPolicy     | action when the route doesn't match any policy:<br> 0 means import,<br>  1 means reject     | 0          |
+| DefaultExportPolicy     | action when the route doesn't match any policy:<br> 0 means export,<br>  1 means discard    | 0          |
+| DefaultDistributePolicy | action when the route doesn't match any policy:<br> 0 means distribute,<br>  1 means reject | 0          |

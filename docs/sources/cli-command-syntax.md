@@ -12,9 +12,6 @@ gobgp has three subcommands.
 - neighbor
 - policy
 
-Note: Currently gobgp supports only **global** and **neighbor** subcommand.
-
-
 
 ## global subcommand
 
@@ -74,10 +71,14 @@ Note: Currently gobgp supports only **global** and **neighbor** subcommand.
 % gobgp neighbor <neighbor address> policy add import <import policy name> <default import policy>
 # add policy to export-policy configuration
 % gobgp neighbor <neighbor address> policy add export <export policy name> <default export policy>
+# add policy to distribute-policy configuration
+% gobgp neighbor <neighbor address> policy add distribute <distribute policy name> <default distribute policy>
 # delete import-policy configuration from specific neighbor
 % gobgp neighbor <neighbor address> policy del import
 # delete export-policy configuration from specific neighbor
 % gobgp neighbor <neighbor address> policy del export
+# delete distribute-policy configuration from specific neighbor
+% gobgp neighbor <neighbor address> policy del distribute
 # show a specific policy information
 % gobgp neighbor <neighbor address> policy
 ```
