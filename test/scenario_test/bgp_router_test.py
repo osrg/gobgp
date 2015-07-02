@@ -22,6 +22,7 @@ import os
 import time
 import nose
 from noseplugin import OptionParser, parser_option
+from itertools import chain
 
 
 class GoBGPTestBase(unittest.TestCase):
@@ -111,6 +112,15 @@ class GoBGPTestBase(unittest.TestCase):
                     continue
                 raise Exception('timeout')
 
+    # check gobgp properly add it's own asn to aspath
+    def test_03_check_gobgp_adj_out_rib(self):
+        for q in self.quaggas.itervalues():
+            for path in self.gobgp.get_adj_rib_out(q):
+                asps = (p['as_paths'] for p in path['attrs'] if p['type'] == BGP_ATTR_TYPE_AS_PATH)
+                asps = chain.from_iterable(asps)
+                asns = (asp['asns'] for asp in asps)
+                asns = chain.from_iterable(asns)
+                self.assertTrue(self.gobgp.asn in asns)
 
     # check routes are properly advertised to all BGP speaker
     def test_03_check_quagga_global_rib(self):
