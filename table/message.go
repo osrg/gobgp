@@ -17,7 +17,6 @@ package table
 
 import (
 	"bytes"
-	"github.com/osrg/gobgp/config"
 	"github.com/osrg/gobgp/packet"
 )
 
@@ -126,10 +125,6 @@ func cloneAttrSlice(attrs []bgp.PathAttributeInterface) []bgp.PathAttributeInter
 	clonedAttrs := make([]bgp.PathAttributeInterface, 0)
 	clonedAttrs = append(clonedAttrs, attrs...)
 	return clonedAttrs
-}
-
-func UpdatePathAttrs(path *Path, global *config.Global, peer *config.Neighbor) {
-	path.updatePathAttrs(global, peer)
 }
 
 func createUpdateMsgFromPath(path *Path, msg *bgp.BGPMessage) *bgp.BGPMessage {

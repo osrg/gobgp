@@ -68,7 +68,7 @@ func cloneAsPath(asAttr *bgp.PathAttributeAsPath) *bgp.PathAttributeAsPath {
 	return bgp.NewPathAttributeAsPath(newASparams)
 }
 
-func (path *Path) updatePathAttrs(global *config.Global, peer *config.Neighbor) {
+func (path *Path) UpdatePathAttrs(global *config.Global, peer *config.Neighbor) {
 
 	if peer.RouteServer.RouteServerClient {
 		return

@@ -513,7 +513,7 @@ func (server *BgpServer) propagateUpdate(neighborAddress string, RouteServerClie
 			}
 			f := filterpath(targetPeer, sendPathList)
 			for _, path := range f {
-				path.SetNexthop(targetPeer.config.LocalAddress)
+				path.UpdatePathAttrs(&server.bgpConfig.Global, &targetPeer.config)
 			}
 			targetPeer.adjRib.UpdateOut(f)
 			msgList := table.CreateUpdateMsgFromPaths(f)
@@ -563,7 +563,7 @@ func (server *BgpServer) handleFSMMessage(peer *Peer, e *fsmMsg, incoming chan *
 				peer.config.LocalAddress = peer.fsm.LocalAddr()
 				for _, path := range peer.getBests(globalRib) {
 					p := path.Clone(path.IsWithdraw)
-					p.SetNexthop(peer.config.LocalAddress)
+					p.UpdatePathAttrs(&server.bgpConfig.Global, &peer.config)
 					pathList = append(pathList, p)
 				}
 			}
