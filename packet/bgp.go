@@ -938,14 +938,14 @@ func NewMPLSLabelStack(labels ...uint32) *MPLSLabelStack {
 // followed by an IPv4 prefix.
 //
 
-type LabelledVPNIPAddrPrefix struct {
+type LabeledVPNIPAddrPrefix struct {
 	IPAddrPrefixDefault
 	Labels  MPLSLabelStack
 	RD      RouteDistinguisherInterface
 	addrlen uint8
 }
 
-func (l *LabelledVPNIPAddrPrefix) DecodeFromBytes(data []byte) error {
+func (l *LabeledVPNIPAddrPrefix) DecodeFromBytes(data []byte) error {
 	l.Length = uint8(data[0])
 	data = data[1:]
 	l.Labels.DecodeFromBytes(data)
@@ -960,7 +960,7 @@ func (l *LabelledVPNIPAddrPrefix) DecodeFromBytes(data []byte) error {
 	return nil
 }
 
-func (l *LabelledVPNIPAddrPrefix) Serialize() ([]byte, error) {
+func (l *LabeledVPNIPAddrPrefix) Serialize() ([]byte, error) {
 	buf := make([]byte, 1)
 	buf[0] = l.Length
 	lbuf, err := l.Labels.Serialize()
@@ -982,27 +982,32 @@ func (l *LabelledVPNIPAddrPrefix) Serialize() ([]byte, error) {
 	return buf, nil
 }
 
-func (l *LabelledVPNIPAddrPrefix) AFI() uint16 {
+func (l *LabeledVPNIPAddrPrefix) AFI() uint16 {
 	return AFI_IP
 }
 
-func (l *LabelledVPNIPAddrPrefix) SAFI() uint8 {
+func (l *LabeledVPNIPAddrPrefix) SAFI() uint8 {
 	return SAFI_MPLS_VPN
 }
 
-func (l *LabelledVPNIPAddrPrefix) ToApiStruct() *api.Nlri {
+func (l *LabeledVPNIPAddrPrefix) ToApiStruct() *api.Nlri {
 	return &api.Nlri{
 		Af:     &api.AddressFamily{api.AFI(l.AFI()), api.SAFI(l.SAFI())},
 		Prefix: l.String(),
 	}
 }
 
-func NewLabelledVPNIPAddrPrefix(length uint8, prefix string, label MPLSLabelStack, rd RouteDistinguisherInterface) *LabelledVPNIPAddrPrefix {
+func (l *LabeledVPNIPAddrPrefix) String() string {
+	masklen := l.IPAddrPrefixDefault.Length - uint8(8*(l.Labels.Len()+l.RD.Len()))
+	return fmt.Sprintf("%s:%s/%d", l.RD, l.IPAddrPrefixDefault.Prefix, masklen)
+}
+
+func NewLabeledVPNIPAddrPrefix(length uint8, prefix string, label MPLSLabelStack, rd RouteDistinguisherInterface) *LabeledVPNIPAddrPrefix {
 	rdlen := 0
 	if rd != nil {
 		rdlen = rd.Len()
 	}
-	return &LabelledVPNIPAddrPrefix{
+	return &LabeledVPNIPAddrPrefix{
 		IPAddrPrefixDefault{length + uint8(8*(label.Len()+rdlen)), net.ParseIP(prefix)},
 		label,
 		rd,
@@ -1010,21 +1015,21 @@ func NewLabelledVPNIPAddrPrefix(length uint8, prefix string, label MPLSLabelStac
 	}
 }
 
-type LabelledVPNIPv6AddrPrefix struct {
-	LabelledVPNIPAddrPrefix
+type LabeledVPNIPv6AddrPrefix struct {
+	LabeledVPNIPAddrPrefix
 }
 
-func (l *LabelledVPNIPv6AddrPrefix) AFI() uint16 {
+func (l *LabeledVPNIPv6AddrPrefix) AFI() uint16 {
 	return AFI_IP6
 }
 
-func NewLabelledVPNIPv6AddrPrefix(length uint8, prefix string, label MPLSLabelStack, rd RouteDistinguisherInterface) *LabelledVPNIPv6AddrPrefix {
+func NewLabeledVPNIPv6AddrPrefix(length uint8, prefix string, label MPLSLabelStack, rd RouteDistinguisherInterface) *LabeledVPNIPv6AddrPrefix {
 	rdlen := 0
 	if rd != nil {
 		rdlen = rd.Len()
 	}
-	return &LabelledVPNIPv6AddrPrefix{
-		LabelledVPNIPAddrPrefix{
+	return &LabeledVPNIPv6AddrPrefix{
+		LabeledVPNIPAddrPrefix{
 			IPAddrPrefixDefault{length + uint8(8*(label.Len()+rdlen)), net.ParseIP(prefix)},
 			label,
 			rd,
@@ -1033,21 +1038,21 @@ func NewLabelledVPNIPv6AddrPrefix(length uint8, prefix string, label MPLSLabelSt
 	}
 }
 
-type LabelledIPAddrPrefix struct {
+type LabeledIPAddrPrefix struct {
 	IPAddrPrefixDefault
 	Labels  MPLSLabelStack
 	addrlen uint8
 }
 
-func (r *LabelledIPAddrPrefix) AFI() uint16 {
+func (r *LabeledIPAddrPrefix) AFI() uint16 {
 	return AFI_IP
 }
 
-func (r *LabelledIPAddrPrefix) SAFI() uint8 {
+func (r *LabeledIPAddrPrefix) SAFI() uint8 {
 	return SAFI_MPLS_LABEL
 }
 
-func (r *LabelledIPAddrPrefix) ToApiStruct() *api.Nlri {
+func (r *LabeledIPAddrPrefix) ToApiStruct() *api.Nlri {
 	return &api.Nlri{
 		Af:     &api.AddressFamily{api.AFI(r.AFI()), api.SAFI(r.SAFI())},
 		Prefix: r.String(),
@@ -1062,18 +1067,18 @@ func (r *IPAddrPrefix) decodeNextHop(data []byte) net.IP {
 	return next
 }
 
-func (r *LabelledVPNIPAddrPrefix) decodeNextHop(data []byte) net.IP {
+func (r *LabeledVPNIPAddrPrefix) decodeNextHop(data []byte) net.IP {
 	// skip rd
 	var next net.IP = data[8 : 8+r.addrlen]
 	return next
 }
 
-func (r *LabelledIPAddrPrefix) decodeNextHop(data []byte) net.IP {
+func (r *LabeledIPAddrPrefix) decodeNextHop(data []byte) net.IP {
 	var next net.IP = data[0:r.addrlen]
 	return next
 }
 
-func (l *LabelledIPAddrPrefix) DecodeFromBytes(data []byte) error {
+func (l *LabeledIPAddrPrefix) DecodeFromBytes(data []byte) error {
 	l.Length = uint8(data[0])
 	data = data[1:]
 	l.Labels.DecodeFromBytes(data)
@@ -1086,7 +1091,7 @@ func (l *LabelledIPAddrPrefix) DecodeFromBytes(data []byte) error {
 	return nil
 }
 
-func (l *LabelledIPAddrPrefix) Serialize() ([]byte, error) {
+func (l *LabeledIPAddrPrefix) Serialize() ([]byte, error) {
 	buf := make([]byte, 1)
 	buf[0] = l.Length
 	restbits := int(l.Length) - 8*(l.Labels.Len())
@@ -1103,21 +1108,21 @@ func (l *LabelledIPAddrPrefix) Serialize() ([]byte, error) {
 	return buf, nil
 }
 
-func NewLabelledIPAddrPrefix(length uint8, prefix string, label MPLSLabelStack) *LabelledIPAddrPrefix {
-	return &LabelledIPAddrPrefix{
+func NewLabeledIPAddrPrefix(length uint8, prefix string, label MPLSLabelStack) *LabeledIPAddrPrefix {
+	return &LabeledIPAddrPrefix{
 		IPAddrPrefixDefault{length + uint8(label.Len()*8), net.ParseIP(prefix)},
 		label,
 		4,
 	}
 }
 
-type LabelledIPv6AddrPrefix struct {
-	LabelledIPAddrPrefix
+type LabeledIPv6AddrPrefix struct {
+	LabeledIPAddrPrefix
 }
 
-func NewLabelledIPv6AddrPrefix(length uint8, prefix string, label MPLSLabelStack) *LabelledIPv6AddrPrefix {
-	return &LabelledIPv6AddrPrefix{
-		LabelledIPAddrPrefix{
+func NewLabeledIPv6AddrPrefix(length uint8, prefix string, label MPLSLabelStack) *LabeledIPv6AddrPrefix {
+	return &LabeledIPv6AddrPrefix{
+		LabeledIPAddrPrefix{
 			IPAddrPrefixDefault{length + uint8(label.Len()*8), net.ParseIP(prefix)},
 			label,
 			16,
@@ -1800,13 +1805,13 @@ func NewPrefixFromRouteFamily(afi uint16, safi uint8) (prefix AddrPrefixInterfac
 	case RF_IPv6_UC, RF_IPv6_MC:
 		prefix = NewIPv6AddrPrefix(0, "")
 	case RF_IPv4_VPN:
-		prefix = NewLabelledVPNIPAddrPrefix(0, "", *NewMPLSLabelStack(), nil)
+		prefix = NewLabeledVPNIPAddrPrefix(0, "", *NewMPLSLabelStack(), nil)
 	case RF_IPv6_VPN:
-		prefix = NewLabelledVPNIPv6AddrPrefix(0, "", *NewMPLSLabelStack(), nil)
+		prefix = NewLabeledVPNIPv6AddrPrefix(0, "", *NewMPLSLabelStack(), nil)
 	case RF_IPv4_MPLS:
-		prefix = NewLabelledIPAddrPrefix(0, "", *NewMPLSLabelStack())
+		prefix = NewLabeledIPAddrPrefix(0, "", *NewMPLSLabelStack())
 	case RF_IPv6_MPLS:
-		prefix = NewLabelledIPv6AddrPrefix(0, "", *NewMPLSLabelStack())
+		prefix = NewLabeledIPv6AddrPrefix(0, "", *NewMPLSLabelStack())
 	case RF_EVPN:
 		prefix = NewEVPNNLRI(0, 0, nil)
 	case RF_RTC_UC:
