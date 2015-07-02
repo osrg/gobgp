@@ -73,7 +73,7 @@ def test_malformed_packet():
         sys.exit(1)
 
     use_local = parser_option.use_local
-    log_debug = parser_option.gobgp_log_debug
+    log_debug = True if parser_option.gobgp_log_level == 'debug' else False
     go_path = parser_option.go_path
     exabgp_path = parser_option.exabgp_path
 

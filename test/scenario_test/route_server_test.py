@@ -39,7 +39,7 @@ class GoBGPTest(GoBGPTestBase):
 
         use_local = parser_option.use_local
         go_path = parser_option.go_path
-        log_debug = parser_option.gobgp_log_debug
+        log_debug = True if parser_option.gobgp_log_level == 'debug' else False
         fab.init_test_env_executor(self.quagga_num, use_local, go_path, log_debug)
 
         print "please wait " + str(self.initial_wait_time) + " second"
