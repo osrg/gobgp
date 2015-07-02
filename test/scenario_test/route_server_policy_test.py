@@ -65,7 +65,7 @@ class GoBGPTest(GoBGPTestBase):
         print 'prepare gobgp'
         cls.go_path = parser_option.go_path
         cls.use_local = parser_option.use_local
-        cls.log_debug = parser_option.gobgp_log_debug
+        cls.log_debug = True if parser_option.gobgp_log_level == 'debug' else False
         fab.prepare_gobgp(cls.log_debug, cls.use_local)
         fab.build_config_tools(cls.go_path)
 

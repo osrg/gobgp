@@ -11,7 +11,8 @@ class OptionParser(Plugin):
         parser.add_option('--use-local', action="store_true", dest="use_local", default=False)
         parser.add_option('--exabgp-path', action="store", dest="exabgp_path", default="")
         parser.add_option('--go-path', action="store", dest="go_path", default="")
-        parser.add_option('--gobgp-log-debug', action="store_true", dest="gobgp_log_debug", default=False)
+        parser.add_option('--gobgp-log-level', action="store",
+                          dest="gobgp_log_level", default="info")
 
     def configure(self, options, conf):
         super(OptionParser, self).configure(options, conf)
