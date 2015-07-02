@@ -4,3 +4,4 @@ ciscoconfparse
 ecdsa
 pycrypto>=2.1
 fabric
+netaddr
