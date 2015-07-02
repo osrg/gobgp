@@ -19,6 +19,8 @@ $GOROOT/bin/go get -v
 cd $GOBGP/test/scenario_test
 set +e
 
+sudo -E pip install -r pip-requires.txt
+
 # route server test
 sudo -E python route_server_test.py --use-local --go-path $GOROOT/bin -s --with-xunit
 RET1=$?
