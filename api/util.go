@@ -17,6 +17,8 @@ package api
 
 var AF_IPV4_UC *AddressFamily = &AddressFamily{AFI_IP, SAFI_UNICAST}
 var AF_IPV6_UC *AddressFamily = &AddressFamily{AFI_IP6, SAFI_UNICAST}
+var AF_IPV4_VPN *AddressFamily = &AddressFamily{AFI_IP, SAFI_MPLS_VPN}
+var AF_IPV6_VPN *AddressFamily = &AddressFamily{AFI_IP6, SAFI_MPLS_VPN}
 var AF_EVPN *AddressFamily = &AddressFamily{AFI_L2VPN, SAFI_EVPN}
 var AF_ENCAP *AddressFamily = &AddressFamily{AFI_IP, SAFI_ENCAP}
 var AF_RTC *AddressFamily = &AddressFamily{AFI_IP, SAFI_ROUTE_TARGET_CONSTRAINTS}
