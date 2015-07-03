@@ -68,9 +68,15 @@ class QuaggaBGPContainer(BGPContainer):
             tn.read_until('   Network          Next Hop            Metric '
                           'LocPrf Weight Path')
             for line in tn.read_until('bgpd#').split('\n'):
-                if line[0] == '*':
+                if line[:2] == '*>':
+                    line = line[2:]
+                    ibgp = False
+                    if line[0] == 'i':
+                        line = line[1:]
+                        ibgp = True
                     elems = line.split()
-                    rib.append({'prefix': elems[1], 'nexthop': elems[2]})
+                    rib.append({'prefix': elems[0], 'nexthop': elems[1],
+                                'ibgp': ibgp})
 
         return rib
 
@@ -181,7 +187,7 @@ class QuaggaBGPContainer(BGPContainer):
         c << 'debug bgp fsm'
         c << 'debug bgp updates'
         c << 'debug bgp events'
-        c << 'log file {0}/bgpd.log'.format(self.SHARED_VOLUME)
+        c << 'log file /tmp/bgpd.log'.format(self.SHARED_VOLUME)
 
         with open('{0}/bgpd.conf'.format(self.config_dir), 'w') as f:
             print colors.yellow('[{0}\'s new config]'.format(self.name))
