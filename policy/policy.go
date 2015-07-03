@@ -17,16 +17,17 @@ package policy
 
 import (
 	"fmt"
-	log "github.com/Sirupsen/logrus"
-	"github.com/osrg/gobgp/api"
-	"github.com/osrg/gobgp/config"
-	"github.com/osrg/gobgp/packet"
-	"github.com/osrg/gobgp/table"
 	"net"
 	"reflect"
 	"regexp"
 	"strconv"
 	"strings"
+
+	log "github.com/Sirupsen/logrus"
+	"github.com/osrg/gobgp/api"
+	"github.com/osrg/gobgp/config"
+	"github.com/osrg/gobgp/packet"
+	"github.com/osrg/gobgp/table"
 )
 
 type RouteType int
@@ -116,6 +117,12 @@ func NewPolicy(pd config.PolicyDefinition, ds config.DefinedSets) *Policy {
 		med := NewMedAction(statement.Actions.BgpActions.SetMed)
 		if med != nil {
 			mda = append(mda, med)
+		}
+
+		//AsPathPrependAction
+		ppa := NewAsPathPrependAction(statement.Actions.BgpActions.SetAsPathPrepend)
+		if ppa != nil {
+			mda = append(mda, ppa)
 		}
 
 		s := &Statement{
@@ -870,6 +877,69 @@ func (a *MedAction) apply(path *table.Path) *table.Path {
 	return path
 }
 
+type AsPathPrependAction struct {
+	DefaultAction
+	asn         uint32
+	useLeftMost bool
+	repeat      uint8
+}
+
+// NewAsPathPrependAction creates AsPathPrependAction object.
+// If ASN cannot be parsed, nil will be returned.
+func NewAsPathPrependAction(action config.SetAsPathPrepend) *AsPathPrependAction {
+
+	a := &AsPathPrependAction{}
+
+	if action.As == "" {
+		return nil
+	}
+
+	if action.As == "last-as" {
+		a.useLeftMost = true
+	} else {
+		asn, err := strconv.ParseUint(action.As, 10, 32)
+		if err != nil {
+			log.WithFields(log.Fields{
+				"Topic": "Policy",
+				"Type":  "AsPathPrepend Action",
+				"Value": action.As,
+			}).Error("As number string invalid.")
+			return nil
+		}
+		a.asn = uint32(asn)
+	}
+	a.repeat = action.RepeatN
+
+	return a
+}
+
+func (a *AsPathPrependAction) apply(path *table.Path) *table.Path {
+
+	var asn uint32
+	if a.useLeftMost {
+		asns := path.GetAsSeqList()
+		if len(asns) == 0 {
+			log.WithFields(log.Fields{
+				"Topic": "Policy",
+				"Type":  "AsPathPrepend Action",
+			}).Error("aspath length is zero.")
+			return path
+		}
+		asn = asns[0]
+		log.WithFields(log.Fields{
+			"Topic":  "Policy",
+			"Type":   "AsPathPrepend Action",
+			"LastAs": asn,
+			"Repeat": a.repeat,
+		}).Debug("use last AS.")
+	} else {
+		asn = a.asn
+	}
+
+	path.PrependAsn(asn, a.repeat)
+	return path
+}
+
 type Prefix struct {
 	Address         net.IP
 	AddressFamily   bgp.RouteFamily
@@ -1349,7 +1419,7 @@ func ActionsToApiStruct(conActions config.Actions) *api.Actions {
 
 func ActionsToConfigStruct(reqActions *api.Actions) config.Actions {
 	actions := config.Actions{}
-	if reqActions ==  nil{
+	if reqActions == nil {
 		return actions
 	}
 	if reqActions.Community != nil {

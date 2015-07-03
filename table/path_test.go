@@ -3,10 +3,12 @@ package table
 
 import (
 	//"fmt"
-	"github.com/osrg/gobgp/packet"
-	"github.com/stretchr/testify/assert"
+	"fmt"
 	"testing"
 	"time"
+
+	"github.com/osrg/gobgp/packet"
+	"github.com/stretchr/testify/assert"
 )
 
 func TestPathNewIPv4(t *testing.T) {
@@ -118,6 +120,160 @@ func TestASPathLen(t *testing.T) {
 	peer := PathCreatePeer()
 	p := NewPath(peer[0], &update.NLRI[0], false, update.PathAttributes, false, time.Now())
 	assert.Equal(10, p.GetAsPathLen())
+}
+
+func TestPathPrependAsnToExistingSeqAttr(t *testing.T) {
+	assert := assert.New(t)
+	origin := bgp.NewPathAttributeOrigin(0)
+	aspathParam := []bgp.AsPathParamInterface{
+		bgp.NewAsPathParam(bgp.BGP_ASPATH_ATTR_TYPE_SEQ, []uint16{65001, 65002, 65003, 65004, 65005}),
+		bgp.NewAsPathParam(bgp.BGP_ASPATH_ATTR_TYPE_SET, []uint16{65001, 65002, 65003, 65004, 65005}),
+		bgp.NewAsPathParam(bgp.BGP_ASPATH_ATTR_TYPE_CONFED_SEQ, []uint16{65100, 65101, 65102}),
+		bgp.NewAsPathParam(bgp.BGP_ASPATH_ATTR_TYPE_CONFED_SET, []uint16{65100, 65101})}
+	aspath := bgp.NewPathAttributeAsPath(aspathParam)
+	nexthop := bgp.NewPathAttributeNextHop("192.168.50.1")
+
+	pathAttributes := []bgp.PathAttributeInterface{
+		origin,
+		aspath,
+		nexthop,
+	}
+
+	nlri := []bgp.NLRInfo{*bgp.NewNLRInfo(24, "10.10.10.0")}
+	withdrawnRoutes := []bgp.WithdrawnRoute{}
+	bgpmsg := bgp.NewBGPUpdateMessage(withdrawnRoutes, pathAttributes, nlri)
+	update := bgpmsg.Body.(*bgp.BGPUpdate)
+	UpdatePathAttrs4ByteAs(update)
+	peer := PathCreatePeer()
+	p := NewPath(peer[0], &update.NLRI[0], false, update.PathAttributes, false, time.Now())
+
+	p.PrependAsn(65000, 1)
+	assert.Equal([]uint32{65000, 65001, 65002, 65003, 65004, 65005}, p.GetAsSeqList())
+	fmt.Printf("asns: %v", p.GetAsSeqList())
+}
+
+func TestPathPrependAsnToNewAsPathAttr(t *testing.T) {
+	assert := assert.New(t)
+	origin := bgp.NewPathAttributeOrigin(0)
+	nexthop := bgp.NewPathAttributeNextHop("192.168.50.1")
+
+	pathAttributes := []bgp.PathAttributeInterface{
+		origin,
+		nexthop,
+	}
+
+	nlri := []bgp.NLRInfo{*bgp.NewNLRInfo(24, "10.10.10.0")}
+	withdrawnRoutes := []bgp.WithdrawnRoute{}
+	bgpmsg := bgp.NewBGPUpdateMessage(withdrawnRoutes, pathAttributes, nlri)
+	update := bgpmsg.Body.(*bgp.BGPUpdate)
+	UpdatePathAttrs4ByteAs(update)
+	peer := PathCreatePeer()
+	p := NewPath(peer[0], &update.NLRI[0], false, update.PathAttributes, false, time.Now())
+
+	asn := uint32(65000)
+	p.PrependAsn(asn, 1)
+	assert.Equal([]uint32{asn}, p.GetAsSeqList())
+}
+
+func TestPathPrependAsnToNewAsPathSeq(t *testing.T) {
+	assert := assert.New(t)
+	origin := bgp.NewPathAttributeOrigin(0)
+	aspathParam := []bgp.AsPathParamInterface{
+		bgp.NewAsPathParam(bgp.BGP_ASPATH_ATTR_TYPE_SET, []uint16{65001, 65002, 65003, 65004, 65005}),
+		bgp.NewAsPathParam(bgp.BGP_ASPATH_ATTR_TYPE_CONFED_SEQ, []uint16{65100, 65101, 65102}),
+		bgp.NewAsPathParam(bgp.BGP_ASPATH_ATTR_TYPE_CONFED_SET, []uint16{65100, 65101})}
+	aspath := bgp.NewPathAttributeAsPath(aspathParam)
+	nexthop := bgp.NewPathAttributeNextHop("192.168.50.1")
+
+	pathAttributes := []bgp.PathAttributeInterface{
+		origin,
+		aspath,
+		nexthop,
+	}
+
+	nlri := []bgp.NLRInfo{*bgp.NewNLRInfo(24, "10.10.10.0")}
+	withdrawnRoutes := []bgp.WithdrawnRoute{}
+	bgpmsg := bgp.NewBGPUpdateMessage(withdrawnRoutes, pathAttributes, nlri)
+	update := bgpmsg.Body.(*bgp.BGPUpdate)
+	UpdatePathAttrs4ByteAs(update)
+	peer := PathCreatePeer()
+	p := NewPath(peer[0], &update.NLRI[0], false, update.PathAttributes, false, time.Now())
+
+	asn := uint32(65000)
+	p.PrependAsn(asn, 1)
+	assert.Equal([]uint32{asn}, p.GetAsSeqList())
+	fmt.Printf("asns: %v", p.GetAsSeqList())
+}
+
+func TestPathPrependAsnToEmptyAsPathAttr(t *testing.T) {
+	assert := assert.New(t)
+	origin := bgp.NewPathAttributeOrigin(0)
+	aspathParam := []bgp.AsPathParamInterface{
+		bgp.NewAsPathParam(bgp.BGP_ASPATH_ATTR_TYPE_SEQ, []uint16{}),
+		bgp.NewAsPathParam(bgp.BGP_ASPATH_ATTR_TYPE_SET, []uint16{65001, 65002, 65003, 65004, 65005}),
+		bgp.NewAsPathParam(bgp.BGP_ASPATH_ATTR_TYPE_CONFED_SEQ, []uint16{65100, 65101, 65102}),
+		bgp.NewAsPathParam(bgp.BGP_ASPATH_ATTR_TYPE_CONFED_SET, []uint16{65100, 65101})}
+	aspath := bgp.NewPathAttributeAsPath(aspathParam)
+	nexthop := bgp.NewPathAttributeNextHop("192.168.50.1")
+
+	pathAttributes := []bgp.PathAttributeInterface{
+		origin,
+		aspath,
+		nexthop,
+	}
+
+	nlri := []bgp.NLRInfo{*bgp.NewNLRInfo(24, "10.10.10.0")}
+	withdrawnRoutes := []bgp.WithdrawnRoute{}
+	bgpmsg := bgp.NewBGPUpdateMessage(withdrawnRoutes, pathAttributes, nlri)
+	update := bgpmsg.Body.(*bgp.BGPUpdate)
+	UpdatePathAttrs4ByteAs(update)
+	peer := PathCreatePeer()
+	p := NewPath(peer[0], &update.NLRI[0], false, update.PathAttributes, false, time.Now())
+
+	asn := uint32(65000)
+	p.PrependAsn(asn, 1)
+	assert.Equal([]uint32{asn}, p.GetAsSeqList())
+	fmt.Printf("asns: %v", p.GetAsSeqList())
+}
+
+func TestPathPrependAsnToFullPathAttr(t *testing.T) {
+	assert := assert.New(t)
+	origin := bgp.NewPathAttributeOrigin(0)
+
+	asns := make([]uint16, 255)
+	for i, _ := range asns {
+		asns[i] = 65000 + uint16(i)
+	}
+
+	aspathParam := []bgp.AsPathParamInterface{
+		bgp.NewAsPathParam(bgp.BGP_ASPATH_ATTR_TYPE_SEQ, asns),
+		bgp.NewAsPathParam(bgp.BGP_ASPATH_ATTR_TYPE_SET, []uint16{65001, 65002, 65003, 65004, 65005}),
+		bgp.NewAsPathParam(bgp.BGP_ASPATH_ATTR_TYPE_CONFED_SEQ, []uint16{65100, 65101, 65102}),
+		bgp.NewAsPathParam(bgp.BGP_ASPATH_ATTR_TYPE_CONFED_SET, []uint16{65100, 65101})}
+	aspath := bgp.NewPathAttributeAsPath(aspathParam)
+	nexthop := bgp.NewPathAttributeNextHop("192.168.50.1")
+
+	pathAttributes := []bgp.PathAttributeInterface{
+		origin,
+		aspath,
+		nexthop,
+	}
+
+	nlri := []bgp.NLRInfo{*bgp.NewNLRInfo(24, "10.10.10.0")}
+	withdrawnRoutes := []bgp.WithdrawnRoute{}
+	bgpmsg := bgp.NewBGPUpdateMessage(withdrawnRoutes, pathAttributes, nlri)
+	update := bgpmsg.Body.(*bgp.BGPUpdate)
+	UpdatePathAttrs4ByteAs(update)
+	peer := PathCreatePeer()
+	p := NewPath(peer[0], &update.NLRI[0], false, update.PathAttributes, false, time.Now())
+
+	expected := []uint32{65000, 65000}
+	for _, v := range asns {
+		expected = append(expected, uint32(v))
+	}
+	p.PrependAsn(65000, 2)
+	assert.Equal(expected, p.GetAsSeqList())
+	fmt.Printf("asns: %v", p.GetAsSeqList())
 }
 
 func PathCreatePeer() []*PeerInfo {

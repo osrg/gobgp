@@ -149,6 +149,9 @@ type SetCommunity struct {
 
 //struct for container bgp-pol:set-as-path-prepend
 type SetAsPathPrepend struct {
+	// original -> bgp-pol:as
+	//bgp-pol:as's original type is union
+	As string
 	// original -> bgp-pol:repeat-n
 	RepeatN uint8
 }

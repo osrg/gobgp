@@ -79,48 +79,10 @@ func (path *Path) UpdatePathAttrs(global *config.Global, peer *config.Neighbor) 
 		path.SetNexthop(peer.LocalAddress)
 
 		// AS_PATH handling
-		//
-		//  When a given BGP speaker advertises the route to an external
-		//  peer, the advertising speaker updates the AS_PATH attribute
-		//  as follows:
-		//  1) if the first path segment of the AS_PATH is of type
-		//     AS_SEQUENCE, the local system prepends its own AS num as
-		//     the last element of the sequence (put it in the left-most
-		//     position with respect to the position of  octets in the
-		//     protocol message).  If the act of prepending will cause an
-		//     overflow in the AS_PATH segment (i.e.,  more than 255
-		//     ASes), it SHOULD prepend a new segment of type AS_SEQUENCE
-		//     and prepend its own AS number to this new segment.
-		//
-		//  2) if the first path segment of the AS_PATH is of type AS_SET
-		//     , the local system prepends a new path segment of type
-		//     AS_SEQUENCE to the AS_PATH, including its own AS number in
-		//     that segment.
-		//
-		//  3) if the AS_PATH is empty, the local system creates a path
-		//     segment of type AS_SEQUENCE, places its own AS into that
-		//     segment, and places that segment into the AS_PATH.
-		idx, originalAsPath := path.getPathAttr(bgp.BGP_ATTR_TYPE_AS_PATH)
-		if idx < 0 {
-			p := bgp.NewAs4PathParam(bgp.BGP_ASPATH_ATTR_TYPE_SEQ, []uint32{global.As})
-			asPath := bgp.NewPathAttributeAsPath([]bgp.AsPathParamInterface{p})
-			path.pathAttrs = append(path.pathAttrs, asPath)
-		} else {
-			asPath := cloneAsPath(originalAsPath.(*bgp.PathAttributeAsPath))
-			path.pathAttrs[idx] = asPath
-			fst := asPath.Value[0].(*bgp.As4PathParam)
-			if len(asPath.Value) > 0 && fst.Type == bgp.BGP_ASPATH_ATTR_TYPE_SEQ &&
-				fst.ASLen() < 255 {
-				fst.AS = append([]uint32{global.As}, fst.AS...)
-				fst.Num += 1
-			} else {
-				p := bgp.NewAs4PathParam(bgp.BGP_ASPATH_ATTR_TYPE_SEQ, []uint32{global.As})
-				asPath.Value = append([]bgp.AsPathParamInterface{p}, asPath.Value...)
-			}
-		}
+		path.PrependAsn(global.As, 1)
 
 		// MED Handling
-		idx, _ = path.getPathAttr(bgp.BGP_ATTR_TYPE_MULTI_EXIT_DISC)
+		idx, _ := path.getPathAttr(bgp.BGP_ATTR_TYPE_MULTI_EXIT_DISC)
 		if idx >= 0 {
 			path.pathAttrs = append(path.pathAttrs[:idx], path.pathAttrs[idx+1:]...)
 		}
@@ -326,6 +288,65 @@ func (path *Path) getAsListofSpecificType(getAsSeq, getAsSet bool) []uint32 {
 		}
 	}
 	return asList
+}
+
+// PrependAsn prepends AS number.
+// This function updates the AS_PATH attribute as follows.
+//  1) if the first path segment of the AS_PATH is of type
+//     AS_SEQUENCE, the local system prepends the specified AS num as
+//     the last element of the sequence (put it in the left-most
+//     position with respect to the position of  octets in the
+//     protocol message) the specified number of times.
+//     If the act of prepending will cause an overflow in the AS_PATH
+//     segment (i.e.,  more than 255 ASes),
+//     it SHOULD prepend a new segment of type AS_SEQUENCE
+//     and prepend its own AS number to this new segment.
+//
+//  2) if the first path segment of the AS_PATH is of other than type
+//     AS_SEQUENCE, the local system prepends a new path segment of type
+//     AS_SEQUENCE to the AS_PATH, including the specified AS number in
+//     that segment.
+//
+//  3) if the AS_PATH is empty, the local system creates a path
+//     segment of type AS_SEQUENCE, places the specified AS number
+//     into that segment, and places that segment into the AS_PATH.
+func (path *Path) PrependAsn(asn uint32, repeat uint8) {
+
+	idx, aspath := path.getPathAttr(bgp.BGP_ATTR_TYPE_AS_PATH)
+
+	asns := make([]uint32, repeat)
+	for i, _ := range asns {
+		asns[i] = asn
+	}
+
+	if idx < 0 {
+		p := bgp.NewAs4PathParam(bgp.BGP_ASPATH_ATTR_TYPE_SEQ, asns)
+		asPath := bgp.NewPathAttributeAsPath([]bgp.AsPathParamInterface{p})
+		path.pathAttrs = append(path.pathAttrs, asPath)
+	} else {
+		aspathClone := cloneAsPath(aspath.(*bgp.PathAttributeAsPath))
+		path.pathAttrs[idx] = aspathClone
+		fst := aspathClone.Value[0].(*bgp.As4PathParam)
+
+		if fst.Type == bgp.BGP_ASPATH_ATTR_TYPE_SEQ && len(fst.AS) < 255 {
+
+			// overflow case
+			if len(fst.AS)+int(repeat) > 255 {
+				rest := 255 - len(fst.AS)
+				fst.AS = append(asns[0:rest], fst.AS...)
+				fst.Num = 255
+
+				p := bgp.NewAs4PathParam(bgp.BGP_ASPATH_ATTR_TYPE_SEQ, asns[rest:])
+				aspathClone.Value = append([]bgp.AsPathParamInterface{p}, aspathClone.Value...)
+			} else {
+				fst.AS = append(asns, fst.AS...)
+				fst.Num += repeat
+			}
+		} else {
+			p := bgp.NewAs4PathParam(bgp.BGP_ASPATH_ATTR_TYPE_SEQ, asns)
+			aspathClone.Value = append([]bgp.AsPathParamInterface{p}, aspathClone.Value...)
+		}
+	}
 }
 
 func (path *Path) GetCommunities() []uint32 {
