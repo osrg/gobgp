@@ -16,8 +16,6 @@
 from base import *
 import json
 import toml
-import subprocess
-import select
 from itertools import chain
 
 
@@ -123,42 +121,6 @@ class GoBGPContainer(BGPContainer):
                                                            peer_addr)
         output = local(cmd, capture=True)
         return json.loads(output)['info']['bgp_state']
-
-    def wait_for(self, expected_state, peer, timeout=120):
-        state = self.get_neighbor_state(peer)
-        y = colors.yellow
-        print y("{0}'s peer {1} state: {2}".format(self.router_id,
-                                                   peer.router_id,
-                                                   state))
-        if state == expected_state:
-            return
-
-        peer_addr = self.peers[peer]['neigh_addr'].split('/')[0]
-        gobgp = '/go/bin/gobgp'
-        cmd = 'docker exec {0} {1} monitor neighbor {2} -j'.format(self.name,
-                                                                   gobgp,
-                                                                   peer_addr)
-        process = subprocess.Popen(cmd, shell=True,
-                                   stdout=subprocess.PIPE,
-                                   stderr=subprocess.PIPE)
-
-        print '[localhost] local:', cmd
-
-        poll = select.epoll()
-        poll.register(process.stdout, select.POLLIN)
-
-        while True:
-            result = poll.poll(float(timeout))
-            if result:
-                line = process.stdout.readline()
-                info = json.loads(line)['info']
-                print y("{0}'s peer {1} state: {2}".format(self.router_id,
-                                                           peer.router_id,
-                                                           info['bgp_state']))
-                if info['bgp_state'] == expected_state:
-                    return
-                continue
-            raise Exception('timeout')
 
     def create_config(self):
         config = {'Global': {'As': self.asn, 'RouterId': self.router_id}}

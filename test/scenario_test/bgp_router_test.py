@@ -27,9 +27,6 @@ from itertools import chain
 
 class GoBGPTestBase(unittest.TestCase):
 
-    wait_per_retry = 5
-    retry_limit = 15
-
     @classmethod
     def setUpClass(cls):
         gobgp_ctn_image_name = 'osrg/gobgp'
@@ -76,43 +73,24 @@ class GoBGPTestBase(unittest.TestCase):
         for q in self.quaggas.itervalues():
             # paths expected to exist in gobgp's global rib
             routes = q.routes.keys()
-            # gobgp's global rib
-            global_rib = [p['prefix'] for p in self.gobgp.get_global_rib()]
-
-            for p in global_rib:
-                if p in routes:
-                    routes.remove(p)
-
-            if len(routes) == 0:
-                continue
-
-            gobgp = '/go/bin/gobgp'
-            cmd = 'docker exec {0} {1}' \
-                  ' monitor global rib -j'.format(self.gobgp.name, gobgp)
-
-            print '[localhost] local:', cmd
-
-            process = subprocess.Popen(cmd, shell=True,
-                                       stdout=subprocess.PIPE,
-                                       stderr=subprocess.PIPE)
-
-            poll = select.epoll()
-            poll.register(process.stdout, select.POLLIN)
-
-            timeout = 120.0
-
+            timeout = 120
+            interval = 1
+            count = 0
             while True:
-                result = poll.poll(timeout)
-                if result:
-                    line = process.stdout.readline()
-                    path = json.loads(line)['nlri']['prefix']
-                    if path in routes:
-                        routes.remove(path)
+                # gobgp's global rib
+                global_rib = [p['prefix'] for p in self.gobgp.get_global_rib()]
 
-                    if len(routes) == 0:
-                        return
-                    continue
-                raise Exception('timeout')
+                for p in global_rib:
+                    if p in routes:
+                        routes.remove(p)
+
+                if len(routes) == 0:
+                    break
+
+                time.sleep(interval)
+                count += interval
+                if count >= timeout:
+                    raise Exception('timeout')
 
     # check gobgp properly add it's own asn to aspath
     def test_03_check_gobgp_adj_out_rib(self):
@@ -123,15 +101,17 @@ class GoBGPTestBase(unittest.TestCase):
 
     # check routes are properly advertised to all BGP speaker
     def test_04_check_quagga_global_rib(self):
+        interval = 1
+        timeout = int(120/interval)
         for q in self.quaggas.itervalues():
             done = False
-            for _ in range(self.retry_limit):
+            for _ in range(timeout):
                 if done:
                     break
                 global_rib = q.get_global_rib()
                 global_rib = [p['prefix'] for p in global_rib]
                 if len(global_rib) < len(self.quaggas):
-                    time.sleep(self.wait_per_retry)
+                    time.sleep(interval)
                     continue
 
                 self.assertTrue(len(global_rib) == len(self.quaggas))
@@ -215,21 +195,23 @@ class GoBGPTestBase(unittest.TestCase):
         q2.wait_for(expected_state=BGP_FSM_ESTABLISHED, peer=q5)
         q3.wait_for(expected_state=BGP_FSM_ESTABLISHED, peer=q5)
 
-        done = False
-        for _ in range(self.retry_limit):
-            paths = q1.get_global_rib('10.0.6.0/24')
+        timeout = 120
+        interval = 1
+        count = 0
+        while True:
+            paths = self.gobgp.get_adj_rib_out(q1, '10.0.6.0/24')
             if len(paths) > 0:
                 path = paths[0]
-                print "{0}'s nexthop is {1}".format(path['prefix'],
+                print "{0}'s nexthop is {1}".format(path['nlri']['prefix'],
                                                     path['nexthop'])
                 n_addrs = [i[1].split('/')[0] for i in self.gobgp.ip_addrs]
                 if path['nexthop'] in n_addrs:
-                    done = True
                     break
-            time.sleep(self.wait_per_retry)
 
-        if not done:
-            self.assertTrue(False)
+            time.sleep(interval)
+            count += interval
+            if count >= timeout:
+                raise Exception('timeout')
 
     def test_10_originate_path(self):
         self.gobgp.add_route('10.10.0.0/24')
