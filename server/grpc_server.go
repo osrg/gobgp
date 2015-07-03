@@ -89,6 +89,10 @@ func convertAf2Rf(af *api.AddressFamily) (bgp.RouteFamily, error) {
 		return bgp.RF_IPv4_UC, nil
 	} else if af.Equal(api.AF_IPV6_UC) {
 		return bgp.RF_IPv6_UC, nil
+	} else if af.Equal(api.AF_IPV4_VPN) {
+		return bgp.RF_IPv4_VPN, nil
+	} else if af.Equal(api.AF_IPV6_VPN) {
+		return bgp.RF_IPv6_VPN, nil
 	} else if af.Equal(api.AF_EVPN) {
 		return bgp.RF_EVPN, nil
 	} else if af.Equal(api.AF_ENCAP) {

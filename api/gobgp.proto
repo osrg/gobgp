@@ -113,6 +113,18 @@ message AddressFamily {
     SAFI Safi = 2;
 }
 
+enum ROUTE_DISTINGUISHER_TYPE {
+    TWO_OCTET_AS = 0;
+    IP4 = 1;
+    FOUR_OCTET_AS = 2;
+}
+
+message RouteDistinguisher {
+    ROUTE_DISTINGUISHER_TYPE type = 1;
+    string admin = 2;
+    uint32 assigned = 3;
+}
+
 enum BGP_CAPABILITY {
     UNKNOWN_CAP = 0;
     MULTIPROTOCOL = 1;
@@ -238,12 +250,20 @@ message RTNlri {
     uint32 length = 3;
 }
 
+message VPNNlri {
+    RouteDistinguisher rd = 1;
+    repeated uint32 labels = 2;
+    string ip_addr = 3;
+    uint32 ip_addr_len = 4;
+}
+
 message Nlri {
     AddressFamily af = 1;
     string prefix = 2;
     string nexthop = 3;
     EVPNNlri evpn_nlri = 4;
     RTNlri rt_nlri = 5;
+    VPNNlri vpn_nlri = 6;
 }
 
 enum ENCAP_SUBTLV_TYPE {

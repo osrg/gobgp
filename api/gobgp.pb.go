@@ -14,6 +14,7 @@ It has these top-level messages:
 	ModPathArguments
 	PolicyArguments
 	AddressFamily
+	RouteDistinguisher
 	GracefulRestartTuple
 	GracefulRestart
 	Capability
@@ -23,6 +24,7 @@ It has these top-level messages:
 	EvpnMacIpAdvertisement
 	EvpnInclusiveMulticastEthernetTag
 	RTNlri
+	VPNNlri
 	Nlri
 	TunnelEncapSubTLV
 	TunnelEncapTLV
@@ -196,6 +198,29 @@ var SAFI_value = map[string]int32{
 
 func (x SAFI) String() string {
 	return proto.EnumName(SAFI_name, int32(x))
+}
+
+type ROUTE_DISTINGUISHER_TYPE int32
+
+const (
+	ROUTE_DISTINGUISHER_TYPE_TWO_OCTET_AS  ROUTE_DISTINGUISHER_TYPE = 0
+	ROUTE_DISTINGUISHER_TYPE_IP4           ROUTE_DISTINGUISHER_TYPE = 1
+	ROUTE_DISTINGUISHER_TYPE_FOUR_OCTET_AS ROUTE_DISTINGUISHER_TYPE = 2
+)
+
+var ROUTE_DISTINGUISHER_TYPE_name = map[int32]string{
+	0: "TWO_OCTET_AS",
+	1: "IP4",
+	2: "FOUR_OCTET_AS",
+}
+var ROUTE_DISTINGUISHER_TYPE_value = map[string]int32{
+	"TWO_OCTET_AS":  0,
+	"IP4":           1,
+	"FOUR_OCTET_AS": 2,
+}
+
+func (x ROUTE_DISTINGUISHER_TYPE) String() string {
+	return proto.EnumName(ROUTE_DISTINGUISHER_TYPE_name, int32(x))
 }
 
 type BGP_CAPABILITY int32
@@ -608,6 +633,16 @@ func (m *AddressFamily) Reset()         { *m = AddressFamily{} }
 func (m *AddressFamily) String() string { return proto.CompactTextString(m) }
 func (*AddressFamily) ProtoMessage()    {}
 
+type RouteDistinguisher struct {
+	Type     ROUTE_DISTINGUISHER_TYPE `protobuf:"varint,1,opt,name=type,enum=api.ROUTE_DISTINGUISHER_TYPE" json:"type,omitempty"`
+	Admin    string                   `protobuf:"bytes,2,opt,name=admin" json:"admin,omitempty"`
+	Assigned uint32                   `protobuf:"varint,3,opt,name=assigned" json:"assigned,omitempty"`
+}
+
+func (m *RouteDistinguisher) Reset()         { *m = RouteDistinguisher{} }
+func (m *RouteDistinguisher) String() string { return proto.CompactTextString(m) }
+func (*RouteDistinguisher) ProtoMessage()    {}
+
 type GracefulRestartTuple struct {
 	Af    *AddressFamily `protobuf:"bytes,1,opt,name=af" json:"af,omitempty"`
 	Flags uint32         `protobuf:"varint,2,opt,name=flags" json:"flags,omitempty"`
@@ -756,12 +791,31 @@ func (m *RTNlri) GetTarget() *ExtendedCommunity {
 	return nil
 }
 
+type VPNNlri struct {
+	Rd        *RouteDistinguisher `protobuf:"bytes,1,opt,name=rd" json:"rd,omitempty"`
+	Labels    []uint32            `protobuf:"varint,2,rep,name=labels" json:"labels,omitempty"`
+	IpAddr    string              `protobuf:"bytes,3,opt,name=ip_addr" json:"ip_addr,omitempty"`
+	IpAddrLen uint32              `protobuf:"varint,4,opt,name=ip_addr_len" json:"ip_addr_len,omitempty"`
+}
+
+func (m *VPNNlri) Reset()         { *m = VPNNlri{} }
+func (m *VPNNlri) String() string { return proto.CompactTextString(m) }
+func (*VPNNlri) ProtoMessage()    {}
+
+func (m *VPNNlri) GetRd() *RouteDistinguisher {
+	if m != nil {
+		return m.Rd
+	}
+	return nil
+}
+
 type Nlri struct {
 	Af       *AddressFamily `protobuf:"bytes,1,opt,name=af" json:"af,omitempty"`
 	Prefix   string         `protobuf:"bytes,2,opt,name=prefix" json:"prefix,omitempty"`
 	Nexthop  string         `protobuf:"bytes,3,opt,name=nexthop" json:"nexthop,omitempty"`
 	EvpnNlri *EVPNNlri      `protobuf:"bytes,4,opt,name=evpn_nlri" json:"evpn_nlri,omitempty"`
 	RtNlri   *RTNlri        `protobuf:"bytes,5,opt,name=rt_nlri" json:"rt_nlri,omitempty"`
+	VpnNlri  *VPNNlri       `protobuf:"bytes,6,opt,name=vpn_nlri" json:"vpn_nlri,omitempty"`
 }
 
 func (m *Nlri) Reset()         { *m = Nlri{} }
@@ -785,6 +839,13 @@ func (m *Nlri) GetEvpnNlri() *EVPNNlri {
 func (m *Nlri) GetRtNlri() *RTNlri {
 	if m != nil {
 		return m.RtNlri
+	}
+	return nil
+}
+
+func (m *Nlri) GetVpnNlri() *VPNNlri {
+	if m != nil {
+		return m.VpnNlri
 	}
 	return nil
 }
@@ -1255,6 +1316,7 @@ func init() {
 	proto.RegisterEnum("api.Operation", Operation_name, Operation_value)
 	proto.RegisterEnum("api.AFI", AFI_name, AFI_value)
 	proto.RegisterEnum("api.SAFI", SAFI_name, SAFI_value)
+	proto.RegisterEnum("api.ROUTE_DISTINGUISHER_TYPE", ROUTE_DISTINGUISHER_TYPE_name, ROUTE_DISTINGUISHER_TYPE_value)
 	proto.RegisterEnum("api.BGP_CAPABILITY", BGP_CAPABILITY_name, BGP_CAPABILITY_value)
 	proto.RegisterEnum("api.Origin", Origin_name, Origin_value)
 	proto.RegisterEnum("api.EXTENDED_COMMUNITIE_TYPE", EXTENDED_COMMUNITIE_TYPE_name, EXTENDED_COMMUNITIE_TYPE_value)

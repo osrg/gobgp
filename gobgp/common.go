@@ -273,6 +273,10 @@ func checkAddressFamily(ip net.IP) (*api.AddressFamily, error) {
 		rf = api.AF_IPV4_UC
 	case "ipv6", "v6", "6":
 		rf = api.AF_IPV6_UC
+	case "vpnv4", "vpn-ipv4":
+		rf = api.AF_IPV4_VPN
+	case "vpnv6", "vpn-ipv6":
+		rf = api.AF_IPV6_VPN
 	case "evpn":
 		rf = api.AF_EVPN
 	case "encap":
