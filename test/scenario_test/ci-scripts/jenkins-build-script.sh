@@ -46,7 +46,12 @@ sudo -E python route_server_policy_test.py --use-local --go-path $GOROOT/bin -s 
 RET5=$?
 mv nosetests.xml ${WS}/nosetest_policy.xml
 
-if [ $RET1 != 0 ] || [ $RET2 != 0 ] || [ $RET3 != 0 ] || [ $RET4 != 0 ] || [ $RET5 != 0 ]; then
+# bgp router test
+sudo -E python ibgp_router_test.py --use-local --go-path $GOROOT/bin -s --with-xunit
+RET6=$?
+mv nosetests.xml ${WS}/nosetest_ibgp.xml
+
+if [ $RET1 != 0 ] || [ $RET2 != 0 ] || [ $RET3 != 0 ] || [ $RET4 != 0 ] || [ $RET5 != 0 ] || [ $RET6 != 0 ]; then
   exit 1
 fi
 exit 0

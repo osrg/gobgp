@@ -53,7 +53,7 @@ class GoBGPContainer(BGPContainer):
 
     def _get_as_path(self, path):
         asps = (p['as_paths'] for p in path['attrs'] if
-                p['type'] == BGP_ATTR_TYPE_AS_PATH)
+                p['type'] == BGP_ATTR_TYPE_AS_PATH and 'as_paths' in p)
         asps = chain.from_iterable(asps)
         asns = (asp['asns'] for asp in asps)
         return list(chain.from_iterable(asns))
