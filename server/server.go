@@ -314,6 +314,18 @@ func filterpath(peer *Peer, pathList []*table.Path) []*table.Path {
 			continue
 		}
 
+		selfGenerated := path.GetSource().ID == nil
+		fromAS := path.GetSource().AS
+		myAS := peer.globalConfig.As
+		if !selfGenerated && !peer.isEBGP && myAS == fromAS {
+			log.WithFields(log.Fields{
+				"Topic": "Peer",
+				"Key":   peer.config.NeighborAddress,
+				"Data":  path,
+			}).Debug("From same AS, ignore.")
+			continue
+		}
+
 		if peer.config.NeighborAddress.Equal(path.GetSource().Address) {
 			log.WithFields(log.Fields{
 				"Topic": "Peer",

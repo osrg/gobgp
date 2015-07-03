@@ -87,11 +87,28 @@ func (path *Path) UpdatePathAttrs(global *config.Global, peer *config.Neighbor) 
 			path.pathAttrs = append(path.pathAttrs[:idx], path.pathAttrs[idx+1:]...)
 		}
 	} else if peer.PeerType == config.PEER_TYPE_INTERNAL {
+		// NEXTHOP handling for iBGP
+		// if the path generated locally set local address as nexthop.
+		// if not, don't modify it.
+		// TODO: NEXT-HOP-SELF support
+		selfGenerated := path.GetSource().ID == nil
+		if selfGenerated {
+			path.SetNexthop(peer.LocalAddress)
+		}
+
+		// AS_PATH handling for iBGP
+		// if the path has AS_PATH path attribute, don't modify it.
+		// if not, attach *empty* AS_PATH path attribute.
+		idx, _ := path.getPathAttr(bgp.BGP_ATTR_TYPE_AS_PATH)
+		if idx < 0 {
+			path.PrependAsn(0, 0)
+		}
+
 		// For iBGP peers we are required to send local-pref attribute
 		// for connected or local prefixes.
 		// We set default local-pref 100.
 		p := bgp.NewPathAttributeLocalPref(100)
-		idx, _ := path.getPathAttr(bgp.BGP_ATTR_TYPE_LOCAL_PREF)
+		idx, _ = path.getPathAttr(bgp.BGP_ATTR_TYPE_LOCAL_PREF)
 		if idx < 0 {
 			path.pathAttrs = append(path.pathAttrs, p)
 		} else {
