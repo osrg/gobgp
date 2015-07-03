@@ -13,9 +13,9 @@ gobgp has three subcommands.
 - policy
 
 
-## global subcommand
-
-### Operations for Global-Rib - add/del/show -
+## 1. global subcommand
+### 1.1. Operations for Global-Rib - add/del/show -
+#### - syntax
 ```shell
 # add Route
 % gobgp global rib add <prefix> [-a <address family>]
@@ -26,23 +26,38 @@ gobgp has three subcommands.
 # show a specific route information
 % gobgp global rib [<prefix>|<host>] [-a <address family>]
 ```
- - **Option**
-  - \-a , \-\-address-family: specify the ipv4, ipv6, evpn, encap, or rtc
+
+#### - example
+If you want to add routes with the address of the ipv4 to global rib：
+```shell
+% gobgp global rib add 10.33.0.0 -a ipv4
+```
+If you want to remove routes with the address of the ipv6 from global rib：
+```shell
+% gobgp global rib del 2001:123:123:1::/64 -a ipv6
+```
+
+#### - option
+The following options can be specified in the global subcommand:
+
+| short  |long           | description                                |
+|--------|---------------|--------------------------------------------|
+|a       |address-family |specify the ipv4, ipv6, evpn, encap, or rtc |
 
 <br>
 
-
-## neighbor subcommand
-### Show Neighbor Status
+## 2. neighbor subcommand
+### 2.1. Show Neighbor Status
+#### - syntax
 ```shell
 # show neighbor's status as list
 % gobgp neighbor
-
 # show status of a specific neighbor
 % gobgp neighbor <neighbor address>
 ```
 
-### Operations for neighbor - shutdown/reset/softreset/enable/disable -
+### 2.2. Operations for neighbor - shutdown/reset/softreset/enable/disable -
+#### - syntax
 ```shell
 % gobgp neighbor <neighbor address> shutdown
 % gobgp neighbor <neighbor address> reset
@@ -52,27 +67,46 @@ gobgp has three subcommands.
 % gobgp neighbor <neighbor address> enable
 % gobgp neighbor <neighbor address> disable
 ```
- - **Option**
-  - \-a , \-\-address-family: specify the ipv4 or ipv6
+#### - option
+  The following options can be specified in the neighbor subcommand:
 
-### Show Rib - local-rib/adj-rib-in/adj-rib-out -
+| short  |long           | description                  |
+|--------|---------------|------------------------------|
+|a       |address-family |specify the ipv4 or ipv6      |
+
+
+### 2.3. Show Rib - local-rib/adj-rib-in/adj-rib-out -
+#### - syntax
 ```shell
 # show all routes in [local|adj-in|adj-out] table
 % gobgp neighbor <neighbor address> [local|adj-in|adj-out] [-a <address family>]
 # show a specific route in [local|adj-in|adj-out] table
 % gobgp neighbor <neighbor address> [local|adj-in|adj-out] [<prefix>|<host>] [-a <address family>]
 ```
- - **Option**
-  - \-a , \-\-address-family: specify the ipv4 or ipv6
 
-### Operations for Policy  - add/del/show -
+#### - example
+If you want to show the local rib of ipv4 that neighbor(10.0.0.1) has：
+```shell
+% gobgp neighbor 10.0.0.1 local -a ipv4
+```
+
+#### - option
+The following options can be specified in the neighbor subcommand:
+
+| short  |long           | description                  |
+|--------|---------------|------------------------------|
+|a       |address-family |specify the ipv4 or ipv6      |
+
+
+### 2.4. Operations for Policy  - add/del/show -
+#### - syntax
 ```shell
 # add policy to import-policy configuration
-% gobgp neighbor <neighbor address> policy add import <import policy name> <default import policy>
+% gobgp neighbor <neighbor address> policy add import <policy names> <default policy action>
 # add policy to export-policy configuration
-% gobgp neighbor <neighbor address> policy add export <export policy name> <default export policy>
+% gobgp neighbor <neighbor address> policy add export <policy names> <default policy action>
 # add policy to distribute-policy configuration
-% gobgp neighbor <neighbor address> policy add distribute <distribute policy name> <default distribute policy>
+% gobgp neighbor <neighbor address> policy add distribute <policy names> <default policy action>
 # delete import-policy configuration from specific neighbor
 % gobgp neighbor <neighbor address> policy del import
 # delete export-policy configuration from specific neighbor
@@ -83,13 +117,24 @@ gobgp has three subcommands.
 % gobgp neighbor <neighbor address> policy
 ```
 
+#### - example
+If you want to add the import policy to neighbor(10.0.0.1)：
+```shell
+% gobgp neighbor 10.0.0.1 policy add import policy1,policy2 accept
+```
+You can specify multiple policy to neighbor separated by commas.
+
+\<default policy action> means the operation(accept | reject) in the case where the route does not match the conditions of the policy.
+
+
 <br>
 
-## policy subcommand
-### Operations for PrefixSet - add/del/show -
+## 3. policy subcommand
+### 3.1. Operations for PrefixSet - add/del/show -
+#### - syntax
 ```shell
 # add PrefixSet
-% gobgp policy prefix add <prefix set name> <prefix>
+% gobgp policy prefix add <prefix set name> <prefix> [<mask length range>]
 # delete all PrefixSet
 % gobgp policy prefix del all
 # delete a specific PrefixSet
@@ -100,7 +145,22 @@ gobgp has three subcommands.
 % gobgp policy prefix <prefix set name>
 ```
 
-### Operations for NeighborSet - add/del/show -
+#### - example
+If you want to add the PrefixSet：
+```shell
+% gobgp policy prefix add ps1 10.33.0.0/16 16..24
+```
+A PrefixSet it is possible to have multiple prefix, if you want to remove the PrefixSet to specify only PrefixSet name.
+```shell
+% gobgp policy prefix del ps1
+```
+If you want to remove one element(prefix) of PrefixSet, to specify a prefix in addition to the PrefixSet name.
+```shell
+% gobgp policy prefix del ps1 10.33.0.0/16
+```
+
+### 3.2. Operations for NeighborSet - add/del/show -
+#### - syntax
 ```shell
 # add NeighborSet
 % gobgp policy neighbor add <neighbor set name> <neighbor address>
@@ -114,7 +174,22 @@ gobgp has three subcommands.
 % gobgp policy neighbor <neighbor set name>
 ```
 
-### Operations for AsPathSet - add/del/show -
+#### - example
+If you want to add the NeighborSet：
+```shell
+% gobgp policy neighbor add ns1 10.0.0.1
+```
+A NeighborSet it is possible to have multiple address, if you want to remove the NeighborSet to specify only NeighborSet name.
+```shell
+% gobgp policy neighbor del ns1
+```
+If you want to remove one element(address) of NeighborSet, to specify a address in addition to the NeighborSet name.
+```shell
+% gobgp policy prefix del ns1 10.0.0.1
+```
+
+### 3.3. Operations for AsPathSet - add/del/show -
+#### - syntax
 ```shell
 # add AsPathSet
 % gobgp policy aspath add <aspath set name> <as path>
@@ -128,7 +203,28 @@ gobgp has three subcommands.
 % gobgp policy aspath <aspath set name>
 ```
 
-### Operations for CommunitySet - add/del/show -
+#### - example
+If you want to add the AsPathSet：
+```shell
+% gobgp policy aspath add ass1 ^65100
+```
+   You can specify the position using regexp-like expression as follows:
+   - From: "^65100" means the route is passed from AS 65100 directly.
+   - Any: "65100" means the route comes through AS 65100.
+   - Origin: "65100$" means the route is originated by AS 65100.
+   - Only: "^65100$" means the route is originated by AS 65100 and comes from it directly.
+
+An AsPathSet it is possible to have multiple as path, if you want to remove the AsPathSet to specify only AsPathSet name.
+```shell
+% gobgp policy aspath del ass1
+```
+If you want to remove one element(as path) of AsPathSet, to specify an as path in addition to the AsPathSet name.
+```shell
+% gobgp policy aspath del ass1 ^65100
+```
+
+### 3.4. Operations for CommunitySet - add/del/show -
+#### - syntax
 ```shell
 # add CommunitySet
 % gobgp policy community add <community set name> <community>
@@ -142,8 +238,25 @@ gobgp has three subcommands.
 % gobgp policy community <community set name>
 ```
 
+#### - example
+If you want to add the CommunitySet：
+```shell
+% gobgp policy community add cs1 65100:10
+```
+   You can specify the position using regexp-like expression as follows:
+   - 6[0-9]+:[0-9]+
 
-### Operations for RoutePolicy - add/del/show -
+A CommunitySet it is possible to have multiple community, if you want to remove the CommunitySet to specify only CommunitySet name.
+```shell
+% gobgp policy neighbor del cs1
+```
+If you want to remove one element(community) of CommunitySet, to specify a address in addition to the CommunitySet name.
+```shell
+% gobgp policy prefix del cs1 65100:10
+```
+
+### 3.5. Operations for RoutePolicy - add/del/show -
+#### - syntax
 ```shell
 # add RoutePolicy
 % gobgp policy routepoilcy add <route policy name> <statement name> [<conditions and actions>]
@@ -156,20 +269,42 @@ gobgp has three subcommands.
 # show a specific RoutePolicy information
 % gobgp policy routepoilcy <route policy name>
 ```
- - **Option (Conditon)**
 
-  Specify the options of condition when you use the routepolicy add subcommand.
-  - \-\-c-prefix    : specify the name that added prefix set in PrefixSet subcommand
-  - \-\-c-neighbor  : specify the name that added neighbor set in NeighborSet subcommand
-  - \-\-c-aspath    : specify the name that added as path set in AsPathSet subcommand
-  - \-\-c-community : specify the name that added community set in CommunitySet subcommand
-  - \-\-c-aslen     : specify the operator(eq, ge, le) and value(numric)
-  - \-\-c-option    : specify the match option(any, all, invert)
+#### - example
+If you want to add the RoutePolicy：
+```shell
+% gobgp policy routepolicy add policy1 state1 --c-prefix=ps1 --c-neighbor=ns1 --c-aspath=ass1 --c-community=cs1 --c-aslen=eq,3 --c-option=all --a-route=reject --a-community=ADD[65100:20] --a-med=+100
+```
+However, it is not necessary to specify all of the options at once.
 
-<br>
- - **Option (Action)**
 
-  Specify the options of action when you use the routepolicy add subcommand.
-  - \-\-a-route     : specify the action(accept, reject) of the route that match to the conditions
-  - \-\-a-community : specify the community operation of the route that match to the conditions
-  - \-\-a-med       : specify the med operation of the route that match to the conditions
+A RoutePolicy it is possible to have multiple statement, if you want to remove the RoutePolicy to specify only RoutePolicy name.
+```shell
+% gobgp policy routepolicy del policy1
+```
+If you want to remove one element(statement) of RoutePolicy, to specify a statement name in addition to the RoutePolicy name.
+```shell
+% gobgp policy prefix del policy1 state1
+```
+
+#### - option
+The following options can be specified in the policy subcommand:
+  - options of condition
+
+| short  |long        | description                                                        |
+|--------|------------|--------------------------------------------------------------------|
+|-       |c-prefix    |specify the name that added prefix set in PrefixSet subcommand      |
+|-       |c-neighbor  |specify the name that added neighbor set in NeighborSet subcommand  |
+|-       |c-aspath    |specify the name that added as path set in AsPathSet subcommand     |
+|-       |c-community |pecify the name that added community set in CommunitySet subcommand |
+|-       |c-aslen     |specify the operator(eq, ge, le) and value(numric)                  |
+|-       |c-option    |specify the match option(any, all, invert)                          |
+
+  - options of action
+
+| short  |long        | description                                                                 |
+|--------|------------|-----------------------------------------------------------------------------|
+|-       |a-route     |specify the action(accept, reject) of the route that match to the conditions |
+|-       |a-community |specify the community operation of the route that match to the conditions    |
+|-       |a-med       |specify the med operation of the route that match to the conditions          |
+
