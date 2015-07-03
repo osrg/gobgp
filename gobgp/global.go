@@ -23,6 +23,7 @@ import (
 	"net"
 	"os"
 	"strconv"
+	"strings"
 )
 
 func showGlobalRib(args []string) error {
@@ -30,47 +31,95 @@ func showGlobalRib(args []string) error {
 	return showNeighborRib(CMD_GLOBAL, bogusIp, args)
 }
 
-func modPath(modtype string, eArgs []string) error {
+func parseRD(args []string) (*api.RouteDistinguisher, error) {
+	t, err := strconv.Atoi(args[0])
+	if err != nil {
+		return nil, err
+	}
+	typ := api.ROUTE_DISTINGUISHER_TYPE(t)
+	admin := args[1]
+	assigned, err := strconv.Atoi(args[2])
+	if err != nil {
+		return nil, err
+	}
+	return &api.RouteDistinguisher{
+		Type:     typ,
+		Admin:    admin,
+		Assigned: uint32(assigned),
+	}, nil
+}
+
+func modPath(modtype string, args []string) error {
 	rf, err := checkAddressFamily(net.IP{})
 	if err != nil {
 		return err
 	}
 
 	path := &api.Path{}
-	var prefix string
 	switch rf {
 	case api.AF_IPV4_UC, api.AF_IPV6_UC:
-		if len(eArgs) == 1 || len(eArgs) == 3 {
-			prefix = eArgs[0]
-		} else {
+		if len(args) != 1 {
 			return fmt.Errorf("usage: global rib %s <prefix> -a { ipv4 | ipv6 }", modtype)
 		}
+		prefix := args[0]
 		path.Nlri = &api.Nlri{
 			Af:     rf,
 			Prefix: prefix,
 		}
+	case api.AF_IPV4_VPN, api.AF_IPV6_VPN:
+		if len(args) < 1 {
+			return fmt.Errorf("usage: global rib %s <rd>:<prefix> [<rt>...] -a { vpn-ipv4 | vpn-ipv6 }", modtype)
+		}
+		elems := strings.SplitN(args[0], ":", 4)
+		if len(elems) != 4 {
+			return fmt.Errorf("invalid <rd>:<prefix>: %s. hint. <rd> := <type>:<admin>:<assigned>", args[0])
+		}
+		rd, err := parseRD(elems[:3])
+		if err != nil {
+			return err
+		}
+		prefix := elems[3]
+		elems = strings.Split(prefix, "/")
+		if len(elems) != 2 {
+			return fmt.Errorf("invalid prefix: %s", prefix)
+		}
+
+		masklen, err := strconv.Atoi(elems[1])
+		if err != nil {
+			return fmt.Errorf("invalid prefix: %s", prefix)
+		}
+
+		nlri := &api.VPNNlri{
+			Rd:        rd,
+			IpAddr:    elems[0],
+			IpAddrLen: uint32(masklen),
+		}
+		path.Nlri = &api.Nlri{
+			Af:      rf,
+			VpnNlri: nlri,
+		}
 	case api.AF_EVPN:
 		var nlri *api.EVPNNlri
 
-		if len(eArgs) < 1 {
+		if len(args) < 1 {
 			return fmt.Errorf("usage: global rib %s { macadv | multicast } ... -a evpn", modtype)
 		}
-		subtype := eArgs[0]
+		subtype := args[0]
 
 		switch subtype {
 		case "macadv":
-			if len(eArgs) < 5 {
+			if len(args) < 5 {
 				return fmt.Errorf("usage: global rib %s macadv <mac address> <ip address> <etag> <label> -a evpn", modtype)
 			}
-			macAddr := eArgs[1]
-			ipAddr := eArgs[2]
-			eTag, err := strconv.Atoi(eArgs[3])
+			macAddr := args[1]
+			ipAddr := args[2]
+			eTag, err := strconv.Atoi(args[3])
 			if err != nil {
-				return fmt.Errorf("invalid eTag: %s. err: %s", eArgs[3], err)
+				return fmt.Errorf("invalid eTag: %s. err: %s", args[3], err)
 			}
-			label, err := strconv.Atoi(eArgs[4])
+			label, err := strconv.Atoi(args[4])
 			if err != nil {
-				return fmt.Errorf("invalid label: %s. err: %s", eArgs[4], err)
+				return fmt.Errorf("invalid label: %s. err: %s", args[4], err)
 			}
 			nlri = &api.EVPNNlri{
 				Type: api.EVPN_TYPE_ROUTE_TYPE_MAC_IP_ADVERTISEMENT,
@@ -82,16 +131,16 @@ func modPath(modtype string, eArgs []string) error {
 				},
 			}
 		case "multicast":
-			if len(eArgs) < 3 {
+			if len(args) < 3 {
 				return fmt.Errorf("usage : global rib %s multicast <etag> <label> -a evpn", modtype)
 			}
-			eTag, err := strconv.Atoi(eArgs[1])
+			eTag, err := strconv.Atoi(args[1])
 			if err != nil {
-				return fmt.Errorf("invalid eTag: %s. err: %s", eArgs[1], err)
+				return fmt.Errorf("invalid eTag: %s. err: %s", args[1], err)
 			}
-			label, err := strconv.Atoi(eArgs[2])
+			label, err := strconv.Atoi(args[2])
 			if err != nil {
-				return fmt.Errorf("invalid label: %s. err: %s", eArgs[2], err)
+				return fmt.Errorf("invalid label: %s. err: %s", args[2], err)
 			}
 			nlri = &api.EVPNNlri{
 				Type: api.EVPN_TYPE_INCLUSIVE_MULTICAST_ETHERNET_TAG,
@@ -117,20 +166,20 @@ func modPath(modtype string, eArgs []string) error {
 			EvpnNlri: nlri,
 		}
 	case api.AF_ENCAP:
-		if len(eArgs) < 3 {
+		if len(args) < 1 {
 			return fmt.Errorf("usage: global rib %s <end point ip address> [<vni>] -a encap", modtype)
 		}
-		prefix = eArgs[0]
+		prefix := args[0]
 
 		path.Nlri = &api.Nlri{
 			Af:     rf,
 			Prefix: prefix,
 		}
 
-		if len(eArgs) > 3 {
-			vni, err := strconv.Atoi(eArgs[1])
+		if len(args) > 1 {
+			vni, err := strconv.Atoi(args[1])
 			if err != nil {
-				return fmt.Errorf("invalid vni: %s", eArgs[1])
+				return fmt.Errorf("invalid vni: %s", args[1])
 			}
 			subTlv := &api.TunnelEncapSubTLV{
 				Type:  api.ENCAP_SUBTLV_TYPE_COLOR,
@@ -148,19 +197,19 @@ func modPath(modtype string, eArgs []string) error {
 			path.Attrs = append(path.Attrs, attr)
 		}
 	case api.AF_RTC:
-		if !(len(eArgs) == 3 && eArgs[0] == "default") && len(eArgs) < 4 {
+		if !(len(args) == 3 && args[0] == "default") && len(args) < 4 {
 			return fmt.Errorf("usage: global rib add <asn> <local admin> -a rtc")
 		}
 		var asn, admin int
 
-		if eArgs[0] != "default" {
-			asn, err = strconv.Atoi(eArgs[0])
+		if args[0] != "default" {
+			asn, err = strconv.Atoi(args[0])
 			if err != nil {
-				return fmt.Errorf("invalid asn: %s", eArgs[0])
+				return fmt.Errorf("invalid asn: %s", args[0])
 			}
-			admin, err = strconv.Atoi(eArgs[1])
+			admin, err = strconv.Atoi(args[1])
 			if err != nil {
-				return fmt.Errorf("invalid local admin: %s", eArgs[1])
+				return fmt.Errorf("invalid local admin: %s", args[1])
 			}
 		}
 		path.Nlri = &api.Nlri{
