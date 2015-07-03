@@ -259,7 +259,7 @@ class BGPContainer(Container):
     def get_neighbor_state(self, peer_id):
         raise Exception('implement get_neighbor() method')
 
-    def wait_for(self, expected_state, peer, timeout=10):
+    def wait_for(self, expected_state, peer, timeout=120):
         interval = 1
         count = 0
         while True:

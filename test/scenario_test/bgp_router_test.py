@@ -90,6 +90,8 @@ class GoBGPTestBase(unittest.TestCase):
             cmd = 'docker exec {0} {1}' \
                   ' monitor global rib -j'.format(self.gobgp.name, gobgp)
 
+            print '[localhost] local:', cmd
+
             process = subprocess.Popen(cmd, shell=True,
                                        stdout=subprocess.PIPE,
                                        stderr=subprocess.PIPE)
@@ -97,7 +99,7 @@ class GoBGPTestBase(unittest.TestCase):
             poll = select.epoll()
             poll.register(process.stdout, select.POLLIN)
 
-            timeout = 10.0
+            timeout = 120.0
 
             while True:
                 result = poll.poll(timeout)

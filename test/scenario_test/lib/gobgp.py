@@ -124,7 +124,7 @@ class GoBGPContainer(BGPContainer):
         output = local(cmd, capture=True)
         return json.loads(output)['info']['bgp_state']
 
-    def wait_for(self, expected_state, peer, timeout=20):
+    def wait_for(self, expected_state, peer, timeout=120):
         state = self.get_neighbor_state(peer)
         y = colors.yellow
         print y("{0}'s peer {1} state: {2}".format(self.router_id,
@@ -141,6 +141,8 @@ class GoBGPContainer(BGPContainer):
         process = subprocess.Popen(cmd, shell=True,
                                    stdout=subprocess.PIPE,
                                    stderr=subprocess.PIPE)
+
+        print '[localhost] local:', cmd
 
         poll = select.epoll()
         poll.register(process.stdout, select.POLLIN)
