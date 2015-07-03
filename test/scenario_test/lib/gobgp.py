@@ -18,6 +18,7 @@ import json
 import toml
 import subprocess
 import select
+from itertools import chain
 
 
 class GoBGPContainer(BGPContainer):
@@ -52,6 +53,28 @@ class GoBGPContainer(BGPContainer):
         self._start_gobgp()
         return self.WAIT_FOR_BOOT
 
+    def _get_as_path(self, path):
+        asps = (p['as_paths'] for p in path['attrs'] if
+                p['type'] == BGP_ATTR_TYPE_AS_PATH)
+        asps = chain.from_iterable(asps)
+        asns = (asp['asns'] for asp in asps)
+        return list(chain.from_iterable(asns))
+
+    def _trigger_peer_cmd(self, cmd, peer):
+        if peer not in self.peers:
+            raise Exception('not found peer {0}'.format(peer.router_id))
+        peer_addr = self.peers[peer]['neigh_addr'].split('/')[0]
+        cmd = "docker exec {0} gobgp neighbor {1} {2}".format(self.name,
+                                                              peer_addr,
+                                                              cmd)
+        local(str(cmd), capture=True)
+
+    def disable_peer(self, peer):
+        self._trigger_peer_cmd('disable', peer)
+
+    def enable_peer(self, peer):
+        self._trigger_peer_cmd('enable', peer)
+
     def get_local_rib(self, peer, rf='ipv4'):
         if peer not in self.peers:
             raise Exception('not found peer {0}'.format(peer.router_id))
@@ -80,7 +103,7 @@ class GoBGPContainer(BGPContainer):
         gobgp = '/go/bin/gobgp'
         cmd = 'docker exec {0} {1} neighbor {2}'\
               ' adj-{3} {4} -a {5} -j'.format(self.name, gobgp, peer_addr,
-                                           adj_type, prefix, rf)
+                                              adj_type, prefix, rf)
         output = local(cmd, capture=True)
         return json.loads(output)
 
@@ -135,7 +158,6 @@ class GoBGPContainer(BGPContainer):
                 continue
             raise Exception('timeout')
 
-
     def create_config(self):
         config = {'Global': {'As': self.asn, 'RouterId': self.router_id}}
         for peer, info in self.peers.iteritems():
@@ -188,3 +210,7 @@ class GoBGPContainer(BGPContainer):
     def reload_config(self):
         cmd = 'docker exec {0} /usr/bin/pkill gobgpd -SIGHUP'.format(self.name)
         local(cmd, capture=True)
+        for v in self.routes.itervalues():
+            cmd = 'docker exec {0} gobgp global '\
+                  'rib add {1} -a {2}'.format(self.name, v['prefix'], v['rf'])
+            local(cmd, capture=True)

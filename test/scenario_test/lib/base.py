@@ -35,6 +35,7 @@ BGP_ATTR_TYPE_NEXT_HOP = 3
 BGP_ATTR_TYPE_MULTI_EXIT_DISC = 4
 BGP_ATTR_TYPE_LOCAL_PREF = 5
 
+
 def get_bridges():
     return local("brctl show | awk 'NR > 1{print $1}'",
                  capture=True).split('\n')
@@ -196,9 +197,11 @@ class BGPContainer(Container):
                  policies=None, passive=False,
                  is_rr_client=False, cluster_id=''):
         neigh_addr = ''
+        local_addr = ''
         for me, you in itertools.product(self.ip_addrs, peer.ip_addrs):
             if me[2] == you[2]:
                 neigh_addr = you[1]
+                local_addr = me[1]
 
         if neigh_addr == '':
             raise Exception('peer {0} seems not ip reachable'.format(peer))
@@ -213,7 +216,8 @@ class BGPContainer(Container):
                             'is_rr_client': is_rr_client,
                             'cluster_id': cluster_id,
                             'policies': policies,
-                            'passive': passive}
+                            'passive': passive,
+                            'local_addr': local_addr}
         if self.is_running:
             self.create_config()
             self.reload_config()
@@ -224,8 +228,16 @@ class BGPContainer(Container):
             self.create_config()
             self.reload_config()
 
-    def add_route(self, route, attribute=''):
-        self.routes[route] = attribute
+    def disable_peer(self, peer):
+        raise Exception('implement disable_peer() method')
+
+    def enable_peer(self, peer):
+        raise Exception('implement enable_peer() method')
+
+    def add_route(self, route, rf='ipv4', attribute=''):
+        self.routes[route] = {'prefix': route,
+                              'rf': rf,
+                              'attr': attribute}
         if self.is_running:
             self.create_config()
             self.reload_config()

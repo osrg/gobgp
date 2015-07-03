@@ -102,18 +102,21 @@ func (path *Path) UpdatePathAttrs(global *config.Global, peer *config.Neighbor) 
 		//     segment, and places that segment into the AS_PATH.
 		idx, originalAsPath := path.getPathAttr(bgp.BGP_ATTR_TYPE_AS_PATH)
 		if idx < 0 {
-			log.Fatal("missing AS_PATH mandatory attribute")
-		}
-		asPath := cloneAsPath(originalAsPath.(*bgp.PathAttributeAsPath))
-		path.pathAttrs[idx] = asPath
-		fst := asPath.Value[0].(*bgp.As4PathParam)
-		if len(asPath.Value) > 0 && fst.Type == bgp.BGP_ASPATH_ATTR_TYPE_SEQ &&
-			fst.ASLen() < 255 {
-			fst.AS = append([]uint32{global.As}, fst.AS...)
-			fst.Num += 1
-		} else {
 			p := bgp.NewAs4PathParam(bgp.BGP_ASPATH_ATTR_TYPE_SEQ, []uint32{global.As})
-			asPath.Value = append([]bgp.AsPathParamInterface{p}, asPath.Value...)
+			asPath := bgp.NewPathAttributeAsPath([]bgp.AsPathParamInterface{p})
+			path.pathAttrs = append(path.pathAttrs, asPath)
+		} else {
+			asPath := cloneAsPath(originalAsPath.(*bgp.PathAttributeAsPath))
+			path.pathAttrs[idx] = asPath
+			fst := asPath.Value[0].(*bgp.As4PathParam)
+			if len(asPath.Value) > 0 && fst.Type == bgp.BGP_ASPATH_ATTR_TYPE_SEQ &&
+				fst.ASLen() < 255 {
+				fst.AS = append([]uint32{global.As}, fst.AS...)
+				fst.Num += 1
+			} else {
+				p := bgp.NewAs4PathParam(bgp.BGP_ASPATH_ATTR_TYPE_SEQ, []uint32{global.As})
+				asPath.Value = append([]bgp.AsPathParamInterface{p}, asPath.Value...)
+			}
 		}
 
 		// MED Handling

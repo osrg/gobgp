@@ -116,14 +116,11 @@ class GoBGPTestBase(unittest.TestCase):
     def test_03_check_gobgp_adj_out_rib(self):
         for q in self.quaggas.itervalues():
             for path in self.gobgp.get_adj_rib_out(q):
-                asps = (p['as_paths'] for p in path['attrs'] if p['type'] == BGP_ATTR_TYPE_AS_PATH)
-                asps = chain.from_iterable(asps)
-                asns = (asp['asns'] for asp in asps)
-                asns = chain.from_iterable(asns)
+                asns = self.gobgp._get_as_path(path)
                 self.assertTrue(self.gobgp.asn in asns)
 
     # check routes are properly advertised to all BGP speaker
-    def test_03_check_quagga_global_rib(self):
+    def test_04_check_quagga_global_rib(self):
         for q in self.quaggas.itervalues():
             done = False
             for _ in range(self.retry_limit):
@@ -146,7 +143,7 @@ class GoBGPTestBase(unittest.TestCase):
             # should not reach here
             self.assertTrue(False)
 
-    def test_04_add_quagga(self):
+    def test_05_add_quagga(self):
         q4 = QuaggaBGPContainer(name='q4', asn=65004, router_id='192.168.0.5')
         self.quaggas['q4'] = q4
 
@@ -160,22 +157,22 @@ class GoBGPTestBase(unittest.TestCase):
 
         self.gobgp.wait_for(expected_state=BGP_FSM_ESTABLISHED, peer=q4)
 
-    def test_05_check_global_rib(self):
+    def test_06_check_global_rib(self):
         self.test_02_check_gobgp_global_rib()
-        self.test_03_check_quagga_global_rib()
+        self.test_04_check_quagga_global_rib()
 
-    def test_06_stop_one_quagga(self):
+    def test_07_stop_one_quagga(self):
         q4 = self.quaggas['q4']
         q4.stop()
         self.gobgp.wait_for(expected_state=BGP_FSM_ACTIVE, peer=q4)
         del self.quaggas['q4']
 
     # check gobgp properly send withdrawal message with q4's route
-    def test_07_check_global_rib(self):
+    def test_08_check_global_rib(self):
         self.test_02_check_gobgp_global_rib()
-        self.test_03_check_quagga_global_rib()
+        self.test_04_check_quagga_global_rib()
 
-    def test_08_add_distant_relative(self):
+    def test_09_add_distant_relative(self):
         q1 = self.quaggas['q1']
         q2 = self.quaggas['q2']
         q3 = self.quaggas['q3']
@@ -232,6 +229,45 @@ class GoBGPTestBase(unittest.TestCase):
         if not done:
             self.assertTrue(False)
 
+    def test_10_originate_path(self):
+        self.gobgp.add_route('10.10.0.0/24')
+        dst = self.gobgp.get_global_rib('10.10.0.0/24')
+        self.assertTrue(len(dst) == 1)
+        self.assertTrue(len(dst[0]['paths']) == 1)
+        path = dst[0]['paths'][0]
+        self.assertTrue(path['nexthop'] == '0.0.0.0')
+        self.assertTrue(len(self.gobgp._get_as_path(path)) == 0)
+
+    def test_11_check_adj_rib_out(self):
+        for q in self.quaggas.itervalues():
+            paths = self.gobgp.get_adj_rib_out(q, '10.10.0.0/24')
+            self.assertTrue(len(paths) == 1)
+            path = paths[0]
+            peer_info = self.gobgp.peers[q]
+            local_addr = peer_info['local_addr'].split('/')[0]
+            self.assertTrue(path['nexthop'] == local_addr)
+            self.assertTrue(self.gobgp._get_as_path(path) == [self.gobgp.asn])
+
+    def test_12_disable_peer(self):
+        q1 = self.quaggas['q1']
+        self.gobgp.disable_peer(q1)
+        self.gobgp.wait_for(expected_state=BGP_FSM_IDLE, peer=q1)
+
+        for route in q1.routes.iterkeys():
+            dst = self.gobgp.get_global_rib(route)
+            self.assertTrue(len(dst) == 0)
+
+            for q in self.quaggas.itervalues():
+                paths = self.gobgp.get_adj_rib_out(q, route)
+                self.assertTrue(len(paths) == 0)
+
+    def test_13_enable_peer(self):
+        q1 = self.quaggas['q1']
+        self.gobgp.enable_peer(q1)
+        self.gobgp.wait_for(expected_state=BGP_FSM_ESTABLISHED, peer=q1)
+
+    def test_14_check_adj_rib_out(self):
+        self.test_11_check_adj_rib_out()
 
 if __name__ == '__main__':
     if os.geteuid() is not 0:

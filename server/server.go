@@ -675,8 +675,6 @@ func handleGlobalRibRequest(grpcReq *GrpcRequest, peerInfo *table.PeerInfo) []*t
 
 	pattr := make([]bgp.PathAttributeInterface, 0)
 	pattr = append(pattr, bgp.NewPathAttributeOrigin(bgp.BGP_ORIGIN_ATTR_TYPE_IGP))
-	asparam := bgp.NewAs4PathParam(bgp.BGP_ASPATH_ATTR_TYPE_SEQ, []uint32{peerInfo.AS})
-	pattr = append(pattr, bgp.NewPathAttributeAsPath([]bgp.AsPathParamInterface{asparam}))
 
 	rf := grpcReq.RouteFamily
 	path, ok := grpcReq.Data.(*api.Path)
