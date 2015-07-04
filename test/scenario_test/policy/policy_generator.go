@@ -3,13 +3,14 @@ package main
 import (
 	"bytes"
 	"fmt"
-	"github.com/BurntSushi/toml"
-	"github.com/jessevdk/go-flags"
-	"github.com/osrg/gobgp/config"
 	"io/ioutil"
 	"log"
 	"net"
 	"os"
+
+	"github.com/BurntSushi/toml"
+	"github.com/jessevdk/go-flags"
+	"github.com/osrg/gobgp/config"
 )
 
 func bindPolicy(outputDir, peer, target, policyName string, isReplace bool, defaultReject bool) {
@@ -478,7 +479,7 @@ func createPolicyConfig() *config.RoutingPolicy {
 		Conditions: config.Conditions{
 			MatchPrefixSet:   "psExabgp",
 			MatchNeighborSet: "nsExabgp",
-			MatchSetOptions: config.MATCH_SET_OPTIONS_TYPE_ALL,
+			MatchSetOptions:  config.MATCH_SET_OPTIONS_TYPE_ALL,
 		},
 		Actions: config.Actions{
 			AcceptRoute: true,
@@ -493,7 +494,7 @@ func createPolicyConfig() *config.RoutingPolicy {
 		Conditions: config.Conditions{
 			MatchPrefixSet:   "psExabgp",
 			MatchNeighborSet: "nsExabgp",
-			MatchSetOptions: config.MATCH_SET_OPTIONS_TYPE_ALL,
+			MatchSetOptions:  config.MATCH_SET_OPTIONS_TYPE_ALL,
 		},
 		Actions: config.Actions{
 			AcceptRoute: true,
@@ -508,7 +509,7 @@ func createPolicyConfig() *config.RoutingPolicy {
 		Conditions: config.Conditions{
 			MatchPrefixSet:   "psExabgp",
 			MatchNeighborSet: "nsExabgp",
-			MatchSetOptions: config.MATCH_SET_OPTIONS_TYPE_ALL,
+			MatchSetOptions:  config.MATCH_SET_OPTIONS_TYPE_ALL,
 		},
 		Actions: config.Actions{
 			AcceptRoute: true,
@@ -566,12 +567,48 @@ func createPolicyConfig() *config.RoutingPolicy {
 		Conditions: config.Conditions{
 			MatchPrefixSet:   "psExabgp",
 			MatchNeighborSet: "nsExabgp",
-			MatchSetOptions: config.MATCH_SET_OPTIONS_TYPE_ALL,
+			MatchSetOptions:  config.MATCH_SET_OPTIONS_TYPE_ALL,
 		},
 		Actions: config.Actions{
 			AcceptRoute: true,
 			BgpActions: config.BgpActions{
 				SetMed: "+100",
+			},
+		},
+	}
+
+	st_asprepend := config.Statement{
+		Name: "st_asprepend",
+		Conditions: config.Conditions{
+			MatchPrefixSet:   "psExabgp",
+			MatchNeighborSet: "nsExabgp",
+			MatchSetOptions:  config.MATCH_SET_OPTIONS_TYPE_ALL,
+		},
+		Actions: config.Actions{
+			AcceptRoute: true,
+			BgpActions: config.BgpActions{
+				SetAsPathPrepend: config.SetAsPathPrepend{
+					As:      "65005",
+					RepeatN: 5,
+				},
+			},
+		},
+	}
+
+	st_asprepend_lastas := config.Statement{
+		Name: "st_asprepend_lastas",
+		Conditions: config.Conditions{
+			MatchPrefixSet:   "psExabgp",
+			MatchNeighborSet: "nsExabgp",
+			MatchSetOptions:  config.MATCH_SET_OPTIONS_TYPE_ALL,
+		},
+		Actions: config.Actions{
+			AcceptRoute: true,
+			BgpActions: config.BgpActions{
+				SetAsPathPrepend: config.SetAsPathPrepend{
+					As:      "last-as",
+					RepeatN: 5,
+				},
 			},
 		},
 	}
@@ -716,7 +753,6 @@ func createPolicyConfig() *config.RoutingPolicy {
 		StatementList: []config.Statement{st_comNull},
 	}
 
-
 	test_25_med_replace_action_import := config.PolicyDefinition{
 		Name:          "test_25_med_replace_action_import",
 		StatementList: []config.Statement{st_medReplace},
@@ -767,18 +803,37 @@ func createPolicyConfig() *config.RoutingPolicy {
 		StatementList: []config.Statement{st_distribute_med_add},
 	}
 
-    test_35_distribute_policy_update := config.PolicyDefinition{
-        Name:          "test_35_distribute_policy_update",
-        StatementList: []config.Statement{st1},
-    }
+	test_35_distribute_policy_update := config.PolicyDefinition{
+		Name:          "test_35_distribute_policy_update",
+		StatementList: []config.Statement{st1},
+	}
 
-    test_35_distribute_policy_update_softreset := config.PolicyDefinition{
-        Name:          "test_35_distribute_policy_update_softreset",
-        StatementList: []config.Statement{st2},
-    }
+	test_35_distribute_policy_update_softreset := config.PolicyDefinition{
+		Name:          "test_35_distribute_policy_update_softreset",
+		StatementList: []config.Statement{st2},
+	}
 
+	test_36_aspath_prepend_action_import := config.PolicyDefinition{
+		Name:          "test_36_aspath_prepend_action_import",
+		StatementList: []config.Statement{st_asprepend},
+	}
 
-    ds := config.DefinedSets{
+	test_37_aspath_prepend_action_export := config.PolicyDefinition{
+		Name:          "test_37_aspath_prepend_action_export",
+		StatementList: []config.Statement{st_asprepend},
+	}
+
+	test_38_aspath_prepend_action_lastas_import := config.PolicyDefinition{
+		Name:          "test_38_aspath_prepend_action_lastas_import",
+		StatementList: []config.Statement{st_asprepend_lastas},
+	}
+
+	test_39_aspath_prepend_action_lastas_export := config.PolicyDefinition{
+		Name:          "test_39_aspath_prepend_action_lastas_export",
+		StatementList: []config.Statement{st_asprepend_lastas},
+	}
+
+	ds := config.DefinedSets{
 		PrefixSetList:   []config.PrefixSet{ps0, ps1, ps2, ps3, ps4, ps5, ps6, psExabgp},
 		NeighborSetList: []config.NeighborSet{nsPeer2, nsPeer2V6, nsExabgp},
 		BgpDefinedSets: config.BgpDefinedSets{
@@ -828,8 +883,12 @@ func createPolicyConfig() *config.RoutingPolicy {
 			test_32_distribute_accept,
 			test_33_distribute_set_community_action,
 			test_34_distribute_set_med_action,
-            test_35_distribute_policy_update,
-            test_35_distribute_policy_update_softreset,
+			test_35_distribute_policy_update,
+			test_35_distribute_policy_update_softreset,
+			test_36_aspath_prepend_action_import,
+			test_37_aspath_prepend_action_export,
+			test_38_aspath_prepend_action_lastas_import,
+			test_39_aspath_prepend_action_lastas_export,
 		},
 	}
 	return p
