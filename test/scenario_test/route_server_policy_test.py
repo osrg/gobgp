@@ -2387,6 +2387,311 @@ class GoBGPTest(GoBGPTestBase):
         self.assertTrue(path_exists_in_routing_table(peer3, r3))
 
 
+
+    """
+      import-policy test
+                                             ---------------------------------------
+      exabgp ->(aspath=[65100 65099 65000])->| ->  peer1-rib ->  peer1-adj-rib-out | --> peer1
+                                             |                                     |
+                                             | ->  peer2-rib ->  peer2-adj-rib-out | --> peer2
+                                             |     apply action                    |
+                                             ---------------------------------------
+    """
+    def test_36_aspath_prepend_action_import(self):
+
+        # generate exabgp configuration file
+        prefix1 = "192.168.100.0/24"
+        asns = ['65100', '65099', '65000']
+        as_path = reduce(lambda a, b: a + " " + b, asns)
+
+        e = ExabgpConfig(EXABGP_COMMON_CONF)
+        e.add_route(prefix1, aspath=as_path)
+        e.write()
+
+        self.quagga_num = 2
+
+        peer1 = "10.0.0.1"
+        peer2 = "10.0.0.2"
+
+        # policy:test_36_aspath_prepend_action_import which prepends asnumber 65005
+        # 5 times is attached to peer2(10.0.0.2)'s export-policy.
+        self.setup_config(peer2, "test_36_aspath_prepend_action_import", "import", add_exabgp=True)
+        self.initialize()
+
+        def get_asseq(target):
+            attrs = [p for p in target[0]['attrs'] if p['type'] == 2]
+            path_asns = [a['asns'] for a in attrs[0]['as_paths'] if a['segment_type'] == 2]
+            return path_asns[0]
+
+        addresses = self.get_neighbor_address(self.gobgp_config)
+        self.retry_routine_for_state(addresses, "BGP_FSM_ESTABLISHED")
+
+        path = self.get_paths_in_localrib(peer1, prefix1, retry=self.retry_count_common)
+        self.assertIsNotNone(path)
+
+        # check aspath
+        asseq = get_asseq(path)
+        expected = [int(n) for n in asns]
+        self.assertListEqual(asseq, expected)
+
+        # check show ip bgp on peer1(quagga1)
+        qpath = self.get_route(peer1,prefix1, retry=self.retry_count_common)
+        self.assertIsNotNone(qpath)
+
+        # check as path
+        path_asns = qpath['aspath']
+        expected = asns
+        self.assertListEqual(path_asns, expected)
+
+
+        # check adj-rib-out in peer2
+        path = self.get_paths_in_localrib(peer2, prefix1, retry=0)
+        self.assertIsNotNone(path)
+
+        # check aspath
+        asseq = get_asseq(path)
+        expected = [int(n) for n in ['65005'] * 5 + asns ]
+        self.assertListEqual(asseq, expected)
+
+        # check show ip bgp on peer2(quagga2)
+        qpath = self.get_route(peer2, prefix1, retry=self.retry_count_common)
+        self.assertIsNotNone(path)
+
+        print(qpath)
+
+        # check as path
+        path_asns = qpath['aspath']
+        expected = ['65005'] * 5 + asns
+        self.assertListEqual(path_asns, expected)
+
+
+    """
+      export-policy test
+                                             ---------------------------------------
+      exabgp ->(aspath=[65100 65099 65000])->| ->  peer1-rib ->  peer1-adj-rib-out | --> peer1
+                                             |                                     |
+                                             | ->  peer2-rib ->  peer2-adj-rib-out | --> peer2
+                                             |                   apply action      |
+                                             ---------------------------------------
+    """
+    def test_37_aspath_prepend_action_export(self):
+
+        # generate exabgp configuration file
+        prefix1 = "192.168.100.0/24"
+        asns = ['65100', '65099', '65000']
+        as_path = reduce(lambda a, b: a + " " + b, asns)
+
+        e = ExabgpConfig(EXABGP_COMMON_CONF)
+        e.add_route(prefix1, aspath=as_path)
+        e.write()
+
+        self.quagga_num = 2
+
+        peer1 = "10.0.0.1"
+        peer2 = "10.0.0.2"
+
+        # policy:test_37_aspath_prepend_action_export which prepends asnumber 65005
+        # 5 times is attached to peer2(10.0.0.2)'s export-policy.
+        self.setup_config(peer2, "test_37_aspath_prepend_action_export", "export", add_exabgp=True)
+        self.initialize()
+
+        def get_asseq(target):
+            attrs = [p for p in target[0]['attrs'] if p['type'] == 2]
+            path_asns = [a['asns'] for a in attrs[0]['as_paths'] if a['segment_type'] == 2]
+            return path_asns[0]
+
+        addresses = self.get_neighbor_address(self.gobgp_config)
+        self.retry_routine_for_state(addresses, "BGP_FSM_ESTABLISHED")
+
+        path = self.get_paths_in_localrib(peer1, prefix1, retry=self.retry_count_common)
+        self.assertIsNotNone(path)
+
+        # check aspath
+        asseq = get_asseq(path)
+        expected = [int(n) for n in asns]
+        self.assertListEqual(asseq, expected)
+
+        # check show ip bgp on peer1(quagga1)
+        qpath = self.get_route(peer1,prefix1, retry=self.retry_count_common)
+        self.assertIsNotNone(qpath)
+
+        # check as path
+        path_asns = qpath['aspath']
+        expected = asns
+        self.assertListEqual(path_asns, expected)
+
+        # check adj-rib-out in peer2
+        path = self.get_paths_in_localrib(peer2, prefix1, retry=0)
+        self.assertIsNotNone(path)
+
+        # check aspath
+        asseq = get_asseq(path)
+        expected = [int(n) for n in asns]
+        self.assertListEqual(asseq, expected)
+
+        # check show ip bgp on peer2(quagga2)
+        qpath = self.get_route(peer2, prefix1, retry=self.retry_count_common)
+        self.assertIsNotNone(path)
+
+        # check as path
+        path_asns = qpath['aspath']
+        expected = ['65005'] * 5 + asns
+        self.assertListEqual(path_asns, expected)
+
+
+    """
+      import-policy test
+                                             ---------------------------------------
+      exabgp ->(aspath=[65100 65099 65000])->| ->  peer1-rib ->  peer1-adj-rib-out | --> peer1
+                                             |                                     |
+                                             | ->  peer2-rib ->  peer2-adj-rib-out | --> peer2
+                                             |     apply action                    |
+                                             ---------------------------------------
+    """
+    def test_38_aspath_prepend_action_lastas_import(self):
+
+        # generate exabgp configuration file
+        prefix1 = "192.168.100.0/24"
+        asns = ['65100', '65099', '65000']
+        as_path = reduce(lambda a, b: a + " " + b, asns)
+
+        e = ExabgpConfig(EXABGP_COMMON_CONF)
+        e.add_route(prefix1, aspath=as_path)
+        e.write()
+
+        self.quagga_num = 2
+
+        peer1 = "10.0.0.1"
+        peer2 = "10.0.0.2"
+
+        # policy:test_38_aspath_prepend_action_lastas_import which prepends
+        # the leftmost asnumber 5 times is attached to peer2(10.0.0.2)'s import-policy.
+        self.setup_config(peer2, "test_38_aspath_prepend_action_lastas_import", "import", add_exabgp=True)
+        self.initialize()
+
+        def get_asseq(target):
+            attrs = [p for p in target[0]['attrs'] if p['type'] == 2]
+            path_asns = [a['asns'] for a in attrs[0]['as_paths'] if a['segment_type'] == 2]
+            return path_asns[0]
+
+        addresses = self.get_neighbor_address(self.gobgp_config)
+        self.retry_routine_for_state(addresses, "BGP_FSM_ESTABLISHED")
+
+        path = self.get_paths_in_localrib(peer1, prefix1, retry=self.retry_count_common)
+        self.assertIsNotNone(path)
+
+        # check aspath
+        asseq = get_asseq(path)
+        expected = [int(n) for n in asns]
+        self.assertListEqual(asseq, expected)
+
+        # check show ip bgp on peer1(quagga1)
+        qpath = self.get_route(peer1,prefix1, retry=self.retry_count_common)
+        self.assertIsNotNone(qpath)
+
+        # check as path
+        path_asns = qpath['aspath']
+        expected = asns
+        self.assertListEqual(path_asns, expected)
+
+
+        # check adj-rib-out in peer2
+        path = self.get_paths_in_localrib(peer2, prefix1, retry=0)
+        self.assertIsNotNone(path)
+
+        # check aspath
+        asseq = get_asseq(path)
+        expected = [int(n) for n in ['65100'] * 5 + asns]
+        self.assertListEqual(asseq, expected)
+
+        # check show ip bgp on peer2(quagga2)
+        qpath = self.get_route(peer2, prefix1, retry=self.retry_count_common)
+        self.assertIsNotNone(path)
+
+        print(qpath)
+
+        # check as path
+        path_asns = qpath['aspath']
+        expected = ['65100'] * 5 + asns
+        self.assertListEqual(path_asns, expected)
+
+
+
+    """
+      export-policy test
+                                             ---------------------------------------
+      exabgp ->(aspath=[65100 65099 65000])->| ->  peer1-rib ->  peer1-adj-rib-out | --> peer1
+                                             |                                     |
+                                             | ->  peer2-rib ->  peer2-adj-rib-out | --> peer2
+                                             |                   apply action      |
+                                             ---------------------------------------
+    """
+    def test_39_aspath_prepend_action_lastas_export(self):
+
+        # generate exabgp configuration file
+        prefix1 = "192.168.100.0/24"
+        asns = ['65100', '65099', '65000']
+        as_path = reduce(lambda a, b: a + " " + b, asns)
+
+        e = ExabgpConfig(EXABGP_COMMON_CONF)
+        e.add_route(prefix1, aspath=as_path)
+        e.write()
+
+        self.quagga_num = 2
+
+        peer1 = "10.0.0.1"
+        peer2 = "10.0.0.2"
+
+        # policy:test_39_aspath_prepend_action_lastas_export which prepends
+        # the leftmost asnumber 5 times is attached to peer2(10.0.0.2)'s export-policy.
+        self.setup_config(peer2, "test_39_aspath_prepend_action_lastas_export", "export", add_exabgp=True)
+        self.initialize()
+
+        def get_asseq(target):
+            attrs = [p for p in target[0]['attrs'] if p['type'] == 2]
+            path_asns = [a['asns'] for a in attrs[0]['as_paths'] if a['segment_type'] == 2]
+            return path_asns[0]
+
+        addresses = self.get_neighbor_address(self.gobgp_config)
+        self.retry_routine_for_state(addresses, "BGP_FSM_ESTABLISHED")
+
+        path = self.get_paths_in_localrib(peer1, prefix1, retry=self.retry_count_common)
+        self.assertIsNotNone(path)
+
+        # check aspath
+        asseq = get_asseq(path)
+        expected = [int(n) for n in asns]
+        self.assertListEqual(asseq, expected)
+
+        # check show ip bgp on peer1(quagga1)
+        qpath = self.get_route(peer1, prefix1, retry=self.retry_count_common)
+        self.assertIsNotNone(qpath)
+
+        # check as path
+        path_asns = qpath['aspath']
+        expected = asns
+        self.assertListEqual(path_asns, expected)
+
+        # check adj-rib-out in peer2
+        path = self.get_paths_in_localrib(peer2, prefix1, retry=0)
+        self.assertIsNotNone(path)
+
+        # check aspath
+        asseq = get_asseq(path)
+        expected = [int(n) for n in asns]
+        self.assertListEqual(asseq, expected)
+
+        # check show ip bgp on peer2(quagga2)
+        qpath = self.get_route(peer2, prefix1, retry=self.retry_count_common)
+        self.assertIsNotNone(path)
+
+        # check as path
+        path_asns = qpath['aspath']
+        expected = ['65100'] * 5 + asns
+        self.assertListEqual(path_asns, expected)
+
+
+
 class ExabgpConfig(object):
 
     basic_conf_begin = '''

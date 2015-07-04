@@ -133,14 +133,25 @@ def lookup_prefix(tn, prefix, af):
         return
 
     info = tn.read_until("bgpd#")
+    lines = info.split("\n")
     paths = []
-    for line in info.split("\n"):
+
+    if len(lines) > 1 and "BGP routing table entry for " + prefix in lines[1]:
+        idx_nw = -1
+        nexthop = ''
+        # check if the prefix is originated route by its own or not.
+        for idx, line in enumerate(lines):
+            if "from" in line:
+                nexthop = line.split()[0]
+                idx_nw = idx
+                if nexthop == "0.0.0.0":
+                    return paths
+
         path = {}
-        if "from" in line:
-            nexthop = line.split()[0]
-            path['Network'] = prefix
-            path['Next Hop'] = nexthop
-            paths.append(path)
+        path['aspath'] = lines[idx_nw - 1].strip().split(" ")
+        path['Network'] = prefix
+        path['Next Hop'] = nexthop
+        paths.append(path)
 
     return paths
 
