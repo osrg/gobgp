@@ -852,7 +852,7 @@ func getRouteDistinguisher(data []byte) RouteDistinguisherInterface {
 //
 // RFC3107 Carrying Label Information in BGP-4
 //
-// 4. Carrying Label Mapping Information
+// 3. Carrying Label Mapping Information
 //
 // b) Label:
 //
@@ -872,6 +872,14 @@ func getRouteDistinguisher(data []byte) RouteDistinguisherInterface {
 // +-----+-+-+---+-+-+-+-+-+-----+-+-+-+
 //
 
+// RFC3107 Carrying Label Information in BGP-4
+//
+// 3. Carrying Label Mapping Information
+//
+// The label information carried (as part of NLRI) in the Withdrawn
+// Routes field should be set to 0x800000.
+const WITHDRAW_LABEL = uint32(0x800000)
+
 type MPLSLabelStack struct {
 	Labels []uint32
 }
@@ -881,6 +889,10 @@ func (l *MPLSLabelStack) DecodeFromBytes(data []byte) error {
 	foundBottom := false
 	for len(data) >= 3 {
 		label := uint32(data[0])<<16 | uint32(data[1])<<8 | uint32(data[2])
+		if label == WITHDRAW_LABEL {
+			l.Labels = []uint32{label}
+			return nil
+		}
 		data = data[3:]
 		labels = append(labels, label>>4)
 		if label&1 == 1 {
@@ -899,6 +911,9 @@ func (l *MPLSLabelStack) DecodeFromBytes(data []byte) error {
 func (l *MPLSLabelStack) Serialize() ([]byte, error) {
 	buf := make([]byte, len(l.Labels)*3)
 	for i, label := range l.Labels {
+		if label == WITHDRAW_LABEL {
+			return []byte{128, 0, 0}, nil
+		}
 		label = label << 4
 		buf[i*3] = byte((label >> 16) & 0xff)
 		buf[i*3+1] = byte((label >> 8) & 0xff)
@@ -911,6 +926,9 @@ func (l *MPLSLabelStack) Serialize() ([]byte, error) {
 func (l *MPLSLabelStack) Len() int { return 3 * len(l.Labels) }
 
 func NewMPLSLabelStack(labels ...uint32) *MPLSLabelStack {
+	if len(labels) == 0 {
+		labels = []uint32{0}
+	}
 	return &MPLSLabelStack{labels}
 }
 

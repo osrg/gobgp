@@ -360,3 +360,26 @@ func Test_ASLen(t *testing.T) {
 	assert.Equal(0, as4path.ASLen())
 
 }
+
+func Test_MPLSLabelStack(t *testing.T) {
+	assert := assert.New(t)
+	mpls := NewMPLSLabelStack()
+	buf, err := mpls.Serialize()
+	assert.Nil(err)
+	assert.Equal(true, bytes.Equal(buf, []byte{0, 0, 1}))
+
+	mpls = &MPLSLabelStack{}
+	assert.Nil(mpls.DecodeFromBytes(buf))
+	assert.Equal(1, len(mpls.Labels))
+	assert.Equal(uint32(0), mpls.Labels[0])
+
+	mpls = NewMPLSLabelStack(WITHDRAW_LABEL)
+	buf, err = mpls.Serialize()
+	assert.Nil(err)
+	assert.Equal(true, bytes.Equal(buf, []byte{128, 0, 0}))
+
+	mpls = &MPLSLabelStack{}
+	assert.Nil(mpls.DecodeFromBytes(buf))
+	assert.Equal(1, len(mpls.Labels))
+	assert.Equal(WITHDRAW_LABEL, mpls.Labels[0])
+}
