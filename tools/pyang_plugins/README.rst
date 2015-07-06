@@ -13,10 +13,13 @@ How to use
 ::
 
    $ git clone -b gobgp https://github.com/osrg/yang
-   $ YANG_DIR=`pwd`/yang/experimental/openconfig
+   $ YANG_DIR=`pwd`/yang
    $ cd $PYANG_INSTALL_DIR
    $ source ./env.sh
    $ PYTHONPATH=. ./bin/pyang --plugindir $GOBGP_PATH/tools/pyang_plugins \
-   -p $YANG_DIR/bgp -p $YANG_DIR/policy \
-   -f golang $YANG_DIR/bgp/bgp.yang \
-   --augment $YANG_DIR/bgp/bgp-policy.yang |gofmt > $GOBGP_PATH/config/bgp_configs.go
+   -p $YANG_DIR/standard/ietf/RFC \
+   -p $YANG_DIR/experimental/openconfig/bgp \
+   -p $YANG_DIR/experimental/openconfig/policy \
+   -f golang $YANG_DIR/experimental/openconfig/bgp/bgp.yang \
+   --augment $YANG_DIR/experimental/openconfig/bgp/bgp-policy.yang \
+   | gofmt > $GOBGP_PATH/config/bgp_configs.go
