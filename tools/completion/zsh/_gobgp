@@ -47,6 +47,7 @@ __neighbor(){
         "shutdown"
         "enable"
         "disable"
+        "policy"
     )
 
     _arguments : \

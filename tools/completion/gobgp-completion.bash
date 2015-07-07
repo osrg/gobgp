@@ -293,6 +293,7 @@ _gobgp_neighbor_someone()
     commands+=("shutdown")
     commands+=("enable")
     commands+=("disable")
+    commands+=("policy")
 
     flags=()
     two_word_flags=()
