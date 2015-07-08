@@ -448,10 +448,16 @@ message CommunityAction {
     string options = 2;
 }
 
+message AsPrependAction {
+    string as = 1;
+    uint32 repeatn = 2;
+}
+
 message Actions {
     string route_action = 1;
     CommunityAction community = 2;
     string med = 3;
+    AsPrependAction as_prepend = 4;
 }
 
 message Statement {

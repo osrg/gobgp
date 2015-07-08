@@ -45,6 +45,7 @@ It has these top-level messages:
 	CommunitySet
 	Conditions
 	CommunityAction
+	AsPrependAction
 	Actions
 	Statement
 	PolicyDefinition
@@ -1220,10 +1221,20 @@ func (m *CommunityAction) Reset()         { *m = CommunityAction{} }
 func (m *CommunityAction) String() string { return proto.CompactTextString(m) }
 func (*CommunityAction) ProtoMessage()    {}
 
+type AsPrependAction struct {
+	As      string `protobuf:"bytes,1,opt,name=as" json:"as,omitempty"`
+	Repeatn uint32 `protobuf:"varint,2,opt,name=repeatn" json:"repeatn,omitempty"`
+}
+
+func (m *AsPrependAction) Reset()         { *m = AsPrependAction{} }
+func (m *AsPrependAction) String() string { return proto.CompactTextString(m) }
+func (*AsPrependAction) ProtoMessage()    {}
+
 type Actions struct {
 	RouteAction string           `protobuf:"bytes,1,opt,name=route_action" json:"route_action,omitempty"`
 	Community   *CommunityAction `protobuf:"bytes,2,opt,name=community" json:"community,omitempty"`
 	Med         string           `protobuf:"bytes,3,opt,name=med" json:"med,omitempty"`
+	AsPrepend   *AsPrependAction `protobuf:"bytes,4,opt,name=as_prepend" json:"as_prepend,omitempty"`
 }
 
 func (m *Actions) Reset()         { *m = Actions{} }
@@ -1233,6 +1244,13 @@ func (*Actions) ProtoMessage()    {}
 func (m *Actions) GetCommunity() *CommunityAction {
 	if m != nil {
 		return m.Community
+	}
+	return nil
+}
+
+func (m *Actions) GetAsPrepend() *AsPrependAction {
+	if m != nil {
+		return m.AsPrepend
 	}
 	return nil
 }

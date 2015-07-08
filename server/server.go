@@ -1563,6 +1563,9 @@ func (server *BgpServer) handleGrpcAddPolicy(grpcReq *GrpcRequest) {
 				if reqActions.Med != "" {
 					conStatement.Actions.BgpActions.SetMed = statement.Actions.BgpActions.SetMed
 				}
+				if reqActions.AsPrepend.As != "" {
+					conStatement.Actions.BgpActions.SetAsPathPrepend = statement.Actions.BgpActions.SetAsPathPrepend
+				}
 			}
 		}
 		server.routingPolicy.PolicyDefinitionList = conPolicyList

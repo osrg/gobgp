@@ -1621,10 +1621,16 @@ func ActionsToApiStruct(conActions config.Actions) *api.Actions {
 		Options:     conActions.BgpActions.SetCommunity.Options,
 	}
 	medAction := fmt.Sprintf("%s", conActions.BgpActions.SetMed)
+	asprependAction := &api.AsPrependAction{
+		conActions.BgpActions.SetAsPathPrepend.As,
+		uint32(conActions.BgpActions.SetAsPathPrepend.RepeatN),
+	}
+
 	resActions := &api.Actions{
 		RouteAction: action,
 		Community:   communityAction,
 		Med:         medAction,
+		AsPrepend:   asprependAction,
 	}
 	return resActions
 }
@@ -1640,6 +1646,10 @@ func ActionsToConfigStruct(reqActions *api.Actions) config.Actions {
 	}
 	if reqActions.Med != "" {
 		actions.BgpActions.SetMed = config.BgpSetMedType(reqActions.Med)
+	}
+	if reqActions.AsPrepend != nil {
+		actions.BgpActions.SetAsPathPrepend.As = reqActions.AsPrepend.As
+		actions.BgpActions.SetAsPathPrepend.RepeatN = uint8(reqActions.AsPrepend.Repeatn)
 	}
 
 	switch reqActions.RouteAction {

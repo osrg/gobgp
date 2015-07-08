@@ -816,6 +816,14 @@ func showPolicyStatement(head string, pd *api.PolicyDefinition) {
 		}
 		fmt.Printf("%s      Community:    %s\n", head, communityAction)
 		fmt.Printf("%s      Med:          %s\n", head, st.Actions.Med)
+
+		asn := ""
+		repeat := ""
+		if st.Actions.AsPrepend.As != "" {
+			asn = st.Actions.AsPrepend.As
+			repeat = fmt.Sprintf("%d", st.Actions.AsPrepend.Repeatn)
+		}
+		fmt.Printf("%s      AsPrepend:    %s   %s\n", head, asn, repeat)
 		fmt.Printf("%s      %s\n", head, st.Actions.RouteAction)
 	}
 
@@ -999,11 +1007,46 @@ func parseCommunityAction(communityStr string) (*api.CommunityAction, error) {
 	return communityAction, nil
 }
 
+func parseAsPrependAction(communityStr string) (*api.AsPrependAction, error) {
+	regStr, _ := regexp.Compile("^([0-9]+|last-as),([0-9]+)$")
+	group := regStr.FindStringSubmatch(communityStr)
+
+	as := group[1]
+	if as != "last-as" {
+		_, e := strconv.ParseUint(as, 10, 32)
+		if e != nil {
+			return nil, fmt.Errorf("%s", "invalid as number")
+		}
+	}
+
+	repeatn, e := strconv.ParseUint(group[2], 10, 8)
+	if e != nil {
+		return nil, fmt.Errorf("%s", "invalid repeat count")
+	}
+
+	asprependAction := &api.AsPrependAction{
+		As:      as,
+		Repeatn: uint32(repeatn),
+	}
+
+	return asprependAction, nil
+}
+
 func checkMedAction(medStr string) error {
 	regMed, _ := regexp.Compile("^(\\+|\\-)?([0-9]+)$")
 	if !regMed.MatchString(medStr) {
 		e := fmt.Sprintf("invalid format: %s\n", medStr)
 		e += "please enter the [+|-]<med>"
+		return fmt.Errorf("%s", e)
+	}
+	return nil
+}
+
+func checkAsPrependAction(asStr string) error {
+	regPrepend, _ := regexp.Compile("^([0-9]+|last-as),([0-9]+)$")
+	if !regPrepend.MatchString(asStr) {
+		e := fmt.Sprintf("invalid format: %s\n", asStr)
+		e += "please enter as <AS>,<repeat count>"
 		return fmt.Errorf("%s", e)
 	}
 	return nil
@@ -1032,6 +1075,20 @@ func parseActions() (*api.Actions, error) {
 			return nil, e
 		}
 		actions.Med = actionOpts.MedAction
+	}
+	if actionOpts.AsPathPrependAction != "" {
+
+		s := actionOpts.AsPathPrependAction
+		e := checkAsPrependAction(s)
+		if e != nil {
+			return nil, e
+		}
+
+		p, e := parseAsPrependAction(s)
+		if e != nil {
+			return nil, e
+		}
+		actions.AsPrepend = p
 	}
 	return actions, nil
 }
@@ -1111,6 +1168,7 @@ func NewPolicyAddCmd(v string, mod func(string, []string) error) *cobra.Command 
 		policyAddCmd.Flags().StringVarP(&actionOpts.RouteAction, "a-route", "", "", "a route action of policy action (accept | reject)")
 		policyAddCmd.Flags().StringVarP(&actionOpts.CommunityAction, "a-community", "", "", "a community of policy action")
 		policyAddCmd.Flags().StringVarP(&actionOpts.MedAction, "a-med", "", "", "a med of policy action")
+		policyAddCmd.Flags().StringVarP(&actionOpts.AsPathPrependAction, "a-asprepend", "", "", "aspath prepend for policy action")
 	}
 
 	return policyAddCmd

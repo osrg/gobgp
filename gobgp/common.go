@@ -74,9 +74,10 @@ var conditionOpts struct {
 }
 
 var actionOpts struct {
-	RouteAction     string `long:"route-action" description:"specifying a route action of policy (accept | reject)"`
-	CommunityAction string `long:"community" description:"specifying a community action of policy"`
-	MedAction       string `long:"med" description:"specifying a med action of policy"`
+	RouteAction         string `long:"route-action" description:"specifying a route action of policy (accept | reject)"`
+	CommunityAction     string `long:"community" description:"specifying a community action of policy"`
+	MedAction           string `long:"med" description:"specifying a med action of policy"`
+	AsPathPrependAction string `long:"as-prepend" description:"specifying a as-prepend action of policy"`
 }
 
 func formatTimedelta(d int64) string {
