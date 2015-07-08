@@ -924,7 +924,7 @@ func TestAsPathConditionWithOtherCondition(t *testing.T) {
 
 }
 
-func TestConditionConditionEvaluate(t *testing.T) {
+func TestCommunityConditionEvaluate(t *testing.T) {
 
 	log.SetLevel(log.DebugLevel)
 
@@ -1020,7 +1020,7 @@ func TestConditionConditionEvaluate(t *testing.T) {
 
 }
 
-func TestConditionConditionEvaluateWithOtherCondition(t *testing.T) {
+func TestCommunityConditionEvaluateWithOtherCondition(t *testing.T) {
 
 	log.SetLevel(log.DebugLevel)
 
@@ -1441,6 +1441,332 @@ func stringToCommunityValue(comStr string) uint32 {
 	asn, _ := strconv.ParseUint(elem[0], 10, 16)
 	val, _ := strconv.ParseUint(elem[1], 10, 16)
 	return uint32(asn<<16 | val)
+}
+
+func TestExtCommunityConditionEvaluate(t *testing.T) {
+
+	log.SetLevel(log.DebugLevel)
+
+	// setup
+	// create path
+	peer := &table.PeerInfo{AS: 65001, Address: net.ParseIP("10.0.0.1")}
+	origin := bgp.NewPathAttributeOrigin(0)
+	aspathParam1 := []bgp.AsPathParamInterface{
+		bgp.NewAsPathParam(2, []uint16{65001, 65000, 65004, 65005}),
+		bgp.NewAsPathParam(1, []uint16{65001, 65010, 65004, 65005}),
+	}
+	aspath := bgp.NewPathAttributeAsPath(aspathParam1)
+	nexthop := bgp.NewPathAttributeNextHop("10.0.0.1")
+	med := bgp.NewPathAttributeMultiExitDisc(0)
+	eComAsSpecific1 := &bgp.TwoOctetAsSpecificExtended{
+		SubType:      bgp.ExtendedCommunityAttrSubType(bgp.EC_SUBTYPE_ROUTE_TARGET),
+		AS:           65001,
+		LocalAdmin:   200,
+		IsTransitive: true,
+	}
+	eComIpPrefix1 := &bgp.IPv4AddressSpecificExtended{
+		SubType:      bgp.ExtendedCommunityAttrSubType(bgp.EC_SUBTYPE_ROUTE_TARGET),
+		IPv4:         net.ParseIP("10.0.0.1"),
+		LocalAdmin:   300,
+		IsTransitive: true,
+	}
+	eComAs4Specific1 := &bgp.FourOctetAsSpecificExtended{
+		SubType:      bgp.ExtendedCommunityAttrSubType(bgp.EC_SUBTYPE_ROUTE_TARGET),
+		AS:           65030000,
+		LocalAdmin:   200,
+		IsTransitive: true,
+	}
+	eComAsSpecific2 := &bgp.TwoOctetAsSpecificExtended{
+		SubType:      bgp.ExtendedCommunityAttrSubType(bgp.EC_SUBTYPE_ROUTE_TARGET),
+		AS:           65002,
+		LocalAdmin:   200,
+		IsTransitive: false,
+	}
+	eComIpPrefix2 := &bgp.IPv4AddressSpecificExtended{
+		SubType:      bgp.ExtendedCommunityAttrSubType(bgp.EC_SUBTYPE_ROUTE_TARGET),
+		IPv4:         net.ParseIP("10.0.0.2"),
+		LocalAdmin:   300,
+		IsTransitive: false,
+	}
+	eComAs4Specific2 := &bgp.FourOctetAsSpecificExtended{
+		SubType:      bgp.ExtendedCommunityAttrSubType(bgp.EC_SUBTYPE_ROUTE_TARGET),
+		AS:           65030001,
+		LocalAdmin:   200,
+		IsTransitive: false,
+	}
+	eComAsSpecific3 := &bgp.TwoOctetAsSpecificExtended{
+		SubType:      bgp.ExtendedCommunityAttrSubType(bgp.EC_SUBTYPE_ROUTE_ORIGIN),
+		AS:           65010,
+		LocalAdmin:   300,
+		IsTransitive: true,
+	}
+	eComIpPrefix3 := &bgp.IPv4AddressSpecificExtended{
+		SubType:      bgp.ExtendedCommunityAttrSubType(bgp.EC_SUBTYPE_ROUTE_ORIGIN),
+		IPv4:         net.ParseIP("10.0.10.10"),
+		LocalAdmin:   400,
+		IsTransitive: true,
+	}
+	eComAs4Specific3 := &bgp.FourOctetAsSpecificExtended{
+		SubType:      bgp.ExtendedCommunityAttrSubType(bgp.EC_SUBTYPE_ROUTE_TARGET),
+		AS:           65030002,
+		LocalAdmin:   500,
+		IsTransitive: true,
+	}
+	ec := []bgp.ExtendedCommunityInterface{eComAsSpecific1, eComIpPrefix1, eComAs4Specific1, eComAsSpecific2,
+		eComIpPrefix2, eComAs4Specific2, eComAsSpecific3, eComIpPrefix3, eComAs4Specific3}
+	extCommunities := bgp.NewPathAttributeExtendedCommunities(ec)
+
+	pathAttributes := []bgp.PathAttributeInterface{origin, aspath, nexthop, med, extCommunities}
+	nlri := []bgp.NLRInfo{*bgp.NewNLRInfo(24, "10.10.0.101")}
+	withdrawnRoutes := []bgp.WithdrawnRoute{}
+	updateMsg1 := bgp.NewBGPUpdateMessage(withdrawnRoutes, pathAttributes, nlri)
+	table.UpdatePathAttrs4ByteAs(updateMsg1.Body.(*bgp.BGPUpdate))
+	path1 := table.ProcessMessage(updateMsg1, peer)[0]
+
+	convUintStr := func(as uint32) string {
+		upper := strconv.FormatUint(uint64(as&0xFFFF0000>>16), 10)
+		lower := strconv.FormatUint(uint64(as&0x0000FFFF), 10)
+		str := fmt.Sprintf("%s.%s", upper, lower)
+		return str
+	}
+
+	// create match condition
+	ecomSet1 := config.ExtCommunitySet{
+		ExtCommunitySetName: "ecomSet1",
+		ExtCommunityMembers: []string{"RT:65001:200"},
+	}
+	ecomSet2 := config.ExtCommunitySet{
+		ExtCommunitySetName: "ecomSet2",
+		ExtCommunityMembers: []string{"RT:10.0.0.1:300"},
+	}
+	ecomSet3 := config.ExtCommunitySet{
+		ExtCommunitySetName: "ecomSet3",
+		ExtCommunityMembers: []string{fmt.Sprintf("RT:%s:200", convUintStr(65030000))},
+	}
+	ecomSet4 := config.ExtCommunitySet{
+		ExtCommunitySetName: "ecomSet4",
+		ExtCommunityMembers: []string{"RT:65002:200"},
+	}
+	ecomSet5 := config.ExtCommunitySet{
+		ExtCommunitySetName: "ecomSet5",
+		ExtCommunityMembers: []string{"RT:10.0.0.2:300"},
+	}
+	ecomSet6 := config.ExtCommunitySet{
+		ExtCommunitySetName: "ecomSet6",
+		ExtCommunityMembers: []string{fmt.Sprintf("RT:%s:200", convUintStr(65030001))},
+	}
+	ecomSet7 := config.ExtCommunitySet{
+		ExtCommunitySetName: "ecomSet7",
+		ExtCommunityMembers: []string{"SoO:65010:300"},
+	}
+	ecomSet8 := config.ExtCommunitySet{
+		ExtCommunitySetName: "ecomSet8",
+		ExtCommunityMembers: []string{"SoO:10.0.10.10:[0-9]+"},
+	}
+	ecomSet9 := config.ExtCommunitySet{
+		ExtCommunitySetName: "ecomSet9",
+		ExtCommunityMembers: []string{"RT:[0-9]+:[0-9]+"},
+	}
+	comSetList := []config.ExtCommunitySet{ecomSet1, ecomSet2, ecomSet3, ecomSet4, ecomSet5, ecomSet6, ecomSet7,
+		ecomSet8, ecomSet9}
+	p1 := NewExtCommunityCondition("ecomSet1", comSetList)
+	p2 := NewExtCommunityCondition("ecomSet2", comSetList)
+	p3 := NewExtCommunityCondition("ecomSet3", comSetList)
+	p4 := NewExtCommunityCondition("ecomSet4", comSetList)
+	p5 := NewExtCommunityCondition("ecomSet5", comSetList)
+	p6 := NewExtCommunityCondition("ecomSet6", comSetList)
+	p7 := NewExtCommunityCondition("ecomSet7", comSetList)
+	p8 := NewExtCommunityCondition("ecomSet8", comSetList)
+	p9 := NewExtCommunityCondition("ecomSet9", comSetList)
+	// test
+	assert.Equal(t, true, p1.evaluate(path1))
+	assert.Equal(t, true, p2.evaluate(path1))
+	assert.Equal(t, true, p3.evaluate(path1))
+	assert.Equal(t, false, p4.evaluate(path1))
+	assert.Equal(t, false, p5.evaluate(path1))
+	assert.Equal(t, false, p6.evaluate(path1))
+	assert.Equal(t, true, p7.evaluate(path1))
+	assert.Equal(t, true, p8.evaluate(path1))
+	assert.Equal(t, true, p9.evaluate(path1))
+}
+
+func TestExtCommunityConditionEvaluateWithOtherCondition(t *testing.T) {
+
+	log.SetLevel(log.DebugLevel)
+
+	// setup
+	// create path
+	peer := &table.PeerInfo{AS: 65001, Address: net.ParseIP("10.0.0.1")}
+	origin := bgp.NewPathAttributeOrigin(0)
+	aspathParam := []bgp.AsPathParamInterface{
+		bgp.NewAsPathParam(2, []uint16{65001, 65000, 65004, 65004, 65005}),
+		bgp.NewAsPathParam(1, []uint16{65001, 65000, 65004, 65005}),
+	}
+	aspath := bgp.NewPathAttributeAsPath(aspathParam)
+	nexthop := bgp.NewPathAttributeNextHop("10.0.0.1")
+	med := bgp.NewPathAttributeMultiExitDisc(0)
+	eComAsSpecific1 := &bgp.TwoOctetAsSpecificExtended{
+		SubType:      bgp.ExtendedCommunityAttrSubType(bgp.EC_SUBTYPE_ROUTE_TARGET),
+		AS:           65001,
+		LocalAdmin:   200,
+		IsTransitive: true,
+	}
+	eComIpPrefix1 := &bgp.IPv4AddressSpecificExtended{
+		SubType:      bgp.ExtendedCommunityAttrSubType(bgp.EC_SUBTYPE_ROUTE_TARGET),
+		IPv4:         net.ParseIP("10.0.0.1"),
+		LocalAdmin:   300,
+		IsTransitive: true,
+	}
+	eComAs4Specific1 := &bgp.FourOctetAsSpecificExtended{
+		SubType:      bgp.ExtendedCommunityAttrSubType(bgp.EC_SUBTYPE_ROUTE_TARGET),
+		AS:           65030000,
+		LocalAdmin:   200,
+		IsTransitive: true,
+	}
+	eComAsSpecific2 := &bgp.TwoOctetAsSpecificExtended{
+		SubType:      bgp.ExtendedCommunityAttrSubType(bgp.EC_SUBTYPE_ROUTE_TARGET),
+		AS:           65002,
+		LocalAdmin:   200,
+		IsTransitive: false,
+	}
+	eComIpPrefix2 := &bgp.IPv4AddressSpecificExtended{
+		SubType:      bgp.ExtendedCommunityAttrSubType(bgp.EC_SUBTYPE_ROUTE_TARGET),
+		IPv4:         net.ParseIP("10.0.0.2"),
+		LocalAdmin:   300,
+		IsTransitive: false,
+	}
+	eComAs4Specific2 := &bgp.FourOctetAsSpecificExtended{
+		SubType:      bgp.ExtendedCommunityAttrSubType(bgp.EC_SUBTYPE_ROUTE_TARGET),
+		AS:           65030001,
+		LocalAdmin:   200,
+		IsTransitive: false,
+	}
+	eComAsSpecific3 := &bgp.TwoOctetAsSpecificExtended{
+		SubType:      bgp.ExtendedCommunityAttrSubType(bgp.EC_SUBTYPE_ROUTE_ORIGIN),
+		AS:           65010,
+		LocalAdmin:   300,
+		IsTransitive: true,
+	}
+	eComIpPrefix3 := &bgp.IPv4AddressSpecificExtended{
+		SubType:      bgp.ExtendedCommunityAttrSubType(bgp.EC_SUBTYPE_ROUTE_ORIGIN),
+		IPv4:         net.ParseIP("10.0.10.10"),
+		LocalAdmin:   400,
+		IsTransitive: true,
+	}
+	eComAs4Specific3 := &bgp.FourOctetAsSpecificExtended{
+		SubType:      bgp.ExtendedCommunityAttrSubType(bgp.EC_SUBTYPE_ROUTE_TARGET),
+		AS:           65030002,
+		LocalAdmin:   500,
+		IsTransitive: true,
+	}
+	ec := []bgp.ExtendedCommunityInterface{eComAsSpecific1, eComIpPrefix1, eComAs4Specific1, eComAsSpecific2,
+		eComIpPrefix2, eComAs4Specific2, eComAsSpecific3, eComIpPrefix3, eComAs4Specific3}
+	extCommunities := bgp.NewPathAttributeExtendedCommunities(ec)
+
+	pathAttributes := []bgp.PathAttributeInterface{origin, aspath, nexthop, med, extCommunities}
+	nlri := []bgp.NLRInfo{*bgp.NewNLRInfo(24, "10.10.0.101")}
+	withdrawnRoutes := []bgp.WithdrawnRoute{}
+	updateMsg := bgp.NewBGPUpdateMessage(withdrawnRoutes, pathAttributes, nlri)
+	table.UpdatePathAttrs4ByteAs(updateMsg.Body.(*bgp.BGPUpdate))
+	path := table.ProcessMessage(updateMsg, peer)[0]
+
+	// create policy
+	asPathSet := config.AsPathSet{
+		AsPathSetName:    "asset1",
+		AsPathSetMembers: []string{"65004$"},
+	}
+
+	ecomSet1 := config.ExtCommunitySet{
+		ExtCommunitySetName: "ecomSet1",
+		ExtCommunityMembers: []string{"RT:65001:201"},
+	}
+	ecomSet2 := config.ExtCommunitySet{
+		ExtCommunitySetName: "ecomSet2",
+		ExtCommunityMembers: []string{"RT:[0-9]+:[0-9]+"},
+	}
+
+	prefixSet := config.PrefixSet{
+		PrefixSetName: "ps1",
+		PrefixList: []config.Prefix{
+			config.Prefix{
+				Address:         net.ParseIP("10.11.1.0"),
+				Masklength:      16,
+				MasklengthRange: "21..24",
+			}},
+	}
+
+	neighborSet := config.NeighborSet{
+		NeighborSetName: "ns1",
+		NeighborInfoList: []config.NeighborInfo{
+			config.NeighborInfo{
+				Address: net.ParseIP("10.2.1.1"),
+			}},
+	}
+
+	ds := config.DefinedSets{
+		PrefixSetList:   []config.PrefixSet{prefixSet},
+		NeighborSetList: []config.NeighborSet{neighborSet},
+		BgpDefinedSets: config.BgpDefinedSets{
+			AsPathSetList:       []config.AsPathSet{asPathSet},
+			ExtCommunitySetList: []config.ExtCommunitySet{ecomSet1, ecomSet2},
+		},
+	}
+
+	s1 := config.Statement{
+		Name: "statement1",
+		Conditions: config.Conditions{
+			MatchPrefixSet:   "ps1",
+			MatchNeighborSet: "ns1",
+			BgpConditions: config.BgpConditions{
+				MatchAsPathSet:       "asset1",
+				MatchExtCommunitySet: "ecomSet1",
+			},
+			MatchSetOptions: config.MATCH_SET_OPTIONS_TYPE_ANY,
+		},
+		Actions: config.Actions{
+			AcceptRoute: false,
+			RejectRoute: true,
+		},
+	}
+
+	s2 := config.Statement{
+		Name: "statement1",
+		Conditions: config.Conditions{
+			MatchPrefixSet:   "ps1",
+			MatchNeighborSet: "ns1",
+			BgpConditions: config.BgpConditions{
+				MatchAsPathSet:       "asset1",
+				MatchExtCommunitySet: "ecomSet2",
+			},
+			MatchSetOptions: config.MATCH_SET_OPTIONS_TYPE_ANY,
+		},
+		Actions: config.Actions{
+			AcceptRoute: false,
+			RejectRoute: true,
+		},
+	}
+
+	pd1 := config.PolicyDefinition{"pd1", []config.Statement{s1}}
+	pd2 := config.PolicyDefinition{"pd2", []config.Statement{s2}}
+	pl := config.RoutingPolicy{
+		DefinedSets:          ds,
+		PolicyDefinitionList: []config.PolicyDefinition{pd1, pd2},
+	}
+	//test
+	df := pl.DefinedSets
+	p := NewPolicy(pl.PolicyDefinitionList[0], df)
+	match, pType, newPath := p.Apply(path)
+	assert.Equal(t, false, match)
+	assert.Equal(t, ROUTE_TYPE_NONE, pType)
+	assert.Nil(t, newPath)
+
+	df = pl.DefinedSets
+	p = NewPolicy(pl.PolicyDefinitionList[1], df)
+	match, pType, newPath = p.Apply(path)
+	assert.Equal(t, true, match)
+	assert.Equal(t, ROUTE_TYPE_REJECT, pType)
+	assert.Nil(t, newPath)
+
 }
 
 func TestPolicyMatchAndReplaceMed(t *testing.T) {
