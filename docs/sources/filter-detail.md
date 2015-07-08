@@ -1,3 +1,5 @@
+
+
 # Detail of Policy Configuration
 
 This page shows how to write your own policies.
@@ -198,8 +200,8 @@ PrefixSetList and NeighborSetList section are prefix match part and neighbor mat
 
 ### 2. Defining BgpDefinedSets
 
-BgpDefinedSets has Community information and AS_PATH information in CommunitySetList and AsPathSetList section respectively. And it is a child element of DefinedSets.
-AsPathSetList and CommunitySetList section are AS_PATH match part and community match part.
+BgpDefinedSets has Community information, Extended Community information and AS_PATH information in each SetList section respectively. And it is a child element of DefinedSets.
+CommunitySetList, ExtCommunitySetList and AsPathSetList section are each match part.
 
 - BgpDefinedSets example
 
@@ -209,6 +211,10 @@ AsPathSetList and CommunitySetList section are AS_PATH match part and community 
      [[DefinedSets.BgpDefinedSets.CommunitySetList]]
        CommunitySetName = "community1"
        CommunityMembers = ["65100:10"]
+     # Extended Community match part
+     [[DefinedSets.BgpDefinedSets.ExtCommunitySetList]]
+       ExtCommunitySetName = "ecommunity1"
+       ExtCommunityMembers = ["RT:65001:200"]
      # AS_PATH match part
      [[DefinedSets.BgpDefinedSets.AsPathSetList]]
        AsPathSetName = "aspath1"
@@ -252,8 +258,52 @@ AsPathSetList and CommunitySetList section are AS_PATH match part and community 
    CommunitySetName = "community2"
    CommunityMembers = ["6[0-9]+:[0-9]+"]
   ```
+   ----
+
+ #### ExtCommunitySetList
+ ExtCommunitySetList has Extended Community value as its element. The values are used to evaluate extended communities held by the destination.
+
+ ExtCommunitySetList has 2 elements.
+
+ | Element             | Description                | Example          | Optional |
+ |---------------------|----------------------------|------------------|----------|
+ | ExtCommunitySetName | name of ExtCommunitySet    | "ecommunity1"    |          |
+ | ExtCommunityMembers | list of ExtCommunity value | ["RT:65001:200"] |          |
+
+ You can use regular expressions to specify extended communities in ExtCommunityMembers element.
+ However: the first one element separated by (part of "RT") does not support to the regular expression.
+ part of "RT" indicate sub type of extended community and using sub type as follows:
+
+  - RT: mean the route target.
+  - SoO: mean the site of origin(route origin).
+
+
+ ##### Examples
+ - example 1
+      - Match routes which has "RT:65001:200" as a extended community value.
+
+  ```
+  # example 1
+ [DefinedSets.BgpDefinedSets]
+   [[DefinedSets.BgpDefinedSets.ExtCommunitySetList]]
+     ExtCommunitySetName = "ecommunity1"
+     ExtCommunityMembers = ["RT:65001:200"]
+  ```
+
+ - example 2
+    - Specifying extended community by regular expression
+    - You can use regular expressions that is available in Golang.
+
+  ```
+  # example 2
+ [DefinedSets.BgpDefinedSets]
+   [[DefinedSets.BgpDefinedSets.ExtCommunitySetList]]
+     ExtCommunitySetName = "ecommunity1"
+     ExtCommunityMembers = ["RT:6[0-9]+:[0-9]+"]
+  ```
 
    ----
+
 
  #### AsPathSetList
  AsPathSetList has AS numbers as its element. The numbers are used to evaluate AS numbers in the destination's AS_PATH attribute.
