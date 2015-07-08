@@ -77,6 +77,11 @@ func policy() config.RoutingPolicy {
 		CommunityMembers: []string{"65100:10"},
 	}
 
+	ecs := config.ExtCommunitySet{
+		ExtCommunitySetName: "ecommunity1",
+		ExtCommunityMembers: []string{"RT:65001:200"},
+	}
+
 	as := config.AsPathSet{
 		AsPathSetName: "aspath1",
 		AsPathSetMembers: []string{"^65100"},
@@ -84,6 +89,7 @@ func policy() config.RoutingPolicy {
 
 	bds := config.BgpDefinedSets{
 		CommunitySetList: []config.CommunitySet{cs},
+		ExtCommunitySetList: []config.ExtCommunitySet{ecs},
 		AsPathSetList:	[]config.AsPathSet{as},
 	}
 
@@ -106,6 +112,7 @@ func policy() config.RoutingPolicy {
 			MatchSetOptions:  config.MATCH_SET_OPTIONS_TYPE_ALL,
 			BgpConditions: config.BgpConditions{
 				MatchCommunitySet: "community1",
+				MatchExtCommunitySet: "ecommunity1",
 				MatchAsPathSet: "aspath1",
 				AsPathLength: al,
 			},
