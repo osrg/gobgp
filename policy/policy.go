@@ -102,6 +102,13 @@ func NewPolicy(pd config.PolicyDefinition, ds config.DefinedSets) *Policy {
 			conditions = append(conditions, cc)
 		}
 
+		// ExtendedCommunityCondition
+		extCommunitySetName := statement.Conditions.BgpConditions.MatchExtCommunitySet
+		ecc := NewExtCommunityCondition(extCommunitySetName, ds.BgpDefinedSets.ExtCommunitySetList)
+		if ecc != nil {
+			conditions = append(conditions, ecc)
+		}
+
 		// routing action
 		ra := NewRoutingAction(statement.Actions)
 
@@ -674,6 +681,203 @@ func (c *CommunityCondition) evaluate(path *table.Path) bool {
 				"Topic":     "Policy",
 				"Condition": "Community",
 				"Community": makeStr(communities[idx]),
+			}).Debug("condition matched")
+
+			return true
+		}
+	}
+	return false
+}
+
+type ExtCommunityCondition struct {
+	DefaultCondition
+	ExtCommunityList []*ExtCommunityElement
+}
+
+type ExtCommunityElement struct {
+	ecType      bgp.ExtendedCommunityAttrType
+	ecSubType   bgp.ExtendedCommunityAttrSubType
+	globalAdmin interface{}
+	localAdmin  uint32
+	comStr      string
+	isRegExp    bool
+	regExp      *regexp.Regexp
+}
+
+func NewExtCommunityCondition(extComSetName string, defExtComSetList []config.ExtCommunitySet) *ExtCommunityCondition {
+	extCommunityList := make([]*ExtCommunityElement, 0)
+	for _, extComSet := range defExtComSetList {
+		if extComSet.ExtCommunitySetName == extComSetName {
+			for _, c := range extComSet.ExtCommunityMembers {
+				matchAll := false
+				e := &ExtCommunityElement{
+					isRegExp: false,
+				}
+				matchType, val := getECommunitySubType(c)
+				if !matchType {
+					log.WithFields(log.Fields{
+						"Topic": "Policy",
+						"Type":  "Community Condition",
+					}).Error("failed to parse the sub type %s.", c)
+					return nil
+				}
+				switch val[1] {
+				case "RT":
+					e.ecSubType = bgp.EC_SUBTYPE_ROUTE_TARGET
+				case "SoO":
+					e.ecSubType = bgp.EC_SUBTYPE_ROUTE_ORIGIN
+				default:
+					e.ecSubType = bgp.ExtendedCommunityAttrSubType(0xFF)
+				}
+
+				if matchVal, elem := getECommunityValue(val[2]); matchVal {
+					if matchElem, ecType, gAdmin := getECommunityElem(elem[1]); matchElem {
+						e.ecType = ecType
+						e.globalAdmin = gAdmin
+						lAdmin, err := strconv.ParseUint(elem[2], 10, 32)
+						if err != nil {
+							log.WithFields(log.Fields{
+								"Topic": "Policy",
+								"Type":  "Extended Community Condition",
+							}).Errorf("failed to parse the local administrator %d.", elem[2])
+							return nil
+						}
+						e.localAdmin = uint32(lAdmin)
+						matchAll = true
+					}
+				}
+				if !matchAll{
+					e.isRegExp = true
+					reg, err := regexp.Compile(val[2])
+					if err != nil {
+						log.WithFields(log.Fields{
+							"Topic": "Policy",
+							"Type":  "Community Condition",
+						}).Errorf("Regular expression can't be compiled %d.", val[2])
+						return nil
+					}
+					e.regExp = reg
+				}
+				extCommunityList = append(extCommunityList, e)
+			}
+			ce := &ExtCommunityCondition{
+				ExtCommunityList: extCommunityList,
+			}
+			return ce
+		}
+	}
+	return nil
+}
+
+func getECommunitySubType(eComStr string) (bool, []string) {
+	regSubType, _ := regexp.Compile("^(RT|SoO):(.*)$")
+	if regSubType.MatchString(eComStr) {
+		eComVal := regSubType.FindStringSubmatch(eComStr)
+		return true, eComVal
+	}
+	return false, nil
+}
+
+func getECommunityValue(eComVal string) (bool, []string) {
+	regVal, _ := regexp.Compile("^([0-9\\.]+):([0-9]+)$")
+	if regVal.MatchString(eComVal) {
+		eComElem := regVal.FindStringSubmatch(eComVal)
+		return true, eComElem
+	}
+	return false, nil
+}
+
+func getECommunityElem(gAdmin string) (bool, bgp.ExtendedCommunityAttrType, interface{}) {
+	addr := net.ParseIP(gAdmin)
+	if addr.To4() != nil {
+		return true, bgp.EC_TYPE_TRANSITIVE_IP4_SPECIFIC, addr
+	}
+	regAs, _ := regexp.Compile("^([0-9]+)$")
+	if regAs.MatchString(gAdmin) {
+		as, err := strconv.ParseUint(gAdmin, 10, 16)
+		if err != nil {
+			log.WithFields(log.Fields{
+				"Topic": "Policy",
+				"Type":  "Extended Community Condition",
+			}).Errorf("failed to parse the global administrator %d.", gAdmin)
+		}
+		return true, bgp.EC_TYPE_TRANSITIVE_TWO_OCTET_AS_SPECIFIC, uint16(as)
+	}
+	regAs4, _ := regexp.Compile("^([0-9]+).([0-9]+)$")
+	if regAs4.MatchString(gAdmin) {
+		as4Elem := regAs4.FindStringSubmatch(gAdmin)
+		highAs, errHigh := strconv.ParseUint(as4Elem[1], 10, 16)
+		lowAs, errLow := strconv.ParseUint(as4Elem[2], 10, 16)
+		if errHigh != nil || errLow != nil {
+			log.WithFields(log.Fields{
+				"Topic": "Policy",
+				"Type":  "Extended Community Condition",
+			}).Errorf("failed to parse the global administrator %d.", gAdmin)
+		}
+		return true, bgp.EC_TYPE_TRANSITIVE_FOUR_OCTET_AS_SPECIFIC, uint32(highAs<<16 | lowAs)
+	}
+	return false, bgp.ExtendedCommunityAttrType(0xFF), nil
+}
+
+// compare extended community in the message's attribute with
+// the one in the condition.
+func (c *ExtCommunityCondition) evaluate(path *table.Path) bool {
+
+	makeStr := func(ec *ExtCommunityElement) string {
+		t := ec.ecType
+		str := fmt.Sprintf("%d", ec.localAdmin)
+		switch t {
+		case bgp.EC_TYPE_TRANSITIVE_TWO_OCTET_AS_SPECIFIC:
+			str = fmt.Sprintf("%d:%d", ec.globalAdmin.(uint16), str)
+		case bgp.EC_TYPE_TRANSITIVE_IP4_SPECIFIC:
+			str = fmt.Sprintf("%s:%d", ec.globalAdmin.(net.IP).String(), str)
+		case bgp.EC_TYPE_TRANSITIVE_FOUR_OCTET_AS_SPECIFIC:
+			ga := ec.globalAdmin.(uint32)
+			upper := strconv.FormatUint(uint64(ga&0xFFFF0000>>16), 10)
+			lower := strconv.FormatUint(uint64(ga&0x0000FFFF), 10)
+			str = fmt.Sprintf("%d.%d:%s", upper, lower, str)
+		}
+		return str
+	}
+
+	eCommunities := path.GetExtCommunities()
+	if len(eCommunities) == 0 {
+		return false
+	}
+
+	matched := false
+	matchStr := ""
+
+	for _, member := range c.ExtCommunityList {
+		for _, eCommunity := range eCommunities {
+			ec := eCommunity.(bgp.ExtendedCommunityInterface)
+			t, st := ec.GetTypes()
+			if member.ecType != t || member.ecSubType != st {
+				continue
+			}
+			if member.isRegExp {
+				if member.regExp.MatchString(ec.String()) {
+					matched = true
+					log.WithFields(log.Fields{
+						"Topic":  "Policy",
+						"RegExp": member.regExp.String(),
+					}).Debug("extended community regexp used")
+					matchStr = ec.String()
+					break
+				}
+			} else {
+				if makeStr(member) == ec.String() {
+					matched = true
+					matchStr = ec.String()
+					break
+				}
+			}
+		}
+		if matched {
+			log.WithFields(log.Fields{
+				"Topic":     "Policy",
+				"Condition": "Community",
+				"Community": matchStr,
 			}).Debug("condition matched")
 
 			return true
@@ -1349,7 +1553,7 @@ func ActionsToApiStruct(conActions config.Actions) *api.Actions {
 
 func ActionsToConfigStruct(reqActions *api.Actions) config.Actions {
 	actions := config.Actions{}
-	if reqActions ==  nil{
+	if reqActions == nil {
 		return actions
 	}
 	if reqActions.Community != nil {

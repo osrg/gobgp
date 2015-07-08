@@ -3023,6 +3023,7 @@ func NewPathAttributeMpUnreachNLRI(nlri []AddrPrefixInterface) *PathAttributeMpU
 type ExtendedCommunityInterface interface {
 	Serialize() ([]byte, error)
 	String() string
+	GetTypes() (ExtendedCommunityAttrType, ExtendedCommunityAttrSubType)
 	ToApiStruct() *api.ExtendedCommunity
 }
 
@@ -3048,6 +3049,14 @@ func (e *TwoOctetAsSpecificExtended) Serialize() ([]byte, error) {
 
 func (e *TwoOctetAsSpecificExtended) String() string {
 	return fmt.Sprintf("%d:%d", e.AS, e.LocalAdmin)
+}
+
+func (e *TwoOctetAsSpecificExtended) GetTypes() (ExtendedCommunityAttrType, ExtendedCommunityAttrSubType) {
+	t := EC_TYPE_TRANSITIVE_TWO_OCTET_AS_SPECIFIC
+	if !e.IsTransitive {
+		t = EC_TYPE_NON_TRANSITIVE_TWO_OCTET_AS_SPECIFIC
+	}
+	return t, e.SubType
 }
 
 func (e *TwoOctetAsSpecificExtended) ToApiStruct() *api.ExtendedCommunity {
@@ -3093,6 +3102,14 @@ func (e *IPv4AddressSpecificExtended) String() string {
 	return fmt.Sprintf("%s:%d", e.IPv4.String(), e.LocalAdmin)
 }
 
+func (e *IPv4AddressSpecificExtended) GetTypes() (ExtendedCommunityAttrType, ExtendedCommunityAttrSubType) {
+	t := EC_TYPE_TRANSITIVE_IP4_SPECIFIC
+	if !e.IsTransitive {
+		t = EC_TYPE_NON_TRANSITIVE_IP4_SPECIFIC
+	}
+	return t, e.SubType
+}
+
 func (e *IPv4AddressSpecificExtended) ToApiStruct() *api.ExtendedCommunity {
 	return &api.ExtendedCommunity{
 		Type:         api.EXTENDED_COMMUNITIE_TYPE_IP4_SPECIFIC,
@@ -3129,6 +3146,14 @@ func (e *FourOctetAsSpecificExtended) String() string {
 	asUpper := binary.BigEndian.Uint16(buf[0:2])
 	asLower := binary.BigEndian.Uint16(buf[2:])
 	return fmt.Sprintf("%d.%d:%d", asUpper, asLower, e.LocalAdmin)
+}
+
+func (e *FourOctetAsSpecificExtended) GetTypes() (ExtendedCommunityAttrType, ExtendedCommunityAttrSubType) {
+	t := EC_TYPE_TRANSITIVE_FOUR_OCTET_AS_SPECIFIC
+	if !e.IsTransitive {
+		t = EC_TYPE_NON_TRANSITIVE_FOUR_OCTET_AS_SPECIFIC
+	}
+	return t, e.SubType
 }
 
 func (e *FourOctetAsSpecificExtended) ToApiStruct() *api.ExtendedCommunity {
@@ -3259,6 +3284,14 @@ func (e *OpaqueExtended) String() string {
 	return e.Value.String()
 }
 
+func (e *OpaqueExtended) GetTypes() (ExtendedCommunityAttrType, ExtendedCommunityAttrSubType) {
+	t := EC_TYPE_TRANSITIVE_OPAQUE
+	if !e.IsTransitive {
+		t = EC_TYPE_NON_TRANSITIVE_OPAQUE
+	}
+	return t, ExtendedCommunityAttrSubType(0xFF)
+}
+
 func (e *OpaqueExtended) ToApiStruct() *api.ExtendedCommunity {
 	return &api.ExtendedCommunity{
 		Type: api.EXTENDED_COMMUNITIE_TYPE_OPAQUE,
@@ -3288,6 +3321,10 @@ func (e *UnknownExtended) String() string {
 	copy(buf[1:], e.Value)
 	v := binary.BigEndian.Uint64(buf)
 	return fmt.Sprintf("%d", v)
+}
+
+func (e *UnknownExtended) GetTypes() (ExtendedCommunityAttrType, ExtendedCommunityAttrSubType) {
+	return ExtendedCommunityAttrType(0xFF), ExtendedCommunityAttrSubType(0xFF)
 }
 
 func (e *UnknownExtended) ToApiStruct() *api.ExtendedCommunity {
