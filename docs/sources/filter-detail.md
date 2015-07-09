@@ -20,6 +20,7 @@ A action part is below:
  - accept or reject
  - add/replace/remove community or remove all communities
  - add/subtract or replace MED value
+ - prepend AS number in the AS_PATH attribute
 
 
 GoBGP's configuration file has two parts named DefinedSets and PolicyDefinitionList as its policy configuration.
@@ -365,6 +366,9 @@ You can write condition and action under StatementList.
     [PolicyDefinitionList.StatementList.Actions.BgpActions.SetCommunity]
       Communities = ["65100:20"]
       Options = "ADD"
+    [PolicyDefinitionList.StatementList.Actions.BgpActions.SetAsPathPrepend]
+      As = "65005"
+      RepeatN = 5
  ```
 
  The elements of PolicyDefinitionList are as follows:
@@ -424,6 +428,13 @@ You can write condition and action under StatementList.
  |-------------|----------------------------------------------------------------------------------|---------|
  | Communities | communities used to manipulate the route's community accodriong to Options below | "65100:20"    |
  | Options     | operator to manipulate Community attribute in the route                          | "ADD"       |
+
+  - PolicyDefinitionList.StatementList.Actions.BgpActions.SetAsPathPrepend
+  
+ | Element | Description                                                                                           | Example |
+ |---------|-------------------------------------------------------------------------------------------------------|---------|
+ | As      | AS number to prepend. You can use "last-as" to prepend the leftmost AS number in the aspath attribute.| "65100" |
+ | RepeatN | repeat count to prepend AS                                                                            |    5    |
 
  <br>
 
@@ -514,7 +525,7 @@ You can write condition and action under StatementList.
     - AsPathSet: *aspath1*
     - AsPath length: *equal 2*
 
-  - If a route matches all these conditions, the route is accepted and added community "65100:20" and subtract 200 from med value.
+  - If a route matches all these conditions, the route is accepted and added community "65100:20" and subtracted 200 from med value and prepended 65005 five times in its AS_PATH attribute.
 
  ```
  # example 4
@@ -539,6 +550,9 @@ You can write condition and action under StatementList.
  [PolicyDefinitionList.StatementList.Actions.BgpActions.SetCommunity]
  Communities = ["65100:20"]
  Options = "ADD"
+ [PolicyDefinitionList.StatementList.Actions.BgpActions.SetAsPathPrepend]
+ As = "65005"
+ RepeatN = 5
  ```
 
 

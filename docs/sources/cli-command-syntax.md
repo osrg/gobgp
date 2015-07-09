@@ -273,7 +273,7 @@ If you want to remove one element(community) of CommunitySet, to specify a addre
 #### - example
 If you want to add the RoutePolicy：
 ```shell
-% gobgp policy routepolicy add policy1 state1 --c-prefix=ps1 --c-neighbor=ns1 --c-aspath=ass1 --c-community=cs1 --c-aslen=eq,3 --c-option=all --a-route=reject --a-community=ADD[65100:20] --a-med=+100
+% gobgp policy routepolicy add policy1 state1 --c-prefix=ps1 --c-neighbor=ns1 --c-aspath=ass1 --c-community=cs1 --c-aslen=eq,3 --c-option=all --a-route=reject --a-community=ADD[65100:20] --a-med=+100 --a-asprepend=65100,10
 ```
 However, it is not necessary to specify all of the options at once.
 
@@ -296,15 +296,16 @@ The following options can be specified in the policy subcommand:
 |-       |c-prefix    |specify the name that added prefix set in PrefixSet subcommand      |
 |-       |c-neighbor  |specify the name that added neighbor set in NeighborSet subcommand  |
 |-       |c-aspath    |specify the name that added as path set in AsPathSet subcommand     |
-|-       |c-community |pecify the name that added community set in CommunitySet subcommand |
+|-       |c-community |specify the name that added community set in CommunitySet subcommand|
 |-       |c-aslen     |specify the operator(eq, ge, le) and value(numric)                  |
 |-       |c-option    |specify the match option(any, all, invert)                          |
 
   - options of action
 
-| short  |long        | description                                                                 |
-|--------|------------|-----------------------------------------------------------------------------|
-|-       |a-route     |specify the action(accept, reject) of the route that match to the conditions |
-|-       |a-community |specify the community operation of the route that match to the conditions    |
-|-       |a-med       |specify the med operation of the route that match to the conditions          |
+| short  |long        | description                                                                                                   |
+|--------|------------|---------------------------------------------------------------------------------------------------------------|
+|-       |a-route     |specify the action(accept, reject) of the route that match to the conditions                                   |
+|-       |a-community |specify the community operation of the route that match to the conditions                                      |
+|-       |a-med       |specify the med operation of the route that match to the conditions                                            |
+|-       |a-asprepend |specify a combination of an AS number and repeat count(e.g. 65100,10) to prepend if the path matches conditions|
 
