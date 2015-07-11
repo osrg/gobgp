@@ -106,10 +106,8 @@ class ImportPolicy(object):
                'PrefixList': [p0]}
         g1.set_prefix_set(ps0)
 
-        n0 = {'Address': g1.peers[e1]['neigh_addr'].split('/')[0]}
-
         ns0 = {'NeighborSetName': 'ns0',
-               'NeighborInfoList': [n0]}
+               'NeighborInfo': [g1.peers[e1]['neigh_addr'].split('/')[0]]}
         g1.set_neighbor_set(ns0)
 
         st0 = {'Name': 'st0',
@@ -175,10 +173,8 @@ class ExportPolicy(object):
                'PrefixList': [p0]}
         g1.set_prefix_set(ps0)
 
-        n0 = {'Address': g1.peers[q2]['neigh_addr'].split('/')[0]}
-
         ns0 = {'NeighborSetName': 'ns0',
-               'NeighborInfoList': [n0]}
+               'NeighborInfo': [g1.peers[q2]['neigh_addr'].split('/')[0]]}
         g1.set_neighbor_set(ns0)
 
         st0 = {'Name': 'st0',
@@ -264,10 +260,8 @@ class ImportPolicyUpdate(object):
                'PrefixList': [p0, p1]}
         g1.set_prefix_set(ps0)
 
-        n0 = {'Address': g1.peers[e1]['neigh_addr'].split('/')[0]}
-
         ns0 = {'NeighborSetName': 'ns0',
-               'NeighborInfoList': [n0]}
+               'NeighborInfo': [g1.peers[e1]['neigh_addr'].split('/')[0]]}
         g1.set_neighbor_set(ns0)
 
         st0 = {'Name': 'st0',
@@ -315,10 +309,8 @@ class ImportPolicyUpdate(object):
                'PrefixList': [p0]}
         g1.set_prefix_set(ps0)
 
-        n0 = {'Address': g1.peers[e1]['neigh_addr'].split('/')[0]}
-
         ns0 = {'NeighborSetName': 'ns0',
-               'NeighborInfoList': [n0]}
+               'NeighborInfo': [g1.peers[e1]['neigh_addr'].split('/')[0]]}
         g1.set_neighbor_set(ns0)
 
         st0 = {'Name': 'st0',
@@ -398,10 +390,8 @@ class ExportPolicyUpdate(object):
                'PrefixList': [p0, p1]}
         g1.set_prefix_set(ps0)
 
-        n0 = {'Address': g1.peers[q2]['neigh_addr'].split('/')[0]}
-
         ns0 = {'NeighborSetName': 'ns0',
-               'NeighborInfoList': [n0]}
+               'NeighborInfo': [g1.peers[q2]['neigh_addr'].split('/')[0]]}
         g1.set_neighbor_set(ns0)
 
         st0 = {'Name': 'st0',
@@ -448,10 +438,8 @@ class ExportPolicyUpdate(object):
                'PrefixList': [p0]}
         g1.set_prefix_set(ps0)
 
-        n0 = {'Address': g1.peers[q2]['neigh_addr'].split('/')[0]}
-
         ns0 = {'NeighborSetName': 'ns0',
-               'NeighborInfoList': [n0]}
+               'NeighborInfo': [g1.peers[q2]['neigh_addr'].split('/')[0]]}
         g1.set_neighbor_set(ns0)
 
         st0 = {'Name': 'st0',
@@ -546,10 +534,8 @@ class ImportPolicyIPV6(object):
                'PrefixList': [p0]}
         g1.set_prefix_set(ps0)
 
-        n0 = {'Address': g1.peers[e1]['neigh_addr'].split('/')[0]}
-
         ns0 = {'NeighborSetName': 'ns0',
-               'NeighborInfoList': [n0]}
+               'NeighborInfo': [g1.peers[e1]['neigh_addr'].split('/')[0]]}
         g1.set_neighbor_set(ns0)
 
         st0 = {'Name': 'st0',
@@ -618,10 +604,8 @@ class ExportPolicyIPV6(object):
                'PrefixList': [p0]}
         g1.set_prefix_set(ps0)
 
-        n0 = {'Address': g1.peers[q2]['neigh_addr'].split('/')[0]}
-
         ns0 = {'NeighborSetName': 'ns0',
-               'NeighborInfoList': [n0]}
+               'NeighborInfo': [g1.peers[q2]['neigh_addr'].split('/')[0]]}
         g1.set_neighbor_set(ns0)
 
         st0 = {'Name': 'st0',
@@ -703,10 +687,8 @@ class ImportPolicyIPV6Update(object):
                'PrefixList': [p0, p1]}
         g1.set_prefix_set(ps0)
 
-        n0 = {'Address': g1.peers[e1]['neigh_addr'].split('/')[0]}
-
         ns0 = {'NeighborSetName': 'ns0',
-               'NeighborInfoList': [n0]}
+               'NeighborInfo': [g1.peers[e1]['neigh_addr'].split('/')[0]]}
         g1.set_neighbor_set(ns0)
 
         st0 = {'Name': 'st0',
@@ -749,10 +731,8 @@ class ImportPolicyIPV6Update(object):
                'PrefixList': [p0]}
         g1.set_prefix_set(ps0)
 
-        n0 = {'Address': g1.peers[e1]['neigh_addr'].split('/')[0]}
-
         ns0 = {'NeighborSetName': 'ns0',
-               'NeighborInfoList': [n0]}
+               'NeighborInfo': [g1.peers[e1]['neigh_addr'].split('/')[0]]}
         g1.set_neighbor_set(ns0)
 
         st0 = {'Name': 'st0',
@@ -830,10 +810,8 @@ class ExportPolicyIPv6Update(object):
                'PrefixList': [p0, p1]}
         g1.set_prefix_set(ps0)
 
-        n0 = {'Address': g1.peers[q2]['neigh_addr'].split('/')[0]}
-
         ns0 = {'NeighborSetName': 'ns0',
-               'NeighborInfoList': [n0]}
+               'NeighborInfo': [g1.peers[q2]['neigh_addr'].split('/')[0]]}
         g1.set_neighbor_set(ns0)
 
         st0 = {'Name': 'st0',
@@ -876,10 +854,8 @@ class ExportPolicyIPv6Update(object):
                'PrefixList': [p0]}
         g1.set_prefix_set(ps0)
 
-        n0 = {'Address': g1.peers[q2]['neigh_addr'].split('/')[0]}
-
         ns0 = {'NeighborSetName': 'ns0',
-               'NeighborInfoList': [n0]}
+               'NeighborInfo': [g1.peers[q2]['neigh_addr'].split('/')[0]]}
         g1.set_neighbor_set(ns0)
 
         st0 = {'Name': 'st0',
@@ -993,7 +969,7 @@ class ImportPolicyAsPathCondition(object):
         e1 = env.e1
         q1 = env.q1
         q2 = env.q2
-        as0 = {'AsPathSets': {'AsPathSetList': [{'AsPathSetName': 'as0', 'AsPathList': [{'AsPath': '^{0}'.format(e1.asn)}]}]}}
+        as0 = {'AsPathSets': {'AsPathSetList': [{'AsPathSetName': 'as0', 'AsPath': ['^{0}'.format(e1.asn)]}]}}
 
         g1.set_bgp_defined_set(as0)
 
@@ -1046,7 +1022,7 @@ class ImportPolicyAsPathAnyCondition(object):
         e1 = env.e1
         q1 = env.q1
         q2 = env.q2
-        as0 = {'AsPathSets': {'AsPathSetList': [{'AsPathSetName': 'as0', 'AsPathList': [{'AsPath': '65098'}]}]}}
+        as0 = {'AsPathSets': {'AsPathSetList': [{'AsPathSetName': 'as0', 'AsPath': ['65098']}]}}
 
         g1.set_bgp_defined_set(as0)
 
@@ -1099,7 +1075,7 @@ class ImportPolicyAsPathOriginCondition(object):
         e1 = env.e1
         q1 = env.q1
         q2 = env.q2
-        as0 = {'AsPathSets': {'AsPathSetList': [{'AsPathSetName': 'as0', 'AsPathList': [{'AsPath': '65090$'}]}]}}
+        as0 = {'AsPathSets': {'AsPathSetList': [{'AsPathSetName': 'as0', 'AsPath': ['65090$']}]}}
 
         g1.set_bgp_defined_set(as0)
 
@@ -1152,7 +1128,7 @@ class ImportPolicyAsPathOnlyCondition(object):
         e1 = env.e1
         q1 = env.q1
         q2 = env.q2
-        as0 = {'AsPathSets': {'AsPathSetList': [{'AsPathSetName': 'as0', 'AsPathList': [{'AsPath': '^65100$'}]}]}}
+        as0 = {'AsPathSets': {'AsPathSetList': [{'AsPathSetName': 'as0', 'AsPath': ['^65100$']}]}}
 
         g1.set_bgp_defined_set(as0)
 
@@ -1208,7 +1184,7 @@ class ImportPolicyAsPathMismatchCondition(object):
         q2 = env.q2
         cs0 = {'CommunitySets': {'CommunitySetList':
                                      [{'CommunitySetName': 'cs0',
-                                       'CommunityList': [{'Community': '65100:10'}]}]}}
+                                       'Community': ['65100:10']}]}}
 
         g1.set_bgp_defined_set(cs0)
 
@@ -1270,7 +1246,7 @@ class ImportPolicyCommunityCondition(object):
         q1 = env.q1
         q2 = env.q2
         cs0 = {'CommunitySets':
-                   {'CommunitySetList': [{'CommunitySetName': 'cs0', 'CommunityList': [{'Community': '65100:10'}]}]}}
+                   {'CommunitySetList': [{'CommunitySetName': 'cs0', 'Community': ['65100:10']}]}}
 
         g1.set_bgp_defined_set(cs0)
 
@@ -1324,7 +1300,7 @@ class ImportPolicyCommunityRegexp(object):
         e1 = env.e1
         q1 = env.q1
         q2 = env.q2
-        cs0 = {'CommunitySets': {'CommunitySetList': [{'CommunitySetName': 'cs0', 'CommunityList': [{'Community': '6[0-9]+:[0-9]+'}]}]}}
+        cs0 = {'CommunitySets': {'CommunitySetList': [{'CommunitySetName': 'cs0', 'Community': ['6[0-9]+:[0-9]+']}]}}
 
         g1.set_bgp_defined_set(cs0)
 
@@ -1386,7 +1362,7 @@ class ImportPolicyCommunityAction(object):
         e1 = env.e1
         q1 = env.q1
         q2 = env.q2
-        cs0 = {'CommunitySets': {'CommunitySetList': [{'CommunitySetName': 'cs0', 'CommunityList': [{'Community': '65100:10'}]}]}}
+        cs0 = {'CommunitySets': {'CommunitySetList': [{'CommunitySetName': 'cs0', 'Community': ['65100:10']}]}}
 
         g1.set_bgp_defined_set(cs0)
 
@@ -1461,7 +1437,7 @@ class ImportPolicyCommunityReplace(object):
         e1 = env.e1
         q1 = env.q1
         q2 = env.q2
-        cs0 = {'CommunitySets': {'CommunitySetList': [{'CommunitySetName': 'cs0', 'CommunityList': [{'Community': '65100:10'}]}]}}
+        cs0 = {'CommunitySets': {'CommunitySetList': [{'CommunitySetName': 'cs0', 'Community': ['65100:10']}]}}
 
         g1.set_bgp_defined_set(cs0)
 
@@ -1528,7 +1504,7 @@ class ImportPolicyCommunityRemove(object):
         e1 = env.e1
         q1 = env.q1
         q2 = env.q2
-        cs0 = {'CommunitySets': {'CommunitySetList': [{'CommunitySetName': 'cs0', 'CommunityList': [{'Community': '65100:10'}]}]}}
+        cs0 = {'CommunitySets': {'CommunitySetList': [{'CommunitySetName': 'cs0', 'Community': ['65100:10']}]}}
 
         g1.set_bgp_defined_set(cs0)
 
@@ -1613,7 +1589,7 @@ class ImportPolicyCommunityNull(object):
         e1 = env.e1
         q1 = env.q1
         q2 = env.q2
-        cs0 = {'CommunitySets': {'CommunitySetList': [{'CommunitySetName': 'cs0', 'CommunityList': [{'Community': '65100:10'}]}]}}
+        cs0 = {'CommunitySets': {'CommunitySetList': [{'CommunitySetName': 'cs0', 'Community': ['65100:10']}]}}
 
         g1.set_bgp_defined_set(cs0)
 
@@ -1688,7 +1664,7 @@ class ExportPolicyCommunityAdd(object):
         e1 = env.e1
         q1 = env.q1
         q2 = env.q2
-        cs0 = {'CommunitySets': {'CommunitySetList': [{'CommunitySetName': 'cs0', 'CommunityList': [{'Community': '65100:10'}]}]}}
+        cs0 = {'CommunitySets': {'CommunitySetList': [{'CommunitySetName': 'cs0', 'Community': ['65100:10']}]}}
 
         g1.set_bgp_defined_set(cs0)
 
@@ -1762,7 +1738,7 @@ class ExportPolicyCommunityReplace(object):
         e1 = env.e1
         q1 = env.q1
         q2 = env.q2
-        cs0 = {'CommunitySets': {'CommunitySetList': [{'CommunitySetName': 'cs0', 'CommunityList': [{'Community': '65100:10'}]}]}}
+        cs0 = {'CommunitySets': {'CommunitySetList': [{'CommunitySetName': 'cs0', 'Community': ['65100:10']}]}}
 
         g1.set_bgp_defined_set(cs0)
 
@@ -1836,7 +1812,7 @@ class ExportPolicyCommunityRemove(object):
         e1 = env.e1
         q1 = env.q1
         q2 = env.q2
-        cs0 = {'CommunitySets': {'CommunitySetList': [{'CommunitySetName': 'cs0', 'CommunityList': [{'Community': '65100:10'}]}]}}
+        cs0 = {'CommunitySets': {'CommunitySetList': [{'CommunitySetName': 'cs0', 'Community': ['65100:10']}]}}
 
         g1.set_bgp_defined_set(cs0)
 
@@ -1913,7 +1889,7 @@ class ExportPolicyCommunityNull(object):
         e1 = env.e1
         q1 = env.q1
         q2 = env.q2
-        cs0 = {'CommunitySets': {'CommunitySetList': [{'CommunitySetName': 'cs0', 'CommunityList': [{'Community': '65100:10'}]}]}}
+        cs0 = {'CommunitySets': {'CommunitySetList': [{'CommunitySetName': 'cs0', 'Community': ['65100:10']}]}}
 
         g1.set_bgp_defined_set(cs0)
 
@@ -2368,7 +2344,7 @@ class InPolicyReject(object):
         e1 = env.e1
         q1 = env.q1
         q2 = env.q2
-        cs0 = {'CommunitySets': {'CommunitySetList': [{'CommunitySetName': 'cs0', 'CommunityList': [{'Community': '65100:10'}]}]}}
+        cs0 = {'CommunitySets': {'CommunitySetList': [{'CommunitySetName': 'cs0', 'Community': ['65100:10']}]}}
 
         g1.set_bgp_defined_set(cs0)
 
@@ -2428,7 +2404,7 @@ class InPolicyAccept(object):
         e1 = env.e1
         q1 = env.q1
         q2 = env.q2
-        cs0 = {'CommunitySets': {'CommunitySetList': [{'CommunitySetName': 'cs0', 'CommunityList': [{'Community': '65100:10'}]}]}}
+        cs0 = {'CommunitySets': {'CommunitySetList': [{'CommunitySetName': 'cs0', 'Community': ['65100:10']}]}}
 
         g1.set_bgp_defined_set(cs0)
 
@@ -2503,10 +2479,8 @@ class InPolicyUpdate(object):
                'PrefixList': [p0, p1]}
         g1.set_prefix_set(ps0)
 
-        n0 = {'Address': g1.peers[e1]['neigh_addr'].split('/')[0]}
-
         ns0 = {'NeighborSetName': 'ns0',
-               'NeighborInfoList': [n0]}
+               'NeighborInfo': [g1.peers[e1]['neigh_addr'].split('/')[0]]}
         g1.set_neighbor_set(ns0)
 
         st0 = {'Name': 'st0',
@@ -2555,10 +2529,8 @@ class InPolicyUpdate(object):
                'PrefixList': [p0]}
         g1.set_prefix_set(ps0)
 
-        n0 = {'Address': g1.peers[e1]['neigh_addr'].split('/')[0]}
-
         ns0 = {'NeighborSetName': 'ns0',
-               'NeighborInfoList': [n0]}
+               'NeighborInfo': [g1.peers[e1]['neigh_addr'].split('/')[0]]}
         g1.set_neighbor_set(ns0)
 
         st0 = {'Name': 'st0',
@@ -2861,7 +2833,7 @@ class ImportPolicyExCommunityOriginCondition(object):
         q2 = env.q2
 
         es0 = {'ExtCommunitySets': {'ExtCommunitySetList': [{'ExtCommunitySetName': 'es0',
-                                                             'ExtCommunityList': [{'ExtCommunity': 'SoO:65001.65100:200'}]}]}}
+                                                             'ExtCommunity': ['SoO:65001.65100:200']}]}}
 
         g1.set_bgp_defined_set(es0)
 
@@ -2913,7 +2885,7 @@ class ImportPolicyExCommunityTargetCondition(object):
         q2 = env.q2
 
         es0 = {'ExtCommunitySets': {'ExtCommunitySetList': [{'ExtCommunitySetName': 'es0',
-                                                             'ExtCommunityList': [{'ExtCommunity': 'RT:6[0-9]+:3[0-9]+'}]}]}}
+                                                             'ExtCommunity': ['RT:6[0-9]+:3[0-9]+']}]}}
 
         g1.set_bgp_defined_set(es0)
 

@@ -45,20 +45,8 @@ def pyang_plugin_init():
 
 class GolangPlugin(plugin.PyangPlugin):
     def add_output_format(self, fmts):
+        self.multiple_modules = True
         fmts['golang'] = self
-
-
-
-    def add_opts(self, optparser):
-        optlist = [
-            optparse.make_option("--augment",
-                                 dest="augment", action="append",
-                                 help="Yang file which has augment statements"),
-            ]
-        g = optparser.add_option_group("GolangPlugin specific options")
-        g.add_options(optlist)
-
-
 
     def emit(self, ctx, modules, fd):
 
@@ -70,20 +58,8 @@ class GolangPlugin(plugin.PyangPlugin):
         ctx.prefix_rel = {}
         ctx.module_deps = []
 
-        check_module_deps(ctx, modules[0])
-
-        # load augment module
-        if ctx.opts.augment:
-            aug_mod_path = ctx.opts.augment
-            for p in aug_mod_path:
-                with open(p) as fd:
-                    try:
-                        text = fd.read()
-                    except IOError as ex:
-                        sys.stderr.write("error %s: %s\n" % (aug_mod_path, str(ex)))
-                        sys.exit(1)
-                    aug_mod = ctx.add_module(p, text)
-                    check_module_deps(ctx, aug_mod)
+        for m in modules:
+            check_module_deps(ctx, m)
 
         # visit yang statements
         visit_modules(ctx)
@@ -207,6 +183,8 @@ def emit_class_def(ctx, yang_statement, struct_name, prefix):
         if is_leaflist(child):
             type_obj = child.search_one('type')
             type_name = type_obj.arg
+            val_name_go = val_name_go + 'List'
+            tag_name += '-list'
 
             # case leafref
             if type_name == 'leafref':
@@ -532,7 +510,7 @@ _type_translation_map = {
     'inet:ip-prefix': 'string',
     'inet:ipv4-address': 'string',
     'inet:as-number': 'uint32',
-    'bgp-set-community-option-type' : 'string',
+    'bgp-set-community-option-type': 'string',
     'identityref' : 'string',
     'inet:port-number': 'uint16',
     'yang:timeticks': 'int64',

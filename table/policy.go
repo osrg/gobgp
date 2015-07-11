@@ -508,16 +508,16 @@ func NewNeighborSetFromApiStruct(a *api.DefinedSet) (*NeighborSet, error) {
 func NewNeighborSet(c config.NeighborSet) (*NeighborSet, error) {
 	name := c.NeighborSetName
 	if name == "" {
-		if len(c.NeighborInfoList) == 0 {
+		if len(c.NeighborInfo) == 0 {
 			return nil, nil
 		}
 		return nil, fmt.Errorf("empty neighbor set name")
 	}
-	list := make([]net.IP, 0, len(c.NeighborInfoList))
-	for _, x := range c.NeighborInfoList {
-		addr := net.ParseIP(x.Address)
+	list := make([]net.IP, 0, len(c.NeighborInfo))
+	for _, x := range c.NeighborInfo {
+		addr := net.ParseIP(x)
 		if addr == nil {
-			return nil, fmt.Errorf("invalid address: %s", x.Address)
+			return nil, fmt.Errorf("invalid address: %s", x)
 		}
 		list = append(list, addr)
 	}
@@ -695,10 +695,7 @@ func (s *AsPathSet) ToApiStruct() *api.DefinedSet {
 func NewAsPathSetFromApiStruct(a *api.DefinedSet) (*AsPathSet, error) {
 	c := config.AsPathSet{
 		AsPathSetName: a.Name,
-		AsPathList:    make([]config.AsPath, 0, len(a.List)),
-	}
-	for _, x := range a.List {
-		c.AsPathList = append(c.AsPathList, config.AsPath{AsPath: x})
+		AsPath:        a.List,
 	}
 	return NewAsPathSet(c)
 }
@@ -706,18 +703,18 @@ func NewAsPathSetFromApiStruct(a *api.DefinedSet) (*AsPathSet, error) {
 func NewAsPathSet(c config.AsPathSet) (*AsPathSet, error) {
 	name := c.AsPathSetName
 	if name == "" {
-		if len(c.AsPathList) == 0 {
+		if len(c.AsPath) == 0 {
 			return nil, nil
 		}
 		return nil, fmt.Errorf("empty as-path set name")
 	}
-	list := make([]*regexp.Regexp, 0, len(c.AsPathList))
-	singleList := make([]*singleAsPathMatch, 0, len(c.AsPathList))
-	for _, x := range c.AsPathList {
-		if s := NewSingleAsPathMatch(x.AsPath); s != nil {
+	list := make([]*regexp.Regexp, 0, len(c.AsPath))
+	singleList := make([]*singleAsPathMatch, 0, len(c.AsPath))
+	for _, x := range c.AsPath {
+		if s := NewSingleAsPathMatch(x); s != nil {
 			singleList = append(singleList, s)
 		} else {
-			exp, err := regexp.Compile(strings.Replace(x.AsPath, "_", ASPATH_REGEXP_MAGIC, -1))
+			exp, err := regexp.Compile(strings.Replace(x, "_", ASPATH_REGEXP_MAGIC, -1))
 			if err != nil {
 				return nil, fmt.Errorf("invalid regular expression: %s", x)
 			}
@@ -900,10 +897,7 @@ func ParseExtCommunityRegexp(arg string) (bgp.ExtendedCommunityAttrSubType, *reg
 func NewCommunitySetFromApiStruct(a *api.DefinedSet) (*CommunitySet, error) {
 	c := config.CommunitySet{
 		CommunitySetName: a.Name,
-		CommunityList:    make([]config.Community, 0, len(a.List)),
-	}
-	for _, x := range a.List {
-		c.CommunityList = append(c.CommunityList, config.Community{Community: x})
+		Community:        a.List,
 	}
 	return NewCommunitySet(c)
 }
@@ -911,14 +905,14 @@ func NewCommunitySetFromApiStruct(a *api.DefinedSet) (*CommunitySet, error) {
 func NewCommunitySet(c config.CommunitySet) (*CommunitySet, error) {
 	name := c.CommunitySetName
 	if name == "" {
-		if len(c.CommunityList) == 0 {
+		if len(c.Community) == 0 {
 			return nil, nil
 		}
 		return nil, fmt.Errorf("empty community set name")
 	}
-	list := make([]*regexp.Regexp, 0, len(c.CommunityList))
-	for _, x := range c.CommunityList {
-		exp, err := ParseCommunityRegexp(x.Community)
+	list := make([]*regexp.Regexp, 0, len(c.Community))
+	for _, x := range c.Community {
+		exp, err := ParseCommunityRegexp(x)
 		if err != nil {
 			return nil, err
 		}
@@ -963,10 +957,7 @@ func (s *ExtCommunitySet) ToApiStruct() *api.DefinedSet {
 func NewExtCommunitySetFromApiStruct(a *api.DefinedSet) (*ExtCommunitySet, error) {
 	c := config.ExtCommunitySet{
 		ExtCommunitySetName: a.Name,
-		ExtCommunityList:    make([]config.ExtCommunity, 0, len(a.List)),
-	}
-	for _, x := range a.List {
-		c.ExtCommunityList = append(c.ExtCommunityList, config.ExtCommunity{ExtCommunity: x})
+		ExtCommunity:        a.List,
 	}
 	return NewExtCommunitySet(c)
 }
@@ -974,15 +965,15 @@ func NewExtCommunitySetFromApiStruct(a *api.DefinedSet) (*ExtCommunitySet, error
 func NewExtCommunitySet(c config.ExtCommunitySet) (*ExtCommunitySet, error) {
 	name := c.ExtCommunitySetName
 	if name == "" {
-		if len(c.ExtCommunityList) == 0 {
+		if len(c.ExtCommunity) == 0 {
 			return nil, nil
 		}
 		return nil, fmt.Errorf("empty ext-community set name")
 	}
-	list := make([]*regexp.Regexp, 0, len(c.ExtCommunityList))
-	subtypeList := make([]bgp.ExtendedCommunityAttrSubType, 0, len(c.ExtCommunityList))
-	for _, x := range c.ExtCommunityList {
-		subtype, exp, err := ParseExtCommunityRegexp(x.ExtCommunity)
+	list := make([]*regexp.Regexp, 0, len(c.ExtCommunity))
+	subtypeList := make([]bgp.ExtendedCommunityAttrSubType, 0, len(c.ExtCommunity))
+	for _, x := range c.ExtCommunity {
+		subtype, exp, err := ParseExtCommunityRegexp(x)
 		if err != nil {
 			return nil, err
 		}
@@ -2794,18 +2785,16 @@ func NewRoutingPolicy() *RoutingPolicy {
 }
 
 func CanImportToVrf(v *Vrf, path *Path) bool {
-	f := func(arg []bgp.ExtendedCommunityInterface) []config.ExtCommunity {
-		ret := make([]config.ExtCommunity, 0, len(arg))
+	f := func(arg []bgp.ExtendedCommunityInterface) []string {
+		ret := make([]string, 0, len(arg))
 		for _, a := range arg {
-			ret = append(ret, config.ExtCommunity{
-				ExtCommunity: fmt.Sprintf("RT:%s", a.String()),
-			})
+			ret = append(ret, fmt.Sprintf("RT:%s", a.String()))
 		}
 		return ret
 	}
 	set, _ := NewExtCommunitySet(config.ExtCommunitySet{
 		ExtCommunitySetName: v.Name,
-		ExtCommunityList:    f(v.ImportRt),
+		ExtCommunity:        f(v.ImportRt),
 	})
 	matchSet := config.MatchExtCommunitySet{
 		ExtCommunitySet: v.Name,

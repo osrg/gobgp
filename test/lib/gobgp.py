@@ -284,7 +284,7 @@ class GoBGPContainer(BGPContainer):
 
         if self.zebra:
             config['Global']['Zebra'] = {'Enabled': True,
-                                         'RedistributeRouteTypeList':[{'RouteType': 'connect'}],}
+                                         'RedistributeRouteType':['connect']}
 
         with open('{0}/gobgpd.conf'.format(self.config_dir), 'w') as f:
             print colors.yellow('[{0}\'s new config]'.format(self.name))
