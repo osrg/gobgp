@@ -1,0 +1,208 @@
+# Copyright (C) 2015 Nippon Telegraph and Telephone Corporation.
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#    http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or
+# implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+import unittest
+from fabric.api import local
+from lib.gobgp import *
+from lib.quagga import *
+import sys
+import os
+import time
+import nose
+from noseplugin import OptionParser, parser_option
+from itertools import combinations
+
+
+class GoBGPTestBase(unittest.TestCase):
+
+    @classmethod
+    def setUpClass(cls):
+        gobgp_ctn_image_name = 'osrg/gobgp'
+        if parser_option.use_local:
+            make_gobgp_ctn()
+            gobgp_ctn_image_name = 'gobgp'
+
+        g1 = GoBGPContainer(name='g1', asn=65000, router_id='192.168.0.1',
+                            ctn_image_name=gobgp_ctn_image_name,
+                            log_level=parser_option.gobgp_log_level)
+        q1 = QuaggaBGPContainer(name='q1', asn=65000, router_id='192.168.0.2')
+        q2 = QuaggaBGPContainer(name='q2', asn=65000, router_id='192.168.0.3')
+
+        qs = [q1, q2]
+        ctns = [g1, q1, q2]
+
+        # advertise a route from q1, q2, q3
+        for idx, c in enumerate(qs):
+            route = '10.0.{0}.0/24'.format(idx+1)
+            c.add_route(route)
+
+        initial_wait_time = max(ctn.run() for ctn in ctns)
+
+        time.sleep(initial_wait_time)
+
+        br01 = Bridge(name='br01', subnet='192.168.10.0/24')
+        [br01.addif(ctn) for ctn in ctns]
+
+        # ibgp peer. loop topology
+        for a, b in combinations(ctns, 2):
+            a.add_peer(b)
+            b.add_peer(a)
+
+        cls.gobgp = g1
+        cls.quaggas = {'q1': q1, 'q2': q2}
+        cls.bridges = {'br01': br01}
+
+    # test each neighbor state is turned establish
+    def test_01_neighbor_established(self):
+        for q in self.quaggas.itervalues():
+            self.gobgp.wait_for(expected_state=BGP_FSM_ESTABLISHED, peer=q)
+
+    def test_02_check_gobgp_global_rib(self):
+        for q in self.quaggas.itervalues():
+            # paths expected to exist in gobgp's global rib
+            routes = q.routes.keys()
+            timeout = 120
+            interval = 1
+            count = 0
+            while True:
+                # gobgp's global rib
+                global_rib = [p['prefix'] for p in self.gobgp.get_global_rib()]
+
+                for p in global_rib:
+                    if p in routes:
+                        routes.remove(p)
+
+                if len(routes) == 0:
+                    break
+
+                time.sleep(interval)
+                count += interval
+                if count >= timeout:
+                    raise Exception('timeout')
+
+    def test_03_check_gobgp_adj_rib_out(self):
+        for q in self.quaggas.itervalues():
+            paths = self.gobgp.get_adj_rib_out(q)
+            # bgp speaker mustn't forward iBGP routes to iBGP peers
+            self.assertTrue(len(paths) == 0)
+
+    def test_04_originate_path(self):
+        self.gobgp.add_route('10.10.0.0/24')
+        dst = self.gobgp.get_global_rib('10.10.0.0/24')
+        self.assertTrue(len(dst) == 1)
+        self.assertTrue(len(dst[0]['paths']) == 1)
+        path = dst[0]['paths'][0]
+        self.assertTrue(path['nexthop'] == '0.0.0.0')
+        self.assertTrue(len(self.gobgp._get_as_path(path)) == 0)
+
+    def test_05_check_gobgp_adj_rib_out(self):
+        for q in self.quaggas.itervalues():
+            paths = self.gobgp.get_adj_rib_out(q)
+            self.assertTrue(len(paths) == len(self.gobgp.routes))
+            path = paths[0]
+            self.assertTrue(path['nlri']['prefix'] == '10.10.0.0/24')
+            peer_info = self.gobgp.peers[q]
+            local_addr = peer_info['local_addr'].split('/')[0]
+            self.assertTrue(path['nexthop'] == local_addr)
+            self.assertTrue(len(self.gobgp._get_as_path(path)) == 0)
+
+    # check routes are properly advertised to all BGP speaker
+    def test_06_check_quagga_global_rib(self):
+        interval = 1
+        timeout = int(120/interval)
+        for q in self.quaggas.itervalues():
+            done = False
+            for _ in range(timeout):
+                if done:
+                    break
+                global_rib = q.get_global_rib()
+                global_rib = [p['prefix'] for p in global_rib]
+                # quagga's global_rib must hold two routes, a self-generated
+                # route and a gobgp-generated route
+                if len(global_rib) < len(q.routes) + len(self.gobgp.routes):
+                    time.sleep(interval)
+                    continue
+
+                self.assertTrue(len(global_rib) == len(q.routes)
+                                + len(self.gobgp.routes))
+
+                for r in q.routes.keys() + self.gobgp.routes.keys():
+                    self.assertTrue(r in global_rib)
+
+                done = True
+            if done:
+                continue
+            # should not reach here
+            self.assertTrue(False)
+
+    def test_07_add_ebgp_peer(self):
+        q3 = QuaggaBGPContainer(name='q3', asn=65001, router_id='192.168.0.4')
+        self.quaggas['q3'] = q3
+
+        q3.add_route('10.0.3.0/24')
+
+        initial_wait_time = q3.run()
+        time.sleep(initial_wait_time)
+        self.bridges['br01'].addif(q3)
+        self.gobgp.add_peer(q3)
+        q3.add_peer(self.gobgp)
+
+        self.gobgp.wait_for(expected_state=BGP_FSM_ESTABLISHED, peer=q3)
+
+    def test_08_check_global_rib(self):
+        self.test_02_check_gobgp_global_rib()
+
+    def test_09_check_gobgp_ebgp_adj_rib_out(self):
+        q1 = self.quaggas['q1']
+        q2 = self.quaggas['q2']
+        q3 = self.quaggas['q3']
+        paths = self.gobgp.get_adj_rib_out(q3)
+        total_len = len(q1.routes) + len(q2.routes) + len(self.gobgp.routes)
+        assert(len(paths) == total_len)
+        for path in paths:
+            peer_info = self.gobgp.peers[q3]
+            local_addr = peer_info['local_addr'].split('/')[0]
+            self.assertTrue(path['nexthop'] == local_addr)
+            self.assertTrue(self.gobgp._get_as_path(path) == [self.gobgp.asn])
+
+    def test_10_check_gobgp_ibgp_adj_rib_out(self):
+        q1 = self.quaggas['q1']
+        q3 = self.quaggas['q3']
+        peer_info = self.gobgp.peers[q3]
+        neigh_addr = peer_info['neigh_addr'].split('/')[0]
+
+        for prefix in q3.routes.iterkeys():
+            paths = self.gobgp.get_adj_rib_out(q1, prefix)
+            self.assertTrue(len(paths) == 1)
+            path = paths[0]
+            # bgp router mustn't change nexthop of routes from eBGP peers
+            # which are sent to iBGP peers
+            self.assertTrue(path['nexthop'] == neigh_addr)
+            # bgp router mustn't change aspath of routes from eBGP peers
+            # which are sent to iBGP peers
+            self.assertTrue(self.gobgp._get_as_path(path) == [q3.asn])
+
+
+if __name__ == '__main__':
+    if os.geteuid() is not 0:
+        print "you are not root."
+        sys.exit(1)
+    output = local("which docker 2>&1 > /dev/null ; echo $?", capture=True)
+    if int(output) is not 0:
+        print "docker not found"
+        sys.exit(1)
+
+    nose.main(argv=sys.argv, addplugins=[OptionParser()],
+              defaultTest=sys.argv[0])

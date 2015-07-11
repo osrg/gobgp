@@ -314,6 +314,18 @@ func filterpath(peer *Peer, pathList []*table.Path) []*table.Path {
 			continue
 		}
 
+		selfGenerated := path.GetSource().ID.Equal(peer.globalConfig.RouterId)
+		fromAS := path.GetSource().AS
+		myAS := peer.globalConfig.As
+		if !selfGenerated && !peer.isEBGP && myAS == fromAS {
+			log.WithFields(log.Fields{
+				"Topic": "Peer",
+				"Key":   peer.config.NeighborAddress,
+				"Data":  path,
+			}).Debug("From same AS, ignore.")
+			continue
+		}
+
 		if peer.config.NeighborAddress.Equal(path.GetSource().Address) {
 			log.WithFields(log.Fields{
 				"Topic": "Peer",
@@ -924,6 +936,7 @@ func (server *BgpServer) handleGrpc(grpcReq *GrpcRequest) []*SenderMsg {
 		pi := &table.PeerInfo{
 			AS:      server.bgpConfig.Global.As,
 			LocalID: server.bgpConfig.Global.RouterId,
+			ID:      server.bgpConfig.Global.RouterId,
 		}
 		pathList := handleGlobalRibRequest(grpcReq, pi)
 		if len(pathList) > 0 {
