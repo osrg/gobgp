@@ -155,6 +155,9 @@ type BmpServerConfig struct {
 
 //struct for container gobgp:bmp-server
 type BmpServer struct {
+	// original -> gobgp:address
+	//gobgp:address's original type is inet:ip-address
+	Address string
 	// original -> gobgp:bmp-server-config
 	Config BmpServerConfig
 	// original -> gobgp:bmp-server-state
@@ -234,6 +237,9 @@ type RpkiServerConfig struct {
 
 //struct for container gobgp:rpki-server
 type RpkiServer struct {
+	// original -> gobgp:address
+	//gobgp:address's original type is inet:ip-address
+	Address string
 	// original -> gobgp:rpki-server-config
 	Config RpkiServerConfig
 	// original -> gobgp:rpki-server-state
@@ -814,13 +820,6 @@ type MplsLabelRange struct {
 	MaxLabel uint32
 }
 
-//struct for container gobgp:redistribute-route-type
-type RedistributeRouteType struct {
-	// original -> gobgp:route-type
-	//gobgp:route-type's original type is ptypes:install-protocol-type
-	RouteType string
-}
-
 //struct for container gobgp:zebra
 type Zebra struct {
 	// original -> gobgp:enabled
@@ -829,7 +828,8 @@ type Zebra struct {
 	// original -> gobgp:url
 	Url string
 	// original -> gobgp:redistribute-route-type
-	RedistributeRouteTypeList []RedistributeRouteType
+	//original type is list of identityref
+	RedistributeRouteType []string
 }
 
 //struct for container gobgp:mrt
@@ -1631,18 +1631,12 @@ type PolicyDefinitions struct {
 	PolicyDefinitionList []PolicyDefinition
 }
 
-//struct for container gobgp:as-path
-type AsPath struct {
-	// original -> gobgp:as-path
-	AsPath string
-}
-
 //struct for container bgp-pol:as-path-set
 type AsPathSet struct {
 	// original -> bgp-pol:as-path-set-name
 	AsPathSetName string
 	// original -> gobgp:as-path
-	AsPathList []AsPath
+	AsPath []string
 }
 
 //struct for container bgp-pol:as-path-sets
@@ -1651,18 +1645,12 @@ type AsPathSets struct {
 	AsPathSetList []AsPathSet
 }
 
-//struct for container gobgp:ext-community
-type ExtCommunity struct {
-	// original -> gobgp:ext-community
-	ExtCommunity string
-}
-
 //struct for container bgp-pol:ext-community-set
 type ExtCommunitySet struct {
 	// original -> bgp-pol:ext-community-set-name
 	ExtCommunitySetName string
 	// original -> gobgp:ext-community
-	ExtCommunityList []ExtCommunity
+	ExtCommunity []string
 }
 
 //struct for container bgp-pol:ext-community-sets
@@ -1671,18 +1659,12 @@ type ExtCommunitySets struct {
 	ExtCommunitySetList []ExtCommunitySet
 }
 
-//struct for container gobgp:community
-type Community struct {
-	// original -> gobgp:community
-	Community string
-}
-
 //struct for container bgp-pol:community-set
 type CommunitySet struct {
 	// original -> bgp-pol:community-set-name
 	CommunitySetName string
 	// original -> gobgp:community
-	CommunityList []Community
+	Community []string
 }
 
 //struct for container bgp-pol:community-sets
@@ -1721,19 +1703,13 @@ type TagSets struct {
 	TagSetList []TagSet
 }
 
-//struct for container gobgp:neighbor-info
-type NeighborInfo struct {
-	// original -> gobgp:address
-	//gobgp:address's original type is inet:ip-address
-	Address string
-}
-
 //struct for container rpol:neighbor-set
 type NeighborSet struct {
 	// original -> rpol:neighbor-set-name
 	NeighborSetName string
 	// original -> gobgp:neighbor-info
-	NeighborInfoList []NeighborInfo
+	//original type is list of inet:ip-address
+	NeighborInfo []string
 }
 
 //struct for container rpol:neighbor-sets

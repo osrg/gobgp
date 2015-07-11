@@ -1,4 +1,4 @@
-module bgp-gobgp {
+module gobgp {
 
   yang-version "1";
 
@@ -13,6 +13,7 @@ module bgp-gobgp {
   import policy-types {prefix ptypes; }
   import bgp-policy {prefix bgp-pol; }
   import ietf-inet-types { prefix inet; }
+  import ietf-yang-types { prefix yang; }
 
   // meta
   organization
@@ -403,12 +404,16 @@ module bgp-gobgp {
     description "additional RPKI structure";
 
     container rpki-servers {
-      description
-        "List of RPKI servers configured on the local system";
       list rpki-server {
-        container rpki-server {
-          uses gobgp-rpki-server-set;
+        key "address";
+        description
+          "List of RPKI servers configured on the local system";
+        leaf address {
+          type leafref {
+            path "../config/address";
+          }
         }
+        uses gobgp-rpki-server-set;
       }
     }
   }
@@ -457,12 +462,16 @@ module bgp-gobgp {
     description "BGP Monitoring Protocol servers";
 
     container bmp-servers {
-      description
-        "List of BMP servers configured on the local system";
       list bmp-server {
-        container bmp-server {
-          uses gobgp-bmp-server-set;
+        key "address";
+        description
+          "List of BMP servers configured on the local system";
+        leaf address {
+          type leafref {
+            path "../config/address";
+          }
         }
+        uses gobgp-bmp-server-set;
       }
     }
   }
@@ -568,12 +577,10 @@ module bgp-gobgp {
   augment "/rpol:routing-policy/rpol:defined-sets/rpol:neighbor-sets/rpol:neighbor-set" {
     description "alternative for the existing neighbor element";
 
-    list neighbor-info {
-      leaf address {
-        type inet:ip-address;
-        description
+    leaf-list neighbor-info {
+      description
             "neighbor ip address";
-       }
+      type inet:ip-address;
     }
   }
 
@@ -581,12 +588,10 @@ module bgp-gobgp {
     "bgp-pol:bgp-defined-sets/bgp-pol:community-sets/bgp-pol:community-set" {
     description "alternative for the existing community-member";
 
-    list community {
-      leaf community {
-        type string;
-        description
-            "community set member";
-       }
+    leaf-list community {
+      description
+        "community set member";
+      type string;
     }
   }
 
@@ -594,12 +599,10 @@ module bgp-gobgp {
     "bgp-pol:bgp-defined-sets/bgp-pol:ext-community-sets/bgp-pol:ext-community-set" {
     description "alternative for the existing ext-community-member";
 
-    list ext-community {
-      leaf ext-community {
-        type string;
-        description
-            "extended community set member";
-       }
+    leaf-list ext-community {
+      type string;
+      description
+        "extended community set member";
     }
   }
 
@@ -607,12 +610,10 @@ module bgp-gobgp {
     "bgp-pol:bgp-defined-sets/bgp-pol:as-path-sets/bgp-pol:as-path-set" {
     description "alternative for the existing as-path-set-member";
 
-    list as-path {
-      leaf as-path {
-        type string;
-        description
-            "AS path expression";
-       }
+    leaf-list as-path {
+      type string;
+      description
+        "AS path expression";
     }
   }
 
@@ -661,9 +662,9 @@ module bgp-gobgp {
         description
           "Configure url for zebra.";
       }
-      list redistribute-route-type {
-        leaf route-type {
-          type ptypes:install-protocol-type;
+      leaf-list redistribute-route-type {
+        type identityref {
+          base ptypes:install-protocol-type;
         }
       }
     }

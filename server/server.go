@@ -182,11 +182,7 @@ func (server *BgpServer) Serve() {
 		if g.Zebra.Url == "" {
 			g.Zebra.Url = "unix:/var/run/quagga/zserv.api"
 		}
-		redists := make([]string, 0, len(g.Zebra.RedistributeRouteTypeList))
-		for _, t := range g.Zebra.RedistributeRouteTypeList {
-			redists = append(redists, t.RouteType)
-		}
-		err := server.NewZclient(g.Zebra.Url, redists)
+		err := server.NewZclient(g.Zebra.Url, g.Zebra.RedistributeRouteType)
 		if err != nil {
 			log.Error(err)
 		}
