@@ -204,7 +204,9 @@ func (c *DefaultParameterCapability) DecodeFromBytes(data []byte) error {
 	if len(data) < 2+int(c.CapLen) {
 		return fmt.Errorf("Not all OptionParameterCapability bytes available")
 	}
-	c.CapValue = data[2 : 2+c.CapLen]
+	if c.CapLen > 0 {
+		c.CapValue = data[2 : 2+c.CapLen]
+	}
 	return nil
 }
 
@@ -485,7 +487,6 @@ func (o *OptionParameterCapability) DecodeFromBytes(data []byte) error {
 func (o *OptionParameterCapability) Serialize() ([]byte, error) {
 	buf := make([]byte, 2)
 	buf[0] = o.ParamType
-	//buf[1] = o.ParamLen
 	for _, p := range o.Capability {
 		pbuf, err := p.Serialize()
 		if err != nil {
@@ -493,7 +494,8 @@ func (o *OptionParameterCapability) Serialize() ([]byte, error) {
 		}
 		buf = append(buf, pbuf...)
 	}
-	buf[1] = uint8(len(buf) - 2)
+	o.ParamLen = uint8(len(buf) - 2)
+	buf[1] = o.ParamLen
 	return buf, nil
 }
 
@@ -533,13 +535,14 @@ func (msg *BGPOpen) DecodeFromBytes(data []byte) error {
 	msg.Version = data[0]
 	msg.MyAS = binary.BigEndian.Uint16(data[1:3])
 	msg.HoldTime = binary.BigEndian.Uint16(data[3:5])
-	msg.ID = data[5:9]
+	msg.ID = net.IP(data[5:9]).To4()
 	msg.OptParamLen = data[9]
 	data = data[10:]
 	if len(data) < int(msg.OptParamLen) {
 		return fmt.Errorf("Not all BGP Open message bytes available")
 	}
 
+	msg.OptParams = []OptionParameterInterface{}
 	for rest := msg.OptParamLen; rest > 0; {
 		paramtype := data[0]
 		paramlen := data[1]
@@ -568,7 +571,7 @@ func (msg *BGPOpen) Serialize() ([]byte, error) {
 	buf[0] = msg.Version
 	binary.BigEndian.PutUint16(buf[1:3], msg.MyAS)
 	binary.BigEndian.PutUint16(buf[3:5], msg.HoldTime)
-	copy(buf[5:9], msg.ID)
+	copy(buf[5:9], msg.ID.To4())
 	pbuf := make([]byte, 0)
 	for _, p := range msg.OptParams {
 		onepbuf, err := p.Serialize()
@@ -577,7 +580,8 @@ func (msg *BGPOpen) Serialize() ([]byte, error) {
 		}
 		pbuf = append(pbuf, onepbuf...)
 	}
-	buf[9] = uint8(len(pbuf))
+	msg.OptParamLen = uint8(len(pbuf))
+	buf[9] = msg.OptParamLen
 	return append(buf, pbuf...), nil
 }
 
@@ -627,6 +631,9 @@ func (r *IPAddrPrefixDefault) serializePrefix(bitlen uint8) ([]byte, error) {
 		last_byte_value := buf[bytelen-1] & byte(mask)
 		buf[bytelen-1] = last_byte_value
 	}
+	b := make([]byte, len(r.Prefix))
+	copy(b, buf)
+	copy(r.Prefix, b)
 	return buf, nil
 }
 
@@ -1026,7 +1033,7 @@ func NewLabeledVPNIPAddrPrefix(length uint8, prefix string, label MPLSLabelStack
 		rdlen = rd.Len()
 	}
 	return &LabeledVPNIPAddrPrefix{
-		IPAddrPrefixDefault{length + uint8(8*(label.Len()+rdlen)), net.ParseIP(prefix)},
+		IPAddrPrefixDefault{length + uint8(8*(label.Len()+rdlen)), net.ParseIP(prefix).To4()},
 		label,
 		rd,
 		4,
@@ -1128,7 +1135,7 @@ func (l *LabeledIPAddrPrefix) Serialize() ([]byte, error) {
 
 func NewLabeledIPAddrPrefix(length uint8, prefix string, label MPLSLabelStack) *LabeledIPAddrPrefix {
 	return &LabeledIPAddrPrefix{
-		IPAddrPrefixDefault{length + uint8(label.Len()*8), net.ParseIP(prefix)},
+		IPAddrPrefixDefault{length + uint8(label.Len()*8), net.ParseIP(prefix).To4()},
 		label,
 		4,
 	}
@@ -2048,7 +2055,9 @@ func (p *PathAttribute) DecodeFromBytes(data []byte) error {
 	if len(data) < int(p.Length) {
 		return NewMessageError(eCode, eSubCode, data, "attribute value length is short")
 	}
-	p.Value = data[:p.Length]
+	if len(data[:p.Length]) > 0 {
+		p.Value = data[:p.Length]
+	}
 
 	ok, eMsg := ValidateFlags(p.Type, p.Flags)
 	if !ok {
@@ -3176,6 +3185,7 @@ type DefaultOpaqueExtendedValue struct {
 }
 
 func (v *DefaultOpaqueExtendedValue) Serialize() ([]byte, error) {
+	v.Value = v.Value[:7]
 	return v.Value[:7], nil
 }
 
@@ -3313,6 +3323,7 @@ func (e *UnknownExtended) Serialize() ([]byte, error) {
 	buf := make([]byte, 8)
 	buf[0] = uint8(e.Type)
 	copy(buf[1:], e.Value)
+	e.Value = buf[1:]
 	return buf, nil
 }
 
@@ -3577,7 +3588,7 @@ func NewPathAttributeAs4Aggregator(as uint32, address string) *PathAttributeAs4A
 		},
 		Value: PathAttributeAggregatorParam{
 			AS:      as,
-			Address: net.ParseIP(address),
+			Address: net.ParseIP(address).To4(),
 		},
 	}
 }
@@ -4033,6 +4044,7 @@ func (msg *BGPUpdate) DecodeFromBytes(data []byte) error {
 		return NewMessageError(eCode, eSubCode, nil, "withdrawn route length exceeds message length")
 	}
 
+	msg.WithdrawnRoutes = []WithdrawnRoute{}
 	for routelen := msg.WithdrawnRoutesLen; routelen > 0; {
 		w := WithdrawnRoute{}
 		err := w.DecodeFromBytes(data)
@@ -4060,6 +4072,7 @@ func (msg *BGPUpdate) DecodeFromBytes(data []byte) error {
 		return NewMessageError(eCode, eSubCode, nil, "path total attribute length exceeds message length")
 	}
 
+	msg.PathAttributes = []PathAttributeInterface{}
 	for pathlen := msg.TotalPathAttributeLen; pathlen > 0; {
 		p, err := GetPathAttribute(data)
 		if err != nil {
@@ -4077,6 +4090,7 @@ func (msg *BGPUpdate) DecodeFromBytes(data []byte) error {
 		msg.PathAttributes = append(msg.PathAttributes, p)
 	}
 
+	msg.NLRI = []NLRInfo{}
 	for restlen := len(data); restlen > 0; {
 		n := NLRInfo{}
 		err := n.DecodeFromBytes(data)
@@ -4103,7 +4117,8 @@ func (msg *BGPUpdate) Serialize() ([]byte, error) {
 		}
 		wbuf = append(wbuf, onewbuf...)
 	}
-	binary.BigEndian.PutUint16(wbuf, uint16(len(wbuf)-2))
+	msg.WithdrawnRoutesLen = uint16(len(wbuf) - 2)
+	binary.BigEndian.PutUint16(wbuf, msg.WithdrawnRoutesLen)
 
 	pbuf := make([]byte, 2)
 	for _, p := range msg.PathAttributes {
@@ -4113,7 +4128,8 @@ func (msg *BGPUpdate) Serialize() ([]byte, error) {
 		}
 		pbuf = append(pbuf, onepbuf...)
 	}
-	binary.BigEndian.PutUint16(pbuf, uint16(len(pbuf)-2))
+	msg.TotalPathAttributeLen = uint16(len(pbuf) - 2)
+	binary.BigEndian.PutUint16(pbuf, msg.TotalPathAttributeLen)
 
 	buf := append(wbuf, pbuf...)
 	for _, n := range msg.NLRI {
