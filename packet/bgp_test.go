@@ -5,6 +5,7 @@ import (
 	"encoding/binary"
 	"github.com/stretchr/testify/assert"
 	"net"
+	"reflect"
 	"testing"
 )
 
@@ -142,20 +143,22 @@ func update() *BGPMessage {
 
 func Test_Message(t *testing.T) {
 	l := []*BGPMessage{keepalive(), notification(), refresh(), open(), update()}
-	for _, m := range l {
-		buf1, _ := m.Serialize()
+	for _, m1 := range l {
+		buf1, _ := m1.Serialize()
 		t.Log("LEN =", len(buf1))
-		msg, err := ParseBGPMessage(buf1)
+		m2, err := ParseBGPMessage(buf1)
 		if err != nil {
 			t.Error(err)
 		}
-		buf2, _ := msg.Serialize()
-		if bytes.Compare(buf1, buf2) == 0 {
+		// FIXME: shouldn't but workaround for some structs.
+		buf2, _ := m2.Serialize()
+
+		if reflect.DeepEqual(m1, m2) == true {
 			t.Log("OK")
 		} else {
 			t.Error("Something wrong")
-			t.Error(len(buf1), &m, buf1)
-			t.Error(len(buf2), &msg, buf2)
+			t.Error(len(buf1), m1, buf1)
+			t.Error(len(buf2), m2, buf2)
 		}
 	}
 }
