@@ -312,40 +312,37 @@ func (path *Path) getAsListofSpecificType(getAsSeq, getAsSet bool) []uint32 {
 //     into that segment, and places that segment into the AS_PATH.
 func (path *Path) PrependAsn(asn uint32, repeat uint8) {
 
-	idx, aspath := path.getPathAttr(bgp.BGP_ATTR_TYPE_AS_PATH)
+	idx, original := path.getPathAttr(bgp.BGP_ATTR_TYPE_AS_PATH)
 
 	asns := make([]uint32, repeat)
 	for i, _ := range asns {
 		asns[i] = asn
 	}
 
+	var asPath *bgp.PathAttributeAsPath
 	if idx < 0 {
-		p := bgp.NewAs4PathParam(bgp.BGP_ASPATH_ATTR_TYPE_SEQ, asns)
-		asPath := bgp.NewPathAttributeAsPath([]bgp.AsPathParamInterface{p})
+		asPath = bgp.NewPathAttributeAsPath([]bgp.AsPathParamInterface{})
 		path.pathAttrs = append(path.pathAttrs, asPath)
 	} else {
-		aspathClone := cloneAsPath(aspath.(*bgp.PathAttributeAsPath))
-		path.pathAttrs[idx] = aspathClone
-		fst := aspathClone.Value[0].(*bgp.As4PathParam)
+		asPath = cloneAsPath(original.(*bgp.PathAttributeAsPath))
+		path.pathAttrs[idx] = asPath
+	}
 
-		if fst.Type == bgp.BGP_ASPATH_ATTR_TYPE_SEQ && len(fst.AS) < 255 {
-
-			// overflow case
+	if len(asPath.Value) > 0 {
+		fst := asPath.Value[0].(*bgp.As4PathParam)
+		if fst.Type == bgp.BGP_ASPATH_ATTR_TYPE_SEQ {
 			if len(fst.AS)+int(repeat) > 255 {
-				rest := 255 - len(fst.AS)
-				fst.AS = append(asns[0:rest], fst.AS...)
-				fst.Num = 255
-
-				p := bgp.NewAs4PathParam(bgp.BGP_ASPATH_ATTR_TYPE_SEQ, asns[rest:])
-				aspathClone.Value = append([]bgp.AsPathParamInterface{p}, aspathClone.Value...)
-			} else {
-				fst.AS = append(asns, fst.AS...)
-				fst.Num += repeat
+				repeat = uint8(255 - len(fst.AS))
 			}
-		} else {
-			p := bgp.NewAs4PathParam(bgp.BGP_ASPATH_ATTR_TYPE_SEQ, asns)
-			aspathClone.Value = append([]bgp.AsPathParamInterface{p}, aspathClone.Value...)
+			fst.AS = append(asns[:int(repeat)], fst.AS...)
+			fst.Num += repeat
+			asns = asns[int(repeat):]
 		}
+	}
+
+	if len(asns) > 0 {
+		p := bgp.NewAs4PathParam(bgp.BGP_ASPATH_ATTR_TYPE_SEQ, asns)
+		asPath.Value = append([]bgp.AsPathParamInterface{p}, asPath.Value...)
 	}
 }
 
