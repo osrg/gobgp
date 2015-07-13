@@ -20,12 +20,12 @@ import (
 	"encoding/binary"
 	"fmt"
 	"github.com/osrg/gobgp/packet"
+	"math"
 	"net"
 )
 
 const (
 	COMMON_HEADER_LEN = 12
-	MaxUint16         = ^uint16(0)
 )
 
 type Type uint16
@@ -214,8 +214,8 @@ func (p *Peer) Serialize() ([]byte, error) {
 	if p.Type&(1<<1) > 0 {
 		bbuf, err = packValues([]interface{}{p.AS})
 	} else {
-		if p.AS > uint32(MaxUint16) {
-			return nil, fmt.Errorf("AS number is beyond 2 octet. %d > %d", p.AS, MaxUint16)
+		if p.AS > uint32(math.MaxUint16) {
+			return nil, fmt.Errorf("AS number is beyond 2 octet. %d > %d", p.AS, math.MaxUint16)
 		}
 		bbuf, err = packValues([]interface{}{uint16(p.AS)})
 	}
