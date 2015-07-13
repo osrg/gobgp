@@ -1,10 +1,9 @@
 package mrt
 
 import (
-	"bytes"
 	"github.com/osrg/gobgp/packet"
 	"github.com/stretchr/testify/assert"
-	"net"
+	"reflect"
 	"testing"
 	"time"
 )
@@ -23,11 +22,7 @@ func TestMrtHdr(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	b2, err := h2.Serialize()
-	if err != nil {
-		t.Fatal(err)
-	}
-	assert.Equal(t, bytes.Equal(b1, b2), true)
+	assert.Equal(t, reflect.DeepEqual(h1, h2), true)
 }
 
 func testPeer(t *testing.T, p1 *Peer) {
@@ -41,11 +36,7 @@ func testPeer(t *testing.T, p1 *Peer) {
 		t.Fatal(err)
 	}
 	assert.Equal(t, len(rest), 0)
-	b2, err := p2.Serialize()
-	if err != nil {
-		t.Fatal(err)
-	}
-	assert.Equal(t, bytes.Equal(b1, b2), true)
+	assert.Equal(t, reflect.DeepEqual(p1, p2), true)
 }
 
 func TestMrtPeer(t *testing.T) {
@@ -77,11 +68,7 @@ func TestMrtPeerIndexTable(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	b2, err := pt2.Serialize()
-	if err != nil {
-		t.Fatal(err)
-	}
-	assert.Equal(t, bytes.Equal(b1, b2), true)
+	assert.Equal(t, reflect.DeepEqual(pt1, pt2), true)
 }
 
 func TestMrtRibEntry(t *testing.T) {
@@ -111,11 +98,7 @@ func TestMrtRibEntry(t *testing.T) {
 		t.Fatal(err)
 	}
 	assert.Equal(t, len(rest), 0)
-	b2, err := e2.Serialize()
-	if err != nil {
-		t.Fatal(err)
-	}
-	assert.Equal(t, bytes.Equal(b1, b2), true)
+	assert.Equal(t, reflect.DeepEqual(e1, e2), true)
 }
 
 func TestMrtRib(t *testing.T) {
@@ -149,15 +132,11 @@ func TestMrtRib(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	b2, err := r2.Serialize()
-	if err != nil {
-		t.Fatal(err)
-	}
-	assert.Equal(t, bytes.Equal(b1, b2), true)
+	assert.Equal(t, reflect.DeepEqual(r1, r2), true)
 }
 
 func TestMrtBgp4mpStateChange(t *testing.T) {
-	c1 := NewBGP4MPStateChange(65000, 650001, 1, net.ParseIP("192.168.0.1"), net.ParseIP("192.168.0.2"), false, ACTIVE, ESTABLISHED)
+	c1 := NewBGP4MPStateChange(65000, 65001, 1, "192.168.0.1", "192.168.0.2", false, ACTIVE, ESTABLISHED)
 	b1, err := c1.Serialize()
 	if err != nil {
 		t.Fatal(err)
@@ -167,16 +146,16 @@ func TestMrtBgp4mpStateChange(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	b2, err := c2.Serialize()
+	_, err = c2.Serialize()
 	if err != nil {
 		t.Fatal(err)
 	}
-	assert.Equal(t, bytes.Equal(b1, b2), true)
+	assert.Equal(t, reflect.DeepEqual(c1, c2), true)
 }
 
 func TestMrtBgp4mpMessage(t *testing.T) {
 	msg := bgp.NewBGPKeepAliveMessage()
-	m1 := NewBGP4MPMessage(65000, 650001, 1, net.ParseIP("192.168.0.1"), net.ParseIP("192.168.0.2"), false, msg)
+	m1 := NewBGP4MPMessage(65000, 65001, 1, "192.168.0.1", "192.168.0.2", false, msg)
 	b1, err := m1.Serialize()
 	if err != nil {
 		t.Fatal(err)
@@ -186,28 +165,5 @@ func TestMrtBgp4mpMessage(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	b2, err := m2.Serialize()
-	if err != nil {
-		t.Fatal(err)
-	}
-	assert.Equal(t, bytes.Equal(b1, b2), true)
-}
-
-func TestMrtBgp4mpMessageLocal(t *testing.T) {
-	msg := bgp.NewBGPKeepAliveMessage()
-	m1 := NewBGP4MPMessageLocal(65000, 650001, 1, net.ParseIP("192.168.0.1"), net.ParseIP("192.168.0.2"), false, msg)
-	b1, err := m1.Serialize()
-	if err != nil {
-		t.Fatal(err)
-	}
-	m2 := &BGP4MPMessage{BGP4MPHeader: &BGP4MPHeader{}}
-	err = m2.DecodeFromBytes(b1)
-	if err != nil {
-		t.Fatal(err)
-	}
-	b2, err := m2.Serialize()
-	if err != nil {
-		t.Fatal(err)
-	}
-	assert.Equal(t, bytes.Equal(b1, b2), true)
+	assert.Equal(t, reflect.DeepEqual(m1, m2), true)
 }
