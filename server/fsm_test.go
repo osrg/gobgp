@@ -163,9 +163,8 @@ func TestFSMHandlerOpensent_HoldTimerExpired(t *testing.T) {
 	// push mock connection
 	p.fsm.conn = m
 
-	// set up keepalive ticker
-	sec := time.Second * 1
-	p.fsm.keepaliveTicker = time.NewTicker(sec)
+	// set keepalive ticker
+	p.fsm.negotiatedHoldTime = 3
 
 	// set holdtime
 	p.fsm.opensentHoldTime = 2
@@ -213,9 +212,8 @@ func TestFSMHandlerEstablish_HoldTimerExpired(t *testing.T) {
 	// push mock connection
 	p.fsm.conn = m
 
-	// set up keepalive ticker
-	sec := time.Second * 1
-	p.fsm.keepaliveTicker = time.NewTicker(sec)
+	// set keepalive ticker
+	p.fsm.negotiatedHoldTime = 3
 
 	msg := keepalive()
 	header, _ := msg.Header.Serialize()
@@ -273,10 +271,8 @@ func TestFSMHandlerEstablished_HoldtimeZero(t *testing.T) {
 	// push mock connection
 	p.fsm.conn = m
 
-	// set up keepalive ticker
-	sec := time.Second * 1
-	p.fsm.keepaliveTicker = time.NewTicker(sec)
-	p.fsm.keepaliveTicker.Stop()
+	// set keepalive ticker
+	p.fsm.negotiatedHoldTime = 3
 
 	// set holdtime
 	p.fsm.negotiatedHoldTime = 0

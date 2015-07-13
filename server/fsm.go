@@ -68,7 +68,6 @@ type FSM struct {
 	t                  tomb.Tomb
 	globalConfig       *config.Global
 	peerConfig         *config.Neighbor
-	keepaliveTicker    *time.Ticker
 	state              bgp.FSMState
 	conn               net.Conn
 	connCh             chan net.Conn
@@ -279,13 +278,6 @@ func NewFSMHandler(fsm *FSM, incoming chan *fsmMsg, outgoing chan *bgp.BGPMessag
 
 func (h *FSMHandler) idle() bgp.FSMState {
 	fsm := h.fsm
-
-	if fsm.keepaliveTicker != nil {
-		if fsm.negotiatedHoldTime != 0 {
-			fsm.keepaliveTicker.Stop()
-		}
-		fsm.keepaliveTicker = nil
-	}
 
 	idleHoldTimer := time.NewTimer(time.Second * time.Duration(fsm.idleHoldTime))
 	for {
@@ -575,9 +567,23 @@ func (h *FSMHandler) opensent() bgp.FSMState {
 	}
 }
 
+func keepaliveTicker(fsm *FSM) *time.Ticker {
+	if fsm.negotiatedHoldTime == 0 {
+		return &time.Ticker{}
+	}
+	sec := time.Second * time.Duration(fsm.peerConfig.Timers.KeepaliveInterval)
+	if fsm.negotiatedHoldTime < fsm.peerConfig.Timers.HoldTime {
+		sec = time.Second * time.Duration(fsm.negotiatedHoldTime) / 3
+	}
+	if sec == 0 {
+		sec = 1
+	}
+	return time.NewTicker(sec)
+}
+
 func (h *FSMHandler) openconfirm() bgp.FSMState {
 	fsm := h.fsm
-
+	ticker := keepaliveTicker(fsm)
 	h.msgCh = make(chan *fsmMsg)
 	h.conn = fsm.conn
 
@@ -585,15 +591,8 @@ func (h *FSMHandler) openconfirm() bgp.FSMState {
 
 	var holdTimer *time.Timer
 	if fsm.negotiatedHoldTime == 0 {
-		fsm.keepaliveTicker = &time.Ticker{}
 		holdTimer = &time.Timer{}
 	} else {
-		sec := time.Second * time.Duration(fsm.peerConfig.Timers.KeepaliveInterval)
-		if fsm.negotiatedHoldTime < fsm.peerConfig.Timers.HoldTime {
-			sec = time.Second * time.Duration(fsm.negotiatedHoldTime) / 3
-		}
-		fsm.keepaliveTicker = time.NewTicker(sec)
-
 		// RFC 4271 P.65
 		// sets the HoldTimer according to the negotiated value
 		holdTimer = time.NewTimer(time.Second * time.Duration(fsm.negotiatedHoldTime))
@@ -613,7 +612,7 @@ func (h *FSMHandler) openconfirm() bgp.FSMState {
 				"Topic": "Peer",
 				"Key":   fsm.peerConfig.NeighborAddress,
 			}).Warn("Closed an accepted connection")
-		case <-fsm.keepaliveTicker.C:
+		case <-ticker.C:
 			m := bgp.NewBGPKeepAliveMessage()
 			b, _ := m.Serialize()
 			// TODO: check error
@@ -676,6 +675,7 @@ func (h *FSMHandler) openconfirm() bgp.FSMState {
 func (h *FSMHandler) sendMessageloop() error {
 	conn := h.conn
 	fsm := h.fsm
+	ticker := keepaliveTicker(fsm)
 	send := func(m *bgp.BGPMessage) error {
 		b, err := m.Serialize()
 		if err != nil {
@@ -748,7 +748,7 @@ func (h *FSMHandler) sendMessageloop() error {
 			if err := send(m); err != nil {
 				return nil
 			}
-		case <-fsm.keepaliveTicker.C:
+		case <-ticker.C:
 			if err := send(bgp.NewBGPKeepAliveMessage()); err != nil {
 				return nil
 			}
