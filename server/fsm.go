@@ -727,6 +727,10 @@ func (h *FSMHandler) sendMessageloop() error {
 	}
 
 	for {
+		var keepaliveCh <-chan time.Time
+		if fsm.keepaliveTicker != nil {
+			keepaliveCh = fsm.keepaliveTicker.C
+		}
 		select {
 		case <-h.t.Dying():
 			// a) if a configuration is deleted, we need
@@ -748,7 +752,7 @@ func (h *FSMHandler) sendMessageloop() error {
 			if err := send(m); err != nil {
 				return nil
 			}
-		case <-fsm.keepaliveTicker.C:
+		case <-keepaliveCh:
 			if err := send(bgp.NewBGPKeepAliveMessage()); err != nil {
 				return nil
 			}
