@@ -719,6 +719,7 @@ func NewExtCommunityCondition(extComSetName string, defExtComSetList []config.Ex
 				matchAll := false
 				e := &ExtCommunityElement{
 					isRegExp: false,
+					comStr: c,
 				}
 				matchType, val := getECommunitySubType(c)
 				if !matchType {
@@ -863,7 +864,6 @@ func (c *ExtCommunityCondition) evaluate(path *table.Path) bool {
 
 	matched := false
 	matchStr := ""
-
 	for _, member := range c.ExtCommunityList {
 		for _, eCommunity := range eCommunities {
 			ec := eCommunity.(bgp.ExtendedCommunityInterface)

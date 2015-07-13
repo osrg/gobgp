@@ -207,6 +207,14 @@ func createPolicyConfig() *config.RoutingPolicy {
 		CommunitySetName: "comRegExp",
 		CommunityMembers: []string{"6[0-9]+:[0-9]+"},
 	}
+	eComOrigin := config.ExtCommunitySet{
+		ExtCommunitySetName: "eComAS4",
+		ExtCommunityMembers: []string{"SoO:65001.65100:200"},
+	}
+	eComTarget := config.ExtCommunitySet{
+		ExtCommunitySetName: "eComRegExp",
+		ExtCommunityMembers: []string{"RT:6[0-9]+:3[0-9]+"},
+	}
 
 	st0 := config.Statement{
 		Name: "st0",
@@ -612,6 +620,34 @@ func createPolicyConfig() *config.RoutingPolicy {
 			},
 		},
 	}
+	st_eComOrigin := config.Statement{
+		Name: "st_eComAS4",
+		Conditions: config.Conditions{
+			MatchPrefixSet:   "psExabgp",
+			MatchNeighborSet: "nsExabgp",
+			BgpConditions: config.BgpConditions{
+				MatchExtCommunitySet: "eComOrigin",
+			},
+			MatchSetOptions: config.MATCH_SET_OPTIONS_TYPE_ALL,
+		},
+		Actions: config.Actions{
+			AcceptRoute: false,
+		},
+	}
+	st_eComTarget := config.Statement{
+		Name: "st_eComRegExp",
+		Conditions: config.Conditions{
+			MatchPrefixSet:   "psExabgp",
+			MatchNeighborSet: "nsExabgp",
+			BgpConditions: config.BgpConditions{
+				MatchExtCommunitySet: "eComTarget",
+			},
+			MatchSetOptions: config.MATCH_SET_OPTIONS_TYPE_ALL,
+		},
+		Actions: config.Actions{
+			AcceptRoute: false,
+		},
+	}
 
 	test_01_import_policy_initial := config.PolicyDefinition{
 		Name:          "test_01_import_policy_initial",
@@ -833,15 +869,25 @@ func createPolicyConfig() *config.RoutingPolicy {
 		StatementList: []config.Statement{st_asprepend_lastas},
 	}
 
+	test_40_ecommunity_origin_condition_import := config.PolicyDefinition{
+		Name:          "test_40_ecommunity_origin_condition_import",
+		StatementList: []config.Statement{st_eComOrigin},
+	}
+
+	test_41_ecommunity_target_condition_export := config.PolicyDefinition{
+		Name:          "test_41_ecommunity_target_condition_export",
+		StatementList: []config.Statement{st_eComTarget},
+	}
+
 	ds := config.DefinedSets{
 		PrefixSetList:   []config.PrefixSet{ps0, ps1, ps2, ps3, ps4, ps5, ps6, psExabgp},
 		NeighborSetList: []config.NeighborSet{nsPeer2, nsPeer2V6, nsExabgp},
 		BgpDefinedSets: config.BgpDefinedSets{
 			AsPathSetList:    []config.AsPathSet{aspathFrom, aspathAny, aspathOrigin, aspathOnly},
 			CommunitySetList: []config.CommunitySet{comStr, comRegExp},
+			ExtCommunitySetList: []config.ExtCommunitySet{eComOrigin, eComTarget},
 		},
 	}
-
 	p := &config.RoutingPolicy{
 		DefinedSets: ds,
 		PolicyDefinitionList: []config.PolicyDefinition{
@@ -889,6 +935,8 @@ func createPolicyConfig() *config.RoutingPolicy {
 			test_37_aspath_prepend_action_export,
 			test_38_aspath_prepend_action_lastas_import,
 			test_39_aspath_prepend_action_lastas_export,
+			test_40_ecommunity_origin_condition_import,
+			test_41_ecommunity_target_condition_export,
 		},
 	}
 	return p
