@@ -253,6 +253,19 @@ class GoBGPTestBase(unittest.TestCase):
     def test_14_check_adj_rib_out(self):
         self.test_11_check_adj_rib_out()
 
+    def test_15_check_active_connection(self):
+        g1 = self.gobgp
+        g2 = GoBGPContainer(name='g2', asn=65000, router_id='192.168.0.5',
+                            ctn_image_name=self.gobgp.image,
+                            log_level=parser_option.gobgp_log_level)
+        g2.run()
+        br01 = self.bridges['br01']
+        br01.addif(g2)
+        g2.add_peer(g1, passive=True)
+        g1.add_peer(g2)
+        g1.wait_for(expected_state=BGP_FSM_ESTABLISHED, peer=g2)
+
+
 if __name__ == '__main__':
     if os.geteuid() is not 0:
         print "you are not root."

@@ -208,7 +208,7 @@ func (fsm *FSM) connectLoop() error {
 	ticker.Stop()
 
 	connect := func() {
-		if bgp.FSMState(fsm.peerConfig.BgpNeighborCommonState.State) == bgp.BGP_FSM_ACTIVE {
+		if fsm.state == bgp.BGP_FSM_ACTIVE {
 			var host string
 			addr := fsm.peerConfig.NeighborAddress
 
