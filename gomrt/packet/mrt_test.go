@@ -49,25 +49,25 @@ func testPeer(t *testing.T, p1 *Peer) {
 }
 
 func TestMrtPeer(t *testing.T) {
-	p := NewPeer(net.ParseIP("192.168.0.1"), net.ParseIP("10.0.0.1"), 65000, false)
+	p := NewPeer("192.168.0.1", "10.0.0.1", 65000, false)
 	testPeer(t, p)
 }
 
 func TestMrtPeerv6(t *testing.T) {
-	p := NewPeer(net.ParseIP("192.168.0.1"), net.ParseIP("2001::1"), 65000, false)
+	p := NewPeer("192.168.0.1", "2001::1", 65000, false)
 	testPeer(t, p)
 }
 
 func TestMrtPeerAS4(t *testing.T) {
-	p := NewPeer(net.ParseIP("192.168.0.1"), net.ParseIP("2001::1"), 135500, true)
+	p := NewPeer("192.168.0.1", "2001::1", 135500, true)
 	testPeer(t, p)
 }
 
 func TestMrtPeerIndexTable(t *testing.T) {
-	p1 := NewPeer(net.ParseIP("192.168.0.1"), net.ParseIP("10.0.0.1"), 65000, false)
-	p2 := NewPeer(net.ParseIP("192.168.0.1"), net.ParseIP("2001::1"), 65000, false)
-	p3 := NewPeer(net.ParseIP("192.168.0.1"), net.ParseIP("2001::1"), 135500, true)
-	pt1 := NewPeerIndexTable(net.ParseIP("192.168.0.1"), "test", []*Peer{p1, p2, p3})
+	p1 := NewPeer("192.168.0.1", "10.0.0.1", 65000, false)
+	p2 := NewPeer("192.168.0.1", "2001::1", 65000, false)
+	p3 := NewPeer("192.168.0.1", "2001::1", 135500, true)
+	pt1 := NewPeerIndexTable("192.168.0.1", "test", []*Peer{p1, p2, p3})
 	b1, err := pt1.Serialize()
 	if err != nil {
 		t.Fatal(err)

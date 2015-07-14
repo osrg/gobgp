@@ -225,18 +225,20 @@ func (p *Peer) Serialize() ([]byte, error) {
 	return append(buf, bbuf...), nil
 }
 
-func NewPeer(bgpid net.IP, ipaddr net.IP, asn uint32, isAS4 bool) *Peer {
+func NewPeer(bgpid string, ipaddr string, asn uint32, isAS4 bool) *Peer {
 	t := 0
-	if ipaddr.To4() == nil {
+	addr := net.ParseIP(ipaddr).To4()
+	if addr == nil {
 		t |= 1
+		addr = net.ParseIP(ipaddr).To16()
 	}
 	if isAS4 {
 		t |= (1 << 1)
 	}
 	return &Peer{
 		Type:      uint8(t),
-		BgpId:     bgpid,
-		IpAddress: ipaddr,
+		BgpId:     net.ParseIP(bgpid).To4(),
+		IpAddress: addr,
 		AS:        asn,
 	}
 }
@@ -300,9 +302,9 @@ func (t *PeerIndexTable) Serialize() ([]byte, error) {
 	return buf, nil
 }
 
-func NewPeerIndexTable(bgpid net.IP, viewname string, peers []*Peer) *PeerIndexTable {
+func NewPeerIndexTable(bgpid string, viewname string, peers []*Peer) *PeerIndexTable {
 	return &PeerIndexTable{
-		CollectorBgpId: bgpid,
+		CollectorBgpId: net.ParseIP(bgpid).To4(),
 		ViewName:       viewname,
 		Peers:          peers,
 	}
@@ -491,8 +493,8 @@ func (m *BGP4MPHeader) decodeFromBytes(data []byte) ([]byte, error) {
 	m.AddressFamily = binary.BigEndian.Uint16(data[2:4])
 	switch m.AddressFamily {
 	case bgp.AFI_IP:
-		m.PeerIpAddress = net.IP(data[4:8])
-		m.LocalIpAddress = net.IP(data[8:12])
+		m.PeerIpAddress = net.IP(data[4:8]).To4()
+		m.LocalIpAddress = net.IP(data[8:12]).To4()
 		data = data[12:]
 	case bgp.AFI_IP6:
 		m.PeerIpAddress = net.IP(data[4:20])
@@ -531,22 +533,28 @@ func (m *BGP4MPHeader) serialize() ([]byte, error) {
 	return append(buf, bbuf...), nil
 }
 
-func newBGP4MPHeader(peeras, localas uint32, intfindex uint16, peerip, localip net.IP, isAS4 bool) (*BGP4MPHeader, error) {
+func newBGP4MPHeader(peeras, localas uint32, intfindex uint16, peerip, localip string, isAS4 bool) (*BGP4MPHeader, error) {
 	var af uint16
-	if peerip.To4() != nil && localip.To4() != nil {
+	paddr := net.ParseIP(peerip).To4()
+	laddr := net.ParseIP(localip).To4()
+	if paddr != nil && laddr != nil {
 		af = bgp.AFI_IP
-	} else if peerip.To16() != nil && localip.To16() != nil {
-		af = bgp.AFI_IP6
 	} else {
-		return nil, fmt.Errorf("Peer IP Address and Local IP Address must have the same address family")
+		paddr = net.ParseIP(peerip).To16()
+		laddr = net.ParseIP(localip).To16()
+		if paddr != nil && laddr != nil {
+			af = bgp.AFI_IP6
+		} else {
+			return nil, fmt.Errorf("Peer IP Address and Local IP Address must have the same address family")
+		}
 	}
 	return &BGP4MPHeader{
 		PeerAS:         peeras,
 		LocalAS:        localas,
 		InterfaceIndex: intfindex,
 		AddressFamily:  af,
-		PeerIpAddress:  peerip,
-		LocalIpAddress: localip,
+		PeerIpAddress:  paddr,
+		LocalIpAddress: laddr,
 		isAS4:          isAS4,
 	}, nil
 }
@@ -582,7 +590,7 @@ func (m *BGP4MPStateChange) Serialize() ([]byte, error) {
 	return append(buf, bbuf...), nil
 }
 
-func NewBGP4MPStateChange(peeras, localas uint32, intfindex uint16, peerip, localip net.IP, isAS4 bool, oldstate, newstate BGPState) *BGP4MPStateChange {
+func NewBGP4MPStateChange(peeras, localas uint32, intfindex uint16, peerip, localip string, isAS4 bool, oldstate, newstate BGPState) *BGP4MPStateChange {
 	header, _ := newBGP4MPHeader(peeras, localas, intfindex, peerip, localip, isAS4)
 	return &BGP4MPStateChange{
 		BGP4MPHeader: header,
@@ -627,7 +635,7 @@ func (m *BGP4MPMessage) Serialize() ([]byte, error) {
 	return append(buf, bbuf...), nil
 }
 
-func NewBGP4MPMessage(peeras, localas uint32, intfindex uint16, peerip, localip net.IP, isAS4 bool, msg *bgp.BGPMessage) *BGP4MPMessage {
+func NewBGP4MPMessage(peeras, localas uint32, intfindex uint16, peerip, localip string, isAS4 bool, msg *bgp.BGPMessage) *BGP4MPMessage {
 	header, _ := newBGP4MPHeader(peeras, localas, intfindex, peerip, localip, isAS4)
 	return &BGP4MPMessage{
 		BGP4MPHeader: header,
@@ -635,7 +643,7 @@ func NewBGP4MPMessage(peeras, localas uint32, intfindex uint16, peerip, localip 
 	}
 }
 
-func NewBGP4MPMessageLocal(peeras, localas uint32, intfindex uint16, peerip, localip net.IP, isAS4 bool, msg *bgp.BGPMessage) *BGP4MPMessage {
+func NewBGP4MPMessageLocal(peeras, localas uint32, intfindex uint16, peerip, localip string, isAS4 bool, msg *bgp.BGPMessage) *BGP4MPMessage {
 	header, _ := newBGP4MPHeader(peeras, localas, intfindex, peerip, localip, isAS4)
 	return &BGP4MPMessage{
 		BGP4MPHeader: header,
