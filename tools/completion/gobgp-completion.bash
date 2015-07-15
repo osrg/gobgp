@@ -630,6 +630,81 @@ _gobgp_policy_community()
     must_have_one_noun=()
 }
 
+_gobgp_policy_extcommunity_add()
+{
+    last_command="gobgp_policy_extcommunity_add"
+    commands=()
+
+    flags=()
+    two_word_flags=()
+    flags_with_completion=()
+    flags_completion=()
+
+    flags+=("--help")
+    flags+=("-h")
+
+    must_have_one_flag=()
+    must_have_one_noun=()
+}
+
+_gobgp_policy_extcommunity_del_all()
+{
+    last_command="gobgp_policy_extcommunity_del_all"
+    commands=()
+
+    flags=()
+    two_word_flags=()
+    flags_with_completion=()
+    flags_completion=()
+
+    flags+=("--help")
+    flags+=("-h")
+
+    must_have_one_flag=()
+    must_have_one_noun=()
+}
+
+_gobgp_policy_extcommunity_del()
+{
+    last_command="gobgp_policy_extcommunity_del"
+    commands=()
+    commands+=("all")
+    q_type="extcommunity"
+    __gobgp_q_policy
+
+    flags=()
+    two_word_flags=()
+    flags_with_completion=()
+    flags_completion=()
+
+    flags+=("--help")
+    flags+=("-h")
+
+    must_have_one_flag=()
+    must_have_one_noun=()
+}
+
+_gobgp_policy_extcommunity()
+{
+    last_command="gobgp_policy_extcommunity"
+    commands=()
+    commands+=("add")
+    commands+=("del")
+    q_type="extcommunity"
+    __gobgp_q_policy
+
+    flags=()
+    two_word_flags=()
+    flags_with_completion=()
+    flags_completion=()
+
+    flags+=("--help")
+    flags+=("-h")
+
+    must_have_one_flag=()
+    must_have_one_noun=()
+}
+
 _gobgp_policy_routepolicy_add_state()
 {
     last_command="gobgp_policy_routepolicy_add_stat"
@@ -644,10 +719,12 @@ _gobgp_policy_routepolicy_add_state()
 
     flags+=("--a-community=")
     flags+=("--a-med=")
+    flags+=("--a-asprepend=")
     flags+=("--a-route=")
     flags+=("--c-aslen=")
     flags+=("--c-aspath=")
     flags+=("--c-community=")
+    flags+=("--c-extcommunity=")
     flags+=("--c-neighbor=")
     flags+=("--c-option=")
     flags+=("--c-prefix=")
@@ -672,10 +749,12 @@ _gobgp_policy_routepolicy_add()
 
     flags+=("--a-community=")
     flags+=("--a-med=")
+    flags+=("--a-asprepend=")
     flags+=("--a-route=")
     flags+=("--c-aslen=")
     flags+=("--c-aspath=")
     flags+=("--c-community=")
+    flags+=("--c-extcommunity=")
     flags+=("--c-neighbor=")
     flags+=("--c-option=")
     flags+=("--c-prefix=")
@@ -752,6 +831,7 @@ _gobgp_policy()
     commands+=("neighbor")
     commands+=("aspath")
     commands+=("community")
+    commands+=("extcommunity")
     commands+=("routepolicy")
 
     flags=()
