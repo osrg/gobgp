@@ -171,7 +171,7 @@ func main() {
 			if bgpConfig == nil {
 				bgpServer.SetGlobalType(newConfig.Bgp.Global)
 				bgpConfig = &newConfig.Bgp
-				added = newConfig.Bgp.NeighborList
+				added = newConfig.Bgp.Neighbors.NeighborList
 				deleted = []config.Neighbor{}
 			} else {
 				bgpConfig, added, deleted = config.UpdateConfig(bgpConfig, &newConfig.Bgp)
@@ -188,11 +188,11 @@ func main() {
 			}
 
 			for _, p := range added {
-				log.Infof("Peer %v is added", p.NeighborAddress)
+				log.Infof("Peer %v is added", p.NeighborConfig.NeighborAddress)
 				bgpServer.PeerAdd(p)
 			}
 			for _, p := range deleted {
-				log.Infof("Peer %v is deleted", p.NeighborAddress)
+				log.Infof("Peer %v is deleted", p.NeighborConfig.NeighborAddress)
 				bgpServer.PeerDelete(p)
 			}
 		case sig := <-sigCh:

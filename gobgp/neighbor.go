@@ -598,22 +598,22 @@ func showNeighborPolicy(remoteIP net.IP) error {
 
 	fmt.Printf("DefaultImportPolicy: %s\n", ap.DefaultImportPolicy)
 	fmt.Printf("DefaultExportPolicy: %s\n", ap.DefaultExportPolicy)
-    fmt.Printf("DefaultDistributePolicy: %s\n", ap.DefaultDistributePolicy)
+	fmt.Printf("DefaultDistributePolicy: %s\n", ap.DefaultDistributePolicy)
 	fmt.Printf("ImportPolicies:\n")
 	for _, inPolicy := range ap.ImportPolicies {
 		fmt.Printf("  PolicyName %s:\n", inPolicy.PolicyDefinitionName)
-		showPolicyStatement("  ", inPolicy)
+		showPolicyStatement(2, inPolicy)
 	}
 	fmt.Printf("ExportPolicies:\n")
 	for _, outPolicy := range ap.ExportPolicies {
 		fmt.Printf("  PolicyName %s:\n", outPolicy.PolicyDefinitionName)
-		showPolicyStatement("  ", outPolicy)
+		showPolicyStatement(2, outPolicy)
 	}
-    fmt.Printf("DistributePolicies:\n")
-    for _, distPolicy := range ap.DistributePolicies {
-        fmt.Printf("  PolicyName %s:\n", distPolicy.PolicyDefinitionName)
-        showPolicyStatement("  ", distPolicy)
-    }
+	fmt.Printf("DistributePolicies:\n")
+	for _, distPolicy := range ap.DistributePolicies {
+		fmt.Printf("  PolicyName %s:\n", distPolicy.PolicyDefinitionName)
+		showPolicyStatement(2, distPolicy)
+	}
 	return nil
 }
 

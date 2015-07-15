@@ -62,7 +62,7 @@ type Policy struct {
 }
 
 func NewPolicy(pd config.PolicyDefinition, ds config.DefinedSets) *Policy {
-	stmtList := pd.StatementList
+	stmtList := pd.Statements.StatementList
 	st := make([]*Statement, 0)
 	p := &Policy{
 		Name: pd.Name,
@@ -73,14 +73,16 @@ func NewPolicy(pd config.PolicyDefinition, ds config.DefinedSets) *Policy {
 		conditions := make([]Condition, 0)
 
 		// prefix match
-		prefixSetName := statement.Conditions.MatchPrefixSet
-		pc := NewPrefixCondition(prefixSetName, ds.PrefixSetList)
-		conditions = append(conditions, pc)
+		pc := NewPrefixCondition(statement.Conditions.MatchPrefixSet, ds.PrefixSets.PrefixSetList)
+		if pc != nil {
+			conditions = append(conditions, pc)
+		}
 
 		// neighbor match
-		neighborSetName := statement.Conditions.MatchNeighborSet
-		nc := NewNeighborCondition(neighborSetName, ds.NeighborSetList)
-		conditions = append(conditions, nc)
+		nc := NewNeighborCondition(statement.Conditions.MatchNeighborSet, ds.NeighborSets.NeighborSetList)
+		if nc != nil {
+			conditions = append(conditions, nc)
+		}
 
 		// AsPathLengthCondition
 		c := statement.Conditions.BgpConditions.AsPathLength
@@ -89,23 +91,22 @@ func NewPolicy(pd config.PolicyDefinition, ds config.DefinedSets) *Policy {
 			conditions = append(conditions, ac)
 		}
 
+		bgpDefset := &ds.BgpDefinedSets
+		bgpConditions := &statement.Conditions.BgpConditions
 		// AsPathCondition
-		asPathSetName := statement.Conditions.BgpConditions.MatchAsPathSet
-		asc := NewAsPathCondition(asPathSetName, ds.BgpDefinedSets.AsPathSetList)
+		asc := NewAsPathCondition(bgpConditions.MatchAsPathSet, bgpDefset.AsPathSets.AsPathSetList)
 		if asc != nil {
 			conditions = append(conditions, asc)
 		}
 
 		// CommunityCondition
-		communitySetName := statement.Conditions.BgpConditions.MatchCommunitySet
-		cc := NewCommunityCondition(communitySetName, ds.BgpDefinedSets.CommunitySetList)
+		cc := NewCommunityCondition(bgpConditions.MatchCommunitySet, bgpDefset.CommunitySets.CommunitySetList)
 		if cc != nil {
 			conditions = append(conditions, cc)
 		}
 
 		// ExtendedCommunityCondition
-		extCommunitySetName := statement.Conditions.BgpConditions.MatchExtCommunitySet
-		ecc := NewExtCommunityCondition(extCommunitySetName, ds.BgpDefinedSets.ExtCommunitySetList)
+		ecc := NewExtCommunityCondition(bgpConditions.MatchExtCommunitySet, bgpDefset.ExtCommunitySets.ExtCommunitySetList)
 		if ecc != nil {
 			conditions = append(conditions, ecc)
 		}
@@ -137,7 +138,6 @@ func NewPolicy(pd config.PolicyDefinition, ds config.DefinedSets) *Policy {
 			Conditions:          conditions,
 			routingAction:       ra,
 			modificationActions: mda,
-			MatchSetOptions:     statement.Conditions.MatchSetOptions,
 		}
 
 		st = append(st, s)
@@ -151,52 +151,18 @@ type Statement struct {
 	Conditions          []Condition
 	routingAction       *RoutingAction
 	modificationActions []Action
-	MatchSetOptions     config.MatchSetOptionsType
 }
 
 // evaluate each condition in the statement according to MatchSetOptions
 func (s *Statement) evaluate(p *table.Path) bool {
 
-	optionType := s.MatchSetOptions
-
-	result := false
-	if optionType == config.MATCH_SET_OPTIONS_TYPE_ALL {
-		result = true
-	}
-
 	for _, condition := range s.Conditions {
-
 		r := condition.evaluate(p)
-
-		switch optionType {
-		case config.MATCH_SET_OPTIONS_TYPE_ALL:
-			result = result && r
-			if !result {
-				return false
-			}
-
-		case config.MATCH_SET_OPTIONS_TYPE_ANY:
-			result = result || r
-			if result {
-				return true
-			}
-
-		case config.MATCH_SET_OPTIONS_TYPE_INVERT:
-			result = result || r
-			if result {
-				return false
-			}
-
-		default:
+		if !r {
 			return false
 		}
 	}
-
-	if optionType == config.MATCH_SET_OPTIONS_TYPE_INVERT {
-		return !result
-	} else {
-		return result
-	}
+	return true
 }
 
 type Condition interface {
@@ -215,15 +181,21 @@ type PrefixCondition struct {
 	DefaultCondition
 	PrefixConditionName string
 	PrefixList          []Prefix
+	MatchOption         config.MatchSetOptionsRestrictedType
 }
 
-func NewPrefixCondition(prefixSetName string, defPrefixList []config.PrefixSet) *PrefixCondition {
+func NewPrefixCondition(matchPref config.MatchPrefixSet, defPrefixList []config.PrefixSet) *PrefixCondition {
+
+	prefixSetName := matchPref.PrefixSet
+	options := matchPref.MatchSetOptions
 
 	prefixList := make([]Prefix, 0)
 	for _, ps := range defPrefixList {
 		if ps.PrefixSetName == prefixSetName {
-			for _, pl := range ps.PrefixList {
-				prefix, e := NewPrefix(pl.Address, pl.Masklength, pl.MasklengthRange)
+			for _, prefix := range ps.PrefixList {
+				addr := prefix.IpPrefix.IP
+				maskLength, _ := prefix.IpPrefix.Mask.Size()
+				prefix, e := NewPrefix(addr, uint8(maskLength), prefix.MasklengthRange)
 				if e != nil {
 					log.WithFields(log.Fields{
 						"Topic":  "Policy",
@@ -237,13 +209,17 @@ func NewPrefixCondition(prefixSetName string, defPrefixList []config.PrefixSet) 
 		}
 	}
 
+	if len(prefixList) == 0 {
+		return nil
+	}
+
 	pc := &PrefixCondition{
 		PrefixConditionName: prefixSetName,
 		PrefixList:          prefixList,
+		MatchOption:         options,
 	}
 
 	return pc
-
 }
 
 // compare prefixes in this condition and nlri of path and
@@ -256,26 +232,38 @@ func (c *PrefixCondition) evaluate(path *table.Path) bool {
 		return true
 	}
 
+	result := false
 	for _, cp := range c.PrefixList {
 		if ipPrefixCalculate(path, cp) {
-			log.WithFields(log.Fields{
-				"Topic":  "Policy",
-				"Prefix": cp.Address.String(),
-			}).Debug("prefix matched")
-
-			return true
+			result = true
+			break
 		}
 	}
-	return false
+	if c.MatchOption == config.MATCH_SET_OPTIONS_RESTRICTED_TYPE_INVERT {
+		result = !result
+	}
+
+	log.WithFields(log.Fields{
+		"Topic":     "Policy",
+		"Condition": "prefix",
+		"Path":      path,
+		"Matched":   result,
+	}).Debug("evaluate prefix")
+
+	return result
 }
 
 type NeighborCondition struct {
 	DefaultCondition
 	NeighborConditionName string
 	NeighborList          []net.IP
+	MatchOption           config.MatchSetOptionsRestrictedType
 }
 
-func NewNeighborCondition(neighborSetName string, defNeighborSetList []config.NeighborSet) *NeighborCondition {
+func NewNeighborCondition(matchNeighborSet config.MatchNeighborSet, defNeighborSetList []config.NeighborSet) *NeighborCondition {
+
+	neighborSetName := matchNeighborSet.NeighborSet
+	options := matchNeighborSet.MatchSetOptions
 
 	neighborList := make([]net.IP, 0)
 	for _, neighborSet := range defNeighborSetList {
@@ -286,9 +274,14 @@ func NewNeighborCondition(neighborSetName string, defNeighborSetList []config.Ne
 		}
 	}
 
+	if len(neighborList) == 0 {
+		return nil
+	}
+
 	nc := &NeighborCondition{
 		NeighborConditionName: neighborSetName,
 		NeighborList:          neighborList,
+		MatchOption:           options,
 	}
 
 	return nc
@@ -304,18 +297,27 @@ func (c *NeighborCondition) evaluate(path *table.Path) bool {
 		return true
 	}
 
+	sAddr := path.GetSource().Address
+	result := false
 	for _, neighbor := range c.NeighborList {
-		cAddr := neighbor
-		pAddr := path.GetSource().Address
-		if pAddr.Equal(cAddr) {
-			log.WithFields(log.Fields{
-				"Topic":           "Policy",
-				"NeighborAddress": pAddr.String(),
-			}).Debug("neighbor matched")
-			return true
+		if sAddr.Equal(neighbor) {
+			result = true
+			break
 		}
 	}
-	return false
+
+	if c.MatchOption == config.MATCH_SET_OPTIONS_RESTRICTED_TYPE_INVERT {
+		result = !result
+	}
+
+	log.WithFields(log.Fields{
+		"Topic":           "Policy",
+		"Condition":       "neighbor",
+		"NeighborAddress": sAddr.String(),
+		"Matched":         result,
+	}).Debug("evaluate neighbor")
+
+	return result
 }
 
 type AsPathLengthCondition struct {
@@ -368,23 +370,23 @@ func (c *AsPathLengthCondition) evaluate(path *table.Path) bool {
 	case ATTRIBUTE_LE:
 		result = c.Value >= length
 	default:
-		return false
+		result = false
 	}
 
-	if result {
-		log.WithFields(log.Fields{
-			"Topic":     "Policy",
-			"Condition": "aspath length",
-			"Reason":    c.Operator,
-		}).Debug("condition matched")
-	}
+	log.WithFields(log.Fields{
+		"Topic":     "Policy",
+		"Condition": "aspath length",
+		"Reason":    c.Operator,
+		"Matched":   result,
+	}).Debug("evaluate aspath length")
 
 	return result
 }
 
 type AsPathCondition struct {
 	DefaultCondition
-	AsPathList []*AsPathElement
+	AsPathList  []*AsPathElement
+	MatchOption config.MatchSetOptionsType
 }
 
 type AsnPos int
@@ -407,14 +409,16 @@ type AsPathElement struct {
 // - ^100$ (from as100 and originated by as100)
 // - 100$  (originated by as100)
 // - 100   (from or through or originated by as100)
-func NewAsPathCondition(asPathSetName string, defAsPathSetList []config.AsPathSet) *AsPathCondition {
+func NewAsPathCondition(matchSet config.MatchAsPathSet, defAsPathSetList []config.AsPathSet) *AsPathCondition {
+
+	asPathSetName := matchSet.AsPathSet
+	options := matchSet.MatchSetOptions
 
 	regAsn, _ := regexp.Compile("^(\\^?)([0-9]+)(\\$?)$")
-
 	asPathList := make([]*AsPathElement, 0)
 	for _, asPathSet := range defAsPathSetList {
 		if asPathSet.AsPathSetName == asPathSetName {
-			for _, as := range asPathSet.AsPathSetMembers {
+			for _, as := range asPathSet.AsPathSetMember {
 				if regAsn.MatchString(as) {
 
 					group := regAsn.FindStringSubmatch(as)
@@ -452,7 +456,8 @@ func NewAsPathCondition(asPathSetName string, defAsPathSetList []config.AsPathSe
 			}
 
 			c := &AsPathCondition{
-				AsPathList: asPathList,
+				AsPathList:  asPathList,
+				MatchOption: options,
 			}
 			return c
 		}
@@ -460,19 +465,14 @@ func NewAsPathCondition(asPathSetName string, defAsPathSetList []config.AsPathSe
 	return nil
 }
 
-// compare AS_PATH in the message's AS_PATH attribute with
-// the one in condition.
-func (c *AsPathCondition) evaluate(path *table.Path) bool {
-
-	aspath := path.GetAsSeqList()
-
-	if len(aspath) == 0 {
-		return false
+func (c *AsPathCondition) checkMembers(aspath []uint32, checkAll bool) bool {
+	result := false
+	if checkAll {
+		result = true
 	}
 
-	matched := false
 	for _, member := range c.AsPathList {
-
+		matched := false
 		switch member.postiion {
 		case AS_FROM:
 			matched = aspath[0] == member.asn
@@ -497,17 +497,57 @@ func (c *AsPathCondition) evaluate(path *table.Path) bool {
 				"Condition": "aspath length",
 				"ASN":       member.asn,
 				"Position":  member.postiion,
-			}).Debug("condition matched")
-			return true
-		}
+			}).Debug("aspath condition matched")
 
+			if !checkAll {
+				result = true
+				break
+			}
+
+		} else {
+			if checkAll {
+				result = false
+				break
+			}
+		}
 	}
-	return false
+
+	return result
+}
+
+// compare AS_PATH in the message's AS_PATH attribute with
+// the one in condition.
+func (c *AsPathCondition) evaluate(path *table.Path) bool {
+
+	aspath := path.GetAsSeqList()
+
+	if len(aspath) == 0 {
+		return false
+	}
+
+	result := false
+	if c.MatchOption == config.MATCH_SET_OPTIONS_TYPE_ALL {
+		result = c.checkMembers(aspath, true)
+	} else if c.MatchOption == config.MATCH_SET_OPTIONS_TYPE_ANY {
+		result = c.checkMembers(aspath, false)
+	} else if c.MatchOption == config.MATCH_SET_OPTIONS_TYPE_INVERT {
+		result = !c.checkMembers(aspath, false)
+	}
+
+	log.WithFields(log.Fields{
+		"Topic":       "Policy",
+		"Condition":   "aspath",
+		"MatchOption": c.MatchOption,
+		"Matched":     result,
+	}).Debug("evaluate aspath")
+
+	return result
 }
 
 type CommunityCondition struct {
 	DefaultCondition
 	CommunityList []*CommunityElement
+	MatchOption   config.MatchSetOptionsType
 }
 
 const (
@@ -535,12 +575,15 @@ type CommunityElement struct {
 // CommunityCondition supports uint and string like 65000:100
 // and also supports regular expressions that are available in golang.
 // if GoBGP can't parse the regular expression, it return nil and an error message is logged.
-func NewCommunityCondition(communitySetName string, defCommunitySetList []config.CommunitySet) *CommunityCondition {
+func NewCommunityCondition(matchSet config.MatchCommunitySet, defCommunitySetList []config.CommunitySet) *CommunityCondition {
+
+	communitySetName := matchSet.CommunitySet
+	options := matchSet.MatchSetOptions
 
 	communityList := make([]*CommunityElement, 0)
 	for _, communitySet := range defCommunitySetList {
 		if communitySet.CommunitySetName == communitySetName {
-			for _, c := range communitySet.CommunityMembers {
+			for _, c := range communitySet.CommunityMember {
 
 				e := &CommunityElement{
 					isRegExp:     false,
@@ -567,6 +610,7 @@ func NewCommunityCondition(communitySetName string, defCommunitySetList []config
 
 			c := &CommunityCondition{
 				CommunityList: communityList,
+				MatchOption:   options,
 			}
 			return c
 		}
@@ -631,14 +675,11 @@ func getCommunityValue(comStr string) (bool, uint32) {
 	return false, 0
 }
 
-// compare community in the message's attribute with
-// the one in the condition.
-func (c *CommunityCondition) evaluate(path *table.Path) bool {
+func (c *CommunityCondition) checkMembers(communities []uint32, checkAll bool) bool {
 
-	communities := path.GetCommunities()
-
-	if len(communities) == 0 {
-		return false
+	result := false
+	if checkAll {
+		result = true
 	}
 
 	makeStr := func(c uint32) string {
@@ -690,15 +731,62 @@ func (c *CommunityCondition) evaluate(path *table.Path) bool {
 				"Community": makeStr(communities[idx]),
 			}).Debug("condition matched")
 
-			return true
+			if !checkAll {
+				result = true
+				break
+			}
+
+		} else {
+			if checkAll {
+				result = false
+				break
+			}
 		}
 	}
-	return false
+
+	return result
+
+}
+
+// compare community in the message's attribute with
+// the one in the condition.
+func (c *CommunityCondition) evaluate(path *table.Path) bool {
+
+	communities := path.GetCommunities()
+
+	if len(communities) == 0 {
+		log.WithFields(log.Fields{
+			"Topic":       "Policy",
+			"Condition":   "community",
+			"MatchOption": c.MatchOption,
+			"Matched":     false,
+		}).Debug("community length is zero")
+		return false
+	}
+
+	result := false
+	if c.MatchOption == config.MATCH_SET_OPTIONS_TYPE_ALL {
+		result = c.checkMembers(communities, true)
+	} else if c.MatchOption == config.MATCH_SET_OPTIONS_TYPE_ANY {
+		result = c.checkMembers(communities, false)
+	} else if c.MatchOption == config.MATCH_SET_OPTIONS_TYPE_INVERT {
+		result = !c.checkMembers(communities, false)
+	}
+
+	log.WithFields(log.Fields{
+		"Topic":       "Policy",
+		"Condition":   "community",
+		"MatchOption": c.MatchOption,
+		"Matched":     result,
+	}).Debug("evaluate community")
+
+	return result
 }
 
 type ExtCommunityCondition struct {
 	DefaultCondition
 	ExtCommunityList []*ExtCommunityElement
+	MatchOption      config.MatchSetOptionsType
 }
 
 type ExtCommunityElement struct {
@@ -711,15 +799,19 @@ type ExtCommunityElement struct {
 	regExp      *regexp.Regexp
 }
 
-func NewExtCommunityCondition(extComSetName string, defExtComSetList []config.ExtCommunitySet) *ExtCommunityCondition {
+func NewExtCommunityCondition(matchSet config.MatchExtCommunitySet, defExtComSetList []config.ExtCommunitySet) *ExtCommunityCondition {
+
+	extComSetName := matchSet.ExtCommunitySet
+	option := matchSet.MatchSetOptions
+
 	extCommunityElemList := make([]*ExtCommunityElement, 0)
 	for _, extComSet := range defExtComSetList {
 		if extComSet.ExtCommunitySetName == extComSetName {
-			for _, c := range extComSet.ExtCommunityMembers {
+			for _, c := range extComSet.ExtCommunityMember {
 				matchAll := false
 				e := &ExtCommunityElement{
 					isRegExp: false,
-					comStr: c,
+					comStr:   c,
 				}
 				matchType, val := getECommunitySubType(c)
 				if !matchType {
@@ -770,6 +862,7 @@ func NewExtCommunityCondition(extComSetName string, defExtComSetList []config.Ex
 			}
 			ce := &ExtCommunityCondition{
 				ExtCommunityList: extCommunityElemList,
+				MatchOption:      option,
 			}
 			return ce
 		}
@@ -827,9 +920,13 @@ func getECommunityElem(gAdmin string) (bool, bgp.ExtendedCommunityAttrType, inte
 	return false, bgp.ExtendedCommunityAttrType(0xFF), nil
 }
 
-// compare extended community in the message's attribute with
-// the one in the condition.
-func (c *ExtCommunityCondition) evaluate(path *table.Path) bool {
+func (c *ExtCommunityCondition) checkMembers(eCommunities []interface{}, checkAll bool) bool {
+
+	result := false
+	if checkAll {
+		result = true
+	}
+
 	makeAs4Str := func(ec *ExtCommunityElement) string {
 		t := ec.ecType
 		str := fmt.Sprintf("%d", ec.localAdmin)
@@ -856,10 +953,6 @@ func (c *ExtCommunityCondition) evaluate(path *table.Path) bool {
 			subStr = "SoO"
 		}
 		return subStr
-	}
-	eCommunities := path.GetExtCommunities()
-	if len(eCommunities) == 0 || c == nil {
-		return false
 	}
 
 	matched := false
@@ -890,15 +983,59 @@ func (c *ExtCommunityCondition) evaluate(path *table.Path) bool {
 		}
 		if matched {
 			log.WithFields(log.Fields{
-				"Topic":     "Policy",
-				"Condition": "Extended Community",
+				"Topic":              "Policy",
+				"Condition":          "Extended Community",
 				"Extended Community": matchStr,
 			}).Debug("condition matched")
 
-			return true
+			if !checkAll {
+				result = true
+				break
+			}
+
+		} else {
+			if checkAll {
+				result = false
+				break
+			}
 		}
 	}
-	return false
+	return result
+}
+
+// compare extended community in the message's attribute with
+// the one in the condition.
+func (c *ExtCommunityCondition) evaluate(path *table.Path) bool {
+
+	eCommunities := path.GetExtCommunities()
+	if len(eCommunities) == 0 {
+		log.WithFields(log.Fields{
+			"Topic":     "Policy",
+			"Condition": "extended community",
+			"Matched":   false,
+			"Path":      path,
+		}).Debug("extended community length is zero")
+		return false
+	}
+
+	result := false
+	if c.MatchOption == config.MATCH_SET_OPTIONS_TYPE_ALL {
+		result = c.checkMembers(eCommunities, true)
+	} else if c.MatchOption == config.MATCH_SET_OPTIONS_TYPE_ANY {
+		result = c.checkMembers(eCommunities, false)
+	} else if c.MatchOption == config.MATCH_SET_OPTIONS_TYPE_INVERT {
+		result = !c.checkMembers(eCommunities, false)
+	}
+
+	log.WithFields(log.Fields{
+		"Topic":       "Policy",
+		"Condition":   "extended community",
+		"MatchOption": c.MatchOption,
+		"Matched":     result,
+		"Path":        path,
+	}).Debug("evaluate extended community")
+
+	return result
 }
 
 type Action interface {
@@ -919,7 +1056,7 @@ type RoutingAction struct {
 
 func NewRoutingAction(action config.Actions) *RoutingAction {
 	r := &RoutingAction{
-		AcceptRoute: action.AcceptRoute,
+		AcceptRoute: action.RouteDisposition.AcceptRoute,
 	}
 	return r
 }
@@ -932,12 +1069,10 @@ func (r *RoutingAction) apply(path *table.Path) *table.Path {
 	}
 }
 
-type ActionType int
-
 type CommunityAction struct {
 	DefaultAction
 	Values []uint32
-	action ActionType
+	action config.BgpSetCommunityOptionType
 }
 
 const (
@@ -953,13 +1088,13 @@ const (
 func NewCommunityAction(action config.SetCommunity) *CommunityAction {
 
 	m := &CommunityAction{}
-
-	if len(action.Communities) == 0 && action.Options != COMMUNITY_ACTION_NULL {
+	communities := action.SetCommunityMethod.Communities
+	if len(communities) == 0 && action.Options != COMMUNITY_ACTION_REPLACE {
 		return nil
 	}
 
-	values := make([]uint32, len(action.Communities))
-	for i, com := range action.Communities {
+	values := make([]uint32, len(communities))
+	for i, com := range communities {
 		matched, value := getCommunityValue(com)
 		if matched {
 			values[i] = value
@@ -980,8 +1115,6 @@ func NewCommunityAction(action config.SetCommunity) *CommunityAction {
 		m.action = config.BGP_SET_COMMUNITY_OPTION_TYPE_REMOVE
 	case COMMUNITY_ACTION_REPLACE:
 		m.action = config.BGP_SET_COMMUNITY_OPTION_TYPE_REPLACE
-	case COMMUNITY_ACTION_NULL:
-		m.action = config.BGP_SET_COMMUNITY_OPTION_TYPE_NULL
 	default:
 		log.WithFields(log.Fields{
 			"Topic": "Policy",
@@ -1002,11 +1135,19 @@ func (a *CommunityAction) apply(path *table.Path) *table.Path {
 		path.RemoveCommunities(list)
 	case config.BGP_SET_COMMUNITY_OPTION_TYPE_REPLACE:
 		path.SetCommunities(list, true)
-	case config.BGP_SET_COMMUNITY_OPTION_TYPE_NULL:
-		path.ClearCommunities()
 	}
+
+	log.WithFields(log.Fields{
+		"Topic":  "Policy",
+		"Action": "community",
+		"Values": list,
+		"Method": a.action,
+	}).Debug("community action applied")
+
 	return path
 }
+
+type ActionType int
 
 type MedAction struct {
 	DefaultAction
@@ -1084,6 +1225,13 @@ func (a *MedAction) apply(path *table.Path) *table.Path {
 			"Topic": "Policy",
 			"Type":  "Med Action",
 		}).Warn(err)
+	} else {
+		log.WithFields(log.Fields{
+			"Topic":      "Policy",
+			"Action":     "med",
+			"Value":      a.Value,
+			"ActionType": a.action,
+		}).Debug("med action applied")
 	}
 
 	return path
@@ -1149,6 +1297,14 @@ func (a *AsPathPrependAction) apply(path *table.Path) *table.Path {
 	}
 
 	path.PrependAsn(asn, a.repeat)
+
+	log.WithFields(log.Fields{
+		"Topic":  "Policy",
+		"Action": "aspath prepend",
+		"ASN":    asn,
+		"Repeat": a.repeat,
+	}).Debug("aspath prepend action applied")
+
 	return path
 }
 
@@ -1216,7 +1372,7 @@ func (p *Policy) Apply(path *table.Path) (bool, RouteType, *table.Path) {
 			"Topic":      "Policy",
 			"Path":       path,
 			"PolicyName": p.Name,
-		}).Debug("statement.Conditions.evaluate : ", result)
+		}).Debug("statement evaluate : ", result)
 
 		var p *table.Path
 		if result {
@@ -1290,20 +1446,45 @@ const (
 )
 
 const (
-	OPTIONS_ALL    string = "ALL"
-	OPTIONS_ANY           = "ANY"
+	OPTIONS_ANY    string = "ANY"
+	OPTIONS_ALL           = "ALL"
 	OPTIONS_INVERT        = "INVERT"
 )
 
 func MatchSetOptionToString(option config.MatchSetOptionsType) string {
-	var op string
+	op := OPTIONS_ANY
 	switch option {
 	case config.MATCH_SET_OPTIONS_TYPE_ALL:
 		op = OPTIONS_ALL
-	case config.MATCH_SET_OPTIONS_TYPE_ANY:
-		op = OPTIONS_ANY
 	case config.MATCH_SET_OPTIONS_TYPE_INVERT:
 		op = OPTIONS_INVERT
+	}
+	return op
+}
+
+func MatchSetOptionsRestrictedToString(option config.MatchSetOptionsRestrictedType) string {
+	op := OPTIONS_ANY
+	if option == config.MATCH_SET_OPTIONS_RESTRICTED_TYPE_INVERT {
+		op = OPTIONS_INVERT
+	}
+	return op
+}
+
+func MatchSetOptionsToType(option string) config.MatchSetOptionsType {
+	op := config.MATCH_SET_OPTIONS_TYPE_ANY
+	switch option {
+	case OPTIONS_ALL:
+		op = config.MATCH_SET_OPTIONS_TYPE_ALL
+	case OPTIONS_INVERT:
+		op = config.MATCH_SET_OPTIONS_TYPE_INVERT
+	}
+	return op
+}
+
+func MatchSetOptionsRestrictedToType(option string) config.MatchSetOptionsRestrictedType {
+	op := config.MATCH_SET_OPTIONS_RESTRICTED_TYPE_ANY
+	if option == OPTIONS_INVERT {
+		op = config.MATCH_SET_OPTIONS_RESTRICTED_TYPE_INVERT
 	}
 	return op
 }
@@ -1321,7 +1502,7 @@ func IndexOfPrefixSet(conPrefixSetList []config.PrefixSet, reqPrefixSet config.P
 				return idxPrefixSet, idxPrefix
 			}
 			for j, conPrefix := range conPrefixSet.PrefixList {
-				if reflect.DeepEqual(conPrefix.Address, reqPrefixSet.PrefixList[0].Address) && conPrefix.Masklength == reqPrefixSet.PrefixList[0].Masklength &&
+				if reflect.DeepEqual(conPrefix.IpPrefix, reqPrefixSet.PrefixList[0].IpPrefix) &&
 					conPrefix.MasklengthRange == reqPrefixSet.PrefixList[0].MasklengthRange {
 					idxPrefix = j
 					return idxPrefixSet, idxPrefix
@@ -1364,11 +1545,11 @@ func IndexOfAsPathSet(conAsPathSetList []config.AsPathSet, reqAsPathSet config.A
 	for i, conAsPathSet := range conAsPathSetList {
 		if conAsPathSet.AsPathSetName == reqAsPathSet.AsPathSetName {
 			idxAsPathSet = i
-			if len(reqAsPathSet.AsPathSetMembers) == 0 {
+			if len(reqAsPathSet.AsPathSetMember) == 0 {
 				return idxAsPathSet, idxAsPath
 			}
-			for j, conAsPath := range conAsPathSet.AsPathSetMembers {
-				if conAsPath == reqAsPathSet.AsPathSetMembers[0] {
+			for j, conAsPath := range conAsPathSet.AsPathSetMember {
+				if conAsPath == reqAsPathSet.AsPathSetMember[0] {
 					idxAsPath = j
 					return idxAsPathSet, idxAsPath
 				}
@@ -1387,11 +1568,11 @@ func IndexOfCommunitySet(conCommunitySetList []config.CommunitySet, reqCommunity
 	for i, conCommunitySet := range conCommunitySetList {
 		if conCommunitySet.CommunitySetName == reqCommunitySet.CommunitySetName {
 			idxCommunitySet = i
-			if len(reqCommunitySet.CommunityMembers) == 0 {
+			if len(reqCommunitySet.CommunityMember) == 0 {
 				return idxCommunitySet, idxCommunity
 			}
-			for j, conCommunity := range conCommunitySet.CommunityMembers {
-				if conCommunity == reqCommunitySet.CommunityMembers[0] {
+			for j, conCommunity := range conCommunitySet.CommunityMember {
+				if conCommunity == reqCommunitySet.CommunityMember[0] {
 					idxCommunity = j
 					return idxCommunitySet, idxCommunity
 				}
@@ -1410,11 +1591,11 @@ func IndexOfExtCommunitySet(conExtCommunitySetList []config.ExtCommunitySet, req
 	for i, conExtCommunitySet := range conExtCommunitySetList {
 		if conExtCommunitySet.ExtCommunitySetName == reqExtCommunitySet.ExtCommunitySetName {
 			idxExtCommunitySet = i
-			if len(reqExtCommunitySet.ExtCommunityMembers) == 0 {
+			if len(reqExtCommunitySet.ExtCommunityMember) == 0 {
 				return idxExtCommunitySet, idxExtCommunity
 			}
-			for j, conExtCommunity := range conExtCommunitySet.ExtCommunityMembers {
-				if conExtCommunity == reqExtCommunitySet.ExtCommunityMembers[0] {
+			for j, conExtCommunity := range conExtCommunitySet.ExtCommunityMember {
+				if conExtCommunity == reqExtCommunitySet.ExtCommunityMember[0] {
 					idxExtCommunity = j
 					return idxExtCommunitySet, idxExtCommunity
 				}
@@ -1433,11 +1614,11 @@ func IndexOfPolicyDefinition(conPolicyList []config.PolicyDefinition, reqPolicy 
 	for i, conPolicy := range conPolicyList {
 		if conPolicy.Name == reqPolicy.Name {
 			idxPolicyDefinition = i
-			if reqPolicy.StatementList == nil {
+			if reqPolicy.Statements.StatementList == nil {
 				return idxPolicyDefinition, idxStatement
 			}
-			for j, conStatement := range conPolicy.StatementList {
-				if conStatement.Name == reqPolicy.StatementList[0].Name {
+			for j, conStatement := range conPolicy.Statements.StatementList {
+				if conStatement.Name == reqPolicy.Statements.StatementList[0].Name {
 					idxStatement = j
 					return idxPolicyDefinition, idxStatement
 				}
@@ -1450,9 +1631,13 @@ func IndexOfPolicyDefinition(conPolicyList []config.PolicyDefinition, reqPolicy 
 func PrefixSetToApiStruct(ps config.PrefixSet) *api.PrefixSet {
 	resPrefixList := make([]*api.Prefix, 0)
 	for _, p := range ps.PrefixList {
+
+		addr := p.IpPrefix.IP
+		length, _ := p.IpPrefix.Mask.Size()
+
 		resPrefix := &api.Prefix{
-			Address:         p.Address.String(),
-			MaskLength:      uint32(p.Masklength),
+			Address:         addr.String(),
+			MaskLength:      uint32(length),
 			MaskLengthRange: p.MasklengthRange,
 		}
 		resPrefixList = append(resPrefixList, resPrefix)
@@ -1461,6 +1646,7 @@ func PrefixSetToApiStruct(ps config.PrefixSet) *api.PrefixSet {
 		PrefixSetName: ps.PrefixSetName,
 		PrefixList:    resPrefixList,
 	}
+
 	return resPrefixSet
 }
 
@@ -1469,9 +1655,13 @@ func PrefixSetToConfigStruct(reqPrefixSet *api.PrefixSet) (bool, config.PrefixSe
 	var prefixSet config.PrefixSet
 	isReqPrefixSet := true
 	if reqPrefixSet.PrefixList != nil {
+
+		prefItem := reqPrefixSet.PrefixList[0]
+		prefStr := prefItem.Address + "/" + strconv.Itoa(int(prefItem.MaskLength))
+		_, ipprefix, _ := net.ParseCIDR(prefStr)
+
 		prefix = config.Prefix{
-			Address:         net.ParseIP(reqPrefixSet.PrefixList[0].Address),
-			Masklength:      uint8(reqPrefixSet.PrefixList[0].MaskLength),
+			IpPrefix:        *ipprefix,
 			MasklengthRange: reqPrefixSet.PrefixList[0].MaskLengthRange,
 		}
 		prefixList := []config.Prefix{prefix}
@@ -1531,7 +1721,7 @@ func NeighborSetToConfigStruct(reqNeighborSet *api.NeighborSet) (bool, config.Ne
 
 func AsPathSetToApiStruct(as config.AsPathSet) *api.AsPathSet {
 	resAsPathMembers := make([]string, 0)
-	for _, m := range as.AsPathSetMembers {
+	for _, m := range as.AsPathSetMember {
 		resAsPathMembers = append(resAsPathMembers, m)
 	}
 	resAsPathSet := &api.AsPathSet{
@@ -1547,15 +1737,15 @@ func AsPathSetToConfigStruct(reqAsPathSet *api.AsPathSet) (bool, config.AsPathSe
 		isAsPathSetSet = false
 	}
 	asPathSet := config.AsPathSet{
-		AsPathSetName:    reqAsPathSet.AsPathSetName,
-		AsPathSetMembers: reqAsPathSet.AsPathMembers,
+		AsPathSetName:   reqAsPathSet.AsPathSetName,
+		AsPathSetMember: reqAsPathSet.AsPathMembers,
 	}
 	return isAsPathSetSet, asPathSet
 }
 
 func CommunitySetToApiStruct(cs config.CommunitySet) *api.CommunitySet {
 	resCommunityMembers := make([]string, 0)
-	for _, m := range cs.CommunityMembers {
+	for _, m := range cs.CommunityMember {
 		resCommunityMembers = append(resCommunityMembers, m)
 	}
 	resCommunitySet := &api.CommunitySet{
@@ -1572,14 +1762,14 @@ func CommunitySetToConfigStruct(reqCommunitySet *api.CommunitySet) (bool, config
 	}
 	communitySet := config.CommunitySet{
 		CommunitySetName: reqCommunitySet.CommunitySetName,
-		CommunityMembers: reqCommunitySet.CommunityMembers,
+		CommunityMember:  reqCommunitySet.CommunityMembers,
 	}
 	return isCommunitySet, communitySet
 }
 
 func ExtCommunitySetToApiStruct(es config.ExtCommunitySet) *api.ExtCommunitySet {
 	resExtCommunityMembers := make([]string, 0)
-	for _, m := range es.ExtCommunityMembers {
+	for _, m := range es.ExtCommunityMember {
 		resExtCommunityMembers = append(resExtCommunityMembers, m)
 	}
 	resExtCommunitySet := &api.ExtCommunitySet{
@@ -1596,7 +1786,7 @@ func ExtCommunitySetToConfigStruct(reqExtCommunitySet *api.ExtCommunitySet) (boo
 	}
 	ExtCommunitySet := config.ExtCommunitySet{
 		ExtCommunitySetName: reqExtCommunitySet.ExtCommunitySetName,
-		ExtCommunityMembers: reqExtCommunitySet.ExtCommunityMembers,
+		ExtCommunityMember:  reqExtCommunitySet.ExtCommunityMembers,
 	}
 	return isExtCommunitySet, ExtCommunitySet
 }
@@ -1630,44 +1820,46 @@ func ConditionsToConfigStruct(reqConditions *api.Conditions) config.Conditions {
 		return conditions
 	}
 	if reqConditions.MatchPrefixSet != nil {
-		conditions.MatchPrefixSet = reqConditions.MatchPrefixSet.PrefixSetName
+		conditions.MatchPrefixSet.PrefixSet = reqConditions.MatchPrefixSet.PrefixSetName
+		conditions.MatchPrefixSet.MatchSetOptions =
+			MatchSetOptionsRestrictedToType(reqConditions.MatchPrefixSet.MatchSetOptions)
 	}
 	if reqConditions.MatchNeighborSet != nil {
-		conditions.MatchNeighborSet = reqConditions.MatchNeighborSet.NeighborSetName
+		conditions.MatchNeighborSet.NeighborSet = reqConditions.MatchNeighborSet.NeighborSetName
+		conditions.MatchNeighborSet.MatchSetOptions =
+			MatchSetOptionsRestrictedToType(reqConditions.MatchNeighborSet.MatchSetOptions)
 	}
 	if reqConditions.MatchAsPathSet != nil {
-		conditions.BgpConditions.MatchAsPathSet = reqConditions.MatchAsPathSet.AsPathSetName
+		conditions.BgpConditions.MatchAsPathSet.AsPathSet = reqConditions.MatchAsPathSet.AsPathSetName
+		conditions.BgpConditions.MatchAsPathSet.MatchSetOptions =
+			MatchSetOptionsToType(reqConditions.MatchAsPathSet.MatchSetOptions)
 	}
 	if reqConditions.MatchCommunitySet != nil {
-		conditions.BgpConditions.MatchCommunitySet = reqConditions.MatchCommunitySet.CommunitySetName
+		conditions.BgpConditions.MatchCommunitySet.CommunitySet = reqConditions.MatchCommunitySet.CommunitySetName
+		conditions.BgpConditions.MatchCommunitySet.MatchSetOptions =
+			MatchSetOptionsToType(reqConditions.MatchCommunitySet.MatchSetOptions)
 	}
 	if reqConditions.MatchExtCommunitySet != nil {
-		conditions.BgpConditions.MatchExtCommunitySet = reqConditions.MatchExtCommunitySet.ExtCommunitySetName
+		conditions.BgpConditions.MatchExtCommunitySet.ExtCommunitySet = reqConditions.MatchExtCommunitySet.ExtCommunitySetName
+		conditions.BgpConditions.MatchExtCommunitySet.MatchSetOptions =
+			MatchSetOptionsToType(reqConditions.MatchExtCommunitySet.MatchSetOptions)
 	}
 	if reqConditions.MatchAsPathLength != nil {
 		conditions.BgpConditions.AsPathLength =
 			AsPathLengthToConfigStruct(reqConditions.MatchAsPathLength)
 	}
-	var setOption config.MatchSetOptionsType
-	switch reqConditions.MatchSetOptions {
-	case OPTIONS_ALL:
-		setOption = config.MATCH_SET_OPTIONS_TYPE_ALL
-	case OPTIONS_ANY:
-		setOption = config.MATCH_SET_OPTIONS_TYPE_ANY
-	case OPTIONS_INVERT:
-		setOption = config.MATCH_SET_OPTIONS_TYPE_INVERT
-	}
-	conditions.MatchSetOptions = setOption
 	return conditions
 }
 
 func ActionsToApiStruct(conActions config.Actions) *api.Actions {
 	action := ROUTE_REJECT
-	if conActions.AcceptRoute {
+	if conActions.RouteDisposition.AcceptRoute {
 		action = ROUTE_ACCEPT
 	}
+
+	//TODO: support CommunitySetRef
 	communityAction := &api.CommunityAction{
-		Communities: conActions.BgpActions.SetCommunity.Communities,
+		Communities: conActions.BgpActions.SetCommunity.SetCommunityMethod.Communities,
 		Options:     conActions.BgpActions.SetCommunity.Options,
 	}
 	medAction := fmt.Sprintf("%s", conActions.BgpActions.SetMed)
@@ -1691,7 +1883,7 @@ func ActionsToConfigStruct(reqActions *api.Actions) config.Actions {
 		return actions
 	}
 	if reqActions.Community != nil {
-		actions.BgpActions.SetCommunity.Communities = reqActions.Community.Communities
+		actions.BgpActions.SetCommunity.SetCommunityMethod.Communities = reqActions.Community.Communities
 		actions.BgpActions.SetCommunity.Options = reqActions.Community.Options
 	}
 	if reqActions.Med != "" {
@@ -1704,9 +1896,9 @@ func ActionsToConfigStruct(reqActions *api.Actions) config.Actions {
 
 	switch reqActions.RouteAction {
 	case ROUTE_ACCEPT:
-		actions.AcceptRoute = true
+		actions.RouteDisposition.AcceptRoute = true
 	case ROUTE_REJECT:
-		actions.RejectRoute = true
+		actions.RouteDisposition.RejectRoute = true
 	}
 	return actions
 }
@@ -1727,7 +1919,7 @@ func PolicyDefinitionToConfigStruct(reqPolicy *api.PolicyDefinition) (bool, conf
 	}
 	if reqPolicy.StatementList != nil {
 		statement := StatementToConfigStruct(reqPolicy.StatementList[0])
-		policy.StatementList = []config.Statement{statement}
+		policy.Statements.StatementList = []config.Statement{statement}
 	} else {
 		isReqStatement = false
 	}
@@ -1735,67 +1927,65 @@ func PolicyDefinitionToConfigStruct(reqPolicy *api.PolicyDefinition) (bool, conf
 }
 
 func PolicyDefinitionToApiStruct(pd config.PolicyDefinition, df config.DefinedSets) *api.PolicyDefinition {
-	conPrefixSetList := df.PrefixSetList
-	conNeighborSetList := df.NeighborSetList
-	conAsPathSetList := df.BgpDefinedSets.AsPathSetList
-	conCommunitySetList := df.BgpDefinedSets.CommunitySetList
-	conExtCommunitySetList := df.BgpDefinedSets.ExtCommunitySetList
+	conPrefixSetList := df.PrefixSets.PrefixSetList
+	conNeighborSetList := df.NeighborSets.NeighborSetList
+	conAsPathSetList := df.BgpDefinedSets.AsPathSets.AsPathSetList
+	conCommunitySetList := df.BgpDefinedSets.CommunitySets.CommunitySetList
+	conExtCommunitySetList := df.BgpDefinedSets.ExtCommunitySets.ExtCommunitySetList
 	resStatementList := make([]*api.Statement, 0)
-	for _, st := range pd.StatementList {
-		conditions := st.Conditions
-		actions := st.Actions
+	for _, st := range pd.Statements.StatementList {
+		co := st.Conditions
+		bco := co.BgpConditions
+		ac := st.Actions
 
-		prefixSet := &api.PrefixSet{
-			PrefixSetName: conditions.MatchPrefixSet,
-		}
-		neighborSet := &api.NeighborSet{
-			NeighborSetName: conditions.MatchNeighborSet,
-		}
-		asPathSet := &api.AsPathSet{
-			AsPathSetName: conditions.BgpConditions.MatchAsPathSet,
-		}
-		communitySet := &api.CommunitySet{
-			CommunitySetName: conditions.BgpConditions.MatchCommunitySet,
-		}
-		extCommunitySet := &api.ExtCommunitySet{
-			ExtCommunitySetName: conditions.BgpConditions.MatchExtCommunitySet,
-		}
-		// consider later whether treatment of here need
-		_, conPrefixSet := PrefixSetToConfigStruct(prefixSet)
-		_, conNeighborSet := NeighborSetToConfigStruct(neighborSet)
-		_, conAsPathSet := AsPathSetToConfigStruct(asPathSet)
-		_, conCommunitySet := CommunitySetToConfigStruct(communitySet)
-		_, conExtCommunitySet := ExtCommunitySetToConfigStruct(extCommunitySet)
+		prefixSet := &api.PrefixSet{PrefixSetName: co.MatchPrefixSet.PrefixSet}
+		conPrefixSet := config.PrefixSet{PrefixSetName: co.MatchPrefixSet.PrefixSet}
 		idxPrefixSet, _ := IndexOfPrefixSet(conPrefixSetList, conPrefixSet)
-		idxNeighborSet, _ := IndexOfNeighborSet(conNeighborSetList, conNeighborSet)
-		idxAsPathSet, _ := IndexOfAsPathSet(conAsPathSetList, conAsPathSet)
-		idxCommunitySet, _ := IndexOfCommunitySet(conCommunitySetList, conCommunitySet)
-		idxExtCommunitySet, _ := IndexOfExtCommunitySet(conExtCommunitySetList, conExtCommunitySet)
 		if idxPrefixSet != -1 {
 			prefixSet = PrefixSetToApiStruct(conPrefixSetList[idxPrefixSet])
+			prefixSet.MatchSetOptions = MatchSetOptionsRestrictedToString(st.Conditions.MatchPrefixSet.MatchSetOptions)
 		}
+		neighborSet := &api.NeighborSet{NeighborSetName: co.MatchNeighborSet.NeighborSet}
+		conNeighborSet := config.NeighborSet{NeighborSetName: co.MatchNeighborSet.NeighborSet}
+		idxNeighborSet, _ := IndexOfNeighborSet(conNeighborSetList, conNeighborSet)
 		if idxNeighborSet != -1 {
 			neighborSet = NeighborSetToApiStruct(conNeighborSetList[idxNeighborSet])
+			neighborSet.MatchSetOptions = MatchSetOptionsRestrictedToString(st.Conditions.MatchNeighborSet.MatchSetOptions)
 		}
+
+		asPathSet := &api.AsPathSet{AsPathSetName: bco.MatchAsPathSet.AsPathSet}
+		conAsPathSet := config.AsPathSet{AsPathSetName: bco.MatchAsPathSet.AsPathSet}
+		idxAsPathSet, _ := IndexOfAsPathSet(conAsPathSetList, conAsPathSet)
 		if idxAsPathSet != -1 {
 			asPathSet = AsPathSetToApiStruct(conAsPathSetList[idxAsPathSet])
+			asPathSet.MatchSetOptions = MatchSetOptionToString(bco.MatchAsPathSet.MatchSetOptions)
 		}
+
+		communitySet := &api.CommunitySet{CommunitySetName: bco.MatchCommunitySet.CommunitySet}
+		conCommunitySet := config.CommunitySet{CommunitySetName: bco.MatchCommunitySet.CommunitySet}
+		idxCommunitySet, _ := IndexOfCommunitySet(conCommunitySetList, conCommunitySet)
 		if idxCommunitySet != -1 {
 			communitySet = CommunitySetToApiStruct(conCommunitySetList[idxCommunitySet])
+			communitySet.MatchSetOptions = MatchSetOptionToString(bco.MatchCommunitySet.MatchSetOptions)
 		}
+
+		extCommunitySet := &api.ExtCommunitySet{ExtCommunitySetName: bco.MatchExtCommunitySet.ExtCommunitySet}
+		conExtCommunitySet := config.ExtCommunitySet{ExtCommunitySetName: bco.MatchExtCommunitySet.ExtCommunitySet}
+		idxExtCommunitySet, _ := IndexOfExtCommunitySet(conExtCommunitySetList, conExtCommunitySet)
 		if idxExtCommunitySet != -1 {
 			extCommunitySet = ExtCommunitySetToApiStruct(conExtCommunitySetList[idxExtCommunitySet])
+			extCommunitySet.MatchSetOptions = MatchSetOptionToString(bco.MatchExtCommunitySet.MatchSetOptions)
 		}
+
 		resConditions := &api.Conditions{
-			MatchPrefixSet:    prefixSet,
-			MatchNeighborSet:  neighborSet,
-			MatchAsPathSet:    asPathSet,
-			MatchCommunitySet: communitySet,
+			MatchPrefixSet:       prefixSet,
+			MatchNeighborSet:     neighborSet,
+			MatchAsPathSet:       asPathSet,
+			MatchCommunitySet:    communitySet,
 			MatchExtCommunitySet: extCommunitySet,
-			MatchAsPathLength: AsPathLengthToApiStruct(st.Conditions.BgpConditions.AsPathLength),
-			MatchSetOptions:   MatchSetOptionToString(conditions.MatchSetOptions),
+			MatchAsPathLength:    AsPathLengthToApiStruct(st.Conditions.BgpConditions.AsPathLength),
 		}
-		resActions := ActionsToApiStruct(actions)
+		resActions := ActionsToApiStruct(ac)
 		resStatement := &api.Statement{
 			StatementNeme: st.Name,
 			Conditions:    resConditions,

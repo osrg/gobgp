@@ -74,26 +74,27 @@ func (path *Path) UpdatePathAttrs(global *config.Global, peer *config.Neighbor) 
 		return
 	}
 
-	if peer.PeerType == config.PEER_TYPE_EXTERNAL {
+	localAddress := peer.Transport.TransportConfig.LocalAddress
+	if peer.NeighborConfig.PeerType == config.PEER_TYPE_EXTERNAL {
 		// NEXTHOP handling
-		path.SetNexthop(peer.LocalAddress)
+		path.SetNexthop(localAddress)
 
 		// AS_PATH handling
-		path.PrependAsn(global.As, 1)
+		path.PrependAsn(global.GlobalConfig.As, 1)
 
 		// MED Handling
 		idx, _ := path.getPathAttr(bgp.BGP_ATTR_TYPE_MULTI_EXIT_DISC)
 		if idx >= 0 {
 			path.pathAttrs = append(path.pathAttrs[:idx], path.pathAttrs[idx+1:]...)
 		}
-	} else if peer.PeerType == config.PEER_TYPE_INTERNAL {
+	} else if peer.NeighborConfig.PeerType == config.PEER_TYPE_INTERNAL {
 		// NEXTHOP handling for iBGP
 		// if the path generated locally set local address as nexthop.
 		// if not, don't modify it.
 		// TODO: NEXT-HOP-SELF support
 		selfGenerated := path.GetSource().ID == nil
 		if selfGenerated {
-			path.SetNexthop(peer.LocalAddress)
+			path.SetNexthop(localAddress)
 		}
 
 		// AS_PATH handling for iBGP
@@ -117,8 +118,8 @@ func (path *Path) UpdatePathAttrs(global *config.Global, peer *config.Neighbor) 
 	} else {
 		log.WithFields(log.Fields{
 			"Topic": "Peer",
-			"Key":   peer.NeighborAddress,
-		}).Warnf("invalid peer type: %d", peer.PeerType)
+			"Key":   peer.NeighborConfig.NeighborAddress,
+		}).Warnf("invalid peer type: %d", peer.NeighborConfig.PeerType)
 	}
 }
 
@@ -373,11 +374,12 @@ func (path *Path) GetCommunities() []uint32 {
 }
 
 // SetCommunities adds or replaces communities with new ones.
-// If the length of communites is 0, it does nothing.
+// If the length of communities is 0 and doReplace is true, it clears communities.
 func (path *Path) SetCommunities(communities []uint32, doReplace bool) {
 
-	if len(communities) == 0 {
-		// do nothing
+	if len(communities) == 0 && doReplace {
+		// clear communities
+		path.ClearCommunities()
 		return
 	}
 
