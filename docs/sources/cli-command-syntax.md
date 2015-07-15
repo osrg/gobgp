@@ -245,6 +245,7 @@ If you want to add the CommunitySet：
 ```
    You can specify the position using regexp-like expression as follows:
    - 6[0-9]+:[0-9]+
+   - ^[0-9]*:300$
 
 A CommunitySet it is possible to have multiple community, if you want to remove the CommunitySet to specify only CommunitySet name.
 ```shell
@@ -255,7 +256,46 @@ If you want to remove one element(community) of CommunitySet, to specify a addre
 % gobgp policy prefix del cs1 65100:10
 ```
 
-### 3.5. Operations for RoutePolicy - add/del/show -
+### 3.5. Operations for ExtCommunitySet - add/del/show -
+#### - syntax
+```shell
+# add ExtCommunitySet
+% gobgp policy extcommunity add <extended community set name> <extended community>
+# delete all ExtCommunitySet
+% gobgp policy extcommunity del all
+# delete a specific ExtCommunitySet
+% gobgp policy extcommunity del <extended community set name> [<extended community>]
+# show all ExtCommunitySet information
+% gobgp policy extcommunity
+# show a specific ExtCommunitySet information
+% gobgp policy extcommunity <extended community set name>
+```
+
+#### - example
+If you want to add the ExtCommunitySet：
+```shell
+% gobgp policy extcommunity add ecs1 RT:65100:10
+```
+Extended community set as \<SubType>:\<Global Admin>:\<LocalAdmin>.
+
+If you read the [RFC4360](https://tools.ietf.org/html/rfc4360) and [RFC7153](https://tools.ietf.org/html/rfc7153), you can know more about Extended community.
+
+You can specify the position using regexp-like expression as follows:
+   - RT:[0-9]+:[0-9]+
+   - SoO:10.0.10.10:[0-9]+
+
+However, regular expressions for subtype can not be used, to use for the global admin and local admin.
+
+A ExtCommunitySet it is possible to have multiple extended community, if you want to remove the ExtCommunitySet to specify only ExtCommunitySet name.
+```shell
+% gobgp policy neighbor del ecs1
+```
+If you want to remove one element(extended community) of ExtCommunitySet, to specify a address in addition to the ExtCommunitySet name.
+```shell
+% gobgp policy prefix del ecs1 RT:65100:10
+```
+
+### 3.6. Operations for RoutePolicy - add/del/show -
 #### - syntax
 ```shell
 # add RoutePolicy
@@ -273,7 +313,7 @@ If you want to remove one element(community) of CommunitySet, to specify a addre
 #### - example
 If you want to add the RoutePolicy：
 ```shell
-% gobgp policy routepolicy add policy1 state1 --c-prefix=ps1 --c-neighbor=ns1 --c-aspath=ass1 --c-community=cs1 --c-aslen=eq,3 --c-option=all --a-route=reject --a-community=ADD[65100:20] --a-med=+100 --a-asprepend=65100,10
+% gobgp policy routepolicy add policy1 state1 --c-prefix=ps1 --c-neighbor=ns1 --c-aspath=ass1 --c-community=cs1 --c-extcommunity=ecs1 --c-aslen=eq,3 --c-option=all --a-route=reject --a-community=ADD[65100:20] --a-med=+100 --a-asprepend=65100,10
 ```
 However, it is not necessary to specify all of the options at once.
 
@@ -291,14 +331,15 @@ If you want to remove one element(statement) of RoutePolicy, to specify a statem
 The following options can be specified in the policy subcommand:
   - options of condition
 
-| short  |long        | description                                                        |
-|--------|------------|--------------------------------------------------------------------|
-|-       |c-prefix    |specify the name that added prefix set in PrefixSet subcommand      |
-|-       |c-neighbor  |specify the name that added neighbor set in NeighborSet subcommand  |
-|-       |c-aspath    |specify the name that added as path set in AsPathSet subcommand     |
-|-       |c-community |specify the name that added community set in CommunitySet subcommand|
-|-       |c-aslen     |specify the operator(eq, ge, le) and value(numric)                  |
-|-       |c-option    |specify the match option(any, all, invert)                          |
+| short  |long           | description                                                                     |
+|--------|---------------|---------------------------------------------------------------------------------|
+|-       |c-prefix       |specify the name that added prefix set in PrefixSet subcommand                   |
+|-       |c-neighbor     |specify the name that added neighbor set in NeighborSet subcommand               |
+|-       |c-aspath       |specify the name that added as path set in AsPathSet subcommand                  |
+|-       |c-community    |specify the name that added community set in CommunitySet subcommand             |
+|-       |c-extcommunity |specify the name that added extended community set in ExtCommunitySet subcommand |
+|-       |c-aslen        |specify the operator(eq, ge, le) and value(numric)                               |
+|-       |c-option       |specify the match option(any, all, invert)                                       |
 
   - options of action
 
