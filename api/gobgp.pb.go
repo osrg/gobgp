@@ -43,6 +43,7 @@ It has these top-level messages:
 	AsPathLength
 	AsPathSet
 	CommunitySet
+	ExtCommunitySet
 	Conditions
 	CommunityAction
 	AsPrependAction
@@ -70,15 +71,16 @@ var _ = proto.Marshal
 type Resource int32
 
 const (
-	Resource_GLOBAL             Resource = 0
-	Resource_LOCAL              Resource = 1
-	Resource_ADJ_IN             Resource = 2
-	Resource_ADJ_OUT            Resource = 3
-	Resource_POLICY_PREFIX      Resource = 4
-	Resource_POLICY_NEIGHBOR    Resource = 5
-	Resource_POLICY_ASPATH      Resource = 6
-	Resource_POLICY_COMMUNITY   Resource = 7
-	Resource_POLICY_ROUTEPOLICY Resource = 8
+	Resource_GLOBAL              Resource = 0
+	Resource_LOCAL               Resource = 1
+	Resource_ADJ_IN              Resource = 2
+	Resource_ADJ_OUT             Resource = 3
+	Resource_POLICY_PREFIX       Resource = 4
+	Resource_POLICY_NEIGHBOR     Resource = 5
+	Resource_POLICY_ASPATH       Resource = 6
+	Resource_POLICY_COMMUNITY    Resource = 7
+	Resource_POLICY_ROUTEPOLICY  Resource = 8
+	Resource_POLICY_EXTCOMMUNITY Resource = 9
 )
 
 var Resource_name = map[int32]string{
@@ -91,17 +93,19 @@ var Resource_name = map[int32]string{
 	6: "POLICY_ASPATH",
 	7: "POLICY_COMMUNITY",
 	8: "POLICY_ROUTEPOLICY",
+	9: "POLICY_EXTCOMMUNITY",
 }
 var Resource_value = map[string]int32{
-	"GLOBAL":             0,
-	"LOCAL":              1,
-	"ADJ_IN":             2,
-	"ADJ_OUT":            3,
-	"POLICY_PREFIX":      4,
-	"POLICY_NEIGHBOR":    5,
-	"POLICY_ASPATH":      6,
-	"POLICY_COMMUNITY":   7,
-	"POLICY_ROUTEPOLICY": 8,
+	"GLOBAL":              0,
+	"LOCAL":               1,
+	"ADJ_IN":              2,
+	"ADJ_OUT":             3,
+	"POLICY_PREFIX":       4,
+	"POLICY_NEIGHBOR":     5,
+	"POLICY_ASPATH":       6,
+	"POLICY_COMMUNITY":    7,
+	"POLICY_ROUTEPOLICY":  8,
+	"POLICY_EXTCOMMUNITY": 9,
 }
 
 func (x Resource) String() string {
@@ -1164,13 +1168,23 @@ func (m *CommunitySet) Reset()         { *m = CommunitySet{} }
 func (m *CommunitySet) String() string { return proto.CompactTextString(m) }
 func (*CommunitySet) ProtoMessage()    {}
 
+type ExtCommunitySet struct {
+	ExtCommunitySetName string   `protobuf:"bytes,1,opt,name=ext_community_set_name" json:"ext_community_set_name,omitempty"`
+	ExtCommunityMembers []string `protobuf:"bytes,2,rep,name=ext_community_members" json:"ext_community_members,omitempty"`
+}
+
+func (m *ExtCommunitySet) Reset()         { *m = ExtCommunitySet{} }
+func (m *ExtCommunitySet) String() string { return proto.CompactTextString(m) }
+func (*ExtCommunitySet) ProtoMessage()    {}
+
 type Conditions struct {
-	MatchPrefixSet    *PrefixSet    `protobuf:"bytes,1,opt,name=match_prefix_set" json:"match_prefix_set,omitempty"`
-	MatchNeighborSet  *NeighborSet  `protobuf:"bytes,2,opt,name=match_neighbor_set" json:"match_neighbor_set,omitempty"`
-	MatchAsPathLength *AsPathLength `protobuf:"bytes,3,opt,name=match_as_path_length" json:"match_as_path_length,omitempty"`
-	MatchAsPathSet    *AsPathSet    `protobuf:"bytes,4,opt,name=match_as_path_set" json:"match_as_path_set,omitempty"`
-	MatchCommunitySet *CommunitySet `protobuf:"bytes,5,opt,name=match_community_set" json:"match_community_set,omitempty"`
-	MatchSetOptions   string        `protobuf:"bytes,6,opt,name=match_set_options" json:"match_set_options,omitempty"`
+	MatchPrefixSet       *PrefixSet       `protobuf:"bytes,1,opt,name=match_prefix_set" json:"match_prefix_set,omitempty"`
+	MatchNeighborSet     *NeighborSet     `protobuf:"bytes,2,opt,name=match_neighbor_set" json:"match_neighbor_set,omitempty"`
+	MatchAsPathLength    *AsPathLength    `protobuf:"bytes,3,opt,name=match_as_path_length" json:"match_as_path_length,omitempty"`
+	MatchAsPathSet       *AsPathSet       `protobuf:"bytes,4,opt,name=match_as_path_set" json:"match_as_path_set,omitempty"`
+	MatchCommunitySet    *CommunitySet    `protobuf:"bytes,5,opt,name=match_community_set" json:"match_community_set,omitempty"`
+	MatchSetOptions      string           `protobuf:"bytes,6,opt,name=match_set_options" json:"match_set_options,omitempty"`
+	MatchExtCommunitySet *ExtCommunitySet `protobuf:"bytes,7,opt,name=match_ext_community_set" json:"match_ext_community_set,omitempty"`
 }
 
 func (m *Conditions) Reset()         { *m = Conditions{} }
@@ -1208,6 +1222,13 @@ func (m *Conditions) GetMatchAsPathSet() *AsPathSet {
 func (m *Conditions) GetMatchCommunitySet() *CommunitySet {
 	if m != nil {
 		return m.MatchCommunitySet
+	}
+	return nil
+}
+
+func (m *Conditions) GetMatchExtCommunitySet() *ExtCommunitySet {
+	if m != nil {
+		return m.MatchExtCommunitySet
 	}
 	return nil
 }

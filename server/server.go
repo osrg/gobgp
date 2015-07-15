@@ -1219,19 +1219,19 @@ func (server *BgpServer) handleGrpc(grpcReq *GrpcRequest) []*SenderMsg {
 		close(grpcReq.ResponseCh)
 
 	case REQ_POLICY_PREFIXES, REQ_POLICY_NEIGHBORS, REQ_POLICY_ASPATHS,
-		REQ_POLICY_COMMUNITIES, REQ_POLICY_ROUTEPOLICIES:
+		REQ_POLICY_COMMUNITIES, REQ_POLICY_EXTCOMMUNITIES, REQ_POLICY_ROUTEPOLICIES:
 		server.handleGrpcShowPolicies(grpcReq)
 	case REQ_POLICY_PREFIX, REQ_POLICY_NEIGHBOR, REQ_POLICY_ASPATH,
-		REQ_POLICY_COMMUNITY, REQ_POLICY_ROUTEPOLICY:
+		REQ_POLICY_COMMUNITY, REQ_POLICY_EXTCOMMUNITY, REQ_POLICY_ROUTEPOLICY:
 		server.handleGrpcShowPolicy(grpcReq)
 	case REQ_POLICY_PREFIX_ADD, REQ_POLICY_NEIGHBOR_ADD, REQ_POLICY_ASPATH_ADD,
-		REQ_POLICY_COMMUNITY_ADD, REQ_POLICY_ROUTEPOLICY_ADD:
+		REQ_POLICY_COMMUNITY_ADD, REQ_POLICY_EXTCOMMUNITY_ADD, REQ_POLICY_ROUTEPOLICY_ADD:
 		server.handleGrpcAddPolicy(grpcReq)
 	case REQ_POLICY_PREFIX_DELETE, REQ_POLICY_NEIGHBOR_DELETE, REQ_POLICY_ASPATH_DELETE,
-		REQ_POLICY_COMMUNITY_DELETE, REQ_POLICY_ROUTEPOLICY_DELETE:
+		REQ_POLICY_COMMUNITY_DELETE, REQ_POLICY_EXTCOMMUNITY_DELETE, REQ_POLICY_ROUTEPOLICY_DELETE:
 		server.handleGrpcDelPolicy(grpcReq)
 	case REQ_POLICY_PREFIXES_DELETE, REQ_POLICY_NEIGHBORS_DELETE, REQ_POLICY_ASPATHS_DELETE,
-		REQ_POLICY_COMMUNITIES_DELETE, REQ_POLICY_ROUTEPOLICIES_DELETE:
+		REQ_POLICY_COMMUNITIES_DELETE, REQ_POLICY_EXTCOMMUNITIES_DELETE, REQ_POLICY_ROUTEPOLICIES_DELETE:
 		server.handleGrpcDelPolicies(grpcReq)
 	case REQ_MONITOR_GLOBAL_BEST_CHANGED, REQ_MONITOR_NEIGHBOR_PEER_STATE:
 		server.broadcastReqs = append(server.broadcastReqs, grpcReq)
@@ -1311,6 +1311,22 @@ func (server *BgpServer) handleGrpcShowPolicies(grpcReq *GrpcRequest) {
 			}
 		} else {
 			result.ResponseErr = fmt.Errorf("Policy community doesn't exist.")
+			grpcReq.ResponseCh <- result
+		}
+	case REQ_POLICY_EXTCOMMUNITIES:
+		info := server.routingPolicy.DefinedSets.BgpDefinedSets.ExtCommunitySetList
+		if len(info) > 0 {
+			for _, es := range info {
+				resExtcommunitySet := policy.ExtCommunitySetToApiStruct(es)
+				pd := &api.PolicyDefinition{}
+				pd.StatementList = []*api.Statement{{Conditions: &api.Conditions{MatchExtCommunitySet: resExtcommunitySet}}}
+				result = &GrpcResponse{
+					Data: pd,
+				}
+				grpcReq.ResponseCh <- result
+			}
+		} else {
+			result.ResponseErr = fmt.Errorf("Policy extended community doesn't exist.")
 			grpcReq.ResponseCh <- result
 		}
 	case REQ_POLICY_ROUTEPOLICIES:
@@ -1408,8 +1424,25 @@ func (server *BgpServer) handleGrpcShowPolicy(grpcReq *GrpcRequest) {
 		} else {
 			result.ResponseErr = fmt.Errorf("policy community that has %v doesn't exist.", name)
 		}
+	case REQ_POLICY_EXTCOMMUNITY:
+		info := server.routingPolicy.DefinedSets.BgpDefinedSets.ExtCommunitySetList
+		resExtCommunitySet := &api.ExtCommunitySet{}
+		for _, es := range info {
+			if es.ExtCommunitySetName == name {
+				resExtCommunitySet = policy.ExtCommunitySetToApiStruct(es)
+				break
+			}
+		}
+		if len(resExtCommunitySet.ExtCommunityMembers) > 0 {
+			pd := &api.PolicyDefinition{}
+			pd.StatementList = []*api.Statement{{Conditions: &api.Conditions{MatchExtCommunitySet: resExtCommunitySet}}}
+			result = &GrpcResponse{
+				Data: pd,
+			}
+		} else {
+			result.ResponseErr = fmt.Errorf("policy extended community that has %v doesn't exist.", name)
+		}
 	case REQ_POLICY_ROUTEPOLICY:
-		log.Error("IN RoutePolicy")
 		info := server.routingPolicy.PolicyDefinitionList
 		df := server.routingPolicy.DefinedSets
 		resPolicyDefinition := &api.PolicyDefinition{}
@@ -1419,7 +1452,6 @@ func (server *BgpServer) handleGrpcShowPolicy(grpcReq *GrpcRequest) {
 				break
 			}
 		}
-		log.Error("IN RoutePolicy: ", len(resPolicyDefinition.StatementList))
 		if len(resPolicyDefinition.StatementList) > 0 {
 			result = &GrpcResponse{
 				Data: resPolicyDefinition,
@@ -1486,8 +1518,8 @@ func (server *BgpServer) handleGrpcAddPolicy(grpcReq *GrpcRequest) {
 			grpcReq.ResponseCh <- result
 			close(grpcReq.ResponseCh)
 		}
-		// If the same NeighborSet is not set, add NeighborSet of request to the end.
-		// If only name of the NeighborSet is same, overwrite with NeighborSet of request
+		// If the same AsPathSet is not set, add AsPathSet of request to the end.
+		// If only name of the AsPathSet is same, overwrite with AsPathSet of request
 		idxAsPathSet, idxAsPath := policy.IndexOfAsPathSet(conAsPathSetList, asPathSet)
 		if idxAsPathSet == -1 {
 			conAsPathSetList = append(conAsPathSetList, asPathSet)
@@ -1507,8 +1539,8 @@ func (server *BgpServer) handleGrpcAddPolicy(grpcReq *GrpcRequest) {
 			grpcReq.ResponseCh <- result
 			close(grpcReq.ResponseCh)
 		}
-		// If the same NeighborSet is not set, add NeighborSet of request to the end.
-		// If only name of the NeighborSet is same, overwrite with NeighborSet of request
+		// If the same CommunitySet is not set, add CommunitySet of request to the end.
+		// If only name of the CommunitySet is same, overwrite with CommunitySet of request
 		idxCommunitySet, idxCommunity := policy.IndexOfCommunitySet(conCommunitySetList, communitySet)
 		if idxCommunitySet == -1 {
 			conCommunitySetList = append(conCommunitySetList, communitySet)
@@ -1519,6 +1551,27 @@ func (server *BgpServer) handleGrpcAddPolicy(grpcReq *GrpcRequest) {
 			}
 		}
 		server.routingPolicy.DefinedSets.BgpDefinedSets.CommunitySetList = conCommunitySetList
+	case REQ_POLICY_EXTCOMMUNITY_ADD:
+		reqExtCommunitySet := grpcReq.Data.(*api.PolicyDefinition).StatementList[0].Conditions.MatchExtCommunitySet
+		conExtCommunitySetList := server.routingPolicy.DefinedSets.BgpDefinedSets.ExtCommunitySetList
+		isReqExtCommunitySet, extCommunitySet := policy.ExtCommunitySetToConfigStruct(reqExtCommunitySet)
+		if !isReqExtCommunitySet {
+			result.ResponseErr = fmt.Errorf("doesn't reqest of policy extended community.")
+			grpcReq.ResponseCh <- result
+			close(grpcReq.ResponseCh)
+		}
+		// If the same ExtCommunitySet is not set, add ExtCommunitySet of request to the end.
+		// If only name of the ExtCommunitySet is same, overwrite with ExtCommunitySet of request
+		idxExtCommunitySet, idxExtCommunity := policy.IndexOfExtCommunitySet(conExtCommunitySetList, extCommunitySet)
+		if idxExtCommunitySet == -1 {
+			conExtCommunitySetList = append(conExtCommunitySetList, extCommunitySet)
+		} else {
+			if idxExtCommunity == -1 {
+				conExtCommunitySetList[idxExtCommunitySet].ExtCommunityMembers =
+					append(conExtCommunitySetList[idxExtCommunitySet].ExtCommunityMembers, extCommunitySet.ExtCommunityMembers[0])
+			}
+		}
+		server.routingPolicy.DefinedSets.BgpDefinedSets.ExtCommunitySetList = conExtCommunitySetList
 	case REQ_POLICY_ROUTEPOLICY_ADD:
 		reqPolicy := grpcReq.Data.(*api.PolicyDefinition)
 		reqConditions := reqPolicy.StatementList[0].Conditions
@@ -1550,6 +1603,9 @@ func (server *BgpServer) handleGrpcAddPolicy(grpcReq *GrpcRequest) {
 				if reqConditions.MatchCommunitySet != nil {
 					conStatement.Conditions.BgpConditions.MatchCommunitySet = statement.Conditions.BgpConditions.MatchCommunitySet
 				}
+				if reqConditions.MatchExtCommunitySet != nil {
+					conStatement.Conditions.BgpConditions.MatchExtCommunitySet = statement.Conditions.BgpConditions.MatchExtCommunitySet
+				}
 				if reqConditions.MatchAsPathLength != nil {
 					conStatement.Conditions.BgpConditions.AsPathLength = statement.Conditions.BgpConditions.AsPathLength
 				}
@@ -1563,7 +1619,7 @@ func (server *BgpServer) handleGrpcAddPolicy(grpcReq *GrpcRequest) {
 				if reqActions.Med != "" {
 					conStatement.Actions.BgpActions.SetMed = statement.Actions.BgpActions.SetMed
 				}
-				if reqActions.AsPrepend.As != "" {
+				if reqActions.AsPrepend != nil {
 					conStatement.Actions.BgpActions.SetAsPathPrepend = statement.Actions.BgpActions.SetAsPathPrepend
 				}
 			}
@@ -1655,8 +1711,8 @@ func (server *BgpServer) handleGrpcDelPolicy(grpcReq *GrpcRequest) {
 		conAsPathSetList := server.routingPolicy.DefinedSets.BgpDefinedSets.AsPathSetList
 		result := &GrpcResponse{}
 		isReqAsPathSet, asPathSet := policy.AsPathSetToConfigStruct(reqAsPathSet)
-		// If only name of the NeighborSet is same, delete all of the elements of the NeighborSet.
-		// If the same element NeighborSet, delete the it's element from NeighborSet.
+		// If only name of the AsPathSet is same, delete all of the elements of the AsPathSet.
+		// If the same element AsPathSet, delete the it's element from AsPathSet.
 		idxAsPathSet, idxAsPath := policy.IndexOfAsPathSet(conAsPathSetList, asPathSet)
 		if isReqAsPathSet {
 			if idxAsPathSet == -1 {
@@ -1684,16 +1740,16 @@ func (server *BgpServer) handleGrpcDelPolicy(grpcReq *GrpcRequest) {
 		reqCommunitySet := grpcReq.Data.(*api.PolicyDefinition).StatementList[0].Conditions.MatchCommunitySet
 		conCommunitySetList := server.routingPolicy.DefinedSets.BgpDefinedSets.CommunitySetList
 		isReqCommunitySet, CommunitySet := policy.CommunitySetToConfigStruct(reqCommunitySet)
-		// If only name of the NeighborSet is same, delete all of the elements of the NeighborSet.
-		// If the same element NeighborSet, delete the it's element from NeighborSet.
+		// If only name of the CommunitySet is same, delete all of the elements of the CommunitySet.
+		// If the same element CommunitySet, delete the it's element from CommunitySet.
 		idxCommunitySet, idxCommunity := policy.IndexOfCommunitySet(conCommunitySetList, CommunitySet)
 		if isReqCommunitySet {
 			if idxCommunitySet == -1 {
-				result.ResponseErr = fmt.Errorf("Policy aspath that has %v %v doesn't exist.", CommunitySet.CommunitySetName,
+				result.ResponseErr = fmt.Errorf("Policy community that has %v %v doesn't exist.", CommunitySet.CommunitySetName,
 					CommunitySet.CommunityMembers[0])
 			} else {
 				if idxCommunity == -1 {
-					result.ResponseErr = fmt.Errorf("Policy aspath that has %v %v doesn't exist.", CommunitySet.CommunitySetName,
+					result.ResponseErr = fmt.Errorf("Policy community that has %v %v doesn't exist.", CommunitySet.CommunitySetName,
 						CommunitySet.CommunityMembers[0])
 				} else {
 					conCommunitySetList[idxCommunitySet].CommunityMembers =
@@ -1703,18 +1759,48 @@ func (server *BgpServer) handleGrpcDelPolicy(grpcReq *GrpcRequest) {
 			}
 		} else {
 			if idxCommunitySet == -1 {
-				result.ResponseErr = fmt.Errorf("Policy aspath %v doesn't  exist.", CommunitySet.CommunitySetName)
+				result.ResponseErr = fmt.Errorf("Policy community %v doesn't  exist.", CommunitySet.CommunitySetName)
 			} else {
 				conCommunitySetList = append(conCommunitySetList[:idxCommunitySet], conCommunitySetList[idxCommunitySet+1:]...)
 			}
 		}
 		server.routingPolicy.DefinedSets.BgpDefinedSets.CommunitySetList = conCommunitySetList
+	case REQ_POLICY_EXTCOMMUNITY_DELETE:
+		reqExtCommunitySet := grpcReq.Data.(*api.PolicyDefinition).StatementList[0].Conditions.MatchExtCommunitySet
+		conExtCommunitySetList := server.routingPolicy.DefinedSets.BgpDefinedSets.ExtCommunitySetList
+		isReqExtCommunitySet, ExtCommunitySet := policy.ExtCommunitySetToConfigStruct(reqExtCommunitySet)
+		// If only name of the ExtCommunitySet is same, delete all of the elements of the ExtCommunitySet.
+		// If the same element ExtCommunitySet, delete the it's element from ExtCommunitySet.
+		idxExtCommunitySet, idxExtCommunity := policy.IndexOfExtCommunitySet(conExtCommunitySetList, ExtCommunitySet)
+		if isReqExtCommunitySet {
+			if idxExtCommunitySet == -1 {
+				result.ResponseErr = fmt.Errorf("Policy extended community that has %v %v doesn't exist.",
+					ExtCommunitySet.ExtCommunitySetName, ExtCommunitySet.ExtCommunityMembers[0])
+			} else {
+				if idxExtCommunity == -1 {
+					result.ResponseErr = fmt.Errorf("Policy extended community that has %v %v doesn't exist.",
+						ExtCommunitySet.ExtCommunitySetName, ExtCommunitySet.ExtCommunityMembers[0])
+				} else {
+					conExtCommunitySetList[idxExtCommunitySet].ExtCommunityMembers =
+						append(conExtCommunitySetList[idxExtCommunitySet].ExtCommunityMembers[:idxExtCommunity],
+							conExtCommunitySetList[idxExtCommunitySet].ExtCommunityMembers[idxExtCommunity+1:]...)
+				}
+			}
+		} else {
+			if idxExtCommunitySet == -1 {
+				result.ResponseErr = fmt.Errorf("Policy extended community %v doesn't  exist.",
+					ExtCommunitySet.ExtCommunitySetName)
+			} else {
+				conExtCommunitySetList =
+					append(conExtCommunitySetList[:idxExtCommunitySet], conExtCommunitySetList[idxExtCommunitySet+1:]...)
+			}
+		}
+		server.routingPolicy.DefinedSets.BgpDefinedSets.ExtCommunitySetList = conExtCommunitySetList
 	case REQ_POLICY_ROUTEPOLICY_DELETE:
 		reqPolicy := grpcReq.Data.(*api.PolicyDefinition)
 		conPolicyList := server.routingPolicy.PolicyDefinitionList
 		isStatement, policyDef := policy.PolicyDefinitionToConfigStruct(reqPolicy)
 		idxPolicy, idxStatement := policy.IndexOfPolicyDefinition(conPolicyList, policyDef)
-		log.Error(fmt.Sprintf("isStatament=%v, idxPolicy=%d, idxStatement=%d", isStatement, idxPolicy, idxStatement))
 		if isStatement {
 			if idxPolicy == -1 {
 				result.ResponseErr = fmt.Errorf("Policy that has %v doesn't exist.", policyDef.Name)
@@ -1758,6 +1844,8 @@ func (server *BgpServer) handleGrpcDelPolicies(grpcReq *GrpcRequest) {
 		server.routingPolicy.DefinedSets.BgpDefinedSets.AsPathSetList = make([]config.AsPathSet, 0)
 	case REQ_POLICY_COMMUNITIES_DELETE:
 		server.routingPolicy.DefinedSets.BgpDefinedSets.CommunitySetList = make([]config.CommunitySet, 0)
+	case REQ_POLICY_EXTCOMMUNITIES_DELETE:
+		server.routingPolicy.DefinedSets.BgpDefinedSets.ExtCommunitySetList = make([]config.ExtCommunitySet, 0)
 	case REQ_POLICY_ROUTEPOLICIES_DELETE:
 		server.routingPolicy.PolicyDefinitionList = make([]config.PolicyDefinition, 0)
 	}

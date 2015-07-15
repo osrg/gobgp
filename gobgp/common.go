@@ -47,6 +47,7 @@ const (
 	CMD_PREFIX         = "prefix"
 	CMD_ASPATH         = "aspath"
 	CMD_COMMUNITY      = "community"
+	CMD_EXTCOMMUNITY   = "extcommunity"
 	CMD_ROUTEPOLICY    = "routepolicy"
 	CMD_CONDITIONS     = "conditions"
 	CMD_ACTIONS        = "actions"
@@ -69,6 +70,7 @@ var conditionOpts struct {
 	Neighbor     string `long:"neighbor" description:"specifying a neighbor set name of policy"`
 	AsPath       string `long:"aspath" description:"specifying an as set name of policy"`
 	Community    string `long:"community" description:"specifying a community set name of policy"`
+	ExtCommunity string `long:"extcommunity" description:"specifying a extended community set name of policy"`
 	AsPathLength string `long:"aspath-len" description:"specifying an as path length of policy (<operator>,<numeric>)"`
 	Option       string `long:"option" description:"specifying an option of policy (any | all | invert)"`
 }
@@ -232,6 +234,20 @@ func (c communities) Swap(i, j int) {
 
 func (c communities) Less(i, j int) bool {
 	return c[i].CommunitySetName < c[j].CommunitySetName
+}
+
+type extcommunities []*api.ExtCommunitySet
+
+func (e extcommunities) Len() int {
+	return len(e)
+}
+
+func (e extcommunities) Swap(i, j int) {
+	e[i], e[j] = e[j], e[i]
+}
+
+func (e extcommunities) Less(i, j int) bool {
+	return e[i].ExtCommunitySetName < e[j].ExtCommunitySetName
 }
 
 type policyDefinitions []*api.PolicyDefinition

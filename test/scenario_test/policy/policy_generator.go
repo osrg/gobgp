@@ -208,11 +208,11 @@ func createPolicyConfig() *config.RoutingPolicy {
 		CommunityMembers: []string{"6[0-9]+:[0-9]+"},
 	}
 	eComOrigin := config.ExtCommunitySet{
-		ExtCommunitySetName: "eComAS4",
+		ExtCommunitySetName: "eComOrigin",
 		ExtCommunityMembers: []string{"SoO:65001.65100:200"},
 	}
 	eComTarget := config.ExtCommunitySet{
-		ExtCommunitySetName: "eComRegExp",
+		ExtCommunitySetName: "eComTarget",
 		ExtCommunityMembers: []string{"RT:6[0-9]+:3[0-9]+"},
 	}
 

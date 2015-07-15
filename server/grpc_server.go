@@ -75,6 +75,11 @@ const (
 	REQ_POLICY_COMMUNITY_ADD
 	REQ_POLICY_COMMUNITY_DELETE
 	REQ_POLICY_COMMUNITIES_DELETE
+	REQ_POLICY_EXTCOMMUNITY
+	REQ_POLICY_EXTCOMMUNITIES
+	REQ_POLICY_EXTCOMMUNITY_ADD
+	REQ_POLICY_EXTCOMMUNITY_DELETE
+	REQ_POLICY_EXTCOMMUNITIES_DELETE
 	REQ_MONITOR_GLOBAL_BEST_CHANGED
 	REQ_MONITOR_NEIGHBOR_PEER_STATE
 )
@@ -466,6 +471,17 @@ func (s *Server) modPolicy(arg *api.PolicyArguments, stream interface{}) error {
 		default:
 			return fmt.Errorf("unsupported operation: %s", arg.Operation)
 		}
+	case api.Resource_POLICY_EXTCOMMUNITY:
+		switch arg.Operation {
+		case api.Operation_ADD:
+			reqType = REQ_POLICY_EXTCOMMUNITY_ADD
+		case api.Operation_DEL:
+			reqType = REQ_POLICY_EXTCOMMUNITY_DELETE
+		case api.Operation_DEL_ALL:
+			reqType = REQ_POLICY_EXTCOMMUNITIES_DELETE
+		default:
+			return fmt.Errorf("unsupported operation: %s", arg.Operation)
+		}
 	case api.Resource_POLICY_ROUTEPOLICY:
 		switch arg.Operation {
 		case api.Operation_ADD:
@@ -509,6 +525,8 @@ func (s *Server) GetPolicyRoutePolicies(arg *api.PolicyArguments, stream api.Grp
 		reqType = REQ_POLICY_ASPATHS
 	case api.Resource_POLICY_COMMUNITY:
 		reqType = REQ_POLICY_COMMUNITIES
+	case api.Resource_POLICY_EXTCOMMUNITY:
+		reqType = REQ_POLICY_EXTCOMMUNITIES
 	case api.Resource_POLICY_ROUTEPOLICY:
 		reqType = REQ_POLICY_ROUTEPOLICIES
 	default:
@@ -540,6 +558,8 @@ func (s *Server) GetPolicyRoutePolicy(ctx context.Context, arg *api.PolicyArgume
 		reqType = REQ_POLICY_ASPATH
 	case api.Resource_POLICY_COMMUNITY:
 		reqType = REQ_POLICY_COMMUNITY
+	case api.Resource_POLICY_EXTCOMMUNITY:
+		reqType = REQ_POLICY_EXTCOMMUNITY
 	case api.Resource_POLICY_ROUTEPOLICY:
 		reqType = REQ_POLICY_ROUTEPOLICY
 	default:

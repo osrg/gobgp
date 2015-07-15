@@ -80,6 +80,7 @@ enum Resource {
     POLICY_ASPATH = 6;
     POLICY_COMMUNITY = 7;
     POLICY_ROUTEPOLICY = 8;
+    POLICY_EXTCOMMUNITY = 9;
 }
 
 enum Operation {
@@ -434,6 +435,11 @@ message CommunitySet {
     repeated string community_members = 2;
 }
 
+message ExtCommunitySet {
+    string ext_community_set_name = 1;
+    repeated string ext_community_members = 2;
+}
+
 message Conditions {
     PrefixSet match_prefix_set = 1;
     NeighborSet match_neighbor_set = 2;
@@ -441,6 +447,7 @@ message Conditions {
     AsPathSet match_as_path_set = 4;
     CommunitySet match_community_set = 5;
     string match_set_options = 6;
+    ExtCommunitySet match_ext_community_set = 7;
 }
 
 message CommunityAction {

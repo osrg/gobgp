@@ -725,7 +725,7 @@ func NewExtCommunityCondition(extComSetName string, defExtComSetList []config.Ex
 				if !matchType {
 					log.WithFields(log.Fields{
 						"Topic": "Policy",
-						"Type":  "Community Condition",
+						"Type":  "Extended Community Condition",
 					}).Error("failed to parse the sub type %s.", c)
 					return nil
 				}
@@ -760,7 +760,7 @@ func NewExtCommunityCondition(extComSetName string, defExtComSetList []config.Ex
 					if err != nil {
 						log.WithFields(log.Fields{
 							"Topic": "Policy",
-							"Type":  "Community Condition",
+							"Type":  "Extended Community Condition",
 						}).Errorf("Regular expression can't be compiled %s.", val[2])
 						return nil
 					}
@@ -891,8 +891,8 @@ func (c *ExtCommunityCondition) evaluate(path *table.Path) bool {
 		if matched {
 			log.WithFields(log.Fields{
 				"Topic":     "Policy",
-				"Condition": "Community",
-				"Community": matchStr,
+				"Condition": "Extended Community",
+				"Extended Community": matchStr,
 			}).Debug("condition matched")
 
 			return true
@@ -1401,6 +1401,29 @@ func IndexOfCommunitySet(conCommunitySetList []config.CommunitySet, reqCommunity
 	return idxCommunitySet, idxCommunity
 }
 
+// find index ExtCommunitySet of request from ExtCommunitySet of configuration file.
+// Return the idxExtCommunitySet of the location where the name of ExtCommunitySet matches,
+// and idxExtCommunity of the location where element of ExtCommunitySet matches
+func IndexOfExtCommunitySet(conExtCommunitySetList []config.ExtCommunitySet, reqExtCommunitySet config.ExtCommunitySet) (int, int) {
+	idxExtCommunitySet := -1
+	idxExtCommunity := -1
+	for i, conExtCommunitySet := range conExtCommunitySetList {
+		if conExtCommunitySet.ExtCommunitySetName == reqExtCommunitySet.ExtCommunitySetName {
+			idxExtCommunitySet = i
+			if len(reqExtCommunitySet.ExtCommunityMembers) == 0 {
+				return idxExtCommunitySet, idxExtCommunity
+			}
+			for j, conExtCommunity := range conExtCommunitySet.ExtCommunityMembers {
+				if conExtCommunity == reqExtCommunitySet.ExtCommunityMembers[0] {
+					idxExtCommunity = j
+					return idxExtCommunitySet, idxExtCommunity
+				}
+			}
+		}
+	}
+	return idxExtCommunitySet, idxExtCommunity
+}
+
 // find index PolicyDefinition of request from PolicyDefinition of configuration file.
 // Return the idxPolicyDefinition of the location where the name of PolicyDefinition matches,
 // and idxStatement of the location where Statement of PolicyDefinition matches
@@ -1554,6 +1577,30 @@ func CommunitySetToConfigStruct(reqCommunitySet *api.CommunitySet) (bool, config
 	return isCommunitySet, communitySet
 }
 
+func ExtCommunitySetToApiStruct(es config.ExtCommunitySet) *api.ExtCommunitySet {
+	resExtCommunityMembers := make([]string, 0)
+	for _, m := range es.ExtCommunityMembers {
+		resExtCommunityMembers = append(resExtCommunityMembers, m)
+	}
+	resExtCommunitySet := &api.ExtCommunitySet{
+		ExtCommunitySetName: es.ExtCommunitySetName,
+		ExtCommunityMembers: resExtCommunityMembers,
+	}
+	return resExtCommunitySet
+}
+
+func ExtCommunitySetToConfigStruct(reqExtCommunitySet *api.ExtCommunitySet) (bool, config.ExtCommunitySet) {
+	isExtCommunitySet := true
+	if len(reqExtCommunitySet.ExtCommunityMembers) == 0 {
+		isExtCommunitySet = false
+	}
+	ExtCommunitySet := config.ExtCommunitySet{
+		ExtCommunitySetName: reqExtCommunitySet.ExtCommunitySetName,
+		ExtCommunityMembers: reqExtCommunitySet.ExtCommunityMembers,
+	}
+	return isExtCommunitySet, ExtCommunitySet
+}
+
 func AsPathLengthToApiStruct(asPathLength config.AsPathLength) *api.AsPathLength {
 	value := ""
 	if asPathLength.Operator != "" {
@@ -1593,6 +1640,9 @@ func ConditionsToConfigStruct(reqConditions *api.Conditions) config.Conditions {
 	}
 	if reqConditions.MatchCommunitySet != nil {
 		conditions.BgpConditions.MatchCommunitySet = reqConditions.MatchCommunitySet.CommunitySetName
+	}
+	if reqConditions.MatchExtCommunitySet != nil {
+		conditions.BgpConditions.MatchExtCommunitySet = reqConditions.MatchExtCommunitySet.ExtCommunitySetName
 	}
 	if reqConditions.MatchAsPathLength != nil {
 		conditions.BgpConditions.AsPathLength =
@@ -1689,6 +1739,7 @@ func PolicyDefinitionToApiStruct(pd config.PolicyDefinition, df config.DefinedSe
 	conNeighborSetList := df.NeighborSetList
 	conAsPathSetList := df.BgpDefinedSets.AsPathSetList
 	conCommunitySetList := df.BgpDefinedSets.CommunitySetList
+	conExtCommunitySetList := df.BgpDefinedSets.ExtCommunitySetList
 	resStatementList := make([]*api.Statement, 0)
 	for _, st := range pd.StatementList {
 		conditions := st.Conditions
@@ -1706,15 +1757,20 @@ func PolicyDefinitionToApiStruct(pd config.PolicyDefinition, df config.DefinedSe
 		communitySet := &api.CommunitySet{
 			CommunitySetName: conditions.BgpConditions.MatchCommunitySet,
 		}
+		extCommunitySet := &api.ExtCommunitySet{
+			ExtCommunitySetName: conditions.BgpConditions.MatchExtCommunitySet,
+		}
 		// consider later whether treatment of here need
 		_, conPrefixSet := PrefixSetToConfigStruct(prefixSet)
 		_, conNeighborSet := NeighborSetToConfigStruct(neighborSet)
 		_, conAsPathSet := AsPathSetToConfigStruct(asPathSet)
 		_, conCommunitySet := CommunitySetToConfigStruct(communitySet)
+		_, conExtCommunitySet := ExtCommunitySetToConfigStruct(extCommunitySet)
 		idxPrefixSet, _ := IndexOfPrefixSet(conPrefixSetList, conPrefixSet)
 		idxNeighborSet, _ := IndexOfNeighborSet(conNeighborSetList, conNeighborSet)
 		idxAsPathSet, _ := IndexOfAsPathSet(conAsPathSetList, conAsPathSet)
 		idxCommunitySet, _ := IndexOfCommunitySet(conCommunitySetList, conCommunitySet)
+		idxExtCommunitySet, _ := IndexOfExtCommunitySet(conExtCommunitySetList, conExtCommunitySet)
 		if idxPrefixSet != -1 {
 			prefixSet = PrefixSetToApiStruct(conPrefixSetList[idxPrefixSet])
 		}
@@ -1727,11 +1783,15 @@ func PolicyDefinitionToApiStruct(pd config.PolicyDefinition, df config.DefinedSe
 		if idxCommunitySet != -1 {
 			communitySet = CommunitySetToApiStruct(conCommunitySetList[idxCommunitySet])
 		}
+		if idxExtCommunitySet != -1 {
+			extCommunitySet = ExtCommunitySetToApiStruct(conExtCommunitySetList[idxExtCommunitySet])
+		}
 		resConditions := &api.Conditions{
 			MatchPrefixSet:    prefixSet,
 			MatchNeighborSet:  neighborSet,
 			MatchAsPathSet:    asPathSet,
 			MatchCommunitySet: communitySet,
+			MatchExtCommunitySet: extCommunitySet,
 			MatchAsPathLength: AsPathLengthToApiStruct(st.Conditions.BgpConditions.AsPathLength),
 			MatchSetOptions:   MatchSetOptionToString(conditions.MatchSetOptions),
 		}
