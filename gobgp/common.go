@@ -76,7 +76,6 @@ var conditionOpts struct {
 	Community    string `long:"community" description:"specifying a community set name of policy"`
 	ExtCommunity string `long:"extcommunity" description:"specifying a extended community set name of policy"`
 	AsPathLength string `long:"aspath-len" description:"specifying an as path length of policy (<operator>,<numeric>)"`
-	Option       string `long:"option" description:"specifying an option of policy (any | all | invert)"`
 }
 
 var actionOpts struct {

@@ -1058,20 +1058,20 @@ type PeerInfo struct {
 	BgpState                  string `protobuf:"bytes,1,opt,name=bgp_state" json:"bgp_state,omitempty"`
 	AdminState                string `protobuf:"bytes,2,opt,name=admin_state" json:"admin_state,omitempty"`
 	FsmEstablishedTransitions uint32 `protobuf:"varint,3,opt,name=fsm_established_transitions" json:"fsm_established_transitions,omitempty"`
-	TotalMessageOut           uint32 `protobuf:"varint,4,opt,name=total_message_out" json:"total_message_out,omitempty"`
-	TotalMessageIn            uint32 `protobuf:"varint,5,opt,name=total_message_in" json:"total_message_in,omitempty"`
-	UpdateMessageOut          uint32 `protobuf:"varint,6,opt,name=update_message_out" json:"update_message_out,omitempty"`
-	UpdateMessageIn           uint32 `protobuf:"varint,7,opt,name=update_message_in" json:"update_message_in,omitempty"`
-	KeepAliveMessageOut       uint32 `protobuf:"varint,8,opt,name=keep_alive_message_out" json:"keep_alive_message_out,omitempty"`
-	KeepAliveMessageIn        uint32 `protobuf:"varint,9,opt,name=keep_alive_message_in" json:"keep_alive_message_in,omitempty"`
-	OpenMessageOut            uint32 `protobuf:"varint,10,opt,name=open_message_out" json:"open_message_out,omitempty"`
-	OpenMessageIn             uint32 `protobuf:"varint,11,opt,name=open_message_in" json:"open_message_in,omitempty"`
-	NotificationOut           uint32 `protobuf:"varint,12,opt,name=notification_out" json:"notification_out,omitempty"`
-	NotificationIn            uint32 `protobuf:"varint,13,opt,name=notification_in" json:"notification_in,omitempty"`
-	RefreshMessageOut         uint32 `protobuf:"varint,14,opt,name=refresh_message_out" json:"refresh_message_out,omitempty"`
-	RefreshMessageIn          uint32 `protobuf:"varint,15,opt,name=refresh_message_in" json:"refresh_message_in,omitempty"`
-	DiscardedOut              uint32 `protobuf:"varint,16,opt,name=discarded_out" json:"discarded_out,omitempty"`
-	DiscardedIn               uint32 `protobuf:"varint,17,opt,name=discarded_in" json:"discarded_in,omitempty"`
+	TotalMessageOut           uint64 `protobuf:"varint,4,opt,name=total_message_out" json:"total_message_out,omitempty"`
+	TotalMessageIn            uint64 `protobuf:"varint,5,opt,name=total_message_in" json:"total_message_in,omitempty"`
+	UpdateMessageOut          uint64 `protobuf:"varint,6,opt,name=update_message_out" json:"update_message_out,omitempty"`
+	UpdateMessageIn           uint64 `protobuf:"varint,7,opt,name=update_message_in" json:"update_message_in,omitempty"`
+	KeepAliveMessageOut       uint64 `protobuf:"varint,8,opt,name=keep_alive_message_out" json:"keep_alive_message_out,omitempty"`
+	KeepAliveMessageIn        uint64 `protobuf:"varint,9,opt,name=keep_alive_message_in" json:"keep_alive_message_in,omitempty"`
+	OpenMessageOut            uint64 `protobuf:"varint,10,opt,name=open_message_out" json:"open_message_out,omitempty"`
+	OpenMessageIn             uint64 `protobuf:"varint,11,opt,name=open_message_in" json:"open_message_in,omitempty"`
+	NotificationOut           uint64 `protobuf:"varint,12,opt,name=notification_out" json:"notification_out,omitempty"`
+	NotificationIn            uint64 `protobuf:"varint,13,opt,name=notification_in" json:"notification_in,omitempty"`
+	RefreshMessageOut         uint64 `protobuf:"varint,14,opt,name=refresh_message_out" json:"refresh_message_out,omitempty"`
+	RefreshMessageIn          uint64 `protobuf:"varint,15,opt,name=refresh_message_in" json:"refresh_message_in,omitempty"`
+	DiscardedOut              uint64 `protobuf:"varint,16,opt,name=discarded_out" json:"discarded_out,omitempty"`
+	DiscardedIn               uint64 `protobuf:"varint,17,opt,name=discarded_in" json:"discarded_in,omitempty"`
 	Uptime                    int64  `protobuf:"varint,18,opt,name=uptime" json:"uptime,omitempty"`
 	Downtime                  int64  `protobuf:"varint,19,opt,name=downtime" json:"downtime,omitempty"`
 	LastError                 string `protobuf:"bytes,20,opt,name=last_error" json:"last_error,omitempty"`
@@ -1122,8 +1122,9 @@ func (m *Prefix) String() string { return proto.CompactTextString(m) }
 func (*Prefix) ProtoMessage()    {}
 
 type PrefixSet struct {
-	PrefixSetName string    `protobuf:"bytes,1,opt,name=prefix_set_name" json:"prefix_set_name,omitempty"`
-	PrefixList    []*Prefix `protobuf:"bytes,2,rep,name=prefix_list" json:"prefix_list,omitempty"`
+	PrefixSetName   string    `protobuf:"bytes,1,opt,name=prefix_set_name" json:"prefix_set_name,omitempty"`
+	PrefixList      []*Prefix `protobuf:"bytes,2,rep,name=prefix_list" json:"prefix_list,omitempty"`
+	MatchSetOptions string    `protobuf:"bytes,3,opt,name=match_set_options" json:"match_set_options,omitempty"`
 }
 
 func (m *PrefixSet) Reset()         { *m = PrefixSet{} }
@@ -1148,6 +1149,7 @@ func (*Neighbor) ProtoMessage()    {}
 type NeighborSet struct {
 	NeighborSetName string      `protobuf:"bytes,1,opt,name=neighbor_set_name" json:"neighbor_set_name,omitempty"`
 	NeighborList    []*Neighbor `protobuf:"bytes,2,rep,name=neighbor_list" json:"neighbor_list,omitempty"`
+	MatchSetOptions string      `protobuf:"bytes,3,opt,name=match_set_options" json:"match_set_options,omitempty"`
 }
 
 func (m *NeighborSet) Reset()         { *m = NeighborSet{} }
@@ -1171,8 +1173,9 @@ func (m *AsPathLength) String() string { return proto.CompactTextString(m) }
 func (*AsPathLength) ProtoMessage()    {}
 
 type AsPathSet struct {
-	AsPathSetName string   `protobuf:"bytes,1,opt,name=as_path_set_name" json:"as_path_set_name,omitempty"`
-	AsPathMembers []string `protobuf:"bytes,2,rep,name=as_path_members" json:"as_path_members,omitempty"`
+	AsPathSetName   string   `protobuf:"bytes,1,opt,name=as_path_set_name" json:"as_path_set_name,omitempty"`
+	AsPathMembers   []string `protobuf:"bytes,2,rep,name=as_path_members" json:"as_path_members,omitempty"`
+	MatchSetOptions string   `protobuf:"bytes,3,opt,name=match_set_options" json:"match_set_options,omitempty"`
 }
 
 func (m *AsPathSet) Reset()         { *m = AsPathSet{} }
@@ -1182,6 +1185,7 @@ func (*AsPathSet) ProtoMessage()    {}
 type CommunitySet struct {
 	CommunitySetName string   `protobuf:"bytes,1,opt,name=community_set_name" json:"community_set_name,omitempty"`
 	CommunityMembers []string `protobuf:"bytes,2,rep,name=community_members" json:"community_members,omitempty"`
+	MatchSetOptions  string   `protobuf:"bytes,3,opt,name=match_set_options" json:"match_set_options,omitempty"`
 }
 
 func (m *CommunitySet) Reset()         { *m = CommunitySet{} }
@@ -1191,6 +1195,7 @@ func (*CommunitySet) ProtoMessage()    {}
 type ExtCommunitySet struct {
 	ExtCommunitySetName string   `protobuf:"bytes,1,opt,name=ext_community_set_name" json:"ext_community_set_name,omitempty"`
 	ExtCommunityMembers []string `protobuf:"bytes,2,rep,name=ext_community_members" json:"ext_community_members,omitempty"`
+	MatchSetOptions     string   `protobuf:"bytes,3,opt,name=match_set_options" json:"match_set_options,omitempty"`
 }
 
 func (m *ExtCommunitySet) Reset()         { *m = ExtCommunitySet{} }
@@ -1203,8 +1208,7 @@ type Conditions struct {
 	MatchAsPathLength    *AsPathLength    `protobuf:"bytes,3,opt,name=match_as_path_length" json:"match_as_path_length,omitempty"`
 	MatchAsPathSet       *AsPathSet       `protobuf:"bytes,4,opt,name=match_as_path_set" json:"match_as_path_set,omitempty"`
 	MatchCommunitySet    *CommunitySet    `protobuf:"bytes,5,opt,name=match_community_set" json:"match_community_set,omitempty"`
-	MatchSetOptions      string           `protobuf:"bytes,6,opt,name=match_set_options" json:"match_set_options,omitempty"`
-	MatchExtCommunitySet *ExtCommunitySet `protobuf:"bytes,7,opt,name=match_ext_community_set" json:"match_ext_community_set,omitempty"`
+	MatchExtCommunitySet *ExtCommunitySet `protobuf:"bytes,6,opt,name=match_ext_community_set" json:"match_ext_community_set,omitempty"`
 }
 
 func (m *Conditions) Reset()         { *m = Conditions{} }

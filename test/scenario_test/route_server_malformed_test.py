@@ -156,9 +156,9 @@ def get_neighbor_address():
     address = []
     try:
         gobgp_config = toml.loads(open(gobgp_config_file).read())
-        neighbors_config = gobgp_config['NeighborList']
+        neighbors_config = gobgp_config['Neighbors']['NeighborList']
         for neighbor_config in neighbors_config:
-            neighbor_ip = neighbor_config['NeighborAddress']
+            neighbor_ip = neighbor_config['NeighborConfig']['NeighborAddress']
             address.append(neighbor_ip)
 
     except IOError, (errno, strerror):

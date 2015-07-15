@@ -41,15 +41,15 @@ func NewQuaggaConfig(id int, gConfig *config.Global, myConfig *config.Neighbor, 
 
 func (qt *QuaggaConfig) IPv4Config() *bytes.Buffer {
 	buf := bytes.NewBuffer(nil)
-	buf.WriteString(fmt.Sprintf("! my address %s\n", qt.config.NeighborAddress))
+	buf.WriteString(fmt.Sprintf("! my address %s\n", qt.config.NeighborConfig.NeighborAddress))
 	buf.WriteString(fmt.Sprintf("! my ip_version %s\n", IPv4))
 	buf.WriteString("hostname bgpd\n")
 	buf.WriteString("password zebra\n")
-	buf.WriteString(fmt.Sprintf("router bgp %d\n", qt.config.PeerAs))
+	buf.WriteString(fmt.Sprintf("router bgp %d\n", qt.config.NeighborConfig.PeerAs))
 	buf.WriteString(fmt.Sprintf("bgp router-id 192.168.0.%d\n", qt.id))
 	buf.WriteString(fmt.Sprintf("network %s%d%s\n", baseNeighborNetwork[IPv4], qt.id, baseNeighborNetMask[IPv4]))
-	buf.WriteString(fmt.Sprintf("neighbor %s remote-as %d\n", qt.serverIP, qt.gobgpConfig.As))
-	buf.WriteString(fmt.Sprintf("neighbor %s password %s\n", qt.serverIP, qt.config.AuthPassword))
+	buf.WriteString(fmt.Sprintf("neighbor %s remote-as %d\n", qt.serverIP, qt.gobgpConfig.GlobalConfig.As))
+	buf.WriteString(fmt.Sprintf("neighbor %s password %s\n", qt.serverIP, qt.config.NeighborConfig.AuthPassword))
 	buf.WriteString("debug bgp as4\n")
 	buf.WriteString("debug bgp fsm\n")
 	buf.WriteString("debug bgp updates\n")
@@ -61,15 +61,15 @@ func (qt *QuaggaConfig) IPv4Config() *bytes.Buffer {
 
 func (qt *QuaggaConfig) IPv6Config() *bytes.Buffer {
 	buf := bytes.NewBuffer(nil)
-	buf.WriteString(fmt.Sprintf("! my address %s\n", qt.config.NeighborAddress))
+	buf.WriteString(fmt.Sprintf("! my address %s\n", qt.config.NeighborConfig.NeighborAddress))
 	buf.WriteString(fmt.Sprintf("! my ip_version %s\n", IPv6))
 	buf.WriteString("hostname bgpd\n")
 	buf.WriteString("password zebra\n")
-	buf.WriteString(fmt.Sprintf("router bgp %d\n", qt.config.PeerAs))
+	buf.WriteString(fmt.Sprintf("router bgp %d\n", qt.config.NeighborConfig.PeerAs))
 	buf.WriteString(fmt.Sprintf("bgp router-id 192.168.0.%d\n", qt.id))
 	buf.WriteString("no bgp default ipv4-unicast\n")
-	buf.WriteString(fmt.Sprintf("neighbor %s remote-as %d\n", qt.serverIP, qt.gobgpConfig.As))
-	buf.WriteString(fmt.Sprintf("neighbor %s password %s\n", qt.serverIP, qt.config.AuthPassword))
+	buf.WriteString(fmt.Sprintf("neighbor %s remote-as %d\n", qt.serverIP, qt.gobgpConfig.GlobalConfig.As))
+	buf.WriteString(fmt.Sprintf("neighbor %s password %s\n", qt.serverIP, qt.config.NeighborConfig.AuthPassword))
 	buf.WriteString("address-family ipv6\n")
 	buf.WriteString(fmt.Sprintf("network %s%d%s\n", baseNeighborNetwork[IPv6], qt.id, baseNeighborNetMask[IPv6]))
 	buf.WriteString(fmt.Sprintf("neighbor %s activate\n", qt.serverIP))
@@ -78,7 +78,7 @@ func (qt *QuaggaConfig) IPv6Config() *bytes.Buffer {
 	buf.WriteString("ipv6 prefix-list pl-ipv6 seq 10 permit any\n")
 	buf.WriteString("route-map IPV6-OUT permit 10\n")
 	buf.WriteString("match ipv6 address prefix-list pl-ipv6\n")
-	buf.WriteString(fmt.Sprintf("set ipv6 next-hop global %s\n", qt.config.NeighborAddress))
+	buf.WriteString(fmt.Sprintf("set ipv6 next-hop global %s\n", qt.config.NeighborConfig.NeighborAddress))
 	buf.WriteString("debug bgp as4\n")
 	buf.WriteString("debug bgp fsm\n")
 	buf.WriteString("debug bgp updates\n")
@@ -91,25 +91,28 @@ func (qt *QuaggaConfig) IPv6Config() *bytes.Buffer {
 func create_config_files(nr int, outputDir string, IPVersion string, nonePeer bool, normalBGP bool) {
 	quaggaConfigList := make([]*QuaggaConfig, 0)
 
-	gobgpConf := config.Bgp{
-		Global: config.Global{
-			As:       65000,
-			RouterId: net.ParseIP("192.168.255.1"),
-		},
-	}
+	gobgpConf := config.Bgp{}
+	gobgpConf.Global.GlobalConfig.As = 65000
+	gobgpConf.Global.GlobalConfig.RouterId = net.ParseIP("192.168.255.1")
 
 	for i := 1; i < nr+1; i++ {
-		c := config.Neighbor{
-			PeerAs:           65000 + uint32(i),
-			NeighborAddress:  net.ParseIP(fmt.Sprintf("%s%d", baseNeighborAddress[IPVersion], i)),
-			AuthPassword:     fmt.Sprintf("hoge%d", i),
-			TransportOptions: config.TransportOptions{PassiveMode: true},
-			RouteServer:      config.RouteServer{RouteServerClient: !normalBGP},
-			Timers:           config.Timers{HoldTime: 30, KeepaliveInterval: 10, IdleHoldTimeAfterReset: 10},
-			PeerType:         config.PEER_TYPE_EXTERNAL,
-		}
 
-		gobgpConf.NeighborList = append(gobgpConf.NeighborList, c)
+		c := config.Neighbor{}
+		c.NeighborConfig.PeerAs = 65000 + uint32(i)
+		c.NeighborConfig.NeighborAddress = net.ParseIP(fmt.Sprintf("%s%d", baseNeighborAddress[IPVersion], i))
+		c.NeighborConfig.AuthPassword = fmt.Sprintf("hoge%d", i)
+		c.Transport.TransportConfig.PassiveMode = true
+		c.RouteServer.RouteServerClient = !normalBGP
+
+		timers := config.Timers{}
+		timers.TimersConfig.HoldTime = 30
+		timers.TimersConfig.KeepaliveInterval = 10
+		timers.TimersConfig.IdleHoldTimeAfterReset = 10
+
+		c.Timers = timers
+		c.NeighborConfig.PeerType = config.PEER_TYPE_EXTERNAL
+
+		gobgpConf.Neighbors.NeighborList = append(gobgpConf.Neighbors.NeighborList, c)
 		if !nonePeer {
 			q := NewQuaggaConfig(i, &gobgpConf.Global, &c, net.ParseIP(serverAddress[IPVersion]))
 			quaggaConfigList = append(quaggaConfigList, q)
@@ -138,21 +141,24 @@ func create_config_files(nr int, outputDir string, IPVersion string, nonePeer bo
 
 func append_config_files(ar int, outputDir string, IPVersion string, noQuagga bool, normalBGP bool) {
 
-	gobgpConf := config.Bgp{
-		Global: config.Global{
-			As:       65000,
-			RouterId: net.ParseIP("192.168.255.1"),
-		},
-	}
-	c := config.Neighbor{
-		PeerAs:           65000 + uint32(ar),
-		NeighborAddress:  net.ParseIP(fmt.Sprintf("%s%d", baseNeighborAddress[IPVersion], ar)),
-		AuthPassword:     fmt.Sprintf("hoge%d", ar),
-		RouteServer:      config.RouteServer{RouteServerClient: !normalBGP},
-		TransportOptions: config.TransportOptions{PassiveMode: true},
-		Timers:           config.Timers{HoldTime: 30, KeepaliveInterval: 10, IdleHoldTimeAfterReset: 10},
-		PeerType:         config.PEER_TYPE_EXTERNAL,
-	}
+	gobgpConf := config.Bgp{}
+	gobgpConf.Global.GlobalConfig.As = 65000
+	gobgpConf.Global.GlobalConfig.RouterId = net.ParseIP("192.168.255.1")
+
+	c := config.Neighbor{}
+	c.NeighborConfig.PeerAs = 65000 + uint32(ar)
+	c.NeighborConfig.NeighborAddress = net.ParseIP(fmt.Sprintf("%s%d", baseNeighborAddress[IPVersion], ar))
+	c.NeighborConfig.AuthPassword = fmt.Sprintf("hoge%d", ar)
+	c.RouteServer.RouteServerClient = !normalBGP
+	c.Transport.TransportConfig.PassiveMode = true
+
+	timers := config.Timers{}
+	timers.TimersConfig.HoldTime = 30
+	timers.TimersConfig.KeepaliveInterval = 10
+	timers.TimersConfig.IdleHoldTimeAfterReset = 10
+
+	c.Timers = timers
+	c.NeighborConfig.PeerType = config.PEER_TYPE_EXTERNAL
 
 	if !noQuagga {
 		q := NewQuaggaConfig(ar, &gobgpConf.Global, &c, net.ParseIP(serverAddress[IPVersion]))
@@ -172,7 +178,7 @@ func append_config_files(ar int, outputDir string, IPVersion string, noQuagga bo
 	if d_err != nil {
 		log.Fatal(d_err)
 	}
-	newConf.NeighborList = append(newConf.NeighborList, c)
+	newConf.Neighbors.NeighborList = append(newConf.Neighbors.NeighborList, c)
 	var buffer bytes.Buffer
 	encoder := toml.NewEncoder(&buffer)
 	encoder.Encode(newConf)
@@ -183,7 +189,7 @@ func append_config_files(ar int, outputDir string, IPVersion string, noQuagga bo
 		log.Fatal(p_err)
 	}
 
-	if policyConf != nil && len(policyConf.PolicyDefinitionList) != 0 {
+	if policyConf != nil && len(policyConf.PolicyDefinitions.PolicyDefinitionList) != 0 {
 		encoder.Encode(policyConf)
 	}
 

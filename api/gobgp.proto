@@ -377,20 +377,20 @@ message PeerInfo {
     string bgp_state = 1;
     string admin_state = 2;
     uint32 fsm_established_transitions = 3;
-    uint32 total_message_out = 4;
-    uint32 total_message_in = 5;
-    uint32 update_message_out = 6;
-    uint32 update_message_in = 7;
-    uint32 keep_alive_message_out = 8;
-    uint32 keep_alive_message_in = 9;
-    uint32 open_message_out = 10;
-    uint32 open_message_in = 11;
-    uint32 notification_out = 12;
-    uint32 notification_in = 13;
-    uint32 refresh_message_out = 14;
-    uint32 refresh_message_in = 15;
-    uint32 discarded_out = 16;
-    uint32 discarded_in = 17;
+    uint64 total_message_out = 4;
+    uint64 total_message_in = 5;
+    uint64 update_message_out = 6;
+    uint64 update_message_in = 7;
+    uint64 keep_alive_message_out = 8;
+    uint64 keep_alive_message_in = 9;
+    uint64 open_message_out = 10;
+    uint64 open_message_in = 11;
+    uint64 notification_out = 12;
+    uint64 notification_in = 13;
+    uint64 refresh_message_out = 14;
+    uint64 refresh_message_in = 15;
+    uint64 discarded_out = 16;
+    uint64 discarded_in = 17;
     int64 uptime = 18;
     int64 downtime = 19;
     string last_error = 20;
@@ -417,6 +417,7 @@ message Prefix {
 message PrefixSet {
     string prefix_set_name = 1;
     repeated Prefix prefix_list = 2;
+    string match_set_options = 3;
 }
 
 message Neighbor {
@@ -426,6 +427,7 @@ message Neighbor {
 message NeighborSet {
     string neighbor_set_name = 1;
     repeated Neighbor neighbor_list = 2;
+    string match_set_options = 3;
 }
 
 message AsPathLength {
@@ -436,16 +438,19 @@ message AsPathLength {
 message AsPathSet {
     string as_path_set_name = 1;
     repeated string as_path_members = 2;
+    string match_set_options = 3;
 }
 
 message CommunitySet {
     string community_set_name = 1;
     repeated string community_members = 2;
+    string match_set_options = 3;
 }
 
 message ExtCommunitySet {
     string ext_community_set_name = 1;
     repeated string ext_community_members = 2;
+    string match_set_options = 3;
 }
 
 message Conditions {
@@ -454,8 +459,7 @@ message Conditions {
     AsPathLength match_as_path_length = 3;
     AsPathSet match_as_path_set = 4;
     CommunitySet match_community_set = 5;
-    string match_set_options = 6;
-    ExtCommunitySet match_ext_community_set = 7;
+    ExtCommunitySet match_ext_community_set = 6;
 }
 
 message CommunityAction {

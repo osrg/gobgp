@@ -37,7 +37,7 @@ func ReadConfigfileServe(path string, configCh chan BgpConfigSet, reloadCh chan 
 
 func inSlice(n Neighbor, b []Neighbor) bool {
 	for _, nb := range b {
-		if nb.NeighborAddress.String() == n.NeighborAddress.String() {
+		if nb.NeighborConfig.NeighborAddress.String() == n.NeighborConfig.NeighborAddress.String() {
 			return true
 		}
 	}
@@ -56,19 +56,19 @@ func UpdateConfig(curC *Bgp, newC *Bgp) (*Bgp, []Neighbor, []Neighbor) {
 	added := []Neighbor{}
 	deleted := []Neighbor{}
 
-	for _, n := range newC.NeighborList {
-		if inSlice(n, curC.NeighborList) == false {
+	for _, n := range newC.Neighbors.NeighborList {
+		if inSlice(n, curC.Neighbors.NeighborList) == false {
 			added = append(added, n)
 		}
 	}
 
-	for _, n := range curC.NeighborList {
-		if inSlice(n, newC.NeighborList) == false {
+	for _, n := range curC.Neighbors.NeighborList {
+		if inSlice(n, newC.Neighbors.NeighborList) == false {
 			deleted = append(deleted, n)
 		}
 	}
 
-	bgpConfig.NeighborList = newC.NeighborList
+	bgpConfig.Neighbors.NeighborList = newC.Neighbors.NeighborList
 	return &bgpConfig, added, deleted
 }
 

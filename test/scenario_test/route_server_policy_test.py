@@ -230,7 +230,9 @@ class GoBGPTest(GoBGPTestBase):
         self.initialize()
 
         # add other network
-        tn = qaccess.login(peer2)
+        tn = self.try_login_quagga(peer2)
+        self.assertIsNotNone(tn)
+
         print "add network 192.168.20.0/24"
         qaccess.add_network(tn, 65002, r2)
         print "add network 192.168.200.0/24"
@@ -341,7 +343,9 @@ class GoBGPTest(GoBGPTestBase):
         self.initialize()
 
         # add other network
-        tn = qaccess.login(peer2)
+        tn = self.try_login_quagga(peer2)
+        self.assertIsNotNone(tn)
+
         print "add network 192.168.20.0/24"
         qaccess.add_network(tn, 65002, r2)
         print "add network 192.168.200.0/24"
@@ -565,7 +569,9 @@ class GoBGPTest(GoBGPTestBase):
         self.initialize()
 
         # add other network
-        tn = qaccess.login(peer2)
+        tn = self.try_login_quagga(peer2)
+        self.assertIsNotNone(tn)
+
         print "add network 2001:0:10:20::/64"
         qaccess.add_network(tn, 65002, r2, use_ipv6=True)
         print "add network 2001:0:10:200::/64"
@@ -678,7 +684,9 @@ class GoBGPTest(GoBGPTestBase):
         self.initialize()
 
         # add other network
-        tn = qaccess.login(peer2)
+        tn = self.try_login_quagga(peer2)
+        self.assertIsNotNone(tn)
+
         print "add network 2001:0:10:20::/64"
         qaccess.add_network(tn, 65002, r2, use_ipv6=True)
         print "add network 2001:0:10:200::/64"
@@ -934,7 +942,7 @@ class GoBGPTest(GoBGPTestBase):
         # generate exabgp configuration file
         prefix1 = "192.168.100.0/24"
         asns = ['65100'] + [ str(asn) for asn in range(65099, 65090, -1) ]
-        as_path =  reduce(lambda a,b: a + " " + b, asns)
+        as_path =  reduce(lambda a, b: a + " " + b, asns)
 
         e = ExabgpConfig(EXABGP_COMMON_CONF)
         e.add_route(prefix1, aspath=as_path)
@@ -953,6 +961,7 @@ class GoBGPTest(GoBGPTestBase):
         self.initialize()
 
         addresses = self.get_neighbor_address(self.gobgp_config)
+
         self.retry_routine_for_state(addresses, "BGP_FSM_ESTABLISHED")
 
         path = self.get_paths_in_localrib(peer1, prefix1, retry=self.retry_count_common)
@@ -963,7 +972,7 @@ class GoBGPTest(GoBGPTestBase):
         self.assertIsNotNone(qpath)
 
         # check local-rib in peer2
-        path = self.get_paths_in_localrib(peer2, prefix1,retry=0)
+        path = self.get_paths_in_localrib(peer2, prefix1, retry=0)
         self.assertIsNone(path)
 
         # check show ip bgp on peer2(quagga2)
@@ -2309,7 +2318,9 @@ class GoBGPTest(GoBGPTestBase):
         self.initialize()
 
         # add other network
-        tn = qaccess.login(peer2)
+        tn = self.try_login_quagga(peer2)
+        self.assertIsNotNone(tn)
+
         print "add network 192.168.20.0/24"
         qaccess.add_network(tn, 65002, r2)
         print "add network 192.168.200.0/24"

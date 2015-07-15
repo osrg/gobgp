@@ -113,9 +113,20 @@ class GoBGPTestBase(unittest.TestCase):
             return
         self.assertEqual(ans_nexthop, rep_nexthop)
 
+    def extract_bgp_section(self):
+        with open(self.gobgp_config_file) as f:
+            dst = ''
+            for line in f:
+                if 'DefinedSets' in line:
+                    break
+                dst += line
+
+            return dst.encode('utf8')
+
     def load_gobgp_config(self):
         try:
-            self.gobgp_config = toml.loads(open(self.gobgp_config_file).read())
+            t = self.extract_bgp_section()
+            self.gobgp_config = toml.loads(t)
         except IOError, (errno, strerror):
             print "I/O error(%s): %s" % (errno, strerror)
 
@@ -169,9 +180,9 @@ class GoBGPTestBase(unittest.TestCase):
     # get address of each neighbor from gobpg configration
     def get_neighbor_address(self, config):
         address = []
-        neighbors_config = config['NeighborList']
+        neighbors_config = config['Neighbors']['NeighborList']
         for neighbor_config in neighbors_config:
-            neighbor_ip = neighbor_config['NeighborAddress']
+            neighbor_ip = neighbor_config['NeighborConfig']['NeighborAddress']
             address.append(neighbor_ip)
         return address
 
@@ -264,6 +275,25 @@ class GoBGPTestBase(unittest.TestCase):
                     time.sleep(interval)
 
         print "adj_rib_%s is none" % type
+        return None
+
+    # quagga login check
+    def try_login_quagga(self, peer, retry=3, interval=1):
+        print "try login to quagga : %s" % peer
+        if interval < 0:
+            interval = self.wait_per_retry
+        retry_count = 0
+        while True:
+            try:
+                tn = qaccess.login(peer)
+                return tn
+            except:
+                retry_count += 1
+                if retry_count > retry:
+                    break
+                print "failed to login to %s" % peer
+                print "wait (" + str(interval) + " seconds)"
+                time.sleep(interval)
         return None
 
 

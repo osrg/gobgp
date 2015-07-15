@@ -108,7 +108,7 @@ class GoBGPContainer(BGPContainer):
         return json.loads(output)['info']['bgp_state']
 
     def create_config(self):
-        config = {'Global': {'As': self.asn, 'RouterId': self.router_id}}
+        config = {'Global': {'GlobalConfig': {'As': self.asn, 'RouterId': self.router_id}}}
         for peer, info in self.peers.iteritems():
             if self.asn == peer.asn:
                 peer_type = self.PEER_TYPE_INTERNAL
@@ -129,14 +129,17 @@ class GoBGPContainer(BGPContainer):
                 afi_safi_list.append({'AfiSafiName': 'encap'})
                 afi_safi_list.append({'AfiSafiName': 'rtc'})
 
-            n = {'NeighborAddress': info['neigh_addr'].split('/')[0],
-                 'PeerAs': peer.asn,
-                 'AuthPassword': info['passwd'],
-                 'PeerType': peer_type,
-                 'AfiSafiList': afi_safi_list}
+            n = {'NeighborConfig':
+                 {'NeighborAddress': info['neigh_addr'].split('/')[0],
+                  'PeerAs': peer.asn,
+                  'AuthPassword': info['passwd'],
+                  'PeerType': peer_type,
+                  },
+                 'AfiSafis': {'AfiSafiList': afi_safi_list}
+                 }
 
             if info['passive']:
-                n['TransportOptions'] = {'PassiveMode': True}
+                n['Transport'] = {'TransportConfig': {'PassiveMode': True}}
 
             if info['is_rs_client']:
                 n['RouteServer'] = {'RouteServerClient': True}
@@ -146,10 +149,10 @@ class GoBGPContainer(BGPContainer):
                 n['RouteReflector'] = {'RouteReflectorClient': True,
                                        'RouteReflectorClusterId': clusterId}
 
-            if 'NeighborList' not in config:
-                config['NeighborList'] = []
+            if 'Neighbors' not in config:
+                config['Neighbors'] = {'NeighborList': []}
 
-            config['NeighborList'].append(n)
+            config['Neighbors']['NeighborList'].append(n)
 
         with open('{0}/gobgpd.conf'.format(self.config_dir), 'w') as f:
             print colors.yellow('[{0}\'s new config]'.format(self.name))

@@ -34,11 +34,11 @@ func (qt *QuaggaConfig) Config() *bytes.Buffer {
 
 	buf.WriteString("hostname bgpd\n")
 	buf.WriteString("password zebra\n")
-	buf.WriteString(fmt.Sprintf("router bgp %d\n", qt.config.PeerAs))
+	buf.WriteString(fmt.Sprintf("router bgp %d\n", qt.config.NeighborConfig.PeerAs))
 	buf.WriteString(fmt.Sprintf("bgp router-id 192.168.0.%d\n", qt.id))
 	buf.WriteString(fmt.Sprintf("network 192.168.%d.0/24\n", qt.id))
-	buf.WriteString(fmt.Sprintf("neighbor %s remote-as %d\n", qt.serverIP, qt.gobgpConfig.As))
-	buf.WriteString(fmt.Sprintf("neighbor %s password %s\n", qt.serverIP, qt.config.AuthPassword))
+	buf.WriteString(fmt.Sprintf("neighbor %s remote-as %d\n", qt.serverIP, qt.gobgpConfig.GlobalConfig.As))
+	buf.WriteString(fmt.Sprintf("neighbor %s password %s\n", qt.serverIP, qt.config.NeighborConfig.AuthPassword))
 	buf.WriteString("log file /var/log/quagga/bgpd.log")
 	return buf
 }
@@ -46,20 +46,18 @@ func (qt *QuaggaConfig) Config() *bytes.Buffer {
 func create_config_files(nr int, outputDir string) {
 	quaggaConfigList := make([]*QuaggaConfig, 0)
 
-	gobgpConf := config.Bgp{
-		Global: config.Global{
-			As:       65000,
-			RouterId: net.ParseIP("192.168.255.1"),
-		},
-	}
+	gobgpConf := config.Bgp{}
+	gobgpConf.Global.GlobalConfig.As = 65000
+	gobgpConf.Global.GlobalConfig.RouterId = net.ParseIP("192.168.255.1")
 
 	for i := 1; i < nr+1; i++ {
-		c := config.Neighbor{
-			PeerAs:          65000 + uint32(i),
-			NeighborAddress: net.ParseIP(fmt.Sprintf("10.0.0.%d", i)),
-			AuthPassword:    fmt.Sprintf("hoge%d", i),
-		}
-		gobgpConf.NeighborList = append(gobgpConf.NeighborList, c)
+
+		c := config.Neighbor{}
+		c.NeighborConfig.PeerAs = 65000 + uint32(i)
+		c.NeighborConfig.NeighborAddress = net.ParseIP(fmt.Sprintf("10.0.0.%d", i))
+		c.NeighborConfig.AuthPassword = fmt.Sprintf("hoge%d", i)
+
+		gobgpConf.Neighbors.NeighborList = append(gobgpConf.Neighbors.NeighborList, c)
 		q := NewQuaggaConfig(i, &gobgpConf.Global, &c, net.ParseIP("10.0.255.1"))
 		quaggaConfigList = append(quaggaConfigList, q)
 		os.Mkdir(fmt.Sprintf("%s/q%d", outputDir, i), 0755)
