@@ -77,7 +77,7 @@ func main() {
 			go func() {
 
 				for {
-					buf := make([]byte, mrt.COMMON_HEADER_LEN)
+					buf := make([]byte, mrt.MRT_COMMON_HEADER_LEN)
 					_, err := file.Read(buf)
 					if err == io.EOF {
 						break
@@ -86,7 +86,7 @@ func main() {
 						os.Exit(1)
 					}
 
-					h := &mrt.Header{}
+					h := &mrt.MRTHeader{}
 					err = h.DecodeFromBytes(buf)
 					if err != nil {
 						fmt.Println("failed to parse")
@@ -100,14 +100,14 @@ func main() {
 						os.Exit(1)
 					}
 
-					msg, err := mrt.ParseBody(h, buf)
+					msg, err := mrt.ParseMRTBody(h, buf)
 					if err != nil {
 						fmt.Println("failed to parse:", err)
 						os.Exit(1)
 					}
 
 					if msg.Header.Type == mrt.TABLE_DUMPv2 {
-						subType := mrt.SubTypeTableDumpv2(msg.Header.SubType)
+						subType := mrt.MRTSubTypeTableDumpv2(msg.Header.SubType)
 						var af *api.AddressFamily
 						switch subType {
 						case mrt.PEER_INDEX_TABLE:

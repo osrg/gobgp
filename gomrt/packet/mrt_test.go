@@ -24,7 +24,7 @@ import (
 )
 
 func TestMrtHdr(t *testing.T) {
-	h1, err := NewHeader(10, TABLE_DUMPv2, RIB_IPV4_MULTICAST, 20)
+	h1, err := NewMRTHeader(10, TABLE_DUMPv2, RIB_IPV4_MULTICAST, 20)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -32,7 +32,7 @@ func TestMrtHdr(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	h2 := &Header{}
+	h2 := &MRTHeader{}
 	err = h2.DecodeFromBytes(b1)
 	if err != nil {
 		t.Fatal(err)

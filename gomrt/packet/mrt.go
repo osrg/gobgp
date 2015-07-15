@@ -25,65 +25,65 @@ import (
 )
 
 const (
-	COMMON_HEADER_LEN = 12
+	MRT_COMMON_HEADER_LEN = 12
 )
 
-type Type uint16
+type MRTType uint16
 
 const (
-	NULL         Type = 0  // deprecated
-	START        Type = 1  // deprecated
-	DIE          Type = 2  // deprecated
-	I_AM_DEAD    Type = 3  // deprecated
-	PEER_DOWN    Type = 4  // deprecated
-	BGP          Type = 5  // deprecated
-	RIP          Type = 6  // deprecated
-	IDRP         Type = 7  // deprecated
-	RIPNG        Type = 8  // deprecated
-	BGP4PLUS     Type = 9  // deprecated
-	BGP4PLUS01   Type = 10 // deprecated
-	OSPFv2       Type = 11
-	TABLE_DUMP   Type = 12
-	TABLE_DUMPv2 Type = 13
-	BGP4MP       Type = 16
-	BGP4MP_ET    Type = 17
-	ISIS         Type = 32
-	ISIS_ET      Type = 33
-	OSPFv3       Type = 48
-	OSPFv3_ET    Type = 49
+	NULL         MRTType = 0  // deprecated
+	START        MRTType = 1  // deprecated
+	DIE          MRTType = 2  // deprecated
+	I_AM_DEAD    MRTType = 3  // deprecated
+	PEER_DOWN    MRTType = 4  // deprecated
+	BGP          MRTType = 5  // deprecated
+	RIP          MRTType = 6  // deprecated
+	IDRP         MRTType = 7  // deprecated
+	RIPNG        MRTType = 8  // deprecated
+	BGP4PLUS     MRTType = 9  // deprecated
+	BGP4PLUS01   MRTType = 10 // deprecated
+	OSPFv2       MRTType = 11
+	TABLE_DUMP   MRTType = 12
+	TABLE_DUMPv2 MRTType = 13
+	BGP4MP       MRTType = 16
+	BGP4MP_ET    MRTType = 17
+	ISIS         MRTType = 32
+	ISIS_ET      MRTType = 33
+	OSPFv3       MRTType = 48
+	OSPFv3_ET    MRTType = 49
 )
 
-type SubTyper interface {
+type MRTSubTyper interface {
 	ToUint16() uint16
 }
 
-type SubTypeTableDumpv2 uint16
+type MRTSubTypeTableDumpv2 uint16
 
 const (
-	PEER_INDEX_TABLE   SubTypeTableDumpv2 = 1
-	RIB_IPV4_UNICAST   SubTypeTableDumpv2 = 2
-	RIB_IPV4_MULTICAST SubTypeTableDumpv2 = 3
-	RIB_IPV6_UNICAST   SubTypeTableDumpv2 = 4
-	RIB_IPV6_MULTICAST SubTypeTableDumpv2 = 5
-	RIB_GENERIC        SubTypeTableDumpv2 = 6
+	PEER_INDEX_TABLE   MRTSubTypeTableDumpv2 = 1
+	RIB_IPV4_UNICAST   MRTSubTypeTableDumpv2 = 2
+	RIB_IPV4_MULTICAST MRTSubTypeTableDumpv2 = 3
+	RIB_IPV6_UNICAST   MRTSubTypeTableDumpv2 = 4
+	RIB_IPV6_MULTICAST MRTSubTypeTableDumpv2 = 5
+	RIB_GENERIC        MRTSubTypeTableDumpv2 = 6
 )
 
-func (t SubTypeTableDumpv2) ToUint16() uint16 {
+func (t MRTSubTypeTableDumpv2) ToUint16() uint16 {
 	return uint16(t)
 }
 
-type SubTypeBGP4MP uint16
+type MRTSubTypeBGP4MP uint16
 
 const (
-	STATE_CHANGE      SubTypeBGP4MP = 0
-	MESSAGE           SubTypeBGP4MP = 1
-	MESSAGE_AS4       SubTypeBGP4MP = 4
-	STATE_CHANGE_AS4  SubTypeBGP4MP = 5
-	MESSAGE_LOCAL     SubTypeBGP4MP = 6
-	MESSAGE_AS4_LOCAL SubTypeBGP4MP = 7
+	STATE_CHANGE      MRTSubTypeBGP4MP = 0
+	MESSAGE           MRTSubTypeBGP4MP = 1
+	MESSAGE_AS4       MRTSubTypeBGP4MP = 4
+	STATE_CHANGE_AS4  MRTSubTypeBGP4MP = 5
+	MESSAGE_LOCAL     MRTSubTypeBGP4MP = 6
+	MESSAGE_AS4_LOCAL MRTSubTypeBGP4MP = 7
 )
 
-func (t SubTypeBGP4MP) ToUint16() uint16 {
+func (t MRTSubTypeBGP4MP) ToUint16() uint16 {
 	return uint16(t)
 }
 
@@ -109,30 +109,30 @@ func packValues(values []interface{}) ([]byte, error) {
 	return b.Bytes(), nil
 }
 
-type Header struct {
+type MRTHeader struct {
 	Timestamp uint32
-	Type      Type
+	Type      MRTType
 	SubType   uint16
 	Len       uint32
 }
 
-func (h *Header) DecodeFromBytes(data []byte) error {
-	if len(data) < COMMON_HEADER_LEN {
-		return fmt.Errorf("not all Header bytes are available. expected: %d, actual: %d", COMMON_HEADER_LEN, len(data))
+func (h *MRTHeader) DecodeFromBytes(data []byte) error {
+	if len(data) < MRT_COMMON_HEADER_LEN {
+		return fmt.Errorf("not all MRTHeader bytes are available. expected: %d, actual: %d", MRT_COMMON_HEADER_LEN, len(data))
 	}
 	h.Timestamp = binary.BigEndian.Uint32(data[:4])
-	h.Type = Type(binary.BigEndian.Uint16(data[4:6]))
+	h.Type = MRTType(binary.BigEndian.Uint16(data[4:6]))
 	h.SubType = binary.BigEndian.Uint16(data[6:8])
 	h.Len = binary.BigEndian.Uint32(data[8:12])
 	return nil
 }
 
-func (h *Header) Serialize() ([]byte, error) {
+func (h *MRTHeader) Serialize() ([]byte, error) {
 	return packValues([]interface{}{h.Timestamp, h.Type, h.SubType, h.Len})
 }
 
-func NewHeader(timestamp uint32, t Type, subtype SubTyper, l uint32) (*Header, error) {
-	return &Header{
+func NewMRTHeader(timestamp uint32, t MRTType, subtype MRTSubTyper, l uint32) (*MRTHeader, error) {
+	return &MRTHeader{
 		Timestamp: timestamp,
 		Type:      t,
 		SubType:   subtype.ToUint16(),
@@ -140,8 +140,8 @@ func NewHeader(timestamp uint32, t Type, subtype SubTyper, l uint32) (*Header, e
 	}, nil
 }
 
-type Message struct {
-	Header Header
+type MRTMessage struct {
+	Header MRTHeader
 	Body   Body
 }
 
@@ -663,14 +663,14 @@ func (m *BGP4MPMessage) String() string {
 	return fmt.Sprintf("%s: PeerAS [%d] LocalAS [%d] InterfaceIndex [%d] PeerIP [%s] LocalIP [%s] BGPMessage [%s]", title, m.PeerAS, m.LocalAS, m.InterfaceIndex, m.PeerIpAddress, m.LocalIpAddress, m.BGPMessage)
 }
 
-func ParseBody(h *Header, data []byte) (*Message, error) {
+func ParseMRTBody(h *MRTHeader, data []byte) (*MRTMessage, error) {
 	if len(data) < int(h.Len) {
 		return nil, fmt.Errorf("Not all MRT message bytes available. expected: %d, actual: %d", int(h.Len), len(data))
 	}
-	msg := &Message{Header: *h}
+	msg := &MRTMessage{Header: *h}
 	switch h.Type {
 	case TABLE_DUMPv2:
-		subType := SubTypeTableDumpv2(h.SubType)
+		subType := MRTSubTypeTableDumpv2(h.SubType)
 		rf := bgp.RouteFamily(0)
 		switch subType {
 		case PEER_INDEX_TABLE:
@@ -694,7 +694,7 @@ func ParseBody(h *Header, data []byte) (*Message, error) {
 			}
 		}
 	case BGP4MP:
-		subType := SubTypeBGP4MP(h.SubType)
+		subType := MRTSubTypeBGP4MP(h.SubType)
 		isAS4 := true
 		switch subType {
 		case STATE_CHANGE:
