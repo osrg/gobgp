@@ -18,7 +18,7 @@ package main
 import (
 	"fmt"
 	"github.com/osrg/gobgp/api"
-	"github.com/osrg/gobgp/gomrt/packet"
+	"github.com/osrg/gobgp/packet"
 	"github.com/spf13/cobra"
 	"golang.org/x/net/context"
 	"google.golang.org/grpc"
@@ -77,7 +77,7 @@ func main() {
 			go func() {
 
 				for {
-					buf := make([]byte, mrt.MRT_COMMON_HEADER_LEN)
+					buf := make([]byte, bgp.MRT_COMMON_HEADER_LEN)
 					_, err := file.Read(buf)
 					if err == io.EOF {
 						break
@@ -86,7 +86,7 @@ func main() {
 						os.Exit(1)
 					}
 
-					h := &mrt.MRTHeader{}
+					h := &bgp.MRTHeader{}
 					err = h.DecodeFromBytes(buf)
 					if err != nil {
 						fmt.Println("failed to parse")
@@ -100,27 +100,27 @@ func main() {
 						os.Exit(1)
 					}
 
-					msg, err := mrt.ParseMRTBody(h, buf)
+					msg, err := bgp.ParseMRTBody(h, buf)
 					if err != nil {
 						fmt.Println("failed to parse:", err)
 						os.Exit(1)
 					}
 
-					if msg.Header.Type == mrt.TABLE_DUMPv2 {
-						subType := mrt.MRTSubTypeTableDumpv2(msg.Header.SubType)
+					if msg.Header.Type == bgp.TABLE_DUMPv2 {
+						subType := bgp.MRTSubTypeTableDumpv2(msg.Header.SubType)
 						var af *api.AddressFamily
 						switch subType {
-						case mrt.PEER_INDEX_TABLE:
+						case bgp.PEER_INDEX_TABLE:
 							continue
-						case mrt.RIB_IPV4_UNICAST:
+						case bgp.RIB_IPV4_UNICAST:
 							af = api.AF_IPV4_UC
-						case mrt.RIB_IPV6_UNICAST:
+						case bgp.RIB_IPV6_UNICAST:
 							af = api.AF_IPV6_UC
 						default:
 							fmt.Println("unsupported subType:", subType)
 							os.Exit(1)
 						}
-						rib := msg.Body.(*mrt.Rib)
+						rib := msg.Body.(*bgp.Rib)
 						prefix := rib.Prefix.String()
 						path := &api.Path{}
 						path.Nlri = &api.Nlri{
