@@ -606,7 +606,7 @@ func NewGrpcRequest(reqType int, remoteAddr string, rf bgp.RouteFamily, d interf
 		RequestType: reqType,
 		RouteFamily: rf,
 		RemoteAddr:  remoteAddr,
-		ResponseCh:  make(chan *GrpcResponse),
+		ResponseCh:  make(chan *GrpcResponse, 8),
 		EndCh:       make(chan struct{}, 1),
 		Data:        d,
 	}
