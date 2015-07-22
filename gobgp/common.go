@@ -55,6 +55,9 @@ const (
 	CMD_EXPORT         = "export"
 	CMD_DISTRIBUTE     = "distribute"
 	CMD_MONITOR        = "monitor"
+	CMD_MRT            = "mrt"
+	CMD_DUMP           = "dump"
+	CMD_INJECT         = "inject"
 )
 
 var subOpts struct {
@@ -80,6 +83,10 @@ var actionOpts struct {
 	CommunityAction     string `long:"community" description:"specifying a community action of policy"`
 	MedAction           string `long:"med" description:"specifying a med action of policy"`
 	AsPathPrependAction string `long:"as-prepend" description:"specifying a as-prepend action of policy"`
+}
+
+var mrtOpts struct {
+	OutputDir string
 }
 
 func formatTimedelta(d int64) string {

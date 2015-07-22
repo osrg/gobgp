@@ -53,14 +53,14 @@ func TestDestinationSetNlri(t *testing.T) {
 	dd := &Destination{}
 	nlri := bgp.NewNLRInfo(24, "13.2.3.1")
 	dd.setNlri(nlri)
-	r_nlri := dd.getNlri()
+	r_nlri := dd.GetNlri()
 	assert.Equal(t, r_nlri, nlri)
 }
 func TestDestinationGetNlri(t *testing.T) {
 	dd := &Destination{}
 	nlri := bgp.NewNLRInfo(24, "10.110.123.1")
 	dd.setNlri(nlri)
-	r_nlri := dd.getNlri()
+	r_nlri := dd.GetNlri()
 	assert.Equal(t, r_nlri, nlri)
 }
 func TestDestinationSetBestPathReason(t *testing.T) {

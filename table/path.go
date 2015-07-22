@@ -122,7 +122,7 @@ func (path *Path) UpdatePathAttrs(global *config.Global, peer *config.Neighbor) 
 	}
 }
 
-func (path *Path) getTimestamp() time.Time {
+func (path *Path) GetTimestamp() time.Time {
 	return path.timestamp
 }
 
@@ -130,7 +130,7 @@ func (path *Path) setTimestamp(t time.Time) {
 	path.timestamp = t
 }
 
-func (path *Path) isLocal() bool {
+func (path *Path) IsLocal() bool {
 	var ret bool
 	if path.source.Address == nil {
 		ret = true
@@ -145,7 +145,7 @@ func (path *Path) ToApiStruct() *api.Path {
 			ret = append(ret, a.ToApiStruct())
 		}
 		return ret
-	}(path.getPathAttrs())
+	}(path.GetPathAttrs())
 	return &api.Path{
 		Nlri:       path.GetNlri().ToApiStruct(),
 		Nexthop:    path.GetNexthop().String(),
@@ -239,7 +239,7 @@ func (path *Path) getMedSetByTargetNeighbor() bool {
 	return path.medSetByTargetNeighbor
 }
 
-func (path *Path) getPathAttrs() []bgp.PathAttributeInterface {
+func (path *Path) GetPathAttrs() []bgp.PathAttributeInterface {
 	return path.pathAttrs
 }
 

@@ -82,6 +82,7 @@ const (
 	REQ_POLICY_EXTCOMMUNITIES_DELETE
 	REQ_MONITOR_GLOBAL_BEST_CHANGED
 	REQ_MONITOR_NEIGHBOR_PEER_STATE
+	REQ_MRT_GLOBAL_RIB
 )
 
 const GRPC_PORT = 8080
@@ -589,6 +590,35 @@ func (s *Server) ModPolicyRoutePolicy(stream api.Grpc_ModPolicyRoutePolicyServer
 		}
 		return nil
 	}
+}
+
+func (s *Server) GetMrt(arg *api.MrtArguments, stream api.Grpc_GetMrtServer) error {
+	var reqType int
+	switch arg.Resource {
+	case api.Resource_GLOBAL:
+		reqType = REQ_MRT_GLOBAL_RIB
+	default:
+		return fmt.Errorf("unsupported resource type: %v", arg.Resource)
+	}
+	rf, err := convertAf2Rf(arg.Af)
+	if err != nil {
+		return err
+	}
+
+	req := NewGrpcRequest(reqType, "", rf, arg.Interval)
+	s.bgpServerCh <- req
+	for res := range req.ResponseCh {
+		if err = res.Err(); err != nil {
+			log.Debug(err.Error())
+			goto END
+		}
+		if err = stream.Send(res.Data.(*api.MrtMessage)); err != nil {
+			goto END
+		}
+	}
+END:
+	req.EndCh <- struct{}{}
+	return err
 }
 
 type GrpcRequest struct {

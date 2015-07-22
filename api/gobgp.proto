@@ -39,6 +39,7 @@ service Grpc {
   rpc ModPolicyRoutePolicy(stream PolicyArguments) returns (stream Error) {}
   rpc MonitorBestChanged(Arguments) returns (stream Path) {}
   rpc MonitorPeerState(Arguments) returns (stream Peer) {}
+  rpc GetMrt(MrtArguments) returns (stream MrtMessage) {}
 }
 
 message Error {
@@ -68,6 +69,12 @@ message PolicyArguments {
     string name = 4;
     PolicyDefinition policy_definition = 6;
     ApplyPolicy apply_policy = 7;
+}
+
+message MrtArguments {
+    Resource resource = 1;
+    AddressFamily af = 2;
+    uint64 interval = 3;
 }
 
 enum Resource {
@@ -485,4 +492,8 @@ message ApplyPolicy {
     string default_export_policy = 4;
     repeated PolicyDefinition distribute_policies = 5;
     string default_distribute_policy = 6;
+}
+
+message MrtMessage {
+    bytes data = 1;
 }

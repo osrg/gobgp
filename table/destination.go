@@ -87,7 +87,7 @@ func (dd *Destination) MarshalJSON() ([]byte, error) {
 }
 
 func (dd *Destination) ToApiStruct() *api.Destination {
-	prefix := dd.getNlri().String()
+	prefix := dd.GetNlri().String()
 
 	idx := func() int {
 		for i, p := range dd.knownPathList {
@@ -125,7 +125,7 @@ func (dd *Destination) setRouteFamily(routeFamily bgp.RouteFamily) {
 	dd.routeFamily = routeFamily
 }
 
-func (dd *Destination) getNlri() bgp.AddrPrefixInterface {
+func (dd *Destination) GetNlri() bgp.AddrPrefixInterface {
 	return dd.nlri
 }
 
@@ -149,7 +149,7 @@ func (dd *Destination) setBestPath(path *Path) {
 	dd.bestPath = path
 }
 
-func (dd *Destination) getKnownPathList() []*Path {
+func (dd *Destination) GetKnownPathList() []*Path {
 	return dd.knownPathList
 }
 
@@ -172,7 +172,7 @@ func (dd *Destination) validatePath(path *Path) {
 
 		log.WithFields(log.Fields{
 			"Topic":      "Table",
-			"Key":        dd.getNlri().String(),
+			"Key":        dd.GetNlri().String(),
 			"Path":       path,
 			"ExpectedRF": dd.routeFamily,
 		}).Error("path is nil or invalid route family")
@@ -201,7 +201,7 @@ func (dest *Destination) Calculate(localAsn uint32) (*Path, string, error) {
 		dest.newPathList, _ = deleteAt(dest.newPathList, 0)
 		log.WithFields(log.Fields{
 			"Topic":  "Table",
-			"Key":    dest.getNlri().String(),
+			"Key":    dest.GetNlri().String(),
 			"Path":   dest.knownPathList[0],
 			"Reason": BPR_ONLY_PATH,
 		}).Debug("best path")
@@ -246,7 +246,7 @@ func (dest *Destination) removeWithdrawals() {
 
 	log.WithFields(log.Fields{
 		"Topic":  "Table",
-		"Key":    dest.getNlri().String(),
+		"Key":    dest.GetNlri().String(),
 		"Length": len(dest.withdrawList),
 	}).Debug("Removing withdrawals")
 	// If we have no withdrawals, we have nothing to do.
@@ -259,7 +259,7 @@ func (dest *Destination) removeWithdrawals() {
 	if len(dest.knownPathList) == 0 {
 		log.WithFields(log.Fields{
 			"Topic":  "Table",
-			"Key":    dest.getNlri().String(),
+			"Key":    dest.GetNlri().String(),
 			"Length": len(dest.withdrawList),
 		}).Debug("Found withdrawals for path(s) that did not get installed")
 
@@ -289,7 +289,7 @@ func (dest *Destination) removeWithdrawals() {
 		if !isFound {
 			log.WithFields(log.Fields{
 				"Topic": "Table",
-				"Key":   dest.getNlri().String(),
+				"Key":   dest.GetNlri().String(),
 				"Path":  withdraw,
 			}).Debug("No matching path for withdraw found, may be path was not installed into table")
 		}
@@ -299,7 +299,7 @@ func (dest *Destination) removeWithdrawals() {
 	if len(matches) != len(dest.withdrawList) {
 		log.WithFields(log.Fields{
 			"Topic":          "Table",
-			"Key":            dest.getNlri().String(),
+			"Key":            dest.GetNlri().String(),
 			"MatchLength":    len(matches),
 			"WithdrawLength": len(dest.withdrawList),
 		}).Debug("Did not find match for some withdrawals.")
@@ -312,7 +312,7 @@ func (dest *Destination) removeWithdrawals() {
 		if !result {
 			log.WithFields(log.Fields{
 				"Topic": "Table",
-				"Key":   dest.getNlri().String(),
+				"Key":   dest.GetNlri().String(),
 				"Path":  path,
 			}).Debug("could not remove path from knownPathList")
 		}
@@ -323,7 +323,7 @@ func (dest *Destination) removeWithdrawals() {
 		if !result {
 			log.WithFields(log.Fields{
 				"Topic": "Table",
-				"Key":   dest.getNlri().String(),
+				"Key":   dest.GetNlri().String(),
 				"Path":  path,
 			}).Debug("could not remove path from withdrawList")
 		}
@@ -386,14 +386,14 @@ func (dest *Destination) removeOldPaths() {
 			if !match {
 				log.WithFields(log.Fields{
 					"Topic": "Table",
-					"Key":   dest.getNlri().String(),
+					"Key":   dest.GetNlri().String(),
 					"Path":  oldPath,
 				}).Debug("not matched")
 
 			}
 			log.WithFields(log.Fields{
 				"Topic": "Table",
-				"Key":   dest.getNlri().String(),
+				"Key":   dest.GetNlri().String(),
 				"Path":  oldPath,
 			}).Debug("Implicit withdrawal of old path, since we have learned new path from the same peer")
 		}
@@ -577,11 +577,11 @@ func compareByLocalOrigin(path1, path2 *Path) *Path {
 
 	// Here we consider prefix from NC as locally originating static route.
 	// Hence it is preferred.
-	if path1.isLocal() {
+	if path1.IsLocal() {
 		return path1
 	}
 
-	if path2.isLocal() {
+	if path2.IsLocal() {
 		return path2
 	}
 	return nil
@@ -729,7 +729,7 @@ func compareByRouterID(localAsn uint32, path1, path2 *Path) (*Path, error) {
 	source2 := path2.GetSource()
 
 	// If both paths are from NC we have same router Id, hence cannot compare.
-	if path1.isLocal() && path2.isLocal() {
+	if path1.IsLocal() && path2.IsLocal() {
 		return nil, nil
 	}
 

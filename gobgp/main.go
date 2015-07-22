@@ -59,9 +59,7 @@ func main() {
 	neighborCmd := NewNeighborCmd()
 	policyCmd := NewPolicyCmd()
 	monitorCmd := NewMonitorCmd()
-	rootCmd.AddCommand(globalCmd)
-	rootCmd.AddCommand(neighborCmd)
-	rootCmd.AddCommand(policyCmd)
-	rootCmd.AddCommand(monitorCmd)
+	mrtCmd := NewMrtCmd()
+	rootCmd.AddCommand(globalCmd, neighborCmd, policyCmd, monitorCmd, mrtCmd)
 	rootCmd.Execute()
 }

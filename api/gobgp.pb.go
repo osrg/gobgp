@@ -13,6 +13,7 @@ It has these top-level messages:
 	Arguments
 	ModPathArguments
 	PolicyArguments
+	MrtArguments
 	AddressFamily
 	RouteDistinguisher
 	GracefulRestartTuple
@@ -51,6 +52,7 @@ It has these top-level messages:
 	Statement
 	PolicyDefinition
 	ApplyPolicy
+	MrtMessage
 */
 package api
 
@@ -625,6 +627,23 @@ func (m *PolicyArguments) GetPolicyDefinition() *PolicyDefinition {
 func (m *PolicyArguments) GetApplyPolicy() *ApplyPolicy {
 	if m != nil {
 		return m.ApplyPolicy
+	}
+	return nil
+}
+
+type MrtArguments struct {
+	Resource Resource       `protobuf:"varint,1,opt,name=resource,enum=api.Resource" json:"resource,omitempty"`
+	Af       *AddressFamily `protobuf:"bytes,2,opt,name=af" json:"af,omitempty"`
+	Interval uint64         `protobuf:"varint,3,opt,name=interval" json:"interval,omitempty"`
+}
+
+func (m *MrtArguments) Reset()         { *m = MrtArguments{} }
+func (m *MrtArguments) String() string { return proto.CompactTextString(m) }
+func (*MrtArguments) ProtoMessage()    {}
+
+func (m *MrtArguments) GetAf() *AddressFamily {
+	if m != nil {
+		return m.Af
 	}
 	return nil
 }
@@ -1350,6 +1369,14 @@ func (m *ApplyPolicy) GetDistributePolicies() []*PolicyDefinition {
 	return nil
 }
 
+type MrtMessage struct {
+	Data []byte `protobuf:"bytes,1,opt,name=data,proto3" json:"data,omitempty"`
+}
+
+func (m *MrtMessage) Reset()         { *m = MrtMessage{} }
+func (m *MrtMessage) String() string { return proto.CompactTextString(m) }
+func (*MrtMessage) ProtoMessage()    {}
+
 func init() {
 	proto.RegisterEnum("api.Resource", Resource_name, Resource_value)
 	proto.RegisterEnum("api.Operation", Operation_name, Operation_value)
@@ -1390,6 +1417,7 @@ type GrpcClient interface {
 	ModPolicyRoutePolicy(ctx context.Context, opts ...grpc.CallOption) (Grpc_ModPolicyRoutePolicyClient, error)
 	MonitorBestChanged(ctx context.Context, in *Arguments, opts ...grpc.CallOption) (Grpc_MonitorBestChangedClient, error)
 	MonitorPeerState(ctx context.Context, in *Arguments, opts ...grpc.CallOption) (Grpc_MonitorPeerStateClient, error)
+	GetMrt(ctx context.Context, in *MrtArguments, opts ...grpc.CallOption) (Grpc_GetMrtClient, error)
 }
 
 type grpcClient struct {
@@ -1778,6 +1806,38 @@ func (x *grpcMonitorPeerStateClient) Recv() (*Peer, error) {
 	return m, nil
 }
 
+func (c *grpcClient) GetMrt(ctx context.Context, in *MrtArguments, opts ...grpc.CallOption) (Grpc_GetMrtClient, error) {
+	stream, err := grpc.NewClientStream(ctx, &_Grpc_serviceDesc.Streams[9], c.cc, "/api.Grpc/GetMrt", opts...)
+	if err != nil {
+		return nil, err
+	}
+	x := &grpcGetMrtClient{stream}
+	if err := x.ClientStream.SendMsg(in); err != nil {
+		return nil, err
+	}
+	if err := x.ClientStream.CloseSend(); err != nil {
+		return nil, err
+	}
+	return x, nil
+}
+
+type Grpc_GetMrtClient interface {
+	Recv() (*MrtMessage, error)
+	grpc.ClientStream
+}
+
+type grpcGetMrtClient struct {
+	grpc.ClientStream
+}
+
+func (x *grpcGetMrtClient) Recv() (*MrtMessage, error) {
+	m := new(MrtMessage)
+	if err := x.ClientStream.RecvMsg(m); err != nil {
+		return nil, err
+	}
+	return m, nil
+}
+
 // Server API for Grpc service
 
 type GrpcServer interface {
@@ -1800,6 +1860,7 @@ type GrpcServer interface {
 	ModPolicyRoutePolicy(Grpc_ModPolicyRoutePolicyServer) error
 	MonitorBestChanged(*Arguments, Grpc_MonitorBestChangedServer) error
 	MonitorPeerState(*Arguments, Grpc_MonitorPeerStateServer) error
+	GetMrt(*MrtArguments, Grpc_GetMrtServer) error
 }
 
 func RegisterGrpcServer(s *grpc.Server, srv GrpcServer) {
@@ -2130,6 +2191,27 @@ func (x *grpcMonitorPeerStateServer) Send(m *Peer) error {
 	return x.ServerStream.SendMsg(m)
 }
 
+func _Grpc_GetMrt_Handler(srv interface{}, stream grpc.ServerStream) error {
+	m := new(MrtArguments)
+	if err := stream.RecvMsg(m); err != nil {
+		return err
+	}
+	return srv.(GrpcServer).GetMrt(m, &grpcGetMrtServer{stream})
+}
+
+type Grpc_GetMrtServer interface {
+	Send(*MrtMessage) error
+	grpc.ServerStream
+}
+
+type grpcGetMrtServer struct {
+	grpc.ServerStream
+}
+
+func (x *grpcGetMrtServer) Send(m *MrtMessage) error {
+	return x.ServerStream.SendMsg(m)
+}
+
 var _Grpc_serviceDesc = grpc.ServiceDesc{
 	ServiceName: "api.Grpc",
 	HandlerType: (*GrpcServer)(nil),
@@ -2221,6 +2303,11 @@ var _Grpc_serviceDesc = grpc.ServiceDesc{
 		{
 			StreamName:    "MonitorPeerState",
 			Handler:       _Grpc_MonitorPeerState_Handler,
+			ServerStreams: true,
+		},
+		{
+			StreamName:    "GetMrt",
+			Handler:       _Grpc_GetMrt_Handler,
 			ServerStreams: true,
 		},
 	},

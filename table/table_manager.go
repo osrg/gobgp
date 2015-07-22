@@ -138,7 +138,7 @@ func (manager *TableManager) calculate(destinationList []*Destination) ([]*Path,
 		log.WithFields(log.Fields{
 			"Topic": "table",
 			"Owner": manager.owner,
-			"Key":   destination.getNlri().String(),
+			"Key":   destination.GetNlri().String(),
 		}).Debug("Processing destination")
 
 		newBestPath, reason, err := destination.Calculate(manager.localAsn)
@@ -156,7 +156,7 @@ func (manager *TableManager) calculate(destinationList []*Destination) ([]*Path,
 			log.WithFields(log.Fields{
 				"Topic":    "table",
 				"Owner":    manager.owner,
-				"Key":      destination.getNlri().String(),
+				"Key":      destination.GetNlri().String(),
 				"peer":     newBestPath.GetSource().Address,
 				"next_hop": newBestPath.GetNexthop().String(),
 				"reason":   reason,
@@ -168,16 +168,16 @@ func (manager *TableManager) calculate(destinationList []*Destination) ([]*Path,
 			log.WithFields(log.Fields{
 				"Topic": "table",
 				"Owner": manager.owner,
-				"Key":   destination.getNlri().String(),
+				"Key":   destination.GetNlri().String(),
 			}).Debug("best path is nil")
 
-			if len(destination.getKnownPathList()) == 0 {
+			if len(destination.GetKnownPathList()) == 0 {
 				// create withdraw path
 				if currentBestPath != nil {
 					log.WithFields(log.Fields{
 						"Topic":    "table",
 						"Owner":    manager.owner,
-						"Key":      destination.getNlri().String(),
+						"Key":      destination.GetNlri().String(),
 						"peer":     currentBestPath.GetSource().Address,
 						"next_hop": currentBestPath.GetNexthop().String(),
 					}).Debug("best path is lost")
@@ -190,7 +190,7 @@ func (manager *TableManager) calculate(destinationList []*Destination) ([]*Path,
 				log.WithFields(log.Fields{
 					"Topic": "table",
 					"Owner": manager.owner,
-					"Key":   destination.getNlri().String(),
+					"Key":   destination.GetNlri().String(),
 				}).Error("known path list is not empty")
 			}
 		} else {
@@ -207,14 +207,14 @@ func (manager *TableManager) calculate(destinationList []*Destination) ([]*Path,
 			destination.setBestPath(newBestPath)
 		}
 
-		if len(destination.getKnownPathList()) == 0 && destination.GetBestPath() == nil {
+		if len(destination.GetKnownPathList()) == 0 && destination.GetBestPath() == nil {
 			rf := destination.getRouteFamily()
 			t := manager.Tables[rf]
 			t.deleteDest(destination)
 			log.WithFields(log.Fields{
 				"Topic":        "table",
 				"Owner":        manager.owner,
-				"Key":          destination.getNlri().String(),
+				"Key":          destination.GetNlri().String(),
 				"route_family": rf,
 			}).Debug("destination removed")
 		}
@@ -297,8 +297,8 @@ func (adj *AdjRib) update(rib map[bgp.RouteFamily]map[string]*ReceivedRoute, pat
 				delete(rib[rf], key)
 			}
 		} else {
-			if found && reflect.DeepEqual(old.path.getPathAttrs(), path.getPathAttrs()) {
-				path.setTimestamp(old.path.getTimestamp())
+			if found && reflect.DeepEqual(old.path.GetPathAttrs(), path.GetPathAttrs()) {
+				path.setTimestamp(old.path.GetTimestamp())
 			}
 			rib[rf][key] = NewReceivedRoute(path, false)
 		}
