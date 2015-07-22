@@ -1235,6 +1235,8 @@ func (server *BgpServer) handleGrpc(grpcReq *GrpcRequest) []*SenderMsg {
 		server.handleGrpcDelPolicies(grpcReq)
 	case REQ_MONITOR_GLOBAL_BEST_CHANGED, REQ_MONITOR_NEIGHBOR_PEER_STATE:
 		server.broadcastReqs = append(server.broadcastReqs, grpcReq)
+	case REQ_MRT_GLOBAL_RIB:
+		server.handleMrt(grpcReq)
 	default:
 		errmsg := fmt.Errorf("Unknown request type: %v", grpcReq.RequestType)
 		result := &GrpcResponse{
@@ -1852,4 +1854,139 @@ func (server *BgpServer) handleGrpcDelPolicies(grpcReq *GrpcRequest) {
 	server.handlePolicy(server.routingPolicy)
 	grpcReq.ResponseCh <- result
 	close(grpcReq.ResponseCh)
+}
+
+func (server *BgpServer) handleMrt(grpcReq *GrpcRequest) {
+	now := uint32(time.Now().Unix())
+	msg, err := server.mkMrtPeerIndexTableMsg(now)
+	result := &GrpcResponse{}
+	if err != nil {
+		result.ResponseErr = fmt.Errorf("failed to make new mrt peer index table message: %s", err)
+		grpcReq.ResponseCh <- result
+		close(grpcReq.ResponseCh)
+		return
+	}
+	data, err := msg.Serialize()
+	if err != nil {
+		result.ResponseErr = fmt.Errorf("failed to serialize table: %s", err)
+		grpcReq.ResponseCh <- result
+		close(grpcReq.ResponseCh)
+		return
+	}
+
+	msgs, err := server.mkMrtRibMsgs(grpcReq.RouteFamily, now)
+	if err != nil {
+		result.ResponseErr = fmt.Errorf("failed to make new mrt rib message: %s", err)
+		grpcReq.ResponseCh <- result
+		close(grpcReq.ResponseCh)
+		return
+	}
+	for _, msg := range msgs {
+		d, err := msg.Serialize()
+		if err != nil {
+			result.ResponseErr = fmt.Errorf("failed to serialize rib msg: %s", err)
+			grpcReq.ResponseCh <- result
+			close(grpcReq.ResponseCh)
+			return
+		}
+		data = append(data, d...)
+	}
+
+	result.Data = &api.MrtMessage{
+		Data: data,
+	}
+
+	select {
+	case <-grpcReq.EndCh:
+		return
+	case grpcReq.ResponseCh <- result:
+	default:
+	}
+
+	interval := int64(grpcReq.Data.(uint64))
+	if interval > 0 {
+		go func() {
+			t := time.NewTimer(time.Second * time.Duration(interval))
+			<-t.C
+			server.GrpcReqCh <- grpcReq
+		}()
+	} else {
+		close(grpcReq.ResponseCh)
+	}
+
+	return
+}
+
+func (server *BgpServer) mkMrtPeerIndexTableMsg(t uint32) (*bgp.MRTMessage, error) {
+	peers := make([]*bgp.Peer, 0, len(server.neighborMap))
+	for _, peer := range server.neighborMap {
+		id := peer.peerInfo.ID.To4().String()
+		ipaddr := peer.config.NeighborAddress.String()
+		asn := peer.config.PeerAs
+		peers = append(peers, bgp.NewPeer(id, ipaddr, asn, true))
+	}
+	bgpid := server.bgpConfig.Global.RouterId.To4().String()
+	table := bgp.NewPeerIndexTable(bgpid, "", peers)
+	return bgp.NewMRTMessage(t, bgp.TABLE_DUMPv2, bgp.PEER_INDEX_TABLE, table)
+}
+
+func (server *BgpServer) mkMrtRibMsgs(rf bgp.RouteFamily, t uint32) ([]*bgp.MRTMessage, error) {
+	tbl, ok := server.localRibMap[GLOBAL_RIB_NAME].rib.Tables[rf]
+	if !ok {
+		return nil, fmt.Errorf("unsupported route family: %s", rf)
+	}
+
+	getPeerIndex := func(info *table.PeerInfo) uint16 {
+		var idx uint16
+		for _, peer := range server.neighborMap {
+			if peer.peerInfo.Equal(info) {
+				return idx
+			}
+			idx++
+		}
+		return idx
+	}
+
+	var subtype bgp.MRTSubTypeTableDumpv2
+
+	switch rf {
+	case bgp.RF_IPv4_UC:
+		subtype = bgp.RIB_IPV4_UNICAST
+	case bgp.RF_IPv4_MC:
+		subtype = bgp.RIB_IPV4_MULTICAST
+	case bgp.RF_IPv6_UC:
+		subtype = bgp.RIB_IPV6_UNICAST
+	case bgp.RF_IPv6_MC:
+		subtype = bgp.RIB_IPV6_MULTICAST
+	default:
+		subtype = bgp.RIB_GENERIC
+	}
+
+	var seq uint32
+	msgs := make([]*bgp.MRTMessage, 0, len(tbl.GetDestinations()))
+	for _, dst := range tbl.GetDestinations() {
+		l := dst.GetKnownPathList()
+		entries := make([]*bgp.RibEntry, 0, len(l))
+		for _, p := range l {
+			// mrt doesn't assume to dump locally generated routes
+			if p.IsLocal() {
+				continue
+			}
+			idx := getPeerIndex(p.GetSource())
+			e := bgp.NewRibEntry(idx, uint32(p.GetTimestamp().Unix()), p.GetPathAttrs())
+			entries = append(entries, e)
+		}
+		// if dst only contains locally generated routes, ignore it
+		if len(entries) == 0 {
+			continue
+		}
+		rib := bgp.NewRib(seq, dst.GetNlri(), entries)
+		seq++
+		msg, err := bgp.NewMRTMessage(t, bgp.TABLE_DUMPv2, subtype, rib)
+		if err != nil {
+			return nil, err
+		}
+		msgs = append(msgs, msg)
+	}
+	return msgs, nil
 }

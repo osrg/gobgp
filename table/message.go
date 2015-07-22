@@ -146,7 +146,7 @@ func createUpdateMsgFromPath(path *Path, msg *bgp.BGPMessage) *bgp.BGPMessage {
 				u := msg.Body.(*bgp.BGPUpdate)
 				u.NLRI = append(u.NLRI, *nlri)
 			} else {
-				pathAttrs := path.getPathAttrs()
+				pathAttrs := path.GetPathAttrs()
 				return bgp.NewBGPUpdateMessage([]bgp.WithdrawnRoute{}, pathAttrs, []bgp.NLRInfo{*nlri})
 			}
 		}
@@ -158,7 +158,7 @@ func createUpdateMsgFromPath(path *Path, msg *bgp.BGPMessage) *bgp.BGPMessage {
 				unreach := u.PathAttributes[idx].(*bgp.PathAttributeMpUnreachNLRI)
 				unreach.Value = append(unreach.Value, path.GetNlri())
 			} else {
-				clonedAttrs := cloneAttrSlice(path.getPathAttrs())
+				clonedAttrs := cloneAttrSlice(path.GetPathAttrs())
 				idx, attr := path.getPathAttr(bgp.BGP_ATTR_TYPE_MP_REACH_NLRI)
 				reach := attr.(*bgp.PathAttributeMpReachNLRI)
 				clonedAttrs[idx] = bgp.NewPathAttributeMpUnreachNLRI(reach.Value)
@@ -175,7 +175,7 @@ func createUpdateMsgFromPath(path *Path, msg *bgp.BGPMessage) *bgp.BGPMessage {
 				// we don't need to clone here but we
 				// might merge path to this message in
 				// the future so let's clone anyway.
-				clonedAttrs := cloneAttrSlice(path.getPathAttrs())
+				clonedAttrs := cloneAttrSlice(path.GetPathAttrs())
 				return bgp.NewBGPUpdateMessage([]bgp.WithdrawnRoute{}, clonedAttrs, []bgp.NLRInfo{})
 			}
 		}
@@ -210,7 +210,7 @@ func isMergeable(p1, p2 *Path) bool {
 	if p1.GetRouteFamily() != bgp.RF_IPv4_UC {
 		return false
 	}
-	if p1.GetSource().Equal(p2.GetSource()) && isSamePathAttrs(p1.getPathAttrs(), p2.getPathAttrs()) {
+	if p1.GetSource().Equal(p2.GetSource()) && isSamePathAttrs(p1.GetPathAttrs(), p2.GetPathAttrs()) {
 		return true
 	}
 	return false

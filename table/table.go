@@ -58,12 +58,12 @@ func (t *Table) DeleteDestByPeer(peerInfo *PeerInfo) []*Destination {
 	changedDests := make([]*Destination, 0)
 	for _, dest := range t.destinations {
 		newKnownPathList := make([]*Path, 0)
-		for _, p := range dest.getKnownPathList() {
+		for _, p := range dest.GetKnownPathList() {
 			if !p.GetSource().Equal(peerInfo) {
 				newKnownPathList = append(newKnownPathList, p)
 			}
 		}
-		if len(newKnownPathList) != len(dest.getKnownPathList()) {
+		if len(newKnownPathList) != len(dest.GetKnownPathList()) {
 			changedDests = append(changedDests, dest)
 			dest.setKnownPathList(newKnownPathList)
 		}
@@ -83,7 +83,7 @@ func (t *Table) deleteDestByNlri(nlri bgp.AddrPrefixInterface) *Destination {
 
 func (t *Table) deleteDest(dest *Destination) {
 	destinations := t.GetDestinations()
-	delete(destinations, t.tableKey(dest.getNlri()))
+	delete(destinations, t.tableKey(dest.GetNlri()))
 }
 
 func (t *Table) validatePath(path *Path) {

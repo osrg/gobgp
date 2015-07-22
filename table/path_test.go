@@ -14,13 +14,13 @@ import (
 func TestPathNewIPv4(t *testing.T) {
 	peerP := PathCreatePeer()
 	pathP := PathCreatePath(peerP)
-	ipv4p := NewPath(pathP[0].GetSource(), pathP[0].GetNlri(), true, pathP[0].getPathAttrs(), pathP[0].getMedSetByTargetNeighbor(), time.Now())
+	ipv4p := NewPath(pathP[0].GetSource(), pathP[0].GetNlri(), true, pathP[0].GetPathAttrs(), pathP[0].getMedSetByTargetNeighbor(), time.Now())
 	assert.NotNil(t, ipv4p)
 }
 func TestPathNewIPv6(t *testing.T) {
 	peerP := PathCreatePeer()
 	pathP := PathCreatePath(peerP)
-	ipv6p := NewPath(pathP[0].GetSource(), pathP[0].GetNlri(), true, pathP[0].getPathAttrs(), pathP[0].getMedSetByTargetNeighbor(), time.Now())
+	ipv6p := NewPath(pathP[0].GetSource(), pathP[0].GetNlri(), true, pathP[0].GetPathAttrs(), pathP[0].getMedSetByTargetNeighbor(), time.Now())
 	assert.NotNil(t, ipv6p)
 }
 

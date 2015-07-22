@@ -144,6 +144,30 @@ type MRTMessage struct {
 	Body   Body
 }
 
+func (m *MRTMessage) Serialize() ([]byte, error) {
+	buf, err := m.Body.Serialize()
+	if err != nil {
+		return nil, err
+	}
+	m.Header.Len = uint32(len(buf))
+	bbuf, err := m.Header.Serialize()
+	if err != nil {
+		return nil, err
+	}
+	return append(bbuf, buf...), nil
+}
+
+func NewMRTMessage(timestamp uint32, t MRTType, subtype MRTSubTyper, body Body) (*MRTMessage, error) {
+	header, err := NewMRTHeader(timestamp, t, subtype, 0)
+	if err != nil {
+		return nil, err
+	}
+	return &MRTMessage{
+		Header: *header,
+		Body:   body,
+	}, nil
+}
+
 type Body interface {
 	DecodeFromBytes([]byte) error
 	Serialize() ([]byte, error)
@@ -201,9 +225,6 @@ func (p *Peer) Serialize() ([]byte, error) {
 	var bbuf []byte
 	buf := make([]byte, 5)
 	buf[0] = uint8(p.Type)
-	if p.BgpId.To4() == nil {
-		return nil, fmt.Errorf("invalid BGP ID")
-	}
 	copy(buf[1:], p.BgpId.To4())
 	if p.Type&1 > 0 {
 		buf = append(buf, p.IpAddress.To16()...)
@@ -354,6 +375,16 @@ func (e *RibEntry) Serialize() ([]byte, error) {
 	totalLen := 0
 	binary.BigEndian.PutUint16(buf[6:], uint16(totalLen))
 	for _, pattr := range e.PathAttributes {
+		// TODO special modification is needed for MP_REACH_NLRI
+		// but also Quagga doesn't implement this.
+		//
+		// RFC 6396 4.3.4
+		// There is one exception to the encoding of BGP attributes for the BGP
+		// MP_REACH_NLRI attribute (BGP Type Code 14).
+		// Since the AFI, SAFI, and NLRI information is already encoded
+		// in the RIB Entry Header or RIB_GENERIC Entry Header,
+		// only the Next Hop Address Length and Next Hop Address fields are included.
+
 		bbuf, err := pattr.Serialize()
 		if err != nil {
 			return nil, err
@@ -371,6 +402,10 @@ func NewRibEntry(index uint16, time uint32, pathattrs []PathAttributeInterface) 
 		OriginatedTime: time,
 		PathAttributes: pathattrs,
 	}
+}
+
+func (e *RibEntry) String() string {
+	return fmt.Sprintf("RIB_ENTRY: PeerIndex [%d] OriginatedTime [%d] PathAttrs [%v]", e.PeerIndex, e.OriginatedTime, e.PathAttributes)
 }
 
 type Rib struct {
