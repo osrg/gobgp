@@ -1933,9 +1933,14 @@ func (server *BgpServer) handleMrt(grpcReq *GrpcRequest) {
 	select {
 	case <-grpcReq.EndCh:
 		return
-	case grpcReq.ResponseCh <- result:
 	default:
 	}
+
+	m := &broadcastMsg{
+		req:    grpcReq,
+		result: result,
+	}
+	server.broadcastMsgs = append(server.broadcastMsgs, m)
 
 	interval := int64(grpcReq.Data.(uint64))
 	if interval > 0 {
