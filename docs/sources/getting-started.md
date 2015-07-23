@@ -93,6 +93,7 @@ Note that the tab completion works for both peer names and commands.
 
 Check out the global table.
 ```
+$ gobgp global rib
    Network            Next Hop        AS_PATH    Age        Attrs
 *> 10.3.0.0/16        10.0.255.1      [65001]    00:05:41   [{Origin: 0} {Med: 0}]
 *> 10.3.0.0/24        10.0.255.1      [65001]    00:05:41   [{Origin: 0} {Med: 0}]
