@@ -467,37 +467,7 @@ func applyPolicies(peer *Peer, loc *LocalRib, d Direction, pathList []*table.Pat
 	return ret
 }
 
-func (server *BgpServer) broadcastBests(bests []*table.Path) {
-	for _, path := range bests {
-		result := &GrpcResponse{
-			Data: path.ToApiStruct(),
-		}
-		remainReqs := make([]*GrpcRequest, 0, len(server.broadcastReqs))
-		for _, req := range server.broadcastReqs {
-			select {
-			case <-req.EndCh:
-				continue
-			default:
-			}
-			if req.RequestType != REQ_MONITOR_GLOBAL_BEST_CHANGED {
-				remainReqs = append(remainReqs, req)
-				continue
-			}
-			m := &broadcastMsg{
-				req:    req,
-				result: result,
-			}
-			server.broadcastMsgs = append(server.broadcastMsgs, m)
-			remainReqs = append(remainReqs, req)
-		}
-		server.broadcastReqs = remainReqs
-	}
-}
-
-func (server *BgpServer) broadcastPeerState(peer *Peer) {
-	result := &GrpcResponse{
-		Data: peer.ToApiStruct(),
-	}
+func (server *BgpServer) broadcast(typ int, peer *Peer, responses []*GrpcResponse) {
 	remainReqs := make([]*GrpcRequest, 0, len(server.broadcastReqs))
 	for _, req := range server.broadcastReqs {
 		select {
@@ -505,20 +475,37 @@ func (server *BgpServer) broadcastPeerState(peer *Peer) {
 			continue
 		default:
 		}
-		ignore := req.RequestType != REQ_MONITOR_NEIGHBOR_PEER_STATE
-		ignore = ignore || (req.RemoteAddr != "" && req.RemoteAddr != peer.config.NeighborAddress.String())
-		if ignore {
-			remainReqs = append(remainReqs, req)
+		remainReqs = append(remainReqs, req)
+		if req.isBroadcast(typ, peer) == false {
 			continue
 		}
-		m := &broadcastMsg{
-			req:    req,
-			result: result,
+		for _, response := range responses {
+			m := &broadcastMsg{
+				req:    req,
+				result: response,
+			}
+			server.broadcastMsgs = append(server.broadcastMsgs, m)
 		}
-		server.broadcastMsgs = append(server.broadcastMsgs, m)
-		remainReqs = append(remainReqs, req)
 	}
 	server.broadcastReqs = remainReqs
+}
+
+func (server *BgpServer) broadcastBests(bests []*table.Path) {
+	results := make([]*GrpcResponse, len(bests))
+	for _, path := range bests {
+		result := &GrpcResponse{
+			Data: path.ToApiStruct(),
+		}
+		results = append(results, result)
+	}
+	server.broadcast(REQ_MONITOR_GLOBAL_BEST_CHANGED, nil, results)
+}
+
+func (server *BgpServer) broadcastPeerState(peer *Peer) {
+	result := &GrpcResponse{
+		Data: peer.ToApiStruct(),
+	}
+	server.broadcast(REQ_MONITOR_NEIGHBOR_PEER_STATE, peer, []*GrpcResponse{result})
 }
 
 func (server *BgpServer) propagateUpdate(neighborAddress string, RouteServerClient bool, pathList []*table.Path) []*SenderMsg {

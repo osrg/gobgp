@@ -631,6 +631,19 @@ type GrpcRequest struct {
 	Data        interface{}
 }
 
+func (req *GrpcRequest) isBroadcast(typ int, peer *Peer) bool {
+	if req.RequestType != typ {
+		return false
+	}
+	switch typ {
+	case REQ_MONITOR_NEIGHBOR_PEER_STATE:
+		if req.RemoteAddr != "" && req.RemoteAddr != peer.config.NeighborAddress.String() {
+			return false
+		}
+	}
+	return true
+}
+
 func NewGrpcRequest(reqType int, remoteAddr string, rf bgp.RouteFamily, d interface{}) *GrpcRequest {
 	r := &GrpcRequest{
 		RequestType: reqType,
