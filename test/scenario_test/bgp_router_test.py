@@ -29,10 +29,7 @@ class GoBGPTestBase(unittest.TestCase):
 
     @classmethod
     def setUpClass(cls):
-        gobgp_ctn_image_name = 'osrg/gobgp'
-        if parser_option.use_local:
-            make_gobgp_ctn()
-            gobgp_ctn_image_name = 'gobgp'
+        gobgp_ctn_image_name = parser_option.gobgp_image
 
         g1 = GoBGPContainer(name='g1', asn=65000, router_id='192.168.0.1',
                             ctn_image_name=gobgp_ctn_image_name,

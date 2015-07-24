@@ -72,12 +72,12 @@ def test_malformed_packet():
         print "pattern element is " + str(len(pattern))
         sys.exit(1)
 
-    use_local = parser_option.use_local
+    image = parser_option.gobgp_image
     log_debug = True if parser_option.gobgp_log_level == 'debug' else False
     go_path = parser_option.go_path
     exabgp_path = parser_option.exabgp_path
 
-    fab.init_malformed_test_env_executor(use_local, go_path, exabgp_path, log_debug)
+    fab.init_malformed_test_env_executor(image, go_path, exabgp_path, log_debug)
 
     for pkey in pattern:
         conf_file = pwd + "/exabgp_test_conf/" + pkey

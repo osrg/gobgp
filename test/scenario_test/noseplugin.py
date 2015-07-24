@@ -8,7 +8,7 @@ class OptionParser(Plugin):
 
     def options(self, parser, env=os.environ):
         super(OptionParser, self).options(parser, env=env)
-        parser.add_option('--use-local', action="store_true", dest="use_local", default=False)
+        parser.add_option('--gobgp-image', action="store", dest="gobgp_image", default="osrg/gobgp")
         parser.add_option('--exabgp-path', action="store", dest="exabgp_path", default="")
         parser.add_option('--go-path', action="store", dest="go_path", default="")
         parser.add_option('--gobgp-log-level', action="store",

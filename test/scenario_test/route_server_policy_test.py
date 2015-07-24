@@ -64,9 +64,9 @@ class GoBGPTest(GoBGPTestBase):
     def setUpClass(cls):
         print 'prepare gobgp'
         cls.go_path = parser_option.go_path
-        cls.use_local = parser_option.use_local
+        cls.image = parser_option.gobgp_image
         cls.log_debug = True if parser_option.gobgp_log_level == 'debug' else False
-        fab.prepare_gobgp(cls.log_debug, cls.use_local)
+        fab.prepare_gobgp(cls.log_debug, cls.image)
         fab.build_config_tools(cls.go_path)
 
     @print_elapsed_time
