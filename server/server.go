@@ -49,9 +49,17 @@ type SenderMsg struct {
 	twoBytesAs  bool
 }
 
-type broadcastMsg struct {
+type broadcastMsg interface {
+	send()
+}
+
+type broadcastGrpcMsg struct {
 	req    *GrpcRequest
 	result *GrpcResponse
+}
+
+func (m *broadcastGrpcMsg) send() {
+	m.req.ResponseCh <- m.result
 }
 
 type BgpServer struct {
@@ -65,7 +73,7 @@ type BgpServer struct {
 	policyMap      map[string]*policy.Policy
 	routingPolicy  config.RoutingPolicy
 	broadcastReqs  []*GrpcRequest
-	broadcastMsgs  []*broadcastMsg
+	broadcastMsgs  []broadcastMsg
 	neighborMap    map[string]*Peer
 	localRibMap    map[string]*LocalRib
 }
@@ -140,16 +148,11 @@ func (server *BgpServer) Serve() {
 		}
 	}(senderCh)
 
-	broadcastCh := make(chan *broadcastMsg, 8)
-	go func(ch chan *broadcastMsg) {
+	broadcastCh := make(chan broadcastMsg, 8)
+	go func(ch chan broadcastMsg) {
 		for {
 			m := <-ch
-			select {
-			case <-m.req.EndCh:
-				continue
-			default:
-			}
-			m.req.ResponseCh <- m.result
+			m.send()
 		}
 	}(broadcastCh)
 
@@ -195,8 +198,8 @@ func (server *BgpServer) Serve() {
 			sCh = senderCh
 			firstMsg = senderMsgs[0]
 		}
-		var firstBroadcastMsg *broadcastMsg
-		var bCh chan *broadcastMsg
+		var firstBroadcastMsg broadcastMsg
+		var bCh chan broadcastMsg
 		if len(server.broadcastMsgs) > 0 {
 			bCh = broadcastCh
 			firstBroadcastMsg = server.broadcastMsgs[0]
@@ -483,7 +486,7 @@ func (server *BgpServer) broadcastBests(bests []*table.Path) {
 				remainReqs = append(remainReqs, req)
 				continue
 			}
-			m := &broadcastMsg{
+			m := &broadcastGrpcMsg{
 				req:    req,
 				result: result,
 			}
@@ -511,7 +514,7 @@ func (server *BgpServer) broadcastPeerState(peer *Peer) {
 			remainReqs = append(remainReqs, req)
 			continue
 		}
-		m := &broadcastMsg{
+		m := &broadcastGrpcMsg{
 			req:    req,
 			result: result,
 		}
@@ -1936,7 +1939,7 @@ func (server *BgpServer) handleMrt(grpcReq *GrpcRequest) {
 	default:
 	}
 
-	m := &broadcastMsg{
+	m := &broadcastGrpcMsg{
 		req:    grpcReq,
 		result: result,
 	}
