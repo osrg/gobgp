@@ -15,7 +15,7 @@ cd $GOBGP
 ls -al
 git log | head -20
 
-sudo docker rmi $(docker images | grep "^<none>" | awk "{print $3}")
+sudo docker rmi $(sudo docker images | grep "^<none>" | awk '{print $3}')
 
 sudo fab -f $GOBGP/test/scenario_test/lib/base.py make_gobgp_ctn --set tag=$GOBGP_IMAGE
 
