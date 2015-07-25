@@ -697,6 +697,27 @@ func (m *BGP4MPMessage) String() string {
 	return fmt.Sprintf("%s: PeerAS [%d] LocalAS [%d] InterfaceIndex [%d] PeerIP [%s] LocalIP [%s] BGPMessage [%s]", title, m.PeerAS, m.LocalAS, m.InterfaceIndex, m.PeerIpAddress, m.LocalIpAddress, m.BGPMessage)
 }
 
+//This function can be passed into a bufio.Scanner.Split() to read buffered mrt msgs
+func SplitMrt(data []byte, atEOF bool) (advance int, token []byte, err error) {
+	if atEOF && len(data) == 0 {
+		return 0, nil, nil
+	}
+	if cap(data) < MRT_COMMON_HEADER_LEN { // read more
+		return 0, nil, nil
+	}
+	//this reads the data
+	hdr := &MRTHeader{}
+	errh := hdr.DecodeFromBytes(data[:MRT_COMMON_HEADER_LEN])
+	if errh != nil {
+		return 0, nil, errh
+	}
+	totlen := int(hdr.Len + MRT_COMMON_HEADER_LEN)
+	if len(data) < totlen { //need to read more
+		return 0, nil, nil
+	}
+	return totlen, data[0:totlen], nil
+}
+
 func ParseMRTBody(h *MRTHeader, data []byte) (*MRTMessage, error) {
 	if len(data) < int(h.Len) {
 		return nil, fmt.Errorf("Not all MRT message bytes available. expected: %d, actual: %d", int(h.Len), len(data))

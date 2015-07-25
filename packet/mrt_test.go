@@ -16,6 +16,8 @@
 package bgp
 
 import (
+	"bufio"
+	"bytes"
 	"github.com/stretchr/testify/assert"
 	"reflect"
 	"testing"
@@ -180,4 +182,28 @@ func TestMrtBgp4mpMessage(t *testing.T) {
 		t.Fatal(err)
 	}
 	assert.Equal(t, reflect.DeepEqual(m1, m2), true)
+}
+
+func TestMrtSplit(t *testing.T) {
+	var b bytes.Buffer
+	numwrite, numread := 10, 0
+	for i := 0; i < numwrite; i++ {
+		msg := NewBGPKeepAliveMessage()
+		m1 := NewBGP4MPMessage(65000, 65001, 1, "192.168.0.1", "192.168.0.2", false, msg)
+		mm, _ := NewMRTMessage(1234, BGP4MP, MESSAGE, m1)
+		b1, err := mm.Serialize()
+		if err != nil {
+			t.Fatal(err)
+		}
+		b.Write(b1)
+	}
+	t.Logf("wrote %d serialized MRT keepalives in the buffer", numwrite)
+	r := bytes.NewReader(b.Bytes())
+	scanner := bufio.NewScanner(r)
+	scanner.Split(SplitMrt)
+	for scanner.Scan() {
+		numread += 1
+	}
+	t.Logf("scanner scanned %d serialized keepalives from the buffer", numread)
+	assert.Equal(t, numwrite, numread)
 }
