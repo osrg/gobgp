@@ -189,5 +189,5 @@ class QuaggaBGPContainer(BGPContainer):
             f.writelines(str(c))
 
     def reload_config(self):
-        cmd = 'docker exec {0} /usr/bin/pkill bgpd -SIGHUP'.format(self.name)
-        local(cmd, capture=True)
+        cmd = '/usr/bin/pkill bgpd -SIGHUP'
+        self.local(cmd)

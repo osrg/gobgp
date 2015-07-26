@@ -22,7 +22,9 @@ import os
 import time
 import itertools
 
+DEFAULT_TEST_PREFIX = ''
 DEFAULT_TEST_BASE_DIR = '/tmp/gobgp'
+TEST_PREFIX = DEFAULT_TEST_PREFIX
 TEST_BASE_DIR = DEFAULT_TEST_BASE_DIR
 
 BGP_FSM_IDLE = 'BGP_FSM_IDLE'
@@ -83,7 +85,7 @@ def make_gobgp_ctn(tag='gobgp', local_gobgp_path=''):
 
 class Bridge(object):
     def __init__(self, name, subnet='', with_ip=True, self_ip=False):
-        self.name = name
+        self.name = '{0}_{1}'.format(TEST_PREFIX, name)
         self.with_ip = with_ip
         if with_ip:
             self.subnet = netaddr.IPNetwork(subnet)
@@ -135,22 +137,27 @@ class Container(object):
         self.ip_addrs = []
         self.is_running = False
 
-        if self.name in get_containers():
+        if self.docker_name() in get_containers():
             self.stop()
+
+    def docker_name(self):
+        if TEST_PREFIX == DEFAULT_TEST_PREFIX:
+            return self.name
+        return '{0}_{1}'.format(TEST_PREFIX, self.name)
 
     def run(self):
         c = CmdBuffer(' ')
         c << "docker run --privileged=true"
         for sv in self.shared_volumes:
             c << "-v {0}:{1}".format(sv[0], sv[1])
-        c << "--name {0} -id {1}".format(self.name, self.image)
+        c << "--name {0} -id {1}".format(self.docker_name(), self.image)
         self.id = local(str(c), capture=True)
         self.is_running = True
         self.local("ip li set up dev lo")
         return 0
 
     def stop(self):
-        ret = local("docker rm -f " + self.name, capture=True)
+        ret = local("docker rm -f " + self.docker_name(), capture=True)
         self.is_running = False
         return ret
 
@@ -165,16 +172,18 @@ class Container(object):
             c << "-i {0}".format(intf_name)
         else:
             intf_name = "eth1"
-        c << "{0} {1}".format(self.name, ip_addr)
+        c << "{0} {1}".format(self.docker_name(), ip_addr)
         self.ip_addrs.append((intf_name, ip_addr, bridge))
         return local(str(c), capture=True)
 
-    def local(self, cmd):
-        return local("docker exec -it {0} {1}".format(self.name, cmd))
+    def local(self, cmd, capture=False, flag=''):
+        return local("docker exec {0} {1} {2}".format(flag,
+                                                      self.docker_name(),
+                                                      cmd), capture)
 
     def get_pid(self):
         if self.is_running:
-            cmd = "docker inspect -f '{{.State.Pid}}' " + self.name
+            cmd = "docker inspect -f '{{.State.Pid}}' " + self.docker_name()
             return int(local(cmd, capture=True))
         return -1
 
@@ -185,7 +194,7 @@ class BGPContainer(Container):
     RETRY_INTERVAL = 5
 
     def __init__(self, name, asn, router_id, ctn_image_name):
-        self.config_dir = "{0}/{1}".format(TEST_BASE_DIR, name)
+        self.config_dir = '/'.join((TEST_BASE_DIR, TEST_PREFIX, name))
         local('if [ -e {0} ]; then rm -r {0}; fi'.format(self.config_dir))
         local('mkdir -p {0}'.format(self.config_dir))
         self.asn = asn
