@@ -15,6 +15,7 @@
 
 from base import *
 import telnetlib
+from nsenter import Namespace
 
 
 class QuaggaTelnetDaemon(object):
@@ -22,19 +23,11 @@ class QuaggaTelnetDaemon(object):
     TELNET_PORT = 2605
 
     def __init__(self, ctn):
-        ip_addr = None
-        for _, ip_addr, br in ctn.ip_addrs:
-            if br.ip_addr:
-                break
-
-        if not ip_addr:
-            Exception('quagga telnet daemon {0}'
-                      ' is not ip reachable'.format(self.name))
-
-        self.host = ip_addr.split('/')[0]
+        self.ns = Namespace(ctn.get_pid(), 'net')
 
     def __enter__(self):
-        self.tn = telnetlib.Telnet(self.host, self.TELNET_PORT)
+        self.ns.__enter__()
+        self.tn = telnetlib.Telnet('127.0.0.1', self.TELNET_PORT)
         self.tn.read_until("Password: ")
         self.tn.write(self.TELNET_PASSWORD + "\n")
         self.tn.write("enable\n")
@@ -43,6 +36,7 @@ class QuaggaTelnetDaemon(object):
 
     def __exit__(self, type, value, traceback):
         self.tn.close()
+        self.ns.__exit__(type, value, traceback)
 
 
 class QuaggaBGPContainer(BGPContainer):

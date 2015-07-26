@@ -171,6 +171,12 @@ class Container(object):
     def local(self, cmd):
         return local("docker exec -it {0} {1}".format(self.name, cmd))
 
+    def get_pid(self):
+        if self.is_running:
+            cmd = "docker inspect -f '{{.State.Pid}}' " + self.name
+            return int(local(cmd, capture=True))
+        return -1
+
 
 class BGPContainer(Container):
 
