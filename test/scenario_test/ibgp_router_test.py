@@ -15,6 +15,7 @@
 
 import unittest
 from fabric.api import local
+from lib import base
 from lib.gobgp import *
 from lib.quagga import *
 import sys
@@ -30,6 +31,7 @@ class GoBGPTestBase(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
         gobgp_ctn_image_name = parser_option.gobgp_image
+        base.TEST_PREFIX = parser_option.test_prefix
 
         g1 = GoBGPContainer(name='g1', asn=65000, router_id='192.168.0.1',
                             ctn_image_name=gobgp_ctn_image_name,
