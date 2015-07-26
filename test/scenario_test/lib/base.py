@@ -115,9 +115,8 @@ class Bridge(object):
         return "{0}/{1}".format(self._ip_generator.next(),
                                 self.subnet.prefixlen)
 
-    def addif(self, ctn, name=''):
-        if name == '':
-            name = self.name
+    def addif(self, ctn):
+        name = ctn.next_if_name()
         self.ctns.append(ctn)
         if self.with_ip:
             ctn.pipework(self, self.next_ip_address(), name)
@@ -136,6 +135,7 @@ class Container(object):
         self.shared_volumes = []
         self.ip_addrs = []
         self.is_running = False
+        self.eths = []
 
         if self.docker_name() in get_containers():
             self.stop()
@@ -144,6 +144,11 @@ class Container(object):
         if TEST_PREFIX == DEFAULT_TEST_PREFIX:
             return self.name
         return '{0}_{1}'.format(TEST_PREFIX, self.name)
+
+    def next_if_name(self):
+        name = 'eth{0}'.format(len(self.eths)+1)
+        self.eths.append(name)
+        return name
 
     def run(self):
         c = CmdBuffer(' ')
