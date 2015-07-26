@@ -82,7 +82,7 @@ def make_gobgp_ctn(tag='gobgp', local_gobgp_path=''):
 
 
 class Bridge(object):
-    def __init__(self, name, subnet='', with_ip=True):
+    def __init__(self, name, subnet='', with_ip=True, self_ip=False):
         self.name = name
         self.with_ip = with_ip
         if with_ip:
@@ -101,7 +101,8 @@ class Bridge(object):
         local("ip link add {0} type bridge".format(self.name), capture=True)
         local("ip link set up dev {0}".format(self.name), capture=True)
 
-        if with_ip:
+        self.self_ip = self_ip
+        if self_ip:
             self.ip_addr = self.next_ip_address()
             local("ip addr add {0} dev {1}".format(self.ip_addr, self.name),
                   capture=True)
