@@ -23,10 +23,12 @@ import (
 	"github.com/osrg/gobgp/packet"
 	"github.com/osrg/gobgp/policy"
 	"github.com/osrg/gobgp/table"
+	zebra "github.com/osrg/gozebra"
 	"gopkg.in/tomb.v2"
 	"net"
 	"os"
 	"strconv"
+	"strings"
 	"time"
 )
 
@@ -76,6 +78,7 @@ type BgpServer struct {
 	broadcastMsgs  []broadcastMsg
 	neighborMap    map[string]*Peer
 	localRibMap    map[string]*LocalRib
+	zclient        *zebra.Client
 }
 
 func NewBgpServer(port int) *BgpServer {
@@ -191,6 +194,11 @@ func (server *BgpServer) Serve() {
 
 	incoming := make(chan *fsmMsg, 4096)
 	var senderMsgs []*SenderMsg
+
+	var zapiMsgCh chan *zebra.Message
+	if server.zclient != nil {
+		zapiMsgCh = server.zclient.Recieve()
+	}
 	for {
 		var firstMsg *SenderMsg
 		var sCh chan *SenderMsg
@@ -206,6 +214,8 @@ func (server *BgpServer) Serve() {
 		}
 
 		select {
+		case zmsg := <-zapiMsgCh:
+			handleZapiMsg(zmsg)
 		case conn := <-acceptCh:
 			remoteAddr, _, _ := net.SplitHostPort(conn.RemoteAddr().String())
 			peer, found := server.neighborMap[remoteAddr]
@@ -472,6 +482,11 @@ func applyPolicies(peer *Peer, loc *LocalRib, d Direction, pathList []*table.Pat
 
 func (server *BgpServer) broadcastBests(bests []*table.Path) {
 	for _, path := range bests {
+		z := newBroadcastZapiBestMsg(server.zclient, path)
+		if z != nil {
+			server.broadcastMsgs = append(server.broadcastMsgs, z)
+		}
+
 		result := &GrpcResponse{
 			Data: path.ToApiStruct(),
 		}
@@ -2031,4 +2046,18 @@ func (server *BgpServer) mkMrtRibMsgs(rf bgp.RouteFamily, t uint32) ([]*bgp.MRTM
 		msgs = append(msgs, msg)
 	}
 	return msgs, nil
+}
+
+func (server *BgpServer) NewZclient(url string) error {
+	l := strings.SplitN(url, ":", 2)
+	if len(l) != 2 {
+		return fmt.Errorf("unsupported url: %s", url)
+	}
+	cli, err := zebra.NewClient(l[0], l[1], zebra.ROUTE_BGP)
+	if err != nil {
+		return err
+	}
+	cli.SendHello()
+	server.zclient = cli
+	return nil
 }
