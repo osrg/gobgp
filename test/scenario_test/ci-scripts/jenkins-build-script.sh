@@ -41,20 +41,23 @@ sudo -E python route_server_malformed_test.py --gobgp-image $GOBGP_IMAGE --go-pa
 RET3=$?
 mv nosetests.xml ${WS}/nosetest_malformed.xml
 
-# bgp router test
-sudo -E python bgp_router_test.py --gobgp-image $GOBGP_IMAGE --go-path $GOROOT/bin -s --with-xunit
-RET4=$?
-mv nosetests.xml ${WS}/nosetest_bgp.xml
-
 # route server policy test
 sudo -E python route_server_policy_test.py --gobgp-image $GOBGP_IMAGE --go-path $GOROOT/bin -s --with-xunit
-RET5=$?
+RET4=$?
 mv nosetests.xml ${WS}/nosetest_policy.xml
 
 # bgp router test
-sudo -E python ibgp_router_test.py --gobgp-image $GOBGP_IMAGE --go-path $GOROOT/bin -s --with-xunit
+sudo -E python bgp_router_test.py --gobgp-image $GOBGP_IMAGE --test-prefix bgp -s -x --with-xunit --xunit-file=${WS}/nosetest_bgp.xml &
+PID5=$!
+
+# ibgp router test
+sudo -E python ibgp_router_test.py --gobgp-image $GOBGP_IMAGE --test-prefix ibgp -s -x --with-xunit --xunit-file=${WS}/nosetest_ibgp.xml &
+PID6=$!
+
+wait $PID5
+RET5=$?
+wait $PID6
 RET6=$?
-mv nosetests.xml ${WS}/nosetest_ibgp.xml
 
 if [ $RET1 != 0 ] || [ $RET2 != 0 ] || [ $RET3 != 0 ] || [ $RET4 != 0 ] || [ $RET5 != 0 ] || [ $RET6 != 0 ]; then
   exit 1
