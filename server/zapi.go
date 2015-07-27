@@ -34,7 +34,10 @@ func (m *broadcastZapiMsg) send() {
 }
 
 func newIPRouteMessage(path *table.Path) *zebra.Message {
+	l := strings.SplitN(path.GetNlri().String(), "/", 2)
 	var command zebra.API_TYPE
+	var prefix net.IP
+	nexthops := []net.IP{}
 	switch path.GetRouteFamily() {
 	case bgp.RF_IPv4_UC:
 		if path.IsWithdraw == true {
@@ -42,30 +45,40 @@ func newIPRouteMessage(path *table.Path) *zebra.Message {
 		} else {
 			command = zebra.IPV4_ROUTE_ADD
 		}
+		prefix = net.ParseIP(l[0]).To4()
+		nexthops = append(nexthops, path.GetNexthop().To4())
 	case bgp.RF_IPv6_UC:
 		if path.IsWithdraw == true {
 			command = zebra.IPV6_ROUTE_DELETE
 		} else {
 			command = zebra.IPV6_ROUTE_ADD
 		}
+		prefix = net.ParseIP(l[0]).To16()
+		nexthops = append(nexthops, path.GetNexthop().To16())
 	default:
 		return nil
 	}
 
-	l := strings.SplitN(path.GetNlri().String(), "/", 2)
+	flags := uint8(zebra.MESSAGE_NEXTHOP)
 	plen, _ := strconv.Atoi(l[1])
-	med, _ := path.GetMed()
+	med, err := path.GetMed()
+	if err == nil {
+		flags |= zebra.MESSAGE_METRIC
+	}
 	return &zebra.Message{
 		Header: zebra.Header{
+			Len:     zebra.HEADER_SIZE,
+			Marker:  zebra.HEADER_MARKER,
+			Version: zebra.VERSION,
 			Command: command,
 		},
-		Body: &zebra.IPv4RouteBody{
+		Body: &zebra.IPRouteBody{
 			Type:         zebra.ROUTE_BGP,
 			SAFI:         zebra.SAFI_UNICAST,
-			Message:      zebra.MESSAGE_NEXTHOP,
-			Prefix:       net.ParseIP(l[0]),
+			Message:      flags,
+			Prefix:       prefix,
 			PrefixLength: uint8(plen),
-			Nexthops:     []net.IP{path.GetNexthop()},
+			Nexthops:     nexthops,
 			Metric:       med,
 		},
 	}
