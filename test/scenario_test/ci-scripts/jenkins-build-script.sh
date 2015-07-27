@@ -26,25 +26,24 @@ set +e
 
 sudo -E pip install -r pip-requires.txt
 
-# route server test
-sudo -E python route_server_test.py --gobgp-image $GOBGP_IMAGE --go-path $GOROOT/bin -s --with-xunit
-RET1=$?
-mv nosetests.xml ${WS}/nosetest.xml
-
 # route server ipv4 ipv6 test
 sudo -E python route_server_ipv4_v6_test.py --gobgp-image $GOBGP_IMAGE --go-path $GOROOT/bin -s --with-xunit
-RET2=$?
+RET1=$?
 mv nosetests.xml ${WS}/nosetest_ip.xml
 
 # route server malformed message test
 sudo -E python route_server_malformed_test.py --gobgp-image $GOBGP_IMAGE --go-path $GOROOT/bin -s --with-xunit
-RET3=$?
+RET2=$?
 mv nosetests.xml ${WS}/nosetest_malformed.xml
 
 # route server policy test
 sudo -E python route_server_policy_test.py --gobgp-image $GOBGP_IMAGE --go-path $GOROOT/bin -s --with-xunit
-RET4=$?
+RET3=$?
 mv nosetests.xml ${WS}/nosetest_policy.xml
+
+# route server test
+sudo -E python route_server_test.py --gobgp-image $GOBGP_IMAGE --test-prefix rs --go-path $GOROOT/bin -s --with-xunit --xunit-file=${WS}/nosetest_rs.xml &
+PID4=$!
 
 # bgp router test
 sudo -E python bgp_router_test.py --gobgp-image $GOBGP_IMAGE --test-prefix bgp -s -x --with-xunit --xunit-file=${WS}/nosetest_bgp.xml &
@@ -54,6 +53,8 @@ PID5=$!
 sudo -E python ibgp_router_test.py --gobgp-image $GOBGP_IMAGE --test-prefix ibgp -s -x --with-xunit --xunit-file=${WS}/nosetest_ibgp.xml &
 PID6=$!
 
+wait $PID4
+RET4=$?
 wait $PID5
 RET5=$?
 wait $PID6

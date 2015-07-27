@@ -1,4 +1,4 @@
-# Copyright (C) 2014 Nippon Telegraph and Telephone Corporation.
+# Copyright (C) 2015 Nippon Telegraph and Telephone Corporation.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -13,232 +13,253 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import time
+import unittest
+from fabric.api import local
+from lib import base
+from lib.gobgp import *
+from lib.quagga import *
 import sys
+import os
+import time
 import nose
-import quagga_access as qaccess
-import docker_control as fab
-from gobgp_test import GoBGPTestBase
-from gobgp_test import LOCAL_RIB
-from gobgp_test import NEIGHBOR
-from noseplugin import OptionParser
-from noseplugin import parser_option
+from noseplugin import OptionParser, parser_option
 
-class GoBGPTest(GoBGPTestBase):
-    quagga_num = 3
-    append_quagga = 10
-    remove_quagga = 10
-    append_quagga_best = 20
 
-    def __init__(self, *args, **kwargs):
-        super(GoBGPTest, self).__init__(*args, **kwargs)
+class GoBGPTestBase(unittest.TestCase):
+
+    wait_per_retry = 5
+    retry_limit = 10
+
+    @classmethod
+    def setUpClass(cls):
+        gobgp_ctn_image_name = parser_option.gobgp_image
+        base.TEST_PREFIX = parser_option.test_prefix
+
+        g1 = GoBGPContainer(name='g1', asn=65000, router_id='192.168.0.1',
+                            ctn_image_name=gobgp_ctn_image_name,
+                            log_level=parser_option.gobgp_log_level)
+
+        rs_clients = [QuaggaBGPContainer(name='q{0}'.format(i+1), asn=65001+i,
+                      router_id='192.168.0.{0}'.format(i+2))
+                      for i in range(3)]
+        ctns = [g1] + rs_clients
+        q1 = rs_clients[0]
+        q2 = rs_clients[1]
+        q3 = rs_clients[2]
+
+        # advertise a route from route-server-clients
+        routes = []
+        for idx, rs_client in enumerate(rs_clients):
+            route = '10.0.{0}.0/24'.format(idx+1)
+            rs_client.add_route(route)
+            routes.append(route)
+
+        initial_wait_time = max(ctn.run() for ctn in ctns)
+
+        time.sleep(initial_wait_time)
+
+        br01 = Bridge(name='br01', subnet='192.168.10.0/24')
+        [br01.addif(ctn) for ctn in ctns]
+
+        for rs_client in rs_clients:
+            g1.add_peer(rs_client, is_rs_client=True)
+            rs_client.add_peer(g1)
+
+        cls.gobgp = g1
+        cls.quaggas = {'q1': q1, 'q2': q2, 'q3': q3}
+        cls.bridges = {'br01': br01}
+
+    def check_gobgp_local_rib(self):
+        for rs_client in self.quaggas.itervalues():
+            done = False
+            for _ in range(self.retry_limit):
+                if done:
+                    break
+                local_rib = self.gobgp.get_local_rib(rs_client)
+                local_rib = [p['prefix'] for p in local_rib]
+                if len(local_rib) < len(self.quaggas)-1:
+                    time.sleep(self.wait_per_retry)
+                    continue
+
+                self.assertTrue(len(local_rib) == (len(self.quaggas)-1))
+
+                for c in self.quaggas.itervalues():
+                    if rs_client != c:
+                        for r in c.routes:
+                            self.assertTrue(r in local_rib)
+
+                done = True
+            if done:
+                continue
+            # should not reach here
+            self.assertTrue(False)
+
+    def check_rs_client_rib(self):
+        for rs_client in self.quaggas.itervalues():
+            done = False
+            for _ in range(self.retry_limit):
+                if done:
+                    break
+                global_rib = rs_client.get_global_rib()
+                global_rib = [p['prefix'] for p in global_rib]
+                if len(global_rib) < len(self.quaggas):
+                    time.sleep(self.wait_per_retry)
+                    continue
+
+                self.assertTrue(len(global_rib) == len(self.quaggas))
+
+                for c in self.quaggas.itervalues():
+                    for r in c.routes:
+                        self.assertTrue(r in global_rib)
+
+                done = True
+            if done:
+                continue
+            # should not reach here
+            self.assertTrue(False)
 
     # test each neighbor state is turned establish
     def test_01_neighbor_established(self):
-        print "test_neighbor_established"
+        for q in self.quaggas.itervalues():
+            self.gobgp.wait_for(expected_state=BGP_FSM_ESTABLISHED, peer=q)
 
-        image = parser_option.gobgp_image
-        go_path = parser_option.go_path
-        log_debug = True if parser_option.gobgp_log_level == 'debug' else False
-        fab.init_test_env_executor(self.quagga_num, image, go_path, log_debug)
+    # check advertised routes are stored in route-server's local-rib
+    def test_02_check_gobgp_local_rib(self):
+        self.check_gobgp_local_rib()
 
-        print "please wait " + str(self.initial_wait_time) + " second"
-        time.sleep(self.initial_wait_time)
-        if self.check_load_config() is False:
-            return
+    # check gobgp's global rib. when configured as route-server, global rib
+    # must be empty
+    def test_03_check_gobgp_global_rib(self):
+        self.assertTrue(len(self.gobgp.get_global_rib()) == 0)
 
-        addresses = self.get_neighbor_address(self.gobgp_config)
-        self.retry_routine_for_state(addresses, "BGP_FSM_ESTABLISHED")
-
-        for address in addresses:
-            # get neighbor state and remote ip from gobgp connections
-            print "check of [ " + address + " ]"
-            neighbor = self.ask_gobgp(NEIGHBOR, address)
-            state = neighbor['info']['bgp_state']
-            remote_ip = neighbor['conf']['remote_ip']
-            self.assertEqual(address, remote_ip)
-            self.assertEqual(state, "BGP_FSM_ESTABLISHED")
-
-    # Test of advertised route gobgp from each quagga
-    def test_02_received_route(self):
-        print "test_received_route"
-        if self.check_load_config() is False:
-            return
-
-        for neighbor_address in self.get_neighbor_address(self.gobgp_config):
-            self.assert_local_rib(neighbor_address)
-
-    # Test of advertising route to each quagga form gobgp
-    def test_03_advertising_route(self):
-        print "test_advertising_route"
-        if self.check_load_config() is False:
-            return
-
-        for neighbor_address in self.get_neighbor_address(self.gobgp_config):
-            self.assert_quagga_rib(neighbor_address)
+    # check routes are properly advertised to route-server-client
+    def test_04_check_rs_clients_rib(self):
+        self.check_rs_client_rib()
 
     # check if quagga that is appended can establish connection with gobgp
-    def test_04_established_with_appended_quagga(self):
-        print "test_established_with_appended_quagga"
-        if self.check_load_config() is False:
-            return
+    def test_05_add_rs_client(self):
+        q4 = QuaggaBGPContainer(name='q4', asn=65004, router_id='192.168.0.5')
+        self.quaggas['q4'] = q4
 
-        go_path = parser_option.go_path
-        # append new quagga container
-        fab.docker_container_quagga_append_executor(self.append_quagga, go_path)
-        print "please wait " + str(self.initial_wait_time) + " second"
-        time.sleep(self.initial_wait_time)
-        append_quagga_address = "10.0.0." + str(self.append_quagga)
-        self.retry_routine_for_state([append_quagga_address], "BGP_FSM_ESTABLISHED")
+        route = '10.0.4.0/24'
+        q4.add_route(route)
 
-        # get neighbor state and remote ip of new quagga
-        print "check of [" + append_quagga_address + " ]"
-        neighbor = self.ask_gobgp(NEIGHBOR, append_quagga_address)
-        state = neighbor['info']['bgp_state']
-        remote_ip = neighbor['conf']['remote_ip']
-        self.assertEqual(append_quagga_address, remote_ip)
-        self.assertEqual(state, "BGP_FSM_ESTABLISHED")
+        initial_wait_time = q4.run()
+        time.sleep(initial_wait_time)
+        self.bridges['br01'].addif(q4)
+        self.gobgp.add_peer(q4, is_rs_client=True)
+        q4.add_peer(self.gobgp)
 
-    # Test of advertised route gobgp from each quagga when append quagga container
-    def test_05_received_route_when_appended_quagga(self):
-        print "test_received_route_by_appended_quagga"
-        if self.check_load_config() is False:
-            return
+        self.gobgp.wait_for(expected_state=BGP_FSM_ESTABLISHED, peer=q4)
 
-        for neighbor_address in self.get_neighbor_address(self.gobgp_config):
-            self.assert_local_rib(neighbor_address)
+    # check advertised routes are stored in gobgp's local-rib
+    def test_05_check_gobgp_local_rib(self):
+        self.check_gobgp_local_rib()
 
-    # Test of advertising route to each quagga form gobgp when append quagga container
-    def test_06_advertising_route_when_appended_quagga(self):
-        print "test_advertising_route_to_appended_quagga"
-        if self.check_load_config() is False:
-            return
+    # check routes are properly advertised to quagga
+    def test_06_check_rs_clients_rib(self):
+        self.check_rs_client_rib()
 
-        for neighbor_address in self.get_neighbor_address(self.gobgp_config):
-            self.assert_quagga_rib(neighbor_address)
+    def test_07_stop_one_rs_client(self):
+        q4 = self.quaggas['q4']
+        q4.stop()
+        self.gobgp.wait_for(expected_state=BGP_FSM_ACTIVE, peer=q4)
 
-    def test_07_active_when_quagga_removed(self):
-        print "test_active_when_removed_quagga"
-        if self.check_load_config() is False:
-            return
+        del self.quaggas['q4']
 
-        # remove quagga container
-        fab.docker_container_quagga_removed_executor(self.remove_quagga)
-        print "please wait " + str(self.initial_wait_time) + " second"
-        time.sleep(self.initial_wait_time)
-        removed_quagga_address = "10.0.0." + str(self.remove_quagga)
-        self.retry_routine_for_state([removed_quagga_address], "BGP_FSM_ACTIVE")
+    # check a route advertised from q4 is deleted from gobgp's local-rib
+    def test_08_check_gobgp_local_rib(self):
+        self.check_gobgp_local_rib()
 
-        # get neighbor state and remote ip of removed quagga
-        print "check of [" + removed_quagga_address + " ]"
-        neighbor = self.ask_gobgp(NEIGHBOR, removed_quagga_address)
-        state = neighbor['info']['bgp_state']
-        remote_ip = neighbor['conf']['remote_ip']
-        self.assertEqual(removed_quagga_address, remote_ip)
-        self.assertEqual(state, "BGP_FSM_ACTIVE")
+    # check whether gobgp properly sent withdrawal message with q4's route
+    def test_09_check_rs_clients_rib(self):
+        self.check_rs_client_rib()
 
-    def test_08_received_route_when_quagga_removed(self):
-        print "test_received_route_when_removed_quagga"
-        if self.check_load_config() is False:
-            return
+    def test_10_add_distant_relative(self):
+        q1 = self.quaggas['q1']
+        q2 = self.quaggas['q2']
+        q3 = self.quaggas['q3']
+        q5 = QuaggaBGPContainer(name='q5', asn=65005, router_id='192.168.0.6')
 
-        remove_quagga_address = "10.0.0." + str(self.remove_quagga)
-        for neighbor_address in self.get_neighbor_address(self.gobgp_config):
-            if remove_quagga_address == neighbor_address:
-                continue
-            self.assert_local_rib(neighbor_address)
+        initial_wait_time = q5.run()
+        time.sleep(initial_wait_time)
 
-    def test_09_advertising_route_when_quagga_removed(self):
-        print "test_advertising_route_when_removed_quagga"
-        if self.check_load_config() is False:
-            return
+        br02 = Bridge(name='br02', subnet='192.168.20.0/24')
+        br02.addif(q5)
+        br02.addif(q2)
 
-        remove_quagga_address = "10.0.0." + str(self.remove_quagga)
-        for neighbor_address in self.get_neighbor_address(self.gobgp_config):
-            if remove_quagga_address == neighbor_address:
-                continue
-            self.assert_quagga_rib(neighbor_address)
+        br03 = Bridge(name='br03', subnet='192.168.30.0/24')
+        br03.addif(q5)
+        br03.addif(q3)
 
-    def test_10_bestpath_selection_of_received_route(self):
-        print "test_bestpath_selection_of_received_route"
-        if self.check_load_config() is False:
-            return
+        for q in [q2, q3]:
+            q5.add_peer(q)
+            q.add_peer(q5)
 
-        go_path = parser_option.go_path
-        fab.docker_container_make_bestpath_env_executor(self.append_quagga_best, go_path)
-        print "please wait " + str(self.initial_wait_time) + " second"
-        time.sleep(self.initial_wait_time)
+        med200 = {'name': 'med200',
+                  'type': 'permit',
+                  'match': '0.0.0.0/0',
+                  'direction': 'out',
+                  'med': 200,
+                  'priority': 10}
+        q2.add_policy(med200, self.gobgp)
+        med100 = {'name': 'med100',
+                  'type': 'permit',
+                  'match': '0.0.0.0/0',
+                  'direction': 'out',
+                  'med': 100,
+                  'priority': 10}
+        q3.add_policy(med100, self.gobgp)
 
-        print "add neighbor setting"
-        tn = qaccess.login("11.0.0.20")
-        qaccess.add_neighbor(tn, "65020", "11.0.0.2", "65002")
-        qaccess.add_neighbor(tn, "65020", "12.0.0.3", "65003")
+        q5.add_route('10.0.6.0/24')
 
-        tn = qaccess.login("10.0.0.2")
-        tn = qaccess.add_metric(tn, "200", "192.168.20.0")
-        qaccess.add_neighbor(tn, "65002", "11.0.0.20", "65020")
-        qaccess.add_neighbor_metric(tn, "65002", "10.0.255.1", "200")
+        q2.wait_for(expected_state=BGP_FSM_ESTABLISHED, peer=q5)
+        q3.wait_for(expected_state=BGP_FSM_ESTABLISHED, peer=q5)
+        self.gobgp.wait_for(expected_state=BGP_FSM_ESTABLISHED, peer=q2)
+        self.gobgp.wait_for(expected_state=BGP_FSM_ESTABLISHED, peer=q3)
 
-        tn = qaccess.login("10.0.0.3")
-        tn = qaccess.add_metric(tn, "100", "192.168.20.0")
-        qaccess.add_neighbor(tn, "65003", "12.0.0.20", "65020")
-        qaccess.add_neighbor_metric(tn, "65003", "10.0.255.1", "100")
-
-        print "please wait " + str(self.initial_wait_time) + " second"
-        time.sleep(self.initial_wait_time)
-
-        check_address = "10.0.0.1"
-        target_network = "192.168.20.0/24"
-        ans_nexthop = "10.0.0.3"
-
-        print "check of [ " + check_address + " ]"
-        self.retry_routine_for_bestpath(check_address, target_network, ans_nexthop)
-
-
-    def assert_local_rib(self, address):
-        print "check local_rib : neighbor address [ " + address + " ]"
-        # get local-rib per peer
-        retry_count = 0
-        cmp_result = False
-        while retry_count < self.dest_check_limit:
-            local_rib = self.ask_gobgp(LOCAL_RIB, address)
-            cmp_result = self.compare_rib_with_quagga_configs(address,
-                                                              local_rib)
-            if cmp_result:
-                print "compare OK"
-                break
-            else:
-                retry_count += 1
-                print "compare NG -> retry ( %d / %d )" % (retry_count, self.dest_check_limit)
+        def check_nexthop(target_prefix, expected_nexthop):
+            done = False
+            for _ in range(self.retry_limit):
+                if done:
+                    break
                 time.sleep(self.wait_per_retry)
-        self.assertTrue(cmp_result)
+                for path in q1.get_global_rib():
+                    if path['prefix'] == target_prefix:
+                        print "{0}'s nexthop is {1}".format(path['prefix'],
+                                                            path['nexthop'])
+                        n_addrs = [i[1].split('/')[0] for i in
+                                   expected_nexthop.ip_addrs]
+                        if path['nexthop'] in n_addrs:
+                            done = True
+                            break
+            return done
 
+        done = check_nexthop('10.0.6.0/24', q3)
+        self.assertTrue(done)
 
-    def assert_quagga_rib(self, address):
-        print "check quagga_rib : neighbor address [ " + address + " ]"
-        retry_count = 0
-        cmp_result = False
-        while retry_count < self.dest_check_limit:
-            tn = qaccess.login(address)
-            q_rib = qaccess.show_rib(tn)
-            cmp_result = self.compare_route_with_quagga_configs(address, q_rib)
+        med300 = {'name': 'med300',
+                  'type': 'permit',
+                  'match': '0.0.0.0/0',
+                  'direction': 'out',
+                  'med': 300,
+                  'priority': 5}
+        q3.add_policy(med300, self.gobgp)
 
-            if cmp_result:
-                print "compare OK"
-                break
-            else:
-                retry_count += 1
-                print "compare NG -> retry ( %d / %d )" % (retry_count, self.dest_check_limit)
-                time.sleep(self.wait_per_retry)
-        self.assertTrue(cmp_result)
+        time.sleep(self.wait_per_retry)
+
+        done = check_nexthop('10.0.6.0/24', q2)
+        self.assertTrue(done)
 
 
 if __name__ == '__main__':
-    if fab.test_user_check() is False:
+    if os.geteuid() is not 0:
         print "you are not root."
         sys.exit(1)
-    if fab.docker_pkg_check() is False:
-        print "not install docker package."
+    output = local("which docker 2>&1 > /dev/null ; echo $?", capture=True)
+    if int(output) is not 0:
+        print "docker not found"
         sys.exit(1)
 
-    nose.main(argv=sys.argv, addplugins=[OptionParser()], defaultTest=sys.argv[0])
+    nose.main(argv=sys.argv, addplugins=[OptionParser()],
+              defaultTest=sys.argv[0])

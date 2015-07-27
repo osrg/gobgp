@@ -152,7 +152,7 @@ class QuaggaBGPContainer(BGPContainer):
             for policy in info['policies']:
                 name = policy['name']
                 direction = policy['direction']
-                c << 'neighbor {0} route-map {1} {2}'.format(n_addr, name,
+                c << 'neighbor {0} route-map rmap-{1} {2}'.format(n_addr, name,
                                                              direction)
             if info['passwd'] != '':
                 c << 'neighbor {0} password {1}'.format(n_addr, info['passwd'])
@@ -171,10 +171,11 @@ class QuaggaBGPContainer(BGPContainer):
                 c << 'exit-address-family'
 
         for name, policy in self.policies.iteritems():
-            c << 'access-list {0} {1} {2}'.format(name, policy['type'],
-                                                  policy['match'])
-            c << 'route-map {0} permit 10'.format(name)
-            c << 'match ip address {0}'.format(name)
+            c << 'access-list acl-{0} {1} {2}'.format(name, policy['type'],
+                                                      policy['match'])
+            c << 'route-map rmap-{0} permit {1}'.format(name,
+                                                        policy['priority'])
+            c << 'match ip address acl-{0}'.format(name)
             c << 'set metric {0}'.format(policy['med'])
 
         c << 'debug bgp as4'
