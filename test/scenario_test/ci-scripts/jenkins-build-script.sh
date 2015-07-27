@@ -9,11 +9,15 @@ export GOROOT=/usr/local/go
 export GOBGP=/usr/local/jenkins/src/github.com/osrg/gobgp
 
 WS=`pwd`
+rm ${WS}/*.xml
+
 cp -r ../workspace $GOBGP
 pwd
 cd $GOBGP
 ls -al
 git log | head -20
+
+sudo docker rm -f $(sudo docker ps -a -q)
 
 sudo docker rmi $(sudo docker images | grep "^<none>" | awk '{print $3}')
 

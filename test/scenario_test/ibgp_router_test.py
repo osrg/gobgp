@@ -95,6 +95,7 @@ class GoBGPTestBase(unittest.TestCase):
         for q in self.quaggas.itervalues():
             paths = self.gobgp.get_adj_rib_out(q)
             # bgp speaker mustn't forward iBGP routes to iBGP peers
+            print 'test:',paths
             self.assertTrue(len(paths) == 0)
 
     def test_04_originate_path(self):

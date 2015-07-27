@@ -38,11 +38,11 @@ sudo -E python route_server_policy_test.py --gobgp-image $GOBGP_IMAGE --go-path 
 RET2=$?
 
 # route server test
-sudo -E python route_server_test.py --gobgp-image $GOBGP_IMAGE --test-prefix rs -s -x --with-xunit --xunit-file=${WS}/nosetest_rs.xml &
+sudo -E python route_server_test.py --gobgp-image $GOBGP_IMAGE --test-prefix rs -s -x --with-xunit --xunit-file=${WS}/nosetest.xml &
 PID3=$!
 
 # route server ipv4 ipv6 test
-sudo -E python route_server_ipv4_v6_test.py --gobgp-image $GOBGP_IMAGE --test-prefix v6 -s -x --with-xunit --xunit-file=${WS}/nosetest_ipv6.xml &
+sudo -E python route_server_ipv4_v6_test.py --gobgp-image $GOBGP_IMAGE --test-prefix v6 -s -x --with-xunit --xunit-file=${WS}/nosetest_ip.xml &
 PID4=$!
 
 # bgp router test
