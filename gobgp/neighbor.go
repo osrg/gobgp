@@ -141,7 +141,7 @@ func showNeighbors() error {
 
 func showNeighbor(args []string) error {
 	id := &api.Arguments{
-		RouterId: args[0],
+		NeighborAddress: args[0],
 	}
 	p, e := client.GetNeighbor(context.Background(), id)
 	if e != nil {
@@ -428,9 +428,9 @@ func showNeighborRib(r string, remoteIP net.IP, args []string) error {
 	}
 
 	arg := &api.Arguments{
-		Resource: resource,
-		Af:       rt,
-		RouterId: remoteIP.String(),
+		Resource:        resource,
+		Af:              rt,
+		NeighborAddress: remoteIP.String(),
 	}
 
 	ps := paths{}
@@ -542,8 +542,8 @@ func resetNeighbor(cmd string, remoteIP net.IP, args []string) error {
 		return err
 	}
 	arg := &api.Arguments{
-		RouterId: remoteIP.String(),
-		Af:       rt,
+		NeighborAddress: remoteIP.String(),
+		Af:              rt,
 	}
 	switch cmd {
 	case CMD_RESET:
@@ -560,8 +560,8 @@ func resetNeighbor(cmd string, remoteIP net.IP, args []string) error {
 
 func stateChangeNeighbor(cmd string, remoteIP net.IP, args []string) error {
 	arg := &api.Arguments{
-		Af:       api.AF_IPV4_UC,
-		RouterId: remoteIP.String(),
+		Af:              api.AF_IPV4_UC,
+		NeighborAddress: remoteIP.String(),
 	}
 	var err error
 	switch cmd {
@@ -581,8 +581,8 @@ func showNeighborPolicy(remoteIP net.IP) error {
 		return err
 	}
 	arg := &api.Arguments{
-		Af:       rt,
-		RouterId: remoteIP.String(),
+		Af:              rt,
+		NeighborAddress: remoteIP.String(),
 	}
 
 	ap, e := client.GetNeighborPolicy(context.Background(), arg)
@@ -661,11 +661,11 @@ func modNeighborPolicy(remoteIP net.IP, cmdType string, eArg []string) error {
 		operation = api.Operation_DEL
 	}
 	arg := &api.PolicyArguments{
-		Resource:    api.Resource_POLICY_ROUTEPOLICY,
-		Operation:   operation,
-		RouterId:    remoteIP.String(),
-		Name:        eArg[0],
-		ApplyPolicy: pol,
+		Resource:        api.Resource_POLICY_ROUTEPOLICY,
+		Operation:       operation,
+		NeighborAddress: remoteIP.String(),
+		Name:            eArg[0],
+		ApplyPolicy:     pol,
 	}
 	stream, err := client.ModNeighborPolicy(context.Background())
 	if err != nil {

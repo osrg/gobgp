@@ -75,7 +75,7 @@ func NewMonitorCmd() *cobra.Command {
 			var arg *api.Arguments
 			if len(args) > 0 {
 				arg = &api.Arguments{
-					RouterId: args[0],
+					NeighborAddress: args[0],
 				}
 			} else {
 				arg = &api.Arguments{}

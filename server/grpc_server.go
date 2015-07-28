@@ -127,7 +127,7 @@ func (s *Server) Serve() error {
 
 func (s *Server) GetNeighbor(ctx context.Context, arg *api.Arguments) (*api.Peer, error) {
 	var rf bgp.RouteFamily
-	req := NewGrpcRequest(REQ_NEIGHBOR, arg.RouterId, rf, nil)
+	req := NewGrpcRequest(REQ_NEIGHBOR, arg.NeighborAddress, rf, nil)
 	s.bgpServerCh <- req
 
 	res := <-req.ResponseCh
@@ -173,7 +173,7 @@ func (s *Server) GetAdjRib(arg *api.Arguments, stream api.Grpc_GetAdjRibServer) 
 		return err
 	}
 
-	req := NewGrpcRequest(reqType, arg.RouterId, rf, nil)
+	req := NewGrpcRequest(reqType, arg.NeighborAddress, rf, nil)
 	s.bgpServerCh <- req
 
 	for res := range req.ResponseCh {
@@ -205,7 +205,7 @@ func (s *Server) GetRib(arg *api.Arguments, stream api.Grpc_GetRibServer) error 
 		return err
 	}
 
-	req := NewGrpcRequest(reqType, arg.RouterId, rf, nil)
+	req := NewGrpcRequest(reqType, arg.NeighborAddress, rf, nil)
 	s.bgpServerCh <- req
 
 	for res := range req.ResponseCh {
@@ -253,7 +253,7 @@ END:
 
 func (s *Server) MonitorPeerState(arg *api.Arguments, stream api.Grpc_MonitorPeerStateServer) error {
 	var rf bgp.RouteFamily
-	req := NewGrpcRequest(REQ_MONITOR_NEIGHBOR_PEER_STATE, arg.RouterId, rf, nil)
+	req := NewGrpcRequest(REQ_MONITOR_NEIGHBOR_PEER_STATE, arg.NeighborAddress, rf, nil)
 	s.bgpServerCh <- req
 
 	var err error
@@ -279,7 +279,7 @@ func (s *Server) neighbor(reqType int, arg *api.Arguments) (*api.Error, error) {
 	}
 
 	none := &api.Error{}
-	req := NewGrpcRequest(reqType, arg.RouterId, rf, nil)
+	req := NewGrpcRequest(reqType, arg.NeighborAddress, rf, nil)
 	s.bgpServerCh <- req
 
 	res := <-req.ResponseCh
@@ -363,7 +363,7 @@ func (s *Server) GetNeighborPolicy(ctx context.Context, arg *api.Arguments) (*ap
 		return nil, err
 	}
 
-	req := NewGrpcRequest(REQ_NEIGHBOR_POLICY, arg.RouterId, rf, nil)
+	req := NewGrpcRequest(REQ_NEIGHBOR_POLICY, arg.NeighborAddress, rf, nil)
 	s.bgpServerCh <- req
 
 	res := <-req.ResponseCh
@@ -408,7 +408,7 @@ func (s *Server) ModNeighborPolicy(stream api.Grpc_ModNeighborPolicyServer) erro
 				reqType = REQ_NEIGHBOR_POLICY_DEL_DISTRIBUTE
 			}
 		}
-		req := NewGrpcRequest(reqType, arg.RouterId, rf, arg.ApplyPolicy)
+		req := NewGrpcRequest(reqType, arg.NeighborAddress, rf, arg.ApplyPolicy)
 		s.bgpServerCh <- req
 		res := <-req.ResponseCh
 		if err := res.Err(); err != nil {
