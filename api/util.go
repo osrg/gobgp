@@ -26,3 +26,23 @@ var AF_RTC *AddressFamily = &AddressFamily{AFI_IP, SAFI_ROUTE_TARGET_CONSTRAINTS
 func (lhs *AddressFamily) Equal(rhs *AddressFamily) bool {
 	return lhs.Afi == rhs.Afi && lhs.Safi == rhs.Safi
 }
+
+func (af *AddressFamily) ShortString() string {
+	switch {
+	case af.Equal(AF_IPV4_UC):
+		return "ipv4"
+	case af.Equal(AF_IPV6_UC):
+		return "ipv6"
+	case af.Equal(AF_IPV4_VPN):
+		return "vpnv4"
+	case af.Equal(AF_IPV4_VPN):
+		return "vpnv6"
+	case af.Equal(AF_EVPN):
+		return "evpn"
+	case af.Equal(AF_ENCAP):
+		return "encap"
+	case af.Equal(AF_RTC):
+		return "rtc"
+	}
+	return "unknown"
+}

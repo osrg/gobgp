@@ -633,9 +633,10 @@ func (m *PolicyArguments) GetApplyPolicy() *ApplyPolicy {
 }
 
 type MrtArguments struct {
-	Resource Resource       `protobuf:"varint,1,opt,name=resource,enum=api.Resource" json:"resource,omitempty"`
-	Af       *AddressFamily `protobuf:"bytes,2,opt,name=af" json:"af,omitempty"`
-	Interval uint64         `protobuf:"varint,3,opt,name=interval" json:"interval,omitempty"`
+	Resource        Resource       `protobuf:"varint,1,opt,name=resource,enum=api.Resource" json:"resource,omitempty"`
+	Af              *AddressFamily `protobuf:"bytes,2,opt,name=af" json:"af,omitempty"`
+	Interval        uint64         `protobuf:"varint,3,opt,name=interval" json:"interval,omitempty"`
+	NeighborAddress string         `protobuf:"bytes,4,opt,name=neighbor_address" json:"neighbor_address,omitempty"`
 }
 
 func (m *MrtArguments) Reset()         { *m = MrtArguments{} }

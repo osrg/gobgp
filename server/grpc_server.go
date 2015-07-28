@@ -83,6 +83,7 @@ const (
 	REQ_MONITOR_GLOBAL_BEST_CHANGED
 	REQ_MONITOR_NEIGHBOR_PEER_STATE
 	REQ_MRT_GLOBAL_RIB
+	REQ_MRT_LOCAL_RIB
 	REQ_RPKI
 )
 
@@ -598,6 +599,8 @@ func (s *Server) GetMrt(arg *api.MrtArguments, stream api.Grpc_GetMrtServer) err
 	switch arg.Resource {
 	case api.Resource_GLOBAL:
 		reqType = REQ_MRT_GLOBAL_RIB
+	case api.Resource_LOCAL:
+		reqType = REQ_MRT_LOCAL_RIB
 	default:
 		return fmt.Errorf("unsupported resource type: %v", arg.Resource)
 	}
@@ -606,7 +609,7 @@ func (s *Server) GetMrt(arg *api.MrtArguments, stream api.Grpc_GetMrtServer) err
 		return err
 	}
 
-	req := NewGrpcRequest(reqType, "", rf, arg.Interval)
+	req := NewGrpcRequest(reqType, arg.NeighborAddress, rf, arg.Interval)
 	s.bgpServerCh <- req
 	for res := range req.ResponseCh {
 		if err = res.Err(); err != nil {

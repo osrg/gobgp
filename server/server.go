@@ -1290,7 +1290,7 @@ func (server *BgpServer) handleGrpc(grpcReq *GrpcRequest) []*SenderMsg {
 		server.handleGrpcDelPolicies(grpcReq)
 	case REQ_MONITOR_GLOBAL_BEST_CHANGED, REQ_MONITOR_NEIGHBOR_PEER_STATE:
 		server.broadcastReqs = append(server.broadcastReqs, grpcReq)
-	case REQ_MRT_GLOBAL_RIB:
+	case REQ_MRT_GLOBAL_RIB, REQ_MRT_LOCAL_RIB:
 		server.handleMrt(grpcReq)
 	case REQ_RPKI:
 		server.roaClient.handleGRPC(grpcReq)
@@ -1914,8 +1914,30 @@ func (server *BgpServer) handleGrpcDelPolicies(grpcReq *GrpcRequest) {
 
 func (server *BgpServer) handleMrt(grpcReq *GrpcRequest) {
 	now := uint32(time.Now().Unix())
-	msg, err := server.mkMrtPeerIndexTableMsg(now)
+	view := ""
 	result := &GrpcResponse{}
+	var manager *table.TableManager
+
+	switch grpcReq.RequestType {
+	case REQ_MRT_GLOBAL_RIB:
+		manager = server.localRibMap[GLOBAL_RIB_NAME].rib
+	case REQ_MRT_LOCAL_RIB:
+		_, err := server.checkNeighborRequest(grpcReq)
+		if err != nil {
+			return
+		}
+		loc, ok := server.localRibMap[grpcReq.RemoteAddr]
+		if !ok {
+			result.ResponseErr = fmt.Errorf("no local rib for %s", grpcReq.RemoteAddr)
+			grpcReq.ResponseCh <- result
+			close(grpcReq.ResponseCh)
+			return
+		}
+		manager = loc.rib
+		view = grpcReq.RemoteAddr
+	}
+
+	msg, err := server.mkMrtPeerIndexTableMsg(now, view)
 	if err != nil {
 		result.ResponseErr = fmt.Errorf("failed to make new mrt peer index table message: %s", err)
 		grpcReq.ResponseCh <- result
@@ -1930,7 +1952,15 @@ func (server *BgpServer) handleMrt(grpcReq *GrpcRequest) {
 		return
 	}
 
-	msgs, err := server.mkMrtRibMsgs(grpcReq.RouteFamily, now)
+	tbl, ok := manager.Tables[grpcReq.RouteFamily]
+	if !ok {
+		result.ResponseErr = fmt.Errorf("unsupported route family: %s", grpcReq.RouteFamily)
+		grpcReq.ResponseCh <- result
+		close(grpcReq.ResponseCh)
+		return
+	}
+
+	msgs, err := server.mkMrtRibMsgs(tbl, now)
 	if err != nil {
 		result.ResponseErr = fmt.Errorf("failed to make new mrt rib message: %s", err)
 		grpcReq.ResponseCh <- result
@@ -1978,7 +2008,7 @@ func (server *BgpServer) handleMrt(grpcReq *GrpcRequest) {
 	return
 }
 
-func (server *BgpServer) mkMrtPeerIndexTableMsg(t uint32) (*bgp.MRTMessage, error) {
+func (server *BgpServer) mkMrtPeerIndexTableMsg(t uint32, view string) (*bgp.MRTMessage, error) {
 	peers := make([]*bgp.Peer, 0, len(server.neighborMap))
 	for _, peer := range server.neighborMap {
 		id := peer.peerInfo.ID.To4().String()
@@ -1987,16 +2017,11 @@ func (server *BgpServer) mkMrtPeerIndexTableMsg(t uint32) (*bgp.MRTMessage, erro
 		peers = append(peers, bgp.NewPeer(id, ipaddr, asn, true))
 	}
 	bgpid := server.bgpConfig.Global.GlobalConfig.RouterId.To4().String()
-	table := bgp.NewPeerIndexTable(bgpid, "", peers)
+	table := bgp.NewPeerIndexTable(bgpid, view, peers)
 	return bgp.NewMRTMessage(t, bgp.TABLE_DUMPv2, bgp.PEER_INDEX_TABLE, table)
 }
 
-func (server *BgpServer) mkMrtRibMsgs(rf bgp.RouteFamily, t uint32) ([]*bgp.MRTMessage, error) {
-	tbl, ok := server.localRibMap[GLOBAL_RIB_NAME].rib.Tables[rf]
-	if !ok {
-		return nil, fmt.Errorf("unsupported route family: %s", rf)
-	}
-
+func (server *BgpServer) mkMrtRibMsgs(tbl *table.Table, t uint32) ([]*bgp.MRTMessage, error) {
 	getPeerIndex := func(info *table.PeerInfo) uint16 {
 		var idx uint16
 		for _, peer := range server.neighborMap {
@@ -2010,7 +2035,7 @@ func (server *BgpServer) mkMrtRibMsgs(rf bgp.RouteFamily, t uint32) ([]*bgp.MRTM
 
 	var subtype bgp.MRTSubTypeTableDumpv2
 
-	switch rf {
+	switch tbl.GetRoutefamily() {
 	case bgp.RF_IPv4_UC:
 		subtype = bgp.RIB_IPV4_UNICAST
 	case bgp.RF_IPv4_MC:
