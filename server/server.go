@@ -628,7 +628,7 @@ func (server *BgpServer) handleFSMMessage(peer *Peer, e *fsmMsg, incoming chan *
 				pathList = applyPolicies(peer, loc, POLICY_DIRECTION_EXPORT, peer.getBests(loc))
 			} else {
 				peer.conf.Transport.TransportConfig.LocalAddress = peer.fsm.LocalAddr()
-				for _, path := range peer.getBests(globalRib) {
+				for _, path := range filterpath(peer, peer.getBests(globalRib)) {
 					p := path.Clone(path.IsWithdraw)
 					p.UpdatePathAttrs(&server.bgpConfig.Global, &peer.conf)
 					pathList = append(pathList, p)

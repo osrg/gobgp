@@ -42,7 +42,7 @@ class GoBGPTestBase(unittest.TestCase):
         qs = [q1, q2]
         ctns = [g1, q1, q2]
 
-        # advertise a route from q1, q2, q3
+        # advertise a route from q1, q2
         for idx, c in enumerate(qs):
             route = '10.0.{0}.0/24'.format(idx+1)
             c.add_route(route)
@@ -199,6 +199,43 @@ class GoBGPTestBase(unittest.TestCase):
             # bgp router mustn't change aspath of routes from eBGP peers
             # which are sent to iBGP peers
             self.assertTrue(self.gobgp._get_as_path(path) == [q3.asn])
+
+    # disable ebgp peer, check ebgp routes are removed
+    def test_11_disable_ebgp_peer(self):
+        q3 = self.quaggas['q3']
+        self.gobgp.disable_peer(q3)
+        del self.quaggas['q3']
+        self.gobgp.wait_for(expected_state=BGP_FSM_IDLE, peer=q3)
+
+        for route in q3.routes.iterkeys():
+            dst = self.gobgp.get_global_rib(route)
+            self.assertTrue(len(dst) == 0)
+
+        for q in self.quaggas.itervalues():
+            paths = self.gobgp.get_adj_rib_out(q)
+            # only gobgp's locally generated routes must exists
+            print paths
+            self.assertTrue(len(paths) == len(self.gobgp.routes))
+
+    def test_12_disable_ibgp_peer(self):
+        q1 = self.quaggas['q1']
+        self.gobgp.disable_peer(q1)
+        self.gobgp.wait_for(expected_state=BGP_FSM_IDLE, peer=q1)
+
+        for route in q1.routes.iterkeys():
+            dst = self.gobgp.get_global_rib(route)
+            self.assertTrue(len(dst) == 0)
+
+    def test_13_enable_ibgp_peer(self):
+        q1 = self.quaggas['q1']
+        self.gobgp.enable_peer(q1)
+        self.gobgp.wait_for(expected_state=BGP_FSM_ESTABLISHED, peer=q1)
+
+    def test_14_check_gobgp_adj_rib_out(self):
+        for q in self.quaggas.itervalues():
+            paths = self.gobgp.get_adj_rib_out(q)
+            # only gobgp's locally generated routes must exists
+            self.assertTrue(len(paths) == len(self.gobgp.routes))
 
 
 if __name__ == '__main__':
