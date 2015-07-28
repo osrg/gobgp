@@ -86,7 +86,8 @@ var actionOpts struct {
 }
 
 var mrtOpts struct {
-	OutputDir string
+	OutputDir  string
+	FileFormat string
 }
 
 func formatTimedelta(d int64) string {

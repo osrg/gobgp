@@ -76,6 +76,7 @@ message MrtArguments {
     Resource resource = 1;
     AddressFamily af = 2;
     uint64 interval = 3;
+    string neighbor_address = 4;
 }
 
 enum Resource {
