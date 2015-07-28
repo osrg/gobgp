@@ -58,6 +58,7 @@ const (
 	CMD_MRT            = "mrt"
 	CMD_DUMP           = "dump"
 	CMD_INJECT         = "inject"
+	CMD_RPKI           = "rpki"
 )
 
 var subOpts struct {
@@ -269,6 +270,22 @@ func (p policyDefinitions) Swap(i, j int) {
 
 func (p policyDefinitions) Less(i, j int) bool {
 	return p[i].PolicyDefinitionName < p[j].PolicyDefinitionName
+}
+
+type roas []*api.ROA
+
+func (r roas) Len() int {
+	return len(r)
+}
+
+func (r roas) Swap(i, j int) {
+	r[i], r[j] = r[j], r[i]
+}
+
+func (r roas) Less(i, j int) bool {
+	strings := sort.StringSlice{cidr2prefix(fmt.Sprintf("%s/%d", r[i].Prefix, r[i].Prefixlen)),
+		cidr2prefix(fmt.Sprintf("%s/%d", r[j].Prefix, r[j].Prefixlen))}
+	return strings.Less(0, 1)
 }
 
 func connGrpc() *grpc.ClientConn {

@@ -40,6 +40,7 @@ service Grpc {
   rpc MonitorBestChanged(Arguments) returns (stream Path) {}
   rpc MonitorPeerState(Arguments) returns (stream Peer) {}
   rpc GetMrt(MrtArguments) returns (stream MrtMessage) {}
+  rpc GetRPKI(Arguments) returns (stream ROA) {}
 }
 
 message Error {
@@ -496,4 +497,11 @@ message ApplyPolicy {
 
 message MrtMessage {
     bytes data = 1;
+}
+
+message ROA {
+    uint32 as = 1;
+    uint32 prefixlen = 2;
+    uint32 maxlen = 3;
+    string prefix = 4;
 }

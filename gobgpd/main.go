@@ -46,6 +46,7 @@ func main() {
 		DisableStdlog bool   `long:"disable-stdlog" description:"disable standard logging"`
 		EnableZapi    bool   `short:"z" long:"enable-zapi" description:"enable zebra api"`
 		ZapiURL       string `long:"zapi-url" description:"specify zebra api url"`
+		RPKIServer    string `long:"rpki-server" description:"specify rpki server url"`
 	}
 	_, err := flags.Parse(&opts)
 	if err != nil {
@@ -141,7 +142,7 @@ func main() {
 	reloadCh := make(chan bool)
 	go config.ReadConfigfileServe(opts.ConfigFile, configCh, reloadCh)
 	reloadCh <- true
-	bgpServer := server.NewBgpServer(bgp.BGP_PORT)
+	bgpServer := server.NewBgpServer(bgp.BGP_PORT, opts.RPKIServer)
 	go bgpServer.Serve()
 
 	// start grpc Server

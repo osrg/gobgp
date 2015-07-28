@@ -79,9 +79,10 @@ type BgpServer struct {
 	neighborMap    map[string]*Peer
 	localRibMap    map[string]*LocalRib
 	zclient        *zebra.Client
+	roaClient      *roaClient
 }
 
-func NewBgpServer(port int) *BgpServer {
+func NewBgpServer(port int, roaURL string) *BgpServer {
 	b := BgpServer{}
 	b.globalTypeCh = make(chan config.Global)
 	b.addedPeerCh = make(chan config.Neighbor)
@@ -91,6 +92,7 @@ func NewBgpServer(port int) *BgpServer {
 	b.localRibMap = make(map[string]*LocalRib)
 	b.neighborMap = make(map[string]*Peer)
 	b.listenPort = port
+	b.roaClient, _ = newROAClient(roaURL)
 	return &b
 }
 
@@ -214,6 +216,8 @@ func (server *BgpServer) Serve() {
 		}
 
 		select {
+		case rmsg := <-server.roaClient.recieveROA():
+			server.roaClient.handleRTRMsg(rmsg)
 		case zmsg := <-zapiMsgCh:
 			handleZapiMsg(zmsg)
 		case conn := <-acceptCh:
@@ -1289,6 +1293,8 @@ func (server *BgpServer) handleGrpc(grpcReq *GrpcRequest) []*SenderMsg {
 		server.broadcastReqs = append(server.broadcastReqs, grpcReq)
 	case REQ_MRT_GLOBAL_RIB:
 		server.handleMrt(grpcReq)
+	case REQ_RPKI:
+		server.roaClient.handleGRPC(grpcReq)
 	default:
 		errmsg := fmt.Errorf("Unknown request type: %v", grpcReq.RequestType)
 		result := &GrpcResponse{

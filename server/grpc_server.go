@@ -83,6 +83,7 @@ const (
 	REQ_MONITOR_GLOBAL_BEST_CHANGED
 	REQ_MONITOR_NEIGHBOR_PEER_STATE
 	REQ_MRT_GLOBAL_RIB
+	REQ_RPKI
 )
 
 const GRPC_PORT = 8080
@@ -619,6 +620,26 @@ func (s *Server) GetMrt(arg *api.MrtArguments, stream api.Grpc_GetMrtServer) err
 END:
 	req.EndCh <- struct{}{}
 	return err
+}
+
+func (s *Server) GetRPKI(arg *api.Arguments, stream api.Grpc_GetRPKIServer) error {
+	rf, err := convertAf2Rf(arg.Af)
+	if err != nil {
+		return err
+	}
+	req := NewGrpcRequest(REQ_RPKI, "", rf, nil)
+	s.bgpServerCh <- req
+
+	for res := range req.ResponseCh {
+		if err := res.Err(); err != nil {
+			log.Debug(err.Error())
+			return err
+		}
+		if err := stream.Send(res.Data.(*api.ROA)); err != nil {
+			return err
+		}
+	}
+	return nil
 }
 
 type GrpcRequest struct {
