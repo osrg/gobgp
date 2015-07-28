@@ -58,10 +58,14 @@ type broadcastMsg interface {
 type broadcastGrpcMsg struct {
 	req    *GrpcRequest
 	result *GrpcResponse
+	done   bool
 }
 
 func (m *broadcastGrpcMsg) send() {
 	m.req.ResponseCh <- m.result
+	if m.done == true {
+		close(m.req.ResponseCh)
+	}
 }
 
 type BgpServer struct {
@@ -1964,7 +1968,6 @@ func (server *BgpServer) handleMrt(grpcReq *GrpcRequest) {
 		req:    grpcReq,
 		result: result,
 	}
-	server.broadcastMsgs = append(server.broadcastMsgs, m)
 
 	interval := int64(grpcReq.Data.(uint64))
 	if interval > 0 {
@@ -1974,8 +1977,9 @@ func (server *BgpServer) handleMrt(grpcReq *GrpcRequest) {
 			server.GrpcReqCh <- grpcReq
 		}()
 	} else {
-		close(grpcReq.ResponseCh)
+		m.done = true
 	}
+	server.broadcastMsgs = append(server.broadcastMsgs, m)
 
 	return
 }
