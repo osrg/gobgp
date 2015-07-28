@@ -573,9 +573,9 @@ func (m *Error) String() string { return proto.CompactTextString(m) }
 func (*Error) ProtoMessage()    {}
 
 type Arguments struct {
-	Resource Resource       `protobuf:"varint,1,opt,name=resource,enum=api.Resource" json:"resource,omitempty"`
-	Af       *AddressFamily `protobuf:"bytes,2,opt,name=af" json:"af,omitempty"`
-	RouterId string         `protobuf:"bytes,3,opt,name=router_id" json:"router_id,omitempty"`
+	Resource        Resource       `protobuf:"varint,1,opt,name=resource,enum=api.Resource" json:"resource,omitempty"`
+	Af              *AddressFamily `protobuf:"bytes,2,opt,name=af" json:"af,omitempty"`
+	NeighborAddress string         `protobuf:"bytes,3,opt,name=neighbor_address" json:"neighbor_address,omitempty"`
 }
 
 func (m *Arguments) Reset()         { *m = Arguments{} }
@@ -608,7 +608,7 @@ func (m *ModPathArguments) GetPath() *Path {
 type PolicyArguments struct {
 	Resource         Resource          `protobuf:"varint,1,opt,name=resource,enum=api.Resource" json:"resource,omitempty"`
 	Operation        Operation         `protobuf:"varint,2,opt,name=operation,enum=api.Operation" json:"operation,omitempty"`
-	RouterId         string            `protobuf:"bytes,3,opt,name=router_id" json:"router_id,omitempty"`
+	NeighborAddress  string            `protobuf:"bytes,3,opt,name=neighbor_address" json:"neighbor_address,omitempty"`
 	Name             string            `protobuf:"bytes,4,opt,name=name" json:"name,omitempty"`
 	PolicyDefinition *PolicyDefinition `protobuf:"bytes,6,opt,name=policy_definition" json:"policy_definition,omitempty"`
 	ApplyPolicy      *ApplyPolicy      `protobuf:"bytes,7,opt,name=apply_policy" json:"apply_policy,omitempty"`

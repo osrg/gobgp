@@ -55,7 +55,7 @@ message Error {
 message Arguments {
     Resource resource = 1;
     AddressFamily af = 2;
-    string router_id = 3;
+    string neighbor_address = 3;
 }
 
 message ModPathArguments {
@@ -66,7 +66,7 @@ message ModPathArguments {
 message PolicyArguments {
     Resource resource = 1;
     Operation operation = 2;
-    string router_id = 3;
+    string neighbor_address = 3;
     string name = 4;
     PolicyDefinition policy_definition = 6;
     ApplyPolicy apply_policy = 7;
