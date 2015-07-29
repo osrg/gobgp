@@ -236,11 +236,15 @@ class GoBGPTestBase(unittest.TestCase):
         self.gobgp.disable_peer(q1)
         self.gobgp.wait_for(expected_state=BGP_FSM_IDLE, peer=q1)
 
+        time.sleep(3)
+
         for route in q1.routes.iterkeys():
             dst = self.gobgp.get_global_rib(route)
             self.assertTrue(len(dst) == 0)
 
             for q in self.quaggas.itervalues():
+                if q is q1:
+                    continue
                 paths = self.gobgp.get_adj_rib_out(q, route)
                 self.assertTrue(len(paths) == 0)
 
