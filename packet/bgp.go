@@ -116,9 +116,9 @@ const (
 	EC_SUBTYPE_FLOWSPEC_REDIRECT       ExtendedCommunityAttrSubType = 0x08
 	EC_SUBTYPE_FLOWSPEC_TRAFFIC_REMARK ExtendedCommunityAttrSubType = 0x09
 
-	EC_SUBTYPE_MAC_MOBILITY   ExtendedCommunityAttrSubType = 0x00
-	EC_SUBTYPE_ESI_MPLS_LABEL ExtendedCommunityAttrSubType = 0x01
-	EC_SUBTYPE_ES_IMPORT      ExtendedCommunityAttrSubType = 0x02
+	EC_SUBTYPE_MAC_MOBILITY ExtendedCommunityAttrSubType = 0x00
+	EC_SUBTYPE_ESI_LABEL    ExtendedCommunityAttrSubType = 0x01
+	EC_SUBTYPE_ES_IMPORT    ExtendedCommunityAttrSubType = 0x02
 )
 
 type TunnelType uint16
@@ -3070,8 +3070,8 @@ func (e *TwoOctetAsSpecificExtended) GetTypes() (ExtendedCommunityAttrType, Exte
 
 func (e *TwoOctetAsSpecificExtended) ToApiStruct() *api.ExtendedCommunity {
 	return &api.ExtendedCommunity{
-		Type:         api.EXTENDED_COMMUNITIE_TYPE_TWO_OCTET_AS_SPECIFIC,
-		Subtype:      api.EXTENDED_COMMUNITIE_SUBTYPE(e.SubType),
+		Type:         api.ExtendedCommunity_TWO_OCTET_AS_SPECIFIC,
+		Subtype:      api.ExtendedCommunity_Subtype(e.SubType),
 		IsTransitive: e.IsTransitive,
 		Asn:          uint32(e.AS),
 		LocalAdmin:   e.LocalAdmin,
@@ -3121,8 +3121,8 @@ func (e *IPv4AddressSpecificExtended) GetTypes() (ExtendedCommunityAttrType, Ext
 
 func (e *IPv4AddressSpecificExtended) ToApiStruct() *api.ExtendedCommunity {
 	return &api.ExtendedCommunity{
-		Type:         api.EXTENDED_COMMUNITIE_TYPE_IP4_SPECIFIC,
-		Subtype:      api.EXTENDED_COMMUNITIE_SUBTYPE(e.SubType),
+		Type:         api.ExtendedCommunity_IP4_SPECIFIC,
+		Subtype:      api.ExtendedCommunity_Subtype(e.SubType),
 		IsTransitive: e.IsTransitive,
 		Ipv4:         e.IPv4.String(),
 		LocalAdmin:   uint32(e.LocalAdmin),
@@ -3167,8 +3167,8 @@ func (e *FourOctetAsSpecificExtended) GetTypes() (ExtendedCommunityAttrType, Ext
 
 func (e *FourOctetAsSpecificExtended) ToApiStruct() *api.ExtendedCommunity {
 	return &api.ExtendedCommunity{
-		Type:         api.EXTENDED_COMMUNITIE_TYPE_FOUR_OCTET_AS_SPECIFIC,
-		Subtype:      api.EXTENDED_COMMUNITIE_SUBTYPE(e.SubType),
+		Type:         api.ExtendedCommunity_FOUR_OCTET_AS_SPECIFIC,
+		Subtype:      api.ExtendedCommunity_Subtype(e.SubType),
 		IsTransitive: e.IsTransitive,
 		Asn:          e.AS,
 		LocalAdmin:   uint32(e.LocalAdmin),
@@ -3304,7 +3304,7 @@ func (e *OpaqueExtended) GetTypes() (ExtendedCommunityAttrType, ExtendedCommunit
 
 func (e *OpaqueExtended) ToApiStruct() *api.ExtendedCommunity {
 	return &api.ExtendedCommunity{
-		Type: api.EXTENDED_COMMUNITIE_TYPE_OPAQUE,
+		Type: api.ExtendedCommunity_OPAQUE,
 	}
 }
 
@@ -3312,6 +3312,162 @@ func NewOpaqueExtended(isTransitive bool) *OpaqueExtended {
 	return &OpaqueExtended{
 		IsTransitive: isTransitive,
 	}
+}
+
+type ESILabelExtended struct {
+	Label          uint32
+	IsSingleActive bool
+}
+
+func (e *ESILabelExtended) Serialize() ([]byte, error) {
+	buf := make([]byte, 8)
+	buf[0] = byte(EC_TYPE_EVPN)
+	buf[1] = byte(EC_SUBTYPE_ESI_LABEL)
+	if e.IsSingleActive {
+		buf[2] = byte(1)
+	}
+	buf[3] = 0
+	buf[4] = 0
+	buf[5] = byte((e.Label >> 16) & 0xff)
+	buf[6] = byte((e.Label >> 8) & 0xff)
+	buf[7] = byte(e.Label & 0xff)
+	return buf, nil
+}
+
+func (e *ESILabelExtended) String() string {
+	return fmt.Sprintf("ESI LABEL: Label [%d] IsSingleActive [%t]", e.Label, e.IsSingleActive)
+}
+
+func (e *ESILabelExtended) GetTypes() (ExtendedCommunityAttrType, ExtendedCommunityAttrSubType) {
+	return EC_TYPE_EVPN, EC_SUBTYPE_ESI_LABEL
+}
+
+func (e *ESILabelExtended) ToApiStruct() *api.ExtendedCommunity {
+	return &api.ExtendedCommunity{
+		Type:           api.ExtendedCommunity_EVPN,
+		Subtype:        api.ExtendedCommunity_ESI_LABEL,
+		IsSingleActive: e.IsSingleActive,
+		Label:          e.Label,
+	}
+}
+
+func NewESILabelExtended(label uint32, isSingleActive bool) *ESILabelExtended {
+	return &ESILabelExtended{
+		Label:          label,
+		IsSingleActive: isSingleActive,
+	}
+}
+
+type ESImportRouteTarget struct {
+	ESImport net.HardwareAddr
+}
+
+func (e *ESImportRouteTarget) Serialize() ([]byte, error) {
+	buf := make([]byte, 8)
+	buf[0] = byte(EC_TYPE_EVPN)
+	buf[1] = byte(EC_SUBTYPE_ES_IMPORT)
+	copy(buf[2:], e.ESImport)
+	return buf, nil
+}
+
+func (e *ESImportRouteTarget) String() string {
+	return fmt.Sprintf("ES-IMPORT ROUTE TARGET: ES-Import [%s]", e.ESImport.String())
+}
+
+func (e *ESImportRouteTarget) GetTypes() (ExtendedCommunityAttrType, ExtendedCommunityAttrSubType) {
+	return EC_TYPE_EVPN, EC_SUBTYPE_ES_IMPORT
+}
+
+func (e *ESImportRouteTarget) ToApiStruct() *api.ExtendedCommunity {
+	return &api.ExtendedCommunity{
+		Type:     api.ExtendedCommunity_EVPN,
+		Subtype:  api.ExtendedCommunity_ROUTE_TARGET,
+		EsImport: e.ESImport.String(),
+	}
+}
+
+func NewESImportRouteTarget(mac string) *ESImportRouteTarget {
+	esImport, err := net.ParseMAC(mac)
+	if err != nil {
+		return nil
+	}
+	return &ESImportRouteTarget{
+		ESImport: esImport,
+	}
+}
+
+type MacMobilityExtended struct {
+	Sequence uint32
+	IsSticky bool
+}
+
+func (e *MacMobilityExtended) Serialize() ([]byte, error) {
+	buf := make([]byte, 8)
+	buf[0] = byte(EC_TYPE_EVPN)
+	buf[1] = byte(EC_SUBTYPE_MAC_MOBILITY)
+	if e.IsSticky {
+		buf[2] = byte(1)
+	}
+	binary.BigEndian.PutUint32(buf[4:], e.Sequence)
+	return buf, nil
+}
+
+func (e *MacMobilityExtended) String() string {
+	return fmt.Sprintf("MAC MOBILITY: Seq [%d] IsSticky [%t]", e.Sequence, e.IsSticky)
+}
+
+func (e *MacMobilityExtended) GetTypes() (ExtendedCommunityAttrType, ExtendedCommunityAttrSubType) {
+	return EC_TYPE_EVPN, EC_SUBTYPE_MAC_MOBILITY
+}
+
+func (e *MacMobilityExtended) ToApiStruct() *api.ExtendedCommunity {
+	return &api.ExtendedCommunity{
+		Type:     api.ExtendedCommunity_EVPN,
+		Subtype:  api.ExtendedCommunity_MAC_MOBILITY,
+		Sequence: e.Sequence,
+		IsSticky: e.IsSticky,
+	}
+}
+
+func NewMacMobilityExtended(seq uint32, isSticky bool) *MacMobilityExtended {
+	return &MacMobilityExtended{
+		Sequence: seq,
+		IsSticky: isSticky,
+	}
+}
+
+func parseEvpnExtended(data []byte) (ExtendedCommunityInterface, error) {
+	if ExtendedCommunityAttrType(data[0]) != EC_TYPE_EVPN {
+		return nil, fmt.Errorf("ext comm type is not EC_TYPE_EVPN: %d", data[0])
+	}
+	subType := ExtendedCommunityAttrSubType(data[1])
+	switch subType {
+	case EC_SUBTYPE_ESI_LABEL:
+		var isSingleActive bool
+		if data[2] > 0 {
+			isSingleActive = true
+		}
+		label := uint32(data[5])<<16 | uint32(data[6])<<8 | uint32(data[7])
+		return &ESILabelExtended{
+			IsSingleActive: isSingleActive,
+			Label:          label,
+		}, nil
+	case EC_SUBTYPE_ES_IMPORT:
+		return &ESImportRouteTarget{
+			ESImport: net.HardwareAddr(data[2:8]),
+		}, nil
+	case EC_SUBTYPE_MAC_MOBILITY:
+		var isSticky bool
+		if data[2] > 0 {
+			isSticky = true
+		}
+		seq := binary.BigEndian.Uint32(data[4:8])
+		return &MacMobilityExtended{
+			Sequence: seq,
+			IsSticky: isSticky,
+		}, nil
+	}
+	return nil, fmt.Errorf("unknown subtype: %d", subType)
 }
 
 type UnknownExtended struct {
@@ -3388,6 +3544,8 @@ func parseExtended(data []byte) (ExtendedCommunityInterface, error) {
 		e := NewOpaqueExtended(transitive)
 		err := e.DecodeFromBytes(data[1:8])
 		return e, err
+	case EC_TYPE_EVPN:
+		return parseEvpnExtended(data)
 	default:
 		e := &UnknownExtended{}
 		e.Type = BGPAttrType(data[0])
