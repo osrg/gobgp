@@ -947,7 +947,7 @@ func handleGlobalRibRequest(grpcReq *GrpcRequest, peerInfo *table.PeerInfo) []*t
 		ec_type := target.Type
 		ec_subtype := target.Subtype
 		switch ec_type {
-		case api.EXTENDED_COMMUNITIE_TYPE_TWO_OCTET_AS_SPECIFIC:
+		case api.ExtendedCommunity_TWO_OCTET_AS_SPECIFIC:
 			if target.Asn == 0 && target.LocalAdmin == 0 {
 				break
 			}

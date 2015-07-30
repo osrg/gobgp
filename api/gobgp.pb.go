@@ -254,55 +254,6 @@ func (x Origin) String() string {
 	return proto.EnumName(Origin_name, int32(x))
 }
 
-type EXTENDED_COMMUNITIE_TYPE int32
-
-const (
-	EXTENDED_COMMUNITIE_TYPE_TWO_OCTET_AS_SPECIFIC  EXTENDED_COMMUNITIE_TYPE = 0
-	EXTENDED_COMMUNITIE_TYPE_IP4_SPECIFIC           EXTENDED_COMMUNITIE_TYPE = 1
-	EXTENDED_COMMUNITIE_TYPE_FOUR_OCTET_AS_SPECIFIC EXTENDED_COMMUNITIE_TYPE = 2
-	EXTENDED_COMMUNITIE_TYPE_OPAQUE                 EXTENDED_COMMUNITIE_TYPE = 3
-)
-
-var EXTENDED_COMMUNITIE_TYPE_name = map[int32]string{
-	0: "TWO_OCTET_AS_SPECIFIC",
-	1: "IP4_SPECIFIC",
-	2: "FOUR_OCTET_AS_SPECIFIC",
-	3: "OPAQUE",
-}
-var EXTENDED_COMMUNITIE_TYPE_value = map[string]int32{
-	"TWO_OCTET_AS_SPECIFIC":  0,
-	"IP4_SPECIFIC":           1,
-	"FOUR_OCTET_AS_SPECIFIC": 2,
-	"OPAQUE":                 3,
-}
-
-func (x EXTENDED_COMMUNITIE_TYPE) String() string {
-	return proto.EnumName(EXTENDED_COMMUNITIE_TYPE_name, int32(x))
-}
-
-type EXTENDED_COMMUNITIE_SUBTYPE int32
-
-const (
-	EXTENDED_COMMUNITIE_SUBTYPE_ORIGIN_VALIDATION EXTENDED_COMMUNITIE_SUBTYPE = 0
-	EXTENDED_COMMUNITIE_SUBTYPE_ROUTE_TARGET      EXTENDED_COMMUNITIE_SUBTYPE = 2
-	EXTENDED_COMMUNITIE_SUBTYPE_ROUTE_ORIGIN      EXTENDED_COMMUNITIE_SUBTYPE = 3
-)
-
-var EXTENDED_COMMUNITIE_SUBTYPE_name = map[int32]string{
-	0: "ORIGIN_VALIDATION",
-	2: "ROUTE_TARGET",
-	3: "ROUTE_ORIGIN",
-}
-var EXTENDED_COMMUNITIE_SUBTYPE_value = map[string]int32{
-	"ORIGIN_VALIDATION": 0,
-	"ROUTE_TARGET":      2,
-	"ROUTE_ORIGIN":      3,
-}
-
-func (x EXTENDED_COMMUNITIE_SUBTYPE) String() string {
-	return proto.EnumName(EXTENDED_COMMUNITIE_SUBTYPE_name, int32(x))
-}
-
 type Error_ErrorCode int32
 
 const (
@@ -359,6 +310,64 @@ var Capability_Code_value = map[string]int32{
 
 func (x Capability_Code) String() string {
 	return proto.EnumName(Capability_Code_name, int32(x))
+}
+
+type ExtendedCommunity_Type int32
+
+const (
+	ExtendedCommunity_TWO_OCTET_AS_SPECIFIC  ExtendedCommunity_Type = 0
+	ExtendedCommunity_IP4_SPECIFIC           ExtendedCommunity_Type = 1
+	ExtendedCommunity_FOUR_OCTET_AS_SPECIFIC ExtendedCommunity_Type = 2
+	ExtendedCommunity_OPAQUE                 ExtendedCommunity_Type = 3
+	ExtendedCommunity_EVPN                   ExtendedCommunity_Type = 4
+)
+
+var ExtendedCommunity_Type_name = map[int32]string{
+	0: "TWO_OCTET_AS_SPECIFIC",
+	1: "IP4_SPECIFIC",
+	2: "FOUR_OCTET_AS_SPECIFIC",
+	3: "OPAQUE",
+	4: "EVPN",
+}
+var ExtendedCommunity_Type_value = map[string]int32{
+	"TWO_OCTET_AS_SPECIFIC":  0,
+	"IP4_SPECIFIC":           1,
+	"FOUR_OCTET_AS_SPECIFIC": 2,
+	"OPAQUE":                 3,
+	"EVPN":                   4,
+}
+
+func (x ExtendedCommunity_Type) String() string {
+	return proto.EnumName(ExtendedCommunity_Type_name, int32(x))
+}
+
+type ExtendedCommunity_Subtype int32
+
+const (
+	ExtendedCommunity_ORIGIN_VALIDATION ExtendedCommunity_Subtype = 0
+	ExtendedCommunity_ROUTE_TARGET      ExtendedCommunity_Subtype = 2
+	ExtendedCommunity_ROUTE_ORIGIN      ExtendedCommunity_Subtype = 3
+	ExtendedCommunity_ESI_LABEL         ExtendedCommunity_Subtype = 4
+	ExtendedCommunity_MAC_MOBILITY      ExtendedCommunity_Subtype = 5
+)
+
+var ExtendedCommunity_Subtype_name = map[int32]string{
+	0: "ORIGIN_VALIDATION",
+	2: "ROUTE_TARGET",
+	3: "ROUTE_ORIGIN",
+	4: "ESI_LABEL",
+	5: "MAC_MOBILITY",
+}
+var ExtendedCommunity_Subtype_value = map[string]int32{
+	"ORIGIN_VALIDATION": 0,
+	"ROUTE_TARGET":      2,
+	"ROUTE_ORIGIN":      3,
+	"ESI_LABEL":         4,
+	"MAC_MOBILITY":      5,
+}
+
+func (x ExtendedCommunity_Subtype) String() string {
+	return proto.EnumName(ExtendedCommunity_Subtype_name, int32(x))
 }
 
 type EVPNNlri_Type int32
@@ -736,12 +745,17 @@ func (m *Aggregator) String() string { return proto.CompactTextString(m) }
 func (*Aggregator) ProtoMessage()    {}
 
 type ExtendedCommunity struct {
-	Type         EXTENDED_COMMUNITIE_TYPE    `protobuf:"varint,1,opt,name=type,enum=api.EXTENDED_COMMUNITIE_TYPE" json:"type,omitempty"`
-	Subtype      EXTENDED_COMMUNITIE_SUBTYPE `protobuf:"varint,2,opt,name=subtype,enum=api.EXTENDED_COMMUNITIE_SUBTYPE" json:"subtype,omitempty"`
-	IsTransitive bool                        `protobuf:"varint,3,opt,name=is_transitive" json:"is_transitive,omitempty"`
-	Asn          uint32                      `protobuf:"varint,4,opt,name=asn" json:"asn,omitempty"`
-	Ipv4         string                      `protobuf:"bytes,5,opt,name=ipv4" json:"ipv4,omitempty"`
-	LocalAdmin   uint32                      `protobuf:"varint,6,opt,name=local_admin" json:"local_admin,omitempty"`
+	Type           ExtendedCommunity_Type    `protobuf:"varint,1,opt,name=type,enum=api.ExtendedCommunity_Type" json:"type,omitempty"`
+	Subtype        ExtendedCommunity_Subtype `protobuf:"varint,2,opt,name=subtype,enum=api.ExtendedCommunity_Subtype" json:"subtype,omitempty"`
+	IsTransitive   bool                      `protobuf:"varint,3,opt,name=is_transitive" json:"is_transitive,omitempty"`
+	Asn            uint32                    `protobuf:"varint,4,opt,name=asn" json:"asn,omitempty"`
+	Ipv4           string                    `protobuf:"bytes,5,opt,name=ipv4" json:"ipv4,omitempty"`
+	LocalAdmin     uint32                    `protobuf:"varint,6,opt,name=local_admin" json:"local_admin,omitempty"`
+	IsSingleActive bool                      `protobuf:"varint,7,opt,name=is_single_active" json:"is_single_active,omitempty"`
+	Label          uint32                    `protobuf:"varint,8,opt,name=label" json:"label,omitempty"`
+	EsImport       string                    `protobuf:"bytes,9,opt,name=es_import" json:"es_import,omitempty"`
+	Sequence       uint32                    `protobuf:"varint,10,opt,name=sequence" json:"sequence,omitempty"`
+	IsSticky       bool                      `protobuf:"varint,11,opt,name=is_sticky" json:"is_sticky,omitempty"`
 }
 
 func (m *ExtendedCommunity) Reset()         { *m = ExtendedCommunity{} }
@@ -1400,10 +1414,10 @@ func init() {
 	proto.RegisterEnum("api.SAFI", SAFI_name, SAFI_value)
 	proto.RegisterEnum("api.ROUTE_DISTINGUISHER_TYPE", ROUTE_DISTINGUISHER_TYPE_name, ROUTE_DISTINGUISHER_TYPE_value)
 	proto.RegisterEnum("api.Origin", Origin_name, Origin_value)
-	proto.RegisterEnum("api.EXTENDED_COMMUNITIE_TYPE", EXTENDED_COMMUNITIE_TYPE_name, EXTENDED_COMMUNITIE_TYPE_value)
-	proto.RegisterEnum("api.EXTENDED_COMMUNITIE_SUBTYPE", EXTENDED_COMMUNITIE_SUBTYPE_name, EXTENDED_COMMUNITIE_SUBTYPE_value)
 	proto.RegisterEnum("api.Error_ErrorCode", Error_ErrorCode_name, Error_ErrorCode_value)
 	proto.RegisterEnum("api.Capability_Code", Capability_Code_name, Capability_Code_value)
+	proto.RegisterEnum("api.ExtendedCommunity_Type", ExtendedCommunity_Type_name, ExtendedCommunity_Type_value)
+	proto.RegisterEnum("api.ExtendedCommunity_Subtype", ExtendedCommunity_Subtype_name, ExtendedCommunity_Subtype_value)
 	proto.RegisterEnum("api.EVPNNlri_Type", EVPNNlri_Type_name, EVPNNlri_Type_value)
 	proto.RegisterEnum("api.TunnelEncapSubTLV_Type", TunnelEncapSubTLV_Type_name, TunnelEncapSubTLV_Type_value)
 	proto.RegisterEnum("api.TunnelEncapTLV_Type", TunnelEncapTLV_Type_name, TunnelEncapTLV_Type_value)

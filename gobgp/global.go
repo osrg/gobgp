@@ -216,8 +216,8 @@ func modPath(modtype string, args []string) error {
 			Af: rf,
 			RtNlri: &api.RTNlri{
 				Target: &api.ExtendedCommunity{
-					Type:       api.EXTENDED_COMMUNITIE_TYPE_TWO_OCTET_AS_SPECIFIC,
-					Subtype:    api.EXTENDED_COMMUNITIE_SUBTYPE_ROUTE_TARGET,
+					Type:       api.ExtendedCommunity_TWO_OCTET_AS_SPECIFIC,
+					Subtype:    api.ExtendedCommunity_ROUTE_TARGET,
 					Asn:        uint32(asn),
 					LocalAdmin: uint32(admin),
 				},

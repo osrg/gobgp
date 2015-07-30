@@ -173,26 +173,34 @@ message Aggregator {
     string address = 2;
 }
 
-enum EXTENDED_COMMUNITIE_TYPE {
-    TWO_OCTET_AS_SPECIFIC = 0;
-    IP4_SPECIFIC = 1;
-    FOUR_OCTET_AS_SPECIFIC = 2;
-    OPAQUE = 3;
-}
-
-enum EXTENDED_COMMUNITIE_SUBTYPE {
-    ORIGIN_VALIDATION = 0;
-    ROUTE_TARGET = 2;
-    ROUTE_ORIGIN = 3;
-}
-
 message ExtendedCommunity {
-    EXTENDED_COMMUNITIE_TYPE type = 1;
-    EXTENDED_COMMUNITIE_SUBTYPE subtype = 2;
+    enum Type {
+        TWO_OCTET_AS_SPECIFIC = 0;
+        IP4_SPECIFIC = 1;
+        FOUR_OCTET_AS_SPECIFIC = 2;
+        OPAQUE = 3;
+        EVPN = 4;
+    }
+
+    enum Subtype {
+        ORIGIN_VALIDATION = 0;
+        ROUTE_TARGET = 2;
+        ROUTE_ORIGIN = 3;
+        ESI_LABEL = 4;
+        MAC_MOBILITY = 5;
+    }
+
+    Type type = 1;
+    Subtype subtype = 2;
     bool is_transitive = 3;
     uint32 asn = 4;
     string ipv4 = 5;
     uint32 local_admin = 6;
+    bool is_single_active = 7;
+    uint32 label = 8;
+    string es_import = 9;
+    uint32 sequence = 10;
+    bool is_sticky = 11;
 }
 
 message EVPNNlri {
