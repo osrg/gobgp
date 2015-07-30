@@ -922,7 +922,7 @@ func getECommunityElem(gAdmin string) (bool, bgp.ExtendedCommunityAttrType, inte
 	return false, bgp.ExtendedCommunityAttrType(0xFF), nil
 }
 
-func (c *ExtCommunityCondition) checkMembers(eCommunities []interface{}, checkAll bool) bool {
+func (c *ExtCommunityCondition) checkMembers(eCommunities []bgp.ExtendedCommunityInterface, checkAll bool) bool {
 
 	result := false
 	if checkAll {
@@ -960,8 +960,7 @@ func (c *ExtCommunityCondition) checkMembers(eCommunities []interface{}, checkAl
 	matched := false
 	matchStr := ""
 	for _, member := range c.ExtCommunityList {
-		for _, eCommunity := range eCommunities {
-			ec := eCommunity.(bgp.ExtendedCommunityInterface)
+		for _, ec := range eCommunities {
 			t, st := ec.GetTypes()
 			if member.isRegExp {
 				ecString := fmt.Sprintf("%s:%s", makeTypeSubStr(st), ec.String())
