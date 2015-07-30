@@ -32,7 +32,7 @@ func TestTableDeleteDestByNlri(t *testing.T) {
 		ipv4t.setDestination(tableKey, dest)
 	}
 	tableKey := ipv4t.tableKey(pathT[0].GetNlri())
-	gdest := ipv4t.getDestination(tableKey)
+	gdest := ipv4t.GetDestination(tableKey)
 	rdest := ipv4t.deleteDestByNlri(pathT[0].GetNlri())
 	assert.Equal(t, rdest, gdest)
 }
@@ -50,7 +50,7 @@ func TestTableDeleteDest(t *testing.T) {
 	dest := NewDestination(pathT[0].GetNlri())
 	ipv4t.setDestination(tableKey, dest)
 	ipv4t.deleteDest(dest)
-	gdest := ipv4t.getDestination(tableKey)
+	gdest := ipv4t.GetDestination(tableKey)
 	assert.Nil(t, gdest)
 }
 
