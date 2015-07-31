@@ -208,29 +208,6 @@ func (x SAFI) String() string {
 	return proto.EnumName(SAFI_name, int32(x))
 }
 
-type ROUTE_DISTINGUISHER_TYPE int32
-
-const (
-	ROUTE_DISTINGUISHER_TYPE_TWO_OCTET_AS  ROUTE_DISTINGUISHER_TYPE = 0
-	ROUTE_DISTINGUISHER_TYPE_IP4           ROUTE_DISTINGUISHER_TYPE = 1
-	ROUTE_DISTINGUISHER_TYPE_FOUR_OCTET_AS ROUTE_DISTINGUISHER_TYPE = 2
-)
-
-var ROUTE_DISTINGUISHER_TYPE_name = map[int32]string{
-	0: "TWO_OCTET_AS",
-	1: "IP4",
-	2: "FOUR_OCTET_AS",
-}
-var ROUTE_DISTINGUISHER_TYPE_value = map[string]int32{
-	"TWO_OCTET_AS":  0,
-	"IP4":           1,
-	"FOUR_OCTET_AS": 2,
-}
-
-func (x ROUTE_DISTINGUISHER_TYPE) String() string {
-	return proto.EnumName(ROUTE_DISTINGUISHER_TYPE_name, int32(x))
-}
-
 type Origin int32
 
 const (
@@ -272,6 +249,29 @@ var Error_ErrorCode_value = map[string]int32{
 
 func (x Error_ErrorCode) String() string {
 	return proto.EnumName(Error_ErrorCode_name, int32(x))
+}
+
+type RouteDistinguisher_Type int32
+
+const (
+	RouteDistinguisher_TWO_OCTET_AS  RouteDistinguisher_Type = 0
+	RouteDistinguisher_IP4           RouteDistinguisher_Type = 1
+	RouteDistinguisher_FOUR_OCTET_AS RouteDistinguisher_Type = 2
+)
+
+var RouteDistinguisher_Type_name = map[int32]string{
+	0: "TWO_OCTET_AS",
+	1: "IP4",
+	2: "FOUR_OCTET_AS",
+}
+var RouteDistinguisher_Type_value = map[string]int32{
+	"TWO_OCTET_AS":  0,
+	"IP4":           1,
+	"FOUR_OCTET_AS": 2,
+}
+
+func (x RouteDistinguisher_Type) String() string {
+	return proto.EnumName(RouteDistinguisher_Type_name, int32(x))
 }
 
 type Capability_Code int32
@@ -668,9 +668,10 @@ func (m *AddressFamily) String() string { return proto.CompactTextString(m) }
 func (*AddressFamily) ProtoMessage()    {}
 
 type RouteDistinguisher struct {
-	Type     ROUTE_DISTINGUISHER_TYPE `protobuf:"varint,1,opt,name=type,enum=api.ROUTE_DISTINGUISHER_TYPE" json:"type,omitempty"`
-	Admin    string                   `protobuf:"bytes,2,opt,name=admin" json:"admin,omitempty"`
-	Assigned uint32                   `protobuf:"varint,3,opt,name=assigned" json:"assigned,omitempty"`
+	Type     RouteDistinguisher_Type `protobuf:"varint,1,opt,name=type,enum=api.RouteDistinguisher_Type" json:"type,omitempty"`
+	Asn      uint32                  `protobuf:"varint,2,opt,name=asn" json:"asn,omitempty"`
+	Ipv4     string                  `protobuf:"bytes,3,opt,name=ipv4" json:"ipv4,omitempty"`
+	Assigned uint32                  `protobuf:"varint,4,opt,name=assigned" json:"assigned,omitempty"`
 }
 
 func (m *RouteDistinguisher) Reset()         { *m = RouteDistinguisher{} }
@@ -930,20 +931,21 @@ func (m *PmsiTunnel) String() string { return proto.CompactTextString(m) }
 func (*PmsiTunnel) ProtoMessage()    {}
 
 type PathAttr struct {
-	Type        PathAttr_Type     `protobuf:"varint,1,opt,name=type,enum=api.PathAttr_Type" json:"type,omitempty"`
-	Value       []string          `protobuf:"bytes,2,rep,name=value" json:"value,omitempty"`
-	Origin      Origin            `protobuf:"varint,3,opt,name=origin,enum=api.Origin" json:"origin,omitempty"`
-	AsPaths     []*AsPath         `protobuf:"bytes,4,rep,name=as_paths" json:"as_paths,omitempty"`
-	Nexthop     string            `protobuf:"bytes,5,opt,name=nexthop" json:"nexthop,omitempty"`
-	Metric      uint32            `protobuf:"varint,6,opt,name=metric" json:"metric,omitempty"`
-	Pref        uint32            `protobuf:"varint,7,opt,name=pref" json:"pref,omitempty"`
-	Aggregator  *Aggregator       `protobuf:"bytes,8,opt,name=aggregator" json:"aggregator,omitempty"`
-	Communites  []uint32          `protobuf:"varint,9,rep,name=communites" json:"communites,omitempty"`
-	Originator  string            `protobuf:"bytes,10,opt,name=originator" json:"originator,omitempty"`
-	Cluster     []string          `protobuf:"bytes,11,rep,name=cluster" json:"cluster,omitempty"`
-	Nlri        []*Nlri           `protobuf:"bytes,12,rep,name=nlri" json:"nlri,omitempty"`
-	TunnelEncap []*TunnelEncapTLV `protobuf:"bytes,13,rep,name=tunnel_encap" json:"tunnel_encap,omitempty"`
-	PmsiTunnel  *PmsiTunnel       `protobuf:"bytes,14,opt,name=pmsi_tunnel" json:"pmsi_tunnel,omitempty"`
+	Type                PathAttr_Type        `protobuf:"varint,1,opt,name=type,enum=api.PathAttr_Type" json:"type,omitempty"`
+	Value               []string             `protobuf:"bytes,2,rep,name=value" json:"value,omitempty"`
+	Origin              Origin               `protobuf:"varint,3,opt,name=origin,enum=api.Origin" json:"origin,omitempty"`
+	AsPaths             []*AsPath            `protobuf:"bytes,4,rep,name=as_paths" json:"as_paths,omitempty"`
+	Nexthop             string               `protobuf:"bytes,5,opt,name=nexthop" json:"nexthop,omitempty"`
+	Metric              uint32               `protobuf:"varint,6,opt,name=metric" json:"metric,omitempty"`
+	Pref                uint32               `protobuf:"varint,7,opt,name=pref" json:"pref,omitempty"`
+	Aggregator          *Aggregator          `protobuf:"bytes,8,opt,name=aggregator" json:"aggregator,omitempty"`
+	Communites          []uint32             `protobuf:"varint,9,rep,name=communites" json:"communites,omitempty"`
+	Originator          string               `protobuf:"bytes,10,opt,name=originator" json:"originator,omitempty"`
+	Cluster             []string             `protobuf:"bytes,11,rep,name=cluster" json:"cluster,omitempty"`
+	Nlri                []*Nlri              `protobuf:"bytes,12,rep,name=nlri" json:"nlri,omitempty"`
+	TunnelEncap         []*TunnelEncapTLV    `protobuf:"bytes,13,rep,name=tunnel_encap" json:"tunnel_encap,omitempty"`
+	PmsiTunnel          *PmsiTunnel          `protobuf:"bytes,14,opt,name=pmsi_tunnel" json:"pmsi_tunnel,omitempty"`
+	ExtendedCommunities []*ExtendedCommunity `protobuf:"bytes,15,rep,name=extended_communities" json:"extended_communities,omitempty"`
 }
 
 func (m *PathAttr) Reset()         { *m = PathAttr{} }
@@ -981,6 +983,13 @@ func (m *PathAttr) GetTunnelEncap() []*TunnelEncapTLV {
 func (m *PathAttr) GetPmsiTunnel() *PmsiTunnel {
 	if m != nil {
 		return m.PmsiTunnel
+	}
+	return nil
+}
+
+func (m *PathAttr) GetExtendedCommunities() []*ExtendedCommunity {
+	if m != nil {
+		return m.ExtendedCommunities
 	}
 	return nil
 }
@@ -1412,9 +1421,9 @@ func init() {
 	proto.RegisterEnum("api.Operation", Operation_name, Operation_value)
 	proto.RegisterEnum("api.AFI", AFI_name, AFI_value)
 	proto.RegisterEnum("api.SAFI", SAFI_name, SAFI_value)
-	proto.RegisterEnum("api.ROUTE_DISTINGUISHER_TYPE", ROUTE_DISTINGUISHER_TYPE_name, ROUTE_DISTINGUISHER_TYPE_value)
 	proto.RegisterEnum("api.Origin", Origin_name, Origin_value)
 	proto.RegisterEnum("api.Error_ErrorCode", Error_ErrorCode_name, Error_ErrorCode_value)
+	proto.RegisterEnum("api.RouteDistinguisher_Type", RouteDistinguisher_Type_name, RouteDistinguisher_Type_value)
 	proto.RegisterEnum("api.Capability_Code", Capability_Code_name, Capability_Code_value)
 	proto.RegisterEnum("api.ExtendedCommunity_Type", ExtendedCommunity_Type_name, ExtendedCommunity_Type_value)
 	proto.RegisterEnum("api.ExtendedCommunity_Subtype", ExtendedCommunity_Subtype_name, ExtendedCommunity_Subtype_value)

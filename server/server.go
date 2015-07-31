@@ -796,6 +796,17 @@ func handleGlobalRibRequest(grpcReq *GrpcRequest, peerInfo *table.PeerInfo) []*t
 			nlri = bgp.NewLabeledVPNIPv6AddrPrefix(uint8(path.Nlri.VpnNlri.IpAddrLen), path.Nlri.VpnNlri.IpAddr, *mpls, rd)
 			pattr = append(pattr, bgp.NewPathAttributeMpReachNLRI("::", []bgp.AddrPrefixInterface{nlri}))
 		}
+		ecs := make([]bgp.ExtendedCommunityInterface, 0)
+		for _, attr := range path.Attrs {
+			if attr.Type == api.PathAttr_EXTENDED_COMMUNITIES {
+				for _, ec := range attr.ExtendedCommunities {
+					ecs = append(ecs, bgp.NewExtendedCommunityFromApiStruct(ec))
+				}
+			}
+		}
+		if len(ecs) > 0 {
+			pattr = append(pattr, bgp.NewPathAttributeExtendedCommunities(ecs))
+		}
 
 	case bgp.RF_EVPN:
 		if peerInfo.AS > (1<<16 - 1) {

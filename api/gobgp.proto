@@ -122,16 +122,17 @@ message AddressFamily {
     SAFI Safi = 2;
 }
 
-enum ROUTE_DISTINGUISHER_TYPE {
-    TWO_OCTET_AS = 0;
-    IP4 = 1;
-    FOUR_OCTET_AS = 2;
-}
-
 message RouteDistinguisher {
-    ROUTE_DISTINGUISHER_TYPE type = 1;
-    string admin = 2;
-    uint32 assigned = 3;
+    enum Type {
+        TWO_OCTET_AS = 0;
+        IP4 = 1;
+        FOUR_OCTET_AS = 2;
+    }
+
+    Type type = 1;
+    uint32 asn = 2;
+    string ipv4 = 3;
+    uint32 assigned = 4;
 }
 
 message GracefulRestartTuple {
@@ -341,6 +342,7 @@ message PathAttr {
     repeated Nlri nlri = 12;
     repeated TunnelEncapTLV tunnel_encap = 13;
     PmsiTunnel pmsi_tunnel = 14;
+    repeated ExtendedCommunity extended_communities = 15;
 }
 
 message AsPath {
