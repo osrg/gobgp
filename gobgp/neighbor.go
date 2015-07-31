@@ -395,7 +395,7 @@ func showRoute(pathList []*api.Path, showAge bool, showBest bool, isMonitor bool
 	}
 }
 
-func showNeighborRib(r string, remoteIP net.IP, args []string) error {
+func showNeighborRib(r string, name string, args []string) error {
 	var resource api.Resource
 	switch r {
 	case CMD_GLOBAL:
@@ -406,8 +406,10 @@ func showNeighborRib(r string, remoteIP net.IP, args []string) error {
 		resource = api.Resource_ADJ_IN
 	case CMD_ADJ_OUT:
 		resource = api.Resource_ADJ_OUT
+	case CMD_VRF:
+		resource = api.Resource_VRF
 	}
-	rt, err := checkAddressFamily(remoteIP)
+	rf, err := checkAddressFamily(net.ParseIP(name))
 	if err != nil {
 		return err
 	}
@@ -415,7 +417,7 @@ func showNeighborRib(r string, remoteIP net.IP, args []string) error {
 	var prefix string
 	var host net.IP
 	if len(args) > 0 {
-		if rt != api.AF_IPV4_UC && rt != api.AF_IPV6_UC {
+		if rf != api.AF_IPV4_UC && rf != api.AF_IPV6_UC {
 			return fmt.Errorf("route filtering is only supported for IPv4/IPv6 unicast routes")
 		}
 		_, p, err := net.ParseCIDR(args[0])
@@ -431,13 +433,18 @@ func showNeighborRib(r string, remoteIP net.IP, args []string) error {
 
 	arg := &api.Arguments{
 		Resource: resource,
-		Af:       rt,
-		Name:     remoteIP.String(),
+		Af:       rf,
+		Name:     name,
 	}
 
 	ps := paths{}
 	showBest := false
 	showAge := true
+
+	var stream interface {
+		Recv() (*api.Path, error)
+	}
+
 	switch resource {
 	case api.Resource_LOCAL, api.Resource_GLOBAL:
 		showBest = true
@@ -489,9 +496,14 @@ func showNeighborRib(r string, remoteIP net.IP, args []string) error {
 		showAge = false
 		fallthrough
 	case api.Resource_ADJ_IN:
-		stream, e := client.GetAdjRib(context.Background(), arg)
-		if e != nil {
-			return e
+		stream, err = client.GetAdjRib(context.Background(), arg)
+		fallthrough
+	case api.Resource_VRF:
+		if stream == nil {
+			stream, err = client.GetVrf(context.Background(), arg)
+		}
+		if err != nil {
+			return err
 		}
 		maxOnes := 0
 		for {
@@ -538,13 +550,13 @@ func showNeighborRib(r string, remoteIP net.IP, args []string) error {
 	return nil
 }
 
-func resetNeighbor(cmd string, remoteIP net.IP, args []string) error {
-	rt, err := checkAddressFamily(remoteIP)
+func resetNeighbor(cmd string, remoteIP string, args []string) error {
+	rt, err := checkAddressFamily(net.ParseIP(remoteIP))
 	if err != nil {
 		return err
 	}
 	arg := &api.Arguments{
-		Name: remoteIP.String(),
+		Name: remoteIP,
 		Af:   rt,
 	}
 	switch cmd {
@@ -560,10 +572,10 @@ func resetNeighbor(cmd string, remoteIP net.IP, args []string) error {
 	return nil
 }
 
-func stateChangeNeighbor(cmd string, remoteIP net.IP, args []string) error {
+func stateChangeNeighbor(cmd string, remoteIP string, args []string) error {
 	arg := &api.Arguments{
 		Af:   api.AF_IPV4_UC,
-		Name: remoteIP.String(),
+		Name: remoteIP,
 	}
 	var err error
 	switch cmd {
@@ -695,7 +707,7 @@ func NewNeighborCmd() *cobra.Command {
 
 	type cmds struct {
 		names []string
-		f     func(string, net.IP, []string) error
+		f     func(string, string, []string) error
 	}
 
 	c := make([]cmds, 0, 3)
@@ -714,7 +726,7 @@ func NewNeighborCmd() *cobra.Command {
 						fmt.Println("invalid ip address:", args[len(args)-1])
 						os.Exit(1)
 					}
-					err := f(cmd.Use, remoteIP, args[:len(args)-1])
+					err := f(cmd.Use, remoteIP.String(), args[:len(args)-1])
 					if err != nil {
 						fmt.Println(err)
 						os.Exit(1)

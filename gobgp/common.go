@@ -59,6 +59,7 @@ const (
 	CMD_DUMP           = "dump"
 	CMD_INJECT         = "inject"
 	CMD_RPKI           = "rpki"
+	CMD_VRF            = "vrf"
 )
 
 var subOpts struct {
@@ -286,6 +287,20 @@ func (r roas) Less(i, j int) bool {
 	strings := sort.StringSlice{cidr2prefix(fmt.Sprintf("%s/%d", r[i].Prefix, r[i].Prefixlen)),
 		cidr2prefix(fmt.Sprintf("%s/%d", r[j].Prefix, r[j].Prefixlen))}
 	return strings.Less(0, 1)
+}
+
+type vrfs []*api.Vrf
+
+func (v vrfs) Len() int {
+	return len(v)
+}
+
+func (v vrfs) Swap(i, j int) {
+	v[i], v[j] = v[j], v[i]
+}
+
+func (v vrfs) Less(i, j int) bool {
+	return v[i].Name < v[j].Name
 }
 
 func connGrpc() *grpc.ClientConn {
