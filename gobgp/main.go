@@ -57,10 +57,11 @@ func main() {
 
 	globalCmd := NewGlobalCmd()
 	neighborCmd := NewNeighborCmd()
+	vrfCmd := NewVrfCmd()
 	policyCmd := NewPolicyCmd()
 	monitorCmd := NewMonitorCmd()
 	mrtCmd := NewMrtCmd()
 	rpkiCmd := NewRPKICmd()
-	rootCmd.AddCommand(globalCmd, neighborCmd, policyCmd, monitorCmd, mrtCmd, rpkiCmd)
+	rootCmd.AddCommand(globalCmd, neighborCmd, vrfCmd, policyCmd, monitorCmd, mrtCmd, rpkiCmd)
 	rootCmd.Execute()
 }

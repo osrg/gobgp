@@ -810,33 +810,31 @@ func getMacMobilityExtendedCommunity(etag uint32, mac net.HardwareAddr, evpnPath
 	return nil
 }
 
-func (server *BgpServer) handleGlobalRibRequest(grpcReq *GrpcRequest, peerInfo *table.PeerInfo) []*table.Path {
-	var isWithdraw bool
+func (server *BgpServer) handleModPathRequest(grpcReq *GrpcRequest, peerInfo *table.PeerInfo) []*table.Path {
 	var nlri bgp.AddrPrefixInterface
 	result := &GrpcResponse{}
 
 	pattr := make([]bgp.PathAttributeInterface, 0)
 	extcomms := make([]bgp.ExtendedCommunityInterface, 0)
+	var nexthop string
+	var rf bgp.RouteFamily
 
-	args, ok := grpcReq.Data.(*api.ModPathArguments)
+	arg, ok := grpcReq.Data.(*api.ModPathArguments)
 	if !ok {
 		result.ResponseErr = fmt.Errorf("type assertion failed")
 		goto ERR
 	}
-	if grpcReq.RequestType == REQ_GLOBAL_DELETE {
-		isWithdraw = true
-	}
 
-	if len(args.RawNlri) > 0 {
+	if len(arg.RawNlri) > 0 {
 		nlri = &bgp.NLRInfo{}
-		err := nlri.DecodeFromBytes(args.RawNlri)
+		err := nlri.DecodeFromBytes(arg.RawNlri)
 		if err != nil {
 			result.ResponseErr = err
 			goto ERR
 		}
 	}
 
-	for _, attr := range args.RawPattrs {
+	for _, attr := range arg.RawPattrs {
 		p, err := bgp.GetPathAttribute(attr)
 		if err != nil {
 			result.ResponseErr = err
@@ -850,30 +848,70 @@ func (server *BgpServer) handleGlobalRibRequest(grpcReq *GrpcRequest, peerInfo *
 		}
 
 		switch p.GetType() {
+		case bgp.BGP_ATTR_TYPE_NEXT_HOP:
+			nexthop = p.(*bgp.PathAttributeNextHop).Value.String()
 		case bgp.BGP_ATTR_TYPE_EXTENDED_COMMUNITIES:
 			value := p.(*bgp.PathAttributeExtendedCommunities).Value
 			if len(value) > 0 {
 				extcomms = append(extcomms, value...)
 			}
 		case bgp.BGP_ATTR_TYPE_MP_REACH_NLRI:
-			value := p.(*bgp.PathAttributeMpReachNLRI).Value
-			if len(value) != 1 {
+			mpreach := p.(*bgp.PathAttributeMpReachNLRI)
+			if len(mpreach.Value) != 1 {
 				result.ResponseErr = fmt.Errorf("include only one route in mp_reach_nlri")
 				goto ERR
 			}
-			nlri = p.(*bgp.PathAttributeMpReachNLRI).Value[0]
-			fallthrough
+			nlri = mpreach.Value[0]
+			nexthop = mpreach.Nexthop.String()
 		default:
 			pattr = append(pattr, p)
 		}
 	}
 
-	if nlri == nil {
-		result.ResponseErr = fmt.Errorf("no nlri included")
+	if nlri == nil || nexthop == "" {
+		result.ResponseErr = fmt.Errorf("not found nlri or nexthop")
 		goto ERR
 	}
 
-	if bgp.AfiSafiToRouteFamily(nlri.AFI(), nlri.SAFI()) == bgp.RF_EVPN {
+	rf = bgp.AfiSafiToRouteFamily(nlri.AFI(), nlri.SAFI())
+
+	if arg.Resource == api.Resource_VRF {
+		vrfs := server.localRibMap[GLOBAL_RIB_NAME].rib.Vrfs
+		if _, ok := vrfs[arg.Name]; !ok {
+			result.ResponseErr = fmt.Errorf("vrf %s not found", arg.Name)
+			goto ERR
+		}
+		vrf := vrfs[arg.Name]
+
+		switch rf {
+		case bgp.RF_IPv4_UC:
+			n := nlri.(*bgp.NLRInfo)
+			nlri = bgp.NewLabeledVPNIPAddrPrefix(n.Length, n.Prefix.String(), *bgp.NewMPLSLabelStack(), vrf.Rd)
+		case bgp.RF_IPv6_UC:
+			n := nlri.(*bgp.IPv6AddrPrefix)
+			nlri = bgp.NewLabeledVPNIPv6AddrPrefix(n.Length, n.Prefix.String(), *bgp.NewMPLSLabelStack(), vrf.Rd)
+		case bgp.RF_EVPN:
+			n := nlri.(*bgp.EVPNNLRI)
+			switch n.RouteType {
+			case bgp.EVPN_ROUTE_TYPE_MAC_IP_ADVERTISEMENT:
+				n.RouteTypeData.(*bgp.EVPNMacIPAdvertisementRoute).RD = vrf.Rd
+			case bgp.EVPN_INCLUSIVE_MULTICAST_ETHERNET_TAG:
+				n.RouteTypeData.(*bgp.EVPNMulticastEthernetTagRoute).RD = vrf.Rd
+			}
+		default:
+			result.ResponseErr = fmt.Errorf("unsupported route family for vrf: %s", rf)
+			goto ERR
+		}
+		extcomms = append(extcomms, vrf.ExportRt...)
+	}
+
+	if arg.Resource != api.Resource_VRF && rf == bgp.RF_IPv4_UC {
+		pattr = append(pattr, bgp.NewPathAttributeNextHop(nexthop))
+	} else {
+		pattr = append(pattr, bgp.NewPathAttributeMpReachNLRI(nexthop, []bgp.AddrPrefixInterface{nlri}))
+	}
+
+	if rf == bgp.RF_EVPN {
 		evpnNlri := nlri.(*bgp.EVPNNLRI)
 		if evpnNlri.RouteType == bgp.EVPN_ROUTE_TYPE_MAC_IP_ADVERTISEMENT {
 			macIpAdv := evpnNlri.RouteTypeData.(*bgp.EVPNMacIPAdvertisementRoute)
@@ -890,7 +928,7 @@ func (server *BgpServer) handleGlobalRibRequest(grpcReq *GrpcRequest, peerInfo *
 		pattr = append(pattr, bgp.NewPathAttributeExtendedCommunities(extcomms))
 	}
 
-	return []*table.Path{table.NewPath(peerInfo, nlri, isWithdraw, pattr, false, time.Now(), args.NoImplicitWithdraw)}
+	return []*table.Path{table.NewPath(peerInfo, nlri, arg.IsWithdraw, pattr, false, time.Now(), arg.NoImplicitWithdraw)}
 ERR:
 	grpcReq.ResponseCh <- result
 	close(grpcReq.ResponseCh)
@@ -898,8 +936,123 @@ ERR:
 
 }
 
+func (server *BgpServer) handleVrfMod(arg *api.ModVrfArguments) error {
+	vrfs := server.localRibMap[GLOBAL_RIB_NAME].rib.Vrfs
+	switch arg.Operation {
+	case api.Operation_ADD:
+		if _, ok := vrfs[arg.Vrf.Name]; ok {
+			return fmt.Errorf("vrf %s already exists", arg.Vrf.Name)
+		}
+		rd := bgp.GetRouteDistinguisher(arg.Vrf.Rd)
+		f := func(bufs [][]byte) ([]bgp.ExtendedCommunityInterface, error) {
+			ret := make([]bgp.ExtendedCommunityInterface, 0, len(bufs))
+			for _, rt := range bufs {
+				r, err := bgp.ParseExtended(rt)
+				if err != nil {
+					return nil, err
+				}
+				ret = append(ret, r)
+			}
+			return ret, nil
+		}
+		importRt, err := f(arg.Vrf.ImportRt)
+		if err != nil {
+			return err
+		}
+		exportRt, err := f(arg.Vrf.ImportRt)
+		if err != nil {
+			return err
+		}
+		log.WithFields(log.Fields{
+			"Topic":    "Vrf",
+			"Key":      arg.Vrf.Name,
+			"Rd":       rd,
+			"ImportRt": importRt,
+			"ExportRt": exportRt,
+		}).Debugf("add vrf")
+		vrfs[arg.Vrf.Name] = &table.Vrf{
+			Name:     arg.Vrf.Name,
+			Rd:       rd,
+			ImportRt: importRt,
+			ExportRt: exportRt,
+		}
+	case api.Operation_DEL:
+		if _, ok := vrfs[arg.Vrf.Name]; !ok {
+			return fmt.Errorf("vrf %s not found", arg.Vrf.Name)
+		}
+		vrf := vrfs[arg.Vrf.Name]
+		log.WithFields(log.Fields{
+			"Topic":    "Vrf",
+			"Key":      vrf.Name,
+			"Rd":       vrf.Rd,
+			"ImportRt": vrf.ImportRt,
+			"ExportRt": vrf.ExportRt,
+		}).Debugf("delete vrf")
+		delete(vrfs, arg.Vrf.Name)
+	default:
+		return fmt.Errorf("unknown operation:", arg.Operation)
+	}
+	return nil
+}
+
+func (server *BgpServer) handleVrfRequest(req *GrpcRequest) []*table.Path {
+	var msgs []*table.Path
+	result := &GrpcResponse{}
+
+	switch req.RequestType {
+	case REQ_VRF:
+		arg := req.Data.(*api.Arguments)
+		rib := server.localRibMap[GLOBAL_RIB_NAME].rib
+		vrfs := rib.Vrfs
+		if _, ok := vrfs[arg.Name]; !ok {
+			result.ResponseErr = fmt.Errorf("vrf %s not found", arg.Name)
+			break
+		}
+		var rf bgp.RouteFamily
+		switch req.RouteFamily {
+		case bgp.RF_IPv4_UC:
+			rf = bgp.RF_IPv4_VPN
+		case bgp.RF_IPv6_UC:
+			rf = bgp.RF_IPv6_VPN
+		case bgp.RF_EVPN:
+			rf = bgp.RF_EVPN
+		default:
+			result.ResponseErr = fmt.Errorf("unsupported route family: %s", req.RouteFamily)
+			break
+		}
+		for _, path := range rib.GetPathList(rf) {
+			ok := policy.CanImportToVrf(vrfs[arg.Name], path)
+			if !ok {
+				continue
+			}
+			req.ResponseCh <- &GrpcResponse{
+				Data: path.ToApiStruct(),
+			}
+		}
+		goto END
+	case REQ_VRFS:
+		vrfs := server.localRibMap[GLOBAL_RIB_NAME].rib.Vrfs
+		for _, vrf := range vrfs {
+			req.ResponseCh <- &GrpcResponse{
+				Data: vrf.ToApiStruct(),
+			}
+		}
+		goto END
+	case REQ_VRF_MOD:
+		arg := req.Data.(*api.ModVrfArguments)
+		result.ResponseErr = server.handleVrfMod(arg)
+	default:
+		result.ResponseErr = fmt.Errorf("unknown request type:", req.RequestType)
+	}
+
+	req.ResponseCh <- result
+END:
+	close(req.ResponseCh)
+	return msgs
+}
+
 func (server *BgpServer) handleGrpc(grpcReq *GrpcRequest) []*SenderMsg {
-	msgs := make([]*SenderMsg, 0)
+	var msgs []*SenderMsg
 
 	switch grpcReq.RequestType {
 	case REQ_GLOBAL_RIB:
@@ -912,14 +1065,14 @@ func (server *BgpServer) handleGrpc(grpcReq *GrpcRequest) []*SenderMsg {
 		}
 		close(grpcReq.ResponseCh)
 
-	case REQ_GLOBAL_ADD, REQ_GLOBAL_DELETE:
+	case REQ_MOD_PATH:
 		pi := &table.PeerInfo{
 			AS:      server.bgpConfig.Global.GlobalConfig.As,
 			LocalID: server.bgpConfig.Global.GlobalConfig.RouterId,
 		}
-		pathList := server.handleGlobalRibRequest(grpcReq, pi)
+		pathList := server.handleModPathRequest(grpcReq, pi)
 		if len(pathList) > 0 {
-			msgs = append(msgs, server.propagateUpdate("", false, pathList)...)
+			msgs = server.propagateUpdate("", false, pathList)
 			grpcReq.ResponseCh <- &GrpcResponse{}
 			close(grpcReq.ResponseCh)
 		}
@@ -990,7 +1143,7 @@ func (server *BgpServer) handleGrpc(grpcReq *GrpcRequest) []*SenderMsg {
 			break
 		}
 		m := bgp.NewBGPNotificationMessage(bgp.BGP_ERROR_CEASE, bgp.BGP_ERROR_SUB_ADMINISTRATIVE_SHUTDOWN, nil)
-		msgs = append(msgs, newSenderMsg(peer, []*bgp.BGPMessage{m}))
+		msgs = []*SenderMsg{newSenderMsg(peer, []*bgp.BGPMessage{m})}
 		grpcReq.ResponseCh <- &GrpcResponse{}
 		close(grpcReq.ResponseCh)
 
@@ -1001,7 +1154,7 @@ func (server *BgpServer) handleGrpc(grpcReq *GrpcRequest) []*SenderMsg {
 		}
 		peer.fsm.idleHoldTime = peer.conf.Timers.TimersConfig.IdleHoldTimeAfterReset
 		m := bgp.NewBGPNotificationMessage(bgp.BGP_ERROR_CEASE, bgp.BGP_ERROR_SUB_ADMINISTRATIVE_RESET, nil)
-		msgs = append(msgs, newSenderMsg(peer, []*bgp.BGPMessage{m}))
+		msgs = []*SenderMsg{newSenderMsg(peer, []*bgp.BGPMessage{m})}
 		grpcReq.ResponseCh <- &GrpcResponse{}
 		close(grpcReq.ResponseCh)
 
@@ -1011,8 +1164,7 @@ func (server *BgpServer) handleGrpc(grpcReq *GrpcRequest) []*SenderMsg {
 			break
 		}
 		pathList := peer.adjRib.GetInPathList(grpcReq.RouteFamily)
-		msgs = append(msgs, server.propagateUpdate(peer.conf.NeighborConfig.NeighborAddress.String(),
-			peer.isRouteServerClient(), pathList)...)
+		msgs = server.propagateUpdate(peer.conf.NeighborConfig.NeighborAddress.String(), peer.isRouteServerClient(), pathList)
 
 		if grpcReq.RequestType == REQ_NEIGHBOR_SOFT_RESET_IN {
 			grpcReq.ResponseCh <- &GrpcResponse{}
@@ -1027,7 +1179,7 @@ func (server *BgpServer) handleGrpc(grpcReq *GrpcRequest) []*SenderMsg {
 		}
 		pathList := peer.adjRib.GetOutPathList(grpcReq.RouteFamily)
 		msgList := table.CreateUpdateMsgFromPaths(pathList)
-		msgs = append(msgs, newSenderMsg(peer, msgList))
+		msgs = []*SenderMsg{newSenderMsg(peer, msgList)}
 		grpcReq.ResponseCh <- &GrpcResponse{}
 		close(grpcReq.ResponseCh)
 
@@ -1218,6 +1370,11 @@ func (server *BgpServer) handleGrpc(grpcReq *GrpcRequest) []*SenderMsg {
 		server.handleMrt(grpcReq)
 	case REQ_RPKI:
 		server.roaClient.handleGRPC(grpcReq)
+	case REQ_VRF, REQ_VRFS, REQ_VRF_MOD:
+		pathList := server.handleVrfRequest(grpcReq)
+		if len(pathList) > 0 {
+			msgs = server.propagateUpdate("", false, pathList)
+		}
 	default:
 		errmsg := fmt.Errorf("Unknown request type: %v", grpcReq.RequestType)
 		result := &GrpcResponse{

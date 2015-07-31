@@ -113,17 +113,20 @@ func ProcessMessage(m *bgp.BGPMessage, peerInfo *PeerInfo) []*Path {
 
 type TableManager struct {
 	Tables   map[bgp.RouteFamily]*Table
+	Vrfs     map[string]*Vrf
 	localAsn uint32
 	owner    string
 }
 
 func NewTableManager(owner string, rfList []bgp.RouteFamily) *TableManager {
-	t := &TableManager{}
-	t.Tables = make(map[bgp.RouteFamily]*Table)
+	t := &TableManager{
+		Tables: make(map[bgp.RouteFamily]*Table),
+		Vrfs:   make(map[string]*Vrf),
+		owner:  owner,
+	}
 	for _, rf := range rfList {
 		t.Tables[rf] = NewTable(rf)
 	}
-	t.owner = owner
 	return t
 }
 
