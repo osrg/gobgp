@@ -824,7 +824,9 @@ func (rd *RouteDistinguisherFourOctetAS) Serialize() ([]byte, error) {
 }
 
 func (rd *RouteDistinguisherFourOctetAS) String() string {
-	return fmt.Sprintf("%d:%d", rd.Admin, rd.Assigned)
+	fst := rd.Admin >> 16 & 0xffff
+	snd := rd.Admin & 0xffff
+	return fmt.Sprintf("%d.%d:%d", fst, snd, rd.Assigned)
 }
 
 func NewRouteDistinguisherFourOctetAS(admin uint32, assigned uint16) *RouteDistinguisherFourOctetAS {
@@ -854,6 +856,22 @@ func getRouteDistinguisher(data []byte) RouteDistinguisherInterface {
 	rd := &RouteDistinguisherUnknown{}
 	rd.Type = rdtype
 	return rd
+}
+
+func NewRouteDistinguisherFromApiStruct(rd *api.RouteDistinguisher) RouteDistinguisherInterface {
+	if rd == nil {
+		return nil
+	}
+	switch rd.Type {
+	case api.RouteDistinguisher_TWO_OCTET_AS:
+		return NewRouteDistinguisherTwoOctetAS(uint16(rd.Asn), rd.Assigned)
+	case api.RouteDistinguisher_IP4:
+		return NewRouteDistinguisherIPAddressAS(rd.Ipv4, uint16(rd.Assigned))
+	case api.RouteDistinguisher_FOUR_OCTET_AS:
+		return NewRouteDistinguisherFourOctetAS(rd.Asn, uint16(rd.Assigned))
+	default:
+		return nil
+	}
 }
 
 //

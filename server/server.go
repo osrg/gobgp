@@ -787,34 +787,7 @@ func handleGlobalRibRequest(grpcReq *GrpcRequest, peerInfo *table.PeerInfo) []*t
 		pattr = append(pattr, bgp.NewPathAttributeMpReachNLRI("::", []bgp.AddrPrefixInterface{nlri}))
 
 	case bgp.RF_IPv4_VPN, bgp.RF_IPv6_VPN:
-		var rd bgp.RouteDistinguisherInterface
-		switch path.Nlri.VpnNlri.Rd.Type {
-		case api.ROUTE_DISTINGUISHER_TYPE_TWO_OCTET_AS:
-			a, err := strconv.Atoi(path.Nlri.VpnNlri.Rd.Admin)
-			if err != nil {
-				result.ResponseErr = fmt.Errorf("Invalid admin value: %s", path.Nlri.VpnNlri.Rd.Admin)
-				goto ERR
-			}
-			rd = bgp.NewRouteDistinguisherTwoOctetAS(uint16(a), path.Nlri.VpnNlri.Rd.Assigned)
-		case api.ROUTE_DISTINGUISHER_TYPE_IP4:
-			ip := net.ParseIP(path.Nlri.VpnNlri.Rd.Admin)
-			if ip.To4() == nil {
-				result.ResponseErr = fmt.Errorf("Invalid ipv4 prefix: %s", path.Nlri.VpnNlri.Rd.Admin)
-				goto ERR
-			}
-			assigned := uint16(path.Nlri.VpnNlri.Rd.Assigned)
-			rd = bgp.NewRouteDistinguisherIPAddressAS(path.Nlri.VpnNlri.Rd.Admin, assigned)
-		case api.ROUTE_DISTINGUISHER_TYPE_FOUR_OCTET_AS:
-			a, err := strconv.Atoi(path.Nlri.VpnNlri.Rd.Admin)
-			if err != nil {
-				result.ResponseErr = fmt.Errorf("Invalid admin value: %s", path.Nlri.VpnNlri.Rd.Admin)
-				goto ERR
-			}
-			admin := uint32(a)
-			assigned := uint16(path.Nlri.VpnNlri.Rd.Assigned)
-			rd = bgp.NewRouteDistinguisherFourOctetAS(admin, assigned)
-		}
-
+		rd := bgp.NewRouteDistinguisherFromApiStruct(path.Nlri.VpnNlri.Rd)
 		mpls := bgp.NewMPLSLabelStack(0)
 		if rf == bgp.RF_IPv4_VPN {
 			nlri = bgp.NewLabeledVPNIPAddrPrefix(uint8(path.Nlri.VpnNlri.IpAddrLen), path.Nlri.VpnNlri.IpAddr, *mpls, rd)
