@@ -2012,3 +2012,24 @@ func PoliciesToString(reqPolicies []*api.PolicyDefinition) []string {
 	}
 	return policies
 }
+
+func CanImportToVrf(v *table.Vrf, path *table.Path) bool {
+	f := func(arg []bgp.ExtendedCommunityInterface) []config.ExtCommunity {
+		ret := make([]config.ExtCommunity, 0, len(arg))
+		for _, a := range arg {
+			ret = append(ret, config.ExtCommunity{
+				ExtCommunity: fmt.Sprintf("RT:%s", a.String()),
+			})
+		}
+		return ret
+	}
+	set := config.ExtCommunitySet{
+		ExtCommunitySetName: v.Name,
+		ExtCommunityList:    f(v.ImportRt),
+	}
+	matchSet := config.MatchExtCommunitySet{
+		ExtCommunitySet: v.Name,
+		MatchSetOptions: config.MATCH_SET_OPTIONS_TYPE_ANY,
+	}
+	return NewExtCommunityCondition(matchSet, []config.ExtCommunitySet{set}).evaluate(path)
+}

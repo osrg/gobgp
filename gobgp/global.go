@@ -27,8 +27,7 @@ import (
 )
 
 func showGlobalRib(args []string) error {
-	bogusIp := net.IP{}
-	return showNeighborRib(CMD_GLOBAL, bogusIp, args)
+	return showNeighborRib(CMD_GLOBAL, "", args)
 }
 
 func getSerizliedRouteTarget(args []string) ([]byte, error) {
