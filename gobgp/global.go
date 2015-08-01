@@ -122,7 +122,7 @@ func modPath(modtype string, args []string) error {
 				return fmt.Errorf("invalid label: %s. err: %s", args[4], err)
 			}
 			nlri = &api.EVPNNlri{
-				Type: api.EVPN_TYPE_ROUTE_TYPE_MAC_IP_ADVERTISEMENT,
+				Type: api.EVPNNlri_MAC_IP_ADVERTISEMENT,
 				MacIpAdv: &api.EvpnMacIpAdvertisement{
 					MacAddr: macAddr,
 					IpAddr:  ipAddr,
@@ -143,16 +143,16 @@ func modPath(modtype string, args []string) error {
 				return fmt.Errorf("invalid label: %s. err: %s", args[2], err)
 			}
 			nlri = &api.EVPNNlri{
-				Type: api.EVPN_TYPE_INCLUSIVE_MULTICAST_ETHERNET_TAG,
+				Type: api.EVPNNlri_INCLUSIVE_MULTICAST_ETHERNET_TAG,
 				MulticastEtag: &api.EvpnInclusiveMulticastEthernetTag{
 					Etag: uint32(eTag),
 				},
 			}
 
 			attr := &api.PathAttr{
-				Type: api.BGP_ATTR_TYPE_PMSI_TUNNEL,
+				Type: api.PathAttr_PMSI_TUNNEL,
 				PmsiTunnel: &api.PmsiTunnel{
-					Type:  api.PMSI_TUNNEL_TYPE_INGRESS_REPL,
+					Type:  api.PmsiTunnel_INGRESS_REPL,
 					Label: uint32(label),
 				},
 			}
@@ -182,15 +182,15 @@ func modPath(modtype string, args []string) error {
 				return fmt.Errorf("invalid vni: %s", args[1])
 			}
 			subTlv := &api.TunnelEncapSubTLV{
-				Type:  api.ENCAP_SUBTLV_TYPE_COLOR,
+				Type:  api.TunnelEncapSubTLV_COLOR,
 				Color: uint32(vni),
 			}
 			tlv := &api.TunnelEncapTLV{
-				Type:   api.TUNNEL_TYPE_VXLAN,
+				Type:   api.TunnelEncapTLV_VXLAN,
 				SubTlv: []*api.TunnelEncapSubTLV{subTlv},
 			}
 			attr := &api.PathAttr{
-				Type:        api.BGP_ATTR_TYPE_TUNNEL_ENCAP,
+				Type:        api.PathAttr_TUNNEL_ENCAP,
 				TunnelEncap: []*api.TunnelEncapTLV{tlv},
 			}
 

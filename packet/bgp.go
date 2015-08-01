@@ -225,7 +225,7 @@ func (c *DefaultParameterCapability) Len() int {
 
 func (c *DefaultParameterCapability) ToApiStruct() *api.Capability {
 	return &api.Capability{
-		Code: api.BGP_CAPABILITY(c.Code()),
+		Code: api.Capability_Code(c.Code()),
 	}
 }
 
@@ -260,7 +260,7 @@ func (c *CapMultiProtocol) Serialize() ([]byte, error) {
 
 func (c *CapMultiProtocol) ToApiStruct() *api.Capability {
 	return &api.Capability{
-		Code:          api.BGP_CAPABILITY(c.Code()),
+		Code:          api.Capability_Code(c.Code()),
 		MultiProtocol: &api.AddressFamily{api.AFI(c.CapValue.AFI), api.SAFI(c.CapValue.SAFI)},
 	}
 }
@@ -356,7 +356,7 @@ func (c *CapGracefulRestart) ToApiStruct() *api.Capability {
 	}
 	value.Tuples = tuples
 	return &api.Capability{
-		Code:            api.BGP_CAPABILITY(c.Code()),
+		Code:            api.Capability_Code(c.Code()),
 		GracefulRestart: value,
 	}
 }
@@ -398,7 +398,7 @@ func (c *CapFourOctetASNumber) Serialize() ([]byte, error) {
 
 func (c *CapFourOctetASNumber) ToApiStruct() *api.Capability {
 	return &api.Capability{
-		Code: api.BGP_CAPABILITY(c.Code()),
+		Code: api.Capability_Code(c.Code()),
 		Asn:  c.CapValue,
 	}
 }
@@ -1682,11 +1682,11 @@ func (n *EVPNNLRI) ToApiStruct() *api.Nlri {
 	evpn := &api.EVPNNlri{}
 	switch n.RouteType {
 	case EVPN_ROUTE_TYPE_MAC_IP_ADVERTISEMENT:
-		evpn.Type = api.EVPN_TYPE_ROUTE_TYPE_MAC_IP_ADVERTISEMENT
+		evpn.Type = api.EVPNNlri_MAC_IP_ADVERTISEMENT
 		macIpAdv := n.RouteTypeData.(*EVPNMacIPAdvertisementRoute).ToApiStruct()
 		evpn.MacIpAdv = macIpAdv
 	case EVPN_INCLUSIVE_MULTICAST_ETHERNET_TAG:
-		evpn.Type = api.EVPN_TYPE_INCLUSIVE_MULTICAST_ETHERNET_TAG
+		evpn.Type = api.EVPNNlri_INCLUSIVE_MULTICAST_ETHERNET_TAG
 		eTag := n.RouteTypeData.(*EVPNMulticastEthernetTagRoute).ToApiStruct()
 		evpn.MulticastEtag = eTag
 	}
@@ -2092,7 +2092,7 @@ type PathAttributeOrigin struct {
 
 func (p *PathAttributeOrigin) ToApiStruct() *api.PathAttr {
 	return &api.PathAttr{
-		Type:   api.BGP_ATTR_TYPE_ORIGIN,
+		Type:   api.PathAttr_ORIGIN,
 		Origin: api.Origin(uint8(p.Value[0])),
 	}
 }
@@ -2361,7 +2361,7 @@ func (p *PathAttributeAsPath) ToApiStruct() *api.PathAttr {
 		aspaths = append(aspaths, aspath)
 	}
 	return &api.PathAttr{
-		Type:    api.BGP_ATTR_TYPE_AS_PATH,
+		Type:    api.PathAttr_AS_PATH,
 		AsPaths: aspaths,
 	}
 }
@@ -2407,7 +2407,7 @@ func (p *PathAttributeNextHop) Serialize() ([]byte, error) {
 
 func (p *PathAttributeNextHop) ToApiStruct() *api.PathAttr {
 	return &api.PathAttr{
-		Type:    api.BGP_ATTR_TYPE_NEXT_HOP,
+		Type:    api.PathAttr_NEXT_HOP,
 		Nexthop: p.Value.String(),
 	}
 }
@@ -2455,7 +2455,7 @@ func (p *PathAttributeMultiExitDisc) Serialize() ([]byte, error) {
 
 func (p *PathAttributeMultiExitDisc) ToApiStruct() *api.PathAttr {
 	return &api.PathAttr{
-		Type:   api.BGP_ATTR_TYPE_MULTI_EXIT_DISC,
+		Type:   api.PathAttr_MULTI_EXIT_DISC,
 		Metric: p.Value,
 	}
 }
@@ -2503,7 +2503,7 @@ func (p *PathAttributeLocalPref) Serialize() ([]byte, error) {
 
 func (p *PathAttributeLocalPref) ToApiStruct() *api.PathAttr {
 	return &api.PathAttr{
-		Type: api.BGP_ATTR_TYPE_LOCAL_PREF,
+		Type: api.PathAttr_LOCAL_PREF,
 		Pref: p.Value,
 	}
 }
@@ -2529,7 +2529,7 @@ type PathAttributeAtomicAggregate struct {
 
 func (p *PathAttributeAtomicAggregate) ToApiStruct() *api.PathAttr {
 	return &api.PathAttr{
-		Type: api.BGP_ATTR_TYPE_ATOMIC_AGGREGATE,
+		Type: api.PathAttr_ATOMIC_AGGREGATE,
 	}
 }
 
@@ -2599,7 +2599,7 @@ func (p *PathAttributeAggregator) Serialize() ([]byte, error) {
 
 func (p *PathAttributeAggregator) ToApiStruct() *api.PathAttr {
 	return &api.PathAttr{
-		Type: api.BGP_ATTR_TYPE_AGGREGATOR,
+		Type: api.PathAttr_AGGREGATOR,
 		Aggregator: &api.Aggregator{
 			As:      p.Value.AS,
 			Address: p.Value.Address.String(),
@@ -2661,7 +2661,7 @@ func (p *PathAttributeCommunities) Serialize() ([]byte, error) {
 
 func (p *PathAttributeCommunities) ToApiStruct() *api.PathAttr {
 	return &api.PathAttr{
-		Type:       api.BGP_ATTR_TYPE_COMMUNITIES,
+		Type:       api.PathAttr_COMMUNITIES,
 		Communites: p.Value,
 	}
 }
@@ -2710,7 +2710,7 @@ func (p *PathAttributeOriginatorId) Serialize() ([]byte, error) {
 
 func (p *PathAttributeOriginatorId) ToApiStruct() *api.PathAttr {
 	return &api.PathAttr{
-		Type:       api.BGP_ATTR_TYPE_ORIGINATOR_ID,
+		Type:       api.PathAttr_ORIGINATOR_ID,
 		Originator: p.Value.String(),
 	}
 }
@@ -2769,7 +2769,7 @@ func (p *PathAttributeClusterList) ToApiStruct() *api.PathAttr {
 		l = append(l, addr.String())
 	}
 	return &api.PathAttr{
-		Type:    api.BGP_ATTR_TYPE_CLUSTER_LIST,
+		Type:    api.PathAttr_CLUSTER_LIST,
 		Cluster: l,
 	}
 }
@@ -2910,7 +2910,7 @@ func (p *PathAttributeMpReachNLRI) ToApiStruct() *api.PathAttr {
 		nlri = append(nlri, v.ToApiStruct())
 	}
 	return &api.PathAttr{
-		Type:    api.BGP_ATTR_TYPE_MP_REACH_NLRI,
+		Type:    api.PathAttr_MP_REACH_NLRI,
 		Nexthop: p.Nexthop.String(),
 		Nlri:    nlri,
 	}
@@ -3004,7 +3004,7 @@ func (p *PathAttributeMpUnreachNLRI) Serialize() ([]byte, error) {
 
 func (p *PathAttributeMpUnreachNLRI) ToApiStruct() *api.PathAttr {
 	return &api.PathAttr{
-		Type: api.BGP_ATTR_TYPE_MP_UNREACH_NLRI,
+		Type: api.PathAttr_MP_UNREACH_NLRI,
 	}
 }
 
@@ -3440,7 +3440,7 @@ func (p *PathAttributeExtendedCommunities) ToApiStruct() *api.PathAttr {
 		return ret
 	}(p.Value)
 	return &api.PathAttr{
-		Type:  api.BGP_ATTR_TYPE_EXTENDED_COMMUNITIES,
+		Type:  api.PathAttr_EXTENDED_COMMUNITIES,
 		Value: value,
 	}
 }
@@ -3517,7 +3517,7 @@ func (p *PathAttributeAs4Path) ToApiStruct() *api.PathAttr {
 	}
 	aspaths = append(aspaths, aspath)
 	return &api.PathAttr{
-		Type:    api.BGP_ATTR_TYPE_AS_PATH,
+		Type:    api.PathAttr_AS4_PATH,
 		AsPaths: aspaths,
 	}
 }
@@ -3567,7 +3567,7 @@ func (p *PathAttributeAs4Aggregator) Serialize() ([]byte, error) {
 
 func (p *PathAttributeAs4Aggregator) ToApiStruct() *api.PathAttr {
 	return &api.PathAttr{
-		Type: api.BGP_ATTR_TYPE_AS4_AGGREGATOR,
+		Type: api.PathAttr_AS4_AGGREGATOR,
 		Aggregator: &api.Aggregator{
 			As:      p.Value.AS,
 			Address: p.Value.Address.String(),
@@ -3608,7 +3608,7 @@ func (t *TunnelEncapSubTLVDefault) Serialize() ([]byte, error) {
 
 func (t *TunnelEncapSubTLVDefault) ToApiStruct() *api.TunnelEncapSubTLV {
 	return &api.TunnelEncapSubTLV{
-		Type:  api.ENCAP_SUBTLV_TYPE_UNKNOWN_SUBTLV_TYPE,
+		Type:  api.TunnelEncapSubTLV_UNKNOWN,
 		Value: string(t.Value),
 	}
 }
@@ -3626,7 +3626,7 @@ func (t *TunnelEncapSubTLVEncapuslation) Serialize() ([]byte, error) {
 
 func (t *TunnelEncapSubTLVEncapuslation) ToApiStruct() *api.TunnelEncapSubTLV {
 	return &api.TunnelEncapSubTLV{
-		Type:   api.ENCAP_SUBTLV_TYPE_ENCAPSULATION,
+		Type:   api.TunnelEncapSubTLV_ENCAPSULATION,
 		Key:    t.Key,
 		Cookie: string(t.Cookie),
 	}
@@ -3644,7 +3644,7 @@ func (t *TunnelEncapSubTLVProtocol) Serialize() ([]byte, error) {
 
 func (t *TunnelEncapSubTLVProtocol) ToApiStruct() *api.TunnelEncapSubTLV {
 	return &api.TunnelEncapSubTLV{
-		Type:     api.ENCAP_SUBTLV_TYPE_PROTOCOL,
+		Type:     api.TunnelEncapSubTLV_PROTOCOL,
 		Protocol: uint32(t.Protocol),
 	}
 }
@@ -3663,7 +3663,7 @@ func (t *TunnelEncapSubTLVColor) Serialize() ([]byte, error) {
 
 func (t *TunnelEncapSubTLVColor) ToApiStruct() *api.TunnelEncapSubTLV {
 	return &api.TunnelEncapSubTLV{
-		Type:  api.ENCAP_SUBTLV_TYPE_COLOR,
+		Type:  api.TunnelEncapSubTLV_COLOR,
 		Color: t.Color,
 	}
 }
@@ -3772,7 +3772,7 @@ func (p *TunnelEncapTLV) ToApiStruct() *api.TunnelEncapTLV {
 		subTlvs = append(subTlvs, v.ToApiStruct())
 	}
 	return &api.TunnelEncapTLV{
-		Type:   api.TUNNEL_TYPE(p.Type),
+		Type:   api.TunnelEncapTLV_Type(p.Type),
 		SubTlv: subTlvs,
 	}
 }
@@ -3832,7 +3832,7 @@ func (p *PathAttributeTunnelEncap) ToApiStruct() *api.PathAttr {
 		tlvs = append(tlvs, v.ToApiStruct())
 	}
 	return &api.PathAttr{
-		Type:        api.BGP_ATTR_TYPE_TUNNEL_ENCAP,
+		Type:        api.PathAttr_TUNNEL_ENCAP,
 		TunnelEncap: tlvs,
 	}
 }
@@ -3937,10 +3937,10 @@ func (p *PathAttributePmsiTunnel) Serialize() ([]byte, error) {
 
 func (p *PathAttributePmsiTunnel) ToApiStruct() *api.PathAttr {
 	return &api.PathAttr{
-		Type: api.BGP_ATTR_TYPE_PMSI_TUNNEL,
+		Type: api.PathAttr_PMSI_TUNNEL,
 		PmsiTunnel: &api.PmsiTunnel{
 			IsLeafInfoRequired: p.IsLeafInfoRequired,
-			Type:               api.PMSI_TUNNEL_TYPE(p.TunnelType),
+			Type:               api.PmsiTunnel_Type(p.TunnelType),
 			Label:              p.Label,
 			TunnelId:           p.TunnelID.String(),
 		},
@@ -3953,7 +3953,7 @@ type PathAttributeUnknown struct {
 
 func (p *PathAttributeUnknown) ToApiStruct() *api.PathAttr {
 	return &api.PathAttr{
-		Type:  api.BGP_ATTR_TYPE_UNKNOWN_ATTR,
+		Type:  api.PathAttr_UNKNOWN,
 		Value: []string{string(p.Value)},
 	}
 }

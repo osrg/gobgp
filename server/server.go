@@ -906,7 +906,7 @@ func handleGlobalRibRequest(grpcReq *GrpcRequest, peerInfo *table.PeerInfo) []*t
 
 		iterSubTlvs := func(subTlvs []*api.TunnelEncapSubTLV) {
 			for _, subTlv := range subTlvs {
-				if subTlv.Type == api.ENCAP_SUBTLV_TYPE_COLOR {
+				if subTlv.Type == api.TunnelEncapSubTLV_COLOR {
 					color := subTlv.Color
 					subTlv := &bgp.TunnelEncapSubTLV{
 						Type:  bgp.ENCAP_SUBTLV_TYPE_COLOR,
@@ -925,7 +925,7 @@ func handleGlobalRibRequest(grpcReq *GrpcRequest, peerInfo *table.PeerInfo) []*t
 
 		iterTlvs := func(tlvs []*api.TunnelEncapTLV) {
 			for _, tlv := range tlvs {
-				if tlv.Type == api.TUNNEL_TYPE_VXLAN {
+				if tlv.Type == api.TunnelEncapTLV_VXLAN {
 					iterSubTlvs(tlv.SubTlv)
 					break
 				}
@@ -934,7 +934,7 @@ func handleGlobalRibRequest(grpcReq *GrpcRequest, peerInfo *table.PeerInfo) []*t
 
 		func(attrs []*api.PathAttr) {
 			for _, attr := range attrs {
-				if attr.Type == api.BGP_ATTR_TYPE_TUNNEL_ENCAP {
+				if attr.Type == api.PathAttr_TUNNEL_ENCAP {
 					iterTlvs(attr.TunnelEncap)
 					break
 				}

@@ -231,44 +231,6 @@ func (x ROUTE_DISTINGUISHER_TYPE) String() string {
 	return proto.EnumName(ROUTE_DISTINGUISHER_TYPE_name, int32(x))
 }
 
-type BGP_CAPABILITY int32
-
-const (
-	BGP_CAPABILITY_UNKNOWN_CAP            BGP_CAPABILITY = 0
-	BGP_CAPABILITY_MULTIPROTOCOL          BGP_CAPABILITY = 1
-	BGP_CAPABILITY_ROUTE_REFRESH          BGP_CAPABILITY = 2
-	BGP_CAPABILITY_CARRYING_LABEL_INFO    BGP_CAPABILITY = 4
-	BGP_CAPABILITY_GRACEFUL_RESTART       BGP_CAPABILITY = 64
-	BGP_CAPABILITY_FOUR_OCTET_AS_NUMBER   BGP_CAPABILITY = 65
-	BGP_CAPABILITY_ENHANCED_ROUTE_REFRESH BGP_CAPABILITY = 70
-	BGP_CAPABILITY_ROUTE_REFRESH_CISCO    BGP_CAPABILITY = 128
-)
-
-var BGP_CAPABILITY_name = map[int32]string{
-	0:   "UNKNOWN_CAP",
-	1:   "MULTIPROTOCOL",
-	2:   "ROUTE_REFRESH",
-	4:   "CARRYING_LABEL_INFO",
-	64:  "GRACEFUL_RESTART",
-	65:  "FOUR_OCTET_AS_NUMBER",
-	70:  "ENHANCED_ROUTE_REFRESH",
-	128: "ROUTE_REFRESH_CISCO",
-}
-var BGP_CAPABILITY_value = map[string]int32{
-	"UNKNOWN_CAP":            0,
-	"MULTIPROTOCOL":          1,
-	"ROUTE_REFRESH":          2,
-	"CARRYING_LABEL_INFO":    4,
-	"GRACEFUL_RESTART":       64,
-	"FOUR_OCTET_AS_NUMBER":   65,
-	"ENHANCED_ROUTE_REFRESH": 70,
-	"ROUTE_REFRESH_CISCO":    128,
-}
-
-func (x BGP_CAPABILITY) String() string {
-	return proto.EnumName(BGP_CAPABILITY_name, int32(x))
-}
-
 type Origin int32
 
 const (
@@ -341,22 +303,135 @@ func (x EXTENDED_COMMUNITIE_SUBTYPE) String() string {
 	return proto.EnumName(EXTENDED_COMMUNITIE_SUBTYPE_name, int32(x))
 }
 
-type TUNNEL_TYPE int32
+type Error_ErrorCode int32
 
 const (
-	TUNNEL_TYPE_UNKNOWN_TUNNEL_TYPE TUNNEL_TYPE = 0
-	TUNNEL_TYPE_L2TPV3_OVER_IP      TUNNEL_TYPE = 1
-	TUNNEL_TYPE_GRE                 TUNNEL_TYPE = 2
-	TUNNEL_TYPE_IP_IN_IP            TUNNEL_TYPE = 7
-	TUNNEL_TYPE_VXLAN               TUNNEL_TYPE = 8
-	TUNNEL_TYPE_NVGRE               TUNNEL_TYPE = 9
-	TUNNEL_TYPE_MPLS                TUNNEL_TYPE = 10
-	TUNNEL_TYPE_MPLS_IN_GRE         TUNNEL_TYPE = 11
-	TUNNEL_TYPE_VXLAN_GRE           TUNNEL_TYPE = 12
+	Error_SUCCESS Error_ErrorCode = 0
+	Error_FAIL    Error_ErrorCode = 1
 )
 
-var TUNNEL_TYPE_name = map[int32]string{
-	0:  "UNKNOWN_TUNNEL_TYPE",
+var Error_ErrorCode_name = map[int32]string{
+	0: "SUCCESS",
+	1: "FAIL",
+}
+var Error_ErrorCode_value = map[string]int32{
+	"SUCCESS": 0,
+	"FAIL":    1,
+}
+
+func (x Error_ErrorCode) String() string {
+	return proto.EnumName(Error_ErrorCode_name, int32(x))
+}
+
+type Capability_Code int32
+
+const (
+	Capability_UNKNOWN                Capability_Code = 0
+	Capability_MULTIPROTOCOL          Capability_Code = 1
+	Capability_ROUTE_REFRESH          Capability_Code = 2
+	Capability_CARRYING_LABEL_INFO    Capability_Code = 4
+	Capability_GRACEFUL_RESTART       Capability_Code = 64
+	Capability_FOUR_OCTET_AS_NUMBER   Capability_Code = 65
+	Capability_ENHANCED_ROUTE_REFRESH Capability_Code = 70
+	Capability_ROUTE_REFRESH_CISCO    Capability_Code = 128
+)
+
+var Capability_Code_name = map[int32]string{
+	0:   "UNKNOWN",
+	1:   "MULTIPROTOCOL",
+	2:   "ROUTE_REFRESH",
+	4:   "CARRYING_LABEL_INFO",
+	64:  "GRACEFUL_RESTART",
+	65:  "FOUR_OCTET_AS_NUMBER",
+	70:  "ENHANCED_ROUTE_REFRESH",
+	128: "ROUTE_REFRESH_CISCO",
+}
+var Capability_Code_value = map[string]int32{
+	"UNKNOWN":                0,
+	"MULTIPROTOCOL":          1,
+	"ROUTE_REFRESH":          2,
+	"CARRYING_LABEL_INFO":    4,
+	"GRACEFUL_RESTART":       64,
+	"FOUR_OCTET_AS_NUMBER":   65,
+	"ENHANCED_ROUTE_REFRESH": 70,
+	"ROUTE_REFRESH_CISCO":    128,
+}
+
+func (x Capability_Code) String() string {
+	return proto.EnumName(Capability_Code_name, int32(x))
+}
+
+type EVPNNlri_Type int32
+
+const (
+	EVPNNlri_UNKNOWN                          EVPNNlri_Type = 0
+	EVPNNlri_ETHERNET_AUTO_DISCOVERY          EVPNNlri_Type = 1
+	EVPNNlri_MAC_IP_ADVERTISEMENT             EVPNNlri_Type = 2
+	EVPNNlri_INCLUSIVE_MULTICAST_ETHERNET_TAG EVPNNlri_Type = 3
+	EVPNNlri_ETHERNET_SEGMENT_ROUTE           EVPNNlri_Type = 4
+)
+
+var EVPNNlri_Type_name = map[int32]string{
+	0: "UNKNOWN",
+	1: "ETHERNET_AUTO_DISCOVERY",
+	2: "MAC_IP_ADVERTISEMENT",
+	3: "INCLUSIVE_MULTICAST_ETHERNET_TAG",
+	4: "ETHERNET_SEGMENT_ROUTE",
+}
+var EVPNNlri_Type_value = map[string]int32{
+	"UNKNOWN":                          0,
+	"ETHERNET_AUTO_DISCOVERY":          1,
+	"MAC_IP_ADVERTISEMENT":             2,
+	"INCLUSIVE_MULTICAST_ETHERNET_TAG": 3,
+	"ETHERNET_SEGMENT_ROUTE":           4,
+}
+
+func (x EVPNNlri_Type) String() string {
+	return proto.EnumName(EVPNNlri_Type_name, int32(x))
+}
+
+type TunnelEncapSubTLV_Type int32
+
+const (
+	TunnelEncapSubTLV_UNKNOWN       TunnelEncapSubTLV_Type = 0
+	TunnelEncapSubTLV_ENCAPSULATION TunnelEncapSubTLV_Type = 1
+	TunnelEncapSubTLV_PROTOCOL      TunnelEncapSubTLV_Type = 2
+	TunnelEncapSubTLV_COLOR         TunnelEncapSubTLV_Type = 4
+)
+
+var TunnelEncapSubTLV_Type_name = map[int32]string{
+	0: "UNKNOWN",
+	1: "ENCAPSULATION",
+	2: "PROTOCOL",
+	4: "COLOR",
+}
+var TunnelEncapSubTLV_Type_value = map[string]int32{
+	"UNKNOWN":       0,
+	"ENCAPSULATION": 1,
+	"PROTOCOL":      2,
+	"COLOR":         4,
+}
+
+func (x TunnelEncapSubTLV_Type) String() string {
+	return proto.EnumName(TunnelEncapSubTLV_Type_name, int32(x))
+}
+
+type TunnelEncapTLV_Type int32
+
+const (
+	TunnelEncapTLV_UNKNOWN        TunnelEncapTLV_Type = 0
+	TunnelEncapTLV_L2TPV3_OVER_IP TunnelEncapTLV_Type = 1
+	TunnelEncapTLV_GRE            TunnelEncapTLV_Type = 2
+	TunnelEncapTLV_IP_IN_IP       TunnelEncapTLV_Type = 7
+	TunnelEncapTLV_VXLAN          TunnelEncapTLV_Type = 8
+	TunnelEncapTLV_NVGRE          TunnelEncapTLV_Type = 9
+	TunnelEncapTLV_MPLS           TunnelEncapTLV_Type = 10
+	TunnelEncapTLV_MPLS_IN_GRE    TunnelEncapTLV_Type = 11
+	TunnelEncapTLV_VXLAN_GRE      TunnelEncapTLV_Type = 12
+)
+
+var TunnelEncapTLV_Type_name = map[int32]string{
+	0:  "UNKNOWN",
 	1:  "L2TPV3_OVER_IP",
 	2:  "GRE",
 	7:  "IP_IN_IP",
@@ -366,36 +441,36 @@ var TUNNEL_TYPE_name = map[int32]string{
 	11: "MPLS_IN_GRE",
 	12: "VXLAN_GRE",
 }
-var TUNNEL_TYPE_value = map[string]int32{
-	"UNKNOWN_TUNNEL_TYPE": 0,
-	"L2TPV3_OVER_IP":      1,
-	"GRE":                 2,
-	"IP_IN_IP":            7,
-	"VXLAN":               8,
-	"NVGRE":               9,
-	"MPLS":                10,
-	"MPLS_IN_GRE":         11,
-	"VXLAN_GRE":           12,
+var TunnelEncapTLV_Type_value = map[string]int32{
+	"UNKNOWN":        0,
+	"L2TPV3_OVER_IP": 1,
+	"GRE":            2,
+	"IP_IN_IP":       7,
+	"VXLAN":          8,
+	"NVGRE":          9,
+	"MPLS":           10,
+	"MPLS_IN_GRE":    11,
+	"VXLAN_GRE":      12,
 }
 
-func (x TUNNEL_TYPE) String() string {
-	return proto.EnumName(TUNNEL_TYPE_name, int32(x))
+func (x TunnelEncapTLV_Type) String() string {
+	return proto.EnumName(TunnelEncapTLV_Type_name, int32(x))
 }
 
-type PMSI_TUNNEL_TYPE int32
+type PmsiTunnel_Type int32
 
 const (
-	PMSI_TUNNEL_TYPE_NO_TUNNEL      PMSI_TUNNEL_TYPE = 0
-	PMSI_TUNNEL_TYPE_RSVP_TE_P2MP   PMSI_TUNNEL_TYPE = 1
-	PMSI_TUNNEL_TYPE_MLDP_P2MP      PMSI_TUNNEL_TYPE = 2
-	PMSI_TUNNEL_TYPE_PIM_SSM_TREE   PMSI_TUNNEL_TYPE = 3
-	PMSI_TUNNEL_TYPE_PIM_SM_TREE    PMSI_TUNNEL_TYPE = 4
-	PMSI_TUNNEL_TYPE_BIDIR_PIM_TREE PMSI_TUNNEL_TYPE = 5
-	PMSI_TUNNEL_TYPE_INGRESS_REPL   PMSI_TUNNEL_TYPE = 6
-	PMSI_TUNNEL_TYPE_MLDP_MP2MP     PMSI_TUNNEL_TYPE = 7
+	PmsiTunnel_NO_TUNNEL      PmsiTunnel_Type = 0
+	PmsiTunnel_RSVP_TE_P2MP   PmsiTunnel_Type = 1
+	PmsiTunnel_MLDP_P2MP      PmsiTunnel_Type = 2
+	PmsiTunnel_PIM_SSM_TREE   PmsiTunnel_Type = 3
+	PmsiTunnel_PIM_SM_TREE    PmsiTunnel_Type = 4
+	PmsiTunnel_BIDIR_PIM_TREE PmsiTunnel_Type = 5
+	PmsiTunnel_INGRESS_REPL   PmsiTunnel_Type = 6
+	PmsiTunnel_MLDP_MP2MP     PmsiTunnel_Type = 7
 )
 
-var PMSI_TUNNEL_TYPE_name = map[int32]string{
+var PmsiTunnel_Type_name = map[int32]string{
 	0: "NO_TUNNEL",
 	1: "RSVP_TE_P2MP",
 	2: "MLDP_P2MP",
@@ -405,7 +480,7 @@ var PMSI_TUNNEL_TYPE_name = map[int32]string{
 	6: "INGRESS_REPL",
 	7: "MLDP_MP2MP",
 }
-var PMSI_TUNNEL_TYPE_value = map[string]int32{
+var PmsiTunnel_Type_value = map[string]int32{
 	"NO_TUNNEL":      0,
 	"RSVP_TE_P2MP":   1,
 	"MLDP_P2MP":      2,
@@ -416,90 +491,35 @@ var PMSI_TUNNEL_TYPE_value = map[string]int32{
 	"MLDP_MP2MP":     7,
 }
 
-func (x PMSI_TUNNEL_TYPE) String() string {
-	return proto.EnumName(PMSI_TUNNEL_TYPE_name, int32(x))
+func (x PmsiTunnel_Type) String() string {
+	return proto.EnumName(PmsiTunnel_Type_name, int32(x))
 }
 
-type EVPN_TYPE int32
+type PathAttr_Type int32
 
 const (
-	EVPN_TYPE_UNKNOWN_EVPN_TYPE                  EVPN_TYPE = 0
-	EVPN_TYPE_ROUTE_TYPE_ETHERNET_AUTO_DISCOVERY EVPN_TYPE = 1
-	EVPN_TYPE_ROUTE_TYPE_MAC_IP_ADVERTISEMENT    EVPN_TYPE = 2
-	EVPN_TYPE_INCLUSIVE_MULTICAST_ETHERNET_TAG   EVPN_TYPE = 3
-	EVPN_TYPE_ETHERNET_SEGMENT_ROUTE             EVPN_TYPE = 4
+	PathAttr_UNKNOWN              PathAttr_Type = 0
+	PathAttr_ORIGIN               PathAttr_Type = 1
+	PathAttr_AS_PATH              PathAttr_Type = 2
+	PathAttr_NEXT_HOP             PathAttr_Type = 3
+	PathAttr_MULTI_EXIT_DISC      PathAttr_Type = 4
+	PathAttr_LOCAL_PREF           PathAttr_Type = 5
+	PathAttr_ATOMIC_AGGREGATE     PathAttr_Type = 6
+	PathAttr_AGGREGATOR           PathAttr_Type = 7
+	PathAttr_COMMUNITIES          PathAttr_Type = 8
+	PathAttr_ORIGINATOR_ID        PathAttr_Type = 9
+	PathAttr_CLUSTER_LIST         PathAttr_Type = 10
+	PathAttr_MP_REACH_NLRI        PathAttr_Type = 14
+	PathAttr_MP_UNREACH_NLRI      PathAttr_Type = 15
+	PathAttr_EXTENDED_COMMUNITIES PathAttr_Type = 16
+	PathAttr_AS4_PATH             PathAttr_Type = 17
+	PathAttr_AS4_AGGREGATOR       PathAttr_Type = 18
+	PathAttr_PMSI_TUNNEL          PathAttr_Type = 22
+	PathAttr_TUNNEL_ENCAP         PathAttr_Type = 23
 )
 
-var EVPN_TYPE_name = map[int32]string{
-	0: "UNKNOWN_EVPN_TYPE",
-	1: "ROUTE_TYPE_ETHERNET_AUTO_DISCOVERY",
-	2: "ROUTE_TYPE_MAC_IP_ADVERTISEMENT",
-	3: "INCLUSIVE_MULTICAST_ETHERNET_TAG",
-	4: "ETHERNET_SEGMENT_ROUTE",
-}
-var EVPN_TYPE_value = map[string]int32{
-	"UNKNOWN_EVPN_TYPE":                  0,
-	"ROUTE_TYPE_ETHERNET_AUTO_DISCOVERY": 1,
-	"ROUTE_TYPE_MAC_IP_ADVERTISEMENT":    2,
-	"INCLUSIVE_MULTICAST_ETHERNET_TAG":   3,
-	"ETHERNET_SEGMENT_ROUTE":             4,
-}
-
-func (x EVPN_TYPE) String() string {
-	return proto.EnumName(EVPN_TYPE_name, int32(x))
-}
-
-type ENCAP_SUBTLV_TYPE int32
-
-const (
-	ENCAP_SUBTLV_TYPE_UNKNOWN_SUBTLV_TYPE ENCAP_SUBTLV_TYPE = 0
-	ENCAP_SUBTLV_TYPE_ENCAPSULATION       ENCAP_SUBTLV_TYPE = 1
-	ENCAP_SUBTLV_TYPE_PROTOCOL            ENCAP_SUBTLV_TYPE = 2
-	ENCAP_SUBTLV_TYPE_COLOR               ENCAP_SUBTLV_TYPE = 4
-)
-
-var ENCAP_SUBTLV_TYPE_name = map[int32]string{
-	0: "UNKNOWN_SUBTLV_TYPE",
-	1: "ENCAPSULATION",
-	2: "PROTOCOL",
-	4: "COLOR",
-}
-var ENCAP_SUBTLV_TYPE_value = map[string]int32{
-	"UNKNOWN_SUBTLV_TYPE": 0,
-	"ENCAPSULATION":       1,
-	"PROTOCOL":            2,
-	"COLOR":               4,
-}
-
-func (x ENCAP_SUBTLV_TYPE) String() string {
-	return proto.EnumName(ENCAP_SUBTLV_TYPE_name, int32(x))
-}
-
-type BGP_ATTR_TYPE int32
-
-const (
-	BGP_ATTR_TYPE_UNKNOWN_ATTR         BGP_ATTR_TYPE = 0
-	BGP_ATTR_TYPE_ORIGIN               BGP_ATTR_TYPE = 1
-	BGP_ATTR_TYPE_AS_PATH              BGP_ATTR_TYPE = 2
-	BGP_ATTR_TYPE_NEXT_HOP             BGP_ATTR_TYPE = 3
-	BGP_ATTR_TYPE_MULTI_EXIT_DISC      BGP_ATTR_TYPE = 4
-	BGP_ATTR_TYPE_LOCAL_PREF           BGP_ATTR_TYPE = 5
-	BGP_ATTR_TYPE_ATOMIC_AGGREGATE     BGP_ATTR_TYPE = 6
-	BGP_ATTR_TYPE_AGGREGATOR           BGP_ATTR_TYPE = 7
-	BGP_ATTR_TYPE_COMMUNITIES          BGP_ATTR_TYPE = 8
-	BGP_ATTR_TYPE_ORIGINATOR_ID        BGP_ATTR_TYPE = 9
-	BGP_ATTR_TYPE_CLUSTER_LIST         BGP_ATTR_TYPE = 10
-	BGP_ATTR_TYPE_MP_REACH_NLRI        BGP_ATTR_TYPE = 14
-	BGP_ATTR_TYPE_MP_UNREACH_NLRI      BGP_ATTR_TYPE = 15
-	BGP_ATTR_TYPE_EXTENDED_COMMUNITIES BGP_ATTR_TYPE = 16
-	BGP_ATTR_TYPE_AS4_PATH             BGP_ATTR_TYPE = 17
-	BGP_ATTR_TYPE_AS4_AGGREGATOR       BGP_ATTR_TYPE = 18
-	BGP_ATTR_TYPE_PMSI_TUNNEL          BGP_ATTR_TYPE = 22
-	BGP_ATTR_TYPE_TUNNEL_ENCAP         BGP_ATTR_TYPE = 23
-)
-
-var BGP_ATTR_TYPE_name = map[int32]string{
-	0:  "UNKNOWN_ATTR",
+var PathAttr_Type_name = map[int32]string{
+	0:  "UNKNOWN",
 	1:  "ORIGIN",
 	2:  "AS_PATH",
 	3:  "NEXT_HOP",
@@ -518,8 +538,8 @@ var BGP_ATTR_TYPE_name = map[int32]string{
 	22: "PMSI_TUNNEL",
 	23: "TUNNEL_ENCAP",
 }
-var BGP_ATTR_TYPE_value = map[string]int32{
-	"UNKNOWN_ATTR":         0,
+var PathAttr_Type_value = map[string]int32{
+	"UNKNOWN":              0,
 	"ORIGIN":               1,
 	"AS_PATH":              2,
 	"NEXT_HOP":             3,
@@ -539,28 +559,8 @@ var BGP_ATTR_TYPE_value = map[string]int32{
 	"TUNNEL_ENCAP":         23,
 }
 
-func (x BGP_ATTR_TYPE) String() string {
-	return proto.EnumName(BGP_ATTR_TYPE_name, int32(x))
-}
-
-type Error_ErrorCode int32
-
-const (
-	Error_SUCCESS Error_ErrorCode = 0
-	Error_FAIL    Error_ErrorCode = 1
-)
-
-var Error_ErrorCode_name = map[int32]string{
-	0: "SUCCESS",
-	1: "FAIL",
-}
-var Error_ErrorCode_value = map[string]int32{
-	"SUCCESS": 0,
-	"FAIL":    1,
-}
-
-func (x Error_ErrorCode) String() string {
-	return proto.EnumName(Error_ErrorCode_name, int32(x))
+func (x PathAttr_Type) String() string {
+	return proto.EnumName(PathAttr_Type_name, int32(x))
 }
 
 type Error struct {
@@ -702,7 +702,7 @@ func (m *GracefulRestart) GetTuples() []*GracefulRestartTuple {
 }
 
 type Capability struct {
-	Code            BGP_CAPABILITY   `protobuf:"varint,1,opt,name=code,enum=api.BGP_CAPABILITY" json:"code,omitempty"`
+	Code            Capability_Code  `protobuf:"varint,1,opt,name=code,enum=api.Capability_Code" json:"code,omitempty"`
 	MultiProtocol   *AddressFamily   `protobuf:"bytes,2,opt,name=multi_protocol" json:"multi_protocol,omitempty"`
 	GracefulRestart *GracefulRestart `protobuf:"bytes,3,opt,name=graceful_restart" json:"graceful_restart,omitempty"`
 	Asn             uint32           `protobuf:"varint,4,opt,name=asn" json:"asn,omitempty"`
@@ -749,7 +749,7 @@ func (m *ExtendedCommunity) String() string { return proto.CompactTextString(m) 
 func (*ExtendedCommunity) ProtoMessage()    {}
 
 type EVPNNlri struct {
-	Type EVPN_TYPE `protobuf:"varint,1,opt,name=type,enum=api.EVPN_TYPE" json:"type,omitempty"`
+	Type EVPNNlri_Type `protobuf:"varint,1,opt,name=type,enum=api.EVPNNlri_Type" json:"type,omitempty"`
 	//    EvpnAutoDiscoveryRoute = 2;
 	MacIpAdv      *EvpnMacIpAdvertisement            `protobuf:"bytes,3,opt,name=mac_ip_adv" json:"mac_ip_adv,omitempty"`
 	MulticastEtag *EvpnInclusiveMulticastEthernetTag `protobuf:"bytes,4,opt,name=multicast_etag" json:"multicast_etag,omitempty"`
@@ -876,12 +876,12 @@ func (m *Nlri) GetVpnNlri() *VPNNlri {
 }
 
 type TunnelEncapSubTLV struct {
-	Type     ENCAP_SUBTLV_TYPE `protobuf:"varint,1,opt,name=type,enum=api.ENCAP_SUBTLV_TYPE" json:"type,omitempty"`
-	Value    string            `protobuf:"bytes,2,opt,name=value" json:"value,omitempty"`
-	Key      uint32            `protobuf:"varint,3,opt,name=key" json:"key,omitempty"`
-	Cookie   string            `protobuf:"bytes,4,opt,name=cookie" json:"cookie,omitempty"`
-	Protocol uint32            `protobuf:"varint,5,opt,name=protocol" json:"protocol,omitempty"`
-	Color    uint32            `protobuf:"varint,6,opt,name=color" json:"color,omitempty"`
+	Type     TunnelEncapSubTLV_Type `protobuf:"varint,1,opt,name=type,enum=api.TunnelEncapSubTLV_Type" json:"type,omitempty"`
+	Value    string                 `protobuf:"bytes,2,opt,name=value" json:"value,omitempty"`
+	Key      uint32                 `protobuf:"varint,3,opt,name=key" json:"key,omitempty"`
+	Cookie   string                 `protobuf:"bytes,4,opt,name=cookie" json:"cookie,omitempty"`
+	Protocol uint32                 `protobuf:"varint,5,opt,name=protocol" json:"protocol,omitempty"`
+	Color    uint32                 `protobuf:"varint,6,opt,name=color" json:"color,omitempty"`
 }
 
 func (m *TunnelEncapSubTLV) Reset()         { *m = TunnelEncapSubTLV{} }
@@ -889,7 +889,7 @@ func (m *TunnelEncapSubTLV) String() string { return proto.CompactTextString(m) 
 func (*TunnelEncapSubTLV) ProtoMessage()    {}
 
 type TunnelEncapTLV struct {
-	Type   TUNNEL_TYPE          `protobuf:"varint,1,opt,name=type,enum=api.TUNNEL_TYPE" json:"type,omitempty"`
+	Type   TunnelEncapTLV_Type  `protobuf:"varint,1,opt,name=type,enum=api.TunnelEncapTLV_Type" json:"type,omitempty"`
 	SubTlv []*TunnelEncapSubTLV `protobuf:"bytes,2,rep,name=sub_tlv" json:"sub_tlv,omitempty"`
 }
 
@@ -905,10 +905,10 @@ func (m *TunnelEncapTLV) GetSubTlv() []*TunnelEncapSubTLV {
 }
 
 type PmsiTunnel struct {
-	IsLeafInfoRequired bool             `protobuf:"varint,1,opt,name=is_leaf_info_required" json:"is_leaf_info_required,omitempty"`
-	Type               PMSI_TUNNEL_TYPE `protobuf:"varint,2,opt,name=type,enum=api.PMSI_TUNNEL_TYPE" json:"type,omitempty"`
-	Label              uint32           `protobuf:"varint,3,opt,name=label" json:"label,omitempty"`
-	TunnelId           string           `protobuf:"bytes,4,opt,name=tunnel_id" json:"tunnel_id,omitempty"`
+	IsLeafInfoRequired bool            `protobuf:"varint,1,opt,name=is_leaf_info_required" json:"is_leaf_info_required,omitempty"`
+	Type               PmsiTunnel_Type `protobuf:"varint,2,opt,name=type,enum=api.PmsiTunnel_Type" json:"type,omitempty"`
+	Label              uint32          `protobuf:"varint,3,opt,name=label" json:"label,omitempty"`
+	TunnelId           string          `protobuf:"bytes,4,opt,name=tunnel_id" json:"tunnel_id,omitempty"`
 }
 
 func (m *PmsiTunnel) Reset()         { *m = PmsiTunnel{} }
@@ -916,7 +916,7 @@ func (m *PmsiTunnel) String() string { return proto.CompactTextString(m) }
 func (*PmsiTunnel) ProtoMessage()    {}
 
 type PathAttr struct {
-	Type        BGP_ATTR_TYPE     `protobuf:"varint,1,opt,name=type,enum=api.BGP_ATTR_TYPE" json:"type,omitempty"`
+	Type        PathAttr_Type     `protobuf:"varint,1,opt,name=type,enum=api.PathAttr_Type" json:"type,omitempty"`
 	Value       []string          `protobuf:"bytes,2,rep,name=value" json:"value,omitempty"`
 	Origin      Origin            `protobuf:"varint,3,opt,name=origin,enum=api.Origin" json:"origin,omitempty"`
 	AsPaths     []*AsPath         `protobuf:"bytes,4,rep,name=as_paths" json:"as_paths,omitempty"`
@@ -1399,16 +1399,16 @@ func init() {
 	proto.RegisterEnum("api.AFI", AFI_name, AFI_value)
 	proto.RegisterEnum("api.SAFI", SAFI_name, SAFI_value)
 	proto.RegisterEnum("api.ROUTE_DISTINGUISHER_TYPE", ROUTE_DISTINGUISHER_TYPE_name, ROUTE_DISTINGUISHER_TYPE_value)
-	proto.RegisterEnum("api.BGP_CAPABILITY", BGP_CAPABILITY_name, BGP_CAPABILITY_value)
 	proto.RegisterEnum("api.Origin", Origin_name, Origin_value)
 	proto.RegisterEnum("api.EXTENDED_COMMUNITIE_TYPE", EXTENDED_COMMUNITIE_TYPE_name, EXTENDED_COMMUNITIE_TYPE_value)
 	proto.RegisterEnum("api.EXTENDED_COMMUNITIE_SUBTYPE", EXTENDED_COMMUNITIE_SUBTYPE_name, EXTENDED_COMMUNITIE_SUBTYPE_value)
-	proto.RegisterEnum("api.TUNNEL_TYPE", TUNNEL_TYPE_name, TUNNEL_TYPE_value)
-	proto.RegisterEnum("api.PMSI_TUNNEL_TYPE", PMSI_TUNNEL_TYPE_name, PMSI_TUNNEL_TYPE_value)
-	proto.RegisterEnum("api.EVPN_TYPE", EVPN_TYPE_name, EVPN_TYPE_value)
-	proto.RegisterEnum("api.ENCAP_SUBTLV_TYPE", ENCAP_SUBTLV_TYPE_name, ENCAP_SUBTLV_TYPE_value)
-	proto.RegisterEnum("api.BGP_ATTR_TYPE", BGP_ATTR_TYPE_name, BGP_ATTR_TYPE_value)
 	proto.RegisterEnum("api.Error_ErrorCode", Error_ErrorCode_name, Error_ErrorCode_value)
+	proto.RegisterEnum("api.Capability_Code", Capability_Code_name, Capability_Code_value)
+	proto.RegisterEnum("api.EVPNNlri_Type", EVPNNlri_Type_name, EVPNNlri_Type_value)
+	proto.RegisterEnum("api.TunnelEncapSubTLV_Type", TunnelEncapSubTLV_Type_name, TunnelEncapSubTLV_Type_value)
+	proto.RegisterEnum("api.TunnelEncapTLV_Type", TunnelEncapTLV_Type_name, TunnelEncapTLV_Type_value)
+	proto.RegisterEnum("api.PmsiTunnel_Type", PmsiTunnel_Type_name, PmsiTunnel_Type_value)
+	proto.RegisterEnum("api.PathAttr_Type", PathAttr_Type_name, PathAttr_Type_value)
 }
 
 // Client API for Grpc service

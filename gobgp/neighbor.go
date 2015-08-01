@@ -166,7 +166,7 @@ func showNeighbor(args []string) error {
 	lookup := func(val *api.Capability, l capabilities) *api.Capability {
 		for _, v := range l {
 			if v.Code == val.Code {
-				if v.Code == api.BGP_CAPABILITY_MULTIPROTOCOL {
+				if v.Code == api.Capability_MULTIPROTOCOL {
 					if v.MultiProtocol.Equal(val.MultiProtocol) {
 						return v
 					}
@@ -198,7 +198,7 @@ func showNeighbor(args []string) error {
 			support += "received"
 		}
 
-		if c.Code != api.BGP_CAPABILITY_MULTIPROTOCOL {
+		if c.Code != api.Capability_MULTIPROTOCOL {
 			fmt.Printf("    %s: %s\n", c.Code, support)
 		} else {
 			fmt.Printf("    %s(%s,%s): %s\n", c.Code, c.MultiProtocol.Afi, c.MultiProtocol.Safi, support)
@@ -241,7 +241,7 @@ func showRoute(pathList []*api.Path, showAge bool, showBest bool, isMonitor bool
 
 			var segments []string = make([]string, 0)
 			for _, a := range attrs {
-				if a.Type == api.BGP_ATTR_TYPE_AS_PATH {
+				if a.Type == api.PathAttr_AS_PATH {
 					aspaths := a.AsPaths
 					for _, aspath := range aspaths {
 						s := bytes.NewBuffer(make([]byte, 0, 64))
@@ -266,17 +266,17 @@ func showRoute(pathList []*api.Path, showAge bool, showBest bool, isMonitor bool
 			s := []string{}
 			for _, a := range attrs {
 				switch a.Type {
-				case api.BGP_ATTR_TYPE_ORIGIN:
+				case api.PathAttr_ORIGIN:
 					s = append(s, fmt.Sprintf("{Origin: %s}", a.Origin))
-				case api.BGP_ATTR_TYPE_MULTI_EXIT_DISC:
+				case api.PathAttr_MULTI_EXIT_DISC:
 					s = append(s, fmt.Sprintf("{Med: %d}", a.Metric))
-				case api.BGP_ATTR_TYPE_LOCAL_PREF:
+				case api.PathAttr_LOCAL_PREF:
 					s = append(s, fmt.Sprintf("{LocalPref: %v}", a.Pref))
-				case api.BGP_ATTR_TYPE_ATOMIC_AGGREGATE:
+				case api.PathAttr_ATOMIC_AGGREGATE:
 					s = append(s, "AtomicAggregate")
-				case api.BGP_ATTR_TYPE_AGGREGATOR:
+				case api.PathAttr_AGGREGATOR:
 					s = append(s, fmt.Sprintf("{Aggregate: {AS: %d, Address: %s}", a.GetAggregator().As, a.GetAggregator().Address))
-				case api.BGP_ATTR_TYPE_COMMUNITIES:
+				case api.PathAttr_COMMUNITIES:
 					l := []string{}
 					known := map[uint32]string{
 						0xffff0000: "planned-shut",
@@ -301,11 +301,11 @@ func showRoute(pathList []*api.Path, showAge bool, showBest bool, isMonitor bool
 						}
 					}
 					s = append(s, fmt.Sprintf("{Community: %v}", l))
-				case api.BGP_ATTR_TYPE_ORIGINATOR_ID:
+				case api.PathAttr_ORIGINATOR_ID:
 					s = append(s, fmt.Sprintf("{Originator: %v}", a.Originator))
-				case api.BGP_ATTR_TYPE_CLUSTER_LIST:
+				case api.PathAttr_CLUSTER_LIST:
 					s = append(s, fmt.Sprintf("{Cluster: %v}", a.Cluster))
-				case api.BGP_ATTR_TYPE_PMSI_TUNNEL:
+				case api.PathAttr_PMSI_TUNNEL:
 					info := a.PmsiTunnel
 					s1 := bytes.NewBuffer(make([]byte, 0, 64))
 					s1.WriteString(fmt.Sprintf("{PMSI Tunnel: {Type: %s, ID: %s", info.Type, info.TunnelId))
@@ -317,7 +317,7 @@ func showRoute(pathList []*api.Path, showAge bool, showBest bool, isMonitor bool
 					}
 					s1.WriteString("}}")
 					s = append(s, s1.String())
-				case api.BGP_ATTR_TYPE_TUNNEL_ENCAP:
+				case api.PathAttr_TUNNEL_ENCAP:
 					s1 := bytes.NewBuffer(make([]byte, 0, 64))
 					s1.WriteString("{Encap: ")
 					var s2 []string
@@ -326,7 +326,7 @@ func showRoute(pathList []*api.Path, showAge bool, showBest bool, isMonitor bool
 						s3.WriteString(fmt.Sprintf("< %s | ", tlv.Type))
 						var s4 []string
 						for _, subTlv := range tlv.SubTlv {
-							if subTlv.Type == api.ENCAP_SUBTLV_TYPE_COLOR {
+							if subTlv.Type == api.TunnelEncapSubTLV_COLOR {
 								s4 = append(s4, fmt.Sprintf("color: %d", subTlv.Color))
 							}
 						}
@@ -337,7 +337,7 @@ func showRoute(pathList []*api.Path, showAge bool, showBest bool, isMonitor bool
 					s1.WriteString(strings.Join(s2, "|"))
 					s1.WriteString("}")
 					s = append(s, s1.String())
-				case api.BGP_ATTR_TYPE_AS4_PATH, api.BGP_ATTR_TYPE_MP_REACH_NLRI, api.BGP_ATTR_TYPE_MP_UNREACH_NLRI, api.BGP_ATTR_TYPE_NEXT_HOP, api.BGP_ATTR_TYPE_AS_PATH:
+				case api.PathAttr_AS4_PATH, api.PathAttr_MP_REACH_NLRI, api.PathAttr_MP_UNREACH_NLRI, api.PathAttr_NEXT_HOP, api.PathAttr_AS_PATH:
 				default:
 					s = append(s, fmt.Sprintf("{%v: %v}", a.Type, a.Value))
 				}
