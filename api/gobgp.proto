@@ -55,15 +55,16 @@ message Error {
 message Arguments {
     Resource resource = 1;
     AddressFamily af = 2;
-    string neighbor_address = 3;
+    string name = 3;
 }
 
 message ModPathArguments {
     Resource resource = 1;
-    bool is_withdraw = 2;
-    bytes raw_nlri = 3;
-    repeated bytes raw_pattrs = 4;
-    bool no_implicit_withdraw = 5;
+    string name = 2;
+    bool is_withdraw = 3;
+    bytes raw_nlri = 4;
+    repeated bytes raw_pattrs = 5;
+    bool no_implicit_withdraw = 6;
 }
 
 message PolicyArguments {

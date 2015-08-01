@@ -128,7 +128,7 @@ func (s *Server) Serve() error {
 
 func (s *Server) GetNeighbor(ctx context.Context, arg *api.Arguments) (*api.Peer, error) {
 	var rf bgp.RouteFamily
-	req := NewGrpcRequest(REQ_NEIGHBOR, arg.NeighborAddress, rf, nil)
+	req := NewGrpcRequest(REQ_NEIGHBOR, arg.Name, rf, nil)
 	s.bgpServerCh <- req
 
 	res := <-req.ResponseCh
@@ -174,7 +174,7 @@ func (s *Server) GetAdjRib(arg *api.Arguments, stream api.Grpc_GetAdjRibServer) 
 		return err
 	}
 
-	req := NewGrpcRequest(reqType, arg.NeighborAddress, rf, nil)
+	req := NewGrpcRequest(reqType, arg.Name, rf, nil)
 	s.bgpServerCh <- req
 
 	for res := range req.ResponseCh {
@@ -206,7 +206,7 @@ func (s *Server) GetRib(arg *api.Arguments, stream api.Grpc_GetRibServer) error 
 		return err
 	}
 
-	req := NewGrpcRequest(reqType, arg.NeighborAddress, rf, nil)
+	req := NewGrpcRequest(reqType, arg.Name, rf, nil)
 	s.bgpServerCh <- req
 
 	for res := range req.ResponseCh {
@@ -254,7 +254,7 @@ END:
 
 func (s *Server) MonitorPeerState(arg *api.Arguments, stream api.Grpc_MonitorPeerStateServer) error {
 	var rf bgp.RouteFamily
-	req := NewGrpcRequest(REQ_MONITOR_NEIGHBOR_PEER_STATE, arg.NeighborAddress, rf, nil)
+	req := NewGrpcRequest(REQ_MONITOR_NEIGHBOR_PEER_STATE, arg.Name, rf, nil)
 	s.bgpServerCh <- req
 
 	var err error
@@ -280,7 +280,7 @@ func (s *Server) neighbor(reqType int, arg *api.Arguments) (*api.Error, error) {
 	}
 
 	none := &api.Error{}
-	req := NewGrpcRequest(reqType, arg.NeighborAddress, rf, nil)
+	req := NewGrpcRequest(reqType, arg.Name, rf, nil)
 	s.bgpServerCh <- req
 
 	res := <-req.ResponseCh
@@ -360,7 +360,7 @@ func (s *Server) GetNeighborPolicy(ctx context.Context, arg *api.Arguments) (*ap
 		return nil, err
 	}
 
-	req := NewGrpcRequest(REQ_NEIGHBOR_POLICY, arg.NeighborAddress, rf, nil)
+	req := NewGrpcRequest(REQ_NEIGHBOR_POLICY, arg.Name, rf, nil)
 	s.bgpServerCh <- req
 
 	res := <-req.ResponseCh

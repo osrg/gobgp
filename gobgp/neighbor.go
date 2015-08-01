@@ -141,7 +141,7 @@ func showNeighbors() error {
 
 func showNeighbor(args []string) error {
 	id := &api.Arguments{
-		NeighborAddress: args[0],
+		Name: args[0],
 	}
 	p, e := client.GetNeighbor(context.Background(), id)
 	if e != nil {
@@ -430,9 +430,9 @@ func showNeighborRib(r string, remoteIP net.IP, args []string) error {
 	}
 
 	arg := &api.Arguments{
-		Resource:        resource,
-		Af:              rt,
-		NeighborAddress: remoteIP.String(),
+		Resource: resource,
+		Af:       rt,
+		Name:     remoteIP.String(),
 	}
 
 	ps := paths{}
@@ -544,8 +544,8 @@ func resetNeighbor(cmd string, remoteIP net.IP, args []string) error {
 		return err
 	}
 	arg := &api.Arguments{
-		NeighborAddress: remoteIP.String(),
-		Af:              rt,
+		Name: remoteIP.String(),
+		Af:   rt,
 	}
 	switch cmd {
 	case CMD_RESET:
@@ -562,8 +562,8 @@ func resetNeighbor(cmd string, remoteIP net.IP, args []string) error {
 
 func stateChangeNeighbor(cmd string, remoteIP net.IP, args []string) error {
 	arg := &api.Arguments{
-		Af:              api.AF_IPV4_UC,
-		NeighborAddress: remoteIP.String(),
+		Af:   api.AF_IPV4_UC,
+		Name: remoteIP.String(),
 	}
 	var err error
 	switch cmd {
@@ -583,8 +583,8 @@ func showNeighborPolicy(remoteIP net.IP) error {
 		return err
 	}
 	arg := &api.Arguments{
-		Af:              rt,
-		NeighborAddress: remoteIP.String(),
+		Af:   rt,
+		Name: remoteIP.String(),
 	}
 
 	ap, e := client.GetNeighborPolicy(context.Background(), arg)
