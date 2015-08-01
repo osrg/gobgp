@@ -140,7 +140,7 @@ func (t *Table) validateNlri(nlri bgp.AddrPrefixInterface) {
 func (t *Table) getOrCreateDest(nlri bgp.AddrPrefixInterface) *Destination {
 	log.Debugf("getOrCreateDest Table type : %s", reflect.TypeOf(t))
 	tableKey := t.tableKey(nlri)
-	dest := t.getDestination(tableKey)
+	dest := t.GetDestination(tableKey)
 	// If destination for given prefix does not exist we create it.
 	if dest == nil {
 		log.Debugf("getOrCreateDest dest with key %s is not found", tableKey)
@@ -156,7 +156,7 @@ func (t *Table) GetDestinations() map[string]*Destination {
 func (t *Table) setDestinations(destinations map[string]*Destination) {
 	t.destinations = destinations
 }
-func (t *Table) getDestination(key string) *Destination {
+func (t *Table) GetDestination(key string) *Destination {
 	dest, ok := t.destinations[key]
 	if ok {
 		return dest

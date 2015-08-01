@@ -22,7 +22,9 @@ import (
 	"google.golang.org/grpc"
 	"net"
 	"os"
+	"regexp"
 	"sort"
+	"strconv"
 	"time"
 )
 
@@ -333,4 +335,69 @@ func checkAddressFamily(ip net.IP) (*api.AddressFamily, error) {
 		e = fmt.Errorf("unsupported address family: %s", subOpts.AddressFamily)
 	}
 	return rf, e
+}
+
+func parseRD(input string) (*api.RouteDistinguisher, error) {
+	exp := regexp.MustCompile("^((\\d+)\\.(\\d+)\\.(\\d+)\\.(\\d+)|((\\d+)\\.)?(\\d+)):(\\d+)$")
+	group := exp.FindSubmatch([]byte(input))
+	if len(group) != 10 {
+		return nil, fmt.Errorf("invalid RD")
+	}
+	elems := make([]string, 0, len(group))
+	for _, elem := range group {
+		elems = append(elems, string(elem))
+	}
+	assigned, _ := strconv.Atoi(elems[9])
+	ip := net.ParseIP(elems[1])
+	switch {
+	//RD_IP4
+	case ip.To4() != nil:
+		return &api.RouteDistinguisher{
+			Type:     api.RouteDistinguisher_IP4,
+			Ipv4:     elems[1],
+			Assigned: uint32(assigned),
+		}, nil
+	//RD_2OCTET_AS
+	case elems[6] == "" && elems[7] == "":
+		asn, _ := strconv.Atoi(elems[8])
+		return &api.RouteDistinguisher{
+			Type:     api.RouteDistinguisher_TWO_OCTET_AS,
+			Asn:      uint32(asn),
+			Assigned: uint32(assigned),
+		}, nil
+	//RD_4OCTET_AS
+	default:
+		fst, _ := strconv.Atoi(elems[7])
+		snd, _ := strconv.Atoi(elems[8])
+		asn := fst<<16 | snd
+		return &api.RouteDistinguisher{
+			Type:     api.RouteDistinguisher_FOUR_OCTET_AS,
+			Asn:      uint32(asn),
+			Assigned: uint32(assigned),
+		}, nil
+	}
+}
+
+func parseRT(input string) (*api.ExtendedCommunity, error) {
+	rd, err := parseRD(input)
+	if err != nil {
+		return nil, fmt.Errorf("invalid RT: %s", input)
+	}
+	rt := &api.ExtendedCommunity{
+		Subtype:      api.ExtendedCommunity_ROUTE_TARGET,
+		IsTransitive: true,
+		LocalAdmin:   rd.Assigned,
+	}
+	switch rd.Type {
+	case api.RouteDistinguisher_IP4:
+		rt.Type = api.ExtendedCommunity_IP4_SPECIFIC
+		rt.Ipv4 = rd.Ipv4
+	case api.RouteDistinguisher_TWO_OCTET_AS:
+		rt.Type = api.ExtendedCommunity_TWO_OCTET_AS_SPECIFIC
+		rt.Asn = rd.Asn
+	case api.RouteDistinguisher_FOUR_OCTET_AS:
+		rt.Type = api.ExtendedCommunity_FOUR_OCTET_AS_SPECIFIC
+		rt.Asn = rd.Asn
+	}
+	return rt, nil
 }

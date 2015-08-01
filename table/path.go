@@ -454,8 +454,8 @@ func (path *Path) ClearCommunities() {
 	}
 }
 
-func (path *Path) GetExtCommunities() []interface{} {
-	eCommunityList := make([]interface{}, 0)
+func (path *Path) GetExtCommunities() []bgp.ExtendedCommunityInterface {
+	eCommunityList := make([]bgp.ExtendedCommunityInterface, 0)
 	if _, attr := path.getPathAttr(bgp.BGP_ATTR_TYPE_EXTENDED_COMMUNITIES); attr != nil {
 		eCommunities := attr.(*bgp.PathAttributeExtendedCommunities).Value
 		for _, eCommunity := range eCommunities {

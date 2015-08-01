@@ -31,24 +31,6 @@ func showGlobalRib(args []string) error {
 	return showNeighborRib(CMD_GLOBAL, bogusIp, args)
 }
 
-func parseRD(args []string) (*api.RouteDistinguisher, error) {
-	t, err := strconv.Atoi(args[0])
-	if err != nil {
-		return nil, err
-	}
-	typ := api.ROUTE_DISTINGUISHER_TYPE(t)
-	admin := args[1]
-	assigned, err := strconv.Atoi(args[2])
-	if err != nil {
-		return nil, err
-	}
-	return &api.RouteDistinguisher{
-		Type:     typ,
-		Admin:    admin,
-		Assigned: uint32(assigned),
-	}, nil
-}
-
 func modPath(modtype string, args []string) error {
 	rf, err := checkAddressFamily(net.IP{})
 	if err != nil {
@@ -67,19 +49,11 @@ func modPath(modtype string, args []string) error {
 			Prefix: prefix,
 		}
 	case api.AF_IPV4_VPN, api.AF_IPV6_VPN:
-		if len(args) < 1 {
-			return fmt.Errorf("usage: global rib %s <rd>:<prefix> [<rt>...] -a { vpn-ipv4 | vpn-ipv6 }", modtype)
+		if len(args) < 3 || args[1] != "rd" || args[3] != "rt" {
+			return fmt.Errorf("usage: global rib %s <prefix> rd <rd> rt <rt>... -a { vpn-ipv4 | vpn-ipv6 }", modtype)
 		}
-		elems := strings.SplitN(args[0], ":", 4)
-		if len(elems) != 4 {
-			return fmt.Errorf("invalid <rd>:<prefix>: %s. hint. <rd> := <type>:<admin>:<assigned>", args[0])
-		}
-		rd, err := parseRD(elems[:3])
-		if err != nil {
-			return err
-		}
-		prefix := elems[3]
-		elems = strings.Split(prefix, "/")
+		prefix := args[0]
+		elems := strings.Split(prefix, "/")
 		if len(elems) != 2 {
 			return fmt.Errorf("invalid prefix: %s", prefix)
 		}
@@ -89,6 +63,25 @@ func modPath(modtype string, args []string) error {
 			return fmt.Errorf("invalid prefix: %s", prefix)
 		}
 
+		rd, err := parseRD(args[2])
+		if err != nil {
+			return err
+		}
+
+		rts := make([]*api.ExtendedCommunity, 0, len(args[4:]))
+
+		for _, elem := range args[4:] {
+			rt, err := parseRT(elem)
+			if err != nil {
+				return err
+			}
+			rts = append(rts, rt)
+		}
+		ec := &api.PathAttr{
+			Type:                api.PathAttr_EXTENDED_COMMUNITIES,
+			ExtendedCommunities: rts,
+		}
+		path.Attrs = []*api.PathAttr{ec}
 		nlri := &api.VPNNlri{
 			Rd:        rd,
 			IpAddr:    elems[0],
@@ -122,7 +115,7 @@ func modPath(modtype string, args []string) error {
 				return fmt.Errorf("invalid label: %s. err: %s", args[4], err)
 			}
 			nlri = &api.EVPNNlri{
-				Type: api.EVPN_TYPE_ROUTE_TYPE_MAC_IP_ADVERTISEMENT,
+				Type: api.EVPNNlri_MAC_IP_ADVERTISEMENT,
 				MacIpAdv: &api.EvpnMacIpAdvertisement{
 					MacAddr: macAddr,
 					IpAddr:  ipAddr,
@@ -143,16 +136,16 @@ func modPath(modtype string, args []string) error {
 				return fmt.Errorf("invalid label: %s. err: %s", args[2], err)
 			}
 			nlri = &api.EVPNNlri{
-				Type: api.EVPN_TYPE_INCLUSIVE_MULTICAST_ETHERNET_TAG,
+				Type: api.EVPNNlri_INCLUSIVE_MULTICAST_ETHERNET_TAG,
 				MulticastEtag: &api.EvpnInclusiveMulticastEthernetTag{
 					Etag: uint32(eTag),
 				},
 			}
 
 			attr := &api.PathAttr{
-				Type: api.BGP_ATTR_TYPE_PMSI_TUNNEL,
+				Type: api.PathAttr_PMSI_TUNNEL,
 				PmsiTunnel: &api.PmsiTunnel{
-					Type:  api.PMSI_TUNNEL_TYPE_INGRESS_REPL,
+					Type:  api.PmsiTunnel_INGRESS_REPL,
 					Label: uint32(label),
 				},
 			}
@@ -182,15 +175,15 @@ func modPath(modtype string, args []string) error {
 				return fmt.Errorf("invalid vni: %s", args[1])
 			}
 			subTlv := &api.TunnelEncapSubTLV{
-				Type:  api.ENCAP_SUBTLV_TYPE_COLOR,
+				Type:  api.TunnelEncapSubTLV_COLOR,
 				Color: uint32(vni),
 			}
 			tlv := &api.TunnelEncapTLV{
-				Type:   api.TUNNEL_TYPE_VXLAN,
+				Type:   api.TunnelEncapTLV_VXLAN,
 				SubTlv: []*api.TunnelEncapSubTLV{subTlv},
 			}
 			attr := &api.PathAttr{
-				Type:        api.BGP_ATTR_TYPE_TUNNEL_ENCAP,
+				Type:        api.PathAttr_TUNNEL_ENCAP,
 				TunnelEncap: []*api.TunnelEncapTLV{tlv},
 			}
 
@@ -216,8 +209,8 @@ func modPath(modtype string, args []string) error {
 			Af: rf,
 			RtNlri: &api.RTNlri{
 				Target: &api.ExtendedCommunity{
-					Type:       api.EXTENDED_COMMUNITIE_TYPE_TWO_OCTET_AS_SPECIFIC,
-					Subtype:    api.EXTENDED_COMMUNITIE_SUBTYPE_ROUTE_TARGET,
+					Type:       api.ExtendedCommunity_TWO_OCTET_AS_SPECIFIC,
+					Subtype:    api.ExtendedCommunity_ROUTE_TARGET,
 					Asn:        uint32(asn),
 					LocalAdmin: uint32(admin),
 				},
