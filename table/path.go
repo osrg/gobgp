@@ -35,9 +35,10 @@ type Path struct {
 	pathAttrs              []bgp.PathAttributeInterface
 	medSetByTargetNeighbor bool
 	timestamp              time.Time
+	NoImplicitWithdraw     bool
 }
 
-func NewPath(source *PeerInfo, nlri bgp.AddrPrefixInterface, isWithdraw bool, pattrs []bgp.PathAttributeInterface, medSetByTargetNeighbor bool, timestamp time.Time) *Path {
+func NewPath(source *PeerInfo, nlri bgp.AddrPrefixInterface, isWithdraw bool, pattrs []bgp.PathAttributeInterface, medSetByTargetNeighbor bool, timestamp time.Time, noImplicitWithdraw bool) *Path {
 	if !isWithdraw && pattrs == nil {
 		log.WithFields(log.Fields{
 			"Topic": "Table",
@@ -54,6 +55,7 @@ func NewPath(source *PeerInfo, nlri bgp.AddrPrefixInterface, isWithdraw bool, pa
 		pathAttrs:              pattrs,
 		medSetByTargetNeighbor: medSetByTargetNeighbor,
 		timestamp:              timestamp,
+		NoImplicitWithdraw:     noImplicitWithdraw,
 	}
 }
 
@@ -172,7 +174,7 @@ func (path *Path) Clone(isWithdraw bool) *Path {
 		newPathAttrs[i] = v
 	}
 
-	return NewPath(path.source, nlri, isWithdraw, newPathAttrs, false, path.timestamp)
+	return NewPath(path.source, nlri, isWithdraw, newPathAttrs, false, path.timestamp, path.NoImplicitWithdraw)
 }
 
 func (path *Path) GetRouteFamily() bgp.RouteFamily {

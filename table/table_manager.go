@@ -30,7 +30,7 @@ func nlri2Path(m *bgp.BGPMessage, p *PeerInfo, now time.Time) []*Path {
 		// define local variable to pass nlri's address to CreatePath
 		var nlri bgp.NLRInfo = nlri_info
 		// create Path object
-		path := NewPath(p, &nlri, false, pathAttributes, false, now)
+		path := NewPath(p, &nlri, false, pathAttributes, false, now, false)
 		pathList = append(pathList, path)
 	}
 	return pathList
@@ -44,7 +44,7 @@ func withdraw2Path(m *bgp.BGPMessage, p *PeerInfo, now time.Time) []*Path {
 		// define local variable to pass nlri's address to CreatePath
 		var w bgp.WithdrawnRoute = nlriWithdraw
 		// create withdrawn Path object
-		path := NewPath(p, &w, true, pathAttributes, false, now)
+		path := NewPath(p, &w, true, pathAttributes, false, now, false)
 		pathList = append(pathList, path)
 	}
 	return pathList
@@ -67,7 +67,7 @@ func mpreachNlri2Path(m *bgp.BGPMessage, p *PeerInfo, now time.Time) []*Path {
 	for _, mp := range attrList {
 		nlri_info := mp.Value
 		for _, nlri := range nlri_info {
-			path := NewPath(p, nlri, false, pathAttributes, false, now)
+			path := NewPath(p, nlri, false, pathAttributes, false, now, false)
 			pathList = append(pathList, path)
 		}
 	}
@@ -92,7 +92,7 @@ func mpunreachNlri2Path(m *bgp.BGPMessage, p *PeerInfo, now time.Time) []*Path {
 		nlri_info := mp.Value
 
 		for _, nlri := range nlri_info {
-			path := NewPath(p, nlri, true, pathAttributes, false, now)
+			path := NewPath(p, nlri, true, pathAttributes, false, now, false)
 			pathList = append(pathList, path)
 		}
 	}

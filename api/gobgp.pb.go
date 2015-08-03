@@ -590,10 +590,11 @@ func (m *Arguments) GetAf() *AddressFamily {
 }
 
 type ModPathArguments struct {
-	Resource   Resource `protobuf:"varint,1,opt,name=resource,enum=api.Resource" json:"resource,omitempty"`
-	IsWithdraw bool     `protobuf:"varint,2,opt,name=is_withdraw" json:"is_withdraw,omitempty"`
-	RawNlri    []byte   `protobuf:"bytes,3,opt,name=raw_nlri,proto3" json:"raw_nlri,omitempty"`
-	RawPattrs  [][]byte `protobuf:"bytes,4,rep,name=raw_pattrs,proto3" json:"raw_pattrs,omitempty"`
+	Resource           Resource `protobuf:"varint,1,opt,name=resource,enum=api.Resource" json:"resource,omitempty"`
+	IsWithdraw         bool     `protobuf:"varint,2,opt,name=is_withdraw" json:"is_withdraw,omitempty"`
+	RawNlri            []byte   `protobuf:"bytes,3,opt,name=raw_nlri,proto3" json:"raw_nlri,omitempty"`
+	RawPattrs          [][]byte `protobuf:"bytes,4,rep,name=raw_pattrs,proto3" json:"raw_pattrs,omitempty"`
+	NoImplicitWithdraw bool     `protobuf:"varint,5,opt,name=no_implicit_withdraw" json:"no_implicit_withdraw,omitempty"`
 }
 
 func (m *ModPathArguments) Reset()         { *m = ModPathArguments{} }

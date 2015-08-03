@@ -792,7 +792,7 @@ func handleGlobalRibRequest(grpcReq *GrpcRequest, peerInfo *table.PeerInfo) []*t
 		goto ERR
 	}
 
-	return []*table.Path{table.NewPath(peerInfo, nlri, isWithdraw, pattr, false, time.Now())}
+	return []*table.Path{table.NewPath(peerInfo, nlri, isWithdraw, pattr, false, time.Now(), args.NoImplicitWithdraw)}
 ERR:
 	grpcReq.ResponseCh <- result
 	close(grpcReq.ResponseCh)

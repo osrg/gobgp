@@ -14,13 +14,13 @@ import (
 func TestPathNewIPv4(t *testing.T) {
 	peerP := PathCreatePeer()
 	pathP := PathCreatePath(peerP)
-	ipv4p := NewPath(pathP[0].GetSource(), pathP[0].GetNlri(), true, pathP[0].GetPathAttrs(), pathP[0].getMedSetByTargetNeighbor(), time.Now())
+	ipv4p := NewPath(pathP[0].GetSource(), pathP[0].GetNlri(), true, pathP[0].GetPathAttrs(), pathP[0].getMedSetByTargetNeighbor(), time.Now(), false)
 	assert.NotNil(t, ipv4p)
 }
 func TestPathNewIPv6(t *testing.T) {
 	peerP := PathCreatePeer()
 	pathP := PathCreatePath(peerP)
-	ipv6p := NewPath(pathP[0].GetSource(), pathP[0].GetNlri(), true, pathP[0].GetPathAttrs(), pathP[0].getMedSetByTargetNeighbor(), time.Now())
+	ipv6p := NewPath(pathP[0].GetSource(), pathP[0].GetNlri(), true, pathP[0].GetPathAttrs(), pathP[0].getMedSetByTargetNeighbor(), time.Now(), false)
 	assert.NotNil(t, ipv6p)
 }
 
@@ -72,7 +72,7 @@ func TestPathCreatePath(t *testing.T) {
 	nlriList := updateMsgP.NLRI
 	pathAttributes := updateMsgP.PathAttributes
 	nlri_info := nlriList[0]
-	path := NewPath(peerP[0], &nlri_info, false, pathAttributes, false, time.Now())
+	path := NewPath(peerP[0], &nlri_info, false, pathAttributes, false, time.Now(), false)
 	assert.NotNil(t, path)
 
 }
@@ -118,7 +118,7 @@ func TestASPathLen(t *testing.T) {
 	update := bgpmsg.Body.(*bgp.BGPUpdate)
 	UpdatePathAttrs4ByteAs(update)
 	peer := PathCreatePeer()
-	p := NewPath(peer[0], &update.NLRI[0], false, update.PathAttributes, false, time.Now())
+	p := NewPath(peer[0], &update.NLRI[0], false, update.PathAttributes, false, time.Now(), false)
 	assert.Equal(10, p.GetAsPathLen())
 }
 
@@ -145,7 +145,7 @@ func TestPathPrependAsnToExistingSeqAttr(t *testing.T) {
 	update := bgpmsg.Body.(*bgp.BGPUpdate)
 	UpdatePathAttrs4ByteAs(update)
 	peer := PathCreatePeer()
-	p := NewPath(peer[0], &update.NLRI[0], false, update.PathAttributes, false, time.Now())
+	p := NewPath(peer[0], &update.NLRI[0], false, update.PathAttributes, false, time.Now(), false)
 
 	p.PrependAsn(65000, 1)
 	assert.Equal([]uint32{65000, 65001, 65002, 65003, 65004, 65005}, p.GetAsSeqList())
@@ -168,7 +168,7 @@ func TestPathPrependAsnToNewAsPathAttr(t *testing.T) {
 	update := bgpmsg.Body.(*bgp.BGPUpdate)
 	UpdatePathAttrs4ByteAs(update)
 	peer := PathCreatePeer()
-	p := NewPath(peer[0], &update.NLRI[0], false, update.PathAttributes, false, time.Now())
+	p := NewPath(peer[0], &update.NLRI[0], false, update.PathAttributes, false, time.Now(), false)
 
 	asn := uint32(65000)
 	p.PrependAsn(asn, 1)
@@ -197,7 +197,7 @@ func TestPathPrependAsnToNewAsPathSeq(t *testing.T) {
 	update := bgpmsg.Body.(*bgp.BGPUpdate)
 	UpdatePathAttrs4ByteAs(update)
 	peer := PathCreatePeer()
-	p := NewPath(peer[0], &update.NLRI[0], false, update.PathAttributes, false, time.Now())
+	p := NewPath(peer[0], &update.NLRI[0], false, update.PathAttributes, false, time.Now(), false)
 
 	asn := uint32(65000)
 	p.PrependAsn(asn, 1)
@@ -228,7 +228,7 @@ func TestPathPrependAsnToEmptyAsPathAttr(t *testing.T) {
 	update := bgpmsg.Body.(*bgp.BGPUpdate)
 	UpdatePathAttrs4ByteAs(update)
 	peer := PathCreatePeer()
-	p := NewPath(peer[0], &update.NLRI[0], false, update.PathAttributes, false, time.Now())
+	p := NewPath(peer[0], &update.NLRI[0], false, update.PathAttributes, false, time.Now(), false)
 
 	asn := uint32(65000)
 	p.PrependAsn(asn, 1)
@@ -265,7 +265,7 @@ func TestPathPrependAsnToFullPathAttr(t *testing.T) {
 	update := bgpmsg.Body.(*bgp.BGPUpdate)
 	UpdatePathAttrs4ByteAs(update)
 	peer := PathCreatePeer()
-	p := NewPath(peer[0], &update.NLRI[0], false, update.PathAttributes, false, time.Now())
+	p := NewPath(peer[0], &update.NLRI[0], false, update.PathAttributes, false, time.Now(), false)
 
 	expected := []uint32{65000, 65000}
 	for _, v := range asns {
@@ -294,7 +294,7 @@ func PathCreatePath(peerP []*PeerInfo) []*Path {
 		nlriList := updateMsgP.NLRI
 		pathAttributes := updateMsgP.PathAttributes
 		nlri_info := nlriList[0]
-		pathP[i] = NewPath(peerP[i], &nlri_info, false, pathAttributes, false, time.Now())
+		pathP[i] = NewPath(peerP[i], &nlri_info, false, pathAttributes, false, time.Now(), false)
 	}
 	return pathP
 }
