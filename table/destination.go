@@ -369,6 +369,9 @@ func (dest *Destination) removeOldPaths() {
 	knownPaths := dest.knownPathList
 
 	for _, newPath := range newPaths {
+		if newPath.NoImplicitWithdraw {
+			continue
+		}
 		oldPaths := make([]*Path, 0)
 		for _, path := range knownPaths {
 			// Here we just check if source is same and not check if path

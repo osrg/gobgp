@@ -63,6 +63,7 @@ message ModPathArguments {
     bool is_withdraw = 2;
     bytes raw_nlri = 3;
     repeated bytes raw_pattrs = 4;
+    bool no_implicit_withdraw = 5;
 }
 
 message PolicyArguments {

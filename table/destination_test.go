@@ -124,7 +124,7 @@ func DestCreatePath(peerD []*PeerInfo) []*Path {
 		nlriList := updateMsgD.NLRI
 		pathAttributes := updateMsgD.PathAttributes
 		nlri_info := nlriList[0]
-		pathD[i] = NewPath(peerD[i], &nlri_info, false, pathAttributes, false, time.Now())
+		pathD[i] = NewPath(peerD[i], &nlri_info, false, pathAttributes, false, time.Now(), false)
 	}
 	return pathD
 }
