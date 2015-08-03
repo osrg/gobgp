@@ -826,7 +826,9 @@ func (rd *RouteDistinguisherFourOctetAS) Serialize() ([]byte, error) {
 }
 
 func (rd *RouteDistinguisherFourOctetAS) String() string {
-	return fmt.Sprintf("%d:%d", rd.Admin, rd.Assigned)
+	fst := rd.Admin >> 16 & 0xffff
+	snd := rd.Admin & 0xffff
+	return fmt.Sprintf("%d.%d:%d", fst, snd, rd.Assigned)
 }
 
 func NewRouteDistinguisherFourOctetAS(admin uint32, assigned uint16) *RouteDistinguisherFourOctetAS {
