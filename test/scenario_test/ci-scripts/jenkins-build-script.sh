@@ -16,6 +16,7 @@ ls -al
 git log | head -20
 
 sudo docker rmi $(sudo docker images | grep "^<none>" | awk '{print $3}')
+sudo docker rm -f $(sudo docker ps -a -q)
 
 sudo fab -f $GOBGP/test/scenario_test/lib/base.py make_gobgp_ctn --set tag=$GOBGP_IMAGE
 
@@ -54,12 +55,18 @@ PID5=$!
 sudo -E python ibgp_router_test.py --gobgp-image $GOBGP_IMAGE --test-prefix ibgp -s -x --with-xunit --xunit-file=${WS}/nosetest_ibgp.xml &
 PID6=$!
 
+# evpn test
+sudo -E python evpn_test.py --gobgp-image $GOBGP_IMAGE --test-prefix evpn -s -x --with-xunit --xunit-file=${WS}/nosetest_evpn.xml&
+PID7=$!
+
 wait $PID5
 RET5=$?
 wait $PID6
 RET6=$?
+wait $PID7
+RET7=$?
 
-if [ $RET1 != 0 ] || [ $RET2 != 0 ] || [ $RET3 != 0 ] || [ $RET4 != 0 ] || [ $RET5 != 0 ] || [ $RET6 != 0 ]; then
+if [ $RET1 != 0 ] || [ $RET2 != 0 ] || [ $RET3 != 0 ] || [ $RET4 != 0 ] || [ $RET5 != 0 ] || [ $RET6 != 0 ] || [ $RET7 != 0 ]; then
   exit 1
 fi
 exit 0

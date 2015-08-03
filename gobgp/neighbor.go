@@ -337,6 +337,8 @@ func showRoute(pathList []*api.Path, showAge bool, showBest bool, isMonitor bool
 					s1.WriteString(strings.Join(s2, "|"))
 					s1.WriteString("}")
 					s = append(s, s1.String())
+				case api.BGP_ATTR_TYPE_EXTENDED_COMMUNITIES:
+					s = append(s, fmt.Sprintf("{Ext Comms: %v}", a.ExtendedCommunities))
 				case api.BGP_ATTR_TYPE_AS4_PATH, api.BGP_ATTR_TYPE_MP_REACH_NLRI, api.BGP_ATTR_TYPE_MP_UNREACH_NLRI, api.BGP_ATTR_TYPE_NEXT_HOP, api.BGP_ATTR_TYPE_AS_PATH:
 				default:
 					s = append(s, fmt.Sprintf("{%v: %v}", a.Type, a.Value))

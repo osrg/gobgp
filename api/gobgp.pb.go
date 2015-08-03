@@ -927,20 +927,21 @@ func (m *PmsiTunnel) String() string { return proto.CompactTextString(m) }
 func (*PmsiTunnel) ProtoMessage()    {}
 
 type PathAttr struct {
-	Type        BGP_ATTR_TYPE     `protobuf:"varint,1,opt,name=type,enum=api.BGP_ATTR_TYPE" json:"type,omitempty"`
-	Value       []string          `protobuf:"bytes,2,rep,name=value" json:"value,omitempty"`
-	Origin      Origin            `protobuf:"varint,3,opt,name=origin,enum=api.Origin" json:"origin,omitempty"`
-	AsPaths     []*AsPath         `protobuf:"bytes,4,rep,name=as_paths" json:"as_paths,omitempty"`
-	Nexthop     string            `protobuf:"bytes,5,opt,name=nexthop" json:"nexthop,omitempty"`
-	Metric      uint32            `protobuf:"varint,6,opt,name=metric" json:"metric,omitempty"`
-	Pref        uint32            `protobuf:"varint,7,opt,name=pref" json:"pref,omitempty"`
-	Aggregator  *Aggregator       `protobuf:"bytes,8,opt,name=aggregator" json:"aggregator,omitempty"`
-	Communites  []uint32          `protobuf:"varint,9,rep,name=communites" json:"communites,omitempty"`
-	Originator  string            `protobuf:"bytes,10,opt,name=originator" json:"originator,omitempty"`
-	Cluster     []string          `protobuf:"bytes,11,rep,name=cluster" json:"cluster,omitempty"`
-	Nlri        []*Nlri           `protobuf:"bytes,12,rep,name=nlri" json:"nlri,omitempty"`
-	TunnelEncap []*TunnelEncapTLV `protobuf:"bytes,13,rep,name=tunnel_encap" json:"tunnel_encap,omitempty"`
-	PmsiTunnel  *PmsiTunnel       `protobuf:"bytes,14,opt,name=pmsi_tunnel" json:"pmsi_tunnel,omitempty"`
+	Type                BGP_ATTR_TYPE        `protobuf:"varint,1,opt,name=type,enum=api.BGP_ATTR_TYPE" json:"type,omitempty"`
+	Value               []string             `protobuf:"bytes,2,rep,name=value" json:"value,omitempty"`
+	Origin              Origin               `protobuf:"varint,3,opt,name=origin,enum=api.Origin" json:"origin,omitempty"`
+	AsPaths             []*AsPath            `protobuf:"bytes,4,rep,name=as_paths" json:"as_paths,omitempty"`
+	Nexthop             string               `protobuf:"bytes,5,opt,name=nexthop" json:"nexthop,omitempty"`
+	Metric              uint32               `protobuf:"varint,6,opt,name=metric" json:"metric,omitempty"`
+	Pref                uint32               `protobuf:"varint,7,opt,name=pref" json:"pref,omitempty"`
+	Aggregator          *Aggregator          `protobuf:"bytes,8,opt,name=aggregator" json:"aggregator,omitempty"`
+	Communites          []uint32             `protobuf:"varint,9,rep,name=communites" json:"communites,omitempty"`
+	Originator          string               `protobuf:"bytes,10,opt,name=originator" json:"originator,omitempty"`
+	Cluster             []string             `protobuf:"bytes,11,rep,name=cluster" json:"cluster,omitempty"`
+	Nlri                []*Nlri              `protobuf:"bytes,12,rep,name=nlri" json:"nlri,omitempty"`
+	TunnelEncap         []*TunnelEncapTLV    `protobuf:"bytes,13,rep,name=tunnel_encap" json:"tunnel_encap,omitempty"`
+	ExtendedCommunities []*ExtendedCommunity `protobuf:"bytes,16,rep,name=extended_communities" json:"extended_communities,omitempty"`
+	PmsiTunnel          *PmsiTunnel          `protobuf:"bytes,14,opt,name=pmsi_tunnel" json:"pmsi_tunnel,omitempty"`
 }
 
 func (m *PathAttr) Reset()         { *m = PathAttr{} }
@@ -971,6 +972,13 @@ func (m *PathAttr) GetNlri() []*Nlri {
 func (m *PathAttr) GetTunnelEncap() []*TunnelEncapTLV {
 	if m != nil {
 		return m.TunnelEncap
+	}
+	return nil
+}
+
+func (m *PathAttr) GetExtendedCommunities() []*ExtendedCommunity {
+	if m != nil {
+		return m.ExtendedCommunities
 	}
 	return nil
 }

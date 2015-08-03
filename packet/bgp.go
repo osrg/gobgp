@@ -3672,16 +3672,16 @@ func (p *PathAttributeExtendedCommunities) Serialize() ([]byte, error) {
 }
 
 func (p *PathAttributeExtendedCommunities) ToApiStruct() *api.PathAttr {
-	value := func(arg []ExtendedCommunityInterface) []string {
-		ret := make([]string, 0, len(arg))
+	ecs := func(arg []ExtendedCommunityInterface) []*api.ExtendedCommunity {
+		ret := make([]*api.ExtendedCommunity, 0, len(arg))
 		for _, v := range p.Value {
-			ret = append(ret, v.String())
+			ret = append(ret, v.ToApiStruct())
 		}
 		return ret
 	}(p.Value)
 	return &api.PathAttr{
-		Type:  api.BGP_ATTR_TYPE_EXTENDED_COMMUNITIES,
-		Value: value,
+		Type:                api.BGP_ATTR_TYPE_EXTENDED_COMMUNITIES,
+		ExtendedCommunities: ecs,
 	}
 }
 
