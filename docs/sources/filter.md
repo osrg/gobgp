@@ -32,60 +32,80 @@ define an import policy for neighbor 10.0.255.2 that drops
 
 ```
 [Global]
-  As = 64512
-  RouterId = "192.168.255.1"
+  [Global.GlobalConfig]
+    As = 64512
+    RouterId = "192.168.255.1"
 
-[[NeighborList]]
-  NeighborAddress = "10.0.255.1"
-  PeerAs = 65001
-  [NeighborList.RouteServer]
-    RouteServerClient = true
+[Neighbors]
+  [[Neighbors.NeighborList]]
+    [Neighbors.NeighborList.NeighborConfig]
+      NeighborAddress = "10.0.255.1"
+      PeerAs = 65001
+    [Neighbors.NeighborList.RouteServer]
+      RouteServerClient = true
 
-[[NeighborList]]
-  NeighborAddress = "10.0.255.2"
-  PeerAs = 65002
-  [NeighborList.RouteServer]
-    RouteServerClient = true
-  [NeighborList.ApplyPolicy]
-    ImportPolicies = ["pd2"]
-    ExportPolicies = []
+  [[Neighbors.NeighborList]]
+    [Neighbors.NeighborList.NeighborConfig]
+      NeighborAddress = "10.0.255.2"
+      PeerAs = 65002
+    [Neighbors.NeighborList.RouteServer]
+      RouteServerClient = true
+    [Neighbors.NeighborList.ApplyPolicy]
+      [Neighbors.NeighborList.ApplyPolicy.ApplyPolicyConfig]
+        ImportPolicy = ["pd2"]
 
-[[NeighborList]]
-  NeighborAddress = "10.0.255.3"
-  PeerAs = 65003
-  [NeighborList.RouteServer]
-    RouteServerClient = true
+  [[Neighbors.NeighborList]]
+    [Neighbors.NeighborList.NeighborConfig]
+      NeighborAddress = "10.0.255.3"
+      PeerAs = 65003
+    [Neighbors.NeighborList.RouteServer]
+      RouteServerClient = true
 
 [DefinedSets]
- [[DefinedSets.PrefixSetList]]
-   PrefixSetName = "ps2"
+  [DefinedSets.PrefixSets]
+    [[DefinedSets.PrefixSets.PrefixSetList]]
+      PrefixSetName = "ps2"
+      [[DefinedSets.PrefixSets.PrefixSetList.PrefixList]]
+        [DefinedSets.PrefixSets.PrefixSetList.PrefixList.IpPrefix]
+          IP = "10.33.0.0
+          Mask = [255, 255, 0, 0]
+      [[DefinedSets.PrefixSets.PrefixSetList.PrefixList]]
+        [DefinedSets.PrefixSets.PrefixSetList.PrefixList.IpPrefix]
+          IP = "10.50.0.0"
+          Mask = [255, 255, 0, 0]
 
-   [[DefinedSets.PrefixSetList.PrefixList]]
-     Address = "10.33.0.0"
-     Masklength = 16
 
- [[DefinedSets.NeighborSetList]]
-   NeighborSetName = "ns1"
-   [[DefinedSets.NeighborSetList.NeighborInfoList]]
-     Address = "10.0.255.1"
+  [DefinedSets.NeighborSets]
+    [[DefinedSets.NeighborSetList]]
+      NeighborSetName = "ns1"
+      [[DefinedSets.NeighborSetList.NeighborInfoList]]
+        Address = "10.0.255.1"
 
-[[PolicyDefinitionList]]
- Name = "pd2"
- [[PolicyDefinitionList.StatementList]]
-   Name = "statement1"
-   [PolicyDefinitionList.StatementList.Conditions]
-     MatchPrefixSet = "ps2"
-     MatchNeighborSet = "ns1"
-     MatchSetOptions = 1
-   [PolicyDefinitionList.StatementList.Actions]
-     RejectRoute = true
+[PolicyDefinitions]
+  [[PolicyDefinitions.PolicyDefinitionList]]
+    Name = "pd2"
+    [PolicyDefinitions.PolicyDefinitionList.Statements]
+      [[PolicyDefinitions.PolicyDefinitionList.Statements.StatementList]]
+        Name = "statement1"
+        [PolicyDefinitions.PolicyDefinitionList.Statements.StatementList.Conditions]
+          [PolicyDefinitions.PolicyDefinitionList.Statements.StatementList.Conditions.MatchPrefixSet]
+            PrefixSet = "ps2"
+            MatchSetOptions = 0
+          [PolicyDefinitions.PolicyDefinitionList.Statements.StatementList.Conditions.MatchNeighborSet]
+            NeighborSet = "ns1"
+            MatchSetOptions = 0
+        [PolicyDefinitions.PolicyDefinitionList.Statements.StatementList.Actions]
+          [PolicyDefinitions.PolicyDefinitionList.Statements.StatementList.Actions.RouteDisposition]
+            RejectRoute = true
 ```
 
-Neighbor 10.0.255.2 has *pd2* policy. The *pd2* policy consists of *ps2* prefix match and *ns1* neighbor match. The *ps2* specifies 10.33.0.0/16 prefix. The ps2 specifies the exact mask length with **Masklength** keyword. **MasklengthRange** keyword can specify the range of mask length like ```MasklengthRange 24..26```. The *ns1* specifies neighbor 10.0.255.1.
+Neighbor 10.0.255.2 has pd2 policy. The pd2 policy consists of ps2 prefix match and ns1 neighbor match. The ps2 specifies 10.33.0.0 and 10.50.0.0 address. The ps2 specifies the mask with **MASK** keyword. **MasklengthRange** keyword can specify the range of mask length like ```MasklengthRange 24..26```. The *ns1* specifies neighbor 10.0.255.1.
 
-The *pd2* sets *MatchSetOptions* to 1. This means that only when all match conditions meets, the policy will be applied. In this case, this policy will be applied to only 10.33.0.0/16 route from neighbor 10.0.255.1.
+The pd2 sets multiple condition, This means that only when all match conditions meets, the policy will be applied.
 
-If the *pd2* sets *MatchSetOptions* to 0, any of match conditions meets, the policy will be applied. With the above example, the policy will be applied to any routes from neighbor 10.0.255.1 and 10.33.0.16 route from any neighbors.
+The MatchPrefixSet sets MatchSetOptions to 0. This means that when match to any of PrefixList, the policy will be applied. the policy will be applied to 10.33.0.0/16 or 10.50.0.0 route from neighbor 10.0.255.1.
+
+If the MatchPrefixSet sets MatchSetOptions to 1, It does not match to any of PrefixList, the policy will be applied. the policy will be applied to other than 10.33.0.0/16 or 10.50.0.0 route from neighbor 10.0.255.1
 
 ## Checking
 
@@ -99,7 +119,7 @@ $ gobgp neighbor 10.0.255.1 adj-in
 ```
 
 Now let's check out if the policy works as expected.
-   
+
 ```
 $ gobgp neighbor 10.0.255.2 local
    Network            Next Hop        AS_PATH    Age        Attrs

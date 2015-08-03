@@ -313,10 +313,16 @@ If you want to remove one element(extended community) of ExtCommunitySet, to spe
 #### - example
 If you want to add the RoutePolicy：
 ```shell
-% gobgp policy routepolicy add policy1 state1 --c-prefix=ps1 --c-neighbor=ns1 --c-aspath=ass1 --c-community=cs1 --c-extcommunity=ecs1 --c-aslen=eq,3 --c-option=all --a-route=reject --a-community=ADD[65100:20] --a-med=+100 --a-asprepend=65100,10
+% gobgp policy routepolicy add policy1 state1 --c-prefix=ANY[ps1] --c-neighbor=INVERT[ns1] --c-aspath=ALL[ass1] --c-community=ALL[cs1] --c-extcommunity=ANY[ecs1] --c-aslen=eq,3 --a-route=reject --a-community=ADD[65100:20] --a-med=+100 --a-asprepend=65100,10
 ```
 However, it is not necessary to specify all of the options at once.
 
+For the condition of the following option in order to evaluate for each condition, match option(ANY, ALL or INVERT) is set as the ANY[\<each set name\>]
+ - c-prefix
+ - c-neighbor
+ - c-aspath
+ - c-community
+ - c-extcommunity
 
 A RoutePolicy it is possible to have multiple statement, if you want to remove the RoutePolicy to specify only RoutePolicy name.
 ```shell
@@ -331,15 +337,14 @@ If you want to remove one element(statement) of RoutePolicy, to specify a statem
 The following options can be specified in the policy subcommand:
   - options of condition
 
-| short  |long           | description                                                                     |
-|--------|---------------|---------------------------------------------------------------------------------|
-|-       |c-prefix       |specify the name that added prefix set in PrefixSet subcommand                   |
-|-       |c-neighbor     |specify the name that added neighbor set in NeighborSet subcommand               |
-|-       |c-aspath       |specify the name that added as path set in AsPathSet subcommand                  |
-|-       |c-community    |specify the name that added community set in CommunitySet subcommand             |
-|-       |c-extcommunity |specify the name that added extended community set in ExtCommunitySet subcommand |
-|-       |c-aslen        |specify the operator(eq, ge, le) and value(numric)                               |
-|-       |c-option       |specify the match option(any, all, invert)                                       |
+| short  |long           | description                                                                                                                       |
+|--------|---------------|-----------------------------------------------------------------------------------------------------------------------------------|
+|-       |c-prefix       |specify the name that added prefix set in PrefixSet subcommand <br> match option: ”ANY or INVERT” can be set                       |
+|-       |c-neighbor     |specify the name that added neighbor set in NeighborSet subcommand <br> match option: ”ANY or INVERT” can be set                   |
+|-       |c-aspath       |specify the name that added as path set in AsPathSet subcommand <br> match option: ”ANY, ALL or INVERT” can be set                 |
+|-       |c-community    |specify the name that added community set in CommunitySet subcommand <br> match option: ”ANY, ALL or INVERT” can be set            |
+|-       |c-extcommunity |specify the name that added extended community set in ExtCommunitySet subcommand <br> match option: ”ANY, ALL or INVERT” can be set|
+|-       |c-aslen        |specify the operator(eq, ge, le) and value(numric)                                                                                 |
 
   - options of action
 

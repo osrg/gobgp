@@ -36,14 +36,20 @@ uses the following very simple configuration file, `gobgpd.conf`:
 ```
 $ cat gobgpd.conf
 [Global]
-  As = 64512
-  RouterId = "192.168.255.1"
-[[NeighborList]]
-  NeighborAddress = "10.0.255.1"
-  PeerAs = 65001
-[[NeighborList]]
-  NeighborAddress = "10.0.255.2"
-  PeerAs = 65002
+  [Global.GlobalConfig]
+    As = 64512
+    RouterId = "192.168.255.1"
+
+[Neighbors]
+  [[Neighbors.NeighborList]]
+    [Neighbors.NeighborList.NeighborConfig]
+      NeighborAddress = "10.0.255.1"
+      PeerAs = 65001
+
+  [[Neighbors.NeighborList]]
+    [Neighbors.NeighborList.NeighborConfig]
+      NeighborAddress = "10.0.255.2"
+      PeerAs = 65002
 ```
 
 ## Starting GoBGP

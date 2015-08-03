@@ -21,11 +21,16 @@ you don't need any special configuration for mrt
 ```
 $ cat gobgpd.conf
 [Global]
-  As = 64512
-  RouterId = "192.168.255.1"
-[[NeighborList]]
-  NeighborAddress = "10.0.255.1"
-  PeerAs = 65001
+  [Global.GlobalConfig]
+    As = 64512
+    RouterId = "192.168.255.1"
+
+[Neighbors]
+  [[Neighbors.NeighborList]]
+    [Neighbors.NeighborList.NeighborConfig]
+      NeighborAddress = "10.0.255.1"
+      PeerAs = 65001
+
 ```
 
 ## Start GoBGP
