@@ -348,6 +348,7 @@ message PathAttr {
     repeated string cluster = 11;
     repeated Nlri nlri = 12;
     repeated TunnelEncapTLV tunnel_encap = 13;
+    repeated ExtendedCommunity extended_communities = 16;
     PmsiTunnel pmsi_tunnel = 14;
 }
 
