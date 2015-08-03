@@ -16,8 +16,10 @@
 package table
 
 import (
+	"bytes"
 	log "github.com/Sirupsen/logrus"
 	"github.com/osrg/gobgp/packet"
+	"net"
 	"reflect"
 	"time"
 )
@@ -236,12 +238,71 @@ func (manager *TableManager) ProcessPaths(pathList []*Path) ([]*Path, error) {
 		rf := path.GetRouteFamily()
 		if t, ok := manager.Tables[rf]; ok {
 			destinationList = append(destinationList, t.insert(path))
+			if rf == bgp.RF_EVPN {
+				dsts := manager.handleMacMobility(path)
+				if len(dsts) > 0 {
+					destinationList = append(destinationList, dsts...)
+				}
+			}
 		}
 	}
 	return manager.calculate(destinationList)
 }
 
+// EVPN MAC MOBILITY HANDLING
+//
+// RFC7432 15. MAC Mobility
+//
+// A PE receiving a MAC/IP Advertisement route for a MAC address with a
+// different Ethernet segment identifier and a higher sequence number
+// than that which it had previously advertised withdraws its MAC/IP
+// Advertisement route.
+func (manager *TableManager) handleMacMobility(path *Path) []*Destination {
+	dsts := make([]*Destination, 0)
+	nlri := path.GetNlri().(*bgp.EVPNNLRI)
+	if path.IsWithdraw || path.IsLocal() || nlri.RouteType != bgp.EVPN_ROUTE_TYPE_MAC_IP_ADVERTISEMENT {
+		return nil
+	}
+	for _, path2 := range manager.GetPathList(bgp.RF_EVPN) {
+		if !path2.IsLocal() || path2.GetNlri().(*bgp.EVPNNLRI).RouteType != bgp.EVPN_ROUTE_TYPE_MAC_IP_ADVERTISEMENT {
+			continue
+		}
+		f := func(p *Path) (uint32, net.HardwareAddr, int) {
+			nlri := p.GetNlri().(*bgp.EVPNNLRI)
+			d := nlri.RouteTypeData.(*bgp.EVPNMacIPAdvertisementRoute)
+			ecs := p.GetExtCommunities()
+			seq := -1
+			for _, ec := range ecs {
+				if t, st := ec.GetTypes(); t == bgp.EC_TYPE_EVPN && st == bgp.EC_SUBTYPE_MAC_MOBILITY {
+					seq = int(ec.(*bgp.MacMobilityExtended).Sequence)
+					break
+				}
+			}
+			return d.ETag, d.MacAddress, seq
+		}
+		e1, m1, s1 := f(path)
+		e2, m2, s2 := f(path2)
+		if e1 == e2 && bytes.Equal(m1, m2) && s1 > s2 {
+			path2.IsWithdraw = true
+			dsts = append(dsts, manager.Tables[bgp.RF_EVPN].insert(path2))
+		}
+	}
+	return dsts
+}
+
 func (manager *TableManager) GetPathList(rf bgp.RouteFamily) []*Path {
+	if _, ok := manager.Tables[rf]; !ok {
+		return []*Path{}
+	}
+	destinations := manager.Tables[rf].GetDestinations()
+	paths := make([]*Path, 0, len(destinations))
+	for _, dest := range destinations {
+		paths = append(paths, dest.knownPathList...)
+	}
+	return paths
+}
+
+func (manager *TableManager) GetBestPathList(rf bgp.RouteFamily) []*Path {
 	if _, ok := manager.Tables[rf]; !ok {
 		return []*Path{}
 	}
