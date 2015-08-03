@@ -860,7 +860,7 @@ func getRouteDistinguisher(data []byte) RouteDistinguisherInterface {
 	return rd
 }
 
-func parseRd(input string) ([]string, error) {
+func parseRdAndRt(input string) ([]string, error) {
 	exp := regexp.MustCompile("^((\\d+)\\.(\\d+)\\.(\\d+)\\.(\\d+)|((\\d+)\\.)?(\\d+)):(\\d+)$")
 	group := exp.FindSubmatch([]byte(input))
 	if len(group) != 10 {
@@ -874,7 +874,7 @@ func parseRd(input string) ([]string, error) {
 }
 
 func ParseRouteDistinguisher(rd string) (RouteDistinguisherInterface, error) {
-	elems, err := parseRd(rd)
+	elems, err := parseRdAndRt(rd)
 	if err != nil {
 		return nil, err
 	}
@@ -3232,6 +3232,28 @@ func NewFourOctetAsSpecificExtended(as uint32, localAdmin uint16, isTransitive b
 		AS:           as,
 		LocalAdmin:   localAdmin,
 		IsTransitive: isTransitive,
+	}
+}
+
+func ParseRouteTarget(rt string) (ExtendedCommunityInterface, error) {
+	elems, err := parseRdAndRt(rt)
+	if err != nil {
+		return nil, err
+	}
+	localAdmin, _ := strconv.Atoi(elems[9])
+	ip := net.ParseIP(elems[1])
+	isTransitive := true
+	switch {
+	case ip.To4() != nil:
+		return NewIPv4AddressSpecificExtended(elems[1], uint16(localAdmin), isTransitive), nil
+	case elems[6] == "" && elems[7] == "":
+		asn, _ := strconv.Atoi(elems[8])
+		return NewTwoOctetAsSpecificExtended(uint16(asn), uint32(localAdmin), isTransitive), nil
+	default:
+		fst, _ := strconv.Atoi(elems[7])
+		snd, _ := strconv.Atoi(elems[8])
+		asn := fst<<16 | snd
+		return NewFourOctetAsSpecificExtended(uint32(asn), uint16(localAdmin), isTransitive), nil
 	}
 }
 
