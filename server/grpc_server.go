@@ -334,15 +334,11 @@ func (s *Server) ModPath(stream api.Grpc_ModPathServer) error {
 		}
 
 		reqType := REQ_GLOBAL_ADD
-		if arg.Path.IsWithdraw {
+		if arg.IsWithdraw {
 			reqType = REQ_GLOBAL_DELETE
 		}
 
-		rf, err := convertAf2Rf(arg.Path.Nlri.Af)
-		if err != nil {
-			return err
-		}
-		req := NewGrpcRequest(reqType, "", rf, arg.Path)
+		req := NewGrpcRequest(reqType, "", bgp.RouteFamily(0), arg)
 		s.bgpServerCh <- req
 
 		res := <-req.ResponseCh
