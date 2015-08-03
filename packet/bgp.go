@@ -3116,11 +3116,11 @@ func (e *TwoOctetAsSpecificExtended) ToApiStruct() *api.ExtendedCommunity {
 	}
 }
 
-func NewTwoOctetAsSpecificExtended(as uint16, rt uint32, isTransitive bool) *TwoOctetAsSpecificExtended {
+func NewTwoOctetAsSpecificExtended(as uint16, localAdmin uint32, isTransitive bool) *TwoOctetAsSpecificExtended {
 	return &TwoOctetAsSpecificExtended{
 		SubType:      ExtendedCommunityAttrSubType(EC_SUBTYPE_ROUTE_TARGET),
 		AS:           as,
-		LocalAdmin:   rt,
+		LocalAdmin:   localAdmin,
 		IsTransitive: isTransitive,
 	}
 }
@@ -3167,6 +3167,19 @@ func (e *IPv4AddressSpecificExtended) ToApiStruct() *api.ExtendedCommunity {
 	}
 }
 
+func NewIPv4AddressSpecificExtended(ip string, localAdmin uint16, isTransitive bool) *IPv4AddressSpecificExtended {
+	ipv4 := net.ParseIP(ip)
+	if ipv4.To4() == nil {
+		return nil
+	}
+	return &IPv4AddressSpecificExtended{
+		SubType:      ExtendedCommunityAttrSubType(EC_SUBTYPE_ROUTE_TARGET),
+		IPv4:         ipv4.To4(),
+		LocalAdmin:   localAdmin,
+		IsTransitive: isTransitive,
+	}
+}
+
 type FourOctetAsSpecificExtended struct {
 	SubType      ExtendedCommunityAttrSubType
 	AS           uint32
@@ -3210,6 +3223,15 @@ func (e *FourOctetAsSpecificExtended) ToApiStruct() *api.ExtendedCommunity {
 		IsTransitive: e.IsTransitive,
 		Asn:          e.AS,
 		LocalAdmin:   uint32(e.LocalAdmin),
+	}
+}
+
+func NewFourOctetAsSpecificExtended(as uint32, localAdmin uint16, isTransitive bool) *FourOctetAsSpecificExtended {
+	return &FourOctetAsSpecificExtended{
+		SubType:      ExtendedCommunityAttrSubType(EC_SUBTYPE_ROUTE_TARGET),
+		AS:           as,
+		LocalAdmin:   localAdmin,
+		IsTransitive: isTransitive,
 	}
 }
 

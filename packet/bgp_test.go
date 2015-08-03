@@ -59,10 +59,12 @@ func update() *BGPMessage {
 		NewAs4PathParam(2, []uint32{1003, 100004}),
 	}
 
+	isTransitive := true
+
 	ecommunities := []ExtendedCommunityInterface{
-		&TwoOctetAsSpecificExtended{SubType: 1, AS: 10003, LocalAdmin: 3 << 20},
-		&FourOctetAsSpecificExtended{SubType: 2, AS: 1 << 20, LocalAdmin: 300},
-		&IPv4AddressSpecificExtended{SubType: 3, IPv4: net.ParseIP("192.2.1.2").To4(), LocalAdmin: 3000},
+		NewTwoOctetAsSpecificExtended(10003, 3<<20, isTransitive),
+		NewFourOctetAsSpecificExtended(1<<20, 300, isTransitive),
+		NewIPv4AddressSpecificExtended("192.2.1.2", 3000, isTransitive),
 		&OpaqueExtended{
 			Value: &DefaultOpaqueExtendedValue{[]byte{0, 1, 2, 3, 4, 5, 6, 7}},
 		},
