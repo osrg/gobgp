@@ -737,15 +737,12 @@ func (server *BgpServer) checkNeighborRequest(grpcReq *GrpcRequest) (*Peer, erro
 
 func handleGlobalRibRequest(grpcReq *GrpcRequest, peerInfo *table.PeerInfo) []*table.Path {
 	var isWithdraw bool
-	var p *table.Path
 	var nlri bgp.AddrPrefixInterface
 	result := &GrpcResponse{}
 
 	pattr := make([]bgp.PathAttributeInterface, 0)
-	pattr = append(pattr, bgp.NewPathAttributeOrigin(bgp.BGP_ORIGIN_ATTR_TYPE_IGP))
 
-	rf := grpcReq.RouteFamily
-	path, ok := grpcReq.Data.(*api.Path)
+	args, ok := grpcReq.Data.(*api.ModPathArguments)
 	if !ok {
 		result.ResponseErr = fmt.Errorf("type assertion failed")
 		goto ERR
@@ -754,219 +751,48 @@ func handleGlobalRibRequest(grpcReq *GrpcRequest, peerInfo *table.PeerInfo) []*t
 		isWithdraw = true
 	}
 
-	switch rf {
-	case bgp.RF_IPv4_UC:
-		ip, net, _ := net.ParseCIDR(path.Nlri.Prefix)
-		if ip.To4() == nil {
-			result.ResponseErr = fmt.Errorf("Invalid ipv4 prefix: %s", path.Nlri.Prefix)
+	if len(args.RawNlri) > 0 {
+		nlri = &bgp.NLRInfo{}
+		err := nlri.DecodeFromBytes(args.RawNlri)
+		if err != nil {
+			result.ResponseErr = err
 			goto ERR
 		}
-		ones, _ := net.Mask.Size()
-		nlri = &bgp.NLRInfo{
-			IPAddrPrefix: *bgp.NewIPAddrPrefix(uint8(ones), ip.String()),
-		}
+	}
 
-		pattr = append(pattr, bgp.NewPathAttributeNextHop("0.0.0.0"))
-
-	case bgp.RF_IPv6_UC:
-
-		ip, net, _ := net.ParseCIDR(path.Nlri.Prefix)
-		if ip.To16() == nil {
-			result.ResponseErr = fmt.Errorf("Invalid ipv6 prefix: %s", path.Nlri.Prefix)
+	for _, attr := range args.RawPattrs {
+		p, err := bgp.GetPathAttribute(attr)
+		if err != nil {
+			result.ResponseErr = err
 			goto ERR
 		}
-		ones, _ := net.Mask.Size()
-		nlri = bgp.NewIPv6AddrPrefix(uint8(ones), ip.String())
 
-		pattr = append(pattr, bgp.NewPathAttributeMpReachNLRI("::", []bgp.AddrPrefixInterface{nlri}))
-
-	case bgp.RF_IPv4_VPN, bgp.RF_IPv6_VPN:
-		var rd bgp.RouteDistinguisherInterface
-		switch path.Nlri.VpnNlri.Rd.Type {
-		case api.ROUTE_DISTINGUISHER_TYPE_TWO_OCTET_AS:
-			a, err := strconv.Atoi(path.Nlri.VpnNlri.Rd.Admin)
-			if err != nil {
-				result.ResponseErr = fmt.Errorf("Invalid admin value: %s", path.Nlri.VpnNlri.Rd.Admin)
-				goto ERR
-			}
-			rd = bgp.NewRouteDistinguisherTwoOctetAS(uint16(a), path.Nlri.VpnNlri.Rd.Assigned)
-		case api.ROUTE_DISTINGUISHER_TYPE_IP4:
-			ip := net.ParseIP(path.Nlri.VpnNlri.Rd.Admin)
-			if ip.To4() == nil {
-				result.ResponseErr = fmt.Errorf("Invalid ipv4 prefix: %s", path.Nlri.VpnNlri.Rd.Admin)
-				goto ERR
-			}
-			assigned := uint16(path.Nlri.VpnNlri.Rd.Assigned)
-			rd = bgp.NewRouteDistinguisherIPAddressAS(path.Nlri.VpnNlri.Rd.Admin, assigned)
-		case api.ROUTE_DISTINGUISHER_TYPE_FOUR_OCTET_AS:
-			a, err := strconv.Atoi(path.Nlri.VpnNlri.Rd.Admin)
-			if err != nil {
-				result.ResponseErr = fmt.Errorf("Invalid admin value: %s", path.Nlri.VpnNlri.Rd.Admin)
-				goto ERR
-			}
-			admin := uint32(a)
-			assigned := uint16(path.Nlri.VpnNlri.Rd.Assigned)
-			rd = bgp.NewRouteDistinguisherFourOctetAS(admin, assigned)
-		}
-
-		mpls := bgp.NewMPLSLabelStack(0)
-		if rf == bgp.RF_IPv4_VPN {
-			nlri = bgp.NewLabeledVPNIPAddrPrefix(uint8(path.Nlri.VpnNlri.IpAddrLen), path.Nlri.VpnNlri.IpAddr, *mpls, rd)
-			pattr = append(pattr, bgp.NewPathAttributeMpReachNLRI("0.0.0.0", []bgp.AddrPrefixInterface{nlri}))
-		} else {
-			nlri = bgp.NewLabeledVPNIPv6AddrPrefix(uint8(path.Nlri.VpnNlri.IpAddrLen), path.Nlri.VpnNlri.IpAddr, *mpls, rd)
-			pattr = append(pattr, bgp.NewPathAttributeMpReachNLRI("::", []bgp.AddrPrefixInterface{nlri}))
-		}
-
-	case bgp.RF_EVPN:
-		if peerInfo.AS > (1<<16 - 1) {
-			result.ResponseErr = fmt.Errorf("evpn path can't be created in 4byte-AS env")
-		}
-		asn := uint16(peerInfo.AS)
-		routerId := peerInfo.LocalID
-		var eTag uint32
-
-		switch path.Nlri.EvpnNlri.Type {
-		case bgp.EVPN_ROUTE_TYPE_MAC_IP_ADVERTISEMENT:
-			mac, err := net.ParseMAC(path.Nlri.EvpnNlri.MacIpAdv.MacAddr)
-			if err != nil {
-				result.ResponseErr = fmt.Errorf("Invalid mac: %s", path.Nlri.EvpnNlri.MacIpAdv.MacAddr)
-				goto ERR
-			}
-			var ip net.IP
-			iplen := 0
-			if path.Nlri.EvpnNlri.MacIpAdv.IpAddr != "0.0.0.0" {
-				ip = net.ParseIP(path.Nlri.EvpnNlri.MacIpAdv.IpAddr)
-				if ip == nil {
-					result.ResponseErr = fmt.Errorf("Invalid ip prefix: %s", path.Nlri.EvpnNlri.MacIpAdv.IpAddr)
-					goto ERR
-				}
-				iplen = net.IPv4len * 8
-				if ip.To4() == nil {
-					iplen = net.IPv6len * 8
-				}
-			}
-
-			var labels []uint32
-			if len(path.Nlri.EvpnNlri.MacIpAdv.Labels) == 0 {
-				labels = []uint32{0}
-			} else {
-				labels = path.Nlri.EvpnNlri.MacIpAdv.Labels
-			}
-
-			eTag = path.Nlri.EvpnNlri.MacIpAdv.Etag
-			macIpAdv := &bgp.EVPNMacIPAdvertisementRoute{
-				RD: bgp.NewRouteDistinguisherIPAddressAS(routerId.String(), 0),
-				ESI: bgp.EthernetSegmentIdentifier{
-					Type: bgp.ESI_ARBITRARY,
-				},
-				MacAddressLength: 48,
-				MacAddress:       mac,
-				IPAddressLength:  uint8(iplen),
-				IPAddress:        ip,
-				Labels:           labels,
-				ETag:             eTag,
-			}
-			nlri = bgp.NewEVPNNLRI(bgp.EVPN_ROUTE_TYPE_MAC_IP_ADVERTISEMENT, 0, macIpAdv)
-		case bgp.EVPN_INCLUSIVE_MULTICAST_ETHERNET_TAG:
-			eTag = path.Nlri.EvpnNlri.MulticastEtag.Etag
-			ip := peerInfo.LocalID
-			iplen := net.IPv4len * 8
-			if ip.To4() == nil {
-				iplen = net.IPv6len * 8
-			}
-			multicastEtag := &bgp.EVPNMulticastEthernetTagRoute{
-				RD:              bgp.NewRouteDistinguisherIPAddressAS(routerId.String(), 0),
-				IPAddressLength: uint8(iplen),
-				IPAddress:       ip,
-				ETag:            eTag,
-			}
-			nlri = bgp.NewEVPNNLRI(bgp.EVPN_INCLUSIVE_MULTICAST_ETHERNET_TAG, 0, multicastEtag)
-		}
-		pattr = append(pattr, bgp.NewPathAttributeMpReachNLRI("0.0.0.0", []bgp.AddrPrefixInterface{nlri}))
-		isTransitive := true
-		rt := bgp.NewTwoOctetAsSpecificExtended(asn, eTag, isTransitive)
-		encap := &bgp.OpaqueExtended{isTransitive, &bgp.EncapExtended{bgp.TUNNEL_TYPE_VXLAN}}
-		pattr = append(pattr, bgp.NewPathAttributeExtendedCommunities([]bgp.ExtendedCommunityInterface{rt, encap}))
-	case bgp.RF_ENCAP:
-		endpoint := net.ParseIP(path.Nlri.Prefix)
-		if endpoint == nil {
-			result.ResponseErr = fmt.Errorf("Invalid endpoint ip address: %s", path.Nlri.Prefix)
+		err = p.DecodeFromBytes(attr)
+		if err != nil {
+			result.ResponseErr = err
 			goto ERR
-
-		}
-		nlri = bgp.NewEncapNLRI(endpoint.String())
-		pattr = append(pattr, bgp.NewPathAttributeMpReachNLRI("0.0.0.0", []bgp.AddrPrefixInterface{nlri}))
-
-		iterSubTlvs := func(subTlvs []*api.TunnelEncapSubTLV) {
-			for _, subTlv := range subTlvs {
-				if subTlv.Type == api.ENCAP_SUBTLV_TYPE_COLOR {
-					color := subTlv.Color
-					subTlv := &bgp.TunnelEncapSubTLV{
-						Type:  bgp.ENCAP_SUBTLV_TYPE_COLOR,
-						Value: &bgp.TunnelEncapSubTLVColor{color},
-					}
-					tlv := &bgp.TunnelEncapTLV{
-						Type:  bgp.TUNNEL_TYPE_VXLAN,
-						Value: []*bgp.TunnelEncapSubTLV{subTlv},
-					}
-					attr := bgp.NewPathAttributeTunnelEncap([]*bgp.TunnelEncapTLV{tlv})
-					pattr = append(pattr, attr)
-					break
-				}
-			}
 		}
 
-		iterTlvs := func(tlvs []*api.TunnelEncapTLV) {
-			for _, tlv := range tlvs {
-				if tlv.Type == api.TUNNEL_TYPE_VXLAN {
-					iterSubTlvs(tlv.SubTlv)
-					break
-				}
+		switch p.GetType() {
+		case bgp.BGP_ATTR_TYPE_MP_REACH_NLRI:
+			value := p.(*bgp.PathAttributeMpReachNLRI).Value
+			if len(value) != 1 {
+				result.ResponseErr = fmt.Errorf("include only one route in mp_reach_nlri")
+				goto ERR
 			}
-		}
-
-		func(attrs []*api.PathAttr) {
-			for _, attr := range attrs {
-				if attr.Type == api.BGP_ATTR_TYPE_TUNNEL_ENCAP {
-					iterTlvs(attr.TunnelEncap)
-					break
-				}
-			}
-		}(path.Attrs)
-
-	case bgp.RF_RTC_UC:
-		var ec bgp.ExtendedCommunityInterface
-		target := path.Nlri.RtNlri.Target
-		ec_type := target.Type
-		ec_subtype := target.Subtype
-		switch ec_type {
-		case api.EXTENDED_COMMUNITIE_TYPE_TWO_OCTET_AS_SPECIFIC:
-			if target.Asn == 0 && target.LocalAdmin == 0 {
-				break
-			}
-			ec = &bgp.TwoOctetAsSpecificExtended{
-				SubType:      bgp.ExtendedCommunityAttrSubType(ec_subtype),
-				AS:           uint16(target.Asn),
-				LocalAdmin:   target.LocalAdmin,
-				IsTransitive: true,
-			}
+			nlri = p.(*bgp.PathAttributeMpReachNLRI).Value[0]
+			fallthrough
 		default:
-			result.ResponseErr = fmt.Errorf("Invalid endpoint ip address: %s", path.Nlri.Prefix)
-			goto ERR
+			pattr = append(pattr, p)
 		}
+	}
 
-		nlri = bgp.NewRouteTargetMembershipNLRI(peerInfo.AS, ec)
-
-		pattr = append(pattr, bgp.NewPathAttributeMpReachNLRI("0.0.0.0", []bgp.AddrPrefixInterface{nlri}))
-
-	default:
-		result.ResponseErr = fmt.Errorf("Unsupported address family: %s", rf)
+	if nlri == nil {
+		result.ResponseErr = fmt.Errorf("no nlri included")
 		goto ERR
 	}
 
-	p = table.NewPath(peerInfo, nlri, isWithdraw, pattr, false, time.Now())
-	return []*table.Path{p}
+	return []*table.Path{table.NewPath(peerInfo, nlri, isWithdraw, pattr, false, time.Now())}
 ERR:
 	grpcReq.ResponseCh <- result
 	close(grpcReq.ResponseCh)

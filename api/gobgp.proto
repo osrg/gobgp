@@ -60,7 +60,9 @@ message Arguments {
 
 message ModPathArguments {
     Resource resource = 1;
-    Path path = 2;
+    bool is_withdraw = 2;
+    bytes raw_nlri = 3;
+    repeated bytes raw_pattrs = 4;
 }
 
 message PolicyArguments {

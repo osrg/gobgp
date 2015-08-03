@@ -24,6 +24,8 @@ import (
 	"math"
 	"net"
 	"reflect"
+	"regexp"
+	"strconv"
 	"strings"
 )
 
@@ -854,6 +856,40 @@ func getRouteDistinguisher(data []byte) RouteDistinguisherInterface {
 	rd := &RouteDistinguisherUnknown{}
 	rd.Type = rdtype
 	return rd
+}
+
+func parseRd(input string) ([]string, error) {
+	exp := regexp.MustCompile("^((\\d+)\\.(\\d+)\\.(\\d+)\\.(\\d+)|((\\d+)\\.)?(\\d+)):(\\d+)$")
+	group := exp.FindSubmatch([]byte(input))
+	if len(group) != 10 {
+		return nil, fmt.Errorf("failed to parse")
+	}
+	elems := make([]string, 0, len(group))
+	for _, elem := range group {
+		elems = append(elems, string(elem))
+	}
+	return elems, nil
+}
+
+func ParseRouteDistinguisher(rd string) (RouteDistinguisherInterface, error) {
+	elems, err := parseRd(rd)
+	if err != nil {
+		return nil, err
+	}
+	assigned, _ := strconv.Atoi(elems[9])
+	ip := net.ParseIP(elems[1])
+	switch {
+	case ip.To4() != nil:
+		return NewRouteDistinguisherIPAddressAS(elems[1], uint16(assigned)), nil
+	case elems[6] == "" && elems[7] == "":
+		asn, _ := strconv.Atoi(elems[8])
+		return NewRouteDistinguisherTwoOctetAS(uint16(asn), uint32(assigned)), nil
+	default:
+		fst, _ := strconv.Atoi(elems[7])
+		snd, _ := strconv.Atoi(elems[8])
+		asn := fst<<16 | snd
+		return NewRouteDistinguisherFourOctetAS(uint32(asn), uint16(assigned)), nil
+	}
 }
 
 //
