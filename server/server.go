@@ -24,7 +24,6 @@ import (
 	"github.com/osrg/gobgp/policy"
 	"github.com/osrg/gobgp/table"
 	zebra "github.com/osrg/gozebra"
-	"gopkg.in/tomb.v2"
 	"net"
 	"os"
 	"strconv"
@@ -603,11 +602,6 @@ func (server *BgpServer) handleFSMMessage(peer *Peer, e *fsmMsg, incoming chan *
 	case FSM_MSG_STATE_CHANGE:
 		nextState := e.MsgData.(bgp.FSMState)
 		oldState := bgp.FSMState(peer.conf.NeighborState.SessionState)
-		go func(t *tomb.Tomb, addr string, oldState, newState bgp.FSMState) {
-			e := time.AfterFunc(time.Second*30, func() { log.Fatal("failed to free the fsm.h.t for ", addr, oldState, newState) })
-			t.Wait()
-			e.Stop()
-		}(&peer.fsm.h.t, peer.conf.NeighborConfig.NeighborAddress.String(), oldState, nextState)
 		peer.conf.NeighborState.SessionState = uint32(nextState)
 		peer.fsm.StateChange(nextState)
 		globalRib := server.localRibMap[GLOBAL_RIB_NAME]

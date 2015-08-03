@@ -266,15 +266,15 @@ type FSMHandler struct {
 }
 
 func NewFSMHandler(fsm *FSM, incoming chan *fsmMsg, outgoing chan *bgp.BGPMessage) *FSMHandler {
-	f := &FSMHandler{
+	h := &FSMHandler{
 		fsm:              fsm,
 		errorCh:          make(chan bool, 2),
 		incoming:         incoming,
 		outgoing:         outgoing,
 		holdTimerResetCh: make(chan bool, 2),
 	}
-	f.t.Go(f.loop)
-	return f
+	fsm.t.Go(h.loop)
+	return h
 }
 
 func (h *FSMHandler) idle() bgp.FSMState {
@@ -830,22 +830,33 @@ func (h *FSMHandler) established() bgp.FSMState {
 
 func (h *FSMHandler) loop() error {
 	fsm := h.fsm
-	nextState := bgp.FSMState(0)
+	ch := make(chan bgp.FSMState)
 	oldState := fsm.state
-	switch fsm.state {
-	case bgp.BGP_FSM_IDLE:
-		nextState = h.idle()
-	// case bgp.BGP_FSM_CONNECT:
-	// 	nextState = h.connect()
-	case bgp.BGP_FSM_ACTIVE:
-		nextState = h.active()
-	case bgp.BGP_FSM_OPENSENT:
-		nextState = h.opensent()
-	case bgp.BGP_FSM_OPENCONFIRM:
-		nextState = h.openconfirm()
-	case bgp.BGP_FSM_ESTABLISHED:
-		nextState = h.established()
+
+	f := func() error {
+		nextState := bgp.FSMState(0)
+		switch fsm.state {
+		case bgp.BGP_FSM_IDLE:
+			nextState = h.idle()
+			// case bgp.BGP_FSM_CONNECT:
+			// 	nextState = h.connect()
+		case bgp.BGP_FSM_ACTIVE:
+			nextState = h.active()
+		case bgp.BGP_FSM_OPENSENT:
+			nextState = h.opensent()
+		case bgp.BGP_FSM_OPENCONFIRM:
+			nextState = h.openconfirm()
+		case bgp.BGP_FSM_ESTABLISHED:
+			nextState = h.established()
+		}
+
+		ch <- nextState
+		return nil
 	}
+
+	h.t.Go(f)
+
+	nextState := <-ch
 
 	if nextState == bgp.BGP_FSM_ESTABLISHED && oldState == bgp.BGP_FSM_OPENCONFIRM {
 		log.WithFields(log.Fields{
@@ -861,6 +872,12 @@ func (h *FSMHandler) loop() error {
 			"Reason": h.reason,
 		}).Info("Peer Down")
 	}
+
+	e := time.AfterFunc(time.Second*120, func() {
+		log.Fatal("failed to free the fsm.h.t for ", fsm.pConf.NeighborConfig.NeighborAddress, oldState, nextState)
+	})
+	h.t.Wait()
+	e.Stop()
 
 	// zero means that tomb.Dying()
 	if nextState >= bgp.BGP_FSM_IDLE {
