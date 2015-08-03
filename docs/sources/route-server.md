@@ -18,24 +18,32 @@ the configuration file used in [Getting Started](https://github.com/osrg/gobgp/b
 ```
 $ cat gobgpd.conf
 [Global]
-  As = 64512
-  RouterId = "192.168.255.1"
-[[NeighborList]]
-  NeighborAddress = "10.0.255.1"
-  PeerAs = 65001
-  AuthPassword = "hoge1"
-  [NeighborList.RouteServer]
-    RouteServerClient = true
-  [NeighborList.TransportOptions]
-    PassiveMode = true
-[[NeighborList]]
-  NeighborAddress = "10.0.255.2"
-  PeerAs = 65002
-  AuthPassword = "hoge2"
-  [NeighborList.RouteServer]
-    RouteServerClient = true
-  [NeighborList.TransportOptions]
-    PassiveMode = true
+  [Global.GlobalConfig]
+    As = 64512
+    RouterId = "192.168.255.1"
+
+[Neighbors]
+  [[Neighbors.NeighborList]]
+    [Neighbors.NeighborList.NeighborConfig]
+      NeighborAddress = "10.0.255.1"
+      PeerAs = 65001
+      AuthPassword = "hoge1"
+    [Neighbors.NeighborList.Transport]
+      [Neighbors.NeighborList.Transport.TransportConfig]
+        PassiveMode = true
+    [Neighbors.NeighborList.RouteServer]
+      RouteServerClient = true
+
+  [[Neighbors.NeighborList]]
+    [Neighbors.NeighborList.NeighborConfig]
+      NeighborAddress = "10.0.255.2"
+      PeerAs = 65002
+      AuthPassword = "hoge2"
+    [Neighbors.NeighborList.Transport]
+      [Neighbors.NeighborList.Transport.TransportConfig]
+        PassiveMode = true
+    [Neighbors.NeighborList.RouteServer]
+      RouteServerClient = true
 ```
 
 ## Starting GoBGP
