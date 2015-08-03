@@ -31,22 +31,16 @@ func showGlobalRib(args []string) error {
 	return showNeighborRib(CMD_GLOBAL, bogusIp, args)
 }
 
-func parseRD(args []string) (*api.RouteDistinguisher, error) {
-	t, err := strconv.Atoi(args[0])
-	if err != nil {
-		return nil, err
+func getSerizliedRouteTarget(args []string) ([]byte, error) {
+	rts := make([]bgp.ExtendedCommunityInterface, 0, len(args))
+	for _, elem := range args {
+		rt, err := bgp.ParseRouteTarget(elem)
+		if err != nil {
+			return nil, err
+		}
+		rts = append(rts, rt)
 	}
-	typ := api.ROUTE_DISTINGUISHER_TYPE(t)
-	admin := args[1]
-	assigned, err := strconv.Atoi(args[2])
-	if err != nil {
-		return nil, err
-	}
-	return &api.RouteDistinguisher{
-		Type:     typ,
-		Admin:    admin,
-		Assigned: uint32(assigned),
-	}, nil
+	return bgp.NewPathAttributeExtendedCommunities(rts).Serialize()
 }
 
 func modPath(modtype string, args []string) error {
@@ -57,6 +51,7 @@ func modPath(modtype string, args []string) error {
 
 	var nlri bgp.AddrPrefixInterface
 	var nexthop string
+	var rts []string
 
 	switch rf {
 	case api.AF_IPV4_UC, api.AF_IPV6_UC:
@@ -80,8 +75,8 @@ func modPath(modtype string, args []string) error {
 			nlri = bgp.NewIPv6AddrPrefix(uint8(ones), ip.String())
 		}
 	case api.AF_IPV4_VPN, api.AF_IPV6_VPN:
-		if len(args) < 3 || args[1] != "rd" {
-			return fmt.Errorf("usage: global rib %s <prefix> rd <rd> -a { vpn-ipv4 | vpn-ipv6 }", modtype)
+		if len(args) < 3 || args[1] != "rd" || args[3] != "rt" {
+			return fmt.Errorf("usage: global rib %s <prefix> rd <rd> rt <rt>... -a { vpn-ipv4 | vpn-ipv6 }", modtype)
 		}
 		ip, net, _ := net.ParseCIDR(args[0])
 		ones, _ := net.Mask.Size()
@@ -90,6 +85,8 @@ func modPath(modtype string, args []string) error {
 		if err != nil {
 			return err
 		}
+
+		rts = args[4:]
 
 		mpls := bgp.NewMPLSLabelStack()
 
@@ -116,8 +113,8 @@ func modPath(modtype string, args []string) error {
 
 		switch subtype {
 		case "macadv":
-			if len(args) < 6 || args[4] != "rd" {
-				return fmt.Errorf("usage: global rib %s macadv <mac address> <ip address> <etag> <label> rd <rd> -a evpn", modtype)
+			if len(args) < 6 || args[4] != "rd" || args[6] != "rt" {
+				return fmt.Errorf("usage: global rib %s macadv <mac address> <ip address> <etag> <label> rd <rd> rt <rt>... -a evpn", modtype)
 			}
 			mac, err := net.ParseMAC(args[0])
 			if err != nil {
@@ -147,6 +144,9 @@ func modPath(modtype string, args []string) error {
 			if err != nil {
 				return err
 			}
+
+			rts = args[7:]
+
 			macIpAdv := &bgp.EVPNMacIPAdvertisementRoute{
 				RD: rd,
 				ESI: bgp.EthernetSegmentIdentifier{
@@ -161,8 +161,8 @@ func modPath(modtype string, args []string) error {
 			}
 			nlri = bgp.NewEVPNNLRI(bgp.EVPN_ROUTE_TYPE_MAC_IP_ADVERTISEMENT, 0, macIpAdv)
 		case "multicast":
-			if len(args) < 5 || args[2] != "rd" {
-				return fmt.Errorf("usage : global rib %s multicast <ip address> <etag> rd <rd> -a evpn", modtype)
+			if len(args) < 5 || args[2] != "rd" || args[4] != "rt" {
+				return fmt.Errorf("usage : global rib %s multicast <ip address> <etag> rd <rd> rt <rt> -a evpn", modtype)
 			}
 
 			var ip net.IP
@@ -187,6 +187,8 @@ func modPath(modtype string, args []string) error {
 			if err != nil {
 				return err
 			}
+
+			rts = args[5:]
 
 			multicastEtag := &bgp.EVPNMulticastEthernetTagRoute{
 				RD:              rd,
@@ -226,6 +228,14 @@ func modPath(modtype string, args []string) error {
 
 	origin, _ := bgp.NewPathAttributeOrigin(bgp.BGP_ORIGIN_ATTR_TYPE_IGP).Serialize()
 	arg.RawPattrs = append(arg.RawPattrs, origin)
+
+	if rts != nil && len(rts) > 0 {
+		extcomm, err := getSerizliedRouteTarget(rts)
+		if err != nil {
+			return err
+		}
+		arg.RawPattrs = append(arg.RawPattrs, extcomm)
+	}
 
 	stream, err := client.ModPath(context.Background())
 	if err != nil {
