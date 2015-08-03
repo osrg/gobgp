@@ -16,6 +16,7 @@
 package server
 
 import (
+	"bytes"
 	"fmt"
 	log "github.com/Sirupsen/logrus"
 	"github.com/osrg/gobgp/api"
@@ -584,6 +585,9 @@ func (server *BgpServer) propagateUpdate(neighborAddress string, RouteServerClie
 				continue
 			}
 			f := filterpath(targetPeer, sendPathList)
+			if len(f) == 0 {
+				continue
+			}
 			for _, path := range f {
 				path.UpdatePathAttrs(&server.bgpConfig.Global, &targetPeer.conf)
 			}
@@ -735,12 +739,84 @@ func (server *BgpServer) checkNeighborRequest(grpcReq *GrpcRequest) (*Peer, erro
 	return peer, nil
 }
 
-func handleGlobalRibRequest(grpcReq *GrpcRequest, peerInfo *table.PeerInfo) []*table.Path {
+// EVPN MAC MOBILITY HANDLING
+//
+// We don't have multihoming function now, so ignore
+// ESI comparison.
+//
+// RFC7432 15. MAC Mobility
+//
+// A PE detecting a locally attached MAC address for which it had
+// previously received a MAC/IP Advertisement route with the same zero
+// Ethernet segment identifier (single-homed scenarios) advertises it
+// with a MAC Mobility extended community attribute with the sequence
+// number set properly.  In the case of single-homed scenarios, there
+// is no need for ESI comparison.
+
+func getMacMobilityExtendedCommunity(etag uint32, mac net.HardwareAddr, evpnPaths []*table.Path) *bgp.MacMobilityExtended {
+	seqs := make([]struct {
+		seq     int
+		isLocal bool
+	}, 0)
+
+	for _, path := range evpnPaths {
+		nlri := path.GetNlri().(*bgp.EVPNNLRI)
+		target, ok := nlri.RouteTypeData.(*bgp.EVPNMacIPAdvertisementRoute)
+		if !ok {
+			continue
+		}
+		if target.ETag == etag && bytes.Equal(target.MacAddress, mac) {
+			found := false
+			for _, ec := range path.GetExtCommunities() {
+				if t, st := ec.GetTypes(); t == bgp.EC_TYPE_EVPN && st == bgp.EC_SUBTYPE_MAC_MOBILITY {
+					seqs = append(seqs, struct {
+						seq     int
+						isLocal bool
+					}{int(ec.(*bgp.MacMobilityExtended).Sequence), path.IsLocal()})
+					found = true
+					break
+				}
+			}
+
+			if !found {
+				seqs = append(seqs, struct {
+					seq     int
+					isLocal bool
+				}{-1, path.IsLocal()})
+			}
+		}
+	}
+
+	if len(seqs) > 0 {
+		newSeq := -2
+		var isLocal bool
+		for _, seq := range seqs {
+			if seq.seq > newSeq {
+				newSeq = seq.seq
+				isLocal = seq.isLocal
+			}
+		}
+
+		if !isLocal {
+			newSeq += 1
+		}
+
+		if newSeq != -1 {
+			return &bgp.MacMobilityExtended{
+				Sequence: uint32(newSeq),
+			}
+		}
+	}
+	return nil
+}
+
+func (server *BgpServer) handleGlobalRibRequest(grpcReq *GrpcRequest, peerInfo *table.PeerInfo) []*table.Path {
 	var isWithdraw bool
 	var nlri bgp.AddrPrefixInterface
 	result := &GrpcResponse{}
 
 	pattr := make([]bgp.PathAttributeInterface, 0)
+	extcomms := make([]bgp.ExtendedCommunityInterface, 0)
 
 	args, ok := grpcReq.Data.(*api.ModPathArguments)
 	if !ok {
@@ -774,6 +850,11 @@ func handleGlobalRibRequest(grpcReq *GrpcRequest, peerInfo *table.PeerInfo) []*t
 		}
 
 		switch p.GetType() {
+		case bgp.BGP_ATTR_TYPE_EXTENDED_COMMUNITIES:
+			value := p.(*bgp.PathAttributeExtendedCommunities).Value
+			if len(value) > 0 {
+				extcomms = append(extcomms, value...)
+			}
 		case bgp.BGP_ATTR_TYPE_MP_REACH_NLRI:
 			value := p.(*bgp.PathAttributeMpReachNLRI).Value
 			if len(value) != 1 {
@@ -790,6 +871,23 @@ func handleGlobalRibRequest(grpcReq *GrpcRequest, peerInfo *table.PeerInfo) []*t
 	if nlri == nil {
 		result.ResponseErr = fmt.Errorf("no nlri included")
 		goto ERR
+	}
+
+	if bgp.AfiSafiToRouteFamily(nlri.AFI(), nlri.SAFI()) == bgp.RF_EVPN {
+		evpnNlri := nlri.(*bgp.EVPNNLRI)
+		if evpnNlri.RouteType == bgp.EVPN_ROUTE_TYPE_MAC_IP_ADVERTISEMENT {
+			macIpAdv := evpnNlri.RouteTypeData.(*bgp.EVPNMacIPAdvertisementRoute)
+			etag := macIpAdv.ETag
+			mac := macIpAdv.MacAddress
+			paths := server.localRibMap[GLOBAL_RIB_NAME].rib.GetBestPathList(bgp.RF_EVPN)
+			if m := getMacMobilityExtendedCommunity(etag, mac, paths); m != nil {
+				extcomms = append(extcomms, m)
+			}
+		}
+	}
+
+	if len(extcomms) > 0 {
+		pattr = append(pattr, bgp.NewPathAttributeExtendedCommunities(extcomms))
 	}
 
 	return []*table.Path{table.NewPath(peerInfo, nlri, isWithdraw, pattr, false, time.Now(), args.NoImplicitWithdraw)}
@@ -819,7 +917,7 @@ func (server *BgpServer) handleGrpc(grpcReq *GrpcRequest) []*SenderMsg {
 			AS:      server.bgpConfig.Global.GlobalConfig.As,
 			LocalID: server.bgpConfig.Global.GlobalConfig.RouterId,
 		}
-		pathList := handleGlobalRibRequest(grpcReq, pi)
+		pathList := server.handleGlobalRibRequest(grpcReq, pi)
 		if len(pathList) > 0 {
 			msgs = append(msgs, server.propagateUpdate("", false, pathList)...)
 			grpcReq.ResponseCh <- &GrpcResponse{}

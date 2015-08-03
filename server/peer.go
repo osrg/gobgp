@@ -195,7 +195,7 @@ func (peer *Peer) handleBGPmessage(m *bgp.BGPMessage) ([]*table.Path, bool, []*b
 func (peer *Peer) getBests(loc *LocalRib) []*table.Path {
 	pathList := []*table.Path{}
 	for _, rf := range peer.configuredRFlist() {
-		for _, paths := range loc.rib.GetPathList(rf) {
+		for _, paths := range loc.rib.GetBestPathList(rf) {
 			pathList = append(pathList, paths)
 		}
 	}
