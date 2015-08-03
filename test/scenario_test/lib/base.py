@@ -162,7 +162,7 @@ class Container(object):
         return 0
 
     def stop(self):
-        ret = local("docker rm -f " + self.docker_name(), capture=True)
+        ret = local("docker rm -f " + self.docker_name())
         self.is_running = False
         return ret
 

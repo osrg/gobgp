@@ -178,13 +178,15 @@ class GoBGPTestBase(unittest.TestCase):
                   'type': 'permit',
                   'match': '0.0.0.0/0',
                   'direction': 'out',
-                  'med': 200}
+                  'med': 200,
+                  'priority': 10}
         q2.add_policy(med200, self.gobgp)
         med100 = {'name': 'med100',
                   'type': 'permit',
                   'match': '0.0.0.0/0',
                   'direction': 'out',
-                  'med': 100}
+                  'med': 100,
+                  'priority': 10}
         q3.add_policy(med100, self.gobgp)
 
         q5.add_route('10.0.6.0/24')
