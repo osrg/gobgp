@@ -313,6 +313,8 @@ func createPolicyConfig() *config.RoutingPolicy {
 	st_eComTarget := createStatement("st_eComRegExp", "psExabgp", "nsExabgp", false)
 	st_eComTarget.Conditions.BgpConditions.MatchExtCommunitySet.ExtCommunitySet = "eComTarget"
 
+	st_only_prefix_condition_accept := createStatement("st_only_prefix_condition_accept", "psExabgp", "", true)
+
 	test_01_import_policy_initial := config.PolicyDefinition{
 		Name: "test_01_import_policy_initial",
 		Statements: config.Statements{
@@ -635,6 +637,13 @@ func createPolicyConfig() *config.RoutingPolicy {
 		},
 	}
 
+	test_42_only_prefix_condition_accept := config.PolicyDefinition{
+		Name: "test_42_only_prefix_condition_accept",
+		Statements : config.Statements{
+			StatementList: []config.Statement{st_only_prefix_condition_accept},
+		},
+	}
+
 	ds := config.DefinedSets{}
 	ds.PrefixSets.PrefixSetList = []config.PrefixSet{ps0, ps1, ps2, ps3, ps4, ps5, ps6, psExabgp}
 	ds.NeighborSets.NeighborSetList = []config.NeighborSet{nsPeer2, nsPeer2V6, nsExabgp}
@@ -692,6 +701,7 @@ func createPolicyConfig() *config.RoutingPolicy {
 				test_39_aspath_prepend_action_lastas_export,
 				test_40_ecommunity_origin_condition_import,
 				test_41_ecommunity_target_condition_export,
+				test_42_only_prefix_condition_accept,
 			},
 		},
 	}

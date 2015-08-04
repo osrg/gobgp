@@ -2808,6 +2808,70 @@ class GoBGPTest(GoBGPTestBase):
         qpath = self.get_route(peer2, prefix1, retry=1, interval=w)
         self.assertIsNone(qpath)
 
+    """
+      distribute-policy test
+                                            ---------------------
+      exabgp ->r1(192.168.100.0/24)   ->  o | ->  peer1-rib ->  | -> r2 --> peer1
+               r2(192.168.10.0/24)    ->  x |                   |
+                                            | ->  peer2-rib ->  | -> r2 --> peer2
+                                            ---------------------
+    """
+    def test_42_only_prefix_condition_accept(self):
+        # generate exabgp configuration file
+        r1 = "192.168.100.0/24"
+        r2 = "192.168.10.0/24"
+
+        e = ExabgpConfig(EXABGP_COMMON_CONF)
+        e.add_route(r1, aspath='65100')
+        e.add_route(r2, aspath='65101')
+        e.write()
+
+        self.quagga_num = 2
+        self.use_exa_bgp = True
+        self.use_ipv6_gobgp = False
+
+        peer1 = "10.0.0.1"
+        peer2 = "10.0.0.2"
+        exabgp = "10.0.0.100"
+        w = self.wait_per_retry
+
+        # policy:test_42_only_prefix_condition_accept which accepts 192.168.100.0/24
+        # is attached to exabgp(10.0.0.100)'s distribute policy.
+        self.setup_config(exabgp, "test_42_only_prefix_condition_accept", "distribute", add_exabgp=True, defaultReject=True)
+        self.initialize()
+
+        addresses = self.get_neighbor_address(self.gobgp_config)
+        self.retry_routine_for_state(addresses, "BGP_FSM_ESTABLISHED")
+
+
+        path = self.get_paths_in_localrib(peer1, r1, retry=self.retry_count_common, interval=w)
+        self.assertIsNotNone(path)
+
+        # check show ip bgp on peer1(quagga1)
+        qpath = self.get_route(peer1, r1, retry=self.retry_count_common, interval=w)
+        self.assertIsNotNone(qpath)
+
+        path = self.get_paths_in_localrib(peer2, r1, retry=self.retry_count_common, interval=w)
+        self.assertIsNotNone(path)
+
+        # check show ip bgp on peer2(quagga2)
+        qpath = self.get_route(peer2, r1, retry=self.retry_count_common, interval=w)
+        self.assertIsNotNone(qpath)
+
+        path = self.get_paths_in_localrib(peer1, r2, retry=self.retry_count_common, interval=w)
+        self.assertIsNone(path)
+
+        # check show ip bgp on peer1(quagga1)
+        qpath = self.get_route(peer1, r2, retry=self.retry_count_common, interval=w)
+        self.assertIsNone(qpath)
+
+        path = self.get_paths_in_localrib(peer2, r2, retry=self.retry_count_common, interval=w)
+        self.assertIsNone(path)
+
+        # check show ip bgp on peer1(quagga1)
+        qpath = self.get_route(peer2, r2, retry=self.retry_count_common, interval=w)
+        self.assertIsNone(qpath)
+
 
 class ExabgpConfig(object):
 
