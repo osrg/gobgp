@@ -272,7 +272,14 @@ func (peer *Peer) ToApiStruct() *api.Peer {
 		for _, rf := range peer.configuredRFlist() {
 			advertized += uint32(peer.adjRib.GetOutCount(rf))
 			received += uint32(peer.adjRib.GetInCount(rf))
-			accepted += uint32(peer.adjRib.GetInCount(rf))
+			// FIXME: we should store 'accepted' in memory
+			for _, p := range peer.adjRib.GetInPathList(rf) {
+				applied, path := peer.applyDistributePolicies(p)
+				if applied && path == nil || !applied && peer.defaultDistributePolicy != config.DEFAULT_POLICY_TYPE_ACCEPT_ROUTE {
+					continue
+				}
+				accepted += 1
+			}
 		}
 	}
 
