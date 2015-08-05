@@ -12,24 +12,29 @@ type BgpConfigSet struct {
 }
 
 func ReadConfigfileServe(path string, configCh chan BgpConfigSet, reloadCh chan bool) {
+	cnt := 0
 	for {
 		<-reloadCh
 
 		b := Bgp{}
+		p := RoutingPolicy{}
 		md, err := toml.DecodeFile(path, &b)
 		if err == nil {
 			err = SetDefaultConfigValues(md, &b)
-		}
-		if err != nil {
-			log.Fatal("can't read config file ", path, ", ", err)
-		}
-
-		p := RoutingPolicy{}
-		md, err = toml.DecodeFile(path, &p)
-		if err != nil {
-			log.Fatal("can't read config file ", path, ", ", err)
+			if err == nil {
+				_, err = toml.DecodeFile(path, &p)
+			}
 		}
 
+		if err != nil {
+			if cnt == 0 {
+				log.Fatal("can't read config file ", path, ", ", err)
+			} else {
+				log.Warning("can't read config file ", path, ", ", err)
+				continue
+			}
+		}
+		cnt++
 		bgpConfig := BgpConfigSet{Bgp: b, Policy: p}
 		configCh <- bgpConfig
 	}
