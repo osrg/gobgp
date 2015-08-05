@@ -48,13 +48,13 @@ func TestPrefixCalcurateNoRange(t *testing.T) {
 	updateMsg := bgp.NewBGPUpdateMessage(withdrawnRoutes, pathAttributes, nlri)
 	path := table.ProcessMessage(updateMsg, peer)[0]
 	// test
-	pl1, _ := NewPrefix(net.ParseIP("10.10.0.0"), 24, "")
+	pl1, _ := NewPrefix("10.10.0.0/24", "")
 	match1 := ipPrefixCalculate(path, pl1)
 	assert.Equal(t, false, match1)
-	pl2, _ := NewPrefix(net.ParseIP("10.10.0.101"), 24, "")
+	pl2, _ := NewPrefix("10.10.0.101/24", "")
 	match2 := ipPrefixCalculate(path, pl2)
 	assert.Equal(t, true, match2)
-	pl3, _ := NewPrefix(net.ParseIP("10.10.0.0"), 16, "21..24")
+	pl3, _ := NewPrefix("10.10.0.0/16", "21..24")
 	match3 := ipPrefixCalculate(path, pl3)
 	assert.Equal(t, true, match3)
 }
@@ -73,10 +73,10 @@ func TestPrefixCalcurateAddress(t *testing.T) {
 	updateMsg := bgp.NewBGPUpdateMessage(withdrawnRoutes, pathAttributes, nlri)
 	path := table.ProcessMessage(updateMsg, peer)[0]
 	// test
-	pl1, _ := NewPrefix(net.ParseIP("10.11.0.0"), 16, "21..24")
+	pl1, _ := NewPrefix("10.11.0.0/16", "21..24")
 	match1 := ipPrefixCalculate(path, pl1)
 	assert.Equal(t, false, match1)
-	pl2, _ := NewPrefix(net.ParseIP("10.10.0.0"), 16, "21..24")
+	pl2, _ := NewPrefix("10.10.0.0/16", "21..24")
 	match2 := ipPrefixCalculate(path, pl2)
 	assert.Equal(t, true, match2)
 }
@@ -95,10 +95,10 @@ func TestPrefixCalcurateLength(t *testing.T) {
 	updateMsg := bgp.NewBGPUpdateMessage(withdrawnRoutes, pathAttributes, nlri)
 	path := table.ProcessMessage(updateMsg, peer)[0]
 	// test
-	pl1, _ := NewPrefix(net.ParseIP("10.10.64.0"), 24, "21..24")
+	pl1, _ := NewPrefix("10.10.64.0/24", "21..24")
 	match1 := ipPrefixCalculate(path, pl1)
 	assert.Equal(t, false, match1)
-	pl2, _ := NewPrefix(net.ParseIP("10.10.64.0"), 16, "21..24")
+	pl2, _ := NewPrefix("10.10.64.0/16", "21..24")
 	match2 := ipPrefixCalculate(path, pl2)
 	assert.Equal(t, true, match2)
 }
@@ -117,13 +117,13 @@ func TestPrefixCalcurateLengthRange(t *testing.T) {
 	updateMsg := bgp.NewBGPUpdateMessage(withdrawnRoutes, pathAttributes, nlri)
 	path := table.ProcessMessage(updateMsg, peer)[0]
 	// test
-	pl1, _ := NewPrefix(net.ParseIP("10.10.0.0"), 16, "21..23")
+	pl1, _ := NewPrefix("10.10.0.0/16", "21..23")
 	match1 := ipPrefixCalculate(path, pl1)
 	assert.Equal(t, false, match1)
-	pl2, _ := NewPrefix(net.ParseIP("10.10.0.0"), 16, "25..26")
+	pl2, _ := NewPrefix("10.10.0.0/16", "25..26")
 	match2 := ipPrefixCalculate(path, pl2)
 	assert.Equal(t, false, match2)
-	pl3, _ := NewPrefix(net.ParseIP("10.10.0.0"), 16, "21..24")
+	pl3, _ := NewPrefix("10.10.0.0/16", "21..24")
 	match3 := ipPrefixCalculate(path, pl3)
 	assert.Equal(t, true, match3)
 }
@@ -144,13 +144,13 @@ func TestPrefixCalcurateNoRangeIPv6(t *testing.T) {
 	updateMsg := bgp.NewBGPUpdateMessage(withdrawnRoutes, pathAttributes, nlri)
 	path := table.ProcessMessage(updateMsg, peer)[0]
 	// test
-	pl1, _ := NewPrefix(net.ParseIP("2001:123:123::"), 48, "")
+	pl1, _ := NewPrefix("2001:123:123::/48", "")
 	match1 := ipPrefixCalculate(path, pl1)
 	assert.Equal(t, false, match1)
-	pl2, _ := NewPrefix(net.ParseIP("2001:123:123:1::"), 64, "")
+	pl2, _ := NewPrefix("2001:123:123:1::/64", "")
 	match2 := ipPrefixCalculate(path, pl2)
 	assert.Equal(t, true, match2)
-	pl3, _ := NewPrefix(net.ParseIP("2001:123:123::"), 48, "64..80")
+	pl3, _ := NewPrefix("2001:123:123::/48", "64..80")
 	match3 := ipPrefixCalculate(path, pl3)
 	assert.Equal(t, true, match3)
 }
@@ -170,10 +170,10 @@ func TestPrefixCalcurateAddressIPv6(t *testing.T) {
 	updateMsg := bgp.NewBGPUpdateMessage(withdrawnRoutes, pathAttributes, nlri)
 	path := table.ProcessMessage(updateMsg, peer)[0]
 	// test
-	pl1, _ := NewPrefix(net.ParseIP("2001:123:128::"), 48, "64..80")
+	pl1, _ := NewPrefix("2001:123:128::/48", "64..80")
 	match1 := ipPrefixCalculate(path, pl1)
 	assert.Equal(t, false, match1)
-	pl2, _ := NewPrefix(net.ParseIP("2001:123:123::"), 48, "64..80")
+	pl2, _ := NewPrefix("2001:123:123::/48", "64..80")
 	match2 := ipPrefixCalculate(path, pl2)
 	assert.Equal(t, true, match2)
 }
@@ -193,10 +193,10 @@ func TestPrefixCalcurateLengthIPv6(t *testing.T) {
 	updateMsg := bgp.NewBGPUpdateMessage(withdrawnRoutes, pathAttributes, nlri)
 	path := table.ProcessMessage(updateMsg, peer)[0]
 	// test
-	pl1, _ := NewPrefix(net.ParseIP("2001:123:123:64::"), 64, "64..80")
+	pl1, _ := NewPrefix("2001:123:123:64::/64", "64..80")
 	match1 := ipPrefixCalculate(path, pl1)
 	assert.Equal(t, false, match1)
-	pl2, _ := NewPrefix(net.ParseIP("2001:123:123:64::"), 48, "64..80")
+	pl2, _ := NewPrefix("2001:123:123:64::/48", "64..80")
 	match2 := ipPrefixCalculate(path, pl2)
 	assert.Equal(t, true, match2)
 }
@@ -216,13 +216,13 @@ func TestPrefixCalcurateLengthRangeIPv6(t *testing.T) {
 	updateMsg := bgp.NewBGPUpdateMessage(withdrawnRoutes, pathAttributes, nlri)
 	path := table.ProcessMessage(updateMsg, peer)[0]
 	// test
-	pl1, _ := NewPrefix(net.ParseIP("2001:123:123::"), 48, "62..63")
+	pl1, _ := NewPrefix("2001:123:123::/48", "62..63")
 	match1 := ipPrefixCalculate(path, pl1)
 	assert.Equal(t, false, match1)
-	pl2, _ := NewPrefix(net.ParseIP("2001:123:123::"), 48, "65..66")
+	pl2, _ := NewPrefix("2001:123:123::/48", "65..66")
 	match2 := ipPrefixCalculate(path, pl2)
 	assert.Equal(t, false, match2)
-	pl3, _ := NewPrefix(net.ParseIP("2001:123:123::"), 48, "63..65")
+	pl3, _ := NewPrefix("2001:123:123::/48", "63..65")
 	match3 := ipPrefixCalculate(path, pl3)
 	assert.Equal(t, true, match3)
 }
@@ -1917,12 +1917,11 @@ func createRoutingPolicy(ds config.DefinedSets, pd ...config.PolicyDefinition) c
 }
 
 func createPrefixSet(name string, prefix string, maskLength string) config.PrefixSet {
-	_, ippref, _ := net.ParseCIDR(prefix)
 	ps := config.PrefixSet{
 		PrefixSetName: name,
 		PrefixList: []config.Prefix{
 			config.Prefix{
-				IpPrefix:        *ippref,
+				IpPrefix:        prefix,
 				MasklengthRange: maskLength,
 			}},
 	}

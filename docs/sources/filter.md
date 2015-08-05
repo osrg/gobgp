@@ -69,13 +69,9 @@ define an import policy for neighbor 10.0.255.2 that drops
     [[DefinedSets.PrefixSets.PrefixSetList]]
       PrefixSetName = "ps2"
       [[DefinedSets.PrefixSets.PrefixSetList.PrefixList]]
-        [DefinedSets.PrefixSets.PrefixSetList.PrefixList.IpPrefix]
-          IP = "10.33.0.0
-          Mask = [255, 255, 0, 0]
+        IpPrefix = "10.33.0.0/16"
       [[DefinedSets.PrefixSets.PrefixSetList.PrefixList]]
-        [DefinedSets.PrefixSets.PrefixSetList.PrefixList.IpPrefix]
-          IP = "10.50.0.0"
-          Mask = [255, 255, 0, 0]
+        IpPrefix = "10.50.0.0/16"
 
 
   [DefinedSets.NeighborSets]

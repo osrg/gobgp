@@ -1566,7 +1566,7 @@ type NeighborSets struct {
 type Prefix struct {
 	// original -> rpol:ip-prefix
 	//rpol:ip-prefix's original type is inet:ip-prefix
-	IpPrefix net.IPNet
+	IpPrefix string
 	// original -> rpol:masklength-range
 	MasklengthRange string
 }

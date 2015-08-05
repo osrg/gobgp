@@ -75,12 +75,11 @@ func main() {
 
 func policy() config.RoutingPolicy {
 
-	_, prefix1, _ := net.ParseCIDR("10.3.192.0/21")
 	ps := config.PrefixSet{
 		PrefixSetName: "ps1",
 		PrefixList: []config.Prefix{
 			config.Prefix{
-				IpPrefix:        *prefix1,
+				IpPrefix:        "10.3.192.0/21",
 				MasklengthRange: "21..24",
 			}},
 	}
