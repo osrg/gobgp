@@ -601,7 +601,7 @@ type AddrPrefixInterface interface {
 	SAFI() uint8
 	Len() int
 	String() string
-	ToApiStruct() *api.Nlri
+	MarshalJSON() ([]byte, error)
 }
 
 type IPAddrPrefixDefault struct {
@@ -647,6 +647,14 @@ func (r *IPAddrPrefixDefault) String() string {
 	return fmt.Sprintf("%s/%d", r.Prefix.String(), r.Length)
 }
 
+func (r *IPAddrPrefixDefault) MarshalJSON() ([]byte, error) {
+	return json.Marshal(struct {
+		Prefix string `json:"prefix"`
+	}{
+		Prefix: r.String(),
+	})
+}
+
 type IPAddrPrefix struct {
 	IPAddrPrefixDefault
 	addrlen uint8
@@ -681,13 +689,6 @@ func (r *IPAddrPrefix) AFI() uint16 {
 
 func (r *IPAddrPrefix) SAFI() uint8 {
 	return SAFI_UNICAST
-}
-
-func (r *IPAddrPrefix) ToApiStruct() *api.Nlri {
-	return &api.Nlri{
-		Af:     &api.AddressFamily{api.AFI(r.AFI()), api.SAFI(r.SAFI())},
-		Prefix: r.String(),
-	}
 }
 
 func NewIPAddrPrefix(length uint8, prefix string) *IPAddrPrefix {
@@ -1053,13 +1054,6 @@ func (l *LabeledVPNIPAddrPrefix) SAFI() uint8 {
 	return SAFI_MPLS_VPN
 }
 
-func (l *LabeledVPNIPAddrPrefix) ToApiStruct() *api.Nlri {
-	return &api.Nlri{
-		Af:     &api.AddressFamily{api.AFI(l.AFI()), api.SAFI(l.SAFI())},
-		Prefix: l.String(),
-	}
-}
-
 func (l *LabeledVPNIPAddrPrefix) String() string {
 	masklen := l.IPAddrPrefixDefault.Length - uint8(8*(l.Labels.Len()+l.RD.Len()))
 	return fmt.Sprintf("%s:%s/%d", l.RD, l.IPAddrPrefixDefault.Prefix, masklen)
@@ -1113,13 +1107,6 @@ func (r *LabeledIPAddrPrefix) AFI() uint16 {
 
 func (r *LabeledIPAddrPrefix) SAFI() uint8 {
 	return SAFI_MPLS_LABEL
-}
-
-func (r *LabeledIPAddrPrefix) ToApiStruct() *api.Nlri {
-	return &api.Nlri{
-		Af:     &api.AddressFamily{api.AFI(r.AFI()), api.SAFI(r.SAFI())},
-		Prefix: r.String(),
-	}
 }
 
 func (r *IPAddrPrefix) decodeNextHop(data []byte) net.IP {
@@ -1254,20 +1241,12 @@ func (n *RouteTargetMembershipNLRI) String() string {
 	return fmt.Sprintf("%d:%s", n.AS, target)
 }
 
-func (n *RouteTargetMembershipNLRI) ToApiStruct() *api.Nlri {
-	var target *api.ExtendedCommunity
-	if n.RouteTarget != nil {
-		target = n.RouteTarget.ToApiStruct()
-	}
-	return &api.Nlri{
-		Af:     &api.AddressFamily{api.AFI(n.AFI()), api.SAFI(n.SAFI())},
+func (n *RouteTargetMembershipNLRI) MarshalJSON() ([]byte, error) {
+	return json.Marshal(struct {
+		Prefix string `json:"prefix"`
+	}{
 		Prefix: n.String(),
-		RtNlri: &api.RTNlri{
-			Asn:    n.AS,
-			Target: target,
-			Length: uint32(n.Length),
-		},
-	}
+	})
 }
 
 func NewRouteTargetMembershipNLRI(as uint32, target ExtendedCommunityInterface) *RouteTargetMembershipNLRI {
@@ -1522,19 +1501,6 @@ func (er *EVPNMacIPAdvertisementRoute) Serialize() ([]byte, error) {
 	return buf, nil
 }
 
-func (er *EVPNMacIPAdvertisementRoute) ToApiStruct() *api.EvpnMacIpAdvertisement {
-	return &api.EvpnMacIpAdvertisement{
-		MacAddr:    er.MacAddress.String(),
-		MacAddrLen: uint32(er.MacAddressLength),
-		IpAddr:     er.IPAddress.String(),
-		IpAddrLen:  uint32(er.IPAddressLength),
-		Rd:         er.RD.String(),
-		Esi:        er.ESI.String(),
-		Etag:       er.ETag,
-		Labels:     er.Labels,
-	}
-}
-
 func (er *EVPNMacIPAdvertisementRoute) String() string {
 	return fmt.Sprintf("[type:macadv][rd:%s][esi:%s][etag:%d][mac:%s][ip:%s][labels:%v]", er.RD, er.ESI.String(), er.ETag, er.MacAddress, er.IPAddress, er.Labels)
 }
@@ -1587,15 +1553,6 @@ func (er *EVPNMulticastEthernetTagRoute) Serialize() ([]byte, error) {
 		return nil, err
 	}
 	return buf, nil
-}
-
-func (er *EVPNMulticastEthernetTagRoute) ToApiStruct() *api.EvpnInclusiveMulticastEthernetTag {
-	return &api.EvpnInclusiveMulticastEthernetTag{
-		Rd:        er.RD.String(),
-		Etag:      er.ETag,
-		IpAddr:    er.IPAddress.String(),
-		IpAddrLen: uint32(er.IPAddressLength),
-	}
 }
 
 func (er *EVPNMulticastEthernetTagRoute) String() string {
@@ -1739,23 +1696,12 @@ func (n *EVPNNLRI) String() string {
 	return fmt.Sprintf("%d:%d", n.RouteType, n.Length)
 }
 
-func (n *EVPNNLRI) ToApiStruct() *api.Nlri {
-	evpn := &api.EVPNNlri{}
-	switch n.RouteType {
-	case EVPN_ROUTE_TYPE_MAC_IP_ADVERTISEMENT:
-		evpn.Type = api.EVPN_TYPE_ROUTE_TYPE_MAC_IP_ADVERTISEMENT
-		macIpAdv := n.RouteTypeData.(*EVPNMacIPAdvertisementRoute).ToApiStruct()
-		evpn.MacIpAdv = macIpAdv
-	case EVPN_INCLUSIVE_MULTICAST_ETHERNET_TAG:
-		evpn.Type = api.EVPN_TYPE_INCLUSIVE_MULTICAST_ETHERNET_TAG
-		eTag := n.RouteTypeData.(*EVPNMulticastEthernetTagRoute).ToApiStruct()
-		evpn.MulticastEtag = eTag
-	}
-	return &api.Nlri{
-		Af:       &api.AddressFamily{api.AFI(n.AFI()), api.SAFI(n.SAFI())},
-		Prefix:   n.String(),
-		EvpnNlri: evpn,
-	}
+func (n *EVPNNLRI) MarshalJSON() ([]byte, error) {
+	return json.Marshal(struct {
+		Prefix string `json:"prefix"`
+	}{
+		Prefix: n.String(),
+	})
 }
 
 func NewEVPNNLRI(routetype uint8, length uint8, routetypedata EVPNRouteTypeInterface) *EVPNNLRI {
@@ -1808,13 +1754,6 @@ func (n *EncapNLRI) AFI() uint16 {
 
 func (n *EncapNLRI) SAFI() uint8 {
 	return SAFI_ENCAPSULATION
-}
-
-func (n *EncapNLRI) ToApiStruct() *api.Nlri {
-	return &api.Nlri{
-		Af:     &api.AddressFamily{api.AFI(n.AFI()), api.SAFI(n.SAFI())},
-		Prefix: n.String(),
-	}
 }
 
 func NewEncapNLRI(endpoint string) *EncapNLRI {
@@ -2062,7 +2001,8 @@ type PathAttributeInterface interface {
 	Len() int
 	getFlags() BGPAttrFlag
 	GetType() BGPAttrType
-	ToApiStruct() *api.PathAttr
+	String() string
+	MarshalJSON() ([]byte, error)
 }
 
 type PathAttribute struct {
@@ -2147,19 +2087,45 @@ func (p *PathAttribute) Serialize() ([]byte, error) {
 	return buf, nil
 }
 
+func (p *PathAttribute) String() string {
+	return fmt.Sprintf("%s %s %s", p.Type, p.Flags, []byte(p.Value))
+}
+
+func (p *PathAttribute) MarshalJSON() ([]byte, error) {
+	return json.Marshal(struct {
+		Type  BGPAttrType `json:"type"`
+		Value []byte      `json:"value"`
+	}{
+		Type:  p.GetType(),
+		Value: p.Value,
+	})
+}
+
 type PathAttributeOrigin struct {
 	PathAttribute
 }
 
-func (p *PathAttributeOrigin) ToApiStruct() *api.PathAttr {
-	return &api.PathAttr{
-		Type:   api.BGP_ATTR_TYPE_ORIGIN,
-		Origin: api.Origin(uint8(p.Value[0])),
+func (p *PathAttributeOrigin) String() string {
+	typ := "-"
+	switch p.Value[0] {
+	case BGP_ORIGIN_ATTR_TYPE_IGP:
+		typ = "i"
+	case BGP_ORIGIN_ATTR_TYPE_EGP:
+		typ = "e"
+	case BGP_ORIGIN_ATTR_TYPE_INCOMPLETE:
+		typ = "?"
 	}
+	return fmt.Sprintf("{Origin: %s}", typ)
 }
 
 func (p *PathAttributeOrigin) MarshalJSON() ([]byte, error) {
-	return json.Marshal(p.ToApiStruct())
+	return json.Marshal(struct {
+		Type  BGPAttrType `json:"type"`
+		Value uint8       `json:"value"`
+	}{
+		Type:  p.GetType(),
+		Value: p.Value[0],
+	})
 }
 
 func NewPathAttributeOrigin(value uint8) *PathAttributeOrigin {
@@ -2172,6 +2138,14 @@ func NewPathAttributeOrigin(value uint8) *PathAttributeOrigin {
 			Value: []byte{byte(value)},
 		},
 	}
+}
+
+type AsPathParamInterface interface {
+	Serialize() ([]byte, error)
+	DecodeFromBytes([]byte) error
+	Len() int
+	ASLen() int
+	MarshalJSON() ([]byte, error)
 }
 
 type AsPathParam struct {
@@ -2223,6 +2197,18 @@ func (a *AsPathParam) ASLen() int {
 		return 0
 	}
 	return 0
+}
+
+func (a *AsPathParam) MarshalJSON() ([]byte, error) {
+	return json.Marshal(struct {
+		Type uint8    `json:"segment_type"`
+		Num  uint8    `json:"num"`
+		AS   []uint16 `json:"asns"`
+	}{
+		Type: a.Type,
+		Num:  a.Num,
+		AS:   a.AS,
+	})
 }
 
 func NewAsPathParam(segType uint8, as []uint16) *AsPathParam {
@@ -2284,6 +2270,18 @@ func (a *As4PathParam) ASLen() int {
 	return 0
 }
 
+func (a *As4PathParam) MarshalJSON() ([]byte, error) {
+	return json.Marshal(struct {
+		Type uint8    `json:"segment_type"`
+		Num  uint8    `json:"num"`
+		AS   []uint32 `json:"asns"`
+	}{
+		Type: a.Type,
+		Num:  a.Num,
+		AS:   a.AS,
+	})
+}
+
 func NewAs4PathParam(segType uint8, as []uint32) *As4PathParam {
 	return &As4PathParam{
 		Type: segType,
@@ -2341,13 +2339,6 @@ func (p *DefaultAsPath) isValidAspath(data []byte) (bool, error) {
 	return false, NewMessageError(eCode, eSubCode, nil, "can't parse AS_PATH")
 }
 
-type AsPathParamInterface interface {
-	Serialize() ([]byte, error)
-	DecodeFromBytes([]byte) error
-	Len() int
-	ASLen() int
-}
-
 type PathAttributeAsPath struct {
 	DefaultAsPath
 	PathAttribute
@@ -2402,33 +2393,14 @@ func (p *PathAttributeAsPath) Serialize() ([]byte, error) {
 	return p.PathAttribute.Serialize()
 }
 
-func (p *PathAttributeAsPath) ToApiStruct() *api.PathAttr {
-	aspaths := make([]*api.AsPath, 0)
-	for _, a := range p.Value {
-		path, y := a.(*As4PathParam)
-		aspath := &api.AsPath{}
-		if y {
-			aspath.Asns = path.AS
-			aspath.SegmentType = uint32(path.Type)
-		} else {
-			path := a.(*AsPathParam)
-			asns := make([]uint32, 0)
-			for _, v := range path.AS {
-				asns = append(asns, uint32(v))
-			}
-			aspath.Asns = asns
-			aspath.SegmentType = uint32(path.Type)
-		}
-		aspaths = append(aspaths, aspath)
-	}
-	return &api.PathAttr{
-		Type:    api.BGP_ATTR_TYPE_AS_PATH,
-		AsPaths: aspaths,
-	}
-}
-
 func (p *PathAttributeAsPath) MarshalJSON() ([]byte, error) {
-	return json.Marshal(p.ToApiStruct())
+	return json.Marshal(struct {
+		Type  BGPAttrType            `json:"type"`
+		Value []AsPathParamInterface `json:"as_paths"`
+	}{
+		Type:  p.GetType(),
+		Value: p.Value,
+	})
 }
 
 func NewPathAttributeAsPath(value []AsPathParamInterface) *PathAttributeAsPath {
@@ -2466,15 +2438,18 @@ func (p *PathAttributeNextHop) Serialize() ([]byte, error) {
 	return p.PathAttribute.Serialize()
 }
 
-func (p *PathAttributeNextHop) ToApiStruct() *api.PathAttr {
-	return &api.PathAttr{
-		Type:    api.BGP_ATTR_TYPE_NEXT_HOP,
-		Nexthop: p.Value.String(),
-	}
+func (p *PathAttributeNextHop) String() string {
+	return fmt.Sprintf("{Nexthop: %s}", p.Value)
 }
 
 func (p *PathAttributeNextHop) MarshalJSON() ([]byte, error) {
-	return json.Marshal(p.ToApiStruct())
+	return json.Marshal(struct {
+		Type  BGPAttrType `json:"type"`
+		Value string      `json:"nexthop"`
+	}{
+		Type:  p.GetType(),
+		Value: p.Value.String(),
+	})
 }
 
 func NewPathAttributeNextHop(value string) *PathAttributeNextHop {
@@ -2514,15 +2489,18 @@ func (p *PathAttributeMultiExitDisc) Serialize() ([]byte, error) {
 	return p.PathAttribute.Serialize()
 }
 
-func (p *PathAttributeMultiExitDisc) ToApiStruct() *api.PathAttr {
-	return &api.PathAttr{
-		Type:   api.BGP_ATTR_TYPE_MULTI_EXIT_DISC,
-		Metric: p.Value,
-	}
+func (p *PathAttributeMultiExitDisc) String() string {
+	return fmt.Sprintf("{Med: %d}", p.Value)
 }
 
 func (p *PathAttributeMultiExitDisc) MarshalJSON() ([]byte, error) {
-	return json.Marshal(p.ToApiStruct())
+	return json.Marshal(struct {
+		Type  BGPAttrType `json:"type"`
+		Value uint32      `json:"metric"`
+	}{
+		Type:  p.GetType(),
+		Value: p.Value,
+	})
 }
 
 func NewPathAttributeMultiExitDisc(value uint32) *PathAttributeMultiExitDisc {
@@ -2562,15 +2540,18 @@ func (p *PathAttributeLocalPref) Serialize() ([]byte, error) {
 	return p.PathAttribute.Serialize()
 }
 
-func (p *PathAttributeLocalPref) ToApiStruct() *api.PathAttr {
-	return &api.PathAttr{
-		Type: api.BGP_ATTR_TYPE_LOCAL_PREF,
-		Pref: p.Value,
-	}
+func (p *PathAttributeLocalPref) String() string {
+	return fmt.Sprintf("{LocalPref: %d}", p.Value)
 }
 
 func (p *PathAttributeLocalPref) MarshalJSON() ([]byte, error) {
-	return json.Marshal(p.ToApiStruct())
+	return json.Marshal(struct {
+		Type  BGPAttrType `json:"type"`
+		Value uint32      `json:"value"`
+	}{
+		Type:  p.GetType(),
+		Value: p.Value,
+	})
 }
 
 func NewPathAttributeLocalPref(value uint32) *PathAttributeLocalPref {
@@ -2588,14 +2569,16 @@ type PathAttributeAtomicAggregate struct {
 	PathAttribute
 }
 
-func (p *PathAttributeAtomicAggregate) ToApiStruct() *api.PathAttr {
-	return &api.PathAttr{
-		Type: api.BGP_ATTR_TYPE_ATOMIC_AGGREGATE,
-	}
+func (p *PathAttributeAtomicAggregate) String() string {
+	return "{AtomicAggregate}"
 }
 
 func (p *PathAttributeAtomicAggregate) MarshalJSON() ([]byte, error) {
-	return json.Marshal(p.ToApiStruct())
+	return json.Marshal(struct {
+		Type BGPAttrType `json:"type"`
+	}{
+		Type: p.GetType(),
+	})
 }
 
 func NewPathAttributeAtomicAggregate() *PathAttributeAtomicAggregate {
@@ -2658,18 +2641,20 @@ func (p *PathAttributeAggregator) Serialize() ([]byte, error) {
 	return p.PathAttribute.Serialize()
 }
 
-func (p *PathAttributeAggregator) ToApiStruct() *api.PathAttr {
-	return &api.PathAttr{
-		Type: api.BGP_ATTR_TYPE_AGGREGATOR,
-		Aggregator: &api.Aggregator{
-			As:      p.Value.AS,
-			Address: p.Value.Address.String(),
-		},
-	}
+func (p *PathAttributeAggregator) String() string {
+	return fmt.Sprintf("{Aggregate: {AS: %d, Address: %s}}", p.Value.AS, p.Value.Address)
 }
 
 func (p *PathAttributeAggregator) MarshalJSON() ([]byte, error) {
-	return json.Marshal(p.ToApiStruct())
+	return json.Marshal(struct {
+		Type    BGPAttrType `json:"type"`
+		AS      uint32      `json:"as"`
+		Address string      `json:"address"`
+	}{
+		Type:    p.GetType(),
+		AS:      p.Value.AS,
+		Address: p.Value.Address.String(),
+	})
 }
 
 func NewPathAttributeAggregator(as interface{}, address string) *PathAttributeAggregator {
@@ -2720,15 +2705,49 @@ func (p *PathAttributeCommunities) Serialize() ([]byte, error) {
 	return p.PathAttribute.Serialize()
 }
 
-func (p *PathAttributeCommunities) ToApiStruct() *api.PathAttr {
-	return &api.PathAttr{
-		Type:       api.BGP_ATTR_TYPE_COMMUNITIES,
-		Communites: p.Value,
+func (p *PathAttributeCommunities) String() string {
+	l := []string{}
+	for _, v := range p.Value {
+		switch v {
+		case 0xffff0000:
+			l = append(l, "planned-shut")
+		case 0xffff0001:
+			l = append(l, "accept-own")
+		case 0xffff0002:
+			l = append(l, "ROUTE_FILTER_TRANSLATED_v4")
+		case 0xffff0003:
+			l = append(l, "ROUTE_FILTER_v4")
+		case 0xffff0004:
+			l = append(l, "ROUTE_FILTER_TRANSLATED_v6")
+		case 0xffff0005:
+			l = append(l, "ROUTE_FILTER_v6")
+		case 0xffff0006:
+			l = append(l, "LLGR_STALE")
+		case 0xffff0007:
+			l = append(l, "NO_LLGR")
+		case 0xffffff01:
+			l = append(l, "NO_EXPORT")
+		case 0xffffff02:
+			l = append(l, "NO_ADVERTISE")
+		case 0xffffff03:
+			l = append(l, "NO_EXPORT_SUBCONFED")
+		case 0xffffff04:
+			l = append(l, "NO_PEER")
+		default:
+			l = append(l, fmt.Sprintf("%d:%d", (0xffff0000&v)>>16, 0xffff&v))
+		}
 	}
+	return fmt.Sprintf("{Communities: %s}", strings.Join(l, ", "))
 }
 
 func (p *PathAttributeCommunities) MarshalJSON() ([]byte, error) {
-	return json.Marshal(p.ToApiStruct())
+	return json.Marshal(struct {
+		Type  BGPAttrType `json:"type"`
+		Value []uint32    `json:"communities"`
+	}{
+		Type:  p.GetType(),
+		Value: p.Value,
+	})
 }
 
 func NewPathAttributeCommunities(value []uint32) *PathAttributeCommunities {
@@ -2762,22 +2781,25 @@ func (p *PathAttributeOriginatorId) DecodeFromBytes(data []byte) error {
 	return nil
 }
 
+func (p *PathAttributeOriginatorId) String() string {
+	return fmt.Sprintf("{Originator: %s}", p.Value)
+}
+
+func (p *PathAttributeOriginatorId) MarshalJSON() ([]byte, error) {
+	return json.Marshal(struct {
+		Type  BGPAttrType `json:"type"`
+		Value string      `json:"value"`
+	}{
+		Type:  p.GetType(),
+		Value: p.Value.String(),
+	})
+}
+
 func (p *PathAttributeOriginatorId) Serialize() ([]byte, error) {
 	buf := make([]byte, 4)
 	copy(buf, p.Value)
 	p.PathAttribute.Value = buf
 	return p.PathAttribute.Serialize()
-}
-
-func (p *PathAttributeOriginatorId) ToApiStruct() *api.PathAttr {
-	return &api.PathAttr{
-		Type:       api.BGP_ATTR_TYPE_ORIGINATOR_ID,
-		Originator: p.Value.String(),
-	}
-}
-
-func (p *PathAttributeOriginatorId) MarshalJSON() ([]byte, error) {
-	return json.Marshal(p.ToApiStruct())
 }
 
 func NewPathAttributeOriginatorId(value string) *PathAttributeOriginatorId {
@@ -2824,19 +2846,22 @@ func (p *PathAttributeClusterList) Serialize() ([]byte, error) {
 	return p.PathAttribute.Serialize()
 }
 
-func (p *PathAttributeClusterList) ToApiStruct() *api.PathAttr {
-	l := make([]string, 0)
-	for _, addr := range p.Value {
-		l = append(l, addr.String())
-	}
-	return &api.PathAttr{
-		Type:    api.BGP_ATTR_TYPE_CLUSTER_LIST,
-		Cluster: l,
-	}
+func (p *PathAttributeClusterList) String() string {
+	return fmt.Sprintf("{ClusterList: %v}", p.Value)
 }
 
 func (p *PathAttributeClusterList) MarshalJSON() ([]byte, error) {
-	return json.Marshal(p.ToApiStruct())
+	value := make([]string, 0, len(p.Value))
+	for _, v := range p.Value {
+		value = append(value, v.String())
+	}
+	return json.Marshal(struct {
+		Type  BGPAttrType `json:"type"`
+		Value []string    `json:"value"`
+	}{
+		Type:  p.GetType(),
+		Value: value,
+	})
 }
 
 func NewPathAttributeClusterList(value []string) *PathAttributeClusterList {
@@ -2965,20 +2990,20 @@ func (p *PathAttributeMpReachNLRI) Serialize() ([]byte, error) {
 	return p.PathAttribute.Serialize()
 }
 
-func (p *PathAttributeMpReachNLRI) ToApiStruct() *api.PathAttr {
-	nlri := make([]*api.Nlri, 0, len(p.Value))
-	for _, v := range p.Value {
-		nlri = append(nlri, v.ToApiStruct())
-	}
-	return &api.PathAttr{
-		Type:    api.BGP_ATTR_TYPE_MP_REACH_NLRI,
-		Nexthop: p.Nexthop.String(),
-		Nlri:    nlri,
-	}
-}
-
 func (p *PathAttributeMpReachNLRI) MarshalJSON() ([]byte, error) {
-	return json.Marshal(p.ToApiStruct())
+	return json.Marshal(struct {
+		Type    BGPAttrType           `json:"type"`
+		Nexthop string                `json:"nexthop"`
+		AFI     uint16                `json:"afi"`
+		SAFI    uint8                 `json:"safi"`
+		Value   []AddrPrefixInterface `json:"value"`
+	}{
+		Type:    p.GetType(),
+		Nexthop: p.Nexthop.String(),
+		AFI:     p.AFI,
+		SAFI:    p.SAFI,
+		Value:   p.Value,
+	})
 }
 
 func NewPathAttributeMpReachNLRI(nexthop string, nlri []AddrPrefixInterface) *PathAttributeMpReachNLRI {
@@ -3063,16 +3088,6 @@ func (p *PathAttributeMpUnreachNLRI) Serialize() ([]byte, error) {
 	return p.PathAttribute.Serialize()
 }
 
-func (p *PathAttributeMpUnreachNLRI) ToApiStruct() *api.PathAttr {
-	return &api.PathAttr{
-		Type: api.BGP_ATTR_TYPE_MP_UNREACH_NLRI,
-	}
-}
-
-func (p *PathAttributeMpUnreachNLRI) MarshalJSON() ([]byte, error) {
-	return json.Marshal(p.ToApiStruct())
-}
-
 func NewPathAttributeMpUnreachNLRI(nlri []AddrPrefixInterface) *PathAttributeMpUnreachNLRI {
 	t := BGP_ATTR_TYPE_MP_UNREACH_NLRI
 	p := &PathAttributeMpUnreachNLRI{
@@ -3094,7 +3109,7 @@ type ExtendedCommunityInterface interface {
 	Serialize() ([]byte, error)
 	String() string
 	GetTypes() (ExtendedCommunityAttrType, ExtendedCommunityAttrSubType)
-	ToApiStruct() *api.ExtendedCommunity
+	MarshalJSON() ([]byte, error)
 }
 
 type TwoOctetAsSpecificExtended struct {
@@ -3121,22 +3136,25 @@ func (e *TwoOctetAsSpecificExtended) String() string {
 	return fmt.Sprintf("%d:%d", e.AS, e.LocalAdmin)
 }
 
+func (e *TwoOctetAsSpecificExtended) MarshalJSON() ([]byte, error) {
+	t, s := e.GetTypes()
+	return json.Marshal(struct {
+		Type    ExtendedCommunityAttrType    `json:"type"`
+		Subtype ExtendedCommunityAttrSubType `json:"subtype"`
+		Value   string                       `json:"value"`
+	}{
+		Type:    t,
+		Subtype: s,
+		Value:   e.String(),
+	})
+}
+
 func (e *TwoOctetAsSpecificExtended) GetTypes() (ExtendedCommunityAttrType, ExtendedCommunityAttrSubType) {
 	t := EC_TYPE_TRANSITIVE_TWO_OCTET_AS_SPECIFIC
 	if !e.IsTransitive {
 		t = EC_TYPE_NON_TRANSITIVE_TWO_OCTET_AS_SPECIFIC
 	}
 	return t, e.SubType
-}
-
-func (e *TwoOctetAsSpecificExtended) ToApiStruct() *api.ExtendedCommunity {
-	return &api.ExtendedCommunity{
-		Type:         api.ExtendedCommunity_TWO_OCTET_AS_SPECIFIC,
-		Subtype:      api.ExtendedCommunity_Subtype(e.SubType),
-		IsTransitive: e.IsTransitive,
-		Asn:          uint32(e.AS),
-		LocalAdmin:   e.LocalAdmin,
-	}
 }
 
 func NewTwoOctetAsSpecificExtended(as uint16, localAdmin uint32, isTransitive bool) *TwoOctetAsSpecificExtended {
@@ -3172,22 +3190,25 @@ func (e *IPv4AddressSpecificExtended) String() string {
 	return fmt.Sprintf("%s:%d", e.IPv4.String(), e.LocalAdmin)
 }
 
+func (e *IPv4AddressSpecificExtended) MarshalJSON() ([]byte, error) {
+	t, s := e.GetTypes()
+	return json.Marshal(struct {
+		Type    ExtendedCommunityAttrType    `json:"type"`
+		Subtype ExtendedCommunityAttrSubType `json:"subtype"`
+		Value   string                       `json:"value"`
+	}{
+		Type:    t,
+		Subtype: s,
+		Value:   e.String(),
+	})
+}
+
 func (e *IPv4AddressSpecificExtended) GetTypes() (ExtendedCommunityAttrType, ExtendedCommunityAttrSubType) {
 	t := EC_TYPE_TRANSITIVE_IP4_SPECIFIC
 	if !e.IsTransitive {
 		t = EC_TYPE_NON_TRANSITIVE_IP4_SPECIFIC
 	}
 	return t, e.SubType
-}
-
-func (e *IPv4AddressSpecificExtended) ToApiStruct() *api.ExtendedCommunity {
-	return &api.ExtendedCommunity{
-		Type:         api.ExtendedCommunity_IP4_SPECIFIC,
-		Subtype:      api.ExtendedCommunity_Subtype(e.SubType),
-		IsTransitive: e.IsTransitive,
-		Ipv4:         e.IPv4.String(),
-		LocalAdmin:   uint32(e.LocalAdmin),
-	}
 }
 
 func NewIPv4AddressSpecificExtended(ip string, localAdmin uint16, isTransitive bool) *IPv4AddressSpecificExtended {
@@ -3231,22 +3252,25 @@ func (e *FourOctetAsSpecificExtended) String() string {
 	return fmt.Sprintf("%d.%d:%d", asUpper, asLower, e.LocalAdmin)
 }
 
+func (e *FourOctetAsSpecificExtended) MarshalJSON() ([]byte, error) {
+	t, s := e.GetTypes()
+	return json.Marshal(struct {
+		Type    ExtendedCommunityAttrType    `json:"type"`
+		Subtype ExtendedCommunityAttrSubType `json:"subtype"`
+		Value   string                       `json:"value"`
+	}{
+		Type:    t,
+		Subtype: s,
+		Value:   e.String(),
+	})
+}
+
 func (e *FourOctetAsSpecificExtended) GetTypes() (ExtendedCommunityAttrType, ExtendedCommunityAttrSubType) {
 	t := EC_TYPE_TRANSITIVE_FOUR_OCTET_AS_SPECIFIC
 	if !e.IsTransitive {
 		t = EC_TYPE_NON_TRANSITIVE_FOUR_OCTET_AS_SPECIFIC
 	}
 	return t, e.SubType
-}
-
-func (e *FourOctetAsSpecificExtended) ToApiStruct() *api.ExtendedCommunity {
-	return &api.ExtendedCommunity{
-		Type:         api.ExtendedCommunity_FOUR_OCTET_AS_SPECIFIC,
-		Subtype:      api.ExtendedCommunity_Subtype(e.SubType),
-		IsTransitive: e.IsTransitive,
-		Asn:          e.AS,
-		LocalAdmin:   uint32(e.LocalAdmin),
-	}
 }
 
 func NewFourOctetAsSpecificExtended(as uint32, localAdmin uint16, isTransitive bool) *FourOctetAsSpecificExtended {
@@ -3399,18 +3423,25 @@ func (e *OpaqueExtended) String() string {
 	return e.Value.String()
 }
 
+func (e *OpaqueExtended) MarshalJSON() ([]byte, error) {
+	t, s := e.GetTypes()
+	return json.Marshal(struct {
+		Type    ExtendedCommunityAttrType    `json:"type"`
+		Subtype ExtendedCommunityAttrSubType `json:"subtype"`
+		Value   OpaqueExtendedValueInterface `json:"value"`
+	}{
+		Type:    t,
+		Subtype: s,
+		Value:   e.Value,
+	})
+}
+
 func (e *OpaqueExtended) GetTypes() (ExtendedCommunityAttrType, ExtendedCommunityAttrSubType) {
 	t := EC_TYPE_TRANSITIVE_OPAQUE
 	if !e.IsTransitive {
 		t = EC_TYPE_NON_TRANSITIVE_OPAQUE
 	}
 	return t, ExtendedCommunityAttrSubType(0xFF)
-}
-
-func (e *OpaqueExtended) ToApiStruct() *api.ExtendedCommunity {
-	return &api.ExtendedCommunity{
-		Type: api.ExtendedCommunity_OPAQUE,
-	}
 }
 
 func NewOpaqueExtended(isTransitive bool) *OpaqueExtended {
@@ -3443,17 +3474,23 @@ func (e *ESILabelExtended) String() string {
 	return fmt.Sprintf("ESI LABEL: Label [%d] IsSingleActive [%t]", e.Label, e.IsSingleActive)
 }
 
-func (e *ESILabelExtended) GetTypes() (ExtendedCommunityAttrType, ExtendedCommunityAttrSubType) {
-	return EC_TYPE_EVPN, EC_SUBTYPE_ESI_LABEL
+func (e *ESILabelExtended) MarshalJSON() ([]byte, error) {
+	t, s := e.GetTypes()
+	return json.Marshal(struct {
+		Type           ExtendedCommunityAttrType    `json:"type"`
+		Subtype        ExtendedCommunityAttrSubType `json:"subtype"`
+		Label          uint32                       `json:"label"`
+		IsSingleActive bool                         `json:"is_single_active"`
+	}{
+		Type:           t,
+		Subtype:        s,
+		Label:          e.Label,
+		IsSingleActive: e.IsSingleActive,
+	})
 }
 
-func (e *ESILabelExtended) ToApiStruct() *api.ExtendedCommunity {
-	return &api.ExtendedCommunity{
-		Type:           api.ExtendedCommunity_EVPN,
-		Subtype:        api.ExtendedCommunity_ESI_LABEL,
-		IsSingleActive: e.IsSingleActive,
-		Label:          e.Label,
-	}
+func (e *ESILabelExtended) GetTypes() (ExtendedCommunityAttrType, ExtendedCommunityAttrSubType) {
+	return EC_TYPE_EVPN, EC_SUBTYPE_ESI_LABEL
 }
 
 func NewESILabelExtended(label uint32, isSingleActive bool) *ESILabelExtended {
@@ -3479,16 +3516,21 @@ func (e *ESImportRouteTarget) String() string {
 	return fmt.Sprintf("ES-IMPORT ROUTE TARGET: ES-Import [%s]", e.ESImport.String())
 }
 
-func (e *ESImportRouteTarget) GetTypes() (ExtendedCommunityAttrType, ExtendedCommunityAttrSubType) {
-	return EC_TYPE_EVPN, EC_SUBTYPE_ES_IMPORT
+func (e *ESImportRouteTarget) MarshalJSON() ([]byte, error) {
+	t, s := e.GetTypes()
+	return json.Marshal(struct {
+		Type    ExtendedCommunityAttrType    `json:"type"`
+		Subtype ExtendedCommunityAttrSubType `json:"subtype"`
+		Value   string                       `json:"value"`
+	}{
+		Type:    t,
+		Subtype: s,
+		Value:   e.ESImport.String(),
+	})
 }
 
-func (e *ESImportRouteTarget) ToApiStruct() *api.ExtendedCommunity {
-	return &api.ExtendedCommunity{
-		Type:     api.ExtendedCommunity_EVPN,
-		Subtype:  api.ExtendedCommunity_ROUTE_TARGET,
-		EsImport: e.ESImport.String(),
-	}
+func (e *ESImportRouteTarget) GetTypes() (ExtendedCommunityAttrType, ExtendedCommunityAttrSubType) {
+	return EC_TYPE_EVPN, EC_SUBTYPE_ES_IMPORT
 }
 
 func NewESImportRouteTarget(mac string) *ESImportRouteTarget {
@@ -3521,17 +3563,23 @@ func (e *MacMobilityExtended) String() string {
 	return fmt.Sprintf("MAC MOBILITY: Seq [%d] IsSticky [%t]", e.Sequence, e.IsSticky)
 }
 
-func (e *MacMobilityExtended) GetTypes() (ExtendedCommunityAttrType, ExtendedCommunityAttrSubType) {
-	return EC_TYPE_EVPN, EC_SUBTYPE_MAC_MOBILITY
-}
-
-func (e *MacMobilityExtended) ToApiStruct() *api.ExtendedCommunity {
-	return &api.ExtendedCommunity{
-		Type:     api.ExtendedCommunity_EVPN,
-		Subtype:  api.ExtendedCommunity_MAC_MOBILITY,
+func (e *MacMobilityExtended) MarshalJSON() ([]byte, error) {
+	t, s := e.GetTypes()
+	return json.Marshal(struct {
+		Type     ExtendedCommunityAttrType    `json:"type"`
+		Subtype  ExtendedCommunityAttrSubType `json:"subtype"`
+		Sequence uint32                       `json:"sequence"`
+		IsSticky bool                         `json:"is_sticky"`
+	}{
+		Type:     t,
+		Subtype:  s,
 		Sequence: e.Sequence,
 		IsSticky: e.IsSticky,
-	}
+	})
+}
+
+func (e *MacMobilityExtended) GetTypes() (ExtendedCommunityAttrType, ExtendedCommunityAttrSubType) {
+	return EC_TYPE_EVPN, EC_SUBTYPE_MAC_MOBILITY
 }
 
 func NewMacMobilityExtended(seq uint32, isSticky bool) *MacMobilityExtended {
@@ -3595,12 +3643,21 @@ func (e *UnknownExtended) String() string {
 	return fmt.Sprintf("%d", v)
 }
 
-func (e *UnknownExtended) GetTypes() (ExtendedCommunityAttrType, ExtendedCommunityAttrSubType) {
-	return ExtendedCommunityAttrType(0xFF), ExtendedCommunityAttrSubType(0xFF)
+func (e *UnknownExtended) MarshalJSON() ([]byte, error) {
+	t, s := e.GetTypes()
+	return json.Marshal(struct {
+		Type    ExtendedCommunityAttrType    `json:"type"`
+		Subtype ExtendedCommunityAttrSubType `json:"subtype"`
+		Value   []byte                       `json:"string"`
+	}{
+		Type:    t,
+		Subtype: s,
+		Value:   e.Value,
+	})
 }
 
-func (e *UnknownExtended) ToApiStruct() *api.ExtendedCommunity {
-	return &api.ExtendedCommunity{}
+func (e *UnknownExtended) GetTypes() (ExtendedCommunityAttrType, ExtendedCommunityAttrSubType) {
+	return ExtendedCommunityAttrType(0xFF), ExtendedCommunityAttrSubType(0xFF)
 }
 
 type PathAttributeExtendedCommunities struct {
@@ -3694,22 +3751,22 @@ func (p *PathAttributeExtendedCommunities) Serialize() ([]byte, error) {
 	return p.PathAttribute.Serialize()
 }
 
-func (p *PathAttributeExtendedCommunities) ToApiStruct() *api.PathAttr {
-	ecs := func(arg []ExtendedCommunityInterface) []*api.ExtendedCommunity {
-		ret := make([]*api.ExtendedCommunity, 0, len(arg))
-		for _, v := range p.Value {
-			ret = append(ret, v.ToApiStruct())
-		}
-		return ret
-	}(p.Value)
-	return &api.PathAttr{
-		Type:                api.BGP_ATTR_TYPE_EXTENDED_COMMUNITIES,
-		ExtendedCommunities: ecs,
+func (p *PathAttributeExtendedCommunities) String() string {
+	l := []string{}
+	for _, v := range p.Value {
+		l = append(l, v.String())
 	}
+	return fmt.Sprintf("{Extcomms: %s}", strings.Join(l, ", "))
 }
 
 func (p *PathAttributeExtendedCommunities) MarshalJSON() ([]byte, error) {
-	return json.Marshal(p.ToApiStruct())
+	return json.Marshal(struct {
+		Type  BGPAttrType                  `json:"type"`
+		Value []ExtendedCommunityInterface `json:"value"`
+	}{
+		Type:  p.GetType(),
+		Value: p.Value,
+	})
 }
 
 func NewPathAttributeExtendedCommunities(value []ExtendedCommunityInterface) *PathAttributeExtendedCommunities {
@@ -3769,26 +3826,6 @@ func (p *PathAttributeAs4Path) Serialize() ([]byte, error) {
 	return p.PathAttribute.Serialize()
 }
 
-func (p *PathAttributeAs4Path) ToApiStruct() *api.PathAttr {
-	aspaths := make([]*api.AsPath, 0)
-	aspath := &api.AsPath{
-		SegmentType: uint32(p.Type),
-		Asns:        make([]uint32, 0),
-	}
-	for _, a := range p.Value {
-		aspath.Asns = append(aspath.Asns, a.AS...)
-	}
-	aspaths = append(aspaths, aspath)
-	return &api.PathAttr{
-		Type:    api.BGP_ATTR_TYPE_AS_PATH,
-		AsPaths: aspaths,
-	}
-}
-
-func (p *PathAttributeAs4Path) MarshalJSON() ([]byte, error) {
-	return json.Marshal(p.ToApiStruct())
-}
-
 func NewPathAttributeAs4Path(value []*As4PathParam) *PathAttributeAs4Path {
 	t := BGP_ATTR_TYPE_AS4_PATH
 	return &PathAttributeAs4Path{
@@ -3828,20 +3865,6 @@ func (p *PathAttributeAs4Aggregator) Serialize() ([]byte, error) {
 	return p.PathAttribute.Serialize()
 }
 
-func (p *PathAttributeAs4Aggregator) ToApiStruct() *api.PathAttr {
-	return &api.PathAttr{
-		Type: api.BGP_ATTR_TYPE_AS4_AGGREGATOR,
-		Aggregator: &api.Aggregator{
-			As:      p.Value.AS,
-			Address: p.Value.Address.String(),
-		},
-	}
-}
-
-func (p *PathAttributeAs4Aggregator) MarshalJSON() ([]byte, error) {
-	return json.Marshal(p.ToApiStruct())
-}
-
 func NewPathAttributeAs4Aggregator(as uint32, address string) *PathAttributeAs4Aggregator {
 	t := BGP_ATTR_TYPE_AS4_AGGREGATOR
 	return &PathAttributeAs4Aggregator{
@@ -3858,7 +3881,6 @@ func NewPathAttributeAs4Aggregator(as uint32, address string) *PathAttributeAs4A
 
 type TunnelEncapSubTLVValue interface {
 	Serialize() ([]byte, error)
-	ToApiStruct() *api.TunnelEncapSubTLV
 }
 
 type TunnelEncapSubTLVDefault struct {
@@ -3867,13 +3889,6 @@ type TunnelEncapSubTLVDefault struct {
 
 func (t *TunnelEncapSubTLVDefault) Serialize() ([]byte, error) {
 	return t.Value, nil
-}
-
-func (t *TunnelEncapSubTLVDefault) ToApiStruct() *api.TunnelEncapSubTLV {
-	return &api.TunnelEncapSubTLV{
-		Type:  api.ENCAP_SUBTLV_TYPE_UNKNOWN_SUBTLV_TYPE,
-		Value: string(t.Value),
-	}
 }
 
 type TunnelEncapSubTLVEncapuslation struct {
@@ -3887,14 +3902,6 @@ func (t *TunnelEncapSubTLVEncapuslation) Serialize() ([]byte, error) {
 	return append(buf, t.Cookie...), nil
 }
 
-func (t *TunnelEncapSubTLVEncapuslation) ToApiStruct() *api.TunnelEncapSubTLV {
-	return &api.TunnelEncapSubTLV{
-		Type:   api.ENCAP_SUBTLV_TYPE_ENCAPSULATION,
-		Key:    t.Key,
-		Cookie: string(t.Cookie),
-	}
-}
-
 type TunnelEncapSubTLVProtocol struct {
 	Protocol uint16
 }
@@ -3903,13 +3910,6 @@ func (t *TunnelEncapSubTLVProtocol) Serialize() ([]byte, error) {
 	buf := make([]byte, 2)
 	binary.BigEndian.PutUint16(buf, t.Protocol)
 	return buf, nil
-}
-
-func (t *TunnelEncapSubTLVProtocol) ToApiStruct() *api.TunnelEncapSubTLV {
-	return &api.TunnelEncapSubTLV{
-		Type:     api.ENCAP_SUBTLV_TYPE_PROTOCOL,
-		Protocol: uint32(t.Protocol),
-	}
 }
 
 type TunnelEncapSubTLVColor struct {
@@ -3922,13 +3922,6 @@ func (t *TunnelEncapSubTLVColor) Serialize() ([]byte, error) {
 	buf[1] = byte(EC_SUBTYPE_COLOR)
 	binary.BigEndian.PutUint32(buf[4:], t.Color)
 	return buf, nil
-}
-
-func (t *TunnelEncapSubTLVColor) ToApiStruct() *api.TunnelEncapSubTLV {
-	return &api.TunnelEncapSubTLV{
-		Type:  api.ENCAP_SUBTLV_TYPE_COLOR,
-		Color: t.Color,
-	}
 }
 
 type TunnelEncapSubTLV struct {
@@ -3979,10 +3972,6 @@ func (p *TunnelEncapSubTLV) DecodeFromBytes(data []byte) error {
 	return nil
 }
 
-func (p *TunnelEncapSubTLV) ToApiStruct() *api.TunnelEncapSubTLV {
-	return p.Value.ToApiStruct()
-}
-
 type TunnelEncapTLV struct {
 	Type  TunnelType
 	Len   int
@@ -4027,17 +4016,6 @@ func (p *TunnelEncapTLV) Serialize() ([]byte, error) {
 	p.Len = len(buf) - 4
 	binary.BigEndian.PutUint16(buf[2:], uint16(p.Len))
 	return buf, nil
-}
-
-func (p *TunnelEncapTLV) ToApiStruct() *api.TunnelEncapTLV {
-	subTlvs := make([]*api.TunnelEncapSubTLV, 0, len(p.Value))
-	for _, v := range p.Value {
-		subTlvs = append(subTlvs, v.ToApiStruct())
-	}
-	return &api.TunnelEncapTLV{
-		Type:   api.TUNNEL_TYPE(p.Type),
-		SubTlv: subTlvs,
-	}
 }
 
 type PathAttributeTunnelEncap struct {
@@ -4087,21 +4065,6 @@ func (p *PathAttributeTunnelEncap) Serialize() ([]byte, error) {
 	}
 	p.PathAttribute.Value = buf
 	return p.PathAttribute.Serialize()
-}
-
-func (p *PathAttributeTunnelEncap) ToApiStruct() *api.PathAttr {
-	tlvs := make([]*api.TunnelEncapTLV, 0, len(p.Value))
-	for _, v := range p.Value {
-		tlvs = append(tlvs, v.ToApiStruct())
-	}
-	return &api.PathAttr{
-		Type:        api.BGP_ATTR_TYPE_TUNNEL_ENCAP,
-		TunnelEncap: tlvs,
-	}
-}
-
-func (p *PathAttributeTunnelEncap) MarshalJSON() ([]byte, error) {
-	return json.Marshal(p.ToApiStruct())
 }
 
 func NewPathAttributeTunnelEncap(value []*TunnelEncapTLV) *PathAttributeTunnelEncap {
@@ -4198,31 +4161,8 @@ func (p *PathAttributePmsiTunnel) Serialize() ([]byte, error) {
 	return buf, nil
 }
 
-func (p *PathAttributePmsiTunnel) ToApiStruct() *api.PathAttr {
-	return &api.PathAttr{
-		Type: api.BGP_ATTR_TYPE_PMSI_TUNNEL,
-		PmsiTunnel: &api.PmsiTunnel{
-			IsLeafInfoRequired: p.IsLeafInfoRequired,
-			Type:               api.PMSI_TUNNEL_TYPE(p.TunnelType),
-			Label:              p.Label,
-			TunnelId:           p.TunnelID.String(),
-		},
-	}
-}
-
 type PathAttributeUnknown struct {
 	PathAttribute
-}
-
-func (p *PathAttributeUnknown) ToApiStruct() *api.PathAttr {
-	return &api.PathAttr{
-		Type:  api.BGP_ATTR_TYPE_UNKNOWN_ATTR,
-		Value: []string{string(p.Value)},
-	}
-}
-
-func (p *PathAttributeUnknown) MarshalJSON() ([]byte, error) {
-	return json.Marshal(p.ToApiStruct())
 }
 
 func GetPathAttribute(data []byte) (PathAttributeInterface, error) {

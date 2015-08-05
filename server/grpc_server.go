@@ -160,38 +160,6 @@ func (s *Server) GetNeighbors(_ *api.Arguments, stream api.Grpc_GetNeighborsServ
 	return nil
 }
 
-func (s *Server) GetAdjRib(arg *api.Arguments, stream api.Grpc_GetAdjRibServer) error {
-	var reqType int
-	switch arg.Resource {
-	case api.Resource_ADJ_IN:
-		reqType = REQ_ADJ_RIB_IN
-	case api.Resource_ADJ_OUT:
-		reqType = REQ_ADJ_RIB_OUT
-	default:
-		return fmt.Errorf("unsupported resource type: %v", arg.Resource)
-	}
-
-	rf, err := convertAf2Rf(arg.Af)
-	if err != nil {
-		return err
-	}
-
-	req := NewGrpcRequest(reqType, arg.Name, rf, nil)
-	s.bgpServerCh <- req
-
-	for res := range req.ResponseCh {
-		if err := res.Err(); err != nil {
-			log.Debug(err.Error())
-			return err
-		}
-		if err := stream.Send(res.Data.(*api.Path)); err != nil {
-			return err
-		}
-	}
-
-	return nil
-}
-
 func (s *Server) GetRib(arg *api.Arguments, stream api.Grpc_GetRibServer) error {
 	var reqType int
 	switch arg.Resource {
@@ -199,6 +167,12 @@ func (s *Server) GetRib(arg *api.Arguments, stream api.Grpc_GetRibServer) error 
 		reqType = REQ_LOCAL_RIB
 	case api.Resource_GLOBAL:
 		reqType = REQ_GLOBAL_RIB
+	case api.Resource_ADJ_IN:
+		reqType = REQ_ADJ_RIB_IN
+	case api.Resource_ADJ_OUT:
+		reqType = REQ_ADJ_RIB_OUT
+	case api.Resource_VRF:
+		reqType = REQ_VRF
 	default:
 		return fmt.Errorf("unsupported resource type: %v", arg.Resource)
 	}
@@ -245,7 +219,7 @@ func (s *Server) MonitorBestChanged(arg *api.Arguments, stream api.Grpc_MonitorB
 			log.Debug(err.Error())
 			goto END
 		}
-		if err = stream.Send(res.Data.(*api.Path)); err != nil {
+		if err = stream.Send(res.Data.(*api.Destination)); err != nil {
 			goto END
 		}
 	}
@@ -638,26 +612,6 @@ func (s *Server) GetRPKI(arg *api.Arguments, stream api.Grpc_GetRPKIServer) erro
 	return nil
 }
 
-func (s *Server) GetVrf(arg *api.Arguments, stream api.Grpc_GetVrfServer) error {
-	rf, err := convertAf2Rf(arg.Af)
-	if err != nil {
-		return err
-	}
-	req := NewGrpcRequest(REQ_VRF, "", rf, arg)
-	s.bgpServerCh <- req
-
-	for res := range req.ResponseCh {
-		if err := res.Err(); err != nil {
-			log.Debug(err.Error())
-			return err
-		}
-		if err := stream.Send(res.Data.(*api.Path)); err != nil {
-			return err
-		}
-	}
-	return nil
-}
-
 func (s *Server) GetVrfs(arg *api.Arguments, stream api.Grpc_GetVrfsServer) error {
 	req := NewGrpcRequest(REQ_VRFS, "", bgp.RouteFamily(0), nil)
 	s.bgpServerCh <- req
@@ -688,7 +642,7 @@ func (s *Server) ModVrf(ctx context.Context, arg *api.ModVrfArguments) (*api.Err
 
 type GrpcRequest struct {
 	RequestType int
-	RemoteAddr  string
+	Name        string
 	RouteFamily bgp.RouteFamily
 	ResponseCh  chan *GrpcResponse
 	EndCh       chan struct{}
@@ -696,11 +650,11 @@ type GrpcRequest struct {
 	Data        interface{}
 }
 
-func NewGrpcRequest(reqType int, remoteAddr string, rf bgp.RouteFamily, d interface{}) *GrpcRequest {
+func NewGrpcRequest(reqType int, name string, rf bgp.RouteFamily, d interface{}) *GrpcRequest {
 	r := &GrpcRequest{
 		RequestType: reqType,
 		RouteFamily: rf,
-		RemoteAddr:  remoteAddr,
+		Name:        name,
 		ResponseCh:  make(chan *GrpcResponse, 8),
 		EndCh:       make(chan struct{}, 1),
 		Data:        d,

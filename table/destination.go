@@ -88,32 +88,21 @@ func (dd *Destination) MarshalJSON() ([]byte, error) {
 
 func (dd *Destination) ToApiStruct() *api.Destination {
 	prefix := dd.GetNlri().String()
-
-	idx := func() int {
-		for i, p := range dd.knownPathList {
-			if dd.GetBestPath().Equal(p) {
-				return i
-			}
-		}
-		log.WithFields(log.Fields{
-			"Topic": "Table",
-			"Key":   prefix,
-		}).Panic("no best path")
-		return 0
-	}()
-
 	paths := func(arg []*Path) []*api.Path {
 		ret := make([]*api.Path, 0, len(arg))
 		for _, p := range arg {
-			ret = append(ret, p.ToApiStruct())
+			pp := p.ToApiStruct()
+			if dd.GetBestPath().Equal(p) {
+				pp.Best = true
+			}
+			ret = append(ret, pp)
 		}
 		return ret
 	}(dd.knownPathList)
 
 	return &api.Destination{
-		Prefix:      prefix,
-		Paths:       paths,
-		BestPathIdx: uint32(idx),
+		Prefix: prefix,
+		Paths:  paths,
 	}
 }
 

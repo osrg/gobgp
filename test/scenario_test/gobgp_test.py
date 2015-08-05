@@ -260,11 +260,12 @@ class GoBGPTestBase(unittest.TestCase):
         retry_count = 0
         while True:
             rib = self.ask_gobgp(type, neighbor_address, af)
-            paths = [p for p in rib if p['nlri']['prefix'] == target_prefix]
+            paths = [p for p in rib if p['prefix'] == target_prefix]
 
             if len(paths) > 0:
                 assert len(paths) == 1
-                return paths[0]
+                assert len(paths[0]['paths']) == 1
+                return paths[0]['paths'][0]
             else:
                 retry_count += 1
                 if retry_count > retry:

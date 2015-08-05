@@ -1229,8 +1229,8 @@ class GoBGPTest(GoBGPTestBase):
         # check adj-rib-out in peer2
         path = self.get_paths_in_localrib(peer2, prefix1,retry=0)
         self.assertIsNotNone(path)
-        attrs = [x for x in path[0]['attrs'] if 'communites' in x ]
-        self.assertTrue((65100 << 16 | 20) in attrs[0]['communites'])
+        attrs = [x for x in path[0]['attrs'] if 'communities' in x ]
+        self.assertTrue((65100 << 16 | 20) in attrs[0]['communities'])
 
         # check show ip bgp on peer2(quagga2)
         qpath = self.get_route(peer2, prefix1, retry=self.retry_count_common)
@@ -1283,9 +1283,9 @@ class GoBGPTest(GoBGPTestBase):
         # check adj-rib-out in peer2
         path = self.get_paths_in_localrib(peer2, prefix1,retry=0)
         self.assertIsNotNone(path)
-        attrs = [x for x in path[0]['attrs'] if 'communites' in x ]
-        self.assertTrue((65100 << 16 | 20) in attrs[0]['communites'])
-        self.assertTrue((65100 << 16 | 30) in attrs[0]['communites'])
+        attrs = [x for x in path[0]['attrs'] if 'communities' in x ]
+        self.assertTrue((65100 << 16 | 20) in attrs[0]['communities'])
+        self.assertTrue((65100 << 16 | 30) in attrs[0]['communities'])
 
         # check show ip bgp on peer2(quagga2)
         qpath = self.get_route(peer2,prefix1, retry=self.retry_count_common)
@@ -1339,9 +1339,9 @@ class GoBGPTest(GoBGPTestBase):
         # check adj-rib-out in peer2
         path = self.get_paths_in_localrib(peer2, prefix1,retry=0)
         self.assertIsNotNone(path)
-        attrs = [x for x in path[0]['attrs'] if 'communites' in x ]
-        self.assertTrue((65100 << 16 | 20) not in attrs[0]['communites'])
-        self.assertTrue((65100 << 16 | 30) not in attrs[0]['communites'])
+        attrs = [x for x in path[0]['attrs'] if 'communities' in x ]
+        self.assertTrue((65100 << 16 | 20) not in attrs[0]['communities'])
+        self.assertTrue((65100 << 16 | 30) not in attrs[0]['communities'])
 
         # check show ip bgp on peer2(quagga2)
         qpath = self.get_route(peer2,prefix1, retry=self.retry_count_common)
@@ -1397,8 +1397,8 @@ class GoBGPTest(GoBGPTestBase):
         # check adj-rib-out in peer2
         path = self.get_paths_in_localrib(peer2, prefix1,retry=0)
         self.assertIsNotNone(path)
-        attrs = [x for x in path[0]['attrs'] if 'communites' in x ]
-        self.assertFalse('communites' in attrs)
+        attrs = [x for x in path[0]['attrs'] if 'communities' in x ]
+        self.assertFalse('communities' in attrs)
 
         # check show ip bgp on peer2(quagga2)
         qpath = self.get_route(peer2,prefix1, retry=self.retry_count_common)
@@ -1452,12 +1452,12 @@ class GoBGPTest(GoBGPTestBase):
         # check adj-rib-out in peer2
         path = self.get_paths_in_localrib(peer2, prefix1,retry=0)
         self.assertIsNotNone(path)
-        attrs = [x for x in path[0]['attrs'] if 'communites' in x ]
-        self.assertFalse((65100 << 16 | 20) in attrs[0]['communites'])
+        attrs = [x for x in path[0]['attrs'] if 'communities' in x ]
+        self.assertFalse((65100 << 16 | 20) in attrs[0]['communities'])
         # check out-rib
         path = self.get_adj_rib_out(peer2, prefix1, retry=0)
-        attrs = [x for x in path['attrs'] if 'communites' in x ]
-        self.assertTrue((65100 << 16 | 20) in attrs[0]['communites'])
+        attrs = [x for x in path['attrs'] if 'communities' in x ]
+        self.assertTrue((65100 << 16 | 20) in attrs[0]['communities'])
 
         # check show ip bgp on peer2(quagga2)
         qpath = self.get_route(peer2,prefix1, retry=self.retry_count_common)
@@ -1511,14 +1511,14 @@ class GoBGPTest(GoBGPTestBase):
         # check adj-rib-out in peer2
         path = self.get_paths_in_localrib(peer2, prefix1, retry=0)
         self.assertIsNotNone(path)
-        attrs = [x for x in path[0]['attrs'] if 'communites' in x ]
-        self.assertFalse((65100 << 16 | 20) in attrs[0]['communites'])
-        self.assertFalse((65100 << 16 | 30) in attrs[0]['communites'])
+        attrs = [x for x in path[0]['attrs'] if 'communities' in x ]
+        self.assertFalse((65100 << 16 | 20) in attrs[0]['communities'])
+        self.assertFalse((65100 << 16 | 30) in attrs[0]['communities'])
         # check out-rib
         path = self.get_adj_rib_out(peer2, prefix1, retry=1)
-        attrs = [x for x in path['attrs'] if 'communites' in x ]
-        self.assertTrue((65100 << 16 | 20) in attrs[0]['communites'])
-        self.assertTrue((65100 << 16 | 30) in attrs[0]['communites'])
+        attrs = [x for x in path['attrs'] if 'communities' in x ]
+        self.assertTrue((65100 << 16 | 20) in attrs[0]['communities'])
+        self.assertTrue((65100 << 16 | 30) in attrs[0]['communities'])
 
 
         # check show ip bgp on peer2(quagga2)
@@ -1574,14 +1574,14 @@ class GoBGPTest(GoBGPTestBase):
         # check adj-rib-out in peer2
         path = self.get_paths_in_localrib(peer2, prefix1, retry=1)
         self.assertIsNotNone(path)
-        attrs = [x for x in path[0]['attrs'] if 'communites' in x ]
-        self.assertTrue((65100 << 16 | 20) in attrs[0]['communites'])
-        self.assertTrue((65100 << 16 | 30) in attrs[0]['communites'])
+        attrs = [x for x in path[0]['attrs'] if 'communities' in x ]
+        self.assertTrue((65100 << 16 | 20) in attrs[0]['communities'])
+        self.assertTrue((65100 << 16 | 30) in attrs[0]['communities'])
         # check out-rib
         path = self.get_adj_rib_out(peer2, prefix1, retry=1)
-        attrs = [x for x in path['attrs'] if 'communites' in x ]
-        self.assertFalse((65100 << 16 | 20) in attrs[0]['communites'])
-        self.assertFalse((65100 << 16 | 30) in attrs[0]['communites'])
+        attrs = [x for x in path['attrs'] if 'communities' in x ]
+        self.assertFalse((65100 << 16 | 20) in attrs[0]['communities'])
+        self.assertFalse((65100 << 16 | 30) in attrs[0]['communities'])
 
 
         # check show ip bgp on peer2(quagga2)
@@ -1638,14 +1638,14 @@ class GoBGPTest(GoBGPTestBase):
         # check adj-rib-out in peer2
         path = self.get_paths_in_localrib(peer2, prefix1,  retry=0)
         self.assertIsNotNone(path)
-        attrs = [x for x in path[0]['attrs'] if 'communites' in x ]
-        self.assertTrue((65100 << 16 | 10) in attrs[0]['communites'])
-        self.assertTrue((65100 << 16 | 20) in attrs[0]['communites'])
-        self.assertTrue((65100 << 16 | 30) in attrs[0]['communites'])
+        attrs = [x for x in path[0]['attrs'] if 'communities' in x ]
+        self.assertTrue((65100 << 16 | 10) in attrs[0]['communities'])
+        self.assertTrue((65100 << 16 | 20) in attrs[0]['communities'])
+        self.assertTrue((65100 << 16 | 30) in attrs[0]['communities'])
         # check out-rib
         path = self.get_adj_rib_out(peer2, prefix1, retry=1)
-        attrs = [x for x in path['attrs'] if 'communites' in x ]
-        self.assertFalse('communites' in attrs)
+        attrs = [x for x in path['attrs'] if 'communities' in x ]
+        self.assertFalse('communities' in attrs)
 
         # check show ip bgp on peer2(quagga2)
         qpath = self.get_route(peer2,prefix1, retry=self.retry_count_common)

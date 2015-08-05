@@ -67,3 +67,7 @@ LOCAL_RIB = "local"
 GLOBAL_RIB = "global rib"
 NEIGHBOR = "neighbor"
 POLICY = "policy"
+
+BGP_ATTR_TYPE_AS_PATH= 2
+BGP_ATTR_TYPE_MED = 4
+BGP_ATTR_TYPE_COMMUNITIES = 8
