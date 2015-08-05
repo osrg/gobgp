@@ -305,7 +305,7 @@ func (server *BgpServer) Serve() {
 		case config := <-server.updatedPeerCh:
 			addr := config.NeighborConfig.NeighborAddress.String()
 			peer := server.neighborMap[addr]
-			if peer.conf.RouteServer.RouteServerClient == true {
+			if peer.isRouteServerClient() {
 				peer.conf.ApplyPolicy = config.ApplyPolicy
 				loc := server.localRibMap[addr]
 				loc.setPolicy(peer, server.policyMap)
