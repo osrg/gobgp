@@ -19,6 +19,7 @@ import (
 	"bytes"
 	"fmt"
 	"github.com/osrg/gobgp/api"
+	"github.com/osrg/gobgp/packet"
 	"google.golang.org/grpc"
 	"net"
 	"os"
@@ -124,7 +125,77 @@ func cidr2prefix(cidr string) string {
 	return buffer.String()[:ones]
 }
 
-type paths []*api.Path
+type Destination struct {
+	Prefix string  `json:"prefix"`
+	Paths  []*Path `json:"paths"`
+}
+
+func ApiStruct2Destination(dst *api.Destination) (*Destination, error) {
+	paths := make([]*Path, 0, len(dst.Paths))
+	for _, p := range dst.Paths {
+		path, err := ApiStruct2Path(p)
+		if err != nil {
+			return nil, err
+		}
+		paths = append(paths, path)
+	}
+	return &Destination{
+		Prefix: dst.Prefix,
+		Paths:  paths,
+	}, nil
+
+}
+
+type Path struct {
+	Nlri       bgp.AddrPrefixInterface      `json:"nlri"`
+	PathAttrs  []bgp.PathAttributeInterface `json:"attrs"`
+	Age        int64                        `json:"age"`
+	Best       bool                         `json:"best"`
+	IsWithdraw bool                         `json:"isWithdraw"`
+}
+
+func ApiStruct2Path(p *api.Path) (*Path, error) {
+	var nlri bgp.AddrPrefixInterface
+	if len(p.Nlri) > 0 {
+		nlri = &bgp.NLRInfo{}
+		err := nlri.DecodeFromBytes(p.Nlri)
+		if err != nil {
+			return nil, err
+		}
+	}
+
+	pattr := make([]bgp.PathAttributeInterface, 0, len(p.Pattrs))
+	for _, attr := range p.Pattrs {
+		p, err := bgp.GetPathAttribute(attr)
+		if err != nil {
+			return nil, err
+		}
+
+		err = p.DecodeFromBytes(attr)
+		if err != nil {
+			return nil, err
+		}
+
+		switch p.GetType() {
+		case bgp.BGP_ATTR_TYPE_MP_REACH_NLRI:
+			mpreach := p.(*bgp.PathAttributeMpReachNLRI)
+			if len(mpreach.Value) != 1 {
+				return nil, fmt.Errorf("include only one route in mp_reach_nlri")
+			}
+			nlri = mpreach.Value[0]
+		}
+		pattr = append(pattr, p)
+	}
+	return &Path{
+		Nlri:       nlri,
+		PathAttrs:  pattr,
+		Age:        p.Age,
+		Best:       p.Best,
+		IsWithdraw: p.IsWithdraw,
+	}, nil
+}
+
+type paths []*Path
 
 func (p paths) Len() int {
 	return len(p)
@@ -135,13 +206,13 @@ func (p paths) Swap(i, j int) {
 }
 
 func (p paths) Less(i, j int) bool {
-	if p[i].Nlri.Prefix == p[j].Nlri.Prefix {
+	if p[i].Nlri.String() == p[j].Nlri.String() {
 		if p[i].Best {
 			return true
 		}
 	}
-	strings := sort.StringSlice{cidr2prefix(p[i].Nlri.Prefix),
-		cidr2prefix(p[j].Nlri.Prefix)}
+	strings := sort.StringSlice{cidr2prefix(p[i].Nlri.String()),
+		cidr2prefix(p[j].Nlri.String())}
 	return strings.Less(0, 1)
 }
 

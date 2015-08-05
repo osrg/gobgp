@@ -142,20 +142,35 @@ func (path *Path) IsLocal() bool {
 }
 
 func (path *Path) ToApiStruct() *api.Path {
-	pathAttrs := func(arg []bgp.PathAttributeInterface) []*api.PathAttr {
-		ret := make([]*api.PathAttr, 0, len(arg))
+	nlri, _ := path.GetNlri().Serialize()
+	pattrs := func(arg []bgp.PathAttributeInterface) [][]byte {
+		ret := make([][]byte, 0, len(arg))
 		for _, a := range arg {
-			ret = append(ret, a.ToApiStruct())
+			aa, _ := a.Serialize()
+			ret = append(ret, aa)
 		}
 		return ret
 	}(path.GetPathAttrs())
 	return &api.Path{
-		Nlri:       path.GetNlri().ToApiStruct(),
-		Nexthop:    path.GetNexthop().String(),
-		Attrs:      pathAttrs,
+		Nlri:       nlri,
+		Pattrs:     pattrs,
 		Age:        int64(time.Now().Sub(path.timestamp).Seconds()),
 		IsWithdraw: path.IsWithdraw,
 	}
+}
+
+func (path *Path) MarshalJSON() ([]byte, error) {
+	return json.Marshal(struct {
+		Source     *PeerInfo                    `json:"source"`
+		IsWithdraw bool                         `json:"is_withdraw"`
+		Nlri       bgp.AddrPrefixInterface      `json:"nlri"`
+		Pathattrs  []bgp.PathAttributeInterface `json:"pattrs"`
+	}{
+		Source:     path.source,
+		IsWithdraw: path.IsWithdraw,
+		Nlri:       path.nlri,
+		Pathattrs:  path.pathAttrs,
+	})
 }
 
 // create new PathAttributes

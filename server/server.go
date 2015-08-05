@@ -507,7 +507,10 @@ func (server *BgpServer) broadcastBests(bests []*table.Path) {
 		}
 
 		result := &GrpcResponse{
-			Data: path.ToApiStruct(),
+			Data: &api.Destination{
+				Prefix: path.GetNlri().String(),
+				Paths:  []*api.Path{path.ToApiStruct()},
+			},
 		}
 		remainReqs := make([]*GrpcRequest, 0, len(server.broadcastReqs))
 		for _, req := range server.broadcastReqs {
@@ -543,7 +546,7 @@ func (server *BgpServer) broadcastPeerState(peer *Peer) {
 		default:
 		}
 		ignore := req.RequestType != REQ_MONITOR_NEIGHBOR_PEER_STATE
-		ignore = ignore || (req.RemoteAddr != "" && req.RemoteAddr != peer.conf.NeighborConfig.NeighborAddress.String())
+		ignore = ignore || (req.Name != "" && req.Name != peer.conf.NeighborConfig.NeighborAddress.String())
 		if ignore {
 			remainReqs = append(remainReqs, req)
 			continue
@@ -742,7 +745,7 @@ func (server *BgpServer) handlePolicy(pl config.RoutingPolicy) {
 }
 
 func (server *BgpServer) checkNeighborRequest(grpcReq *GrpcRequest) (*Peer, error) {
-	remoteAddr := grpcReq.RemoteAddr
+	remoteAddr := grpcReq.Name
 	peer, found := server.neighborMap[remoteAddr]
 	if !found {
 		result := &GrpcResponse{}
@@ -1016,11 +1019,11 @@ func (server *BgpServer) handleVrfRequest(req *GrpcRequest) []*table.Path {
 
 	switch req.RequestType {
 	case REQ_VRF:
-		arg := req.Data.(*api.Arguments)
+		name := req.Name
 		rib := server.localRibMap[GLOBAL_RIB_NAME].rib
 		vrfs := rib.Vrfs
-		if _, ok := vrfs[arg.Name]; !ok {
-			result.ResponseErr = fmt.Errorf("vrf %s not found", arg.Name)
+		if _, ok := vrfs[name]; !ok {
+			result.ResponseErr = fmt.Errorf("vrf %s not found", name)
 			break
 		}
 		var rf bgp.RouteFamily
@@ -1036,12 +1039,15 @@ func (server *BgpServer) handleVrfRequest(req *GrpcRequest) []*table.Path {
 			break
 		}
 		for _, path := range rib.GetPathList(rf) {
-			ok := policy.CanImportToVrf(vrfs[arg.Name], path)
+			ok := policy.CanImportToVrf(vrfs[name], path)
 			if !ok {
 				continue
 			}
 			req.ResponseCh <- &GrpcResponse{
-				Data: path.ToApiStruct(),
+				Data: &api.Destination{
+					Prefix: path.GetNlri().String(),
+					Paths:  []*api.Path{path.ToApiStruct()},
+				},
 			}
 		}
 		goto END
@@ -1118,7 +1124,7 @@ func (server *BgpServer) handleGrpc(grpcReq *GrpcRequest) []*SenderMsg {
 			break
 		}
 		if peer.fsm.adminState != ADMIN_STATE_DOWN {
-			remoteAddr := grpcReq.RemoteAddr
+			remoteAddr := grpcReq.Name
 			if t, ok := server.localRibMap[remoteAddr].rib.Tables[grpcReq.RouteFamily]; ok {
 				for _, dst := range t.GetDestinations() {
 					result := &GrpcResponse{}
@@ -1146,8 +1152,12 @@ func (server *BgpServer) handleGrpc(grpcReq *GrpcRequest) []*SenderMsg {
 		}
 
 		for _, p := range paths {
-			result := &GrpcResponse{}
-			result.Data = p.ToApiStruct()
+			result := &GrpcResponse{
+				Data: &api.Destination{
+					Prefix: p.GetNlri().String(),
+					Paths:  []*api.Path{p.ToApiStruct()},
+				},
+			}
 			grpcReq.ResponseCh <- result
 		}
 		close(grpcReq.ResponseCh)
@@ -2022,15 +2032,15 @@ func (server *BgpServer) handleMrt(grpcReq *GrpcRequest) {
 		if err != nil {
 			return
 		}
-		loc, ok := server.localRibMap[grpcReq.RemoteAddr]
+		loc, ok := server.localRibMap[grpcReq.Name]
 		if !ok {
-			result.ResponseErr = fmt.Errorf("no local rib for %s", grpcReq.RemoteAddr)
+			result.ResponseErr = fmt.Errorf("no local rib for %s", grpcReq.Name)
 			grpcReq.ResponseCh <- result
 			close(grpcReq.ResponseCh)
 			return
 		}
 		manager = loc.rib
-		view = grpcReq.RemoteAddr
+		view = grpcReq.Name
 	}
 
 	msg, err := server.mkMrtPeerIndexTableMsg(now, view)

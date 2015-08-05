@@ -23,7 +23,6 @@ service Grpc {
   rpc GetNeighbors(Arguments) returns (stream Peer) {}
   rpc GetNeighbor(Arguments) returns (Peer) {}
   rpc GetRib(Arguments) returns (stream Destination) {}
-  rpc GetAdjRib(Arguments) returns (stream Path) {}
   rpc Reset(Arguments) returns (Error) {}
   rpc SoftReset(Arguments) returns (Error) {}
   rpc SoftResetIn(Arguments) returns (Error) {}
@@ -37,12 +36,11 @@ service Grpc {
   rpc GetPolicyRoutePolicies(PolicyArguments) returns (stream PolicyDefinition) {}
   rpc GetPolicyRoutePolicy(PolicyArguments) returns (PolicyDefinition) {}
   rpc ModPolicyRoutePolicy(stream PolicyArguments) returns (stream Error) {}
-  rpc MonitorBestChanged(Arguments) returns (stream Path) {}
+  rpc MonitorBestChanged(Arguments) returns (stream Destination) {}
   rpc MonitorPeerState(Arguments) returns (stream Peer) {}
   rpc GetMrt(MrtArguments) returns (stream MrtMessage) {}
   rpc GetRPKI(Arguments) returns (stream ROA) {}
   rpc GetVrfs(Arguments) returns (stream Vrf) {}
-  rpc GetVrf(Arguments) returns (stream Path) {}
   rpc ModVrf(ModVrfArguments) returns (Error) {}
 }
 
@@ -136,18 +134,6 @@ message AddressFamily {
     SAFI Safi = 2;
 }
 
-enum ROUTE_DISTINGUISHER_TYPE {
-    TWO_OCTET_AS = 0;
-    IP4 = 1;
-    FOUR_OCTET_AS = 2;
-}
-
-message RouteDistinguisher {
-    ROUTE_DISTINGUISHER_TYPE type = 1;
-    string admin = 2;
-    uint32 assigned = 3;
-}
-
 enum BGP_CAPABILITY {
     UNKNOWN_CAP = 0;
     MULTIPROTOCOL = 1;
@@ -177,209 +163,17 @@ message Capability {
     uint32 asn = 4;
 }
 
-enum Origin {
-    IGP = 0;
-    EGP = 1;
-    INCOMPLETE = 2;
-}
-
-message Aggregator {
-    uint32 as = 1;
-    string address = 2;
-}
-
-message ExtendedCommunity {
-    enum Type {
-        TWO_OCTET_AS_SPECIFIC = 0;
-        IP4_SPECIFIC = 1;
-        FOUR_OCTET_AS_SPECIFIC = 2;
-        OPAQUE = 3;
-        EVPN = 4;
-    }
-    Type type = 1;
-    enum Subtype {
-        ORIGIN_VALIDATION = 0;
-        ROUTE_TARGET = 2;
-        ROUTE_ORIGIN = 3;
-        ESI_LABEL = 4;
-        MAC_MOBILITY = 5;
-    }
-    Subtype subtype = 2;
-    bool is_transitive = 3;
-    uint32 asn = 4;
-    string ipv4 = 5;
-    uint32 local_admin = 6;
-    bool is_single_active = 7;
-    uint32 label = 8;
-    string es_import = 9;
-    uint32 sequence = 10;
-    bool is_sticky = 11;
-}
-
-enum TUNNEL_TYPE {
-    UNKNOWN_TUNNEL_TYPE = 0;
-    L2TPV3_OVER_IP = 1;
-    GRE = 2;
-    IP_IN_IP = 7;
-    VXLAN = 8;
-    NVGRE = 9;
-    MPLS = 10;
-    MPLS_IN_GRE = 11;
-    VXLAN_GRE = 12;
-}
-
-enum PMSI_TUNNEL_TYPE {
-    NO_TUNNEL = 0;
-    RSVP_TE_P2MP = 1;
-    MLDP_P2MP = 2;
-    PIM_SSM_TREE = 3;
-    PIM_SM_TREE = 4;
-    BIDIR_PIM_TREE = 5;
-    INGRESS_REPL = 6;
-    MLDP_MP2MP = 7;
-}
-
-enum EVPN_TYPE {
-    UNKNOWN_EVPN_TYPE = 0;
-    ROUTE_TYPE_ETHERNET_AUTO_DISCOVERY = 1;
-    ROUTE_TYPE_MAC_IP_ADVERTISEMENT    = 2;
-    INCLUSIVE_MULTICAST_ETHERNET_TAG   = 3;
-    ETHERNET_SEGMENT_ROUTE             = 4;
-}
-
-message EVPNNlri {
-    EVPN_TYPE type = 1;
-//    EvpnAutoDiscoveryRoute = 2;
-    EvpnMacIpAdvertisement mac_ip_adv = 3;
-    EvpnInclusiveMulticastEthernetTag multicast_etag = 4;
-//    EvpnEthernetSegmentRoute = 5;
-}
-
-message EvpnMacIpAdvertisement {
-    string mac_addr = 1;
-    uint32 mac_addr_len = 2;
-    string ip_addr = 3;
-    uint32 ip_addr_len = 4;
-    string rd = 5;
-    string esi = 6;
-    uint32 etag = 7;
-    repeated uint32 labels = 8;
-}
-
-message EvpnInclusiveMulticastEthernetTag {
-    string rd = 1;
-    uint32 etag = 2;
-    string ip_addr = 3;
-    uint32 ip_addr_len = 4;
-}
-
-message RTNlri {
-    uint32 asn = 1;
-    ExtendedCommunity target = 2;
-    uint32 length = 3;
-}
-
-message VPNNlri {
-    RouteDistinguisher rd = 1;
-    repeated uint32 labels = 2;
-    string ip_addr = 3;
-    uint32 ip_addr_len = 4;
-}
-
-message Nlri {
-    AddressFamily af = 1;
-    string prefix = 2;
-    string nexthop = 3;
-    EVPNNlri evpn_nlri = 4;
-    RTNlri rt_nlri = 5;
-    VPNNlri vpn_nlri = 6;
-}
-
-enum ENCAP_SUBTLV_TYPE {
-    UNKNOWN_SUBTLV_TYPE = 0;
-    ENCAPSULATION = 1;
-    PROTOCOL = 2;
-    COLOR = 4;
-}
-
-message TunnelEncapSubTLV {
-    ENCAP_SUBTLV_TYPE type = 1;
-    string value = 2;
-    uint32 key = 3;
-    string cookie = 4;
-    uint32 protocol = 5;
-    uint32 color = 6;
-}
-
-message TunnelEncapTLV {
-    TUNNEL_TYPE type = 1;
-    repeated TunnelEncapSubTLV sub_tlv = 2;
-}
-
-message PmsiTunnel {
-    bool is_leaf_info_required = 1;
-    PMSI_TUNNEL_TYPE type = 2;
-    uint32 label = 3;
-    string tunnel_id = 4;
-}
-
-enum BGP_ATTR_TYPE {
-    UNKNOWN_ATTR = 0;
-    ORIGIN = 1;
-    AS_PATH = 2;
-    NEXT_HOP = 3;
-    MULTI_EXIT_DISC = 4;
-    LOCAL_PREF = 5;
-    ATOMIC_AGGREGATE = 6;
-    AGGREGATOR = 7;
-    COMMUNITIES = 8;
-    ORIGINATOR_ID = 9;
-    CLUSTER_LIST = 10;
-    MP_REACH_NLRI = 14;
-    MP_UNREACH_NLRI = 15;
-    EXTENDED_COMMUNITIES = 16;
-    AS4_PATH = 17;
-    AS4_AGGREGATOR = 18;
-    PMSI_TUNNEL = 22;
-    TUNNEL_ENCAP = 23;
-}
-
-message PathAttr {
-    BGP_ATTR_TYPE type = 1;
-    repeated string value = 2;
-    Origin origin = 3;
-    repeated AsPath as_paths = 4;
-    string nexthop = 5;
-    uint32 metric = 6;
-    uint32 pref = 7;
-    Aggregator aggregator = 8;
-    repeated uint32 communites = 9;
-    string originator = 10;
-    repeated string cluster = 11;
-    repeated Nlri nlri = 12;
-    repeated TunnelEncapTLV tunnel_encap = 13;
-    repeated ExtendedCommunity extended_communities = 16;
-    PmsiTunnel pmsi_tunnel = 14;
-}
-
-message AsPath {
-    uint32 segment_type = 1;
-    repeated uint32 asns = 2;
-}
-
 message Path {
-    Nlri nlri = 1;
-    string nexthop = 2;
+    bytes nlri = 1;
+    repeated bytes pattrs = 2;
     int64 age = 3;
-    repeated PathAttr attrs = 4;
-    bool best = 5;
-    bool is_withdraw = 6;
+    bool best = 4;
+    bool is_withdraw = 5;
 }
 
 message Destination {
     string prefix = 1;
     repeated Path paths = 2;
-    uint32 best_path_idx = 3;
 }
 
 message PeerConf {

@@ -26,11 +26,11 @@ from noseplugin import OptionParser, parser_option
 from itertools import combinations
 
 def get_mac_mobility_sequence(pattr):
-    for ecs in [p['extended_communities'] for p in pattr
+    for ecs in [p['value'] for p in pattr
                 if 'type' in p and \
                 p['type'] == BGP_ATTR_TYPE_EXTENDED_COMMUNITIES]:
-        for ec in [e for e in ecs if 'type' in e and e['type'] == 4]:
-            if ec['subtype'] == 5:
+        for ec in [e for e in ecs if 'type' in e and e['type'] == 6]:
+            if ec['subtype'] == 0:
                 if 'sequence' not in ec:
                     return 0
                 else:

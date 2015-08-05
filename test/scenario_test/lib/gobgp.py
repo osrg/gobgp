@@ -51,10 +51,16 @@ class GoBGPContainer(BGPContainer):
 
     def _get_as_path(self, path):
         asps = (p['as_paths'] for p in path['attrs'] if
-                p['type'] == BGP_ATTR_TYPE_AS_PATH and 'as_paths' in p)
+                p['type'] == BGP_ATTR_TYPE_AS_PATH and 'as_paths' in p
+                and p['as_paths'] != None)
         asps = chain.from_iterable(asps)
         asns = (asp['asns'] for asp in asps)
         return list(chain.from_iterable(asns))
+
+    def _get_nexthop(self, path):
+        for p in path['attrs']:
+            if p['type'] == BGP_ATTR_TYPE_NEXT_HOP or p['type'] == BGP_ATTR_TYPE_MP_REACH_NLRI:
+                return p['nexthop']
 
     def _trigger_peer_cmd(self, cmd, peer):
         if peer not in self.peers:
@@ -75,13 +81,22 @@ class GoBGPContainer(BGPContainer):
         peer_addr = self.peers[peer]['neigh_addr'].split('/')[0]
         cmd = 'gobgp -j neighbor {0} local -a {1}'.format(peer_addr, rf)
         output = self.local(cmd, capture=True)
-        n = json.loads(output)
-        return n
+        ret = json.loads(output)
+        for d in ret:
+            for p in d["paths"]:
+                p["nexthop"] = self._get_nexthop(p)
+                p["as_path"] = self._get_as_path(p)
+        return ret
 
     def get_global_rib(self, prefix='', rf='ipv4'):
         cmd = 'gobgp -j global rib {0} -a {1}'.format(prefix, rf)
         output = self.local(cmd, capture=True)
-        return json.loads(output)
+        ret = json.loads(output)
+        for d in ret:
+            for p in d["paths"]:
+                p["nexthop"] = self._get_nexthop(p)
+                p["as_path"] = self._get_as_path(p)
+        return ret
 
     def _get_adj_rib(self, adj_type, peer, prefix='', rf='ipv4'):
         if peer not in self.peers:
@@ -91,7 +106,11 @@ class GoBGPContainer(BGPContainer):
                                                                 adj_type,
                                                                 prefix, rf)
         output = self.local(cmd, capture=True)
-        return json.loads(output)
+        ret = [p["paths"][0] for p in json.loads(output)]
+        for p in ret:
+            p["nexthop"] = self._get_nexthop(p)
+            p["as_path"] = self._get_as_path(p)
+        return ret
 
     def get_adj_rib_in(self, peer, prefix='', rf='ipv4'):
         return self._get_adj_rib('in', peer, prefix, rf)

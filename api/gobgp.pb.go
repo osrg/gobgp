@@ -16,23 +16,9 @@ It has these top-level messages:
 	MrtArguments
 	ModVrfArguments
 	AddressFamily
-	RouteDistinguisher
 	GracefulRestartTuple
 	GracefulRestart
 	Capability
-	Aggregator
-	ExtendedCommunity
-	EVPNNlri
-	EvpnMacIpAdvertisement
-	EvpnInclusiveMulticastEthernetTag
-	RTNlri
-	VPNNlri
-	Nlri
-	TunnelEncapSubTLV
-	TunnelEncapTLV
-	PmsiTunnel
-	PathAttr
-	AsPath
 	Path
 	Destination
 	PeerConf
@@ -213,29 +199,6 @@ func (x SAFI) String() string {
 	return proto.EnumName(SAFI_name, int32(x))
 }
 
-type ROUTE_DISTINGUISHER_TYPE int32
-
-const (
-	ROUTE_DISTINGUISHER_TYPE_TWO_OCTET_AS  ROUTE_DISTINGUISHER_TYPE = 0
-	ROUTE_DISTINGUISHER_TYPE_IP4           ROUTE_DISTINGUISHER_TYPE = 1
-	ROUTE_DISTINGUISHER_TYPE_FOUR_OCTET_AS ROUTE_DISTINGUISHER_TYPE = 2
-)
-
-var ROUTE_DISTINGUISHER_TYPE_name = map[int32]string{
-	0: "TWO_OCTET_AS",
-	1: "IP4",
-	2: "FOUR_OCTET_AS",
-}
-var ROUTE_DISTINGUISHER_TYPE_value = map[string]int32{
-	"TWO_OCTET_AS":  0,
-	"IP4":           1,
-	"FOUR_OCTET_AS": 2,
-}
-
-func (x ROUTE_DISTINGUISHER_TYPE) String() string {
-	return proto.EnumName(ROUTE_DISTINGUISHER_TYPE_name, int32(x))
-}
-
 type BGP_CAPABILITY int32
 
 const (
@@ -274,231 +237,6 @@ func (x BGP_CAPABILITY) String() string {
 	return proto.EnumName(BGP_CAPABILITY_name, int32(x))
 }
 
-type Origin int32
-
-const (
-	Origin_IGP        Origin = 0
-	Origin_EGP        Origin = 1
-	Origin_INCOMPLETE Origin = 2
-)
-
-var Origin_name = map[int32]string{
-	0: "IGP",
-	1: "EGP",
-	2: "INCOMPLETE",
-}
-var Origin_value = map[string]int32{
-	"IGP":        0,
-	"EGP":        1,
-	"INCOMPLETE": 2,
-}
-
-func (x Origin) String() string {
-	return proto.EnumName(Origin_name, int32(x))
-}
-
-type TUNNEL_TYPE int32
-
-const (
-	TUNNEL_TYPE_UNKNOWN_TUNNEL_TYPE TUNNEL_TYPE = 0
-	TUNNEL_TYPE_L2TPV3_OVER_IP      TUNNEL_TYPE = 1
-	TUNNEL_TYPE_GRE                 TUNNEL_TYPE = 2
-	TUNNEL_TYPE_IP_IN_IP            TUNNEL_TYPE = 7
-	TUNNEL_TYPE_VXLAN               TUNNEL_TYPE = 8
-	TUNNEL_TYPE_NVGRE               TUNNEL_TYPE = 9
-	TUNNEL_TYPE_MPLS                TUNNEL_TYPE = 10
-	TUNNEL_TYPE_MPLS_IN_GRE         TUNNEL_TYPE = 11
-	TUNNEL_TYPE_VXLAN_GRE           TUNNEL_TYPE = 12
-)
-
-var TUNNEL_TYPE_name = map[int32]string{
-	0:  "UNKNOWN_TUNNEL_TYPE",
-	1:  "L2TPV3_OVER_IP",
-	2:  "GRE",
-	7:  "IP_IN_IP",
-	8:  "VXLAN",
-	9:  "NVGRE",
-	10: "MPLS",
-	11: "MPLS_IN_GRE",
-	12: "VXLAN_GRE",
-}
-var TUNNEL_TYPE_value = map[string]int32{
-	"UNKNOWN_TUNNEL_TYPE": 0,
-	"L2TPV3_OVER_IP":      1,
-	"GRE":                 2,
-	"IP_IN_IP":            7,
-	"VXLAN":               8,
-	"NVGRE":               9,
-	"MPLS":                10,
-	"MPLS_IN_GRE":         11,
-	"VXLAN_GRE":           12,
-}
-
-func (x TUNNEL_TYPE) String() string {
-	return proto.EnumName(TUNNEL_TYPE_name, int32(x))
-}
-
-type PMSI_TUNNEL_TYPE int32
-
-const (
-	PMSI_TUNNEL_TYPE_NO_TUNNEL      PMSI_TUNNEL_TYPE = 0
-	PMSI_TUNNEL_TYPE_RSVP_TE_P2MP   PMSI_TUNNEL_TYPE = 1
-	PMSI_TUNNEL_TYPE_MLDP_P2MP      PMSI_TUNNEL_TYPE = 2
-	PMSI_TUNNEL_TYPE_PIM_SSM_TREE   PMSI_TUNNEL_TYPE = 3
-	PMSI_TUNNEL_TYPE_PIM_SM_TREE    PMSI_TUNNEL_TYPE = 4
-	PMSI_TUNNEL_TYPE_BIDIR_PIM_TREE PMSI_TUNNEL_TYPE = 5
-	PMSI_TUNNEL_TYPE_INGRESS_REPL   PMSI_TUNNEL_TYPE = 6
-	PMSI_TUNNEL_TYPE_MLDP_MP2MP     PMSI_TUNNEL_TYPE = 7
-)
-
-var PMSI_TUNNEL_TYPE_name = map[int32]string{
-	0: "NO_TUNNEL",
-	1: "RSVP_TE_P2MP",
-	2: "MLDP_P2MP",
-	3: "PIM_SSM_TREE",
-	4: "PIM_SM_TREE",
-	5: "BIDIR_PIM_TREE",
-	6: "INGRESS_REPL",
-	7: "MLDP_MP2MP",
-}
-var PMSI_TUNNEL_TYPE_value = map[string]int32{
-	"NO_TUNNEL":      0,
-	"RSVP_TE_P2MP":   1,
-	"MLDP_P2MP":      2,
-	"PIM_SSM_TREE":   3,
-	"PIM_SM_TREE":    4,
-	"BIDIR_PIM_TREE": 5,
-	"INGRESS_REPL":   6,
-	"MLDP_MP2MP":     7,
-}
-
-func (x PMSI_TUNNEL_TYPE) String() string {
-	return proto.EnumName(PMSI_TUNNEL_TYPE_name, int32(x))
-}
-
-type EVPN_TYPE int32
-
-const (
-	EVPN_TYPE_UNKNOWN_EVPN_TYPE                  EVPN_TYPE = 0
-	EVPN_TYPE_ROUTE_TYPE_ETHERNET_AUTO_DISCOVERY EVPN_TYPE = 1
-	EVPN_TYPE_ROUTE_TYPE_MAC_IP_ADVERTISEMENT    EVPN_TYPE = 2
-	EVPN_TYPE_INCLUSIVE_MULTICAST_ETHERNET_TAG   EVPN_TYPE = 3
-	EVPN_TYPE_ETHERNET_SEGMENT_ROUTE             EVPN_TYPE = 4
-)
-
-var EVPN_TYPE_name = map[int32]string{
-	0: "UNKNOWN_EVPN_TYPE",
-	1: "ROUTE_TYPE_ETHERNET_AUTO_DISCOVERY",
-	2: "ROUTE_TYPE_MAC_IP_ADVERTISEMENT",
-	3: "INCLUSIVE_MULTICAST_ETHERNET_TAG",
-	4: "ETHERNET_SEGMENT_ROUTE",
-}
-var EVPN_TYPE_value = map[string]int32{
-	"UNKNOWN_EVPN_TYPE":                  0,
-	"ROUTE_TYPE_ETHERNET_AUTO_DISCOVERY": 1,
-	"ROUTE_TYPE_MAC_IP_ADVERTISEMENT":    2,
-	"INCLUSIVE_MULTICAST_ETHERNET_TAG":   3,
-	"ETHERNET_SEGMENT_ROUTE":             4,
-}
-
-func (x EVPN_TYPE) String() string {
-	return proto.EnumName(EVPN_TYPE_name, int32(x))
-}
-
-type ENCAP_SUBTLV_TYPE int32
-
-const (
-	ENCAP_SUBTLV_TYPE_UNKNOWN_SUBTLV_TYPE ENCAP_SUBTLV_TYPE = 0
-	ENCAP_SUBTLV_TYPE_ENCAPSULATION       ENCAP_SUBTLV_TYPE = 1
-	ENCAP_SUBTLV_TYPE_PROTOCOL            ENCAP_SUBTLV_TYPE = 2
-	ENCAP_SUBTLV_TYPE_COLOR               ENCAP_SUBTLV_TYPE = 4
-)
-
-var ENCAP_SUBTLV_TYPE_name = map[int32]string{
-	0: "UNKNOWN_SUBTLV_TYPE",
-	1: "ENCAPSULATION",
-	2: "PROTOCOL",
-	4: "COLOR",
-}
-var ENCAP_SUBTLV_TYPE_value = map[string]int32{
-	"UNKNOWN_SUBTLV_TYPE": 0,
-	"ENCAPSULATION":       1,
-	"PROTOCOL":            2,
-	"COLOR":               4,
-}
-
-func (x ENCAP_SUBTLV_TYPE) String() string {
-	return proto.EnumName(ENCAP_SUBTLV_TYPE_name, int32(x))
-}
-
-type BGP_ATTR_TYPE int32
-
-const (
-	BGP_ATTR_TYPE_UNKNOWN_ATTR         BGP_ATTR_TYPE = 0
-	BGP_ATTR_TYPE_ORIGIN               BGP_ATTR_TYPE = 1
-	BGP_ATTR_TYPE_AS_PATH              BGP_ATTR_TYPE = 2
-	BGP_ATTR_TYPE_NEXT_HOP             BGP_ATTR_TYPE = 3
-	BGP_ATTR_TYPE_MULTI_EXIT_DISC      BGP_ATTR_TYPE = 4
-	BGP_ATTR_TYPE_LOCAL_PREF           BGP_ATTR_TYPE = 5
-	BGP_ATTR_TYPE_ATOMIC_AGGREGATE     BGP_ATTR_TYPE = 6
-	BGP_ATTR_TYPE_AGGREGATOR           BGP_ATTR_TYPE = 7
-	BGP_ATTR_TYPE_COMMUNITIES          BGP_ATTR_TYPE = 8
-	BGP_ATTR_TYPE_ORIGINATOR_ID        BGP_ATTR_TYPE = 9
-	BGP_ATTR_TYPE_CLUSTER_LIST         BGP_ATTR_TYPE = 10
-	BGP_ATTR_TYPE_MP_REACH_NLRI        BGP_ATTR_TYPE = 14
-	BGP_ATTR_TYPE_MP_UNREACH_NLRI      BGP_ATTR_TYPE = 15
-	BGP_ATTR_TYPE_EXTENDED_COMMUNITIES BGP_ATTR_TYPE = 16
-	BGP_ATTR_TYPE_AS4_PATH             BGP_ATTR_TYPE = 17
-	BGP_ATTR_TYPE_AS4_AGGREGATOR       BGP_ATTR_TYPE = 18
-	BGP_ATTR_TYPE_PMSI_TUNNEL          BGP_ATTR_TYPE = 22
-	BGP_ATTR_TYPE_TUNNEL_ENCAP         BGP_ATTR_TYPE = 23
-)
-
-var BGP_ATTR_TYPE_name = map[int32]string{
-	0:  "UNKNOWN_ATTR",
-	1:  "ORIGIN",
-	2:  "AS_PATH",
-	3:  "NEXT_HOP",
-	4:  "MULTI_EXIT_DISC",
-	5:  "LOCAL_PREF",
-	6:  "ATOMIC_AGGREGATE",
-	7:  "AGGREGATOR",
-	8:  "COMMUNITIES",
-	9:  "ORIGINATOR_ID",
-	10: "CLUSTER_LIST",
-	14: "MP_REACH_NLRI",
-	15: "MP_UNREACH_NLRI",
-	16: "EXTENDED_COMMUNITIES",
-	17: "AS4_PATH",
-	18: "AS4_AGGREGATOR",
-	22: "PMSI_TUNNEL",
-	23: "TUNNEL_ENCAP",
-}
-var BGP_ATTR_TYPE_value = map[string]int32{
-	"UNKNOWN_ATTR":         0,
-	"ORIGIN":               1,
-	"AS_PATH":              2,
-	"NEXT_HOP":             3,
-	"MULTI_EXIT_DISC":      4,
-	"LOCAL_PREF":           5,
-	"ATOMIC_AGGREGATE":     6,
-	"AGGREGATOR":           7,
-	"COMMUNITIES":          8,
-	"ORIGINATOR_ID":        9,
-	"CLUSTER_LIST":         10,
-	"MP_REACH_NLRI":        14,
-	"MP_UNREACH_NLRI":      15,
-	"EXTENDED_COMMUNITIES": 16,
-	"AS4_PATH":             17,
-	"AS4_AGGREGATOR":       18,
-	"PMSI_TUNNEL":          22,
-	"TUNNEL_ENCAP":         23,
-}
-
-func (x BGP_ATTR_TYPE) String() string {
-	return proto.EnumName(BGP_ATTR_TYPE_name, int32(x))
-}
-
 type Error_ErrorCode int32
 
 const (
@@ -517,64 +255,6 @@ var Error_ErrorCode_value = map[string]int32{
 
 func (x Error_ErrorCode) String() string {
 	return proto.EnumName(Error_ErrorCode_name, int32(x))
-}
-
-type ExtendedCommunity_Type int32
-
-const (
-	ExtendedCommunity_TWO_OCTET_AS_SPECIFIC  ExtendedCommunity_Type = 0
-	ExtendedCommunity_IP4_SPECIFIC           ExtendedCommunity_Type = 1
-	ExtendedCommunity_FOUR_OCTET_AS_SPECIFIC ExtendedCommunity_Type = 2
-	ExtendedCommunity_OPAQUE                 ExtendedCommunity_Type = 3
-	ExtendedCommunity_EVPN                   ExtendedCommunity_Type = 4
-)
-
-var ExtendedCommunity_Type_name = map[int32]string{
-	0: "TWO_OCTET_AS_SPECIFIC",
-	1: "IP4_SPECIFIC",
-	2: "FOUR_OCTET_AS_SPECIFIC",
-	3: "OPAQUE",
-	4: "EVPN",
-}
-var ExtendedCommunity_Type_value = map[string]int32{
-	"TWO_OCTET_AS_SPECIFIC":  0,
-	"IP4_SPECIFIC":           1,
-	"FOUR_OCTET_AS_SPECIFIC": 2,
-	"OPAQUE":                 3,
-	"EVPN":                   4,
-}
-
-func (x ExtendedCommunity_Type) String() string {
-	return proto.EnumName(ExtendedCommunity_Type_name, int32(x))
-}
-
-type ExtendedCommunity_Subtype int32
-
-const (
-	ExtendedCommunity_ORIGIN_VALIDATION ExtendedCommunity_Subtype = 0
-	ExtendedCommunity_ROUTE_TARGET      ExtendedCommunity_Subtype = 2
-	ExtendedCommunity_ROUTE_ORIGIN      ExtendedCommunity_Subtype = 3
-	ExtendedCommunity_ESI_LABEL         ExtendedCommunity_Subtype = 4
-	ExtendedCommunity_MAC_MOBILITY      ExtendedCommunity_Subtype = 5
-)
-
-var ExtendedCommunity_Subtype_name = map[int32]string{
-	0: "ORIGIN_VALIDATION",
-	2: "ROUTE_TARGET",
-	3: "ROUTE_ORIGIN",
-	4: "ESI_LABEL",
-	5: "MAC_MOBILITY",
-}
-var ExtendedCommunity_Subtype_value = map[string]int32{
-	"ORIGIN_VALIDATION": 0,
-	"ROUTE_TARGET":      2,
-	"ROUTE_ORIGIN":      3,
-	"ESI_LABEL":         4,
-	"MAC_MOBILITY":      5,
-}
-
-func (x ExtendedCommunity_Subtype) String() string {
-	return proto.EnumName(ExtendedCommunity_Subtype_name, int32(x))
 }
 
 type Error struct {
@@ -686,16 +366,6 @@ func (m *AddressFamily) Reset()         { *m = AddressFamily{} }
 func (m *AddressFamily) String() string { return proto.CompactTextString(m) }
 func (*AddressFamily) ProtoMessage()    {}
 
-type RouteDistinguisher struct {
-	Type     ROUTE_DISTINGUISHER_TYPE `protobuf:"varint,1,opt,name=type,enum=api.ROUTE_DISTINGUISHER_TYPE" json:"type,omitempty"`
-	Admin    string                   `protobuf:"bytes,2,opt,name=admin" json:"admin,omitempty"`
-	Assigned uint32                   `protobuf:"varint,3,opt,name=assigned" json:"assigned,omitempty"`
-}
-
-func (m *RouteDistinguisher) Reset()         { *m = RouteDistinguisher{} }
-func (m *RouteDistinguisher) String() string { return proto.CompactTextString(m) }
-func (*RouteDistinguisher) ProtoMessage()    {}
-
 type GracefulRestartTuple struct {
 	Af    *AddressFamily `protobuf:"bytes,1,opt,name=af" json:"af,omitempty"`
 	Flags uint32         `protobuf:"varint,2,opt,name=flags" json:"flags,omitempty"`
@@ -754,304 +424,21 @@ func (m *Capability) GetGracefulRestart() *GracefulRestart {
 	return nil
 }
 
-type Aggregator struct {
-	As      uint32 `protobuf:"varint,1,opt,name=as" json:"as,omitempty"`
-	Address string `protobuf:"bytes,2,opt,name=address" json:"address,omitempty"`
-}
-
-func (m *Aggregator) Reset()         { *m = Aggregator{} }
-func (m *Aggregator) String() string { return proto.CompactTextString(m) }
-func (*Aggregator) ProtoMessage()    {}
-
-type ExtendedCommunity struct {
-	Type           ExtendedCommunity_Type    `protobuf:"varint,1,opt,name=type,enum=api.ExtendedCommunity_Type" json:"type,omitempty"`
-	Subtype        ExtendedCommunity_Subtype `protobuf:"varint,2,opt,name=subtype,enum=api.ExtendedCommunity_Subtype" json:"subtype,omitempty"`
-	IsTransitive   bool                      `protobuf:"varint,3,opt,name=is_transitive" json:"is_transitive,omitempty"`
-	Asn            uint32                    `protobuf:"varint,4,opt,name=asn" json:"asn,omitempty"`
-	Ipv4           string                    `protobuf:"bytes,5,opt,name=ipv4" json:"ipv4,omitempty"`
-	LocalAdmin     uint32                    `protobuf:"varint,6,opt,name=local_admin" json:"local_admin,omitempty"`
-	IsSingleActive bool                      `protobuf:"varint,7,opt,name=is_single_active" json:"is_single_active,omitempty"`
-	Label          uint32                    `protobuf:"varint,8,opt,name=label" json:"label,omitempty"`
-	EsImport       string                    `protobuf:"bytes,9,opt,name=es_import" json:"es_import,omitempty"`
-	Sequence       uint32                    `protobuf:"varint,10,opt,name=sequence" json:"sequence,omitempty"`
-	IsSticky       bool                      `protobuf:"varint,11,opt,name=is_sticky" json:"is_sticky,omitempty"`
-}
-
-func (m *ExtendedCommunity) Reset()         { *m = ExtendedCommunity{} }
-func (m *ExtendedCommunity) String() string { return proto.CompactTextString(m) }
-func (*ExtendedCommunity) ProtoMessage()    {}
-
-type EVPNNlri struct {
-	Type EVPN_TYPE `protobuf:"varint,1,opt,name=type,enum=api.EVPN_TYPE" json:"type,omitempty"`
-	//    EvpnAutoDiscoveryRoute = 2;
-	MacIpAdv      *EvpnMacIpAdvertisement            `protobuf:"bytes,3,opt,name=mac_ip_adv" json:"mac_ip_adv,omitempty"`
-	MulticastEtag *EvpnInclusiveMulticastEthernetTag `protobuf:"bytes,4,opt,name=multicast_etag" json:"multicast_etag,omitempty"`
-}
-
-func (m *EVPNNlri) Reset()         { *m = EVPNNlri{} }
-func (m *EVPNNlri) String() string { return proto.CompactTextString(m) }
-func (*EVPNNlri) ProtoMessage()    {}
-
-func (m *EVPNNlri) GetMacIpAdv() *EvpnMacIpAdvertisement {
-	if m != nil {
-		return m.MacIpAdv
-	}
-	return nil
-}
-
-func (m *EVPNNlri) GetMulticastEtag() *EvpnInclusiveMulticastEthernetTag {
-	if m != nil {
-		return m.MulticastEtag
-	}
-	return nil
-}
-
-type EvpnMacIpAdvertisement struct {
-	MacAddr    string   `protobuf:"bytes,1,opt,name=mac_addr" json:"mac_addr,omitempty"`
-	MacAddrLen uint32   `protobuf:"varint,2,opt,name=mac_addr_len" json:"mac_addr_len,omitempty"`
-	IpAddr     string   `protobuf:"bytes,3,opt,name=ip_addr" json:"ip_addr,omitempty"`
-	IpAddrLen  uint32   `protobuf:"varint,4,opt,name=ip_addr_len" json:"ip_addr_len,omitempty"`
-	Rd         string   `protobuf:"bytes,5,opt,name=rd" json:"rd,omitempty"`
-	Esi        string   `protobuf:"bytes,6,opt,name=esi" json:"esi,omitempty"`
-	Etag       uint32   `protobuf:"varint,7,opt,name=etag" json:"etag,omitempty"`
-	Labels     []uint32 `protobuf:"varint,8,rep,name=labels" json:"labels,omitempty"`
-}
-
-func (m *EvpnMacIpAdvertisement) Reset()         { *m = EvpnMacIpAdvertisement{} }
-func (m *EvpnMacIpAdvertisement) String() string { return proto.CompactTextString(m) }
-func (*EvpnMacIpAdvertisement) ProtoMessage()    {}
-
-type EvpnInclusiveMulticastEthernetTag struct {
-	Rd        string `protobuf:"bytes,1,opt,name=rd" json:"rd,omitempty"`
-	Etag      uint32 `protobuf:"varint,2,opt,name=etag" json:"etag,omitempty"`
-	IpAddr    string `protobuf:"bytes,3,opt,name=ip_addr" json:"ip_addr,omitempty"`
-	IpAddrLen uint32 `protobuf:"varint,4,opt,name=ip_addr_len" json:"ip_addr_len,omitempty"`
-}
-
-func (m *EvpnInclusiveMulticastEthernetTag) Reset()         { *m = EvpnInclusiveMulticastEthernetTag{} }
-func (m *EvpnInclusiveMulticastEthernetTag) String() string { return proto.CompactTextString(m) }
-func (*EvpnInclusiveMulticastEthernetTag) ProtoMessage()    {}
-
-type RTNlri struct {
-	Asn    uint32             `protobuf:"varint,1,opt,name=asn" json:"asn,omitempty"`
-	Target *ExtendedCommunity `protobuf:"bytes,2,opt,name=target" json:"target,omitempty"`
-	Length uint32             `protobuf:"varint,3,opt,name=length" json:"length,omitempty"`
-}
-
-func (m *RTNlri) Reset()         { *m = RTNlri{} }
-func (m *RTNlri) String() string { return proto.CompactTextString(m) }
-func (*RTNlri) ProtoMessage()    {}
-
-func (m *RTNlri) GetTarget() *ExtendedCommunity {
-	if m != nil {
-		return m.Target
-	}
-	return nil
-}
-
-type VPNNlri struct {
-	Rd        *RouteDistinguisher `protobuf:"bytes,1,opt,name=rd" json:"rd,omitempty"`
-	Labels    []uint32            `protobuf:"varint,2,rep,name=labels" json:"labels,omitempty"`
-	IpAddr    string              `protobuf:"bytes,3,opt,name=ip_addr" json:"ip_addr,omitempty"`
-	IpAddrLen uint32              `protobuf:"varint,4,opt,name=ip_addr_len" json:"ip_addr_len,omitempty"`
-}
-
-func (m *VPNNlri) Reset()         { *m = VPNNlri{} }
-func (m *VPNNlri) String() string { return proto.CompactTextString(m) }
-func (*VPNNlri) ProtoMessage()    {}
-
-func (m *VPNNlri) GetRd() *RouteDistinguisher {
-	if m != nil {
-		return m.Rd
-	}
-	return nil
-}
-
-type Nlri struct {
-	Af       *AddressFamily `protobuf:"bytes,1,opt,name=af" json:"af,omitempty"`
-	Prefix   string         `protobuf:"bytes,2,opt,name=prefix" json:"prefix,omitempty"`
-	Nexthop  string         `protobuf:"bytes,3,opt,name=nexthop" json:"nexthop,omitempty"`
-	EvpnNlri *EVPNNlri      `protobuf:"bytes,4,opt,name=evpn_nlri" json:"evpn_nlri,omitempty"`
-	RtNlri   *RTNlri        `protobuf:"bytes,5,opt,name=rt_nlri" json:"rt_nlri,omitempty"`
-	VpnNlri  *VPNNlri       `protobuf:"bytes,6,opt,name=vpn_nlri" json:"vpn_nlri,omitempty"`
-}
-
-func (m *Nlri) Reset()         { *m = Nlri{} }
-func (m *Nlri) String() string { return proto.CompactTextString(m) }
-func (*Nlri) ProtoMessage()    {}
-
-func (m *Nlri) GetAf() *AddressFamily {
-	if m != nil {
-		return m.Af
-	}
-	return nil
-}
-
-func (m *Nlri) GetEvpnNlri() *EVPNNlri {
-	if m != nil {
-		return m.EvpnNlri
-	}
-	return nil
-}
-
-func (m *Nlri) GetRtNlri() *RTNlri {
-	if m != nil {
-		return m.RtNlri
-	}
-	return nil
-}
-
-func (m *Nlri) GetVpnNlri() *VPNNlri {
-	if m != nil {
-		return m.VpnNlri
-	}
-	return nil
-}
-
-type TunnelEncapSubTLV struct {
-	Type     ENCAP_SUBTLV_TYPE `protobuf:"varint,1,opt,name=type,enum=api.ENCAP_SUBTLV_TYPE" json:"type,omitempty"`
-	Value    string            `protobuf:"bytes,2,opt,name=value" json:"value,omitempty"`
-	Key      uint32            `protobuf:"varint,3,opt,name=key" json:"key,omitempty"`
-	Cookie   string            `protobuf:"bytes,4,opt,name=cookie" json:"cookie,omitempty"`
-	Protocol uint32            `protobuf:"varint,5,opt,name=protocol" json:"protocol,omitempty"`
-	Color    uint32            `protobuf:"varint,6,opt,name=color" json:"color,omitempty"`
-}
-
-func (m *TunnelEncapSubTLV) Reset()         { *m = TunnelEncapSubTLV{} }
-func (m *TunnelEncapSubTLV) String() string { return proto.CompactTextString(m) }
-func (*TunnelEncapSubTLV) ProtoMessage()    {}
-
-type TunnelEncapTLV struct {
-	Type   TUNNEL_TYPE          `protobuf:"varint,1,opt,name=type,enum=api.TUNNEL_TYPE" json:"type,omitempty"`
-	SubTlv []*TunnelEncapSubTLV `protobuf:"bytes,2,rep,name=sub_tlv" json:"sub_tlv,omitempty"`
-}
-
-func (m *TunnelEncapTLV) Reset()         { *m = TunnelEncapTLV{} }
-func (m *TunnelEncapTLV) String() string { return proto.CompactTextString(m) }
-func (*TunnelEncapTLV) ProtoMessage()    {}
-
-func (m *TunnelEncapTLV) GetSubTlv() []*TunnelEncapSubTLV {
-	if m != nil {
-		return m.SubTlv
-	}
-	return nil
-}
-
-type PmsiTunnel struct {
-	IsLeafInfoRequired bool             `protobuf:"varint,1,opt,name=is_leaf_info_required" json:"is_leaf_info_required,omitempty"`
-	Type               PMSI_TUNNEL_TYPE `protobuf:"varint,2,opt,name=type,enum=api.PMSI_TUNNEL_TYPE" json:"type,omitempty"`
-	Label              uint32           `protobuf:"varint,3,opt,name=label" json:"label,omitempty"`
-	TunnelId           string           `protobuf:"bytes,4,opt,name=tunnel_id" json:"tunnel_id,omitempty"`
-}
-
-func (m *PmsiTunnel) Reset()         { *m = PmsiTunnel{} }
-func (m *PmsiTunnel) String() string { return proto.CompactTextString(m) }
-func (*PmsiTunnel) ProtoMessage()    {}
-
-type PathAttr struct {
-	Type                BGP_ATTR_TYPE        `protobuf:"varint,1,opt,name=type,enum=api.BGP_ATTR_TYPE" json:"type,omitempty"`
-	Value               []string             `protobuf:"bytes,2,rep,name=value" json:"value,omitempty"`
-	Origin              Origin               `protobuf:"varint,3,opt,name=origin,enum=api.Origin" json:"origin,omitempty"`
-	AsPaths             []*AsPath            `protobuf:"bytes,4,rep,name=as_paths" json:"as_paths,omitempty"`
-	Nexthop             string               `protobuf:"bytes,5,opt,name=nexthop" json:"nexthop,omitempty"`
-	Metric              uint32               `protobuf:"varint,6,opt,name=metric" json:"metric,omitempty"`
-	Pref                uint32               `protobuf:"varint,7,opt,name=pref" json:"pref,omitempty"`
-	Aggregator          *Aggregator          `protobuf:"bytes,8,opt,name=aggregator" json:"aggregator,omitempty"`
-	Communites          []uint32             `protobuf:"varint,9,rep,name=communites" json:"communites,omitempty"`
-	Originator          string               `protobuf:"bytes,10,opt,name=originator" json:"originator,omitempty"`
-	Cluster             []string             `protobuf:"bytes,11,rep,name=cluster" json:"cluster,omitempty"`
-	Nlri                []*Nlri              `protobuf:"bytes,12,rep,name=nlri" json:"nlri,omitempty"`
-	TunnelEncap         []*TunnelEncapTLV    `protobuf:"bytes,13,rep,name=tunnel_encap" json:"tunnel_encap,omitempty"`
-	ExtendedCommunities []*ExtendedCommunity `protobuf:"bytes,16,rep,name=extended_communities" json:"extended_communities,omitempty"`
-	PmsiTunnel          *PmsiTunnel          `protobuf:"bytes,14,opt,name=pmsi_tunnel" json:"pmsi_tunnel,omitempty"`
-}
-
-func (m *PathAttr) Reset()         { *m = PathAttr{} }
-func (m *PathAttr) String() string { return proto.CompactTextString(m) }
-func (*PathAttr) ProtoMessage()    {}
-
-func (m *PathAttr) GetAsPaths() []*AsPath {
-	if m != nil {
-		return m.AsPaths
-	}
-	return nil
-}
-
-func (m *PathAttr) GetAggregator() *Aggregator {
-	if m != nil {
-		return m.Aggregator
-	}
-	return nil
-}
-
-func (m *PathAttr) GetNlri() []*Nlri {
-	if m != nil {
-		return m.Nlri
-	}
-	return nil
-}
-
-func (m *PathAttr) GetTunnelEncap() []*TunnelEncapTLV {
-	if m != nil {
-		return m.TunnelEncap
-	}
-	return nil
-}
-
-func (m *PathAttr) GetExtendedCommunities() []*ExtendedCommunity {
-	if m != nil {
-		return m.ExtendedCommunities
-	}
-	return nil
-}
-
-func (m *PathAttr) GetPmsiTunnel() *PmsiTunnel {
-	if m != nil {
-		return m.PmsiTunnel
-	}
-	return nil
-}
-
-type AsPath struct {
-	SegmentType uint32   `protobuf:"varint,1,opt,name=segment_type" json:"segment_type,omitempty"`
-	Asns        []uint32 `protobuf:"varint,2,rep,name=asns" json:"asns,omitempty"`
-}
-
-func (m *AsPath) Reset()         { *m = AsPath{} }
-func (m *AsPath) String() string { return proto.CompactTextString(m) }
-func (*AsPath) ProtoMessage()    {}
-
 type Path struct {
-	Nlri       *Nlri       `protobuf:"bytes,1,opt,name=nlri" json:"nlri,omitempty"`
-	Nexthop    string      `protobuf:"bytes,2,opt,name=nexthop" json:"nexthop,omitempty"`
-	Age        int64       `protobuf:"varint,3,opt,name=age" json:"age,omitempty"`
-	Attrs      []*PathAttr `protobuf:"bytes,4,rep,name=attrs" json:"attrs,omitempty"`
-	Best       bool        `protobuf:"varint,5,opt,name=best" json:"best,omitempty"`
-	IsWithdraw bool        `protobuf:"varint,6,opt,name=is_withdraw" json:"is_withdraw,omitempty"`
+	Nlri       []byte   `protobuf:"bytes,1,opt,name=nlri,proto3" json:"nlri,omitempty"`
+	Pattrs     [][]byte `protobuf:"bytes,2,rep,name=pattrs,proto3" json:"pattrs,omitempty"`
+	Age        int64    `protobuf:"varint,3,opt,name=age" json:"age,omitempty"`
+	Best       bool     `protobuf:"varint,4,opt,name=best" json:"best,omitempty"`
+	IsWithdraw bool     `protobuf:"varint,5,opt,name=is_withdraw" json:"is_withdraw,omitempty"`
 }
 
 func (m *Path) Reset()         { *m = Path{} }
 func (m *Path) String() string { return proto.CompactTextString(m) }
 func (*Path) ProtoMessage()    {}
 
-func (m *Path) GetNlri() *Nlri {
-	if m != nil {
-		return m.Nlri
-	}
-	return nil
-}
-
-func (m *Path) GetAttrs() []*PathAttr {
-	if m != nil {
-		return m.Attrs
-	}
-	return nil
-}
-
 type Destination struct {
-	Prefix      string  `protobuf:"bytes,1,opt,name=prefix" json:"prefix,omitempty"`
-	Paths       []*Path `protobuf:"bytes,2,rep,name=paths" json:"paths,omitempty"`
-	BestPathIdx uint32  `protobuf:"varint,3,opt,name=best_path_idx" json:"best_path_idx,omitempty"`
+	Prefix string  `protobuf:"bytes,1,opt,name=prefix" json:"prefix,omitempty"`
+	Paths  []*Path `protobuf:"bytes,2,rep,name=paths" json:"paths,omitempty"`
 }
 
 func (m *Destination) Reset()         { *m = Destination{} }
@@ -1449,17 +836,8 @@ func init() {
 	proto.RegisterEnum("api.Operation", Operation_name, Operation_value)
 	proto.RegisterEnum("api.AFI", AFI_name, AFI_value)
 	proto.RegisterEnum("api.SAFI", SAFI_name, SAFI_value)
-	proto.RegisterEnum("api.ROUTE_DISTINGUISHER_TYPE", ROUTE_DISTINGUISHER_TYPE_name, ROUTE_DISTINGUISHER_TYPE_value)
 	proto.RegisterEnum("api.BGP_CAPABILITY", BGP_CAPABILITY_name, BGP_CAPABILITY_value)
-	proto.RegisterEnum("api.Origin", Origin_name, Origin_value)
-	proto.RegisterEnum("api.TUNNEL_TYPE", TUNNEL_TYPE_name, TUNNEL_TYPE_value)
-	proto.RegisterEnum("api.PMSI_TUNNEL_TYPE", PMSI_TUNNEL_TYPE_name, PMSI_TUNNEL_TYPE_value)
-	proto.RegisterEnum("api.EVPN_TYPE", EVPN_TYPE_name, EVPN_TYPE_value)
-	proto.RegisterEnum("api.ENCAP_SUBTLV_TYPE", ENCAP_SUBTLV_TYPE_name, ENCAP_SUBTLV_TYPE_value)
-	proto.RegisterEnum("api.BGP_ATTR_TYPE", BGP_ATTR_TYPE_name, BGP_ATTR_TYPE_value)
 	proto.RegisterEnum("api.Error_ErrorCode", Error_ErrorCode_name, Error_ErrorCode_value)
-	proto.RegisterEnum("api.ExtendedCommunity_Type", ExtendedCommunity_Type_name, ExtendedCommunity_Type_value)
-	proto.RegisterEnum("api.ExtendedCommunity_Subtype", ExtendedCommunity_Subtype_name, ExtendedCommunity_Subtype_value)
 }
 
 // Client API for Grpc service
@@ -1468,7 +846,6 @@ type GrpcClient interface {
 	GetNeighbors(ctx context.Context, in *Arguments, opts ...grpc.CallOption) (Grpc_GetNeighborsClient, error)
 	GetNeighbor(ctx context.Context, in *Arguments, opts ...grpc.CallOption) (*Peer, error)
 	GetRib(ctx context.Context, in *Arguments, opts ...grpc.CallOption) (Grpc_GetRibClient, error)
-	GetAdjRib(ctx context.Context, in *Arguments, opts ...grpc.CallOption) (Grpc_GetAdjRibClient, error)
 	Reset(ctx context.Context, in *Arguments, opts ...grpc.CallOption) (*Error, error)
 	SoftReset(ctx context.Context, in *Arguments, opts ...grpc.CallOption) (*Error, error)
 	SoftResetIn(ctx context.Context, in *Arguments, opts ...grpc.CallOption) (*Error, error)
@@ -1487,7 +864,6 @@ type GrpcClient interface {
 	GetMrt(ctx context.Context, in *MrtArguments, opts ...grpc.CallOption) (Grpc_GetMrtClient, error)
 	GetRPKI(ctx context.Context, in *Arguments, opts ...grpc.CallOption) (Grpc_GetRPKIClient, error)
 	GetVrfs(ctx context.Context, in *Arguments, opts ...grpc.CallOption) (Grpc_GetVrfsClient, error)
-	GetVrf(ctx context.Context, in *Arguments, opts ...grpc.CallOption) (Grpc_GetVrfClient, error)
 	ModVrf(ctx context.Context, in *ModVrfArguments, opts ...grpc.CallOption) (*Error, error)
 }
 
@@ -1572,38 +948,6 @@ func (x *grpcGetRibClient) Recv() (*Destination, error) {
 	return m, nil
 }
 
-func (c *grpcClient) GetAdjRib(ctx context.Context, in *Arguments, opts ...grpc.CallOption) (Grpc_GetAdjRibClient, error) {
-	stream, err := grpc.NewClientStream(ctx, &_Grpc_serviceDesc.Streams[2], c.cc, "/api.Grpc/GetAdjRib", opts...)
-	if err != nil {
-		return nil, err
-	}
-	x := &grpcGetAdjRibClient{stream}
-	if err := x.ClientStream.SendMsg(in); err != nil {
-		return nil, err
-	}
-	if err := x.ClientStream.CloseSend(); err != nil {
-		return nil, err
-	}
-	return x, nil
-}
-
-type Grpc_GetAdjRibClient interface {
-	Recv() (*Path, error)
-	grpc.ClientStream
-}
-
-type grpcGetAdjRibClient struct {
-	grpc.ClientStream
-}
-
-func (x *grpcGetAdjRibClient) Recv() (*Path, error) {
-	m := new(Path)
-	if err := x.ClientStream.RecvMsg(m); err != nil {
-		return nil, err
-	}
-	return m, nil
-}
-
 func (c *grpcClient) Reset(ctx context.Context, in *Arguments, opts ...grpc.CallOption) (*Error, error) {
 	out := new(Error)
 	err := grpc.Invoke(ctx, "/api.Grpc/Reset", in, out, c.cc, opts...)
@@ -1668,7 +1012,7 @@ func (c *grpcClient) Disable(ctx context.Context, in *Arguments, opts ...grpc.Ca
 }
 
 func (c *grpcClient) ModPath(ctx context.Context, opts ...grpc.CallOption) (Grpc_ModPathClient, error) {
-	stream, err := grpc.NewClientStream(ctx, &_Grpc_serviceDesc.Streams[3], c.cc, "/api.Grpc/ModPath", opts...)
+	stream, err := grpc.NewClientStream(ctx, &_Grpc_serviceDesc.Streams[2], c.cc, "/api.Grpc/ModPath", opts...)
 	if err != nil {
 		return nil, err
 	}
@@ -1711,7 +1055,7 @@ func (c *grpcClient) GetNeighborPolicy(ctx context.Context, in *Arguments, opts 
 }
 
 func (c *grpcClient) ModNeighborPolicy(ctx context.Context, opts ...grpc.CallOption) (Grpc_ModNeighborPolicyClient, error) {
-	stream, err := grpc.NewClientStream(ctx, &_Grpc_serviceDesc.Streams[4], c.cc, "/api.Grpc/ModNeighborPolicy", opts...)
+	stream, err := grpc.NewClientStream(ctx, &_Grpc_serviceDesc.Streams[3], c.cc, "/api.Grpc/ModNeighborPolicy", opts...)
 	if err != nil {
 		return nil, err
 	}
@@ -1742,7 +1086,7 @@ func (x *grpcModNeighborPolicyClient) Recv() (*Error, error) {
 }
 
 func (c *grpcClient) GetPolicyRoutePolicies(ctx context.Context, in *PolicyArguments, opts ...grpc.CallOption) (Grpc_GetPolicyRoutePoliciesClient, error) {
-	stream, err := grpc.NewClientStream(ctx, &_Grpc_serviceDesc.Streams[5], c.cc, "/api.Grpc/GetPolicyRoutePolicies", opts...)
+	stream, err := grpc.NewClientStream(ctx, &_Grpc_serviceDesc.Streams[4], c.cc, "/api.Grpc/GetPolicyRoutePolicies", opts...)
 	if err != nil {
 		return nil, err
 	}
@@ -1783,7 +1127,7 @@ func (c *grpcClient) GetPolicyRoutePolicy(ctx context.Context, in *PolicyArgumen
 }
 
 func (c *grpcClient) ModPolicyRoutePolicy(ctx context.Context, opts ...grpc.CallOption) (Grpc_ModPolicyRoutePolicyClient, error) {
-	stream, err := grpc.NewClientStream(ctx, &_Grpc_serviceDesc.Streams[6], c.cc, "/api.Grpc/ModPolicyRoutePolicy", opts...)
+	stream, err := grpc.NewClientStream(ctx, &_Grpc_serviceDesc.Streams[5], c.cc, "/api.Grpc/ModPolicyRoutePolicy", opts...)
 	if err != nil {
 		return nil, err
 	}
@@ -1814,7 +1158,7 @@ func (x *grpcModPolicyRoutePolicyClient) Recv() (*Error, error) {
 }
 
 func (c *grpcClient) MonitorBestChanged(ctx context.Context, in *Arguments, opts ...grpc.CallOption) (Grpc_MonitorBestChangedClient, error) {
-	stream, err := grpc.NewClientStream(ctx, &_Grpc_serviceDesc.Streams[7], c.cc, "/api.Grpc/MonitorBestChanged", opts...)
+	stream, err := grpc.NewClientStream(ctx, &_Grpc_serviceDesc.Streams[6], c.cc, "/api.Grpc/MonitorBestChanged", opts...)
 	if err != nil {
 		return nil, err
 	}
@@ -1829,7 +1173,7 @@ func (c *grpcClient) MonitorBestChanged(ctx context.Context, in *Arguments, opts
 }
 
 type Grpc_MonitorBestChangedClient interface {
-	Recv() (*Path, error)
+	Recv() (*Destination, error)
 	grpc.ClientStream
 }
 
@@ -1837,8 +1181,8 @@ type grpcMonitorBestChangedClient struct {
 	grpc.ClientStream
 }
 
-func (x *grpcMonitorBestChangedClient) Recv() (*Path, error) {
-	m := new(Path)
+func (x *grpcMonitorBestChangedClient) Recv() (*Destination, error) {
+	m := new(Destination)
 	if err := x.ClientStream.RecvMsg(m); err != nil {
 		return nil, err
 	}
@@ -1846,7 +1190,7 @@ func (x *grpcMonitorBestChangedClient) Recv() (*Path, error) {
 }
 
 func (c *grpcClient) MonitorPeerState(ctx context.Context, in *Arguments, opts ...grpc.CallOption) (Grpc_MonitorPeerStateClient, error) {
-	stream, err := grpc.NewClientStream(ctx, &_Grpc_serviceDesc.Streams[8], c.cc, "/api.Grpc/MonitorPeerState", opts...)
+	stream, err := grpc.NewClientStream(ctx, &_Grpc_serviceDesc.Streams[7], c.cc, "/api.Grpc/MonitorPeerState", opts...)
 	if err != nil {
 		return nil, err
 	}
@@ -1878,7 +1222,7 @@ func (x *grpcMonitorPeerStateClient) Recv() (*Peer, error) {
 }
 
 func (c *grpcClient) GetMrt(ctx context.Context, in *MrtArguments, opts ...grpc.CallOption) (Grpc_GetMrtClient, error) {
-	stream, err := grpc.NewClientStream(ctx, &_Grpc_serviceDesc.Streams[9], c.cc, "/api.Grpc/GetMrt", opts...)
+	stream, err := grpc.NewClientStream(ctx, &_Grpc_serviceDesc.Streams[8], c.cc, "/api.Grpc/GetMrt", opts...)
 	if err != nil {
 		return nil, err
 	}
@@ -1910,7 +1254,7 @@ func (x *grpcGetMrtClient) Recv() (*MrtMessage, error) {
 }
 
 func (c *grpcClient) GetRPKI(ctx context.Context, in *Arguments, opts ...grpc.CallOption) (Grpc_GetRPKIClient, error) {
-	stream, err := grpc.NewClientStream(ctx, &_Grpc_serviceDesc.Streams[10], c.cc, "/api.Grpc/GetRPKI", opts...)
+	stream, err := grpc.NewClientStream(ctx, &_Grpc_serviceDesc.Streams[9], c.cc, "/api.Grpc/GetRPKI", opts...)
 	if err != nil {
 		return nil, err
 	}
@@ -1942,7 +1286,7 @@ func (x *grpcGetRPKIClient) Recv() (*ROA, error) {
 }
 
 func (c *grpcClient) GetVrfs(ctx context.Context, in *Arguments, opts ...grpc.CallOption) (Grpc_GetVrfsClient, error) {
-	stream, err := grpc.NewClientStream(ctx, &_Grpc_serviceDesc.Streams[11], c.cc, "/api.Grpc/GetVrfs", opts...)
+	stream, err := grpc.NewClientStream(ctx, &_Grpc_serviceDesc.Streams[10], c.cc, "/api.Grpc/GetVrfs", opts...)
 	if err != nil {
 		return nil, err
 	}
@@ -1973,38 +1317,6 @@ func (x *grpcGetVrfsClient) Recv() (*Vrf, error) {
 	return m, nil
 }
 
-func (c *grpcClient) GetVrf(ctx context.Context, in *Arguments, opts ...grpc.CallOption) (Grpc_GetVrfClient, error) {
-	stream, err := grpc.NewClientStream(ctx, &_Grpc_serviceDesc.Streams[12], c.cc, "/api.Grpc/GetVrf", opts...)
-	if err != nil {
-		return nil, err
-	}
-	x := &grpcGetVrfClient{stream}
-	if err := x.ClientStream.SendMsg(in); err != nil {
-		return nil, err
-	}
-	if err := x.ClientStream.CloseSend(); err != nil {
-		return nil, err
-	}
-	return x, nil
-}
-
-type Grpc_GetVrfClient interface {
-	Recv() (*Path, error)
-	grpc.ClientStream
-}
-
-type grpcGetVrfClient struct {
-	grpc.ClientStream
-}
-
-func (x *grpcGetVrfClient) Recv() (*Path, error) {
-	m := new(Path)
-	if err := x.ClientStream.RecvMsg(m); err != nil {
-		return nil, err
-	}
-	return m, nil
-}
-
 func (c *grpcClient) ModVrf(ctx context.Context, in *ModVrfArguments, opts ...grpc.CallOption) (*Error, error) {
 	out := new(Error)
 	err := grpc.Invoke(ctx, "/api.Grpc/ModVrf", in, out, c.cc, opts...)
@@ -2020,7 +1332,6 @@ type GrpcServer interface {
 	GetNeighbors(*Arguments, Grpc_GetNeighborsServer) error
 	GetNeighbor(context.Context, *Arguments) (*Peer, error)
 	GetRib(*Arguments, Grpc_GetRibServer) error
-	GetAdjRib(*Arguments, Grpc_GetAdjRibServer) error
 	Reset(context.Context, *Arguments) (*Error, error)
 	SoftReset(context.Context, *Arguments) (*Error, error)
 	SoftResetIn(context.Context, *Arguments) (*Error, error)
@@ -2039,7 +1350,6 @@ type GrpcServer interface {
 	GetMrt(*MrtArguments, Grpc_GetMrtServer) error
 	GetRPKI(*Arguments, Grpc_GetRPKIServer) error
 	GetVrfs(*Arguments, Grpc_GetVrfsServer) error
-	GetVrf(*Arguments, Grpc_GetVrfServer) error
 	ModVrf(context.Context, *ModVrfArguments) (*Error, error)
 }
 
@@ -2098,27 +1408,6 @@ type grpcGetRibServer struct {
 }
 
 func (x *grpcGetRibServer) Send(m *Destination) error {
-	return x.ServerStream.SendMsg(m)
-}
-
-func _Grpc_GetAdjRib_Handler(srv interface{}, stream grpc.ServerStream) error {
-	m := new(Arguments)
-	if err := stream.RecvMsg(m); err != nil {
-		return err
-	}
-	return srv.(GrpcServer).GetAdjRib(m, &grpcGetAdjRibServer{stream})
-}
-
-type Grpc_GetAdjRibServer interface {
-	Send(*Path) error
-	grpc.ServerStream
-}
-
-type grpcGetAdjRibServer struct {
-	grpc.ServerStream
-}
-
-func (x *grpcGetAdjRibServer) Send(m *Path) error {
 	return x.ServerStream.SendMsg(m)
 }
 
@@ -2338,7 +1627,7 @@ func _Grpc_MonitorBestChanged_Handler(srv interface{}, stream grpc.ServerStream)
 }
 
 type Grpc_MonitorBestChangedServer interface {
-	Send(*Path) error
+	Send(*Destination) error
 	grpc.ServerStream
 }
 
@@ -2346,7 +1635,7 @@ type grpcMonitorBestChangedServer struct {
 	grpc.ServerStream
 }
 
-func (x *grpcMonitorBestChangedServer) Send(m *Path) error {
+func (x *grpcMonitorBestChangedServer) Send(m *Destination) error {
 	return x.ServerStream.SendMsg(m)
 }
 
@@ -2434,27 +1723,6 @@ func (x *grpcGetVrfsServer) Send(m *Vrf) error {
 	return x.ServerStream.SendMsg(m)
 }
 
-func _Grpc_GetVrf_Handler(srv interface{}, stream grpc.ServerStream) error {
-	m := new(Arguments)
-	if err := stream.RecvMsg(m); err != nil {
-		return err
-	}
-	return srv.(GrpcServer).GetVrf(m, &grpcGetVrfServer{stream})
-}
-
-type Grpc_GetVrfServer interface {
-	Send(*Path) error
-	grpc.ServerStream
-}
-
-type grpcGetVrfServer struct {
-	grpc.ServerStream
-}
-
-func (x *grpcGetVrfServer) Send(m *Path) error {
-	return x.ServerStream.SendMsg(m)
-}
-
 func _Grpc_ModVrf_Handler(srv interface{}, ctx context.Context, codec grpc.Codec, buf []byte) (interface{}, error) {
 	in := new(ModVrfArguments)
 	if err := codec.Unmarshal(buf, in); err != nil {
@@ -2528,11 +1796,6 @@ var _Grpc_serviceDesc = grpc.ServiceDesc{
 			ServerStreams: true,
 		},
 		{
-			StreamName:    "GetAdjRib",
-			Handler:       _Grpc_GetAdjRib_Handler,
-			ServerStreams: true,
-		},
-		{
 			StreamName:    "ModPath",
 			Handler:       _Grpc_ModPath_Handler,
 			ClientStreams: true,
@@ -2577,11 +1840,6 @@ var _Grpc_serviceDesc = grpc.ServiceDesc{
 		{
 			StreamName:    "GetVrfs",
 			Handler:       _Grpc_GetVrfs_Handler,
-			ServerStreams: true,
-		},
-		{
-			StreamName:    "GetVrf",
-			Handler:       _Grpc_GetVrf_Handler,
 			ServerStreams: true,
 		},
 	},
