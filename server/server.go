@@ -246,7 +246,7 @@ func (server *BgpServer) Serve() {
 			peer := NewPeer(g, config)
 			name := config.NeighborConfig.NeighborAddress.String()
 
-			if config.RouteServer.RouteServerClient == true {
+			if config.RouteServer.RouteServerConfig.RouteServerClient {
 				loc := NewLocalRib(name, peer.configuredRFlist(), make(map[string]*policy.Policy))
 				server.addLocalRib(loc)
 				loc.setPolicy(peer, server.policyMap)

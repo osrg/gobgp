@@ -102,7 +102,7 @@ func create_config_files(nr int, outputDir string, IPVersion string, nonePeer bo
 		c.NeighborConfig.NeighborAddress = net.ParseIP(fmt.Sprintf("%s%d", baseNeighborAddress[IPVersion], i))
 		c.NeighborConfig.AuthPassword = fmt.Sprintf("hoge%d", i)
 		c.Transport.TransportConfig.PassiveMode = true
-		c.RouteServer.RouteServerClient = !normalBGP
+		c.RouteServer.RouteServerConfig.RouteServerClient = !normalBGP
 
 		timers := config.Timers{}
 		timers.TimersConfig.HoldTime = 30
@@ -149,7 +149,7 @@ func append_config_files(ar int, outputDir string, IPVersion string, noQuagga bo
 	c.NeighborConfig.PeerAs = 65000 + uint32(ar)
 	c.NeighborConfig.NeighborAddress = net.ParseIP(fmt.Sprintf("%s%d", baseNeighborAddress[IPVersion], ar))
 	c.NeighborConfig.AuthPassword = fmt.Sprintf("hoge%d", ar)
-	c.RouteServer.RouteServerClient = !normalBGP
+	c.RouteServer.RouteServerConfig.RouteServerClient = !normalBGP
 	c.Transport.TransportConfig.PassiveMode = true
 
 	timers := config.Timers{}

@@ -279,11 +279,26 @@ type AsPathOptions struct {
 	AsPathOptionsState AsPathOptionsState
 }
 
-//struct for container bgp:route-server
-type RouteServer struct {
+//struct for container bgp:state
+type RouteServerState struct {
 	// original -> bgp:route-server-client
 	//bgp:route-server-client's original type is boolean
 	RouteServerClient bool
+}
+
+//struct for container bgp:config
+type RouteServerConfig struct {
+	// original -> bgp:route-server-client
+	//bgp:route-server-client's original type is boolean
+	RouteServerClient bool
+}
+
+//struct for container bgp:route-server
+type RouteServer struct {
+	// original -> bgp:route-server-config
+	RouteServerConfig RouteServerConfig
+	// original -> bgp:route-server-state
+	RouteServerState RouteServerState
 }
 
 //struct for container bgp:state

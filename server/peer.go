@@ -83,7 +83,7 @@ func NewPeer(g config.Global, conf config.Neighbor) *Peer {
 }
 
 func (peer *Peer) isRouteServerClient() bool {
-	return peer.conf.RouteServer.RouteServerClient
+	return peer.conf.RouteServer.RouteServerConfig.RouteServerClient
 }
 
 func (peer *Peer) configuredRFlist() []bgp.RouteFamily {
