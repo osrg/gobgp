@@ -73,6 +73,7 @@ type BgpServer struct {
 	globalTypeCh   chan config.Global
 	addedPeerCh    chan config.Neighbor
 	deletedPeerCh  chan config.Neighbor
+	updatedPeerCh  chan config.Neighbor
 	GrpcReqCh      chan *GrpcRequest
 	listenPort     int
 	policyUpdateCh chan config.RoutingPolicy
@@ -91,6 +92,7 @@ func NewBgpServer(port int, roaURL string) *BgpServer {
 	b.globalTypeCh = make(chan config.Global)
 	b.addedPeerCh = make(chan config.Neighbor)
 	b.deletedPeerCh = make(chan config.Neighbor)
+	b.updatedPeerCh = make(chan config.Neighbor)
 	b.GrpcReqCh = make(chan *GrpcRequest, 1)
 	b.policyUpdateCh = make(chan config.RoutingPolicy)
 	b.localRibMap = make(map[string]*LocalRib)
@@ -299,6 +301,15 @@ func (server *BgpServer) Serve() {
 				}
 			} else {
 				log.Info("Can't delete a peer configuration for ", addr)
+			}
+		case config := <-server.updatedPeerCh:
+			addr := config.NeighborConfig.NeighborAddress.String()
+			peer := server.neighborMap[addr]
+			if peer.conf.RouteServer.RouteServerClient == true {
+				peer.conf.ApplyPolicy = config.ApplyPolicy
+				loc := server.localRibMap[addr]
+				loc.setPolicy(peer, server.policyMap)
+				peer.setDistributePolicy(server.policyMap)
 			}
 		case e := <-incoming:
 			peer, found := server.neighborMap[e.MsgSrc]
@@ -693,6 +704,10 @@ func (server *BgpServer) PeerAdd(peer config.Neighbor) {
 
 func (server *BgpServer) PeerDelete(peer config.Neighbor) {
 	server.deletedPeerCh <- peer
+}
+
+func (server *BgpServer) PeerUpdate(peer config.Neighbor) {
+	server.updatedPeerCh <- peer
 }
 
 func (server *BgpServer) UpdatePolicy(policy config.RoutingPolicy) {

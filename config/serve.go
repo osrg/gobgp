@@ -35,16 +35,16 @@ func ReadConfigfileServe(path string, configCh chan BgpConfigSet, reloadCh chan 
 	}
 }
 
-func inSlice(n Neighbor, b []Neighbor) bool {
-	for _, nb := range b {
+func inSlice(n Neighbor, b []Neighbor) int {
+	for i, nb := range b {
 		if nb.NeighborConfig.NeighborAddress.String() == n.NeighborConfig.NeighborAddress.String() {
-			return true
+			return i
 		}
 	}
-	return false
+	return -1
 }
 
-func UpdateConfig(curC *Bgp, newC *Bgp) (*Bgp, []Neighbor, []Neighbor) {
+func UpdateConfig(curC *Bgp, newC *Bgp) (*Bgp, []Neighbor, []Neighbor, []Neighbor) {
 	bgpConfig := Bgp{}
 	if curC == nil {
 		bgpConfig.Global = newC.Global
@@ -55,21 +55,26 @@ func UpdateConfig(curC *Bgp, newC *Bgp) (*Bgp, []Neighbor, []Neighbor) {
 	}
 	added := []Neighbor{}
 	deleted := []Neighbor{}
+	updated := []Neighbor{}
 
 	for _, n := range newC.Neighbors.NeighborList {
-		if inSlice(n, curC.Neighbors.NeighborList) == false {
+		if idx := inSlice(n, curC.Neighbors.NeighborList); idx < 0 {
 			added = append(added, n)
+		} else {
+			if !reflect.DeepEqual(n.ApplyPolicy, curC.Neighbors.NeighborList[idx].ApplyPolicy) {
+				updated = append(updated, n)
+			}
 		}
 	}
 
 	for _, n := range curC.Neighbors.NeighborList {
-		if inSlice(n, newC.Neighbors.NeighborList) == false {
+		if inSlice(n, newC.Neighbors.NeighborList) < 0 {
 			deleted = append(deleted, n)
 		}
 	}
 
 	bgpConfig.Neighbors.NeighborList = newC.Neighbors.NeighborList
-	return &bgpConfig, added, deleted
+	return &bgpConfig, added, deleted, updated
 }
 
 func CheckPolicyDifference(currentPolicy *RoutingPolicy, newPolicy *RoutingPolicy) bool {
