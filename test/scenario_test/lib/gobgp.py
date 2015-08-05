@@ -142,7 +142,7 @@ class GoBGPContainer(BGPContainer):
                 n['Transport'] = {'TransportConfig': {'PassiveMode': True}}
 
             if info['is_rs_client']:
-                n['RouteServer'] = {'RouteServerClient': True}
+                n['RouteServer'] = {'RouteServerConfig': {'RouteServerClient': True}}
 
             if info['is_rr_client']:
                 clusterId = info['cluster_id']

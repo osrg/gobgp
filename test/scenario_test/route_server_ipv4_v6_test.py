@@ -1,4 +1,4 @@
-# Copyright (C) 2014 Nippon Telegraph and Telephone Corporation.
+# Copyright (C) 2015 Nippon Telegraph and Telephone Corporation.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -13,167 +13,143 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import time
+import unittest
+from fabric.api import local
+from lib import base
+from lib.gobgp import *
+from lib.quagga import *
 import sys
+import os
+import time
 import nose
-import quagga_access as qaccess
-import docker_control as fab
-from gobgp_test import GoBGPTestBase
-from gobgp_test import ADJ_RIB_IN, ADJ_RIB_OUT, LOCAL_RIB, GLOBAL_RIB
-from gobgp_test import NEIGHBOR
-from noseplugin import OptionParser
-from noseplugin import parser_option
+from noseplugin import OptionParser, parser_option
 
-class GoBGPIPv6Test(GoBGPTestBase):
-    quagga_num = 2
-    append_quagga = 10
-    remove_quagga = 10
-    append_quagga_best = 20
 
-    def __init__(self, *args, **kwargs):
-        super(GoBGPIPv6Test, self).__init__(*args, **kwargs)
+class GoBGPIPv6Test(unittest.TestCase):
+
+    wait_per_retry = 5
+    retry_limit = 15
+
+    @classmethod
+    def setUpClass(cls):
+        gobgp_ctn_image_name = parser_option.gobgp_image
+        base.TEST_PREFIX = parser_option.test_prefix
+
+        g1 = GoBGPContainer(name='g1', asn=65002, router_id='192.168.0.2',
+                            ctn_image_name=gobgp_ctn_image_name,
+                            log_level=parser_option.gobgp_log_level)
+        q1 = QuaggaBGPContainer(name='q1', asn=65003, router_id='192.168.0.3')
+        q2 = QuaggaBGPContainer(name='q2', asn=65004, router_id='192.168.0.4')
+        q3 = QuaggaBGPContainer(name='q3', asn=65005, router_id='192.168.0.5')
+        q4 = QuaggaBGPContainer(name='q4', asn=65006, router_id='192.168.0.6')
+
+        ctns = [g1, q1, q2, q3, q4]
+        v4 = [q1, q2]
+        v6 = [q3, q4]
+
+        for idx, q in enumerate(v4):
+            route = '10.0.{0}.0/24'.format(idx+1)
+            q.add_route(route)
+
+        for idx, q in enumerate(v6):
+            route = '2001:{0}::/96'.format(idx+1)
+            q.add_route(route)
+
+        initial_wait_time = max(ctn.run() for ctn in ctns)
+
+        time.sleep(initial_wait_time)
+
+        br01 = Bridge(name='br01', subnet='192.168.10.0/24')
+        br01.addif(g1)
+        for ctn in v4:
+            br01.addif(ctn)
+            g1.add_peer(ctn, is_rs_client=True)
+            ctn.add_peer(g1)
+
+        br02 = Bridge(name='br02', subnet='2001::/96')
+        br02.addif(g1)
+        for ctn in v6:
+            br02.addif(ctn)
+            g1.add_peer(ctn, is_rs_client=True)
+            ctn.add_peer(g1)
+
+        cls.gobgp = g1
+        cls.quaggas = {'q1': q1, 'q2': q2, 'q3': q3, 'q4': q4}
+        cls.bridges = {'br01': br01, 'br02': br02}
+        cls.ipv4s = {'q1': q1, 'q2': q2}
+        cls.ipv6s = {'q3': q3, 'q4': q4}
+
+    def check_gobgp_local_rib(self, ctns, rf):
+        for rs_client in ctns.itervalues():
+            done = False
+            for _ in range(self.retry_limit):
+                if done:
+                    break
+                local_rib = self.gobgp.get_local_rib(rs_client, rf)
+                local_rib = [p['prefix'] for p in local_rib]
+                if len(local_rib) < len(ctns)-1:
+                    time.sleep(self.wait_per_retry)
+                    continue
+
+                self.assertTrue(len(local_rib) == (len(ctns)-1))
+
+                for c in ctns.itervalues():
+                    if rs_client != c:
+                        for r in c.routes:
+                            self.assertTrue(r in local_rib)
+
+                done = True
+            if done:
+                continue
+            # should not reach here
+            self.assertTrue(False)
+
+    def check_rs_client_rib(self, ctns, rf):
+        for rs_client in ctns.itervalues():
+            done = False
+            for _ in range(self.retry_limit):
+                if done:
+                    break
+                global_rib = rs_client.get_global_rib(rf=rf)
+                global_rib = [p['prefix'] for p in global_rib]
+                if len(global_rib) < len(ctns):
+                    time.sleep(self.wait_per_retry)
+                    continue
+
+                self.assertTrue(len(global_rib) == len(ctns))
+
+                for c in ctns.itervalues():
+                    for r in c.routes:
+                        self.assertTrue(r in global_rib)
+
+                done = True
+            if done:
+                continue
+            # should not reach here
+            self.assertTrue(False)
 
     # test each neighbor state is turned establish
-    def test_01_ipv4_ipv6_neighbor_established(self):
-        print "test_ipv4_ipv6_neighbor_established"
+    def test_01_neighbor_established(self):
+        for q in self.quaggas.itervalues():
+            self.gobgp.wait_for(expected_state=BGP_FSM_ESTABLISHED, peer=q)
 
-        image = parser_option.gobgp_image
-        go_path = parser_option.go_path
-        log_debug = True if parser_option.gobgp_log_level == 'debug' else False
-        fab.init_ipv6_test_env_executor(self.quagga_num, image, go_path, log_debug)
-        print "please wait (" + str(self.initial_wait_time) + " second)"
-        time.sleep(self.initial_wait_time)
-        fab.docker_container_ipv6_quagga_append_executor([3, 4], go_path)
-        print "please wait (" + str(self.initial_wait_time) + " second)"
-        time.sleep(self.initial_wait_time)
-        if self.check_load_config() is False:
-            return
+    def test_02_check_ipv4_peer_rib(self):
+        self.check_gobgp_local_rib(self.ipv4s, 'ipv4')
+        self.check_rs_client_rib(self.ipv4s, 'ipv4')
 
-        addresses = self.get_neighbor_address(self.gobgp_config)
-        self.retry_routine_for_state(addresses, "BGP_FSM_ESTABLISHED")
+    def test_03_check_ipv6_peer_rib(self):
+        self.check_gobgp_local_rib(self.ipv6s, 'ipv6')
+        self.check_rs_client_rib(self.ipv6s, 'ipv6')
 
-        for address in addresses:
-            # get neighbor state and remote ip from gobgp connections
-            print "check of [ " + address + " ]"
-            neighbor = self.ask_gobgp(NEIGHBOR, address)
-            state = neighbor['info']['bgp_state']
-            remote_ip = neighbor['conf']['remote_ip']
-            self.assertEqual(address, remote_ip)
-            self.assertEqual(state, "BGP_FSM_ESTABLISHED")
-            print "state" + state
-
-    def test_02_ipv4_ipv6_received_route(self):
-        print "test_ipv4_ipv6_received_route"
-        if self.check_load_config() is False:
-            return
-
-        for address in self.get_neighbor_address(self.gobgp_config):
-            print "check of [ " + address + " ]"
-            af = fab.IPv6 if ":" in address else fab.IPv4
-
-            def check_func():
-                local_rib = self.ask_gobgp(LOCAL_RIB, address, af)
-
-                for quagga_config in self.quagga_configs:
-                    if quagga_config.peer_ip == address or quagga_config.ip_version != af:
-                        for c_dest in quagga_config.destinations.itervalues():
-                            # print "config : ", c_dest.prefix, "my ip or different ip version!!!"
-                            exist_n = 0
-                            for g_dest in local_rib:
-                                if c_dest.prefix == g_dest['prefix']:
-                                    exist_n += 1
-                            if exist_n != 0:
-                                return False
-                    else:
-                        for c_dest in quagga_config.destinations.itervalues():
-                            exist_n = 0
-                            for g_dest in local_rib:
-                                if c_dest.prefix == g_dest['prefix']:
-                                    exist_n += 1
-                            if exist_n != 1:
-                                return False
-                return True
-
-            retry_count = 0
-            cmp_result = False
-            while retry_count < self.dest_check_limit:
-
-                cmp_result = check_func()
-
-                if cmp_result:
-                    print "compare OK"
-                    break
-                else:
-                    retry_count += 1
-                    print "compare NG -> retry ( %d / %d )" % (retry_count, self.dest_check_limit)
-                    time.sleep(self.wait_per_retry)
-
-            self.assertEqual(cmp_result, True)
-
-    def test_03_advertising_route(self):
-        print "test_advertising_route"
-        if self.check_load_config() is False:
-            return
-
-        for address in self.get_neighbor_address(self.gobgp_config):
-            print "check of [ " + address + " ]"
-            af = fab.IPv6 if ":" in address else fab.IPv4
-
-            def check_func():
-                tn = qaccess.login(address)
-                q_rib = qaccess.show_rib(tn, af)
-
-                for quagga_config in self.quagga_configs:
-                    if quagga_config.peer_ip == address or quagga_config.ip_version != af:
-                        for c_dest in quagga_config.destinations.itervalues():
-                            exist_n = 0
-                            for c_path in c_dest.paths:
-                                # print "conf : ", c_path.network, c_path.nexthop, "my ip  or different ip version!!!"
-                                for q_path in q_rib:
-                                    # print "quag : ", q_path['Network'], q_path['Next Hop']
-                                    if "0.0.0.0" == q_path['Next Hop'] or "::" == q_path['Next Hop']:
-                                        continue
-                                    if c_path.network.split("/")[0] == q_path['Network']:
-                                        exist_n += 1
-                                if exist_n != 0:
-                                    return False
-                    else:
-                        for c_dest in quagga_config.destinations.itervalues():
-                            exist_n = 0
-                            for c_path in c_dest.paths:
-                                # print "conf : ", c_path.network, c_path.nexthop
-                                for q_path in q_rib:
-                                    # print "quag : ", q_path['Network'], q_path['Next Hop']
-                                    if quagga_config.ip_version != fab.IPv6:
-                                        c_path.network = c_path.network.split("/")[0]
-                                    if c_path.network == q_path['Network'] and c_path.nexthop == q_path['Next Hop']:
-                                        exist_n += 1
-                                if exist_n != 1:
-                                    return False
-                return True
-
-            retry_count = 0
-            check_result = False
-            while retry_count < self.dest_check_limit:
-
-                check_result = check_func()
-
-                if check_result:
-                    print "compare OK"
-                    break
-                else:
-                    retry_count += 1
-                    print "compare NG -> retry ( %d / %d )" % (retry_count, self.dest_check_limit)
-                    time.sleep(self.wait_per_retry)
-
-            self.assertEqual(check_result, True)
 
 if __name__ == '__main__':
-    if fab.test_user_check() is False:
+    if os.geteuid() is not 0:
         print "you are not root."
         sys.exit(1)
-    if fab.docker_pkg_check() is False:
-        print "not install docker package."
+    output = local("which docker 2>&1 > /dev/null ; echo $?", capture=True)
+    if int(output) is not 0:
+        print "docker not found"
         sys.exit(1)
 
-    nose.main(argv=sys.argv, addplugins=[OptionParser()], defaultTest=sys.argv[0])
+    nose.main(argv=sys.argv, addplugins=[OptionParser()],
+              defaultTest=sys.argv[0])
