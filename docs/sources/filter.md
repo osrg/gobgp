@@ -42,14 +42,16 @@ define an import policy for neighbor 10.0.255.2 that drops
       NeighborAddress = "10.0.255.1"
       PeerAs = 65001
     [Neighbors.NeighborList.RouteServer]
-      RouteServerClient = true
+      [Neighbors.NeighborList.RouteServer.RouteServerConfig]
+        RouteServerClient = true
 
   [[Neighbors.NeighborList]]
     [Neighbors.NeighborList.NeighborConfig]
       NeighborAddress = "10.0.255.2"
       PeerAs = 65002
     [Neighbors.NeighborList.RouteServer]
-      RouteServerClient = true
+      [Neighbors.NeighborList.RouteServer.RouteServerConfig]
+        RouteServerClient = true
     [Neighbors.NeighborList.ApplyPolicy]
       [Neighbors.NeighborList.ApplyPolicy.ApplyPolicyConfig]
         ImportPolicy = ["pd2"]
@@ -59,7 +61,8 @@ define an import policy for neighbor 10.0.255.2 that drops
       NeighborAddress = "10.0.255.3"
       PeerAs = 65003
     [Neighbors.NeighborList.RouteServer]
-      RouteServerClient = true
+      [Neighbors.NeighborList.RouteServer.RouteServerConfig]
+        RouteServerClient = true
 
 [DefinedSets]
   [DefinedSets.PrefixSets]

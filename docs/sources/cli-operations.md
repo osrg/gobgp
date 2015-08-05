@@ -41,21 +41,24 @@ should be like the following.
       NeighborAddress = "10.0.255.1"
       PeerAs = 65001
     [Neighbors.NeighborList.RouteServer]
-      RouteServerClient = true
+      [Neighbors.NeighborList.RouteServer.RouteServerConfig]
+        RouteServerClient = true
 
   [[Neighbors.NeighborList]]
     [Neighbors.NeighborList.NeighborConfig]
       NeighborAddress = "10.0.255.2"
       PeerAs = 65002
     [Neighbors.NeighborList.RouteServer]
-      RouteServerClient = true
+      [Neighbors.NeighborList.RouteServer.RouteServerConfig]
+        RouteServerClient = true
 
   [[Neighbors.NeighborList]]
     [Neighbors.NeighborList.NeighborConfig]
       NeighborAddress = "10.0.255.3"
       PeerAs = 65003
     [Neighbors.NeighborList.RouteServer]
-      RouteServerClient = true
+      [Neighbors.NeighborList.RouteServer.RouteServerConfig]
+        RouteServerClient = true
 ```
 
 After you send `HUP` signal (`kill` command), you should see 10.0.255.3 peer.

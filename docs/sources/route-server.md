@@ -32,7 +32,8 @@ $ cat gobgpd.conf
       [Neighbors.NeighborList.Transport.TransportConfig]
         PassiveMode = true
     [Neighbors.NeighborList.RouteServer]
-      RouteServerClient = true
+      [Neighbors.NeighborList.RouteServer.RouteServerConfig]
+        RouteServerClient = true
 
   [[Neighbors.NeighborList]]
     [Neighbors.NeighborList.NeighborConfig]
@@ -43,7 +44,8 @@ $ cat gobgpd.conf
       [Neighbors.NeighborList.Transport.TransportConfig]
         PassiveMode = true
     [Neighbors.NeighborList.RouteServer]
-      RouteServerClient = true
+      [Neighbors.NeighborList.RouteServer.RouteServerConfig]
+        RouteServerClient = true
 ```
 
 ## Starting GoBGP

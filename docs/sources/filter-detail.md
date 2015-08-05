@@ -229,32 +229,35 @@ CommunitySets, ExtCommunitySets and AsPathSets section are each match part.
     [DefinedSets.BgpDefinedSets.CommunitySets]
       [[DefinedSets.BgpDefinedSets.CommunitySets.CommunitySetList]]
         CommunitySetName = "community1"
-        CommunityMember = ["65100:10"]
+        [[DefinedSets.BgpDefinedSets.CommunitySets.CommunitySetList.CommunityList]]
+          Community = "65100:10"
       # Extended Community match part
     [DefinedSets.BgpDefinedSets.ExtCommunitySets]
       [[DefinedSets.BgpDefinedSets.ExtCommunitySets.ExtCommunitySetList]]
         ExtCommunitySetName = "ecommunity1"
-        ExtCommunityMember = ["RT:65001:200"]
+        [[DefinedSets.BgpDefinedSets.ExtCommunitySets.ExtCommunitySetList.ExtCommunityList]]
+          ExtCommunity = "RT:65001:200"
       # AS_PATH match part
     [DefinedSets.BgpDefinedSets.AsPathSets]
       [[DefinedSets.BgpDefinedSets.AsPathSets.AsPathSetList]]
         AsPathSetName = "aspath1"
-        AsPathSetMember = ["^65100"]
+        [[DefinedSets.BgpDefinedSets.AsPathSets.AsPathSetList.AsPathList]]
+          AsPath = "^65100"
  ```
 
   ----
 
  #### CommunitySets
- CommunitySets has CommunitySetList, and CommunitySetList has Community value as its element. The values are used to evaluate communities held by the destination.
+ CommunitySets has CommunitySetList, and CommunitySetList has CommunityList. The values are used to evaluate communities held by the destination.
 
  CommunitySetList has 2 elements.
 
  | Element          | Description             | Example      | Optional |
  |------------------|-------------------------|--------------|----------|
  | CommunitySetName | name of CommunitySet    | "community1" |          |
- | CommunityMember  | list of Community value | ["65100:10"] |          |
+ | Community        | community value         | "65100:10"   |          |
 
- You can use regular expressions to specify communities in CommunityMember element.
+ You can use regular expressions to specify community in CommunityList.
 
  ##### Examples
  - example 1
@@ -266,7 +269,8 @@ CommunitySets, ExtCommunitySets and AsPathSets section are each match part.
     [DefinedSets.BgpDefinedSets.CommunitySets]
       [[DefinedSets.BgpDefinedSets.CommunitySets.CommunitySetList]]
         CommunitySetName = "community1"
-        CommunityMember = ["65100:10"]
+        [[DefinedSets.BgpDefinedSets.CommunitySets.CommunitySetList.CommunityList]]
+          Community = "65100:10"
   ```
 
  - example 2
@@ -279,21 +283,22 @@ CommunitySets, ExtCommunitySets and AsPathSets section are each match part.
     [DefinedSets.BgpDefinedSets.CommunitySets]
       [[DefinedSets.BgpDefinedSets.CommunitySets.CommunitySetList]]
         CommunitySetName = "community2"
-        CommunityMember = ["6[0-9]+:[0-9]+"]
+        [[DefinedSets.BgpDefinedSets.CommunitySets.CommunitySetList.CommunityList]]
+          Community = 6[0-9]+:[0-9]+"
   ```
    ----
 
  #### ExtCommunitySets
- ExtCommunitySets has ExtCommunitySetList, and ExtCommunitySetList has Extended Community value as its element. The values are used to evaluate extended communities held by the destination.
+ ExtCommunitySets has ExtCommunitySetList, and ExtCommunitySetList has ExtCommunityList. The values are used to evaluate extended communities held by the destination.
 
  ExtCommunitySetList has 2 elements.
 
  | Element             | Description                | Example          | Optional |
  |---------------------|----------------------------|------------------|----------|
  | ExtCommunitySetName | name of ExtCommunitySet    | "ecommunity1"    |          |
- | ExtCommunityMember  | list of ExtCommunity value | ["RT:65001:200"] |          |
+ | ExtCommunity        | extended community value   | "RT:65001:200"   |          |
 
- You can use regular expressions to specify extended communities in ExtCommunityMember element.
+ You can use regular expressions to specify extended community in ExtCommunityList.
  However, the first one element separated by (part of "RT") does not support to the regular expression.
  part of "RT" indicate sub type of extended community and using sub type as follows:
 
@@ -311,7 +316,8 @@ CommunitySets, ExtCommunitySets and AsPathSets section are each match part.
     [DefinedSets.BgpDefinedSets.ExtCommunitySets]
       [[DefinedSets.BgpDefinedSets.ExtCommunitySets.ExtCommunitySetList]]
         ExtCommunitySetName = "ecommunity1"
-        ExtCommunityMember = ["RT:65001:200"]
+        [[DefinedSets.BgpDefinedSets.ExtCommunitySets.ExtCommunitySetList.ExtCommunityList]]
+          ExtCommunity = "RT:65001:200"
   ```
 
  - example 2
@@ -324,21 +330,22 @@ CommunitySets, ExtCommunitySets and AsPathSets section are each match part.
     [DefinedSets.BgpDefinedSets.ExtCommunitySets]
       [[DefinedSets.BgpDefinedSets.ExtCommunitySets.ExtCommunitySetList]]
         ExtCommunitySetName = "ecommunity1"
-        ExtCommunityMember = ["RT:6[0-9]+:[0-9]+"]
+        [[DefinedSets.BgpDefinedSets.ExtCommunitySets.ExtCommunitySetList.ExtCommunityList]]
+          ExtCommunity = "RT:6[0-9]+:[0-9]+"
   ```
 
    ----
 
 
  #### AsPathSets
- AsPathSets has AsPathSetList, and AsPathSetList has AS numbers as its element. The numbers are used to evaluate AS numbers in the destination's AS_PATH attribute.
+ AsPathSets has AsPathSetList, and AsPathSetList has AsPathList. The numbers are used to evaluate AS numbers in the destination's AS_PATH attribute.
 
    AsPathSetList has 2 elements.
 
  | Element          | Description       | Example    | Optional |
  |------------------|-------------------|------------|----------|
  | AsPathSetName    | name of AsPathSet | "aspath1"  |          |
- | AsPathSetMember  | list of AS number | ["^65100"] |          |
+ | AsPathSet        | as path value     | "^65100"   |          |
 
    You can specify the position using regexp-like expression as follows:
    - From: "^65100" means the route is passed from AS 65100 directly.
@@ -356,7 +363,8 @@ CommunitySets, ExtCommunitySets and AsPathSets section are each match part.
     [DefinedSets.BgpDefinedSets.AsPathSets]
       [[DefinedSets.BgpDefinedSets.AsPathSets.AsPathSetList]]
         AsPathSetName = "aspath1"
-        AsPathSetMember = ["^65100"]
+        [[DefinedSets.BgpDefinedSets.AsPathSets.AsPathSetList.AsPathList]]
+          AsPath = "^65100"
   ```
 
 ---
