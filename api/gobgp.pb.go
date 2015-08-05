@@ -1131,9 +1131,8 @@ func (m *Peer) GetInfo() *PeerInfo {
 }
 
 type Prefix struct {
-	Address         string `protobuf:"bytes,1,opt,name=address" json:"address,omitempty"`
-	MaskLength      uint32 `protobuf:"varint,2,opt,name=mask_length" json:"mask_length,omitempty"`
-	MaskLengthRange string `protobuf:"bytes,3,opt,name=mask_length_range" json:"mask_length_range,omitempty"`
+	IpPrefix        string `protobuf:"bytes,1,opt,name=ip_prefix" json:"ip_prefix,omitempty"`
+	MaskLengthRange string `protobuf:"bytes,2,opt,name=mask_length_range" json:"mask_length_range,omitempty"`
 }
 
 func (m *Prefix) Reset()         { *m = Prefix{} }

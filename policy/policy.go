@@ -193,9 +193,7 @@ func NewPrefixCondition(matchPref config.MatchPrefixSet, defPrefixList []config.
 	for _, ps := range defPrefixList {
 		if ps.PrefixSetName == prefixSetName {
 			for _, prefix := range ps.PrefixList {
-				addr := prefix.IpPrefix.IP
-				maskLength, _ := prefix.IpPrefix.Mask.Size()
-				prefix, e := NewPrefix(addr, uint8(maskLength), prefix.MasklengthRange)
+				prefix, e := NewPrefix(prefix.IpPrefix, prefix.MasklengthRange)
 				if e != nil {
 					log.WithFields(log.Fields{
 						"Topic":  "Policy",
@@ -1316,13 +1314,17 @@ type Prefix struct {
 	MasklengthRange map[MaskLengthRangeType]uint8
 }
 
-func NewPrefix(addr net.IP, maskLen uint8, maskRange string) (Prefix, error) {
+func NewPrefix(prefixStr string, maskRange string) (Prefix, error) {
+	p := Prefix{}
 	mlr := make(map[MaskLengthRangeType]uint8)
-	p := Prefix{
-		Address:         addr,
-		Masklength:      maskLen,
-		MasklengthRange: make(map[MaskLengthRangeType]uint8),
+	addr, ipPref, e := net.ParseCIDR(prefixStr)
+
+	if e != nil {
+		return p, e
 	}
+	maskLength, _ := ipPref.Mask.Size()
+	p.Address = addr
+	p.Masklength = uint8(maskLength)
 
 	if ipv4Family := addr.To4(); ipv4Family != nil {
 		p.AddressFamily, _ = bgp.GetRouteFamily("ipv4-unicast")
@@ -1632,13 +1634,8 @@ func IndexOfPolicyDefinition(conPolicyList []config.PolicyDefinition, reqPolicy 
 func PrefixSetToApiStruct(ps config.PrefixSet) *api.PrefixSet {
 	resPrefixList := make([]*api.Prefix, 0)
 	for _, p := range ps.PrefixList {
-
-		addr := p.IpPrefix.IP
-		length, _ := p.IpPrefix.Mask.Size()
-
 		resPrefix := &api.Prefix{
-			Address:         addr.String(),
-			MaskLength:      uint32(length),
+			IpPrefix:          p.IpPrefix,
 			MaskLengthRange: p.MasklengthRange,
 		}
 		resPrefixList = append(resPrefixList, resPrefix)
@@ -1656,13 +1653,8 @@ func PrefixSetToConfigStruct(reqPrefixSet *api.PrefixSet) (bool, config.PrefixSe
 	var prefixSet config.PrefixSet
 	isReqPrefixSet := true
 	if reqPrefixSet.PrefixList != nil {
-
-		prefItem := reqPrefixSet.PrefixList[0]
-		prefStr := prefItem.Address + "/" + strconv.Itoa(int(prefItem.MaskLength))
-		_, ipprefix, _ := net.ParseCIDR(prefStr)
-
 		prefix = config.Prefix{
-			IpPrefix:        *ipprefix,
+			IpPrefix:        reqPrefixSet.PrefixList[0].IpPrefix,
 			MasklengthRange: reqPrefixSet.PrefixList[0].MaskLengthRange,
 		}
 		prefixList := []config.Prefix{prefix}

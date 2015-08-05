@@ -41,8 +41,8 @@ func formatPolicyPrefix(head bool, indent int, psl []*api.PrefixSet) string {
 			maxNameLen = len(ps.PrefixSetName)
 		}
 		for _, p := range ps.PrefixList {
-			if len(p.Address)+len(fmt.Sprint(p.MaskLength))+1 > maxPrefixLen {
-				maxPrefixLen = len(p.Address) + len(fmt.Sprint(p.MaskLength)) + 1
+			if len(p.IpPrefix) > maxPrefixLen {
+				maxPrefixLen = len(p.IpPrefix)
 			}
 			if len(p.MaskLengthRange) > maxRangeLen {
 				maxRangeLen = len(p.MaskLengthRange)
@@ -68,7 +68,7 @@ func formatPolicyPrefix(head bool, indent int, psl []*api.PrefixSet) string {
 	}
 	for _, ps := range psl {
 		for i, p := range ps.PrefixList {
-			prefix := fmt.Sprintf("%s/%d", p.Address, p.MaskLength)
+			prefix := fmt.Sprintf("%s", p.IpPrefix)
 			if i == 0 {
 				buff += fmt.Sprintf(format, ps.PrefixSetName, prefix, p.MaskLengthRange)
 			} else {
@@ -136,7 +136,7 @@ func showPolicyPrefix(args []string) error {
 	}
 	if globalOpts.Quiet {
 		for _, p := range ps.PrefixList {
-			fmt.Printf("%s/%d %s\n", p.Address, p.MaskLength, p.MaskLengthRange)
+			fmt.Printf("%s %s\n", p.IpPrefix, p.MaskLengthRange)
 		}
 		return nil
 	}
@@ -150,10 +150,8 @@ func parsePrefixSet(eArgs []string) (*api.PrefixSet, error) {
 	if e != nil {
 		return nil, fmt.Errorf("invalid prefix: %s\nplease enter ipv4 or ipv6 format", eArgs[1])
 	}
-	mask, _ := ipNet.Mask.Size()
 	prefix := &api.Prefix{
-		Address:    ipNet.IP.String(),
-		MaskLength: uint32(mask),
+		IpPrefix: eArgs[1],
 	}
 
 	if len(eArgs) == 3 {

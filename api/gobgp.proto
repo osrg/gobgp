@@ -420,9 +420,8 @@ message Peer {
 }
 
 message Prefix {
-    string address  = 1;
-    uint32 mask_length = 2;
-    string mask_length_range = 3;
+    string ip_prefix  = 1;
+    string mask_length_range = 2;
 }
 
 message PrefixSet {

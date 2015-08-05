@@ -501,7 +501,7 @@ _type_translation_map = {
     'boolean': 'bool',
     'empty': 'bool',
     'inet:ip-address': 'net.IP',
-    'inet:ip-prefix': 'net.IPNet',
+    'inet:ip-prefix': 'string',
     'inet:ipv4-address': 'net.IP',
     'inet:as-number': 'uint32',
     'bgp-set-community-option-type' : 'string',

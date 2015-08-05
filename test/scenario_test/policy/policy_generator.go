@@ -73,16 +73,11 @@ func bindPolicy(outputDir, peer, target, policyName string, isReplace bool, defa
 
 func createPolicyConfig() *config.RoutingPolicy {
 
-	cidr := func(pref string) net.IPNet {
-		_, n, _ := net.ParseCIDR(pref)
-		return *n
-	}
-
 	ps0 := config.PrefixSet{
 		PrefixSetName: "ps0",
 		PrefixList: []config.Prefix{
 			config.Prefix{
-				IpPrefix:        cidr("192.168.0.0/16"),
+				IpPrefix:        "192.168.0.0/16",
 				MasklengthRange: "16..24",
 			}},
 	}
@@ -91,9 +86,9 @@ func createPolicyConfig() *config.RoutingPolicy {
 		PrefixSetName: "ps1",
 		PrefixList: []config.Prefix{
 			config.Prefix{
-				IpPrefix: cidr("192.168.20.0/24"),
+				IpPrefix: "192.168.20.0/24",
 			}, config.Prefix{
-				IpPrefix: cidr("192.168.200.0/24"),
+				IpPrefix: "192.168.200.0/24",
 			}},
 	}
 
@@ -101,7 +96,7 @@ func createPolicyConfig() *config.RoutingPolicy {
 		PrefixSetName: "ps2",
 		PrefixList: []config.Prefix{
 			config.Prefix{
-				IpPrefix: cidr("192.168.20.0/24"),
+				IpPrefix: "192.168.20.0/24",
 			}},
 	}
 
@@ -109,7 +104,7 @@ func createPolicyConfig() *config.RoutingPolicy {
 		PrefixSetName: "ps3",
 		PrefixList: []config.Prefix{
 			config.Prefix{
-				IpPrefix:        cidr("2001:0:10:2::/64"),
+				IpPrefix:        "2001:0:10:2::/64",
 				MasklengthRange: "64..128",
 			}},
 	}
@@ -118,9 +113,9 @@ func createPolicyConfig() *config.RoutingPolicy {
 		PrefixSetName: "ps4",
 		PrefixList: []config.Prefix{
 			config.Prefix{
-				IpPrefix: cidr("2001:0:10:20::/64"),
+				IpPrefix: "2001:0:10:20::/64",
 			}, config.Prefix{
-				IpPrefix: cidr("2001:0:10:200::/64"),
+				IpPrefix: "2001:0:10:200::/64",
 			}},
 	}
 
@@ -128,7 +123,7 @@ func createPolicyConfig() *config.RoutingPolicy {
 		PrefixSetName: "ps5",
 		PrefixList: []config.Prefix{
 			config.Prefix{
-				IpPrefix: cidr("2001:0:10:20::/64"),
+				IpPrefix: "2001:0:10:20::/64",
 			}},
 	}
 
@@ -136,7 +131,7 @@ func createPolicyConfig() *config.RoutingPolicy {
 		PrefixSetName: "ps6",
 		PrefixList: []config.Prefix{
 			config.Prefix{
-				IpPrefix: cidr("192.168.10.0/24"),
+				IpPrefix: "192.168.10.0/24",
 			}},
 	}
 
@@ -168,7 +163,7 @@ func createPolicyConfig() *config.RoutingPolicy {
 		PrefixSetName: "psExabgp",
 		PrefixList: []config.Prefix{
 			config.Prefix{
-				IpPrefix:        cidr("192.168.100.0/24"),
+				IpPrefix:        "192.168.100.0/24",
 				MasklengthRange: "16..24",
 			}},
 	}

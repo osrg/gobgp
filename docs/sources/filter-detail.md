@@ -65,10 +65,8 @@ PrefixSets and NeighborSets section are prefix match part and neighbor match par
     [[DefinedSets.PrefixSets.PrefixSetList]]
       PrefixSetName = "ps1"
       [[DefinedSets.PrefixSets.PrefixSetList.PrefixList]]
+        IpPrefix = "10.33.0.0/16"
         MasklengthRange = "21..24"
-        [DefinedSets.PrefixSets.PrefixSetList.PrefixList.IpPrefix]
-          IP = "10.33.0.0
-          Mask = [255, 255, 0, 0]
 
  # neighbor match part
   [DefinedSets.NeighborSets]
@@ -85,12 +83,11 @@ PrefixSets and NeighborSets section are prefix match part and neighbor match par
 
  PrefixSetList has 3 elements.
 
- | Element         |Description        | Example    | Optional   |
- |-----------------|-------------------|------------|------------|
- | PrefixSetName   | name of PrefixSet | "10.33.0.0"|            |
- | IP              | prefix address    | "10.33.0.0"|            |
- | MASK            | prefix length     | 16         |            |
- | MasklengthRange | range of length   | "21..24"   | Yes        |
+ | Element         |Description        | Example       | Optional   |
+ |-----------------|-------------------|---------------|------------|
+ | PrefixSetName   | name of PrefixSet | "ps1"         |            |
+ | IpPrefix        | prefix value      | "10.33.0.0/16"|            |
+ | MasklengthRange | range of length   | "21..24"      | Yes        |
 
 
  ##### Examples
@@ -102,11 +99,9 @@ PrefixSets and NeighborSets section are prefix match part and neighbor match par
   [DefinedSets.PrefixSets]
     [[DefinedSets.PrefixSets.PrefixSetList]]
       PrefixSetName = "ps1"
-       [[DefinedSets.PrefixSets.PrefixSetList.PrefixList]]
+      [[DefinedSets.PrefixSets.PrefixSetList.PrefixList]]
+        IpPrefix = "10.33.0.0/16"
         MasklengthRange = "21..24"
-        [DefinedSets.PrefixSets.PrefixSetList.PrefixList.IpPrefix]
-          IP = "10.33.0.0"
-          Mask = [255, 255, 0, 0]
   ```
 
    - If you define a PrefixList that doesn't have MasklengthRange, it matches routes that have just 10.33.0.0/16 as NLRI.
@@ -120,16 +115,12 @@ PrefixSets and NeighborSets section are prefix match part and neighbor match par
   [DefinedSets.PrefixSets]
     [[DefinedSets.PrefixSets.PrefixSetList]]
       PrefixSetName = "ps1"
-       [[DefinedSets.PrefixSets.PrefixSetList.PrefixList]]
+      [[DefinedSets.PrefixSets.PrefixSetList.PrefixList]]
+        IpPrefix = "10.33.0.0/16"
         MasklengthRange = "21..24"
-        [DefinedSets.PrefixSets.PrefixSetList.PrefixList.IpPrefix]
-          IP = "10.33.0.0"
-          Mask = [255, 255, 0, 0]
-       [[DefinedSets.PrefixSets.PrefixSetList.PrefixList]]
+      [[DefinedSets.PrefixSets.PrefixSetList.PrefixList]]
+        IpPrefix = "10.50.0.0/16"
         MasklengthRange = "21..24"
-        [DefinedSets.PrefixSets.PrefixSetList.PrefixList.IpPrefix]
-          IP = "10.50.0.0"
-          Mask = [255, 255, 0, 0]
   ```
    - This prefix match checks if a route has 10.33.0.0/21 to 24 **or** 10.50.0.0/21 to 24.
 
@@ -144,19 +135,15 @@ PrefixSets and NeighborSets section are prefix match part and neighbor match par
     # PrefixSetList
     [[DefinedSets.PrefixSets.PrefixSetList]]
       PrefixSetName = "ps1"
-       [[DefinedSets.PrefixSets.PrefixSetList.PrefixList]]
+      [[DefinedSets.PrefixSets.PrefixSetList.PrefixList]]
+        IpPrefix = "10.33.0.0/16"
         MasklengthRange = "21..24"
-        [DefinedSets.PrefixSets.PrefixSetList.PrefixList.IpPrefix]
-          IP = "10.33.0.0"
-          Mask = [255, 255, 0, 0]
     # another PrefixSetList
     [[DefinedSets.PrefixSets.PrefixSetList]]
       PrefixSetName = "ps2"
-       [[DefinedSets.PrefixSets.PrefixSetList.PrefixList]]
+      [[DefinedSets.PrefixSets.PrefixSetList.PrefixList]]
+        IpPrefix = "10.50.0.0/16"
         MasklengthRange = "21..24"
-        [DefinedSets.PrefixSets.PrefixSetList.PrefixList.IpPrefix]
-          IP = "10.50.0.0
-          Mask = [255, 255, 0, 0]
   ```
 
   ----
