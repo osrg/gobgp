@@ -1410,8 +1410,8 @@ func (server *BgpServer) handleGrpcAddPolicy(grpcReq *GrpcRequest) {
 			conAsPathSetList = append(conAsPathSetList, asPathSet)
 		} else {
 			if idxAsPath == -1 {
-				conAsPathSetList[idxAsPathSet].AsPathSetMember =
-					append(conAsPathSetList[idxAsPathSet].AsPathSetMember, asPathSet.AsPathSetMember[0])
+				conAsPathSetList[idxAsPathSet].AsPathList =
+					append(conAsPathSetList[idxAsPathSet].AsPathList, asPathSet.AsPathList[0])
 			}
 		}
 		server.routingPolicy.DefinedSets.BgpDefinedSets.AsPathSets.AsPathSetList = conAsPathSetList
@@ -1431,8 +1431,8 @@ func (server *BgpServer) handleGrpcAddPolicy(grpcReq *GrpcRequest) {
 			conCommunitySetList = append(conCommunitySetList, communitySet)
 		} else {
 			if idxCommunity == -1 {
-				conCommunitySetList[idxCommunitySet].CommunityMember =
-					append(conCommunitySetList[idxCommunitySet].CommunityMember, communitySet.CommunityMember[0])
+				conCommunitySetList[idxCommunitySet].CommunityList =
+					append(conCommunitySetList[idxCommunitySet].CommunityList, communitySet.CommunityList[0])
 			}
 		}
 		server.routingPolicy.DefinedSets.BgpDefinedSets.CommunitySets.CommunitySetList = conCommunitySetList
@@ -1452,8 +1452,8 @@ func (server *BgpServer) handleGrpcAddPolicy(grpcReq *GrpcRequest) {
 			conExtCommunitySetList = append(conExtCommunitySetList, extCommunitySet)
 		} else {
 			if idxExtCommunity == -1 {
-				conExtCommunitySetList[idxExtCommunitySet].ExtCommunityMember =
-					append(conExtCommunitySetList[idxExtCommunitySet].ExtCommunityMember, extCommunitySet.ExtCommunityMember[0])
+				conExtCommunitySetList[idxExtCommunitySet].ExtCommunityList =
+					append(conExtCommunitySetList[idxExtCommunitySet].ExtCommunityList, extCommunitySet.ExtCommunityList[0])
 			}
 		}
 		server.routingPolicy.DefinedSets.BgpDefinedSets.ExtCommunitySets.ExtCommunitySetList = conExtCommunitySetList
@@ -1600,15 +1600,15 @@ func (server *BgpServer) handleGrpcDelPolicy(grpcReq *GrpcRequest) {
 		if isReqAsPathSet {
 			if idxAsPathSet == -1 {
 				result.ResponseErr = fmt.Errorf("Policy aspath that has %v %v doesn't exist.", asPathSet.AsPathSetName,
-					asPathSet.AsPathSetMember[0])
+					asPathSet.AsPathList[0].AsPath)
 			} else {
 				if idxAsPath == -1 {
 					result.ResponseErr = fmt.Errorf("Policy aspath that has %v %v doesn't exist.", asPathSet.AsPathSetName,
-						asPathSet.AsPathSetMember[0])
+						asPathSet.AsPathList[0].AsPath)
 				} else {
-					conAsPathSetList[idxAsPathSet].AsPathSetMember =
-						append(conAsPathSetList[idxAsPathSet].AsPathSetMember[:idxAsPath],
-							conAsPathSetList[idxAsPathSet].AsPathSetMember[idxAsPath+1:]...)
+					conAsPathSetList[idxAsPathSet].AsPathList =
+						append(conAsPathSetList[idxAsPathSet].AsPathList[:idxAsPath],
+							conAsPathSetList[idxAsPathSet].AsPathList[idxAsPath+1:]...)
 				}
 			}
 		} else {
@@ -1629,15 +1629,15 @@ func (server *BgpServer) handleGrpcDelPolicy(grpcReq *GrpcRequest) {
 		if isReqCommunitySet {
 			if idxCommunitySet == -1 {
 				result.ResponseErr = fmt.Errorf("Policy community that has %v %v doesn't exist.", CommunitySet.CommunitySetName,
-					CommunitySet.CommunityMember[0])
+					CommunitySet.CommunityList[0].Community)
 			} else {
 				if idxCommunity == -1 {
 					result.ResponseErr = fmt.Errorf("Policy community that has %v %v doesn't exist.", CommunitySet.CommunitySetName,
-						CommunitySet.CommunityMember[0])
+						CommunitySet.CommunityList[0].Community)
 				} else {
-					conCommunitySetList[idxCommunitySet].CommunityMember =
-						append(conCommunitySetList[idxCommunitySet].CommunityMember[:idxCommunity],
-							conCommunitySetList[idxCommunitySet].CommunityMember[idxCommunity+1:]...)
+					conCommunitySetList[idxCommunitySet].CommunityList =
+						append(conCommunitySetList[idxCommunitySet].CommunityList[:idxCommunity],
+							conCommunitySetList[idxCommunitySet].CommunityList[idxCommunity+1:]...)
 				}
 			}
 		} else {
@@ -1658,15 +1658,15 @@ func (server *BgpServer) handleGrpcDelPolicy(grpcReq *GrpcRequest) {
 		if isReqExtCommunitySet {
 			if idxExtCommunitySet == -1 {
 				result.ResponseErr = fmt.Errorf("Policy extended community that has %v %v doesn't exist.",
-					ExtCommunitySet.ExtCommunitySetName, ExtCommunitySet.ExtCommunityMember[0])
+					ExtCommunitySet.ExtCommunitySetName, ExtCommunitySet.ExtCommunityList[0].ExtCommunity)
 			} else {
 				if idxExtCommunity == -1 {
 					result.ResponseErr = fmt.Errorf("Policy extended community that has %v %v doesn't exist.",
-						ExtCommunitySet.ExtCommunitySetName, ExtCommunitySet.ExtCommunityMember[0])
+						ExtCommunitySet.ExtCommunitySetName, ExtCommunitySet.ExtCommunityList[0].ExtCommunity)
 				} else {
-					conExtCommunitySetList[idxExtCommunitySet].ExtCommunityMember =
-						append(conExtCommunitySetList[idxExtCommunitySet].ExtCommunityMember[:idxExtCommunity],
-							conExtCommunitySetList[idxExtCommunitySet].ExtCommunityMember[idxExtCommunity+1:]...)
+					conExtCommunitySetList[idxExtCommunitySet].ExtCommunityList =
+						append(conExtCommunitySetList[idxExtCommunitySet].ExtCommunityList[:idxExtCommunity],
+							conExtCommunitySetList[idxExtCommunitySet].ExtCommunityList[idxExtCommunity+1:]...)
 				}
 			}
 		} else {

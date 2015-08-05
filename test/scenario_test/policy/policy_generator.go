@@ -174,41 +174,57 @@ func createPolicyConfig() *config.RoutingPolicy {
 	}
 
 	aspathFrom := config.AsPathSet{
-		AsPathSetName:   "aspathFrom",
-		AsPathSetMember: []string{"^65100"},
+		AsPathSetName: "aspathFrom",
+		AsPathList: []config.AsPath{
+			config.AsPath{"^65100"},
+		},
 	}
 
 	aspathAny := config.AsPathSet{
-		AsPathSetName:   "aspAny",
-		AsPathSetMember: []string{"65098"},
+		AsPathSetName: "aspAny",
+		AsPathList: []config.AsPath{
+			config.AsPath{"65098"},
+		},
 	}
 
 	aspathOrigin := config.AsPathSet{
-		AsPathSetName:   "aspOrigin",
-		AsPathSetMember: []string{"65091$"},
+		AsPathSetName: "aspOrigin",
+		AsPathList: []config.AsPath{
+			config.AsPath{"65091$"},
+		},
 	}
 
 	aspathOnly := config.AsPathSet{
-		AsPathSetName:   "aspOnly",
-		AsPathSetMember: []string{"^65100$"},
+		AsPathSetName: "aspOnly",
+		AsPathList: []config.AsPath{
+			config.AsPath{"^65100$"},
+		},
 	}
 
 	comStr := config.CommunitySet{
 		CommunitySetName: "comStr",
-		CommunityMember:  []string{"65100:10"},
+		CommunityList: []config.Community{
+			config.Community{"65100:10"},
+		},
 	}
 
 	comRegExp := config.CommunitySet{
 		CommunitySetName: "comRegExp",
-		CommunityMember:  []string{"6[0-9]+:[0-9]+"},
+		CommunityList: []config.Community{
+			config.Community{"6[0-9]+:[0-9]+"},
+		},
 	}
 	eComOrigin := config.ExtCommunitySet{
 		ExtCommunitySetName: "eComOrigin",
-		ExtCommunityMember:  []string{"SoO:65001.65100:200"},
+		ExtCommunityList: []config.ExtCommunity{
+			config.ExtCommunity{"SoO:65001.65100:200"},
+		},
 	}
 	eComTarget := config.ExtCommunitySet{
 		ExtCommunitySetName: "eComTarget",
-		ExtCommunityMember:  []string{"RT:6[0-9]+:3[0-9]+"},
+		ExtCommunityList: []config.ExtCommunity{
+			config.ExtCommunity{"RT:6[0-9]+:3[0-9]+"},
+		},
 	}
 
 	createStatement := func(name string, ps, ns string, accept bool) config.Statement {
@@ -639,7 +655,7 @@ func createPolicyConfig() *config.RoutingPolicy {
 
 	test_42_only_prefix_condition_accept := config.PolicyDefinition{
 		Name: "test_42_only_prefix_condition_accept",
-		Statements : config.Statements{
+		Statements: config.Statements{
 			StatementList: []config.Statement{st_only_prefix_condition_accept},
 		},
 	}

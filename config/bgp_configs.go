@@ -1436,12 +1436,18 @@ type PolicyDefinitions struct {
 	PolicyDefinitionList []PolicyDefinition
 }
 
+//struct for container bgp-pol:as-path
+type AsPath struct {
+	// original -> bgp-pol:as-path
+	AsPath string
+}
+
 //struct for container bgp-pol:as-path-set
 type AsPathSet struct {
 	// original -> bgp-pol:as-path-set-name
 	AsPathSetName string
-	// original -> bgp-pol:as-path-set-member
-	AsPathSetMember []string
+	// original -> bgp-pol:as-path
+	AsPathList []AsPath
 }
 
 //struct for container bgp-pol:as-path-sets
@@ -1450,13 +1456,18 @@ type AsPathSets struct {
 	AsPathSetList []AsPathSet
 }
 
+//struct for container bgp-pol:ext-community
+type ExtCommunity struct {
+	// original -> bgp-pol:ext-community
+	ExtCommunity string
+}
+
 //struct for container bgp-pol:ext-community-set
 type ExtCommunitySet struct {
 	// original -> bgp-pol:ext-community-set-name
 	ExtCommunitySetName string
-	// original -> bgp-pol:ext-community-member
-	//original type is list of union
-	ExtCommunityMember []string
+	// original -> bgp-pol:ext-community
+	ExtCommunityList []ExtCommunity
 }
 
 //struct for container bgp-pol:ext-community-sets
@@ -1465,13 +1476,18 @@ type ExtCommunitySets struct {
 	ExtCommunitySetList []ExtCommunitySet
 }
 
+//struct for container bgp-pol:community
+type Community struct {
+	// original -> bgp-pol:community
+	Community string
+}
+
 //struct for container bgp-pol:community-set
 type CommunitySet struct {
 	// original -> bgp-pol:community-set-name
 	CommunitySetName string
-	// original -> bgp-pol:community-member
-	//original type is list of union
-	CommunityMember []string
+	// original -> bgp-pol:community
+	CommunityList []Community
 }
 
 //struct for container bgp-pol:community-sets

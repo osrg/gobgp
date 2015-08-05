@@ -418,10 +418,11 @@ func NewAsPathCondition(matchSet config.MatchAsPathSet, defAsPathSetList []confi
 	asPathList := make([]*AsPathElement, 0)
 	for _, asPathSet := range defAsPathSetList {
 		if asPathSet.AsPathSetName == asPathSetName {
-			for _, as := range asPathSet.AsPathSetMember {
-				if regAsn.MatchString(as) {
+			for _, aspath := range asPathSet.AsPathList {
+				a := aspath.AsPath
+				if regAsn.MatchString(a) {
 
-					group := regAsn.FindStringSubmatch(as)
+					group := regAsn.FindStringSubmatch(a)
 					asn, err := strconv.Atoi(group[2])
 					if err != nil {
 						log.WithFields(log.Fields{
@@ -583,8 +584,8 @@ func NewCommunityCondition(matchSet config.MatchCommunitySet, defCommunitySetLis
 	communityList := make([]*CommunityElement, 0)
 	for _, communitySet := range defCommunitySetList {
 		if communitySet.CommunitySetName == communitySetName {
-			for _, c := range communitySet.CommunityMember {
-
+			for _, community := range communitySet.CommunityList {
+				c := community.Community
 				e := &CommunityElement{
 					isRegExp:     false,
 					communityStr: c,
@@ -807,18 +808,19 @@ func NewExtCommunityCondition(matchSet config.MatchExtCommunitySet, defExtComSet
 	extCommunityElemList := make([]*ExtCommunityElement, 0)
 	for _, extComSet := range defExtComSetList {
 		if extComSet.ExtCommunitySetName == extComSetName {
-			for _, c := range extComSet.ExtCommunityMember {
+			for _, ecommunity := range extComSet.ExtCommunityList {
 				matchAll := false
+				ec := ecommunity.ExtCommunity
 				e := &ExtCommunityElement{
 					isRegExp: false,
-					comStr:   c,
+					comStr:   ec,
 				}
-				matchType, val := getECommunitySubType(c)
+				matchType, val := getECommunitySubType(ec)
 				if !matchType {
 					log.WithFields(log.Fields{
 						"Topic": "Policy",
 						"Type":  "Extended Community Condition",
-					}).Error("failed to parse the sub type %s.", c)
+					}).Error("failed to parse the sub type %s.", ec)
 					return nil
 				}
 				switch val[1] {
@@ -848,7 +850,7 @@ func NewExtCommunityCondition(matchSet config.MatchExtCommunitySet, defExtComSet
 				}
 				if !matchAll {
 					e.isRegExp = true
-					reg, err := regexp.Compile(c)
+					reg, err := regexp.Compile(ec)
 					if err != nil {
 						log.WithFields(log.Fields{
 							"Topic": "Policy",
@@ -1545,11 +1547,11 @@ func IndexOfAsPathSet(conAsPathSetList []config.AsPathSet, reqAsPathSet config.A
 	for i, conAsPathSet := range conAsPathSetList {
 		if conAsPathSet.AsPathSetName == reqAsPathSet.AsPathSetName {
 			idxAsPathSet = i
-			if len(reqAsPathSet.AsPathSetMember) == 0 {
+			if len(reqAsPathSet.AsPathList) == 0 {
 				return idxAsPathSet, idxAsPath
 			}
-			for j, conAsPath := range conAsPathSet.AsPathSetMember {
-				if conAsPath == reqAsPathSet.AsPathSetMember[0] {
+			for j, conAsPath := range conAsPathSet.AsPathList {
+				if conAsPath == reqAsPathSet.AsPathList[0] {
 					idxAsPath = j
 					return idxAsPathSet, idxAsPath
 				}
@@ -1568,11 +1570,11 @@ func IndexOfCommunitySet(conCommunitySetList []config.CommunitySet, reqCommunity
 	for i, conCommunitySet := range conCommunitySetList {
 		if conCommunitySet.CommunitySetName == reqCommunitySet.CommunitySetName {
 			idxCommunitySet = i
-			if len(reqCommunitySet.CommunityMember) == 0 {
+			if len(reqCommunitySet.CommunityList) == 0 {
 				return idxCommunitySet, idxCommunity
 			}
-			for j, conCommunity := range conCommunitySet.CommunityMember {
-				if conCommunity == reqCommunitySet.CommunityMember[0] {
+			for j, conCommunity := range conCommunitySet.CommunityList {
+				if conCommunity == reqCommunitySet.CommunityList[0] {
 					idxCommunity = j
 					return idxCommunitySet, idxCommunity
 				}
@@ -1591,11 +1593,11 @@ func IndexOfExtCommunitySet(conExtCommunitySetList []config.ExtCommunitySet, req
 	for i, conExtCommunitySet := range conExtCommunitySetList {
 		if conExtCommunitySet.ExtCommunitySetName == reqExtCommunitySet.ExtCommunitySetName {
 			idxExtCommunitySet = i
-			if len(reqExtCommunitySet.ExtCommunityMember) == 0 {
+			if len(reqExtCommunitySet.ExtCommunityList) == 0 {
 				return idxExtCommunitySet, idxExtCommunity
 			}
-			for j, conExtCommunity := range conExtCommunitySet.ExtCommunityMember {
-				if conExtCommunity == reqExtCommunitySet.ExtCommunityMember[0] {
+			for j, conExtCommunity := range conExtCommunitySet.ExtCommunityList {
+				if conExtCommunity == reqExtCommunitySet.ExtCommunityList[0] {
 					idxExtCommunity = j
 					return idxExtCommunitySet, idxExtCommunity
 				}
@@ -1721,8 +1723,8 @@ func NeighborSetToConfigStruct(reqNeighborSet *api.NeighborSet) (bool, config.Ne
 
 func AsPathSetToApiStruct(as config.AsPathSet) *api.AsPathSet {
 	resAsPathMembers := make([]string, 0)
-	for _, m := range as.AsPathSetMember {
-		resAsPathMembers = append(resAsPathMembers, m)
+	for _, a := range as.AsPathList {
+		resAsPathMembers = append(resAsPathMembers, a.AsPath)
 	}
 	resAsPathSet := &api.AsPathSet{
 		AsPathSetName: as.AsPathSetName,
@@ -1736,17 +1738,21 @@ func AsPathSetToConfigStruct(reqAsPathSet *api.AsPathSet) (bool, config.AsPathSe
 	if len(reqAsPathSet.AsPathMembers) == 0 {
 		isAsPathSetSet = false
 	}
+	asPathList := make([]config.AsPath, 0)
+	for _, a := range reqAsPathSet.AsPathMembers {
+		asPathList = append(asPathList, config.AsPath{AsPath: a})
+	}
 	asPathSet := config.AsPathSet{
-		AsPathSetName:   reqAsPathSet.AsPathSetName,
-		AsPathSetMember: reqAsPathSet.AsPathMembers,
+		AsPathSetName: reqAsPathSet.AsPathSetName,
+		AsPathList:    asPathList,
 	}
 	return isAsPathSetSet, asPathSet
 }
 
 func CommunitySetToApiStruct(cs config.CommunitySet) *api.CommunitySet {
 	resCommunityMembers := make([]string, 0)
-	for _, m := range cs.CommunityMember {
-		resCommunityMembers = append(resCommunityMembers, m)
+	for _, c := range cs.CommunityList {
+		resCommunityMembers = append(resCommunityMembers, c.Community)
 	}
 	resCommunitySet := &api.CommunitySet{
 		CommunitySetName: cs.CommunitySetName,
@@ -1760,17 +1766,21 @@ func CommunitySetToConfigStruct(reqCommunitySet *api.CommunitySet) (bool, config
 	if len(reqCommunitySet.CommunityMembers) == 0 {
 		isCommunitySet = false
 	}
+	communityList := make([]config.Community, 0)
+	for _, c := range reqCommunitySet.CommunityMembers {
+		communityList = append(communityList, config.Community{Community: c})
+	}
 	communitySet := config.CommunitySet{
 		CommunitySetName: reqCommunitySet.CommunitySetName,
-		CommunityMember:  reqCommunitySet.CommunityMembers,
+		CommunityList:    communityList,
 	}
 	return isCommunitySet, communitySet
 }
 
 func ExtCommunitySetToApiStruct(es config.ExtCommunitySet) *api.ExtCommunitySet {
 	resExtCommunityMembers := make([]string, 0)
-	for _, m := range es.ExtCommunityMember {
-		resExtCommunityMembers = append(resExtCommunityMembers, m)
+	for _, ec := range es.ExtCommunityList {
+		resExtCommunityMembers = append(resExtCommunityMembers, ec.ExtCommunity)
 	}
 	resExtCommunitySet := &api.ExtCommunitySet{
 		ExtCommunitySetName: es.ExtCommunitySetName,
@@ -1784,9 +1794,13 @@ func ExtCommunitySetToConfigStruct(reqExtCommunitySet *api.ExtCommunitySet) (boo
 	if len(reqExtCommunitySet.ExtCommunityMembers) == 0 {
 		isExtCommunitySet = false
 	}
+	extCommunityList := make([]config.ExtCommunity, 0)
+	for _, ec := range reqExtCommunitySet.ExtCommunityMembers {
+		extCommunityList = append(extCommunityList, config.ExtCommunity{ExtCommunity: ec})
+	}
 	ExtCommunitySet := config.ExtCommunitySet{
 		ExtCommunitySetName: reqExtCommunitySet.ExtCommunitySetName,
-		ExtCommunityMember:  reqExtCommunitySet.ExtCommunityMembers,
+		ExtCommunityList:    extCommunityList,
 	}
 	return isExtCommunitySet, ExtCommunitySet
 }

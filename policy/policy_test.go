@@ -611,33 +611,46 @@ func TestAsPathConditionEvaluate(t *testing.T) {
 
 	// create match condition
 	asPathSet1 := config.AsPathSet{
-		AsPathSetName:   "asset1",
-		AsPathSetMember: []string{"^65001"},
+		AsPathSetName: "asset1",
+		AsPathList: []config.AsPath{
+			config.AsPath{AsPath: "^65001"},
+		},
 	}
 
 	asPathSet2 := config.AsPathSet{
-		AsPathSetName:   "asset2",
-		AsPathSetMember: []string{"65005$"},
+		AsPathSetName: "asset2",
+		AsPathList: []config.AsPath{
+			config.AsPath{AsPath: "65005$"},
+		},
 	}
 
 	asPathSet3 := config.AsPathSet{
-		AsPathSetName:   "asset3",
-		AsPathSetMember: []string{"65004", "65005$"},
+		AsPathSetName: "asset3",
+		AsPathList: []config.AsPath{
+			config.AsPath{AsPath: "65004"},
+			config.AsPath{AsPath: "65005$"},
+		},
 	}
 
 	asPathSet4 := config.AsPathSet{
-		AsPathSetName:   "asset4",
-		AsPathSetMember: []string{"65000$"},
+		AsPathSetName: "asset4",
+		AsPathList: []config.AsPath{
+			config.AsPath{AsPath: "65000$"},
+		},
 	}
 
 	asPathSet5 := config.AsPathSet{
-		AsPathSetName:   "asset5",
-		AsPathSetMember: []string{"65010"},
+		AsPathSetName: "asset5",
+		AsPathList: []config.AsPath{
+			config.AsPath{AsPath: "65010"},
+		},
 	}
 
 	asPathSet6 := config.AsPathSet{
-		AsPathSetName:   "asset6",
-		AsPathSetMember: []string{"^65010$"},
+		AsPathSetName: "asset6",
+		AsPathList: []config.AsPath{
+			config.AsPath{AsPath: "^65010$"},
+		},
 	}
 
 	asPathSetList := []config.AsPathSet{asPathSet1, asPathSet2, asPathSet3,
@@ -698,8 +711,8 @@ func TestAsPathConditionWithOtherCondition(t *testing.T) {
 
 	// create policy
 	asPathSet := config.AsPathSet{
-		AsPathSetName:   "asset1",
-		AsPathSetMember: []string{"65005$"},
+		AsPathSetName: "asset1",
+		AsPathList:    []config.AsPath{config.AsPath{"65005$"}},
 	}
 
 	ps := createPrefixSet("ps1", "10.10.1.0/16", "21..24")
@@ -761,52 +774,78 @@ func TestCommunityConditionEvaluate(t *testing.T) {
 	// create match condition
 	comSet1 := config.CommunitySet{
 		CommunitySetName: "comset1",
-		CommunityMember:  []string{"65001:10", "65001:50", "65001:100"},
+		CommunityList: []config.Community{
+			config.Community{"65001:10"},
+			config.Community{"65001:50"},
+			config.Community{"65001:100"},
+		},
 	}
 
 	comSet2 := config.CommunitySet{
 		CommunitySetName: "comset2",
-		CommunityMember:  []string{"65001:200"},
+		CommunityList: []config.Community{
+			config.Community{"65001:200"},
+		},
 	}
 
 	comSet3 := config.CommunitySet{
 		CommunitySetName: "comset3",
-		CommunityMember:  []string{"4259905936"},
+		CommunityList: []config.Community{
+			config.Community{"4259905936"},
+		},
 	}
 
 	comSet4 := config.CommunitySet{
 		CommunitySetName: "comset4",
-		CommunityMember:  []string{"^[0-9]*:300$"},
+		CommunityList: []config.Community{
+			config.Community{"^[0-9]*:300$"},
+		},
 	}
 
 	comSet5 := config.CommunitySet{
 		CommunitySetName: "comset5",
-		CommunityMember:  []string{"INTERNET"},
+		CommunityList: []config.Community{
+			config.Community{"INTERNET"},
+		},
 	}
 
 	comSet6 := config.CommunitySet{
 		CommunitySetName: "comset6",
-		CommunityMember:  []string{"NO_EXPORT"},
+		CommunityList: []config.Community{
+			config.Community{"NO_EXPORT"},
+		},
 	}
 
 	comSet7 := config.CommunitySet{
 		CommunitySetName: "comset7",
-		CommunityMember:  []string{"NO_ADVERTISE"},
+		CommunityList: []config.Community{
+			config.Community{"NO_ADVERTISE"},
+		},
 	}
 
 	comSet8 := config.CommunitySet{
 		CommunitySetName: "comset8",
-		CommunityMember:  []string{"NO_EXPORT_SUBCONFED"},
+		CommunityList: []config.Community{
+			config.Community{"NO_EXPORT_SUBCONFED"},
+		},
 	}
 
 	comSet9 := config.CommunitySet{
 		CommunitySetName: "comset9",
-		CommunityMember:  []string{"65001:100", "65001:200", "65001:300"},
+		CommunityList: []config.Community{
+			config.Community{"65001:100"},
+			config.Community{"65001:200"},
+			config.Community{"65001:300"},
+		},
 	}
 
 	comSet10 := config.CommunitySet{
 		CommunitySetName: "comset10",
-		CommunityMember:  []string{"65001:1", "65001:2", "65001:3"},
+		CommunityList: []config.Community{
+			config.Community{"65001:1"},
+			config.Community{"65001:2"},
+			config.Community{"65001:3"},
+		},
 	}
 
 	comSetList := []config.CommunitySet{comSet1, comSet2, comSet3,
@@ -881,18 +920,26 @@ func TestCommunityConditionEvaluateWithOtherCondition(t *testing.T) {
 
 	// create policy
 	asPathSet := config.AsPathSet{
-		AsPathSetName:   "asset1",
-		AsPathSetMember: []string{"65005$"},
+		AsPathSetName: "asset1",
+		AsPathList: []config.AsPath{
+			config.AsPath{"65005$"},
+		},
 	}
 
 	comSet1 := config.CommunitySet{
 		CommunitySetName: "comset1",
-		CommunityMember:  []string{"65001:100", "65001:200", "65001:300"},
+		CommunityList: []config.Community{
+			config.Community{"65001:100"},
+			config.Community{"65001:200"},
+			config.Community{"65001:300"},
+		},
 	}
 
 	comSet2 := config.CommunitySet{
 		CommunitySetName: "comset2",
-		CommunityMember:  []string{"65050:\\d+"},
+		CommunityList: []config.Community{
+			config.Community{"65050:\\d+"},
+		},
 	}
 
 	ps := createPrefixSet("ps1", "10.10.0.0/16", "21..24")
@@ -1200,48 +1247,74 @@ func TestExtCommunityConditionEvaluate(t *testing.T) {
 	// create match condition
 	ecomSet1 := config.ExtCommunitySet{
 		ExtCommunitySetName: "ecomSet1",
-		ExtCommunityMember:  []string{"RT:65001:200"},
+		ExtCommunityList: []config.ExtCommunity{
+			config.ExtCommunity{"RT:65001:200"},
+		},
 	}
 	ecomSet2 := config.ExtCommunitySet{
 		ExtCommunitySetName: "ecomSet2",
-		ExtCommunityMember:  []string{"RT:10.0.0.1:300"},
+		ExtCommunityList: []config.ExtCommunity{
+			config.ExtCommunity{"RT:10.0.0.1:300"},
+		},
 	}
 	ecomSet3 := config.ExtCommunitySet{
 		ExtCommunitySetName: "ecomSet3",
-		ExtCommunityMember:  []string{fmt.Sprintf("RT:%s:200", convUintStr(65030000))},
+		ExtCommunityList: []config.ExtCommunity{
+			config.ExtCommunity{fmt.Sprintf("RT:%s:200", convUintStr(65030000))},
+		},
 	}
 	ecomSet4 := config.ExtCommunitySet{
 		ExtCommunitySetName: "ecomSet4",
-		ExtCommunityMember:  []string{"RT:65002:200"},
+		ExtCommunityList: []config.ExtCommunity{
+			config.ExtCommunity{"RT:65002:200"},
+		},
 	}
 	ecomSet5 := config.ExtCommunitySet{
 		ExtCommunitySetName: "ecomSet5",
-		ExtCommunityMember:  []string{"RT:10.0.0.2:300"},
+		ExtCommunityList: []config.ExtCommunity{
+			config.ExtCommunity{"RT:10.0.0.2:300"},
+		},
 	}
 	ecomSet6 := config.ExtCommunitySet{
 		ExtCommunitySetName: "ecomSet6",
-		ExtCommunityMember:  []string{fmt.Sprintf("RT:%s:200", convUintStr(65030001))},
+		ExtCommunityList: []config.ExtCommunity{
+			config.ExtCommunity{fmt.Sprintf("RT:%s:200", convUintStr(65030001))},
+		},
 	}
 	ecomSet7 := config.ExtCommunitySet{
 		ExtCommunitySetName: "ecomSet7",
-		ExtCommunityMember:  []string{"SoO:65010:300"},
+		ExtCommunityList: []config.ExtCommunity{
+			config.ExtCommunity{"SoO:65010:300"},
+		},
 	}
 	ecomSet8 := config.ExtCommunitySet{
 		ExtCommunitySetName: "ecomSet8",
-		ExtCommunityMember:  []string{"SoO:10.0.10.10:[0-9]+"},
+		ExtCommunityList: []config.ExtCommunity{
+			config.ExtCommunity{"SoO:10.0.10.10:[0-9]+"},
+		},
 	}
 	ecomSet9 := config.ExtCommunitySet{
 		ExtCommunitySetName: "ecomSet9",
-		ExtCommunityMember:  []string{"RT:[0-9]+:[0-9]+"},
+		ExtCommunityList: []config.ExtCommunity{
+			config.ExtCommunity{"RT:[0-9]+:[0-9]+"},
+		},
 	}
 	ecomSet10 := config.ExtCommunitySet{
 		ExtCommunitySetName: "ecomSet10",
-		ExtCommunityMember:  []string{"RT:65001:200", "RT:10.0.0.1:300", "SoO:10.0.10.10:[0-9]+"},
+		ExtCommunityList: []config.ExtCommunity{
+			config.ExtCommunity{"RT:65001:200"},
+			config.ExtCommunity{"RT:10.0.0.1:300"},
+			config.ExtCommunity{"SoO:10.0.10.10:[0-9]+"},
+		},
 	}
 
 	ecomSet11 := config.ExtCommunitySet{
 		ExtCommunitySetName: "ecomSet11",
-		ExtCommunityMember:  []string{"RT:65001:2", "RT:10.0.0.1:3", "SoO:11.0.10.10:[0-9]+"},
+		ExtCommunityList: []config.ExtCommunity{
+			config.ExtCommunity{"RT:65001:2"},
+			config.ExtCommunity{"RT:10.0.0.1:3"},
+			config.ExtCommunity{"SoO:11.0.10.10:[0-9]+"},
+		},
 	}
 
 	comSetList := []config.ExtCommunitySet{ecomSet1, ecomSet2, ecomSet3, ecomSet4, ecomSet5, ecomSet6, ecomSet7,
@@ -1368,17 +1441,23 @@ func TestExtCommunityConditionEvaluateWithOtherCondition(t *testing.T) {
 
 	// create policy
 	asPathSet := config.AsPathSet{
-		AsPathSetName:   "asset1",
-		AsPathSetMember: []string{"65005$"},
+		AsPathSetName: "asset1",
+		AsPathList: []config.AsPath{
+			config.AsPath{"65005$"},
+		},
 	}
 
 	ecomSet1 := config.ExtCommunitySet{
 		ExtCommunitySetName: "ecomSet1",
-		ExtCommunityMember:  []string{"RT:65001:201"},
+		ExtCommunityList: []config.ExtCommunity{
+			config.ExtCommunity{"RT:65001:201"},
+		},
 	}
 	ecomSet2 := config.ExtCommunitySet{
 		ExtCommunitySetName: "ecomSet2",
-		ExtCommunityMember:  []string{"RT:[0-9]+:[0-9]+"},
+		ExtCommunityList: []config.ExtCommunity{
+			config.ExtCommunity{"RT:[0-9]+:[0-9]+"},
+		},
 	}
 
 	ps := createPrefixSet("ps1", "10.10.1.0/16", "21..24")
