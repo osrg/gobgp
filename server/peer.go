@@ -452,7 +452,7 @@ func applyPolicy(component, owner string, d Direction, policies []*policy.Policy
 				log.WithFields(log.Fields{
 					"Topic": component,
 					"Key":   owner,
-					"NRLI":  original.GetNlri(),
+					"NLRI":  original.GetNlri(),
 					"Dir":   d,
 				}).Debug("path was rejected")
 				// return applied, nil, this means path was rejected
@@ -468,7 +468,7 @@ func applyPolicy(component, owner string, d Direction, policies []*policy.Policy
 		"Topic": component,
 		"Key":   owner,
 		"Len":   len(policies),
-		"NRLI":  original,
+		"NLRI":  original,
 		"Dir":   d,
 	}).Debug("no policy applied")
 	return !applied, original
