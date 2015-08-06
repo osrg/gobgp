@@ -186,6 +186,8 @@ func showNeighbor(args []string) error {
 
 	sort.Sort(caps)
 
+	firstMp := true
+
 	for _, c := range caps {
 		support := ""
 		if m := lookup(c, p.Conf.LocalCap); m != nil {
@@ -199,9 +201,14 @@ func showNeighbor(args []string) error {
 		}
 
 		if c.Code != api.BGP_CAPABILITY_MULTIPROTOCOL {
-			fmt.Printf("    %s: %s\n", c.Code, support)
+			fmt.Printf("    %s:\t%s\n", c.Code, support)
 		} else {
-			fmt.Printf("    %s(%s): %s\n", c.Code, c.MultiProtocol, support)
+			if firstMp {
+				fmt.Printf("    %s:\n", c.Code)
+				firstMp = false
+			}
+			fmt.Printf("        %s:\t%s\n", bgp.RouteFamily(c.MultiProtocol), support)
+
 		}
 	}
 	fmt.Print("  Message statistics:\n")
