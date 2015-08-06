@@ -263,7 +263,7 @@ func (c *CapMultiProtocol) Serialize() ([]byte, error) {
 func (c *CapMultiProtocol) ToApiStruct() *api.Capability {
 	return &api.Capability{
 		Code:          api.BGP_CAPABILITY(c.Code()),
-		MultiProtocol: &api.AddressFamily{api.AFI(c.CapValue.AFI), api.SAFI(c.CapValue.SAFI)},
+		MultiProtocol: uint32(AfiSafiToRouteFamily(c.CapValue.AFI, c.CapValue.SAFI)),
 	}
 }
 
@@ -350,7 +350,7 @@ func (c *CapGracefulRestart) ToApiStruct() *api.Capability {
 	tuples := []*api.GracefulRestartTuple{}
 	for _, t := range c.CapValue.Tuples {
 		tuple := &api.GracefulRestartTuple{
-			Af:    &api.AddressFamily{api.AFI(t.AFI), api.SAFI(t.SAFI)},
+			Rf:    uint32(AfiSafiToRouteFamily(t.AFI, t.SAFI)),
 			Flags: uint32(t.Flags),
 		}
 		tuples = append(tuples, tuple)

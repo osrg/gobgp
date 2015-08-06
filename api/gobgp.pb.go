@@ -15,7 +15,6 @@ It has these top-level messages:
 	PolicyArguments
 	MrtArguments
 	ModVrfArguments
-	AddressFamily
 	GracefulRestartTuple
 	GracefulRestart
 	Capability
@@ -129,76 +128,6 @@ func (x Operation) String() string {
 	return proto.EnumName(Operation_name, int32(x))
 }
 
-type AFI int32
-
-const (
-	AFI_UNKNOWN_AFI AFI = 0
-	AFI_IP          AFI = 1
-	AFI_IP6         AFI = 2
-	AFI_L2VPN       AFI = 25
-)
-
-var AFI_name = map[int32]string{
-	0:  "UNKNOWN_AFI",
-	1:  "IP",
-	2:  "IP6",
-	25: "L2VPN",
-}
-var AFI_value = map[string]int32{
-	"UNKNOWN_AFI": 0,
-	"IP":          1,
-	"IP6":         2,
-	"L2VPN":       25,
-}
-
-func (x AFI) String() string {
-	return proto.EnumName(AFI_name, int32(x))
-}
-
-type SAFI int32
-
-const (
-	SAFI_UNKNOWN_SAFI             SAFI = 0
-	SAFI_UNICAST                  SAFI = 1
-	SAFI_MULTICAST                SAFI = 2
-	SAFI_MPLS_LABEL               SAFI = 4
-	SAFI_ENCAP                    SAFI = 7
-	SAFI_VPLS                     SAFI = 65
-	SAFI_EVPN                     SAFI = 70
-	SAFI_MPLS_VPN                 SAFI = 128
-	SAFI_MPLS_VPN_MULTICAST       SAFI = 129
-	SAFI_ROUTE_TARGET_CONSTRAINTS SAFI = 132
-)
-
-var SAFI_name = map[int32]string{
-	0:   "UNKNOWN_SAFI",
-	1:   "UNICAST",
-	2:   "MULTICAST",
-	4:   "MPLS_LABEL",
-	7:   "ENCAP",
-	65:  "VPLS",
-	70:  "EVPN",
-	128: "MPLS_VPN",
-	129: "MPLS_VPN_MULTICAST",
-	132: "ROUTE_TARGET_CONSTRAINTS",
-}
-var SAFI_value = map[string]int32{
-	"UNKNOWN_SAFI":             0,
-	"UNICAST":                  1,
-	"MULTICAST":                2,
-	"MPLS_LABEL":               4,
-	"ENCAP":                    7,
-	"VPLS":                     65,
-	"EVPN":                     70,
-	"MPLS_VPN":                 128,
-	"MPLS_VPN_MULTICAST":       129,
-	"ROUTE_TARGET_CONSTRAINTS": 132,
-}
-
-func (x SAFI) String() string {
-	return proto.EnumName(SAFI_name, int32(x))
-}
-
 type BGP_CAPABILITY int32
 
 const (
@@ -267,21 +196,14 @@ func (m *Error) String() string { return proto.CompactTextString(m) }
 func (*Error) ProtoMessage()    {}
 
 type Arguments struct {
-	Resource Resource       `protobuf:"varint,1,opt,name=resource,enum=api.Resource" json:"resource,omitempty"`
-	Af       *AddressFamily `protobuf:"bytes,2,opt,name=af" json:"af,omitempty"`
-	Name     string         `protobuf:"bytes,3,opt,name=name" json:"name,omitempty"`
+	Resource Resource `protobuf:"varint,1,opt,name=resource,enum=api.Resource" json:"resource,omitempty"`
+	Rf       uint32   `protobuf:"varint,2,opt,name=rf" json:"rf,omitempty"`
+	Name     string   `protobuf:"bytes,3,opt,name=name" json:"name,omitempty"`
 }
 
 func (m *Arguments) Reset()         { *m = Arguments{} }
 func (m *Arguments) String() string { return proto.CompactTextString(m) }
 func (*Arguments) ProtoMessage()    {}
-
-func (m *Arguments) GetAf() *AddressFamily {
-	if m != nil {
-		return m.Af
-	}
-	return nil
-}
 
 type ModPathArguments struct {
 	Resource           Resource `protobuf:"varint,1,opt,name=resource,enum=api.Resource" json:"resource,omitempty"`
@@ -324,22 +246,15 @@ func (m *PolicyArguments) GetApplyPolicy() *ApplyPolicy {
 }
 
 type MrtArguments struct {
-	Resource        Resource       `protobuf:"varint,1,opt,name=resource,enum=api.Resource" json:"resource,omitempty"`
-	Af              *AddressFamily `protobuf:"bytes,2,opt,name=af" json:"af,omitempty"`
-	Interval        uint64         `protobuf:"varint,3,opt,name=interval" json:"interval,omitempty"`
-	NeighborAddress string         `protobuf:"bytes,4,opt,name=neighbor_address" json:"neighbor_address,omitempty"`
+	Resource        Resource `protobuf:"varint,1,opt,name=resource,enum=api.Resource" json:"resource,omitempty"`
+	Rf              uint32   `protobuf:"varint,2,opt,name=rf" json:"rf,omitempty"`
+	Interval        uint64   `protobuf:"varint,3,opt,name=interval" json:"interval,omitempty"`
+	NeighborAddress string   `protobuf:"bytes,4,opt,name=neighbor_address" json:"neighbor_address,omitempty"`
 }
 
 func (m *MrtArguments) Reset()         { *m = MrtArguments{} }
 func (m *MrtArguments) String() string { return proto.CompactTextString(m) }
 func (*MrtArguments) ProtoMessage()    {}
-
-func (m *MrtArguments) GetAf() *AddressFamily {
-	if m != nil {
-		return m.Af
-	}
-	return nil
-}
 
 type ModVrfArguments struct {
 	Operation Operation `protobuf:"varint,1,opt,name=operation,enum=api.Operation" json:"operation,omitempty"`
@@ -357,30 +272,14 @@ func (m *ModVrfArguments) GetVrf() *Vrf {
 	return nil
 }
 
-type AddressFamily struct {
-	Afi  AFI  `protobuf:"varint,1,opt,enum=api.AFI" json:"Afi,omitempty"`
-	Safi SAFI `protobuf:"varint,2,opt,enum=api.SAFI" json:"Safi,omitempty"`
-}
-
-func (m *AddressFamily) Reset()         { *m = AddressFamily{} }
-func (m *AddressFamily) String() string { return proto.CompactTextString(m) }
-func (*AddressFamily) ProtoMessage()    {}
-
 type GracefulRestartTuple struct {
-	Af    *AddressFamily `protobuf:"bytes,1,opt,name=af" json:"af,omitempty"`
-	Flags uint32         `protobuf:"varint,2,opt,name=flags" json:"flags,omitempty"`
+	Rf    uint32 `protobuf:"varint,1,opt,name=rf" json:"rf,omitempty"`
+	Flags uint32 `protobuf:"varint,2,opt,name=flags" json:"flags,omitempty"`
 }
 
 func (m *GracefulRestartTuple) Reset()         { *m = GracefulRestartTuple{} }
 func (m *GracefulRestartTuple) String() string { return proto.CompactTextString(m) }
 func (*GracefulRestartTuple) ProtoMessage()    {}
-
-func (m *GracefulRestartTuple) GetAf() *AddressFamily {
-	if m != nil {
-		return m.Af
-	}
-	return nil
-}
 
 type GracefulRestart struct {
 	Flags  uint32                  `protobuf:"varint,1,opt,name=flags" json:"flags,omitempty"`
@@ -401,7 +300,7 @@ func (m *GracefulRestart) GetTuples() []*GracefulRestartTuple {
 
 type Capability struct {
 	Code            BGP_CAPABILITY   `protobuf:"varint,1,opt,name=code,enum=api.BGP_CAPABILITY" json:"code,omitempty"`
-	MultiProtocol   *AddressFamily   `protobuf:"bytes,2,opt,name=multi_protocol" json:"multi_protocol,omitempty"`
+	MultiProtocol   uint32           `protobuf:"varint,2,opt,name=multi_protocol" json:"multi_protocol,omitempty"`
 	GracefulRestart *GracefulRestart `protobuf:"bytes,3,opt,name=graceful_restart" json:"graceful_restart,omitempty"`
 	Asn             uint32           `protobuf:"varint,4,opt,name=asn" json:"asn,omitempty"`
 }
@@ -409,13 +308,6 @@ type Capability struct {
 func (m *Capability) Reset()         { *m = Capability{} }
 func (m *Capability) String() string { return proto.CompactTextString(m) }
 func (*Capability) ProtoMessage()    {}
-
-func (m *Capability) GetMultiProtocol() *AddressFamily {
-	if m != nil {
-		return m.MultiProtocol
-	}
-	return nil
-}
 
 func (m *Capability) GetGracefulRestart() *GracefulRestart {
 	if m != nil {
@@ -834,8 +726,6 @@ func (*Vrf) ProtoMessage()    {}
 func init() {
 	proto.RegisterEnum("api.Resource", Resource_name, Resource_value)
 	proto.RegisterEnum("api.Operation", Operation_name, Operation_value)
-	proto.RegisterEnum("api.AFI", AFI_name, AFI_value)
-	proto.RegisterEnum("api.SAFI", SAFI_name, SAFI_value)
 	proto.RegisterEnum("api.BGP_CAPABILITY", BGP_CAPABILITY_name, BGP_CAPABILITY_value)
 	proto.RegisterEnum("api.Error_ErrorCode", Error_ErrorCode_name, Error_ErrorCode_value)
 }
