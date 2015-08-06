@@ -91,29 +91,6 @@ const (
 
 const GRPC_PORT = 8080
 
-func convertAf2Rf(af *api.AddressFamily) (bgp.RouteFamily, error) {
-	if af == nil {
-		return bgp.RouteFamily(0), fmt.Errorf("address family is nil")
-	}
-	if af.Equal(api.AF_IPV4_UC) {
-		return bgp.RF_IPv4_UC, nil
-	} else if af.Equal(api.AF_IPV6_UC) {
-		return bgp.RF_IPv6_UC, nil
-	} else if af.Equal(api.AF_IPV4_VPN) {
-		return bgp.RF_IPv4_VPN, nil
-	} else if af.Equal(api.AF_IPV6_VPN) {
-		return bgp.RF_IPv6_VPN, nil
-	} else if af.Equal(api.AF_EVPN) {
-		return bgp.RF_EVPN, nil
-	} else if af.Equal(api.AF_ENCAP) {
-		return bgp.RF_ENCAP, nil
-	} else if af.Equal(api.AF_RTC) {
-		return bgp.RF_RTC_UC, nil
-	}
-
-	return bgp.RouteFamily(0), fmt.Errorf("unsupported address family: %v", af)
-}
-
 type Server struct {
 	grpcServer  *grpc.Server
 	bgpServerCh chan *GrpcRequest
@@ -177,12 +154,7 @@ func (s *Server) GetRib(arg *api.Arguments, stream api.Grpc_GetRibServer) error 
 		return fmt.Errorf("unsupported resource type: %v", arg.Resource)
 	}
 
-	rf, err := convertAf2Rf(arg.Af)
-	if err != nil {
-		return err
-	}
-
-	req := NewGrpcRequest(reqType, arg.Name, rf, nil)
+	req := NewGrpcRequest(reqType, arg.Name, bgp.RouteFamily(arg.Rf), nil)
 	s.bgpServerCh <- req
 
 	for res := range req.ResponseCh {
@@ -198,6 +170,7 @@ func (s *Server) GetRib(arg *api.Arguments, stream api.Grpc_GetRibServer) error 
 }
 
 func (s *Server) MonitorBestChanged(arg *api.Arguments, stream api.Grpc_MonitorBestChangedServer) error {
+	var err error
 	var reqType int
 	switch arg.Resource {
 	case api.Resource_GLOBAL:
@@ -206,12 +179,7 @@ func (s *Server) MonitorBestChanged(arg *api.Arguments, stream api.Grpc_MonitorB
 		return fmt.Errorf("unsupported resource type: %v", arg.Resource)
 	}
 
-	rf, err := convertAf2Rf(arg.Af)
-	if err != nil {
-		return err
-	}
-
-	req := NewGrpcRequest(reqType, "", rf, nil)
+	req := NewGrpcRequest(reqType, "", bgp.RouteFamily(arg.Rf), nil)
 	s.bgpServerCh <- req
 
 	for res := range req.ResponseCh {
@@ -250,13 +218,8 @@ END:
 }
 
 func (s *Server) neighbor(reqType int, arg *api.Arguments) (*api.Error, error) {
-	rf, err := convertAf2Rf(arg.Af)
-	if err != nil {
-		return nil, err
-	}
-
 	none := &api.Error{}
-	req := NewGrpcRequest(reqType, arg.Name, rf, nil)
+	req := NewGrpcRequest(reqType, arg.Name, bgp.RouteFamily(arg.Rf), nil)
 	s.bgpServerCh <- req
 
 	res := <-req.ResponseCh
@@ -326,12 +289,7 @@ func (s *Server) ModPath(stream api.Grpc_ModPathServer) error {
 }
 
 func (s *Server) GetNeighborPolicy(ctx context.Context, arg *api.Arguments) (*api.ApplyPolicy, error) {
-	rf, err := convertAf2Rf(arg.Af)
-	if err != nil {
-		return nil, err
-	}
-
-	req := NewGrpcRequest(REQ_NEIGHBOR_POLICY, arg.Name, rf, nil)
+	req := NewGrpcRequest(REQ_NEIGHBOR_POLICY, arg.Name, bgp.RouteFamily(arg.Rf), nil)
 	s.bgpServerCh <- req
 
 	res := <-req.ResponseCh
@@ -562,6 +520,7 @@ func (s *Server) ModPolicyRoutePolicy(stream api.Grpc_ModPolicyRoutePolicyServer
 }
 
 func (s *Server) GetMrt(arg *api.MrtArguments, stream api.Grpc_GetMrtServer) error {
+	var err error
 	var reqType int
 	switch arg.Resource {
 	case api.Resource_GLOBAL:
@@ -571,12 +530,7 @@ func (s *Server) GetMrt(arg *api.MrtArguments, stream api.Grpc_GetMrtServer) err
 	default:
 		return fmt.Errorf("unsupported resource type: %v", arg.Resource)
 	}
-	rf, err := convertAf2Rf(arg.Af)
-	if err != nil {
-		return err
-	}
-
-	req := NewGrpcRequest(reqType, arg.NeighborAddress, rf, arg.Interval)
+	req := NewGrpcRequest(reqType, arg.NeighborAddress, bgp.RouteFamily(arg.Rf), arg.Interval)
 	s.bgpServerCh <- req
 	for res := range req.ResponseCh {
 		if err = res.Err(); err != nil {
@@ -593,11 +547,7 @@ END:
 }
 
 func (s *Server) GetRPKI(arg *api.Arguments, stream api.Grpc_GetRPKIServer) error {
-	rf, err := convertAf2Rf(arg.Af)
-	if err != nil {
-		return err
-	}
-	req := NewGrpcRequest(REQ_RPKI, "", rf, nil)
+	req := NewGrpcRequest(REQ_RPKI, "", bgp.RouteFamily(arg.Rf), nil)
 	s.bgpServerCh <- req
 
 	for res := range req.ResponseCh {

@@ -81,7 +81,7 @@ func dumpRib(r string, remoteIP net.IP, args []string) error {
 		return fmt.Errorf("unknown resource type: %s", r)
 	}
 
-	af, err := checkAddressFamily(remoteIP)
+	rf, err := checkAddressFamily(remoteIP)
 	if err != nil {
 		return err
 	}
@@ -97,9 +97,20 @@ func dumpRib(r string, remoteIP net.IP, args []string) error {
 
 	arg := &api.MrtArguments{
 		Resource:        resource,
-		Af:              af,
+		Rf:              uint32(rf),
 		Interval:        interval,
 		NeighborAddress: remoteIP.String(),
+	}
+
+	afi, _ := bgp.RouteFamilyToAfiSafi(rf)
+	var af string
+	switch afi {
+	case bgp.AFI_IP:
+		af = "ipv4"
+	case bgp.AFI_IP6:
+		af = "ipv6"
+	case bgp.AFI_L2VPN:
+		af = "l2vpn"
 	}
 
 	seed := struct {
@@ -113,7 +124,7 @@ func dumpRib(r string, remoteIP net.IP, args []string) error {
 		NeighborAddress string
 		Resource        string
 	}{
-		Af:              af.ShortString(),
+		Af:              af,
 		NeighborAddress: remoteIP.String(),
 		Resource:        r,
 	}
@@ -237,15 +248,15 @@ func injectMrt(r string, filename string, count int) error {
 
 			if msg.Header.Type == bgp.TABLE_DUMPv2 {
 				subType := bgp.MRTSubTypeTableDumpv2(msg.Header.SubType)
-				var af *api.AddressFamily
+				var rf bgp.RouteFamily
 				switch subType {
 				case bgp.PEER_INDEX_TABLE:
 					peers = msg.Body.(*bgp.PeerIndexTable).Peers
 					continue
 				case bgp.RIB_IPV4_UNICAST:
-					af = api.AF_IPV4_UC
+					rf = bgp.RF_IPv4_UC
 				case bgp.RIB_IPV6_UNICAST:
-					af = api.AF_IPV6_UC
+					rf = bgp.RF_IPv6_UC
 				default:
 					fmt.Println("unsupported subType:", subType)
 					os.Exit(1)
@@ -272,7 +283,7 @@ func injectMrt(r string, filename string, count int) error {
 					}
 					nexthop := peers[e.PeerIndex].IpAddress.String()
 
-					if af == api.AF_IPV4_UC {
+					if rf == bgp.RF_IPv4_UC {
 						arg.RawNlri, _ = nlri.Serialize()
 						n, _ := bgp.NewPathAttributeNextHop(nexthop).Serialize()
 						arg.RawPattrs = append(arg.RawPattrs, n)
