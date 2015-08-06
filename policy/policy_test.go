@@ -653,6 +653,7 @@ func TestAsPathConditionEvaluate(t *testing.T) {
 		},
 	}
 
+
 	asPathSetList := []config.AsPathSet{asPathSet1, asPathSet2, asPathSet3,
 		asPathSet4, asPathSet5, asPathSet6}
 
@@ -686,8 +687,126 @@ func TestAsPathConditionEvaluate(t *testing.T) {
 
 	assert.Equal(t, true, p7.evaluate(path1))
 	assert.Equal(t, true, p8.evaluate(path2))
-
 }
+
+func TestMultipleAsPathConditionEvaluate(t *testing.T) {
+
+	// setup
+	// create path
+	peer := &table.PeerInfo{AS: 65001, Address: net.ParseIP("10.0.0.1")}
+	origin := bgp.NewPathAttributeOrigin(0)
+	aspathParam1 := []bgp.AsPathParamInterface{
+		bgp.NewAsPathParam(2, []uint16{65001, 65000, 54000, 65004, 65005}),
+		bgp.NewAsPathParam(1, []uint16{65001, 65010, 54000, 65004, 65005}),
+	}
+	aspath := bgp.NewPathAttributeAsPath(aspathParam1)
+	nexthop := bgp.NewPathAttributeNextHop("10.0.0.1")
+	med := bgp.NewPathAttributeMultiExitDisc(0)
+	pathAttributes := []bgp.PathAttributeInterface{origin, aspath, nexthop, med}
+	nlri := []bgp.NLRInfo{*bgp.NewNLRInfo(24, "10.10.0.101")}
+	withdrawnRoutes := []bgp.WithdrawnRoute{}
+	updateMsg1 := bgp.NewBGPUpdateMessage(withdrawnRoutes, pathAttributes, nlri)
+	table.UpdatePathAttrs4ByteAs(updateMsg1.Body.(*bgp.BGPUpdate))
+	path1 := table.ProcessMessage(updateMsg1, peer)[0]
+
+
+	// create match condition
+	asPathSet1 := config.AsPathSet{
+		AsPathSetName: "asset1",
+		AsPathList: []config.AsPath{
+			config.AsPath{AsPath: "^65001_65000"},
+		},
+	}
+
+	asPathSet2 := config.AsPathSet{
+		AsPathSetName: "asset2",
+		AsPathList: []config.AsPath{
+			config.AsPath{AsPath: "65004_65005$"},
+		},
+	}
+
+	asPathSet3 := config.AsPathSet{
+		AsPathSetName: "asset3",
+		AsPathList: []config.AsPath{
+			config.AsPath{AsPath: "65001_65000_54000"},
+		},
+	}
+
+	asPathSet4 := config.AsPathSet{
+		AsPathSetName: "asset4",
+		AsPathList: []config.AsPath{
+			config.AsPath{AsPath: "54000_65004_65005"},
+		},
+	}
+
+	asPathSet5 := config.AsPathSet{
+		AsPathSetName: "asset5",
+		AsPathList: []config.AsPath{
+			config.AsPath{AsPath: "^65001_65000_54000_65004_65005$"},
+		},
+	}
+
+	asPathSet6 := config.AsPathSet{
+		AsPathSetName: "asset6",
+		AsPathList: []config.AsPath{
+			config.AsPath{AsPath: ".*_[0-9]+_65005"},
+		},
+	}
+
+	asPathSet7 := config.AsPathSet{
+		AsPathSetName: "asset7",
+		AsPathList: []config.AsPath{
+			config.AsPath{AsPath: ".*_5[0-9]+_[0-9]+"},
+		},
+	}
+
+	asPathSet8 := config.AsPathSet{
+		AsPathSetName: "asset8",
+		AsPathList: []config.AsPath{
+			config.AsPath{AsPath: "6[0-9]+_6[0-9]+_6[0-9]+"},
+		},
+	}
+
+	asPathSet9 := config.AsPathSet{
+		AsPathSetName: "asset9",
+		AsPathList: []config.AsPath{
+			config.AsPath{AsPath: "6[0-9]+__6[0-9]+"},
+		},
+	}
+
+	asPathSetList := []config.AsPathSet{asPathSet1, asPathSet2, asPathSet3,
+		asPathSet4, asPathSet5, asPathSet6, asPathSet7, asPathSet8, asPathSet9}
+
+	createAspathC := func(name string, option config.MatchSetOptionsType) *AsPathCondition {
+		matchSet := config.MatchAsPathSet{}
+		matchSet.AsPathSet = name
+		matchSet.MatchSetOptions = option
+		p := NewAsPathCondition(matchSet, asPathSetList)
+		return p
+	}
+
+	p1 := createAspathC("asset1", config.MATCH_SET_OPTIONS_TYPE_ANY)
+	p2 := createAspathC("asset2", config.MATCH_SET_OPTIONS_TYPE_ANY)
+	p3 := createAspathC("asset3", config.MATCH_SET_OPTIONS_TYPE_ANY)
+	p4 := createAspathC("asset4", config.MATCH_SET_OPTIONS_TYPE_ANY)
+	p5 := createAspathC("asset5", config.MATCH_SET_OPTIONS_TYPE_ANY)
+	p6 := createAspathC("asset6", config.MATCH_SET_OPTIONS_TYPE_ANY)
+	p7 := createAspathC("asset7", config.MATCH_SET_OPTIONS_TYPE_ANY)
+	p8 := createAspathC("asset8", config.MATCH_SET_OPTIONS_TYPE_ANY)
+	p9 := createAspathC("asset9", config.MATCH_SET_OPTIONS_TYPE_ANY)
+
+	// test
+	assert.Equal(t, true, p1.evaluate(path1))
+	assert.Equal(t, true, p2.evaluate(path1))
+	assert.Equal(t, true, p3.evaluate(path1))
+	assert.Equal(t, true, p4.evaluate(path1))
+	assert.Equal(t, true, p5.evaluate(path1))
+	assert.Equal(t, true, p6.evaluate(path1))
+	assert.Equal(t, true, p7.evaluate(path1))
+	assert.Equal(t, false, p8.evaluate(path1))
+	assert.Equal(t, false, p9.evaluate(path1))
+}
+
 
 func TestAsPathConditionWithOtherCondition(t *testing.T) {
 

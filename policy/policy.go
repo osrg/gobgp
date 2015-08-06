@@ -397,8 +397,9 @@ const (
 )
 
 type AsPathElement struct {
-	postiion AsnPos
-	asn      uint32
+	postiion  AsnPos
+	asStr     string
+	asRegExps []*regexp.Regexp
 }
 
 // create AsPathCondition object
@@ -412,48 +413,69 @@ func NewAsPathCondition(matchSet config.MatchAsPathSet, defAsPathSetList []confi
 	asPathSetName := matchSet.AsPathSet
 	options := matchSet.MatchSetOptions
 
-	regAsn, _ := regexp.Compile("^(\\^?)([0-9]+)(\\$?)$")
 	asPathList := make([]*AsPathElement, 0)
 	for _, asPathSet := range defAsPathSetList {
 		if asPathSet.AsPathSetName == asPathSetName {
 			for _, aspath := range asPathSet.AsPathList {
 				a := aspath.AsPath
-				if regAsn.MatchString(a) {
-
-					group := regAsn.FindStringSubmatch(a)
-					asn, err := strconv.Atoi(group[2])
-					if err != nil {
-						log.WithFields(log.Fields{
-							"Topic": "Policy",
-							"Type":  "AsPath Condition",
-						}).Error("cannot parse AS Number.")
-						return nil
+				if len(a) != 0 {
+					isTop := a[:1] == "^"
+					if isTop {
+						a = a[1:]
 					}
-					e := &AsPathElement{}
-					e.asn = uint32(asn)
+					isEnd := a[len(a)-1:] == "$"
+					if isEnd {
+						a = a[:len(a)-1]
+					}
+					elems := strings.Split(a, "_")
+					asRegExps := make([]*regexp.Regexp, 0)
+					for _, el := range elems {
+						if len(el) == 0 {
+							log.WithFields(log.Fields{
+								"Topic": "Policy",
+								"Type":  "AsPath Condition",
+								"Value": aspath.AsPath,
+								"Elem":  el,
+							}).Error("invalid element. do not enter a blank.")
+							return nil
+						}
+						regElem, err := regexp.Compile(el)
+						if err != nil {
+							log.WithFields(log.Fields{
+								"Topic": "Policy",
+								"Type":  "AsPath Condition",
+								"Value": aspath.AsPath,
+								"Elem":  el,
+								"Error": err,
+							}).Error("can not comple AS_PATH values to Regular expressions.")
+							return nil
+						}
+						asRegExps = append(asRegExps, regElem)
+					}
 
-					if len(group[1]) == 0 && len(group[3]) == 0 {
-						e.postiion = AS_ANY
-					} else if len(group[1]) == 1 && len(group[3]) == 0 {
+					e := &AsPathElement{}
+					e.asRegExps = asRegExps
+					e.asStr = a
+					if isTop && isEnd {
+						e.postiion = AS_ONLY
+					} else if isTop && !isEnd {
 						e.postiion = AS_FROM
-					} else if len(group[1]) == 0 && len(group[3]) == 1 {
+					} else if !isTop && isEnd {
 						e.postiion = AS_ORIGIN
 					} else {
-						e.postiion = AS_ONLY
+						e.postiion = AS_ANY
 					}
-
 					asPathList = append(asPathList, e)
 
 				} else {
 					log.WithFields(log.Fields{
 						"Topic": "Policy",
 						"Type":  "AsPath Condition",
-					}).Error("cannot parse AS_PATH condition value.")
+					}).Error("does not parse AS_PATH condition value.")
 
 					return nil
 				}
 			}
-
 			c := &AsPathCondition{
 				AsPathList:  asPathList,
 				MatchOption: options,
@@ -465,36 +487,64 @@ func NewAsPathCondition(matchSet config.MatchAsPathSet, defAsPathSetList []confi
 }
 
 func (c *AsPathCondition) checkMembers(aspath []uint32, checkAll bool) bool {
+
+	checkElem := func(checkType AsnPos, regElems []*regexp.Regexp) bool {
+		aslen := len(aspath)
+		reglen := len(regElems)
+
+		if aslen < reglen {
+			return false
+		}
+
+		switch checkType {
+		case AS_ONLY:
+			if aslen != reglen {
+				return false
+			}
+			fallthrough
+		case AS_FROM:
+			for i := 0; i < reglen; i++ {
+				if !regElems[i].MatchString(fmt.Sprintf("%d", aspath[i])) {
+					return false
+				}
+			}
+		case AS_ORIGIN:
+			for i := 0; i < reglen; i++ {
+				if !regElems[reglen-i-1].MatchString(fmt.Sprintf("%d", aspath[aslen-i-1])) {
+					return false
+				}
+			}
+		case AS_ANY:
+			for i := 0; i < aslen; i++ {
+				eMatched := true
+				if aslen < i+reglen {
+					break
+				}
+				for j := 0; j < reglen; j++ {
+					if !regElems[j].MatchString(fmt.Sprintf("%d", aspath[i+j])) {
+						eMatched = false
+						break
+					}
+				}
+				if eMatched {
+					return true
+				}
+			}
+			return false
+		}
+		return true
+	}
+
 	result := false
 	if checkAll {
 		result = true
 	}
-
 	for _, member := range c.AsPathList {
-		matched := false
-		switch member.postiion {
-		case AS_FROM:
-			matched = aspath[0] == member.asn
-		case AS_ANY:
-			for _, n := range aspath {
-				if n == member.asn {
-					matched = true
-					break
-				}
-			}
-		case AS_ORIGIN:
-			matched = aspath[len(aspath)-1] == member.asn
-
-		case AS_ONLY:
-			matched = len(aspath) == 1 && aspath[0] == member.asn
-
-		}
-
-		if matched {
+		if checkElem(member.postiion, member.asRegExps) {
 			log.WithFields(log.Fields{
 				"Topic":     "Policy",
 				"Condition": "aspath length",
-				"ASN":       member.asn,
+				"ASN":       member.asStr,
 				"Position":  member.postiion,
 			}).Debug("aspath condition matched")
 
@@ -520,7 +570,7 @@ func (c *AsPathCondition) evaluate(path *table.Path) bool {
 
 	aspath := path.GetAsSeqList()
 
-	if len(aspath) == 0 {
+	if c == nil || len(aspath) == 0 {
 		return false
 	}
 
@@ -1635,7 +1685,7 @@ func PrefixSetToApiStruct(ps config.PrefixSet) *api.PrefixSet {
 	resPrefixList := make([]*api.Prefix, 0)
 	for _, p := range ps.PrefixList {
 		resPrefix := &api.Prefix{
-			IpPrefix:          p.IpPrefix,
+			IpPrefix:        p.IpPrefix,
 			MaskLengthRange: p.MasklengthRange,
 		}
 		resPrefixList = append(resPrefixList, resPrefix)

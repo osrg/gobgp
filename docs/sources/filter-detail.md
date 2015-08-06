@@ -340,6 +340,11 @@ CommunitySets, ExtCommunitySets and AsPathSets section are each match part.
    - Origin: "65100$" means the route is originated by AS 65100.
    - Only: "^65100$" means the route is originated by AS 65100 and comes from it directly.
 
+   Further you can specify the consecutive aspath and use regexp in each element as follows:
+   - ^65100_65001
+   - 65100_[0-9]+_.*$
+   - ^6[0-9]_5.*_65.?00$
+
   ##### Examples
   - example 1
       - Match routes which come from AS 65100.
@@ -352,6 +357,19 @@ CommunitySets, ExtCommunitySets and AsPathSets section are each match part.
         AsPathSetName = "aspath1"
         [[DefinedSets.BgpDefinedSets.AsPathSets.AsPathSetList.AsPathList]]
           AsPath = "^65100"
+  ```
+
+  - example 2
+      - Match routes which come Origin AS 65100 and use regular expressions to other AS.
+
+  ```
+  # example 2
+  [DefinedSets.BgpDefinedSets]
+    [DefinedSets.BgpDefinedSets.AsPathSets]
+      [[DefinedSets.BgpDefinedSets.AsPathSets.AsPathSetList]]
+        AsPathSetName = "aspath2"
+        [[DefinedSets.BgpDefinedSets.AsPathSets.AsPathSetList.AsPathList]]
+          AsPath = "[0-9]+_65[0-9]+_65100$"
   ```
 
 ---
