@@ -710,6 +710,12 @@ func (server *BgpServer) PeerUpdate(peer config.Neighbor) {
 	server.updatedPeerCh <- peer
 }
 
+func (server *BgpServer) Shutdown() {
+	for _, p := range server.neighborMap {
+		p.fsm.adminStateCh <- ADMIN_STATE_DOWN
+	}
+}
+
 func (server *BgpServer) UpdatePolicy(policy config.RoutingPolicy) {
 	server.policyUpdateCh <- policy
 }
