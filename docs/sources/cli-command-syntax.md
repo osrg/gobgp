@@ -208,11 +208,17 @@ If you want to add the AsPathSet：
 ```shell
 % gobgp policy aspath add ass1 ^65100
 ```
-   You can specify the position using regexp-like expression as follows:
-   - From: "^65100" means the route is passed from AS 65100 directly.
-   - Any: "65100" means the route comes through AS 65100.
-   - Origin: "65100$" means the route is originated by AS 65100.
-   - Only: "^65100$" means the route is originated by AS 65100 and comes from it directly.
+
+You can specify the position using regexp-like expression as follows:
+- From: "^65100" means the route is passed from AS 65100 directly.
+- Any: "65100" means the route comes through AS 65100.
+- Origin: "65100$" means the route is originated by AS 65100.
+- Only: "^65100$" means the route is originated by AS 65100 and comes from it directly.
+
+Further you can specify the consecutive aspath and use regexp in each element as follows:
+- ^65100_65001
+- 65100_[0-9]+_.*$
+- ^6[0-9]_5.*_65.?00$
 
 An AsPathSet it is possible to have multiple as path, if you want to remove the AsPathSet to specify only AsPathSet name.
 ```shell
