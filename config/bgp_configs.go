@@ -599,6 +599,9 @@ type NeighborState struct {
 	Messages Messages
 	// original -> bgp:queues
 	Queues Queues
+	// original -> bgp:admin-down
+	//bgp:admin-down's original type is boolean
+	AdminDown bool
 }
 
 //struct for container bgp:config
