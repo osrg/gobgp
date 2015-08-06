@@ -37,7 +37,7 @@ type Peer struct {
 	conf                    config.Neighbor
 	fsm                     *FSM
 	rfMap                   map[bgp.RouteFamily]bool
-	capMap                  map[bgp.BGPCapabilityCode]bgp.ParameterCapabilityInterface
+	capMap                  map[bgp.BGPCapabilityCode][]bgp.ParameterCapabilityInterface
 	adjRib                  *table.AdjRib
 	peerInfo                *table.PeerInfo
 	outgoing                chan *bgp.BGPMessage
@@ -52,7 +52,7 @@ func NewPeer(g config.Global, conf config.Neighbor) *Peer {
 		gConf:  g,
 		conf:   conf,
 		rfMap:  make(map[bgp.RouteFamily]bool),
-		capMap: make(map[bgp.BGPCapabilityCode]bgp.ParameterCapabilityInterface),
+		capMap: make(map[bgp.BGPCapabilityCode][]bgp.ParameterCapabilityInterface),
 	}
 
 	conf.NeighborState.SessionState = uint32(bgp.BGP_FSM_IDLE)
@@ -113,7 +113,12 @@ func (peer *Peer) handleBGPmessage(m *bgp.BGPMessage) ([]*table.Path, bool, []*b
 		for _, p := range body.OptParams {
 			if paramCap, y := p.(*bgp.OptionParameterCapability); y {
 				for _, c := range paramCap.Capability {
-					peer.capMap[c.Code()] = c
+					m, ok := peer.capMap[c.Code()]
+					if !ok {
+						m = make([]bgp.ParameterCapabilityInterface, 0, 1)
+					}
+					peer.capMap[c.Code()] = append(m, c)
+
 					if c.Code() == bgp.BGP_CAP_MULTIPROTOCOL {
 						m := c.(*bgp.CapMultiProtocol)
 						r[bgp.AfiSafiToRouteFamily(m.CapValue.AFI, m.CapValue.SAFI)] = true
@@ -234,7 +239,9 @@ func (peer *Peer) ToApiStruct() *api.Peer {
 
 	remoteCap := make([]*api.Capability, 0, len(peer.capMap))
 	for _, c := range peer.capMap {
-		remoteCap = append(remoteCap, c.ToApiStruct())
+		for _, m := range c {
+			remoteCap = append(remoteCap, m.ToApiStruct())
+		}
 	}
 
 	caps := capabilitiesFromConfig(&peer.gConf, &peer.conf)
