@@ -14,6 +14,7 @@ It has these top-level messages:
 	ModPathArguments
 	PolicyArguments
 	MrtArguments
+	ModVrfArguments
 	AddressFamily
 	RouteDistinguisher
 	GracefulRestartTuple
@@ -54,6 +55,7 @@ It has these top-level messages:
 	ApplyPolicy
 	MrtMessage
 	ROA
+	Vrf
 */
 package api
 
@@ -84,19 +86,21 @@ const (
 	Resource_POLICY_COMMUNITY    Resource = 7
 	Resource_POLICY_ROUTEPOLICY  Resource = 8
 	Resource_POLICY_EXTCOMMUNITY Resource = 9
+	Resource_VRF                 Resource = 10
 )
 
 var Resource_name = map[int32]string{
-	0: "GLOBAL",
-	1: "LOCAL",
-	2: "ADJ_IN",
-	3: "ADJ_OUT",
-	4: "POLICY_PREFIX",
-	5: "POLICY_NEIGHBOR",
-	6: "POLICY_ASPATH",
-	7: "POLICY_COMMUNITY",
-	8: "POLICY_ROUTEPOLICY",
-	9: "POLICY_EXTCOMMUNITY",
+	0:  "GLOBAL",
+	1:  "LOCAL",
+	2:  "ADJ_IN",
+	3:  "ADJ_OUT",
+	4:  "POLICY_PREFIX",
+	5:  "POLICY_NEIGHBOR",
+	6:  "POLICY_ASPATH",
+	7:  "POLICY_COMMUNITY",
+	8:  "POLICY_ROUTEPOLICY",
+	9:  "POLICY_EXTCOMMUNITY",
+	10: "VRF",
 }
 var Resource_value = map[string]int32{
 	"GLOBAL":              0,
@@ -109,6 +113,7 @@ var Resource_value = map[string]int32{
 	"POLICY_COMMUNITY":    7,
 	"POLICY_ROUTEPOLICY":  8,
 	"POLICY_EXTCOMMUNITY": 9,
+	"VRF": 10,
 }
 
 func (x Resource) String() string {
@@ -582,9 +587,9 @@ func (m *Error) String() string { return proto.CompactTextString(m) }
 func (*Error) ProtoMessage()    {}
 
 type Arguments struct {
-	Resource        Resource       `protobuf:"varint,1,opt,name=resource,enum=api.Resource" json:"resource,omitempty"`
-	Af              *AddressFamily `protobuf:"bytes,2,opt,name=af" json:"af,omitempty"`
-	NeighborAddress string         `protobuf:"bytes,3,opt,name=neighbor_address" json:"neighbor_address,omitempty"`
+	Resource Resource       `protobuf:"varint,1,opt,name=resource,enum=api.Resource" json:"resource,omitempty"`
+	Af       *AddressFamily `protobuf:"bytes,2,opt,name=af" json:"af,omitempty"`
+	Name     string         `protobuf:"bytes,3,opt,name=name" json:"name,omitempty"`
 }
 
 func (m *Arguments) Reset()         { *m = Arguments{} }
@@ -600,10 +605,11 @@ func (m *Arguments) GetAf() *AddressFamily {
 
 type ModPathArguments struct {
 	Resource           Resource `protobuf:"varint,1,opt,name=resource,enum=api.Resource" json:"resource,omitempty"`
-	IsWithdraw         bool     `protobuf:"varint,2,opt,name=is_withdraw" json:"is_withdraw,omitempty"`
-	RawNlri            []byte   `protobuf:"bytes,3,opt,name=raw_nlri,proto3" json:"raw_nlri,omitempty"`
-	RawPattrs          [][]byte `protobuf:"bytes,4,rep,name=raw_pattrs,proto3" json:"raw_pattrs,omitempty"`
-	NoImplicitWithdraw bool     `protobuf:"varint,5,opt,name=no_implicit_withdraw" json:"no_implicit_withdraw,omitempty"`
+	Name               string   `protobuf:"bytes,2,opt,name=name" json:"name,omitempty"`
+	IsWithdraw         bool     `protobuf:"varint,3,opt,name=is_withdraw" json:"is_withdraw,omitempty"`
+	RawNlri            []byte   `protobuf:"bytes,4,opt,name=raw_nlri,proto3" json:"raw_nlri,omitempty"`
+	RawPattrs          [][]byte `protobuf:"bytes,5,rep,name=raw_pattrs,proto3" json:"raw_pattrs,omitempty"`
+	NoImplicitWithdraw bool     `protobuf:"varint,6,opt,name=no_implicit_withdraw" json:"no_implicit_withdraw,omitempty"`
 }
 
 func (m *ModPathArguments) Reset()         { *m = ModPathArguments{} }
@@ -651,6 +657,22 @@ func (*MrtArguments) ProtoMessage()    {}
 func (m *MrtArguments) GetAf() *AddressFamily {
 	if m != nil {
 		return m.Af
+	}
+	return nil
+}
+
+type ModVrfArguments struct {
+	Operation Operation `protobuf:"varint,1,opt,name=operation,enum=api.Operation" json:"operation,omitempty"`
+	Vrf       *Vrf      `protobuf:"bytes,2,opt,name=vrf" json:"vrf,omitempty"`
+}
+
+func (m *ModVrfArguments) Reset()         { *m = ModVrfArguments{} }
+func (m *ModVrfArguments) String() string { return proto.CompactTextString(m) }
+func (*ModVrfArguments) ProtoMessage()    {}
+
+func (m *ModVrfArguments) GetVrf() *Vrf {
+	if m != nil {
+		return m.Vrf
 	}
 	return nil
 }
@@ -1411,6 +1433,17 @@ func (m *ROA) Reset()         { *m = ROA{} }
 func (m *ROA) String() string { return proto.CompactTextString(m) }
 func (*ROA) ProtoMessage()    {}
 
+type Vrf struct {
+	Name     string   `protobuf:"bytes,1,opt,name=name" json:"name,omitempty"`
+	Rd       []byte   `protobuf:"bytes,2,opt,name=rd,proto3" json:"rd,omitempty"`
+	ImportRt [][]byte `protobuf:"bytes,3,rep,name=import_rt,proto3" json:"import_rt,omitempty"`
+	ExportRt [][]byte `protobuf:"bytes,4,rep,name=export_rt,proto3" json:"export_rt,omitempty"`
+}
+
+func (m *Vrf) Reset()         { *m = Vrf{} }
+func (m *Vrf) String() string { return proto.CompactTextString(m) }
+func (*Vrf) ProtoMessage()    {}
+
 func init() {
 	proto.RegisterEnum("api.Resource", Resource_name, Resource_value)
 	proto.RegisterEnum("api.Operation", Operation_name, Operation_value)
@@ -1453,6 +1486,9 @@ type GrpcClient interface {
 	MonitorPeerState(ctx context.Context, in *Arguments, opts ...grpc.CallOption) (Grpc_MonitorPeerStateClient, error)
 	GetMrt(ctx context.Context, in *MrtArguments, opts ...grpc.CallOption) (Grpc_GetMrtClient, error)
 	GetRPKI(ctx context.Context, in *Arguments, opts ...grpc.CallOption) (Grpc_GetRPKIClient, error)
+	GetVrfs(ctx context.Context, in *Arguments, opts ...grpc.CallOption) (Grpc_GetVrfsClient, error)
+	GetVrf(ctx context.Context, in *Arguments, opts ...grpc.CallOption) (Grpc_GetVrfClient, error)
+	ModVrf(ctx context.Context, in *ModVrfArguments, opts ...grpc.CallOption) (*Error, error)
 }
 
 type grpcClient struct {
@@ -1905,6 +1941,79 @@ func (x *grpcGetRPKIClient) Recv() (*ROA, error) {
 	return m, nil
 }
 
+func (c *grpcClient) GetVrfs(ctx context.Context, in *Arguments, opts ...grpc.CallOption) (Grpc_GetVrfsClient, error) {
+	stream, err := grpc.NewClientStream(ctx, &_Grpc_serviceDesc.Streams[11], c.cc, "/api.Grpc/GetVrfs", opts...)
+	if err != nil {
+		return nil, err
+	}
+	x := &grpcGetVrfsClient{stream}
+	if err := x.ClientStream.SendMsg(in); err != nil {
+		return nil, err
+	}
+	if err := x.ClientStream.CloseSend(); err != nil {
+		return nil, err
+	}
+	return x, nil
+}
+
+type Grpc_GetVrfsClient interface {
+	Recv() (*Vrf, error)
+	grpc.ClientStream
+}
+
+type grpcGetVrfsClient struct {
+	grpc.ClientStream
+}
+
+func (x *grpcGetVrfsClient) Recv() (*Vrf, error) {
+	m := new(Vrf)
+	if err := x.ClientStream.RecvMsg(m); err != nil {
+		return nil, err
+	}
+	return m, nil
+}
+
+func (c *grpcClient) GetVrf(ctx context.Context, in *Arguments, opts ...grpc.CallOption) (Grpc_GetVrfClient, error) {
+	stream, err := grpc.NewClientStream(ctx, &_Grpc_serviceDesc.Streams[12], c.cc, "/api.Grpc/GetVrf", opts...)
+	if err != nil {
+		return nil, err
+	}
+	x := &grpcGetVrfClient{stream}
+	if err := x.ClientStream.SendMsg(in); err != nil {
+		return nil, err
+	}
+	if err := x.ClientStream.CloseSend(); err != nil {
+		return nil, err
+	}
+	return x, nil
+}
+
+type Grpc_GetVrfClient interface {
+	Recv() (*Path, error)
+	grpc.ClientStream
+}
+
+type grpcGetVrfClient struct {
+	grpc.ClientStream
+}
+
+func (x *grpcGetVrfClient) Recv() (*Path, error) {
+	m := new(Path)
+	if err := x.ClientStream.RecvMsg(m); err != nil {
+		return nil, err
+	}
+	return m, nil
+}
+
+func (c *grpcClient) ModVrf(ctx context.Context, in *ModVrfArguments, opts ...grpc.CallOption) (*Error, error) {
+	out := new(Error)
+	err := grpc.Invoke(ctx, "/api.Grpc/ModVrf", in, out, c.cc, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 // Server API for Grpc service
 
 type GrpcServer interface {
@@ -1929,6 +2038,9 @@ type GrpcServer interface {
 	MonitorPeerState(*Arguments, Grpc_MonitorPeerStateServer) error
 	GetMrt(*MrtArguments, Grpc_GetMrtServer) error
 	GetRPKI(*Arguments, Grpc_GetRPKIServer) error
+	GetVrfs(*Arguments, Grpc_GetVrfsServer) error
+	GetVrf(*Arguments, Grpc_GetVrfServer) error
+	ModVrf(context.Context, *ModVrfArguments) (*Error, error)
 }
 
 func RegisterGrpcServer(s *grpc.Server, srv GrpcServer) {
@@ -2301,6 +2413,60 @@ func (x *grpcGetRPKIServer) Send(m *ROA) error {
 	return x.ServerStream.SendMsg(m)
 }
 
+func _Grpc_GetVrfs_Handler(srv interface{}, stream grpc.ServerStream) error {
+	m := new(Arguments)
+	if err := stream.RecvMsg(m); err != nil {
+		return err
+	}
+	return srv.(GrpcServer).GetVrfs(m, &grpcGetVrfsServer{stream})
+}
+
+type Grpc_GetVrfsServer interface {
+	Send(*Vrf) error
+	grpc.ServerStream
+}
+
+type grpcGetVrfsServer struct {
+	grpc.ServerStream
+}
+
+func (x *grpcGetVrfsServer) Send(m *Vrf) error {
+	return x.ServerStream.SendMsg(m)
+}
+
+func _Grpc_GetVrf_Handler(srv interface{}, stream grpc.ServerStream) error {
+	m := new(Arguments)
+	if err := stream.RecvMsg(m); err != nil {
+		return err
+	}
+	return srv.(GrpcServer).GetVrf(m, &grpcGetVrfServer{stream})
+}
+
+type Grpc_GetVrfServer interface {
+	Send(*Path) error
+	grpc.ServerStream
+}
+
+type grpcGetVrfServer struct {
+	grpc.ServerStream
+}
+
+func (x *grpcGetVrfServer) Send(m *Path) error {
+	return x.ServerStream.SendMsg(m)
+}
+
+func _Grpc_ModVrf_Handler(srv interface{}, ctx context.Context, codec grpc.Codec, buf []byte) (interface{}, error) {
+	in := new(ModVrfArguments)
+	if err := codec.Unmarshal(buf, in); err != nil {
+		return nil, err
+	}
+	out, err := srv.(GrpcServer).ModVrf(ctx, in)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 var _Grpc_serviceDesc = grpc.ServiceDesc{
 	ServiceName: "api.Grpc",
 	HandlerType: (*GrpcServer)(nil),
@@ -2344,6 +2510,10 @@ var _Grpc_serviceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "GetPolicyRoutePolicy",
 			Handler:    _Grpc_GetPolicyRoutePolicy_Handler,
+		},
+		{
+			MethodName: "ModVrf",
+			Handler:    _Grpc_ModVrf_Handler,
 		},
 	},
 	Streams: []grpc.StreamDesc{
@@ -2402,6 +2572,16 @@ var _Grpc_serviceDesc = grpc.ServiceDesc{
 		{
 			StreamName:    "GetRPKI",
 			Handler:       _Grpc_GetRPKI_Handler,
+			ServerStreams: true,
+		},
+		{
+			StreamName:    "GetVrfs",
+			Handler:       _Grpc_GetVrfs_Handler,
+			ServerStreams: true,
+		},
+		{
+			StreamName:    "GetVrf",
+			Handler:       _Grpc_GetVrf_Handler,
 			ServerStreams: true,
 		},
 	},

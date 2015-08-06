@@ -41,6 +41,9 @@ service Grpc {
   rpc MonitorPeerState(Arguments) returns (stream Peer) {}
   rpc GetMrt(MrtArguments) returns (stream MrtMessage) {}
   rpc GetRPKI(Arguments) returns (stream ROA) {}
+  rpc GetVrfs(Arguments) returns (stream Vrf) {}
+  rpc GetVrf(Arguments) returns (stream Path) {}
+  rpc ModVrf(ModVrfArguments) returns (Error) {}
 }
 
 message Error {
@@ -55,15 +58,16 @@ message Error {
 message Arguments {
     Resource resource = 1;
     AddressFamily af = 2;
-    string neighbor_address = 3;
+    string name = 3;
 }
 
 message ModPathArguments {
     Resource resource = 1;
-    bool is_withdraw = 2;
-    bytes raw_nlri = 3;
-    repeated bytes raw_pattrs = 4;
-    bool no_implicit_withdraw = 5;
+    string name = 2;
+    bool is_withdraw = 3;
+    bytes raw_nlri = 4;
+    repeated bytes raw_pattrs = 5;
+    bool no_implicit_withdraw = 6;
 }
 
 message PolicyArguments {
@@ -82,6 +86,11 @@ message MrtArguments {
     string neighbor_address = 4;
 }
 
+message ModVrfArguments {
+    Operation operation = 1;
+    Vrf vrf = 2;
+}
+
 enum Resource {
     GLOBAL = 0;
     LOCAL = 1;
@@ -93,6 +102,7 @@ enum Resource {
     POLICY_COMMUNITY = 7;
     POLICY_ROUTEPOLICY = 8;
     POLICY_EXTCOMMUNITY = 9;
+    VRF = 10;
 }
 
 enum Operation {
@@ -518,4 +528,11 @@ message ROA {
     uint32 prefixlen = 2;
     uint32 maxlen = 3;
     string prefix = 4;
+}
+
+message Vrf {
+    string name = 1;
+    bytes rd = 2;
+    repeated bytes import_rt = 3;
+    repeated bytes export_rt = 4;
 }

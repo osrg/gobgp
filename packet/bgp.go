@@ -845,7 +845,7 @@ type RouteDistinguisherUnknown struct {
 	DefaultRouteDistinguisher
 }
 
-func getRouteDistinguisher(data []byte) RouteDistinguisherInterface {
+func GetRouteDistinguisher(data []byte) RouteDistinguisherInterface {
 	rdtype := binary.BigEndian.Uint16(data[0:2])
 	switch rdtype {
 	case BGP_RD_TWO_OCTET_AS:
@@ -1016,7 +1016,7 @@ func (l *LabeledVPNIPAddrPrefix) DecodeFromBytes(data []byte) error {
 		l.Labels.Labels = []uint32{}
 	}
 	data = data[l.Labels.Len():]
-	l.RD = getRouteDistinguisher(data)
+	l.RD = GetRouteDistinguisher(data)
 	data = data[l.RD.Len():]
 	restbits := int(l.Length) - 8*(l.Labels.Len()+l.RD.Len())
 	l.decodePrefix(data, uint8(restbits), l.addrlen)
@@ -1208,7 +1208,7 @@ func (n *RouteTargetMembershipNLRI) DecodeFromBytes(data []byte) error {
 		return fmt.Errorf("Not all RouteTargetMembershipNLRI bytes available")
 	}
 	n.AS = binary.BigEndian.Uint32(data[0:4])
-	rt, err := parseExtended(data[4:])
+	rt, err := ParseExtended(data[4:])
 	n.RouteTarget = rt
 	if err != nil {
 		return err
@@ -1389,7 +1389,7 @@ type EVPNEthernetAutoDiscoveryRoute struct {
 }
 
 func (er *EVPNEthernetAutoDiscoveryRoute) DecodeFromBytes(data []byte) error {
-	er.RD = getRouteDistinguisher(data)
+	er.RD = GetRouteDistinguisher(data)
 	data = data[er.RD.Len():]
 	err := er.ESI.DecodeFromBytes(data)
 	if err != nil {
@@ -1403,11 +1403,16 @@ func (er *EVPNEthernetAutoDiscoveryRoute) DecodeFromBytes(data []byte) error {
 }
 
 func (er *EVPNEthernetAutoDiscoveryRoute) Serialize() ([]byte, error) {
-	buf, err := er.RD.Serialize()
-	if err != nil {
-		return nil, err
+	var buf []byte
+	var err error
+	if er.RD != nil {
+		buf, err = er.RD.Serialize()
+		if err != nil {
+			return nil, err
+		}
+	} else {
+		buf = make([]byte, 8)
 	}
-
 	tbuf, err := er.ESI.Serialize()
 	if err != nil {
 		return nil, err
@@ -1441,7 +1446,7 @@ type EVPNMacIPAdvertisementRoute struct {
 }
 
 func (er *EVPNMacIPAdvertisementRoute) DecodeFromBytes(data []byte) error {
-	er.RD = getRouteDistinguisher(data)
+	er.RD = GetRouteDistinguisher(data)
 	data = data[er.RD.Len():]
 	err := er.ESI.DecodeFromBytes(data)
 	if err != nil {
@@ -1472,9 +1477,15 @@ func (er *EVPNMacIPAdvertisementRoute) DecodeFromBytes(data []byte) error {
 }
 
 func (er *EVPNMacIPAdvertisementRoute) Serialize() ([]byte, error) {
-	buf, err := er.RD.Serialize()
-	if err != nil {
-		return nil, err
+	var buf []byte
+	var err error
+	if er.RD != nil {
+		buf, err = er.RD.Serialize()
+		if err != nil {
+			return nil, err
+		}
+	} else {
+		buf = make([]byte, 8)
 	}
 
 	tbuf, err := er.ESI.Serialize()
@@ -1536,7 +1547,7 @@ type EVPNMulticastEthernetTagRoute struct {
 }
 
 func (er *EVPNMulticastEthernetTagRoute) DecodeFromBytes(data []byte) error {
-	er.RD = getRouteDistinguisher(data)
+	er.RD = GetRouteDistinguisher(data)
 	data = data[er.RD.Len():]
 	er.ETag = binary.BigEndian.Uint32(data[0:4])
 	er.IPAddressLength = data[4]
@@ -1550,9 +1561,15 @@ func (er *EVPNMulticastEthernetTagRoute) DecodeFromBytes(data []byte) error {
 }
 
 func (er *EVPNMulticastEthernetTagRoute) Serialize() ([]byte, error) {
-	buf, err := er.RD.Serialize()
-	if err != nil {
-		return nil, err
+	var buf []byte
+	var err error
+	if er.RD != nil {
+		buf, err = er.RD.Serialize()
+		if err != nil {
+			return nil, err
+		}
+	} else {
+		buf = make([]byte, 8)
 	}
 	tbuf := make([]byte, 4)
 	binary.BigEndian.PutUint32(tbuf, er.ETag)
@@ -1593,7 +1610,7 @@ type EVPNEthernetSegmentRoute struct {
 }
 
 func (er *EVPNEthernetSegmentRoute) DecodeFromBytes(data []byte) error {
-	er.RD = getRouteDistinguisher(data)
+	er.RD = GetRouteDistinguisher(data)
 	data = data[er.RD.Len():]
 	er.ESI.DecodeFromBytes(data)
 	data = data[10:]
@@ -1608,9 +1625,15 @@ func (er *EVPNEthernetSegmentRoute) DecodeFromBytes(data []byte) error {
 }
 
 func (er *EVPNEthernetSegmentRoute) Serialize() ([]byte, error) {
-	buf, err := er.RD.Serialize()
-	if err != nil {
-		return nil, err
+	var buf []byte
+	var err error
+	if er.RD != nil {
+		buf, err = er.RD.Serialize()
+		if err != nil {
+			return nil, err
+		}
+	} else {
+		buf = make([]byte, 8)
 	}
 	tbuf, err := er.ESI.Serialize()
 	if err != nil {
@@ -3585,7 +3608,7 @@ type PathAttributeExtendedCommunities struct {
 	Value []ExtendedCommunityInterface
 }
 
-func parseExtended(data []byte) (ExtendedCommunityInterface, error) {
+func ParseExtended(data []byte) (ExtendedCommunityInterface, error) {
 	attrType := ExtendedCommunityAttrType(data[0])
 	transitive := false
 	switch attrType {
@@ -3648,7 +3671,7 @@ func (p *PathAttributeExtendedCommunities) DecodeFromBytes(data []byte) error {
 	}
 	value := p.PathAttribute.Value
 	for len(value) >= 8 {
-		e, err := parseExtended(value)
+		e, err := ParseExtended(value)
 		if err != nil {
 			return err
 		}

@@ -48,8 +48,6 @@ const (
 	REQ_NEIGHBOR_POLICY_DEL_EXPORT
 	REQ_NEIGHBOR_POLICY_DEL_DISTRIBUTE
 	REQ_GLOBAL_RIB
-	REQ_GLOBAL_ADD
-	REQ_GLOBAL_DELETE
 	REQ_POLICY_PREFIX
 	REQ_POLICY_PREFIXES
 	REQ_POLICY_PREFIX_ADD
@@ -85,6 +83,10 @@ const (
 	REQ_MRT_GLOBAL_RIB
 	REQ_MRT_LOCAL_RIB
 	REQ_RPKI
+	REQ_VRF
+	REQ_VRFS
+	REQ_VRF_MOD
+	REQ_MOD_PATH
 )
 
 const GRPC_PORT = 8080
@@ -128,7 +130,7 @@ func (s *Server) Serve() error {
 
 func (s *Server) GetNeighbor(ctx context.Context, arg *api.Arguments) (*api.Peer, error) {
 	var rf bgp.RouteFamily
-	req := NewGrpcRequest(REQ_NEIGHBOR, arg.NeighborAddress, rf, nil)
+	req := NewGrpcRequest(REQ_NEIGHBOR, arg.Name, rf, nil)
 	s.bgpServerCh <- req
 
 	res := <-req.ResponseCh
@@ -174,7 +176,7 @@ func (s *Server) GetAdjRib(arg *api.Arguments, stream api.Grpc_GetAdjRibServer) 
 		return err
 	}
 
-	req := NewGrpcRequest(reqType, arg.NeighborAddress, rf, nil)
+	req := NewGrpcRequest(reqType, arg.Name, rf, nil)
 	s.bgpServerCh <- req
 
 	for res := range req.ResponseCh {
@@ -206,7 +208,7 @@ func (s *Server) GetRib(arg *api.Arguments, stream api.Grpc_GetRibServer) error 
 		return err
 	}
 
-	req := NewGrpcRequest(reqType, arg.NeighborAddress, rf, nil)
+	req := NewGrpcRequest(reqType, arg.Name, rf, nil)
 	s.bgpServerCh <- req
 
 	for res := range req.ResponseCh {
@@ -254,7 +256,7 @@ END:
 
 func (s *Server) MonitorPeerState(arg *api.Arguments, stream api.Grpc_MonitorPeerStateServer) error {
 	var rf bgp.RouteFamily
-	req := NewGrpcRequest(REQ_MONITOR_NEIGHBOR_PEER_STATE, arg.NeighborAddress, rf, nil)
+	req := NewGrpcRequest(REQ_MONITOR_NEIGHBOR_PEER_STATE, arg.Name, rf, nil)
 	s.bgpServerCh <- req
 
 	var err error
@@ -280,7 +282,7 @@ func (s *Server) neighbor(reqType int, arg *api.Arguments) (*api.Error, error) {
 	}
 
 	none := &api.Error{}
-	req := NewGrpcRequest(reqType, arg.NeighborAddress, rf, nil)
+	req := NewGrpcRequest(reqType, arg.Name, rf, nil)
 	s.bgpServerCh <- req
 
 	res := <-req.ResponseCh
@@ -329,16 +331,11 @@ func (s *Server) ModPath(stream api.Grpc_ModPathServer) error {
 			return err
 		}
 
-		if arg.Resource != api.Resource_GLOBAL {
+		if arg.Resource != api.Resource_GLOBAL && arg.Resource != api.Resource_VRF {
 			return fmt.Errorf("unsupported resource: %s", arg.Resource)
 		}
 
-		reqType := REQ_GLOBAL_ADD
-		if arg.IsWithdraw {
-			reqType = REQ_GLOBAL_DELETE
-		}
-
-		req := NewGrpcRequest(reqType, "", bgp.RouteFamily(0), arg)
+		req := NewGrpcRequest(REQ_MOD_PATH, arg.Name, bgp.RouteFamily(0), arg)
 		s.bgpServerCh <- req
 
 		res := <-req.ResponseCh
@@ -360,7 +357,7 @@ func (s *Server) GetNeighborPolicy(ctx context.Context, arg *api.Arguments) (*ap
 		return nil, err
 	}
 
-	req := NewGrpcRequest(REQ_NEIGHBOR_POLICY, arg.NeighborAddress, rf, nil)
+	req := NewGrpcRequest(REQ_NEIGHBOR_POLICY, arg.Name, rf, nil)
 	s.bgpServerCh <- req
 
 	res := <-req.ResponseCh
@@ -639,6 +636,54 @@ func (s *Server) GetRPKI(arg *api.Arguments, stream api.Grpc_GetRPKIServer) erro
 		}
 	}
 	return nil
+}
+
+func (s *Server) GetVrf(arg *api.Arguments, stream api.Grpc_GetVrfServer) error {
+	rf, err := convertAf2Rf(arg.Af)
+	if err != nil {
+		return err
+	}
+	req := NewGrpcRequest(REQ_VRF, "", rf, arg)
+	s.bgpServerCh <- req
+
+	for res := range req.ResponseCh {
+		if err := res.Err(); err != nil {
+			log.Debug(err.Error())
+			return err
+		}
+		if err := stream.Send(res.Data.(*api.Path)); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func (s *Server) GetVrfs(arg *api.Arguments, stream api.Grpc_GetVrfsServer) error {
+	req := NewGrpcRequest(REQ_VRFS, "", bgp.RouteFamily(0), nil)
+	s.bgpServerCh <- req
+
+	for res := range req.ResponseCh {
+		if err := res.Err(); err != nil {
+			log.Debug(err.Error())
+			return err
+		}
+		if err := stream.Send(res.Data.(*api.Vrf)); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func (s *Server) ModVrf(ctx context.Context, arg *api.ModVrfArguments) (*api.Error, error) {
+	none := &api.Error{}
+	req := NewGrpcRequest(REQ_VRF_MOD, "", bgp.RouteFamily(0), arg)
+	s.bgpServerCh <- req
+
+	res := <-req.ResponseCh
+	if err := res.Err(); err != nil {
+		return none, err
+	}
+	return none, nil
 }
 
 type GrpcRequest struct {
