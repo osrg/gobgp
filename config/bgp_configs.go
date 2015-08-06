@@ -503,6 +503,16 @@ type Timers struct {
 	TimersState TimersState
 }
 
+//struct for container bgp:admin-operation
+type AdminOperation struct {
+	// original -> bgp-op:admin-up
+	//bgp-op:admin-up's original type is boolean
+	AdminUp bool
+	// original -> bgp-op:admin-down
+	//bgp-op:admin-down's original type is boolean
+	AdminDown bool
+}
+
 //struct for container bgp:queues
 type Queues struct {
 	// original -> bgp-op:input
@@ -599,6 +609,8 @@ type NeighborState struct {
 	Messages Messages
 	// original -> bgp:queues
 	Queues Queues
+	// original -> bgp:admin-operation
+	AdminOperation AdminOperation
 }
 
 //struct for container bgp:config
