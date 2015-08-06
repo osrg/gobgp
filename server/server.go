@@ -1123,7 +1123,7 @@ func (server *BgpServer) handleGrpc(grpcReq *GrpcRequest) []*SenderMsg {
 		if err != nil {
 			break
 		}
-		if peer.fsm.adminState != ADMIN_STATE_DOWN {
+		if peer.isRouteServerClient() && peer.fsm.adminState != ADMIN_STATE_DOWN {
 			remoteAddr := grpcReq.Name
 			if t, ok := server.localRibMap[remoteAddr].rib.Tables[grpcReq.RouteFamily]; ok {
 				for _, dst := range t.GetDestinations() {
