@@ -53,12 +53,12 @@ func modPath(modtype string, args []string) error {
 	var rts []string
 
 	switch rf {
-	case api.AF_IPV4_UC, api.AF_IPV6_UC:
+	case bgp.RF_IPv4_UC, bgp.RF_IPv6_UC:
 		if len(args) != 1 {
 			return fmt.Errorf("usage: global rib %s <prefix> -a { ipv4 | ipv6 }", modtype)
 		}
 		ip, net, _ := net.ParseCIDR(args[0])
-		if rf == api.AF_IPV4_UC {
+		if rf == bgp.RF_IPv4_UC {
 			if ip.To4() == nil {
 				return fmt.Errorf("invalid ipv4 prefix")
 			}
@@ -73,7 +73,7 @@ func modPath(modtype string, args []string) error {
 			ones, _ := net.Mask.Size()
 			nlri = bgp.NewIPv6AddrPrefix(uint8(ones), ip.String())
 		}
-	case api.AF_IPV4_VPN, api.AF_IPV6_VPN:
+	case bgp.RF_IPv4_VPN, bgp.RF_IPv6_VPN:
 		if len(args) < 3 || args[1] != "rd" || args[3] != "rt" {
 			return fmt.Errorf("usage: global rib %s <prefix> rd <rd> rt <rt>... -a { vpn-ipv4 | vpn-ipv6 }", modtype)
 		}
@@ -89,7 +89,7 @@ func modPath(modtype string, args []string) error {
 
 		mpls := bgp.NewMPLSLabelStack()
 
-		if rf == api.AF_IPV4_VPN {
+		if rf == bgp.RF_IPv4_VPN {
 			if ip.To4() == nil {
 				return fmt.Errorf("invalid ipv4 prefix")
 			}
@@ -103,7 +103,7 @@ func modPath(modtype string, args []string) error {
 			nlri = bgp.NewLabeledVPNIPv6AddrPrefix(uint8(ones), ip.String(), *mpls, rd)
 		}
 
-	case api.AF_EVPN:
+	case bgp.RF_EVPN:
 		if len(args) < 1 {
 			return fmt.Errorf("usage: global rib %s { macadv | multicast } ... -a evpn", modtype)
 		}
@@ -216,7 +216,7 @@ func modPath(modtype string, args []string) error {
 		arg.IsWithdraw = true
 	}
 
-	if rf == api.AF_IPV4_UC {
+	if rf == bgp.RF_IPv4_UC {
 		arg.RawNlri, _ = nlri.Serialize()
 		n, _ := bgp.NewPathAttributeNextHop(nexthop).Serialize()
 		arg.RawPattrs = append(arg.RawPattrs, n)

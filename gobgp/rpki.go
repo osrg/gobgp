@@ -22,19 +22,19 @@ import (
 	"github.com/spf13/cobra"
 	"golang.org/x/net/context"
 	"io"
-	"sort"
 	"net"
 	"os"
+	"sort"
 )
 
 func showRPKITable(args []string) error {
-	af, err := checkAddressFamily(net.IP{})
+	rf, err := checkAddressFamily(net.IP{})
 	if err != nil {
 		fmt.Println(err)
 		os.Exit(1)
 	}
 	arg := &api.Arguments{
-		Af: af,
+		Rf: uint32(rf),
 	}
 	stream, err := client.GetRPKI(context.Background(), arg)
 	if err != nil {
@@ -53,7 +53,8 @@ func showRPKITable(args []string) error {
 	}
 	sort.Sort(l)
 	var format string
-	if af.Afi == bgp.AFI_IP {
+	afi, _ := bgp.RouteFamilyToAfiSafi(rf)
+	if afi == bgp.AFI_IP {
 		format = "%-18s %-6s %s\n"
 	} else {
 		format = "%-42s %-6s %s\n"
