@@ -552,9 +552,25 @@ func showPolicyAsPath(args []string) error {
 }
 
 func parseAsPathSet(eArgs []string) (*api.AsPathSet, error) {
-	regAsn, _ := regexp.Compile("^(\\^?)([0-9]+)(\\$?)$")
-	if !regAsn.MatchString(eArgs[1]) {
-		return nil, fmt.Errorf("invalid aspath: %s\nplease enter aspath format", eArgs[1])
+	as := eArgs[1]
+	isTop := as[:1] == "^"
+	if isTop {
+		as = as[1:]
+	}
+	isEnd := as[len(as)-1:] == "$"
+	if isEnd {
+		as = as[:len(as)-1]
+	}
+	elems := strings.Split(as, "_")
+	for _, el := range elems {
+		if len(el) == 0 {
+			return nil, fmt.Errorf("invalid aspath element: %s \ndo not enter a blank", eArgs[1])
+		}
+		_, err := regexp.Compile(el)
+		if err != nil {
+			return nil, fmt.Errorf("invalid aspath element: %s \n"+
+				"can not comple aspath values to regular expressions.", eArgs[1])
+		}
 	}
 	asPathSet := &api.AsPathSet{
 		AsPathSetName: eArgs[0],
