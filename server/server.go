@@ -691,7 +691,7 @@ func (server *BgpServer) handleFSMMessage(peer *Peer, e *fsmMsg, incoming chan *
 				"Topic": "Peer",
 				"Key":   peer.conf.NeighborConfig.NeighborAddress,
 				"Data":  e.MsgData,
-			}).Panic("unknonw msg type")
+			}).Panic("unknown msg type")
 		}
 	}
 	return msgs
