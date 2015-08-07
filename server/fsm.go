@@ -543,7 +543,7 @@ func (h *FSMHandler) opensent() bgp.FSMState {
 					"Key":   fsm.pConf.NeighborConfig.NeighborAddress,
 					"State": fsm.state,
 					"Data":  e.MsgData,
-				}).Panic("unknonw msg type")
+				}).Panic("unknown msg type")
 			}
 		case <-h.errorCh:
 			h.conn.Close()
@@ -645,7 +645,7 @@ func (h *FSMHandler) openconfirm() bgp.FSMState {
 					"Key":   fsm.pConf.NeighborConfig.NeighborAddress,
 					"State": fsm.state,
 					"Data":  e.MsgData,
-				}).Panic("unknonw msg type")
+				}).Panic("unknown msg type")
 			}
 		case <-h.errorCh:
 			h.conn.Close()
