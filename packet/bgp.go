@@ -1109,25 +1109,6 @@ func (r *LabeledIPAddrPrefix) SAFI() uint8 {
 	return SAFI_MPLS_LABEL
 }
 
-func (r *IPAddrPrefix) decodeNextHop(data []byte) net.IP {
-	if r.addrlen == 0 {
-		r.addrlen = 4
-	}
-	var next net.IP = data[0:r.addrlen]
-	return next
-}
-
-func (r *LabeledVPNIPAddrPrefix) decodeNextHop(data []byte) net.IP {
-	// skip rd
-	var next net.IP = data[8 : 8+r.addrlen]
-	return next
-}
-
-func (r *LabeledIPAddrPrefix) decodeNextHop(data []byte) net.IP {
-	var next net.IP = data[0:r.addrlen]
-	return next
-}
-
 func (l *LabeledIPAddrPrefix) DecodeFromBytes(data []byte) error {
 	l.Length = uint8(data[0])
 	data = data[1:]
