@@ -600,7 +600,6 @@ func TestAsPathConditionEvaluate(t *testing.T) {
 	path1 := table.ProcessMessage(updateMsg1, peer)[0]
 
 	aspathParam2 := []bgp.AsPathParamInterface{
-		bgp.NewAsPathParam(2, []uint16{65010}),
 		bgp.NewAsPathParam(1, []uint16{65010}),
 	}
 	aspath2 := bgp.NewPathAttributeAsPath(aspathParam2)
@@ -653,7 +652,6 @@ func TestAsPathConditionEvaluate(t *testing.T) {
 		},
 	}
 
-
 	asPathSetList := []config.AsPathSet{asPathSet1, asPathSet2, asPathSet3,
 		asPathSet4, asPathSet5, asPathSet6}
 
@@ -681,7 +679,7 @@ func TestAsPathConditionEvaluate(t *testing.T) {
 	assert.Equal(t, true, p2.evaluate(path1))
 	assert.Equal(t, true, p3.evaluate(path1))
 	assert.Equal(t, false, p4.evaluate(path1))
-	assert.Equal(t, false, p5.evaluate(path1))
+	assert.Equal(t, true, p5.evaluate(path1))
 	assert.Equal(t, false, p6.evaluate(path1))
 	assert.Equal(t, true, p6.evaluate(path2))
 
@@ -708,7 +706,6 @@ func TestMultipleAsPathConditionEvaluate(t *testing.T) {
 	updateMsg1 := bgp.NewBGPUpdateMessage(withdrawnRoutes, pathAttributes, nlri)
 	table.UpdatePathAttrs4ByteAs(updateMsg1.Body.(*bgp.BGPUpdate))
 	path1 := table.ProcessMessage(updateMsg1, peer)[0]
-
 
 	// create match condition
 	asPathSet1 := config.AsPathSet{
@@ -742,7 +739,7 @@ func TestMultipleAsPathConditionEvaluate(t *testing.T) {
 	asPathSet5 := config.AsPathSet{
 		AsPathSetName: "asset5",
 		AsPathList: []config.AsPath{
-			config.AsPath{AsPath: "^65001_65000_54000_65004_65005$"},
+			config.AsPath{AsPath: "^65001 65000 54000 65004 65005 65001,65010,54000,65004,65005$"},
 		},
 	}
 
@@ -803,10 +800,9 @@ func TestMultipleAsPathConditionEvaluate(t *testing.T) {
 	assert.Equal(t, true, p5.evaluate(path1))
 	assert.Equal(t, true, p6.evaluate(path1))
 	assert.Equal(t, true, p7.evaluate(path1))
-	assert.Equal(t, false, p8.evaluate(path1))
+	assert.Equal(t, true, p8.evaluate(path1))
 	assert.Equal(t, false, p9.evaluate(path1))
 }
-
 
 func TestAsPathConditionWithOtherCondition(t *testing.T) {
 

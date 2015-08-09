@@ -297,6 +297,34 @@ func (path *Path) GetAsPathLen() int {
 	return length
 }
 
+func (path *Path) GetAsString() string {
+	r := ""
+	if _, attr := path.getPathAttr(bgp.BGP_ATTR_TYPE_AS_PATH); attr != nil {
+		aspath := attr.(*bgp.PathAttributeAsPath)
+		for i, paramIf := range aspath.Value {
+			segment := paramIf.(*bgp.As4PathParam)
+			if i != 0 {
+				r += " "
+			}
+
+			sep := " "
+			switch segment.Type {
+			case bgp.BGP_ASPATH_ATTR_TYPE_SET, bgp.BGP_ASPATH_ATTR_TYPE_CONFED_SET:
+				sep = ","
+			case bgp.BGP_ASPATH_ATTR_TYPE_SEQ, bgp.BGP_ASPATH_ATTR_TYPE_CONFED_SEQ:
+				sep = " "
+			}
+			for j, as := range segment.AS {
+				r += fmt.Sprintf("%d", as)
+				if j != len(segment.AS)-1 {
+					r += sep
+				}
+			}
+		}
+	}
+	return r
+}
+
 func (path *Path) GetAsList() []uint32 {
 	return path.getAsListofSpecificType(true, true)
 
