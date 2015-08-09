@@ -24,9 +24,11 @@ import (
 	"github.com/stretchr/testify/assert"
 	"math"
 	"net"
+	"regexp"
 	"strconv"
 	"strings"
 	"testing"
+	"time"
 )
 
 func init() {
@@ -600,7 +602,6 @@ func TestAsPathConditionEvaluate(t *testing.T) {
 	path1 := table.ProcessMessage(updateMsg1, peer)[0]
 
 	aspathParam2 := []bgp.AsPathParamInterface{
-		bgp.NewAsPathParam(2, []uint16{65010}),
 		bgp.NewAsPathParam(1, []uint16{65010}),
 	}
 	aspath2 := bgp.NewPathAttributeAsPath(aspathParam2)
@@ -653,7 +654,6 @@ func TestAsPathConditionEvaluate(t *testing.T) {
 		},
 	}
 
-
 	asPathSetList := []config.AsPathSet{asPathSet1, asPathSet2, asPathSet3,
 		asPathSet4, asPathSet5, asPathSet6}
 
@@ -681,7 +681,7 @@ func TestAsPathConditionEvaluate(t *testing.T) {
 	assert.Equal(t, true, p2.evaluate(path1))
 	assert.Equal(t, true, p3.evaluate(path1))
 	assert.Equal(t, false, p4.evaluate(path1))
-	assert.Equal(t, false, p5.evaluate(path1))
+	assert.Equal(t, true, p5.evaluate(path1))
 	assert.Equal(t, false, p6.evaluate(path1))
 	assert.Equal(t, true, p6.evaluate(path2))
 
@@ -708,7 +708,6 @@ func TestMultipleAsPathConditionEvaluate(t *testing.T) {
 	updateMsg1 := bgp.NewBGPUpdateMessage(withdrawnRoutes, pathAttributes, nlri)
 	table.UpdatePathAttrs4ByteAs(updateMsg1.Body.(*bgp.BGPUpdate))
 	path1 := table.ProcessMessage(updateMsg1, peer)[0]
-
 
 	// create match condition
 	asPathSet1 := config.AsPathSet{
@@ -742,7 +741,7 @@ func TestMultipleAsPathConditionEvaluate(t *testing.T) {
 	asPathSet5 := config.AsPathSet{
 		AsPathSetName: "asset5",
 		AsPathList: []config.AsPath{
-			config.AsPath{AsPath: "^65001_65000_54000_65004_65005$"},
+			config.AsPath{AsPath: "^65001 65000 54000 65004 65005 65001,65010,54000,65004,65005$"},
 		},
 	}
 
@@ -803,10 +802,76 @@ func TestMultipleAsPathConditionEvaluate(t *testing.T) {
 	assert.Equal(t, true, p5.evaluate(path1))
 	assert.Equal(t, true, p6.evaluate(path1))
 	assert.Equal(t, true, p7.evaluate(path1))
-	assert.Equal(t, false, p8.evaluate(path1))
+	assert.Equal(t, true, p8.evaluate(path1))
 	assert.Equal(t, false, p9.evaluate(path1))
 }
 
+func TestAsPathCondition(t *testing.T) {
+	type astest struct {
+		path   *table.Path
+		result bool
+	}
+
+	makeTest := func(asPathAttrType uint8, ases []uint32, result bool) astest {
+		aspathParam := []bgp.AsPathParamInterface{
+			bgp.NewAs4PathParam(asPathAttrType, ases),
+		}
+		pathAttributes := []bgp.PathAttributeInterface{bgp.NewPathAttributeAsPath(aspathParam)}
+		p := table.NewPath(nil, nil, false, pathAttributes, false, time.Time{}, false)
+		return astest{
+			path:   p,
+			result: result,
+		}
+	}
+
+	tests := make(map[string][]astest)
+
+	tests["^(100_)+(200_)+$"] = []astest{
+		makeTest(bgp.BGP_ASPATH_ATTR_TYPE_SEQ, []uint32{100, 200}, true),
+		makeTest(bgp.BGP_ASPATH_ATTR_TYPE_SEQ, []uint32{100, 100, 200}, true),
+		makeTest(bgp.BGP_ASPATH_ATTR_TYPE_SEQ, []uint32{100, 100, 200, 200}, true),
+		makeTest(bgp.BGP_ASPATH_ATTR_TYPE_SEQ, []uint32{100, 100, 200, 200, 300}, false),
+	}
+
+	aslen255 := func() []uint32 {
+		r := make([]uint32, 255)
+		for i := 0; i < 255; i++ {
+			r[i] = 1
+		}
+		return r
+	}()
+	tests["^([0-9]+_){0,255}$"] = []astest{
+		makeTest(bgp.BGP_ASPATH_ATTR_TYPE_SEQ, aslen255, true),
+		makeTest(bgp.BGP_ASPATH_ATTR_TYPE_SEQ, append(aslen255, 1), false),
+	}
+
+	tests["(_7521)$"] = []astest{
+		makeTest(bgp.BGP_ASPATH_ATTR_TYPE_SEQ, []uint32{7521}, true),
+		makeTest(bgp.BGP_ASPATH_ATTR_TYPE_SEQ, []uint32{1000, 7521}, true),
+		makeTest(bgp.BGP_ASPATH_ATTR_TYPE_SEQ, []uint32{7521, 1000}, false),
+		makeTest(bgp.BGP_ASPATH_ATTR_TYPE_SEQ, []uint32{1000, 7521, 100}, false),
+	}
+
+	for k, v := range tests {
+		r, _ := regexp.Compile(strings.Replace(k, "_", ASPATH_REGEXP_MAGIC, -1))
+		c := &AsPathCondition{
+			AsRegExpList: []*regexp.Regexp{r},
+			MatchOption:  config.MATCH_SET_OPTIONS_TYPE_ANY,
+		}
+		for _, a := range v {
+			result := c.evaluate(a.path)
+			if a.result != result {
+				log.WithFields(log.Fields{
+					"EXP":      k,
+					"ASN":      r,
+					"ASSTR":    a.path.GetAsString(),
+					"Expected": a.result,
+					"Result":   result,
+				}).Fatal("failed")
+			}
+		}
+	}
+}
 
 func TestAsPathConditionWithOtherCondition(t *testing.T) {
 
