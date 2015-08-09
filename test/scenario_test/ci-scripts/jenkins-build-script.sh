@@ -59,14 +59,20 @@ PID6=$!
 sudo -E python evpn_test.py --gobgp-image $GOBGP_IMAGE --test-prefix evpn -s -x --with-xunit --xunit-file=${WS}/nosetest_evpn.xml&
 PID7=$!
 
+# flowspec test
+sudo -E python flow_spec_test.py --gobgp-image $GOBGP_IMAGE --test-prefix flow -s -x --with-xunit --xunit-file=${WS}/nosetest_flow.xml&
+PID8=$!
+
 wait $PID5
 RET5=$?
 wait $PID6
 RET6=$?
 wait $PID7
 RET7=$?
+wait $PID8
+RET8=$?
 
-if [ $RET1 != 0 ] || [ $RET2 != 0 ] || [ $RET3 != 0 ] || [ $RET4 != 0 ] || [ $RET5 != 0 ] || [ $RET6 != 0 ] || [ $RET7 != 0 ]; then
+if [ $RET1 != 0 ] || [ $RET2 != 0 ] || [ $RET3 != 0 ] || [ $RET4 != 0 ] || [ $RET5 != 0 ] || [ $RET6 != 0 ] || [ $RET7 != 0 ] || [ $RET8 != 0 ]; then
   exit 1
 fi
 exit 0
