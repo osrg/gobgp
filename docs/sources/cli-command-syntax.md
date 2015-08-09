@@ -11,6 +11,9 @@ gobgp has three subcommands.
 - global
 - neighbor
 - policy
+- vrf
+- monitor
+- mrt
 
 
 ## 1. global subcommand
@@ -361,3 +364,120 @@ The following options can be specified in the policy subcommand:
 |-       |a-med       |specify the med operation of the route that match to the conditions                                            |
 |-       |a-asprepend |specify a combination of an AS number and repeat count(e.g. 65100,10) to prepend if the path matches conditions|
 
+## 4. vrf subcommand
+### 4.1 Add/Delete/Show VRF
+#### Syntax
+```shell
+# add vrf
+% gobgp vrf add <vrf name> rd <rd> rt {import|export|both} <rt>...
+# del vrf
+% gobgp vrf del <vrf name>
+# show vrf
+% gobgp vrf
+```
+
+#### Example
+```shell
+% gobgp vrf add vrf1 rd 10.100:100 rt both 10.100:100 import 10.100:101 export 10.100:102
+% gobgp vrf
+  Name                 RD                   Import RT                  Export RT
+  vrf1                 10.100:100           10.100:100, 10.100:101     10.100:100, 10.100:101
+% gobgp vrf del vrf1
+% gobgp vrf
+  Name                 RD                   Import RT            Export RT
+```
+
+### 4.2 Add/Delete/Show VRF routes
+#### Syntax
+```shell
+# add routes to vrf
+% gobgp vrf <vrf name> rib add <prefix> -a <address family>
+# del routes from vrf
+% gobgp vrf <vrf name> rib del <prefix> -a <address family>
+# show routes in vrf
+% gobgp vrf <vrf name>
+```
+
+#### Example
+```shell
+% gobgp vrf vrf1 rib add 10.0.0.0/24
+% gobgp vrf vrf1 rib add 2001::/64 -a ipv6
+% gobgp vrf vrf1 rib
+  Network                Next Hop             AS_PATH              Age        Attrs
+  10.100:100:10.0.0.0/24 0.0.0.0                                   00:00:40   [{Origin: i} {Extcomms: [10.100:100], [10.100:101]}]
+% gobgp vrf vrf1 rib -a ipv6
+  Network              Next Hop             AS_PATH              Age        Attrs
+  10.100:100:2001::/64 ::                                        00:00:00   [{Origin: i} {Extcomms: [10.100:100], [10.100:101]}]
+% gobgp vrf vrf1 rib del 10.0.0.0/24
+% gobgp vrf vrf1 rib del 2001::/64
+```
+
+## 5. monitor subcommand
+### 5.1 monitor global rib
+#### Syntax
+```shell
+# monitor global rib
+% gobgp monitor global rib
+```
+
+#### Example
+```shell
+[TERM1]
+% gobgp monitor global rib
+[ROUTE] 10.0.0.0/24 via 0.0.0.0 aspath [] attrs [{Origin: i}]
+
+[TERM2]
+# monitor command blocks. add routes from another terminal
+% gobgp global rib add 10.0.0.0/24
+```
+
+### 5.2 monitor neighbor status
+#### Syntax
+```shell
+# monitor neighbor status
+% gobgp monitor neighbor
+# monitor specific neighbor status
+% gobgp monitor neighbor <neighbor address>
+```
+
+#### Example
+```shell
+[TERM1]
+% gobgp monitor neighbor
+[NEIGH] 192.168.10.2 fsm: BGP_FSM_IDLE admin: ADMIN_STATE_DOWN
+[NEIGH] 192.168.10.2 fsm: BGP_FSM_ACTIVE admin: ADMIN_STATE_UP
+[NEIGH] 192.168.10.2 fsm: BGP_FSM_OPENSENT admin: ADMIN_STATE_UP
+[NEIGH] 192.168.10.2 fsm: BGP_FSM_OPENCONFIRM admin: ADMIN_STATE_UP
+[NEIGH] 192.168.10.2 fsm: BGP_FSM_ESTABLISHED admin: ADMIN_STATE_UP
+
+[TERM2]
+% gobgp neighbor 192.168.10.2 disable
+% gobgp neighbor 192.168.10.2 enable
+```
+
+## 6. mrt subcommand
+### 6.1 dump mrt records
+#### Syntax
+```shell
+% gobgp mrt dump rib global [<interval>]
+% gobgp mrt dump rib neighbor <neighbor address> [<interval>]
+```
+
+#### Options
+
+| short  |long    | description                    |
+|--------|--------|--------------------------------|
+| f      | format | filename format                |
+| o      | outdir | output directory of dump files |
+
+#### Example
+see [MRT](https://github.com/osrg/gobgp/blob/master/docs/sources/mrt.md).
+
+### 6.2 inject mrt records
+#### Syntax
+```shell
+% gobgp mrt inject global <filename> [<count>]
+```
+
+#### Example
+see [MRT](https://github.com/osrg/gobgp/blob/master/docs/sources/mrt.md).
