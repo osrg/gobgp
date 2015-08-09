@@ -410,6 +410,10 @@ func checkAddressFamily(ip net.IP) (bgp.RouteFamily, error) {
 		rf = bgp.RF_ENCAP
 	case "rtc":
 		rf = bgp.RF_RTC_UC
+	case "flow-ipv4", "flow4":
+		rf = bgp.RF_FS_IPv4_UC
+	case "flow-vpnv4", "flowvpn4":
+		rf = bgp.RF_FS_IPv4_VPN
 	case "":
 		if len(ip) == 0 || ip.To4() != nil {
 			rf = bgp.RF_IPv4_UC
