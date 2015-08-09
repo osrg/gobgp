@@ -62,9 +62,9 @@ func update() *BGPMessage {
 	isTransitive := true
 
 	ecommunities := []ExtendedCommunityInterface{
-		NewTwoOctetAsSpecificExtended(10003, 3<<20, isTransitive),
-		NewFourOctetAsSpecificExtended(1<<20, 300, isTransitive),
-		NewIPv4AddressSpecificExtended("192.2.1.2", 3000, isTransitive),
+		NewTwoOctetAsSpecificExtended(EC_SUBTYPE_ROUTE_TARGET, 10003, 3<<20, isTransitive),
+		NewFourOctetAsSpecificExtended(EC_SUBTYPE_ROUTE_TARGET, 1<<20, 300, isTransitive),
+		NewIPv4AddressSpecificExtended(EC_SUBTYPE_ROUTE_TARGET, "192.2.1.2", 3000, isTransitive),
 		&OpaqueExtended{
 			Value: &DefaultOpaqueExtendedValue{[]byte{0, 1, 2, 3, 4, 5, 6, 7}},
 		},
@@ -390,4 +390,75 @@ func Test_MPLSLabelStack(t *testing.T) {
 	assert.Nil(mpls.DecodeFromBytes(buf))
 	assert.Equal(1, len(mpls.Labels))
 	assert.Equal(WITHDRAW_LABEL, mpls.Labels[0])
+}
+
+func Test_FlowSpecNlri(t *testing.T) {
+	assert := assert.New(t)
+	cmp := make([]FlowSpecComponentInterface, 0)
+	cmp = append(cmp, NewFlowSpecDestinationPrefix(NewIPAddrPrefix(24, "10.0.0.0")))
+	cmp = append(cmp, NewFlowSpecSourcePrefix(NewIPAddrPrefix(24, "10.0.0.0")))
+	eq := 0x1
+	gt := 0x2
+	lt := 0x4
+	and := 0x40
+	not := 0x2
+	item1 := NewFlowSpecComponentItem(eq, TCP)
+	cmp = append(cmp, NewFlowSpecComponent(FLOW_SPEC_TYPE_IP_PROTO, []*FlowSpecComponentItem{item1}))
+	item2 := NewFlowSpecComponentItem(gt|eq, 20)
+	item3 := NewFlowSpecComponentItem(and|lt|eq, 30)
+	item4 := NewFlowSpecComponentItem(eq, 10)
+	cmp = append(cmp, NewFlowSpecComponent(FLOW_SPEC_TYPE_PORT, []*FlowSpecComponentItem{item2, item3, item4}))
+	cmp = append(cmp, NewFlowSpecComponent(FLOW_SPEC_TYPE_DST_PORT, []*FlowSpecComponentItem{item2, item3, item4}))
+	cmp = append(cmp, NewFlowSpecComponent(FLOW_SPEC_TYPE_SRC_PORT, []*FlowSpecComponentItem{item2, item3, item4}))
+	cmp = append(cmp, NewFlowSpecComponent(FLOW_SPEC_TYPE_ICMP_TYPE, []*FlowSpecComponentItem{item2, item3, item4}))
+	cmp = append(cmp, NewFlowSpecComponent(FLOW_SPEC_TYPE_ICMP_CODE, []*FlowSpecComponentItem{item2, item3, item4}))
+	cmp = append(cmp, NewFlowSpecComponent(FLOW_SPEC_TYPE_PKT_LEN, []*FlowSpecComponentItem{item2, item3, item4}))
+	cmp = append(cmp, NewFlowSpecComponent(FLOW_SPEC_TYPE_DSCP, []*FlowSpecComponentItem{item2, item3, item4}))
+	isFlagment := 0x02
+	item5 := NewFlowSpecComponentItem(isFlagment, 0)
+	cmp = append(cmp, NewFlowSpecComponent(FLOW_SPEC_TYPE_FRAGMENT, []*FlowSpecComponentItem{item5}))
+	item6 := NewFlowSpecComponentItem(0, TCP_FLAG_ACK)
+	item7 := NewFlowSpecComponentItem(and|not, TCP_FLAG_URGENT)
+	cmp = append(cmp, NewFlowSpecComponent(FLOW_SPEC_TYPE_TCP_FLAG, []*FlowSpecComponentItem{item6, item7}))
+	n1 := NewFlowSpecIPv4Unicast(cmp)
+	buf1, err := n1.Serialize()
+	assert.Nil(err)
+	n2, err := NewPrefixFromRouteFamily(RouteFamilyToAfiSafi(RF_FS_IPv4_UC))
+	assert.Nil(err)
+	err = n2.DecodeFromBytes(buf1)
+	assert.Nil(err)
+	buf2, _ := n2.Serialize()
+	if reflect.DeepEqual(n1, n2) == true {
+		t.Log("OK")
+	} else {
+		t.Error("Something wrong")
+		t.Error(len(buf1), n1, buf1)
+		t.Error(len(buf2), n2, buf2)
+		t.Log(bytes.Equal(buf1, buf2))
+	}
+}
+
+func Test_FlowSpecExtended(t *testing.T) {
+	assert := assert.New(t)
+	exts := make([]ExtendedCommunityInterface, 0)
+	exts = append(exts, NewTrafficRateExtended(100, 9600.0))
+	exts = append(exts, NewTrafficActionExtended(true, false))
+	exts = append(exts, NewRedirectTwoOctetAsSpecificExtended(1000, 1000))
+	exts = append(exts, NewRedirectIPv4AddressSpecificExtended("10.0.0.1", 1000))
+	exts = append(exts, NewRedirectFourOctetAsSpecificExtended(10000000, 1000))
+	exts = append(exts, NewTrafficRemarkExtended(10))
+	m1 := NewPathAttributeExtendedCommunities(exts)
+	buf1, err := m1.Serialize()
+	assert.Nil(err)
+	m2 := NewPathAttributeExtendedCommunities(nil)
+	err = m2.DecodeFromBytes(buf1)
+	assert.Nil(err)
+	buf2, _ := m2.Serialize()
+	if reflect.DeepEqual(m1, m2) == true {
+		t.Log("OK")
+	} else {
+		t.Error("Something wrong")
+		t.Error(len(buf1), m1, buf1)
+		t.Error(len(buf2), m2, buf2)
+	}
 }
