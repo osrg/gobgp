@@ -24,9 +24,11 @@ import (
 	"github.com/stretchr/testify/assert"
 	"math"
 	"net"
+	"regexp"
 	"strconv"
 	"strings"
 	"testing"
+	"time"
 )
 
 func init() {
@@ -802,6 +804,73 @@ func TestMultipleAsPathConditionEvaluate(t *testing.T) {
 	assert.Equal(t, true, p7.evaluate(path1))
 	assert.Equal(t, true, p8.evaluate(path1))
 	assert.Equal(t, false, p9.evaluate(path1))
+}
+
+func TestAsPathCondition(t *testing.T) {
+	type astest struct {
+		path   *table.Path
+		result bool
+	}
+
+	makeTest := func(asPathAttrType uint8, ases []uint32, result bool) astest {
+		aspathParam := []bgp.AsPathParamInterface{
+			bgp.NewAs4PathParam(asPathAttrType, ases),
+		}
+		pathAttributes := []bgp.PathAttributeInterface{bgp.NewPathAttributeAsPath(aspathParam)}
+		p := table.NewPath(nil, nil, false, pathAttributes, false, time.Time{}, false)
+		return astest{
+			path:   p,
+			result: result,
+		}
+	}
+
+	tests := make(map[string][]astest)
+
+	tests["^(100_)+(200_)+$"] = []astest{
+		makeTest(bgp.BGP_ASPATH_ATTR_TYPE_SEQ, []uint32{100, 200}, true),
+		makeTest(bgp.BGP_ASPATH_ATTR_TYPE_SEQ, []uint32{100, 100, 200}, true),
+		makeTest(bgp.BGP_ASPATH_ATTR_TYPE_SEQ, []uint32{100, 100, 200, 200}, true),
+		makeTest(bgp.BGP_ASPATH_ATTR_TYPE_SEQ, []uint32{100, 100, 200, 200, 300}, false),
+	}
+
+	aslen255 := func() []uint32 {
+		r := make([]uint32, 255)
+		for i := 0; i < 255; i++ {
+			r[i] = 1
+		}
+		return r
+	}()
+	tests["^([0-9]+_){0,255}$"] = []astest{
+		makeTest(bgp.BGP_ASPATH_ATTR_TYPE_SEQ, aslen255, true),
+		makeTest(bgp.BGP_ASPATH_ATTR_TYPE_SEQ, append(aslen255, 1), false),
+	}
+
+	tests["(_7521)$"] = []astest{
+		makeTest(bgp.BGP_ASPATH_ATTR_TYPE_SEQ, []uint32{7521}, true),
+		makeTest(bgp.BGP_ASPATH_ATTR_TYPE_SEQ, []uint32{1000, 7521}, true),
+		makeTest(bgp.BGP_ASPATH_ATTR_TYPE_SEQ, []uint32{7521, 1000}, false),
+		makeTest(bgp.BGP_ASPATH_ATTR_TYPE_SEQ, []uint32{1000, 7521, 100}, false),
+	}
+
+	for k, v := range tests {
+		r, _ := regexp.Compile(strings.Replace(k, "_", ASPATH_REGEXP_MAGIC, -1))
+		c := &AsPathCondition{
+			AsRegExpList: []*regexp.Regexp{r},
+			MatchOption:  config.MATCH_SET_OPTIONS_TYPE_ANY,
+		}
+		for _, a := range v {
+			result := c.evaluate(a.path)
+			if a.result != result {
+				log.WithFields(log.Fields{
+					"EXP":      k,
+					"ASN":      r,
+					"ASSTR":    a.path.GetAsString(),
+					"Expected": a.result,
+					"Result":   result,
+				}).Fatal("failed")
+			}
+		}
+	}
 }
 
 func TestAsPathConditionWithOtherCondition(t *testing.T) {

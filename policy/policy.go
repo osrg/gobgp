@@ -383,8 +383,8 @@ func (c *AsPathLengthCondition) evaluate(path *table.Path) bool {
 
 type AsPathCondition struct {
 	DefaultCondition
-	AsPathList  []*AsPathElement
-	MatchOption config.MatchSetOptionsType
+	AsRegExpList []*regexp.Regexp
+	MatchOption  config.MatchSetOptionsType
 }
 
 type AsnPos int
@@ -396,21 +396,21 @@ const (
 	AS_ONLY
 )
 
-type AsPathElement struct {
-	asRegExps *regexp.Regexp
-}
+const (
+	ASPATH_REGEXP_MAGIC = "(^|[,{}() ]|$)"
+)
 
 func NewAsPathCondition(matchSet config.MatchAsPathSet, defAsPathSetList []config.AsPathSet) *AsPathCondition {
 	asPathSetName := matchSet.AsPathSet
 	options := matchSet.MatchSetOptions
 
-	asPathList := make([]*AsPathElement, 0)
+	asRegExpList := make([]*regexp.Regexp, 0)
 	for _, asPathSet := range defAsPathSetList {
 		if asPathSet.AsPathSetName == asPathSetName {
 			for _, aspath := range asPathSet.AsPathList {
 				a := aspath.AsPath
 				if len(a) != 0 {
-					r, err := regexp.Compile(strings.Replace(a, "_", "(^|[,{}() ]|$)", -1))
+					r, err := regexp.Compile(strings.Replace(a, "_", ASPATH_REGEXP_MAGIC, -1))
 					if err != nil {
 						log.WithFields(log.Fields{
 							"Topic": "Policy",
@@ -421,9 +421,7 @@ func NewAsPathCondition(matchSet config.MatchAsPathSet, defAsPathSetList []confi
 						return nil
 					}
 
-					e := &AsPathElement{}
-					e.asRegExps = r
-					asPathList = append(asPathList, e)
+					asRegExpList = append(asRegExpList, r)
 				} else {
 					log.WithFields(log.Fields{
 						"Topic": "Policy",
@@ -433,8 +431,8 @@ func NewAsPathCondition(matchSet config.MatchAsPathSet, defAsPathSetList []confi
 				}
 			}
 			c := &AsPathCondition{
-				AsPathList:  asPathList,
-				MatchOption: options,
+				AsRegExpList: asRegExpList,
+				MatchOption:  options,
 			}
 			return c
 		}
@@ -443,13 +441,13 @@ func NewAsPathCondition(matchSet config.MatchAsPathSet, defAsPathSetList []confi
 }
 
 func (c *AsPathCondition) checkMembers(aspathStr string, checkAll bool) bool {
-	for _, member := range c.AsPathList {
-		if member.asRegExps.MatchString(aspathStr) {
+	for _, r := range c.AsRegExpList {
+		if r.MatchString(aspathStr) {
 			log.WithFields(log.Fields{
 				"Topic":     "Policy",
 				"Condition": "aspath length",
 				"AS":        aspathStr,
-				"ASN":       member.asRegExps,
+				"ASN":       r,
 			}).Debug("aspath condition matched")
 
 			if !checkAll {
