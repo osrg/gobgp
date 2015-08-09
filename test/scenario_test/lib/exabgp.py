@@ -29,10 +29,9 @@ class ExaBGPContainer(BGPContainer):
 
     def _start_exabgp(self):
         cmd = CmdBuffer(' ')
-        cmd << 'docker exec -d {0}'.format(self.name)
         cmd << 'env exabgp.log.destination={0}/exabgpd.log'.format(self.SHARED_VOLUME)
         cmd << './exabgp/sbin/exabgp {0}/exabgpd.conf'.format(self.SHARED_VOLUME)
-        local(str(cmd), capture=True)
+        self.local(str(cmd), flag='-d')
 
     def _update_exabgp(self):
         c = CmdBuffer()
@@ -51,9 +50,8 @@ class ExaBGPContainer(BGPContainer):
         local(cmd, capture=True)
         cmd = 'chmod 755 {0}/update.sh'.format(self.config_dir)
         local(cmd, capture=True)
-        cmd = 'docker exec {0} {1}/update.sh'.format(self.name,
-                                                     self.SHARED_VOLUME)
-        local(cmd, capture=True)
+        cmd = '{0}/update.sh'.format(self.SHARED_VOLUME)
+        self.local(cmd)
 
     def run(self):
         super(ExaBGPContainer, self).run()
@@ -78,13 +76,48 @@ class ExaBGPContainer(BGPContainer):
             cmd << '    local-as {0};'.format(self.asn)
             cmd << '    peer-as {0};'.format(peer.asn)
 
-            cmd << '    static {'
-            for route, attr in self.routes.iteritems():
-                if attr == '':
-                    cmd << '        route {0} next-hop {1};'.format(route, local_addr)
-                else:
-                    cmd << '        route {0} next-hop {1} attribute {2};'.format(route, local_addr, attr)
-            cmd << '    }'
+            routes = [r for r in self.routes.values() if r['rf'] == 'ipv4']
+
+            if len(routes) > 0:
+                cmd << '    static {'
+                for route in routes:
+                    if route['attr']:
+                        cmd << '        route {0} next-hop {1};'.format(route['prefix'], local_addr)
+                    else:
+                        cmd << '        route {0} next-hop {1} attribute {2};'.format(route['prefix'], local_addr, attr)
+                cmd << '    }'
+
+            routes = [r for r in self.routes.values() if r['rf'] == 'ipv4-flowspec']
+
+            if len(routes) > 0:
+                cmd << '    flow {'
+                for route in routes:
+                    cmd << '        route {0}{{'.format(route['prefix'])
+                    cmd << '            match {'
+                    for match in route['matchs']:
+                        cmd << '                {0};'.format(match)
+#                    cmd << '                source {0};'.format(route['prefix'])
+#                    cmd << '                destination 192.168.0.1/32;'
+#                    cmd << '                destination-port =3128 >8080&<8088;'
+#                    cmd << '                source-port >1024;'
+#                    cmd << '                port =14 =15 >10&<156;'
+#                    cmd << '                protocol udp;' # how to specify multiple ip protocols
+#                    cmd << '                packet-length >1000&<2000;'
+#                    cmd << '                tcp-flags !syn;'
+                    cmd << '            }'
+                    cmd << '            then {'
+                    for then in route['thens']:
+                        cmd << '                {0};'.format(then)
+#                    cmd << '                accept;'
+#                    cmd << '                discard;'
+#                    cmd << '                rate-limit 9600;'
+#                    cmd << '                redirect 1.2.3.4:100;'
+#                    cmd << '                redirect 100:100;'
+#                    cmd << '                mark 10;'
+#                    cmd << '                action sample-terminal;'
+                    cmd << '            }'
+                    cmd << '        }'
+                cmd << '    }'
             cmd << '}'
 
         with open('{0}/exabgpd.conf'.format(self.config_dir), 'w') as f:
@@ -92,8 +125,12 @@ class ExaBGPContainer(BGPContainer):
             f.write(str(cmd))
 
     def reload_config(self):
-        cmd = 'docker exec {0} /usr/bin/pkill exabgp -SIGALRM'.format(self.name)
-        try:
-            local(cmd, capture=True)
-        except:
-            self._start_exabgp()
+        ps = self.local('ps', capture=True)
+        running = False
+        for line in ps.split('\n')[1:]:
+            if 'python' in line:
+                running = True
+        if running:
+            self.local('/usr/bin/pkill python -SIGUSR1')
+        else:
+             self._start_exabgp()

@@ -28,45 +28,50 @@ set +e
 sudo -E pip install -r pip-requires.txt
 
 # route server test
-sudo -E python route_server_test.py --gobgp-image $GOBGP_IMAGE --go-path $GOROOT/bin -s --with-xunit
+sudo -E python route_server_test.py --gobgp-image $GOBGP_IMAGE --test-prefix rs -s --with-xunit --xunit-file=${WS}/nosetest.xml
 RET1=$?
-mv nosetests.xml ${WS}/nosetest.xml
 
 # route server ipv4 ipv6 test
-sudo -E python route_server_ipv4_v6_test.py --gobgp-image $GOBGP_IMAGE --go-path $GOROOT/bin -s --with-xunit
+sudo -E python route_server_ipv4_v6_test.py --gobgp-image $GOBGP_IMAGE --test-prefix v6 -s --with-xunit --xunit-file=${WS}/nosetest_ip.xml
 RET2=$?
-mv nosetests.xml ${WS}/nosetest_ip.xml
 
 # route server malformed message test
-sudo -E python route_server_malformed_test.py --gobgp-image $GOBGP_IMAGE --go-path $GOROOT/bin -s --with-xunit
+sudo -E python route_server_malformed_test.py --gobgp-image $GOBGP_IMAGE --go-path $GOROOT/bin -s --with-xunit --xunit-file=${WS}/nosetest_malformed.xml
 RET3=$?
-mv nosetests.xml ${WS}/nosetest_malformed.xml
 
 # route server policy test
-sudo -E python route_server_policy_test.py --gobgp-image $GOBGP_IMAGE --go-path $GOROOT/bin -s --with-xunit
+sudo -E python route_server_policy_test.py --gobgp-image $GOBGP_IMAGE --go-path $GOROOT/bin -s --with-xunit --xunit-file=${WS}/nosetest_policy.xml
 RET4=$?
-mv nosetests.xml ${WS}/nosetest_policy.xml
+
+if [ $RET1 != 0 ] || [ $RET2 != 0 ] || [ $RET3 != 0 ] || [ $RET4 != 0 ]; then
+    exit 1
+fi
+
+PIDS=()
 
 # bgp router test
 sudo -E python bgp_router_test.py --gobgp-image $GOBGP_IMAGE --test-prefix bgp -s -x --with-xunit --xunit-file=${WS}/nosetest_bgp.xml &
-PID5=$!
+PIDS=("${PIDS[@]}" $!)
 
 # ibgp router test
 sudo -E python ibgp_router_test.py --gobgp-image $GOBGP_IMAGE --test-prefix ibgp -s -x --with-xunit --xunit-file=${WS}/nosetest_ibgp.xml &
-PID6=$!
+PIDS=("${PIDS[@]}" $!)
 
 # evpn test
 sudo -E python evpn_test.py --gobgp-image $GOBGP_IMAGE --test-prefix evpn -s -x --with-xunit --xunit-file=${WS}/nosetest_evpn.xml&
-PID7=$!
+PIDS=("${PIDS[@]}" $!)
 
-wait $PID5
-RET5=$?
-wait $PID6
-RET6=$?
-wait $PID7
-RET7=$?
+# flowspec test
+sudo -E python flow_spec_test.py --gobgp-image $GOBGP_IMAGE --test-prefix flow -s -x --with-xunit --xunit-file=${WS}/nosetest_flow.xml&
+PIDS=("${PIDS[@]}" $!)
 
-if [ $RET1 != 0 ] || [ $RET2 != 0 ] || [ $RET3 != 0 ] || [ $RET4 != 0 ] || [ $RET5 != 0 ] || [ $RET6 != 0 ] || [ $RET7 != 0 ]; then
-  exit 1
-fi
+for (( i = 0; i < ${#PIDS[@]}; ++i ))
+do
+    wait ${PIDS[$i]}
+    if [ $? != 0 ]; then
+        exit 1
+    fi
+done
+
+echo 'all tests passed successfully'
 exit 0

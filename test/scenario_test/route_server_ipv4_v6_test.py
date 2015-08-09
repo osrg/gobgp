@@ -53,7 +53,7 @@ class GoBGPIPv6Test(unittest.TestCase):
 
         for idx, q in enumerate(v6):
             route = '2001:{0}::/96'.format(idx+1)
-            q.add_route(route)
+            q.add_route(route, rf='ipv6')
 
         initial_wait_time = max(ctn.run() for ctn in ctns)
 

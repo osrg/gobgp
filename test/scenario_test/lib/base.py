@@ -218,7 +218,8 @@ class BGPContainer(Container):
 
     def add_peer(self, peer, passwd='', evpn=False, is_rs_client=False,
                  policies=None, passive=False,
-                 is_rr_client=False, cluster_id=''):
+                 is_rr_client=False, cluster_id='',
+                 flowspec=False):
         neigh_addr = ''
         local_addr = ''
         for me, you in itertools.product(self.ip_addrs, peer.ip_addrs):
@@ -235,6 +236,7 @@ class BGPContainer(Container):
         self.peers[peer] = {'neigh_addr': neigh_addr,
                             'passwd': passwd,
                             'evpn': evpn,
+                            'flowspec': flowspec,
                             'is_rs_client': is_rs_client,
                             'is_rr_client': is_rr_client,
                             'cluster_id': cluster_id,
@@ -257,10 +259,12 @@ class BGPContainer(Container):
     def enable_peer(self, peer):
         raise Exception('implement enable_peer() method')
 
-    def add_route(self, route, rf='ipv4', attribute=''):
+    def add_route(self, route, rf='ipv4', attribute=None, matchs=None, thens=None):
         self.routes[route] = {'prefix': route,
                               'rf': rf,
-                              'attr': attribute}
+                              'attr': attribute,
+                              'matchs': matchs,
+                              'thens' : thens}
         if self.is_running:
             self.create_config()
             self.reload_config()
