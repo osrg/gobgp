@@ -67,12 +67,12 @@ def make_gobgp_ctn(tag='gobgp', local_gobgp_path=''):
         local_gobgp_path = os.getcwd()
 
     c = CmdBuffer()
-    c << 'FROM osrg/gobgp'
-    c << 'COPY gobgp /go/src/github.com/osrg/gobgp/'
+    c << 'FROM golang:1.4'
+    c << 'ADD gobgp /go/src/github.com/osrg/gobgp/'
     c << 'RUN go get github.com/osrg/gobgp/gobgpd'
-    c << 'RUN go install -a github.com/osrg/gobgp/gobgpd'
+    c << 'RUN go install github.com/osrg/gobgp/gobgpd'
     c << 'RUN go get github.com/osrg/gobgp/gobgp'
-    c << 'RUN go install -a github.com/osrg/gobgp/gobgp'
+    c << 'RUN go install github.com/osrg/gobgp/gobgp'
 
     rindex = local_gobgp_path.rindex('gobgp')
     if rindex < 0:
