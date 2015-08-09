@@ -863,13 +863,9 @@ func GetRouteDistinguisher(data []byte) RouteDistinguisherInterface {
 
 func parseRdAndRt(input string) ([]string, error) {
 	exp := regexp.MustCompile("^((\\d+)\\.(\\d+)\\.(\\d+)\\.(\\d+)|((\\d+)\\.)?(\\d+)):(\\d+)$")
-	group := exp.FindSubmatch([]byte(input))
-	if len(group) != 10 {
+	elems := exp.FindStringSubmatch(input)
+	if len(elems) != 10 {
 		return nil, fmt.Errorf("failed to parse")
-	}
-	elems := make([]string, 0, len(group))
-	for _, elem := range group {
-		elems = append(elems, string(elem))
 	}
 	return elems, nil
 }
