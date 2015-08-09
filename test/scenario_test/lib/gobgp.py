@@ -148,6 +148,9 @@ class GoBGPContainer(BGPContainer):
                 afi_safi_list.append({'AfiSafiName': 'encap'})
                 afi_safi_list.append({'AfiSafiName': 'rtc'})
 
+            if info['flowspec']:
+                afi_safi_list.append({'AfiSafiName': 'ipv4-flowspec'})
+
             n = {'NeighborConfig':
                  {'NeighborAddress': info['neigh_addr'].split('/')[0],
                   'PeerAs': peer.asn,
@@ -182,6 +185,12 @@ class GoBGPContainer(BGPContainer):
         cmd = '/usr/bin/pkill gobgpd -SIGHUP'
         self.local(cmd)
         for v in self.routes.itervalues():
-            cmd = 'gobgp global '\
-                  'rib add {0} -a {1}'.format(v['prefix'], v['rf'])
+            if v['rf'] == 'ipv4' or v['rf'] == 'ipv6':
+                cmd = 'gobgp global '\
+                      'rib add {0} -a {1}'.format(v['prefix'], v['rf'])
+            elif v['rf']== 'ipv4-flowspec':
+                cmd = 'gobgp global '\
+                      'rib add match {0} then {1} -a {2}'.format(' '.join(v['matchs']), ' '.join(v['thens']), v['rf'])
+            else:
+                raise Exception('unsupported route faily: {0}'.format(rf))
             self.local(cmd)

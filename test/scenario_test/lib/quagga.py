@@ -161,14 +161,16 @@ class QuaggaBGPContainer(BGPContainer):
                 c << 'neighbor {0} activate'.format(n_addr)
                 c << 'exit-address-family'
 
-        for route in self.routes.iterkeys():
-            version = netaddr.IPNetwork(route).version
-            if version == 4:
-                c << 'network {0}'.format(route)
-            elif version == 6:
+        for route in self.routes.itervalues():
+            if route['rf'] == 'ipv4':
+                c << 'network {0}'.format(route['prefix'])
+            elif route['rf'] == 'ipv6':
                 c << 'address-family ipv6 unicast'
-                c << 'network {0}'.format(route)
+                c << 'network {0}'.format(route['prefix'])
                 c << 'exit-address-family'
+            else:
+                raise Exception('unsupported route faily: {0}'.format(route['rf']))
+
 
         for name, policy in self.policies.iteritems():
             c << 'access-list {0} {1} {2}'.format(name, policy['type'],
