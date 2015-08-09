@@ -130,13 +130,17 @@ func (fsm *FSM) bgpMessageStateUpdate(MessageType uint8, isIn bool) {
 }
 
 func NewFSM(gConf *config.Global, pConf *config.Neighbor) *FSM {
+	adminState := ADMIN_STATE_UP
+	if pConf.NeighborState.AdminDown == true {
+		adminState = ADMIN_STATE_DOWN
+	}
 	fsm := &FSM{
 		gConf:            gConf,
 		pConf:            pConf,
 		state:            bgp.BGP_FSM_IDLE,
 		connCh:           make(chan net.Conn),
 		opensentHoldTime: float64(HOLDTIME_OPENSENT),
-		adminState:       ADMIN_STATE_UP,
+		adminState:       adminState,
 		adminStateCh:     make(chan AdminState, 1),
 		getActiveCh:      make(chan struct{}),
 	}
