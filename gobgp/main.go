@@ -34,6 +34,7 @@ var cmds []string
 var client api.GrpcClient
 
 func main() {
+	cobra.EnablePrefixMatching = true
 	rootCmd := &cobra.Command{
 		Use: "gobgp",
 		PersistentPreRun: func(cmd *cobra.Command, args []string) {

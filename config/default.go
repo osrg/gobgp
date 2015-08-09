@@ -38,6 +38,8 @@ func SetDefaultConfigValues(md toml.MetaData, bt *Bgp) error {
 			AfiSafi{AfiSafiName: "l2vpn-evpn"},
 			AfiSafi{AfiSafiName: "encap"},
 			AfiSafi{AfiSafiName: "rtc"},
+			AfiSafi{AfiSafiName: "ipv4-flowspec"},
+			AfiSafi{AfiSafiName: "l3vpn-ipnv4-flowspec"},
 		}
 	}
 
