@@ -150,7 +150,7 @@ func createUpdateMsgFromPath(path *Path, msg *bgp.BGPMessage) *bgp.BGPMessage {
 				return bgp.NewBGPUpdateMessage([]bgp.WithdrawnRoute{}, pathAttrs, []bgp.NLRInfo{*nlri})
 			}
 		}
-	} else if rf == bgp.RF_IPv6_UC || rf == bgp.RF_EVPN || rf == bgp.RF_ENCAP || rf == bgp.RF_RTC_UC {
+	} else {
 		if path.IsWithdraw {
 			if msg != nil {
 				idx, _ := path.getPathAttr(bgp.BGP_ATTR_TYPE_MP_UNREACH_NLRI)

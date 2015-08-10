@@ -167,7 +167,7 @@ func showNeighbor(args []string) error {
 		for _, v := range l {
 			if v.Code == val.Code {
 				if v.Code == api.BGP_CAPABILITY_MULTIPROTOCOL {
-					if v.MultiProtocol.Equal(val.MultiProtocol) {
+					if v.MultiProtocol == val.MultiProtocol {
 						return v
 					}
 					continue
@@ -186,6 +186,8 @@ func showNeighbor(args []string) error {
 
 	sort.Sort(caps)
 
+	firstMp := true
+
 	for _, c := range caps {
 		support := ""
 		if m := lookup(c, p.Conf.LocalCap); m != nil {
@@ -199,9 +201,14 @@ func showNeighbor(args []string) error {
 		}
 
 		if c.Code != api.BGP_CAPABILITY_MULTIPROTOCOL {
-			fmt.Printf("    %s: %s\n", c.Code, support)
+			fmt.Printf("    %s:\t%s\n", c.Code, support)
 		} else {
-			fmt.Printf("    %s(%s,%s): %s\n", c.Code, c.MultiProtocol.Afi, c.MultiProtocol.Safi, support)
+			if firstMp {
+				fmt.Printf("    %s:\n", c.Code)
+				firstMp = false
+			}
+			fmt.Printf("        %s:\t%s\n", bgp.RouteFamily(c.MultiProtocol), support)
+
 		}
 	}
 	fmt.Print("  Message statistics:\n")
@@ -366,7 +373,7 @@ func showNeighborRib(r string, name string, args []string) error {
 	var prefix string
 	var host net.IP
 	if len(args) > 0 {
-		if rf != api.AF_IPV4_UC && rf != api.AF_IPV6_UC {
+		if rf != bgp.RF_IPv4_UC && rf != bgp.RF_IPv6_UC {
 			return fmt.Errorf("route filtering is only supported for IPv4/IPv6 unicast routes")
 		}
 		_, p, err := net.ParseCIDR(args[0])
@@ -382,7 +389,7 @@ func showNeighborRib(r string, name string, args []string) error {
 
 	arg := &api.Arguments{
 		Resource: resource,
-		Af:       rf,
+		Rf:       uint32(rf),
 		Name:     name,
 	}
 
@@ -447,13 +454,13 @@ func showNeighborRib(r string, name string, args []string) error {
 }
 
 func resetNeighbor(cmd string, remoteIP string, args []string) error {
-	rt, err := checkAddressFamily(net.ParseIP(remoteIP))
+	rf, err := checkAddressFamily(net.ParseIP(remoteIP))
 	if err != nil {
 		return err
 	}
 	arg := &api.Arguments{
 		Name: remoteIP,
-		Af:   rt,
+		Rf:   uint32(rf),
 	}
 	switch cmd {
 	case CMD_RESET:
@@ -470,7 +477,7 @@ func resetNeighbor(cmd string, remoteIP string, args []string) error {
 
 func stateChangeNeighbor(cmd string, remoteIP string, args []string) error {
 	arg := &api.Arguments{
-		Af:   api.AF_IPV4_UC,
+		Rf:   uint32(bgp.RF_IPv4_UC),
 		Name: remoteIP,
 	}
 	var err error
@@ -486,12 +493,12 @@ func stateChangeNeighbor(cmd string, remoteIP string, args []string) error {
 }
 
 func showNeighborPolicy(remoteIP net.IP) error {
-	rt, err := checkAddressFamily(net.IP{})
+	rf, err := checkAddressFamily(net.IP{})
 	if err != nil {
 		return err
 	}
 	arg := &api.Arguments{
-		Af:   rt,
+		Rf:   uint32(rf),
 		Name: remoteIP.String(),
 	}
 

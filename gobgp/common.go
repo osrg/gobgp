@@ -392,29 +392,33 @@ func connGrpc() *grpc.ClientConn {
 	return conn
 }
 
-func checkAddressFamily(ip net.IP) (*api.AddressFamily, error) {
-	var rf *api.AddressFamily
+func checkAddressFamily(ip net.IP) (bgp.RouteFamily, error) {
+	var rf bgp.RouteFamily
 	var e error
 	switch subOpts.AddressFamily {
 	case "ipv4", "v4", "4":
-		rf = api.AF_IPV4_UC
+		rf = bgp.RF_IPv4_UC
 	case "ipv6", "v6", "6":
-		rf = api.AF_IPV6_UC
+		rf = bgp.RF_IPv6_UC
 	case "vpnv4", "vpn-ipv4":
-		rf = api.AF_IPV4_VPN
+		rf = bgp.RF_IPv4_VPN
 	case "vpnv6", "vpn-ipv6":
-		rf = api.AF_IPV6_VPN
+		rf = bgp.RF_IPv6_VPN
 	case "evpn":
-		rf = api.AF_EVPN
+		rf = bgp.RF_EVPN
 	case "encap":
-		rf = api.AF_ENCAP
+		rf = bgp.RF_ENCAP
 	case "rtc":
-		rf = api.AF_RTC
+		rf = bgp.RF_RTC_UC
+	case "flow-ipv4", "flow4":
+		rf = bgp.RF_FS_IPv4_UC
+	case "flow-vpnv4", "flowvpn4":
+		rf = bgp.RF_FS_IPv4_VPN
 	case "":
 		if len(ip) == 0 || ip.To4() != nil {
-			rf = api.AF_IPV4_UC
+			rf = bgp.RF_IPv4_UC
 		} else {
-			rf = api.AF_IPV6_UC
+			rf = bgp.RF_IPv6_UC
 		}
 	default:
 		e = fmt.Errorf("unsupported address family: %s", subOpts.AddressFamily)

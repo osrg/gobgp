@@ -55,7 +55,7 @@ message Error {
 
 message Arguments {
     Resource resource = 1;
-    AddressFamily af = 2;
+    uint32 rf = 2;
     string name = 3;
 }
 
@@ -79,7 +79,7 @@ message PolicyArguments {
 
 message MrtArguments {
     Resource resource = 1;
-    AddressFamily af = 2;
+    uint32 rf = 2;
     uint64 interval = 3;
     string neighbor_address = 4;
 }
@@ -109,31 +109,6 @@ enum Operation {
     DEL_ALL = 2;
 }
 
-enum AFI {
-    UNKNOWN_AFI = 0;
-    IP = 1;
-    IP6 = 2;
-    L2VPN = 25;
-}
-
-enum SAFI {
-    UNKNOWN_SAFI = 0;
-    UNICAST = 1;
-    MULTICAST = 2;
-    MPLS_LABEL = 4;
-    ENCAP = 7;
-    VPLS = 65;
-    EVPN = 70;
-    MPLS_VPN = 128;
-    MPLS_VPN_MULTICAST = 129;
-    ROUTE_TARGET_CONSTRAINTS = 132;
-}
-
-message AddressFamily {
-    AFI Afi = 1;
-    SAFI Safi = 2;
-}
-
 enum BGP_CAPABILITY {
     UNKNOWN_CAP = 0;
     MULTIPROTOCOL = 1;
@@ -146,7 +121,7 @@ enum BGP_CAPABILITY {
 }
 
 message GracefulRestartTuple {
-    AddressFamily af = 1;
+    uint32 rf = 1;
     uint32 flags = 2;
 }
 
@@ -158,7 +133,7 @@ message GracefulRestart {
 
 message Capability {
     BGP_CAPABILITY code = 1;
-    AddressFamily multi_protocol = 2;
+    uint32 multi_protocol = 2;
     GracefulRestart graceful_restart = 3;
     uint32 asn = 4;
 }

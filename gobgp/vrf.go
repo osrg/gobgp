@@ -179,12 +179,12 @@ func modVrfPath(modtype string, vrf string, args []string) error {
 	var nexthop string
 
 	switch rf {
-	case api.AF_IPV4_UC, api.AF_IPV6_UC:
+	case bgp.RF_IPv4_UC, bgp.RF_IPv6_UC:
 		if len(args) != 1 {
 			return fmt.Errorf("usage: vrf %s rib %s <prefix> -a { ipv4 | ipv6 }", vrf, modtype)
 		}
 		ip, net, _ := net.ParseCIDR(args[0])
-		if rf == api.AF_IPV4_UC {
+		if rf == bgp.RF_IPv4_UC {
 			if ip.To4() == nil {
 				return fmt.Errorf("invalid ipv4 prefix")
 			}
@@ -199,7 +199,7 @@ func modVrfPath(modtype string, vrf string, args []string) error {
 			ones, _ := net.Mask.Size()
 			nlri = bgp.NewIPv6AddrPrefix(uint8(ones), ip.String())
 		}
-	case api.AF_EVPN:
+	case bgp.RF_EVPN:
 		if len(args) < 1 {
 			return fmt.Errorf("usage: vrf %s rib %s { macadv | multicast } ... -a evpn", vrf, modtype)
 		}
@@ -297,7 +297,7 @@ func modVrfPath(modtype string, vrf string, args []string) error {
 		arg.IsWithdraw = true
 	}
 
-	if rf == api.AF_IPV4_UC {
+	if rf == bgp.RF_IPv4_UC {
 		arg.RawNlri, _ = nlri.Serialize()
 		n, _ := bgp.NewPathAttributeNextHop(nexthop).Serialize()
 		arg.RawPattrs = append(arg.RawPattrs, n)

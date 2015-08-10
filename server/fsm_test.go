@@ -290,7 +290,7 @@ func makePeerAndHandler() (*Peer, *FSMHandler) {
 	p := &Peer{
 		gConf:  gConf,
 		conf:   pConf,
-		capMap: make(map[bgp.BGPCapabilityCode]bgp.ParameterCapabilityInterface),
+		capMap: make(map[bgp.BGPCapabilityCode][]bgp.ParameterCapabilityInterface),
 	}
 
 	p.fsm = NewFSM(&gConf, &pConf)
