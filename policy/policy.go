@@ -387,15 +387,6 @@ type AsPathCondition struct {
 	MatchOption  config.MatchSetOptionsType
 }
 
-type AsnPos int
-
-const (
-	AS_FROM AsnPos = iota
-	AS_ANY
-	AS_ORIGIN
-	AS_ONLY
-)
-
 const (
 	ASPATH_REGEXP_MAGIC = "(^|[,{}() ]|$)"
 )
