@@ -221,13 +221,31 @@ func parseFlowSpecArgs(modtype string, args []string) (bgp.AddrPrefixInterface, 
 	}
 	flags := strings.Join(ss, ", ")
 	helpErr := fmt.Errorf(`usage: global rib %s match <MATCH_EXPR> then <THEN_EXPR> -a ipv4-flowspec
-    <MATCH_EXPR> : { dst <PREFIX> | src <PREFIX> | proto <PROTO>... | fragment <FRAGMENT_TYPE> | tcp-flags <TCPFLAG>... | { port | dst-port | src-port | icmp-type | icmp-code | pkt-len | dscp } <ITEM>... }...
+    <MATCH_EXPR> : { %s <PREFIX> | %s <PREFIX> |
+		     %s <PROTO>... | %s <FRAGMENT_TYPE> | %s <TCPFLAG>... |
+		     { %s | %s | %s | %s | %s | %s | %s } <ITEM>... }...
 	<PROTO> : %s
 	<FRAGMENT_TYPE> : not-a-fragment, is-a-fragment, first-fragment, last-fragment
 	<TCPFLAG> : %s
 	<ITEM> : &?{<|>|=}<value>
-    <THEN_EXPR> : { accept | discard | rate-limit <value> | redirect <RT> | mark <value> | action { sample | terminal | sample-terminal }}...
-	<RT> : xxx:yyy, xx.xx.xx.xx:yyy, xxx.xxx:yyy`, modtype, protos, flags)
+    <THEN_EXPR> : { %s | %s | %s <value> | %s <RT> | %s <value> | %s { sample | terminal | sample-terminal } | %s <RT>... }...
+	<RT> : xxx:yyy, xx.xx.xx.xx:yyy, xxx.xxx:yyy`, modtype,
+		bgp.FlowSpecNameMap[bgp.FLOW_SPEC_TYPE_DST_PREFIX],
+		bgp.FlowSpecNameMap[bgp.FLOW_SPEC_TYPE_SRC_PREFIX],
+		bgp.FlowSpecNameMap[bgp.FLOW_SPEC_TYPE_IP_PROTO],
+		bgp.FlowSpecNameMap[bgp.FLOW_SPEC_TYPE_FRAGMENT],
+		bgp.FlowSpecNameMap[bgp.FLOW_SPEC_TYPE_TCP_FLAG],
+		bgp.FlowSpecNameMap[bgp.FLOW_SPEC_TYPE_PORT],
+		bgp.FlowSpecNameMap[bgp.FLOW_SPEC_TYPE_DST_PORT],
+		bgp.FlowSpecNameMap[bgp.FLOW_SPEC_TYPE_SRC_PORT],
+		bgp.FlowSpecNameMap[bgp.FLOW_SPEC_TYPE_ICMP_TYPE],
+		bgp.FlowSpecNameMap[bgp.FLOW_SPEC_TYPE_ICMP_CODE],
+		bgp.FlowSpecNameMap[bgp.FLOW_SPEC_TYPE_PKT_LEN],
+		bgp.FlowSpecNameMap[bgp.FLOW_SPEC_TYPE_DSCP],
+		protos, flags,
+		ExtCommNameMap[ACCEPT], ExtCommNameMap[DISCARD],
+		ExtCommNameMap[RATE], ExtCommNameMap[REDIRECT],
+		ExtCommNameMap[MARK], ExtCommNameMap[ACTION], ExtCommNameMap[RT])
 
 	if len(args) < 4 || args[0] != "match" || thenPos > len(args)-2 {
 		return nil, "", nil, helpErr
