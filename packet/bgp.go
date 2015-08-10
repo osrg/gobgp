@@ -1859,7 +1859,7 @@ func flowSpecTcpFlagParser(args []string) (FlowSpecComponentInterface, error) {
 }
 
 func flowSpecNumericParser(args []string) (FlowSpecComponentInterface, error) {
-	exp := regexp.MustCompile("^(([<>=])(\\d+)&)?([<>=])(\\d+)$")
+	exp := regexp.MustCompile("^((<=|>=|[<>=])(\\d+)&)?(<=|>=|[<>=])(\\d+)$")
 	items := make([]*FlowSpecComponentItem, 0)
 
 	f := func(and bool, o, v string) *FlowSpecComponentItem {
@@ -1867,13 +1867,15 @@ func flowSpecNumericParser(args []string) (FlowSpecComponentInterface, error) {
 		if and {
 			op |= 0x40
 		}
-		switch o {
-		case ">":
-			op |= 0x2
-		case "<":
-			op |= 0x4
-		case "=":
-			op |= 0x1
+		for _, oo := range o {
+			switch oo {
+			case '>':
+				op |= 0x2
+			case '<':
+				op |= 0x4
+			case '=':
+				op |= 0x1
+			}
 		}
 		value, err := strconv.Atoi(v)
 		if err != nil {
@@ -1944,6 +1946,9 @@ func ParseFlowSpecComponents(input string) ([]FlowSpecComponentInterface, error)
 				i int
 			}{t, idx})
 		}
+	}
+	if len(idxs) == 0 {
+		return nil, fmt.Errorf("failed to parse: %s", input)
 	}
 	cmps := make([]FlowSpecComponentInterface, 0, len(idxs))
 	for i, idx := range idxs {
