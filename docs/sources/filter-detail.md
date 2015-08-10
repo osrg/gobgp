@@ -4,8 +4,8 @@
 
 This page shows how to write your own policies.
 
-As [Policy configuration](https://github.com/osrg/gobgp/blob/master/docs/sources/policy.md) shows, 
-you can define import or export policies or distribute policies to control the route advertisement. 
+As [Policy configuration](https://github.com/osrg/gobgp/blob/master/docs/sources/policy.md) shows,
+you can define import or export policies or distribute policies to control the route advertisement.
 
 Note: The distribute policy is applied only when the peer is Route Server client.
 
@@ -79,13 +79,19 @@ PrefixSets and NeighborSets section are prefix match part and neighbor match par
   ----
 
  #### PrefixSets
- PrefixSets has PrefixSetList, and PrefixSetList has PrefixList as its element. PrefixList has prefix information to match destination's address and we can specify route's NLRI inside.
+ PrefixSets has PrefixSetList, and PrefixSetList has PrefixSetName and PrefixList as its element. prefix information to match destination's address and we can specify route's NLRI inside.
 
- PrefixSetList has 3 elements.
+ **PrefixSetList** has 1 element and list of subelement.
 
- | Element         |Description        | Example       | Optional   |
+ | Element         | Description                        | Example       | Optional   |
+ |-----------------|------------------------------------|---------------|------------|
+ | PrefixSetName   | name of PrefixSet                  | "ps1"         |            |
+ | PrefixList      | list of prefix and range of length |               |            |
+
+ **PrefixLlist** has 2 elements.
+
+ | Element         | Description       | Example       | Optional   |
  |-----------------|-------------------|---------------|------------|
- | PrefixSetName   | name of PrefixSet | "ps1"         |            |
  | IpPrefix        | prefix value      | "10.33.0.0/16"|            |
  | MasklengthRange | range of length   | "21..24"      | Yes        |
 
@@ -150,15 +156,20 @@ PrefixSets and NeighborSets section are prefix match part and neighbor match par
 
  #### NeighborSets
 
- NeighborSets has NeighborSetList, and NeighborSetList has NeighborInfoList as its element and NeighborInfoList has neighbor information to match the sender of the routes.
- It is necessary to specify a neighbor address in NeighborInfoList.
+ NeighborSets has NeighborSetList, and NeighborSetList has NeighborSetName and NeighborInfoList as its element. neighbor information to match the sender of the routes.It is necessary to specify a neighbor address in NeighborInfoList.
 
- NeighborSetList has 2 elements.
+ **NeighborSetList** has 1 element and list of subelement.
+
+ | Element          |Description                | Example      | Optional   |
+ |------------------|---------------------------|--------------|------------|
+ | NeighborSetName  | name of NeighborSet       | "ns1"        |            |
+ | NeighborInfoList | list of neighbor address  |              |            |
+
+ **NeighborInfoList** has 1 element.
 
  | Element         |Description          | Example      | Optional   |
  |-----------------|---------------------|--------------|------------|
- | NeighborSetName | name of NeighborSet | "ns1"        |            |
- | Address         | neighbor's address  | "10.0.255.1" |            |
+ | Address         | neighbor address    | "10.0.255.1" |            |
 
  ##### Examples
 
@@ -235,13 +246,19 @@ CommunitySets, ExtCommunitySets and AsPathSets section are each match part.
   ----
 
  #### CommunitySets
- CommunitySets has CommunitySetList, and CommunitySetList has CommunityList. The values are used to evaluate communities held by the destination.
+ CommunitySets has CommunitySetList, and CommunitySetList has CommunitySetName and CommunityList as its element. The Community value are used to evaluate communities held by the destination.
 
- CommunitySetList has 2 elements.
+ **CommunitySetList** has 1 element and list of subelement.
 
  | Element          | Description             | Example      | Optional |
  |------------------|-------------------------|--------------|----------|
  | CommunitySetName | name of CommunitySet    | "community1" |          |
+ | CommunityList    | list of community value |              |          |
+
+ **CommunityList** has 1 element.
+
+ | Element          | Description             | Example      | Optional |
+ |------------------|-------------------------|--------------|----------|
  | Community        | community value         | "65100:10"   |          |
 
  You can use regular expressions to specify community in CommunityList.
@@ -276,13 +293,19 @@ CommunitySets, ExtCommunitySets and AsPathSets section are each match part.
    ----
 
  #### ExtCommunitySets
- ExtCommunitySets has ExtCommunitySetList, and ExtCommunitySetList has ExtCommunityList. The values are used to evaluate extended communities held by the destination.
+ ExtCommunitySets has ExtCommunitySetList, and ExtCommunitySetList has ExtCommunitySetName and ExtCommunityList as its element. The values are used to evaluate extended communities held by the destination.
 
- ExtCommunitySetList has 2 elements.
+ **ExtCommunitySetList** has 1 element and list of subelement.
+
+ | Element             | Description                        | Example          | Optional |
+ |---------------------|------------------------------------|------------------|----------|
+ | ExtCommunitySetName | name of ExtCommunitySet            | "ecommunity1"    |          |
+ | ExtCommunityList    | list of extended community value   |　　　             |          |
+
+ **ExtCommunityList** has 1 element.
 
  | Element             | Description                | Example          | Optional |
  |---------------------|----------------------------|------------------|----------|
- | ExtCommunitySetName | name of ExtCommunitySet    | "ecommunity1"    |          |
  | ExtCommunity        | extended community value   | "RT:65001:200"   |          |
 
  You can use regular expressions to specify extended community in ExtCommunityList.
@@ -291,7 +314,6 @@ CommunitySets, ExtCommunitySets and AsPathSets section are each match part.
 
   - RT: mean the route target.
   - SoO: mean the site of origin(route origin).
-
 
  ##### Examples
  - example 1
@@ -323,15 +345,20 @@ CommunitySets, ExtCommunitySets and AsPathSets section are each match part.
 
    ----
 
-
  #### AsPathSets
- AsPathSets has AsPathSetList, and AsPathSetList has AsPathList. The numbers are used to evaluate AS numbers in the destination's AS_PATH attribute.
+ AsPathSets has AsPathSetList, and AsPathSetList has AsPathSetName and AsPathList as its element. The numbers are used to evaluate AS numbers in the destination's AS_PATH attribute.
 
-   AsPathSetList has 2 elements.
+ **AsPathSetList** has 1 element and list of subelement.
+
+ | Element          | Description               | Example    | Optional |
+ |------------------|---------------------------|------------|----------|
+ | AsPathSetName    | name of AsPathSet         | "aspath1"  |          |
+ | AsPathSet        | list of as path value     |            |          |
+
+ **AsPathList** has 1 elements.
 
  | Element          | Description       | Example    | Optional |
  |------------------|-------------------|------------|----------|
- | AsPathSetName    | name of AsPathSet | "aspath1"  |          |
  | AsPathSet        | as path value     | "^65100"   |          |
 
    You can specify the position using regexp-like expression as follows:
@@ -505,6 +532,20 @@ You can write condition and action under Statements.
  |---------|-------------------------------------------------------------------------------------------------------|---------|
  | As      | AS number to prepend. You can use "last-as" to prepend the leftmost AS number in the aspath attribute.| "65100" |
  | RepeatN | repeat count to prepend AS                                                                            |    5    |
+
+
+ - Execution condition of Action
+
+ Action statement is executed when the result of each Condition, including MatchSetOption is all true.
+ **MatchSetOptions** is defined how to determine the match result, in the condition with multiple evaluation set as follows:
+
+ | Value  | Description                                                               |
+ |--------|---------------------------------------------------------------------------|
+ | ANY    | match is true if given value matches any member of the defined set        |
+ | ALL    | match is true if given value matches all members of the defined set       |
+ | INVERT | match is true if given value does not match any member of the defined set |
+
+
 
  <br>
 
