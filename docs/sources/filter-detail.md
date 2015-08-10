@@ -5,9 +5,9 @@
 This page shows how to write your own policies.
 
 As [Policy configuration](https://github.com/osrg/gobgp/blob/master/docs/sources/policy.md) shows,
-you can define import or export policies or distribute policies to control the route advertisement.
+you can define Import or Export policies or In policies to control the route advertisement.
 
-Note: The distribute policy is applied only when the peer is Route Server client.
+Note: The In policy is applied only when the peer is Route Server client.
 
 Basically a policy has condition part and an action part. The condition part can be defined with attributes below:
  - prefix
@@ -709,13 +709,13 @@ You can write condition and action under Statements.
 ---
 
 ### 4. Attaching policy
-You can use policies defined above as import or export or distribtue policy by
+You can use policies defined above as Import or Export or In policy by
 attaching them to neighbors.
 
-   Note: The distribute policy is applied only when the peer is Route Server client.
+   Note: The In policy is applied only when the peer is Route Server client.
 
 To attach policies to neighbors, you need to add policy's name to Neighbors.NeighborList.ApplyPolicy in the neighbor's setting.
-This example attatches *policy1* to import policy and *policy2* to export policy and *policy3* is used as the distribute policy.
+This example attatches *policy1* to Import policy and *policy2* to Export policy and *policy3* is used as the In policy.
 
 ```
 [Neighbors]
@@ -729,10 +729,10 @@ This example attatches *policy1* to import policy and *policy2* to export policy
       [Neighbors.NeighborList.ApplyPolicy.ApplyPolicyConfig]
         ImportPolicy = ["policy1"]
         ExportPolicy = ["policy2"]
-        DistributedPolicy = ["policy3"]
+        InPolicy = ["policy3"]
         DefaultImportPolicy = 0
         DefaultExportPolicy = 0
-        DefaultDistributePolicy = 0
+        DefaultInPolicy = 0
 ```
 
 Neighbors.NeighborList has a section to specify policies and the section's name is ApplyPolicy.
@@ -740,9 +740,9 @@ The ApplyPolicy has 6 elements.
 
 | Element                 | Description                                                                                 | Example    |
 |-------------------------|---------------------------------------------------------------------------------------------|------------|
-| ImportPolicy            | PolicyDefinitions.PolicyDefinitionList.name for import policy                               | "policy1"  |
-| ExportPolicy            | PolicyDefinitions.PolicyDefinitionList.name for export policy                               | "policy2"  |
-| DistributedPolicy       | PolicyDefinitions.PolicyDefinitionList.name for distribute policy                           | "policy3"  |
-| DefaultImportPolicy     | action when the route doesn't match any policy:<br> 0 means import,<br>  1 means reject     | 0          |
-| DefaultExportPolicy     | action when the route doesn't match any policy:<br> 0 means export,<br>  1 means discard    | 0          |
-| DefaultDistributePolicy | action when the route doesn't match any policy:<br> 0 means distribute,<br>  1 means reject | 0          |
+| ImportPolicy            | PolicyDefinitions.PolicyDefinitionList.name for Import policy                               | "policy1"  |
+| ExportPolicy            | PolicyDefinitions.PolicyDefinitionList.name for Export policy                               | "policy2"  |
+| InPolicy       | PolicyDefinitions.PolicyDefinitionList.name for In policy                                    | "policy3"  |
+| DefaultImportPolicy     | action when the route doesn't match any policy:<br> 0 means Import,<br>  1 means reject     | 0          |
+| DefaultExportPolicy     | action when the route doesn't match any policy:<br> 0 means Export,<br>  1 means discard    | 0          |
+| DefaultInPolicy | action when the route doesn't match any policy:<br> 0 means In,<br>  1 means reject         | 0          |
