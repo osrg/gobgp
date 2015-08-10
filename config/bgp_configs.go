@@ -811,10 +811,10 @@ type ApplyPolicyState struct {
 	ExportPolicy []string
 	// original -> rpol:default-export-policy
 	DefaultExportPolicy DefaultPolicyType
-	// original -> rpol:distribute-policy
-	DistributePolicy []string
-	// original -> rpol:default-distribute-policy
-	DefaultDistributePolicy DefaultPolicyType
+	// original -> rpol:in-policy
+	InPolicy []string
+	// original -> rpol:default-in-policy
+	DefaultInPolicy DefaultPolicyType
 }
 
 //struct for container rpol:config
@@ -827,10 +827,10 @@ type ApplyPolicyConfig struct {
 	ExportPolicy []string
 	// original -> rpol:default-export-policy
 	DefaultExportPolicy DefaultPolicyType
-	// original -> rpol:distribute-policy
-	DistributePolicy []string
-	// original -> rpol:default-distribute-policy
-	DefaultDistributePolicy DefaultPolicyType
+	// original -> rpol:in-policy
+	InPolicy []string
+	// original -> rpol:default-in-policy
+	DefaultInPolicy DefaultPolicyType
 }
 
 //struct for container rpol:apply-policy

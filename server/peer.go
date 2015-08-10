@@ -331,7 +331,7 @@ func (peer *Peer) setDistributePolicy(policyMap map[string]*policy.Policy) {
 	// configure distribute policy
 	policyConf := peer.conf.ApplyPolicy
 	distPolicies := make([]*policy.Policy, 0)
-	for _, policyName := range policyConf.ApplyPolicyConfig.DistributePolicy {
+	for _, policyName := range policyConf.ApplyPolicyConfig.InPolicy {
 		log.WithFields(log.Fields{
 			"Topic":      "Peer",
 			"Key":        peer.conf.NeighborConfig.NeighborAddress,
@@ -343,7 +343,7 @@ func (peer *Peer) setDistributePolicy(policyMap map[string]*policy.Policy) {
 		}
 	}
 	peer.distPolicies = distPolicies
-	peer.defaultDistributePolicy = policyConf.ApplyPolicyConfig.DefaultDistributePolicy
+	peer.defaultDistributePolicy = policyConf.ApplyPolicyConfig.DefaultInPolicy
 }
 
 func (peer *Peer) applyDistributePolicies(original *table.Path) (bool, *table.Path) {

@@ -1302,7 +1302,7 @@ func (server *BgpServer) handleGrpc(grpcReq *GrpcRequest) []*SenderMsg {
 		conOutPolicyNames := peer.conf.ApplyPolicy.ApplyPolicyConfig.ExportPolicy
 		resOutPolicies = extract(conOutPolicyNames)
 
-		distPolicyNames := peer.conf.ApplyPolicy.ApplyPolicyConfig.DistributePolicy
+		distPolicyNames := peer.conf.ApplyPolicy.ApplyPolicyConfig.InPolicy
 		resDistPolicies = extract(distPolicyNames)
 
 		defaultInPolicy := policy.ROUTE_REJECT
@@ -1356,8 +1356,8 @@ func (server *BgpServer) handleGrpc(grpcReq *GrpcRequest) []*SenderMsg {
 			if reqApplyPolicy.DefaultDistributePolicy != policy.ROUTE_ACCEPT {
 				defDistPolicy = config.DEFAULT_POLICY_TYPE_REJECT_ROUTE
 			}
-			applyPolicy.DefaultDistributePolicy = defDistPolicy
-			applyPolicy.DistributePolicy = policy.PoliciesToString(reqApplyPolicy.DistributePolicies)
+			applyPolicy.DefaultInPolicy = defDistPolicy
+			applyPolicy.InPolicy = policy.PoliciesToString(reqApplyPolicy.DistributePolicies)
 		} else if grpcReq.RequestType == REQ_NEIGHBOR_POLICY_DEL_IMPORT {
 			applyPolicy.DefaultImportPolicy = config.DEFAULT_POLICY_TYPE_ACCEPT_ROUTE
 			applyPolicy.ImportPolicy = make([]string, 0)
@@ -1365,8 +1365,8 @@ func (server *BgpServer) handleGrpc(grpcReq *GrpcRequest) []*SenderMsg {
 			applyPolicy.DefaultExportPolicy = config.DEFAULT_POLICY_TYPE_ACCEPT_ROUTE
 			applyPolicy.ExportPolicy = make([]string, 0)
 		} else if grpcReq.RequestType == REQ_NEIGHBOR_POLICY_DEL_DISTRIBUTE {
-			applyPolicy.DefaultDistributePolicy = config.DEFAULT_POLICY_TYPE_ACCEPT_ROUTE
-			applyPolicy.DistributePolicy = make([]string, 0)
+			applyPolicy.DefaultInPolicy = config.DEFAULT_POLICY_TYPE_ACCEPT_ROUTE
+			applyPolicy.InPolicy = make([]string, 0)
 		}
 
 		if grpcReq.RequestType == REQ_NEIGHBOR_POLICY_ADD_DISTRIBUTE ||

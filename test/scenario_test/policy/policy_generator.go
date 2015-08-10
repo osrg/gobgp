@@ -47,12 +47,12 @@ func bindPolicy(outputDir, peer, target, policyName string, isReplace bool, defa
 				}
 			case "distribute":
 				if isReplace {
-					ap.DistributePolicy = []string{policyName}
+					ap.InPolicy = []string{policyName}
 				} else {
-					ap.DistributePolicy = append(ap.DistributePolicy, policyName)
+					ap.InPolicy = append(ap.InPolicy, policyName)
 				}
 				if defaultReject {
-					ap.DefaultDistributePolicy = 1
+					ap.DefaultInPolicy = 1
 				}
 			}
 			newConf.Neighbors.NeighborList[idx] = neighbor

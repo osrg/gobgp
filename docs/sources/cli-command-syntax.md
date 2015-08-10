@@ -108,14 +108,14 @@ The following options can be specified in the neighbor subcommand:
 % gobgp neighbor <neighbor address> policy add import <policy names> <default policy action>
 # add policy to export-policy configuration
 % gobgp neighbor <neighbor address> policy add export <policy names> <default policy action>
-# add policy to distribute-policy configuration
-% gobgp neighbor <neighbor address> policy add distribute <policy names> <default policy action>
+# add policy to in-policy configuration
+% gobgp neighbor <neighbor address> policy add in <policy names> <default policy action>
 # delete import-policy configuration from specific neighbor
 % gobgp neighbor <neighbor address> policy del import
 # delete export-policy configuration from specific neighbor
 % gobgp neighbor <neighbor address> policy del export
-# delete distribute-policy configuration from specific neighbor
-% gobgp neighbor <neighbor address> policy del distribute
+# delete in-policy configuration from specific neighbor
+% gobgp neighbor <neighbor address> policy del in
 # show a specific policy information
 % gobgp neighbor <neighbor address> policy
 ```
