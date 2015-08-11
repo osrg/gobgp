@@ -112,6 +112,15 @@ const (
 	BGP_SET_COMMUNITY_OPTION_TYPE_REPLACE
 )
 
+// typedef for typedef gobgp:rpki-validation-result-type
+type RpkiValidationResultType int
+
+const (
+	RPKI_VALIDATION_RESULT_TYPE_NOT_FOUND RpkiValidationResultType = iota
+	RPKI_VALIDATION_RESULT_TYPE_VALID
+	RPKI_VALIDATION_RESULT_TYPE_INVALID
+)
+
 // typedef for typedef gobgp:bgp-origin-attr-type
 type BgpOriginAttrType int
 
@@ -1376,6 +1385,8 @@ type BgpConditions struct {
 	// original -> bgp-pol:route-type
 	//bgp-pol:route-type's original type is enumeration
 	RouteType uint32
+	// original -> gobgp:rpki-validation-result
+	RpkiValidationResult RpkiValidationResultType
 }
 
 //struct for container rpol:igp-conditions

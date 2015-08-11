@@ -191,6 +191,34 @@ module bgp-gobgp {
      }
   }
 
+  grouping gobgp-rpki-validation-result {
+    description "additional rpki";
+    leaf rpki-validation-result {
+      type rpki-validation-result-type;
+      default NOT-FOUND;
+      description
+        "specify the validation result of RPKI based on ROA as conditions";
+    }
+  }
+
+   typedef rpki-validation-result-type {
+    type enumeration {
+      enum NOT-FOUND {
+        description "If the origin AS, prefix, maximum prefix length
+        does not exist in the range of ROA";
+      }
+      enum VALID {
+        description "If the origin AS, prefix, maximum prefix length is
+        exist in the range of ROA";
+      }
+      enum INVALID {
+        description "if the origin AS is different when prefix,
+        maximum prefix length is exist in the range of ROA";
+      }
+    }
+    description
+      "indicate the validation result of RPKI based on ROA";
+  }
 
   // augment statements
   augment "/bgp:bgp/bgp:neighbors/bgp:neighbor/bgp:state/bgp:messages/bgp:sent" {
@@ -340,4 +368,12 @@ module bgp-gobgp {
        }
     }
   }
+
+  augment "/rpol:routing-policy/rpol:policy-definitions/" +
+    "rpol:policy-definition/rpol:statements/rpol:statement/" +
+    "rpol:conditions/bgp-pol:bgp-conditions" {
+    description "additional rpki condition";
+    uses gobgp-rpki-validation-result;
+  }
+
 }
