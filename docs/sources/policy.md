@@ -52,15 +52,15 @@ All the condition(s) in the statement are true, the action(s) in the statement a
 
 A condition can have multiple values. For example, you can define a prefix
 condition that has 10.20.0.0/16, 10.30.3.0/24, and 10.30.4.0/24. You can specify
-how these values are used to decide whether the condition is true of
+how these values are used to decide whether the condition is true or
 false. In this case, you can specify either:
 
 - true if a route matches any of 10.20.0.0/16, 10.30.3.0/24, and 10.30.4.0/24.
 - true if a route matches none of 10.20.0.0/16, 10.30.3.0/24, and 10.30.4.0/24.
 
-The details will be explained in the following sessions. If you
+The details will be explained in the following sections. If you
 quickly check out what policy configuration looks like, skip the next
-sessions to go to the last session.
+sections to go to the last section.
 
 ## The details of steps to define policies
 
@@ -91,7 +91,7 @@ These are steps to define policy:
 
 
 ### 1. Defining DefinedSets
-DefineSets has prefix information and neighbor information in PrefixSets and NeighborSets section, and GoBGP uses these information to evaluate routes.
+DefinedSets has prefix information and neighbor information in PrefixSets and NeighborSets section, and GoBGP uses these information to evaluate routes.
 Defining DefinedSets is needed at first.
 PrefixSets and NeighborSets section are prefix match part and neighbor match part.
 
@@ -117,7 +117,7 @@ PrefixSets and NeighborSets section are prefix match part and neighbor match par
   ----
 
  #### PrefixSets
- PrefixSets has PrefixSetList, and PrefixSetList has PrefixSetName and PrefixList as its element. prefix information to match destination's address and we can specify route's NLRI inside. PrefixSetList is used as a condition.
+ PrefixSets has PrefixSetList, and PrefixSetList has PrefixSetName and PrefixList as its element. PrefixSetList is used as a condition.
 
  **PrefixSetList** has 1 element and list of subelement.
 
@@ -136,8 +136,8 @@ PrefixSets and NeighborSets section are prefix match part and neighbor match par
 
  ##### Examples
  - example 1
-   - Match routes whose high order 2 octets of NLRI is 10.33 and its prefix length is between from 21 to 24
-   - If you define a PrefixList that doesn't have MasklengthRange, it matches routes that have just 10.33.0.0/16 as NLRI.
+    - Match routes whose high order 2 octets of NLRI is 10.33 and its prefix length is between from 21 to 24
+    - If you define a PrefixList that doesn't have MasklengthRange, it matches routes that have just 10.33.0.0/16 as NLRI.
 
   ```
   # example 1
@@ -151,8 +151,8 @@ PrefixSets and NeighborSets section are prefix match part and neighbor match par
 
 
  - example 2
-   - If you want to evaluate multiple routes with a single PrefixSetList, you can do this by adding an another PrefixList like this:
-   - This PrefixSetList match checks if a route has 10.33.0.0/21 to 24 or 10.50.0.0/21 to 24.
+    - If you want to evaluate multiple routes with a single PrefixSetList, you can do this by adding an another PrefixList like this:
+    - This PrefixSetList match checks if a route has 10.33.0.0/21 to 24 or 10.50.0.0/21 to 24.
 
   ```
   # example 2
@@ -168,8 +168,8 @@ PrefixSets and NeighborSets section are prefix match part and neighbor match par
   ```
 
  - example 3
-   - PrefixSetName under PrefixSetList is reference to a single PrefixSet.
-   - If you want to add different PrefixSet more, you can add other blocks that form the same structure with example 1.
+    - PrefixSetName under PrefixSetList is reference to a single PrefixSet.
+    - If you want to add different PrefixSet more, you can add other blocks that form the same structure with example 1.
 
   ```
   # example 3
@@ -192,7 +192,7 @@ PrefixSets and NeighborSets section are prefix match part and neighbor match par
 
  #### NeighborSets
 
- NeighborSets has NeighborSetList, and NeighborSetList has NeighborSetName and NeighborInfoList as its element. neighbor information to match the sender of the routes.It is necessary to specify a neighbor address in NeighborInfoList. NeighborSetList is used as a condition.
+ NeighborSets has NeighborSetList, and NeighborSetList has NeighborSetName and NeighborInfoList as its element. It is necessary to specify a neighbor address in NeighborInfoList. NeighborSetList is used as a condition.
 
  **NeighborSetList** has 1 element and list of subelement.
 
@@ -258,7 +258,7 @@ BgpDefinedSets has Community information, Extended Community
 information and AS_PATH information in each Sets section
 respectively. And it is a child element of DefinedSets.
 CommunitySets, ExtCommunitySets and AsPathSets section are each match
-part. Like PrefixSets and NeighborSets, Each can have multple sets and each set can have multiple values.
+part. Like PrefixSets and NeighborSets, each can have multiple sets and each set can have multiple values.
 
 - BgpDefinedSets example
 
@@ -351,7 +351,7 @@ part. Like PrefixSets and NeighborSets, Each can have multple sets and each set 
 
  You can use regular expressions to specify extended community in ExtCommunityList.
  However, the first one element separated by (part of "RT") does not support to the regular expression.
- part of "RT" indicate sub type of extended community and using sub type as follows:
+ The part of "RT" indicates a subtype of extended community and subtypes that can be used are as follows:
 
   - RT: mean the route target.
   - SoO: mean the site of origin(route origin).
@@ -404,13 +404,13 @@ part. Like PrefixSets and NeighborSets, Each can have multple sets and each set 
 
  The AS path regular expression is compatible with [Quagga](http://www.nongnu.org/quagga/docs/docs-multi/AS-Path-Regular-Expression.html) and Cisco. Some examples follow:
 
-   - From: "^65100" means the route is passed from AS 65100 directly.
-   - Any: "65100" means the route comes through AS 65100.
-   - Origin: "65100$" means the route is originated by AS 65100.
-   - Only: "^65100$" means the route is originated by AS 65100 and comes from it directly.
-   - ^65100_65001
-   - 65100_[0-9]+_.*$
-   - ^6[0-9]_5.*_65.?00$
+    - From: "^65100" means the route is passed from AS 65100 directly.
+    - Any: "65100" means the route comes through AS 65100.
+    - Origin: "65100$" means the route is originated by AS 65100.
+    - Only: "^65100$" means the route is originated by AS 65100 and comes from it directly.
+    - ^65100_65001
+    - 65100_[0-9]+_.*$
+    - ^6[0-9]_5.*_65.?00$
 
   ##### Examples
   - example 1
@@ -591,7 +591,7 @@ You can write condition and action under Statements.
 
 ##### Examples
  - example 1
-  - This PolicyDefinition has PrefixSet *ps1* and NeighborSet *ns1* as its condition and routes matche the condition is rejected.
+  - This PolicyDefinition has PrefixSet *ps1* and NeighborSet *ns1* as its condition and routes matches the condition is rejected.
 
  ```
  # example 1
@@ -764,7 +764,8 @@ This example attatches *policy1* to Import policy and *policy2* to Export policy
       NeighborAddress = "10.0.255.2"
       PeerAs = 65002
     [Neighbors.NeighborList.RouteServer]
-      RouteServerClient = true
+      [Neighbors.NeighborList.RouteServer.RouteServerConfig]
+        RouteServerClient = true
     [Neighbors.NeighborList.ApplyPolicy]
       [Neighbors.NeighborList.ApplyPolicy.ApplyPolicyConfig]
         ImportPolicy = ["policy1"]
