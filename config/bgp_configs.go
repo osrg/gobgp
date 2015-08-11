@@ -1464,8 +1464,6 @@ type AsPath struct {
 type AsPathSet struct {
 	// original -> bgp-pol:as-path-set-name
 	AsPathSetName string
-	// original -> bgp-pol:as-path-set-member
-	AsPathSetMember []string
 	// original -> gobgp:as-path
 	AsPathList []AsPath
 }
