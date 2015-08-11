@@ -52,7 +52,7 @@ class GolangPlugin(plugin.PyangPlugin):
     def add_opts(self, optparser):
         optlist = [
             optparse.make_option("--augment",
-                                 dest="augment",
+                                 dest="augment", action="append",
                                  help="Yang file which has augment statements"),
             ]
         g = optparser.add_option_group("GolangPlugin specific options")
@@ -75,7 +75,7 @@ class GolangPlugin(plugin.PyangPlugin):
         # load augment module
         if ctx.opts.augment:
             aug_mod_path = ctx.opts.augment
-            for p in aug_mod_path.split(","):
+            for p in aug_mod_path:
                 with open(p) as fd:
                     try:
                         text = fd.read()
@@ -151,6 +151,10 @@ def emit_class_def(ctx, yang_statement, struct_name, prefix):
     print >> o, '//struct for container %s:%s' % (prefix, yang_statement.arg)
     print >> o, 'type %s struct {' % convert_to_golang(struct_name)
     for child in yang_statement.i_children:
+
+        if child.path in _path_exclude:
+            continue
+
         container_or_list_name = child.uniq_name
         val_name_go = convert_to_golang(child.arg)
         child_prefix = get_orig_prefix(child.i_orig_module)
@@ -254,9 +258,21 @@ def get_orig_prefix(module):
         return module.i_prefix
 
 
+def get_path(c):
+    path = ''
+    if c.parent is not None:
+        p = ''
+        if hasattr(c, 'i_module'):
+            mod = c.i_module
+            prefix = mod.search_one('prefix')
+
+        p = prefix.arg + ":" if prefix else ''
+        path = get_path(c.parent) + "/" + p + c.arg
+    return path
+
+
 def visit_children(ctx, module, children):
     for c in children:
-
         prefix = ''
         if is_case(c):
             prefix = get_orig_prefix(c.parent.i_orig_module)
@@ -298,6 +314,8 @@ def visit_children(ctx, module, children):
                 ctx.golang_struct_names[prefix+':'+c.uniq_name] = c
                 ctx.golang_struct_def.append(c)
 
+        c.path = get_path(c)
+        # print(c.path)
         if hasattr(c, 'i_children'):
             visit_children(ctx, module, c.i_children)
 
@@ -325,6 +343,8 @@ def visit_typedef(ctx, module):
     child_map = {}
     for stmts in module.substmts:
         if stmts.keyword == 'typedef':
+            stmts.path = get_path(stmts)
+            # print(stmts.path)
             name = stmts.arg
             stmts.golang_name = convert_to_golang(name)
             if stmts.golang_name == 'PeerType':
@@ -374,6 +394,9 @@ def emit_typedef(ctx, module):
     prefix = module.i_prefix
     t_map = ctx.golang_typedef_map[prefix]
     for name, stmt in t_map.items():
+
+        if stmt.path in _typedef_exclude:
+            continue
 
         # skip identityref type because currently skip identity
         if get_type_spec(stmt) == 'identityref':
@@ -528,6 +551,13 @@ _module_excluded = ["ietf-inet-types",
                     "ietf-yang-types",
                     ]
 
+_path_exclude = ["/bgp:bgp/bgp:neighbors/bgp:neighbor/bgp:transport/bgp:config/bgp:local-address",
+                 "/bgp:bgp/bgp:neighbors/bgp:neighbor/bgp:transport/bgp:state/bgp:local-address",
+                 "/rpol:routing-policy/rpol:defined-sets/rpol:neighbor-sets/rpol:neighbor-set/rpol:neighbor",
+                 "/rpol:routing-policy/rpol:defined-sets/bgp-pol:bgp-defined-sets/bgp-pol:community-sets/bgp-pol:community-set/bgp-pol:community-member",
+                 "/rpol:routing-policy/rpol:defined-sets/bgp-pol:bgp-defined-sets/bgp-pol:ext-community-sets/bgp-pol:ext-community-set/bgp-pol:ext-community-member"]
+
+_typedef_exclude =["/bgp-types:bgp-origin-attr-type"]
 
 def generate_header(ctx):
     print _COPYRIGHT_NOTICE

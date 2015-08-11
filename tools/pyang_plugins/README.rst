@@ -22,4 +22,5 @@ How to use
    -p $YANG_DIR/experimental/openconfig/policy \
    -f golang $YANG_DIR/experimental/openconfig/bgp/bgp.yang \
    --augment $YANG_DIR/experimental/openconfig/bgp/bgp-policy.yang \
+   --augment $GOBGP_PATH/tools/pyang_plugins/gobgp.yang \
    | gofmt > $GOBGP_PATH/config/bgp_configs.go

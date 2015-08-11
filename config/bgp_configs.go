@@ -66,15 +66,6 @@ const (
 	BGP_SESSION_DIRECTION_OUTBOUND
 )
 
-// typedef for typedef bgp-types:bgp-origin-attr-type
-type BgpOriginAttrType int
-
-const (
-	BGP_ORIGIN_ATTR_TYPE_IGP        BgpOriginAttrType = 0
-	BGP_ORIGIN_ATTR_TYPE_EGP                          = 1
-	BGP_ORIGIN_ATTR_TYPE_INCOMPLETE                   = 2
-)
-
 // typedef for typedef ptypes:match-set-options-restricted-type
 type MatchSetOptionsRestrictedType int
 
@@ -119,6 +110,15 @@ const (
 	BGP_SET_COMMUNITY_OPTION_TYPE_ADD BgpSetCommunityOptionType = iota
 	BGP_SET_COMMUNITY_OPTION_TYPE_REMOVE
 	BGP_SET_COMMUNITY_OPTION_TYPE_REPLACE
+)
+
+// typedef for typedef gobgp:bgp-origin-attr-type
+type BgpOriginAttrType int
+
+const (
+	BGP_ORIGIN_ATTR_TYPE_IGP        BgpOriginAttrType = 0
+	BGP_ORIGIN_ATTR_TYPE_EGP                          = 1
+	BGP_ORIGIN_ATTR_TYPE_INCOMPLETE                   = 2
 )
 
 //struct for container bgp:state
@@ -195,8 +195,6 @@ type PeerGroup struct {
 	EbgpMultihop EbgpMultihop
 	// original -> bgp:route-reflector
 	RouteReflector RouteReflector
-	// original -> bgp:route-server
-	RouteServer RouteServer
 	// original -> bgp:as-path-options
 	AsPathOptions AsPathOptions
 	// original -> bgp:add-paths
@@ -209,12 +207,36 @@ type PeerGroup struct {
 	ApplyPolicy ApplyPolicy
 	// original -> bgp-mp:use-multiple-paths
 	UseMultiplePaths UseMultiplePaths
+	// original -> gobgp:route-server
+	RouteServer RouteServer
 }
 
 //struct for container bgp:peer-groups
 type PeerGroups struct {
 	// original -> bgp:peer-group
 	PeerGroupList []PeerGroup
+}
+
+//struct for container gobgp:state
+type RouteServerState struct {
+	// original -> gobgp:route-server-client
+	//gobgp:route-server-client's original type is boolean
+	RouteServerClient bool
+}
+
+//struct for container gobgp:config
+type RouteServerConfig struct {
+	// original -> gobgp:route-server-client
+	//gobgp:route-server-client's original type is boolean
+	RouteServerClient bool
+}
+
+//struct for container gobgp:route-server
+type RouteServer struct {
+	// original -> gobgp:route-server-config
+	RouteServerConfig RouteServerConfig
+	// original -> gobgp:route-server-state
+	RouteServerState RouteServerState
 }
 
 //struct for container bgp-op:prefixes
@@ -277,28 +299,6 @@ type AsPathOptions struct {
 	AsPathOptionsConfig AsPathOptionsConfig
 	// original -> bgp:as-path-options-state
 	AsPathOptionsState AsPathOptionsState
-}
-
-//struct for container bgp:state
-type RouteServerState struct {
-	// original -> bgp:route-server-client
-	//bgp:route-server-client's original type is boolean
-	RouteServerClient bool
-}
-
-//struct for container bgp:config
-type RouteServerConfig struct {
-	// original -> bgp:route-server-client
-	//bgp:route-server-client's original type is boolean
-	RouteServerClient bool
-}
-
-//struct for container bgp:route-server
-type RouteServer struct {
-	// original -> bgp:route-server-config
-	RouteServerConfig RouteServerConfig
-	// original -> bgp:route-server-state
-	RouteServerState RouteServerState
 }
 
 //struct for container bgp:state
@@ -409,9 +409,6 @@ type TransportState struct {
 	// original -> bgp:passive-mode
 	//bgp:passive-mode's original type is boolean
 	PassiveMode bool
-	// original -> bgp:local-address
-	//bgp:local-address's original type is inet:ip-address
-	LocalAddress net.IP
 	// original -> bgp-op:local-port
 	//bgp-op:local-port's original type is inet:port-number
 	LocalPort uint16
@@ -421,6 +418,9 @@ type TransportState struct {
 	// original -> bgp-op:remote-port
 	//bgp-op:remote-port's original type is inet:port-number
 	RemotePort uint16
+	// original -> gobgp:local-address
+	//gobgp:local-address's original type is inet:ip-address
+	LocalAddress net.IP
 }
 
 //struct for container bgp:config
@@ -433,8 +433,8 @@ type TransportConfig struct {
 	// original -> bgp:passive-mode
 	//bgp:passive-mode's original type is boolean
 	PassiveMode bool
-	// original -> bgp:local-address
-	//bgp:local-address's original type is inet:ip-address
+	// original -> gobgp:local-address
+	//gobgp:local-address's original type is inet:ip-address
 	LocalAddress net.IP
 }
 
@@ -457,23 +457,23 @@ type TimersState struct {
 	// original -> bgp:keepalive-interval
 	//bgp:keepalive-interval's original type is decimal64
 	KeepaliveInterval float64
-	// original -> bgp:idle-hold-time-after-reset
-	//bgp:idle-hold-time-after-reset's original type is decimal64
-	IdleHoldTimeAfterReset float64
 	// original -> bgp:minimum-advertisement-interval
 	//bgp:minimum-advertisement-interval's original type is decimal64
 	MinimumAdvertisementInterval float64
 	// original -> bgp-op:uptime
 	//bgp-op:uptime's original type is yang:timeticks
 	Uptime int64
-	// original -> bgp-op:downtime
-	//bgp-op:downtime's original type is yang:timeticks
-	Downtime int64
-	// original -> bgp-op:update-recv-time
-	UpdateRecvTime int64
 	// original -> bgp-op:negotiated-hold-time
 	//bgp-op:negotiated-hold-time's original type is decimal64
 	NegotiatedHoldTime float64
+	// original -> gobgp:idle-hold-time-after-reset
+	//gobgp:idle-hold-time-after-reset's original type is decimal64
+	IdleHoldTimeAfterReset float64
+	// original -> gobgp:downtime
+	//gobgp:downtime's original type is yang:timeticks
+	Downtime int64
+	// original -> gobgp:update-recv-time
+	UpdateRecvTime int64
 }
 
 //struct for container bgp:config
@@ -487,12 +487,12 @@ type TimersConfig struct {
 	// original -> bgp:keepalive-interval
 	//bgp:keepalive-interval's original type is decimal64
 	KeepaliveInterval float64
-	// original -> bgp:idle-hold-time-after-reset
-	//bgp:idle-hold-time-after-reset's original type is decimal64
-	IdleHoldTimeAfterReset float64
 	// original -> bgp:minimum-advertisement-interval
 	//bgp:minimum-advertisement-interval's original type is decimal64
 	MinimumAdvertisementInterval float64
+	// original -> gobgp:idle-hold-time-after-reset
+	//gobgp:idle-hold-time-after-reset's original type is decimal64
+	IdleHoldTimeAfterReset float64
 }
 
 //struct for container bgp:timers
@@ -517,17 +517,17 @@ type Received struct {
 	Update uint64
 	// original -> bgp-op:NOTIFICATION
 	Notification uint64
-	// original -> bgp-op:OPEN
+	// original -> gobgp:OPEN
 	Open uint64
-	// original -> bgp-op:REFRESH
+	// original -> gobgp:REFRESH
 	Refresh uint64
-	// original -> bgp-op:KEEPALIVE
+	// original -> gobgp:KEEPALIVE
 	Keepalive uint64
-	// original -> bgp-op:DYNAMIC-CAP
+	// original -> gobgp:DYNAMIC-CAP
 	DynamicCap uint64
-	// original -> bgp-op:DISCARDED
+	// original -> gobgp:DISCARDED
 	Discarded uint64
-	// original -> bgp-op:TOTAL
+	// original -> gobgp:TOTAL
 	Total uint64
 }
 
@@ -537,17 +537,17 @@ type Sent struct {
 	Update uint64
 	// original -> bgp-op:NOTIFICATION
 	Notification uint64
-	// original -> bgp-op:OPEN
+	// original -> gobgp:OPEN
 	Open uint64
-	// original -> bgp-op:REFRESH
+	// original -> gobgp:REFRESH
 	Refresh uint64
-	// original -> bgp-op:KEEPALIVE
+	// original -> gobgp:KEEPALIVE
 	Keepalive uint64
-	// original -> bgp-op:DYNAMIC-CAP
+	// original -> gobgp:DYNAMIC-CAP
 	DynamicCap uint64
-	// original -> bgp-op:DISCARDED
+	// original -> gobgp:DISCARDED
 	Discarded uint64
-	// original -> bgp-op:TOTAL
+	// original -> gobgp:TOTAL
 	Total uint64
 }
 
@@ -591,17 +591,17 @@ type NeighborState struct {
 	// original -> bgp-op:supported-capabilities
 	//original type is list of identityref
 	SupportedCapabilities []string
-	// original -> bgp-op:established-count
-	EstablishedCount uint32
-	// original -> bgp-op:flops
-	Flops uint32
 	// original -> bgp:messages
 	Messages Messages
 	// original -> bgp:queues
 	Queues Queues
-	// original -> bgp:admin-down
-	//bgp:admin-down's original type is boolean
+	// original -> gobgp:admin-down
+	//gobgp:admin-down's original type is boolean
 	AdminDown bool
+	// original -> gobgp:established-count
+	EstablishedCount uint32
+	// original -> gobgp:flops
+	Flops uint32
 }
 
 //struct for container bgp:config
@@ -653,8 +653,6 @@ type Neighbor struct {
 	EbgpMultihop EbgpMultihop
 	// original -> bgp:route-reflector
 	RouteReflector RouteReflector
-	// original -> bgp:route-server
-	RouteServer RouteServer
 	// original -> bgp:as-path-options
 	AsPathOptions AsPathOptions
 	// original -> bgp:add-paths
@@ -667,6 +665,8 @@ type Neighbor struct {
 	ApplyPolicy ApplyPolicy
 	// original -> bgp-mp:use-multiple-paths
 	UseMultiplePaths UseMultiplePaths
+	// original -> gobgp:route-server
+	RouteServer RouteServer
 }
 
 //struct for container bgp:neighbors
@@ -811,9 +811,9 @@ type ApplyPolicyState struct {
 	ExportPolicy []string
 	// original -> rpol:default-export-policy
 	DefaultExportPolicy DefaultPolicyType
-	// original -> rpol:in-policy
+	// original -> gobgp:in-policy
 	InPolicy []string
-	// original -> rpol:default-in-policy
+	// original -> gobgp:default-in-policy
 	DefaultInPolicy DefaultPolicyType
 }
 
@@ -827,9 +827,9 @@ type ApplyPolicyConfig struct {
 	ExportPolicy []string
 	// original -> rpol:default-export-policy
 	DefaultExportPolicy DefaultPolicyType
-	// original -> rpol:in-policy
+	// original -> gobgp:in-policy
 	InPolicy []string
-	// original -> rpol:default-in-policy
+	// original -> gobgp:default-in-policy
 	DefaultInPolicy DefaultPolicyType
 }
 
@@ -1261,11 +1261,11 @@ type SetCommunity struct {
 
 //struct for container bgp-pol:set-as-path-prepend
 type SetAsPathPrepend struct {
-	// original -> bgp-pol:as
-	//bgp-pol:as's original type is union
-	As string
 	// original -> bgp-pol:repeat-n
 	RepeatN uint8
+	// original -> gobgp:as
+	//gobgp:as's original type is union
+	As string
 }
 
 //struct for container bgp-pol:bgp-actions
@@ -1454,9 +1454,9 @@ type PolicyDefinitions struct {
 	PolicyDefinitionList []PolicyDefinition
 }
 
-//struct for container bgp-pol:as-path
+//struct for container gobgp:as-path
 type AsPath struct {
-	// original -> bgp-pol:as-path
+	// original -> gobgp:as-path
 	AsPath string
 }
 
@@ -1464,7 +1464,9 @@ type AsPath struct {
 type AsPathSet struct {
 	// original -> bgp-pol:as-path-set-name
 	AsPathSetName string
-	// original -> bgp-pol:as-path
+	// original -> bgp-pol:as-path-set-member
+	AsPathSetMember []string
+	// original -> gobgp:as-path
 	AsPathList []AsPath
 }
 
@@ -1474,9 +1476,9 @@ type AsPathSets struct {
 	AsPathSetList []AsPathSet
 }
 
-//struct for container bgp-pol:ext-community
+//struct for container gobgp:ext-community
 type ExtCommunity struct {
-	// original -> bgp-pol:ext-community
+	// original -> gobgp:ext-community
 	ExtCommunity string
 }
 
@@ -1484,7 +1486,7 @@ type ExtCommunity struct {
 type ExtCommunitySet struct {
 	// original -> bgp-pol:ext-community-set-name
 	ExtCommunitySetName string
-	// original -> bgp-pol:ext-community
+	// original -> gobgp:ext-community
 	ExtCommunityList []ExtCommunity
 }
 
@@ -1494,9 +1496,9 @@ type ExtCommunitySets struct {
 	ExtCommunitySetList []ExtCommunitySet
 }
 
-//struct for container bgp-pol:community
+//struct for container gobgp:community
 type Community struct {
-	// original -> bgp-pol:community
+	// original -> gobgp:community
 	Community string
 }
 
@@ -1504,7 +1506,7 @@ type Community struct {
 type CommunitySet struct {
 	// original -> bgp-pol:community-set-name
 	CommunitySetName string
-	// original -> bgp-pol:community
+	// original -> gobgp:community
 	CommunityList []Community
 }
 
@@ -1544,10 +1546,10 @@ type TagSets struct {
 	TagSetList []TagSet
 }
 
-//struct for container rpol:neighbor-info
+//struct for container gobgp:neighbor-info
 type NeighborInfo struct {
-	// original -> rpol:address
-	//rpol:address's original type is inet:ip-address
+	// original -> gobgp:address
+	//gobgp:address's original type is inet:ip-address
 	Address net.IP
 }
 
@@ -1555,7 +1557,7 @@ type NeighborInfo struct {
 type NeighborSet struct {
 	// original -> rpol:neighbor-set-name
 	NeighborSetName string
-	// original -> rpol:neighbor-info
+	// original -> gobgp:neighbor-info
 	NeighborInfoList []NeighborInfo
 }
 
