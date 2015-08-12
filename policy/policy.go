@@ -69,7 +69,7 @@ func NewPolicy(pd config.PolicyDefinition, ds config.DefinedSets) *Policy {
 	}
 
 	for _, statement := range stmtList {
-
+		fmt.Println(statement.Conditions.BgpConditions)
 		conditions := make([]Condition, 0)
 
 		// prefix match
@@ -89,6 +89,10 @@ func NewPolicy(pd config.PolicyDefinition, ds config.DefinedSets) *Policy {
 		ac := NewAsPathLengthCondition(c)
 		if ac != nil {
 			conditions = append(conditions, ac)
+		}
+
+		if statement.Conditions.BgpConditions.RpkiValidationResult != config.RPKI_VALIDATION_RESULT_TYPE_NONE {
+			conditions = append(conditions, NewRPKIValidationCondition(statement.Conditions.BgpConditions.RpkiValidationResult))
 		}
 
 		bgpDefset := &ds.BgpDefinedSets
@@ -970,6 +974,20 @@ func (c *ExtCommunityCondition) evaluate(path *table.Path) bool {
 	}).Debug("evaluate extended community")
 
 	return result
+}
+
+type RPKIValidationCondition struct {
+	result config.RpkiValidationResultType
+}
+
+func NewRPKIValidationCondition(result config.RpkiValidationResultType) *RPKIValidationCondition {
+	return &RPKIValidationCondition{
+		result: result,
+	}
+}
+
+func (c *RPKIValidationCondition) evaluate(path *table.Path) bool {
+	return c.result == path.Validation
 }
 
 type Action interface {
