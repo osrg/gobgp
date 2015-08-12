@@ -28,6 +28,7 @@ No dependency hell (library, package, etc) thanks to Go.
  * [Policy](https://github.com/osrg/gobgp/blob/master/docs/sources/policy.md)
  * [EVPN](https://github.com/osrg/gobgp/blob/master/docs/sources/evpn.md)
  * [MRT](https://github.com/osrg/gobgp/blob/master/docs/sources/mrt.md)
+ * [Flowspec](https://github.com/osrg/gobgp/blob/master/docs/sources/flowspec.md)
  
 ## Community, discussion and support
 
