@@ -322,6 +322,7 @@ type Path struct {
 	Age        int64    `protobuf:"varint,3,opt,name=age" json:"age,omitempty"`
 	Best       bool     `protobuf:"varint,4,opt,name=best" json:"best,omitempty"`
 	IsWithdraw bool     `protobuf:"varint,5,opt,name=is_withdraw" json:"is_withdraw,omitempty"`
+	Validation int32    `protobuf:"varint,6,opt,name=validation" json:"validation,omitempty"`
 }
 
 func (m *Path) Reset()         { *m = Path{} }

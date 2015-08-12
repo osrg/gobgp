@@ -144,6 +144,7 @@ message Path {
     int64 age = 3;
     bool best = 4;
     bool is_withdraw = 5;
+    int32 validation = 6;
 }
 
 message Destination {
