@@ -171,33 +171,23 @@ module bgp-gobgp {
      description
         "set of configurations for route server client.";
 
-     container route-server {
+    container route-server {
        description
          "Configure the local router as a route server";
 
       container config {
-        description
-          "Configuration parameters relating to route server
-          client(s) used for the BGP neighbor";
-        uses gobgp-route-server-config;
+      description
+        "Configuration parameters relating to route server
+        client(s) used for the BGP neighbor";
+      uses gobgp-route-server-config;
       }
       container state {
-        config false;
-        description
-          "State information relating to route server
-          client(s) used for the BGP neighbor";
-        uses gobgp-route-server-config;
-       }
-     }
-  }
-
-  grouping gobgp-rpki-validation-result {
-    description "additional rpki";
-    leaf rpki-validation-result {
-      type rpki-validation-result-type;
-      default NOT-FOUND;
+      config false;
       description
-        "specify the validation result of RPKI based on ROA as conditions";
+        "State information relating to route server
+        client(s) used for the BGP neighbor";
+      uses gobgp-route-server-config;
+      }
     }
   }
 
@@ -221,6 +211,188 @@ module bgp-gobgp {
     }
     description
       "indicate the validation result of RPKI based on ROA";
+  }
+
+  grouping gobgp-rpki-validation-result {
+    description "additional rpki";
+
+    leaf rpki-validation-result {
+      type rpki-validation-result-type;
+      default NOT-FOUND;
+      description
+        "specify the validation result of RPKI based on ROA as conditions";
+    }
+  }
+
+  grouping gobgp-rpki-server-messages-sent {
+    description "additional RPKI sent messages";
+
+    leaf serial-query {
+      type int64;
+      description
+        "Number of serial query message sent to RPKI server";
+    }
+    leaf reset-query {
+      type int64;
+      description
+        "Number of reset query message sent to RPKI server";
+    }
+    leaf error {
+      type int64;
+      description
+        "Number of error message sent to RPKI server";
+    }
+  }
+
+  grouping gobgp-rpki-server-messages-received {
+    description "additional RPKI receive messages";
+
+    leaf serial-notify {
+      type int64;
+      description
+        "Number of serial notify message received from RPKI server";
+    }
+    leaf cache-reset {
+      type int64;
+      description
+        "Number of cache reset message received from RPKI server";
+    }
+    leaf cache-response {
+      type int64;
+      description
+        "Number of cache response message received from RPKI server";
+    }
+    leaf ipv4-prefix {
+      type int64;
+      description
+        "Number of ipv4 prefix message received from RPKI server";
+    }
+    leaf ipv6-prefix {
+      type int64;
+      description
+        "Number of ipv6 prefix message received from RPKI server";
+    }
+    leaf end-of-data {
+      type int64;
+      description
+        "Number of end of data message received from RPKI server";
+    }
+    leaf error {
+      type int64;
+      description
+        "Number of error message received from RPKI server";
+    }
+  }
+
+  grouping gobgp-rpki-server-messages {
+    description "additional RPKI messages";
+
+    container rpki-sent {
+      description
+        "Counters for transmission RPKI Message types";
+      uses gobgp-rpki-server-messages-sent;
+    }
+    container rpki-received {
+      description
+        "Counters for reception RPKI Message types";
+      uses gobgp-rpki-server-messages-received;
+    }
+  }
+
+  grouping gobgp-rpki-server-state {
+    description "additional RPKI state";
+
+    leaf uptime {
+      type int64;
+      description
+        "This timer determines the amount of time since the
+         RPKI last transitioned in of the Established state";
+    }
+    leaf downtime {
+      type int64;
+      description
+        "This timer determines the amount of time since the
+         RPKI last transitioned out of the Established state";
+    }
+    leaf last-pdu-recv-time {
+      type int64;
+      description
+        "last time the received an pdu message from RPKI server";
+    }
+    container rpki-messages {
+      description
+        "Counters for transmission and reception RPKI Message types";
+      uses gobgp-rpki-server-messages;
+    }
+  }
+
+  grouping gobgp-rpki-server-config {
+    description "additional RPKI config";
+
+    leaf address {
+      type inet:ip-address;
+      description
+        "Reference to the address of the RPKI server used as
+         a key in the RPKI server list";
+    }
+    leaf port {
+      type uint32;
+      description
+        "Reference to the port of the RPKI server";
+    }
+    leaf refresh-time {
+      type int64;
+      description
+        "Check interval for a configured RPKI server.";
+    }
+    leaf hold-time {
+      type int64;
+      description
+        "Specify the length of time in seconds that the session between
+        the router and RPKI server is to be considered operational
+        without any activity";
+    }
+    leaf record-lifetime {
+      type int64;
+      description
+        "Indicate the expiration date of the route validation recode
+        received from RPKI server";
+    }
+    leaf preference {
+      type uint8;
+      description
+        "RPKI server has a static preference.
+        Higher the preference values indicates a higher priority RPKI server";
+    }
+  }
+
+  grouping gobgp-rpki-server-set {
+    description "additional RPKI configuration and state";
+
+    container config {
+      description
+        "Configuration parameters relating to RPKI server";
+      uses gobgp-rpki-server-config;
+    }
+    container state {
+      description
+        "State information relating to RPKI server";
+      uses gobgp-rpki-server-state;
+    }
+  }
+
+  grouping gobgp-rpki-servers {
+    description "additional RPKI structure";
+
+    container rpki-servers {
+      description
+        "List of RPKI servers configured on the local system";
+      list rpki-server {
+        container rpki-server {
+          uses gobgp-rpki-server-set;
+        }
+      }
+    }
   }
 
   // augment statements
@@ -377,6 +549,12 @@ module bgp-gobgp {
     "rpol:conditions/bgp-pol:bgp-conditions" {
     description "additional rpki condition";
     uses gobgp-rpki-validation-result;
+  }
+
+  augment "/bgp:bgp" {
+    description "additional rpki configuration and state";
+    uses gobgp-rpki-servers;
+
   }
 
 }

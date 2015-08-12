@@ -131,6 +131,85 @@ const (
 	BGP_ORIGIN_ATTR_TYPE_INCOMPLETE                   = 2
 )
 
+//struct for container gobgp:rpki-received
+type RpkiReceived struct {
+	// original -> gobgp:serial-notify
+	SerialNotify int64
+	// original -> gobgp:cache-reset
+	CacheReset int64
+	// original -> gobgp:cache-response
+	CacheResponse int64
+	// original -> gobgp:ipv4-prefix
+	Ipv4Prefix int64
+	// original -> gobgp:ipv6-prefix
+	Ipv6Prefix int64
+	// original -> gobgp:end-of-data
+	EndOfData int64
+	// original -> gobgp:error
+	Error int64
+}
+
+//struct for container gobgp:rpki-sent
+type RpkiSent struct {
+	// original -> gobgp:serial-query
+	SerialQuery int64
+	// original -> gobgp:reset-query
+	ResetQuery int64
+	// original -> gobgp:error
+	Error int64
+}
+
+//struct for container gobgp:rpki-messages
+type RpkiMessages struct {
+	// original -> gobgp:rpki-sent
+	RpkiSent RpkiSent
+	// original -> gobgp:rpki-received
+	RpkiReceived RpkiReceived
+}
+
+//struct for container gobgp:state
+type RpkiServerState struct {
+	// original -> gobgp:uptime
+	Uptime int64
+	// original -> gobgp:downtime
+	Downtime int64
+	// original -> gobgp:last-pdu-recv-time
+	LastPduRecvTime int64
+	// original -> gobgp:rpki-messages
+	RpkiMessages RpkiMessages
+}
+
+//struct for container gobgp:config
+type RpkiServerConfig struct {
+	// original -> gobgp:address
+	//gobgp:address's original type is inet:ip-address
+	Address net.IP
+	// original -> gobgp:port
+	Port uint32
+	// original -> gobgp:refresh-time
+	RefreshTime int64
+	// original -> gobgp:hold-time
+	HoldTime int64
+	// original -> gobgp:record-lifetime
+	RecordLifetime int64
+	// original -> gobgp:preference
+	Preference uint8
+}
+
+//struct for container gobgp:rpki-server
+type RpkiServer struct {
+	// original -> gobgp:rpki-server-config
+	RpkiServerConfig RpkiServerConfig
+	// original -> gobgp:rpki-server-state
+	RpkiServerState RpkiServerState
+}
+
+//struct for container gobgp:rpki-servers
+type RpkiServers struct {
+	// original -> gobgp:rpki-server
+	RpkiServerList []RpkiServer
+}
+
 //struct for container bgp:state
 type PeerGroupState struct {
 	// original -> bgp:peer-as
@@ -1231,6 +1310,8 @@ type Bgp struct {
 	Neighbors Neighbors
 	// original -> bgp:peer-groups
 	PeerGroups PeerGroups
+	// original -> gobgp:rpki-servers
+	RpkiServers RpkiServers
 }
 
 //struct for container bgp-pol:set-ext-community-method
