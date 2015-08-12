@@ -24,7 +24,6 @@ import (
 	"io"
 	"net"
 	"os"
-	"sort"
 )
 
 func showRPKITable(args []string) error {
@@ -41,17 +40,7 @@ func showRPKITable(args []string) error {
 		fmt.Println(err)
 		return err
 	}
-	l := roas{}
-	for {
-		r, err := stream.Recv()
-		if err == io.EOF {
-			break
-		} else if err != nil {
-			return err
-		}
-		l = append(l, r)
-	}
-	sort.Sort(l)
+
 	var format string
 	afi, _ := bgp.RouteFamilyToAfiSafi(rf)
 	if afi == bgp.AFI_IP {
@@ -60,8 +49,14 @@ func showRPKITable(args []string) error {
 		format = "%-42s %-6s %s\n"
 	}
 	fmt.Printf(format, "Network", "Maxlen", "AS")
-	for _, r := range l {
-		fmt.Printf(format, fmt.Sprintf("%s/%d", r.Prefix, r.Prefixlen), fmt.Sprint(r.Maxlen), fmt.Sprint(r.Maxlen))
+	for {
+		r, err := stream.Recv()
+		if err == io.EOF {
+			break
+		} else if err != nil {
+			return err
+		}
+		fmt.Printf(format, fmt.Sprintf("%s/%d", r.Prefix, r.Prefixlen), fmt.Sprint(r.Maxlen), fmt.Sprint(r.As))
 	}
 	return nil
 }

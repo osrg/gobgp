@@ -20,6 +20,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"github.com/osrg/gobgp/api"
+	"github.com/osrg/gobgp/config"
 	"github.com/osrg/gobgp/packet"
 	"github.com/osrg/gobgp/policy"
 	"github.com/spf13/cobra"
@@ -305,11 +306,19 @@ func showRoute(pathList []*Path, showAge bool, showBest bool, isMonitor bool) {
 		}
 
 		best := ""
+		switch config.RpkiValidationResultType(p.Validation) {
+		case config.RPKI_VALIDATION_RESULT_TYPE_NOT_FOUND:
+			best += "N"
+		case config.RPKI_VALIDATION_RESULT_TYPE_VALID:
+			best += "V"
+		case config.RPKI_VALIDATION_RESULT_TYPE_INVALID:
+			best += "I"
+		}
 		if showBest {
 			if p.Best {
-				best = "*>"
+				best += "*>"
 			} else {
-				best = "* "
+				best += "* "
 			}
 		}
 
@@ -334,10 +343,10 @@ func showRoute(pathList []*Path, showAge bool, showBest bool, isMonitor bool) {
 	if isMonitor {
 		format = "[%s] %s via %s aspath [%s] attrs %s\n"
 	} else if showAge {
-		format = fmt.Sprintf("%%-2s %%-%ds %%-%ds %%-%ds %%-10s %%-s\n", maxPrefixLen, maxNexthopLen, maxAsPathLen)
+		format = fmt.Sprintf("%%-3s %%-%ds %%-%ds %%-%ds %%-10s %%-s\n", maxPrefixLen, maxNexthopLen, maxAsPathLen)
 		fmt.Printf(format, "", "Network", "Next Hop", "AS_PATH", "Age", "Attrs")
 	} else {
-		format = fmt.Sprintf("%%-2s %%-%ds %%-%ds %%-%ds %%-s\n", maxPrefixLen, maxNexthopLen, maxAsPathLen)
+		format = fmt.Sprintf("%%-3s %%-%ds %%-%ds %%-%ds %%-s\n", maxPrefixLen, maxNexthopLen, maxAsPathLen)
 		fmt.Printf(format, "", "Network", "Next Hop", "AS_PATH", "Attrs")
 	}
 

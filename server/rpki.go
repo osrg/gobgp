@@ -17,9 +17,13 @@ package server
 
 import (
 	"bufio"
+	"bytes"
 	"fmt"
+	"github.com/armon/go-radix"
 	"github.com/osrg/gobgp/api"
+	"github.com/osrg/gobgp/config"
 	"github.com/osrg/gobgp/packet"
+	"github.com/osrg/gobgp/table"
 	"net"
 )
 
@@ -44,7 +48,8 @@ func (r *roa) toApiStruct() *api.ROA {
 }
 
 type roaClient struct {
-	roas     map[bgp.RouteFamily]map[string]*roa
+	url      string
+	roas     map[bgp.RouteFamily]*radix.Tree
 	outgoing chan *roa
 }
 
@@ -52,31 +57,70 @@ func (c *roaClient) recieveROA() chan *roa {
 	return c.outgoing
 }
 
+func roa2key(r *roa) string {
+	var buffer bytes.Buffer
+	for i := 0; i < len(r.Prefix) && i < int(r.PrefixLen); i++ {
+		buffer.WriteString(fmt.Sprintf("%08b", r.Prefix[i]))
+	}
+	return buffer.String()[:r.PrefixLen]
+}
+
 func (c *roaClient) handleRTRMsg(r *roa) {
 	if r.Prefix.To4() != nil {
-		c.roas[bgp.RF_IPv4_UC][r.key()] = r
+		c.roas[bgp.RF_IPv4_UC].Insert(roa2key(r), r)
 	} else {
-		c.roas[bgp.RF_IPv6_UC][r.key()] = r
+		c.roas[bgp.RF_IPv6_UC].Insert(roa2key(r), r)
 	}
 }
 
 func (c *roaClient) handleGRPC(grpcReq *GrpcRequest) {
-	if roas, ok := c.roas[grpcReq.RouteFamily]; ok {
-		for _, r := range roas {
+	if tree, ok := c.roas[grpcReq.RouteFamily]; ok {
+		tree.Walk(func(s string, v interface{}) bool {
+			r, _ := v.(*roa)
 			result := &GrpcResponse{}
 			result.Data = r.toApiStruct()
 			grpcReq.ResponseCh <- result
-		}
+			return false
+		})
 	}
 	close(grpcReq.ResponseCh)
 }
 
+func (c *roaClient) validate(pathList []*table.Path) {
+	if c.url == "" {
+		return
+	}
+
+	for _, path := range pathList {
+		if tree, ok := c.roas[path.GetRouteFamily()]; ok {
+			_, n, _ := net.ParseCIDR(path.GetNlri().String())
+			ones, _ := n.Mask.Size()
+			var buffer bytes.Buffer
+			for i := 0; i < len(n.IP) && i < ones; i++ {
+				buffer.WriteString(fmt.Sprintf("%08b", n.IP[i]))
+			}
+			_, r, _ := tree.LongestPrefix(buffer.String()[:ones])
+			if r == nil {
+				path.Validation = config.RPKI_VALIDATION_RESULT_TYPE_NOT_FOUND
+			} else {
+				roa, _ := r.(*roa)
+				if roa.AS == path.GetSourceAs() {
+					path.Validation = config.RPKI_VALIDATION_RESULT_TYPE_VALID
+				} else {
+					path.Validation = config.RPKI_VALIDATION_RESULT_TYPE_INVALID
+				}
+			}
+		}
+	}
+}
+
 func newROAClient(url string) (*roaClient, error) {
 	c := &roaClient{
-		roas: make(map[bgp.RouteFamily]map[string]*roa),
+		url:  url,
+		roas: make(map[bgp.RouteFamily]*radix.Tree),
 	}
-	c.roas[bgp.RF_IPv4_UC] = make(map[string]*roa)
-	c.roas[bgp.RF_IPv6_UC] = make(map[string]*roa)
+	c.roas[bgp.RF_IPv4_UC] = radix.New()
+	c.roas[bgp.RF_IPv6_UC] = radix.New()
 
 	if url == "" {
 		return c, nil
