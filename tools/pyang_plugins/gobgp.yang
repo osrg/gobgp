@@ -203,6 +203,9 @@ module bgp-gobgp {
 
    typedef rpki-validation-result-type {
     type enumeration {
+      enum NONE {
+        description "RPKI disabled";
+      }
       enum NOT-FOUND {
         description "If the origin AS, prefix, maximum prefix length
         does not exist in the range of ROA";
