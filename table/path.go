@@ -36,6 +36,7 @@ type Path struct {
 	medSetByTargetNeighbor bool
 	timestamp              time.Time
 	NoImplicitWithdraw     bool
+	Validation             config.RpkiValidationResultType
 }
 
 func NewPath(source *PeerInfo, nlri bgp.AddrPrefixInterface, isWithdraw bool, pattrs []bgp.PathAttributeInterface, medSetByTargetNeighbor bool, timestamp time.Time, noImplicitWithdraw bool) *Path {
@@ -156,6 +157,7 @@ func (path *Path) ToApiStruct() *api.Path {
 		Pattrs:     pattrs,
 		Age:        int64(time.Now().Sub(path.timestamp).Seconds()),
 		IsWithdraw: path.IsWithdraw,
+		Validation: int32(path.Validation),
 	}
 }
 
@@ -189,7 +191,9 @@ func (path *Path) Clone(isWithdraw bool) *Path {
 		newPathAttrs[i] = v
 	}
 
-	return NewPath(path.source, nlri, isWithdraw, newPathAttrs, false, path.timestamp, path.NoImplicitWithdraw)
+	p := NewPath(path.source, nlri, isWithdraw, newPathAttrs, false, path.timestamp, path.NoImplicitWithdraw)
+	p.Validation = path.Validation
+	return p
 }
 
 func (path *Path) GetRouteFamily() bgp.RouteFamily {

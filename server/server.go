@@ -683,6 +683,10 @@ func (server *BgpServer) handleFSMMessage(peer *Peer, e *fsmMsg, incoming chan *
 					msgs = append(msgs, newSenderMsg(peer, msgList))
 				}
 				break
+			} else {
+				if len(pathList) > 0 {
+					server.roaClient.validate(pathList)
+				}
 			}
 			msgs = append(msgs, server.propagateUpdate(peer.conf.NeighborConfig.NeighborAddress.String(),
 				peer.isRouteServerClient(), pathList)...)

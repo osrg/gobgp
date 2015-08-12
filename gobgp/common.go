@@ -152,6 +152,7 @@ type Path struct {
 	Age        int64                        `json:"age"`
 	Best       bool                         `json:"best"`
 	IsWithdraw bool                         `json:"isWithdraw"`
+	Validation int32
 }
 
 func ApiStruct2Path(p *api.Path) (*Path, error) {
@@ -192,6 +193,7 @@ func ApiStruct2Path(p *api.Path) (*Path, error) {
 		Age:        p.Age,
 		Best:       p.Best,
 		IsWithdraw: p.IsWithdraw,
+		Validation: p.Validation,
 	}, nil
 }
 
