@@ -90,7 +90,7 @@ func SetDefaultConfigValues(md toml.MetaData, bt *Bgp) error {
 			}
 		}
 
-		if _, ok := n.attributes["Neighbors.NeighborList.NeighborConfig"]; !ok {
+		if _, ok := n.attributes["Neighbors.NeighborList.NeighborConfig.PeerType"]; !ok {
 			if neighbor.NeighborConfig.PeerAs != bt.Global.GlobalConfig.As {
 				neighbor.NeighborConfig.PeerType = PEER_TYPE_EXTERNAL
 			} else {
