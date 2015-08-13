@@ -125,6 +125,11 @@ func NewPolicy(pd config.PolicyDefinition, ds config.DefinedSets) *Policy {
 			mda = append(mda, com)
 		}
 
+		ext := NewExtCommunityAction(statement.Actions.BgpActions.SetExtCommunity)
+		if ext != nil {
+			mda = append(mda, ext)
+		}
+
 		// Med Action
 		med := NewMedAction(statement.Actions.BgpActions.SetMed)
 		if med != nil {
@@ -1024,6 +1029,7 @@ func (r *RoutingAction) apply(path *table.Path) *table.Path {
 type CommunityAction struct {
 	DefaultAction
 	Values []uint32
+	ext    []byte
 	action config.BgpSetCommunityOptionType
 }
 
@@ -1078,7 +1084,9 @@ func NewCommunityAction(action config.SetCommunity) *CommunityAction {
 }
 
 func (a *CommunityAction) apply(path *table.Path) *table.Path {
-
+	if len(a.ext) > 0 {
+		return a.extApply(path)
+	}
 	list := a.Values
 	switch a.action {
 	case config.BGP_SET_COMMUNITY_OPTION_TYPE_ADD:
@@ -1097,6 +1105,43 @@ func (a *CommunityAction) apply(path *table.Path) *table.Path {
 	}).Debug("community action applied")
 
 	return path
+}
+
+func (a *CommunityAction) extApply(path *table.Path) *table.Path {
+	path.SetExtCommunities(a.ext, false)
+	return path
+}
+
+func NewExtCommunityAction(action config.SetExtCommunity) *CommunityAction {
+	communities := action.SetExtCommunityMethod.Communities
+	if len(communities) == 0 {
+		return nil
+	}
+
+	b := make([]byte, len(communities)*8)
+	for i, c := range communities {
+		l := strings.Split(c, ":")
+		if len(l) != 8 {
+			goto E
+		}
+		for j, v := range l {
+			v, err := strconv.ParseInt(v, 0, 32)
+			if err != nil {
+				goto E
+			}
+			b[j+i*8] = uint8(v)
+		}
+	}
+	return &CommunityAction{
+		ext: b,
+	}
+E:
+	log.WithFields(log.Fields{
+		"Topic":  "Policy",
+		"Action": "ExtCommunity",
+		"Values": communities,
+	}).Error("invalid extended community action")
+	return nil
 }
 
 type ActionType int
