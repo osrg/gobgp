@@ -126,8 +126,8 @@ func cidr2prefix(cidr string) string {
 }
 
 type Destination struct {
-	Prefix string  `json:"prefix"`
-	Paths  []*Path `json:"paths"`
+	Prefix string `json:"prefix"`
+	Paths  paths  `json:"paths"`
 }
 
 func ApiStruct2Destination(dst *api.Destination) (*Destination, error) {
@@ -208,14 +208,7 @@ func (p paths) Swap(i, j int) {
 }
 
 func (p paths) Less(i, j int) bool {
-	if p[i].Nlri.String() == p[j].Nlri.String() {
-		if p[i].Best {
-			return true
-		}
-	}
-	strings := sort.StringSlice{cidr2prefix(p[i].Nlri.String()),
-		cidr2prefix(p[j].Nlri.String())}
-	return strings.Less(0, 1)
+	return p[i].Best
 }
 
 type peers []*api.Peer

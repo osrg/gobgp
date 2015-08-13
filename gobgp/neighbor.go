@@ -19,6 +19,7 @@ import (
 	"bytes"
 	"encoding/json"
 	"fmt"
+	"github.com/armon/go-radix"
 	"github.com/osrg/gobgp/api"
 	"github.com/osrg/gobgp/config"
 	"github.com/osrg/gobgp/packet"
@@ -412,7 +413,7 @@ func showNeighborRib(r string, name string, args []string) error {
 		return err
 	}
 
-	dsts := []*Destination{}
+	tree := radix.New()
 	maxOnes := 0
 	for {
 		d, e := stream.Recv()
@@ -424,12 +425,13 @@ func showNeighborRib(r string, name string, args []string) error {
 		if prefix != "" && prefix != d.Prefix {
 			continue
 		}
+
 		if host != nil {
 			_, prefix, _ := net.ParseCIDR(d.Prefix)
 			ones, _ := prefix.Mask.Size()
 			if prefix.Contains(host) {
 				if maxOnes < ones {
-					dsts = []*Destination{}
+					tree = radix.New()
 					maxOnes = ones
 				} else if maxOnes > ones {
 					continue
@@ -443,26 +445,40 @@ func showNeighborRib(r string, name string, args []string) error {
 		if err != nil {
 			return err
 		}
-		dsts = append(dsts, dst)
+		_, n, _ := net.ParseCIDR(d.Prefix)
+		ones, _ := n.Mask.Size()
+		var buffer bytes.Buffer
+		for i := 0; i < len(n.IP) && i < ones; i++ {
+			buffer.WriteString(fmt.Sprintf("%08b", n.IP[i]))
+		}
+		tree.Insert(buffer.String()[:ones], dst)
+		sort.Sort(dst.Paths)
 	}
 
 	if globalOpts.Json {
+		dsts := []*Destination{}
+		tree.Walk(func(s string, v interface{}) bool {
+			dst, _ := v.(*Destination)
+			dsts = append(dsts, dst)
+			return false
+		})
 		j, _ := json.Marshal(dsts)
 		fmt.Println(string(j))
 		return nil
 	}
 
 	ps := paths{}
-	for _, dst := range dsts {
+	tree.Walk(func(s string, v interface{}) bool {
+		dst, _ := v.(*Destination)
 		ps = append(ps, dst.Paths...)
-	}
+		return false
+	})
 
 	if len(ps) == 0 {
 		fmt.Println("Network not in table")
 		return nil
 	}
 
-	sort.Sort(ps)
 	showRoute(ps, showAge, showBest, false)
 	return nil
 }
