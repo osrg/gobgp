@@ -7,16 +7,16 @@ This page explains gobgp client command syntax.
 ## basic command pattern
 gobgp \<subcommand> \<object>  opts...
 
-gobgp has three subcommands.
-- global
-- neighbor
-- policy
-- vrf
-- monitor
-- mrt
+gobgp has six subcommands.
+- [global](#global)
+- [neighbor](#neighbor)
+- [policy](#policy)
+- [vrf](#vrf)
+- [monitor](#monitor)
+- [mrt](#mrt)
 
 
-## 1. global subcommand
+## 1. <a name="global"> global subcommand
 ### 1.1. Operations for Global-Rib - add/del/show -
 #### - syntax
 ```shell
@@ -49,7 +49,7 @@ The following options can be specified in the global subcommand:
 
 <br>
 
-## 2. neighbor subcommand
+## 2. <a name="neighbor"> neighbor subcommand
 ### 2.1. Show Neighbor Status
 #### - syntax
 ```shell
@@ -132,7 +132,7 @@ You can specify multiple policy to neighbor separated by commas.
 
 <br>
 
-## 3. policy subcommand
+## 3. <a name="policy"> policy subcommand
 ### 3.1. Operations for PrefixSet - add/del/show -
 #### - syntax
 ```shell
@@ -364,7 +364,7 @@ The following options can be specified in the policy subcommand:
 |-       |a-med       |specify the med operation of the route that match to the conditions                                            |
 |-       |a-asprepend |specify a combination of an AS number and repeat count(e.g. 65100,10) to prepend if the path matches conditions|
 
-## 4. vrf subcommand
+## 4. <a name="vrf"> vrf subcommand
 ### 4.1 Add/Delete/Show VRF
 #### Syntax
 ```shell
@@ -412,7 +412,7 @@ The following options can be specified in the policy subcommand:
 % gobgp vrf vrf1 rib del 2001::/64
 ```
 
-## 5. monitor subcommand
+## 5. <a name="monitor"> monitor subcommand
 ### 5.1 monitor global rib
 #### Syntax
 ```shell
@@ -455,7 +455,7 @@ The following options can be specified in the policy subcommand:
 % gobgp neighbor 192.168.10.2 enable
 ```
 
-## 6. mrt subcommand
+## 6. <a name="mrt"> mrt subcommand
 ### 6.1 dump mrt records
 #### Syntax
 ```shell
