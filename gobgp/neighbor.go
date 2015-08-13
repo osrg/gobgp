@@ -286,7 +286,12 @@ func showRoute(pathList []*Path, showAge bool, showBest bool, isMonitor bool) {
 			case bgp.BGP_ATTR_TYPE_NEXT_HOP:
 				nexthop = a.(*bgp.PathAttributeNextHop).Value.String()
 			case bgp.BGP_ATTR_TYPE_MP_REACH_NLRI:
-				nexthop = a.(*bgp.PathAttributeMpReachNLRI).Nexthop.String()
+				n := a.(*bgp.PathAttributeMpReachNLRI).Nexthop
+				if n != nil {
+					nexthop = n.String()
+				} else {
+					nexthop = "fictitious"
+				}
 			case bgp.BGP_ATTR_TYPE_AS_PATH:
 				aspathstr = aspath(a)
 			case bgp.BGP_ATTR_TYPE_AS4_PATH:

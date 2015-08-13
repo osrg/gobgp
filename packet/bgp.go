@@ -3638,9 +3638,12 @@ func (p *PathAttributeMpReachNLRI) Serialize() ([]byte, error) {
 		nexthoplen = 16
 	}
 	offset := 0
-	if safi == SAFI_MPLS_VPN {
+	switch safi {
+	case SAFI_MPLS_VPN:
 		offset = 8
 		nexthoplen += 8
+	case SAFI_FLOW_SPEC_VPN, SAFI_FLOW_SPEC_UNICAST:
+		nexthoplen = 0
 	}
 	buf := make([]byte, 4+nexthoplen)
 	binary.BigEndian.PutUint16(buf[0:], afi)
