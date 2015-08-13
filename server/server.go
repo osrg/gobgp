@@ -846,23 +846,25 @@ func (server *BgpServer) handleModPathRequest(grpcReq *GrpcRequest, peerInfo *ta
 	extcomms := make([]bgp.ExtendedCommunityInterface, 0)
 	var nexthop string
 	var rf bgp.RouteFamily
+	var path *api.Path
 
 	arg, ok := grpcReq.Data.(*api.ModPathArguments)
 	if !ok {
 		result.ResponseErr = fmt.Errorf("type assertion failed")
 		goto ERR
 	}
+	path = arg.Path
 
-	if len(arg.RawNlri) > 0 {
+	if len(path.Nlri) > 0 {
 		nlri = &bgp.NLRInfo{}
-		err := nlri.DecodeFromBytes(arg.RawNlri)
+		err := nlri.DecodeFromBytes(path.Nlri)
 		if err != nil {
 			result.ResponseErr = err
 			goto ERR
 		}
 	}
 
-	for _, attr := range arg.RawPattrs {
+	for _, attr := range path.Pattrs {
 		p, err := bgp.GetPathAttribute(attr)
 		if err != nil {
 			result.ResponseErr = err
@@ -956,7 +958,7 @@ func (server *BgpServer) handleModPathRequest(grpcReq *GrpcRequest, peerInfo *ta
 		pattr = append(pattr, bgp.NewPathAttributeExtendedCommunities(extcomms))
 	}
 
-	return []*table.Path{table.NewPath(peerInfo, nlri, arg.IsWithdraw, pattr, false, time.Now(), arg.NoImplicitWithdraw)}
+	return []*table.Path{table.NewPath(peerInfo, nlri, path.IsWithdraw, pattr, false, time.Now(), path.NoImplicitWithdraw)}
 ERR:
 	grpcReq.ResponseCh <- result
 	close(grpcReq.ResponseCh)
