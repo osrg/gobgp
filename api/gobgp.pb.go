@@ -206,17 +206,21 @@ func (m *Arguments) String() string { return proto.CompactTextString(m) }
 func (*Arguments) ProtoMessage()    {}
 
 type ModPathArguments struct {
-	Resource           Resource `protobuf:"varint,1,opt,name=resource,enum=api.Resource" json:"resource,omitempty"`
-	Name               string   `protobuf:"bytes,2,opt,name=name" json:"name,omitempty"`
-	IsWithdraw         bool     `protobuf:"varint,3,opt,name=is_withdraw" json:"is_withdraw,omitempty"`
-	RawNlri            []byte   `protobuf:"bytes,4,opt,name=raw_nlri,proto3" json:"raw_nlri,omitempty"`
-	RawPattrs          [][]byte `protobuf:"bytes,5,rep,name=raw_pattrs,proto3" json:"raw_pattrs,omitempty"`
-	NoImplicitWithdraw bool     `protobuf:"varint,6,opt,name=no_implicit_withdraw" json:"no_implicit_withdraw,omitempty"`
+	Resource Resource `protobuf:"varint,1,opt,name=resource,enum=api.Resource" json:"resource,omitempty"`
+	Name     string   `protobuf:"bytes,2,opt,name=name" json:"name,omitempty"`
+	Path     *Path    `protobuf:"bytes,3,opt,name=path" json:"path,omitempty"`
 }
 
 func (m *ModPathArguments) Reset()         { *m = ModPathArguments{} }
 func (m *ModPathArguments) String() string { return proto.CompactTextString(m) }
 func (*ModPathArguments) ProtoMessage()    {}
+
+func (m *ModPathArguments) GetPath() *Path {
+	if m != nil {
+		return m.Path
+	}
+	return nil
+}
 
 type PolicyArguments struct {
 	Resource         Resource          `protobuf:"varint,1,opt,name=resource,enum=api.Resource" json:"resource,omitempty"`
@@ -317,12 +321,13 @@ func (m *Capability) GetGracefulRestart() *GracefulRestart {
 }
 
 type Path struct {
-	Nlri       []byte   `protobuf:"bytes,1,opt,name=nlri,proto3" json:"nlri,omitempty"`
-	Pattrs     [][]byte `protobuf:"bytes,2,rep,name=pattrs,proto3" json:"pattrs,omitempty"`
-	Age        int64    `protobuf:"varint,3,opt,name=age" json:"age,omitempty"`
-	Best       bool     `protobuf:"varint,4,opt,name=best" json:"best,omitempty"`
-	IsWithdraw bool     `protobuf:"varint,5,opt,name=is_withdraw" json:"is_withdraw,omitempty"`
-	Validation int32    `protobuf:"varint,6,opt,name=validation" json:"validation,omitempty"`
+	Nlri               []byte   `protobuf:"bytes,1,opt,name=nlri,proto3" json:"nlri,omitempty"`
+	Pattrs             [][]byte `protobuf:"bytes,2,rep,name=pattrs,proto3" json:"pattrs,omitempty"`
+	Age                int64    `protobuf:"varint,3,opt,name=age" json:"age,omitempty"`
+	Best               bool     `protobuf:"varint,4,opt,name=best" json:"best,omitempty"`
+	IsWithdraw         bool     `protobuf:"varint,5,opt,name=is_withdraw" json:"is_withdraw,omitempty"`
+	Validation         int32    `protobuf:"varint,6,opt,name=validation" json:"validation,omitempty"`
+	NoImplicitWithdraw bool     `protobuf:"varint,7,opt,name=no_implicit_withdraw" json:"no_implicit_withdraw,omitempty"`
 }
 
 func (m *Path) Reset()         { *m = Path{} }

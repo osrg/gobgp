@@ -271,9 +271,8 @@ func injectMrt(r string, filename string, count int) error {
 				nlri := rib.Prefix
 
 				for _, e := range rib.Entries {
-					arg := &api.ModPathArguments{
-						Resource:           resource,
-						RawPattrs:          make([][]byte, 0),
+					path := &api.Path{
+						Pattrs:             make([][]byte, 0),
 						NoImplicitWithdraw: true,
 					}
 
@@ -284,12 +283,12 @@ func injectMrt(r string, filename string, count int) error {
 					nexthop := peers[e.PeerIndex].IpAddress.String()
 
 					if rf == bgp.RF_IPv4_UC {
-						arg.RawNlri, _ = nlri.Serialize()
+						path.Nlri, _ = nlri.Serialize()
 						n, _ := bgp.NewPathAttributeNextHop(nexthop).Serialize()
-						arg.RawPattrs = append(arg.RawPattrs, n)
+						path.Pattrs = append(path.Pattrs, n)
 					} else {
 						mpreach, _ := bgp.NewPathAttributeMpReachNLRI(nexthop, []bgp.AddrPrefixInterface{nlri}).Serialize()
-						arg.RawPattrs = append(arg.RawPattrs, mpreach)
+						path.Pattrs = append(path.Pattrs, mpreach)
 					}
 
 					for _, p := range e.PathAttributes {
@@ -297,10 +296,13 @@ func injectMrt(r string, filename string, count int) error {
 						if err != nil {
 							continue
 						}
-						arg.RawPattrs = append(arg.RawPattrs, b)
+						path.Pattrs = append(path.Pattrs, b)
 					}
-					ch <- arg
 
+					ch <- &api.ModPathArguments{
+						Resource: resource,
+						Path:     path,
+					}
 				}
 
 				idx += 1

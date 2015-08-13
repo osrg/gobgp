@@ -62,10 +62,7 @@ message Arguments {
 message ModPathArguments {
     Resource resource = 1;
     string name = 2;
-    bool is_withdraw = 3;
-    bytes raw_nlri = 4;
-    repeated bytes raw_pattrs = 5;
-    bool no_implicit_withdraw = 6;
+    Path path = 3;
 }
 
 message PolicyArguments {
@@ -145,6 +142,7 @@ message Path {
     bool best = 4;
     bool is_withdraw = 5;
     int32 validation = 6;
+    bool no_implicit_withdraw = 7;
 }
 
 message Destination {
