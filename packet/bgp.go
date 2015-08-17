@@ -1395,6 +1395,10 @@ func (er *EVPNEthernetAutoDiscoveryRoute) String() string {
 	return fmt.Sprintf("[type:A-D][rd:%s][esi:%s][etag:%d][label:%d]", er.RD, er.ESI, er.ETag, er.Label)
 }
 
+func (er *EVPNEthernetAutoDiscoveryRoute) rd() RouteDistinguisherInterface {
+	return er.RD
+}
+
 type EVPNMacIPAdvertisementRoute struct {
 	RD               RouteDistinguisherInterface
 	ESI              EthernetSegmentIdentifier
@@ -1487,6 +1491,10 @@ func (er *EVPNMacIPAdvertisementRoute) String() string {
 	return fmt.Sprintf("[type:macadv][rd:%s][esi:%s][etag:%d][mac:%s][ip:%s][labels:%v]", er.RD, er.ESI.String(), er.ETag, er.MacAddress, er.IPAddress, er.Labels)
 }
 
+func (er *EVPNMacIPAdvertisementRoute) rd() RouteDistinguisherInterface {
+	return er.RD
+}
+
 type EVPNMulticastEthernetTagRoute struct {
 	RD              RouteDistinguisherInterface
 	ETag            uint32
@@ -1539,6 +1547,10 @@ func (er *EVPNMulticastEthernetTagRoute) Serialize() ([]byte, error) {
 
 func (er *EVPNMulticastEthernetTagRoute) String() string {
 	return fmt.Sprintf("[type:multicast][rd:%s][etag:%d][ip:%s]", er.RD, er.ETag, er.IPAddress)
+}
+
+func (er *EVPNMulticastEthernetTagRoute) rd() RouteDistinguisherInterface {
+	return er.RD
 }
 
 type EVPNEthernetSegmentRoute struct {
@@ -1595,10 +1607,15 @@ type EVPNRouteTypeInterface interface {
 	DecodeFromBytes([]byte) error
 	Serialize() ([]byte, error)
 	String() string
+	rd() RouteDistinguisherInterface
 }
 
 func (er *EVPNEthernetSegmentRoute) String() string {
 	return fmt.Sprintf("[type:esi][rd:%s][esi:%d][ip:%s]", er.RD, er.ESI, er.IPAddress)
+}
+
+func (er *EVPNEthernetSegmentRoute) rd() RouteDistinguisherInterface {
+	return er.RD
 }
 
 func getEVPNRouteType(t uint8) (EVPNRouteTypeInterface, error) {
@@ -1684,6 +1701,10 @@ func (n *EVPNNLRI) MarshalJSON() ([]byte, error) {
 	}{
 		Prefix: n.String(),
 	})
+}
+
+func (n *EVPNNLRI) RD() RouteDistinguisherInterface {
+	return n.RouteTypeData.rd()
 }
 
 func NewEVPNNLRI(routetype uint8, length uint8, routetypedata EVPNRouteTypeInterface) *EVPNNLRI {

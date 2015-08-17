@@ -966,13 +966,11 @@ ERR:
 
 }
 
-func (server *BgpServer) handleVrfMod(arg *api.ModVrfArguments) error {
-	vrfs := server.localRibMap[GLOBAL_RIB_NAME].rib.Vrfs
+func (server *BgpServer) handleVrfMod(arg *api.ModVrfArguments) ([]*table.Path, error) {
+	manager := server.localRibMap[GLOBAL_RIB_NAME].rib
+	var msgs []*table.Path
 	switch arg.Operation {
 	case api.Operation_ADD:
-		if _, ok := vrfs[arg.Vrf.Name]; ok {
-			return fmt.Errorf("vrf %s already exists", arg.Vrf.Name)
-		}
 		rd := bgp.GetRouteDistinguisher(arg.Vrf.Rd)
 		f := func(bufs [][]byte) ([]bgp.ExtendedCommunityInterface, error) {
 			ret := make([]bgp.ExtendedCommunityInterface, 0, len(bufs))
@@ -987,42 +985,26 @@ func (server *BgpServer) handleVrfMod(arg *api.ModVrfArguments) error {
 		}
 		importRt, err := f(arg.Vrf.ImportRt)
 		if err != nil {
-			return err
+			return nil, err
 		}
 		exportRt, err := f(arg.Vrf.ImportRt)
 		if err != nil {
-			return err
+			return nil, err
 		}
-		log.WithFields(log.Fields{
-			"Topic":    "Vrf",
-			"Key":      arg.Vrf.Name,
-			"Rd":       rd,
-			"ImportRt": importRt,
-			"ExportRt": exportRt,
-		}).Debugf("add vrf")
-		vrfs[arg.Vrf.Name] = &table.Vrf{
-			Name:     arg.Vrf.Name,
-			Rd:       rd,
-			ImportRt: importRt,
-			ExportRt: exportRt,
+		err = manager.AddVrf(arg.Vrf.Name, rd, importRt, exportRt)
+		if err != nil {
+			return nil, err
 		}
 	case api.Operation_DEL:
-		if _, ok := vrfs[arg.Vrf.Name]; !ok {
-			return fmt.Errorf("vrf %s not found", arg.Vrf.Name)
+		var err error
+		msgs, err = manager.DeleteVrf(arg.Vrf.Name)
+		if err != nil {
+			return nil, err
 		}
-		vrf := vrfs[arg.Vrf.Name]
-		log.WithFields(log.Fields{
-			"Topic":    "Vrf",
-			"Key":      vrf.Name,
-			"Rd":       vrf.Rd,
-			"ImportRt": vrf.ImportRt,
-			"ExportRt": vrf.ExportRt,
-		}).Debugf("delete vrf")
-		delete(vrfs, arg.Vrf.Name)
 	default:
-		return fmt.Errorf("unknown operation:", arg.Operation)
+		return nil, fmt.Errorf("unknown operation:", arg.Operation)
 	}
-	return nil
+	return msgs, nil
 }
 
 func (server *BgpServer) handleVrfRequest(req *GrpcRequest) []*table.Path {
@@ -1073,7 +1055,7 @@ func (server *BgpServer) handleVrfRequest(req *GrpcRequest) []*table.Path {
 		goto END
 	case REQ_VRF_MOD:
 		arg := req.Data.(*api.ModVrfArguments)
-		result.ResponseErr = server.handleVrfMod(arg)
+		msgs, result.ResponseErr = server.handleVrfMod(arg)
 	default:
 		result.ResponseErr = fmt.Errorf("unknown request type:", req.RequestType)
 	}
