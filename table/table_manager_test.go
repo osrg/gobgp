@@ -38,6 +38,7 @@ func getLogger(lv log.Level) *log.Logger {
 func peerR1() *PeerInfo {
 	peer := &PeerInfo{
 		AS:      65000,
+		LocalAS: 65000,
 		ID:      net.ParseIP("10.0.0.3").To4(),
 		LocalID: net.ParseIP("10.0.0.1").To4(),
 		Address: net.ParseIP("10.0.0.1").To4(),
@@ -48,6 +49,7 @@ func peerR1() *PeerInfo {
 func peerR2() *PeerInfo {
 	peer := &PeerInfo{
 		AS:      65100,
+		LocalAS: 65000,
 		Address: net.ParseIP("10.0.0.2").To4(),
 	}
 	return peer
@@ -56,6 +58,7 @@ func peerR2() *PeerInfo {
 func peerR3() *PeerInfo {
 	peer := &PeerInfo{
 		AS:      65000,
+		LocalAS: 65000,
 		ID:      net.ParseIP("10.0.0.2").To4(),
 		LocalID: net.ParseIP("10.0.0.1").To4(),
 		Address: net.ParseIP("10.0.0.3").To4(),
@@ -967,7 +970,6 @@ func TestProcessBGPUpdate_5_select_low_med_ipv6(t *testing.T) {
 func TestProcessBGPUpdate_6_select_ebgp_path_ipv4(t *testing.T) {
 
 	tm := NewTableManager("TestProcessBGPUpdate_6_select_ebgp_path_ipv4", []bgp.RouteFamily{bgp.RF_IPv4_UC})
-	tm.localAsn = uint32(65000)
 
 	var err error
 
@@ -1052,7 +1054,6 @@ func TestProcessBGPUpdate_6_select_ebgp_path_ipv4(t *testing.T) {
 func TestProcessBGPUpdate_6_select_ebgp_path_ipv6(t *testing.T) {
 
 	tm := NewTableManager("TestProcessBGPUpdate_6_select_ebgp_path_ipv6", []bgp.RouteFamily{bgp.RF_IPv6_UC})
-	tm.localAsn = uint32(65000)
 	var err error
 
 	origin1 := bgp.NewPathAttributeOrigin(0)
@@ -1142,7 +1143,6 @@ func TestProcessBGPUpdate_6_select_ebgp_path_ipv6(t *testing.T) {
 func TestProcessBGPUpdate_7_select_low_routerid_path_ipv4(t *testing.T) {
 
 	tm := NewTableManager("TestProcessBGPUpdate_7_select_low_routerid_path_ipv4", []bgp.RouteFamily{bgp.RF_IPv4_UC})
-	tm.localAsn = uint32(65000)
 
 	var err error
 
@@ -1227,7 +1227,6 @@ func TestProcessBGPUpdate_7_select_low_routerid_path_ipv4(t *testing.T) {
 func TestProcessBGPUpdate_7_select_low_routerid_path_ipv6(t *testing.T) {
 
 	tm := NewTableManager("TestProcessBGPUpdate_7_select_low_routerid_path_ipv6", []bgp.RouteFamily{bgp.RF_IPv6_UC})
-	tm.localAsn = uint32(65000)
 	var err error
 
 	origin1 := bgp.NewPathAttributeOrigin(0)

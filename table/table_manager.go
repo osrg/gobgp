@@ -113,10 +113,9 @@ func ProcessMessage(m *bgp.BGPMessage, peerInfo *PeerInfo) []*Path {
 }
 
 type TableManager struct {
-	Tables   map[bgp.RouteFamily]*Table
-	Vrfs     map[string]*Vrf
-	localAsn uint32
-	owner    string
+	Tables map[bgp.RouteFamily]*Table
+	Vrfs   map[string]*Vrf
+	owner  string
 }
 
 func NewTableManager(owner string, rfList []bgp.RouteFamily) *TableManager {
@@ -188,7 +187,7 @@ func (manager *TableManager) calculate(destinationList []*Destination) ([]*Path,
 			"Key":   destination.GetNlri().String(),
 		}).Debug("Processing destination")
 
-		newBestPath, reason, err := destination.Calculate(manager.localAsn)
+		newBestPath, reason, err := destination.Calculate()
 
 		if err != nil {
 			log.Error(err)

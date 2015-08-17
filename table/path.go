@@ -135,11 +135,11 @@ func (path *Path) setTimestamp(t time.Time) {
 }
 
 func (path *Path) IsLocal() bool {
-	var ret bool
-	if path.source.Address == nil {
-		ret = true
-	}
-	return ret
+	return path.source.Address == nil
+}
+
+func (path *Path) IsIBGP() bool {
+	return path.source.AS == path.source.LocalAS
 }
 
 func (path *Path) ToApiStruct() *api.Path {

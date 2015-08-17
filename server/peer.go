@@ -63,6 +63,7 @@ func NewPeer(g config.Global, conf config.Neighbor) *Peer {
 	}
 	peer.peerInfo = &table.PeerInfo{
 		AS:      conf.NeighborConfig.PeerAs,
+		LocalAS: g.GlobalConfig.As,
 		LocalID: g.GlobalConfig.RouterId,
 		Address: conf.NeighborConfig.NeighborAddress,
 	}

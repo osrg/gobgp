@@ -43,6 +43,7 @@ const (
 type PeerInfo struct {
 	AS      uint32
 	ID      net.IP
+	LocalAS uint32
 	LocalID net.IP
 	Address net.IP
 }
@@ -174,7 +175,7 @@ func (dd *Destination) validatePath(path *Path) {
 //
 // Modifies destination's state related to stored paths. Removes withdrawn
 // paths from known paths. Also, adds new paths to known paths.
-func (dest *Destination) Calculate(localAsn uint32) (*Path, string, error) {
+func (dest *Destination) Calculate() (*Path, string, error) {
 
 	// First remove the withdrawn paths.
 	// Note: If we want to support multiple paths per destination we may
@@ -215,7 +216,7 @@ func (dest *Destination) Calculate(localAsn uint32) (*Path, string, error) {
 	}
 
 	// Compute new best path
-	currentBestPath, reason, e := dest.computeKnownBestPath(localAsn)
+	currentBestPath, reason, e := dest.computeKnownBestPath()
 	if e != nil {
 		log.Error(e)
 	}
@@ -319,7 +320,7 @@ func (dest *Destination) removeWithdrawals() {
 	}
 }
 
-func (dest *Destination) computeKnownBestPath(localAsn uint32) (*Path, string, error) {
+func (dest *Destination) computeKnownBestPath() (*Path, string, error) {
 
 	//	"""Computes the best path among known paths.
 	//
@@ -337,8 +338,7 @@ func (dest *Destination) computeKnownBestPath(localAsn uint32) (*Path, string, e
 	bestPathReason := BPR_ONLY_PATH
 	for _, nextPath := range dest.knownPathList[1:] {
 		// Compare next path with current best path.
-		// TODO make interface to get Local AS number
-		newBestPath, reason := computeBestPath(localAsn, currentBestPath, nextPath)
+		newBestPath, reason := computeBestPath(currentBestPath, nextPath)
 		bestPathReason = reason
 		if newBestPath != nil {
 			currentBestPath = newBestPath
@@ -413,12 +413,11 @@ func removeWithPath(list []*Path, path *Path) ([]*Path, bool) {
 	return list, false
 }
 
-func computeBestPath(localAsn uint32, path1, path2 *Path) (*Path, string) {
+func computeBestPath(path1, path2 *Path) (*Path, string) {
 
 	//Compares given paths and returns best path.
 	//
 	//Parameters:
-	//	-`localAsn`: asn of local bgpspeaker
 	//	-`path1`: first path to compare
 	//	-`path2`: second path to compare
 	//
@@ -482,7 +481,7 @@ func computeBestPath(localAsn uint32, path1, path2 *Path) (*Path, string) {
 		bestPathReason = BPR_MED
 	}
 	if bestPath == nil {
-		bestPath = compareByASNumber(localAsn, path1, path2)
+		bestPath = compareByASNumber(path1, path2)
 		bestPathReason = BPR_ASN
 	}
 	if bestPath == nil {
@@ -491,7 +490,7 @@ func computeBestPath(localAsn uint32, path1, path2 *Path) (*Path, string) {
 	}
 	if bestPath == nil {
 		var e error = nil
-		bestPath, e = compareByRouterID(localAsn, path1, path2)
+		bestPath, e = compareByRouterID(path1, path2)
 		if e != nil {
 			log.Error(e)
 		}
@@ -673,7 +672,7 @@ func compareByMED(path1, path2 *Path) *Path {
 	return path2
 }
 
-func compareByASNumber(localAsn uint32, path1, path2 *Path) *Path {
+func compareByASNumber(path1, path2 *Path) *Path {
 
 	//Select the path based on source (iBGP/eBGP) peer.
 	//
@@ -681,17 +680,12 @@ func compareByASNumber(localAsn uint32, path1, path2 *Path) *Path {
 	//peers, return None.
 	log.Debugf("enter compareByASNumber")
 
-	p1Asn := path1.GetSource().AS
-	p2Asn := path2.GetSource().AS
-
-	log.Debugf("compareByASNumber -- p1Asn: %d, p2Asn: %d", p1Asn, p2Asn)
-	// If path1 is from ibgp peer and path2 is from ebgp peer.
-	if (p1Asn == localAsn) && (p2Asn != localAsn) {
-		return path2
-	}
-
-	// If path2 is from ibgp peer and path1 is from ebgp peer,
-	if (p2Asn == localAsn) && (p1Asn != localAsn) {
+	log.Debugf("compareByASNumber -- p1Asn: %d, p2Asn: %d", path1.source.AS, path2.source.AS)
+	// If one path is from ibgp peer and another is from ebgp peer, take the ebgp path
+	if path1.IsIBGP() != path2.IsIBGP() {
+		if path1.IsIBGP() {
+			return path2
+		}
 		return path1
 	}
 
@@ -708,7 +702,7 @@ func compareByIGPCost(path1, path2 *Path) *Path {
 	return nil
 }
 
-func compareByRouterID(localAsn uint32, path1, path2 *Path) (*Path, error) {
+func compareByRouterID(path1, path2 *Path) (*Path, error) {
 	//	Select the route received from the peer with the lowest BGP router ID.
 	//
 	//	If both paths are eBGP paths, then we do not do any tie breaking, i.e we do
@@ -717,32 +711,24 @@ func compareByRouterID(localAsn uint32, path1, path2 *Path) (*Path, error) {
 	//	We pick best path between two iBGP paths as usual.
 	log.Debugf("enter compareByRouterID")
 
-	source1 := path1.GetSource()
-	source2 := path2.GetSource()
-
 	// If both paths are from NC we have same router Id, hence cannot compare.
 	if path1.IsLocal() && path2.IsLocal() {
 		return nil, nil
 	}
 
-	asn1 := source1.AS
-	asn2 := source2.AS
-
-	isEbgp1 := asn1 != localAsn
-	isEbgp2 := asn2 != localAsn
 	// If both paths are from eBGP peers, then according to RFC we need
 	// not tie break using router id.
-	if isEbgp1 && isEbgp2 {
+	if !path1.IsIBGP() && !path2.IsIBGP() {
 		return nil, nil
 	}
 
-	if isEbgp1 != isEbgp2 {
+	if path1.IsIBGP() != path2.IsIBGP() {
 		return nil, fmt.Errorf("This method does not support comparing ebgp with ibgp path")
 	}
 
 	// At least one path is not coming from NC, so we get local bgp id.
-	id1 := binary.BigEndian.Uint32(source1.ID)
-	id2 := binary.BigEndian.Uint32(source2.ID)
+	id1 := binary.BigEndian.Uint32(path1.source.ID)
+	id2 := binary.BigEndian.Uint32(path2.source.ID)
 
 	// If both router ids are same/equal we cannot decide.
 	// This case is possible since router ids are arbitrary.
