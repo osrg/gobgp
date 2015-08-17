@@ -992,7 +992,11 @@ func (server *BgpServer) handleVrfMod(arg *api.ModVrfArguments) ([]*table.Path, 
 		if err != nil {
 			return nil, err
 		}
-		err = manager.AddVrf(arg.Vrf.Name, rd, importRt, exportRt)
+		pi := &table.PeerInfo{
+			AS:      server.bgpConfig.Global.GlobalConfig.As,
+			LocalID: server.bgpConfig.Global.GlobalConfig.RouterId,
+		}
+		msgs, err = manager.AddVrf(arg.Vrf.Name, rd, importRt, exportRt, pi)
 		if err != nil {
 			return nil, err
 		}
