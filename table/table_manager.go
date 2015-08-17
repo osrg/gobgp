@@ -17,6 +17,7 @@ package table
 
 import (
 	"bytes"
+	"fmt"
 	log "github.com/Sirupsen/logrus"
 	"github.com/osrg/gobgp/packet"
 	"net"
@@ -132,6 +133,47 @@ func NewTableManager(owner string, rfList []bgp.RouteFamily) *TableManager {
 
 func (manager *TableManager) OwnerName() string {
 	return manager.owner
+}
+
+func (manager *TableManager) AddVrf(name string, rd bgp.RouteDistinguisherInterface, importRt, exportRt []bgp.ExtendedCommunityInterface) error {
+	if _, ok := manager.Vrfs[name]; ok {
+		return fmt.Errorf("vrf %s already exists", name)
+	}
+	log.WithFields(log.Fields{
+		"Topic":    "Vrf",
+		"Key":      name,
+		"Rd":       rd,
+		"ImportRt": importRt,
+		"ExportRt": exportRt,
+	}).Debugf("add vrf")
+	manager.Vrfs[name] = &Vrf{
+		Name:     name,
+		Rd:       rd,
+		ImportRt: importRt,
+		ExportRt: exportRt,
+	}
+	return nil
+
+}
+
+func (manager *TableManager) DeleteVrf(name string) ([]*Path, error) {
+	if _, ok := manager.Vrfs[name]; !ok {
+		return nil, fmt.Errorf("vrf %s not found", name)
+	}
+	msgs := make([]*Path, 0)
+	vrf := manager.Vrfs[name]
+	for _, t := range manager.Tables {
+		msgs = append(msgs, t.deletePathsByVrf(vrf)...)
+	}
+	log.WithFields(log.Fields{
+		"Topic":    "Vrf",
+		"Key":      vrf.Name,
+		"Rd":       vrf.Rd,
+		"ImportRt": vrf.ImportRt,
+		"ExportRt": vrf.ExportRt,
+	}).Debugf("delete vrf")
+	delete(manager.Vrfs, name)
+	return msgs, nil
 }
 
 func (manager *TableManager) calculate(destinationList []*Destination) ([]*Path, error) {

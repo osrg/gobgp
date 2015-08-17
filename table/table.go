@@ -69,6 +69,31 @@ func (t *Table) DeleteDestByPeer(peerInfo *PeerInfo) []*Destination {
 	return changedDests
 }
 
+func (t *Table) deletePathsByVrf(vrf *Vrf) []*Path {
+	pathList := make([]*Path, 0)
+	for _, dest := range t.destinations {
+		for _, p := range dest.GetKnownPathList() {
+			var rd bgp.RouteDistinguisherInterface
+			nlri := p.GetNlri()
+			switch nlri.(type) {
+			case *bgp.LabeledVPNIPAddrPrefix:
+				rd = nlri.(*bgp.LabeledVPNIPAddrPrefix).RD
+			case *bgp.LabeledVPNIPv6AddrPrefix:
+				rd = nlri.(*bgp.LabeledVPNIPv6AddrPrefix).RD
+			case *bgp.EVPNNLRI:
+				rd = nlri.(*bgp.EVPNNLRI).RD()
+			default:
+				return pathList
+			}
+			if p.IsLocal() && vrf.Rd.String() == rd.String() {
+				p.IsWithdraw = true
+				pathList = append(pathList, p)
+			}
+		}
+	}
+	return pathList
+}
+
 func (t *Table) deleteDestByNlri(nlri bgp.AddrPrefixInterface) *Destination {
 	destinations := t.GetDestinations()
 	dest := destinations[t.tableKey(nlri)]
