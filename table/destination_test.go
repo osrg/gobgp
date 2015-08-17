@@ -102,7 +102,7 @@ func TestDestinationCalculate(t *testing.T) {
 	ipv4d.addNewPath(pathD[1])
 	ipv4d.addNewPath(pathD[2])
 	ipv4d.addWithdraw(pathD[2])
-	_, _, e := ipv4d.Calculate(uint32(100))
+	_, _, e := ipv4d.Calculate()
 	assert.Nil(t, e)
 }
 
