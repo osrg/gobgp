@@ -155,7 +155,7 @@ func (manager *TableManager) AddVrf(name string, rd bgp.RouteDistinguisherInterf
 	nexthop := "0.0.0.0"
 	for _, target := range importRt {
 		nlri := bgp.NewRouteTargetMembershipNLRI(info.AS, target)
-		pattr := make([]bgp.PathAttributeInterface, 0)
+		pattr := make([]bgp.PathAttributeInterface, 0, 2)
 		pattr = append(pattr, bgp.NewPathAttributeOrigin(bgp.BGP_ORIGIN_ATTR_TYPE_IGP))
 		pattr = append(pattr, bgp.NewPathAttributeMpReachNLRI(nexthop, []bgp.AddrPrefixInterface{nlri}))
 		msgs = append(msgs, NewPath(info, nlri, false, pattr, false, time.Now(), false))
@@ -180,6 +180,8 @@ func (manager *TableManager) DeleteVrf(name string) ([]*Path, error) {
 		"ExportRt": vrf.ExportRt,
 	}).Debugf("delete vrf")
 	delete(manager.Vrfs, name)
+	rtcTable := manager.Tables[bgp.RF_RTC_UC]
+	msgs = append(msgs, rtcTable.deleteRTCPathsByVrf(vrf, manager.Vrfs)...)
 	return msgs, nil
 }
 

@@ -88,6 +88,31 @@ func (t *Table) deletePathsByVrf(vrf *Vrf) []*Path {
 			if p.IsLocal() && vrf.Rd.String() == rd.String() {
 				p.IsWithdraw = true
 				pathList = append(pathList, p)
+				break
+			}
+		}
+	}
+	return pathList
+}
+
+func (t *Table) deleteRTCPathsByVrf(vrf *Vrf, vrfs map[string]*Vrf) []*Path {
+	pathList := make([]*Path, 0)
+	if t.routeFamily != bgp.RF_RTC_UC {
+		return pathList
+	}
+	for _, target := range vrf.ImportRt {
+		lhs := target.String()
+		for _, dest := range t.destinations {
+			nlri := dest.GetNlri().(*bgp.RouteTargetMembershipNLRI)
+			rhs := nlri.RouteTarget.String()
+			if lhs == rhs && isLastTargetUser(vrfs, target) {
+				for _, p := range dest.GetKnownPathList() {
+					if p.IsLocal() {
+						p.IsWithdraw = true
+						pathList = append(pathList, p)
+						break
+					}
+				}
 			}
 		}
 	}

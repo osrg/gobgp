@@ -44,3 +44,14 @@ func (v *Vrf) ToApiStruct() *api.Vrf {
 		ExportRt: f(v.ExportRt),
 	}
 }
+
+func isLastTargetUser(vrfs map[string]*Vrf, target bgp.ExtendedCommunityInterface) bool {
+	for _, vrf := range vrfs {
+		for _, rt := range vrf.ImportRt {
+			if target.String() == rt.String() {
+				return false
+			}
+		}
+	}
+	return true
+}
