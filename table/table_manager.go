@@ -134,9 +134,9 @@ func (manager *TableManager) OwnerName() string {
 	return manager.owner
 }
 
-func (manager *TableManager) AddVrf(name string, rd bgp.RouteDistinguisherInterface, importRt, exportRt []bgp.ExtendedCommunityInterface) error {
+func (manager *TableManager) AddVrf(name string, rd bgp.RouteDistinguisherInterface, importRt, exportRt []bgp.ExtendedCommunityInterface, info *PeerInfo) ([]*Path, error) {
 	if _, ok := manager.Vrfs[name]; ok {
-		return fmt.Errorf("vrf %s already exists", name)
+		return nil, fmt.Errorf("vrf %s already exists", name)
 	}
 	log.WithFields(log.Fields{
 		"Topic":    "Vrf",
@@ -151,8 +151,16 @@ func (manager *TableManager) AddVrf(name string, rd bgp.RouteDistinguisherInterf
 		ImportRt: importRt,
 		ExportRt: exportRt,
 	}
-	return nil
-
+	msgs := make([]*Path, 0, len(importRt))
+	nexthop := "0.0.0.0"
+	for _, target := range importRt {
+		nlri := bgp.NewRouteTargetMembershipNLRI(info.AS, target)
+		pattr := make([]bgp.PathAttributeInterface, 0)
+		pattr = append(pattr, bgp.NewPathAttributeOrigin(bgp.BGP_ORIGIN_ATTR_TYPE_IGP))
+		pattr = append(pattr, bgp.NewPathAttributeMpReachNLRI(nexthop, []bgp.AddrPrefixInterface{nlri}))
+		msgs = append(msgs, NewPath(info, nlri, false, pattr, false, time.Now(), false))
+	}
+	return msgs, nil
 }
 
 func (manager *TableManager) DeleteVrf(name string) ([]*Path, error) {
