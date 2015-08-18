@@ -666,12 +666,12 @@ func (m *PolicyDefinition) GetStatementList() []*Statement {
 }
 
 type ApplyPolicy struct {
-	ImportPolicies          []*PolicyDefinition `protobuf:"bytes,1,rep,name=import_policies" json:"import_policies,omitempty"`
-	DefaultImportPolicy     string              `protobuf:"bytes,2,opt,name=default_import_policy" json:"default_import_policy,omitempty"`
-	ExportPolicies          []*PolicyDefinition `protobuf:"bytes,3,rep,name=export_policies" json:"export_policies,omitempty"`
-	DefaultExportPolicy     string              `protobuf:"bytes,4,opt,name=default_export_policy" json:"default_export_policy,omitempty"`
-	DistributePolicies      []*PolicyDefinition `protobuf:"bytes,5,rep,name=distribute_policies" json:"distribute_policies,omitempty"`
-	DefaultDistributePolicy string              `protobuf:"bytes,6,opt,name=default_distribute_policy" json:"default_distribute_policy,omitempty"`
+	ImportPolicies      []*PolicyDefinition `protobuf:"bytes,1,rep,name=import_policies" json:"import_policies,omitempty"`
+	DefaultImportPolicy string              `protobuf:"bytes,2,opt,name=default_import_policy" json:"default_import_policy,omitempty"`
+	ExportPolicies      []*PolicyDefinition `protobuf:"bytes,3,rep,name=export_policies" json:"export_policies,omitempty"`
+	DefaultExportPolicy string              `protobuf:"bytes,4,opt,name=default_export_policy" json:"default_export_policy,omitempty"`
+	InPolicies          []*PolicyDefinition `protobuf:"bytes,5,rep,name=in_policies" json:"in_policies,omitempty"`
+	DefaultInPolicy     string              `protobuf:"bytes,6,opt,name=default_in_policy" json:"default_in_policy,omitempty"`
 }
 
 func (m *ApplyPolicy) Reset()         { *m = ApplyPolicy{} }
@@ -692,9 +692,9 @@ func (m *ApplyPolicy) GetExportPolicies() []*PolicyDefinition {
 	return nil
 }
 
-func (m *ApplyPolicy) GetDistributePolicies() []*PolicyDefinition {
+func (m *ApplyPolicy) GetInPolicies() []*PolicyDefinition {
 	if m != nil {
-		return m.DistributePolicies
+		return m.InPolicies
 	}
 	return nil
 }

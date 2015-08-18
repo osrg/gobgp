@@ -33,18 +33,18 @@ const (
 )
 
 type Peer struct {
-	gConf                   config.Global
-	conf                    config.Neighbor
-	fsm                     *FSM
-	rfMap                   map[bgp.RouteFamily]bool
-	capMap                  map[bgp.BGPCapabilityCode][]bgp.ParameterCapabilityInterface
-	adjRib                  *table.AdjRib
-	peerInfo                *table.PeerInfo
-	outgoing                chan *bgp.BGPMessage
-	distPolicies            []*policy.Policy
-	defaultDistributePolicy config.DefaultPolicyType
-	isConfederationMember   bool
-	isEBGP                  bool
+	gConf                 config.Global
+	conf                  config.Neighbor
+	fsm                   *FSM
+	rfMap                 map[bgp.RouteFamily]bool
+	capMap                map[bgp.BGPCapabilityCode][]bgp.ParameterCapabilityInterface
+	adjRib                *table.AdjRib
+	peerInfo              *table.PeerInfo
+	outgoing              chan *bgp.BGPMessage
+	inPolicies            []*policy.Policy
+	defaultInPolicy       config.DefaultPolicyType
+	isConfederationMember bool
+	isEBGP                bool
 }
 
 func NewPeer(g config.Global, conf config.Neighbor) *Peer {
@@ -281,8 +281,8 @@ func (peer *Peer) ToApiStruct() *api.Peer {
 			received += uint32(peer.adjRib.GetInCount(rf))
 			// FIXME: we should store 'accepted' in memory
 			for _, p := range peer.adjRib.GetInPathList(rf) {
-				applied, path := peer.applyDistributePolicies(p)
-				if applied && path == nil || !applied && peer.defaultDistributePolicy != config.DEFAULT_POLICY_TYPE_ACCEPT_ROUTE {
+				applied, path := peer.applyPolicies(POLICY_DIRECTION_IN, p)
+				if applied && path == nil || !applied && peer.defaultInPolicy != config.DEFAULT_POLICY_TYPE_ACCEPT_ROUTE {
 					continue
 				}
 				accepted += 1
@@ -334,10 +334,10 @@ func (peer *Peer) ToApiStruct() *api.Peer {
 	}
 }
 
-func (peer *Peer) setDistributePolicy(policyMap map[string]*policy.Policy) {
+func (peer *Peer) setPolicy(policyMap map[string]*policy.Policy) {
 	// configure distribute policy
 	policyConf := peer.conf.ApplyPolicy
-	distPolicies := make([]*policy.Policy, 0)
+	inPolicies := make([]*policy.Policy, 0)
 	for _, policyName := range policyConf.ApplyPolicyConfig.InPolicy {
 		log.WithFields(log.Fields{
 			"Topic":      "Peer",
@@ -346,17 +346,19 @@ func (peer *Peer) setDistributePolicy(policyMap map[string]*policy.Policy) {
 		}).Info("distribute policy installed")
 		if pol, ok := policyMap[policyName]; ok {
 			log.Debug("distribute policy : ", pol)
-			distPolicies = append(distPolicies, pol)
+			inPolicies = append(inPolicies, pol)
 		}
 	}
-	peer.distPolicies = distPolicies
-	peer.defaultDistributePolicy = policyConf.ApplyPolicyConfig.DefaultInPolicy
+	peer.inPolicies = inPolicies
+	peer.defaultInPolicy = policyConf.ApplyPolicyConfig.DefaultInPolicy
 }
 
-func (peer *Peer) applyDistributePolicies(original *table.Path) (bool, *table.Path) {
-	policies := peer.distPolicies
-	var d Direction = POLICY_DIRECTION_DISTRIBUTE
-
+func (peer *Peer) applyPolicies(d Direction, original *table.Path) (bool, *table.Path) {
+	var policies []*policy.Policy
+	switch d {
+	case POLICY_DIRECTION_IN:
+		policies = peer.inPolicies
+	}
 	return applyPolicy("Peer", peer.conf.NeighborConfig.NeighborAddress.String(), d, policies, original)
 }
 

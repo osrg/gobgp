@@ -39,9 +39,9 @@ const (
 type Direction string
 
 const (
-	POLICY_DIRECTION_IMPORT     Direction = "import"
-	POLICY_DIRECTION_EXPORT               = "export"
-	POLICY_DIRECTION_DISTRIBUTE           = "distribute"
+	POLICY_DIRECTION_IMPORT Direction = "import"
+	POLICY_DIRECTION_EXPORT           = "export"
+	POLICY_DIRECTION_IN               = "in"
 )
 
 type SenderMsg struct {
@@ -253,8 +253,8 @@ func (server *BgpServer) Serve() {
 				loc := NewLocalRib(name, peer.configuredRFlist(), make(map[string]*policy.Policy))
 				server.addLocalRib(loc)
 				loc.setPolicy(peer, server.policyMap)
-				// set distribute policy
-				peer.setDistributePolicy(server.policyMap)
+				// set in policy
+				peer.setPolicy(server.policyMap)
 
 				pathList := make([]*table.Path, 0)
 				for _, p := range server.neighborMap {
@@ -309,7 +309,7 @@ func (server *BgpServer) Serve() {
 				peer.conf.ApplyPolicy = config.ApplyPolicy
 				loc := server.localRibMap[addr]
 				loc.setPolicy(peer, server.policyMap)
-				peer.setDistributePolicy(server.policyMap)
+				peer.setPolicy(server.policyMap)
 			}
 		case e := <-incoming:
 			peer, found := server.neighborMap[e.MsgSrc]
@@ -456,8 +456,8 @@ func applyPolicies(peer *Peer, loc *LocalRib, d Direction, pathList []*table.Pat
 		defaultPolicy = loc.defaultExportPolicy
 	case POLICY_DIRECTION_IMPORT:
 		defaultPolicy = loc.defaultImportPolicy
-	case POLICY_DIRECTION_DISTRIBUTE:
-		defaultPolicy = peer.defaultDistributePolicy
+	case POLICY_DIRECTION_IN:
+		defaultPolicy = peer.defaultInPolicy
 	default:
 		log.WithFields(log.Fields{
 			"Topic": "Server",
@@ -469,9 +469,10 @@ func applyPolicies(peer *Peer, loc *LocalRib, d Direction, pathList []*table.Pat
 	for _, path := range pathList {
 		if !path.IsWithdraw {
 			var applied bool = false
-			if d == POLICY_DIRECTION_DISTRIBUTE {
-				applied, path = peer.applyDistributePolicies(path)
-			} else {
+			switch d {
+			case POLICY_DIRECTION_IN:
+				applied, path = peer.applyPolicies(d, path)
+			case POLICY_DIRECTION_IMPORT, POLICY_DIRECTION_EXPORT:
 				applied, path = loc.applyPolicies(d, path)
 			}
 
@@ -566,7 +567,7 @@ func (server *BgpServer) propagateUpdate(neighborAddress string, RouteServerClie
 
 	if RouteServerClient {
 		p := server.neighborMap[neighborAddress]
-		newPathList := applyPolicies(p, nil, POLICY_DIRECTION_DISTRIBUTE, pathList)
+		newPathList := applyPolicies(p, nil, POLICY_DIRECTION_IN, pathList)
 		for _, loc := range server.localRibMap {
 			targetPeer := server.neighborMap[loc.OwnerName()]
 			if loc.isGlobal() || loc.OwnerName() == neighborAddress {
@@ -750,7 +751,7 @@ func (server *BgpServer) handlePolicy(pl config.RoutingPolicy) {
 		}).Info("call set policy")
 		loc.setPolicy(targetPeer, server.policyMap)
 		// set distribute policy
-		targetPeer.setDistributePolicy(server.policyMap)
+		targetPeer.setPolicy(server.policyMap)
 	}
 }
 
@@ -1274,13 +1275,10 @@ func (server *BgpServer) handleGrpc(grpcReq *GrpcRequest) []*SenderMsg {
 			close(grpcReq.ResponseCh)
 			break
 		}
-		resInPolicies := []*api.PolicyDefinition{}
-		resOutPolicies := []*api.PolicyDefinition{}
-		resDistPolicies := []*api.PolicyDefinition{}
-		pdList := server.routingPolicy.PolicyDefinitions.PolicyDefinitionList
-		df := server.routingPolicy.DefinedSets
 
 		extract := func(policyNames []string) []*api.PolicyDefinition {
+			pdList := server.routingPolicy.PolicyDefinitions.PolicyDefinitionList
+			df := server.routingPolicy.DefinedSets
 			extracted := []*api.PolicyDefinition{}
 			for _, policyName := range policyNames {
 				match := false
@@ -1300,37 +1298,37 @@ func (server *BgpServer) handleGrpc(grpcReq *GrpcRequest) []*SenderMsg {
 
 		// Add importpolies that has been set in the configuration file to the list.
 		// However, peer haven't target importpolicy when add PolicyDefinition of name only to the list.
-		conInPolicyNames := peer.conf.ApplyPolicy.ApplyPolicyConfig.ImportPolicy
-		resInPolicies = extract(conInPolicyNames)
+		conImportPolicyNames := peer.conf.ApplyPolicy.ApplyPolicyConfig.ImportPolicy
+		resImportPolicies := extract(conImportPolicyNames)
 
 		// Add importpolies that has been set in the configuration file to the list.
 		// However, peer haven't target importpolicy when add PolicyDefinition of name only to the list.
-		conOutPolicyNames := peer.conf.ApplyPolicy.ApplyPolicyConfig.ExportPolicy
-		resOutPolicies = extract(conOutPolicyNames)
+		conExportPolicyNames := peer.conf.ApplyPolicy.ApplyPolicyConfig.ExportPolicy
+		resExportPolicies := extract(conExportPolicyNames)
 
-		distPolicyNames := peer.conf.ApplyPolicy.ApplyPolicyConfig.InPolicy
-		resDistPolicies = extract(distPolicyNames)
+		inPolicyNames := peer.conf.ApplyPolicy.ApplyPolicyConfig.InPolicy
+		resInPolicies := extract(inPolicyNames)
 
+		defaultImportPolicy := policy.ROUTE_REJECT
+		defaultExportPolicy := policy.ROUTE_REJECT
 		defaultInPolicy := policy.ROUTE_REJECT
-		defaultOutPolicy := policy.ROUTE_REJECT
-		defaultDistPolicy := policy.ROUTE_REJECT
 		if loc.defaultImportPolicy == config.DEFAULT_POLICY_TYPE_ACCEPT_ROUTE {
-			defaultInPolicy = policy.ROUTE_ACCEPT
+			defaultImportPolicy = policy.ROUTE_ACCEPT
 		}
 		if loc.defaultExportPolicy == config.DEFAULT_POLICY_TYPE_ACCEPT_ROUTE {
-			defaultOutPolicy = policy.ROUTE_ACCEPT
+			defaultExportPolicy = policy.ROUTE_ACCEPT
 		}
-		if peer.defaultDistributePolicy == config.DEFAULT_POLICY_TYPE_ACCEPT_ROUTE {
-			defaultDistPolicy = policy.ROUTE_ACCEPT
+		if peer.defaultInPolicy == config.DEFAULT_POLICY_TYPE_ACCEPT_ROUTE {
+			defaultInPolicy = policy.ROUTE_ACCEPT
 		}
 		result := &GrpcResponse{
 			Data: &api.ApplyPolicy{
-				DefaultImportPolicy:     defaultInPolicy,
-				ImportPolicies:          resInPolicies,
-				DefaultExportPolicy:     defaultOutPolicy,
-				ExportPolicies:          resOutPolicies,
-				DefaultDistributePolicy: defaultDistPolicy,
-				DistributePolicies:      resDistPolicies,
+				DefaultImportPolicy: defaultImportPolicy,
+				ImportPolicies:      resImportPolicies,
+				DefaultExportPolicy: defaultExportPolicy,
+				ExportPolicies:      resExportPolicies,
+				DefaultInPolicy:     defaultInPolicy,
+				InPolicies:          resInPolicies,
 			},
 		}
 		grpcReq.ResponseCh <- result
@@ -1359,11 +1357,11 @@ func (server *BgpServer) handleGrpc(grpcReq *GrpcRequest) []*SenderMsg {
 			applyPolicy.DefaultExportPolicy = defOutPolicy
 			applyPolicy.ExportPolicy = policy.PoliciesToString(reqApplyPolicy.ExportPolicies)
 		} else if grpcReq.RequestType == REQ_NEIGHBOR_POLICY_ADD_DISTRIBUTE {
-			if reqApplyPolicy.DefaultDistributePolicy != policy.ROUTE_ACCEPT {
+			if reqApplyPolicy.DefaultInPolicy != policy.ROUTE_ACCEPT {
 				defDistPolicy = config.DEFAULT_POLICY_TYPE_REJECT_ROUTE
 			}
 			applyPolicy.DefaultInPolicy = defDistPolicy
-			applyPolicy.InPolicy = policy.PoliciesToString(reqApplyPolicy.DistributePolicies)
+			applyPolicy.InPolicy = policy.PoliciesToString(reqApplyPolicy.InPolicies)
 		} else if grpcReq.RequestType == REQ_NEIGHBOR_POLICY_DEL_IMPORT {
 			applyPolicy.DefaultImportPolicy = config.DEFAULT_POLICY_TYPE_ACCEPT_ROUTE
 			applyPolicy.ImportPolicy = make([]string, 0)
@@ -1377,7 +1375,7 @@ func (server *BgpServer) handleGrpc(grpcReq *GrpcRequest) []*SenderMsg {
 
 		if grpcReq.RequestType == REQ_NEIGHBOR_POLICY_ADD_DISTRIBUTE ||
 			grpcReq.RequestType == REQ_NEIGHBOR_POLICY_DEL_DISTRIBUTE {
-			peer.setDistributePolicy(reqPolicyMap)
+			peer.setPolicy(reqPolicyMap)
 		} else {
 			loc := server.localRibMap[peer.conf.NeighborConfig.NeighborAddress.String()]
 			loc.setPolicy(peer, reqPolicyMap)

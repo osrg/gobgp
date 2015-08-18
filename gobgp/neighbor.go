@@ -529,7 +529,7 @@ func showNeighborPolicy(remoteIP net.IP) error {
 
 	fmt.Printf("DefaultImportPolicy: %s\n", ap.DefaultImportPolicy)
 	fmt.Printf("DefaultExportPolicy: %s\n", ap.DefaultExportPolicy)
-	fmt.Printf("DefaultDistributePolicy: %s\n", ap.DefaultDistributePolicy)
+	fmt.Printf("DefaultInPolicy: %s\n", ap.DefaultInPolicy)
 	fmt.Printf("ImportPolicies:\n")
 	for _, inPolicy := range ap.ImportPolicies {
 		fmt.Printf("  PolicyName %s:\n", inPolicy.PolicyDefinitionName)
@@ -540,8 +540,8 @@ func showNeighborPolicy(remoteIP net.IP) error {
 		fmt.Printf("  PolicyName %s:\n", outPolicy.PolicyDefinitionName)
 		showPolicyStatement(2, outPolicy)
 	}
-	fmt.Printf("DistributePolicies:\n")
-	for _, distPolicy := range ap.DistributePolicies {
+	fmt.Printf("InPolicies:\n")
+	for _, distPolicy := range ap.InPolicies {
 		fmt.Printf("  PolicyName %s:\n", distPolicy.PolicyDefinitionName)
 		showPolicyStatement(2, distPolicy)
 	}
@@ -583,8 +583,8 @@ func modNeighborPolicy(remoteIP net.IP, cmdType string, eArg []string) error {
 			pol.ExportPolicies = policies
 			pol.DefaultExportPolicy = defaultPolicy
 		case CMD_DISTRIBUTE:
-			pol.DistributePolicies = policies
-			pol.DefaultDistributePolicy = defaultPolicy
+			pol.InPolicies = policies
+			pol.DefaultInPolicy = defaultPolicy
 		}
 		operation = api.Operation_ADD
 
