@@ -1085,19 +1085,33 @@ END:
 	return msgs
 }
 
+func sendMultipleResponses(grpcReq *GrpcRequest, results []*GrpcResponse) {
+	defer close(grpcReq.ResponseCh)
+	for _, r := range results {
+		select {
+		case grpcReq.ResponseCh <- r:
+		case <-grpcReq.EndCh:
+			return
+		}
+	}
+}
+
 func (server *BgpServer) handleGrpc(grpcReq *GrpcRequest) []*SenderMsg {
 	var msgs []*SenderMsg
 
 	switch grpcReq.RequestType {
 	case REQ_GLOBAL_RIB:
 		if t, ok := server.localRibMap[GLOBAL_RIB_NAME].rib.Tables[grpcReq.RouteFamily]; ok {
+			results := make([]*GrpcResponse, len(t.GetDestinations()))
+			i := 0
 			for _, dst := range t.GetDestinations() {
 				result := &GrpcResponse{}
 				result.Data = dst.ToApiStruct()
-				grpcReq.ResponseCh <- result
+				results[i] = result
+				i++
 			}
+			go sendMultipleResponses(grpcReq, results)
 		}
-		close(grpcReq.ResponseCh)
 
 	case REQ_MOD_PATH:
 		pi := &table.PeerInfo{
@@ -1112,13 +1126,16 @@ func (server *BgpServer) handleGrpc(grpcReq *GrpcRequest) []*SenderMsg {
 		}
 
 	case REQ_NEIGHBORS:
+		results := make([]*GrpcResponse, len(server.neighborMap))
+		i := 0
 		for _, peer := range server.neighborMap {
 			result := &GrpcResponse{
 				Data: peer.ToApiStruct(),
 			}
-			grpcReq.ResponseCh <- result
+			results[i] = result
+			i++
 		}
-		close(grpcReq.ResponseCh)
+		go sendMultipleResponses(grpcReq, results)
 
 	case REQ_NEIGHBOR:
 		peer, err := server.checkNeighborRequest(grpcReq)
@@ -1139,14 +1156,17 @@ func (server *BgpServer) handleGrpc(grpcReq *GrpcRequest) []*SenderMsg {
 		if peer.isRouteServerClient() && peer.fsm.adminState != ADMIN_STATE_DOWN {
 			remoteAddr := grpcReq.Name
 			if t, ok := server.localRibMap[remoteAddr].rib.Tables[grpcReq.RouteFamily]; ok {
+				results := make([]*GrpcResponse, len(t.GetDestinations()))
+				i := 0
 				for _, dst := range t.GetDestinations() {
 					result := &GrpcResponse{}
 					result.Data = dst.ToApiStruct()
-					grpcReq.ResponseCh <- result
+					results[i] = result
+					i++
 				}
+				go sendMultipleResponses(grpcReq, results)
 			}
 		}
-		close(grpcReq.ResponseCh)
 
 	case REQ_ADJ_RIB_IN, REQ_ADJ_RIB_OUT:
 		peer, err := server.checkNeighborRequest(grpcReq)
@@ -1164,16 +1184,17 @@ func (server *BgpServer) handleGrpc(grpcReq *GrpcRequest) []*SenderMsg {
 			log.Debugf("RouteFamily=%v adj-rib-out found : %d", rf.String(), len(paths))
 		}
 
-		for _, p := range paths {
+		results := make([]*GrpcResponse, len(paths))
+		for i, p := range paths {
 			result := &GrpcResponse{
 				Data: &api.Destination{
 					Prefix: p.GetNlri().String(),
 					Paths:  []*api.Path{p.ToApiStruct()},
 				},
 			}
-			grpcReq.ResponseCh <- result
+			results[i] = result
 		}
-		close(grpcReq.ResponseCh)
+		go sendMultipleResponses(grpcReq, results)
 
 	case REQ_NEIGHBOR_SHUTDOWN:
 		peer, err := server.checkNeighborRequest(grpcReq)
