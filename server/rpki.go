@@ -75,15 +75,16 @@ func (c *roaClient) handleRTRMsg(r *roa) {
 
 func (c *roaClient) handleGRPC(grpcReq *GrpcRequest) {
 	if tree, ok := c.roas[grpcReq.RouteFamily]; ok {
+		results := make([]*GrpcResponse, 0)
 		tree.Walk(func(s string, v interface{}) bool {
 			r, _ := v.(*roa)
 			result := &GrpcResponse{}
 			result.Data = r.toApiStruct()
-			grpcReq.ResponseCh <- result
+			results = append(results, result)
 			return false
 		})
+		go sendMultipleResponses(grpcReq, results)
 	}
-	close(grpcReq.ResponseCh)
 }
 
 func (c *roaClient) validate(pathList []*table.Path) {
