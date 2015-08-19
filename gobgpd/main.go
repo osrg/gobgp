@@ -46,7 +46,6 @@ func main() {
 		DisableStdlog bool   `long:"disable-stdlog" description:"disable standard logging"`
 		EnableZapi    bool   `short:"z" long:"enable-zapi" description:"enable zebra api"`
 		ZapiURL       string `long:"zapi-url" description:"specify zebra api url"`
-		RPKIServer    string `long:"rpki-server" description:"specify rpki server url"`
 	}
 	_, err := flags.Parse(&opts)
 	if err != nil {
@@ -142,7 +141,7 @@ func main() {
 	reloadCh := make(chan bool)
 	go config.ReadConfigfileServe(opts.ConfigFile, configCh, reloadCh)
 	reloadCh <- true
-	bgpServer := server.NewBgpServer(bgp.BGP_PORT, opts.RPKIServer)
+	bgpServer := server.NewBgpServer(bgp.BGP_PORT)
 	go bgpServer.Serve()
 
 	// start grpc Server
@@ -165,13 +164,12 @@ func main() {
 	for {
 		select {
 		case newConfig := <-configCh:
-			var added []config.Neighbor
-			var deleted []config.Neighbor
-			var updated []config.Neighbor
+			var added, deleted, updated []config.Neighbor
 
 			if bgpConfig == nil {
 				bgpServer.SetGlobalType(newConfig.Bgp.Global)
 				bgpConfig = &newConfig.Bgp
+				bgpServer.SetRpkiConfig(newConfig.Bgp.RpkiServers)
 				added = newConfig.Bgp.Neighbors.NeighborList
 				deleted = []config.Neighbor{}
 				updated = []config.Neighbor{}

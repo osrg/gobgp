@@ -70,11 +70,13 @@ func (m *broadcastGrpcMsg) send() {
 }
 
 type BgpServer struct {
-	bgpConfig      config.Bgp
-	globalTypeCh   chan config.Global
-	addedPeerCh    chan config.Neighbor
-	deletedPeerCh  chan config.Neighbor
-	updatedPeerCh  chan config.Neighbor
+	bgpConfig     config.Bgp
+	globalTypeCh  chan config.Global
+	addedPeerCh   chan config.Neighbor
+	deletedPeerCh chan config.Neighbor
+	updatedPeerCh chan config.Neighbor
+	rpkiConfigCh  chan config.RpkiServers
+
 	GrpcReqCh      chan *GrpcRequest
 	listenPort     int
 	policyUpdateCh chan config.RoutingPolicy
@@ -88,18 +90,19 @@ type BgpServer struct {
 	roaClient      *roaClient
 }
 
-func NewBgpServer(port int, roaURL string) *BgpServer {
+func NewBgpServer(port int) *BgpServer {
 	b := BgpServer{}
 	b.globalTypeCh = make(chan config.Global)
 	b.addedPeerCh = make(chan config.Neighbor)
 	b.deletedPeerCh = make(chan config.Neighbor)
 	b.updatedPeerCh = make(chan config.Neighbor)
+	b.rpkiConfigCh = make(chan config.RpkiServers)
 	b.GrpcReqCh = make(chan *GrpcRequest, 1)
 	b.policyUpdateCh = make(chan config.RoutingPolicy)
 	b.localRibMap = make(map[string]*LocalRib)
 	b.neighborMap = make(map[string]*Peer)
 	b.listenPort = port
-	b.roaClient, _ = newROAClient(roaURL)
+	b.roaClient, _ = newROAClient("")
 	return &b
 }
 
@@ -223,6 +226,11 @@ func (server *BgpServer) Serve() {
 		}
 
 		select {
+		case c := <-server.rpkiConfigCh:
+			if len(c.RpkiServerList) > 0 {
+				url := fmt.Sprintf("%s:%d", c.RpkiServerList[0].RpkiServerConfig.Address, c.RpkiServerList[0].RpkiServerConfig.Port)
+				server.roaClient, _ = newROAClient(url)
+			}
 		case rmsg := <-server.roaClient.recieveROA():
 			server.roaClient.handleRTRMsg(rmsg)
 		case zmsg := <-zapiMsgCh:
@@ -705,6 +713,10 @@ func (server *BgpServer) handleFSMMessage(peer *Peer, e *fsmMsg, incoming chan *
 
 func (server *BgpServer) SetGlobalType(g config.Global) {
 	server.globalTypeCh <- g
+}
+
+func (server *BgpServer) SetRpkiConfig(c config.RpkiServers) {
+	server.rpkiConfigCh <- c
 }
 
 func (server *BgpServer) PeerAdd(peer config.Neighbor) {

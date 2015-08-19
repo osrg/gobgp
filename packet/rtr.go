@@ -22,6 +22,10 @@ import (
 )
 
 const (
+	RPKI_DEFAULT_PORT = 323
+)
+
+const (
 	RTR_SERIAL_NOTIFY = iota
 	RTR_SERIAL_QUERY
 	RTR_RESET_QUERY

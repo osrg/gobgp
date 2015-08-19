@@ -98,5 +98,10 @@ func SetDefaultConfigValues(md toml.MetaData, bt *Bgp) error {
 			}
 		}
 	}
+	for _, r := range bt.RpkiServers.RpkiServerList {
+		if r.RpkiServerConfig.Port == 0 {
+			r.RpkiServerConfig.Port = bgp.RPKI_DEFAULT_PORT
+		}
+	}
 	return nil
 }
