@@ -231,7 +231,7 @@ type AsPathFormat struct {
 	separator string
 }
 
-func showRoute(pathList []*Path, showAge bool, showBest bool, isMonitor bool) {
+func showRoute(pathList []*Path, showAge bool, showBest bool, isMonitor, printHeader bool) {
 
 	var pathStrs [][]interface{}
 	maxPrefixLen := 20
@@ -349,10 +349,14 @@ func showRoute(pathList []*Path, showAge bool, showBest bool, isMonitor bool) {
 		format = "[%s] %s via %s aspath [%s] attrs %s\n"
 	} else if showAge {
 		format = fmt.Sprintf("%%-3s %%-%ds %%-%ds %%-%ds %%-10s %%-s\n", maxPrefixLen, maxNexthopLen, maxAsPathLen)
-		fmt.Printf(format, "", "Network", "Next Hop", "AS_PATH", "Age", "Attrs")
+		if printHeader {
+			fmt.Printf(format, "", "Network", "Next Hop", "AS_PATH", "Age", "Attrs")
+		}
 	} else {
 		format = fmt.Sprintf("%%-3s %%-%ds %%-%ds %%-%ds %%-s\n", maxPrefixLen, maxNexthopLen, maxAsPathLen)
-		fmt.Printf(format, "", "Network", "Next Hop", "AS_PATH", "Attrs")
+		if printHeader {
+			fmt.Printf(format, "", "Network", "Next Hop", "AS_PATH", "Attrs")
+		}
 	}
 
 	for _, pathStr := range pathStrs {
@@ -414,6 +418,7 @@ func showNeighborRib(r string, name string, args []string) error {
 
 	dsts := []*Destination{}
 	maxOnes := 0
+	counter := 0
 	for {
 		d, e := stream.Recv()
 		if e == io.EOF {
@@ -443,12 +448,28 @@ func showNeighborRib(r string, name string, args []string) error {
 		if err != nil {
 			return err
 		}
+		if rf == bgp.RF_IPv4_UC && !globalOpts.Json && len(dst.Paths) > 0 {
+			ps := paths{}
+			ps = append(ps, dst.Paths...)
+			sort.Sort(ps)
+			if counter == 0 {
+				showRoute(ps, showAge, showBest, false, true)
+			} else {
+				showRoute(ps, showAge, showBest, false, false)
+			}
+			counter++
+		}
 		dsts = append(dsts, dst)
 	}
 
 	if globalOpts.Json {
 		j, _ := json.Marshal(dsts)
 		fmt.Println(string(j))
+		return nil
+	}
+
+	if rf == bgp.RF_IPv4_UC && counter != 0 {
+		// we already showed
 		return nil
 	}
 
@@ -463,7 +484,7 @@ func showNeighborRib(r string, name string, args []string) error {
 	}
 
 	sort.Sort(ps)
-	showRoute(ps, showAge, showBest, false)
+	showRoute(ps, showAge, showBest, false, true)
 	return nil
 }
 

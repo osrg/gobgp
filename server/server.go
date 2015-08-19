@@ -19,6 +19,7 @@ import (
 	"bytes"
 	"fmt"
 	log "github.com/Sirupsen/logrus"
+	"github.com/armon/go-radix"
 	"github.com/osrg/gobgp/api"
 	"github.com/osrg/gobgp/config"
 	"github.com/osrg/gobgp/packet"
@@ -1089,12 +1090,28 @@ func (server *BgpServer) handleGrpc(grpcReq *GrpcRequest) []*SenderMsg {
 	case REQ_GLOBAL_RIB:
 		if t, ok := server.localRibMap[GLOBAL_RIB_NAME].rib.Tables[grpcReq.RouteFamily]; ok {
 			results := make([]*GrpcResponse, len(t.GetDestinations()))
-			i := 0
-			for _, dst := range t.GetDestinations() {
-				result := &GrpcResponse{}
-				result.Data = dst.ToApiStruct()
-				results[i] = result
-				i++
+			if grpcReq.RouteFamily == bgp.RF_IPv4_UC {
+				r := radix.New()
+				for _, dst := range t.GetDestinations() {
+					result := &GrpcResponse{}
+					result.Data = dst.ToApiStruct()
+					r.Insert(dst.RadixKey, result)
+				}
+				i := 0
+				r.Walk(func(s string, v interface{}) bool {
+					r, _ := v.(*GrpcResponse)
+					results[i] = r
+					i++
+					return false
+				})
+			} else {
+				i := 0
+				for _, dst := range t.GetDestinations() {
+					result := &GrpcResponse{}
+					result.Data = dst.ToApiStruct()
+					results[i] = result
+					i++
+				}
 			}
 			go sendMultipleResponses(grpcReq, results)
 		}

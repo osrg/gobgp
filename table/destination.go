@@ -16,6 +16,7 @@
 package table
 
 import (
+	"bytes"
 	"encoding/binary"
 	"encoding/json"
 	"fmt"
@@ -71,16 +72,29 @@ type Destination struct {
 	newPathList    []*Path
 	bestPath       *Path
 	bestPathReason string
+	RadixKey       string
 }
 
 func NewDestination(nlri bgp.AddrPrefixInterface) *Destination {
-	return &Destination{
+	d := &Destination{
 		routeFamily:   bgp.AfiSafiToRouteFamily(nlri.AFI(), nlri.SAFI()),
 		nlri:          nlri,
 		knownPathList: make([]*Path, 0),
 		withdrawList:  make([]*Path, 0),
 		newPathList:   make([]*Path, 0),
 	}
+	if d.routeFamily == bgp.RF_IPv4_UC {
+		d.RadixKey = func(cidr string) string {
+			_, n, _ := net.ParseCIDR(cidr)
+			ones, _ := n.Mask.Size()
+			var buffer bytes.Buffer
+			for i := 0; i < len(n.IP) && i < ones; i++ {
+				buffer.WriteString(fmt.Sprintf("%08b", n.IP[i]))
+			}
+			return buffer.String()[:ones]
+		}(nlri.String())
+	}
+	return d
 }
 
 func (dd *Destination) MarshalJSON() ([]byte, error) {
