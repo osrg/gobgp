@@ -1086,24 +1086,32 @@ func sendMultipleResponses(grpcReq *GrpcRequest, results []*GrpcResponse) {
 func (server *BgpServer) handleGrpc(grpcReq *GrpcRequest) []*SenderMsg {
 	var msgs []*SenderMsg
 
+	sortedDsts := func(t *table.Table) []*GrpcResponse {
+		results := make([]*GrpcResponse, len(t.GetDestinations()))
+
+		r := radix.New()
+		for _, dst := range t.GetDestinations() {
+			result := &GrpcResponse{}
+			result.Data = dst.ToApiStruct()
+			r.Insert(dst.RadixKey, result)
+		}
+		i := 0
+		r.Walk(func(s string, v interface{}) bool {
+			r, _ := v.(*GrpcResponse)
+			results[i] = r
+			i++
+			return false
+		})
+
+		return results
+	}
+
 	switch grpcReq.RequestType {
 	case REQ_GLOBAL_RIB:
 		if t, ok := server.localRibMap[GLOBAL_RIB_NAME].rib.Tables[grpcReq.RouteFamily]; ok {
 			results := make([]*GrpcResponse, len(t.GetDestinations()))
 			if grpcReq.RouteFamily == bgp.RF_IPv4_UC {
-				r := radix.New()
-				for _, dst := range t.GetDestinations() {
-					result := &GrpcResponse{}
-					result.Data = dst.ToApiStruct()
-					r.Insert(dst.RadixKey, result)
-				}
-				i := 0
-				r.Walk(func(s string, v interface{}) bool {
-					r, _ := v.(*GrpcResponse)
-					results[i] = r
-					i++
-					return false
-				})
+				results = sortedDsts(server.localRibMap[GLOBAL_RIB_NAME].rib.Tables[grpcReq.RouteFamily])
 			} else {
 				i := 0
 				for _, dst := range t.GetDestinations() {
@@ -1160,12 +1168,16 @@ func (server *BgpServer) handleGrpc(grpcReq *GrpcRequest) []*SenderMsg {
 			remoteAddr := grpcReq.Name
 			if t, ok := server.localRibMap[remoteAddr].rib.Tables[grpcReq.RouteFamily]; ok {
 				results := make([]*GrpcResponse, len(t.GetDestinations()))
-				i := 0
-				for _, dst := range t.GetDestinations() {
-					result := &GrpcResponse{}
-					result.Data = dst.ToApiStruct()
-					results[i] = result
-					i++
+				if grpcReq.RouteFamily == bgp.RF_IPv4_UC {
+					results = sortedDsts(server.localRibMap[remoteAddr].rib.Tables[grpcReq.RouteFamily])
+				} else {
+					i := 0
+					for _, dst := range t.GetDestinations() {
+						result := &GrpcResponse{}
+						result.Data = dst.ToApiStruct()
+						results[i] = result
+						i++
+					}
 				}
 				go sendMultipleResponses(grpcReq, results)
 			}
