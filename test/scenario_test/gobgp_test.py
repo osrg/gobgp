@@ -231,7 +231,7 @@ class GoBGPTestBase(unittest.TestCase):
             if len(g_dest) > 0:
                 assert len(g_dest) == 1
                 d = g_dest[0]
-                return d['paths']
+                return d['paths'][0]
             else:
                 retry_count += 1
                 if retry_count > retry:
@@ -326,7 +326,7 @@ class GoBGPTestBase(unittest.TestCase):
 
 
     # get route information on quagga
-    def check_community(self, neighbor_address, target_addr, community, retry=3, interval=-1, af=IPv4):
+    def check_community(self, neighbor_address, target_addr, community, retry=3, interval=-1, af=IPv4, extended=False):
         if interval < 0:
             interval = self.wait_per_retry
         print "check route %s on quagga : %s" % (target_addr, neighbor_address)
@@ -334,7 +334,11 @@ class GoBGPTestBase(unittest.TestCase):
 
         while True:
             tn = qaccess.login(neighbor_address)
-            result = qaccess.check_community(tn, target_addr, community, af)
+            result = False
+            if extended:
+                result = qaccess.check_ext_community(tn, target_addr, community, af)
+            else:
+                result = qaccess.check_community(tn, target_addr, community, af)
             qaccess.logout(tn)
 
             if result:

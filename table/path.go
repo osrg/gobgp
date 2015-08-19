@@ -524,10 +524,11 @@ func (path *Path) SetExtCommunities(values []byte, doReplace bool) {
 		exts = append(exts, e)
 		values = values[8:]
 	}
-	_, attr := path.getPathAttr(bgp.BGP_ATTR_TYPE_EXTENDED_COMMUNITIES)
+	idx, attr := path.getPathAttr(bgp.BGP_ATTR_TYPE_EXTENDED_COMMUNITIES)
 	if attr != nil {
 		l := attr.(*bgp.PathAttributeExtendedCommunities).Value
 		l = append(l, exts...)
+		path.pathAttrs[idx] = bgp.NewPathAttributeExtendedCommunities(l)
 	} else {
 		path.pathAttrs = append(path.pathAttrs, bgp.NewPathAttributeExtendedCommunities(exts))
 	}

@@ -172,6 +172,25 @@ def check_community(tn, addr, community, af=IPv4):
     return False
 
 
+def check_ext_community(tn, addr, community, af=IPv4):
+    if af == IPv4:
+        tn.write("show ip bgp " + addr + "\n")
+    elif af == IPv6:
+        tn.write("show bgp ipv6 " + addr + "\n")
+    else:
+        print "invalid af: ", af
+        return
+    result = tn.read_until("bgpd#")
+    for line in result.split("\n"):
+        if "Extended Community:" in line:
+            extcomms = line.split()[2:]
+            for e in extcomms:
+                if community == e:
+                    return True
+
+    return False
+
+
 def check_med(tn, addr, med, af=IPv4):
     if af == IPv4:
         tn.write("show ip bgp " + addr[0] + "\n")

@@ -69,7 +69,6 @@ func NewPolicy(pd config.PolicyDefinition, ds config.DefinedSets) *Policy {
 	}
 
 	for _, statement := range stmtList {
-		fmt.Println(statement.Conditions.BgpConditions)
 		conditions := make([]Condition, 0)
 
 		// prefix match
@@ -1109,6 +1108,14 @@ func (a *CommunityAction) apply(path *table.Path) *table.Path {
 
 func (a *CommunityAction) extApply(path *table.Path) *table.Path {
 	path.SetExtCommunities(a.ext, false)
+
+	log.WithFields(log.Fields{
+		"Topic":  "Policy",
+		"Action": "extended community",
+		"Values": a.ext,
+		"Method": a.action,
+	}).Debug("extended community action applied")
+
 	return path
 }
 

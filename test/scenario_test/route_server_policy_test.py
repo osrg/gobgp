@@ -1228,8 +1228,9 @@ class GoBGPTest(GoBGPTestBase):
 
         # check adj-rib-out in peer2
         path = self.get_paths_in_localrib(peer2, prefix1,retry=0)
+        print(path)
         self.assertIsNotNone(path)
-        attrs = [x for x in path[0]['attrs'] if 'communities' in x ]
+        attrs = [x for x in path['attrs'] if 'communities' in x ]
         self.assertTrue((65100 << 16 | 20) in attrs[0]['communities'])
 
         # check show ip bgp on peer2(quagga2)
@@ -1283,7 +1284,7 @@ class GoBGPTest(GoBGPTestBase):
         # check adj-rib-out in peer2
         path = self.get_paths_in_localrib(peer2, prefix1,retry=0)
         self.assertIsNotNone(path)
-        attrs = [x for x in path[0]['attrs'] if 'communities' in x ]
+        attrs = [x for x in path['attrs'] if 'communities' in x ]
         self.assertTrue((65100 << 16 | 20) in attrs[0]['communities'])
         self.assertTrue((65100 << 16 | 30) in attrs[0]['communities'])
 
@@ -1339,7 +1340,7 @@ class GoBGPTest(GoBGPTestBase):
         # check adj-rib-out in peer2
         path = self.get_paths_in_localrib(peer2, prefix1,retry=0)
         self.assertIsNotNone(path)
-        attrs = [x for x in path[0]['attrs'] if 'communities' in x ]
+        attrs = [x for x in path['attrs'] if 'communities' in x ]
         self.assertTrue((65100 << 16 | 20) not in attrs[0]['communities'])
         self.assertTrue((65100 << 16 | 30) not in attrs[0]['communities'])
 
@@ -1397,7 +1398,7 @@ class GoBGPTest(GoBGPTestBase):
         # check adj-rib-out in peer2
         path = self.get_paths_in_localrib(peer2, prefix1,retry=0)
         self.assertIsNotNone(path)
-        attrs = [x for x in path[0]['attrs'] if 'communities' in x ]
+        attrs = [x for x in path['attrs'] if 'communities' in x ]
         self.assertFalse('communities' in attrs)
 
         # check show ip bgp on peer2(quagga2)
@@ -1452,7 +1453,7 @@ class GoBGPTest(GoBGPTestBase):
         # check adj-rib-out in peer2
         path = self.get_paths_in_localrib(peer2, prefix1,retry=0)
         self.assertIsNotNone(path)
-        attrs = [x for x in path[0]['attrs'] if 'communities' in x ]
+        attrs = [x for x in path['attrs'] if 'communities' in x ]
         self.assertFalse((65100 << 16 | 20) in attrs[0]['communities'])
         # check out-rib
         path = self.get_adj_rib_out(peer2, prefix1, retry=0)
@@ -1511,7 +1512,7 @@ class GoBGPTest(GoBGPTestBase):
         # check adj-rib-out in peer2
         path = self.get_paths_in_localrib(peer2, prefix1, retry=0)
         self.assertIsNotNone(path)
-        attrs = [x for x in path[0]['attrs'] if 'communities' in x ]
+        attrs = [x for x in path['attrs'] if 'communities' in x ]
         self.assertFalse((65100 << 16 | 20) in attrs[0]['communities'])
         self.assertFalse((65100 << 16 | 30) in attrs[0]['communities'])
         # check out-rib
@@ -1574,7 +1575,7 @@ class GoBGPTest(GoBGPTestBase):
         # check adj-rib-out in peer2
         path = self.get_paths_in_localrib(peer2, prefix1, retry=1)
         self.assertIsNotNone(path)
-        attrs = [x for x in path[0]['attrs'] if 'communities' in x ]
+        attrs = [x for x in path['attrs'] if 'communities' in x ]
         self.assertTrue((65100 << 16 | 20) in attrs[0]['communities'])
         self.assertTrue((65100 << 16 | 30) in attrs[0]['communities'])
         # check out-rib
@@ -1638,7 +1639,7 @@ class GoBGPTest(GoBGPTestBase):
         # check adj-rib-out in peer2
         path = self.get_paths_in_localrib(peer2, prefix1,  retry=0)
         self.assertIsNotNone(path)
-        attrs = [x for x in path[0]['attrs'] if 'communities' in x ]
+        attrs = [x for x in path['attrs'] if 'communities' in x ]
         self.assertTrue((65100 << 16 | 10) in attrs[0]['communities'])
         self.assertTrue((65100 << 16 | 20) in attrs[0]['communities'])
         self.assertTrue((65100 << 16 | 30) in attrs[0]['communities'])
@@ -1700,7 +1701,7 @@ class GoBGPTest(GoBGPTestBase):
         # check local-rib in peer2
         path = self.get_paths_in_localrib(peer2, prefix1, retry=0)
         self.assertIsNotNone(path)
-        attrs = [x for x in path[0]['attrs'] if 'metric' in x]
+        attrs = [x for x in path['attrs'] if 'metric' in x]
         self.assertTrue(100 == attrs[0]['metric'])
 
         # check show ip bgp on peer2(quagga2)
@@ -1753,7 +1754,7 @@ class GoBGPTest(GoBGPTestBase):
         # check local-rib in peer2
         path = self.get_paths_in_localrib(peer2, prefix1, retry=0)
         self.assertIsNotNone(path)
-        attrs = [x for x in path[0]['attrs'] if 'metric' in x]
+        attrs = [x for x in path['attrs'] if 'metric' in x]
         self.assertTrue(400 == attrs[0]['metric'])
 
         # check show ip bgp on peer2(quagga2)
@@ -1806,7 +1807,7 @@ class GoBGPTest(GoBGPTestBase):
         # check local-rib in peer2
         path = self.get_paths_in_localrib(peer2, prefix1, retry=0)
         self.assertIsNotNone(path)
-        attrs = [x for x in path[0]['attrs'] if 'metric' in x]
+        attrs = [x for x in path['attrs'] if 'metric' in x]
         self.assertTrue(200 == attrs[0]['metric'])
 
         # check show ip bgp on peer2(quagga2)
@@ -1860,7 +1861,7 @@ class GoBGPTest(GoBGPTestBase):
         # check local-rib in peer2
         path = self.get_paths_in_localrib(peer2, prefix1, retry=1)
         self.assertIsNotNone(path)
-        attrs = [x for x in path[0]['attrs'] if 'metric' in x]
+        attrs = [x for x in path['attrs'] if 'metric' in x]
         self.assertFalse(100 == attrs[0]['metric'])
         # check adj-rib-out
         path = self.get_adj_rib_out(peer2, prefix1, retry=1)
@@ -1919,7 +1920,7 @@ class GoBGPTest(GoBGPTestBase):
        # check local-rib in peer2
         path = self.get_paths_in_localrib(peer2, prefix1, retry=1)
         self.assertIsNotNone(path)
-        attrs = [x for x in path[0]['attrs'] if 'metric' in x]
+        attrs = [x for x in path['attrs'] if 'metric' in x]
         self.assertFalse(400 == attrs[0]['metric'])
         # check adj-rib-out
         path = self.get_adj_rib_out(peer2, prefix1, retry=1)
@@ -1978,7 +1979,7 @@ class GoBGPTest(GoBGPTestBase):
        # check local-rib in peer2
         path = self.get_paths_in_localrib(peer2, prefix1, retry=1)
         self.assertIsNotNone(path)
-        attrs = [x for x in path[0]['attrs'] if 'metric' in x]
+        attrs = [x for x in path['attrs'] if 'metric' in x]
         self.assertFalse(200 == attrs[0]['metric'])
         # check adj-rib-out
         path = self.get_adj_rib_out(peer2, prefix1, retry=1)
@@ -2430,7 +2431,7 @@ class GoBGPTest(GoBGPTestBase):
         self.initialize()
 
         def get_asseq(target):
-            attrs = [p for p in target[0]['attrs'] if p['type'] == 2]
+            attrs = [p for p in target['attrs'] if p['type'] == 2]
             path_asns = [a['asns'] for a in attrs[0]['as_paths'] if a['segment_type'] == 2]
             return path_asns[0]
 
@@ -2507,7 +2508,7 @@ class GoBGPTest(GoBGPTestBase):
         self.initialize()
 
         def get_asseq(target):
-            attrs = [p for p in target[0]['attrs'] if p['type'] == 2]
+            attrs = [p for p in target['attrs'] if p['type'] == 2]
             path_asns = [a['asns'] for a in attrs[0]['as_paths'] if a['segment_type'] == 2]
             return path_asns[0]
 
@@ -2581,7 +2582,7 @@ class GoBGPTest(GoBGPTestBase):
         self.initialize()
 
         def get_asseq(target):
-            attrs = [p for p in target[0]['attrs'] if p['type'] == 2]
+            attrs = [p for p in target['attrs'] if p['type'] == 2]
             path_asns = [a['asns'] for a in attrs[0]['as_paths'] if a['segment_type'] == 2]
             return path_asns[0]
 
@@ -2659,7 +2660,7 @@ class GoBGPTest(GoBGPTestBase):
         self.initialize()
 
         def get_asseq(target):
-            attrs = [p for p in target[0]['attrs'] if p['type'] == 2]
+            attrs = [p for p in target['attrs'] if p['type'] == 2]
             path_asns = [a['asns'] for a in attrs[0]['as_paths'] if a['segment_type'] == 2]
             return path_asns[0]
 
@@ -2871,6 +2872,241 @@ class GoBGPTest(GoBGPTestBase):
         # check show ip bgp on peer1(quagga1)
         qpath = self.get_route(peer2, r2, retry=self.retry_count_common, interval=w)
         self.assertIsNone(qpath)
+
+    """
+      import-policy test
+                                     ---------------------------------------
+      exabgp ->(extcommunity=none) ->| ->  peer1-rib ->  peer1-adj-rib-out | --> peer1
+                                     |                                     |
+                                     | ->  peer2-rib ->  peer2-adj-rib-out | --> peer2
+                                     |     add ext-community               |
+                                     ---------------------------------------
+    """
+    def test_43_extcommunity_add_action_import(self):
+
+        # generate exabgp configuration file
+        prefix1 = "192.168.100.0/24"
+        asns = ['65100'] + [ str(asn) for asn in range(65099, 65090, -1) ]
+        as_path =  reduce(lambda a,b: a + " " + b, asns)
+
+        e = ExabgpConfig(EXABGP_COMMON_CONF)
+        e.add_route(prefix1, aspath=as_path)
+        e.write()
+
+        self.quagga_num = 2
+
+        peer1 = "10.0.0.1"
+        peer2 = "10.0.0.2"
+        w = self.wait_per_retry
+
+        # policy:test_43_extcommunity_add_action_import which adds extended community 65000:1
+        # is attached to peer2(10.0.0.2)'s import-policy.
+        self.setup_config(peer2, "test_43_extcommunity_add_action_import", "import", add_exabgp=True)
+        self.initialize()
+
+        addresses = self.get_neighbor_address(self.gobgp_config)
+        self.retry_routine_for_state(addresses, "BGP_FSM_ESTABLISHED")
+
+        path = self.get_paths_in_localrib(peer1, prefix1, retry=self.retry_count_common)
+        self.assertIsNotNone(path)
+
+        # check show ip bgp on peer1(quagga1)
+        qpath = self.get_route(peer1,prefix1, retry=self.retry_count_common)
+        self.assertIsNotNone(qpath)
+
+        # check localrib in peer2
+        path = self.get_paths_in_localrib(peer2, prefix1,retry=0)
+        self.assertIsNotNone(path)
+        attrs = [x for x in path['attrs'] if x['type'] == 16]
+        self.assertEqual(len(attrs), 1)
+        extcomm_value = attrs[0]['value'][0]
+        self.assertEqual(extcomm_value['type'], 0)
+        self.assertEqual(extcomm_value['subtype'], 2)
+        self.assertEqual(extcomm_value['value'], "65000:1")
+
+        # check show ip bgp on peer2(quagga2)
+        qpath = self.get_route(peer2, prefix1, retry=self.retry_count_common)
+        self.assertIsNotNone(qpath)
+        self.assertTrue(self.check_community(peer2, prefix1.split('/')[0], 'RT:65000:1', retry=0, extended=True))
+
+
+    """
+      import-policy test
+                                           --------------------------------------
+      exabgp ->(extcommunity=RT:65000:1) ->| ->  peer1-rib ->  peer1-adj-rib-out | --> peer1
+                                           |                                     |
+                                           | ->  peer2-rib ->  peer2-adj-rib-out | --> peer2
+                                           |     add ext-community               |
+                                           ---------------------------------------
+    """
+    def test_44_extcommunity_add_action_append_import(self):
+
+        # generate exabgp configuration file
+        prefix1 = "192.168.100.0/24"
+        asns = ['65100'] + [ str(asn) for asn in range(65099, 65090, -1) ]
+        as_path =  reduce(lambda a,b: a + " " + b, asns)
+        extcomm = 'target:65000:1'
+
+        e = ExabgpConfig(EXABGP_COMMON_CONF)
+        e.add_route(prefix1, aspath=as_path, extcommunity=extcomm)
+        e.write()
+
+        self.quagga_num = 2
+
+        peer1 = "10.0.0.1"
+        peer2 = "10.0.0.2"
+        w = self.wait_per_retry
+
+        # policy:test_44_extcommunity_add_action_append_import which adds extended community 65100:100
+        # is attached to peer2(10.0.0.2)'s import-policy.
+        self.setup_config(peer2, "test_44_extcommunity_add_action_append_import", "import", add_exabgp=True)
+        self.initialize()
+
+        addresses = self.get_neighbor_address(self.gobgp_config)
+        self.retry_routine_for_state(addresses, "BGP_FSM_ESTABLISHED")
+
+        path = self.get_paths_in_localrib(peer1, prefix1, retry=self.retry_count_common)
+        self.assertIsNotNone(path)
+
+        # check show ip bgp on peer1(quagga1)
+        qpath = self.get_route(peer1,prefix1, retry=self.retry_count_common)
+        self.assertIsNotNone(qpath)
+
+        # check localrib in peer2
+        path = self.get_paths_in_localrib(peer2, prefix1,retry=0)
+        self.assertIsNotNone(path)
+        attrs = [x for x in path['attrs'] if x['type'] == 16]
+        self.assertEqual(len(attrs), 1)
+        extcomm_result = [str(e['type']) + ':' + str(e['subtype']) + ':' + e['value'] for e in attrs[0]['value']]
+        self.assertEqual(len(extcomm_result), 2)
+        self.assertTrue('0:2:65000:1' in extcomm_result)
+        self.assertTrue('0:2:65100:100' in extcomm_result)
+
+        # check show ip bgp on peer2(quagga2)
+        qpath = self.get_route(peer2, prefix1, retry=self.retry_count_common)
+        self.assertIsNotNone(qpath)
+        self.assertTrue(self.check_community(peer2, prefix1.split('/')[0], 'RT:65000:1', retry=0, extended=True))
+        self.assertTrue(self.check_community(peer2, prefix1.split('/')[0], 'RT:65100:100', retry=0, extended=True))
+
+
+    """
+      import-policy test
+                                     ---------------------------------------
+      exabgp ->(extcommunity=none) ->| ->  peer1-rib ->  peer1-adj-rib-out | --> peer1
+                                     |                                     |
+                                     | ->  peer2-rib ->  peer2-adj-rib-out | --> peer2
+                                     |     add ext-community               |
+                                     ---------------------------------------
+    """
+    def test_45_extcommunity_add_action_multiple_import(self):
+
+        # generate exabgp configuration file
+        prefix1 = "192.168.100.0/24"
+        asns = ['65100'] + [ str(asn) for asn in range(65099, 65090, -1) ]
+        as_path =  reduce(lambda a,b: a + " " + b, asns)
+
+        e = ExabgpConfig(EXABGP_COMMON_CONF)
+        e.add_route(prefix1, aspath=as_path)
+        e.write()
+
+        self.quagga_num = 2
+
+        peer1 = "10.0.0.1"
+        peer2 = "10.0.0.2"
+        w = self.wait_per_retry
+
+        # policy:test_45_extcommunity_add_action_multiple_import which adds extended community RT:65100:100 and RT:100:100
+        # is attached to peer2(10.0.0.2)'s export-policy.
+        self.setup_config(peer2, "test_45_extcommunity_add_action_multiple_import", "import", add_exabgp=True)
+        self.initialize()
+
+        addresses = self.get_neighbor_address(self.gobgp_config)
+        self.retry_routine_for_state(addresses, "BGP_FSM_ESTABLISHED")
+
+        path = self.get_paths_in_localrib(peer1, prefix1, retry=self.retry_count_common)
+        self.assertIsNotNone(path)
+
+        # check show ip bgp on peer1(quagga1)
+        qpath = self.get_route(peer1,prefix1, retry=self.retry_count_common)
+        self.assertIsNotNone(qpath)
+
+        # check localrib in peer2
+        path = self.get_paths_in_localrib(peer2, prefix1,retry=0)
+        self.assertIsNotNone(path)
+        attrs = [x for x in path['attrs'] if x['type'] == 16]
+        self.assertEqual(len(attrs), 1)
+        extcomm_result = [str(e['type']) + ':' + str(e['subtype']) + ':' + e['value'] for e in attrs[0]['value']]
+        self.assertEqual(len(extcomm_result), 2)
+        self.assertTrue('0:2:65100:100' in extcomm_result)
+        self.assertTrue('0:2:100:100' in extcomm_result)
+
+        # check show ip bgp on peer2(quagga2)
+        qpath = self.get_route(peer2, prefix1, retry=self.retry_count_common)
+        self.assertIsNotNone(qpath)
+        self.assertTrue(self.check_community(peer2, prefix1.split('/')[0], 'RT:65100:100', retry=0, extended=True))
+        self.assertTrue(self.check_community(peer2, prefix1.split('/')[0], 'RT:100:100', retry=0, extended=True))
+
+
+    """
+      export-policy test
+                                     ---------------------------------------
+      exabgp ->(extcommunity=none) ->| ->  peer1-rib ->  peer1-adj-rib-out | --> peer1
+                                     |                                     |
+                                     | ->  peer2-rib ->  peer2-adj-rib-out | --> peer2
+                                     |                   add ext-community |
+                                     ---------------------------------------
+    """
+    def test_46_extcommunity_add_action_export(self):
+
+        # generate exabgp configuration file
+        prefix1 = "192.168.100.0/24"
+        asns = ['65100'] + [ str(asn) for asn in range(65099, 65090, -1) ]
+        as_path =  reduce(lambda a,b: a + " " + b, asns)
+
+        e = ExabgpConfig(EXABGP_COMMON_CONF)
+        e.add_route(prefix1, aspath=as_path)
+        e.write()
+
+        self.quagga_num = 2
+
+        peer1 = "10.0.0.1"
+        peer2 = "10.0.0.2"
+
+        # policy:test_46_extcommunity_add_action_export which adds extended community 65000:1
+        # is attached to peer2(10.0.0.2)'s export-policy.
+        self.setup_config(peer2, "test_46_extcommunity_add_action_export", "export", add_exabgp=True)
+        self.initialize()
+
+        addresses = self.get_neighbor_address(self.gobgp_config)
+        self.retry_routine_for_state(addresses, "BGP_FSM_ESTABLISHED")
+
+        path = self.get_paths_in_localrib(peer1, prefix1, retry=self.retry_count_common)
+        self.assertIsNotNone(path)
+
+        # check show ip bgp on peer1(quagga1)
+        qpath = self.get_route(peer1,prefix1, retry=self.retry_count_common)
+        self.assertIsNotNone(qpath)
+
+        # check localrib in peer2
+        path = self.get_paths_in_localrib(peer2, prefix1, retry=self.retry_count_common)
+        self.assertIsNotNone(path)
+        attrs = [x for x in path['attrs'] if x['type'] == 16]
+        self.assertEqual(len(attrs), 0)
+
+        # check adj-rib-out
+        path = self.get_adj_rib_out(peer2, prefix1, retry=self.retry_count_common)
+        self.assertIsNotNone(path)
+        attrs = [x for x in path['attrs'] if x['type'] == 16]
+        self.assertEqual(len(attrs), 1)
+        extcomm_value = attrs[0]['value'][0]
+        self.assertEqual(extcomm_value['type'], 0)
+        self.assertEqual(extcomm_value['subtype'], 2)
+        self.assertEqual(extcomm_value['value'], "65000:1")
+
+        # check show ip bgp on peer2(quagga2)
+        qpath = self.get_route(peer2, prefix1, retry=self.retry_count_common)
+        self.assertIsNotNone(qpath)
+        self.assertTrue(self.check_community(peer2, prefix1.split('/')[0], 'RT:65000:1', retry=0, extended=True))
 
 
 class ExabgpConfig(object):

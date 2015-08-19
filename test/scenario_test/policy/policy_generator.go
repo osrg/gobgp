@@ -326,6 +326,18 @@ func createPolicyConfig() *config.RoutingPolicy {
 
 	st_only_prefix_condition_accept := createStatement("st_only_prefix_condition_accept", "psExabgp", "", true)
 
+	st_extcomAdd := createStatement("st_extcommunity_add", "psExabgp", "nsExabgp", true)
+	st_extcomAdd.Actions.BgpActions.SetExtCommunity.SetExtCommunityMethod.Communities = []string{"0:2:0xfd:0xe8:0:0:0:1"}
+	st_extcomAdd.Actions.BgpActions.SetExtCommunity.Options = "ADD"
+
+	st_extcomAdd_append := createStatement("st_extcommunity_add_append", "psExabgp", "nsExabgp", true)
+	st_extcomAdd_append.Actions.BgpActions.SetExtCommunity.SetExtCommunityMethod.Communities = []string{"0:2:0xfe:0x4c:0:0:0:0x64"}
+	st_extcomAdd_append.Actions.BgpActions.SetExtCommunity.Options = "ADD"
+
+	st_extcomAdd_multiple := createStatement("st_extcommunity_add_multiple", "psExabgp", "nsExabgp", true)
+	st_extcomAdd_multiple.Actions.BgpActions.SetExtCommunity.SetExtCommunityMethod.Communities = []string{"0:2:0xfe:0x4c:0:0:0:0x64", "0:2:0:0x64:0:0:0:0x64"}
+	st_extcomAdd_multiple.Actions.BgpActions.SetExtCommunity.Options = "ADD"
+
 	test_01_import_policy_initial := config.PolicyDefinition{
 		Name: "test_01_import_policy_initial",
 		Statements: config.Statements{
@@ -655,6 +667,35 @@ func createPolicyConfig() *config.RoutingPolicy {
 		},
 	}
 
+	test_43_extcommunity_add_action_import := config.PolicyDefinition{
+		Name: "test_43_extcommunity_add_action_import",
+		Statements: config.Statements{
+			StatementList: []config.Statement{st_extcomAdd},
+		},
+	}
+
+	test_44_extcommunity_add_action_append_import := config.PolicyDefinition{
+		Name: "test_44_extcommunity_add_action_append_import",
+		Statements: config.Statements{
+			StatementList: []config.Statement{st_extcomAdd_append},
+		},
+	}
+
+	test_45_extcommunity_add_action_multiple_import := config.PolicyDefinition{
+		Name: "test_45_extcommunity_add_action_multiple_import",
+		Statements: config.Statements{
+			StatementList: []config.Statement{st_extcomAdd_multiple},
+		},
+	}
+
+	test_46_extcommunity_add_action_export := config.PolicyDefinition{
+		Name: "test_46_extcommunity_add_action_export",
+		Statements: config.Statements{
+			StatementList: []config.Statement{st_extcomAdd},
+		},
+	}
+
+
 	ds := config.DefinedSets{}
 	ds.PrefixSets.PrefixSetList = []config.PrefixSet{ps0, ps1, ps2, ps3, ps4, ps5, ps6, psExabgp}
 	ds.NeighborSets.NeighborSetList = []config.NeighborSet{nsPeer2, nsPeer2V6, nsExabgp}
@@ -713,6 +754,10 @@ func createPolicyConfig() *config.RoutingPolicy {
 				test_40_ecommunity_origin_condition_import,
 				test_41_ecommunity_target_condition_export,
 				test_42_only_prefix_condition_accept,
+				test_43_extcommunity_add_action_import,
+				test_44_extcommunity_add_action_append_import,
+				test_45_extcommunity_add_action_multiple_import,
+				test_46_extcommunity_add_action_export,
 			},
 		},
 	}
