@@ -29,6 +29,7 @@ No dependency hell (library, package, etc) thanks to Go.
  * [EVPN](https://github.com/osrg/gobgp/blob/master/docs/sources/evpn.md)
  * [MRT](https://github.com/osrg/gobgp/blob/master/docs/sources/mrt.md)
  * [Flowspec](https://github.com/osrg/gobgp/blob/master/docs/sources/flowspec.md)
+ * [RPKI](https://github.com/osrg/gobgp/blob/master/docs/sources/rpki.md)
  
 ## Community, discussion and support
 
