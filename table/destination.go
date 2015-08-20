@@ -41,6 +41,16 @@ const (
 	BPR_ROUTER_ID          = "Router ID"
 )
 
+func CidrToRadixkey(cidr string) string {
+	_, n, _ := net.ParseCIDR(cidr)
+	ones, _ := n.Mask.Size()
+	var buffer bytes.Buffer
+	for i := 0; i < len(n.IP) && i < ones; i++ {
+		buffer.WriteString(fmt.Sprintf("%08b", n.IP[i]))
+	}
+	return buffer.String()[:ones]
+}
+
 type PeerInfo struct {
 	AS      uint32
 	ID      net.IP
@@ -84,15 +94,7 @@ func NewDestination(nlri bgp.AddrPrefixInterface) *Destination {
 		newPathList:   make([]*Path, 0),
 	}
 	if d.routeFamily == bgp.RF_IPv4_UC {
-		d.RadixKey = func(cidr string) string {
-			_, n, _ := net.ParseCIDR(cidr)
-			ones, _ := n.Mask.Size()
-			var buffer bytes.Buffer
-			for i := 0; i < len(n.IP) && i < ones; i++ {
-				buffer.WriteString(fmt.Sprintf("%08b", n.IP[i]))
-			}
-			return buffer.String()[:ones]
-		}(nlri.String())
+		d.RadixKey = CidrToRadixkey(nlri.String())
 	}
 	return d
 }

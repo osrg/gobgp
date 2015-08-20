@@ -1211,15 +1211,32 @@ func (server *BgpServer) handleGrpc(grpcReq *GrpcRequest) []*SenderMsg {
 			log.Debugf("RouteFamily=%v adj-rib-out found : %d", rf.String(), len(paths))
 		}
 
-		results := make([]*GrpcResponse, len(paths))
-		for i, p := range paths {
-			result := &GrpcResponse{
+		toResult := func(p *table.Path) *GrpcResponse {
+			return &GrpcResponse{
 				Data: &api.Destination{
 					Prefix: p.GetNlri().String(),
 					Paths:  []*api.Path{p.ToApiStruct()},
 				},
 			}
-			results[i] = result
+		}
+
+		results := make([]*GrpcResponse, len(paths))
+		if rf == bgp.RF_IPv4_UC {
+			r := radix.New()
+			for _, p := range paths {
+				r.Insert(table.CidrToRadixkey(p.GetNlri().String()), toResult(p))
+			}
+			i := 0
+			r.Walk(func(s string, v interface{}) bool {
+				r, _ := v.(*GrpcResponse)
+				results[i] = r
+				i++
+				return false
+			})
+		} else {
+			for i, p := range paths {
+				results[i] = toResult(p)
+			}
 		}
 		go sendMultipleResponses(grpcReq, results)
 
