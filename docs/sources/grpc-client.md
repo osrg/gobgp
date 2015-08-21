@@ -1,11 +1,15 @@
 # Managing GoBGP with Your Favorite Language
 
-This page explains how to create your own GoBGP client.
-You can create a client using gRPC in several languages that you choose.
-Currently there are instructions for making a client in Python and Ruby in this page.
-It assumes that you are on Ubuntu 14.04(64bit).
+This page explains how to managing GoBGP with your favorite Language.
+You can use any language supported by [gRPC](http://www.grpc.io/) (10
+languages are supported now). This page gives an example in Python. It
+assumes that you use Ubuntu 14.04 (64bit).
 
-## Python
+## Contents
+
+- [Python](#python)
+
+## <a name="python"> Python
 
 ### Installing LinuxBrew
 
