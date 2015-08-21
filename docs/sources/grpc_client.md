@@ -11,6 +11,7 @@ It assumes that you are on Ubuntu 14.04(64bit).
 
 We use LinuxBrew to simplify the instruction.
 ```bash
+$ sudo apt-get update
 $ sudo apt-get install -y build-essential curl git python-dev python-pip m4 ruby
 $ ruby -e "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/linuxbrew/go/install)"
 $ export PATH=$HOME/.linuxbrew/bin:$PATH
