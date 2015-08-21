@@ -14,6 +14,7 @@ class OptionParser(Plugin):
         parser.add_option('--go-path', action="store", dest="go_path", default="")
         parser.add_option('--gobgp-log-level', action="store",
                           dest="gobgp_log_level", default="info")
+        parser.add_option('--test-index', action="store", type="int", dest="test_index", default=0)
 
     def configure(self, options, conf):
         super(OptionParser, self).configure(options, conf)

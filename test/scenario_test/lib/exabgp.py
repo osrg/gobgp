@@ -76,15 +76,25 @@ class ExaBGPContainer(BGPContainer):
             cmd << '    local-as {0};'.format(self.asn)
             cmd << '    peer-as {0};'.format(peer.asn)
 
-            routes = [r for r in self.routes.values() if r['rf'] == 'ipv4']
+            routes = [r for r in self.routes.values() if r['rf'] == 'ipv4' or r['rf'] == 'ipv6']
 
             if len(routes) > 0:
                 cmd << '    static {'
                 for route in routes:
+                    r = CmdBuffer(' ')
+                    r << '      route {0} next-hop {1}'.format(route['prefix'], local_addr)
+                    if route['as-path']:
+                        r << 'as-path [{0}]'.format(' '.join(str(i) for i in route['as-path']))
+                    if route['community']:
+                        r << 'community [{0}]'.format(' '.join(c for c in route['community']))
+                    if route['med']:
+                        r << 'med {0}'.format(route['med'])
+                    if route['extended-community']:
+                        r << 'extended-community [{0}]'.format(route['extended-community'])
                     if route['attr']:
-                        cmd << '        route {0} next-hop {1};'.format(route['prefix'], local_addr)
-                    else:
-                        cmd << '        route {0} next-hop {1} attribute {2};'.format(route['prefix'], local_addr, attr)
+                        r << 'attribute {0}'.format(route['attr'])
+
+                    cmd << '{0};'.format(str(r))
                 cmd << '    }'
 
             routes = [r for r in self.routes.values() if r['rf'] == 'ipv4-flowspec']

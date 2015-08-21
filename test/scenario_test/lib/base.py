@@ -36,6 +36,7 @@ BGP_ATTR_TYPE_AS_PATH = 2
 BGP_ATTR_TYPE_NEXT_HOP = 3
 BGP_ATTR_TYPE_MULTI_EXIT_DISC = 4
 BGP_ATTR_TYPE_LOCAL_PREF = 5
+BGP_ATTR_TYPE_COMMUNITIES = 8
 BGP_ATTR_TYPE_MP_REACH_NLRI = 14
 BGP_ATTR_TYPE_EXTENDED_COMMUNITIES = 16
 
@@ -158,7 +159,13 @@ class Container(object):
         for sv in self.shared_volumes:
             c << "-v {0}:{1}".format(sv[0], sv[1])
         c << "--name {0} -id {1}".format(self.docker_name(), self.image)
-        self.id = local(str(c), capture=True)
+        for i in range(3):
+            try:
+                self.id = local(str(c), capture=True)
+            except:
+                time.sleep(1)
+            else:
+                break
         self.is_running = True
         self.local("ip li set up dev lo")
         return 0
@@ -216,7 +223,7 @@ class BGPContainer(Container):
         super(BGPContainer, self).run()
         return self.WAIT_FOR_BOOT
 
-    def add_peer(self, peer, passwd='', evpn=False, is_rs_client=False,
+    def add_peer(self, peer, passwd=None, evpn=False, is_rs_client=False,
                  policies=None, passive=False,
                  is_rr_client=False, cluster_id='',
                  flowspec=False):
@@ -231,7 +238,7 @@ class BGPContainer(Container):
             raise Exception('peer {0} seems not ip reachable'.format(peer))
 
         if not policies:
-            policies = []
+            policies = {}
 
         self.peers[peer] = {'neigh_addr': neigh_addr,
                             'passwd': passwd,
@@ -259,10 +266,16 @@ class BGPContainer(Container):
     def enable_peer(self, peer):
         raise Exception('implement enable_peer() method')
 
-    def add_route(self, route, rf='ipv4', attribute=None, matchs=None, thens=None):
+    def add_route(self, route, rf='ipv4', attribute=None, aspath=None,
+                  community=None, med=None, extendedcommunity=None,
+                  matchs=None, thens=None):
         self.routes[route] = {'prefix': route,
                               'rf': rf,
                               'attr': attribute,
+                              'as-path': aspath,
+                              'community': community,
+                              'med': med,
+                              'extended-community': extendedcommunity,
                               'matchs': matchs,
                               'thens' : thens}
         if self.is_running:
@@ -272,7 +285,7 @@ class BGPContainer(Container):
     def add_policy(self, policy, peer=None):
         self.policies[policy['name']] = policy
         if peer in self.peers:
-            self.peers[peer]['policies'].append(policy)
+            self.peers[peer]['policies'][policy['name']] = policy
         if self.is_running:
             self.create_config()
             self.reload_config()

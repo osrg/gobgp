@@ -39,11 +39,12 @@ if [ $RET1 != 0 ]; then
 fi
 
 # route server policy test
-sudo -E python route_server_policy_test.py --gobgp-image $GOBGP_IMAGE --go-path $GOROOT/bin -s --with-xunit --xunit-file=${WS}/nosetest_policy.xml
-RET2=$?
-if [ $RET2 != 0 ]; then
-    exit 1
-fi
+NUM=`sudo -E python route_server_policy_test.py -s 2>1 | awk '/invalid/{print $NF}'`
+for (( i = 1; i < $NUM; ++i ))
+do
+    sudo -E python route_server_policy_test.py --gobgp-image $GOBGP_IMAGE --test-prefix p$i --test-index $i -s -x --with-xunit --xunit-file=${WS}/nosetest_policy${i}.xml &
+    PIDS=("${PIDS[@]}" $!)
+done
 
 # route server test
 sudo -E python route_server_test.py --gobgp-image $GOBGP_IMAGE --test-prefix rs -s -x --with-xunit --xunit-file=${WS}/nosetest.xml &

@@ -85,7 +85,7 @@ class GoBGPIPv6Test(unittest.TestCase):
             for _ in range(self.retry_limit):
                 if done:
                     break
-                local_rib = self.gobgp.get_local_rib(rs_client, rf)
+                local_rib = self.gobgp.get_local_rib(rs_client, rf=rf)
                 local_rib = [p['prefix'] for p in local_rib]
                 if len(local_rib) < len(ctns)-1:
                     time.sleep(self.wait_per_retry)

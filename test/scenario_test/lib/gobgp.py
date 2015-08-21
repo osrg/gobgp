@@ -21,8 +21,6 @@ from itertools import chain
 
 class GoBGPContainer(BGPContainer):
 
-    PEER_TYPE_INTERNAL = 0
-    PEER_TYPE_EXTERNAL = 1
     SHARED_VOLUME = '/root/shared_volume'
 
     def __init__(self, name, asn, router_id, ctn_image_name='gobgp',
@@ -31,6 +29,10 @@ class GoBGPContainer(BGPContainer):
                                              ctn_image_name)
         self.shared_volumes.append((self.config_dir, self.SHARED_VOLUME))
         self.log_level = log_level
+        self.prefix_set = None
+        self.neighbor_set = None
+        self.bgp_set = None
+        self.default_policy = None
 
     def _start_gobgp(self):
         c = CmdBuffer()
@@ -75,11 +77,17 @@ class GoBGPContainer(BGPContainer):
     def enable_peer(self, peer):
         self._trigger_peer_cmd('enable', peer)
 
-    def get_local_rib(self, peer, rf='ipv4'):
+    def reset(self, peer):
+        self._trigger_peer_cmd('reset', peer)
+
+    def softreset(self, peer, rf='ipv4', type='in'):
+        self._trigger_peer_cmd('softreset{0} -a {1}'.format(type, rf), peer)
+
+    def get_local_rib(self, peer, prefix='', rf='ipv4'):
         if peer not in self.peers:
             raise Exception('not found peer {0}'.format(peer.router_id))
         peer_addr = self.peers[peer]['neigh_addr'].split('/')[0]
-        cmd = 'gobgp -j neighbor {0} local -a {1}'.format(peer_addr, rf)
+        cmd = 'gobgp -j neighbor {0} local {1} -a {2}'.format(peer_addr, prefix, rf)
         output = self.local(cmd, capture=True)
         ret = json.loads(output)
         for d in ret:
@@ -126,14 +134,26 @@ class GoBGPContainer(BGPContainer):
         output = self.local(cmd, capture=True)
         return json.loads(output)['info']['bgp_state']
 
+    def clear_policy(self):
+        self.policies = {}
+        for info in self.peers.itervalues():
+            info['policies'] = {}
+        self.prefix_set = []
+        self.neighbor_set = []
+        self.statements = []
+
+    def set_prefix_set(self, ps):
+        self.prefix_set = ps
+
+    def set_neighbor_set(self, ns):
+        self.neighbor_set = ns
+
+    def set_bgp_defined_set(self, bs):
+        self.bgp_set = bs
+
     def create_config(self):
         config = {'Global': {'GlobalConfig': {'As': self.asn, 'RouterId': self.router_id}}}
         for peer, info in self.peers.iteritems():
-            if self.asn == peer.asn:
-                peer_type = self.PEER_TYPE_INTERNAL
-            else:
-                peer_type = self.PEER_TYPE_EXTERNAL
-
             afi_safi_list = []
             version = netaddr.IPNetwork(info['neigh_addr']).version
             if version == 4:
@@ -155,7 +175,6 @@ class GoBGPContainer(BGPContainer):
                  {'NeighborAddress': info['neigh_addr'].split('/')[0],
                   'PeerAs': peer.asn,
                   'AuthPassword': info['passwd'],
-                  'PeerType': peer_type,
                   },
                  'AfiSafis': {'AfiSafiList': afi_safi_list}
                  }
@@ -171,10 +190,67 @@ class GoBGPContainer(BGPContainer):
                 n['RouteReflector'] = {'RouteReflectorClient': True,
                                        'RouteReflectorClusterId': clusterId}
 
+            f = lambda typ: [p for p in info['policies'].itervalues() if p['type'] == typ]
+            import_policies = f('import')
+            export_policies = f('export')
+            in_policies = f('in')
+            f = lambda typ: [p['default'] for p in info['policies'].itervalues() if p['type'] == typ and 'default' in p]
+            default_import_policy = f('import')
+            default_export_policy = f('export')
+            default_in_policy  = f('in')
+
+            if len(import_policies) + len(export_policies) + len(in_policies) + len(default_import_policy) \
+                + len(default_export_policy) + len(default_in_policy) > 0:
+                n['ApplyPolicy'] = {'ApplyPolicyConfig': {}}
+
+            if len(import_policies) > 0:
+                n['ApplyPolicy']['ApplyPolicyConfig']['ImportPolicy'] = [p['name'] for p in import_policies]
+
+            if len(export_policies) > 0:
+                n['ApplyPolicy']['ApplyPolicyConfig']['ExportPolicy'] = [p['name'] for p in export_policies]
+
+            if len(in_policies) > 0:
+                n['ApplyPolicy']['ApplyPolicyConfig']['InPolicy'] = [p['name'] for p in in_policies]
+
+            def f(v):
+                if v == 'reject':
+                    return 1
+                elif v == 'accept':
+                    return 0
+                raise Exception('invalid default policy type {0}'.format(v))
+
+            if len(default_import_policy) > 0:
+               n['ApplyPolicy']['ApplyPolicyConfig']['DefaultImportPolicy'] = f(default_import_policy[0])
+
+            if len(default_export_policy) > 0:
+               n['ApplyPolicy']['ApplyPolicyConfig']['DefaultExportPolicy'] = f(default_export_policy[0])
+
+            if len(default_in_policy) > 0:
+               n['ApplyPolicy']['ApplyPolicyConfig']['DefaultInPolicy'] = f(default_in_policy[0])
+
             if 'Neighbors' not in config:
                 config['Neighbors'] = {'NeighborList': []}
 
             config['Neighbors']['NeighborList'].append(n)
+
+        config['DefinedSets'] = {}
+        if self.prefix_set:
+            config['DefinedSets']['PrefixSets'] = {'PrefixSetList': [self.prefix_set]}
+
+        if self.neighbor_set:
+            config['DefinedSets']['NeighborSets'] = {'NeighborSetList': [self.neighbor_set]}
+
+        if self.bgp_set:
+            config['DefinedSets']['BgpDefinedSets'] = self.bgp_set
+
+        policy_list = []
+        for p in self.policies.itervalues():
+            policy = {'Name': p['name'],
+                      'Statements':{'StatementList': p['statements']}}
+            policy_list.append(policy)
+
+        if len(policy_list) > 0:
+            config['PolicyDefinitions'] = {'PolicyDefinitionList': policy_list}
 
         with open('{0}/gobgpd.conf'.format(self.config_dir), 'w') as f:
             print colors.yellow('[{0}\'s new config]'.format(self.name))

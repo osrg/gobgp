@@ -61,6 +61,7 @@ class QuaggaBGPContainer(BGPContainer):
             tn.write('show bgp {0} unicast\n'.format(rf))
             tn.read_until('   Network          Next Hop            Metric '
                           'LocPrf Weight Path')
+            read_next = False
             for line in tn.read_until('bgpd#').split('\n'):
                 if line[:2] == '*>':
                     line = line[2:]
@@ -68,9 +69,24 @@ class QuaggaBGPContainer(BGPContainer):
                     if line[0] == 'i':
                         line = line[1:]
                         ibgp = True
-                    elems = line.split()
-                    rib.append({'prefix': elems[0], 'nexthop': elems[1],
-                                'ibgp': ibgp})
+                elif not read_next:
+                    continue
+
+                elems = line.split()
+
+                if len(elems) == 1:
+                    read_next = True
+                    prefix = elems[0]
+                    continue
+                elif read_next:
+                    nexthop = elems[0]
+                else:
+                    prefix = elems[0]
+                    nexthop = elems[1]
+                read_next = False
+
+                rib.append({'prefix': prefix, 'nexthop': nexthop,
+                            'ibgp': ibgp})
 
         return rib
 
@@ -149,12 +165,11 @@ class QuaggaBGPContainer(BGPContainer):
                 c << 'no bgp default ipv4-unicast'
 
             c << 'neighbor {0} remote-as {1}'.format(n_addr, peer.asn)
-            for policy in info['policies']:
-                name = policy['name']
+            for name, policy in info['policies'].iteritems():
                 direction = policy['direction']
                 c << 'neighbor {0} route-map {1} {2}'.format(n_addr, name,
                                                              direction)
-            if info['passwd'] != '':
+            if info['passwd']:
                 c << 'neighbor {0} password {1}'.format(n_addr, info['passwd'])
             if version == 6:
                 c << 'address-family ipv6 unicast'
