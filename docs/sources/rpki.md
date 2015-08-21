@@ -61,7 +61,7 @@ Network            Maxlen AS
 2.0.0.0/12         16     3215
 2.0.0.0/16         16     3215
 2.1.0.0/16         16     3215
-$ gobgp rpki -l|wc
+$ gobgp rpki |wc -l
 14576
 ```
 
