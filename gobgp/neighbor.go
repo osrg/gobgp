@@ -416,6 +416,14 @@ func showNeighborRib(r string, name string, args []string) error {
 		return err
 	}
 
+	isResultSorted := func(rf bgp.RouteFamily) bool {
+		switch rf {
+		case bgp.RF_IPv4_UC, bgp.RF_IPv6_UC:
+			return true
+		}
+		return false
+	}
+
 	dsts := []*Destination{}
 	maxOnes := 0
 	counter := 0
@@ -448,7 +456,7 @@ func showNeighborRib(r string, name string, args []string) error {
 		if err != nil {
 			return err
 		}
-		if rf == bgp.RF_IPv4_UC && !globalOpts.Json && len(dst.Paths) > 0 {
+		if isResultSorted(rf) && !globalOpts.Json && len(dst.Paths) > 0 {
 			ps := paths{}
 			ps = append(ps, dst.Paths...)
 			sort.Sort(ps)
@@ -468,7 +476,7 @@ func showNeighborRib(r string, name string, args []string) error {
 		return nil
 	}
 
-	if rf == bgp.RF_IPv4_UC && counter != 0 {
+	if isResultSorted(rf) && counter != 0 {
 		// we already showed
 		return nil
 	}

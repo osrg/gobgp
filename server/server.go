@@ -1122,9 +1122,10 @@ func (server *BgpServer) handleGrpc(grpcReq *GrpcRequest) []*SenderMsg {
 	case REQ_GLOBAL_RIB:
 		if t, ok := server.localRibMap[GLOBAL_RIB_NAME].rib.Tables[grpcReq.RouteFamily]; ok {
 			results := make([]*GrpcResponse, len(t.GetDestinations()))
-			if grpcReq.RouteFamily == bgp.RF_IPv4_UC {
+			switch grpcReq.RouteFamily {
+			case bgp.RF_IPv4_UC, bgp.RF_IPv6_UC:
 				results = sortedDsts(server.localRibMap[GLOBAL_RIB_NAME].rib.Tables[grpcReq.RouteFamily])
-			} else {
+			default:
 				i := 0
 				for _, dst := range t.GetDestinations() {
 					result := &GrpcResponse{}
@@ -1180,9 +1181,10 @@ func (server *BgpServer) handleGrpc(grpcReq *GrpcRequest) []*SenderMsg {
 			remoteAddr := grpcReq.Name
 			if t, ok := server.localRibMap[remoteAddr].rib.Tables[grpcReq.RouteFamily]; ok {
 				results := make([]*GrpcResponse, len(t.GetDestinations()))
-				if grpcReq.RouteFamily == bgp.RF_IPv4_UC {
+				switch grpcReq.RouteFamily {
+				case bgp.RF_IPv4_UC, bgp.RF_IPv6_UC:
 					results = sortedDsts(server.localRibMap[remoteAddr].rib.Tables[grpcReq.RouteFamily])
-				} else {
+				default:
 					i := 0
 					for _, dst := range t.GetDestinations() {
 						result := &GrpcResponse{}
@@ -1221,7 +1223,8 @@ func (server *BgpServer) handleGrpc(grpcReq *GrpcRequest) []*SenderMsg {
 		}
 
 		results := make([]*GrpcResponse, len(paths))
-		if rf == bgp.RF_IPv4_UC {
+		switch rf {
+		case bgp.RF_IPv4_UC, bgp.RF_IPv6_UC:
 			r := radix.New()
 			for _, p := range paths {
 				r.Insert(table.CidrToRadixkey(p.GetNlri().String()), toResult(p))
@@ -1233,7 +1236,7 @@ func (server *BgpServer) handleGrpc(grpcReq *GrpcRequest) []*SenderMsg {
 				i++
 				return false
 			})
-		} else {
+		default:
 			for i, p := range paths {
 				results[i] = toResult(p)
 			}
