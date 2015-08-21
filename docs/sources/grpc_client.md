@@ -37,6 +37,7 @@ $ cd $GOPATH/src/github.com/osrg/gobgp/tools/grpc/python
 $ virtualenv venv
 $ source ./venv/bin/activate
 $ curl -fsSL https://goo.gl/getgrpc | bash -s python
+$ sudo ldconfig
 ```
 
 ### Generating Stub Code
