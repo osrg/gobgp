@@ -228,7 +228,13 @@ func (server *BgpServer) Serve() {
 		select {
 		case c := <-server.rpkiConfigCh:
 			if len(c.RpkiServerList) > 0 {
-				url := fmt.Sprintf("%s:%d", c.RpkiServerList[0].RpkiServerConfig.Address, c.RpkiServerList[0].RpkiServerConfig.Port)
+				var url string
+				if c.RpkiServerList[0].RpkiServerConfig.Address.To16() == nil {
+					url = fmt.Sprintf("%s", c.RpkiServerList[0].RpkiServerConfig.Address)
+				} else {
+					url = fmt.Sprintf("[%s]", c.RpkiServerList[0].RpkiServerConfig.Address)
+				}
+				url += fmt.Sprintf(":%d", c.RpkiServerList[0].RpkiServerConfig.Port)
 				server.roaClient, _ = newROAClient(url)
 			}
 		case rmsg := <-server.roaClient.recieveROA():
