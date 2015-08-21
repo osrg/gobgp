@@ -30,6 +30,7 @@ No dependency hell (library, package, etc) thanks to Go.
  * [MRT](https://github.com/osrg/gobgp/blob/master/docs/sources/mrt.md)
  * [Flowspec](https://github.com/osrg/gobgp/blob/master/docs/sources/flowspec.md)
  * [RPKI](https://github.com/osrg/gobgp/blob/master/docs/sources/rpki.md)
+ * [Managing GoBGP with your favorite language](https://github.com/osrg/gobgp/blob/master/docs/sources/grpc-client.md)
  
 ## Community, discussion and support
 
