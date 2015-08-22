@@ -211,6 +211,7 @@ class BGPContainer(Container):
         self.config_dir = '/'.join((TEST_BASE_DIR, TEST_PREFIX, name))
         local('if [ -e {0} ]; then rm -r {0}; fi'.format(self.config_dir))
         local('mkdir -p {0}'.format(self.config_dir))
+        local('chmod 777 {0}'.format(self.config_dir))
         self.asn = asn
         self.router_id = router_id
         self.peers = {}
@@ -265,6 +266,9 @@ class BGPContainer(Container):
 
     def enable_peer(self, peer):
         raise Exception('implement enable_peer() method')
+
+    def log(self):
+        return local('cat {0}/*.log'.format(self.config_dir), capture=True)
 
     def add_route(self, route, rf='ipv4', attribute=None, aspath=None,
                   community=None, med=None, extendedcommunity=None,

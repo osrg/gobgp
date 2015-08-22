@@ -198,7 +198,7 @@ class QuaggaBGPContainer(BGPContainer):
         c << 'debug bgp fsm'
         c << 'debug bgp updates'
         c << 'debug bgp events'
-        c << 'log file /tmp/bgpd.log'.format(self.SHARED_VOLUME)
+        c << 'log file {0}/bgpd.log'.format(self.SHARED_VOLUME)
 
         with open('{0}/bgpd.conf'.format(self.config_dir), 'w') as f:
             print colors.yellow('[{0}\'s new config]'.format(self.name))
