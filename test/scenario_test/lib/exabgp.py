@@ -82,7 +82,10 @@ class ExaBGPContainer(BGPContainer):
                 cmd << '    static {'
                 for route in routes:
                     r = CmdBuffer(' ')
-                    r << '      route {0} next-hop {1}'.format(route['prefix'], local_addr)
+                    nexthop = local_addr
+                    if route['next-hop']:
+                        nexthop = route['next-hop']
+                    r << '      route {0} next-hop {1}'.format(route['prefix'], nexthop)
                     if route['as-path']:
                         r << 'as-path [{0}]'.format(' '.join(str(i) for i in route['as-path']))
                     if route['community']:
@@ -92,7 +95,7 @@ class ExaBGPContainer(BGPContainer):
                     if route['extended-community']:
                         r << 'extended-community [{0}]'.format(route['extended-community'])
                     if route['attr']:
-                        r << 'attribute {0}'.format(route['attr'])
+                        r << 'attribute [ {0} ]'.format(route['attr'])
 
                     cmd << '{0};'.format(str(r))
                 cmd << '    }'

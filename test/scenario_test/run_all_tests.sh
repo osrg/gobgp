@@ -30,11 +30,32 @@ fi
 cd $GOBGP/test/scenario_test
 
 # route server malformed message test
-sudo -E python route_server_malformed_test.py --gobgp-image $GOBGP_IMAGE --go-path $GOROOT/bin -s --with-xunit --xunit-file=${WS}/nosetest_malformed.xml
-RET1=$?
-if [ $RET1 != 0 ]; then
-    exit 1
-fi
+NUM=$(sudo -E python route_server_malformed_test.py -s 2> /dev/null | awk '/invalid/{print $NF}')
+PARALLEL_NUM=4
+for (( i = 0; i < $(( $NUM / $PARALLEL_NUM + 1)); ++i ))
+do
+    sudo docker rm -f $(sudo docker ps -a -q)
+
+    PIDS=()
+    for (( j = $((PARALLEL_NUM * $i + 1)); j < $((PARALLEL_NUM * ($i+1) + 1)); ++j))
+    do
+        sudo -E python route_server_malformed_test.py --gobgp-image $GOBGP_IMAGE --test-prefix mal$j --test-index $j -s -x --gobgp-log-level debug &
+        PIDS=("${PIDS[@]}" $!)
+        if [ $j -eq $NUM ]; then
+            break
+        fi
+        sleep 4
+    done
+
+    for (( j = 0; j < ${#PIDS[@]}; ++j ))
+    do
+        wait ${PIDS[$j]}
+        if [ $? != 0 ]; then
+            exit 1
+        fi
+    done
+
+done
 
 # route server policy test
 NUM=$(sudo -E python route_server_policy_test.py -s 2> /dev/null | awk '/invalid/{print $NF}')
@@ -46,11 +67,11 @@ do
     PIDS=()
     for (( j = $((PARALLEL_NUM * $i + 1)); j < $((PARALLEL_NUM * ($i+1) + 1)); ++j))
     do
+        sudo -E python route_server_policy_test.py --gobgp-image $GOBGP_IMAGE --test-prefix p$j --test-index $j -s -x --gobgp-log-level debug &
+        PIDS=("${PIDS[@]}" $!)
         if [ $j -eq $NUM ]; then
             break
         fi
-        sudo -E python route_server_policy_test.py --gobgp-image $GOBGP_IMAGE --test-prefix p$j --test-index $j -s -x --gobgp-log-level debug &
-        PIDS=("${PIDS[@]}" $!)
         sleep 4
     done
 

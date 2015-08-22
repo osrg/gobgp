@@ -1,4 +1,4 @@
-# Copyright (C) 2014 Nippon Telegraph and Telephone Corporation.
+# Copyright (C) 2015 Nippon Telegraph and Telephone Corporation.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -13,164 +13,433 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import unittest
+from fabric.api import local
+from lib import base
+from lib.gobgp import *
+from lib.quagga import *
+from lib.exabgp import *
+import sys
 import os
 import time
-import re
-import sys
 import nose
-import collections
-import docker_control as fab
-from fabric.api import local
-import json
-import toml
-from noseplugin import OptionParser
-from noseplugin import parser_option
-from constant import CONFIG_DIR, CLI_CMD
-
-wait_per_retry = 2
-retry_limit = 60 / wait_per_retry
-
-gobgp_ip = "10.0.255.1"
-gobgp_port = "8080"
-gobgp_config_file = "/tmp/gobgp/gobgpd.conf"
+from noseplugin import OptionParser, parser_option
 
 
-def check_pattern():
-    """
-    if want to add test pattern, please write config name and notification message in this function.
-    this tests is execute defined order.
-    sample:
-    pattern["<File to be used in test>"] = "<at that time the message>"
-    """
-    pattern = collections.OrderedDict()
-    pattern["malformed1-exabgp-gobgp-v4-MP_REACH_NLRI.conf"] = "UPDATE message error / Attribute Flags Error / 0x600E0411223344"
-    pattern["malformed1-exabgp-gobgp-v4-MP_UNREACH_NLRI.conf"] = "UPDATE message error / Attribute Flags Error / 0x600F0411223344"
-    pattern["malformed1-exabgp-gobgp-v4-AS_PATH.conf"] = "UPDATE message error / Attribute Flags Error / 0x60020411223344"
-    pattern["malformed1-exabgp-gobgp-v4-AS4_PATH.conf"] = "UPDATE message error / Attribute Flags Error / 0x60110411223344"
-    pattern["malformed1-exabgp-gobgp-v4-NEXTHOP_INVALID.conf"] = "UPDATE message error / Attribute Flags Error / 0x600E08010110FFFFFF0000"
-    pattern["malformed1-exabgp-gobgp-v4-ROUTE_FAMILY_INVALID.conf"] = "UPDATE message error / Attribute Flags Error / 0x600E150002011020010DB800000000000000000000000100"
-
-    pattern["malformed1-exabgp-gobgp-v4-AS_PATH_SEGMENT_LENGTH_INVALID.conf"] = "UPDATE message error / Malformed AS_PATH / 0x4002040202FFDC"
-    pattern["malformed1-exabgp-gobgp-v4-NEXTHOP_LOOPBACK_ADDR_INVALID.conf"] = "UPDATE message error / Invalid NEXT_HOP Attribute / 0x4003047F000001"
-    pattern["malformed1-exabgp-gobgp-v4-ORIGIN_TYPE_INVALID.conf"] = "UPDATE message error / Invalid ORIGIN Attribute / 0x40010104"
-    return pattern
+scenarios = {}
 
 
-def test_malformed_packet():
-    pwd = os.getcwd()
-    pattern = check_pattern()
-    if fab.test_user_check() is False:
-        print "you are not root"
-        sys.exit(1)
+def scenario(idx):
+    def wrapped(f):
+        if idx not in scenarios:
+            scenarios[idx] = {}
+        if f.__name__ in scenarios[idx]:
+            raise Exception('scenario index {0}. already exists'.format(idx))
 
-    if fab.docker_pkg_check() is False:
-        print "not install docker package."
-        sys.exit(1)
+        scenarios[idx][f.__name__] = f
+    return wrapped
 
-    if len(pattern) <= 0:
-        print "read test pattern is faild."
-        print "pattern element is " + str(len(pattern))
-        sys.exit(1)
 
-    image = parser_option.gobgp_image
-    log_debug = True if parser_option.gobgp_log_level == 'debug' else False
-    go_path = parser_option.go_path
-    exabgp_path = parser_option.exabgp_path
+def wait_for(f, timeout=120):
+    interval = 1
+    count = 0
+    while True:
+        if f():
+            return
 
-    fab.init_malformed_test_env_executor(image, go_path, exabgp_path, log_debug)
+        time.sleep(interval)
+        count += interval
+        if count >= timeout:
+            raise Exception('timeout')
 
-    for pkey in pattern:
-        conf_file = pwd + "/exabgp_test_conf/" + pkey
-        if os.path.isfile(conf_file) is True:
-            fab.start_exabgp(pkey)
-            yield check_func, pkey, pattern[pkey]
-            fab.stop_exabgp()
-        else:
-            print "config file not exists."
-            print conf_file
+
+"""
+  No.1 malformaed mp-reach-nlri
+"""
+@scenario(1)
+def boot(env):
+    gobgp_ctn_image_name = env.parser_option.gobgp_image
+    log_level = env.parser_option.gobgp_log_level
+    g1 = GoBGPContainer(name='g1', asn=65000, router_id='192.168.0.1',
+                        ctn_image_name=gobgp_ctn_image_name,
+                        log_level=log_level)
+    e1 = ExaBGPContainer(name='e1', asn=65001, router_id='192.168.0.2')
+    e2 = ExaBGPContainer(name='e2', asn=65001, router_id='192.168.0.2')
+
+    ctns = [g1, e1, e2]
+    initial_wait_time = max(ctn.run() for ctn in ctns)
+    time.sleep(initial_wait_time)
+
+    br01 = Bridge(name='br01', subnet='192.168.10.0/24')
+    [br01.addif(ctn) for ctn in ctns]
+
+    for q in [e1, e2]:
+        g1.add_peer(q, is_rs_client=True)
+        q.add_peer(g1)
+
+    env.g1 = g1
+    env.e1 = e1
+    env.e2 = e2
+
+@scenario(1)
+def setup(env):
+    g1 = env.g1
+    e1 = env.e1
+    e2 = env.e2
+    for c in [e1, e2]:
+        g1.wait_for(BGP_FSM_ESTABLISHED, c)
+
+    # advertise malformed MP_REACH_NLRI
+    e1.add_route('10.7.0.17/32', attribute='0x0e 0x60 0x11223344')
+
+@scenario(1)
+def check(env):
+    g1 = env.g1
+    e1 = env.e1
+    e2 = env.e2
+    def f():
+        for line in e1.log().split('\n'):
+            if 'UPDATE message error / Attribute Flags Error / 0x600E0411223344' in line:
+                return True
+        return False
+    wait_for(f)
+    # check e2 is still established
+    g1.wait_for(BGP_FSM_ESTABLISHED, e2)
+
+"""
+  No.2 malformaed mp-unreach-nlri
+"""
+@scenario(2)
+def boot(env):
+    scenarios[1]['boot'](env)
+
+@scenario(2)
+def setup(env):
+    g1 = env.g1
+    e1 = env.e1
+    e2 = env.e2
+    for c in [e1, e2]:
+        g1.wait_for(BGP_FSM_ESTABLISHED, c)
+
+    # advertise malformed MP_UNREACH_NLRI
+    e1.add_route('10.7.0.17/32', attribute='0x0f 0x60 0x11223344')
+
+@scenario(2)
+def check(env):
+    g1 = env.g1
+    e1 = env.e1
+    e2 = env.e2
+    def f():
+        for line in e1.log().split('\n'):
+            if 'UPDATE message error / Attribute Flags Error / 0x600F0411223344' in line:
+                return True
+        return False
+    wait_for(f)
+    # check e2 is still established
+    g1.wait_for(BGP_FSM_ESTABLISHED, e2)
+
+"""
+  No.3 malformaed as-path
+"""
+@scenario(3)
+def boot(env):
+    scenarios[1]['boot'](env)
+
+@scenario(3)
+def setup(env):
+    g1 = env.g1
+    e1 = env.e1
+    e2 = env.e2
+    for c in [e1, e2]:
+        g1.wait_for(BGP_FSM_ESTABLISHED, c)
+
+    # advertise malformed AS_PATH
+    # Send the attribute to the length and number of aspath is inconsistent
+    # Attribute Type  0x02 (AS_PATH)
+    # Attribute Flag  0x40 (well-known transitive)
+    # Attribute Value 0x02020000ffdc (
+    #  segment type    = 02
+    #  segment length  = 02 -> # correct value = 01
+    #  as number       = 65500   )
+    e1.add_route('10.7.0.17/32', attribute='0x02 0x60 0x11223344')
+
+@scenario(3)
+def check(env):
+    g1 = env.g1
+    e1 = env.e1
+    e2 = env.e2
+    def f():
+        for line in e1.log().split('\n'):
+            if 'UPDATE message error / Attribute Flags Error / 0x60020411223344' in line:
+                return True
+        return False
+    wait_for(f)
+    # check e2 is still established
+    g1.wait_for(BGP_FSM_ESTABLISHED, e2)
+
+"""
+  No.4 malformaed as4-path
+"""
+@scenario(4)
+def boot(env):
+    scenarios[1]['boot'](env)
+
+@scenario(4)
+def setup(env):
+    g1 = env.g1
+    e1 = env.e1
+    e2 = env.e2
+    for c in [e1, e2]:
+        g1.wait_for(BGP_FSM_ESTABLISHED, c)
+
+    # advertise malformed AS4_PATH
+    e1.add_route('10.7.0.17/32', attribute='0x11 0x60 0x11223344')
+
+@scenario(4)
+def check(env):
+    g1 = env.g1
+    e1 = env.e1
+    e2 = env.e2
+    def f():
+        for line in e1.log().split('\n'):
+            if 'UPDATE message error / Attribute Flags Error / 0x60110411223344' in line:
+                return True
+        return False
+    wait_for(f)
+    # check e2 is still established
+    g1.wait_for(BGP_FSM_ESTABLISHED, e2)
+
+"""
+  No.5 malformaed nexthop
+"""
+@scenario(5)
+def boot(env):
+    scenarios[1]['boot'](env)
+
+@scenario(5)
+def setup(env):
+    g1 = env.g1
+    e1 = env.e1
+    e2 = env.e2
+    for c in [e1, e2]:
+        g1.wait_for(BGP_FSM_ESTABLISHED, c)
+
+    # advertise malformed NEXT_HOP
+    # 0x0e: MP_REACH_NLRI
+    # 0x60: Optional, Transitive
+    # 0x01: AFI(IPv4)
+    # 0x01: SAFI(unicast)
+    # 0x10: Length of Next Hop Address
+    # 0xffffff00: Network address of Next Hop
+    # 0x00: Reserved
+    e1.add_route('10.7.0.17/32', attribute='0x0e 0x60 0x010110ffffff0000')
+
+@scenario(5)
+def check(env):
+    g1 = env.g1
+    e1 = env.e1
+    e2 = env.e2
+    def f():
+        for line in e1.log().split('\n'):
+            if 'UPDATE message error / Attribute Flags Error / 0x600E08010110FFFFFF0000' in line:
+                return True
+        return False
+    wait_for(f)
+    # check e2 is still established
+    g1.wait_for(BGP_FSM_ESTABLISHED, e2)
+
+"""
+  No.6 malformaed route family
+"""
+@scenario(6)
+def boot(env):
+    scenarios[1]['boot'](env)
+
+@scenario(6)
+def setup(env):
+    g1 = env.g1
+    e1 = env.e1
+    e2 = env.e2
+    for c in [e1, e2]:
+        g1.wait_for(BGP_FSM_ESTABLISHED, c)
+
+    # advertise malformed ROUTE_FAMILY
+    # 0x0e: MP_REACH_NLRI
+    # 0x60: Optional, Transitive
+    # 0x01: AFI(IPv4)
+    # 0x01: SAFI(unicast)
+    # 0x10: Length of Next Hop Address
+    # 0xffffff00: Network address of Next Hop
+    # 0x00: Reserved
+    e1.add_route('10.7.0.17/32', attribute='0x0e 0x60 0x0002011020010db800000000000000000000000100')
+
+@scenario(6)
+def check(env):
+    g1 = env.g1
+    e1 = env.e1
+    e2 = env.e2
+    def f():
+        for line in e1.log().split('\n'):
+            if 'UPDATE message error / Attribute Flags Error / 0x600E150002011020010DB800000000000000000000000100' in line:
+                return True
+        return False
+    wait_for(f)
+    # check e2 is still established
+    g1.wait_for(BGP_FSM_ESTABLISHED, e2)
+
+"""
+  No.7 malformaed aspath segment length invalid
+"""
+@scenario(7)
+def boot(env):
+    scenarios[1]['boot'](env)
+
+@scenario(7)
+def setup(env):
+    g1 = env.g1
+    e1 = env.e1
+    e2 = env.e2
+    for c in [e1, e2]:
+        g1.wait_for(BGP_FSM_ESTABLISHED, c)
+
+    # advertise malformed AS_PATH SEGMENT LENGTH
+    # Send the attribute to the length and number of aspath is inconsistent
+    # Attribute Type  0x02 (AS_PATH)
+    # Attribute Flag  0x40 (well-known transitive)
+    # Attribute Value 0x02020000ffdc (
+    #  segment type    = 02
+    #  segment length  = 02 -> # correct value = 01
+    #  as number       = 65500   )
+    e1.add_route('10.7.0.17/32', attribute='0x02 0x40 0x0202ffdc')
+
+@scenario(7)
+def check(env):
+    g1 = env.g1
+    e1 = env.e1
+    e2 = env.e2
+    def f():
+        for line in e1.log().split('\n'):
+            if 'UPDATE message error / Malformed AS_PATH / 0x4002040202FFDC' in line:
+                return True
+        return False
+    wait_for(f)
+    # check e2 is still established
+    g1.wait_for(BGP_FSM_ESTABLISHED, e2)
+
+"""
+  No.8 malformaed nexthop loopback addr
+"""
+@scenario(8)
+def boot(env):
+    scenarios[1]['boot'](env)
+
+@scenario(8)
+def setup(env):
+    g1 = env.g1
+    e1 = env.e1
+    e2 = env.e2
+    for c in [e1, e2]:
+        g1.wait_for(BGP_FSM_ESTABLISHED, c)
+
+    # Malformed Invalid NEXT_HOP Attribute
+    # Send the attribute of invalid nexthop
+    # next-hop 127.0.0.1 -> # correct value = other than loopback and 0.0.0.0 address
+    e1.add_route('10.7.0.17/32', nexthop='127.0.0.1')
+
+@scenario(8)
+def check(env):
+    g1 = env.g1
+    e1 = env.e1
+    e2 = env.e2
+    def f():
+        for line in e1.log().split('\n'):
+            if 'UPDATE message error / Invalid NEXT_HOP Attribute / 0x4003047F000001' in line:
+                return True
+        return False
+    wait_for(f)
+    # check e2 is still established
+    g1.wait_for(BGP_FSM_ESTABLISHED, e2)
+
+"""
+  No.9 malformaed origin type
+"""
+@scenario(9)
+def boot(env):
+    scenarios[1]['boot'](env)
+
+@scenario(9)
+def setup(env):
+    g1 = env.g1
+    e1 = env.e1
+    e2 = env.e2
+    for c in [e1, e2]:
+        g1.wait_for(BGP_FSM_ESTABLISHED, c)
+
+    # Invalid ORIGIN Attribute
+    # Send the attribute of origin type 4
+    # Attribute Type  0x01 (Origin)
+    # Attribute Flag  0x40 (well-known transitive)
+    # Attribute Value 0x04 (
+    #  origin type    = 04 -> # correct value = 01 or 02 or 03 )
+    e1.add_route('10.7.0.17/32', attribute='0x1 0x40 0x04')
+
+@scenario(9)
+def check(env):
+    g1 = env.g1
+    e1 = env.e1
+    e2 = env.e2
+    def f():
+        for line in e1.log().split('\n'):
+            if 'UPDATE message error / Invalid ORIGIN Attribute / 0x40010104' in line:
+                return True
+        return False
+    wait_for(f)
+    # check e2 is still established
+    g1.wait_for(BGP_FSM_ESTABLISHED, e2)
+
+class GoBGPTestBase(unittest.TestCase):
+
+    wait_per_retry = 5
+    retry_limit = 10
+
+    @classmethod
+    def setUpClass(cls):
+        idx = parser_option.test_index
+        base.TEST_PREFIX = parser_option.test_prefix
+        cls.parser_option = parser_option
+
+        if idx not in scenarios:
+            print 'invalid test-index. # of scenarios: {0}'.format(len(scenarios))
             sys.exit(1)
 
+        cls.boot = scenarios[idx]['boot']
+        cls.setup = scenarios[idx]['setup']
+        cls.check = scenarios[idx]['check']
+        cls.setup2 = scenarios[idx]['setup2'] if 'setup2' in scenarios[idx] else None
+        cls.check2 = scenarios[idx]['check2'] if 'check2' in scenarios[idx] else None
 
-def check_func(exabgp_conf, result):
-    in_prepare_quagga = True
-    in_prepare_exabgp = True
-    retry_count = 0
-    # get neighbor addresses from gobgpd.conf
-    addresses = get_neighbor_address()
-    neighbors = None
-    q_address = ""
-    e_address = ""
-    q_transitions = 0
-    q_state = ""
-    notification = ""
+    def test(self):
 
-    while in_prepare_quagga or in_prepare_exabgp:
-        if retry_count != 0:
-            print "please wait more (" + str(wait_per_retry) + " second)"
-            time.sleep(wait_per_retry)
-        if retry_count >= retry_limit:
-            print "retry limit"
-            break
-        retry_count += 1
-        # check whether the service of gobgp is normally
-        try:
-            cmd = "%s -j neighbor" % CLI_CMD
-            j = local(cmd, capture=True)
-            neighbors = json.loads(j)
-        except Exception:
-            continue
-        if neighbors is None:
-            continue
-        for neighbor in neighbors:
-            remote_ip = neighbor['conf']['remote_ip']
-            if remote_ip == "10.0.0.1":
-                q_state = neighbor['info']['bgp_state']
-                q_address = remote_ip
-                if q_state == "BGP_FSM_ESTABLISHED":
-                    q_transitions = neighbor['info']['fsm_established_transitions']
-                    in_prepare_quagga = False
-            else:
-                e_address = remote_ip
-        # get notification message from exabgp log
-        err_msg = fab.get_notification_from_exabgp_log()
-        parse_msg = re.search(r'error.*', err_msg)
-        if parse_msg is not None:
-            notification_src = parse_msg.group(0)[5:]
-            notification = notification_src[1:-1]
-            in_prepare_exabgp = False
+        self.boot()
 
-    assert neighbors is not None, "neighbors is None"
-    assert len(neighbors) == len(addresses), "neighbors = " + len(neighbors) + ", addresses = " + len(addresses)
-    print "check of [ " + q_address + " ]"
-    assert q_state == "BGP_FSM_ESTABLISHED", "q_state = " + q_state
-    assert q_transitions == 1, "q_transitions = " + q_transitions
-    print "check of [ " + e_address + " ]"
-    print "notification message : "
-    print " >>> " + str(notification)
-    # check notification messege
-    assert notification == result, "notification = " + notification
+        self.setup()
 
+        self.check()
 
-# get address of each neighbor from gobpg configration
-def get_neighbor_address():
-    address = []
-    try:
-        gobgp_config = toml.loads(open(gobgp_config_file).read())
-        neighbors_config = gobgp_config['Neighbors']['NeighborList']
-        for neighbor_config in neighbors_config:
-            neighbor_ip = neighbor_config['NeighborConfig']['NeighborAddress']
-            address.append(neighbor_ip)
+        if self.setup2:
+            self.setup2()
 
-    except IOError, (errno, strerror):
-        print "I/O error(%s): %s" % (errno, strerror)
-
-    return address
+        if self.check2:
+            self.check2()
 
 if __name__ == '__main__':
-    if fab.test_user_check() is False:
+    if os.geteuid() is not 0:
         print "you are not root."
         sys.exit(1)
-    if fab.docker_pkg_check() is False:
-        print "not install docker package."
+    output = local("which docker 2>&1 > /dev/null ; echo $?", capture=True)
+    if int(output) is not 0:
+        print "docker not found"
         sys.exit(1)
-    nose.main(argv=sys.argv, addplugins=[OptionParser()], defaultTest=sys.argv[0])
+
+    nose.main(argv=sys.argv, addplugins=[OptionParser()],
+              defaultTest=sys.argv[0])

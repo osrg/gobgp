@@ -272,10 +272,11 @@ class BGPContainer(Container):
 
     def add_route(self, route, rf='ipv4', attribute=None, aspath=None,
                   community=None, med=None, extendedcommunity=None,
-                  matchs=None, thens=None):
+                  nexthop=None, matchs=None, thens=None):
         self.routes[route] = {'prefix': route,
                               'rf': rf,
                               'attr': attribute,
+                              'next-hop': nexthop,
                               'as-path': aspath,
                               'community': community,
                               'med': med,
