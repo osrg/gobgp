@@ -265,6 +265,7 @@ message Actions {
     CommunityAction community = 2;
     string med = 3;
     AsPrependAction as_prepend = 4;
+    CommunityAction ext_community = 5;
 }
 
 message Statement {

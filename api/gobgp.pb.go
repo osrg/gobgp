@@ -601,10 +601,11 @@ func (m *AsPrependAction) String() string { return proto.CompactTextString(m) }
 func (*AsPrependAction) ProtoMessage()    {}
 
 type Actions struct {
-	RouteAction string           `protobuf:"bytes,1,opt,name=route_action" json:"route_action,omitempty"`
-	Community   *CommunityAction `protobuf:"bytes,2,opt,name=community" json:"community,omitempty"`
-	Med         string           `protobuf:"bytes,3,opt,name=med" json:"med,omitempty"`
-	AsPrepend   *AsPrependAction `protobuf:"bytes,4,opt,name=as_prepend" json:"as_prepend,omitempty"`
+	RouteAction  string           `protobuf:"bytes,1,opt,name=route_action" json:"route_action,omitempty"`
+	Community    *CommunityAction `protobuf:"bytes,2,opt,name=community" json:"community,omitempty"`
+	Med          string           `protobuf:"bytes,3,opt,name=med" json:"med,omitempty"`
+	AsPrepend    *AsPrependAction `protobuf:"bytes,4,opt,name=as_prepend" json:"as_prepend,omitempty"`
+	ExtCommunity *CommunityAction `protobuf:"bytes,5,opt,name=ext_community" json:"ext_community,omitempty"`
 }
 
 func (m *Actions) Reset()         { *m = Actions{} }
@@ -621,6 +622,13 @@ func (m *Actions) GetCommunity() *CommunityAction {
 func (m *Actions) GetAsPrepend() *AsPrependAction {
 	if m != nil {
 		return m.AsPrepend
+	}
+	return nil
+}
+
+func (m *Actions) GetExtCommunity() *CommunityAction {
+	if m != nil {
+		return m.ExtCommunity
 	}
 	return nil
 }

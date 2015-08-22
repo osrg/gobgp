@@ -1877,12 +1877,17 @@ func ActionsToApiStruct(conActions config.Actions) *api.Actions {
 		conActions.BgpActions.SetAsPathPrepend.As,
 		uint32(conActions.BgpActions.SetAsPathPrepend.RepeatN),
 	}
+	extCommunityAction := &api.CommunityAction{
+		Communities: conActions.BgpActions.SetExtCommunity.SetExtCommunityMethod.Communities,
+		Options:     conActions.BgpActions.SetExtCommunity.Options,
+	}
 
 	resActions := &api.Actions{
-		RouteAction: action,
-		Community:   communityAction,
-		Med:         medAction,
-		AsPrepend:   asprependAction,
+		RouteAction:  action,
+		Community:    communityAction,
+		Med:          medAction,
+		AsPrepend:    asprependAction,
+		ExtCommunity: extCommunityAction,
 	}
 	return resActions
 }

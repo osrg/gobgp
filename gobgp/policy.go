@@ -1050,12 +1050,16 @@ func showPolicyStatement(indent int, pd *api.PolicyDefinition) {
 		fmt.Printf("%sAsPathLength:    %-6s   %s\n", sIndent(indent+4), asPathLentgh.Operator, asPathLentgh.Value)
 		fmt.Printf("%sActions:\n", sIndent(indent+2))
 
-		communityAction := st.Actions.Community.Options
-		if len(st.Actions.Community.Communities) != 0 || st.Actions.Community.Options == "NULL" {
-			communities := strings.Join(st.Actions.Community.Communities, ",")
-			communityAction = fmt.Sprintf("%s[%s]", st.Actions.Community.Options, communities)
+		formatComAction := func(c *api.CommunityAction) string {
+			communityAction := c.Options
+			if len(c.Communities) != 0 || c.Options == "NULL" {
+				communities := strings.Join(c.Communities, ",")
+				communityAction = fmt.Sprintf("%s[%s]", c.Options, communities)
+			}
+			return communityAction
 		}
-		fmt.Printf("%sCommunity:       %s\n", sIndent(indent+4), communityAction)
+		fmt.Printf("%sCommunity:       %s\n", sIndent(indent+4), formatComAction(st.Actions.Community))
+		fmt.Printf("%sExtCommunity:    %s\n", sIndent(indent+4), formatComAction(st.Actions.ExtCommunity))
 		fmt.Printf("%sMed:             %s\n", sIndent(indent+4), st.Actions.Med)
 
 		asn := ""
