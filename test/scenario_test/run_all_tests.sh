@@ -39,7 +39,7 @@ do
     PIDS=()
     for (( j = $((PARALLEL_NUM * $i + 1)); j < $((PARALLEL_NUM * ($i+1) + 1)); ++j))
     do
-        sudo -E python route_server_malformed_test.py --gobgp-image $GOBGP_IMAGE --test-prefix mal$j --test-index $j -s -x --gobgp-log-level debug &
+        sudo -E python route_server_malformed_test.py --gobgp-image $GOBGP_IMAGE --test-prefix mal$j --test-index $j -s -x --gobgp-log-level debug --with-xunit --xunit-file=${WS}/nosetest_malform${j}.xml &
         PIDS=("${PIDS[@]}" $!)
         if [ $j -eq $NUM ]; then
             break
@@ -67,7 +67,7 @@ do
     PIDS=()
     for (( j = $((PARALLEL_NUM * $i + 1)); j < $((PARALLEL_NUM * ($i+1) + 1)); ++j))
     do
-        sudo -E python route_server_policy_test.py --gobgp-image $GOBGP_IMAGE --test-prefix p$j --test-index $j -s -x --gobgp-log-level debug &
+        sudo -E python route_server_policy_test.py --gobgp-image $GOBGP_IMAGE --test-prefix p$j --test-index $j -s -x --gobgp-log-level debug --with-xunit --xunit-file=${WS}/nosetest_policy${j}.xml &
         PIDS=("${PIDS[@]}" $!)
         if [ $j -eq $NUM ]; then
             break
