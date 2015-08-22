@@ -62,12 +62,12 @@ class CmdBuffer(list):
         return self.delim.join(self)
 
 
-def make_gobgp_ctn(tag='gobgp', local_gobgp_path=''):
+def make_gobgp_ctn(tag='gobgp', local_gobgp_path='', from_image='golang:1.4'):
     if local_gobgp_path == '':
         local_gobgp_path = os.getcwd()
 
     c = CmdBuffer()
-    c << 'FROM golang:1.4'
+    c << 'FROM {0}'.format(from_image)
     c << 'ADD gobgp /go/src/github.com/osrg/gobgp/'
     c << 'RUN go get github.com/osrg/gobgp/gobgpd'
     c << 'RUN go install github.com/osrg/gobgp/gobgpd'
