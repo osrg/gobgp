@@ -18,7 +18,7 @@ package server
 import (
 	"github.com/osrg/gobgp/packet"
 	"github.com/osrg/gobgp/table"
-	zebra "github.com/osrg/gozebra"
+	"github.com/osrg/gobgp/zebra"
 	"net"
 	"strconv"
 	"strings"
