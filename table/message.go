@@ -16,8 +16,9 @@
 package table
 
 import (
-	"bytes"
+	"fmt"
 	"github.com/osrg/gobgp/packet"
+	"reflect"
 )
 
 func UpdatePathAttrs2ByteAs(msg *bgp.BGPUpdate) error {
@@ -183,47 +184,56 @@ func createUpdateMsgFromPath(path *Path, msg *bgp.BGPMessage) *bgp.BGPMessage {
 	return nil
 }
 
-func isSamePathAttrs(pList1 []bgp.PathAttributeInterface, pList2 []bgp.PathAttributeInterface) bool {
-	if len(pList1) != len(pList2) {
-		return false
-	}
-	for i, p1 := range pList1 {
-		_, y := p1.(*bgp.PathAttributeMpReachNLRI)
-		if y {
-			continue
-		}
-		b1, _ := p1.Serialize()
-		b2, _ := pList2[i].Serialize()
-
-		if bytes.Compare(b1, b2) != 0 {
-			return false
-		}
-	}
-	return true
-}
-
-func isMergeable(p1, p2 *Path) bool {
-	return false
+func isMergeable(p1, p2 *Path, msg *bgp.BGPMessage) bool {
 	if p1 == nil {
 		return false
 	}
-	if p1.GetRouteFamily() != bgp.RF_IPv4_UC {
+	if p1.GetRouteFamily() != bgp.RF_IPv4_UC || p2.GetRouteFamily() != bgp.RF_IPv4_UC {
 		return false
 	}
-	if p1.GetSource().Equal(p2.GetSource()) && isSamePathAttrs(p1.GetPathAttrs(), p2.GetPathAttrs()) {
-		return true
+	if p1.IsWithdraw || p2.IsWithdraw {
+		return false
 	}
-	return false
+	if p1.GetSource().Address.Equal(p2.GetSource().Address) == false {
+		return false
+	}
+	if reflect.DeepEqual(p1.GetPathAttrs(), p2.GetPathAttrs()) == false {
+		return false
+	}
+
+	// arbitrary number. just avoid too many NLRIs in one message.
+	if len(u.NLRI) > 16 {
+		return false
+	}
+
+	msgLen := func(u *bgp.BGPUpdate) int {
+		attrsLen := 0
+		for _, a := range u.PathAttributes {
+			attrsLen += a.Len()
+		}
+		// Header + Update (WithdrawnRoutesLen +
+		// TotalPathAttributeLen + attributes + maxlen of
+		// NLRI). Note that we try to add one NLRI.
+		return 19 + 2 + 2 + attrsLen + (len(u.NLRI)+1)*5
+	}(msg.Body.(*bgp.BGPUpdate))
+
+	// 128 is arbitrary number. just avoid too tight.
+	if msgLen > bgp.BGP_MAX_MESSAGE_LENGTH+128 {
+		return false
+	}
+	return true
 }
 
 func CreateUpdateMsgFromPaths(pathList []*Path) []*bgp.BGPMessage {
 	var pre *Path
 	var msgs []*bgp.BGPMessage
 	for _, path := range pathList {
-		y := isMergeable(pre, path)
+		y := false
+		if pre != nil {
+			y = isMergeable(pre, path, msgs[len(msgs)-1])
+		}
 		if y {
-			msg := msgs[len(msgs)-1]
-			createUpdateMsgFromPath(path, msg)
+			createUpdateMsgFromPath(path, msgs[len(msgs)-1])
 		} else {
 			msg := createUpdateMsgFromPath(path, nil)
 			pre = path

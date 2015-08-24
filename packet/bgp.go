@@ -2703,6 +2703,9 @@ type PathAttribute struct {
 }
 
 func (p *PathAttribute) Len() int {
+	if p.Length == 0 {
+		p.Length = uint16(len(p.Value))
+	}
 	l := 2 + p.Length
 	if p.Flags&BGP_ATTR_FLAG_EXTENDED_LENGTH != 0 {
 		l += 2
