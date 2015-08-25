@@ -251,15 +251,16 @@ func (dest *Destination) Calculate() (*Path, string, error) {
 //"""
 func (dest *Destination) removeWithdrawals() {
 
+	// If we have no withdrawals, we have nothing to do.
+	if len(dest.withdrawList) == 0 {
+		return
+	}
+
 	log.WithFields(log.Fields{
 		"Topic":  "Table",
 		"Key":    dest.GetNlri().String(),
 		"Length": len(dest.withdrawList),
 	}).Debug("Removing withdrawals")
-	// If we have no withdrawals, we have nothing to do.
-	if len(dest.withdrawList) == 0 {
-		return
-	}
 
 	// If we have some withdrawals and no know-paths, it means it is safe to
 	// delete these withdraws.

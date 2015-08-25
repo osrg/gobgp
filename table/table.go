@@ -182,8 +182,8 @@ func (t *Table) getOrCreateDest(nlri bgp.AddrPrefixInterface) *Destination {
 	if dest == nil {
 		log.WithFields(log.Fields{
 			"Topic": "Table",
-			"Key":   t.routeFamily,
-		}).Debugf("create Destination with key %s", tableKey)
+			"Key":   tableKey,
+		}).Debugf("create Destination")
 		dest = NewDestination(nlri)
 		t.setDestination(tableKey, dest)
 	}
