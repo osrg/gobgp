@@ -4073,15 +4073,16 @@ func (e *EncapExtended) String() string {
 type OpaqueExtended struct {
 	IsTransitive bool
 	Value        OpaqueExtendedValueInterface
+	SubType      ExtendedCommunityAttrSubType
 }
 
 func (e *OpaqueExtended) DecodeFromBytes(data []byte) error {
 	if len(data) != 7 {
 		return fmt.Errorf("Invalid OpaqueExtended bytes len: %d", len(data))
 	}
-	subType := ExtendedCommunityAttrSubType(data[0])
+	e.SubType = ExtendedCommunityAttrSubType(data[0])
 
-	switch subType {
+	switch e.SubType {
 	case EC_SUBTYPE_COLOR:
 		v := binary.BigEndian.Uint32(data[3:7])
 		e.Value = &ColorExtended{
@@ -4137,7 +4138,7 @@ func (e *OpaqueExtended) GetTypes() (ExtendedCommunityAttrType, ExtendedCommunit
 	if !e.IsTransitive {
 		t = EC_TYPE_NON_TRANSITIVE_OPAQUE
 	}
-	return t, ExtendedCommunityAttrSubType(0xFF)
+	return t, e.SubType
 }
 
 func NewOpaqueExtended(isTransitive bool) *OpaqueExtended {
