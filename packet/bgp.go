@@ -154,6 +154,29 @@ const (
 	PMSI_TUNNEL_TYPE_MLDP_MP2MP     PmsiTunnelType = 7
 )
 
+func (p PmsiTunnelType) String() string {
+	switch p {
+	case PMSI_TUNNEL_TYPE_NO_TUNNEL:
+		return "no-tunnel"
+	case PMSI_TUNNEL_TYPE_RSVP_TE_P2MP:
+		return "rsvp-te-p2mp"
+	case PMSI_TUNNEL_TYPE_MLDP_P2MP:
+		return "mldp-p2mp"
+	case PMSI_TUNNEL_TYPE_PIM_SSM_TREE:
+		return "pim-ssm-tree"
+	case PMSI_TUNNEL_TYPE_PIM_SM_TREE:
+		return "pim-sm-tree"
+	case PMSI_TUNNEL_TYPE_BIDIR_PIM_TREE:
+		return "bidir-pim-tree"
+	case PMSI_TUNNEL_TYPE_INGRESS_REPL:
+		return "ingress-repl"
+	case PMSI_TUNNEL_TYPE_MLDP_MP2MP:
+		return "mldp-mp2mp"
+	default:
+		return fmt.Sprintf("PmsiTunnelType(%d)", uint8(p))
+	}
+}
+
 type EncapSubTLVType uint8
 
 const (
@@ -5128,7 +5151,48 @@ func (p *PathAttributePmsiTunnel) Serialize() ([]byte, error) {
 		return nil, err
 	}
 	buf = append(buf, ibuf...)
-	return buf, nil
+	p.PathAttribute.Value = buf
+	return p.PathAttribute.Serialize()
+}
+
+func (p *PathAttributePmsiTunnel) String() string {
+	buf := bytes.NewBuffer(make([]byte, 0, 32))
+	buf.WriteString(fmt.Sprintf("{Pmsi: type: %s,", p.TunnelType))
+	if p.IsLeafInfoRequired {
+		buf.WriteString(" leaf-info-required,")
+	}
+	buf.WriteString(fmt.Sprintf(" label: %d, tunnel-id: %s}", p.Label, p.TunnelID))
+	return buf.String()
+}
+
+func (p *PathAttributePmsiTunnel) MarshalJSON() ([]byte, error) {
+	return json.Marshal(struct {
+		Type               BGPAttrType `json:"type"`
+		IsLeafInfoRequired bool        `json:"is-leaf-info-required"`
+		TunnelType         uint8       `json:"tunnel-type"`
+		Label              uint32      `json:"label"`
+		TunnelID           string      `json:"tunnel-id"`
+	}{
+		Type:               p.Type,
+		IsLeafInfoRequired: p.IsLeafInfoRequired,
+		TunnelType:         uint8(p.TunnelType),
+		Label:              p.Label,
+		TunnelID:           p.TunnelID.String(),
+	})
+}
+
+func NewPathAttributePmsiTunnel(typ PmsiTunnelType, isLeafInfoRequired bool, label uint32, id PmsiTunnelIDInterface) *PathAttributePmsiTunnel {
+	t := BGP_ATTR_TYPE_PMSI_TUNNEL
+	return &PathAttributePmsiTunnel{
+		PathAttribute: PathAttribute{
+			Flags: pathAttrFlags[t],
+			Type:  t,
+		},
+		IsLeafInfoRequired: isLeafInfoRequired,
+		TunnelType:         typ,
+		Label:              label,
+		TunnelID:           id,
+	}
 }
 
 type PathAttributeUnknown struct {
