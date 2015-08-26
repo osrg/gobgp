@@ -202,7 +202,7 @@ func isMergeable(p1, p2 *Path, msg *bgp.BGPMessage) bool {
 
 	u := msg.Body.(*bgp.BGPUpdate)
 	// arbitrary number. just avoid too many NLRIs in one message.
-	if len(u.NLRI) > 16 {
+	if len(u.NLRI) > 128 {
 		return false
 	}
 
