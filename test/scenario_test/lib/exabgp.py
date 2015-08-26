@@ -34,18 +34,19 @@ class ExaBGPContainer(BGPContainer):
         self.local(str(cmd), flag='-d')
 
     def _update_exabgp(self):
+        if self.exabgp_path == '':
+            return
         c = CmdBuffer()
         c << '#!/bin/bash'
 
         remotepath = '/root/exabgp'
         localpath = self.exabgp_path
-        if localpath != '':
-            local('cp -r {0} {1}'.format(localpath, self.config_dir))
-            c << 'cp {0}/etc/exabgp/exabgp.env {1}'.format(remotepath, self.SHARED_VOLUME)
-            c << 'sed -i -e \'s/all = false/all = true/g\' {0}/exabgp.env'.format(self.SHARED_VOLUME)
-            c << 'cp -r {0}/exabgp {1}'.format(self.SHARED_VOLUME,
-                                               remotepath[:-1*len('exabgp')])
-            c << 'cp {0}/exabgp.env {1}/etc/exabgp/'.format(self.SHARED_VOLUME, remotepath)
+        local('cp -r {0} {1}'.format(localpath, self.config_dir))
+        c << 'cp {0}/etc/exabgp/exabgp.env {1}'.format(remotepath, self.SHARED_VOLUME)
+        c << 'sed -i -e \'s/all = false/all = true/g\' {0}/exabgp.env'.format(self.SHARED_VOLUME)
+        c << 'cp -r {0}/exabgp {1}'.format(self.SHARED_VOLUME,
+                                           remotepath[:-1*len('exabgp')])
+        c << 'cp {0}/exabgp.env {1}/etc/exabgp/'.format(self.SHARED_VOLUME, remotepath)
         cmd = 'echo "{0:s}" > {1}/update.sh'.format(c, self.config_dir)
         local(cmd, capture=True)
         cmd = 'chmod 755 {0}/update.sh'.format(self.config_dir)
@@ -134,16 +135,27 @@ class ExaBGPContainer(BGPContainer):
             cmd << '}'
 
         with open('{0}/exabgpd.conf'.format(self.config_dir), 'w') as f:
+            print colors.yellow('[{0}\'s new config]'.format(self.name))
             print colors.yellow(str(cmd))
             f.write(str(cmd))
 
     def reload_config(self):
-        ps = self.local('ps', capture=True)
-        running = False
-        for line in ps.split('\n')[1:]:
-            if 'python' in line:
-                running = True
-        if running:
-            self.local('/usr/bin/pkill python -SIGUSR1')
-        else:
-             self._start_exabgp()
+        if len(self.peers) == 0:
+            return
+
+        def _reload():
+            def _is_running():
+                ps = self.local('ps', capture=True)
+                running = False
+                for line in ps.split('\n')[1:]:
+                    if 'python' in line:
+                        running = True
+                return running
+            if _is_running():
+                self.local('/usr/bin/pkill python -SIGUSR1')
+            else:
+                self._start_exabgp()
+            time.sleep(1)
+            if not _is_running():
+                raise RuntimeError()
+        try_several_times(_reload)

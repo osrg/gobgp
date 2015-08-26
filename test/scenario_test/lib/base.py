@@ -16,6 +16,7 @@
 from fabric.api import local, lcd
 from fabric import colors
 from fabric.utils import indent
+from fabric.state import env
 
 import netaddr
 import os
@@ -40,15 +41,26 @@ BGP_ATTR_TYPE_COMMUNITIES = 8
 BGP_ATTR_TYPE_MP_REACH_NLRI = 14
 BGP_ATTR_TYPE_EXTENDED_COMMUNITIES = 16
 
+env.abort_exception = RuntimeError
+
+def try_several_times(f, t=3, s=1):
+    e = None
+    for i in range(t):
+        try:
+            r = f()
+        except RuntimeError as e:
+            time.sleep(s)
+        else:
+            return r
+    raise e
+
 
 def get_bridges():
-    return local("brctl show | awk 'NR > 1{print $1}'",
-                 capture=True).split('\n')
+    return try_several_times(lambda : local("brctl show | awk 'NR > 1{print $1}'", capture=True)).split('\n')
 
 
 def get_containers():
-    return local("docker ps -a | awk 'NR > 1 {print $NF}'",
-                 capture=True).split('\n')
+    return try_several_times(lambda : local("docker ps -a | awk 'NR > 1 {print $NF}'", capture=True)).split('\n')
 
 
 class CmdBuffer(list):
@@ -100,18 +112,17 @@ class Bridge(object):
             # throw away first network address
             self.next_ip_address()
 
-        if self.name in get_bridges():
-            self.delete()
-
-        local("ip link add {0} type bridge".format(self.name), capture=True)
-        local("ip link set up dev {0}".format(self.name), capture=True)
+        def f():
+            if self.name in get_bridges():
+                self.delete()
+            local("ip link add {0} type bridge".format(self.name))
+        try_several_times(f)
+        try_several_times(lambda : local("ip link set up dev {0}".format(self.name)))
 
         self.self_ip = self_ip
         if self_ip:
             self.ip_addr = self.next_ip_address()
-            local("ip addr add {0} dev {1}".format(self.ip_addr, self.name),
-                  capture=True)
-
+            try_several_times(lambda :local("ip addr add {0} dev {1}".format(self.ip_addr, self.name)))
         self.ctns = []
 
     def next_ip_address(self):
@@ -127,8 +138,8 @@ class Bridge(object):
             ctn.pipework(self, '0/0', name)
 
     def delete(self):
-        local("ip link set down dev {0}".format(self.name), capture=True)
-        local("ip link delete {0} type bridge".format(self.name), capture=True)
+        try_several_times(lambda : local("ip link set down dev {0}".format(self.name)))
+        try_several_times(lambda : local("ip link delete {0} type bridge".format(self.name)))
 
 
 class Container(object):
@@ -159,13 +170,7 @@ class Container(object):
         for sv in self.shared_volumes:
             c << "-v {0}:{1}".format(sv[0], sv[1])
         c << "--name {0} -id {1}".format(self.docker_name(), self.image)
-        for i in range(3):
-            try:
-                self.id = local(str(c), capture=True)
-            except:
-                time.sleep(1)
-            else:
-                break
+        self.id = try_several_times(lambda : local(str(c), capture=True))
         self.is_running = True
         self.local("ip li set up dev lo")
         return 0
@@ -188,7 +193,7 @@ class Container(object):
             intf_name = "eth1"
         c << "{0} {1}".format(self.docker_name(), ip_addr)
         self.ip_addrs.append((intf_name, ip_addr, bridge))
-        return local(str(c), capture=True)
+        try_several_times(lambda :local(str(c)))
 
     def local(self, cmd, capture=False, flag=''):
         return local("docker exec {0} {1} {2}".format(flag,
