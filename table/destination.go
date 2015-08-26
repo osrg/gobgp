@@ -613,7 +613,7 @@ func compareByASPath(path1, path2 *Path) *Path {
 			"Key":     "compareByASPath",
 			"ASPath1": attribute1,
 			"ASPath2": attribute2,
-		}).Error("can't compare ASPath because it's not present")
+		}).Warn("can't compare ASPath because it's not present")
 	}
 
 	l1 := path1.GetAsPathLen()
