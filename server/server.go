@@ -240,7 +240,10 @@ func (server *BgpServer) Serve() {
 		case rmsg := <-server.roaClient.recieveROA():
 			server.roaClient.handleRTRMsg(rmsg)
 		case zmsg := <-zapiMsgCh:
-			handleZapiMsg(zmsg)
+			m := handleZapiMsg(zmsg, server)
+			if len(m) > 0 {
+				senderMsgs = append(senderMsgs, m...)
+			}
 		case conn := <-acceptCh:
 			remoteAddr, _, _ := net.SplitHostPort(conn.RemoteAddr().String())
 			peer, found := server.neighborMap[remoteAddr]
@@ -517,9 +520,16 @@ func applyPolicies(peer *Peer, loc *LocalRib, d Direction, pathList []*table.Pat
 
 func (server *BgpServer) broadcastBests(bests []*table.Path) {
 	for _, path := range bests {
-		z := newBroadcastZapiBestMsg(server.zclient, path)
-		if z != nil {
-			server.broadcastMsgs = append(server.broadcastMsgs, z)
+		if !path.IsFromZebra {
+			z := newBroadcastZapiBestMsg(server.zclient, path)
+			if z != nil {
+				server.broadcastMsgs = append(server.broadcastMsgs, z)
+				log.WithFields(log.Fields{
+					"Topic":   "Server",
+					"Client":  z.client,
+					"Message": z.msg,
+				}).Debug("Default policy applied and rejected.")
+			}
 		}
 
 		result := &GrpcResponse{
@@ -623,6 +633,7 @@ func (server *BgpServer) propagateUpdate(neighborAddress string, RouteServerClie
 			}
 			targetPeer.adjRib.UpdateOut(f)
 			msgList := table.CreateUpdateMsgFromPaths(f)
+
 			msgs = append(msgs, newSenderMsg(targetPeer, msgList))
 		}
 	}
@@ -2292,6 +2303,9 @@ func (server *BgpServer) NewZclient(url string) error {
 		return err
 	}
 	cli.SendHello()
+	cli.SendRouterIDAdd()
+	cli.SendInterfaceAdd()
+	cli.SendRedistribute()
 	server.zclient = cli
 	return nil
 }
