@@ -328,6 +328,7 @@ type Path struct {
 	IsWithdraw         bool     `protobuf:"varint,5,opt,name=is_withdraw" json:"is_withdraw,omitempty"`
 	Validation         int32    `protobuf:"varint,6,opt,name=validation" json:"validation,omitempty"`
 	NoImplicitWithdraw bool     `protobuf:"varint,7,opt,name=no_implicit_withdraw" json:"no_implicit_withdraw,omitempty"`
+	Rf                 uint32   `protobuf:"varint,8,opt,name=rf" json:"rf,omitempty"`
 }
 
 func (m *Path) Reset()         { *m = Path{} }

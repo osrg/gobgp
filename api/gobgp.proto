@@ -143,6 +143,7 @@ message Path {
     bool is_withdraw = 5;
     int32 validation = 6;
     bool no_implicit_withdraw = 7;
+    uint32 rf = 8;
 }
 
 message Destination {
