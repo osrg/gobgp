@@ -22,6 +22,7 @@ import (
 	"github.com/osrg/gobgp/packet"
 	"net"
 	"reflect"
+	"sort"
 	"time"
 )
 
@@ -356,16 +357,37 @@ func (manager *TableManager) GetPathList(rf bgp.RouteFamily) []*Path {
 	return paths
 }
 
+type paths []*Path
+
+func (p paths) Len() int {
+	return len(p)
+}
+
+func (p paths) Swap(i, j int) {
+	p[i], p[j] = p[j], p[i]
+}
+
+func (p paths) Less(i, j int) bool {
+	return len(p[i].GetPathAttrs()) < len(p[j].GetPathAttrs())
+}
+
 func (manager *TableManager) GetBestPathList(rf bgp.RouteFamily) []*Path {
 	if _, ok := manager.Tables[rf]; !ok {
 		return []*Path{}
 	}
 	destinations := manager.Tables[rf].GetDestinations()
-	paths := make([]*Path, 0, len(destinations))
+	plist := make([]*Path, 0, len(destinations))
+	pathsByPeer := make(map[uint32]paths)
 	for _, dest := range destinations {
-		paths = append(paths, dest.GetBestPath())
+		path := dest.GetBestPath()
+		key := path.GetSourceAs()
+		pathsByPeer[key] = append(pathsByPeer[key], path)
 	}
-	return paths
+	for _, v := range pathsByPeer {
+		sort.Sort(v)
+		plist = append(plist, v...)
+	}
+	return plist
 }
 
 // process BGPUpdate message
