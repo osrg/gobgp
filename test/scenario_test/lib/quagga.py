@@ -15,6 +15,7 @@
 
 from base import *
 import telnetlib
+from nsenter import Namespace
 
 
 class QuaggaTelnetDaemon(object):
@@ -22,19 +23,11 @@ class QuaggaTelnetDaemon(object):
     TELNET_PORT = 2605
 
     def __init__(self, ctn):
-        ip_addr = None
-        for _, ip_addr, br in ctn.ip_addrs:
-            if br.ip_addr:
-                break
-
-        if not ip_addr:
-            Exception('quagga telnet daemon {0}'
-                      ' is not ip reachable'.format(self.name))
-
-        self.host = ip_addr.split('/')[0]
+        self.ns = Namespace(ctn.get_pid(), 'net')
 
     def __enter__(self):
-        self.tn = telnetlib.Telnet(self.host, self.TELNET_PORT)
+        self.ns.__enter__()
+        self.tn = telnetlib.Telnet('127.0.0.1', self.TELNET_PORT)
         self.tn.read_until("Password: ")
         self.tn.write(self.TELNET_PASSWORD + "\n")
         self.tn.write("enable\n")
@@ -43,6 +36,7 @@ class QuaggaTelnetDaemon(object):
 
     def __exit__(self, type, value, traceback):
         self.tn.close()
+        self.ns.__exit__(type, value, traceback)
 
 
 class QuaggaBGPContainer(BGPContainer):
@@ -67,6 +61,7 @@ class QuaggaBGPContainer(BGPContainer):
             tn.write('show bgp {0} unicast\n'.format(rf))
             tn.read_until('   Network          Next Hop            Metric '
                           'LocPrf Weight Path')
+            read_next = False
             for line in tn.read_until('bgpd#').split('\n'):
                 if line[:2] == '*>':
                     line = line[2:]
@@ -74,9 +69,24 @@ class QuaggaBGPContainer(BGPContainer):
                     if line[0] == 'i':
                         line = line[1:]
                         ibgp = True
-                    elems = line.split()
-                    rib.append({'prefix': elems[0], 'nexthop': elems[1],
-                                'ibgp': ibgp})
+                elif not read_next:
+                    continue
+
+                elems = line.split()
+
+                if len(elems) == 1:
+                    read_next = True
+                    prefix = elems[0]
+                    continue
+                elif read_next:
+                    nexthop = elems[0]
+                else:
+                    prefix = elems[0]
+                    nexthop = elems[1]
+                read_next = False
+
+                rib.append({'prefix': prefix, 'nexthop': nexthop,
+                            'ibgp': ibgp})
 
         return rib
 
@@ -155,26 +165,27 @@ class QuaggaBGPContainer(BGPContainer):
                 c << 'no bgp default ipv4-unicast'
 
             c << 'neighbor {0} remote-as {1}'.format(n_addr, peer.asn)
-            for policy in info['policies']:
-                name = policy['name']
+            for name, policy in info['policies'].iteritems():
                 direction = policy['direction']
                 c << 'neighbor {0} route-map {1} {2}'.format(n_addr, name,
                                                              direction)
-            if info['passwd'] != '':
+            if info['passwd']:
                 c << 'neighbor {0} password {1}'.format(n_addr, info['passwd'])
             if version == 6:
                 c << 'address-family ipv6 unicast'
                 c << 'neighbor {0} activate'.format(n_addr)
                 c << 'exit-address-family'
 
-        for route in self.routes.iterkeys():
-            version = netaddr.IPNetwork(route).version
-            if version == 4:
-                c << 'network {0}'.format(route)
-            elif version == 6:
+        for route in self.routes.itervalues():
+            if route['rf'] == 'ipv4':
+                c << 'network {0}'.format(route['prefix'])
+            elif route['rf'] == 'ipv6':
                 c << 'address-family ipv6 unicast'
-                c << 'network {0}'.format(route)
+                c << 'network {0}'.format(route['prefix'])
                 c << 'exit-address-family'
+            else:
+                raise Exception('unsupported route faily: {0}'.format(route['rf']))
+
 
         for name, policy in self.policies.iteritems():
             c << 'access-list {0} {1} {2}'.format(name, policy['type'],
@@ -187,7 +198,7 @@ class QuaggaBGPContainer(BGPContainer):
         c << 'debug bgp fsm'
         c << 'debug bgp updates'
         c << 'debug bgp events'
-        c << 'log file /tmp/bgpd.log'.format(self.SHARED_VOLUME)
+        c << 'log file {0}/bgpd.log'.format(self.SHARED_VOLUME)
 
         with open('{0}/bgpd.conf'.format(self.config_dir), 'w') as f:
             print colors.yellow('[{0}\'s new config]'.format(self.name))
@@ -195,5 +206,5 @@ class QuaggaBGPContainer(BGPContainer):
             f.writelines(str(c))
 
     def reload_config(self):
-        cmd = 'docker exec {0} /usr/bin/pkill bgpd -SIGHUP'.format(self.name)
-        local(cmd, capture=True)
+        cmd = '/usr/bin/pkill bgpd -SIGHUP'
+        self.local(cmd)

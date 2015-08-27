@@ -20,6 +20,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"github.com/osrg/gobgp/api"
+	"github.com/osrg/gobgp/config"
 	"github.com/osrg/gobgp/packet"
 	"github.com/osrg/gobgp/policy"
 	"github.com/spf13/cobra"
@@ -141,7 +142,7 @@ func showNeighbors() error {
 
 func showNeighbor(args []string) error {
 	id := &api.Arguments{
-		RouterId: args[0],
+		Name: args[0],
 	}
 	p, e := client.GetNeighbor(context.Background(), id)
 	if e != nil {
@@ -167,7 +168,7 @@ func showNeighbor(args []string) error {
 		for _, v := range l {
 			if v.Code == val.Code {
 				if v.Code == api.BGP_CAPABILITY_MULTIPROTOCOL {
-					if v.MultiProtocol.Equal(val.MultiProtocol) {
+					if v.MultiProtocol == val.MultiProtocol {
 						return v
 					}
 					continue
@@ -186,6 +187,8 @@ func showNeighbor(args []string) error {
 
 	sort.Sort(caps)
 
+	firstMp := true
+
 	for _, c := range caps {
 		support := ""
 		if m := lookup(c, p.Conf.LocalCap); m != nil {
@@ -199,9 +202,14 @@ func showNeighbor(args []string) error {
 		}
 
 		if c.Code != api.BGP_CAPABILITY_MULTIPROTOCOL {
-			fmt.Printf("    %s: %s\n", c.Code, support)
+			fmt.Printf("    %s:\t%s\n", c.Code, support)
 		} else {
-			fmt.Printf("    %s(%s,%s): %s\n", c.Code, c.MultiProtocol.Afi, c.MultiProtocol.Safi, support)
+			if firstMp {
+				fmt.Printf("    %s:\n", c.Code)
+				firstMp = false
+			}
+			fmt.Printf("        %s:\t%s\n", bgp.RouteFamily(c.MultiProtocol), support)
+
 		}
 	}
 	fmt.Print("  Message statistics:\n")
@@ -223,157 +231,116 @@ type AsPathFormat struct {
 	separator string
 }
 
-func showRoute(pathList []*api.Path, showAge bool, showBest bool, isMonitor bool) {
+func showRoute(pathList []*Path, showAge bool, showBest bool, isMonitor, printHeader bool) {
 
 	var pathStrs [][]interface{}
-	maxPrefixLen := len("Network")
-	maxNexthopLen := len("Next Hop")
-	maxAsPathLen := len("AS_PATH")
+	maxPrefixLen := 20
+	maxNexthopLen := 20
+	maxAsPathLen := 20
+	aspath := func(a bgp.PathAttributeInterface) string {
+
+		delimiter := make(map[uint8]*AsPathFormat)
+		delimiter[bgp.BGP_ASPATH_ATTR_TYPE_SET] = &AsPathFormat{"{", "}", ","}
+		delimiter[bgp.BGP_ASPATH_ATTR_TYPE_SEQ] = &AsPathFormat{"", "", " "}
+		delimiter[bgp.BGP_ASPATH_ATTR_TYPE_CONFED_SEQ] = &AsPathFormat{"(", ")", " "}
+		delimiter[bgp.BGP_ASPATH_ATTR_TYPE_CONFED_SET] = &AsPathFormat{"[", "]", ","}
+
+		var segments []string = make([]string, 0)
+		aspaths := a.(*bgp.PathAttributeAsPath).Value
+		for _, aspath := range aspaths {
+			var t uint8
+			var asnsStr []string
+			switch aspath.(type) {
+			case *bgp.AsPathParam:
+				a := aspath.(*bgp.AsPathParam)
+				t = a.Type
+				for _, asn := range a.AS {
+					asnsStr = append(asnsStr, fmt.Sprintf("%d", asn))
+				}
+			case *bgp.As4PathParam:
+				a := aspath.(*bgp.As4PathParam)
+				t = a.Type
+				for _, asn := range a.AS {
+					asnsStr = append(asnsStr, fmt.Sprintf("%d", asn))
+				}
+			}
+			s := bytes.NewBuffer(make([]byte, 0, 64))
+			start := delimiter[t].start
+			end := delimiter[t].end
+			separator := delimiter[t].separator
+			s.WriteString(start)
+			s.WriteString(strings.Join(asnsStr, separator))
+			s.WriteString(end)
+			segments = append(segments, s.String())
+		}
+		return strings.Join(segments, " ")
+	}
 
 	for _, p := range pathList {
-		aspath := func(attrs []*api.PathAttr) string {
+		var nexthop string
+		var aspathstr string
 
-			delimiter := make(map[int]*AsPathFormat)
-			delimiter[bgp.BGP_ASPATH_ATTR_TYPE_SET] = &AsPathFormat{"{", "}", ","}
-			delimiter[bgp.BGP_ASPATH_ATTR_TYPE_SEQ] = &AsPathFormat{"", "", " "}
-			delimiter[bgp.BGP_ASPATH_ATTR_TYPE_CONFED_SEQ] = &AsPathFormat{"(", ")", " "}
-			delimiter[bgp.BGP_ASPATH_ATTR_TYPE_CONFED_SET] = &AsPathFormat{"[", "]", ","}
-
-			var segments []string = make([]string, 0)
-			for _, a := range attrs {
-				if a.Type == api.BGP_ATTR_TYPE_AS_PATH {
-					aspaths := a.AsPaths
-					for _, aspath := range aspaths {
-						s := bytes.NewBuffer(make([]byte, 0, 64))
-						t := int(aspath.SegmentType)
-						start := delimiter[t].start
-						end := delimiter[t].end
-						separator := delimiter[t].separator
-						s.WriteString(start)
-						var asnsStr []string
-						for _, asn := range aspath.Asns {
-							asnsStr = append(asnsStr, fmt.Sprintf("%d", asn))
-						}
-						s.WriteString(strings.Join(asnsStr, separator))
-						s.WriteString(end)
-						segments = append(segments, s.String())
-					}
+		s := []string{}
+		for _, a := range p.PathAttrs {
+			switch a.GetType() {
+			case bgp.BGP_ATTR_TYPE_NEXT_HOP:
+				nexthop = a.(*bgp.PathAttributeNextHop).Value.String()
+			case bgp.BGP_ATTR_TYPE_MP_REACH_NLRI:
+				n := a.(*bgp.PathAttributeMpReachNLRI).Nexthop
+				if n != nil {
+					nexthop = n.String()
+				} else {
+					nexthop = "fictitious"
 				}
+			case bgp.BGP_ATTR_TYPE_AS_PATH:
+				aspathstr = aspath(a)
+			case bgp.BGP_ATTR_TYPE_AS4_PATH:
+				continue
+			default:
+				s = append(s, a.String())
 			}
-			return strings.Join(segments, " ")
 		}
-		formatAttrs := func(attrs []*api.PathAttr) string {
-			s := []string{}
-			for _, a := range attrs {
-				switch a.Type {
-				case api.BGP_ATTR_TYPE_ORIGIN:
-					s = append(s, fmt.Sprintf("{Origin: %s}", a.Origin))
-				case api.BGP_ATTR_TYPE_MULTI_EXIT_DISC:
-					s = append(s, fmt.Sprintf("{Med: %d}", a.Metric))
-				case api.BGP_ATTR_TYPE_LOCAL_PREF:
-					s = append(s, fmt.Sprintf("{LocalPref: %v}", a.Pref))
-				case api.BGP_ATTR_TYPE_ATOMIC_AGGREGATE:
-					s = append(s, "AtomicAggregate")
-				case api.BGP_ATTR_TYPE_AGGREGATOR:
-					s = append(s, fmt.Sprintf("{Aggregate: {AS: %d, Address: %s}", a.GetAggregator().As, a.GetAggregator().Address))
-				case api.BGP_ATTR_TYPE_COMMUNITIES:
-					l := []string{}
-					known := map[uint32]string{
-						0xffff0000: "planned-shut",
-						0xffff0001: "accept-own",
-						0xffff0002: "ROUTE_FILTER_TRANSLATED_v4",
-						0xffff0003: "ROUTE_FILTER_v4",
-						0xffff0004: "ROUTE_FILTER_TRANSLATED_v6",
-						0xffff0005: "ROUTE_FILTER_v6",
-						0xffff0006: "LLGR_STALE",
-						0xffff0007: "NO_LLGR",
-						0xFFFFFF01: "NO_EXPORT",
-						0xFFFFFF02: "NO_ADVERTISE",
-						0xFFFFFF03: "NO_EXPORT_SUBCONFED",
-						0xFFFFFF04: "NOPEER"}
+		pattrstr := fmt.Sprint(s)
 
-					for _, v := range a.Communites {
-						k, found := known[v]
-						if found {
-							l = append(l, fmt.Sprint(k))
-						} else {
-							l = append(l, fmt.Sprintf("%d:%d", (0xffff0000&v)>>16, 0xffff&v))
-						}
-					}
-					s = append(s, fmt.Sprintf("{Community: %v}", l))
-				case api.BGP_ATTR_TYPE_ORIGINATOR_ID:
-					s = append(s, fmt.Sprintf("{Originator: %v}", a.Originator))
-				case api.BGP_ATTR_TYPE_CLUSTER_LIST:
-					s = append(s, fmt.Sprintf("{Cluster: %v}", a.Cluster))
-				case api.BGP_ATTR_TYPE_PMSI_TUNNEL:
-					info := a.PmsiTunnel
-					s1 := bytes.NewBuffer(make([]byte, 0, 64))
-					s1.WriteString(fmt.Sprintf("{PMSI Tunnel: {Type: %s, ID: %s", info.Type, info.TunnelId))
-					if info.Label > 0 {
-						s1.WriteString(fmt.Sprintf(", Label: %d", info.Label))
-					}
-					if info.IsLeafInfoRequired {
-						s1.WriteString(fmt.Sprintf(", Leaf Info Required"))
-					}
-					s1.WriteString("}}")
-					s = append(s, s1.String())
-				case api.BGP_ATTR_TYPE_TUNNEL_ENCAP:
-					s1 := bytes.NewBuffer(make([]byte, 0, 64))
-					s1.WriteString("{Encap: ")
-					var s2 []string
-					for _, tlv := range a.TunnelEncap {
-						s3 := bytes.NewBuffer(make([]byte, 0, 64))
-						s3.WriteString(fmt.Sprintf("< %s | ", tlv.Type))
-						var s4 []string
-						for _, subTlv := range tlv.SubTlv {
-							if subTlv.Type == api.ENCAP_SUBTLV_TYPE_COLOR {
-								s4 = append(s4, fmt.Sprintf("color: %d", subTlv.Color))
-							}
-						}
-						s3.WriteString(strings.Join(s4, ","))
-						s3.WriteString(" >")
-						s2 = append(s2, s3.String())
-					}
-					s1.WriteString(strings.Join(s2, "|"))
-					s1.WriteString("}")
-					s = append(s, s1.String())
-				case api.BGP_ATTR_TYPE_AS4_PATH, api.BGP_ATTR_TYPE_MP_REACH_NLRI, api.BGP_ATTR_TYPE_MP_UNREACH_NLRI, api.BGP_ATTR_TYPE_NEXT_HOP, api.BGP_ATTR_TYPE_AS_PATH:
-				default:
-					s = append(s, fmt.Sprintf("{%v: %v}", a.Type, a.Value))
-				}
-			}
-			return fmt.Sprint(s)
+		if maxNexthopLen < len(nexthop) {
+			maxNexthopLen = len(nexthop)
 		}
+
+		if maxAsPathLen < len(aspathstr) {
+			maxAsPathLen = len(aspathstr)
+		}
+
 		best := ""
+		switch config.RpkiValidationResultType(p.Validation) {
+		case config.RPKI_VALIDATION_RESULT_TYPE_NOT_FOUND:
+			best += "N"
+		case config.RPKI_VALIDATION_RESULT_TYPE_VALID:
+			best += "V"
+		case config.RPKI_VALIDATION_RESULT_TYPE_INVALID:
+			best += "I"
+		}
 		if showBest {
 			if p.Best {
-				best = "*>"
+				best += "*>"
 			} else {
-				best = "* "
+				best += "* "
 			}
 		}
 
-		if maxPrefixLen < len(p.Nlri.Prefix) {
-			maxPrefixLen = len(p.Nlri.Prefix)
+		if maxPrefixLen < len(p.Nlri.String()) {
+			maxPrefixLen = len(p.Nlri.String())
 		}
 
-		if maxNexthopLen < len(p.Nexthop) {
-			maxNexthopLen = len(p.Nexthop)
-		}
-
-		if maxAsPathLen < len(aspath(p.Attrs)) {
-			maxAsPathLen = len(aspath(p.Attrs))
-		}
 		if isMonitor {
 			title := "ROUTE"
 			if p.IsWithdraw {
 				title = "DELROUTE"
 			}
-			pathStrs = append(pathStrs, []interface{}{title, p.Nlri.Prefix, p.Nexthop, aspath(p.Attrs), formatAttrs(p.Attrs)})
+			pathStrs = append(pathStrs, []interface{}{title, p.Nlri.String(), nexthop, aspathstr, pattrstr})
 		} else if showAge {
-			pathStrs = append(pathStrs, []interface{}{best, p.Nlri.Prefix, p.Nexthop, aspath(p.Attrs), formatTimedelta(p.Age), formatAttrs(p.Attrs)})
+			pathStrs = append(pathStrs, []interface{}{best, p.Nlri.String(), nexthop, aspathstr, formatTimedelta(p.Age), pattrstr})
 		} else {
-			pathStrs = append(pathStrs, []interface{}{best, p.Nlri.Prefix, p.Nexthop, aspath(p.Attrs), formatAttrs(p.Attrs)})
+			pathStrs = append(pathStrs, []interface{}{best, p.Nlri.String(), nexthop, aspathstr, pattrstr})
 		}
 	}
 
@@ -381,11 +348,15 @@ func showRoute(pathList []*api.Path, showAge bool, showBest bool, isMonitor bool
 	if isMonitor {
 		format = "[%s] %s via %s aspath [%s] attrs %s\n"
 	} else if showAge {
-		format = fmt.Sprintf("%%-2s %%-%ds %%-%ds %%-%ds %%-10s %%-s\n", maxPrefixLen, maxNexthopLen, maxAsPathLen)
-		fmt.Printf(format, "", "Network", "Next Hop", "AS_PATH", "Age", "Attrs")
+		format = fmt.Sprintf("%%-3s %%-%ds %%-%ds %%-%ds %%-10s %%-s\n", maxPrefixLen, maxNexthopLen, maxAsPathLen)
+		if printHeader {
+			fmt.Printf(format, "", "Network", "Next Hop", "AS_PATH", "Age", "Attrs")
+		}
 	} else {
-		format = fmt.Sprintf("%%-2s %%-%ds %%-%ds %%-%ds %%-s\n", maxPrefixLen, maxNexthopLen, maxAsPathLen)
-		fmt.Printf(format, "", "Network", "Next Hop", "AS_PATH", "Attrs")
+		format = fmt.Sprintf("%%-3s %%-%ds %%-%ds %%-%ds %%-s\n", maxPrefixLen, maxNexthopLen, maxAsPathLen)
+		if printHeader {
+			fmt.Printf(format, "", "Network", "Next Hop", "AS_PATH", "Attrs")
+		}
 	}
 
 	for _, pathStr := range pathStrs {
@@ -393,19 +364,26 @@ func showRoute(pathList []*api.Path, showAge bool, showBest bool, isMonitor bool
 	}
 }
 
-func showNeighborRib(r string, remoteIP net.IP, args []string) error {
+func showNeighborRib(r string, name string, args []string) error {
 	var resource api.Resource
+	showBest := false
+	showAge := true
 	switch r {
 	case CMD_GLOBAL:
+		showBest = true
 		resource = api.Resource_GLOBAL
 	case CMD_LOCAL:
+		showBest = true
 		resource = api.Resource_LOCAL
 	case CMD_ADJ_IN:
 		resource = api.Resource_ADJ_IN
 	case CMD_ADJ_OUT:
+		showAge = false
 		resource = api.Resource_ADJ_OUT
+	case CMD_VRF:
+		resource = api.Resource_VRF
 	}
-	rt, err := checkAddressFamily(remoteIP)
+	rf, err := checkAddressFamily(net.ParseIP(name))
 	if err != nil {
 		return err
 	}
@@ -413,7 +391,7 @@ func showNeighborRib(r string, remoteIP net.IP, args []string) error {
 	var prefix string
 	var host net.IP
 	if len(args) > 0 {
-		if rt != api.AF_IPV4_UC && rt != api.AF_IPV6_UC {
+		if rf != bgp.RF_IPv4_UC && rf != bgp.RF_IPv6_UC {
 			return fmt.Errorf("route filtering is only supported for IPv4/IPv6 unicast routes")
 		}
 		_, p, err := net.ParseCIDR(args[0])
@@ -429,101 +407,83 @@ func showNeighborRib(r string, remoteIP net.IP, args []string) error {
 
 	arg := &api.Arguments{
 		Resource: resource,
-		Af:       rt,
-		RouterId: remoteIP.String(),
+		Rf:       uint32(rf),
+		Name:     name,
+	}
+
+	stream, err := client.GetRib(context.Background(), arg)
+	if err != nil {
+		return err
+	}
+
+	isResultSorted := func(rf bgp.RouteFamily) bool {
+		switch rf {
+		case bgp.RF_IPv4_UC, bgp.RF_IPv6_UC:
+			return true
+		}
+		return false
+	}
+
+	dsts := []*Destination{}
+	maxOnes := 0
+	counter := 0
+	for {
+		d, e := stream.Recv()
+		if e == io.EOF {
+			break
+		} else if e != nil {
+			return e
+		}
+		if prefix != "" && prefix != d.Prefix {
+			continue
+		}
+		if host != nil {
+			_, prefix, _ := net.ParseCIDR(d.Prefix)
+			ones, _ := prefix.Mask.Size()
+			if prefix.Contains(host) {
+				if maxOnes < ones {
+					dsts = []*Destination{}
+					maxOnes = ones
+				} else if maxOnes > ones {
+					continue
+				}
+			} else {
+				continue
+			}
+		}
+
+		dst, err := ApiStruct2Destination(d)
+		if err != nil {
+			return err
+		}
+		if isResultSorted(rf) && !globalOpts.Json && len(dst.Paths) > 0 {
+			ps := paths{}
+			ps = append(ps, dst.Paths...)
+			sort.Sort(ps)
+			if counter == 0 {
+				showRoute(ps, showAge, showBest, false, true)
+			} else {
+				showRoute(ps, showAge, showBest, false, false)
+			}
+			counter++
+		}
+		dsts = append(dsts, dst)
+	}
+
+	if globalOpts.Json {
+		j, _ := json.Marshal(dsts)
+		fmt.Println(string(j))
+		return nil
+	}
+
+	if isResultSorted(rf) && counter != 0 {
+		// we already showed
+		return nil
 	}
 
 	ps := paths{}
-	showBest := false
-	showAge := true
-	switch resource {
-	case api.Resource_LOCAL, api.Resource_GLOBAL:
-		showBest = true
-		stream, e := client.GetRib(context.Background(), arg)
-		if e != nil {
-			return e
-		}
-
-		ds := []*api.Destination{}
-		maxOnes := 0
-		for {
-			d, e := stream.Recv()
-			if e == io.EOF {
-				break
-			} else if e != nil {
-				return e
-			}
-			if prefix != "" && prefix != d.Prefix {
-				continue
-			}
-			if host != nil {
-				_, prefix, _ := net.ParseCIDR(d.Prefix)
-				ones, _ := prefix.Mask.Size()
-				if maxOnes < ones && prefix.Contains(host) {
-					ds = []*api.Destination{}
-					maxOnes = ones
-				} else {
-					continue
-				}
-			}
-			ds = append(ds, d)
-		}
-
-		if globalOpts.Json {
-			j, _ := json.Marshal(ds)
-			fmt.Println(string(j))
-			return nil
-		}
-
-		for _, d := range ds {
-			for idx, p := range d.Paths {
-				if idx == int(d.BestPathIdx) {
-					p.Best = true
-				}
-				ps = append(ps, p)
-			}
-		}
-	case api.Resource_ADJ_OUT:
-		showAge = false
-		fallthrough
-	case api.Resource_ADJ_IN:
-		stream, e := client.GetAdjRib(context.Background(), arg)
-		if e != nil {
-			return e
-		}
-		maxOnes := 0
-		for {
-			p, e := stream.Recv()
-			if e == io.EOF {
-				break
-			} else if e != nil {
-				return e
-			}
-			if prefix != "" && prefix != p.Nlri.Prefix {
-				continue
-			}
-			if host != nil {
-				_, prefix, _ := net.ParseCIDR(p.Nlri.Prefix)
-				ones, _ := prefix.Mask.Size()
-				if prefix.Contains(host) {
-					if maxOnes < ones {
-						ps = paths{}
-						maxOnes = ones
-					} else if maxOnes > ones {
-						continue
-					}
-				} else {
-					continue
-				}
-			}
-
-			ps = append(ps, p)
-		}
-		if globalOpts.Json {
-			j, _ := json.Marshal(ps)
-			fmt.Println(string(j))
-			return nil
-		}
+	for _, dst := range dsts {
+		ps = append(ps, dst.Paths...)
 	}
 
 	if len(ps) == 0 {
@@ -532,18 +492,18 @@ func showNeighborRib(r string, remoteIP net.IP, args []string) error {
 	}
 
 	sort.Sort(ps)
-	showRoute(ps, showAge, showBest, false)
+	showRoute(ps, showAge, showBest, false, true)
 	return nil
 }
 
-func resetNeighbor(cmd string, remoteIP net.IP, args []string) error {
-	rt, err := checkAddressFamily(remoteIP)
+func resetNeighbor(cmd string, remoteIP string, args []string) error {
+	rf, err := checkAddressFamily(net.ParseIP(remoteIP))
 	if err != nil {
 		return err
 	}
 	arg := &api.Arguments{
-		RouterId: remoteIP.String(),
-		Af:       rt,
+		Name: remoteIP,
+		Rf:   uint32(rf),
 	}
 	switch cmd {
 	case CMD_RESET:
@@ -558,10 +518,10 @@ func resetNeighbor(cmd string, remoteIP net.IP, args []string) error {
 	return nil
 }
 
-func stateChangeNeighbor(cmd string, remoteIP net.IP, args []string) error {
+func stateChangeNeighbor(cmd string, remoteIP string, args []string) error {
 	arg := &api.Arguments{
-		Af:       api.AF_IPV4_UC,
-		RouterId: remoteIP.String(),
+		Rf:   uint32(bgp.RF_IPv4_UC),
+		Name: remoteIP,
 	}
 	var err error
 	switch cmd {
@@ -576,13 +536,13 @@ func stateChangeNeighbor(cmd string, remoteIP net.IP, args []string) error {
 }
 
 func showNeighborPolicy(remoteIP net.IP) error {
-	rt, err := checkAddressFamily(net.IP{})
+	rf, err := checkAddressFamily(net.IP{})
 	if err != nil {
 		return err
 	}
 	arg := &api.Arguments{
-		Af:       rt,
-		RouterId: remoteIP.String(),
+		Rf:   uint32(rf),
+		Name: remoteIP.String(),
 	}
 
 	ap, e := client.GetNeighborPolicy(context.Background(), arg)
@@ -598,22 +558,22 @@ func showNeighborPolicy(remoteIP net.IP) error {
 
 	fmt.Printf("DefaultImportPolicy: %s\n", ap.DefaultImportPolicy)
 	fmt.Printf("DefaultExportPolicy: %s\n", ap.DefaultExportPolicy)
-    fmt.Printf("DefaultDistributePolicy: %s\n", ap.DefaultDistributePolicy)
+	fmt.Printf("DefaultInPolicy: %s\n", ap.DefaultInPolicy)
 	fmt.Printf("ImportPolicies:\n")
 	for _, inPolicy := range ap.ImportPolicies {
 		fmt.Printf("  PolicyName %s:\n", inPolicy.PolicyDefinitionName)
-		showPolicyStatement("  ", inPolicy)
+		showPolicyStatement(2, inPolicy)
 	}
 	fmt.Printf("ExportPolicies:\n")
 	for _, outPolicy := range ap.ExportPolicies {
 		fmt.Printf("  PolicyName %s:\n", outPolicy.PolicyDefinitionName)
-		showPolicyStatement("  ", outPolicy)
+		showPolicyStatement(2, outPolicy)
 	}
-    fmt.Printf("DistributePolicies:\n")
-    for _, distPolicy := range ap.DistributePolicies {
-        fmt.Printf("  PolicyName %s:\n", distPolicy.PolicyDefinitionName)
-        showPolicyStatement("  ", distPolicy)
-    }
+	fmt.Printf("InPolicies:\n")
+	for _, distPolicy := range ap.InPolicies {
+		fmt.Printf("  PolicyName %s:\n", distPolicy.PolicyDefinitionName)
+		showPolicyStatement(2, distPolicy)
+	}
 	return nil
 }
 
@@ -652,8 +612,8 @@ func modNeighborPolicy(remoteIP net.IP, cmdType string, eArg []string) error {
 			pol.ExportPolicies = policies
 			pol.DefaultExportPolicy = defaultPolicy
 		case CMD_DISTRIBUTE:
-			pol.DistributePolicies = policies
-			pol.DefaultDistributePolicy = defaultPolicy
+			pol.InPolicies = policies
+			pol.DefaultInPolicy = defaultPolicy
 		}
 		operation = api.Operation_ADD
 
@@ -661,11 +621,11 @@ func modNeighborPolicy(remoteIP net.IP, cmdType string, eArg []string) error {
 		operation = api.Operation_DEL
 	}
 	arg := &api.PolicyArguments{
-		Resource:    api.Resource_POLICY_ROUTEPOLICY,
-		Operation:   operation,
-		RouterId:    remoteIP.String(),
-		Name:        eArg[0],
-		ApplyPolicy: pol,
+		Resource:        api.Resource_POLICY_ROUTEPOLICY,
+		Operation:       operation,
+		NeighborAddress: remoteIP.String(),
+		Name:            eArg[0],
+		ApplyPolicy:     pol,
 	}
 	stream, err := client.ModNeighborPolicy(context.Background())
 	if err != nil {
@@ -693,7 +653,7 @@ func NewNeighborCmd() *cobra.Command {
 
 	type cmds struct {
 		names []string
-		f     func(string, net.IP, []string) error
+		f     func(string, string, []string) error
 	}
 
 	c := make([]cmds, 0, 3)
@@ -712,7 +672,7 @@ func NewNeighborCmd() *cobra.Command {
 						fmt.Println("invalid ip address:", args[len(args)-1])
 						os.Exit(1)
 					}
-					err := f(cmd.Use, remoteIP, args[:len(args)-1])
+					err := f(cmd.Use, remoteIP.String(), args[:len(args)-1])
 					if err != nil {
 						fmt.Println(err)
 						os.Exit(1)

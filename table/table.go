@@ -18,7 +18,6 @@ package table
 import (
 	log "github.com/Sirupsen/logrus"
 	"github.com/osrg/gobgp/packet"
-	"reflect"
 )
 
 type Table struct {
@@ -41,7 +40,6 @@ func (t *Table) insert(path *Path) *Destination {
 	var dest *Destination
 
 	t.validatePath(path)
-	t.validateNlri(path.GetNlri())
 	dest = t.getOrCreateDest(path.GetNlri())
 
 	if path.IsWithdraw {
@@ -71,8 +69,57 @@ func (t *Table) DeleteDestByPeer(peerInfo *PeerInfo) []*Destination {
 	return changedDests
 }
 
+func (t *Table) deletePathsByVrf(vrf *Vrf) []*Path {
+	pathList := make([]*Path, 0)
+	for _, dest := range t.destinations {
+		for _, p := range dest.GetKnownPathList() {
+			var rd bgp.RouteDistinguisherInterface
+			nlri := p.GetNlri()
+			switch nlri.(type) {
+			case *bgp.LabeledVPNIPAddrPrefix:
+				rd = nlri.(*bgp.LabeledVPNIPAddrPrefix).RD
+			case *bgp.LabeledVPNIPv6AddrPrefix:
+				rd = nlri.(*bgp.LabeledVPNIPv6AddrPrefix).RD
+			case *bgp.EVPNNLRI:
+				rd = nlri.(*bgp.EVPNNLRI).RD()
+			default:
+				return pathList
+			}
+			if p.IsLocal() && vrf.Rd.String() == rd.String() {
+				p.IsWithdraw = true
+				pathList = append(pathList, p)
+				break
+			}
+		}
+	}
+	return pathList
+}
+
+func (t *Table) deleteRTCPathsByVrf(vrf *Vrf, vrfs map[string]*Vrf) []*Path {
+	pathList := make([]*Path, 0)
+	if t.routeFamily != bgp.RF_RTC_UC {
+		return pathList
+	}
+	for _, target := range vrf.ImportRt {
+		lhs := target.String()
+		for _, dest := range t.destinations {
+			nlri := dest.GetNlri().(*bgp.RouteTargetMembershipNLRI)
+			rhs := nlri.RouteTarget.String()
+			if lhs == rhs && isLastTargetUser(vrfs, target) {
+				for _, p := range dest.GetKnownPathList() {
+					if p.IsLocal() {
+						p.IsWithdraw = true
+						pathList = append(pathList, p)
+						break
+					}
+				}
+			}
+		}
+	}
+	return pathList
+}
+
 func (t *Table) deleteDestByNlri(nlri bgp.AddrPrefixInterface) *Destination {
-	t.validateNlri(nlri)
 	destinations := t.GetDestinations()
 	dest := destinations[t.tableKey(nlri)]
 	if dest != nil {
@@ -87,23 +134,21 @@ func (t *Table) deleteDest(dest *Destination) {
 }
 
 func (t *Table) validatePath(path *Path) {
-	if path == nil || path.GetRouteFamily() != t.routeFamily {
-		if path == nil {
-			log.WithFields(log.Fields{
-				"Topic": "Table",
-				"Key":   t.routeFamily,
-			}).Error("path is nil")
-		} else if path.GetRouteFamily() != t.routeFamily {
-			log.WithFields(log.Fields{
-				"Topic":      "Table",
-				"Key":        t.routeFamily,
-				"Prefix":     path.GetNlri().String(),
-				"ReceivedRf": path.GetRouteFamily().String(),
-			}).Error("Invalid path. RouteFamily mismatch")
-		}
+	if path == nil {
+		log.WithFields(log.Fields{
+			"Topic": "Table",
+			"Key":   t.routeFamily,
+		}).Error("path is nil")
 	}
-	_, attr := path.getPathAttr(bgp.BGP_ATTR_TYPE_AS_PATH)
-	if attr != nil {
+	if path.GetRouteFamily() != t.routeFamily {
+		log.WithFields(log.Fields{
+			"Topic":      "Table",
+			"Key":        t.routeFamily,
+			"Prefix":     path.GetNlri().String(),
+			"ReceivedRf": path.GetRouteFamily().String(),
+		}).Error("Invalid path. RouteFamily mismatch")
+	}
+	if _, attr := path.getPathAttr(bgp.BGP_ATTR_TYPE_AS_PATH); attr != nil {
 		pathParam := attr.(*bgp.PathAttributeAsPath).Value
 		for _, as := range pathParam {
 			_, y := as.(*bgp.As4PathParam)
@@ -116,34 +161,29 @@ func (t *Table) validatePath(path *Path) {
 			}
 		}
 	}
-
-	_, attr = path.getPathAttr(bgp.BGP_ATTR_TYPE_AS4_PATH)
-	if attr != nil {
+	if _, attr := path.getPathAttr(bgp.BGP_ATTR_TYPE_AS4_PATH); attr != nil {
 		log.WithFields(log.Fields{
 			"Topic": "Table",
 			"Key":   t.routeFamily,
 		}).Fatal("AS4_PATH must be converted to AS_PATH")
 	}
-}
-
-func (t *Table) validateNlri(nlri bgp.AddrPrefixInterface) {
-	if nlri == nil {
+	if path.GetNlri() == nil {
 		log.WithFields(log.Fields{
 			"Topic": "Table",
 			"Key":   t.routeFamily,
-			"Nlri":  nlri,
-		}).Error("Invalid Vpnv4 prefix given.")
-
+		}).Fatal("path's nlri is nil")
 	}
 }
 
 func (t *Table) getOrCreateDest(nlri bgp.AddrPrefixInterface) *Destination {
-	log.Debugf("getOrCreateDest Table type : %s", reflect.TypeOf(t))
 	tableKey := t.tableKey(nlri)
-	dest := t.getDestination(tableKey)
+	dest := t.GetDestination(tableKey)
 	// If destination for given prefix does not exist we create it.
 	if dest == nil {
-		log.Debugf("getOrCreateDest dest with key %s is not found", tableKey)
+		log.WithFields(log.Fields{
+			"Topic": "Table",
+			"Key":   tableKey,
+		}).Debugf("create Destination")
 		dest = NewDestination(nlri)
 		t.setDestination(tableKey, dest)
 	}
@@ -156,7 +196,7 @@ func (t *Table) GetDestinations() map[string]*Destination {
 func (t *Table) setDestinations(destinations map[string]*Destination) {
 	t.destinations = destinations
 }
-func (t *Table) getDestination(key string) *Destination {
+func (t *Table) GetDestination(key string) *Destination {
 	dest, ok := t.destinations[key]
 	if ok {
 		return dest

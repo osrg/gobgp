@@ -59,14 +59,19 @@ func update() *BGPMessage {
 		NewAs4PathParam(2, []uint32{1003, 100004}),
 	}
 
+	isTransitive := true
+
 	ecommunities := []ExtendedCommunityInterface{
-		&TwoOctetAsSpecificExtended{SubType: 1, AS: 10003, LocalAdmin: 3 << 20},
-		&FourOctetAsSpecificExtended{SubType: 2, AS: 1 << 20, LocalAdmin: 300},
-		&IPv4AddressSpecificExtended{SubType: 3, IPv4: net.ParseIP("192.2.1.2").To4(), LocalAdmin: 3000},
+		NewTwoOctetAsSpecificExtended(EC_SUBTYPE_ROUTE_TARGET, 10003, 3<<20, isTransitive),
+		NewFourOctetAsSpecificExtended(EC_SUBTYPE_ROUTE_TARGET, 1<<20, 300, isTransitive),
+		NewIPv4AddressSpecificExtended(EC_SUBTYPE_ROUTE_TARGET, "192.2.1.2", 3000, isTransitive),
 		&OpaqueExtended{
 			Value: &DefaultOpaqueExtendedValue{[]byte{0, 1, 2, 3, 4, 5, 6, 7}},
 		},
 		&UnknownExtended{Type: 99, Value: []byte{0, 1, 2, 3, 4, 5, 6, 7}},
+		NewESILabelExtended(1000, true),
+		NewESImportRouteTarget("11:22:33:44:55:66"),
+		NewMacMobilityExtended(123, false),
 	}
 
 	mp_nlri := []AddrPrefixInterface{
@@ -265,7 +270,7 @@ func Test_RFC5512(t *testing.T) {
 	buf[0] = byte(EC_TYPE_TRANSITIVE_OPAQUE)
 	buf[1] = byte(EC_SUBTYPE_COLOR)
 	binary.BigEndian.PutUint32(buf[4:], 1000000)
-	ec, err := parseExtended(buf)
+	ec, err := ParseExtended(buf)
 	assert.Equal(nil, err)
 	assert.Equal("1000000", ec.String())
 	buf, err = ec.Serialize()
@@ -276,7 +281,7 @@ func Test_RFC5512(t *testing.T) {
 	buf[0] = byte(EC_TYPE_TRANSITIVE_OPAQUE)
 	buf[1] = byte(EC_SUBTYPE_ENCAPSULATION)
 	binary.BigEndian.PutUint16(buf[6:], uint16(TUNNEL_TYPE_VXLAN))
-	ec, err = parseExtended(buf)
+	ec, err = ParseExtended(buf)
 	assert.Equal(nil, err)
 	assert.Equal("VXLAN", ec.String())
 	buf, err = ec.Serialize()
@@ -385,4 +390,75 @@ func Test_MPLSLabelStack(t *testing.T) {
 	assert.Nil(mpls.DecodeFromBytes(buf))
 	assert.Equal(1, len(mpls.Labels))
 	assert.Equal(WITHDRAW_LABEL, mpls.Labels[0])
+}
+
+func Test_FlowSpecNlri(t *testing.T) {
+	assert := assert.New(t)
+	cmp := make([]FlowSpecComponentInterface, 0)
+	cmp = append(cmp, NewFlowSpecDestinationPrefix(NewIPAddrPrefix(24, "10.0.0.0")))
+	cmp = append(cmp, NewFlowSpecSourcePrefix(NewIPAddrPrefix(24, "10.0.0.0")))
+	eq := 0x1
+	gt := 0x2
+	lt := 0x4
+	and := 0x40
+	not := 0x2
+	item1 := NewFlowSpecComponentItem(eq, TCP)
+	cmp = append(cmp, NewFlowSpecComponent(FLOW_SPEC_TYPE_IP_PROTO, []*FlowSpecComponentItem{item1}))
+	item2 := NewFlowSpecComponentItem(gt|eq, 20)
+	item3 := NewFlowSpecComponentItem(and|lt|eq, 30)
+	item4 := NewFlowSpecComponentItem(eq, 10)
+	cmp = append(cmp, NewFlowSpecComponent(FLOW_SPEC_TYPE_PORT, []*FlowSpecComponentItem{item2, item3, item4}))
+	cmp = append(cmp, NewFlowSpecComponent(FLOW_SPEC_TYPE_DST_PORT, []*FlowSpecComponentItem{item2, item3, item4}))
+	cmp = append(cmp, NewFlowSpecComponent(FLOW_SPEC_TYPE_SRC_PORT, []*FlowSpecComponentItem{item2, item3, item4}))
+	cmp = append(cmp, NewFlowSpecComponent(FLOW_SPEC_TYPE_ICMP_TYPE, []*FlowSpecComponentItem{item2, item3, item4}))
+	cmp = append(cmp, NewFlowSpecComponent(FLOW_SPEC_TYPE_ICMP_CODE, []*FlowSpecComponentItem{item2, item3, item4}))
+	cmp = append(cmp, NewFlowSpecComponent(FLOW_SPEC_TYPE_PKT_LEN, []*FlowSpecComponentItem{item2, item3, item4}))
+	cmp = append(cmp, NewFlowSpecComponent(FLOW_SPEC_TYPE_DSCP, []*FlowSpecComponentItem{item2, item3, item4}))
+	isFlagment := 0x02
+	item5 := NewFlowSpecComponentItem(isFlagment, 0)
+	cmp = append(cmp, NewFlowSpecComponent(FLOW_SPEC_TYPE_FRAGMENT, []*FlowSpecComponentItem{item5}))
+	item6 := NewFlowSpecComponentItem(0, TCP_FLAG_ACK)
+	item7 := NewFlowSpecComponentItem(and|not, TCP_FLAG_URGENT)
+	cmp = append(cmp, NewFlowSpecComponent(FLOW_SPEC_TYPE_TCP_FLAG, []*FlowSpecComponentItem{item6, item7}))
+	n1 := NewFlowSpecIPv4Unicast(cmp)
+	buf1, err := n1.Serialize()
+	assert.Nil(err)
+	n2, err := NewPrefixFromRouteFamily(RouteFamilyToAfiSafi(RF_FS_IPv4_UC))
+	assert.Nil(err)
+	err = n2.DecodeFromBytes(buf1)
+	assert.Nil(err)
+	buf2, _ := n2.Serialize()
+	if reflect.DeepEqual(n1, n2) == true {
+		t.Log("OK")
+	} else {
+		t.Error("Something wrong")
+		t.Error(len(buf1), n1, buf1)
+		t.Error(len(buf2), n2, buf2)
+		t.Log(bytes.Equal(buf1, buf2))
+	}
+}
+
+func Test_FlowSpecExtended(t *testing.T) {
+	assert := assert.New(t)
+	exts := make([]ExtendedCommunityInterface, 0)
+	exts = append(exts, NewTrafficRateExtended(100, 9600.0))
+	exts = append(exts, NewTrafficActionExtended(true, false))
+	exts = append(exts, NewRedirectTwoOctetAsSpecificExtended(1000, 1000))
+	exts = append(exts, NewRedirectIPv4AddressSpecificExtended("10.0.0.1", 1000))
+	exts = append(exts, NewRedirectFourOctetAsSpecificExtended(10000000, 1000))
+	exts = append(exts, NewTrafficRemarkExtended(10))
+	m1 := NewPathAttributeExtendedCommunities(exts)
+	buf1, err := m1.Serialize()
+	assert.Nil(err)
+	m2 := NewPathAttributeExtendedCommunities(nil)
+	err = m2.DecodeFromBytes(buf1)
+	assert.Nil(err)
+	buf2, _ := m2.Serialize()
+	if reflect.DeepEqual(m1, m2) == true {
+		t.Log("OK")
+	} else {
+		t.Error("Something wrong")
+		t.Error(len(buf1), m1, buf1)
+		t.Error(len(buf2), m2, buf2)
+	}
 }

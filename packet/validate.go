@@ -139,7 +139,7 @@ func ValidateAttribute(a PathAttributeInterface, rfs map[RouteFamily]bool, doCon
 
 	case *PathAttributeUnknown:
 		if p.getFlags()&BGP_ATTR_FLAG_OPTIONAL == 0 {
-			eMsg := "unrecognized well-known attribute"
+			eMsg := fmt.Sprintf("unrecognized well-known attribute %s", p.GetType())
 			data, _ := a.Serialize()
 			return false, NewMessageError(eCode, eSubCodeUnknown, data, eMsg)
 		}
@@ -156,7 +156,7 @@ func ValidateFlags(t BGPAttrType, flags BGPAttrFlag) (bool, string) {
 	 * RFC 4271 P.17 For well-known attributes, the Transitive bit MUST be set to 1.
 	 */
 	if flags&BGP_ATTR_FLAG_OPTIONAL == 0 && flags&BGP_ATTR_FLAG_TRANSITIVE == 0 {
-		eMsg := "well-known attribute must have transitive flag 1"
+		eMsg := fmt.Sprintf("well-known attribute %s must have transitive flag 1", t)
 		return false, eMsg
 	}
 	/*
@@ -164,11 +164,11 @@ func ValidateFlags(t BGPAttrType, flags BGPAttrFlag) (bool, string) {
 	 * the Partial bit MUST be set to 0.
 	 */
 	if flags&BGP_ATTR_FLAG_OPTIONAL == 0 && flags&BGP_ATTR_FLAG_PARTIAL != 0 {
-		eMsg := "well-known attribute must have partial bit 0"
+		eMsg := fmt.Sprintf("well-known attribute %s must have partial bit 0", t)
 		return false, eMsg
 	}
 	if flags&BGP_ATTR_FLAG_OPTIONAL != 0 && flags&BGP_ATTR_FLAG_TRANSITIVE == 0 && flags&BGP_ATTR_FLAG_PARTIAL != 0 {
-		eMsg := "optional non-transitive attribute must have partial bit 0"
+		eMsg := fmt.Sprintf("optional non-transitive attribute %s must have partial bit 0", t)
 		return false, eMsg
 	}
 

@@ -28,6 +28,7 @@ import (
 	"os"
 	"path/filepath"
 	"strconv"
+	"text/template"
 	"time"
 )
 
@@ -69,73 +70,353 @@ func printMrtMsgs(data []byte) {
 
 }
 
-func NewMrtCmd() *cobra.Command {
-	mrtCmd := &cobra.Command{
-		Use: CMD_MRT,
+func dumpRib(r string, remoteIP net.IP, args []string) error {
+	var resource api.Resource
+	switch r {
+	case CMD_GLOBAL:
+		resource = api.Resource_GLOBAL
+	case CMD_LOCAL:
+		resource = api.Resource_LOCAL
+	default:
+		return fmt.Errorf("unknown resource type: %s", r)
 	}
-	mrtCmd.PersistentFlags().StringVarP(&subOpts.AddressFamily, "address-family", "a", "", "address family")
 
-	dumpCmd := &cobra.Command{
-		Use: CMD_DUMP,
-		Run: func(cmd *cobra.Command, args []string) {
-			var interval uint64
-			if len(args) > 0 {
-				i, err := strconv.Atoi(args[0])
-				if err != nil {
-					fmt.Println(err)
+	rf, err := checkAddressFamily(remoteIP)
+	if err != nil {
+		return err
+	}
+
+	var interval uint64
+	if len(args) > 0 {
+		i, err := strconv.Atoi(args[0])
+		if err != nil {
+			return err
+		}
+		interval = uint64(i)
+	}
+
+	arg := &api.MrtArguments{
+		Resource:        resource,
+		Rf:              uint32(rf),
+		Interval:        interval,
+		NeighborAddress: remoteIP.String(),
+	}
+
+	afi, _ := bgp.RouteFamilyToAfiSafi(rf)
+	var af string
+	switch afi {
+	case bgp.AFI_IP:
+		af = "ipv4"
+	case bgp.AFI_IP6:
+		af = "ipv6"
+	case bgp.AFI_L2VPN:
+		af = "l2vpn"
+	}
+
+	seed := struct {
+		Y               string
+		M               string
+		D               string
+		H               string
+		Min             string
+		Sec             string
+		Af              string
+		NeighborAddress string
+		Resource        string
+	}{
+		Af:              af,
+		NeighborAddress: remoteIP.String(),
+		Resource:        r,
+	}
+
+	stream, err := client.GetMrt(context.Background(), arg)
+	if err != nil {
+		fmt.Println(err)
+		os.Exit(1)
+	}
+
+	var fileformat string
+
+	if mrtOpts.FileFormat != "" {
+		fileformat = mrtOpts.FileFormat
+	} else if r == CMD_GLOBAL {
+		fileformat = "rib_{{.Af}}_{{.Y}}{{.M}}{{.D}}_{{.H}}{{.Min}}{{.Sec}}"
+	} else {
+		fileformat = "rib_{{.NeighborAddress}}_{{.Y}}{{.M}}{{.D}}_{{.H}}{{.Min}}{{.Sec}}"
+	}
+
+	for {
+		s, err := stream.Recv()
+		if err == io.EOF {
+			break
+		} else if err != nil {
+			fmt.Println(err)
+			os.Exit(1)
+		}
+
+		if globalOpts.Debug {
+			printMrtMsgs(s.Data)
+		}
+
+		now := time.Now()
+		y, m, d := now.Date()
+		seed.Y = fmt.Sprintf("%04d", y)
+		seed.M = fmt.Sprintf("%02d", int(m))
+		seed.D = fmt.Sprintf("%02d", d)
+		h, min, sec := now.Clock()
+		seed.H = fmt.Sprintf("%02d", h)
+		seed.Min = fmt.Sprintf("%02d", min)
+		seed.Sec = fmt.Sprintf("%02d", sec)
+		t, err := template.New("f").Parse(fileformat)
+		if err != nil {
+			return err
+		}
+		buf := bytes.NewBuffer(make([]byte, 0, 32))
+		err = t.Execute(buf, seed)
+		if err != nil {
+			return err
+		}
+		filename := fmt.Sprintf("%s/%s", mrtOpts.OutputDir, buf.String())
+
+		err = ioutil.WriteFile(filename, s.Data, 0600)
+		if err != nil {
+			fmt.Println(err)
+			os.Exit(1)
+		}
+
+		fmt.Println("mrt dump:", filepath.Clean(filename))
+	}
+	return nil
+}
+
+func injectMrt(r string, filename string, count int) error {
+
+	var resource api.Resource
+	switch r {
+	case CMD_GLOBAL:
+		resource = api.Resource_GLOBAL
+	default:
+		return fmt.Errorf("unknown resource type: %s", r)
+	}
+
+	file, err := os.Open(filename)
+	if err != nil {
+		return fmt.Errorf("failed to open file: %s", err)
+	}
+
+	idx := 0
+
+	ch := make(chan *api.ModPathArguments, 1024)
+
+	go func() {
+
+		var peers []*bgp.Peer
+
+		for {
+			buf := make([]byte, bgp.MRT_COMMON_HEADER_LEN)
+			_, err := file.Read(buf)
+			if err == io.EOF {
+				break
+			} else if err != nil {
+				fmt.Println("failed to read:", err)
+				os.Exit(1)
+			}
+
+			h := &bgp.MRTHeader{}
+			err = h.DecodeFromBytes(buf)
+			if err != nil {
+				fmt.Println("failed to parse")
+				os.Exit(1)
+			}
+
+			buf = make([]byte, h.Len)
+			_, err = file.Read(buf)
+			if err != nil {
+				fmt.Println("failed to read")
+				os.Exit(1)
+			}
+
+			msg, err := bgp.ParseMRTBody(h, buf)
+			if err != nil {
+				fmt.Println("failed to parse:", err)
+				os.Exit(1)
+			}
+
+			if globalOpts.Debug {
+				fmt.Println(msg)
+			}
+
+			if msg.Header.Type == bgp.TABLE_DUMPv2 {
+				subType := bgp.MRTSubTypeTableDumpv2(msg.Header.SubType)
+				var rf bgp.RouteFamily
+				switch subType {
+				case bgp.PEER_INDEX_TABLE:
+					peers = msg.Body.(*bgp.PeerIndexTable).Peers
+					continue
+				case bgp.RIB_IPV4_UNICAST:
+					rf = bgp.RF_IPv4_UC
+				case bgp.RIB_IPV6_UNICAST:
+					rf = bgp.RF_IPv6_UC
+				default:
+					fmt.Println("unsupported subType:", subType)
 					os.Exit(1)
 				}
-				interval = uint64(i)
-			}
-			af, err := checkAddressFamily(net.IP{})
-			if err != nil {
-				fmt.Println(err)
-				os.Exit(1)
-			}
 
-			arg := &api.MrtArguments{
-				Resource: api.Resource_GLOBAL,
-				Af:       af,
-				Interval: interval,
-			}
+				if peers == nil {
+					fmt.Println("not found PEER_INDEX_TABLE")
+					os.Exit(1)
+				}
 
-			stream, err := client.GetMrt(context.Background(), arg)
-			if err != nil {
-				fmt.Println(err)
-				os.Exit(1)
-			}
+				rib := msg.Body.(*bgp.Rib)
+				nlri := rib.Prefix
 
-			for {
-				s, err := stream.Recv()
-				if err == io.EOF {
+				for _, e := range rib.Entries {
+					path := &api.Path{
+						Pattrs:             make([][]byte, 0),
+						NoImplicitWithdraw: true,
+					}
+
+					if len(peers) < int(e.PeerIndex) {
+						fmt.Printf("invalid peer index: %d (PEER_INDEX_TABLE has only %d peers)\n", e.PeerIndex, len(peers))
+						os.Exit(1)
+					}
+					nexthop := peers[e.PeerIndex].IpAddress.String()
+
+					if rf == bgp.RF_IPv4_UC {
+						path.Nlri, _ = nlri.Serialize()
+						n, _ := bgp.NewPathAttributeNextHop(nexthop).Serialize()
+						path.Pattrs = append(path.Pattrs, n)
+					} else {
+						mpreach, _ := bgp.NewPathAttributeMpReachNLRI(nexthop, []bgp.AddrPrefixInterface{nlri}).Serialize()
+						path.Pattrs = append(path.Pattrs, mpreach)
+					}
+
+					for _, p := range e.PathAttributes {
+						b, err := p.Serialize()
+						if err != nil {
+							continue
+						}
+						path.Pattrs = append(path.Pattrs, b)
+					}
+
+					ch <- &api.ModPathArguments{
+						Resource: resource,
+						Path:     path,
+					}
+				}
+
+				idx += 1
+				if idx == count {
 					break
-				} else if err != nil {
-					fmt.Println(err)
-					os.Exit(1)
 				}
+			}
+		}
 
-				if globalOpts.Debug {
-					printMrtMsgs(s.Data)
-				}
+		close(ch)
+	}()
 
-				now := time.Now()
-				y, m, d := now.Date()
-				h, min, sec := now.Clock()
-				filename := fmt.Sprintf("%s/rib.%04d%02d%02d.%02d%02d%02d", mrtOpts.OutputDir, y, m, d, h, min, sec)
+	stream, err := client.ModPath(context.Background())
+	if err != nil {
+		return fmt.Errorf("failed to modpath:", err)
+	}
 
-				err = ioutil.WriteFile(filename, s.Data, 0600)
-				if err != nil {
-					fmt.Println(err)
-					os.Exit(1)
-				}
+	for arg := range ch {
+		err = stream.Send(arg)
+		if err != nil {
+			return fmt.Errorf("failed to send:", err)
+		}
+	}
 
-				fmt.Println("mrt dump:", filepath.Clean(filename))
+	res, err := stream.CloseAndRecv()
+	if err != nil {
+		return fmt.Errorf("failed to send: %s", err)
+	}
+	if res.Code != api.Error_SUCCESS {
+		return fmt.Errorf("error: code: %d, msg: %s", res.Code, res.Msg)
+	}
+	return nil
+}
+
+func NewMrtCmd() *cobra.Command {
+
+	globalDumpCmd := &cobra.Command{
+		Use: CMD_GLOBAL,
+		Run: func(cmd *cobra.Command, args []string) {
+			err := dumpRib(CMD_GLOBAL, net.IP{}, args)
+			if err != nil {
+				fmt.Println(err)
+				os.Exit(1)
 			}
 		},
 	}
-	dumpCmd.Flags().StringVarP(&mrtOpts.OutputDir, "outdir", "o", ".", "output directory")
 
-	mrtCmd.AddCommand(dumpCmd)
+	neighborCmd := &cobra.Command{
+		Use: CMD_NEIGHBOR,
+		Run: func(cmd *cobra.Command, args []string) {
+			if len(args) < 1 {
+				fmt.Println("usage: gobgp mrt dump neighbor <neighbor address> [<interval>]")
+				os.Exit(1)
+			}
+			remoteIP := net.ParseIP(args[0])
+			if remoteIP == nil {
+				fmt.Println("invalid ip address:", args[0])
+				os.Exit(1)
+			}
+			err := dumpRib(CMD_LOCAL, remoteIP, args[1:])
+			if err != nil {
+				fmt.Println(err)
+				os.Exit(1)
+			}
+		},
+	}
+
+	ribCmd := &cobra.Command{
+		Use: CMD_RIB,
+	}
+	ribCmd.AddCommand(globalDumpCmd, neighborCmd)
+	ribCmd.PersistentFlags().StringVarP(&subOpts.AddressFamily, "address-family", "a", "", "address family")
+
+	dumpCmd := &cobra.Command{
+		Use: CMD_DUMP,
+	}
+	dumpCmd.AddCommand(ribCmd)
+	dumpCmd.PersistentFlags().StringVarP(&mrtOpts.OutputDir, "outdir", "o", ".", "output directory")
+	dumpCmd.PersistentFlags().StringVarP(&mrtOpts.FileFormat, "format", "f", "", "file format")
+
+	globalInjectCmd := &cobra.Command{
+		Use: CMD_GLOBAL,
+		Run: func(cmd *cobra.Command, args []string) {
+			if len(args) < 1 {
+				fmt.Println("usage: gobgp mrt inject global <filename> [<count>]")
+				os.Exit(1)
+			}
+			filename := args[0]
+			count := -1
+			if len(args) > 1 {
+				var err error
+				count, err = strconv.Atoi(args[1])
+				if err != nil {
+					fmt.Println("invalid count value:", args[1])
+					os.Exit(1)
+				}
+			}
+			err := injectMrt(CMD_GLOBAL, filename, count)
+			if err != nil {
+				fmt.Println(err)
+				os.Exit(1)
+			}
+		},
+	}
+
+	injectCmd := &cobra.Command{
+		Use: CMD_INJECT,
+	}
+	injectCmd.AddCommand(globalInjectCmd)
+
+	mrtCmd := &cobra.Command{
+		Use: CMD_MRT,
+	}
+	mrtCmd.AddCommand(dumpCmd, injectCmd)
 
 	return mrtCmd
 }

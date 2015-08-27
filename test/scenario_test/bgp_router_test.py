@@ -15,6 +15,7 @@
 
 import unittest
 from fabric.api import local
+from lib import base
 from lib.gobgp import *
 from lib.quagga import *
 import sys
@@ -30,6 +31,7 @@ class GoBGPTestBase(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
         gobgp_ctn_image_name = parser_option.gobgp_image
+        base.TEST_PREFIX = parser_option.test_prefix
 
         g1 = GoBGPContainer(name='g1', asn=65000, router_id='192.168.0.1',
                             ctn_image_name=gobgp_ctn_image_name,
@@ -93,7 +95,7 @@ class GoBGPTestBase(unittest.TestCase):
     def test_03_check_gobgp_adj_out_rib(self):
         for q in self.quaggas.itervalues():
             for path in self.gobgp.get_adj_rib_out(q):
-                asns = self.gobgp._get_as_path(path)
+                asns = path['as_path']
                 self.assertTrue(self.gobgp.asn in asns)
 
     # check routes are properly advertised to all BGP speaker
@@ -217,7 +219,7 @@ class GoBGPTestBase(unittest.TestCase):
         self.assertTrue(len(dst[0]['paths']) == 1)
         path = dst[0]['paths'][0]
         self.assertTrue(path['nexthop'] == '0.0.0.0')
-        self.assertTrue(len(self.gobgp._get_as_path(path)) == 0)
+        self.assertTrue(len(path['as_path']) == 0)
 
     def test_11_check_adj_rib_out(self):
         for q in self.quaggas.itervalues():
@@ -227,18 +229,22 @@ class GoBGPTestBase(unittest.TestCase):
             peer_info = self.gobgp.peers[q]
             local_addr = peer_info['local_addr'].split('/')[0]
             self.assertTrue(path['nexthop'] == local_addr)
-            self.assertTrue(self.gobgp._get_as_path(path) == [self.gobgp.asn])
+            self.assertTrue(path['as_path'] == [self.gobgp.asn])
 
     def test_12_disable_peer(self):
         q1 = self.quaggas['q1']
         self.gobgp.disable_peer(q1)
         self.gobgp.wait_for(expected_state=BGP_FSM_IDLE, peer=q1)
 
+        time.sleep(3)
+
         for route in q1.routes.iterkeys():
             dst = self.gobgp.get_global_rib(route)
             self.assertTrue(len(dst) == 0)
 
             for q in self.quaggas.itervalues():
+                if q is q1:
+                    continue
                 paths = self.gobgp.get_adj_rib_out(q, route)
                 self.assertTrue(len(paths) == 0)
 

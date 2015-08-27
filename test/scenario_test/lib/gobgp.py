@@ -21,8 +21,6 @@ from itertools import chain
 
 class GoBGPContainer(BGPContainer):
 
-    PEER_TYPE_INTERNAL = 0
-    PEER_TYPE_EXTERNAL = 1
     SHARED_VOLUME = '/root/shared_volume'
 
     def __init__(self, name, asn, router_id, ctn_image_name='gobgp',
@@ -31,6 +29,10 @@ class GoBGPContainer(BGPContainer):
                                              ctn_image_name)
         self.shared_volumes.append((self.config_dir, self.SHARED_VOLUME))
         self.log_level = log_level
+        self.prefix_set = None
+        self.neighbor_set = None
+        self.bgp_set = None
+        self.default_policy = None
 
     def _start_gobgp(self):
         c = CmdBuffer()
@@ -42,9 +44,7 @@ class GoBGPContainer(BGPContainer):
         local(cmd, capture=True)
         cmd = "chmod 755 {0}/start.sh".format(self.config_dir)
         local(cmd, capture=True)
-        cmd = 'docker exec -d {0} {1}/start.sh'.format(self.name,
-                                                       self.SHARED_VOLUME)
-        local(cmd, capture=True)
+        self.local("{0}/start.sh".format(self.SHARED_VOLUME), flag='-d')
 
     def run(self):
         super(GoBGPContainer, self).run()
@@ -53,19 +53,23 @@ class GoBGPContainer(BGPContainer):
 
     def _get_as_path(self, path):
         asps = (p['as_paths'] for p in path['attrs'] if
-                p['type'] == BGP_ATTR_TYPE_AS_PATH and 'as_paths' in p)
+                p['type'] == BGP_ATTR_TYPE_AS_PATH and 'as_paths' in p
+                and p['as_paths'] != None)
         asps = chain.from_iterable(asps)
         asns = (asp['asns'] for asp in asps)
         return list(chain.from_iterable(asns))
+
+    def _get_nexthop(self, path):
+        for p in path['attrs']:
+            if p['type'] == BGP_ATTR_TYPE_NEXT_HOP or p['type'] == BGP_ATTR_TYPE_MP_REACH_NLRI:
+                return p['nexthop']
 
     def _trigger_peer_cmd(self, cmd, peer):
         if peer not in self.peers:
             raise Exception('not found peer {0}'.format(peer.router_id))
         peer_addr = self.peers[peer]['neigh_addr'].split('/')[0]
-        cmd = "docker exec {0} gobgp neighbor {1} {2}".format(self.name,
-                                                              peer_addr,
-                                                              cmd)
-        local(str(cmd), capture=True)
+        cmd = 'gobgp neighbor {0} {1}'.format(peer_addr, cmd)
+        self.local(cmd)
 
     def disable_peer(self, peer):
         self._trigger_peer_cmd('disable', peer)
@@ -73,37 +77,48 @@ class GoBGPContainer(BGPContainer):
     def enable_peer(self, peer):
         self._trigger_peer_cmd('enable', peer)
 
-    def get_local_rib(self, peer, rf='ipv4'):
+    def reset(self, peer):
+        self._trigger_peer_cmd('reset', peer)
+
+    def softreset(self, peer, rf='ipv4', type='in'):
+        self._trigger_peer_cmd('softreset{0} -a {1}'.format(type, rf), peer)
+
+    def get_local_rib(self, peer, prefix='', rf='ipv4'):
         if peer not in self.peers:
             raise Exception('not found peer {0}'.format(peer.router_id))
         peer_addr = self.peers[peer]['neigh_addr'].split('/')[0]
-        gobgp = '/go/bin/gobgp'
-        cmd = CmdBuffer(' ')
-        cmd << "docker exec {0} {1}".format(self.name, gobgp)
-        cmd << "-j neighbor {0} local -a {1}".format(peer_addr, rf)
-        output = local(str(cmd), capture=True)
-        n = json.loads(output)
-        return n
+        cmd = 'gobgp -j neighbor {0} local {1} -a {2}'.format(peer_addr, prefix, rf)
+        output = self.local(cmd, capture=True)
+        ret = json.loads(output)
+        for d in ret:
+            for p in d["paths"]:
+                p["nexthop"] = self._get_nexthop(p)
+                p["as_path"] = self._get_as_path(p)
+        return ret
 
     def get_global_rib(self, prefix='', rf='ipv4'):
-        gobgp = '/go/bin/gobgp'
-        cmd = 'docker exec {0} {1} -j global rib {2} -a {3}'.format(self.name,
-                                                                    gobgp,
-                                                                    prefix,
-                                                                    rf)
-        output = local(cmd, capture=True)
-        return json.loads(output)
+        cmd = 'gobgp -j global rib {0} -a {1}'.format(prefix, rf)
+        output = self.local(cmd, capture=True)
+        ret = json.loads(output)
+        for d in ret:
+            for p in d["paths"]:
+                p["nexthop"] = self._get_nexthop(p)
+                p["as_path"] = self._get_as_path(p)
+        return ret
 
     def _get_adj_rib(self, adj_type, peer, prefix='', rf='ipv4'):
         if peer not in self.peers:
             raise Exception('not found peer {0}'.format(peer.router_id))
         peer_addr = self.peers[peer]['neigh_addr'].split('/')[0]
-        gobgp = '/go/bin/gobgp'
-        cmd = 'docker exec {0} {1} neighbor {2}'\
-              ' adj-{3} {4} -a {5} -j'.format(self.name, gobgp, peer_addr,
-                                              adj_type, prefix, rf)
-        output = local(cmd, capture=True)
-        return json.loads(output)
+        cmd = 'gobgp neighbor {0} adj-{1} {2} -a {3} -j'.format(peer_addr,
+                                                                adj_type,
+                                                                prefix, rf)
+        output = self.local(cmd, capture=True)
+        ret = [p["paths"][0] for p in json.loads(output)]
+        for p in ret:
+            p["nexthop"] = self._get_nexthop(p)
+            p["as_path"] = self._get_as_path(p)
+        return ret
 
     def get_adj_rib_in(self, peer, prefix='', rf='ipv4'):
         return self._get_adj_rib('in', peer, prefix, rf)
@@ -115,21 +130,30 @@ class GoBGPContainer(BGPContainer):
         if peer not in self.peers:
             raise Exception('not found peer {0}'.format(peer.router_id))
         peer_addr = self.peers[peer]['neigh_addr'].split('/')[0]
-        gobgp = '/go/bin/gobgp'
-        cmd = 'docker exec {0} {1} -j neighbor {2}'.format(self.name,
-                                                           gobgp,
-                                                           peer_addr)
-        output = local(cmd, capture=True)
+        cmd = 'gobgp -j neighbor {0}'.format(peer_addr)
+        output = self.local(cmd, capture=True)
         return json.loads(output)['info']['bgp_state']
 
-    def create_config(self):
-        config = {'Global': {'As': self.asn, 'RouterId': self.router_id}}
-        for peer, info in self.peers.iteritems():
-            if self.asn == peer.asn:
-                peer_type = self.PEER_TYPE_INTERNAL
-            else:
-                peer_type = self.PEER_TYPE_EXTERNAL
+    def clear_policy(self):
+        self.policies = {}
+        for info in self.peers.itervalues():
+            info['policies'] = {}
+        self.prefix_set = []
+        self.neighbor_set = []
+        self.statements = []
 
+    def set_prefix_set(self, ps):
+        self.prefix_set = ps
+
+    def set_neighbor_set(self, ns):
+        self.neighbor_set = ns
+
+    def set_bgp_defined_set(self, bs):
+        self.bgp_set = bs
+
+    def create_config(self):
+        config = {'Global': {'GlobalConfig': {'As': self.asn, 'RouterId': self.router_id}}}
+        for peer, info in self.peers.iteritems():
             afi_safi_list = []
             version = netaddr.IPNetwork(info['neigh_addr']).version
             if version == 4:
@@ -144,27 +168,89 @@ class GoBGPContainer(BGPContainer):
                 afi_safi_list.append({'AfiSafiName': 'encap'})
                 afi_safi_list.append({'AfiSafiName': 'rtc'})
 
-            n = {'NeighborAddress': info['neigh_addr'].split('/')[0],
-                 'PeerAs': peer.asn,
-                 'AuthPassword': info['passwd'],
-                 'PeerType': peer_type,
-                 'AfiSafiList': afi_safi_list}
+            if info['flowspec']:
+                afi_safi_list.append({'AfiSafiName': 'ipv4-flowspec'})
+
+            n = {'NeighborConfig':
+                 {'NeighborAddress': info['neigh_addr'].split('/')[0],
+                  'PeerAs': peer.asn,
+                  'AuthPassword': info['passwd'],
+                  },
+                 'AfiSafis': {'AfiSafiList': afi_safi_list}
+                 }
 
             if info['passive']:
-                n['TransportOptions'] = {'PassiveMode': True}
+                n['Transport'] = {'TransportConfig': {'PassiveMode': True}}
 
             if info['is_rs_client']:
-                n['RouteServer'] = {'RouteServerClient': True}
+                n['RouteServer'] = {'RouteServerConfig': {'RouteServerClient': True}}
 
             if info['is_rr_client']:
                 clusterId = info['cluster_id']
                 n['RouteReflector'] = {'RouteReflectorClient': True,
                                        'RouteReflectorClusterId': clusterId}
 
-            if 'NeighborList' not in config:
-                config['NeighborList'] = []
+            f = lambda typ: [p for p in info['policies'].itervalues() if p['type'] == typ]
+            import_policies = f('import')
+            export_policies = f('export')
+            in_policies = f('in')
+            f = lambda typ: [p['default'] for p in info['policies'].itervalues() if p['type'] == typ and 'default' in p]
+            default_import_policy = f('import')
+            default_export_policy = f('export')
+            default_in_policy  = f('in')
 
-            config['NeighborList'].append(n)
+            if len(import_policies) + len(export_policies) + len(in_policies) + len(default_import_policy) \
+                + len(default_export_policy) + len(default_in_policy) > 0:
+                n['ApplyPolicy'] = {'ApplyPolicyConfig': {}}
+
+            if len(import_policies) > 0:
+                n['ApplyPolicy']['ApplyPolicyConfig']['ImportPolicy'] = [p['name'] for p in import_policies]
+
+            if len(export_policies) > 0:
+                n['ApplyPolicy']['ApplyPolicyConfig']['ExportPolicy'] = [p['name'] for p in export_policies]
+
+            if len(in_policies) > 0:
+                n['ApplyPolicy']['ApplyPolicyConfig']['InPolicy'] = [p['name'] for p in in_policies]
+
+            def f(v):
+                if v == 'reject':
+                    return 1
+                elif v == 'accept':
+                    return 0
+                raise Exception('invalid default policy type {0}'.format(v))
+
+            if len(default_import_policy) > 0:
+               n['ApplyPolicy']['ApplyPolicyConfig']['DefaultImportPolicy'] = f(default_import_policy[0])
+
+            if len(default_export_policy) > 0:
+               n['ApplyPolicy']['ApplyPolicyConfig']['DefaultExportPolicy'] = f(default_export_policy[0])
+
+            if len(default_in_policy) > 0:
+               n['ApplyPolicy']['ApplyPolicyConfig']['DefaultInPolicy'] = f(default_in_policy[0])
+
+            if 'Neighbors' not in config:
+                config['Neighbors'] = {'NeighborList': []}
+
+            config['Neighbors']['NeighborList'].append(n)
+
+        config['DefinedSets'] = {}
+        if self.prefix_set:
+            config['DefinedSets']['PrefixSets'] = {'PrefixSetList': [self.prefix_set]}
+
+        if self.neighbor_set:
+            config['DefinedSets']['NeighborSets'] = {'NeighborSetList': [self.neighbor_set]}
+
+        if self.bgp_set:
+            config['DefinedSets']['BgpDefinedSets'] = self.bgp_set
+
+        policy_list = []
+        for p in self.policies.itervalues():
+            policy = {'Name': p['name'],
+                      'Statements':{'StatementList': p['statements']}}
+            policy_list.append(policy)
+
+        if len(policy_list) > 0:
+            config['PolicyDefinitions'] = {'PolicyDefinitionList': policy_list}
 
         with open('{0}/gobgpd.conf'.format(self.config_dir), 'w') as f:
             print colors.yellow('[{0}\'s new config]'.format(self.name))
@@ -172,9 +258,15 @@ class GoBGPContainer(BGPContainer):
             f.write(toml.dumps(config))
 
     def reload_config(self):
-        cmd = 'docker exec {0} /usr/bin/pkill gobgpd -SIGHUP'.format(self.name)
-        local(cmd, capture=True)
+        cmd = '/usr/bin/pkill gobgpd -SIGHUP'
+        self.local(cmd)
         for v in self.routes.itervalues():
-            cmd = 'docker exec {0} gobgp global '\
-                  'rib add {1} -a {2}'.format(self.name, v['prefix'], v['rf'])
-            local(cmd, capture=True)
+            if v['rf'] == 'ipv4' or v['rf'] == 'ipv6':
+                cmd = 'gobgp global '\
+                      'rib add {0} -a {1}'.format(v['prefix'], v['rf'])
+            elif v['rf']== 'ipv4-flowspec':
+                cmd = 'gobgp global '\
+                      'rib add match {0} then {1} -a {2}'.format(' '.join(v['matchs']), ' '.join(v['thens']), v['rf'])
+            else:
+                raise Exception('unsupported route faily: {0}'.format(rf))
+            self.local(cmd)

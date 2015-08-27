@@ -24,6 +24,8 @@ import (
 	"math"
 	"net"
 	"reflect"
+	"regexp"
+	"strconv"
 	"strings"
 )
 
@@ -43,6 +45,8 @@ const (
 	SAFI_MPLS_VPN                 = 128
 	SAFI_MPLS_VPN_MULTICAST       = 129
 	SAFI_ROUTE_TARGET_CONSTRTAINS = 132
+	SAFI_FLOW_SPEC_UNICAST        = 133
+	SAFI_FLOW_SPEC_VPN            = 134
 )
 
 const (
@@ -83,6 +87,9 @@ const (
 	EC_TYPE_NON_TRANSITIVE_OPAQUE                 ExtendedCommunityAttrType = 0x43
 	EC_TYPE_NON_TRANSITIVE_QOS_MARKING            ExtendedCommunityAttrType = 0x44
 	EC_TYPE_GENERIC_TRANSITIVE_EXPERIMENTAL       ExtendedCommunityAttrType = 0x80
+	//draft-ietf-idr-flowspec-redirect-rt-bis-05
+	EC_TYPE_GENERIC_TRANSITIVE_EXPERIMENTAL2 ExtendedCommunityAttrType = 0x81
+	EC_TYPE_GENERIC_TRANSITIVE_EXPERIMENTAL3 ExtendedCommunityAttrType = 0x82
 )
 
 // RFC7153 5.2. Registraction for the "Sub-Type" Field
@@ -116,9 +123,9 @@ const (
 	EC_SUBTYPE_FLOWSPEC_REDIRECT       ExtendedCommunityAttrSubType = 0x08
 	EC_SUBTYPE_FLOWSPEC_TRAFFIC_REMARK ExtendedCommunityAttrSubType = 0x09
 
-	EC_SUBTYPE_MAC_MOBILITY   ExtendedCommunityAttrSubType = 0x00
-	EC_SUBTYPE_ESI_MPLS_LABEL ExtendedCommunityAttrSubType = 0x01
-	EC_SUBTYPE_ES_IMPORT      ExtendedCommunityAttrSubType = 0x02
+	EC_SUBTYPE_MAC_MOBILITY ExtendedCommunityAttrSubType = 0x00
+	EC_SUBTYPE_ESI_LABEL    ExtendedCommunityAttrSubType = 0x01
+	EC_SUBTYPE_ES_IMPORT    ExtendedCommunityAttrSubType = 0x02
 )
 
 type TunnelType uint16
@@ -146,6 +153,29 @@ const (
 	PMSI_TUNNEL_TYPE_INGRESS_REPL   PmsiTunnelType = 6
 	PMSI_TUNNEL_TYPE_MLDP_MP2MP     PmsiTunnelType = 7
 )
+
+func (p PmsiTunnelType) String() string {
+	switch p {
+	case PMSI_TUNNEL_TYPE_NO_TUNNEL:
+		return "no-tunnel"
+	case PMSI_TUNNEL_TYPE_RSVP_TE_P2MP:
+		return "rsvp-te-p2mp"
+	case PMSI_TUNNEL_TYPE_MLDP_P2MP:
+		return "mldp-p2mp"
+	case PMSI_TUNNEL_TYPE_PIM_SSM_TREE:
+		return "pim-ssm-tree"
+	case PMSI_TUNNEL_TYPE_PIM_SM_TREE:
+		return "pim-sm-tree"
+	case PMSI_TUNNEL_TYPE_BIDIR_PIM_TREE:
+		return "bidir-pim-tree"
+	case PMSI_TUNNEL_TYPE_INGRESS_REPL:
+		return "ingress-repl"
+	case PMSI_TUNNEL_TYPE_MLDP_MP2MP:
+		return "mldp-mp2mp"
+	default:
+		return fmt.Sprintf("PmsiTunnelType(%d)", uint8(p))
+	}
+}
 
 type EncapSubTLVType uint8
 
@@ -261,7 +291,7 @@ func (c *CapMultiProtocol) Serialize() ([]byte, error) {
 func (c *CapMultiProtocol) ToApiStruct() *api.Capability {
 	return &api.Capability{
 		Code:          api.BGP_CAPABILITY(c.Code()),
-		MultiProtocol: &api.AddressFamily{api.AFI(c.CapValue.AFI), api.SAFI(c.CapValue.SAFI)},
+		MultiProtocol: uint32(AfiSafiToRouteFamily(c.CapValue.AFI, c.CapValue.SAFI)),
 	}
 }
 
@@ -348,7 +378,7 @@ func (c *CapGracefulRestart) ToApiStruct() *api.Capability {
 	tuples := []*api.GracefulRestartTuple{}
 	for _, t := range c.CapValue.Tuples {
 		tuple := &api.GracefulRestartTuple{
-			Af:    &api.AddressFamily{api.AFI(t.AFI), api.SAFI(t.SAFI)},
+			Rf:    uint32(AfiSafiToRouteFamily(t.AFI, t.SAFI)),
 			Flags: uint32(t.Flags),
 		}
 		tuples = append(tuples, tuple)
@@ -599,7 +629,7 @@ type AddrPrefixInterface interface {
 	SAFI() uint8
 	Len() int
 	String() string
-	ToApiStruct() *api.Nlri
+	MarshalJSON() ([]byte, error)
 }
 
 type IPAddrPrefixDefault struct {
@@ -645,6 +675,14 @@ func (r *IPAddrPrefixDefault) String() string {
 	return fmt.Sprintf("%s/%d", r.Prefix.String(), r.Length)
 }
 
+func (r *IPAddrPrefixDefault) MarshalJSON() ([]byte, error) {
+	return json.Marshal(struct {
+		Prefix string `json:"prefix"`
+	}{
+		Prefix: r.String(),
+	})
+}
+
 type IPAddrPrefix struct {
 	IPAddrPrefixDefault
 	addrlen uint8
@@ -679,13 +717,6 @@ func (r *IPAddrPrefix) AFI() uint16 {
 
 func (r *IPAddrPrefix) SAFI() uint8 {
 	return SAFI_UNICAST
-}
-
-func (r *IPAddrPrefix) ToApiStruct() *api.Nlri {
-	return &api.Nlri{
-		Af:     &api.AddressFamily{api.AFI(r.AFI()), api.SAFI(r.SAFI())},
-		Prefix: r.String(),
-	}
 }
 
 func NewIPAddrPrefix(length uint8, prefix string) *IPAddrPrefix {
@@ -824,7 +855,9 @@ func (rd *RouteDistinguisherFourOctetAS) Serialize() ([]byte, error) {
 }
 
 func (rd *RouteDistinguisherFourOctetAS) String() string {
-	return fmt.Sprintf("%d:%d", rd.Admin, rd.Assigned)
+	fst := rd.Admin >> 16 & 0xffff
+	snd := rd.Admin & 0xffff
+	return fmt.Sprintf("%d.%d:%d", fst, snd, rd.Assigned)
 }
 
 func NewRouteDistinguisherFourOctetAS(admin uint32, assigned uint16) *RouteDistinguisherFourOctetAS {
@@ -841,7 +874,7 @@ type RouteDistinguisherUnknown struct {
 	DefaultRouteDistinguisher
 }
 
-func getRouteDistinguisher(data []byte) RouteDistinguisherInterface {
+func GetRouteDistinguisher(data []byte) RouteDistinguisherInterface {
 	rdtype := binary.BigEndian.Uint16(data[0:2])
 	switch rdtype {
 	case BGP_RD_TWO_OCTET_AS:
@@ -854,6 +887,36 @@ func getRouteDistinguisher(data []byte) RouteDistinguisherInterface {
 	rd := &RouteDistinguisherUnknown{}
 	rd.Type = rdtype
 	return rd
+}
+
+func parseRdAndRt(input string) ([]string, error) {
+	exp := regexp.MustCompile("^((\\d+)\\.(\\d+)\\.(\\d+)\\.(\\d+)|((\\d+)\\.)?(\\d+)):(\\d+)$")
+	elems := exp.FindStringSubmatch(input)
+	if len(elems) != 10 {
+		return nil, fmt.Errorf("failed to parse")
+	}
+	return elems, nil
+}
+
+func ParseRouteDistinguisher(rd string) (RouteDistinguisherInterface, error) {
+	elems, err := parseRdAndRt(rd)
+	if err != nil {
+		return nil, err
+	}
+	assigned, _ := strconv.Atoi(elems[9])
+	ip := net.ParseIP(elems[1])
+	switch {
+	case ip.To4() != nil:
+		return NewRouteDistinguisherIPAddressAS(elems[1], uint16(assigned)), nil
+	case elems[6] == "" && elems[7] == "":
+		asn, _ := strconv.Atoi(elems[8])
+		return NewRouteDistinguisherTwoOctetAS(uint16(asn), uint32(assigned)), nil
+	default:
+		fst, _ := strconv.Atoi(elems[7])
+		snd, _ := strconv.Atoi(elems[8])
+		asn := fst<<16 | snd
+		return NewRouteDistinguisherFourOctetAS(uint32(asn), uint16(assigned)), nil
+	}
 }
 
 //
@@ -978,7 +1041,7 @@ func (l *LabeledVPNIPAddrPrefix) DecodeFromBytes(data []byte) error {
 		l.Labels.Labels = []uint32{}
 	}
 	data = data[l.Labels.Len():]
-	l.RD = getRouteDistinguisher(data)
+	l.RD = GetRouteDistinguisher(data)
 	data = data[l.RD.Len():]
 	restbits := int(l.Length) - 8*(l.Labels.Len()+l.RD.Len())
 	l.decodePrefix(data, uint8(restbits), l.addrlen)
@@ -1013,13 +1076,6 @@ func (l *LabeledVPNIPAddrPrefix) AFI() uint16 {
 
 func (l *LabeledVPNIPAddrPrefix) SAFI() uint8 {
 	return SAFI_MPLS_VPN
-}
-
-func (l *LabeledVPNIPAddrPrefix) ToApiStruct() *api.Nlri {
-	return &api.Nlri{
-		Af:     &api.AddressFamily{api.AFI(l.AFI()), api.SAFI(l.SAFI())},
-		Prefix: l.String(),
-	}
 }
 
 func (l *LabeledVPNIPAddrPrefix) String() string {
@@ -1075,32 +1131,6 @@ func (r *LabeledIPAddrPrefix) AFI() uint16 {
 
 func (r *LabeledIPAddrPrefix) SAFI() uint8 {
 	return SAFI_MPLS_LABEL
-}
-
-func (r *LabeledIPAddrPrefix) ToApiStruct() *api.Nlri {
-	return &api.Nlri{
-		Af:     &api.AddressFamily{api.AFI(r.AFI()), api.SAFI(r.SAFI())},
-		Prefix: r.String(),
-	}
-}
-
-func (r *IPAddrPrefix) decodeNextHop(data []byte) net.IP {
-	if r.addrlen == 0 {
-		r.addrlen = 4
-	}
-	var next net.IP = data[0:r.addrlen]
-	return next
-}
-
-func (r *LabeledVPNIPAddrPrefix) decodeNextHop(data []byte) net.IP {
-	// skip rd
-	var next net.IP = data[8 : 8+r.addrlen]
-	return next
-}
-
-func (r *LabeledIPAddrPrefix) decodeNextHop(data []byte) net.IP {
-	var next net.IP = data[0:r.addrlen]
-	return next
 }
 
 func (l *LabeledIPAddrPrefix) DecodeFromBytes(data []byte) error {
@@ -1170,7 +1200,7 @@ func (n *RouteTargetMembershipNLRI) DecodeFromBytes(data []byte) error {
 		return fmt.Errorf("Not all RouteTargetMembershipNLRI bytes available")
 	}
 	n.AS = binary.BigEndian.Uint32(data[0:4])
-	rt, err := parseExtended(data[4:])
+	rt, err := ParseExtended(data[4:])
 	n.RouteTarget = rt
 	if err != nil {
 		return err
@@ -1216,20 +1246,12 @@ func (n *RouteTargetMembershipNLRI) String() string {
 	return fmt.Sprintf("%d:%s", n.AS, target)
 }
 
-func (n *RouteTargetMembershipNLRI) ToApiStruct() *api.Nlri {
-	var target *api.ExtendedCommunity
-	if n.RouteTarget != nil {
-		target = n.RouteTarget.ToApiStruct()
-	}
-	return &api.Nlri{
-		Af:     &api.AddressFamily{api.AFI(n.AFI()), api.SAFI(n.SAFI())},
+func (n *RouteTargetMembershipNLRI) MarshalJSON() ([]byte, error) {
+	return json.Marshal(struct {
+		Prefix string `json:"prefix"`
+	}{
 		Prefix: n.String(),
-		RtNlri: &api.RTNlri{
-			Asn:    n.AS,
-			Target: target,
-			Length: uint32(n.Length),
-		},
-	}
+	})
 }
 
 func NewRouteTargetMembershipNLRI(as uint32, target ExtendedCommunityInterface) *RouteTargetMembershipNLRI {
@@ -1351,7 +1373,7 @@ type EVPNEthernetAutoDiscoveryRoute struct {
 }
 
 func (er *EVPNEthernetAutoDiscoveryRoute) DecodeFromBytes(data []byte) error {
-	er.RD = getRouteDistinguisher(data)
+	er.RD = GetRouteDistinguisher(data)
 	data = data[er.RD.Len():]
 	err := er.ESI.DecodeFromBytes(data)
 	if err != nil {
@@ -1365,11 +1387,16 @@ func (er *EVPNEthernetAutoDiscoveryRoute) DecodeFromBytes(data []byte) error {
 }
 
 func (er *EVPNEthernetAutoDiscoveryRoute) Serialize() ([]byte, error) {
-	buf, err := er.RD.Serialize()
-	if err != nil {
-		return nil, err
+	var buf []byte
+	var err error
+	if er.RD != nil {
+		buf, err = er.RD.Serialize()
+		if err != nil {
+			return nil, err
+		}
+	} else {
+		buf = make([]byte, 8)
 	}
-
 	tbuf, err := er.ESI.Serialize()
 	if err != nil {
 		return nil, err
@@ -1391,6 +1418,10 @@ func (er *EVPNEthernetAutoDiscoveryRoute) String() string {
 	return fmt.Sprintf("[type:A-D][rd:%s][esi:%s][etag:%d][label:%d]", er.RD, er.ESI, er.ETag, er.Label)
 }
 
+func (er *EVPNEthernetAutoDiscoveryRoute) rd() RouteDistinguisherInterface {
+	return er.RD
+}
+
 type EVPNMacIPAdvertisementRoute struct {
 	RD               RouteDistinguisherInterface
 	ESI              EthernetSegmentIdentifier
@@ -1403,7 +1434,7 @@ type EVPNMacIPAdvertisementRoute struct {
 }
 
 func (er *EVPNMacIPAdvertisementRoute) DecodeFromBytes(data []byte) error {
-	er.RD = getRouteDistinguisher(data)
+	er.RD = GetRouteDistinguisher(data)
 	data = data[er.RD.Len():]
 	err := er.ESI.DecodeFromBytes(data)
 	if err != nil {
@@ -1434,9 +1465,15 @@ func (er *EVPNMacIPAdvertisementRoute) DecodeFromBytes(data []byte) error {
 }
 
 func (er *EVPNMacIPAdvertisementRoute) Serialize() ([]byte, error) {
-	buf, err := er.RD.Serialize()
-	if err != nil {
-		return nil, err
+	var buf []byte
+	var err error
+	if er.RD != nil {
+		buf, err = er.RD.Serialize()
+		if err != nil {
+			return nil, err
+		}
+	} else {
+		buf = make([]byte, 8)
 	}
 
 	tbuf, err := er.ESI.Serialize()
@@ -1473,21 +1510,12 @@ func (er *EVPNMacIPAdvertisementRoute) Serialize() ([]byte, error) {
 	return buf, nil
 }
 
-func (er *EVPNMacIPAdvertisementRoute) ToApiStruct() *api.EvpnMacIpAdvertisement {
-	return &api.EvpnMacIpAdvertisement{
-		MacAddr:    er.MacAddress.String(),
-		MacAddrLen: uint32(er.MacAddressLength),
-		IpAddr:     er.IPAddress.String(),
-		IpAddrLen:  uint32(er.IPAddressLength),
-		Rd:         er.RD.String(),
-		Esi:        er.ESI.String(),
-		Etag:       er.ETag,
-		Labels:     er.Labels,
-	}
-}
-
 func (er *EVPNMacIPAdvertisementRoute) String() string {
 	return fmt.Sprintf("[type:macadv][rd:%s][esi:%s][etag:%d][mac:%s][ip:%s][labels:%v]", er.RD, er.ESI.String(), er.ETag, er.MacAddress, er.IPAddress, er.Labels)
+}
+
+func (er *EVPNMacIPAdvertisementRoute) rd() RouteDistinguisherInterface {
+	return er.RD
 }
 
 type EVPNMulticastEthernetTagRoute struct {
@@ -1498,7 +1526,7 @@ type EVPNMulticastEthernetTagRoute struct {
 }
 
 func (er *EVPNMulticastEthernetTagRoute) DecodeFromBytes(data []byte) error {
-	er.RD = getRouteDistinguisher(data)
+	er.RD = GetRouteDistinguisher(data)
 	data = data[er.RD.Len():]
 	er.ETag = binary.BigEndian.Uint32(data[0:4])
 	er.IPAddressLength = data[4]
@@ -1512,9 +1540,15 @@ func (er *EVPNMulticastEthernetTagRoute) DecodeFromBytes(data []byte) error {
 }
 
 func (er *EVPNMulticastEthernetTagRoute) Serialize() ([]byte, error) {
-	buf, err := er.RD.Serialize()
-	if err != nil {
-		return nil, err
+	var buf []byte
+	var err error
+	if er.RD != nil {
+		buf, err = er.RD.Serialize()
+		if err != nil {
+			return nil, err
+		}
+	} else {
+		buf = make([]byte, 8)
 	}
 	tbuf := make([]byte, 4)
 	binary.BigEndian.PutUint32(tbuf, er.ETag)
@@ -1534,17 +1568,12 @@ func (er *EVPNMulticastEthernetTagRoute) Serialize() ([]byte, error) {
 	return buf, nil
 }
 
-func (er *EVPNMulticastEthernetTagRoute) ToApiStruct() *api.EvpnInclusiveMulticastEthernetTag {
-	return &api.EvpnInclusiveMulticastEthernetTag{
-		Rd:        er.RD.String(),
-		Etag:      er.ETag,
-		IpAddr:    er.IPAddress.String(),
-		IpAddrLen: uint32(er.IPAddressLength),
-	}
-}
-
 func (er *EVPNMulticastEthernetTagRoute) String() string {
 	return fmt.Sprintf("[type:multicast][rd:%s][etag:%d][ip:%s]", er.RD, er.ETag, er.IPAddress)
+}
+
+func (er *EVPNMulticastEthernetTagRoute) rd() RouteDistinguisherInterface {
+	return er.RD
 }
 
 type EVPNEthernetSegmentRoute struct {
@@ -1555,7 +1584,7 @@ type EVPNEthernetSegmentRoute struct {
 }
 
 func (er *EVPNEthernetSegmentRoute) DecodeFromBytes(data []byte) error {
-	er.RD = getRouteDistinguisher(data)
+	er.RD = GetRouteDistinguisher(data)
 	data = data[er.RD.Len():]
 	er.ESI.DecodeFromBytes(data)
 	data = data[10:]
@@ -1570,9 +1599,15 @@ func (er *EVPNEthernetSegmentRoute) DecodeFromBytes(data []byte) error {
 }
 
 func (er *EVPNEthernetSegmentRoute) Serialize() ([]byte, error) {
-	buf, err := er.RD.Serialize()
-	if err != nil {
-		return nil, err
+	var buf []byte
+	var err error
+	if er.RD != nil {
+		buf, err = er.RD.Serialize()
+		if err != nil {
+			return nil, err
+		}
+	} else {
+		buf = make([]byte, 8)
 	}
 	tbuf, err := er.ESI.Serialize()
 	if err != nil {
@@ -1595,10 +1630,15 @@ type EVPNRouteTypeInterface interface {
 	DecodeFromBytes([]byte) error
 	Serialize() ([]byte, error)
 	String() string
+	rd() RouteDistinguisherInterface
 }
 
 func (er *EVPNEthernetSegmentRoute) String() string {
 	return fmt.Sprintf("[type:esi][rd:%s][esi:%d][ip:%s]", er.RD, er.ESI, er.IPAddress)
+}
+
+func (er *EVPNEthernetSegmentRoute) rd() RouteDistinguisherInterface {
+	return er.RD
 }
 
 func getEVPNRouteType(t uint8) (EVPNRouteTypeInterface, error) {
@@ -1678,23 +1718,16 @@ func (n *EVPNNLRI) String() string {
 	return fmt.Sprintf("%d:%d", n.RouteType, n.Length)
 }
 
-func (n *EVPNNLRI) ToApiStruct() *api.Nlri {
-	evpn := &api.EVPNNlri{}
-	switch n.RouteType {
-	case EVPN_ROUTE_TYPE_MAC_IP_ADVERTISEMENT:
-		evpn.Type = api.EVPN_TYPE_ROUTE_TYPE_MAC_IP_ADVERTISEMENT
-		macIpAdv := n.RouteTypeData.(*EVPNMacIPAdvertisementRoute).ToApiStruct()
-		evpn.MacIpAdv = macIpAdv
-	case EVPN_INCLUSIVE_MULTICAST_ETHERNET_TAG:
-		evpn.Type = api.EVPN_TYPE_INCLUSIVE_MULTICAST_ETHERNET_TAG
-		eTag := n.RouteTypeData.(*EVPNMulticastEthernetTagRoute).ToApiStruct()
-		evpn.MulticastEtag = eTag
-	}
-	return &api.Nlri{
-		Af:       &api.AddressFamily{api.AFI(n.AFI()), api.SAFI(n.SAFI())},
-		Prefix:   n.String(),
-		EvpnNlri: evpn,
-	}
+func (n *EVPNNLRI) MarshalJSON() ([]byte, error) {
+	return json.Marshal(struct {
+		Prefix string `json:"prefix"`
+	}{
+		Prefix: n.String(),
+	})
+}
+
+func (n *EVPNNLRI) RD() RouteDistinguisherInterface {
+	return n.RouteTypeData.rd()
 }
 
 func NewEVPNNLRI(routetype uint8, length uint8, routetypedata EVPNRouteTypeInterface) *EVPNNLRI {
@@ -1749,19 +1782,689 @@ func (n *EncapNLRI) SAFI() uint8 {
 	return SAFI_ENCAPSULATION
 }
 
-func (n *EncapNLRI) ToApiStruct() *api.Nlri {
-	return &api.Nlri{
-		Af:     &api.AddressFamily{api.AFI(n.AFI()), api.SAFI(n.SAFI())},
-		Prefix: n.String(),
-	}
-}
-
 func NewEncapNLRI(endpoint string) *EncapNLRI {
 	return &EncapNLRI{
 		IPAddrPrefixDefault{0, net.ParseIP(endpoint)},
 	}
 }
 
+type BGPFlowSpecType uint8
+
+const (
+	FLOW_SPEC_TYPE_UNKNOWN BGPFlowSpecType = iota
+	FLOW_SPEC_TYPE_DST_PREFIX
+	FLOW_SPEC_TYPE_SRC_PREFIX
+	FLOW_SPEC_TYPE_IP_PROTO
+	FLOW_SPEC_TYPE_PORT
+	FLOW_SPEC_TYPE_DST_PORT
+	FLOW_SPEC_TYPE_SRC_PORT
+	FLOW_SPEC_TYPE_ICMP_TYPE
+	FLOW_SPEC_TYPE_ICMP_CODE
+	FLOW_SPEC_TYPE_TCP_FLAG
+	FLOW_SPEC_TYPE_PKT_LEN
+	FLOW_SPEC_TYPE_DSCP
+	FLOW_SPEC_TYPE_FRAGMENT
+)
+
+var FlowSpecNameMap = map[BGPFlowSpecType]string{
+	FLOW_SPEC_TYPE_UNKNOWN:    "unknown",
+	FLOW_SPEC_TYPE_DST_PREFIX: "destination",
+	FLOW_SPEC_TYPE_SRC_PREFIX: "source",
+	FLOW_SPEC_TYPE_IP_PROTO:   "protocol",
+	FLOW_SPEC_TYPE_PORT:       "port",
+	FLOW_SPEC_TYPE_DST_PORT:   "destination-port",
+	FLOW_SPEC_TYPE_SRC_PORT:   "source-port",
+	FLOW_SPEC_TYPE_ICMP_TYPE:  "icmp-type",
+	FLOW_SPEC_TYPE_ICMP_CODE:  "icmp-code",
+	FLOW_SPEC_TYPE_TCP_FLAG:   "tcp-flags",
+	FLOW_SPEC_TYPE_PKT_LEN:    "packet-length",
+	FLOW_SPEC_TYPE_DSCP:       "dscp",
+	FLOW_SPEC_TYPE_FRAGMENT:   "fragment",
+}
+
+var FlowSpecValueMap = map[string]BGPFlowSpecType{
+	FlowSpecNameMap[FLOW_SPEC_TYPE_DST_PREFIX]: FLOW_SPEC_TYPE_DST_PREFIX,
+	FlowSpecNameMap[FLOW_SPEC_TYPE_SRC_PREFIX]: FLOW_SPEC_TYPE_SRC_PREFIX,
+	FlowSpecNameMap[FLOW_SPEC_TYPE_IP_PROTO]:   FLOW_SPEC_TYPE_IP_PROTO,
+	FlowSpecNameMap[FLOW_SPEC_TYPE_PORT]:       FLOW_SPEC_TYPE_PORT,
+	FlowSpecNameMap[FLOW_SPEC_TYPE_DST_PORT]:   FLOW_SPEC_TYPE_DST_PORT,
+	FlowSpecNameMap[FLOW_SPEC_TYPE_SRC_PORT]:   FLOW_SPEC_TYPE_SRC_PORT,
+	FlowSpecNameMap[FLOW_SPEC_TYPE_ICMP_TYPE]:  FLOW_SPEC_TYPE_ICMP_TYPE,
+	FlowSpecNameMap[FLOW_SPEC_TYPE_ICMP_CODE]:  FLOW_SPEC_TYPE_ICMP_CODE,
+	FlowSpecNameMap[FLOW_SPEC_TYPE_TCP_FLAG]:   FLOW_SPEC_TYPE_TCP_FLAG,
+	FlowSpecNameMap[FLOW_SPEC_TYPE_PKT_LEN]:    FLOW_SPEC_TYPE_PKT_LEN,
+	FlowSpecNameMap[FLOW_SPEC_TYPE_DSCP]:       FLOW_SPEC_TYPE_DSCP,
+	FlowSpecNameMap[FLOW_SPEC_TYPE_FRAGMENT]:   FLOW_SPEC_TYPE_FRAGMENT,
+}
+
+func flowSpecPrefixParser(args []string) (FlowSpecComponentInterface, error) {
+	if len(args) < 2 {
+		return nil, fmt.Errorf("invalid flowspec dst/src prefix")
+	}
+	typ := args[0]
+	ip, net, _ := net.ParseCIDR(args[1])
+	if ip.To4() == nil {
+		return nil, fmt.Errorf("invalid ipv4 prefix")
+	}
+	ones, _ := net.Mask.Size()
+
+	switch typ {
+	case FlowSpecNameMap[FLOW_SPEC_TYPE_DST_PREFIX]:
+		return NewFlowSpecDestinationPrefix(NewIPAddrPrefix(uint8(ones), ip.String())), nil
+	case FlowSpecNameMap[FLOW_SPEC_TYPE_SRC_PREFIX]:
+		return NewFlowSpecSourcePrefix(NewIPAddrPrefix(uint8(ones), ip.String())), nil
+	}
+	return nil, fmt.Errorf("invalid type. only destination or source is allowed")
+}
+
+func flowSpecIpProtoParser(args []string) (FlowSpecComponentInterface, error) {
+	ss := make([]string, 0, len(ProtocolNameMap))
+	for _, v := range ProtocolNameMap {
+		ss = append(ss, v)
+	}
+	protos := strings.Join(ss, "|")
+	exp := regexp.MustCompile(fmt.Sprintf("^%s (((%s) )*)(%s)$", FlowSpecNameMap[FLOW_SPEC_TYPE_IP_PROTO], protos, protos))
+	elems := exp.FindStringSubmatch(strings.Join(args, " "))
+	items := make([]*FlowSpecComponentItem, 0)
+	eq := 0x1
+	if elems[1] != "" {
+		for _, v := range strings.Split(elems[1], " ") {
+			p, ok := ProtocolValueMap[v]
+			if !ok {
+				continue
+			}
+			items = append(items, NewFlowSpecComponentItem(eq, int(p)))
+		}
+	}
+	items = append(items, NewFlowSpecComponentItem(eq, int(ProtocolValueMap[elems[4]])))
+	return NewFlowSpecComponent(FLOW_SPEC_TYPE_IP_PROTO, items), nil
+}
+
+func flowSpecTcpFlagParser(args []string) (FlowSpecComponentInterface, error) {
+	ss := make([]string, 0, len(TCPFlagNameMap))
+	for _, v := range TCPFlagNameMap {
+		ss = append(ss, v)
+	}
+	protos := strings.Join(ss, "|")
+	exp := regexp.MustCompile(fmt.Sprintf("^%s (((%s) )*)(%s)$", FlowSpecNameMap[FLOW_SPEC_TYPE_TCP_FLAG], protos, protos))
+	elems := exp.FindStringSubmatch(strings.Join(args, " "))
+	items := make([]*FlowSpecComponentItem, 0)
+	if elems[1] != "" {
+		for _, v := range strings.Split(elems[1], " ") {
+			p, ok := TCPFlagValueMap[v]
+			if !ok {
+				continue
+			}
+			items = append(items, NewFlowSpecComponentItem(0, int(p)))
+		}
+	}
+	items = append(items, NewFlowSpecComponentItem(0, int(TCPFlagValueMap[elems[4]])))
+	return NewFlowSpecComponent(FLOW_SPEC_TYPE_TCP_FLAG, items), nil
+}
+
+func flowSpecNumericParser(args []string) (FlowSpecComponentInterface, error) {
+	exp := regexp.MustCompile("^((<=|>=|[<>=])(\\d+)&)?(<=|>=|[<>=])(\\d+)$")
+	items := make([]*FlowSpecComponentItem, 0)
+
+	f := func(and bool, o, v string) *FlowSpecComponentItem {
+		op := 0
+		if and {
+			op |= 0x40
+		}
+		for _, oo := range o {
+			switch oo {
+			case '>':
+				op |= 0x2
+			case '<':
+				op |= 0x4
+			case '=':
+				op |= 0x1
+			}
+		}
+		value, err := strconv.Atoi(v)
+		if err != nil {
+			return nil
+		}
+		return NewFlowSpecComponentItem(op, value)
+	}
+
+	for _, arg := range args[1:] {
+		var and bool
+		elems := exp.FindStringSubmatch(arg)
+		if elems[1] != "" {
+			and = true
+			items = append(items, f(false, elems[2], elems[3]))
+		}
+		items = append(items, f(and, elems[4], elems[5]))
+
+	}
+	return NewFlowSpecComponent(FlowSpecValueMap[args[0]], items), nil
+}
+
+func flowSpecFragmentParser(args []string) (FlowSpecComponentInterface, error) {
+	if len(args) < 2 {
+		return nil, fmt.Errorf("invalid flowspec fragment specifier")
+	}
+	value := 0
+	switch args[1] {
+	case "not-a-fragment":
+		value = 0x1
+	case "is-a-fragment":
+		value = 0x2
+	case "first-fragment":
+		value = 0x4
+	case "last-fragment":
+		value = 0x8
+	default:
+		return nil, fmt.Errorf("invalid flowspec fragment specifier")
+	}
+	items := []*FlowSpecComponentItem{NewFlowSpecComponentItem(0, value)}
+	return NewFlowSpecComponent(FlowSpecValueMap[args[0]], items), nil
+}
+
+var flowSpecParserMap = map[BGPFlowSpecType]func([]string) (FlowSpecComponentInterface, error){
+	FLOW_SPEC_TYPE_DST_PREFIX: flowSpecPrefixParser,
+	FLOW_SPEC_TYPE_SRC_PREFIX: flowSpecPrefixParser,
+	FLOW_SPEC_TYPE_IP_PROTO:   flowSpecIpProtoParser,
+	FLOW_SPEC_TYPE_PORT:       flowSpecNumericParser,
+	FLOW_SPEC_TYPE_DST_PORT:   flowSpecNumericParser,
+	FLOW_SPEC_TYPE_SRC_PORT:   flowSpecNumericParser,
+	FLOW_SPEC_TYPE_ICMP_TYPE:  flowSpecNumericParser,
+	FLOW_SPEC_TYPE_ICMP_CODE:  flowSpecNumericParser,
+	FLOW_SPEC_TYPE_TCP_FLAG:   flowSpecTcpFlagParser,
+	FLOW_SPEC_TYPE_PKT_LEN:    flowSpecNumericParser,
+	FLOW_SPEC_TYPE_DSCP:       flowSpecNumericParser,
+	FLOW_SPEC_TYPE_FRAGMENT:   flowSpecFragmentParser,
+}
+
+func ParseFlowSpecComponents(input string) ([]FlowSpecComponentInterface, error) {
+	idxs := make([]struct {
+		t BGPFlowSpecType
+		i int
+	}, 0, 8)
+	args := strings.Split(input, " ")
+	for idx, v := range args {
+		if t, ok := FlowSpecValueMap[v]; ok {
+			idxs = append(idxs, struct {
+				t BGPFlowSpecType
+				i int
+			}{t, idx})
+		}
+	}
+	if len(idxs) == 0 {
+		return nil, fmt.Errorf("failed to parse: %s", input)
+	}
+	cmps := make([]FlowSpecComponentInterface, 0, len(idxs))
+	for i, idx := range idxs {
+		var a []string
+		f := flowSpecParserMap[idx.t]
+		if i < len(idxs)-1 {
+			a = args[idx.i:idxs[i+1].i]
+		} else {
+			a = args[idx.i:]
+		}
+		cmp, err := f(a)
+		if err != nil {
+			return nil, err
+		}
+		cmps = append(cmps, cmp)
+	}
+	return cmps, nil
+}
+
+func (t BGPFlowSpecType) String() string {
+	name, ok := FlowSpecNameMap[t]
+	if !ok {
+		return fmt.Sprintf("%s(%d)", FlowSpecNameMap[FLOW_SPEC_TYPE_UNKNOWN], t)
+	}
+	return name
+}
+
+type FlowSpecComponentInterface interface {
+	DecodeFromBytes([]byte) error
+	Serialize() ([]byte, error)
+	Len() int
+	Type() BGPFlowSpecType
+	String() string
+}
+
+type flowSpecPrefix struct {
+	Prefix AddrPrefixInterface
+	type_  BGPFlowSpecType
+}
+
+func (p *flowSpecPrefix) DecodeFromBytes(data []byte) error {
+	p.type_ = BGPFlowSpecType(data[0])
+	return p.Prefix.DecodeFromBytes(data[1:])
+}
+
+func (p *flowSpecPrefix) Serialize() ([]byte, error) {
+	buf := []byte{byte(p.Type())}
+	bbuf, err := p.Prefix.Serialize()
+	if err != nil {
+		return nil, err
+	}
+	return append(buf, bbuf...), nil
+}
+
+func (p *flowSpecPrefix) Len() int {
+	l := p.Prefix.Len()
+	if l < 0xf0 {
+		return l + 1
+	} else {
+		return l + 2
+	}
+}
+
+func (p *flowSpecPrefix) Type() BGPFlowSpecType {
+	return p.type_
+}
+
+func (p *flowSpecPrefix) String() string {
+	return fmt.Sprintf("[%s:%s]", p.Type(), p.Prefix.String())
+}
+
+type FlowSpecDestinationPrefix struct {
+	flowSpecPrefix
+}
+
+func NewFlowSpecDestinationPrefix(prefix AddrPrefixInterface) *FlowSpecDestinationPrefix {
+	return &FlowSpecDestinationPrefix{flowSpecPrefix{prefix, FLOW_SPEC_TYPE_DST_PREFIX}}
+}
+
+type FlowSpecSourcePrefix struct {
+	flowSpecPrefix
+}
+
+func NewFlowSpecSourcePrefix(prefix AddrPrefixInterface) *FlowSpecSourcePrefix {
+	return &FlowSpecSourcePrefix{flowSpecPrefix{prefix, FLOW_SPEC_TYPE_SRC_PREFIX}}
+}
+
+type FlowSpecComponentItem struct {
+	Op    int
+	Value int
+}
+
+func (v *FlowSpecComponentItem) Serialize() ([]byte, error) {
+	if v.Value < 0 {
+		return nil, fmt.Errorf("invalid value size(too small): %d", v.Value)
+	}
+	if v.Op < 0 || v.Op > math.MaxUint8 {
+		return nil, fmt.Errorf("invalid op size: %d", v.Op)
+	}
+
+	for i := 0; i < 3; i++ {
+		if v.Value < (1 << ((1 << uint(i)) * 8)) {
+			buf := make([]byte, 1+(1<<uint(i)))
+			switch i {
+			case 0:
+				buf[1] = byte(v.Value)
+				v.Op &^= 0x30
+			case 1:
+				binary.BigEndian.PutUint16(buf[1:], uint16(v.Value))
+				v.Op |= 0x10
+				v.Op &^= 0x20
+			case 2:
+				binary.BigEndian.PutUint32(buf[1:], uint32(v.Value))
+				v.Op &^= 0x10
+				v.Op |= 0x20
+			case 3:
+				binary.BigEndian.PutUint64(buf[1:], uint64(v.Value))
+				v.Op |= 0x30
+			}
+			buf[0] = byte(v.Op)
+			return buf, nil
+		}
+	}
+	return nil, fmt.Errorf("invalid value size(too big): %d", v.Value)
+}
+
+func NewFlowSpecComponentItem(op int, value int) *FlowSpecComponentItem {
+	return &FlowSpecComponentItem{op, value}
+}
+
+type FlowSpecComponent struct {
+	Items []*FlowSpecComponentItem
+	type_ BGPFlowSpecType
+}
+
+func (p *FlowSpecComponent) DecodeFromBytes(data []byte) error {
+	p.type_ = BGPFlowSpecType(data[0])
+	data = data[1:]
+	p.Items = make([]*FlowSpecComponentItem, 0)
+	for {
+		if len(data) < 2 {
+			return fmt.Errorf("not all flowspec component bytes available")
+		}
+		op := data[0]
+		end := op & 0x80
+		l := 1 << ((op >> 4) & 0x3) // (min, max) = (1, 8)
+		v := make([]byte, 8)
+		copy(v[8-l:], data[1:1+l])
+		i := int(binary.BigEndian.Uint64(v))
+		item := &FlowSpecComponentItem{int(op), i}
+		p.Items = append(p.Items, item)
+		if end > 0 {
+			break
+		}
+		data = data[1+l:]
+	}
+	return nil
+}
+
+func (p *FlowSpecComponent) Serialize() ([]byte, error) {
+	buf := []byte{byte(p.Type())}
+	for i, v := range p.Items {
+		//set end-of-list bit
+		if i == (len(p.Items) - 1) {
+			v.Op |= 0x80
+		} else {
+			v.Op &^= 0x80
+		}
+		bbuf, err := v.Serialize()
+		if err != nil {
+			return nil, err
+		}
+		buf = append(buf, bbuf...)
+	}
+	return buf, nil
+}
+
+func (p *FlowSpecComponent) Len() int {
+	buf, _ := p.Serialize()
+	return len(buf)
+}
+
+func (p *FlowSpecComponent) Type() BGPFlowSpecType {
+	return p.type_
+}
+
+func formatRaw(op int, value int) string {
+	return fmt.Sprintf("op: %b, value: %d", op, value)
+}
+
+func formatNumericOp(op int) string {
+	var opstr string
+	if op&0x40 > 0 {
+		opstr = "&"
+	} else {
+		opstr = " "
+	}
+	if op&0x2 > 0 {
+		opstr += ">"
+	}
+	if op&0x4 > 0 {
+		opstr += "<"
+	}
+	if op&0x1 > 0 {
+		opstr += "="
+	}
+	return opstr
+}
+
+func formatNumeric(op int, value int) string {
+	return fmt.Sprintf("%s%d", formatNumericOp(op), value)
+}
+
+func formatProto(op int, value int) string {
+	return fmt.Sprintf(" %s", Protocol(value).String())
+}
+
+func formatFlag(op int, value int) string {
+	and := " "
+	ss := make([]string, 0, 2)
+	if op&0x40 > 0 {
+		and = "&"
+	}
+	if op&0x1 > 0 {
+		ss = append(ss, "match")
+	}
+	if op&0x2 > 0 {
+		ss = append(ss, "not")
+	}
+	if len(ss) > 0 {
+		return fmt.Sprintf("%s(%s)%s", and, strings.Join(ss, "|"), TCPFlag(value).String())
+	}
+	return fmt.Sprintf("%s%s", and, TCPFlag(value).String())
+}
+
+func formatFragment(op int, value int) string {
+	ss := make([]string, 0, 4)
+	if value&0x1 > 0 {
+		ss = append(ss, "not-a-fragment")
+	}
+	if value&0x2 > 0 {
+		ss = append(ss, "is-a-fragment")
+	}
+	if value&0x4 > 0 {
+		ss = append(ss, "first-fragment")
+	}
+	if value&0x8 > 0 {
+		ss = append(ss, "last-fragment")
+	}
+	if len(ss) > 1 {
+		return fmt.Sprintf("%s(%s)", formatNumericOp(op), strings.Join(ss, "|"))
+	}
+	return fmt.Sprintf("%s%s", formatNumericOp(op), ss[0])
+}
+
+var flowSpecFormatMap = map[BGPFlowSpecType]func(op int, value int) string{
+	FLOW_SPEC_TYPE_UNKNOWN:   formatRaw,
+	FLOW_SPEC_TYPE_IP_PROTO:  formatProto,
+	FLOW_SPEC_TYPE_PORT:      formatNumeric,
+	FLOW_SPEC_TYPE_DST_PORT:  formatNumeric,
+	FLOW_SPEC_TYPE_SRC_PORT:  formatNumeric,
+	FLOW_SPEC_TYPE_ICMP_TYPE: formatNumeric,
+	FLOW_SPEC_TYPE_ICMP_CODE: formatNumeric,
+	FLOW_SPEC_TYPE_TCP_FLAG:  formatFlag,
+	FLOW_SPEC_TYPE_PKT_LEN:   formatNumeric,
+	FLOW_SPEC_TYPE_DSCP:      formatNumeric,
+	FLOW_SPEC_TYPE_FRAGMENT:  formatFragment,
+}
+
+func (p *FlowSpecComponent) String() string {
+	var f func(op int, value int) string
+	if _, ok := flowSpecFormatMap[p.Type()]; !ok {
+		f = flowSpecFormatMap[FLOW_SPEC_TYPE_UNKNOWN]
+	}
+	f = flowSpecFormatMap[p.Type()]
+	buf := bytes.NewBuffer(make([]byte, 0, 32))
+	for _, i := range p.Items {
+		buf.WriteString(f(i.Op, i.Value))
+	}
+	return fmt.Sprintf("[%s:%s]", p.type_, buf.String())
+}
+
+func NewFlowSpecComponent(type_ BGPFlowSpecType, items []*FlowSpecComponentItem) *FlowSpecComponent {
+	return &FlowSpecComponent{
+		Items: items,
+		type_: type_,
+	}
+}
+
+type FlowSpecUnknown struct {
+	Value []byte
+}
+
+func (p *FlowSpecUnknown) DecodeFromBytes(data []byte) error {
+	p.Value = data
+	return nil
+}
+
+func (p *FlowSpecUnknown) Serialize() ([]byte, error) {
+	return p.Value, nil
+}
+
+func (p *FlowSpecUnknown) Len() int {
+	return len(p.Value)
+}
+
+func (p *FlowSpecUnknown) Type() BGPFlowSpecType {
+	if len(p.Value) > 0 {
+		return BGPFlowSpecType(p.Value[0])
+	}
+	return FLOW_SPEC_TYPE_UNKNOWN
+}
+
+func (p *FlowSpecUnknown) String() string {
+	return fmt.Sprintf("[unknown:%v]", p.Value)
+}
+
+type FlowSpecNLRI struct {
+	Value []FlowSpecComponentInterface
+	rf    RouteFamily
+}
+
+func (n *FlowSpecNLRI) decodeFromBytes(rf RouteFamily, data []byte) error {
+	var length int
+	if (data[0] >> 4) == 0xf {
+		length = int(binary.BigEndian.Uint16(data[0:2]))
+		data = data[2:]
+	} else {
+		length = int(data[0])
+		data = data[1:]
+	}
+
+	n.rf = rf
+
+	for l := length; l > 0; {
+		t := BGPFlowSpecType(data[0])
+		var i FlowSpecComponentInterface
+		switch t {
+		case FLOW_SPEC_TYPE_DST_PREFIX:
+			p := &FlowSpecDestinationPrefix{}
+			switch rf {
+			case RF_FS_IPv4_UC:
+				p.Prefix = &IPAddrPrefix{}
+			case RF_FS_IPv4_VPN:
+				p.Prefix = &LabeledVPNIPAddrPrefix{}
+			default:
+				return fmt.Errorf("Invalid RF: %v", rf)
+			}
+			i = p
+		case FLOW_SPEC_TYPE_SRC_PREFIX:
+			p := &FlowSpecSourcePrefix{}
+			switch rf {
+			case RF_FS_IPv4_UC:
+				p.Prefix = &IPAddrPrefix{}
+			case RF_FS_IPv4_VPN:
+				p.Prefix = &LabeledVPNIPAddrPrefix{}
+			default:
+				return fmt.Errorf("Invalid RF: %v", rf)
+			}
+			i = p
+		case FLOW_SPEC_TYPE_IP_PROTO, FLOW_SPEC_TYPE_PORT, FLOW_SPEC_TYPE_DST_PORT, FLOW_SPEC_TYPE_SRC_PORT,
+			FLOW_SPEC_TYPE_ICMP_TYPE, FLOW_SPEC_TYPE_ICMP_CODE, FLOW_SPEC_TYPE_TCP_FLAG, FLOW_SPEC_TYPE_PKT_LEN,
+			FLOW_SPEC_TYPE_DSCP, FLOW_SPEC_TYPE_FRAGMENT:
+			i = NewFlowSpecComponent(t, nil)
+		default:
+			i = &FlowSpecUnknown{}
+		}
+
+		err := i.DecodeFromBytes(data)
+		if err != nil {
+			i = &FlowSpecUnknown{data}
+		}
+		l -= i.Len()
+		data = data[i.Len():]
+		n.Value = append(n.Value, i)
+	}
+
+	return nil
+}
+
+func (n *FlowSpecNLRI) Serialize() ([]byte, error) {
+	buf := make([]byte, 0, 32)
+	for _, v := range n.Value {
+		b, err := v.Serialize()
+		if err != nil {
+			return nil, err
+		}
+		buf = append(buf, b...)
+	}
+	length := n.Len()
+	if length > 0xfff {
+		return nil, fmt.Errorf("Too large: %d", length)
+	} else if length < 0xf0 {
+		length -= 1
+		buf = append([]byte{byte(length)}, buf...)
+	} else {
+		length -= 2
+		b := make([]byte, 2)
+		binary.BigEndian.PutUint16(buf, uint16(length))
+		buf = append(b, buf...)
+	}
+
+	return buf, nil
+}
+
+func (n *FlowSpecNLRI) Len() int {
+	l := 0
+	for _, v := range n.Value {
+		l += v.Len()
+	}
+	if l < 0xf0 {
+		return l + 1
+	} else {
+		return l + 2
+	}
+}
+
+func (n *FlowSpecNLRI) String() string {
+	buf := bytes.NewBuffer(make([]byte, 0, 32))
+	for _, v := range n.Value {
+		buf.WriteString(v.String())
+	}
+	return buf.String()
+}
+
+func (n *FlowSpecNLRI) MarshalJSON() ([]byte, error) {
+	return json.Marshal(struct {
+		Value []FlowSpecComponentInterface `json:"value"`
+	}{
+		Value: n.Value,
+	})
+}
+
+type FlowSpecIPv4Unicast struct {
+	FlowSpecNLRI
+}
+
+func (n *FlowSpecIPv4Unicast) DecodeFromBytes(data []byte) error {
+	return n.decodeFromBytes(AfiSafiToRouteFamily(n.AFI(), n.SAFI()), data)
+}
+
+func (n *FlowSpecIPv4Unicast) AFI() uint16 {
+	return AFI_IP
+}
+
+func (n *FlowSpecIPv4Unicast) SAFI() uint8 {
+	return SAFI_FLOW_SPEC_UNICAST
+}
+
+func NewFlowSpecIPv4Unicast(value []FlowSpecComponentInterface) *FlowSpecIPv4Unicast {
+	return &FlowSpecIPv4Unicast{FlowSpecNLRI{value, RF_FS_IPv4_UC}}
+}
+
+type FlowSpecIPv4VPN struct {
+	FlowSpecNLRI
+}
+
+func (n *FlowSpecIPv4VPN) DecodeFromBytes(data []byte) error {
+	return n.decodeFromBytes(AfiSafiToRouteFamily(n.AFI(), n.SAFI()), data)
+}
+
+func (n *FlowSpecIPv4VPN) AFI() uint16 {
+	return AFI_IP
+}
+
+func (n *FlowSpecIPv4VPN) SAFI() uint8 {
+	return SAFI_FLOW_SPEC_VPN
+}
+
+func NewFlowSpecIPv4VPN(value []FlowSpecComponentInterface) *FlowSpecIPv4VPN {
+	return &FlowSpecIPv4VPN{FlowSpecNLRI{value, RF_FS_IPv4_VPN}}
+}
 func AfiSafiToRouteFamily(afi uint16, safi uint8) RouteFamily {
 	return RouteFamily(int(afi)<<16 | int(safi))
 }
@@ -1787,6 +2490,8 @@ const (
 	RF_EVPN        RouteFamily = AFI_L2VPN<<16 | SAFI_EVPN
 	RF_RTC_UC      RouteFamily = AFI_IP<<16 | SAFI_ROUTE_TARGET_CONSTRTAINS
 	RF_ENCAP       RouteFamily = AFI_IP<<16 | SAFI_ENCAPSULATION
+	RF_FS_IPv4_UC  RouteFamily = AFI_IP<<16 | SAFI_FLOW_SPEC_UNICAST
+	RF_FS_IPv4_VPN RouteFamily = AFI_IP<<16 | SAFI_FLOW_SPEC_VPN
 )
 
 func GetRouteFamily(name string) (RouteFamily, error) {
@@ -1819,6 +2524,10 @@ func GetRouteFamily(name string) (RouteFamily, error) {
 		return RF_RTC_UC, nil
 	case "encap":
 		return RF_ENCAP, nil
+	case "ipv4-flowspec":
+		return RF_FS_IPv4_UC, nil
+	case "l3vpn-ipv4-flowspec":
+		return RF_FS_IPv4_VPN, nil
 	}
 	return RouteFamily(0), fmt.Errorf("%s isn't a valid route family name", name)
 }
@@ -1843,6 +2552,10 @@ func NewPrefixFromRouteFamily(afi uint16, safi uint8) (prefix AddrPrefixInterfac
 		prefix = &RouteTargetMembershipNLRI{}
 	case RF_ENCAP:
 		prefix = NewEncapNLRI("")
+	case RF_FS_IPv4_UC:
+		prefix = &FlowSpecIPv4Unicast{}
+	case RF_FS_IPv4_VPN:
+		prefix = &FlowSpecIPv4VPN{}
 	default:
 		return nil, fmt.Errorf("unknown route family. AFI: %d, SAFI: %d", afi, safi)
 	}
@@ -1859,7 +2572,7 @@ const (
 )
 
 func (f BGPAttrFlag) String() string {
-	var strs []string = make([]string, 0, 4)
+	strs := make([]string, 0, 4)
 	if f&BGP_ATTR_FLAG_EXTENDED_LENGTH > 0 {
 		strs = append(strs, "EXTENDED_LENGTH")
 	}
@@ -2001,7 +2714,8 @@ type PathAttributeInterface interface {
 	Len() int
 	getFlags() BGPAttrFlag
 	GetType() BGPAttrType
-	ToApiStruct() *api.PathAttr
+	String() string
+	MarshalJSON() ([]byte, error)
 }
 
 type PathAttribute struct {
@@ -2012,6 +2726,9 @@ type PathAttribute struct {
 }
 
 func (p *PathAttribute) Len() int {
+	if p.Length == 0 {
+		p.Length = uint16(len(p.Value))
+	}
 	l := 2 + p.Length
 	if p.Flags&BGP_ATTR_FLAG_EXTENDED_LENGTH != 0 {
 		l += 2
@@ -2086,19 +2803,45 @@ func (p *PathAttribute) Serialize() ([]byte, error) {
 	return buf, nil
 }
 
+func (p *PathAttribute) String() string {
+	return fmt.Sprintf("%s %s %s", p.Type, p.Flags, []byte(p.Value))
+}
+
+func (p *PathAttribute) MarshalJSON() ([]byte, error) {
+	return json.Marshal(struct {
+		Type  BGPAttrType `json:"type"`
+		Value []byte      `json:"value"`
+	}{
+		Type:  p.GetType(),
+		Value: p.Value,
+	})
+}
+
 type PathAttributeOrigin struct {
 	PathAttribute
 }
 
-func (p *PathAttributeOrigin) ToApiStruct() *api.PathAttr {
-	return &api.PathAttr{
-		Type:   api.BGP_ATTR_TYPE_ORIGIN,
-		Origin: api.Origin(uint8(p.Value[0])),
+func (p *PathAttributeOrigin) String() string {
+	typ := "-"
+	switch p.Value[0] {
+	case BGP_ORIGIN_ATTR_TYPE_IGP:
+		typ = "i"
+	case BGP_ORIGIN_ATTR_TYPE_EGP:
+		typ = "e"
+	case BGP_ORIGIN_ATTR_TYPE_INCOMPLETE:
+		typ = "?"
 	}
+	return fmt.Sprintf("{Origin: %s}", typ)
 }
 
 func (p *PathAttributeOrigin) MarshalJSON() ([]byte, error) {
-	return json.Marshal(p.ToApiStruct())
+	return json.Marshal(struct {
+		Type  BGPAttrType `json:"type"`
+		Value uint8       `json:"value"`
+	}{
+		Type:  p.GetType(),
+		Value: p.Value[0],
+	})
 }
 
 func NewPathAttributeOrigin(value uint8) *PathAttributeOrigin {
@@ -2111,6 +2854,14 @@ func NewPathAttributeOrigin(value uint8) *PathAttributeOrigin {
 			Value: []byte{byte(value)},
 		},
 	}
+}
+
+type AsPathParamInterface interface {
+	Serialize() ([]byte, error)
+	DecodeFromBytes([]byte) error
+	Len() int
+	ASLen() int
+	MarshalJSON() ([]byte, error)
 }
 
 type AsPathParam struct {
@@ -2162,6 +2913,18 @@ func (a *AsPathParam) ASLen() int {
 		return 0
 	}
 	return 0
+}
+
+func (a *AsPathParam) MarshalJSON() ([]byte, error) {
+	return json.Marshal(struct {
+		Type uint8    `json:"segment_type"`
+		Num  uint8    `json:"num"`
+		AS   []uint16 `json:"asns"`
+	}{
+		Type: a.Type,
+		Num:  a.Num,
+		AS:   a.AS,
+	})
 }
 
 func NewAsPathParam(segType uint8, as []uint16) *AsPathParam {
@@ -2223,6 +2986,18 @@ func (a *As4PathParam) ASLen() int {
 	return 0
 }
 
+func (a *As4PathParam) MarshalJSON() ([]byte, error) {
+	return json.Marshal(struct {
+		Type uint8    `json:"segment_type"`
+		Num  uint8    `json:"num"`
+		AS   []uint32 `json:"asns"`
+	}{
+		Type: a.Type,
+		Num:  a.Num,
+		AS:   a.AS,
+	})
+}
+
 func NewAs4PathParam(segType uint8, as []uint32) *As4PathParam {
 	return &As4PathParam{
 		Type: segType,
@@ -2280,13 +3055,6 @@ func (p *DefaultAsPath) isValidAspath(data []byte) (bool, error) {
 	return false, NewMessageError(eCode, eSubCode, nil, "can't parse AS_PATH")
 }
 
-type AsPathParamInterface interface {
-	Serialize() ([]byte, error)
-	DecodeFromBytes([]byte) error
-	Len() int
-	ASLen() int
-}
-
 type PathAttributeAsPath struct {
 	DefaultAsPath
 	PathAttribute
@@ -2341,33 +3109,14 @@ func (p *PathAttributeAsPath) Serialize() ([]byte, error) {
 	return p.PathAttribute.Serialize()
 }
 
-func (p *PathAttributeAsPath) ToApiStruct() *api.PathAttr {
-	aspaths := make([]*api.AsPath, 0)
-	for _, a := range p.Value {
-		path, y := a.(*As4PathParam)
-		aspath := &api.AsPath{}
-		if y {
-			aspath.Asns = path.AS
-			aspath.SegmentType = uint32(path.Type)
-		} else {
-			path := a.(*AsPathParam)
-			asns := make([]uint32, 0)
-			for _, v := range path.AS {
-				asns = append(asns, uint32(v))
-			}
-			aspath.Asns = asns
-			aspath.SegmentType = uint32(path.Type)
-		}
-		aspaths = append(aspaths, aspath)
-	}
-	return &api.PathAttr{
-		Type:    api.BGP_ATTR_TYPE_AS_PATH,
-		AsPaths: aspaths,
-	}
-}
-
 func (p *PathAttributeAsPath) MarshalJSON() ([]byte, error) {
-	return json.Marshal(p.ToApiStruct())
+	return json.Marshal(struct {
+		Type  BGPAttrType            `json:"type"`
+		Value []AsPathParamInterface `json:"as_paths"`
+	}{
+		Type:  p.GetType(),
+		Value: p.Value,
+	})
 }
 
 func NewPathAttributeAsPath(value []AsPathParamInterface) *PathAttributeAsPath {
@@ -2405,15 +3154,18 @@ func (p *PathAttributeNextHop) Serialize() ([]byte, error) {
 	return p.PathAttribute.Serialize()
 }
 
-func (p *PathAttributeNextHop) ToApiStruct() *api.PathAttr {
-	return &api.PathAttr{
-		Type:    api.BGP_ATTR_TYPE_NEXT_HOP,
-		Nexthop: p.Value.String(),
-	}
+func (p *PathAttributeNextHop) String() string {
+	return fmt.Sprintf("{Nexthop: %s}", p.Value)
 }
 
 func (p *PathAttributeNextHop) MarshalJSON() ([]byte, error) {
-	return json.Marshal(p.ToApiStruct())
+	return json.Marshal(struct {
+		Type  BGPAttrType `json:"type"`
+		Value string      `json:"nexthop"`
+	}{
+		Type:  p.GetType(),
+		Value: p.Value.String(),
+	})
 }
 
 func NewPathAttributeNextHop(value string) *PathAttributeNextHop {
@@ -2453,15 +3205,18 @@ func (p *PathAttributeMultiExitDisc) Serialize() ([]byte, error) {
 	return p.PathAttribute.Serialize()
 }
 
-func (p *PathAttributeMultiExitDisc) ToApiStruct() *api.PathAttr {
-	return &api.PathAttr{
-		Type:   api.BGP_ATTR_TYPE_MULTI_EXIT_DISC,
-		Metric: p.Value,
-	}
+func (p *PathAttributeMultiExitDisc) String() string {
+	return fmt.Sprintf("{Med: %d}", p.Value)
 }
 
 func (p *PathAttributeMultiExitDisc) MarshalJSON() ([]byte, error) {
-	return json.Marshal(p.ToApiStruct())
+	return json.Marshal(struct {
+		Type  BGPAttrType `json:"type"`
+		Value uint32      `json:"metric"`
+	}{
+		Type:  p.GetType(),
+		Value: p.Value,
+	})
 }
 
 func NewPathAttributeMultiExitDisc(value uint32) *PathAttributeMultiExitDisc {
@@ -2501,15 +3256,18 @@ func (p *PathAttributeLocalPref) Serialize() ([]byte, error) {
 	return p.PathAttribute.Serialize()
 }
 
-func (p *PathAttributeLocalPref) ToApiStruct() *api.PathAttr {
-	return &api.PathAttr{
-		Type: api.BGP_ATTR_TYPE_LOCAL_PREF,
-		Pref: p.Value,
-	}
+func (p *PathAttributeLocalPref) String() string {
+	return fmt.Sprintf("{LocalPref: %d}", p.Value)
 }
 
 func (p *PathAttributeLocalPref) MarshalJSON() ([]byte, error) {
-	return json.Marshal(p.ToApiStruct())
+	return json.Marshal(struct {
+		Type  BGPAttrType `json:"type"`
+		Value uint32      `json:"value"`
+	}{
+		Type:  p.GetType(),
+		Value: p.Value,
+	})
 }
 
 func NewPathAttributeLocalPref(value uint32) *PathAttributeLocalPref {
@@ -2527,14 +3285,16 @@ type PathAttributeAtomicAggregate struct {
 	PathAttribute
 }
 
-func (p *PathAttributeAtomicAggregate) ToApiStruct() *api.PathAttr {
-	return &api.PathAttr{
-		Type: api.BGP_ATTR_TYPE_ATOMIC_AGGREGATE,
-	}
+func (p *PathAttributeAtomicAggregate) String() string {
+	return "{AtomicAggregate}"
 }
 
 func (p *PathAttributeAtomicAggregate) MarshalJSON() ([]byte, error) {
-	return json.Marshal(p.ToApiStruct())
+	return json.Marshal(struct {
+		Type BGPAttrType `json:"type"`
+	}{
+		Type: p.GetType(),
+	})
 }
 
 func NewPathAttributeAtomicAggregate() *PathAttributeAtomicAggregate {
@@ -2597,18 +3357,20 @@ func (p *PathAttributeAggregator) Serialize() ([]byte, error) {
 	return p.PathAttribute.Serialize()
 }
 
-func (p *PathAttributeAggregator) ToApiStruct() *api.PathAttr {
-	return &api.PathAttr{
-		Type: api.BGP_ATTR_TYPE_AGGREGATOR,
-		Aggregator: &api.Aggregator{
-			As:      p.Value.AS,
-			Address: p.Value.Address.String(),
-		},
-	}
+func (p *PathAttributeAggregator) String() string {
+	return fmt.Sprintf("{Aggregate: {AS: %d, Address: %s}}", p.Value.AS, p.Value.Address)
 }
 
 func (p *PathAttributeAggregator) MarshalJSON() ([]byte, error) {
-	return json.Marshal(p.ToApiStruct())
+	return json.Marshal(struct {
+		Type    BGPAttrType `json:"type"`
+		AS      uint32      `json:"as"`
+		Address string      `json:"address"`
+	}{
+		Type:    p.GetType(),
+		AS:      p.Value.AS,
+		Address: p.Value.Address.String(),
+	})
 }
 
 func NewPathAttributeAggregator(as interface{}, address string) *PathAttributeAggregator {
@@ -2659,15 +3421,49 @@ func (p *PathAttributeCommunities) Serialize() ([]byte, error) {
 	return p.PathAttribute.Serialize()
 }
 
-func (p *PathAttributeCommunities) ToApiStruct() *api.PathAttr {
-	return &api.PathAttr{
-		Type:       api.BGP_ATTR_TYPE_COMMUNITIES,
-		Communites: p.Value,
+func (p *PathAttributeCommunities) String() string {
+	l := []string{}
+	for _, v := range p.Value {
+		switch v {
+		case 0xffff0000:
+			l = append(l, "planned-shut")
+		case 0xffff0001:
+			l = append(l, "accept-own")
+		case 0xffff0002:
+			l = append(l, "ROUTE_FILTER_TRANSLATED_v4")
+		case 0xffff0003:
+			l = append(l, "ROUTE_FILTER_v4")
+		case 0xffff0004:
+			l = append(l, "ROUTE_FILTER_TRANSLATED_v6")
+		case 0xffff0005:
+			l = append(l, "ROUTE_FILTER_v6")
+		case 0xffff0006:
+			l = append(l, "LLGR_STALE")
+		case 0xffff0007:
+			l = append(l, "NO_LLGR")
+		case 0xffffff01:
+			l = append(l, "NO_EXPORT")
+		case 0xffffff02:
+			l = append(l, "NO_ADVERTISE")
+		case 0xffffff03:
+			l = append(l, "NO_EXPORT_SUBCONFED")
+		case 0xffffff04:
+			l = append(l, "NO_PEER")
+		default:
+			l = append(l, fmt.Sprintf("%d:%d", (0xffff0000&v)>>16, 0xffff&v))
+		}
 	}
+	return fmt.Sprintf("{Communities: %s}", strings.Join(l, ", "))
 }
 
 func (p *PathAttributeCommunities) MarshalJSON() ([]byte, error) {
-	return json.Marshal(p.ToApiStruct())
+	return json.Marshal(struct {
+		Type  BGPAttrType `json:"type"`
+		Value []uint32    `json:"communities"`
+	}{
+		Type:  p.GetType(),
+		Value: p.Value,
+	})
 }
 
 func NewPathAttributeCommunities(value []uint32) *PathAttributeCommunities {
@@ -2701,22 +3497,25 @@ func (p *PathAttributeOriginatorId) DecodeFromBytes(data []byte) error {
 	return nil
 }
 
+func (p *PathAttributeOriginatorId) String() string {
+	return fmt.Sprintf("{Originator: %s}", p.Value)
+}
+
+func (p *PathAttributeOriginatorId) MarshalJSON() ([]byte, error) {
+	return json.Marshal(struct {
+		Type  BGPAttrType `json:"type"`
+		Value string      `json:"value"`
+	}{
+		Type:  p.GetType(),
+		Value: p.Value.String(),
+	})
+}
+
 func (p *PathAttributeOriginatorId) Serialize() ([]byte, error) {
 	buf := make([]byte, 4)
 	copy(buf, p.Value)
 	p.PathAttribute.Value = buf
 	return p.PathAttribute.Serialize()
-}
-
-func (p *PathAttributeOriginatorId) ToApiStruct() *api.PathAttr {
-	return &api.PathAttr{
-		Type:       api.BGP_ATTR_TYPE_ORIGINATOR_ID,
-		Originator: p.Value.String(),
-	}
-}
-
-func (p *PathAttributeOriginatorId) MarshalJSON() ([]byte, error) {
-	return json.Marshal(p.ToApiStruct())
 }
 
 func NewPathAttributeOriginatorId(value string) *PathAttributeOriginatorId {
@@ -2763,19 +3562,22 @@ func (p *PathAttributeClusterList) Serialize() ([]byte, error) {
 	return p.PathAttribute.Serialize()
 }
 
-func (p *PathAttributeClusterList) ToApiStruct() *api.PathAttr {
-	l := make([]string, 0)
-	for _, addr := range p.Value {
-		l = append(l, addr.String())
-	}
-	return &api.PathAttr{
-		Type:    api.BGP_ATTR_TYPE_CLUSTER_LIST,
-		Cluster: l,
-	}
+func (p *PathAttributeClusterList) String() string {
+	return fmt.Sprintf("{ClusterList: %v}", p.Value)
 }
 
 func (p *PathAttributeClusterList) MarshalJSON() ([]byte, error) {
-	return json.Marshal(p.ToApiStruct())
+	value := make([]string, 0, len(p.Value))
+	for _, v := range p.Value {
+		value = append(value, v.String())
+	}
+	return json.Marshal(struct {
+		Type  BGPAttrType `json:"type"`
+		Value []string    `json:"value"`
+	}{
+		Type:  p.GetType(),
+		Value: value,
+	})
 }
 
 func NewPathAttributeClusterList(value []string) *PathAttributeClusterList {
@@ -2883,9 +3685,12 @@ func (p *PathAttributeMpReachNLRI) Serialize() ([]byte, error) {
 		nexthoplen = 16
 	}
 	offset := 0
-	if safi == SAFI_MPLS_VPN {
+	switch safi {
+	case SAFI_MPLS_VPN:
 		offset = 8
 		nexthoplen += 8
+	case SAFI_FLOW_SPEC_VPN, SAFI_FLOW_SPEC_UNICAST:
+		nexthoplen = 0
 	}
 	buf := make([]byte, 4+nexthoplen)
 	binary.BigEndian.PutUint16(buf[0:], afi)
@@ -2904,20 +3709,20 @@ func (p *PathAttributeMpReachNLRI) Serialize() ([]byte, error) {
 	return p.PathAttribute.Serialize()
 }
 
-func (p *PathAttributeMpReachNLRI) ToApiStruct() *api.PathAttr {
-	nlri := make([]*api.Nlri, 0, len(p.Value))
-	for _, v := range p.Value {
-		nlri = append(nlri, v.ToApiStruct())
-	}
-	return &api.PathAttr{
-		Type:    api.BGP_ATTR_TYPE_MP_REACH_NLRI,
-		Nexthop: p.Nexthop.String(),
-		Nlri:    nlri,
-	}
-}
-
 func (p *PathAttributeMpReachNLRI) MarshalJSON() ([]byte, error) {
-	return json.Marshal(p.ToApiStruct())
+	return json.Marshal(struct {
+		Type    BGPAttrType           `json:"type"`
+		Nexthop string                `json:"nexthop"`
+		AFI     uint16                `json:"afi"`
+		SAFI    uint8                 `json:"safi"`
+		Value   []AddrPrefixInterface `json:"value"`
+	}{
+		Type:    p.GetType(),
+		Nexthop: p.Nexthop.String(),
+		AFI:     p.AFI,
+		SAFI:    p.SAFI,
+		Value:   p.Value,
+	})
 }
 
 func NewPathAttributeMpReachNLRI(nexthop string, nlri []AddrPrefixInterface) *PathAttributeMpReachNLRI {
@@ -3002,16 +3807,6 @@ func (p *PathAttributeMpUnreachNLRI) Serialize() ([]byte, error) {
 	return p.PathAttribute.Serialize()
 }
 
-func (p *PathAttributeMpUnreachNLRI) ToApiStruct() *api.PathAttr {
-	return &api.PathAttr{
-		Type: api.BGP_ATTR_TYPE_MP_UNREACH_NLRI,
-	}
-}
-
-func (p *PathAttributeMpUnreachNLRI) MarshalJSON() ([]byte, error) {
-	return json.Marshal(p.ToApiStruct())
-}
-
 func NewPathAttributeMpUnreachNLRI(nlri []AddrPrefixInterface) *PathAttributeMpUnreachNLRI {
 	t := BGP_ATTR_TYPE_MP_UNREACH_NLRI
 	p := &PathAttributeMpUnreachNLRI{
@@ -3033,7 +3828,7 @@ type ExtendedCommunityInterface interface {
 	Serialize() ([]byte, error)
 	String() string
 	GetTypes() (ExtendedCommunityAttrType, ExtendedCommunityAttrSubType)
-	ToApiStruct() *api.ExtendedCommunity
+	MarshalJSON() ([]byte, error)
 }
 
 type TwoOctetAsSpecificExtended struct {
@@ -3060,6 +3855,19 @@ func (e *TwoOctetAsSpecificExtended) String() string {
 	return fmt.Sprintf("%d:%d", e.AS, e.LocalAdmin)
 }
 
+func (e *TwoOctetAsSpecificExtended) MarshalJSON() ([]byte, error) {
+	t, s := e.GetTypes()
+	return json.Marshal(struct {
+		Type    ExtendedCommunityAttrType    `json:"type"`
+		Subtype ExtendedCommunityAttrSubType `json:"subtype"`
+		Value   string                       `json:"value"`
+	}{
+		Type:    t,
+		Subtype: s,
+		Value:   e.String(),
+	})
+}
+
 func (e *TwoOctetAsSpecificExtended) GetTypes() (ExtendedCommunityAttrType, ExtendedCommunityAttrSubType) {
 	t := EC_TYPE_TRANSITIVE_TWO_OCTET_AS_SPECIFIC
 	if !e.IsTransitive {
@@ -3068,21 +3876,11 @@ func (e *TwoOctetAsSpecificExtended) GetTypes() (ExtendedCommunityAttrType, Exte
 	return t, e.SubType
 }
 
-func (e *TwoOctetAsSpecificExtended) ToApiStruct() *api.ExtendedCommunity {
-	return &api.ExtendedCommunity{
-		Type:         api.EXTENDED_COMMUNITIE_TYPE_TWO_OCTET_AS_SPECIFIC,
-		Subtype:      api.EXTENDED_COMMUNITIE_SUBTYPE(e.SubType),
-		IsTransitive: e.IsTransitive,
-		Asn:          uint32(e.AS),
-		LocalAdmin:   e.LocalAdmin,
-	}
-}
-
-func NewTwoOctetAsSpecificExtended(as uint16, rt uint32, isTransitive bool) *TwoOctetAsSpecificExtended {
+func NewTwoOctetAsSpecificExtended(subtype ExtendedCommunityAttrSubType, as uint16, localAdmin uint32, isTransitive bool) *TwoOctetAsSpecificExtended {
 	return &TwoOctetAsSpecificExtended{
-		SubType:      ExtendedCommunityAttrSubType(EC_SUBTYPE_ROUTE_TARGET),
+		SubType:      subtype,
 		AS:           as,
-		LocalAdmin:   rt,
+		LocalAdmin:   localAdmin,
 		IsTransitive: isTransitive,
 	}
 }
@@ -3111,6 +3909,19 @@ func (e *IPv4AddressSpecificExtended) String() string {
 	return fmt.Sprintf("%s:%d", e.IPv4.String(), e.LocalAdmin)
 }
 
+func (e *IPv4AddressSpecificExtended) MarshalJSON() ([]byte, error) {
+	t, s := e.GetTypes()
+	return json.Marshal(struct {
+		Type    ExtendedCommunityAttrType    `json:"type"`
+		Subtype ExtendedCommunityAttrSubType `json:"subtype"`
+		Value   string                       `json:"value"`
+	}{
+		Type:    t,
+		Subtype: s,
+		Value:   e.String(),
+	})
+}
+
 func (e *IPv4AddressSpecificExtended) GetTypes() (ExtendedCommunityAttrType, ExtendedCommunityAttrSubType) {
 	t := EC_TYPE_TRANSITIVE_IP4_SPECIFIC
 	if !e.IsTransitive {
@@ -3119,13 +3930,16 @@ func (e *IPv4AddressSpecificExtended) GetTypes() (ExtendedCommunityAttrType, Ext
 	return t, e.SubType
 }
 
-func (e *IPv4AddressSpecificExtended) ToApiStruct() *api.ExtendedCommunity {
-	return &api.ExtendedCommunity{
-		Type:         api.EXTENDED_COMMUNITIE_TYPE_IP4_SPECIFIC,
-		Subtype:      api.EXTENDED_COMMUNITIE_SUBTYPE(e.SubType),
-		IsTransitive: e.IsTransitive,
-		Ipv4:         e.IPv4.String(),
-		LocalAdmin:   uint32(e.LocalAdmin),
+func NewIPv4AddressSpecificExtended(subtype ExtendedCommunityAttrSubType, ip string, localAdmin uint16, isTransitive bool) *IPv4AddressSpecificExtended {
+	ipv4 := net.ParseIP(ip)
+	if ipv4.To4() == nil {
+		return nil
+	}
+	return &IPv4AddressSpecificExtended{
+		SubType:      subtype,
+		IPv4:         ipv4.To4(),
+		LocalAdmin:   localAdmin,
+		IsTransitive: isTransitive,
 	}
 }
 
@@ -3157,6 +3971,19 @@ func (e *FourOctetAsSpecificExtended) String() string {
 	return fmt.Sprintf("%d.%d:%d", asUpper, asLower, e.LocalAdmin)
 }
 
+func (e *FourOctetAsSpecificExtended) MarshalJSON() ([]byte, error) {
+	t, s := e.GetTypes()
+	return json.Marshal(struct {
+		Type    ExtendedCommunityAttrType    `json:"type"`
+		Subtype ExtendedCommunityAttrSubType `json:"subtype"`
+		Value   string                       `json:"value"`
+	}{
+		Type:    t,
+		Subtype: s,
+		Value:   e.String(),
+	})
+}
+
 func (e *FourOctetAsSpecificExtended) GetTypes() (ExtendedCommunityAttrType, ExtendedCommunityAttrSubType) {
 	t := EC_TYPE_TRANSITIVE_FOUR_OCTET_AS_SPECIFIC
 	if !e.IsTransitive {
@@ -3165,13 +3992,34 @@ func (e *FourOctetAsSpecificExtended) GetTypes() (ExtendedCommunityAttrType, Ext
 	return t, e.SubType
 }
 
-func (e *FourOctetAsSpecificExtended) ToApiStruct() *api.ExtendedCommunity {
-	return &api.ExtendedCommunity{
-		Type:         api.EXTENDED_COMMUNITIE_TYPE_FOUR_OCTET_AS_SPECIFIC,
-		Subtype:      api.EXTENDED_COMMUNITIE_SUBTYPE(e.SubType),
-		IsTransitive: e.IsTransitive,
-		Asn:          e.AS,
-		LocalAdmin:   uint32(e.LocalAdmin),
+func NewFourOctetAsSpecificExtended(subtype ExtendedCommunityAttrSubType, as uint32, localAdmin uint16, isTransitive bool) *FourOctetAsSpecificExtended {
+	return &FourOctetAsSpecificExtended{
+		SubType:      subtype,
+		AS:           as,
+		LocalAdmin:   localAdmin,
+		IsTransitive: isTransitive,
+	}
+}
+
+func ParseRouteTarget(rt string) (ExtendedCommunityInterface, error) {
+	elems, err := parseRdAndRt(rt)
+	if err != nil {
+		return nil, err
+	}
+	localAdmin, _ := strconv.Atoi(elems[9])
+	ip := net.ParseIP(elems[1])
+	isTransitive := true
+	switch {
+	case ip.To4() != nil:
+		return NewIPv4AddressSpecificExtended(EC_SUBTYPE_ROUTE_TARGET, elems[1], uint16(localAdmin), isTransitive), nil
+	case elems[6] == "" && elems[7] == "":
+		asn, _ := strconv.Atoi(elems[8])
+		return NewTwoOctetAsSpecificExtended(EC_SUBTYPE_ROUTE_TARGET, uint16(asn), uint32(localAdmin), isTransitive), nil
+	default:
+		fst, _ := strconv.Atoi(elems[7])
+		snd, _ := strconv.Atoi(elems[8])
+		asn := fst<<16 | snd
+		return NewFourOctetAsSpecificExtended(EC_SUBTYPE_ROUTE_TARGET, uint32(asn), uint16(localAdmin), isTransitive), nil
 	}
 }
 
@@ -3241,22 +4089,23 @@ func (e *EncapExtended) String() string {
 	case TUNNEL_TYPE_VXLAN_GRE:
 		return "VXLAN GRE"
 	default:
-		return fmt.Sprintf("TUNNEL TYPE: %d", e.TunnelType)
+		return fmt.Sprintf("tunnel: %d", e.TunnelType)
 	}
 }
 
 type OpaqueExtended struct {
 	IsTransitive bool
 	Value        OpaqueExtendedValueInterface
+	SubType      ExtendedCommunityAttrSubType
 }
 
 func (e *OpaqueExtended) DecodeFromBytes(data []byte) error {
 	if len(data) != 7 {
 		return fmt.Errorf("Invalid OpaqueExtended bytes len: %d", len(data))
 	}
-	subType := ExtendedCommunityAttrSubType(data[0])
+	e.SubType = ExtendedCommunityAttrSubType(data[0])
 
-	switch subType {
+	switch e.SubType {
 	case EC_SUBTYPE_COLOR:
 		v := binary.BigEndian.Uint32(data[3:7])
 		e.Value = &ColorExtended{
@@ -3294,24 +4143,474 @@ func (e *OpaqueExtended) String() string {
 	return e.Value.String()
 }
 
+func (e *OpaqueExtended) MarshalJSON() ([]byte, error) {
+	t, s := e.GetTypes()
+	return json.Marshal(struct {
+		Type    ExtendedCommunityAttrType    `json:"type"`
+		Subtype ExtendedCommunityAttrSubType `json:"subtype"`
+		Value   OpaqueExtendedValueInterface `json:"value"`
+	}{
+		Type:    t,
+		Subtype: s,
+		Value:   e.Value,
+	})
+}
+
 func (e *OpaqueExtended) GetTypes() (ExtendedCommunityAttrType, ExtendedCommunityAttrSubType) {
 	t := EC_TYPE_TRANSITIVE_OPAQUE
 	if !e.IsTransitive {
 		t = EC_TYPE_NON_TRANSITIVE_OPAQUE
 	}
-	return t, ExtendedCommunityAttrSubType(0xFF)
-}
-
-func (e *OpaqueExtended) ToApiStruct() *api.ExtendedCommunity {
-	return &api.ExtendedCommunity{
-		Type: api.EXTENDED_COMMUNITIE_TYPE_OPAQUE,
-	}
+	return t, e.SubType
 }
 
 func NewOpaqueExtended(isTransitive bool) *OpaqueExtended {
 	return &OpaqueExtended{
 		IsTransitive: isTransitive,
 	}
+}
+
+type ESILabelExtended struct {
+	Label          uint32
+	IsSingleActive bool
+}
+
+func (e *ESILabelExtended) Serialize() ([]byte, error) {
+	buf := make([]byte, 8)
+	buf[0] = byte(EC_TYPE_EVPN)
+	buf[1] = byte(EC_SUBTYPE_ESI_LABEL)
+	if e.IsSingleActive {
+		buf[2] = byte(1)
+	}
+	buf[3] = 0
+	buf[4] = 0
+	buf[5] = byte((e.Label >> 16) & 0xff)
+	buf[6] = byte((e.Label >> 8) & 0xff)
+	buf[7] = byte(e.Label & 0xff)
+	return buf, nil
+}
+
+func (e *ESILabelExtended) String() string {
+	buf := bytes.NewBuffer(make([]byte, 0, 32))
+	buf.WriteString(fmt.Sprintf("esi-label: %d", e.Label))
+	if e.IsSingleActive {
+		buf.WriteString(", single-active")
+	}
+	return buf.String()
+}
+
+func (e *ESILabelExtended) MarshalJSON() ([]byte, error) {
+	t, s := e.GetTypes()
+	return json.Marshal(struct {
+		Type           ExtendedCommunityAttrType    `json:"type"`
+		Subtype        ExtendedCommunityAttrSubType `json:"subtype"`
+		Label          uint32                       `json:"label"`
+		IsSingleActive bool                         `json:"is_single_active"`
+	}{
+		Type:           t,
+		Subtype:        s,
+		Label:          e.Label,
+		IsSingleActive: e.IsSingleActive,
+	})
+}
+
+func (e *ESILabelExtended) GetTypes() (ExtendedCommunityAttrType, ExtendedCommunityAttrSubType) {
+	return EC_TYPE_EVPN, EC_SUBTYPE_ESI_LABEL
+}
+
+func NewESILabelExtended(label uint32, isSingleActive bool) *ESILabelExtended {
+	return &ESILabelExtended{
+		Label:          label,
+		IsSingleActive: isSingleActive,
+	}
+}
+
+type ESImportRouteTarget struct {
+	ESImport net.HardwareAddr
+}
+
+func (e *ESImportRouteTarget) Serialize() ([]byte, error) {
+	buf := make([]byte, 8)
+	buf[0] = byte(EC_TYPE_EVPN)
+	buf[1] = byte(EC_SUBTYPE_ES_IMPORT)
+	copy(buf[2:], e.ESImport)
+	return buf, nil
+}
+
+func (e *ESImportRouteTarget) String() string {
+	return fmt.Sprintf("es-import rt: %s", e.ESImport.String())
+}
+
+func (e *ESImportRouteTarget) MarshalJSON() ([]byte, error) {
+	t, s := e.GetTypes()
+	return json.Marshal(struct {
+		Type    ExtendedCommunityAttrType    `json:"type"`
+		Subtype ExtendedCommunityAttrSubType `json:"subtype"`
+		Value   string                       `json:"value"`
+	}{
+		Type:    t,
+		Subtype: s,
+		Value:   e.ESImport.String(),
+	})
+}
+
+func (e *ESImportRouteTarget) GetTypes() (ExtendedCommunityAttrType, ExtendedCommunityAttrSubType) {
+	return EC_TYPE_EVPN, EC_SUBTYPE_ES_IMPORT
+}
+
+func NewESImportRouteTarget(mac string) *ESImportRouteTarget {
+	esImport, err := net.ParseMAC(mac)
+	if err != nil {
+		return nil
+	}
+	return &ESImportRouteTarget{
+		ESImport: esImport,
+	}
+}
+
+type MacMobilityExtended struct {
+	Sequence uint32
+	IsSticky bool
+}
+
+func (e *MacMobilityExtended) Serialize() ([]byte, error) {
+	buf := make([]byte, 8)
+	buf[0] = byte(EC_TYPE_EVPN)
+	buf[1] = byte(EC_SUBTYPE_MAC_MOBILITY)
+	if e.IsSticky {
+		buf[2] = byte(1)
+	}
+	binary.BigEndian.PutUint32(buf[4:], e.Sequence)
+	return buf, nil
+}
+
+func (e *MacMobilityExtended) String() string {
+	buf := bytes.NewBuffer(make([]byte, 0, 32))
+	buf.WriteString(fmt.Sprintf("mac-mobility: %d", e.Sequence))
+	if e.IsSticky {
+		buf.WriteString(", sticky")
+	}
+	return buf.String()
+}
+
+func (e *MacMobilityExtended) MarshalJSON() ([]byte, error) {
+	t, s := e.GetTypes()
+	return json.Marshal(struct {
+		Type     ExtendedCommunityAttrType    `json:"type"`
+		Subtype  ExtendedCommunityAttrSubType `json:"subtype"`
+		Sequence uint32                       `json:"sequence"`
+		IsSticky bool                         `json:"is_sticky"`
+	}{
+		Type:     t,
+		Subtype:  s,
+		Sequence: e.Sequence,
+		IsSticky: e.IsSticky,
+	})
+}
+
+func (e *MacMobilityExtended) GetTypes() (ExtendedCommunityAttrType, ExtendedCommunityAttrSubType) {
+	return EC_TYPE_EVPN, EC_SUBTYPE_MAC_MOBILITY
+}
+
+func NewMacMobilityExtended(seq uint32, isSticky bool) *MacMobilityExtended {
+	return &MacMobilityExtended{
+		Sequence: seq,
+		IsSticky: isSticky,
+	}
+}
+
+func parseEvpnExtended(data []byte) (ExtendedCommunityInterface, error) {
+	if ExtendedCommunityAttrType(data[0]) != EC_TYPE_EVPN {
+		return nil, fmt.Errorf("ext comm type is not EC_TYPE_EVPN: %d", data[0])
+	}
+	subType := ExtendedCommunityAttrSubType(data[1])
+	switch subType {
+	case EC_SUBTYPE_ESI_LABEL:
+		var isSingleActive bool
+		if data[2] > 0 {
+			isSingleActive = true
+		}
+		label := uint32(data[5])<<16 | uint32(data[6])<<8 | uint32(data[7])
+		return &ESILabelExtended{
+			IsSingleActive: isSingleActive,
+			Label:          label,
+		}, nil
+	case EC_SUBTYPE_ES_IMPORT:
+		return &ESImportRouteTarget{
+			ESImport: net.HardwareAddr(data[2:8]),
+		}, nil
+	case EC_SUBTYPE_MAC_MOBILITY:
+		var isSticky bool
+		if data[2] > 0 {
+			isSticky = true
+		}
+		seq := binary.BigEndian.Uint32(data[4:8])
+		return &MacMobilityExtended{
+			Sequence: seq,
+			IsSticky: isSticky,
+		}, nil
+	}
+	return nil, fmt.Errorf("unknown evpn subtype: %d", subType)
+}
+
+type TrafficRateExtended struct {
+	AS   uint16
+	Rate float32
+}
+
+func (e *TrafficRateExtended) Serialize() ([]byte, error) {
+	buf := make([]byte, 8)
+	buf[0] = byte(EC_TYPE_GENERIC_TRANSITIVE_EXPERIMENTAL)
+	buf[1] = byte(EC_SUBTYPE_FLOWSPEC_TRAFFIC_RATE)
+	binary.BigEndian.PutUint16(buf[2:4], e.AS)
+	binary.BigEndian.PutUint32(buf[4:8], math.Float32bits(e.Rate))
+	return buf, nil
+}
+
+func (e *TrafficRateExtended) String() string {
+	buf := bytes.NewBuffer(make([]byte, 0, 32))
+	if e.Rate == 0 {
+		buf.WriteString("discard")
+	} else {
+		buf.WriteString(fmt.Sprintf("rate: %f", e.Rate))
+	}
+	if e.AS != 0 {
+		buf.WriteString(fmt.Sprintf("(as: %d)", e.AS))
+	}
+	return buf.String()
+}
+
+func (e *TrafficRateExtended) MarshalJSON() ([]byte, error) {
+	t, s := e.GetTypes()
+	return json.Marshal(struct {
+		Type    ExtendedCommunityAttrType    `json:"type"`
+		Subtype ExtendedCommunityAttrSubType `json:"subtype"`
+		As      uint16                       `json:"as"`
+		Rate    float32                      `json:"rate"`
+	}{t, s, e.AS, e.Rate})
+}
+
+func (e *TrafficRateExtended) GetTypes() (ExtendedCommunityAttrType, ExtendedCommunityAttrSubType) {
+	return EC_TYPE_GENERIC_TRANSITIVE_EXPERIMENTAL, EC_SUBTYPE_FLOWSPEC_TRAFFIC_RATE
+}
+
+func NewTrafficRateExtended(as uint16, rate float32) *TrafficRateExtended {
+	return &TrafficRateExtended{as, rate}
+}
+
+type TrafficActionExtended struct {
+	Terminal bool
+	Sample   bool
+}
+
+func (e *TrafficActionExtended) Serialize() ([]byte, error) {
+	buf := make([]byte, 8)
+	buf[0] = byte(EC_TYPE_GENERIC_TRANSITIVE_EXPERIMENTAL)
+	buf[1] = byte(EC_SUBTYPE_FLOWSPEC_TRAFFIC_ACTION)
+	if e.Terminal {
+		buf[7] = 0x01
+	}
+	if e.Sample {
+		buf[7] = buf[7] | 0x2
+	}
+	return buf, nil
+}
+
+func (e *TrafficActionExtended) String() string {
+	ss := make([]string, 0, 2)
+	if e.Terminal {
+		ss = append(ss, "terminal")
+	}
+	if e.Sample {
+		ss = append(ss, "sample")
+	}
+	return fmt.Sprintf("action: %s", strings.Join(ss, "-"))
+}
+
+func (e *TrafficActionExtended) MarshalJSON() ([]byte, error) {
+	t, s := e.GetTypes()
+	return json.Marshal(struct {
+		Type     ExtendedCommunityAttrType    `json:"type"`
+		Subtype  ExtendedCommunityAttrSubType `json:"subtype"`
+		Terminal bool                         `json:"terminal"`
+		Sample   bool                         `json:"sample"`
+	}{t, s, e.Terminal, e.Sample})
+}
+
+func (e *TrafficActionExtended) GetTypes() (ExtendedCommunityAttrType, ExtendedCommunityAttrSubType) {
+	return EC_TYPE_GENERIC_TRANSITIVE_EXPERIMENTAL, EC_SUBTYPE_FLOWSPEC_TRAFFIC_ACTION
+}
+
+func NewTrafficActionExtended(terminal bool, sample bool) *TrafficActionExtended {
+	return &TrafficActionExtended{terminal, sample}
+}
+
+type RedirectTwoOctetAsSpecificExtended struct {
+	TwoOctetAsSpecificExtended
+}
+
+func (e *RedirectTwoOctetAsSpecificExtended) Serialize() ([]byte, error) {
+	buf, err := e.TwoOctetAsSpecificExtended.Serialize()
+	buf[0] = byte(EC_TYPE_GENERIC_TRANSITIVE_EXPERIMENTAL)
+	buf[1] = byte(EC_SUBTYPE_FLOWSPEC_REDIRECT)
+	return buf, err
+}
+
+func (e *RedirectTwoOctetAsSpecificExtended) String() string {
+	return fmt.Sprintf("redirect: %s", e.TwoOctetAsSpecificExtended.String())
+}
+
+func (e *RedirectTwoOctetAsSpecificExtended) MarshalJSON() ([]byte, error) {
+	t, s := e.GetTypes()
+	return json.Marshal(struct {
+		Type    ExtendedCommunityAttrType    `json:"type"`
+		Subtype ExtendedCommunityAttrSubType `json:"subtype"`
+		Value   string                       `json:"value"`
+	}{t, s, e.TwoOctetAsSpecificExtended.String()})
+}
+
+func (e *RedirectTwoOctetAsSpecificExtended) GetTypes() (ExtendedCommunityAttrType, ExtendedCommunityAttrSubType) {
+	return EC_TYPE_GENERIC_TRANSITIVE_EXPERIMENTAL, EC_SUBTYPE_FLOWSPEC_REDIRECT
+}
+
+func NewRedirectTwoOctetAsSpecificExtended(as uint16, localAdmin uint32) *RedirectTwoOctetAsSpecificExtended {
+	return &RedirectTwoOctetAsSpecificExtended{*NewTwoOctetAsSpecificExtended(EC_SUBTYPE_ROUTE_TARGET, as, localAdmin, false)}
+}
+
+type RedirectIPv4AddressSpecificExtended struct {
+	IPv4AddressSpecificExtended
+}
+
+func (e *RedirectIPv4AddressSpecificExtended) Serialize() ([]byte, error) {
+	buf, err := e.IPv4AddressSpecificExtended.Serialize()
+	buf[0] = byte(EC_TYPE_GENERIC_TRANSITIVE_EXPERIMENTAL2)
+	buf[1] = byte(EC_SUBTYPE_FLOWSPEC_REDIRECT)
+	return buf, err
+}
+
+func (e *RedirectIPv4AddressSpecificExtended) String() string {
+	return fmt.Sprintf("redirect: %s", e.IPv4AddressSpecificExtended.String())
+}
+
+func (e *RedirectIPv4AddressSpecificExtended) MarshalJSON() ([]byte, error) {
+	t, s := e.GetTypes()
+	return json.Marshal(struct {
+		Type    ExtendedCommunityAttrType    `json:"type"`
+		Subtype ExtendedCommunityAttrSubType `json:"subtype"`
+		Value   string                       `json:"value"`
+	}{t, s, e.IPv4AddressSpecificExtended.String()})
+}
+
+func (e *RedirectIPv4AddressSpecificExtended) GetTypes() (ExtendedCommunityAttrType, ExtendedCommunityAttrSubType) {
+	return EC_TYPE_GENERIC_TRANSITIVE_EXPERIMENTAL2, EC_SUBTYPE_FLOWSPEC_REDIRECT
+}
+
+func NewRedirectIPv4AddressSpecificExtended(ipv4 string, localAdmin uint16) *RedirectIPv4AddressSpecificExtended {
+	return &RedirectIPv4AddressSpecificExtended{*NewIPv4AddressSpecificExtended(EC_SUBTYPE_ROUTE_TARGET, ipv4, localAdmin, false)}
+}
+
+type RedirectFourOctetAsSpecificExtended struct {
+	FourOctetAsSpecificExtended
+}
+
+func (e *RedirectFourOctetAsSpecificExtended) Serialize() ([]byte, error) {
+	buf, err := e.FourOctetAsSpecificExtended.Serialize()
+	buf[0] = byte(EC_TYPE_GENERIC_TRANSITIVE_EXPERIMENTAL3)
+	buf[1] = byte(EC_SUBTYPE_FLOWSPEC_REDIRECT)
+	return buf, err
+}
+
+func (e *RedirectFourOctetAsSpecificExtended) String() string {
+	return fmt.Sprintf("redirect: %s", e.FourOctetAsSpecificExtended.String())
+}
+
+func (e *RedirectFourOctetAsSpecificExtended) MarshalJSON() ([]byte, error) {
+	t, s := e.GetTypes()
+	return json.Marshal(struct {
+		Type    ExtendedCommunityAttrType    `json:"type"`
+		Subtype ExtendedCommunityAttrSubType `json:"subtype"`
+		Value   string                       `json:"value"`
+	}{t, s, e.FourOctetAsSpecificExtended.String()})
+}
+
+func (e *RedirectFourOctetAsSpecificExtended) GetTypes() (ExtendedCommunityAttrType, ExtendedCommunityAttrSubType) {
+	return EC_TYPE_GENERIC_TRANSITIVE_EXPERIMENTAL3, EC_SUBTYPE_FLOWSPEC_REDIRECT
+}
+
+func NewRedirectFourOctetAsSpecificExtended(as uint32, localAdmin uint16) *RedirectFourOctetAsSpecificExtended {
+	return &RedirectFourOctetAsSpecificExtended{*NewFourOctetAsSpecificExtended(EC_SUBTYPE_ROUTE_TARGET, as, localAdmin, false)}
+}
+
+type TrafficRemarkExtended struct {
+	DSCP uint8
+}
+
+func (e *TrafficRemarkExtended) Serialize() ([]byte, error) {
+	buf := make([]byte, 8)
+	buf[0] = byte(EC_TYPE_GENERIC_TRANSITIVE_EXPERIMENTAL)
+	buf[1] = byte(EC_SUBTYPE_FLOWSPEC_TRAFFIC_REMARK)
+	buf[7] = byte(e.DSCP)
+	return buf, nil
+}
+
+func (e *TrafficRemarkExtended) String() string {
+	return fmt.Sprintf("remark: %d", e.DSCP)
+}
+
+func (e *TrafficRemarkExtended) MarshalJSON() ([]byte, error) {
+	t, s := e.GetTypes()
+	return json.Marshal(struct {
+		Type    ExtendedCommunityAttrType    `json:"type"`
+		Subtype ExtendedCommunityAttrSubType `json:"subtype"`
+		Value   uint8                        `json:"value"`
+	}{t, s, e.DSCP})
+}
+
+func (e *TrafficRemarkExtended) GetTypes() (ExtendedCommunityAttrType, ExtendedCommunityAttrSubType) {
+	return EC_TYPE_GENERIC_TRANSITIVE_EXPERIMENTAL, EC_SUBTYPE_FLOWSPEC_TRAFFIC_REMARK
+}
+
+func NewTrafficRemarkExtended(dscp uint8) *TrafficRemarkExtended {
+	return &TrafficRemarkExtended{dscp}
+}
+
+func parseFlowSpecExtended(data []byte) (ExtendedCommunityInterface, error) {
+	typ := ExtendedCommunityAttrType(data[0])
+	if typ != EC_TYPE_GENERIC_TRANSITIVE_EXPERIMENTAL && typ != EC_TYPE_GENERIC_TRANSITIVE_EXPERIMENTAL2 && typ != EC_TYPE_GENERIC_TRANSITIVE_EXPERIMENTAL3 {
+		return nil, fmt.Errorf("ext comm type is not EC_TYPE_FLOWSPEC: %d", data[0])
+	}
+	subType := ExtendedCommunityAttrSubType(data[1])
+	switch subType {
+	case EC_SUBTYPE_FLOWSPEC_TRAFFIC_RATE:
+		asn := binary.BigEndian.Uint16(data[2:4])
+		bits := binary.BigEndian.Uint32(data[4:8])
+		rate := math.Float32frombits(bits)
+		return NewTrafficRateExtended(asn, rate), nil
+	case EC_SUBTYPE_FLOWSPEC_TRAFFIC_ACTION:
+		terminal := data[7]&0x1 == 1
+		sample := (data[7]>>1)&0x1 == 1
+		return NewTrafficActionExtended(terminal, sample), nil
+	case EC_SUBTYPE_FLOWSPEC_REDIRECT:
+		//draft-haas-idr-flowspec-redirect-rt-bis-05
+		switch typ {
+		case EC_TYPE_GENERIC_TRANSITIVE_EXPERIMENTAL:
+			as := binary.BigEndian.Uint16(data[2:4])
+			localAdmin := binary.BigEndian.Uint32(data[4:8])
+			return NewRedirectTwoOctetAsSpecificExtended(as, localAdmin), nil
+		case EC_TYPE_GENERIC_TRANSITIVE_EXPERIMENTAL2:
+			ipv4 := net.IP(data[2:6]).String()
+			localAdmin := binary.BigEndian.Uint16(data[6:8])
+			return NewRedirectIPv4AddressSpecificExtended(ipv4, localAdmin), nil
+		case EC_TYPE_GENERIC_TRANSITIVE_EXPERIMENTAL3:
+			as := binary.BigEndian.Uint32(data[2:6])
+			localAdmin := binary.BigEndian.Uint16(data[6:8])
+			return NewRedirectFourOctetAsSpecificExtended(as, localAdmin), nil
+		}
+	case EC_SUBTYPE_FLOWSPEC_TRAFFIC_REMARK:
+		dscp := data[7]
+		return NewTrafficRemarkExtended(dscp), nil
+	}
+	return nil, fmt.Errorf("unknown flowspec subtype: %d", subType)
 }
 
 type UnknownExtended struct {
@@ -3334,12 +4633,21 @@ func (e *UnknownExtended) String() string {
 	return fmt.Sprintf("%d", v)
 }
 
-func (e *UnknownExtended) GetTypes() (ExtendedCommunityAttrType, ExtendedCommunityAttrSubType) {
-	return ExtendedCommunityAttrType(0xFF), ExtendedCommunityAttrSubType(0xFF)
+func (e *UnknownExtended) MarshalJSON() ([]byte, error) {
+	t, s := e.GetTypes()
+	return json.Marshal(struct {
+		Type    ExtendedCommunityAttrType    `json:"type"`
+		Subtype ExtendedCommunityAttrSubType `json:"subtype"`
+		Value   []byte                       `json:"value"`
+	}{
+		Type:    t,
+		Subtype: s,
+		Value:   e.Value,
+	})
 }
 
-func (e *UnknownExtended) ToApiStruct() *api.ExtendedCommunity {
-	return &api.ExtendedCommunity{}
+func (e *UnknownExtended) GetTypes() (ExtendedCommunityAttrType, ExtendedCommunityAttrSubType) {
+	return ExtendedCommunityAttrType(0xFF), ExtendedCommunityAttrSubType(0xFF)
 }
 
 type PathAttributeExtendedCommunities struct {
@@ -3347,40 +4655,35 @@ type PathAttributeExtendedCommunities struct {
 	Value []ExtendedCommunityInterface
 }
 
-func parseExtended(data []byte) (ExtendedCommunityInterface, error) {
+func ParseExtended(data []byte) (ExtendedCommunityInterface, error) {
+	if len(data) < 8 {
+		return nil, fmt.Errorf("not all extended community bytes are available")
+	}
 	attrType := ExtendedCommunityAttrType(data[0])
+	subtype := ExtendedCommunityAttrSubType(data[1])
 	transitive := false
 	switch attrType {
 	case EC_TYPE_TRANSITIVE_TWO_OCTET_AS_SPECIFIC:
 		transitive = true
 		fallthrough
 	case EC_TYPE_NON_TRANSITIVE_TWO_OCTET_AS_SPECIFIC:
-		e := &TwoOctetAsSpecificExtended{}
-		e.IsTransitive = transitive
-		e.SubType = ExtendedCommunityAttrSubType(data[1])
-		e.AS = binary.BigEndian.Uint16(data[2:4])
-		e.LocalAdmin = binary.BigEndian.Uint32(data[4:8])
-		return e, nil
+		as := binary.BigEndian.Uint16(data[2:4])
+		localAdmin := binary.BigEndian.Uint32(data[4:8])
+		return NewTwoOctetAsSpecificExtended(subtype, as, localAdmin, transitive), nil
 	case EC_TYPE_TRANSITIVE_IP4_SPECIFIC:
 		transitive = true
 		fallthrough
 	case EC_TYPE_NON_TRANSITIVE_IP4_SPECIFIC:
-		e := &IPv4AddressSpecificExtended{}
-		e.IsTransitive = transitive
-		e.SubType = ExtendedCommunityAttrSubType(data[1])
-		e.IPv4 = data[2:6]
-		e.LocalAdmin = binary.BigEndian.Uint16(data[6:8])
-		return e, nil
+		ipv4 := net.IP(data[2:6]).String()
+		localAdmin := binary.BigEndian.Uint16(data[6:8])
+		return NewIPv4AddressSpecificExtended(subtype, ipv4, localAdmin, transitive), nil
 	case EC_TYPE_TRANSITIVE_FOUR_OCTET_AS_SPECIFIC:
 		transitive = true
 		fallthrough
 	case EC_TYPE_NON_TRANSITIVE_FOUR_OCTET_AS_SPECIFIC:
-		e := &FourOctetAsSpecificExtended{}
-		e.IsTransitive = transitive
-		e.SubType = ExtendedCommunityAttrSubType(data[1])
-		e.AS = binary.BigEndian.Uint32(data[2:6])
-		e.LocalAdmin = binary.BigEndian.Uint16(data[6:8])
-		return e, nil
+		as := binary.BigEndian.Uint32(data[2:6])
+		localAdmin := binary.BigEndian.Uint16(data[6:8])
+		return NewFourOctetAsSpecificExtended(subtype, as, localAdmin, transitive), nil
 	case EC_TYPE_TRANSITIVE_OPAQUE:
 		transitive = true
 		fallthrough
@@ -3388,6 +4691,11 @@ func parseExtended(data []byte) (ExtendedCommunityInterface, error) {
 		e := NewOpaqueExtended(transitive)
 		err := e.DecodeFromBytes(data[1:8])
 		return e, err
+	case EC_TYPE_EVPN:
+		return parseEvpnExtended(data)
+	case EC_TYPE_GENERIC_TRANSITIVE_EXPERIMENTAL, EC_TYPE_GENERIC_TRANSITIVE_EXPERIMENTAL2, EC_TYPE_GENERIC_TRANSITIVE_EXPERIMENTAL3:
+		p, err := parseFlowSpecExtended(data)
+		return p, err
 	default:
 		e := &UnknownExtended{}
 		e.Type = BGPAttrType(data[0])
@@ -3408,7 +4716,7 @@ func (p *PathAttributeExtendedCommunities) DecodeFromBytes(data []byte) error {
 	}
 	value := p.PathAttribute.Value
 	for len(value) >= 8 {
-		e, err := parseExtended(value)
+		e, err := ParseExtended(value)
 		if err != nil {
 			return err
 		}
@@ -3431,22 +4739,27 @@ func (p *PathAttributeExtendedCommunities) Serialize() ([]byte, error) {
 	return p.PathAttribute.Serialize()
 }
 
-func (p *PathAttributeExtendedCommunities) ToApiStruct() *api.PathAttr {
-	value := func(arg []ExtendedCommunityInterface) []string {
-		ret := make([]string, 0, len(arg))
-		for _, v := range p.Value {
-			ret = append(ret, v.String())
+func (p *PathAttributeExtendedCommunities) String() string {
+	buf := bytes.NewBuffer(make([]byte, 0, 32))
+	for idx, v := range p.Value {
+		buf.WriteString("[")
+		buf.WriteString(v.String())
+		buf.WriteString("]")
+		if idx < len(p.Value)-1 {
+			buf.WriteString(", ")
 		}
-		return ret
-	}(p.Value)
-	return &api.PathAttr{
-		Type:  api.BGP_ATTR_TYPE_EXTENDED_COMMUNITIES,
-		Value: value,
 	}
+	return fmt.Sprintf("{Extcomms: %s}", buf.String())
 }
 
 func (p *PathAttributeExtendedCommunities) MarshalJSON() ([]byte, error) {
-	return json.Marshal(p.ToApiStruct())
+	return json.Marshal(struct {
+		Type  BGPAttrType                  `json:"type"`
+		Value []ExtendedCommunityInterface `json:"value"`
+	}{
+		Type:  p.GetType(),
+		Value: p.Value,
+	})
 }
 
 func NewPathAttributeExtendedCommunities(value []ExtendedCommunityInterface) *PathAttributeExtendedCommunities {
@@ -3506,26 +4819,6 @@ func (p *PathAttributeAs4Path) Serialize() ([]byte, error) {
 	return p.PathAttribute.Serialize()
 }
 
-func (p *PathAttributeAs4Path) ToApiStruct() *api.PathAttr {
-	aspaths := make([]*api.AsPath, 0)
-	aspath := &api.AsPath{
-		SegmentType: uint32(p.Type),
-		Asns:        make([]uint32, 0),
-	}
-	for _, a := range p.Value {
-		aspath.Asns = append(aspath.Asns, a.AS...)
-	}
-	aspaths = append(aspaths, aspath)
-	return &api.PathAttr{
-		Type:    api.BGP_ATTR_TYPE_AS_PATH,
-		AsPaths: aspaths,
-	}
-}
-
-func (p *PathAttributeAs4Path) MarshalJSON() ([]byte, error) {
-	return json.Marshal(p.ToApiStruct())
-}
-
 func NewPathAttributeAs4Path(value []*As4PathParam) *PathAttributeAs4Path {
 	t := BGP_ATTR_TYPE_AS4_PATH
 	return &PathAttributeAs4Path{
@@ -3565,20 +4858,6 @@ func (p *PathAttributeAs4Aggregator) Serialize() ([]byte, error) {
 	return p.PathAttribute.Serialize()
 }
 
-func (p *PathAttributeAs4Aggregator) ToApiStruct() *api.PathAttr {
-	return &api.PathAttr{
-		Type: api.BGP_ATTR_TYPE_AS4_AGGREGATOR,
-		Aggregator: &api.Aggregator{
-			As:      p.Value.AS,
-			Address: p.Value.Address.String(),
-		},
-	}
-}
-
-func (p *PathAttributeAs4Aggregator) MarshalJSON() ([]byte, error) {
-	return json.Marshal(p.ToApiStruct())
-}
-
 func NewPathAttributeAs4Aggregator(as uint32, address string) *PathAttributeAs4Aggregator {
 	t := BGP_ATTR_TYPE_AS4_AGGREGATOR
 	return &PathAttributeAs4Aggregator{
@@ -3595,7 +4874,6 @@ func NewPathAttributeAs4Aggregator(as uint32, address string) *PathAttributeAs4A
 
 type TunnelEncapSubTLVValue interface {
 	Serialize() ([]byte, error)
-	ToApiStruct() *api.TunnelEncapSubTLV
 }
 
 type TunnelEncapSubTLVDefault struct {
@@ -3604,13 +4882,6 @@ type TunnelEncapSubTLVDefault struct {
 
 func (t *TunnelEncapSubTLVDefault) Serialize() ([]byte, error) {
 	return t.Value, nil
-}
-
-func (t *TunnelEncapSubTLVDefault) ToApiStruct() *api.TunnelEncapSubTLV {
-	return &api.TunnelEncapSubTLV{
-		Type:  api.ENCAP_SUBTLV_TYPE_UNKNOWN_SUBTLV_TYPE,
-		Value: string(t.Value),
-	}
 }
 
 type TunnelEncapSubTLVEncapuslation struct {
@@ -3624,14 +4895,6 @@ func (t *TunnelEncapSubTLVEncapuslation) Serialize() ([]byte, error) {
 	return append(buf, t.Cookie...), nil
 }
 
-func (t *TunnelEncapSubTLVEncapuslation) ToApiStruct() *api.TunnelEncapSubTLV {
-	return &api.TunnelEncapSubTLV{
-		Type:   api.ENCAP_SUBTLV_TYPE_ENCAPSULATION,
-		Key:    t.Key,
-		Cookie: string(t.Cookie),
-	}
-}
-
 type TunnelEncapSubTLVProtocol struct {
 	Protocol uint16
 }
@@ -3640,13 +4903,6 @@ func (t *TunnelEncapSubTLVProtocol) Serialize() ([]byte, error) {
 	buf := make([]byte, 2)
 	binary.BigEndian.PutUint16(buf, t.Protocol)
 	return buf, nil
-}
-
-func (t *TunnelEncapSubTLVProtocol) ToApiStruct() *api.TunnelEncapSubTLV {
-	return &api.TunnelEncapSubTLV{
-		Type:     api.ENCAP_SUBTLV_TYPE_PROTOCOL,
-		Protocol: uint32(t.Protocol),
-	}
 }
 
 type TunnelEncapSubTLVColor struct {
@@ -3659,13 +4915,6 @@ func (t *TunnelEncapSubTLVColor) Serialize() ([]byte, error) {
 	buf[1] = byte(EC_SUBTYPE_COLOR)
 	binary.BigEndian.PutUint32(buf[4:], t.Color)
 	return buf, nil
-}
-
-func (t *TunnelEncapSubTLVColor) ToApiStruct() *api.TunnelEncapSubTLV {
-	return &api.TunnelEncapSubTLV{
-		Type:  api.ENCAP_SUBTLV_TYPE_COLOR,
-		Color: t.Color,
-	}
 }
 
 type TunnelEncapSubTLV struct {
@@ -3716,10 +4965,6 @@ func (p *TunnelEncapSubTLV) DecodeFromBytes(data []byte) error {
 	return nil
 }
 
-func (p *TunnelEncapSubTLV) ToApiStruct() *api.TunnelEncapSubTLV {
-	return p.Value.ToApiStruct()
-}
-
 type TunnelEncapTLV struct {
 	Type  TunnelType
 	Len   int
@@ -3764,17 +5009,6 @@ func (p *TunnelEncapTLV) Serialize() ([]byte, error) {
 	p.Len = len(buf) - 4
 	binary.BigEndian.PutUint16(buf[2:], uint16(p.Len))
 	return buf, nil
-}
-
-func (p *TunnelEncapTLV) ToApiStruct() *api.TunnelEncapTLV {
-	subTlvs := make([]*api.TunnelEncapSubTLV, 0, len(p.Value))
-	for _, v := range p.Value {
-		subTlvs = append(subTlvs, v.ToApiStruct())
-	}
-	return &api.TunnelEncapTLV{
-		Type:   api.TUNNEL_TYPE(p.Type),
-		SubTlv: subTlvs,
-	}
 }
 
 type PathAttributeTunnelEncap struct {
@@ -3824,21 +5058,6 @@ func (p *PathAttributeTunnelEncap) Serialize() ([]byte, error) {
 	}
 	p.PathAttribute.Value = buf
 	return p.PathAttribute.Serialize()
-}
-
-func (p *PathAttributeTunnelEncap) ToApiStruct() *api.PathAttr {
-	tlvs := make([]*api.TunnelEncapTLV, 0, len(p.Value))
-	for _, v := range p.Value {
-		tlvs = append(tlvs, v.ToApiStruct())
-	}
-	return &api.PathAttr{
-		Type:        api.BGP_ATTR_TYPE_TUNNEL_ENCAP,
-		TunnelEncap: tlvs,
-	}
-}
-
-func (p *PathAttributeTunnelEncap) MarshalJSON() ([]byte, error) {
-	return json.Marshal(p.ToApiStruct())
 }
 
 func NewPathAttributeTunnelEncap(value []*TunnelEncapTLV) *PathAttributeTunnelEncap {
@@ -3932,34 +5151,52 @@ func (p *PathAttributePmsiTunnel) Serialize() ([]byte, error) {
 		return nil, err
 	}
 	buf = append(buf, ibuf...)
-	return buf, nil
+	p.PathAttribute.Value = buf
+	return p.PathAttribute.Serialize()
 }
 
-func (p *PathAttributePmsiTunnel) ToApiStruct() *api.PathAttr {
-	return &api.PathAttr{
-		Type: api.BGP_ATTR_TYPE_PMSI_TUNNEL,
-		PmsiTunnel: &api.PmsiTunnel{
-			IsLeafInfoRequired: p.IsLeafInfoRequired,
-			Type:               api.PMSI_TUNNEL_TYPE(p.TunnelType),
-			Label:              p.Label,
-			TunnelId:           p.TunnelID.String(),
+func (p *PathAttributePmsiTunnel) String() string {
+	buf := bytes.NewBuffer(make([]byte, 0, 32))
+	buf.WriteString(fmt.Sprintf("{Pmsi: type: %s,", p.TunnelType))
+	if p.IsLeafInfoRequired {
+		buf.WriteString(" leaf-info-required,")
+	}
+	buf.WriteString(fmt.Sprintf(" label: %d, tunnel-id: %s}", p.Label, p.TunnelID))
+	return buf.String()
+}
+
+func (p *PathAttributePmsiTunnel) MarshalJSON() ([]byte, error) {
+	return json.Marshal(struct {
+		Type               BGPAttrType `json:"type"`
+		IsLeafInfoRequired bool        `json:"is-leaf-info-required"`
+		TunnelType         uint8       `json:"tunnel-type"`
+		Label              uint32      `json:"label"`
+		TunnelID           string      `json:"tunnel-id"`
+	}{
+		Type:               p.Type,
+		IsLeafInfoRequired: p.IsLeafInfoRequired,
+		TunnelType:         uint8(p.TunnelType),
+		Label:              p.Label,
+		TunnelID:           p.TunnelID.String(),
+	})
+}
+
+func NewPathAttributePmsiTunnel(typ PmsiTunnelType, isLeafInfoRequired bool, label uint32, id PmsiTunnelIDInterface) *PathAttributePmsiTunnel {
+	t := BGP_ATTR_TYPE_PMSI_TUNNEL
+	return &PathAttributePmsiTunnel{
+		PathAttribute: PathAttribute{
+			Flags: pathAttrFlags[t],
+			Type:  t,
 		},
+		IsLeafInfoRequired: isLeafInfoRequired,
+		TunnelType:         typ,
+		Label:              label,
+		TunnelID:           id,
 	}
 }
 
 type PathAttributeUnknown struct {
 	PathAttribute
-}
-
-func (p *PathAttributeUnknown) ToApiStruct() *api.PathAttr {
-	return &api.PathAttr{
-		Type:  api.BGP_ATTR_TYPE_UNKNOWN_ATTR,
-		Value: []string{string(p.Value)},
-	}
-}
-
-func (p *PathAttributeUnknown) MarshalJSON() ([]byte, error) {
-	return json.Marshal(p.ToApiStruct())
 }
 
 func GetPathAttribute(data []byte) (PathAttributeInterface, error) {

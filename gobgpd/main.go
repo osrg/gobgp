@@ -35,7 +35,7 @@ func main() {
 	runtime.GOMAXPROCS(runtime.NumCPU())
 
 	sigCh := make(chan os.Signal, 1)
-	signal.Notify(sigCh, syscall.SIGHUP)
+	signal.Notify(sigCh, syscall.SIGHUP, syscall.SIGTERM)
 
 	var opts struct {
 		ConfigFile    string `short:"f" long:"config-file" description:"specifying a config file"`
@@ -44,6 +44,8 @@ func main() {
 		UseSyslog     string `short:"s" long:"syslog" description:"use syslogd"`
 		Facility      string `long:"syslog-facility" description:"specify syslog facility"`
 		DisableStdlog bool   `long:"disable-stdlog" description:"disable standard logging"`
+		EnableZapi    bool   `short:"z" long:"enable-zapi" description:"enable zebra api"`
+		ZapiURL       string `long:"zapi-url" description:"specify zebra api url"`
 	}
 	_, err := flags.Parse(&opts)
 	if err != nil {
@@ -146,21 +148,33 @@ func main() {
 	grpcServer := server.NewGrpcServer(server.GRPC_PORT, bgpServer.GrpcReqCh)
 	go grpcServer.Serve()
 
+	if opts.EnableZapi == true {
+		if opts.ZapiURL == "" {
+			opts.ZapiURL = "unix:/var/run/quagga/zserv.api"
+		}
+		err := bgpServer.NewZclient(opts.ZapiURL)
+		if err != nil {
+			log.Error(err)
+			os.Exit(1)
+		}
+	}
+
 	var bgpConfig *config.Bgp = nil
 	var policyConfig *config.RoutingPolicy = nil
 	for {
 		select {
 		case newConfig := <-configCh:
-			var added []config.Neighbor
-			var deleted []config.Neighbor
+			var added, deleted, updated []config.Neighbor
 
 			if bgpConfig == nil {
 				bgpServer.SetGlobalType(newConfig.Bgp.Global)
 				bgpConfig = &newConfig.Bgp
-				added = newConfig.Bgp.NeighborList
+				bgpServer.SetRpkiConfig(newConfig.Bgp.RpkiServers)
+				added = newConfig.Bgp.Neighbors.NeighborList
 				deleted = []config.Neighbor{}
+				updated = []config.Neighbor{}
 			} else {
-				bgpConfig, added, deleted = config.UpdateConfig(bgpConfig, &newConfig.Bgp)
+				bgpConfig, added, deleted, updated = config.UpdateConfig(bgpConfig, &newConfig.Bgp)
 			}
 
 			if policyConfig == nil {
@@ -174,18 +188,24 @@ func main() {
 			}
 
 			for _, p := range added {
-				log.Infof("Peer %v is added", p.NeighborAddress)
+				log.Infof("Peer %v is added", p.NeighborConfig.NeighborAddress)
 				bgpServer.PeerAdd(p)
 			}
 			for _, p := range deleted {
-				log.Infof("Peer %v is deleted", p.NeighborAddress)
+				log.Infof("Peer %v is deleted", p.NeighborConfig.NeighborAddress)
 				bgpServer.PeerDelete(p)
+			}
+			for _, p := range updated {
+				log.Infof("Peer %v is updated", p.NeighborConfig.NeighborAddress)
+				bgpServer.PeerUpdate(p)
 			}
 		case sig := <-sigCh:
 			switch sig {
 			case syscall.SIGHUP:
 				log.Info("reload the config file")
 				reloadCh <- true
+			case syscall.SIGKILL, syscall.SIGTERM:
+				bgpServer.Shutdown()
 			}
 		}
 	}

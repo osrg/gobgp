@@ -189,7 +189,7 @@ func TestFSMHandlerOpenconfirm_HoldTimerExpired(t *testing.T) {
 	p.fsm.conn = m
 
 	// set up keepalive ticker
-	p.fsm.peerConfig.Timers.KeepaliveInterval = 1
+	p.fsm.pConf.Timers.TimersConfig.KeepaliveInterval = 1
 
 	// set holdtime
 	p.fsm.negotiatedHoldTime = 2
@@ -226,7 +226,7 @@ func TestFSMHandlerEstablish_HoldTimerExpired(t *testing.T) {
 	}
 
 	// set holdtime
-	p.fsm.peerConfig.Timers.HoldTime = 2
+	p.fsm.pConf.Timers.TimersConfig.HoldTime = 2
 	p.fsm.negotiatedHoldTime = 2
 
 	go pushPackets()
@@ -250,7 +250,7 @@ func TestFSMHandlerOpenconfirm_HoldtimeZero(t *testing.T) {
 	p.fsm.conn = m
 
 	// set up keepalive ticker
-	p.fsm.peerConfig.Timers.KeepaliveInterval = 1
+	p.fsm.pConf.Timers.TimersConfig.KeepaliveInterval = 1
 	// set holdtime
 	p.fsm.negotiatedHoldTime = 0
 	go h.openconfirm()
@@ -284,16 +284,16 @@ func TestFSMHandlerEstablished_HoldtimeZero(t *testing.T) {
 }
 
 func makePeerAndHandler() (*Peer, *FSMHandler) {
-	globalConfig := config.Global{}
-	neighborConfig := config.Neighbor{}
+	gConf := config.Global{}
+	pConf := config.Neighbor{}
 
 	p := &Peer{
-		globalConfig: globalConfig,
-		config:       neighborConfig,
-		capMap:       make(map[bgp.BGPCapabilityCode]bgp.ParameterCapabilityInterface),
+		gConf:  gConf,
+		conf:   pConf,
+		capMap: make(map[bgp.BGPCapabilityCode][]bgp.ParameterCapabilityInterface),
 	}
 
-	p.fsm = NewFSM(&globalConfig, &neighborConfig)
+	p.fsm = NewFSM(&gConf, &pConf)
 
 	incoming := make(chan *fsmMsg, 4096)
 	p.outgoing = make(chan *bgp.BGPMessage, 4096)

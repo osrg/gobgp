@@ -25,9 +25,12 @@ No dependency hell (library, package, etc) thanks to Go.
   * [Typical operation examples](https://github.com/osrg/gobgp/blob/master/docs/sources/cli-operations.md)
   * [Complete syntax](https://github.com/osrg/gobgp/blob/master/docs/sources/cli-command-syntax.md)
  * [Route Server](https://github.com/osrg/gobgp/blob/master/docs/sources/route-server.md)
- * [Policy Filter](https://github.com/osrg/gobgp/blob/master/docs/sources/filter.md)
+ * [Policy](https://github.com/osrg/gobgp/blob/master/docs/sources/policy.md)
  * [EVPN](https://github.com/osrg/gobgp/blob/master/docs/sources/evpn.md)
- * [MRT Route Injector](https://github.com/osrg/gobgp/blob/master/docs/sources/mrt.md)
+ * [MRT](https://github.com/osrg/gobgp/blob/master/docs/sources/mrt.md)
+ * [Flowspec](https://github.com/osrg/gobgp/blob/master/docs/sources/flowspec.md)
+ * [RPKI](https://github.com/osrg/gobgp/blob/master/docs/sources/rpki.md)
+ * [Managing GoBGP with your favorite language](https://github.com/osrg/gobgp/blob/master/docs/sources/grpc-client.md)
  
 ## Community, discussion and support
 

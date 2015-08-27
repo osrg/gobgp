@@ -12,39 +12,44 @@ type BgpConfigSet struct {
 }
 
 func ReadConfigfileServe(path string, configCh chan BgpConfigSet, reloadCh chan bool) {
+	cnt := 0
 	for {
 		<-reloadCh
 
 		b := Bgp{}
+		p := RoutingPolicy{}
 		md, err := toml.DecodeFile(path, &b)
 		if err == nil {
 			err = SetDefaultConfigValues(md, &b)
-		}
-		if err != nil {
-			log.Fatal("can't read config file ", path, ", ", err)
-		}
-
-		p := RoutingPolicy{}
-		md, err = toml.DecodeFile(path, &p)
-		if err != nil {
-			log.Fatal("can't read config file ", path, ", ", err)
+			if err == nil {
+				_, err = toml.DecodeFile(path, &p)
+			}
 		}
 
+		if err != nil {
+			if cnt == 0 {
+				log.Fatal("can't read config file ", path, ", ", err)
+			} else {
+				log.Warning("can't read config file ", path, ", ", err)
+				continue
+			}
+		}
+		cnt++
 		bgpConfig := BgpConfigSet{Bgp: b, Policy: p}
 		configCh <- bgpConfig
 	}
 }
 
-func inSlice(n Neighbor, b []Neighbor) bool {
-	for _, nb := range b {
-		if nb.NeighborAddress.String() == n.NeighborAddress.String() {
-			return true
+func inSlice(n Neighbor, b []Neighbor) int {
+	for i, nb := range b {
+		if nb.NeighborConfig.NeighborAddress.String() == n.NeighborConfig.NeighborAddress.String() {
+			return i
 		}
 	}
-	return false
+	return -1
 }
 
-func UpdateConfig(curC *Bgp, newC *Bgp) (*Bgp, []Neighbor, []Neighbor) {
+func UpdateConfig(curC *Bgp, newC *Bgp) (*Bgp, []Neighbor, []Neighbor, []Neighbor) {
 	bgpConfig := Bgp{}
 	if curC == nil {
 		bgpConfig.Global = newC.Global
@@ -55,21 +60,26 @@ func UpdateConfig(curC *Bgp, newC *Bgp) (*Bgp, []Neighbor, []Neighbor) {
 	}
 	added := []Neighbor{}
 	deleted := []Neighbor{}
+	updated := []Neighbor{}
 
-	for _, n := range newC.NeighborList {
-		if inSlice(n, curC.NeighborList) == false {
+	for _, n := range newC.Neighbors.NeighborList {
+		if idx := inSlice(n, curC.Neighbors.NeighborList); idx < 0 {
 			added = append(added, n)
+		} else {
+			if !reflect.DeepEqual(n.ApplyPolicy, curC.Neighbors.NeighborList[idx].ApplyPolicy) {
+				updated = append(updated, n)
+			}
 		}
 	}
 
-	for _, n := range curC.NeighborList {
-		if inSlice(n, newC.NeighborList) == false {
+	for _, n := range curC.Neighbors.NeighborList {
+		if inSlice(n, newC.Neighbors.NeighborList) < 0 {
 			deleted = append(deleted, n)
 		}
 	}
 
-	bgpConfig.NeighborList = newC.NeighborList
-	return &bgpConfig, added, deleted
+	bgpConfig.Neighbors.NeighborList = newC.Neighbors.NeighborList
+	return &bgpConfig, added, deleted, updated
 }
 
 func CheckPolicyDifference(currentPolicy *RoutingPolicy, newPolicy *RoutingPolicy) bool {

@@ -30,14 +30,14 @@ func NewMonitorCmd() *cobra.Command {
 	ribCmd := &cobra.Command{
 		Use: CMD_RIB,
 		Run: func(cmd *cobra.Command, args []string) {
-			rt, err := checkAddressFamily(net.IP{})
+			rf, err := checkAddressFamily(net.IP{})
 			if err != nil {
 				fmt.Println(err)
 				os.Exit(1)
 			}
 			arg := &api.Arguments{
 				Resource: api.Resource_GLOBAL,
-				Af:       rt,
+				Rf:       uint32(rf),
 			}
 
 			stream, err := client.MonitorBestChanged(context.Background(), arg)
@@ -46,18 +46,24 @@ func NewMonitorCmd() *cobra.Command {
 				os.Exit(1)
 			}
 			for {
-				p, err := stream.Recv()
+				d, err := stream.Recv()
 				if err == io.EOF {
 					break
 				} else if err != nil {
 					fmt.Println(err)
 					os.Exit(1)
 				}
+				p, err := ApiStruct2Path(d.Paths[0])
+				if err != nil {
+					fmt.Println(err)
+					os.Exit(1)
+				}
+
 				if globalOpts.Json {
 					j, _ := json.Marshal(p)
 					fmt.Println(string(j))
 				} else {
-					showRoute([]*api.Path{p}, false, false, true)
+					showRoute([]*Path{p}, false, false, true, true)
 				}
 			}
 
@@ -75,7 +81,7 @@ func NewMonitorCmd() *cobra.Command {
 			var arg *api.Arguments
 			if len(args) > 0 {
 				arg = &api.Arguments{
-					RouterId: args[0],
+					Name: args[0],
 				}
 			} else {
 				arg = &api.Arguments{}

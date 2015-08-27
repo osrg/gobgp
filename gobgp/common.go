@@ -19,6 +19,7 @@ import (
 	"bytes"
 	"fmt"
 	"github.com/osrg/gobgp/api"
+	"github.com/osrg/gobgp/packet"
 	"google.golang.org/grpc"
 	"net"
 	"os"
@@ -58,6 +59,8 @@ const (
 	CMD_MRT            = "mrt"
 	CMD_DUMP           = "dump"
 	CMD_INJECT         = "inject"
+	CMD_RPKI           = "rpki"
+	CMD_VRF            = "vrf"
 )
 
 var subOpts struct {
@@ -75,7 +78,6 @@ var conditionOpts struct {
 	Community    string `long:"community" description:"specifying a community set name of policy"`
 	ExtCommunity string `long:"extcommunity" description:"specifying a extended community set name of policy"`
 	AsPathLength string `long:"aspath-len" description:"specifying an as path length of policy (<operator>,<numeric>)"`
-	Option       string `long:"option" description:"specifying an option of policy (any | all | invert)"`
 }
 
 var actionOpts struct {
@@ -86,7 +88,8 @@ var actionOpts struct {
 }
 
 var mrtOpts struct {
-	OutputDir string
+	OutputDir  string
+	FileFormat string
 }
 
 func formatTimedelta(d int64) string {
@@ -122,7 +125,79 @@ func cidr2prefix(cidr string) string {
 	return buffer.String()[:ones]
 }
 
-type paths []*api.Path
+type Destination struct {
+	Prefix string  `json:"prefix"`
+	Paths  []*Path `json:"paths"`
+}
+
+func ApiStruct2Destination(dst *api.Destination) (*Destination, error) {
+	paths := make([]*Path, 0, len(dst.Paths))
+	for _, p := range dst.Paths {
+		path, err := ApiStruct2Path(p)
+		if err != nil {
+			return nil, err
+		}
+		paths = append(paths, path)
+	}
+	return &Destination{
+		Prefix: dst.Prefix,
+		Paths:  paths,
+	}, nil
+
+}
+
+type Path struct {
+	Nlri       bgp.AddrPrefixInterface      `json:"nlri"`
+	PathAttrs  []bgp.PathAttributeInterface `json:"attrs"`
+	Age        int64                        `json:"age"`
+	Best       bool                         `json:"best"`
+	IsWithdraw bool                         `json:"isWithdraw"`
+	Validation int32
+}
+
+func ApiStruct2Path(p *api.Path) (*Path, error) {
+	var nlri bgp.AddrPrefixInterface
+	if len(p.Nlri) > 0 {
+		nlri = &bgp.NLRInfo{}
+		err := nlri.DecodeFromBytes(p.Nlri)
+		if err != nil {
+			return nil, err
+		}
+	}
+
+	pattr := make([]bgp.PathAttributeInterface, 0, len(p.Pattrs))
+	for _, attr := range p.Pattrs {
+		p, err := bgp.GetPathAttribute(attr)
+		if err != nil {
+			return nil, err
+		}
+
+		err = p.DecodeFromBytes(attr)
+		if err != nil {
+			return nil, err
+		}
+
+		switch p.GetType() {
+		case bgp.BGP_ATTR_TYPE_MP_REACH_NLRI:
+			mpreach := p.(*bgp.PathAttributeMpReachNLRI)
+			if len(mpreach.Value) != 1 {
+				return nil, fmt.Errorf("include only one route in mp_reach_nlri")
+			}
+			nlri = mpreach.Value[0]
+		}
+		pattr = append(pattr, p)
+	}
+	return &Path{
+		Nlri:       nlri,
+		PathAttrs:  pattr,
+		Age:        p.Age,
+		Best:       p.Best,
+		IsWithdraw: p.IsWithdraw,
+		Validation: p.Validation,
+	}, nil
+}
+
+type paths []*Path
 
 func (p paths) Len() int {
 	return len(p)
@@ -133,13 +208,13 @@ func (p paths) Swap(i, j int) {
 }
 
 func (p paths) Less(i, j int) bool {
-	if p[i].Nlri.Prefix == p[j].Nlri.Prefix {
+	if p[i].Nlri.String() == p[j].Nlri.String() {
 		if p[i].Best {
 			return true
 		}
 	}
-	strings := sort.StringSlice{cidr2prefix(p[i].Nlri.Prefix),
-		cidr2prefix(p[j].Nlri.Prefix)}
+	strings := sort.StringSlice{cidr2prefix(p[i].Nlri.String()),
+		cidr2prefix(p[j].Nlri.String())}
 	return strings.Less(0, 1)
 }
 
@@ -271,6 +346,36 @@ func (p policyDefinitions) Less(i, j int) bool {
 	return p[i].PolicyDefinitionName < p[j].PolicyDefinitionName
 }
 
+type roas []*api.ROA
+
+func (r roas) Len() int {
+	return len(r)
+}
+
+func (r roas) Swap(i, j int) {
+	r[i], r[j] = r[j], r[i]
+}
+
+func (r roas) Less(i, j int) bool {
+	strings := sort.StringSlice{cidr2prefix(fmt.Sprintf("%s/%d", r[i].Prefix, r[i].Prefixlen)),
+		cidr2prefix(fmt.Sprintf("%s/%d", r[j].Prefix, r[j].Prefixlen))}
+	return strings.Less(0, 1)
+}
+
+type vrfs []*api.Vrf
+
+func (v vrfs) Len() int {
+	return len(v)
+}
+
+func (v vrfs) Swap(i, j int) {
+	v[i], v[j] = v[j], v[i]
+}
+
+func (v vrfs) Less(i, j int) bool {
+	return v[i].Name < v[j].Name
+}
+
 func connGrpc() *grpc.ClientConn {
 	timeout := grpc.WithTimeout(time.Second)
 
@@ -289,29 +394,31 @@ func connGrpc() *grpc.ClientConn {
 	return conn
 }
 
-func checkAddressFamily(ip net.IP) (*api.AddressFamily, error) {
-	var rf *api.AddressFamily
+func checkAddressFamily(ip net.IP) (bgp.RouteFamily, error) {
+	var rf bgp.RouteFamily
 	var e error
 	switch subOpts.AddressFamily {
 	case "ipv4", "v4", "4":
-		rf = api.AF_IPV4_UC
+		rf = bgp.RF_IPv4_UC
 	case "ipv6", "v6", "6":
-		rf = api.AF_IPV6_UC
+		rf = bgp.RF_IPv6_UC
 	case "vpnv4", "vpn-ipv4":
-		rf = api.AF_IPV4_VPN
+		rf = bgp.RF_IPv4_VPN
 	case "vpnv6", "vpn-ipv6":
-		rf = api.AF_IPV6_VPN
+		rf = bgp.RF_IPv6_VPN
 	case "evpn":
-		rf = api.AF_EVPN
+		rf = bgp.RF_EVPN
 	case "encap":
-		rf = api.AF_ENCAP
+		rf = bgp.RF_ENCAP
 	case "rtc":
-		rf = api.AF_RTC
+		rf = bgp.RF_RTC_UC
+	case "ipv4-flowspec", "ipv4-flow", "flow4":
+		rf = bgp.RF_FS_IPv4_UC
 	case "":
 		if len(ip) == 0 || ip.To4() != nil {
-			rf = api.AF_IPV4_UC
+			rf = bgp.RF_IPv4_UC
 		} else {
-			rf = api.AF_IPV6_UC
+			rf = bgp.RF_IPv6_UC
 		}
 	default:
 		e = fmt.Errorf("unsupported address family: %s", subOpts.AddressFamily)

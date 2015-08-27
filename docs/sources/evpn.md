@@ -20,20 +20,26 @@ implementations can interchange EVPN messages.
 
 ```
 [Global]
-  As = 64512
-  RouterId = "192.168.255.1"
+  [Global.GlobalConfig]
+    As = 64512
+    RouterId = "192.168.255.1"
 
-[[NeighborList]]
-  NeighborAddress = "10.0.255.1"
-  PeerAs = 64512
-  [[NeighborList.AfiSafiList]]
-    AfiSafiName = "l2vpn-evpn"
+[Neighbors]
+  [[Neighbors.NeighborList]]
+    [Neighbors.NeighborList.NeighborConfig]
+      NeighborAddress = "10.0.255.1"
+      PeerAs = 64512
+    [Neighbors.NeighborList.AfiSafis]
+      [[Neighbors.NeighborList.AfiSafis.AfiSafiList]]
+        AfiSafiName = "l2vpn-evpn"
 
-[[NeighborList]]
-  NeighborAddress = "10.0.255.2"
-  PeerAs = 64512
-  [[NeighborList.AfiSafiList]]
-    AfiSafiName = "l2vpn-evpn"
+  [[Neighbors.NeighborList]]
+    [Neighbors.NeighborList.NeighborConfig]
+      NeighborAddress = "10.0.255.2"
+      PeerAs = 64512
+    [Neighbors.NeighborList.AfiSafis]
+      [[Neighbors.NeighborList.AfiSafis.AfiSafiList]]
+        AfiSafiName = "l2vpn-evpn"
 ```
 
 The point is that route families to be advertised need to be

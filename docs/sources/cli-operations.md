@@ -31,17 +31,34 @@ should be like the following.
 
 ```
 [Global]
-  As = 64512
-  RouterId = "192.168.255.1"
-[[NeighborList]]
-  NeighborAddress = "10.0.255.1"
-  PeerAs = 65001
-[[NeighborList]]
-  NeighborAddress = "10.0.255.2"
-  PeerAs = 65002
-[[NeighborList]]
-  NeighborAddress = "10.0.255.3"
-  PeerAs = 65003
+  [Global.GlobalConfig]
+    As = 64512
+    RouterId = "192.168.255.1"
+
+[Neighbors]
+  [[Neighbors.NeighborList]]
+    [Neighbors.NeighborList.NeighborConfig]
+      NeighborAddress = "10.0.255.1"
+      PeerAs = 65001
+    [Neighbors.NeighborList.RouteServer]
+      [Neighbors.NeighborList.RouteServer.RouteServerConfig]
+        RouteServerClient = true
+
+  [[Neighbors.NeighborList]]
+    [Neighbors.NeighborList.NeighborConfig]
+      NeighborAddress = "10.0.255.2"
+      PeerAs = 65002
+    [Neighbors.NeighborList.RouteServer]
+      [Neighbors.NeighborList.RouteServer.RouteServerConfig]
+        RouteServerClient = true
+
+  [[Neighbors.NeighborList]]
+    [Neighbors.NeighborList.NeighborConfig]
+      NeighborAddress = "10.0.255.3"
+      PeerAs = 65003
+    [Neighbors.NeighborList.RouteServer]
+      [Neighbors.NeighborList.RouteServer.RouteServerConfig]
+        RouteServerClient = true
 ```
 
 After you send `HUP` signal (`kill` command), you should see 10.0.255.3 peer.

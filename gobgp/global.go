@@ -18,226 +18,495 @@ package main
 import (
 	"fmt"
 	"github.com/osrg/gobgp/api"
+	"github.com/osrg/gobgp/packet"
 	"github.com/spf13/cobra"
 	"golang.org/x/net/context"
 	"net"
 	"os"
+	"regexp"
 	"strconv"
 	"strings"
 )
 
 func showGlobalRib(args []string) error {
-	bogusIp := net.IP{}
-	return showNeighborRib(CMD_GLOBAL, bogusIp, args)
+	return showNeighborRib(CMD_GLOBAL, "", args)
 }
 
-func parseRD(args []string) (*api.RouteDistinguisher, error) {
-	t, err := strconv.Atoi(args[0])
+type ExtCommType int
+
+const (
+	ACCEPT ExtCommType = iota
+	DISCARD
+	RATE
+	REDIRECT
+	MARK
+	ACTION
+	RT
+)
+
+var ExtCommNameMap = map[ExtCommType]string{
+	ACCEPT:   "accept",
+	DISCARD:  "discard",
+	RATE:     "rate-limit",
+	REDIRECT: "redirect",
+	MARK:     "mark",
+	ACTION:   "action",
+	RT:       "rt",
+}
+
+var ExtCommValueMap = map[string]ExtCommType{
+	ExtCommNameMap[ACCEPT]:   ACCEPT,
+	ExtCommNameMap[DISCARD]:  DISCARD,
+	ExtCommNameMap[RATE]:     RATE,
+	ExtCommNameMap[REDIRECT]: REDIRECT,
+	ExtCommNameMap[MARK]:     MARK,
+	ExtCommNameMap[ACTION]:   ACTION,
+	ExtCommNameMap[RT]:       RT,
+}
+
+func rateLimitParser(args []string) ([]bgp.ExtendedCommunityInterface, error) {
+	exp := regexp.MustCompile(fmt.Sprintf("^(%s|(%s) (\\d+)(\\.(\\d+))?)( as (\\d+))?$", ExtCommNameMap[DISCARD], ExtCommNameMap[RATE]))
+	elems := exp.FindStringSubmatch(strings.Join(args, " "))
+	if len(elems) != 8 {
+		return nil, fmt.Errorf("invalid rate-limit")
+	}
+	var rate float32
+	var as int
+	if elems[2] == ExtCommNameMap[RATE] {
+		f, err := strconv.ParseFloat(elems[3]+elems[4], 32)
+		if err != nil {
+			return nil, err
+		}
+		rate = float32(f)
+	}
+	if elems[7] != "" {
+		var err error
+		as, err = strconv.Atoi(elems[7])
+		if err != nil {
+			return nil, err
+		}
+	}
+	return []bgp.ExtendedCommunityInterface{bgp.NewTrafficRateExtended(uint16(as), rate)}, nil
+}
+
+func redirectParser(args []string) ([]bgp.ExtendedCommunityInterface, error) {
+	if len(args) < 2 || args[0] != ExtCommNameMap[REDIRECT] {
+		return nil, fmt.Errorf("invalid redirect")
+	}
+	rt, err := bgp.ParseRouteTarget(strings.Join(args[1:], " "))
 	if err != nil {
 		return nil, err
 	}
-	typ := api.ROUTE_DISTINGUISHER_TYPE(t)
-	admin := args[1]
-	assigned, err := strconv.Atoi(args[2])
-	if err != nil {
-		return nil, err
+	t, _ := rt.GetTypes()
+	switch t {
+	case bgp.EC_TYPE_TRANSITIVE_TWO_OCTET_AS_SPECIFIC:
+		r := rt.(*bgp.TwoOctetAsSpecificExtended)
+		return []bgp.ExtendedCommunityInterface{bgp.NewRedirectTwoOctetAsSpecificExtended(r.AS, r.LocalAdmin)}, nil
+	case bgp.EC_TYPE_TRANSITIVE_IP4_SPECIFIC:
+		r := rt.(*bgp.IPv4AddressSpecificExtended)
+		return []bgp.ExtendedCommunityInterface{bgp.NewRedirectIPv4AddressSpecificExtended(r.IPv4.String(), r.LocalAdmin)}, nil
+	case bgp.EC_TYPE_TRANSITIVE_FOUR_OCTET_AS_SPECIFIC:
+		r := rt.(*bgp.FourOctetAsSpecificExtended)
+		return []bgp.ExtendedCommunityInterface{bgp.NewRedirectFourOctetAsSpecificExtended(r.AS, r.LocalAdmin)}, nil
 	}
-	return &api.RouteDistinguisher{
-		Type:     typ,
-		Admin:    admin,
-		Assigned: uint32(assigned),
-	}, nil
+	return nil, fmt.Errorf("invalid redirect")
 }
 
-func modPath(modtype string, args []string) error {
+func markParser(args []string) ([]bgp.ExtendedCommunityInterface, error) {
+	if len(args) < 2 || args[0] != ExtCommNameMap[MARK] {
+		return nil, fmt.Errorf("invalid mark")
+	}
+	dscp, err := strconv.Atoi(args[1])
+	if err != nil {
+		return nil, fmt.Errorf("invalid mark")
+	}
+	return []bgp.ExtendedCommunityInterface{bgp.NewTrafficRemarkExtended(uint8(dscp))}, nil
+}
+
+func actionParser(args []string) ([]bgp.ExtendedCommunityInterface, error) {
+	if len(args) < 2 || args[0] != ExtCommNameMap[ACTION] {
+		return nil, fmt.Errorf("invalid action")
+	}
+	sample := false
+	terminal := false
+	switch args[1] {
+	case "sample":
+		sample = true
+	case "terminal":
+		terminal = true
+	case "terminal-sample", "sample-terminal":
+		sample = true
+		terminal = true
+	default:
+		return nil, fmt.Errorf("invalid action")
+	}
+	return []bgp.ExtendedCommunityInterface{bgp.NewTrafficActionExtended(terminal, sample)}, nil
+}
+
+func rtParser(args []string) ([]bgp.ExtendedCommunityInterface, error) {
+	if len(args) < 2 || args[0] != ExtCommNameMap[RT] {
+		return nil, fmt.Errorf("invalid rt")
+	}
+	exts := make([]bgp.ExtendedCommunityInterface, 0, len(args[1:]))
+	for _, arg := range args[1:] {
+		rt, err := bgp.ParseRouteTarget(arg)
+		if err != nil {
+			return nil, err
+		}
+		exts = append(exts, rt)
+	}
+	return exts, nil
+}
+
+var ExtCommParserMap = map[ExtCommType]func([]string) ([]bgp.ExtendedCommunityInterface, error){
+	ACCEPT:   nil,
+	DISCARD:  rateLimitParser,
+	RATE:     rateLimitParser,
+	REDIRECT: redirectParser,
+	MARK:     markParser,
+	ACTION:   actionParser,
+	RT:       rtParser,
+}
+
+func ParseExtendedCommunities(input string) ([]bgp.ExtendedCommunityInterface, error) {
+	idxs := make([]struct {
+		t ExtCommType
+		i int
+	}, 0, len(ExtCommNameMap))
+	args := strings.Split(input, " ")
+	for idx, v := range args {
+		if t, ok := ExtCommValueMap[v]; ok {
+			idxs = append(idxs, struct {
+				t ExtCommType
+				i int
+			}{t, idx})
+		}
+	}
+	exts := make([]bgp.ExtendedCommunityInterface, 0, len(idxs))
+	for i, idx := range idxs {
+		var a []string
+		f := ExtCommParserMap[idx.t]
+		if f == nil {
+			continue
+		}
+		if i < len(idxs)-1 {
+			a = args[idx.i:idxs[i+1].i]
+		} else {
+			a = args[idx.i:]
+		}
+		ext, err := f(a)
+		if err != nil {
+			return nil, err
+		}
+		exts = append(exts, ext...)
+	}
+	return exts, nil
+}
+
+func parseFlowSpecArgs(resource api.Resource, name, modtype string, args []string) (bgp.AddrPrefixInterface, string, []string, error) {
+	thenPos := len(args)
+	for idx, v := range args {
+		if v == "then" {
+			thenPos = idx
+		}
+	}
+	ss := make([]string, 0, len(bgp.ProtocolNameMap))
+	for _, v := range bgp.ProtocolNameMap {
+		ss = append(ss, v)
+	}
+	protos := strings.Join(ss, ", ")
+	ss = make([]string, 0, len(bgp.TCPFlagNameMap))
+	for _, v := range bgp.TCPFlagNameMap {
+		ss = append(ss, v)
+	}
+	flags := strings.Join(ss, ", ")
+	helpErr := fmt.Errorf(`usage: global rib %s match <MATCH_EXPR> then <THEN_EXPR> -a ipv4-flowspec
+    <MATCH_EXPR> : { %s <PREFIX> | %s <PREFIX> |
+		     %s <PROTO>... | %s <FRAGMENT_TYPE> | %s <TCPFLAG>... |
+		     { %s | %s | %s | %s | %s | %s | %s } <ITEM>... }...
+	<PROTO> : %s
+	<FRAGMENT_TYPE> : not-a-fragment, is-a-fragment, first-fragment, last-fragment
+	<TCPFLAG> : %s
+	<ITEM> : &?{<|>|=}<value>
+    <THEN_EXPR> : { %s | %s | %s <value> | %s <RT> | %s <value> | %s { sample | terminal | sample-terminal } | %s <RT>... }...
+	<RT> : xxx:yyy, xx.xx.xx.xx:yyy, xxx.xxx:yyy`, modtype,
+		bgp.FlowSpecNameMap[bgp.FLOW_SPEC_TYPE_DST_PREFIX],
+		bgp.FlowSpecNameMap[bgp.FLOW_SPEC_TYPE_SRC_PREFIX],
+		bgp.FlowSpecNameMap[bgp.FLOW_SPEC_TYPE_IP_PROTO],
+		bgp.FlowSpecNameMap[bgp.FLOW_SPEC_TYPE_FRAGMENT],
+		bgp.FlowSpecNameMap[bgp.FLOW_SPEC_TYPE_TCP_FLAG],
+		bgp.FlowSpecNameMap[bgp.FLOW_SPEC_TYPE_PORT],
+		bgp.FlowSpecNameMap[bgp.FLOW_SPEC_TYPE_DST_PORT],
+		bgp.FlowSpecNameMap[bgp.FLOW_SPEC_TYPE_SRC_PORT],
+		bgp.FlowSpecNameMap[bgp.FLOW_SPEC_TYPE_ICMP_TYPE],
+		bgp.FlowSpecNameMap[bgp.FLOW_SPEC_TYPE_ICMP_CODE],
+		bgp.FlowSpecNameMap[bgp.FLOW_SPEC_TYPE_PKT_LEN],
+		bgp.FlowSpecNameMap[bgp.FLOW_SPEC_TYPE_DSCP],
+		protos, flags,
+		ExtCommNameMap[ACCEPT], ExtCommNameMap[DISCARD],
+		ExtCommNameMap[RATE], ExtCommNameMap[REDIRECT],
+		ExtCommNameMap[MARK], ExtCommNameMap[ACTION], ExtCommNameMap[RT])
+
+	if len(args) < 4 || args[0] != "match" || thenPos > len(args)-2 {
+		return nil, "", nil, helpErr
+	}
+	matchArgs := args[1:thenPos]
+	cmp, err := bgp.ParseFlowSpecComponents(strings.Join(matchArgs, " "))
+	if err != nil {
+		return nil, "", nil, fmt.Errorf("%s\n%s", err, helpErr)
+	}
+	nlri := bgp.NewFlowSpecIPv4Unicast(cmp)
+	return nlri, "0.0.0.0", args[thenPos:], nil
+}
+func parseEvpnArgs(resource api.Resource, name, modtype string, args []string) (bgp.AddrPrefixInterface, string, []string, error) {
+	cmdstr := "global"
+	if resource == api.Resource_VRF {
+		cmdstr = fmt.Sprintf("vrf %s", name)
+	}
+
+	if len(args) < 1 {
+		return nil, "", nil, fmt.Errorf("usage: %s rib %s { macadv | multicast } ... -a evpn", cmdstr, modtype)
+	}
+	subtype := args[0]
+	args = args[1:]
+
+	var nlri bgp.AddrPrefixInterface
+	var rts []string
+	var ip net.IP
+	iplen := 0
+
+	switch subtype {
+	case "macadv":
+		switch resource {
+		case api.Resource_GLOBAL:
+			if len(args) < 6 || args[4] != "rd" || args[6] != "rt" {
+				return nil, "", nil, fmt.Errorf("usage: rib %s macadv <mac address> <ip address> <etag> <label> rd <rd> rt <rt>... -a evpn", modtype)
+			}
+		case api.Resource_VRF:
+			if len(args) < 4 {
+				return nil, "", nil, fmt.Errorf("usage: vrf %s rib %s macadv <mac address> <ip address> <etag> <label> -a evpn", name, modtype)
+			}
+		}
+		mac, err := net.ParseMAC(args[0])
+		if err != nil {
+			return nil, "", nil, fmt.Errorf("invalid mac: %s", args[0])
+		}
+		if args[1] != "0.0.0.0" || args[1] != "::" {
+			ip = net.ParseIP(args[1])
+			if ip == nil {
+				return nil, "", nil, fmt.Errorf("invalid ip prefix: %s", args[1])
+			}
+			iplen = net.IPv4len * 8
+			if ip.To4() == nil {
+				iplen = net.IPv6len * 8
+			}
+		}
+		eTag, err := strconv.Atoi(args[2])
+		if err != nil {
+			return nil, "", nil, fmt.Errorf("invalid eTag: %s. err: %s", args[2], err)
+		}
+		label, err := strconv.Atoi(args[3])
+		if err != nil {
+			return nil, "", nil, fmt.Errorf("invalid label: %s. err: %s", args[3], err)
+		}
+		var rd bgp.RouteDistinguisherInterface
+		if resource == api.Resource_GLOBAL {
+			rd, err = bgp.ParseRouteDistinguisher(args[5])
+			if err != nil {
+				return nil, "", nil, err
+			}
+			rts = args[6:]
+		}
+
+		macIpAdv := &bgp.EVPNMacIPAdvertisementRoute{
+			RD: rd,
+			ESI: bgp.EthernetSegmentIdentifier{
+				Type: bgp.ESI_ARBITRARY,
+			},
+			MacAddressLength: 48,
+			MacAddress:       mac,
+			IPAddressLength:  uint8(iplen),
+			IPAddress:        ip,
+			Labels:           []uint32{uint32(label)},
+			ETag:             uint32(eTag),
+		}
+		nlri = bgp.NewEVPNNLRI(bgp.EVPN_ROUTE_TYPE_MAC_IP_ADVERTISEMENT, 0, macIpAdv)
+	case "multicast":
+		switch resource {
+		case api.Resource_GLOBAL:
+			if len(args) < 5 || args[2] != "rd" || args[4] != "rt" {
+				return nil, "", nil, fmt.Errorf("usage : global rib %s multicast <ip address> <etag> rd <rd> rt <rt> -a evpn", modtype)
+			}
+		case api.Resource_VRF:
+			if len(args) < 2 {
+				return nil, "", nil, fmt.Errorf("usage : vrf %s rib %s multicast <ip address> <etag> -a evpn", name, modtype)
+			}
+		}
+		if args[0] != "0.0.0.0" || args[0] != "::" {
+			ip = net.ParseIP(args[0])
+			if ip == nil {
+				return nil, "", nil, fmt.Errorf("invalid ip prefix: %s", args[0])
+			}
+			iplen = net.IPv4len * 8
+			if ip.To4() == nil {
+				iplen = net.IPv6len * 8
+			}
+		}
+
+		eTag, err := strconv.Atoi(args[1])
+		if err != nil {
+			return nil, "", nil, fmt.Errorf("invalid eTag: %s. err: %s", args[1], err)
+		}
+
+		var rd bgp.RouteDistinguisherInterface
+		if resource == api.Resource_GLOBAL {
+			rd, err = bgp.ParseRouteDistinguisher(args[3])
+			if err != nil {
+				return nil, "", nil, err
+			}
+			rts = args[4:]
+		}
+
+		multicastEtag := &bgp.EVPNMulticastEthernetTagRoute{
+			RD:              rd,
+			IPAddressLength: uint8(iplen),
+			IPAddress:       ip,
+			ETag:            uint32(eTag),
+		}
+		nlri = bgp.NewEVPNNLRI(bgp.EVPN_INCLUSIVE_MULTICAST_ETHERNET_TAG, 0, multicastEtag)
+	default:
+		return nil, "", nil, fmt.Errorf("usage: global rib add { macadv | multicast | ... -a evpn")
+	}
+	return nlri, "0.0.0.0", rts, nil
+}
+
+func modPath(resource api.Resource, name, modtype string, args []string) error {
 	rf, err := checkAddressFamily(net.IP{})
 	if err != nil {
 		return err
 	}
 
-	path := &api.Path{}
+	var nlri bgp.AddrPrefixInterface
+	var nexthop string
+	var extcomms []string
+
+	cmdstr := "global"
+	if resource == api.Resource_VRF {
+		cmdstr = fmt.Sprintf("vrf %s", name)
+	}
+
 	switch rf {
-	case api.AF_IPV4_UC, api.AF_IPV6_UC:
+	case bgp.RF_IPv4_UC, bgp.RF_IPv6_UC:
 		if len(args) != 1 {
-			return fmt.Errorf("usage: global rib %s <prefix> -a { ipv4 | ipv6 }", modtype)
+			return fmt.Errorf("usage: %s rib %s <prefix> -a { ipv4 | ipv6 }", cmdstr, modtype)
 		}
-		prefix := args[0]
-		path.Nlri = &api.Nlri{
-			Af:     rf,
-			Prefix: prefix,
+		ip, net, _ := net.ParseCIDR(args[0])
+		if rf == bgp.RF_IPv4_UC {
+			if ip.To4() == nil {
+				return fmt.Errorf("invalid ipv4 prefix")
+			}
+			nexthop = "0.0.0.0"
+			ones, _ := net.Mask.Size()
+			nlri = bgp.NewNLRInfo(uint8(ones), ip.String())
+		} else {
+			if ip.To16() == nil {
+				return fmt.Errorf("invalid ipv6 prefix")
+			}
+			nexthop = "::"
+			ones, _ := net.Mask.Size()
+			nlri = bgp.NewIPv6AddrPrefix(uint8(ones), ip.String())
 		}
-	case api.AF_IPV4_VPN, api.AF_IPV6_VPN:
-		if len(args) < 1 {
-			return fmt.Errorf("usage: global rib %s <rd>:<prefix> [<rt>...] -a { vpn-ipv4 | vpn-ipv6 }", modtype)
+	case bgp.RF_IPv4_VPN, bgp.RF_IPv6_VPN:
+		if resource != api.Resource_GLOBAL {
+			return fmt.Errorf("Unsupported route family: %s", rf)
 		}
-		elems := strings.SplitN(args[0], ":", 4)
-		if len(elems) != 4 {
-			return fmt.Errorf("invalid <rd>:<prefix>: %s. hint. <rd> := <type>:<admin>:<assigned>", args[0])
+		if len(args) < 3 || args[1] != "rd" || args[3] != "rt" {
+			return fmt.Errorf("usage: %s rib %s <prefix> rd <rd> rt <rt>... -a { vpn-ipv4 | vpn-ipv6 }", cmdstr, modtype)
 		}
-		rd, err := parseRD(elems[:3])
+		ip, net, _ := net.ParseCIDR(args[0])
+		ones, _ := net.Mask.Size()
+
+		rd, err := bgp.ParseRouteDistinguisher(args[2])
 		if err != nil {
 			return err
 		}
-		prefix := elems[3]
-		elems = strings.Split(prefix, "/")
-		if len(elems) != 2 {
-			return fmt.Errorf("invalid prefix: %s", prefix)
+
+		extcomms = args[3:]
+
+		mpls := bgp.NewMPLSLabelStack()
+
+		if rf == bgp.RF_IPv4_VPN {
+			if ip.To4() == nil {
+				return fmt.Errorf("invalid ipv4 prefix")
+			}
+			nexthop = "0.0.0.0"
+			nlri = bgp.NewLabeledVPNIPAddrPrefix(uint8(ones), ip.String(), *mpls, rd)
+		} else {
+			if ip.To16() == nil {
+				return fmt.Errorf("invalid ipv6 prefix")
+			}
+			nexthop = "::"
+			nlri = bgp.NewLabeledVPNIPv6AddrPrefix(uint8(ones), ip.String(), *mpls, rd)
 		}
 
-		masklen, err := strconv.Atoi(elems[1])
+	case bgp.RF_EVPN:
+		nlri, nexthop, extcomms, err = parseEvpnArgs(resource, name, modtype, args)
 		if err != nil {
-			return fmt.Errorf("invalid prefix: %s", prefix)
+			return err
 		}
-
-		nlri := &api.VPNNlri{
-			Rd:        rd,
-			IpAddr:    elems[0],
-			IpAddrLen: uint32(masklen),
+	case bgp.RF_FS_IPv4_UC:
+		if resource != api.Resource_GLOBAL {
+			return fmt.Errorf("Unsupported route family: %s", rf)
 		}
-		path.Nlri = &api.Nlri{
-			Af:      rf,
-			VpnNlri: nlri,
+		nlri, nexthop, extcomms, err = parseFlowSpecArgs(resource, name, modtype, args)
+		if err != nil {
+			return err
 		}
-	case api.AF_EVPN:
-		var nlri *api.EVPNNlri
-
-		if len(args) < 1 {
-			return fmt.Errorf("usage: global rib %s { macadv | multicast } ... -a evpn", modtype)
-		}
-		subtype := args[0]
-
-		switch subtype {
-		case "macadv":
-			if len(args) < 5 {
-				return fmt.Errorf("usage: global rib %s macadv <mac address> <ip address> <etag> <label> -a evpn", modtype)
-			}
-			macAddr := args[1]
-			ipAddr := args[2]
-			eTag, err := strconv.Atoi(args[3])
-			if err != nil {
-				return fmt.Errorf("invalid eTag: %s. err: %s", args[3], err)
-			}
-			label, err := strconv.Atoi(args[4])
-			if err != nil {
-				return fmt.Errorf("invalid label: %s. err: %s", args[4], err)
-			}
-			nlri = &api.EVPNNlri{
-				Type: api.EVPN_TYPE_ROUTE_TYPE_MAC_IP_ADVERTISEMENT,
-				MacIpAdv: &api.EvpnMacIpAdvertisement{
-					MacAddr: macAddr,
-					IpAddr:  ipAddr,
-					Etag:    uint32(eTag),
-					Labels:  []uint32{uint32(label)},
-				},
-			}
-		case "multicast":
-			if len(args) < 3 {
-				return fmt.Errorf("usage : global rib %s multicast <etag> <label> -a evpn", modtype)
-			}
-			eTag, err := strconv.Atoi(args[1])
-			if err != nil {
-				return fmt.Errorf("invalid eTag: %s. err: %s", args[1], err)
-			}
-			label, err := strconv.Atoi(args[2])
-			if err != nil {
-				return fmt.Errorf("invalid label: %s. err: %s", args[2], err)
-			}
-			nlri = &api.EVPNNlri{
-				Type: api.EVPN_TYPE_INCLUSIVE_MULTICAST_ETHERNET_TAG,
-				MulticastEtag: &api.EvpnInclusiveMulticastEthernetTag{
-					Etag: uint32(eTag),
-				},
-			}
-
-			attr := &api.PathAttr{
-				Type: api.BGP_ATTR_TYPE_PMSI_TUNNEL,
-				PmsiTunnel: &api.PmsiTunnel{
-					Type:  api.PMSI_TUNNEL_TYPE_INGRESS_REPL,
-					Label: uint32(label),
-				},
-			}
-
-			path.Attrs = append(path.Attrs, attr)
-		default:
-			return fmt.Errorf("usage: global rib add { macadv | multicast | ... -a evpn")
-		}
-		path.Nlri = &api.Nlri{
-			Af:       rf,
-			EvpnNlri: nlri,
-		}
-	case api.AF_ENCAP:
-		if len(args) < 1 {
-			return fmt.Errorf("usage: global rib %s <end point ip address> [<vni>] -a encap", modtype)
-		}
-		prefix := args[0]
-
-		path.Nlri = &api.Nlri{
-			Af:     rf,
-			Prefix: prefix,
-		}
-
-		if len(args) > 1 {
-			vni, err := strconv.Atoi(args[1])
-			if err != nil {
-				return fmt.Errorf("invalid vni: %s", args[1])
-			}
-			subTlv := &api.TunnelEncapSubTLV{
-				Type:  api.ENCAP_SUBTLV_TYPE_COLOR,
-				Color: uint32(vni),
-			}
-			tlv := &api.TunnelEncapTLV{
-				Type:   api.TUNNEL_TYPE_VXLAN,
-				SubTlv: []*api.TunnelEncapSubTLV{subTlv},
-			}
-			attr := &api.PathAttr{
-				Type:        api.BGP_ATTR_TYPE_TUNNEL_ENCAP,
-				TunnelEncap: []*api.TunnelEncapTLV{tlv},
-			}
-
-			path.Attrs = append(path.Attrs, attr)
-		}
-	case api.AF_RTC:
-		if !(len(args) == 3 && args[0] == "default") && len(args) < 4 {
-			return fmt.Errorf("usage: global rib add <asn> <local admin> -a rtc")
-		}
-		var asn, admin int
-
-		if args[0] != "default" {
-			asn, err = strconv.Atoi(args[0])
-			if err != nil {
-				return fmt.Errorf("invalid asn: %s", args[0])
-			}
-			admin, err = strconv.Atoi(args[1])
-			if err != nil {
-				return fmt.Errorf("invalid local admin: %s", args[1])
-			}
-		}
-		path.Nlri = &api.Nlri{
-			Af: rf,
-			RtNlri: &api.RTNlri{
-				Target: &api.ExtendedCommunity{
-					Type:       api.EXTENDED_COMMUNITIE_TYPE_TWO_OCTET_AS_SPECIFIC,
-					Subtype:    api.EXTENDED_COMMUNITIE_SUBTYPE_ROUTE_TARGET,
-					Asn:        uint32(asn),
-					LocalAdmin: uint32(admin),
-				},
-			},
-		}
+	default:
+		return fmt.Errorf("Unsupported route family: %s", rf)
 	}
-	switch modtype {
-	case CMD_ADD:
-		path.IsWithdraw = false
-	case CMD_DEL:
+
+	path := &api.Path{
+		Pattrs: make([][]byte, 0),
+	}
+
+	if modtype == CMD_DEL {
 		path.IsWithdraw = true
 	}
 
-	arg := &api.ModPathArguments{
-		Resource: api.Resource_GLOBAL,
-		Path:     path,
+	if rf == bgp.RF_IPv4_UC {
+		path.Nlri, _ = nlri.Serialize()
+		n, _ := bgp.NewPathAttributeNextHop(nexthop).Serialize()
+		path.Pattrs = append(path.Pattrs, n)
+	} else {
+		mpreach, _ := bgp.NewPathAttributeMpReachNLRI(nexthop, []bgp.AddrPrefixInterface{nlri}).Serialize()
+		path.Pattrs = append(path.Pattrs, mpreach)
 	}
+
+	origin, _ := bgp.NewPathAttributeOrigin(bgp.BGP_ORIGIN_ATTR_TYPE_IGP).Serialize()
+	path.Pattrs = append(path.Pattrs, origin)
+
+	if extcomms != nil && len(extcomms) > 0 {
+		extcomms, err := ParseExtendedCommunities(strings.Join(extcomms, " "))
+		if err != nil {
+			return err
+		}
+		p := bgp.NewPathAttributeExtendedCommunities(extcomms)
+		buf, err := p.Serialize()
+		if err != nil {
+			return err
+		}
+		path.Pattrs = append(path.Pattrs, buf)
+	}
+
 	stream, err := client.ModPath(context.Background())
 	if err != nil {
 		return err
+	}
+	arg := &api.ModPathArguments{
+		Resource: resource,
+		Name:     name,
+		Path:     path,
 	}
 	err = stream.Send(arg)
 	if err != nil {
@@ -269,29 +538,20 @@ func NewGlobalCmd() *cobra.Command {
 
 	ribCmd.PersistentFlags().StringVarP(&subOpts.AddressFamily, "address-family", "a", "", "address family")
 
-	addCmd := &cobra.Command{
-		Use: CMD_ADD,
-		Run: func(cmd *cobra.Command, args []string) {
-			err := modPath(CMD_ADD, args)
-			if err != nil {
-				fmt.Println(err)
-				os.Exit(1)
-			}
-		},
+	for _, v := range []string{CMD_ADD, CMD_DEL} {
+		cmd := &cobra.Command{
+			Use: v,
+			Run: func(cmd *cobra.Command, args []string) {
+				err := modPath(api.Resource_GLOBAL, "", cmd.Use, args)
+				if err != nil {
+					fmt.Println(err)
+					os.Exit(1)
+				}
+			},
+		}
+		ribCmd.AddCommand(cmd)
 	}
 
-	delCmd := &cobra.Command{
-		Use: CMD_DEL,
-		Run: func(cmd *cobra.Command, args []string) {
-			err := modPath(CMD_DEL, args)
-			if err != nil {
-				fmt.Println(err)
-				os.Exit(1)
-			}
-		},
-	}
-
-	ribCmd.AddCommand(addCmd, delCmd)
 	globalCmd.AddCommand(ribCmd)
 	return globalCmd
 }

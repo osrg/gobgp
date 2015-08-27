@@ -1,0 +1,560 @@
+module bgp-gobgp {
+
+  yang-version "1";
+
+  // namespace
+  namespace "https://github.com/osrg/gobgp";
+
+  prefix "gobgp";
+
+  // import some basic types
+  import bgp { prefix bgp; }
+  import routing-policy {prefix rpol; }
+  import bgp-policy {prefix bgp-pol; }
+  import ietf-inet-types { prefix inet; }
+
+  // meta
+  organization
+    "GoBGP";
+
+  contact
+    "GoBGP http://osrg.github.io/gobgp/";
+
+  description
+    "This module contains definitions for GoBGP-specific configuration.
+    It augments bgp modules with GoBGP-specific options.";
+
+  revision "2015-08-10" {
+    description
+      "Updated model to augment base bgp modules";
+    reference "TBD";
+  }
+
+  typedef bgp-origin-attr-type {
+    type enumeration {
+      enum IGP {
+        value 0;
+        description "Origin of the NLRI is internal";
+      }
+      enum EGP {
+        value 1;
+        description "Origin of the NLRI is EGP";
+      }
+      enum INCOMPLETE {
+        value 2;
+        description "Origin of the NLRI is neither IGP or EGP";
+      }
+    }
+  }
+
+  grouping gobgp-message-counter {
+    description
+      "Counters for all BGPMessage types";
+
+    leaf OPEN {
+      type uint64;
+      description
+        "Number of BGP open messages announcing, withdrawing
+        or modifying paths exchanged.";
+    }
+
+    leaf REFRESH {
+      type uint64;
+      description
+        "Number of BGP Route-Refresh messages indicating an
+        error condition has occurred exchanged.";
+    }
+
+    leaf KEEPALIVE {
+      type uint64;
+      description
+        "Number of BGP Keepalive messages indicating an
+        error condition has occurred exchanged.";
+    }
+
+    leaf DYNAMIC-CAP {
+      type uint64;
+      description
+        "Number of BGP dynamic-cap messages indicating an
+        error condition has occurred exchanged.";
+    }
+
+    leaf DISCARDED {
+      type uint64;
+      description
+        "Number of discarded messages indicating an
+        error condition has occurred exchanged.";
+    }
+
+    leaf TOTAL {
+      type uint64;
+      description
+        "Number of total messages indicating an
+        error condition has occurred exchanged.";
+    }
+  }
+
+
+  grouping gobgp-timer {
+    description "additional timer";
+
+    leaf idle-hold-time-after-reset {
+      type decimal64 {
+        fraction-digits 2;
+      }
+      default 30;
+      description
+        "Time interval in seconds that a BGP session will be
+        in idle state after neighbor reset operation.";
+    }
+  }
+
+
+  grouping gobgp-neighbor-timer {
+    description "additional timer";
+
+    leaf downtime {
+      type yang:timeticks;
+      description
+        "This timer determines the amount of time since the
+        BGP last transitioned out of the Established state";
+    }
+
+    leaf update-recv-time {
+      type int64;
+      description
+        "The number of seconds elasped since January 1, 1970 UTC
+        last time the BGP session received an UPDATE message";
+    }
+  }
+
+
+  grouping gobgp-in-policy {
+    description
+      "additional policy";
+
+    leaf-list in-policy {
+      type leafref {
+        path "/rpol:routing-policy/rpol:policy-definitions/" +
+            "rpol:policy-definition/rpol:name";
+        //require-instance true;
+      }
+      description
+        "list of policy names in sequence to be applied on
+        sending a routing update in the current context, e.g.,
+        for the current other route server clients.";
+    }
+
+    leaf default-in-policy {
+      type rpol:default-policy-type;
+      default REJECT-ROUTE;
+      description
+        "explicitly set a default policy if no policy definition
+        in the in-policy chain is satisfied.";
+    }
+  }
+
+  grouping gobgp-route-server-config {
+    description
+      "Configuration parameter specifying whether
+      the neighbor is route server client or not.";
+
+    leaf route-server-client {
+      type boolean;
+      default "false";
+      description
+        "Configure the neighbor as a route server client.";
+    }
+  }
+
+  grouping gobgp-route-server-config-set {
+     description
+        "set of configurations for route server client.";
+
+    container route-server {
+       description
+         "Configure the local router as a route server";
+
+      container config {
+      description
+        "Configuration parameters relating to route server
+        client(s) used for the BGP neighbor";
+      uses gobgp-route-server-config;
+      }
+      container state {
+      config false;
+      description
+        "State information relating to route server
+        client(s) used for the BGP neighbor";
+      uses gobgp-route-server-config;
+      }
+    }
+  }
+
+   typedef rpki-validation-result-type {
+    type enumeration {
+      enum NONE {
+        description "RPKI disabled";
+      }
+      enum NOT-FOUND {
+        description "If the origin AS, prefix, maximum prefix length
+        does not exist in the range of ROA";
+      }
+      enum VALID {
+        description "If the origin AS, prefix, maximum prefix length is
+        exist in the range of ROA";
+      }
+      enum INVALID {
+        description "if the origin AS is different when prefix,
+        maximum prefix length is exist in the range of ROA";
+      }
+    }
+    description
+      "indicate the validation result of RPKI based on ROA";
+  }
+
+  grouping gobgp-rpki-validation-result {
+    description "additional rpki";
+
+    leaf rpki-validation-result {
+      type rpki-validation-result-type;
+      default NOT-FOUND;
+      description
+        "specify the validation result of RPKI based on ROA as conditions";
+    }
+  }
+
+  grouping gobgp-rpki-server-messages-sent {
+    description "additional RPKI sent messages";
+
+    leaf serial-query {
+      type int64;
+      description
+        "Number of serial query message sent to RPKI server";
+    }
+    leaf reset-query {
+      type int64;
+      description
+        "Number of reset query message sent to RPKI server";
+    }
+    leaf error {
+      type int64;
+      description
+        "Number of error message sent to RPKI server";
+    }
+  }
+
+  grouping gobgp-rpki-server-messages-received {
+    description "additional RPKI receive messages";
+
+    leaf serial-notify {
+      type int64;
+      description
+        "Number of serial notify message received from RPKI server";
+    }
+    leaf cache-reset {
+      type int64;
+      description
+        "Number of cache reset message received from RPKI server";
+    }
+    leaf cache-response {
+      type int64;
+      description
+        "Number of cache response message received from RPKI server";
+    }
+    leaf ipv4-prefix {
+      type int64;
+      description
+        "Number of ipv4 prefix message received from RPKI server";
+    }
+    leaf ipv6-prefix {
+      type int64;
+      description
+        "Number of ipv6 prefix message received from RPKI server";
+    }
+    leaf end-of-data {
+      type int64;
+      description
+        "Number of end of data message received from RPKI server";
+    }
+    leaf error {
+      type int64;
+      description
+        "Number of error message received from RPKI server";
+    }
+  }
+
+  grouping gobgp-rpki-server-messages {
+    description "additional RPKI messages";
+
+    container rpki-sent {
+      description
+        "Counters for transmission RPKI Message types";
+      uses gobgp-rpki-server-messages-sent;
+    }
+    container rpki-received {
+      description
+        "Counters for reception RPKI Message types";
+      uses gobgp-rpki-server-messages-received;
+    }
+  }
+
+  grouping gobgp-rpki-server-state {
+    description "additional RPKI state";
+
+    leaf uptime {
+      type int64;
+      description
+        "This timer determines the amount of time since the
+         RPKI last transitioned in of the Established state";
+    }
+    leaf downtime {
+      type int64;
+      description
+        "This timer determines the amount of time since the
+         RPKI last transitioned out of the Established state";
+    }
+    leaf last-pdu-recv-time {
+      type int64;
+      description
+        "last time the received an pdu message from RPKI server";
+    }
+    container rpki-messages {
+      description
+        "Counters for transmission and reception RPKI Message types";
+      uses gobgp-rpki-server-messages;
+    }
+  }
+
+  grouping gobgp-rpki-server-config {
+    description "additional RPKI config";
+
+    leaf address {
+      type inet:ip-address;
+      description
+        "Reference to the address of the RPKI server used as
+         a key in the RPKI server list";
+    }
+    leaf port {
+      type uint32;
+      description
+        "Reference to the port of the RPKI server";
+    }
+    leaf refresh-time {
+      type int64;
+      description
+        "Check interval for a configured RPKI server.";
+    }
+    leaf hold-time {
+      type int64;
+      description
+        "Specify the length of time in seconds that the session between
+        the router and RPKI server is to be considered operational
+        without any activity";
+    }
+    leaf record-lifetime {
+      type int64;
+      description
+        "Indicate the expiration date of the route validation recode
+        received from RPKI server";
+    }
+    leaf preference {
+      type uint8;
+      description
+        "RPKI server has a static preference.
+        Higher the preference values indicates a higher priority RPKI server";
+    }
+  }
+
+  grouping gobgp-rpki-server-set {
+    description "additional RPKI configuration and state";
+
+    container config {
+      description
+        "Configuration parameters relating to RPKI server";
+      uses gobgp-rpki-server-config;
+    }
+    container state {
+      description
+        "State information relating to RPKI server";
+      uses gobgp-rpki-server-state;
+    }
+  }
+
+  grouping gobgp-rpki-servers {
+    description "additional RPKI structure";
+
+    container rpki-servers {
+      description
+        "List of RPKI servers configured on the local system";
+      list rpki-server {
+        container rpki-server {
+          uses gobgp-rpki-server-set;
+        }
+      }
+    }
+  }
+
+  // augment statements
+  augment "/bgp:bgp/bgp:neighbors/bgp:neighbor/bgp:state/bgp:messages/bgp:sent" {
+    description "additional counters";
+    uses gobgp-message-counter;
+  }
+
+  augment "/bgp:bgp/bgp:neighbors/bgp:neighbor/bgp:state/bgp:messages/bgp:received" {
+    description "additional counters";
+    uses gobgp-message-counter;
+  }
+
+  augment "/bgp:bgp/bgp:neighbors/bgp:neighbor/bgp:state" {
+    description "additional state elements";
+
+    leaf admin-down {
+      type boolean;
+      description
+        "The state of administrative operation. If the state is true, it indicates the neighbor is disabled by the administrator";
+    }
+
+    leaf established-count {
+      type uint32;
+      description
+        "The number of how many the peer became established state";
+    }
+
+     leaf flops {
+      type uint32;
+      description
+        "The number of flip-flops";
+    }
+  }
+
+  augment "/bgp:bgp/bgp:neighbors/bgp:neighbor/bgp:timers/bgp:config" {
+    description "additional timer";
+    uses gobgp-timer;
+   }
+
+  augment "/bgp:bgp/bgp:neighbors/bgp:neighbor/bgp:timers/bgp:state" {
+    description "additional timers";
+    uses gobgp-timer;
+    uses gobgp-neighbor-timer;
+   }
+
+  augment "/bgp:bgp/bgp:peer-groups/bgp:peer-group" {
+    description "route server configuration for peer-group";
+    uses gobgp-route-server-config-set;
+  }
+
+  augment "/bgp:bgp/bgp:neighbors/bgp:neighbor" {
+    description "route server configuration for neighbor";
+    uses gobgp-route-server-config-set;
+  }
+
+  augment "/bgp:bgp/bgp:neighbors/bgp:neighbor/bgp:transport/bgp:config" {
+    description "neighbor's local ip address, whose type is inet:ip-address";
+    leaf local-address {
+        type inet:ip-address;
+    }
+  }
+
+  augment "/bgp:bgp/bgp:neighbors/bgp:neighbor/bgp:transport/bgp:state" {
+    description "neighbor's local ip address, whose type is inet:ip-address";
+    leaf local-address {
+      type inet:ip-address;
+    }
+  }
+
+  augment "/bgp:bgp/bgp:global/bgp:apply-policy/bgp:config" {
+    description "addtional policy";
+    uses gobgp-in-policy;
+
+  }
+
+  augment "/bgp:bgp/bgp:global/bgp:apply-policy/bgp:state" {
+    description "additional policy";
+    uses gobgp-in-policy;
+
+  }
+
+  augment "/rpol:routing-policy/rpol:policy-definitions/" +
+    "rpol:policy-definition/rpol:statements/rpol:statement/" +
+    "rpol:actions/bgp-pol:bgp-actions/bgp-pol:set-as-path-prepend" {
+    description "as number used for aspath prepend";
+
+       leaf as {
+         type union {
+           type inet:as-number;
+           type string {
+             pattern "last-as";
+           }
+         }
+         description
+           "autonomous system number or 'last-as' which means
+           the leftmost as number in the AS-path to be prepended";
+       }
+  }
+
+  augment "/rpol:routing-policy/rpol:defined-sets/rpol:neighbor-sets/rpol:neighbor-set" {
+    description "alternative for the existing neighbor element";
+
+    list neighbor-info {
+      leaf address {
+        type inet:ip-address;
+        description
+            "neighbor ip address";
+       }
+    }
+  }
+
+  augment "/rpol:routing-policy/rpol:defined-sets/" +
+    "bgp-pol:bgp-defined-sets/bgp-pol:community-sets/bgp-pol:community-set" {
+    description "alternative for the existing community-member";
+
+    list community {
+      leaf community {
+        type string;
+        description
+            "community set member";
+       }
+    }
+  }
+
+  augment "/rpol:routing-policy/rpol:defined-sets/" +
+    "bgp-pol:bgp-defined-sets/bgp-pol:ext-community-sets/bgp-pol:ext-community-set" {
+    description "alternative for the existing ext-community-member";
+
+    list ext-community {
+      leaf ext-community {
+        type string;
+        description
+            "extended community set member";
+       }
+    }
+  }
+
+  augment "/rpol:routing-policy/rpol:defined-sets/" +
+    "bgp-pol:bgp-defined-sets/bgp-pol:as-path-sets/bgp-pol:as-path-set" {
+    description "alternative for the existing as-path-set-member";
+
+    list as-path {
+      leaf as-path {
+        type string;
+        description
+            "AS path expression";
+       }
+    }
+  }
+
+  augment "/rpol:routing-policy/rpol:policy-definitions/" +
+    "rpol:policy-definition/rpol:statements/rpol:statement/" +
+    "rpol:conditions/bgp-pol:bgp-conditions" {
+    description "additional rpki condition";
+    uses gobgp-rpki-validation-result;
+  }
+
+  augment "/bgp:bgp" {
+    description "additional rpki configuration and state";
+    uses gobgp-rpki-servers;
+
+  }
+
+}

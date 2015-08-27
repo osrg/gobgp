@@ -16,13 +16,16 @@
 from fabric.api import local, lcd
 from fabric import colors
 from fabric.utils import indent
+from fabric.state import env
 
 import netaddr
 import os
 import time
 import itertools
 
+DEFAULT_TEST_PREFIX = ''
 DEFAULT_TEST_BASE_DIR = '/tmp/gobgp'
+TEST_PREFIX = DEFAULT_TEST_PREFIX
 TEST_BASE_DIR = DEFAULT_TEST_BASE_DIR
 
 BGP_FSM_IDLE = 'BGP_FSM_IDLE'
@@ -34,16 +37,30 @@ BGP_ATTR_TYPE_AS_PATH = 2
 BGP_ATTR_TYPE_NEXT_HOP = 3
 BGP_ATTR_TYPE_MULTI_EXIT_DISC = 4
 BGP_ATTR_TYPE_LOCAL_PREF = 5
+BGP_ATTR_TYPE_COMMUNITIES = 8
+BGP_ATTR_TYPE_MP_REACH_NLRI = 14
+BGP_ATTR_TYPE_EXTENDED_COMMUNITIES = 16
+
+env.abort_exception = RuntimeError
+
+def try_several_times(f, t=3, s=1):
+    e = None
+    for i in range(t):
+        try:
+            r = f()
+        except RuntimeError as e:
+            time.sleep(s)
+        else:
+            return r
+    raise e
 
 
 def get_bridges():
-    return local("brctl show | awk 'NR > 1{print $1}'",
-                 capture=True).split('\n')
+    return try_several_times(lambda : local("brctl show | awk 'NR > 1{print $1}'", capture=True)).split('\n')
 
 
 def get_containers():
-    return local("docker ps -a | awk 'NR > 1 {print $NF}'",
-                 capture=True).split('\n')
+    return try_several_times(lambda : local("docker ps -a | awk 'NR > 1 {print $NF}'", capture=True)).split('\n')
 
 
 class CmdBuffer(list):
@@ -58,17 +75,17 @@ class CmdBuffer(list):
         return self.delim.join(self)
 
 
-def make_gobgp_ctn(tag='gobgp', local_gobgp_path=''):
+def make_gobgp_ctn(tag='gobgp', local_gobgp_path='', from_image='golang:1.4'):
     if local_gobgp_path == '':
         local_gobgp_path = os.getcwd()
 
     c = CmdBuffer()
-    c << 'FROM osrg/gobgp'
-    c << 'COPY gobgp /go/src/github.com/osrg/gobgp/'
+    c << 'FROM {0}'.format(from_image)
+    c << 'ADD gobgp /go/src/github.com/osrg/gobgp/'
     c << 'RUN go get github.com/osrg/gobgp/gobgpd'
-    c << 'RUN go install -a github.com/osrg/gobgp/gobgpd'
+    c << 'RUN go install github.com/osrg/gobgp/gobgpd'
     c << 'RUN go get github.com/osrg/gobgp/gobgp'
-    c << 'RUN go install -a github.com/osrg/gobgp/gobgp'
+    c << 'RUN go install github.com/osrg/gobgp/gobgp'
 
     rindex = local_gobgp_path.rindex('gobgp')
     if rindex < 0:
@@ -82,8 +99,8 @@ def make_gobgp_ctn(tag='gobgp', local_gobgp_path=''):
 
 
 class Bridge(object):
-    def __init__(self, name, subnet='', with_ip=True):
-        self.name = name
+    def __init__(self, name, subnet='', with_ip=True, self_ip=False):
+        self.name = '{0}_{1}'.format(TEST_PREFIX, name)
         self.with_ip = with_ip
         if with_ip:
             self.subnet = netaddr.IPNetwork(subnet)
@@ -95,26 +112,25 @@ class Bridge(object):
             # throw away first network address
             self.next_ip_address()
 
-        if self.name in get_bridges():
-            self.delete()
+        def f():
+            if self.name in get_bridges():
+                self.delete()
+            local("ip link add {0} type bridge".format(self.name))
+        try_several_times(f)
+        try_several_times(lambda : local("ip link set up dev {0}".format(self.name)))
 
-        local("ip link add {0} type bridge".format(self.name), capture=True)
-        local("ip link set up dev {0}".format(self.name), capture=True)
-
-        if with_ip:
+        self.self_ip = self_ip
+        if self_ip:
             self.ip_addr = self.next_ip_address()
-            local("ip addr add {0} dev {1}".format(self.ip_addr, self.name),
-                  capture=True)
-
+            try_several_times(lambda :local("ip addr add {0} dev {1}".format(self.ip_addr, self.name)))
         self.ctns = []
 
     def next_ip_address(self):
         return "{0}/{1}".format(self._ip_generator.next(),
                                 self.subnet.prefixlen)
 
-    def addif(self, ctn, name=''):
-        if name == '':
-            name = self.name
+    def addif(self, ctn):
+        name = ctn.next_if_name()
         self.ctns.append(ctn)
         if self.with_ip:
             ctn.pipework(self, self.next_ip_address(), name)
@@ -122,8 +138,8 @@ class Bridge(object):
             ctn.pipework(self, '0/0', name)
 
     def delete(self):
-        local("ip link set down dev {0}".format(self.name), capture=True)
-        local("ip link delete {0} type bridge".format(self.name), capture=True)
+        try_several_times(lambda : local("ip link set down dev {0}".format(self.name)))
+        try_several_times(lambda : local("ip link delete {0} type bridge".format(self.name)))
 
 
 class Container(object):
@@ -133,23 +149,34 @@ class Container(object):
         self.shared_volumes = []
         self.ip_addrs = []
         self.is_running = False
+        self.eths = []
 
-        if self.name in get_containers():
+        if self.docker_name() in get_containers():
             self.stop()
+
+    def docker_name(self):
+        if TEST_PREFIX == DEFAULT_TEST_PREFIX:
+            return self.name
+        return '{0}_{1}'.format(TEST_PREFIX, self.name)
+
+    def next_if_name(self):
+        name = 'eth{0}'.format(len(self.eths)+1)
+        self.eths.append(name)
+        return name
 
     def run(self):
         c = CmdBuffer(' ')
         c << "docker run --privileged=true"
         for sv in self.shared_volumes:
             c << "-v {0}:{1}".format(sv[0], sv[1])
-        c << "--name {0} -id {1}".format(self.name, self.image)
-        self.id = local(str(c), capture=True)
+        c << "--name {0} -id {1}".format(self.docker_name(), self.image)
+        self.id = try_several_times(lambda : local(str(c), capture=True))
         self.is_running = True
         self.local("ip li set up dev lo")
         return 0
 
     def stop(self):
-        ret = local("docker rm -f " + self.name, capture=True)
+        ret = local("docker rm -f " + self.docker_name(), capture=True)
         self.is_running = False
         return ret
 
@@ -164,12 +191,20 @@ class Container(object):
             c << "-i {0}".format(intf_name)
         else:
             intf_name = "eth1"
-        c << "{0} {1}".format(self.name, ip_addr)
+        c << "{0} {1}".format(self.docker_name(), ip_addr)
         self.ip_addrs.append((intf_name, ip_addr, bridge))
-        return local(str(c), capture=True)
+        try_several_times(lambda :local(str(c)))
 
-    def local(self, cmd):
-        return local("docker exec -it {0} {1}".format(self.name, cmd))
+    def local(self, cmd, capture=False, flag=''):
+        return local("docker exec {0} {1} {2}".format(flag,
+                                                      self.docker_name(),
+                                                      cmd), capture)
+
+    def get_pid(self):
+        if self.is_running:
+            cmd = "docker inspect -f '{{.State.Pid}}' " + self.docker_name()
+            return int(local(cmd, capture=True))
+        return -1
 
 
 class BGPContainer(Container):
@@ -178,9 +213,10 @@ class BGPContainer(Container):
     RETRY_INTERVAL = 5
 
     def __init__(self, name, asn, router_id, ctn_image_name):
-        self.config_dir = "{0}/{1}".format(TEST_BASE_DIR, name)
+        self.config_dir = '/'.join((TEST_BASE_DIR, TEST_PREFIX, name))
         local('if [ -e {0} ]; then rm -r {0}; fi'.format(self.config_dir))
         local('mkdir -p {0}'.format(self.config_dir))
+        local('chmod 777 {0}'.format(self.config_dir))
         self.asn = asn
         self.router_id = router_id
         self.peers = {}
@@ -193,9 +229,10 @@ class BGPContainer(Container):
         super(BGPContainer, self).run()
         return self.WAIT_FOR_BOOT
 
-    def add_peer(self, peer, passwd='', evpn=False, is_rs_client=False,
+    def add_peer(self, peer, passwd=None, evpn=False, is_rs_client=False,
                  policies=None, passive=False,
-                 is_rr_client=False, cluster_id=''):
+                 is_rr_client=False, cluster_id='',
+                 flowspec=False):
         neigh_addr = ''
         local_addr = ''
         for me, you in itertools.product(self.ip_addrs, peer.ip_addrs):
@@ -207,11 +244,12 @@ class BGPContainer(Container):
             raise Exception('peer {0} seems not ip reachable'.format(peer))
 
         if not policies:
-            policies = []
+            policies = {}
 
         self.peers[peer] = {'neigh_addr': neigh_addr,
                             'passwd': passwd,
                             'evpn': evpn,
+                            'flowspec': flowspec,
                             'is_rs_client': is_rs_client,
                             'is_rr_client': is_rr_client,
                             'cluster_id': cluster_id,
@@ -234,10 +272,22 @@ class BGPContainer(Container):
     def enable_peer(self, peer):
         raise Exception('implement enable_peer() method')
 
-    def add_route(self, route, rf='ipv4', attribute=''):
+    def log(self):
+        return local('cat {0}/*.log'.format(self.config_dir), capture=True)
+
+    def add_route(self, route, rf='ipv4', attribute=None, aspath=None,
+                  community=None, med=None, extendedcommunity=None,
+                  nexthop=None, matchs=None, thens=None):
         self.routes[route] = {'prefix': route,
                               'rf': rf,
-                              'attr': attribute}
+                              'attr': attribute,
+                              'next-hop': nexthop,
+                              'as-path': aspath,
+                              'community': community,
+                              'med': med,
+                              'extended-community': extendedcommunity,
+                              'matchs': matchs,
+                              'thens' : thens}
         if self.is_running:
             self.create_config()
             self.reload_config()
@@ -245,7 +295,7 @@ class BGPContainer(Container):
     def add_policy(self, policy, peer=None):
         self.policies[policy['name']] = policy
         if peer in self.peers:
-            self.peers[peer]['policies'].append(policy)
+            self.peers[peer]['policies'][policy['name']] = policy
         if self.is_running:
             self.create_config()
             self.reload_config()

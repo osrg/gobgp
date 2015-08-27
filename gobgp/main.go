@@ -34,6 +34,7 @@ var cmds []string
 var client api.GrpcClient
 
 func main() {
+	cobra.EnablePrefixMatching = true
 	rootCmd := &cobra.Command{
 		Use: "gobgp",
 		PersistentPreRun: func(cmd *cobra.Command, args []string) {
@@ -57,9 +58,11 @@ func main() {
 
 	globalCmd := NewGlobalCmd()
 	neighborCmd := NewNeighborCmd()
+	vrfCmd := NewVrfCmd()
 	policyCmd := NewPolicyCmd()
 	monitorCmd := NewMonitorCmd()
 	mrtCmd := NewMrtCmd()
-	rootCmd.AddCommand(globalCmd, neighborCmd, policyCmd, monitorCmd, mrtCmd)
+	rpkiCmd := NewRPKICmd()
+	rootCmd.AddCommand(globalCmd, neighborCmd, vrfCmd, policyCmd, monitorCmd, mrtCmd, rpkiCmd)
 	rootCmd.Execute()
 }

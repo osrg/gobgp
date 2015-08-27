@@ -7,13 +7,16 @@ This page explains gobgp client command syntax.
 ## basic command pattern
 gobgp \<subcommand> \<object>  opts...
 
-gobgp has three subcommands.
-- global
-- neighbor
-- policy
+gobgp has six subcommands.
+- [global](#global)
+- [neighbor](#neighbor)
+- [policy](#policy)
+- [vrf](#vrf)
+- [monitor](#monitor)
+- [mrt](#mrt)
 
 
-## 1. global subcommand
+## 1. <a name="global"> global subcommand
 ### 1.1. Operations for Global-Rib - add/del/show -
 #### - syntax
 ```shell
@@ -46,7 +49,7 @@ The following options can be specified in the global subcommand:
 
 <br>
 
-## 2. neighbor subcommand
+## 2. <a name="neighbor"> neighbor subcommand
 ### 2.1. Show Neighbor Status
 #### - syntax
 ```shell
@@ -105,14 +108,14 @@ The following options can be specified in the neighbor subcommand:
 % gobgp neighbor <neighbor address> policy add import <policy names> <default policy action>
 # add policy to export-policy configuration
 % gobgp neighbor <neighbor address> policy add export <policy names> <default policy action>
-# add policy to distribute-policy configuration
-% gobgp neighbor <neighbor address> policy add distribute <policy names> <default policy action>
+# add policy to in-policy configuration
+% gobgp neighbor <neighbor address> policy add in <policy names> <default policy action>
 # delete import-policy configuration from specific neighbor
 % gobgp neighbor <neighbor address> policy del import
 # delete export-policy configuration from specific neighbor
 % gobgp neighbor <neighbor address> policy del export
-# delete distribute-policy configuration from specific neighbor
-% gobgp neighbor <neighbor address> policy del distribute
+# delete in-policy configuration from specific neighbor
+% gobgp neighbor <neighbor address> policy del in
 # show a specific policy information
 % gobgp neighbor <neighbor address> policy
 ```
@@ -129,7 +132,7 @@ You can specify multiple policy to neighbor separated by commas.
 
 <br>
 
-## 3. policy subcommand
+## 3. <a name="policy"> policy subcommand
 ### 3.1. Operations for PrefixSet - add/del/show -
 #### - syntax
 ```shell
@@ -208,11 +211,17 @@ If you want to add the AsPathSet：
 ```shell
 % gobgp policy aspath add ass1 ^65100
 ```
-   You can specify the position using regexp-like expression as follows:
-   - From: "^65100" means the route is passed from AS 65100 directly.
-   - Any: "65100" means the route comes through AS 65100.
-   - Origin: "65100$" means the route is originated by AS 65100.
-   - Only: "^65100$" means the route is originated by AS 65100 and comes from it directly.
+
+You can specify the position using regexp-like expression as follows:
+- From: "^65100" means the route is passed from AS 65100 directly.
+- Any: "65100" means the route comes through AS 65100.
+- Origin: "65100$" means the route is originated by AS 65100.
+- Only: "^65100$" means the route is originated by AS 65100 and comes from it directly.
+
+Further you can specify the consecutive aspath and use regexp in each element as follows:
+- ^65100_65001
+- 65100_[0-9]+_.*$
+- ^6[0-9]_5.*_65.?00$
 
 An AsPathSet it is possible to have multiple as path, if you want to remove the AsPathSet to specify only AsPathSet name.
 ```shell
@@ -313,10 +322,16 @@ If you want to remove one element(extended community) of ExtCommunitySet, to spe
 #### - example
 If you want to add the RoutePolicy：
 ```shell
-% gobgp policy routepolicy add policy1 state1 --c-prefix=ps1 --c-neighbor=ns1 --c-aspath=ass1 --c-community=cs1 --c-extcommunity=ecs1 --c-aslen=eq,3 --c-option=all --a-route=reject --a-community=ADD[65100:20] --a-med=+100 --a-asprepend=65100,10
+% gobgp policy routepolicy add policy1 state1 --c-prefix=ANY[ps1] --c-neighbor=INVERT[ns1] --c-aspath=ALL[ass1] --c-community=ALL[cs1] --c-extcommunity=ANY[ecs1] --c-aslen=eq,3 --a-route=reject --a-community=ADD[65100:20] --a-med=+100 --a-asprepend=65100,10
 ```
 However, it is not necessary to specify all of the options at once.
 
+For the condition of the following option in order to evaluate for each condition, match option(ANY, ALL or INVERT) is set as the ANY[\<each set name\>]
+ - c-prefix
+ - c-neighbor
+ - c-aspath
+ - c-community
+ - c-extcommunity
 
 A RoutePolicy it is possible to have multiple statement, if you want to remove the RoutePolicy to specify only RoutePolicy name.
 ```shell
@@ -331,15 +346,14 @@ If you want to remove one element(statement) of RoutePolicy, to specify a statem
 The following options can be specified in the policy subcommand:
   - options of condition
 
-| short  |long           | description                                                                     |
-|--------|---------------|---------------------------------------------------------------------------------|
-|-       |c-prefix       |specify the name that added prefix set in PrefixSet subcommand                   |
-|-       |c-neighbor     |specify the name that added neighbor set in NeighborSet subcommand               |
-|-       |c-aspath       |specify the name that added as path set in AsPathSet subcommand                  |
-|-       |c-community    |specify the name that added community set in CommunitySet subcommand             |
-|-       |c-extcommunity |specify the name that added extended community set in ExtCommunitySet subcommand |
-|-       |c-aslen        |specify the operator(eq, ge, le) and value(numric)                               |
-|-       |c-option       |specify the match option(any, all, invert)                                       |
+| short  |long           | description                                                                                                                       |
+|--------|---------------|-----------------------------------------------------------------------------------------------------------------------------------|
+|-       |c-prefix       |specify the name that added prefix set in PrefixSet subcommand <br> match option: ”ANY or INVERT” can be set                       |
+|-       |c-neighbor     |specify the name that added neighbor set in NeighborSet subcommand <br> match option: ”ANY or INVERT” can be set                   |
+|-       |c-aspath       |specify the name that added as path set in AsPathSet subcommand <br> match option: ”ANY, ALL or INVERT” can be set                 |
+|-       |c-community    |specify the name that added community set in CommunitySet subcommand <br> match option: ”ANY, ALL or INVERT” can be set            |
+|-       |c-extcommunity |specify the name that added extended community set in ExtCommunitySet subcommand <br> match option: ”ANY, ALL or INVERT” can be set|
+|-       |c-aslen        |specify the operator(eq, ge, le) and value(numric)                                                                                 |
 
   - options of action
 
@@ -350,3 +364,120 @@ The following options can be specified in the policy subcommand:
 |-       |a-med       |specify the med operation of the route that match to the conditions                                            |
 |-       |a-asprepend |specify a combination of an AS number and repeat count(e.g. 65100,10) to prepend if the path matches conditions|
 
+## 4. <a name="vrf"> vrf subcommand
+### 4.1 Add/Delete/Show VRF
+#### Syntax
+```shell
+# add vrf
+% gobgp vrf add <vrf name> rd <rd> rt {import|export|both} <rt>...
+# del vrf
+% gobgp vrf del <vrf name>
+# show vrf
+% gobgp vrf
+```
+
+#### Example
+```shell
+% gobgp vrf add vrf1 rd 10.100:100 rt both 10.100:100 import 10.100:101 export 10.100:102
+% gobgp vrf
+  Name                 RD                   Import RT                  Export RT
+  vrf1                 10.100:100           10.100:100, 10.100:101     10.100:100, 10.100:101
+% gobgp vrf del vrf1
+% gobgp vrf
+  Name                 RD                   Import RT            Export RT
+```
+
+### 4.2 Add/Delete/Show VRF routes
+#### Syntax
+```shell
+# add routes to vrf
+% gobgp vrf <vrf name> rib add <prefix> -a <address family>
+# del routes from vrf
+% gobgp vrf <vrf name> rib del <prefix> -a <address family>
+# show routes in vrf
+% gobgp vrf <vrf name>
+```
+
+#### Example
+```shell
+% gobgp vrf vrf1 rib add 10.0.0.0/24
+% gobgp vrf vrf1 rib add 2001::/64 -a ipv6
+% gobgp vrf vrf1 rib
+  Network                Next Hop             AS_PATH              Age        Attrs
+  10.100:100:10.0.0.0/24 0.0.0.0                                   00:00:40   [{Origin: i} {Extcomms: [10.100:100], [10.100:101]}]
+% gobgp vrf vrf1 rib -a ipv6
+  Network              Next Hop             AS_PATH              Age        Attrs
+  10.100:100:2001::/64 ::                                        00:00:00   [{Origin: i} {Extcomms: [10.100:100], [10.100:101]}]
+% gobgp vrf vrf1 rib del 10.0.0.0/24
+% gobgp vrf vrf1 rib del 2001::/64
+```
+
+## 5. <a name="monitor"> monitor subcommand
+### 5.1 monitor global rib
+#### Syntax
+```shell
+# monitor global rib
+% gobgp monitor global rib
+```
+
+#### Example
+```shell
+[TERM1]
+% gobgp monitor global rib
+[ROUTE] 10.0.0.0/24 via 0.0.0.0 aspath [] attrs [{Origin: i}]
+
+[TERM2]
+# monitor command blocks. add routes from another terminal
+% gobgp global rib add 10.0.0.0/24
+```
+
+### 5.2 monitor neighbor status
+#### Syntax
+```shell
+# monitor neighbor status
+% gobgp monitor neighbor
+# monitor specific neighbor status
+% gobgp monitor neighbor <neighbor address>
+```
+
+#### Example
+```shell
+[TERM1]
+% gobgp monitor neighbor
+[NEIGH] 192.168.10.2 fsm: BGP_FSM_IDLE admin: ADMIN_STATE_DOWN
+[NEIGH] 192.168.10.2 fsm: BGP_FSM_ACTIVE admin: ADMIN_STATE_UP
+[NEIGH] 192.168.10.2 fsm: BGP_FSM_OPENSENT admin: ADMIN_STATE_UP
+[NEIGH] 192.168.10.2 fsm: BGP_FSM_OPENCONFIRM admin: ADMIN_STATE_UP
+[NEIGH] 192.168.10.2 fsm: BGP_FSM_ESTABLISHED admin: ADMIN_STATE_UP
+
+[TERM2]
+% gobgp neighbor 192.168.10.2 disable
+% gobgp neighbor 192.168.10.2 enable
+```
+
+## 6. <a name="mrt"> mrt subcommand
+### 6.1 dump mrt records
+#### Syntax
+```shell
+% gobgp mrt dump rib global [<interval>]
+% gobgp mrt dump rib neighbor <neighbor address> [<interval>]
+```
+
+#### Options
+
+| short  |long    | description                    |
+|--------|--------|--------------------------------|
+| f      | format | filename format                |
+| o      | outdir | output directory of dump files |
+
+#### Example
+see [MRT](https://github.com/osrg/gobgp/blob/master/docs/sources/mrt.md).
+
+### 6.2 inject mrt records
+#### Syntax
+```shell
+% gobgp mrt inject global <filename> [<count>]
+```
+
+#### Example
+see [MRT](https://github.com/osrg/gobgp/blob/master/docs/sources/mrt.md).

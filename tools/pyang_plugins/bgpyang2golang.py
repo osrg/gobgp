@@ -52,7 +52,7 @@ class GolangPlugin(plugin.PyangPlugin):
     def add_opts(self, optparser):
         optlist = [
             optparse.make_option("--augment",
-                                 dest="augment",
+                                 dest="augment", action="append",
                                  help="Yang file which has augment statements"),
             ]
         g = optparser.add_option_group("GolangPlugin specific options")
@@ -75,14 +75,15 @@ class GolangPlugin(plugin.PyangPlugin):
         # load augment module
         if ctx.opts.augment:
             aug_mod_path = ctx.opts.augment
-            try:
-                fd = open(aug_mod_path)
-                text = fd.read()
-            except IOError as ex:
-                sys.stderr.write("error %s: %s\n" % (aug_mod_path, str(ex)))
-                sys.exit(1)
-            aug_mod = ctx.add_module(aug_mod_path, text)
-            check_module_deps(ctx, aug_mod)
+            for p in aug_mod_path:
+                with open(p) as fd:
+                    try:
+                        text = fd.read()
+                    except IOError as ex:
+                        sys.stderr.write("error %s: %s\n" % (aug_mod_path, str(ex)))
+                        sys.exit(1)
+                    aug_mod = ctx.add_module(p, text)
+                    check_module_deps(ctx, aug_mod)
 
         # visit yang statements
         visit_modules(ctx)
@@ -115,7 +116,7 @@ def emit_go(ctx):
             emit_typedef(ctx, mod)
 
     for struct in ctx.golang_struct_def:
-        struct_name = struct.arg
+        struct_name = struct.uniq_name
         if struct_name in done:
             continue
         emit_class_def(ctx, struct, struct_name, struct.module_prefix)
@@ -136,13 +137,25 @@ def check_module_deps(ctx, module):
             ctx.module_deps.append(mod)
 
 
+def dig_leafref(type_obj):
+    reftype = type_obj.i_type_spec.i_target_node.search_one('type')
+    if is_leafref(reftype):
+        return dig_leafref(reftype)
+    else:
+        return reftype
+
+
 def emit_class_def(ctx, yang_statement, struct_name, prefix):
 
     o = StringIO.StringIO()
-    print >> o, '//struct for container %s:%s' % (prefix, struct_name)
+    print >> o, '//struct for container %s:%s' % (prefix, yang_statement.arg)
     print >> o, 'type %s struct {' % convert_to_golang(struct_name)
     for child in yang_statement.i_children:
-        container_or_list_name = child.arg
+
+        if child.path in _path_exclude:
+            continue
+
+        container_or_list_name = child.uniq_name
         val_name_go = convert_to_golang(child.arg)
         child_prefix = get_orig_prefix(child.i_orig_module)
         print >> o, '  // original -> %s:%s' % \
@@ -153,14 +166,21 @@ def emit_class_def(ctx, yang_statement, struct_name, prefix):
             type_obj = child.search_one('type')
             type_name = type_obj.arg
 
+
             # case identityref
             if type_name == 'identityref':
                 emit_type_name = 'string'
 
             # case leafref
             elif type_name == 'leafref':
-                t = type_obj.i_type_spec.i_target_node.search_one('type')
-                emit_type_name = t.arg
+                t = dig_leafref(type_obj)
+                if is_translation_required(t):
+                    print >> o, '  //%s:%s\'s original type is %s' \
+                                % (child_prefix, container_or_list_name, t.arg)
+                    emit_type_name = translate_type(t.arg)
+                else:
+                    emit_type_name = t.arg
+
 
             # case translation required
             elif is_translation_required(type_obj):
@@ -176,7 +196,12 @@ def emit_class_def(ctx, yang_statement, struct_name, prefix):
             else:
                 base_module = type_obj.i_orig_module.i_prefix
                 t = lookup_typedef(ctx, base_module, type_name)
+                # print(t)
                 emit_type_name = t.golang_name
+
+        # case 'case'
+        if is_case(child):
+            continue
 
         # case leaflist
         if is_leaflist(child):
@@ -204,7 +229,7 @@ def emit_class_def(ctx, yang_statement, struct_name, prefix):
                 emit_type_name = '[]'+t.golang_name
 
         # case container
-        elif is_container(child):
+        elif is_container(child) or is_choice(child):
             key = child_prefix+':'+container_or_list_name
             t = ctx.golang_struct_names[key]
             emit_type_name = t.golang_name
@@ -233,19 +258,84 @@ def get_orig_prefix(module):
         return module.i_prefix
 
 
+def get_path(c):
+    path = ''
+    if c.parent is not None:
+        p = ''
+        if hasattr(c, 'i_module'):
+            mod = c.i_module
+            prefix = mod.search_one('prefix')
+
+        p = prefix.arg + ":" if prefix else ''
+        path = get_path(c.parent) + "/" + p + c.arg
+    return path
+
+
 def visit_children(ctx, module, children):
     for c in children:
-        prefix = get_orig_prefix(c.i_orig_module)
-        t = c.search_one('type')
-        type_name = t.arg if t is not None else None
-        if is_list(c) or is_container(c):
-            c.golang_name = convert_to_golang(c.arg)
-            ctx.golang_struct_def.append(c)
-            c.module_prefix = prefix
-            ctx.golang_struct_names[prefix+':'+c.arg] = c
+        prefix = ''
+        if is_case(c):
+            prefix = get_orig_prefix(c.parent.i_orig_module)
+            c.i_orig_module = c.parent.i_orig_module
+        else:
+            prefix = get_orig_prefix(c.i_orig_module)
 
+        c.uniq_name = c.arg
+        if c.arg == 'config':
+            c.uniq_name = c.parent.uniq_name + '-config'
+
+        if c.arg == 'state':
+
+            c.uniq_name = c.parent.uniq_name + '-state'
+
+        if c.arg == 'graceful-restart' and prefix == 'bgp-mp':
+             c.uniq_name = 'mp-graceful-restart'
+
+        t = c.search_one('type')
+
+        if is_list(c) or is_container(c) or is_choice(c):
+            c.golang_name = convert_to_golang(c.uniq_name)
+
+            if is_choice(c):
+                picks = pickup_choice(c)
+                c.i_children = picks
+
+            if ctx.golang_struct_names.get(prefix+':'+c.uniq_name):
+                ext_c = ctx.golang_struct_names.get(prefix+':'+c.uniq_name)
+                ext_c_child_count = len(getattr(ext_c, "i_children"))
+                current_c_child_count = len(getattr(c, "i_children"))
+                if ext_c_child_count < current_c_child_count:
+                    c.module_prefix = prefix
+                    ctx.golang_struct_names[prefix+':'+c.uniq_name] = c
+                    idx = ctx.golang_struct_def.index(ext_c)
+                    ctx.golang_struct_def[idx] = c
+            else:
+                c.module_prefix = prefix
+                ctx.golang_struct_names[prefix+':'+c.uniq_name] = c
+                ctx.golang_struct_def.append(c)
+
+        c.path = get_path(c)
+        # print(c.path)
         if hasattr(c, 'i_children'):
             visit_children(ctx, module, c.i_children)
+
+
+def pickup_choice(c):
+    element = []
+    for child in c.i_children:
+        if is_case(child):
+            element = element + child.i_children
+
+    return element
+
+
+def get_type_spec(stmt):
+    for s in stmt.substmts:
+        if hasattr(s, 'i_type_spec'):
+            type_sp = s.i_type_spec
+            return type_sp.name
+
+    return None
 
 
 def visit_typedef(ctx, module):
@@ -253,11 +343,14 @@ def visit_typedef(ctx, module):
     child_map = {}
     for stmts in module.substmts:
         if stmts.keyword == 'typedef':
+            stmts.path = get_path(stmts)
+            # print(stmts.path)
             name = stmts.arg
             stmts.golang_name = convert_to_golang(name)
             if stmts.golang_name == 'PeerType':
                 stmts.golang_name = 'PeerTypeDef'
             child_map[name] = stmts
+
     ctx.golang_typedef_map[prefix] = child_map
     if ctx.prefix_rel[prefix] != prefix:
         ctx.golang_typedef_map[ctx.prefix_rel[prefix]] = child_map
@@ -301,6 +394,14 @@ def emit_typedef(ctx, module):
     prefix = module.i_prefix
     t_map = ctx.golang_typedef_map[prefix]
     for name, stmt in t_map.items():
+
+        if stmt.path in _typedef_exclude:
+            continue
+
+        # skip identityref type because currently skip identity
+        if get_type_spec(stmt) == 'identityref':
+            continue
+
         type_name_org = name
         type_name = stmt.golang_name
         if type_name in emitted_type_names:
@@ -324,6 +425,7 @@ def emit_typedef(ctx, module):
             print >> o, 'const ('
 
             already_added_iota = False
+            already_added_type = False
             for sub in t.substmts:
                 if sub.search_one('value'):
                     enum_value = " = "+sub.search_one('value').arg
@@ -333,8 +435,14 @@ def emit_typedef(ctx, module):
                     else:
                         enum_value = " = iota"
                         already_added_iota = True
+
+
                 enum_name = convert_const_prefix(sub.arg)
-                print >> o, ' %s_%s%s' % (const_prefix, enum_name, enum_value)
+
+                t = type_name if not already_added_type else ""
+                already_added_type = True
+
+                print >> o, ' %s_%s %s%s' % (const_prefix, enum_name, t, enum_value)
             print >> o, ')'
         elif t.arg == 'union':
             print >> o, '// typedef for typedef %s:%s'\
@@ -373,6 +481,10 @@ def is_reference(s):
     return s.arg in ['leafref', 'identityref']
 
 
+def is_leafref(s):
+    return s.arg in ['leafref']
+
+
 def is_leaf(s):
     return s.keyword in ['leaf']
 
@@ -389,6 +501,14 @@ def is_container(s):
     return s.keyword in ['container']
 
 
+def is_case(s):
+    return s.keyword in ['case']
+
+
+def is_choice(s):
+    return s.keyword in ['choice']
+
+
 def is_builtin_type(t):
     return t.arg in _type_builtin
 
@@ -399,14 +519,18 @@ def is_translation_required(t):
 
 _type_translation_map = {
     'union': 'string',
-    'enumeration': 'string',
+    'enumeration': 'uint32',
     'decimal64': 'float64',
     'boolean': 'bool',
     'empty': 'bool',
     'inet:ip-address': 'net.IP',
+    'inet:ip-prefix': 'string',
     'inet:ipv4-address': 'net.IP',
     'inet:as-number': 'uint32',
     'bgp-set-community-option-type' : 'string',
+    'identityref' : 'string',
+    'inet:port-number': 'uint16',
+    'yang:timeticks': 'int64',
 }
 
 
@@ -427,6 +551,14 @@ _module_excluded = ["ietf-inet-types",
                     "ietf-yang-types",
                     ]
 
+_path_exclude = ["/bgp:bgp/bgp:neighbors/bgp:neighbor/bgp:transport/bgp:config/bgp:local-address",
+                 "/bgp:bgp/bgp:neighbors/bgp:neighbor/bgp:transport/bgp:state/bgp:local-address",
+                 "/rpol:routing-policy/rpol:defined-sets/rpol:neighbor-sets/rpol:neighbor-set/rpol:neighbor",
+                 "/rpol:routing-policy/rpol:defined-sets/bgp-pol:bgp-defined-sets/bgp-pol:community-sets/bgp-pol:community-set/bgp-pol:community-member",
+                 "/rpol:routing-policy/rpol:defined-sets/bgp-pol:bgp-defined-sets/bgp-pol:ext-community-sets/bgp-pol:ext-community-set/bgp-pol:ext-community-member",
+                 "/rpol:routing-policy/rpol:defined-sets/bgp-pol:bgp-defined-sets/bgp-pol:as-path-sets/bgp-pol:as-path-set/bgp-pol:as-path-set-member"]
+
+_typedef_exclude =["/bgp-types:bgp-origin-attr-type"]
 
 def generate_header(ctx):
     print _COPYRIGHT_NOTICE
