@@ -21,6 +21,7 @@ import (
 	"fmt"
 	"math"
 	"net"
+	"time"
 )
 
 const (
@@ -137,6 +138,11 @@ func NewMRTHeader(timestamp uint32, t MRTType, subtype MRTSubTyper, l uint32) (*
 		SubType:   subtype.ToUint16(),
 		Len:       l,
 	}, nil
+}
+
+func (h *MRTHeader) GetTime() time.Time {
+	t := int64(h.Timestamp)
+	return time.Unix(t, 0)
 }
 
 type MRTMessage struct {
