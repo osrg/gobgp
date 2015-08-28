@@ -4591,7 +4591,7 @@ func parseFlowSpecExtended(data []byte) (ExtendedCommunityInterface, error) {
 		sample := (data[7]>>1)&0x1 == 1
 		return NewTrafficActionExtended(terminal, sample), nil
 	case EC_SUBTYPE_FLOWSPEC_REDIRECT:
-		//draft-haas-idr-flowspec-redirect-rt-bis-05
+		//draft-ietf-idr-flowspec-redirect-rt-bis-05
 		switch typ {
 		case EC_TYPE_GENERIC_TRANSITIVE_EXPERIMENTAL:
 			as := binary.BigEndian.Uint16(data[2:4])
