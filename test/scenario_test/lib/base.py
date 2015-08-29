@@ -229,7 +229,7 @@ class BGPContainer(Container):
         super(BGPContainer, self).run()
         return self.WAIT_FOR_BOOT
 
-    def add_peer(self, peer, passwd=None, evpn=False, is_rs_client=False,
+    def add_peer(self, peer, passwd="", evpn=False, is_rs_client=False,
                  policies=None, passive=False,
                  is_rr_client=False, cluster_id='',
                  flowspec=False):
