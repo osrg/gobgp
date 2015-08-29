@@ -206,7 +206,7 @@ func injectMrt(r string, filename string, count int) error {
 
 	idx := 0
 
-	ch := make(chan *api.ModPathArguments, 1024)
+	ch := make(chan *api.ModPathArguments, 1<<20)
 
 	go func() {
 
