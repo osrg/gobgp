@@ -867,6 +867,7 @@ func (server *BgpServer) handleModPathRequest(grpcReq *GrpcRequest, peerInfo *ta
 	var nexthop string
 	var rf bgp.RouteFamily
 	var path *api.Path
+	seen := make(map[bgp.BGPAttrType]bool)
 
 	arg, ok := grpcReq.Data.(*api.ModPathArguments)
 	if !ok {
@@ -897,6 +898,12 @@ func (server *BgpServer) handleModPathRequest(grpcReq *GrpcRequest, peerInfo *ta
 			goto ERR
 		}
 
+		if _, ok := seen[p.GetType()]; !ok {
+			seen[p.GetType()] = true
+		} else {
+			result.ResponseErr = fmt.Errorf("the path attribute apears twice. Type : " + strconv.Itoa(int(p.GetType())))
+			goto ERR
+		}
 		switch p.GetType() {
 		case bgp.BGP_ATTR_TYPE_NEXT_HOP:
 			nexthop = p.(*bgp.PathAttributeNextHop).Value.String()
