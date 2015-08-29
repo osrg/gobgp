@@ -22,7 +22,6 @@ import (
 	"github.com/osrg/gobgp/packet"
 	"net"
 	"reflect"
-	"sort"
 	"time"
 )
 
@@ -357,45 +356,16 @@ func (manager *TableManager) GetPathList(rf bgp.RouteFamily) []*Path {
 	return paths
 }
 
-type paths []*Path
-
-func (p paths) Len() int {
-	return len(p)
-}
-
-func (p paths) Swap(i, j int) {
-	p[i], p[j] = p[j], p[i]
-}
-
-func (p paths) Less(i, j int) bool {
-	l0 := len(p[i].GetPathAttrs())
-	l1 := len(p[j].GetPathAttrs())
-	if l0 < l1 {
-		return true
-	}
-	if l0 == l1 {
-		return p[i].GetAsPathLen() < p[j].GetAsPathLen()
-	}
-	return false
-}
-
 func (manager *TableManager) GetBestPathList(rf bgp.RouteFamily) []*Path {
 	if _, ok := manager.Tables[rf]; !ok {
 		return []*Path{}
 	}
 	destinations := manager.Tables[rf].GetDestinations()
-	plist := make([]*Path, 0, len(destinations))
-	pathsByPeer := make(map[uint32]paths)
+	paths := make([]*Path, 0, len(destinations))
 	for _, dest := range destinations {
-		path := dest.GetBestPath()
-		key := path.GetSourceAs()
-		pathsByPeer[key] = append(pathsByPeer[key], path)
+		paths = append(paths, dest.GetBestPath())
 	}
-	for _, v := range pathsByPeer {
-		sort.Sort(v)
-		plist = append(plist, v...)
-	}
-	return plist
+	return paths
 }
 
 // process BGPUpdate message
