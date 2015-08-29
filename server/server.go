@@ -858,7 +858,7 @@ func getMacMobilityExtendedCommunity(etag uint32, mac net.HardwareAddr, evpnPath
 	return nil
 }
 
-func (server *BgpServer) handleModPathRequest(grpcReq *GrpcRequest, peerInfo *table.PeerInfo) []*table.Path {
+func (server *BgpServer) handleModPathRequest(grpcReq *GrpcRequest) []*table.Path {
 	var nlri bgp.AddrPrefixInterface
 	result := &GrpcResponse{}
 
@@ -868,11 +868,23 @@ func (server *BgpServer) handleModPathRequest(grpcReq *GrpcRequest, peerInfo *ta
 	var rf bgp.RouteFamily
 	var path *api.Path
 	seen := make(map[bgp.BGPAttrType]bool)
+	var pi *table.PeerInfo
 
 	arg, ok := grpcReq.Data.(*api.ModPathArguments)
 	if !ok {
 		result.ResponseErr = fmt.Errorf("type assertion failed")
 		goto ERR
+	}
+	if arg.Asn != 0 {
+		pi = &table.PeerInfo{
+			AS:      arg.Asn,
+			LocalID: net.ParseIP(arg.Id),
+		}
+	} else {
+		pi = &table.PeerInfo{
+			AS:      server.bgpConfig.Global.GlobalConfig.As,
+			LocalID: server.bgpConfig.Global.GlobalConfig.RouterId,
+		}
 	}
 	path = arg.Path
 
@@ -985,7 +997,7 @@ func (server *BgpServer) handleModPathRequest(grpcReq *GrpcRequest, peerInfo *ta
 		pattr = append(pattr, bgp.NewPathAttributeExtendedCommunities(extcomms))
 	}
 
-	return []*table.Path{table.NewPath(peerInfo, nlri, path.IsWithdraw, pattr, false, time.Now(), path.NoImplicitWithdraw)}
+	return []*table.Path{table.NewPath(pi, nlri, path.IsWithdraw, pattr, false, time.Now(), path.NoImplicitWithdraw)}
 ERR:
 	grpcReq.ResponseCh <- result
 	close(grpcReq.ResponseCh)
@@ -1151,11 +1163,7 @@ func (server *BgpServer) handleGrpc(grpcReq *GrpcRequest) []*SenderMsg {
 		}
 
 	case REQ_MOD_PATH:
-		pi := &table.PeerInfo{
-			AS:      server.bgpConfig.Global.GlobalConfig.As,
-			LocalID: server.bgpConfig.Global.GlobalConfig.RouterId,
-		}
-		pathList := server.handleModPathRequest(grpcReq, pi)
+		pathList := server.handleModPathRequest(grpcReq)
 		if len(pathList) > 0 {
 			msgs = server.propagateUpdate("", false, pathList)
 			grpcReq.ResponseCh <- &GrpcResponse{}

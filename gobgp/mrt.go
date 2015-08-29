@@ -296,6 +296,8 @@ func injectMrt(r string, filename string, count int) error {
 					ch <- &api.ModPathArguments{
 						Resource: resource,
 						Path:     path,
+						Asn: peers[e.PeerIndex].AS,
+						Id: peers[e.PeerIndex].BgpId.String(),
 					}
 				}
 

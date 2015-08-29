@@ -209,6 +209,8 @@ type ModPathArguments struct {
 	Resource Resource `protobuf:"varint,1,opt,name=resource,enum=api.Resource" json:"resource,omitempty"`
 	Name     string   `protobuf:"bytes,2,opt,name=name" json:"name,omitempty"`
 	Path     *Path    `protobuf:"bytes,3,opt,name=path" json:"path,omitempty"`
+	Asn      uint32   `protobuf:"varint,4,opt,name=asn" json:"asn,omitempty"`
+	Id       string   `protobuf:"bytes,5,opt,name=id" json:"id,omitempty"`
 }
 
 func (m *ModPathArguments) Reset()         { *m = ModPathArguments{} }

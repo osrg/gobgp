@@ -63,6 +63,8 @@ message ModPathArguments {
     Resource resource = 1;
     string name = 2;
     Path path = 3;
+    uint32 asn = 4;
+    string id = 5;
 }
 
 message PolicyArguments {
