@@ -386,7 +386,7 @@ func connGrpc() *grpc.ClientConn {
 		target = fmt.Sprintf("[%s]:%d", globalOpts.Host, globalOpts.Port)
 	}
 
-	conn, err := grpc.Dial(target, timeout)
+	conn, err := grpc.Dial(target, timeout, grpc.WithBlock(), grpc.WithInsecure())
 	if err != nil {
 		fmt.Println(err)
 		os.Exit(1)
