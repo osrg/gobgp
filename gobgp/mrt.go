@@ -280,15 +280,9 @@ func injectMrt(r string, filename string, count int) error {
 						fmt.Printf("invalid peer index: %d (PEER_INDEX_TABLE has only %d peers)\n", e.PeerIndex, len(peers))
 						os.Exit(1)
 					}
-					nexthop := peers[e.PeerIndex].IpAddress.String()
 
 					if rf == bgp.RF_IPv4_UC {
 						path.Nlri, _ = nlri.Serialize()
-						n, _ := bgp.NewPathAttributeNextHop(nexthop).Serialize()
-						path.Pattrs = append(path.Pattrs, n)
-					} else {
-						mpreach, _ := bgp.NewPathAttributeMpReachNLRI(nexthop, []bgp.AddrPrefixInterface{nlri}).Serialize()
-						path.Pattrs = append(path.Pattrs, mpreach)
 					}
 
 					for _, p := range e.PathAttributes {
