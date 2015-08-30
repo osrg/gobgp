@@ -55,6 +55,10 @@ PIDS=("${PIDS[@]}" $!)
 sudo -E python flow_spec_test.py --gobgp-image $GOBGP_IMAGE --test-prefix flow -s -x --with-xunit --xunit-file=${WS}/nosetest_flow.xml &
 PIDS=("${PIDS[@]}" $!)
 
+# flowspec test
+sudo -E python route_reflector_test.py --gobgp-image $GOBGP_IMAGE --test-prefix rr -s -x --with-xunit --xunit-file=${WS}/nosetest_rr.xml &
+PIDS=("${PIDS[@]}" $!)
+
 # route server malformed message test
 NUM=$(sudo -E python route_server_malformed_test.py -s 2> /dev/null | awk '/invalid/{print $NF}')
 PARALLEL_NUM=10

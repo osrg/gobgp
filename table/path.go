@@ -118,6 +118,32 @@ func (path *Path) UpdatePathAttrs(global *config.Global, peer *config.Neighbor) 
 		} else {
 			path.pathAttrs[idx] = p
 		}
+
+		// RFC4456: BGP Route Reflection
+		// 8. Avoiding Routing Information Loops
+		info := path.source
+		if peer.RouteReflector.RouteReflectorConfig.RouteReflectorClient {
+			// This attribute will carry the BGP Identifier of the originator of the route in the local AS.
+			// A BGP speaker SHOULD NOT create an ORIGINATOR_ID attribute if one already exists.
+			idx, _ = path.getPathAttr(bgp.BGP_ATTR_TYPE_ORIGINATOR_ID)
+			if idx < 0 {
+				p := bgp.NewPathAttributeOriginatorId(info.ID.String())
+				path.pathAttrs = append(path.pathAttrs, p)
+			}
+			// When an RR reflects a route, it MUST prepend the local CLUSTER_ID to the CLUSTER_LIST.
+			// If the CLUSTER_LIST is empty, it MUST create a new one.
+			idx, _ = path.getPathAttr(bgp.BGP_ATTR_TYPE_CLUSTER_LIST)
+			id := string(peer.RouteReflector.RouteReflectorConfig.RouteReflectorClusterId)
+			if idx < 0 {
+				p := bgp.NewPathAttributeClusterList([]string{id})
+				path.pathAttrs = append(path.pathAttrs, p)
+			} else {
+				p := path.pathAttrs[idx].(*bgp.PathAttributeClusterList)
+				p.Value = append([]net.IP{net.ParseIP(id).To4()}, p.Value...)
+				path.pathAttrs[idx] = p
+			}
+		}
+
 	} else {
 		log.WithFields(log.Fields{
 			"Topic": "Peer",
@@ -578,6 +604,20 @@ func (path *Path) SetMed(med int64, doReplace bool) error {
 			return err
 		}
 		path.pathAttrs = append(path.pathAttrs, newMed)
+	}
+	return nil
+}
+
+func (path *Path) GetOriginatorID() net.IP {
+	if _, attr := path.getPathAttr(bgp.BGP_ATTR_TYPE_ORIGINATOR_ID); attr != nil {
+		return attr.(*bgp.PathAttributeOriginatorId).Value
+	}
+	return nil
+}
+
+func (path *Path) GetClusterList() []net.IP {
+	if _, attr := path.getPathAttr(bgp.BGP_ATTR_TYPE_CLUSTER_LIST); attr != nil {
+		return attr.(*bgp.PathAttributeClusterList).Value
 	}
 	return nil
 }

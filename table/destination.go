@@ -52,11 +52,13 @@ func CidrToRadixkey(cidr string) string {
 }
 
 type PeerInfo struct {
-	AS      uint32
-	ID      net.IP
-	LocalAS uint32
-	LocalID net.IP
-	Address net.IP
+	AS                      uint32
+	ID                      net.IP
+	LocalAS                 uint32
+	LocalID                 net.IP
+	Address                 net.IP
+	RouteReflectorClient    bool
+	RouteReflectorClusterID net.IP
 }
 
 func (lhs *PeerInfo) Equal(rhs *PeerInfo) bool {

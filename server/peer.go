@@ -44,7 +44,6 @@ type Peer struct {
 	inPolicies            []*policy.Policy
 	defaultInPolicy       config.DefaultPolicyType
 	isConfederationMember bool
-	isEBGP                bool
 }
 
 func NewPeer(g config.Global, conf config.Neighbor) *Peer {
@@ -61,17 +60,19 @@ func NewPeer(g config.Global, conf config.Neighbor) *Peer {
 		k, _ := bgp.GetRouteFamily(rf.AfiSafiName)
 		peer.rfMap[k] = true
 	}
+	id := net.ParseIP(string(conf.RouteReflector.RouteReflectorConfig.RouteReflectorClusterId)).To4()
 	peer.peerInfo = &table.PeerInfo{
-		AS:      conf.NeighborConfig.PeerAs,
-		LocalAS: g.GlobalConfig.As,
-		LocalID: g.GlobalConfig.RouterId,
-		Address: conf.NeighborConfig.NeighborAddress,
+		AS:                      conf.NeighborConfig.PeerAs,
+		LocalAS:                 g.GlobalConfig.As,
+		LocalID:                 g.GlobalConfig.RouterId,
+		Address:                 conf.NeighborConfig.NeighborAddress,
+		RouteReflectorClient:    peer.isRouteReflectorClient(),
+		RouteReflectorClusterID: id,
 	}
 	peer.adjRib = table.NewAdjRib(peer.configuredRFlist())
 	peer.fsm = NewFSM(&g, &conf)
 
 	if conf.NeighborConfig.PeerAs != g.GlobalConfig.As {
-		peer.isEBGP = true
 		for _, member := range g.Confederation.ConfederationConfig.MemberAs {
 			if member == conf.NeighborConfig.PeerAs {
 				peer.isConfederationMember = true
@@ -83,8 +84,20 @@ func NewPeer(g config.Global, conf config.Neighbor) *Peer {
 	return peer
 }
 
+func (peer *Peer) isEBGPPeer() bool {
+	return peer.conf.NeighborConfig.PeerAs != peer.gConf.GlobalConfig.As
+}
+
+func (peer *Peer) isIBGPPeer() bool {
+	return peer.conf.NeighborConfig.PeerAs == peer.gConf.GlobalConfig.As
+}
+
 func (peer *Peer) isRouteServerClient() bool {
 	return peer.conf.RouteServer.RouteServerConfig.RouteServerClient
+}
+
+func (peer *Peer) isRouteReflectorClient() bool {
+	return peer.conf.RouteReflector.RouteReflectorConfig.RouteReflectorClient
 }
 
 func (peer *Peer) configuredRFlist() []bgp.RouteFamily {
@@ -177,7 +190,7 @@ func (peer *Peer) handleBGPmessage(m *bgp.BGPMessage) ([]*table.Path, bool, []*b
 		update = true
 		peer.conf.Timers.TimersState.UpdateRecvTime = time.Now().Unix()
 		body := m.Body.(*bgp.BGPUpdate)
-		confedCheckRequired := !peer.isConfederationMember && peer.isEBGP
+		confedCheckRequired := !peer.isConfederationMember && peer.isEBGPPeer()
 		_, err := bgp.ValidateUpdateMsg(body, peer.rfMap, confedCheckRequired)
 		if err != nil {
 			log.WithFields(log.Fields{
@@ -213,8 +226,7 @@ func (peer *Peer) startFSMHandler(incoming chan *fsmMsg) {
 }
 
 func (peer *Peer) PassConn(conn *net.TCPConn) {
-	isEBGP := peer.gConf.GlobalConfig.As != peer.conf.NeighborConfig.PeerAs
-	if isEBGP {
+	if peer.isEBGPPeer() {
 		ttl := 1
 		SetTcpTTLSockopts(conn, ttl)
 	}
