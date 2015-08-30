@@ -186,9 +186,11 @@ class GoBGPContainer(BGPContainer):
                 n['RouteServer'] = {'RouteServerConfig': {'RouteServerClient': True}}
 
             if info['is_rr_client']:
-                clusterId = info['cluster_id']
-                n['RouteReflector'] = {'RouteReflectorClient': True,
-                                       'RouteReflectorClusterId': clusterId}
+                clusterId = self.router_id
+                if 'cluster_id' in info and info['cluster_id'] is not None:
+                    clusterId = info['cluster_id']
+                n['RouteReflector'] = {'RouteReflectorConfig' : {'RouteReflectorClient': True,
+                                                                 'RouteReflectorClusterId': clusterId}}
 
             f = lambda typ: [p for p in info['policies'].itervalues() if p['type'] == typ]
             import_policies = f('import')

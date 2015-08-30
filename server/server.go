@@ -378,16 +378,56 @@ func filterpath(peer *Peer, pathList []*table.Path) []*table.Path {
 			continue
 		}
 
-		selfGenerated := path.GetSource().ID == nil
-		fromAS := path.GetSource().AS
-		myAS := peer.gConf.GlobalConfig.As
-		if !selfGenerated && !peer.isEBGP && myAS == fromAS {
-			log.WithFields(log.Fields{
-				"Topic": "Peer",
-				"Key":   peer.conf.NeighborConfig.NeighborAddress,
-				"Data":  path,
-			}).Debug("From same AS, ignore.")
-			continue
+		//iBGP handling
+		if !path.IsLocal() && peer.isIBGPPeer() {
+			ignore := true
+			info := path.GetSource()
+
+			//if the path comes from eBGP peer
+			if info.AS != peer.conf.NeighborConfig.PeerAs {
+				ignore = false
+			}
+			// RFC4456 8. Avoiding Routing Information Loops
+			// A router that recognizes the ORIGINATOR_ID attribute SHOULD
+			// ignore a route received with its BGP Identifier as the ORIGINATOR_ID.
+			if id := path.GetOriginatorID(); peer.gConf.GlobalConfig.RouterId.Equal(id) {
+				log.WithFields(log.Fields{
+					"Topic":        "Peer",
+					"Key":          peer.conf.NeighborConfig.NeighborAddress,
+					"OriginatorID": id,
+					"Data":         path,
+				}).Debug("Originator ID is mine, ignore")
+				continue
+			}
+			if info.RouteReflectorClient {
+				ignore = false
+			}
+			if peer.isRouteReflectorClient() {
+				// RFC4456 8. Avoiding Routing Information Loops
+				// If the local CLUSTER_ID is found in the CLUSTER_LIST,
+				// the advertisement received SHOULD be ignored.
+				for _, clusterId := range path.GetClusterList() {
+					if clusterId.Equal(peer.peerInfo.RouteReflectorClusterID) {
+						log.WithFields(log.Fields{
+							"Topic":     "Peer",
+							"Key":       peer.conf.NeighborConfig.NeighborAddress,
+							"ClusterID": clusterId,
+							"Data":      path,
+						}).Debug("cluster list path attribute has local cluster id, ignore")
+						continue
+					}
+				}
+				ignore = false
+			}
+
+			if ignore {
+				log.WithFields(log.Fields{
+					"Topic": "Peer",
+					"Key":   peer.conf.NeighborConfig.NeighborAddress,
+					"Data":  path,
+				}).Debug("From same AS, ignore.")
+				continue
+			}
 		}
 
 		if peer.conf.NeighborConfig.NeighborAddress.Equal(path.GetSource().Address) {
@@ -568,14 +608,14 @@ func (server *BgpServer) broadcastPeerState(peer *Peer) {
 	server.broadcastReqs = remainReqs
 }
 
-func (server *BgpServer) propagateUpdate(neighborAddress string, RouteServerClient bool, pathList []*table.Path) []*SenderMsg {
+func (server *BgpServer) propagateUpdate(peer *Peer, pathList []*table.Path) []*SenderMsg {
 	msgs := make([]*SenderMsg, 0)
 
-	if RouteServerClient {
-		p := server.neighborMap[neighborAddress]
-		newPathList := applyPolicies(p, nil, POLICY_DIRECTION_IN, pathList)
+	if peer != nil && peer.isRouteServerClient() {
+		newPathList := applyPolicies(peer, nil, POLICY_DIRECTION_IN, pathList)
 		for _, loc := range server.localRibMap {
 			targetPeer := server.neighborMap[loc.OwnerName()]
+			neighborAddress := peer.conf.NeighborConfig.NeighborAddress.String()
 			if loc.isGlobal() || loc.OwnerName() == neighborAddress {
 				continue
 			}
@@ -695,8 +735,7 @@ func (server *BgpServer) handleFSMMessage(peer *Peer, e *fsmMsg, incoming chan *
 					server.roaClient.validate(pathList)
 				}
 			}
-			msgs = append(msgs, server.propagateUpdate(peer.conf.NeighborConfig.NeighborAddress.String(),
-				peer.isRouteServerClient(), pathList)...)
+			msgs = append(msgs, server.propagateUpdate(peer, pathList)...)
 		default:
 			log.WithFields(log.Fields{
 				"Topic": "Peer",
@@ -1156,7 +1195,7 @@ func (server *BgpServer) handleGrpc(grpcReq *GrpcRequest) []*SenderMsg {
 	case REQ_MOD_PATH:
 		pathList := server.handleModPathRequest(grpcReq)
 		if len(pathList) > 0 {
-			msgs = server.propagateUpdate("", false, pathList)
+			msgs = server.propagateUpdate(nil, pathList)
 			grpcReq.ResponseCh <- &GrpcResponse{}
 			close(grpcReq.ResponseCh)
 		}
@@ -1282,7 +1321,7 @@ func (server *BgpServer) handleGrpc(grpcReq *GrpcRequest) []*SenderMsg {
 			break
 		}
 		pathList := peer.adjRib.GetInPathList(grpcReq.RouteFamily)
-		msgs = server.propagateUpdate(peer.conf.NeighborConfig.NeighborAddress.String(), peer.isRouteServerClient(), pathList)
+		msgs = server.propagateUpdate(peer, pathList)
 
 		if grpcReq.RequestType == REQ_NEIGHBOR_SOFT_RESET_IN {
 			grpcReq.ResponseCh <- &GrpcResponse{}
@@ -1488,7 +1527,7 @@ func (server *BgpServer) handleGrpc(grpcReq *GrpcRequest) []*SenderMsg {
 	case REQ_VRF, REQ_VRFS, REQ_VRF_MOD:
 		pathList := server.handleVrfRequest(grpcReq)
 		if len(pathList) > 0 {
-			msgs = server.propagateUpdate("", false, pathList)
+			msgs = server.propagateUpdate(nil, pathList)
 		}
 	default:
 		errmsg := fmt.Errorf("Unknown request type: %v", grpcReq.RequestType)

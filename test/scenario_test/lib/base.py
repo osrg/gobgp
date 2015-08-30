@@ -224,6 +224,9 @@ class BGPContainer(Container):
         self.policies = {}
         super(BGPContainer, self).__init__(name, ctn_image_name)
 
+    def __repr__(self):
+        return str({'name':self.name, 'asn':self.asn, 'router_id':self.router_id})
+
     def run(self):
         self.create_config()
         super(BGPContainer, self).run()
@@ -231,7 +234,7 @@ class BGPContainer(Container):
 
     def add_peer(self, peer, passwd=None, evpn=False, is_rs_client=False,
                  policies=None, passive=False,
-                 is_rr_client=False, cluster_id='',
+                 is_rr_client=False, cluster_id=None,
                  flowspec=False):
         neigh_addr = ''
         local_addr = ''
