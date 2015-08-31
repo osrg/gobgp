@@ -60,6 +60,8 @@ const (
 	CMD_DUMP           = "dump"
 	CMD_INJECT         = "inject"
 	CMD_RPKI           = "rpki"
+	CMD_RPKI_TABLE     = "table"
+	CMD_RPKI_SERVER    = "server"
 	CMD_VRF            = "vrf"
 )
 

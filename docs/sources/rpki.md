@@ -56,26 +56,28 @@ and get the ROA (Route Origin Authorization) information in the
 following way:
 
 ```bash
-$ gobgp rpki|head -n4
+$ gobgp rpki server
+Session            State  Uptime     #IPv4/IPv6 records
+210.173.170.254    Up     00:03:06   14823/2168
+```
+
+```bash
+$ gobgp rpki table 210.173.170.254|head -n4
 Network            Maxlen AS
 2.0.0.0/12         16     3215
 2.0.0.0/16         16     3215
 2.1.0.0/16         16     3215
-$ gobgp rpki |wc -l
-14576
 ```
 
 By default, IPv4's ROA information is shown. You can see IPv6's like:
 
 ```bash
-$ gobgp rpki -a ipv6|head -n4
+$ gobgp rpki -a ipv6 table 210.173.170.254|head -n4
 fujita@ubuntu:~$ gobgp rpki -a ipv6|head -n3
 Network                                    Maxlen AS
 2001:608::/32                              32     5539
 2001:610::/32                              48     1103
 2001:610:240::/42                          42     3333
-$ gobgp rpki -a ipv6|wc -l
-2150
 ```
 
 We configure the peer 10.0.255.1 to send three routes:

@@ -39,6 +39,9 @@ It has these top-level messages:
 	PolicyDefinition
 	ApplyPolicy
 	MrtMessage
+	RPKIConf
+	RPKIState
+	RPKI
 	ROA
 	Vrf
 */
@@ -718,6 +721,48 @@ func (m *MrtMessage) Reset()         { *m = MrtMessage{} }
 func (m *MrtMessage) String() string { return proto.CompactTextString(m) }
 func (*MrtMessage) ProtoMessage()    {}
 
+type RPKIConf struct {
+	Address string `protobuf:"bytes,1,opt,name=address" json:"address,omitempty"`
+}
+
+func (m *RPKIConf) Reset()         { *m = RPKIConf{} }
+func (m *RPKIConf) String() string { return proto.CompactTextString(m) }
+func (*RPKIConf) ProtoMessage()    {}
+
+type RPKIState struct {
+	Uptime       int64 `protobuf:"varint,1,opt,name=uptime" json:"uptime,omitempty"`
+	Downtime     int64 `protobuf:"varint,2,opt,name=downtime" json:"downtime,omitempty"`
+	ReceivedIpv4 int32 `protobuf:"varint,3,opt,name=received_ipv4" json:"received_ipv4,omitempty"`
+	ReceivedIpv6 int32 `protobuf:"varint,4,opt,name=received_ipv6" json:"received_ipv6,omitempty"`
+}
+
+func (m *RPKIState) Reset()         { *m = RPKIState{} }
+func (m *RPKIState) String() string { return proto.CompactTextString(m) }
+func (*RPKIState) ProtoMessage()    {}
+
+type RPKI struct {
+	Conf  *RPKIConf  `protobuf:"bytes,1,opt,name=conf" json:"conf,omitempty"`
+	State *RPKIState `protobuf:"bytes,2,opt,name=state" json:"state,omitempty"`
+}
+
+func (m *RPKI) Reset()         { *m = RPKI{} }
+func (m *RPKI) String() string { return proto.CompactTextString(m) }
+func (*RPKI) ProtoMessage()    {}
+
+func (m *RPKI) GetConf() *RPKIConf {
+	if m != nil {
+		return m.Conf
+	}
+	return nil
+}
+
+func (m *RPKI) GetState() *RPKIState {
+	if m != nil {
+		return m.State
+	}
+	return nil
+}
+
 type ROA struct {
 	As        uint32 `protobuf:"varint,1,opt,name=as" json:"as,omitempty"`
 	Prefixlen uint32 `protobuf:"varint,2,opt,name=prefixlen" json:"prefixlen,omitempty"`
@@ -770,6 +815,7 @@ type GrpcClient interface {
 	MonitorPeerState(ctx context.Context, in *Arguments, opts ...grpc.CallOption) (Grpc_MonitorPeerStateClient, error)
 	GetMrt(ctx context.Context, in *MrtArguments, opts ...grpc.CallOption) (Grpc_GetMrtClient, error)
 	GetRPKI(ctx context.Context, in *Arguments, opts ...grpc.CallOption) (Grpc_GetRPKIClient, error)
+	GetROA(ctx context.Context, in *Arguments, opts ...grpc.CallOption) (Grpc_GetROAClient, error)
 	GetVrfs(ctx context.Context, in *Arguments, opts ...grpc.CallOption) (Grpc_GetVrfsClient, error)
 	ModVrf(ctx context.Context, in *ModVrfArguments, opts ...grpc.CallOption) (*Error, error)
 }
@@ -1176,7 +1222,7 @@ func (c *grpcClient) GetRPKI(ctx context.Context, in *Arguments, opts ...grpc.Ca
 }
 
 type Grpc_GetRPKIClient interface {
-	Recv() (*ROA, error)
+	Recv() (*RPKI, error)
 	grpc.ClientStream
 }
 
@@ -1184,7 +1230,39 @@ type grpcGetRPKIClient struct {
 	grpc.ClientStream
 }
 
-func (x *grpcGetRPKIClient) Recv() (*ROA, error) {
+func (x *grpcGetRPKIClient) Recv() (*RPKI, error) {
+	m := new(RPKI)
+	if err := x.ClientStream.RecvMsg(m); err != nil {
+		return nil, err
+	}
+	return m, nil
+}
+
+func (c *grpcClient) GetROA(ctx context.Context, in *Arguments, opts ...grpc.CallOption) (Grpc_GetROAClient, error) {
+	stream, err := grpc.NewClientStream(ctx, &_Grpc_serviceDesc.Streams[10], c.cc, "/api.Grpc/GetROA", opts...)
+	if err != nil {
+		return nil, err
+	}
+	x := &grpcGetROAClient{stream}
+	if err := x.ClientStream.SendMsg(in); err != nil {
+		return nil, err
+	}
+	if err := x.ClientStream.CloseSend(); err != nil {
+		return nil, err
+	}
+	return x, nil
+}
+
+type Grpc_GetROAClient interface {
+	Recv() (*ROA, error)
+	grpc.ClientStream
+}
+
+type grpcGetROAClient struct {
+	grpc.ClientStream
+}
+
+func (x *grpcGetROAClient) Recv() (*ROA, error) {
 	m := new(ROA)
 	if err := x.ClientStream.RecvMsg(m); err != nil {
 		return nil, err
@@ -1193,7 +1271,7 @@ func (x *grpcGetRPKIClient) Recv() (*ROA, error) {
 }
 
 func (c *grpcClient) GetVrfs(ctx context.Context, in *Arguments, opts ...grpc.CallOption) (Grpc_GetVrfsClient, error) {
-	stream, err := grpc.NewClientStream(ctx, &_Grpc_serviceDesc.Streams[10], c.cc, "/api.Grpc/GetVrfs", opts...)
+	stream, err := grpc.NewClientStream(ctx, &_Grpc_serviceDesc.Streams[11], c.cc, "/api.Grpc/GetVrfs", opts...)
 	if err != nil {
 		return nil, err
 	}
@@ -1256,6 +1334,7 @@ type GrpcServer interface {
 	MonitorPeerState(*Arguments, Grpc_MonitorPeerStateServer) error
 	GetMrt(*MrtArguments, Grpc_GetMrtServer) error
 	GetRPKI(*Arguments, Grpc_GetRPKIServer) error
+	GetROA(*Arguments, Grpc_GetROAServer) error
 	GetVrfs(*Arguments, Grpc_GetVrfsServer) error
 	ModVrf(context.Context, *ModVrfArguments) (*Error, error)
 }
@@ -1597,7 +1676,7 @@ func _Grpc_GetRPKI_Handler(srv interface{}, stream grpc.ServerStream) error {
 }
 
 type Grpc_GetRPKIServer interface {
-	Send(*ROA) error
+	Send(*RPKI) error
 	grpc.ServerStream
 }
 
@@ -1605,7 +1684,28 @@ type grpcGetRPKIServer struct {
 	grpc.ServerStream
 }
 
-func (x *grpcGetRPKIServer) Send(m *ROA) error {
+func (x *grpcGetRPKIServer) Send(m *RPKI) error {
+	return x.ServerStream.SendMsg(m)
+}
+
+func _Grpc_GetROA_Handler(srv interface{}, stream grpc.ServerStream) error {
+	m := new(Arguments)
+	if err := stream.RecvMsg(m); err != nil {
+		return err
+	}
+	return srv.(GrpcServer).GetROA(m, &grpcGetROAServer{stream})
+}
+
+type Grpc_GetROAServer interface {
+	Send(*ROA) error
+	grpc.ServerStream
+}
+
+type grpcGetROAServer struct {
+	grpc.ServerStream
+}
+
+func (x *grpcGetROAServer) Send(m *ROA) error {
 	return x.ServerStream.SendMsg(m)
 }
 
@@ -1742,6 +1842,11 @@ var _Grpc_serviceDesc = grpc.ServiceDesc{
 		{
 			StreamName:    "GetRPKI",
 			Handler:       _Grpc_GetRPKI_Handler,
+			ServerStreams: true,
+		},
+		{
+			StreamName:    "GetROA",
+			Handler:       _Grpc_GetROA_Handler,
 			ServerStreams: true,
 		},
 		{

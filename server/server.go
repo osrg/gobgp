@@ -102,7 +102,7 @@ func NewBgpServer(port int) *BgpServer {
 	b.localRibMap = make(map[string]*LocalRib)
 	b.neighborMap = make(map[string]*Peer)
 	b.listenPort = port
-	b.roaClient, _ = newROAClient("")
+	b.roaClient, _ = newROAClient(config.RpkiServers{})
 	return &b
 }
 
@@ -227,16 +227,7 @@ func (server *BgpServer) Serve() {
 
 		select {
 		case c := <-server.rpkiConfigCh:
-			if len(c.RpkiServerList) > 0 {
-				var url string
-				if c.RpkiServerList[0].RpkiServerConfig.Address.To16() == nil {
-					url = fmt.Sprintf("%s", c.RpkiServerList[0].RpkiServerConfig.Address)
-				} else {
-					url = fmt.Sprintf("[%s]", c.RpkiServerList[0].RpkiServerConfig.Address)
-				}
-				url += fmt.Sprintf(":%d", c.RpkiServerList[0].RpkiServerConfig.Port)
-				server.roaClient, _ = newROAClient(url)
-			}
+			server.roaClient, _ = newROAClient(c)
 		case rmsg := <-server.roaClient.recieveROA():
 			server.roaClient.handleRTRMsg(rmsg)
 		case zmsg := <-zapiMsgCh:
@@ -1492,7 +1483,7 @@ func (server *BgpServer) handleGrpc(grpcReq *GrpcRequest) []*SenderMsg {
 		server.broadcastReqs = append(server.broadcastReqs, grpcReq)
 	case REQ_MRT_GLOBAL_RIB, REQ_MRT_LOCAL_RIB:
 		server.handleMrt(grpcReq)
-	case REQ_RPKI:
+	case REQ_ROA, REQ_RPKI:
 		server.roaClient.handleGRPC(grpcReq)
 	case REQ_VRF, REQ_VRFS, REQ_VRF_MOD:
 		pathList := server.handleVrfRequest(grpcReq)

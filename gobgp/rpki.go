@@ -24,18 +24,48 @@ import (
 	"io"
 	"net"
 	"os"
+	"time"
 )
 
+func showRPKIServer(args []string) error {
+	arg := &api.Arguments{}
+
+	stream, err := client.GetRPKI(context.Background(), arg)
+	if err != nil {
+		fmt.Println(err)
+		return err
+	}
+	format := "%-18s %-6s %-10s %s\n"
+	fmt.Printf(format, "Session", "State", "Uptime", "#IPv4/IPv6 records")
+	for {
+		r, err := stream.Recv()
+		if err == io.EOF {
+			break
+		} else if err != nil {
+			return err
+		}
+		s := "Up"
+		uptime := int64(time.Now().Sub(time.Unix(r.State.Uptime, 0)).Seconds())
+
+		fmt.Printf(format, fmt.Sprintf(r.Conf.Address), s, fmt.Sprint(formatTimedelta(uptime)), fmt.Sprintf("%d/%d", r.State.ReceivedIpv4, r.State.ReceivedIpv6))
+	}
+	return nil
+}
+
 func showRPKITable(args []string) error {
+	if len(args) == 0 {
+		return fmt.Errorf("Needs to specify RPKI server address")
+	}
 	rf, err := checkAddressFamily(net.IP{})
 	if err != nil {
 		fmt.Println(err)
 		os.Exit(1)
 	}
 	arg := &api.Arguments{
-		Rf: uint32(rf),
+		Rf:   uint32(rf),
+		Name: args[0],
 	}
-	stream, err := client.GetRPKI(context.Background(), arg)
+	stream, err := client.GetROA(context.Background(), arg)
 	if err != nil {
 		fmt.Println(err)
 		return err
@@ -64,10 +94,25 @@ func showRPKITable(args []string) error {
 func NewRPKICmd() *cobra.Command {
 	rpkiCmd := &cobra.Command{
 		Use: CMD_RPKI,
+	}
+
+	serverCmd := &cobra.Command{
+		Use: CMD_RPKI_SERVER,
+		Run: func(cmd *cobra.Command, args []string) {
+			showRPKIServer(args)
+		},
+	}
+
+	rpkiCmd.AddCommand(serverCmd)
+
+	tableCmd := &cobra.Command{
+		Use: CMD_RPKI_TABLE,
 		Run: func(cmd *cobra.Command, args []string) {
 			showRPKITable(args)
 		},
 	}
-	rpkiCmd.PersistentFlags().StringVarP(&subOpts.AddressFamily, "address-family", "a", "", "address family")
+	tableCmd.PersistentFlags().StringVarP(&subOpts.AddressFamily, "address-family", "a", "", "address family")
+
+	rpkiCmd.AddCommand(tableCmd)
 	return rpkiCmd
 }

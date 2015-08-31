@@ -83,6 +83,7 @@ const (
 	REQ_MRT_GLOBAL_RIB
 	REQ_MRT_LOCAL_RIB
 	REQ_RPKI
+	REQ_ROA
 	REQ_VRF
 	REQ_VRFS
 	REQ_VRF_MOD
@@ -510,6 +511,15 @@ func (s *Server) GetMrt(arg *api.MrtArguments, stream api.Grpc_GetMrtServer) err
 
 func (s *Server) GetRPKI(arg *api.Arguments, stream api.Grpc_GetRPKIServer) error {
 	req := NewGrpcRequest(REQ_RPKI, "", bgp.RouteFamily(arg.Rf), nil)
+	s.bgpServerCh <- req
+
+	return handleMultipleResponses(req, func(res *GrpcResponse) error {
+		return stream.Send(res.Data.(*api.RPKI))
+	})
+}
+
+func (s *Server) GetROA(arg *api.Arguments, stream api.Grpc_GetROAServer) error {
+	req := NewGrpcRequest(REQ_ROA, arg.Name, bgp.RouteFamily(arg.Rf), nil)
 	s.bgpServerCh <- req
 
 	return handleMultipleResponses(req, func(res *GrpcResponse) error {
