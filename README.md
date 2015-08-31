@@ -25,6 +25,7 @@ No dependency hell (library, package, etc) thanks to Go.
   * [Typical operation examples](https://github.com/osrg/gobgp/blob/master/docs/sources/cli-operations.md)
   * [Complete syntax](https://github.com/osrg/gobgp/blob/master/docs/sources/cli-command-syntax.md)
  * [Route Server](https://github.com/osrg/gobgp/blob/master/docs/sources/route-server.md)
+ * [Route Reflector](https://github.com/osrg/gobgp/blob/master/docs/sources/route-reflector.md)
  * [Policy](https://github.com/osrg/gobgp/blob/master/docs/sources/policy.md)
  * [EVPN](https://github.com/osrg/gobgp/blob/master/docs/sources/evpn.md)
  * [MRT](https://github.com/osrg/gobgp/blob/master/docs/sources/mrt.md)
