@@ -12,7 +12,7 @@ This example uses the following simple configuration file, `gobgpd.conf`. There 
 the configuration file used in [Getting Started](https://github.com/osrg/gobgp/blob/master/docs/sources/getting-started.md)
 
  * Peers are configured as route server clients (of course!).
- * GoBGP oesn't try to connect to peers. It only listens and accepts.
+ * GoBGP doesn't try to connect to peers. It only listens and accepts.
  * MD5 passwords are enabled.
 
 ```
