@@ -108,6 +108,7 @@ func createPathFromIPRouteMessage(m *zebra.Message, peerInfo *table.PeerInfo) *t
 		"Prefix":       body.Prefix,
 		"PrefixLength": body.PrefixLength,
 		"Nexthop":      body.Nexthops,
+		"IfIndex":      body.Ifindexs,
 		"Metric":       body.Metric,
 		"Distance":     body.Distance,
 		"api":          header.Command.String(),
@@ -115,11 +116,11 @@ func createPathFromIPRouteMessage(m *zebra.Message, peerInfo *table.PeerInfo) *t
 
 	if isV4 {
 		nlri = bgp.NewNLRInfo(body.PrefixLength, body.Prefix.String())
-		nexthop := bgp.NewPathAttributeNextHop("0.0.0.0")
+		nexthop := bgp.NewPathAttributeNextHop(body.Nexthops[0].String())
 		pattr = append(pattr, nexthop)
 	} else {
 		nlri = bgp.NewIPv6AddrPrefix(body.PrefixLength, body.Prefix.String())
-		mpnlri = bgp.NewPathAttributeMpReachNLRI("::", []bgp.AddrPrefixInterface{nlri})
+		mpnlri = bgp.NewPathAttributeMpReachNLRI(body.Nexthops[0].String(), []bgp.AddrPrefixInterface{nlri})
 		pattr = append(pattr, mpnlri)
 	}
 
@@ -156,7 +157,7 @@ func handleZapiMsg(msg *zebra.Message, server *BgpServer) []*SenderMsg {
 
 		if b.Prefix != nil && len(b.Nexthops) > 0 && b.Type != zebra.ROUTE_KERNEL {
 			p := createPathFromIPRouteMessage(msg, pi)
-			msgs := server.propagateUpdate("", false, []*table.Path{p})
+			msgs := server.propagateUpdate(nil, []*table.Path{p})
 			return msgs
 		}
 	}
