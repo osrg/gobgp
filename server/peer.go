@@ -226,10 +226,6 @@ func (peer *Peer) startFSMHandler(incoming chan *fsmMsg) {
 }
 
 func (peer *Peer) PassConn(conn *net.TCPConn) {
-	if peer.isEBGPPeer() {
-		ttl := 1
-		SetTcpTTLSockopts(conn, ttl)
-	}
 	select {
 	case peer.fsm.connCh <- conn:
 	default:

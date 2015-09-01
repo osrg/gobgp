@@ -225,11 +225,6 @@ func (fsm *FSM) connectLoop() error {
 
 			conn, err := net.DialTimeout("tcp", host, time.Duration(MIN_CONNECT_RETRY-1)*time.Second)
 			if err == nil {
-				isEBGP := fsm.gConf.GlobalConfig.As != fsm.pConf.NeighborConfig.PeerAs
-				if isEBGP {
-					ttl := 1
-					SetTcpTTLSockopts(conn.(*net.TCPConn), ttl)
-				}
 				fsm.connCh <- conn
 			} else {
 				log.WithFields(log.Fields{
@@ -341,6 +336,13 @@ func (h *FSMHandler) active() bgp.FSMState {
 				break
 			}
 			fsm.conn = conn
+			if fsm.gConf.GlobalConfig.As != fsm.pConf.NeighborConfig.PeerAs {
+				ttl := 1
+				if fsm.pConf.EbgpMultihop.EbgpMultihopConfig.Enabled == true {
+					ttl = int(fsm.pConf.EbgpMultihop.EbgpMultihopConfig.MultihopTtl)
+				}
+				SetTcpTTLSockopts(conn.(*net.TCPConn), ttl)
+			}
 			// we don't implement delayed open timer so move to opensent right
 			// away.
 			return bgp.BGP_FSM_OPENSENT
