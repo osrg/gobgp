@@ -108,6 +108,8 @@ func createPathFromIPRouteMessage(m *zebra.Message, peerInfo *table.PeerInfo) *t
 		"Prefix":       body.Prefix,
 		"PrefixLength": body.PrefixLength,
 		"Nexthop":      body.Nexthops,
+		"Metric":       body.Metric,
+		"Distance":     body.Distance,
 		"api":          header.Command.String(),
 	}).Debugf("create path from ip route message.")
 
