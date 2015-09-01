@@ -2064,6 +2064,16 @@ func (p *flowSpecPrefix) String() string {
 	return fmt.Sprintf("[%s:%s]", p.Type(), p.Prefix.String())
 }
 
+func (p *flowSpecPrefix) MarshalJSON() ([]byte, error) {
+	return json.Marshal(struct {
+		Type  BGPFlowSpecType     `json:"type"`
+		Value AddrPrefixInterface `json:"value"`
+	}{
+		Type:  p.Type(),
+		Value: p.Prefix,
+	})
+}
+
 type FlowSpecDestinationPrefix struct {
 	flowSpecPrefix
 }
@@ -2081,8 +2091,8 @@ func NewFlowSpecSourcePrefix(prefix AddrPrefixInterface) *FlowSpecSourcePrefix {
 }
 
 type FlowSpecComponentItem struct {
-	Op    int
-	Value int
+	Op    int `json:"op"`
+	Value int `json:"value"`
 }
 
 func (v *FlowSpecComponentItem) Serialize() ([]byte, error) {
@@ -2273,6 +2283,16 @@ func (p *FlowSpecComponent) String() string {
 		buf.WriteString(f(i.Op, i.Value))
 	}
 	return fmt.Sprintf("[%s:%s]", p.type_, buf.String())
+}
+
+func (p *FlowSpecComponent) MarshalJSON() ([]byte, error) {
+	return json.Marshal(struct {
+		Type  BGPFlowSpecType          `json:"type"`
+		Value []*FlowSpecComponentItem `json:"value"`
+	}{
+		Type:  p.Type(),
+		Value: p.Items,
+	})
 }
 
 func NewFlowSpecComponent(type_ BGPFlowSpecType, items []*FlowSpecComponentItem) *FlowSpecComponent {
@@ -3159,12 +3179,16 @@ func (p *PathAttributeNextHop) String() string {
 }
 
 func (p *PathAttributeNextHop) MarshalJSON() ([]byte, error) {
+	value := "0.0.0.0"
+	if p.Value != nil {
+		value = p.Value.String()
+	}
 	return json.Marshal(struct {
 		Type  BGPAttrType `json:"type"`
 		Value string      `json:"nexthop"`
 	}{
 		Type:  p.GetType(),
-		Value: p.Value.String(),
+		Value: value,
 	})
 }
 
@@ -3710,6 +3734,17 @@ func (p *PathAttributeMpReachNLRI) Serialize() ([]byte, error) {
 }
 
 func (p *PathAttributeMpReachNLRI) MarshalJSON() ([]byte, error) {
+	nexthop := p.Nexthop.String()
+	if p.Nexthop == nil {
+		switch p.AFI {
+		case AFI_IP:
+			nexthop = "0.0.0.0"
+		case AFI_IP6:
+			nexthop = "::"
+		default:
+			nexthop = "fictitious"
+		}
+	}
 	return json.Marshal(struct {
 		Type    BGPAttrType           `json:"type"`
 		Nexthop string                `json:"nexthop"`
@@ -3718,7 +3753,7 @@ func (p *PathAttributeMpReachNLRI) MarshalJSON() ([]byte, error) {
 		Value   []AddrPrefixInterface `json:"value"`
 	}{
 		Type:    p.GetType(),
-		Nexthop: p.Nexthop.String(),
+		Nexthop: nexthop,
 		AFI:     p.AFI,
 		SAFI:    p.SAFI,
 		Value:   p.Value,
