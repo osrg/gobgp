@@ -1466,8 +1466,8 @@ func (server *BgpServer) handleGrpc(grpcReq *GrpcRequest) []*SenderMsg {
 		grpcReq.ResponseCh <- result
 		close(grpcReq.ResponseCh)
 
-	case REQ_NEIGHBOR_POLICY_ADD_IMPORT, REQ_NEIGHBOR_POLICY_ADD_EXPORT, REQ_NEIGHBOR_POLICY_ADD_DISTRIBUTE,
-		REQ_NEIGHBOR_POLICY_DEL_IMPORT, REQ_NEIGHBOR_POLICY_DEL_EXPORT, REQ_NEIGHBOR_POLICY_DEL_DISTRIBUTE:
+	case REQ_NEIGHBOR_POLICY_ADD_IMPORT, REQ_NEIGHBOR_POLICY_ADD_EXPORT, REQ_NEIGHBOR_POLICY_ADD_IN,
+		REQ_NEIGHBOR_POLICY_DEL_IMPORT, REQ_NEIGHBOR_POLICY_DEL_EXPORT, REQ_NEIGHBOR_POLICY_DEL_IN:
 		peer, err := server.checkNeighborRequest(grpcReq)
 		if err != nil {
 			break
@@ -1489,7 +1489,7 @@ func (server *BgpServer) handleGrpc(grpcReq *GrpcRequest) []*SenderMsg {
 			}
 			applyPolicy.DefaultExportPolicy = defOutPolicy
 			applyPolicy.ExportPolicy = policy.PoliciesToString(reqApplyPolicy.ExportPolicies)
-		} else if grpcReq.RequestType == REQ_NEIGHBOR_POLICY_ADD_DISTRIBUTE {
+		} else if grpcReq.RequestType == REQ_NEIGHBOR_POLICY_ADD_IN {
 			if reqApplyPolicy.DefaultInPolicy != policy.ROUTE_ACCEPT {
 				defDistPolicy = config.DEFAULT_POLICY_TYPE_REJECT_ROUTE
 			}
@@ -1501,13 +1501,13 @@ func (server *BgpServer) handleGrpc(grpcReq *GrpcRequest) []*SenderMsg {
 		} else if grpcReq.RequestType == REQ_NEIGHBOR_POLICY_DEL_EXPORT {
 			applyPolicy.DefaultExportPolicy = config.DEFAULT_POLICY_TYPE_ACCEPT_ROUTE
 			applyPolicy.ExportPolicy = make([]string, 0)
-		} else if grpcReq.RequestType == REQ_NEIGHBOR_POLICY_DEL_DISTRIBUTE {
+		} else if grpcReq.RequestType == REQ_NEIGHBOR_POLICY_DEL_IN {
 			applyPolicy.DefaultInPolicy = config.DEFAULT_POLICY_TYPE_ACCEPT_ROUTE
 			applyPolicy.InPolicy = make([]string, 0)
 		}
 
-		if grpcReq.RequestType == REQ_NEIGHBOR_POLICY_ADD_DISTRIBUTE ||
-			grpcReq.RequestType == REQ_NEIGHBOR_POLICY_DEL_DISTRIBUTE {
+		if grpcReq.RequestType == REQ_NEIGHBOR_POLICY_ADD_IN ||
+			grpcReq.RequestType == REQ_NEIGHBOR_POLICY_DEL_IN {
 			peer.setPolicy(reqPolicyMap)
 		} else {
 			loc, ok := server.localRibMap[peer.conf.NeighborConfig.NeighborAddress.String()]

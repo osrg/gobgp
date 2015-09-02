@@ -597,7 +597,7 @@ func modNeighborPolicy(remoteIP net.IP, cmdType string, eArg []string) error {
 	switch cmdType {
 	case CMD_ADD:
 		if len(eArg) < 4 {
-			return fmt.Errorf("Usage: gobgp neighbor <ipaddr> policy %s {%s|%s|%s} <policies> {%s|%s}", cmdType, CMD_IMPORT, CMD_EXPORT, CMD_DISTRIBUTE, policy.ROUTE_ACCEPT, policy.ROUTE_REJECT)
+			return fmt.Errorf("Usage: gobgp neighbor <ipaddr> policy %s {%s|%s|%s} <policies> {%s|%s}", cmdType, CMD_IMPORT, CMD_EXPORT, CMD_IN, policy.ROUTE_ACCEPT, policy.ROUTE_REJECT)
 		}
 		policies := parsePolicy(eArg[1])
 		defaultPolicy, err := parseRouteAction(eArg[2])
@@ -611,7 +611,7 @@ func modNeighborPolicy(remoteIP net.IP, cmdType string, eArg []string) error {
 		case CMD_EXPORT:
 			pol.ExportPolicies = policies
 			pol.DefaultExportPolicy = defaultPolicy
-		case CMD_DISTRIBUTE:
+		case CMD_IN:
 			pol.InPolicies = policies
 			pol.DefaultInPolicy = defaultPolicy
 		}

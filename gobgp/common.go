@@ -54,7 +54,7 @@ const (
 	CMD_ACTIONS        = "actions"
 	CMD_IMPORT         = "import"
 	CMD_EXPORT         = "export"
-	CMD_DISTRIBUTE     = "distribute"
+	CMD_IN             = "in"
 	CMD_MONITOR        = "monitor"
 	CMD_MRT            = "mrt"
 	CMD_DUMP           = "dump"
