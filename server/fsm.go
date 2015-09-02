@@ -341,7 +341,9 @@ func (h *FSMHandler) active() bgp.FSMState {
 				if fsm.pConf.EbgpMultihop.EbgpMultihopConfig.Enabled == true {
 					ttl = int(fsm.pConf.EbgpMultihop.EbgpMultihopConfig.MultihopTtl)
 				}
-				SetTcpTTLSockopts(conn.(*net.TCPConn), ttl)
+				if ttl != 0 {
+					SetTcpTTLSockopts(conn.(*net.TCPConn), ttl)
+				}
 			}
 			// we don't implement delayed open timer so move to opensent right
 			// away.
