@@ -32,8 +32,6 @@ import (
 )
 
 func main() {
-	runtime.GOMAXPROCS(runtime.NumCPU())
-
 	sigCh := make(chan os.Signal, 1)
 	signal.Notify(sigCh, syscall.SIGHUP, syscall.SIGTERM)
 
@@ -46,10 +44,21 @@ func main() {
 		DisableStdlog bool   `long:"disable-stdlog" description:"disable standard logging"`
 		EnableZapi    bool   `short:"z" long:"enable-zapi" description:"enable zebra api"`
 		ZapiURL       string `long:"zapi-url" description:"specify zebra api url"`
+		CPUs          int    `long:"cpus" description:"specify the number of CPUs to be used"`
 	}
 	_, err := flags.Parse(&opts)
 	if err != nil {
 		os.Exit(1)
+	}
+
+	if opts.CPUs == 0 {
+		runtime.GOMAXPROCS(runtime.NumCPU())
+	} else {
+		if runtime.NumCPU() < opts.CPUs {
+			log.Errorf("Only %d CPUs are available but %d is specified", runtime.NumCPU(), opts.CPUs)
+			os.Exit(1)
+		}
+		runtime.GOMAXPROCS(opts.CPUs)
 	}
 
 	switch opts.LogLevel {
