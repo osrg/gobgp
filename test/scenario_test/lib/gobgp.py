@@ -22,23 +22,29 @@ from itertools import chain
 class GoBGPContainer(BGPContainer):
 
     SHARED_VOLUME = '/root/shared_volume'
+    QUAGGA_VOLUME = '/etc/quagga'
 
     def __init__(self, name, asn, router_id, ctn_image_name='gobgp',
-                 log_level='debug'):
+                 log_level='debug', zebra=False):
         super(GoBGPContainer, self).__init__(name, asn, router_id,
                                              ctn_image_name)
         self.shared_volumes.append((self.config_dir, self.SHARED_VOLUME))
+
         self.log_level = log_level
         self.prefix_set = None
         self.neighbor_set = None
         self.bgp_set = None
         self.default_policy = None
+        self.zebra = zebra
 
     def _start_gobgp(self):
+        zebra_op = ''
+        if self.zebra:
+            zebra_op = '-z'
         c = CmdBuffer()
         c << '#!/bin/bash'
-        c << '/go/bin/gobgpd -f {0}/gobgpd.conf -l {1} -p > ' \
-             '{0}/gobgpd.log 2>&1'.format(self.SHARED_VOLUME, self.log_level)
+        c << '/go/bin/gobgpd -f {0}/gobgpd.conf -l {1} -p {2} > ' \
+             '{0}/gobgpd.log 2>&1'.format(self.SHARED_VOLUME, self.log_level, zebra_op)
 
         cmd = 'echo "{0:s}" > {1}/start.sh'.format(c, self.config_dir)
         local(cmd, capture=True)
@@ -46,8 +52,16 @@ class GoBGPContainer(BGPContainer):
         local(cmd, capture=True)
         self.local("{0}/start.sh".format(self.SHARED_VOLUME), flag='-d')
 
+    def _start_zebra(self):
+        cmd = 'cp {0}/zebra.conf {1}/'.format(self.SHARED_VOLUME, self.QUAGGA_VOLUME)
+        self.local(cmd)
+        cmd = '/usr/lib/quagga/zebra -f {0}/zebra.conf'.format(self.QUAGGA_VOLUME)
+        self.local(cmd, flag='-d')
+
     def run(self):
         super(GoBGPContainer, self).run()
+        if self.zebra:
+            self._start_zebra()
         self._start_gobgp()
         return self.WAIT_FOR_BOOT
 
@@ -152,6 +166,11 @@ class GoBGPContainer(BGPContainer):
         self.bgp_set = bs
 
     def create_config(self):
+        self._create_config_bgp()
+        if self.zebra:
+            self._create_config_zebra()
+
+    def _create_config_bgp(self):
         config = {'Global': {'GlobalConfig': {'As': self.asn, 'RouterId': self.router_id}}}
         for peer, info in self.peers.iteritems():
             afi_safi_list = []
@@ -259,9 +278,25 @@ class GoBGPContainer(BGPContainer):
             print colors.yellow(indent(toml.dumps(config)))
             f.write(toml.dumps(config))
 
+    def _create_config_zebra(self):
+        c = CmdBuffer()
+        c << 'hostname zebra'
+        c << 'password zebra'
+        c << 'log file {0}/zebra.log'.format(self.QUAGGA_VOLUME)
+
+        with open('{0}/zebra.conf'.format(self.config_dir), 'w') as f:
+            print colors.yellow('[{0}\'s new config]'.format(self.name))
+            print colors.yellow(indent(str(c)))
+            f.writelines(str(c))
+
     def reload_config(self):
-        cmd = '/usr/bin/pkill gobgpd -SIGHUP'
-        self.local(cmd)
+        daemon = []
+        daemon.append('gobgpd')
+        if self.zebra:
+            daemon.append('zebra')
+        for d in daemon:
+            cmd = '/usr/bin/pkill {0} -SIGHUP'.format(d)
+            self.local(cmd)
         for v in self.routes.itervalues():
             if v['rf'] == 'ipv4' or v['rf'] == 'ipv6':
                 cmd = 'gobgp global '\
