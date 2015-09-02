@@ -1472,6 +1472,7 @@ func (server *BgpServer) handleGrpc(grpcReq *GrpcRequest) []*SenderMsg {
 		if err != nil {
 			break
 		}
+		result := &GrpcResponse{}
 		reqApplyPolicy := grpcReq.Data.(*api.ApplyPolicy)
 		reqPolicyMap := server.policyMap
 		applyPolicy := &peer.conf.ApplyPolicy.ApplyPolicyConfig
@@ -1509,11 +1510,15 @@ func (server *BgpServer) handleGrpc(grpcReq *GrpcRequest) []*SenderMsg {
 			grpcReq.RequestType == REQ_NEIGHBOR_POLICY_DEL_DISTRIBUTE {
 			peer.setPolicy(reqPolicyMap)
 		} else {
-			loc := server.localRibMap[peer.conf.NeighborConfig.NeighborAddress.String()]
-			loc.setPolicy(peer, reqPolicyMap)
+			loc, ok := server.localRibMap[peer.conf.NeighborConfig.NeighborAddress.String()]
+			if ok {
+				loc.setPolicy(peer, reqPolicyMap)
+			} else {
+				result.ResponseErr = fmt.Errorf("no local rib for %s", peer.conf.NeighborConfig.NeighborAddress.String())
+			}
 		}
 
-		grpcReq.ResponseCh <- &GrpcResponse{}
+		grpcReq.ResponseCh <- result
 		close(grpcReq.ResponseCh)
 
 	case REQ_POLICY_PREFIXES, REQ_POLICY_NEIGHBORS, REQ_POLICY_ASPATHS,
