@@ -344,7 +344,7 @@ func (peer *Peer) ToApiStruct() *api.Peer {
 }
 
 func (peer *Peer) setPolicy(policyMap map[string]*policy.Policy) {
-	// configure distribute policy
+	// configure in-policy
 	policyConf := peer.conf.ApplyPolicy
 	inPolicies := make([]*policy.Policy, 0)
 	for _, policyName := range policyConf.ApplyPolicyConfig.InPolicy {
@@ -352,9 +352,9 @@ func (peer *Peer) setPolicy(policyMap map[string]*policy.Policy) {
 			"Topic":      "Peer",
 			"Key":        peer.conf.NeighborConfig.NeighborAddress,
 			"PolicyName": policyName,
-		}).Info("distribute policy installed")
+		}).Info("in-policy installed")
 		if pol, ok := policyMap[policyName]; ok {
-			log.Debug("distribute policy : ", pol)
+			log.Debug("in policy : ", pol)
 			inPolicies = append(inPolicies, pol)
 		}
 	}

@@ -43,10 +43,10 @@ const (
 	REQ_NEIGHBOR_POLICY
 	REQ_NEIGHBOR_POLICY_ADD_IMPORT
 	REQ_NEIGHBOR_POLICY_ADD_EXPORT
-	REQ_NEIGHBOR_POLICY_ADD_DISTRIBUTE
+	REQ_NEIGHBOR_POLICY_ADD_IN
 	REQ_NEIGHBOR_POLICY_DEL_IMPORT
 	REQ_NEIGHBOR_POLICY_DEL_EXPORT
-	REQ_NEIGHBOR_POLICY_DEL_DISTRIBUTE
+	REQ_NEIGHBOR_POLICY_DEL_IN
 	REQ_GLOBAL_RIB
 	REQ_POLICY_PREFIX
 	REQ_POLICY_PREFIXES
@@ -301,8 +301,8 @@ func (s *Server) ModNeighborPolicy(stream api.Grpc_ModNeighborPolicyServer) erro
 				reqType = REQ_NEIGHBOR_POLICY_ADD_IMPORT
 			case "export":
 				reqType = REQ_NEIGHBOR_POLICY_ADD_EXPORT
-			case "distribute":
-				reqType = REQ_NEIGHBOR_POLICY_ADD_DISTRIBUTE
+			case "in":
+				reqType = REQ_NEIGHBOR_POLICY_ADD_IN
 			}
 		case api.Operation_DEL:
 			switch arg.Name {
@@ -310,8 +310,8 @@ func (s *Server) ModNeighborPolicy(stream api.Grpc_ModNeighborPolicyServer) erro
 				reqType = REQ_NEIGHBOR_POLICY_DEL_IMPORT
 			case "export":
 				reqType = REQ_NEIGHBOR_POLICY_DEL_EXPORT
-			case "distribute":
-				reqType = REQ_NEIGHBOR_POLICY_DEL_DISTRIBUTE
+			case "in":
+				reqType = REQ_NEIGHBOR_POLICY_DEL_IN
 			}
 		}
 		req := NewGrpcRequest(reqType, arg.NeighborAddress, rf, arg.ApplyPolicy)
