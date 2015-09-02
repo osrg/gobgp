@@ -1186,8 +1186,9 @@ func (server *BgpServer) handleGrpc(grpcReq *GrpcRequest) []*SenderMsg {
 
 	switch grpcReq.RequestType {
 	case REQ_GLOBAL_RIB:
+		var results []*GrpcResponse
 		if t, ok := server.localRibMap[GLOBAL_RIB_NAME].rib.Tables[grpcReq.RouteFamily]; ok {
-			results := make([]*GrpcResponse, len(t.GetDestinations()))
+			results = make([]*GrpcResponse, len(t.GetDestinations()))
 			switch grpcReq.RouteFamily {
 			case bgp.RF_IPv4_UC, bgp.RF_IPv6_UC:
 				results = sortedDsts(server.localRibMap[GLOBAL_RIB_NAME].rib.Tables[grpcReq.RouteFamily])
@@ -1200,8 +1201,8 @@ func (server *BgpServer) handleGrpc(grpcReq *GrpcRequest) []*SenderMsg {
 					i++
 				}
 			}
-			go sendMultipleResponses(grpcReq, results)
 		}
+		go sendMultipleResponses(grpcReq, results)
 
 	case REQ_MOD_PATH:
 		pathList := server.handleModPathRequest(grpcReq)
@@ -1239,10 +1240,11 @@ func (server *BgpServer) handleGrpc(grpcReq *GrpcRequest) []*SenderMsg {
 		if err != nil {
 			break
 		}
+		var results []*GrpcResponse
 		if peer.isRouteServerClient() && peer.fsm.adminState != ADMIN_STATE_DOWN {
 			remoteAddr := grpcReq.Name
 			if t, ok := server.localRibMap[remoteAddr].rib.Tables[grpcReq.RouteFamily]; ok {
-				results := make([]*GrpcResponse, len(t.GetDestinations()))
+				results = make([]*GrpcResponse, len(t.GetDestinations()))
 				switch grpcReq.RouteFamily {
 				case bgp.RF_IPv4_UC, bgp.RF_IPv6_UC:
 					results = sortedDsts(server.localRibMap[remoteAddr].rib.Tables[grpcReq.RouteFamily])
@@ -1255,9 +1257,9 @@ func (server *BgpServer) handleGrpc(grpcReq *GrpcRequest) []*SenderMsg {
 						i++
 					}
 				}
-				go sendMultipleResponses(grpcReq, results)
 			}
 		}
+		go sendMultipleResponses(grpcReq, results)
 
 	case REQ_ADJ_RIB_IN, REQ_ADJ_RIB_OUT:
 		peer, err := server.checkNeighborRequest(grpcReq)

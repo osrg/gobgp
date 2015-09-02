@@ -137,8 +137,8 @@ func (c *roaClient) handleGRPC(grpcReq *GrpcRequest) {
 			break
 		}
 
+		results := make([]*GrpcResponse, 0)
 		if tree, ok := c.roas[grpcReq.RouteFamily]; ok {
-			results := make([]*GrpcResponse, 0)
 			tree.Walk(func(s string, v interface{}) bool {
 				r, _ := v.(*roa)
 				result := &GrpcResponse{}
@@ -146,8 +146,8 @@ func (c *roaClient) handleGRPC(grpcReq *GrpcRequest) {
 				results = append(results, result)
 				return false
 			})
-			go sendMultipleResponses(grpcReq, results)
 		}
+		go sendMultipleResponses(grpcReq, results)
 	}
 }
 
