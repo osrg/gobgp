@@ -44,10 +44,11 @@ class QuaggaBGPContainer(BGPContainer):
     WAIT_FOR_BOOT = 1
     SHARED_VOLUME = '/etc/quagga'
 
-    def __init__(self, name, asn, router_id, ctn_image_name='osrg/quagga'):
+    def __init__(self, name, asn, router_id, ctn_image_name='osrg/quagga', zebra=False):
         super(QuaggaBGPContainer, self).__init__(name, asn, router_id,
                                                  ctn_image_name)
         self.shared_volumes.append((self.config_dir, self.SHARED_VOLUME))
+        self.zebra = zebra
 
     def run(self):
         super(QuaggaBGPContainer, self).run()
@@ -152,6 +153,11 @@ class QuaggaBGPContainer(BGPContainer):
             raise Exception('not found peer {0}'.format(peer.router_id))
 
     def create_config(self):
+        self._create_config_bgp()
+        if self.zebra:
+            self._create_config_zebra()
+
+    def _create_config_bgp(self):
         c = CmdBuffer()
         c << 'hostname bgpd'
         c << 'password zebra'
@@ -205,6 +211,23 @@ class QuaggaBGPContainer(BGPContainer):
             print colors.yellow(indent(str(c)))
             f.writelines(str(c))
 
+    def _create_config_zebra(self):
+        c = CmdBuffer()
+        c << 'hostname zebra'
+        c << 'password zebra'
+        c << 'log file {0}/zebra.log'.format(self.SHARED_VOLUME)
+
+        with open('{0}/zebra.conf'.format(self.config_dir), 'w') as f:
+            print colors.yellow('[{0}\'s new config]'.format(self.name))
+            print colors.yellow(indent(str(c)))
+            f.writelines(str(c))
+
     def reload_config(self):
-        cmd = '/usr/bin/pkill bgpd -SIGHUP'
-        self.local(cmd)
+        daemon = []
+        daemon.append('bgpd')
+        if self.zebra:
+            daemon.append('zebra')
+        for d in daemon:
+            cmd = '/usr/bin/pkill {0} -SIGHUP'.format(d)
+            self.local(cmd)
+

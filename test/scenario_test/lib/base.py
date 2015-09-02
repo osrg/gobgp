@@ -86,6 +86,8 @@ def make_gobgp_ctn(tag='gobgp', local_gobgp_path='', from_image='golang:1.4'):
     c << 'RUN go install github.com/osrg/gobgp/gobgpd'
     c << 'RUN go get github.com/osrg/gobgp/gobgp'
     c << 'RUN go install github.com/osrg/gobgp/gobgp'
+    c << 'RUN apt-get update'
+    c << 'RUN apt-get install -qy --no-install-recommends quagga telnet'
 
     rindex = local_gobgp_path.rindex('gobgp')
     if rindex < 0:
@@ -133,6 +135,7 @@ class Bridge(object):
         name = ctn.next_if_name()
         self.ctns.append(ctn)
         if self.with_ip:
+
             ctn.pipework(self, self.next_ip_address(), name)
         else:
             ctn.pipework(self, '0/0', name)
@@ -312,6 +315,30 @@ class BGPContainer(Container):
     def get_neighbor_state(self, peer_id):
         raise Exception('implement get_neighbor() method')
 
+    def get_reachablily(self, prefix, timeout=20):
+            version = netaddr.IPNetwork(prefix).version
+            addr = prefix.split('/')[0]
+            if version == 4:
+                ping_cmd = 'ping'
+            elif version == 6:
+                ping_cmd = 'ping6'
+            else:
+                raise Exception('unsupported route family: {0}'.format(version))
+            cmd = '/bin/{0} -c 1 -w 1 {1}'.format(ping_cmd, addr)
+
+            interval = 1
+            count = 0
+            while True:
+                res = self.local(cmd, capture=True)
+                print colors.yellow(res)
+                if '0% packet loss' in res:
+                    break
+                time.sleep(interval)
+                count += interval
+                if count >= timeout:
+                    raise Exception('timeout')
+            return True
+
     def wait_for(self, expected_state, peer, timeout=120):
         interval = 1
         count = 0
@@ -328,6 +355,10 @@ class BGPContainer(Container):
             count += interval
             if count >= timeout:
                 raise Exception('timeout')
+
+    def add_static_route(self, network, next_hop):
+        cmd = '/sbin/ip route add {0} via {1}'.format(network, next_hop)
+        self.local(cmd)
 
     def create_config(self):
         raise Exception('implement create_config() method')
