@@ -719,8 +719,6 @@ type NeighborConfig struct {
 	// original -> bgp:neighbor-address
 	//bgp:neighbor-address's original type is inet:ip-address
 	NeighborAddress net.IP
-	// local address of BGP session, typically a loopback address, might be configured in some cases.
-	LocalAddress net.IP
 }
 
 //struct for container bgp:neighbor
