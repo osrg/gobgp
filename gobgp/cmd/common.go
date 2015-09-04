@@ -221,7 +221,48 @@ func (p paths) Less(i, j int) bool {
 	return strings.Less(0, 1)
 }
 
-type peers []*api.Peer
+type PeerConf struct {
+	RemoteIp          net.IP                             `json:"remote_ip,omitempty"`
+	Id                net.IP                             `json:"id,omitempty"`
+	RemoteAs          uint32                             `json:"remote_as,omitempty"`
+	RemoteCap         []bgp.ParameterCapabilityInterface `json:"remote_cap,omitempty"`
+	LocalCap          []bgp.ParameterCapabilityInterface `json:"local_cap,omitempty"`
+	Holdtime          uint32                             `json:"holdtime,omitempty"`
+	KeepaliveInterval uint32                             `json:"keepalive_interval,omitempty"`
+}
+
+type Peer struct {
+	Conf PeerConf      `json:"conf,omitempty"`
+	Info *api.PeerInfo `json:"info,omitempty"`
+}
+
+func ApiStruct2Peer(p *api.Peer) *Peer {
+	localCaps := capabilities{}
+	remoteCaps := capabilities{}
+	for _, buf := range p.Conf.LocalCap {
+		c, _ := bgp.DecodeCapability(buf)
+		localCaps = append(localCaps, c)
+	}
+	for _, buf := range p.Conf.RemoteCap {
+		c, _ := bgp.DecodeCapability(buf)
+		remoteCaps = append(remoteCaps, c)
+	}
+	conf := PeerConf{
+		RemoteIp:          net.ParseIP(p.Conf.RemoteIp),
+		Id:                net.ParseIP(p.Conf.Id),
+		RemoteAs:          p.Conf.RemoteAs,
+		RemoteCap:         remoteCaps,
+		LocalCap:          localCaps,
+		Holdtime:          p.Conf.Holdtime,
+		KeepaliveInterval: p.Conf.KeepaliveInterval,
+	}
+	return &Peer{
+		Conf: conf,
+		Info: p.Info,
+	}
+}
+
+type peers []*Peer
 
 func (p peers) Len() int {
 	return len(p)
@@ -232,8 +273,8 @@ func (p peers) Swap(i, j int) {
 }
 
 func (p peers) Less(i, j int) bool {
-	p1 := net.ParseIP(p[i].Conf.RemoteIp)
-	p2 := net.ParseIP(p[j].Conf.RemoteIp)
+	p1 := p[i].Conf.RemoteIp
+	p2 := p[j].Conf.RemoteIp
 	p1Isv4 := p1.To4() != nil
 	p2Isv4 := p2.To4() != nil
 	if p1Isv4 != p2Isv4 {
@@ -251,7 +292,7 @@ func (p peers) Less(i, j int) bool {
 	return strings.Less(0, 1)
 }
 
-type capabilities []*api.Capability
+type capabilities []bgp.ParameterCapabilityInterface
 
 func (c capabilities) Len() int {
 	return len(c)
@@ -262,7 +303,7 @@ func (c capabilities) Swap(i, j int) {
 }
 
 func (c capabilities) Less(i, j int) bool {
-	return c[i].Code < c[j].Code
+	return c[i].Code() < c[j].Code()
 }
 
 type prefixes []*api.PrefixSet

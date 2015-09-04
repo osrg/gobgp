@@ -59,7 +59,7 @@ func getNeighbors() (peers, error) {
 				}
 			}
 		}
-		m = append(m, p)
+		m = append(m, ApiStruct2Peer(p))
 	}
 	return m, nil
 }
@@ -144,10 +144,11 @@ func showNeighbor(args []string) error {
 	id := &api.Arguments{
 		Name: args[0],
 	}
-	p, e := client.GetNeighbor(context.Background(), id)
+	peer, e := client.GetNeighbor(context.Background(), id)
 	if e != nil {
 		return e
 	}
+	p := ApiStruct2Peer(peer)
 
 	if globalOpts.Json {
 		j, _ := json.Marshal(p)
@@ -164,11 +165,13 @@ func showNeighbor(args []string) error {
 
 	fmt.Printf("  Neighbor capabilities:\n")
 	caps := capabilities{}
-	lookup := func(val *api.Capability, l capabilities) *api.Capability {
+	lookup := func(val bgp.ParameterCapabilityInterface, l capabilities) bgp.ParameterCapabilityInterface {
 		for _, v := range l {
-			if v.Code == val.Code {
-				if v.Code == api.BGP_CAPABILITY_MULTIPROTOCOL {
-					if v.MultiProtocol == val.MultiProtocol {
+			if v.Code() == val.Code() {
+				if v.Code() == bgp.BGP_CAP_MULTIPROTOCOL {
+					lhs := v.(*bgp.CapMultiProtocol).CapValue
+					rhs := val.(*bgp.CapMultiProtocol).CapValue
+					if lhs == rhs {
 						return v
 					}
 					continue
@@ -178,10 +181,12 @@ func showNeighbor(args []string) error {
 		}
 		return nil
 	}
-	caps = append(caps, p.Conf.LocalCap...)
-	for _, v := range p.Conf.RemoteCap {
-		if lookup(v, caps) == nil {
-			caps = append(caps, v)
+	for _, c := range p.Conf.LocalCap {
+		caps = append(caps, c)
+	}
+	for _, c := range p.Conf.RemoteCap {
+		if lookup(c, caps) == nil {
+			caps = append(caps, c)
 		}
 	}
 
@@ -201,15 +206,15 @@ func showNeighbor(args []string) error {
 			support += "received"
 		}
 
-		if c.Code != api.BGP_CAPABILITY_MULTIPROTOCOL {
-			fmt.Printf("    %s:\t%s\n", c.Code, support)
+		if c.Code() != bgp.BGP_CAP_MULTIPROTOCOL {
+			fmt.Printf("    %s:\t%s\n", c.Code(), support)
 		} else {
 			if firstMp {
-				fmt.Printf("    %s:\n", c.Code)
+				fmt.Printf("    %s:\n", c.Code())
 				firstMp = false
 			}
-			fmt.Printf("        %s:\t%s\n", bgp.RouteFamily(c.MultiProtocol), support)
-
+			m := c.(*bgp.CapMultiProtocol).CapValue
+			fmt.Printf("        %s:\t%s\n", m, support)
 		}
 	}
 	fmt.Print("  Message statistics:\n")

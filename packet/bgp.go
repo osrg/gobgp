@@ -20,7 +20,6 @@ import (
 	"encoding/binary"
 	"encoding/json"
 	"fmt"
-	"github.com/osrg/gobgp/api"
 	"math"
 	"net"
 	"reflect"
@@ -215,13 +214,12 @@ type ParameterCapabilityInterface interface {
 	Serialize() ([]byte, error)
 	Len() int
 	Code() BGPCapabilityCode
-	ToApiStruct() *api.Capability
 }
 
 type DefaultParameterCapability struct {
-	CapCode  BGPCapabilityCode
-	CapLen   uint8
-	CapValue []byte
+	CapCode  BGPCapabilityCode `json:"code"`
+	CapLen   uint8             `json:"-"`
+	CapValue []byte            `json:"value,omitempty"`
 }
 
 func (c *DefaultParameterCapability) Code() BGPCapabilityCode {
@@ -253,20 +251,9 @@ func (c *DefaultParameterCapability) Len() int {
 	return int(c.CapLen + 2)
 }
 
-func (c *DefaultParameterCapability) ToApiStruct() *api.Capability {
-	return &api.Capability{
-		Code: api.BGP_CAPABILITY(c.Code()),
-	}
-}
-
-type CapMultiProtocolValue struct {
-	AFI  uint16
-	SAFI uint8
-}
-
 type CapMultiProtocol struct {
 	DefaultParameterCapability
-	CapValue CapMultiProtocolValue
+	CapValue RouteFamily
 }
 
 func (c *CapMultiProtocol) DecodeFromBytes(data []byte) error {
@@ -275,35 +262,35 @@ func (c *CapMultiProtocol) DecodeFromBytes(data []byte) error {
 	if len(data) < 4 {
 		return fmt.Errorf("Not all CapabilityMultiProtocol bytes available")
 	}
-	c.CapValue.AFI = binary.BigEndian.Uint16(data[0:2])
-	c.CapValue.SAFI = data[3]
+	c.CapValue = AfiSafiToRouteFamily(binary.BigEndian.Uint16(data[0:2]), data[3])
 	return nil
 }
 
 func (c *CapMultiProtocol) Serialize() ([]byte, error) {
 	buf := make([]byte, 4)
-	binary.BigEndian.PutUint16(buf[0:], c.CapValue.AFI)
-	buf[3] = c.CapValue.SAFI
+	afi, safi := RouteFamilyToAfiSafi(c.CapValue)
+	binary.BigEndian.PutUint16(buf[0:], afi)
+	buf[3] = safi
 	c.DefaultParameterCapability.CapValue = buf
 	return c.DefaultParameterCapability.Serialize()
 }
 
-func (c *CapMultiProtocol) ToApiStruct() *api.Capability {
-	return &api.Capability{
-		Code:          api.BGP_CAPABILITY(c.Code()),
-		MultiProtocol: uint32(AfiSafiToRouteFamily(c.CapValue.AFI, c.CapValue.SAFI)),
-	}
+func (c *CapMultiProtocol) MarshalJSON() ([]byte, error) {
+	return json.Marshal(struct {
+		Code  BGPCapabilityCode `json:"code"`
+		Value RouteFamily       `json:"value"`
+	}{
+		Code:  c.Code(),
+		Value: c.CapValue,
+	})
 }
 
-func NewCapMultiProtocol(afi uint16, safi uint8) *CapMultiProtocol {
+func NewCapMultiProtocol(rf RouteFamily) *CapMultiProtocol {
 	return &CapMultiProtocol{
 		DefaultParameterCapability{
 			CapCode: BGP_CAP_MULTIPROTOCOL,
 		},
-		CapMultiProtocolValue{
-			AFI:  afi,
-			SAFI: safi,
-		},
+		rf,
 	}
 }
 
@@ -329,10 +316,20 @@ type CapGracefulRestartTuples struct {
 	Flags uint8
 }
 
+func (c CapGracefulRestartTuples) MarshalJSON() ([]byte, error) {
+	return json.Marshal(struct {
+		RouteFamily RouteFamily `json:"route_family"`
+		Flags       uint8       `json:"flags"`
+	}{
+		RouteFamily: AfiSafiToRouteFamily(c.AFI, c.SAFI),
+		Flags:       c.Flags,
+	})
+}
+
 type CapGracefulRestartValue struct {
-	Flags  uint8
-	Time   uint16
-	Tuples []CapGracefulRestartTuples
+	Flags  uint8                      `json:"flags"`
+	Time   uint16                     `json:"time"`
+	Tuples []CapGracefulRestartTuples `json"tuples"`
 }
 
 type CapGracefulRestart struct {
@@ -370,27 +367,6 @@ func (c *CapGracefulRestart) Serialize() ([]byte, error) {
 	return c.DefaultParameterCapability.Serialize()
 }
 
-func (c *CapGracefulRestart) ToApiStruct() *api.Capability {
-	value := &api.GracefulRestart{
-		Flags: uint32(c.CapValue.Flags),
-		Time:  uint32(c.CapValue.Time),
-	}
-	tuples := []*api.GracefulRestartTuple{}
-	for _, t := range c.CapValue.Tuples {
-		tuple := &api.GracefulRestartTuple{
-			Rf:    uint32(AfiSafiToRouteFamily(t.AFI, t.SAFI)),
-			Flags: uint32(t.Flags),
-		}
-		tuples = append(tuples, tuple)
-
-	}
-	value.Tuples = tuples
-	return &api.Capability{
-		Code:            api.BGP_CAPABILITY(c.Code()),
-		GracefulRestart: value,
-	}
-}
-
 func NewCapGracefulRestart(flags uint8, time uint16, tuples []CapGracefulRestartTuples) *CapGracefulRestart {
 	return &CapGracefulRestart{
 		DefaultParameterCapability{
@@ -426,11 +402,14 @@ func (c *CapFourOctetASNumber) Serialize() ([]byte, error) {
 	return c.DefaultParameterCapability.Serialize()
 }
 
-func (c *CapFourOctetASNumber) ToApiStruct() *api.Capability {
-	return &api.Capability{
-		Code: api.BGP_CAPABILITY(c.Code()),
-		Asn:  c.CapValue,
-	}
+func (c *CapFourOctetASNumber) MarshalJSON() ([]byte, error) {
+	return json.Marshal(struct {
+		Code  BGPCapabilityCode `json"code"`
+		Value uint32            `json"value"`
+	}{
+		Code:  c.Code(),
+		Value: c.CapValue,
+	})
 }
 
 func NewCapFourOctetASNumber(asnum uint32) *CapFourOctetASNumber {
@@ -470,6 +449,33 @@ type CapUnknown struct {
 	DefaultParameterCapability
 }
 
+func DecodeCapability(data []byte) (ParameterCapabilityInterface, error) {
+	if len(data) < 2 {
+		return nil, fmt.Errorf("Not all ParameterCapability bytes available")
+	}
+	var c ParameterCapabilityInterface
+	switch BGPCapabilityCode(data[0]) {
+	case BGP_CAP_MULTIPROTOCOL:
+		c = &CapMultiProtocol{}
+	case BGP_CAP_ROUTE_REFRESH:
+		c = &CapRouteRefresh{}
+	case BGP_CAP_CARRYING_LABEL_INFO:
+		c = &CapCarryingLabelInfo{}
+	case BGP_CAP_GRACEFUL_RESTART:
+		c = &CapGracefulRestart{}
+	case BGP_CAP_FOUR_OCTET_AS_NUMBER:
+		c = &CapFourOctetASNumber{}
+	case BGP_CAP_ENHANCED_ROUTE_REFRESH:
+		c = &CapEnhancedRouteRefresh{}
+	case BGP_CAP_ROUTE_REFRESH_CISCO:
+		c = &CapRouteRefreshCisco{}
+	default:
+		c = &CapUnknown{}
+	}
+	err := c.DecodeFromBytes(data)
+	return c, err
+}
+
 type OptionParameterInterface interface {
 	Serialize() ([]byte, error)
 }
@@ -485,28 +491,9 @@ func (o *OptionParameterCapability) DecodeFromBytes(data []byte) error {
 		return fmt.Errorf("Not all OptionParameterCapability bytes available")
 	}
 	for len(data) >= 2 {
-		var c ParameterCapabilityInterface
-		switch BGPCapabilityCode(data[0]) {
-		case BGP_CAP_MULTIPROTOCOL:
-			c = &CapMultiProtocol{}
-		case BGP_CAP_ROUTE_REFRESH:
-			c = &CapRouteRefresh{}
-		case BGP_CAP_CARRYING_LABEL_INFO:
-			c = &CapCarryingLabelInfo{}
-		case BGP_CAP_GRACEFUL_RESTART:
-			c = &CapGracefulRestart{}
-		case BGP_CAP_FOUR_OCTET_AS_NUMBER:
-			c = &CapFourOctetASNumber{}
-		case BGP_CAP_ENHANCED_ROUTE_REFRESH:
-			c = &CapEnhancedRouteRefresh{}
-		case BGP_CAP_ROUTE_REFRESH_CISCO:
-			c = &CapRouteRefreshCisco{}
-		default:
-			c = &CapUnknown{}
-		}
-		err := c.DecodeFromBytes(data)
+		c, err := DecodeCapability(data)
 		if err != nil {
-			return nil
+			return err
 		}
 		o.Capability = append(o.Capability, c)
 		data = data[c.Len():]

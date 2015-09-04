@@ -114,6 +114,18 @@ func decode_path(p *C.path) *C.char {
 	return C.CString(string(j))
 }
 
+//export decode_capabilities
+func decode_capabilities(p *C.buf) *C.char {
+	buf := []byte(C.GoStringN(p.value, p.len))
+	c, err := bgp.DecodeCapability(buf)
+	if err != nil {
+		return nil
+	}
+	j, _ := json.Marshal(c)
+	return C.CString(string(j))
+
+}
+
 func main() {
 	// We need the main function to make possible
 	// CGO compiler to compile the package as C shared library

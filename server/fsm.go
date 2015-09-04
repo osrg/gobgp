@@ -391,8 +391,7 @@ func capabilitiesFromConfig(gConf *config.Global, pConf *config.Neighbor) []bgp.
 	caps = append(caps, bgp.NewCapRouteRefresh())
 	for _, rf := range pConf.AfiSafis.AfiSafiList {
 		k, _ := bgp.GetRouteFamily(rf.AfiSafiName)
-		afi, safi := bgp.RouteFamilyToAfiSafi(k)
-		caps = append(caps, bgp.NewCapMultiProtocol(afi, safi))
+		caps = append(caps, bgp.NewCapMultiProtocol(k))
 	}
 	caps = append(caps, bgp.NewCapFourOctetASNumber(gConf.GlobalConfig.As))
 	return caps
