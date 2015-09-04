@@ -2,13 +2,14 @@
 
 This page explains how to managing GoBGP with your favorite Language.
 You can use any language supported by [gRPC](http://www.grpc.io/) (10
-languages are supported now). This page gives an example in Python. It
-assumes that you use Ubuntu 14.04 (64bit).
+languages are supported now). This page gives an example in Python,
+Ruby, and C++. It assumes that you use Ubuntu 14.04 (64bit).
 
 ## Contents
 
 - [Python](#python)
 - [Ruby](#ruby)
+- [C++](#cpp)
 
 ## <a name="python"> Python
 
@@ -163,4 +164,63 @@ BGP neighbor is 192.168.10.3, remote AS 65001
     Hold time is 0, keepalive interval is 0 seconds
     Configured hold time is 90
 D0827 18:43:24.628846574    3379 iomgr.c:119] Waiting for 1 iomgr objects to be destroyed and executing final callbacks
+```
+
+## <a name="cpp"> C++
+
+For gRPC we need so much dependencies, please make coffee and be ready!
+
+### Install ProtoBuffers:
+```bash
+apt-get update
+apt-get install -y gcc make autoconf automake git libtool g++ curl
+
+cd /usr/src
+wget https://github.com/google/protobuf/archive/v3.0.0-alpha-4.tar.gz
+tar -xf v3.0.0-alpha-4.tar.gz
+cd protobuf-3.0.0-alpha-4/
+./autogen.sh
+./configure --prefix=/opt/protobuf_3.0.0_alpha4
+make -j 4
+make install
+```
+
+### Install gRPC:
+```bash
+apt-get update
+apt-get install -y gcc make autoconf automake git libtool g++ python-all-dev python-virtualenv
+
+cd /usr/src/
+git clone https://github.com/grpc/grpc.git
+cd grpc
+git submodule update --init
+make -j 4
+make install prefix=/opt/grpc
+```
+
+Add libs to the system path:
+```bash
+echo "/opt/grpc/lib" > /etc/ld.so.conf.d/grpc.conf
+echo "/opt/protobuf_3.0.0_alpha4/lib" > /etc/ld.so.conf.d/protobuf.conf
+ldconfig
+```
+
+Clone this repository and build API example:
+```bash
+export PATH="$PATH:/opt//grpc/bin:/opt/protobuf_3.0.0_alpha4/bin/"
+
+cd /usr/src
+git clone https://github.com/osrg/gobgp.git
+cd gobgp/api/cpp
+cp ../gobgp.proto gobgp_api_client.proto
+make
+```
+
+### Let's run it:
+```bash
+./gobgp_api_client
+We received: Peer AS: 65001
+Peer router id: 213.133.111.200
+Peer flops: 0
+BGP state: BGP_FSM_ESTABLISHED
 ```
