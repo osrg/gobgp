@@ -215,6 +215,8 @@ func (fsm *FSM) connectLoop() error {
 	connect := func() {
 		if fsm.state == bgp.BGP_FSM_ACTIVE {
 			var host string
+			var lhost string
+
 			addr := fsm.pConf.NeighborConfig.NeighborAddress
 
 			if addr.To4() != nil {
@@ -223,14 +225,46 @@ func (fsm *FSM) connectLoop() error {
 				host = "[" + addr.String() + "]:" + strconv.Itoa(bgp.BGP_PORT)
 			}
 
-			conn, err := net.DialTimeout("tcp", host, time.Duration(MIN_CONNECT_RETRY-1)*time.Second)
-			if err == nil {
-				fsm.connCh <- conn
+			// check if LocalAddress has been configured in Neighbors.NeighborList.Transport.TransportConfig stanza.
+                        laddr := fsm.pConf.Transport.TransportConfig.LocalAddress
+			if laddr != nil {
+				if laddr.To4() != nil {
+					lhost = laddr.String() + ":0"
+				} else {
+					lhost = "[" + laddr.String() + "]:0"
+				}
+				ltcpaddr, err := net.ResolveTCPAddr("tcp", lhost)
+				if err != nil {
+					log.WithFields(log.Fields{
+						"Topic": "Peer",
+						"Key":   fsm.pConf.NeighborConfig.NeighborAddress,
+					}).Warnf("failed to resolve ltcpaddr: %s", err)
+					// TODO: correct unless it's the right thing to do.
+					fsm.adminStateCh <- ADMIN_STATE_DOWN
+				} else {
+					d:= net.Dialer{LocalAddr: ltcpaddr, Timeout: time.Duration(MIN_CONNECT_RETRY-1)*time.Second}
+					if conn, err := d.Dial("tcp", host); err == nil {
+						fsm.connCh <- conn
+					} else {
+						log.WithFields(log.Fields{
+							"Topic": "Peer",
+							"Key":   fsm.pConf.NeighborConfig.NeighborAddress,
+						}).Warnf("failed to connect from ltcpaddr: %s", err)
+						// TODO: correct unless it's the right thing to do.
+						fsm.adminStateCh <- ADMIN_STATE_DOWN
+					}
+				}
+
 			} else {
-				log.WithFields(log.Fields{
-					"Topic": "Peer",
-					"Key":   fsm.pConf.NeighborConfig.NeighborAddress,
-				}).Debugf("failed to connect: %s", err)
+				conn, err := net.DialTimeout("tcp", host, time.Duration(MIN_CONNECT_RETRY-1)*time.Second)
+                                if err == nil {
+					fsm.connCh <- conn
+				} else {
+					log.WithFields(log.Fields{
+						"Topic": "Peer",
+						"Key":   fsm.pConf.NeighborConfig.NeighborAddress,
+					}).Warnf("failed to connect: %s", err)
+				}
 			}
 		}
 	}
