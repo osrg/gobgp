@@ -55,8 +55,12 @@ PIDS=("${PIDS[@]}" $!)
 sudo -E python flow_spec_test.py --gobgp-image $GOBGP_IMAGE --test-prefix flow -s -x --with-xunit --xunit-file=${WS}/nosetest_flow.xml &
 PIDS=("${PIDS[@]}" $!)
 
-# flowspec test
+# route reflector test
 sudo -E python route_reflector_test.py --gobgp-image $GOBGP_IMAGE --test-prefix rr -s -x --with-xunit --xunit-file=${WS}/nosetest_rr.xml &
+PIDS=("${PIDS[@]}" $!)
+
+# zebra test
+sudo -E python bgp_zebra_test.py --gobgp-image $GOBGP_IMAGE --test-prefix zebra -s -x --with-xunit --xunit-file=${WS}/nosetest.xml &
 PIDS=("${PIDS[@]}" $!)
 
 # route server malformed message test
