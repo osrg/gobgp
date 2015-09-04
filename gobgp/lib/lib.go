@@ -34,7 +34,7 @@ package main
 //	path* p;
 //	int cap = 32;
 //	p = (path*)malloc(sizeof(path));
-//	memset(p, 0, sizeof(p));
+//	memset(p, 0, sizeof(path));
 //	p->nlri.len = 0;
 //	p->path_attributes_len = 0;
 //	p->path_attributes_cap = cap;
@@ -42,7 +42,7 @@ package main
 //	return p;
 // }
 //
-// free_path(path* p) {
+// void free_path(path* p) {
 //	int i;
 //	if (p->nlri.value != NULL) {
 //	    free(p->nlri.value);
@@ -57,7 +57,7 @@ package main
 //	free(p);
 // }
 //
-// append_path_attribute(path* p, int len, char* value) {
+// int append_path_attribute(path* p, int len, char* value) {
 //	buf* b;
 //	if (p->path_attributes_len >= p->path_attributes_cap) {
 //	    return -1;
@@ -67,6 +67,7 @@ package main
 //	b->len = len;
 //	p->path_attributes[p->path_attributes_len] = b;
 //	p->path_attributes_len++;
+//	return 0;
 // }
 // buf* get_path_attribute(path* p, int idx) {
 //	if (idx < 0 || idx >= p->path_attributes_len) {
