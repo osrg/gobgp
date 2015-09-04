@@ -239,6 +239,8 @@ func (fsm *FSM) connectLoop() error {
 						"Topic": "Peer",
 						"Key":   fsm.pConf.NeighborConfig.NeighborAddress,
 					}).Warnf("failed to resolve ltcpaddr: %s", err)
+					// TODO: correct unless it's the right thing to do.
+					fsm.adminStateCh <- ADMIN_STATE_DOWN
 				} else {
 					d:= net.Dialer{LocalAddr: ltcpaddr, Timeout: time.Duration(MIN_CONNECT_RETRY-1)*time.Second}
 					if conn, err := d.Dial("tcp", host); err == nil {
@@ -247,7 +249,9 @@ func (fsm *FSM) connectLoop() error {
 						log.WithFields(log.Fields{
 							"Topic": "Peer",
 							"Key":   fsm.pConf.NeighborConfig.NeighborAddress,
-						}).Warnf("failed to connect from ltcpaddr", err)
+						}).Warnf("failed to connect from ltcpaddr: %s", err)
+						// TODO: correct unless it's the right thing to do.
+						fsm.adminStateCh <- ADMIN_STATE_DOWN
 					}
 				}
 
