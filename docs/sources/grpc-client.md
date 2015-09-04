@@ -211,8 +211,8 @@ export PATH="$PATH:/opt//grpc/bin:/opt/protobuf_3.0.0_alpha4/bin/"
 
 cd /usr/src
 git clone https://github.com/osrg/gobgp.git
-cd gobgp/api/cpp
-cp ../gobgp.proto gobgp_api_client.proto
+cp gobgp/api/gobgp.proto gobgp/tools/grpc/cpp/gobgp_api_client.proto
+cd gobgp/tools/grpc/cpp
 make
 ```
 
