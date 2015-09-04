@@ -135,7 +135,7 @@ func (peer *Peer) handleBGPmessage(m *bgp.BGPMessage) ([]*table.Path, bool, []*b
 
 					if c.Code() == bgp.BGP_CAP_MULTIPROTOCOL {
 						m := c.(*bgp.CapMultiProtocol)
-						r[bgp.AfiSafiToRouteFamily(m.CapValue.AFI, m.CapValue.SAFI)] = true
+						r[m.CapValue] = true
 					}
 				}
 			}
@@ -246,17 +246,19 @@ func (peer *Peer) ToApiStruct() *api.Peer {
 	f := peer.fsm
 	c := f.pConf
 
-	remoteCap := make([]*api.Capability, 0, len(peer.capMap))
+	remoteCap := make([][]byte, 0, len(peer.capMap))
 	for _, c := range peer.capMap {
 		for _, m := range c {
-			remoteCap = append(remoteCap, m.ToApiStruct())
+			buf, _ := m.Serialize()
+			remoteCap = append(remoteCap, buf)
 		}
 	}
 
 	caps := capabilitiesFromConfig(&peer.gConf, &peer.conf)
-	localCap := make([]*api.Capability, 0, len(caps))
+	localCap := make([][]byte, 0, len(caps))
 	for _, c := range caps {
-		localCap = append(localCap, c.ToApiStruct())
+		buf, _ := c.Serialize()
+		localCap = append(localCap, buf)
 	}
 
 	conf := &api.PeerConf{

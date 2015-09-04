@@ -109,35 +109,6 @@ enum Operation {
     DEL_ALL = 2;
 }
 
-enum BGP_CAPABILITY {
-    UNKNOWN_CAP = 0;
-    MULTIPROTOCOL = 1;
-    ROUTE_REFRESH = 2;
-    CARRYING_LABEL_INFO = 4;
-    GRACEFUL_RESTART = 64;
-    FOUR_OCTET_AS_NUMBER = 65;
-    ENHANCED_ROUTE_REFRESH = 70;
-    ROUTE_REFRESH_CISCO = 128;
-}
-
-message GracefulRestartTuple {
-    uint32 rf = 1;
-    uint32 flags = 2;
-}
-
-message GracefulRestart {
-    uint32 flags = 1;
-    uint32 time = 2;
-    repeated GracefulRestartTuple tuples = 3;
-}
-
-message Capability {
-    BGP_CAPABILITY code = 1;
-    uint32 multi_protocol = 2;
-    GracefulRestart graceful_restart = 3;
-    uint32 asn = 4;
-}
-
 message Path {
     bytes nlri = 1;
     repeated bytes pattrs = 2;
@@ -158,10 +129,8 @@ message PeerConf {
     string remote_ip = 1;
     string id = 2;
     uint32 remote_as = 3;
-    bool cap_refresh = 4;
-    bool cap_enhanced_refresh = 5;
-    repeated Capability remote_cap = 6;
-    repeated Capability local_cap = 7;
+    repeated bytes remote_cap = 6;
+    repeated bytes local_cap = 7;
     uint32 holdtime = 8;
     uint32 keepalive_interval = 9;
 }
