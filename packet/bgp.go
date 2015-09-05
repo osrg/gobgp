@@ -205,6 +205,7 @@ const (
 	BGP_CAP_CARRYING_LABEL_INFO    BGPCapabilityCode = 4
 	BGP_CAP_GRACEFUL_RESTART       BGPCapabilityCode = 64
 	BGP_CAP_FOUR_OCTET_AS_NUMBER   BGPCapabilityCode = 65
+	BGP_CAP_ADD_PATH               BGPCapabilityCode = 69
 	BGP_CAP_ENHANCED_ROUTE_REFRESH BGPCapabilityCode = 70
 	BGP_CAP_ROUTE_REFRESH_CISCO    BGPCapabilityCode = 128
 )
@@ -421,6 +422,76 @@ func NewCapFourOctetASNumber(asnum uint32) *CapFourOctetASNumber {
 	}
 }
 
+type BGPAddPathMode uint8
+
+const (
+	BGP_ADD_PATH_RECEIVE BGPAddPathMode = 1
+	BGP_ADD_PATH_SEND    BGPAddPathMode = 2
+	BGP_ADD_PATH_BOTH    BGPAddPathMode = 3
+)
+
+func (m BGPAddPathMode) String() string {
+	switch m {
+	case BGP_ADD_PATH_RECEIVE:
+		return "receive"
+	case BGP_ADD_PATH_SEND:
+		return "send"
+	case BGP_ADD_PATH_BOTH:
+		return "receive/send"
+	default:
+		return fmt.Sprintf("unknown(%d)", m)
+	}
+}
+
+type CapAddPath struct {
+	DefaultParameterCapability
+	RouteFamily RouteFamily
+	Mode        BGPAddPathMode
+}
+
+func (c *CapAddPath) DecodeFromBytes(data []byte) error {
+	c.DefaultParameterCapability.DecodeFromBytes(data)
+	data = data[2:]
+	if len(data) < 4 {
+		return fmt.Errorf("Not all CapabilityAddPath bytes available")
+	}
+	c.RouteFamily = AfiSafiToRouteFamily(binary.BigEndian.Uint16(data[:2]), data[2])
+	c.Mode = BGPAddPathMode(data[3])
+	return nil
+}
+
+func (c *CapAddPath) Serialize() ([]byte, error) {
+	buf := make([]byte, 4)
+	afi, safi := RouteFamilyToAfiSafi(c.RouteFamily)
+	binary.BigEndian.PutUint16(buf, afi)
+	buf[2] = safi
+	buf[3] = byte(c.Mode)
+	c.DefaultParameterCapability.CapValue = buf
+	return c.DefaultParameterCapability.Serialize()
+}
+
+func (c *CapAddPath) MarshalJSON() ([]byte, error) {
+	return json.Marshal(struct {
+		Code  BGPCapabilityCode `json"code"`
+		Value RouteFamily       `json:"value"`
+		Mode  BGPAddPathMode    `json:"mode"`
+	}{
+		Code:  c.Code(),
+		Value: c.RouteFamily,
+		Mode:  c.Mode,
+	})
+}
+
+func NewCapAddPath(rf RouteFamily, mode BGPAddPathMode) *CapAddPath {
+	return &CapAddPath{
+		DefaultParameterCapability: DefaultParameterCapability{
+			CapCode: BGP_CAP_ADD_PATH,
+		},
+		RouteFamily: rf,
+		Mode:        mode,
+	}
+}
+
 type CapEnhancedRouteRefresh struct {
 	DefaultParameterCapability
 }
@@ -465,6 +536,8 @@ func DecodeCapability(data []byte) (ParameterCapabilityInterface, error) {
 		c = &CapGracefulRestart{}
 	case BGP_CAP_FOUR_OCTET_AS_NUMBER:
 		c = &CapFourOctetASNumber{}
+	case BGP_CAP_ADD_PATH:
+		c = &CapAddPath{}
 	case BGP_CAP_ENHANCED_ROUTE_REFRESH:
 		c = &CapEnhancedRouteRefresh{}
 	case BGP_CAP_ROUTE_REFRESH_CISCO:
