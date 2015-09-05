@@ -234,7 +234,7 @@ func (fsm *FSM) connectLoop() error {
 						log.WithFields(log.Fields{
 							"Topic": "Peer",
 							"Key":   fsm.pConf.NeighborConfig.NeighborAddress,
-						}).Warnf("failed to connect from ltcpaddr", err)
+						}).Debugf("failed to connect from ltcpaddr", err)
 					}
 				}
 
@@ -246,7 +246,7 @@ func (fsm *FSM) connectLoop() error {
 					log.WithFields(log.Fields{
 						"Topic": "Peer",
 						"Key":   fsm.pConf.NeighborConfig.NeighborAddress,
-					}).Warnf("failed to connect: %s", err)
+					}).Debugf("failed to connect: %s", err)
 				}
 			}
 		}
