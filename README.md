@@ -1,8 +1,7 @@
-# GoBGP: BGP implementation in Go <p align="right">[![Build Status](https://travis-ci.org/osrg/gobgp.svg?branch=master)](https://travis-ci.org/osrg/gobgp/builds)</p>
+# GoBGP: BGP implementation in Go
 
+[![Build Status](https://travis-ci.org/osrg/gobgp.svg?branch=master)](https://travis-ci.org/osrg/gobgp/builds)
 [![Join the chat at https://gitter.im/osrg/gobgp](https://badges.gitter.im/Join%20Chat.svg)](https://gitter.im/osrg/gobgp?utm_source=badge&utm_medium=badge&utm_campaign=pr-badge&utm_content=badge)
-
-## Introduction
 
 GoBGP is an open source BGP implementation designed from scratch for
 modern environment and implemented in a modern programming language,
