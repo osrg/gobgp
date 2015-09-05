@@ -14,12 +14,13 @@
 // limitations under the License.
 
 package server
+
 import (
-	"github.com/stretchr/testify/assert"
-	"github.com/osrg/gobgp/zebra"
 	"github.com/osrg/gobgp/table"
-	"testing"
+	"github.com/osrg/gobgp/zebra"
+	"github.com/stretchr/testify/assert"
 	"net"
+	"testing"
 )
 
 func Test_createPathFromIPRouteMessage(t *testing.T) {
@@ -27,24 +28,24 @@ func Test_createPathFromIPRouteMessage(t *testing.T) {
 
 	m := &zebra.Message{}
 	h := &zebra.Header{
-		Len: zebra.HEADER_SIZE,
-		Marker: zebra.HEADER_MARKER,
+		Len:     zebra.HEADER_SIZE,
+		Marker:  zebra.HEADER_MARKER,
 		Version: zebra.VERSION,
 		Command: zebra.IPV4_ROUTE_ADD,
 	}
 
 	b := &zebra.IPRouteBody{
-		Type: zebra.ROUTE_TYPE(zebra.ROUTE_STATIC),
-		Flags: zebra.FLAG(zebra.FLAG_SELECTED),
-		Message: zebra.MESSAGE_NEXTHOP | zebra.MESSAGE_DISTANCE | zebra.MESSAGE_METRIC,
+		Type:         zebra.ROUTE_TYPE(zebra.ROUTE_STATIC),
+		Flags:        zebra.FLAG(zebra.FLAG_SELECTED),
+		Message:      zebra.MESSAGE_NEXTHOP | zebra.MESSAGE_DISTANCE | zebra.MESSAGE_METRIC,
 		SAFI:         zebra.SAFI(zebra.SAFI_UNICAST),
 		Prefix:       net.ParseIP("192.168.100.0"),
-		PrefixLength :uint8(24),
-		Nexthops :    []net.IP{net.ParseIP("0.0.0.0")},
-		Ifindexs :    []uint32{1},
+		PrefixLength: uint8(24),
+		Nexthops:     []net.IP{net.ParseIP("0.0.0.0")},
+		Ifindexs:     []uint32{1},
 		Distance:     uint8(0),
-		Metric  :     uint32(100),
-		Api :         zebra.API_TYPE(zebra.IPV4_ROUTE_ADD),
+		Metric:       uint32(100),
+		Api:          zebra.API_TYPE(zebra.IPV4_ROUTE_ADD),
 	}
 
 	m.Header = *h
@@ -57,7 +58,7 @@ func Test_createPathFromIPRouteMessage(t *testing.T) {
 	p := createPathFromIPRouteMessage(m, pi)
 	assert.NotEqual(nil, p)
 	assert.Equal("0.0.0.0", p.GetNexthop().String())
-	assert.Equal("192.168.100.0/24",p.GetNlri().String())
+	assert.Equal("192.168.100.0/24", p.GetNlri().String())
 	assert.True(p.IsFromZebra)
 	assert.False(p.IsWithdraw)
 
@@ -67,25 +68,24 @@ func Test_createPathFromIPRouteMessage(t *testing.T) {
 	p = createPathFromIPRouteMessage(m, pi)
 	assert.NotEqual(nil, p)
 	assert.Equal("0.0.0.0", p.GetNexthop().String())
-	assert.Equal("192.168.100.0/24",p.GetNlri().String())
+	assert.Equal("192.168.100.0/24", p.GetNlri().String())
 	med, _ := p.GetMed()
 	assert.Equal(uint32(100), med)
 	assert.True(p.IsFromZebra)
 	assert.True(p.IsWithdraw)
 
-
 	// IPv6
 	h.Command = zebra.IPV6_ROUTE_ADD
 	b.Prefix = net.ParseIP("2001:db8:0:f101::")
 	b.PrefixLength = uint8(64)
-	b.Nexthops =  []net.IP{net.ParseIP("::")}
+	b.Nexthops = []net.IP{net.ParseIP("::")}
 	m.Header = *h
 	m.Body = b
 
 	p = createPathFromIPRouteMessage(m, pi)
 	assert.NotEqual(nil, p)
 	assert.Equal("::", p.GetNexthop().String())
-	assert.Equal("2001:db8:0:f101::/64",p.GetNlri().String())
+	assert.Equal("2001:db8:0:f101::/64", p.GetNlri().String())
 	med, _ = p.GetMed()
 	assert.Equal(uint32(100), med)
 	assert.True(p.IsFromZebra)
@@ -97,7 +97,7 @@ func Test_createPathFromIPRouteMessage(t *testing.T) {
 	p = createPathFromIPRouteMessage(m, pi)
 	assert.NotEqual(nil, p)
 	assert.Equal("::", p.GetNexthop().String())
-	assert.Equal("2001:db8:0:f101::/64",p.GetNlri().String())
+	assert.Equal("2001:db8:0:f101::/64", p.GetNlri().String())
 	assert.True(p.IsFromZebra)
 	assert.True(p.IsWithdraw)
 
