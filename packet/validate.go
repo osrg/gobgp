@@ -3,12 +3,13 @@ package bgp
 import (
 	"encoding/binary"
 	"fmt"
+	"golang.org/x/net/context"
 	"net"
 	"strconv"
 )
 
 // Validator for BGPUpdate
-func ValidateUpdateMsg(m *BGPUpdate, rfs map[RouteFamily]bool, doConfedCheck bool) (bool, error) {
+func ValidateUpdateMsg(ctx context.Context, m *BGPUpdate, rfs map[RouteFamily]bool, doConfedCheck bool) (bool, error) {
 	eCode := uint8(BGP_ERROR_UPDATE_MESSAGE_ERROR)
 	eSubCodeAttrList := uint8(BGP_ERROR_SUB_MALFORMED_ATTRIBUTE_LIST)
 	eSubCodeMissing := uint8(BGP_ERROR_SUB_MISSING_WELL_KNOWN_ATTRIBUTE)
@@ -31,7 +32,7 @@ func ValidateUpdateMsg(m *BGPUpdate, rfs map[RouteFamily]bool, doConfedCheck boo
 		}
 
 		//check specific path attribute
-		ok, e := ValidateAttribute(a, rfs, doConfedCheck)
+		ok, e := ValidateAttribute(ctx, a, rfs, doConfedCheck)
 		if !ok {
 			return false, e
 		}
@@ -58,7 +59,7 @@ func ValidateUpdateMsg(m *BGPUpdate, rfs map[RouteFamily]bool, doConfedCheck boo
 	return true, nil
 }
 
-func ValidateAttribute(a PathAttributeInterface, rfs map[RouteFamily]bool, doConfedCheck bool) (bool, error) {
+func ValidateAttribute(ctx context.Context, a PathAttributeInterface, rfs map[RouteFamily]bool, doConfedCheck bool) (bool, error) {
 
 	eCode := uint8(BGP_ERROR_UPDATE_MESSAGE_ERROR)
 	eSubCodeBadOrigin := uint8(BGP_ERROR_SUB_INVALID_ORIGIN_ATTRIBUTE)
@@ -98,7 +99,7 @@ func ValidateAttribute(a PathAttributeInterface, rfs map[RouteFamily]bool, doCon
 		if v != BGP_ORIGIN_ATTR_TYPE_IGP &&
 			v != BGP_ORIGIN_ATTR_TYPE_EGP &&
 			v != BGP_ORIGIN_ATTR_TYPE_INCOMPLETE {
-			data, _ := a.Serialize()
+			data, _ := a.Serialize(ctx)
 			eMsg := "invalid origin attribute. value : " + strconv.Itoa(int(v))
 			return false, NewMessageError(eCode, eSubCodeBadOrigin, data, eMsg)
 		}
@@ -117,7 +118,7 @@ func ValidateAttribute(a PathAttributeInterface, rfs map[RouteFamily]bool, doCon
 		//check IP address represents host address
 		if p.Value.IsLoopback() || isZero(p.Value) || isClassDorE(p.Value) {
 			eMsg := "invalid nexthop address"
-			data, _ := a.Serialize()
+			data, _ := a.Serialize(ctx)
 			return false, NewMessageError(eCode, eSubCodeBadNextHop, data, eMsg)
 		}
 	case *PathAttributeAsPath:
@@ -140,7 +141,7 @@ func ValidateAttribute(a PathAttributeInterface, rfs map[RouteFamily]bool, doCon
 	case *PathAttributeUnknown:
 		if p.getFlags()&BGP_ATTR_FLAG_OPTIONAL == 0 {
 			eMsg := fmt.Sprintf("unrecognized well-known attribute %s", p.GetType())
-			data, _ := a.Serialize()
+			data, _ := a.Serialize(ctx)
 			return false, NewMessageError(eCode, eSubCodeUnknown, data, eMsg)
 		}
 	}

@@ -20,6 +20,7 @@ import (
 	"fmt"
 	"github.com/osrg/gobgp/api"
 	"github.com/osrg/gobgp/packet"
+	"golang.org/x/net/context"
 	"google.golang.org/grpc"
 	"net"
 	"os"
@@ -132,10 +133,10 @@ type Destination struct {
 	Paths  []*Path `json:"paths"`
 }
 
-func ApiStruct2Destination(dst *gobgpapi.Destination) (*Destination, error) {
+func ApiStruct2Destination(dst *gobgpapi.Destination, addpath bool) (*Destination, error) {
 	paths := make([]*Path, 0, len(dst.Paths))
 	for _, p := range dst.Paths {
-		path, err := ApiStruct2Path(p)
+		path, err := ApiStruct2Path(p, addpath)
 		if err != nil {
 			return nil, err
 		}
@@ -157,12 +158,21 @@ type Path struct {
 	Validation int32
 }
 
-func ApiStruct2Path(p *gobgpapi.Path) (*Path, error) {
+func ApiStruct2Path(p *gobgpapi.Path, addpath bool) (*Path, error) {
+
+	ctx := context.Background()
+	if addpath {
+		m := map[bgp.RouteFamily]bgp.BGPAddPathMode{
+			bgp.RouteFamily(p.Rf): bgp.BGP_ADD_PATH_BOTH,
+		}
+		ctx = context.WithValue(ctx, bgp.CTX_ADDPATH, m)
+	}
+
 	var nlri bgp.AddrPrefixInterface
 	data := p.Nlri
 	if len(data) > 0 {
 		nlri = &bgp.IPAddrPrefix{}
-		err := nlri.DecodeFromBytes(data)
+		err := nlri.DecodeFromBytes(ctx, data)
 		if err != nil {
 			return nil, err
 		}
@@ -175,7 +185,7 @@ func ApiStruct2Path(p *gobgpapi.Path) (*Path, error) {
 			return nil, err
 		}
 
-		err = p.DecodeFromBytes(attr)
+		err = p.DecodeFromBytes(ctx, attr)
 		if err != nil {
 			return nil, err
 		}

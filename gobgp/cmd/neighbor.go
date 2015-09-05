@@ -168,9 +168,17 @@ func showNeighbor(args []string) error {
 	lookup := func(val bgp.ParameterCapabilityInterface, l capabilities) bgp.ParameterCapabilityInterface {
 		for _, v := range l {
 			if v.Code() == val.Code() {
-				if v.Code() == bgp.BGP_CAP_MULTIPROTOCOL {
+				switch v.Code() {
+				case bgp.BGP_CAP_MULTIPROTOCOL:
 					lhs := v.(*bgp.CapMultiProtocol).CapValue
 					rhs := val.(*bgp.CapMultiProtocol).CapValue
+					if lhs == rhs {
+						return v
+					}
+					continue
+				case bgp.BGP_CAP_ADD_PATH:
+					lhs := v.(*bgp.CapAddPath).RouteFamily
+					rhs := val.(*bgp.CapAddPath).RouteFamily
 					if lhs == rhs {
 						return v
 					}
@@ -193,28 +201,43 @@ func showNeighbor(args []string) error {
 	sort.Sort(caps)
 
 	firstMp := true
+	firstAp := true
 
 	for _, c := range caps {
 		support := ""
 		if m := lookup(c, p.Conf.LocalCap); m != nil {
 			support += "advertised"
+			if c.Code() == bgp.BGP_CAP_ADD_PATH {
+				support += fmt.Sprintf("(mode: %s)", m.(*bgp.CapAddPath).Mode)
+			}
 		}
-		if lookup(c, p.Conf.RemoteCap) != nil {
+		if m := lookup(c, p.Conf.RemoteCap); m != nil {
 			if len(support) != 0 {
 				support += " and "
 			}
 			support += "received"
+			if c.Code() == bgp.BGP_CAP_ADD_PATH {
+				support += fmt.Sprintf("(mode: %s)", m.(*bgp.CapAddPath).Mode)
+			}
 		}
 
-		if c.Code() != bgp.BGP_CAP_MULTIPROTOCOL {
-			fmt.Printf("    %s:\t%s\n", c.Code(), support)
-		} else {
+		switch c.Code() {
+		case bgp.BGP_CAP_MULTIPROTOCOL:
 			if firstMp {
 				fmt.Printf("    %s:\n", c.Code())
 				firstMp = false
 			}
 			m := c.(*bgp.CapMultiProtocol).CapValue
 			fmt.Printf("        %s:\t%s\n", m, support)
+		case bgp.BGP_CAP_ADD_PATH:
+			if firstAp {
+				fmt.Printf("    %s:\n", c.Code())
+				firstAp = false
+			}
+			m := c.(*bgp.CapAddPath).RouteFamily
+			fmt.Printf("        %s:\t%s\n", m, support)
+		default:
+			fmt.Printf("    %s:\t%s\n", c.Code(), support)
 		}
 	}
 	fmt.Print("  Message statistics:\n")
@@ -448,10 +471,13 @@ func showNeighborRib(r string, name string, args []string) error {
 		}
 	}
 
+	addpath := true
+
 	arg := &api.Arguments{
 		Resource: resource,
 		Rf:       uint32(rf),
 		Name:     name,
+		Addpath:  addpath,
 	}
 
 	stream, err := client.GetRib(context.Background(), arg)
@@ -495,7 +521,7 @@ func showNeighborRib(r string, name string, args []string) error {
 			}
 		}
 
-		dst, err := ApiStruct2Destination(d)
+		dst, err := ApiStruct2Destination(d, addpath)
 		if err != nil {
 			return err
 		}

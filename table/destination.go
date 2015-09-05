@@ -18,7 +18,6 @@ package table
 import (
 	"bytes"
 	"encoding/binary"
-	"encoding/json"
 	"fmt"
 	log "github.com/Sirupsen/logrus"
 	api "github.com/osrg/gobgp/api"
@@ -117,16 +116,12 @@ func NewDestination(nlri bgp.AddrPrefixInterface) *Destination {
 	return d
 }
 
-func (dd *Destination) MarshalJSON() ([]byte, error) {
-	return json.Marshal(dd.ToApiStruct())
-}
-
-func (dd *Destination) ToApiStruct() *api.Destination {
+func (dd *Destination) ToApiStruct(addpath bool) *api.Destination {
 	prefix := dd.GetNlri().String()
 	paths := func(arg []*Path) []*api.Path {
 		ret := make([]*api.Path, 0, len(arg))
 		for _, p := range arg {
-			pp := p.ToApiStruct()
+			pp := p.ToApiStruct(addpath)
 			if dd.GetBestPath().Equal(p) {
 				pp.Best = true
 			}

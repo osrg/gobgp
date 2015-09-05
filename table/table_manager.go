@@ -483,3 +483,8 @@ func NewReceivedRoute(path *Path, filtered bool) *ReceivedRoute {
 	}
 	return rroute
 }
+
+type AddPathStatus struct {
+	Mode    bgp.BGPAddPathMode
+	SendMax uint8
+}

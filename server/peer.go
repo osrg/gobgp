@@ -23,6 +23,7 @@ import (
 	"github.com/osrg/gobgp/packet"
 	"github.com/osrg/gobgp/policy"
 	"github.com/osrg/gobgp/table"
+	"golang.org/x/net/context"
 	"net"
 	"time"
 )
@@ -37,6 +38,7 @@ type Peer struct {
 	conf                  config.Neighbor
 	fsm                   *FSM
 	rfMap                 map[bgp.RouteFamily]bool
+	addpathMap            map[bgp.RouteFamily]table.AddPathStatus
 	capMap                map[bgp.BGPCapabilityCode][]bgp.ParameterCapabilityInterface
 	adjRib                *table.AdjRib
 	peerInfo              *table.PeerInfo
@@ -45,14 +47,17 @@ type Peer struct {
 	defaultInPolicy       config.DefaultPolicyType
 	isConfederationMember bool
 	recvOpen              *bgp.BGPMessage
+	ctx                   context.Context
 }
 
 func NewPeer(g config.Global, conf config.Neighbor) *Peer {
 	peer := &Peer{
-		gConf:  g,
-		conf:   conf,
-		rfMap:  make(map[bgp.RouteFamily]bool),
-		capMap: make(map[bgp.BGPCapabilityCode][]bgp.ParameterCapabilityInterface),
+		gConf:      g,
+		conf:       conf,
+		rfMap:      make(map[bgp.RouteFamily]bool),
+		addpathMap: make(map[bgp.RouteFamily]table.AddPathStatus),
+		capMap:     make(map[bgp.BGPCapabilityCode][]bgp.ParameterCapabilityInterface),
+		ctx:        context.Background(),
 	}
 
 	conf.NeighborState.SessionState = uint32(bgp.BGP_FSM_IDLE)
@@ -60,6 +65,16 @@ func NewPeer(g config.Global, conf config.Neighbor) *Peer {
 	for _, rf := range conf.AfiSafis.AfiSafiList {
 		k, _ := bgp.GetRouteFamily(rf.AfiSafiName)
 		peer.rfMap[k] = true
+		// openconfig model doesn't support addpath configuration per routefamily
+		a := table.AddPathStatus{bgp.BGPAddPathMode(0), 0}
+		if conf.AddPaths.AddPathsConfig.Receive {
+			a.Mode |= bgp.BGP_ADD_PATH_RECEIVE
+		}
+		if conf.AddPaths.AddPathsConfig.SendMax > 0 {
+			a.Mode |= bgp.BGP_ADD_PATH_SEND
+			a.SendMax = conf.AddPaths.AddPathsConfig.SendMax
+		}
+		peer.addpathMap[k] = a
 	}
 	id := net.ParseIP(string(conf.RouteReflector.RouteReflectorConfig.RouteReflectorClusterId)).To4()
 	peer.peerInfo = &table.PeerInfo{
@@ -126,6 +141,7 @@ func (peer *Peer) handleBGPmessage(m *bgp.BGPMessage) ([]*table.Path, bool, []*b
 		body := m.Body.(*bgp.BGPOpen)
 		peer.peerInfo.ID = m.Body.(*bgp.BGPOpen).ID
 		r := make(map[bgp.RouteFamily]bool)
+		a := make(map[bgp.RouteFamily]bgp.BGPAddPathMode)
 		for _, p := range body.OptParams {
 			if paramCap, y := p.(*bgp.OptionParameterCapability); y {
 				for _, c := range paramCap.Capability {
@@ -135,25 +151,46 @@ func (peer *Peer) handleBGPmessage(m *bgp.BGPMessage) ([]*table.Path, bool, []*b
 					}
 					peer.capMap[c.Code()] = append(m, c)
 
-					if c.Code() == bgp.BGP_CAP_MULTIPROTOCOL {
+					switch c.Code() {
+					case bgp.BGP_CAP_MULTIPROTOCOL:
 						m := c.(*bgp.CapMultiProtocol)
 						r[m.CapValue] = true
+					case bgp.BGP_CAP_ADD_PATH:
+						m := c.(*bgp.CapAddPath)
+						a[m.RouteFamily] = m.Mode
 					}
 				}
 			}
 		}
 
-		for rf, _ := range peer.rfMap {
-			if _, y := r[rf]; !y {
+		for rf, y := range peer.rfMap {
+			if y != r[rf] {
 				delete(peer.rfMap, rf)
 			}
 		}
 
-		for _, rf := range peer.configuredRFlist() {
-			if _, ok := r[rf]; ok {
-				peer.rfMap[rf] = true
+		c := make(map[bgp.RouteFamily]bgp.BGPAddPathMode)
+		for rf, status := range peer.addpathMap {
+			if _, ok := a[rf]; !ok {
+				delete(peer.addpathMap, rf)
+				continue
 			}
+
+			m := a[rf]
+			if status.Mode&bgp.BGP_ADD_PATH_RECEIVE > 0 && m&bgp.BGP_ADD_PATH_SEND == 0 {
+				status.Mode &^= bgp.BGP_ADD_PATH_RECEIVE
+			}
+			if status.Mode&bgp.BGP_ADD_PATH_SEND > 0 && m&bgp.BGP_ADD_PATH_RECEIVE == 0 {
+				status.Mode &^= bgp.BGP_ADD_PATH_SEND
+			}
+			if status.Mode == bgp.BGPAddPathMode(0) {
+				delete(peer.addpathMap, rf)
+				continue
+			}
+			c[rf] = status.Mode
 		}
+
+		peer.ctx = context.WithValue(context.Background(), bgp.CTX_ADDPATH, c)
 
 		// calculate HoldTime
 		// RFC 4271 P.13
@@ -193,7 +230,7 @@ func (peer *Peer) handleBGPmessage(m *bgp.BGPMessage) ([]*table.Path, bool, []*b
 		peer.conf.Timers.TimersState.UpdateRecvTime = time.Now().Unix()
 		body := m.Body.(*bgp.BGPUpdate)
 		confedCheckRequired := !peer.isConfederationMember && peer.isEBGPPeer()
-		_, err := bgp.ValidateUpdateMsg(body, peer.rfMap, confedCheckRequired)
+		_, err := bgp.ValidateUpdateMsg(peer.ctx, body, peer.rfMap, confedCheckRequired)
 		if err != nil {
 			log.WithFields(log.Fields{
 				"Topic": "Peer",
@@ -224,7 +261,7 @@ func (peer *Peer) getBests(loc *LocalRib) []*table.Path {
 }
 
 func (peer *Peer) startFSMHandler(incoming chan *fsmMsg) {
-	peer.fsm.h = NewFSMHandler(peer.fsm, incoming, peer.outgoing)
+	peer.fsm.h = NewFSMHandler(peer.fsm, incoming, peer.outgoing, peer.ctx)
 }
 
 func (peer *Peer) PassConn(conn *net.TCPConn) {

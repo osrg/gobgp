@@ -167,7 +167,7 @@ func (s *Server) GetRib(arg *api.Arguments, stream api.GobgpApi_GetRibServer) er
 		return fmt.Errorf("unsupported resource type: %v", arg.Resource)
 	}
 
-	req := NewGrpcRequest(reqType, arg.Name, bgp.RouteFamily(arg.Rf), nil)
+	req := NewGrpcRequest(reqType, arg.Name, bgp.RouteFamily(arg.Rf), arg.Addpath)
 	s.bgpServerCh <- req
 
 	return handleMultipleResponses(req, func(res *GrpcResponse) error {

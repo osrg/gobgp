@@ -53,7 +53,7 @@ func NewMonitorCmd() *cobra.Command {
 					fmt.Println(err)
 					os.Exit(1)
 				}
-				p, err := ApiStruct2Path(d.Paths[0])
+				p, err := ApiStruct2Path(d.Paths[0], false)
 				if err != nil {
 					fmt.Println(err)
 					os.Exit(1)

@@ -26,6 +26,7 @@ import (
 	"github.com/osrg/gobgp/policy"
 	"github.com/osrg/gobgp/table"
 	"github.com/osrg/gobgp/zebra"
+	"golang.org/x/net/context"
 	"net"
 	"os"
 	"strconv"
@@ -657,7 +658,7 @@ func (server *BgpServer) broadcastBests(bests []*table.Path) {
 		result := &GrpcResponse{
 			Data: &api.Destination{
 				Prefix: path.GetNlri().String(),
-				Paths:  []*api.Path{path.ToApiStruct()},
+				Paths:  []*api.Path{path.ToApiStruct(false)},
 			},
 		}
 		remainReqs := make([]*GrpcRequest, 0, len(server.broadcastReqs))
@@ -1045,6 +1046,7 @@ func (server *BgpServer) handleModPathRequest(grpcReq *GrpcRequest) []*table.Pat
 	var paths []*table.Path
 	var path *api.Path
 	var pi *table.PeerInfo
+	var ctx context.Context
 	arg, ok := grpcReq.Data.(*api.ModPathArguments)
 	if !ok {
 		result.ResponseErr = fmt.Errorf("type assertion failed")
@@ -1071,9 +1073,16 @@ func (server *BgpServer) handleModPathRequest(grpcReq *GrpcRequest) []*table.Pat
 			}
 		}
 
+		if path.Addpath {
+			m := map[bgp.RouteFamily]bgp.BGPAddPathMode{bgp.RouteFamily(path.Rf): bgp.BGP_ADD_PATH_RECEIVE}
+			ctx = context.WithValue(context.Background(), bgp.CTX_ADDPATH, m)
+		} else {
+			ctx = context.Background()
+		}
+
 		if len(path.Nlri) > 0 {
 			nlri = &bgp.IPAddrPrefix{}
-			err := nlri.DecodeFromBytes(path.Nlri)
+			err := nlri.DecodeFromBytes(ctx, path.Nlri)
 			if err != nil {
 				result.ResponseErr = err
 				goto ERR
@@ -1087,7 +1096,7 @@ func (server *BgpServer) handleModPathRequest(grpcReq *GrpcRequest) []*table.Pat
 				goto ERR
 			}
 
-			err = p.DecodeFromBytes(attr)
+			err = p.DecodeFromBytes(ctx, attr)
 			if err != nil {
 				result.ResponseErr = err
 				goto ERR
@@ -1270,7 +1279,7 @@ func (server *BgpServer) handleVrfRequest(req *GrpcRequest) []*table.Path {
 			req.ResponseCh <- &GrpcResponse{
 				Data: &api.Destination{
 					Prefix: path.GetNlri().String(),
-					Paths:  []*api.Path{path.ToApiStruct()},
+					Paths:  []*api.Path{path.ToApiStruct(req.Data.(bool))},
 				},
 			}
 		}
@@ -1310,13 +1319,13 @@ func sendMultipleResponses(grpcReq *GrpcRequest, results []*GrpcResponse) {
 func (server *BgpServer) handleGrpc(grpcReq *GrpcRequest) []*SenderMsg {
 	var msgs []*SenderMsg
 
-	sortedDsts := func(t *table.Table) []*GrpcResponse {
+	sortedDsts := func(t *table.Table, addpath bool) []*GrpcResponse {
 		results := make([]*GrpcResponse, len(t.GetDestinations()))
 
 		r := radix.New()
 		for _, dst := range t.GetDestinations() {
 			result := &GrpcResponse{}
-			result.Data = dst.ToApiStruct()
+			result.Data = dst.ToApiStruct(addpath)
 			r.Insert(dst.RadixKey, result)
 		}
 		i := 0
@@ -1334,15 +1343,16 @@ func (server *BgpServer) handleGrpc(grpcReq *GrpcRequest) []*SenderMsg {
 	case REQ_GLOBAL_RIB:
 		var results []*GrpcResponse
 		if t, ok := server.localRibMap[GLOBAL_RIB_NAME].rib.Tables[grpcReq.RouteFamily]; ok {
+			addpath := grpcReq.Data.(bool)
 			results = make([]*GrpcResponse, len(t.GetDestinations()))
 			switch grpcReq.RouteFamily {
 			case bgp.RF_IPv4_UC, bgp.RF_IPv6_UC:
-				results = sortedDsts(server.localRibMap[GLOBAL_RIB_NAME].rib.Tables[grpcReq.RouteFamily])
+				results = sortedDsts(server.localRibMap[GLOBAL_RIB_NAME].rib.Tables[grpcReq.RouteFamily], addpath)
 			default:
 				i := 0
 				for _, dst := range t.GetDestinations() {
 					result := &GrpcResponse{}
-					result.Data = dst.ToApiStruct()
+					result.Data = dst.ToApiStruct(addpath)
 					results[i] = result
 					i++
 				}
@@ -1390,15 +1400,16 @@ func (server *BgpServer) handleGrpc(grpcReq *GrpcRequest) []*SenderMsg {
 		if peer.isRouteServerClient() && peer.fsm.adminState != ADMIN_STATE_DOWN {
 			remoteAddr := grpcReq.Name
 			if t, ok := server.localRibMap[remoteAddr].rib.Tables[grpcReq.RouteFamily]; ok {
+				addpath := grpcReq.Data.(bool)
 				results = make([]*GrpcResponse, len(t.GetDestinations()))
 				switch grpcReq.RouteFamily {
 				case bgp.RF_IPv4_UC, bgp.RF_IPv6_UC:
-					results = sortedDsts(server.localRibMap[remoteAddr].rib.Tables[grpcReq.RouteFamily])
+					results = sortedDsts(server.localRibMap[remoteAddr].rib.Tables[grpcReq.RouteFamily], addpath)
 				default:
 					i := 0
 					for _, dst := range t.GetDestinations() {
 						result := &GrpcResponse{}
-						result.Data = dst.ToApiStruct()
+						result.Data = dst.ToApiStruct(addpath)
 						results[i] = result
 						i++
 					}
@@ -1427,7 +1438,7 @@ func (server *BgpServer) handleGrpc(grpcReq *GrpcRequest) []*SenderMsg {
 			return &GrpcResponse{
 				Data: &api.Destination{
 					Prefix: p.GetNlri().String(),
-					Paths:  []*api.Path{p.ToApiStruct()},
+					Paths:  []*api.Path{p.ToApiStruct(grpcReq.Data.(bool))},
 				},
 			}
 		}
@@ -2343,7 +2354,7 @@ func (server *BgpServer) handleMrt(grpcReq *GrpcRequest) {
 		close(grpcReq.ResponseCh)
 		return
 	}
-	data, err := msg.Serialize()
+	data, err := msg.Serialize(context.Background())
 	if err != nil {
 		result.ResponseErr = fmt.Errorf("failed to serialize table: %s", err)
 		grpcReq.ResponseCh <- result
@@ -2367,7 +2378,7 @@ func (server *BgpServer) handleMrt(grpcReq *GrpcRequest) {
 		return
 	}
 	for _, msg := range msgs {
-		d, err := msg.Serialize()
+		d, err := msg.Serialize(context.Background())
 		if err != nil {
 			result.ResponseErr = fmt.Errorf("failed to serialize rib msg: %s", err)
 			grpcReq.ResponseCh <- result
