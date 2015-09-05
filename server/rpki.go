@@ -26,6 +26,7 @@ import (
 	"github.com/osrg/gobgp/packet"
 	"github.com/osrg/gobgp/table"
 	"net"
+	"strconv"
 	"time"
 )
 
@@ -191,12 +192,8 @@ func newROAClient(conf config.RpkiServers) (*roaClient, error) {
 		if len(conf.RpkiServerList) > 1 {
 			log.Warn("currently only one RPKI server is supposed")
 		}
-		if conf.RpkiServerList[0].RpkiServerConfig.Address.To16() == nil {
-			url = fmt.Sprintf("%s", conf.RpkiServerList[0].RpkiServerConfig.Address)
-		} else {
-			url = fmt.Sprintf("[%s]", conf.RpkiServerList[0].RpkiServerConfig.Address)
-		}
-		url += fmt.Sprintf(":%d", conf.RpkiServerList[0].RpkiServerConfig.Port)
+		c := conf.RpkiServerList[0].RpkiServerConfig
+		url = net.JoinHostPort(c.Address.String(), strconv.Itoa(int(c.Port)))
 	}
 
 	conn, err := net.Dial("tcp", url)

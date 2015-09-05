@@ -214,25 +214,12 @@ func (fsm *FSM) connectLoop() error {
 
 	connect := func() {
 		if fsm.state == bgp.BGP_FSM_ACTIVE {
-			var host string
-			var lhost string
-
 			addr := fsm.pConf.NeighborConfig.NeighborAddress
-
-			if addr.To4() != nil {
-				host = addr.String() + ":" + strconv.Itoa(bgp.BGP_PORT)
-			} else {
-				host = "[" + addr.String() + "]:" + strconv.Itoa(bgp.BGP_PORT)
-			}
-
-			// check if LocalAddress has been configured in Neighbors.NeighborList.Transport.TransportConfig stanza.
+			host := net.JoinHostPort(addr.String(), strconv.Itoa(bgp.BGP_PORT))
+			// check if LocalAddress has been configured
 			laddr := fsm.pConf.Transport.TransportConfig.LocalAddress
 			if laddr != nil {
-				if laddr.To4() != nil {
-					lhost = laddr.String() + ":0"
-				} else {
-					lhost = "[" + laddr.String() + "]:0"
-				}
+				lhost := net.JoinHostPort(laddr.String(), "0")
 				ltcpaddr, err := net.ResolveTCPAddr("tcp", lhost)
 				if err != nil {
 					log.WithFields(log.Fields{
