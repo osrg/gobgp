@@ -38,6 +38,7 @@ const (
 	MARK
 	ACTION
 	RT
+	ENCAP
 )
 
 var ExtCommNameMap = map[ExtCommType]string{
@@ -48,6 +49,7 @@ var ExtCommNameMap = map[ExtCommType]string{
 	MARK:     "mark",
 	ACTION:   "action",
 	RT:       "rt",
+	ENCAP:    "encap",
 }
 
 var ExtCommValueMap = map[string]ExtCommType{
@@ -58,6 +60,7 @@ var ExtCommValueMap = map[string]ExtCommType{
 	ExtCommNameMap[MARK]:     MARK,
 	ExtCommNameMap[ACTION]:   ACTION,
 	ExtCommNameMap[RT]:       RT,
+	ExtCommNameMap[ENCAP]:    ENCAP,
 }
 
 func rateLimitParser(args []string) ([]bgp.ExtendedCommunityInterface, error) {
@@ -154,6 +157,38 @@ func rtParser(args []string) ([]bgp.ExtendedCommunityInterface, error) {
 	return exts, nil
 }
 
+func encapParser(args []string) ([]bgp.ExtendedCommunityInterface, error) {
+	if len(args) < 2 || args[0] != ExtCommNameMap[ENCAP] {
+		return nil, fmt.Errorf("invalid encap")
+	}
+	var typ bgp.TunnelType
+	switch args[1] {
+	case "l2tpv3":
+		typ = bgp.TUNNEL_TYPE_L2TP3
+	case "gre":
+		typ = bgp.TUNNEL_TYPE_GRE
+	case "ip-in-ip":
+		typ = bgp.TUNNEL_TYPE_IP_IN_IP
+	case "vxlan":
+		typ = bgp.TUNNEL_TYPE_VXLAN
+	case "nvgre":
+		typ = bgp.TUNNEL_TYPE_NVGRE
+	case "mpls":
+		typ = bgp.TUNNEL_TYPE_MPLS
+	case "mpls-in-gre":
+		typ = bgp.TUNNEL_TYPE_MPLS_IN_GRE
+	case "vxlan-gre":
+		typ = bgp.TUNNEL_TYPE_VXLAN_GRE
+	default:
+		return nil, fmt.Errorf("invalid encap type")
+	}
+	isTransitive := true
+	o := bgp.NewOpaqueExtended(isTransitive)
+	o.SubType = bgp.EC_SUBTYPE_ENCAPSULATION
+	o.Value = &bgp.EncapExtended{typ}
+	return []bgp.ExtendedCommunityInterface{o}, nil
+}
+
 var ExtCommParserMap = map[ExtCommType]func([]string) ([]bgp.ExtendedCommunityInterface, error){
 	ACCEPT:   nil,
 	DISCARD:  rateLimitParser,
@@ -162,6 +197,7 @@ var ExtCommParserMap = map[ExtCommType]func([]string) ([]bgp.ExtendedCommunityIn
 	MARK:     markParser,
 	ACTION:   actionParser,
 	RT:       rtParser,
+	ENCAP:    encapParser,
 }
 
 func ParseExtendedCommunities(input string) ([]bgp.ExtendedCommunityInterface, error) {
@@ -496,8 +532,8 @@ func modPath(resource api.Resource, name, modtype string, args []string) error {
 			ExtCommNameMap[RATE], ExtCommNameMap[REDIRECT],
 			ExtCommNameMap[MARK], ExtCommNameMap[ACTION], ExtCommNameMap[RT])
 		helpErrMap[bgp.RF_EVPN] = fmt.Errorf(`usage: %s rib %s { macadv <MACADV> | multicast <MULTICAST> } -a evpn
-    <MACADV>    : <mac address> <ip address> <etag> <label> rd <rd> rt <rt>...
-    <MULTICAST> : <ip address> <etag> rd <rd> rt <rt>...`, cmdstr, modtype)
+    <MACADV>    : <mac address> <ip address> <etag> <label> rd <rd> rt <rt>... [encap <encap type>]
+    <MULTICAST> : <ip address> <etag> rd <rd> rt <rt>... [encap <encap type>]`, cmdstr, modtype)
 		if err, ok := helpErrMap[rf]; ok {
 			return err
 		}
