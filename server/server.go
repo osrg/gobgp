@@ -239,6 +239,32 @@ func (server *BgpServer) Serve() {
 			remoteAddr, _, _ := net.SplitHostPort(conn.RemoteAddr().String())
 			peer, found := server.neighborMap[remoteAddr]
 			if found {
+				localAddrValid := func(laddr net.IP) bool {
+					if laddr == nil {
+						return true
+					}
+					l := conn.LocalAddr()
+					if l == nil {
+						// already closed
+						return false
+					}
+
+					host, _, _ := net.SplitHostPort(l.String())
+					if host != laddr.String() {
+						log.WithFields(log.Fields{
+							"Topic":           "Peer",
+							"Key":             remoteAddr,
+							"Configured addr": laddr.String(),
+							"Addr":            host,
+						}).Info("Mismatched local address")
+						return false
+					}
+					return true
+				}(peer.conf.Transport.TransportConfig.LocalAddress)
+				if localAddrValid == false {
+					conn.Close()
+					continue
+				}
 				log.Debug("accepted a new passive connection from ", remoteAddr)
 				peer.PassConn(conn)
 			} else {
