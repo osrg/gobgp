@@ -27,14 +27,13 @@ package main
 //     int   path_attributes_cap;
 // } path;
 // extern path* new_path();
-// extern free_path(path*);
-// extern append_path_attribute(path*, int, char*);
+// extern void free_path(path*);
+// extern int append_path_attribute(path*, int, char*);
 // extern buf* get_path_attribute(path*, int);
 import "C"
 
 import (
 	"encoding/json"
-	"fmt"
 	"strings"
 
 	"github.com/osrg/gobgp/gobgp/cmd"
@@ -73,7 +72,6 @@ func decode_path(p *C.path) *C.char {
 	var buf []byte
 	var nlri bgp.AddrPrefixInterface
 	if p.nlri.len > 0 {
-		fmt.Println(p.nlri.len)
 		buf = []byte(C.GoStringN(p.nlri.value, p.nlri.len))
 		nlri = &bgp.NLRInfo{}
 		err := nlri.DecodeFromBytes(buf)
