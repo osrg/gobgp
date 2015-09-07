@@ -189,6 +189,9 @@ class GoBGPContainer(BGPContainer):
 
             if info['flowspec']:
                 afi_safi_list.append({'AfiSafiName': 'ipv4-flowspec'})
+                afi_safi_list.append({'AfiSafiName': 'l3vpn-ipv4-flowspec'})
+                afi_safi_list.append({'AfiSafiName': 'ipv6-flowspec'})
+                afi_safi_list.append({'AfiSafiName': 'l3vpn-ipv6-flowspec'})
 
             n = {'NeighborConfig':
                  {'NeighborAddress': info['neigh_addr'].split('/')[0],
@@ -301,7 +304,7 @@ class GoBGPContainer(BGPContainer):
             if v['rf'] == 'ipv4' or v['rf'] == 'ipv6':
                 cmd = 'gobgp global '\
                       'rib add {0} -a {1}'.format(v['prefix'], v['rf'])
-            elif v['rf']== 'ipv4-flowspec':
+            elif v['rf'] == 'ipv4-flowspec' or v['rf'] == 'ipv6-flowspec':
                 cmd = 'gobgp global '\
                       'rib add match {0} then {1} -a {2}'.format(' '.join(v['matchs']), ' '.join(v['thens']), v['rf'])
             else:

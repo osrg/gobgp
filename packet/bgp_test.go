@@ -464,3 +464,50 @@ func Test_FlowSpecExtended(t *testing.T) {
 		t.Error(len(buf2), m2, buf2)
 	}
 }
+
+func Test_FlowSpecNlriv6(t *testing.T) {
+	assert := assert.New(t)
+	cmp := make([]FlowSpecComponentInterface, 0)
+	cmp = append(cmp, NewFlowSpecDestinationPrefix6(NewIPv6AddrPrefix(64, "2001::"), 12))
+	cmp = append(cmp, NewFlowSpecSourcePrefix6(NewIPv6AddrPrefix(64, "2001::"), 12))
+	eq := 0x1
+	gt := 0x2
+	lt := 0x4
+	and := 0x40
+	not := 0x2
+	item1 := NewFlowSpecComponentItem(eq, TCP)
+	cmp = append(cmp, NewFlowSpecComponent(FLOW_SPEC_TYPE_IP_PROTO, []*FlowSpecComponentItem{item1}))
+	item2 := NewFlowSpecComponentItem(gt|eq, 20)
+	item3 := NewFlowSpecComponentItem(and|lt|eq, 30)
+	item4 := NewFlowSpecComponentItem(eq, 10)
+	cmp = append(cmp, NewFlowSpecComponent(FLOW_SPEC_TYPE_PORT, []*FlowSpecComponentItem{item2, item3, item4}))
+	cmp = append(cmp, NewFlowSpecComponent(FLOW_SPEC_TYPE_DST_PORT, []*FlowSpecComponentItem{item2, item3, item4}))
+	cmp = append(cmp, NewFlowSpecComponent(FLOW_SPEC_TYPE_SRC_PORT, []*FlowSpecComponentItem{item2, item3, item4}))
+	cmp = append(cmp, NewFlowSpecComponent(FLOW_SPEC_TYPE_ICMP_TYPE, []*FlowSpecComponentItem{item2, item3, item4}))
+	cmp = append(cmp, NewFlowSpecComponent(FLOW_SPEC_TYPE_ICMP_CODE, []*FlowSpecComponentItem{item2, item3, item4}))
+	cmp = append(cmp, NewFlowSpecComponent(FLOW_SPEC_TYPE_PKT_LEN, []*FlowSpecComponentItem{item2, item3, item4}))
+	cmp = append(cmp, NewFlowSpecComponent(FLOW_SPEC_TYPE_DSCP, []*FlowSpecComponentItem{item2, item3, item4}))
+	cmp = append(cmp, NewFlowSpecComponent(FLOW_SPEC_TYPE_LABEL, []*FlowSpecComponentItem{item2, item3, item4}))
+	isFlagment := 0x02
+	item5 := NewFlowSpecComponentItem(isFlagment, 0)
+	cmp = append(cmp, NewFlowSpecComponent(FLOW_SPEC_TYPE_FRAGMENT, []*FlowSpecComponentItem{item5}))
+	item6 := NewFlowSpecComponentItem(0, TCP_FLAG_ACK)
+	item7 := NewFlowSpecComponentItem(and|not, TCP_FLAG_URGENT)
+	cmp = append(cmp, NewFlowSpecComponent(FLOW_SPEC_TYPE_TCP_FLAG, []*FlowSpecComponentItem{item6, item7}))
+	n1 := NewFlowSpecIPv6Unicast(cmp)
+	buf1, err := n1.Serialize()
+	assert.Nil(err)
+	n2, err := NewPrefixFromRouteFamily(RouteFamilyToAfiSafi(RF_FS_IPv6_UC))
+	assert.Nil(err)
+	err = n2.DecodeFromBytes(buf1)
+	assert.Nil(err)
+	buf2, _ := n2.Serialize()
+	if reflect.DeepEqual(n1, n2) == true {
+		t.Log("OK")
+	} else {
+		t.Error("Something wrong")
+		t.Error(len(buf1), n1, buf1)
+		t.Error(len(buf2), n2, buf2)
+		t.Log(bytes.Equal(buf1, buf2))
+	}
+}
