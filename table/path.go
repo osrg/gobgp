@@ -39,6 +39,7 @@ type Path struct {
 	NoImplicitWithdraw     bool
 	Validation             config.RpkiValidationResultType
 	IsFromZebra            bool
+	reason                 BestPathReason
 }
 
 func NewPath(source *PeerInfo, nlri bgp.AddrPrefixInterface, isWithdraw bool, pattrs []bgp.PathAttributeInterface, medSetByTargetNeighbor bool, timestamp time.Time, noImplicitWithdraw bool) *Path {
