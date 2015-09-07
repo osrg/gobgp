@@ -40,6 +40,7 @@ type Path struct {
 	IsFromZebra            bool
 	Filtered               bool
 	Owner                  net.IP
+	reason                 BestPathReason
 }
 
 func NewPath(source *PeerInfo, nlri bgp.AddrPrefixInterface, isWithdraw bool, pattrs []bgp.PathAttributeInterface, medSetByTargetNeighbor bool, timestamp time.Time, noImplicitWithdraw bool) *Path {

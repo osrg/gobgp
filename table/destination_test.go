@@ -65,14 +65,14 @@ func TestDestinationGetNlri(t *testing.T) {
 }
 func TestDestinationSetBestPathReason(t *testing.T) {
 	dd := &Destination{}
-	reason := "reason1"
+	reason := BestPathReason("reason1")
 	dd.setBestPathReason(reason)
 	r_reason := dd.getBestPathReason()
 	assert.Equal(t, r_reason, reason)
 }
 func TestDestinationGetBestPathReason(t *testing.T) {
 	dd := &Destination{}
-	reason := "reason2"
+	reason := BestPathReason("reason2")
 	dd.setBestPathReason(reason)
 	r_reason := dd.getBestPathReason()
 	assert.Equal(t, r_reason, reason)
