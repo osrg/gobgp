@@ -14,7 +14,7 @@
 # limitations under the License.
 
 from base import *
-
+from itertools import chain
 
 class ExaBGPContainer(BGPContainer):
 
@@ -101,8 +101,7 @@ class ExaBGPContainer(BGPContainer):
                     cmd << '{0};'.format(str(r))
                 cmd << '    }'
 
-            routes = [r for r in self.routes.values() if r['rf'] == 'ipv4-flowspec']
-
+            routes = [r for r in self.routes.itervalues() if 'flowspec' in r['rf']]
             if len(routes) > 0:
                 cmd << '    flow {'
                 for route in routes:

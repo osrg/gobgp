@@ -1860,6 +1860,7 @@ const (
 	FLOW_SPEC_TYPE_PKT_LEN
 	FLOW_SPEC_TYPE_DSCP
 	FLOW_SPEC_TYPE_FRAGMENT
+	FLOW_SPEC_TYPE_LABEL
 )
 
 var FlowSpecNameMap = map[BGPFlowSpecType]string{
@@ -1876,6 +1877,7 @@ var FlowSpecNameMap = map[BGPFlowSpecType]string{
 	FLOW_SPEC_TYPE_PKT_LEN:    "packet-length",
 	FLOW_SPEC_TYPE_DSCP:       "dscp",
 	FLOW_SPEC_TYPE_FRAGMENT:   "fragment",
+	FLOW_SPEC_TYPE_LABEL:      "label",
 }
 
 var FlowSpecValueMap = map[string]BGPFlowSpecType{
@@ -1891,29 +1893,58 @@ var FlowSpecValueMap = map[string]BGPFlowSpecType{
 	FlowSpecNameMap[FLOW_SPEC_TYPE_PKT_LEN]:    FLOW_SPEC_TYPE_PKT_LEN,
 	FlowSpecNameMap[FLOW_SPEC_TYPE_DSCP]:       FLOW_SPEC_TYPE_DSCP,
 	FlowSpecNameMap[FLOW_SPEC_TYPE_FRAGMENT]:   FLOW_SPEC_TYPE_FRAGMENT,
+	FlowSpecNameMap[FLOW_SPEC_TYPE_LABEL]:      FLOW_SPEC_TYPE_LABEL,
 }
 
-func flowSpecPrefixParser(args []string) (FlowSpecComponentInterface, error) {
+func flowSpecPrefixParser(rf RouteFamily, args []string) (FlowSpecComponentInterface, error) {
 	if len(args) < 2 {
 		return nil, fmt.Errorf("invalid flowspec dst/src prefix")
 	}
 	typ := args[0]
-	ip, net, _ := net.ParseCIDR(args[1])
-	if ip.To4() == nil {
+	ip, net, err := net.ParseCIDR(args[1])
+	if err != nil {
+		return nil, fmt.Errorf("invalid ip prefix")
+	}
+	afi, _ := RouteFamilyToAfiSafi(rf)
+	if afi == AFI_IP && ip.To4() == nil {
 		return nil, fmt.Errorf("invalid ipv4 prefix")
+	} else if afi == AFI_IP6 && !strings.Contains(ip.String(), ":") {
+		return nil, fmt.Errorf("invalid ipv6 prefix")
 	}
 	ones, _ := net.Mask.Size()
+	var offset uint8
+	if len(args) > 2 {
+		o, err := strconv.Atoi(args[2])
+		offset = uint8(o)
+		if err != nil {
+			return nil, err
+		}
+	}
 
 	switch typ {
 	case FlowSpecNameMap[FLOW_SPEC_TYPE_DST_PREFIX]:
-		return NewFlowSpecDestinationPrefix(NewIPAddrPrefix(uint8(ones), ip.String())), nil
+		switch rf {
+		case RF_FS_IPv4_UC:
+			return NewFlowSpecDestinationPrefix(NewIPAddrPrefix(uint8(ones), ip.String())), nil
+		case RF_FS_IPv6_UC:
+			return NewFlowSpecDestinationPrefix6(NewIPv6AddrPrefix(uint8(ones), ip.String()), offset), nil
+		default:
+			return nil, fmt.Errorf("invalid type. only RF_FS_IPv4_UC or RF_FS_IPv6_UC is allowed")
+		}
 	case FlowSpecNameMap[FLOW_SPEC_TYPE_SRC_PREFIX]:
-		return NewFlowSpecSourcePrefix(NewIPAddrPrefix(uint8(ones), ip.String())), nil
+		switch rf {
+		case RF_FS_IPv4_UC:
+			return NewFlowSpecSourcePrefix(NewIPAddrPrefix(uint8(ones), ip.String())), nil
+		case RF_FS_IPv6_UC:
+			return NewFlowSpecSourcePrefix6(NewIPv6AddrPrefix(uint8(ones), ip.String()), offset), nil
+		default:
+			return nil, fmt.Errorf("invalid type. only RF_FS_IPv4_UC or RF_FS_IPv6_UC is allowed")
+		}
 	}
 	return nil, fmt.Errorf("invalid type. only destination or source is allowed")
 }
 
-func flowSpecIpProtoParser(args []string) (FlowSpecComponentInterface, error) {
+func flowSpecIpProtoParser(rf RouteFamily, args []string) (FlowSpecComponentInterface, error) {
 	ss := make([]string, 0, len(ProtocolNameMap))
 	for _, v := range ProtocolNameMap {
 		ss = append(ss, v)
@@ -1936,7 +1967,7 @@ func flowSpecIpProtoParser(args []string) (FlowSpecComponentInterface, error) {
 	return NewFlowSpecComponent(FLOW_SPEC_TYPE_IP_PROTO, items), nil
 }
 
-func flowSpecTcpFlagParser(args []string) (FlowSpecComponentInterface, error) {
+func flowSpecTcpFlagParser(rf RouteFamily, args []string) (FlowSpecComponentInterface, error) {
 	ss := make([]string, 0, len(TCPFlagNameMap))
 	for _, v := range TCPFlagNameMap {
 		ss = append(ss, v)
@@ -1958,7 +1989,10 @@ func flowSpecTcpFlagParser(args []string) (FlowSpecComponentInterface, error) {
 	return NewFlowSpecComponent(FLOW_SPEC_TYPE_TCP_FLAG, items), nil
 }
 
-func flowSpecNumericParser(args []string) (FlowSpecComponentInterface, error) {
+func flowSpecNumericParser(rf RouteFamily, args []string) (FlowSpecComponentInterface, error) {
+	if afi, _ := RouteFamilyToAfiSafi(rf); afi == AFI_IP && FlowSpecValueMap[args[0]] == FLOW_SPEC_TYPE_LABEL {
+		return nil, fmt.Errorf("flow label spec is only allowed for ipv6")
+	}
 	exp := regexp.MustCompile("^((<=|>=|[<>=])(\\d+)&)?(<=|>=|[<>=])?(\\d+)$")
 	items := make([]*FlowSpecComponentItem, 0)
 
@@ -2000,16 +2034,20 @@ func flowSpecNumericParser(args []string) (FlowSpecComponentInterface, error) {
 		items = append(items, f(and, elems[4], elems[5]))
 
 	}
+
 	return NewFlowSpecComponent(FlowSpecValueMap[args[0]], items), nil
 }
 
-func flowSpecFragmentParser(args []string) (FlowSpecComponentInterface, error) {
+func flowSpecFragmentParser(rf RouteFamily, args []string) (FlowSpecComponentInterface, error) {
 	if len(args) < 2 {
 		return nil, fmt.Errorf("invalid flowspec fragment specifier")
 	}
 	value := 0
 	switch args[1] {
 	case "not-a-fragment":
+		if afi, _ := RouteFamilyToAfiSafi(rf); afi == AFI_IP6 {
+			return nil, fmt.Errorf("can't specify not-a-fragment for ipv6")
+		}
 		value = 0x1
 	case "is-a-fragment":
 		value = 0x2
@@ -2024,7 +2062,7 @@ func flowSpecFragmentParser(args []string) (FlowSpecComponentInterface, error) {
 	return NewFlowSpecComponent(FlowSpecValueMap[args[0]], items), nil
 }
 
-var flowSpecParserMap = map[BGPFlowSpecType]func([]string) (FlowSpecComponentInterface, error){
+var flowSpecParserMap = map[BGPFlowSpecType]func(RouteFamily, []string) (FlowSpecComponentInterface, error){
 	FLOW_SPEC_TYPE_DST_PREFIX: flowSpecPrefixParser,
 	FLOW_SPEC_TYPE_SRC_PREFIX: flowSpecPrefixParser,
 	FLOW_SPEC_TYPE_IP_PROTO:   flowSpecIpProtoParser,
@@ -2037,9 +2075,10 @@ var flowSpecParserMap = map[BGPFlowSpecType]func([]string) (FlowSpecComponentInt
 	FLOW_SPEC_TYPE_PKT_LEN:    flowSpecNumericParser,
 	FLOW_SPEC_TYPE_DSCP:       flowSpecNumericParser,
 	FLOW_SPEC_TYPE_FRAGMENT:   flowSpecFragmentParser,
+	FLOW_SPEC_TYPE_LABEL:      flowSpecNumericParser,
 }
 
-func ParseFlowSpecComponents(input string) ([]FlowSpecComponentInterface, error) {
+func ParseFlowSpecComponents(rf RouteFamily, input string) ([]FlowSpecComponentInterface, error) {
 	idxs := make([]struct {
 		t BGPFlowSpecType
 		i int
@@ -2065,7 +2104,7 @@ func ParseFlowSpecComponents(input string) ([]FlowSpecComponentInterface, error)
 		} else {
 			a = args[idx.i:]
 		}
-		cmp, err := f(a)
+		cmp, err := f(rf, a)
 		if err != nil {
 			return nil, err
 		}
@@ -2110,12 +2149,8 @@ func (p *flowSpecPrefix) Serialize() ([]byte, error) {
 }
 
 func (p *flowSpecPrefix) Len() int {
-	l := p.Prefix.Len()
-	if l < 0xf0 {
-		return l + 1
-	} else {
-		return l + 2
-	}
+	buf, _ := p.Serialize()
+	return len(buf)
 }
 
 func (p *flowSpecPrefix) Type() BGPFlowSpecType {
@@ -2136,6 +2171,57 @@ func (p *flowSpecPrefix) MarshalJSON() ([]byte, error) {
 	})
 }
 
+type flowSpecPrefix6 struct {
+	Prefix AddrPrefixInterface
+	Offset uint8
+	type_  BGPFlowSpecType
+}
+
+// draft-ietf-idr-flow-spec-v6-06
+// <type (1 octet), prefix length (1 octet), prefix offset(1 octet), prefix>
+func (p *flowSpecPrefix6) DecodeFromBytes(data []byte) error {
+	p.type_ = BGPFlowSpecType(data[0])
+	p.Offset = data[2]
+	prefix := append([]byte{data[1]}, data[3:]...)
+	return p.Prefix.DecodeFromBytes(prefix)
+}
+
+func (p *flowSpecPrefix6) Serialize() ([]byte, error) {
+	buf := []byte{byte(p.Type())}
+	bbuf, err := p.Prefix.Serialize()
+	if err != nil {
+		return nil, err
+	}
+	buf = append(buf, bbuf[0])
+	buf = append(buf, p.Offset)
+	return append(buf, bbuf[1:]...), nil
+}
+
+func (p *flowSpecPrefix6) Len() int {
+	buf, _ := p.Serialize()
+	return len(buf)
+}
+
+func (p *flowSpecPrefix6) Type() BGPFlowSpecType {
+	return p.type_
+}
+
+func (p *flowSpecPrefix6) String() string {
+	return fmt.Sprintf("[%s:%s/%d]", p.Type(), p.Prefix.String(), p.Offset)
+}
+
+func (p *flowSpecPrefix6) MarshalJSON() ([]byte, error) {
+	return json.Marshal(struct {
+		Type   BGPFlowSpecType     `json:"type"`
+		Value  AddrPrefixInterface `json:"value"`
+		Offset uint8               `json:"offset"`
+	}{
+		Type:   p.Type(),
+		Value:  p.Prefix,
+		Offset: p.Offset,
+	})
+}
+
 type FlowSpecDestinationPrefix struct {
 	flowSpecPrefix
 }
@@ -2150,6 +2236,22 @@ type FlowSpecSourcePrefix struct {
 
 func NewFlowSpecSourcePrefix(prefix AddrPrefixInterface) *FlowSpecSourcePrefix {
 	return &FlowSpecSourcePrefix{flowSpecPrefix{prefix, FLOW_SPEC_TYPE_SRC_PREFIX}}
+}
+
+type FlowSpecDestinationPrefix6 struct {
+	flowSpecPrefix6
+}
+
+func NewFlowSpecDestinationPrefix6(prefix AddrPrefixInterface, offset uint8) *FlowSpecDestinationPrefix6 {
+	return &FlowSpecDestinationPrefix6{flowSpecPrefix6{prefix, offset, FLOW_SPEC_TYPE_DST_PREFIX}}
+}
+
+type FlowSpecSourcePrefix6 struct {
+	flowSpecPrefix6
+}
+
+func NewFlowSpecSourcePrefix6(prefix AddrPrefixInterface, offset uint8) *FlowSpecSourcePrefix6 {
+	return &FlowSpecSourcePrefix6{flowSpecPrefix6{prefix, offset, FLOW_SPEC_TYPE_SRC_PREFIX}}
 }
 
 type FlowSpecComponentItem struct {
@@ -2332,6 +2434,7 @@ var flowSpecFormatMap = map[BGPFlowSpecType]func(op int, value int) string{
 	FLOW_SPEC_TYPE_PKT_LEN:   formatNumeric,
 	FLOW_SPEC_TYPE_DSCP:      formatNumeric,
 	FLOW_SPEC_TYPE_FRAGMENT:  formatFragment,
+	FLOW_SPEC_TYPE_LABEL:     formatNumeric,
 }
 
 func (p *FlowSpecComponent) String() string {
@@ -2414,30 +2517,34 @@ func (n *FlowSpecNLRI) decodeFromBytes(rf RouteFamily, data []byte) error {
 		var i FlowSpecComponentInterface
 		switch t {
 		case FLOW_SPEC_TYPE_DST_PREFIX:
-			p := &FlowSpecDestinationPrefix{}
 			switch rf {
 			case RF_FS_IPv4_UC:
-				p.Prefix = &IPAddrPrefix{}
+				i = NewFlowSpecDestinationPrefix(NewIPAddrPrefix(0, ""))
 			case RF_FS_IPv4_VPN:
-				p.Prefix = &LabeledVPNIPAddrPrefix{}
+				i = NewFlowSpecDestinationPrefix(NewLabeledVPNIPAddrPrefix(0, "", *NewMPLSLabelStack(), nil))
+			case RF_FS_IPv6_UC:
+				i = NewFlowSpecDestinationPrefix6(NewIPv6AddrPrefix(0, ""), 0)
+			case RF_FS_IPv6_VPN:
+				i = NewFlowSpecDestinationPrefix6(NewLabeledVPNIPv6AddrPrefix(0, "", *NewMPLSLabelStack(), nil), 0)
 			default:
 				return fmt.Errorf("Invalid RF: %v", rf)
 			}
-			i = p
 		case FLOW_SPEC_TYPE_SRC_PREFIX:
-			p := &FlowSpecSourcePrefix{}
 			switch rf {
 			case RF_FS_IPv4_UC:
-				p.Prefix = &IPAddrPrefix{}
+				i = NewFlowSpecSourcePrefix(NewIPAddrPrefix(0, ""))
 			case RF_FS_IPv4_VPN:
-				p.Prefix = &LabeledVPNIPAddrPrefix{}
+				i = NewFlowSpecSourcePrefix(NewLabeledVPNIPAddrPrefix(0, "", *NewMPLSLabelStack(), nil))
+			case RF_FS_IPv6_UC:
+				i = NewFlowSpecSourcePrefix6(NewIPv6AddrPrefix(0, ""), 0)
+			case RF_FS_IPv6_VPN:
+				i = NewFlowSpecSourcePrefix6(NewLabeledVPNIPv6AddrPrefix(0, "", *NewMPLSLabelStack(), nil), 0)
 			default:
 				return fmt.Errorf("Invalid RF: %v", rf)
 			}
-			i = p
 		case FLOW_SPEC_TYPE_IP_PROTO, FLOW_SPEC_TYPE_PORT, FLOW_SPEC_TYPE_DST_PORT, FLOW_SPEC_TYPE_SRC_PORT,
 			FLOW_SPEC_TYPE_ICMP_TYPE, FLOW_SPEC_TYPE_ICMP_CODE, FLOW_SPEC_TYPE_TCP_FLAG, FLOW_SPEC_TYPE_PKT_LEN,
-			FLOW_SPEC_TYPE_DSCP, FLOW_SPEC_TYPE_FRAGMENT:
+			FLOW_SPEC_TYPE_DSCP, FLOW_SPEC_TYPE_FRAGMENT, FLOW_SPEC_TYPE_LABEL:
 			i = NewFlowSpecComponent(t, nil)
 		default:
 			i = &FlowSpecUnknown{}
@@ -2547,6 +2654,53 @@ func (n *FlowSpecIPv4VPN) SAFI() uint8 {
 func NewFlowSpecIPv4VPN(value []FlowSpecComponentInterface) *FlowSpecIPv4VPN {
 	return &FlowSpecIPv4VPN{FlowSpecNLRI{value, RF_FS_IPv4_VPN}}
 }
+
+type FlowSpecIPv6Unicast struct {
+	FlowSpecNLRI
+}
+
+func (n *FlowSpecIPv6Unicast) DecodeFromBytes(data []byte) error {
+	return n.decodeFromBytes(AfiSafiToRouteFamily(n.AFI(), n.SAFI()), data)
+}
+
+func (n *FlowSpecIPv6Unicast) AFI() uint16 {
+	return AFI_IP6
+}
+
+func (n *FlowSpecIPv6Unicast) SAFI() uint8 {
+	return SAFI_FLOW_SPEC_UNICAST
+}
+
+func NewFlowSpecIPv6Unicast(value []FlowSpecComponentInterface) *FlowSpecIPv6Unicast {
+	return &FlowSpecIPv6Unicast{FlowSpecNLRI{
+		Value: value,
+		rf:    RF_FS_IPv6_UC,
+	}}
+}
+
+type FlowSpecIPv6VPN struct {
+	FlowSpecNLRI
+}
+
+func (n *FlowSpecIPv6VPN) DecodeFromBytes(data []byte) error {
+	return n.decodeFromBytes(AfiSafiToRouteFamily(n.AFI(), n.SAFI()), data)
+}
+
+func (n *FlowSpecIPv6VPN) AFI() uint16 {
+	return AFI_IP6
+}
+
+func (n *FlowSpecIPv6VPN) SAFI() uint8 {
+	return SAFI_FLOW_SPEC_VPN
+}
+
+func NewFlowSpecIPv6VPN(value []FlowSpecComponentInterface) *FlowSpecIPv6VPN {
+	return &FlowSpecIPv6VPN{FlowSpecNLRI{
+		Value: value,
+		rf:    RF_FS_IPv6_VPN,
+	}}
+}
+
 func AfiSafiToRouteFamily(afi uint16, safi uint8) RouteFamily {
 	return RouteFamily(int(afi)<<16 | int(safi))
 }
@@ -2574,6 +2728,8 @@ const (
 	RF_ENCAP       RouteFamily = AFI_IP<<16 | SAFI_ENCAPSULATION
 	RF_FS_IPv4_UC  RouteFamily = AFI_IP<<16 | SAFI_FLOW_SPEC_UNICAST
 	RF_FS_IPv4_VPN RouteFamily = AFI_IP<<16 | SAFI_FLOW_SPEC_VPN
+	RF_FS_IPv6_UC  RouteFamily = AFI_IP6<<16 | SAFI_FLOW_SPEC_UNICAST
+	RF_FS_IPv6_VPN RouteFamily = AFI_IP6<<16 | SAFI_FLOW_SPEC_VPN
 )
 
 func GetRouteFamily(name string) (RouteFamily, error) {
@@ -2610,6 +2766,10 @@ func GetRouteFamily(name string) (RouteFamily, error) {
 		return RF_FS_IPv4_UC, nil
 	case "l3vpn-ipv4-flowspec":
 		return RF_FS_IPv4_VPN, nil
+	case "ipv6-flowspec":
+		return RF_FS_IPv6_UC, nil
+	case "l3vpn-ipv6-flowspec":
+		return RF_FS_IPv6_VPN, nil
 	}
 	return RouteFamily(0), fmt.Errorf("%s isn't a valid route family name", name)
 }
@@ -2638,6 +2798,10 @@ func NewPrefixFromRouteFamily(afi uint16, safi uint8) (prefix AddrPrefixInterfac
 		prefix = &FlowSpecIPv4Unicast{}
 	case RF_FS_IPv4_VPN:
 		prefix = &FlowSpecIPv4VPN{}
+	case RF_FS_IPv6_UC:
+		prefix = &FlowSpecIPv6Unicast{}
+	case RF_FS_IPv6_VPN:
+		prefix = &FlowSpecIPv6VPN{}
 	default:
 		return nil, fmt.Errorf("unknown route family. AFI: %d, SAFI: %d", afi, safi)
 	}

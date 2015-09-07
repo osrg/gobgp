@@ -458,6 +458,8 @@ func checkAddressFamily(ip net.IP) (bgp.RouteFamily, error) {
 		rf = bgp.RF_RTC_UC
 	case "ipv4-flowspec", "ipv4-flow", "flow4":
 		rf = bgp.RF_FS_IPv4_UC
+	case "ipv6-flowspec", "ipv6-flow", "flow6":
+		rf = bgp.RF_FS_IPv6_UC
 	case "":
 		if len(ip) == 0 || ip.To4() != nil {
 			rf = bgp.RF_IPv4_UC

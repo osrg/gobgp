@@ -235,7 +235,7 @@ func ParseExtendedCommunities(input string) ([]bgp.ExtendedCommunityInterface, e
 	return exts, nil
 }
 
-func ParseFlowSpecArgs(args []string) (bgp.AddrPrefixInterface, []string, error) {
+func ParseFlowSpecArgs(rf bgp.RouteFamily, args []string) (bgp.AddrPrefixInterface, []string, error) {
 	thenPos := len(args)
 	for idx, v := range args {
 		if v == "then" {
@@ -246,13 +246,20 @@ func ParseFlowSpecArgs(args []string) (bgp.AddrPrefixInterface, []string, error)
 		return nil, nil, fmt.Errorf("invalid format")
 	}
 	matchArgs := args[1:thenPos]
-	cmp, err := bgp.ParseFlowSpecComponents(strings.Join(matchArgs, " "))
+	cmp, err := bgp.ParseFlowSpecComponents(rf, strings.Join(matchArgs, " "))
 	if err != nil {
 		return nil, nil, err
 	}
-	nlri := bgp.NewFlowSpecIPv4Unicast(cmp)
-	extcomms := args[thenPos:]
-	return nlri, extcomms, nil
+	var nlri bgp.AddrPrefixInterface
+	switch rf {
+	case bgp.RF_FS_IPv4_UC:
+		nlri = bgp.NewFlowSpecIPv4Unicast(cmp)
+	case bgp.RF_FS_IPv6_UC:
+		nlri = bgp.NewFlowSpecIPv6Unicast(cmp)
+	default:
+		return nil, nil, fmt.Errorf("invalid route family")
+	}
+	return nlri, args[thenPos:], nil
 }
 
 func ParseEvpnMacAdvArgs(args []string) (bgp.AddrPrefixInterface, []string, error) {
@@ -449,8 +456,8 @@ func ParsePath(rf bgp.RouteFamily, args []string) (*api.Path, error) {
 		}
 	case bgp.RF_EVPN:
 		nlri, extcomms, err = ParseEvpnArgs(args)
-	case bgp.RF_FS_IPv4_UC:
-		nlri, extcomms, err = ParseFlowSpecArgs(args)
+	case bgp.RF_FS_IPv4_UC, bgp.RF_FS_IPv6_UC:
+		nlri, extcomms, err = ParseFlowSpecArgs(rf, args)
 	default:
 		return nil, fmt.Errorf("Unsupported route family: %s", rf)
 	}
@@ -520,16 +527,17 @@ func modPath(resource api.Resource, name, modtype string, args []string) error {
 		helpErrMap := map[bgp.RouteFamily]error{}
 		helpErrMap[bgp.RF_IPv4_UC] = fmt.Errorf("usage: %s rib %s <PREFIX> [nexthop <ADDRESS>] -a ipv4", cmdstr, modtype)
 		helpErrMap[bgp.RF_IPv6_UC] = fmt.Errorf("usage: %s rib %s <PREFIX> [nexthop <ADDRESS>] -a ipv6", cmdstr, modtype)
-		helpErrMap[bgp.RF_FS_IPv4_UC] = fmt.Errorf(`usage: %s rib %s match <MATCH_EXPR> then <THEN_EXPR> [nexthop <ADDRESS>] -a ipv4-flowspec
-    <MATCH_EXPR> : { %s <PREFIX> | %s <PREFIX> |
+		fsHelpMsgFmt := fmt.Sprintf(`err: %s
+usage: %s rib %s match <MATCH_EXPR> then <THEN_EXPR> -a %%s
+    <MATCH_EXPR> : { %s <PREFIX> [<OFFSET>] | %s <PREFIX> [<OFFSET>] |
 		     %s <PROTO>... | %s <FRAGMENT_TYPE> | %s <TCPFLAG>... |
-		     { %s | %s | %s | %s | %s | %s | %s } <ITEM>... }...
+		     { %s | %s | %s | %s | %s | %s | %s | %s } <ITEM>... }...
 	<PROTO> : %s
 	<FRAGMENT_TYPE> : not-a-fragment, is-a-fragment, first-fragment, last-fragment
 	<TCPFLAG> : %s
 	<ITEM> : &?{<|>|=}<value>
     <THEN_EXPR> : { %s | %s | %s <value> | %s <RT> | %s <value> | %s { sample | terminal | sample-terminal } | %s <RT>... }...
-	<RT> : xxx:yyy, xx.xx.xx.xx:yyy, xxx.xxx:yyy`, cmdstr, modtype,
+	<RT> : xxx:yyy, xx.xx.xx.xx:yyy, xxx.xxx:yyy`, err, cmdstr, modtype,
 			bgp.FlowSpecNameMap[bgp.FLOW_SPEC_TYPE_DST_PREFIX],
 			bgp.FlowSpecNameMap[bgp.FLOW_SPEC_TYPE_SRC_PREFIX],
 			bgp.FlowSpecNameMap[bgp.FLOW_SPEC_TYPE_IP_PROTO],
@@ -542,11 +550,14 @@ func modPath(resource api.Resource, name, modtype string, args []string) error {
 			bgp.FlowSpecNameMap[bgp.FLOW_SPEC_TYPE_ICMP_CODE],
 			bgp.FlowSpecNameMap[bgp.FLOW_SPEC_TYPE_PKT_LEN],
 			bgp.FlowSpecNameMap[bgp.FLOW_SPEC_TYPE_DSCP],
+			bgp.FlowSpecNameMap[bgp.FLOW_SPEC_TYPE_LABEL],
 			protos, flags,
 			ExtCommNameMap[ACCEPT], ExtCommNameMap[DISCARD],
 			ExtCommNameMap[RATE], ExtCommNameMap[REDIRECT],
 			ExtCommNameMap[MARK], ExtCommNameMap[ACTION], ExtCommNameMap[RT])
-		helpErrMap[bgp.RF_EVPN] = fmt.Errorf(`usage: %s rib %s { macadv <MACADV> | multicast <MULTICAST> } [nexthop <ADDRESS>] -a evpn
+		helpErrMap[bgp.RF_FS_IPv4_UC] = fmt.Errorf(fsHelpMsgFmt, "ipv4-flowspec")
+		helpErrMap[bgp.RF_FS_IPv6_UC] = fmt.Errorf(fsHelpMsgFmt, "ipv6-flowspec")
+		helpErrMap[bgp.RF_EVPN] = fmt.Errorf(`usage: %s rib %s { macadv <MACADV> | multicast <MULTICAST> } -a evpn
     <MACADV>    : <mac address> <ip address> <etag> <label> rd <rd> rt <rt>... [encap <encap type>]
     <MULTICAST> : <ip address> <etag> rd <rd> rt <rt>... [encap <encap type>]`, cmdstr, modtype)
 		if err, ok := helpErrMap[rf]; ok {
