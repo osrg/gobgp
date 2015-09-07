@@ -37,10 +37,8 @@ func (t *Table) GetRoutefamily() bgp.RouteFamily {
 }
 
 func (t *Table) insert(path *Path) *Destination {
-	var dest *Destination
-
 	t.validatePath(path)
-	dest = t.getOrCreateDest(path.GetNlri())
+	dest := t.getOrCreateDest(path.GetNlri())
 
 	if path.IsWithdraw {
 		// withdraw insert
