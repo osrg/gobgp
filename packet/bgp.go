@@ -743,10 +743,6 @@ func NewIPv6AddrPrefix(length uint8, prefix string) *IPv6AddrPrefix {
 	}
 }
 
-type WithdrawnRoute struct {
-	IPAddrPrefix
-}
-
 const (
 	BGP_RD_TWO_OCTET_AS = iota
 	BGP_RD_IPV4_ADDRESS
@@ -5279,22 +5275,12 @@ func GetPathAttribute(data []byte) (PathAttributeInterface, error) {
 	return &PathAttributeUnknown{}, nil
 }
 
-type NLRInfo struct {
-	IPAddrPrefix
-}
-
-func NewNLRInfo(length uint8, prefix string) *NLRInfo {
-	return &NLRInfo{
-		IPAddrPrefix: *NewIPAddrPrefix(length, prefix),
-	}
-}
-
 type BGPUpdate struct {
 	WithdrawnRoutesLen    uint16
-	WithdrawnRoutes       []WithdrawnRoute
+	WithdrawnRoutes       []*IPAddrPrefix
 	TotalPathAttributeLen uint16
 	PathAttributes        []PathAttributeInterface
-	NLRI                  []NLRInfo
+	NLRI                  []*IPAddrPrefix
 }
 
 func (msg *BGPUpdate) DecodeFromBytes(data []byte) error {
@@ -5316,9 +5302,9 @@ func (msg *BGPUpdate) DecodeFromBytes(data []byte) error {
 		return NewMessageError(eCode, eSubCode, nil, "withdrawn route length exceeds message length")
 	}
 
-	msg.WithdrawnRoutes = []WithdrawnRoute{}
+	msg.WithdrawnRoutes = make([]*IPAddrPrefix, 0, msg.WithdrawnRoutesLen)
 	for routelen := msg.WithdrawnRoutesLen; routelen > 0; {
-		w := WithdrawnRoute{}
+		w := &IPAddrPrefix{}
 		err := w.DecodeFromBytes(data)
 		if err != nil {
 			return err
@@ -5362,9 +5348,9 @@ func (msg *BGPUpdate) DecodeFromBytes(data []byte) error {
 		msg.PathAttributes = append(msg.PathAttributes, p)
 	}
 
-	msg.NLRI = []NLRInfo{}
+	msg.NLRI = make([]*IPAddrPrefix, 0)
 	for restlen := len(data); restlen > 0; {
-		n := NLRInfo{}
+		n := &IPAddrPrefix{}
 		err := n.DecodeFromBytes(data)
 		if err != nil {
 			return err
@@ -5414,7 +5400,7 @@ func (msg *BGPUpdate) Serialize() ([]byte, error) {
 	return buf, nil
 }
 
-func NewBGPUpdateMessage(withdrawnRoutes []WithdrawnRoute, pathattrs []PathAttributeInterface, nlri []NLRInfo) *BGPMessage {
+func NewBGPUpdateMessage(withdrawnRoutes []*IPAddrPrefix, pathattrs []PathAttributeInterface, nlri []*IPAddrPrefix) *BGPMessage {
 	return &BGPMessage{
 		Header: BGPHeader{Type: BGP_MSG_UPDATE},
 		Body:   &BGPUpdate{0, withdrawnRoutes, 0, pathattrs, nlri},

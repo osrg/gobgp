@@ -1413,8 +1413,8 @@ func ipPrefixCalculate(path *table.Path, cPrefix Prefix) bool {
 
 	switch rf {
 	case bgp.RF_IPv4_UC:
-		pAddr = path.GetNlri().(*bgp.NLRInfo).IPAddrPrefix.Prefix
-		pMasklen = path.GetNlri().(*bgp.NLRInfo).IPAddrPrefix.Length
+		pAddr = path.GetNlri().(*bgp.IPAddrPrefix).Prefix
+		pMasklen = path.GetNlri().(*bgp.IPAddrPrefix).Length
 	case bgp.RF_IPv6_UC:
 		pAddr = path.GetNlri().(*bgp.IPv6AddrPrefix).Prefix
 		pMasklen = path.GetNlri().(*bgp.IPv6AddrPrefix).Length

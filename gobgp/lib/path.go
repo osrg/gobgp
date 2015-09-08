@@ -73,7 +73,7 @@ func decode_path(p *C.path) *C.char {
 	var nlri bgp.AddrPrefixInterface
 	if p.nlri.len > 0 {
 		buf = []byte(C.GoStringN(p.nlri.value, p.nlri.len))
-		nlri = &bgp.NLRInfo{}
+		nlri = &bgp.IPAddrPrefix{}
 		err := nlri.DecodeFromBytes(buf)
 		if err != nil {
 			return nil

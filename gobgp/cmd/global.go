@@ -396,7 +396,7 @@ func ParsePath(rf bgp.RouteFamily, args []string) (*api.Path, error) {
 				return nil, fmt.Errorf("invalid ipv4 prefix")
 			}
 			nexthop = "0.0.0.0"
-			nlri = bgp.NewNLRInfo(uint8(ones), ip.String())
+			nlri = bgp.NewIPAddrPrefix(uint8(ones), ip.String())
 		} else {
 			if ip.To16() == nil {
 				return nil, fmt.Errorf("invalid ipv6 prefix")

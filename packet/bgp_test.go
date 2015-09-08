@@ -37,9 +37,9 @@ func open() *BGPMessage {
 }
 
 func update() *BGPMessage {
-	w1 := WithdrawnRoute{*NewIPAddrPrefix(23, "121.1.3.2")}
-	w2 := WithdrawnRoute{*NewIPAddrPrefix(17, "100.33.3.0")}
-	w := []WithdrawnRoute{w1, w2}
+	w1 := NewIPAddrPrefix(23, "121.1.3.2")
+	w2 := NewIPAddrPrefix(17, "100.33.3.0")
+	w := []*IPAddrPrefix{w1, w2}
 
 	aspath1 := []AsPathParamInterface{
 		NewAsPathParam(2, []uint16{1000}),
@@ -142,7 +142,7 @@ func update() *BGPMessage {
 			},
 		},
 	}
-	n := []NLRInfo{*NewNLRInfo(24, "13.2.3.1")}
+	n := []*IPAddrPrefix{NewIPAddrPrefix(24, "13.2.3.1")}
 	return NewBGPUpdateMessage(w, p, n)
 }
 

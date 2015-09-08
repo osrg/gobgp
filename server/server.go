@@ -956,7 +956,7 @@ func (server *BgpServer) handleModPathRequest(grpcReq *GrpcRequest) []*table.Pat
 	path = arg.Path
 
 	if len(path.Nlri) > 0 {
-		nlri = &bgp.NLRInfo{}
+		nlri = &bgp.IPAddrPrefix{}
 		err := nlri.DecodeFromBytes(path.Nlri)
 		if err != nil {
 			result.ResponseErr = err
@@ -1021,7 +1021,7 @@ func (server *BgpServer) handleModPathRequest(grpcReq *GrpcRequest) []*table.Pat
 
 		switch rf {
 		case bgp.RF_IPv4_UC:
-			n := nlri.(*bgp.NLRInfo)
+			n := nlri.(*bgp.IPAddrPrefix)
 			nlri = bgp.NewLabeledVPNIPAddrPrefix(n.Length, n.Prefix.String(), *bgp.NewMPLSLabelStack(), vrf.Rd)
 		case bgp.RF_IPv6_UC:
 			n := nlri.(*bgp.IPv6AddrPrefix)

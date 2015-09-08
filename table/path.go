@@ -207,21 +207,12 @@ func (path *Path) MarshalJSON() ([]byte, error) {
 
 // create new PathAttributes
 func (path *Path) Clone(isWithdraw bool) *Path {
-	nlri := path.nlri
-	if path.GetRouteFamily() == bgp.RF_IPv4_UC && isWithdraw {
-		if path.IsWithdraw {
-			nlri = path.nlri
-		} else {
-			nlri = &bgp.WithdrawnRoute{path.nlri.(*bgp.NLRInfo).IPAddrPrefix}
-		}
-	}
-
 	newPathAttrs := make([]bgp.PathAttributeInterface, len(path.pathAttrs))
 	for i, v := range path.pathAttrs {
 		newPathAttrs[i] = v
 	}
 
-	p := NewPath(path.source, nlri, isWithdraw, newPathAttrs, false, path.timestamp, path.NoImplicitWithdraw)
+	p := NewPath(path.source, path.nlri, isWithdraw, newPathAttrs, false, path.timestamp, path.NoImplicitWithdraw)
 	p.Validation = path.Validation
 	return p
 }

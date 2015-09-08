@@ -159,9 +159,10 @@ type Path struct {
 
 func ApiStruct2Path(p *api.Path) (*Path, error) {
 	var nlri bgp.AddrPrefixInterface
-	if len(p.Nlri) > 0 {
-		nlri = &bgp.NLRInfo{}
-		err := nlri.DecodeFromBytes(p.Nlri)
+	data := p.Nlri
+	if len(data) > 0 {
+		nlri = &bgp.IPAddrPrefix{}
+		err := nlri.DecodeFromBytes(data)
 		if err != nil {
 			return nil, err
 		}
