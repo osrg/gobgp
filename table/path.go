@@ -297,11 +297,15 @@ func (path *Path) getPathAttr(pattrType bgp.BGPAttrType) (int, bgp.PathAttribute
 
 // return Path's string representation
 func (path *Path) String() string {
-	str := fmt.Sprintf("Source: %v, ", path.GetSource())
-	str += fmt.Sprintf(" NLRI: %s, ", path.getPrefix())
-	str += fmt.Sprintf(" nexthop: %s, ", path.GetNexthop())
-	str += fmt.Sprintf(" withdraw: %s, ", path.IsWithdraw)
-	return str
+	s := bytes.NewBuffer(make([]byte, 0, 64))
+	s.WriteString(fmt.Sprintf("{ %s | ", path.getPrefix()))
+	s.WriteString(fmt.Sprintf("src: %s", path.GetSource()))
+	s.WriteString(fmt.Sprintf(", nh: %s", path.GetNexthop()))
+	if path.IsWithdraw {
+		s.WriteString(", withdraw")
+	}
+	s.WriteString(" }")
+	return s.String()
 }
 
 func (path *Path) getPrefix() string {

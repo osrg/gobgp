@@ -76,6 +76,21 @@ func (lhs *PeerInfo) Equal(rhs *PeerInfo) bool {
 	return false
 }
 
+func (i *PeerInfo) String() string {
+	if i.Address == nil {
+		return "local"
+	}
+	s := bytes.NewBuffer(make([]byte, 0, 64))
+	s.WriteString(fmt.Sprintf("{ %s | ", i.Address))
+	s.WriteString(fmt.Sprintf("as: %d", i.AS))
+	s.WriteString(fmt.Sprintf(", id: %s", i.ID))
+	if i.RouteReflectorClient {
+		s.WriteString(fmt.Sprintf(", cluster-id: %s", i.RouteReflectorClusterID))
+	}
+	s.WriteString(" }")
+	return s.String()
+}
+
 type Destination struct {
 	routeFamily    bgp.RouteFamily
 	nlri           bgp.AddrPrefixInterface
