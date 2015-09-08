@@ -51,14 +51,14 @@ func TestDestinationGetRouteFamily(t *testing.T) {
 }
 func TestDestinationSetNlri(t *testing.T) {
 	dd := &Destination{}
-	nlri := bgp.NewNLRInfo(24, "13.2.3.1")
+	nlri := bgp.NewIPAddrPrefix(24, "13.2.3.1")
 	dd.setNlri(nlri)
 	r_nlri := dd.GetNlri()
 	assert.Equal(t, r_nlri, nlri)
 }
 func TestDestinationGetNlri(t *testing.T) {
 	dd := &Destination{}
-	nlri := bgp.NewNLRInfo(24, "10.110.123.1")
+	nlri := bgp.NewIPAddrPrefix(24, "10.110.123.1")
 	dd.setNlri(nlri)
 	r_nlri := dd.GetNlri()
 	assert.Equal(t, r_nlri, nlri)
@@ -124,7 +124,7 @@ func DestCreatePath(peerD []*PeerInfo) []*Path {
 		nlriList := updateMsgD.NLRI
 		pathAttributes := updateMsgD.PathAttributes
 		nlri_info := nlriList[0]
-		pathD[i] = NewPath(peerD[i], &nlri_info, false, pathAttributes, false, time.Now(), false)
+		pathD[i] = NewPath(peerD[i], nlri_info, false, pathAttributes, false, time.Now(), false)
 	}
 	return pathD
 }
@@ -144,9 +144,8 @@ func updateMsgD1() *bgp.BGPMessage {
 		med,
 	}
 
-	nlri := []bgp.NLRInfo{*bgp.NewNLRInfo(24, "10.10.10.0")}
-	withdrawnRoutes := []bgp.WithdrawnRoute{}
-	updateMsg := bgp.NewBGPUpdateMessage(withdrawnRoutes, pathAttributes, nlri)
+	nlri := []*bgp.IPAddrPrefix{bgp.NewIPAddrPrefix(24, "10.10.10.0")}
+	updateMsg := bgp.NewBGPUpdateMessage(nil, pathAttributes, nlri)
 	UpdatePathAttrs4ByteAs(updateMsg.Body.(*bgp.BGPUpdate))
 	return updateMsg
 }
@@ -166,9 +165,8 @@ func updateMsgD2() *bgp.BGPMessage {
 		med,
 	}
 
-	nlri := []bgp.NLRInfo{*bgp.NewNLRInfo(24, "20.20.20.0")}
-	withdrawnRoutes := []bgp.WithdrawnRoute{}
-	updateMsg := bgp.NewBGPUpdateMessage(withdrawnRoutes, pathAttributes, nlri)
+	nlri := []*bgp.IPAddrPrefix{bgp.NewIPAddrPrefix(24, "20.20.20.0")}
+	updateMsg := bgp.NewBGPUpdateMessage(nil, pathAttributes, nlri)
 	UpdatePathAttrs4ByteAs(updateMsg.Body.(*bgp.BGPUpdate))
 	return updateMsg
 }
@@ -186,9 +184,9 @@ func updateMsgD3() *bgp.BGPMessage {
 		med,
 	}
 
-	nlri := []bgp.NLRInfo{*bgp.NewNLRInfo(24, "30.30.30.0")}
-	w1 := bgp.WithdrawnRoute{*bgp.NewIPAddrPrefix(23, "40.40.40.0")}
-	withdrawnRoutes := []bgp.WithdrawnRoute{w1}
+	nlri := []*bgp.IPAddrPrefix{bgp.NewIPAddrPrefix(24, "30.30.30.0")}
+	w1 := bgp.NewIPAddrPrefix(23, "40.40.40.0")
+	withdrawnRoutes := []*bgp.IPAddrPrefix{w1}
 	updateMsg := bgp.NewBGPUpdateMessage(withdrawnRoutes, pathAttributes, nlri)
 	UpdatePathAttrs4ByteAs(updateMsg.Body.(*bgp.BGPUpdate))
 	return updateMsg

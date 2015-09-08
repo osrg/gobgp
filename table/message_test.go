@@ -36,8 +36,8 @@ func updateMsg1(as []uint16) *bgp.BGPMessage {
 		med,
 	}
 
-	nlri := []bgp.NLRInfo{*bgp.NewNLRInfo(24, "10.10.10.0")}
-	return bgp.NewBGPUpdateMessage([]bgp.WithdrawnRoute{}, pathAttributes, nlri)
+	nlri := []*bgp.IPAddrPrefix{bgp.NewIPAddrPrefix(24, "10.10.10.0")}
+	return bgp.NewBGPUpdateMessage(nil, pathAttributes, nlri)
 }
 
 func TestAsPathAsTrans(t *testing.T) {

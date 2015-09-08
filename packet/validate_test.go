@@ -18,7 +18,7 @@ func bgpupdate() *BGPMessage {
 		NewPathAttributeNextHop("192.168.1.1"),
 	}
 
-	n := []NLRInfo{*NewNLRInfo(24, "10.10.10.0")}
+	n := []*IPAddrPrefix{NewIPAddrPrefix(24, "10.10.10.0")}
 	return NewBGPUpdateMessage(nil, p, n)
 }
 
@@ -35,7 +35,7 @@ func bgpupdateV6() *BGPMessage {
 		NewPathAttributeAsPath(aspath),
 		NewPathAttributeMpReachNLRI("1023::", mp_nlri),
 	}
-	return NewBGPUpdateMessage(nil, p, []NLRInfo{})
+	return NewBGPUpdateMessage(nil, p, nil)
 }
 
 func Test_Validate_CapV4(t *testing.T) {

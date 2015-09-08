@@ -115,7 +115,7 @@ func createPathFromIPRouteMessage(m *zebra.Message, peerInfo *table.PeerInfo) *t
 	}).Debugf("create path from ip route message.")
 
 	if isV4 {
-		nlri = bgp.NewNLRInfo(body.PrefixLength, body.Prefix.String())
+		nlri = bgp.NewIPAddrPrefix(body.PrefixLength, body.Prefix.String())
 		nexthop := bgp.NewPathAttributeNextHop(body.Nexthops[0].String())
 		pattr = append(pattr, nexthop)
 	} else {
