@@ -69,6 +69,20 @@ func (m *broadcastGrpcMsg) send() {
 	}
 }
 
+type broadcastBGPMsg struct {
+	message      *bgp.BGPMessage
+	peerAS       uint32
+	localAS      uint32
+	peerAddress  net.IP
+	localAddress net.IP
+	fourBytesAs  bool
+	ch           chan *broadcastBGPMsg
+}
+
+func (m *broadcastBGPMsg) send() {
+	m.ch <- m
+}
+
 type BgpServer struct {
 	bgpConfig     config.Bgp
 	globalTypeCh  chan config.Global
@@ -76,6 +90,7 @@ type BgpServer struct {
 	deletedPeerCh chan config.Neighbor
 	updatedPeerCh chan config.Neighbor
 	rpkiConfigCh  chan config.RpkiServers
+	dumper        *dumper
 
 	GrpcReqCh      chan *GrpcRequest
 	listenPort     int
@@ -137,6 +152,15 @@ func (server *BgpServer) addLocalRib(rib *LocalRib) {
 func (server *BgpServer) Serve() {
 	g := <-server.globalTypeCh
 	server.bgpConfig.Global = g
+
+	if g.Mrt.FileName != "" {
+		d, err := newDumper(g.Mrt.FileName)
+		if err != nil {
+			log.Warn(err)
+		} else {
+			server.dumper = d
+		}
+	}
 
 	senderCh := make(chan *SenderMsg, 1<<16)
 	go func(ch chan *SenderMsg) {
@@ -771,6 +795,19 @@ func (server *BgpServer) handleFSMMessage(peer *Peer, e *fsmMsg, incoming chan *
 				if len(pathList) > 0 {
 					server.roaClient.validate(pathList)
 				}
+			}
+			if m.Header.Type == bgp.BGP_MSG_UPDATE && server.dumper != nil {
+				_, y := peer.capMap[bgp.BGP_CAP_FOUR_OCTET_AS_NUMBER]
+				bm := &broadcastBGPMsg{
+					message:      m,
+					peerAS:       peer.peerInfo.AS,
+					localAS:      peer.peerInfo.LocalAS,
+					peerAddress:  peer.peerInfo.Address,
+					localAddress: peer.fsm.LocalAddr(),
+					fourBytesAs:  y,
+					ch:           server.dumper.sendCh(),
+				}
+				server.broadcastMsgs = append(server.broadcastMsgs, bm)
 			}
 			msgs = append(msgs, server.propagateUpdate(peer, pathList)...)
 		default:

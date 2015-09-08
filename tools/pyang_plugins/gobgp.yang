@@ -554,7 +554,18 @@ module bgp-gobgp {
   augment "/bgp:bgp" {
     description "additional rpki configuration and state";
     uses gobgp-rpki-servers;
-
   }
 
+  augment "/bgp:bgp/bgp:global" {
+    description "additional mrt configuration";
+    container mrt {
+       description
+         "Configure dump bgp messages in the mrt format";
+      leaf file-name {
+        type string;
+        description
+          "Configures a file name to be written.";
+      }
+    }
+  }
 }
