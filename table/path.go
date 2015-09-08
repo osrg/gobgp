@@ -140,8 +140,11 @@ func (path *Path) UpdatePathAttrs(global *config.Global, peer *config.Neighbor) 
 				path.pathAttrs = append(path.pathAttrs, p)
 			} else {
 				p := path.pathAttrs[idx].(*bgp.PathAttributeClusterList)
-				p.Value = append([]net.IP{net.ParseIP(id).To4()}, p.Value...)
-				path.pathAttrs[idx] = p
+				newClusterList := make([]string, 0, len(p.Value))
+				for _, ip := range p.Value {
+					newClusterList = append(newClusterList, ip.String())
+				}
+				path.pathAttrs[idx] = bgp.NewPathAttributeClusterList(append([]string{id}, newClusterList...))
 			}
 		}
 
