@@ -764,6 +764,12 @@ type Neighbors struct {
 	NeighborList []Neighbor
 }
 
+//struct for container gobgp:mrt
+type Mrt struct {
+	// original -> gobgp:file-name
+	FileName string
+}
+
 //struct for container bgp-mp:l2vpn-evpn
 type L2vpnEvpn struct {
 	// original -> bgp-mp:prefix-limit
@@ -1300,6 +1306,8 @@ type Global struct {
 	AfiSafis AfiSafis
 	// original -> rpol:apply-policy
 	ApplyPolicy ApplyPolicy
+	// original -> gobgp:mrt
+	Mrt Mrt
 }
 
 //struct for container bgp:bgp
