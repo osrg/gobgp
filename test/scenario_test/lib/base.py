@@ -179,7 +179,7 @@ class Container(object):
         return 0
 
     def stop(self):
-        ret = local("docker rm -f " + self.docker_name(), capture=True)
+        ret = try_several_times(lambda : local("docker rm -f " + self.docker_name(), capture=True))
         self.is_running = False
         return ret
 
