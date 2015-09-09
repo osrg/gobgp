@@ -547,7 +547,7 @@ func modPath(resource api.Resource, name, modtype string, args []string) error {
 	arg := &api.ModPathArguments{
 		Resource: resource,
 		Name:     name,
-		Path:     path,
+		Paths:    []*api.Path{path},
 	}
 
 	stream, err := client.ModPath(context.Background())

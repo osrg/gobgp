@@ -170,18 +170,16 @@ func (*Arguments) ProtoMessage()    {}
 type ModPathArguments struct {
 	Resource Resource `protobuf:"varint,1,opt,name=resource,enum=api.Resource" json:"resource,omitempty"`
 	Name     string   `protobuf:"bytes,2,opt,name=name" json:"name,omitempty"`
-	Path     *Path    `protobuf:"bytes,3,opt,name=path" json:"path,omitempty"`
-	Asn      uint32   `protobuf:"varint,4,opt,name=asn" json:"asn,omitempty"`
-	Id       string   `protobuf:"bytes,5,opt,name=id" json:"id,omitempty"`
+	Paths    []*Path  `protobuf:"bytes,3,rep,name=paths" json:"paths,omitempty"`
 }
 
 func (m *ModPathArguments) Reset()         { *m = ModPathArguments{} }
 func (m *ModPathArguments) String() string { return proto.CompactTextString(m) }
 func (*ModPathArguments) ProtoMessage()    {}
 
-func (m *ModPathArguments) GetPath() *Path {
+func (m *ModPathArguments) GetPaths() []*Path {
 	if m != nil {
-		return m.Path
+		return m.Paths
 	}
 	return nil
 }
@@ -249,6 +247,8 @@ type Path struct {
 	Validation         int32    `protobuf:"varint,6,opt,name=validation" json:"validation,omitempty"`
 	NoImplicitWithdraw bool     `protobuf:"varint,7,opt,name=no_implicit_withdraw" json:"no_implicit_withdraw,omitempty"`
 	Rf                 uint32   `protobuf:"varint,8,opt,name=rf" json:"rf,omitempty"`
+	SourceAsn          uint32   `protobuf:"varint,9,opt,name=source_asn" json:"source_asn,omitempty"`
+	SourceId           string   `protobuf:"bytes,10,opt,name=source_id" json:"source_id,omitempty"`
 }
 
 func (m *Path) Reset()         { *m = Path{} }
