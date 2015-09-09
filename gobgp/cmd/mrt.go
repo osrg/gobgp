@@ -270,15 +270,19 @@ func injectMrt(r string, filename string, count int) error {
 				rib := msg.Body.(*bgp.Rib)
 				nlri := rib.Prefix
 
-				for _, e := range rib.Entries {
-					path := &api.Path{
-						Pattrs:             make([][]byte, 0),
-						NoImplicitWithdraw: true,
-					}
+				paths := make([]*api.Path, 0, len(rib.Entries))
 
+				for _, e := range rib.Entries {
 					if len(peers) < int(e.PeerIndex) {
 						fmt.Printf("invalid peer index: %d (PEER_INDEX_TABLE has only %d peers)\n", e.PeerIndex, len(peers))
 						os.Exit(1)
+					}
+
+					path := &api.Path{
+						Pattrs:             make([][]byte, 0),
+						NoImplicitWithdraw: true,
+						SourceAsn:          peers[e.PeerIndex].AS,
+						SourceId:           peers[e.PeerIndex].BgpId.String(),
 					}
 
 					if rf == bgp.RF_IPv4_UC {
@@ -293,12 +297,12 @@ func injectMrt(r string, filename string, count int) error {
 						path.Pattrs = append(path.Pattrs, b)
 					}
 
-					ch <- &api.ModPathArguments{
-						Resource: resource,
-						Path:     path,
-						Asn:      peers[e.PeerIndex].AS,
-						Id:       peers[e.PeerIndex].BgpId.String(),
-					}
+					paths = append(paths, path)
+				}
+
+				ch <- &api.ModPathArguments{
+					Resource: resource,
+					Paths:    paths,
 				}
 
 				idx += 1

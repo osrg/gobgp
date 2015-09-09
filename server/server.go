@@ -966,142 +966,153 @@ func (server *BgpServer) handleModPathRequest(grpcReq *GrpcRequest) []*table.Pat
 	var nlri bgp.AddrPrefixInterface
 	result := &GrpcResponse{}
 
-	pattr := make([]bgp.PathAttributeInterface, 0)
-	extcomms := make([]bgp.ExtendedCommunityInterface, 0)
+	var pattr []bgp.PathAttributeInterface
+	var extcomms []bgp.ExtendedCommunityInterface
 	var nexthop string
 	var rf bgp.RouteFamily
+	var paths []*table.Path
 	var path *api.Path
-	seen := make(map[bgp.BGPAttrType]bool)
 	var pi *table.PeerInfo
-
 	arg, ok := grpcReq.Data.(*api.ModPathArguments)
 	if !ok {
 		result.ResponseErr = fmt.Errorf("type assertion failed")
 		goto ERR
 	}
-	if arg.Asn != 0 {
-		pi = &table.PeerInfo{
-			AS:      arg.Asn,
-			LocalID: net.ParseIP(arg.Id),
-		}
-	} else {
-		pi = &table.PeerInfo{
-			AS:      server.bgpConfig.Global.GlobalConfig.As,
-			LocalID: server.bgpConfig.Global.GlobalConfig.RouterId,
-		}
-	}
-	path = arg.Path
 
-	if len(path.Nlri) > 0 {
-		nlri = &bgp.IPAddrPrefix{}
-		err := nlri.DecodeFromBytes(path.Nlri)
-		if err != nil {
-			result.ResponseErr = err
-			goto ERR
-		}
-	}
+	paths = make([]*table.Path, 0, len(arg.Paths))
 
-	for _, attr := range path.Pattrs {
-		p, err := bgp.GetPathAttribute(attr)
-		if err != nil {
-			result.ResponseErr = err
-			goto ERR
-		}
+	for _, path = range arg.Paths {
+		seen := make(map[bgp.BGPAttrType]bool)
 
-		err = p.DecodeFromBytes(attr)
-		if err != nil {
-			result.ResponseErr = err
-			goto ERR
-		}
+		pattr = make([]bgp.PathAttributeInterface, 0)
+		extcomms = make([]bgp.ExtendedCommunityInterface, 0)
 
-		if _, ok := seen[p.GetType()]; !ok {
-			seen[p.GetType()] = true
-		} else {
-			result.ResponseErr = fmt.Errorf("the path attribute apears twice. Type : " + strconv.Itoa(int(p.GetType())))
-			goto ERR
-		}
-		switch p.GetType() {
-		case bgp.BGP_ATTR_TYPE_NEXT_HOP:
-			nexthop = p.(*bgp.PathAttributeNextHop).Value.String()
-		case bgp.BGP_ATTR_TYPE_EXTENDED_COMMUNITIES:
-			value := p.(*bgp.PathAttributeExtendedCommunities).Value
-			if len(value) > 0 {
-				extcomms = append(extcomms, value...)
+		if path.SourceAsn != 0 {
+			pi = &table.PeerInfo{
+				AS:      path.SourceAsn,
+				LocalID: net.ParseIP(path.SourceId),
 			}
-		case bgp.BGP_ATTR_TYPE_MP_REACH_NLRI:
-			mpreach := p.(*bgp.PathAttributeMpReachNLRI)
-			if len(mpreach.Value) != 1 {
-				result.ResponseErr = fmt.Errorf("include only one route in mp_reach_nlri")
+		} else {
+			pi = &table.PeerInfo{
+				AS:      server.bgpConfig.Global.GlobalConfig.As,
+				LocalID: server.bgpConfig.Global.GlobalConfig.RouterId,
+			}
+		}
+
+		if len(path.Nlri) > 0 {
+			nlri = &bgp.IPAddrPrefix{}
+			err := nlri.DecodeFromBytes(path.Nlri)
+			if err != nil {
+				result.ResponseErr = err
 				goto ERR
 			}
-			nlri = mpreach.Value[0]
-			nexthop = mpreach.Nexthop.String()
-		default:
-			pattr = append(pattr, p)
 		}
-	}
 
-	if nlri == nil || nexthop == "" {
-		result.ResponseErr = fmt.Errorf("not found nlri or nexthop")
-		goto ERR
-	}
-
-	rf = bgp.AfiSafiToRouteFamily(nlri.AFI(), nlri.SAFI())
-
-	if arg.Resource == api.Resource_VRF {
-		vrfs := server.localRibMap[GLOBAL_RIB_NAME].rib.Vrfs
-		if _, ok := vrfs[arg.Name]; !ok {
-			result.ResponseErr = fmt.Errorf("vrf %s not found", arg.Name)
-			goto ERR
-		}
-		vrf := vrfs[arg.Name]
-
-		switch rf {
-		case bgp.RF_IPv4_UC:
-			n := nlri.(*bgp.IPAddrPrefix)
-			nlri = bgp.NewLabeledVPNIPAddrPrefix(n.Length, n.Prefix.String(), *bgp.NewMPLSLabelStack(), vrf.Rd)
-		case bgp.RF_IPv6_UC:
-			n := nlri.(*bgp.IPv6AddrPrefix)
-			nlri = bgp.NewLabeledVPNIPv6AddrPrefix(n.Length, n.Prefix.String(), *bgp.NewMPLSLabelStack(), vrf.Rd)
-		case bgp.RF_EVPN:
-			n := nlri.(*bgp.EVPNNLRI)
-			switch n.RouteType {
-			case bgp.EVPN_ROUTE_TYPE_MAC_IP_ADVERTISEMENT:
-				n.RouteTypeData.(*bgp.EVPNMacIPAdvertisementRoute).RD = vrf.Rd
-			case bgp.EVPN_INCLUSIVE_MULTICAST_ETHERNET_TAG:
-				n.RouteTypeData.(*bgp.EVPNMulticastEthernetTagRoute).RD = vrf.Rd
+		for _, attr := range path.Pattrs {
+			p, err := bgp.GetPathAttribute(attr)
+			if err != nil {
+				result.ResponseErr = err
+				goto ERR
 			}
-		default:
-			result.ResponseErr = fmt.Errorf("unsupported route family for vrf: %s", rf)
-			goto ERR
-		}
-		extcomms = append(extcomms, vrf.ExportRt...)
-	}
 
-	if arg.Resource != api.Resource_VRF && rf == bgp.RF_IPv4_UC {
-		pattr = append(pattr, bgp.NewPathAttributeNextHop(nexthop))
-	} else {
-		pattr = append(pattr, bgp.NewPathAttributeMpReachNLRI(nexthop, []bgp.AddrPrefixInterface{nlri}))
-	}
+			err = p.DecodeFromBytes(attr)
+			if err != nil {
+				result.ResponseErr = err
+				goto ERR
+			}
 
-	if rf == bgp.RF_EVPN {
-		evpnNlri := nlri.(*bgp.EVPNNLRI)
-		if evpnNlri.RouteType == bgp.EVPN_ROUTE_TYPE_MAC_IP_ADVERTISEMENT {
-			macIpAdv := evpnNlri.RouteTypeData.(*bgp.EVPNMacIPAdvertisementRoute)
-			etag := macIpAdv.ETag
-			mac := macIpAdv.MacAddress
-			paths := server.localRibMap[GLOBAL_RIB_NAME].rib.GetBestPathList(bgp.RF_EVPN)
-			if m := getMacMobilityExtendedCommunity(etag, mac, paths); m != nil {
-				extcomms = append(extcomms, m)
+			if _, ok := seen[p.GetType()]; !ok {
+				seen[p.GetType()] = true
+			} else {
+				result.ResponseErr = fmt.Errorf("the path attribute apears twice. Type : " + strconv.Itoa(int(p.GetType())))
+				goto ERR
+			}
+			switch p.GetType() {
+			case bgp.BGP_ATTR_TYPE_NEXT_HOP:
+				nexthop = p.(*bgp.PathAttributeNextHop).Value.String()
+			case bgp.BGP_ATTR_TYPE_EXTENDED_COMMUNITIES:
+				value := p.(*bgp.PathAttributeExtendedCommunities).Value
+				if len(value) > 0 {
+					extcomms = append(extcomms, value...)
+				}
+			case bgp.BGP_ATTR_TYPE_MP_REACH_NLRI:
+				mpreach := p.(*bgp.PathAttributeMpReachNLRI)
+				if len(mpreach.Value) != 1 {
+					result.ResponseErr = fmt.Errorf("include only one route in mp_reach_nlri")
+					goto ERR
+				}
+				nlri = mpreach.Value[0]
+				nexthop = mpreach.Nexthop.String()
+			default:
+				pattr = append(pattr, p)
 			}
 		}
+
+		if nlri == nil || nexthop == "" {
+			result.ResponseErr = fmt.Errorf("not found nlri or nexthop")
+			goto ERR
+		}
+
+		rf = bgp.AfiSafiToRouteFamily(nlri.AFI(), nlri.SAFI())
+
+		if arg.Resource == api.Resource_VRF {
+			vrfs := server.localRibMap[GLOBAL_RIB_NAME].rib.Vrfs
+			if _, ok := vrfs[arg.Name]; !ok {
+				result.ResponseErr = fmt.Errorf("vrf %s not found", arg.Name)
+				goto ERR
+			}
+			vrf := vrfs[arg.Name]
+
+			switch rf {
+			case bgp.RF_IPv4_UC:
+				n := nlri.(*bgp.IPAddrPrefix)
+				nlri = bgp.NewLabeledVPNIPAddrPrefix(n.Length, n.Prefix.String(), *bgp.NewMPLSLabelStack(), vrf.Rd)
+			case bgp.RF_IPv6_UC:
+				n := nlri.(*bgp.IPv6AddrPrefix)
+				nlri = bgp.NewLabeledVPNIPv6AddrPrefix(n.Length, n.Prefix.String(), *bgp.NewMPLSLabelStack(), vrf.Rd)
+			case bgp.RF_EVPN:
+				n := nlri.(*bgp.EVPNNLRI)
+				switch n.RouteType {
+				case bgp.EVPN_ROUTE_TYPE_MAC_IP_ADVERTISEMENT:
+					n.RouteTypeData.(*bgp.EVPNMacIPAdvertisementRoute).RD = vrf.Rd
+				case bgp.EVPN_INCLUSIVE_MULTICAST_ETHERNET_TAG:
+					n.RouteTypeData.(*bgp.EVPNMulticastEthernetTagRoute).RD = vrf.Rd
+				}
+			default:
+				result.ResponseErr = fmt.Errorf("unsupported route family for vrf: %s", rf)
+				goto ERR
+			}
+			extcomms = append(extcomms, vrf.ExportRt...)
+		}
+
+		if arg.Resource != api.Resource_VRF && rf == bgp.RF_IPv4_UC {
+			pattr = append(pattr, bgp.NewPathAttributeNextHop(nexthop))
+		} else {
+			pattr = append(pattr, bgp.NewPathAttributeMpReachNLRI(nexthop, []bgp.AddrPrefixInterface{nlri}))
+		}
+
+		if rf == bgp.RF_EVPN {
+			evpnNlri := nlri.(*bgp.EVPNNLRI)
+			if evpnNlri.RouteType == bgp.EVPN_ROUTE_TYPE_MAC_IP_ADVERTISEMENT {
+				macIpAdv := evpnNlri.RouteTypeData.(*bgp.EVPNMacIPAdvertisementRoute)
+				etag := macIpAdv.ETag
+				mac := macIpAdv.MacAddress
+				paths := server.localRibMap[GLOBAL_RIB_NAME].rib.GetBestPathList(bgp.RF_EVPN)
+				if m := getMacMobilityExtendedCommunity(etag, mac, paths); m != nil {
+					extcomms = append(extcomms, m)
+				}
+			}
+		}
+
+		if len(extcomms) > 0 {
+			pattr = append(pattr, bgp.NewPathAttributeExtendedCommunities(extcomms))
+		}
+
+		paths = append(paths, table.NewPath(pi, nlri, path.IsWithdraw, pattr, false, time.Now(), path.NoImplicitWithdraw))
+
 	}
 
-	if len(extcomms) > 0 {
-		pattr = append(pattr, bgp.NewPathAttributeExtendedCommunities(extcomms))
-	}
-
-	return []*table.Path{table.NewPath(pi, nlri, path.IsWithdraw, pattr, false, time.Now(), path.NoImplicitWithdraw)}
+	return paths
 ERR:
 	grpcReq.ResponseCh <- result
 	close(grpcReq.ResponseCh)

@@ -63,9 +63,7 @@ message Arguments {
 message ModPathArguments {
     Resource resource = 1;
     string name = 2;
-    Path path = 3;
-    uint32 asn = 4;
-    string id = 5;
+    repeated Path paths = 3;
 }
 
 message PolicyArguments {
@@ -118,6 +116,8 @@ message Path {
     int32 validation = 6;
     bool no_implicit_withdraw = 7;
     uint32 rf = 8;
+    uint32 source_asn = 9;
+    string source_id = 10;
 }
 
 message Destination {
