@@ -36,3 +36,4 @@ sudo rm /var/log/upstart/docker.log
 sudo touch /var/log/upstart/docker.log
 ./run_all_tests.sh
 sudo cp /var/log/upstart/docker.log ${WS}/
+chown jenkins:jenkins ${WS}/docker.log
