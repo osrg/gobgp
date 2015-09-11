@@ -9,6 +9,7 @@ export GOROOT=/usr/local/go
 export GOBGP=/usr/local/jenkins/src/github.com/osrg/gobgp
 export WS=`pwd`
 
+rm -r ${WS}/nosetest*.xml
 cp -r ../workspace $GOBGP
 pwd
 cd $GOBGP
