@@ -1959,13 +1959,16 @@ func flowSpecTcpFlagParser(args []string) (FlowSpecComponentInterface, error) {
 }
 
 func flowSpecNumericParser(args []string) (FlowSpecComponentInterface, error) {
-	exp := regexp.MustCompile("^((<=|>=|[<>=])(\\d+)&)?(<=|>=|[<>=])(\\d+)$")
+	exp := regexp.MustCompile("^((<=|>=|[<>=])(\\d+)&)?(<=|>=|[<>=])?(\\d+)$")
 	items := make([]*FlowSpecComponentItem, 0)
 
 	f := func(and bool, o, v string) *FlowSpecComponentItem {
 		op := 0
 		if and {
 			op |= 0x40
+		}
+		if len(o) == 0 {
+			op |= 0x1
 		}
 		for _, oo := range o {
 			switch oo {
@@ -1987,6 +1990,9 @@ func flowSpecNumericParser(args []string) (FlowSpecComponentInterface, error) {
 	for _, arg := range args[1:] {
 		var and bool
 		elems := exp.FindStringSubmatch(arg)
+		if len(elems) == 0 {
+			return nil, fmt.Errorf("invalid flowspec numeric item")
+		}
 		if elems[1] != "" {
 			and = true
 			items = append(items, f(false, elems[2], elems[3]))
