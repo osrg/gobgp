@@ -518,8 +518,8 @@ func modPath(resource api.Resource, name, modtype string, args []string) error {
 		}
 		flags := strings.Join(ss, ", ")
 		helpErrMap := map[bgp.RouteFamily]error{}
-		helpErrMap[bgp.RF_IPv4_UC] = fmt.Errorf("usage: %s rib %s <PREFIX> [nexthop <ADDRESS>] -a ipv4")
-		helpErrMap[bgp.RF_IPv6_UC] = fmt.Errorf("usage: %s rib %s <PREFIX> [nexthop <ADDRESS>] -a ipv6")
+		helpErrMap[bgp.RF_IPv4_UC] = fmt.Errorf("usage: %s rib %s <PREFIX> [nexthop <ADDRESS>] -a ipv4", cmdstr, modtype)
+		helpErrMap[bgp.RF_IPv6_UC] = fmt.Errorf("usage: %s rib %s <PREFIX> [nexthop <ADDRESS>] -a ipv6", cmdstr, modtype)
 		helpErrMap[bgp.RF_FS_IPv4_UC] = fmt.Errorf(`usage: %s rib %s match <MATCH_EXPR> then <THEN_EXPR> [nexthop <ADDRESS>] -a ipv4-flowspec
     <MATCH_EXPR> : { %s <PREFIX> | %s <PREFIX> |
 		     %s <PROTO>... | %s <FRAGMENT_TYPE> | %s <TCPFLAG>... |
