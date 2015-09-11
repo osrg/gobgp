@@ -33,3 +33,4 @@ $GOROOT/bin/go get -v
 cd $GOBGP/test/scenario_test
 
 ./run_all_tests.sh
+sudo cp /var/log/upstart/docker.log ${WS}/
