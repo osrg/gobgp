@@ -29,21 +29,27 @@ type BMPHeader struct {
 }
 
 const (
-	BMP_HEADER_SIZE = 6
+	BMP_VERSION          = 3
+	BMP_HEADER_SIZE      = 6
+	BMP_PEER_HEADER_SIZE = 42
 )
 
-func (msg *BMPHeader) DecodeFromBytes(data []byte) error {
-	msg.Version = data[0]
+func (h *BMPHeader) DecodeFromBytes(data []byte) error {
+	h.Version = data[0]
 	if data[0] != 3 {
 		return fmt.Errorf("error version")
 	}
-	msg.Length = binary.BigEndian.Uint32(data[1:5])
-	msg.Type = data[5]
+	h.Length = binary.BigEndian.Uint32(data[1:5])
+	h.Type = data[5]
 	return nil
 }
 
-func (msg *BMPHeader) Len() int {
-	return int(msg.Length)
+func (h *BMPHeader) Serialize() ([]byte, error) {
+	buf := make([]byte, BMP_HEADER_SIZE)
+	buf[0] = h.Version
+	binary.BigEndian.PutUint32(buf[1:], h.Length)
+	buf[5] = h.Type
+	return buf, nil
 }
 
 type BMPPeerHeader struct {
@@ -57,35 +63,84 @@ type BMPPeerHeader struct {
 	flags             uint8
 }
 
-func (msg *BMPPeerHeader) DecodeFromBytes(data []byte) error {
-	data = data[6:]
+func NewBMPPeerHeader(t uint8, policy bool, dist uint64, address string, as uint32, id string, stamp float64) *BMPPeerHeader {
+	h := &BMPPeerHeader{
+		PeerType:          t,
+		IsPostPolicy:      policy,
+		PeerDistinguisher: dist,
+		PeerAS:            as,
+		PeerBGPID:         net.ParseIP(id).To4(),
+		Timestamp:         stamp,
+	}
+	if policy == true {
+		h.flags |= (1 << 6)
+	}
+	if net.ParseIP(address).To4() != nil {
+		h.PeerAddress = net.ParseIP(address).To4()
+	} else {
+		h.PeerAddress = net.ParseIP(address).To16()
+		h.flags |= (1 << 7)
+	}
+	return h
+}
 
-	msg.PeerType = data[0]
-	flags := data[1]
-	msg.flags = flags
-	if flags&1<<6 == 1 {
-		msg.IsPostPolicy = true
+func (h *BMPPeerHeader) DecodeFromBytes(data []byte) error {
+	h.PeerType = data[0]
+	h.flags = data[1]
+	if h.flags&(1<<6) != 0 {
+		h.IsPostPolicy = true
 	} else {
-		msg.IsPostPolicy = false
+		h.IsPostPolicy = false
 	}
-	msg.PeerDistinguisher = binary.BigEndian.Uint64(data[2:10])
-	if flags&1<<7 == 1 {
-		msg.PeerAddress = data[10:26]
+	h.PeerDistinguisher = binary.BigEndian.Uint64(data[2:10])
+	if h.flags&(1<<7) != 0 {
+		h.PeerAddress = net.IP(data[10:26]).To16()
 	} else {
-		msg.PeerAddress = data[10:14]
+		h.PeerAddress = net.IP(data[10:14]).To4()
 	}
-	msg.PeerAS = binary.BigEndian.Uint32(data[26:30])
-	msg.PeerBGPID = data[30:34]
+	h.PeerAS = binary.BigEndian.Uint32(data[26:30])
+	h.PeerBGPID = data[30:34]
 
 	timestamp1 := binary.BigEndian.Uint32(data[34:38])
 	timestamp2 := binary.BigEndian.Uint32(data[38:42])
-	msg.Timestamp = float64(timestamp1) + float64(timestamp2)*math.Pow(10, -6)
-
+	h.Timestamp = float64(timestamp1) + float64(timestamp2)*math.Pow10(-6)
 	return nil
+}
+
+func (h *BMPPeerHeader) Serialize() ([]byte, error) {
+	buf := make([]byte, BMP_PEER_HEADER_SIZE)
+	buf[0] = h.PeerType
+	buf[1] = h.flags
+	binary.BigEndian.PutUint64(buf[2:10], h.PeerDistinguisher)
+	if h.flags&(1<<7) != 0 {
+		copy(buf[10:26], h.PeerAddress)
+	} else {
+		copy(buf[10:14], h.PeerAddress.To4())
+	}
+	binary.BigEndian.PutUint32(buf[26:30], h.PeerAS)
+	copy(buf[30:34], h.PeerBGPID)
+	t1, t2 := math.Modf(h.Timestamp)
+	t2 = math.Ceil(t2 * math.Pow10(6))
+	binary.BigEndian.PutUint32(buf[34:38], uint32(t1))
+	binary.BigEndian.PutUint32(buf[38:42], uint32(t2))
+	return buf, nil
 }
 
 type BMPRouteMonitoring struct {
 	BGPUpdate *BGPMessage
+}
+
+func NewBMPRouteMonitoring(p BMPPeerHeader, update *BGPMessage) *BMPMessage {
+	return &BMPMessage{
+		Header: BMPHeader{
+			Version: BMP_VERSION,
+			Type:    BMP_MSG_ROUTE_MONITORING,
+		},
+		PeerHeader: p,
+		Body: &BMPRouteMonitoring{
+			BGPUpdate: update,
+		},
+	}
 }
 
 func (body *BMPRouteMonitoring) ParseBody(msg *BMPMessage, data []byte) error {
@@ -95,6 +150,10 @@ func (body *BMPRouteMonitoring) ParseBody(msg *BMPMessage, data []byte) error {
 	}
 	body.BGPUpdate = update
 	return nil
+}
+
+func (body *BMPRouteMonitoring) Serialize() ([]byte, error) {
+	return body.BGPUpdate.Serialize()
 }
 
 const (
@@ -116,6 +175,7 @@ type BMPStatsTLV struct {
 }
 
 type BMPStatisticsReport struct {
+	Count uint32
 	Stats []BMPStatsTLV
 }
 
@@ -133,6 +193,26 @@ type BMPPeerDownNotification struct {
 	Data            []byte
 }
 
+func NewBMPPeerDownNotification(p BMPPeerHeader, reason uint8, notification *BGPMessage, data []byte) *BMPMessage {
+	b := &BMPPeerDownNotification{
+		Reason: reason,
+	}
+	switch reason {
+	case BMP_PEER_DOWN_REASON_LOCAL_BGP_NOTIFICATION, BMP_PEER_DOWN_REASON_REMOTE_BGP_NOTIFICATION:
+		b.BGPNotification = notification
+	default:
+		b.Data = data
+	}
+	return &BMPMessage{
+		Header: BMPHeader{
+			Version: BMP_VERSION,
+			Type:    BMP_MSG_PEER_DOWN_NOTIFICATION,
+		},
+		PeerHeader: p,
+		Body:       b,
+	}
+}
+
 func (body *BMPPeerDownNotification) ParseBody(msg *BMPMessage, data []byte) error {
 	body.Reason = data[0]
 	data = data[1:]
@@ -148,6 +228,25 @@ func (body *BMPPeerDownNotification) ParseBody(msg *BMPMessage, data []byte) err
 	return nil
 }
 
+func (body *BMPPeerDownNotification) Serialize() ([]byte, error) {
+	buf := make([]byte, 1)
+	buf[0] = body.Reason
+	switch body.Reason {
+	case BMP_PEER_DOWN_REASON_LOCAL_BGP_NOTIFICATION, BMP_PEER_DOWN_REASON_REMOTE_BGP_NOTIFICATION:
+		if body.BGPNotification != nil {
+			b, err := body.BGPNotification.Serialize()
+			if err != nil {
+				return nil, err
+			} else {
+				buf = append(buf, b...)
+			}
+		}
+	default:
+		buf = append(buf, body.Data...)
+	}
+	return buf, nil
+}
+
 type BMPPeerUpNotification struct {
 	LocalAddress    net.IP
 	LocalPort       uint16
@@ -156,11 +255,34 @@ type BMPPeerUpNotification struct {
 	ReceivedOpenMsg *BGPMessage
 }
 
-func (body *BMPPeerUpNotification) ParseBody(msg *BMPMessage, data []byte) error {
-	if msg.PeerHeader.flags&1<<7 == 1 {
-		body.LocalAddress = data[:16]
+func NewBMPPeerUpNotification(p BMPPeerHeader, lAddr string, lPort, rPort uint16, sent, recv *BGPMessage) *BMPMessage {
+	b := &BMPPeerUpNotification{
+		LocalPort:       lPort,
+		RemotePort:      rPort,
+		SentOpenMsg:     sent,
+		ReceivedOpenMsg: recv,
+	}
+	addr := net.ParseIP(lAddr)
+	if addr.To4() != nil {
+		b.LocalAddress = addr.To4()
 	} else {
-		body.LocalAddress = data[:4]
+		b.LocalAddress = addr.To16()
+	}
+	return &BMPMessage{
+		Header: BMPHeader{
+			Version: BMP_VERSION,
+			Type:    BMP_MSG_PEER_UP_NOTIFICATION,
+		},
+		PeerHeader: p,
+		Body:       b,
+	}
+}
+
+func (body *BMPPeerUpNotification) ParseBody(msg *BMPMessage, data []byte) error {
+	if msg.PeerHeader.flags&(1<<7) != 0 {
+		body.LocalAddress = net.IP(data[:16]).To16()
+	} else {
+		body.LocalAddress = net.IP(data[:4]).To4()
 	}
 
 	body.LocalPort = binary.BigEndian.Uint16(data[16:18])
@@ -180,23 +302,59 @@ func (body *BMPPeerUpNotification) ParseBody(msg *BMPMessage, data []byte) error
 	return nil
 }
 
+func (body *BMPPeerUpNotification) Serialize() ([]byte, error) {
+	buf := make([]byte, 20)
+	if body.LocalAddress.To4() != nil {
+		copy(buf[:4], body.LocalAddress.To4())
+	} else {
+		copy(buf[:16], body.LocalAddress.To16())
+	}
+
+	binary.BigEndian.PutUint16(buf[16:18], body.LocalPort)
+	binary.BigEndian.PutUint16(buf[18:20], body.RemotePort)
+
+	m, _ := body.SentOpenMsg.Serialize()
+	buf = append(buf, m...)
+	m, _ = body.ReceivedOpenMsg.Serialize()
+	buf = append(buf, m...)
+	return buf, nil
+}
+
 func (body *BMPStatisticsReport) ParseBody(msg *BMPMessage, data []byte) error {
-	_ = binary.BigEndian.Uint32(data[0:4])
+	body.Count = binary.BigEndian.Uint32(data[0:4])
 	data = data[4:]
 	for len(data) >= 4 {
 		s := BMPStatsTLV{}
 		s.Type = binary.BigEndian.Uint16(data[0:2])
 		s.Length = binary.BigEndian.Uint16(data[2:4])
-
+		data = data[4:]
+		if len(data) < int(s.Length) {
+			break
+		}
 		if s.Type == BMP_STAT_TYPE_ADJ_RIB_IN || s.Type == BMP_STAT_TYPE_LOC_RIB {
-			s.Value = binary.BigEndian.Uint64(data[4:12])
+			if s.Length < 8 {
+				break
+			}
+			s.Value = binary.BigEndian.Uint64(data[:8])
 		} else {
-			s.Value = uint64(binary.BigEndian.Uint32(data[4:8]))
+			if s.Length < 4 {
+				break
+			}
+			s.Value = uint64(binary.BigEndian.Uint32(data[:4]))
 		}
 		body.Stats = append(body.Stats, s)
-		data = data[4+s.Length:]
+		data = data[s.Length:]
 	}
 	return nil
+}
+
+func (body *BMPStatisticsReport) Serialize() ([]byte, error) {
+	// TODO
+	buf := make([]byte, 4)
+	body.Count = uint32(len(body.Stats))
+	binary.BigEndian.PutUint32(buf[0:4], body.Count)
+
+	return buf, nil
 }
 
 type BMPTLV struct {
@@ -205,42 +363,119 @@ type BMPTLV struct {
 	Value  []byte
 }
 
+func NewBMPTLV(t uint16, v []byte) *BMPTLV {
+	return &BMPTLV{
+		Type:   t,
+		Length: uint16(len(v)),
+		Value:  v,
+	}
+}
+
+func (tlv *BMPTLV) DecodeFromBytes(data []byte) error {
+	//TODO: check data length
+	tlv.Type = binary.BigEndian.Uint16(data[0:2])
+	tlv.Length = binary.BigEndian.Uint16(data[2:4])
+	tlv.Value = data[4 : 4+tlv.Length]
+	return nil
+}
+
+func (tlv *BMPTLV) Serialize() ([]byte, error) {
+	if tlv.Length == 0 {
+		tlv.Length = uint16(len(tlv.Value))
+	}
+	buf := make([]byte, 4+tlv.Length)
+	binary.BigEndian.PutUint16(buf[0:2], tlv.Type)
+	binary.BigEndian.PutUint16(buf[2:4], tlv.Length)
+	copy(buf[4:], tlv.Value)
+	return buf, nil
+}
+
+func (tlv *BMPTLV) Len() int {
+	return 4 + int(tlv.Length)
+}
+
 type BMPInitiation struct {
 	Info []BMPTLV
 }
 
-func (body *BMPInitiation) ParseBody(msg *BMPMessage, data []byte) error {
-	for len(data) >= 4 {
-		tlv := BMPTLV{}
-		tlv.Type = binary.BigEndian.Uint16(data[0:2])
-		tlv.Length = binary.BigEndian.Uint16(data[2:4])
-		tlv.Value = data[4 : 4+tlv.Length]
+func NewBMPInitiation(info []BMPTLV) *BMPMessage {
+	return &BMPMessage{
+		Header: BMPHeader{
+			Version: BMP_VERSION,
+			Type:    BMP_MSG_INITIATION,
+		},
+		Body: &BMPInitiation{
+			Info: info,
+		},
+	}
+}
 
+func (body *BMPInitiation) ParseBody(msg *BMPMessage, data []byte) error {
+	for len(data) > 0 {
+		tlv := BMPTLV{}
+		tlv.DecodeFromBytes(data)
 		body.Info = append(body.Info, tlv)
-		data = data[4+tlv.Length:]
+		data = data[tlv.Len():]
 	}
 	return nil
+}
+
+func (body *BMPInitiation) Serialize() ([]byte, error) {
+	buf := make([]byte, 0)
+	for _, tlv := range body.Info {
+		b, err := tlv.Serialize()
+		if err != nil {
+			return buf, err
+		}
+		buf = append(buf, b...)
+	}
+	return buf, nil
 }
 
 type BMPTermination struct {
 	Info []BMPTLV
 }
 
-func (body *BMPTermination) ParseBody(msg *BMPMessage, data []byte) error {
-	for len(data) >= 4 {
-		tlv := BMPTLV{}
-		tlv.Type = binary.BigEndian.Uint16(data[0:2])
-		tlv.Length = binary.BigEndian.Uint16(data[2:4])
-		tlv.Value = data[4 : 4+tlv.Length]
+func NewBMPTermination(info []BMPTLV) *BMPMessage {
+	return &BMPMessage{
+		Header: BMPHeader{
+			Version: BMP_VERSION,
+			Type:    BMP_MSG_TERMINATION,
+		},
+		Body: &BMPTermination{
+			Info: info,
+		},
+	}
+}
 
+func (body *BMPTermination) ParseBody(msg *BMPMessage, data []byte) error {
+	for len(data) > 0 {
+		tlv := BMPTLV{}
+		tlv.DecodeFromBytes(data)
 		body.Info = append(body.Info, tlv)
-		data = data[4+tlv.Length:]
+		data = data[tlv.Len():]
 	}
 	return nil
 }
 
+func (body *BMPTermination) Serialize() ([]byte, error) {
+	buf := make([]byte, 0)
+	for _, tlv := range body.Info {
+		b, err := tlv.Serialize()
+		if err != nil {
+			return buf, err
+		}
+		buf = append(buf, b...)
+	}
+	return buf, nil
+}
+
 type BMPBody interface {
+	// Sigh, some body messages need a BMPHeader to parse the body
+	// data so we need to pass BMPHeader (avoid DecodeFromBytes
+	// function name).
 	ParseBody(*BMPMessage, []byte) error
+	Serialize() ([]byte, error)
 }
 
 type BMPMessage struct {
@@ -252,6 +487,9 @@ type BMPMessage struct {
 func (msg *BMPMessage) Len() int {
 	return int(msg.Header.Length)
 }
+
+//func (msg *BMPMessage) Serialize() ([]byte, error) {
+//}
 
 const (
 	BMP_MSG_ROUTE_MONITORING = iota
@@ -279,10 +517,10 @@ func ReadBMPMessage(conn net.Conn) (*BMPMessage, error) {
 		return nil, err
 	}
 
-	data := make([]byte, h.Len())
+	data := make([]byte, h.Length)
 	copy(data, buf)
 	data = data[BMP_HEADER_SIZE:]
-	for offset := 0; offset < h.Len()-BMP_HEADER_SIZE; {
+	for offset := 0; offset < int(h.Length)-BMP_HEADER_SIZE; {
 		rlen, err := conn.Read(data[offset:])
 		if err != nil {
 			return nil, err
@@ -321,7 +559,7 @@ func ReadBMPMessage(conn net.Conn) (*BMPMessage, error) {
 func ParseBMPMessage(data []byte) (*BMPMessage, error) {
 	msg := &BMPMessage{}
 	msg.Header.DecodeFromBytes(data)
-	data = data[6:msg.Header.Length]
+	data = data[BMP_HEADER_SIZE:msg.Header.Length]
 
 	switch msg.Header.Type {
 	case BMP_MSG_ROUTE_MONITORING:
@@ -340,7 +578,7 @@ func ParseBMPMessage(data []byte) (*BMPMessage, error) {
 
 	if msg.Header.Type != BMP_MSG_INITIATION && msg.Header.Type != BMP_MSG_INITIATION {
 		msg.PeerHeader.DecodeFromBytes(data)
-		data = data[42:]
+		data = data[BMP_PEER_HEADER_SIZE:]
 	}
 
 	err := msg.Body.ParseBody(msg, data)
@@ -348,6 +586,33 @@ func ParseBMPMessage(data []byte) (*BMPMessage, error) {
 		return nil, err
 	}
 	return msg, nil
+}
+
+func (msg *BMPMessage) Serialize() ([]byte, error) {
+	buf := make([]byte, 0)
+	if msg.Header.Type != BMP_MSG_INITIATION && msg.Header.Type != BMP_MSG_INITIATION {
+		p, err := msg.PeerHeader.Serialize()
+		if err != nil {
+			return nil, err
+		}
+		buf = append(buf, p...)
+	}
+
+	b, err := msg.Body.Serialize()
+	if err != nil {
+		return nil, err
+	}
+	buf = append(buf, b...)
+
+	if msg.Header.Length == 0 {
+		msg.Header.Length = uint32(BMP_HEADER_SIZE + len(buf))
+	}
+
+	h, err := msg.Header.Serialize()
+	if err != nil {
+		return nil, err
+	}
+	return append(h, buf...), nil
 }
 
 type MessageError struct {
