@@ -44,6 +44,7 @@ type Peer struct {
 	inPolicies            []*policy.Policy
 	defaultInPolicy       config.DefaultPolicyType
 	isConfederationMember bool
+	recvOpen              *bgp.BGPMessage
 }
 
 func NewPeer(g config.Global, conf config.Neighbor) *Peer {
@@ -121,6 +122,7 @@ func (peer *Peer) handleBGPmessage(m *bgp.BGPMessage) ([]*table.Path, bool, []*b
 
 	switch m.Header.Type {
 	case bgp.BGP_MSG_OPEN:
+		peer.recvOpen = m
 		body := m.Body.(*bgp.BGPOpen)
 		peer.peerInfo.ID = m.Body.(*bgp.BGPOpen).ID
 		r := make(map[bgp.RouteFamily]bool)

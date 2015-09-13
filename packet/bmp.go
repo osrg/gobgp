@@ -34,6 +34,11 @@ const (
 	BMP_PEER_HEADER_SIZE = 42
 )
 
+const (
+	BMP_PEER_TYPE_GLOBAL = iota
+	BMP_PEER_TYPE_L3VPN
+)
+
 func (h *BMPHeader) DecodeFromBytes(data []byte) error {
 	h.Version = data[0]
 	if data[0] != 3 {
@@ -242,7 +247,9 @@ func (body *BMPPeerDownNotification) Serialize() ([]byte, error) {
 			}
 		}
 	default:
-		buf = append(buf, body.Data...)
+		if body.Data != nil {
+			buf = append(buf, body.Data...)
+		}
 	}
 	return buf, nil
 }
