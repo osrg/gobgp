@@ -395,6 +395,56 @@ module bgp-gobgp {
     }
   }
 
+  grouping gobgp-bmp-server-config {
+    description "additional BMP config";
+
+    leaf address {
+      type inet:ip-address;
+      description
+        "Reference to the address of the BMP server used as
+         a key in the BMP server list";
+    }
+    leaf port {
+      type uint32;
+      description
+        "Reference to the port of the BMP server";
+    }
+  }
+
+  grouping gobgp-bmp-server-state {
+    description "additional BMP state";
+  }
+
+  grouping gobgp-bmp-server-set {
+    description "additional BMP configuration and state";
+
+    container config {
+      description
+        "Configuration parameters relating to BMP server";
+      uses gobgp-bmp-server-config;
+    }
+
+    container state {
+      description
+        "Configuration parameters relating to BMP server";
+      uses gobgp-bmp-server-state;
+    }
+  }
+
+  grouping gobgp-bmp-servers {
+    description "BGP Monitoring Protocol servers";
+
+    container bmp-servers {
+      description
+        "List of BMP servers configured on the local system";
+      list bmp-server {
+        container bmp-server {
+          uses gobgp-bmp-server-set;
+        }
+      }
+    }
+  }
+
   // augment statements
   augment "/bgp:bgp/bgp:neighbors/bgp:neighbor/bgp:state/bgp:messages/bgp:sent" {
     description "additional counters";
@@ -554,6 +604,11 @@ module bgp-gobgp {
   augment "/bgp:bgp" {
     description "additional rpki configuration and state";
     uses gobgp-rpki-servers;
+  }
+
+  augment "/bgp:bgp" {
+    description "additional bmp configuration";
+    uses gobgp-bmp-servers;
   }
 
   augment "/bgp:bgp/bgp:global" {

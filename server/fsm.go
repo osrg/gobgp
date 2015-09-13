@@ -170,16 +170,25 @@ func (fsm *FSM) StateChange(nextState bgp.FSMState) {
 	}
 }
 
-func (fsm *FSM) LocalAddr() net.IP {
-	addr := fsm.conn.LocalAddr()
+func hostport(addr net.Addr) (string, uint16) {
 	if addr != nil {
-		host, _, err := net.SplitHostPort(addr.String())
+		host, port, err := net.SplitHostPort(addr.String())
 		if err != nil {
-			return nil
+			return "", 0
 		}
-		return net.ParseIP(host)
+		p, _ := strconv.Atoi(port)
+		return host, uint16(p)
 	}
-	return nil
+	return "", 0
+}
+
+func (fsm *FSM) RemoteHostPort() (string, uint16) {
+	return hostport(fsm.conn.RemoteAddr())
+
+}
+
+func (fsm *FSM) LocalHostPort() (string, uint16) {
+	return hostport(fsm.conn.LocalAddr())
 }
 
 func (fsm *FSM) sendNotificatonFromErrorMsg(conn net.Conn, e *bgp.MessageError) {

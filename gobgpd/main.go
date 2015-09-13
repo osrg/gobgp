@@ -179,6 +179,7 @@ func main() {
 				bgpServer.SetGlobalType(newConfig.Bgp.Global)
 				bgpConfig = &newConfig.Bgp
 				bgpServer.SetRpkiConfig(newConfig.Bgp.RpkiServers)
+				bgpServer.SetBmpConfig(newConfig.Bgp.BmpServers)
 				added = newConfig.Bgp.Neighbors.NeighborList
 				deleted = []config.Neighbor{}
 				updated = []config.Neighbor{}
