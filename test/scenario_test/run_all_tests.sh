@@ -83,7 +83,7 @@ done
 
 # route server policy test
 NUM=$(sudo -E python route_server_policy_test.py -s 2> /dev/null | awk '/invalid/{print $NF}')
-PARALLEL_NUM=25
+PARALLEL_NUM=10
 for (( i = 0; i < $(( NUM / PARALLEL_NUM + 1)); ++i ))
 do
     PIDS=()
