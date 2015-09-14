@@ -37,7 +37,7 @@ sudo touch /var/log/upstart/docker.log
 ./run_all_tests.sh
 
 mkdir ${WS}/jenkins-log-${BUILD_NUMBER}
-sudo cp *.xml ${WS}/jenkins-log-${BUILD_NUMBER}/
+sudo cp ${WS}/*.xml ${WS}/jenkins-log-${BUILD_NUMBER}/
 sudo cp /var/log/upstart/docker.log ${WS}/jenkins-log-${BUILD_NUMBER}/docker.log
 sudo chown -R jenkins:jenkins ${WS}/jenkins-log-${BUILD_NUMBER}
 
