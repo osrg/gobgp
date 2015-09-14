@@ -35,6 +35,10 @@ const (
 )
 
 const (
+	BMP_DEFAULT_PORT     = 11019
+)
+
+const (
 	BMP_PEER_TYPE_GLOBAL = iota
 	BMP_PEER_TYPE_L3VPN
 )
@@ -491,12 +495,36 @@ type BMPMessage struct {
 	Body       BMPBody
 }
 
+func (msg *BMPMessage) Serialize() ([]byte, error) {
+	buf := make([]byte, 0)
+	if msg.Header.Type != BMP_MSG_INITIATION && msg.Header.Type != BMP_MSG_INITIATION {
+		p, err := msg.PeerHeader.Serialize()
+		if err != nil {
+			return nil, err
+		}
+		buf = append(buf, p...)
+	}
+
+	b, err := msg.Body.Serialize()
+	if err != nil {
+		return nil, err
+	}
+	buf = append(buf, b...)
+
+	if msg.Header.Length == 0 {
+		msg.Header.Length = uint32(BMP_HEADER_SIZE + len(buf))
+	}
+
+	h, err := msg.Header.Serialize()
+	if err != nil {
+		return nil, err
+	}
+	return append(h, buf...), nil
+}
+
 func (msg *BMPMessage) Len() int {
 	return int(msg.Header.Length)
 }
-
-//func (msg *BMPMessage) Serialize() ([]byte, error) {
-//}
 
 const (
 	BMP_MSG_ROUTE_MONITORING = iota
@@ -506,62 +534,6 @@ const (
 	BMP_MSG_INITIATION
 	BMP_MSG_TERMINATION
 )
-
-// move somewhere else
-func ReadBMPMessage(conn net.Conn) (*BMPMessage, error) {
-	buf := make([]byte, BMP_HEADER_SIZE)
-	for offset := 0; offset < BMP_HEADER_SIZE; {
-		rlen, err := conn.Read(buf[offset:])
-		if err != nil {
-			return nil, err
-		}
-		offset += rlen
-	}
-
-	h := BMPHeader{}
-	err := h.DecodeFromBytes(buf)
-	if err != nil {
-		return nil, err
-	}
-
-	data := make([]byte, h.Length)
-	copy(data, buf)
-	data = data[BMP_HEADER_SIZE:]
-	for offset := 0; offset < int(h.Length)-BMP_HEADER_SIZE; {
-		rlen, err := conn.Read(data[offset:])
-		if err != nil {
-			return nil, err
-		}
-		offset += rlen
-	}
-	msg := &BMPMessage{Header: h}
-
-	switch msg.Header.Type {
-	case BMP_MSG_ROUTE_MONITORING:
-		msg.Body = &BMPRouteMonitoring{}
-	case BMP_MSG_STATISTICS_REPORT:
-		msg.Body = &BMPStatisticsReport{}
-	case BMP_MSG_PEER_DOWN_NOTIFICATION:
-		msg.Body = &BMPPeerDownNotification{}
-	case BMP_MSG_PEER_UP_NOTIFICATION:
-		msg.Body = &BMPPeerUpNotification{}
-	case BMP_MSG_INITIATION:
-		msg.Body = &BMPInitiation{}
-	case BMP_MSG_TERMINATION:
-		msg.Body = &BMPTermination{}
-	}
-
-	if msg.Header.Type != BMP_MSG_INITIATION && msg.Header.Type != BMP_MSG_INITIATION {
-		msg.PeerHeader.DecodeFromBytes(data)
-		data = data[42:]
-	}
-
-	err = msg.Body.ParseBody(msg, data)
-	if err != nil {
-		return nil, err
-	}
-	return msg, nil
-}
 
 func ParseBMPMessage(data []byte) (*BMPMessage, error) {
 	msg := &BMPMessage{}
@@ -595,33 +567,6 @@ func ParseBMPMessage(data []byte) (*BMPMessage, error) {
 	return msg, nil
 }
 
-func (msg *BMPMessage) Serialize() ([]byte, error) {
-	buf := make([]byte, 0)
-	if msg.Header.Type != BMP_MSG_INITIATION && msg.Header.Type != BMP_MSG_INITIATION {
-		p, err := msg.PeerHeader.Serialize()
-		if err != nil {
-			return nil, err
-		}
-		buf = append(buf, p...)
-	}
-
-	b, err := msg.Body.Serialize()
-	if err != nil {
-		return nil, err
-	}
-	buf = append(buf, b...)
-
-	if msg.Header.Length == 0 {
-		msg.Header.Length = uint32(BMP_HEADER_SIZE + len(buf))
-	}
-
-	h, err := msg.Header.Serialize()
-	if err != nil {
-		return nil, err
-	}
-	return append(h, buf...), nil
-}
-
 type MessageError struct {
 	TypeCode    uint8
 	SubTypeCode uint8
@@ -640,4 +585,18 @@ func NewMessageError(typeCode, subTypeCode uint8, data []byte, msg string) error
 
 func (e *MessageError) Error() string {
 	return e.Message
+}
+
+func SplitBMP(data []byte, atEOF bool) (advance int, token []byte, err error) {
+	if atEOF && len(data) == 0 || len(data) < BMP_HEADER_SIZE {
+		return 0, nil, nil
+	}
+
+	msg := &BMPMessage{}
+	msg.Header.DecodeFromBytes(data)
+	if uint32(len(data)) < msg.Header.Length {
+		return 0, nil, nil
+	}
+
+	return int(msg.Header.Length), data[0:msg.Header.Length], nil
 }
