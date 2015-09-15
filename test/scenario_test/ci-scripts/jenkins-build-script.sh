@@ -36,11 +36,15 @@ sudo rm /var/log/upstart/docker.log
 sudo touch /var/log/upstart/docker.log
 ./run_all_tests.sh
 
-mkdir ${WS}/jenkins-log-${BUILD_NUMBER}
-sudo cp ${WS}/*.xml ${WS}/jenkins-log-${BUILD_NUMBER}/
-sudo cp /var/log/upstart/docker.log ${WS}/jenkins-log-${BUILD_NUMBER}/docker.log
-sudo chown -R jenkins:jenkins ${WS}/jenkins-log-${BUILD_NUMBER}
 
-tar cvzf ${WS}/jenkins-log-${BUILD_NUMBER}.tar.gz ${WS}/jenkins-log-${BUILD_NUMBER}
-s3cmd put ${WS}/jenkins-log-${BUILD_NUMBER}.tar.gz s3://gobgp/jenkins/
-rm -rf ${WS}/jenkins-log-${BUILD_NUMBER} ${WS}/jenkins-log-${BUILD_NUMBER}.tar.gz
+if [ "${BUILD_TAG}" != "" ]; then
+    cd ${WS}
+    mkdir jenkins-log-${BUILD_NUMBER}
+    sudo cp *.xml jenkins-log-${BUILD_NUMBER}/
+    sudo cp /var/log/upstart/docker.log jenkins-log-${BUILD_NUMBER}/docker.log
+    sudo chown -R jenkins:jenkins jenkins-log-${BUILD_NUMBER}
+
+    tar cvzf jenkins-log-${BUILD_NUMBER}.tar.gz jenkins-log-${BUILD_NUMBER}
+    s3cmd put jenkins-log-${BUILD_NUMBER}.tar.gz s3://gobgp/jenkins/
+    rm -rf jenkins-log-${BUILD_NUMBER} jenkins-log-${BUILD_NUMBER}.tar.gz
+fi
