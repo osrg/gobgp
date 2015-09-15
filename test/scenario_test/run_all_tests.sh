@@ -63,6 +63,8 @@ PIDS=("${PIDS[@]}" $!)
 sudo -E python bgp_zebra_test.py --gobgp-image $GOBGP_IMAGE --test-prefix zebra -s -x --with-xunit --xunit-file=${WS}/nosetest_zebra.xml &
 PIDS=("${PIDS[@]}" $!)
 
+sudo docker rm -f $(sudo docker ps -a -q)
+
 # route server malformed message test
 NUM=$(sudo -E python route_server_malformed_test.py -s 2> /dev/null | awk '/invalid/{print $NF}')
 PARALLEL_NUM=10
@@ -80,6 +82,8 @@ do
         exit 1
     fi
 done
+
+sudo docker rm -f $(sudo docker ps -a -q)
 
 # route server policy test
 NUM=$(sudo -E python route_server_policy_test.py -s 2> /dev/null | awk '/invalid/{print $NF}')
@@ -104,6 +108,8 @@ do
             exit 1
         fi
     done
+
+    sudo docker rm -f $(sudo docker ps -a -q)
 
 done
 
