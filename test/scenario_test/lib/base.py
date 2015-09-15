@@ -155,7 +155,7 @@ class Container(object):
         self.eths = []
 
         if self.docker_name() in get_containers():
-            self.stop()
+            self.remove()
 
     def docker_name(self):
         if TEST_PREFIX == DEFAULT_TEST_PREFIX:
@@ -179,6 +179,11 @@ class Container(object):
         return 0
 
     def stop(self):
+        ret = try_several_times(lambda : local("docker stop -t 0 " + self.docker_name(), capture=True))
+        self.is_running = False
+        return ret
+
+    def remove(self):
         ret = try_several_times(lambda : local("docker rm -f " + self.docker_name(), capture=True))
         self.is_running = False
         return ret
