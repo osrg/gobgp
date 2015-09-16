@@ -96,8 +96,8 @@ func (path *Path) UpdatePathAttrs(global *config.Global, peer *config.Neighbor) 
 		// if the path generated locally set local address as nexthop.
 		// if not, don't modify it.
 		// TODO: NEXT-HOP-SELF support
-		selfGenerated := path.GetSource().ID == nil
-		if selfGenerated {
+		nexthop := path.GetNexthop()
+		if path.IsLocal() && (nexthop.Equal(net.ParseIP("0.0.0.0")) || nexthop.Equal(net.ParseIP("::"))) {
 			path.SetNexthop(localAddress)
 		}
 
