@@ -75,7 +75,7 @@ class CmdBuffer(list):
         return self.delim.join(self)
 
 
-def make_gobgp_ctn(tag='gobgp', local_gobgp_path='', from_image='golang:1.4'):
+def make_gobgp_ctn(tag='gobgp', local_gobgp_path='', from_image='osrg/quagga'):
     if local_gobgp_path == '':
         local_gobgp_path = os.getcwd()
 
@@ -86,8 +86,6 @@ def make_gobgp_ctn(tag='gobgp', local_gobgp_path='', from_image='golang:1.4'):
     c << 'RUN go install github.com/osrg/gobgp/gobgpd'
     c << 'RUN go get github.com/osrg/gobgp/gobgp'
     c << 'RUN go install github.com/osrg/gobgp/gobgp'
-    c << 'RUN apt-get update'
-    c << 'RUN apt-get install -qy --no-install-recommends quagga telnet'
 
     rindex = local_gobgp_path.rindex('gobgp')
     if rindex < 0:
