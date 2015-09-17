@@ -17,6 +17,7 @@ from __future__ import absolute_import
 
 from fabric import colors
 from fabric.utils import indent
+from itertools import chain
 import netaddr
 
 from lib.base import (
@@ -191,7 +192,7 @@ class QuaggaBGPContainer(BGPContainer):
                 c << 'neighbor {0} activate'.format(n_addr)
                 c << 'exit-address-family'
 
-        for route in self.routes.itervalues():
+        for route in chain.from_iterable(self.routes.itervalues()):
             if route['rf'] == 'ipv4':
                 c << 'network {0}'.format(route['prefix'])
             elif route['rf'] == 'ipv6':
