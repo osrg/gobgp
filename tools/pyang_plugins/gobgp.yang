@@ -623,4 +623,22 @@ module bgp-gobgp {
       }
     }
   }
+
+  augment "/bgp:bgp/bgp:global" {
+    description "zebra configuration";
+    container zebra {
+       description
+         "Configure connection to zebra";
+      leaf enabled {
+        type boolean;
+        description
+          "Configure enabling to connect to zebra.";
+      }
+      leaf url {
+        type string;
+        description
+          "Configure url for zebra.";
+      }
+    }
+  }
 }
