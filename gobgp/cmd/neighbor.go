@@ -259,7 +259,16 @@ type AsPathFormat struct {
 	separator string
 }
 
-func showRoute(pathList []*Path, showAge, showBest, showLabel, isMonitor, printHeader bool) {
+type ShowOption struct {
+	showAge     bool
+	showBest    bool
+	showLabel   bool
+	showPathId  bool
+	isMonitor   bool
+	printHeader bool
+}
+
+func showRoute(pathList []*Path, option *ShowOption) {
 
 	var pathStrs [][]interface{}
 	maxPrefixLen := 20
@@ -348,27 +357,32 @@ func showRoute(pathList []*Path, showAge, showBest, showLabel, isMonitor, printH
 		case config.RPKI_VALIDATION_RESULT_TYPE_INVALID:
 			best += "I"
 		}
-		if showBest {
+		if option.showBest {
 			if p.Best {
 				best += "*>"
 			} else {
 				best += "* "
 			}
 		}
+
 		nlri := p.Nlri.String()
 		if maxPrefixLen < len(nlri) {
 			maxPrefixLen = len(nlri)
 		}
 
-		if isMonitor {
+		if option.isMonitor {
 			title := "ROUTE"
 			if p.IsWithdraw {
 				title = "DELROUTE"
 			}
 			pathStrs = append(pathStrs, []interface{}{title, nlri, nexthop, aspathstr, pattrstr})
 		} else {
-			args := []interface{}{best, nlri}
-			if showLabel {
+			args := []interface{}{best}
+			if option.showPathId {
+				args = append(args, fmt.Sprintf("%d", p.Nlri.PathIdentifier()))
+			}
+			args = append(args, nlri)
+			if option.showLabel {
 				label := ""
 				switch p.Nlri.(type) {
 				case *bgp.LabeledIPAddrPrefix:
@@ -386,7 +400,7 @@ func showRoute(pathList []*Path, showAge, showBest, showLabel, isMonitor, printH
 				args = append(args, label)
 			}
 			args = append(args, []interface{}{nexthop, aspathstr}...)
-			if showAge {
+			if option.showAge {
 				args = append(args, formatTimedelta(p.Age))
 			}
 			args = append(args, pattrstr)
@@ -395,28 +409,35 @@ func showRoute(pathList []*Path, showAge, showBest, showLabel, isMonitor, printH
 	}
 
 	var format string
-	if isMonitor {
+	if option.isMonitor {
 		format = "[%s] %s via %s aspath [%s] attrs %s\n"
 	} else {
-		format = fmt.Sprintf("%%-3s %%-%ds", maxPrefixLen)
-		if showLabel {
+		format = "%-3s "
+		if option.showPathId {
+			format += "%3s "
+		}
+		format += fmt.Sprintf("%%-%ds", maxPrefixLen)
+		if option.showLabel {
 			format += fmt.Sprintf("%%-%ds ", maxLabelLen)
 		}
 		format += fmt.Sprintf("%%-%ds %%-%ds ", maxNexthopLen, maxAsPathLen)
-		if showAge {
+		if option.showAge {
 			format += "%-10s "
 		}
 		format += "%-s\n"
-
 	}
 
-	if printHeader {
-		args := []interface{}{"", "Network"}
-		if showLabel {
+	if option.printHeader {
+		args := []interface{}{""}
+		if option.showPathId {
+			args = append(args, "id")
+		}
+		args = append(args, "Network")
+		if option.showLabel {
 			args = append(args, "Labels")
 		}
 		args = append(args, []interface{}{"Next Hop", "AS_PATH"}...)
-		if showAge {
+		if option.showAge {
 			args = append(args, "Age")
 		}
 		args = append(args, "Attrs")
@@ -430,23 +451,27 @@ func showRoute(pathList []*Path, showAge, showBest, showLabel, isMonitor, printH
 
 func showNeighborRib(r string, name string, args []string) error {
 	var resource api.Resource
-	showBest := false
-	showAge := true
-	showLabel := false
+	option := &ShowOption{
+		showAge:     true,
+		printHeader: true,
+	}
+
 	switch r {
 	case CMD_GLOBAL:
-		showBest = true
+		option.showBest = true
 		resource = api.Resource_GLOBAL
 	case CMD_LOCAL:
-		showBest = true
+		option.showBest = true
 		resource = api.Resource_LOCAL
 	case CMD_ADJ_IN:
+		option.showPathId = true
 		resource = api.Resource_ADJ_IN
 	case CMD_ADJ_OUT:
-		showAge = false
+		option.showPathId = true
+		option.showAge = false
 		resource = api.Resource_ADJ_OUT
 	case CMD_VRF:
-		showLabel = true
+		option.showLabel = true
 		resource = api.Resource_VRF
 	}
 	rf, err := checkAddressFamily(net.ParseIP(name))
@@ -495,7 +520,7 @@ func showNeighborRib(r string, name string, args []string) error {
 
 	dsts := []*Destination{}
 	maxOnes := 0
-	counter := 0
+	first := true
 	for {
 		d, e := stream.Recv()
 		if e == io.EOF {
@@ -529,12 +554,11 @@ func showNeighborRib(r string, name string, args []string) error {
 			ps := paths{}
 			ps = append(ps, dst.Paths...)
 			sort.Sort(ps)
-			if counter == 0 {
-				showRoute(ps, showAge, showBest, showLabel, false, true)
-			} else {
-				showRoute(ps, showAge, showBest, showLabel, false, false)
+			showRoute(ps, option)
+			if first {
+				option.printHeader = false
+				first = false
 			}
-			counter++
 		}
 		dsts = append(dsts, dst)
 	}
@@ -545,7 +569,7 @@ func showNeighborRib(r string, name string, args []string) error {
 		return nil
 	}
 
-	if isResultSorted(rf) && counter != 0 {
+	if isResultSorted(rf) && !first {
 		// we already showed
 		return nil
 	}
@@ -561,7 +585,8 @@ func showNeighborRib(r string, name string, args []string) error {
 	}
 
 	sort.Sort(ps)
-	showRoute(ps, showAge, showBest, showLabel, false, true)
+	option.printHeader = true
+	showRoute(ps, option)
 	return nil
 }
 
