@@ -698,6 +698,7 @@ type AddrPrefixInterface interface {
 	PathIdentifier() uint32
 	SetPathIdentifier(uint32)
 	PathIdentifierLen() int
+	Clone() AddrPrefixInterface
 }
 
 type PrefixDefault struct {
@@ -860,6 +861,19 @@ func (r *IPAddrPrefix) SAFI() uint8 {
 	return SAFI_UNICAST
 }
 
+func (r *IPAddrPrefix) Clone() AddrPrefixInterface {
+	return &IPAddrPrefix{
+		IPAddrPrefixDefault{
+			PrefixDefault: PrefixDefault{
+				pathIdentifier: r.PathIdentifier(),
+			},
+			Length: r.Length,
+			Prefix: r.Prefix,
+		},
+		4,
+	}
+}
+
 func NewIPAddrPrefix(length uint8, prefix string) *IPAddrPrefix {
 	return &IPAddrPrefix{
 		IPAddrPrefixDefault{
@@ -876,6 +890,21 @@ type IPv6AddrPrefix struct {
 
 func (r *IPv6AddrPrefix) AFI() uint16 {
 	return AFI_IP6
+}
+
+func (r *IPv6AddrPrefix) Clone() AddrPrefixInterface {
+	return &IPv6AddrPrefix{
+		IPAddrPrefix{
+			IPAddrPrefixDefault{
+				PrefixDefault: PrefixDefault{
+					pathIdentifier: r.PathIdentifier(),
+				},
+				Length: r.Length,
+				Prefix: r.Prefix,
+			},
+			16,
+		},
+	}
 }
 
 func NewIPv6AddrPrefix(length uint8, prefix string) *IPv6AddrPrefix {
@@ -1321,6 +1350,21 @@ func (l *LabeledVPNIPAddrPrefix) MarshalJSON() ([]byte, error) {
 	})
 }
 
+func (l *LabeledVPNIPAddrPrefix) Clone() AddrPrefixInterface {
+	return &LabeledVPNIPAddrPrefix{
+		IPAddrPrefixDefault{
+			PrefixDefault: PrefixDefault{
+				pathIdentifier: l.PathIdentifier(),
+			},
+			Length: l.Length,
+			Prefix: l.Prefix,
+		},
+		l.Labels,
+		l.RD,
+		4,
+	}
+}
+
 func NewLabeledVPNIPAddrPrefix(length uint8, prefix string, label MPLSLabelStack, rd RouteDistinguisherInterface) *LabeledVPNIPAddrPrefix {
 	rdlen := 0
 	if rd != nil {
@@ -1343,6 +1387,24 @@ type LabeledVPNIPv6AddrPrefix struct {
 
 func (l *LabeledVPNIPv6AddrPrefix) AFI() uint16 {
 	return AFI_IP6
+}
+
+func (l *LabeledVPNIPv6AddrPrefix) Clone() AddrPrefixInterface {
+	return &LabeledVPNIPv6AddrPrefix{
+		LabeledVPNIPAddrPrefix{
+			IPAddrPrefixDefault{
+				PrefixDefault: PrefixDefault{
+					pathIdentifier: l.PathIdentifier(),
+				},
+				Length: l.Length,
+				Prefix: l.Prefix,
+			},
+			l.Labels,
+			l.RD,
+			16,
+		},
+	}
+
 }
 
 func NewLabeledVPNIPv6AddrPrefix(length uint8, prefix string, label MPLSLabelStack, rd RouteDistinguisherInterface) *LabeledVPNIPv6AddrPrefix {
@@ -1423,6 +1485,21 @@ func (l *LabeledIPAddrPrefix) Serialize(ctx context.Context) ([]byte, error) {
 	return buf, nil
 }
 
+func (l *LabeledIPAddrPrefix) Clone() AddrPrefixInterface {
+	return &LabeledIPAddrPrefix{
+		IPAddrPrefixDefault{
+			PrefixDefault: PrefixDefault{
+				pathIdentifier: l.PathIdentifier(),
+			},
+			Length: l.Length,
+			Prefix: l.Prefix,
+		},
+		l.Labels,
+		4,
+	}
+
+}
+
 func NewLabeledIPAddrPrefix(length uint8, prefix string, label MPLSLabelStack) *LabeledIPAddrPrefix {
 	return &LabeledIPAddrPrefix{
 		IPAddrPrefixDefault{
@@ -1436,6 +1513,23 @@ func NewLabeledIPAddrPrefix(length uint8, prefix string, label MPLSLabelStack) *
 
 type LabeledIPv6AddrPrefix struct {
 	LabeledIPAddrPrefix
+}
+
+func (l *LabeledIPv6AddrPrefix) Clone() AddrPrefixInterface {
+	return &LabeledIPv6AddrPrefix{
+		LabeledIPAddrPrefix{
+			IPAddrPrefixDefault{
+				PrefixDefault: PrefixDefault{
+					pathIdentifier: l.PathIdentifier(),
+				},
+				Length: l.Length,
+				Prefix: l.Prefix,
+			},
+			l.Labels,
+			16,
+		},
+	}
+
 }
 
 func NewLabeledIPv6AddrPrefix(length uint8, prefix string, label MPLSLabelStack) *LabeledIPv6AddrPrefix {
@@ -1530,6 +1624,18 @@ func (n *RouteTargetMembershipNLRI) MarshalJSON() ([]byte, error) {
 		Prefix:         n.String(),
 		PathIdentifier: n.PathIdentifier(),
 	})
+}
+
+func (n *RouteTargetMembershipNLRI) Clone() AddrPrefixInterface {
+	return &RouteTargetMembershipNLRI{
+		PrefixDefault: PrefixDefault{
+			pathIdentifier: n.PathIdentifier(),
+		},
+		Length:      n.Length,
+		AS:          n.AS,
+		RouteTarget: n.RouteTarget,
+	}
+
 }
 
 func NewRouteTargetMembershipNLRI(as uint32, target ExtendedCommunityInterface) *RouteTargetMembershipNLRI {
@@ -2077,6 +2183,17 @@ func (n *EVPNNLRI) RD() RouteDistinguisherInterface {
 	return n.RouteTypeData.rd()
 }
 
+func (n *EVPNNLRI) Clone() AddrPrefixInterface {
+	return &EVPNNLRI{
+		PrefixDefault: PrefixDefault{
+			pathIdentifier: n.PathIdentifier(),
+		},
+		RouteType:     n.RouteType,
+		Length:        n.Length,
+		RouteTypeData: n.RouteTypeData,
+	}
+}
+
 func NewEVPNNLRI(routetype uint8, length uint8, routetypedata EVPNRouteTypeInterface) *EVPNNLRI {
 	return &EVPNNLRI{
 		RouteType:     routetype,
@@ -2138,6 +2255,18 @@ func (n *EncapNLRI) AFI() uint16 {
 
 func (n *EncapNLRI) SAFI() uint8 {
 	return SAFI_ENCAPSULATION
+}
+
+func (n *EncapNLRI) Clone() AddrPrefixInterface {
+	return &EncapNLRI{
+		IPAddrPrefixDefault{
+			PrefixDefault: PrefixDefault{
+				pathIdentifier: n.PathIdentifier(),
+			},
+			Length: 0,
+			Prefix: n.Prefix,
+		},
+	}
 }
 
 func NewEncapNLRI(endpoint string) *EncapNLRI {
@@ -2946,6 +3075,16 @@ func (n *FlowSpecIPv4Unicast) SAFI() uint8 {
 	return SAFI_FLOW_SPEC_UNICAST
 }
 
+func (n *FlowSpecIPv4Unicast) Clone() AddrPrefixInterface {
+	return &FlowSpecIPv4Unicast{FlowSpecNLRI{
+		PrefixDefault: PrefixDefault{
+			pathIdentifier: n.PathIdentifier(),
+		},
+		Value: n.Value,
+		rf:    n.rf,
+	}}
+}
+
 func NewFlowSpecIPv4Unicast(value []FlowSpecComponentInterface) *FlowSpecIPv4Unicast {
 	return &FlowSpecIPv4Unicast{FlowSpecNLRI{
 		Value: value,
@@ -2967,6 +3106,16 @@ func (n *FlowSpecIPv4VPN) AFI() uint16 {
 
 func (n *FlowSpecIPv4VPN) SAFI() uint8 {
 	return SAFI_FLOW_SPEC_VPN
+}
+
+func (n *FlowSpecIPv4VPN) Clone() AddrPrefixInterface {
+	return &FlowSpecIPv4VPN{FlowSpecNLRI{
+		PrefixDefault: PrefixDefault{
+			pathIdentifier: n.PathIdentifier(),
+		},
+		Value: n.Value,
+		rf:    n.rf,
+	}}
 }
 
 func NewFlowSpecIPv4VPN(value []FlowSpecComponentInterface) *FlowSpecIPv4VPN {
@@ -2992,6 +3141,16 @@ func (n *FlowSpecIPv6Unicast) SAFI() uint8 {
 	return SAFI_FLOW_SPEC_UNICAST
 }
 
+func (n *FlowSpecIPv6Unicast) Clone() AddrPrefixInterface {
+	return &FlowSpecIPv6Unicast{FlowSpecNLRI{
+		PrefixDefault: PrefixDefault{
+			pathIdentifier: n.PathIdentifier(),
+		},
+		Value: n.Value,
+		rf:    n.rf,
+	}}
+}
+
 func NewFlowSpecIPv6Unicast(value []FlowSpecComponentInterface) *FlowSpecIPv6Unicast {
 	return &FlowSpecIPv6Unicast{FlowSpecNLRI{
 		Value: value,
@@ -3013,6 +3172,16 @@ func (n *FlowSpecIPv6VPN) AFI() uint16 {
 
 func (n *FlowSpecIPv6VPN) SAFI() uint8 {
 	return SAFI_FLOW_SPEC_VPN
+}
+
+func (n *FlowSpecIPv6VPN) Clone() AddrPrefixInterface {
+	return &FlowSpecIPv6VPN{FlowSpecNLRI{
+		PrefixDefault: PrefixDefault{
+			pathIdentifier: n.PathIdentifier(),
+		},
+		Value: n.Value,
+		rf:    n.rf,
+	}}
 }
 
 func NewFlowSpecIPv6VPN(value []FlowSpecComponentInterface) *FlowSpecIPv6VPN {

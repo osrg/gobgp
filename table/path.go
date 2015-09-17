@@ -224,7 +224,9 @@ func (path *Path) Clone(isWithdraw bool) *Path {
 		newPathAttrs[i] = v
 	}
 
-	p := NewPath(path.source, path.nlri, isWithdraw, newPathAttrs, false, path.timestamp, path.NoImplicitWithdraw)
+	nlri := path.nlri.Clone()
+
+	p := NewPath(path.source, nlri, isWithdraw, newPathAttrs, false, path.timestamp, path.NoImplicitWithdraw)
 	p.Validation = path.Validation
 	return p
 }
