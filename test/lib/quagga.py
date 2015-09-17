@@ -15,6 +15,7 @@
 
 from base import *
 from nsenter import Namespace
+from itertools import chain
 
 
 class QuaggaBGPContainer(BGPContainer):
@@ -176,7 +177,7 @@ class QuaggaBGPContainer(BGPContainer):
                 c << 'neighbor {0} activate'.format(n_addr)
                 c << 'exit-address-family'
 
-        for route in self.routes.itervalues():
+        for route in chain.from_iterable(self.routes.itervalues()):
             if route['rf'] == 'ipv4':
                 c << 'network {0}'.format(route['prefix'])
             elif route['rf'] == 'ipv6':
