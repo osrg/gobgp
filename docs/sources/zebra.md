@@ -1,6 +1,9 @@
-# Zebra
+# FIB manipulation
 
-This page explains how to share routes with zebra included in [Quagga](http://www.nongnu.org/quagga/).
+This page explains how to perform FIB manipulation; kernel routing
+table updates, interface lookups, and redistribution of routes between
+different routing protocols. GoBGP uses zebra included in
+[Quagga](http://www.nongnu.org/quagga/).
 
 ## Prerequisites
 

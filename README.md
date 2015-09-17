@@ -28,6 +28,7 @@ No dependency hell (library, package, etc) thanks to Go.
  * [Route Server](https://github.com/osrg/gobgp/blob/master/docs/sources/route-server.md)
  * [Route Reflector](https://github.com/osrg/gobgp/blob/master/docs/sources/route-reflector.md)
  * [Policy](https://github.com/osrg/gobgp/blob/master/docs/sources/policy.md)
+ * [FIB manipulation](https://github.com/osrg/gobgp/blob/master/docs/sources/zebra.md)
  * [MRT](https://github.com/osrg/gobgp/blob/master/docs/sources/mrt.md)
  * [BMP](https://github.com/osrg/gobgp/blob/master/docs/sources/bmp.md)
  * [EVPN](https://github.com/osrg/gobgp/blob/master/docs/sources/evpn.md)
