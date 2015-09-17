@@ -316,6 +316,9 @@ func (path *Path) String() string {
 	if path.IsWithdraw {
 		s.WriteString(", withdraw")
 	}
+	if path.GetNlri().PathIdentifier() > 0 {
+		s.WriteString(fmt.Sprintf(", path-id: %d", path.GetNlri().PathIdentifier()))
+	}
 	s.WriteString(" }")
 	return s.String()
 }

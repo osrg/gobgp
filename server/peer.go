@@ -40,7 +40,8 @@ type Peer struct {
 	rfMap                 map[bgp.RouteFamily]bool
 	addpathMap            map[bgp.RouteFamily]table.AddPathStatus
 	capMap                map[bgp.BGPCapabilityCode][]bgp.ParameterCapabilityInterface
-	adjRib                *table.AdjRib
+	adjRibIn              *table.AdjRib
+	adjRibOut             *table.AdjRib
 	peerInfo              *table.PeerInfo
 	outgoing              chan *bgp.BGPMessage
 	inPolicies            []*policy.Policy
@@ -85,7 +86,7 @@ func NewPeer(g config.Global, conf config.Neighbor) *Peer {
 		RouteReflectorClient:    peer.isRouteReflectorClient(),
 		RouteReflectorClusterID: id,
 	}
-	peer.adjRib = table.NewAdjRib(peer.configuredRFlist())
+	peer.adjRibIn = table.NewAdjRibIn(peer.configuredRFlist())
 	peer.fsm = NewFSM(&g, &conf)
 
 	if conf.NeighborConfig.PeerAs != g.GlobalConfig.As {
@@ -191,6 +192,7 @@ func (peer *Peer) handleBGPmessage(m *bgp.BGPMessage) ([]*table.Path, bool, []*b
 		}
 
 		peer.ctx = context.WithValue(context.Background(), bgp.CTX_ADDPATH, c)
+		peer.adjRibOut = table.NewAdjRibOut(peer.configuredRFlist(), peer.addpathMap)
 
 		// calculate HoldTime
 		// RFC 4271 P.13
@@ -217,7 +219,7 @@ func (peer *Peer) handleBGPmessage(m *bgp.BGPMessage) ([]*table.Path, bool, []*b
 			break
 		}
 		if _, ok := peer.capMap[bgp.BGP_CAP_ROUTE_REFRESH]; ok {
-			pathList = peer.adjRib.GetOutPathList(rf)
+			pathList = peer.adjRibOut.GetPathList(rf)
 		} else {
 			log.WithFields(log.Fields{
 				"Topic": "Peer",
@@ -245,7 +247,7 @@ func (peer *Peer) handleBGPmessage(m *bgp.BGPMessage) ([]*table.Path, bool, []*b
 		}
 		table.UpdatePathAttrs4ByteAs(body)
 		pathList = table.ProcessMessage(m, peer.peerInfo)
-		peer.adjRib.UpdateIn(pathList)
+		peer.adjRibIn.Update(pathList)
 	}
 	return pathList, update, bgpMsgList
 }
@@ -327,10 +329,10 @@ func (peer *Peer) ToApiStruct() *api.Peer {
 	accepted := uint32(0)
 	if f.state == bgp.BGP_FSM_ESTABLISHED {
 		for _, rf := range peer.configuredRFlist() {
-			advertized += uint32(peer.adjRib.GetOutCount(rf))
-			received += uint32(peer.adjRib.GetInCount(rf))
+			advertized += uint32(peer.adjRibOut.GetCount(rf))
+			received += uint32(peer.adjRibIn.GetCount(rf))
 			// FIXME: we should store 'accepted' in memory
-			for _, p := range peer.adjRib.GetInPathList(rf) {
+			for _, p := range peer.adjRibIn.GetPathList(rf) {
 				applied, path := peer.applyPolicies(POLICY_DIRECTION_IN, p)
 				if applied && path == nil || !applied && peer.defaultInPolicy != config.DEFAULT_POLICY_TYPE_ACCEPT_ROUTE {
 					continue

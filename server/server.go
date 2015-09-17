@@ -278,7 +278,7 @@ func (server *BgpServer) Serve() {
 					continue
 				}
 				for _, rf := range targetPeer.configuredRFlist() {
-					pathList = append(pathList, targetPeer.adjRib.GetInPathList(rf)...)
+					pathList = append(pathList, targetPeer.adjRibIn.GetPathList(rf)...)
 				}
 				for _, p := range pathList {
 					// avoid to merge for timestamp
@@ -363,7 +363,7 @@ func (server *BgpServer) Serve() {
 						continue
 					}
 					for _, rf := range peer.configuredRFlist() {
-						pathList = append(pathList, p.adjRib.GetInPathList(rf)...)
+						pathList = append(pathList, p.adjRibIn.GetPathList(rf)...)
 					}
 				}
 				pathList = applyPolicies(peer, loc, POLICY_DIRECTION_IMPORT, pathList)
@@ -564,7 +564,7 @@ func (server *BgpServer) dropPeerAllRoutes(peer *Peer) []*SenderMsg {
 				}
 				msgList := table.CreateUpdateMsgFromPaths(pathList)
 				msgs = append(msgs, newSenderMsg(targetPeer, msgList))
-				targetPeer.adjRib.UpdateOut(pathList)
+				targetPeer.adjRibOut.Update(pathList)
 			}
 		} else {
 			loc := server.localRibMap[GLOBAL_RIB_NAME]
@@ -580,7 +580,7 @@ func (server *BgpServer) dropPeerAllRoutes(peer *Peer) []*SenderMsg {
 				if targetPeer.isRouteServerClient() || targetPeer.fsm.state != bgp.BGP_FSM_ESTABLISHED {
 					continue
 				}
-				targetPeer.adjRib.UpdateOut(pathList)
+				targetPeer.adjRibOut.Update(pathList)
 				msgs = append(msgs, newSenderMsg(targetPeer, msgList))
 			}
 		}
@@ -731,7 +731,7 @@ func (server *BgpServer) propagateUpdate(peer *Peer, pathList []*table.Path) []*
 				continue
 			}
 			msgList := table.CreateUpdateMsgFromPaths(sendPathList)
-			targetPeer.adjRib.UpdateOut(sendPathList)
+			targetPeer.adjRibOut.Update(sendPathList)
 			msgs = append(msgs, newSenderMsg(targetPeer, msgList))
 		}
 	} else {
@@ -754,7 +754,7 @@ func (server *BgpServer) propagateUpdate(peer *Peer, pathList []*table.Path) []*
 			for _, path := range f {
 				path.UpdatePathAttrs(&server.bgpConfig.Global, &targetPeer.conf)
 			}
-			targetPeer.adjRib.UpdateOut(f)
+			f = targetPeer.adjRibOut.Update(f)
 			msgList := table.CreateUpdateMsgFromPaths(f)
 
 			msgs = append(msgs, newSenderMsg(targetPeer, msgList))
@@ -788,7 +788,8 @@ func (server *BgpServer) handleFSMMessage(peer *Peer, e *fsmMsg, incoming chan *
 			}
 
 			for _, rf := range peer.configuredRFlist() {
-				peer.adjRib.DropAll(rf)
+				peer.adjRibIn.DropAll(rf)
+				peer.adjRibOut.DropAll(rf)
 			}
 
 			msgs = append(msgs, server.dropPeerAllRoutes(peer)...)
@@ -820,7 +821,7 @@ func (server *BgpServer) handleFSMMessage(peer *Peer, e *fsmMsg, incoming chan *
 				}
 			}
 			if len(pathList) > 0 {
-				peer.adjRib.UpdateOut(pathList)
+				peer.adjRibOut.Update(pathList)
 				msgs = append(msgs, newSenderMsg(peer, table.CreateUpdateMsgFromPaths(pathList)))
 			}
 		} else {
@@ -1319,20 +1320,18 @@ func sendMultipleResponses(grpcReq *GrpcRequest, results []*GrpcResponse) {
 func (server *BgpServer) handleGrpc(grpcReq *GrpcRequest) []*SenderMsg {
 	var msgs []*SenderMsg
 
-	sortedDsts := func(t *table.Table, addpath bool) []*GrpcResponse {
-		results := make([]*GrpcResponse, len(t.GetDestinations()))
+	sortedDsts := func(dsts map[string]*table.Destination, addpath bool) []*GrpcResponse {
+		results := make([]*GrpcResponse, 0, len(dsts))
 
 		r := radix.New()
-		for _, dst := range t.GetDestinations() {
+		for _, dst := range dsts {
 			result := &GrpcResponse{}
 			result.Data = dst.ToApiStruct(addpath)
 			r.Insert(dst.RadixKey, result)
 		}
-		i := 0
 		r.Walk(func(s string, v interface{}) bool {
 			r, _ := v.(*GrpcResponse)
-			results[i] = r
-			i++
+			results = append(results, r)
 			return false
 		})
 
@@ -1344,17 +1343,15 @@ func (server *BgpServer) handleGrpc(grpcReq *GrpcRequest) []*SenderMsg {
 		var results []*GrpcResponse
 		if t, ok := server.localRibMap[GLOBAL_RIB_NAME].rib.Tables[grpcReq.RouteFamily]; ok {
 			addpath := grpcReq.Data.(bool)
-			results = make([]*GrpcResponse, len(t.GetDestinations()))
+			results = make([]*GrpcResponse, 0, len(t.GetDestinations()))
 			switch grpcReq.RouteFamily {
 			case bgp.RF_IPv4_UC, bgp.RF_IPv6_UC:
-				results = sortedDsts(server.localRibMap[GLOBAL_RIB_NAME].rib.Tables[grpcReq.RouteFamily], addpath)
+				results = sortedDsts(t.GetDestinations(), addpath)
 			default:
-				i := 0
 				for _, dst := range t.GetDestinations() {
 					result := &GrpcResponse{}
 					result.Data = dst.ToApiStruct(addpath)
-					results[i] = result
-					i++
+					results = append(results, result)
 				}
 			}
 		}
@@ -1401,17 +1398,16 @@ func (server *BgpServer) handleGrpc(grpcReq *GrpcRequest) []*SenderMsg {
 			remoteAddr := grpcReq.Name
 			if t, ok := server.localRibMap[remoteAddr].rib.Tables[grpcReq.RouteFamily]; ok {
 				addpath := grpcReq.Data.(bool)
-				results = make([]*GrpcResponse, len(t.GetDestinations()))
+				results = make([]*GrpcResponse, 0, len(t.GetDestinations()))
 				switch grpcReq.RouteFamily {
 				case bgp.RF_IPv4_UC, bgp.RF_IPv6_UC:
-					results = sortedDsts(server.localRibMap[remoteAddr].rib.Tables[grpcReq.RouteFamily], addpath)
+					t := server.localRibMap[remoteAddr].rib.Tables[grpcReq.RouteFamily]
+					results = sortedDsts(t.GetDestinations(), addpath)
 				default:
-					i := 0
 					for _, dst := range t.GetDestinations() {
 						result := &GrpcResponse{}
 						result.Data = dst.ToApiStruct(addpath)
-						results[i] = result
-						i++
+						results = append(results, result)
 					}
 				}
 			}
@@ -1423,43 +1419,28 @@ func (server *BgpServer) handleGrpc(grpcReq *GrpcRequest) []*SenderMsg {
 		if err != nil {
 			break
 		}
+		addpath := grpcReq.Data.(bool)
 		rf := grpcReq.RouteFamily
-		var paths []*table.Path
+		var dsts map[string]*table.Destination
 
 		if grpcReq.RequestType == REQ_ADJ_RIB_IN {
-			paths = peer.adjRib.GetInPathList(rf)
-			log.Debugf("RouteFamily=%v adj-rib-in found : %d", rf.String(), len(paths))
+			dsts = peer.adjRibIn.GetDestinations(rf)
+			log.Debugf("RouteFamily=%v adj-rib-in found : %d", rf.String(), len(dsts))
 		} else {
-			paths = peer.adjRib.GetOutPathList(rf)
-			log.Debugf("RouteFamily=%v adj-rib-out found : %d", rf.String(), len(paths))
+			dsts = peer.adjRibOut.GetDestinations(rf)
+			log.Debugf("RouteFamily=%v adj-rib-out found : %d", rf.String(), len(dsts))
 		}
 
-		toResult := func(p *table.Path) *GrpcResponse {
-			return &GrpcResponse{
-				Data: &api.Destination{
-					Prefix: p.GetNlri().String(),
-					Paths:  []*api.Path{p.ToApiStruct(grpcReq.Data.(bool))},
-				},
-			}
-		}
-
-		results := make([]*GrpcResponse, len(paths))
+		var results []*GrpcResponse
 		switch rf {
 		case bgp.RF_IPv4_UC, bgp.RF_IPv6_UC:
-			r := radix.New()
-			for _, p := range paths {
-				r.Insert(table.CidrToRadixkey(p.GetNlri().String()), toResult(p))
-			}
-			i := 0
-			r.Walk(func(s string, v interface{}) bool {
-				r, _ := v.(*GrpcResponse)
-				results[i] = r
-				i++
-				return false
-			})
+			results = sortedDsts(dsts, addpath)
 		default:
-			for i, p := range paths {
-				results[i] = toResult(p)
+			results = make([]*GrpcResponse, 0, len(dsts))
+			for _, dst := range dsts {
+				result := &GrpcResponse{}
+				result.Data = dst.ToApiStruct(addpath)
+				results = append(results, result)
 			}
 		}
 		go sendMultipleResponses(grpcReq, results)
@@ -1490,7 +1471,7 @@ func (server *BgpServer) handleGrpc(grpcReq *GrpcRequest) []*SenderMsg {
 		if err != nil {
 			break
 		}
-		pathList := peer.adjRib.GetInPathList(grpcReq.RouteFamily)
+		pathList := peer.adjRibIn.GetPathList(grpcReq.RouteFamily)
 		msgs = server.propagateUpdate(peer, pathList)
 
 		if grpcReq.RequestType == REQ_NEIGHBOR_SOFT_RESET_IN {
@@ -1504,7 +1485,7 @@ func (server *BgpServer) handleGrpc(grpcReq *GrpcRequest) []*SenderMsg {
 		if err != nil {
 			break
 		}
-		pathList := peer.adjRib.GetOutPathList(grpcReq.RouteFamily)
+		pathList := peer.adjRibOut.GetPathList(grpcReq.RouteFamily)
 		msgList := table.CreateUpdateMsgFromPaths(pathList)
 		msgs = []*SenderMsg{newSenderMsg(peer, msgList)}
 		grpcReq.ResponseCh <- &GrpcResponse{}

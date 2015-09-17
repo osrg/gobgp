@@ -125,7 +125,7 @@ func (dd *Destination) ToApiStruct(addpath bool) *api.Destination {
 		ret := make([]*api.Path, 0, len(arg))
 		for _, p := range arg {
 			pp := p.ToApiStruct(addpath)
-			if dd.GetBestPath().Equal(p) {
+			if p.Equal(dd.GetBestPath()) {
 				pp.Best = true
 			}
 			ret = append(ret, pp)
