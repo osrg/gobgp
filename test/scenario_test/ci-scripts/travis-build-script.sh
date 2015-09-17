@@ -66,6 +66,9 @@ PIDS=("${PIDS[@]}" $!)
 sudo  PYTHONPATH=$GOBGP/test python bgp_zebra_test.py --gobgp-image $GOBGP_IMAGE --test-prefix zebra -x &
 PIDS=("${PIDS[@]}" $!)
 
+sudo  PYTHONPATH=$GOBGP/test python addpath_test.py --gobgp-image $GOBGP_IMAGE --test-prefix addpath -x &
+PIDS=("${PIDS[@]}" $!)
+
 for (( i = 0; i < ${#PIDS[@]}; ++i ))
 do
     wait ${PIDS[$i]}
