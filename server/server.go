@@ -562,9 +562,9 @@ func (server *BgpServer) dropPeerAllRoutes(peer *Peer) []*SenderMsg {
 				if targetPeer.fsm.state != bgp.BGP_FSM_ESTABLISHED || len(pathList) == 0 {
 					continue
 				}
+				pathList = targetPeer.adjRibOut.Update(pathList)
 				msgList := table.CreateUpdateMsgFromPaths(pathList)
 				msgs = append(msgs, newSenderMsg(targetPeer, msgList))
-				targetPeer.adjRibOut.Update(pathList)
 			}
 		} else {
 			loc := server.localRibMap[GLOBAL_RIB_NAME]
@@ -575,12 +575,12 @@ func (server *BgpServer) dropPeerAllRoutes(peer *Peer) []*SenderMsg {
 
 			server.broadcastBests(pathList)
 
-			msgList := table.CreateUpdateMsgFromPaths(pathList)
 			for _, targetPeer := range server.neighborMap {
 				if targetPeer.isRouteServerClient() || targetPeer.fsm.state != bgp.BGP_FSM_ESTABLISHED {
 					continue
 				}
-				targetPeer.adjRibOut.Update(pathList)
+				pathList = targetPeer.adjRibOut.Update(pathList)
+				msgList := table.CreateUpdateMsgFromPaths(pathList)
 				msgs = append(msgs, newSenderMsg(targetPeer, msgList))
 			}
 		}
@@ -643,6 +643,9 @@ func applyPolicies(peer *Peer, loc *LocalRib, d Direction, pathList []*table.Pat
 
 func (server *BgpServer) broadcastBests(bests []*table.Path) {
 	for _, path := range bests {
+		if path.Score() != 0 {
+			continue
+		}
 		if !path.IsFromZebra {
 			z := newBroadcastZapiBestMsg(server.zclient, path)
 			if z != nil {
@@ -730,8 +733,11 @@ func (server *BgpServer) propagateUpdate(peer *Peer, pathList []*table.Path) []*
 			if len(sendPathList) == 0 {
 				continue
 			}
+			sendPathList = targetPeer.adjRibOut.Update(sendPathList)
+			if len(sendPathList) == 0 {
+				continue
+			}
 			msgList := table.CreateUpdateMsgFromPaths(sendPathList)
-			targetPeer.adjRibOut.Update(sendPathList)
 			msgs = append(msgs, newSenderMsg(targetPeer, msgList))
 		}
 	} else {

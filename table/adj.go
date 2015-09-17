@@ -137,7 +137,7 @@ func (d *AdjDestination) Update(path *Path) *Path {
 
 	if !found {
 		if d.Out {
-			path.GetNlri().SetPathIdentifier(uint32(len(d.PathList)))
+			path.GetNlri().SetPathIdentifier(uint32(len(d.PathList)) + 1)
 		}
 		d.PathList = append(d.PathList, p)
 	}

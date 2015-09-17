@@ -179,8 +179,7 @@ func (manager *TableManager) DeleteVrf(name string) ([]*Path, error) {
 }
 
 func (manager *TableManager) calculate(destinationList []*Destination) ([]*Path, error) {
-	newPaths := make([]*Path, 0)
-
+	result := make([]*Path, 0, len(destinationList))
 	for _, destination := range destinationList {
 		// compute best path
 
@@ -190,14 +189,7 @@ func (manager *TableManager) calculate(destinationList []*Destination) ([]*Path,
 			"Key":   destination.GetNlri().String(),
 		}).Debug("Processing destination")
 
-		newBestPath, reason, err := destination.Calculate()
-
-		if err != nil {
-			log.Error(err)
-			continue
-		}
-
-		destination.setBestPathReason(reason)
+		newBestPath, backups, matchedWithdrawals := destination.Calculate()
 		currentBestPath := destination.GetBestPath()
 
 		if newBestPath != nil && newBestPath.Equal(currentBestPath) {
@@ -208,40 +200,54 @@ func (manager *TableManager) calculate(destinationList []*Destination) ([]*Path,
 				"Key":      destination.GetNlri().String(),
 				"peer":     newBestPath.GetSource().Address,
 				"next_hop": newBestPath.GetNexthop().String(),
-				"reason":   reason,
+				"reason":   newBestPath.reason,
 			}).Debug("best path is not changed")
-			continue
-		}
-
-		if newBestPath == nil {
+			newBestPath = nil
+		} else if newBestPath == nil {
 			log.WithFields(log.Fields{
 				"Topic": "table",
 				"Owner": manager.owner,
 				"Key":   destination.GetNlri().String(),
 			}).Debug("best path is nil")
 
-			if len(destination.GetKnownPathList()) == 0 {
-				// create withdraw path
-				if currentBestPath != nil {
-					log.WithFields(log.Fields{
-						"Topic":    "table",
-						"Owner":    manager.owner,
-						"Key":      destination.GetNlri().String(),
-						"peer":     currentBestPath.GetSource().Address,
-						"next_hop": currentBestPath.GetNexthop().String(),
-					}).Debug("best path is lost")
-
-					p := destination.GetBestPath()
-					newPaths = append(newPaths, p.Clone(true))
-				}
-				destination.setBestPath(nil)
-			} else {
+			if len(destination.GetKnownPathList()) > 0 {
 				log.WithFields(log.Fields{
 					"Topic": "table",
 					"Owner": manager.owner,
 					"Key":   destination.GetNlri().String(),
-				}).Error("known path list is not empty")
+				}).Error("code logic bug: known path list is not empty")
+				continue
 			}
+			if len(backups) > 0 {
+				log.WithFields(log.Fields{
+					"Topic": "table",
+					"Owner": manager.owner,
+					"Key":   destination.GetNlri().String(),
+				}).Error("code logic bug: buckup list is not empty")
+				continue
+			}
+			if currentBestPath != nil && len(matchedWithdrawals) == 0 {
+				log.WithFields(log.Fields{
+					"Topic": "table",
+					"Owner": manager.owner,
+					"Key":   destination.GetNlri().String(),
+				}).Error("code logic bug: matchedWithdrawals is empty")
+				continue
+			}
+			if currentBestPath != nil {
+				// matchedWithdrawals is sorted.
+				// A head route is the route which withdraw a best path.
+				newBestPath = matchedWithdrawals[0]
+				matchedWithdrawals = matchedWithdrawals[1:]
+				log.WithFields(log.Fields{
+					"Topic":    "table",
+					"Owner":    manager.owner,
+					"Key":      destination.GetNlri().String(),
+					"peer":     currentBestPath.GetSource().Address,
+					"next_hop": currentBestPath.GetNexthop().String(),
+				}).Debug("best path is lost")
+			}
+			destination.setBestPath(nil)
 		} else {
 			log.WithFields(log.Fields{
 				"Topic":    "table",
@@ -249,12 +255,22 @@ func (manager *TableManager) calculate(destinationList []*Destination) ([]*Path,
 				"Key":      newBestPath.GetNlri().String(),
 				"peer":     newBestPath.GetSource().Address,
 				"next_hop": newBestPath.GetNexthop(),
-				"reason":   reason,
+				"reason":   newBestPath.reason,
 			}).Debug("new best path")
-
-			newPaths = append(newPaths, newBestPath)
+			if len(matchedWithdrawals) > 0 && matchedWithdrawals[0] == currentBestPath {
+				// matchedWithdrawals is sorted.
+				// A head route is the route which withdraw a best path.
+				// new best path is elected. just throw away the head withdraw route.
+				matchedWithdrawals = matchedWithdrawals[1:]
+			}
 			destination.setBestPath(newBestPath)
 		}
+
+		if newBestPath != nil {
+			result = append(result, newBestPath)
+		}
+		result = append(result, matchedWithdrawals...)
+		result = append(result, backups...)
 
 		if len(destination.GetKnownPathList()) == 0 && destination.GetBestPath() == nil {
 			rf := destination.getRouteFamily()
@@ -268,7 +284,7 @@ func (manager *TableManager) calculate(destinationList []*Destination) ([]*Path,
 			}).Debug("destination removed")
 		}
 	}
-	return newPaths, nil
+	return result, nil
 }
 
 func (manager *TableManager) DeletePathsforPeer(peerInfo *PeerInfo, rf bgp.RouteFamily) ([]*Path, error) {
@@ -276,7 +292,7 @@ func (manager *TableManager) DeletePathsforPeer(peerInfo *PeerInfo, rf bgp.Route
 		destinationList := t.DeleteDestByPeer(peerInfo)
 		return manager.calculate(destinationList)
 	}
-	return []*Path{}, nil
+	return nil, nil
 }
 
 func (manager *TableManager) ProcessPaths(pathList []*Path) ([]*Path, error) {
@@ -372,7 +388,7 @@ func (manager *TableManager) ProcessUpdate(fromPeer *PeerInfo, message *bgp.BGPM
 			"key":   fromPeer.Address.String(),
 			"Type":  message.Header.Type,
 		}).Warn("message is not BGPUpdate")
-		return []*Path{}, nil
+		return nil, nil
 	}
 
 	return manager.ProcessPaths(ProcessMessage(message, fromPeer))

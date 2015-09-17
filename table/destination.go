@@ -94,14 +94,13 @@ func (i *PeerInfo) String() string {
 }
 
 type Destination struct {
-	routeFamily    bgp.RouteFamily
-	nlri           bgp.AddrPrefixInterface
-	knownPathList  paths
-	withdrawList   paths
-	newPathList    paths
-	bestPath       *Path
-	bestPathReason BestPathReason
-	RadixKey       string
+	routeFamily   bgp.RouteFamily
+	nlri          bgp.AddrPrefixInterface
+	knownPathList paths
+	withdrawList  paths
+	newPathList   paths
+	bestPath      *Path
+	RadixKey      string
 }
 
 func NewDestination(nlri bgp.AddrPrefixInterface) *Destination {
@@ -155,14 +154,6 @@ func (dd *Destination) setNlri(nlri bgp.AddrPrefixInterface) {
 	dd.nlri = nlri
 }
 
-func (dd *Destination) getBestPathReason() BestPathReason {
-	return dd.bestPathReason
-}
-
-func (dd *Destination) setBestPathReason(reason BestPathReason) {
-	dd.bestPathReason = reason
-}
-
 func (dd *Destination) GetBestPath() *Path {
 	return dd.bestPath
 }
@@ -207,18 +198,27 @@ func (dd *Destination) validatePath(path *Path) {
 //
 // Modifies destination's state related to stored paths. Removes withdrawn
 // paths from known paths. Also, adds new paths to known paths.
-func (dest *Destination) Calculate() (*Path, BestPathReason, error) {
+func (dest *Destination) Calculate() (*Path, []*Path, []*Path) {
 
 	// First remove the withdrawn paths.
-	dest.explicitWithdraw()
+	matchedWithdrawals := dest.explicitWithdraw()
 	// Do implicit withdrawal
 	dest.implicitWithdraw()
 	// Collect all new paths into known paths.
 	dest.knownPathList = append(dest.knownPathList, dest.newPathList...)
-	// Clear new paths as we copied them.
-	dest.newPathList = make([]*Path, 0)
 	// Compute new best path
-	return dest.computeKnownBestPath()
+	best := dest.computeKnownBestPath()
+	// Newly added backup paths
+	backups := make([]*Path, 0, len(dest.newPathList))
+	for _, path := range dest.newPathList {
+		if path != best {
+			backups = append(backups, path)
+		}
+	}
+	// Clear new/withdraw path list
+	dest.newPathList = make([]*Path, 0)
+	dest.withdrawList = make([]*Path, 0)
+	return best, backups, matchedWithdrawals
 }
 
 // Removes withdrawn paths.
@@ -256,9 +256,8 @@ func (dest *Destination) explicitWithdraw() paths {
 
 	// If we have some known paths and some withdrawals, we find matches and
 	// delete them first.
-	matches := make([]*Path, 0, len(dest.withdrawList)/2)
+	matches := make(paths, 0, len(dest.withdrawList)/2)
 	newKnownPaths := make([]*Path, 0, len(dest.knownPathList)/2)
-	newWithdrawPaths := make([]*Path, 0, len(dest.withdrawList)/2)
 
 	// Match all withdrawals from destination paths.
 	for _, withdraw := range dest.withdrawList {
@@ -281,18 +280,7 @@ func (dest *Destination) explicitWithdraw() paths {
 				"Key":   dest.GetNlri().String(),
 				"Path":  withdraw,
 			}).Debug("No matching path for withdraw found, may be path was not installed into table")
-			newWithdrawPaths = append(newWithdrawPaths, withdraw)
 		}
-	}
-
-	// If we have partial match.
-	if len(newWithdrawPaths) > 0 {
-		log.WithFields(log.Fields{
-			"Topic":          "Table",
-			"Key":            dest.GetNlri().String(),
-			"MatchLength":    len(matches),
-			"WithdrawLength": len(dest.withdrawList),
-		}).Debug("Did not find match for some withdrawals.")
 	}
 
 	for _, path := range dest.knownPathList {
@@ -302,7 +290,11 @@ func (dest *Destination) explicitWithdraw() paths {
 	}
 
 	dest.knownPathList = newKnownPaths
-	dest.withdrawList = newWithdrawPaths
+	// pop up a route which withdraws best path
+	sort.Sort(matches)
+	for score, p := range matches {
+		p.score = score
+	}
 	return matches
 }
 
@@ -347,12 +339,12 @@ func (dest *Destination) implicitWithdraw() {
 	dest.knownPathList = newKnownPaths
 }
 
-func (dest *Destination) computeKnownBestPath() (*Path, BestPathReason, error) {
+func (dest *Destination) computeKnownBestPath() *Path {
 
 	// If we do not have any paths to this destination, then we do not have
 	// new best path.
 	if len(dest.knownPathList) == 0 {
-		return nil, BPR_UNKNOWN, nil
+		return nil
 	}
 
 	log.Debugf("computeKnownBestPath known pathlist: %d", len(dest.knownPathList))
@@ -361,11 +353,14 @@ func (dest *Destination) computeKnownBestPath() (*Path, BestPathReason, error) {
 	// tie between two new paths learned in one cycle for which best-path
 	// calculation steps lead to tie.
 	if len(dest.knownPathList) == 1 {
-		return dest.knownPathList[0], BPR_ONLY_PATH, nil
+		dest.knownPathList[0].reason = BPR_ONLY_PATH
+	} else {
+		sort.Sort(dest.knownPathList)
 	}
-	sort.Sort(dest.knownPathList)
-	newBest := dest.knownPathList[0]
-	return newBest, newBest.reason, nil
+	for score, p := range dest.knownPathList {
+		p.score = score
+	}
+	return dest.knownPathList[0]
 }
 
 type paths []*Path

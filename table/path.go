@@ -40,6 +40,7 @@ type Path struct {
 	Validation             config.RpkiValidationResultType
 	IsFromZebra            bool
 	reason                 BestPathReason
+	score                  int
 }
 
 func NewPath(source *PeerInfo, nlri bgp.AddrPrefixInterface, isWithdraw bool, pattrs []bgp.PathAttributeInterface, medSetByTargetNeighbor bool, timestamp time.Time, noImplicitWithdraw bool) *Path {
@@ -228,7 +229,12 @@ func (path *Path) Clone(isWithdraw bool) *Path {
 
 	p := NewPath(path.source, nlri, isWithdraw, newPathAttrs, false, path.timestamp, path.NoImplicitWithdraw)
 	p.Validation = path.Validation
+	p.score = path.score
 	return p
+}
+
+func (path *Path) Score() int {
+	return path.score
 }
 
 func (path *Path) GetRouteFamily() bgp.RouteFamily {
