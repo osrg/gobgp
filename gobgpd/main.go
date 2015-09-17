@@ -42,8 +42,6 @@ func main() {
 		UseSyslog     string `short:"s" long:"syslog" description:"use syslogd"`
 		Facility      string `long:"syslog-facility" description:"specify syslog facility"`
 		DisableStdlog bool   `long:"disable-stdlog" description:"disable standard logging"`
-		EnableZapi    bool   `short:"z" long:"enable-zapi" description:"enable zebra api"`
-		ZapiURL       string `long:"zapi-url" description:"specify zebra api url"`
 		CPUs          int    `long:"cpus" description:"specify the number of CPUs to be used"`
 	}
 	_, err := flags.Parse(&opts)
@@ -156,17 +154,6 @@ func main() {
 	// start grpc Server
 	grpcServer := server.NewGrpcServer(server.GRPC_PORT, bgpServer.GrpcReqCh)
 	go grpcServer.Serve()
-
-	if opts.EnableZapi == true {
-		if opts.ZapiURL == "" {
-			opts.ZapiURL = "unix:/var/run/quagga/zserv.api"
-		}
-		err := bgpServer.NewZclient(opts.ZapiURL)
-		if err != nil {
-			log.Error(err)
-			os.Exit(1)
-		}
-	}
 
 	var bgpConfig *config.Bgp = nil
 	var policyConfig *config.RoutingPolicy = nil

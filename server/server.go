@@ -167,6 +167,16 @@ func (server *BgpServer) Serve() {
 		}
 	}
 
+	if g.Zebra.Enabled == true {
+		if g.Zebra.Url == "" {
+			g.Zebra.Url = "unix:/var/run/quagga/zserv.api"
+		}
+		err := server.NewZclient(g.Zebra.Url)
+		if err != nil {
+			log.Error(err)
+		}
+	}
+
 	senderCh := make(chan *SenderMsg, 1<<16)
 	go func(ch chan *SenderMsg) {
 		for {
@@ -238,7 +248,7 @@ func (server *BgpServer) Serve() {
 
 	var zapiMsgCh chan *zebra.Message
 	if server.zclient != nil {
-		zapiMsgCh = server.zclient.Recieve()
+		zapiMsgCh = server.zclient.Receive()
 	}
 	for {
 		var firstMsg *SenderMsg

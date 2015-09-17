@@ -263,7 +263,7 @@ func readAll(conn net.Conn, length int) ([]byte, error) {
 	return buf, err
 }
 
-func (c *Client) Recieve() chan *Message {
+func (c *Client) Receive() chan *Message {
 	return c.incoming
 }
 
