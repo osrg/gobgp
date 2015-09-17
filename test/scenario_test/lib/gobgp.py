@@ -39,8 +39,6 @@ class GoBGPContainer(BGPContainer):
 
     def _start_gobgp(self):
         zebra_op = ''
-        if self.zebra:
-            zebra_op = '-z'
         c = CmdBuffer()
         c << '#!/bin/bash'
         c << '/go/bin/gobgpd -f {0}/gobgpd.conf -l {1} -p {2} > ' \
@@ -275,6 +273,9 @@ class GoBGPContainer(BGPContainer):
 
         if len(policy_list) > 0:
             config['PolicyDefinitions'] = {'PolicyDefinitionList': policy_list}
+
+        if self.zebra:
+            config['Global']['Zebra'] = {'Enabled': True}
 
         with open('{0}/gobgpd.conf'.format(self.config_dir), 'w') as f:
             print colors.yellow('[{0}\'s new config]'.format(self.name))
