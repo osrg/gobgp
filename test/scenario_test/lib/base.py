@@ -327,14 +327,13 @@ class BGPContainer(Container):
                 ping_cmd = 'ping6'
             else:
                 raise Exception('unsupported route family: {0}'.format(version))
-            cmd = '/bin/{0} -c 1 -w 1 {1}'.format(ping_cmd, addr)
-
+            cmd = '/bin/bash -c "/bin/{0} -c 1 -w 1 {1} | xargs echo"'.format(ping_cmd, addr)
             interval = 1
             count = 0
             while True:
                 res = self.local(cmd, capture=True)
                 print colors.yellow(res)
-                if '0% packet loss' in res:
+                if '1 packets received' in res and '0% packet loss':
                     break
                 time.sleep(interval)
                 count += interval
@@ -361,6 +360,10 @@ class BGPContainer(Container):
 
     def add_static_route(self, network, next_hop):
         cmd = '/sbin/ip route add {0} via {1}'.format(network, next_hop)
+        self.local(cmd)
+
+    def set_ipv6_forward(self):
+        cmd = 'sysctl -w net.ipv6.conf.all.forwarding=1'
         self.local(cmd)
 
     def create_config(self):

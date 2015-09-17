@@ -158,12 +158,14 @@ class QuaggaBGPContainer(BGPContainer):
             self._create_config_zebra()
 
     def _create_config_bgp(self):
+
         c = CmdBuffer()
         c << 'hostname bgpd'
         c << 'password zebra'
         c << 'router bgp {0}'.format(self.asn)
         c << 'bgp router-id {0}'.format(self.router_id)
 
+        version = 4
         for peer, info in self.peers.iteritems():
             version = netaddr.IPNetwork(info['neigh_addr']).version
             n_addr = info['neigh_addr'].split('/')[0]
@@ -192,6 +194,13 @@ class QuaggaBGPContainer(BGPContainer):
             else:
                 raise Exception('unsupported route faily: {0}'.format(route['rf']))
 
+        if self.zebra:
+            if version == 6:
+                c << 'address-family ipv6 unicast'
+                c << 'redistribute connected'
+                c << 'exit-address-family'
+            else:
+                c << 'redistribute connected'
 
         for name, policy in self.policies.iteritems():
             c << 'access-list {0} {1} {2}'.format(name, policy['type'],

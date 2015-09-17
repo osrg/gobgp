@@ -100,9 +100,9 @@ class GoBGPTestBase(unittest.TestCase):
         q1 = self.quaggas['ipv4']
         o1 = self.others['ipv4'][0]
 
-        next_hop = g1.ip_addrs[1][1].split('/')[0]
-        o1.add_static_route(self.bridges['ipv4']['br01'].subnet, next_hop)
-        q1.get_reachablily('192.168.30.2')
+        next_hop = g1.ip_addrs[0][1].split('/')[0]
+        o1.add_static_route(self.bridges['ipv4']['br02'].subnet, next_hop)
+        q1.get_reachablily('192.168.10.1')
 
     """
       No.3 check whether the ping is reachable in container
@@ -113,9 +113,9 @@ class GoBGPTestBase(unittest.TestCase):
         q1 = self.quaggas['ipv4']
         o2 = self.others['ipv4'][1]
 
-        next_hop = q1.ip_addrs[0][1].split('/')[0]
-        o2.add_static_route(self.bridges['ipv4']['br03'].subnet, next_hop)
-        g1.get_reachablily('192.168.10.2')
+        next_hop = q1.ip_addrs[1][1].split('/')[0]
+        o2.add_static_route(self.bridges['ipv4']['br02'].subnet, next_hop)
+        g1.get_reachablily('192.168.30.2')
 
     """
       No.4 start up ipv4 containers and check state
@@ -149,9 +149,10 @@ class GoBGPTestBase(unittest.TestCase):
         q1 = self.quaggas['ipv6']
         o1 = self.others['ipv6'][0]
 
-        next_hop = g1.ip_addrs[1][1].split('/')[0]
-        o1.add_static_route(self.bridges['ipv6']['br01'].subnet, next_hop)
-        q1.get_reachablily('2001:30::2')
+        next_hop = g1.ip_addrs[0][1].split('/')[0]
+        g1.set_ipv6_forward()
+        o1.add_static_route(self.bridges['ipv6']['br02'].subnet, next_hop)
+        q1.get_reachablily('2001:10::1')
 
     """
       No.6 check whether the ping is reachable in container
@@ -162,9 +163,10 @@ class GoBGPTestBase(unittest.TestCase):
         q1 = self.quaggas['ipv6']
         o2 = self.others['ipv6'][1]
 
-        next_hop = q1.ip_addrs[0][1].split('/')[0]
-        o2.add_static_route(self.bridges['ipv6']['br03'].subnet, next_hop)
-        g1.get_reachablily('2001:10::2')
+        next_hop = q1.ip_addrs[1][1].split('/')[0]
+        q1.set_ipv6_forward()
+        o2.add_static_route(self.bridges['ipv6']['br02'].subnet, next_hop)
+        g1.get_reachablily('2001:30::2')
 
 
 if __name__ == '__main__':
