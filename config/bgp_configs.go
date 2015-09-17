@@ -791,6 +791,15 @@ type Neighbors struct {
 	NeighborList []Neighbor
 }
 
+//struct for container gobgp:zebra
+type Zebra struct {
+	// original -> gobgp:enabled
+	//gobgp:enabled's original type is boolean
+	Enabled bool
+	// original -> gobgp:url
+	Url string
+}
+
 //struct for container gobgp:mrt
 type Mrt struct {
 	// original -> gobgp:file-name
@@ -1335,6 +1344,8 @@ type Global struct {
 	ApplyPolicy ApplyPolicy
 	// original -> gobgp:mrt
 	Mrt Mrt
+	// original -> gobgp:zebra
+	Zebra Zebra
 }
 
 //struct for container bgp:bgp
