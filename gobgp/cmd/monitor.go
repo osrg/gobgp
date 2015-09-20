@@ -35,8 +35,8 @@ func NewMonitorCmd() *cobra.Command {
 				fmt.Println(err)
 				os.Exit(1)
 			}
-			arg := &api.Arguments{
-				Resource: api.Resource_GLOBAL,
+			arg := &gobgpapi.Arguments{
+				Resource: gobgpapi.Resource_GLOBAL,
 				Rf:       uint32(rf),
 			}
 
@@ -78,13 +78,13 @@ func NewMonitorCmd() *cobra.Command {
 	neighborCmd := &cobra.Command{
 		Use: CMD_NEIGHBOR,
 		Run: func(cmd *cobra.Command, args []string) {
-			var arg *api.Arguments
+			var arg *gobgpapi.Arguments
 			if len(args) > 0 {
-				arg = &api.Arguments{
+				arg = &gobgpapi.Arguments{
 					Name: args[0],
 				}
 			} else {
-				arg = &api.Arguments{}
+				arg = &gobgpapi.Arguments{}
 			}
 
 			stream, err := client.MonitorPeerState(context.Background(), arg)

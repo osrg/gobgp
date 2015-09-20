@@ -1636,16 +1636,16 @@ func IndexOfPolicyDefinition(conPolicyList []config.PolicyDefinition, reqPolicy 
 	return idxPolicyDefinition, idxStatement
 }
 
-func PrefixSetToApiStruct(ps config.PrefixSet) *api.PrefixSet {
-	resPrefixList := make([]*api.Prefix, 0)
+func PrefixSetToApiStruct(ps config.PrefixSet) *gobgpapi.PrefixSet {
+	resPrefixList := make([]*gobgpapi.Prefix, 0)
 	for _, p := range ps.PrefixList {
-		resPrefix := &api.Prefix{
+		resPrefix := &gobgpapi.Prefix{
 			IpPrefix:        p.IpPrefix,
 			MaskLengthRange: p.MasklengthRange,
 		}
 		resPrefixList = append(resPrefixList, resPrefix)
 	}
-	resPrefixSet := &api.PrefixSet{
+	resPrefixSet := &gobgpapi.PrefixSet{
 		PrefixSetName: ps.PrefixSetName,
 		PrefixList:    resPrefixList,
 	}
@@ -1653,7 +1653,7 @@ func PrefixSetToApiStruct(ps config.PrefixSet) *api.PrefixSet {
 	return resPrefixSet
 }
 
-func PrefixSetToConfigStruct(reqPrefixSet *api.PrefixSet) (bool, config.PrefixSet) {
+func PrefixSetToConfigStruct(reqPrefixSet *gobgpapi.PrefixSet) (bool, config.PrefixSet) {
 	var prefix config.Prefix
 	var prefixSet config.PrefixSet
 	isReqPrefixSet := true
@@ -1678,22 +1678,22 @@ func PrefixSetToConfigStruct(reqPrefixSet *api.PrefixSet) (bool, config.PrefixSe
 	return isReqPrefixSet, prefixSet
 }
 
-func NeighborSetToApiStruct(ns config.NeighborSet) *api.NeighborSet {
-	resNeighborList := make([]*api.Neighbor, 0)
+func NeighborSetToApiStruct(ns config.NeighborSet) *gobgpapi.NeighborSet {
+	resNeighborList := make([]*gobgpapi.Neighbor, 0)
 	for _, n := range ns.NeighborInfoList {
-		resNeighbor := &api.Neighbor{
+		resNeighbor := &gobgpapi.Neighbor{
 			Address: n.Address.String(),
 		}
 		resNeighborList = append(resNeighborList, resNeighbor)
 	}
-	resNeighborSet := &api.NeighborSet{
+	resNeighborSet := &gobgpapi.NeighborSet{
 		NeighborSetName: ns.NeighborSetName,
 		NeighborList:    resNeighborList,
 	}
 	return resNeighborSet
 }
 
-func NeighborSetToConfigStruct(reqNeighborSet *api.NeighborSet) (bool, config.NeighborSet) {
+func NeighborSetToConfigStruct(reqNeighborSet *gobgpapi.NeighborSet) (bool, config.NeighborSet) {
 	var neighbor config.NeighborInfo
 	var neighborSet config.NeighborSet
 	isReqNeighborSet := true
@@ -1717,19 +1717,19 @@ func NeighborSetToConfigStruct(reqNeighborSet *api.NeighborSet) (bool, config.Ne
 	return isReqNeighborSet, neighborSet
 }
 
-func AsPathSetToApiStruct(as config.AsPathSet) *api.AsPathSet {
+func AsPathSetToApiStruct(as config.AsPathSet) *gobgpapi.AsPathSet {
 	resAsPathMembers := make([]string, 0)
 	for _, a := range as.AsPathList {
 		resAsPathMembers = append(resAsPathMembers, a.AsPath)
 	}
-	resAsPathSet := &api.AsPathSet{
+	resAsPathSet := &gobgpapi.AsPathSet{
 		AsPathSetName: as.AsPathSetName,
 		AsPathMembers: resAsPathMembers,
 	}
 	return resAsPathSet
 }
 
-func AsPathSetToConfigStruct(reqAsPathSet *api.AsPathSet) (bool, config.AsPathSet) {
+func AsPathSetToConfigStruct(reqAsPathSet *gobgpapi.AsPathSet) (bool, config.AsPathSet) {
 	isAsPathSetSet := true
 	if len(reqAsPathSet.AsPathMembers) == 0 {
 		isAsPathSetSet = false
@@ -1745,19 +1745,19 @@ func AsPathSetToConfigStruct(reqAsPathSet *api.AsPathSet) (bool, config.AsPathSe
 	return isAsPathSetSet, asPathSet
 }
 
-func CommunitySetToApiStruct(cs config.CommunitySet) *api.CommunitySet {
+func CommunitySetToApiStruct(cs config.CommunitySet) *gobgpapi.CommunitySet {
 	resCommunityMembers := make([]string, 0)
 	for _, c := range cs.CommunityList {
 		resCommunityMembers = append(resCommunityMembers, c.Community)
 	}
-	resCommunitySet := &api.CommunitySet{
+	resCommunitySet := &gobgpapi.CommunitySet{
 		CommunitySetName: cs.CommunitySetName,
 		CommunityMembers: resCommunityMembers,
 	}
 	return resCommunitySet
 }
 
-func CommunitySetToConfigStruct(reqCommunitySet *api.CommunitySet) (bool, config.CommunitySet) {
+func CommunitySetToConfigStruct(reqCommunitySet *gobgpapi.CommunitySet) (bool, config.CommunitySet) {
 	isCommunitySet := true
 	if len(reqCommunitySet.CommunityMembers) == 0 {
 		isCommunitySet = false
@@ -1773,19 +1773,19 @@ func CommunitySetToConfigStruct(reqCommunitySet *api.CommunitySet) (bool, config
 	return isCommunitySet, communitySet
 }
 
-func ExtCommunitySetToApiStruct(es config.ExtCommunitySet) *api.ExtCommunitySet {
+func ExtCommunitySetToApiStruct(es config.ExtCommunitySet) *gobgpapi.ExtCommunitySet {
 	resExtCommunityMembers := make([]string, 0)
 	for _, ec := range es.ExtCommunityList {
 		resExtCommunityMembers = append(resExtCommunityMembers, ec.ExtCommunity)
 	}
-	resExtCommunitySet := &api.ExtCommunitySet{
+	resExtCommunitySet := &gobgpapi.ExtCommunitySet{
 		ExtCommunitySetName: es.ExtCommunitySetName,
 		ExtCommunityMembers: resExtCommunityMembers,
 	}
 	return resExtCommunitySet
 }
 
-func ExtCommunitySetToConfigStruct(reqExtCommunitySet *api.ExtCommunitySet) (bool, config.ExtCommunitySet) {
+func ExtCommunitySetToConfigStruct(reqExtCommunitySet *gobgpapi.ExtCommunitySet) (bool, config.ExtCommunitySet) {
 	isExtCommunitySet := true
 	if len(reqExtCommunitySet.ExtCommunityMembers) == 0 {
 		isExtCommunitySet = false
@@ -1801,19 +1801,19 @@ func ExtCommunitySetToConfigStruct(reqExtCommunitySet *api.ExtCommunitySet) (boo
 	return isExtCommunitySet, ExtCommunitySet
 }
 
-func AsPathLengthToApiStruct(asPathLength config.AsPathLength) *api.AsPathLength {
+func AsPathLengthToApiStruct(asPathLength config.AsPathLength) *gobgpapi.AsPathLength {
 	value := ""
 	if asPathLength.Operator != "" {
 		value = fmt.Sprintf("%d", asPathLength.Value)
 	}
-	resAsPathLength := &api.AsPathLength{
+	resAsPathLength := &gobgpapi.AsPathLength{
 		Value:    value,
 		Operator: asPathLength.Operator,
 	}
 	return resAsPathLength
 }
 
-func AsPathLengthToConfigStruct(reqAsPathLength *api.AsPathLength) config.AsPathLength {
+func AsPathLengthToConfigStruct(reqAsPathLength *gobgpapi.AsPathLength) config.AsPathLength {
 	operator := reqAsPathLength.Operator
 	value := reqAsPathLength.Value
 	valueUint, _ := strconv.ParseUint(value, 10, 32)
@@ -1824,7 +1824,7 @@ func AsPathLengthToConfigStruct(reqAsPathLength *api.AsPathLength) config.AsPath
 	return asPathLength
 }
 
-func ConditionsToConfigStruct(reqConditions *api.Conditions) config.Conditions {
+func ConditionsToConfigStruct(reqConditions *gobgpapi.Conditions) config.Conditions {
 	conditions := config.Conditions{}
 	if reqConditions == nil {
 		return conditions
@@ -1861,28 +1861,28 @@ func ConditionsToConfigStruct(reqConditions *api.Conditions) config.Conditions {
 	return conditions
 }
 
-func ActionsToApiStruct(conActions config.Actions) *api.Actions {
+func ActionsToApiStruct(conActions config.Actions) *gobgpapi.Actions {
 	action := ROUTE_REJECT
 	if conActions.RouteDisposition.AcceptRoute {
 		action = ROUTE_ACCEPT
 	}
 
 	//TODO: support CommunitySetRef
-	communityAction := &api.CommunityAction{
+	communityAction := &gobgpapi.CommunityAction{
 		Communities: conActions.BgpActions.SetCommunity.SetCommunityMethod.Communities,
 		Options:     conActions.BgpActions.SetCommunity.Options,
 	}
 	medAction := fmt.Sprintf("%s", conActions.BgpActions.SetMed)
-	asprependAction := &api.AsPrependAction{
+	asprependAction := &gobgpapi.AsPrependAction{
 		conActions.BgpActions.SetAsPathPrepend.As,
 		uint32(conActions.BgpActions.SetAsPathPrepend.RepeatN),
 	}
-	extCommunityAction := &api.CommunityAction{
+	extCommunityAction := &gobgpapi.CommunityAction{
 		Communities: conActions.BgpActions.SetExtCommunity.SetExtCommunityMethod.Communities,
 		Options:     conActions.BgpActions.SetExtCommunity.Options,
 	}
 
-	resActions := &api.Actions{
+	resActions := &gobgpapi.Actions{
 		RouteAction:  action,
 		Community:    communityAction,
 		Med:          medAction,
@@ -1892,7 +1892,7 @@ func ActionsToApiStruct(conActions config.Actions) *api.Actions {
 	return resActions
 }
 
-func ActionsToConfigStruct(reqActions *api.Actions) config.Actions {
+func ActionsToConfigStruct(reqActions *gobgpapi.Actions) config.Actions {
 	actions := config.Actions{}
 	if reqActions == nil {
 		return actions
@@ -1918,7 +1918,7 @@ func ActionsToConfigStruct(reqActions *api.Actions) config.Actions {
 	return actions
 }
 
-func StatementToConfigStruct(reqStatement *api.Statement) config.Statement {
+func StatementToConfigStruct(reqStatement *gobgpapi.Statement) config.Statement {
 	statement := config.Statement{
 		Name:       reqStatement.StatementNeme,
 		Conditions: ConditionsToConfigStruct(reqStatement.Conditions),
@@ -1927,7 +1927,7 @@ func StatementToConfigStruct(reqStatement *api.Statement) config.Statement {
 	return statement
 }
 
-func PolicyDefinitionToConfigStruct(reqPolicy *api.PolicyDefinition) (bool, config.PolicyDefinition) {
+func PolicyDefinitionToConfigStruct(reqPolicy *gobgpapi.PolicyDefinition) (bool, config.PolicyDefinition) {
 	isReqStatement := true
 	policy := config.PolicyDefinition{
 		Name: reqPolicy.PolicyDefinitionName,
@@ -1941,26 +1941,26 @@ func PolicyDefinitionToConfigStruct(reqPolicy *api.PolicyDefinition) (bool, conf
 	return isReqStatement, policy
 }
 
-func PolicyDefinitionToApiStruct(pd config.PolicyDefinition, df config.DefinedSets) *api.PolicyDefinition {
+func PolicyDefinitionToApiStruct(pd config.PolicyDefinition, df config.DefinedSets) *gobgpapi.PolicyDefinition {
 	conPrefixSetList := df.PrefixSets.PrefixSetList
 	conNeighborSetList := df.NeighborSets.NeighborSetList
 	conAsPathSetList := df.BgpDefinedSets.AsPathSets.AsPathSetList
 	conCommunitySetList := df.BgpDefinedSets.CommunitySets.CommunitySetList
 	conExtCommunitySetList := df.BgpDefinedSets.ExtCommunitySets.ExtCommunitySetList
-	resStatementList := make([]*api.Statement, 0)
+	resStatementList := make([]*gobgpapi.Statement, 0)
 	for _, st := range pd.Statements.StatementList {
 		co := st.Conditions
 		bco := co.BgpConditions
 		ac := st.Actions
 
-		prefixSet := &api.PrefixSet{PrefixSetName: co.MatchPrefixSet.PrefixSet}
+		prefixSet := &gobgpapi.PrefixSet{PrefixSetName: co.MatchPrefixSet.PrefixSet}
 		conPrefixSet := config.PrefixSet{PrefixSetName: co.MatchPrefixSet.PrefixSet}
 		idxPrefixSet, _ := IndexOfPrefixSet(conPrefixSetList, conPrefixSet)
 		if idxPrefixSet != -1 {
 			prefixSet = PrefixSetToApiStruct(conPrefixSetList[idxPrefixSet])
 			prefixSet.MatchSetOptions = MatchSetOptionsRestrictedToString(st.Conditions.MatchPrefixSet.MatchSetOptions)
 		}
-		neighborSet := &api.NeighborSet{NeighborSetName: co.MatchNeighborSet.NeighborSet}
+		neighborSet := &gobgpapi.NeighborSet{NeighborSetName: co.MatchNeighborSet.NeighborSet}
 		conNeighborSet := config.NeighborSet{NeighborSetName: co.MatchNeighborSet.NeighborSet}
 		idxNeighborSet, _ := IndexOfNeighborSet(conNeighborSetList, conNeighborSet)
 		if idxNeighborSet != -1 {
@@ -1968,7 +1968,7 @@ func PolicyDefinitionToApiStruct(pd config.PolicyDefinition, df config.DefinedSe
 			neighborSet.MatchSetOptions = MatchSetOptionsRestrictedToString(st.Conditions.MatchNeighborSet.MatchSetOptions)
 		}
 
-		asPathSet := &api.AsPathSet{AsPathSetName: bco.MatchAsPathSet.AsPathSet}
+		asPathSet := &gobgpapi.AsPathSet{AsPathSetName: bco.MatchAsPathSet.AsPathSet}
 		conAsPathSet := config.AsPathSet{AsPathSetName: bco.MatchAsPathSet.AsPathSet}
 		idxAsPathSet, _ := IndexOfAsPathSet(conAsPathSetList, conAsPathSet)
 		if idxAsPathSet != -1 {
@@ -1976,7 +1976,7 @@ func PolicyDefinitionToApiStruct(pd config.PolicyDefinition, df config.DefinedSe
 			asPathSet.MatchSetOptions = MatchSetOptionToString(bco.MatchAsPathSet.MatchSetOptions)
 		}
 
-		communitySet := &api.CommunitySet{CommunitySetName: bco.MatchCommunitySet.CommunitySet}
+		communitySet := &gobgpapi.CommunitySet{CommunitySetName: bco.MatchCommunitySet.CommunitySet}
 		conCommunitySet := config.CommunitySet{CommunitySetName: bco.MatchCommunitySet.CommunitySet}
 		idxCommunitySet, _ := IndexOfCommunitySet(conCommunitySetList, conCommunitySet)
 		if idxCommunitySet != -1 {
@@ -1984,7 +1984,7 @@ func PolicyDefinitionToApiStruct(pd config.PolicyDefinition, df config.DefinedSe
 			communitySet.MatchSetOptions = MatchSetOptionToString(bco.MatchCommunitySet.MatchSetOptions)
 		}
 
-		extCommunitySet := &api.ExtCommunitySet{ExtCommunitySetName: bco.MatchExtCommunitySet.ExtCommunitySet}
+		extCommunitySet := &gobgpapi.ExtCommunitySet{ExtCommunitySetName: bco.MatchExtCommunitySet.ExtCommunitySet}
 		conExtCommunitySet := config.ExtCommunitySet{ExtCommunitySetName: bco.MatchExtCommunitySet.ExtCommunitySet}
 		idxExtCommunitySet, _ := IndexOfExtCommunitySet(conExtCommunitySetList, conExtCommunitySet)
 		if idxExtCommunitySet != -1 {
@@ -1992,7 +1992,7 @@ func PolicyDefinitionToApiStruct(pd config.PolicyDefinition, df config.DefinedSe
 			extCommunitySet.MatchSetOptions = MatchSetOptionToString(bco.MatchExtCommunitySet.MatchSetOptions)
 		}
 
-		resConditions := &api.Conditions{
+		resConditions := &gobgpapi.Conditions{
 			MatchPrefixSet:       prefixSet,
 			MatchNeighborSet:     neighborSet,
 			MatchAsPathSet:       asPathSet,
@@ -2001,21 +2001,21 @@ func PolicyDefinitionToApiStruct(pd config.PolicyDefinition, df config.DefinedSe
 			MatchAsPathLength:    AsPathLengthToApiStruct(st.Conditions.BgpConditions.AsPathLength),
 		}
 		resActions := ActionsToApiStruct(ac)
-		resStatement := &api.Statement{
+		resStatement := &gobgpapi.Statement{
 			StatementNeme: st.Name,
 			Conditions:    resConditions,
 			Actions:       resActions,
 		}
 		resStatementList = append(resStatementList, resStatement)
 	}
-	resPolicyDefinition := &api.PolicyDefinition{
+	resPolicyDefinition := &gobgpapi.PolicyDefinition{
 		PolicyDefinitionName: pd.Name,
 		StatementList:        resStatementList,
 	}
 	return resPolicyDefinition
 }
 
-func PoliciesToString(reqPolicies []*api.PolicyDefinition) []string {
+func PoliciesToString(reqPolicies []*gobgpapi.PolicyDefinition) []string {
 	policies := make([]string, 0)
 	for _, reqPolicy := range reqPolicies {
 		policies = append(policies, reqPolicy.PolicyDefinitionName)

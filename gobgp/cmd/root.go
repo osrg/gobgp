@@ -16,7 +16,7 @@
 package cmd
 
 import (
-	"github.com/osrg/gobgp/api"
+	api "github.com/osrg/gobgp/api"
 	"github.com/spf13/cobra"
 )
 
@@ -31,7 +31,7 @@ var globalOpts struct {
 }
 
 var cmds []string
-var client api.GrpcClient
+var client api.GobgpApiClient
 
 func NewRootCmd() *cobra.Command {
 	cobra.EnablePrefixMatching = true
@@ -40,7 +40,7 @@ func NewRootCmd() *cobra.Command {
 		PersistentPreRun: func(cmd *cobra.Command, args []string) {
 			if !globalOpts.GenCmpl {
 				conn := connGrpc()
-				client = api.NewGrpcClient(conn)
+				client = api.NewGobgpApiClient(conn)
 			}
 		},
 		Run: func(cmd *cobra.Command, args []string) {

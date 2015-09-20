@@ -15,11 +15,11 @@
 
 syntax = "proto3";
 
-package api;
+package gobgpapi;
 
 // Interface exported by the server.
 
-service Grpc {
+service GobgpApi {
   rpc GetNeighbors(Arguments) returns (stream Peer) {}
   rpc GetNeighbor(Arguments) returns (Peer) {}
   rpc GetRib(Arguments) returns (stream Destination) {}

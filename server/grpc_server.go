@@ -18,7 +18,7 @@ package server
 import (
 	"fmt"
 	log "github.com/Sirupsen/logrus"
-	"github.com/osrg/gobgp/api"
+	api "github.com/osrg/gobgp/api"
 	"github.com/osrg/gobgp/packet"
 	"golang.org/x/net/context"
 	"google.golang.org/grpc"
@@ -135,7 +135,7 @@ func handleMultipleResponses(req *GrpcRequest, f func(*GrpcResponse) error) erro
 	return nil
 }
 
-func (s *Server) GetNeighbors(_ *api.Arguments, stream api.Grpc_GetNeighborsServer) error {
+func (s *Server) GetNeighbors(_ *api.Arguments, stream api.GobgpApi_GetNeighborsServer) error {
 	var rf bgp.RouteFamily
 	req := NewGrpcRequest(REQ_NEIGHBORS, "", rf, nil)
 	s.bgpServerCh <- req
@@ -145,7 +145,7 @@ func (s *Server) GetNeighbors(_ *api.Arguments, stream api.Grpc_GetNeighborsServ
 	})
 }
 
-func (s *Server) GetRib(arg *api.Arguments, stream api.Grpc_GetRibServer) error {
+func (s *Server) GetRib(arg *api.Arguments, stream api.GobgpApi_GetRibServer) error {
 	var reqType int
 	switch arg.Resource {
 	case api.Resource_LOCAL:
@@ -170,7 +170,7 @@ func (s *Server) GetRib(arg *api.Arguments, stream api.Grpc_GetRibServer) error 
 	})
 }
 
-func (s *Server) MonitorBestChanged(arg *api.Arguments, stream api.Grpc_MonitorBestChangedServer) error {
+func (s *Server) MonitorBestChanged(arg *api.Arguments, stream api.GobgpApi_MonitorBestChangedServer) error {
 	var reqType int
 	switch arg.Resource {
 	case api.Resource_GLOBAL:
@@ -187,7 +187,7 @@ func (s *Server) MonitorBestChanged(arg *api.Arguments, stream api.Grpc_MonitorB
 	})
 }
 
-func (s *Server) MonitorPeerState(arg *api.Arguments, stream api.Grpc_MonitorPeerStateServer) error {
+func (s *Server) MonitorPeerState(arg *api.Arguments, stream api.GobgpApi_MonitorPeerStateServer) error {
 	var rf bgp.RouteFamily
 	req := NewGrpcRequest(REQ_MONITOR_NEIGHBOR_PEER_STATE, arg.Name, rf, nil)
 	s.bgpServerCh <- req
@@ -238,7 +238,7 @@ func (s *Server) Disable(ctx context.Context, arg *api.Arguments) (*api.Error, e
 	return s.neighbor(REQ_NEIGHBOR_DISABLE, arg)
 }
 
-func (s *Server) ModPath(stream api.Grpc_ModPathServer) error {
+func (s *Server) ModPath(stream api.GobgpApi_ModPathServer) error {
 	for {
 		arg, err := stream.Recv()
 
@@ -280,7 +280,7 @@ func (s *Server) GetNeighborPolicy(ctx context.Context, arg *api.Arguments) (*ap
 	return res.Data.(*api.ApplyPolicy), nil
 }
 
-func (s *Server) ModNeighborPolicy(stream api.Grpc_ModNeighborPolicyServer) error {
+func (s *Server) ModNeighborPolicy(stream api.GobgpApi_ModNeighborPolicyServer) error {
 	for {
 		arg, err := stream.Recv()
 		if err == io.EOF {
@@ -412,7 +412,7 @@ func (s *Server) modPolicy(arg *api.PolicyArguments, stream interface{}) error {
 		log.Debug(err.Error())
 		return err
 	}
-	err = stream.(api.Grpc_ModPolicyRoutePolicyServer).Send(&api.Error{
+	err = stream.(api.GobgpApi_ModPolicyRoutePolicyServer).Send(&api.Error{
 		Code: api.Error_SUCCESS,
 	})
 	if err != nil {
@@ -421,7 +421,7 @@ func (s *Server) modPolicy(arg *api.PolicyArguments, stream interface{}) error {
 	return nil
 }
 
-func (s *Server) GetPolicyRoutePolicies(arg *api.PolicyArguments, stream api.Grpc_GetPolicyRoutePoliciesServer) error {
+func (s *Server) GetPolicyRoutePolicies(arg *api.PolicyArguments, stream api.GobgpApi_GetPolicyRoutePoliciesServer) error {
 	var rf bgp.RouteFamily
 	var reqType int
 	switch arg.Resource {
@@ -477,7 +477,7 @@ func (s *Server) GetPolicyRoutePolicy(ctx context.Context, arg *api.PolicyArgume
 	return res.Data.(*api.PolicyDefinition), nil
 }
 
-func (s *Server) ModPolicyRoutePolicy(stream api.Grpc_ModPolicyRoutePolicyServer) error {
+func (s *Server) ModPolicyRoutePolicy(stream api.GobgpApi_ModPolicyRoutePolicyServer) error {
 	for {
 		arg, err := stream.Recv()
 		if err == io.EOF {
@@ -492,7 +492,7 @@ func (s *Server) ModPolicyRoutePolicy(stream api.Grpc_ModPolicyRoutePolicyServer
 	}
 }
 
-func (s *Server) GetMrt(arg *api.MrtArguments, stream api.Grpc_GetMrtServer) error {
+func (s *Server) GetMrt(arg *api.MrtArguments, stream api.GobgpApi_GetMrtServer) error {
 	var reqType int
 	switch arg.Resource {
 	case api.Resource_GLOBAL:
@@ -509,7 +509,7 @@ func (s *Server) GetMrt(arg *api.MrtArguments, stream api.Grpc_GetMrtServer) err
 	})
 }
 
-func (s *Server) GetRPKI(arg *api.Arguments, stream api.Grpc_GetRPKIServer) error {
+func (s *Server) GetRPKI(arg *api.Arguments, stream api.GobgpApi_GetRPKIServer) error {
 	req := NewGrpcRequest(REQ_RPKI, "", bgp.RouteFamily(arg.Rf), nil)
 	s.bgpServerCh <- req
 
@@ -518,7 +518,7 @@ func (s *Server) GetRPKI(arg *api.Arguments, stream api.Grpc_GetRPKIServer) erro
 	})
 }
 
-func (s *Server) GetROA(arg *api.Arguments, stream api.Grpc_GetROAServer) error {
+func (s *Server) GetROA(arg *api.Arguments, stream api.GobgpApi_GetROAServer) error {
 	req := NewGrpcRequest(REQ_ROA, arg.Name, bgp.RouteFamily(arg.Rf), nil)
 	s.bgpServerCh <- req
 
@@ -527,7 +527,7 @@ func (s *Server) GetROA(arg *api.Arguments, stream api.Grpc_GetROAServer) error 
 	})
 }
 
-func (s *Server) GetVrfs(arg *api.Arguments, stream api.Grpc_GetVrfsServer) error {
+func (s *Server) GetVrfs(arg *api.Arguments, stream api.GobgpApi_GetVrfsServer) error {
 	req := NewGrpcRequest(REQ_VRFS, "", bgp.RouteFamily(0), nil)
 	s.bgpServerCh <- req
 
@@ -585,6 +585,6 @@ func NewGrpcServer(port int, bgpServerCh chan *GrpcRequest) *Server {
 		grpcServer:  grpcServer,
 		bgpServerCh: bgpServerCh,
 	}
-	api.RegisterGrpcServer(grpcServer, server)
+	api.RegisterGobgpApiServer(grpcServer, server)
 	return server
 }
