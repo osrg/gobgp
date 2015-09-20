@@ -132,7 +132,7 @@ type Destination struct {
 	Paths  []*Path `json:"paths"`
 }
 
-func ApiStruct2Destination(dst *api.Destination) (*Destination, error) {
+func ApiStruct2Destination(dst *gobgpapi.Destination) (*Destination, error) {
 	paths := make([]*Path, 0, len(dst.Paths))
 	for _, p := range dst.Paths {
 		path, err := ApiStruct2Path(p)
@@ -157,7 +157,7 @@ type Path struct {
 	Validation int32
 }
 
-func ApiStruct2Path(p *api.Path) (*Path, error) {
+func ApiStruct2Path(p *gobgpapi.Path) (*Path, error) {
 	var nlri bgp.AddrPrefixInterface
 	data := p.Nlri
 	if len(data) > 0 {
@@ -232,11 +232,11 @@ type PeerConf struct {
 }
 
 type Peer struct {
-	Conf PeerConf      `json:"conf,omitempty"`
-	Info *api.PeerInfo `json:"info,omitempty"`
+	Conf PeerConf           `json:"conf,omitempty"`
+	Info *gobgpapi.PeerInfo `json:"info,omitempty"`
 }
 
-func ApiStruct2Peer(p *api.Peer) *Peer {
+func ApiStruct2Peer(p *gobgpapi.Peer) *Peer {
 	localCaps := capabilities{}
 	remoteCaps := capabilities{}
 	for _, buf := range p.Conf.LocalCap {
@@ -306,7 +306,7 @@ func (c capabilities) Less(i, j int) bool {
 	return c[i].Code() < c[j].Code()
 }
 
-type prefixes []*api.PrefixSet
+type prefixes []*gobgpapi.PrefixSet
 
 func (p prefixes) Len() int {
 	return len(p)
@@ -320,7 +320,7 @@ func (p prefixes) Less(i, j int) bool {
 	return p[i].PrefixSetName < p[j].PrefixSetName
 }
 
-type neighbors []*api.NeighborSet
+type neighbors []*gobgpapi.NeighborSet
 
 func (n neighbors) Len() int {
 	return len(n)
@@ -334,7 +334,7 @@ func (n neighbors) Less(i, j int) bool {
 	return n[i].NeighborSetName < n[j].NeighborSetName
 }
 
-type aspaths []*api.AsPathSet
+type aspaths []*gobgpapi.AsPathSet
 
 func (a aspaths) Len() int {
 	return len(a)
@@ -348,7 +348,7 @@ func (a aspaths) Less(i, j int) bool {
 	return a[i].AsPathSetName < a[j].AsPathSetName
 }
 
-type communities []*api.CommunitySet
+type communities []*gobgpapi.CommunitySet
 
 func (c communities) Len() int {
 	return len(c)
@@ -362,7 +362,7 @@ func (c communities) Less(i, j int) bool {
 	return c[i].CommunitySetName < c[j].CommunitySetName
 }
 
-type extcommunities []*api.ExtCommunitySet
+type extcommunities []*gobgpapi.ExtCommunitySet
 
 func (e extcommunities) Len() int {
 	return len(e)
@@ -376,7 +376,7 @@ func (e extcommunities) Less(i, j int) bool {
 	return e[i].ExtCommunitySetName < e[j].ExtCommunitySetName
 }
 
-type policyDefinitions []*api.PolicyDefinition
+type policyDefinitions []*gobgpapi.PolicyDefinition
 
 func (p policyDefinitions) Len() int {
 	return len(p)
@@ -390,7 +390,7 @@ func (p policyDefinitions) Less(i, j int) bool {
 	return p[i].PolicyDefinitionName < p[j].PolicyDefinitionName
 }
 
-type roas []*api.ROA
+type roas []*gobgpapi.ROA
 
 func (r roas) Len() int {
 	return len(r)
@@ -406,7 +406,7 @@ func (r roas) Less(i, j int) bool {
 	return strings.Less(0, 1)
 }
 
-type vrfs []*api.Vrf
+type vrfs []*gobgpapi.Vrf
 
 func (v vrfs) Len() int {
 	return len(v)
