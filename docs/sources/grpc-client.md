@@ -66,7 +66,7 @@ _TIMEOUT_SECONDS = 10
 
 
 def run(gobgpd_addr, neighbor_addr):
-    with gobgp_pb2.early_adopter_create_Grpc_stub(gobgpd_addr, 8080) as stub:
+    with gobgp_pb2.early_adopter_create_GobgpApi_stub(gobgpd_addr, 8080) as stub:
         peer = stub.GetNeighbor(gobgp_pb2.Arguments(rf=4, name=neighbor_addr), _TIMEOUT_SECONDS)
         print("BGP neighbor is %s, remote AS %d" % (peer.conf.remote_ip, peer.conf.remote_as))
         print("  BGP version 4, remote router ID %s" % ( peer.conf.id))
@@ -82,7 +82,7 @@ if __name__ == '__main__':
     run(gobgp, neighbor)
 ```
 
-We need to import gobgp_pb2 and call 'early_adopter_create_Grpc_stub' in your code.
+We need to import gobgp_pb2 and call 'early_adopter_create_GobgpApi_stub' in your code.
 
 Let's run this script.
 
