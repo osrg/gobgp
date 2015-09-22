@@ -236,12 +236,13 @@ type AsPathFormat struct {
 	separator string
 }
 
-func showRoute(pathList []*Path, showAge bool, showBest bool, isMonitor, printHeader bool) {
+func showRoute(pathList []*Path, showAge, showBest, showLabel, isMonitor, printHeader bool) {
 
 	var pathStrs [][]interface{}
 	maxPrefixLen := 20
 	maxNexthopLen := 20
 	maxAsPathLen := 20
+	maxLabelLen := 10
 	aspath := func(a bgp.PathAttributeInterface) string {
 
 		delimiter := make(map[uint8]*AsPathFormat)
@@ -331,9 +332,9 @@ func showRoute(pathList []*Path, showAge bool, showBest bool, isMonitor, printHe
 				best += "* "
 			}
 		}
-
-		if maxPrefixLen < len(p.Nlri.String()) {
-			maxPrefixLen = len(p.Nlri.String())
+		nlri := p.Nlri.String()
+		if maxPrefixLen < len(nlri) {
+			maxPrefixLen = len(nlri)
 		}
 
 		if isMonitor {
@@ -341,27 +342,62 @@ func showRoute(pathList []*Path, showAge bool, showBest bool, isMonitor, printHe
 			if p.IsWithdraw {
 				title = "DELROUTE"
 			}
-			pathStrs = append(pathStrs, []interface{}{title, p.Nlri.String(), nexthop, aspathstr, pattrstr})
-		} else if showAge {
-			pathStrs = append(pathStrs, []interface{}{best, p.Nlri.String(), nexthop, aspathstr, formatTimedelta(p.Age), pattrstr})
+			pathStrs = append(pathStrs, []interface{}{title, nlri, nexthop, aspathstr, pattrstr})
 		} else {
-			pathStrs = append(pathStrs, []interface{}{best, p.Nlri.String(), nexthop, aspathstr, pattrstr})
+			args := []interface{}{best, nlri}
+			if showLabel {
+				label := ""
+				switch p.Nlri.(type) {
+				case *bgp.LabeledIPAddrPrefix:
+					label = p.Nlri.(*bgp.LabeledIPAddrPrefix).Labels.String()
+				case *bgp.LabeledIPv6AddrPrefix:
+					label = p.Nlri.(*bgp.LabeledIPv6AddrPrefix).Labels.String()
+				case *bgp.LabeledVPNIPAddrPrefix:
+					label = p.Nlri.(*bgp.LabeledVPNIPAddrPrefix).Labels.String()
+				case *bgp.LabeledVPNIPv6AddrPrefix:
+					label = p.Nlri.(*bgp.LabeledVPNIPv6AddrPrefix).Labels.String()
+				}
+				if maxLabelLen < len(label) {
+					maxLabelLen = len(label)
+				}
+				args = append(args, label)
+			}
+			args = append(args, []interface{}{nexthop, aspathstr}...)
+			if showAge {
+				args = append(args, formatTimedelta(p.Age))
+			}
+			args = append(args, pattrstr)
+			pathStrs = append(pathStrs, args)
 		}
 	}
 
 	var format string
 	if isMonitor {
 		format = "[%s] %s via %s aspath [%s] attrs %s\n"
-	} else if showAge {
-		format = fmt.Sprintf("%%-3s %%-%ds %%-%ds %%-%ds %%-10s %%-s\n", maxPrefixLen, maxNexthopLen, maxAsPathLen)
-		if printHeader {
-			fmt.Printf(format, "", "Network", "Next Hop", "AS_PATH", "Age", "Attrs")
-		}
 	} else {
-		format = fmt.Sprintf("%%-3s %%-%ds %%-%ds %%-%ds %%-s\n", maxPrefixLen, maxNexthopLen, maxAsPathLen)
-		if printHeader {
-			fmt.Printf(format, "", "Network", "Next Hop", "AS_PATH", "Attrs")
+		format = fmt.Sprintf("%%-3s %%-%ds", maxPrefixLen)
+		if showLabel {
+			format += fmt.Sprintf("%%-%ds ", maxLabelLen)
 		}
+		format += fmt.Sprintf("%%-%ds %%-%ds ", maxNexthopLen, maxAsPathLen)
+		if showAge {
+			format += "%-10s "
+		}
+		format += "%-s\n"
+
+	}
+
+	if printHeader {
+		args := []interface{}{"", "Network"}
+		if showLabel {
+			args = append(args, "Labels")
+		}
+		args = append(args, []interface{}{"Next Hop", "AS_PATH"}...)
+		if showAge {
+			args = append(args, "Age")
+		}
+		args = append(args, "Attrs")
+		fmt.Printf(format, args...)
 	}
 
 	for _, pathStr := range pathStrs {
@@ -373,6 +409,7 @@ func showNeighborRib(r string, name string, args []string) error {
 	var resource api.Resource
 	showBest := false
 	showAge := true
+	showLabel := false
 	switch r {
 	case CMD_GLOBAL:
 		showBest = true
@@ -386,6 +423,7 @@ func showNeighborRib(r string, name string, args []string) error {
 		showAge = false
 		resource = api.Resource_ADJ_OUT
 	case CMD_VRF:
+		showLabel = true
 		resource = api.Resource_VRF
 	}
 	rf, err := checkAddressFamily(net.ParseIP(name))
@@ -466,9 +504,9 @@ func showNeighborRib(r string, name string, args []string) error {
 			ps = append(ps, dst.Paths...)
 			sort.Sort(ps)
 			if counter == 0 {
-				showRoute(ps, showAge, showBest, false, true)
+				showRoute(ps, showAge, showBest, showLabel, false, true)
 			} else {
-				showRoute(ps, showAge, showBest, false, false)
+				showRoute(ps, showAge, showBest, showLabel, false, false)
 			}
 			counter++
 		}
@@ -497,7 +535,7 @@ func showNeighborRib(r string, name string, args []string) error {
 	}
 
 	sort.Sort(ps)
-	showRoute(ps, showAge, showBest, false, true)
+	showRoute(ps, showAge, showBest, showLabel, false, true)
 	return nil
 }
 

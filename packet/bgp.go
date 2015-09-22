@@ -1098,6 +1098,21 @@ func (l *MPLSLabelStack) Serialize() ([]byte, error) {
 
 func (l *MPLSLabelStack) Len() int { return 3 * len(l.Labels) }
 
+func (l *MPLSLabelStack) String() string {
+	if len(l.Labels) == 0 {
+		return ""
+	}
+	s := bytes.NewBuffer(make([]byte, 0, 64))
+	s.WriteString("[")
+	ss := make([]string, 0, len(l.Labels))
+	for _, label := range l.Labels {
+		ss = append(ss, fmt.Sprintf("%d", label))
+	}
+	s.WriteString(strings.Join(ss, ", "))
+	s.WriteString("]")
+	return s.String()
+}
+
 func NewMPLSLabelStack(labels ...uint32) *MPLSLabelStack {
 	if len(labels) == 0 {
 		labels = []uint32{0}
