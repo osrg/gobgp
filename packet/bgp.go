@@ -814,6 +814,7 @@ type RouteDistinguisherInterface interface {
 	Serialize() ([]byte, error)
 	Len() int
 	String() string
+	MarshalJSON() ([]byte, error)
 }
 
 type DefaultRouteDistinguisher struct {
@@ -838,6 +839,16 @@ func (rd *DefaultRouteDistinguisher) String() string {
 	return fmt.Sprintf("%v", rd.Value)
 }
 
+func (rd *DefaultRouteDistinguisher) MarshalJSON() ([]byte, error) {
+	return json.Marshal(struct {
+		Type  uint16 `json:"type"`
+		Value []byte `json:"value"`
+	}{
+		Type:  rd.Type,
+		Value: rd.Value,
+	})
+}
+
 func (rd *DefaultRouteDistinguisher) Len() int { return 8 }
 
 type RouteDistinguisherTwoOctetAS struct {
@@ -856,6 +867,18 @@ func (rd *RouteDistinguisherTwoOctetAS) Serialize() ([]byte, error) {
 
 func (rd *RouteDistinguisherTwoOctetAS) String() string {
 	return fmt.Sprintf("%d:%d", rd.Admin, rd.Assigned)
+}
+
+func (rd *RouteDistinguisherTwoOctetAS) MarshalJSON() ([]byte, error) {
+	return json.Marshal(struct {
+		Type     uint16 `json:"type"`
+		Admin    uint16 `json:"admin"`
+		Assigned uint32 `json:"assigned"`
+	}{
+		Type:     rd.Type,
+		Admin:    rd.Admin,
+		Assigned: rd.Assigned,
+	})
 }
 
 func NewRouteDistinguisherTwoOctetAS(admin uint16, assigned uint32) *RouteDistinguisherTwoOctetAS {
@@ -886,6 +909,18 @@ func (rd *RouteDistinguisherIPAddressAS) String() string {
 	return fmt.Sprintf("%s:%d", rd.Admin.String(), rd.Assigned)
 }
 
+func (rd *RouteDistinguisherIPAddressAS) MarshalJSON() ([]byte, error) {
+	return json.Marshal(struct {
+		Type     uint16 `json:"type"`
+		Admin    string `json:"admin"`
+		Assigned uint16 `json:"assigned"`
+	}{
+		Type:     rd.Type,
+		Admin:    rd.Admin.String(),
+		Assigned: rd.Assigned,
+	})
+}
+
 func NewRouteDistinguisherIPAddressAS(admin string, assigned uint16) *RouteDistinguisherIPAddressAS {
 	return &RouteDistinguisherIPAddressAS{
 		DefaultRouteDistinguisher: DefaultRouteDistinguisher{
@@ -914,6 +949,18 @@ func (rd *RouteDistinguisherFourOctetAS) String() string {
 	fst := rd.Admin >> 16 & 0xffff
 	snd := rd.Admin & 0xffff
 	return fmt.Sprintf("%d.%d:%d", fst, snd, rd.Assigned)
+}
+
+func (rd *RouteDistinguisherFourOctetAS) MarshalJSON() ([]byte, error) {
+	return json.Marshal(struct {
+		Type     uint16 `json:"type"`
+		Admin    uint32 `json:"admin"`
+		Assigned uint16 `json:"assigned"`
+	}{
+		Type:     rd.Type,
+		Admin:    rd.Admin,
+		Assigned: rd.Assigned,
+	})
 }
 
 func NewRouteDistinguisherFourOctetAS(admin uint32, assigned uint16) *RouteDistinguisherFourOctetAS {
@@ -1137,6 +1184,19 @@ func (l *LabeledVPNIPAddrPrefix) SAFI() uint8 {
 func (l *LabeledVPNIPAddrPrefix) String() string {
 	masklen := l.IPAddrPrefixDefault.Length - uint8(8*(l.Labels.Len()+l.RD.Len()))
 	return fmt.Sprintf("%s:%s/%d", l.RD, l.IPAddrPrefixDefault.Prefix, masklen)
+}
+
+func (l *LabeledVPNIPAddrPrefix) MarshalJSON() ([]byte, error) {
+	masklen := l.IPAddrPrefixDefault.Length - uint8(8*(l.Labels.Len()+l.RD.Len()))
+	return json.Marshal(struct {
+		Prefix string                      `json:"prefix"`
+		Labels []uint32                    `json:"labels"`
+		RD     RouteDistinguisherInterface `json:"rd"`
+	}{
+		Prefix: fmt.Sprintf("%s/%d", l.IPAddrPrefixDefault.Prefix, masklen),
+		Labels: l.Labels.Labels,
+		RD:     l.RD,
+	})
 }
 
 func NewLabeledVPNIPAddrPrefix(length uint8, prefix string, label MPLSLabelStack, rd RouteDistinguisherInterface) *LabeledVPNIPAddrPrefix {
@@ -1474,6 +1534,20 @@ func (er *EVPNEthernetAutoDiscoveryRoute) String() string {
 	return fmt.Sprintf("[type:A-D][rd:%s][esi:%s][etag:%d][label:%d]", er.RD, er.ESI, er.ETag, er.Label)
 }
 
+func (er *EVPNEthernetAutoDiscoveryRoute) MarshalJSON() ([]byte, error) {
+	return json.Marshal(struct {
+		RD    RouteDistinguisherInterface `json:"rd"`
+		ESI   string                      `json:"esi"`
+		Etag  uint32                      `json:"etag"`
+		Label uint32                      `json:"label"`
+	}{
+		RD:    er.RD,
+		ESI:   er.ESI.String(),
+		Etag:  er.ETag,
+		Label: er.Label,
+	})
+}
+
 func (er *EVPNEthernetAutoDiscoveryRoute) rd() RouteDistinguisherInterface {
 	return er.RD
 }
@@ -1570,6 +1644,24 @@ func (er *EVPNMacIPAdvertisementRoute) String() string {
 	return fmt.Sprintf("[type:macadv][rd:%s][esi:%s][etag:%d][mac:%s][ip:%s][labels:%v]", er.RD, er.ESI.String(), er.ETag, er.MacAddress, er.IPAddress, er.Labels)
 }
 
+func (er *EVPNMacIPAdvertisementRoute) MarshalJSON() ([]byte, error) {
+	return json.Marshal(struct {
+		RD         RouteDistinguisherInterface `json:"rd"`
+		ESI        string                      `json:"esi"`
+		Etag       uint32                      `json:"etag"`
+		MacAddress string                      `json:"mac"`
+		IPAddress  string                      `json:"ip"`
+		Labels     []uint32                    `json:"labels"`
+	}{
+		RD:         er.RD,
+		ESI:        er.ESI.String(),
+		Etag:       er.ETag,
+		MacAddress: er.MacAddress.String(),
+		IPAddress:  er.IPAddress.String(),
+		Labels:     er.Labels,
+	})
+}
+
 func (er *EVPNMacIPAdvertisementRoute) rd() RouteDistinguisherInterface {
 	return er.RD
 }
@@ -1626,6 +1718,18 @@ func (er *EVPNMulticastEthernetTagRoute) Serialize() ([]byte, error) {
 
 func (er *EVPNMulticastEthernetTagRoute) String() string {
 	return fmt.Sprintf("[type:multicast][rd:%s][etag:%d][ip:%s]", er.RD, er.ETag, er.IPAddress)
+}
+
+func (er *EVPNMulticastEthernetTagRoute) MarshalJSON() ([]byte, error) {
+	return json.Marshal(struct {
+		RD        RouteDistinguisherInterface `json:"rd"`
+		Etag      uint32                      `json:"etag"`
+		IPAddress string                      `json:"ip"`
+	}{
+		RD:        er.RD,
+		Etag:      er.ETag,
+		IPAddress: er.IPAddress.String(),
+	})
 }
 
 func (er *EVPNMulticastEthernetTagRoute) rd() RouteDistinguisherInterface {
@@ -1687,10 +1791,23 @@ type EVPNRouteTypeInterface interface {
 	Serialize() ([]byte, error)
 	String() string
 	rd() RouteDistinguisherInterface
+	MarshalJSON() ([]byte, error)
 }
 
 func (er *EVPNEthernetSegmentRoute) String() string {
 	return fmt.Sprintf("[type:esi][rd:%s][esi:%d][ip:%s]", er.RD, er.ESI, er.IPAddress)
+}
+
+func (er *EVPNEthernetSegmentRoute) MarshalJSON() ([]byte, error) {
+	return json.Marshal(struct {
+		RD        RouteDistinguisherInterface `json:"rd"`
+		ESI       string                      `json:"esi"`
+		IPAddress string                      `json:"ip"`
+	}{
+		RD:        er.RD,
+		ESI:       er.ESI.String(),
+		IPAddress: er.IPAddress.String(),
+	})
 }
 
 func (er *EVPNEthernetSegmentRoute) rd() RouteDistinguisherInterface {
@@ -1776,9 +1893,11 @@ func (n *EVPNNLRI) String() string {
 
 func (n *EVPNNLRI) MarshalJSON() ([]byte, error) {
 	return json.Marshal(struct {
-		Prefix string `json:"prefix"`
+		Type  uint8                  `json:"type"`
+		Value EVPNRouteTypeInterface `json:"value"`
 	}{
-		Prefix: n.String(),
+		Type:  n.RouteType,
+		Value: n.RouteTypeData,
 	})
 }
 
