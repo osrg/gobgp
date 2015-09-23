@@ -791,6 +791,14 @@ type Neighbors struct {
 	NeighborList []Neighbor
 }
 
+//struct for container gobgp:mpls-label-range
+type MplsLabelRange struct {
+	// original -> gobgp:min-label
+	MinLabel uint32
+	// original -> gobgp:max-label
+	MaxLabel uint32
+}
+
 //struct for container gobgp:zebra
 type Zebra struct {
 	// original -> gobgp:enabled
@@ -1346,6 +1354,8 @@ type Global struct {
 	Mrt Mrt
 	// original -> gobgp:zebra
 	Zebra Zebra
+	// original -> gobgp:mpls-label-range
+	MplsLabelRange MplsLabelRange
 }
 
 //struct for container bgp:bgp

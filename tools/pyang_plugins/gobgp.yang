@@ -641,4 +641,17 @@ module bgp-gobgp {
       }
     }
   }
+
+  augment "/bgp:bgp/bgp:global" {
+    container mpls-label-range {
+      description "mpls labal range";
+
+      leaf min-label {
+          type uint32;
+      }
+      leaf max-label {
+          type uint32;
+      }
+    }
+  }
 }
