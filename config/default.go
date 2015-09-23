@@ -10,6 +10,8 @@ const (
 	DEFAULT_HOLDTIME                  = 90
 	DEFAULT_IDLE_HOLDTIME_AFTER_RESET = 30
 	DEFAULT_CONNECT_RETRY             = 120
+	DEFAULT_MPLS_LABEL_MIN            = 16000
+	DEFAULT_MPLS_LABEL_MAX            = 1048575
 )
 
 type neighbor struct {
@@ -43,6 +45,14 @@ func SetDefaultConfigValues(md toml.MetaData, bt *Bgp) error {
 			AfiSafi{AfiSafiName: "ipv6-flowspec"},
 			AfiSafi{AfiSafiName: "l3vpn-ipv6-flowspec"},
 		}
+	}
+
+	if _, ok := global["Global.MplsLabelRange.MinLabel"]; !ok {
+		bt.Global.MplsLabelRange.MinLabel = DEFAULT_MPLS_LABEL_MIN
+	}
+
+	if _, ok := global["Global.MplsLabelRange.MaxLabel"]; !ok {
+		bt.Global.MplsLabelRange.MaxLabel = DEFAULT_MPLS_LABEL_MAX
 	}
 
 	nidx := 0
