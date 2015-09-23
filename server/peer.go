@@ -383,9 +383,9 @@ type LocalRib struct {
 	defaultExportPolicy config.DefaultPolicyType
 }
 
-func NewLocalRib(owner string, rfList []bgp.RouteFamily, policyMap map[string]*policy.Policy) *LocalRib {
+func NewLocalRib(owner string, rfList []bgp.RouteFamily, minLabel, maxLabel uint32) *LocalRib {
 	return &LocalRib{
-		rib: table.NewTableManager(owner, rfList),
+		rib: table.NewTableManager(owner, rfList, minLabel, maxLabel),
 	}
 }
 

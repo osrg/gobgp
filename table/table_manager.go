@@ -107,21 +107,52 @@ func ProcessMessage(m *bgp.BGPMessage, peerInfo *PeerInfo) []*Path {
 }
 
 type TableManager struct {
-	Tables map[bgp.RouteFamily]*Table
-	Vrfs   map[string]*Vrf
-	owner  string
+	Tables    map[bgp.RouteFamily]*Table
+	Vrfs      map[string]*Vrf
+	owner     string
+	minLabel  uint32
+	maxLabel  uint32
+	nextLabel uint32
 }
 
-func NewTableManager(owner string, rfList []bgp.RouteFamily) *TableManager {
+func NewTableManager(owner string, rfList []bgp.RouteFamily, minLabel, maxLabel uint32) *TableManager {
 	t := &TableManager{
-		Tables: make(map[bgp.RouteFamily]*Table),
-		Vrfs:   make(map[string]*Vrf),
-		owner:  owner,
+		Tables:    make(map[bgp.RouteFamily]*Table),
+		Vrfs:      make(map[string]*Vrf),
+		owner:     owner,
+		minLabel:  minLabel,
+		maxLabel:  maxLabel,
+		nextLabel: minLabel,
 	}
 	for _, rf := range rfList {
 		t.Tables[rf] = NewTable(rf)
 	}
 	return t
+}
+
+func (manager *TableManager) GetNextLabel(name, nexthop string, isWithdraw bool) (uint32, error) {
+	var label uint32
+	var err error
+	vrf, ok := manager.Vrfs[name]
+	if !ok {
+		return label, fmt.Errorf("vrf %s not found", name)
+	}
+	label, ok = vrf.LabelMap[nexthop]
+	if !ok {
+		label, err = manager.getNextLabel()
+		vrf.LabelMap[nexthop] = label
+	}
+	return label, err
+
+}
+
+func (manager *TableManager) getNextLabel() (uint32, error) {
+	if manager.nextLabel > manager.maxLabel {
+		return 0, fmt.Errorf("ran out of label resource. max label %d", manager.maxLabel)
+	}
+	label := manager.nextLabel
+	manager.nextLabel += 1
+	return label, nil
 }
 
 func (manager *TableManager) OwnerName() string {
@@ -144,6 +175,7 @@ func (manager *TableManager) AddVrf(name string, rd bgp.RouteDistinguisherInterf
 		Rd:       rd,
 		ImportRt: importRt,
 		ExportRt: exportRt,
+		LabelMap: make(map[string]uint32),
 	}
 	msgs := make([]*Path, 0, len(importRt))
 	nexthop := "0.0.0.0"
