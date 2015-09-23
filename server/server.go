@@ -220,7 +220,7 @@ func (server *BgpServer) Serve() {
 		return rfList
 	}(g.AfiSafis.AfiSafiList)
 
-	server.addLocalRib(NewLocalRib(GLOBAL_RIB_NAME, rfList, make(map[string]*policy.Policy)))
+	server.addLocalRib(NewLocalRib(GLOBAL_RIB_NAME, rfList, g.MplsLabelRange.MinLabel, g.MplsLabelRange.MaxLabel))
 
 	listenerMap := make(map[string]*net.TCPListener)
 	acceptCh := make(chan *net.TCPConn)
@@ -350,7 +350,7 @@ func (server *BgpServer) Serve() {
 			name := config.NeighborConfig.NeighborAddress.String()
 
 			if config.RouteServer.RouteServerConfig.RouteServerClient {
-				loc := NewLocalRib(name, peer.configuredRFlist(), make(map[string]*policy.Policy))
+				loc := NewLocalRib(name, peer.configuredRFlist(), g.MplsLabelRange.MinLabel, g.MplsLabelRange.MaxLabel)
 				server.addLocalRib(loc)
 				loc.setPolicy(peer, server.policyMap)
 				// set in policy
@@ -1128,20 +1128,19 @@ func (server *BgpServer) handleModPathRequest(grpcReq *GrpcRequest) []*table.Pat
 		rf = bgp.AfiSafiToRouteFamily(nlri.AFI(), nlri.SAFI())
 
 		if arg.Resource == api.Resource_VRF {
-			vrfs := server.localRibMap[GLOBAL_RIB_NAME].rib.Vrfs
-			if _, ok := vrfs[arg.Name]; !ok {
-				result.ResponseErr = fmt.Errorf("vrf %s not found", arg.Name)
+			label, err := server.localRibMap[GLOBAL_RIB_NAME].rib.GetNextLabel(arg.Name, nexthop, path.IsWithdraw)
+			if err != nil {
+				result.ResponseErr = err
 				goto ERR
 			}
-			vrf := vrfs[arg.Name]
-
+			vrf := server.localRibMap[GLOBAL_RIB_NAME].rib.Vrfs[arg.Name]
 			switch rf {
 			case bgp.RF_IPv4_UC:
 				n := nlri.(*bgp.IPAddrPrefix)
-				nlri = bgp.NewLabeledVPNIPAddrPrefix(n.Length, n.Prefix.String(), *bgp.NewMPLSLabelStack(), vrf.Rd)
+				nlri = bgp.NewLabeledVPNIPAddrPrefix(n.Length, n.Prefix.String(), *bgp.NewMPLSLabelStack(label), vrf.Rd)
 			case bgp.RF_IPv6_UC:
 				n := nlri.(*bgp.IPv6AddrPrefix)
-				nlri = bgp.NewLabeledVPNIPv6AddrPrefix(n.Length, n.Prefix.String(), *bgp.NewMPLSLabelStack(), vrf.Rd)
+				nlri = bgp.NewLabeledVPNIPv6AddrPrefix(n.Length, n.Prefix.String(), *bgp.NewMPLSLabelStack(label), vrf.Rd)
 			case bgp.RF_EVPN:
 				n := nlri.(*bgp.EVPNNLRI)
 				switch n.RouteType {
