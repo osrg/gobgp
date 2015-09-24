@@ -225,6 +225,10 @@ class QuaggaBGPContainer(BGPContainer):
         c << 'hostname zebra'
         c << 'password zebra'
         c << 'log file {0}/zebra.log'.format(self.SHARED_VOLUME)
+        c << 'debug zebra packet'
+        c << 'debug zebra kernel'
+        c << 'debug zebra rib'
+        c << ''
 
         with open('{0}/zebra.conf'.format(self.config_dir), 'w') as f:
             print colors.yellow('[{0}\'s new config]'.format(self.name))
