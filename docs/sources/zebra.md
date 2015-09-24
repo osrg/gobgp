@@ -21,13 +21,15 @@ You need to enable the zebra feature in the Global configuration as follows.
     [Global.Zebra]
         Enabled = true
         Url = "unix:/var/run/quagga/zserv.api"
-
+        [[Global.Zebra.RedistributeRouteTypeList]]
+            RouteType = "connect"
 ```
 
 You can skip Url. If it's skipped, GoBGP uses "unix:/var/run/quagga/zserv.api" as the Url.
 This configuration specifies unix domain socket in its Url and you can change it to the one using TCP.
 If you use TCP, Url can be like "tcp:192.168.24.1:2600".
-
+Specify which route type you want to redistribute through bgp.
+Here gobgp will redistribute connected routes which zebra has.
 
 ## <a name="section1">Check Routes from zebra
 
