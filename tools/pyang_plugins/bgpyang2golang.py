@@ -531,6 +531,7 @@ _type_translation_map = {
     'identityref' : 'string',
     'inet:port-number': 'uint16',
     'yang:timeticks': 'int64',
+    'ptypes:install-protocol-type': 'string',
 }
 
 
