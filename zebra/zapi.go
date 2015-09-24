@@ -117,6 +117,30 @@ const (
 	ROUTE_MAX
 )
 
+var routeTypeValueMap = map[string]ROUTE_TYPE{
+	"system":  ROUTE_SYSTEM,
+	"kernel":  ROUTE_KERNEL,
+	"connect": ROUTE_CONNECT,
+	"static":  ROUTE_STATIC,
+	"rip":     ROUTE_RIP,
+	"ripng":   ROUTE_RIPNG,
+	"ospf":    ROUTE_OSPF,
+	"ospf3":   ROUTE_OSPF6,
+	"isis":    ROUTE_ISIS,
+	"bgp":     ROUTE_BGP,
+	"hsls":    ROUTE_HSLS,
+	"olsr":    ROUTE_OLSR,
+	"babel":   ROUTE_BABEL,
+}
+
+func RouteTypeFromString(typ string) (ROUTE_TYPE, error) {
+	t, ok := routeTypeValueMap[typ]
+	if ok {
+		return t, nil
+	}
+	return t, fmt.Errorf("unknown route type: %s", typ)
+}
+
 const (
 	MESSAGE_NEXTHOP  = 0x01
 	MESSAGE_IFINDEX  = 0x02
@@ -309,21 +333,16 @@ func (c *Client) SendInterfaceAdd() error {
 	return c.SendCommand(INTERFACE_ADD, nil)
 }
 
-func (c *Client) SendRedistribute() error {
-	for i := ROUTE_SYSTEM; i < ROUTE_MAX; i++ {
-		if c.redistDefault != i {
-			body := &RedistributeBody{
-				Redist: i,
-			}
-			if e := c.SendCommand(REDISTRIBUTE_ADD, body); e != nil {
-				return e
-			}
+func (c *Client) SendRedistribute(t ROUTE_TYPE) error {
+	if c.redistDefault != t {
+		body := &RedistributeBody{
+			Redist: t,
+		}
+		if e := c.SendCommand(REDISTRIBUTE_ADD, body); e != nil {
+			return e
 		}
 	}
 
-	if e := c.SendCommand(REDISTRIBUTE_DEFAULT_ADD, nil); e != nil {
-		return e
-	}
 	return nil
 }
 

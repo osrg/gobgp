@@ -171,7 +171,11 @@ func (server *BgpServer) Serve() {
 		if g.Zebra.Url == "" {
 			g.Zebra.Url = "unix:/var/run/quagga/zserv.api"
 		}
-		err := server.NewZclient(g.Zebra.Url)
+		redists := make([]string, 0, len(g.Zebra.RedistributeRouteTypeList))
+		for _, t := range g.Zebra.RedistributeRouteTypeList {
+			redists = append(redists, t.RouteType)
+		}
+		err := server.NewZclient(g.Zebra.Url, redists)
 		if err != nil {
 			log.Error(err)
 		}
@@ -2475,7 +2479,7 @@ func (server *BgpServer) mkMrtRibMsgs(tbl *table.Table, t uint32) ([]*bgp.MRTMes
 	return msgs, nil
 }
 
-func (server *BgpServer) NewZclient(url string) error {
+func (server *BgpServer) NewZclient(url string, redistRouteTypes []string) error {
 	l := strings.SplitN(url, ":", 2)
 	if len(l) != 2 {
 		return fmt.Errorf("unsupported url: %s", url)
@@ -2487,7 +2491,16 @@ func (server *BgpServer) NewZclient(url string) error {
 	cli.SendHello()
 	cli.SendRouterIDAdd()
 	cli.SendInterfaceAdd()
-	cli.SendRedistribute()
+	for _, typ := range redistRouteTypes {
+		t, err := zebra.RouteTypeFromString(typ)
+		if err != nil {
+			return err
+		}
+		cli.SendRedistribute(t)
+	}
+	if e := cli.SendCommand(zebra.REDISTRIBUTE_DEFAULT_ADD, nil); e != nil {
+		return e
+	}
 	server.zclient = cli
 	return nil
 }
