@@ -10,6 +10,7 @@ module bgp-gobgp {
   // import some basic types
   import bgp { prefix bgp; }
   import routing-policy {prefix rpol; }
+  import policy-types {prefix ptypes; }
   import bgp-policy {prefix bgp-pol; }
   import ietf-inet-types { prefix inet; }
 
@@ -638,6 +639,11 @@ module bgp-gobgp {
         type string;
         description
           "Configure url for zebra.";
+      }
+      list redistribute-route-type {
+        leaf route-type {
+          type ptypes:install-protocol-type;
+        }
       }
     }
   }

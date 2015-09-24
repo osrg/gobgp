@@ -799,6 +799,13 @@ type MplsLabelRange struct {
 	MaxLabel uint32
 }
 
+//struct for container gobgp:redistribute-route-type
+type RedistributeRouteType struct {
+	// original -> gobgp:route-type
+	//gobgp:route-type's original type is ptypes:install-protocol-type
+	RouteType string
+}
+
 //struct for container gobgp:zebra
 type Zebra struct {
 	// original -> gobgp:enabled
@@ -806,6 +813,8 @@ type Zebra struct {
 	Enabled bool
 	// original -> gobgp:url
 	Url string
+	// original -> gobgp:redistribute-route-type
+	RedistributeRouteTypeList []RedistributeRouteType
 }
 
 //struct for container gobgp:mrt
