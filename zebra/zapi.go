@@ -188,6 +188,7 @@ type Client struct {
 	incoming      chan *Message
 	redistDefault ROUTE_TYPE
 	conn          net.Conn
+	err           error
 }
 
 func NewClient(network, address string, typ ROUTE_TYPE) (*Client, error) {
@@ -196,6 +197,15 @@ func NewClient(network, address string, typ ROUTE_TYPE) (*Client, error) {
 		return nil, err
 	}
 	outgoing := make(chan *Message)
+	incoming := make(chan *Message, 64)
+
+	c := &Client{
+		outgoing:      outgoing,
+		incoming:      incoming,
+		redistDefault: typ,
+		conn:          conn,
+	}
+
 	go func() {
 		for {
 			m, more := <-outgoing
@@ -209,7 +219,7 @@ func NewClient(network, address string, typ ROUTE_TYPE) (*Client, error) {
 				_, err = conn.Write(b)
 				if err != nil {
 					log.Errorf("failed to write: ", err)
-					return
+					c.err = err
 				}
 			} else {
 				log.Debug("finish outgoing loop")
@@ -218,26 +228,25 @@ func NewClient(network, address string, typ ROUTE_TYPE) (*Client, error) {
 		}
 	}()
 
-	incoming := make(chan *Message, 64)
-	go func() error {
+	go func() {
 		for {
 			headerBuf, err := readAll(conn, HEADER_SIZE)
 			if err != nil {
 				log.Error("failed to read header: ", err)
-				return err
+				return
 			}
 			log.Debugf("read header from zebra: %v", headerBuf)
 			hd := &Header{}
 			err = hd.DecodeFromBytes(headerBuf)
 			if err != nil {
 				log.Error("failed to decode header: ", err)
-				return err
+				return
 			}
 
 			bodyBuf, err := readAll(conn, int(hd.Len-HEADER_SIZE))
 			if err != nil {
 				log.Error("failed to read body: ", err)
-				return err
+				return
 			}
 			log.Debugf("read body from zebra: %v", bodyBuf)
 			m, err := ParseMessage(hd, bodyBuf)
@@ -249,12 +258,8 @@ func NewClient(network, address string, typ ROUTE_TYPE) (*Client, error) {
 			incoming <- m
 		}
 	}()
-	return &Client{
-		outgoing:      outgoing,
-		incoming:      incoming,
-		redistDefault: typ,
-		conn:          conn,
-	}, nil
+
+	return c, nil
 }
 
 func readAll(conn net.Conn, length int) ([]byte, error) {
@@ -268,7 +273,9 @@ func (c *Client) Receive() chan *Message {
 }
 
 func (c *Client) Send(m *Message) {
-	c.outgoing <- m
+	if c.err == nil {
+		c.outgoing <- m
+	}
 }
 
 func (c *Client) SendCommand(command API_TYPE, body Body) error {
