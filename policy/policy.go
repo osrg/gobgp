@@ -38,13 +38,6 @@ const (
 	ROUTE_TYPE_REJECT
 )
 
-type MaskLengthRangeType int
-
-const (
-	MASK_LENGTH_RANGE_MIN MaskLengthRangeType = iota
-	MASK_LENGTH_RANGE_MAX
-)
-
 type AttributeComparison int
 
 const (
@@ -1313,23 +1306,18 @@ func (a *AsPathPrependAction) apply(path *table.Path) *table.Path {
 }
 
 type Prefix struct {
-	Address         net.IP
-	AddressFamily   bgp.RouteFamily
-	Masklength      uint8
-	MasklengthRange map[MaskLengthRangeType]uint8
+	Prefix             *net.IPNet
+	AddressFamily      bgp.RouteFamily
+	MasklengthRangeMax uint8
+	MasklengthRangeMin uint8
 }
 
 func NewPrefix(prefixStr string, maskRange string) (Prefix, error) {
 	p := Prefix{}
-	mlr := make(map[MaskLengthRangeType]uint8)
 	addr, ipPref, e := net.ParseCIDR(prefixStr)
-
 	if e != nil {
 		return p, e
 	}
-	maskLength, _ := ipPref.Mask.Size()
-	p.Address = addr
-	p.Masklength = uint8(maskLength)
 
 	if ipv4Family := addr.To4(); ipv4Family != nil {
 		p.AddressFamily, _ = bgp.GetRouteFamily("ipv4-unicast")
@@ -1339,33 +1327,30 @@ func NewPrefix(prefixStr string, maskRange string) (Prefix, error) {
 		return p, fmt.Errorf("can not determine the address family.")
 	}
 
-	// TODO: validate mask length by using regexp
+	p.Prefix = ipPref
 
-	idx := strings.Index(maskRange, "..")
-	if idx == -1 {
-		log.WithFields(log.Fields{
-			"Topic":           "Policy",
-			"Type":            "Prefix",
-			"MaskRangeFormat": maskRange,
-		}).Warn("mask length range format is invalid. mask range was skipped.")
-		return p, nil
-	}
-
-	if idx != 0 {
-		min, e := strconv.ParseUint(maskRange[:idx], 10, 8)
-		if e != nil {
-			return p, e
+	if maskRange == "" {
+		l, _ := ipPref.Mask.Size()
+		maskLength := uint8(l)
+		p.MasklengthRangeMax = maskLength
+		p.MasklengthRangeMin = maskLength
+	} else {
+		exp := regexp.MustCompile("(\\d+)\\.\\.(\\d+)")
+		elems := exp.FindStringSubmatch(maskRange)
+		if len(elems) != 3 {
+			log.WithFields(log.Fields{
+				"Topic":           "Policy",
+				"Type":            "Prefix",
+				"MaskRangeFormat": maskRange,
+			}).Warn("mask length range format is invalid.")
+			return p, fmt.Errorf("mask length range format is invalid")
 		}
-		mlr[MASK_LENGTH_RANGE_MIN] = uint8(min)
+		// we've already checked the range is sane by regexp
+		min, _ := strconv.Atoi(elems[1])
+		max, _ := strconv.Atoi(elems[2])
+		p.MasklengthRangeMin = uint8(min)
+		p.MasklengthRangeMax = uint8(max)
 	}
-	if idx != len(maskRange)-1 {
-		max, e := strconv.ParseUint(maskRange[idx+2:], 10, 8)
-		if e != nil {
-			return p, e
-		}
-		mlr[MASK_LENGTH_RANGE_MAX] = uint8(max)
-	}
-	p.MasklengthRange = mlr
 	return p, nil
 }
 
@@ -1422,30 +1407,7 @@ func ipPrefixCalculate(path *table.Path, cPrefix Prefix) bool {
 		return false
 	}
 
-	cp := fmt.Sprintf("%s/%d", cPrefix.Address, cPrefix.Masklength)
-	rMin, okMin := cPrefix.MasklengthRange[MASK_LENGTH_RANGE_MIN]
-	rMax, okMax := cPrefix.MasklengthRange[MASK_LENGTH_RANGE_MAX]
-	if !okMin && !okMax {
-		if pAddr.Equal(cPrefix.Address) && pMasklen == cPrefix.Masklength {
-			return true
-		} else {
-			return false
-		}
-	}
-
-	_, ipNet, e := net.ParseCIDR(cp)
-	if e != nil {
-		log.WithFields(log.Fields{
-			"Topic":  "Policy",
-			"Prefix": ipNet,
-			"Error":  e,
-		}).Error("failed to parse the prefix of condition")
-		return false
-	}
-	if ipNet.Contains(pAddr) && (rMin <= pMasklen && pMasklen <= rMax) {
-		return true
-	}
-	return false
+	return cPrefix.Prefix.Contains(pAddr) && (cPrefix.MasklengthRangeMin <= pMasklen && pMasklen <= cPrefix.MasklengthRangeMax)
 }
 
 const (
