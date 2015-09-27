@@ -2995,6 +2995,9 @@ const (
 	_
 	BGP_ATTR_TYPE_PMSI_TUNNEL // = 22
 	BGP_ATTR_TYPE_TUNNEL_ENCAP
+	_
+	_
+	BGP_ATTR_TYPE_AIGP // = 26
 )
 
 // NOTIFICATION Error Code  RFC 4271 4.5.
@@ -3086,6 +3089,7 @@ var pathAttrFlags map[BGPAttrType]BGPAttrFlag = map[BGPAttrType]BGPAttrFlag{
 	BGP_ATTR_TYPE_AS4_AGGREGATOR:       BGP_ATTR_FLAG_TRANSITIVE | BGP_ATTR_FLAG_OPTIONAL,
 	BGP_ATTR_TYPE_PMSI_TUNNEL:          BGP_ATTR_FLAG_TRANSITIVE | BGP_ATTR_FLAG_OPTIONAL,
 	BGP_ATTR_TYPE_TUNNEL_ENCAP:         BGP_ATTR_FLAG_TRANSITIVE | BGP_ATTR_FLAG_OPTIONAL,
+	BGP_ATTR_TYPE_AIGP:                 BGP_ATTR_FLAG_OPTIONAL,
 }
 
 type PathAttributeInterface interface {
@@ -5590,6 +5594,176 @@ func NewPathAttributePmsiTunnel(typ PmsiTunnelType, isLeafInfoRequired bool, lab
 	}
 }
 
+type AigpTLVType uint8
+
+const (
+	AIGP_TLV_UNKNOWN AigpTLVType = iota
+	AIGP_TLV_IGP_METRIC
+)
+
+type AigpTLV interface {
+	Serialize() ([]byte, error)
+	String() string
+	MarshalJSON() ([]byte, error)
+	Type() AigpTLVType
+}
+
+type AigpTLVDefault struct {
+	typ   AigpTLVType
+	Value []byte
+}
+
+func (t *AigpTLVDefault) Serialize() ([]byte, error) {
+	buf := make([]byte, 3+len(t.Value))
+	buf[0] = uint8(t.Type())
+	binary.BigEndian.PutUint16(buf[1:], uint16(3+len(t.Value)))
+	copy(buf[3:], t.Value)
+	return buf, nil
+}
+
+func (t *AigpTLVDefault) String() string {
+	return fmt.Sprintf("{Type: %d, Value: %v}", t.Type(), t.Value)
+}
+
+func (t *AigpTLVDefault) MarshalJSON() ([]byte, error) {
+	return json.Marshal(struct {
+		Type  AigpTLVType `json:"type"`
+		Value []byte      `json:"value"`
+	}{
+		Type:  t.Type(),
+		Value: t.Value,
+	})
+}
+
+func (t *AigpTLVDefault) Type() AigpTLVType {
+	return t.typ
+}
+
+type AigpTLVIgpMetric struct {
+	Metric uint64
+}
+
+func (t *AigpTLVIgpMetric) Serialize() ([]byte, error) {
+	buf := make([]byte, 11)
+	buf[0] = uint8(AIGP_TLV_IGP_METRIC)
+	binary.BigEndian.PutUint16(buf[1:], uint16(11))
+	binary.BigEndian.PutUint64(buf[3:], t.Metric)
+	return buf, nil
+}
+
+func (t *AigpTLVIgpMetric) String() string {
+	return fmt.Sprintf("{Metric: %d}", t.Metric)
+}
+
+func (t *AigpTLVIgpMetric) MarshalJSON() ([]byte, error) {
+	return json.Marshal(struct {
+		Type   AigpTLVType `json:"type"`
+		Metric uint64      `json:"metric"`
+	}{
+		Type:   AIGP_TLV_IGP_METRIC,
+		Metric: t.Metric,
+	})
+}
+
+func NewAigpTLVIgpMetric(metric uint64) *AigpTLVIgpMetric {
+	return &AigpTLVIgpMetric{
+		Metric: metric,
+	}
+}
+
+func (t *AigpTLVIgpMetric) Type() AigpTLVType {
+	return AIGP_TLV_IGP_METRIC
+}
+
+type PathAttributeAigp struct {
+	PathAttribute
+	Values []AigpTLV
+}
+
+func (p *PathAttributeAigp) DecodeFromBytes(data []byte) error {
+	err := p.PathAttribute.DecodeFromBytes(data)
+	if err != nil {
+		return err
+	}
+
+	rest := p.PathAttribute.Value
+	values := make([]AigpTLV, 0)
+
+	for {
+		if len(rest) < 3 {
+			break
+		}
+		typ := rest[0]
+		length := binary.BigEndian.Uint16(rest[1:3])
+		if len(rest) < int(length) {
+			break
+		}
+		v := rest[3:length]
+		switch AigpTLVType(typ) {
+		case AIGP_TLV_IGP_METRIC:
+			if len(v) < 8 {
+				break
+			}
+			metric := binary.BigEndian.Uint64(v)
+			values = append(values, NewAigpTLVIgpMetric(metric))
+		default:
+			values = append(values, &AigpTLVDefault{AigpTLVType(typ), v})
+		}
+		rest = rest[length:]
+		if len(rest) == 0 {
+			p.Values = values
+			return nil
+		}
+	}
+	eCode := uint8(BGP_ERROR_UPDATE_MESSAGE_ERROR)
+	eSubCode := uint8(BGP_ERROR_SUB_MALFORMED_ATTRIBUTE_LIST)
+	return NewMessageError(eCode, eSubCode, nil, "Aigp length is incorrect")
+}
+
+func (p *PathAttributeAigp) Serialize() ([]byte, error) {
+	buf := make([]byte, 0)
+	for _, t := range p.Values {
+		bbuf, err := t.Serialize()
+		if err != nil {
+			return nil, err
+		}
+		buf = append(buf, bbuf...)
+	}
+	p.PathAttribute.Value = buf
+	return p.PathAttribute.Serialize()
+}
+
+func (p *PathAttributeAigp) String() string {
+	buf := bytes.NewBuffer(make([]byte, 0, 32))
+	buf.WriteString("{Aigp: [")
+	for _, v := range p.Values {
+		buf.WriteString(v.String())
+	}
+	buf.WriteString("]}")
+	return buf.String()
+}
+
+func (p *PathAttributeAigp) MarshalJSON() ([]byte, error) {
+	return json.Marshal(struct {
+		Type  BGPAttrType `json:"type"`
+		Value []AigpTLV   `json:"value"`
+	}{
+		Type:  p.GetType(),
+		Value: p.Values,
+	})
+}
+
+func NewPathAttributeAigp(values []AigpTLV) *PathAttributeAigp {
+	t := BGP_ATTR_TYPE_AIGP
+	return &PathAttributeAigp{
+		PathAttribute: PathAttribute{
+			Flags: pathAttrFlags[t],
+			Type:  t,
+		},
+		Values: values,
+	}
+}
+
 type PathAttributeUnknown struct {
 	PathAttribute
 }
@@ -5635,6 +5809,8 @@ func GetPathAttribute(data []byte) (PathAttributeInterface, error) {
 		return &PathAttributeTunnelEncap{}, nil
 	case BGP_ATTR_TYPE_PMSI_TUNNEL:
 		return &PathAttributePmsiTunnel{}, nil
+	case BGP_ATTR_TYPE_AIGP:
+		return &PathAttributeAigp{}, nil
 	}
 	return &PathAttributeUnknown{}, nil
 }
