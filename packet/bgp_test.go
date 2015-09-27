@@ -511,3 +511,23 @@ func Test_FlowSpecNlriv6(t *testing.T) {
 		t.Log(bytes.Equal(buf1, buf2))
 	}
 }
+
+func Test_Aigp(t *testing.T) {
+	assert := assert.New(t)
+	m := NewAigpTLVIgpMetric(1000)
+	a1 := NewPathAttributeAigp([]AigpTLV{m})
+	buf1, err := a1.Serialize()
+	assert.Nil(err)
+	a2 := NewPathAttributeAigp(nil)
+	err = a2.DecodeFromBytes(buf1)
+	assert.Nil(err)
+	buf2, _ := a2.Serialize()
+	if reflect.DeepEqual(a1, a2) == true {
+		t.Log("OK")
+	} else {
+		t.Error("Something wrong")
+		t.Error(len(buf1), a1, buf1)
+		t.Error(len(buf2), a2, buf2)
+		t.Log(bytes.Equal(buf1, buf2))
+	}
+}
