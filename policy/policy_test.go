@@ -45,16 +45,16 @@ func TestPrefixCalcurateNoRange(t *testing.T) {
 	nexthop := bgp.NewPathAttributeNextHop("10.0.0.1")
 	med := bgp.NewPathAttributeMultiExitDisc(0)
 	pathAttributes := []bgp.PathAttributeInterface{origin, aspath, nexthop, med}
-	nlri := []*bgp.IPAddrPrefix{bgp.NewIPAddrPrefix(24, "10.10.0.101")}
+	nlri := []*bgp.IPAddrPrefix{bgp.NewIPAddrPrefix(24, "10.10.0.0")}
 	updateMsg := bgp.NewBGPUpdateMessage(nil, pathAttributes, nlri)
 	path := table.ProcessMessage(updateMsg, peer)[0]
 	// test
 	pl1, _ := NewPrefix("10.10.0.0/24", "")
 	match1 := ipPrefixCalculate(path, pl1)
-	assert.Equal(t, false, match1)
-	pl2, _ := NewPrefix("10.10.0.101/24", "")
+	assert.Equal(t, true, match1)
+	pl2, _ := NewPrefix("10.10.0.0/23", "")
 	match2 := ipPrefixCalculate(path, pl2)
-	assert.Equal(t, true, match2)
+	assert.Equal(t, false, match2)
 	pl3, _ := NewPrefix("10.10.0.0/16", "21..24")
 	match3 := ipPrefixCalculate(path, pl3)
 	assert.Equal(t, true, match3)
