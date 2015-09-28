@@ -396,14 +396,50 @@ func extractNexthop(rf bgp.RouteFamily, args []string) ([]string, string, error)
 	return args, nexthop, nil
 }
 
+func extractAigp(args []string) ([]string, []byte, error) {
+	for idx, arg := range args {
+		if arg == "aigp" {
+			if len(args) < (idx + 3) {
+				return nil, nil, fmt.Errorf("invalid aigp format")
+			}
+			typ := args[idx+1]
+			switch typ {
+			case "metric":
+				metric, err := strconv.Atoi(args[idx+2])
+				if err != nil {
+					return nil, nil, err
+				}
+				aigp, _ := bgp.NewPathAttributeAigp([]bgp.AigpTLV{bgp.NewAigpTLVIgpMetric(uint64(metric))}).Serialize()
+				return append(args[:idx], args[idx+3:]...), aigp, nil
+			default:
+				return nil, nil, fmt.Errorf("unknown aigp type: %s", typ)
+			}
+		}
+	}
+	return args, nil, nil
+}
+
 func ParsePath(rf bgp.RouteFamily, args []string) (*api.Path, error) {
 	var nlri bgp.AddrPrefixInterface
 	var extcomms []string
 	var err error
 
+	path := &api.Path{
+		Pattrs: make([][]byte, 0),
+	}
+
 	args, nexthop, err := extractNexthop(rf, args)
 	if err != nil {
 		return nil, err
+	}
+
+	var aigp []byte
+	args, aigp, err = extractAigp(args)
+	if err != nil {
+		return nil, err
+	}
+	if aigp != nil {
+		path.Pattrs = append(path.Pattrs, aigp)
 	}
 
 	switch rf {
@@ -465,10 +501,6 @@ func ParsePath(rf bgp.RouteFamily, args []string) (*api.Path, error) {
 		return nil, err
 	}
 
-	path := &api.Path{
-		Pattrs: make([][]byte, 0),
-	}
-
 	if rf == bgp.RF_IPv4_UC {
 		path.Nlri, _ = nlri.Serialize()
 		n, _ := bgp.NewPathAttributeNextHop(nexthop).Serialize()
@@ -525,8 +557,8 @@ func modPath(resource api.Resource, name, modtype string, args []string) error {
 		}
 		flags := strings.Join(ss, ", ")
 		helpErrMap := map[bgp.RouteFamily]error{}
-		helpErrMap[bgp.RF_IPv4_UC] = fmt.Errorf("usage: %s rib %s <PREFIX> [nexthop <ADDRESS>] -a ipv4", cmdstr, modtype)
-		helpErrMap[bgp.RF_IPv6_UC] = fmt.Errorf("usage: %s rib %s <PREFIX> [nexthop <ADDRESS>] -a ipv6", cmdstr, modtype)
+		helpErrMap[bgp.RF_IPv4_UC] = fmt.Errorf("usage: %s rib %s <PREFIX> [nexthop <ADDRESS>] [aigp metric <METRIC>] -a ipv4", cmdstr, modtype)
+		helpErrMap[bgp.RF_IPv6_UC] = fmt.Errorf("usage: %s rib %s <PREFIX> [nexthop <ADDRESS>] [aigp metric <METRIC>] -a ipv6", cmdstr, modtype)
 		fsHelpMsgFmt := fmt.Sprintf(`err: %s
 usage: %s rib %s match <MATCH_EXPR> then <THEN_EXPR> -a %%s
     <MATCH_EXPR> : { %s <PREFIX> [<OFFSET>] | %s <PREFIX> [<OFFSET>] |
