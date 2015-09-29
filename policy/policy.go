@@ -1407,7 +1407,7 @@ func ipPrefixCalculate(path *table.Path, cPrefix Prefix) bool {
 		return false
 	}
 
-	return cPrefix.Prefix.Contains(pAddr) && (cPrefix.MasklengthRangeMin <= pMasklen && pMasklen <= cPrefix.MasklengthRangeMax)
+	return (cPrefix.MasklengthRangeMin <= pMasklen && pMasklen <= cPrefix.MasklengthRangeMax) && cPrefix.Prefix.Contains(pAddr)
 }
 
 const (
