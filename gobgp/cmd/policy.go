@@ -16,6 +16,7 @@
 package cmd
 
 import (
+	"bytes"
 	"encoding/json"
 	"fmt"
 	api "github.com/osrg/gobgp/api"
@@ -31,7 +32,7 @@ import (
 )
 
 func formatPolicyPrefix(head bool, indent int, psl []*api.PrefixSet) string {
-	buff := ""
+	buff := bytes.NewBuffer(make([]byte, 0, 64))
 	sIndent := strings.Repeat(" ", indent)
 	maxNameLen := 0
 	maxPrefixLen := 0
@@ -64,20 +65,20 @@ func formatPolicyPrefix(head bool, indent int, psl []*api.PrefixSet) string {
 
 	format := "%-" + fmt.Sprint(maxNameLen) + "s  %-" + fmt.Sprint(maxPrefixLen) + "s  %-" + fmt.Sprint(maxRangeLen) + "s\n"
 	if head {
-		buff += fmt.Sprintf(format, "Name", "Address", "MaskRange")
+		buff.WriteString(fmt.Sprintf(format, "Name", "Address", "MaskRange"))
 	}
 	for _, ps := range psl {
 		for i, p := range ps.PrefixList {
 			prefix := fmt.Sprintf("%s", p.IpPrefix)
 			if i == 0 {
-				buff += fmt.Sprintf(format, ps.PrefixSetName, prefix, p.MaskLengthRange)
+				buff.WriteString(fmt.Sprintf(format, ps.PrefixSetName, prefix, p.MaskLengthRange))
 			} else {
-				buff += fmt.Sprintf(sIndent)
-				buff += fmt.Sprintf(format, "", prefix, p.MaskLengthRange)
+				buff.WriteString(fmt.Sprintf(sIndent))
+				buff.WriteString(fmt.Sprintf(format, "", prefix, p.MaskLengthRange))
 			}
 		}
 	}
-	return buff
+	return buff.String()
 }
 
 func showPolicyPrefixes() error {
@@ -281,7 +282,7 @@ func modPolicyPrefix(modtype string, eArgs []string) error {
 }
 
 func formatPolicyNeighbor(head bool, indent int, nsl []*api.NeighborSet) string {
-	buff := ""
+	buff := bytes.NewBuffer(make([]byte, 0, 64))
 	sIndent := strings.Repeat(" ", indent)
 	maxNameLen := 0
 	maxAddressLen := 0
@@ -307,19 +308,19 @@ func formatPolicyNeighbor(head bool, indent int, nsl []*api.NeighborSet) string 
 
 	format := "%-" + fmt.Sprint(maxNameLen) + "s  %-" + fmt.Sprint(maxAddressLen) + "s\n"
 	if head {
-		buff += fmt.Sprintf(format, "Name", "Address")
+		buff.WriteString(fmt.Sprintf(format, "Name", "Address"))
 	}
 	for _, ns := range nsl {
 		for i, n := range ns.NeighborList {
 			if i == 0 {
-				buff += fmt.Sprintf(format, ns.NeighborSetName, n.Address)
+				buff.WriteString(fmt.Sprintf(format, ns.NeighborSetName, n.Address))
 			} else {
-				buff += fmt.Sprintf(sIndent)
-				buff += fmt.Sprintf(format, "", n.Address)
+				buff.WriteString(fmt.Sprintf(sIndent))
+				buff.WriteString(fmt.Sprintf(format, "", n.Address))
 			}
 		}
 	}
-	return buff
+	return buff.String()
 }
 
 func showPolicyNeighbors() error {
@@ -448,7 +449,7 @@ func modPolicyNeighbor(modtype string, eArgs []string) error {
 }
 
 func formatPolicyAsPath(haed bool, indent int, apsl []*api.AsPathSet) string {
-	buff := ""
+	buff := bytes.NewBuffer(make([]byte, 0, 64))
 	sIndent := strings.Repeat(" ", indent)
 	maxNameLen := 0
 	maxPathLen := 0
@@ -474,19 +475,19 @@ func formatPolicyAsPath(haed bool, indent int, apsl []*api.AsPathSet) string {
 
 	format := "%-" + fmt.Sprint(maxNameLen) + "s  %-" + fmt.Sprint(maxPathLen) + "s\n"
 	if haed {
-		buff += fmt.Sprintf(format, "Name", "AsPath")
+		buff.WriteString(fmt.Sprintf(format, "Name", "AsPath"))
 	}
 	for _, aps := range apsl {
 		for i, a := range aps.AsPathMembers {
 			if i == 0 {
-				buff += fmt.Sprintf(format, aps.AsPathSetName, a)
+				buff.WriteString(fmt.Sprintf(format, aps.AsPathSetName, a))
 			} else {
-				buff += fmt.Sprintf(sIndent)
-				buff += fmt.Sprintf(format, "", a)
+				buff.WriteString(fmt.Sprintf(sIndent))
+				buff.WriteString(fmt.Sprintf(format, "", a))
 			}
 		}
 	}
-	return buff
+	return buff.String()
 }
 
 func showPolicyAsPaths() error {
@@ -622,7 +623,7 @@ func modPolicyAsPath(modtype string, eArgs []string) error {
 }
 
 func formatPolicyCommunity(head bool, indent int, csl []*api.CommunitySet) string {
-	buff := ""
+	buff := bytes.NewBuffer(make([]byte, 0, 64))
 	sIndent := strings.Repeat(" ", indent)
 	maxNameLen := 0
 	maxCommunityLen := 0
@@ -648,19 +649,19 @@ func formatPolicyCommunity(head bool, indent int, csl []*api.CommunitySet) strin
 
 	format := "%-" + fmt.Sprint(maxNameLen) + "s  %-" + fmt.Sprint(maxCommunityLen) + "s\n"
 	if head {
-		buff += fmt.Sprintf(format, "Name", "Community")
+		buff.WriteString(fmt.Sprintf(format, "Name", "Community"))
 	}
 	for _, cs := range csl {
 		for i, c := range cs.CommunityMembers {
 			if i == 0 {
-				buff += fmt.Sprintf(format, cs.CommunitySetName, c)
+				buff.WriteString(fmt.Sprintf(format, cs.CommunitySetName, c))
 			} else {
-				buff += fmt.Sprintf(sIndent)
-				buff += fmt.Sprintf(format, "", c)
+				buff.WriteString(fmt.Sprintf(sIndent))
+				buff.WriteString(fmt.Sprintf(format, "", c))
 			}
 		}
 	}
-	return buff
+	return buff.String()
 }
 
 func showPolicyCommunities() error {
@@ -796,7 +797,7 @@ func modPolicyCommunity(modtype string, eArgs []string) error {
 }
 
 func formatPolicyExtCommunity(head bool, indent int, ecsl []*api.ExtCommunitySet) string {
-	buff := ""
+	buff := bytes.NewBuffer(make([]byte, 0, 64))
 	sIndent := strings.Repeat(" ", indent)
 	maxNameLen := 0
 	maxCommunityLen := 0
@@ -822,19 +823,19 @@ func formatPolicyExtCommunity(head bool, indent int, ecsl []*api.ExtCommunitySet
 
 	format := "%-" + fmt.Sprint(maxNameLen) + "s  %-" + fmt.Sprint(maxCommunityLen) + "s\n"
 	if head {
-		buff += fmt.Sprintf(format, "Name", "ExtCommunity")
+		buff.WriteString(fmt.Sprintf(format, "Name", "ExtCommunity"))
 	}
 	for _, ecs := range ecsl {
 		for i, ec := range ecs.ExtCommunityMembers {
 			if i == 0 {
-				buff += fmt.Sprintf(format, ecs.ExtCommunitySetName, ec)
+				buff.WriteString(fmt.Sprintf(format, ecs.ExtCommunitySetName, ec))
 			} else {
-				buff += fmt.Sprintf(sIndent)
-				buff += fmt.Sprintf(format, "", ec)
+				buff.WriteString(fmt.Sprintf(sIndent))
+				buff.WriteString(fmt.Sprintf(format, "", ec))
 			}
 		}
 	}
-	return buff
+	return buff.String()
 }
 
 func showPolicyExtCommunities() error {
