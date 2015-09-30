@@ -554,8 +554,7 @@ func TestAsPathConditionEvaluate(t *testing.T) {
 	peer := &table.PeerInfo{AS: 65001, Address: net.ParseIP("10.0.0.1")}
 	origin := bgp.NewPathAttributeOrigin(0)
 	aspathParam1 := []bgp.AsPathParamInterface{
-		bgp.NewAsPathParam(2, []uint16{65001, 65000, 65004, 65005}),
-		bgp.NewAsPathParam(1, []uint16{65001, 65010, 65004, 65005}),
+		bgp.NewAsPathParam(2, []uint16{65001, 65000, 65010, 65004, 65005}),
 	}
 	aspath := bgp.NewPathAttributeAsPath(aspathParam1)
 	nexthop := bgp.NewPathAttributeNextHop("10.0.0.1")
@@ -567,7 +566,7 @@ func TestAsPathConditionEvaluate(t *testing.T) {
 	path1 := table.ProcessMessage(updateMsg1, peer)[0]
 
 	aspathParam2 := []bgp.AsPathParamInterface{
-		bgp.NewAsPathParam(1, []uint16{65010}),
+		bgp.NewAsPathParam(2, []uint16{65010}),
 	}
 	aspath2 := bgp.NewPathAttributeAsPath(aspathParam2)
 	pathAttributes = []bgp.PathAttributeInterface{origin, aspath2, nexthop, med}
@@ -662,7 +661,6 @@ func TestMultipleAsPathConditionEvaluate(t *testing.T) {
 	origin := bgp.NewPathAttributeOrigin(0)
 	aspathParam1 := []bgp.AsPathParamInterface{
 		bgp.NewAsPathParam(2, []uint16{65001, 65000, 54000, 65004, 65005}),
-		bgp.NewAsPathParam(1, []uint16{65001, 65010, 54000, 65004, 65005}),
 	}
 	aspath := bgp.NewPathAttributeAsPath(aspathParam1)
 	nexthop := bgp.NewPathAttributeNextHop("10.0.0.1")
@@ -705,7 +703,7 @@ func TestMultipleAsPathConditionEvaluate(t *testing.T) {
 	asPathSet5 := config.AsPathSet{
 		AsPathSetName: "asset5",
 		AsPathList: []config.AsPath{
-			config.AsPath{AsPath: "^65001 65000 54000 65004 65005 65001,65010,54000,65004,65005$"},
+			config.AsPath{AsPath: "^65001 65000 54000 65004 65005$"},
 		},
 	}
 
@@ -726,7 +724,7 @@ func TestMultipleAsPathConditionEvaluate(t *testing.T) {
 	asPathSet8 := config.AsPathSet{
 		AsPathSetName: "asset8",
 		AsPathList: []config.AsPath{
-			config.AsPath{AsPath: "6[0-9]+_6[0-9]+_6[0-9]+"},
+			config.AsPath{AsPath: "6[0-9]+_6[0-9]+_5[0-9]+"},
 		},
 	}
 
@@ -844,8 +842,8 @@ func TestAsPathConditionWithOtherCondition(t *testing.T) {
 	peer := &table.PeerInfo{AS: 65001, Address: net.ParseIP("10.0.0.1")}
 	origin := bgp.NewPathAttributeOrigin(0)
 	aspathParam := []bgp.AsPathParamInterface{
-		bgp.NewAsPathParam(2, []uint16{65001, 65000, 65004, 65004, 65005}),
 		bgp.NewAsPathParam(1, []uint16{65001, 65000, 65004, 65005}),
+		bgp.NewAsPathParam(2, []uint16{65001, 65000, 65004, 65004, 65005}),
 	}
 	aspath := bgp.NewPathAttributeAsPath(aspathParam)
 	nexthop := bgp.NewPathAttributeNextHop("10.0.0.1")
@@ -1041,8 +1039,8 @@ func TestCommunityConditionEvaluateWithOtherCondition(t *testing.T) {
 	peer := &table.PeerInfo{AS: 65001, Address: net.ParseIP("10.0.0.1")}
 	origin := bgp.NewPathAttributeOrigin(0)
 	aspathParam := []bgp.AsPathParamInterface{
-		bgp.NewAsPathParam(2, []uint16{65001, 65000, 65004, 65004, 65005}),
 		bgp.NewAsPathParam(1, []uint16{65001, 65000, 65004, 65005}),
+		bgp.NewAsPathParam(2, []uint16{65001, 65000, 65004, 65004, 65005}),
 	}
 	aspath := bgp.NewPathAttributeAsPath(aspathParam)
 	nexthop := bgp.NewPathAttributeNextHop("10.0.0.1")
@@ -1501,8 +1499,8 @@ func TestExtCommunityConditionEvaluateWithOtherCondition(t *testing.T) {
 	peer := &table.PeerInfo{AS: 65001, Address: net.ParseIP("10.2.1.1")}
 	origin := bgp.NewPathAttributeOrigin(0)
 	aspathParam := []bgp.AsPathParamInterface{
-		bgp.NewAsPathParam(2, []uint16{65001, 65000, 65004, 65004, 65005}),
 		bgp.NewAsPathParam(1, []uint16{65001, 65000, 65004, 65005}),
+		bgp.NewAsPathParam(2, []uint16{65001, 65000, 65004, 65004, 65005}),
 	}
 	aspath := bgp.NewPathAttributeAsPath(aspathParam)
 	nexthop := bgp.NewPathAttributeNextHop("10.2.1.1")
