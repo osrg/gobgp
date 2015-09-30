@@ -733,7 +733,7 @@ func (server *BgpServer) handleFSMMessage(peer *Peer, e *fsmMsg, incoming chan *
 			}
 
 			for _, rf := range peer.configuredRFlist() {
-				peer.adjRib.DropAll(rf)
+				peer.DropAll(rf)
 			}
 
 			msgs = append(msgs, server.dropPeerAllRoutes(peer)...)

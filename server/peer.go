@@ -43,6 +43,7 @@ type Peer struct {
 	outgoing              chan *bgp.BGPMessage
 	inPolicies            []*policy.Policy
 	defaultInPolicy       config.DefaultPolicyType
+	accepted              uint32
 	importPolicies        []*policy.Policy
 	defaultImportPolicy   config.DefaultPolicyType
 	exportPolicies        []*policy.Policy
@@ -291,13 +292,11 @@ func (peer *Peer) ToApiStruct() *api.Peer {
 
 	advertized := uint32(0)
 	received := uint32(0)
-	accepted := uint32(0)
 	if f.state == bgp.BGP_FSM_ESTABLISHED {
 		for _, rf := range peer.configuredRFlist() {
 			advertized += uint32(peer.adjRib.GetOutCount(rf))
 			received += uint32(peer.adjRib.GetInCount(rf))
 			// FIXME: we should store 'accepted' in memory
-			accepted += uint32(len(peer.ApplyPolicy(POLICY_DIRECTION_IN, peer.adjRib.GetInPathList(rf))))
 		}
 	}
 
@@ -331,7 +330,7 @@ func (peer *Peer) ToApiStruct() *api.Peer {
 		Uptime:                    uptime,
 		Downtime:                  downtime,
 		Received:                  received,
-		Accepted:                  accepted,
+		Accepted:                  peer.accepted,
 		Advertized:                advertized,
 		OutQ:                      uint32(len(peer.outgoing)),
 		Flops:                     s.Flops,
@@ -443,6 +442,9 @@ func (peer *Peer) ApplyPolicy(d PolicyDirection, paths []*table.Path) []*table.P
 		switch result {
 		case policy.ROUTE_TYPE_ACCEPT:
 			newpaths = append(newpaths, newpath)
+			if d == POLICY_DIRECTION_IN {
+				peer.accepted += 1
+			}
 		case policy.ROUTE_TYPE_REJECT:
 			log.WithFields(log.Fields{
 				"Topic":     "Peer",
@@ -453,4 +455,9 @@ func (peer *Peer) ApplyPolicy(d PolicyDirection, paths []*table.Path) []*table.P
 		}
 	}
 	return newpaths
+}
+
+func (peer *Peer) DropAll(rf bgp.RouteFamily) {
+	peer.adjRib.DropAll(rf)
+	peer.accepted = 0
 }
