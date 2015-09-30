@@ -269,6 +269,15 @@ func (server *BgpServer) Serve() {
 		}
 
 		select {
+		case grpcReq := <-server.GrpcReqCh:
+			m := server.handleGrpc(grpcReq)
+			if len(m) > 0 {
+				senderMsgs = append(senderMsgs, m...)
+			}
+		default:
+		}
+
+		select {
 		case c := <-server.rpkiConfigCh:
 			server.roaClient, _ = newROAClient(c)
 		case c := <-server.bmpConfigCh:
