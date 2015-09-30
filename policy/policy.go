@@ -996,18 +996,16 @@ type RoutingAction struct {
 }
 
 func NewRoutingAction(action config.Actions) *RoutingAction {
-	r := &RoutingAction{
+	return &RoutingAction{
 		AcceptRoute: action.RouteDisposition.AcceptRoute,
 	}
-	return r
 }
 
 func (r *RoutingAction) apply(path *table.Path) *table.Path {
 	if r.AcceptRoute {
 		return path
-	} else {
-		return nil
 	}
+	return nil
 }
 
 type CommunityAction struct {
@@ -1346,7 +1344,7 @@ func NewPrefix(prefixStr string, maskRange string) (Prefix, error) {
 // Compare path with a policy's condition in stored order in the policy.
 // If a condition match, then this function stops evaluation and
 // subsequent conditions are skipped.
-func (p *Policy) Apply(path *table.Path) (bool, RouteType, *table.Path) {
+func (p *Policy) Apply(path *table.Path) (RouteType, *table.Path) {
 	for _, statement := range p.Statements {
 
 		result := statement.evaluate(path)
@@ -1356,23 +1354,24 @@ func (p *Policy) Apply(path *table.Path) (bool, RouteType, *table.Path) {
 			"PolicyName": p.Name,
 		}).Debug("statement evaluate : ", result)
 
-		var p *table.Path
 		if result {
 			//Routing action
-			p = statement.routingAction.apply(path)
-			if p != nil {
-				// apply all modification actions
-				cloned := path.Clone(p.IsWithdraw)
-				for _, action := range statement.modificationActions {
-					cloned = action.apply(cloned)
-				}
-				return true, ROUTE_TYPE_ACCEPT, cloned
-			} else {
-				return true, ROUTE_TYPE_REJECT, nil
+			p := statement.routingAction.apply(path)
+			if p == nil {
+				return ROUTE_TYPE_REJECT, path
 			}
+			if len(statement.modificationActions) == 0 {
+				return ROUTE_TYPE_ACCEPT, path
+			}
+			// apply all modification actions
+			cloned := path.Clone(p.IsWithdraw)
+			for _, action := range statement.modificationActions {
+				cloned = action.apply(cloned)
+			}
+			return ROUTE_TYPE_ACCEPT, cloned
 		}
 	}
-	return false, ROUTE_TYPE_NONE, nil
+	return ROUTE_TYPE_NONE, path
 }
 
 func ipPrefixCalculate(path *table.Path, cPrefix Prefix) bool {

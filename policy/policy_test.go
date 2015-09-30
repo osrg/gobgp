@@ -243,10 +243,9 @@ func TestPolicyNotMatch(t *testing.T) {
 	//test
 	df := pl.DefinedSets
 	p := NewPolicy(pl.PolicyDefinitions.PolicyDefinitionList[0], df)
-	match, pType, newPath := p.Apply(path)
-	assert.Equal(t, false, match)
+	pType, newPath := p.Apply(path)
 	assert.Equal(t, ROUTE_TYPE_NONE, pType)
-	assert.Nil(t, newPath)
+	assert.Equal(t, newPath, path)
 }
 
 func TestPolicyMatchAndReject(t *testing.T) {
@@ -275,10 +274,9 @@ func TestPolicyMatchAndReject(t *testing.T) {
 	//test
 	df := pl.DefinedSets
 	p := NewPolicy(pl.PolicyDefinitions.PolicyDefinitionList[0], df)
-	match, pType, newPath := p.Apply(path)
-	assert.Equal(t, true, match)
+	pType, newPath := p.Apply(path)
 	assert.Equal(t, ROUTE_TYPE_REJECT, pType)
-	assert.Nil(t, newPath)
+	assert.Equal(t, newPath, path)
 }
 
 func TestPolicyMatchAndAccept(t *testing.T) {
@@ -307,8 +305,7 @@ func TestPolicyMatchAndAccept(t *testing.T) {
 	//test
 	df := pl.DefinedSets
 	p := NewPolicy(pl.PolicyDefinitions.PolicyDefinitionList[0], df)
-	match, pType, newPath := p.Apply(path)
-	assert.Equal(t, true, match)
+	pType, newPath := p.Apply(path)
 	assert.Equal(t, ROUTE_TYPE_ACCEPT, pType)
 	assert.Equal(t, path, newPath)
 }
@@ -349,15 +346,13 @@ func TestPolicyRejectOnlyPrefixSet(t *testing.T) {
 	//test
 	df := pl.DefinedSets
 	p := NewPolicy(pl.PolicyDefinitions.PolicyDefinitionList[0], df)
-	match, pType, newPath := p.Apply(path1)
-	assert.Equal(t, true, match)
+	pType, newPath := p.Apply(path1)
 	assert.Equal(t, ROUTE_TYPE_REJECT, pType)
-	assert.Nil(t, newPath)
+	assert.Equal(t, newPath, path1)
 
-	match2, pType2, newPath2 := p.Apply(path2)
-	assert.Equal(t, false, match2)
+	pType2, newPath2 := p.Apply(path2)
 	assert.Equal(t, ROUTE_TYPE_NONE, pType2)
-	assert.Nil(t, newPath2)
+	assert.Equal(t, newPath2, path2)
 }
 
 func TestPolicyRejectOnlyNeighborSet(t *testing.T) {
@@ -396,15 +391,13 @@ func TestPolicyRejectOnlyNeighborSet(t *testing.T) {
 	//test
 	df := pl.DefinedSets
 	p := NewPolicy(pl.PolicyDefinitions.PolicyDefinitionList[0], df)
-	match, pType, newPath := p.Apply(path1)
-	assert.Equal(t, true, match)
+	pType, newPath := p.Apply(path1)
 	assert.Equal(t, ROUTE_TYPE_REJECT, pType)
-	assert.Nil(t, newPath)
+	assert.Equal(t, newPath, path1)
 
-	match2, pType2, newPath2 := p.Apply(path2)
-	assert.Equal(t, false, match2)
+	pType2, newPath2 := p.Apply(path2)
 	assert.Equal(t, ROUTE_TYPE_NONE, pType2)
-	assert.Nil(t, newPath2)
+	assert.Equal(t, newPath2, path2)
 }
 
 func TestPolicyDifferentRoutefamilyOfPathAndPolicy(t *testing.T) {
@@ -450,15 +443,13 @@ func TestPolicyDifferentRoutefamilyOfPathAndPolicy(t *testing.T) {
 	//test
 	df := pl.DefinedSets
 	p := NewPolicy(pl.PolicyDefinitions.PolicyDefinitionList[0], df)
-	match1, pType1, newPath1 := p.Apply(pathIPv4)
-	assert.Equal(t, true, match1)
+	pType1, newPath1 := p.Apply(pathIPv4)
 	assert.Equal(t, ROUTE_TYPE_REJECT, pType1)
-	assert.Nil(t, newPath1)
+	assert.Equal(t, newPath1, pathIPv4)
 
-	match2, pType2, newPath2 := p.Apply(pathIPv6)
-	assert.Equal(t, true, match2)
+	pType2, newPath2 := p.Apply(pathIPv6)
 	assert.Equal(t, ROUTE_TYPE_REJECT, pType2)
-	assert.Nil(t, newPath2)
+	assert.Equal(t, newPath2, pathIPv6)
 }
 
 func TestAsPathLengthConditionEvaluate(t *testing.T) {
@@ -550,10 +541,9 @@ func TestAsPathLengthConditionWithOtherCondition(t *testing.T) {
 	//test
 	df := pl.DefinedSets
 	p := NewPolicy(pl.PolicyDefinitions.PolicyDefinitionList[0], df)
-	match, pType, newPath := p.Apply(path)
-	assert.Equal(t, true, match)
+	pType, newPath := p.Apply(path)
 	assert.Equal(t, ROUTE_TYPE_REJECT, pType)
-	assert.Nil(t, newPath)
+	assert.Equal(t, newPath, path)
 
 }
 
@@ -889,10 +879,9 @@ func TestAsPathConditionWithOtherCondition(t *testing.T) {
 	//test
 	df := pl.DefinedSets
 	p := NewPolicy(pl.PolicyDefinitions.PolicyDefinitionList[0], df)
-	match, pType, newPath := p.Apply(path)
-	assert.Equal(t, true, match)
+	pType, newPath := p.Apply(path)
 	assert.Equal(t, ROUTE_TYPE_REJECT, pType)
-	assert.Nil(t, newPath)
+	assert.Equal(t, newPath, path)
 
 }
 
@@ -1121,17 +1110,15 @@ func TestCommunityConditionEvaluateWithOtherCondition(t *testing.T) {
 	//test
 	df := pl.DefinedSets
 	p := NewPolicy(pl.PolicyDefinitions.PolicyDefinitionList[0], df)
-	match, pType, newPath := p.Apply(path)
-	assert.Equal(t, true, match)
+	pType, newPath := p.Apply(path)
 	assert.Equal(t, ROUTE_TYPE_REJECT, pType)
-	assert.Nil(t, newPath)
+	assert.Equal(t, newPath, path)
 
 	df = pl.DefinedSets
 	p = NewPolicy(pl.PolicyDefinitions.PolicyDefinitionList[1], df)
-	match, pType, newPath = p.Apply(path)
-	assert.Equal(t, false, match)
+	pType, newPath = p.Apply(path)
 	assert.Equal(t, ROUTE_TYPE_NONE, pType)
-	assert.Nil(t, newPath)
+	assert.Equal(t, newPath, path)
 
 }
 
@@ -1168,8 +1155,7 @@ func TestPolicyMatchAndAddCommunities(t *testing.T) {
 	df := pl.DefinedSets
 	p := NewPolicy(pl.PolicyDefinitions.PolicyDefinitionList[0], df)
 
-	match, pType, newPath := p.Apply(path)
-	assert.Equal(t, true, match)
+	pType, newPath := p.Apply(path)
 	assert.Equal(t, ROUTE_TYPE_ACCEPT, pType)
 	assert.NotEqual(t, nil, newPath)
 	log.Debug(newPath)
@@ -1212,8 +1198,7 @@ func TestPolicyMatchAndReplaceCommunities(t *testing.T) {
 	df := pl.DefinedSets
 	p := NewPolicy(pl.PolicyDefinitions.PolicyDefinitionList[0], df)
 
-	match, pType, newPath := p.Apply(path)
-	assert.Equal(t, true, match)
+	pType, newPath := p.Apply(path)
 	assert.Equal(t, ROUTE_TYPE_ACCEPT, pType)
 	assert.NotEqual(t, nil, newPath)
 	assert.Equal(t, []uint32{stringToCommunityValue(community)}, newPath.GetCommunities())
@@ -1255,8 +1240,7 @@ func TestPolicyMatchAndRemoveCommunities(t *testing.T) {
 	//test
 	df := pl.DefinedSets
 	p := NewPolicy(pl.PolicyDefinitions.PolicyDefinitionList[0], df)
-	match, pType, newPath := p.Apply(path)
-	assert.Equal(t, true, match)
+	pType, newPath := p.Apply(path)
 	assert.Equal(t, ROUTE_TYPE_ACCEPT, pType)
 	assert.NotEqual(t, nil, newPath)
 	assert.Equal(t, []uint32{stringToCommunityValue(community2)}, newPath.GetCommunities())
@@ -1301,8 +1285,7 @@ func TestPolicyMatchAndClearCommunities(t *testing.T) {
 	df := pl.DefinedSets
 	p := NewPolicy(pl.PolicyDefinitions.PolicyDefinitionList[0], df)
 
-	match, pType, newPath := p.Apply(path)
-	assert.Equal(t, true, match)
+	pType, newPath := p.Apply(path)
 	assert.Equal(t, ROUTE_TYPE_ACCEPT, pType)
 	assert.NotEqual(t, nil, newPath)
 	//assert.Equal(t, []uint32{}, newPath.GetCommunities())
@@ -1632,16 +1615,14 @@ func TestExtCommunityConditionEvaluateWithOtherCondition(t *testing.T) {
 	//test
 	df := pl.DefinedSets
 	p := NewPolicy(pl.PolicyDefinitions.PolicyDefinitionList[0], df)
-	match, pType, newPath := p.Apply(path)
-	assert.Equal(t, false, match)
+	pType, newPath := p.Apply(path)
 	assert.Equal(t, ROUTE_TYPE_NONE, pType)
-	assert.Nil(t, newPath)
+	assert.Equal(t, newPath, path)
 
 	p = NewPolicy(pl.PolicyDefinitions.PolicyDefinitionList[1], df)
-	match, pType, newPath = p.Apply(path)
-	assert.Equal(t, true, match)
+	pType, newPath = p.Apply(path)
 	assert.Equal(t, ROUTE_TYPE_REJECT, pType)
-	assert.Nil(t, newPath)
+	assert.Equal(t, newPath, path)
 
 }
 
@@ -1678,8 +1659,7 @@ func TestPolicyMatchAndReplaceMed(t *testing.T) {
 	df := pl.DefinedSets
 	p := NewPolicy(pl.PolicyDefinitions.PolicyDefinitionList[0], df)
 
-	match, pType, newPath := p.Apply(path)
-	assert.Equal(t, true, match)
+	pType, newPath := p.Apply(path)
 	assert.Equal(t, ROUTE_TYPE_ACCEPT, pType)
 	assert.NotEqual(t, nil, newPath)
 	v, err := newPath.GetMed()
@@ -1720,8 +1700,7 @@ func TestPolicyMatchAndAddingMed(t *testing.T) {
 	//test
 	df := pl.DefinedSets
 	p := NewPolicy(pl.PolicyDefinitions.PolicyDefinitionList[0], df)
-	match, pType, newPath := p.Apply(path)
-	assert.Equal(t, true, match)
+	pType, newPath := p.Apply(path)
 	assert.Equal(t, ROUTE_TYPE_ACCEPT, pType)
 	assert.NotEqual(t, nil, newPath)
 
@@ -1765,8 +1744,7 @@ func TestPolicyMatchAndAddingMedOverFlow(t *testing.T) {
 	df := pl.DefinedSets
 	p := NewPolicy(pl.PolicyDefinitions.PolicyDefinitionList[0], df)
 
-	match, pType, newPath := p.Apply(path)
-	assert.Equal(t, true, match)
+	pType, newPath := p.Apply(path)
 	assert.Equal(t, ROUTE_TYPE_ACCEPT, pType)
 	assert.NotEqual(t, nil, newPath)
 
@@ -1810,8 +1788,7 @@ func TestPolicyMatchAndSubtractMed(t *testing.T) {
 	df := pl.DefinedSets
 	p := NewPolicy(pl.PolicyDefinitions.PolicyDefinitionList[0], df)
 
-	match, pType, newPath := p.Apply(path)
-	assert.Equal(t, true, match)
+	pType, newPath := p.Apply(path)
 	assert.Equal(t, ROUTE_TYPE_ACCEPT, pType)
 	assert.NotEqual(t, nil, newPath)
 
@@ -1855,8 +1832,7 @@ func TestPolicyMatchAndSubtractMedUnderFlow(t *testing.T) {
 	df := pl.DefinedSets
 	p := NewPolicy(pl.PolicyDefinitions.PolicyDefinitionList[0], df)
 
-	match, pType, newPath := p.Apply(path)
-	assert.Equal(t, true, match)
+	pType, newPath := p.Apply(path)
 	assert.Equal(t, ROUTE_TYPE_ACCEPT, pType)
 	assert.NotEqual(t, nil, newPath)
 
@@ -1897,8 +1873,7 @@ func TestPolicyMatchWhenPathHaveNotMed(t *testing.T) {
 	df := pl.DefinedSets
 	p := NewPolicy(pl.PolicyDefinitions.PolicyDefinitionList[0], df)
 
-	match, pType, newPath := p.Apply(path)
-	assert.Equal(t, true, match)
+	pType, newPath := p.Apply(path)
 	assert.Equal(t, ROUTE_TYPE_ACCEPT, pType)
 	assert.NotEqual(t, nil, newPath)
 
@@ -1944,8 +1919,7 @@ func TestPolicyAsPathPrepend(t *testing.T) {
 	df := pl.DefinedSets
 	p := NewPolicy(pl.PolicyDefinitions.PolicyDefinitionList[0], df)
 
-	match, pType, newPath := p.Apply(path)
-	assert.Equal(true, match)
+	pType, newPath := p.Apply(path)
 	assert.Equal(ROUTE_TYPE_ACCEPT, pType)
 	assert.NotEqual(nil, newPath)
 	assert.Equal([]uint32{65002, 65002, 65002, 65002, 65002, 65002, 65002, 65002, 65002, 65002, 65001, 65000}, newPath.GetAsSeqList())
@@ -1988,8 +1962,7 @@ func TestPolicyAsPathPrependLastAs(t *testing.T) {
 	df := pl.DefinedSets
 	p := NewPolicy(pl.PolicyDefinitions.PolicyDefinitionList[0], df)
 
-	match, pType, newPath := p.Apply(path)
-	assert.Equal(true, match)
+	pType, newPath := p.Apply(path)
 	assert.Equal(ROUTE_TYPE_ACCEPT, pType)
 	assert.NotEqual(nil, newPath)
 	assert.Equal([]uint32{65002, 65002, 65002, 65002, 65002, 65002, 65001, 65000}, newPath.GetAsSeqList())

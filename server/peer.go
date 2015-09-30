@@ -43,6 +43,10 @@ type Peer struct {
 	outgoing              chan *bgp.BGPMessage
 	inPolicies            []*policy.Policy
 	defaultInPolicy       config.DefaultPolicyType
+	importPolicies        []*policy.Policy
+	defaultImportPolicy   config.DefaultPolicyType
+	exportPolicies        []*policy.Policy
+	defaultExportPolicy   config.DefaultPolicyType
 	isConfederationMember bool
 	recvOpen              *bgp.BGPMessage
 }
@@ -213,10 +217,10 @@ func (peer *Peer) handleBGPmessage(m *bgp.BGPMessage) ([]*table.Path, bool, []*b
 	return pathList, update, bgpMsgList
 }
 
-func (peer *Peer) getBests(loc *LocalRib) []*table.Path {
+func (peer *Peer) getBests(rib *table.TableManager) []*table.Path {
 	pathList := []*table.Path{}
 	for _, rf := range peer.configuredRFlist() {
-		for _, paths := range loc.rib.GetBestPathList(rf) {
+		for _, paths := range rib.GetBestPathList(rf) {
 			pathList = append(pathList, paths)
 		}
 	}
@@ -293,13 +297,7 @@ func (peer *Peer) ToApiStruct() *api.Peer {
 			advertized += uint32(peer.adjRib.GetOutCount(rf))
 			received += uint32(peer.adjRib.GetInCount(rf))
 			// FIXME: we should store 'accepted' in memory
-			for _, p := range peer.adjRib.GetInPathList(rf) {
-				applied, path := peer.applyPolicies(POLICY_DIRECTION_IN, p)
-				if applied && path == nil || !applied && peer.defaultInPolicy != config.DEFAULT_POLICY_TYPE_ACCEPT_ROUTE {
-					continue
-				}
-				accepted += 1
-			}
+			accepted += uint32(len(peer.ApplyPolicy(POLICY_DIRECTION_IN, peer.adjRib.GetInPathList(rf))))
 		}
 	}
 
@@ -364,43 +362,8 @@ func (peer *Peer) setPolicy(policyMap map[string]*policy.Policy) {
 	}
 	peer.inPolicies = inPolicies
 	peer.defaultInPolicy = policyConf.ApplyPolicyConfig.DefaultInPolicy
-}
 
-func (peer *Peer) applyPolicies(d Direction, original *table.Path) (bool, *table.Path) {
-	var policies []*policy.Policy
-	switch d {
-	case POLICY_DIRECTION_IN:
-		policies = peer.inPolicies
-	}
-	return applyPolicy("Peer", peer.conf.NeighborConfig.NeighborAddress.String(), d, policies, original)
-}
-
-type LocalRib struct {
-	rib                 *table.TableManager
-	importPolicies      []*policy.Policy
-	defaultImportPolicy config.DefaultPolicyType
-	exportPolicies      []*policy.Policy
-	defaultExportPolicy config.DefaultPolicyType
-}
-
-func NewLocalRib(owner string, rfList []bgp.RouteFamily, minLabel, maxLabel uint32) *LocalRib {
-	return &LocalRib{
-		rib: table.NewTableManager(owner, rfList, minLabel, maxLabel),
-	}
-}
-
-func (loc *LocalRib) OwnerName() string {
-	return loc.rib.OwnerName()
-}
-
-func (loc *LocalRib) isGlobal() bool {
-	return loc.OwnerName() == "global"
-}
-
-func (loc *LocalRib) setPolicy(peer *Peer, policyMap map[string]*policy.Policy) {
-	// configure import policy
-	policyConf := peer.conf.ApplyPolicy
-	inPolicies := make([]*policy.Policy, 0)
+	importPolicies := make([]*policy.Policy, 0)
 	for _, policyName := range policyConf.ApplyPolicyConfig.ImportPolicy {
 		log.WithFields(log.Fields{
 			"Topic":      "Peer",
@@ -409,14 +372,14 @@ func (loc *LocalRib) setPolicy(peer *Peer, policyMap map[string]*policy.Policy) 
 		}).Info("import policy installed")
 		if pol, ok := policyMap[policyName]; ok {
 			log.Debug("import policy : ", pol)
-			inPolicies = append(inPolicies, pol)
+			importPolicies = append(importPolicies, pol)
 		}
 	}
-	loc.importPolicies = inPolicies
-	loc.defaultImportPolicy = policyConf.ApplyPolicyConfig.DefaultImportPolicy
+	peer.importPolicies = importPolicies
+	peer.defaultImportPolicy = policyConf.ApplyPolicyConfig.DefaultImportPolicy
 
 	// configure export policy
-	outPolicies := make([]*policy.Policy, 0)
+	exportPolicies := make([]*policy.Policy, 0)
 	for _, policyName := range policyConf.ApplyPolicyConfig.ExportPolicy {
 		log.WithFields(log.Fields{
 			"Topic":      "Peer",
@@ -425,73 +388,69 @@ func (loc *LocalRib) setPolicy(peer *Peer, policyMap map[string]*policy.Policy) 
 		}).Info("export policy installed")
 		if pol, ok := policyMap[policyName]; ok {
 			log.Debug("export policy : ", pol)
-			outPolicies = append(outPolicies, pol)
+			exportPolicies = append(exportPolicies, pol)
 		}
 	}
-	loc.exportPolicies = outPolicies
-	loc.defaultExportPolicy = policyConf.ApplyPolicyConfig.DefaultExportPolicy
+	peer.exportPolicies = exportPolicies
+	peer.defaultExportPolicy = policyConf.ApplyPolicyConfig.DefaultExportPolicy
 }
 
-// apply policies to the path
-// if multiple policies are defined,
-// this function applies each policy to the path in the order that
-// policies are stored in the array passed to this function.
-//
-// the way of applying statements inside a single policy
-//   - apply statement until the condition in the statement matches.
-//     if the condition matches the path, apply the action on the statement and
-//     return value that indicates 'applied' to caller of this function
-//   - if no statement applied, then process the next policy
-//
-// if no policy applied, return value that indicates 'not applied' to the caller of this function
-//
-// return values:
-//	bool -- indicates that any of policy applied to the path that is passed to this function
-//  table.Path -- indicates new path object that is the result of modification according to
-//                policy's action.
-//                If the applied policy doesn't have a modification action,
-//                then return the path itself that is passed to this function, otherwise return
-//                modified path.
-//                If action of the policy is 'reject', return nil
-//
-func (loc *LocalRib) applyPolicies(d Direction, original *table.Path) (bool, *table.Path) {
-	var policies []*policy.Policy
+func (peer *Peer) GetPolicy(d PolicyDirection) []*policy.Policy {
 	switch d {
-	case POLICY_DIRECTION_EXPORT:
-		policies = loc.exportPolicies
+	case POLICY_DIRECTION_IN:
+		return peer.inPolicies
 	case POLICY_DIRECTION_IMPORT:
-		policies = loc.importPolicies
+		return peer.importPolicies
+	case POLICY_DIRECTION_EXPORT:
+		return peer.exportPolicies
 	}
-	return applyPolicy("Loc", loc.OwnerName(), d, policies, original)
+	return nil
 }
 
-func applyPolicy(component, owner string, d Direction, policies []*policy.Policy, original *table.Path) (bool, *table.Path) {
-	var applied bool = true
-	for _, pol := range policies {
-		if result, action, newpath := pol.Apply(original); result {
-			log.Debug("newpath: ", newpath)
-			if action == policy.ROUTE_TYPE_REJECT {
-				log.WithFields(log.Fields{
-					"Topic": component,
-					"Key":   owner,
-					"NLRI":  original.GetNlri(),
-					"Dir":   d,
-				}).Debug("path was rejected")
-				// return applied, nil, this means path was rejected
-				return applied, nil
-			} else {
-				// return applied, new path
-				return applied, newpath
+func (peer *Peer) GetDefaultPolicy(d PolicyDirection) policy.RouteType {
+	var def config.DefaultPolicyType
+	switch d {
+	case POLICY_DIRECTION_IN:
+		def = peer.defaultInPolicy
+	case POLICY_DIRECTION_IMPORT:
+		def = peer.defaultImportPolicy
+	case POLICY_DIRECTION_EXPORT:
+		def = peer.defaultExportPolicy
+	}
+
+	if def == config.DEFAULT_POLICY_TYPE_ACCEPT_ROUTE {
+		return policy.ROUTE_TYPE_ACCEPT
+	}
+	return policy.ROUTE_TYPE_REJECT
+}
+
+func (peer *Peer) ApplyPolicy(d PolicyDirection, paths []*table.Path) []*table.Path {
+	newpaths := make([]*table.Path, 0, len(paths))
+	for _, path := range paths {
+		result := policy.ROUTE_TYPE_NONE
+		newpath := path
+		for _, p := range peer.GetPolicy(d) {
+			result, newpath = p.Apply(path)
+			if result != policy.ROUTE_TYPE_NONE {
+				break
 			}
 		}
-	}
 
-	log.WithFields(log.Fields{
-		"Topic": component,
-		"Key":   owner,
-		"Len":   len(policies),
-		"NLRI":  original,
-		"Dir":   d,
-	}).Debug("no policy applied")
-	return !applied, original
+		if result == policy.ROUTE_TYPE_NONE {
+			result = peer.GetDefaultPolicy(d)
+		}
+
+		switch result {
+		case policy.ROUTE_TYPE_ACCEPT:
+			newpaths = append(newpaths, newpath)
+		case policy.ROUTE_TYPE_REJECT:
+			log.WithFields(log.Fields{
+				"Topic":     "Peer",
+				"Key":       peer.conf.NeighborConfig.NeighborAddress,
+				"Path":      path,
+				"Direction": d,
+			}).Debug("reject")
+		}
+	}
+	return newpaths
 }

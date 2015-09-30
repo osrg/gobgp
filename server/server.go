@@ -37,12 +37,12 @@ const (
 	GLOBAL_RIB_NAME = "global"
 )
 
-type Direction string
+type PolicyDirection int
 
 const (
-	POLICY_DIRECTION_IMPORT Direction = "import"
-	POLICY_DIRECTION_EXPORT           = "export"
-	POLICY_DIRECTION_IN               = "in"
+	POLICY_DIRECTION_IMPORT PolicyDirection = iota
+	POLICY_DIRECTION_EXPORT
+	POLICY_DIRECTION_IN
 )
 
 type SenderMsg struct {
@@ -101,7 +101,7 @@ type BgpServer struct {
 	broadcastReqs  []*GrpcRequest
 	broadcastMsgs  []broadcastMsg
 	neighborMap    map[string]*Peer
-	localRibMap    map[string]*LocalRib
+	localRibMap    map[string]*table.TableManager
 	zclient        *zebra.Client
 	roaClient      *roaClient
 	bmpClient      *bmpClient
@@ -119,7 +119,7 @@ func NewBgpServer(port int) *BgpServer {
 	b.bmpConnCh = make(chan *bmpConn)
 	b.GrpcReqCh = make(chan *GrpcRequest, 1)
 	b.policyUpdateCh = make(chan config.RoutingPolicy)
-	b.localRibMap = make(map[string]*LocalRib)
+	b.localRibMap = make(map[string]*table.TableManager)
 	b.neighborMap = make(map[string]*Peer)
 	b.listenPort = port
 	b.roaClient, _ = newROAClient(config.RpkiServers{})
@@ -150,7 +150,7 @@ func listenAndAccept(proto string, port int, ch chan *net.TCPConn) (*net.TCPList
 	return l, nil
 }
 
-func (server *BgpServer) addLocalRib(rib *LocalRib) {
+func (server *BgpServer) addLocalRib(rib *table.TableManager) {
 	server.localRibMap[rib.OwnerName()] = rib
 }
 
@@ -224,7 +224,7 @@ func (server *BgpServer) Serve() {
 		return rfList
 	}(g.AfiSafis.AfiSafiList)
 
-	server.addLocalRib(NewLocalRib(GLOBAL_RIB_NAME, rfList, g.MplsLabelRange.MinLabel, g.MplsLabelRange.MaxLabel))
+	server.addLocalRib(table.NewTableManager(GLOBAL_RIB_NAME, rfList, g.MplsLabelRange.MinLabel, g.MplsLabelRange.MaxLabel))
 
 	listenerMap := make(map[string]*net.TCPListener)
 	acceptCh := make(chan *net.TCPConn)
@@ -354,10 +354,8 @@ func (server *BgpServer) Serve() {
 			name := config.NeighborConfig.NeighborAddress.String()
 
 			if config.RouteServer.RouteServerConfig.RouteServerClient {
-				loc := NewLocalRib(name, peer.configuredRFlist(), g.MplsLabelRange.MinLabel, g.MplsLabelRange.MaxLabel)
-				server.addLocalRib(loc)
-				loc.setPolicy(peer, server.policyMap)
-				// set in policy
+				rib := table.NewTableManager(name, peer.configuredRFlist(), g.MplsLabelRange.MinLabel, g.MplsLabelRange.MaxLabel)
+				server.addLocalRib(rib)
 				peer.setPolicy(server.policyMap)
 
 				pathList := make([]*table.Path, 0)
@@ -369,9 +367,9 @@ func (server *BgpServer) Serve() {
 						pathList = append(pathList, p.adjRib.GetInPathList(rf)...)
 					}
 				}
-				pathList = applyPolicies(peer, loc, POLICY_DIRECTION_IMPORT, pathList)
+				pathList = peer.ApplyPolicy(POLICY_DIRECTION_IMPORT, pathList)
 				if len(pathList) > 0 {
-					loc.rib.ProcessPaths(pathList)
+					rib.ProcessPaths(pathList)
 				}
 			}
 			server.neighborMap[name] = peer
@@ -411,8 +409,6 @@ func (server *BgpServer) Serve() {
 			peer := server.neighborMap[addr]
 			if peer.isRouteServerClient() {
 				peer.conf.ApplyPolicy = config.ApplyPolicy
-				loc := server.localRibMap[addr]
-				loc.setPolicy(peer, server.policyMap)
 				peer.setPolicy(server.policyMap)
 			}
 		case e := <-incoming:
@@ -555,12 +551,12 @@ func (server *BgpServer) dropPeerAllRoutes(peer *Peer) []*SenderMsg {
 
 	for _, rf := range peer.configuredRFlist() {
 		if peer.isRouteServerClient() {
-			for _, loc := range server.localRibMap {
-				targetPeer := server.neighborMap[loc.OwnerName()]
-				if loc.isGlobal() || loc.OwnerName() == peer.conf.NeighborConfig.NeighborAddress.String() {
+			for _, rib := range server.localRibMap {
+				targetPeer := server.neighborMap[rib.OwnerName()]
+				if rib.OwnerName() == GLOBAL_RIB_NAME || rib.OwnerName() == peer.conf.NeighborConfig.NeighborAddress.String() {
 					continue
 				}
-				pathList, _ := loc.rib.DeletePathsforPeer(peer.peerInfo, rf)
+				pathList, _ := rib.DeletePathsforPeer(peer.peerInfo, rf)
 				pathList = dropSameAsPath(targetPeer.conf.NeighborConfig.PeerAs, pathList)
 				if targetPeer.fsm.state != bgp.BGP_FSM_ESTABLISHED || len(pathList) == 0 {
 					continue
@@ -570,8 +566,8 @@ func (server *BgpServer) dropPeerAllRoutes(peer *Peer) []*SenderMsg {
 				targetPeer.adjRib.UpdateOut(pathList)
 			}
 		} else {
-			loc := server.localRibMap[GLOBAL_RIB_NAME]
-			pathList, _ := loc.rib.DeletePathsforPeer(peer.peerInfo, rf)
+			rib := server.localRibMap[GLOBAL_RIB_NAME]
+			pathList, _ := rib.DeletePathsforPeer(peer.peerInfo, rf)
 			if len(pathList) == 0 {
 				continue
 			}
@@ -589,59 +585,6 @@ func (server *BgpServer) dropPeerAllRoutes(peer *Peer) []*SenderMsg {
 		}
 	}
 	return msgs
-}
-
-func applyPolicies(peer *Peer, loc *LocalRib, d Direction, pathList []*table.Path) []*table.Path {
-	var defaultPolicy config.DefaultPolicyType
-	ret := make([]*table.Path, 0, len(pathList))
-
-	switch d {
-	case POLICY_DIRECTION_EXPORT:
-		defaultPolicy = loc.defaultExportPolicy
-	case POLICY_DIRECTION_IMPORT:
-		defaultPolicy = loc.defaultImportPolicy
-	case POLICY_DIRECTION_IN:
-		defaultPolicy = peer.defaultInPolicy
-	default:
-		log.WithFields(log.Fields{
-			"Topic": "Server",
-			"Key":   peer.conf.NeighborConfig.NeighborAddress,
-		}).Error("direction is not specified.")
-		return ret
-	}
-
-	for _, path := range pathList {
-		if !path.IsWithdraw {
-			var applied bool = false
-			switch d {
-			case POLICY_DIRECTION_IN:
-				applied, path = peer.applyPolicies(d, path)
-			case POLICY_DIRECTION_IMPORT, POLICY_DIRECTION_EXPORT:
-				applied, path = loc.applyPolicies(d, path)
-			}
-
-			if applied {
-				if path == nil {
-					log.WithFields(log.Fields{
-						"Topic": "Peer",
-						"Key":   peer.conf.NeighborConfig.NeighborAddress,
-						"Data":  path,
-					}).Debug("Policy applied and rejected.")
-					continue
-				}
-			} else if defaultPolicy != config.DEFAULT_POLICY_TYPE_ACCEPT_ROUTE {
-				log.WithFields(log.Fields{
-					"Topic": "Peer",
-					"Key":   peer.conf.NeighborConfig.NeighborAddress,
-					"Data":  path,
-				}).Debug("Default policy applied and rejected.")
-				continue
-			}
-		}
-		// FIXME: probably we already clone.
-		ret = append(ret, path.Clone(path.IsWithdraw))
-	}
-	return ret
 }
 
 func (server *BgpServer) broadcastBests(bests []*table.Path) {
@@ -717,19 +660,19 @@ func (server *BgpServer) propagateUpdate(peer *Peer, pathList []*table.Path) []*
 	msgs := make([]*SenderMsg, 0)
 
 	if peer != nil && peer.isRouteServerClient() {
-		newPathList := applyPolicies(peer, nil, POLICY_DIRECTION_IN, pathList)
-		for _, loc := range server.localRibMap {
-			targetPeer := server.neighborMap[loc.OwnerName()]
+		newPathList := peer.ApplyPolicy(POLICY_DIRECTION_IN, pathList)
+		for _, rib := range server.localRibMap {
+			targetPeer := server.neighborMap[rib.OwnerName()]
 			neighborAddress := peer.conf.NeighborConfig.NeighborAddress.String()
-			if loc.isGlobal() || loc.OwnerName() == neighborAddress {
+			if rib.OwnerName() == GLOBAL_RIB_NAME || rib.OwnerName() == neighborAddress {
 				continue
 			}
-			sendPathList, _ := loc.rib.ProcessPaths(applyPolicies(targetPeer, loc, POLICY_DIRECTION_IMPORT,
+			sendPathList, _ := rib.ProcessPaths(targetPeer.ApplyPolicy(POLICY_DIRECTION_IMPORT,
 				dropSameAsPath(targetPeer.conf.NeighborConfig.PeerAs, filterpath(targetPeer, newPathList))))
 			if targetPeer.fsm.state != bgp.BGP_FSM_ESTABLISHED || len(sendPathList) == 0 {
 				continue
 			}
-			sendPathList = applyPolicies(targetPeer, loc, POLICY_DIRECTION_EXPORT, sendPathList)
+			sendPathList = targetPeer.ApplyPolicy(POLICY_DIRECTION_EXPORT, sendPathList)
 			if len(sendPathList) == 0 {
 				continue
 			}
@@ -738,8 +681,8 @@ func (server *BgpServer) propagateUpdate(peer *Peer, pathList []*table.Path) []*
 			msgs = append(msgs, newSenderMsg(targetPeer, msgList))
 		}
 	} else {
-		globalLoc := server.localRibMap[GLOBAL_RIB_NAME]
-		sendPathList, _ := globalLoc.rib.ProcessPaths(pathList)
+		rib := server.localRibMap[GLOBAL_RIB_NAME]
+		sendPathList, _ := rib.ProcessPaths(pathList)
 		if len(sendPathList) == 0 {
 			return msgs
 		}
@@ -775,7 +718,6 @@ func (server *BgpServer) handleFSMMessage(peer *Peer, e *fsmMsg, incoming chan *
 		oldState := bgp.FSMState(peer.conf.NeighborState.SessionState)
 		peer.conf.NeighborState.SessionState = uint32(nextState)
 		peer.fsm.StateChange(nextState)
-		globalRib := server.localRibMap[GLOBAL_RIB_NAME]
 
 		if oldState == bgp.BGP_FSM_ESTABLISHED {
 			if ch := server.bmpClient.send(); ch != nil {
@@ -811,12 +753,13 @@ func (server *BgpServer) handleFSMMessage(peer *Peer, e *fsmMsg, incoming chan *
 			}
 			pathList := make([]*table.Path, 0)
 			if peer.isRouteServerClient() {
-				loc := server.localRibMap[peer.conf.NeighborConfig.NeighborAddress.String()]
-				pathList = applyPolicies(peer, loc, POLICY_DIRECTION_EXPORT, peer.getBests(loc))
+				rib := server.localRibMap[peer.conf.NeighborConfig.NeighborAddress.String()]
+				pathList = peer.ApplyPolicy(POLICY_DIRECTION_EXPORT, peer.getBests(rib))
 			} else {
+				rib := server.localRibMap[GLOBAL_RIB_NAME]
 				l, _ := peer.fsm.LocalHostPort()
 				peer.conf.Transport.TransportConfig.LocalAddress = net.ParseIP(l)
-				for _, path := range filterpath(peer, peer.getBests(globalRib)) {
+				for _, path := range filterpath(peer, peer.getBests(rib)) {
 					p := path.Clone(path.IsWithdraw)
 					p.UpdatePathAttrs(&server.bgpConfig.Global, &peer.conf)
 					pathList = append(pathList, p)
@@ -939,17 +882,15 @@ func (server *BgpServer) SetPolicy(pl config.RoutingPolicy) {
 
 func (server *BgpServer) handlePolicy(pl config.RoutingPolicy) {
 	server.SetPolicy(pl)
-	for _, loc := range server.localRibMap {
-		if loc.isGlobal() {
+	for _, rib := range server.localRibMap {
+		if rib.OwnerName() == GLOBAL_RIB_NAME {
 			continue
 		}
-		targetPeer := server.neighborMap[loc.OwnerName()]
+		targetPeer := server.neighborMap[rib.OwnerName()]
 		log.WithFields(log.Fields{
 			"Topic": "Peer",
 			"Key":   targetPeer.conf.NeighborConfig.NeighborAddress,
 		}).Info("call set policy")
-		loc.setPolicy(targetPeer, server.policyMap)
-		// set distribute policy
 		targetPeer.setPolicy(server.policyMap)
 	}
 }
@@ -1132,12 +1073,12 @@ func (server *BgpServer) handleModPathRequest(grpcReq *GrpcRequest) []*table.Pat
 		rf = bgp.AfiSafiToRouteFamily(nlri.AFI(), nlri.SAFI())
 
 		if arg.Resource == api.Resource_VRF {
-			label, err := server.localRibMap[GLOBAL_RIB_NAME].rib.GetNextLabel(arg.Name, nexthop, path.IsWithdraw)
+			label, err := server.localRibMap[GLOBAL_RIB_NAME].GetNextLabel(arg.Name, nexthop, path.IsWithdraw)
 			if err != nil {
 				result.ResponseErr = err
 				goto ERR
 			}
-			vrf := server.localRibMap[GLOBAL_RIB_NAME].rib.Vrfs[arg.Name]
+			vrf := server.localRibMap[GLOBAL_RIB_NAME].Vrfs[arg.Name]
 			switch rf {
 			case bgp.RF_IPv4_UC:
 				n := nlri.(*bgp.IPAddrPrefix)
@@ -1172,7 +1113,7 @@ func (server *BgpServer) handleModPathRequest(grpcReq *GrpcRequest) []*table.Pat
 				macIpAdv := evpnNlri.RouteTypeData.(*bgp.EVPNMacIPAdvertisementRoute)
 				etag := macIpAdv.ETag
 				mac := macIpAdv.MacAddress
-				paths := server.localRibMap[GLOBAL_RIB_NAME].rib.GetBestPathList(bgp.RF_EVPN)
+				paths := server.localRibMap[GLOBAL_RIB_NAME].GetBestPathList(bgp.RF_EVPN)
 				if m := getMacMobilityExtendedCommunity(etag, mac, paths); m != nil {
 					extcomms = append(extcomms, m)
 				}
@@ -1196,7 +1137,7 @@ ERR:
 }
 
 func (server *BgpServer) handleVrfMod(arg *api.ModVrfArguments) ([]*table.Path, error) {
-	manager := server.localRibMap[GLOBAL_RIB_NAME].rib
+	rib := server.localRibMap[GLOBAL_RIB_NAME]
 	var msgs []*table.Path
 	switch arg.Operation {
 	case api.Operation_ADD:
@@ -1224,13 +1165,13 @@ func (server *BgpServer) handleVrfMod(arg *api.ModVrfArguments) ([]*table.Path, 
 			AS:      server.bgpConfig.Global.GlobalConfig.As,
 			LocalID: server.bgpConfig.Global.GlobalConfig.RouterId,
 		}
-		msgs, err = manager.AddVrf(arg.Vrf.Name, rd, importRt, exportRt, pi)
+		msgs, err = rib.AddVrf(arg.Vrf.Name, rd, importRt, exportRt, pi)
 		if err != nil {
 			return nil, err
 		}
 	case api.Operation_DEL:
 		var err error
-		msgs, err = manager.DeleteVrf(arg.Vrf.Name)
+		msgs, err = rib.DeleteVrf(arg.Vrf.Name)
 		if err != nil {
 			return nil, err
 		}
@@ -1247,7 +1188,7 @@ func (server *BgpServer) handleVrfRequest(req *GrpcRequest) []*table.Path {
 	switch req.RequestType {
 	case REQ_VRF:
 		name := req.Name
-		rib := server.localRibMap[GLOBAL_RIB_NAME].rib
+		rib := server.localRibMap[GLOBAL_RIB_NAME]
 		vrfs := rib.Vrfs
 		if _, ok := vrfs[name]; !ok {
 			result.ResponseErr = fmt.Errorf("vrf %s not found", name)
@@ -1279,7 +1220,7 @@ func (server *BgpServer) handleVrfRequest(req *GrpcRequest) []*table.Path {
 		}
 		goto END
 	case REQ_VRFS:
-		vrfs := server.localRibMap[GLOBAL_RIB_NAME].rib.Vrfs
+		vrfs := server.localRibMap[GLOBAL_RIB_NAME].Vrfs
 		for _, vrf := range vrfs {
 			req.ResponseCh <- &GrpcResponse{
 				Data: vrf.ToApiStruct(),
@@ -1336,11 +1277,11 @@ func (server *BgpServer) handleGrpc(grpcReq *GrpcRequest) []*SenderMsg {
 	switch grpcReq.RequestType {
 	case REQ_GLOBAL_RIB:
 		var results []*GrpcResponse
-		if t, ok := server.localRibMap[GLOBAL_RIB_NAME].rib.Tables[grpcReq.RouteFamily]; ok {
+		if t, ok := server.localRibMap[GLOBAL_RIB_NAME].Tables[grpcReq.RouteFamily]; ok {
 			results = make([]*GrpcResponse, len(t.GetDestinations()))
 			switch grpcReq.RouteFamily {
 			case bgp.RF_IPv4_UC, bgp.RF_IPv6_UC:
-				results = sortedDsts(server.localRibMap[GLOBAL_RIB_NAME].rib.Tables[grpcReq.RouteFamily])
+				results = sortedDsts(server.localRibMap[GLOBAL_RIB_NAME].Tables[grpcReq.RouteFamily])
 			default:
 				i := 0
 				for _, dst := range t.GetDestinations() {
@@ -1392,11 +1333,11 @@ func (server *BgpServer) handleGrpc(grpcReq *GrpcRequest) []*SenderMsg {
 		var results []*GrpcResponse
 		if peer.isRouteServerClient() && peer.fsm.adminState != ADMIN_STATE_DOWN {
 			remoteAddr := grpcReq.Name
-			if t, ok := server.localRibMap[remoteAddr].rib.Tables[grpcReq.RouteFamily]; ok {
+			if t, ok := server.localRibMap[remoteAddr].Tables[grpcReq.RouteFamily]; ok {
 				results = make([]*GrpcResponse, len(t.GetDestinations()))
 				switch grpcReq.RouteFamily {
 				case bgp.RF_IPv4_UC, bgp.RF_IPv6_UC:
-					results = sortedDsts(server.localRibMap[remoteAddr].rib.Tables[grpcReq.RouteFamily])
+					results = sortedDsts(server.localRibMap[remoteAddr].Tables[grpcReq.RouteFamily])
 				default:
 					i := 0
 					for _, dst := range t.GetDestinations() {
@@ -1547,15 +1488,6 @@ func (server *BgpServer) handleGrpc(grpcReq *GrpcRequest) []*SenderMsg {
 		if err != nil {
 			break
 		}
-		loc := server.localRibMap[peer.conf.NeighborConfig.NeighborAddress.String()]
-		if loc == nil {
-			result := &GrpcResponse{
-				ResponseErr: fmt.Errorf("no local rib for %s", peer.conf.NeighborConfig.NeighborAddress.String()),
-			}
-			grpcReq.ResponseCh <- result
-			close(grpcReq.ResponseCh)
-			break
-		}
 
 		extract := func(policyNames []string) []*api.PolicyDefinition {
 			pdList := server.routingPolicy.PolicyDefinitions.PolicyDefinitionList
@@ -1593,10 +1525,10 @@ func (server *BgpServer) handleGrpc(grpcReq *GrpcRequest) []*SenderMsg {
 		defaultImportPolicy := policy.ROUTE_REJECT
 		defaultExportPolicy := policy.ROUTE_REJECT
 		defaultInPolicy := policy.ROUTE_REJECT
-		if loc.defaultImportPolicy == config.DEFAULT_POLICY_TYPE_ACCEPT_ROUTE {
+		if peer.defaultImportPolicy == config.DEFAULT_POLICY_TYPE_ACCEPT_ROUTE {
 			defaultImportPolicy = policy.ROUTE_ACCEPT
 		}
-		if loc.defaultExportPolicy == config.DEFAULT_POLICY_TYPE_ACCEPT_ROUTE {
+		if peer.defaultExportPolicy == config.DEFAULT_POLICY_TYPE_ACCEPT_ROUTE {
 			defaultExportPolicy = policy.ROUTE_ACCEPT
 		}
 		if peer.defaultInPolicy == config.DEFAULT_POLICY_TYPE_ACCEPT_ROUTE {
@@ -1655,17 +1587,7 @@ func (server *BgpServer) handleGrpc(grpcReq *GrpcRequest) []*SenderMsg {
 			applyPolicy.InPolicy = make([]string, 0)
 		}
 
-		if grpcReq.RequestType == REQ_NEIGHBOR_POLICY_ADD_IN ||
-			grpcReq.RequestType == REQ_NEIGHBOR_POLICY_DEL_IN {
-			peer.setPolicy(reqPolicyMap)
-		} else {
-			loc, ok := server.localRibMap[peer.conf.NeighborConfig.NeighborAddress.String()]
-			if ok {
-				loc.setPolicy(peer, reqPolicyMap)
-			} else {
-				result.ResponseErr = fmt.Errorf("no local rib for %s", peer.conf.NeighborConfig.NeighborAddress.String())
-			}
-		}
+		peer.setPolicy(reqPolicyMap)
 
 		grpcReq.ResponseCh <- result
 		close(grpcReq.ResponseCh)
@@ -2318,24 +2240,24 @@ func (server *BgpServer) handleMrt(grpcReq *GrpcRequest) {
 	now := uint32(time.Now().Unix())
 	view := ""
 	result := &GrpcResponse{}
-	var manager *table.TableManager
+	var rib *table.TableManager
 
 	switch grpcReq.RequestType {
 	case REQ_MRT_GLOBAL_RIB:
-		manager = server.localRibMap[GLOBAL_RIB_NAME].rib
+		rib = server.localRibMap[GLOBAL_RIB_NAME]
 	case REQ_MRT_LOCAL_RIB:
 		_, err := server.checkNeighborRequest(grpcReq)
 		if err != nil {
 			return
 		}
-		loc, ok := server.localRibMap[grpcReq.Name]
+		var ok bool
+		rib, ok = server.localRibMap[grpcReq.Name]
 		if !ok {
 			result.ResponseErr = fmt.Errorf("no local rib for %s", grpcReq.Name)
 			grpcReq.ResponseCh <- result
 			close(grpcReq.ResponseCh)
 			return
 		}
-		manager = loc.rib
 		view = grpcReq.Name
 	}
 
@@ -2354,7 +2276,7 @@ func (server *BgpServer) handleMrt(grpcReq *GrpcRequest) {
 		return
 	}
 
-	tbl, ok := manager.Tables[grpcReq.RouteFamily]
+	tbl, ok := rib.Tables[grpcReq.RouteFamily]
 	if !ok {
 		result.ResponseErr = fmt.Errorf("unsupported route family: %s", grpcReq.RouteFamily)
 		grpcReq.ResponseCh <- result
