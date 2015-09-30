@@ -18,6 +18,7 @@ package bgp
 import (
 	"encoding/binary"
 	"fmt"
+	"golang.org/x/net/context"
 	"math"
 	"net"
 )
@@ -35,7 +36,7 @@ const (
 )
 
 const (
-	BMP_DEFAULT_PORT     = 11019
+	BMP_DEFAULT_PORT = 11019
 )
 
 const (
@@ -153,7 +154,7 @@ func NewBMPRouteMonitoring(p BMPPeerHeader, update *BGPMessage) *BMPMessage {
 }
 
 func (body *BMPRouteMonitoring) ParseBody(msg *BMPMessage, data []byte) error {
-	update, err := ParseBGPMessage(data)
+	update, err := ParseBGPMessage(context.Background(), data)
 	if err != nil {
 		return err
 	}
@@ -162,7 +163,7 @@ func (body *BMPRouteMonitoring) ParseBody(msg *BMPMessage, data []byte) error {
 }
 
 func (body *BMPRouteMonitoring) Serialize() ([]byte, error) {
-	return body.BGPUpdate.Serialize()
+	return body.BGPUpdate.Serialize(context.Background())
 }
 
 const (
@@ -226,7 +227,7 @@ func (body *BMPPeerDownNotification) ParseBody(msg *BMPMessage, data []byte) err
 	body.Reason = data[0]
 	data = data[1:]
 	if body.Reason == BMP_PEER_DOWN_REASON_LOCAL_BGP_NOTIFICATION || body.Reason == BMP_PEER_DOWN_REASON_REMOTE_BGP_NOTIFICATION {
-		notification, err := ParseBGPMessage(data)
+		notification, err := ParseBGPMessage(context.Background(), data)
 		if err != nil {
 			return err
 		}
@@ -243,7 +244,7 @@ func (body *BMPPeerDownNotification) Serialize() ([]byte, error) {
 	switch body.Reason {
 	case BMP_PEER_DOWN_REASON_LOCAL_BGP_NOTIFICATION, BMP_PEER_DOWN_REASON_REMOTE_BGP_NOTIFICATION:
 		if body.BGPNotification != nil {
-			b, err := body.BGPNotification.Serialize()
+			b, err := body.BGPNotification.Serialize(context.Background())
 			if err != nil {
 				return nil, err
 			} else {
@@ -300,13 +301,13 @@ func (body *BMPPeerUpNotification) ParseBody(msg *BMPMessage, data []byte) error
 	body.RemotePort = binary.BigEndian.Uint16(data[18:20])
 
 	data = data[20:]
-	sentopen, err := ParseBGPMessage(data)
+	sentopen, err := ParseBGPMessage(context.Background(), data)
 	if err != nil {
 		return err
 	}
 	body.SentOpenMsg = sentopen
 	data = data[body.SentOpenMsg.Header.Len:]
-	body.ReceivedOpenMsg, err = ParseBGPMessage(data)
+	body.ReceivedOpenMsg, err = ParseBGPMessage(context.Background(), data)
 	if err != nil {
 		return err
 	}
@@ -324,9 +325,9 @@ func (body *BMPPeerUpNotification) Serialize() ([]byte, error) {
 	binary.BigEndian.PutUint16(buf[16:18], body.LocalPort)
 	binary.BigEndian.PutUint16(buf[18:20], body.RemotePort)
 
-	m, _ := body.SentOpenMsg.Serialize()
+	m, _ := body.SentOpenMsg.Serialize(context.Background())
 	buf = append(buf, m...)
-	m, _ = body.ReceivedOpenMsg.Serialize()
+	m, _ = body.ReceivedOpenMsg.Serialize(context.Background())
 	buf = append(buf, m...)
 	return buf, nil
 }

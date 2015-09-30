@@ -467,18 +467,21 @@ func ParsePath(rf bgp.RouteFamily, args []string) (*api.Path, error) {
 
 	path := &api.Path{
 		Pattrs: make([][]byte, 0),
+		Rf:     uint32(rf),
 	}
 
+	ctx := context.Background()
+
 	if rf == bgp.RF_IPv4_UC {
-		path.Nlri, _ = nlri.Serialize()
-		n, _ := bgp.NewPathAttributeNextHop(nexthop).Serialize()
+		path.Nlri, _ = nlri.Serialize(ctx)
+		n, _ := bgp.NewPathAttributeNextHop(nexthop).Serialize(ctx)
 		path.Pattrs = append(path.Pattrs, n)
 	} else {
-		mpreach, _ := bgp.NewPathAttributeMpReachNLRI(nexthop, []bgp.AddrPrefixInterface{nlri}).Serialize()
+		mpreach, _ := bgp.NewPathAttributeMpReachNLRI(nexthop, []bgp.AddrPrefixInterface{nlri}).Serialize(ctx)
 		path.Pattrs = append(path.Pattrs, mpreach)
 	}
 
-	origin, _ := bgp.NewPathAttributeOrigin(bgp.BGP_ORIGIN_ATTR_TYPE_IGP).Serialize()
+	origin, _ := bgp.NewPathAttributeOrigin(bgp.BGP_ORIGIN_ATTR_TYPE_IGP).Serialize(ctx)
 	path.Pattrs = append(path.Pattrs, origin)
 
 	if extcomms != nil && len(extcomms) > 0 {
@@ -487,7 +490,7 @@ func ParsePath(rf bgp.RouteFamily, args []string) (*api.Path, error) {
 			return nil, err
 		}
 		p := bgp.NewPathAttributeExtendedCommunities(extcomms)
-		buf, err := p.Serialize()
+		buf, err := p.Serialize(ctx)
 		if err != nil {
 			return nil, err
 		}

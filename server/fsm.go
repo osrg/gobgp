@@ -20,6 +20,7 @@ import (
 	log "github.com/Sirupsen/logrus"
 	"github.com/osrg/gobgp/config"
 	"github.com/osrg/gobgp/packet"
+	"golang.org/x/net/context"
 	"gopkg.in/tomb.v2"
 	"io"
 	"net"
@@ -193,7 +194,8 @@ func (fsm *FSM) LocalHostPort() (string, uint16) {
 
 func (fsm *FSM) sendNotificatonFromErrorMsg(conn net.Conn, e *bgp.MessageError) {
 	m := bgp.NewBGPNotificationMessage(e.TypeCode, e.SubTypeCode, e.Data)
-	b, _ := m.Serialize()
+	ctx := context.Background()
+	b, _ := m.Serialize(ctx)
 	_, err := conn.Write(b)
 	if err != nil {
 		fsm.bgpMessageStateUpdate(m.Header.Type, false)
@@ -288,15 +290,17 @@ type FSMHandler struct {
 	outgoing         chan *bgp.BGPMessage
 	holdTimerResetCh chan bool
 	reason           string
+	ctx              context.Context
 }
 
-func NewFSMHandler(fsm *FSM, incoming chan *fsmMsg, outgoing chan *bgp.BGPMessage) *FSMHandler {
+func NewFSMHandler(fsm *FSM, incoming chan *fsmMsg, outgoing chan *bgp.BGPMessage, ctx context.Context) *FSMHandler {
 	h := &FSMHandler{
 		fsm:              fsm,
 		errorCh:          make(chan bool, 2),
 		incoming:         incoming,
 		outgoing:         outgoing,
 		holdTimerResetCh: make(chan bool, 2),
+		ctx:              ctx,
 	}
 	fsm.t.Go(h.loop)
 	return h
@@ -402,6 +406,19 @@ func capabilitiesFromConfig(gConf *config.Global, pConf *config.Neighbor) []bgp.
 		k, _ := bgp.GetRouteFamily(rf.AfiSafiName)
 		caps = append(caps, bgp.NewCapMultiProtocol(k))
 	}
+	var mode bgp.BGPAddPathMode
+	if pConf.AddPaths.AddPathsConfig.Receive {
+		mode |= bgp.BGP_ADD_PATH_RECEIVE
+	}
+	if pConf.AddPaths.AddPathsConfig.SendMax > 0 {
+		mode |= bgp.BGP_ADD_PATH_SEND
+	}
+	if uint8(mode) > 0 {
+		for _, rf := range pConf.AfiSafis.AfiSafiList {
+			k, _ := bgp.GetRouteFamily(rf.AfiSafiName)
+			caps = append(caps, bgp.NewCapAddPath(k, mode))
+		}
+	}
 	caps = append(caps, bgp.NewCapFourOctetASNumber(gConf.GlobalConfig.As))
 	return caps
 }
@@ -459,7 +476,7 @@ func (h *FSMHandler) recvMessageWithError() error {
 	}
 
 	var fmsg *fsmMsg
-	m, err := bgp.ParseBGPBody(hd, bodyBuf)
+	m, err := bgp.ParseBGPBody(h.ctx, hd, bodyBuf)
 	if err == nil {
 		h.fsm.bgpMessageStateUpdate(m.Header.Type, true)
 		err = bgp.ValidateBGPMessage(m)
@@ -509,7 +526,7 @@ func (h *FSMHandler) recvMessage() error {
 func (h *FSMHandler) opensent() bgp.FSMState {
 	fsm := h.fsm
 	m := buildopen(fsm.gConf, fsm.pConf)
-	b, _ := m.Serialize()
+	b, _ := m.Serialize(h.ctx)
 	fsm.conn.Write(b)
 	fsm.bgpMessageStateUpdate(m.Header.Type, false)
 
@@ -558,7 +575,7 @@ func (h *FSMHandler) opensent() bgp.FSMState {
 					}
 					h.incoming <- e
 					msg := bgp.NewBGPKeepAliveMessage()
-					b, _ := msg.Serialize()
+					b, _ := msg.Serialize(h.ctx)
 					fsm.conn.Write(b)
 					fsm.bgpMessageStateUpdate(msg.Header.Type, false)
 					return bgp.BGP_FSM_OPENCONFIRM
@@ -653,7 +670,7 @@ func (h *FSMHandler) openconfirm() bgp.FSMState {
 			}).Warn("Closed an accepted connection")
 		case <-ticker.C:
 			m := bgp.NewBGPKeepAliveMessage()
-			b, _ := m.Serialize()
+			b, _ := m.Serialize(h.ctx)
 			// TODO: check error
 			fsm.conn.Write(b)
 			fsm.bgpMessageStateUpdate(m.Header.Type, false)
@@ -718,7 +735,7 @@ func (h *FSMHandler) sendMessageloop() error {
 	fsm := h.fsm
 	ticker := keepaliveTicker(fsm)
 	send := func(m *bgp.BGPMessage) error {
-		b, err := m.Serialize()
+		b, err := m.Serialize(h.ctx)
 		if err != nil {
 			log.WithFields(log.Fields{
 				"Topic": "Peer",

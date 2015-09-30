@@ -18,6 +18,7 @@ package table
 import (
 	"bytes"
 	"github.com/osrg/gobgp/packet"
+	"golang.org/x/net/context"
 	"hash/fnv"
 )
 
@@ -213,8 +214,9 @@ func CreateUpdateMsgFromPaths(pathList []*Path) []*bgp.BGPMessage {
 			key, attrs := func(p *Path) (uint32, []byte) {
 				h := fnv.New32()
 				total := bytes.NewBuffer(make([]byte, 0))
+
 				for _, v := range p.GetPathAttrs() {
-					b, _ := v.Serialize()
+					b, _ := v.Serialize(context.Background())
 					total.Write(b)
 				}
 				h.Write(total.Bytes())

@@ -16,6 +16,7 @@
 from base import *
 from itertools import chain
 
+
 class ExaBGPContainer(BGPContainer):
 
     SHARED_VOLUME = '/root/shared_volume'
@@ -77,7 +78,10 @@ class ExaBGPContainer(BGPContainer):
             cmd << '    local-as {0};'.format(self.asn)
             cmd << '    peer-as {0};'.format(peer.asn)
 
-            routes = [r for r in self.routes.values() if r['rf'] == 'ipv4' or r['rf'] == 'ipv6']
+            if info['addpath']:
+                cmd << '    add-path send/receive;'
+
+            routes = [r for r in chain.from_iterable(self.routes.itervalues()) if r['rf'] == 'ipv4' or r['rf'] == 'ipv6']
 
             if len(routes) > 0:
                 cmd << '    static {'
@@ -97,11 +101,13 @@ class ExaBGPContainer(BGPContainer):
                         r << 'extended-community [{0}]'.format(route['extended-community'])
                     if route['attr']:
                         r << 'attribute [ {0} ]'.format(route['attr'])
+                    if route['identifier']:
+                        r << 'path-information {0}'.format(route['identifier'])
 
                     cmd << '{0};'.format(str(r))
                 cmd << '    }'
 
-            routes = [r for r in self.routes.itervalues() if 'flowspec' in r['rf']]
+            routes = [r for r in chain.from_iterable(self.routes.itervalues()) if 'flowspec' in r['rf']]
             if len(routes) > 0:
                 cmd << '    flow {'
                 for route in routes:

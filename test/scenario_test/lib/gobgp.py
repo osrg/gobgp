@@ -212,6 +212,10 @@ class GoBGPContainer(BGPContainer):
                 n['RouteReflector'] = {'RouteReflectorConfig' : {'RouteReflectorClient': True,
                                                                  'RouteReflectorClusterId': clusterId}}
 
+            if info['addpath']:
+                n['AddPaths'] = {'AddPathsConfig' : {'Receive': True,
+                                                     'SendMax': 16}}
+
             f = lambda typ: [p for p in info['policies'].itervalues() if p['type'] == typ]
             import_policies = f('import')
             export_policies = f('export')
@@ -306,7 +310,7 @@ class GoBGPContainer(BGPContainer):
         for d in daemon:
             cmd = '/usr/bin/pkill {0} -SIGHUP'.format(d)
             self.local(cmd)
-        for v in self.routes.itervalues():
+        for v in chain.from_iterable(self.routes.itervalues()):
             if v['rf'] == 'ipv4' or v['rf'] == 'ipv6':
                 cmd = 'gobgp global '\
                       'rib add {0} -a {1}'.format(v['prefix'], v['rf'])

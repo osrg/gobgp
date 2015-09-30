@@ -23,6 +23,7 @@ import (
 	api "github.com/osrg/gobgp/api"
 	"github.com/osrg/gobgp/config"
 	"github.com/osrg/gobgp/packet"
+	"golang.org/x/net/context"
 	"math"
 	"net"
 	"time"
@@ -38,6 +39,8 @@ type Path struct {
 	NoImplicitWithdraw     bool
 	Validation             config.RpkiValidationResultType
 	IsFromZebra            bool
+	reason                 BestPathReason
+	score                  int
 }
 
 func NewPath(source *PeerInfo, nlri bgp.AddrPrefixInterface, isWithdraw bool, pattrs []bgp.PathAttributeInterface, medSetByTargetNeighbor bool, timestamp time.Time, noImplicitWithdraw bool) *Path {
@@ -172,14 +175,21 @@ func (path *Path) IsIBGP() bool {
 	return path.source.AS == path.source.LocalAS
 }
 
-func (path *Path) ToApiStruct() *api.Path {
+func (path *Path) ToApiStruct(addpath bool) *api.Path {
 	nlri := path.GetNlri()
-	n, _ := nlri.Serialize()
-	rf := uint32(bgp.AfiSafiToRouteFamily(nlri.AFI(), nlri.SAFI()))
+	rf := bgp.AfiSafiToRouteFamily(nlri.AFI(), nlri.SAFI())
+	ctx := context.Background()
+	if addpath {
+		m := map[bgp.RouteFamily]bgp.BGPAddPathMode{
+			rf: bgp.BGP_ADD_PATH_BOTH,
+		}
+		ctx = context.WithValue(ctx, bgp.CTX_ADDPATH, m)
+	}
+	n, _ := nlri.Serialize(ctx)
 	pattrs := func(arg []bgp.PathAttributeInterface) [][]byte {
 		ret := make([][]byte, 0, len(arg))
 		for _, a := range arg {
-			aa, _ := a.Serialize()
+			aa, _ := a.Serialize(ctx)
 			ret = append(ret, aa)
 		}
 		return ret
@@ -190,7 +200,7 @@ func (path *Path) ToApiStruct() *api.Path {
 		Age:        int64(time.Now().Sub(path.timestamp).Seconds()),
 		IsWithdraw: path.IsWithdraw,
 		Validation: int32(path.Validation),
-		Rf:         rf,
+		Rf:         uint32(rf),
 	}
 }
 
@@ -215,9 +225,16 @@ func (path *Path) Clone(isWithdraw bool) *Path {
 		newPathAttrs[i] = v
 	}
 
-	p := NewPath(path.source, path.nlri, isWithdraw, newPathAttrs, false, path.timestamp, path.NoImplicitWithdraw)
+	nlri := path.nlri.Clone()
+
+	p := NewPath(path.source, nlri, isWithdraw, newPathAttrs, false, path.timestamp, path.NoImplicitWithdraw)
 	p.Validation = path.Validation
+	p.score = path.score
 	return p
+}
+
+func (path *Path) Score() int {
+	return path.score
 }
 
 func (path *Path) GetRouteFamily() bgp.RouteFamily {
@@ -306,6 +323,9 @@ func (path *Path) String() string {
 	s.WriteString(fmt.Sprintf(", nh: %s", path.GetNexthop()))
 	if path.IsWithdraw {
 		s.WriteString(", withdraw")
+	}
+	if path.GetNlri().PathIdentifier() > 0 {
+		s.WriteString(fmt.Sprintf(", path-id: %d", path.GetNlri().PathIdentifier()))
 	}
 	s.WriteString(" }")
 	return s.String()
@@ -628,7 +648,7 @@ func (lhs *Path) Equal(rhs *Path) bool {
 		return true
 	}
 	f := func(p *Path) []byte {
-		s := p.ToApiStruct()
+		s := p.ToApiStruct(true)
 		s.Age = 0
 		buf, _ := json.Marshal(s)
 		return buf

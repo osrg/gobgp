@@ -122,6 +122,11 @@ func (s *Server) GetNeighbor(ctx context.Context, arg *api.Arguments) (*api.Peer
 
 func handleMultipleResponses(req *GrpcRequest, f func(*GrpcResponse) error) error {
 	for res := range req.ResponseCh {
+		if res == nil {
+			log.Error("response is nil")
+			req.EndCh <- struct{}{}
+			return fmt.Errorf("response is nil")
+		}
 		if err := res.Err(); err != nil {
 			log.Debug(err.Error())
 			req.EndCh <- struct{}{}
@@ -162,7 +167,7 @@ func (s *Server) GetRib(arg *api.Arguments, stream api.GobgpApi_GetRibServer) er
 		return fmt.Errorf("unsupported resource type: %v", arg.Resource)
 	}
 
-	req := NewGrpcRequest(reqType, arg.Name, bgp.RouteFamily(arg.Rf), nil)
+	req := NewGrpcRequest(reqType, arg.Name, bgp.RouteFamily(arg.Rf), arg.Addpath)
 	s.bgpServerCh <- req
 
 	return handleMultipleResponses(req, func(res *GrpcResponse) error {

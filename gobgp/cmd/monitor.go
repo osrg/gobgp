@@ -45,6 +45,11 @@ func NewMonitorCmd() *cobra.Command {
 				fmt.Println(err)
 				os.Exit(1)
 			}
+
+			option := &ShowOption{
+				isMonitor: true,
+			}
+
 			for {
 				d, err := stream.Recv()
 				if err == io.EOF {
@@ -53,7 +58,7 @@ func NewMonitorCmd() *cobra.Command {
 					fmt.Println(err)
 					os.Exit(1)
 				}
-				p, err := ApiStruct2Path(d.Paths[0])
+				p, err := ApiStruct2Path(d.Paths[0], false)
 				if err != nil {
 					fmt.Println(err)
 					os.Exit(1)
@@ -63,7 +68,7 @@ func NewMonitorCmd() *cobra.Command {
 					j, _ := json.Marshal(p)
 					fmt.Println(string(j))
 				} else {
-					showRoute([]*Path{p}, false, false, false, true, true)
+					showRoute([]*Path{p}, option)
 				}
 			}
 

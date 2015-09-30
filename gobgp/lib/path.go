@@ -38,6 +38,7 @@ import (
 
 	"github.com/osrg/gobgp/gobgp/cmd"
 	"github.com/osrg/gobgp/packet"
+	"golang.org/x/net/context"
 )
 
 //export get_route_family
@@ -74,7 +75,7 @@ func decode_path(p *C.path) *C.char {
 	if p.nlri.len > 0 {
 		buf = []byte(C.GoStringN(p.nlri.value, p.nlri.len))
 		nlri = &bgp.IPAddrPrefix{}
-		err := nlri.DecodeFromBytes(buf)
+		err := nlri.DecodeFromBytes(context.Background(), buf)
 		if err != nil {
 			return nil
 		}
@@ -88,7 +89,7 @@ func decode_path(p *C.path) *C.char {
 			return nil
 		}
 
-		err = pattr.DecodeFromBytes(buf)
+		err = pattr.DecodeFromBytes(context.Background(), buf)
 		if err != nil {
 			return nil
 		}

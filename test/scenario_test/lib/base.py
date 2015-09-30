@@ -241,7 +241,7 @@ class BGPContainer(Container):
     def add_peer(self, peer, passwd=None, evpn=False, is_rs_client=False,
                  policies=None, passive=False,
                  is_rr_client=False, cluster_id=None,
-                 flowspec=False):
+                 flowspec=False, addpath=False):
         neigh_addr = ''
         local_addr = ''
         for me, you in itertools.product(self.ip_addrs, peer.ip_addrs):
@@ -264,7 +264,8 @@ class BGPContainer(Container):
                             'cluster_id': cluster_id,
                             'policies': policies,
                             'passive': passive,
-                            'local_addr': local_addr}
+                            'local_addr': local_addr,
+                            'addpath': addpath}
         if self.is_running:
             self.create_config()
             self.reload_config()
@@ -286,17 +287,20 @@ class BGPContainer(Container):
 
     def add_route(self, route, rf='ipv4', attribute=None, aspath=None,
                   community=None, med=None, extendedcommunity=None,
-                  nexthop=None, matchs=None, thens=None):
-        self.routes[route] = {'prefix': route,
-                              'rf': rf,
-                              'attr': attribute,
-                              'next-hop': nexthop,
-                              'as-path': aspath,
-                              'community': community,
-                              'med': med,
-                              'extended-community': extendedcommunity,
-                              'matchs': matchs,
-                              'thens' : thens}
+                  nexthop=None, identifier=None, matchs=None, thens=None):
+        if route not in self.routes:
+            self.routes[route] = []
+        self.routes[route].append({'prefix': route,
+                                   'rf': rf,
+                                   'attr': attribute,
+                                   'next-hop': nexthop,
+                                   'as-path': aspath,
+                                   'community': community,
+                                   'med': med,
+                                   'extended-community': extendedcommunity,
+                                   'identifier': identifier,
+                                   'matchs': matchs,
+                                   'thens' : thens})
         if self.is_running:
             self.create_config()
             self.reload_config()

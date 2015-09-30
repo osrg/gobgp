@@ -18,6 +18,7 @@ package server
 import (
 	log "github.com/Sirupsen/logrus"
 	"github.com/osrg/gobgp/packet"
+	"golang.org/x/net/context"
 	"os"
 	"time"
 )
@@ -54,7 +55,7 @@ func newDumper(filename string) (*dumper, error) {
 				}).Warn(err)
 				continue
 			}
-			buf, err := bm.Serialize()
+			buf, err := bm.Serialize(context.Background())
 			if err != nil {
 				log.WithFields(log.Fields{
 					"Topic": "mrt",

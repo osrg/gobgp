@@ -63,20 +63,6 @@ func TestDestinationGetNlri(t *testing.T) {
 	r_nlri := dd.GetNlri()
 	assert.Equal(t, r_nlri, nlri)
 }
-func TestDestinationSetBestPathReason(t *testing.T) {
-	dd := &Destination{}
-	reason := "reason1"
-	dd.setBestPathReason(reason)
-	r_reason := dd.getBestPathReason()
-	assert.Equal(t, r_reason, reason)
-}
-func TestDestinationGetBestPathReason(t *testing.T) {
-	dd := &Destination{}
-	reason := "reason2"
-	dd.setBestPathReason(reason)
-	r_reason := dd.getBestPathReason()
-	assert.Equal(t, r_reason, reason)
-}
 func TestDestinationSetBestPath(t *testing.T) {
 	peerD := DestCreatePeer()
 	pathD := DestCreatePath(peerD)
