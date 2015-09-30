@@ -991,15 +991,7 @@ type Action interface {
 	apply(*table.Path) *table.Path
 }
 
-type DefaultAction struct {
-}
-
-func (a *DefaultAction) apply(path *table.Path) *table.Path {
-	return path
-}
-
 type RoutingAction struct {
-	DefaultAction
 	AcceptRoute bool
 }
 
@@ -1019,7 +1011,6 @@ func (r *RoutingAction) apply(path *table.Path) *table.Path {
 }
 
 type CommunityAction struct {
-	DefaultAction
 	Values []uint32
 	ext    []byte
 	action config.BgpSetCommunityOptionType
@@ -1147,7 +1138,6 @@ E:
 type ActionType int
 
 type MedAction struct {
-	DefaultAction
 	Value  int64
 	action ActionType
 }
@@ -1235,7 +1225,6 @@ func (a *MedAction) apply(path *table.Path) *table.Path {
 }
 
 type AsPathPrependAction struct {
-	DefaultAction
 	asn         uint32
 	useLeftMost bool
 	repeat      uint8
