@@ -478,7 +478,7 @@ func ParsePath(rf bgp.RouteFamily, args []string) (*api.Path, error) {
 		path.Pattrs = append(path.Pattrs, mpreach)
 	}
 
-	origin, _ := bgp.NewPathAttributeOrigin(bgp.BGP_ORIGIN_ATTR_TYPE_IGP).Serialize()
+	origin, _ := bgp.NewPathAttributeOrigin(bgp.BGP_ORIGIN_ATTR_TYPE_INCOMPLETE).Serialize()
 	path.Pattrs = append(path.Pattrs, origin)
 
 	if extcomms != nil && len(extcomms) > 0 {
