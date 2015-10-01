@@ -138,7 +138,7 @@ func NewFSM(gConf *config.Global, pConf *config.Neighbor) *FSM {
 		gConf:            gConf,
 		pConf:            pConf,
 		state:            bgp.BGP_FSM_IDLE,
-		connCh:           make(chan net.Conn),
+		connCh:           make(chan net.Conn, 1),
 		opensentHoldTime: float64(HOLDTIME_OPENSENT),
 		adminState:       adminState,
 		adminStateCh:     make(chan AdminState, 1),
