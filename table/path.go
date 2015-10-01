@@ -38,6 +38,7 @@ type Path struct {
 	NoImplicitWithdraw     bool
 	Validation             config.RpkiValidationResultType
 	IsFromZebra            bool
+	Filtered               bool
 }
 
 func NewPath(source *PeerInfo, nlri bgp.AddrPrefixInterface, isWithdraw bool, pattrs []bgp.PathAttributeInterface, medSetByTargetNeighbor bool, timestamp time.Time, noImplicitWithdraw bool) *Path {
@@ -190,6 +191,7 @@ func (path *Path) ToApiStruct() *api.Path {
 		Age:        int64(time.Now().Sub(path.timestamp).Seconds()),
 		IsWithdraw: path.IsWithdraw,
 		Validation: int32(path.Validation),
+		Filtered:   path.Filtered,
 		Rf:         rf,
 	}
 }
@@ -200,11 +202,13 @@ func (path *Path) MarshalJSON() ([]byte, error) {
 		IsWithdraw bool                         `json:"is_withdraw"`
 		Nlri       bgp.AddrPrefixInterface      `json:"nlri"`
 		Pathattrs  []bgp.PathAttributeInterface `json:"pattrs"`
+		Filtered   bool                         `json:"filtered"`
 	}{
 		Source:     path.source,
 		IsWithdraw: path.IsWithdraw,
 		Nlri:       path.nlri,
 		Pathattrs:  path.pathAttrs,
+		Filtered:   path.Filtered,
 	})
 }
 

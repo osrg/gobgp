@@ -412,23 +412,23 @@ func (manager *TableManager) ProcessUpdate(fromPeer *PeerInfo, message *bgp.BGPM
 }
 
 type AdjRib struct {
-	adjRibIn  map[bgp.RouteFamily]map[string]*ReceivedRoute
-	adjRibOut map[bgp.RouteFamily]map[string]*ReceivedRoute
+	adjRibIn  map[bgp.RouteFamily]map[string]*Path
+	adjRibOut map[bgp.RouteFamily]map[string]*Path
 }
 
 func NewAdjRib(rfList []bgp.RouteFamily) *AdjRib {
 	r := &AdjRib{
-		adjRibIn:  make(map[bgp.RouteFamily]map[string]*ReceivedRoute),
-		adjRibOut: make(map[bgp.RouteFamily]map[string]*ReceivedRoute),
+		adjRibIn:  make(map[bgp.RouteFamily]map[string]*Path),
+		adjRibOut: make(map[bgp.RouteFamily]map[string]*Path),
 	}
 	for _, rf := range rfList {
-		r.adjRibIn[rf] = make(map[string]*ReceivedRoute)
-		r.adjRibOut[rf] = make(map[string]*ReceivedRoute)
+		r.adjRibIn[rf] = make(map[string]*Path)
+		r.adjRibOut[rf] = make(map[string]*Path)
 	}
 	return r
 }
 
-func (adj *AdjRib) update(rib map[bgp.RouteFamily]map[string]*ReceivedRoute, pathList []*Path) {
+func (adj *AdjRib) update(rib map[bgp.RouteFamily]map[string]*Path, pathList []*Path) {
 	for _, path := range pathList {
 		rf := path.GetRouteFamily()
 		key := path.getPrefix()
@@ -438,10 +438,10 @@ func (adj *AdjRib) update(rib map[bgp.RouteFamily]map[string]*ReceivedRoute, pat
 				delete(rib[rf], key)
 			}
 		} else {
-			if found && reflect.DeepEqual(old.path.GetPathAttrs(), path.GetPathAttrs()) {
-				path.setTimestamp(old.path.GetTimestamp())
+			if found && reflect.DeepEqual(old.GetPathAttrs(), path.GetPathAttrs()) {
+				path.setTimestamp(old.GetTimestamp())
 			}
-			rib[rf][key] = NewReceivedRoute(path, false)
+			rib[rf][key] = path
 		}
 	}
 }
@@ -454,10 +454,10 @@ func (adj *AdjRib) UpdateOut(pathList []*Path) {
 	adj.update(adj.adjRibOut, pathList)
 }
 
-func (adj *AdjRib) getPathList(rib map[string]*ReceivedRoute) []*Path {
+func (adj *AdjRib) getPathList(rib map[string]*Path) []*Path {
 	pathList := make([]*Path, 0, len(rib))
 	for _, rr := range rib {
-		pathList = append(pathList, rr.path)
+		pathList = append(pathList, rr)
 	}
 	return pathList
 }
@@ -493,25 +493,7 @@ func (adj *AdjRib) GetOutCount(rf bgp.RouteFamily) int {
 func (adj *AdjRib) DropAll(rf bgp.RouteFamily) {
 	if _, ok := adj.adjRibIn[rf]; ok {
 		// replace old one
-		adj.adjRibIn[rf] = make(map[string]*ReceivedRoute)
-		adj.adjRibOut[rf] = make(map[string]*ReceivedRoute)
+		adj.adjRibIn[rf] = make(map[string]*Path)
+		adj.adjRibOut[rf] = make(map[string]*Path)
 	}
-}
-
-type ReceivedRoute struct {
-	path     *Path
-	filtered bool
-}
-
-func (rr *ReceivedRoute) String() string {
-	return rr.path.getPrefix()
-}
-
-func NewReceivedRoute(path *Path, filtered bool) *ReceivedRoute {
-
-	rroute := &ReceivedRoute{
-		path:     path,
-		filtered: filtered,
-	}
-	return rroute
 }
