@@ -13,7 +13,7 @@ vpath %.proto $(PROTOS_PATH)
 all: system-check gobgp_api_client
 
 gobgp_api_client: gobgp_api_client.pb.o gobgp_api_client.grpc.pb.o gobgp_api_client.o
-	$(CXX) $^ $(LDFLAGS) -o $@
+	$(CXX) $^ $(LDFLAGS) -L. -lgobgp -o $@ 
 
 %.grpc.pb.cc: %.proto
 	$(PROTOC) -I $(PROTOS_PATH) --grpc_out=. --plugin=protoc-gen-grpc=$(GRPC_CPP_PLUGIN_PATH) $<

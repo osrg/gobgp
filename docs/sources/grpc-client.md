@@ -205,22 +205,35 @@ echo "/opt/protobuf_3.0.0_alpha4/lib" > /etc/ld.so.conf.d/protobuf.conf
 ldconfig
 ```
 
+We use .so compilation with golang, please use only 1.5 or newer version of Go Lang.
+
 Clone this repository and build API example:
 ```bash
 export PATH="$PATH:/opt//grpc/bin:/opt/protobuf_3.0.0_alpha4/bin/"
 
 cd /usr/src
 git clone https://github.com/osrg/gobgp.git
-cp gobgp/api/gobgp.proto gobgp/tools/grpc/cpp/gobgp_api_client.proto
-cd gobgp/tools/grpc/cpp
+cd gobgp/gobgp/lib
+go build -buildmode=c-shared -o libgobgp.so *.go
+cp libgobgp.h /usr/src/gobgp/tools/grpc/cpp
+cp libgobgp.so /usr/src/gobgp/tools/grpc/cpp
+cp /usr/src/gobgp/api/gobgp.proto /usr/src/gobgp/tools/grpc/cpp/gobgp_api_client.proto
+cd /usr/src/gobgp/tools/grpc/cpp
 make
 ```
 
 ### Let's run it:
 ```bash
-./gobgp_api_client
-We received: Peer AS: 65001
-Peer router id: 213.133.111.200
-Peer flops: 0
-BGP state: BGP_FSM_ESTABLISHED
+LD_LIBRARY_PATH=. ./gobgp_api_client
+
+List of announced prefixes for route family: 65537
+
+Prefix: 10.10.20.0/22
+NLRI: {"nlri":{"prefix":"10.10.20.0/22"},"attrs":[{"type":1,"value":0},{"type":3,"nexthop":"0.0.0.0"}]}
+
+
+List of announced prefixes for route family: 65669
+
+Prefix: [destination:10.0.0.0/24][protocol: tcp][source:20.0.0.0/24]
+NLRI: {"nlri":{"value":[{"type":1,"value":{"prefix":"10.0.0.0/24"}},{"type":3,"value":[{"op":129,"value":6}]},{"type":2,"value":{"prefix":"20.0.0.0/24"}}]},"attrs":[{"type":1,"value":0},{"type":14,"nexthop":"0.0.0.0","afi":1,"safi":133,"value":[{"value":[{"type":1,"value":{"prefix":"10.0.0.0/24"}},{"type":3,"value":[{"op":129,"value":6}]},{"type":2,"value":{"prefix":"20.0.0.0/24"}}]}]},{"type":16,"value":[{"type":128,"subtype":8,"value":"10:10"}]}]}
 ```
