@@ -268,12 +268,52 @@ func (server *BgpServer) Serve() {
 			firstBroadcastMsg = server.broadcastMsgs[0]
 		}
 
+		passConn := func(conn *net.TCPConn) {
+			remoteAddr, _, _ := net.SplitHostPort(conn.RemoteAddr().String())
+			peer, found := server.neighborMap[remoteAddr]
+			if found {
+				localAddrValid := func(laddr net.IP) bool {
+					if laddr == nil {
+						return true
+					}
+					l := conn.LocalAddr()
+					if l == nil {
+						// already closed
+						return false
+					}
+
+					host, _, _ := net.SplitHostPort(l.String())
+					if host != laddr.String() {
+						log.WithFields(log.Fields{
+							"Topic":           "Peer",
+							"Key":             remoteAddr,
+							"Configured addr": laddr.String(),
+							"Addr":            host,
+						}).Info("Mismatched local address")
+						return false
+					}
+					return true
+				}(peer.conf.Transport.TransportConfig.LocalAddress)
+				if localAddrValid == false {
+					conn.Close()
+					return
+				}
+				log.Debug("accepted a new passive connection from ", remoteAddr)
+				peer.PassConn(conn)
+			} else {
+				log.Info("can't find configuration for a new passive connection from ", remoteAddr)
+				conn.Close()
+			}
+		}
+
 		select {
 		case grpcReq := <-server.GrpcReqCh:
 			m := server.handleGrpc(grpcReq)
 			if len(m) > 0 {
 				senderMsgs = append(senderMsgs, m...)
 			}
+		case conn := <-acceptCh:
+			passConn(conn)
 		default:
 		}
 
@@ -314,41 +354,7 @@ func (server *BgpServer) Serve() {
 				senderMsgs = append(senderMsgs, m...)
 			}
 		case conn := <-acceptCh:
-			remoteAddr, _, _ := net.SplitHostPort(conn.RemoteAddr().String())
-			peer, found := server.neighborMap[remoteAddr]
-			if found {
-				localAddrValid := func(laddr net.IP) bool {
-					if laddr == nil {
-						return true
-					}
-					l := conn.LocalAddr()
-					if l == nil {
-						// already closed
-						return false
-					}
-
-					host, _, _ := net.SplitHostPort(l.String())
-					if host != laddr.String() {
-						log.WithFields(log.Fields{
-							"Topic":           "Peer",
-							"Key":             remoteAddr,
-							"Configured addr": laddr.String(),
-							"Addr":            host,
-						}).Info("Mismatched local address")
-						return false
-					}
-					return true
-				}(peer.conf.Transport.TransportConfig.LocalAddress)
-				if localAddrValid == false {
-					conn.Close()
-					continue
-				}
-				log.Debug("accepted a new passive connection from ", remoteAddr)
-				peer.PassConn(conn)
-			} else {
-				log.Info("can't find configuration for a new passive connection from ", remoteAddr)
-				conn.Close()
-			}
+			passConn(conn)
 		case config := <-server.addedPeerCh:
 			addr := config.NeighborConfig.NeighborAddress.String()
 			_, found := server.neighborMap[addr]
