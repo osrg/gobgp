@@ -1429,6 +1429,7 @@ func (server *BgpServer) handleGrpc(grpcReq *GrpcRequest) []*SenderMsg {
 
 	case REQ_NEIGHBOR_SOFT_RESET, REQ_NEIGHBOR_SOFT_RESET_IN:
 		peer, err := server.checkNeighborRequest(grpcReq)
+		peer.accepted = 0
 		if err != nil {
 			break
 		}
