@@ -417,7 +417,7 @@ func showNeighborRib(r string, name string, args []string) error {
 	case CMD_LOCAL:
 		showBest = true
 		resource = api.Resource_LOCAL
-	case CMD_ADJ_IN:
+	case CMD_ADJ_IN, CMD_ACCEPTED, CMD_REJECTED:
 		resource = api.Resource_ADJ_IN
 	case CMD_ADJ_OUT:
 		showAge = false
@@ -501,7 +501,20 @@ func showNeighborRib(r string, name string, args []string) error {
 		}
 		if isResultSorted(rf) && !globalOpts.Json && len(dst.Paths) > 0 {
 			ps := paths{}
-			ps = append(ps, dst.Paths...)
+			for _, p := range dst.Paths {
+				switch r {
+				case CMD_ACCEPTED:
+					if !p.Filtered {
+						ps = append(ps, p)
+					}
+				case CMD_REJECTED:
+					if p.Filtered {
+						ps = append(ps, p)
+					}
+				default:
+					ps = append(ps, p)
+				}
+			}
 			sort.Sort(ps)
 			if counter == 0 {
 				showRoute(ps, showAge, showBest, showLabel, false, true)
@@ -526,7 +539,20 @@ func showNeighborRib(r string, name string, args []string) error {
 
 	ps := paths{}
 	for _, dst := range dsts {
-		ps = append(ps, dst.Paths...)
+		for _, p := range dst.Paths {
+			switch r {
+			case CMD_ACCEPTED:
+				if !p.Filtered {
+					ps = append(ps, p)
+				}
+			case CMD_REJECTED:
+				if p.Filtered {
+					ps = append(ps, p)
+				}
+			default:
+				ps = append(ps, p)
+			}
+		}
 	}
 
 	if len(ps) == 0 {
@@ -700,7 +726,7 @@ func NewNeighborCmd() *cobra.Command {
 	}
 
 	c := make([]cmds, 0, 3)
-	c = append(c, cmds{[]string{CMD_LOCAL, CMD_ADJ_IN, CMD_ADJ_OUT}, showNeighborRib})
+	c = append(c, cmds{[]string{CMD_LOCAL, CMD_ADJ_IN, CMD_ADJ_OUT, CMD_ACCEPTED, CMD_REJECTED}, showNeighborRib})
 	c = append(c, cmds{[]string{CMD_RESET, CMD_SOFT_RESET, CMD_SOFT_RESET_IN, CMD_SOFT_RESET_OUT}, resetNeighbor})
 	c = append(c, cmds{[]string{CMD_SHUTDOWN, CMD_ENABLE, CMD_DISABLE}, stateChangeNeighbor})
 

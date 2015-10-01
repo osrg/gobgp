@@ -63,6 +63,8 @@ const (
 	CMD_RPKI_TABLE     = "table"
 	CMD_RPKI_SERVER    = "server"
 	CMD_VRF            = "vrf"
+	CMD_ACCEPTED       = "accepted"
+	CMD_REJECTED       = "rejected"
 )
 
 var subOpts struct {
@@ -154,7 +156,8 @@ type Path struct {
 	Age        int64                        `json:"age"`
 	Best       bool                         `json:"best"`
 	IsWithdraw bool                         `json:"isWithdraw"`
-	Validation int32
+	Validation int32                        `json:"validation"`
+	Filtered   bool                         `json:"filtered"`
 }
 
 func ApiStruct2Path(p *gobgpapi.Path) (*Path, error) {
@@ -197,6 +200,7 @@ func ApiStruct2Path(p *gobgpapi.Path) (*Path, error) {
 		Best:       p.Best,
 		IsWithdraw: p.IsWithdraw,
 		Validation: p.Validation,
+		Filtered:   p.Filtered,
 	}, nil
 }
 

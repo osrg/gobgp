@@ -446,6 +446,7 @@ func (peer *Peer) ApplyPolicy(d PolicyDirection, paths []*table.Path) []*table.P
 				peer.accepted += 1
 			}
 		case policy.ROUTE_TYPE_REJECT:
+			path.Filtered = true
 			log.WithFields(log.Fields{
 				"Topic":     "Peer",
 				"Key":       peer.conf.NeighborConfig.NeighborAddress,
