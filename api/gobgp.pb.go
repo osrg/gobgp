@@ -45,6 +45,8 @@ It has these top-level messages:
 package gobgpapi
 
 import proto "github.com/golang/protobuf/proto"
+import fmt "fmt"
+import math "math"
 
 import (
 	context "golang.org/x/net/context"
@@ -52,11 +54,9 @@ import (
 )
 
 // Reference imports to suppress errors if they are not otherwise used.
-var _ context.Context
-var _ grpc.ClientConn
-
-// Reference imports to suppress errors if they are not otherwise used.
 var _ = proto.Marshal
+var _ = fmt.Errorf
+var _ = math.Inf
 
 type Resource int32
 
@@ -691,6 +691,10 @@ func init() {
 	proto.RegisterEnum("gobgpapi.Error_ErrorCode", Error_ErrorCode_name, Error_ErrorCode_value)
 }
 
+// Reference imports to suppress errors if they are not otherwise used.
+var _ context.Context
+var _ grpc.ClientConn
+
 // Client API for GobgpApi service
 
 type GobgpApiClient interface {
@@ -1263,9 +1267,9 @@ func (x *gobgpApiGetNeighborsServer) Send(m *Peer) error {
 	return x.ServerStream.SendMsg(m)
 }
 
-func _GobgpApi_GetNeighbor_Handler(srv interface{}, ctx context.Context, codec grpc.Codec, buf []byte) (interface{}, error) {
+func _GobgpApi_GetNeighbor_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error) (interface{}, error) {
 	in := new(Arguments)
-	if err := codec.Unmarshal(buf, in); err != nil {
+	if err := dec(in); err != nil {
 		return nil, err
 	}
 	out, err := srv.(GobgpApiServer).GetNeighbor(ctx, in)
@@ -1296,9 +1300,9 @@ func (x *gobgpApiGetRibServer) Send(m *Destination) error {
 	return x.ServerStream.SendMsg(m)
 }
 
-func _GobgpApi_Reset_Handler(srv interface{}, ctx context.Context, codec grpc.Codec, buf []byte) (interface{}, error) {
+func _GobgpApi_Reset_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error) (interface{}, error) {
 	in := new(Arguments)
-	if err := codec.Unmarshal(buf, in); err != nil {
+	if err := dec(in); err != nil {
 		return nil, err
 	}
 	out, err := srv.(GobgpApiServer).Reset(ctx, in)
@@ -1308,9 +1312,9 @@ func _GobgpApi_Reset_Handler(srv interface{}, ctx context.Context, codec grpc.Co
 	return out, nil
 }
 
-func _GobgpApi_SoftReset_Handler(srv interface{}, ctx context.Context, codec grpc.Codec, buf []byte) (interface{}, error) {
+func _GobgpApi_SoftReset_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error) (interface{}, error) {
 	in := new(Arguments)
-	if err := codec.Unmarshal(buf, in); err != nil {
+	if err := dec(in); err != nil {
 		return nil, err
 	}
 	out, err := srv.(GobgpApiServer).SoftReset(ctx, in)
@@ -1320,9 +1324,9 @@ func _GobgpApi_SoftReset_Handler(srv interface{}, ctx context.Context, codec grp
 	return out, nil
 }
 
-func _GobgpApi_SoftResetIn_Handler(srv interface{}, ctx context.Context, codec grpc.Codec, buf []byte) (interface{}, error) {
+func _GobgpApi_SoftResetIn_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error) (interface{}, error) {
 	in := new(Arguments)
-	if err := codec.Unmarshal(buf, in); err != nil {
+	if err := dec(in); err != nil {
 		return nil, err
 	}
 	out, err := srv.(GobgpApiServer).SoftResetIn(ctx, in)
@@ -1332,9 +1336,9 @@ func _GobgpApi_SoftResetIn_Handler(srv interface{}, ctx context.Context, codec g
 	return out, nil
 }
 
-func _GobgpApi_SoftResetOut_Handler(srv interface{}, ctx context.Context, codec grpc.Codec, buf []byte) (interface{}, error) {
+func _GobgpApi_SoftResetOut_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error) (interface{}, error) {
 	in := new(Arguments)
-	if err := codec.Unmarshal(buf, in); err != nil {
+	if err := dec(in); err != nil {
 		return nil, err
 	}
 	out, err := srv.(GobgpApiServer).SoftResetOut(ctx, in)
@@ -1344,9 +1348,9 @@ func _GobgpApi_SoftResetOut_Handler(srv interface{}, ctx context.Context, codec 
 	return out, nil
 }
 
-func _GobgpApi_Shutdown_Handler(srv interface{}, ctx context.Context, codec grpc.Codec, buf []byte) (interface{}, error) {
+func _GobgpApi_Shutdown_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error) (interface{}, error) {
 	in := new(Arguments)
-	if err := codec.Unmarshal(buf, in); err != nil {
+	if err := dec(in); err != nil {
 		return nil, err
 	}
 	out, err := srv.(GobgpApiServer).Shutdown(ctx, in)
@@ -1356,9 +1360,9 @@ func _GobgpApi_Shutdown_Handler(srv interface{}, ctx context.Context, codec grpc
 	return out, nil
 }
 
-func _GobgpApi_Enable_Handler(srv interface{}, ctx context.Context, codec grpc.Codec, buf []byte) (interface{}, error) {
+func _GobgpApi_Enable_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error) (interface{}, error) {
 	in := new(Arguments)
-	if err := codec.Unmarshal(buf, in); err != nil {
+	if err := dec(in); err != nil {
 		return nil, err
 	}
 	out, err := srv.(GobgpApiServer).Enable(ctx, in)
@@ -1368,9 +1372,9 @@ func _GobgpApi_Enable_Handler(srv interface{}, ctx context.Context, codec grpc.C
 	return out, nil
 }
 
-func _GobgpApi_Disable_Handler(srv interface{}, ctx context.Context, codec grpc.Codec, buf []byte) (interface{}, error) {
+func _GobgpApi_Disable_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error) (interface{}, error) {
 	in := new(Arguments)
-	if err := codec.Unmarshal(buf, in); err != nil {
+	if err := dec(in); err != nil {
 		return nil, err
 	}
 	out, err := srv.(GobgpApiServer).Disable(ctx, in)
@@ -1406,9 +1410,9 @@ func (x *gobgpApiModPathServer) Recv() (*ModPathArguments, error) {
 	return m, nil
 }
 
-func _GobgpApi_GetNeighborPolicy_Handler(srv interface{}, ctx context.Context, codec grpc.Codec, buf []byte) (interface{}, error) {
+func _GobgpApi_GetNeighborPolicy_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error) (interface{}, error) {
 	in := new(Arguments)
-	if err := codec.Unmarshal(buf, in); err != nil {
+	if err := dec(in); err != nil {
 		return nil, err
 	}
 	out, err := srv.(GobgpApiServer).GetNeighborPolicy(ctx, in)
@@ -1465,9 +1469,9 @@ func (x *gobgpApiGetPolicyRoutePoliciesServer) Send(m *PolicyDefinition) error {
 	return x.ServerStream.SendMsg(m)
 }
 
-func _GobgpApi_GetPolicyRoutePolicy_Handler(srv interface{}, ctx context.Context, codec grpc.Codec, buf []byte) (interface{}, error) {
+func _GobgpApi_GetPolicyRoutePolicy_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error) (interface{}, error) {
 	in := new(PolicyArguments)
-	if err := codec.Unmarshal(buf, in); err != nil {
+	if err := dec(in); err != nil {
 		return nil, err
 	}
 	out, err := srv.(GobgpApiServer).GetPolicyRoutePolicy(ctx, in)
@@ -1629,9 +1633,9 @@ func (x *gobgpApiGetVrfsServer) Send(m *Vrf) error {
 	return x.ServerStream.SendMsg(m)
 }
 
-func _GobgpApi_ModVrf_Handler(srv interface{}, ctx context.Context, codec grpc.Codec, buf []byte) (interface{}, error) {
+func _GobgpApi_ModVrf_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error) (interface{}, error) {
 	in := new(ModVrfArguments)
-	if err := codec.Unmarshal(buf, in); err != nil {
+	if err := dec(in); err != nil {
 		return nil, err
 	}
 	out, err := srv.(GobgpApiServer).ModVrf(ctx, in)
