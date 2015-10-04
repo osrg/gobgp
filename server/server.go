@@ -446,6 +446,8 @@ func filterpath(peer *Peer, pathList []*table.Path) []*table.Path {
 			continue
 		}
 
+		remoteAddr := peer.conf.NeighborConfig.NeighborAddress
+
 		//iBGP handling
 		if !path.IsLocal() && peer.isIBGPPeer() {
 			ignore := true
@@ -461,7 +463,7 @@ func filterpath(peer *Peer, pathList []*table.Path) []*table.Path {
 			if id := path.GetOriginatorID(); peer.gConf.GlobalConfig.RouterId.Equal(id) {
 				log.WithFields(log.Fields{
 					"Topic":        "Peer",
-					"Key":          peer.conf.NeighborConfig.NeighborAddress,
+					"Key":          remoteAddr,
 					"OriginatorID": id,
 					"Data":         path,
 				}).Debug("Originator ID is mine, ignore")
@@ -478,7 +480,7 @@ func filterpath(peer *Peer, pathList []*table.Path) []*table.Path {
 					if clusterId.Equal(peer.peerInfo.RouteReflectorClusterID) {
 						log.WithFields(log.Fields{
 							"Topic":     "Peer",
-							"Key":       peer.conf.NeighborConfig.NeighborAddress,
+							"Key":       remoteAddr,
 							"ClusterID": clusterId,
 							"Data":      path,
 						}).Debug("cluster list path attribute has local cluster id, ignore")
@@ -491,17 +493,17 @@ func filterpath(peer *Peer, pathList []*table.Path) []*table.Path {
 			if ignore {
 				log.WithFields(log.Fields{
 					"Topic": "Peer",
-					"Key":   peer.conf.NeighborConfig.NeighborAddress,
+					"Key":   remoteAddr,
 					"Data":  path,
 				}).Debug("From same AS, ignore.")
 				continue
 			}
 		}
 
-		if peer.conf.NeighborConfig.NeighborAddress.Equal(path.GetSource().Address) {
+		if remoteAddr.Equal(path.GetSource().Address) {
 			log.WithFields(log.Fields{
 				"Topic": "Peer",
-				"Key":   peer.conf.NeighborConfig.NeighborAddress,
+				"Key":   remoteAddr,
 				"Data":  path,
 			}).Debug("From me, ignore.")
 			continue
@@ -518,12 +520,12 @@ func filterpath(peer *Peer, pathList []*table.Path) []*table.Path {
 		if !send {
 			log.WithFields(log.Fields{
 				"Topic": "Peer",
-				"Key":   peer.conf.NeighborConfig.NeighborAddress,
+				"Key":   remoteAddr,
 				"Data":  path,
 			}).Debug("AS PATH loop, ignore.")
 			continue
 		}
-		filtered = append(filtered, path.Clone(path.IsWithdraw))
+		filtered = append(filtered, path.Clone(remoteAddr, path.IsWithdraw))
 	}
 	return filtered
 }
@@ -646,11 +648,11 @@ func (server *BgpServer) propagateUpdate(peer *Peer, pathList []*table.Path) []*
 			if !targetPeer.isRouteServerClient() || rib.OwnerName() == peer.conf.NeighborConfig.NeighborAddress.String() {
 				continue
 			}
-			sendPathList, _ := rib.ProcessPaths(targetPeer.ApplyPolicy(table.POLICY_DIRECTION_IMPORT, filterpath(targetPeer, pathList)))
+			sendPathList, _ := rib.ProcessPaths(targetPeer.ApplyPolicy(table.POLICY_DIRECTION_IMPORT, pathList))
 			if targetPeer.fsm.state != bgp.BGP_FSM_ESTABLISHED || len(sendPathList) == 0 {
 				continue
 			}
-			sendPathList = targetPeer.ApplyPolicy(table.POLICY_DIRECTION_EXPORT, sendPathList)
+			sendPathList = targetPeer.ApplyPolicy(table.POLICY_DIRECTION_EXPORT, filterpath(targetPeer, sendPathList))
 			if len(sendPathList) == 0 {
 				continue
 			}
@@ -731,7 +733,7 @@ func (server *BgpServer) handleFSMMessage(peer *Peer, e *fsmMsg, incoming chan *
 			}
 			var pathList []*table.Path
 			if peer.isRouteServerClient() {
-				pathList = peer.ApplyPolicy(table.POLICY_DIRECTION_EXPORT, peer.getBests(peer.localRib))
+				pathList = peer.ApplyPolicy(table.POLICY_DIRECTION_EXPORT, filterpath(peer, peer.getBests(peer.localRib)))
 			} else {
 				rib := server.globalRib
 				l, _ := peer.fsm.LocalHostPort()
@@ -739,7 +741,7 @@ func (server *BgpServer) handleFSMMessage(peer *Peer, e *fsmMsg, incoming chan *
 				bests := filterpath(peer, peer.getBests(rib))
 				pathList = make([]*table.Path, 0, len(bests))
 				for _, path := range bests {
-					p := path.Clone(path.IsWithdraw)
+					p := path.Clone(path.Owner, path.IsWithdraw)
 					p.UpdatePathAttrs(&server.bgpConfig.Global, &peer.conf)
 					pathList = append(pathList, p)
 				}

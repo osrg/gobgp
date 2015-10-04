@@ -162,7 +162,7 @@ def setup(env):
            'PrefixList': [p0]}
     g1.set_prefix_set(ps0)
 
-    n0 = {'Address': g1.peers[e1]['neigh_addr'].split('/')[0]}
+    n0 = {'Address': g1.peers[q2]['neigh_addr'].split('/')[0]}
 
     ns0 = {'NeighborSetName': 'ns0',
            'NeighborInfoList': [n0]}
@@ -362,7 +362,7 @@ def setup(env):
            'PrefixList': [p0, p1]}
     g1.set_prefix_set(ps0)
 
-    n0 = {'Address': g1.peers[e1]['neigh_addr'].split('/')[0]}
+    n0 = {'Address': g1.peers[q2]['neigh_addr'].split('/')[0]}
 
     ns0 = {'NeighborSetName': 'ns0',
            'NeighborInfoList': [n0]}
@@ -411,7 +411,7 @@ def setup2(env):
            'PrefixList': [p0]}
     g1.set_prefix_set(ps0)
 
-    n0 = {'Address': g1.peers[e1]['neigh_addr'].split('/')[0]}
+    n0 = {'Address': g1.peers[q2]['neigh_addr'].split('/')[0]}
 
     ns0 = {'NeighborSetName': 'ns0',
            'NeighborInfoList': [n0]}
@@ -560,7 +560,7 @@ def setup(env):
            'PrefixList': [p0]}
     g1.set_prefix_set(ps0)
 
-    n0 = {'Address': g1.peers[e1]['neigh_addr'].split('/')[0]}
+    n0 = {'Address': g1.peers[q2]['neigh_addr'].split('/')[0]}
 
     ns0 = {'NeighborSetName': 'ns0',
            'NeighborInfoList': [n0]}
@@ -748,7 +748,7 @@ def setup(env):
            'PrefixList': [p0, p1]}
     g1.set_prefix_set(ps0)
 
-    n0 = {'Address': g1.peers[e1]['neigh_addr'].split('/')[0]}
+    n0 = {'Address': g1.peers[q2]['neigh_addr'].split('/')[0]}
 
     ns0 = {'NeighborSetName': 'ns0',
            'NeighborInfoList': [n0]}
@@ -793,7 +793,7 @@ def setup2(env):
            'PrefixList': [p0]}
     g1.set_prefix_set(ps0)
 
-    n0 = {'Address': g1.peers[e1]['neigh_addr'].split('/')[0]}
+    n0 = {'Address': g1.peers[q2]['neigh_addr'].split('/')[0]}
 
     ns0 = {'NeighborSetName': 'ns0',
            'NeighborInfoList': [n0]}
