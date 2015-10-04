@@ -128,6 +128,29 @@ func (x Operation) String() string {
 	return proto.EnumName(Operation_name, int32(x))
 }
 
+type RouteAction int32
+
+const (
+	RouteAction_NONE   RouteAction = 0
+	RouteAction_ACCEPT RouteAction = 1
+	RouteAction_REJECT RouteAction = 2
+)
+
+var RouteAction_name = map[int32]string{
+	0: "NONE",
+	1: "ACCEPT",
+	2: "REJECT",
+}
+var RouteAction_value = map[string]int32{
+	"NONE":   0,
+	"ACCEPT": 1,
+	"REJECT": 2,
+}
+
+func (x RouteAction) String() string {
+	return proto.EnumName(RouteAction_name, int32(x))
+}
+
 type Error_ErrorCode int32
 
 const (
@@ -507,7 +530,7 @@ func (m *AsPrependAction) String() string { return proto.CompactTextString(m) }
 func (*AsPrependAction) ProtoMessage()    {}
 
 type Actions struct {
-	RouteAction  string           `protobuf:"bytes,1,opt,name=route_action" json:"route_action,omitempty"`
+	RouteAction  RouteAction      `protobuf:"varint,1,opt,name=route_action,enum=gobgpapi.RouteAction" json:"route_action,omitempty"`
 	Community    *CommunityAction `protobuf:"bytes,2,opt,name=community" json:"community,omitempty"`
 	Med          string           `protobuf:"bytes,3,opt,name=med" json:"med,omitempty"`
 	AsPrepend    *AsPrependAction `protobuf:"bytes,4,opt,name=as_prepend" json:"as_prepend,omitempty"`
@@ -581,11 +604,11 @@ func (m *PolicyDefinition) GetStatementList() []*Statement {
 
 type ApplyPolicy struct {
 	ImportPolicies      []*PolicyDefinition `protobuf:"bytes,1,rep,name=import_policies" json:"import_policies,omitempty"`
-	DefaultImportPolicy string              `protobuf:"bytes,2,opt,name=default_import_policy" json:"default_import_policy,omitempty"`
+	DefaultImportPolicy RouteAction         `protobuf:"varint,2,opt,name=default_import_policy,enum=gobgpapi.RouteAction" json:"default_import_policy,omitempty"`
 	ExportPolicies      []*PolicyDefinition `protobuf:"bytes,3,rep,name=export_policies" json:"export_policies,omitempty"`
-	DefaultExportPolicy string              `protobuf:"bytes,4,opt,name=default_export_policy" json:"default_export_policy,omitempty"`
+	DefaultExportPolicy RouteAction         `protobuf:"varint,4,opt,name=default_export_policy,enum=gobgpapi.RouteAction" json:"default_export_policy,omitempty"`
 	InPolicies          []*PolicyDefinition `protobuf:"bytes,5,rep,name=in_policies" json:"in_policies,omitempty"`
-	DefaultInPolicy     string              `protobuf:"bytes,6,opt,name=default_in_policy" json:"default_in_policy,omitempty"`
+	DefaultInPolicy     RouteAction         `protobuf:"varint,6,opt,name=default_in_policy,enum=gobgpapi.RouteAction" json:"default_in_policy,omitempty"`
 }
 
 func (m *ApplyPolicy) Reset()         { *m = ApplyPolicy{} }
@@ -688,6 +711,7 @@ func (*Vrf) ProtoMessage()    {}
 func init() {
 	proto.RegisterEnum("gobgpapi.Resource", Resource_name, Resource_value)
 	proto.RegisterEnum("gobgpapi.Operation", Operation_name, Operation_value)
+	proto.RegisterEnum("gobgpapi.RouteAction", RouteAction_name, RouteAction_value)
 	proto.RegisterEnum("gobgpapi.Error_ErrorCode", Error_ErrorCode_name, Error_ErrorCode_value)
 }
 

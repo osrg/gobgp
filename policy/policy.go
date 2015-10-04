@@ -1850,9 +1850,9 @@ func ConditionsToConfigStruct(reqConditions *gobgpapi.Conditions) config.Conditi
 }
 
 func ActionsToApiStruct(conActions config.Actions) *gobgpapi.Actions {
-	action := ROUTE_REJECT
+	action := gobgpapi.RouteAction_REJECT
 	if conActions.RouteDisposition.AcceptRoute {
-		action = ROUTE_ACCEPT
+		action = gobgpapi.RouteAction_ACCEPT
 	}
 
 	//TODO: support CommunitySetRef
@@ -1898,9 +1898,9 @@ func ActionsToConfigStruct(reqActions *gobgpapi.Actions) config.Actions {
 	}
 
 	switch reqActions.RouteAction {
-	case ROUTE_ACCEPT:
+	case gobgpapi.RouteAction_ACCEPT:
 		actions.RouteDisposition.AcceptRoute = true
-	case ROUTE_REJECT:
+	case gobgpapi.RouteAction_REJECT:
 		actions.RouteDisposition.RejectRoute = true
 	}
 	return actions
