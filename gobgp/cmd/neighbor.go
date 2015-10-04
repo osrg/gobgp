@@ -609,9 +609,14 @@ func showNeighborPolicy(remoteIP net.IP) error {
 	if err != nil {
 		return err
 	}
+	r := api.Resource_LOCAL
+	if remoteIP == nil {
+		r = api.Resource_GLOBAL
+	}
 	arg := &api.Arguments{
-		Rf:   uint32(rf),
-		Name: remoteIP.String(),
+		Rf:       uint32(rf),
+		Resource: r,
+		Name:     remoteIP.String(),
 	}
 
 	ap, e := client.GetNeighborPolicy(context.Background(), arg)

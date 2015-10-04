@@ -623,6 +623,16 @@ func NewGlobalCmd() *cobra.Command {
 		ribCmd.AddCommand(cmd)
 	}
 
-	globalCmd.AddCommand(ribCmd)
+	policyCmd := &cobra.Command{
+		Use: CMD_POLICY,
+		Run: func(cmd *cobra.Command, args []string) {
+			if err := showNeighborPolicy(nil); err != nil {
+				fmt.Println(err)
+				os.Exit(1)
+			}
+		},
+	}
+
+	globalCmd.AddCommand(ribCmd, policyCmd)
 	return globalCmd
 }
