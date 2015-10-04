@@ -43,20 +43,18 @@ type Peer struct {
 	inPolicies            []*table.Policy
 	defaultInPolicy       config.DefaultPolicyType
 	accepted              uint32
-	importPolicies        []*table.Policy
-	defaultImportPolicy   config.DefaultPolicyType
-	exportPolicies        []*table.Policy
-	defaultExportPolicy   config.DefaultPolicyType
 	isConfederationMember bool
 	recvOpen              *bgp.BGPMessage
+	localRib              *table.TableManager
 }
 
 func NewPeer(g config.Global, conf config.Neighbor) *Peer {
 	peer := &Peer{
-		gConf:  g,
-		conf:   conf,
-		rfMap:  make(map[bgp.RouteFamily]bool),
-		capMap: make(map[bgp.BGPCapabilityCode][]bgp.ParameterCapabilityInterface),
+		gConf:    g,
+		conf:     conf,
+		rfMap:    make(map[bgp.RouteFamily]bool),
+		capMap:   make(map[bgp.BGPCapabilityCode][]bgp.ParameterCapabilityInterface),
+		outgoing: make(chan *bgp.BGPMessage, 128),
 	}
 
 	conf.NeighborState.SessionState = uint32(bgp.BGP_FSM_IDLE)
@@ -76,6 +74,9 @@ func NewPeer(g config.Global, conf config.Neighbor) *Peer {
 	}
 	peer.adjRib = table.NewAdjRib(peer.configuredRFlist())
 	peer.fsm = NewFSM(&g, &conf)
+	if peer.isRouteServerClient() {
+		peer.localRib = table.NewTableManager(conf.NeighborConfig.NeighborAddress.String(), peer.configuredRFlist(), g.MplsLabelRange.MinLabel, g.MplsLabelRange.MaxLabel)
+	}
 
 	if conf.NeighborConfig.PeerAs != g.GlobalConfig.As {
 		for _, member := range g.Confederation.ConfederationConfig.MemberAs {
@@ -360,48 +361,16 @@ func (peer *Peer) setPolicy(policyMap map[string]*table.Policy) {
 	peer.inPolicies = inPolicies
 	peer.defaultInPolicy = policyConf.ApplyPolicyConfig.DefaultInPolicy
 
-	importPolicies := make([]*table.Policy, 0)
-	for _, policyName := range policyConf.ApplyPolicyConfig.ImportPolicy {
-		log.WithFields(log.Fields{
-			"Topic":      "Peer",
-			"Key":        peer.conf.NeighborConfig.NeighborAddress,
-			"PolicyName": policyName,
-		}).Info("import-policy installed")
-		if pol, ok := policyMap[policyName]; ok {
-			log.Debug("import policy : ", pol)
-			importPolicies = append(importPolicies, pol)
-		}
-	}
-	peer.importPolicies = importPolicies
-	peer.defaultImportPolicy = policyConf.ApplyPolicyConfig.DefaultImportPolicy
-
-	exportPolicies := make([]*table.Policy, 0)
-	for _, policyName := range policyConf.ApplyPolicyConfig.ExportPolicy {
-		log.WithFields(log.Fields{
-			"Topic":      "Peer",
-			"Key":        peer.conf.NeighborConfig.NeighborAddress,
-			"PolicyName": policyName,
-		}).Info("export-policy installed")
-		if pol, ok := policyMap[policyName]; ok {
-			log.Debug("export policy : ", pol)
-			exportPolicies = append(exportPolicies, pol)
-		}
-	}
-	peer.exportPolicies = exportPolicies
-	peer.defaultExportPolicy = policyConf.ApplyPolicyConfig.DefaultExportPolicy
-
+	peer.localRib.SetPolicy(policyConf, policyMap)
 }
 
 func (peer *Peer) GetPolicy(d table.PolicyDirection) []*table.Policy {
 	switch d {
 	case table.POLICY_DIRECTION_IN:
 		return peer.inPolicies
-	case table.POLICY_DIRECTION_IMPORT:
-		return peer.importPolicies
-	case table.POLICY_DIRECTION_EXPORT:
-		return peer.exportPolicies
+	default:
+		return peer.localRib.GetPolicy(d)
 	}
-	return nil
 }
 
 func (peer *Peer) GetDefaultPolicy(d table.PolicyDirection) table.RouteType {
@@ -409,10 +378,8 @@ func (peer *Peer) GetDefaultPolicy(d table.PolicyDirection) table.RouteType {
 	switch d {
 	case table.POLICY_DIRECTION_IN:
 		def = peer.defaultInPolicy
-	case table.POLICY_DIRECTION_IMPORT:
-		def = peer.defaultImportPolicy
-	case table.POLICY_DIRECTION_EXPORT:
-		def = peer.defaultExportPolicy
+	default:
+		return peer.localRib.GetDefaultPolicy(d)
 	}
 
 	if def == config.DEFAULT_POLICY_TYPE_ACCEPT_ROUTE {
