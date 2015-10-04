@@ -662,6 +662,7 @@ func (server *BgpServer) propagateUpdate(peer *Peer, pathList []*table.Path) []*
 		}
 	} else {
 		rib := server.globalRib
+		pathList = rib.ApplyPolicy(table.POLICY_DIRECTION_IMPORT, pathList)
 		sendPathList, _ := rib.ProcessPaths(pathList)
 		if len(sendPathList) == 0 {
 			return msgs
@@ -673,7 +674,7 @@ func (server *BgpServer) propagateUpdate(peer *Peer, pathList []*table.Path) []*
 			if targetPeer.isRouteServerClient() || targetPeer.fsm.state != bgp.BGP_FSM_ESTABLISHED {
 				continue
 			}
-			f := filterpath(targetPeer, sendPathList)
+			f := rib.ApplyPolicy(table.POLICY_DIRECTION_EXPORT, filterpath(targetPeer, sendPathList))
 			if len(f) == 0 {
 				continue
 			}
@@ -859,6 +860,7 @@ func (server *BgpServer) SetPolicy(pl config.RoutingPolicy) {
 	}
 	server.policyMap = pMap
 	server.routingPolicy = pl
+	server.globalRib.SetPolicy(server.bgpConfig.Global.ApplyPolicy, server.policyMap)
 }
 
 func (server *BgpServer) handlePolicy(pl config.RoutingPolicy) {
