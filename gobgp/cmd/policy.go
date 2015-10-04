@@ -1232,16 +1232,16 @@ func parseConditions() (*api.Conditions, error) {
 	return conditions, nil
 }
 
-func parseRouteAction(rType string) (string, error) {
+func parseRouteAction(rType string) (api.RouteAction, error) {
 	routeActionUpper := strings.ToUpper(rType)
-	var routeAction string
 	switch routeActionUpper {
-	case policy.ROUTE_ACCEPT, policy.ROUTE_REJECT:
-		routeAction = routeActionUpper
+	case "ACCEPT":
+		return api.RouteAction_ACCEPT, nil
+	case "REJECT":
+		return api.RouteAction_REJECT, nil
 	default:
-		return "", fmt.Errorf("invalid route action: %s\nPlease enter the accept or reject", rType)
+		return api.RouteAction_NONE, fmt.Errorf("invalid route action: %s\nPlease enter the accept or reject", rType)
 	}
-	return routeAction, nil
 }
 
 func parseCommunityAction(communityStr string) (*api.CommunityAction, error) {
