@@ -88,6 +88,7 @@ const (
 	REQ_VRFS
 	REQ_VRF_MOD
 	REQ_MOD_PATH
+	REQ_GLOBAL_POLICY
 )
 
 const GRPC_PORT = 8080
@@ -269,7 +270,15 @@ func (s *Server) ModPath(stream api.GobgpApi_ModPathServer) error {
 }
 
 func (s *Server) GetNeighborPolicy(ctx context.Context, arg *api.Arguments) (*api.ApplyPolicy, error) {
-	req := NewGrpcRequest(REQ_NEIGHBOR_POLICY, arg.Name, bgp.RouteFamily(arg.Rf), nil)
+	if arg.Resource != api.Resource_LOCAL && arg.Resource != api.Resource_GLOBAL {
+		return nil, fmt.Errorf("unsupported resource: %s", arg.Resource)
+	}
+	var req *GrpcRequest
+	if arg.Resource == api.Resource_LOCAL {
+		req = NewGrpcRequest(REQ_NEIGHBOR_POLICY, arg.Name, bgp.RouteFamily(arg.Rf), nil)
+	} else {
+		req = NewGrpcRequest(REQ_GLOBAL_POLICY, "", bgp.RouteFamily(arg.Rf), nil)
+	}
 	s.bgpServerCh <- req
 
 	res := <-req.ResponseCh

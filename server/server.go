@@ -1539,11 +1539,9 @@ func (server *BgpServer) handleGrpc(grpcReq *GrpcRequest) []*SenderMsg {
 		grpcReq.ResponseCh <- result
 		close(grpcReq.ResponseCh)
 
-	case REQ_NEIGHBOR_POLICY:
-		peer, err := server.checkNeighborRequest(grpcReq)
-		if err != nil {
-			break
-		}
+	case REQ_NEIGHBOR_POLICY, REQ_GLOBAL_POLICY:
+		var in, imp, exp []*api.PolicyDefinition
+		var inD, impD, expD api.RouteAction
 
 		extract := func(policyNames []string) []*api.PolicyDefinition {
 			pdList := server.routingPolicy.PolicyDefinitions.PolicyDefinitionList
@@ -1565,31 +1563,46 @@ func (server *BgpServer) handleGrpc(grpcReq *GrpcRequest) []*SenderMsg {
 			return extracted
 		}
 
-		// Add importpolies that has been set in the configuration file to the list.
-		// However, peer haven't target importpolicy when add PolicyDefinition of name only to the list.
-		conImportPolicyNames := peer.conf.ApplyPolicy.ApplyPolicyConfig.ImportPolicy
-		resImportPolicies := extract(conImportPolicyNames)
+		if grpcReq.RequestType == REQ_NEIGHBOR_POLICY {
+			peer, err := server.checkNeighborRequest(grpcReq)
+			if err != nil {
+				break
+			}
+			// Add importpolies that has been set in the configuration file to the list.
+			// However, peer haven't target importpolicy when add PolicyDefinition of name only to the list.
+			conImportPolicyNames := peer.conf.ApplyPolicy.ApplyPolicyConfig.ImportPolicy
+			imp = extract(conImportPolicyNames)
 
-		// Add importpolies that has been set in the configuration file to the list.
-		// However, peer haven't target importpolicy when add PolicyDefinition of name only to the list.
-		conExportPolicyNames := peer.conf.ApplyPolicy.ApplyPolicyConfig.ExportPolicy
-		resExportPolicies := extract(conExportPolicyNames)
+			// Add importpolies that has been set in the configuration file to the list.
+			// However, peer haven't target importpolicy when add PolicyDefinition of name only to the list.
+			conExportPolicyNames := peer.conf.ApplyPolicy.ApplyPolicyConfig.ExportPolicy
+			exp = extract(conExportPolicyNames)
 
-		inPolicyNames := peer.conf.ApplyPolicy.ApplyPolicyConfig.InPolicy
-		resInPolicies := extract(inPolicyNames)
+			inPolicyNames := peer.conf.ApplyPolicy.ApplyPolicyConfig.InPolicy
+			in = extract(inPolicyNames)
 
-		defaultImportPolicy := peer.GetDefaultPolicy(table.POLICY_DIRECTION_IMPORT).ToApiStruct()
-		defaultExportPolicy := peer.GetDefaultPolicy(table.POLICY_DIRECTION_EXPORT).ToApiStruct()
-		defaultInPolicy := peer.GetDefaultPolicy(table.POLICY_DIRECTION_IN).ToApiStruct()
+			impD = peer.GetDefaultPolicy(table.POLICY_DIRECTION_IMPORT).ToApiStruct()
+			expD = peer.GetDefaultPolicy(table.POLICY_DIRECTION_EXPORT).ToApiStruct()
+			inD = peer.GetDefaultPolicy(table.POLICY_DIRECTION_IN).ToApiStruct()
+		} else {
+			names := server.bgpConfig.Global.ApplyPolicy.ApplyPolicyConfig.ImportPolicy
+			imp = extract(names)
+
+			names = server.bgpConfig.Global.ApplyPolicy.ApplyPolicyConfig.ExportPolicy
+			exp = extract(names)
+
+			impD = server.globalRib.GetDefaultPolicy(table.POLICY_DIRECTION_IMPORT).ToApiStruct()
+			expD = server.globalRib.GetDefaultPolicy(table.POLICY_DIRECTION_EXPORT).ToApiStruct()
+		}
 
 		result := &GrpcResponse{
 			Data: &api.ApplyPolicy{
-				DefaultImportPolicy: defaultImportPolicy,
-				ImportPolicies:      resImportPolicies,
-				DefaultExportPolicy: defaultExportPolicy,
-				ExportPolicies:      resExportPolicies,
-				DefaultInPolicy:     defaultInPolicy,
-				InPolicies:          resInPolicies,
+				DefaultImportPolicy: impD,
+				ImportPolicies:      imp,
+				DefaultExportPolicy: expD,
+				ExportPolicies:      exp,
+				DefaultInPolicy:     inD,
+				InPolicies:          in,
 			},
 		}
 		grpcReq.ResponseCh <- result
