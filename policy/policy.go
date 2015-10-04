@@ -296,10 +296,12 @@ func (c *NeighborCondition) evaluate(path *table.Path) bool {
 		return true
 	}
 
-	sAddr := path.GetSource().Address
+	if path.Owner == nil {
+		return false
+	}
 	result := false
 	for _, neighbor := range c.NeighborList {
-		if sAddr.Equal(neighbor) {
+		if path.Owner.Equal(neighbor) {
 			result = true
 			break
 		}
@@ -312,7 +314,7 @@ func (c *NeighborCondition) evaluate(path *table.Path) bool {
 	log.WithFields(log.Fields{
 		"Topic":           "Policy",
 		"Condition":       "neighbor",
-		"NeighborAddress": sAddr.String(),
+		"NeighborAddress": path.Owner,
 		"Matched":         result,
 	}).Debug("evaluate neighbor")
 
@@ -1406,7 +1408,7 @@ func (p *Policy) Apply(path *table.Path) (RouteType, *table.Path) {
 				return ROUTE_TYPE_ACCEPT, path
 			}
 			// apply all modification actions
-			cloned := path.Clone(p.IsWithdraw)
+			cloned := path.Clone(p.Owner, p.IsWithdraw)
 			for _, action := range statement.modificationActions {
 				cloned = action.apply(cloned)
 			}

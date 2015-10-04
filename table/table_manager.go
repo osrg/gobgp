@@ -265,7 +265,7 @@ func (manager *TableManager) calculate(destinationList []*Destination) ([]*Path,
 					}).Debug("best path is lost")
 
 					p := destination.GetBestPath()
-					newPaths = append(newPaths, p.Clone(true))
+					newPaths = append(newPaths, p.Clone(p.Owner, true))
 				}
 				destination.setBestPath(nil)
 			} else {
