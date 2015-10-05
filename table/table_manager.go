@@ -19,6 +19,7 @@ import (
 	"bytes"
 	"fmt"
 	log "github.com/Sirupsen/logrus"
+	"github.com/osrg/gobgp/config"
 	"github.com/osrg/gobgp/packet"
 	"net"
 	"reflect"
@@ -107,12 +108,16 @@ func ProcessMessage(m *bgp.BGPMessage, peerInfo *PeerInfo) []*Path {
 }
 
 type TableManager struct {
-	Tables    map[bgp.RouteFamily]*Table
-	Vrfs      map[string]*Vrf
-	owner     string
-	minLabel  uint32
-	maxLabel  uint32
-	nextLabel uint32
+	Tables              map[bgp.RouteFamily]*Table
+	Vrfs                map[string]*Vrf
+	owner               string
+	minLabel            uint32
+	maxLabel            uint32
+	nextLabel           uint32
+	importPolicies      []*Policy
+	defaultImportPolicy config.DefaultPolicyType
+	exportPolicies      []*Policy
+	defaultExportPolicy config.DefaultPolicyType
 }
 
 func NewTableManager(owner string, rfList []bgp.RouteFamily, minLabel, maxLabel uint32) *TableManager {
@@ -128,6 +133,92 @@ func NewTableManager(owner string, rfList []bgp.RouteFamily, minLabel, maxLabel 
 		t.Tables[rf] = NewTable(rf)
 	}
 	return t
+}
+
+func (manager *TableManager) SetPolicy(c config.ApplyPolicy, p map[string]*Policy) {
+	manager.defaultImportPolicy = c.ApplyPolicyConfig.DefaultImportPolicy
+	manager.defaultExportPolicy = c.ApplyPolicyConfig.DefaultExportPolicy
+	f := func(dir string, arg []string) []*Policy {
+		ret := make([]*Policy, 0, len(arg))
+		for _, name := range arg {
+			pol, ok := p[name]
+			if !ok {
+				log.WithFields(log.Fields{
+					"Topic":      "table",
+					"Key":        manager.owner,
+					"PolicyName": name,
+				}).Warnf("not found %s. failed to set %s policy", name, dir)
+				continue
+			}
+			ret = append(ret, pol)
+			log.WithFields(log.Fields{
+				"Topic":      "table",
+				"Key":        manager.owner,
+				"PolicyName": name,
+			}).Infof("%s policy installed", dir)
+		}
+		return ret
+	}
+	manager.importPolicies = f("import", c.ApplyPolicyConfig.ImportPolicy)
+	manager.exportPolicies = f("export", c.ApplyPolicyConfig.ExportPolicy)
+
+}
+
+func (manager *TableManager) GetPolicy(d PolicyDirection) []*Policy {
+	switch d {
+	case POLICY_DIRECTION_IMPORT:
+		return manager.importPolicies
+	case POLICY_DIRECTION_EXPORT:
+		return manager.exportPolicies
+	}
+	return nil
+}
+
+func (manager *TableManager) GetDefaultPolicy(d PolicyDirection) RouteType {
+	var def config.DefaultPolicyType
+	switch d {
+	case POLICY_DIRECTION_IMPORT:
+		def = manager.defaultImportPolicy
+	case POLICY_DIRECTION_EXPORT:
+		def = manager.defaultExportPolicy
+	}
+
+	if def == config.DEFAULT_POLICY_TYPE_ACCEPT_ROUTE {
+		return ROUTE_TYPE_ACCEPT
+	}
+	return ROUTE_TYPE_REJECT
+}
+
+func (manager *TableManager) ApplyPolicy(d PolicyDirection, paths []*Path) []*Path {
+	newpaths := make([]*Path, 0, len(paths))
+	for _, path := range paths {
+		result := ROUTE_TYPE_NONE
+		newpath := path
+		for _, p := range manager.GetPolicy(d) {
+			result, newpath = p.Apply(path)
+			if result != ROUTE_TYPE_NONE {
+				break
+			}
+		}
+
+		if result == ROUTE_TYPE_NONE {
+			result = manager.GetDefaultPolicy(d)
+		}
+
+		switch result {
+		case ROUTE_TYPE_ACCEPT:
+			newpaths = append(newpaths, newpath)
+		case ROUTE_TYPE_REJECT:
+			path.Filtered = true
+			log.WithFields(log.Fields{
+				"Topic":     "Peer",
+				"Key":       path.GetSource().Address,
+				"Path":      path,
+				"Direction": d,
+			}).Debug("reject")
+		}
+	}
+	return newpaths
 }
 
 func (manager *TableManager) GetNextLabel(name, nexthop string, isWithdraw bool) (uint32, error) {
@@ -265,7 +356,7 @@ func (manager *TableManager) calculate(destinationList []*Destination) ([]*Path,
 					}).Debug("best path is lost")
 
 					p := destination.GetBestPath()
-					newPaths = append(newPaths, p.Clone(true))
+					newPaths = append(newPaths, p.Clone(p.Owner, true))
 				}
 				destination.setBestPath(nil)
 			} else {

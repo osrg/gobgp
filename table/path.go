@@ -39,6 +39,7 @@ type Path struct {
 	Validation             config.RpkiValidationResultType
 	IsFromZebra            bool
 	Filtered               bool
+	Owner                  net.IP
 }
 
 func NewPath(source *PeerInfo, nlri bgp.AddrPrefixInterface, isWithdraw bool, pattrs []bgp.PathAttributeInterface, medSetByTargetNeighbor bool, timestamp time.Time, noImplicitWithdraw bool) *Path {
@@ -51,6 +52,11 @@ func NewPath(source *PeerInfo, nlri bgp.AddrPrefixInterface, isWithdraw bool, pa
 		return nil
 	}
 
+	var owner net.IP
+	if source != nil {
+		owner = source.Address
+	}
+
 	return &Path{
 		source:                 source,
 		IsWithdraw:             isWithdraw,
@@ -59,6 +65,7 @@ func NewPath(source *PeerInfo, nlri bgp.AddrPrefixInterface, isWithdraw bool, pa
 		medSetByTargetNeighbor: medSetByTargetNeighbor,
 		timestamp:              timestamp,
 		NoImplicitWithdraw:     noImplicitWithdraw,
+		Owner:                  owner,
 	}
 }
 
@@ -213,7 +220,7 @@ func (path *Path) MarshalJSON() ([]byte, error) {
 }
 
 // create new PathAttributes
-func (path *Path) Clone(isWithdraw bool) *Path {
+func (path *Path) Clone(owner net.IP, isWithdraw bool) *Path {
 	newPathAttrs := make([]bgp.PathAttributeInterface, len(path.pathAttrs))
 	for i, v := range path.pathAttrs {
 		newPathAttrs[i] = v
@@ -221,6 +228,7 @@ func (path *Path) Clone(isWithdraw bool) *Path {
 
 	p := NewPath(path.source, path.nlri, isWithdraw, newPathAttrs, false, path.timestamp, path.NoImplicitWithdraw)
 	p.Validation = path.Validation
+	p.Owner = owner
 	return p
 }
 

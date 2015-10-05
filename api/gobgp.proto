@@ -234,8 +234,14 @@ message AsPrependAction {
     uint32 repeatn = 2;
 }
 
+enum RouteAction {
+    NONE = 0;
+    ACCEPT = 1;
+    REJECT = 2;
+}
+
 message Actions {
-    string route_action = 1;
+    RouteAction route_action = 1;
     CommunityAction community = 2;
     string med = 3;
     AsPrependAction as_prepend = 4;
@@ -255,11 +261,11 @@ message PolicyDefinition {
 
 message ApplyPolicy {
     repeated PolicyDefinition import_policies = 1;
-    string default_import_policy = 2;
+    RouteAction default_import_policy = 2;
     repeated PolicyDefinition export_policies = 3;
-    string default_export_policy = 4;
+    RouteAction default_export_policy = 4;
     repeated PolicyDefinition in_policies = 5;
-    string default_in_policy = 6;
+    RouteAction default_in_policy = 6;
 }
 
 message MrtMessage {
