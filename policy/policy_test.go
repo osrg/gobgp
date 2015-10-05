@@ -1244,6 +1244,94 @@ func TestPolicyMatchAndRemoveCommunities(t *testing.T) {
 	assert.Equal(t, []uint32{stringToCommunityValue(community2)}, newPath.GetCommunities())
 }
 
+func TestPolicyMatchAndRemoveCommunitiesRegexp(t *testing.T) {
+
+	// create path
+	community1 := "65000:100"
+	community2 := "65000:200"
+	community3 := "65100:100"
+	peer := &table.PeerInfo{AS: 65001, Address: net.ParseIP("10.0.0.1")}
+	origin := bgp.NewPathAttributeOrigin(0)
+	aspathParam := []bgp.AsPathParamInterface{bgp.NewAsPathParam(2, []uint16{65001})}
+	aspath := bgp.NewPathAttributeAsPath(aspathParam)
+	nexthop := bgp.NewPathAttributeNextHop("10.0.0.1")
+	med := bgp.NewPathAttributeMultiExitDisc(0)
+	communities := bgp.NewPathAttributeCommunities([]uint32{
+		stringToCommunityValue(community1),
+		stringToCommunityValue(community2),
+		stringToCommunityValue(community3),
+	})
+	pathAttributes := []bgp.PathAttributeInterface{origin, aspath, nexthop, med, communities}
+	nlri := []*bgp.IPAddrPrefix{bgp.NewIPAddrPrefix(24, "10.10.0.101")}
+	updateMsg := bgp.NewBGPUpdateMessage(nil, pathAttributes, nlri)
+	path := table.ProcessMessage(updateMsg, peer)[0]
+	// create policy
+	ps := createPrefixSet("ps1", "10.10.0.0/16", "21..24")
+	ns := createNeighborSet("ns1", "10.0.0.1")
+
+	ds := config.DefinedSets{}
+	ds.PrefixSets.PrefixSetList = []config.PrefixSet{ps}
+	ds.NeighborSets.NeighborSetList = []config.NeighborSet{ns}
+
+	s := createStatement("statement1", "ps1", "ns1", true)
+	s.Actions.BgpActions.SetCommunity = createSetCommunity("REMOVE", ".*:100")
+
+	pd := createPolicyDefinition("pd1", s)
+	pl := createRoutingPolicy(ds, pd)
+
+	//test
+	df := pl.DefinedSets
+	p := NewPolicy(pl.PolicyDefinitions.PolicyDefinitionList[0], df)
+	pType, newPath := p.Apply(path)
+	assert.Equal(t, ROUTE_TYPE_ACCEPT, pType)
+	assert.NotEqual(t, nil, newPath)
+	assert.Equal(t, []uint32{stringToCommunityValue(community2)}, newPath.GetCommunities())
+}
+
+func TestPolicyMatchAndRemoveCommunitiesRegexp2(t *testing.T) {
+
+	// create path
+	community1 := "0:1"
+	community2 := "10:1"
+	community3 := "45686:2"
+	peer := &table.PeerInfo{AS: 65001, Address: net.ParseIP("10.0.0.1")}
+	origin := bgp.NewPathAttributeOrigin(0)
+	aspathParam := []bgp.AsPathParamInterface{bgp.NewAsPathParam(2, []uint16{65001})}
+	aspath := bgp.NewPathAttributeAsPath(aspathParam)
+	nexthop := bgp.NewPathAttributeNextHop("10.0.0.1")
+	med := bgp.NewPathAttributeMultiExitDisc(0)
+	communities := bgp.NewPathAttributeCommunities([]uint32{
+		stringToCommunityValue(community1),
+		stringToCommunityValue(community2),
+		stringToCommunityValue(community3),
+	})
+	pathAttributes := []bgp.PathAttributeInterface{origin, aspath, nexthop, med, communities}
+	nlri := []*bgp.IPAddrPrefix{bgp.NewIPAddrPrefix(24, "10.10.0.101")}
+	updateMsg := bgp.NewBGPUpdateMessage(nil, pathAttributes, nlri)
+	path := table.ProcessMessage(updateMsg, peer)[0]
+	// create policy
+	ps := createPrefixSet("ps1", "10.10.0.0/16", "21..24")
+	ns := createNeighborSet("ns1", "10.0.0.1")
+
+	ds := config.DefinedSets{}
+	ds.PrefixSets.PrefixSetList = []config.PrefixSet{ps}
+	ds.NeighborSets.NeighborSetList = []config.NeighborSet{ns}
+
+	s := createStatement("statement1", "ps1", "ns1", true)
+	s.Actions.BgpActions.SetCommunity = createSetCommunity("REMOVE", "^(0|45686):[0-9]+")
+
+	pd := createPolicyDefinition("pd1", s)
+	pl := createRoutingPolicy(ds, pd)
+
+	//test
+	df := pl.DefinedSets
+	p := NewPolicy(pl.PolicyDefinitions.PolicyDefinitionList[0], df)
+	pType, newPath := p.Apply(path)
+	assert.Equal(t, ROUTE_TYPE_ACCEPT, pType)
+	assert.NotEqual(t, nil, newPath)
+	assert.Equal(t, []uint32{stringToCommunityValue(community2)}, newPath.GetCommunities())
+}
+
 func TestPolicyMatchAndClearCommunities(t *testing.T) {
 
 	// create path

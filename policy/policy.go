@@ -1009,9 +1009,10 @@ func (r *RoutingAction) apply(path *table.Path) *table.Path {
 }
 
 type CommunityAction struct {
-	Values []uint32
-	ext    []byte
-	action config.BgpSetCommunityOptionType
+	Values       []uint32
+	ext          []byte
+	action       config.BgpSetCommunityOptionType
+	RegexpValues []*regexp.Regexp
 }
 
 const (
@@ -1032,20 +1033,39 @@ func NewCommunityAction(action config.SetCommunity) *CommunityAction {
 		return nil
 	}
 
-	values := make([]uint32, len(communities))
-	for i, com := range communities {
+	values := make([]uint32, 0, len(communities))
+	regexpValues := make([]*regexp.Regexp, 0, len(communities))
+
+	for _, com := range communities {
 		matched, value := getCommunityValue(com)
 		if matched {
-			values[i] = value
-		} else {
+			values = append(values, value)
+			continue
+		}
+
+		exp, err := regexp.Compile(com)
+		if err != nil {
 			log.WithFields(log.Fields{
 				"Topic": "Policy",
 				"Type":  "Community Action",
-			}).Error("community string invalid.")
+			}).Errorf("community string invalid")
 			return nil
 		}
+		regexpValues = append(regexpValues, exp)
 	}
-	m.Values = values
+	if len(values) > 0 {
+		m.Values = values
+	}
+	if len(regexpValues) > 0 {
+		if action.Options != COMMUNITY_ACTION_REMOVE {
+			log.WithFields(log.Fields{
+				"Topic": "Policy",
+				"Type":  "Community Action",
+			}).Error("regexp values can only be used for remove action")
+			return nil
+		}
+		m.RegexpValues = regexpValues
+	}
 
 	switch action.Options {
 	case COMMUNITY_ACTION_ADD:
@@ -1064,6 +1084,21 @@ func NewCommunityAction(action config.SetCommunity) *CommunityAction {
 	return m
 }
 
+func RegexpRemoveCommunities(path *table.Path, exps []*regexp.Regexp) {
+	comms := path.GetCommunities()
+	newComms := make([]uint32, 0, len(comms))
+	for _, comm := range comms {
+		c := fmt.Sprintf("%d:%d", comm>>16, comm&0x0000ffff)
+		for _, exp := range exps {
+			if !exp.MatchString(c) {
+				newComms = append(newComms, comm)
+				break
+			}
+		}
+	}
+	path.SetCommunities(newComms, true)
+}
+
 func (a *CommunityAction) apply(path *table.Path) *table.Path {
 	if len(a.ext) > 0 {
 		return a.extApply(path)
@@ -1074,6 +1109,9 @@ func (a *CommunityAction) apply(path *table.Path) *table.Path {
 		path.SetCommunities(list, false)
 	case config.BGP_SET_COMMUNITY_OPTION_TYPE_REMOVE:
 		path.RemoveCommunities(list)
+		if len(a.RegexpValues) > 0 {
+			RegexpRemoveCommunities(path, a.RegexpValues)
+		}
 	case config.BGP_SET_COMMUNITY_OPTION_TYPE_REPLACE:
 		path.SetCommunities(list, true)
 	}
