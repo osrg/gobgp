@@ -816,5 +816,6 @@ func NewNeighborCmd() *cobra.Command {
 		},
 	}
 	neighborCmd.PersistentFlags().StringVarP(&subOpts.AddressFamily, "address-family", "a", "", "address family")
+	neighborCmd.PersistentFlags().StringVarP(&neighborsOpts.Transport, "transport", "t", "", "specifying a transport protocol")
 	return neighborCmd
 }
