@@ -452,24 +452,6 @@ func (server *BgpServer) Serve() {
 	}
 }
 
-func dropSameAsPath(asnum uint32, p []*table.Path) []*table.Path {
-	pathList := []*table.Path{}
-	for _, path := range p {
-		asList := path.GetAsList()
-		send := true
-		for _, as := range asList {
-			if as == asnum {
-				send = false
-				break
-			}
-		}
-		if send {
-			pathList = append(pathList, path)
-		}
-	}
-	return pathList
-}
-
 func newSenderMsg(peer *Peer, messages []*bgp.BGPMessage) *SenderMsg {
 	_, y := peer.capMap[bgp.BGP_CAP_FOUR_OCTET_AS_NUMBER]
 	return &SenderMsg{
@@ -549,7 +531,15 @@ func filterpath(peer *Peer, pathList []*table.Path) []*table.Path {
 			continue
 		}
 
-		if peer.conf.NeighborConfig.PeerAs == path.GetSourceAs() {
+		send := true
+		for _, as := range path.GetAsList() {
+			if as == peer.conf.NeighborConfig.PeerAs {
+				send = false
+				break
+			}
+		}
+
+		if !send {
 			log.WithFields(log.Fields{
 				"Topic": "Peer",
 				"Key":   peer.conf.NeighborConfig.NeighborAddress,
@@ -573,7 +563,6 @@ func (server *BgpServer) dropPeerAllRoutes(peer *Peer) []*SenderMsg {
 					continue
 				}
 				pathList, _ := rib.DeletePathsforPeer(peer.peerInfo, rf)
-				pathList = dropSameAsPath(targetPeer.conf.NeighborConfig.PeerAs, pathList)
 				if targetPeer.fsm.state != bgp.BGP_FSM_ESTABLISHED || len(pathList) == 0 {
 					continue
 				}
@@ -674,17 +663,15 @@ func (server *BgpServer) broadcastPeerState(peer *Peer) {
 
 func (server *BgpServer) propagateUpdate(peer *Peer, pathList []*table.Path) []*SenderMsg {
 	msgs := make([]*SenderMsg, 0)
-
 	if peer != nil && peer.isRouteServerClient() {
-		newPathList := peer.ApplyPolicy(POLICY_DIRECTION_IN, pathList)
+		pathList = peer.ApplyPolicy(POLICY_DIRECTION_IN, pathList)
 		for _, rib := range server.localRibMap {
 			targetPeer := server.neighborMap[rib.OwnerName()]
 			neighborAddress := peer.conf.NeighborConfig.NeighborAddress.String()
 			if rib.OwnerName() == GLOBAL_RIB_NAME || rib.OwnerName() == neighborAddress {
 				continue
 			}
-			sendPathList, _ := rib.ProcessPaths(targetPeer.ApplyPolicy(POLICY_DIRECTION_IMPORT,
-				dropSameAsPath(targetPeer.conf.NeighborConfig.PeerAs, filterpath(targetPeer, newPathList))))
+			sendPathList, _ := rib.ProcessPaths(targetPeer.ApplyPolicy(POLICY_DIRECTION_IMPORT, filterpath(targetPeer, pathList)))
 			if targetPeer.fsm.state != bgp.BGP_FSM_ESTABLISHED || len(sendPathList) == 0 {
 				continue
 			}
