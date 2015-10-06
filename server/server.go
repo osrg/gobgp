@@ -1269,6 +1269,13 @@ func sendMultipleResponses(grpcReq *GrpcRequest, results []*GrpcResponse) {
 func (server *BgpServer) handleGrpc(grpcReq *GrpcRequest) []*SenderMsg {
 	var msgs []*SenderMsg
 
+	logOp := func(peer *Peer, action string) {
+		log.WithFields(log.Fields{
+			"Topic": "Operation",
+			"Key":   peer.conf.NeighborConfig.NeighborAddress.String(),
+		}).Info(action)
+	}
+
 	sortedDsts := func(t *table.Table) []*GrpcResponse {
 		results := make([]*GrpcResponse, len(t.GetDestinations()))
 
@@ -1417,6 +1424,7 @@ func (server *BgpServer) handleGrpc(grpcReq *GrpcRequest) []*SenderMsg {
 		if err != nil {
 			break
 		}
+		logOp(peer, "Neighbor shutdown")
 		m := bgp.NewBGPNotificationMessage(bgp.BGP_ERROR_CEASE, bgp.BGP_ERROR_SUB_ADMINISTRATIVE_SHUTDOWN, nil)
 		msgs = []*SenderMsg{newSenderMsg(peer, []*bgp.BGPMessage{m})}
 		grpcReq.ResponseCh <- &GrpcResponse{}
@@ -1427,6 +1435,7 @@ func (server *BgpServer) handleGrpc(grpcReq *GrpcRequest) []*SenderMsg {
 		if err != nil {
 			break
 		}
+		logOp(peer, "Neighbor reset")
 		peer.fsm.idleHoldTime = peer.conf.Timers.TimersConfig.IdleHoldTimeAfterReset
 		m := bgp.NewBGPNotificationMessage(bgp.BGP_ERROR_CEASE, bgp.BGP_ERROR_SUB_ADMINISTRATIVE_RESET, nil)
 		msgs = []*SenderMsg{newSenderMsg(peer, []*bgp.BGPMessage{m})}
@@ -1439,6 +1448,12 @@ func (server *BgpServer) handleGrpc(grpcReq *GrpcRequest) []*SenderMsg {
 		if err != nil {
 			break
 		}
+		if grpcReq.RequestType == REQ_NEIGHBOR_SOFT_RESET {
+			logOp(peer, "Neighbor soft reset")
+		} else {
+			logOp(peer, "Neighbor soft reset in")
+		}
+
 		pathList := peer.adjRib.GetInPathList(grpcReq.RouteFamily)
 		msgs = server.propagateUpdate(peer, pathList)
 
@@ -1452,6 +1467,9 @@ func (server *BgpServer) handleGrpc(grpcReq *GrpcRequest) []*SenderMsg {
 		peer, err := server.checkNeighborRequest(grpcReq)
 		if err != nil {
 			break
+		}
+		if grpcReq.RequestType == REQ_NEIGHBOR_SOFT_RESET_OUT {
+			logOp(peer, "Neighbor soft reset out")
 		}
 		pathList := peer.adjRib.GetOutPathList(grpcReq.RouteFamily)
 		msgList := table.CreateUpdateMsgFromPaths(pathList)
