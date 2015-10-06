@@ -490,10 +490,19 @@ func (adj *AdjRib) GetOutCount(rf bgp.RouteFamily) int {
 	return len(adj.adjRibOut[rf])
 }
 
-func (adj *AdjRib) DropAll(rf bgp.RouteFamily) {
+func (adj *AdjRib) DropIn(rf bgp.RouteFamily) {
 	if _, ok := adj.adjRibIn[rf]; ok {
-		// replace old one
 		adj.adjRibIn[rf] = make(map[string]*Path)
+	}
+}
+
+func (adj *AdjRib) DropOut(rf bgp.RouteFamily) {
+	if _, ok := adj.adjRibIn[rf]; ok {
 		adj.adjRibOut[rf] = make(map[string]*Path)
 	}
+}
+
+func (adj *AdjRib) DropAll(rf bgp.RouteFamily) {
+	adj.DropIn(rf)
+	adj.DropOut(rf)
 }

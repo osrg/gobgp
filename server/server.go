@@ -756,19 +756,7 @@ func (server *BgpServer) handleFSMMessage(peer *Peer, e *fsmMsg, incoming chan *
 				}
 				server.broadcastMsgs = append(server.broadcastMsgs, m)
 			}
-			pathList := make([]*table.Path, 0)
-			if peer.isRouteServerClient() {
-				rib := server.localRibMap[peer.conf.NeighborConfig.NeighborAddress.String()]
-				pathList = peer.ApplyPolicy(POLICY_DIRECTION_EXPORT, filterpath(peer, peer.getBests(rib)))
-			} else {
-				rib := server.localRibMap[GLOBAL_RIB_NAME]
-				l, _ := peer.fsm.LocalHostPort()
-				peer.conf.Transport.TransportConfig.LocalAddress = net.ParseIP(l)
-				for _, path := range filterpath(peer, peer.getBests(rib)) {
-					path.UpdatePathAttrs(&server.bgpConfig.Global, &peer.conf)
-					pathList = append(pathList, path)
-				}
-			}
+			pathList := server.getBestFromLocal(peer)
 			if len(pathList) > 0 {
 				peer.adjRib.UpdateOut(pathList)
 				msgs = append(msgs, newSenderMsg(peer, table.CreateUpdateMsgFromPaths(pathList)))
@@ -1268,6 +1256,23 @@ func sendMultipleResponses(grpcReq *GrpcRequest, results []*GrpcResponse) {
 	}
 }
 
+func (server *BgpServer) getBestFromLocal(peer *Peer) []*table.Path {
+	pathList := make([]*table.Path, 0)
+	if peer.isRouteServerClient() {
+		rib := server.localRibMap[peer.conf.NeighborConfig.NeighborAddress.String()]
+		pathList = peer.ApplyPolicy(POLICY_DIRECTION_EXPORT, filterpath(peer, peer.getBests(rib)))
+	} else {
+		rib := server.localRibMap[GLOBAL_RIB_NAME]
+		l, _ := peer.fsm.LocalHostPort()
+		peer.conf.Transport.TransportConfig.LocalAddress = net.ParseIP(l)
+		for _, path := range filterpath(peer, peer.getBests(rib)) {
+			path.UpdatePathAttrs(&server.bgpConfig.Global, &peer.conf)
+			pathList = append(pathList, path)
+		}
+	}
+	return pathList
+}
+
 func (server *BgpServer) handleGrpc(grpcReq *GrpcRequest) []*SenderMsg {
 	var msgs []*SenderMsg
 
@@ -1473,9 +1478,14 @@ func (server *BgpServer) handleGrpc(grpcReq *GrpcRequest) []*SenderMsg {
 		if grpcReq.RequestType == REQ_NEIGHBOR_SOFT_RESET_OUT {
 			logOp(peer, "Neighbor soft reset out")
 		}
-		pathList := peer.adjRib.GetOutPathList(grpcReq.RouteFamily)
-		msgList := table.CreateUpdateMsgFromPaths(pathList)
-		msgs = []*SenderMsg{newSenderMsg(peer, msgList)}
+		for _, rf := range peer.configuredRFlist() {
+			peer.adjRib.DropOut(rf)
+		}
+		pathList := server.getBestFromLocal(peer)
+		if len(pathList) > 0 {
+			peer.adjRib.UpdateOut(pathList)
+			msgs = []*SenderMsg{newSenderMsg(peer, table.CreateUpdateMsgFromPaths(pathList))}
+		}
 		grpcReq.ResponseCh <- &GrpcResponse{}
 		close(grpcReq.ResponseCh)
 
