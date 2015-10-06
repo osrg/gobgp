@@ -106,6 +106,7 @@ type BgpServer struct {
 	roaClient      *roaClient
 	bmpClient      *bmpClient
 	bmpConnCh      chan *bmpConn
+	shutdown       bool
 }
 
 func NewBgpServer(port int) *BgpServer {
@@ -785,6 +786,18 @@ func (server *BgpServer) handleFSMMessage(peer *Peer, e *fsmMsg, incoming chan *
 				msgs = append(msgs, newSenderMsg(peer, table.CreateUpdateMsgFromPaths(pathList)))
 			}
 		} else {
+			if server.shutdown && nextState == bgp.BGP_FSM_IDLE {
+				die := true
+				for _, p := range server.neighborMap {
+					if p.fsm.state != bgp.BGP_FSM_IDLE {
+						die = false
+						break
+					}
+				}
+				if die {
+					os.Exit(0)
+				}
+			}
 			peer.conf.Timers.TimersState.Downtime = time.Now().Unix()
 		}
 		// clear counter
@@ -876,6 +889,7 @@ func (server *BgpServer) PeerUpdate(peer config.Neighbor) {
 }
 
 func (server *BgpServer) Shutdown() {
+	server.shutdown = true
 	for _, p := range server.neighborMap {
 		p.fsm.adminStateCh <- ADMIN_STATE_DOWN
 	}
