@@ -2107,19 +2107,19 @@ func flowSpecTcpFlagParser(rf RouteFamily, args []string) (FlowSpecComponentInte
 		ss = append(ss, v)
 	}
 	protos := strings.Join(ss, "|")
-	exp := regexp.MustCompile(fmt.Sprintf("^%s (((%s) )*)(%s)$", FlowSpecNameMap[FLOW_SPEC_TYPE_TCP_FLAG], protos, protos))
+	exp := regexp.MustCompile(fmt.Sprintf("^%s ((((%s)\\&)*(%s) )*(((%s)\\&)*(%s)))$", FlowSpecNameMap[FLOW_SPEC_TYPE_TCP_FLAG], protos, protos, protos, protos))
 	elems := exp.FindStringSubmatch(strings.Join(args, " "))
-	items := make([]*FlowSpecComponentItem, 0)
-	if elems[1] != "" {
-		for _, v := range strings.Split(elems[1], " ") {
-			p, ok := TCPFlagValueMap[v]
-			if !ok {
-				continue
-			}
-			items = append(items, NewFlowSpecComponentItem(0, int(p)))
-		}
+	if len(elems) < 1 {
+		return nil, fmt.Errorf("invalid flag format")
 	}
-	items = append(items, NewFlowSpecComponentItem(0, int(TCPFlagValueMap[elems[4]])))
+	items := make([]*FlowSpecComponentItem, 0)
+	for _, v := range strings.Split(elems[1], " ") {
+		flag := 0
+		for _, e := range strings.Split(v, "&") {
+			flag |= int(TCPFlagValueMap[e])
+		}
+		items = append(items, NewFlowSpecComponentItem(0, flag))
+	}
 	return NewFlowSpecComponent(FLOW_SPEC_TYPE_TCP_FLAG, items), nil
 }
 

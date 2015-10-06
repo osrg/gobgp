@@ -125,9 +125,9 @@ var TCPFlagValueMap = map[string]TCPFlag{
 
 func (f TCPFlag) String() string {
 	ss := make([]string, 0, 6)
-	for k, v := range TCPFlagNameMap {
-		if f&k > 0 {
-			ss = append(ss, v)
+	for _, v := range []TCPFlag{TCP_FLAG_FIN, TCP_FLAG_SYN, TCP_FLAG_RST, TCP_FLAG_PUSH, TCP_FLAG_ACK, TCP_FLAG_URGENT} {
+		if f&v > 0 {
+			ss = append(ss, TCPFlagNameMap[v])
 		}
 	}
 	return strings.Join(ss, "|")
