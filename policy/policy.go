@@ -1089,11 +1089,15 @@ func RegexpRemoveCommunities(path *table.Path, exps []*regexp.Regexp) {
 	newComms := make([]uint32, 0, len(comms))
 	for _, comm := range comms {
 		c := fmt.Sprintf("%d:%d", comm>>16, comm&0x0000ffff)
+		match := false
 		for _, exp := range exps {
-			if !exp.MatchString(c) {
-				newComms = append(newComms, comm)
+			if exp.MatchString(c) {
+				match = true
 				break
 			}
+		}
+		if match == false {
+			newComms = append(newComms, comm)
 		}
 	}
 	path.SetCommunities(newComms, true)
