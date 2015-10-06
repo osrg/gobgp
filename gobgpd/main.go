@@ -140,6 +140,8 @@ func main() {
 		log.SetFormatter(&log.JSONFormatter{})
 	}
 
+	log.Info("gobgpd started")
+
 	if opts.ConfigFile == "" {
 		opts.ConfigFile = "gobgpd.conf"
 	}

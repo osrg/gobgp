@@ -34,6 +34,9 @@ func ReadConfigfileServe(path string, configCh chan BgpConfigSet, reloadCh chan 
 				continue
 			}
 		}
+		if cnt == 0 {
+			log.Info("finished reading the config file")
+		}
 		cnt++
 		bgpConfig := BgpConfigSet{Bgp: b, Policy: p}
 		configCh <- bgpConfig
