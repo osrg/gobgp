@@ -22,7 +22,6 @@ import (
 	"github.com/spf13/cobra"
 	"golang.org/x/net/context"
 	"io"
-	"net"
 	"os"
 	"time"
 )
@@ -56,7 +55,7 @@ func showRPKITable(args []string) error {
 	if len(args) == 0 {
 		return fmt.Errorf("Needs to specify RPKI server address")
 	}
-	rf, err := checkAddressFamily(net.IP{})
+	rf, err := checkAddressFamily(bgp.RF_IPv4_UC)
 	if err != nil {
 		fmt.Println(err)
 		os.Exit(1)
