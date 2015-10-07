@@ -423,8 +423,9 @@ func (peer *Peer) GetDefaultPolicy(d PolicyDirection) policy.RouteType {
 	return policy.ROUTE_TYPE_REJECT
 }
 
-func (peer *Peer) ApplyPolicy(d PolicyDirection, paths []*table.Path) []*table.Path {
+func (peer *Peer) ApplyPolicy(d PolicyDirection, paths []*table.Path) ([]*table.Path, []*table.Path) {
 	newpaths := make([]*table.Path, 0, len(paths))
+	filteredPaths := make([]*table.Path, 0)
 	for _, path := range paths {
 		result := policy.ROUTE_TYPE_NONE
 		newpath := path
@@ -447,6 +448,7 @@ func (peer *Peer) ApplyPolicy(d PolicyDirection, paths []*table.Path) []*table.P
 			}
 		case policy.ROUTE_TYPE_REJECT:
 			path.Filtered = true
+			filteredPaths = append(filteredPaths, path)
 			log.WithFields(log.Fields{
 				"Topic":     "Peer",
 				"Key":       peer.conf.NeighborConfig.NeighborAddress,
@@ -455,7 +457,7 @@ func (peer *Peer) ApplyPolicy(d PolicyDirection, paths []*table.Path) []*table.P
 			}).Debug("reject")
 		}
 	}
-	return newpaths
+	return newpaths, filteredPaths
 }
 
 func (peer *Peer) DropAll(rf bgp.RouteFamily) {

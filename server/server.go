@@ -383,7 +383,7 @@ func (server *BgpServer) Serve() {
 						pathList = append(pathList, p.adjRib.GetInPathList(rf)...)
 					}
 				}
-				pathList = peer.ApplyPolicy(POLICY_DIRECTION_IMPORT, pathList)
+				pathList, _ = peer.ApplyPolicy(POLICY_DIRECTION_IMPORT, pathList)
 				if len(pathList) > 0 {
 					rib.ProcessPaths(pathList)
 				}
@@ -666,18 +666,19 @@ func (server *BgpServer) broadcastPeerState(peer *Peer) {
 func (server *BgpServer) propagateUpdate(peer *Peer, pathList []*table.Path) []*SenderMsg {
 	msgs := make([]*SenderMsg, 0)
 	if peer != nil && peer.isRouteServerClient() {
-		pathList = peer.ApplyPolicy(POLICY_DIRECTION_IN, pathList)
+		pathList, _ = peer.ApplyPolicy(POLICY_DIRECTION_IN, pathList)
 		for _, rib := range server.localRibMap {
 			targetPeer := server.neighborMap[rib.OwnerName()]
 			neighborAddress := peer.conf.NeighborConfig.NeighborAddress.String()
 			if rib.OwnerName() == GLOBAL_RIB_NAME || rib.OwnerName() == neighborAddress {
 				continue
 			}
-			sendPathList, _ := rib.ProcessPaths(targetPeer.ApplyPolicy(POLICY_DIRECTION_IMPORT, pathList))
+			sendPathList, _ := targetPeer.ApplyPolicy(POLICY_DIRECTION_IMPORT, pathList)
+			sendPathList, _ = rib.ProcessPaths(sendPathList)
 			if targetPeer.fsm.state != bgp.BGP_FSM_ESTABLISHED || len(sendPathList) == 0 {
 				continue
 			}
-			sendPathList = targetPeer.ApplyPolicy(POLICY_DIRECTION_EXPORT, filterpath(targetPeer, sendPathList))
+			sendPathList, _ = targetPeer.ApplyPolicy(POLICY_DIRECTION_EXPORT, filterpath(targetPeer, sendPathList))
 			if len(sendPathList) == 0 {
 				continue
 			}
@@ -756,7 +757,7 @@ func (server *BgpServer) handleFSMMessage(peer *Peer, e *fsmMsg, incoming chan *
 				}
 				server.broadcastMsgs = append(server.broadcastMsgs, m)
 			}
-			pathList := server.getBestFromLocal(peer)
+			pathList, _ := server.getBestFromLocal(peer)
 			if len(pathList) > 0 {
 				peer.adjRib.UpdateOut(pathList)
 				msgs = append(msgs, newSenderMsg(peer, table.CreateUpdateMsgFromPaths(pathList)))
@@ -1256,11 +1257,12 @@ func sendMultipleResponses(grpcReq *GrpcRequest, results []*GrpcResponse) {
 	}
 }
 
-func (server *BgpServer) getBestFromLocal(peer *Peer) []*table.Path {
+func (server *BgpServer) getBestFromLocal(peer *Peer) ([]*table.Path, []*table.Path) {
 	pathList := make([]*table.Path, 0)
+	filtered := make([]*table.Path, 0)
 	if peer.isRouteServerClient() {
 		rib := server.localRibMap[peer.conf.NeighborConfig.NeighborAddress.String()]
-		pathList = peer.ApplyPolicy(POLICY_DIRECTION_EXPORT, filterpath(peer, peer.getBests(rib)))
+		pathList, filtered = peer.ApplyPolicy(POLICY_DIRECTION_EXPORT, filterpath(peer, peer.getBests(rib)))
 	} else {
 		rib := server.localRibMap[GLOBAL_RIB_NAME]
 		l, _ := peer.fsm.LocalHostPort()
@@ -1270,7 +1272,7 @@ func (server *BgpServer) getBestFromLocal(peer *Peer) []*table.Path {
 			pathList = append(pathList, path)
 		}
 	}
-	return pathList
+	return pathList, filtered
 }
 
 func (server *BgpServer) handleGrpc(grpcReq *GrpcRequest) []*SenderMsg {
@@ -1481,10 +1483,16 @@ func (server *BgpServer) handleGrpc(grpcReq *GrpcRequest) []*SenderMsg {
 		for _, rf := range peer.configuredRFlist() {
 			peer.adjRib.DropOut(rf)
 		}
-		pathList := server.getBestFromLocal(peer)
+		pathList, filtered := server.getBestFromLocal(peer)
 		if len(pathList) > 0 {
 			peer.adjRib.UpdateOut(pathList)
 			msgs = []*SenderMsg{newSenderMsg(peer, table.CreateUpdateMsgFromPaths(pathList))}
+		}
+		if len(filtered) > 0 {
+			for _, p := range filtered {
+				p.IsWithdraw = true
+			}
+			msgs = append(msgs, newSenderMsg(peer, table.CreateUpdateMsgFromPaths(filtered)))
 		}
 		grpcReq.ResponseCh <- &GrpcResponse{}
 		close(grpcReq.ResponseCh)
