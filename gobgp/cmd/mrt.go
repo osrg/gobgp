@@ -81,7 +81,7 @@ func dumpRib(r string, remoteIP net.IP, args []string) error {
 		return fmt.Errorf("unknown resource type: %s", r)
 	}
 
-	rf, err := checkAddressFamily(remoteIP)
+	rf, err := checkAddressFamily(addr2AddressFamily(remoteIP))
 	if err != nil {
 		return err
 	}

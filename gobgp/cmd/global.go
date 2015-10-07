@@ -501,7 +501,7 @@ func showGlobalRib(args []string) error {
 }
 
 func modPath(resource api.Resource, name, modtype string, args []string) error {
-	rf, err := checkAddressFamily(net.IP{})
+	rf, err := checkAddressFamily(bgp.RF_IPv4_UC)
 	if err != nil {
 		return err
 	}

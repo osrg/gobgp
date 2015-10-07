@@ -442,7 +442,16 @@ func connGrpc() *grpc.ClientConn {
 	return conn
 }
 
-func checkAddressFamily(ip net.IP) (bgp.RouteFamily, error) {
+func addr2AddressFamily(a net.IP) bgp.RouteFamily {
+	if a == nil {
+		return bgp.RouteFamily(0)
+	} else if a.To4() != nil {
+		return bgp.RF_IPv4_UC
+	}
+	return bgp.RF_IPv6_UC
+}
+
+func checkAddressFamily(def bgp.RouteFamily) (bgp.RouteFamily, error) {
 	var rf bgp.RouteFamily
 	var e error
 	switch subOpts.AddressFamily {
@@ -465,13 +474,7 @@ func checkAddressFamily(ip net.IP) (bgp.RouteFamily, error) {
 	case "ipv6-flowspec", "ipv6-flow", "flow6":
 		rf = bgp.RF_FS_IPv6_UC
 	case "":
-		if ip == nil {
-			return rf, nil
-		} else if len(ip) == 0 || ip.To4() != nil {
-			rf = bgp.RF_IPv4_UC
-		} else {
-			rf = bgp.RF_IPv6_UC
-		}
+		rf = def
 	default:
 		e = fmt.Errorf("unsupported address family: %s", subOpts.AddressFamily)
 	}

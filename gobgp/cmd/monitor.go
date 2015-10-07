@@ -19,6 +19,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"github.com/osrg/gobgp/api"
+	"github.com/osrg/gobgp/packet"
 	"github.com/spf13/cobra"
 	"golang.org/x/net/context"
 	"io"
@@ -29,7 +30,7 @@ func NewMonitorCmd() *cobra.Command {
 	ribCmd := &cobra.Command{
 		Use: CMD_RIB,
 		Run: func(cmd *cobra.Command, args []string) {
-			rf, err := checkAddressFamily(nil)
+			rf, err := checkAddressFamily(bgp.RouteFamily(0))
 			if err != nil {
 				fmt.Println(err)
 				os.Exit(1)

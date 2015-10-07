@@ -410,6 +410,7 @@ func showNeighborRib(r string, name string, args []string) error {
 	showBest := false
 	showAge := true
 	showLabel := false
+	def := addr2AddressFamily(net.ParseIP(name))
 	switch r {
 	case CMD_GLOBAL:
 		showBest = true
@@ -423,10 +424,11 @@ func showNeighborRib(r string, name string, args []string) error {
 		showAge = false
 		resource = api.Resource_ADJ_OUT
 	case CMD_VRF:
+		def = bgp.RF_IPv4_UC
 		showLabel = true
 		resource = api.Resource_VRF
 	}
-	rf, err := checkAddressFamily(net.ParseIP(name))
+	rf, err := checkAddressFamily(def)
 	if err != nil {
 		return err
 	}
@@ -566,7 +568,7 @@ func showNeighborRib(r string, name string, args []string) error {
 }
 
 func resetNeighbor(cmd string, remoteIP string, args []string) error {
-	rf, err := checkAddressFamily(net.ParseIP(remoteIP))
+	rf, err := checkAddressFamily(addr2AddressFamily(net.ParseIP(remoteIP)))
 	if err != nil {
 		return err
 	}
@@ -605,7 +607,7 @@ func stateChangeNeighbor(cmd string, remoteIP string, args []string) error {
 }
 
 func showNeighborPolicy(remoteIP net.IP) error {
-	rf, err := checkAddressFamily(net.IP{})
+	rf, err := checkAddressFamily(addr2AddressFamily(remoteIP))
 	if err != nil {
 		return err
 	}
