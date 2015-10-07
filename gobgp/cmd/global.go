@@ -530,7 +530,7 @@ func modPath(resource api.Resource, name, modtype string, args []string) error {
 		fsHelpMsgFmt := fmt.Sprintf(`err: %s
 usage: %s rib %s match <MATCH_EXPR> then <THEN_EXPR> -a %%s
     <MATCH_EXPR> : { %s <PREFIX> [<OFFSET>] | %s <PREFIX> [<OFFSET>] |
-		     %s <PROTO>... | %s <FRAGMENT_TYPE> | %s <TCPFLAG>... |
+		     %s <PROTO>... | %s <FRAGMENT_TYPE> | %s [not] [match] <TCPFLAG>... |
 		     { %s | %s | %s | %s | %s | %s | %s | %s } <ITEM>... }...
 	<PROTO> : %s
 	<FRAGMENT_TYPE> : not-a-fragment, is-a-fragment, first-fragment, last-fragment
