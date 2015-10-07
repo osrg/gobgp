@@ -608,6 +608,8 @@ func (server *BgpServer) broadcastBests(bests []*table.Path) {
 			}
 		}
 
+		rf := path.GetRouteFamily()
+
 		result := &GrpcResponse{
 			Data: &api.Destination{
 				Prefix: path.GetNlri().String(),
@@ -625,11 +627,13 @@ func (server *BgpServer) broadcastBests(bests []*table.Path) {
 				remainReqs = append(remainReqs, req)
 				continue
 			}
-			m := &broadcastGrpcMsg{
-				req:    req,
-				result: result,
+			if req.RouteFamily == bgp.RouteFamily(0) || req.RouteFamily == rf {
+				m := &broadcastGrpcMsg{
+					req:    req,
+					result: result,
+				}
+				server.broadcastMsgs = append(server.broadcastMsgs, m)
 			}
-			server.broadcastMsgs = append(server.broadcastMsgs, m)
 			remainReqs = append(remainReqs, req)
 		}
 		server.broadcastReqs = remainReqs

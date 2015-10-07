@@ -22,7 +22,6 @@ import (
 	"github.com/spf13/cobra"
 	"golang.org/x/net/context"
 	"io"
-	"net"
 	"os"
 )
 
@@ -30,7 +29,7 @@ func NewMonitorCmd() *cobra.Command {
 	ribCmd := &cobra.Command{
 		Use: CMD_RIB,
 		Run: func(cmd *cobra.Command, args []string) {
-			rf, err := checkAddressFamily(net.IP{})
+			rf, err := checkAddressFamily(nil)
 			if err != nil {
 				fmt.Println(err)
 				os.Exit(1)
@@ -69,6 +68,7 @@ func NewMonitorCmd() *cobra.Command {
 
 		},
 	}
+	ribCmd.PersistentFlags().StringVarP(&subOpts.AddressFamily, "address-family", "a", "", "address family")
 
 	globalCmd := &cobra.Command{
 		Use: CMD_GLOBAL,
