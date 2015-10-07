@@ -1278,11 +1278,23 @@ func (server *BgpServer) getBestFromLocal(peer *Peer) ([]*table.Path, []*table.P
 func (server *BgpServer) handleGrpc(grpcReq *GrpcRequest) []*SenderMsg {
 	var msgs []*SenderMsg
 
-	logOp := func(peer *Peer, action string) {
+	logOp := func(addr string, action string) {
 		log.WithFields(log.Fields{
 			"Topic": "Operation",
-			"Key":   peer.conf.NeighborConfig.NeighborAddress.String(),
+			"Key":   addr,
 		}).Info(action)
+	}
+
+	reqToPeers := func(grpcReq *GrpcRequest) ([]*Peer, error) {
+		peers := make([]*Peer, 0)
+		if grpcReq.Name == "all" {
+			for _, p := range server.neighborMap {
+				peers = append(peers, p)
+			}
+			return peers, nil
+		}
+		peer, err := server.checkNeighborRequest(grpcReq)
+		return []*Peer{peer}, err
 	}
 
 	sortedDsts := func(t *table.Table) []*GrpcResponse {
@@ -1429,42 +1441,50 @@ func (server *BgpServer) handleGrpc(grpcReq *GrpcRequest) []*SenderMsg {
 		go sendMultipleResponses(grpcReq, results)
 
 	case REQ_NEIGHBOR_SHUTDOWN:
-		peer, err := server.checkNeighborRequest(grpcReq)
+		peers, err := reqToPeers(grpcReq)
 		if err != nil {
 			break
 		}
-		logOp(peer, "Neighbor shutdown")
+		logOp(grpcReq.Name, "Neighbor shutdown")
 		m := bgp.NewBGPNotificationMessage(bgp.BGP_ERROR_CEASE, bgp.BGP_ERROR_SUB_ADMINISTRATIVE_SHUTDOWN, nil)
-		msgs = []*SenderMsg{newSenderMsg(peer, []*bgp.BGPMessage{m})}
+		for _, peer := range peers {
+			msgs = append(msgs, newSenderMsg(peer, []*bgp.BGPMessage{m}))
+		}
 		grpcReq.ResponseCh <- &GrpcResponse{}
 		close(grpcReq.ResponseCh)
 
 	case REQ_NEIGHBOR_RESET:
-		peer, err := server.checkNeighborRequest(grpcReq)
+		peers, err := reqToPeers(grpcReq)
 		if err != nil {
 			break
 		}
-		logOp(peer, "Neighbor reset")
-		peer.fsm.idleHoldTime = peer.conf.Timers.TimersConfig.IdleHoldTimeAfterReset
-		m := bgp.NewBGPNotificationMessage(bgp.BGP_ERROR_CEASE, bgp.BGP_ERROR_SUB_ADMINISTRATIVE_RESET, nil)
-		msgs = []*SenderMsg{newSenderMsg(peer, []*bgp.BGPMessage{m})}
+		logOp(grpcReq.Name, "Neighbor reset")
+		for _, peer := range peers {
+			peer.fsm.idleHoldTime = peer.conf.Timers.TimersConfig.IdleHoldTimeAfterReset
+			m := bgp.NewBGPNotificationMessage(bgp.BGP_ERROR_CEASE, bgp.BGP_ERROR_SUB_ADMINISTRATIVE_RESET, nil)
+			msgs = append(msgs, newSenderMsg(peer, []*bgp.BGPMessage{m}))
+		}
 		grpcReq.ResponseCh <- &GrpcResponse{}
 		close(grpcReq.ResponseCh)
 
 	case REQ_NEIGHBOR_SOFT_RESET, REQ_NEIGHBOR_SOFT_RESET_IN:
-		peer, err := server.checkNeighborRequest(grpcReq)
+		peers, err := reqToPeers(grpcReq)
 		if err != nil {
 			break
 		}
-		peer.accepted = 0
+		for _, peer := range peers {
+			peer.accepted = 0
+		}
 		if grpcReq.RequestType == REQ_NEIGHBOR_SOFT_RESET {
-			logOp(peer, "Neighbor soft reset")
+			logOp(grpcReq.Name, "Neighbor soft reset")
 		} else {
-			logOp(peer, "Neighbor soft reset in")
+			logOp(grpcReq.Name, "Neighbor soft reset in")
 		}
 
-		pathList := peer.adjRib.GetInPathList(grpcReq.RouteFamily)
-		msgs = server.propagateUpdate(peer, pathList)
+		for _, peer := range peers {
+			pathList := peer.adjRib.GetInPathList(grpcReq.RouteFamily)
+			msgs = append(msgs, server.propagateUpdate(peer, pathList)...)
+		}
 
 		if grpcReq.RequestType == REQ_NEIGHBOR_SOFT_RESET_IN {
 			grpcReq.ResponseCh <- &GrpcResponse{}
@@ -1473,26 +1493,29 @@ func (server *BgpServer) handleGrpc(grpcReq *GrpcRequest) []*SenderMsg {
 		}
 		fallthrough
 	case REQ_NEIGHBOR_SOFT_RESET_OUT:
-		peer, err := server.checkNeighborRequest(grpcReq)
+		peers, err := reqToPeers(grpcReq)
 		if err != nil {
 			break
 		}
 		if grpcReq.RequestType == REQ_NEIGHBOR_SOFT_RESET_OUT {
-			logOp(peer, "Neighbor soft reset out")
+			logOp(grpcReq.Name, "Neighbor soft reset out")
 		}
-		for _, rf := range peer.configuredRFlist() {
-			peer.adjRib.DropOut(rf)
-		}
-		pathList, filtered := server.getBestFromLocal(peer)
-		if len(pathList) > 0 {
-			peer.adjRib.UpdateOut(pathList)
-			msgs = []*SenderMsg{newSenderMsg(peer, table.CreateUpdateMsgFromPaths(pathList))}
-		}
-		if len(filtered) > 0 {
-			for _, p := range filtered {
-				p.IsWithdraw = true
+		for _, peer := range peers {
+			for _, rf := range peer.configuredRFlist() {
+				peer.adjRib.DropOut(rf)
 			}
-			msgs = append(msgs, newSenderMsg(peer, table.CreateUpdateMsgFromPaths(filtered)))
+
+			pathList, filtered := server.getBestFromLocal(peer)
+			if len(pathList) > 0 {
+				peer.adjRib.UpdateOut(pathList)
+				msgs = append(msgs, newSenderMsg(peer, table.CreateUpdateMsgFromPaths(pathList)))
+			}
+			if len(filtered) > 0 {
+				for _, p := range filtered {
+					p.IsWithdraw = true
+				}
+				msgs = append(msgs, newSenderMsg(peer, table.CreateUpdateMsgFromPaths(filtered)))
+			}
 		}
 		grpcReq.ResponseCh <- &GrpcResponse{}
 		close(grpcReq.ResponseCh)
