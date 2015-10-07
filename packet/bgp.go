@@ -2123,14 +2123,14 @@ func flowSpecTcpFlagParser(rf RouteFamily, args []string) (FlowSpecComponentInte
 	return NewFlowSpecComponent(FLOW_SPEC_TYPE_TCP_FLAG, items), nil
 }
 
-func flowSpecNumericParser(rf RouteFamily, args []string) (FlowSpecComponentInterface, error) {
+func doFlowSpecNumericParser(rf RouteFamily, args []string, validationFunc func(int) error) (FlowSpecComponentInterface, error) {
 	if afi, _ := RouteFamilyToAfiSafi(rf); afi == AFI_IP && FlowSpecValueMap[args[0]] == FLOW_SPEC_TYPE_LABEL {
 		return nil, fmt.Errorf("flow label spec is only allowed for ipv6")
 	}
 	exp := regexp.MustCompile("^((<=|>=|[<>=])(\\d+)&)?(<=|>=|[<>=])?(\\d+)$")
 	items := make([]*FlowSpecComponentItem, 0)
 
-	f := func(and bool, o, v string) *FlowSpecComponentItem {
+	f := func(and bool, o, v string) (*FlowSpecComponentItem, error) {
 		op := 0
 		if and {
 			op |= 0x40
@@ -2150,9 +2150,13 @@ func flowSpecNumericParser(rf RouteFamily, args []string) (FlowSpecComponentInte
 		}
 		value, err := strconv.Atoi(v)
 		if err != nil {
-			return nil
+			return nil, err
 		}
-		return NewFlowSpecComponentItem(op, value)
+		err = validationFunc(value)
+		if err != nil {
+			return nil, err
+		}
+		return NewFlowSpecComponentItem(op, value), nil
 	}
 
 	for _, arg := range args[1:] {
@@ -2163,13 +2167,47 @@ func flowSpecNumericParser(rf RouteFamily, args []string) (FlowSpecComponentInte
 		}
 		if elems[1] != "" {
 			and = true
-			items = append(items, f(false, elems[2], elems[3]))
+			item, err := f(false, elems[2], elems[3])
+			if err != nil {
+				return nil, err
+			}
+			items = append(items, item)
 		}
-		items = append(items, f(and, elems[4], elems[5]))
-
+		item, err := f(and, elems[4], elems[5])
+		if err != nil {
+			return nil, err
+		}
+		items = append(items, item)
 	}
 
 	return NewFlowSpecComponent(FlowSpecValueMap[args[0]], items), nil
+}
+
+func flowSpecNumericParser(rf RouteFamily, args []string) (FlowSpecComponentInterface, error) {
+	f := func(i int) error {
+		return nil
+	}
+	return doFlowSpecNumericParser(rf, args, f)
+}
+
+func flowSpecPortParser(rf RouteFamily, args []string) (FlowSpecComponentInterface, error) {
+	f := func(i int) error {
+		if 0 < i && i < 65536 {
+			return nil
+		}
+		return fmt.Errorf("port range exceeded")
+	}
+	return doFlowSpecNumericParser(rf, args, f)
+}
+
+func flowSpecDscpParser(rf RouteFamily, args []string) (FlowSpecComponentInterface, error) {
+	f := func(i int) error {
+		if 0 < i && i < 64 {
+			return nil
+		}
+		return fmt.Errorf("dscp value range exceeded")
+	}
+	return doFlowSpecNumericParser(rf, args, f)
 }
 
 func flowSpecFragmentParser(rf RouteFamily, args []string) (FlowSpecComponentInterface, error) {
@@ -2200,14 +2238,14 @@ var flowSpecParserMap = map[BGPFlowSpecType]func(RouteFamily, []string) (FlowSpe
 	FLOW_SPEC_TYPE_DST_PREFIX: flowSpecPrefixParser,
 	FLOW_SPEC_TYPE_SRC_PREFIX: flowSpecPrefixParser,
 	FLOW_SPEC_TYPE_IP_PROTO:   flowSpecIpProtoParser,
-	FLOW_SPEC_TYPE_PORT:       flowSpecNumericParser,
-	FLOW_SPEC_TYPE_DST_PORT:   flowSpecNumericParser,
-	FLOW_SPEC_TYPE_SRC_PORT:   flowSpecNumericParser,
+	FLOW_SPEC_TYPE_PORT:       flowSpecPortParser,
+	FLOW_SPEC_TYPE_DST_PORT:   flowSpecPortParser,
+	FLOW_SPEC_TYPE_SRC_PORT:   flowSpecPortParser,
 	FLOW_SPEC_TYPE_ICMP_TYPE:  flowSpecNumericParser,
 	FLOW_SPEC_TYPE_ICMP_CODE:  flowSpecNumericParser,
 	FLOW_SPEC_TYPE_TCP_FLAG:   flowSpecTcpFlagParser,
 	FLOW_SPEC_TYPE_PKT_LEN:    flowSpecNumericParser,
-	FLOW_SPEC_TYPE_DSCP:       flowSpecNumericParser,
+	FLOW_SPEC_TYPE_DSCP:       flowSpecDscpParser,
 	FLOW_SPEC_TYPE_FRAGMENT:   flowSpecFragmentParser,
 	FLOW_SPEC_TYPE_LABEL:      flowSpecNumericParser,
 }
