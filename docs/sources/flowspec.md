@@ -1,10 +1,8 @@
 # Flowspec (RFC5575)
 
-GoBGP supports [RFC5575](https://tools.ietf.org/html/rfc5575) and
-[draft-ietf-idr-flowspec-redirect-rt-bis-05](http://tools.ietf.org/html/draft-ietf-idr-flowspec-redirect-rt-bis-05).
-
-Implementation of IPv6 flowspec ([draft-ietf-idr-flow-spec-v6-06](https://tools.ietf.org/html/draft-ietf-idr-flow-spec-v6-06))
-is future work.
+GoBGP supports [RFC5575](https://tools.ietf.org/html/rfc5575),
+[draft-ietf-idr-flowspec-redirect-rt-bis-05](http://tools.ietf.org/html/draft-ietf-idr-flowspec-redirect-rt-bis-05)
+and [draft-ietf-idr-flow-spec-v6-06](https://tools.ietf.org/html/draft-ietf-idr-flow-spec-v6-06).
 
 ## Prerequisites
 
@@ -40,7 +38,7 @@ afi-safi-list like below.
 CLI syntax to add flowspec is
 
 ```shell
-% global rib add match <MATCH_EXPR> then <THEN_EXPR> -a ipv4-flowspec
+% global rib add match <MATCH_EXPR> then <THEN_EXPR> -a [ipv4-flowspec|ipv6-flowspec]
     <MATCH_EXPR> : { destination <PREFIX> | source <PREFIX> |
                      protocol <PROTO>... | fragment <FRAGMENT_TYPE> | tcp-flags <TCPFLAG>... |
                      { port | destination-port | source-port | icmp-type | icmp-code | packet-length | dscp } <ITEM>... }...
