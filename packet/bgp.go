@@ -3854,35 +3854,63 @@ func (p *PathAttributeCommunities) Serialize() ([]byte, error) {
 	return p.PathAttribute.Serialize()
 }
 
+type WellKnownCommunity uint32
+
+const (
+	COMMUNITY_INTERNET                   WellKnownCommunity = 0x00000000
+	COMMUNITY_PLANNED_SHUT                                  = 0xffff0000
+	COMMUNITY_ACCEPT_OWN                                    = 0xffff0001
+	COMMUNITY_ROUTE_FILTER_TRANSLATED_v4                    = 0xffff0002
+	COMMUNITY_ROUTE_FILTER_v4                               = 0xffff0003
+	COMMUNITY_ROUTE_FILTER_TRANSLATED_v6                    = 0xffff0004
+	COMMUNITY_ROUTE_FILTER_v6                               = 0xffff0005
+	COMMUNITY_LLGR_STALE                                    = 0xffff0006
+	COMMUNITY_NO_LLGR                                       = 0xffff0007
+	COMMUNITY_NO_EXPORT                                     = 0xffffff01
+	COMMUNITY_NO_ADVERTISE                                  = 0xffffff02
+	COMMUNITY_NO_EXPORT_SUBCONFED                           = 0xffffff03
+	COMMUNITY_NO_PEER                                       = 0xffffff04
+)
+
+var WellKnownCommunityNameMap = map[WellKnownCommunity]string{
+	COMMUNITY_INTERNET:                   "internet",
+	COMMUNITY_PLANNED_SHUT:               "planned-shut",
+	COMMUNITY_ACCEPT_OWN:                 "accept-own",
+	COMMUNITY_ROUTE_FILTER_TRANSLATED_v4: "route-filter-translated-v4",
+	COMMUNITY_ROUTE_FILTER_v4:            "route-filter-v4",
+	COMMUNITY_ROUTE_FILTER_TRANSLATED_v6: "route-filter-translated-v6",
+	COMMUNITY_ROUTE_FILTER_v6:            "route-filter-v6",
+	COMMUNITY_LLGR_STALE:                 "llgr-stale",
+	COMMUNITY_NO_LLGR:                    "no-llgr",
+	COMMUNITY_NO_EXPORT:                  "no-export",
+	COMMUNITY_NO_ADVERTISE:               "no-advertise",
+	COMMUNITY_NO_EXPORT_SUBCONFED:        "no-export-subconfed",
+	COMMUNITY_NO_PEER:                    "no-peer",
+}
+
+var WellKnownCommunityValueMap = map[string]WellKnownCommunity{
+	WellKnownCommunityNameMap[COMMUNITY_INTERNET]:                   COMMUNITY_INTERNET,
+	WellKnownCommunityNameMap[COMMUNITY_PLANNED_SHUT]:               COMMUNITY_PLANNED_SHUT,
+	WellKnownCommunityNameMap[COMMUNITY_ACCEPT_OWN]:                 COMMUNITY_ACCEPT_OWN,
+	WellKnownCommunityNameMap[COMMUNITY_ROUTE_FILTER_TRANSLATED_v4]: COMMUNITY_ROUTE_FILTER_TRANSLATED_v4,
+	WellKnownCommunityNameMap[COMMUNITY_ROUTE_FILTER_v4]:            COMMUNITY_ROUTE_FILTER_v4,
+	WellKnownCommunityNameMap[COMMUNITY_ROUTE_FILTER_TRANSLATED_v6]: COMMUNITY_ROUTE_FILTER_TRANSLATED_v6,
+	WellKnownCommunityNameMap[COMMUNITY_ROUTE_FILTER_v6]:            COMMUNITY_ROUTE_FILTER_v6,
+	WellKnownCommunityNameMap[COMMUNITY_LLGR_STALE]:                 COMMUNITY_LLGR_STALE,
+	WellKnownCommunityNameMap[COMMUNITY_NO_LLGR]:                    COMMUNITY_NO_LLGR,
+	WellKnownCommunityNameMap[COMMUNITY_NO_EXPORT]:                  COMMUNITY_NO_EXPORT,
+	WellKnownCommunityNameMap[COMMUNITY_NO_ADVERTISE]:               COMMUNITY_NO_ADVERTISE,
+	WellKnownCommunityNameMap[COMMUNITY_NO_EXPORT_SUBCONFED]:        COMMUNITY_NO_EXPORT_SUBCONFED,
+	WellKnownCommunityNameMap[COMMUNITY_NO_PEER]:                    COMMUNITY_NO_PEER,
+}
+
 func (p *PathAttributeCommunities) String() string {
 	l := []string{}
 	for _, v := range p.Value {
-		switch v {
-		case 0xffff0000:
-			l = append(l, "planned-shut")
-		case 0xffff0001:
-			l = append(l, "accept-own")
-		case 0xffff0002:
-			l = append(l, "ROUTE_FILTER_TRANSLATED_v4")
-		case 0xffff0003:
-			l = append(l, "ROUTE_FILTER_v4")
-		case 0xffff0004:
-			l = append(l, "ROUTE_FILTER_TRANSLATED_v6")
-		case 0xffff0005:
-			l = append(l, "ROUTE_FILTER_v6")
-		case 0xffff0006:
-			l = append(l, "LLGR_STALE")
-		case 0xffff0007:
-			l = append(l, "NO_LLGR")
-		case 0xffffff01:
-			l = append(l, "NO_EXPORT")
-		case 0xffffff02:
-			l = append(l, "NO_ADVERTISE")
-		case 0xffffff03:
-			l = append(l, "NO_EXPORT_SUBCONFED")
-		case 0xffffff04:
-			l = append(l, "NO_PEER")
-		default:
+		n, ok := WellKnownCommunityNameMap[WellKnownCommunity(v)]
+		if ok {
+			l = append(l, n)
+		} else {
 			l = append(l, fmt.Sprintf("%d:%d", (0xffff0000&v)>>16, 0xffff&v))
 		}
 	}
