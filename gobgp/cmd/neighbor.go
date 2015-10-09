@@ -22,7 +22,7 @@ import (
 	api "github.com/osrg/gobgp/api"
 	"github.com/osrg/gobgp/config"
 	"github.com/osrg/gobgp/packet"
-	"github.com/osrg/gobgp/policy"
+	"github.com/osrg/gobgp/table"
 	"github.com/spf13/cobra"
 	"golang.org/x/net/context"
 	"io"
@@ -668,7 +668,7 @@ func modNeighborPolicy(remoteIP net.IP, cmdType string, eArg []string) error {
 	switch cmdType {
 	case CMD_ADD:
 		if len(eArg) < 4 {
-			return fmt.Errorf("Usage: gobgp neighbor <ipaddr> policy %s {%s|%s|%s} <policies> {%s|%s}", cmdType, CMD_IMPORT, CMD_EXPORT, CMD_IN, policy.ROUTE_TYPE_ACCEPT, policy.ROUTE_TYPE_REJECT)
+			return fmt.Errorf("Usage: gobgp neighbor <ipaddr> policy %s {%s|%s|%s} <policies> {%s|%s}", cmdType, CMD_IMPORT, CMD_EXPORT, CMD_IN, table.ROUTE_TYPE_ACCEPT, table.ROUTE_TYPE_REJECT)
 		}
 		policies := parsePolicy(eArg[1])
 		defaultPolicy, err := parseRouteAction(eArg[2])

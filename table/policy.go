@@ -13,7 +13,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package policy
+package table
 
 import (
 	"fmt"
@@ -27,7 +27,6 @@ import (
 	"github.com/osrg/gobgp/api"
 	"github.com/osrg/gobgp/config"
 	"github.com/osrg/gobgp/packet"
-	"github.com/osrg/gobgp/table"
 )
 
 type RouteType int
@@ -36,6 +35,38 @@ const (
 	ROUTE_TYPE_NONE RouteType = iota
 	ROUTE_TYPE_ACCEPT
 	ROUTE_TYPE_REJECT
+)
+
+func (t RouteType) String() string {
+	switch t {
+	case ROUTE_TYPE_NONE:
+		return "NONE"
+	case ROUTE_TYPE_ACCEPT:
+		return "ACCEPT"
+	case ROUTE_TYPE_REJECT:
+		return "REJECT"
+	default:
+		return fmt.Sprintf("Unknown(%d)", t)
+	}
+}
+
+func (t RouteType) ToApiStruct() gobgpapi.RouteAction {
+	switch t {
+	case ROUTE_TYPE_ACCEPT:
+		return gobgpapi.RouteAction_ACCEPT
+	case ROUTE_TYPE_REJECT:
+		return gobgpapi.RouteAction_REJECT
+	default:
+		return gobgpapi.RouteAction_NONE
+	}
+}
+
+type PolicyDirection int
+
+const (
+	POLICY_DIRECTION_IN     = iota
+	POLICY_DIRECTION_IMPORT = iota
+	POLICY_DIRECTION_EXPORT
 )
 
 type AttributeComparison int
@@ -155,7 +186,7 @@ type Statement struct {
 }
 
 // evaluate each condition in the statement according to MatchSetOptions
-func (s *Statement) evaluate(p *table.Path) bool {
+func (s *Statement) evaluate(p *Path) bool {
 
 	for _, condition := range s.Conditions {
 		r := condition.evaluate(p)
@@ -167,14 +198,14 @@ func (s *Statement) evaluate(p *table.Path) bool {
 }
 
 type Condition interface {
-	evaluate(*table.Path) bool
+	evaluate(*Path) bool
 }
 
 type DefaultCondition struct {
 	CallPolicy string
 }
 
-func (c *DefaultCondition) evaluate(path *table.Path) bool {
+func (c *DefaultCondition) evaluate(path *Path) bool {
 	return false
 }
 
@@ -224,7 +255,7 @@ func NewPrefixCondition(matchPref config.MatchPrefixSet, defPrefixList []config.
 // compare prefixes in this condition and nlri of path and
 // subsequent comparison is skipped if that matches the conditions.
 // If PrefixList's length is zero, return true.
-func (c *PrefixCondition) evaluate(path *table.Path) bool {
+func (c *PrefixCondition) evaluate(path *Path) bool {
 
 	if len(c.PrefixList) == 0 {
 		log.Debug("PrefixList doesn't have elements")
@@ -289,7 +320,7 @@ func NewNeighborCondition(matchNeighborSet config.MatchNeighborSet, defNeighborS
 // compare neighbor ipaddress of this condition and source address of path
 // and, subsequent comparisons are skipped if that matches the conditions.
 // If NeighborList's length is zero, return true.
-func (c *NeighborCondition) evaluate(path *table.Path) bool {
+func (c *NeighborCondition) evaluate(path *Path) bool {
 
 	if len(c.NeighborList) == 0 {
 		log.Debug("NeighborList doesn't have elements")
@@ -356,7 +387,7 @@ func NewAsPathLengthCondition(defAsPathLength config.AsPathLength) *AsPathLength
 
 // compare AS_PATH length in the message's AS_PATH attribute with
 // the one in condition.
-func (c *AsPathLengthCondition) evaluate(path *table.Path) bool {
+func (c *AsPathLengthCondition) evaluate(path *Path) bool {
 
 	length := uint32(path.GetAsPathLen())
 	result := false
@@ -458,7 +489,7 @@ func (c *AsPathCondition) checkMembers(aspathStr string, checkAll bool) bool {
 
 // compare AS_PATH in the message's AS_PATH attribute with
 // the one in condition.
-func (c *AsPathCondition) evaluate(path *table.Path) bool {
+func (c *AsPathCondition) evaluate(path *Path) bool {
 
 	aspathStr := path.GetAsString()
 
@@ -687,7 +718,7 @@ func (c *CommunityCondition) checkMembers(communities []uint32, checkAll bool) b
 
 // compare community in the message's attribute with
 // the one in the condition.
-func (c *CommunityCondition) evaluate(path *table.Path) bool {
+func (c *CommunityCondition) evaluate(path *Path) bool {
 
 	communities := path.GetCommunities()
 
@@ -942,7 +973,7 @@ func (c *ExtCommunityCondition) checkMembers(eCommunities []bgp.ExtendedCommunit
 
 // compare extended community in the message's attribute with
 // the one in the condition.
-func (c *ExtCommunityCondition) evaluate(path *table.Path) bool {
+func (c *ExtCommunityCondition) evaluate(path *Path) bool {
 
 	eCommunities := path.GetExtCommunities()
 	if len(eCommunities) == 0 {
@@ -985,12 +1016,12 @@ func NewRPKIValidationCondition(result config.RpkiValidationResultType) *RPKIVal
 	}
 }
 
-func (c *RPKIValidationCondition) evaluate(path *table.Path) bool {
+func (c *RPKIValidationCondition) evaluate(path *Path) bool {
 	return c.result == path.Validation
 }
 
 type Action interface {
-	apply(*table.Path) *table.Path
+	apply(*Path) *Path
 }
 
 type RoutingAction struct {
@@ -1003,7 +1034,7 @@ func NewRoutingAction(action config.Actions) *RoutingAction {
 	}
 }
 
-func (r *RoutingAction) apply(path *table.Path) *table.Path {
+func (r *RoutingAction) apply(path *Path) *Path {
 	if r.AcceptRoute {
 		return path
 	}
@@ -1086,7 +1117,7 @@ func NewCommunityAction(action config.SetCommunity) *CommunityAction {
 	return m
 }
 
-func RegexpRemoveCommunities(path *table.Path, exps []*regexp.Regexp) {
+func RegexpRemoveCommunities(path *Path, exps []*regexp.Regexp) {
 	comms := path.GetCommunities()
 	newComms := make([]uint32, 0, len(comms))
 	for _, comm := range comms {
@@ -1105,7 +1136,7 @@ func RegexpRemoveCommunities(path *table.Path, exps []*regexp.Regexp) {
 	path.SetCommunities(newComms, true)
 }
 
-func (a *CommunityAction) apply(path *table.Path) *table.Path {
+func (a *CommunityAction) apply(path *Path) *Path {
 	if len(a.ext) > 0 {
 		return a.extApply(path)
 	}
@@ -1132,7 +1163,7 @@ func (a *CommunityAction) apply(path *table.Path) *table.Path {
 	return path
 }
 
-func (a *CommunityAction) extApply(path *table.Path) *table.Path {
+func (a *CommunityAction) extApply(path *Path) *Path {
 	path.SetExtCommunities(a.ext, false)
 
 	log.WithFields(log.Fields{
@@ -1238,7 +1269,7 @@ func getMedValue(medStr string) (bool, int64, ActionType) {
 	}
 	return false, int64(0), MED_ACTION_NONE
 }
-func (a *MedAction) apply(path *table.Path) *table.Path {
+func (a *MedAction) apply(path *Path) *Path {
 
 	var err error
 	switch a.action {
@@ -1301,7 +1332,7 @@ func NewAsPathPrependAction(action config.SetAsPathPrepend) *AsPathPrependAction
 	return a
 }
 
-func (a *AsPathPrependAction) apply(path *table.Path) *table.Path {
+func (a *AsPathPrependAction) apply(path *Path) *Path {
 
 	var asn uint32
 	if a.useLeftMost {
@@ -1388,7 +1419,7 @@ func NewPrefix(prefixStr string, maskRange string) (Prefix, error) {
 // Compare path with a policy's condition in stored order in the policy.
 // If a condition match, then this function stops evaluation and
 // subsequent conditions are skipped.
-func (p *Policy) Apply(path *table.Path) (RouteType, *table.Path) {
+func (p *Policy) Apply(path *Path) (RouteType, *Path) {
 	for _, statement := range p.Statements {
 
 		result := statement.evaluate(path)
@@ -1418,7 +1449,7 @@ func (p *Policy) Apply(path *table.Path) (RouteType, *table.Path) {
 	return ROUTE_TYPE_NONE, path
 }
 
-func ipPrefixCalculate(path *table.Path, cPrefix Prefix) bool {
+func ipPrefixCalculate(path *Path, cPrefix Prefix) bool {
 	rf := path.GetRouteFamily()
 	log.Debug("path routefamily : ", rf.String())
 	var pAddr net.IP
@@ -1441,11 +1472,6 @@ func ipPrefixCalculate(path *table.Path, cPrefix Prefix) bool {
 
 	return (cPrefix.MasklengthRangeMin <= pMasklen && pMasklen <= cPrefix.MasklengthRangeMax) && cPrefix.Prefix.Contains(pAddr)
 }
-
-const (
-	ROUTE_ACCEPT string = "ACCEPT"
-	ROUTE_REJECT        = "REJECT"
-)
 
 const (
 	OPTIONS_ANY    string = "ANY"
@@ -2017,7 +2043,7 @@ func PoliciesToString(reqPolicies []*gobgpapi.PolicyDefinition) []string {
 	return policies
 }
 
-func CanImportToVrf(v *table.Vrf, path *table.Path) bool {
+func CanImportToVrf(v *Vrf, path *Path) bool {
 	f := func(arg []bgp.ExtendedCommunityInterface) []config.ExtCommunity {
 		ret := make([]config.ExtCommunity, 0, len(arg))
 		for _, a := range arg {

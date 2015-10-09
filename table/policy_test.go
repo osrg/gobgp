@@ -13,14 +13,13 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package policy
+package table
 
 import (
 	"fmt"
 	log "github.com/Sirupsen/logrus"
 	"github.com/osrg/gobgp/config"
 	"github.com/osrg/gobgp/packet"
-	"github.com/osrg/gobgp/table"
 	"github.com/stretchr/testify/assert"
 	"math"
 	"net"
@@ -38,7 +37,7 @@ func init() {
 func TestPrefixCalcurateNoRange(t *testing.T) {
 	log.SetLevel(log.DebugLevel)
 	// create path
-	peer := &table.PeerInfo{AS: 65001, Address: net.ParseIP("10.0.0.1")}
+	peer := &PeerInfo{AS: 65001, Address: net.ParseIP("10.0.0.1")}
 	origin := bgp.NewPathAttributeOrigin(0)
 	aspathParam := []bgp.AsPathParamInterface{bgp.NewAsPathParam(2, []uint16{65001})}
 	aspath := bgp.NewPathAttributeAsPath(aspathParam)
@@ -47,7 +46,7 @@ func TestPrefixCalcurateNoRange(t *testing.T) {
 	pathAttributes := []bgp.PathAttributeInterface{origin, aspath, nexthop, med}
 	nlri := []*bgp.IPAddrPrefix{bgp.NewIPAddrPrefix(24, "10.10.0.0")}
 	updateMsg := bgp.NewBGPUpdateMessage(nil, pathAttributes, nlri)
-	path := table.ProcessMessage(updateMsg, peer)[0]
+	path := ProcessMessage(updateMsg, peer)[0]
 	// test
 	pl1, _ := NewPrefix("10.10.0.0/24", "")
 	match1 := ipPrefixCalculate(path, pl1)
@@ -62,7 +61,7 @@ func TestPrefixCalcurateNoRange(t *testing.T) {
 
 func TestPrefixCalcurateAddress(t *testing.T) {
 	// create path
-	peer := &table.PeerInfo{AS: 65001, Address: net.ParseIP("10.0.0.1")}
+	peer := &PeerInfo{AS: 65001, Address: net.ParseIP("10.0.0.1")}
 	origin := bgp.NewPathAttributeOrigin(0)
 	aspathParam := []bgp.AsPathParamInterface{bgp.NewAsPathParam(2, []uint16{65001})}
 	aspath := bgp.NewPathAttributeAsPath(aspathParam)
@@ -71,7 +70,7 @@ func TestPrefixCalcurateAddress(t *testing.T) {
 	pathAttributes := []bgp.PathAttributeInterface{origin, aspath, nexthop, med}
 	nlri := []*bgp.IPAddrPrefix{bgp.NewIPAddrPrefix(24, "10.10.0.101")}
 	updateMsg := bgp.NewBGPUpdateMessage(nil, pathAttributes, nlri)
-	path := table.ProcessMessage(updateMsg, peer)[0]
+	path := ProcessMessage(updateMsg, peer)[0]
 	// test
 	pl1, _ := NewPrefix("10.11.0.0/16", "21..24")
 	match1 := ipPrefixCalculate(path, pl1)
@@ -83,7 +82,7 @@ func TestPrefixCalcurateAddress(t *testing.T) {
 
 func TestPrefixCalcurateLength(t *testing.T) {
 	// create path
-	peer := &table.PeerInfo{AS: 65001, Address: net.ParseIP("10.0.0.1")}
+	peer := &PeerInfo{AS: 65001, Address: net.ParseIP("10.0.0.1")}
 	origin := bgp.NewPathAttributeOrigin(0)
 	aspathParam := []bgp.AsPathParamInterface{bgp.NewAsPathParam(2, []uint16{65001})}
 	aspath := bgp.NewPathAttributeAsPath(aspathParam)
@@ -92,7 +91,7 @@ func TestPrefixCalcurateLength(t *testing.T) {
 	pathAttributes := []bgp.PathAttributeInterface{origin, aspath, nexthop, med}
 	nlri := []*bgp.IPAddrPrefix{bgp.NewIPAddrPrefix(24, "10.10.0.101")}
 	updateMsg := bgp.NewBGPUpdateMessage(nil, pathAttributes, nlri)
-	path := table.ProcessMessage(updateMsg, peer)[0]
+	path := ProcessMessage(updateMsg, peer)[0]
 	// test
 	pl1, _ := NewPrefix("10.10.64.0/24", "21..24")
 	match1 := ipPrefixCalculate(path, pl1)
@@ -104,7 +103,7 @@ func TestPrefixCalcurateLength(t *testing.T) {
 
 func TestPrefixCalcurateLengthRange(t *testing.T) {
 	// create path
-	peer := &table.PeerInfo{AS: 65001, Address: net.ParseIP("10.0.0.1")}
+	peer := &PeerInfo{AS: 65001, Address: net.ParseIP("10.0.0.1")}
 	origin := bgp.NewPathAttributeOrigin(0)
 	aspathParam := []bgp.AsPathParamInterface{bgp.NewAsPathParam(2, []uint16{65001})}
 	aspath := bgp.NewPathAttributeAsPath(aspathParam)
@@ -113,7 +112,7 @@ func TestPrefixCalcurateLengthRange(t *testing.T) {
 	pathAttributes := []bgp.PathAttributeInterface{origin, aspath, nexthop, med}
 	nlri := []*bgp.IPAddrPrefix{bgp.NewIPAddrPrefix(24, "10.10.0.101")}
 	updateMsg := bgp.NewBGPUpdateMessage(nil, pathAttributes, nlri)
-	path := table.ProcessMessage(updateMsg, peer)[0]
+	path := ProcessMessage(updateMsg, peer)[0]
 	// test
 	pl1, _ := NewPrefix("10.10.0.0/16", "21..23")
 	match1 := ipPrefixCalculate(path, pl1)
@@ -129,7 +128,7 @@ func TestPrefixCalcurateLengthRange(t *testing.T) {
 func TestPrefixCalcurateNoRangeIPv6(t *testing.T) {
 	log.SetLevel(log.DebugLevel)
 	// create path
-	peer := &table.PeerInfo{AS: 65001, Address: net.ParseIP("2001::192:168:50:1")}
+	peer := &PeerInfo{AS: 65001, Address: net.ParseIP("2001::192:168:50:1")}
 	origin := bgp.NewPathAttributeOrigin(0)
 	aspathParam := []bgp.AsPathParamInterface{bgp.NewAsPathParam(2, []uint16{65001})}
 	aspath := bgp.NewPathAttributeAsPath(aspathParam)
@@ -138,7 +137,7 @@ func TestPrefixCalcurateNoRangeIPv6(t *testing.T) {
 	med := bgp.NewPathAttributeMultiExitDisc(0)
 	pathAttributes := []bgp.PathAttributeInterface{mpreach, origin, aspath, med}
 	updateMsg := bgp.NewBGPUpdateMessage(nil, pathAttributes, nil)
-	path := table.ProcessMessage(updateMsg, peer)[0]
+	path := ProcessMessage(updateMsg, peer)[0]
 	// test
 	pl1, _ := NewPrefix("2001:123:123::/48", "")
 	match1 := ipPrefixCalculate(path, pl1)
@@ -153,7 +152,7 @@ func TestPrefixCalcurateNoRangeIPv6(t *testing.T) {
 
 func TestPrefixCalcurateAddressIPv6(t *testing.T) {
 	// create path
-	peer := &table.PeerInfo{AS: 65001, Address: net.ParseIP("2001::192:168:50:1")}
+	peer := &PeerInfo{AS: 65001, Address: net.ParseIP("2001::192:168:50:1")}
 	origin := bgp.NewPathAttributeOrigin(0)
 	aspathParam := []bgp.AsPathParamInterface{bgp.NewAsPathParam(2, []uint16{65001})}
 	aspath := bgp.NewPathAttributeAsPath(aspathParam)
@@ -162,7 +161,7 @@ func TestPrefixCalcurateAddressIPv6(t *testing.T) {
 	med := bgp.NewPathAttributeMultiExitDisc(0)
 	pathAttributes := []bgp.PathAttributeInterface{mpreach, origin, aspath, med}
 	updateMsg := bgp.NewBGPUpdateMessage(nil, pathAttributes, nil)
-	path := table.ProcessMessage(updateMsg, peer)[0]
+	path := ProcessMessage(updateMsg, peer)[0]
 	// test
 	pl1, _ := NewPrefix("2001:123:128::/48", "64..80")
 	match1 := ipPrefixCalculate(path, pl1)
@@ -174,7 +173,7 @@ func TestPrefixCalcurateAddressIPv6(t *testing.T) {
 
 func TestPrefixCalcurateLengthIPv6(t *testing.T) {
 	// create path
-	peer := &table.PeerInfo{AS: 65001, Address: net.ParseIP("2001::192:168:50:1")}
+	peer := &PeerInfo{AS: 65001, Address: net.ParseIP("2001::192:168:50:1")}
 	origin := bgp.NewPathAttributeOrigin(0)
 	aspathParam := []bgp.AsPathParamInterface{bgp.NewAsPathParam(2, []uint16{65001})}
 	aspath := bgp.NewPathAttributeAsPath(aspathParam)
@@ -183,7 +182,7 @@ func TestPrefixCalcurateLengthIPv6(t *testing.T) {
 	med := bgp.NewPathAttributeMultiExitDisc(0)
 	pathAttributes := []bgp.PathAttributeInterface{mpreach, origin, aspath, med}
 	updateMsg := bgp.NewBGPUpdateMessage(nil, pathAttributes, nil)
-	path := table.ProcessMessage(updateMsg, peer)[0]
+	path := ProcessMessage(updateMsg, peer)[0]
 	// test
 	pl1, _ := NewPrefix("2001:123:123:64::/64", "64..80")
 	match1 := ipPrefixCalculate(path, pl1)
@@ -195,7 +194,7 @@ func TestPrefixCalcurateLengthIPv6(t *testing.T) {
 
 func TestPrefixCalcurateLengthRangeIPv6(t *testing.T) {
 	// create path
-	peer := &table.PeerInfo{AS: 65001, Address: net.ParseIP("2001::192:168:50:1")}
+	peer := &PeerInfo{AS: 65001, Address: net.ParseIP("2001::192:168:50:1")}
 	origin := bgp.NewPathAttributeOrigin(0)
 	aspathParam := []bgp.AsPathParamInterface{bgp.NewAsPathParam(2, []uint16{65001})}
 	aspath := bgp.NewPathAttributeAsPath(aspathParam)
@@ -204,7 +203,7 @@ func TestPrefixCalcurateLengthRangeIPv6(t *testing.T) {
 	med := bgp.NewPathAttributeMultiExitDisc(0)
 	pathAttributes := []bgp.PathAttributeInterface{mpreach, origin, aspath, med}
 	updateMsg := bgp.NewBGPUpdateMessage(nil, pathAttributes, nil)
-	path := table.ProcessMessage(updateMsg, peer)[0]
+	path := ProcessMessage(updateMsg, peer)[0]
 	// test
 	pl1, _ := NewPrefix("2001:123:123::/48", "62..63")
 	match1 := ipPrefixCalculate(path, pl1)
@@ -219,7 +218,7 @@ func TestPrefixCalcurateLengthRangeIPv6(t *testing.T) {
 
 func TestPolicyNotMatch(t *testing.T) {
 	// create path
-	peer := &table.PeerInfo{AS: 65001, Address: net.ParseIP("10.0.0.1")}
+	peer := &PeerInfo{AS: 65001, Address: net.ParseIP("10.0.0.1")}
 	origin := bgp.NewPathAttributeOrigin(0)
 	aspathParam := []bgp.AsPathParamInterface{bgp.NewAsPathParam(2, []uint16{65001})}
 	aspath := bgp.NewPathAttributeAsPath(aspathParam)
@@ -228,7 +227,7 @@ func TestPolicyNotMatch(t *testing.T) {
 	pathAttributes := []bgp.PathAttributeInterface{origin, aspath, nexthop, med}
 	nlri := []*bgp.IPAddrPrefix{bgp.NewIPAddrPrefix(24, "10.10.0.101")}
 	updateMsg := bgp.NewBGPUpdateMessage(nil, pathAttributes, nlri)
-	path := table.ProcessMessage(updateMsg, peer)[0]
+	path := ProcessMessage(updateMsg, peer)[0]
 
 	// create policy
 	ps := createPrefixSet("ps1", "10.3.0.0/16", "21..24")
@@ -250,7 +249,7 @@ func TestPolicyNotMatch(t *testing.T) {
 
 func TestPolicyMatchAndReject(t *testing.T) {
 	// create path
-	peer := &table.PeerInfo{AS: 65001, Address: net.ParseIP("10.0.0.1")}
+	peer := &PeerInfo{AS: 65001, Address: net.ParseIP("10.0.0.1")}
 	origin := bgp.NewPathAttributeOrigin(0)
 	aspathParam := []bgp.AsPathParamInterface{bgp.NewAsPathParam(2, []uint16{65001})}
 	aspath := bgp.NewPathAttributeAsPath(aspathParam)
@@ -259,7 +258,7 @@ func TestPolicyMatchAndReject(t *testing.T) {
 	pathAttributes := []bgp.PathAttributeInterface{origin, aspath, nexthop, med}
 	nlri := []*bgp.IPAddrPrefix{bgp.NewIPAddrPrefix(24, "10.10.0.101")}
 	updateMsg := bgp.NewBGPUpdateMessage(nil, pathAttributes, nlri)
-	path := table.ProcessMessage(updateMsg, peer)[0]
+	path := ProcessMessage(updateMsg, peer)[0]
 	// create policy
 	ps := createPrefixSet("ps1", "10.10.0.0/16", "21..24")
 	ns := createNeighborSet("ns1", "10.0.0.1")
@@ -281,7 +280,7 @@ func TestPolicyMatchAndReject(t *testing.T) {
 
 func TestPolicyMatchAndAccept(t *testing.T) {
 	// create path
-	peer := &table.PeerInfo{AS: 65001, Address: net.ParseIP("10.0.0.1")}
+	peer := &PeerInfo{AS: 65001, Address: net.ParseIP("10.0.0.1")}
 	origin := bgp.NewPathAttributeOrigin(0)
 	aspathParam := []bgp.AsPathParamInterface{bgp.NewAsPathParam(2, []uint16{65001})}
 	aspath := bgp.NewPathAttributeAsPath(aspathParam)
@@ -290,7 +289,7 @@ func TestPolicyMatchAndAccept(t *testing.T) {
 	pathAttributes := []bgp.PathAttributeInterface{origin, aspath, nexthop, med}
 	nlri := []*bgp.IPAddrPrefix{bgp.NewIPAddrPrefix(24, "10.10.0.101")}
 	updateMsg := bgp.NewBGPUpdateMessage(nil, pathAttributes, nlri)
-	path := table.ProcessMessage(updateMsg, peer)[0]
+	path := ProcessMessage(updateMsg, peer)[0]
 	// create policy
 	ps := createPrefixSet("ps1", "10.10.0.0/16", "21..24")
 	ns := createNeighborSet("ns1", "10.0.0.1")
@@ -312,7 +311,7 @@ func TestPolicyMatchAndAccept(t *testing.T) {
 
 func TestPolicyRejectOnlyPrefixSet(t *testing.T) {
 	// create path
-	peer := &table.PeerInfo{AS: 65001, Address: net.ParseIP("10.0.1.1")}
+	peer := &PeerInfo{AS: 65001, Address: net.ParseIP("10.0.1.1")}
 	origin := bgp.NewPathAttributeOrigin(0)
 	aspathParam := []bgp.AsPathParamInterface{bgp.NewAsPathParam(2, []uint16{65001})}
 	aspath := bgp.NewPathAttributeAsPath(aspathParam)
@@ -321,9 +320,9 @@ func TestPolicyRejectOnlyPrefixSet(t *testing.T) {
 	pathAttributes := []bgp.PathAttributeInterface{origin, aspath, nexthop, med}
 	nlri := []*bgp.IPAddrPrefix{bgp.NewIPAddrPrefix(24, "10.10.1.101")}
 	updateMsg := bgp.NewBGPUpdateMessage(nil, pathAttributes, nlri)
-	path1 := table.ProcessMessage(updateMsg, peer)[0]
+	path1 := ProcessMessage(updateMsg, peer)[0]
 
-	peer = &table.PeerInfo{AS: 65002, Address: net.ParseIP("10.0.2.2")}
+	peer = &PeerInfo{AS: 65002, Address: net.ParseIP("10.0.2.2")}
 	origin = bgp.NewPathAttributeOrigin(0)
 	aspathParam = []bgp.AsPathParamInterface{bgp.NewAsPathParam(2, []uint16{65002})}
 	aspath = bgp.NewPathAttributeAsPath(aspathParam)
@@ -332,7 +331,7 @@ func TestPolicyRejectOnlyPrefixSet(t *testing.T) {
 	pathAttributes = []bgp.PathAttributeInterface{origin, aspath, nexthop, med}
 	nlri = []*bgp.IPAddrPrefix{bgp.NewIPAddrPrefix(24, "10.9.2.102")}
 	updateMsg = bgp.NewBGPUpdateMessage(nil, pathAttributes, nlri)
-	path2 := table.ProcessMessage(updateMsg, peer)[0]
+	path2 := ProcessMessage(updateMsg, peer)[0]
 
 	// create policy
 	ps := createPrefixSet("ps1", "10.10.1.0/16", "21..24")
@@ -357,7 +356,7 @@ func TestPolicyRejectOnlyPrefixSet(t *testing.T) {
 
 func TestPolicyRejectOnlyNeighborSet(t *testing.T) {
 	// create path
-	peer := &table.PeerInfo{AS: 65001, Address: net.ParseIP("10.0.1.1")}
+	peer := &PeerInfo{AS: 65001, Address: net.ParseIP("10.0.1.1")}
 	origin := bgp.NewPathAttributeOrigin(0)
 	aspathParam := []bgp.AsPathParamInterface{bgp.NewAsPathParam(2, []uint16{65001})}
 	aspath := bgp.NewPathAttributeAsPath(aspathParam)
@@ -366,9 +365,9 @@ func TestPolicyRejectOnlyNeighborSet(t *testing.T) {
 	pathAttributes := []bgp.PathAttributeInterface{origin, aspath, nexthop, med}
 	nlri := []*bgp.IPAddrPrefix{bgp.NewIPAddrPrefix(24, "10.10.1.101")}
 	updateMsg := bgp.NewBGPUpdateMessage(nil, pathAttributes, nlri)
-	path1 := table.ProcessMessage(updateMsg, peer)[0]
+	path1 := ProcessMessage(updateMsg, peer)[0]
 
-	peer = &table.PeerInfo{AS: 65002, Address: net.ParseIP("10.0.2.2")}
+	peer = &PeerInfo{AS: 65002, Address: net.ParseIP("10.0.2.2")}
 	origin = bgp.NewPathAttributeOrigin(0)
 	aspathParam = []bgp.AsPathParamInterface{bgp.NewAsPathParam(2, []uint16{65002})}
 	aspath = bgp.NewPathAttributeAsPath(aspathParam)
@@ -377,7 +376,7 @@ func TestPolicyRejectOnlyNeighborSet(t *testing.T) {
 	pathAttributes = []bgp.PathAttributeInterface{origin, aspath, nexthop, med}
 	nlri = []*bgp.IPAddrPrefix{bgp.NewIPAddrPrefix(24, "10.10.2.102")}
 	updateMsg = bgp.NewBGPUpdateMessage(nil, pathAttributes, nlri)
-	path2 := table.ProcessMessage(updateMsg, peer)[0]
+	path2 := ProcessMessage(updateMsg, peer)[0]
 
 	// create policy
 	ns := createNeighborSet("ns1", "10.0.1.1")
@@ -402,7 +401,7 @@ func TestPolicyRejectOnlyNeighborSet(t *testing.T) {
 
 func TestPolicyDifferentRoutefamilyOfPathAndPolicy(t *testing.T) {
 	// create path ipv4
-	peerIPv4 := &table.PeerInfo{AS: 65001, Address: net.ParseIP("10.0.0.1")}
+	peerIPv4 := &PeerInfo{AS: 65001, Address: net.ParseIP("10.0.0.1")}
 	originIPv4 := bgp.NewPathAttributeOrigin(0)
 	aspathParamIPv4 := []bgp.AsPathParamInterface{bgp.NewAsPathParam(2, []uint16{65001})}
 	aspathIPv4 := bgp.NewPathAttributeAsPath(aspathParamIPv4)
@@ -411,9 +410,9 @@ func TestPolicyDifferentRoutefamilyOfPathAndPolicy(t *testing.T) {
 	pathAttributesIPv4 := []bgp.PathAttributeInterface{originIPv4, aspathIPv4, nexthopIPv4, medIPv4}
 	nlriIPv4 := []*bgp.IPAddrPrefix{bgp.NewIPAddrPrefix(24, "10.10.0.101")}
 	updateMsgIPv4 := bgp.NewBGPUpdateMessage(nil, pathAttributesIPv4, nlriIPv4)
-	pathIPv4 := table.ProcessMessage(updateMsgIPv4, peerIPv4)[0]
+	pathIPv4 := ProcessMessage(updateMsgIPv4, peerIPv4)[0]
 	// create path ipv6
-	peerIPv6 := &table.PeerInfo{AS: 65001, Address: net.ParseIP("2001::192:168:50:1")}
+	peerIPv6 := &PeerInfo{AS: 65001, Address: net.ParseIP("2001::192:168:50:1")}
 	originIPv6 := bgp.NewPathAttributeOrigin(0)
 	aspathParamIPv6 := []bgp.AsPathParamInterface{bgp.NewAsPathParam(2, []uint16{65001})}
 	aspathIPv6 := bgp.NewPathAttributeAsPath(aspathParamIPv6)
@@ -422,7 +421,7 @@ func TestPolicyDifferentRoutefamilyOfPathAndPolicy(t *testing.T) {
 	medIPv6 := bgp.NewPathAttributeMultiExitDisc(0)
 	pathAttributesIPv6 := []bgp.PathAttributeInterface{mpreachIPv6, originIPv6, aspathIPv6, medIPv6}
 	updateMsgIPv6 := bgp.NewBGPUpdateMessage(nil, pathAttributesIPv6, nil)
-	pathIPv6 := table.ProcessMessage(updateMsgIPv6, peerIPv6)[0]
+	pathIPv6 := ProcessMessage(updateMsgIPv6, peerIPv6)[0]
 	// create policy
 	psIPv4 := createPrefixSet("psIPv4", "10.10.0.0/16", "21..24")
 	nsIPv4 := createNeighborSet("nsIPv4", "10.0.0.1")
@@ -455,7 +454,7 @@ func TestPolicyDifferentRoutefamilyOfPathAndPolicy(t *testing.T) {
 func TestAsPathLengthConditionEvaluate(t *testing.T) {
 	// setup
 	// create path
-	peer := &table.PeerInfo{AS: 65001, Address: net.ParseIP("10.0.0.1")}
+	peer := &PeerInfo{AS: 65001, Address: net.ParseIP("10.0.0.1")}
 	origin := bgp.NewPathAttributeOrigin(0)
 	aspathParam := []bgp.AsPathParamInterface{
 		bgp.NewAsPathParam(2, []uint16{65001, 65000, 65004, 65005}),
@@ -467,8 +466,8 @@ func TestAsPathLengthConditionEvaluate(t *testing.T) {
 	pathAttributes := []bgp.PathAttributeInterface{origin, aspath, nexthop, med}
 	nlri := []*bgp.IPAddrPrefix{bgp.NewIPAddrPrefix(24, "10.10.0.101")}
 	updateMsg := bgp.NewBGPUpdateMessage(nil, pathAttributes, nlri)
-	table.UpdatePathAttrs4ByteAs(updateMsg.Body.(*bgp.BGPUpdate))
-	path := table.ProcessMessage(updateMsg, peer)[0]
+	UpdatePathAttrs4ByteAs(updateMsg.Body.(*bgp.BGPUpdate))
+	path := ProcessMessage(updateMsg, peer)[0]
 
 	// create match condition
 	asPathLength := config.AsPathLength{
@@ -504,7 +503,7 @@ func TestAsPathLengthConditionEvaluate(t *testing.T) {
 func TestAsPathLengthConditionWithOtherCondition(t *testing.T) {
 	// setup
 	// create path
-	peer := &table.PeerInfo{AS: 65001, Address: net.ParseIP("10.0.0.1")}
+	peer := &PeerInfo{AS: 65001, Address: net.ParseIP("10.0.0.1")}
 	origin := bgp.NewPathAttributeOrigin(0)
 	aspathParam := []bgp.AsPathParamInterface{
 		bgp.NewAsPathParam(2, []uint16{65001, 65000, 65004, 65004, 65005}),
@@ -516,8 +515,8 @@ func TestAsPathLengthConditionWithOtherCondition(t *testing.T) {
 	pathAttributes := []bgp.PathAttributeInterface{origin, aspath, nexthop, med}
 	nlri := []*bgp.IPAddrPrefix{bgp.NewIPAddrPrefix(24, "10.10.0.101")}
 	updateMsg := bgp.NewBGPUpdateMessage(nil, pathAttributes, nlri)
-	table.UpdatePathAttrs4ByteAs(updateMsg.Body.(*bgp.BGPUpdate))
-	path := table.ProcessMessage(updateMsg, peer)[0]
+	UpdatePathAttrs4ByteAs(updateMsg.Body.(*bgp.BGPUpdate))
+	path := ProcessMessage(updateMsg, peer)[0]
 
 	// create policy
 	ps := createPrefixSet("ps1", "10.10.1.0/16", "21..24")
@@ -551,7 +550,7 @@ func TestAsPathConditionEvaluate(t *testing.T) {
 
 	// setup
 	// create path
-	peer := &table.PeerInfo{AS: 65001, Address: net.ParseIP("10.0.0.1")}
+	peer := &PeerInfo{AS: 65001, Address: net.ParseIP("10.0.0.1")}
 	origin := bgp.NewPathAttributeOrigin(0)
 	aspathParam1 := []bgp.AsPathParamInterface{
 		bgp.NewAsPathParam(2, []uint16{65001, 65000, 65010, 65004, 65005}),
@@ -562,8 +561,8 @@ func TestAsPathConditionEvaluate(t *testing.T) {
 	pathAttributes := []bgp.PathAttributeInterface{origin, aspath, nexthop, med}
 	nlri := []*bgp.IPAddrPrefix{bgp.NewIPAddrPrefix(24, "10.10.0.101")}
 	updateMsg1 := bgp.NewBGPUpdateMessage(nil, pathAttributes, nlri)
-	table.UpdatePathAttrs4ByteAs(updateMsg1.Body.(*bgp.BGPUpdate))
-	path1 := table.ProcessMessage(updateMsg1, peer)[0]
+	UpdatePathAttrs4ByteAs(updateMsg1.Body.(*bgp.BGPUpdate))
+	path1 := ProcessMessage(updateMsg1, peer)[0]
 
 	aspathParam2 := []bgp.AsPathParamInterface{
 		bgp.NewAsPathParam(2, []uint16{65010}),
@@ -571,8 +570,8 @@ func TestAsPathConditionEvaluate(t *testing.T) {
 	aspath2 := bgp.NewPathAttributeAsPath(aspathParam2)
 	pathAttributes = []bgp.PathAttributeInterface{origin, aspath2, nexthop, med}
 	updateMsg2 := bgp.NewBGPUpdateMessage(nil, pathAttributes, nlri)
-	table.UpdatePathAttrs4ByteAs(updateMsg2.Body.(*bgp.BGPUpdate))
-	path2 := table.ProcessMessage(updateMsg2, peer)[0]
+	UpdatePathAttrs4ByteAs(updateMsg2.Body.(*bgp.BGPUpdate))
+	path2 := ProcessMessage(updateMsg2, peer)[0]
 
 	// create match condition
 	asPathSet1 := config.AsPathSet{
@@ -657,7 +656,7 @@ func TestMultipleAsPathConditionEvaluate(t *testing.T) {
 
 	// setup
 	// create path
-	peer := &table.PeerInfo{AS: 65001, Address: net.ParseIP("10.0.0.1")}
+	peer := &PeerInfo{AS: 65001, Address: net.ParseIP("10.0.0.1")}
 	origin := bgp.NewPathAttributeOrigin(0)
 	aspathParam1 := []bgp.AsPathParamInterface{
 		bgp.NewAsPathParam(2, []uint16{65001, 65000, 54000, 65004, 65005}),
@@ -668,8 +667,8 @@ func TestMultipleAsPathConditionEvaluate(t *testing.T) {
 	pathAttributes := []bgp.PathAttributeInterface{origin, aspath, nexthop, med}
 	nlri := []*bgp.IPAddrPrefix{bgp.NewIPAddrPrefix(24, "10.10.0.101")}
 	updateMsg1 := bgp.NewBGPUpdateMessage(nil, pathAttributes, nlri)
-	table.UpdatePathAttrs4ByteAs(updateMsg1.Body.(*bgp.BGPUpdate))
-	path1 := table.ProcessMessage(updateMsg1, peer)[0]
+	UpdatePathAttrs4ByteAs(updateMsg1.Body.(*bgp.BGPUpdate))
+	path1 := ProcessMessage(updateMsg1, peer)[0]
 
 	// create match condition
 	asPathSet1 := config.AsPathSet{
@@ -770,7 +769,7 @@ func TestMultipleAsPathConditionEvaluate(t *testing.T) {
 
 func TestAsPathCondition(t *testing.T) {
 	type astest struct {
-		path   *table.Path
+		path   *Path
 		result bool
 	}
 
@@ -779,7 +778,7 @@ func TestAsPathCondition(t *testing.T) {
 			bgp.NewAs4PathParam(asPathAttrType, ases),
 		}
 		pathAttributes := []bgp.PathAttributeInterface{bgp.NewPathAttributeAsPath(aspathParam)}
-		p := table.NewPath(nil, nil, false, pathAttributes, false, time.Time{}, false)
+		p := NewPath(nil, nil, false, pathAttributes, false, time.Time{}, false)
 		return astest{
 			path:   p,
 			result: result,
@@ -839,7 +838,7 @@ func TestAsPathConditionWithOtherCondition(t *testing.T) {
 
 	// setup
 	// create path
-	peer := &table.PeerInfo{AS: 65001, Address: net.ParseIP("10.0.0.1")}
+	peer := &PeerInfo{AS: 65001, Address: net.ParseIP("10.0.0.1")}
 	origin := bgp.NewPathAttributeOrigin(0)
 	aspathParam := []bgp.AsPathParamInterface{
 		bgp.NewAsPathParam(1, []uint16{65001, 65000, 65004, 65005}),
@@ -851,8 +850,8 @@ func TestAsPathConditionWithOtherCondition(t *testing.T) {
 	pathAttributes := []bgp.PathAttributeInterface{origin, aspath, nexthop, med}
 	nlri := []*bgp.IPAddrPrefix{bgp.NewIPAddrPrefix(24, "10.10.0.101")}
 	updateMsg := bgp.NewBGPUpdateMessage(nil, pathAttributes, nlri)
-	table.UpdatePathAttrs4ByteAs(updateMsg.Body.(*bgp.BGPUpdate))
-	path := table.ProcessMessage(updateMsg, peer)[0]
+	UpdatePathAttrs4ByteAs(updateMsg.Body.(*bgp.BGPUpdate))
+	path := ProcessMessage(updateMsg, peer)[0]
 
 	// create policy
 	asPathSet := config.AsPathSet{
@@ -889,7 +888,7 @@ func TestCommunityConditionEvaluate(t *testing.T) {
 
 	// setup
 	// create path
-	peer := &table.PeerInfo{AS: 65001, Address: net.ParseIP("10.0.0.1")}
+	peer := &PeerInfo{AS: 65001, Address: net.ParseIP("10.0.0.1")}
 	origin := bgp.NewPathAttributeOrigin(0)
 	aspathParam1 := []bgp.AsPathParamInterface{
 		bgp.NewAsPathParam(2, []uint16{65001, 65000, 65004, 65005}),
@@ -911,8 +910,8 @@ func TestCommunityConditionEvaluate(t *testing.T) {
 	pathAttributes := []bgp.PathAttributeInterface{origin, aspath, nexthop, med, communities}
 	nlri := []*bgp.IPAddrPrefix{bgp.NewIPAddrPrefix(24, "10.10.0.101")}
 	updateMsg1 := bgp.NewBGPUpdateMessage(nil, pathAttributes, nlri)
-	table.UpdatePathAttrs4ByteAs(updateMsg1.Body.(*bgp.BGPUpdate))
-	path1 := table.ProcessMessage(updateMsg1, peer)[0]
+	UpdatePathAttrs4ByteAs(updateMsg1.Body.(*bgp.BGPUpdate))
+	path1 := ProcessMessage(updateMsg1, peer)[0]
 
 	// create match condition
 	comSet1 := config.CommunitySet{
@@ -1036,7 +1035,7 @@ func TestCommunityConditionEvaluateWithOtherCondition(t *testing.T) {
 
 	// setup
 	// create path
-	peer := &table.PeerInfo{AS: 65001, Address: net.ParseIP("10.0.0.1")}
+	peer := &PeerInfo{AS: 65001, Address: net.ParseIP("10.0.0.1")}
 	origin := bgp.NewPathAttributeOrigin(0)
 	aspathParam := []bgp.AsPathParamInterface{
 		bgp.NewAsPathParam(1, []uint16{65001, 65000, 65004, 65005}),
@@ -1057,8 +1056,8 @@ func TestCommunityConditionEvaluateWithOtherCondition(t *testing.T) {
 	pathAttributes := []bgp.PathAttributeInterface{origin, aspath, nexthop, med, communities}
 	nlri := []*bgp.IPAddrPrefix{bgp.NewIPAddrPrefix(24, "10.10.0.101")}
 	updateMsg := bgp.NewBGPUpdateMessage(nil, pathAttributes, nlri)
-	table.UpdatePathAttrs4ByteAs(updateMsg.Body.(*bgp.BGPUpdate))
-	path := table.ProcessMessage(updateMsg, peer)[0]
+	UpdatePathAttrs4ByteAs(updateMsg.Body.(*bgp.BGPUpdate))
+	path := ProcessMessage(updateMsg, peer)[0]
 
 	// create policy
 	asPathSet := config.AsPathSet{
@@ -1123,7 +1122,7 @@ func TestCommunityConditionEvaluateWithOtherCondition(t *testing.T) {
 func TestPolicyMatchAndAddCommunities(t *testing.T) {
 
 	// create path
-	peer := &table.PeerInfo{AS: 65001, Address: net.ParseIP("10.0.0.1")}
+	peer := &PeerInfo{AS: 65001, Address: net.ParseIP("10.0.0.1")}
 	origin := bgp.NewPathAttributeOrigin(0)
 	aspathParam := []bgp.AsPathParamInterface{bgp.NewAsPathParam(2, []uint16{65001})}
 	aspath := bgp.NewPathAttributeAsPath(aspathParam)
@@ -1132,7 +1131,7 @@ func TestPolicyMatchAndAddCommunities(t *testing.T) {
 	pathAttributes := []bgp.PathAttributeInterface{origin, aspath, nexthop, med}
 	nlri := []*bgp.IPAddrPrefix{bgp.NewIPAddrPrefix(24, "10.10.0.101")}
 	updateMsg := bgp.NewBGPUpdateMessage(nil, pathAttributes, nlri)
-	path := table.ProcessMessage(updateMsg, peer)[0]
+	path := ProcessMessage(updateMsg, peer)[0]
 	// create policy
 	ps := createPrefixSet("ps1", "10.10.0.0/16", "21..24")
 	ns := createNeighborSet("ns1", "10.0.0.1")
@@ -1163,7 +1162,7 @@ func TestPolicyMatchAndAddCommunities(t *testing.T) {
 func TestPolicyMatchAndReplaceCommunities(t *testing.T) {
 
 	// create path
-	peer := &table.PeerInfo{AS: 65001, Address: net.ParseIP("10.0.0.1")}
+	peer := &PeerInfo{AS: 65001, Address: net.ParseIP("10.0.0.1")}
 	origin := bgp.NewPathAttributeOrigin(0)
 	aspathParam := []bgp.AsPathParamInterface{bgp.NewAsPathParam(2, []uint16{65001})}
 	aspath := bgp.NewPathAttributeAsPath(aspathParam)
@@ -1175,7 +1174,7 @@ func TestPolicyMatchAndReplaceCommunities(t *testing.T) {
 	pathAttributes := []bgp.PathAttributeInterface{origin, aspath, nexthop, med, communities}
 	nlri := []*bgp.IPAddrPrefix{bgp.NewIPAddrPrefix(24, "10.10.0.101")}
 	updateMsg := bgp.NewBGPUpdateMessage(nil, pathAttributes, nlri)
-	path := table.ProcessMessage(updateMsg, peer)[0]
+	path := ProcessMessage(updateMsg, peer)[0]
 	// create policy
 	ps := createPrefixSet("ps1", "10.10.0.0/16", "21..24")
 	ns := createNeighborSet("ns1", "10.0.0.1")
@@ -1207,7 +1206,7 @@ func TestPolicyMatchAndRemoveCommunities(t *testing.T) {
 	// create path
 	community1 := "65000:100"
 	community2 := "65000:200"
-	peer := &table.PeerInfo{AS: 65001, Address: net.ParseIP("10.0.0.1")}
+	peer := &PeerInfo{AS: 65001, Address: net.ParseIP("10.0.0.1")}
 	origin := bgp.NewPathAttributeOrigin(0)
 	aspathParam := []bgp.AsPathParamInterface{bgp.NewAsPathParam(2, []uint16{65001})}
 	aspath := bgp.NewPathAttributeAsPath(aspathParam)
@@ -1220,7 +1219,7 @@ func TestPolicyMatchAndRemoveCommunities(t *testing.T) {
 	pathAttributes := []bgp.PathAttributeInterface{origin, aspath, nexthop, med, communities}
 	nlri := []*bgp.IPAddrPrefix{bgp.NewIPAddrPrefix(24, "10.10.0.101")}
 	updateMsg := bgp.NewBGPUpdateMessage(nil, pathAttributes, nlri)
-	path := table.ProcessMessage(updateMsg, peer)[0]
+	path := ProcessMessage(updateMsg, peer)[0]
 	// create policy
 	ps := createPrefixSet("ps1", "10.10.0.0/16", "21..24")
 	ns := createNeighborSet("ns1", "10.0.0.1")
@@ -1250,7 +1249,7 @@ func TestPolicyMatchAndRemoveCommunitiesRegexp(t *testing.T) {
 	community1 := "65000:100"
 	community2 := "65000:200"
 	community3 := "65100:100"
-	peer := &table.PeerInfo{AS: 65001, Address: net.ParseIP("10.0.0.1")}
+	peer := &PeerInfo{AS: 65001, Address: net.ParseIP("10.0.0.1")}
 	origin := bgp.NewPathAttributeOrigin(0)
 	aspathParam := []bgp.AsPathParamInterface{bgp.NewAsPathParam(2, []uint16{65001})}
 	aspath := bgp.NewPathAttributeAsPath(aspathParam)
@@ -1264,7 +1263,7 @@ func TestPolicyMatchAndRemoveCommunitiesRegexp(t *testing.T) {
 	pathAttributes := []bgp.PathAttributeInterface{origin, aspath, nexthop, med, communities}
 	nlri := []*bgp.IPAddrPrefix{bgp.NewIPAddrPrefix(24, "10.10.0.101")}
 	updateMsg := bgp.NewBGPUpdateMessage(nil, pathAttributes, nlri)
-	path := table.ProcessMessage(updateMsg, peer)[0]
+	path := ProcessMessage(updateMsg, peer)[0]
 	// create policy
 	ps := createPrefixSet("ps1", "10.10.0.0/16", "21..24")
 	ns := createNeighborSet("ns1", "10.0.0.1")
@@ -1294,7 +1293,7 @@ func TestPolicyMatchAndRemoveCommunitiesRegexp2(t *testing.T) {
 	community1 := "0:1"
 	community2 := "10:1"
 	community3 := "45686:2"
-	peer := &table.PeerInfo{AS: 65001, Address: net.ParseIP("10.0.0.1")}
+	peer := &PeerInfo{AS: 65001, Address: net.ParseIP("10.0.0.1")}
 	origin := bgp.NewPathAttributeOrigin(0)
 	aspathParam := []bgp.AsPathParamInterface{bgp.NewAsPathParam(2, []uint16{65001})}
 	aspath := bgp.NewPathAttributeAsPath(aspathParam)
@@ -1308,7 +1307,7 @@ func TestPolicyMatchAndRemoveCommunitiesRegexp2(t *testing.T) {
 	pathAttributes := []bgp.PathAttributeInterface{origin, aspath, nexthop, med, communities}
 	nlri := []*bgp.IPAddrPrefix{bgp.NewIPAddrPrefix(24, "10.10.0.101")}
 	updateMsg := bgp.NewBGPUpdateMessage(nil, pathAttributes, nlri)
-	path := table.ProcessMessage(updateMsg, peer)[0]
+	path := ProcessMessage(updateMsg, peer)[0]
 	// create policy
 	ps := createPrefixSet("ps1", "10.10.0.0/16", "21..24")
 	ns := createNeighborSet("ns1", "10.0.0.1")
@@ -1337,7 +1336,7 @@ func TestPolicyMatchAndClearCommunities(t *testing.T) {
 	// create path
 	community1 := "65000:100"
 	community2 := "65000:200"
-	peer := &table.PeerInfo{AS: 65001, Address: net.ParseIP("10.0.0.1")}
+	peer := &PeerInfo{AS: 65001, Address: net.ParseIP("10.0.0.1")}
 	origin := bgp.NewPathAttributeOrigin(0)
 	aspathParam := []bgp.AsPathParamInterface{bgp.NewAsPathParam(2, []uint16{65001})}
 	aspath := bgp.NewPathAttributeAsPath(aspathParam)
@@ -1350,7 +1349,7 @@ func TestPolicyMatchAndClearCommunities(t *testing.T) {
 	pathAttributes := []bgp.PathAttributeInterface{origin, aspath, nexthop, med, communities}
 	nlri := []*bgp.IPAddrPrefix{bgp.NewIPAddrPrefix(24, "10.10.0.101")}
 	updateMsg := bgp.NewBGPUpdateMessage(nil, pathAttributes, nlri)
-	path := table.ProcessMessage(updateMsg, peer)[0]
+	path := ProcessMessage(updateMsg, peer)[0]
 	// create policy
 	ps := createPrefixSet("ps1", "10.10.0.0/16", "21..24")
 	ns := createNeighborSet("ns1", "10.0.0.1")
@@ -1383,7 +1382,7 @@ func TestExtCommunityConditionEvaluate(t *testing.T) {
 
 	// setup
 	// create path
-	peer := &table.PeerInfo{AS: 65001, Address: net.ParseIP("10.0.0.1")}
+	peer := &PeerInfo{AS: 65001, Address: net.ParseIP("10.0.0.1")}
 	origin := bgp.NewPathAttributeOrigin(0)
 	aspathParam1 := []bgp.AsPathParamInterface{
 		bgp.NewAsPathParam(2, []uint16{65001, 65000, 65004, 65005}),
@@ -1453,8 +1452,8 @@ func TestExtCommunityConditionEvaluate(t *testing.T) {
 	pathAttributes := []bgp.PathAttributeInterface{origin, aspath, nexthop, med, extCommunities}
 	nlri := []*bgp.IPAddrPrefix{bgp.NewIPAddrPrefix(24, "10.10.0.101")}
 	updateMsg1 := bgp.NewBGPUpdateMessage(nil, pathAttributes, nlri)
-	table.UpdatePathAttrs4ByteAs(updateMsg1.Body.(*bgp.BGPUpdate))
-	path1 := table.ProcessMessage(updateMsg1, peer)[0]
+	UpdatePathAttrs4ByteAs(updateMsg1.Body.(*bgp.BGPUpdate))
+	path1 := ProcessMessage(updateMsg1, peer)[0]
 
 	convUintStr := func(as uint32) string {
 		upper := strconv.FormatUint(uint64(as&0xFFFF0000>>16), 10)
@@ -1584,7 +1583,7 @@ func TestExtCommunityConditionEvaluateWithOtherCondition(t *testing.T) {
 
 	// setup
 	// create path
-	peer := &table.PeerInfo{AS: 65001, Address: net.ParseIP("10.2.1.1")}
+	peer := &PeerInfo{AS: 65001, Address: net.ParseIP("10.2.1.1")}
 	origin := bgp.NewPathAttributeOrigin(0)
 	aspathParam := []bgp.AsPathParamInterface{
 		bgp.NewAsPathParam(1, []uint16{65001, 65000, 65004, 65005}),
@@ -1654,8 +1653,8 @@ func TestExtCommunityConditionEvaluateWithOtherCondition(t *testing.T) {
 	pathAttributes := []bgp.PathAttributeInterface{origin, aspath, nexthop, med, extCommunities}
 	nlri := []*bgp.IPAddrPrefix{bgp.NewIPAddrPrefix(24, "10.10.0.101")}
 	updateMsg := bgp.NewBGPUpdateMessage(nil, pathAttributes, nlri)
-	table.UpdatePathAttrs4ByteAs(updateMsg.Body.(*bgp.BGPUpdate))
-	path := table.ProcessMessage(updateMsg, peer)[0]
+	UpdatePathAttrs4ByteAs(updateMsg.Body.(*bgp.BGPUpdate))
+	path := ProcessMessage(updateMsg, peer)[0]
 
 	// create policy
 	asPathSet := config.AsPathSet{
@@ -1715,7 +1714,7 @@ func TestExtCommunityConditionEvaluateWithOtherCondition(t *testing.T) {
 func TestPolicyMatchAndReplaceMed(t *testing.T) {
 
 	// create path
-	peer := &table.PeerInfo{AS: 65001, Address: net.ParseIP("10.0.0.1")}
+	peer := &PeerInfo{AS: 65001, Address: net.ParseIP("10.0.0.1")}
 	origin := bgp.NewPathAttributeOrigin(0)
 	aspathParam := []bgp.AsPathParamInterface{bgp.NewAsPathParam(2, []uint16{65001})}
 	aspath := bgp.NewPathAttributeAsPath(aspathParam)
@@ -1725,7 +1724,7 @@ func TestPolicyMatchAndReplaceMed(t *testing.T) {
 	pathAttributes := []bgp.PathAttributeInterface{origin, aspath, nexthop, med}
 	nlri := []*bgp.IPAddrPrefix{bgp.NewIPAddrPrefix(24, "10.10.0.101")}
 	updateMsg := bgp.NewBGPUpdateMessage(nil, pathAttributes, nlri)
-	path := table.ProcessMessage(updateMsg, peer)[0]
+	path := ProcessMessage(updateMsg, peer)[0]
 	// create policy
 	ps := createPrefixSet("ps1", "10.10.0.0/16", "21..24")
 	ns := createNeighborSet("ns1", "10.0.0.1")
@@ -1757,7 +1756,7 @@ func TestPolicyMatchAndReplaceMed(t *testing.T) {
 func TestPolicyMatchAndAddingMed(t *testing.T) {
 
 	// create path
-	peer := &table.PeerInfo{AS: 65001, Address: net.ParseIP("10.0.0.1")}
+	peer := &PeerInfo{AS: 65001, Address: net.ParseIP("10.0.0.1")}
 	origin := bgp.NewPathAttributeOrigin(0)
 	aspathParam := []bgp.AsPathParamInterface{bgp.NewAsPathParam(2, []uint16{65001})}
 	aspath := bgp.NewPathAttributeAsPath(aspathParam)
@@ -1767,7 +1766,7 @@ func TestPolicyMatchAndAddingMed(t *testing.T) {
 	pathAttributes := []bgp.PathAttributeInterface{origin, aspath, nexthop, med}
 	nlri := []*bgp.IPAddrPrefix{bgp.NewIPAddrPrefix(24, "10.10.0.101")}
 	updateMsg := bgp.NewBGPUpdateMessage(nil, pathAttributes, nlri)
-	path := table.ProcessMessage(updateMsg, peer)[0]
+	path := ProcessMessage(updateMsg, peer)[0]
 	// create policy
 	ps := createPrefixSet("ps1", "10.10.0.0/16", "21..24")
 	ns := createNeighborSet("ns1", "10.0.0.1")
@@ -1799,7 +1798,7 @@ func TestPolicyMatchAndAddingMed(t *testing.T) {
 func TestPolicyMatchAndAddingMedOverFlow(t *testing.T) {
 
 	// create path
-	peer := &table.PeerInfo{AS: 65001, Address: net.ParseIP("10.0.0.1")}
+	peer := &PeerInfo{AS: 65001, Address: net.ParseIP("10.0.0.1")}
 	origin := bgp.NewPathAttributeOrigin(0)
 	aspathParam := []bgp.AsPathParamInterface{bgp.NewAsPathParam(2, []uint16{65001})}
 	aspath := bgp.NewPathAttributeAsPath(aspathParam)
@@ -1809,7 +1808,7 @@ func TestPolicyMatchAndAddingMedOverFlow(t *testing.T) {
 	pathAttributes := []bgp.PathAttributeInterface{origin, aspath, nexthop, med}
 	nlri := []*bgp.IPAddrPrefix{bgp.NewIPAddrPrefix(24, "10.10.0.101")}
 	updateMsg := bgp.NewBGPUpdateMessage(nil, pathAttributes, nlri)
-	path := table.ProcessMessage(updateMsg, peer)[0]
+	path := ProcessMessage(updateMsg, peer)[0]
 	// create policy
 	ps := createPrefixSet("ps1", "10.10.0.0/16", "21..24")
 	ns := createNeighborSet("ns1", "10.0.0.1")
@@ -1843,7 +1842,7 @@ func TestPolicyMatchAndAddingMedOverFlow(t *testing.T) {
 func TestPolicyMatchAndSubtractMed(t *testing.T) {
 
 	// create path
-	peer := &table.PeerInfo{AS: 65001, Address: net.ParseIP("10.0.0.1")}
+	peer := &PeerInfo{AS: 65001, Address: net.ParseIP("10.0.0.1")}
 	origin := bgp.NewPathAttributeOrigin(0)
 	aspathParam := []bgp.AsPathParamInterface{bgp.NewAsPathParam(2, []uint16{65001})}
 	aspath := bgp.NewPathAttributeAsPath(aspathParam)
@@ -1853,7 +1852,7 @@ func TestPolicyMatchAndSubtractMed(t *testing.T) {
 	pathAttributes := []bgp.PathAttributeInterface{origin, aspath, nexthop, med}
 	nlri := []*bgp.IPAddrPrefix{bgp.NewIPAddrPrefix(24, "10.10.0.101")}
 	updateMsg := bgp.NewBGPUpdateMessage(nil, pathAttributes, nlri)
-	path := table.ProcessMessage(updateMsg, peer)[0]
+	path := ProcessMessage(updateMsg, peer)[0]
 	// create policy
 	ps := createPrefixSet("ps1", "10.10.0.0/16", "21..24")
 	ns := createNeighborSet("ns1", "10.0.0.1")
@@ -1887,7 +1886,7 @@ func TestPolicyMatchAndSubtractMed(t *testing.T) {
 func TestPolicyMatchAndSubtractMedUnderFlow(t *testing.T) {
 
 	// create path
-	peer := &table.PeerInfo{AS: 65001, Address: net.ParseIP("10.0.0.1")}
+	peer := &PeerInfo{AS: 65001, Address: net.ParseIP("10.0.0.1")}
 	origin := bgp.NewPathAttributeOrigin(0)
 	aspathParam := []bgp.AsPathParamInterface{bgp.NewAsPathParam(2, []uint16{65001})}
 	aspath := bgp.NewPathAttributeAsPath(aspathParam)
@@ -1897,7 +1896,7 @@ func TestPolicyMatchAndSubtractMedUnderFlow(t *testing.T) {
 	pathAttributes := []bgp.PathAttributeInterface{origin, aspath, nexthop, med}
 	nlri := []*bgp.IPAddrPrefix{bgp.NewIPAddrPrefix(24, "10.10.0.101")}
 	updateMsg := bgp.NewBGPUpdateMessage(nil, pathAttributes, nlri)
-	path := table.ProcessMessage(updateMsg, peer)[0]
+	path := ProcessMessage(updateMsg, peer)[0]
 	// create policy
 	ps := createPrefixSet("ps1", "10.10.0.0/16", "21..24")
 	ns := createNeighborSet("ns1", "10.0.0.1")
@@ -1931,7 +1930,7 @@ func TestPolicyMatchAndSubtractMedUnderFlow(t *testing.T) {
 func TestPolicyMatchWhenPathHaveNotMed(t *testing.T) {
 
 	// create path
-	peer := &table.PeerInfo{AS: 65001, Address: net.ParseIP("10.0.0.1")}
+	peer := &PeerInfo{AS: 65001, Address: net.ParseIP("10.0.0.1")}
 	origin := bgp.NewPathAttributeOrigin(0)
 	aspathParam := []bgp.AsPathParamInterface{bgp.NewAsPathParam(2, []uint16{65001})}
 	aspath := bgp.NewPathAttributeAsPath(aspathParam)
@@ -1940,7 +1939,7 @@ func TestPolicyMatchWhenPathHaveNotMed(t *testing.T) {
 	pathAttributes := []bgp.PathAttributeInterface{origin, aspath, nexthop}
 	nlri := []*bgp.IPAddrPrefix{bgp.NewIPAddrPrefix(24, "10.10.0.101")}
 	updateMsg := bgp.NewBGPUpdateMessage(nil, pathAttributes, nlri)
-	path := table.ProcessMessage(updateMsg, peer)[0]
+	path := ProcessMessage(updateMsg, peer)[0]
 	// create policy
 	ps := createPrefixSet("ps1", "10.10.0.0/16", "21..24")
 	ns := createNeighborSet("ns1", "10.0.0.1")
@@ -1972,7 +1971,7 @@ func TestPolicyAsPathPrepend(t *testing.T) {
 	assert := assert.New(t)
 
 	// create path
-	peer := &table.PeerInfo{AS: 65001, Address: net.ParseIP("10.0.0.1")}
+	peer := &PeerInfo{AS: 65001, Address: net.ParseIP("10.0.0.1")}
 	origin := bgp.NewPathAttributeOrigin(0)
 	aspathParam := []bgp.AsPathParamInterface{bgp.NewAsPathParam(2, []uint16{65001, 65000})}
 	aspath := bgp.NewPathAttributeAsPath(aspathParam)
@@ -1984,8 +1983,8 @@ func TestPolicyAsPathPrepend(t *testing.T) {
 	updateMsg := bgp.NewBGPUpdateMessage(nil, pathAttributes, nlri)
 
 	body := updateMsg.Body.(*bgp.BGPUpdate)
-	table.UpdatePathAttrs4ByteAs(body)
-	path := table.ProcessMessage(updateMsg, peer)[0]
+	UpdatePathAttrs4ByteAs(body)
+	path := ProcessMessage(updateMsg, peer)[0]
 
 	// create policy
 	ps := createPrefixSet("ps1", "10.10.0.0/16", "21..24")
@@ -2015,7 +2014,7 @@ func TestPolicyAsPathPrependLastAs(t *testing.T) {
 
 	assert := assert.New(t)
 	// create path
-	peer := &table.PeerInfo{AS: 65001, Address: net.ParseIP("10.0.0.1")}
+	peer := &PeerInfo{AS: 65001, Address: net.ParseIP("10.0.0.1")}
 	origin := bgp.NewPathAttributeOrigin(0)
 	aspathParam := []bgp.AsPathParamInterface{bgp.NewAsPathParam(2, []uint16{65002, 65001, 65000})}
 	aspath := bgp.NewPathAttributeAsPath(aspathParam)
@@ -2027,8 +2026,8 @@ func TestPolicyAsPathPrependLastAs(t *testing.T) {
 	updateMsg := bgp.NewBGPUpdateMessage(nil, pathAttributes, nlri)
 
 	body := updateMsg.Body.(*bgp.BGPUpdate)
-	table.UpdatePathAttrs4ByteAs(body)
-	path := table.ProcessMessage(updateMsg, peer)[0]
+	UpdatePathAttrs4ByteAs(body)
+	path := ProcessMessage(updateMsg, peer)[0]
 
 	// create policy
 	ps := createPrefixSet("ps1", "10.10.0.0/16", "21..24")

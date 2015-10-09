@@ -20,7 +20,7 @@ import (
 	"encoding/json"
 	"fmt"
 	api "github.com/osrg/gobgp/api"
-	"github.com/osrg/gobgp/policy"
+	"github.com/osrg/gobgp/table"
 	"github.com/spf13/cobra"
 	"golang.org/x/net/context"
 	"io"
@@ -731,10 +731,10 @@ func checkCommunityFormat(comStr string) bool {
 	regUint, _ := regexp.Compile("^([0-9]+)$")
 	regString, _ := regexp.Compile("([0-9]+):([0-9]+)")
 	regWellKnown, _ := regexp.Compile("^(" +
-		policy.COMMUNITY_INTERNET + "|" +
-		policy.COMMUNITY_NO_EXPORT + "|" +
-		policy.COMMUNITY_NO_ADVERTISE + "|" +
-		policy.COMMUNITY_NO_EXPORT_SUBCONFED + ")$")
+		table.COMMUNITY_INTERNET + "|" +
+		table.COMMUNITY_NO_EXPORT + "|" +
+		table.COMMUNITY_NO_ADVERTISE + "|" +
+		table.COMMUNITY_NO_EXPORT_SUBCONFED + ")$")
 	if regUint.MatchString(comStr) || regString.MatchString(comStr) || regWellKnown.MatchString(comStr) {
 		return true
 	}
@@ -1254,10 +1254,10 @@ func parseCommunityAction(communityStr string) (*api.CommunityAction, error) {
 		communities = group[2]
 
 		// check options
-		communityActionTypes := policy.COMMUNITY_ACTION_ADD + "|" +
-			policy.COMMUNITY_ACTION_REPLACE + "|" +
-			policy.COMMUNITY_ACTION_REMOVE + "|" +
-			policy.COMMUNITY_ACTION_NULL
+		communityActionTypes := table.COMMUNITY_ACTION_ADD + "|" +
+			table.COMMUNITY_ACTION_REPLACE + "|" +
+			table.COMMUNITY_ACTION_REMOVE + "|" +
+			table.COMMUNITY_ACTION_NULL
 		regOption, _ := regexp.Compile(fmt.Sprintf("^(%s)$", communityActionTypes))
 		if !regOption.MatchString(option) {
 			e := fmt.Sprintf("invalid Option: %s\n", option)
