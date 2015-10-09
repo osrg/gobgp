@@ -44,6 +44,7 @@ type Peer struct {
 	inPolicies            []*policy.Policy
 	defaultInPolicy       config.DefaultPolicyType
 	accepted              uint32
+	staleAccepted         bool
 	importPolicies        []*policy.Policy
 	defaultImportPolicy   config.DefaultPolicyType
 	exportPolicies        []*policy.Policy
@@ -292,11 +293,24 @@ func (peer *Peer) ToApiStruct() *api.Peer {
 
 	advertized := uint32(0)
 	received := uint32(0)
+	accepted := uint32(0)
 	if f.state == bgp.BGP_FSM_ESTABLISHED {
 		for _, rf := range peer.configuredRFlist() {
 			advertized += uint32(peer.adjRib.GetOutCount(rf))
 			received += uint32(peer.adjRib.GetInCount(rf))
-			// FIXME: we should store 'accepted' in memory
+			if peer.staleAccepted {
+				for _, path := range peer.adjRib.GetInPathList(rf) {
+					if path.Filtered == false {
+						accepted++
+					}
+				}
+			}
+		}
+		if peer.staleAccepted {
+			peer.staleAccepted = false
+			peer.accepted = accepted
+		} else {
+			accepted = peer.accepted
 		}
 	}
 
@@ -330,7 +344,7 @@ func (peer *Peer) ToApiStruct() *api.Peer {
 		Uptime:                    uptime,
 		Downtime:                  downtime,
 		Received:                  received,
-		Accepted:                  peer.accepted,
+		Accepted:                  accepted,
 		Advertized:                advertized,
 		OutQ:                      uint32(len(peer.outgoing)),
 		Flops:                     s.Flops,
@@ -424,6 +438,9 @@ func (peer *Peer) GetDefaultPolicy(d PolicyDirection) policy.RouteType {
 }
 
 func (peer *Peer) ApplyPolicy(d PolicyDirection, paths []*table.Path) ([]*table.Path, []*table.Path) {
+	if d == POLICY_DIRECTION_IN {
+		peer.staleAccepted = true
+	}
 	newpaths := make([]*table.Path, 0, len(paths))
 	filteredPaths := make([]*table.Path, 0)
 	for _, path := range paths {
@@ -443,9 +460,6 @@ func (peer *Peer) ApplyPolicy(d PolicyDirection, paths []*table.Path) ([]*table.
 		switch result {
 		case policy.ROUTE_TYPE_ACCEPT:
 			newpaths = append(newpaths, newpath)
-			if d == POLICY_DIRECTION_IN {
-				peer.accepted += 1
-			}
 		case policy.ROUTE_TYPE_REJECT:
 			path.Filtered = true
 			filteredPaths = append(filteredPaths, path)
@@ -462,5 +476,6 @@ func (peer *Peer) ApplyPolicy(d PolicyDirection, paths []*table.Path) ([]*table.
 
 func (peer *Peer) DropAll(rf bgp.RouteFamily) {
 	peer.adjRib.DropAll(rf)
+	peer.staleAccepted = false
 	peer.accepted = 0
 }
