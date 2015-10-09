@@ -1477,6 +1477,7 @@ func (server *BgpServer) handleGrpc(grpcReq *GrpcRequest) []*SenderMsg {
 			break
 		}
 		for _, peer := range peers {
+			peer.staleAccepted = false
 			peer.accepted = 0
 		}
 		if grpcReq.RequestType == REQ_NEIGHBOR_SOFT_RESET {
