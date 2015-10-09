@@ -459,6 +459,7 @@ func (peer *Peer) ApplyPolicy(d PolicyDirection, paths []*table.Path) ([]*table.
 
 		switch result {
 		case policy.ROUTE_TYPE_ACCEPT:
+			path.Filtered = false
 			newpaths = append(newpaths, newpath)
 		case policy.ROUTE_TYPE_REJECT:
 			path.Filtered = true
