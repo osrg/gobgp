@@ -1141,7 +1141,7 @@ func (server *BgpServer) handleVrfMod(arg *api.ModVrfArguments) ([]*table.Path, 
 		if err != nil {
 			return nil, err
 		}
-		exportRt, err := f(arg.Vrf.ImportRt)
+		exportRt, err := f(arg.Vrf.ExportRt)
 		if err != nil {
 			return nil, err
 		}

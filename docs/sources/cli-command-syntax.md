@@ -381,7 +381,7 @@ The following options can be specified in the policy subcommand:
 % gobgp vrf add vrf1 rd 10.100:100 rt both 10.100:100 import 10.100:101 export 10.100:102
 % gobgp vrf
   Name                 RD                   Import RT                  Export RT
-  vrf1                 10.100:100           10.100:100, 10.100:101     10.100:100, 10.100:101
+  vrf1                 10.100:100           10.100:100, 10.100:101     10.100:100, 10.100:102
 % gobgp vrf del vrf1
 % gobgp vrf
   Name                 RD                   Import RT            Export RT

@@ -133,7 +133,7 @@ func modVrf(typ string, args []string) error {
 			case "import":
 				importRt = append(importRt, buf)
 			case "export":
-				exportRt = append(importRt, buf)
+				exportRt = append(exportRt, buf)
 			case "both":
 				importRt = append(importRt, buf)
 				exportRt = append(exportRt, buf)
