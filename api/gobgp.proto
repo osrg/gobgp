@@ -31,7 +31,7 @@ service GobgpApi {
   rpc Enable(Arguments) returns (Error) {}
   rpc Disable(Arguments) returns (Error) {}
   rpc ModPath(stream ModPathArguments) returns (Error) {}
-  rpc GetNeighborPolicy(Arguments) returns (ApplyPolicy) {}
+  rpc GetNeighborPolicy(PolicyArguments) returns (ApplyPolicy) {}
   rpc ModNeighborPolicy(stream PolicyArguments) returns (stream Error) {}
   rpc GetPolicyRoutePolicies(PolicyArguments) returns (stream PolicyDefinition) {}
   rpc GetPolicyRoutePolicy(PolicyArguments) returns (PolicyDefinition) {}
@@ -259,13 +259,16 @@ message PolicyDefinition {
     repeated Statement statement_list = 2;
 }
 
+enum PolicyType {
+    IN = 0;
+    IMPORT = 1;
+    EXPORT = 2;
+}
+
 message ApplyPolicy {
-    repeated PolicyDefinition import_policies = 1;
-    RouteAction default_import_policy = 2;
-    repeated PolicyDefinition export_policies = 3;
-    RouteAction default_export_policy = 4;
-    repeated PolicyDefinition in_policies = 5;
-    RouteAction default_in_policy = 6;
+    PolicyType type = 1;
+    repeated PolicyDefinition policies = 2;
+    RouteAction default = 3;
 }
 
 message MrtMessage {

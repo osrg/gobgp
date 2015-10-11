@@ -41,12 +41,7 @@ const (
 	REQ_NEIGHBOR_ENABLE
 	REQ_NEIGHBOR_DISABLE
 	REQ_NEIGHBOR_POLICY
-	REQ_NEIGHBOR_POLICY_ADD_IMPORT
-	REQ_NEIGHBOR_POLICY_ADD_EXPORT
-	REQ_NEIGHBOR_POLICY_ADD_IN
-	REQ_NEIGHBOR_POLICY_DEL_IMPORT
-	REQ_NEIGHBOR_POLICY_DEL_EXPORT
-	REQ_NEIGHBOR_POLICY_DEL_IN
+	REQ_MOD_NEIGHBOR_POLICY
 	REQ_GLOBAL_RIB
 	REQ_POLICY_PREFIX
 	REQ_POLICY_PREFIXES
@@ -269,16 +264,18 @@ func (s *Server) ModPath(stream api.GobgpApi_ModPathServer) error {
 	return err
 }
 
-func (s *Server) GetNeighborPolicy(ctx context.Context, arg *api.Arguments) (*api.ApplyPolicy, error) {
-	if arg.Resource != api.Resource_LOCAL && arg.Resource != api.Resource_GLOBAL {
+func (s *Server) GetNeighborPolicy(ctx context.Context, arg *api.PolicyArguments) (*api.ApplyPolicy, error) {
+	r := 0
+	switch arg.Resource {
+	case api.Resource_GLOBAL:
+		r = REQ_GLOBAL_POLICY
+	case api.Resource_POLICY_NEIGHBOR:
+		r = REQ_NEIGHBOR_POLICY
+	default:
 		return nil, fmt.Errorf("unsupported resource: %s", arg.Resource)
 	}
-	var req *GrpcRequest
-	if arg.Resource == api.Resource_LOCAL {
-		req = NewGrpcRequest(REQ_NEIGHBOR_POLICY, arg.Name, bgp.RouteFamily(arg.Rf), nil)
-	} else {
-		req = NewGrpcRequest(REQ_GLOBAL_POLICY, "", bgp.RouteFamily(arg.Rf), nil)
-	}
+
+	req := NewGrpcRequest(r, arg.NeighborAddress, bgp.RouteFamily(0), arg)
 	s.bgpServerCh <- req
 
 	res := <-req.ResponseCh
@@ -298,32 +295,7 @@ func (s *Server) ModNeighborPolicy(stream api.GobgpApi_ModNeighborPolicyServer) 
 			return err
 		}
 
-		if arg.Resource != api.Resource_POLICY_ROUTEPOLICY {
-			return fmt.Errorf("unsupported resource: %s", arg.Resource)
-		}
-		var rf bgp.RouteFamily
-		var reqType int
-		switch arg.Operation {
-		case api.Operation_ADD:
-			switch arg.Name {
-			case "import":
-				reqType = REQ_NEIGHBOR_POLICY_ADD_IMPORT
-			case "export":
-				reqType = REQ_NEIGHBOR_POLICY_ADD_EXPORT
-			case "in":
-				reqType = REQ_NEIGHBOR_POLICY_ADD_IN
-			}
-		case api.Operation_DEL:
-			switch arg.Name {
-			case "import":
-				reqType = REQ_NEIGHBOR_POLICY_DEL_IMPORT
-			case "export":
-				reqType = REQ_NEIGHBOR_POLICY_DEL_EXPORT
-			case "in":
-				reqType = REQ_NEIGHBOR_POLICY_DEL_IN
-			}
-		}
-		req := NewGrpcRequest(reqType, arg.NeighborAddress, rf, arg.ApplyPolicy)
+		req := NewGrpcRequest(REQ_MOD_NEIGHBOR_POLICY, arg.NeighborAddress, bgp.RouteFamily(0), arg)
 		s.bgpServerCh <- req
 		res := <-req.ResponseCh
 		if err := res.Err(); err != nil {

@@ -22,7 +22,6 @@ import (
 	api "github.com/osrg/gobgp/api"
 	"github.com/osrg/gobgp/config"
 	"github.com/osrg/gobgp/packet"
-	"github.com/osrg/gobgp/table"
 	"github.com/spf13/cobra"
 	"golang.org/x/net/context"
 	"io"
@@ -610,19 +609,24 @@ func stateChangeNeighbor(cmd string, remoteIP string, args []string) error {
 	return err
 }
 
-func showNeighborPolicy(remoteIP net.IP) error {
-	rf, err := checkAddressFamily(addr2AddressFamily(remoteIP))
-	if err != nil {
-		return err
+func showNeighborPolicy(remoteIP net.IP, policyType string) error {
+	p := &api.ApplyPolicy{}
+	switch strings.ToLower(policyType) {
+	case "in":
+		p.Type = api.PolicyType_IN
+	case "import":
+		p.Type = api.PolicyType_IMPORT
+	case "export":
+		p.Type = api.PolicyType_EXPORT
 	}
 	r := api.Resource_LOCAL
 	if remoteIP == nil {
 		r = api.Resource_GLOBAL
 	}
-	arg := &api.Arguments{
-		Rf:       uint32(rf),
-		Resource: r,
-		Name:     remoteIP.String(),
+	arg := &api.PolicyArguments{
+		NeighborAddress: remoteIP.String(),
+		ApplyPolicy:     p,
+		Resource:        r,
 	}
 
 	ap, e := client.GetNeighborPolicy(context.Background(), arg)
@@ -636,23 +640,10 @@ func showNeighborPolicy(remoteIP net.IP) error {
 		return nil
 	}
 
-	fmt.Printf("DefaultImportPolicy: %s\n", ap.DefaultImportPolicy)
-	fmt.Printf("DefaultExportPolicy: %s\n", ap.DefaultExportPolicy)
-	fmt.Printf("DefaultInPolicy: %s\n", ap.DefaultInPolicy)
-	fmt.Printf("ImportPolicies:\n")
-	for _, inPolicy := range ap.ImportPolicies {
+	fmt.Printf("Default: %s\n", ap.Default)
+	for _, inPolicy := range ap.Policies {
 		fmt.Printf("  PolicyName %s:\n", inPolicy.PolicyDefinitionName)
 		showPolicyStatement(2, inPolicy)
-	}
-	fmt.Printf("ExportPolicies:\n")
-	for _, outPolicy := range ap.ExportPolicies {
-		fmt.Printf("  PolicyName %s:\n", outPolicy.PolicyDefinitionName)
-		showPolicyStatement(2, outPolicy)
-	}
-	fmt.Printf("InPolicies:\n")
-	for _, distPolicy := range ap.InPolicies {
-		fmt.Printf("  PolicyName %s:\n", distPolicy.PolicyDefinitionName)
-		showPolicyStatement(2, distPolicy)
 	}
 	return nil
 }
@@ -671,32 +662,31 @@ func parsePolicy(pNames string) []*api.PolicyDefinition {
 	return policyList
 }
 
-func modNeighborPolicy(remoteIP net.IP, cmdType string, eArg []string) error {
+func modNeighborPolicy(remoteIP net.IP, policyType, cmdType string, eArg []string) error {
 	var operation api.Operation
-	pol := &api.ApplyPolicy{}
+	p := &api.ApplyPolicy{}
+	switch strings.ToLower(policyType) {
+	case "in":
+		p.Type = api.PolicyType_IN
+	case "import":
+		p.Type = api.PolicyType_IMPORT
+	case "export":
+		p.Type = api.PolicyType_EXPORT
+	}
+
 	switch cmdType {
 	case CMD_ADD:
-		if len(eArg) < 4 {
-			return fmt.Errorf("Usage: gobgp neighbor <ipaddr> policy %s {%s|%s|%s} <policies> {%s|%s}", cmdType, CMD_IMPORT, CMD_EXPORT, CMD_IN, table.ROUTE_TYPE_ACCEPT, table.ROUTE_TYPE_REJECT)
+		if len(eArg) < 3 {
+			return fmt.Errorf("Usage: gobgp neighbor <ipaddr> policy %s %s <policies> {%s|%s}", policyType, cmdType, "accept", "reject")
 		}
-		policies := parsePolicy(eArg[1])
-		defaultPolicy, err := parseRouteAction(eArg[2])
+		policies := parsePolicy(eArg[0])
+		defaultPolicy, err := parseRouteAction(eArg[1])
 		if err != nil {
 			return err
 		}
-		switch eArg[0] {
-		case CMD_IMPORT:
-			pol.ImportPolicies = policies
-			pol.DefaultImportPolicy = defaultPolicy
-		case CMD_EXPORT:
-			pol.ExportPolicies = policies
-			pol.DefaultExportPolicy = defaultPolicy
-		case CMD_IN:
-			pol.InPolicies = policies
-			pol.DefaultInPolicy = defaultPolicy
-		}
+		p.Policies = policies
+		p.Default = defaultPolicy
 		operation = api.Operation_ADD
-
 	case CMD_DEL:
 		operation = api.Operation_DEL
 	}
@@ -705,7 +695,7 @@ func modNeighborPolicy(remoteIP net.IP, cmdType string, eArg []string) error {
 		Operation:       operation,
 		NeighborAddress: remoteIP.String(),
 		Name:            eArg[0],
-		ApplyPolicy:     pol,
+		ApplyPolicy:     p,
 	}
 	stream, err := client.ModNeighborPolicy(context.Background())
 	if err != nil {
@@ -775,39 +765,48 @@ func NewNeighborCmd() *cobra.Command {
 
 	policyCmd := &cobra.Command{
 		Use: CMD_POLICY,
-		Run: func(cmd *cobra.Command, args []string) {
-			var err error
-			remoteIP := net.ParseIP(args[0])
-			if remoteIP == nil {
-				err = fmt.Errorf("invalid ip address: %s", args[0])
-			} else {
-				err = showNeighborPolicy(remoteIP)
-			}
-			if err != nil {
-				fmt.Println(err)
-				os.Exit(1)
-			}
-		},
 	}
 
-	for _, v := range []string{CMD_ADD, CMD_DEL} {
+	for _, v := range []string{CMD_IN, CMD_IMPORT, CMD_EXPORT} {
 		cmd := &cobra.Command{
 			Use: v,
 			Run: func(cmd *cobra.Command, args []string) {
 				var err error
-				remoteIP := net.ParseIP(args[len(args)-1])
+				remoteIP := net.ParseIP(args[0])
 				if remoteIP == nil {
-					fmt.Println("invalid ip address:", args[len(args)-1])
-					os.Exit(1)
+					err = fmt.Errorf("invalid ip address: %s", args[0])
+				} else {
+					err = showNeighborPolicy(remoteIP, cmd.Use)
 				}
-				err = modNeighborPolicy(remoteIP, cmd.Use, args)
 				if err != nil {
 					fmt.Println(err)
 					os.Exit(1)
 				}
+
 			},
 		}
+
+		for _, w := range []string{CMD_ADD, CMD_DEL} {
+			subcmd := &cobra.Command{
+				Use: w,
+				Run: func(subcmd *cobra.Command, args []string) {
+					remoteIP := net.ParseIP(args[len(args)-1])
+					if remoteIP == nil {
+						fmt.Println("invalid ip address:", args[len(args)-1])
+						os.Exit(1)
+					}
+					err := modNeighborPolicy(remoteIP, cmd.Use, subcmd.Use, args)
+					if err != nil {
+						fmt.Println(err)
+						os.Exit(1)
+					}
+				},
+			}
+			cmd.AddCommand(subcmd)
+		}
+
 		policyCmd.AddCommand(cmd)
+
 	}
 
 	neighborCmdImpl.AddCommand(policyCmd)
