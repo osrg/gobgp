@@ -1544,114 +1544,104 @@ func (server *BgpServer) handleGrpc(grpcReq *GrpcRequest) []*SenderMsg {
 		close(grpcReq.ResponseCh)
 
 	case REQ_NEIGHBOR_POLICY, REQ_GLOBAL_POLICY:
-		var in, imp, exp []*api.PolicyDefinition
-		var inD, impD, expD api.RouteAction
-
-		extract := func(policyNames []string) []*api.PolicyDefinition {
-			pdList := server.routingPolicy.PolicyDefinitions.PolicyDefinitionList
-			df := server.routingPolicy.DefinedSets
-			extracted := []*api.PolicyDefinition{}
-			for _, policyName := range policyNames {
-				match := false
-				for _, pd := range pdList {
-					if policyName == pd.Name {
-						match = true
-						extracted = append(extracted, table.PolicyDefinitionToApiStruct(pd, df))
-						break
-					}
-				}
-				if !match {
-					extracted = append(extracted, &api.PolicyDefinition{PolicyDefinitionName: policyName})
-				}
-			}
-			return extracted
-		}
-
-		if grpcReq.RequestType == REQ_NEIGHBOR_POLICY {
+		arg := grpcReq.Data.(*api.PolicyArguments)
+		var names []string
+		def := api.RouteAction_REJECT
+		var applyPolicy config.ApplyPolicy
+		switch grpcReq.RequestType {
+		case REQ_NEIGHBOR_POLICY:
 			peer, err := server.checkNeighborRequest(grpcReq)
 			if err != nil {
 				break
 			}
-			// Add importpolies that has been set in the configuration file to the list.
-			// However, peer haven't target importpolicy when add PolicyDefinition of name only to the list.
-			conImportPolicyNames := peer.conf.ApplyPolicy.ApplyPolicyConfig.ImportPolicy
-			imp = extract(conImportPolicyNames)
+			applyPolicy = peer.conf.ApplyPolicy
+		case REQ_GLOBAL_RIB:
+			applyPolicy = server.bgpConfig.Global.ApplyPolicy
+		default:
+		}
+		switch arg.ApplyPolicy.Type {
+		case api.PolicyType_IMPORT:
+			names = applyPolicy.ApplyPolicyConfig.ImportPolicy
+			if applyPolicy.ApplyPolicyConfig.DefaultImportPolicy == config.DEFAULT_POLICY_TYPE_ACCEPT_ROUTE {
+				def = api.RouteAction_ACCEPT
+			}
+		case api.PolicyType_EXPORT:
+			names = applyPolicy.ApplyPolicyConfig.ExportPolicy
+			if applyPolicy.ApplyPolicyConfig.DefaultExportPolicy == config.DEFAULT_POLICY_TYPE_ACCEPT_ROUTE {
+				def = api.RouteAction_ACCEPT
+			}
+		case api.PolicyType_IN:
+			names = applyPolicy.ApplyPolicyConfig.InPolicy
+			if applyPolicy.ApplyPolicyConfig.DefaultInPolicy == config.DEFAULT_POLICY_TYPE_ACCEPT_ROUTE {
+				def = api.RouteAction_ACCEPT
+			}
+		}
+		policies := make([]*api.PolicyDefinition, 0, len(names))
 
-			// Add importpolies that has been set in the configuration file to the list.
-			// However, peer haven't target importpolicy when add PolicyDefinition of name only to the list.
-			conExportPolicyNames := peer.conf.ApplyPolicy.ApplyPolicyConfig.ExportPolicy
-			exp = extract(conExportPolicyNames)
-
-			inPolicyNames := peer.conf.ApplyPolicy.ApplyPolicyConfig.InPolicy
-			in = extract(inPolicyNames)
-
-			impD = peer.GetDefaultPolicy(table.POLICY_DIRECTION_IMPORT).ToApiStruct()
-			expD = peer.GetDefaultPolicy(table.POLICY_DIRECTION_EXPORT).ToApiStruct()
-			inD = peer.GetDefaultPolicy(table.POLICY_DIRECTION_IN).ToApiStruct()
-		} else {
-			names := server.bgpConfig.Global.ApplyPolicy.ApplyPolicyConfig.ImportPolicy
-			imp = extract(names)
-
-			names = server.bgpConfig.Global.ApplyPolicy.ApplyPolicyConfig.ExportPolicy
-			exp = extract(names)
-
-			impD = server.globalRib.GetDefaultPolicy(table.POLICY_DIRECTION_IMPORT).ToApiStruct()
-			expD = server.globalRib.GetDefaultPolicy(table.POLICY_DIRECTION_EXPORT).ToApiStruct()
+		pdList := server.routingPolicy.PolicyDefinitions.PolicyDefinitionList
+		df := server.routingPolicy.DefinedSets
+		for _, name := range names {
+			match := false
+			for _, pd := range pdList {
+				if name == pd.Name {
+					match = true
+					policies = append(policies, table.PolicyDefinitionToApiStruct(pd, df))
+					break
+				}
+			}
+			if !match {
+				policies = append(policies, &api.PolicyDefinition{PolicyDefinitionName: name})
+			}
 		}
 
 		result := &GrpcResponse{
 			Data: &api.ApplyPolicy{
-				DefaultImportPolicy: impD,
-				ImportPolicies:      imp,
-				DefaultExportPolicy: expD,
-				ExportPolicies:      exp,
-				DefaultInPolicy:     inD,
-				InPolicies:          in,
+				Policies: policies,
+				Default:  def,
 			},
 		}
 		grpcReq.ResponseCh <- result
 		close(grpcReq.ResponseCh)
 
-	case REQ_NEIGHBOR_POLICY_ADD_IMPORT, REQ_NEIGHBOR_POLICY_ADD_EXPORT, REQ_NEIGHBOR_POLICY_ADD_IN,
-		REQ_NEIGHBOR_POLICY_DEL_IMPORT, REQ_NEIGHBOR_POLICY_DEL_EXPORT, REQ_NEIGHBOR_POLICY_DEL_IN:
+	case REQ_MOD_NEIGHBOR_POLICY:
 		peer, err := server.checkNeighborRequest(grpcReq)
 		if err != nil {
 			break
 		}
 		result := &GrpcResponse{}
-		reqApplyPolicy := grpcReq.Data.(*api.ApplyPolicy)
+		arg := grpcReq.Data.(*api.PolicyArguments)
 		reqPolicyMap := server.policyMap
-		applyPolicy := &peer.conf.ApplyPolicy.ApplyPolicyConfig
-		var defInPolicy, defOutPolicy, defDistPolicy config.DefaultPolicyType
-		if grpcReq.RequestType == REQ_NEIGHBOR_POLICY_ADD_IMPORT {
-			if reqApplyPolicy.DefaultImportPolicy != api.RouteAction_ACCEPT {
-				defInPolicy = config.DEFAULT_POLICY_TYPE_REJECT_ROUTE
+		applyPolicy := peer.conf.ApplyPolicy.ApplyPolicyConfig
+		def := config.DEFAULT_POLICY_TYPE_ACCEPT_ROUTE
+		switch arg.Operation {
+		case api.Operation_ADD:
+			if arg.ApplyPolicy.Default != api.RouteAction_REJECT {
+				def = config.DEFAULT_POLICY_TYPE_REJECT_ROUTE
 			}
-			applyPolicy.DefaultImportPolicy = defInPolicy
-			applyPolicy.ImportPolicy = table.PoliciesToString(reqApplyPolicy.ImportPolicies)
-		} else if grpcReq.RequestType == REQ_NEIGHBOR_POLICY_ADD_EXPORT {
-			if reqApplyPolicy.DefaultExportPolicy != api.RouteAction_ACCEPT {
-				defOutPolicy = config.DEFAULT_POLICY_TYPE_REJECT_ROUTE
+			switch arg.ApplyPolicy.Type {
+			case api.PolicyType_IMPORT:
+				applyPolicy.DefaultImportPolicy = def
+				applyPolicy.ImportPolicy = table.PoliciesToString(arg.ApplyPolicy.Policies)
+			case api.PolicyType_EXPORT:
+				applyPolicy.DefaultExportPolicy = def
+				applyPolicy.ExportPolicy = table.PoliciesToString(arg.ApplyPolicy.Policies)
+			case api.PolicyType_IN:
+				applyPolicy.DefaultInPolicy = def
+				applyPolicy.InPolicy = table.PoliciesToString(arg.ApplyPolicy.Policies)
 			}
-			applyPolicy.DefaultExportPolicy = defOutPolicy
-			applyPolicy.ExportPolicy = table.PoliciesToString(reqApplyPolicy.ExportPolicies)
-		} else if grpcReq.RequestType == REQ_NEIGHBOR_POLICY_ADD_IN {
-			if reqApplyPolicy.DefaultInPolicy != api.RouteAction_ACCEPT {
-				defDistPolicy = config.DEFAULT_POLICY_TYPE_REJECT_ROUTE
+		case api.Operation_DEL:
+			switch arg.ApplyPolicy.Type {
+			case api.PolicyType_IMPORT:
+				applyPolicy.DefaultImportPolicy = def
+				applyPolicy.ImportPolicy = []string{}
+			case api.PolicyType_EXPORT:
+				applyPolicy.DefaultExportPolicy = def
+				applyPolicy.ExportPolicy = []string{}
+			case api.PolicyType_IN:
+				applyPolicy.DefaultInPolicy = def
+				applyPolicy.InPolicy = []string{}
 			}
-			applyPolicy.DefaultInPolicy = defDistPolicy
-			applyPolicy.InPolicy = table.PoliciesToString(reqApplyPolicy.InPolicies)
-		} else if grpcReq.RequestType == REQ_NEIGHBOR_POLICY_DEL_IMPORT {
-			applyPolicy.DefaultImportPolicy = config.DEFAULT_POLICY_TYPE_ACCEPT_ROUTE
-			applyPolicy.ImportPolicy = make([]string, 0)
-		} else if grpcReq.RequestType == REQ_NEIGHBOR_POLICY_DEL_EXPORT {
-			applyPolicy.DefaultExportPolicy = config.DEFAULT_POLICY_TYPE_ACCEPT_ROUTE
-			applyPolicy.ExportPolicy = make([]string, 0)
-		} else if grpcReq.RequestType == REQ_NEIGHBOR_POLICY_DEL_IN {
-			applyPolicy.DefaultInPolicy = config.DEFAULT_POLICY_TYPE_ACCEPT_ROUTE
-			applyPolicy.InPolicy = make([]string, 0)
 		}
-
 		peer.setPolicy(reqPolicyMap)
 
 		grpcReq.ResponseCh <- result
