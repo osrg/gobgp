@@ -226,6 +226,10 @@ func showNeighbor(args []string) error {
 	fmt.Printf("    Route Refesh:  %10d %10d\n", p.Info.RefreshMessageOut, p.Info.RefreshMessageIn)
 	fmt.Printf("    Discarded:     %10d %10d\n", p.Info.DiscardedOut, p.Info.DiscardedIn)
 	fmt.Printf("    Total:         %10d %10d\n", p.Info.TotalMessageOut, p.Info.TotalMessageIn)
+	fmt.Print("  Route statistics:\n")
+	fmt.Printf("    Advertised:    %10d\n", p.Info.Advertized)
+	fmt.Printf("    Received:      %10d\n", p.Info.Received)
+	fmt.Printf("    Accepted:      %10d\n", p.Info.Accepted)
 
 	return nil
 }
