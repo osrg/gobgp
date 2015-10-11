@@ -232,9 +232,14 @@ func TestPolicyNotMatch(t *testing.T) {
 	// create policy
 	ps := createPrefixSet("ps1", "10.3.0.0/16", "21..24")
 	ns := createNeighborSet("ns1", "10.0.0.1")
-	ds := config.DefinedSets{}
-	ds.PrefixSets.PrefixSetList = []config.PrefixSet{ps}
-	ds.NeighborSets.NeighborSetList = []config.NeighborSet{ns}
+	ds := &config.DefinedSets{
+		PrefixSets: &config.PrefixSets{
+			PrefixSetList: []*config.PrefixSet{ps},
+		},
+		NeighborSets: &config.NeighborSets{
+			NeighborSetList: []*config.NeighborSet{ns},
+		},
+	}
 	s := createStatement("statement1", "ps1", "ns1", false)
 	pd := createPolicyDefinition("pd1", s)
 	pl := createRoutingPolicy(ds, pd)
@@ -262,10 +267,14 @@ func TestPolicyMatchAndReject(t *testing.T) {
 	// create policy
 	ps := createPrefixSet("ps1", "10.10.0.0/16", "21..24")
 	ns := createNeighborSet("ns1", "10.0.0.1")
-	ds := config.DefinedSets{}
-	ds.PrefixSets.PrefixSetList = []config.PrefixSet{ps}
-	ds.NeighborSets.NeighborSetList = []config.NeighborSet{ns}
-
+	ds := &config.DefinedSets{
+		PrefixSets: &config.PrefixSets{
+			PrefixSetList: []*config.PrefixSet{ps},
+		},
+		NeighborSets: &config.NeighborSets{
+			NeighborSetList: []*config.NeighborSet{ns},
+		},
+	}
 	s := createStatement("statement1", "ps1", "ns1", false)
 	pd := createPolicyDefinition("pd1", s)
 	pl := createRoutingPolicy(ds, pd)
@@ -293,9 +302,14 @@ func TestPolicyMatchAndAccept(t *testing.T) {
 	// create policy
 	ps := createPrefixSet("ps1", "10.10.0.0/16", "21..24")
 	ns := createNeighborSet("ns1", "10.0.0.1")
-	ds := config.DefinedSets{}
-	ds.PrefixSets.PrefixSetList = []config.PrefixSet{ps}
-	ds.NeighborSets.NeighborSetList = []config.NeighborSet{ns}
+	ds := &config.DefinedSets{
+		PrefixSets: &config.PrefixSets{
+			PrefixSetList: []*config.PrefixSet{ps},
+		},
+		NeighborSets: &config.NeighborSets{
+			NeighborSetList: []*config.NeighborSet{ns},
+		},
+	}
 
 	s := createStatement("statement1", "ps1", "ns1", true)
 	pd := createPolicyDefinition("pd1", s)
@@ -335,8 +349,11 @@ func TestPolicyRejectOnlyPrefixSet(t *testing.T) {
 
 	// create policy
 	ps := createPrefixSet("ps1", "10.10.1.0/16", "21..24")
-	ds := config.DefinedSets{}
-	ds.PrefixSets.PrefixSetList = []config.PrefixSet{ps}
+	ds := &config.DefinedSets{
+		PrefixSets: &config.PrefixSets{
+			PrefixSetList: []*config.PrefixSet{ps},
+		},
+	}
 
 	s := createStatement("statement1", "ps1", "ns1", false)
 	pd := createPolicyDefinition("pd1", s)
@@ -380,9 +397,11 @@ func TestPolicyRejectOnlyNeighborSet(t *testing.T) {
 
 	// create policy
 	ns := createNeighborSet("ns1", "10.0.1.1")
-	ds := config.DefinedSets{}
-	ds.NeighborSets.NeighborSetList = []config.NeighborSet{ns}
-
+	ds := &config.DefinedSets{
+		NeighborSets: &config.NeighborSets{
+			NeighborSetList: []*config.NeighborSet{ns},
+		},
+	}
 	s := createStatement("statement1", "ps1", "ns1", false)
 	pd := createPolicyDefinition("pd1", s)
 	pl := createRoutingPolicy(ds, pd)
@@ -429,9 +448,14 @@ func TestPolicyDifferentRoutefamilyOfPathAndPolicy(t *testing.T) {
 	psIPv6 := createPrefixSet("psIPv6", "2001:123:123::/48", "64..80")
 	nsIPv6 := createNeighborSet("nsIPv6", "2001::192:168:50:1")
 
-	ds := config.DefinedSets{}
-	ds.PrefixSets.PrefixSetList = []config.PrefixSet{psIPv4, psIPv6}
-	ds.NeighborSets.NeighborSetList = []config.NeighborSet{nsIPv4, nsIPv6}
+	ds := &config.DefinedSets{
+		PrefixSets: &config.PrefixSets{
+			PrefixSetList: []*config.PrefixSet{psIPv4, psIPv6},
+		},
+		NeighborSets: &config.NeighborSets{
+			NeighborSetList: []*config.NeighborSet{nsIPv4, nsIPv6},
+		},
+	}
 
 	stIPv4 := createStatement("statement1", "psIPv4", "nsIPv4", false)
 	stIPv6 := createStatement("statement2", "psIPv6", "nsIPv6", false)
@@ -470,7 +494,7 @@ func TestAsPathLengthConditionEvaluate(t *testing.T) {
 	path := ProcessMessage(updateMsg, peer)[0]
 
 	// create match condition
-	asPathLength := config.AsPathLength{
+	asPathLength := &config.AsPathLength{
 		Operator: "eq",
 		Value:    5,
 	}
@@ -480,7 +504,7 @@ func TestAsPathLengthConditionEvaluate(t *testing.T) {
 	assert.Equal(t, true, c.evaluate(path))
 
 	// create match condition
-	asPathLength = config.AsPathLength{
+	asPathLength = &config.AsPathLength{
 		Operator: "ge",
 		Value:    3,
 	}
@@ -490,7 +514,7 @@ func TestAsPathLengthConditionEvaluate(t *testing.T) {
 	assert.Equal(t, true, c.evaluate(path))
 
 	// create match condition
-	asPathLength = config.AsPathLength{
+	asPathLength = &config.AsPathLength{
 		Operator: "le",
 		Value:    3,
 	}
@@ -522,18 +546,25 @@ func TestAsPathLengthConditionWithOtherCondition(t *testing.T) {
 	ps := createPrefixSet("ps1", "10.10.1.0/16", "21..24")
 	ns := createNeighborSet("ns1", "10.0.0.1")
 
-	ds := config.DefinedSets{}
-	ds.PrefixSets.PrefixSetList = []config.PrefixSet{ps}
-	ds.NeighborSets.NeighborSetList = []config.NeighborSet{ns}
+	ds := &config.DefinedSets{
+		PrefixSets: &config.PrefixSets{
+			PrefixSetList: []*config.PrefixSet{ps},
+		},
+		NeighborSets: &config.NeighborSets{
+			NeighborSetList: []*config.NeighborSet{ns},
+		},
+	}
 
 	// create match condition
-	asPathLength := config.AsPathLength{
+	asPathLength := &config.AsPathLength{
 		Operator: "le",
 		Value:    10,
 	}
 
 	s := createStatement("statement1", "ps1", "ns1", false)
-	s.Conditions.BgpConditions.AsPathLength = asPathLength
+	s.Conditions.BgpConditions = &config.BgpConditions{
+		AsPathLength: asPathLength,
+	}
 	pd := createPolicyDefinition("pd1", s)
 	pl := createRoutingPolicy(ds, pd)
 
@@ -574,54 +605,54 @@ func TestAsPathConditionEvaluate(t *testing.T) {
 	path2 := ProcessMessage(updateMsg2, peer)[0]
 
 	// create match condition
-	asPathSet1 := config.AsPathSet{
+	asPathSet1 := &config.AsPathSet{
 		AsPathSetName: "asset1",
-		AsPathList: []config.AsPath{
-			config.AsPath{AsPath: "^65001"},
+		AsPathList: []*config.AsPath{
+			&config.AsPath{AsPath: "^65001"},
 		},
 	}
 
-	asPathSet2 := config.AsPathSet{
+	asPathSet2 := &config.AsPathSet{
 		AsPathSetName: "asset2",
-		AsPathList: []config.AsPath{
-			config.AsPath{AsPath: "65005$"},
+		AsPathList: []*config.AsPath{
+			&config.AsPath{AsPath: "65005$"},
 		},
 	}
 
-	asPathSet3 := config.AsPathSet{
+	asPathSet3 := &config.AsPathSet{
 		AsPathSetName: "asset3",
-		AsPathList: []config.AsPath{
-			config.AsPath{AsPath: "65004"},
-			config.AsPath{AsPath: "65005$"},
+		AsPathList: []*config.AsPath{
+			&config.AsPath{AsPath: "65004"},
+			&config.AsPath{AsPath: "65005$"},
 		},
 	}
 
-	asPathSet4 := config.AsPathSet{
+	asPathSet4 := &config.AsPathSet{
 		AsPathSetName: "asset4",
-		AsPathList: []config.AsPath{
-			config.AsPath{AsPath: "65000$"},
+		AsPathList: []*config.AsPath{
+			&config.AsPath{AsPath: "65000$"},
 		},
 	}
 
-	asPathSet5 := config.AsPathSet{
+	asPathSet5 := &config.AsPathSet{
 		AsPathSetName: "asset5",
-		AsPathList: []config.AsPath{
-			config.AsPath{AsPath: "65010"},
+		AsPathList: []*config.AsPath{
+			&config.AsPath{AsPath: "65010"},
 		},
 	}
 
-	asPathSet6 := config.AsPathSet{
+	asPathSet6 := &config.AsPathSet{
 		AsPathSetName: "asset6",
-		AsPathList: []config.AsPath{
-			config.AsPath{AsPath: "^65010$"},
+		AsPathList: []*config.AsPath{
+			&config.AsPath{AsPath: "^65010$"},
 		},
 	}
 
-	asPathSetList := []config.AsPathSet{asPathSet1, asPathSet2, asPathSet3,
+	asPathSetList := []*config.AsPathSet{asPathSet1, asPathSet2, asPathSet3,
 		asPathSet4, asPathSet5, asPathSet6}
 
 	createAspathC := func(name string, option config.MatchSetOptionsType) *AsPathCondition {
-		matchSet := config.MatchAsPathSet{}
+		matchSet := &config.MatchAsPathSet{}
 		matchSet.AsPathSet = name
 		matchSet.MatchSetOptions = option
 		p := NewAsPathCondition(matchSet, asPathSetList)
@@ -671,74 +702,74 @@ func TestMultipleAsPathConditionEvaluate(t *testing.T) {
 	path1 := ProcessMessage(updateMsg1, peer)[0]
 
 	// create match condition
-	asPathSet1 := config.AsPathSet{
+	asPathSet1 := &config.AsPathSet{
 		AsPathSetName: "asset1",
-		AsPathList: []config.AsPath{
-			config.AsPath{AsPath: "^65001_65000"},
+		AsPathList: []*config.AsPath{
+			&config.AsPath{AsPath: "^65001_65000"},
 		},
 	}
 
-	asPathSet2 := config.AsPathSet{
+	asPathSet2 := &config.AsPathSet{
 		AsPathSetName: "asset2",
-		AsPathList: []config.AsPath{
-			config.AsPath{AsPath: "65004_65005$"},
+		AsPathList: []*config.AsPath{
+			&config.AsPath{AsPath: "65004_65005$"},
 		},
 	}
 
-	asPathSet3 := config.AsPathSet{
+	asPathSet3 := &config.AsPathSet{
 		AsPathSetName: "asset3",
-		AsPathList: []config.AsPath{
-			config.AsPath{AsPath: "65001_65000_54000"},
+		AsPathList: []*config.AsPath{
+			&config.AsPath{AsPath: "65001_65000_54000"},
 		},
 	}
 
-	asPathSet4 := config.AsPathSet{
+	asPathSet4 := &config.AsPathSet{
 		AsPathSetName: "asset4",
-		AsPathList: []config.AsPath{
-			config.AsPath{AsPath: "54000_65004_65005"},
+		AsPathList: []*config.AsPath{
+			&config.AsPath{AsPath: "54000_65004_65005"},
 		},
 	}
 
-	asPathSet5 := config.AsPathSet{
+	asPathSet5 := &config.AsPathSet{
 		AsPathSetName: "asset5",
-		AsPathList: []config.AsPath{
-			config.AsPath{AsPath: "^65001 65000 54000 65004 65005$"},
+		AsPathList: []*config.AsPath{
+			&config.AsPath{AsPath: "^65001 65000 54000 65004 65005$"},
 		},
 	}
 
-	asPathSet6 := config.AsPathSet{
+	asPathSet6 := &config.AsPathSet{
 		AsPathSetName: "asset6",
-		AsPathList: []config.AsPath{
-			config.AsPath{AsPath: ".*_[0-9]+_65005"},
+		AsPathList: []*config.AsPath{
+			&config.AsPath{AsPath: ".*_[0-9]+_65005"},
 		},
 	}
 
-	asPathSet7 := config.AsPathSet{
+	asPathSet7 := &config.AsPathSet{
 		AsPathSetName: "asset7",
-		AsPathList: []config.AsPath{
-			config.AsPath{AsPath: ".*_5[0-9]+_[0-9]+"},
+		AsPathList: []*config.AsPath{
+			&config.AsPath{AsPath: ".*_5[0-9]+_[0-9]+"},
 		},
 	}
 
-	asPathSet8 := config.AsPathSet{
+	asPathSet8 := &config.AsPathSet{
 		AsPathSetName: "asset8",
-		AsPathList: []config.AsPath{
-			config.AsPath{AsPath: "6[0-9]+_6[0-9]+_5[0-9]+"},
+		AsPathList: []*config.AsPath{
+			&config.AsPath{AsPath: "6[0-9]+_6[0-9]+_5[0-9]+"},
 		},
 	}
 
-	asPathSet9 := config.AsPathSet{
+	asPathSet9 := &config.AsPathSet{
 		AsPathSetName: "asset9",
-		AsPathList: []config.AsPath{
-			config.AsPath{AsPath: "6[0-9]+__6[0-9]+"},
+		AsPathList: []*config.AsPath{
+			&config.AsPath{AsPath: "6[0-9]+__6[0-9]+"},
 		},
 	}
 
-	asPathSetList := []config.AsPathSet{asPathSet1, asPathSet2, asPathSet3,
+	asPathSetList := []*config.AsPathSet{asPathSet1, asPathSet2, asPathSet3,
 		asPathSet4, asPathSet5, asPathSet6, asPathSet7, asPathSet8, asPathSet9}
 
 	createAspathC := func(name string, option config.MatchSetOptionsType) *AsPathCondition {
-		matchSet := config.MatchAsPathSet{}
+		matchSet := &config.MatchAsPathSet{}
 		matchSet.AsPathSet = name
 		matchSet.MatchSetOptions = option
 		p := NewAsPathCondition(matchSet, asPathSetList)
@@ -854,21 +885,34 @@ func TestAsPathConditionWithOtherCondition(t *testing.T) {
 	path := ProcessMessage(updateMsg, peer)[0]
 
 	// create policy
-	asPathSet := config.AsPathSet{
+	asPathSet := &config.AsPathSet{
 		AsPathSetName: "asset1",
-		AsPathList:    []config.AsPath{config.AsPath{"65005$"}},
+		AsPathList:    []*config.AsPath{&config.AsPath{"65005$"}},
 	}
 
 	ps := createPrefixSet("ps1", "10.10.1.0/16", "21..24")
 	ns := createNeighborSet("ns1", "10.0.0.1")
 
-	ds := config.DefinedSets{}
-	ds.PrefixSets.PrefixSetList = []config.PrefixSet{ps}
-	ds.NeighborSets.NeighborSetList = []config.NeighborSet{ns}
-	ds.BgpDefinedSets.AsPathSets.AsPathSetList = []config.AsPathSet{asPathSet}
+	ds := &config.DefinedSets{
+		PrefixSets: &config.PrefixSets{
+			PrefixSetList: []*config.PrefixSet{ps},
+		},
+		NeighborSets: &config.NeighborSets{
+			NeighborSetList: []*config.NeighborSet{ns},
+		},
+		BgpDefinedSets: &config.BgpDefinedSets{
+			AsPathSets: &config.AsPathSets{
+				AsPathSetList: []*config.AsPathSet{asPathSet},
+			},
+		},
+	}
 
 	s := createStatement("statement1", "ps1", "ns1", false)
-	s.Conditions.BgpConditions.MatchAsPathSet.AsPathSet = "asset1"
+	s.Conditions.BgpConditions = &config.BgpConditions{
+		MatchAsPathSet: &config.MatchAsPathSet{
+			AsPathSet: "asset1",
+		},
+	}
 
 	pd := createPolicyDefinition("pd1", s)
 	pl := createRoutingPolicy(ds, pd)
@@ -914,87 +958,87 @@ func TestCommunityConditionEvaluate(t *testing.T) {
 	path1 := ProcessMessage(updateMsg1, peer)[0]
 
 	// create match condition
-	comSet1 := config.CommunitySet{
+	comSet1 := &config.CommunitySet{
 		CommunitySetName: "comset1",
-		CommunityList: []config.Community{
-			config.Community{"65001:10"},
-			config.Community{"65001:50"},
-			config.Community{"65001:100"},
+		CommunityList: []*config.Community{
+			&config.Community{"65001:10"},
+			&config.Community{"65001:50"},
+			&config.Community{"65001:100"},
 		},
 	}
 
-	comSet2 := config.CommunitySet{
+	comSet2 := &config.CommunitySet{
 		CommunitySetName: "comset2",
-		CommunityList: []config.Community{
-			config.Community{"65001:200"},
+		CommunityList: []*config.Community{
+			&config.Community{"65001:200"},
 		},
 	}
 
-	comSet3 := config.CommunitySet{
+	comSet3 := &config.CommunitySet{
 		CommunitySetName: "comset3",
-		CommunityList: []config.Community{
-			config.Community{"4259905936"},
+		CommunityList: []*config.Community{
+			&config.Community{"4259905936"},
 		},
 	}
 
-	comSet4 := config.CommunitySet{
+	comSet4 := &config.CommunitySet{
 		CommunitySetName: "comset4",
-		CommunityList: []config.Community{
-			config.Community{"^[0-9]*:300$"},
+		CommunityList: []*config.Community{
+			&config.Community{"^[0-9]*:300$"},
 		},
 	}
 
-	comSet5 := config.CommunitySet{
+	comSet5 := &config.CommunitySet{
 		CommunitySetName: "comset5",
-		CommunityList: []config.Community{
-			config.Community{"INTERNET"},
+		CommunityList: []*config.Community{
+			&config.Community{"INTERNET"},
 		},
 	}
 
-	comSet6 := config.CommunitySet{
+	comSet6 := &config.CommunitySet{
 		CommunitySetName: "comset6",
-		CommunityList: []config.Community{
-			config.Community{"NO_EXPORT"},
+		CommunityList: []*config.Community{
+			&config.Community{"NO_EXPORT"},
 		},
 	}
 
-	comSet7 := config.CommunitySet{
+	comSet7 := &config.CommunitySet{
 		CommunitySetName: "comset7",
-		CommunityList: []config.Community{
-			config.Community{"NO_ADVERTISE"},
+		CommunityList: []*config.Community{
+			&config.Community{"NO_ADVERTISE"},
 		},
 	}
 
-	comSet8 := config.CommunitySet{
+	comSet8 := &config.CommunitySet{
 		CommunitySetName: "comset8",
-		CommunityList: []config.Community{
-			config.Community{"NO_EXPORT_SUBCONFED"},
+		CommunityList: []*config.Community{
+			&config.Community{"NO_EXPORT_SUBCONFED"},
 		},
 	}
 
-	comSet9 := config.CommunitySet{
+	comSet9 := &config.CommunitySet{
 		CommunitySetName: "comset9",
-		CommunityList: []config.Community{
-			config.Community{"65001:100"},
-			config.Community{"65001:200"},
-			config.Community{"65001:300"},
+		CommunityList: []*config.Community{
+			&config.Community{"65001:100"},
+			&config.Community{"65001:200"},
+			&config.Community{"65001:300"},
 		},
 	}
 
-	comSet10 := config.CommunitySet{
+	comSet10 := &config.CommunitySet{
 		CommunitySetName: "comset10",
-		CommunityList: []config.Community{
-			config.Community{"65001:1"},
-			config.Community{"65001:2"},
-			config.Community{"65001:3"},
+		CommunityList: []*config.Community{
+			&config.Community{"65001:1"},
+			&config.Community{"65001:2"},
+			&config.Community{"65001:3"},
 		},
 	}
 
-	comSetList := []config.CommunitySet{comSet1, comSet2, comSet3,
+	comSetList := []*config.CommunitySet{comSet1, comSet2, comSet3,
 		comSet4, comSet5, comSet6, comSet7, comSet8, comSet9, comSet10}
 
 	createCommunityC := func(name string, option config.MatchSetOptionsType) *CommunityCondition {
-		matchSet := config.MatchCommunitySet{}
+		matchSet := &config.MatchCommunitySet{}
 		matchSet.CommunitySet = name
 		matchSet.MatchSetOptions = option
 		c := NewCommunityCondition(matchSet, comSetList)
@@ -1060,45 +1104,68 @@ func TestCommunityConditionEvaluateWithOtherCondition(t *testing.T) {
 	path := ProcessMessage(updateMsg, peer)[0]
 
 	// create policy
-	asPathSet := config.AsPathSet{
+	asPathSet := &config.AsPathSet{
 		AsPathSetName: "asset1",
-		AsPathList: []config.AsPath{
-			config.AsPath{"65005$"},
+		AsPathList: []*config.AsPath{
+			&config.AsPath{"65005$"},
 		},
 	}
 
-	comSet1 := config.CommunitySet{
+	comSet1 := &config.CommunitySet{
 		CommunitySetName: "comset1",
-		CommunityList: []config.Community{
-			config.Community{"65001:100"},
-			config.Community{"65001:200"},
-			config.Community{"65001:300"},
+		CommunityList: []*config.Community{
+			&config.Community{"65001:100"},
+			&config.Community{"65001:200"},
+			&config.Community{"65001:300"},
 		},
 	}
 
-	comSet2 := config.CommunitySet{
+	comSet2 := &config.CommunitySet{
 		CommunitySetName: "comset2",
-		CommunityList: []config.Community{
-			config.Community{"65050:\\d+"},
+		CommunityList: []*config.Community{
+			&config.Community{"65050:\\d+"},
 		},
 	}
 
 	ps := createPrefixSet("ps1", "10.10.0.0/16", "21..24")
 	ns := createNeighborSet("ns1", "10.0.0.1")
 
-	ds := config.DefinedSets{}
-	ds.PrefixSets.PrefixSetList = []config.PrefixSet{ps}
-	ds.NeighborSets.NeighborSetList = []config.NeighborSet{ns}
-	ds.BgpDefinedSets.AsPathSets.AsPathSetList = []config.AsPathSet{asPathSet}
-	ds.BgpDefinedSets.CommunitySets.CommunitySetList = []config.CommunitySet{comSet1, comSet2}
+	ds := &config.DefinedSets{
+		PrefixSets: &config.PrefixSets{
+			PrefixSetList: []*config.PrefixSet{ps},
+		},
+		NeighborSets: &config.NeighborSets{
+			NeighborSetList: []*config.NeighborSet{ns},
+		},
+		BgpDefinedSets: &config.BgpDefinedSets{
+			AsPathSets: &config.AsPathSets{
+				AsPathSetList: []*config.AsPathSet{asPathSet},
+			},
+			CommunitySets: &config.CommunitySets{
+				CommunitySetList: []*config.CommunitySet{comSet1, comSet2},
+			},
+		},
+	}
 
 	s1 := createStatement("statement1", "ps1", "ns1", false)
-	s1.Conditions.BgpConditions.MatchAsPathSet.AsPathSet = "asset1"
-	s1.Conditions.BgpConditions.MatchCommunitySet.CommunitySet = "comset1"
+	s1.Conditions.BgpConditions = &config.BgpConditions{
+		MatchAsPathSet: &config.MatchAsPathSet{
+			AsPathSet: "asset1",
+		},
+		MatchCommunitySet: &config.MatchCommunitySet{
+			CommunitySet: "comset1",
+		},
+	}
 
 	s2 := createStatement("statement2", "ps1", "ns1", false)
-	s2.Conditions.BgpConditions.MatchAsPathSet.AsPathSet = "asset1"
-	s2.Conditions.BgpConditions.MatchCommunitySet.CommunitySet = "comset2"
+	s2.Conditions.BgpConditions = &config.BgpConditions{
+		MatchAsPathSet: &config.MatchAsPathSet{
+			AsPathSet: "asset1",
+		},
+		MatchCommunitySet: &config.MatchCommunitySet{
+			CommunitySet: "comset2",
+		},
+	}
 
 	pd1 := createPolicyDefinition("pd1", s1)
 	pd2 := createPolicyDefinition("pd2", s2)
@@ -1136,14 +1203,21 @@ func TestPolicyMatchAndAddCommunities(t *testing.T) {
 	ps := createPrefixSet("ps1", "10.10.0.0/16", "21..24")
 	ns := createNeighborSet("ns1", "10.0.0.1")
 
-	ds := config.DefinedSets{}
-	ds.PrefixSets.PrefixSetList = []config.PrefixSet{ps}
-	ds.NeighborSets.NeighborSetList = []config.NeighborSet{ns}
+	ds := &config.DefinedSets{
+		PrefixSets: &config.PrefixSets{
+			PrefixSetList: []*config.PrefixSet{ps},
+		},
+		NeighborSets: &config.NeighborSets{
+			NeighborSetList: []*config.NeighborSet{ns},
+		},
+	}
 
 	community := "65000:100"
 
 	s := createStatement("statement1", "ps1", "ns1", true)
-	s.Actions.BgpActions.SetCommunity = createSetCommunity("ADD", community)
+	s.Actions.BgpActions = &config.BgpActions{
+		SetCommunity: createSetCommunity("ADD", community),
+	}
 
 	pd := createPolicyDefinition("pd1", s)
 	pl := createRoutingPolicy(ds, pd)
@@ -1179,14 +1253,21 @@ func TestPolicyMatchAndReplaceCommunities(t *testing.T) {
 	ps := createPrefixSet("ps1", "10.10.0.0/16", "21..24")
 	ns := createNeighborSet("ns1", "10.0.0.1")
 
-	ds := config.DefinedSets{}
-	ds.PrefixSets.PrefixSetList = []config.PrefixSet{ps}
-	ds.NeighborSets.NeighborSetList = []config.NeighborSet{ns}
+	ds := &config.DefinedSets{
+		PrefixSets: &config.PrefixSets{
+			PrefixSetList: []*config.PrefixSet{ps},
+		},
+		NeighborSets: &config.NeighborSets{
+			NeighborSetList: []*config.NeighborSet{ns},
+		},
+	}
 
 	community := "65000:100"
 
 	s := createStatement("statement1", "ps1", "ns1", true)
-	s.Actions.BgpActions.SetCommunity = createSetCommunity("REPLACE", community)
+	s.Actions.BgpActions = &config.BgpActions{
+		SetCommunity: createSetCommunity("REPLACE", community),
+	}
 
 	pd := createPolicyDefinition("pd1", s)
 	pl := createRoutingPolicy(ds, pd)
@@ -1224,12 +1305,19 @@ func TestPolicyMatchAndRemoveCommunities(t *testing.T) {
 	ps := createPrefixSet("ps1", "10.10.0.0/16", "21..24")
 	ns := createNeighborSet("ns1", "10.0.0.1")
 
-	ds := config.DefinedSets{}
-	ds.PrefixSets.PrefixSetList = []config.PrefixSet{ps}
-	ds.NeighborSets.NeighborSetList = []config.NeighborSet{ns}
+	ds := &config.DefinedSets{
+		PrefixSets: &config.PrefixSets{
+			PrefixSetList: []*config.PrefixSet{ps},
+		},
+		NeighborSets: &config.NeighborSets{
+			NeighborSetList: []*config.NeighborSet{ns},
+		},
+	}
 
 	s := createStatement("statement1", "ps1", "ns1", true)
-	s.Actions.BgpActions.SetCommunity = createSetCommunity("REMOVE", community1)
+	s.Actions.BgpActions = &config.BgpActions{
+		SetCommunity: createSetCommunity("REMOVE", community1),
+	}
 
 	pd := createPolicyDefinition("pd1", s)
 	pl := createRoutingPolicy(ds, pd)
@@ -1268,12 +1356,19 @@ func TestPolicyMatchAndRemoveCommunitiesRegexp(t *testing.T) {
 	ps := createPrefixSet("ps1", "10.10.0.0/16", "21..24")
 	ns := createNeighborSet("ns1", "10.0.0.1")
 
-	ds := config.DefinedSets{}
-	ds.PrefixSets.PrefixSetList = []config.PrefixSet{ps}
-	ds.NeighborSets.NeighborSetList = []config.NeighborSet{ns}
+	ds := &config.DefinedSets{
+		PrefixSets: &config.PrefixSets{
+			PrefixSetList: []*config.PrefixSet{ps},
+		},
+		NeighborSets: &config.NeighborSets{
+			NeighborSetList: []*config.NeighborSet{ns},
+		},
+	}
 
 	s := createStatement("statement1", "ps1", "ns1", true)
-	s.Actions.BgpActions.SetCommunity = createSetCommunity("REMOVE", ".*:100")
+	s.Actions.BgpActions = &config.BgpActions{
+		SetCommunity: createSetCommunity("REMOVE", ".*:100"),
+	}
 
 	pd := createPolicyDefinition("pd1", s)
 	pl := createRoutingPolicy(ds, pd)
@@ -1312,12 +1407,19 @@ func TestPolicyMatchAndRemoveCommunitiesRegexp2(t *testing.T) {
 	ps := createPrefixSet("ps1", "10.10.0.0/16", "21..24")
 	ns := createNeighborSet("ns1", "10.0.0.1")
 
-	ds := config.DefinedSets{}
-	ds.PrefixSets.PrefixSetList = []config.PrefixSet{ps}
-	ds.NeighborSets.NeighborSetList = []config.NeighborSet{ns}
+	ds := &config.DefinedSets{
+		PrefixSets: &config.PrefixSets{
+			PrefixSetList: []*config.PrefixSet{ps},
+		},
+		NeighborSets: &config.NeighborSets{
+			NeighborSetList: []*config.NeighborSet{ns},
+		},
+	}
 
 	s := createStatement("statement1", "ps1", "ns1", true)
-	s.Actions.BgpActions.SetCommunity = createSetCommunity("REMOVE", "^(0|45686):[0-9]+")
+	s.Actions.BgpActions = &config.BgpActions{
+		SetCommunity: createSetCommunity("REMOVE", "^(0|45686):[0-9]+"),
+	}
 
 	pd := createPolicyDefinition("pd1", s)
 	pl := createRoutingPolicy(ds, pd)
@@ -1354,14 +1456,25 @@ func TestPolicyMatchAndClearCommunities(t *testing.T) {
 	ps := createPrefixSet("ps1", "10.10.0.0/16", "21..24")
 	ns := createNeighborSet("ns1", "10.0.0.1")
 
-	ds := config.DefinedSets{}
-	ds.PrefixSets.PrefixSetList = []config.PrefixSet{ps}
-	ds.NeighborSets.NeighborSetList = []config.NeighborSet{ns}
+	ds := &config.DefinedSets{
+		PrefixSets: &config.PrefixSets{
+			PrefixSetList: []*config.PrefixSet{ps},
+		},
+		NeighborSets: &config.NeighborSets{
+			NeighborSetList: []*config.NeighborSet{ns},
+		},
+	}
 
 	s := createStatement("statement1", "ps1", "ns1", true)
 	// action NULL is obsolate
-	s.Actions.BgpActions.SetCommunity.Options = "REPLACE"
-	s.Actions.BgpActions.SetCommunity.SetCommunityMethod.Communities = nil
+	s.Actions.BgpActions = &config.BgpActions{
+		SetCommunity: &config.SetCommunity{
+			SetCommunityMethod: &config.SetCommunityMethod{
+				Communities: nil,
+			},
+			Options: "REPLACE",
+		},
+	}
 
 	pd := createPolicyDefinition("pd1", s)
 	pl := createRoutingPolicy(ds, pd)
@@ -1463,87 +1576,86 @@ func TestExtCommunityConditionEvaluate(t *testing.T) {
 	}
 
 	// create match condition
-	ecomSet1 := config.ExtCommunitySet{
+	ecomSet1 := &config.ExtCommunitySet{
 		ExtCommunitySetName: "ecomSet1",
-		ExtCommunityList: []config.ExtCommunity{
-			config.ExtCommunity{"RT:65001:200"},
+		ExtCommunityList: []*config.ExtCommunity{
+			&config.ExtCommunity{"RT:65001:200"},
 		},
 	}
-	ecomSet2 := config.ExtCommunitySet{
+	ecomSet2 := &config.ExtCommunitySet{
 		ExtCommunitySetName: "ecomSet2",
-		ExtCommunityList: []config.ExtCommunity{
-			config.ExtCommunity{"RT:10.0.0.1:300"},
+		ExtCommunityList: []*config.ExtCommunity{
+			&config.ExtCommunity{"RT:10.0.0.1:300"},
 		},
 	}
-	ecomSet3 := config.ExtCommunitySet{
+	ecomSet3 := &config.ExtCommunitySet{
 		ExtCommunitySetName: "ecomSet3",
-		ExtCommunityList: []config.ExtCommunity{
-			config.ExtCommunity{fmt.Sprintf("RT:%s:200", convUintStr(65030000))},
+		ExtCommunityList: []*config.ExtCommunity{
+			&config.ExtCommunity{fmt.Sprintf("RT:%s:200", convUintStr(65030000))},
 		},
 	}
-	ecomSet4 := config.ExtCommunitySet{
+	ecomSet4 := &config.ExtCommunitySet{
 		ExtCommunitySetName: "ecomSet4",
-		ExtCommunityList: []config.ExtCommunity{
-			config.ExtCommunity{"RT:65002:200"},
+		ExtCommunityList: []*config.ExtCommunity{
+			&config.ExtCommunity{"RT:65002:200"},
 		},
 	}
-	ecomSet5 := config.ExtCommunitySet{
+	ecomSet5 := &config.ExtCommunitySet{
 		ExtCommunitySetName: "ecomSet5",
-		ExtCommunityList: []config.ExtCommunity{
-			config.ExtCommunity{"RT:10.0.0.2:300"},
+		ExtCommunityList: []*config.ExtCommunity{
+			&config.ExtCommunity{"RT:10.0.0.2:300"},
 		},
 	}
-	ecomSet6 := config.ExtCommunitySet{
+	ecomSet6 := &config.ExtCommunitySet{
 		ExtCommunitySetName: "ecomSet6",
-		ExtCommunityList: []config.ExtCommunity{
-			config.ExtCommunity{fmt.Sprintf("RT:%s:200", convUintStr(65030001))},
+		ExtCommunityList: []*config.ExtCommunity{
+			&config.ExtCommunity{fmt.Sprintf("RT:%s:200", convUintStr(65030001))},
 		},
 	}
-	ecomSet7 := config.ExtCommunitySet{
+	ecomSet7 := &config.ExtCommunitySet{
 		ExtCommunitySetName: "ecomSet7",
-		ExtCommunityList: []config.ExtCommunity{
-			config.ExtCommunity{"SoO:65010:300"},
+		ExtCommunityList: []*config.ExtCommunity{
+			&config.ExtCommunity{"SoO:65010:300"},
 		},
 	}
-	ecomSet8 := config.ExtCommunitySet{
+	ecomSet8 := &config.ExtCommunitySet{
 		ExtCommunitySetName: "ecomSet8",
-		ExtCommunityList: []config.ExtCommunity{
-			config.ExtCommunity{"SoO:10.0.10.10:[0-9]+"},
+		ExtCommunityList: []*config.ExtCommunity{
+			&config.ExtCommunity{"SoO:10.0.10.10:[0-9]+"},
 		},
 	}
-	ecomSet9 := config.ExtCommunitySet{
+	ecomSet9 := &config.ExtCommunitySet{
 		ExtCommunitySetName: "ecomSet9",
-		ExtCommunityList: []config.ExtCommunity{
-			config.ExtCommunity{"RT:[0-9]+:[0-9]+"},
+		ExtCommunityList: []*config.ExtCommunity{
+			&config.ExtCommunity{"RT:[0-9]+:[0-9]+"},
 		},
 	}
-	ecomSet10 := config.ExtCommunitySet{
+	ecomSet10 := &config.ExtCommunitySet{
 		ExtCommunitySetName: "ecomSet10",
-		ExtCommunityList: []config.ExtCommunity{
-			config.ExtCommunity{"RT:65001:200"},
-			config.ExtCommunity{"RT:10.0.0.1:300"},
-			config.ExtCommunity{"SoO:10.0.10.10:[0-9]+"},
+		ExtCommunityList: []*config.ExtCommunity{
+			&config.ExtCommunity{"RT:65001:200"},
+			&config.ExtCommunity{"RT:10.0.0.1:300"},
+			&config.ExtCommunity{"SoO:10.0.10.10:[0-9]+"},
 		},
 	}
 
-	ecomSet11 := config.ExtCommunitySet{
+	ecomSet11 := &config.ExtCommunitySet{
 		ExtCommunitySetName: "ecomSet11",
-		ExtCommunityList: []config.ExtCommunity{
-			config.ExtCommunity{"RT:65001:2"},
-			config.ExtCommunity{"RT:10.0.0.1:3"},
-			config.ExtCommunity{"SoO:11.0.10.10:[0-9]+"},
+		ExtCommunityList: []*config.ExtCommunity{
+			&config.ExtCommunity{"RT:65001:2"},
+			&config.ExtCommunity{"RT:10.0.0.1:3"},
+			&config.ExtCommunity{"SoO:11.0.10.10:[0-9]+"},
 		},
 	}
 
-	comSetList := []config.ExtCommunitySet{ecomSet1, ecomSet2, ecomSet3, ecomSet4, ecomSet5, ecomSet6, ecomSet7,
+	comSetList := []*config.ExtCommunitySet{ecomSet1, ecomSet2, ecomSet3, ecomSet4, ecomSet5, ecomSet6, ecomSet7,
 		ecomSet8, ecomSet9, ecomSet10, ecomSet11}
 
 	createExtCommunityC := func(name string, option config.MatchSetOptionsType) *ExtCommunityCondition {
-		matchSet := config.MatchExtCommunitySet{}
+		matchSet := &config.MatchExtCommunitySet{}
 		matchSet.ExtCommunitySet = name
 		matchSet.MatchSetOptions = option
-		c := NewExtCommunityCondition(matchSet, comSetList)
-		return c
+		return NewExtCommunityCondition(matchSet, comSetList)
 	}
 
 	p1 := createExtCommunityC("ecomSet1", config.MATCH_SET_OPTIONS_TYPE_ANY)
@@ -1657,42 +1769,65 @@ func TestExtCommunityConditionEvaluateWithOtherCondition(t *testing.T) {
 	path := ProcessMessage(updateMsg, peer)[0]
 
 	// create policy
-	asPathSet := config.AsPathSet{
+	asPathSet := &config.AsPathSet{
 		AsPathSetName: "asset1",
-		AsPathList: []config.AsPath{
-			config.AsPath{"65005$"},
+		AsPathList: []*config.AsPath{
+			&config.AsPath{"65005$"},
 		},
 	}
 
-	ecomSet1 := config.ExtCommunitySet{
+	ecomSet1 := &config.ExtCommunitySet{
 		ExtCommunitySetName: "ecomSet1",
-		ExtCommunityList: []config.ExtCommunity{
-			config.ExtCommunity{"RT:65001:201"},
+		ExtCommunityList: []*config.ExtCommunity{
+			&config.ExtCommunity{"RT:65001:201"},
 		},
 	}
-	ecomSet2 := config.ExtCommunitySet{
+	ecomSet2 := &config.ExtCommunitySet{
 		ExtCommunitySetName: "ecomSet2",
-		ExtCommunityList: []config.ExtCommunity{
-			config.ExtCommunity{"RT:[0-9]+:[0-9]+"},
+		ExtCommunityList: []*config.ExtCommunity{
+			&config.ExtCommunity{"RT:[0-9]+:[0-9]+"},
 		},
 	}
 
 	ps := createPrefixSet("ps1", "10.10.1.0/16", "21..24")
 	ns := createNeighborSet("ns1", "10.2.1.1")
 
-	ds := config.DefinedSets{}
-	ds.PrefixSets.PrefixSetList = []config.PrefixSet{ps}
-	ds.NeighborSets.NeighborSetList = []config.NeighborSet{ns}
-	ds.BgpDefinedSets.AsPathSets.AsPathSetList = []config.AsPathSet{asPathSet}
-	ds.BgpDefinedSets.ExtCommunitySets.ExtCommunitySetList = []config.ExtCommunitySet{ecomSet1, ecomSet2}
+	ds := &config.DefinedSets{
+		PrefixSets: &config.PrefixSets{
+			PrefixSetList: []*config.PrefixSet{ps},
+		},
+		NeighborSets: &config.NeighborSets{
+			NeighborSetList: []*config.NeighborSet{ns},
+		},
+		BgpDefinedSets: &config.BgpDefinedSets{
+			AsPathSets: &config.AsPathSets{
+				AsPathSetList: []*config.AsPathSet{asPathSet},
+			},
+			ExtCommunitySets: &config.ExtCommunitySets{
+				ExtCommunitySetList: []*config.ExtCommunitySet{ecomSet1, ecomSet2},
+			},
+		},
+	}
 
 	s1 := createStatement("statement1", "ps1", "ns1", false)
-	s1.Conditions.BgpConditions.MatchAsPathSet.AsPathSet = "asset1"
-	s1.Conditions.BgpConditions.MatchExtCommunitySet.ExtCommunitySet = "ecomSet1"
+	s1.Conditions.BgpConditions = &config.BgpConditions{
+		MatchAsPathSet: &config.MatchAsPathSet{
+			AsPathSet: "asset1",
+		},
+		MatchExtCommunitySet: &config.MatchExtCommunitySet{
+			ExtCommunitySet: "ecomSet1",
+		},
+	}
 
 	s2 := createStatement("statement2", "ps1", "ns1", false)
-	s2.Conditions.BgpConditions.MatchAsPathSet.AsPathSet = "asset1"
-	s2.Conditions.BgpConditions.MatchExtCommunitySet.ExtCommunitySet = "ecomSet2"
+	s2.Conditions.BgpConditions = &config.BgpConditions{
+		MatchAsPathSet: &config.MatchAsPathSet{
+			AsPathSet: "asset1",
+		},
+		MatchExtCommunitySet: &config.MatchExtCommunitySet{
+			ExtCommunitySet: "ecomSet2",
+		},
+	}
 
 	pd1 := createPolicyDefinition("pd1", s1)
 	pd2 := createPolicyDefinition("pd2", s2)
@@ -1729,13 +1864,20 @@ func TestPolicyMatchAndReplaceMed(t *testing.T) {
 	ps := createPrefixSet("ps1", "10.10.0.0/16", "21..24")
 	ns := createNeighborSet("ns1", "10.0.0.1")
 
-	ds := config.DefinedSets{}
-	ds.PrefixSets.PrefixSetList = []config.PrefixSet{ps}
-	ds.NeighborSets.NeighborSetList = []config.NeighborSet{ns}
+	ds := &config.DefinedSets{
+		PrefixSets: &config.PrefixSets{
+			PrefixSetList: []*config.PrefixSet{ps},
+		},
+		NeighborSets: &config.NeighborSets{
+			NeighborSetList: []*config.NeighborSet{ns},
+		},
+	}
 
 	m := "200"
 	s := createStatement("statement1", "ps1", "ns1", true)
-	s.Actions.BgpActions.SetMed = config.BgpSetMedType(m)
+	s.Actions.BgpActions = &config.BgpActions{
+		SetMed: config.BgpSetMedType(m),
+	}
 
 	pd := createPolicyDefinition("pd1", s)
 	pl := createRoutingPolicy(ds, pd)
@@ -1771,14 +1913,21 @@ func TestPolicyMatchAndAddingMed(t *testing.T) {
 	ps := createPrefixSet("ps1", "10.10.0.0/16", "21..24")
 	ns := createNeighborSet("ns1", "10.0.0.1")
 
-	ds := config.DefinedSets{}
-	ds.PrefixSets.PrefixSetList = []config.PrefixSet{ps}
-	ds.NeighborSets.NeighborSetList = []config.NeighborSet{ns}
+	ds := &config.DefinedSets{
+		PrefixSets: &config.PrefixSets{
+			PrefixSetList: []*config.PrefixSet{ps},
+		},
+		NeighborSets: &config.NeighborSets{
+			NeighborSetList: []*config.NeighborSet{ns},
+		},
+	}
 
 	m := "+200"
 	ma := "300"
 	s := createStatement("statement1", "ps1", "ns1", true)
-	s.Actions.BgpActions.SetMed = config.BgpSetMedType(m)
+	s.Actions.BgpActions = &config.BgpActions{
+		SetMed: config.BgpSetMedType(m),
+	}
 
 	pd := createPolicyDefinition("pd1", s)
 	pl := createRoutingPolicy(ds, pd)
@@ -1813,15 +1962,22 @@ func TestPolicyMatchAndAddingMedOverFlow(t *testing.T) {
 	ps := createPrefixSet("ps1", "10.10.0.0/16", "21..24")
 	ns := createNeighborSet("ns1", "10.0.0.1")
 
-	ds := config.DefinedSets{}
-	ds.PrefixSets.PrefixSetList = []config.PrefixSet{ps}
-	ds.NeighborSets.NeighborSetList = []config.NeighborSet{ns}
+	ds := &config.DefinedSets{
+		PrefixSets: &config.PrefixSets{
+			PrefixSetList: []*config.PrefixSet{ps},
+		},
+		NeighborSets: &config.NeighborSets{
+			NeighborSetList: []*config.NeighborSet{ns},
+		},
+	}
 
 	m := fmt.Sprintf("+%d", math.MaxUint32)
 	ma := "1"
 
 	s := createStatement("statement1", "ps1", "ns1", true)
-	s.Actions.BgpActions.SetMed = config.BgpSetMedType(m)
+	s.Actions.BgpActions = &config.BgpActions{
+		SetMed: config.BgpSetMedType(m),
+	}
 
 	pd := createPolicyDefinition("pd1", s)
 	pl := createRoutingPolicy(ds, pd)
@@ -1857,15 +2013,22 @@ func TestPolicyMatchAndSubtractMed(t *testing.T) {
 	ps := createPrefixSet("ps1", "10.10.0.0/16", "21..24")
 	ns := createNeighborSet("ns1", "10.0.0.1")
 
-	ds := config.DefinedSets{}
-	ds.PrefixSets.PrefixSetList = []config.PrefixSet{ps}
-	ds.NeighborSets.NeighborSetList = []config.NeighborSet{ns}
+	ds := &config.DefinedSets{
+		PrefixSets: &config.PrefixSets{
+			PrefixSetList: []*config.PrefixSet{ps},
+		},
+		NeighborSets: &config.NeighborSets{
+			NeighborSetList: []*config.NeighborSet{ns},
+		},
+	}
 
 	m := "-50"
 	ma := "50"
 
 	s := createStatement("statement1", "ps1", "ns1", true)
-	s.Actions.BgpActions.SetMed = config.BgpSetMedType(m)
+	s.Actions.BgpActions = &config.BgpActions{
+		SetMed: config.BgpSetMedType(m),
+	}
 
 	pd := createPolicyDefinition("pd1", s)
 	pl := createRoutingPolicy(ds, pd)
@@ -1901,15 +2064,22 @@ func TestPolicyMatchAndSubtractMedUnderFlow(t *testing.T) {
 	ps := createPrefixSet("ps1", "10.10.0.0/16", "21..24")
 	ns := createNeighborSet("ns1", "10.0.0.1")
 
-	ds := config.DefinedSets{}
-	ds.PrefixSets.PrefixSetList = []config.PrefixSet{ps}
-	ds.NeighborSets.NeighborSetList = []config.NeighborSet{ns}
+	ds := &config.DefinedSets{
+		PrefixSets: &config.PrefixSets{
+			PrefixSetList: []*config.PrefixSet{ps},
+		},
+		NeighborSets: &config.NeighborSets{
+			NeighborSetList: []*config.NeighborSet{ns},
+		},
+	}
 
 	m := "-101"
 	ma := "100"
 
 	s := createStatement("statement1", "ps1", "ns1", true)
-	s.Actions.BgpActions.SetMed = config.BgpSetMedType(m)
+	s.Actions.BgpActions = &config.BgpActions{
+		SetMed: config.BgpSetMedType(m),
+	}
 
 	pd := createPolicyDefinition("pd1", s)
 	pl := createRoutingPolicy(ds, pd)
@@ -1944,13 +2114,20 @@ func TestPolicyMatchWhenPathHaveNotMed(t *testing.T) {
 	ps := createPrefixSet("ps1", "10.10.0.0/16", "21..24")
 	ns := createNeighborSet("ns1", "10.0.0.1")
 
-	ds := config.DefinedSets{}
-	ds.PrefixSets.PrefixSetList = []config.PrefixSet{ps}
-	ds.NeighborSets.NeighborSetList = []config.NeighborSet{ns}
+	ds := &config.DefinedSets{
+		PrefixSets: &config.PrefixSets{
+			PrefixSetList: []*config.PrefixSet{ps},
+		},
+		NeighborSets: &config.NeighborSets{
+			NeighborSetList: []*config.NeighborSet{ns},
+		},
+	}
 
 	m := "-50"
 	s := createStatement("statement1", "ps1", "ns1", true)
-	s.Actions.BgpActions.SetMed = config.BgpSetMedType(m)
+	s.Actions.BgpActions = &config.BgpActions{
+		SetMed: config.BgpSetMedType(m),
+	}
 
 	pd := createPolicyDefinition("pd1", s)
 	pl := createRoutingPolicy(ds, pd)
@@ -1990,13 +2167,22 @@ func TestPolicyAsPathPrepend(t *testing.T) {
 	ps := createPrefixSet("ps1", "10.10.0.0/16", "21..24")
 	ns := createNeighborSet("ns1", "10.0.0.1")
 
-	ds := config.DefinedSets{}
-	ds.PrefixSets.PrefixSetList = []config.PrefixSet{ps}
-	ds.NeighborSets.NeighborSetList = []config.NeighborSet{ns}
+	ds := &config.DefinedSets{
+		PrefixSets: &config.PrefixSets{
+			PrefixSetList: []*config.PrefixSet{ps},
+		},
+		NeighborSets: &config.NeighborSets{
+			NeighborSetList: []*config.NeighborSet{ns},
+		},
+	}
 
 	s := createStatement("statement1", "ps1", "ns1", true)
-	s.Actions.BgpActions.SetAsPathPrepend.As = "65002"
-	s.Actions.BgpActions.SetAsPathPrepend.RepeatN = 10
+	s.Actions.BgpActions = &config.BgpActions{
+		SetAsPathPrepend: &config.SetAsPathPrepend{
+			As:      "65002",
+			RepeatN: 10,
+		},
+	}
 
 	pd := createPolicyDefinition("pd1", s)
 	pl := createRoutingPolicy(ds, pd)
@@ -2033,13 +2219,22 @@ func TestPolicyAsPathPrependLastAs(t *testing.T) {
 	ps := createPrefixSet("ps1", "10.10.0.0/16", "21..24")
 	ns := createNeighborSet("ns1", "10.0.0.1")
 
-	ds := config.DefinedSets{}
-	ds.PrefixSets.PrefixSetList = []config.PrefixSet{ps}
-	ds.NeighborSets.NeighborSetList = []config.NeighborSet{ns}
+	ds := &config.DefinedSets{
+		PrefixSets: &config.PrefixSets{
+			PrefixSetList: []*config.PrefixSet{ps},
+		},
+		NeighborSets: &config.NeighborSets{
+			NeighborSetList: []*config.NeighborSet{ns},
+		},
+	}
 
 	s := createStatement("statement1", "ps1", "ns1", true)
-	s.Actions.BgpActions.SetAsPathPrepend.As = "last-as"
-	s.Actions.BgpActions.SetAsPathPrepend.RepeatN = 5
+	s.Actions.BgpActions = &config.BgpActions{
+		SetAsPathPrepend: &config.SetAsPathPrepend{
+			As:      "last-as",
+			RepeatN: 5,
+		},
+	}
 
 	pd := createPolicyDefinition("pd1", s)
 	pl := createRoutingPolicy(ds, pd)
@@ -2053,39 +2248,36 @@ func TestPolicyAsPathPrependLastAs(t *testing.T) {
 	assert.Equal([]uint32{65002, 65002, 65002, 65002, 65002, 65002, 65001, 65000}, newPath.GetAsSeqList())
 }
 
-func createStatement(name, psname, nsname string, accept bool) config.Statement {
+func createStatement(name, psname, nsname string, accept bool) *config.Statement {
 
-	c := config.Conditions{
-		MatchPrefixSet: config.MatchPrefixSet{
+	c := &config.Conditions{
+		MatchPrefixSet: &config.MatchPrefixSet{
 			PrefixSet: psname,
 		},
-		MatchNeighborSet: config.MatchNeighborSet{
+		MatchNeighborSet: &config.MatchNeighborSet{
 			NeighborSet: nsname,
 		},
 	}
-	a := config.Actions{
-		RouteDisposition: config.RouteDisposition{
+	a := &config.Actions{
+		RouteDisposition: &config.RouteDisposition{
 			AcceptRoute: accept,
 			RejectRoute: !accept,
 		},
 	}
-	s := config.Statement{
+	return &config.Statement{
 		Name:       name,
 		Conditions: c,
 		Actions:    a,
 	}
-	return s
 }
 
-func createSetCommunity(operation string, community ...string) config.SetCommunity {
-
-	s := config.SetCommunity{
-		SetCommunityMethod: config.SetCommunityMethod{
+func createSetCommunity(operation string, community ...string) *config.SetCommunity {
+	return &config.SetCommunity{
+		SetCommunityMethod: &config.SetCommunityMethod{
 			Communities: community,
 		},
 		Options: operation,
 	}
-	return s
 }
 
 func stringToCommunityValue(comStr string) uint32 {
@@ -2095,45 +2287,41 @@ func stringToCommunityValue(comStr string) uint32 {
 	return uint32(asn<<16 | val)
 }
 
-func createPolicyDefinition(defName string, stmt ...config.Statement) config.PolicyDefinition {
-	pd := config.PolicyDefinition{
+func createPolicyDefinition(defName string, stmt ...*config.Statement) *config.PolicyDefinition {
+	return &config.PolicyDefinition{
 		Name: defName,
-		Statements: config.Statements{
+		Statements: &config.Statements{
 			StatementList: stmt,
 		},
 	}
-	return pd
 }
 
-func createRoutingPolicy(ds config.DefinedSets, pd ...config.PolicyDefinition) config.RoutingPolicy {
-	pl := config.RoutingPolicy{
+func createRoutingPolicy(ds *config.DefinedSets, pd ...*config.PolicyDefinition) *config.RoutingPolicy {
+	return &config.RoutingPolicy{
 		DefinedSets: ds,
-		PolicyDefinitions: config.PolicyDefinitions{
+		PolicyDefinitions: &config.PolicyDefinitions{
 			PolicyDefinitionList: pd,
 		},
 	}
-	return pl
 }
 
-func createPrefixSet(name string, prefix string, maskLength string) config.PrefixSet {
-	ps := config.PrefixSet{
+func createPrefixSet(name string, prefix string, maskLength string) *config.PrefixSet {
+	return &config.PrefixSet{
 		PrefixSetName: name,
-		PrefixList: []config.Prefix{
-			config.Prefix{
+		PrefixList: []*config.Prefix{
+			&config.Prefix{
 				IpPrefix:        prefix,
 				MasklengthRange: maskLength,
 			}},
 	}
-	return ps
 }
 
-func createNeighborSet(name string, addr string) config.NeighborSet {
-	ns := config.NeighborSet{
+func createNeighborSet(name string, addr string) *config.NeighborSet {
+	return &config.NeighborSet{
 		NeighborSetName: name,
-		NeighborInfoList: []config.NeighborInfo{
-			config.NeighborInfo{
+		NeighborInfoList: []*config.NeighborInfo{
+			&config.NeighborInfo{
 				Address: net.ParseIP(addr),
 			}},
 	}
-	return ns
 }

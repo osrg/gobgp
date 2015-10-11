@@ -168,25 +168,25 @@ func main() {
 	for {
 		select {
 		case newConfig := <-configCh:
-			var added, deleted, updated []config.Neighbor
+			var added, deleted, updated []*config.Neighbor
 
 			if bgpConfig == nil {
 				bgpServer.SetGlobalType(newConfig.Bgp.Global)
-				bgpConfig = &newConfig.Bgp
+				bgpConfig = newConfig.Bgp
 				bgpServer.SetRpkiConfig(newConfig.Bgp.RpkiServers)
 				bgpServer.SetBmpConfig(newConfig.Bgp.BmpServers)
 				added = newConfig.Bgp.Neighbors.NeighborList
-				deleted = []config.Neighbor{}
-				updated = []config.Neighbor{}
+				deleted = []*config.Neighbor{}
+				updated = []*config.Neighbor{}
 			} else {
-				bgpConfig, added, deleted, updated = config.UpdateConfig(bgpConfig, &newConfig.Bgp)
+				bgpConfig, added, deleted, updated = config.UpdateConfig(bgpConfig, newConfig.Bgp)
 			}
 
 			if policyConfig == nil {
-				policyConfig = &newConfig.Policy
+				policyConfig = newConfig.Policy
 				bgpServer.SetPolicy(newConfig.Policy)
 			} else {
-				if config.CheckPolicyDifference(policyConfig, &newConfig.Policy) {
+				if config.CheckPolicyDifference(policyConfig, newConfig.Policy) {
 					log.Info("Policy config is updated")
 					bgpServer.UpdatePolicy(newConfig.Policy)
 				}

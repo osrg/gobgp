@@ -53,7 +53,7 @@ func (r *roa) toApiStruct() *api.ROA {
 type roaClient struct {
 	roas     map[bgp.RouteFamily]*radix.Tree
 	outgoing chan []byte
-	config   config.RpkiServers
+	config   *config.RpkiServers
 }
 
 func (c *roaClient) recieveROA() chan []byte {
@@ -69,7 +69,7 @@ func roa2key(r *roa) string {
 }
 
 func (c *roaClient) handleRTRMsg(buf []byte) {
-	received := &c.config.RpkiServerList[0].RpkiServerState.RpkiMessages.RpkiReceived
+	received := c.config.RpkiServerList[0].RpkiServerState.RpkiMessages.RpkiReceived
 
 	m, _ := bgp.ParseRTR(buf)
 	if m != nil {
@@ -112,7 +112,7 @@ func (c *roaClient) handleGRPC(grpcReq *GrpcRequest) {
 	case REQ_RPKI:
 		results := make([]*GrpcResponse, 0)
 		for _, s := range c.config.RpkiServerList {
-			state := &s.RpkiServerState
+			state := s.RpkiServerState
 			rpki := &api.RPKI{
 				Conf: &api.RPKIConf{
 					Address: s.RpkiServerConfig.Address.String(),
@@ -176,7 +176,7 @@ func (c *roaClient) validate(pathList []*table.Path) {
 	}
 }
 
-func newROAClient(conf config.RpkiServers) (*roaClient, error) {
+func newROAClient(conf *config.RpkiServers) (*roaClient, error) {
 	var url string
 
 	c := &roaClient{
@@ -186,7 +186,7 @@ func newROAClient(conf config.RpkiServers) (*roaClient, error) {
 	c.roas[bgp.RF_IPv4_UC] = radix.New()
 	c.roas[bgp.RF_IPv6_UC] = radix.New()
 
-	if len(conf.RpkiServerList) == 0 {
+	if conf == nil || len(conf.RpkiServerList) == 0 {
 		return c, nil
 	} else {
 		if len(conf.RpkiServerList) > 1 {
@@ -201,7 +201,7 @@ func newROAClient(conf config.RpkiServers) (*roaClient, error) {
 		return c, err
 	}
 
-	state := &conf.RpkiServerList[0].RpkiServerState
+	state := conf.RpkiServerList[0].RpkiServerState
 	state.Uptime = time.Now().Unix()
 	r := bgp.NewRTRResetQuery()
 	data, _ := r.Serialize()

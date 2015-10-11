@@ -7,8 +7,8 @@ import (
 )
 
 type BgpConfigSet struct {
-	Bgp    Bgp
-	Policy RoutingPolicy
+	Bgp    *Bgp
+	Policy *RoutingPolicy
 }
 
 func ReadConfigfileServe(path string, configCh chan BgpConfigSet, reloadCh chan bool) {
@@ -16,13 +16,13 @@ func ReadConfigfileServe(path string, configCh chan BgpConfigSet, reloadCh chan 
 	for {
 		<-reloadCh
 
-		b := Bgp{}
-		p := RoutingPolicy{}
-		md, err := toml.DecodeFile(path, &b)
+		b := &Bgp{}
+		p := &RoutingPolicy{}
+		md, err := toml.DecodeFile(path, b)
 		if err == nil {
-			err = SetDefaultConfigValues(md, &b)
+			err = SetDefaultConfigValues(md, b)
 			if err == nil {
-				_, err = toml.DecodeFile(path, &p)
+				_, err = toml.DecodeFile(path, p)
 			}
 		}
 
@@ -43,7 +43,7 @@ func ReadConfigfileServe(path string, configCh chan BgpConfigSet, reloadCh chan 
 	}
 }
 
-func inSlice(n Neighbor, b []Neighbor) int {
+func inSlice(n *Neighbor, b []*Neighbor) int {
 	for i, nb := range b {
 		if nb.NeighborConfig.NeighborAddress.String() == n.NeighborConfig.NeighborAddress.String() {
 			return i
@@ -52,18 +52,20 @@ func inSlice(n Neighbor, b []Neighbor) int {
 	return -1
 }
 
-func UpdateConfig(curC *Bgp, newC *Bgp) (*Bgp, []Neighbor, []Neighbor, []Neighbor) {
-	bgpConfig := Bgp{}
+func UpdateConfig(curC *Bgp, newC *Bgp) (*Bgp, []*Neighbor, []*Neighbor, []*Neighbor) {
+	bgpConfig := &Bgp{
+		Neighbors: &Neighbors{},
+	}
 	if curC == nil {
 		bgpConfig.Global = newC.Global
-		curC = &bgpConfig
+		curC = bgpConfig
 	} else {
 		// can't update the global config
 		bgpConfig.Global = curC.Global
 	}
-	added := []Neighbor{}
-	deleted := []Neighbor{}
-	updated := []Neighbor{}
+	added := []*Neighbor{}
+	deleted := []*Neighbor{}
+	updated := []*Neighbor{}
 
 	for _, n := range newC.Neighbors.NeighborList {
 		if idx := inSlice(n, curC.Neighbors.NeighborList); idx < 0 {
@@ -82,7 +84,7 @@ func UpdateConfig(curC *Bgp, newC *Bgp) (*Bgp, []Neighbor, []Neighbor, []Neighbo
 	}
 
 	bgpConfig.Neighbors.NeighborList = newC.Neighbors.NeighborList
-	return &bgpConfig, added, deleted, updated
+	return bgpConfig, added, deleted, updated
 }
 
 func CheckPolicyDifference(currentPolicy *RoutingPolicy, newPolicy *RoutingPolicy) bool {

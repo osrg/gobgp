@@ -81,8 +81,8 @@ type FSM struct {
 }
 
 func (fsm *FSM) bgpMessageStateUpdate(MessageType uint8, isIn bool) {
-	state := &fsm.pConf.NeighborState.Messages
-	timer := &fsm.pConf.Timers
+	state := fsm.pConf.NeighborState.Messages
+	timer := fsm.pConf.Timers
 	if isIn {
 		state.Received.Total++
 	} else {
