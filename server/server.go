@@ -1244,7 +1244,7 @@ func (server *BgpServer) getBestFromLocal(peer *Peer) ([]*table.Path, []*table.P
 		rib := server.globalRib
 		l, _ := peer.fsm.LocalHostPort()
 		peer.conf.Transport.TransportConfig.LocalAddress = net.ParseIP(l)
-		bests := filterpath(peer, peer.getBests(rib))
+		bests := rib.ApplyPolicy(table.POLICY_DIRECTION_EXPORT, filterpath(peer, peer.getBests(rib)))
 		pathList = make([]*table.Path, 0, len(bests))
 		for _, path := range bests {
 			path.UpdatePathAttrs(&server.bgpConfig.Global, &peer.conf)
