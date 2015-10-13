@@ -215,6 +215,15 @@ func (peer *Peer) handleBGPmessage(m *bgp.BGPMessage) ([]*table.Path, bool, []*b
 		table.UpdatePathAttrs4ByteAs(body)
 		pathList = table.ProcessMessage(m, peer.peerInfo)
 		peer.adjRib.UpdateIn(pathList)
+	case bgp.BGP_MSG_NOTIFICATION:
+		body := m.Body.(*bgp.BGPNotification)
+		log.WithFields(log.Fields{
+			"Topic":   "Peer",
+			"Key":     peer.conf.NeighborConfig.NeighborAddress,
+			"Code":    body.ErrorCode,
+			"Subcode": body.ErrorSubcode,
+			"Data":    body.Data,
+		}).Info("received notification")
 	}
 	return pathList, update, bgpMsgList
 }
