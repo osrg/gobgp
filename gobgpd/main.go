@@ -24,6 +24,8 @@ import (
 	"github.com/osrg/gobgp/server"
 	"io/ioutil"
 	"log/syslog"
+	"net/http"
+	_ "net/http/pprof"
 	"os"
 	"os/signal"
 	"runtime"
@@ -58,6 +60,10 @@ func main() {
 		}
 		runtime.GOMAXPROCS(opts.CPUs)
 	}
+
+	go func() {
+		log.Println(http.ListenAndServe("localhost:6060", nil))
+	}()
 
 	switch opts.LogLevel {
 	case "debug":
