@@ -317,13 +317,13 @@ func injectMrt(r string, filename string, count int) error {
 
 	stream, err := client.ModPath(context.Background())
 	if err != nil {
-		return fmt.Errorf("failed to modpath:", err)
+		return fmt.Errorf("failed to modpath: %s", err)
 	}
 
 	for arg := range ch {
 		err = stream.Send(arg)
 		if err != nil {
-			return fmt.Errorf("failed to send:", err)
+			return fmt.Errorf("failed to send: %s", err)
 		}
 	}
 

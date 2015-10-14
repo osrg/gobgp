@@ -1595,7 +1595,7 @@ func (er *EVPNMacIPAdvertisementRoute) DecodeFromBytes(data []byte) error {
 	if er.IPAddressLength == 32 || er.IPAddressLength == 128 {
 		er.IPAddress = net.IP(data[0:((er.IPAddressLength) / 8)])
 	} else if er.IPAddressLength != 0 {
-		return fmt.Errorf("Invalid IP address length", er.IPAddressLength)
+		return fmt.Errorf("Invalid IP address length: %d", er.IPAddressLength)
 	}
 	data = data[(er.IPAddressLength / 8):]
 	label1 := labelDecode(data)
@@ -1644,7 +1644,7 @@ func (er *EVPNMacIPAdvertisementRoute) Serialize() ([]byte, error) {
 		}
 		buf = append(buf, []byte(er.IPAddress)...)
 	} else {
-		return nil, fmt.Errorf("Invalid IP address length", er.IPAddressLength)
+		return nil, fmt.Errorf("Invalid IP address length: %d", er.IPAddressLength)
 	}
 
 	for _, l := range er.Labels {
@@ -1697,7 +1697,7 @@ func (er *EVPNMulticastEthernetTagRoute) DecodeFromBytes(data []byte) error {
 	if er.IPAddressLength == 32 || er.IPAddressLength == 128 {
 		er.IPAddress = net.IP(data[:er.IPAddressLength/8])
 	} else {
-		return fmt.Errorf("Invalid IP address length", er.IPAddressLength)
+		return fmt.Errorf("Invalid IP address length: %d", er.IPAddressLength)
 	}
 	return nil
 }
@@ -1723,7 +1723,7 @@ func (er *EVPNMulticastEthernetTagRoute) Serialize() ([]byte, error) {
 		}
 		buf = append(buf, []byte(er.IPAddress)...)
 	} else {
-		return nil, fmt.Errorf("Invalid IP address length", er.IPAddressLength)
+		return nil, fmt.Errorf("Invalid IP address length: %d", er.IPAddressLength)
 	}
 	if err != nil {
 		return nil, err
@@ -1768,7 +1768,7 @@ func (er *EVPNEthernetSegmentRoute) DecodeFromBytes(data []byte) error {
 	if er.IPAddressLength == 32 || er.IPAddressLength == 128 {
 		er.IPAddress = net.IP(data[:er.IPAddressLength/8])
 	} else {
-		return fmt.Errorf("Invalid IP address length", er.IPAddressLength)
+		return fmt.Errorf("Invalid IP address length: %d", er.IPAddressLength)
 	}
 	return nil
 }
@@ -1796,7 +1796,7 @@ func (er *EVPNEthernetSegmentRoute) Serialize() ([]byte, error) {
 		}
 		buf = append(buf, []byte(er.IPAddress)...)
 	} else {
-		return nil, fmt.Errorf("Invalid IP address length", er.IPAddressLength)
+		return nil, fmt.Errorf("Invalid IP address length: %d", er.IPAddressLength)
 	}
 	return buf, nil
 }
@@ -1840,7 +1840,7 @@ func getEVPNRouteType(t uint8) (EVPNRouteTypeInterface, error) {
 	case EVPN_ETHERNET_SEGMENT_ROUTE:
 		return &EVPNEthernetSegmentRoute{}, nil
 	}
-	return nil, fmt.Errorf("Unknown EVPN Route type", t)
+	return nil, fmt.Errorf("Unknown EVPN Route type: %d", t)
 }
 
 const (
