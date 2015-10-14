@@ -330,7 +330,7 @@ func (c CapGracefulRestartTuples) MarshalJSON() ([]byte, error) {
 type CapGracefulRestartValue struct {
 	Flags  uint8                      `json:"flags"`
 	Time   uint16                     `json:"time"`
-	Tuples []CapGracefulRestartTuples `json"tuples"`
+	Tuples []CapGracefulRestartTuples `json:"tuples"`
 }
 
 type CapGracefulRestart struct {
@@ -405,8 +405,8 @@ func (c *CapFourOctetASNumber) Serialize() ([]byte, error) {
 
 func (c *CapFourOctetASNumber) MarshalJSON() ([]byte, error) {
 	return json.Marshal(struct {
-		Code  BGPCapabilityCode `json"code"`
-		Value uint32            `json"value"`
+		Code  BGPCapabilityCode `json:"code"`
+		Value uint32            `json:"value"`
 	}{
 		Code:  c.Code(),
 		Value: c.CapValue,
@@ -472,7 +472,7 @@ func (c *CapAddPath) Serialize() ([]byte, error) {
 
 func (c *CapAddPath) MarshalJSON() ([]byte, error) {
 	return json.Marshal(struct {
-		Code  BGPCapabilityCode `json"code"`
+		Code  BGPCapabilityCode `json:"code"`
 		Value RouteFamily       `json:"value"`
 		Mode  BGPAddPathMode    `json:"mode"`
 	}{
