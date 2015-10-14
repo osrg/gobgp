@@ -1160,7 +1160,7 @@ func (server *BgpServer) handleVrfMod(arg *api.ModVrfArguments) ([]*table.Path, 
 			return nil, err
 		}
 	default:
-		return nil, fmt.Errorf("unknown operation:", arg.Operation)
+		return nil, fmt.Errorf("unknown operation: %d", arg.Operation)
 	}
 	return msgs, nil
 }
@@ -1215,7 +1215,7 @@ func (server *BgpServer) handleVrfRequest(req *GrpcRequest) []*table.Path {
 		arg := req.Data.(*api.ModVrfArguments)
 		msgs, result.ResponseErr = server.handleVrfMod(arg)
 	default:
-		result.ResponseErr = fmt.Errorf("unknown request type:", req.RequestType)
+		result.ResponseErr = fmt.Errorf("unknown request type: %d", req.RequestType)
 	}
 
 	req.ResponseCh <- result
