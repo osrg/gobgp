@@ -546,6 +546,122 @@ func TestAsPathLengthConditionWithOtherCondition(t *testing.T) {
 
 }
 
+func TestAs4PathLengthConditionEvaluate(t *testing.T) {
+	// setup
+	// create path
+	peer := &PeerInfo{AS: 65001, Address: net.ParseIP("10.0.0.1")}
+	origin := bgp.NewPathAttributeOrigin(0)
+	aspathParam := []bgp.AsPathParamInterface{
+		bgp.NewAs4PathParam(2, []uint32{
+			createAs4Value("65001.1"),
+			createAs4Value("65000.1"),
+			createAs4Value("65004.1"),
+			createAs4Value("65005.1"),
+		}),
+		bgp.NewAs4PathParam(1, []uint32{
+			createAs4Value("65001.1"),
+			createAs4Value("65000.1"),
+			createAs4Value("65004.1"),
+			createAs4Value("65005.1"),
+		}),
+	}
+	aspath := bgp.NewPathAttributeAsPath(aspathParam)
+	nexthop := bgp.NewPathAttributeNextHop("10.0.0.1")
+	med := bgp.NewPathAttributeMultiExitDisc(0)
+	pathAttributes := []bgp.PathAttributeInterface{origin, aspath, nexthop, med}
+	nlri := []*bgp.IPAddrPrefix{bgp.NewIPAddrPrefix(24, "10.10.0.101")}
+	updateMsg := bgp.NewBGPUpdateMessage(nil, pathAttributes, nlri)
+	UpdatePathAttrs4ByteAs(updateMsg.Body.(*bgp.BGPUpdate))
+	path := ProcessMessage(updateMsg, peer)[0]
+
+	// create match condition
+	asPathLength := config.AsPathLength{
+		Operator: "eq",
+		Value:    5,
+	}
+	c := NewAsPathLengthCondition(asPathLength)
+
+	// test
+	assert.Equal(t, true, c.evaluate(path))
+
+	// create match condition
+	asPathLength = config.AsPathLength{
+		Operator: "ge",
+		Value:    3,
+	}
+	c = NewAsPathLengthCondition(asPathLength)
+
+	// test
+	assert.Equal(t, true, c.evaluate(path))
+
+	// create match condition
+	asPathLength = config.AsPathLength{
+		Operator: "le",
+		Value:    3,
+	}
+	c = NewAsPathLengthCondition(asPathLength)
+
+	// test
+	assert.Equal(t, false, c.evaluate(path))
+}
+
+func TestAs4PathLengthConditionWithOtherCondition(t *testing.T) {
+	// setup
+	// create path
+	peer := &PeerInfo{AS: 65001, Address: net.ParseIP("10.0.0.1")}
+	origin := bgp.NewPathAttributeOrigin(0)
+	aspathParam := []bgp.AsPathParamInterface{
+		bgp.NewAs4PathParam(2, []uint32{
+			createAs4Value("65001.1"),
+			createAs4Value("65000.1"),
+			createAs4Value("65004.1"),
+			createAs4Value("65004.1"),
+			createAs4Value("65005.1"),
+		}),
+		bgp.NewAs4PathParam(1, []uint32{
+			createAs4Value("65001.1"),
+			createAs4Value("65000.1"),
+			createAs4Value("65004.1"),
+			createAs4Value("65005.1"),
+		}),
+	}
+	aspath := bgp.NewPathAttributeAsPath(aspathParam)
+	nexthop := bgp.NewPathAttributeNextHop("10.0.0.1")
+	med := bgp.NewPathAttributeMultiExitDisc(0)
+	pathAttributes := []bgp.PathAttributeInterface{origin, aspath, nexthop, med}
+	nlri := []*bgp.IPAddrPrefix{bgp.NewIPAddrPrefix(24, "10.10.0.101")}
+	updateMsg := bgp.NewBGPUpdateMessage(nil, pathAttributes, nlri)
+	UpdatePathAttrs4ByteAs(updateMsg.Body.(*bgp.BGPUpdate))
+	path := ProcessMessage(updateMsg, peer)[0]
+
+	// create policy
+	ps := createPrefixSet("ps1", "10.10.1.0/16", "21..24")
+	ns := createNeighborSet("ns1", "10.0.0.1")
+
+	ds := config.DefinedSets{}
+	ds.PrefixSets.PrefixSetList = []config.PrefixSet{ps}
+	ds.NeighborSets.NeighborSetList = []config.NeighborSet{ns}
+
+	// create match condition
+	asPathLength := config.AsPathLength{
+		Operator: "le",
+		Value:    10,
+	}
+
+	s := createStatement("statement1", "ps1", "ns1", false)
+	s.Conditions.BgpConditions.AsPathLength = asPathLength
+	pd := createPolicyDefinition("pd1", s)
+	pl := createRoutingPolicy(ds, pd)
+
+	//test
+	df := pl.DefinedSets
+	p := NewPolicy(pl.PolicyDefinitions.PolicyDefinitionList[0], df)
+	pType, newPath := p.Apply(path)
+	assert.Equal(t, ROUTE_TYPE_REJECT, pType)
+	assert.Equal(t, newPath, path)
+
+}
+
 func TestAsPathConditionEvaluate(t *testing.T) {
 
 	// setup
@@ -857,6 +973,302 @@ func TestAsPathConditionWithOtherCondition(t *testing.T) {
 	asPathSet := config.AsPathSet{
 		AsPathSetName: "asset1",
 		AsPathList:    []config.AsPath{config.AsPath{"65005$"}},
+	}
+
+	ps := createPrefixSet("ps1", "10.10.1.0/16", "21..24")
+	ns := createNeighborSet("ns1", "10.0.0.1")
+
+	ds := config.DefinedSets{}
+	ds.PrefixSets.PrefixSetList = []config.PrefixSet{ps}
+	ds.NeighborSets.NeighborSetList = []config.NeighborSet{ns}
+	ds.BgpDefinedSets.AsPathSets.AsPathSetList = []config.AsPathSet{asPathSet}
+
+	s := createStatement("statement1", "ps1", "ns1", false)
+	s.Conditions.BgpConditions.MatchAsPathSet.AsPathSet = "asset1"
+
+	pd := createPolicyDefinition("pd1", s)
+	pl := createRoutingPolicy(ds, pd)
+
+	//test
+	df := pl.DefinedSets
+	p := NewPolicy(pl.PolicyDefinitions.PolicyDefinitionList[0], df)
+	pType, newPath := p.Apply(path)
+	assert.Equal(t, ROUTE_TYPE_REJECT, pType)
+	assert.Equal(t, newPath, path)
+
+}
+
+func TestAs4PathConditionEvaluate(t *testing.T) {
+
+	// setup
+	// create path
+	peer := &PeerInfo{AS: 65001, Address: net.ParseIP("10.0.0.1")}
+	origin := bgp.NewPathAttributeOrigin(0)
+	aspathParam1 := []bgp.AsPathParamInterface{
+		bgp.NewAs4PathParam(2, []uint32{
+			createAs4Value("65001.1"),
+			createAs4Value("65000.1"),
+			createAs4Value("65010.1"),
+			createAs4Value("65004.1"),
+			createAs4Value("65005.1"),
+		})}
+
+	aspath := bgp.NewPathAttributeAsPath(aspathParam1)
+	nexthop := bgp.NewPathAttributeNextHop("10.0.0.1")
+	med := bgp.NewPathAttributeMultiExitDisc(0)
+	pathAttributes := []bgp.PathAttributeInterface{origin, aspath, nexthop, med}
+	nlri := []*bgp.IPAddrPrefix{bgp.NewIPAddrPrefix(24, "10.10.0.101")}
+	updateMsg1 := bgp.NewBGPUpdateMessage(nil, pathAttributes, nlri)
+	UpdatePathAttrs4ByteAs(updateMsg1.Body.(*bgp.BGPUpdate))
+	path1 := ProcessMessage(updateMsg1, peer)[0]
+
+	aspathParam2 := []bgp.AsPathParamInterface{
+		bgp.NewAs4PathParam(2, []uint32{
+			createAs4Value("65010.1"),
+		}),
+	}
+	aspath2 := bgp.NewPathAttributeAsPath(aspathParam2)
+	pathAttributes = []bgp.PathAttributeInterface{origin, aspath2, nexthop, med}
+	updateMsg2 := bgp.NewBGPUpdateMessage(nil, pathAttributes, nlri)
+	UpdatePathAttrs4ByteAs(updateMsg2.Body.(*bgp.BGPUpdate))
+	path2 := ProcessMessage(updateMsg2, peer)[0]
+
+	// create match condition
+	asPathSet1 := config.AsPathSet{
+		AsPathSetName: "asset1",
+		AsPathList: []config.AsPath{
+			config.AsPath{AsPath: fmt.Sprintf("^%d", createAs4Value("65001.1"))},
+		},
+	}
+
+	asPathSet2 := config.AsPathSet{
+		AsPathSetName: "asset2",
+		AsPathList: []config.AsPath{
+			config.AsPath{AsPath: fmt.Sprintf("%d$", createAs4Value("65005.1"))},
+		},
+	}
+
+	asPathSet3 := config.AsPathSet{
+		AsPathSetName: "asset3",
+		AsPathList: []config.AsPath{
+			config.AsPath{AsPath: fmt.Sprintf("%d", createAs4Value("65004.1"))},
+			config.AsPath{AsPath: fmt.Sprintf("%d$", createAs4Value("65005.1"))},
+		},
+	}
+
+	asPathSet4 := config.AsPathSet{
+		AsPathSetName: "asset4",
+		AsPathList: []config.AsPath{
+			config.AsPath{AsPath: fmt.Sprintf("%d$", createAs4Value("65000.1"))},
+		},
+	}
+
+	asPathSet5 := config.AsPathSet{
+		AsPathSetName: "asset5",
+		AsPathList: []config.AsPath{
+			config.AsPath{AsPath: fmt.Sprintf("%d", createAs4Value("65010.1"))},
+		},
+	}
+
+	asPathSet6 := config.AsPathSet{
+		AsPathSetName: "asset6",
+		AsPathList: []config.AsPath{
+			config.AsPath{AsPath: fmt.Sprintf("%d$", createAs4Value("65010.1"))},
+		},
+	}
+
+	asPathSetList := []config.AsPathSet{asPathSet1, asPathSet2, asPathSet3,
+		asPathSet4, asPathSet5, asPathSet6}
+
+	createAspathC := func(name string, option config.MatchSetOptionsType) *AsPathCondition {
+		matchSet := config.MatchAsPathSet{}
+		matchSet.AsPathSet = name
+		matchSet.MatchSetOptions = option
+		p := NewAsPathCondition(matchSet, asPathSetList)
+		return p
+	}
+
+	p1 := createAspathC("asset1", config.MATCH_SET_OPTIONS_TYPE_ANY)
+	p2 := createAspathC("asset2", config.MATCH_SET_OPTIONS_TYPE_ANY)
+	p3 := createAspathC("asset3", config.MATCH_SET_OPTIONS_TYPE_ANY)
+	p4 := createAspathC("asset4", config.MATCH_SET_OPTIONS_TYPE_ANY)
+	p5 := createAspathC("asset5", config.MATCH_SET_OPTIONS_TYPE_ANY)
+	p6 := createAspathC("asset6", config.MATCH_SET_OPTIONS_TYPE_ANY)
+
+	p7 := createAspathC("asset3", config.MATCH_SET_OPTIONS_TYPE_ALL)
+	p8 := createAspathC("asset3", config.MATCH_SET_OPTIONS_TYPE_INVERT)
+
+	// test
+	assert.Equal(t, true, p1.evaluate(path1))
+	assert.Equal(t, true, p2.evaluate(path1))
+	assert.Equal(t, true, p3.evaluate(path1))
+	assert.Equal(t, false, p4.evaluate(path1))
+	assert.Equal(t, true, p5.evaluate(path1))
+	assert.Equal(t, false, p6.evaluate(path1))
+	assert.Equal(t, true, p6.evaluate(path2))
+
+	assert.Equal(t, true, p7.evaluate(path1))
+	assert.Equal(t, true, p8.evaluate(path2))
+}
+
+func TestMultipleAs4PathConditionEvaluate(t *testing.T) {
+
+	// setup
+	// create path
+	peer := &PeerInfo{AS: 65001, Address: net.ParseIP("10.0.0.1")}
+	origin := bgp.NewPathAttributeOrigin(0)
+	aspathParam1 := []bgp.AsPathParamInterface{
+		bgp.NewAs4PathParam(2, []uint32{
+			createAs4Value("65001.1"),
+			createAs4Value("65000.1"),
+			createAs4Value("54000.1"),
+			createAs4Value("65004.1"),
+			createAs4Value("65005.1"),
+		}),
+	}
+
+	aspath := bgp.NewPathAttributeAsPath(aspathParam1)
+	nexthop := bgp.NewPathAttributeNextHop("10.0.0.1")
+	med := bgp.NewPathAttributeMultiExitDisc(0)
+	pathAttributes := []bgp.PathAttributeInterface{origin, aspath, nexthop, med}
+	nlri := []*bgp.IPAddrPrefix{bgp.NewIPAddrPrefix(24, "10.10.0.101")}
+	updateMsg1 := bgp.NewBGPUpdateMessage(nil, pathAttributes, nlri)
+	UpdatePathAttrs4ByteAs(updateMsg1.Body.(*bgp.BGPUpdate))
+	path1 := ProcessMessage(updateMsg1, peer)[0]
+
+	// create match condition
+	asPathSet1 := config.AsPathSet{
+		AsPathSetName: "asset1",
+		AsPathList: []config.AsPath{
+			config.AsPath{AsPath: fmt.Sprintf("^%d_%d", createAs4Value("65001.1"), createAs4Value("65000.1"))},
+		},
+	}
+
+	asPathSet2 := config.AsPathSet{
+		AsPathSetName: "asset2",
+		AsPathList: []config.AsPath{
+			config.AsPath{AsPath: fmt.Sprintf("%d_%d$", createAs4Value("65004.1"), createAs4Value("65005.1"))},
+		},
+	}
+
+	asPathSet3 := config.AsPathSet{
+		AsPathSetName: "asset3",
+		AsPathList: []config.AsPath{
+			config.AsPath{AsPath: fmt.Sprintf("%d_%d_%d", createAs4Value("65001.1"), createAs4Value("65000.1"), createAs4Value("54000.1"))},
+		},
+	}
+
+	asPathSet4 := config.AsPathSet{
+		AsPathSetName: "asset4",
+		AsPathList: []config.AsPath{
+			config.AsPath{AsPath: fmt.Sprintf("%d_%d_%d", createAs4Value("54000.1"), createAs4Value("65004.1"), createAs4Value("65005.1"))},
+		},
+	}
+
+	asPathSet5 := config.AsPathSet{
+		AsPathSetName: "asset5",
+		AsPathList: []config.AsPath{
+			config.AsPath{AsPath: fmt.Sprintf("^%d %d %d %d %d$", createAs4Value("65001.1"), createAs4Value("65000.1"), createAs4Value("54000.1"), createAs4Value("65004.1"), createAs4Value("65005.1"))},
+		},
+	}
+
+	asPathSet6 := config.AsPathSet{
+		AsPathSetName: "asset6",
+		AsPathList: []config.AsPath{
+			config.AsPath{AsPath: fmt.Sprintf(".*_[0-9]+_%d", createAs4Value("65005.1"))},
+		},
+	}
+
+	asPathSet7 := config.AsPathSet{
+		AsPathSetName: "asset7",
+		AsPathList: []config.AsPath{
+			config.AsPath{AsPath: ".*_3[0-9]+_[0-9]+"},
+		},
+	}
+
+	asPathSet8 := config.AsPathSet{
+		AsPathSetName: "asset8",
+		AsPathList: []config.AsPath{
+			config.AsPath{AsPath: "4[0-9]+_4[0-9]+_3[0-9]+"},
+		},
+	}
+
+	asPathSet9 := config.AsPathSet{
+		AsPathSetName: "asset9",
+		AsPathList: []config.AsPath{
+			config.AsPath{AsPath: "4[0-9]+__4[0-9]+"},
+		},
+	}
+
+	asPathSetList := []config.AsPathSet{asPathSet1, asPathSet2, asPathSet3,
+		asPathSet4, asPathSet5, asPathSet6, asPathSet7, asPathSet8, asPathSet9}
+
+	createAspathC := func(name string, option config.MatchSetOptionsType) *AsPathCondition {
+		matchSet := config.MatchAsPathSet{}
+		matchSet.AsPathSet = name
+		matchSet.MatchSetOptions = option
+		p := NewAsPathCondition(matchSet, asPathSetList)
+		return p
+	}
+
+	p1 := createAspathC("asset1", config.MATCH_SET_OPTIONS_TYPE_ANY)
+	p2 := createAspathC("asset2", config.MATCH_SET_OPTIONS_TYPE_ANY)
+	p3 := createAspathC("asset3", config.MATCH_SET_OPTIONS_TYPE_ANY)
+	p4 := createAspathC("asset4", config.MATCH_SET_OPTIONS_TYPE_ANY)
+	p5 := createAspathC("asset5", config.MATCH_SET_OPTIONS_TYPE_ANY)
+	p6 := createAspathC("asset6", config.MATCH_SET_OPTIONS_TYPE_ANY)
+	p7 := createAspathC("asset7", config.MATCH_SET_OPTIONS_TYPE_ANY)
+	p8 := createAspathC("asset8", config.MATCH_SET_OPTIONS_TYPE_ANY)
+	p9 := createAspathC("asset9", config.MATCH_SET_OPTIONS_TYPE_ANY)
+
+	// test
+	assert.Equal(t, true, p1.evaluate(path1))
+	assert.Equal(t, true, p2.evaluate(path1))
+	assert.Equal(t, true, p3.evaluate(path1))
+	assert.Equal(t, true, p4.evaluate(path1))
+	assert.Equal(t, true, p5.evaluate(path1))
+	assert.Equal(t, true, p6.evaluate(path1))
+	assert.Equal(t, true, p7.evaluate(path1))
+	assert.Equal(t, true, p8.evaluate(path1))
+	assert.Equal(t, false, p9.evaluate(path1))
+}
+
+func TestAs4PathConditionWithOtherCondition(t *testing.T) {
+
+	// setup
+	// create path
+	peer := &PeerInfo{AS: 65001, Address: net.ParseIP("10.0.0.1")}
+	origin := bgp.NewPathAttributeOrigin(0)
+	aspathParam := []bgp.AsPathParamInterface{
+		bgp.NewAs4PathParam(1, []uint32{
+			createAs4Value("65001.1"),
+			createAs4Value("65000.1"),
+			createAs4Value("65004.1"),
+			createAs4Value("65005.1"),
+		}),
+		bgp.NewAs4PathParam(2, []uint32{
+			createAs4Value("65001.1"),
+			createAs4Value("65000.1"),
+			createAs4Value("65004.1"),
+			createAs4Value("65004.1"),
+			createAs4Value("65005.1"),
+		}),
+	}
+	aspath := bgp.NewPathAttributeAsPath(aspathParam)
+	nexthop := bgp.NewPathAttributeNextHop("10.0.0.1")
+	med := bgp.NewPathAttributeMultiExitDisc(0)
+	pathAttributes := []bgp.PathAttributeInterface{origin, aspath, nexthop, med}
+	nlri := []*bgp.IPAddrPrefix{bgp.NewIPAddrPrefix(24, "10.10.0.101")}
+	updateMsg := bgp.NewBGPUpdateMessage(nil, pathAttributes, nlri)
+	UpdatePathAttrs4ByteAs(updateMsg.Body.(*bgp.BGPUpdate))
+	path := ProcessMessage(updateMsg, peer)[0]
+
+	// create policy
+	asPathSet := config.AsPathSet{
+		AsPathSetName: "asset1",
+		AsPathList: []config.AsPath{config.AsPath{
+			fmt.Sprintf("%d$", createAs4Value("65005.1")),
+		}},
 	}
 
 	ps := createPrefixSet("ps1", "10.10.1.0/16", "21..24")
@@ -2053,6 +2465,115 @@ func TestPolicyAsPathPrependLastAs(t *testing.T) {
 	assert.Equal([]uint32{65002, 65002, 65002, 65002, 65002, 65002, 65001, 65000}, newPath.GetAsSeqList())
 }
 
+func TestPolicyAs4PathPrepend(t *testing.T) {
+
+	assert := assert.New(t)
+
+	// create path
+	peer := &PeerInfo{AS: 65001, Address: net.ParseIP("10.0.0.1")}
+	origin := bgp.NewPathAttributeOrigin(0)
+	aspathParam := []bgp.AsPathParamInterface{
+		bgp.NewAs4PathParam(2, []uint32{
+			createAs4Value("65001.1"),
+			createAs4Value("65000.1"),
+		}),
+	}
+	aspath := bgp.NewPathAttributeAsPath(aspathParam)
+	nexthop := bgp.NewPathAttributeNextHop("10.0.0.1")
+	med := bgp.NewPathAttributeMultiExitDisc(0)
+
+	pathAttributes := []bgp.PathAttributeInterface{origin, aspath, nexthop, med}
+	nlri := []*bgp.IPAddrPrefix{bgp.NewIPAddrPrefix(24, "10.10.0.101")}
+	updateMsg := bgp.NewBGPUpdateMessage(nil, pathAttributes, nlri)
+
+	body := updateMsg.Body.(*bgp.BGPUpdate)
+	UpdatePathAttrs4ByteAs(body)
+	path := ProcessMessage(updateMsg, peer)[0]
+
+	// create policy
+	ps := createPrefixSet("ps1", "10.10.0.0/16", "21..24")
+	ns := createNeighborSet("ns1", "10.0.0.1")
+
+	ds := config.DefinedSets{}
+	ds.PrefixSets.PrefixSetList = []config.PrefixSet{ps}
+	ds.NeighborSets.NeighborSetList = []config.NeighborSet{ns}
+
+	s := createStatement("statement1", "ps1", "ns1", true)
+	s.Actions.BgpActions.SetAsPathPrepend.As = fmt.Sprintf("%d", createAs4Value("65002.1"))
+	s.Actions.BgpActions.SetAsPathPrepend.RepeatN = 10
+
+	pd := createPolicyDefinition("pd1", s)
+	pl := createRoutingPolicy(ds, pd)
+	//test
+	df := pl.DefinedSets
+	p := NewPolicy(pl.PolicyDefinitions.PolicyDefinitionList[0], df)
+
+	pType, newPath := p.Apply(path)
+	assert.Equal(ROUTE_TYPE_ACCEPT, pType)
+	assert.NotEqual(nil, newPath)
+	asn := createAs4Value("65002.1")
+	assert.Equal([]uint32{
+		asn, asn, asn, asn, asn, asn, asn, asn, asn, asn,
+		createAs4Value("65001.1"),
+		createAs4Value("65000.1"),
+	}, newPath.GetAsSeqList())
+}
+
+func TestPolicyAs4PathPrependLastAs(t *testing.T) {
+
+	assert := assert.New(t)
+	// create path
+	peer := &PeerInfo{AS: 65001, Address: net.ParseIP("10.0.0.1")}
+	origin := bgp.NewPathAttributeOrigin(0)
+	aspathParam := []bgp.AsPathParamInterface{
+		bgp.NewAs4PathParam(2, []uint32{
+			createAs4Value("65002.1"),
+			createAs4Value("65001.1"),
+			createAs4Value("65000.1"),
+		}),
+	}
+	aspath := bgp.NewPathAttributeAsPath(aspathParam)
+	nexthop := bgp.NewPathAttributeNextHop("10.0.0.1")
+	med := bgp.NewPathAttributeMultiExitDisc(0)
+
+	pathAttributes := []bgp.PathAttributeInterface{origin, aspath, nexthop, med}
+	nlri := []*bgp.IPAddrPrefix{bgp.NewIPAddrPrefix(24, "10.10.0.101")}
+	updateMsg := bgp.NewBGPUpdateMessage(nil, pathAttributes, nlri)
+
+	body := updateMsg.Body.(*bgp.BGPUpdate)
+	UpdatePathAttrs4ByteAs(body)
+	path := ProcessMessage(updateMsg, peer)[0]
+
+	// create policy
+	ps := createPrefixSet("ps1", "10.10.0.0/16", "21..24")
+	ns := createNeighborSet("ns1", "10.0.0.1")
+
+	ds := config.DefinedSets{}
+	ds.PrefixSets.PrefixSetList = []config.PrefixSet{ps}
+	ds.NeighborSets.NeighborSetList = []config.NeighborSet{ns}
+
+	s := createStatement("statement1", "ps1", "ns1", true)
+	s.Actions.BgpActions.SetAsPathPrepend.As = "last-as"
+	s.Actions.BgpActions.SetAsPathPrepend.RepeatN = 5
+
+	pd := createPolicyDefinition("pd1", s)
+	pl := createRoutingPolicy(ds, pd)
+	//test
+	df := pl.DefinedSets
+	p := NewPolicy(pl.PolicyDefinitions.PolicyDefinitionList[0], df)
+
+	pType, newPath := p.Apply(path)
+	assert.Equal(ROUTE_TYPE_ACCEPT, pType)
+	assert.NotEqual(nil, newPath)
+	asn := createAs4Value("65002.1")
+	assert.Equal([]uint32{
+		asn, asn, asn, asn, asn,
+		createAs4Value("65002.1"),
+		createAs4Value("65001.1"),
+		createAs4Value("65000.1"),
+	}, newPath.GetAsSeqList())
+}
+
 func createStatement(name, psname, nsname string, accept bool) config.Statement {
 
 	c := config.Conditions{
@@ -2136,4 +2657,11 @@ func createNeighborSet(name string, addr string) config.NeighborSet {
 			}},
 	}
 	return ns
+}
+
+func createAs4Value(s string) uint32 {
+	v := strings.Split(s, ".")
+	upper, _ := strconv.Atoi(v[0])
+	lower, _ := strconv.Atoi(v[1])
+	return uint32(upper)<<16 + uint32(lower)
 }
