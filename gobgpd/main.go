@@ -45,6 +45,7 @@ func main() {
 		Facility      string `long:"syslog-facility" description:"specify syslog facility"`
 		DisableStdlog bool   `long:"disable-stdlog" description:"disable standard logging"`
 		CPUs          int    `long:"cpus" description:"specify the number of CPUs to be used"`
+		PProfURL      string `long:"pprof-url" description:"enable net/http/pprof and specified the url (e.g., localhost:6060"`
 	}
 	_, err := flags.Parse(&opts)
 	if err != nil {
@@ -61,9 +62,11 @@ func main() {
 		runtime.GOMAXPROCS(opts.CPUs)
 	}
 
-	go func() {
-		log.Println(http.ListenAndServe("localhost:6060", nil))
-	}()
+	if opts.PProfURL != "" {
+		go func() {
+			log.Println(http.ListenAndServe(opts.PProfURL, nil))
+		}()
+	}
 
 	switch opts.LogLevel {
 	case "debug":
