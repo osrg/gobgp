@@ -361,7 +361,11 @@ func (server *BgpServer) Serve() {
 						continue
 					}
 					for _, rf := range peer.configuredRFlist() {
-						pathList = append(pathList, p.adjRib.GetInPathList(rf)...)
+						for _, path := range p.adjRib.GetInPathList(rf) {
+							if path.Filtered == false {
+								pathList = append(pathList, path)
+							}
+						}
 					}
 				}
 				pathList, _ = peer.ApplyPolicy(table.POLICY_DIRECTION_IMPORT, pathList)
