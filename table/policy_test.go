@@ -1294,6 +1294,115 @@ func TestAs4PathConditionWithOtherCondition(t *testing.T) {
 
 }
 
+func TestAs4PathConditionEvaluateMixedWith2byteAS(t *testing.T) {
+
+	// setup
+	// create path
+	peer := &PeerInfo{AS: 65001, Address: net.ParseIP("10.0.0.1")}
+	origin := bgp.NewPathAttributeOrigin(0)
+	aspathParam1 := []bgp.AsPathParamInterface{
+		bgp.NewAs4PathParam(2, []uint32{
+			createAs4Value("65001.1"),
+			createAs4Value("65000.1"),
+			createAs4Value("54000.1"),
+			100,
+			5000,
+			createAs4Value("65004.1"),
+			createAs4Value("65005.1"),
+			4000,
+		}),
+	}
+
+	aspath := bgp.NewPathAttributeAsPath(aspathParam1)
+	nexthop := bgp.NewPathAttributeNextHop("10.0.0.1")
+	med := bgp.NewPathAttributeMultiExitDisc(0)
+	pathAttributes := []bgp.PathAttributeInterface{origin, aspath, nexthop, med}
+	nlri := []*bgp.IPAddrPrefix{bgp.NewIPAddrPrefix(24, "10.10.0.101")}
+	updateMsg1 := bgp.NewBGPUpdateMessage(nil, pathAttributes, nlri)
+	UpdatePathAttrs4ByteAs(updateMsg1.Body.(*bgp.BGPUpdate))
+	path1 := ProcessMessage(updateMsg1, peer)[0]
+
+	// create match condition
+	asPathSet1 := config.AsPathSet{
+		AsPathSetName: "asset1",
+		AsPathList: []config.AsPath{
+			config.AsPath{AsPath: fmt.Sprintf("^%d", createAs4Value("65001.1"))},
+		},
+	}
+
+	asPathSet2 := config.AsPathSet{
+		AsPathSetName: "asset2",
+		AsPathList: []config.AsPath{
+			config.AsPath{AsPath: "4000$"},
+		},
+	}
+
+	asPathSet3 := config.AsPathSet{
+		AsPathSetName: "asset3",
+		AsPathList: []config.AsPath{
+			config.AsPath{AsPath: fmt.Sprintf("%d", createAs4Value("65004.1"))},
+			config.AsPath{AsPath: "4000$"},
+		},
+	}
+
+	asPathSet4 := config.AsPathSet{
+		AsPathSetName: "asset4",
+		AsPathList: []config.AsPath{
+			config.AsPath{AsPath: fmt.Sprintf("%d_%d_%d", createAs4Value("54000.1"), 100, 5000)},
+		},
+	}
+
+	asPathSet5 := config.AsPathSet{
+		AsPathSetName: "asset5",
+		AsPathList: []config.AsPath{
+			config.AsPath{AsPath: ".*_[0-9]+_100"},
+		},
+	}
+
+	asPathSet6 := config.AsPathSet{
+		AsPathSetName: "asset6",
+		AsPathList: []config.AsPath{
+			config.AsPath{AsPath: ".*_3[0-9]+_[0]+"},
+		},
+	}
+
+	asPathSet7 := config.AsPathSet{
+		AsPathSetName: "asset7",
+		AsPathList: []config.AsPath{
+			config.AsPath{AsPath: ".*_3[0-9]+_[1]+"},
+		},
+	}
+
+	asPathSetList := []config.AsPathSet{asPathSet1, asPathSet2, asPathSet3,
+		asPathSet4, asPathSet5, asPathSet6, asPathSet7}
+
+	createAspathC := func(name string, option config.MatchSetOptionsType) *AsPathCondition {
+		matchSet := config.MatchAsPathSet{}
+		matchSet.AsPathSet = name
+		matchSet.MatchSetOptions = option
+		p := NewAsPathCondition(matchSet, asPathSetList)
+		return p
+	}
+
+	p1 := createAspathC("asset1", config.MATCH_SET_OPTIONS_TYPE_ANY)
+	p2 := createAspathC("asset2", config.MATCH_SET_OPTIONS_TYPE_ANY)
+	p3 := createAspathC("asset3", config.MATCH_SET_OPTIONS_TYPE_ALL)
+	p4 := createAspathC("asset4", config.MATCH_SET_OPTIONS_TYPE_ANY)
+	p5 := createAspathC("asset5", config.MATCH_SET_OPTIONS_TYPE_ANY)
+	p6 := createAspathC("asset6", config.MATCH_SET_OPTIONS_TYPE_ANY)
+	p7 := createAspathC("asset7", config.MATCH_SET_OPTIONS_TYPE_ANY)
+
+	// test
+	assert.Equal(t, true, p1.evaluate(path1))
+	assert.Equal(t, true, p2.evaluate(path1))
+	assert.Equal(t, true, p3.evaluate(path1))
+	assert.Equal(t, true, p4.evaluate(path1))
+	assert.Equal(t, true, p5.evaluate(path1))
+	assert.Equal(t, false, p6.evaluate(path1))
+	assert.Equal(t, true, p7.evaluate(path1))
+
+}
+
 func TestCommunityConditionEvaluate(t *testing.T) {
 
 	log.SetLevel(log.DebugLevel)
