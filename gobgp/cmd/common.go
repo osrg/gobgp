@@ -443,10 +443,10 @@ func connGrpc() *grpc.ClientConn {
 }
 
 func addr2AddressFamily(a net.IP) bgp.RouteFamily {
-	if a.To16() != nil {
-		return bgp.RF_IPv6_UC
+	if a.To4() != nil {
+		return bgp.RF_IPv4_UC
 	}
-	return bgp.RF_IPv4_UC
+	return bgp.RF_IPv6_UC
 }
 
 func checkAddressFamily(def bgp.RouteFamily) (bgp.RouteFamily, error) {
