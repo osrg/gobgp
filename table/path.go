@@ -333,9 +333,8 @@ func (path *Path) GetAsPathLen() int {
 	var length int = 0
 	if _, attr := path.getPathAttr(bgp.BGP_ATTR_TYPE_AS_PATH); attr != nil {
 		aspath := attr.(*bgp.PathAttributeAsPath)
-		for _, paramIf := range aspath.Value {
-			segment := paramIf.(*bgp.As4PathParam)
-			length += segment.ASLen()
+		for _, as := range aspath.Value {
+			length += as.ASLen()
 		}
 	}
 	return length
