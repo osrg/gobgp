@@ -556,16 +556,7 @@ func (path *Path) GetExtCommunities() []bgp.ExtendedCommunityInterface {
 	return eCommunityList
 }
 
-func (path *Path) SetExtCommunities(values []byte, doReplace bool) {
-	exts := []bgp.ExtendedCommunityInterface{}
-	for len(values) >= 8 {
-		e := &bgp.UnknownExtended{
-			Type:  bgp.BGPAttrType(values[0]),
-			Value: values[1:8],
-		}
-		exts = append(exts, e)
-		values = values[8:]
-	}
+func (path *Path) SetExtCommunities(exts []bgp.ExtendedCommunityInterface, doReplace bool) {
 	idx, attr := path.getPathAttr(bgp.BGP_ATTR_TYPE_EXTENDED_COMMUNITIES)
 	if attr != nil {
 		l := attr.(*bgp.PathAttributeExtendedCommunities).Value

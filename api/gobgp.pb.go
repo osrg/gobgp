@@ -22,15 +22,12 @@ It has these top-level messages:
 	Peer
 	Prefix
 	PrefixSet
-	Neighbor
-	NeighborSet
 	AsPathLength
-	AsPathSet
-	CommunitySet
-	ExtCommunitySet
+	MatchSet
 	Conditions
 	CommunityAction
 	AsPrependAction
+	MedAction
 	Actions
 	Statement
 	PolicyDefinition
@@ -399,144 +396,100 @@ func (m *Prefix) String() string { return proto.CompactTextString(m) }
 func (*Prefix) ProtoMessage()    {}
 
 type PrefixSet struct {
-	PrefixSetName   string    `protobuf:"bytes,1,opt,name=prefix_set_name" json:"prefix_set_name,omitempty"`
-	PrefixList      []*Prefix `protobuf:"bytes,2,rep,name=prefix_list" json:"prefix_list,omitempty"`
-	MatchSetOptions string    `protobuf:"bytes,3,opt,name=match_set_options" json:"match_set_options,omitempty"`
+	Name   string    `protobuf:"bytes,1,opt,name=name" json:"name,omitempty"`
+	List   []*Prefix `protobuf:"bytes,2,rep,name=list" json:"list,omitempty"`
+	Option int32     `protobuf:"varint,3,opt,name=option" json:"option,omitempty"`
 }
 
 func (m *PrefixSet) Reset()         { *m = PrefixSet{} }
 func (m *PrefixSet) String() string { return proto.CompactTextString(m) }
 func (*PrefixSet) ProtoMessage()    {}
 
-func (m *PrefixSet) GetPrefixList() []*Prefix {
+func (m *PrefixSet) GetList() []*Prefix {
 	if m != nil {
-		return m.PrefixList
-	}
-	return nil
-}
-
-type Neighbor struct {
-	Address string `protobuf:"bytes,1,opt,name=address" json:"address,omitempty"`
-}
-
-func (m *Neighbor) Reset()         { *m = Neighbor{} }
-func (m *Neighbor) String() string { return proto.CompactTextString(m) }
-func (*Neighbor) ProtoMessage()    {}
-
-type NeighborSet struct {
-	NeighborSetName string      `protobuf:"bytes,1,opt,name=neighbor_set_name" json:"neighbor_set_name,omitempty"`
-	NeighborList    []*Neighbor `protobuf:"bytes,2,rep,name=neighbor_list" json:"neighbor_list,omitempty"`
-	MatchSetOptions string      `protobuf:"bytes,3,opt,name=match_set_options" json:"match_set_options,omitempty"`
-}
-
-func (m *NeighborSet) Reset()         { *m = NeighborSet{} }
-func (m *NeighborSet) String() string { return proto.CompactTextString(m) }
-func (*NeighborSet) ProtoMessage()    {}
-
-func (m *NeighborSet) GetNeighborList() []*Neighbor {
-	if m != nil {
-		return m.NeighborList
+		return m.List
 	}
 	return nil
 }
 
 type AsPathLength struct {
-	Value    string `protobuf:"bytes,1,opt,name=value" json:"value,omitempty"`
-	Operator string `protobuf:"bytes,2,opt,name=operator" json:"operator,omitempty"`
+	Length uint32 `protobuf:"varint,1,opt,name=length" json:"length,omitempty"`
+	Type   int32  `protobuf:"varint,2,opt,name=type" json:"type,omitempty"`
 }
 
 func (m *AsPathLength) Reset()         { *m = AsPathLength{} }
 func (m *AsPathLength) String() string { return proto.CompactTextString(m) }
 func (*AsPathLength) ProtoMessage()    {}
 
-type AsPathSet struct {
-	AsPathSetName   string   `protobuf:"bytes,1,opt,name=as_path_set_name" json:"as_path_set_name,omitempty"`
-	AsPathMembers   []string `protobuf:"bytes,2,rep,name=as_path_members" json:"as_path_members,omitempty"`
-	MatchSetOptions string   `protobuf:"bytes,3,opt,name=match_set_options" json:"match_set_options,omitempty"`
+type MatchSet struct {
+	Name   string   `protobuf:"bytes,1,opt,name=name" json:"name,omitempty"`
+	List   []string `protobuf:"bytes,2,rep,name=list" json:"list,omitempty"`
+	Option int32    `protobuf:"varint,3,opt,name=option" json:"option,omitempty"`
 }
 
-func (m *AsPathSet) Reset()         { *m = AsPathSet{} }
-func (m *AsPathSet) String() string { return proto.CompactTextString(m) }
-func (*AsPathSet) ProtoMessage()    {}
-
-type CommunitySet struct {
-	CommunitySetName string   `protobuf:"bytes,1,opt,name=community_set_name" json:"community_set_name,omitempty"`
-	CommunityMembers []string `protobuf:"bytes,2,rep,name=community_members" json:"community_members,omitempty"`
-	MatchSetOptions  string   `protobuf:"bytes,3,opt,name=match_set_options" json:"match_set_options,omitempty"`
-}
-
-func (m *CommunitySet) Reset()         { *m = CommunitySet{} }
-func (m *CommunitySet) String() string { return proto.CompactTextString(m) }
-func (*CommunitySet) ProtoMessage()    {}
-
-type ExtCommunitySet struct {
-	ExtCommunitySetName string   `protobuf:"bytes,1,opt,name=ext_community_set_name" json:"ext_community_set_name,omitempty"`
-	ExtCommunityMembers []string `protobuf:"bytes,2,rep,name=ext_community_members" json:"ext_community_members,omitempty"`
-	MatchSetOptions     string   `protobuf:"bytes,3,opt,name=match_set_options" json:"match_set_options,omitempty"`
-}
-
-func (m *ExtCommunitySet) Reset()         { *m = ExtCommunitySet{} }
-func (m *ExtCommunitySet) String() string { return proto.CompactTextString(m) }
-func (*ExtCommunitySet) ProtoMessage()    {}
+func (m *MatchSet) Reset()         { *m = MatchSet{} }
+func (m *MatchSet) String() string { return proto.CompactTextString(m) }
+func (*MatchSet) ProtoMessage()    {}
 
 type Conditions struct {
-	MatchPrefixSet       *PrefixSet       `protobuf:"bytes,1,opt,name=match_prefix_set" json:"match_prefix_set,omitempty"`
-	MatchNeighborSet     *NeighborSet     `protobuf:"bytes,2,opt,name=match_neighbor_set" json:"match_neighbor_set,omitempty"`
-	MatchAsPathLength    *AsPathLength    `protobuf:"bytes,3,opt,name=match_as_path_length" json:"match_as_path_length,omitempty"`
-	MatchAsPathSet       *AsPathSet       `protobuf:"bytes,4,opt,name=match_as_path_set" json:"match_as_path_set,omitempty"`
-	MatchCommunitySet    *CommunitySet    `protobuf:"bytes,5,opt,name=match_community_set" json:"match_community_set,omitempty"`
-	MatchExtCommunitySet *ExtCommunitySet `protobuf:"bytes,6,opt,name=match_ext_community_set" json:"match_ext_community_set,omitempty"`
+	PrefixSet       *PrefixSet    `protobuf:"bytes,1,opt,name=prefix_set" json:"prefix_set,omitempty"`
+	NeighborSet     *MatchSet     `protobuf:"bytes,2,opt,name=neighbor_set" json:"neighbor_set,omitempty"`
+	AsPathLength    *AsPathLength `protobuf:"bytes,3,opt,name=as_path_length" json:"as_path_length,omitempty"`
+	AsPathSet       *MatchSet     `protobuf:"bytes,4,opt,name=as_path_set" json:"as_path_set,omitempty"`
+	CommunitySet    *MatchSet     `protobuf:"bytes,5,opt,name=community_set" json:"community_set,omitempty"`
+	ExtCommunitySet *MatchSet     `protobuf:"bytes,6,opt,name=ext_community_set" json:"ext_community_set,omitempty"`
+	RpkiResult      int32         `protobuf:"varint,7,opt,name=rpki_result" json:"rpki_result,omitempty"`
 }
 
 func (m *Conditions) Reset()         { *m = Conditions{} }
 func (m *Conditions) String() string { return proto.CompactTextString(m) }
 func (*Conditions) ProtoMessage()    {}
 
-func (m *Conditions) GetMatchPrefixSet() *PrefixSet {
+func (m *Conditions) GetPrefixSet() *PrefixSet {
 	if m != nil {
-		return m.MatchPrefixSet
+		return m.PrefixSet
 	}
 	return nil
 }
 
-func (m *Conditions) GetMatchNeighborSet() *NeighborSet {
+func (m *Conditions) GetNeighborSet() *MatchSet {
 	if m != nil {
-		return m.MatchNeighborSet
+		return m.NeighborSet
 	}
 	return nil
 }
 
-func (m *Conditions) GetMatchAsPathLength() *AsPathLength {
+func (m *Conditions) GetAsPathLength() *AsPathLength {
 	if m != nil {
-		return m.MatchAsPathLength
+		return m.AsPathLength
 	}
 	return nil
 }
 
-func (m *Conditions) GetMatchAsPathSet() *AsPathSet {
+func (m *Conditions) GetAsPathSet() *MatchSet {
 	if m != nil {
-		return m.MatchAsPathSet
+		return m.AsPathSet
 	}
 	return nil
 }
 
-func (m *Conditions) GetMatchCommunitySet() *CommunitySet {
+func (m *Conditions) GetCommunitySet() *MatchSet {
 	if m != nil {
-		return m.MatchCommunitySet
+		return m.CommunitySet
 	}
 	return nil
 }
 
-func (m *Conditions) GetMatchExtCommunitySet() *ExtCommunitySet {
+func (m *Conditions) GetExtCommunitySet() *MatchSet {
 	if m != nil {
-		return m.MatchExtCommunitySet
+		return m.ExtCommunitySet
 	}
 	return nil
 }
 
 type CommunityAction struct {
 	Communities []string `protobuf:"bytes,1,rep,name=communities" json:"communities,omitempty"`
-	Options     string   `protobuf:"bytes,2,opt,name=options" json:"options,omitempty"`
+	Option      int32    `protobuf:"varint,2,opt,name=option" json:"option,omitempty"`
 }
 
 func (m *CommunityAction) Reset()         { *m = CommunityAction{} }
@@ -544,18 +497,28 @@ func (m *CommunityAction) String() string { return proto.CompactTextString(m) }
 func (*CommunityAction) ProtoMessage()    {}
 
 type AsPrependAction struct {
-	As      string `protobuf:"bytes,1,opt,name=as" json:"as,omitempty"`
-	Repeatn uint32 `protobuf:"varint,2,opt,name=repeatn" json:"repeatn,omitempty"`
+	Asn         uint32 `protobuf:"varint,1,opt,name=asn" json:"asn,omitempty"`
+	Repeat      uint32 `protobuf:"varint,2,opt,name=repeat" json:"repeat,omitempty"`
+	UseLeftMost bool   `protobuf:"varint,3,opt,name=use_left_most" json:"use_left_most,omitempty"`
 }
 
 func (m *AsPrependAction) Reset()         { *m = AsPrependAction{} }
 func (m *AsPrependAction) String() string { return proto.CompactTextString(m) }
 func (*AsPrependAction) ProtoMessage()    {}
 
+type MedAction struct {
+	Type  int32 `protobuf:"varint,1,opt,name=type" json:"type,omitempty"`
+	Value int64 `protobuf:"varint,2,opt,name=value" json:"value,omitempty"`
+}
+
+func (m *MedAction) Reset()         { *m = MedAction{} }
+func (m *MedAction) String() string { return proto.CompactTextString(m) }
+func (*MedAction) ProtoMessage()    {}
+
 type Actions struct {
 	RouteAction  RouteAction      `protobuf:"varint,1,opt,name=route_action,enum=gobgpapi.RouteAction" json:"route_action,omitempty"`
 	Community    *CommunityAction `protobuf:"bytes,2,opt,name=community" json:"community,omitempty"`
-	Med          string           `protobuf:"bytes,3,opt,name=med" json:"med,omitempty"`
+	Med          *MedAction       `protobuf:"bytes,3,opt,name=med" json:"med,omitempty"`
 	AsPrepend    *AsPrependAction `protobuf:"bytes,4,opt,name=as_prepend" json:"as_prepend,omitempty"`
 	ExtCommunity *CommunityAction `protobuf:"bytes,5,opt,name=ext_community" json:"ext_community,omitempty"`
 }
@@ -567,6 +530,13 @@ func (*Actions) ProtoMessage()    {}
 func (m *Actions) GetCommunity() *CommunityAction {
 	if m != nil {
 		return m.Community
+	}
+	return nil
+}
+
+func (m *Actions) GetMed() *MedAction {
+	if m != nil {
+		return m.Med
 	}
 	return nil
 }
@@ -586,9 +556,9 @@ func (m *Actions) GetExtCommunity() *CommunityAction {
 }
 
 type Statement struct {
-	StatementNeme string      `protobuf:"bytes,1,opt,name=statement_neme" json:"statement_neme,omitempty"`
-	Conditions    *Conditions `protobuf:"bytes,2,opt,name=conditions" json:"conditions,omitempty"`
-	Actions       *Actions    `protobuf:"bytes,3,opt,name=actions" json:"actions,omitempty"`
+	Name       string      `protobuf:"bytes,1,opt,name=name" json:"name,omitempty"`
+	Conditions *Conditions `protobuf:"bytes,2,opt,name=conditions" json:"conditions,omitempty"`
+	Actions    *Actions    `protobuf:"bytes,3,opt,name=actions" json:"actions,omitempty"`
 }
 
 func (m *Statement) Reset()         { *m = Statement{} }
@@ -610,17 +580,17 @@ func (m *Statement) GetActions() *Actions {
 }
 
 type PolicyDefinition struct {
-	PolicyDefinitionName string       `protobuf:"bytes,1,opt,name=policy_definition_name" json:"policy_definition_name,omitempty"`
-	StatementList        []*Statement `protobuf:"bytes,2,rep,name=statement_list" json:"statement_list,omitempty"`
+	Name       string       `protobuf:"bytes,1,opt,name=name" json:"name,omitempty"`
+	Statements []*Statement `protobuf:"bytes,2,rep,name=statements" json:"statements,omitempty"`
 }
 
 func (m *PolicyDefinition) Reset()         { *m = PolicyDefinition{} }
 func (m *PolicyDefinition) String() string { return proto.CompactTextString(m) }
 func (*PolicyDefinition) ProtoMessage()    {}
 
-func (m *PolicyDefinition) GetStatementList() []*Statement {
+func (m *PolicyDefinition) GetStatements() []*Statement {
 	if m != nil {
-		return m.StatementList
+		return m.Statements
 	}
 	return nil
 }
