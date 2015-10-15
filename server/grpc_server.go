@@ -269,7 +269,7 @@ func (s *Server) GetNeighborPolicy(ctx context.Context, arg *api.PolicyArguments
 	switch arg.Resource {
 	case api.Resource_GLOBAL:
 		r = REQ_GLOBAL_POLICY
-	case api.Resource_POLICY_NEIGHBOR:
+	case api.Resource_LOCAL:
 		r = REQ_NEIGHBOR_POLICY
 	default:
 		return nil, fmt.Errorf("unsupported resource: %s", arg.Resource)
@@ -421,7 +421,7 @@ func (s *Server) GetPolicyRoutePolicies(arg *api.PolicyArguments, stream api.Gob
 	default:
 		return fmt.Errorf("unsupported resource type: %v", arg.Resource)
 	}
-	req := NewGrpcRequest(reqType, "", rf, nil)
+	req := NewGrpcRequest(reqType, "", rf, arg)
 	s.bgpServerCh <- req
 	return handleMultipleResponses(req, func(res *GrpcResponse) error {
 		return stream.Send(res.Data.(*api.PolicyDefinition))
@@ -447,7 +447,7 @@ func (s *Server) GetPolicyRoutePolicy(ctx context.Context, arg *api.PolicyArgume
 	default:
 		return nil, fmt.Errorf("unsupported resource type: %v", arg.Resource)
 	}
-	req := NewGrpcRequest(reqType, "", rf, arg.Name)
+	req := NewGrpcRequest(reqType, "", rf, arg)
 	s.bgpServerCh <- req
 
 	res := <-req.ResponseCh

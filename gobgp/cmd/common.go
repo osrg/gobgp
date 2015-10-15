@@ -321,63 +321,21 @@ func (p prefixes) Swap(i, j int) {
 }
 
 func (p prefixes) Less(i, j int) bool {
-	return p[i].PrefixSetName < p[j].PrefixSetName
+	return p[i].Name < p[j].Name
 }
 
-type neighbors []*gobgpapi.NeighborSet
+type sets []*gobgpapi.MatchSet
 
-func (n neighbors) Len() int {
+func (n sets) Len() int {
 	return len(n)
 }
 
-func (n neighbors) Swap(i, j int) {
+func (n sets) Swap(i, j int) {
 	n[i], n[j] = n[j], n[i]
 }
 
-func (n neighbors) Less(i, j int) bool {
-	return n[i].NeighborSetName < n[j].NeighborSetName
-}
-
-type aspaths []*gobgpapi.AsPathSet
-
-func (a aspaths) Len() int {
-	return len(a)
-}
-
-func (a aspaths) Swap(i, j int) {
-	a[i], a[j] = a[j], a[i]
-}
-
-func (a aspaths) Less(i, j int) bool {
-	return a[i].AsPathSetName < a[j].AsPathSetName
-}
-
-type communities []*gobgpapi.CommunitySet
-
-func (c communities) Len() int {
-	return len(c)
-}
-
-func (c communities) Swap(i, j int) {
-	c[i], c[j] = c[j], c[i]
-}
-
-func (c communities) Less(i, j int) bool {
-	return c[i].CommunitySetName < c[j].CommunitySetName
-}
-
-type extcommunities []*gobgpapi.ExtCommunitySet
-
-func (e extcommunities) Len() int {
-	return len(e)
-}
-
-func (e extcommunities) Swap(i, j int) {
-	e[i], e[j] = e[j], e[i]
-}
-
-func (e extcommunities) Less(i, j int) bool {
-	return e[i].ExtCommunitySetName < e[j].ExtCommunitySetName
+func (n sets) Less(i, j int) bool {
+	return n[i].Name < n[j].Name
 }
 
 type policyDefinitions []*gobgpapi.PolicyDefinition
@@ -391,7 +349,7 @@ func (p policyDefinitions) Swap(i, j int) {
 }
 
 func (p policyDefinitions) Less(i, j int) bool {
-	return p[i].PolicyDefinitionName < p[j].PolicyDefinitionName
+	return p[i].Name < p[j].Name
 }
 
 type roas []*gobgpapi.ROA

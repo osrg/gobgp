@@ -4473,8 +4473,8 @@ func NewFourOctetAsSpecificExtended(subtype ExtendedCommunityAttrSubType, as uin
 	}
 }
 
-func ParseRouteTarget(rt string) (ExtendedCommunityInterface, error) {
-	elems, err := parseRdAndRt(rt)
+func ParseExtendedCommunity(subtype ExtendedCommunityAttrSubType, com string) (ExtendedCommunityInterface, error) {
+	elems, err := parseRdAndRt(com)
 	if err != nil {
 		return nil, err
 	}
@@ -4483,16 +4483,20 @@ func ParseRouteTarget(rt string) (ExtendedCommunityInterface, error) {
 	isTransitive := true
 	switch {
 	case ip.To4() != nil:
-		return NewIPv4AddressSpecificExtended(EC_SUBTYPE_ROUTE_TARGET, elems[1], uint16(localAdmin), isTransitive), nil
+		return NewIPv4AddressSpecificExtended(subtype, elems[1], uint16(localAdmin), isTransitive), nil
 	case elems[6] == "" && elems[7] == "":
 		asn, _ := strconv.Atoi(elems[8])
-		return NewTwoOctetAsSpecificExtended(EC_SUBTYPE_ROUTE_TARGET, uint16(asn), uint32(localAdmin), isTransitive), nil
+		return NewTwoOctetAsSpecificExtended(subtype, uint16(asn), uint32(localAdmin), isTransitive), nil
 	default:
 		fst, _ := strconv.Atoi(elems[7])
 		snd, _ := strconv.Atoi(elems[8])
 		asn := fst<<16 | snd
-		return NewFourOctetAsSpecificExtended(EC_SUBTYPE_ROUTE_TARGET, uint32(asn), uint16(localAdmin), isTransitive), nil
+		return NewFourOctetAsSpecificExtended(subtype, uint32(asn), uint16(localAdmin), isTransitive), nil
 	}
+}
+
+func ParseRouteTarget(rt string) (ExtendedCommunityInterface, error) {
+	return ParseExtendedCommunity(EC_SUBTYPE_ROUTE_TARGET, rt)
 }
 
 type OpaqueExtendedValueInterface interface {

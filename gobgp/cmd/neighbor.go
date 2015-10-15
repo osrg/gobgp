@@ -641,9 +641,9 @@ func showNeighborPolicy(remoteIP net.IP, policyType string) error {
 	}
 
 	fmt.Printf("Default: %s\n", ap.Default)
-	for _, inPolicy := range ap.Policies {
-		fmt.Printf("  PolicyName %s:\n", inPolicy.PolicyDefinitionName)
-		showPolicyStatement(2, inPolicy)
+	for _, p := range ap.Policies {
+		fmt.Printf("  PolicyName %s:\n", p.Name)
+		showPolicyStatement(2, p)
 	}
 	return nil
 }
@@ -654,7 +654,7 @@ func parsePolicy(pNames string) []*api.PolicyDefinition {
 	for _, p := range pList {
 		if p != "" {
 			policy := &api.PolicyDefinition{
-				PolicyDefinitionName: p,
+				Name: p,
 			}
 			policyList = append(policyList, policy)
 		}

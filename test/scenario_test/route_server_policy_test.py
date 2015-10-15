@@ -2764,7 +2764,7 @@ class ImportPolicyExCommunityAdd(object):
                     'SetExtCommunity': {
                         'Options': 'ADD',
                         'SetExtCommunityMethod': {
-                            'Communities': ['0:2:0xfd:0xe8:0:0:0:1']
+                            'Communities': ['rt:65000:1'],
                             }
                         },
                     }
@@ -2838,7 +2838,7 @@ class ImportPolicyExCommunityAdd2(object):
                     'SetExtCommunity': {
                         'Options': 'ADD',
                         'SetExtCommunityMethod': {
-                            'Communities': ['0:2:0xfe:0x4c:0:0:0:0x64']
+                            'Communities': ['rt:65100:100'],
                             }
                         },
                     }
@@ -2917,7 +2917,7 @@ class ImportPolicyExCommunityMultipleAdd(object):
                     'SetExtCommunity': {
                         'Options': 'ADD',
                         'SetExtCommunityMethod': {
-                            'Communities': ['0:2:0xfe:0x4c:0:0:0:0x64', '0:2:0:0x64:0:0:0:0x64']
+                            'Communities': ['rt:65100:100', 'rt:100:100'],
                             }
                         },
                     }
@@ -2996,7 +2996,7 @@ class ExportPolicyExCommunityAdd(object):
                     'SetExtCommunity': {
                         'Options': 'ADD',
                         'SetExtCommunityMethod': {
-                            'Communities': ['0:2:0xfd:0xe8:0:0:0:1'],
+                            'Communities': ['rt:65000:1'],
                             }
                         },
                     }
