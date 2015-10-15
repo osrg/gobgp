@@ -151,6 +151,29 @@ func (x RouteAction) String() string {
 	return proto.EnumName(RouteAction_name, int32(x))
 }
 
+type PolicyType int32
+
+const (
+	PolicyType_IN     PolicyType = 0
+	PolicyType_IMPORT PolicyType = 1
+	PolicyType_EXPORT PolicyType = 2
+)
+
+var PolicyType_name = map[int32]string{
+	0: "IN",
+	1: "IMPORT",
+	2: "EXPORT",
+}
+var PolicyType_value = map[string]int32{
+	"IN":     0,
+	"IMPORT": 1,
+	"EXPORT": 2,
+}
+
+func (x PolicyType) String() string {
+	return proto.EnumName(PolicyType_name, int32(x))
+}
+
 type Error_ErrorCode int32
 
 const (
@@ -603,35 +626,18 @@ func (m *PolicyDefinition) GetStatementList() []*Statement {
 }
 
 type ApplyPolicy struct {
-	ImportPolicies      []*PolicyDefinition `protobuf:"bytes,1,rep,name=import_policies" json:"import_policies,omitempty"`
-	DefaultImportPolicy RouteAction         `protobuf:"varint,2,opt,name=default_import_policy,enum=gobgpapi.RouteAction" json:"default_import_policy,omitempty"`
-	ExportPolicies      []*PolicyDefinition `protobuf:"bytes,3,rep,name=export_policies" json:"export_policies,omitempty"`
-	DefaultExportPolicy RouteAction         `protobuf:"varint,4,opt,name=default_export_policy,enum=gobgpapi.RouteAction" json:"default_export_policy,omitempty"`
-	InPolicies          []*PolicyDefinition `protobuf:"bytes,5,rep,name=in_policies" json:"in_policies,omitempty"`
-	DefaultInPolicy     RouteAction         `protobuf:"varint,6,opt,name=default_in_policy,enum=gobgpapi.RouteAction" json:"default_in_policy,omitempty"`
+	Type     PolicyType          `protobuf:"varint,1,opt,name=type,enum=gobgpapi.PolicyType" json:"type,omitempty"`
+	Policies []*PolicyDefinition `protobuf:"bytes,2,rep,name=policies" json:"policies,omitempty"`
+	Default  RouteAction         `protobuf:"varint,3,opt,name=default,enum=gobgpapi.RouteAction" json:"default,omitempty"`
 }
 
 func (m *ApplyPolicy) Reset()         { *m = ApplyPolicy{} }
 func (m *ApplyPolicy) String() string { return proto.CompactTextString(m) }
 func (*ApplyPolicy) ProtoMessage()    {}
 
-func (m *ApplyPolicy) GetImportPolicies() []*PolicyDefinition {
+func (m *ApplyPolicy) GetPolicies() []*PolicyDefinition {
 	if m != nil {
-		return m.ImportPolicies
-	}
-	return nil
-}
-
-func (m *ApplyPolicy) GetExportPolicies() []*PolicyDefinition {
-	if m != nil {
-		return m.ExportPolicies
-	}
-	return nil
-}
-
-func (m *ApplyPolicy) GetInPolicies() []*PolicyDefinition {
-	if m != nil {
-		return m.InPolicies
+		return m.Policies
 	}
 	return nil
 }
@@ -712,6 +718,7 @@ func init() {
 	proto.RegisterEnum("gobgpapi.Resource", Resource_name, Resource_value)
 	proto.RegisterEnum("gobgpapi.Operation", Operation_name, Operation_value)
 	proto.RegisterEnum("gobgpapi.RouteAction", RouteAction_name, RouteAction_value)
+	proto.RegisterEnum("gobgpapi.PolicyType", PolicyType_name, PolicyType_value)
 	proto.RegisterEnum("gobgpapi.Error_ErrorCode", Error_ErrorCode_name, Error_ErrorCode_value)
 }
 
@@ -733,7 +740,7 @@ type GobgpApiClient interface {
 	Enable(ctx context.Context, in *Arguments, opts ...grpc.CallOption) (*Error, error)
 	Disable(ctx context.Context, in *Arguments, opts ...grpc.CallOption) (*Error, error)
 	ModPath(ctx context.Context, opts ...grpc.CallOption) (GobgpApi_ModPathClient, error)
-	GetNeighborPolicy(ctx context.Context, in *Arguments, opts ...grpc.CallOption) (*ApplyPolicy, error)
+	GetNeighborPolicy(ctx context.Context, in *PolicyArguments, opts ...grpc.CallOption) (*ApplyPolicy, error)
 	ModNeighborPolicy(ctx context.Context, opts ...grpc.CallOption) (GobgpApi_ModNeighborPolicyClient, error)
 	GetPolicyRoutePolicies(ctx context.Context, in *PolicyArguments, opts ...grpc.CallOption) (GobgpApi_GetPolicyRoutePoliciesClient, error)
 	GetPolicyRoutePolicy(ctx context.Context, in *PolicyArguments, opts ...grpc.CallOption) (*PolicyDefinition, error)
@@ -925,7 +932,7 @@ func (x *gobgpApiModPathClient) CloseAndRecv() (*Error, error) {
 	return m, nil
 }
 
-func (c *gobgpApiClient) GetNeighborPolicy(ctx context.Context, in *Arguments, opts ...grpc.CallOption) (*ApplyPolicy, error) {
+func (c *gobgpApiClient) GetNeighborPolicy(ctx context.Context, in *PolicyArguments, opts ...grpc.CallOption) (*ApplyPolicy, error) {
 	out := new(ApplyPolicy)
 	err := grpc.Invoke(ctx, "/gobgpapi.GobgpApi/GetNeighborPolicy", in, out, c.cc, opts...)
 	if err != nil {
@@ -1252,7 +1259,7 @@ type GobgpApiServer interface {
 	Enable(context.Context, *Arguments) (*Error, error)
 	Disable(context.Context, *Arguments) (*Error, error)
 	ModPath(GobgpApi_ModPathServer) error
-	GetNeighborPolicy(context.Context, *Arguments) (*ApplyPolicy, error)
+	GetNeighborPolicy(context.Context, *PolicyArguments) (*ApplyPolicy, error)
 	ModNeighborPolicy(GobgpApi_ModNeighborPolicyServer) error
 	GetPolicyRoutePolicies(*PolicyArguments, GobgpApi_GetPolicyRoutePoliciesServer) error
 	GetPolicyRoutePolicy(context.Context, *PolicyArguments) (*PolicyDefinition, error)
@@ -1435,7 +1442,7 @@ func (x *gobgpApiModPathServer) Recv() (*ModPathArguments, error) {
 }
 
 func _GobgpApi_GetNeighborPolicy_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error) (interface{}, error) {
-	in := new(Arguments)
+	in := new(PolicyArguments)
 	if err := dec(in); err != nil {
 		return nil, err
 	}

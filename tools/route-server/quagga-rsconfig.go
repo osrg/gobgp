@@ -49,16 +49,20 @@ func create_config_files(nr int, outputDir string) {
 	gobgpConf := config.Bgp{}
 	gobgpConf.Global.GlobalConfig.As = 65000
 	gobgpConf.Global.GlobalConfig.RouterId = net.ParseIP("192.168.255.1")
+	gobgpConf.Neighbors = &config.Neighbors{}
+	gobgpConf.Neighbors.NeighborList = make([]*config.Neighbor, 0, nr)
 
 	for i := 1; i < nr+1; i++ {
 
-		c := config.Neighbor{}
+		c := &config.Neighbor{
+			NeighborConfig: &config.NeighborConfig{},
+		}
 		c.NeighborConfig.PeerAs = 65000 + uint32(i)
 		c.NeighborConfig.NeighborAddress = net.ParseIP(fmt.Sprintf("10.0.0.%d", i))
 		c.NeighborConfig.AuthPassword = fmt.Sprintf("hoge%d", i)
 
 		gobgpConf.Neighbors.NeighborList = append(gobgpConf.Neighbors.NeighborList, c)
-		q := NewQuaggaConfig(i, &gobgpConf.Global, &c, net.ParseIP("10.0.255.1"))
+		q := NewQuaggaConfig(i, gobgpConf.Global, c, net.ParseIP("10.0.255.1"))
 		quaggaConfigList = append(quaggaConfigList, q)
 		os.Mkdir(fmt.Sprintf("%s/q%d", outputDir, i), 0755)
 		err := ioutil.WriteFile(fmt.Sprintf("%s/q%d/bgpd.conf", outputDir, i), q.Config().Bytes(), 0644)

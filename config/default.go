@@ -18,6 +18,16 @@ type neighbor struct {
 	attributes map[string]bool
 }
 
+func NewNeighborState() *NeighborState {
+	return &NeighborState{
+		Messages: &Messages{
+			Sent:     &Sent{},
+			Received: &Received{},
+		},
+		Queues: &Queues{},
+	}
+}
+
 func SetDefaultConfigValues(md toml.MetaData, bt *Bgp) error {
 	neighbors := []neighbor{}
 	global := make(map[string]bool)
@@ -32,19 +42,26 @@ func SetDefaultConfigValues(md toml.MetaData, bt *Bgp) error {
 	}
 
 	if _, ok := global["Global.AfiSafis.AfiSafiList"]; !ok {
-		bt.Global.AfiSafis.AfiSafiList = []AfiSafi{
-			AfiSafi{AfiSafiName: "ipv4-unicast"},
-			AfiSafi{AfiSafiName: "ipv6-unicast"},
-			AfiSafi{AfiSafiName: "l3vpn-ipv4-unicast"},
-			AfiSafi{AfiSafiName: "l3vpn-ipv6-unicast"},
-			AfiSafi{AfiSafiName: "l2vpn-evpn"},
-			AfiSafi{AfiSafiName: "encap"},
-			AfiSafi{AfiSafiName: "rtc"},
-			AfiSafi{AfiSafiName: "ipv4-flowspec"},
-			AfiSafi{AfiSafiName: "l3vpn-ipv4-flowspec"},
-			AfiSafi{AfiSafiName: "ipv6-flowspec"},
-			AfiSafi{AfiSafiName: "l3vpn-ipv6-flowspec"},
+		if bt.Global.AfiSafis == nil {
+			bt.Global.AfiSafis = &AfiSafis{}
 		}
+		bt.Global.AfiSafis.AfiSafiList = []*AfiSafi{
+			&AfiSafi{AfiSafiName: "ipv4-unicast"},
+			&AfiSafi{AfiSafiName: "ipv6-unicast"},
+			&AfiSafi{AfiSafiName: "l3vpn-ipv4-unicast"},
+			&AfiSafi{AfiSafiName: "l3vpn-ipv6-unicast"},
+			&AfiSafi{AfiSafiName: "l2vpn-evpn"},
+			&AfiSafi{AfiSafiName: "encap"},
+			&AfiSafi{AfiSafiName: "rtc"},
+			&AfiSafi{AfiSafiName: "ipv4-flowspec"},
+			&AfiSafi{AfiSafiName: "l3vpn-ipv4-flowspec"},
+			&AfiSafi{AfiSafiName: "ipv6-flowspec"},
+			&AfiSafi{AfiSafiName: "l3vpn-ipv6-flowspec"},
+		}
+	}
+
+	if bt.Global.MplsLabelRange == nil {
+		bt.Global.MplsLabelRange = &MplsLabelRange{}
 	}
 
 	if _, ok := global["Global.MplsLabelRange.MinLabel"]; !ok {
@@ -55,7 +72,26 @@ func SetDefaultConfigValues(md toml.MetaData, bt *Bgp) error {
 		bt.Global.MplsLabelRange.MaxLabel = DEFAULT_MPLS_LABEL_MAX
 	}
 
+	if bt.Global.Mrt == nil {
+		bt.Global.Mrt = &Mrt{}
+	}
+
+	if bt.Global.Zebra == nil {
+		bt.Global.Zebra = &Zebra{}
+	}
+
+	if bt.Global.Confederation == nil {
+		bt.Global.Confederation = &Confederation{}
+	}
+
+	if bt.Global.Confederation.ConfederationConfig == nil {
+		bt.Global.Confederation.ConfederationConfig = &ConfederationConfig{}
+	}
+
 	nidx := 0
+	if bt.Neighbors == nil {
+		bt.Neighbors = &Neighbors{}
+	}
 	for _, key := range md.Keys() {
 		if !strings.HasPrefix(key.String(), "Neighbors.NeighborList") {
 			continue
@@ -68,8 +104,26 @@ func SetDefaultConfigValues(md toml.MetaData, bt *Bgp) error {
 		}
 	}
 	for i, n := range neighbors {
-		neighbor := &bt.Neighbors.NeighborList[i]
-		timerConfig := &neighbor.Timers.TimersConfig
+		neighbor := bt.Neighbors.NeighborList[i]
+
+		if _, ok := n.attributes["Neighbors.NeighborList.NeighborConfig.PeerType"]; !ok {
+			if neighbor.NeighborConfig.PeerAs != bt.Global.GlobalConfig.As {
+				neighbor.NeighborConfig.PeerType = PEER_TYPE_EXTERNAL
+			} else {
+				neighbor.NeighborConfig.PeerType = PEER_TYPE_INTERNAL
+			}
+		}
+
+		neighbor.NeighborState = NewNeighborState()
+
+		if neighbor.Timers == nil {
+			neighbor.Timers = &Timers{}
+		}
+		if neighbor.Timers.TimersConfig == nil {
+			neighbor.Timers.TimersConfig = &TimersConfig{}
+		}
+		neighbor.Timers.TimersState = &TimersState{}
+		timerConfig := neighbor.Timers.TimersConfig
 
 		if _, ok := n.attributes["Neighbors.NeighborList.Timers.TimersConfig.ConnectRetry"]; !ok {
 			timerConfig.HoldTime = float64(DEFAULT_CONNECT_RETRY)
@@ -80,18 +134,38 @@ func SetDefaultConfigValues(md toml.MetaData, bt *Bgp) error {
 		if _, ok := n.attributes["Neighbors.NeighborList.Timers.TimersConfig.KeepaliveInterval"]; !ok {
 			timerConfig.KeepaliveInterval = timerConfig.HoldTime / 3
 		}
-
 		if _, ok := n.attributes["Neighbors.NeighborList.Timers.TimersConfig.IdleHoldTimeAfterReset"]; !ok {
 			timerConfig.IdleHoldTimeAfterReset = float64(DEFAULT_IDLE_HOLDTIME_AFTER_RESET)
 		}
 
+		if neighbor.Transport == nil {
+			neighbor.Transport = &Transport{}
+		}
+		if neighbor.Transport.TransportConfig == nil {
+			neighbor.Transport.TransportConfig = &TransportConfig{}
+		}
+
+		if neighbor.EbgpMultihop == nil {
+			neighbor.EbgpMultihop = &EbgpMultihop{}
+		}
+		if neighbor.EbgpMultihop.EbgpMultihopConfig == nil {
+			neighbor.EbgpMultihop.EbgpMultihopConfig = &EbgpMultihopConfig{}
+		}
+
+		if neighbor.RouteReflector == nil {
+			neighbor.RouteReflector = &RouteReflector{}
+		}
+		if neighbor.RouteReflector.RouteReflectorConfig == nil {
+			neighbor.RouteReflector.RouteReflectorConfig = &RouteReflectorConfig{}
+		}
+
 		if _, ok := n.attributes["Neighbors.NeighborList.AfiSafis.AfiSafiList"]; !ok {
 			if neighbor.NeighborConfig.NeighborAddress.To4() != nil {
-				neighbor.AfiSafis.AfiSafiList = []AfiSafi{
-					AfiSafi{AfiSafiName: "ipv4-unicast"}}
+				neighbor.AfiSafis.AfiSafiList = []*AfiSafi{
+					&AfiSafi{AfiSafiName: "ipv4-unicast"}}
 			} else {
-				neighbor.AfiSafis.AfiSafiList = []AfiSafi{
-					AfiSafi{AfiSafiName: "ipv6-unicast"}}
+				neighbor.AfiSafis.AfiSafiList = []*AfiSafi{
+					&AfiSafi{AfiSafiName: "ipv6-unicast"}}
 			}
 		} else {
 			for _, rf := range neighbor.AfiSafis.AfiSafiList {
@@ -102,18 +176,26 @@ func SetDefaultConfigValues(md toml.MetaData, bt *Bgp) error {
 			}
 		}
 
-		if _, ok := n.attributes["Neighbors.NeighborList.NeighborConfig.PeerType"]; !ok {
-			if neighbor.NeighborConfig.PeerAs != bt.Global.GlobalConfig.As {
-				neighbor.NeighborConfig.PeerType = PEER_TYPE_EXTERNAL
-			} else {
-				neighbor.NeighborConfig.PeerType = PEER_TYPE_INTERNAL
-			}
+		if neighbor.RouteServer == nil {
+			neighbor.RouteServer = &RouteServer{}
+		}
+		if neighbor.RouteServer.RouteServerConfig == nil {
+			neighbor.RouteServer.RouteServerConfig = &RouteServerConfig{}
 		}
 	}
+	if bt.RpkiServers == nil {
+		bt.RpkiServers = &RpkiServers{}
+	}
 	for _, r := range bt.RpkiServers.RpkiServerList {
+		if r.RpkiServerConfig == nil {
+			r.RpkiServerConfig = &RpkiServerConfig{}
+		}
 		if r.RpkiServerConfig.Port == 0 {
 			r.RpkiServerConfig.Port = bgp.RPKI_DEFAULT_PORT
 		}
+	}
+	if bt.BmpServers == nil {
+		bt.BmpServers = &BmpServers{}
 	}
 	return nil
 }

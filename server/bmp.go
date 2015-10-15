@@ -46,9 +46,9 @@ type bmpClient struct {
 	connCh chan *bmpConn
 }
 
-func newBMPClient(conf config.BmpServers, connCh chan *bmpConn) (*bmpClient, error) {
+func newBMPClient(conf *config.BmpServers, connCh chan *bmpConn) (*bmpClient, error) {
 	b := &bmpClient{}
-	if len(conf.BmpServerList) == 0 {
+	if conf == nil || len(conf.BmpServerList) == 0 {
 		return b, nil
 	}
 

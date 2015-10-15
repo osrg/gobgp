@@ -32,8 +32,8 @@ const (
 )
 
 type Peer struct {
-	gConf                 config.Global
-	conf                  config.Neighbor
+	gConf                 *config.Global
+	conf                  *config.Neighbor
 	fsm                   *FSM
 	rfMap                 map[bgp.RouteFamily]bool
 	capMap                map[bgp.BGPCapabilityCode][]bgp.ParameterCapabilityInterface
@@ -49,7 +49,7 @@ type Peer struct {
 	localRib              *table.TableManager
 }
 
-func NewPeer(g config.Global, conf config.Neighbor) *Peer {
+func NewPeer(g *config.Global, conf *config.Neighbor) *Peer {
 	peer := &Peer{
 		gConf:    g,
 		conf:     conf,
@@ -74,7 +74,7 @@ func NewPeer(g config.Global, conf config.Neighbor) *Peer {
 		RouteReflectorClusterID: id,
 	}
 	peer.adjRib = table.NewAdjRib(peer.configuredRFlist())
-	peer.fsm = NewFSM(&g, &conf)
+	peer.fsm = NewFSM(g, conf)
 	if peer.isRouteServerClient() {
 		peer.localRib = table.NewTableManager(conf.NeighborConfig.NeighborAddress.String(), peer.configuredRFlist(), g.MplsLabelRange.MinLabel, g.MplsLabelRange.MaxLabel)
 	}
@@ -271,7 +271,7 @@ func (peer *Peer) ToApiStruct() *api.Peer {
 		}
 	}
 
-	caps := capabilitiesFromConfig(&peer.gConf, &peer.conf)
+	caps := capabilitiesFromConfig(peer.gConf, peer.conf)
 	localCap := make([][]byte, 0, len(caps))
 	for _, c := range caps {
 		buf, _ := c.Serialize()
@@ -288,8 +288,8 @@ func (peer *Peer) ToApiStruct() *api.Peer {
 		Holdtime:          uint32(peer.conf.Timers.TimersConfig.HoldTime),
 	}
 
-	s := &c.NeighborState
-	timer := &c.Timers
+	s := c.NeighborState
+	timer := c.Timers
 
 	uptime := int64(0)
 	if timer.TimersState.Uptime != 0 {
@@ -369,6 +369,9 @@ func (peer *Peer) ToApiStruct() *api.Peer {
 
 func (peer *Peer) setPolicy(policyMap map[string]*table.Policy) {
 	policyConf := peer.conf.ApplyPolicy
+	if policyConf == nil {
+		return
+	}
 	inPolicies := make([]*table.Policy, 0)
 	for _, policyName := range policyConf.ApplyPolicyConfig.InPolicy {
 		log.WithFields(log.Fields{

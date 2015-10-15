@@ -135,7 +135,10 @@ func NewTableManager(owner string, rfList []bgp.RouteFamily, minLabel, maxLabel 
 	return t
 }
 
-func (manager *TableManager) SetPolicy(c config.ApplyPolicy, p map[string]*Policy) {
+func (manager *TableManager) SetPolicy(c *config.ApplyPolicy, p map[string]*Policy) {
+	if c == nil {
+		return
+	}
 	manager.defaultImportPolicy = c.ApplyPolicyConfig.DefaultImportPolicy
 	manager.defaultExportPolicy = c.ApplyPolicyConfig.DefaultExportPolicy
 	f := func(dir string, arg []string) []*Policy {

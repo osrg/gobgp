@@ -158,9 +158,10 @@ def emit_class_def(ctx, yang_statement, struct_name, prefix):
         container_or_list_name = child.uniq_name
         val_name_go = convert_to_golang(child.arg)
         child_prefix = get_orig_prefix(child.i_orig_module)
+        array = ''
+        pointer = ''
         print >> o, '  // original -> %s:%s' % \
                     (child_prefix, container_or_list_name)
-
         # case leaf
         if is_leaf(child):
             type_obj = child.search_one('type')
@@ -211,40 +212,47 @@ def emit_class_def(ctx, yang_statement, struct_name, prefix):
             # case leafref
             if type_name == 'leafref':
                 t = type_obj.i_type_spec.i_target_node.search_one('type')
-                emit_type_name = '[]'+t.arg
+                array = '[]'
+                emit_type_name = t.arg
 
             # case translation required
             elif is_translation_required(type_obj):
                 print >> o, '  //original type is list of %s' % (type_obj.arg)
-                emit_type_name = '[]'+translate_type(type_name)
+                emit_type_name = translate_type(type_name)
+                array = '[]'
 
             # case other primitives
             elif is_builtin_type(type_obj):
-                emit_type_name = '[]'+type_name
+                emit_type_name = type_name
+                array = '[]'
 
             # default
             else:
                 base_module = type_obj.i_orig_module.i_prefix
                 t = lookup_typedef(ctx, base_module, type_name)
-                emit_type_name = '[]'+t.golang_name
+                emit_type_name = t.golang_name
+                array = '[]'
 
         # case container
         elif is_container(child) or is_choice(child):
             key = child_prefix+':'+container_or_list_name
             t = ctx.golang_struct_names[key]
             emit_type_name = t.golang_name
+            pointer = '*'
 
         # case list
         elif is_list(child):
             key = child_prefix+':'+container_or_list_name
             t = ctx.golang_struct_names[key]
             val_name_go = val_name_go + 'List'
-            emit_type_name = '[]' + t.golang_name
+            emit_type_name = t.golang_name
+            array = '[]'
+            pointer = '*'
 
         if is_container(child):
-            print >> o, '  %s\t%s' % (emit_type_name, emit_type_name)
+            print >> o, '  %s\t%s%s%s' % (emit_type_name, array, pointer, emit_type_name)
         else:
-            print >> o, '  %s\t%s' % (val_name_go, emit_type_name)
+            print >> o, '  %s\t%s%s%s' % (val_name_go, array, pointer, emit_type_name)
 
     print >> o, '}'
     print o.getvalue()
