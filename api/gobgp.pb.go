@@ -26,8 +26,8 @@ It has these top-level messages:
 	MatchSet
 	Conditions
 	CommunityAction
-	AsPrependAction
 	MedAction
+	AsPrependAction
 	Actions
 	Statement
 	PolicyDefinition
@@ -387,8 +387,9 @@ func (m *Peer) GetInfo() *PeerInfo {
 }
 
 type Prefix struct {
-	IpPrefix        string `protobuf:"bytes,1,opt,name=ip_prefix" json:"ip_prefix,omitempty"`
-	MaskLengthRange string `protobuf:"bytes,2,opt,name=mask_length_range" json:"mask_length_range,omitempty"`
+	IpPrefix      string `protobuf:"bytes,1,opt,name=ip_prefix" json:"ip_prefix,omitempty"`
+	MaskLengthMin uint32 `protobuf:"varint,2,opt,name=mask_length_min" json:"mask_length_min,omitempty"`
+	MaskLengthMax uint32 `protobuf:"varint,3,opt,name=mask_length_max" json:"mask_length_max,omitempty"`
 }
 
 func (m *Prefix) Reset()         { *m = Prefix{} }
@@ -496,6 +497,15 @@ func (m *CommunityAction) Reset()         { *m = CommunityAction{} }
 func (m *CommunityAction) String() string { return proto.CompactTextString(m) }
 func (*CommunityAction) ProtoMessage()    {}
 
+type MedAction struct {
+	Type  int32 `protobuf:"varint,1,opt,name=type" json:"type,omitempty"`
+	Value int64 `protobuf:"varint,2,opt,name=value" json:"value,omitempty"`
+}
+
+func (m *MedAction) Reset()         { *m = MedAction{} }
+func (m *MedAction) String() string { return proto.CompactTextString(m) }
+func (*MedAction) ProtoMessage()    {}
+
 type AsPrependAction struct {
 	Asn         uint32 `protobuf:"varint,1,opt,name=asn" json:"asn,omitempty"`
 	Repeat      uint32 `protobuf:"varint,2,opt,name=repeat" json:"repeat,omitempty"`
@@ -505,15 +515,6 @@ type AsPrependAction struct {
 func (m *AsPrependAction) Reset()         { *m = AsPrependAction{} }
 func (m *AsPrependAction) String() string { return proto.CompactTextString(m) }
 func (*AsPrependAction) ProtoMessage()    {}
-
-type MedAction struct {
-	Type  int32 `protobuf:"varint,1,opt,name=type" json:"type,omitempty"`
-	Value int64 `protobuf:"varint,2,opt,name=value" json:"value,omitempty"`
-}
-
-func (m *MedAction) Reset()         { *m = MedAction{} }
-func (m *MedAction) String() string { return proto.CompactTextString(m) }
-func (*MedAction) ProtoMessage()    {}
 
 type Actions struct {
 	RouteAction  RouteAction      `protobuf:"varint,1,opt,name=route_action,enum=gobgpapi.RouteAction" json:"route_action,omitempty"`

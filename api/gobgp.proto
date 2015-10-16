@@ -173,7 +173,8 @@ message Peer {
 
 message Prefix {
     string ip_prefix  = 1;
-    string mask_length_range = 2;
+    uint32 mask_length_min = 2;
+    uint32 mask_length_max = 3;
 }
 
 message PrefixSet {

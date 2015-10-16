@@ -171,8 +171,9 @@ func (p *Prefix) Match(path *Path) bool {
 
 func (p *Prefix) ToApiStruct() *api.Prefix {
 	return &api.Prefix{
-		IpPrefix:        p.Prefix.String(),
-		MaskLengthRange: fmt.Sprintf("%d..%d", p.MasklengthRangeMin, p.MasklengthRangeMax),
+		IpPrefix:      p.Prefix.String(),
+		MaskLengthMin: uint32(p.MasklengthRangeMin),
+		MaskLengthMax: uint32(p.MasklengthRangeMax),
 	}
 }
 
