@@ -43,6 +43,8 @@ service GobgpApi {
   rpc GetROA(Arguments) returns (stream ROA) {}
   rpc GetVrfs(Arguments) returns (stream Vrf) {}
   rpc ModVrf(ModVrfArguments) returns (Error) {}
+  rpc GetDefinedSet(DefinedSet) returns (DefinedSet) {}
+  rpc GetDefinedSets(DefinedSet) returns (stream DefinedSet) {}
 }
 
 message Error {
@@ -177,21 +179,26 @@ message Prefix {
     uint32 mask_length_max = 3;
 }
 
+message DefinedSet {
+    int32 type = 1;
+    string name = 2;
+    repeated string list = 3;
+    repeated Prefix prefixes = 4;
+}
+
 message PrefixSet {
     string name = 1;
-    repeated Prefix list = 2;
-    int32 option = 3;
+    int32 option = 2;
+}
+
+message MatchSet {
+    string name = 1;
+    int32 option = 2;
 }
 
 message AsPathLength {
     uint32 length = 1;
     int32 type = 2;
-}
-
-message MatchSet {
-    string name = 1;
-    repeated string list = 2;
-    int32 option = 3;
 }
 
 message Conditions {
@@ -253,7 +260,7 @@ enum PolicyType {
 
 message ApplyPolicy {
     PolicyType type = 1;
-    repeated PolicyDefinition policies = 2;
+    repeated string policies = 2;
     RouteAction default = 3;
 }
 

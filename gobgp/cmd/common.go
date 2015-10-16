@@ -310,21 +310,7 @@ func (c capabilities) Less(i, j int) bool {
 	return c[i].Code() < c[j].Code()
 }
 
-type prefixes []*gobgpapi.PrefixSet
-
-func (p prefixes) Len() int {
-	return len(p)
-}
-
-func (p prefixes) Swap(i, j int) {
-	p[i], p[j] = p[j], p[i]
-}
-
-func (p prefixes) Less(i, j int) bool {
-	return p[i].Name < p[j].Name
-}
-
-type sets []*gobgpapi.MatchSet
+type sets []*gobgpapi.DefinedSet
 
 func (n sets) Len() int {
 	return len(n)
