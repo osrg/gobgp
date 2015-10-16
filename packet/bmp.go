@@ -35,7 +35,7 @@ const (
 )
 
 const (
-	BMP_DEFAULT_PORT     = 11019
+	BMP_DEFAULT_PORT = 11019
 )
 
 const (
@@ -497,7 +497,7 @@ type BMPMessage struct {
 
 func (msg *BMPMessage) Serialize() ([]byte, error) {
 	buf := make([]byte, 0)
-	if msg.Header.Type != BMP_MSG_INITIATION && msg.Header.Type != BMP_MSG_INITIATION {
+	if msg.Header.Type != BMP_MSG_INITIATION {
 		p, err := msg.PeerHeader.Serialize()
 		if err != nil {
 			return nil, err
@@ -555,7 +555,7 @@ func ParseBMPMessage(data []byte) (*BMPMessage, error) {
 		msg.Body = &BMPTermination{}
 	}
 
-	if msg.Header.Type != BMP_MSG_INITIATION && msg.Header.Type != BMP_MSG_INITIATION {
+	if msg.Header.Type != BMP_MSG_INITIATION {
 		msg.PeerHeader.DecodeFromBytes(data)
 		data = data[BMP_PEER_HEADER_SIZE:]
 	}
