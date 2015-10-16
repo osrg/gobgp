@@ -177,6 +177,23 @@ func (p *Prefix) ToApiStruct() *api.Prefix {
 	}
 }
 
+func NewPrefixFromApiStruct(a *api.Prefix) (*Prefix, error) {
+	addr, prefix, err := net.ParseCIDR(a.IpPrefix)
+	if err != nil {
+		return nil, err
+	}
+	rf := bgp.RF_IPv4_UC
+	if addr.To4() == nil {
+		rf = bgp.RF_IPv6_UC
+	}
+	return &Prefix{
+		Prefix:             prefix,
+		AddressFamily:      rf,
+		MasklengthRangeMin: uint8(a.MaskLengthMin),
+		MasklengthRangeMax: uint8(a.MaskLengthMax),
+	}, nil
+}
+
 func NewPrefix(c config.Prefix) (*Prefix, error) {
 	addr, prefix, err := net.ParseCIDR(c.IpPrefix)
 	if err != nil {
@@ -241,6 +258,24 @@ func (s *PrefixSet) ToApiStruct() *api.PrefixSet {
 	}
 }
 
+func NewPrefixSetFromApiStruct(a *api.PrefixSet) (*PrefixSet, error) {
+	if a.Name == "" {
+		return nil, fmt.Errorf("empty prefix set name")
+	}
+	list := make([]*Prefix, 0, len(a.List))
+	for _, x := range a.List {
+		y, err := NewPrefixFromApiStruct(x)
+		if err != nil {
+			return nil, err
+		}
+		list = append(list, y)
+	}
+	return &PrefixSet{
+		name: a.Name,
+		list: list,
+	}, nil
+}
+
 func NewPrefixSet(c config.PrefixSet) (*PrefixSet, error) {
 	name := c.PrefixSetName
 	if name == "" {
@@ -287,6 +322,24 @@ func (s *NeighborSet) ToApiStruct() *api.MatchSet {
 	}
 }
 
+func NewNeighborSetFromApiStruct(a *api.MatchSet) (*NeighborSet, error) {
+	if a.Name == "" {
+		return nil, fmt.Errorf("empty neighbor set name")
+	}
+	list := make([]net.IP, 0, len(a.List))
+	for _, x := range a.List {
+		addr := net.ParseIP(x)
+		if addr == nil {
+			return nil, fmt.Errorf("invalid ip address format: %s", x)
+		}
+		list = append(list, addr)
+	}
+	return &NeighborSet{
+		name: a.Name,
+		list: list,
+	}, nil
+}
+
 func NewNeighborSet(c config.NeighborSet) (*NeighborSet, error) {
 	name := c.NeighborSetName
 	if name == "" {
@@ -331,6 +384,17 @@ type AsPathSet struct {
 
 func (s *AsPathSet) Type() DefinedType {
 	return DEFINED_TYPE_AS_PATH
+}
+
+func NewAsPathSetFromApiStruct(a *api.MatchSet) (*AsPathSet, error) {
+	c := config.AsPathSet{
+		AsPathSetName: a.Name,
+		AsPathList:    make([]config.AsPath, 0, len(a.List)),
+	}
+	for _, x := range a.List {
+		c.AsPathList = append(c.AsPathList, config.AsPath{x})
+	}
+	return NewAsPathSet(c)
 }
 
 func NewAsPathSet(c config.AsPathSet) (*AsPathSet, error) {
@@ -440,6 +504,17 @@ func parseExtCommunityRegexp(arg string) (bgp.ExtendedCommunityAttrSubType, *reg
 	return subtype, exp, err
 }
 
+func NewCommunitySetFromApiStruct(a *api.MatchSet) (*CommunitySet, error) {
+	c := config.CommunitySet{
+		CommunitySetName: a.Name,
+		CommunityList:    make([]config.Community, 0, len(a.List)),
+	}
+	for _, x := range a.List {
+		c.CommunityList = append(c.CommunityList, config.Community{x})
+	}
+	return NewCommunitySet(c)
+}
+
 func NewCommunitySet(c config.CommunitySet) (*CommunitySet, error) {
 	name := c.CommunitySetName
 	if name == "" {
@@ -471,6 +546,17 @@ type ExtCommunitySet struct {
 
 func (s *ExtCommunitySet) Type() DefinedType {
 	return DEFINED_TYPE_EXT_COMMUNITY
+}
+
+func NewExtCommunitySetFromApiStruct(a *api.MatchSet) (*ExtCommunitySet, error) {
+	c := config.ExtCommunitySet{
+		ExtCommunitySetName: a.Name,
+		ExtCommunityList:    make([]config.ExtCommunity, 0, len(a.List)),
+	}
+	for _, x := range a.List {
+		c.ExtCommunityList = append(c.ExtCommunityList, config.ExtCommunity{x})
+	}
+	return NewExtCommunitySet(c)
 }
 
 func NewExtCommunitySet(c config.ExtCommunitySet) (*ExtCommunitySet, error) {
@@ -554,6 +640,17 @@ func (c *PrefixCondition) ToApiStruct() *api.PrefixSet {
 	return s
 }
 
+func NewPrefixConditionFromApiStruct(a *api.PrefixSet) (*PrefixCondition, error) {
+	s, err := NewPrefixSetFromApiStruct(a)
+	if err != nil {
+		return nil, err
+	}
+	return &PrefixCondition{
+		set:    s,
+		option: MatchOption(a.Option),
+	}, nil
+}
+
 func NewPrefixCondition(c config.MatchPrefixSet, m map[string]DefinedSet) (*PrefixCondition, error) {
 	if c.PrefixSet == "" {
 		return nil, nil
@@ -630,6 +727,17 @@ func (c *NeighborCondition) ToApiStruct() *api.MatchSet {
 	return s
 }
 
+func NewNeighborConditionFromApiStruct(a *api.MatchSet) (*NeighborCondition, error) {
+	s, err := NewNeighborSetFromApiStruct(a)
+	if err != nil {
+		return nil, err
+	}
+	return &NeighborCondition{
+		set:    s,
+		option: MatchOption(a.Option),
+	}, nil
+}
+
 func NewNeighborCondition(c config.MatchNeighborSet, m map[string]DefinedSet) (*NeighborCondition, error) {
 	if c.NeighborSet == "" {
 		return nil, nil
@@ -696,6 +804,17 @@ func (c *AsPathCondition) Evaluate(path *Path) bool {
 		"Matched":     result,
 	}).Debug("evaluation result")
 	return result
+}
+
+func NewAsPathConditionFromApiStruct(a *api.MatchSet) (*AsPathCondition, error) {
+	s, err := NewAsPathSetFromApiStruct(a)
+	if err != nil {
+		return nil, err
+	}
+	return &AsPathCondition{
+		set:    s,
+		option: MatchOption(a.Option),
+	}, nil
 }
 
 func NewAsPathCondition(c config.MatchAsPathSet, m map[string]DefinedSet) (*AsPathCondition, error) {
@@ -767,6 +886,17 @@ func (c *CommunityCondition) Evaluate(path *Path) bool {
 		"Matched":     result,
 	}).Debug("evaluation result")
 	return result
+}
+
+func NewCommunityConditionFromApiStruct(a *api.MatchSet) (*CommunityCondition, error) {
+	s, err := NewCommunitySetFromApiStruct(a)
+	if err != nil {
+		return nil, err
+	}
+	return &CommunityCondition{
+		set:    s,
+		option: MatchOption(a.Option),
+	}, nil
 }
 
 func NewCommunityCondition(c config.MatchCommunitySet, m map[string]DefinedSet) (*CommunityCondition, error) {
@@ -846,6 +976,17 @@ func (c *ExtCommunityCondition) Evaluate(path *Path) bool {
 	return result
 }
 
+func NewExtCommunityConditionFromApiStruct(a *api.MatchSet) (*ExtCommunityCondition, error) {
+	s, err := NewExtCommunitySetFromApiStruct(a)
+	if err != nil {
+		return nil, err
+	}
+	return &ExtCommunityCondition{
+		set:    s,
+		option: MatchOption(a.Option),
+	}, nil
+}
+
 func NewExtCommunityCondition(c config.MatchExtCommunitySet, m map[string]DefinedSet) (*ExtCommunityCondition, error) {
 	if c.ExtCommunitySet == "" {
 		return nil, nil
@@ -905,6 +1046,13 @@ func (c *AsPathLengthCondition) ToApiStruct() *api.AsPathLength {
 	}
 }
 
+func NewAsPathLengthConditionFromApiStruct(a *api.AsPathLength) (*AsPathLengthCondition, error) {
+	return &AsPathLengthCondition{
+		length:   a.Length,
+		operator: AttributeComparison(a.Type),
+	}, nil
+}
+
 func NewAsPathLengthCondition(c config.AsPathLength) (*AsPathLengthCondition, error) {
 	if c.Value == 0 && c.Operator == "" {
 		return nil, nil
@@ -932,6 +1080,11 @@ type RpkiValidationCondition struct {
 
 func (c *RpkiValidationCondition) Evaluate(path *Path) bool {
 	return c.result == path.Validation
+}
+
+func NewRpkiValidationConditionFromApiStruct(a int32) (*RpkiValidationCondition, error) {
+	typ := config.RpkiValidationResultType(a)
+	return NewRpkiValidationCondition(typ)
 }
 
 func NewRpkiValidationCondition(c config.RpkiValidationResultType) (*RpkiValidationCondition, error) {
@@ -964,6 +1117,19 @@ func (a *RoutingAction) ToApiStruct() api.RouteAction {
 	} else {
 		return api.RouteAction_REJECT
 	}
+}
+
+func NewRoutingActionFromApiStruct(a api.RouteAction) (*RoutingAction, error) {
+	if a == api.RouteAction_NONE {
+		return nil, nil
+	}
+	accept := false
+	if a == api.RouteAction_ACCEPT {
+		accept = true
+	}
+	return &RoutingAction{
+		AcceptRoute: accept,
+	}, nil
 }
 
 func NewRoutingAction(c config.RouteDisposition) (*RoutingAction, error) {
@@ -1060,6 +1226,37 @@ func (a *CommunityAction) ToApiStruct() *api.CommunityAction {
 	}
 }
 
+func NewCommunityActionFromApiStruct(a *api.CommunityAction) (*CommunityAction, error) {
+	var list []uint32
+	var removeList []*regexp.Regexp
+	op := config.BgpSetCommunityOptionType(a.Option)
+	if op == config.BGP_SET_COMMUNITY_OPTION_TYPE_REMOVE {
+		removeList = make([]*regexp.Regexp, 0, len(a.Communities))
+	} else {
+		list = make([]uint32, 0, len(a.Communities))
+	}
+	for _, x := range a.Communities {
+		if op == config.BGP_SET_COMMUNITY_OPTION_TYPE_REMOVE {
+			exp, err := parseCommunityRegexp(x)
+			if err != nil {
+				return nil, err
+			}
+			removeList = append(removeList, exp)
+		} else {
+			comm, err := ParseCommunity(x)
+			if err != nil {
+				return nil, err
+			}
+			list = append(list, comm)
+		}
+	}
+	return &CommunityAction{
+		action:     op,
+		list:       list,
+		removeList: removeList,
+	}, nil
+}
+
 func NewCommunityAction(c config.SetCommunity) (*CommunityAction, error) {
 	a, ok := CommunityOptionValueMap[strings.ToLower(c.Options)]
 	if !ok {
@@ -1138,6 +1335,42 @@ func (a *ExtCommunityAction) ToApiStruct() *api.CommunityAction {
 		Communities: cs,
 		Option:      int32(a.action),
 	}
+}
+
+func NewExtCommunityActionFromApiStruct(a *api.CommunityAction) (*ExtCommunityAction, error) {
+	var list []bgp.ExtendedCommunityInterface
+	var removeList []*regexp.Regexp
+	subtypeList := make([]bgp.ExtendedCommunityAttrSubType, 0, len(a.Communities))
+	op := config.BgpSetCommunityOptionType(a.Option)
+	if op == config.BGP_SET_COMMUNITY_OPTION_TYPE_REMOVE {
+		removeList = make([]*regexp.Regexp, 0, len(a.Communities))
+	} else {
+		list = make([]bgp.ExtendedCommunityInterface, 0, len(a.Communities))
+	}
+	for _, x := range a.Communities {
+		if op == config.BGP_SET_COMMUNITY_OPTION_TYPE_REMOVE {
+			subtype, exp, err := parseExtCommunityRegexp(x)
+			if err != nil {
+				return nil, err
+			}
+			removeList = append(removeList, exp)
+			subtypeList = append(subtypeList, subtype)
+		} else {
+			comm, err := parseExtCommunity(x)
+			if err != nil {
+				return nil, err
+			}
+			list = append(list, comm)
+			_, subtype := comm.GetTypes()
+			subtypeList = append(subtypeList, subtype)
+		}
+	}
+	return &ExtCommunityAction{
+		action:      op,
+		list:        list,
+		removeList:  removeList,
+		subtypeList: subtypeList,
+	}, nil
 }
 
 func NewExtCommunityAction(c config.SetExtCommunity) (*ExtCommunityAction, error) {
@@ -1220,6 +1453,13 @@ func (a *MedAction) ToApiStruct() *api.MedAction {
 	}
 }
 
+func NewMedActionFromApiStruct(a *api.MedAction) (*MedAction, error) {
+	return &MedAction{
+		action: MedActionType(a.Type),
+		value:  int(a.Value),
+	}, nil
+}
+
 func NewMedAction(c config.BgpSetMedType) (*MedAction, error) {
 	if string(c) == "" {
 		return nil, nil
@@ -1287,6 +1527,14 @@ func (a *AsPathPrependAction) ToApiStruct() *api.AsPrependAction {
 		Repeat:      uint32(a.repeat),
 		UseLeftMost: a.useLeftMost,
 	}
+}
+
+func NewAsPathPrependActionFromApiStruct(a *api.AsPrependAction) (*AsPathPrependAction, error) {
+	return &AsPathPrependAction{
+		asn:         a.Asn,
+		useLeftMost: a.UseLeftMost,
+		repeat:      uint8(a.Repeat),
+	}, nil
 }
 
 // NewAsPathPrependAction creates AsPathPrependAction object.
@@ -1396,6 +1644,87 @@ func (s *Statement) ToApiStruct() *api.Statement {
 		Conditions: cs,
 		Actions:    as,
 	}
+}
+
+func NewStatementFromApiStruct(a api.Statement) (*Statement, error) {
+	if a.Name == "" {
+		return nil, fmt.Errorf("empty statement name")
+	}
+	var ra Action
+	var as []Action
+	var cs []Condition
+	var err error
+	if a.Conditions != nil {
+		cfs := []func() (Condition, error){
+			func() (Condition, error) {
+				return NewPrefixConditionFromApiStruct(a.Conditions.PrefixSet)
+			},
+			func() (Condition, error) {
+				return NewNeighborConditionFromApiStruct(a.Conditions.NeighborSet)
+			},
+			func() (Condition, error) {
+				return NewAsPathLengthConditionFromApiStruct(a.Conditions.AsPathLength)
+			},
+			func() (Condition, error) {
+				return NewRpkiValidationConditionFromApiStruct(a.Conditions.RpkiResult)
+			},
+			func() (Condition, error) {
+				return NewAsPathConditionFromApiStruct(a.Conditions.AsPathSet)
+			},
+			func() (Condition, error) {
+				return NewCommunityConditionFromApiStruct(a.Conditions.CommunitySet)
+			},
+			func() (Condition, error) {
+				return NewExtCommunityConditionFromApiStruct(a.Conditions.ExtCommunitySet)
+			},
+		}
+		cs = make([]Condition, 0, len(cfs))
+		for _, f := range cfs {
+			c, err := f()
+			if err != nil {
+				return nil, err
+			}
+			if !reflect.ValueOf(c).IsNil() {
+				cs = append(cs, c)
+			}
+		}
+	}
+	if a.Actions != nil {
+		ra, err = NewRoutingActionFromApiStruct(a.Actions.RouteAction)
+		if err != nil {
+			return nil, err
+		}
+		afs := []func() (Action, error){
+			func() (Action, error) {
+				return NewCommunityActionFromApiStruct(a.Actions.Community)
+			},
+			func() (Action, error) {
+				return NewExtCommunityActionFromApiStruct(a.Actions.ExtCommunity)
+			},
+			func() (Action, error) {
+				return NewMedActionFromApiStruct(a.Actions.Med)
+			},
+			func() (Action, error) {
+				return NewAsPathPrependActionFromApiStruct(a.Actions.AsPrepend)
+			},
+		}
+		as = make([]Action, 0, len(afs))
+		for _, f := range afs {
+			a, err := f()
+			if err != nil {
+				return nil, err
+			}
+			if !reflect.ValueOf(a).IsNil() {
+				as = append(as, a)
+			}
+		}
+	}
+	return &Statement{
+		Name:        a.Name,
+		Conditions:  cs,
+		RouteAction: ra,
+		ModActions:  as,
+	}, nil
 }
 
 func NewStatement(c config.Statement, dmap DefinedSetMap) (*Statement, error) {
