@@ -2055,7 +2055,7 @@ class ExportPolicyMedAdd(object):
     def check(env):
         lookup_scenario('ImportPolicyCommunityAction').check(env)
 
-    @scenario(29)
+    @staticmethod
     def check2(env):
         g1 = env.g1
         q1 = env.q1
