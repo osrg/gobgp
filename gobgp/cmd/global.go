@@ -274,7 +274,7 @@ func ParseEvpnMacAdvArgs(args []string) (bgp.AddrPrefixInterface, []string, erro
 	if err != nil {
 		return nil, nil, fmt.Errorf("invalid mac: %s", args[0])
 	}
-	if args[1] != "0.0.0.0" || args[1] != "::" {
+	if args[1] != "0.0.0.0" && args[1] != "::" {
 		ip = net.ParseIP(args[1])
 		if ip == nil {
 			return nil, nil, fmt.Errorf("invalid ip prefix: %s", args[1])
@@ -326,7 +326,7 @@ func ParseEvpnMulticastArgs(args []string) (bgp.AddrPrefixInterface, []string, e
 	var ip net.IP
 	iplen := 0
 
-	if args[0] != "0.0.0.0" || args[0] != "::" {
+	if args[0] != "0.0.0.0" && args[0] != "::" {
 		ip = net.ParseIP(args[0])
 		if ip == nil {
 			return nil, nil, fmt.Errorf("invalid ip prefix: %s", args[0])
