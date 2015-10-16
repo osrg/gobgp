@@ -37,7 +37,6 @@ func formatPolicyPrefix(head bool, indent int, psl []*api.PrefixSet) string {
 	sIndent := strings.Repeat(" ", indent)
 	maxNameLen := 0
 	maxPrefixLen := 0
-	maxRangeLen := 0
 	for _, ps := range psl {
 		if len(ps.Name) > maxNameLen {
 			maxNameLen = len(ps.Name)
@@ -45,9 +44,6 @@ func formatPolicyPrefix(head bool, indent int, psl []*api.PrefixSet) string {
 		for _, p := range ps.List {
 			if len(p.IpPrefix) > maxPrefixLen {
 				maxPrefixLen = len(p.IpPrefix)
-			}
-			if len(p.MaskLengthRange) > maxRangeLen {
-				maxRangeLen = len(p.MaskLengthRange)
 			}
 		}
 	}
@@ -59,23 +55,22 @@ func formatPolicyPrefix(head bool, indent int, psl []*api.PrefixSet) string {
 		if len("Prefix") > maxPrefixLen {
 			maxPrefixLen = len("Prefix")
 		}
-		if len("MaskRange") > maxRangeLen {
-			maxRangeLen = len("MaskRange")
-		}
 	}
 
-	format := "%-" + fmt.Sprint(maxNameLen) + "s  %-" + fmt.Sprint(maxPrefixLen) + "s  %-" + fmt.Sprint(maxRangeLen) + "s\n"
+	format := fmt.Sprintf("%%-%ds  %%-%ds ", maxNameLen, maxPrefixLen)
 	if head {
-		buff.WriteString(fmt.Sprintf(format, "Name", "Address", "MaskRange"))
+		buff.WriteString(fmt.Sprintf(format, "Name", "Prefix"))
+		buff.WriteString("MaskLengthRange\n")
 	}
 	for _, ps := range psl {
 		for i, p := range ps.List {
-			prefix := fmt.Sprintf("%s", p.IpPrefix)
 			if i == 0 {
-				buff.WriteString(fmt.Sprintf(format, ps.Name, prefix, p.MaskLengthRange))
+				buff.WriteString(fmt.Sprintf(format, ps.Name, p.IpPrefix))
+				buff.WriteString(fmt.Sprintf("%d..%d\n", p.MaskLengthMin, p.MaskLengthMax))
 			} else {
 				buff.WriteString(fmt.Sprintf(sIndent))
-				buff.WriteString(fmt.Sprintf(format, "", prefix, p.MaskLengthRange))
+				buff.WriteString(fmt.Sprintf(format, "", p.IpPrefix))
+				buff.WriteString(fmt.Sprintf("%d..%d\n", p.MaskLengthMin, p.MaskLengthMax))
 			}
 		}
 	}
@@ -138,7 +133,7 @@ func showPolicyPrefix(args []string) error {
 	}
 	if globalOpts.Quiet {
 		for _, p := range ps.List {
-			fmt.Printf("%s %s\n", p.IpPrefix, p.MaskLengthRange)
+			fmt.Printf("%s %d..%d\n", p.IpPrefix, p.MaskLengthMin, p.MaskLengthMax)
 		}
 		return nil
 	}
@@ -186,7 +181,8 @@ func parsePrefixSet(eArgs []string) (*api.PrefixSet, error) {
 		if min >= max {
 			return nil, fmt.Errorf("invalid mask length range: %s\nlarge value to the right from the left", maskRange)
 		}
-		prefix.MaskLengthRange = maskRange
+		prefix.MaskLengthMin = uint32(min)
+		prefix.MaskLengthMax = uint32(max)
 	}
 	prefixList := []*api.Prefix{prefix}
 	prefixSet := &api.PrefixSet{
