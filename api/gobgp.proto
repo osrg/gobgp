@@ -45,6 +45,7 @@ service GobgpApi {
   rpc ModVrf(ModVrfArguments) returns (Error) {}
   rpc GetDefinedSet(DefinedSet) returns (DefinedSet) {}
   rpc GetDefinedSets(DefinedSet) returns (stream DefinedSet) {}
+  rpc ModDefinedSet(ModDefinedSetArguments) returns (Error) {}
 }
 
 message Error {
@@ -89,6 +90,11 @@ message ModVrfArguments {
     Vrf vrf = 2;
 }
 
+message ModDefinedSetArguments {
+    Operation operation = 1;
+    DefinedSet set = 2;
+}
+
 enum Resource {
     GLOBAL = 0;
     LOCAL = 1;
@@ -107,6 +113,7 @@ enum Operation {
     ADD = 0;
     DEL = 1;
     DEL_ALL = 2;
+    REPLACE = 3;
 }
 
 message Path {

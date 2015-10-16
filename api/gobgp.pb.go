@@ -15,6 +15,7 @@ It has these top-level messages:
 	PolicyArguments
 	MrtArguments
 	ModVrfArguments
+	ModDefinedSetArguments
 	Path
 	Destination
 	PeerConf
@@ -109,17 +110,20 @@ const (
 	Operation_ADD     Operation = 0
 	Operation_DEL     Operation = 1
 	Operation_DEL_ALL Operation = 2
+	Operation_REPLACE Operation = 3
 )
 
 var Operation_name = map[int32]string{
 	0: "ADD",
 	1: "DEL",
 	2: "DEL_ALL",
+	3: "REPLACE",
 }
 var Operation_value = map[string]int32{
 	"ADD":     0,
 	"DEL":     1,
 	"DEL_ALL": 2,
+	"REPLACE": 3,
 }
 
 func (x Operation) String() string {
@@ -278,6 +282,22 @@ func (*ModVrfArguments) ProtoMessage()    {}
 func (m *ModVrfArguments) GetVrf() *Vrf {
 	if m != nil {
 		return m.Vrf
+	}
+	return nil
+}
+
+type ModDefinedSetArguments struct {
+	Operation Operation   `protobuf:"varint,1,opt,name=operation,enum=gobgpapi.Operation" json:"operation,omitempty"`
+	Set       *DefinedSet `protobuf:"bytes,2,opt,name=set" json:"set,omitempty"`
+}
+
+func (m *ModDefinedSetArguments) Reset()         { *m = ModDefinedSetArguments{} }
+func (m *ModDefinedSetArguments) String() string { return proto.CompactTextString(m) }
+func (*ModDefinedSetArguments) ProtoMessage()    {}
+
+func (m *ModDefinedSetArguments) GetSet() *DefinedSet {
+	if m != nil {
+		return m.Set
 	}
 	return nil
 }
@@ -728,6 +748,7 @@ type GobgpApiClient interface {
 	ModVrf(ctx context.Context, in *ModVrfArguments, opts ...grpc.CallOption) (*Error, error)
 	GetDefinedSet(ctx context.Context, in *DefinedSet, opts ...grpc.CallOption) (*DefinedSet, error)
 	GetDefinedSets(ctx context.Context, in *DefinedSet, opts ...grpc.CallOption) (GobgpApi_GetDefinedSetsClient, error)
+	ModDefinedSet(ctx context.Context, in *ModDefinedSetArguments, opts ...grpc.CallOption) (*Error, error)
 }
 
 type gobgpApiClient struct {
@@ -1262,6 +1283,15 @@ func (x *gobgpApiGetDefinedSetsClient) Recv() (*DefinedSet, error) {
 	return m, nil
 }
 
+func (c *gobgpApiClient) ModDefinedSet(ctx context.Context, in *ModDefinedSetArguments, opts ...grpc.CallOption) (*Error, error) {
+	out := new(Error)
+	err := grpc.Invoke(ctx, "/gobgpapi.GobgpApi/ModDefinedSet", in, out, c.cc, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 // Server API for GobgpApi service
 
 type GobgpApiServer interface {
@@ -1290,6 +1320,7 @@ type GobgpApiServer interface {
 	ModVrf(context.Context, *ModVrfArguments) (*Error, error)
 	GetDefinedSet(context.Context, *DefinedSet) (*DefinedSet, error)
 	GetDefinedSets(*DefinedSet, GobgpApi_GetDefinedSetsServer) error
+	ModDefinedSet(context.Context, *ModDefinedSetArguments) (*Error, error)
 }
 
 func RegisterGobgpApiServer(s *grpc.Server, srv GobgpApiServer) {
@@ -1728,6 +1759,18 @@ func (x *gobgpApiGetDefinedSetsServer) Send(m *DefinedSet) error {
 	return x.ServerStream.SendMsg(m)
 }
 
+func _GobgpApi_ModDefinedSet_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error) (interface{}, error) {
+	in := new(ModDefinedSetArguments)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	out, err := srv.(GobgpApiServer).ModDefinedSet(ctx, in)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 var _GobgpApi_serviceDesc = grpc.ServiceDesc{
 	ServiceName: "gobgpapi.GobgpApi",
 	HandlerType: (*GobgpApiServer)(nil),
@@ -1779,6 +1822,10 @@ var _GobgpApi_serviceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "GetDefinedSet",
 			Handler:    _GobgpApi_GetDefinedSet_Handler,
+		},
+		{
+			MethodName: "ModDefinedSet",
+			Handler:    _GobgpApi_ModDefinedSet_Handler,
 		},
 	},
 	Streams: []grpc.StreamDesc{

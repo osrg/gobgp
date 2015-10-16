@@ -137,6 +137,9 @@ type DefinedSet interface {
 	Type() DefinedType
 	Name() string
 	ToApiStruct() *api.DefinedSet
+	Append(DefinedSet) error
+	Remove(DefinedSet) error
+	Replace(DefinedSet) error
 }
 
 type DefinedSetMap map[DefinedType]map[string]DefinedSet
@@ -168,6 +171,16 @@ func (p *Prefix) Match(path *Path) bool {
 	}
 
 	return (p.MasklengthRangeMin <= pMasklen && pMasklen <= p.MasklengthRangeMax) && p.Prefix.Contains(pAddr)
+}
+
+func (lhs *Prefix) Equal(rhs *Prefix) bool {
+	if lhs == rhs {
+		return true
+	}
+	if rhs == nil {
+		return false
+	}
+	return lhs.Prefix.String() == rhs.Prefix.String() && lhs.MasklengthRangeMin == rhs.MasklengthRangeMin && lhs.MasklengthRangeMax == rhs.MasklengthRangeMax
 }
 
 func (p *Prefix) ToApiStruct() *api.Prefix {
@@ -248,6 +261,46 @@ func (s *PrefixSet) Type() DefinedType {
 	return DEFINED_TYPE_PREFIX
 }
 
+func (lhs *PrefixSet) Append(arg DefinedSet) error {
+	rhs, ok := arg.(*PrefixSet)
+	if !ok {
+		return fmt.Errorf("type cast failed")
+	}
+	lhs.list = append(lhs.list, rhs.list...)
+	return nil
+}
+
+func (lhs *PrefixSet) Remove(arg DefinedSet) error {
+	rhs, ok := arg.(*PrefixSet)
+	if !ok {
+		return fmt.Errorf("type cast failed")
+	}
+	ps := make([]*Prefix, 0, len(lhs.list))
+	for _, x := range lhs.list {
+		found := false
+		for _, y := range rhs.list {
+			if x.Equal(y) {
+				found = true
+				break
+			}
+		}
+		if !found {
+			ps = append(ps, x)
+		}
+	}
+	lhs.list = ps
+	return nil
+}
+
+func (lhs *PrefixSet) Replace(arg DefinedSet) error {
+	rhs, ok := arg.(*PrefixSet)
+	if !ok {
+		return fmt.Errorf("type cast failed")
+	}
+	lhs.list = rhs.list
+	return nil
+}
+
 func (s *PrefixSet) ToApiStruct() *api.DefinedSet {
 	list := make([]*api.Prefix, 0, len(s.list))
 	for _, p := range s.list {
@@ -313,6 +366,46 @@ func (s *NeighborSet) Type() DefinedType {
 	return DEFINED_TYPE_NEIGHBOR
 }
 
+func (lhs *NeighborSet) Append(arg DefinedSet) error {
+	rhs, ok := arg.(*NeighborSet)
+	if !ok {
+		return fmt.Errorf("type cast failed")
+	}
+	lhs.list = append(lhs.list, rhs.list...)
+	return nil
+}
+
+func (lhs *NeighborSet) Remove(arg DefinedSet) error {
+	rhs, ok := arg.(*NeighborSet)
+	if !ok {
+		return fmt.Errorf("type cast failed")
+	}
+	ps := make([]net.IP, 0, len(lhs.list))
+	for _, x := range lhs.list {
+		found := false
+		for _, y := range rhs.list {
+			if x.Equal(y) {
+				found = true
+				break
+			}
+		}
+		if !found {
+			ps = append(ps, x)
+		}
+	}
+	lhs.list = ps
+	return nil
+}
+
+func (lhs *NeighborSet) Replace(arg DefinedSet) error {
+	rhs, ok := arg.(*NeighborSet)
+	if !ok {
+		return fmt.Errorf("type cast failed")
+	}
+	lhs.list = rhs.list
+	return nil
+}
+
 func (s *NeighborSet) ToApiStruct() *api.DefinedSet {
 	list := make([]string, 0, len(s.list))
 	for _, n := range s.list {
@@ -373,6 +466,46 @@ func (s *regExpSet) Name() string {
 
 func (s *regExpSet) Type() DefinedType {
 	return s.typ
+}
+
+func (lhs *regExpSet) Append(arg DefinedSet) error {
+	rhs, ok := arg.(*regExpSet)
+	if !ok {
+		return fmt.Errorf("type cast failed")
+	}
+	lhs.list = append(lhs.list, rhs.list...)
+	return nil
+}
+
+func (lhs *regExpSet) Remove(arg DefinedSet) error {
+	rhs, ok := arg.(*regExpSet)
+	if !ok {
+		return fmt.Errorf("type cast failed")
+	}
+	ps := make([]*regexp.Regexp, 0, len(lhs.list))
+	for _, x := range lhs.list {
+		found := false
+		for _, y := range rhs.list {
+			if x.String() == y.String() {
+				found = true
+				break
+			}
+		}
+		if !found {
+			ps = append(ps, x)
+		}
+	}
+	lhs.list = ps
+	return nil
+}
+
+func (lhs *regExpSet) Replace(arg DefinedSet) error {
+	rhs, ok := arg.(*regExpSet)
+	if !ok {
+		return fmt.Errorf("type cast failed")
+	}
+	lhs.list = rhs.list
+	return nil
 }
 
 func (s *regExpSet) ToApiStruct() *api.DefinedSet {
@@ -586,8 +719,26 @@ func NewExtCommunitySet(c config.ExtCommunitySet) (*ExtCommunitySet, error) {
 	}, nil
 }
 
+func NewDefinedSetFromApiStruct(a *api.DefinedSet) (DefinedSet, error) {
+	switch DefinedType(a.Type) {
+	case DEFINED_TYPE_PREFIX:
+		return NewPrefixSetFromApiStruct(a)
+	case DEFINED_TYPE_NEIGHBOR:
+		return NewNeighborSetFromApiStruct(a)
+	case DEFINED_TYPE_AS_PATH:
+		return NewAsPathSetFromApiStruct(a)
+	case DEFINED_TYPE_COMMUNITY:
+		return NewCommunitySetFromApiStruct(a)
+	case DEFINED_TYPE_EXT_COMMUNITY:
+		return NewExtCommunitySetFromApiStruct(a)
+	default:
+		return nil, fmt.Errorf("invalid defined type")
+	}
+}
+
 type Condition interface {
 	Evaluate(*Path) bool
+	Set() DefinedSet
 }
 
 type PrefixCondition struct {
@@ -761,7 +912,7 @@ type AsPathCondition struct {
 	option MatchOption
 }
 
-func (c *AsPathCondition) Set() *AsPathSet {
+func (c *AsPathCondition) Set() DefinedSet {
 	return c.set
 }
 
@@ -838,7 +989,7 @@ type CommunityCondition struct {
 	option MatchOption
 }
 
-func (c *CommunityCondition) Set() *CommunitySet {
+func (c *CommunityCondition) Set() DefinedSet {
 	return c.set
 }
 
@@ -918,7 +1069,7 @@ type ExtCommunityCondition struct {
 	option MatchOption
 }
 
-func (c *ExtCommunityCondition) Set() *ExtCommunitySet {
+func (c *ExtCommunityCondition) Set() DefinedSet {
 	return c.set
 }
 
@@ -1029,6 +1180,10 @@ func (c *AsPathLengthCondition) Evaluate(path *Path) bool {
 	return result
 }
 
+func (c *AsPathLengthCondition) Set() DefinedSet {
+	return nil
+}
+
 func (c *AsPathLengthCondition) ToApiStruct() *api.AsPathLength {
 	return &api.AsPathLength{
 		Length: c.length,
@@ -1070,6 +1225,10 @@ type RpkiValidationCondition struct {
 
 func (c *RpkiValidationCondition) Evaluate(path *Path) bool {
 	return c.result == path.Validation
+}
+
+func (c *RpkiValidationCondition) Set() DefinedSet {
+	return nil
 }
 
 func NewRpkiValidationConditionFromApiStruct(a int32) (*RpkiValidationCondition, error) {
@@ -1852,6 +2011,20 @@ func NewPolicy(c config.PolicyDefinition, dmap DefinedSetMap) (*Policy, error) {
 type RoutingPolicy struct {
 	DefinedSetMap DefinedSetMap
 	PolicyMap     map[string]*Policy
+}
+
+func (r *RoutingPolicy) InUse(d DefinedSet) bool {
+	name := d.Name()
+	for _, p := range r.PolicyMap {
+		for _, s := range p.Statements {
+			for _, c := range s.Conditions {
+				if c.Set().Name() == name {
+					return true
+				}
+			}
+		}
+	}
+	return false
 }
 
 func NewRoutingPolicy(c config.RoutingPolicy) (*RoutingPolicy, error) {

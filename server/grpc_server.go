@@ -75,6 +75,7 @@ const (
 	REQ_MOD_PATH
 	REQ_GLOBAL_POLICY
 	REQ_DEFINED_SET
+	REQ_MOD_DEFINED_SET
 )
 
 const GRPC_PORT = 8080
@@ -517,6 +518,17 @@ func (s *Server) GetDefinedSets(arg *api.DefinedSet, stream api.GobgpApi_GetDefi
 	return handleMultipleResponses(req, func(res *GrpcResponse) error {
 		return stream.Send(res.Data.(*api.DefinedSet))
 	})
+}
+
+func (s *Server) ModDefinedSet(ctx context.Context, arg *api.ModDefinedSetArguments) (*api.Error, error) {
+	none := &api.Error{}
+	req := NewGrpcRequest(REQ_MOD_DEFINED_SET, "", bgp.RouteFamily(0), arg)
+	s.bgpServerCh <- req
+	res := <-req.ResponseCh
+	if err := res.Err(); err != nil {
+		return none, err
+	}
+	return none, nil
 }
 
 type GrpcRequest struct {
