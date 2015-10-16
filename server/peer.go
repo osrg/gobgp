@@ -116,6 +116,23 @@ func (peer *Peer) configuredRFlist() []bgp.RouteFamily {
 	return rfList
 }
 
+func (peer *Peer) updateAccepted(accepted uint32) {
+	peer.accepted = accepted
+	peer.staleAccepted = false
+}
+
+func (peer *Peer) getAccepted(rfList []bgp.RouteFamily) []*table.Path {
+	var pathList []*table.Path
+	for _, rf := range rfList {
+		for _, path := range peer.adjRib.GetInPathList(rf) {
+			if path.Filtered == false {
+				pathList = append(pathList, path)
+			}
+		}
+	}
+	return pathList
+}
+
 func (peer *Peer) handleBGPmessage(m *bgp.BGPMessage) ([]*table.Path, bool, []*bgp.BGPMessage) {
 	bgpMsgList := []*bgp.BGPMessage{}
 	pathList := []*table.Path{}
@@ -214,7 +231,11 @@ func (peer *Peer) handleBGPmessage(m *bgp.BGPMessage) ([]*table.Path, bool, []*b
 		}
 		table.UpdatePathAttrs4ByteAs(body)
 		pathList = table.ProcessMessage(m, peer.peerInfo)
-		peer.adjRib.UpdateIn(pathList)
+		if len(pathList) > 0 {
+			peer.staleAccepted = true
+			pathList, _ = peer.ApplyPolicy(table.POLICY_DIRECTION_IN, pathList)
+			peer.adjRib.UpdateIn(pathList)
+		}
 	case bgp.BGP_MSG_NOTIFICATION:
 		body := m.Body.(*bgp.BGPNotification)
 		log.WithFields(log.Fields{
@@ -307,17 +328,10 @@ func (peer *Peer) ToApiStruct() *api.Peer {
 		for _, rf := range peer.configuredRFlist() {
 			advertized += uint32(peer.adjRib.GetOutCount(rf))
 			received += uint32(peer.adjRib.GetInCount(rf))
-			if peer.staleAccepted {
-				for _, path := range peer.adjRib.GetInPathList(rf) {
-					if path.Filtered == false {
-						accepted++
-					}
-				}
-			}
 		}
 		if peer.staleAccepted {
-			peer.staleAccepted = false
-			peer.accepted = accepted
+			accepted = uint32(len(peer.getAccepted(peer.configuredRFlist())))
+			peer.updateAccepted(accepted)
 		} else {
 			accepted = peer.accepted
 		}
@@ -412,9 +426,6 @@ func (peer *Peer) GetDefaultPolicy(d table.PolicyDirection) table.RouteType {
 }
 
 func (peer *Peer) ApplyPolicy(d table.PolicyDirection, paths []*table.Path) ([]*table.Path, []*table.Path) {
-	if d == table.POLICY_DIRECTION_IN {
-		peer.staleAccepted = true
-	}
 	newpaths := make([]*table.Path, 0, len(paths))
 	filteredPaths := make([]*table.Path, 0)
 	for _, path := range paths {
@@ -433,10 +444,14 @@ func (peer *Peer) ApplyPolicy(d table.PolicyDirection, paths []*table.Path) ([]*
 
 		switch result {
 		case table.ROUTE_TYPE_ACCEPT:
-			path.Filtered = false
+			if d == table.POLICY_DIRECTION_IN {
+				path.Filtered = false
+			}
 			newpaths = append(newpaths, newpath)
 		case table.ROUTE_TYPE_REJECT:
-			path.Filtered = true
+			if d == table.POLICY_DIRECTION_IN {
+				path.Filtered = true
+			}
 			filteredPaths = append(filteredPaths, path)
 			log.WithFields(log.Fields{
 				"Topic":     "Peer",

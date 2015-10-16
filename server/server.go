@@ -356,16 +356,10 @@ func (server *BgpServer) Serve() {
 			if peer.isRouteServerClient() {
 				peer.setPolicy(server.policyMap)
 				pathList := make([]*table.Path, 0)
+				rfList := peer.configuredRFlist()
 				for _, p := range server.neighborMap {
-					if p.isRouteServerClient() == false {
-						continue
-					}
-					for _, rf := range peer.configuredRFlist() {
-						for _, path := range p.adjRib.GetInPathList(rf) {
-							if path.Filtered == false {
-								pathList = append(pathList, path)
-							}
-						}
+					if p.isRouteServerClient() == true {
+						pathList = append(pathList, p.getAccepted(rfList)...)
 					}
 				}
 				pathList, _ = peer.ApplyPolicy(table.POLICY_DIRECTION_IMPORT, pathList)
@@ -651,7 +645,6 @@ func (server *BgpServer) broadcastPeerState(peer *Peer) {
 func (server *BgpServer) propagateUpdate(peer *Peer, pathList []*table.Path) []*SenderMsg {
 	msgs := make([]*SenderMsg, 0)
 	if peer != nil && peer.isRouteServerClient() {
-		pathList, _ = peer.ApplyPolicy(table.POLICY_DIRECTION_IN, pathList)
 		for _, targetPeer := range server.neighborMap {
 			rib := targetPeer.localRib
 			if !targetPeer.isRouteServerClient() || rib.OwnerName() == peer.conf.NeighborConfig.NeighborAddress.String() {
@@ -1454,10 +1447,6 @@ func (server *BgpServer) handleGrpc(grpcReq *GrpcRequest) []*SenderMsg {
 		if err != nil {
 			break
 		}
-		for _, peer := range peers {
-			peer.staleAccepted = false
-			peer.accepted = 0
-		}
 		if grpcReq.RequestType == REQ_NEIGHBOR_SOFT_RESET {
 			logOp(grpcReq.Name, "Neighbor soft reset")
 		} else {
@@ -1466,6 +1455,10 @@ func (server *BgpServer) handleGrpc(grpcReq *GrpcRequest) []*SenderMsg {
 
 		for _, peer := range peers {
 			pathList := peer.adjRib.GetInPathList(grpcReq.RouteFamily)
+			if peer.isRouteServerClient() {
+				pathList, _ = peer.ApplyPolicy(table.POLICY_DIRECTION_IN, pathList)
+				peer.updateAccepted(uint32(len(pathList)))
+			}
 			msgs = append(msgs, server.propagateUpdate(peer, pathList)...)
 		}
 
