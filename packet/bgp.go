@@ -1458,7 +1458,7 @@ func (esi *EthernetSegmentIdentifier) String() string {
 		s.WriteString(fmt.Sprintf("priority %d", binary.BigEndian.Uint16(esi.Value[6:8])))
 	case ESI_MAC:
 		s.WriteString(fmt.Sprintf("system mac %s, ", net.HardwareAddr(esi.Value[:6]).String()))
-		s.WriteString(fmt.Sprintf("local discriminator %d", esi.Value[6]<<16|esi.Value[7]<<8|esi.Value[8]))
+		s.WriteString(fmt.Sprintf("local discriminator %d", uint32(esi.Value[6])<<16|uint32(esi.Value[7])<<8|uint32(esi.Value[8])))
 	case ESI_ROUTERID:
 		s.WriteString(fmt.Sprintf("router id %s, ", net.IP(esi.Value[:4])))
 		s.WriteString(fmt.Sprintf("local discriminator %d", binary.BigEndian.Uint32(esi.Value[4:8])))
