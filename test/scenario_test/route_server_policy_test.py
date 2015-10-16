@@ -27,9 +27,7 @@ import inspect
 from noseplugin import OptionParser, parser_option
 
 
-scenarios = {}
 counter = 1
-
 _SCENARIOS = {}
 
 
@@ -44,17 +42,6 @@ def lookup_scenario(name):
         if value.__name__ == name:
             return value
     return None
-
-
-def scenario(idx):
-    def wrapped(f):
-        if idx not in scenarios:
-            scenarios[idx] = {}
-        if f.__name__ in scenarios[idx]:
-            raise Exception('scenario index {0}. already exists'.format(idx))
-
-        scenarios[idx][f.__name__] = f
-    return wrapped
 
 
 def wait_for(f, timeout=120):
@@ -955,7 +942,7 @@ class ImportPolicyAsPathCondition(object):
     @staticmethod
     def check(env):
         # same check function as previous No.1 scenario
-        scenarios[1]['check'](env)
+        lookup_scenario("ImportPolicy").check(env)
 
 
 @register_scenario
