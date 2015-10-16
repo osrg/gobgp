@@ -23,10 +23,27 @@ import sys
 import os
 import time
 import nose
+import inspect
 from noseplugin import OptionParser, parser_option
 
 
 scenarios = {}
+counter = 1
+
+_SCENARIOS = {}
+
+
+def register_scenario(cls):
+    global counter
+    _SCENARIOS[counter] = cls
+    counter += 1
+
+
+def lookup_scenario(name):
+    for value in _SCENARIOS.values():
+        if value.__name__ == name:
+            return value
+    return None
 
 
 def scenario(idx):
@@ -53,774 +70,795 @@ def wait_for(f, timeout=120):
             raise Exception('timeout')
 
 
-"""
-  No.1 import-policy test
-                          --------------------------------
-  e1 ->(192.168.2.0/24)-> | ->  q1-rib -> q1-adj-rib-out | --> q1
-                          |                              |
-                          | ->x q2-rib                   |
-                          --------------------------------
-"""
-@scenario(1)
-def boot(env):
-    gobgp_ctn_image_name = env.parser_option.gobgp_image
-    log_level = env.parser_option.gobgp_log_level
-    g1 = GoBGPContainer(name='g1', asn=65000, router_id='192.168.0.1',
-                        ctn_image_name=gobgp_ctn_image_name,
-                        log_level=log_level)
-    e1 = ExaBGPContainer(name='e1', asn=65001, router_id='192.168.0.2')
-    q1 = QuaggaBGPContainer(name='q1', asn=65002, router_id='192.168.0.3')
-    q2 = QuaggaBGPContainer(name='q2', asn=65003, router_id='192.168.0.4')
-
-    ctns = [g1, e1, q1, q2]
-    initial_wait_time = max(ctn.run() for ctn in ctns)
-    time.sleep(initial_wait_time)
-
-    br01 = Bridge(name='br01', subnet='192.168.10.0/24')
-    [br01.addif(ctn) for ctn in ctns]
-
-    for q in [e1, q1, q2]:
-        g1.add_peer(q, is_rs_client=True)
-        q.add_peer(g1)
-
-    env.g1 = g1
-    env.e1 = e1
-    env.q1 = q1
-    env.q2 = q2
-
-@scenario(1)
-def setup(env):
-    g1 = env.g1
-    e1 = env.e1
-    q1 = env.q1
-    q2 = env.q2
-
-    p0 = {'IpPrefix': '192.168.0.0/16',
-          'MasklengthRange': '16..24'}
-
-    ps0 = {'PrefixSetName': 'ps0',
-           'PrefixList': [p0]}
-    g1.set_prefix_set(ps0)
-
-    n0 = {'Address': g1.peers[e1]['neigh_addr'].split('/')[0]}
-
-    ns0 = {'NeighborSetName': 'ns0',
-           'NeighborInfoList': [n0]}
-    g1.set_neighbor_set(ns0)
-
-    st0 = {'Name': 'st0',
-           'Conditions': {
-               'MatchPrefixSet': {'PrefixSet': ps0['PrefixSetName']},
-               'MatchNeighborSet': {'NeighborSet': ns0['NeighborSetName']}}}
-
-    policy = {'name': 'policy0',
-              'type': 'import',
-              'statements': [st0]}
-    g1.add_policy(policy, q2)
-
-    # this will be blocked
-    e1.add_route('192.168.2.0/24')
-    # this will pass
-    e1.add_route('192.168.2.0/15')
-
-    for c in [e1, q1, q2]:
-        g1.wait_for(BGP_FSM_ESTABLISHED, c)
-
-
-@scenario(1)
-def check(env):
-    wait_for(lambda: len(env.g1.get_local_rib(env.q1)) == 2)
-    wait_for(lambda: len(env.g1.get_adj_rib_out(env.q1)) == 2)
-    wait_for(lambda: len(env.q1.get_global_rib()) == 2)
-    wait_for(lambda: len(env.g1.get_local_rib(env.q2)) == 1)
-    wait_for(lambda: len(env.g1.get_adj_rib_out(env.q2)) == 1)
-    wait_for(lambda: len(env.q2.get_global_rib()) == 1)
-
-"""
-  No.2 export-policy test
-                          --------------------------------
-  e1 ->(192.168.2.0/24)-> | -> q1-rib ->  q1-adj-rib-out | --> q1
-                          |                              |
-                          | -> q2-rib ->x q2-adj-rib-out |
-                          --------------------------------
-"""
-@scenario(2)
-def boot(env):
-    scenarios[1]['boot'](env)
-
-@scenario(2)
-def setup(env):
-    g1 = env.g1
-    e1 = env.e1
-    q1 = env.q1
-    q2 = env.q2
-
-    p0 = {'IpPrefix': '192.168.0.0/16',
-          'MasklengthRange': '16..24'}
-
-    ps0 = {'PrefixSetName': 'ps0',
-           'PrefixList': [p0]}
-    g1.set_prefix_set(ps0)
-
-    n0 = {'Address': g1.peers[q2]['neigh_addr'].split('/')[0]}
-
-    ns0 = {'NeighborSetName': 'ns0',
-           'NeighborInfoList': [n0]}
-    g1.set_neighbor_set(ns0)
-
-    st0 = {'Name': 'st0',
-           'Conditions': {
-               'MatchPrefixSet': {'PrefixSet': ps0['PrefixSetName']},
-               'MatchNeighborSet': {'NeighborSet': ns0['NeighborSetName']}}}
-
-    policy = {'name': 'policy0',
-              'type': 'export',
-              'statements': [st0]}
-    g1.add_policy(policy, q2)
-
-    # this will be blocked
-    e1.add_route('192.168.2.0/24')
-    # this will pass
-    e1.add_route('192.168.2.0/15')
-
-    for c in [e1, q1, q2]:
-        g1.wait_for(BGP_FSM_ESTABLISHED, c)
-
-@scenario(2)
-def check(env):
-    g1 = env.g1
-    q1 = env.q1
-    q2 = env.q2
-    wait_for(lambda : len(g1.get_local_rib(q1)) == 2)
-    wait_for(lambda : len(g1.get_adj_rib_out(q1)) == 2)
-    wait_for(lambda : len(q1.get_global_rib()) == 2)
-    wait_for(lambda : len(g1.get_local_rib(q2)) == 2)
-    wait_for(lambda : len(g1.get_adj_rib_out(q2)) == 1)
-    wait_for(lambda : len(q2.get_global_rib()) == 1)
-
-"""
-  No.3 import-policy update test
-
-  r1:192.168.2.0/24
-  r2:192.168.20.0/24
-  r3:192.168.200.0/24
-                    -------------------------------------------------
-                    | q1                                            |
-  e1 ->(r1,r2,r3)-> | ->(r1,r2,r3)-> rib ->(r1,r2,r3)-> adj-rib-out | ->(r1,r2,r3)-> q1
-                    |                                               |
-                    | q2                                            |
-                    | ->(r1)->       rib ->(r1)->       adj-rib-out | ->(r1)-> q2
-                    -------------------------------------------------
-               |
-       update gobgp.conf
-               |
-               V
-                    -------------------------------------------------
-                    | q1                                            |
-  e1 ->(r1,r2,r3)-> | ->(r1,r2,r3)-> rib ->(r1,r2,r3)-> adj-rib-out | ->(r1,r2,r3)-> q1
-                    |                                               |
-                    | q2                                            |
-                    | ->(r1,r3)->    rib ->(r1,r3)->    adj-rib-out | ->(r1,r3)-> q2
-                    -------------------------------------------------
-"""
-@scenario(3)
-def boot(env):
-    scenarios[1]['boot'](env)
-
-@scenario(3)
-def setup(env):
-    g1 = env.g1
-    e1 = env.e1
-    q1 = env.q1
-    q2 = env.q2
-
-    p0 = {'IpPrefix': '192.168.20.0/24'}
-    p1 = {'IpPrefix': '192.168.200.0/24'}
-
-    ps0 = {'PrefixSetName': 'ps0',
-           'PrefixList': [p0, p1]}
-    g1.set_prefix_set(ps0)
-
-    n0 = {'Address': g1.peers[e1]['neigh_addr'].split('/')[0]}
-
-    ns0 = {'NeighborSetName': 'ns0',
-           'NeighborInfoList': [n0]}
-    g1.set_neighbor_set(ns0)
-
-    st0 = {'Name': 'st0',
-           'Conditions': {
-               'MatchPrefixSet': {'PrefixSet': ps0['PrefixSetName']},
-               'MatchNeighborSet': {'NeighborSet': ns0['NeighborSetName']}}}
-
-    policy = {'name': 'policy0',
-              'type': 'import',
-              'statements': [st0]}
-    g1.add_policy(policy, q2)
-
-    e1.add_route('192.168.2.0/24')
-    e1.add_route('192.168.20.0/24')
-    e1.add_route('192.168.200.0/24')
-
-    for c in [e1, q1, q2]:
-        g1.wait_for(BGP_FSM_ESTABLISHED, c)
-
-@scenario(3)
-def check(env):
-    g1 = env.g1
-    e1 = env.e1
-    q1 = env.q1
-    q2 = env.q2
-    wait_for(lambda : len(g1.get_local_rib(q1)) == 3)
-    wait_for(lambda : len(g1.get_adj_rib_out(q1)) == 3)
-    wait_for(lambda : len(q1.get_global_rib()) == 3)
-    wait_for(lambda : len(g1.get_local_rib(q2)) == 1)
-    wait_for(lambda : len(g1.get_adj_rib_out(q2)) == 1)
-    wait_for(lambda : len(q2.get_global_rib()) == 1)
-
-@scenario(3)
-def setup2(env):
-    g1 = env.g1
-    e1 = env.e1
-    q1 = env.q1
-    q2 = env.q2
-    g1.clear_policy()
-
-    p0 = {'IpPrefix': '192.168.20.0/24'}
-
-    ps0 = {'PrefixSetName': 'ps0',
-           'PrefixList': [p0]}
-    g1.set_prefix_set(ps0)
-
-    n0 = {'Address': g1.peers[e1]['neigh_addr'].split('/')[0]}
-
-    ns0 = {'NeighborSetName': 'ns0',
-           'NeighborInfoList': [n0]}
-    g1.set_neighbor_set(ns0)
-
-    st0 = {'Name': 'st0',
-           'Conditions': {'MatchPrefixSet': {'PrefixSet': ps0['PrefixSetName']},
-                          'MatchNeighborSet': {'NeighborSet': ns0['NeighborSetName']}}}
-
-    policy = {'name': 'policy0',
-              'type': 'import',
-              'statements': [st0]}
-    g1.add_policy(policy, q2)
-    g1.softreset(e1)
-
-@scenario(3)
-def check2(env):
-    g1 = env.g1
-    e1 = env.e1
-    q1 = env.q1
-    q2 = env.q2
-    wait_for(lambda : len(g1.get_local_rib(q1)) == 3)
-    wait_for(lambda : len(g1.get_adj_rib_out(q1)) == 3)
-    wait_for(lambda : len(q1.get_global_rib()) == 3)
-    wait_for(lambda : len(g1.get_local_rib(q2)) == 2)
-    wait_for(lambda : len(g1.get_adj_rib_out(q2)) == 2)
-    wait_for(lambda : len(q2.get_global_rib()) == 2)
-
-"""
-  No.4 export-policy update test
-
-  r1:192.168.2.0
-  r2:192.168.20.0
-  r3:192.168.200.0
-                    -------------------------------------------------
-                    | q1                                            |
-  e1 ->(r1,r2,r3)-> | ->(r1,r2,r3)-> rib ->(r1,r2,r3)-> adj-rib-out | ->(r1,r2,r3)-> q1
-                    |                                               |
-                    | q2                                            |
-                    | ->(r1,r2,r3)-> rib ->(r1)->       adj-rib-out | ->(r1)-> q2
-                    -------------------------------------------------
-               |
-       update gobgp.conf
-               |
-               V
-                    -------------------------------------------------
-                    | q1                                            |
-  e1 ->(r1,r2,r3)-> | ->(r1,r2,r3)-> rib ->(r1,r2,r3)-> adj-rib-out | ->(r1,r2,r3)-> q1
-                    |                                               |
-                    | q2                                            |
-                    | ->(r1,r2,r3)-> rib ->(r1,r3)->    adj-rib-out | ->(r1,r3)-> q2
-                    -------------------------------------------------
-"""
-@scenario(4)
-def boot(env):
-    scenarios[1]['boot'](env)
-
-@scenario(4)
-def setup(env):
-    g1 = env.g1
-    e1 = env.e1
-    q1 = env.q1
-    q2 = env.q2
-    p0 = {'IpPrefix': '192.168.20.0/24'}
-    p1 = {'IpPrefix': '192.168.200.0/24'}
-
-    ps0 = {'PrefixSetName': 'ps0',
-           'PrefixList': [p0, p1]}
-    g1.set_prefix_set(ps0)
-
-    n0 = {'Address': g1.peers[q2]['neigh_addr'].split('/')[0]}
-
-    ns0 = {'NeighborSetName': 'ns0',
-           'NeighborInfoList': [n0]}
-    g1.set_neighbor_set(ns0)
-
-    st0 = {'Name': 'st0',
-           'Conditions': {'MatchPrefixSet': {'PrefixSet': ps0['PrefixSetName']},
-                          'MatchNeighborSet': {'NeighborSet': ns0['NeighborSetName']}}}
-
-    policy = {'name': 'policy0',
-              'type': 'export',
-              'statements': [st0]}
-    g1.add_policy(policy, q2)
-
-    e1.add_route('192.168.2.0/24')
-    e1.add_route('192.168.20.0/24')
-    e1.add_route('192.168.200.0/24')
-
-    for c in [e1, q1, q2]:
-        g1.wait_for(BGP_FSM_ESTABLISHED, c)
-
-@scenario(4)
-def check(env):
-    g1 = env.g1
-    e1 = env.e1
-    q1 = env.q1
-    q2 = env.q2
-    wait_for(lambda : len(g1.get_local_rib(q1)) == 3)
-    wait_for(lambda : len(g1.get_adj_rib_out(q1)) == 3)
-    wait_for(lambda : len(q1.get_global_rib()) == 3)
-    wait_for(lambda : len(g1.get_local_rib(q2)) == 3)
-    wait_for(lambda : len(g1.get_adj_rib_out(q2)) == 1)
-    wait_for(lambda : len(q2.get_global_rib()) == 1)
-
-@scenario(4)
-def setup2(env):
-    g1 = env.g1
-    e1 = env.e1
-    q1 = env.q1
-    q2 = env.q2
-    g1.clear_policy()
-
-    p0 = {'IpPrefix': '192.168.20.0/24'}
-
-    ps0 = {'PrefixSetName': 'ps0',
-           'PrefixList': [p0]}
-    g1.set_prefix_set(ps0)
-
-    n0 = {'Address': g1.peers[q2]['neigh_addr'].split('/')[0]}
-
-    ns0 = {'NeighborSetName': 'ns0',
-           'NeighborInfoList': [n0]}
-    g1.set_neighbor_set(ns0)
-
-    st0 = {'Name': 'st0',
-           'Conditions': {'MatchPrefixSet': {'PrefixSet': ps0['PrefixSetName']},
-                          'MatchNeighborSet': {'NeighborSet': ns0['NeighborSetName']}}}
-
-    policy = {'name': 'policy0',
-              'type': 'export',
-              'statements': [st0]}
-    g1.add_policy(policy, q2)
-
-    # we need hard reset to flush q2's local rib
-    g1.reset(e1)
-
-    for c in [e1, q1, q2]:
-        g1.wait_for(BGP_FSM_ESTABLISHED, c)
-
-
-@scenario(4)
-def check2(env):
-    g1 = env.g1
-    e1 = env.e1
-    q1 = env.q1
-    q2 = env.q2
-    wait_for(lambda : len(g1.get_local_rib(q1)) == 3)
-    wait_for(lambda : len(g1.get_adj_rib_out(q1)) == 3)
-    wait_for(lambda : len(q1.get_global_rib()) == 3)
-    wait_for(lambda : len(g1.get_local_rib(q2)) == 3)
-    wait_for(lambda : len(g1.get_adj_rib_out(q2)) == 2)
-    wait_for(lambda : len(q2.get_global_rib()) == 2)
-
-"""
-   No.5 IPv6 import-policy test
-
-   r1=2001::/64
-   r2=2001::/63
-                  -------------------------------------------------
-   e1 ->(r1,r2)-> | ->(r1,r2)-> q1-rib ->(r1,r2)-> q1-adj-rib-out | ->(r1,r2)-> q1
-                  |                                               |
-                  | ->(r2)   -> q2-rib ->(r2)   -> q2-adj-rib-out | ->(r2)-> q2
-                  -------------------------------------------------
-"""
-@scenario(5)
-def boot(env):
-    gobgp_ctn_image_name = env.parser_option.gobgp_image
-    log_level = env.parser_option.gobgp_log_level
-    g1 = GoBGPContainer(name='g1', asn=65000, router_id='192.168.0.1',
-                        ctn_image_name=gobgp_ctn_image_name,
-                        log_level=log_level)
-    e1 = ExaBGPContainer(name='e1', asn=65001, router_id='192.168.0.2')
-    q1 = QuaggaBGPContainer(name='q1', asn=65002, router_id='192.168.0.3')
-    q2 = QuaggaBGPContainer(name='q2', asn=65003, router_id='192.168.0.4')
-
-    ctns = [g1, e1, q1, q2]
-    initial_wait_time = max(ctn.run() for ctn in ctns)
-    time.sleep(initial_wait_time)
-
-    br01 = Bridge(name='br01', subnet='2001::/96')
-    [br01.addif(ctn) for ctn in ctns]
-
-    for q in [e1, q1, q2]:
-        g1.add_peer(q, is_rs_client=True)
-        q.add_peer(g1)
-
-    env.g1 = g1
-    env.e1 = e1
-    env.q1 = q1
-    env.q2 = q2
-
-@scenario(5)
-def setup(env):
-    g1 = env.g1
-    e1 = env.e1
-    q1 = env.q1
-    q2 = env.q2
-
-    p0 = {'IpPrefix': '2001::/32',
-          'MasklengthRange': '64..128'}
-
-    ps0 = {'PrefixSetName': 'ps0',
-           'PrefixList': [p0]}
-    g1.set_prefix_set(ps0)
-
-    n0 = {'Address': g1.peers[e1]['neigh_addr'].split('/')[0]}
-
-    ns0 = {'NeighborSetName': 'ns0',
-           'NeighborInfoList': [n0]}
-    g1.set_neighbor_set(ns0)
-
-    st0 = {'Name': 'st0',
-           'Conditions': {
-               'MatchPrefixSet': {'PrefixSet': ps0['PrefixSetName']},
-               'MatchNeighborSet': {'NeighborSet': ns0['NeighborSetName']}}}
-
-    policy = {'name': 'policy0',
-              'type': 'import',
-              'statements': [st0]}
-    g1.add_policy(policy, q2)
-
-    # this will be blocked
-    e1.add_route('2001::/64', rf='ipv6')
-    # this will pass
-    e1.add_route('2001::/63', rf='ipv6')
-
-    for c in [e1, q1, q2]:
-        g1.wait_for(BGP_FSM_ESTABLISHED, c)
-
-@scenario(5)
-def check(env):
-    wait_for(lambda: len(env.g1.get_local_rib(env.q1, rf='ipv6')) == 2)
-    wait_for(lambda: len(env.g1.get_adj_rib_out(env.q1, rf='ipv6')) == 2)
-    wait_for(lambda: len(env.q1.get_global_rib(rf='ipv6')) == 2)
-    wait_for(lambda: len(env.g1.get_local_rib(env.q2, rf='ipv6')) == 1)
-    wait_for(lambda: len(env.g1.get_adj_rib_out(env.q2, rf='ipv6')) == 1)
-    wait_for(lambda: len(env.q2.get_global_rib(rf='ipv6')) == 1)
-
-"""
-   No.6 IPv6 export-policy test
-
-   r1=2001::/64
-   r2=2001::/63
-                  -------------------------------------------------
-   e1 ->(r1,r2)-> | ->(r1,r2)-> q1-rib ->(r1,r2)-> q1-adj-rib-out | ->(r1,r2)-> q1
-                  |                                               |
-                  | ->(r1,r2)-> q2-rib ->(r2)   -> q2-adj-rib-out | ->(r2)-> q2
-                  -------------------------------------------------
-"""
-@scenario(6)
-def boot(env):
-    scenarios[5]['boot'](env)
-
-@scenario(6)
-def setup(env):
-    g1 = env.g1
-    e1 = env.e1
-    q1 = env.q1
-    q2 = env.q2
-
-    p0 = {'IpPrefix': '2001::/32',
-          'MasklengthRange': '64..128'}
-
-    ps0 = {'PrefixSetName': 'ps0',
-           'PrefixList': [p0]}
-    g1.set_prefix_set(ps0)
-
-    n0 = {'Address': g1.peers[q2]['neigh_addr'].split('/')[0]}
-
-    ns0 = {'NeighborSetName': 'ns0',
-           'NeighborInfoList': [n0]}
-    g1.set_neighbor_set(ns0)
-
-    st0 = {'Name': 'st0',
-           'Conditions': {
-               'MatchPrefixSet': {'PrefixSet': ps0['PrefixSetName']},
-               'MatchNeighborSet': {'NeighborSet': ns0['NeighborSetName']}}}
-
-    policy = {'name': 'policy0',
-              'type': 'export',
-              'statements': [st0]}
-    g1.add_policy(policy, q2)
-
-    # this will be blocked
-    e1.add_route('2001::/64', rf='ipv6')
-    # this will pass
-    e1.add_route('2001::/63', rf='ipv6')
-
-    for c in [e1, q1, q2]:
-        g1.wait_for(BGP_FSM_ESTABLISHED, c)
-
-@scenario(6)
-def check(env):
-    wait_for(lambda: len(env.g1.get_local_rib(env.q1, rf='ipv6')) == 2)
-    wait_for(lambda: len(env.g1.get_adj_rib_out(env.q1, rf='ipv6')) == 2)
-    wait_for(lambda: len(env.q1.get_global_rib(rf='ipv6')) == 2)
-    wait_for(lambda: len(env.g1.get_local_rib(env.q2, rf='ipv6')) == 2)
-    wait_for(lambda: len(env.g1.get_adj_rib_out(env.q2, rf='ipv6')) == 1)
-    wait_for(lambda: len(env.q2.get_global_rib(rf='ipv6')) == 1)
-
-"""
-  No.7 IPv6 import-policy update test
-  r1=2001:0:10:2::/64
-  r2=2001:0:10:20::/64
-  r3=2001:0:10:200::/64
-                    -------------------------------------------------
-                    | q1                                            |
-  e1 ->(r1,r2,r3)-> | ->(r1,r2,r3)-> rib ->(r1,r2,r3)-> adj-rib-out | ->(r1,r2,r3)-> q1
-                    |                                               |
-                    | q2                                            |
-                    | ->(r1)->       rib ->(r1)->       adj-rib-out | ->(r1)-> q2
-                    -------------------------------------------------
-               |
-       update gobgp.conf
-               |
-               V
-                    -------------------------------------------------
-                    | q1                                            |
-  e1 ->(r1,r2,r3)-> | ->(r1,r2,r3)-> rib ->(r1,r2,r3)-> adj-rib-out | ->(r1,r2,r3)-> q1
-                    |                                               |
-                    | q2                                            |
-                    | ->(r1,r3)->    rib ->(r1,r3)->    adj-rib-out | ->(r1,r3)-> q2
-                    -------------------------------------------------
-"""
-@scenario(7)
-def boot(env):
-    scenarios[5]['boot'](env)
-
-@scenario(7)
-def setup(env):
-    g1 = env.g1
-    e1 = env.e1
-    q1 = env.q1
-    q2 = env.q2
-
-    p0 = {'IpPrefix': '2001:0:10:2::/64'}
-    p1 = {'IpPrefix': '2001:0:10:20::/64'}
-
-    ps0 = {'PrefixSetName': 'ps0',
-           'PrefixList': [p0, p1]}
-    g1.set_prefix_set(ps0)
-
-    n0 = {'Address': g1.peers[e1]['neigh_addr'].split('/')[0]}
-
-    ns0 = {'NeighborSetName': 'ns0',
-           'NeighborInfoList': [n0]}
-    g1.set_neighbor_set(ns0)
-
-    st0 = {'Name': 'st0',
-           'Conditions': {
-               'MatchPrefixSet': {'PrefixSet': ps0['PrefixSetName']},
-               'MatchNeighborSet': {'NeighborSet': ns0['NeighborSetName']}}}
-
-    policy = {'name': 'policy0',
-              'type': 'import',
-              'statements': [st0]}
-    g1.add_policy(policy, q2)
-
-    e1.add_route('2001:0:10:2::/64', rf='ipv6')
-    e1.add_route('2001:0:10:20::/64', rf='ipv6')
-    e1.add_route('2001:0:10:200::/64', rf='ipv6')
-
-    for c in [e1, q1, q2]:
-        g1.wait_for(BGP_FSM_ESTABLISHED, c)
-
-@scenario(7)
-def check(env):
-    wait_for(lambda: len(env.g1.get_local_rib(env.q1, rf='ipv6')) == 3)
-    wait_for(lambda: len(env.g1.get_adj_rib_out(env.q1, rf='ipv6')) == 3)
-    wait_for(lambda: len(env.q1.get_global_rib(rf='ipv6')) == 3)
-    wait_for(lambda: len(env.g1.get_local_rib(env.q2, rf='ipv6')) == 1)
-    wait_for(lambda: len(env.g1.get_adj_rib_out(env.q2, rf='ipv6')) == 1)
-    wait_for(lambda: len(env.q2.get_global_rib(rf='ipv6')) == 1)
-
-@scenario(7)
-def setup2(env):
-    g1 = env.g1
-    e1 = env.e1
-    q1 = env.q1
-    q2 = env.q2
-
-    p0 = {'IpPrefix': '2001:0:10:2::/64'}
-
-    ps0 = {'PrefixSetName': 'ps0',
-           'PrefixList': [p0]}
-    g1.set_prefix_set(ps0)
-
-    n0 = {'Address': g1.peers[e1]['neigh_addr'].split('/')[0]}
-
-    ns0 = {'NeighborSetName': 'ns0',
-           'NeighborInfoList': [n0]}
-    g1.set_neighbor_set(ns0)
-
-    st0 = {'Name': 'st0',
-           'Conditions': {
-               'MatchPrefixSet': {'PrefixSet': ps0['PrefixSetName']},
-               'MatchNeighborSet': {'NeighborSet': ns0['NeighborSetName']}}}
-
-    policy = {'name': 'policy0',
-              'type': 'import',
-              'statements': [st0]}
-    g1.add_policy(policy, q2)
-    g1.softreset(e1, rf='ipv6')
-
-@scenario(7)
-def check2(env):
-    wait_for(lambda: len(env.g1.get_local_rib(env.q1, rf='ipv6')) == 3)
-    wait_for(lambda: len(env.g1.get_adj_rib_out(env.q1, rf='ipv6')) == 3)
-    wait_for(lambda: len(env.q1.get_global_rib(rf='ipv6')) == 3)
-    wait_for(lambda: len(env.g1.get_local_rib(env.q2, rf='ipv6')) == 2)
-    wait_for(lambda: len(env.g1.get_adj_rib_out(env.q2, rf='ipv6')) == 2)
-    wait_for(lambda: len(env.q2.get_global_rib(rf='ipv6')) == 2)
-
-"""
-  No.8 IPv6 export-policy update test
-  r1=2001:0:10:2::/64
-  r2=2001:0:10:20::/64
-  r3=2001:0:10:200::/64
-                    -------------------------------------------------
-                    | q1                                            |
-  e1 ->(r1,r2,r3)-> | ->(r1,r2,r3)-> rib ->(r1,r2,r3)-> adj-rib-out | ->(r1,r2,r3)-> q1
-                    |                                               |
-                    | q2                                            |
-                    | ->(r1,r2,r3)-> rib ->(r1)->       adj-rib-out | ->(r1)-> q2
-                    -------------------------------------------------
-               |
-       update gobgp.conf
-               |
-               V
-                    -------------------------------------------------
-                    | q1                                            |
-  e1 ->(r1,r2,r3)-> | ->(r1,r2,r3)-> rib ->(r1,r2,r3)-> adj-rib-out | ->(r1,r2,r3)-> q1
-                    |                                               |
-                    | q2                                            |
-                    | ->(r1,r2,r3)-> rib ->(r1,r3)->    adj-rib-out | ->(r1,r3)-> q2
-                    -------------------------------------------------
-"""
-@scenario(8)
-def boot(env):
-    scenarios[5]['boot'](env)
-
-@scenario(8)
-def setup(env):
-    g1 = env.g1
-    e1 = env.e1
-    q1 = env.q1
-    q2 = env.q2
-
-    p0 = {'IpPrefix': '2001:0:10:2::/64'}
-    p1 = {'IpPrefix': '2001:0:10:20::/64'}
-
-    ps0 = {'PrefixSetName': 'ps0',
-           'PrefixList': [p0, p1]}
-    g1.set_prefix_set(ps0)
-
-    n0 = {'Address': g1.peers[q2]['neigh_addr'].split('/')[0]}
-
-    ns0 = {'NeighborSetName': 'ns0',
-           'NeighborInfoList': [n0]}
-    g1.set_neighbor_set(ns0)
-
-    st0 = {'Name': 'st0',
-           'Conditions': {
-               'MatchPrefixSet': {'PrefixSet': ps0['PrefixSetName']},
-               'MatchNeighborSet': {'NeighborSet': ns0['NeighborSetName']}}}
-
-    policy = {'name': 'policy0',
-              'type': 'export',
-              'statements': [st0]}
-    g1.add_policy(policy, q2)
-
-    e1.add_route('2001:0:10:2::/64', rf='ipv6')
-    e1.add_route('2001:0:10:20::/64', rf='ipv6')
-    e1.add_route('2001:0:10:200::/64', rf='ipv6')
-
-    for c in [e1, q1, q2]:
-        g1.wait_for(BGP_FSM_ESTABLISHED, c)
-
-@scenario(8)
-def check(env):
-    wait_for(lambda: len(env.g1.get_local_rib(env.q1, rf='ipv6')) == 3)
-    wait_for(lambda: len(env.g1.get_adj_rib_out(env.q1, rf='ipv6')) == 3)
-    wait_for(lambda: len(env.q1.get_global_rib(rf='ipv6')) == 3)
-    wait_for(lambda: len(env.g1.get_local_rib(env.q2, rf='ipv6')) == 3)
-    wait_for(lambda: len(env.g1.get_adj_rib_out(env.q2, rf='ipv6')) == 1)
-    wait_for(lambda: len(env.q2.get_global_rib(rf='ipv6')) == 1)
-
-@scenario(8)
-def setup2(env):
-    g1 = env.g1
-    e1 = env.e1
-    q1 = env.q1
-    q2 = env.q2
-
-    p0 = {'IpPrefix': '2001:0:10:2::/64'}
-
-    ps0 = {'PrefixSetName': 'ps0',
-           'PrefixList': [p0]}
-    g1.set_prefix_set(ps0)
-
-    n0 = {'Address': g1.peers[q2]['neigh_addr'].split('/')[0]}
-
-    ns0 = {'NeighborSetName': 'ns0',
-           'NeighborInfoList': [n0]}
-    g1.set_neighbor_set(ns0)
-
-    st0 = {'Name': 'st0',
-           'Conditions': {
-               'MatchPrefixSet': {'PrefixSet': ps0['PrefixSetName']},
-               'MatchNeighborSet': {'NeighborSet': ns0['NeighborSetName']}}}
-
-    policy = {'name': 'policy0',
-              'type': 'export',
-              'statements': [st0]}
-    g1.add_policy(policy, q2)
-    g1.reset(e1)
-
-    for c in [e1, q1, q2]:
-        g1.wait_for(BGP_FSM_ESTABLISHED, c)
-
-@scenario(8)
-def check2(env):
-    wait_for(lambda: len(env.g1.get_local_rib(env.q1, rf='ipv6')) == 3)
-    wait_for(lambda: len(env.g1.get_adj_rib_out(env.q1, rf='ipv6')) == 3)
-    wait_for(lambda: len(env.q1.get_global_rib(rf='ipv6')) == 3)
-    wait_for(lambda: len(env.g1.get_local_rib(env.q2, rf='ipv6')) == 3)
-    wait_for(lambda: len(env.g1.get_adj_rib_out(env.q2, rf='ipv6')) == 2)
-    wait_for(lambda: len(env.q2.get_global_rib(rf='ipv6')) == 2)
+@register_scenario
+class ImportPolicy(object):
+    """
+    No.1 import-policy test
+                            --------------------------------
+    e1 ->(192.168.2.0/24)-> | ->  q1-rib -> q1-adj-rib-out | --> q1
+                            |                              |
+                            | ->x q2-rib                   |
+                            --------------------------------
+    """
+    @staticmethod
+    def boot(env):
+        gobgp_ctn_image_name = env.parser_option.gobgp_image
+        log_level = env.parser_option.gobgp_log_level
+        g1 = GoBGPContainer(name='g1', asn=65000, router_id='192.168.0.1',
+                            ctn_image_name=gobgp_ctn_image_name,
+                            log_level=log_level)
+        e1 = ExaBGPContainer(name='e1', asn=65001, router_id='192.168.0.2')
+        q1 = QuaggaBGPContainer(name='q1', asn=65002, router_id='192.168.0.3')
+        q2 = QuaggaBGPContainer(name='q2', asn=65003, router_id='192.168.0.4')
+
+        ctns = [g1, e1, q1, q2]
+        initial_wait_time = max(ctn.run() for ctn in ctns)
+        time.sleep(initial_wait_time)
+
+        br01 = Bridge(name='br01', subnet='192.168.10.0/24')
+        [br01.addif(ctn) for ctn in ctns]
+
+        for q in [e1, q1, q2]:
+            g1.add_peer(q, is_rs_client=True)
+            q.add_peer(g1)
+
+        env.g1 = g1
+        env.e1 = e1
+        env.q1 = q1
+        env.q2 = q2
+
+    @staticmethod
+    def setup(env):
+        g1 = env.g1
+        e1 = env.e1
+        q1 = env.q1
+        q2 = env.q2
+
+        p0 = {'IpPrefix': '192.168.0.0/16',
+              'MasklengthRange': '16..24'}
+
+        ps0 = {'PrefixSetName': 'ps0',
+               'PrefixList': [p0]}
+        g1.set_prefix_set(ps0)
+
+        n0 = {'Address': g1.peers[e1]['neigh_addr'].split('/')[0]}
+
+        ns0 = {'NeighborSetName': 'ns0',
+               'NeighborInfoList': [n0]}
+        g1.set_neighbor_set(ns0)
+
+        st0 = {'Name': 'st0',
+               'Conditions': {
+                'MatchPrefixSet': {'PrefixSet': ps0['PrefixSetName']},
+                'MatchNeighborSet': {'NeighborSet': ns0['NeighborSetName']}}}
+
+        policy = {'name': 'policy0',
+                  'type': 'import',
+                  'statements': [st0]}
+        g1.add_policy(policy, q2)
+
+        # this will be blocked
+        e1.add_route('192.168.2.0/24')
+        # this will pass
+        e1.add_route('192.168.2.0/15')
+
+        for c in [e1, q1, q2]:
+            g1.wait_for(BGP_FSM_ESTABLISHED, c)
+
+    @staticmethod
+    def check(env):
+        wait_for(lambda: len(env.g1.get_local_rib(env.q1)) == 2)
+        wait_for(lambda: len(env.g1.get_adj_rib_out(env.q1)) == 2)
+        wait_for(lambda: len(env.q1.get_global_rib()) == 2)
+        wait_for(lambda: len(env.g1.get_local_rib(env.q2)) == 1)
+        wait_for(lambda: len(env.g1.get_adj_rib_out(env.q2)) == 1)
+        wait_for(lambda: len(env.q2.get_global_rib()) == 1)
+
+
+@register_scenario
+class ExportPolicy(object):
+    """
+    No.2 export-policy test
+                            --------------------------------
+    e1 ->(192.168.2.0/24)-> | -> q1-rib ->  q1-adj-rib-out | --> q1
+                            |                              |
+                            | -> q2-rib ->x q2-adj-rib-out |
+                            --------------------------------
+    """
+    @staticmethod
+    def boot(env):
+        lookup_scenario("ImportPolicy").boot(env)
+
+    @staticmethod
+    def setup(env):
+        g1 = env.g1
+        e1 = env.e1
+        q1 = env.q1
+        q2 = env.q2
+
+        p0 = {'IpPrefix': '192.168.0.0/16',
+              'MasklengthRange': '16..24'}
+
+        ps0 = {'PrefixSetName': 'ps0',
+               'PrefixList': [p0]}
+        g1.set_prefix_set(ps0)
+
+        n0 = {'Address': g1.peers[q2]['neigh_addr'].split('/')[0]}
+
+        ns0 = {'NeighborSetName': 'ns0',
+               'NeighborInfoList': [n0]}
+        g1.set_neighbor_set(ns0)
+
+        st0 = {'Name': 'st0',
+               'Conditions': {
+                'MatchPrefixSet': {'PrefixSet': ps0['PrefixSetName']},
+                'MatchNeighborSet': {'NeighborSet': ns0['NeighborSetName']}}}
+
+        policy = {'name': 'policy0',
+                  'type': 'export',
+                  'statements': [st0]}
+        g1.add_policy(policy, q2)
+
+        # this will be blocked
+        e1.add_route('192.168.2.0/24')
+        # this will pass
+        e1.add_route('192.168.2.0/15')
+
+        for c in [e1, q1, q2]:
+            g1.wait_for(BGP_FSM_ESTABLISHED, c)
+
+    @staticmethod
+    def check(env):
+        g1 = env.g1
+        q1 = env.q1
+        q2 = env.q2
+        wait_for(lambda: len(g1.get_local_rib(q1)) == 2)
+        wait_for(lambda: len(g1.get_adj_rib_out(q1)) == 2)
+        wait_for(lambda: len(q1.get_global_rib()) == 2)
+        wait_for(lambda: len(g1.get_local_rib(q2)) == 2)
+        wait_for(lambda: len(g1.get_adj_rib_out(q2)) == 1)
+        wait_for(lambda: len(q2.get_global_rib()) == 1)
+
+
+@register_scenario
+class ImportPolicyUpdate(object):
+    """
+    No.3 import-policy update test
+
+    r1:192.168.2.0/24
+    r2:192.168.20.0/24
+    r3:192.168.200.0/24
+                      -------------------------------------------------
+                      | q1                                            |
+    e1 ->(r1,r2,r3)-> | ->(r1,r2,r3)-> rib ->(r1,r2,r3)-> adj-rib-out | ->(r1,r2,r3)-> q1
+                      |                                               |
+                      | q2                                            |
+                      | ->(r1)->       rib ->(r1)->       adj-rib-out | ->(r1)-> q2
+                      -------------------------------------------------
+                 |
+         update gobgp.conf
+                 |
+                 V
+                      -------------------------------------------------
+                      | q1                                            |
+    e1 ->(r1,r2,r3)-> | ->(r1,r2,r3)-> rib ->(r1,r2,r3)-> adj-rib-out | ->(r1,r2,r3)-> q1
+                      |                                               |
+                      | q2                                            |
+                      | ->(r1,r3)->    rib ->(r1,r3)->    adj-rib-out | ->(r1,r3)-> q2
+                      -------------------------------------------------
+    """
+    @staticmethod
+    def boot(env):
+        lookup_scenario("ImportPolicy").boot(env)
+
+    @staticmethod
+    def setup(env):
+        g1 = env.g1
+        e1 = env.e1
+        q1 = env.q1
+        q2 = env.q2
+
+        p0 = {'IpPrefix': '192.168.20.0/24'}
+        p1 = {'IpPrefix': '192.168.200.0/24'}
+
+        ps0 = {'PrefixSetName': 'ps0',
+               'PrefixList': [p0, p1]}
+        g1.set_prefix_set(ps0)
+
+        n0 = {'Address': g1.peers[e1]['neigh_addr'].split('/')[0]}
+
+        ns0 = {'NeighborSetName': 'ns0',
+               'NeighborInfoList': [n0]}
+        g1.set_neighbor_set(ns0)
+
+        st0 = {'Name': 'st0',
+               'Conditions': {
+                'MatchPrefixSet': {'PrefixSet': ps0['PrefixSetName']},
+                'MatchNeighborSet': {'NeighborSet': ns0['NeighborSetName']}}}
+
+        policy = {'name': 'policy0',
+                  'type': 'import',
+                  'statements': [st0]}
+        g1.add_policy(policy, q2)
+
+        e1.add_route('192.168.2.0/24')
+        e1.add_route('192.168.20.0/24')
+        e1.add_route('192.168.200.0/24')
+
+        for c in [e1, q1, q2]:
+            g1.wait_for(BGP_FSM_ESTABLISHED, c)
+
+    @staticmethod
+    def check(env):
+        g1 = env.g1
+        e1 = env.e1
+        q1 = env.q1
+        q2 = env.q2
+        wait_for(lambda: len(g1.get_local_rib(q1)) == 3)
+        wait_for(lambda: len(g1.get_adj_rib_out(q1)) == 3)
+        wait_for(lambda: len(q1.get_global_rib()) == 3)
+        wait_for(lambda: len(g1.get_local_rib(q2)) == 1)
+        wait_for(lambda: len(g1.get_adj_rib_out(q2)) == 1)
+        wait_for(lambda: len(q2.get_global_rib()) == 1)
+
+    @staticmethod
+    def setup2(env):
+        g1 = env.g1
+        e1 = env.e1
+        q1 = env.q1
+        q2 = env.q2
+        g1.clear_policy()
+
+        p0 = {'IpPrefix': '192.168.20.0/24'}
+
+        ps0 = {'PrefixSetName': 'ps0',
+               'PrefixList': [p0]}
+        g1.set_prefix_set(ps0)
+
+        n0 = {'Address': g1.peers[e1]['neigh_addr'].split('/')[0]}
+
+        ns0 = {'NeighborSetName': 'ns0',
+               'NeighborInfoList': [n0]}
+        g1.set_neighbor_set(ns0)
+
+        st0 = {'Name': 'st0',
+               'Conditions': {'MatchPrefixSet': {'PrefixSet': ps0['PrefixSetName']},
+                              'MatchNeighborSet': {'NeighborSet': ns0['NeighborSetName']}}}
+
+        policy = {'name': 'policy0',
+                  'type': 'import',
+                  'statements': [st0]}
+        g1.add_policy(policy, q2)
+        g1.softreset(e1)
+
+    @staticmethod
+    def check2(env):
+        g1 = env.g1
+        e1 = env.e1
+        q1 = env.q1
+        q2 = env.q2
+        wait_for(lambda: len(g1.get_local_rib(q1)) == 3)
+        wait_for(lambda: len(g1.get_adj_rib_out(q1)) == 3)
+        wait_for(lambda: len(q1.get_global_rib()) == 3)
+        wait_for(lambda: len(g1.get_local_rib(q2)) == 2)
+        wait_for(lambda: len(g1.get_adj_rib_out(q2)) == 2)
+        wait_for(lambda: len(q2.get_global_rib()) == 2)
+
+
+@register_scenario
+class ExportPolicyUpdate(object):
+    """
+    No.4 export-policy update test
+
+    r1:192.168.2.0
+    r2:192.168.20.0
+    r3:192.168.200.0
+                      -------------------------------------------------
+                      | q1                                            |
+    e1 ->(r1,r2,r3)-> | ->(r1,r2,r3)-> rib ->(r1,r2,r3)-> adj-rib-out | ->(r1,r2,r3)-> q1
+                      |                                               |
+                      | q2                                            |
+                      | ->(r1,r2,r3)-> rib ->(r1)->       adj-rib-out | ->(r1)-> q2
+                      -------------------------------------------------
+                 |
+         update gobgp.conf
+                 |
+                 V
+                      -------------------------------------------------
+                      | q1                                            |
+    e1 ->(r1,r2,r3)-> | ->(r1,r2,r3)-> rib ->(r1,r2,r3)-> adj-rib-out | ->(r1,r2,r3)-> q1
+                      |                                               |
+                      | q2                                            |
+                      | ->(r1,r2,r3)-> rib ->(r1,r3)->    adj-rib-out | ->(r1,r3)-> q2
+                      -------------------------------------------------
+    """
+    @staticmethod
+    def boot(env):
+        lookup_scenario("ImportPolicy").boot(env)
+
+    @staticmethod
+    def setup(env):
+        g1 = env.g1
+        e1 = env.e1
+        q1 = env.q1
+        q2 = env.q2
+        p0 = {'IpPrefix': '192.168.20.0/24'}
+        p1 = {'IpPrefix': '192.168.200.0/24'}
+
+        ps0 = {'PrefixSetName': 'ps0',
+               'PrefixList': [p0, p1]}
+        g1.set_prefix_set(ps0)
+
+        n0 = {'Address': g1.peers[q2]['neigh_addr'].split('/')[0]}
+
+        ns0 = {'NeighborSetName': 'ns0',
+               'NeighborInfoList': [n0]}
+        g1.set_neighbor_set(ns0)
+
+        st0 = {'Name': 'st0',
+               'Conditions': {'MatchPrefixSet': {'PrefixSet': ps0['PrefixSetName']},
+                              'MatchNeighborSet': {'NeighborSet': ns0['NeighborSetName']}}}
+
+        policy = {'name': 'policy0',
+                  'type': 'export',
+                  'statements': [st0]}
+        g1.add_policy(policy, q2)
+
+        e1.add_route('192.168.2.0/24')
+        e1.add_route('192.168.20.0/24')
+        e1.add_route('192.168.200.0/24')
+
+        for c in [e1, q1, q2]:
+            g1.wait_for(BGP_FSM_ESTABLISHED, c)
+
+    @staticmethod
+    def check(env):
+        g1 = env.g1
+        e1 = env.e1
+        q1 = env.q1
+        q2 = env.q2
+        wait_for(lambda : len(g1.get_local_rib(q1)) == 3)
+        wait_for(lambda : len(g1.get_adj_rib_out(q1)) == 3)
+        wait_for(lambda : len(q1.get_global_rib()) == 3)
+        wait_for(lambda : len(g1.get_local_rib(q2)) == 3)
+        wait_for(lambda : len(g1.get_adj_rib_out(q2)) == 1)
+        wait_for(lambda : len(q2.get_global_rib()) == 1)
+
+    @staticmethod
+    def setup2(env):
+        g1 = env.g1
+        e1 = env.e1
+        q1 = env.q1
+        q2 = env.q2
+        g1.clear_policy()
+
+        p0 = {'IpPrefix': '192.168.20.0/24'}
+
+        ps0 = {'PrefixSetName': 'ps0',
+               'PrefixList': [p0]}
+        g1.set_prefix_set(ps0)
+
+        n0 = {'Address': g1.peers[q2]['neigh_addr'].split('/')[0]}
+
+        ns0 = {'NeighborSetName': 'ns0',
+               'NeighborInfoList': [n0]}
+        g1.set_neighbor_set(ns0)
+
+        st0 = {'Name': 'st0',
+               'Conditions': {'MatchPrefixSet': {'PrefixSet': ps0['PrefixSetName']},
+                              'MatchNeighborSet': {'NeighborSet': ns0['NeighborSetName']}}}
+
+        policy = {'name': 'policy0',
+                  'type': 'export',
+                  'statements': [st0]}
+        g1.add_policy(policy, q2)
+
+        # we need hard reset to flush q2's local rib
+        g1.reset(e1)
+
+        for c in [e1, q1, q2]:
+            g1.wait_for(BGP_FSM_ESTABLISHED, c)
+
+    @staticmethod
+    def check2(env):
+        g1 = env.g1
+        e1 = env.e1
+        q1 = env.q1
+        q2 = env.q2
+        wait_for(lambda : len(g1.get_local_rib(q1)) == 3)
+        wait_for(lambda : len(g1.get_adj_rib_out(q1)) == 3)
+        wait_for(lambda : len(q1.get_global_rib()) == 3)
+        wait_for(lambda : len(g1.get_local_rib(q2)) == 3)
+        wait_for(lambda : len(g1.get_adj_rib_out(q2)) == 2)
+        wait_for(lambda : len(q2.get_global_rib()) == 2)
+
+
+@register_scenario
+class ImportPolicyIPV6(object):
+    """
+    No.5 IPv6 import-policy test
+
+    r1=2001::/64
+    r2=2001::/63
+                   -------------------------------------------------
+    e1 ->(r1,r2)-> | ->(r1,r2)-> q1-rib ->(r1,r2)-> q1-adj-rib-out | ->(r1,r2)-> q1
+                   |                                               |
+                   | ->(r2)   -> q2-rib ->(r2)   -> q2-adj-rib-out | ->(r2)-> q2
+                   -------------------------------------------------
+    """
+    @staticmethod
+    def boot(env):
+        gobgp_ctn_image_name = env.parser_option.gobgp_image
+        log_level = env.parser_option.gobgp_log_level
+        g1 = GoBGPContainer(name='g1', asn=65000, router_id='192.168.0.1',
+                            ctn_image_name=gobgp_ctn_image_name,
+                            log_level=log_level)
+        e1 = ExaBGPContainer(name='e1', asn=65001, router_id='192.168.0.2')
+        q1 = QuaggaBGPContainer(name='q1', asn=65002, router_id='192.168.0.3')
+        q2 = QuaggaBGPContainer(name='q2', asn=65003, router_id='192.168.0.4')
+
+        ctns = [g1, e1, q1, q2]
+        initial_wait_time = max(ctn.run() for ctn in ctns)
+        time.sleep(initial_wait_time)
+
+        br01 = Bridge(name='br01', subnet='2001::/96')
+        [br01.addif(ctn) for ctn in ctns]
+
+        for q in [e1, q1, q2]:
+            g1.add_peer(q, is_rs_client=True)
+            q.add_peer(g1)
+
+            env.g1 = g1
+            env.e1 = e1
+            env.q1 = q1
+            env.q2 = q2
+
+    @staticmethod
+    def setup(env):
+        g1 = env.g1
+        e1 = env.e1
+        q1 = env.q1
+        q2 = env.q2
+
+        p0 = {'IpPrefix': '2001::/32',
+              'MasklengthRange': '64..128'}
+
+        ps0 = {'PrefixSetName': 'ps0',
+               'PrefixList': [p0]}
+        g1.set_prefix_set(ps0)
+
+        n0 = {'Address': g1.peers[e1]['neigh_addr'].split('/')[0]}
+
+        ns0 = {'NeighborSetName': 'ns0',
+               'NeighborInfoList': [n0]}
+        g1.set_neighbor_set(ns0)
+
+        st0 = {'Name': 'st0',
+               'Conditions': {
+                'MatchPrefixSet': {'PrefixSet': ps0['PrefixSetName']},
+                'MatchNeighborSet': {'NeighborSet': ns0['NeighborSetName']}}}
+
+        policy = {'name': 'policy0',
+                  'type': 'import',
+                  'statements': [st0]}
+        g1.add_policy(policy, q2)
+
+        # this will be blocked
+        e1.add_route('2001::/64', rf='ipv6')
+        # this will pass
+        e1.add_route('2001::/63', rf='ipv6')
+
+        for c in [e1, q1, q2]:
+            g1.wait_for(BGP_FSM_ESTABLISHED, c)
+
+    @staticmethod
+    def check(env):
+        wait_for(lambda: len(env.g1.get_local_rib(env.q1, rf='ipv6')) == 2)
+        wait_for(lambda: len(env.g1.get_adj_rib_out(env.q1, rf='ipv6')) == 2)
+        wait_for(lambda: len(env.q1.get_global_rib(rf='ipv6')) == 2)
+        wait_for(lambda: len(env.g1.get_local_rib(env.q2, rf='ipv6')) == 1)
+        wait_for(lambda: len(env.g1.get_adj_rib_out(env.q2, rf='ipv6')) == 1)
+        wait_for(lambda: len(env.q2.get_global_rib(rf='ipv6')) == 1)
+
+
+@register_scenario
+class ExportPolicyIPV6(object):
+    """
+    No.6 IPv6 export-policy test
+
+    r1=2001::/64
+    r2=2001::/63
+                   -------------------------------------------------
+    e1 ->(r1,r2)-> | ->(r1,r2)-> q1-rib ->(r1,r2)-> q1-adj-rib-out | ->(r1,r2)-> q1
+                   |                                               |
+                   | ->(r1,r2)-> q2-rib ->(r2)   -> q2-adj-rib-out | ->(r2)-> q2
+                   -------------------------------------------------
+    """
+    @staticmethod
+    def boot(env):
+        lookup_scenario('ImportPolicyIPV6').boot(env)
+
+    @staticmethod
+    def setup(env):
+        g1 = env.g1
+        e1 = env.e1
+        q1 = env.q1
+        q2 = env.q2
+
+        p0 = {'IpPrefix': '2001::/32',
+              'MasklengthRange': '64..128'}
+
+        ps0 = {'PrefixSetName': 'ps0',
+               'PrefixList': [p0]}
+        g1.set_prefix_set(ps0)
+
+        n0 = {'Address': g1.peers[q2]['neigh_addr'].split('/')[0]}
+
+        ns0 = {'NeighborSetName': 'ns0',
+               'NeighborInfoList': [n0]}
+        g1.set_neighbor_set(ns0)
+
+        st0 = {'Name': 'st0',
+               'Conditions': {
+                'MatchPrefixSet': {'PrefixSet': ps0['PrefixSetName']},
+                'MatchNeighborSet': {'NeighborSet': ns0['NeighborSetName']}}}
+
+        policy = {'name': 'policy0',
+                  'type': 'export',
+                  'statements': [st0]}
+        g1.add_policy(policy, q2)
+
+        # this will be blocked
+        e1.add_route('2001::/64', rf='ipv6')
+        # this will pass
+        e1.add_route('2001::/63', rf='ipv6')
+
+        for c in [e1, q1, q2]:
+            g1.wait_for(BGP_FSM_ESTABLISHED, c)
+
+    @staticmethod
+    def check(env):
+        wait_for(lambda: len(env.g1.get_local_rib(env.q1, rf='ipv6')) == 2)
+        wait_for(lambda: len(env.g1.get_adj_rib_out(env.q1, rf='ipv6')) == 2)
+        wait_for(lambda: len(env.q1.get_global_rib(rf='ipv6')) == 2)
+        wait_for(lambda: len(env.g1.get_local_rib(env.q2, rf='ipv6')) == 2)
+        wait_for(lambda: len(env.g1.get_adj_rib_out(env.q2, rf='ipv6')) == 1)
+        wait_for(lambda: len(env.q2.get_global_rib(rf='ipv6')) == 1)
+
+
+@register_scenario
+class ImportPolicyIPV6Update(object):
+    """
+    No.7 IPv6 import-policy update test
+    r1=2001:0:10:2::/64
+    r2=2001:0:10:20::/64
+    r3=2001:0:10:200::/64
+                      -------------------------------------------------
+                      | q1                                            |
+    e1 ->(r1,r2,r3)-> | ->(r1,r2,r3)-> rib ->(r1,r2,r3)-> adj-rib-out | ->(r1,r2,r3)-> q1
+                      |                                               |
+                      | q2                                            |
+                      | ->(r1)->       rib ->(r1)->       adj-rib-out | ->(r1)-> q2
+                      -------------------------------------------------
+                 |
+         update gobgp.conf
+                 |
+                 V
+                      -------------------------------------------------
+                      | q1                                            |
+    e1 ->(r1,r2,r3)-> | ->(r1,r2,r3)-> rib ->(r1,r2,r3)-> adj-rib-out | ->(r1,r2,r3)-> q1
+                      |                                               |
+                      | q2                                            |
+                      | ->(r1,r3)->    rib ->(r1,r3)->    adj-rib-out | ->(r1,r3)-> q2
+                      -------------------------------------------------
+    """                  
+    @staticmethod
+    def boot(env):
+        lookup_scenario('ImportPolicyIPV6').boot(env)
+
+    @staticmethod
+    def setup(env):
+        g1 = env.g1
+        e1 = env.e1
+        q1 = env.q1
+        q2 = env.q2
+
+        p0 = {'IpPrefix': '2001:0:10:2::/64'}
+        p1 = {'IpPrefix': '2001:0:10:20::/64'}
+
+        ps0 = {'PrefixSetName': 'ps0',
+               'PrefixList': [p0, p1]}
+        g1.set_prefix_set(ps0)
+
+        n0 = {'Address': g1.peers[e1]['neigh_addr'].split('/')[0]}
+
+        ns0 = {'NeighborSetName': 'ns0',
+               'NeighborInfoList': [n0]}
+        g1.set_neighbor_set(ns0)
+
+        st0 = {'Name': 'st0',
+               'Conditions': {
+                'MatchPrefixSet': {'PrefixSet': ps0['PrefixSetName']},
+                'MatchNeighborSet': {'NeighborSet': ns0['NeighborSetName']}}}
+
+        policy = {'name': 'policy0',
+                  'type': 'import',
+                  'statements': [st0]}
+        g1.add_policy(policy, q2)
+
+        e1.add_route('2001:0:10:2::/64', rf='ipv6')
+        e1.add_route('2001:0:10:20::/64', rf='ipv6')
+        e1.add_route('2001:0:10:200::/64', rf='ipv6')
+
+        for c in [e1, q1, q2]:
+            g1.wait_for(BGP_FSM_ESTABLISHED, c)
+
+    @staticmethod
+    def check(env):
+        wait_for(lambda: len(env.g1.get_local_rib(env.q1, rf='ipv6')) == 3)
+        wait_for(lambda: len(env.g1.get_adj_rib_out(env.q1, rf='ipv6')) == 3)
+        wait_for(lambda: len(env.q1.get_global_rib(rf='ipv6')) == 3)
+        wait_for(lambda: len(env.g1.get_local_rib(env.q2, rf='ipv6')) == 1)
+        wait_for(lambda: len(env.g1.get_adj_rib_out(env.q2, rf='ipv6')) == 1)
+        wait_for(lambda: len(env.q2.get_global_rib(rf='ipv6')) == 1)
+
+    @staticmethod
+    def setup2(env):
+        g1 = env.g1
+        e1 = env.e1
+        q1 = env.q1
+        q2 = env.q2
+
+        p0 = {'IpPrefix': '2001:0:10:2::/64'}
+
+        ps0 = {'PrefixSetName': 'ps0',
+               'PrefixList': [p0]}
+        g1.set_prefix_set(ps0)
+
+        n0 = {'Address': g1.peers[e1]['neigh_addr'].split('/')[0]}
+
+        ns0 = {'NeighborSetName': 'ns0',
+               'NeighborInfoList': [n0]}
+        g1.set_neighbor_set(ns0)
+
+        st0 = {'Name': 'st0',
+               'Conditions': {
+                'MatchPrefixSet': {'PrefixSet': ps0['PrefixSetName']},
+                'MatchNeighborSet': {'NeighborSet': ns0['NeighborSetName']}}}
+
+        policy = {'name': 'policy0',
+                  'type': 'import',
+                  'statements': [st0]}
+        g1.add_policy(policy, q2)
+        g1.softreset(e1, rf='ipv6')
+
+    @staticmethod
+    def check2(env):
+        wait_for(lambda: len(env.g1.get_local_rib(env.q1, rf='ipv6')) == 3)
+        wait_for(lambda: len(env.g1.get_adj_rib_out(env.q1, rf='ipv6')) == 3)
+        wait_for(lambda: len(env.q1.get_global_rib(rf='ipv6')) == 3)
+        wait_for(lambda: len(env.g1.get_local_rib(env.q2, rf='ipv6')) == 2)
+        wait_for(lambda: len(env.g1.get_adj_rib_out(env.q2, rf='ipv6')) == 2)
+        wait_for(lambda: len(env.q2.get_global_rib(rf='ipv6')) == 2)
+
+
+@register_scenario
+class ExportPolicyIPv6Update(object):
+    """
+    No.8 IPv6 export-policy update test
+    r1=2001:0:10:2::/64
+    r2=2001:0:10:20::/64
+    r3=2001:0:10:200::/64
+                      -------------------------------------------------
+                      | q1                                            |
+    e1 ->(r1,r2,r3)-> | ->(r1,r2,r3)-> rib ->(r1,r2,r3)-> adj-rib-out | ->(r1,r2,r3)-> q1
+                      |                                               |
+                      | q2                                            |
+                      | ->(r1,r2,r3)-> rib ->(r1)->       adj-rib-out | ->(r1)-> q2
+                      -------------------------------------------------
+                 |
+         update gobgp.conf
+                 |
+                 V
+                      -------------------------------------------------
+                      | q1                                            |
+    e1 ->(r1,r2,r3)-> | ->(r1,r2,r3)-> rib ->(r1,r2,r3)-> adj-rib-out | ->(r1,r2,r3)-> q1
+                      |                                               |
+                      | q2                                            |
+                      | ->(r1,r2,r3)-> rib ->(r1,r3)->    adj-rib-out | ->(r1,r3)-> q2
+                      -------------------------------------------------
+    """
+    @staticmethod
+    def boot(env):
+        lookup_scenario('ImportPolicyIPV6').boot(env)
+
+    @staticmethod
+    def setup(env):
+        g1 = env.g1
+        e1 = env.e1
+        q1 = env.q1
+        q2 = env.q2
+
+        p0 = {'IpPrefix': '2001:0:10:2::/64'}
+        p1 = {'IpPrefix': '2001:0:10:20::/64'}
+
+        ps0 = {'PrefixSetName': 'ps0',
+               'PrefixList': [p0, p1]}
+        g1.set_prefix_set(ps0)
+
+        n0 = {'Address': g1.peers[q2]['neigh_addr'].split('/')[0]}
+
+        ns0 = {'NeighborSetName': 'ns0',
+               'NeighborInfoList': [n0]}
+        g1.set_neighbor_set(ns0)
+
+        st0 = {'Name': 'st0',
+               'Conditions': {
+                'MatchPrefixSet': {'PrefixSet': ps0['PrefixSetName']},
+                'MatchNeighborSet': {'NeighborSet': ns0['NeighborSetName']}}}
+
+        policy = {'name': 'policy0',
+                  'type': 'export',
+                  'statements': [st0]}
+        g1.add_policy(policy, q2)
+
+        e1.add_route('2001:0:10:2::/64', rf='ipv6')
+        e1.add_route('2001:0:10:20::/64', rf='ipv6')
+        e1.add_route('2001:0:10:200::/64', rf='ipv6')
+
+        for c in [e1, q1, q2]:
+            g1.wait_for(BGP_FSM_ESTABLISHED, c)
+
+    @staticmethod
+    def check(env):
+        wait_for(lambda: len(env.g1.get_local_rib(env.q1, rf='ipv6')) == 3)
+        wait_for(lambda: len(env.g1.get_adj_rib_out(env.q1, rf='ipv6')) == 3)
+        wait_for(lambda: len(env.q1.get_global_rib(rf='ipv6')) == 3)
+        wait_for(lambda: len(env.g1.get_local_rib(env.q2, rf='ipv6')) == 3)
+        wait_for(lambda: len(env.g1.get_adj_rib_out(env.q2, rf='ipv6')) == 1)
+        wait_for(lambda: len(env.q2.get_global_rib(rf='ipv6')) == 1)
+
+    @staticmethod
+    def setup2(env):
+        g1 = env.g1
+        e1 = env.e1
+        q1 = env.q1
+        q2 = env.q2
+
+        p0 = {'IpPrefix': '2001:0:10:2::/64'}
+
+        ps0 = {'PrefixSetName': 'ps0',
+               'PrefixList': [p0]}
+        g1.set_prefix_set(ps0)
+
+        n0 = {'Address': g1.peers[q2]['neigh_addr'].split('/')[0]}
+
+        ns0 = {'NeighborSetName': 'ns0',
+               'NeighborInfoList': [n0]}
+        g1.set_neighbor_set(ns0)
+
+        st0 = {'Name': 'st0',
+               'Conditions': {
+                'MatchPrefixSet': {'PrefixSet': ps0['PrefixSetName']},
+                'MatchNeighborSet': {'NeighborSet': ns0['NeighborSetName']}}}
+
+        policy = {'name': 'policy0',
+                  'type': 'export',
+                  'statements': [st0]}
+        g1.add_policy(policy, q2)
+        g1.reset(e1)
+
+        for c in [e1, q1, q2]:
+            g1.wait_for(BGP_FSM_ESTABLISHED, c)
+
+    @staticmethod
+    def check2(env):
+        wait_for(lambda: len(env.g1.get_local_rib(env.q1, rf='ipv6')) == 3)
+        wait_for(lambda: len(env.g1.get_adj_rib_out(env.q1, rf='ipv6')) == 3)
+        wait_for(lambda: len(env.q1.get_global_rib(rf='ipv6')) == 3)
+        wait_for(lambda: len(env.g1.get_local_rib(env.q2, rf='ipv6')) == 3)
+        wait_for(lambda: len(env.g1.get_adj_rib_out(env.q2, rf='ipv6')) == 2)
+        wait_for(lambda: len(env.q2.get_global_rib(rf='ipv6')) == 2)
 
 """
   No.9 aspath length condition import-policy test
@@ -831,46 +869,48 @@ def check2(env):
                             --------------------------------
 
 """
-@scenario(9)
-def boot(env):
-    scenarios[1]['boot'](env)
+@register_scenario
+class ImportPolicyAsPathLengthCondition(object):
+    @staticmethod
+    def boot(env):
+        lookup_scenario("ImportPolicy").boot(env)
 
-@scenario(9)
-def setup(env):
-    g1 = env.g1
-    e1 = env.e1
-    q1 = env.q1
-    q2 = env.q2
-    st0 = {'Name': 'st0',
-           'Conditions':{'BgpConditions':{'AsPathLength':{'Operator': 'ge',
-                                                          'Value': 10}}}}
+    @staticmethod
+    def setup(env):
+        g1 = env.g1
+        e1 = env.e1
+        q1 = env.q1
+        q2 = env.q2
+        st0 = {'Name': 'st0',
+               'Conditions':{'BgpConditions':{'AsPathLength':{'Operator': 'ge',
+                                                              'Value': 10}}}}
 
 
-    policy = {'name': 'policy0',
-              'type': 'import',
-              'statements': [st0]}
-    g1.add_policy(policy, q2)
+        policy = {'name': 'policy0',
+                  'type': 'import',
+                  'statements': [st0]}
+        g1.add_policy(policy, q2)
 
-    # this will be blocked
-    e1.add_route('192.168.100.0/24', aspath=range(e1.asn, e1.asn-10, -1))
-    # this will pass
-    e1.add_route('192.168.200.0/24', aspath=range(e1.asn, e1.asn-8, -1))
+        # this will be blocked
+        e1.add_route('192.168.100.0/24', aspath=range(e1.asn, e1.asn-10, -1))
+        # this will pass
+        e1.add_route('192.168.200.0/24', aspath=range(e1.asn, e1.asn-8, -1))
 
-    for c in [e1, q1, q2]:
-        g1.wait_for(BGP_FSM_ESTABLISHED, c)
+        for c in [e1, q1, q2]:
+            g1.wait_for(BGP_FSM_ESTABLISHED, c)
 
-@scenario(9)
-def check(env):
-    g1 = env.g1
-    e1 = env.e1
-    q1 = env.q1
-    q2 = env.q2
-    wait_for(lambda : len(g1.get_local_rib(q1)) == 2)
-    wait_for(lambda : len(g1.get_adj_rib_out(q1)) == 2)
-    wait_for(lambda : len(q1.get_global_rib()) == 2)
-    wait_for(lambda : len(g1.get_local_rib(q2)) == 1)
-    wait_for(lambda : len(g1.get_adj_rib_out(q2)) == 1)
-    wait_for(lambda : len(q2.get_global_rib()) == 1)
+    @staticmethod
+    def check(env):
+        g1 = env.g1
+        e1 = env.e1
+        q1 = env.q1
+        q2 = env.q2
+        wait_for(lambda : len(g1.get_local_rib(q1)) == 2)
+        wait_for(lambda : len(g1.get_adj_rib_out(q1)) == 2)
+        wait_for(lambda : len(q1.get_global_rib()) == 2)
+        wait_for(lambda : len(g1.get_local_rib(q2)) == 1)
+        wait_for(lambda : len(g1.get_adj_rib_out(q2)) == 1)
+        wait_for(lambda : len(q2.get_global_rib()) == 1)
 
 
 """
@@ -3117,18 +3157,25 @@ class GoBGPTestBase(unittest.TestCase):
         base.TEST_PREFIX = parser_option.test_prefix
         cls.parser_option = parser_option
 
-        if idx not in scenarios:
-            print 'invalid test-index. # of scenarios: {0}'.format(len(scenarios))
+        if idx not in _SCENARIOS:
+            print 'invalid test-index. # of scenarios: {0}'.format(len(_SCENARIOS))
             sys.exit(1)
 
-        cls.boot = scenarios[idx]['boot']
-        cls.setup = scenarios[idx]['setup']
-        cls.check = scenarios[idx]['check']
-        cls.setup2 = scenarios[idx]['setup2'] if 'setup2' in scenarios[idx] else None
-        cls.check2 = scenarios[idx]['check2'] if 'check2' in scenarios[idx] else None
+        cls.setup2 = None
+        cls.check2 = None
+        for k, m in inspect.getmembers(_SCENARIOS[idx], inspect.isfunction):
+            if k == 'boot':
+                cls.boot = m
+            elif k == 'setup':
+                cls.setup = m
+            elif k == 'check':
+                cls.check = m
+            elif k == 'setup2':
+                cls.setup2 = m
+            elif k == 'check2':
+                cls.check2 = m
 
     def test(self):
-
         self.boot()
 
         self.setup()
