@@ -642,8 +642,7 @@ func showNeighborPolicy(remoteIP net.IP, policyType string) error {
 
 	fmt.Printf("Default: %s\n", ap.Default)
 	for _, p := range ap.Policies {
-		fmt.Printf("  PolicyName %s:\n", p.Name)
-		showPolicyStatement(2, p)
+		fmt.Printf("  PolicyName %s:\n", p)
 	}
 	return nil
 }
@@ -677,14 +676,13 @@ func modNeighborPolicy(remoteIP net.IP, policyType, cmdType string, eArg []strin
 	switch cmdType {
 	case CMD_ADD:
 		if len(eArg) < 3 {
-			return fmt.Errorf("Usage: gobgp neighbor <ipaddr> policy %s %s <policies> {%s|%s}", policyType, cmdType, "accept", "reject")
+			return fmt.Errorf("Usage: gobgp neighbor <ipaddr> policy %s %s [<policy name>...] [default {%s|%s}]", policyType, cmdType, "accept", "reject")
 		}
-		policies := parsePolicy(eArg[0])
 		defaultPolicy, err := parseRouteAction(eArg[1])
 		if err != nil {
 			return err
 		}
-		p.Policies = policies
+		p.Policies = []string{eArg[0]}
 		p.Default = defaultPolicy
 		operation = api.Operation_ADD
 	case CMD_DEL:

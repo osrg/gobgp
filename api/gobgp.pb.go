@@ -21,9 +21,10 @@ It has these top-level messages:
 	PeerInfo
 	Peer
 	Prefix
+	DefinedSet
 	PrefixSet
-	AsPathLength
 	MatchSet
+	AsPathLength
 	Conditions
 	CommunityAction
 	MedAction
@@ -396,22 +397,41 @@ func (m *Prefix) Reset()         { *m = Prefix{} }
 func (m *Prefix) String() string { return proto.CompactTextString(m) }
 func (*Prefix) ProtoMessage()    {}
 
+type DefinedSet struct {
+	Type     int32     `protobuf:"varint,1,opt,name=type" json:"type,omitempty"`
+	Name     string    `protobuf:"bytes,2,opt,name=name" json:"name,omitempty"`
+	List     []string  `protobuf:"bytes,3,rep,name=list" json:"list,omitempty"`
+	Prefixes []*Prefix `protobuf:"bytes,4,rep,name=prefixes" json:"prefixes,omitempty"`
+}
+
+func (m *DefinedSet) Reset()         { *m = DefinedSet{} }
+func (m *DefinedSet) String() string { return proto.CompactTextString(m) }
+func (*DefinedSet) ProtoMessage()    {}
+
+func (m *DefinedSet) GetPrefixes() []*Prefix {
+	if m != nil {
+		return m.Prefixes
+	}
+	return nil
+}
+
 type PrefixSet struct {
-	Name   string    `protobuf:"bytes,1,opt,name=name" json:"name,omitempty"`
-	List   []*Prefix `protobuf:"bytes,2,rep,name=list" json:"list,omitempty"`
-	Option int32     `protobuf:"varint,3,opt,name=option" json:"option,omitempty"`
+	Name   string `protobuf:"bytes,1,opt,name=name" json:"name,omitempty"`
+	Option int32  `protobuf:"varint,2,opt,name=option" json:"option,omitempty"`
 }
 
 func (m *PrefixSet) Reset()         { *m = PrefixSet{} }
 func (m *PrefixSet) String() string { return proto.CompactTextString(m) }
 func (*PrefixSet) ProtoMessage()    {}
 
-func (m *PrefixSet) GetList() []*Prefix {
-	if m != nil {
-		return m.List
-	}
-	return nil
+type MatchSet struct {
+	Name   string `protobuf:"bytes,1,opt,name=name" json:"name,omitempty"`
+	Option int32  `protobuf:"varint,2,opt,name=option" json:"option,omitempty"`
 }
+
+func (m *MatchSet) Reset()         { *m = MatchSet{} }
+func (m *MatchSet) String() string { return proto.CompactTextString(m) }
+func (*MatchSet) ProtoMessage()    {}
 
 type AsPathLength struct {
 	Length uint32 `protobuf:"varint,1,opt,name=length" json:"length,omitempty"`
@@ -421,16 +441,6 @@ type AsPathLength struct {
 func (m *AsPathLength) Reset()         { *m = AsPathLength{} }
 func (m *AsPathLength) String() string { return proto.CompactTextString(m) }
 func (*AsPathLength) ProtoMessage()    {}
-
-type MatchSet struct {
-	Name   string   `protobuf:"bytes,1,opt,name=name" json:"name,omitempty"`
-	List   []string `protobuf:"bytes,2,rep,name=list" json:"list,omitempty"`
-	Option int32    `protobuf:"varint,3,opt,name=option" json:"option,omitempty"`
-}
-
-func (m *MatchSet) Reset()         { *m = MatchSet{} }
-func (m *MatchSet) String() string { return proto.CompactTextString(m) }
-func (*MatchSet) ProtoMessage()    {}
 
 type Conditions struct {
 	PrefixSet       *PrefixSet    `protobuf:"bytes,1,opt,name=prefix_set" json:"prefix_set,omitempty"`
@@ -597,21 +607,14 @@ func (m *PolicyDefinition) GetStatements() []*Statement {
 }
 
 type ApplyPolicy struct {
-	Type     PolicyType          `protobuf:"varint,1,opt,name=type,enum=gobgpapi.PolicyType" json:"type,omitempty"`
-	Policies []*PolicyDefinition `protobuf:"bytes,2,rep,name=policies" json:"policies,omitempty"`
-	Default  RouteAction         `protobuf:"varint,3,opt,name=default,enum=gobgpapi.RouteAction" json:"default,omitempty"`
+	Type     PolicyType  `protobuf:"varint,1,opt,name=type,enum=gobgpapi.PolicyType" json:"type,omitempty"`
+	Policies []string    `protobuf:"bytes,2,rep,name=policies" json:"policies,omitempty"`
+	Default  RouteAction `protobuf:"varint,3,opt,name=default,enum=gobgpapi.RouteAction" json:"default,omitempty"`
 }
 
 func (m *ApplyPolicy) Reset()         { *m = ApplyPolicy{} }
 func (m *ApplyPolicy) String() string { return proto.CompactTextString(m) }
 func (*ApplyPolicy) ProtoMessage()    {}
-
-func (m *ApplyPolicy) GetPolicies() []*PolicyDefinition {
-	if m != nil {
-		return m.Policies
-	}
-	return nil
-}
 
 type MrtMessage struct {
 	Data []byte `protobuf:"bytes,1,opt,name=data,proto3" json:"data,omitempty"`
@@ -723,6 +726,8 @@ type GobgpApiClient interface {
 	GetROA(ctx context.Context, in *Arguments, opts ...grpc.CallOption) (GobgpApi_GetROAClient, error)
 	GetVrfs(ctx context.Context, in *Arguments, opts ...grpc.CallOption) (GobgpApi_GetVrfsClient, error)
 	ModVrf(ctx context.Context, in *ModVrfArguments, opts ...grpc.CallOption) (*Error, error)
+	GetDefinedSet(ctx context.Context, in *DefinedSet, opts ...grpc.CallOption) (*DefinedSet, error)
+	GetDefinedSets(ctx context.Context, in *DefinedSet, opts ...grpc.CallOption) (GobgpApi_GetDefinedSetsClient, error)
 }
 
 type gobgpApiClient struct {
@@ -1216,6 +1221,47 @@ func (c *gobgpApiClient) ModVrf(ctx context.Context, in *ModVrfArguments, opts .
 	return out, nil
 }
 
+func (c *gobgpApiClient) GetDefinedSet(ctx context.Context, in *DefinedSet, opts ...grpc.CallOption) (*DefinedSet, error) {
+	out := new(DefinedSet)
+	err := grpc.Invoke(ctx, "/gobgpapi.GobgpApi/GetDefinedSet", in, out, c.cc, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *gobgpApiClient) GetDefinedSets(ctx context.Context, in *DefinedSet, opts ...grpc.CallOption) (GobgpApi_GetDefinedSetsClient, error) {
+	stream, err := grpc.NewClientStream(ctx, &_GobgpApi_serviceDesc.Streams[12], c.cc, "/gobgpapi.GobgpApi/GetDefinedSets", opts...)
+	if err != nil {
+		return nil, err
+	}
+	x := &gobgpApiGetDefinedSetsClient{stream}
+	if err := x.ClientStream.SendMsg(in); err != nil {
+		return nil, err
+	}
+	if err := x.ClientStream.CloseSend(); err != nil {
+		return nil, err
+	}
+	return x, nil
+}
+
+type GobgpApi_GetDefinedSetsClient interface {
+	Recv() (*DefinedSet, error)
+	grpc.ClientStream
+}
+
+type gobgpApiGetDefinedSetsClient struct {
+	grpc.ClientStream
+}
+
+func (x *gobgpApiGetDefinedSetsClient) Recv() (*DefinedSet, error) {
+	m := new(DefinedSet)
+	if err := x.ClientStream.RecvMsg(m); err != nil {
+		return nil, err
+	}
+	return m, nil
+}
+
 // Server API for GobgpApi service
 
 type GobgpApiServer interface {
@@ -1242,6 +1288,8 @@ type GobgpApiServer interface {
 	GetROA(*Arguments, GobgpApi_GetROAServer) error
 	GetVrfs(*Arguments, GobgpApi_GetVrfsServer) error
 	ModVrf(context.Context, *ModVrfArguments) (*Error, error)
+	GetDefinedSet(context.Context, *DefinedSet) (*DefinedSet, error)
+	GetDefinedSets(*DefinedSet, GobgpApi_GetDefinedSetsServer) error
 }
 
 func RegisterGobgpApiServer(s *grpc.Server, srv GobgpApiServer) {
@@ -1647,6 +1695,39 @@ func _GobgpApi_ModVrf_Handler(srv interface{}, ctx context.Context, dec func(int
 	return out, nil
 }
 
+func _GobgpApi_GetDefinedSet_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error) (interface{}, error) {
+	in := new(DefinedSet)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	out, err := srv.(GobgpApiServer).GetDefinedSet(ctx, in)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func _GobgpApi_GetDefinedSets_Handler(srv interface{}, stream grpc.ServerStream) error {
+	m := new(DefinedSet)
+	if err := stream.RecvMsg(m); err != nil {
+		return err
+	}
+	return srv.(GobgpApiServer).GetDefinedSets(m, &gobgpApiGetDefinedSetsServer{stream})
+}
+
+type GobgpApi_GetDefinedSetsServer interface {
+	Send(*DefinedSet) error
+	grpc.ServerStream
+}
+
+type gobgpApiGetDefinedSetsServer struct {
+	grpc.ServerStream
+}
+
+func (x *gobgpApiGetDefinedSetsServer) Send(m *DefinedSet) error {
+	return x.ServerStream.SendMsg(m)
+}
+
 var _GobgpApi_serviceDesc = grpc.ServiceDesc{
 	ServiceName: "gobgpapi.GobgpApi",
 	HandlerType: (*GobgpApiServer)(nil),
@@ -1694,6 +1775,10 @@ var _GobgpApi_serviceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "ModVrf",
 			Handler:    _GobgpApi_ModVrf_Handler,
+		},
+		{
+			MethodName: "GetDefinedSet",
+			Handler:    _GobgpApi_GetDefinedSet_Handler,
 		},
 	},
 	Streams: []grpc.StreamDesc{
@@ -1757,6 +1842,11 @@ var _GobgpApi_serviceDesc = grpc.ServiceDesc{
 		{
 			StreamName:    "GetVrfs",
 			Handler:       _GobgpApi_GetVrfs_Handler,
+			ServerStreams: true,
+		},
+		{
+			StreamName:    "GetDefinedSets",
+			Handler:       _GobgpApi_GetDefinedSets_Handler,
 			ServerStreams: true,
 		},
 	},

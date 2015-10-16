@@ -1580,28 +1580,14 @@ func (server *BgpServer) handleGrpc(grpcReq *GrpcRequest) []*SenderMsg {
 				def = api.RouteAction_ACCEPT
 			}
 		}
-		policies := make([]*api.PolicyDefinition, 0, len(names))
-		for _, name := range names {
-			p, ok := server.policy.PolicyMap[name]
-			if !ok {
-				log.WithFields(log.Fields{
-					"Topic": "Peer",
-					"Name":  name,
-				}).Error("can't find policy which is applied")
-				continue
-			}
-			policies = append(policies, p.ToApiStruct())
-		}
-
 		result := &GrpcResponse{
 			Data: &api.ApplyPolicy{
-				Policies: policies,
+				Policies: names,
 				Default:  def,
 			},
 		}
 		grpcReq.ResponseCh <- result
 		close(grpcReq.ResponseCh)
-
 	case REQ_MOD_NEIGHBOR_POLICY:
 		peer, err := server.checkNeighborRequest(grpcReq)
 		if err != nil {
@@ -1619,37 +1605,62 @@ func (server *BgpServer) handleGrpc(grpcReq *GrpcRequest) []*SenderMsg {
 			switch arg.ApplyPolicy.Type {
 			case api.PolicyType_IMPORT:
 				applyPolicy.DefaultImportPolicy = def
-				applyPolicy.ImportPolicy = table.PoliciesToString(arg.ApplyPolicy.Policies)
+				applyPolicy.ImportPolicy = arg.ApplyPolicy.Policies
 			case api.PolicyType_EXPORT:
 				applyPolicy.DefaultExportPolicy = def
-				applyPolicy.ExportPolicy = table.PoliciesToString(arg.ApplyPolicy.Policies)
+				applyPolicy.ExportPolicy = arg.ApplyPolicy.Policies
 			case api.PolicyType_IN:
 				applyPolicy.DefaultInPolicy = def
-				applyPolicy.InPolicy = table.PoliciesToString(arg.ApplyPolicy.Policies)
+				applyPolicy.InPolicy = arg.ApplyPolicy.Policies
 			}
 		case api.Operation_DEL:
 			switch arg.ApplyPolicy.Type {
 			case api.PolicyType_IMPORT:
 				applyPolicy.DefaultImportPolicy = def
-				applyPolicy.ImportPolicy = []string{}
+				applyPolicy.ImportPolicy = nil
 			case api.PolicyType_EXPORT:
 				applyPolicy.DefaultExportPolicy = def
-				applyPolicy.ExportPolicy = []string{}
+				applyPolicy.ExportPolicy = nil
 			case api.PolicyType_IN:
 				applyPolicy.DefaultInPolicy = def
-				applyPolicy.InPolicy = []string{}
+				applyPolicy.InPolicy = nil
 			}
 		}
 		peer.setPolicy(server.policy.PolicyMap)
 
 		grpcReq.ResponseCh <- result
 		close(grpcReq.ResponseCh)
-
-	case REQ_POLICY_PREFIXES, REQ_POLICY_NEIGHBORS, REQ_POLICY_ASPATHS,
-		REQ_POLICY_COMMUNITIES, REQ_POLICY_EXTCOMMUNITIES, REQ_POLICY_ROUTEPOLICIES,
-		REQ_POLICY_PREFIX, REQ_POLICY_NEIGHBOR, REQ_POLICY_ASPATH,
-		REQ_POLICY_COMMUNITY, REQ_POLICY_EXTCOMMUNITY, REQ_POLICY_ROUTEPOLICY:
-		server.handleGrpcShowPolicy(grpcReq)
+	case REQ_DEFINED_SET:
+		if err := server.handleGrpcGetDefinedSet(grpcReq); err != nil {
+			grpcReq.ResponseCh <- &GrpcResponse{
+				ResponseErr: err,
+			}
+		}
+		close(grpcReq.ResponseCh)
+	case REQ_POLICY_ROUTEPOLICY, REQ_POLICY_ROUTEPOLICIES:
+		info := server.policy.PolicyMap
+		typ := grpcReq.RequestType
+		arg := grpcReq.Data.(*api.PolicyArguments)
+		result := &GrpcResponse{}
+		if len(info) > 0 {
+			for _, i := range info {
+				if typ == REQ_POLICY_ROUTEPOLICY && i.Name() != arg.Name {
+					continue
+				}
+				d := i.ToApiStruct()
+				result = &GrpcResponse{
+					Data: d,
+				}
+				grpcReq.ResponseCh <- result
+				if typ == REQ_POLICY_ROUTEPOLICY {
+					break
+				}
+			}
+		} else {
+			result.ResponseErr = fmt.Errorf("Route Policy doesn't exist.")
+			grpcReq.ResponseCh <- result
+		}
+		close(grpcReq.ResponseCh)
 	case REQ_MONITOR_GLOBAL_BEST_CHANGED, REQ_MONITOR_NEIGHBOR_PEER_STATE:
 		server.broadcastReqs = append(server.broadcastReqs, grpcReq)
 	case REQ_MRT_GLOBAL_RIB, REQ_MRT_LOCAL_RIB:
@@ -1672,144 +1683,26 @@ func (server *BgpServer) handleGrpc(grpcReq *GrpcRequest) []*SenderMsg {
 	return msgs
 }
 
-func (server *BgpServer) handleGrpcShowPolicy(grpcReq *GrpcRequest) {
-	result := &GrpcResponse{}
-	typ := grpcReq.RequestType
-	arg := grpcReq.Data.(*api.PolicyArguments)
-	switch typ {
-	case REQ_POLICY_PREFIX, REQ_POLICY_PREFIXES:
-		info := server.policy.DefinedSetMap[table.DEFINED_TYPE_PREFIX]
-		if len(info) > 0 {
-			for _, ps := range info {
-				if typ == REQ_POLICY_PREFIX && ps.Name() != arg.Name {
-					continue
-				}
-				resPrefixSet := ps.(*table.PrefixSet).ToApiStruct()
-				pd := &api.PolicyDefinition{}
-				pd.Statements = []*api.Statement{{Conditions: &api.Conditions{PrefixSet: resPrefixSet}}}
-				result = &GrpcResponse{
-					Data: pd,
-				}
-				grpcReq.ResponseCh <- result
-				if typ == REQ_POLICY_PREFIX {
-					break
-				}
-			}
-		} else {
-			result.ResponseErr = fmt.Errorf("Policy prefix doesn't exist.")
-			grpcReq.ResponseCh <- result
+func (server *BgpServer) handleGrpcGetDefinedSet(grpcReq *GrpcRequest) error {
+	arg := grpcReq.Data.(*api.DefinedSet)
+	typ := table.DefinedType(arg.Type)
+	name := arg.Name
+	set, ok := server.policy.DefinedSetMap[typ]
+	if !ok {
+		return fmt.Errorf("invalid defined-set type: %d", typ)
+	}
+	for _, s := range set {
+		if name != "" && name != s.Name() {
+			continue
 		}
-	case REQ_POLICY_NEIGHBOR, REQ_POLICY_NEIGHBORS:
-		info := server.policy.DefinedSetMap[table.DEFINED_TYPE_NEIGHBOR]
-		if len(info) > 0 {
-			for _, ns := range info {
-				if typ == REQ_POLICY_NEIGHBOR && ns.Name() != arg.Name {
-					continue
-				}
-				resNeighborSet := ns.(*table.NeighborSet).ToApiStruct()
-				pd := &api.PolicyDefinition{}
-				pd.Statements = []*api.Statement{{Conditions: &api.Conditions{NeighborSet: resNeighborSet}}}
-				result = &GrpcResponse{
-					Data: pd,
-				}
-				grpcReq.ResponseCh <- result
-				if typ == REQ_POLICY_NEIGHBOR {
-					break
-				}
-			}
-		} else {
-			result.ResponseErr = fmt.Errorf("Policy neighbor doesn't exist.")
-			grpcReq.ResponseCh <- result
+		grpcReq.ResponseCh <- &GrpcResponse{
+			Data: s.ToApiStruct(),
 		}
-	case REQ_POLICY_ASPATH, REQ_POLICY_ASPATHS:
-		info := server.policy.DefinedSetMap[table.DEFINED_TYPE_AS_PATH]
-		if len(info) > 0 {
-			for _, as := range info {
-				if typ == REQ_POLICY_ASPATH && as.Name() != arg.Name {
-					continue
-				}
-				resAsPathSet := as.(*table.AsPathSet).ToApiStruct()
-				pd := &api.PolicyDefinition{}
-				pd.Statements = []*api.Statement{{Conditions: &api.Conditions{AsPathSet: resAsPathSet}}}
-				result = &GrpcResponse{
-					Data: pd,
-				}
-				grpcReq.ResponseCh <- result
-				if typ == REQ_POLICY_ASPATH {
-					break
-				}
-			}
-		} else {
-			result.ResponseErr = fmt.Errorf("Policy aspath doesn't exist.")
-			grpcReq.ResponseCh <- result
-		}
-	case REQ_POLICY_COMMUNITY, REQ_POLICY_COMMUNITIES:
-		info := server.policy.DefinedSetMap[table.DEFINED_TYPE_COMMUNITY]
-		if len(info) > 0 {
-			for _, cs := range info {
-				if typ == REQ_POLICY_COMMUNITY && cs.Name() != arg.Name {
-					continue
-				}
-				resCommunitySet := cs.(*table.CommunitySet).ToApiStruct()
-				pd := &api.PolicyDefinition{}
-				pd.Statements = []*api.Statement{{Conditions: &api.Conditions{CommunitySet: resCommunitySet}}}
-				result = &GrpcResponse{
-					Data: pd,
-				}
-				grpcReq.ResponseCh <- result
-				if typ == REQ_POLICY_COMMUNITY {
-					break
-				}
-			}
-		} else {
-			result.ResponseErr = fmt.Errorf("Policy community doesn't exist.")
-			grpcReq.ResponseCh <- result
-		}
-	case REQ_POLICY_EXTCOMMUNITY, REQ_POLICY_EXTCOMMUNITIES:
-		info := server.policy.DefinedSetMap[table.DEFINED_TYPE_EXT_COMMUNITY]
-		if len(info) > 0 {
-			for _, es := range info {
-				if typ == REQ_POLICY_EXTCOMMUNITY && es.Name() != arg.Name {
-					continue
-				}
-				resExtcommunitySet := es.(*table.ExtCommunitySet).ToApiStruct()
-				pd := &api.PolicyDefinition{}
-				pd.Statements = []*api.Statement{{Conditions: &api.Conditions{ExtCommunitySet: resExtcommunitySet}}}
-				result = &GrpcResponse{
-					Data: pd,
-				}
-				grpcReq.ResponseCh <- result
-				if typ == REQ_POLICY_EXTCOMMUNITY {
-					break
-				}
-			}
-		} else {
-			result.ResponseErr = fmt.Errorf("Policy extended community doesn't exist.")
-			grpcReq.ResponseCh <- result
-		}
-	case REQ_POLICY_ROUTEPOLICY, REQ_POLICY_ROUTEPOLICIES:
-		info := server.policy.PolicyMap
-		result := &GrpcResponse{}
-		if len(info) > 0 {
-			for _, pd := range info {
-				if typ == REQ_POLICY_ROUTEPOLICY && pd.Name() != arg.Name {
-					continue
-				}
-				resPolicyDefinition := pd.ToApiStruct()
-				result = &GrpcResponse{
-					Data: resPolicyDefinition,
-				}
-				grpcReq.ResponseCh <- result
-				if typ == REQ_POLICY_ROUTEPOLICY {
-					break
-				}
-			}
-		} else {
-			result.ResponseErr = fmt.Errorf("Route Policy doesn't exist.")
-			grpcReq.ResponseCh <- result
+		if name != "" {
+			break
 		}
 	}
-	close(grpcReq.ResponseCh)
+	return nil
 }
 
 func (server *BgpServer) handleMrt(grpcReq *GrpcRequest) {

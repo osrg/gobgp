@@ -43,18 +43,12 @@ const (
 	REQ_NEIGHBOR_POLICY
 	REQ_MOD_NEIGHBOR_POLICY
 	REQ_GLOBAL_RIB
-	REQ_POLICY_PREFIX
-	REQ_POLICY_PREFIXES
 	REQ_POLICY_PREFIX_ADD
 	REQ_POLICY_PREFIX_DELETE
 	REQ_POLICY_PREFIXES_DELETE
-	REQ_POLICY_NEIGHBOR
-	REQ_POLICY_NEIGHBORS
 	REQ_POLICY_NEIGHBOR_ADD
 	REQ_POLICY_NEIGHBOR_DELETE
 	REQ_POLICY_NEIGHBORS_DELETE
-	REQ_POLICY_ASPATH
-	REQ_POLICY_ASPATHS
 	REQ_POLICY_ASPATH_ADD
 	REQ_POLICY_ASPATH_DELETE
 	REQ_POLICY_ASPATHS_DELETE
@@ -63,13 +57,9 @@ const (
 	REQ_POLICY_ROUTEPOLICY_ADD
 	REQ_POLICY_ROUTEPOLICY_DELETE
 	REQ_POLICY_ROUTEPOLICIES_DELETE
-	REQ_POLICY_COMMUNITY
-	REQ_POLICY_COMMUNITIES
 	REQ_POLICY_COMMUNITY_ADD
 	REQ_POLICY_COMMUNITY_DELETE
 	REQ_POLICY_COMMUNITIES_DELETE
-	REQ_POLICY_EXTCOMMUNITY
-	REQ_POLICY_EXTCOMMUNITIES
 	REQ_POLICY_EXTCOMMUNITY_ADD
 	REQ_POLICY_EXTCOMMUNITY_DELETE
 	REQ_POLICY_EXTCOMMUNITIES_DELETE
@@ -84,6 +74,7 @@ const (
 	REQ_VRF_MOD
 	REQ_MOD_PATH
 	REQ_GLOBAL_POLICY
+	REQ_DEFINED_SET
 )
 
 const GRPC_PORT = 8080
@@ -406,16 +397,6 @@ func (s *Server) GetPolicyRoutePolicies(arg *api.PolicyArguments, stream api.Gob
 	var rf bgp.RouteFamily
 	var reqType int
 	switch arg.Resource {
-	case api.Resource_POLICY_PREFIX:
-		reqType = REQ_POLICY_PREFIXES
-	case api.Resource_POLICY_NEIGHBOR:
-		reqType = REQ_POLICY_NEIGHBORS
-	case api.Resource_POLICY_ASPATH:
-		reqType = REQ_POLICY_ASPATHS
-	case api.Resource_POLICY_COMMUNITY:
-		reqType = REQ_POLICY_COMMUNITIES
-	case api.Resource_POLICY_EXTCOMMUNITY:
-		reqType = REQ_POLICY_EXTCOMMUNITIES
 	case api.Resource_POLICY_ROUTEPOLICY:
 		reqType = REQ_POLICY_ROUTEPOLICIES
 	default:
@@ -432,16 +413,6 @@ func (s *Server) GetPolicyRoutePolicy(ctx context.Context, arg *api.PolicyArgume
 	var rf bgp.RouteFamily
 	var reqType int
 	switch arg.Resource {
-	case api.Resource_POLICY_PREFIX:
-		reqType = REQ_POLICY_PREFIX
-	case api.Resource_POLICY_NEIGHBOR:
-		reqType = REQ_POLICY_NEIGHBOR
-	case api.Resource_POLICY_ASPATH:
-		reqType = REQ_POLICY_ASPATH
-	case api.Resource_POLICY_COMMUNITY:
-		reqType = REQ_POLICY_COMMUNITY
-	case api.Resource_POLICY_EXTCOMMUNITY:
-		reqType = REQ_POLICY_EXTCOMMUNITY
 	case api.Resource_POLICY_ROUTEPOLICY:
 		reqType = REQ_POLICY_ROUTEPOLICY
 	default:
@@ -527,6 +498,25 @@ func (s *Server) ModVrf(ctx context.Context, arg *api.ModVrfArguments) (*api.Err
 		return none, err
 	}
 	return none, nil
+}
+
+func (s *Server) GetDefinedSet(ctx context.Context, arg *api.DefinedSet) (*api.DefinedSet, error) {
+	req := NewGrpcRequest(REQ_DEFINED_SET, "", bgp.RouteFamily(0), arg)
+	s.bgpServerCh <- req
+	res := <-req.ResponseCh
+	if err := res.Err(); err != nil {
+		return nil, err
+	}
+	return res.Data.(*api.DefinedSet), nil
+}
+
+func (s *Server) GetDefinedSets(arg *api.DefinedSet, stream api.GobgpApi_GetDefinedSetsServer) error {
+	req := NewGrpcRequest(REQ_DEFINED_SET, "", bgp.RouteFamily(0), arg)
+	s.bgpServerCh <- req
+
+	return handleMultipleResponses(req, func(res *GrpcResponse) error {
+		return stream.Send(res.Data.(*api.DefinedSet))
+	})
 }
 
 type GrpcRequest struct {
