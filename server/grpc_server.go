@@ -43,26 +43,11 @@ const (
 	REQ_NEIGHBOR_POLICY
 	REQ_MOD_NEIGHBOR_POLICY
 	REQ_GLOBAL_RIB
-	REQ_POLICY_PREFIX_ADD
-	REQ_POLICY_PREFIX_DELETE
-	REQ_POLICY_PREFIXES_DELETE
-	REQ_POLICY_NEIGHBOR_ADD
-	REQ_POLICY_NEIGHBOR_DELETE
-	REQ_POLICY_NEIGHBORS_DELETE
-	REQ_POLICY_ASPATH_ADD
-	REQ_POLICY_ASPATH_DELETE
-	REQ_POLICY_ASPATHS_DELETE
 	REQ_POLICY_ROUTEPOLICIES
 	REQ_POLICY_ROUTEPOLICY
 	REQ_POLICY_ROUTEPOLICY_ADD
 	REQ_POLICY_ROUTEPOLICY_DELETE
 	REQ_POLICY_ROUTEPOLICIES_DELETE
-	REQ_POLICY_COMMUNITY_ADD
-	REQ_POLICY_COMMUNITY_DELETE
-	REQ_POLICY_COMMUNITIES_DELETE
-	REQ_POLICY_EXTCOMMUNITY_ADD
-	REQ_POLICY_EXTCOMMUNITY_DELETE
-	REQ_POLICY_EXTCOMMUNITIES_DELETE
 	REQ_MONITOR_GLOBAL_BEST_CHANGED
 	REQ_MONITOR_NEIGHBOR_PEER_STATE
 	REQ_MRT_GLOBAL_RIB
@@ -308,61 +293,6 @@ func (s *Server) modPolicy(arg *api.PolicyArguments, stream interface{}) error {
 	var reqType int
 	var err error
 	switch arg.Resource {
-	case api.Resource_POLICY_PREFIX:
-		switch arg.Operation {
-		case api.Operation_ADD:
-			reqType = REQ_POLICY_PREFIX_ADD
-		case api.Operation_DEL:
-			reqType = REQ_POLICY_PREFIX_DELETE
-		case api.Operation_DEL_ALL:
-			reqType = REQ_POLICY_PREFIXES_DELETE
-		default:
-			return fmt.Errorf("unsupported operation: %s", arg.Operation)
-		}
-	case api.Resource_POLICY_NEIGHBOR:
-		switch arg.Operation {
-		case api.Operation_ADD:
-			reqType = REQ_POLICY_NEIGHBOR_ADD
-		case api.Operation_DEL:
-			reqType = REQ_POLICY_NEIGHBOR_DELETE
-		case api.Operation_DEL_ALL:
-			reqType = REQ_POLICY_NEIGHBORS_DELETE
-		default:
-			return fmt.Errorf("unsupported operation: %s", arg.Operation)
-		}
-	case api.Resource_POLICY_ASPATH:
-		switch arg.Operation {
-		case api.Operation_ADD:
-			reqType = REQ_POLICY_ASPATH_ADD
-		case api.Operation_DEL:
-			reqType = REQ_POLICY_ASPATH_DELETE
-		case api.Operation_DEL_ALL:
-			reqType = REQ_POLICY_ASPATHS_DELETE
-		default:
-			return fmt.Errorf("unsupported operation: %s", arg.Operation)
-		}
-	case api.Resource_POLICY_COMMUNITY:
-		switch arg.Operation {
-		case api.Operation_ADD:
-			reqType = REQ_POLICY_COMMUNITY_ADD
-		case api.Operation_DEL:
-			reqType = REQ_POLICY_COMMUNITY_DELETE
-		case api.Operation_DEL_ALL:
-			reqType = REQ_POLICY_COMMUNITIES_DELETE
-		default:
-			return fmt.Errorf("unsupported operation: %s", arg.Operation)
-		}
-	case api.Resource_POLICY_EXTCOMMUNITY:
-		switch arg.Operation {
-		case api.Operation_ADD:
-			reqType = REQ_POLICY_EXTCOMMUNITY_ADD
-		case api.Operation_DEL:
-			reqType = REQ_POLICY_EXTCOMMUNITY_DELETE
-		case api.Operation_DEL_ALL:
-			reqType = REQ_POLICY_EXTCOMMUNITIES_DELETE
-		default:
-			return fmt.Errorf("unsupported operation: %s", arg.Operation)
-		}
 	case api.Resource_POLICY_ROUTEPOLICY:
 		switch arg.Operation {
 		case api.Operation_ADD:
