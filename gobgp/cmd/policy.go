@@ -33,6 +33,9 @@ import (
 )
 
 func formatPolicyPrefix(head bool, indent int, psl []*api.DefinedSet) string {
+	if len(psl) == 0 {
+		return "Nothing defined yet\n"
+	}
 	buff := bytes.NewBuffer(make([]byte, 0, 64))
 	sIndent := strings.Repeat(" ", indent)
 	maxNameLen := 0
@@ -49,20 +52,24 @@ func formatPolicyPrefix(head bool, indent int, psl []*api.DefinedSet) string {
 	}
 
 	if head {
-		if len("Name") > maxNameLen {
-			maxNameLen = len("Name")
+		if len("NAME") > maxNameLen {
+			maxNameLen = len("NAME")
 		}
-		if len("Prefix") > maxPrefixLen {
-			maxPrefixLen = len("Prefix")
+		if len("PREFIX") > maxPrefixLen {
+			maxPrefixLen = len("PREFIX")
 		}
 	}
 
 	format := fmt.Sprintf("%%-%ds  %%-%ds ", maxNameLen, maxPrefixLen)
 	if head {
-		buff.WriteString(fmt.Sprintf(format, "Name", "Prefix"))
+		buff.WriteString(fmt.Sprintf(format, "NAME", "PREFIX"))
 		buff.WriteString("MaskLengthRange\n")
 	}
 	for _, ps := range psl {
+		if len(ps.Prefixes) == 0 {
+			buff.WriteString(fmt.Sprintf(format, ps.Name, ""))
+			buff.WriteString("\n")
+		}
 		for i, p := range ps.Prefixes {
 			if i == 0 {
 				buff.WriteString(fmt.Sprintf(format, ps.Name, p.IpPrefix))
@@ -77,168 +84,46 @@ func formatPolicyPrefix(head bool, indent int, psl []*api.DefinedSet) string {
 	return buff.String()
 }
 
-func formatPolicyNeighbor(head bool, indent int, nsl []*api.DefinedSet) string {
+func formatDefinedSet(head bool, typ string, indent int, list []*api.DefinedSet) string {
+	if len(list) == 0 {
+		return "Nothing defined yet\n"
+	}
 	buff := bytes.NewBuffer(make([]byte, 0, 64))
 	sIndent := strings.Repeat(" ", indent)
 	maxNameLen := 0
-	maxAddressLen := 0
-	for _, ns := range nsl {
-		if len(ns.Name) > maxNameLen {
-			maxNameLen = len(ns.Name)
+	maxValueLen := 0
+	for _, s := range list {
+		if len(s.Name) > maxNameLen {
+			maxNameLen = len(s.Name)
 		}
-		for _, n := range ns.List {
-			if len(n) > maxAddressLen {
-				maxAddressLen = len(n)
+		for _, x := range s.List {
+			if len(x) > maxValueLen {
+				maxValueLen = len(x)
 			}
 		}
 	}
-
 	if head {
-		if len("Name") > maxNameLen {
-			maxNameLen = len("Name")
+		if len("NAME") > maxNameLen {
+			maxNameLen = len("NAME")
 		}
-		if len("Address") > maxAddressLen {
-			maxAddressLen = len("Address")
+		if len(typ) > maxValueLen {
+			maxValueLen = len(typ)
 		}
 	}
-
-	format := "%-" + fmt.Sprint(maxNameLen) + "s  %-" + fmt.Sprint(maxAddressLen) + "s\n"
+	format := fmt.Sprintf("%%-%ds  %%-%ds\n", maxNameLen, maxValueLen)
 	if head {
-		buff.WriteString(fmt.Sprintf(format, "Name", "Address"))
+		buff.WriteString(fmt.Sprintf(format, "NAME", typ))
 	}
-	for _, ns := range nsl {
-		for i, n := range ns.List {
+	for _, s := range list {
+		if len(s.List) == 0 {
+			buff.WriteString(fmt.Sprintf(format, s.Name, ""))
+		}
+		for i, x := range s.List {
 			if i == 0 {
-				buff.WriteString(fmt.Sprintf(format, ns.Name, n))
+				buff.WriteString(fmt.Sprintf(format, s.Name, x))
 			} else {
 				buff.WriteString(fmt.Sprintf(sIndent))
-				buff.WriteString(fmt.Sprintf(format, "", n))
-			}
-		}
-	}
-	return buff.String()
-}
-
-func formatPolicyAsPath(haed bool, indent int, apsl []*api.DefinedSet) string {
-	buff := bytes.NewBuffer(make([]byte, 0, 64))
-	sIndent := strings.Repeat(" ", indent)
-	maxNameLen := 0
-	maxPathLen := 0
-	for _, aps := range apsl {
-		if len(aps.Name) > maxNameLen {
-			maxNameLen = len(aps.Name)
-		}
-		for _, m := range aps.List {
-			if len(m) > maxPathLen {
-				maxPathLen = len(m)
-			}
-		}
-	}
-
-	if haed {
-		if len("Name") > maxNameLen {
-			maxNameLen = len("Name")
-		}
-		if len("AsPath") > maxPathLen {
-			maxPathLen = len("AsPath")
-		}
-	}
-
-	format := "%-" + fmt.Sprint(maxNameLen) + "s  %-" + fmt.Sprint(maxPathLen) + "s\n"
-	if haed {
-		buff.WriteString(fmt.Sprintf(format, "Name", "AsPath"))
-	}
-	for _, aps := range apsl {
-		for i, a := range aps.List {
-			if i == 0 {
-				buff.WriteString(fmt.Sprintf(format, aps.Name, a))
-			} else {
-				buff.WriteString(fmt.Sprintf(sIndent))
-				buff.WriteString(fmt.Sprintf(format, "", a))
-			}
-		}
-	}
-	return buff.String()
-}
-
-func formatPolicyCommunity(head bool, indent int, csl []*api.DefinedSet) string {
-	buff := bytes.NewBuffer(make([]byte, 0, 64))
-	sIndent := strings.Repeat(" ", indent)
-	maxNameLen := 0
-	maxCommunityLen := 0
-	for _, cs := range csl {
-		if len(cs.Name) > maxNameLen {
-			maxNameLen = len(cs.Name)
-		}
-		for _, m := range cs.List {
-			if len(m) > maxCommunityLen {
-				maxCommunityLen = len(m)
-			}
-		}
-	}
-
-	if head {
-		if len("Name") > maxNameLen {
-			maxNameLen = len("Name")
-		}
-		if len("Community") > maxCommunityLen {
-			maxCommunityLen = len("Community")
-		}
-	}
-
-	format := "%-" + fmt.Sprint(maxNameLen) + "s  %-" + fmt.Sprint(maxCommunityLen) + "s\n"
-	if head {
-		buff.WriteString(fmt.Sprintf(format, "Name", "Community"))
-	}
-	for _, cs := range csl {
-		for i, c := range cs.List {
-			if i == 0 {
-				buff.WriteString(fmt.Sprintf(format, cs.Name, c))
-			} else {
-				buff.WriteString(fmt.Sprintf(sIndent))
-				buff.WriteString(fmt.Sprintf(format, "", c))
-			}
-		}
-	}
-	return buff.String()
-}
-
-func formatPolicyExtCommunity(head bool, indent int, ecsl []*api.DefinedSet) string {
-	buff := bytes.NewBuffer(make([]byte, 0, 64))
-	sIndent := strings.Repeat(" ", indent)
-	maxNameLen := 0
-	maxCommunityLen := 0
-	for _, es := range ecsl {
-		if len(es.Name) > maxNameLen {
-			maxNameLen = len(es.Name)
-		}
-		for _, m := range es.List {
-			if len(m) > maxCommunityLen {
-				maxCommunityLen = len(m)
-			}
-		}
-	}
-
-	if head {
-		if len("Name") > maxNameLen {
-			maxNameLen = len("Name")
-		}
-		if len("ExtCommunity") > maxCommunityLen {
-			maxCommunityLen = len("ExtCommunity")
-		}
-	}
-
-	format := "%-" + fmt.Sprint(maxNameLen) + "s  %-" + fmt.Sprint(maxCommunityLen) + "s\n"
-	if head {
-		buff.WriteString(fmt.Sprintf(format, "Name", "ExtCommunity"))
-	}
-	for _, ecs := range ecsl {
-		for i, ec := range ecs.List {
-			if i == 0 {
-				buff.WriteString(fmt.Sprintf(format, ecs.Name, ec))
-			} else {
-				buff.WriteString(fmt.Sprintf(sIndent))
-				buff.WriteString(fmt.Sprintf(format, "", ec))
+				buff.WriteString(fmt.Sprintf(format, "", x))
 			}
 		}
 	}
@@ -273,6 +158,9 @@ func show(v string, args []string) error {
 		}
 		m = append(m, p)
 	} else {
+		arg := &api.DefinedSet{
+			Type: int32(typ),
+		}
 		stream, e := client.GetDefinedSets(context.Background(), arg)
 		if e != nil {
 			return e
@@ -313,458 +201,202 @@ func show(v string, args []string) error {
 	case CMD_PREFIX:
 		output = formatPolicyPrefix(true, 0, m)
 	case CMD_NEIGHBOR:
-		output = formatPolicyNeighbor(true, 0, m)
+		output = formatDefinedSet(true, "ADDRESS", 0, m)
 	case CMD_ASPATH:
-		output = formatPolicyAsPath(true, 0, m)
+		output = formatDefinedSet(true, "AS-PATH", 0, m)
 	case CMD_COMMUNITY:
-		output = formatPolicyCommunity(true, 0, m)
+		output = formatDefinedSet(true, "COMMUNITY", 0, m)
 	case CMD_EXTCOMMUNITY:
-		output = formatPolicyExtCommunity(true, 0, m)
+		output = formatDefinedSet(true, "EXT-COMMUNITY", 0, m)
 	}
 	fmt.Print(output)
 	return nil
 }
 
-func parsePrefixSet(eArgs []string) (*api.DefinedSet, error) {
-	_, ipNet, e := net.ParseCIDR(eArgs[1])
-	if e != nil {
-		return nil, fmt.Errorf("invalid prefix: %s\nplease enter ipv4 or ipv6 format", eArgs[1])
+func parsePrefixSet(args []string) (*api.DefinedSet, error) {
+	if len(args) < 1 {
+		return nil, fmt.Errorf("empty neighbor set name")
 	}
-	prefix := &api.Prefix{
-		IpPrefix: eArgs[1],
-	}
-
-	if len(eArgs) == 3 {
-		maskRange := eArgs[2]
-		idx := strings.Index(maskRange, "..")
-		if idx == -1 {
-			return nil, fmt.Errorf("invalid mask length range: %s", maskRange)
+	name := args[0]
+	args = args[1:]
+	var list []*api.Prefix
+	if len(args) > 0 {
+		_, ipNet, err := net.ParseCIDR(args[0])
+		if err != nil {
+			return nil, fmt.Errorf("invalid prefix: %s\nplease enter ipv4 or ipv6 format", args[1])
 		}
-		var min, max int
-		var e error
-		if idx != 0 {
-			if min, e = strconv.Atoi(maskRange[:idx]); e != nil {
+		l, _ := ipNet.Mask.Size()
+		prefix := &api.Prefix{
+			IpPrefix:      args[0],
+			MaskLengthMin: uint32(l),
+			MaskLengthMax: uint32(l),
+		}
+		if len(args) > 1 {
+			maskRange := args[1]
+			exp := regexp.MustCompile("(\\d+)\\.\\.(\\d+)")
+			elems := exp.FindStringSubmatch(maskRange)
+			if len(elems) != 3 {
 				return nil, fmt.Errorf("invalid mask length range: %s", maskRange)
 			}
-		}
-		if idx != len(maskRange)-1 {
-			if max, e = strconv.Atoi(maskRange[idx+2:]); e != nil {
+			// we've already checked the range is sane by regexp
+			min, _ := strconv.Atoi(elems[1])
+			max, _ := strconv.Atoi(elems[2])
+			if min > max {
 				return nil, fmt.Errorf("invalid mask length range: %s", maskRange)
 			}
-		}
-		if ipv4 := ipNet.IP.To4(); ipv4 != nil {
-			if min < 0 || 32 < max {
-				return nil, fmt.Errorf("ipv4 mask length range outside scope :%s", maskRange)
+			if ipv4 := ipNet.IP.To4(); ipv4 != nil {
+				f := func(i int) bool {
+					return i >= 0 && i <= 32
+				}
+				if !f(min) || !f(max) {
+					return nil, fmt.Errorf("ipv4 mask length range outside scope :%s", maskRange)
+				}
+			} else {
+				f := func(i int) bool {
+					return i >= 0 && i <= 128
+				}
+				if !f(min) || !f(max) {
+					return nil, fmt.Errorf("ipv6 mask length range outside scope :%s", maskRange)
+				}
 			}
-		} else {
-			if min < 0 || 128 < max {
-				return nil, fmt.Errorf("ipv6 mask length range outside scope :%s", maskRange)
-			}
+			prefix.MaskLengthMin = uint32(min)
+			prefix.MaskLengthMax = uint32(max)
 		}
-		if min >= max {
-			return nil, fmt.Errorf("invalid mask length range: %s\nlarge value to the right from the left", maskRange)
-		}
-		prefix.MaskLengthMin = uint32(min)
-		prefix.MaskLengthMax = uint32(max)
+		list = []*api.Prefix{prefix}
 	}
-	prefixList := []*api.Prefix{prefix}
 	return &api.DefinedSet{
 		Type:     int32(table.DEFINED_TYPE_PREFIX),
-		Name:     eArgs[0],
-		Prefixes: prefixList,
+		Name:     name,
+		Prefixes: list,
 	}, nil
 }
-func modPolicy(resource api.Resource, op api.Operation, data interface{}) error {
-	pd := &api.PolicyDefinition{}
-	if resource != api.Resource_POLICY_ROUTEPOLICY {
-		co := &api.Conditions{}
-		switch resource {
-		case api.Resource_POLICY_PREFIX:
-			co.PrefixSet = data.(*api.PrefixSet)
-		case api.Resource_POLICY_NEIGHBOR:
-			co.NeighborSet = data.(*api.MatchSet)
-		case api.Resource_POLICY_ASPATH:
-			co.AsPathSet = data.(*api.MatchSet)
-		case api.Resource_POLICY_COMMUNITY:
-			co.CommunitySet = data.(*api.MatchSet)
-		case api.Resource_POLICY_EXTCOMMUNITY:
-			co.ExtCommunitySet = data.(*api.MatchSet)
-		}
-		pd.Statements = []*api.Statement{{Conditions: co}}
-	} else {
-		pd = data.(*api.PolicyDefinition)
-	}
-	arg := &api.PolicyArguments{
-		Resource:         resource,
-		Operation:        op,
-		PolicyDefinition: pd,
-	}
-	stream, err := client.ModPolicyRoutePolicy(context.Background())
-	if err != nil {
-		return err
-	}
-	err = stream.Send(arg)
-	if err != nil {
-		return err
-	}
-	stream.CloseSend()
 
-	res, e := stream.Recv()
-	if e != nil {
-		return e
+func parseNeighborSet(args []string) (*api.DefinedSet, error) {
+	if len(args) < 1 {
+		return nil, fmt.Errorf("empty neighbor set name")
 	}
-	if res.Code != api.Error_SUCCESS {
-		return fmt.Errorf("error: code: %d, msg: %s", res.Code, res.Msg)
-	}
-	return nil
-}
-
-func modPolicyPrefix(modtype string, eArgs []string) error {
-	prefixSet := &api.DefinedSet{}
-	var e error
-	var operation api.Operation
-
-	switch modtype {
-	case CMD_ADD:
-		if len(eArgs) < 2 {
-			return fmt.Errorf("usage: policy prefix add <prefix set name> <prefix> [<mask length renge>]")
-		}
-		if prefixSet, e = parsePrefixSet(eArgs); e != nil {
-			return e
-		}
-		operation = api.Operation_ADD
-	case CMD_DEL:
-		if len(eArgs) == 0 {
-			return fmt.Errorf("usage: policy prefix del <prefix set name> [<prefix> [<mask length renge>]]")
-		} else if len(eArgs) == 1 {
-			prefixSet = &api.DefinedSet{
-				Name: eArgs[0],
-			}
-		} else {
-			if prefixSet, e = parsePrefixSet(eArgs); e != nil {
-				return e
-			}
-		}
-		operation = api.Operation_DEL
-	case CMD_ALL:
-		if len(eArgs) > 0 {
-			return fmt.Errorf("Argument can not be entered: %s", eArgs[0:])
-		}
-		operation = api.Operation_DEL_ALL
-	default:
-		return fmt.Errorf("invalid modType %s", modtype)
-	}
-	if e = modPolicy(api.Resource_POLICY_PREFIX, operation, prefixSet); e != nil {
-		return e
-	}
-	return nil
-}
-
-func showPolicyNeighbor(args []string) error {
-	arg := &api.DefinedSet{
-		Type: int32(table.DEFINED_TYPE_NEIGHBOR),
-		Name: args[0],
-	}
-	ns, e := client.GetDefinedSet(context.Background(), arg)
-	if e != nil {
-		return e
-	}
-	if globalOpts.Json {
-		j, _ := json.Marshal(ns)
-		fmt.Println(string(j))
-		return nil
-	}
-	if globalOpts.Quiet {
-		for _, n := range ns.List {
-			fmt.Println(n)
-		}
-		return nil
-	}
-	output := formatPolicyNeighbor(true, 0, []*api.DefinedSet{ns})
-	fmt.Print(output)
-	return nil
-}
-
-func parseNeighborSet(eArgs []string) (*api.DefinedSet, error) {
-	address := net.ParseIP(eArgs[1])
-	if address.To4() == nil {
-		if address.To16() == nil {
-			return nil, fmt.Errorf("invalid address: %s\nplease enter ipv4 or ipv6 format", eArgs[1])
+	name := args[0]
+	args = args[1:]
+	for _, arg := range args {
+		address := net.ParseIP(arg)
+		if address.To4() == nil && address.To16() == nil {
+			return nil, fmt.Errorf("invalid address: %s\nplease enter ipv4 or ipv6 format", arg)
 		}
 	}
-
 	return &api.DefinedSet{
 		Type: int32(table.DEFINED_TYPE_NEIGHBOR),
-		Name: eArgs[0],
-		List: []string{address.String()},
+		Name: name,
+		List: args,
 	}, nil
 }
 
-func modPolicyNeighbor(modtype string, eArgs []string) error {
-	neighborSet := &api.DefinedSet{}
-	var e error
-	var operation api.Operation
-
-	switch modtype {
-	case CMD_ADD:
-		if len(eArgs) < 2 {
-			return fmt.Errorf("usage: policy neighbor add <neighbor set name> <address>")
-		}
-		if neighborSet, e = parseNeighborSet(eArgs); e != nil {
-			return e
-		}
-		operation = api.Operation_ADD
-	case CMD_DEL:
-		if len(eArgs) == 0 {
-			return fmt.Errorf("usage: policy neighbor del <neighbor set name> [<address>]")
-		} else if len(eArgs) == 1 {
-			neighborSet = &api.DefinedSet{
-				Name: eArgs[0],
-			}
-		} else {
-			if neighborSet, e = parseNeighborSet(eArgs); e != nil {
-				return e
-			}
-		}
-		operation = api.Operation_DEL
-	case CMD_ALL:
-		if len(eArgs) > 0 {
-			return fmt.Errorf("Argument can not be entered: %s", eArgs[0:])
-		}
-		operation = api.Operation_DEL_ALL
-	default:
-		return fmt.Errorf("invalid modType %s", modtype)
+func parseAsPathSet(args []string) (*api.DefinedSet, error) {
+	if len(args) < 1 {
+		return nil, fmt.Errorf("empty as-path set name")
 	}
-	if e = modPolicy(api.Resource_POLICY_NEIGHBOR, operation, neighborSet); e != nil {
-		return e
-	}
-	return nil
-}
-
-func parseAsPathSet(eArgs []string) (*api.DefinedSet, error) {
-	as := eArgs[1]
-	isTop := as[:1] == "^"
-	if isTop {
-		as = as[1:]
-	}
-	isEnd := as[len(as)-1:] == "$"
-	if isEnd {
-		as = as[:len(as)-1]
-	}
-	elems := strings.Split(as, "_")
-	for _, el := range elems {
-		if len(el) == 0 {
-			return nil, fmt.Errorf("invalid aspath element: %s \ndo not enter a blank", eArgs[1])
-		}
-		_, err := regexp.Compile(el)
+	name := args[0]
+	args = args[1:]
+	for _, arg := range args {
+		_, err := regexp.Compile(arg)
 		if err != nil {
-			return nil, fmt.Errorf("invalid aspath element: %s \n"+
-				"can not comple aspath values to regular expressions.", eArgs[1])
+			return nil, err
 		}
 	}
 	return &api.DefinedSet{
-		Name: eArgs[0],
-		List: []string{eArgs[1]},
+		Type: int32(table.DEFINED_TYPE_AS_PATH),
+		Name: name,
+		List: args,
 	}, nil
 }
 
-func modPolicyAsPath(modtype string, eArgs []string) error {
-	asPathSet := &api.DefinedSet{}
-	var e error
-	var operation api.Operation
-
-	switch modtype {
-	case CMD_ADD:
-		if len(eArgs) < 2 {
-			return fmt.Errorf("usage: policy aspath add <aspath set name> <aspath>")
-		}
-		if asPathSet, e = parseAsPathSet(eArgs); e != nil {
-			return e
-		}
-		operation = api.Operation_ADD
-	case CMD_DEL:
-		if len(eArgs) == 0 {
-			return fmt.Errorf("usage: policy aspath del <aspath set name> [<aspath>]")
-		} else if len(eArgs) == 1 {
-			asPathSet = &api.DefinedSet{
-				Name: eArgs[0],
-			}
-		} else {
-			if asPathSet, e = parseAsPathSet(eArgs); e != nil {
-				return e
-			}
-		}
-		operation = api.Operation_DEL
-	case CMD_ALL:
-		if len(eArgs) > 0 {
-			return fmt.Errorf("Argument can not be entered: %s", eArgs[0:])
-		}
-		operation = api.Operation_DEL_ALL
-	default:
-		return fmt.Errorf("invalid modType %s", modtype)
+func parseCommunitySet(args []string) (*api.DefinedSet, error) {
+	if len(args) < 1 {
+		return nil, fmt.Errorf("empty community set name")
 	}
-	if e = modPolicy(api.Resource_POLICY_ASPATH, operation, asPathSet); e != nil {
-		return e
-	}
-	return nil
-}
-
-func checkCommunityFormat(comStr string) bool {
-	_, e := table.ParseCommunity(comStr)
-	if e == nil {
-		return true
-	}
-	return false
-}
-
-func parseCommunitySet(eArgs []string) (*api.DefinedSet, error) {
-	if !checkCommunityFormat(eArgs[1]) {
-		if _, err := regexp.Compile(eArgs[1]); err != nil {
-			return nil, fmt.Errorf("invalid community: %s\nplease enter community format", eArgs[1])
+	name := args[0]
+	args = args[1:]
+	for _, arg := range args {
+		if _, err := table.ParseCommunityRegexp(arg); err != nil {
+			return nil, err
 		}
-	}
-	communitySet := &api.DefinedSet{
-		Name: eArgs[0],
-		List: []string{eArgs[1]},
-	}
-	return communitySet, nil
-}
-
-func modPolicyCommunity(modtype string, eArgs []string) error {
-	communitySet := &api.DefinedSet{}
-	var e error
-	var operation api.Operation
-
-	switch modtype {
-	case CMD_ADD:
-		if len(eArgs) < 2 {
-			return fmt.Errorf("usage: policy community add <community set name> <community>")
-		}
-		if communitySet, e = parseCommunitySet(eArgs); e != nil {
-			return e
-		}
-		operation = api.Operation_ADD
-	case CMD_DEL:
-		if len(eArgs) == 0 {
-			return fmt.Errorf("usage: policy community add <community set name> [<community>]")
-		} else if len(eArgs) == 1 {
-			communitySet = &api.DefinedSet{
-				Name: eArgs[0],
-			}
-		} else {
-			if communitySet, e = parseCommunitySet(eArgs); e != nil {
-				return e
-			}
-		}
-		operation = api.Operation_DEL
-	case CMD_ALL:
-		if len(eArgs) > 0 {
-			return fmt.Errorf("Argument can not be entered: %s", eArgs[0:])
-		}
-		operation = api.Operation_DEL_ALL
-	default:
-		return fmt.Errorf("invalid modType %s", modtype)
-	}
-	if e = modPolicy(api.Resource_POLICY_COMMUNITY, operation, communitySet); e != nil {
-		return e
-	}
-	return nil
-}
-
-func checkExtCommunityFormat(eComStr string) bool {
-	// extended community regexp
-	checkSubType := func(eComStr string) (bool, string) {
-		regSubType, _ := regexp.Compile("^(RT|SoO):(.*)$")
-		if regSubType.MatchString(eComStr) {
-			regResult := regSubType.FindStringSubmatch(eComStr)
-			return true, regResult[2]
-		}
-		return false, ""
-	}
-	checkValue := func(eComVal string) (bool, string) {
-		regVal, _ := regexp.Compile("^([0-9\\.]+):([0-9]+)$")
-		if regVal.MatchString(eComVal) {
-			regResult := regVal.FindStringSubmatch(eComVal)
-			return true, regResult[1]
-		}
-		return false, ""
-	}
-	checkElem := func(gAdmin string) bool {
-		addr := net.ParseIP(gAdmin)
-		if addr.To4() != nil {
-			return true
-		}
-		regAs, _ := regexp.Compile("^([0-9]+)$")
-		regAs4, _ := regexp.Compile("^([0-9]+).([0-9]+)$")
-		if regAs.MatchString(gAdmin) || regAs4.MatchString(gAdmin) {
-			return true
-		}
-		return false
-	}
-
-	if subTypeOk, eComVal := checkSubType(eComStr); subTypeOk {
-		if valOk, gAdmin := checkValue(eComVal); valOk {
-			if checkElem(gAdmin) {
-				return true
-			}
-		}
-		_, err := regexp.Compile(eComVal)
-		if err == nil {
-			return true
-		}
-	}
-	return false
-}
-
-func parseExtCommunitySet(eArgs []string) (*api.DefinedSet, error) {
-	if !checkExtCommunityFormat(eArgs[1]) {
-		return nil, fmt.Errorf("invalid extended community: %s\nplease enter extended community format", eArgs[1])
 	}
 	return &api.DefinedSet{
-		Name: eArgs[0],
-		List: []string{eArgs[1]},
+		Type: int32(table.DEFINED_TYPE_COMMUNITY),
+		Name: name,
+		List: args,
 	}, nil
 }
 
-func modPolicyExtCommunity(modtype string, eArgs []string) error {
-	extCommunitySet := &api.DefinedSet{}
-	var e error
-	var operation api.Operation
+func parseExtCommunitySet(args []string) (*api.DefinedSet, error) {
+	if len(args) < 1 {
+		return nil, fmt.Errorf("empty ext-community set name")
+	}
+	name := args[0]
+	args = args[1:]
+	for _, arg := range args {
+		if _, _, err := table.ParseExtCommunityRegexp(arg); err != nil {
+			return nil, err
+		}
+	}
+	return &api.DefinedSet{
+		Type: int32(table.DEFINED_TYPE_EXT_COMMUNITY),
+		Name: name,
+		List: args,
+	}, nil
+}
 
+func parseDefinedSet(settype string, args []string) (*api.DefinedSet, error) {
+	switch settype {
+	case CMD_PREFIX:
+		return parsePrefixSet(args)
+	case CMD_NEIGHBOR:
+		return parseNeighborSet(args)
+	case CMD_ASPATH:
+		return parseAsPathSet(args)
+	case CMD_COMMUNITY:
+		return parseCommunitySet(args)
+	case CMD_EXTCOMMUNITY:
+		return parseExtCommunitySet(args)
+	default:
+		return nil, fmt.Errorf("invalid setype: %s", settype)
+	}
+}
+
+var modPolicyUsageFormat = map[string]string{
+	CMD_PREFIX:       "usage: policy prefix %s <name> [<prefix> [<mask range>]]",
+	CMD_NEIGHBOR:     "usage: policy neighbor %s <name> [<neighbor address>...]",
+	CMD_ASPATH:       "usage: policy aspath %s <name> [<regexp>...]",
+	CMD_COMMUNITY:    "usage: policy community %s <name> [<regexp>...]",
+	CMD_EXTCOMMUNITY: "usage: policy extcommunity %s <name> [<regexp>...]",
+}
+
+func mod(settype string, modtype string, args []string) error {
+	var d *api.DefinedSet
+	var err error
+	if len(args) < 1 {
+		return fmt.Errorf(modPolicyUsageFormat[settype], modtype)
+	}
+	if d, err = parseDefinedSet(settype, args); err != nil {
+		return err
+	}
+	var op api.Operation
 	switch modtype {
 	case CMD_ADD:
-		if len(eArgs) < 2 {
-			return fmt.Errorf("usage: policy extcommunity add <community set name> <community>")
-		}
-		if extCommunitySet, e = parseExtCommunitySet(eArgs); e != nil {
-			return e
-		}
-		operation = api.Operation_ADD
+		op = api.Operation_ADD
 	case CMD_DEL:
-		if len(eArgs) == 0 {
-			return fmt.Errorf("usage: policy extcommunity add <community set name> [<community>]")
-		} else if len(eArgs) == 1 {
-			extCommunitySet = &api.DefinedSet{
-				Name: eArgs[0],
-			}
+		if len(args) < 2 {
+			op = api.Operation_DEL_ALL
 		} else {
-			if extCommunitySet, e = parseExtCommunitySet(eArgs); e != nil {
-				return e
-			}
+			op = api.Operation_DEL
 		}
-		operation = api.Operation_DEL
-	case CMD_ALL:
-		if len(eArgs) > 0 {
-			return fmt.Errorf("Argument can not be entered: %s", eArgs[0:])
-		}
-		operation = api.Operation_DEL_ALL
-	default:
-		return fmt.Errorf("invalid modType %s", modtype)
+	case CMD_SET:
+		op = api.Operation_REPLACE
 	}
-	if e = modPolicy(api.Resource_POLICY_EXTCOMMUNITY, operation, extCommunitySet); e != nil {
-		return e
-	}
-	return nil
+	_, err = client.ModDefinedSet(context.Background(), &api.ModDefinedSetArguments{
+		Operation: op,
+		Set:       d,
+	})
+	return err
 }
 
 func showPolicyStatement(indent int, pd *api.PolicyDefinition) {
@@ -1140,6 +772,51 @@ func parseActions() (*api.Actions, error) {
 	return actions, nil
 }
 
+func modPolicy(resource api.Resource, op api.Operation, data interface{}) error {
+	pd := &api.PolicyDefinition{}
+	if resource != api.Resource_POLICY_ROUTEPOLICY {
+		co := &api.Conditions{}
+		switch resource {
+		case api.Resource_POLICY_PREFIX:
+			co.PrefixSet = data.(*api.PrefixSet)
+		case api.Resource_POLICY_NEIGHBOR:
+			co.NeighborSet = data.(*api.MatchSet)
+		case api.Resource_POLICY_ASPATH:
+			co.AsPathSet = data.(*api.MatchSet)
+		case api.Resource_POLICY_COMMUNITY:
+			co.CommunitySet = data.(*api.MatchSet)
+		case api.Resource_POLICY_EXTCOMMUNITY:
+			co.ExtCommunitySet = data.(*api.MatchSet)
+		}
+		pd.Statements = []*api.Statement{{Conditions: co}}
+	} else {
+		pd = data.(*api.PolicyDefinition)
+	}
+	arg := &api.PolicyArguments{
+		Resource:         resource,
+		Operation:        op,
+		PolicyDefinition: pd,
+	}
+	stream, err := client.ModPolicyRoutePolicy(context.Background())
+	if err != nil {
+		return err
+	}
+	err = stream.Send(arg)
+	if err != nil {
+		return err
+	}
+	stream.CloseSend()
+
+	res, e := stream.Recv()
+	if e != nil {
+		return e
+	}
+	if res.Code != api.Error_SUCCESS {
+		return fmt.Errorf("error: code: %d, msg: %s", res.Code, res.Msg)
+	}
+	return nil
+}
+
 func modPolicyRoutePolicy(modtype string, eArgs []string) error {
 	var operation api.Operation
 	pd := &api.PolicyDefinition{}
@@ -1195,56 +872,6 @@ func modPolicyRoutePolicy(modtype string, eArgs []string) error {
 	return nil
 }
 
-func NewPolicyAddCmd(v string, mod func(string, []string) error) *cobra.Command {
-	policyAddCmd := &cobra.Command{
-		Use: CMD_ADD,
-		Run: func(cmd *cobra.Command, args []string) {
-			err := mod(cmd.Use, args)
-			if err != nil {
-				fmt.Println(err)
-			}
-		},
-	}
-	if v == CMD_ROUTEPOLICY {
-		policyAddCmd.Flags().StringVarP(&conditionOpts.Prefix, "c-prefix", "", "", "a prefix set name of policy condition")
-		policyAddCmd.Flags().StringVarP(&conditionOpts.Neighbor, "c-neighbor", "", "", "a neighbor set name of policy condition")
-		policyAddCmd.Flags().StringVarP(&conditionOpts.AsPath, "c-aspath", "", "", "an as path set name of policy condition")
-		policyAddCmd.Flags().StringVarP(&conditionOpts.Community, "c-community", "", "", "a community set name of policy condition")
-		policyAddCmd.Flags().StringVarP(&conditionOpts.ExtCommunity, "c-extcommunity", "", "", "a extended community set name of policy condition")
-		policyAddCmd.Flags().StringVarP(&conditionOpts.AsPathLength, "c-aslen", "", "", "an as path length of policy condition (<operator>,<numeric>)")
-		policyAddCmd.Flags().StringVarP(&actionOpts.RouteAction, "a-route", "", "", "a route action of policy action (accept | reject)")
-		policyAddCmd.Flags().StringVarP(&actionOpts.CommunityAction, "a-community", "", "", "a community of policy action")
-		policyAddCmd.Flags().StringVarP(&actionOpts.MedAction, "a-med", "", "", "a med of policy action")
-		policyAddCmd.Flags().StringVarP(&actionOpts.AsPathPrependAction, "a-asprepend", "", "", "aspath prepend for policy action")
-	}
-
-	return policyAddCmd
-}
-
-func NewPolicyDelCmd(mod func(string, []string) error) *cobra.Command {
-	policyDelCmd := &cobra.Command{
-		Use: CMD_DEL,
-		Run: func(cmd *cobra.Command, args []string) {
-			err := mod(cmd.Use, args)
-			if err != nil {
-				fmt.Println(err)
-			}
-		},
-	}
-
-	subcmd := &cobra.Command{
-		Use: CMD_ALL,
-		Run: func(cmd *cobra.Command, args []string) {
-			err := mod(cmd.Use, args)
-			if err != nil {
-				fmt.Println(err)
-			}
-		},
-	}
-	policyDelCmd.AddCommand(subcmd)
-	return policyDelCmd
-}
-
 func NewPolicyCmd() *cobra.Command {
 	policyCmd := &cobra.Command{
 		Use: CMD_POLICY,
@@ -1262,21 +889,6 @@ func NewPolicyCmd() *cobra.Command {
 	}
 
 	for _, v := range []string{CMD_PREFIX, CMD_NEIGHBOR, CMD_ASPATH, CMD_COMMUNITY, CMD_EXTCOMMUNITY, CMD_ROUTEPOLICY} {
-		var mod func(string, []string) error
-		switch v {
-		case CMD_PREFIX:
-			mod = modPolicyPrefix
-		case CMD_NEIGHBOR:
-			mod = modPolicyNeighbor
-		case CMD_ASPATH:
-			mod = modPolicyAsPath
-		case CMD_COMMUNITY:
-			mod = modPolicyCommunity
-		case CMD_EXTCOMMUNITY:
-			mod = modPolicyExtCommunity
-		case CMD_ROUTEPOLICY:
-			mod = modPolicyRoutePolicy
-		}
 		cmd := &cobra.Command{
 			Use: v,
 			Run: func(cmd *cobra.Command, args []string) {
@@ -1285,10 +897,17 @@ func NewPolicyCmd() *cobra.Command {
 				}
 			},
 		}
-		policyAddCmd := NewPolicyAddCmd(v, mod)
-		cmd.AddCommand(policyAddCmd)
-		policyDelCmd := NewPolicyDelCmd(mod)
-		cmd.AddCommand(policyDelCmd)
+		for _, w := range []string{CMD_ADD, CMD_DEL, CMD_SET} {
+			subcmd := &cobra.Command{
+				Use: w,
+				Run: func(c *cobra.Command, args []string) {
+					if err := mod(cmd.Use, c.Use, args); err != nil {
+						fmt.Println(err)
+					}
+				},
+			}
+			cmd.AddCommand(subcmd)
+		}
 		policyCmd.AddCommand(cmd)
 	}
 	return policyCmd

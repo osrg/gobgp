@@ -469,23 +469,43 @@ func (s *regExpSet) Type() DefinedType {
 }
 
 func (lhs *regExpSet) Append(arg DefinedSet) error {
-	rhs, ok := arg.(*regExpSet)
-	if !ok {
-		return fmt.Errorf("type cast failed")
+	if lhs.Type() != arg.Type() {
+		return fmt.Errorf("can't append to different type of defined-set")
 	}
-	lhs.list = append(lhs.list, rhs.list...)
+	var list []*regexp.Regexp
+	switch lhs.Type() {
+	case DEFINED_TYPE_AS_PATH:
+		list = arg.(*AsPathSet).list
+	case DEFINED_TYPE_COMMUNITY:
+		list = arg.(*CommunitySet).list
+	case DEFINED_TYPE_EXT_COMMUNITY:
+		list = arg.(*ExtCommunitySet).list
+	default:
+		return fmt.Errorf("invalid defined-set type: %d", lhs.Type())
+	}
+	lhs.list = append(lhs.list, list...)
 	return nil
 }
 
 func (lhs *regExpSet) Remove(arg DefinedSet) error {
-	rhs, ok := arg.(*regExpSet)
-	if !ok {
-		return fmt.Errorf("type cast failed")
+	if lhs.Type() != arg.Type() {
+		return fmt.Errorf("can't append to different type of defined-set")
+	}
+	var list []*regexp.Regexp
+	switch lhs.Type() {
+	case DEFINED_TYPE_AS_PATH:
+		list = arg.(*AsPathSet).list
+	case DEFINED_TYPE_COMMUNITY:
+		list = arg.(*CommunitySet).list
+	case DEFINED_TYPE_EXT_COMMUNITY:
+		list = arg.(*ExtCommunitySet).list
+	default:
+		return fmt.Errorf("invalid defined-set type: %d", lhs.Type())
 	}
 	ps := make([]*regexp.Regexp, 0, len(lhs.list))
 	for _, x := range lhs.list {
 		found := false
-		for _, y := range rhs.list {
+		for _, y := range list {
 			if x.String() == y.String() {
 				found = true
 				break
@@ -584,7 +604,7 @@ func ParseCommunity(arg string) (uint32, error) {
 	return 0, fmt.Errorf("failed to parse %s as community", arg)
 }
 
-func parseExtCommunity(arg string) (bgp.ExtendedCommunityInterface, error) {
+func ParseExtCommunity(arg string) (bgp.ExtendedCommunityInterface, error) {
 	var subtype bgp.ExtendedCommunityAttrSubType
 	elems := strings.SplitN(arg, ":", 2)
 	if len(elems) < 2 {
@@ -601,7 +621,7 @@ func parseExtCommunity(arg string) (bgp.ExtendedCommunityInterface, error) {
 	return bgp.ParseExtendedCommunity(subtype, elems[1])
 }
 
-func parseCommunityRegexp(arg string) (*regexp.Regexp, error) {
+func ParseCommunityRegexp(arg string) (*regexp.Regexp, error) {
 	i, err := strconv.Atoi(arg)
 	if err == nil {
 		return regexp.MustCompile(fmt.Sprintf("^%d:%d$", i>>16, i&0x0000ffff)), nil
@@ -621,7 +641,7 @@ func parseCommunityRegexp(arg string) (*regexp.Regexp, error) {
 	return exp, nil
 }
 
-func parseExtCommunityRegexp(arg string) (bgp.ExtendedCommunityAttrSubType, *regexp.Regexp, error) {
+func ParseExtCommunityRegexp(arg string) (bgp.ExtendedCommunityAttrSubType, *regexp.Regexp, error) {
 	var subtype bgp.ExtendedCommunityAttrSubType
 	elems := strings.SplitN(arg, ":", 2)
 	if len(elems) < 2 {
@@ -635,7 +655,7 @@ func parseExtCommunityRegexp(arg string) (bgp.ExtendedCommunityAttrSubType, *reg
 	default:
 		return subtype, nil, fmt.Errorf("unknown ext-community subtype. rt, soo is supported")
 	}
-	exp, err := parseCommunityRegexp(elems[1])
+	exp, err := ParseCommunityRegexp(elems[1])
 	return subtype, exp, err
 }
 
@@ -660,7 +680,7 @@ func NewCommunitySet(c config.CommunitySet) (*CommunitySet, error) {
 	}
 	list := make([]*regexp.Regexp, 0, len(c.CommunityList))
 	for _, x := range c.CommunityList {
-		exp, err := parseCommunityRegexp(x.Community)
+		exp, err := ParseCommunityRegexp(x.Community)
 		if err != nil {
 			return nil, err
 		}
@@ -678,6 +698,28 @@ func NewCommunitySet(c config.CommunitySet) (*CommunitySet, error) {
 type ExtCommunitySet struct {
 	regExpSet
 	subtypeList []bgp.ExtendedCommunityAttrSubType
+}
+
+func (s *ExtCommunitySet) ToApiStruct() *api.DefinedSet {
+	list := make([]string, 0, len(s.list))
+	f := func(idx int, arg string) string {
+		switch s.subtypeList[idx] {
+		case bgp.EC_SUBTYPE_ROUTE_TARGET:
+			return fmt.Sprintf("rt:%s", arg)
+		case bgp.EC_SUBTYPE_ROUTE_ORIGIN:
+			return fmt.Sprintf("soo:%s", arg)
+		default:
+			return fmt.Sprintf("%d:%s", s.subtypeList[idx])
+		}
+	}
+	for idx, exp := range s.list {
+		list = append(list, f(idx, exp.String()))
+	}
+	return &api.DefinedSet{
+		Type: int32(s.typ),
+		Name: s.name,
+		List: list,
+	}
 }
 
 func NewExtCommunitySetFromApiStruct(a *api.DefinedSet) (*ExtCommunitySet, error) {
@@ -702,7 +744,7 @@ func NewExtCommunitySet(c config.ExtCommunitySet) (*ExtCommunitySet, error) {
 	list := make([]*regexp.Regexp, 0, len(c.ExtCommunityList))
 	subtypeList := make([]bgp.ExtendedCommunityAttrSubType, 0, len(c.ExtCommunityList))
 	for _, x := range c.ExtCommunityList {
-		subtype, exp, err := parseExtCommunityRegexp(x.ExtCommunity)
+		subtype, exp, err := ParseExtCommunityRegexp(x.ExtCommunity)
 		if err != nil {
 			return nil, err
 		}
@@ -1386,7 +1428,7 @@ func NewCommunityActionFromApiStruct(a *api.CommunityAction) (*CommunityAction, 
 	}
 	for _, x := range a.Communities {
 		if op == config.BGP_SET_COMMUNITY_OPTION_TYPE_REMOVE {
-			exp, err := parseCommunityRegexp(x)
+			exp, err := ParseCommunityRegexp(x)
 			if err != nil {
 				return nil, err
 			}
@@ -1423,7 +1465,7 @@ func NewCommunityAction(c config.SetCommunity) (*CommunityAction, error) {
 	}
 	for _, x := range c.SetCommunityMethod.Communities {
 		if a == config.BGP_SET_COMMUNITY_OPTION_TYPE_REMOVE {
-			exp, err := parseCommunityRegexp(x)
+			exp, err := ParseCommunityRegexp(x)
 			if err != nil {
 				return nil, err
 			}
@@ -1498,14 +1540,14 @@ func NewExtCommunityActionFromApiStruct(a *api.CommunityAction) (*ExtCommunityAc
 	}
 	for _, x := range a.Communities {
 		if op == config.BGP_SET_COMMUNITY_OPTION_TYPE_REMOVE {
-			subtype, exp, err := parseExtCommunityRegexp(x)
+			subtype, exp, err := ParseExtCommunityRegexp(x)
 			if err != nil {
 				return nil, err
 			}
 			removeList = append(removeList, exp)
 			subtypeList = append(subtypeList, subtype)
 		} else {
-			comm, err := parseExtCommunity(x)
+			comm, err := ParseExtCommunity(x)
 			if err != nil {
 				return nil, err
 			}
@@ -1540,14 +1582,14 @@ func NewExtCommunityAction(c config.SetExtCommunity) (*ExtCommunityAction, error
 	}
 	for _, x := range c.SetExtCommunityMethod.Communities {
 		if a == config.BGP_SET_COMMUNITY_OPTION_TYPE_REMOVE {
-			subtype, exp, err := parseExtCommunityRegexp(x)
+			subtype, exp, err := ParseExtCommunityRegexp(x)
 			if err != nil {
 				return nil, err
 			}
 			removeList = append(removeList, exp)
 			subtypeList = append(subtypeList, subtype)
 		} else {
-			comm, err := parseExtCommunity(x)
+			comm, err := ParseExtCommunity(x)
 			if err != nil {
 				return nil, err
 			}
