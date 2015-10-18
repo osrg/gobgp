@@ -46,6 +46,8 @@ service GobgpApi {
   rpc GetDefinedSet(DefinedSet) returns (DefinedSet) {}
   rpc GetDefinedSets(DefinedSet) returns (stream DefinedSet) {}
   rpc ModDefinedSet(ModDefinedSetArguments) returns (Error) {}
+  rpc GetStatement(Statement) returns (Statement) {}
+  rpc GetStatements(Statement) returns (stream Statement) {}
 }
 
 message Error {

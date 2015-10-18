@@ -61,6 +61,7 @@ const (
 	REQ_GLOBAL_POLICY
 	REQ_DEFINED_SET
 	REQ_MOD_DEFINED_SET
+	REQ_STATEMENT
 )
 
 const GRPC_PORT = 8080
@@ -419,11 +420,20 @@ func (s *Server) GetVrfs(arg *api.Arguments, stream api.GobgpApi_GetVrfsServer) 
 	})
 }
 
-func (s *Server) ModVrf(ctx context.Context, arg *api.ModVrfArguments) (*api.Error, error) {
-	none := &api.Error{}
-	req := NewGrpcRequest(REQ_VRF_MOD, "", bgp.RouteFamily(0), arg)
+func (s *Server) get(typ int, d interface{}) (interface{}, error) {
+	req := NewGrpcRequest(typ, "", bgp.RouteFamily(0), d)
 	s.bgpServerCh <- req
+	res := <-req.ResponseCh
+	if err := res.Err(); err != nil {
+		return nil, err
+	}
+	return res.Data, nil
+}
 
+func (s *Server) mod(typ int, d interface{}) (*api.Error, error) {
+	none := &api.Error{}
+	req := NewGrpcRequest(typ, "", bgp.RouteFamily(0), d)
+	s.bgpServerCh <- req
 	res := <-req.ResponseCh
 	if err := res.Err(); err != nil {
 		return none, err
@@ -431,34 +441,44 @@ func (s *Server) ModVrf(ctx context.Context, arg *api.ModVrfArguments) (*api.Err
 	return none, nil
 }
 
+func (s *Server) ModVrf(ctx context.Context, arg *api.ModVrfArguments) (*api.Error, error) {
+	return s.mod(REQ_VRF_MOD, arg)
+}
+
 func (s *Server) GetDefinedSet(ctx context.Context, arg *api.DefinedSet) (*api.DefinedSet, error) {
-	req := NewGrpcRequest(REQ_DEFINED_SET, "", bgp.RouteFamily(0), arg)
-	s.bgpServerCh <- req
-	res := <-req.ResponseCh
-	if err := res.Err(); err != nil {
+	d, err := s.get(REQ_DEFINED_SET, arg)
+	if err != nil {
 		return nil, err
 	}
-	return res.Data.(*api.DefinedSet), nil
+	return d.(*api.DefinedSet), nil
 }
 
 func (s *Server) GetDefinedSets(arg *api.DefinedSet, stream api.GobgpApi_GetDefinedSetsServer) error {
 	req := NewGrpcRequest(REQ_DEFINED_SET, "", bgp.RouteFamily(0), arg)
 	s.bgpServerCh <- req
-
 	return handleMultipleResponses(req, func(res *GrpcResponse) error {
 		return stream.Send(res.Data.(*api.DefinedSet))
 	})
 }
 
 func (s *Server) ModDefinedSet(ctx context.Context, arg *api.ModDefinedSetArguments) (*api.Error, error) {
-	none := &api.Error{}
-	req := NewGrpcRequest(REQ_MOD_DEFINED_SET, "", bgp.RouteFamily(0), arg)
-	s.bgpServerCh <- req
-	res := <-req.ResponseCh
-	if err := res.Err(); err != nil {
-		return none, err
+	return s.mod(REQ_MOD_DEFINED_SET, arg)
+}
+
+func (s *Server) GetStatement(ctx context.Context, arg *api.Statement) (*api.Statement, error) {
+	d, err := s.get(REQ_STATEMENT, arg)
+	if err != nil {
+		return nil, err
 	}
-	return none, nil
+	return d.(*api.Statement), nil
+}
+
+func (s *Server) GetStatements(arg *api.Statement, stream api.GobgpApi_GetStatementsServer) error {
+	req := NewGrpcRequest(REQ_STATEMENT, "", bgp.RouteFamily(0), arg)
+	s.bgpServerCh <- req
+	return handleMultipleResponses(req, func(res *GrpcResponse) error {
+		return stream.Send(res.Data.(*api.Statement))
+	})
 }
 
 type GrpcRequest struct {

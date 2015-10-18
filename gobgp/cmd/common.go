@@ -66,6 +66,7 @@ const (
 	CMD_VRF            = "vrf"
 	CMD_ACCEPTED       = "accepted"
 	CMD_REJECTED       = "rejected"
+	CMD_STATEMENT      = "statement"
 )
 
 var subOpts struct {
