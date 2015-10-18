@@ -16,6 +16,7 @@ It has these top-level messages:
 	MrtArguments
 	ModVrfArguments
 	ModDefinedSetArguments
+	ModStatementArguments
 	Path
 	Destination
 	PeerConf
@@ -298,6 +299,22 @@ func (*ModDefinedSetArguments) ProtoMessage()    {}
 func (m *ModDefinedSetArguments) GetSet() *DefinedSet {
 	if m != nil {
 		return m.Set
+	}
+	return nil
+}
+
+type ModStatementArguments struct {
+	Operation Operation  `protobuf:"varint,1,opt,name=operation,enum=gobgpapi.Operation" json:"operation,omitempty"`
+	Statement *Statement `protobuf:"bytes,2,opt,name=statement" json:"statement,omitempty"`
+}
+
+func (m *ModStatementArguments) Reset()         { *m = ModStatementArguments{} }
+func (m *ModStatementArguments) String() string { return proto.CompactTextString(m) }
+func (*ModStatementArguments) ProtoMessage()    {}
+
+func (m *ModStatementArguments) GetStatement() *Statement {
+	if m != nil {
+		return m.Statement
 	}
 	return nil
 }
@@ -751,6 +768,7 @@ type GobgpApiClient interface {
 	ModDefinedSet(ctx context.Context, in *ModDefinedSetArguments, opts ...grpc.CallOption) (*Error, error)
 	GetStatement(ctx context.Context, in *Statement, opts ...grpc.CallOption) (*Statement, error)
 	GetStatements(ctx context.Context, in *Statement, opts ...grpc.CallOption) (GobgpApi_GetStatementsClient, error)
+	ModStatement(ctx context.Context, in *ModStatementArguments, opts ...grpc.CallOption) (*Error, error)
 }
 
 type gobgpApiClient struct {
@@ -1335,6 +1353,15 @@ func (x *gobgpApiGetStatementsClient) Recv() (*Statement, error) {
 	return m, nil
 }
 
+func (c *gobgpApiClient) ModStatement(ctx context.Context, in *ModStatementArguments, opts ...grpc.CallOption) (*Error, error) {
+	out := new(Error)
+	err := grpc.Invoke(ctx, "/gobgpapi.GobgpApi/ModStatement", in, out, c.cc, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 // Server API for GobgpApi service
 
 type GobgpApiServer interface {
@@ -1366,6 +1393,7 @@ type GobgpApiServer interface {
 	ModDefinedSet(context.Context, *ModDefinedSetArguments) (*Error, error)
 	GetStatement(context.Context, *Statement) (*Statement, error)
 	GetStatements(*Statement, GobgpApi_GetStatementsServer) error
+	ModStatement(context.Context, *ModStatementArguments) (*Error, error)
 }
 
 func RegisterGobgpApiServer(s *grpc.Server, srv GobgpApiServer) {
@@ -1849,6 +1877,18 @@ func (x *gobgpApiGetStatementsServer) Send(m *Statement) error {
 	return x.ServerStream.SendMsg(m)
 }
 
+func _GobgpApi_ModStatement_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error) (interface{}, error) {
+	in := new(ModStatementArguments)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	out, err := srv.(GobgpApiServer).ModStatement(ctx, in)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 var _GobgpApi_serviceDesc = grpc.ServiceDesc{
 	ServiceName: "gobgpapi.GobgpApi",
 	HandlerType: (*GobgpApiServer)(nil),
@@ -1908,6 +1948,10 @@ var _GobgpApi_serviceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "GetStatement",
 			Handler:    _GobgpApi_GetStatement_Handler,
+		},
+		{
+			MethodName: "ModStatement",
+			Handler:    _GobgpApi_ModStatement_Handler,
 		},
 	},
 	Streams: []grpc.StreamDesc{

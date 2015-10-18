@@ -96,6 +96,28 @@ var CommunityOptionValueMap = map[string]config.BgpSetCommunityOptionType{
 	CommunityOptionNameMap[config.BGP_SET_COMMUNITY_OPTION_TYPE_REPLACE]: config.BGP_SET_COMMUNITY_OPTION_TYPE_REPLACE,
 }
 
+type ConditionType int
+
+const (
+	CONDITION_PREFIX ConditionType = iota
+	CONDITION_NEIGHBOR
+	CONDITION_AS_PATH
+	CONDITION_COMMUNITY
+	CONDITION_EXT_COMMUNITY
+	CONDITION_AS_PATH_LENGTH
+	CONDITION_RPKI
+)
+
+type ActionType int
+
+const (
+	ACTION_ROUTING ActionType = iota
+	ACTION_COMMUNITY
+	ACTION_EXT_COMMUNITY
+	ACTION_MED
+	ACTION_AS_PATH_PREPEND
+)
+
 func NewMatchOption(c interface{}) (MatchOption, error) {
 	switch c.(type) {
 	case config.MatchSetOptionsType:
@@ -779,6 +801,7 @@ func NewDefinedSetFromApiStruct(a *api.DefinedSet) (DefinedSet, error) {
 }
 
 type Condition interface {
+	Type() ConditionType
 	Evaluate(*Path) bool
 	Set() DefinedSet
 }
@@ -786,6 +809,10 @@ type Condition interface {
 type PrefixCondition struct {
 	set    *PrefixSet
 	option MatchOption
+}
+
+func (c *PrefixCondition) Type() ConditionType {
+	return CONDITION_PREFIX
 }
 
 func (c *PrefixCondition) Set() DefinedSet {
@@ -867,6 +894,10 @@ func NewPrefixCondition(c config.MatchPrefixSet, m map[string]DefinedSet) (*Pref
 type NeighborCondition struct {
 	set    *NeighborSet
 	option MatchOption
+}
+
+func (c *NeighborCondition) Type() ConditionType {
+	return CONDITION_NEIGHBOR
 }
 
 func (c *NeighborCondition) Set() DefinedSet {
@@ -954,6 +985,10 @@ type AsPathCondition struct {
 	option MatchOption
 }
 
+func (c *AsPathCondition) Type() ConditionType {
+	return CONDITION_AS_PATH
+}
+
 func (c *AsPathCondition) Set() DefinedSet {
 	return c.set
 }
@@ -1029,6 +1064,10 @@ func NewAsPathCondition(c config.MatchAsPathSet, m map[string]DefinedSet) (*AsPa
 type CommunityCondition struct {
 	set    *CommunitySet
 	option MatchOption
+}
+
+func (c *CommunityCondition) Type() ConditionType {
+	return CONDITION_COMMUNITY
 }
 
 func (c *CommunityCondition) Set() DefinedSet {
@@ -1109,6 +1148,10 @@ func NewCommunityCondition(c config.MatchCommunitySet, m map[string]DefinedSet) 
 type ExtCommunityCondition struct {
 	set    *ExtCommunitySet
 	option MatchOption
+}
+
+func (c *ExtCommunityCondition) Type() ConditionType {
+	return CONDITION_EXT_COMMUNITY
 }
 
 func (c *ExtCommunityCondition) Set() DefinedSet {
@@ -1197,6 +1240,10 @@ type AsPathLengthCondition struct {
 	operator AttributeComparison
 }
 
+func (c *AsPathLengthCondition) Type() ConditionType {
+	return CONDITION_AS_PATH_LENGTH
+}
+
 // compare AS_PATH length in the message's AS_PATH attribute with
 // the one in condition.
 func (c *AsPathLengthCondition) Evaluate(path *Path) bool {
@@ -1265,6 +1312,10 @@ type RpkiValidationCondition struct {
 	result config.RpkiValidationResultType
 }
 
+func (c *RpkiValidationCondition) Type() ConditionType {
+	return CONDITION_RPKI
+}
+
 func (c *RpkiValidationCondition) Evaluate(path *Path) bool {
 	return c.result == path.Validation
 }
@@ -1288,11 +1339,16 @@ func NewRpkiValidationCondition(c config.RpkiValidationResultType) (*RpkiValidat
 }
 
 type Action interface {
+	Type() ActionType
 	Apply(*Path) *Path
 }
 
 type RoutingAction struct {
 	AcceptRoute bool
+}
+
+func (a *RoutingAction) Type() ActionType {
+	return ACTION_ROUTING
 }
 
 func (a *RoutingAction) Apply(path *Path) *Path {
@@ -1382,6 +1438,10 @@ func RegexpRemoveExtCommunities(path *Path, exps []*regexp.Regexp, subtypes []bg
 		}
 	}
 	path.SetExtCommunities(newComms, true)
+}
+
+func (a *CommunityAction) Type() ActionType {
+	return ACTION_COMMUNITY
 }
 
 func (a *CommunityAction) Apply(path *Path) *Path {
@@ -1490,6 +1550,10 @@ type ExtCommunityAction struct {
 	list        []bgp.ExtendedCommunityInterface
 	removeList  []*regexp.Regexp
 	subtypeList []bgp.ExtendedCommunityAttrSubType
+}
+
+func (a *ExtCommunityAction) Type() ActionType {
+	return ACTION_EXT_COMMUNITY
 }
 
 func (a *ExtCommunityAction) Apply(path *Path) *Path {
@@ -1611,6 +1675,10 @@ type MedAction struct {
 	action MedActionType
 }
 
+func (a *MedAction) Type() ActionType {
+	return ACTION_MED
+}
+
 func (a *MedAction) Apply(path *Path) *Path {
 	var err error
 	switch a.action {
@@ -1676,6 +1744,10 @@ type AsPathPrependAction struct {
 	asn         uint32
 	useLeftMost bool
 	repeat      uint8
+}
+
+func (a *AsPathPrependAction) Type() ActionType {
+	return ACTION_AS_PATH_PREPEND
 }
 
 func (a *AsPathPrependAction) Apply(path *Path) *Path {
@@ -1779,6 +1851,14 @@ func (s *Statement) Apply(path *Path) (RouteType, *Path) {
 	}).Debug("statement evaluate : ", result)
 	if result {
 		//Routing action
+		if s.RouteAction == nil {
+			log.WithFields(log.Fields{
+				"Topic":      "Policy",
+				"Path":       path,
+				"PolicyName": s.Name,
+			}).Warn("route action is nil")
+			return ROUTE_TYPE_REJECT, path
+		}
 		p := s.RouteAction.Apply(path)
 		if p == nil {
 			return ROUTE_TYPE_REJECT, path
@@ -1837,7 +1917,120 @@ func (s *Statement) ToApiStruct() *api.Statement {
 	}
 }
 
-func NewStatementFromApiStruct(a api.Statement, dmap DefinedSetMap) (*Statement, error) {
+type opType int
+
+const (
+	ADD opType = iota
+	REMOVE
+	REPLACE
+)
+
+func (lhs *Statement) mod(op opType, rhs *Statement) error {
+	cs := make([]Condition, len(lhs.Conditions))
+	copy(cs, lhs.Conditions)
+	ra := lhs.RouteAction
+	as := make([]Action, len(lhs.ModActions))
+	copy(as, lhs.ModActions)
+	for _, x := range rhs.Conditions {
+		var c Condition
+		i := 0
+		for idx, y := range lhs.Conditions {
+			if x.Type() == y.Type() {
+				c = y
+				i = idx
+				break
+			}
+		}
+		switch op {
+		case ADD:
+			if c != nil {
+				return fmt.Errorf("condition %d is already set", c.Type())
+			}
+			if cs == nil {
+				cs = make([]Condition, len(rhs.Conditions))
+			}
+			cs = append(cs, x)
+		case REMOVE:
+			if c == nil {
+				return fmt.Errorf("condition %d is not set", c.Type())
+			}
+			cs = append(cs[:i], cs[i+1:]...)
+		case REPLACE:
+			if c == nil {
+				return fmt.Errorf("condition %d is not set", c.Type())
+			}
+			cs[i] = x
+		}
+	}
+	if rhs.RouteAction != nil {
+		switch op {
+		case ADD:
+			if lhs.RouteAction != nil {
+				return fmt.Errorf("route action is already set")
+			}
+			ra = rhs.RouteAction
+		case REMOVE:
+			if lhs.RouteAction == nil {
+				return fmt.Errorf("route action is not set")
+			}
+			ra = nil
+		case REPLACE:
+			if lhs.RouteAction == nil {
+				return fmt.Errorf("route action is not set")
+			}
+			ra = rhs.RouteAction
+		}
+	}
+	for _, x := range rhs.ModActions {
+		var a Action
+		i := 0
+		for idx, y := range lhs.ModActions {
+			if x.Type() == y.Type() {
+				a = y
+				i = idx
+				break
+			}
+		}
+		switch op {
+		case ADD:
+			if a != nil {
+				return fmt.Errorf("action %d is already set", a.Type())
+			}
+			if as == nil {
+				as = make([]Action, len(rhs.ModActions))
+			}
+			as = append(as, a)
+		case REMOVE:
+			if a == nil {
+				return fmt.Errorf("action %d is not set", a.Type())
+			}
+			as = append(as[:i], as[i+1:]...)
+		case REPLACE:
+			if a == nil {
+				return fmt.Errorf("action %d is not set", a.Type())
+			}
+			as[i] = x
+		}
+	}
+	lhs.Conditions = cs
+	lhs.RouteAction = ra
+	lhs.ModActions = as
+	return nil
+}
+
+func (lhs *Statement) Add(rhs *Statement) error {
+	return lhs.mod(ADD, rhs)
+}
+
+func (lhs *Statement) Remove(rhs *Statement) error {
+	return lhs.mod(REMOVE, rhs)
+}
+
+func (lhs *Statement) Replace(rhs *Statement) error {
+	return lhs.mod(REPLACE, rhs)
+}
+
+func NewStatementFromApiStruct(a *api.Statement, dmap DefinedSetMap) (*Statement, error) {
 	if a.Name == "" {
 		return nil, fmt.Errorf("empty statement name")
 	}
@@ -2064,6 +2257,17 @@ func (r *RoutingPolicy) InUse(d DefinedSet) bool {
 				if c.Set().Name() == name {
 					return true
 				}
+			}
+		}
+	}
+	return false
+}
+
+func (r *RoutingPolicy) StatementInUse(x *Statement) bool {
+	for _, p := range r.PolicyMap {
+		for _, y := range p.Statements {
+			if x.Name == y.Name {
+				return true
 			}
 		}
 	}

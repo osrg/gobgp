@@ -1650,6 +1650,12 @@ func (server *BgpServer) handleGrpc(grpcReq *GrpcRequest) []*SenderMsg {
 			}
 		}
 		close(grpcReq.ResponseCh)
+	case REQ_MOD_STATEMENT:
+		err := server.handleGrpcModStatement(grpcReq)
+		grpcReq.ResponseCh <- &GrpcResponse{
+			ResponseErr: err,
+		}
+		close(grpcReq.ResponseCh)
 	case REQ_POLICY_ROUTEPOLICY, REQ_POLICY_ROUTEPOLICIES:
 		info := server.policy.PolicyMap
 		typ := grpcReq.RequestType
@@ -1781,6 +1787,36 @@ func (server *BgpServer) handleGrpcGetStatement(grpcReq *GrpcRequest) error {
 		return fmt.Errorf("not found %s", name)
 	}
 	return nil
+}
+
+func (server *BgpServer) handleGrpcModStatement(grpcReq *GrpcRequest) error {
+	arg := grpcReq.Data.(*api.ModStatementArguments)
+	s, err := table.NewStatementFromApiStruct(arg.Statement, server.policy.DefinedSetMap)
+	if err != nil {
+		return err
+	}
+	m := server.policy.StatementMap
+	name := s.Name
+	d, ok := m[name]
+	switch arg.Operation {
+	case api.Operation_ADD:
+		if ok {
+			err = d.Add(s)
+		} else {
+			m[name] = s
+		}
+	case api.Operation_DEL:
+		err = d.Remove(s)
+	case api.Operation_DEL_ALL:
+		if server.policy.StatementInUse(d) {
+			return fmt.Errorf("can't delete. statement %s is in use", name)
+		}
+		delete(m, name)
+	case api.Operation_REPLACE:
+		err = d.Replace(s)
+	}
+	return err
+
 }
 
 func (server *BgpServer) handleMrt(grpcReq *GrpcRequest) {

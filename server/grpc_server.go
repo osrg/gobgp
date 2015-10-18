@@ -62,6 +62,7 @@ const (
 	REQ_DEFINED_SET
 	REQ_MOD_DEFINED_SET
 	REQ_STATEMENT
+	REQ_MOD_STATEMENT
 )
 
 const GRPC_PORT = 8080
@@ -479,6 +480,10 @@ func (s *Server) GetStatements(arg *api.Statement, stream api.GobgpApi_GetStatem
 	return handleMultipleResponses(req, func(res *GrpcResponse) error {
 		return stream.Send(res.Data.(*api.Statement))
 	})
+}
+
+func (s *Server) ModStatement(ctx context.Context, arg *api.ModStatementArguments) (*api.Error, error) {
+	return s.mod(REQ_MOD_STATEMENT, arg)
 }
 
 type GrpcRequest struct {
