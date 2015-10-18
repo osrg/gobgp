@@ -33,7 +33,6 @@ service GobgpApi {
   rpc ModPath(stream ModPathArguments) returns (Error) {}
   rpc GetNeighborPolicy(PolicyArguments) returns (ApplyPolicy) {}
   rpc ModNeighborPolicy(stream PolicyArguments) returns (stream Error) {}
-  rpc ModPolicyRoutePolicy(stream PolicyArguments) returns (stream Error) {}
   rpc MonitorBestChanged(Arguments) returns (stream Destination) {}
   rpc MonitorPeerState(Arguments) returns (stream Peer) {}
   rpc GetMrt(MrtArguments) returns (stream MrtMessage) {}
@@ -49,6 +48,7 @@ service GobgpApi {
   rpc ModStatement(ModStatementArguments) returns (Error) {}
   rpc GetPolicy(Policy) returns (Policy) {}
   rpc GetPolicies(Policy) returns (stream Policy) {}
+  rpc ModPolicy(ModPolicyArguments) returns (Error) {}
 }
 
 message Error {
@@ -101,6 +101,19 @@ message ModDefinedSetArguments {
 message ModStatementArguments {
     Operation operation = 1;
     Statement statement = 2;
+}
+
+message ModPolicyArguments {
+    Operation operation = 1;
+    Policy policy = 2;
+    // if this flag is set, gobgpd won't define new statements
+    // but refer existing statements using statement's names.
+    // this flag only works with Operation_ADD
+    bool refer_existing_statements = 3;
+    // if this flag is set, gobgpd won't delete any statements
+    // even if the policy containing some statements are deleted.
+    // this flag means nothing if it is used with Operation_ADD
+    bool preserve_statements = 4;
 }
 
 enum Resource {

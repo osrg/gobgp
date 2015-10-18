@@ -1663,28 +1663,10 @@ func (server *BgpServer) handleGrpc(grpcReq *GrpcRequest) []*SenderMsg {
 			}
 		}
 		close(grpcReq.ResponseCh)
-	case REQ_POLICY_ROUTEPOLICY, REQ_POLICY_ROUTEPOLICIES:
-		info := server.policy.PolicyMap
-		typ := grpcReq.RequestType
-		arg := grpcReq.Data.(*api.PolicyArguments)
-		result := &GrpcResponse{}
-		if len(info) > 0 {
-			for _, i := range info {
-				if typ == REQ_POLICY_ROUTEPOLICY && i.Name() != arg.Name {
-					continue
-				}
-				d := i.ToApiStruct()
-				result = &GrpcResponse{
-					Data: d,
-				}
-				grpcReq.ResponseCh <- result
-				if typ == REQ_POLICY_ROUTEPOLICY {
-					break
-				}
-			}
-		} else {
-			result.ResponseErr = fmt.Errorf("Route Policy doesn't exist.")
-			grpcReq.ResponseCh <- result
+	case REQ_MOD_POLICY:
+		err := server.handleGrpcModPolicy(grpcReq)
+		grpcReq.ResponseCh <- &GrpcResponse{
+			ResponseErr: err,
 		}
 		close(grpcReq.ResponseCh)
 	case REQ_MONITOR_GLOBAL_BEST_CHANGED, REQ_MONITOR_NEIGHBOR_PEER_STATE:
@@ -1805,6 +1787,9 @@ func (server *BgpServer) handleGrpcModStatement(grpcReq *GrpcRequest) error {
 	m := server.policy.StatementMap
 	name := s.Name
 	d, ok := m[name]
+	if arg.Operation != api.Operation_ADD && !ok {
+		return fmt.Errorf("not found statement: %s", name)
+	}
 	switch arg.Operation {
 	case api.Operation_ADD:
 		if ok {
@@ -1846,6 +1831,87 @@ func (server *BgpServer) handleGrpcGetPolicy(grpcReq *GrpcRequest) error {
 		return fmt.Errorf("not found %s", name)
 	}
 	return nil
+}
+
+func (server *BgpServer) policyInUse(x *table.Policy) bool {
+	for _, peer := range server.neighborMap {
+		for _, dir := range []table.PolicyDirection{table.POLICY_DIRECTION_IN, table.POLICY_DIRECTION_EXPORT, table.POLICY_DIRECTION_EXPORT} {
+			for _, y := range peer.GetPolicy(dir) {
+				if x.Name() == y.Name() {
+					return true
+				}
+			}
+		}
+	}
+	for _, dir := range []table.PolicyDirection{table.POLICY_DIRECTION_EXPORT, table.POLICY_DIRECTION_EXPORT} {
+		for _, y := range server.globalRib.GetPolicy(dir) {
+			if x.Name() == y.Name() {
+				return true
+			}
+		}
+	}
+	return false
+}
+
+func (server *BgpServer) handleGrpcModPolicy(grpcReq *GrpcRequest) error {
+	arg := grpcReq.Data.(*api.ModPolicyArguments)
+	x, err := table.NewPolicyFromApiStruct(arg.Policy, server.policy.DefinedSetMap)
+	if err != nil {
+		return err
+	}
+	pMap := server.policy.PolicyMap
+	sMap := server.policy.StatementMap
+	name := x.Name()
+	y, ok := pMap[name]
+	if arg.Operation != api.Operation_ADD && !ok {
+		return fmt.Errorf("not found policy: %s", name)
+	}
+	switch arg.Operation {
+	case api.Operation_ADD, api.Operation_REPLACE:
+		if arg.ReferExistingStatements {
+			err = x.FillUp(sMap)
+			if err != nil {
+				return err
+			}
+		} else {
+			for _, s := range x.Statements {
+				if _, ok := sMap[s.Name]; ok {
+					return fmt.Errorf("statement %s already defined", s.Name)
+				}
+				sMap[s.Name] = s
+			}
+		}
+		if arg.Operation == api.Operation_REPLACE {
+			err = y.Replace(x)
+		} else if ok {
+			err = y.Add(x)
+		} else {
+			pMap[name] = x
+		}
+	case api.Operation_DEL:
+		err = y.Remove(x)
+	case api.Operation_DEL_ALL:
+		if server.policyInUse(y) {
+			return fmt.Errorf("can't delete. policy %s is in use", name)
+		}
+		log.WithFields(log.Fields{
+			"Topic": "Policy",
+			"Key":   name,
+		}).Debug("delete policy")
+		delete(pMap, name)
+	}
+	if err == nil && arg.Operation != api.Operation_ADD && !arg.PreserveStatements {
+		for _, s := range y.Statements {
+			if !server.policy.StatementInUse(s) {
+				log.WithFields(log.Fields{
+					"Topic": "Policy",
+					"Key":   s.Name,
+				}).Debug("delete unused statement")
+				delete(sMap, s.Name)
+			}
+		}
+	}
+	return err
 }
 
 func (server *BgpServer) handleMrt(grpcReq *GrpcRequest) {

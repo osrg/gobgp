@@ -2262,6 +2262,65 @@ func (p *Policy) ToApiStruct() *api.Policy {
 	}
 }
 
+func (p *Policy) FillUp(m map[string]*Statement) error {
+	stmts := make([]*Statement, 0, len(p.Statements))
+	for _, x := range p.Statements {
+		y, ok := m[x.Name]
+		if !ok {
+			return fmt.Errorf("not found statement %s", x.Name)
+		}
+		stmts = append(stmts, y)
+	}
+	p.Statements = stmts
+	return nil
+}
+
+func (lhs *Policy) Add(rhs *Policy) error {
+	lhs.Statements = append(lhs.Statements, rhs.Statements...)
+	return nil
+}
+
+func (lhs *Policy) Remove(rhs *Policy) error {
+	stmts := make([]*Statement, 0, len(lhs.Statements)-len(rhs.Statements))
+	for _, x := range lhs.Statements {
+		found := false
+		for _, y := range rhs.Statements {
+			if x.Name == y.Name {
+				found = true
+				break
+			}
+		}
+		if !found {
+			stmts = append(stmts, x)
+		}
+	}
+	lhs.Statements = stmts
+	return nil
+}
+
+func (lhs *Policy) Replace(rhs *Policy) error {
+	lhs.Statements = rhs.Statements
+	return nil
+}
+
+func NewPolicyFromApiStruct(a *api.Policy, dmap DefinedSetMap) (*Policy, error) {
+	if a.Name == "" {
+		return nil, fmt.Errorf("empty policy name")
+	}
+	stmts := make([]*Statement, 0, len(a.Statements))
+	for _, x := range a.Statements {
+		y, err := NewStatementFromApiStruct(x, dmap)
+		if err != nil {
+			return nil, err
+		}
+		stmts = append(stmts, y)
+	}
+	return &Policy{
+		name:       a.Name,
+		Statements: stmts,
+	}, nil
+}
+
 func NewPolicy(c config.PolicyDefinition, dmap DefinedSetMap) (*Policy, error) {
 	if c.Name == "" {
 		return nil, fmt.Errorf("empty policy name")
