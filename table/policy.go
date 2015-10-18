@@ -2329,7 +2329,10 @@ func NewPolicy(c config.PolicyDefinition, dmap DefinedSetMap) (*Policy, error) {
 	stmts := c.Statements.StatementList
 	if len(stmts) != 0 {
 		st = make([]*Statement, 0, len(stmts))
-		for _, stmt := range stmts {
+		for idx, stmt := range stmts {
+			if stmt.Name == "" {
+				stmt.Name = fmt.Sprintf("%s_stmt%d", c.Name, idx)
+			}
 			s, err := NewStatement(stmt, dmap)
 			if err != nil {
 				return nil, err
