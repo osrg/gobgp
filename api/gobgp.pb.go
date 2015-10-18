@@ -24,7 +24,6 @@ It has these top-level messages:
 	Peer
 	Prefix
 	DefinedSet
-	PrefixSet
 	MatchSet
 	AsPathLength
 	Conditions
@@ -452,15 +451,6 @@ func (m *DefinedSet) GetPrefixes() []*Prefix {
 	return nil
 }
 
-type PrefixSet struct {
-	Name   string `protobuf:"bytes,1,opt,name=name" json:"name,omitempty"`
-	Option int32  `protobuf:"varint,2,opt,name=option" json:"option,omitempty"`
-}
-
-func (m *PrefixSet) Reset()         { *m = PrefixSet{} }
-func (m *PrefixSet) String() string { return proto.CompactTextString(m) }
-func (*PrefixSet) ProtoMessage()    {}
-
 type MatchSet struct {
 	Name   string `protobuf:"bytes,1,opt,name=name" json:"name,omitempty"`
 	Option int32  `protobuf:"varint,2,opt,name=option" json:"option,omitempty"`
@@ -480,7 +470,7 @@ func (m *AsPathLength) String() string { return proto.CompactTextString(m) }
 func (*AsPathLength) ProtoMessage()    {}
 
 type Conditions struct {
-	PrefixSet       *PrefixSet    `protobuf:"bytes,1,opt,name=prefix_set" json:"prefix_set,omitempty"`
+	PrefixSet       *MatchSet     `protobuf:"bytes,1,opt,name=prefix_set" json:"prefix_set,omitempty"`
 	NeighborSet     *MatchSet     `protobuf:"bytes,2,opt,name=neighbor_set" json:"neighbor_set,omitempty"`
 	AsPathLength    *AsPathLength `protobuf:"bytes,3,opt,name=as_path_length" json:"as_path_length,omitempty"`
 	AsPathSet       *MatchSet     `protobuf:"bytes,4,opt,name=as_path_set" json:"as_path_set,omitempty"`
@@ -493,7 +483,7 @@ func (m *Conditions) Reset()         { *m = Conditions{} }
 func (m *Conditions) String() string { return proto.CompactTextString(m) }
 func (*Conditions) ProtoMessage()    {}
 
-func (m *Conditions) GetPrefixSet() *PrefixSet {
+func (m *Conditions) GetPrefixSet() *MatchSet {
 	if m != nil {
 		return m.PrefixSet
 	}

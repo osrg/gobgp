@@ -854,14 +854,17 @@ func (c *PrefixCondition) Evaluate(path *Path) bool {
 	return result
 }
 
-func (c *PrefixCondition) ToApiStruct() *api.PrefixSet {
-	return &api.PrefixSet{
+func (c *PrefixCondition) ToApiStruct() *api.MatchSet {
+	return &api.MatchSet{
 		Name:   c.set.Name(),
 		Option: int32(c.option),
 	}
 }
 
-func NewPrefixConditionFromApiStruct(a *api.PrefixSet, m map[string]DefinedSet) (*PrefixCondition, error) {
+func NewPrefixConditionFromApiStruct(a *api.MatchSet, m map[string]DefinedSet) (*PrefixCondition, error) {
+	if a == nil {
+		return nil, nil
+	}
 	c := config.MatchPrefixSet{
 		PrefixSet:       a.Name,
 		MatchSetOptions: config.MatchSetOptionsRestrictedType(a.Option),
@@ -951,6 +954,9 @@ func (c *NeighborCondition) ToApiStruct() *api.MatchSet {
 }
 
 func NewNeighborConditionFromApiStruct(a *api.MatchSet, m map[string]DefinedSet) (*NeighborCondition, error) {
+	if a == nil {
+		return nil, nil
+	}
 	c := config.MatchNeighborSet{
 		NeighborSet:     a.Name,
 		MatchSetOptions: config.MatchSetOptionsRestrictedType(a.Option),
@@ -1032,6 +1038,9 @@ func (c *AsPathCondition) Evaluate(path *Path) bool {
 }
 
 func NewAsPathConditionFromApiStruct(a *api.MatchSet, m map[string]DefinedSet) (*AsPathCondition, error) {
+	if a == nil {
+		return nil, nil
+	}
 	c := config.MatchAsPathSet{
 		AsPathSet:       a.Name,
 		MatchSetOptions: config.MatchSetOptionsType(a.Option),
@@ -1116,6 +1125,9 @@ func (c *CommunityCondition) Evaluate(path *Path) bool {
 }
 
 func NewCommunityConditionFromApiStruct(a *api.MatchSet, m map[string]DefinedSet) (*CommunityCondition, error) {
+	if a == nil {
+		return nil, nil
+	}
 	c := config.MatchCommunitySet{
 		CommunitySet:    a.Name,
 		MatchSetOptions: config.MatchSetOptionsType(a.Option),
@@ -1206,6 +1218,9 @@ func (c *ExtCommunityCondition) Evaluate(path *Path) bool {
 }
 
 func NewExtCommunityConditionFromApiStruct(a *api.MatchSet, m map[string]DefinedSet) (*ExtCommunityCondition, error) {
+	if a == nil {
+		return nil, nil
+	}
 	c := config.MatchExtCommunitySet{
 		ExtCommunitySet: a.Name,
 		MatchSetOptions: config.MatchSetOptionsType(a.Option),
@@ -1281,6 +1296,9 @@ func (c *AsPathLengthCondition) ToApiStruct() *api.AsPathLength {
 }
 
 func NewAsPathLengthConditionFromApiStruct(a *api.AsPathLength) (*AsPathLengthCondition, error) {
+	if a == nil {
+		return nil, nil
+	}
 	return &AsPathLengthCondition{
 		length:   a.Length,
 		operator: AttributeComparison(a.Type),
@@ -1325,6 +1343,9 @@ func (c *RpkiValidationCondition) Set() DefinedSet {
 }
 
 func NewRpkiValidationConditionFromApiStruct(a int32) (*RpkiValidationCondition, error) {
+	if a == 0 {
+		return nil, nil
+	}
 	typ := config.RpkiValidationResultType(a)
 	return NewRpkiValidationCondition(typ)
 }
@@ -1478,6 +1499,9 @@ func (a *CommunityAction) ToApiStruct() *api.CommunityAction {
 }
 
 func NewCommunityActionFromApiStruct(a *api.CommunityAction) (*CommunityAction, error) {
+	if a == nil {
+		return nil, nil
+	}
 	var list []uint32
 	var removeList []*regexp.Regexp
 	op := config.BgpSetCommunityOptionType(a.Option)
@@ -1593,6 +1617,9 @@ func (a *ExtCommunityAction) ToApiStruct() *api.CommunityAction {
 }
 
 func NewExtCommunityActionFromApiStruct(a *api.CommunityAction) (*ExtCommunityAction, error) {
+	if a == nil {
+		return nil, nil
+	}
 	var list []bgp.ExtendedCommunityInterface
 	var removeList []*regexp.Regexp
 	subtypeList := make([]bgp.ExtendedCommunityAttrSubType, 0, len(a.Communities))
@@ -1713,6 +1740,9 @@ func (a *MedAction) ToApiStruct() *api.MedAction {
 }
 
 func NewMedActionFromApiStruct(a *api.MedAction) (*MedAction, error) {
+	if a == nil {
+		return nil, nil
+	}
 	return &MedAction{
 		action: MedActionType(a.Type),
 		value:  int(a.Value),
@@ -1793,6 +1823,9 @@ func (a *AsPathPrependAction) ToApiStruct() *api.AsPrependAction {
 }
 
 func NewAsPathPrependActionFromApiStruct(a *api.AsPrependAction) (*AsPathPrependAction, error) {
+	if a == nil {
+		return nil, nil
+	}
 	return &AsPathPrependAction{
 		asn:         a.Asn,
 		useLeftMost: a.UseLeftMost,
@@ -1897,7 +1930,9 @@ func (s *Statement) ToApiStruct() *api.Statement {
 		}
 	}
 	as := &api.Actions{}
-	as.RouteAction = s.RouteAction.(*RoutingAction).ToApiStruct()
+	if s.RouteAction != nil {
+		as.RouteAction = s.RouteAction.(*RoutingAction).ToApiStruct()
+	}
 	for _, a := range s.ModActions {
 		switch a.(type) {
 		case *CommunityAction:
@@ -1944,38 +1979,41 @@ func (lhs *Statement) mod(op opType, rhs *Statement) error {
 		switch op {
 		case ADD:
 			if c != nil {
-				return fmt.Errorf("condition %d is already set", c.Type())
+				return fmt.Errorf("condition %d is already set", x.Type())
 			}
 			if cs == nil {
-				cs = make([]Condition, len(rhs.Conditions))
+				cs = make([]Condition, 0, len(rhs.Conditions))
 			}
 			cs = append(cs, x)
 		case REMOVE:
 			if c == nil {
-				return fmt.Errorf("condition %d is not set", c.Type())
+				return fmt.Errorf("condition %d is not set", x.Type())
 			}
 			cs = append(cs[:i], cs[i+1:]...)
+			if len(cs) == 0 {
+				cs = nil
+			}
 		case REPLACE:
 			if c == nil {
-				return fmt.Errorf("condition %d is not set", c.Type())
+				return fmt.Errorf("condition %d is not set", x.Type())
 			}
 			cs[i] = x
 		}
 	}
-	if rhs.RouteAction != nil {
+	if rhs.RouteAction != nil && !reflect.ValueOf(rhs.RouteAction).IsNil() {
 		switch op {
 		case ADD:
-			if lhs.RouteAction != nil {
+			if lhs.RouteAction != nil && !reflect.ValueOf(lhs.RouteAction).IsNil() {
 				return fmt.Errorf("route action is already set")
 			}
 			ra = rhs.RouteAction
 		case REMOVE:
-			if lhs.RouteAction == nil {
+			if lhs.RouteAction == nil || reflect.ValueOf(lhs.RouteAction).IsNil() {
 				return fmt.Errorf("route action is not set")
 			}
 			ra = nil
 		case REPLACE:
-			if lhs.RouteAction == nil {
+			if lhs.RouteAction == nil || reflect.ValueOf(lhs.RouteAction).IsNil() {
 				return fmt.Errorf("route action is not set")
 			}
 			ra = rhs.RouteAction
@@ -1994,20 +2032,23 @@ func (lhs *Statement) mod(op opType, rhs *Statement) error {
 		switch op {
 		case ADD:
 			if a != nil {
-				return fmt.Errorf("action %d is already set", a.Type())
+				return fmt.Errorf("action %d is already set", x.Type())
 			}
 			if as == nil {
-				as = make([]Action, len(rhs.ModActions))
+				as = make([]Action, 0, len(rhs.ModActions))
 			}
-			as = append(as, a)
+			as = append(as, x)
 		case REMOVE:
 			if a == nil {
-				return fmt.Errorf("action %d is not set", a.Type())
+				return fmt.Errorf("action %d is not set", x.Type())
 			}
 			as = append(as[:i], as[i+1:]...)
+			if len(as) == 0 {
+				as = nil
+			}
 		case REPLACE:
 			if a == nil {
-				return fmt.Errorf("action %d is not set", a.Type())
+				return fmt.Errorf("action %d is not set", x.Type())
 			}
 			as[i] = x
 		}

@@ -789,6 +789,7 @@ func NewNeighborCmd() *cobra.Command {
 				Use: w,
 				Run: func(subcmd *cobra.Command, args []string) {
 					remoteIP := net.ParseIP(args[len(args)-1])
+					args = args[:len(args)-1]
 					if remoteIP == nil {
 						fmt.Println("invalid ip address:", args[len(args)-1])
 						os.Exit(1)
