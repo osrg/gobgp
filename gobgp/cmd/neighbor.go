@@ -678,12 +678,15 @@ func modNeighborPolicy(remoteIP net.IP, policyType, cmdType string, eArg []strin
 		if len(eArg) < 3 {
 			return fmt.Errorf("Usage: gobgp neighbor <ipaddr> policy %s %s [<policy name>...] [default {%s|%s}]", policyType, cmdType, "accept", "reject")
 		}
-		defaultPolicy, err := parseRouteAction(eArg[1])
-		if err != nil {
-			return err
+		switch eArg[1] {
+		case "accept":
+			p.Default = api.RouteAction_ACCEPT
+		case "reject":
+			p.Default = api.RouteAction_REJECT
+		default:
+			return fmt.Errorf("Usage: gobgp neighbor <ipaddr> policy %s %s [<policy name>...] [default {%s|%s}]", policyType, cmdType, "accept", "reject")
 		}
 		p.Policies = []string{eArg[0]}
-		p.Default = defaultPolicy
 		operation = api.Operation_ADD
 	case CMD_DEL:
 		operation = api.Operation_DEL
