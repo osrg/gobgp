@@ -48,6 +48,7 @@ service GobgpApi {
   rpc ModDefinedSet(ModDefinedSetArguments) returns (Error) {}
   rpc GetStatement(Statement) returns (Statement) {}
   rpc GetStatements(Statement) returns (stream Statement) {}
+  rpc ModStatement(ModStatementArguments) returns (Error) {}
 }
 
 message Error {
@@ -95,6 +96,11 @@ message ModVrfArguments {
 message ModDefinedSetArguments {
     Operation operation = 1;
     DefinedSet set = 2;
+}
+
+message ModStatementArguments {
+    Operation operation = 1;
+    Statement statement = 2;
 }
 
 enum Resource {
