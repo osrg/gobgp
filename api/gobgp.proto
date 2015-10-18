@@ -33,8 +33,6 @@ service GobgpApi {
   rpc ModPath(stream ModPathArguments) returns (Error) {}
   rpc GetNeighborPolicy(PolicyArguments) returns (ApplyPolicy) {}
   rpc ModNeighborPolicy(stream PolicyArguments) returns (stream Error) {}
-  rpc GetPolicyRoutePolicies(PolicyArguments) returns (stream PolicyDefinition) {}
-  rpc GetPolicyRoutePolicy(PolicyArguments) returns (PolicyDefinition) {}
   rpc ModPolicyRoutePolicy(stream PolicyArguments) returns (stream Error) {}
   rpc MonitorBestChanged(Arguments) returns (stream Destination) {}
   rpc MonitorPeerState(Arguments) returns (stream Peer) {}
@@ -49,6 +47,8 @@ service GobgpApi {
   rpc GetStatement(Statement) returns (Statement) {}
   rpc GetStatements(Statement) returns (stream Statement) {}
   rpc ModStatement(ModStatementArguments) returns (Error) {}
+  rpc GetPolicy(Policy) returns (Policy) {}
+  rpc GetPolicies(Policy) returns (stream Policy) {}
 }
 
 message Error {
@@ -77,7 +77,7 @@ message PolicyArguments {
     Operation operation = 2;
     string neighbor_address = 3;
     string name = 4;
-    PolicyDefinition policy_definition = 6;
+    Policy policy_definition = 6;
     ApplyPolicy apply_policy = 7;
 }
 
@@ -257,7 +257,7 @@ message Statement {
     Actions actions = 3;
 }
 
-message PolicyDefinition {
+message Policy {
     string name = 1;
     repeated Statement statements = 2;
 }

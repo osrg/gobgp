@@ -468,31 +468,39 @@ func printStatement(indent int, s *api.Statement) {
 	fmt.Printf("%s%s\n", sIndent(indent+4), s.Actions.RouteAction)
 }
 
-func showPolicyStatement(indent int, pd *api.PolicyDefinition) {
+func printPolicy(indent int, pd *api.Policy) {
 	for _, s := range pd.Statements {
 		printStatement(indent, s)
 	}
 }
 
-func showPolicyRoutePolicies() error {
-	arg := &api.PolicyArguments{
-		Resource: api.Resource_POLICY_ROUTEPOLICY,
-	}
-	stream, e := client.GetPolicyRoutePolicies(context.Background(), arg)
-	if e != nil {
-		return e
-	}
-	m := policyDefinitions{}
-	for {
-		n, e := stream.Recv()
-		if e == io.EOF {
-			break
-		} else if e != nil {
+func showPolicy(args []string) error {
+	m := policies{}
+	if len(args) > 0 {
+		arg := &api.Policy{
+			Name: args[0],
+		}
+		p, e := client.GetPolicy(context.Background(), arg)
+		if e != nil {
 			return e
 		}
-		m = append(m, n)
+		m = append(m, p)
+	} else {
+		arg := &api.Policy{}
+		stream, e := client.GetPolicies(context.Background(), arg)
+		if e != nil {
+			return e
+		}
+		for {
+			p, e := stream.Recv()
+			if e == io.EOF {
+				break
+			} else if e != nil {
+				return e
+			}
+			m = append(m, p)
+		}
 	}
-
 	if globalOpts.Json {
 		j, _ := json.Marshal(m)
 		fmt.Println(string(j))
@@ -505,39 +513,10 @@ func showPolicyRoutePolicies() error {
 		return nil
 	}
 	sort.Sort(m)
-
 	for _, pd := range m {
-		fmt.Printf("PolicyName %s:\n", pd.Name)
-		showPolicyStatement(4, pd)
+		fmt.Printf("Name %s:\n", pd.Name)
+		printPolicy(4, pd)
 	}
-	return nil
-}
-
-func showPolicyRoutePolicy(args []string) error {
-	arg := &api.PolicyArguments{
-		Resource: api.Resource_POLICY_ROUTEPOLICY,
-		Name:     args[0],
-	}
-	pd, e := client.GetPolicyRoutePolicy(context.Background(), arg)
-	if e != nil {
-		return e
-	}
-
-	if globalOpts.Json {
-		j, _ := json.Marshal(pd)
-		fmt.Println(string(j))
-		return nil
-	}
-
-	if globalOpts.Quiet {
-		for _, st := range pd.Statements {
-			fmt.Println(st.Name)
-		}
-		return nil
-	}
-
-	fmt.Printf("PolicyName %s:\n", pd.Name)
-	showPolicyStatement(2, pd)
 	return nil
 }
 
@@ -777,7 +756,7 @@ func parseActions() (*api.Actions, error) {
 }
 
 func modPolicy(resource api.Resource, op api.Operation, data interface{}) error {
-	pd := &api.PolicyDefinition{}
+	pd := &api.Policy{}
 	if resource != api.Resource_POLICY_ROUTEPOLICY {
 		co := &api.Conditions{}
 		switch resource {
@@ -794,7 +773,7 @@ func modPolicy(resource api.Resource, op api.Operation, data interface{}) error 
 		}
 		pd.Statements = []*api.Statement{{Conditions: co}}
 	} else {
-		pd = data.(*api.PolicyDefinition)
+		pd = data.(*api.Policy)
 	}
 	arg := &api.PolicyArguments{
 		Resource:         resource,
@@ -823,7 +802,7 @@ func modPolicy(resource api.Resource, op api.Operation, data interface{}) error 
 
 func modPolicyRoutePolicy(modtype string, eArgs []string) error {
 	var operation api.Operation
-	pd := &api.PolicyDefinition{}
+	pd := &api.Policy{}
 	if len(eArgs) > 0 {
 		pd.Name = eArgs[0]
 	}
@@ -1213,14 +1192,10 @@ func NewPolicyCmd() *cobra.Command {
 	policyCmd := &cobra.Command{
 		Use: CMD_POLICY,
 		Run: func(cmd *cobra.Command, args []string) {
-			var err error
-			if len(args) == 0 {
-				err = showPolicyRoutePolicies()
-			} else {
-				err = showPolicyRoutePolicy(args)
-			}
+			err := showPolicy(args)
 			if err != nil {
 				fmt.Println(err)
+				os.Exit(1)
 			}
 		},
 	}
@@ -1231,6 +1206,7 @@ func NewPolicyCmd() *cobra.Command {
 			Run: func(cmd *cobra.Command, args []string) {
 				if err := showDefinedSet(cmd.Use, args); err != nil {
 					fmt.Println(err)
+					os.Exit(1)
 				}
 			},
 		}
@@ -1240,6 +1216,7 @@ func NewPolicyCmd() *cobra.Command {
 				Run: func(c *cobra.Command, args []string) {
 					if err := modDefinedSet(cmd.Use, c.Use, args); err != nil {
 						fmt.Println(err)
+						os.Exit(1)
 					}
 				},
 			}

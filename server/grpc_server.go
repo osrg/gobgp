@@ -63,6 +63,7 @@ const (
 	REQ_MOD_DEFINED_SET
 	REQ_STATEMENT
 	REQ_MOD_STATEMENT
+	REQ_POLICY
 )
 
 const GRPC_PORT = 8080
@@ -326,42 +327,6 @@ func (s *Server) modPolicy(arg *api.PolicyArguments, stream interface{}) error {
 	return nil
 }
 
-func (s *Server) GetPolicyRoutePolicies(arg *api.PolicyArguments, stream api.GobgpApi_GetPolicyRoutePoliciesServer) error {
-	var rf bgp.RouteFamily
-	var reqType int
-	switch arg.Resource {
-	case api.Resource_POLICY_ROUTEPOLICY:
-		reqType = REQ_POLICY_ROUTEPOLICIES
-	default:
-		return fmt.Errorf("unsupported resource type: %v", arg.Resource)
-	}
-	req := NewGrpcRequest(reqType, "", rf, arg)
-	s.bgpServerCh <- req
-	return handleMultipleResponses(req, func(res *GrpcResponse) error {
-		return stream.Send(res.Data.(*api.PolicyDefinition))
-	})
-}
-
-func (s *Server) GetPolicyRoutePolicy(ctx context.Context, arg *api.PolicyArguments) (*api.PolicyDefinition, error) {
-	var rf bgp.RouteFamily
-	var reqType int
-	switch arg.Resource {
-	case api.Resource_POLICY_ROUTEPOLICY:
-		reqType = REQ_POLICY_ROUTEPOLICY
-	default:
-		return nil, fmt.Errorf("unsupported resource type: %v", arg.Resource)
-	}
-	req := NewGrpcRequest(reqType, "", rf, arg)
-	s.bgpServerCh <- req
-
-	res := <-req.ResponseCh
-	if err := res.Err(); err != nil {
-		log.Debug(err.Error())
-		return nil, err
-	}
-	return res.Data.(*api.PolicyDefinition), nil
-}
-
 func (s *Server) ModPolicyRoutePolicy(stream api.GobgpApi_ModPolicyRoutePolicyServer) error {
 	for {
 		arg, err := stream.Recv()
@@ -484,6 +449,22 @@ func (s *Server) GetStatements(arg *api.Statement, stream api.GobgpApi_GetStatem
 
 func (s *Server) ModStatement(ctx context.Context, arg *api.ModStatementArguments) (*api.Error, error) {
 	return s.mod(REQ_MOD_STATEMENT, arg)
+}
+
+func (s *Server) GetPolicy(ctx context.Context, arg *api.Policy) (*api.Policy, error) {
+	d, err := s.get(REQ_POLICY, arg)
+	if err != nil {
+		return nil, err
+	}
+	return d.(*api.Policy), nil
+}
+
+func (s *Server) GetPolicies(arg *api.Policy, stream api.GobgpApi_GetPoliciesServer) error {
+	req := NewGrpcRequest(REQ_POLICY, "", bgp.RouteFamily(0), arg)
+	s.bgpServerCh <- req
+	return handleMultipleResponses(req, func(res *GrpcResponse) error {
+		return stream.Send(res.Data.(*api.Policy))
+	})
 }
 
 type GrpcRequest struct {

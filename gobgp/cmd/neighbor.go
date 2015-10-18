@@ -647,12 +647,12 @@ func showNeighborPolicy(remoteIP net.IP, policyType string) error {
 	return nil
 }
 
-func parsePolicy(pNames string) []*api.PolicyDefinition {
+func parsePolicy(pNames string) []*api.Policy {
 	pList := strings.Split(pNames, ",")
-	policyList := make([]*api.PolicyDefinition, 0, len(pList))
+	policyList := make([]*api.Policy, 0, len(pList))
 	for _, p := range pList {
 		if p != "" {
-			policy := &api.PolicyDefinition{
+			policy := &api.Policy{
 				Name: p,
 			}
 			policyList = append(policyList, policy)

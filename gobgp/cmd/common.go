@@ -325,17 +325,17 @@ func (n sets) Less(i, j int) bool {
 	return n[i].Name < n[j].Name
 }
 
-type policyDefinitions []*gobgpapi.PolicyDefinition
+type policies []*gobgpapi.Policy
 
-func (p policyDefinitions) Len() int {
+func (p policies) Len() int {
 	return len(p)
 }
 
-func (p policyDefinitions) Swap(i, j int) {
+func (p policies) Swap(i, j int) {
 	p[i], p[j] = p[j], p[i]
 }
 
-func (p policyDefinitions) Less(i, j int) bool {
+func (p policies) Less(i, j int) bool {
 	return p[i].Name < p[j].Name
 }
 
