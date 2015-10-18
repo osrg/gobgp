@@ -755,106 +755,6 @@ func parseActions() (*api.Actions, error) {
 	return actions, nil
 }
 
-func modPolicy(resource api.Resource, op api.Operation, data interface{}) error {
-	pd := &api.Policy{}
-	if resource != api.Resource_POLICY_ROUTEPOLICY {
-		co := &api.Conditions{}
-		switch resource {
-		case api.Resource_POLICY_PREFIX:
-			co.PrefixSet = data.(*api.MatchSet)
-		case api.Resource_POLICY_NEIGHBOR:
-			co.NeighborSet = data.(*api.MatchSet)
-		case api.Resource_POLICY_ASPATH:
-			co.AsPathSet = data.(*api.MatchSet)
-		case api.Resource_POLICY_COMMUNITY:
-			co.CommunitySet = data.(*api.MatchSet)
-		case api.Resource_POLICY_EXTCOMMUNITY:
-			co.ExtCommunitySet = data.(*api.MatchSet)
-		}
-		pd.Statements = []*api.Statement{{Conditions: co}}
-	} else {
-		pd = data.(*api.Policy)
-	}
-	arg := &api.PolicyArguments{
-		Resource:         resource,
-		Operation:        op,
-		PolicyDefinition: pd,
-	}
-	stream, err := client.ModPolicyRoutePolicy(context.Background())
-	if err != nil {
-		return err
-	}
-	err = stream.Send(arg)
-	if err != nil {
-		return err
-	}
-	stream.CloseSend()
-
-	res, e := stream.Recv()
-	if e != nil {
-		return e
-	}
-	if res.Code != api.Error_SUCCESS {
-		return fmt.Errorf("error: code: %d, msg: %s", res.Code, res.Msg)
-	}
-	return nil
-}
-
-func modPolicyRoutePolicy(modtype string, eArgs []string) error {
-	var operation api.Operation
-	pd := &api.Policy{}
-	if len(eArgs) > 0 {
-		pd.Name = eArgs[0]
-	}
-
-	switch modtype {
-	case CMD_ADD:
-		if len(eArgs) != 2 {
-			return fmt.Errorf("usage:  gobgp policy routepoilcy add <route policy name> <statement name>")
-		}
-		stmt := &api.Statement{
-			Name: eArgs[1],
-		}
-		conditions, err := parseConditions()
-		if err != nil {
-			return err
-		}
-		actions, err := parseActions()
-		if err != nil {
-			return err
-		}
-		stmt.Conditions = conditions
-		stmt.Actions = actions
-
-		pd.Statements = []*api.Statement{stmt}
-		operation = api.Operation_ADD
-
-	case CMD_DEL:
-		if len(eArgs) == 0 {
-			return fmt.Errorf("usage: policy neighbor del <route policy name> [<statement name>]")
-		} else if len(eArgs) == 1 {
-			operation = api.Operation_DEL
-		} else if len(eArgs) == 2 {
-			stmt := &api.Statement{
-				Name: eArgs[1],
-			}
-			pd.Statements = []*api.Statement{stmt}
-			operation = api.Operation_DEL
-		}
-	case CMD_ALL:
-		if len(eArgs) > 0 {
-			return fmt.Errorf("Argument can not be entered: %s", eArgs[0:])
-		}
-		operation = api.Operation_DEL_ALL
-	default:
-		return fmt.Errorf("invalid modType %s", modtype)
-	}
-	if e := modPolicy(api.Resource_POLICY_ROUTEPOLICY, operation, pd); e != nil {
-		return e
-	}
-	return nil
-}
-
 func showStatement(args []string) error {
 	m := []*api.Statement{}
 	if len(args) > 0 {
@@ -1188,6 +1088,42 @@ func modAction(name, op string, args []string) error {
 	return err
 }
 
+func modPolicy(modtype string, args []string) error {
+	if len(args) < 1 {
+		return fmt.Errorf("usage: gobgp policy %s <name> [<statement name>...]", modtype)
+	}
+	name := args[0]
+	args = args[1:]
+	var op api.Operation
+	switch modtype {
+	case CMD_ADD:
+		op = api.Operation_ADD
+	case CMD_DEL:
+		if len(args) < 1 {
+			op = api.Operation_DEL_ALL
+		} else {
+			op = api.Operation_DEL
+		}
+	case CMD_SET:
+		op = api.Operation_REPLACE
+	}
+	stmts := make([]*api.Statement, 0, len(args))
+	for _, n := range args {
+		stmts = append(stmts, &api.Statement{Name: n})
+	}
+	arg := &api.ModPolicyArguments{
+		Operation: op,
+		Policy: &api.Policy{
+			Name:       name,
+			Statements: stmts,
+		},
+		ReferExistingStatements: true,
+		PreserveStatements:      true,
+	}
+	_, err := client.ModPolicy(context.Background(), arg)
+	return err
+}
+
 func NewPolicyCmd() *cobra.Command {
 	policyCmd := &cobra.Command{
 		Use: CMD_POLICY,
@@ -1284,6 +1220,20 @@ func NewPolicyCmd() *cobra.Command {
 		stmtCmd.AddCommand(cmd)
 	}
 	policyCmd.AddCommand(stmtCmd)
+
+	for _, v := range []string{CMD_ADD, CMD_DEL, CMD_SET} {
+		cmd := &cobra.Command{
+			Use: v,
+			Run: func(c *cobra.Command, args []string) {
+				err := modPolicy(c.Use, args)
+				if err != nil {
+					fmt.Println(err)
+					os.Exit(1)
+				}
+			},
+		}
+		policyCmd.AddCommand(cmd)
+	}
 
 	return policyCmd
 }
