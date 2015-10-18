@@ -43,11 +43,6 @@ const (
 	REQ_NEIGHBOR_POLICY
 	REQ_MOD_NEIGHBOR_POLICY
 	REQ_GLOBAL_RIB
-	REQ_POLICY_ROUTEPOLICIES
-	REQ_POLICY_ROUTEPOLICY
-	REQ_POLICY_ROUTEPOLICY_ADD
-	REQ_POLICY_ROUTEPOLICY_DELETE
-	REQ_POLICY_ROUTEPOLICIES_DELETE
 	REQ_MONITOR_GLOBAL_BEST_CHANGED
 	REQ_MONITOR_NEIGHBOR_PEER_STATE
 	REQ_MRT_GLOBAL_RIB
@@ -64,6 +59,7 @@ const (
 	REQ_STATEMENT
 	REQ_MOD_STATEMENT
 	REQ_POLICY
+	REQ_MOD_POLICY
 )
 
 const GRPC_PORT = 8080
@@ -291,57 +287,6 @@ func (s *Server) ModNeighborPolicy(stream api.GobgpApi_ModNeighborPolicyServer) 
 	}
 }
 
-func (s *Server) modPolicy(arg *api.PolicyArguments, stream interface{}) error {
-	var rf bgp.RouteFamily
-	var reqType int
-	var err error
-	switch arg.Resource {
-	case api.Resource_POLICY_ROUTEPOLICY:
-		switch arg.Operation {
-		case api.Operation_ADD:
-			reqType = REQ_POLICY_ROUTEPOLICY_ADD
-		case api.Operation_DEL:
-			reqType = REQ_POLICY_ROUTEPOLICY_DELETE
-		case api.Operation_DEL_ALL:
-			reqType = REQ_POLICY_ROUTEPOLICIES_DELETE
-		default:
-			return fmt.Errorf("unsupported operation: %s", arg.Operation)
-		}
-	default:
-		return fmt.Errorf("unsupported resource type: %v", arg.Resource)
-	}
-	req := NewGrpcRequest(reqType, "", rf, arg.PolicyDefinition)
-	s.bgpServerCh <- req
-
-	res := <-req.ResponseCh
-	if err := res.Err(); err != nil {
-		log.Debug(err.Error())
-		return err
-	}
-	err = stream.(api.GobgpApi_ModPolicyRoutePolicyServer).Send(&api.Error{
-		Code: api.Error_SUCCESS,
-	})
-	if err != nil {
-		return err
-	}
-	return nil
-}
-
-func (s *Server) ModPolicyRoutePolicy(stream api.GobgpApi_ModPolicyRoutePolicyServer) error {
-	for {
-		arg, err := stream.Recv()
-		if err == io.EOF {
-			return nil
-		} else if err != nil {
-			return err
-		}
-		if err := s.modPolicy(arg, stream); err != nil {
-			return err
-		}
-		return nil
-	}
-}
-
 func (s *Server) GetMrt(arg *api.MrtArguments, stream api.GobgpApi_GetMrtServer) error {
 	var reqType int
 	switch arg.Resource {
@@ -465,6 +410,10 @@ func (s *Server) GetPolicies(arg *api.Policy, stream api.GobgpApi_GetPoliciesSer
 	return handleMultipleResponses(req, func(res *GrpcResponse) error {
 		return stream.Send(res.Data.(*api.Policy))
 	})
+}
+
+func (s *Server) ModPolicy(ctx context.Context, arg *api.ModPolicyArguments) (*api.Error, error) {
+	return s.mod(REQ_MOD_POLICY, arg)
 }
 
 type GrpcRequest struct {
