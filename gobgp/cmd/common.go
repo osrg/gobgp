@@ -35,6 +35,7 @@ const (
 	CMD_ADD            = "add"
 	CMD_DEL            = "del"
 	CMD_ALL            = "all"
+	CMD_SET            = "set"
 	CMD_LOCAL          = "local"
 	CMD_ADJ_IN         = "adj-in"
 	CMD_ADJ_OUT        = "adj-out"

@@ -1635,10 +1635,9 @@ func (server *BgpServer) handleGrpc(grpcReq *GrpcRequest) []*SenderMsg {
 		}
 		close(grpcReq.ResponseCh)
 	case REQ_MOD_DEFINED_SET:
-		if err := server.handleGrpcModDefinedSet(grpcReq); err != nil {
-			grpcReq.ResponseCh <- &GrpcResponse{
-				ResponseErr: err,
-			}
+		err := server.handleGrpcModDefinedSet(grpcReq)
+		grpcReq.ResponseCh <- &GrpcResponse{
+			ResponseErr: err,
 		}
 		close(grpcReq.ResponseCh)
 	case REQ_POLICY_ROUTEPOLICY, REQ_POLICY_ROUTEPOLICIES:
@@ -1695,6 +1694,7 @@ func (server *BgpServer) handleGrpcGetDefinedSet(grpcReq *GrpcRequest) error {
 	if !ok {
 		return fmt.Errorf("invalid defined-set type: %d", typ)
 	}
+	found := false
 	for _, s := range set {
 		if name != "" && name != s.Name() {
 			continue
@@ -1702,9 +1702,13 @@ func (server *BgpServer) handleGrpcGetDefinedSet(grpcReq *GrpcRequest) error {
 		grpcReq.ResponseCh <- &GrpcResponse{
 			Data: s.ToApiStruct(),
 		}
+		found = true
 		if name != "" {
 			break
 		}
+	}
+	if !found {
+		return fmt.Errorf("not found %s", name)
 	}
 	return nil
 }
