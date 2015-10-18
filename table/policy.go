@@ -2251,12 +2251,12 @@ func (p *Policy) Apply(path *Path) (RouteType, *Path) {
 	return ROUTE_TYPE_NONE, path
 }
 
-func (p *Policy) ToApiStruct() *api.PolicyDefinition {
+func (p *Policy) ToApiStruct() *api.Policy {
 	ss := make([]*api.Statement, 0, len(p.Statements))
 	for _, s := range p.Statements {
 		ss = append(ss, s.ToApiStruct())
 	}
-	return &api.PolicyDefinition{
+	return &api.Policy{
 		Name:       p.name,
 		Statements: ss,
 	}
@@ -2412,7 +2412,7 @@ func CanImportToVrf(v *Vrf, path *Path) bool {
 	return c.Evaluate(path)
 }
 
-func PoliciesToString(ps []*api.PolicyDefinition) []string {
+func PoliciesToString(ps []*api.Policy) []string {
 	names := make([]string, 0, len(ps))
 	for _, p := range ps {
 		names = append(names, p.Name)
