@@ -2053,6 +2053,7 @@ func NewPolicy(c config.PolicyDefinition, dmap DefinedSetMap) (*Policy, error) {
 type RoutingPolicy struct {
 	DefinedSetMap DefinedSetMap
 	PolicyMap     map[string]*Policy
+	StatementMap  map[string]*Statement
 }
 
 func (r *RoutingPolicy) InUse(d DefinedSet) bool {
@@ -2122,16 +2123,25 @@ func NewRoutingPolicy(c config.RoutingPolicy) (*RoutingPolicy, error) {
 		dmap[DEFINED_TYPE_EXT_COMMUNITY][y.Name()] = y
 	}
 	pmap := make(map[string]*Policy)
+	smap := make(map[string]*Statement)
 	for _, x := range c.PolicyDefinitions.PolicyDefinitionList {
 		y, err := NewPolicy(x, dmap)
 		if err != nil {
 			return nil, err
 		}
 		pmap[y.Name()] = y
+		for _, s := range y.Statements {
+			_, ok := smap[s.Name]
+			if ok {
+				return nil, fmt.Errorf("duplicated statement name. statement name must be unique.")
+			}
+			smap[s.Name] = s
+		}
 	}
 	return &RoutingPolicy{
 		DefinedSetMap: dmap,
 		PolicyMap:     pmap,
+		StatementMap:  smap,
 	}, nil
 }
 

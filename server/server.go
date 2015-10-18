@@ -1640,6 +1640,13 @@ func (server *BgpServer) handleGrpc(grpcReq *GrpcRequest) []*SenderMsg {
 			ResponseErr: err,
 		}
 		close(grpcReq.ResponseCh)
+	case REQ_STATEMENT:
+		if err := server.handleGrpcGetStatement(grpcReq); err != nil {
+			grpcReq.ResponseCh <- &GrpcResponse{
+				ResponseErr: err,
+			}
+		}
+		close(grpcReq.ResponseCh)
 	case REQ_POLICY_ROUTEPOLICY, REQ_POLICY_ROUTEPOLICIES:
 		info := server.policy.PolicyMap
 		typ := grpcReq.RequestType
@@ -1749,6 +1756,28 @@ func (server *BgpServer) handleGrpcModDefinedSet(grpcReq *GrpcRequest) error {
 		err = d.Replace(s)
 	}
 	return err
+}
+
+func (server *BgpServer) handleGrpcGetStatement(grpcReq *GrpcRequest) error {
+	arg := grpcReq.Data.(*api.Statement)
+	name := arg.Name
+	found := false
+	for _, s := range server.policy.StatementMap {
+		if name != "" && name != s.Name {
+			continue
+		}
+		grpcReq.ResponseCh <- &GrpcResponse{
+			Data: s.ToApiStruct(),
+		}
+		found = true
+		if name != "" {
+			break
+		}
+	}
+	if !found {
+		return fmt.Errorf("not found %s", name)
+	}
+	return nil
 }
 
 func (server *BgpServer) handleMrt(grpcReq *GrpcRequest) {

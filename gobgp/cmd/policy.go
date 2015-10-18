@@ -399,75 +399,78 @@ func mod(settype string, modtype string, args []string) error {
 	return err
 }
 
-func showPolicyStatement(indent int, pd *api.PolicyDefinition) {
+func printStatement(indent int, s *api.Statement) {
 	sIndent := func(indent int) string {
 		return strings.Repeat(" ", indent)
 	}
-	for _, st := range pd.Statements {
-		fmt.Printf("%sStatementName %s:\n", sIndent(indent), st.Name)
-		fmt.Printf("%sConditions:\n", sIndent(indent+2))
+	fmt.Printf("%sStatementName %s:\n", sIndent(indent), s.Name)
+	fmt.Printf("%sConditions:\n", sIndent(indent+2))
 
-		ps := st.Conditions.PrefixSet
-		if ps != nil {
-			fmt.Printf("%sPrefixSet: %s %s\n", sIndent(indent+4), table.MatchOption(ps.Option), ps.Name)
-		}
-
-		ns := st.Conditions.NeighborSet
-		if ns != nil {
-			fmt.Printf("%sNeighborSet: %s %s\n", sIndent(indent+4), table.MatchOption(ns.Option), ns.Name)
-		}
-
-		aps := st.Conditions.AsPathSet
-		if aps != nil {
-			fmt.Printf("%sAsPathSet: %s %s\n", sIndent(indent+4), table.MatchOption(aps.Option), aps.Name)
-		}
-
-		cs := st.Conditions.CommunitySet
-		if cs != nil {
-			fmt.Printf("%sCommunitySet: %s %s\n", sIndent(indent+4), table.MatchOption(cs.Option), cs.Name)
-		}
-
-		ecs := st.Conditions.ExtCommunitySet
-		if ecs != nil {
-			fmt.Printf("%sExtCommunitySet: %s %s\n", sIndent(indent+4), table.MatchOption(ecs.Option), ecs.Name)
-		}
-
-		asPathLentgh := st.Conditions.AsPathLength
-		if asPathLentgh != nil {
-			fmt.Printf("%sAsPathLength: %s %s\n", sIndent(indent+4), asPathLentgh.Type, asPathLentgh.Length)
-		}
-		fmt.Printf("%sActions:\n", sIndent(indent+2))
-
-		formatComAction := func(c *api.CommunityAction) string {
-			option := table.CommunityOptionNameMap[config.BgpSetCommunityOptionType(c.Option)]
-			if len(c.Communities) != 0 {
-				communities := strings.Join(c.Communities, ",")
-				option = fmt.Sprintf("%s[%s]", option, communities)
-			}
-			return option
-		}
-		if st.Actions.Community != nil {
-			fmt.Printf("%sCommunity:       %s\n", sIndent(indent+4), formatComAction(st.Actions.Community))
-		}
-		if st.Actions.ExtCommunity != nil {
-			fmt.Printf("%sExtCommunity:    %s\n", sIndent(indent+4), formatComAction(st.Actions.ExtCommunity))
-		}
-		if st.Actions.Med != nil {
-			fmt.Printf("%sMed:             %s\n", sIndent(indent+4), st.Actions.Med.Value)
-		}
-		if st.Actions.AsPrepend != nil {
-			var asn string
-			if st.Actions.AsPrepend.UseLeftMost {
-				asn = "left-most"
-			} else {
-				asn = fmt.Sprintf("%d", st.Actions.AsPrepend.Asn)
-			}
-
-			fmt.Printf("%sAsPrepend:       %s   %d\n", sIndent(indent+4), asn, st.Actions.AsPrepend.Repeat)
-		}
-		fmt.Printf("%s%s\n", sIndent(indent+4), st.Actions.RouteAction)
+	ps := s.Conditions.PrefixSet
+	if ps != nil {
+		fmt.Printf("%sPrefixSet: %s %s\n", sIndent(indent+4), table.MatchOption(ps.Option), ps.Name)
 	}
 
+	ns := s.Conditions.NeighborSet
+	if ns != nil {
+		fmt.Printf("%sNeighborSet: %s %s\n", sIndent(indent+4), table.MatchOption(ns.Option), ns.Name)
+	}
+
+	aps := s.Conditions.AsPathSet
+	if aps != nil {
+		fmt.Printf("%sAsPathSet: %s %s\n", sIndent(indent+4), table.MatchOption(aps.Option), aps.Name)
+	}
+
+	cs := s.Conditions.CommunitySet
+	if cs != nil {
+		fmt.Printf("%sCommunitySet: %s %s\n", sIndent(indent+4), table.MatchOption(cs.Option), cs.Name)
+	}
+
+	ecs := s.Conditions.ExtCommunitySet
+	if ecs != nil {
+		fmt.Printf("%sExtCommunitySet: %s %s\n", sIndent(indent+4), table.MatchOption(ecs.Option), ecs.Name)
+	}
+
+	asPathLentgh := s.Conditions.AsPathLength
+	if asPathLentgh != nil {
+		fmt.Printf("%sAsPathLength: %s %s\n", sIndent(indent+4), asPathLentgh.Type, asPathLentgh.Length)
+	}
+	fmt.Printf("%sActions:\n", sIndent(indent+2))
+
+	formatComAction := func(c *api.CommunityAction) string {
+		option := table.CommunityOptionNameMap[config.BgpSetCommunityOptionType(c.Option)]
+		if len(c.Communities) != 0 {
+			communities := strings.Join(c.Communities, ",")
+			option = fmt.Sprintf("%s[%s]", option, communities)
+		}
+		return option
+	}
+	if s.Actions.Community != nil {
+		fmt.Printf("%sCommunity:       %s\n", sIndent(indent+4), formatComAction(s.Actions.Community))
+	}
+	if s.Actions.ExtCommunity != nil {
+		fmt.Printf("%sExtCommunity:    %s\n", sIndent(indent+4), formatComAction(s.Actions.ExtCommunity))
+	}
+	if s.Actions.Med != nil {
+		fmt.Printf("%sMed:             %s\n", sIndent(indent+4), s.Actions.Med.Value)
+	}
+	if s.Actions.AsPrepend != nil {
+		var asn string
+		if s.Actions.AsPrepend.UseLeftMost {
+			asn = "left-most"
+		} else {
+			asn = fmt.Sprintf("%d", s.Actions.AsPrepend.Asn)
+		}
+
+		fmt.Printf("%sAsPrepend:       %s   %d\n", sIndent(indent+4), asn, s.Actions.AsPrepend.Repeat)
+	}
+	fmt.Printf("%s%s\n", sIndent(indent+4), s.Actions.RouteAction)
+}
+
+func showPolicyStatement(indent int, pd *api.PolicyDefinition) {
+	for _, s := range pd.Statements {
+		printStatement(indent, s)
+	}
 }
 
 func showPolicyRoutePolicies() error {
@@ -872,6 +875,39 @@ func modPolicyRoutePolicy(modtype string, eArgs []string) error {
 	return nil
 }
 
+func showStatement(args []string) error {
+	m := []*api.Statement{}
+	if len(args) > 0 {
+		arg := &api.Statement{
+			Name: args[0],
+		}
+		p, e := client.GetStatement(context.Background(), arg)
+		if e != nil {
+			return e
+		}
+		m = append(m, p)
+	} else {
+		arg := &api.Statement{}
+		stream, e := client.GetStatements(context.Background(), arg)
+		if e != nil {
+			return e
+		}
+		for {
+			p, e := stream.Recv()
+			if e == io.EOF {
+				break
+			} else if e != nil {
+				return e
+			}
+			m = append(m, p)
+		}
+	}
+	for _, s := range m {
+		printStatement(0, s)
+	}
+	return nil
+}
+
 func NewPolicyCmd() *cobra.Command {
 	policyCmd := &cobra.Command{
 		Use: CMD_POLICY,
@@ -910,5 +946,16 @@ func NewPolicyCmd() *cobra.Command {
 		}
 		policyCmd.AddCommand(cmd)
 	}
+
+	cmd := &cobra.Command{
+		Use: CMD_STATEMENT,
+		Run: func(cmd *cobra.Command, args []string) {
+			if err := showStatement(args); err != nil {
+				fmt.Println(err)
+			}
+		},
+	}
+	policyCmd.AddCommand(cmd)
+
 	return policyCmd
 }

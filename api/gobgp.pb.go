@@ -749,6 +749,8 @@ type GobgpApiClient interface {
 	GetDefinedSet(ctx context.Context, in *DefinedSet, opts ...grpc.CallOption) (*DefinedSet, error)
 	GetDefinedSets(ctx context.Context, in *DefinedSet, opts ...grpc.CallOption) (GobgpApi_GetDefinedSetsClient, error)
 	ModDefinedSet(ctx context.Context, in *ModDefinedSetArguments, opts ...grpc.CallOption) (*Error, error)
+	GetStatement(ctx context.Context, in *Statement, opts ...grpc.CallOption) (*Statement, error)
+	GetStatements(ctx context.Context, in *Statement, opts ...grpc.CallOption) (GobgpApi_GetStatementsClient, error)
 }
 
 type gobgpApiClient struct {
@@ -1292,6 +1294,47 @@ func (c *gobgpApiClient) ModDefinedSet(ctx context.Context, in *ModDefinedSetArg
 	return out, nil
 }
 
+func (c *gobgpApiClient) GetStatement(ctx context.Context, in *Statement, opts ...grpc.CallOption) (*Statement, error) {
+	out := new(Statement)
+	err := grpc.Invoke(ctx, "/gobgpapi.GobgpApi/GetStatement", in, out, c.cc, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *gobgpApiClient) GetStatements(ctx context.Context, in *Statement, opts ...grpc.CallOption) (GobgpApi_GetStatementsClient, error) {
+	stream, err := grpc.NewClientStream(ctx, &_GobgpApi_serviceDesc.Streams[13], c.cc, "/gobgpapi.GobgpApi/GetStatements", opts...)
+	if err != nil {
+		return nil, err
+	}
+	x := &gobgpApiGetStatementsClient{stream}
+	if err := x.ClientStream.SendMsg(in); err != nil {
+		return nil, err
+	}
+	if err := x.ClientStream.CloseSend(); err != nil {
+		return nil, err
+	}
+	return x, nil
+}
+
+type GobgpApi_GetStatementsClient interface {
+	Recv() (*Statement, error)
+	grpc.ClientStream
+}
+
+type gobgpApiGetStatementsClient struct {
+	grpc.ClientStream
+}
+
+func (x *gobgpApiGetStatementsClient) Recv() (*Statement, error) {
+	m := new(Statement)
+	if err := x.ClientStream.RecvMsg(m); err != nil {
+		return nil, err
+	}
+	return m, nil
+}
+
 // Server API for GobgpApi service
 
 type GobgpApiServer interface {
@@ -1321,6 +1364,8 @@ type GobgpApiServer interface {
 	GetDefinedSet(context.Context, *DefinedSet) (*DefinedSet, error)
 	GetDefinedSets(*DefinedSet, GobgpApi_GetDefinedSetsServer) error
 	ModDefinedSet(context.Context, *ModDefinedSetArguments) (*Error, error)
+	GetStatement(context.Context, *Statement) (*Statement, error)
+	GetStatements(*Statement, GobgpApi_GetStatementsServer) error
 }
 
 func RegisterGobgpApiServer(s *grpc.Server, srv GobgpApiServer) {
@@ -1771,6 +1816,39 @@ func _GobgpApi_ModDefinedSet_Handler(srv interface{}, ctx context.Context, dec f
 	return out, nil
 }
 
+func _GobgpApi_GetStatement_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error) (interface{}, error) {
+	in := new(Statement)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	out, err := srv.(GobgpApiServer).GetStatement(ctx, in)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func _GobgpApi_GetStatements_Handler(srv interface{}, stream grpc.ServerStream) error {
+	m := new(Statement)
+	if err := stream.RecvMsg(m); err != nil {
+		return err
+	}
+	return srv.(GobgpApiServer).GetStatements(m, &gobgpApiGetStatementsServer{stream})
+}
+
+type GobgpApi_GetStatementsServer interface {
+	Send(*Statement) error
+	grpc.ServerStream
+}
+
+type gobgpApiGetStatementsServer struct {
+	grpc.ServerStream
+}
+
+func (x *gobgpApiGetStatementsServer) Send(m *Statement) error {
+	return x.ServerStream.SendMsg(m)
+}
+
 var _GobgpApi_serviceDesc = grpc.ServiceDesc{
 	ServiceName: "gobgpapi.GobgpApi",
 	HandlerType: (*GobgpApiServer)(nil),
@@ -1826,6 +1904,10 @@ var _GobgpApi_serviceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "ModDefinedSet",
 			Handler:    _GobgpApi_ModDefinedSet_Handler,
+		},
+		{
+			MethodName: "GetStatement",
+			Handler:    _GobgpApi_GetStatement_Handler,
 		},
 	},
 	Streams: []grpc.StreamDesc{
@@ -1894,6 +1976,11 @@ var _GobgpApi_serviceDesc = grpc.ServiceDesc{
 		{
 			StreamName:    "GetDefinedSets",
 			Handler:       _GobgpApi_GetDefinedSets_Handler,
+			ServerStreams: true,
+		},
+		{
+			StreamName:    "GetStatements",
+			Handler:       _GobgpApi_GetStatements_Handler,
 			ServerStreams: true,
 		},
 	},
