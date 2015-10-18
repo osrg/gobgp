@@ -201,11 +201,6 @@ message DefinedSet {
     repeated Prefix prefixes = 4;
 }
 
-message PrefixSet {
-    string name = 1;
-    int32 option = 2;
-}
-
 message MatchSet {
     string name = 1;
     int32 option = 2;
@@ -217,7 +212,7 @@ message AsPathLength {
 }
 
 message Conditions {
-    PrefixSet prefix_set = 1;
+    MatchSet prefix_set = 1;
     MatchSet neighbor_set = 2;
     AsPathLength as_path_length = 3;
     MatchSet as_path_set = 4;

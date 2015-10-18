@@ -47,12 +47,9 @@ const (
 	CMD_ENABLE         = "enable"
 	CMD_DISABLE        = "disable"
 	CMD_PREFIX         = "prefix"
-	CMD_ASPATH         = "aspath"
+	CMD_ASPATH         = "as-path"
 	CMD_COMMUNITY      = "community"
-	CMD_EXTCOMMUNITY   = "extcommunity"
-	CMD_ROUTEPOLICY    = "routepolicy"
-	CMD_CONDITIONS     = "conditions"
-	CMD_ACTIONS        = "actions"
+	CMD_EXTCOMMUNITY   = "ext-community"
 	CMD_IMPORT         = "import"
 	CMD_EXPORT         = "export"
 	CMD_IN             = "in"
@@ -67,6 +64,8 @@ const (
 	CMD_ACCEPTED       = "accepted"
 	CMD_REJECTED       = "rejected"
 	CMD_STATEMENT      = "statement"
+	CMD_CONDITION      = "condition"
+	CMD_ACTION         = "action"
 )
 
 var subOpts struct {
