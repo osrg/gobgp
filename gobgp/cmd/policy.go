@@ -245,7 +245,7 @@ func formatPolicyExtCommunity(head bool, indent int, ecsl []*api.DefinedSet) str
 	return buff.String()
 }
 
-func showAll(v string) error {
+func show(v string, args []string) error {
 	var typ table.DefinedType
 	switch v {
 	case CMD_PREFIX:
@@ -261,22 +261,31 @@ func showAll(v string) error {
 	default:
 		return fmt.Errorf("unknown defined type: %s", v)
 	}
-	arg := &api.DefinedSet{
-		Type: int32(typ),
-	}
-	stream, e := client.GetDefinedSets(context.Background(), arg)
-	if e != nil {
-		return e
-	}
 	m := sets{}
-	for {
-		p, e := stream.Recv()
-		if e == io.EOF {
-			break
-		} else if e != nil {
+	if len(args) > 0 {
+		arg := &api.DefinedSet{
+			Type: int32(typ),
+			Name: args[0],
+		}
+		p, e := client.GetDefinedSet(context.Background(), arg)
+		if e != nil {
 			return e
 		}
 		m = append(m, p)
+	} else {
+		stream, e := client.GetDefinedSets(context.Background(), arg)
+		if e != nil {
+			return e
+		}
+		for {
+			p, e := stream.Recv()
+			if e == io.EOF {
+				break
+			} else if e != nil {
+				return e
+			}
+			m = append(m, p)
+		}
 	}
 	if globalOpts.Json {
 		j, _ := json.Marshal(m)
@@ -284,70 +293,22 @@ func showAll(v string) error {
 		return nil
 	}
 	if globalOpts.Quiet {
-		for _, p := range m {
-			fmt.Println(p.Name)
+		if len(args) > 0 {
+			for _, p := range m[0].List {
+				fmt.Println(p)
+			}
+			for _, p := range m[0].Prefixes {
+				fmt.Printf("%s %d..%d\n", p.IpPrefix, p.MaskLengthMin, p.MaskLengthMax)
+			}
+		} else {
+			for _, p := range m {
+				fmt.Println(p.Name)
+			}
 		}
 		return nil
 	}
 	sort.Sort(m)
-
 	var output string
-	switch v {
-	case CMD_PREFIX:
-		output = formatPolicyPrefix(true, 0, m)
-	case CMD_NEIGHBOR:
-		output = formatPolicyNeighbor(true, 0, m)
-	case CMD_ASPATH:
-		output = formatPolicyAsPath(true, 0, m)
-	case CMD_COMMUNITY:
-		output = formatPolicyCommunity(true, 0, m)
-	case CMD_EXTCOMMUNITY:
-		output = formatPolicyExtCommunity(true, 0, m)
-	}
-	fmt.Print(output)
-	return nil
-}
-
-func showOne(v string, args []string) error {
-	var typ table.DefinedType
-	switch v {
-	case CMD_PREFIX:
-		typ = table.DEFINED_TYPE_PREFIX
-	case CMD_NEIGHBOR:
-		typ = table.DEFINED_TYPE_NEIGHBOR
-	case CMD_ASPATH:
-		typ = table.DEFINED_TYPE_AS_PATH
-	case CMD_COMMUNITY:
-		typ = table.DEFINED_TYPE_COMMUNITY
-	case CMD_EXTCOMMUNITY:
-		typ = table.DEFINED_TYPE_EXT_COMMUNITY
-	default:
-		return fmt.Errorf("unknown defined type: %s", v)
-	}
-	arg := &api.DefinedSet{
-		Type: int32(typ),
-		Name: args[0],
-	}
-	ps, e := client.GetDefinedSet(context.Background(), arg)
-	if e != nil {
-		return e
-	}
-	if globalOpts.Json {
-		j, _ := json.Marshal(ps)
-		fmt.Println(string(j))
-		return nil
-	}
-	if globalOpts.Quiet {
-		for _, p := range ps.List {
-			fmt.Println(p)
-		}
-		for _, p := range ps.Prefixes {
-			fmt.Printf("%s %d..%d\n", p.IpPrefix, p.MaskLengthMin, p.MaskLengthMax)
-		}
-		return nil
-	}
-	var output string
-	m := []*api.DefinedSet{ps}
 	switch v {
 	case CMD_PREFIX:
 		output = formatPolicyPrefix(true, 0, m)
@@ -1319,14 +1280,7 @@ func NewPolicyCmd() *cobra.Command {
 		cmd := &cobra.Command{
 			Use: v,
 			Run: func(cmd *cobra.Command, args []string) {
-				var err error
-				if len(args) == 0 {
-					err = showAll(cmd.Use)
-				} else {
-					err = showOne(cmd.Use, args)
-				}
-
-				if err != nil {
+				if err := show(cmd.Use, args); err != nil {
 					fmt.Println(err)
 				}
 			},
