@@ -1468,7 +1468,6 @@ func (server *BgpServer) handleGrpc(grpcReq *GrpcRequest) []*SenderMsg {
 			pathList := peer.adjRib.GetInPathList(grpcReq.RouteFamily)
 			if peer.isRouteServerClient() {
 				pathList, _ = peer.ApplyPolicy(table.POLICY_DIRECTION_IN, pathList)
-				peer.updateAccepted(uint32(len(pathList)))
 			}
 			msgs = append(msgs, server.propagateUpdate(peer, pathList)...)
 		}
