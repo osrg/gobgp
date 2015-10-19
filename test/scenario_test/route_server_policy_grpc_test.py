@@ -101,28 +101,13 @@ class ImportPolicy(object):
         q1 = env.q1
         q2 = env.q2
 
-        p0 = {'IpPrefix': '192.168.0.0/16',
-              'MasklengthRange': '16..24'}
-
-        ps0 = {'PrefixSetName': 'ps0',
-               'PrefixList': [p0]}
-        g1.set_prefix_set(ps0)
-
-        n0 = {'Address': g1.peers[e1]['neigh_addr'].split('/')[0]}
-
-        ns0 = {'NeighborSetName': 'ns0',
-               'NeighborInfoList': [n0]}
-        g1.set_neighbor_set(ns0)
-
-        st0 = {'Name': 'st0',
-               'Conditions': {
-                'MatchPrefixSet': {'PrefixSet': ps0['PrefixSetName']},
-                'MatchNeighborSet': {'NeighborSet': ns0['NeighborSetName']}}}
-
-        policy = {'name': 'policy0',
-                  'type': 'import',
-                  'statements': [st0]}
-        g1.add_policy(policy, q2)
+        g1.local('gobgp policy prefix add ps0 192.168.0.0/16 16..24')
+        g1.local('gobgp policy neighbor add ns0 {0}'.format(g1.peers[e1]['neigh_addr'].split('/')[0]))
+        g1.local('gobgp policy statement add st0')
+        g1.local('gobgp policy statement st0 add condition prefix ps0')
+        g1.local('gobgp policy statement st0 add condition neighbor ns0')
+        g1.local('gobgp policy add policy0 st0')
+        g1.local('gobgp neighbor {0} policy import add policy0'.format(g1.peers[q2]['neigh_addr'].split('/')[0]))
 
         # this will be blocked
         e1.add_route('192.168.2.0/24')
@@ -163,28 +148,13 @@ class ExportPolicy(object):
         q1 = env.q1
         q2 = env.q2
 
-        p0 = {'IpPrefix': '192.168.0.0/16',
-              'MasklengthRange': '16..24'}
-
-        ps0 = {'PrefixSetName': 'ps0',
-               'PrefixList': [p0]}
-        g1.set_prefix_set(ps0)
-
-        n0 = {'Address': g1.peers[q2]['neigh_addr'].split('/')[0]}
-
-        ns0 = {'NeighborSetName': 'ns0',
-               'NeighborInfoList': [n0]}
-        g1.set_neighbor_set(ns0)
-
-        st0 = {'Name': 'st0',
-               'Conditions': {
-                'MatchPrefixSet': {'PrefixSet': ps0['PrefixSetName']},
-                'MatchNeighborSet': {'NeighborSet': ns0['NeighborSetName']}}}
-
-        policy = {'name': 'policy0',
-                  'type': 'export',
-                  'statements': [st0]}
-        g1.add_policy(policy, q2)
+        g1.local('gobgp policy prefix add ps0 192.168.0.0/16 16..24')
+        g1.local('gobgp policy neighbor add ns0 {0}'.format(g1.peers[q2]['neigh_addr'].split('/')[0]))
+        g1.local('gobgp policy statement add st0')
+        g1.local('gobgp policy statement st0 add condition prefix ps0')
+        g1.local('gobgp policy statement st0 add condition neighbor ns0')
+        g1.local('gobgp policy add policy0 st0')
+        g1.local('gobgp neighbor {0} policy export add policy0'.format(g1.peers[q2]['neigh_addr'].split('/')[0]))
 
         # this will be blocked
         e1.add_route('192.168.2.0/24')
@@ -245,28 +215,14 @@ class ImportPolicyUpdate(object):
         q1 = env.q1
         q2 = env.q2
 
-        p0 = {'IpPrefix': '192.168.20.0/24'}
-        p1 = {'IpPrefix': '192.168.200.0/24'}
-
-        ps0 = {'PrefixSetName': 'ps0',
-               'PrefixList': [p0, p1]}
-        g1.set_prefix_set(ps0)
-
-        n0 = {'Address': g1.peers[e1]['neigh_addr'].split('/')[0]}
-
-        ns0 = {'NeighborSetName': 'ns0',
-               'NeighborInfoList': [n0]}
-        g1.set_neighbor_set(ns0)
-
-        st0 = {'Name': 'st0',
-               'Conditions': {
-                'MatchPrefixSet': {'PrefixSet': ps0['PrefixSetName']},
-                'MatchNeighborSet': {'NeighborSet': ns0['NeighborSetName']}}}
-
-        policy = {'name': 'policy0',
-                  'type': 'import',
-                  'statements': [st0]}
-        g1.add_policy(policy, q2)
+        g1.local('gobgp policy prefix add ps0 192.168.20.0/24')
+        g1.local('gobgp policy prefix add ps0 192.168.200.0/24')
+        g1.local('gobgp policy neighbor add ns0 {0}'.format(g1.peers[e1]['neigh_addr'].split('/')[0]))
+        g1.local('gobgp policy statement add st0')
+        g1.local('gobgp policy statement st0 add condition prefix ps0')
+        g1.local('gobgp policy statement st0 add condition neighbor ns0')
+        g1.local('gobgp policy add policy0 st0')
+        g1.local('gobgp neighbor {0} policy import add policy0'.format(g1.peers[q2]['neigh_addr'].split('/')[0]))
 
         e1.add_route('192.168.2.0/24')
         e1.add_route('192.168.20.0/24')
@@ -294,28 +250,8 @@ class ImportPolicyUpdate(object):
         e1 = env.e1
         q1 = env.q1
         q2 = env.q2
-        g1.clear_policy()
 
-        p0 = {'IpPrefix': '192.168.20.0/24'}
-
-        ps0 = {'PrefixSetName': 'ps0',
-               'PrefixList': [p0]}
-        g1.set_prefix_set(ps0)
-
-        n0 = {'Address': g1.peers[e1]['neigh_addr'].split('/')[0]}
-
-        ns0 = {'NeighborSetName': 'ns0',
-               'NeighborInfoList': [n0]}
-        g1.set_neighbor_set(ns0)
-
-        st0 = {'Name': 'st0',
-               'Conditions': {'MatchPrefixSet': {'PrefixSet': ps0['PrefixSetName']},
-                              'MatchNeighborSet': {'NeighborSet': ns0['NeighborSetName']}}}
-
-        policy = {'name': 'policy0',
-                  'type': 'import',
-                  'statements': [st0]}
-        g1.add_policy(policy, q2)
+        g1.local('gobgp policy prefix del ps0 192.168.200.0/24')
         g1.softreset(e1)
 
     @staticmethod
@@ -369,27 +305,15 @@ class ExportPolicyUpdate(object):
         e1 = env.e1
         q1 = env.q1
         q2 = env.q2
-        p0 = {'IpPrefix': '192.168.20.0/24'}
-        p1 = {'IpPrefix': '192.168.200.0/24'}
 
-        ps0 = {'PrefixSetName': 'ps0',
-               'PrefixList': [p0, p1]}
-        g1.set_prefix_set(ps0)
-
-        n0 = {'Address': g1.peers[q2]['neigh_addr'].split('/')[0]}
-
-        ns0 = {'NeighborSetName': 'ns0',
-               'NeighborInfoList': [n0]}
-        g1.set_neighbor_set(ns0)
-
-        st0 = {'Name': 'st0',
-               'Conditions': {'MatchPrefixSet': {'PrefixSet': ps0['PrefixSetName']},
-                              'MatchNeighborSet': {'NeighborSet': ns0['NeighborSetName']}}}
-
-        policy = {'name': 'policy0',
-                  'type': 'export',
-                  'statements': [st0]}
-        g1.add_policy(policy, q2)
+        g1.local('gobgp policy prefix add ps0 192.168.20.0/24')
+        g1.local('gobgp policy prefix add ps0 192.168.200.0/24')
+        g1.local('gobgp policy neighbor add ns0 {0}'.format(g1.peers[q2]['neigh_addr'].split('/')[0]))
+        g1.local('gobgp policy statement add st0')
+        g1.local('gobgp policy statement st0 add condition prefix ps0')
+        g1.local('gobgp policy statement st0 add condition neighbor ns0')
+        g1.local('gobgp policy add policy0 st0')
+        g1.local('gobgp neighbor {0} policy export add policy0'.format(g1.peers[q2]['neigh_addr'].split('/')[0]))
 
         e1.add_route('192.168.2.0/24')
         e1.add_route('192.168.20.0/24')
@@ -417,29 +341,8 @@ class ExportPolicyUpdate(object):
         e1 = env.e1
         q1 = env.q1
         q2 = env.q2
-        g1.clear_policy()
 
-        p0 = {'IpPrefix': '192.168.20.0/24'}
-
-        ps0 = {'PrefixSetName': 'ps0',
-               'PrefixList': [p0]}
-        g1.set_prefix_set(ps0)
-
-        n0 = {'Address': g1.peers[q2]['neigh_addr'].split('/')[0]}
-
-        ns0 = {'NeighborSetName': 'ns0',
-               'NeighborInfoList': [n0]}
-        g1.set_neighbor_set(ns0)
-
-        st0 = {'Name': 'st0',
-               'Conditions': {'MatchPrefixSet': {'PrefixSet': ps0['PrefixSetName']},
-                              'MatchNeighborSet': {'NeighborSet': ns0['NeighborSetName']}}}
-
-        policy = {'name': 'policy0',
-                  'type': 'export',
-                  'statements': [st0]}
-        g1.add_policy(policy, q2)
-
+        g1.local('gobgp policy prefix del ps0 192.168.200.0/24')
         # we need hard reset to flush q2's local rib
         g1.reset(e1)
 
@@ -507,28 +410,13 @@ class ImportPolicyIPV6(object):
         q1 = env.q1
         q2 = env.q2
 
-        p0 = {'IpPrefix': '2001::/32',
-              'MasklengthRange': '64..128'}
-
-        ps0 = {'PrefixSetName': 'ps0',
-               'PrefixList': [p0]}
-        g1.set_prefix_set(ps0)
-
-        n0 = {'Address': g1.peers[e1]['neigh_addr'].split('/')[0]}
-
-        ns0 = {'NeighborSetName': 'ns0',
-               'NeighborInfoList': [n0]}
-        g1.set_neighbor_set(ns0)
-
-        st0 = {'Name': 'st0',
-               'Conditions': {
-                'MatchPrefixSet': {'PrefixSet': ps0['PrefixSetName']},
-                'MatchNeighborSet': {'NeighborSet': ns0['NeighborSetName']}}}
-
-        policy = {'name': 'policy0',
-                  'type': 'import',
-                  'statements': [st0]}
-        g1.add_policy(policy, q2)
+        g1.local('gobgp policy prefix add ps0 2001::/32 64..128')
+        g1.local('gobgp policy neighbor add ns0 {0}'.format(g1.peers[e1]['neigh_addr'].split('/')[0]))
+        g1.local('gobgp policy statement add st0')
+        g1.local('gobgp policy statement st0 add condition prefix ps0')
+        g1.local('gobgp policy statement st0 add condition neighbor ns0')
+        g1.local('gobgp policy add policy0 st0')
+        g1.local('gobgp neighbor {0} policy import add policy0'.format(g1.peers[q2]['neigh_addr'].split('/')[0]))
 
         # this will be blocked
         e1.add_route('2001::/64', rf='ipv6')
@@ -572,28 +460,13 @@ class ExportPolicyIPV6(object):
         q1 = env.q1
         q2 = env.q2
 
-        p0 = {'IpPrefix': '2001::/32',
-              'MasklengthRange': '64..128'}
-
-        ps0 = {'PrefixSetName': 'ps0',
-               'PrefixList': [p0]}
-        g1.set_prefix_set(ps0)
-
-        n0 = {'Address': g1.peers[q2]['neigh_addr'].split('/')[0]}
-
-        ns0 = {'NeighborSetName': 'ns0',
-               'NeighborInfoList': [n0]}
-        g1.set_neighbor_set(ns0)
-
-        st0 = {'Name': 'st0',
-               'Conditions': {
-                'MatchPrefixSet': {'PrefixSet': ps0['PrefixSetName']},
-                'MatchNeighborSet': {'NeighborSet': ns0['NeighborSetName']}}}
-
-        policy = {'name': 'policy0',
-                  'type': 'export',
-                  'statements': [st0]}
-        g1.add_policy(policy, q2)
+        g1.local('gobgp policy prefix add ps0 2001::/32 64..128')
+        g1.local('gobgp policy neighbor add ns0 {0}'.format(g1.peers[q2]['neigh_addr'].split('/')[0]))
+        g1.local('gobgp policy statement add st0')
+        g1.local('gobgp policy statement st0 add condition prefix ps0')
+        g1.local('gobgp policy statement st0 add condition neighbor ns0')
+        g1.local('gobgp policy add policy0 st0')
+        g1.local('gobgp neighbor {0} policy export add policy0'.format(g1.peers[q2]['neigh_addr'].split('/')[0]))
 
         # this will be blocked
         e1.add_route('2001::/64', rf='ipv6')
@@ -650,28 +523,14 @@ class ImportPolicyIPV6Update(object):
         q1 = env.q1
         q2 = env.q2
 
-        p0 = {'IpPrefix': '2001:0:10:2::/64'}
-        p1 = {'IpPrefix': '2001:0:10:20::/64'}
-
-        ps0 = {'PrefixSetName': 'ps0',
-               'PrefixList': [p0, p1]}
-        g1.set_prefix_set(ps0)
-
-        n0 = {'Address': g1.peers[e1]['neigh_addr'].split('/')[0]}
-
-        ns0 = {'NeighborSetName': 'ns0',
-               'NeighborInfoList': [n0]}
-        g1.set_neighbor_set(ns0)
-
-        st0 = {'Name': 'st0',
-               'Conditions': {
-                'MatchPrefixSet': {'PrefixSet': ps0['PrefixSetName']},
-                'MatchNeighborSet': {'NeighborSet': ns0['NeighborSetName']}}}
-
-        policy = {'name': 'policy0',
-                  'type': 'import',
-                  'statements': [st0]}
-        g1.add_policy(policy, q2)
+        g1.local('gobgp policy prefix add ps0 2001:0:10:2::/64')
+        g1.local('gobgp policy prefix add ps0 2001:0:10:20::/64')
+        g1.local('gobgp policy neighbor add ns0 {0}'.format(g1.peers[e1]['neigh_addr'].split('/')[0]))
+        g1.local('gobgp policy statement add st0')
+        g1.local('gobgp policy statement st0 add condition prefix ps0')
+        g1.local('gobgp policy statement st0 add condition neighbor ns0')
+        g1.local('gobgp policy add policy0 st0')
+        g1.local('gobgp neighbor {0} policy import add policy0'.format(g1.peers[q2]['neigh_addr'].split('/')[0]))
 
         e1.add_route('2001:0:10:2::/64', rf='ipv6')
         e1.add_route('2001:0:10:20::/64', rf='ipv6')
@@ -696,27 +555,7 @@ class ImportPolicyIPV6Update(object):
         q1 = env.q1
         q2 = env.q2
 
-        p0 = {'IpPrefix': '2001:0:10:2::/64'}
-
-        ps0 = {'PrefixSetName': 'ps0',
-               'PrefixList': [p0]}
-        g1.set_prefix_set(ps0)
-
-        n0 = {'Address': g1.peers[e1]['neigh_addr'].split('/')[0]}
-
-        ns0 = {'NeighborSetName': 'ns0',
-               'NeighborInfoList': [n0]}
-        g1.set_neighbor_set(ns0)
-
-        st0 = {'Name': 'st0',
-               'Conditions': {
-                'MatchPrefixSet': {'PrefixSet': ps0['PrefixSetName']},
-                'MatchNeighborSet': {'NeighborSet': ns0['NeighborSetName']}}}
-
-        policy = {'name': 'policy0',
-                  'type': 'import',
-                  'statements': [st0]}
-        g1.add_policy(policy, q2)
+        g1.local('gobgp policy prefix del ps0 2001:0:10:20::/64')
         g1.softreset(e1, rf='ipv6')
 
     @staticmethod
@@ -766,28 +605,14 @@ class ExportPolicyIPv6Update(object):
         q1 = env.q1
         q2 = env.q2
 
-        p0 = {'IpPrefix': '2001:0:10:2::/64'}
-        p1 = {'IpPrefix': '2001:0:10:20::/64'}
-
-        ps0 = {'PrefixSetName': 'ps0',
-               'PrefixList': [p0, p1]}
-        g1.set_prefix_set(ps0)
-
-        n0 = {'Address': g1.peers[q2]['neigh_addr'].split('/')[0]}
-
-        ns0 = {'NeighborSetName': 'ns0',
-               'NeighborInfoList': [n0]}
-        g1.set_neighbor_set(ns0)
-
-        st0 = {'Name': 'st0',
-               'Conditions': {
-                'MatchPrefixSet': {'PrefixSet': ps0['PrefixSetName']},
-                'MatchNeighborSet': {'NeighborSet': ns0['NeighborSetName']}}}
-
-        policy = {'name': 'policy0',
-                  'type': 'export',
-                  'statements': [st0]}
-        g1.add_policy(policy, q2)
+        g1.local('gobgp policy prefix add ps0 2001:0:10:2::/64')
+        g1.local('gobgp policy prefix add ps0 2001:0:10:20::/64')
+        g1.local('gobgp policy neighbor add ns0 {0}'.format(g1.peers[q2]['neigh_addr'].split('/')[0]))
+        g1.local('gobgp policy statement add st0')
+        g1.local('gobgp policy statement st0 add condition prefix ps0')
+        g1.local('gobgp policy statement st0 add condition neighbor ns0')
+        g1.local('gobgp policy add policy0 st0')
+        g1.local('gobgp neighbor {0} policy export add policy0'.format(g1.peers[q2]['neigh_addr'].split('/')[0]))
 
         e1.add_route('2001:0:10:2::/64', rf='ipv6')
         e1.add_route('2001:0:10:20::/64', rf='ipv6')
@@ -812,27 +637,7 @@ class ExportPolicyIPv6Update(object):
         q1 = env.q1
         q2 = env.q2
 
-        p0 = {'IpPrefix': '2001:0:10:2::/64'}
-
-        ps0 = {'PrefixSetName': 'ps0',
-               'PrefixList': [p0]}
-        g1.set_prefix_set(ps0)
-
-        n0 = {'Address': g1.peers[q2]['neigh_addr'].split('/')[0]}
-
-        ns0 = {'NeighborSetName': 'ns0',
-               'NeighborInfoList': [n0]}
-        g1.set_neighbor_set(ns0)
-
-        st0 = {'Name': 'st0',
-               'Conditions': {
-                'MatchPrefixSet': {'PrefixSet': ps0['PrefixSetName']},
-                'MatchNeighborSet': {'NeighborSet': ns0['NeighborSetName']}}}
-
-        policy = {'name': 'policy0',
-                  'type': 'export',
-                  'statements': [st0]}
-        g1.add_policy(policy, q2)
+        g1.local('gobgp policy prefix del ps0 2001:0:10:20::/64')
         g1.reset(e1)
 
         for c in [e1, q1, q2]:
@@ -868,14 +673,11 @@ class ImportPolicyAsPathLengthCondition(object):
         e1 = env.e1
         q1 = env.q1
         q2 = env.q2
-        st0 = {'Name': 'st0',
-               'Conditions': {'BgpConditions': {'AsPathLength': {'Operator': 'ge',
-                                                                 'Value': 10}}}}
 
-        policy = {'name': 'policy0',
-                  'type': 'import',
-                  'statements': [st0]}
-        g1.add_policy(policy, q2)
+        g1.local('gobgp policy statement add st0')
+        g1.local('gobgp policy statement st0 add condition as-path-length 10 ge')
+        g1.local('gobgp policy add policy0 st0')
+        g1.local('gobgp neighbor {0} policy import add policy0'.format(g1.peers[q2]['neigh_addr'].split('/')[0]))
 
         # this will be blocked
         e1.add_route('192.168.100.0/24', aspath=range(e1.asn, e1.asn-10, -1))
@@ -919,17 +721,12 @@ class ImportPolicyAsPathCondition(object):
         e1 = env.e1
         q1 = env.q1
         q2 = env.q2
-        as0 = {'AsPathSets': {'AsPathSetList': [{'AsPathSetName': 'as0', 'AsPathList': [{'AsPath': '^{0}'.format(e1.asn)}]}]}}
 
-        g1.set_bgp_defined_set(as0)
-
-        st0 = {'Name': 'st0',
-               'Conditions': {'BgpConditions': {'MatchAsPathSet': {'AsPathSet': 'as0'}}}}
-
-        policy = {'name': 'policy0',
-                  'type': 'import',
-                  'statements': [st0]}
-        g1.add_policy(policy, q2)
+        g1.local('gobgp policy as-path add as0 ^{0}'.format(e1.asn))
+        g1.local('gobgp policy statement add st0')
+        g1.local('gobgp policy statement st0 add condition as-path as0')
+        g1.local('gobgp policy add policy0 st0')
+        g1.local('gobgp neighbor {0} policy import add policy0'.format(g1.peers[q2]['neigh_addr'].split('/')[0]))
 
         # this will be blocked
         e1.add_route('192.168.100.0/24', aspath=range(e1.asn, e1.asn-10, -1))
@@ -965,17 +762,12 @@ class ImportPolicyAsPathAnyCondition(object):
         e1 = env.e1
         q1 = env.q1
         q2 = env.q2
-        as0 = {'AsPathSets': {'AsPathSetList': [{'AsPathSetName': 'as0', 'AsPathList': [{'AsPath': '65098'}]}]}}
 
-        g1.set_bgp_defined_set(as0)
-
-        st0 = {'Name': 'st0',
-               'Conditions': {'BgpConditions': {'MatchAsPathSet': {'AsPathSet': 'as0'}}}}
-
-        policy = {'name': 'policy0',
-                  'type': 'import',
-                  'statements': [st0]}
-        g1.add_policy(policy, q2)
+        g1.local('gobgp policy as-path add as0 65098')
+        g1.local('gobgp policy statement add st0')
+        g1.local('gobgp policy statement st0 add condition as-path as0')
+        g1.local('gobgp policy add policy0 st0')
+        g1.local('gobgp neighbor {0} policy import add policy0'.format(g1.peers[q2]['neigh_addr'].split('/')[0]))
 
         # this will be blocked
         e1.add_route('192.168.100.0/24', aspath=[65000, 65098, 65010])
@@ -1011,17 +803,12 @@ class ImportPolicyAsPathOriginCondition(object):
         e1 = env.e1
         q1 = env.q1
         q2 = env.q2
-        as0 = {'AsPathSets': {'AsPathSetList': [{'AsPathSetName': 'as0', 'AsPathList': [{'AsPath': '65090$'}]}]}}
 
-        g1.set_bgp_defined_set(as0)
-
-        st0 = {'Name': 'st0',
-               'Conditions': {'BgpConditions': {'MatchAsPathSet': {'AsPathSet': 'as0'}}}}
-
-        policy = {'name': 'policy0',
-                  'type': 'import',
-                  'statements': [st0]}
-        g1.add_policy(policy, q2)
+        g1.local('gobgp policy as-path add as0 65090$')
+        g1.local('gobgp policy statement add st0')
+        g1.local('gobgp policy statement st0 add condition as-path as0')
+        g1.local('gobgp policy add policy0 st0')
+        g1.local('gobgp neighbor {0} policy import add policy0'.format(g1.peers[q2]['neigh_addr'].split('/')[0]))
 
         # this will be blocked
         e1.add_route('192.168.100.0/24', aspath=[65000, 65098, 65090])
@@ -1057,17 +844,12 @@ class ImportPolicyAsPathOnlyCondition(object):
         e1 = env.e1
         q1 = env.q1
         q2 = env.q2
-        as0 = {'AsPathSets': {'AsPathSetList': [{'AsPathSetName': 'as0', 'AsPathList': [{'AsPath': '^65100$'}]}]}}
 
-        g1.set_bgp_defined_set(as0)
-
-        st0 = {'Name': 'st0',
-               'Conditions': {'BgpConditions': {'MatchAsPathSet': {'AsPathSet': 'as0'}}}}
-
-        policy = {'name': 'policy0',
-                  'type': 'import',
-                  'statements': [st0]}
-        g1.add_policy(policy, q2)
+        g1.local('gobgp policy as-path add as0 ^65100$')
+        g1.local('gobgp policy statement add st0')
+        g1.local('gobgp policy statement st0 add condition as-path as0')
+        g1.local('gobgp policy add policy0 st0')
+        g1.local('gobgp neighbor {0} policy import add policy0'.format(g1.peers[q2]['neigh_addr'].split('/')[0]))
 
         # this will be blocked
         e1.add_route('192.168.100.0/24', aspath=[65100])
@@ -1104,19 +886,12 @@ class ImportPolicyAsPathMismatchCondition(object):
         e1 = env.e1
         q1 = env.q1
         q2 = env.q2
-        cs0 = {'CommunitySets': {'CommunitySetList':
-                                     [{'CommunitySetName': 'cs0',
-                                       'CommunityList': [{'Community': '65100:10'}]}]}}
 
-        g1.set_bgp_defined_set(cs0)
-
-        st0 = {'Name': 'st0',
-               'Conditions': {'BgpConditions': {'MatchCommunitySet': {'CommunitySet': 'cs0'}}}}
-
-        policy = {'name': 'policy0',
-                  'type': 'import',
-                  'statements': [st0]}
-        g1.add_policy(policy, q2)
+        g1.local('gobgp policy community add cs0 65100:10')
+        g1.local('gobgp policy statement add st0')
+        g1.local('gobgp policy statement st0 add condition community cs0')
+        g1.local('gobgp policy add policy0 st0')
+        g1.local('gobgp neighbor {0} policy import add policy0'.format(g1.peers[q2]['neigh_addr'].split('/')[0]))
 
         # this will be blocked
         e1.add_route('192.168.100.0/24', aspath=[65100, 65090])
@@ -1160,18 +935,12 @@ class ImportPolicyCommunityCondition(object):
         e1 = env.e1
         q1 = env.q1
         q2 = env.q2
-        cs0 = {'CommunitySets':
-                   {'CommunitySetList': [{'CommunitySetName': 'cs0', 'CommunityList': [{'Community': '65100:10'}]}]}}
 
-        g1.set_bgp_defined_set(cs0)
-
-        st0 = {'Name': 'st0',
-               'Conditions': {'BgpConditions': {'MatchCommunitySet': {'CommunitySet': 'cs0'}}}}
-
-        policy = {'name': 'policy0',
-                  'type': 'import',
-                  'statements': [st0]}
-        g1.add_policy(policy, q2)
+        g1.local('gobgp policy community add cs0 65100:10')
+        g1.local('gobgp policy statement add st0')
+        g1.local('gobgp policy statement st0 add condition community cs0')
+        g1.local('gobgp policy add policy0 st0')
+        g1.local('gobgp neighbor {0} policy import add policy0'.format(g1.peers[q2]['neigh_addr'].split('/')[0]))
 
         # this will be blocked
         e1.add_route('192.168.100.0/24', community=['65100:10'])
@@ -1208,17 +977,11 @@ class ImportPolicyCommunityRegexp(object):
         e1 = env.e1
         q1 = env.q1
         q2 = env.q2
-        cs0 = {'CommunitySets': {'CommunitySetList': [{'CommunitySetName': 'cs0', 'CommunityList': [{'Community': '6[0-9]+:[0-9]+'}]}]}}
-
-        g1.set_bgp_defined_set(cs0)
-
-        st0 = {'Name': 'st0',
-               'Conditions': {'BgpConditions': {'MatchCommunitySet': {'CommunitySet': 'cs0'}}}}
-
-        policy = {'name': 'policy0',
-                  'type': 'import',
-                  'statements': [st0]}
-        g1.add_policy(policy, q2)
+        g1.local('gobgp policy community add cs0 6[0-9]+:[0-9]+')
+        g1.local('gobgp policy statement add st0')
+        g1.local('gobgp policy statement st0 add condition community cs0')
+        g1.local('gobgp policy add policy0 st0')
+        g1.local('gobgp neighbor {0} policy import add policy0'.format(g1.peers[q2]['neigh_addr'].split('/')[0]))
 
         # this will be blocked
         e1.add_route('192.168.100.0/24', community=['65100:10'])
@@ -1263,20 +1026,13 @@ class ImportPolicyCommunityAction(object):
         e1 = env.e1
         q1 = env.q1
         q2 = env.q2
-        cs0 = {'CommunitySets': {'CommunitySetList': [{'CommunitySetName': 'cs0', 'CommunityList': [{'Community': '65100:10'}]}]}}
-
-        g1.set_bgp_defined_set(cs0)
-
-        st0 = {'Name': 'st0',
-               'Conditions': {'BgpConditions': {'MatchCommunitySet': {'CommunitySet': 'cs0'}}},
-               'Actions': {'RouteDisposition': {'AcceptRoute': True},
-                           'BgpActions': {'SetCommunity': {'Options': 'ADD',
-                                                           'SetCommunityMethod': {'Communities': ['65100:20']}}}}}
-
-        policy = {'name': 'policy0',
-                  'type': 'import',
-                  'statements': [st0]}
-        g1.add_policy(policy, q2)
+        g1.local('gobgp policy community add cs0 65100:10')
+        g1.local('gobgp policy statement add st0')
+        g1.local('gobgp policy statement st0 add condition community cs0')
+        g1.local('gobgp policy statement st0 add action accept')
+        g1.local('gobgp policy statement st0 add action community add 65100:20')
+        g1.local('gobgp policy add policy0 st0')
+        g1.local('gobgp neighbor {0} policy import add policy0'.format(g1.peers[q2]['neigh_addr'].split('/')[0]))
 
         e1.add_route('192.168.100.0/24', community=['65100:10'])
 
@@ -1331,20 +1087,14 @@ class ImportPolicyCommunityReplace(object):
         e1 = env.e1
         q1 = env.q1
         q2 = env.q2
-        cs0 = {'CommunitySets': {'CommunitySetList': [{'CommunitySetName': 'cs0', 'CommunityList': [{'Community': '65100:10'}]}]}}
 
-        g1.set_bgp_defined_set(cs0)
-
-        st0 = {'Name': 'st0',
-               'Conditions':{'BgpConditions':{'MatchCommunitySet':{'CommunitySet': 'cs0'}}},
-               'Actions': {'RouteDisposition': {'AcceptRoute': True},
-                           'BgpActions': {'SetCommunity': {'Options': 'REPLACE',
-                                                           'SetCommunityMethod': {'Communities': ['65100:20']}}}}}
-
-        policy = {'name': 'policy0',
-                  'type': 'import',
-                  'statements': [st0]}
-        g1.add_policy(policy, q2)
+        g1.local('gobgp policy community add cs0 65100:10')
+        g1.local('gobgp policy statement add st0')
+        g1.local('gobgp policy statement st0 add condition community cs0')
+        g1.local('gobgp policy statement st0 add action accept')
+        g1.local('gobgp policy statement st0 add action community replace 65100:20')
+        g1.local('gobgp policy add policy0 st0')
+        g1.local('gobgp neighbor {0} policy import add policy0'.format(g1.peers[q2]['neigh_addr'].split('/')[0]))
 
         e1.add_route('192.168.100.0/24', community=['65100:10'])
 
@@ -1391,20 +1141,14 @@ class ImportPolicyCommunityRemove(object):
         e1 = env.e1
         q1 = env.q1
         q2 = env.q2
-        cs0 = {'CommunitySets': {'CommunitySetList': [{'CommunitySetName': 'cs0', 'CommunityList': [{'Community': '65100:10'}]}]}}
 
-        g1.set_bgp_defined_set(cs0)
-
-        st0 = {'Name': 'st0',
-               'Conditions':{'BgpConditions':{'MatchCommunitySet':{'CommunitySet': 'cs0'}}},
-               'Actions': {'RouteDisposition': {'AcceptRoute': True},
-                           'BgpActions': {'SetCommunity': {'Options': 'REMOVE',
-                                                           'SetCommunityMethod': {'Communities': ['65100:10', '65100:20']}}}}}
-
-        policy = {'name': 'policy0',
-                  'type': 'import',
-                  'statements': [st0]}
-        g1.add_policy(policy, q2)
+        g1.local('gobgp policy community add cs0 65100:10')
+        g1.local('gobgp policy statement add st0')
+        g1.local('gobgp policy statement st0 add condition community cs0')
+        g1.local('gobgp policy statement st0 add action accept')
+        g1.local('gobgp policy statement st0 add action community remove 65100:10 65100:20')
+        g1.local('gobgp policy add policy0 st0')
+        g1.local('gobgp neighbor {0} policy import add policy0'.format(g1.peers[q2]['neigh_addr'].split('/')[0]))
 
         e1.add_route('192.168.100.0/24', community=['65100:10'])
         e1.add_route('192.168.110.0/24', community=['65100:10', '65100:20'])
@@ -1469,20 +1213,13 @@ class ImportPolicyCommunityNull(object):
         e1 = env.e1
         q1 = env.q1
         q2 = env.q2
-        cs0 = {'CommunitySets': {'CommunitySetList': [{'CommunitySetName': 'cs0', 'CommunityList': [{'Community': '65100:10'}]}]}}
-
-        g1.set_bgp_defined_set(cs0)
-
-        st0 = {'Name': 'st0',
-               'Conditions':{'BgpConditions':{'MatchCommunitySet':{'CommunitySet': 'cs0'}}},
-               'Actions': {'RouteDisposition': {'AcceptRoute': True},
-                           'BgpActions': {'SetCommunity': {'Options': 'REPLACE',
-                                                           'SetCommunityMethod': {'Communities': []}}}}}
-
-        policy = {'name': 'policy0',
-                  'type': 'import',
-                  'statements': [st0]}
-        g1.add_policy(policy, q2)
+        g1.local('gobgp policy community add cs0 65100:10')
+        g1.local('gobgp policy statement add st0')
+        g1.local('gobgp policy statement st0 add condition community cs0')
+        g1.local('gobgp policy statement st0 add action accept')
+        g1.local('gobgp policy statement st0 add action community replace')
+        g1.local('gobgp policy add policy0 st0')
+        g1.local('gobgp neighbor {0} policy import add policy0'.format(g1.peers[q2]['neigh_addr'].split('/')[0]))
 
         e1.add_route('192.168.100.0/24', community=['65100:10'])
         e1.add_route('192.168.110.0/24', community=['65100:10', '65100:20'])
@@ -1537,20 +1274,14 @@ class ExportPolicyCommunityAdd(object):
         e1 = env.e1
         q1 = env.q1
         q2 = env.q2
-        cs0 = {'CommunitySets': {'CommunitySetList': [{'CommunitySetName': 'cs0', 'CommunityList': [{'Community': '65100:10'}]}]}}
 
-        g1.set_bgp_defined_set(cs0)
-
-        st0 = {'Name': 'st0',
-               'Conditions':{'BgpConditions':{'MatchCommunitySet':{'CommunitySet': 'cs0'}}},
-               'Actions': {'RouteDisposition': {'AcceptRoute': True},
-                           'BgpActions': {'SetCommunity': {'Options': 'ADD',
-                                                           'SetCommunityMethod': {'Communities': ['65100:20']}}}}}
-
-        policy = {'name': 'policy0',
-                  'type': 'export',
-                  'statements': [st0]}
-        g1.add_policy(policy, q2)
+        g1.local('gobgp policy community add cs0 65100:10')
+        g1.local('gobgp policy statement add st0')
+        g1.local('gobgp policy statement st0 add condition community cs0')
+        g1.local('gobgp policy statement st0 add action accept')
+        g1.local('gobgp policy statement st0 add action community add 65100:20')
+        g1.local('gobgp policy add policy0 st0')
+        g1.local('gobgp neighbor {0} policy export add policy0'.format(g1.peers[q2]['neigh_addr'].split('/')[0]))
 
         e1.add_route('192.168.100.0/24', community=['65100:10'])
 
@@ -1604,20 +1335,14 @@ class ExportPolicyCommunityReplace(object):
         e1 = env.e1
         q1 = env.q1
         q2 = env.q2
-        cs0 = {'CommunitySets': {'CommunitySetList': [{'CommunitySetName': 'cs0', 'CommunityList': [{'Community': '65100:10'}]}]}}
 
-        g1.set_bgp_defined_set(cs0)
-
-        st0 = {'Name': 'st0',
-               'Conditions':{'BgpConditions':{'MatchCommunitySet':{'CommunitySet': 'cs0'}}},
-               'Actions': {'RouteDisposition': {'AcceptRoute': True},
-                           'BgpActions': {'SetCommunity': {'Options': 'REPLACE',
-                                                           'SetCommunityMethod': {'Communities': ['65100:20']}}}}}
-
-        policy = {'name': 'policy0',
-                  'type': 'export',
-                  'statements': [st0]}
-        g1.add_policy(policy, q2)
+        g1.local('gobgp policy community add cs0 65100:10')
+        g1.local('gobgp policy statement add st0')
+        g1.local('gobgp policy statement st0 add condition community cs0')
+        g1.local('gobgp policy statement st0 add action accept')
+        g1.local('gobgp policy statement st0 add action community replace 65100:20')
+        g1.local('gobgp policy add policy0 st0')
+        g1.local('gobgp neighbor {0} policy export add policy0'.format(g1.peers[q2]['neigh_addr'].split('/')[0]))
 
         e1.add_route('192.168.100.0/24', community=['65100:10'])
 
@@ -1671,20 +1396,14 @@ class ExportPolicyCommunityRemove(object):
         e1 = env.e1
         q1 = env.q1
         q2 = env.q2
-        cs0 = {'CommunitySets': {'CommunitySetList': [{'CommunitySetName': 'cs0', 'CommunityList': [{'Community': '65100:10'}]}]}}
 
-        g1.set_bgp_defined_set(cs0)
-
-        st0 = {'Name': 'st0',
-               'Conditions':{'BgpConditions':{'MatchCommunitySet':{'CommunitySet': 'cs0'}}},
-               'Actions': {'RouteDisposition': {'AcceptRoute': True},
-                           'BgpActions': {'SetCommunity': {'Options': 'REMOVE',
-                                                           'SetCommunityMethod': {'Communities': ['65100:20', '65100:30']}}}}}
-
-        policy = {'name': 'policy0',
-                  'type': 'export',
-                  'statements': [st0]}
-        g1.add_policy(policy, q2)
+        g1.local('gobgp policy community add cs0 65100:10')
+        g1.local('gobgp policy statement add st0')
+        g1.local('gobgp policy statement st0 add condition community cs0')
+        g1.local('gobgp policy statement st0 add action accept')
+        g1.local('gobgp policy statement st0 add action community remove 65100:20 65100:30')
+        g1.local('gobgp policy add policy0 st0')
+        g1.local('gobgp neighbor {0} policy export add policy0'.format(g1.peers[q2]['neigh_addr'].split('/')[0]))
 
         e1.add_route('192.168.100.0/24', community=['65100:10', '65100:20', '65100:30'])
 
@@ -1741,20 +1460,14 @@ class ExportPolicyCommunityNull(object):
         e1 = env.e1
         q1 = env.q1
         q2 = env.q2
-        cs0 = {'CommunitySets': {'CommunitySetList': [{'CommunitySetName': 'cs0', 'CommunityList': [{'Community': '65100:10'}]}]}}
 
-        g1.set_bgp_defined_set(cs0)
-
-        st0 = {'Name': 'st0',
-               'Conditions':{'BgpConditions':{'MatchCommunitySet':{'CommunitySet': 'cs0'}}},
-               'Actions': {'RouteDisposition': {'AcceptRoute': True},
-                           'BgpActions': {'SetCommunity': {'Options': 'REPLACE',
-                                                           'SetCommunityMethod': {'Communities': []}}}}}
-
-        policy = {'name': 'policy0',
-                  'type': 'export',
-                  'statements': [st0]}
-        g1.add_policy(policy, q2)
+        g1.local('gobgp policy community add cs0 65100:10')
+        g1.local('gobgp policy statement add st0')
+        g1.local('gobgp policy statement st0 add condition community cs0')
+        g1.local('gobgp policy statement st0 add action accept')
+        g1.local('gobgp policy statement st0 add action community replace')
+        g1.local('gobgp policy add policy0 st0')
+        g1.local('gobgp neighbor {0} policy export add policy0'.format(g1.peers[q2]['neigh_addr'].split('/')[0]))
 
         e1.add_route('192.168.100.0/24', community=['65100:10', '65100:20', '65100:30'])
 
@@ -1817,14 +1530,12 @@ class ImportPolicyMedReplace(object):
         e1 = env.e1
         q1 = env.q1
         q2 = env.q2
-        st0 = {'Name': 'st0',
-               'Actions': {'RouteDisposition': {'AcceptRoute': True},
-                           'BgpActions': {'SetMed': '100'}}}
 
-        policy = {'name': 'policy0',
-                  'type': 'import',
-                  'statements': [st0]}
-        g1.add_policy(policy, q2)
+        g1.local('gobgp policy statement add st0')
+        g1.local('gobgp policy statement st0 add action accept')
+        g1.local('gobgp policy statement st0 add action med set 100')
+        g1.local('gobgp policy add policy0 st0')
+        g1.local('gobgp neighbor {0} policy import add policy0'.format(g1.peers[q2]['neigh_addr'].split('/')[0]))
 
         e1.add_route('192.168.100.0/24', med=300)
 
@@ -1872,14 +1583,12 @@ class ImportPolicyMedAdd(object):
         e1 = env.e1
         q1 = env.q1
         q2 = env.q2
-        st0 = {'Name': 'st0',
-               'Actions': {'RouteDisposition': {'AcceptRoute': True},
-                           'BgpActions': {'SetMed': '+100'}}}
 
-        policy = {'name': 'policy0',
-                  'type': 'import',
-                  'statements': [st0]}
-        g1.add_policy(policy, q2)
+        g1.local('gobgp policy statement add st0')
+        g1.local('gobgp policy statement st0 add action accept')
+        g1.local('gobgp policy statement st0 add action med add 100')
+        g1.local('gobgp policy add policy0 st0')
+        g1.local('gobgp neighbor {0} policy import add policy0'.format(g1.peers[q2]['neigh_addr'].split('/')[0]))
 
         e1.add_route('192.168.100.0/24', med=300)
 
@@ -1927,14 +1636,12 @@ class ImportPolicyMedSub(object):
         e1 = env.e1
         q1 = env.q1
         q2 = env.q2
-        st0 = {'Name': 'st0',
-               'Actions': {'RouteDisposition': {'AcceptRoute': True},
-                           'BgpActions': {'SetMed': '-100'}}}
 
-        policy = {'name': 'policy0',
-                  'type': 'import',
-                  'statements': [st0]}
-        g1.add_policy(policy, q2)
+        g1.local('gobgp policy statement add st0')
+        g1.local('gobgp policy statement st0 add action accept')
+        g1.local('gobgp policy statement st0 add action med sub 100')
+        g1.local('gobgp policy add policy0 st0')
+        g1.local('gobgp neighbor {0} policy import add policy0'.format(g1.peers[q2]['neigh_addr'].split('/')[0]))
 
         e1.add_route('192.168.100.0/24', med=300)
 
@@ -1982,14 +1689,12 @@ class ExportPolicyMedReplace(object):
         e1 = env.e1
         q1 = env.q1
         q2 = env.q2
-        st0 = {'Name': 'st0',
-               'Actions': {'RouteDisposition': {'AcceptRoute': True},
-                           'BgpActions': {'SetMed': '100'}}}
 
-        policy = {'name': 'policy0',
-                  'type': 'export',
-                  'statements': [st0]}
-        g1.add_policy(policy, q2)
+        g1.local('gobgp policy statement add st0')
+        g1.local('gobgp policy statement st0 add action accept')
+        g1.local('gobgp policy statement st0 add action med set 100')
+        g1.local('gobgp policy add policy0 st0')
+        g1.local('gobgp neighbor {0} policy export add policy0'.format(g1.peers[q2]['neigh_addr'].split('/')[0]))
 
         e1.add_route('192.168.100.0/24', med=300)
 
@@ -2037,14 +1742,12 @@ class ExportPolicyMedAdd(object):
         e1 = env.e1
         q1 = env.q1
         q2 = env.q2
-        st0 = {'Name': 'st0',
-               'Actions': {'RouteDisposition': {'AcceptRoute': True},
-                           'BgpActions': {'SetMed': '+100'}}}
 
-        policy = {'name': 'policy0',
-                  'type': 'export',
-                  'statements': [st0]}
-        g1.add_policy(policy, q2)
+        g1.local('gobgp policy statement add st0')
+        g1.local('gobgp policy statement st0 add action accept')
+        g1.local('gobgp policy statement st0 add action med add 100')
+        g1.local('gobgp policy add policy0 st0')
+        g1.local('gobgp neighbor {0} policy export add policy0'.format(g1.peers[q2]['neigh_addr'].split('/')[0]))
 
         e1.add_route('192.168.100.0/24', med=300)
 
@@ -2092,14 +1795,12 @@ class ExportPolicyMedSub(object):
         e1 = env.e1
         q1 = env.q1
         q2 = env.q2
-        st0 = {'Name': 'st0',
-               'Actions': {'RouteDisposition': {'AcceptRoute': True},
-                           'BgpActions': {'SetMed': '-100'}}}
 
-        policy = {'name': 'policy0',
-                  'type': 'export',
-                  'statements': [st0]}
-        g1.add_policy(policy, q2)
+        g1.local('gobgp policy statement add st0')
+        g1.local('gobgp policy statement st0 add action accept')
+        g1.local('gobgp policy statement st0 add action med sub 100')
+        g1.local('gobgp policy add policy0 st0')
+        g1.local('gobgp neighbor {0} policy export add policy0'.format(g1.peers[q2]['neigh_addr'].split('/')[0]))
 
         e1.add_route('192.168.100.0/24', med=300)
 
@@ -2146,17 +1847,11 @@ class InPolicyReject(object):
         e1 = env.e1
         q1 = env.q1
         q2 = env.q2
-        cs0 = {'CommunitySets': {'CommunitySetList': [{'CommunitySetName': 'cs0', 'CommunityList': [{'Community': '65100:10'}]}]}}
 
-        g1.set_bgp_defined_set(cs0)
-
-        st0 = {'Name': 'st0',
-               'Conditions':{'BgpConditions':{'MatchCommunitySet':{'CommunitySet': 'cs0'}}}}
-
-        policy = {'name': 'policy0',
-                  'type': 'in',
-                  'statements': [st0]}
-        g1.add_policy(policy, e1)
+        g1.local('gobgp policy community add cs0 65100:10')
+        g1.local('gobgp policy statement st0 add condition community cs0')
+        g1.local('gobgp policy add policy0 st0')
+        g1.local('gobgp neighbor {0} policy in add policy0'.format(g1.peers[e1]['neigh_addr'].split('/')[0]))
 
         e1.add_route('192.168.100.0/24', community=['65100:10'])
         e1.add_route('192.168.10.0/24')
@@ -2199,19 +1894,12 @@ class InPolicyAccept(object):
         e1 = env.e1
         q1 = env.q1
         q2 = env.q2
-        cs0 = {'CommunitySets': {'CommunitySetList': [{'CommunitySetName': 'cs0', 'CommunityList': [{'Community': '65100:10'}]}]}}
 
-        g1.set_bgp_defined_set(cs0)
-
-        st0 = {'Name': 'st0',
-               'Conditions':{'BgpConditions':{'MatchCommunitySet':{'CommunitySet': 'cs0'}}},
-               'Actions':{'RouteDisposition': {'AcceptRoute': True}}}
-
-        policy = {'name': 'policy0',
-                  'type': 'in',
-                  'statements': [st0],
-                  'default': 'reject'}
-        g1.add_policy(policy, e1)
+        g1.local('gobgp policy community add cs0 65100:10')
+        g1.local('gobgp policy statement st0 add condition community cs0')
+        g1.local('gobgp policy statement st0 add action accept')
+        g1.local('gobgp policy add policy0 st0')
+        g1.local('gobgp neighbor {0} policy in add policy0 default reject'.format(g1.peers[e1]['neigh_addr'].split('/')[0]))
 
         e1.add_route('192.168.100.0/24', community=['65100:10'])
         e1.add_route('192.168.10.0/24')
@@ -2261,28 +1949,13 @@ class InPolicyUpdate(object):
         q1 = env.q1
         q2 = env.q2
 
-        p0 = {'IpPrefix': '192.168.20.0/24'}
-        p1 = {'IpPrefix': '192.168.200.0/24'}
-
-        ps0 = {'PrefixSetName': 'ps0',
-               'PrefixList': [p0, p1]}
-        g1.set_prefix_set(ps0)
-
-        n0 = {'Address': g1.peers[e1]['neigh_addr'].split('/')[0]}
-
-        ns0 = {'NeighborSetName': 'ns0',
-               'NeighborInfoList': [n0]}
-        g1.set_neighbor_set(ns0)
-
-        st0 = {'Name': 'st0',
-               'Conditions': {
-                'MatchPrefixSet': {'PrefixSet': ps0['PrefixSetName']},
-                'MatchNeighborSet': {'NeighborSet': ns0['NeighborSetName']}}}
-
-        policy = {'name': 'policy0',
-                  'type': 'in',
-                  'statements': [st0]}
-        g1.add_policy(policy, e1)
+        g1.local('gobgp policy prefix add ps0 192.168.20.0/24')
+        g1.local('gobgp policy prefix add ps0 192.168.200.0/24')
+        g1.local('gobgp policy neighbor add ns0 {0}'.format(g1.peers[e1]['neigh_addr'].split('/')[0]))
+        g1.local('gobgp policy statement st0 add condition prefix ps0')
+        g1.local('gobgp policy statement st0 add condition neighbor ns0')
+        g1.local('gobgp policy add policy0 st0')
+        g1.local('gobgp neighbor {0} policy in add policy0'.format(g1.peers[e1]['neigh_addr'].split('/')[0]))
 
         e1.add_route('192.168.2.0/24')
         e1.add_route('192.168.20.0/24')
@@ -2313,26 +1986,7 @@ class InPolicyUpdate(object):
         q2 = env.q2
         g1.clear_policy()
 
-        p0 = {'IpPrefix': '192.168.20.0/24'}
-
-        ps0 = {'PrefixSetName': 'ps0',
-               'PrefixList': [p0]}
-        g1.set_prefix_set(ps0)
-
-        n0 = {'Address': g1.peers[e1]['neigh_addr'].split('/')[0]}
-
-        ns0 = {'NeighborSetName': 'ns0',
-               'NeighborInfoList': [n0]}
-        g1.set_neighbor_set(ns0)
-
-        st0 = {'Name': 'st0',
-               'Conditions': {'MatchPrefixSet': {'PrefixSet': ps0['PrefixSetName']},
-                          'MatchNeighborSet': {'NeighborSet': ns0['NeighborSetName']}}}
-
-        policy = {'name': 'policy0',
-                  'type': 'in',
-                  'statements': [st0]}
-        g1.add_policy(policy, e1)
+        g1.local('gobgp policy prefix del ps0 192.168.200.0/24')
         g1.softreset(e1)
 
     @staticmethod
@@ -2372,21 +2026,12 @@ class ExportPolicyAsPathPrepend(object):
         q1 = env.q1
         q2 = env.q2
 
-        p0 = {'IpPrefix': '192.168.20.0/24'}
-
-        ps0 = {'PrefixSetName': 'ps0',
-               'PrefixList': [p0]}
-        g1.set_prefix_set(ps0)
-
-        st0 = {'Name': 'st0',
-               'Conditions': {'MatchPrefixSet': {'PrefixSet': ps0['PrefixSetName']}},
-               'Actions': {'RouteDisposition': {'AcceptRoute': True},
-                           'BgpActions': {'SetAsPathPrepend': {'RepeatN': 5, 'As': "65005"}}}}
-
-        policy = {'name': 'policy0',
-                  'type': 'export',
-                  'statements': [st0]}
-        g1.add_policy(policy, q2)
+        g1.local('gobgp policy prefix add ps0 192.168.20.0/24')
+        g1.local('gobgp policy statement st0 add condition prefix ps0')
+        g1.local('gobgp policy statement st0 add action accept')
+        g1.local('gobgp policy statement st0 add action as-prepend 65005 5')
+        g1.local('gobgp policy add policy0 st0')
+        g1.local('gobgp neighbor {0} policy export add policy0'.format(g1.peers[q2]['neigh_addr'].split('/')[0]))
 
         e1.add_route('192.168.20.0/24')
         e1.add_route('192.168.200.0/24')
@@ -2453,21 +2098,12 @@ class ImportPolicyAsPathPrependLastAS(object):
         q1 = env.q1
         q2 = env.q2
 
-        p0 = {'IpPrefix': '192.168.20.0/24'}
-
-        ps0 = {'PrefixSetName': 'ps0',
-               'PrefixList': [p0]}
-        g1.set_prefix_set(ps0)
-
-        st0 = {'Name': 'st0',
-               'Conditions': {'MatchPrefixSet': {'PrefixSet': ps0['PrefixSetName']}},
-               'Actions': {'RouteDisposition': {'AcceptRoute': True},
-                           'BgpActions': {'SetAsPathPrepend': {'RepeatN': 5, 'As': "last-as"}}}}
-
-        policy = {'name': 'policy0',
-                  'type': 'import',
-                  'statements': [st0]}
-        g1.add_policy(policy, q2)
+        g1.local('gobgp policy prefix add ps0 192.168.20.0/24')
+        g1.local('gobgp policy statement st0 add condition prefix ps0')
+        g1.local('gobgp policy statement st0 add action accept')
+        g1.local('gobgp policy statement st0 add action as-prepend last-as 5')
+        g1.local('gobgp policy add policy0 st0')
+        g1.local('gobgp neighbor {0} policy import add policy0'.format(g1.peers[q2]['neigh_addr'].split('/')[0]))
 
         e1.add_route('192.168.20.0/24')
         e1.add_route('192.168.200.0/24')
@@ -2524,21 +2160,12 @@ class ExportPolicyAsPathPrependLastAS(object):
         q1 = env.q1
         q2 = env.q2
 
-        p0 = {'IpPrefix': '192.168.20.0/24'}
-
-        ps0 = {'PrefixSetName': 'ps0',
-               'PrefixList': [p0]}
-        g1.set_prefix_set(ps0)
-
-        st0 = {'Name': 'st0',
-               'Conditions': {'MatchPrefixSet': {'PrefixSet': ps0['PrefixSetName']}},
-               'Actions': {'RouteDisposition': {'AcceptRoute': True},
-                           'BgpActions': {'SetAsPathPrepend': {'RepeatN': 5, 'As': "last-as"}}}}
-
-        policy = {'name': 'policy0',
-                  'type': 'export',
-                  'statements': [st0]}
-        g1.add_policy(policy, q2)
+        g1.local('gobgp policy prefix add ps0 192.168.20.0/24')
+        g1.local('gobgp policy statement st0 add condition prefix ps0')
+        g1.local('gobgp policy statement st0 add action accept')
+        g1.local('gobgp policy statement st0 add action as-prepend last-as 5')
+        g1.local('gobgp policy add policy0 st0')
+        g1.local('gobgp neighbor {0} policy export add policy0'.format(g1.peers[q2]['neigh_addr'].split('/')[0]))
 
         e1.add_route('192.168.20.0/24')
         e1.add_route('192.168.200.0/24')
@@ -2594,18 +2221,10 @@ class ImportPolicyExCommunityOriginCondition(object):
         q1 = env.q1
         q2 = env.q2
 
-        es0 = {'ExtCommunitySets': {'ExtCommunitySetList': [{'ExtCommunitySetName': 'es0',
-                                                             'ExtCommunityList': [{'ExtCommunity': 'SoO:65001.65100:200'}]}]}}
-
-        g1.set_bgp_defined_set(es0)
-
-        st0 = {'Name': 'st0',
-               'Conditions': {'BgpConditions':{'MatchExtCommunitySet':{'ExtCommunitySet': 'es0'}}}}
-
-        policy = {'name': 'policy0',
-                  'type': 'import',
-                  'statements': [st0]}
-        g1.add_policy(policy, q2)
+        g1.local('gobgp policy ext-community add es0 soo:65001.65100:200')
+        g1.local('gobgp policy statement st0 add condition ext-community es0')
+        g1.local('gobgp policy add policy0 st0')
+        g1.local('gobgp neighbor {0} policy import add policy0'.format(g1.peers[q2]['neigh_addr'].split('/')[0]))
 
         e1.add_route('192.168.20.0/24', extendedcommunity='origin:{0}:200'.format((65001 << 16) + 65100))
         e1.add_route('192.168.200.0/24', extendedcommunity='origin:{0}:100'.format((65001 << 16) + 65200))
@@ -2639,18 +2258,10 @@ class ImportPolicyExCommunityTargetCondition(object):
         q1 = env.q1
         q2 = env.q2
 
-        es0 = {'ExtCommunitySets': {'ExtCommunitySetList': [{'ExtCommunitySetName': 'es0',
-                                                             'ExtCommunityList': [{'ExtCommunity': 'RT:6[0-9]+:3[0-9]+'}]}]}}
-
-        g1.set_bgp_defined_set(es0)
-
-        st0 = {'Name': 'st0',
-               'Conditions': {'BgpConditions':{'MatchExtCommunitySet':{'ExtCommunitySet': 'es0'}}}}
-
-        policy = {'name': 'policy0',
-                  'type': 'import',
-                  'statements': [st0]}
-        g1.add_policy(policy, q2)
+        g1.local('gobgp policy ext-community add es0 rt:6[0-9]+:3[0-9]+')
+        g1.local('gobgp policy statement st0 add condition ext-community es0')
+        g1.local('gobgp policy add policy0 st0')
+        g1.local('gobgp neighbor {0} policy import add policy0'.format(g1.peers[q2]['neigh_addr'].split('/')[0]))
 
         e1.add_route('192.168.20.0/24', extendedcommunity='target:65010:320')
         e1.add_route('192.168.200.0/24', extendedcommunity='target:55000:320')
@@ -2684,20 +2295,10 @@ class InPolicyPrefixCondition(object):
         q1 = env.q1
         q2 = env.q2
 
-        p0 = {'IpPrefix': '192.168.10.0/24'}
-
-        ps0 = {'PrefixSetName': 'ps0',
-               'PrefixList': [p0]}
-        g1.set_prefix_set(ps0)
-
-        st0 = {'Name': 'st0',
-               'Conditions': {
-                'MatchPrefixSet': {'PrefixSet': ps0['PrefixSetName']}}}
-
-        policy = {'name': 'policy0',
-                  'type': 'in',
-                  'statements': [st0]}
-        g1.add_policy(policy, e1)
+        g1.local('gobgp policy prefix add ps0 192.168.10.0/24')
+        g1.local('gobgp policy statement st0 add condition prefix ps0')
+        g1.local('gobgp policy add policy0 st0')
+        g1.local('gobgp neighbor {0} policy in add policy0'.format(g1.peers[e1]['neigh_addr'].split('/')[0]))
 
         # this will be blocked
         e1.add_route('192.168.100.0/24')
@@ -2745,36 +2346,12 @@ class ImportPolicyExCommunityAdd(object):
         q1 = env.q1
         q2 = env.q2
 
-        p0 = {'IpPrefix': '192.168.10.0/24'}
-
-        ps0 = {'PrefixSetName': 'ps0',
-               'PrefixList': [p0]}
-        g1.set_prefix_set(ps0)
-
-        st0 = {
-            'Name': 'st0',
-            'Conditions': {
-                'MatchPrefixSet': {
-                    'PrefixSet': ps0['PrefixSetName']
-                    }
-                },
-            'Actions': {
-                'RouteDisposition': {'AcceptRoute': True},
-                'BgpActions': {
-                    'SetExtCommunity': {
-                        'Options': 'ADD',
-                        'SetExtCommunityMethod': {
-                            'Communities': ['rt:65000:1'],
-                            }
-                        },
-                    }
-                }
-            }
-
-        policy = {'name': 'policy0',
-                  'type': 'import',
-                  'statements': [st0]}
-        g1.add_policy(policy, q2)
+        g1.local('gobgp policy prefix add ps0 192.168.10.0/24')
+        g1.local('gobgp policy statement st0 add condition prefix ps0')
+        g1.local('gobgp policy statement st0 add action accept')
+        g1.local('gobgp policy statement st0 add action ext-community add rt:65000:1')
+        g1.local('gobgp policy add policy0 st0')
+        g1.local('gobgp neighbor {0} policy import add policy0'.format(g1.peers[q2]['neigh_addr'].split('/')[0]))
 
         e1.add_route('192.168.10.0/24')
 
@@ -2819,36 +2396,12 @@ class ImportPolicyExCommunityAdd2(object):
         q1 = env.q1
         q2 = env.q2
 
-        p0 = {'IpPrefix': '192.168.10.0/24'}
-
-        ps0 = {'PrefixSetName': 'ps0',
-               'PrefixList': [p0]}
-        g1.set_prefix_set(ps0)
-
-        st0 = {
-            'Name': 'st0',
-            'Conditions': {
-                'MatchPrefixSet': {
-                    'PrefixSet': ps0['PrefixSetName']
-                    }
-                },
-            'Actions': {
-                'RouteDisposition': {'AcceptRoute': True},
-                'BgpActions': {
-                    'SetExtCommunity': {
-                        'Options': 'ADD',
-                        'SetExtCommunityMethod': {
-                            'Communities': ['rt:65100:100'],
-                            }
-                        },
-                    }
-                }
-            }
-
-        policy = {'name': 'policy0',
-                  'type': 'import',
-                  'statements': [st0]}
-        g1.add_policy(policy, q2)
+        g1.local('gobgp policy prefix add ps0 192.168.10.0/24')
+        g1.local('gobgp policy statement st0 add condition prefix ps0')
+        g1.local('gobgp policy statement st0 add action accept')
+        g1.local('gobgp policy statement st0 add action ext-community add rt:65100:100')
+        g1.local('gobgp policy add policy0 st0')
+        g1.local('gobgp neighbor {0} policy import add policy0'.format(g1.peers[q2]['neigh_addr'].split('/')[0]))
 
         e1.add_route('192.168.10.0/24', extendedcommunity='target:65000:1')
 
@@ -2898,36 +2451,12 @@ class ImportPolicyExCommunityMultipleAdd(object):
         q1 = env.q1
         q2 = env.q2
 
-        p0 = {'IpPrefix': '192.168.10.0/24'}
-
-        ps0 = {'PrefixSetName': 'ps0',
-               'PrefixList': [p0]}
-        g1.set_prefix_set(ps0)
-
-        st0 = {
-            'Name': 'st0',
-            'Conditions': {
-                'MatchPrefixSet': {
-                    'PrefixSet': ps0['PrefixSetName']
-                    }
-                },
-            'Actions': {
-                'RouteDisposition': {'AcceptRoute': True},
-                'BgpActions': {
-                    'SetExtCommunity': {
-                        'Options': 'ADD',
-                        'SetExtCommunityMethod': {
-                            'Communities': ['rt:65100:100', 'rt:100:100'],
-                            }
-                        },
-                    }
-                }
-            }
-
-        policy = {'name': 'policy0',
-                  'type': 'import',
-                  'statements': [st0]}
-        g1.add_policy(policy, q2)
+        g1.local('gobgp policy prefix add ps0 192.168.10.0/24')
+        g1.local('gobgp policy statement st0 add condition prefix ps0')
+        g1.local('gobgp policy statement st0 add action accept')
+        g1.local('gobgp policy statement st0 add action ext-community add rt:65100:100 rt:100:100')
+        g1.local('gobgp policy add policy0 st0')
+        g1.local('gobgp neighbor {0} policy import add policy0'.format(g1.peers[q2]['neigh_addr'].split('/')[0]))
 
         e1.add_route('192.168.10.0/24')
 
@@ -2977,36 +2506,12 @@ class ExportPolicyExCommunityAdd(object):
         q1 = env.q1
         q2 = env.q2
 
-        p0 = {'IpPrefix': '192.168.10.0/24'}
-
-        ps0 = {'PrefixSetName': 'ps0',
-               'PrefixList': [p0]}
-        g1.set_prefix_set(ps0)
-
-        st0 = {
-            'Name': 'st0',
-            'Conditions': {
-                'MatchPrefixSet': {
-                    'PrefixSet': ps0['PrefixSetName']
-                    }
-                },
-            'Actions': {
-                'RouteDisposition': {'AcceptRoute': True},
-                'BgpActions': {
-                    'SetExtCommunity': {
-                        'Options': 'ADD',
-                        'SetExtCommunityMethod': {
-                            'Communities': ['rt:65000:1'],
-                            }
-                        },
-                    }
-                }
-            }
-
-        policy = {'name': 'policy0',
-                  'type': 'export',
-                  'statements': [st0]}
-        g1.add_policy(policy, q2)
+        g1.local('gobgp policy prefix add ps0 192.168.10.0/24')
+        g1.local('gobgp policy statement st0 add condition prefix ps0')
+        g1.local('gobgp policy statement st0 add action accept')
+        g1.local('gobgp policy statement st0 add action ext-community add rt:65000:1')
+        g1.local('gobgp policy add policy0 st0')
+        g1.local('gobgp neighbor {0} policy export add policy0'.format(g1.peers[q2]['neigh_addr'].split('/')[0]))
 
         e1.add_route('192.168.10.0/24')
 

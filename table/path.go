@@ -333,9 +333,8 @@ func (path *Path) GetAsPathLen() int {
 	var length int = 0
 	if _, attr := path.getPathAttr(bgp.BGP_ATTR_TYPE_AS_PATH); attr != nil {
 		aspath := attr.(*bgp.PathAttributeAsPath)
-		for _, paramIf := range aspath.Value {
-			segment := paramIf.(*bgp.As4PathParam)
-			length += segment.ASLen()
+		for _, as := range aspath.Value {
+			length += as.ASLen()
 		}
 	}
 	return length
@@ -557,20 +556,15 @@ func (path *Path) GetExtCommunities() []bgp.ExtendedCommunityInterface {
 	return eCommunityList
 }
 
-func (path *Path) SetExtCommunities(values []byte, doReplace bool) {
-	exts := []bgp.ExtendedCommunityInterface{}
-	for len(values) >= 8 {
-		e := &bgp.UnknownExtended{
-			Type:  bgp.BGPAttrType(values[0]),
-			Value: values[1:8],
-		}
-		exts = append(exts, e)
-		values = values[8:]
-	}
+func (path *Path) SetExtCommunities(exts []bgp.ExtendedCommunityInterface, doReplace bool) {
 	idx, attr := path.getPathAttr(bgp.BGP_ATTR_TYPE_EXTENDED_COMMUNITIES)
 	if attr != nil {
 		l := attr.(*bgp.PathAttributeExtendedCommunities).Value
-		l = append(l, exts...)
+		if doReplace {
+			l = exts
+		} else {
+			l = append(l, exts...)
+		}
 		path.pathAttrs[idx] = bgp.NewPathAttributeExtendedCommunities(l)
 	} else {
 		path.pathAttrs = append(path.pathAttrs, bgp.NewPathAttributeExtendedCommunities(exts))

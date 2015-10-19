@@ -23,7 +23,6 @@ import (
 	"github.com/stretchr/testify/assert"
 	"math"
 	"net"
-	"regexp"
 	"strconv"
 	"strings"
 	"testing"
@@ -48,14 +47,14 @@ func TestPrefixCalcurateNoRange(t *testing.T) {
 	updateMsg := bgp.NewBGPUpdateMessage(nil, pathAttributes, nlri)
 	path := ProcessMessage(updateMsg, peer)[0]
 	// test
-	pl1, _ := NewPrefix("10.10.0.0/24", "")
-	match1 := ipPrefixCalculate(path, pl1)
+	pl1, _ := NewPrefix(config.Prefix{"10.10.0.0/24", ""})
+	match1 := pl1.Match(path)
 	assert.Equal(t, true, match1)
-	pl2, _ := NewPrefix("10.10.0.0/23", "")
-	match2 := ipPrefixCalculate(path, pl2)
+	pl2, _ := NewPrefix(config.Prefix{"10.10.0.0/23", ""})
+	match2 := pl2.Match(path)
 	assert.Equal(t, false, match2)
-	pl3, _ := NewPrefix("10.10.0.0/16", "21..24")
-	match3 := ipPrefixCalculate(path, pl3)
+	pl3, _ := NewPrefix(config.Prefix{"10.10.0.0/16", "21..24"})
+	match3 := pl3.Match(path)
 	assert.Equal(t, true, match3)
 }
 
@@ -72,11 +71,11 @@ func TestPrefixCalcurateAddress(t *testing.T) {
 	updateMsg := bgp.NewBGPUpdateMessage(nil, pathAttributes, nlri)
 	path := ProcessMessage(updateMsg, peer)[0]
 	// test
-	pl1, _ := NewPrefix("10.11.0.0/16", "21..24")
-	match1 := ipPrefixCalculate(path, pl1)
+	pl1, _ := NewPrefix(config.Prefix{"10.11.0.0/16", "21..24"})
+	match1 := pl1.Match(path)
 	assert.Equal(t, false, match1)
-	pl2, _ := NewPrefix("10.10.0.0/16", "21..24")
-	match2 := ipPrefixCalculate(path, pl2)
+	pl2, _ := NewPrefix(config.Prefix{"10.10.0.0/16", "21..24"})
+	match2 := pl2.Match(path)
 	assert.Equal(t, true, match2)
 }
 
@@ -93,11 +92,11 @@ func TestPrefixCalcurateLength(t *testing.T) {
 	updateMsg := bgp.NewBGPUpdateMessage(nil, pathAttributes, nlri)
 	path := ProcessMessage(updateMsg, peer)[0]
 	// test
-	pl1, _ := NewPrefix("10.10.64.0/24", "21..24")
-	match1 := ipPrefixCalculate(path, pl1)
+	pl1, _ := NewPrefix(config.Prefix{"10.10.64.0/24", "21..24"})
+	match1 := pl1.Match(path)
 	assert.Equal(t, false, match1)
-	pl2, _ := NewPrefix("10.10.64.0/16", "21..24")
-	match2 := ipPrefixCalculate(path, pl2)
+	pl2, _ := NewPrefix(config.Prefix{"10.10.64.0/16", "21..24"})
+	match2 := pl2.Match(path)
 	assert.Equal(t, true, match2)
 }
 
@@ -114,14 +113,14 @@ func TestPrefixCalcurateLengthRange(t *testing.T) {
 	updateMsg := bgp.NewBGPUpdateMessage(nil, pathAttributes, nlri)
 	path := ProcessMessage(updateMsg, peer)[0]
 	// test
-	pl1, _ := NewPrefix("10.10.0.0/16", "21..23")
-	match1 := ipPrefixCalculate(path, pl1)
+	pl1, _ := NewPrefix(config.Prefix{"10.10.0.0/16", "21..23"})
+	match1 := pl1.Match(path)
 	assert.Equal(t, false, match1)
-	pl2, _ := NewPrefix("10.10.0.0/16", "25..26")
-	match2 := ipPrefixCalculate(path, pl2)
+	pl2, _ := NewPrefix(config.Prefix{"10.10.0.0/16", "25..26"})
+	match2 := pl2.Match(path)
 	assert.Equal(t, false, match2)
-	pl3, _ := NewPrefix("10.10.0.0/16", "21..24")
-	match3 := ipPrefixCalculate(path, pl3)
+	pl3, _ := NewPrefix(config.Prefix{"10.10.0.0/16", "21..24"})
+	match3 := pl3.Match(path)
 	assert.Equal(t, true, match3)
 }
 
@@ -139,14 +138,14 @@ func TestPrefixCalcurateNoRangeIPv6(t *testing.T) {
 	updateMsg := bgp.NewBGPUpdateMessage(nil, pathAttributes, nil)
 	path := ProcessMessage(updateMsg, peer)[0]
 	// test
-	pl1, _ := NewPrefix("2001:123:123::/48", "")
-	match1 := ipPrefixCalculate(path, pl1)
+	pl1, _ := NewPrefix(config.Prefix{"2001:123:123::/48", ""})
+	match1 := pl1.Match(path)
 	assert.Equal(t, false, match1)
-	pl2, _ := NewPrefix("2001:123:123:1::/64", "")
-	match2 := ipPrefixCalculate(path, pl2)
+	pl2, _ := NewPrefix(config.Prefix{"2001:123:123:1::/64", ""})
+	match2 := pl2.Match(path)
 	assert.Equal(t, true, match2)
-	pl3, _ := NewPrefix("2001:123:123::/48", "64..80")
-	match3 := ipPrefixCalculate(path, pl3)
+	pl3, _ := NewPrefix(config.Prefix{"2001:123:123::/48", "64..80"})
+	match3 := pl3.Match(path)
 	assert.Equal(t, true, match3)
 }
 
@@ -163,11 +162,11 @@ func TestPrefixCalcurateAddressIPv6(t *testing.T) {
 	updateMsg := bgp.NewBGPUpdateMessage(nil, pathAttributes, nil)
 	path := ProcessMessage(updateMsg, peer)[0]
 	// test
-	pl1, _ := NewPrefix("2001:123:128::/48", "64..80")
-	match1 := ipPrefixCalculate(path, pl1)
+	pl1, _ := NewPrefix(config.Prefix{"2001:123:128::/48", "64..80"})
+	match1 := pl1.Match(path)
 	assert.Equal(t, false, match1)
-	pl2, _ := NewPrefix("2001:123:123::/48", "64..80")
-	match2 := ipPrefixCalculate(path, pl2)
+	pl2, _ := NewPrefix(config.Prefix{"2001:123:123::/48", "64..80"})
+	match2 := pl2.Match(path)
 	assert.Equal(t, true, match2)
 }
 
@@ -184,11 +183,11 @@ func TestPrefixCalcurateLengthIPv6(t *testing.T) {
 	updateMsg := bgp.NewBGPUpdateMessage(nil, pathAttributes, nil)
 	path := ProcessMessage(updateMsg, peer)[0]
 	// test
-	pl1, _ := NewPrefix("2001:123:123:64::/64", "64..80")
-	match1 := ipPrefixCalculate(path, pl1)
+	pl1, _ := NewPrefix(config.Prefix{"2001:123:123:64::/64", "64..80"})
+	match1 := pl1.Match(path)
 	assert.Equal(t, false, match1)
-	pl2, _ := NewPrefix("2001:123:123:64::/48", "64..80")
-	match2 := ipPrefixCalculate(path, pl2)
+	pl2, _ := NewPrefix(config.Prefix{"2001:123:123:64::/48", "64..80"})
+	match2 := pl2.Match(path)
 	assert.Equal(t, true, match2)
 }
 
@@ -205,14 +204,14 @@ func TestPrefixCalcurateLengthRangeIPv6(t *testing.T) {
 	updateMsg := bgp.NewBGPUpdateMessage(nil, pathAttributes, nil)
 	path := ProcessMessage(updateMsg, peer)[0]
 	// test
-	pl1, _ := NewPrefix("2001:123:123::/48", "62..63")
-	match1 := ipPrefixCalculate(path, pl1)
+	pl1, _ := NewPrefix(config.Prefix{"2001:123:123::/48", "62..63"})
+	match1 := pl1.Match(path)
 	assert.Equal(t, false, match1)
-	pl2, _ := NewPrefix("2001:123:123::/48", "65..66")
-	match2 := ipPrefixCalculate(path, pl2)
+	pl2, _ := NewPrefix(config.Prefix{"2001:123:123::/48", "65..66"})
+	match2 := pl2.Match(path)
 	assert.Equal(t, false, match2)
-	pl3, _ := NewPrefix("2001:123:123::/48", "63..65")
-	match3 := ipPrefixCalculate(path, pl3)
+	pl3, _ := NewPrefix(config.Prefix{"2001:123:123::/48", "63..65"})
+	match3 := pl3.Match(path)
 	assert.Equal(t, true, match3)
 }
 
@@ -239,10 +238,9 @@ func TestPolicyNotMatch(t *testing.T) {
 	pd := createPolicyDefinition("pd1", s)
 	pl := createRoutingPolicy(ds, pd)
 
-	//test
-	df := pl.DefinedSets
-	p := NewPolicy(pl.PolicyDefinitions.PolicyDefinitionList[0], df)
-	pType, newPath := p.Apply(path)
+	r, err := NewRoutingPolicy(pl)
+	assert.Nil(t, err)
+	pType, newPath := r.PolicyMap["pd1"].Apply(path)
 	assert.Equal(t, ROUTE_TYPE_NONE, pType)
 	assert.Equal(t, newPath, path)
 }
@@ -270,10 +268,9 @@ func TestPolicyMatchAndReject(t *testing.T) {
 	pd := createPolicyDefinition("pd1", s)
 	pl := createRoutingPolicy(ds, pd)
 
-	//test
-	df := pl.DefinedSets
-	p := NewPolicy(pl.PolicyDefinitions.PolicyDefinitionList[0], df)
-	pType, newPath := p.Apply(path)
+	r, err := NewRoutingPolicy(pl)
+	assert.Nil(t, err)
+	pType, newPath := r.PolicyMap["pd1"].Apply(path)
 	assert.Equal(t, ROUTE_TYPE_REJECT, pType)
 	assert.Equal(t, newPath, path)
 }
@@ -302,9 +299,9 @@ func TestPolicyMatchAndAccept(t *testing.T) {
 	pl := createRoutingPolicy(ds, pd)
 
 	//test
-	df := pl.DefinedSets
-	p := NewPolicy(pl.PolicyDefinitions.PolicyDefinitionList[0], df)
-	pType, newPath := p.Apply(path)
+	r, err := NewRoutingPolicy(pl)
+	assert.Nil(t, err)
+	pType, newPath := r.PolicyMap["pd1"].Apply(path)
 	assert.Equal(t, ROUTE_TYPE_ACCEPT, pType)
 	assert.Equal(t, path, newPath)
 }
@@ -338,13 +335,14 @@ func TestPolicyRejectOnlyPrefixSet(t *testing.T) {
 	ds := config.DefinedSets{}
 	ds.PrefixSets.PrefixSetList = []config.PrefixSet{ps}
 
-	s := createStatement("statement1", "ps1", "ns1", false)
+	s := createStatement("statement1", "ps1", "", false)
 	pd := createPolicyDefinition("pd1", s)
 	pl := createRoutingPolicy(ds, pd)
 
 	//test
-	df := pl.DefinedSets
-	p := NewPolicy(pl.PolicyDefinitions.PolicyDefinitionList[0], df)
+	r, err := NewRoutingPolicy(pl)
+	assert.Nil(t, err)
+	p := r.PolicyMap["pd1"]
 	pType, newPath := p.Apply(path1)
 	assert.Equal(t, ROUTE_TYPE_REJECT, pType)
 	assert.Equal(t, newPath, path1)
@@ -383,18 +381,18 @@ func TestPolicyRejectOnlyNeighborSet(t *testing.T) {
 	ds := config.DefinedSets{}
 	ds.NeighborSets.NeighborSetList = []config.NeighborSet{ns}
 
-	s := createStatement("statement1", "ps1", "ns1", false)
+	s := createStatement("statement1", "", "ns1", false)
 	pd := createPolicyDefinition("pd1", s)
 	pl := createRoutingPolicy(ds, pd)
 
 	//test
-	df := pl.DefinedSets
-	p := NewPolicy(pl.PolicyDefinitions.PolicyDefinitionList[0], df)
-	pType, newPath := p.Apply(path1)
+	r, err := NewRoutingPolicy(pl)
+	assert.Nil(t, err)
+	pType, newPath := r.PolicyMap["pd1"].Apply(path1)
 	assert.Equal(t, ROUTE_TYPE_REJECT, pType)
 	assert.Equal(t, newPath, path1)
 
-	pType2, newPath2 := p.Apply(path2)
+	pType2, newPath2 := r.PolicyMap["pd1"].Apply(path2)
 	assert.Equal(t, ROUTE_TYPE_NONE, pType2)
 	assert.Equal(t, newPath2, path2)
 }
@@ -440,8 +438,9 @@ func TestPolicyDifferentRoutefamilyOfPathAndPolicy(t *testing.T) {
 	pl := createRoutingPolicy(ds, pd)
 
 	//test
-	df := pl.DefinedSets
-	p := NewPolicy(pl.PolicyDefinitions.PolicyDefinitionList[0], df)
+	r, err := NewRoutingPolicy(pl)
+	assert.Nil(t, err)
+	p := r.PolicyMap["pd1"]
 	pType1, newPath1 := p.Apply(pathIPv4)
 	assert.Equal(t, ROUTE_TYPE_REJECT, pType1)
 	assert.Equal(t, newPath1, pathIPv4)
@@ -474,30 +473,30 @@ func TestAsPathLengthConditionEvaluate(t *testing.T) {
 		Operator: "eq",
 		Value:    5,
 	}
-	c := NewAsPathLengthCondition(asPathLength)
+	c, _ := NewAsPathLengthCondition(asPathLength)
 
 	// test
-	assert.Equal(t, true, c.evaluate(path))
+	assert.Equal(t, true, c.Evaluate(path))
 
 	// create match condition
 	asPathLength = config.AsPathLength{
 		Operator: "ge",
 		Value:    3,
 	}
-	c = NewAsPathLengthCondition(asPathLength)
+	c, _ = NewAsPathLengthCondition(asPathLength)
 
 	// test
-	assert.Equal(t, true, c.evaluate(path))
+	assert.Equal(t, true, c.Evaluate(path))
 
 	// create match condition
 	asPathLength = config.AsPathLength{
 		Operator: "le",
 		Value:    3,
 	}
-	c = NewAsPathLengthCondition(asPathLength)
+	c, _ = NewAsPathLengthCondition(asPathLength)
 
 	// test
-	assert.Equal(t, false, c.evaluate(path))
+	assert.Equal(t, false, c.Evaluate(path))
 }
 
 func TestAsPathLengthConditionWithOtherCondition(t *testing.T) {
@@ -538,8 +537,9 @@ func TestAsPathLengthConditionWithOtherCondition(t *testing.T) {
 	pl := createRoutingPolicy(ds, pd)
 
 	//test
-	df := pl.DefinedSets
-	p := NewPolicy(pl.PolicyDefinitions.PolicyDefinitionList[0], df)
+	r, err := NewRoutingPolicy(pl)
+	assert.Nil(t, err)
+	p := r.PolicyMap["pd1"]
 	pType, newPath := p.Apply(path)
 	assert.Equal(t, ROUTE_TYPE_REJECT, pType)
 	assert.Equal(t, newPath, path)
@@ -579,30 +579,30 @@ func TestAs4PathLengthConditionEvaluate(t *testing.T) {
 		Operator: "eq",
 		Value:    5,
 	}
-	c := NewAsPathLengthCondition(asPathLength)
+	c, _ := NewAsPathLengthCondition(asPathLength)
 
 	// test
-	assert.Equal(t, true, c.evaluate(path))
+	assert.Equal(t, true, c.Evaluate(path))
 
 	// create match condition
 	asPathLength = config.AsPathLength{
 		Operator: "ge",
 		Value:    3,
 	}
-	c = NewAsPathLengthCondition(asPathLength)
+	c, _ = NewAsPathLengthCondition(asPathLength)
 
 	// test
-	assert.Equal(t, true, c.evaluate(path))
+	assert.Equal(t, true, c.Evaluate(path))
 
 	// create match condition
 	asPathLength = config.AsPathLength{
 		Operator: "le",
 		Value:    3,
 	}
-	c = NewAsPathLengthCondition(asPathLength)
+	c, _ = NewAsPathLengthCondition(asPathLength)
 
 	// test
-	assert.Equal(t, false, c.evaluate(path))
+	assert.Equal(t, false, c.Evaluate(path))
 }
 
 func TestAs4PathLengthConditionWithOtherCondition(t *testing.T) {
@@ -654,8 +654,8 @@ func TestAs4PathLengthConditionWithOtherCondition(t *testing.T) {
 	pl := createRoutingPolicy(ds, pd)
 
 	//test
-	df := pl.DefinedSets
-	p := NewPolicy(pl.PolicyDefinitions.PolicyDefinitionList[0], df)
+	r, _ := NewRoutingPolicy(pl)
+	p, _ := NewPolicy(pl.PolicyDefinitions.PolicyDefinitionList[0], r.DefinedSetMap)
 	pType, newPath := p.Apply(path)
 	assert.Equal(t, ROUTE_TYPE_REJECT, pType)
 	assert.Equal(t, newPath, path)
@@ -733,14 +733,18 @@ func TestAsPathConditionEvaluate(t *testing.T) {
 		},
 	}
 
-	asPathSetList := []config.AsPathSet{asPathSet1, asPathSet2, asPathSet3,
-		asPathSet4, asPathSet5, asPathSet6}
+	m := make(map[string]DefinedSet)
+	for _, s := range []config.AsPathSet{asPathSet1, asPathSet2, asPathSet3,
+		asPathSet4, asPathSet5, asPathSet6} {
+		a, _ := NewAsPathSet(s)
+		m[s.AsPathSetName] = a
+	}
 
 	createAspathC := func(name string, option config.MatchSetOptionsType) *AsPathCondition {
 		matchSet := config.MatchAsPathSet{}
 		matchSet.AsPathSet = name
 		matchSet.MatchSetOptions = option
-		p := NewAsPathCondition(matchSet, asPathSetList)
+		p, _ := NewAsPathCondition(matchSet, m)
 		return p
 	}
 
@@ -750,22 +754,19 @@ func TestAsPathConditionEvaluate(t *testing.T) {
 	p4 := createAspathC("asset4", config.MATCH_SET_OPTIONS_TYPE_ANY)
 	p5 := createAspathC("asset5", config.MATCH_SET_OPTIONS_TYPE_ANY)
 	p6 := createAspathC("asset6", config.MATCH_SET_OPTIONS_TYPE_ANY)
-
-	//TODO: add ALL and INVERT cases.
 	p7 := createAspathC("asset3", config.MATCH_SET_OPTIONS_TYPE_ALL)
 	p8 := createAspathC("asset3", config.MATCH_SET_OPTIONS_TYPE_INVERT)
 
 	// test
-	assert.Equal(t, true, p1.evaluate(path1))
-	assert.Equal(t, true, p2.evaluate(path1))
-	assert.Equal(t, true, p3.evaluate(path1))
-	assert.Equal(t, false, p4.evaluate(path1))
-	assert.Equal(t, true, p5.evaluate(path1))
-	assert.Equal(t, false, p6.evaluate(path1))
-	assert.Equal(t, true, p6.evaluate(path2))
-
-	assert.Equal(t, true, p7.evaluate(path1))
-	assert.Equal(t, true, p8.evaluate(path2))
+	assert.Equal(t, true, p1.Evaluate(path1))
+	assert.Equal(t, true, p2.Evaluate(path1))
+	assert.Equal(t, true, p3.Evaluate(path1))
+	assert.Equal(t, false, p4.Evaluate(path1))
+	assert.Equal(t, true, p5.Evaluate(path1))
+	assert.Equal(t, false, p6.Evaluate(path1))
+	assert.Equal(t, true, p6.Evaluate(path2))
+	assert.Equal(t, true, p7.Evaluate(path1))
+	assert.Equal(t, true, p8.Evaluate(path2))
 }
 
 func TestMultipleAsPathConditionEvaluate(t *testing.T) {
@@ -850,14 +851,18 @@ func TestMultipleAsPathConditionEvaluate(t *testing.T) {
 		},
 	}
 
-	asPathSetList := []config.AsPathSet{asPathSet1, asPathSet2, asPathSet3,
-		asPathSet4, asPathSet5, asPathSet6, asPathSet7, asPathSet8, asPathSet9}
+	m := make(map[string]DefinedSet)
+	for _, s := range []config.AsPathSet{asPathSet1, asPathSet2, asPathSet3,
+		asPathSet4, asPathSet5, asPathSet6, asPathSet7, asPathSet8, asPathSet9} {
+		a, _ := NewAsPathSet(s)
+		m[s.AsPathSetName] = a
+	}
 
 	createAspathC := func(name string, option config.MatchSetOptionsType) *AsPathCondition {
 		matchSet := config.MatchAsPathSet{}
 		matchSet.AsPathSet = name
 		matchSet.MatchSetOptions = option
-		p := NewAsPathCondition(matchSet, asPathSetList)
+		p, _ := NewAsPathCondition(matchSet, m)
 		return p
 	}
 
@@ -872,15 +877,15 @@ func TestMultipleAsPathConditionEvaluate(t *testing.T) {
 	p9 := createAspathC("asset9", config.MATCH_SET_OPTIONS_TYPE_ANY)
 
 	// test
-	assert.Equal(t, true, p1.evaluate(path1))
-	assert.Equal(t, true, p2.evaluate(path1))
-	assert.Equal(t, true, p3.evaluate(path1))
-	assert.Equal(t, true, p4.evaluate(path1))
-	assert.Equal(t, true, p5.evaluate(path1))
-	assert.Equal(t, true, p6.evaluate(path1))
-	assert.Equal(t, true, p7.evaluate(path1))
-	assert.Equal(t, true, p8.evaluate(path1))
-	assert.Equal(t, false, p9.evaluate(path1))
+	assert.Equal(t, true, p1.Evaluate(path1))
+	assert.Equal(t, true, p2.Evaluate(path1))
+	assert.Equal(t, true, p3.Evaluate(path1))
+	assert.Equal(t, true, p4.Evaluate(path1))
+	assert.Equal(t, true, p5.Evaluate(path1))
+	assert.Equal(t, true, p6.Evaluate(path1))
+	assert.Equal(t, true, p7.Evaluate(path1))
+	assert.Equal(t, true, p8.Evaluate(path1))
+	assert.Equal(t, false, p9.Evaluate(path1))
 }
 
 func TestAsPathCondition(t *testing.T) {
@@ -930,17 +935,19 @@ func TestAsPathCondition(t *testing.T) {
 	}
 
 	for k, v := range tests {
-		r, _ := regexp.Compile(strings.Replace(k, "_", ASPATH_REGEXP_MAGIC, -1))
-		c := &AsPathCondition{
-			AsRegExpList: []*regexp.Regexp{r},
-			MatchOption:  config.MATCH_SET_OPTIONS_TYPE_ANY,
-		}
+		s, _ := NewAsPathSet(config.AsPathSet{
+			AsPathSetName: k,
+			AsPathList:    []config.AsPath{config.AsPath{k}},
+		})
+		c, _ := NewAsPathCondition(config.MatchAsPathSet{
+			AsPathSet:       k,
+			MatchSetOptions: config.MATCH_SET_OPTIONS_TYPE_ANY,
+		}, map[string]DefinedSet{k: s})
 		for _, a := range v {
-			result := c.evaluate(a.path)
+			result := c.Evaluate(a.path)
 			if a.result != result {
 				log.WithFields(log.Fields{
 					"EXP":      k,
-					"ASN":      r,
 					"ASSTR":    a.path.GetAsString(),
 					"Expected": a.result,
 					"Result":   result,
@@ -990,8 +997,9 @@ func TestAsPathConditionWithOtherCondition(t *testing.T) {
 	pl := createRoutingPolicy(ds, pd)
 
 	//test
-	df := pl.DefinedSets
-	p := NewPolicy(pl.PolicyDefinitions.PolicyDefinitionList[0], df)
+	r, err := NewRoutingPolicy(pl)
+	assert.Nil(t, err)
+	p := r.PolicyMap["pd1"]
 	pType, newPath := p.Apply(path)
 	assert.Equal(t, ROUTE_TYPE_REJECT, pType)
 	assert.Equal(t, newPath, path)
@@ -1077,14 +1085,18 @@ func TestAs4PathConditionEvaluate(t *testing.T) {
 		},
 	}
 
-	asPathSetList := []config.AsPathSet{asPathSet1, asPathSet2, asPathSet3,
-		asPathSet4, asPathSet5, asPathSet6}
+	m := make(map[string]DefinedSet)
+	for _, s := range []config.AsPathSet{asPathSet1, asPathSet2, asPathSet3,
+		asPathSet4, asPathSet5, asPathSet6} {
+		a, _ := NewAsPathSet(s)
+		m[s.AsPathSetName] = a
+	}
 
 	createAspathC := func(name string, option config.MatchSetOptionsType) *AsPathCondition {
 		matchSet := config.MatchAsPathSet{}
 		matchSet.AsPathSet = name
 		matchSet.MatchSetOptions = option
-		p := NewAsPathCondition(matchSet, asPathSetList)
+		p, _ := NewAsPathCondition(matchSet, m)
 		return p
 	}
 
@@ -1099,16 +1111,16 @@ func TestAs4PathConditionEvaluate(t *testing.T) {
 	p8 := createAspathC("asset3", config.MATCH_SET_OPTIONS_TYPE_INVERT)
 
 	// test
-	assert.Equal(t, true, p1.evaluate(path1))
-	assert.Equal(t, true, p2.evaluate(path1))
-	assert.Equal(t, true, p3.evaluate(path1))
-	assert.Equal(t, false, p4.evaluate(path1))
-	assert.Equal(t, true, p5.evaluate(path1))
-	assert.Equal(t, false, p6.evaluate(path1))
-	assert.Equal(t, true, p6.evaluate(path2))
+	assert.Equal(t, true, p1.Evaluate(path1))
+	assert.Equal(t, true, p2.Evaluate(path1))
+	assert.Equal(t, true, p3.Evaluate(path1))
+	assert.Equal(t, false, p4.Evaluate(path1))
+	assert.Equal(t, true, p5.Evaluate(path1))
+	assert.Equal(t, false, p6.Evaluate(path1))
+	assert.Equal(t, true, p6.Evaluate(path2))
 
-	assert.Equal(t, true, p7.evaluate(path1))
-	assert.Equal(t, true, p8.evaluate(path2))
+	assert.Equal(t, true, p7.Evaluate(path1))
+	assert.Equal(t, true, p8.Evaluate(path2))
 }
 
 func TestMultipleAs4PathConditionEvaluate(t *testing.T) {
@@ -1200,14 +1212,18 @@ func TestMultipleAs4PathConditionEvaluate(t *testing.T) {
 		},
 	}
 
-	asPathSetList := []config.AsPathSet{asPathSet1, asPathSet2, asPathSet3,
-		asPathSet4, asPathSet5, asPathSet6, asPathSet7, asPathSet8, asPathSet9}
+	m := make(map[string]DefinedSet)
+	for _, s := range []config.AsPathSet{asPathSet1, asPathSet2, asPathSet3,
+		asPathSet4, asPathSet5, asPathSet6, asPathSet7, asPathSet8, asPathSet9} {
+		a, _ := NewAsPathSet(s)
+		m[s.AsPathSetName] = a
+	}
 
 	createAspathC := func(name string, option config.MatchSetOptionsType) *AsPathCondition {
 		matchSet := config.MatchAsPathSet{}
 		matchSet.AsPathSet = name
 		matchSet.MatchSetOptions = option
-		p := NewAsPathCondition(matchSet, asPathSetList)
+		p, _ := NewAsPathCondition(matchSet, m)
 		return p
 	}
 
@@ -1222,15 +1238,15 @@ func TestMultipleAs4PathConditionEvaluate(t *testing.T) {
 	p9 := createAspathC("asset9", config.MATCH_SET_OPTIONS_TYPE_ANY)
 
 	// test
-	assert.Equal(t, true, p1.evaluate(path1))
-	assert.Equal(t, true, p2.evaluate(path1))
-	assert.Equal(t, true, p3.evaluate(path1))
-	assert.Equal(t, true, p4.evaluate(path1))
-	assert.Equal(t, true, p5.evaluate(path1))
-	assert.Equal(t, true, p6.evaluate(path1))
-	assert.Equal(t, true, p7.evaluate(path1))
-	assert.Equal(t, true, p8.evaluate(path1))
-	assert.Equal(t, false, p9.evaluate(path1))
+	assert.Equal(t, true, p1.Evaluate(path1))
+	assert.Equal(t, true, p2.Evaluate(path1))
+	assert.Equal(t, true, p3.Evaluate(path1))
+	assert.Equal(t, true, p4.Evaluate(path1))
+	assert.Equal(t, true, p5.Evaluate(path1))
+	assert.Equal(t, true, p6.Evaluate(path1))
+	assert.Equal(t, true, p7.Evaluate(path1))
+	assert.Equal(t, true, p8.Evaluate(path1))
+	assert.Equal(t, false, p9.Evaluate(path1))
 }
 
 func TestAs4PathConditionWithOtherCondition(t *testing.T) {
@@ -1286,8 +1302,8 @@ func TestAs4PathConditionWithOtherCondition(t *testing.T) {
 	pl := createRoutingPolicy(ds, pd)
 
 	//test
-	df := pl.DefinedSets
-	p := NewPolicy(pl.PolicyDefinitions.PolicyDefinitionList[0], df)
+	r, _ := NewRoutingPolicy(pl)
+	p, _ := NewPolicy(pl.PolicyDefinitions.PolicyDefinitionList[0], r.DefinedSetMap)
 	pType, newPath := p.Apply(path)
 	assert.Equal(t, ROUTE_TYPE_REJECT, pType)
 	assert.Equal(t, newPath, path)
@@ -1373,14 +1389,18 @@ func TestAs4PathConditionEvaluateMixedWith2byteAS(t *testing.T) {
 		},
 	}
 
-	asPathSetList := []config.AsPathSet{asPathSet1, asPathSet2, asPathSet3,
-		asPathSet4, asPathSet5, asPathSet6, asPathSet7}
+	m := make(map[string]DefinedSet)
+	for _, s := range []config.AsPathSet{asPathSet1, asPathSet2, asPathSet3,
+		asPathSet4, asPathSet5, asPathSet6, asPathSet7} {
+		a, _ := NewAsPathSet(s)
+		m[s.AsPathSetName] = a
+	}
 
 	createAspathC := func(name string, option config.MatchSetOptionsType) *AsPathCondition {
 		matchSet := config.MatchAsPathSet{}
 		matchSet.AsPathSet = name
 		matchSet.MatchSetOptions = option
-		p := NewAsPathCondition(matchSet, asPathSetList)
+		p, _ := NewAsPathCondition(matchSet, m)
 		return p
 	}
 
@@ -1393,13 +1413,13 @@ func TestAs4PathConditionEvaluateMixedWith2byteAS(t *testing.T) {
 	p7 := createAspathC("asset7", config.MATCH_SET_OPTIONS_TYPE_ANY)
 
 	// test
-	assert.Equal(t, true, p1.evaluate(path1))
-	assert.Equal(t, true, p2.evaluate(path1))
-	assert.Equal(t, true, p3.evaluate(path1))
-	assert.Equal(t, true, p4.evaluate(path1))
-	assert.Equal(t, true, p5.evaluate(path1))
-	assert.Equal(t, false, p6.evaluate(path1))
-	assert.Equal(t, true, p7.evaluate(path1))
+	assert.Equal(t, true, p1.Evaluate(path1))
+	assert.Equal(t, true, p2.Evaluate(path1))
+	assert.Equal(t, true, p3.Evaluate(path1))
+	assert.Equal(t, true, p4.Evaluate(path1))
+	assert.Equal(t, true, p5.Evaluate(path1))
+	assert.Equal(t, false, p6.Evaluate(path1))
+	assert.Equal(t, true, p7.Evaluate(path1))
 
 }
 
@@ -1433,6 +1453,17 @@ func TestCommunityConditionEvaluate(t *testing.T) {
 	updateMsg1 := bgp.NewBGPUpdateMessage(nil, pathAttributes, nlri)
 	UpdatePathAttrs4ByteAs(updateMsg1.Body.(*bgp.BGPUpdate))
 	path1 := ProcessMessage(updateMsg1, peer)[0]
+
+	communities2 := bgp.NewPathAttributeCommunities([]uint32{
+		stringToCommunityValue("65001:100"),
+		stringToCommunityValue("65001:200"),
+		stringToCommunityValue("65001:300"),
+		stringToCommunityValue("65001:400")})
+
+	pathAttributes2 := []bgp.PathAttributeInterface{origin, aspath, nexthop, med, communities2}
+	updateMsg2 := bgp.NewBGPUpdateMessage(nil, pathAttributes2, nlri)
+	UpdatePathAttrs4ByteAs(updateMsg2.Body.(*bgp.BGPUpdate))
+	path2 := ProcessMessage(updateMsg2, peer)[0]
 
 	// create match condition
 	comSet1 := config.CommunitySet{
@@ -1496,9 +1527,8 @@ func TestCommunityConditionEvaluate(t *testing.T) {
 	comSet9 := config.CommunitySet{
 		CommunitySetName: "comset9",
 		CommunityList: []config.Community{
-			config.Community{"65001:100"},
-			config.Community{"65001:200"},
-			config.Community{"65001:300"},
+			config.Community{"65001:\\d+"},
+			config.Community{"\\d+:\\d00"},
 		},
 	}
 
@@ -1511,14 +1541,19 @@ func TestCommunityConditionEvaluate(t *testing.T) {
 		},
 	}
 
-	comSetList := []config.CommunitySet{comSet1, comSet2, comSet3,
-		comSet4, comSet5, comSet6, comSet7, comSet8, comSet9, comSet10}
+	m := make(map[string]DefinedSet)
+
+	for _, c := range []config.CommunitySet{comSet1, comSet2, comSet3,
+		comSet4, comSet5, comSet6, comSet7, comSet8, comSet9, comSet10} {
+		s, _ := NewCommunitySet(c)
+		m[c.CommunitySetName] = s
+	}
 
 	createCommunityC := func(name string, option config.MatchSetOptionsType) *CommunityCondition {
 		matchSet := config.MatchCommunitySet{}
 		matchSet.CommunitySet = name
 		matchSet.MatchSetOptions = option
-		c := NewCommunityCondition(matchSet, comSetList)
+		c, _ := NewCommunityCondition(matchSet, m)
 		return c
 	}
 
@@ -1539,16 +1574,16 @@ func TestCommunityConditionEvaluate(t *testing.T) {
 	p10 := createCommunityC("comset10", config.MATCH_SET_OPTIONS_TYPE_INVERT)
 
 	// test
-	assert.Equal(t, true, p1.evaluate(path1))
-	assert.Equal(t, true, p2.evaluate(path1))
-	assert.Equal(t, true, p3.evaluate(path1))
-	assert.Equal(t, true, p4.evaluate(path1))
-	assert.Equal(t, true, p5.evaluate(path1))
-	assert.Equal(t, true, p6.evaluate(path1))
-	assert.Equal(t, true, p7.evaluate(path1))
-	assert.Equal(t, true, p8.evaluate(path1))
-	assert.Equal(t, true, p9.evaluate(path1))
-	assert.Equal(t, true, p10.evaluate(path1))
+	assert.Equal(t, true, p1.Evaluate(path1))
+	assert.Equal(t, true, p2.Evaluate(path1))
+	assert.Equal(t, true, p3.Evaluate(path1))
+	assert.Equal(t, true, p4.Evaluate(path1))
+	assert.Equal(t, true, p5.Evaluate(path1))
+	assert.Equal(t, true, p6.Evaluate(path1))
+	assert.Equal(t, true, p7.Evaluate(path1))
+	assert.Equal(t, true, p8.Evaluate(path1))
+	assert.Equal(t, true, p9.Evaluate(path2))
+	assert.Equal(t, true, p10.Evaluate(path1))
 
 }
 
@@ -1626,14 +1661,14 @@ func TestCommunityConditionEvaluateWithOtherCondition(t *testing.T) {
 	pl := createRoutingPolicy(ds, pd1, pd2)
 
 	//test
-	df := pl.DefinedSets
-	p := NewPolicy(pl.PolicyDefinitions.PolicyDefinitionList[0], df)
+	r, err := NewRoutingPolicy(pl)
+	assert.Nil(t, err)
+	p := r.PolicyMap["pd1"]
 	pType, newPath := p.Apply(path)
 	assert.Equal(t, ROUTE_TYPE_REJECT, pType)
 	assert.Equal(t, newPath, path)
 
-	df = pl.DefinedSets
-	p = NewPolicy(pl.PolicyDefinitions.PolicyDefinitionList[1], df)
+	p = r.PolicyMap["pd2"]
 	pType, newPath = p.Apply(path)
 	assert.Equal(t, ROUTE_TYPE_NONE, pType)
 	assert.Equal(t, newPath, path)
@@ -1670,8 +1705,9 @@ func TestPolicyMatchAndAddCommunities(t *testing.T) {
 	pl := createRoutingPolicy(ds, pd)
 
 	//test
-	df := pl.DefinedSets
-	p := NewPolicy(pl.PolicyDefinitions.PolicyDefinitionList[0], df)
+	r, err := NewRoutingPolicy(pl)
+	assert.Nil(t, err)
+	p := r.PolicyMap["pd1"]
 
 	pType, newPath := p.Apply(path)
 	assert.Equal(t, ROUTE_TYPE_ACCEPT, pType)
@@ -1713,8 +1749,9 @@ func TestPolicyMatchAndReplaceCommunities(t *testing.T) {
 	pl := createRoutingPolicy(ds, pd)
 
 	//test
-	df := pl.DefinedSets
-	p := NewPolicy(pl.PolicyDefinitions.PolicyDefinitionList[0], df)
+	r, err := NewRoutingPolicy(pl)
+	assert.Nil(t, err)
+	p := r.PolicyMap["pd1"]
 
 	pType, newPath := p.Apply(path)
 	assert.Equal(t, ROUTE_TYPE_ACCEPT, pType)
@@ -1756,8 +1793,9 @@ func TestPolicyMatchAndRemoveCommunities(t *testing.T) {
 	pl := createRoutingPolicy(ds, pd)
 
 	//test
-	df := pl.DefinedSets
-	p := NewPolicy(pl.PolicyDefinitions.PolicyDefinitionList[0], df)
+	r, err := NewRoutingPolicy(pl)
+	assert.Nil(t, err)
+	p := r.PolicyMap["pd1"]
 	pType, newPath := p.Apply(path)
 	assert.Equal(t, ROUTE_TYPE_ACCEPT, pType)
 	assert.NotEqual(t, nil, newPath)
@@ -1800,8 +1838,9 @@ func TestPolicyMatchAndRemoveCommunitiesRegexp(t *testing.T) {
 	pl := createRoutingPolicy(ds, pd)
 
 	//test
-	df := pl.DefinedSets
-	p := NewPolicy(pl.PolicyDefinitions.PolicyDefinitionList[0], df)
+	r, err := NewRoutingPolicy(pl)
+	assert.Nil(t, err)
+	p := r.PolicyMap["pd1"]
 	pType, newPath := p.Apply(path)
 	assert.Equal(t, ROUTE_TYPE_ACCEPT, pType)
 	assert.NotEqual(t, nil, newPath)
@@ -1844,8 +1883,9 @@ func TestPolicyMatchAndRemoveCommunitiesRegexp2(t *testing.T) {
 	pl := createRoutingPolicy(ds, pd)
 
 	//test
-	df := pl.DefinedSets
-	p := NewPolicy(pl.PolicyDefinitions.PolicyDefinitionList[0], df)
+	r, err := NewRoutingPolicy(pl)
+	assert.Nil(t, err)
+	p := r.PolicyMap["pd1"]
 	pType, newPath := p.Apply(path)
 	assert.Equal(t, ROUTE_TYPE_ACCEPT, pType)
 	assert.NotEqual(t, nil, newPath)
@@ -1888,8 +1928,9 @@ func TestPolicyMatchAndClearCommunities(t *testing.T) {
 	pl := createRoutingPolicy(ds, pd)
 
 	//test
-	df := pl.DefinedSets
-	p := NewPolicy(pl.PolicyDefinitions.PolicyDefinitionList[0], df)
+	r, err := NewRoutingPolicy(pl)
+	assert.Nil(t, err)
+	p := r.PolicyMap["pd1"]
 
 	pType, newPath := p.Apply(path)
 	assert.Equal(t, ROUTE_TYPE_ACCEPT, pType)
@@ -2041,9 +2082,8 @@ func TestExtCommunityConditionEvaluate(t *testing.T) {
 	ecomSet10 := config.ExtCommunitySet{
 		ExtCommunitySetName: "ecomSet10",
 		ExtCommunityList: []config.ExtCommunity{
-			config.ExtCommunity{"RT:65001:200"},
-			config.ExtCommunity{"RT:10.0.0.1:300"},
-			config.ExtCommunity{"SoO:10.0.10.10:[0-9]+"},
+			config.ExtCommunity{"RT:.+:\\d00"},
+			config.ExtCommunity{"SoO:.+:\\d00"},
 		},
 	}
 
@@ -2051,19 +2091,22 @@ func TestExtCommunityConditionEvaluate(t *testing.T) {
 		ExtCommunitySetName: "ecomSet11",
 		ExtCommunityList: []config.ExtCommunity{
 			config.ExtCommunity{"RT:65001:2"},
-			config.ExtCommunity{"RT:10.0.0.1:3"},
 			config.ExtCommunity{"SoO:11.0.10.10:[0-9]+"},
 		},
 	}
 
-	comSetList := []config.ExtCommunitySet{ecomSet1, ecomSet2, ecomSet3, ecomSet4, ecomSet5, ecomSet6, ecomSet7,
-		ecomSet8, ecomSet9, ecomSet10, ecomSet11}
+	m := make(map[string]DefinedSet)
+	for _, c := range []config.ExtCommunitySet{ecomSet1, ecomSet2, ecomSet3, ecomSet4, ecomSet5, ecomSet6, ecomSet7,
+		ecomSet8, ecomSet9, ecomSet10, ecomSet11} {
+		s, _ := NewExtCommunitySet(c)
+		m[s.Name()] = s
+	}
 
 	createExtCommunityC := func(name string, option config.MatchSetOptionsType) *ExtCommunityCondition {
 		matchSet := config.MatchExtCommunitySet{}
 		matchSet.ExtCommunitySet = name
 		matchSet.MatchSetOptions = option
-		c := NewExtCommunityCondition(matchSet, comSetList)
+		c, _ := NewExtCommunityCondition(matchSet, m)
 		return c
 	}
 
@@ -2084,17 +2127,17 @@ func TestExtCommunityConditionEvaluate(t *testing.T) {
 	p11 := createExtCommunityC("ecomSet11", config.MATCH_SET_OPTIONS_TYPE_INVERT)
 
 	// test
-	assert.Equal(t, true, p1.evaluate(path1))
-	assert.Equal(t, true, p2.evaluate(path1))
-	assert.Equal(t, true, p3.evaluate(path1))
-	assert.Equal(t, false, p4.evaluate(path1))
-	assert.Equal(t, false, p5.evaluate(path1))
-	assert.Equal(t, false, p6.evaluate(path1))
-	assert.Equal(t, true, p7.evaluate(path1))
-	assert.Equal(t, true, p8.evaluate(path1))
-	assert.Equal(t, true, p9.evaluate(path1))
-	assert.Equal(t, true, p10.evaluate(path1))
-	assert.Equal(t, true, p11.evaluate(path1))
+	assert.Equal(t, true, p1.Evaluate(path1))
+	assert.Equal(t, true, p2.Evaluate(path1))
+	assert.Equal(t, true, p3.Evaluate(path1))
+	assert.Equal(t, false, p4.Evaluate(path1))
+	assert.Equal(t, false, p5.Evaluate(path1))
+	assert.Equal(t, false, p6.Evaluate(path1))
+	assert.Equal(t, true, p7.Evaluate(path1))
+	assert.Equal(t, true, p8.Evaluate(path1))
+	assert.Equal(t, true, p9.Evaluate(path1))
+	assert.Equal(t, true, p10.Evaluate(path1))
+	assert.Equal(t, true, p11.Evaluate(path1))
 
 }
 
@@ -2219,13 +2262,14 @@ func TestExtCommunityConditionEvaluateWithOtherCondition(t *testing.T) {
 	pd2 := createPolicyDefinition("pd2", s2)
 	pl := createRoutingPolicy(ds, pd1, pd2)
 	//test
-	df := pl.DefinedSets
-	p := NewPolicy(pl.PolicyDefinitions.PolicyDefinitionList[0], df)
+	r, err := NewRoutingPolicy(pl)
+	assert.Nil(t, err)
+	p := r.PolicyMap["pd1"]
 	pType, newPath := p.Apply(path)
 	assert.Equal(t, ROUTE_TYPE_NONE, pType)
 	assert.Equal(t, newPath, path)
 
-	p = NewPolicy(pl.PolicyDefinitions.PolicyDefinitionList[1], df)
+	p = r.PolicyMap["pd2"]
 	pType, newPath = p.Apply(path)
 	assert.Equal(t, ROUTE_TYPE_REJECT, pType)
 	assert.Equal(t, newPath, path)
@@ -2262,8 +2306,9 @@ func TestPolicyMatchAndReplaceMed(t *testing.T) {
 	pl := createRoutingPolicy(ds, pd)
 
 	//test
-	df := pl.DefinedSets
-	p := NewPolicy(pl.PolicyDefinitions.PolicyDefinitionList[0], df)
+	r, err := NewRoutingPolicy(pl)
+	assert.Nil(t, err)
+	p := r.PolicyMap["pd1"]
 
 	pType, newPath := p.Apply(path)
 	assert.Equal(t, ROUTE_TYPE_ACCEPT, pType)
@@ -2304,8 +2349,9 @@ func TestPolicyMatchAndAddingMed(t *testing.T) {
 	pd := createPolicyDefinition("pd1", s)
 	pl := createRoutingPolicy(ds, pd)
 	//test
-	df := pl.DefinedSets
-	p := NewPolicy(pl.PolicyDefinitions.PolicyDefinitionList[0], df)
+	r, err := NewRoutingPolicy(pl)
+	assert.Nil(t, err)
+	p := r.PolicyMap["pd1"]
 	pType, newPath := p.Apply(path)
 	assert.Equal(t, ROUTE_TYPE_ACCEPT, pType)
 	assert.NotEqual(t, nil, newPath)
@@ -2347,8 +2393,9 @@ func TestPolicyMatchAndAddingMedOverFlow(t *testing.T) {
 	pd := createPolicyDefinition("pd1", s)
 	pl := createRoutingPolicy(ds, pd)
 	//test
-	df := pl.DefinedSets
-	p := NewPolicy(pl.PolicyDefinitions.PolicyDefinitionList[0], df)
+	r, err := NewRoutingPolicy(pl)
+	assert.Nil(t, err)
+	p := r.PolicyMap["pd1"]
 
 	pType, newPath := p.Apply(path)
 	assert.Equal(t, ROUTE_TYPE_ACCEPT, pType)
@@ -2391,8 +2438,9 @@ func TestPolicyMatchAndSubtractMed(t *testing.T) {
 	pd := createPolicyDefinition("pd1", s)
 	pl := createRoutingPolicy(ds, pd)
 	//test
-	df := pl.DefinedSets
-	p := NewPolicy(pl.PolicyDefinitions.PolicyDefinitionList[0], df)
+	r, err := NewRoutingPolicy(pl)
+	assert.Nil(t, err)
+	p := r.PolicyMap["pd1"]
 
 	pType, newPath := p.Apply(path)
 	assert.Equal(t, ROUTE_TYPE_ACCEPT, pType)
@@ -2435,8 +2483,9 @@ func TestPolicyMatchAndSubtractMedUnderFlow(t *testing.T) {
 	pd := createPolicyDefinition("pd1", s)
 	pl := createRoutingPolicy(ds, pd)
 	//test
-	df := pl.DefinedSets
-	p := NewPolicy(pl.PolicyDefinitions.PolicyDefinitionList[0], df)
+	r, err := NewRoutingPolicy(pl)
+	assert.Nil(t, err)
+	p := r.PolicyMap["pd1"]
 
 	pType, newPath := p.Apply(path)
 	assert.Equal(t, ROUTE_TYPE_ACCEPT, pType)
@@ -2476,14 +2525,15 @@ func TestPolicyMatchWhenPathHaveNotMed(t *testing.T) {
 	pd := createPolicyDefinition("pd1", s)
 	pl := createRoutingPolicy(ds, pd)
 	//test
-	df := pl.DefinedSets
-	p := NewPolicy(pl.PolicyDefinitions.PolicyDefinitionList[0], df)
+	r, err := NewRoutingPolicy(pl)
+	assert.Nil(t, err)
+	p := r.PolicyMap["pd1"]
 
 	pType, newPath := p.Apply(path)
 	assert.Equal(t, ROUTE_TYPE_ACCEPT, pType)
 	assert.NotEqual(t, nil, newPath)
 
-	_, err := newPath.GetMed()
+	_, err = newPath.GetMed()
 	assert.NotNil(t, err)
 }
 
@@ -2522,8 +2572,9 @@ func TestPolicyAsPathPrepend(t *testing.T) {
 	pd := createPolicyDefinition("pd1", s)
 	pl := createRoutingPolicy(ds, pd)
 	//test
-	df := pl.DefinedSets
-	p := NewPolicy(pl.PolicyDefinitions.PolicyDefinitionList[0], df)
+	r, _ := NewRoutingPolicy(pl)
+	//	assert.Nil(t, err)
+	p := r.PolicyMap["pd1"]
 
 	pType, newPath := p.Apply(path)
 	assert.Equal(ROUTE_TYPE_ACCEPT, pType)
@@ -2565,8 +2616,9 @@ func TestPolicyAsPathPrependLastAs(t *testing.T) {
 	pd := createPolicyDefinition("pd1", s)
 	pl := createRoutingPolicy(ds, pd)
 	//test
-	df := pl.DefinedSets
-	p := NewPolicy(pl.PolicyDefinitions.PolicyDefinitionList[0], df)
+	r, _ := NewRoutingPolicy(pl)
+	//	assert.Nil(t, err)
+	p := r.PolicyMap["pd1"]
 
 	pType, newPath := p.Apply(path)
 	assert.Equal(ROUTE_TYPE_ACCEPT, pType)
@@ -2614,8 +2666,8 @@ func TestPolicyAs4PathPrepend(t *testing.T) {
 	pd := createPolicyDefinition("pd1", s)
 	pl := createRoutingPolicy(ds, pd)
 	//test
-	df := pl.DefinedSets
-	p := NewPolicy(pl.PolicyDefinitions.PolicyDefinitionList[0], df)
+	r, _ := NewRoutingPolicy(pl)
+	p, _ := NewPolicy(pl.PolicyDefinitions.PolicyDefinitionList[0], r.DefinedSetMap)
 
 	pType, newPath := p.Apply(path)
 	assert.Equal(ROUTE_TYPE_ACCEPT, pType)
@@ -2668,8 +2720,8 @@ func TestPolicyAs4PathPrependLastAs(t *testing.T) {
 	pd := createPolicyDefinition("pd1", s)
 	pl := createRoutingPolicy(ds, pd)
 	//test
-	df := pl.DefinedSets
-	p := NewPolicy(pl.PolicyDefinitions.PolicyDefinitionList[0], df)
+	r, _ := NewRoutingPolicy(pl)
+	p, _ := NewPolicy(pl.PolicyDefinitions.PolicyDefinitionList[0], r.DefinedSetMap)
 
 	pType, newPath := p.Apply(path)
 	assert.Equal(ROUTE_TYPE_ACCEPT, pType)
@@ -2684,7 +2736,6 @@ func TestPolicyAs4PathPrependLastAs(t *testing.T) {
 }
 
 func createStatement(name, psname, nsname string, accept bool) config.Statement {
-
 	c := config.Conditions{
 		MatchPrefixSet: config.MatchPrefixSet{
 			PrefixSet: psname,

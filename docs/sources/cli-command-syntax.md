@@ -102,28 +102,24 @@ The following options can be specified in the neighbor subcommand:
 
 
 ### 2.4. Operations for Policy  - add/del/show -
-#### - syntax
+#### Syntax
 ```shell
-# add policy to import-policy configuration
-% gobgp neighbor <neighbor address> policy add import <policy names> <default policy action>
-# add policy to export-policy configuration
-% gobgp neighbor <neighbor address> policy add export <policy names> <default policy action>
-# add policy to in-policy configuration
-% gobgp neighbor <neighbor address> policy add in <policy names> <default policy action>
-# delete import-policy configuration from specific neighbor
-% gobgp neighbor <neighbor address> policy del import
-# delete export-policy configuration from specific neighbor
-% gobgp neighbor <neighbor address> policy del export
-# delete in-policy configuration from specific neighbor
-% gobgp neighbor <neighbor address> policy del in
-# show a specific policy information
-% gobgp neighbor <neighbor address> policy
+# show neighbor policy assignment
+% gobgp neighbor <neighbor address> policy { in | import | export }
+# add policies to specific neighbor policy
+% gobgp neighbor <neighbor address> policy { in | import | export } add <policy name>... [default { accept | reject }]
+# set policies to specific neighbor policy
+% gobgp neighbor <neighbor address> policy { in | import | export } set <policy name>... [default { accept | reject }]
+# remove attached policies from specific neighbor policy
+% gobgp neighbor <neighbor address> policy { in | import | export } del <policy name>...
+# remove all policies from specific neighbor policy
+% gobgp neighbor <neighbor address> policy { in | import | export } del
 ```
 
-#### - example
+#### Example
 If you want to add the import policy to neighbor(10.0.0.1)：
 ```shell
-% gobgp neighbor 10.0.0.1 policy add import policy1,policy2 accept
+% gobgp neighbor 10.0.0.1 policy import add policy1 policy2 default accept
 ```
 You can specify multiple policy to neighbor separated by commas.
 
@@ -134,21 +130,21 @@ You can specify multiple policy to neighbor separated by commas.
 
 ## 3. <a name="policy"> policy subcommand
 ### 3.1. Operations for PrefixSet - add/del/show -
-#### - syntax
+#### Syntax
 ```shell
 # add PrefixSet
 % gobgp policy prefix add <prefix set name> <prefix> [<mask length range>]
-# delete all PrefixSet
-% gobgp policy prefix del all
-# delete a specific PrefixSet
-% gobgp policy prefix del <prefix set name> [<prefix> <mask length range>]
+# delete a PrefixSet
+% gobgp policy prefix del <prefix set name>
+# delete a prefix from specific PrefixSet
+% gobgp policy prefix del <prefix set name> <prefix> [<mask length range>]
 # show all PrefixSet information
 % gobgp policy prefix
 # show a specific PrefixSet
 % gobgp policy prefix <prefix set name>
 ```
 
-#### - example
+#### Example
 If you want to add the PrefixSet：
 ```shell
 % gobgp policy prefix add ps1 10.33.0.0/16 16..24
@@ -163,21 +159,21 @@ If you want to remove one element(prefix) of PrefixSet, to specify a prefix in a
 ```
 
 ### 3.2. Operations for NeighborSet - add/del/show -
-#### - syntax
+#### Syntax
 ```shell
 # add NeighborSet
 % gobgp policy neighbor add <neighbor set name> <neighbor address>
-# delete all NeighborSet
-% gobgp policy neighbor del all
-# delete a specific NeighborSet
-% gobgp policy neighbor del <neighbor set name> [<address>]
+# delete a NeighborSet
+% gobgp policy neighbor del <neighbor set name>
+# delete a neighbor from a NeighborSet
+% gobgp policy neighbor del <neighbor set name> <address>
 # show all NeighborSet information
 % gobgp policy neighbor
 # show a specific NeighborSet information
 % gobgp policy neighbor <neighbor set name>
 ```
 
-#### - example
+#### Example
 If you want to add the NeighborSet：
 ```shell
 % gobgp policy neighbor add ns1 10.0.0.1
@@ -192,24 +188,24 @@ If you want to remove one element(address) of NeighborSet, to specify a address 
 ```
 
 ### 3.3. Operations for AsPathSet - add/del/show -
-#### - syntax
+#### Syntax
 ```shell
 # add AsPathSet
-% gobgp policy aspath add <aspath set name> <as path>
-# delete all AsPathSet
-% gobgp policy aspath del all
+% gobgp policy as-path add <aspath set name> <as path>
 # delete a specific AsPathSet
-% gobgp policy aspath del <aspath set name> [<as path>]
+% gobgp policy as-path del <aspath set name>
+# delete an as-path from a AsPathSet
+% gobgp policy as-path del <aspath set name> <as path>
 # show all AsPathSet information
-% gobgp policy aspath
+% gobgp policy as-path
 # show a specific AsPathSet information
-% gobgp policy aspath <aspath set name>
+% gobgp policy as-path <aspath set name>
 ```
 
-#### - example
+#### Example
 If you want to add the AsPathSet：
 ```shell
-% gobgp policy aspath add ass1 ^65100
+% gobgp policy as-path add ass1 ^65100
 ```
 
 You can specify the position using regexp-like expression as follows:
@@ -225,29 +221,29 @@ Further you can specify the consecutive aspath and use regexp in each element as
 
 An AsPathSet it is possible to have multiple as path, if you want to remove the AsPathSet to specify only AsPathSet name.
 ```shell
-% gobgp policy aspath del ass1
+% gobgp policy as-path del ass1
 ```
 If you want to remove one element(as path) of AsPathSet, to specify an as path in addition to the AsPathSet name.
 ```shell
-% gobgp policy aspath del ass1 ^65100
+% gobgp policy as-path del ass1 ^65100
 ```
 
 ### 3.4. Operations for CommunitySet - add/del/show -
-#### - syntax
+#### Syntax
 ```shell
 # add CommunitySet
 % gobgp policy community add <community set name> <community>
-# delete all CommunitySet
-% gobgp policy community del all
 # delete a specific CommunitySet
-% gobgp policy community del <community set name> [<community>]
+% gobgp policy community del <community set name>
+# delete a community from a CommunitySet
+% gobgp policy community del <community set name> <community>
 # show all CommunitySet information
 % gobgp policy community
 # show a specific CommunitySet information
 % gobgp policy community <community set name>
 ```
 
-#### - example
+#### Example
 If you want to add the CommunitySet：
 ```shell
 % gobgp policy community add cs1 65100:10
@@ -266,24 +262,24 @@ If you want to remove one element(community) of CommunitySet, to specify a addre
 ```
 
 ### 3.5. Operations for ExtCommunitySet - add/del/show -
-#### - syntax
+#### Syntax
 ```shell
 # add ExtCommunitySet
-% gobgp policy extcommunity add <extended community set name> <extended community>
-# delete all ExtCommunitySet
-% gobgp policy extcommunity del all
+% gobgp policy ext-community add <extended community set name> <extended community>
 # delete a specific ExtCommunitySet
-% gobgp policy extcommunity del <extended community set name> [<extended community>]
+% gobgp policy ext-community del <extended community set name>
+# delete a ext-community from a ExtCommunitySet
+% gobgp policy ext-community del <extended community set name> <extended community>
 # show all ExtCommunitySet information
-% gobgp policy extcommunity
+% gobgp policy ext-community
 # show a specific ExtCommunitySet information
-% gobgp policy extcommunity <extended community set name>
+% gobgp policy ext-community <extended community set name>
 ```
 
-#### - example
+#### Example
 If you want to add the ExtCommunitySet：
 ```shell
-% gobgp policy extcommunity add ecs1 RT:65100:10
+% gobgp policy ext-community add ecs1 RT:65100:10
 ```
 Extended community set as \<SubType>:\<Global Admin>:\<LocalAdmin>.
 
@@ -304,65 +300,31 @@ If you want to remove one element(extended community) of ExtCommunitySet, to spe
 % gobgp policy prefix del ecs1 RT:65100:10
 ```
 
-### 3.6. Operations for RoutePolicy - add/del/show -
-#### - syntax
+### 3.6 Statement Operation - add/del/show -
+#### Syntax
 ```shell
-# add RoutePolicy
-% gobgp policy routepoilcy add <route policy name> <statement name> [<conditions and actions>]
-# delete all RoutePolicy
-% gobgp policy routepoilcy del all
-# delete a specific RoutePolicy
-% gobgp policy routepoilcy del <route policy name> [<statement name>]
-# show all RoutePolicy information
-% gobgp policy routepoilcy
-# show a specific RoutePolicy information
-% gobgp policy routepoilcy <route policy name>
+# mod statement
+% gobgp policy statement { add | del } <statement name>
+# mod a condition to a statement
+% gobgp policy statement <statement name> { add | del | set } condition { { prefix | neighbor | as-path | community | ext-community } <set name> [{ any | all | invert }] | as-path-length <len> { eq | ge | le } | rpki { valid | invalid | not-found } }
+# mod an action to a statement
+% gobgp policy statement <statement name> { add | del | set } action { reject | accept | { community | ext-community } { add | remove | replace } <value>... | med { add | sub | set } <value> | as-prepend { <asn> | last-as } <repeat-value> }
+# show all statements
+% gobgp policy statement
+# show a specific statement
+% gobgp policy statement <statement name>
 ```
 
-#### - example
-If you want to add the RoutePolicy：
+### 3.7 Policy Operation - add/del/show -
+#### Syntax
 ```shell
-% gobgp policy routepolicy add policy1 state1 --c-prefix=ANY[ps1] --c-neighbor=INVERT[ns1] --c-aspath=ALL[ass1] --c-community=ALL[cs1] --c-extcommunity=ANY[ecs1] --c-aslen=eq,3 --a-route=reject --a-community=ADD[65100:20] --a-med=+100 --a-asprepend=65100,10
+# mod policy
+% gobgp policy { add | del | set } <policy name> [<statement name>...]
+# show all policies
+% gobgp policy
+# show a specific policy
+% gobgp policy <policy name>
 ```
-However, it is not necessary to specify all of the options at once.
-
-For the condition of the following option in order to evaluate for each condition, match option(ANY, ALL or INVERT) is set as the ANY[\<each set name\>]
- - c-prefix
- - c-neighbor
- - c-aspath
- - c-community
- - c-extcommunity
-
-A RoutePolicy it is possible to have multiple statement, if you want to remove the RoutePolicy to specify only RoutePolicy name.
-```shell
-% gobgp policy routepolicy del policy1
-```
-If you want to remove one element(statement) of RoutePolicy, to specify a statement name in addition to the RoutePolicy name.
-```shell
-% gobgp policy prefix del policy1 state1
-```
-
-#### - option
-The following options can be specified in the policy subcommand:
-  - options of condition
-
-| short  |long           | description                                                                                                                       |
-|--------|---------------|-----------------------------------------------------------------------------------------------------------------------------------|
-|-       |c-prefix       |specify the name that added prefix set in PrefixSet subcommand <br> match option: ”ANY or INVERT” can be set                       |
-|-       |c-neighbor     |specify the name that added neighbor set in NeighborSet subcommand <br> match option: ”ANY or INVERT” can be set                   |
-|-       |c-aspath       |specify the name that added as path set in AsPathSet subcommand <br> match option: ”ANY, ALL or INVERT” can be set                 |
-|-       |c-community    |specify the name that added community set in CommunitySet subcommand <br> match option: ”ANY, ALL or INVERT” can be set            |
-|-       |c-extcommunity |specify the name that added extended community set in ExtCommunitySet subcommand <br> match option: ”ANY, ALL or INVERT” can be set|
-|-       |c-aslen        |specify the operator(eq, ge, le) and value(numric)                                                                                 |
-
-  - options of action
-
-| short  |long        | description                                                                                                   |
-|--------|------------|---------------------------------------------------------------------------------------------------------------|
-|-       |a-route     |specify the action(accept, reject) of the route that match to the conditions                                   |
-|-       |a-community |specify the community operation of the route that match to the conditions                                      |
-|-       |a-med       |specify the med operation of the route that match to the conditions                                            |
-|-       |a-asprepend |specify a combination of an AS number and repeat count(e.g. 65100,10) to prepend if the path matches conditions|
 
 ## 4. <a name="vrf"> vrf subcommand
 ### 4.1 Add/Delete/Show VRF
