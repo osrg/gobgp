@@ -1419,7 +1419,7 @@ func (esi *EthernetSegmentIdentifier) DecodeFromBytes(data []byte) error {
 	switch esi.Type {
 	case ESI_LACP, ESI_MSTP, ESI_ROUTERID, ESI_AS:
 		if esi.Value[8] != 0x00 {
-			return fmt.Errorf("invalid %s. last octet must be 0x00 (0x%02x)", esi.Type, esi.Value[8])
+			return fmt.Errorf("invalid %s. last octet must be 0x00 (0x%02x)", esi.Type.String(), esi.Value[8])
 		}
 	}
 	return nil
@@ -1443,7 +1443,7 @@ func isZeroBuf(buf []byte) bool {
 
 func (esi *EthernetSegmentIdentifier) String() string {
 	s := bytes.NewBuffer(make([]byte, 0, 64))
-	s.WriteString(fmt.Sprintf("%s | ", esi.Type))
+	s.WriteString(fmt.Sprintf("%s | ", esi.Type.String()))
 	switch esi.Type {
 	case ESI_ARBITRARY:
 		if isZeroBuf(esi.Value) {
@@ -1546,7 +1546,7 @@ func (er *EVPNEthernetAutoDiscoveryRoute) Serialize() ([]byte, error) {
 }
 
 func (er *EVPNEthernetAutoDiscoveryRoute) String() string {
-	return fmt.Sprintf("[type:A-D][rd:%s][esi:%s][etag:%d][label:%d]", er.RD, er.ESI, er.ETag, er.Label)
+	return fmt.Sprintf("[type:A-D][rd:%s][esi:%s][etag:%d][label:%d]", er.RD, er.ESI.String(), er.ETag, er.Label)
 }
 
 func (er *EVPNEthernetAutoDiscoveryRoute) MarshalJSON() ([]byte, error) {
@@ -3233,7 +3233,7 @@ func (p *PathAttribute) Serialize() ([]byte, error) {
 }
 
 func (p *PathAttribute) String() string {
-	return fmt.Sprintf("%s %s %s", p.Type, p.Flags, []byte(p.Value))
+	return fmt.Sprintf("%s %s %s", p.Type.String(), p.Flags, []byte(p.Value))
 }
 
 func (p *PathAttribute) MarshalJSON() ([]byte, error) {

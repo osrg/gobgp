@@ -808,7 +808,7 @@ func NewExtCommunityCondition(matchSet config.MatchExtCommunitySet, defExtComSet
 							log.WithFields(log.Fields{
 								"Topic": "Policy",
 								"Type":  "Extended Community Condition",
-							}).Errorf("failed to parse the local administrator %d.", elem[2])
+							}).Errorf("failed to parse the local administrator %s.", elem[2])
 							return nil
 						}
 						e.localAdmin = uint32(lAdmin)
@@ -869,7 +869,7 @@ func getECommunityElem(gAdmin string) (bool, bgp.ExtendedCommunityAttrType, inte
 			log.WithFields(log.Fields{
 				"Topic": "Policy",
 				"Type":  "Extended Community Condition",
-			}).Errorf("failed to parse the global administrator %d.", gAdmin)
+			}).Errorf("failed to parse the global administrator %s.", gAdmin)
 		}
 		return true, bgp.EC_TYPE_TRANSITIVE_TWO_OCTET_AS_SPECIFIC, uint16(as)
 	}
@@ -882,7 +882,7 @@ func getECommunityElem(gAdmin string) (bool, bgp.ExtendedCommunityAttrType, inte
 			log.WithFields(log.Fields{
 				"Topic": "Policy",
 				"Type":  "Extended Community Condition",
-			}).Errorf("failed to parse the global administrator %d.", gAdmin)
+			}).Errorf("failed to parse the global administrator %s.", gAdmin)
 		}
 		return true, bgp.EC_TYPE_TRANSITIVE_FOUR_OCTET_AS_SPECIFIC, uint32(highAs<<16 | lowAs)
 	}
