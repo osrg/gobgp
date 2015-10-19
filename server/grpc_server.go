@@ -40,8 +40,6 @@ const (
 	REQ_NEIGHBOR_SOFT_RESET_OUT
 	REQ_NEIGHBOR_ENABLE
 	REQ_NEIGHBOR_DISABLE
-	REQ_NEIGHBOR_POLICY
-	REQ_MOD_NEIGHBOR_POLICY
 	REQ_GLOBAL_RIB
 	REQ_MONITOR_GLOBAL_BEST_CHANGED
 	REQ_MONITOR_NEIGHBOR_PEER_STATE
@@ -53,13 +51,14 @@ const (
 	REQ_VRFS
 	REQ_VRF_MOD
 	REQ_MOD_PATH
-	REQ_GLOBAL_POLICY
 	REQ_DEFINED_SET
 	REQ_MOD_DEFINED_SET
 	REQ_STATEMENT
 	REQ_MOD_STATEMENT
 	REQ_POLICY
 	REQ_MOD_POLICY
+	REQ_POLICY_ASSIGNMENT
+	REQ_MOD_POLICY_ASSIGNMENT
 )
 
 const GRPC_PORT = 8080
@@ -240,53 +239,6 @@ func (s *Server) ModPath(stream api.GobgpApi_ModPathServer) error {
 	return err
 }
 
-func (s *Server) GetNeighborPolicy(ctx context.Context, arg *api.PolicyArguments) (*api.ApplyPolicy, error) {
-	r := 0
-	switch arg.Resource {
-	case api.Resource_GLOBAL:
-		r = REQ_GLOBAL_POLICY
-	case api.Resource_LOCAL:
-		r = REQ_NEIGHBOR_POLICY
-	default:
-		return nil, fmt.Errorf("unsupported resource: %s", arg.Resource)
-	}
-
-	req := NewGrpcRequest(r, arg.NeighborAddress, bgp.RouteFamily(0), arg)
-	s.bgpServerCh <- req
-
-	res := <-req.ResponseCh
-	if err := res.Err(); err != nil {
-		log.Debug(err.Error())
-		return nil, err
-	}
-	return res.Data.(*api.ApplyPolicy), nil
-}
-
-func (s *Server) ModNeighborPolicy(stream api.GobgpApi_ModNeighborPolicyServer) error {
-	for {
-		arg, err := stream.Recv()
-		if err == io.EOF {
-			return nil
-		} else if err != nil {
-			return err
-		}
-
-		req := NewGrpcRequest(REQ_MOD_NEIGHBOR_POLICY, arg.NeighborAddress, bgp.RouteFamily(0), arg)
-		s.bgpServerCh <- req
-		res := <-req.ResponseCh
-		if err := res.Err(); err != nil {
-			log.Debug(err.Error())
-			return err
-		}
-		err = stream.Send(&api.Error{
-			Code: api.Error_SUCCESS,
-		})
-		if err != nil {
-			return err
-		}
-	}
-}
-
 func (s *Server) GetMrt(arg *api.MrtArguments, stream api.GobgpApi_GetMrtServer) error {
 	var reqType int
 	switch arg.Resource {
@@ -414,6 +366,18 @@ func (s *Server) GetPolicies(arg *api.Policy, stream api.GobgpApi_GetPoliciesSer
 
 func (s *Server) ModPolicy(ctx context.Context, arg *api.ModPolicyArguments) (*api.Error, error) {
 	return s.mod(REQ_MOD_POLICY, arg)
+}
+
+func (s *Server) GetPolicyAssignment(ctx context.Context, arg *api.PolicyAssignment) (*api.PolicyAssignment, error) {
+	d, err := s.get(REQ_POLICY_ASSIGNMENT, arg)
+	if err != nil {
+		return nil, err
+	}
+	return d.(*api.PolicyAssignment), nil
+}
+
+func (s *Server) ModPolicyAssignment(ctx context.Context, arg *api.ModPolicyAssignmentArguments) (*api.Error, error) {
+	return s.mod(REQ_MOD_POLICY_ASSIGNMENT, arg)
 }
 
 type GrpcRequest struct {

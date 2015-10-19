@@ -211,7 +211,9 @@ func (server *BgpServer) Serve() {
 	}(g.AfiSafis.AfiSafiList)
 
 	server.globalRib = table.NewTableManager(GLOBAL_RIB_NAME, rfList, g.MplsLabelRange.MinLabel, g.MplsLabelRange.MaxLabel)
-
+	if server.policy != nil {
+		server.setPolicyByConfig(server.globalRib, g.ApplyPolicy)
+	}
 	listenerMap := make(map[string]*net.TCPListener)
 	acceptCh := make(chan *net.TCPConn)
 	l4, err1 := listenAndAccept("tcp4", server.listenPort, acceptCh)
@@ -352,6 +354,7 @@ func (server *BgpServer) Serve() {
 			SetTcpMD5SigSockopts(listener(config.NeighborConfig.NeighborAddress), addr, config.NeighborConfig.AuthPassword)
 
 			peer := NewPeer(g, config)
+			server.setPolicyByConfig(peer, config.ApplyPolicy)
 			if peer.isRouteServerClient() {
 				pathList := make([]*table.Path, 0)
 				for _, p := range server.neighborMap {
@@ -402,10 +405,8 @@ func (server *BgpServer) Serve() {
 		case config := <-server.updatedPeerCh:
 			addr := config.NeighborConfig.NeighborAddress.String()
 			peer := server.neighborMap[addr]
-			if peer.isRouteServerClient() {
-				peer.conf.ApplyPolicy = config.ApplyPolicy
-				peer.setPolicy(server.policy.PolicyMap)
-			}
+			peer.conf = config
+			server.setPolicyByConfig(peer, config.ApplyPolicy)
 		case e := <-incoming:
 			peer, found := server.neighborMap[e.MsgSrc]
 			if !found {
@@ -859,6 +860,21 @@ func (server *BgpServer) UpdatePolicy(policy config.RoutingPolicy) {
 	server.policyUpdateCh <- policy
 }
 
+func (server *BgpServer) setPolicyByConfig(p policyPoint, c config.ApplyPolicy) {
+	for _, dir := range []table.PolicyDirection{table.POLICY_DIRECTION_IN, table.POLICY_DIRECTION_IMPORT, table.POLICY_DIRECTION_EXPORT} {
+		ps, def, err := server.policy.GetAssignmentFromConfig(dir, c)
+		if err != nil {
+			log.WithFields(log.Fields{
+				"Topic": "Policy",
+				"Dir":   dir,
+			}).Errorf("failed to get policy info: %s", err)
+			continue
+		}
+		p.SetDefaultPolicy(dir, def)
+		p.SetPolicy(dir, ps)
+	}
+}
+
 func (server *BgpServer) SetPolicy(pl config.RoutingPolicy) error {
 	p, err := table.NewRoutingPolicy(pl)
 	if err != nil {
@@ -869,7 +885,7 @@ func (server *BgpServer) SetPolicy(pl config.RoutingPolicy) error {
 	}
 	server.policy = p
 	if server.globalRib != nil {
-		server.globalRib.SetPolicy(server.bgpConfig.Global.ApplyPolicy, server.policy.PolicyMap)
+		server.setPolicyByConfig(server.globalRib, server.bgpConfig.Global.ApplyPolicy)
 	}
 	return nil
 }
@@ -881,7 +897,7 @@ func (server *BgpServer) handlePolicy(pl config.RoutingPolicy) {
 			"Topic": "Peer",
 			"Key":   peer.conf.NeighborConfig.NeighborAddress,
 		}).Info("call set policy")
-		peer.setPolicy(server.policy.PolicyMap)
+		server.setPolicyByConfig(peer, peer.conf.ApplyPolicy)
 	}
 }
 
@@ -1544,89 +1560,6 @@ func (server *BgpServer) handleGrpc(grpcReq *GrpcRequest) []*SenderMsg {
 		result.Data = err
 		grpcReq.ResponseCh <- result
 		close(grpcReq.ResponseCh)
-
-	case REQ_NEIGHBOR_POLICY, REQ_GLOBAL_POLICY:
-		arg := grpcReq.Data.(*api.PolicyArguments)
-		var names []string
-		def := api.RouteAction_REJECT
-		var applyPolicy config.ApplyPolicy
-		switch grpcReq.RequestType {
-		case REQ_NEIGHBOR_POLICY:
-			peer, err := server.checkNeighborRequest(grpcReq)
-			if err != nil {
-				return msgs
-			}
-			applyPolicy = peer.conf.ApplyPolicy
-		case REQ_GLOBAL_RIB:
-			applyPolicy = server.bgpConfig.Global.ApplyPolicy
-		}
-		switch arg.ApplyPolicy.Type {
-		case api.PolicyType_IMPORT:
-			names = applyPolicy.ApplyPolicyConfig.ImportPolicy
-			if applyPolicy.ApplyPolicyConfig.DefaultImportPolicy == config.DEFAULT_POLICY_TYPE_ACCEPT_ROUTE {
-				def = api.RouteAction_ACCEPT
-			}
-		case api.PolicyType_EXPORT:
-			names = applyPolicy.ApplyPolicyConfig.ExportPolicy
-			if applyPolicy.ApplyPolicyConfig.DefaultExportPolicy == config.DEFAULT_POLICY_TYPE_ACCEPT_ROUTE {
-				def = api.RouteAction_ACCEPT
-			}
-		case api.PolicyType_IN:
-			names = applyPolicy.ApplyPolicyConfig.InPolicy
-			if applyPolicy.ApplyPolicyConfig.DefaultInPolicy == config.DEFAULT_POLICY_TYPE_ACCEPT_ROUTE {
-				def = api.RouteAction_ACCEPT
-			}
-		}
-		result := &GrpcResponse{
-			Data: &api.ApplyPolicy{
-				Policies: names,
-				Default:  def,
-			},
-		}
-		grpcReq.ResponseCh <- result
-		close(grpcReq.ResponseCh)
-	case REQ_MOD_NEIGHBOR_POLICY:
-		peer, err := server.checkNeighborRequest(grpcReq)
-		if err != nil {
-			break
-		}
-		result := &GrpcResponse{}
-		arg := grpcReq.Data.(*api.PolicyArguments)
-		applyPolicy := peer.conf.ApplyPolicy.ApplyPolicyConfig
-		def := config.DEFAULT_POLICY_TYPE_ACCEPT_ROUTE
-		switch arg.Operation {
-		case api.Operation_ADD:
-			if arg.ApplyPolicy.Default != api.RouteAction_REJECT {
-				def = config.DEFAULT_POLICY_TYPE_REJECT_ROUTE
-			}
-			switch arg.ApplyPolicy.Type {
-			case api.PolicyType_IMPORT:
-				applyPolicy.DefaultImportPolicy = def
-				applyPolicy.ImportPolicy = arg.ApplyPolicy.Policies
-			case api.PolicyType_EXPORT:
-				applyPolicy.DefaultExportPolicy = def
-				applyPolicy.ExportPolicy = arg.ApplyPolicy.Policies
-			case api.PolicyType_IN:
-				applyPolicy.DefaultInPolicy = def
-				applyPolicy.InPolicy = arg.ApplyPolicy.Policies
-			}
-		case api.Operation_DEL:
-			switch arg.ApplyPolicy.Type {
-			case api.PolicyType_IMPORT:
-				applyPolicy.DefaultImportPolicy = def
-				applyPolicy.ImportPolicy = nil
-			case api.PolicyType_EXPORT:
-				applyPolicy.DefaultExportPolicy = def
-				applyPolicy.ExportPolicy = nil
-			case api.PolicyType_IN:
-				applyPolicy.DefaultInPolicy = def
-				applyPolicy.InPolicy = nil
-			}
-		}
-		peer.setPolicy(server.policy.PolicyMap)
-
-		grpcReq.ResponseCh <- result
-		close(grpcReq.ResponseCh)
 	case REQ_DEFINED_SET:
 		if err := server.handleGrpcGetDefinedSet(grpcReq); err != nil {
 			grpcReq.ResponseCh <- &GrpcResponse{
@@ -1662,6 +1595,19 @@ func (server *BgpServer) handleGrpc(grpcReq *GrpcRequest) []*SenderMsg {
 		close(grpcReq.ResponseCh)
 	case REQ_MOD_POLICY:
 		err := server.handleGrpcModPolicy(grpcReq)
+		grpcReq.ResponseCh <- &GrpcResponse{
+			ResponseErr: err,
+		}
+		close(grpcReq.ResponseCh)
+	case REQ_POLICY_ASSIGNMENT:
+		if err := server.handleGrpcGetPolicyAssignment(grpcReq); err != nil {
+			grpcReq.ResponseCh <- &GrpcResponse{
+				ResponseErr: err,
+			}
+		}
+		close(grpcReq.ResponseCh)
+	case REQ_MOD_POLICY_ASSIGNMENT:
+		err := server.handleGrpcModPolicyAssignment(grpcReq)
 		grpcReq.ResponseCh <- &GrpcResponse{
 			ResponseErr: err,
 		}
@@ -1907,6 +1853,123 @@ func (server *BgpServer) handleGrpcModPolicy(grpcReq *GrpcRequest) error {
 				delete(sMap, s.Name)
 			}
 		}
+	}
+	return err
+}
+
+type policyPoint interface {
+	GetDefaultPolicy(table.PolicyDirection) table.RouteType
+	GetPolicy(table.PolicyDirection) []*table.Policy
+	SetDefaultPolicy(table.PolicyDirection, table.RouteType) error
+	SetPolicy(table.PolicyDirection, []*table.Policy) error
+}
+
+func (server *BgpServer) getPolicyInfo(a *api.PolicyAssignment) (policyPoint, table.PolicyDirection, error) {
+	switch a.Resource {
+	case api.Resource_GLOBAL:
+		switch a.Type {
+		case api.PolicyType_IMPORT:
+			return server.globalRib, table.POLICY_DIRECTION_IMPORT, nil
+		case api.PolicyType_EXPORT:
+			return server.globalRib, table.POLICY_DIRECTION_EXPORT, nil
+		default:
+			return nil, table.POLICY_DIRECTION_NONE, fmt.Errorf("invalid policy type")
+		}
+	case api.Resource_LOCAL:
+		peer, ok := server.neighborMap[a.Name]
+		if !ok {
+			return nil, table.POLICY_DIRECTION_NONE, fmt.Errorf("not found peer %s", a.Name)
+		}
+		switch a.Type {
+		case api.PolicyType_IN:
+			return peer, table.POLICY_DIRECTION_IN, nil
+		case api.PolicyType_IMPORT:
+			return peer, table.POLICY_DIRECTION_IMPORT, nil
+		case api.PolicyType_EXPORT:
+			return peer, table.POLICY_DIRECTION_EXPORT, nil
+		default:
+			return nil, table.POLICY_DIRECTION_NONE, fmt.Errorf("invalid policy type")
+		}
+	default:
+		return nil, table.POLICY_DIRECTION_NONE, fmt.Errorf("invalid resource type")
+	}
+
+}
+
+func (server *BgpServer) handleGrpcGetPolicyAssignment(grpcReq *GrpcRequest) error {
+	arg := grpcReq.Data.(*api.PolicyAssignment)
+	i, dir, err := server.getPolicyInfo(arg)
+	if err != nil {
+		return err
+	}
+	arg.Default = i.GetDefaultPolicy(dir).ToApiStruct()
+	ps := i.GetPolicy(dir)
+	arg.Policies = make([]*api.Policy, 0, len(ps))
+	for _, x := range ps {
+		arg.Policies = append(arg.Policies, x.ToApiStruct())
+	}
+	grpcReq.ResponseCh <- &GrpcResponse{
+		Data: arg,
+	}
+	return nil
+}
+
+func (server *BgpServer) handleGrpcModPolicyAssignment(grpcReq *GrpcRequest) error {
+	var err error
+	var dir table.PolicyDirection
+	var i policyPoint
+	arg := grpcReq.Data.(*api.ModPolicyAssignmentArguments)
+	assignment := arg.Assignment
+	i, dir, err = server.getPolicyInfo(assignment)
+	if err != nil {
+		return err
+	}
+	ps := make([]*table.Policy, 0, len(assignment.Policies))
+	for _, x := range assignment.Policies {
+		p, ok := server.policy.PolicyMap[x.Name]
+		if !ok {
+			return fmt.Errorf("not found policy %s", x.Name)
+		}
+		ps = append(ps, p)
+	}
+	cur := i.GetPolicy(dir)
+	switch arg.Operation {
+	case api.Operation_ADD, api.Operation_REPLACE:
+		if arg.Operation == api.Operation_REPLACE || cur == nil {
+			err = i.SetPolicy(dir, ps)
+		} else {
+			err = i.SetPolicy(dir, append(cur, ps...))
+		}
+		if err != nil {
+			return err
+		}
+		switch assignment.Default {
+		case api.RouteAction_ACCEPT:
+			err = i.SetDefaultPolicy(dir, table.ROUTE_TYPE_ACCEPT)
+		case api.RouteAction_REJECT:
+			err = i.SetDefaultPolicy(dir, table.ROUTE_TYPE_REJECT)
+		}
+	case api.Operation_DEL:
+		n := make([]*table.Policy, 0, len(cur)-len(ps))
+		for _, x := range ps {
+			found := false
+			for _, y := range cur {
+				if x.Name() == y.Name() {
+					found = true
+					break
+				}
+			}
+			if !found {
+				n = append(n, x)
+			}
+		}
+		err = i.SetPolicy(dir, n)
+	case api.Operation_DEL_ALL:
+		err = i.SetPolicy(dir, nil)
+		if err != nil {
+			return err
+		}
+		err = i.SetDefaultPolicy(dir, table.ROUTE_TYPE_NONE)
 	}
 	return err
 }

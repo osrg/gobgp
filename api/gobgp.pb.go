@@ -12,12 +12,12 @@ It has these top-level messages:
 	Error
 	Arguments
 	ModPathArguments
-	PolicyArguments
 	MrtArguments
 	ModVrfArguments
 	ModDefinedSetArguments
 	ModStatementArguments
 	ModPolicyArguments
+	ModPolicyAssignmentArguments
 	Path
 	Destination
 	PeerConf
@@ -34,7 +34,7 @@ It has these top-level messages:
 	Actions
 	Statement
 	Policy
-	ApplyPolicy
+	PolicyAssignment
 	MrtMessage
 	RPKIConf
 	RPKIState
@@ -61,44 +61,26 @@ var _ = math.Inf
 type Resource int32
 
 const (
-	Resource_GLOBAL              Resource = 0
-	Resource_LOCAL               Resource = 1
-	Resource_ADJ_IN              Resource = 2
-	Resource_ADJ_OUT             Resource = 3
-	Resource_POLICY_PREFIX       Resource = 4
-	Resource_POLICY_NEIGHBOR     Resource = 5
-	Resource_POLICY_ASPATH       Resource = 6
-	Resource_POLICY_COMMUNITY    Resource = 7
-	Resource_POLICY_ROUTEPOLICY  Resource = 8
-	Resource_POLICY_EXTCOMMUNITY Resource = 9
-	Resource_VRF                 Resource = 10
+	Resource_GLOBAL  Resource = 0
+	Resource_LOCAL   Resource = 1
+	Resource_ADJ_IN  Resource = 2
+	Resource_ADJ_OUT Resource = 3
+	Resource_VRF     Resource = 4
 )
 
 var Resource_name = map[int32]string{
-	0:  "GLOBAL",
-	1:  "LOCAL",
-	2:  "ADJ_IN",
-	3:  "ADJ_OUT",
-	4:  "POLICY_PREFIX",
-	5:  "POLICY_NEIGHBOR",
-	6:  "POLICY_ASPATH",
-	7:  "POLICY_COMMUNITY",
-	8:  "POLICY_ROUTEPOLICY",
-	9:  "POLICY_EXTCOMMUNITY",
-	10: "VRF",
+	0: "GLOBAL",
+	1: "LOCAL",
+	2: "ADJ_IN",
+	3: "ADJ_OUT",
+	4: "VRF",
 }
 var Resource_value = map[string]int32{
-	"GLOBAL":              0,
-	"LOCAL":               1,
-	"ADJ_IN":              2,
-	"ADJ_OUT":             3,
-	"POLICY_PREFIX":       4,
-	"POLICY_NEIGHBOR":     5,
-	"POLICY_ASPATH":       6,
-	"POLICY_COMMUNITY":    7,
-	"POLICY_ROUTEPOLICY":  8,
-	"POLICY_EXTCOMMUNITY": 9,
-	"VRF": 10,
+	"GLOBAL":  0,
+	"LOCAL":   1,
+	"ADJ_IN":  2,
+	"ADJ_OUT": 3,
+	"VRF":     4,
 }
 
 func (x Resource) String() string {
@@ -233,33 +215,6 @@ func (m *ModPathArguments) GetPaths() []*Path {
 	return nil
 }
 
-type PolicyArguments struct {
-	Resource         Resource     `protobuf:"varint,1,opt,name=resource,enum=gobgpapi.Resource" json:"resource,omitempty"`
-	Operation        Operation    `protobuf:"varint,2,opt,name=operation,enum=gobgpapi.Operation" json:"operation,omitempty"`
-	NeighborAddress  string       `protobuf:"bytes,3,opt,name=neighbor_address" json:"neighbor_address,omitempty"`
-	Name             string       `protobuf:"bytes,4,opt,name=name" json:"name,omitempty"`
-	PolicyDefinition *Policy      `protobuf:"bytes,6,opt,name=policy_definition" json:"policy_definition,omitempty"`
-	ApplyPolicy      *ApplyPolicy `protobuf:"bytes,7,opt,name=apply_policy" json:"apply_policy,omitempty"`
-}
-
-func (m *PolicyArguments) Reset()         { *m = PolicyArguments{} }
-func (m *PolicyArguments) String() string { return proto.CompactTextString(m) }
-func (*PolicyArguments) ProtoMessage()    {}
-
-func (m *PolicyArguments) GetPolicyDefinition() *Policy {
-	if m != nil {
-		return m.PolicyDefinition
-	}
-	return nil
-}
-
-func (m *PolicyArguments) GetApplyPolicy() *ApplyPolicy {
-	if m != nil {
-		return m.ApplyPolicy
-	}
-	return nil
-}
-
 type MrtArguments struct {
 	Resource        Resource `protobuf:"varint,1,opt,name=resource,enum=gobgpapi.Resource" json:"resource,omitempty"`
 	Rf              uint32   `protobuf:"varint,2,opt,name=rf" json:"rf,omitempty"`
@@ -324,8 +279,7 @@ type ModPolicyArguments struct {
 	Policy    *Policy   `protobuf:"bytes,2,opt,name=policy" json:"policy,omitempty"`
 	// if this flag is set, gobgpd won't define new statements
 	// but refer existing statements using statement's names.
-	// if you use this flag don't put any conditions/actions to
-	// each statements and only set name.
+	// this flag only works with Operation_ADD
 	ReferExistingStatements bool `protobuf:"varint,3,opt,name=refer_existing_statements" json:"refer_existing_statements,omitempty"`
 	// if this flag is set, gobgpd won't delete any statements
 	// even if the policy containing some statements are deleted.
@@ -340,6 +294,22 @@ func (*ModPolicyArguments) ProtoMessage()    {}
 func (m *ModPolicyArguments) GetPolicy() *Policy {
 	if m != nil {
 		return m.Policy
+	}
+	return nil
+}
+
+type ModPolicyAssignmentArguments struct {
+	Operation  Operation         `protobuf:"varint,1,opt,name=operation,enum=gobgpapi.Operation" json:"operation,omitempty"`
+	Assignment *PolicyAssignment `protobuf:"bytes,2,opt,name=assignment" json:"assignment,omitempty"`
+}
+
+func (m *ModPolicyAssignmentArguments) Reset()         { *m = ModPolicyAssignmentArguments{} }
+func (m *ModPolicyAssignmentArguments) String() string { return proto.CompactTextString(m) }
+func (*ModPolicyAssignmentArguments) ProtoMessage()    {}
+
+func (m *ModPolicyAssignmentArguments) GetAssignment() *PolicyAssignment {
+	if m != nil {
+		return m.Assignment
 	}
 	return nil
 }
@@ -659,15 +629,24 @@ func (m *Policy) GetStatements() []*Statement {
 	return nil
 }
 
-type ApplyPolicy struct {
+type PolicyAssignment struct {
 	Type     PolicyType  `protobuf:"varint,1,opt,name=type,enum=gobgpapi.PolicyType" json:"type,omitempty"`
-	Policies []string    `protobuf:"bytes,2,rep,name=policies" json:"policies,omitempty"`
-	Default  RouteAction `protobuf:"varint,3,opt,name=default,enum=gobgpapi.RouteAction" json:"default,omitempty"`
+	Resource Resource    `protobuf:"varint,2,opt,name=resource,enum=gobgpapi.Resource" json:"resource,omitempty"`
+	Name     string      `protobuf:"bytes,3,opt,name=name" json:"name,omitempty"`
+	Policies []*Policy   `protobuf:"bytes,4,rep,name=policies" json:"policies,omitempty"`
+	Default  RouteAction `protobuf:"varint,5,opt,name=default,enum=gobgpapi.RouteAction" json:"default,omitempty"`
 }
 
-func (m *ApplyPolicy) Reset()         { *m = ApplyPolicy{} }
-func (m *ApplyPolicy) String() string { return proto.CompactTextString(m) }
-func (*ApplyPolicy) ProtoMessage()    {}
+func (m *PolicyAssignment) Reset()         { *m = PolicyAssignment{} }
+func (m *PolicyAssignment) String() string { return proto.CompactTextString(m) }
+func (*PolicyAssignment) ProtoMessage()    {}
+
+func (m *PolicyAssignment) GetPolicies() []*Policy {
+	if m != nil {
+		return m.Policies
+	}
+	return nil
+}
 
 type MrtMessage struct {
 	Data []byte `protobuf:"bytes,1,opt,name=data,proto3" json:"data,omitempty"`
@@ -767,8 +746,6 @@ type GobgpApiClient interface {
 	Enable(ctx context.Context, in *Arguments, opts ...grpc.CallOption) (*Error, error)
 	Disable(ctx context.Context, in *Arguments, opts ...grpc.CallOption) (*Error, error)
 	ModPath(ctx context.Context, opts ...grpc.CallOption) (GobgpApi_ModPathClient, error)
-	GetNeighborPolicy(ctx context.Context, in *PolicyArguments, opts ...grpc.CallOption) (*ApplyPolicy, error)
-	ModNeighborPolicy(ctx context.Context, opts ...grpc.CallOption) (GobgpApi_ModNeighborPolicyClient, error)
 	MonitorBestChanged(ctx context.Context, in *Arguments, opts ...grpc.CallOption) (GobgpApi_MonitorBestChangedClient, error)
 	MonitorPeerState(ctx context.Context, in *Arguments, opts ...grpc.CallOption) (GobgpApi_MonitorPeerStateClient, error)
 	GetMrt(ctx context.Context, in *MrtArguments, opts ...grpc.CallOption) (GobgpApi_GetMrtClient, error)
@@ -785,6 +762,8 @@ type GobgpApiClient interface {
 	GetPolicy(ctx context.Context, in *Policy, opts ...grpc.CallOption) (*Policy, error)
 	GetPolicies(ctx context.Context, in *Policy, opts ...grpc.CallOption) (GobgpApi_GetPoliciesClient, error)
 	ModPolicy(ctx context.Context, in *ModPolicyArguments, opts ...grpc.CallOption) (*Error, error)
+	GetPolicyAssignment(ctx context.Context, in *PolicyAssignment, opts ...grpc.CallOption) (*PolicyAssignment, error)
+	ModPolicyAssignment(ctx context.Context, in *ModPolicyAssignmentArguments, opts ...grpc.CallOption) (*Error, error)
 }
 
 type gobgpApiClient struct {
@@ -965,48 +944,8 @@ func (x *gobgpApiModPathClient) CloseAndRecv() (*Error, error) {
 	return m, nil
 }
 
-func (c *gobgpApiClient) GetNeighborPolicy(ctx context.Context, in *PolicyArguments, opts ...grpc.CallOption) (*ApplyPolicy, error) {
-	out := new(ApplyPolicy)
-	err := grpc.Invoke(ctx, "/gobgpapi.GobgpApi/GetNeighborPolicy", in, out, c.cc, opts...)
-	if err != nil {
-		return nil, err
-	}
-	return out, nil
-}
-
-func (c *gobgpApiClient) ModNeighborPolicy(ctx context.Context, opts ...grpc.CallOption) (GobgpApi_ModNeighborPolicyClient, error) {
-	stream, err := grpc.NewClientStream(ctx, &_GobgpApi_serviceDesc.Streams[3], c.cc, "/gobgpapi.GobgpApi/ModNeighborPolicy", opts...)
-	if err != nil {
-		return nil, err
-	}
-	x := &gobgpApiModNeighborPolicyClient{stream}
-	return x, nil
-}
-
-type GobgpApi_ModNeighborPolicyClient interface {
-	Send(*PolicyArguments) error
-	Recv() (*Error, error)
-	grpc.ClientStream
-}
-
-type gobgpApiModNeighborPolicyClient struct {
-	grpc.ClientStream
-}
-
-func (x *gobgpApiModNeighborPolicyClient) Send(m *PolicyArguments) error {
-	return x.ClientStream.SendMsg(m)
-}
-
-func (x *gobgpApiModNeighborPolicyClient) Recv() (*Error, error) {
-	m := new(Error)
-	if err := x.ClientStream.RecvMsg(m); err != nil {
-		return nil, err
-	}
-	return m, nil
-}
-
 func (c *gobgpApiClient) MonitorBestChanged(ctx context.Context, in *Arguments, opts ...grpc.CallOption) (GobgpApi_MonitorBestChangedClient, error) {
-	stream, err := grpc.NewClientStream(ctx, &_GobgpApi_serviceDesc.Streams[4], c.cc, "/gobgpapi.GobgpApi/MonitorBestChanged", opts...)
+	stream, err := grpc.NewClientStream(ctx, &_GobgpApi_serviceDesc.Streams[3], c.cc, "/gobgpapi.GobgpApi/MonitorBestChanged", opts...)
 	if err != nil {
 		return nil, err
 	}
@@ -1038,7 +977,7 @@ func (x *gobgpApiMonitorBestChangedClient) Recv() (*Destination, error) {
 }
 
 func (c *gobgpApiClient) MonitorPeerState(ctx context.Context, in *Arguments, opts ...grpc.CallOption) (GobgpApi_MonitorPeerStateClient, error) {
-	stream, err := grpc.NewClientStream(ctx, &_GobgpApi_serviceDesc.Streams[5], c.cc, "/gobgpapi.GobgpApi/MonitorPeerState", opts...)
+	stream, err := grpc.NewClientStream(ctx, &_GobgpApi_serviceDesc.Streams[4], c.cc, "/gobgpapi.GobgpApi/MonitorPeerState", opts...)
 	if err != nil {
 		return nil, err
 	}
@@ -1070,7 +1009,7 @@ func (x *gobgpApiMonitorPeerStateClient) Recv() (*Peer, error) {
 }
 
 func (c *gobgpApiClient) GetMrt(ctx context.Context, in *MrtArguments, opts ...grpc.CallOption) (GobgpApi_GetMrtClient, error) {
-	stream, err := grpc.NewClientStream(ctx, &_GobgpApi_serviceDesc.Streams[6], c.cc, "/gobgpapi.GobgpApi/GetMrt", opts...)
+	stream, err := grpc.NewClientStream(ctx, &_GobgpApi_serviceDesc.Streams[5], c.cc, "/gobgpapi.GobgpApi/GetMrt", opts...)
 	if err != nil {
 		return nil, err
 	}
@@ -1102,7 +1041,7 @@ func (x *gobgpApiGetMrtClient) Recv() (*MrtMessage, error) {
 }
 
 func (c *gobgpApiClient) GetRPKI(ctx context.Context, in *Arguments, opts ...grpc.CallOption) (GobgpApi_GetRPKIClient, error) {
-	stream, err := grpc.NewClientStream(ctx, &_GobgpApi_serviceDesc.Streams[7], c.cc, "/gobgpapi.GobgpApi/GetRPKI", opts...)
+	stream, err := grpc.NewClientStream(ctx, &_GobgpApi_serviceDesc.Streams[6], c.cc, "/gobgpapi.GobgpApi/GetRPKI", opts...)
 	if err != nil {
 		return nil, err
 	}
@@ -1134,7 +1073,7 @@ func (x *gobgpApiGetRPKIClient) Recv() (*RPKI, error) {
 }
 
 func (c *gobgpApiClient) GetROA(ctx context.Context, in *Arguments, opts ...grpc.CallOption) (GobgpApi_GetROAClient, error) {
-	stream, err := grpc.NewClientStream(ctx, &_GobgpApi_serviceDesc.Streams[8], c.cc, "/gobgpapi.GobgpApi/GetROA", opts...)
+	stream, err := grpc.NewClientStream(ctx, &_GobgpApi_serviceDesc.Streams[7], c.cc, "/gobgpapi.GobgpApi/GetROA", opts...)
 	if err != nil {
 		return nil, err
 	}
@@ -1166,7 +1105,7 @@ func (x *gobgpApiGetROAClient) Recv() (*ROA, error) {
 }
 
 func (c *gobgpApiClient) GetVrfs(ctx context.Context, in *Arguments, opts ...grpc.CallOption) (GobgpApi_GetVrfsClient, error) {
-	stream, err := grpc.NewClientStream(ctx, &_GobgpApi_serviceDesc.Streams[9], c.cc, "/gobgpapi.GobgpApi/GetVrfs", opts...)
+	stream, err := grpc.NewClientStream(ctx, &_GobgpApi_serviceDesc.Streams[8], c.cc, "/gobgpapi.GobgpApi/GetVrfs", opts...)
 	if err != nil {
 		return nil, err
 	}
@@ -1216,7 +1155,7 @@ func (c *gobgpApiClient) GetDefinedSet(ctx context.Context, in *DefinedSet, opts
 }
 
 func (c *gobgpApiClient) GetDefinedSets(ctx context.Context, in *DefinedSet, opts ...grpc.CallOption) (GobgpApi_GetDefinedSetsClient, error) {
-	stream, err := grpc.NewClientStream(ctx, &_GobgpApi_serviceDesc.Streams[10], c.cc, "/gobgpapi.GobgpApi/GetDefinedSets", opts...)
+	stream, err := grpc.NewClientStream(ctx, &_GobgpApi_serviceDesc.Streams[9], c.cc, "/gobgpapi.GobgpApi/GetDefinedSets", opts...)
 	if err != nil {
 		return nil, err
 	}
@@ -1266,7 +1205,7 @@ func (c *gobgpApiClient) GetStatement(ctx context.Context, in *Statement, opts .
 }
 
 func (c *gobgpApiClient) GetStatements(ctx context.Context, in *Statement, opts ...grpc.CallOption) (GobgpApi_GetStatementsClient, error) {
-	stream, err := grpc.NewClientStream(ctx, &_GobgpApi_serviceDesc.Streams[11], c.cc, "/gobgpapi.GobgpApi/GetStatements", opts...)
+	stream, err := grpc.NewClientStream(ctx, &_GobgpApi_serviceDesc.Streams[10], c.cc, "/gobgpapi.GobgpApi/GetStatements", opts...)
 	if err != nil {
 		return nil, err
 	}
@@ -1316,7 +1255,7 @@ func (c *gobgpApiClient) GetPolicy(ctx context.Context, in *Policy, opts ...grpc
 }
 
 func (c *gobgpApiClient) GetPolicies(ctx context.Context, in *Policy, opts ...grpc.CallOption) (GobgpApi_GetPoliciesClient, error) {
-	stream, err := grpc.NewClientStream(ctx, &_GobgpApi_serviceDesc.Streams[12], c.cc, "/gobgpapi.GobgpApi/GetPolicies", opts...)
+	stream, err := grpc.NewClientStream(ctx, &_GobgpApi_serviceDesc.Streams[11], c.cc, "/gobgpapi.GobgpApi/GetPolicies", opts...)
 	if err != nil {
 		return nil, err
 	}
@@ -1356,6 +1295,24 @@ func (c *gobgpApiClient) ModPolicy(ctx context.Context, in *ModPolicyArguments, 
 	return out, nil
 }
 
+func (c *gobgpApiClient) GetPolicyAssignment(ctx context.Context, in *PolicyAssignment, opts ...grpc.CallOption) (*PolicyAssignment, error) {
+	out := new(PolicyAssignment)
+	err := grpc.Invoke(ctx, "/gobgpapi.GobgpApi/GetPolicyAssignment", in, out, c.cc, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *gobgpApiClient) ModPolicyAssignment(ctx context.Context, in *ModPolicyAssignmentArguments, opts ...grpc.CallOption) (*Error, error) {
+	out := new(Error)
+	err := grpc.Invoke(ctx, "/gobgpapi.GobgpApi/ModPolicyAssignment", in, out, c.cc, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 // Server API for GobgpApi service
 
 type GobgpApiServer interface {
@@ -1370,8 +1327,6 @@ type GobgpApiServer interface {
 	Enable(context.Context, *Arguments) (*Error, error)
 	Disable(context.Context, *Arguments) (*Error, error)
 	ModPath(GobgpApi_ModPathServer) error
-	GetNeighborPolicy(context.Context, *PolicyArguments) (*ApplyPolicy, error)
-	ModNeighborPolicy(GobgpApi_ModNeighborPolicyServer) error
 	MonitorBestChanged(*Arguments, GobgpApi_MonitorBestChangedServer) error
 	MonitorPeerState(*Arguments, GobgpApi_MonitorPeerStateServer) error
 	GetMrt(*MrtArguments, GobgpApi_GetMrtServer) error
@@ -1388,6 +1343,8 @@ type GobgpApiServer interface {
 	GetPolicy(context.Context, *Policy) (*Policy, error)
 	GetPolicies(*Policy, GobgpApi_GetPoliciesServer) error
 	ModPolicy(context.Context, *ModPolicyArguments) (*Error, error)
+	GetPolicyAssignment(context.Context, *PolicyAssignment) (*PolicyAssignment, error)
+	ModPolicyAssignment(context.Context, *ModPolicyAssignmentArguments) (*Error, error)
 }
 
 func RegisterGobgpApiServer(s *grpc.Server, srv GobgpApiServer) {
@@ -1552,44 +1509,6 @@ func (x *gobgpApiModPathServer) SendAndClose(m *Error) error {
 
 func (x *gobgpApiModPathServer) Recv() (*ModPathArguments, error) {
 	m := new(ModPathArguments)
-	if err := x.ServerStream.RecvMsg(m); err != nil {
-		return nil, err
-	}
-	return m, nil
-}
-
-func _GobgpApi_GetNeighborPolicy_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error) (interface{}, error) {
-	in := new(PolicyArguments)
-	if err := dec(in); err != nil {
-		return nil, err
-	}
-	out, err := srv.(GobgpApiServer).GetNeighborPolicy(ctx, in)
-	if err != nil {
-		return nil, err
-	}
-	return out, nil
-}
-
-func _GobgpApi_ModNeighborPolicy_Handler(srv interface{}, stream grpc.ServerStream) error {
-	return srv.(GobgpApiServer).ModNeighborPolicy(&gobgpApiModNeighborPolicyServer{stream})
-}
-
-type GobgpApi_ModNeighborPolicyServer interface {
-	Send(*Error) error
-	Recv() (*PolicyArguments, error)
-	grpc.ServerStream
-}
-
-type gobgpApiModNeighborPolicyServer struct {
-	grpc.ServerStream
-}
-
-func (x *gobgpApiModNeighborPolicyServer) Send(m *Error) error {
-	return x.ServerStream.SendMsg(m)
-}
-
-func (x *gobgpApiModNeighborPolicyServer) Recv() (*PolicyArguments, error) {
-	m := new(PolicyArguments)
 	if err := x.ServerStream.RecvMsg(m); err != nil {
 		return nil, err
 	}
@@ -1869,6 +1788,30 @@ func _GobgpApi_ModPolicy_Handler(srv interface{}, ctx context.Context, dec func(
 	return out, nil
 }
 
+func _GobgpApi_GetPolicyAssignment_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error) (interface{}, error) {
+	in := new(PolicyAssignment)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	out, err := srv.(GobgpApiServer).GetPolicyAssignment(ctx, in)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func _GobgpApi_ModPolicyAssignment_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error) (interface{}, error) {
+	in := new(ModPolicyAssignmentArguments)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	out, err := srv.(GobgpApiServer).ModPolicyAssignment(ctx, in)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 var _GobgpApi_serviceDesc = grpc.ServiceDesc{
 	ServiceName: "gobgpapi.GobgpApi",
 	HandlerType: (*GobgpApiServer)(nil),
@@ -1906,10 +1849,6 @@ var _GobgpApi_serviceDesc = grpc.ServiceDesc{
 			Handler:    _GobgpApi_Disable_Handler,
 		},
 		{
-			MethodName: "GetNeighborPolicy",
-			Handler:    _GobgpApi_GetNeighborPolicy_Handler,
-		},
-		{
 			MethodName: "ModVrf",
 			Handler:    _GobgpApi_ModVrf_Handler,
 		},
@@ -1937,6 +1876,14 @@ var _GobgpApi_serviceDesc = grpc.ServiceDesc{
 			MethodName: "ModPolicy",
 			Handler:    _GobgpApi_ModPolicy_Handler,
 		},
+		{
+			MethodName: "GetPolicyAssignment",
+			Handler:    _GobgpApi_GetPolicyAssignment_Handler,
+		},
+		{
+			MethodName: "ModPolicyAssignment",
+			Handler:    _GobgpApi_ModPolicyAssignment_Handler,
+		},
 	},
 	Streams: []grpc.StreamDesc{
 		{
@@ -1952,12 +1899,6 @@ var _GobgpApi_serviceDesc = grpc.ServiceDesc{
 		{
 			StreamName:    "ModPath",
 			Handler:       _GobgpApi_ModPath_Handler,
-			ClientStreams: true,
-		},
-		{
-			StreamName:    "ModNeighborPolicy",
-			Handler:       _GobgpApi_ModNeighborPolicy_Handler,
-			ServerStreams: true,
 			ClientStreams: true,
 		},
 		{
