@@ -63,6 +63,10 @@ PIDS=("${PIDS[@]}" $!)
 sudo -E python bgp_zebra_test.py --gobgp-image $GOBGP_IMAGE --test-prefix zebra -s -x --with-xunit --xunit-file=${WS}/nosetest_zebra.xml &
 PIDS=("${PIDS[@]}" $!)
 
+# global policy test
+sudo -E python global_policy_test.py --gobgp-image $GOBGP_IMAGE --test-prefix gpol -s -x --with-xunit --xunit-file=${WS}/nosetest_global_policy.xml &
+PIDS=("${PIDS[@]}" $!)
+
 # route server malformed message test
 NUM=$(sudo -E python route_server_malformed_test.py -s 2> /dev/null | awk '/invalid/{print $NF}')
 PARALLEL_NUM=10
@@ -90,6 +94,32 @@ do
     for (( j = $((PARALLEL_NUM * $i + 1)); j < $((PARALLEL_NUM * ($i+1) + 1)); ++j))
     do
         sudo -E python route_server_policy_test.py --gobgp-image $GOBGP_IMAGE --test-prefix p$j --test-index $j -s -x --gobgp-log-level debug --with-xunit --xunit-file=${WS}/nosetest_policy${j}.xml &
+        PIDS=("${PIDS[@]}" $!)
+        if [ $j -eq $NUM ]; then
+            break
+        fi
+        sleep 3
+    done
+
+    for (( j = 0; j < ${#PIDS[@]}; ++j ))
+    do
+        wait ${PIDS[$j]}
+        if [ $? != 0 ]; then
+            exit 1
+        fi
+    done
+
+done
+
+# route server policy grpc test
+NUM=$(sudo -E python route_server_policy_grpc_test.py -s 2> /dev/null | awk '/invalid/{print $NF}')
+PARALLEL_NUM=25
+for (( i = 0; i < $(( NUM / PARALLEL_NUM + 1)); ++i ))
+do
+    PIDS=()
+    for (( j = $((PARALLEL_NUM * $i + 1)); j < $((PARALLEL_NUM * ($i+1) + 1)); ++j))
+    do
+        sudo -E python route_server_policy_grpc_test.py --gobgp-image $GOBGP_IMAGE --test-prefix pg$j --test-index $j -s -x --gobgp-log-level debug --with-xunit --xunit-file=${WS}/nosetest_policy_grpc${j}.xml &
         PIDS=("${PIDS[@]}" $!)
         if [ $j -eq $NUM ]; then
             break

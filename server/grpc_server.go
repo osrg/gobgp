@@ -40,44 +40,7 @@ const (
 	REQ_NEIGHBOR_SOFT_RESET_OUT
 	REQ_NEIGHBOR_ENABLE
 	REQ_NEIGHBOR_DISABLE
-	REQ_NEIGHBOR_POLICY
-	REQ_NEIGHBOR_POLICY_ADD_IMPORT
-	REQ_NEIGHBOR_POLICY_ADD_EXPORT
-	REQ_NEIGHBOR_POLICY_ADD_IN
-	REQ_NEIGHBOR_POLICY_DEL_IMPORT
-	REQ_NEIGHBOR_POLICY_DEL_EXPORT
-	REQ_NEIGHBOR_POLICY_DEL_IN
 	REQ_GLOBAL_RIB
-	REQ_POLICY_PREFIX
-	REQ_POLICY_PREFIXES
-	REQ_POLICY_PREFIX_ADD
-	REQ_POLICY_PREFIX_DELETE
-	REQ_POLICY_PREFIXES_DELETE
-	REQ_POLICY_NEIGHBOR
-	REQ_POLICY_NEIGHBORS
-	REQ_POLICY_NEIGHBOR_ADD
-	REQ_POLICY_NEIGHBOR_DELETE
-	REQ_POLICY_NEIGHBORS_DELETE
-	REQ_POLICY_ASPATH
-	REQ_POLICY_ASPATHS
-	REQ_POLICY_ASPATH_ADD
-	REQ_POLICY_ASPATH_DELETE
-	REQ_POLICY_ASPATHS_DELETE
-	REQ_POLICY_ROUTEPOLICIES
-	REQ_POLICY_ROUTEPOLICY
-	REQ_POLICY_ROUTEPOLICY_ADD
-	REQ_POLICY_ROUTEPOLICY_DELETE
-	REQ_POLICY_ROUTEPOLICIES_DELETE
-	REQ_POLICY_COMMUNITY
-	REQ_POLICY_COMMUNITIES
-	REQ_POLICY_COMMUNITY_ADD
-	REQ_POLICY_COMMUNITY_DELETE
-	REQ_POLICY_COMMUNITIES_DELETE
-	REQ_POLICY_EXTCOMMUNITY
-	REQ_POLICY_EXTCOMMUNITIES
-	REQ_POLICY_EXTCOMMUNITY_ADD
-	REQ_POLICY_EXTCOMMUNITY_DELETE
-	REQ_POLICY_EXTCOMMUNITIES_DELETE
 	REQ_MONITOR_GLOBAL_BEST_CHANGED
 	REQ_MONITOR_NEIGHBOR_PEER_STATE
 	REQ_MRT_GLOBAL_RIB
@@ -88,7 +51,14 @@ const (
 	REQ_VRFS
 	REQ_VRF_MOD
 	REQ_MOD_PATH
-	REQ_GLOBAL_POLICY
+	REQ_DEFINED_SET
+	REQ_MOD_DEFINED_SET
+	REQ_STATEMENT
+	REQ_MOD_STATEMENT
+	REQ_POLICY
+	REQ_MOD_POLICY
+	REQ_POLICY_ASSIGNMENT
+	REQ_MOD_POLICY_ASSIGNMENT
 )
 
 const GRPC_PORT = 8080
@@ -269,238 +239,6 @@ func (s *Server) ModPath(stream api.GobgpApi_ModPathServer) error {
 	return err
 }
 
-func (s *Server) GetNeighborPolicy(ctx context.Context, arg *api.Arguments) (*api.ApplyPolicy, error) {
-	if arg.Resource != api.Resource_LOCAL && arg.Resource != api.Resource_GLOBAL {
-		return nil, fmt.Errorf("unsupported resource: %s", arg.Resource)
-	}
-	var req *GrpcRequest
-	if arg.Resource == api.Resource_LOCAL {
-		req = NewGrpcRequest(REQ_NEIGHBOR_POLICY, arg.Name, bgp.RouteFamily(arg.Rf), nil)
-	} else {
-		req = NewGrpcRequest(REQ_GLOBAL_POLICY, "", bgp.RouteFamily(arg.Rf), nil)
-	}
-	s.bgpServerCh <- req
-
-	res := <-req.ResponseCh
-	if err := res.Err(); err != nil {
-		log.Debug(err.Error())
-		return nil, err
-	}
-	return res.Data.(*api.ApplyPolicy), nil
-}
-
-func (s *Server) ModNeighborPolicy(stream api.GobgpApi_ModNeighborPolicyServer) error {
-	for {
-		arg, err := stream.Recv()
-		if err == io.EOF {
-			return nil
-		} else if err != nil {
-			return err
-		}
-
-		if arg.Resource != api.Resource_POLICY_ROUTEPOLICY {
-			return fmt.Errorf("unsupported resource: %s", arg.Resource)
-		}
-		var rf bgp.RouteFamily
-		var reqType int
-		switch arg.Operation {
-		case api.Operation_ADD:
-			switch arg.Name {
-			case "import":
-				reqType = REQ_NEIGHBOR_POLICY_ADD_IMPORT
-			case "export":
-				reqType = REQ_NEIGHBOR_POLICY_ADD_EXPORT
-			case "in":
-				reqType = REQ_NEIGHBOR_POLICY_ADD_IN
-			}
-		case api.Operation_DEL:
-			switch arg.Name {
-			case "import":
-				reqType = REQ_NEIGHBOR_POLICY_DEL_IMPORT
-			case "export":
-				reqType = REQ_NEIGHBOR_POLICY_DEL_EXPORT
-			case "in":
-				reqType = REQ_NEIGHBOR_POLICY_DEL_IN
-			}
-		}
-		req := NewGrpcRequest(reqType, arg.NeighborAddress, rf, arg.ApplyPolicy)
-		s.bgpServerCh <- req
-		res := <-req.ResponseCh
-		if err := res.Err(); err != nil {
-			log.Debug(err.Error())
-			return err
-		}
-		err = stream.Send(&api.Error{
-			Code: api.Error_SUCCESS,
-		})
-		if err != nil {
-			return err
-		}
-	}
-}
-
-func (s *Server) modPolicy(arg *api.PolicyArguments, stream interface{}) error {
-	var rf bgp.RouteFamily
-	var reqType int
-	var err error
-	switch arg.Resource {
-	case api.Resource_POLICY_PREFIX:
-		switch arg.Operation {
-		case api.Operation_ADD:
-			reqType = REQ_POLICY_PREFIX_ADD
-		case api.Operation_DEL:
-			reqType = REQ_POLICY_PREFIX_DELETE
-		case api.Operation_DEL_ALL:
-			reqType = REQ_POLICY_PREFIXES_DELETE
-		default:
-			return fmt.Errorf("unsupported operation: %s", arg.Operation)
-		}
-	case api.Resource_POLICY_NEIGHBOR:
-		switch arg.Operation {
-		case api.Operation_ADD:
-			reqType = REQ_POLICY_NEIGHBOR_ADD
-		case api.Operation_DEL:
-			reqType = REQ_POLICY_NEIGHBOR_DELETE
-		case api.Operation_DEL_ALL:
-			reqType = REQ_POLICY_NEIGHBORS_DELETE
-		default:
-			return fmt.Errorf("unsupported operation: %s", arg.Operation)
-		}
-	case api.Resource_POLICY_ASPATH:
-		switch arg.Operation {
-		case api.Operation_ADD:
-			reqType = REQ_POLICY_ASPATH_ADD
-		case api.Operation_DEL:
-			reqType = REQ_POLICY_ASPATH_DELETE
-		case api.Operation_DEL_ALL:
-			reqType = REQ_POLICY_ASPATHS_DELETE
-		default:
-			return fmt.Errorf("unsupported operation: %s", arg.Operation)
-		}
-	case api.Resource_POLICY_COMMUNITY:
-		switch arg.Operation {
-		case api.Operation_ADD:
-			reqType = REQ_POLICY_COMMUNITY_ADD
-		case api.Operation_DEL:
-			reqType = REQ_POLICY_COMMUNITY_DELETE
-		case api.Operation_DEL_ALL:
-			reqType = REQ_POLICY_COMMUNITIES_DELETE
-		default:
-			return fmt.Errorf("unsupported operation: %s", arg.Operation)
-		}
-	case api.Resource_POLICY_EXTCOMMUNITY:
-		switch arg.Operation {
-		case api.Operation_ADD:
-			reqType = REQ_POLICY_EXTCOMMUNITY_ADD
-		case api.Operation_DEL:
-			reqType = REQ_POLICY_EXTCOMMUNITY_DELETE
-		case api.Operation_DEL_ALL:
-			reqType = REQ_POLICY_EXTCOMMUNITIES_DELETE
-		default:
-			return fmt.Errorf("unsupported operation: %s", arg.Operation)
-		}
-	case api.Resource_POLICY_ROUTEPOLICY:
-		switch arg.Operation {
-		case api.Operation_ADD:
-			reqType = REQ_POLICY_ROUTEPOLICY_ADD
-		case api.Operation_DEL:
-			reqType = REQ_POLICY_ROUTEPOLICY_DELETE
-		case api.Operation_DEL_ALL:
-			reqType = REQ_POLICY_ROUTEPOLICIES_DELETE
-		default:
-			return fmt.Errorf("unsupported operation: %s", arg.Operation)
-		}
-	default:
-		return fmt.Errorf("unsupported resource type: %v", arg.Resource)
-	}
-	req := NewGrpcRequest(reqType, "", rf, arg.PolicyDefinition)
-	s.bgpServerCh <- req
-
-	res := <-req.ResponseCh
-	if err := res.Err(); err != nil {
-		log.Debug(err.Error())
-		return err
-	}
-	err = stream.(api.GobgpApi_ModPolicyRoutePolicyServer).Send(&api.Error{
-		Code: api.Error_SUCCESS,
-	})
-	if err != nil {
-		return err
-	}
-	return nil
-}
-
-func (s *Server) GetPolicyRoutePolicies(arg *api.PolicyArguments, stream api.GobgpApi_GetPolicyRoutePoliciesServer) error {
-	var rf bgp.RouteFamily
-	var reqType int
-	switch arg.Resource {
-	case api.Resource_POLICY_PREFIX:
-		reqType = REQ_POLICY_PREFIXES
-	case api.Resource_POLICY_NEIGHBOR:
-		reqType = REQ_POLICY_NEIGHBORS
-	case api.Resource_POLICY_ASPATH:
-		reqType = REQ_POLICY_ASPATHS
-	case api.Resource_POLICY_COMMUNITY:
-		reqType = REQ_POLICY_COMMUNITIES
-	case api.Resource_POLICY_EXTCOMMUNITY:
-		reqType = REQ_POLICY_EXTCOMMUNITIES
-	case api.Resource_POLICY_ROUTEPOLICY:
-		reqType = REQ_POLICY_ROUTEPOLICIES
-	default:
-		return fmt.Errorf("unsupported resource type: %v", arg.Resource)
-	}
-	req := NewGrpcRequest(reqType, "", rf, nil)
-	s.bgpServerCh <- req
-	return handleMultipleResponses(req, func(res *GrpcResponse) error {
-		return stream.Send(res.Data.(*api.PolicyDefinition))
-	})
-}
-
-func (s *Server) GetPolicyRoutePolicy(ctx context.Context, arg *api.PolicyArguments) (*api.PolicyDefinition, error) {
-	var rf bgp.RouteFamily
-	var reqType int
-	switch arg.Resource {
-	case api.Resource_POLICY_PREFIX:
-		reqType = REQ_POLICY_PREFIX
-	case api.Resource_POLICY_NEIGHBOR:
-		reqType = REQ_POLICY_NEIGHBOR
-	case api.Resource_POLICY_ASPATH:
-		reqType = REQ_POLICY_ASPATH
-	case api.Resource_POLICY_COMMUNITY:
-		reqType = REQ_POLICY_COMMUNITY
-	case api.Resource_POLICY_EXTCOMMUNITY:
-		reqType = REQ_POLICY_EXTCOMMUNITY
-	case api.Resource_POLICY_ROUTEPOLICY:
-		reqType = REQ_POLICY_ROUTEPOLICY
-	default:
-		return nil, fmt.Errorf("unsupported resource type: %v", arg.Resource)
-	}
-	req := NewGrpcRequest(reqType, "", rf, arg.Name)
-	s.bgpServerCh <- req
-
-	res := <-req.ResponseCh
-	if err := res.Err(); err != nil {
-		log.Debug(err.Error())
-		return nil, err
-	}
-	return res.Data.(*api.PolicyDefinition), nil
-}
-
-func (s *Server) ModPolicyRoutePolicy(stream api.GobgpApi_ModPolicyRoutePolicyServer) error {
-	for {
-		arg, err := stream.Recv()
-		if err == io.EOF {
-			return nil
-		} else if err != nil {
-			return err
-		}
-		if err := s.modPolicy(arg, stream); err != nil {
-			return err
-		}
-		return nil
-	}
-}
-
 func (s *Server) GetMrt(arg *api.MrtArguments, stream api.GobgpApi_GetMrtServer) error {
 	var reqType int
 	switch arg.Resource {
@@ -545,16 +283,101 @@ func (s *Server) GetVrfs(arg *api.Arguments, stream api.GobgpApi_GetVrfsServer) 
 	})
 }
 
-func (s *Server) ModVrf(ctx context.Context, arg *api.ModVrfArguments) (*api.Error, error) {
-	none := &api.Error{}
-	req := NewGrpcRequest(REQ_VRF_MOD, "", bgp.RouteFamily(0), arg)
+func (s *Server) get(typ int, d interface{}) (interface{}, error) {
+	req := NewGrpcRequest(typ, "", bgp.RouteFamily(0), d)
 	s.bgpServerCh <- req
+	res := <-req.ResponseCh
+	if err := res.Err(); err != nil {
+		return nil, err
+	}
+	return res.Data, nil
+}
 
+func (s *Server) mod(typ int, d interface{}) (*api.Error, error) {
+	none := &api.Error{}
+	req := NewGrpcRequest(typ, "", bgp.RouteFamily(0), d)
+	s.bgpServerCh <- req
 	res := <-req.ResponseCh
 	if err := res.Err(); err != nil {
 		return none, err
 	}
 	return none, nil
+}
+
+func (s *Server) ModVrf(ctx context.Context, arg *api.ModVrfArguments) (*api.Error, error) {
+	return s.mod(REQ_VRF_MOD, arg)
+}
+
+func (s *Server) GetDefinedSet(ctx context.Context, arg *api.DefinedSet) (*api.DefinedSet, error) {
+	d, err := s.get(REQ_DEFINED_SET, arg)
+	if err != nil {
+		return nil, err
+	}
+	return d.(*api.DefinedSet), nil
+}
+
+func (s *Server) GetDefinedSets(arg *api.DefinedSet, stream api.GobgpApi_GetDefinedSetsServer) error {
+	req := NewGrpcRequest(REQ_DEFINED_SET, "", bgp.RouteFamily(0), arg)
+	s.bgpServerCh <- req
+	return handleMultipleResponses(req, func(res *GrpcResponse) error {
+		return stream.Send(res.Data.(*api.DefinedSet))
+	})
+}
+
+func (s *Server) ModDefinedSet(ctx context.Context, arg *api.ModDefinedSetArguments) (*api.Error, error) {
+	return s.mod(REQ_MOD_DEFINED_SET, arg)
+}
+
+func (s *Server) GetStatement(ctx context.Context, arg *api.Statement) (*api.Statement, error) {
+	d, err := s.get(REQ_STATEMENT, arg)
+	if err != nil {
+		return nil, err
+	}
+	return d.(*api.Statement), nil
+}
+
+func (s *Server) GetStatements(arg *api.Statement, stream api.GobgpApi_GetStatementsServer) error {
+	req := NewGrpcRequest(REQ_STATEMENT, "", bgp.RouteFamily(0), arg)
+	s.bgpServerCh <- req
+	return handleMultipleResponses(req, func(res *GrpcResponse) error {
+		return stream.Send(res.Data.(*api.Statement))
+	})
+}
+
+func (s *Server) ModStatement(ctx context.Context, arg *api.ModStatementArguments) (*api.Error, error) {
+	return s.mod(REQ_MOD_STATEMENT, arg)
+}
+
+func (s *Server) GetPolicy(ctx context.Context, arg *api.Policy) (*api.Policy, error) {
+	d, err := s.get(REQ_POLICY, arg)
+	if err != nil {
+		return nil, err
+	}
+	return d.(*api.Policy), nil
+}
+
+func (s *Server) GetPolicies(arg *api.Policy, stream api.GobgpApi_GetPoliciesServer) error {
+	req := NewGrpcRequest(REQ_POLICY, "", bgp.RouteFamily(0), arg)
+	s.bgpServerCh <- req
+	return handleMultipleResponses(req, func(res *GrpcResponse) error {
+		return stream.Send(res.Data.(*api.Policy))
+	})
+}
+
+func (s *Server) ModPolicy(ctx context.Context, arg *api.ModPolicyArguments) (*api.Error, error) {
+	return s.mod(REQ_MOD_POLICY, arg)
+}
+
+func (s *Server) GetPolicyAssignment(ctx context.Context, arg *api.PolicyAssignment) (*api.PolicyAssignment, error) {
+	d, err := s.get(REQ_POLICY_ASSIGNMENT, arg)
+	if err != nil {
+		return nil, err
+	}
+	return d.(*api.PolicyAssignment), nil
+}
+
+func (s *Server) ModPolicyAssignment(ctx context.Context, arg *api.ModPolicyAssignmentArguments) (*api.Error, error) {
+	return s.mod(REQ_MOD_POLICY_ASSIGNMENT, arg)
 }
 
 type GrpcRequest struct {
