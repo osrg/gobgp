@@ -19,7 +19,6 @@ import (
 	"bytes"
 	"fmt"
 	log "github.com/Sirupsen/logrus"
-	"github.com/osrg/gobgp/config"
 	"github.com/osrg/gobgp/packet"
 	"net"
 	"reflect"
@@ -115,9 +114,9 @@ type TableManager struct {
 	maxLabel            uint32
 	nextLabel           uint32
 	importPolicies      []*Policy
-	defaultImportPolicy config.DefaultPolicyType
+	defaultImportPolicy RouteType
 	exportPolicies      []*Policy
-	defaultExportPolicy config.DefaultPolicyType
+	defaultExportPolicy RouteType
 }
 
 func NewTableManager(owner string, rfList []bgp.RouteFamily, minLabel, maxLabel uint32) *TableManager {
@@ -135,35 +134,6 @@ func NewTableManager(owner string, rfList []bgp.RouteFamily, minLabel, maxLabel 
 	return t
 }
 
-func (manager *TableManager) SetPolicy(c config.ApplyPolicy, p map[string]*Policy) {
-	manager.defaultImportPolicy = c.ApplyPolicyConfig.DefaultImportPolicy
-	manager.defaultExportPolicy = c.ApplyPolicyConfig.DefaultExportPolicy
-	f := func(dir string, arg []string) []*Policy {
-		ret := make([]*Policy, 0, len(arg))
-		for _, name := range arg {
-			pol, ok := p[name]
-			if !ok {
-				log.WithFields(log.Fields{
-					"Topic":      "table",
-					"Key":        manager.owner,
-					"PolicyName": name,
-				}).Warnf("not found %s. failed to set %s policy", name, dir)
-				continue
-			}
-			ret = append(ret, pol)
-			log.WithFields(log.Fields{
-				"Topic":      "table",
-				"Key":        manager.owner,
-				"PolicyName": name,
-			}).Infof("%s policy installed", dir)
-		}
-		return ret
-	}
-	manager.importPolicies = f("import", c.ApplyPolicyConfig.ImportPolicy)
-	manager.exportPolicies = f("export", c.ApplyPolicyConfig.ExportPolicy)
-
-}
-
 func (manager *TableManager) GetPolicy(d PolicyDirection) []*Policy {
 	switch d {
 	case POLICY_DIRECTION_IMPORT:
@@ -174,19 +144,38 @@ func (manager *TableManager) GetPolicy(d PolicyDirection) []*Policy {
 	return nil
 }
 
-func (manager *TableManager) GetDefaultPolicy(d PolicyDirection) RouteType {
-	var def config.DefaultPolicyType
+func (manager *TableManager) SetPolicy(d PolicyDirection, policies []*Policy) error {
 	switch d {
 	case POLICY_DIRECTION_IMPORT:
-		def = manager.defaultImportPolicy
+		manager.importPolicies = policies
 	case POLICY_DIRECTION_EXPORT:
-		def = manager.defaultExportPolicy
+		manager.exportPolicies = policies
+	default:
+		return fmt.Errorf("unsupported policy type: %d", d)
 	}
+	return nil
+}
 
-	if def == config.DEFAULT_POLICY_TYPE_ACCEPT_ROUTE {
-		return ROUTE_TYPE_ACCEPT
+func (manager *TableManager) GetDefaultPolicy(d PolicyDirection) RouteType {
+	switch d {
+	case POLICY_DIRECTION_IMPORT:
+		return manager.defaultImportPolicy
+	case POLICY_DIRECTION_EXPORT:
+		return manager.defaultExportPolicy
 	}
-	return ROUTE_TYPE_REJECT
+	return ROUTE_TYPE_NONE
+}
+
+func (manager *TableManager) SetDefaultPolicy(d PolicyDirection, typ RouteType) error {
+	switch d {
+	case POLICY_DIRECTION_IMPORT:
+		manager.defaultImportPolicy = typ
+	case POLICY_DIRECTION_EXPORT:
+		manager.defaultExportPolicy = typ
+	default:
+		return fmt.Errorf("unsupported policy type: %d", d)
+	}
+	return nil
 }
 
 func (manager *TableManager) ApplyPolicy(d PolicyDirection, paths []*Path) []*Path {

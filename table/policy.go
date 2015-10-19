@@ -48,10 +48,21 @@ const (
 	ROUTE_TYPE_REJECT
 )
 
+func (t RouteType) ToApiStruct() api.RouteAction {
+	switch t {
+	case ROUTE_TYPE_ACCEPT:
+		return api.RouteAction_ACCEPT
+	case ROUTE_TYPE_REJECT:
+		return api.RouteAction_REJECT
+	}
+	return api.RouteAction_NONE
+}
+
 type PolicyDirection int
 
 const (
-	POLICY_DIRECTION_IMPORT PolicyDirection = iota
+	POLICY_DIRECTION_NONE PolicyDirection = iota
+	POLICY_DIRECTION_IMPORT
 	POLICY_DIRECTION_EXPORT
 	POLICY_DIRECTION_IN
 )
@@ -2350,6 +2361,38 @@ type RoutingPolicy struct {
 	DefinedSetMap DefinedSetMap
 	PolicyMap     map[string]*Policy
 	StatementMap  map[string]*Statement
+}
+
+func (r *RoutingPolicy) GetAssignmentFromConfig(dir PolicyDirection, a config.ApplyPolicy) ([]*Policy, RouteType, error) {
+	var names []string
+	var cdef config.DefaultPolicyType
+	def := ROUTE_TYPE_ACCEPT
+	c := a.ApplyPolicyConfig
+	switch dir {
+	case POLICY_DIRECTION_IN:
+		names = c.InPolicy
+		cdef = c.DefaultInPolicy
+	case POLICY_DIRECTION_IMPORT:
+		names = c.ImportPolicy
+		cdef = c.DefaultImportPolicy
+	case POLICY_DIRECTION_EXPORT:
+		names = c.ExportPolicy
+		cdef = c.DefaultExportPolicy
+	default:
+		return nil, def, fmt.Errorf("invalid policy direction")
+	}
+	if cdef == config.DEFAULT_POLICY_TYPE_REJECT_ROUTE {
+		def = ROUTE_TYPE_REJECT
+	}
+	ps := make([]*Policy, 0, len(names))
+	for _, name := range names {
+		p, ok := r.PolicyMap[name]
+		if !ok {
+			return nil, def, fmt.Errorf("not found policy %s", name)
+		}
+		ps = append(ps, p)
+	}
+	return ps, def, nil
 }
 
 func (r *RoutingPolicy) InUse(d DefinedSet) bool {

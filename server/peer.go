@@ -41,7 +41,7 @@ type Peer struct {
 	peerInfo              *table.PeerInfo
 	outgoing              chan *bgp.BGPMessage
 	inPolicies            []*table.Policy
-	defaultInPolicy       config.DefaultPolicyType
+	defaultInPolicy       table.RouteType
 	accepted              uint32
 	staleAccepted         bool
 	isConfederationMember bool
@@ -381,49 +381,52 @@ func (peer *Peer) ToApiStruct() *api.Peer {
 	}
 }
 
-func (peer *Peer) setPolicy(policy map[string]*table.Policy) {
-	policyConf := peer.conf.ApplyPolicy
-	inPolicies := make([]*table.Policy, 0)
-	for _, policyName := range policyConf.ApplyPolicyConfig.InPolicy {
-		log.WithFields(log.Fields{
-			"Topic":      "Peer",
-			"Key":        peer.conf.NeighborConfig.NeighborAddress,
-			"PolicyName": policyName,
-		}).Info("in-policy installed")
-		if pol, ok := policy[policyName]; ok {
-			log.Debug("in policy : ", pol)
-			inPolicies = append(inPolicies, pol)
-		}
-	}
-	peer.inPolicies = inPolicies
-	peer.defaultInPolicy = policyConf.ApplyPolicyConfig.DefaultInPolicy
-	if peer.localRib != nil {
-		peer.localRib.SetPolicy(policyConf, policy)
-	}
-}
-
 func (peer *Peer) GetPolicy(d table.PolicyDirection) []*table.Policy {
 	switch d {
 	case table.POLICY_DIRECTION_IN:
 		return peer.inPolicies
 	default:
-		return peer.localRib.GetPolicy(d)
+		if peer.localRib != nil {
+			return peer.localRib.GetPolicy(d)
+		}
 	}
+	return nil
+}
+
+func (peer *Peer) SetPolicy(d table.PolicyDirection, policies []*table.Policy) error {
+	switch d {
+	case table.POLICY_DIRECTION_IN:
+		peer.inPolicies = policies
+	default:
+		if peer.localRib != nil {
+			return peer.localRib.SetPolicy(d, policies)
+		}
+	}
+	return nil
 }
 
 func (peer *Peer) GetDefaultPolicy(d table.PolicyDirection) table.RouteType {
-	var def config.DefaultPolicyType
 	switch d {
 	case table.POLICY_DIRECTION_IN:
-		def = peer.defaultInPolicy
+		return peer.defaultInPolicy
 	default:
-		return peer.localRib.GetDefaultPolicy(d)
+		if peer.localRib != nil {
+			return peer.localRib.GetDefaultPolicy(d)
+		}
 	}
+	return table.ROUTE_TYPE_NONE
+}
 
-	if def == config.DEFAULT_POLICY_TYPE_ACCEPT_ROUTE {
-		return table.ROUTE_TYPE_ACCEPT
+func (peer *Peer) SetDefaultPolicy(d table.PolicyDirection, typ table.RouteType) error {
+	switch d {
+	case table.POLICY_DIRECTION_IN:
+		peer.defaultInPolicy = typ
+	default:
+		if peer.localRib != nil {
+			return peer.localRib.SetDefaultPolicy(d, typ)
+		}
 	}
-	return table.ROUTE_TYPE_REJECT
+	return nil
 }
 
 func (peer *Peer) ApplyPolicy(d table.PolicyDirection, paths []*table.Path) ([]*table.Path, []*table.Path) {
