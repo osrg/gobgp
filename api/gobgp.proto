@@ -98,11 +98,11 @@ message ModPolicyArguments {
     Operation operation = 1;
     Policy policy = 2;
     // if this flag is set, gobgpd won't define new statements
-    // but refer existing statements using statement's names.
+    // but refer existing statements using statement's names in this arguments.
     // this flag only works with Operation_ADD
     bool refer_existing_statements = 3;
     // if this flag is set, gobgpd won't delete any statements
-    // even if the policy containing some statements are deleted.
+    // even if some statements get not used by any policy by this operation.
     // this flag means nothing if it is used with Operation_ADD
     bool preserve_statements = 4;
 }
@@ -206,6 +206,7 @@ message DefinedSet {
 
 message MatchSet {
     string name = 1;
+    // see table/policy.go MatchOption for the usage
     int32 option = 2;
 }
 
@@ -232,6 +233,7 @@ enum RouteAction {
 
 message CommunityAction {
     repeated string communities = 1;
+    // see config/bgp_configs.go BgpSetCommunityOptionType for the usage
     int32 option = 2;
 }
 
