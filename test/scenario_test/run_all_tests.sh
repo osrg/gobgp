@@ -63,6 +63,10 @@ PIDS=("${PIDS[@]}" $!)
 sudo -E python bgp_zebra_test.py --gobgp-image $GOBGP_IMAGE --test-prefix zebra -s -x --with-xunit --xunit-file=${WS}/nosetest_zebra.xml &
 PIDS=("${PIDS[@]}" $!)
 
+# global policy test
+sudo -E python global_policy_test.py --gobgp-image $GOBGP_IMAGE --test-prefix gpol -s -x --with-xunit --xunit-file=${WS}/nosetest_global_policy.xml &
+PIDS=("${PIDS[@]}" $!)
+
 # route server malformed message test
 NUM=$(sudo -E python route_server_malformed_test.py -s 2> /dev/null | awk '/invalid/{print $NF}')
 PARALLEL_NUM=10
