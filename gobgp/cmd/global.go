@@ -669,6 +669,21 @@ func NewGlobalCmd() *cobra.Command {
 				}
 			},
 		}
+
+		for _, w := range []string{CMD_ADD, CMD_DEL, CMD_SET} {
+			subcmd := &cobra.Command{
+				Use: w,
+				Run: func(subcmd *cobra.Command, args []string) {
+					err := modNeighborPolicy(nil, cmd.Use, subcmd.Use, args)
+					if err != nil {
+						fmt.Println(err)
+						os.Exit(1)
+					}
+				},
+			}
+			cmd.AddCommand(subcmd)
+		}
+
 		policyCmd.AddCommand(cmd)
 	}
 

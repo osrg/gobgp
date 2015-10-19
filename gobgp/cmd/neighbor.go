@@ -610,26 +610,26 @@ func stateChangeNeighbor(cmd string, remoteIP string, args []string) error {
 }
 
 func showNeighborPolicy(remoteIP net.IP, policyType string) error {
-	p := &api.ApplyPolicy{}
+	var typ api.PolicyType
 	switch strings.ToLower(policyType) {
 	case "in":
-		p.Type = api.PolicyType_IN
+		typ = api.PolicyType_IN
 	case "import":
-		p.Type = api.PolicyType_IMPORT
+		typ = api.PolicyType_IMPORT
 	case "export":
-		p.Type = api.PolicyType_EXPORT
+		typ = api.PolicyType_EXPORT
 	}
 	r := api.Resource_LOCAL
 	if remoteIP == nil {
 		r = api.Resource_GLOBAL
 	}
-	arg := &api.PolicyArguments{
-		NeighborAddress: remoteIP.String(),
-		ApplyPolicy:     p,
-		Resource:        r,
+	arg := &api.PolicyAssignment{
+		Name:     remoteIP.String(),
+		Resource: r,
+		Type:     typ,
 	}
 
-	ap, e := client.GetNeighborPolicy(context.Background(), arg)
+	ap, e := client.GetPolicyAssignment(context.Background(), arg)
 	if e != nil {
 		return e
 	}
@@ -642,80 +642,87 @@ func showNeighborPolicy(remoteIP net.IP, policyType string) error {
 
 	fmt.Printf("Default: %s\n", ap.Default)
 	for _, p := range ap.Policies {
-		fmt.Printf("  PolicyName %s:\n", p)
+		fmt.Printf("Name %s:\n", p.Name)
+		printPolicy(4, p)
 	}
 	return nil
 }
 
-func parsePolicy(pNames string) []*api.Policy {
-	pList := strings.Split(pNames, ",")
-	policyList := make([]*api.Policy, 0, len(pList))
-	for _, p := range pList {
-		if p != "" {
-			policy := &api.Policy{
-				Name: p,
+func extractDefaultAction(args []string) ([]string, api.RouteAction, error) {
+	for idx, arg := range args {
+		if arg == "default" {
+			if len(args) < (idx + 2) {
+				return nil, api.RouteAction_NONE, fmt.Errorf("specify default action [accept|reject]")
 			}
-			policyList = append(policyList, policy)
+			typ := args[idx+1]
+			switch typ {
+			case "accept":
+				return append(args[:idx], args[idx+2:]...), api.RouteAction_ACCEPT, nil
+			case "reject":
+				return append(args[:idx], args[idx+2:]...), api.RouteAction_REJECT, nil
+			default:
+				return nil, api.RouteAction_NONE, fmt.Errorf("invalid default action")
+			}
 		}
 	}
-	return policyList
+	return args, api.RouteAction_NONE, nil
 }
 
-func modNeighborPolicy(remoteIP net.IP, policyType, cmdType string, eArg []string) error {
-	var operation api.Operation
-	p := &api.ApplyPolicy{}
+func modNeighborPolicy(remoteIP net.IP, policyType, cmdType string, args []string) error {
+	var typ api.PolicyType
 	switch strings.ToLower(policyType) {
 	case "in":
-		p.Type = api.PolicyType_IN
+		typ = api.PolicyType_IN
 	case "import":
-		p.Type = api.PolicyType_IMPORT
+		typ = api.PolicyType_IMPORT
 	case "export":
-		p.Type = api.PolicyType_EXPORT
+		typ = api.PolicyType_EXPORT
+	}
+	r := api.Resource_LOCAL
+	usage := fmt.Sprintf("usage: gobgp neighbor %s policy %s %s", remoteIP, policyType, cmdType)
+	if remoteIP == nil {
+		r = api.Resource_GLOBAL
+		usage = fmt.Sprintf("usage: gobgp global policy %s %s", policyType, cmdType)
+	}
+
+	arg := &api.ModPolicyAssignmentArguments{
+		Assignment: &api.PolicyAssignment{
+			Type:     typ,
+			Resource: r,
+			Name:     remoteIP.String(),
+		},
 	}
 
 	switch cmdType {
-	case CMD_ADD:
-		if len(eArg) < 3 {
-			return fmt.Errorf("Usage: gobgp neighbor <ipaddr> policy %s %s [<policy name>...] [default {%s|%s}]", policyType, cmdType, "accept", "reject")
+	case CMD_ADD, CMD_SET:
+		if len(args) < 1 {
+			return fmt.Errorf("%s <policy name>... [default {%s|%s}]", usage, "accept", "reject")
 		}
-		switch eArg[1] {
-		case "accept":
-			p.Default = api.RouteAction_ACCEPT
-		case "reject":
-			p.Default = api.RouteAction_REJECT
-		default:
-			return fmt.Errorf("Usage: gobgp neighbor <ipaddr> policy %s %s [<policy name>...] [default {%s|%s}]", policyType, cmdType, "accept", "reject")
+		var err error
+		var def api.RouteAction
+		args, def, err = extractDefaultAction(args)
+		if err != nil {
+			return fmt.Errorf("%s\n%s <policy name>... [default {%s|%s}]", err, usage, "accept", "reject")
 		}
-		p.Policies = []string{eArg[0]}
-		operation = api.Operation_ADD
+		if cmdType == CMD_ADD {
+			arg.Operation = api.Operation_ADD
+		} else {
+			arg.Operation = api.Operation_REPLACE
+		}
+		arg.Assignment.Default = def
 	case CMD_DEL:
-		operation = api.Operation_DEL
+		arg.Operation = api.Operation_DEL
+		if len(args) == 0 {
+			arg.Operation = api.Operation_DEL_ALL
+		}
 	}
-	arg := &api.PolicyArguments{
-		Resource:        api.Resource_POLICY_ROUTEPOLICY,
-		Operation:       operation,
-		NeighborAddress: remoteIP.String(),
-		Name:            eArg[0],
-		ApplyPolicy:     p,
+	ps := make([]*api.Policy, 0, len(args))
+	for _, name := range args {
+		ps = append(ps, &api.Policy{Name: name})
 	}
-	stream, err := client.ModNeighborPolicy(context.Background())
-	if err != nil {
-		return err
-	}
-	err = stream.Send(arg)
-	if err != nil {
-		return err
-	}
-	stream.CloseSend()
-
-	res, e := stream.Recv()
-	if e != nil {
-		return e
-	}
-	if res.Code != api.Error_SUCCESS {
-		return fmt.Errorf("error: code: %d, msg: %s", res.Code, res.Msg)
-	}
-	return nil
+	arg.Assignment.Policies = ps
+	_, err := client.ModPolicyAssignment(context.Background(), arg)
+	return err
 }
 
 func NewNeighborCmd() *cobra.Command {
@@ -787,7 +794,7 @@ func NewNeighborCmd() *cobra.Command {
 			},
 		}
 
-		for _, w := range []string{CMD_ADD, CMD_DEL} {
+		for _, w := range []string{CMD_ADD, CMD_DEL, CMD_SET} {
 			subcmd := &cobra.Command{
 				Use: w,
 				Run: func(subcmd *cobra.Command, args []string) {
