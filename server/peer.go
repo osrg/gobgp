@@ -49,13 +49,14 @@ type Peer struct {
 	localRib              *table.TableManager
 }
 
-func NewPeer(g config.Global, conf config.Neighbor) *Peer {
+func NewPeer(g config.Global, conf config.Neighbor, loc *table.TableManager) *Peer {
 	peer := &Peer{
 		gConf:    g,
 		conf:     conf,
 		rfMap:    make(map[bgp.RouteFamily]bool),
 		capMap:   make(map[bgp.BGPCapabilityCode][]bgp.ParameterCapabilityInterface),
 		outgoing: make(chan *bgp.BGPMessage, 128),
+		localRib: loc,
 	}
 
 	conf.NeighborState.SessionState = uint32(bgp.BGP_FSM_IDLE)
@@ -75,10 +76,6 @@ func NewPeer(g config.Global, conf config.Neighbor) *Peer {
 	}
 	peer.adjRib = table.NewAdjRib(peer.configuredRFlist())
 	peer.fsm = NewFSM(&g, &conf)
-	if peer.isRouteServerClient() {
-		peer.localRib = table.NewTableManager(conf.NeighborConfig.NeighborAddress.String(), peer.configuredRFlist(), g.MplsLabelRange.MinLabel, g.MplsLabelRange.MaxLabel)
-	}
-
 	if conf.NeighborConfig.PeerAs != g.GlobalConfig.As {
 		for _, member := range g.Confederation.ConfederationConfig.MemberAs {
 			if member == conf.NeighborConfig.PeerAs {
