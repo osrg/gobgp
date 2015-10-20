@@ -200,17 +200,15 @@ func (server *BgpServer) Serve() {
 		}
 	}(broadcastCh)
 
-	// FIXME
-	rfList := func(l []config.AfiSafi) []bgp.RouteFamily {
+	toRFlist := func(l []config.AfiSafi) []bgp.RouteFamily {
 		rfList := []bgp.RouteFamily{}
 		for _, rf := range l {
 			k, _ := bgp.GetRouteFamily(rf.AfiSafiName)
 			rfList = append(rfList, k)
 		}
 		return rfList
-	}(g.AfiSafis.AfiSafiList)
-
-	server.globalRib = table.NewTableManager(GLOBAL_RIB_NAME, rfList, g.MplsLabelRange.MinLabel, g.MplsLabelRange.MaxLabel)
+	}
+	server.globalRib = table.NewTableManager(GLOBAL_RIB_NAME, toRFlist(g.AfiSafis.AfiSafiList), g.MplsLabelRange.MinLabel, g.MplsLabelRange.MaxLabel)
 	listenerMap := make(map[string]*net.TCPListener)
 	acceptCh := make(chan *net.TCPConn)
 	l4, err1 := listenAndAccept("tcp4", server.listenPort, acceptCh)
