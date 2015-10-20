@@ -1988,7 +1988,7 @@ func (s *Statement) ToApiStruct() *api.Statement {
 		}
 	}
 	as := &api.Actions{}
-	if s.RouteAction != nil {
+	if s.RouteAction != nil && !reflect.ValueOf(s.RouteAction).IsNil() {
 		as.RouteAction = s.RouteAction.(*RoutingAction).ToApiStruct()
 	}
 	for _, a := range s.ModActions {
