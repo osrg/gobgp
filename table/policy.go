@@ -1878,7 +1878,6 @@ type Statement struct {
 // evaluate each condition in the statement according to MatchSetOptions
 func (s *Statement) Evaluate(p *Path) bool {
 	for _, c := range s.Conditions {
-		fmt.Printf("%v, %t\n", c, c)
 		if !c.Evaluate(p) {
 			return false
 		}
