@@ -347,8 +347,15 @@ func (server *BgpServer) Serve() {
 			}
 
 			SetTcpMD5SigSockopts(listener(config.NeighborConfig.NeighborAddress), addr, config.NeighborConfig.AuthPassword)
+			var loc *table.TableManager
+			if config.RouteServer.RouteServerConfig.RouteServerClient {
+				loc = table.NewTableManager(config.NeighborConfig.NeighborAddress.String(), toRFlist(config.AfiSafis.AfiSafiList), g.MplsLabelRange.MinLabel, g.MplsLabelRange.MaxLabel)
+			} else {
+				loc = server.globalRib
+				log.Info("hello global")
+			}
+			peer := NewPeer(g, config, loc)
 
-			peer := NewPeer(g, config)
 			server.setPolicyByConfig(peer, config.ApplyPolicy)
 			if peer.isRouteServerClient() {
 				pathList := make([]*table.Path, 0)
