@@ -1893,6 +1893,13 @@ func (s *Statement) Apply(path *Path) (RouteType, *Path) {
 		"PolicyName": s.Name,
 	}).Debug("statement evaluate : ", result)
 	if result {
+		if len(s.ModActions) != 0 {
+			// apply all modification actions
+			path = path.Clone(path.Owner, path.IsWithdraw)
+			for _, action := range s.ModActions {
+				path = action.Apply(path)
+			}
+		}
 		//Routing action
 		if s.RouteAction == nil {
 			log.WithFields(log.Fields{
@@ -1900,21 +1907,13 @@ func (s *Statement) Apply(path *Path) (RouteType, *Path) {
 				"Path":       path,
 				"PolicyName": s.Name,
 			}).Warn("route action is nil")
-			return ROUTE_TYPE_REJECT, path
+			return ROUTE_TYPE_NONE, path
 		}
 		p := s.RouteAction.Apply(path)
 		if p == nil {
 			return ROUTE_TYPE_REJECT, path
 		}
-		if len(s.ModActions) == 0 {
-			return ROUTE_TYPE_ACCEPT, path
-		}
-		// apply all modification actions
-		cloned := path.Clone(p.Owner, p.IsWithdraw)
-		for _, action := range s.ModActions {
-			cloned = action.Apply(cloned)
-		}
-		return ROUTE_TYPE_ACCEPT, cloned
+		return ROUTE_TYPE_ACCEPT, path
 	}
 	return ROUTE_TYPE_NONE, path
 }
@@ -2253,7 +2252,8 @@ func (p *Policy) Name() string {
 // subsequent conditions are skipped.
 func (p *Policy) Apply(path *Path) (RouteType, *Path) {
 	for _, stmt := range p.Statements {
-		result, path := stmt.Apply(path)
+		var result RouteType
+		result, path = stmt.Apply(path)
 		if result != ROUTE_TYPE_NONE {
 			return result, path
 		}

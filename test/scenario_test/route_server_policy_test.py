@@ -117,7 +117,8 @@ class ImportPolicy(object):
         st0 = {'Name': 'st0',
                'Conditions': {
                 'MatchPrefixSet': {'PrefixSet': ps0['PrefixSetName']},
-                'MatchNeighborSet': {'NeighborSet': ns0['NeighborSetName']}}}
+                'MatchNeighborSet': {'NeighborSet': ns0['NeighborSetName']}},
+               'Actions': {'RouteDisposition': {'AcceptRoute': False}}}
 
         policy = {'name': 'policy0',
                   'type': 'import',
@@ -179,7 +180,8 @@ class ExportPolicy(object):
         st0 = {'Name': 'st0',
                'Conditions': {
                 'MatchPrefixSet': {'PrefixSet': ps0['PrefixSetName']},
-                'MatchNeighborSet': {'NeighborSet': ns0['NeighborSetName']}}}
+                'MatchNeighborSet': {'NeighborSet': ns0['NeighborSetName']}},
+               'Actions': {'RouteDisposition': {'AcceptRoute': False}}}
 
         policy = {'name': 'policy0',
                   'type': 'export',
@@ -261,7 +263,8 @@ class ImportPolicyUpdate(object):
         st0 = {'Name': 'st0',
                'Conditions': {
                 'MatchPrefixSet': {'PrefixSet': ps0['PrefixSetName']},
-                'MatchNeighborSet': {'NeighborSet': ns0['NeighborSetName']}}}
+                'MatchNeighborSet': {'NeighborSet': ns0['NeighborSetName']}},
+               'Actions': {'RouteDisposition': {'AcceptRoute': False}}}
 
         policy = {'name': 'policy0',
                   'type': 'import',
@@ -310,7 +313,8 @@ class ImportPolicyUpdate(object):
 
         st0 = {'Name': 'st0',
                'Conditions': {'MatchPrefixSet': {'PrefixSet': ps0['PrefixSetName']},
-                              'MatchNeighborSet': {'NeighborSet': ns0['NeighborSetName']}}}
+                              'MatchNeighborSet': {'NeighborSet': ns0['NeighborSetName']}},
+               'Actions': {'RouteDisposition': {'AcceptRoute': False}}}
 
         policy = {'name': 'policy0',
                   'type': 'import',
@@ -384,7 +388,8 @@ class ExportPolicyUpdate(object):
 
         st0 = {'Name': 'st0',
                'Conditions': {'MatchPrefixSet': {'PrefixSet': ps0['PrefixSetName']},
-                              'MatchNeighborSet': {'NeighborSet': ns0['NeighborSetName']}}}
+                              'MatchNeighborSet': {'NeighborSet': ns0['NeighborSetName']}},
+               'Actions': {'RouteDisposition': {'AcceptRoute': False}}}
 
         policy = {'name': 'policy0',
                   'type': 'export',
@@ -433,7 +438,8 @@ class ExportPolicyUpdate(object):
 
         st0 = {'Name': 'st0',
                'Conditions': {'MatchPrefixSet': {'PrefixSet': ps0['PrefixSetName']},
-                              'MatchNeighborSet': {'NeighborSet': ns0['NeighborSetName']}}}
+                              'MatchNeighborSet': {'NeighborSet': ns0['NeighborSetName']}},
+               'Actions': {'RouteDisposition': {'AcceptRoute': False}}}
 
         policy = {'name': 'policy0',
                   'type': 'export',
@@ -523,7 +529,8 @@ class ImportPolicyIPV6(object):
         st0 = {'Name': 'st0',
                'Conditions': {
                 'MatchPrefixSet': {'PrefixSet': ps0['PrefixSetName']},
-                'MatchNeighborSet': {'NeighborSet': ns0['NeighborSetName']}}}
+                'MatchNeighborSet': {'NeighborSet': ns0['NeighborSetName']}},
+               'Actions': {'RouteDisposition': {'AcceptRoute': False}}}
 
         policy = {'name': 'policy0',
                   'type': 'import',
@@ -588,7 +595,8 @@ class ExportPolicyIPV6(object):
         st0 = {'Name': 'st0',
                'Conditions': {
                 'MatchPrefixSet': {'PrefixSet': ps0['PrefixSetName']},
-                'MatchNeighborSet': {'NeighborSet': ns0['NeighborSetName']}}}
+                'MatchNeighborSet': {'NeighborSet': ns0['NeighborSetName']}},
+               'Actions': {'RouteDisposition': {'AcceptRoute': False}}}
 
         policy = {'name': 'policy0',
                   'type': 'export',
@@ -666,7 +674,8 @@ class ImportPolicyIPV6Update(object):
         st0 = {'Name': 'st0',
                'Conditions': {
                 'MatchPrefixSet': {'PrefixSet': ps0['PrefixSetName']},
-                'MatchNeighborSet': {'NeighborSet': ns0['NeighborSetName']}}}
+                'MatchNeighborSet': {'NeighborSet': ns0['NeighborSetName']}},
+               'Actions': {'RouteDisposition': {'AcceptRoute': False}}}
 
         policy = {'name': 'policy0',
                   'type': 'import',
@@ -711,7 +720,9 @@ class ImportPolicyIPV6Update(object):
         st0 = {'Name': 'st0',
                'Conditions': {
                 'MatchPrefixSet': {'PrefixSet': ps0['PrefixSetName']},
-                'MatchNeighborSet': {'NeighborSet': ns0['NeighborSetName']}}}
+                'MatchNeighborSet': {'NeighborSet': ns0['NeighborSetName']}},
+               'Actions': {
+                   'RouteDisposition': {'AcceptRoute': False}}}
 
         policy = {'name': 'policy0',
                   'type': 'import',
@@ -782,7 +793,8 @@ class ExportPolicyIPv6Update(object):
         st0 = {'Name': 'st0',
                'Conditions': {
                 'MatchPrefixSet': {'PrefixSet': ps0['PrefixSetName']},
-                'MatchNeighborSet': {'NeighborSet': ns0['NeighborSetName']}}}
+                'MatchNeighborSet': {'NeighborSet': ns0['NeighborSetName']}},
+               'Actions': {'RouteDisposition': {'AcceptRoute': False}}}
 
         policy = {'name': 'policy0',
                   'type': 'export',
@@ -827,7 +839,8 @@ class ExportPolicyIPv6Update(object):
         st0 = {'Name': 'st0',
                'Conditions': {
                 'MatchPrefixSet': {'PrefixSet': ps0['PrefixSetName']},
-                'MatchNeighborSet': {'NeighborSet': ns0['NeighborSetName']}}}
+                'MatchNeighborSet': {'NeighborSet': ns0['NeighborSetName']}},
+               'Actions': {'RouteDisposition': {'AcceptRoute': False}}}
 
         policy = {'name': 'policy0',
                   'type': 'export',
@@ -870,7 +883,8 @@ class ImportPolicyAsPathLengthCondition(object):
         q2 = env.q2
         st0 = {'Name': 'st0',
                'Conditions': {'BgpConditions': {'AsPathLength': {'Operator': 'ge',
-                                                                 'Value': 10}}}}
+                                                                 'Value': 10}}},
+               'Actions': {'RouteDisposition': {'AcceptRoute': False}}}
 
         policy = {'name': 'policy0',
                   'type': 'import',
@@ -924,7 +938,8 @@ class ImportPolicyAsPathCondition(object):
         g1.set_bgp_defined_set(as0)
 
         st0 = {'Name': 'st0',
-               'Conditions': {'BgpConditions': {'MatchAsPathSet': {'AsPathSet': 'as0'}}}}
+               'Conditions': {'BgpConditions': {'MatchAsPathSet': {'AsPathSet': 'as0'}}},
+               'Actions': {'RouteDisposition': {'AcceptRoute': False}}}
 
         policy = {'name': 'policy0',
                   'type': 'import',
@@ -970,7 +985,8 @@ class ImportPolicyAsPathAnyCondition(object):
         g1.set_bgp_defined_set(as0)
 
         st0 = {'Name': 'st0',
-               'Conditions': {'BgpConditions': {'MatchAsPathSet': {'AsPathSet': 'as0'}}}}
+               'Conditions': {'BgpConditions': {'MatchAsPathSet': {'AsPathSet': 'as0'}}},
+               'Actions': {'RouteDisposition': {'AcceptRoute': False}}}
 
         policy = {'name': 'policy0',
                   'type': 'import',
@@ -1016,7 +1032,8 @@ class ImportPolicyAsPathOriginCondition(object):
         g1.set_bgp_defined_set(as0)
 
         st0 = {'Name': 'st0',
-               'Conditions': {'BgpConditions': {'MatchAsPathSet': {'AsPathSet': 'as0'}}}}
+               'Conditions': {'BgpConditions': {'MatchAsPathSet': {'AsPathSet': 'as0'}}},
+               'Actions': {'RouteDisposition': {'AcceptRoute': False}}}
 
         policy = {'name': 'policy0',
                   'type': 'import',
@@ -1062,7 +1079,8 @@ class ImportPolicyAsPathOnlyCondition(object):
         g1.set_bgp_defined_set(as0)
 
         st0 = {'Name': 'st0',
-               'Conditions': {'BgpConditions': {'MatchAsPathSet': {'AsPathSet': 'as0'}}}}
+               'Conditions': {'BgpConditions': {'MatchAsPathSet': {'AsPathSet': 'as0'}}},
+               'Actions': {'RouteDisposition': {'AcceptRoute': False}}}
 
         policy = {'name': 'policy0',
                   'type': 'import',
@@ -1111,7 +1129,8 @@ class ImportPolicyAsPathMismatchCondition(object):
         g1.set_bgp_defined_set(cs0)
 
         st0 = {'Name': 'st0',
-               'Conditions': {'BgpConditions': {'MatchCommunitySet': {'CommunitySet': 'cs0'}}}}
+               'Conditions': {'BgpConditions': {'MatchCommunitySet': {'CommunitySet': 'cs0'}}},
+               'Actions': {'RouteDisposition': {'AcceptRoute': False}}}
 
         policy = {'name': 'policy0',
                   'type': 'import',
@@ -1166,7 +1185,8 @@ class ImportPolicyCommunityCondition(object):
         g1.set_bgp_defined_set(cs0)
 
         st0 = {'Name': 'st0',
-               'Conditions': {'BgpConditions': {'MatchCommunitySet': {'CommunitySet': 'cs0'}}}}
+               'Conditions': {'BgpConditions': {'MatchCommunitySet': {'CommunitySet': 'cs0'}}},
+               'Actions': {'RouteDisposition': {'AcceptRoute': False}}}
 
         policy = {'name': 'policy0',
                   'type': 'import',
@@ -1213,7 +1233,8 @@ class ImportPolicyCommunityRegexp(object):
         g1.set_bgp_defined_set(cs0)
 
         st0 = {'Name': 'st0',
-               'Conditions': {'BgpConditions': {'MatchCommunitySet': {'CommunitySet': 'cs0'}}}}
+               'Conditions': {'BgpConditions': {'MatchCommunitySet': {'CommunitySet': 'cs0'}}},
+               'Actions': {'RouteDisposition': {'AcceptRoute': False}}}
 
         policy = {'name': 'policy0',
                   'type': 'import',
@@ -2151,7 +2172,8 @@ class InPolicyReject(object):
         g1.set_bgp_defined_set(cs0)
 
         st0 = {'Name': 'st0',
-               'Conditions':{'BgpConditions':{'MatchCommunitySet':{'CommunitySet': 'cs0'}}}}
+               'Conditions':{'BgpConditions':{'MatchCommunitySet':{'CommunitySet': 'cs0'}}},
+               'Actions': {'RouteDisposition': {'AcceptRoute': False}}}
 
         policy = {'name': 'policy0',
                   'type': 'in',
@@ -2277,7 +2299,8 @@ class InPolicyUpdate(object):
         st0 = {'Name': 'st0',
                'Conditions': {
                 'MatchPrefixSet': {'PrefixSet': ps0['PrefixSetName']},
-                'MatchNeighborSet': {'NeighborSet': ns0['NeighborSetName']}}}
+                'MatchNeighborSet': {'NeighborSet': ns0['NeighborSetName']}},
+               'Actions': {'RouteDisposition': {'AcceptRoute': False}}}
 
         policy = {'name': 'policy0',
                   'type': 'in',
@@ -2327,7 +2350,8 @@ class InPolicyUpdate(object):
 
         st0 = {'Name': 'st0',
                'Conditions': {'MatchPrefixSet': {'PrefixSet': ps0['PrefixSetName']},
-                          'MatchNeighborSet': {'NeighborSet': ns0['NeighborSetName']}}}
+                          'MatchNeighborSet': {'NeighborSet': ns0['NeighborSetName']}},
+               'Actions': {'RouteDisposition': {'AcceptRoute': False}}}
 
         policy = {'name': 'policy0',
                   'type': 'in',
@@ -2600,7 +2624,8 @@ class ImportPolicyExCommunityOriginCondition(object):
         g1.set_bgp_defined_set(es0)
 
         st0 = {'Name': 'st0',
-               'Conditions': {'BgpConditions':{'MatchExtCommunitySet':{'ExtCommunitySet': 'es0'}}}}
+               'Conditions': {'BgpConditions':{'MatchExtCommunitySet':{'ExtCommunitySet': 'es0'}}},
+               'Actions': {'RouteDisposition': {'AcceptRoute': False}}}
 
         policy = {'name': 'policy0',
                   'type': 'import',
@@ -2645,7 +2670,8 @@ class ImportPolicyExCommunityTargetCondition(object):
         g1.set_bgp_defined_set(es0)
 
         st0 = {'Name': 'st0',
-               'Conditions': {'BgpConditions':{'MatchExtCommunitySet':{'ExtCommunitySet': 'es0'}}}}
+               'Conditions': {'BgpConditions':{'MatchExtCommunitySet':{'ExtCommunitySet': 'es0'}}},
+               'Actions': {'RouteDisposition': {'AcceptRoute': False}}}
 
         policy = {'name': 'policy0',
                   'type': 'import',
@@ -2692,7 +2718,8 @@ class InPolicyPrefixCondition(object):
 
         st0 = {'Name': 'st0',
                'Conditions': {
-                'MatchPrefixSet': {'PrefixSet': ps0['PrefixSetName']}}}
+                'MatchPrefixSet': {'PrefixSet': ps0['PrefixSetName']}},
+               'Actions': {'RouteDisposition': {'AcceptRoute': False}}}
 
         policy = {'name': 'policy0',
                   'type': 'in',
