@@ -105,12 +105,7 @@ func (peer *Peer) isRouteReflectorClient() bool {
 }
 
 func (peer *Peer) configuredRFlist() []bgp.RouteFamily {
-	rfList := []bgp.RouteFamily{}
-	for _, rf := range peer.conf.AfiSafis.AfiSafiList {
-		k, _ := bgp.GetRouteFamily(rf.AfiSafiName)
-		rfList = append(rfList, k)
-	}
-	return rfList
+	return peer.localRib.GetRFlist()
 }
 
 func (peer *Peer) updateAccepted(accepted uint32) {
