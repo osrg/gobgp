@@ -184,6 +184,14 @@ func main() {
 
 			if policyConfig == nil {
 				policyConfig = &newConfig.Policy
+				// FIXME: Currently the following code
+				// is safe because the above
+				// SetRpkiConfig will be blocked
+				// because the length of rpkiConfigCh
+				// is zero. So server.GlobalRib is
+				// allocated before the above
+				// SetPolicy. But this should be
+				// handled more cleanly.
 				if err := bgpServer.SetPolicy(newConfig.Policy); err != nil {
 					log.Fatal(err)
 				}

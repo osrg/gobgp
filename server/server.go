@@ -211,9 +211,6 @@ func (server *BgpServer) Serve() {
 	}(g.AfiSafis.AfiSafiList)
 
 	server.globalRib = table.NewTableManager(GLOBAL_RIB_NAME, rfList, g.MplsLabelRange.MinLabel, g.MplsLabelRange.MaxLabel)
-	if server.policy != nil {
-		server.setPolicyByConfig(server.globalRib, g.ApplyPolicy)
-	}
 	listenerMap := make(map[string]*net.TCPListener)
 	acceptCh := make(chan *net.TCPConn)
 	l4, err1 := listenAndAccept("tcp4", server.listenPort, acceptCh)
@@ -888,9 +885,7 @@ func (server *BgpServer) SetPolicy(pl config.RoutingPolicy) error {
 		return err
 	}
 	server.policy = p
-	if server.globalRib != nil {
-		server.setPolicyByConfig(server.globalRib, server.bgpConfig.Global.ApplyPolicy)
-	}
+	server.setPolicyByConfig(server.globalRib, server.bgpConfig.Global.ApplyPolicy)
 	return nil
 }
 
