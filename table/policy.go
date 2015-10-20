@@ -2367,7 +2367,10 @@ func NewPolicyFromApiStruct(a *api.Policy, dmap DefinedSetMap) (*Policy, error) 
 		return nil, fmt.Errorf("empty policy name")
 	}
 	stmts := make([]*Statement, 0, len(a.Statements))
-	for _, x := range a.Statements {
+	for idx, x := range a.Statements {
+		if x.Name == "" {
+			x.Name = fmt.Sprintf("%s_stmt%d", a.Name, idx)
+		}
 		y, err := NewStatementFromApiStruct(x, dmap)
 		if err != nil {
 			return nil, err
