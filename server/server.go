@@ -140,6 +140,15 @@ func listenAndAccept(proto string, port int, ch chan *net.TCPConn) (*net.TCPList
 	return l, nil
 }
 
+func configuredRFlist(l []config.AfiSafi) []bgp.RouteFamily {
+	rfList := []bgp.RouteFamily{}
+	for _, rf := range l {
+		k, _ := bgp.GetRouteFamily(rf.AfiSafiName)
+		rfList = append(rfList, k)
+	}
+	return rfList
+}
+
 func (server *BgpServer) Serve() {
 	g := <-server.globalTypeCh
 	server.bgpConfig.Global = g
@@ -200,17 +209,7 @@ func (server *BgpServer) Serve() {
 		}
 	}(broadcastCh)
 
-	// FIXME
-	rfList := func(l []config.AfiSafi) []bgp.RouteFamily {
-		rfList := []bgp.RouteFamily{}
-		for _, rf := range l {
-			k, _ := bgp.GetRouteFamily(rf.AfiSafiName)
-			rfList = append(rfList, k)
-		}
-		return rfList
-	}(g.AfiSafis.AfiSafiList)
-
-	server.globalRib = table.NewTableManager(GLOBAL_RIB_NAME, rfList, g.MplsLabelRange.MinLabel, g.MplsLabelRange.MaxLabel)
+	server.globalRib = table.NewTableManager(GLOBAL_RIB_NAME, configuredRFlist(g.AfiSafis.AfiSafiList), g.MplsLabelRange.MinLabel, g.MplsLabelRange.MaxLabel)
 	if server.policy != nil {
 		server.setPolicyByConfig(server.globalRib, g.ApplyPolicy)
 	}

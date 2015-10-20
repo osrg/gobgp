@@ -113,6 +113,7 @@ type TableManager struct {
 	minLabel            uint32
 	maxLabel            uint32
 	nextLabel           uint32
+	rfList              []bgp.RouteFamily
 	importPolicies      []*Policy
 	defaultImportPolicy RouteType
 	exportPolicies      []*Policy
@@ -127,11 +128,16 @@ func NewTableManager(owner string, rfList []bgp.RouteFamily, minLabel, maxLabel 
 		minLabel:  minLabel,
 		maxLabel:  maxLabel,
 		nextLabel: minLabel,
+		rfList:    rfList,
 	}
 	for _, rf := range rfList {
 		t.Tables[rf] = NewTable(rf)
 	}
 	return t
+}
+
+func (manager *TableManager) GetRFlist() []bgp.RouteFamily {
+	return manager.rfList
 }
 
 func (manager *TableManager) GetPolicy(d PolicyDirection) []*Policy {
