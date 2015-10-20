@@ -197,22 +197,42 @@ message Prefix {
     uint32 mask_length_max = 3;
 }
 
+enum DefinedType {
+    PREFIX = 0;
+    NEIGHBOR = 1;
+    TAG = 2;
+    AS_PATH = 3;
+    COMMUNITY = 4;
+    EXT_COMMUNITY = 5;
+}
+
 message DefinedSet {
-    int32 type = 1;
+    DefinedType type = 1;
     string name = 2;
     repeated string list = 3;
     repeated Prefix prefixes = 4;
 }
 
+enum MatchType {
+    ANY = 0;
+    ALL = 1;
+    INVERT = 2;
+}
+
 message MatchSet {
-    string name = 1;
-    // see table/policy.go MatchOption for the usage
-    int32 option = 2;
+    MatchType type = 1;
+    string name = 2;
+}
+
+enum AsPathLengthType {
+    EQ = 0;
+    GE = 1;
+    LE = 2;
 }
 
 message AsPathLength {
-    uint32 length = 1;
-    int32 type = 2;
+    AsPathLengthType type = 1;
+    uint32 length = 2;
 }
 
 message Conditions {
@@ -231,14 +251,24 @@ enum RouteAction {
     REJECT = 2;
 }
 
+enum CommunityActionType {
+    COMMUNITY_ADD = 0;
+    COMMUNITY_REMOVE = 1;
+    COMMUNITY_REPLACE = 2;
+}
+
 message CommunityAction {
-    repeated string communities = 1;
-    // see config/bgp_configs.go BgpSetCommunityOptionType for the usage
-    int32 option = 2;
+    CommunityActionType type = 1;
+    repeated string communities = 2;
+}
+
+enum MedActionType {
+    MED_MOD = 0;
+    MED_REPLACE = 1;
 }
 
 message MedAction {
-    int32 type = 1;
+    MedActionType type = 1;
     int64 value = 2;
 }
 

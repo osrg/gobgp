@@ -113,6 +113,84 @@ func (x Operation) String() string {
 	return proto.EnumName(Operation_name, int32(x))
 }
 
+type DefinedType int32
+
+const (
+	DefinedType_PREFIX        DefinedType = 0
+	DefinedType_NEIGHBOR      DefinedType = 1
+	DefinedType_TAG           DefinedType = 2
+	DefinedType_AS_PATH       DefinedType = 3
+	DefinedType_COMMUNITY     DefinedType = 4
+	DefinedType_EXT_COMMUNITY DefinedType = 5
+)
+
+var DefinedType_name = map[int32]string{
+	0: "PREFIX",
+	1: "NEIGHBOR",
+	2: "TAG",
+	3: "AS_PATH",
+	4: "COMMUNITY",
+	5: "EXT_COMMUNITY",
+}
+var DefinedType_value = map[string]int32{
+	"PREFIX":        0,
+	"NEIGHBOR":      1,
+	"TAG":           2,
+	"AS_PATH":       3,
+	"COMMUNITY":     4,
+	"EXT_COMMUNITY": 5,
+}
+
+func (x DefinedType) String() string {
+	return proto.EnumName(DefinedType_name, int32(x))
+}
+
+type MatchType int32
+
+const (
+	MatchType_ANY    MatchType = 0
+	MatchType_ALL    MatchType = 1
+	MatchType_INVERT MatchType = 2
+)
+
+var MatchType_name = map[int32]string{
+	0: "ANY",
+	1: "ALL",
+	2: "INVERT",
+}
+var MatchType_value = map[string]int32{
+	"ANY":    0,
+	"ALL":    1,
+	"INVERT": 2,
+}
+
+func (x MatchType) String() string {
+	return proto.EnumName(MatchType_name, int32(x))
+}
+
+type AsPathLengthType int32
+
+const (
+	AsPathLengthType_EQ AsPathLengthType = 0
+	AsPathLengthType_GE AsPathLengthType = 1
+	AsPathLengthType_LE AsPathLengthType = 2
+)
+
+var AsPathLengthType_name = map[int32]string{
+	0: "EQ",
+	1: "GE",
+	2: "LE",
+}
+var AsPathLengthType_value = map[string]int32{
+	"EQ": 0,
+	"GE": 1,
+	"LE": 2,
+}
+
+func (x AsPathLengthType) String() string {
+	return proto.EnumName(AsPathLengthType_name, int32(x))
+}
+
 type RouteAction int32
 
 const (
@@ -134,6 +212,49 @@ var RouteAction_value = map[string]int32{
 
 func (x RouteAction) String() string {
 	return proto.EnumName(RouteAction_name, int32(x))
+}
+
+type CommunityActionType int32
+
+const (
+	CommunityActionType_COMMUNITY_ADD     CommunityActionType = 0
+	CommunityActionType_COMMUNITY_REMOVE  CommunityActionType = 1
+	CommunityActionType_COMMUNITY_REPLACE CommunityActionType = 2
+)
+
+var CommunityActionType_name = map[int32]string{
+	0: "COMMUNITY_ADD",
+	1: "COMMUNITY_REMOVE",
+	2: "COMMUNITY_REPLACE",
+}
+var CommunityActionType_value = map[string]int32{
+	"COMMUNITY_ADD":     0,
+	"COMMUNITY_REMOVE":  1,
+	"COMMUNITY_REPLACE": 2,
+}
+
+func (x CommunityActionType) String() string {
+	return proto.EnumName(CommunityActionType_name, int32(x))
+}
+
+type MedActionType int32
+
+const (
+	MedActionType_MED_MOD     MedActionType = 0
+	MedActionType_MED_REPLACE MedActionType = 1
+)
+
+var MedActionType_name = map[int32]string{
+	0: "MED_MOD",
+	1: "MED_REPLACE",
+}
+var MedActionType_value = map[string]int32{
+	"MED_MOD":     0,
+	"MED_REPLACE": 1,
+}
+
+func (x MedActionType) String() string {
+	return proto.EnumName(MedActionType_name, int32(x))
 }
 
 type PolicyType int32
@@ -278,11 +399,11 @@ type ModPolicyArguments struct {
 	Operation Operation `protobuf:"varint,1,opt,name=operation,enum=gobgpapi.Operation" json:"operation,omitempty"`
 	Policy    *Policy   `protobuf:"bytes,2,opt,name=policy" json:"policy,omitempty"`
 	// if this flag is set, gobgpd won't define new statements
-	// but refer existing statements using statement's names.
+	// but refer existing statements using statement's names in this arguments.
 	// this flag only works with Operation_ADD
 	ReferExistingStatements bool `protobuf:"varint,3,opt,name=refer_existing_statements" json:"refer_existing_statements,omitempty"`
 	// if this flag is set, gobgpd won't delete any statements
-	// even if the policy containing some statements are deleted.
+	// even if some statements get not used by any policy by this operation.
 	// this flag means nothing if it is used with Operation_ADD
 	PreserveStatements bool `protobuf:"varint,4,opt,name=preserve_statements" json:"preserve_statements,omitempty"`
 }
@@ -430,10 +551,10 @@ func (m *Prefix) String() string { return proto.CompactTextString(m) }
 func (*Prefix) ProtoMessage()    {}
 
 type DefinedSet struct {
-	Type     int32     `protobuf:"varint,1,opt,name=type" json:"type,omitempty"`
-	Name     string    `protobuf:"bytes,2,opt,name=name" json:"name,omitempty"`
-	List     []string  `protobuf:"bytes,3,rep,name=list" json:"list,omitempty"`
-	Prefixes []*Prefix `protobuf:"bytes,4,rep,name=prefixes" json:"prefixes,omitempty"`
+	Type     DefinedType `protobuf:"varint,1,opt,name=type,enum=gobgpapi.DefinedType" json:"type,omitempty"`
+	Name     string      `protobuf:"bytes,2,opt,name=name" json:"name,omitempty"`
+	List     []string    `protobuf:"bytes,3,rep,name=list" json:"list,omitempty"`
+	Prefixes []*Prefix   `protobuf:"bytes,4,rep,name=prefixes" json:"prefixes,omitempty"`
 }
 
 func (m *DefinedSet) Reset()         { *m = DefinedSet{} }
@@ -448,8 +569,8 @@ func (m *DefinedSet) GetPrefixes() []*Prefix {
 }
 
 type MatchSet struct {
-	Name   string `protobuf:"bytes,1,opt,name=name" json:"name,omitempty"`
-	Option int32  `protobuf:"varint,2,opt,name=option" json:"option,omitempty"`
+	Type MatchType `protobuf:"varint,1,opt,name=type,enum=gobgpapi.MatchType" json:"type,omitempty"`
+	Name string    `protobuf:"bytes,2,opt,name=name" json:"name,omitempty"`
 }
 
 func (m *MatchSet) Reset()         { *m = MatchSet{} }
@@ -457,8 +578,8 @@ func (m *MatchSet) String() string { return proto.CompactTextString(m) }
 func (*MatchSet) ProtoMessage()    {}
 
 type AsPathLength struct {
-	Length uint32 `protobuf:"varint,1,opt,name=length" json:"length,omitempty"`
-	Type   int32  `protobuf:"varint,2,opt,name=type" json:"type,omitempty"`
+	Type   AsPathLengthType `protobuf:"varint,1,opt,name=type,enum=gobgpapi.AsPathLengthType" json:"type,omitempty"`
+	Length uint32           `protobuf:"varint,2,opt,name=length" json:"length,omitempty"`
 }
 
 func (m *AsPathLength) Reset()         { *m = AsPathLength{} }
@@ -522,8 +643,8 @@ func (m *Conditions) GetExtCommunitySet() *MatchSet {
 }
 
 type CommunityAction struct {
-	Communities []string `protobuf:"bytes,1,rep,name=communities" json:"communities,omitempty"`
-	Option      int32    `protobuf:"varint,2,opt,name=option" json:"option,omitempty"`
+	Type        CommunityActionType `protobuf:"varint,1,opt,name=type,enum=gobgpapi.CommunityActionType" json:"type,omitempty"`
+	Communities []string            `protobuf:"bytes,2,rep,name=communities" json:"communities,omitempty"`
 }
 
 func (m *CommunityAction) Reset()         { *m = CommunityAction{} }
@@ -531,8 +652,8 @@ func (m *CommunityAction) String() string { return proto.CompactTextString(m) }
 func (*CommunityAction) ProtoMessage()    {}
 
 type MedAction struct {
-	Type  int32 `protobuf:"varint,1,opt,name=type" json:"type,omitempty"`
-	Value int64 `protobuf:"varint,2,opt,name=value" json:"value,omitempty"`
+	Type  MedActionType `protobuf:"varint,1,opt,name=type,enum=gobgpapi.MedActionType" json:"type,omitempty"`
+	Value int64         `protobuf:"varint,2,opt,name=value" json:"value,omitempty"`
 }
 
 func (m *MedAction) Reset()         { *m = MedAction{} }
@@ -723,7 +844,12 @@ func (*Vrf) ProtoMessage()    {}
 func init() {
 	proto.RegisterEnum("gobgpapi.Resource", Resource_name, Resource_value)
 	proto.RegisterEnum("gobgpapi.Operation", Operation_name, Operation_value)
+	proto.RegisterEnum("gobgpapi.DefinedType", DefinedType_name, DefinedType_value)
+	proto.RegisterEnum("gobgpapi.MatchType", MatchType_name, MatchType_value)
+	proto.RegisterEnum("gobgpapi.AsPathLengthType", AsPathLengthType_name, AsPathLengthType_value)
 	proto.RegisterEnum("gobgpapi.RouteAction", RouteAction_name, RouteAction_value)
+	proto.RegisterEnum("gobgpapi.CommunityActionType", CommunityActionType_name, CommunityActionType_value)
+	proto.RegisterEnum("gobgpapi.MedActionType", MedActionType_name, MedActionType_value)
 	proto.RegisterEnum("gobgpapi.PolicyType", PolicyType_name, PolicyType_value)
 	proto.RegisterEnum("gobgpapi.Error_ErrorCode", Error_ErrorCode_name, Error_ErrorCode_value)
 }

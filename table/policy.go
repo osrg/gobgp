@@ -88,6 +88,34 @@ func (o MatchOption) String() string {
 	}
 }
 
+func toConfigMatchSetOption(a api.MatchType) (config.MatchSetOptionsType, error) {
+	var typ config.MatchSetOptionsType
+	switch a {
+	case api.MatchType_ANY:
+		typ = config.MATCH_SET_OPTIONS_TYPE_ANY
+	case api.MatchType_ALL:
+		typ = config.MATCH_SET_OPTIONS_TYPE_ALL
+	case api.MatchType_INVERT:
+		typ = config.MATCH_SET_OPTIONS_TYPE_INVERT
+	default:
+		return typ, fmt.Errorf("invalid match type")
+	}
+	return typ, nil
+}
+
+func toConfigMatchSetOptionRestricted(a api.MatchType) (config.MatchSetOptionsRestrictedType, error) {
+	var typ config.MatchSetOptionsRestrictedType
+	switch a {
+	case api.MatchType_ANY:
+		typ = config.MATCH_SET_OPTIONS_RESTRICTED_TYPE_ANY
+	case api.MatchType_INVERT:
+		typ = config.MATCH_SET_OPTIONS_RESTRICTED_TYPE_INVERT
+	default:
+		return typ, fmt.Errorf("invalid match type")
+	}
+	return typ, nil
+}
+
 type MedActionType int
 
 const (
@@ -340,7 +368,7 @@ func (s *PrefixSet) ToApiStruct() *api.DefinedSet {
 		list = append(list, p.ToApiStruct())
 	}
 	return &api.DefinedSet{
-		Type:     int32(s.Type()),
+		Type:     api.DefinedType(s.Type()),
 		Name:     s.name,
 		Prefixes: list,
 	}
@@ -445,7 +473,7 @@ func (s *NeighborSet) ToApiStruct() *api.DefinedSet {
 		list = append(list, n.String())
 	}
 	return &api.DefinedSet{
-		Type: int32(s.Type()),
+		Type: api.DefinedType(s.Type()),
 		Name: s.name,
 		List: list,
 	}
@@ -567,7 +595,7 @@ func (s *regExpSet) ToApiStruct() *api.DefinedSet {
 		list = append(list, exp.String())
 	}
 	return &api.DefinedSet{
-		Type: int32(s.typ),
+		Type: api.DefinedType(s.typ),
 		Name: s.name,
 		List: list,
 	}
@@ -749,7 +777,7 @@ func (s *ExtCommunitySet) ToApiStruct() *api.DefinedSet {
 		list = append(list, f(idx, exp.String()))
 	}
 	return &api.DefinedSet{
-		Type: int32(s.typ),
+		Type: api.DefinedType(s.typ),
 		Name: s.name,
 		List: list,
 	}
@@ -867,8 +895,8 @@ func (c *PrefixCondition) Evaluate(path *Path) bool {
 
 func (c *PrefixCondition) ToApiStruct() *api.MatchSet {
 	return &api.MatchSet{
-		Name:   c.set.Name(),
-		Option: int32(c.option),
+		Type: api.MatchType(c.option),
+		Name: c.set.Name(),
 	}
 }
 
@@ -876,9 +904,13 @@ func NewPrefixConditionFromApiStruct(a *api.MatchSet, m map[string]DefinedSet) (
 	if a == nil {
 		return nil, nil
 	}
+	typ, err := toConfigMatchSetOptionRestricted(a.Type)
+	if err != nil {
+		return nil, err
+	}
 	c := config.MatchPrefixSet{
 		PrefixSet:       a.Name,
-		MatchSetOptions: config.MatchSetOptionsRestrictedType(a.Option),
+		MatchSetOptions: typ,
 	}
 	return NewPrefixCondition(c, m)
 }
@@ -959,8 +991,8 @@ func (c *NeighborCondition) Evaluate(path *Path) bool {
 
 func (c *NeighborCondition) ToApiStruct() *api.MatchSet {
 	return &api.MatchSet{
-		Name:   c.set.Name(),
-		Option: int32(c.option),
+		Type: api.MatchType(c.option),
+		Name: c.set.Name(),
 	}
 }
 
@@ -968,9 +1000,13 @@ func NewNeighborConditionFromApiStruct(a *api.MatchSet, m map[string]DefinedSet)
 	if a == nil {
 		return nil, nil
 	}
+	typ, err := toConfigMatchSetOptionRestricted(a.Type)
+	if err != nil {
+		return nil, err
+	}
 	c := config.MatchNeighborSet{
 		NeighborSet:     a.Name,
-		MatchSetOptions: config.MatchSetOptionsRestrictedType(a.Option),
+		MatchSetOptions: typ,
 	}
 	return NewNeighborCondition(c, m)
 }
@@ -1016,8 +1052,8 @@ func (c *AsPathCondition) Option() MatchOption {
 
 func (c *AsPathCondition) ToApiStruct() *api.MatchSet {
 	return &api.MatchSet{
-		Name:   c.set.Name(),
-		Option: int32(c.option),
+		Type: api.MatchType(c.option),
+		Name: c.set.Name(),
 	}
 }
 
@@ -1052,9 +1088,13 @@ func NewAsPathConditionFromApiStruct(a *api.MatchSet, m map[string]DefinedSet) (
 	if a == nil {
 		return nil, nil
 	}
+	typ, err := toConfigMatchSetOption(a.Type)
+	if err != nil {
+		return nil, err
+	}
 	c := config.MatchAsPathSet{
 		AsPathSet:       a.Name,
-		MatchSetOptions: config.MatchSetOptionsType(a.Option),
+		MatchSetOptions: typ,
 	}
 	return NewAsPathCondition(c, m)
 }
@@ -1100,8 +1140,8 @@ func (c *CommunityCondition) Option() MatchOption {
 
 func (c *CommunityCondition) ToApiStruct() *api.MatchSet {
 	return &api.MatchSet{
-		Name:   c.set.Name(),
-		Option: int32(c.option),
+		Type: api.MatchType(c.option),
+		Name: c.set.Name(),
 	}
 }
 
@@ -1139,9 +1179,13 @@ func NewCommunityConditionFromApiStruct(a *api.MatchSet, m map[string]DefinedSet
 	if a == nil {
 		return nil, nil
 	}
+	typ, err := toConfigMatchSetOption(a.Type)
+	if err != nil {
+		return nil, err
+	}
 	c := config.MatchCommunitySet{
 		CommunitySet:    a.Name,
-		MatchSetOptions: config.MatchSetOptionsType(a.Option),
+		MatchSetOptions: typ,
 	}
 	return NewCommunityCondition(c, m)
 }
@@ -1187,8 +1231,8 @@ func (c *ExtCommunityCondition) Option() MatchOption {
 
 func (c *ExtCommunityCondition) ToApiStruct() *api.MatchSet {
 	return &api.MatchSet{
-		Name:   c.set.Name(),
-		Option: int32(c.option),
+		Type: api.MatchType(c.option),
+		Name: c.set.Name(),
 	}
 }
 
@@ -1232,9 +1276,13 @@ func NewExtCommunityConditionFromApiStruct(a *api.MatchSet, m map[string]Defined
 	if a == nil {
 		return nil, nil
 	}
+	typ, err := toConfigMatchSetOption(a.Type)
+	if err != nil {
+		return nil, err
+	}
 	c := config.MatchExtCommunitySet{
 		ExtCommunitySet: a.Name,
-		MatchSetOptions: config.MatchSetOptionsType(a.Option),
+		MatchSetOptions: typ,
 	}
 	return NewExtCommunityCondition(c, m)
 }
@@ -1302,7 +1350,7 @@ func (c *AsPathLengthCondition) Set() DefinedSet {
 func (c *AsPathLengthCondition) ToApiStruct() *api.AsPathLength {
 	return &api.AsPathLength{
 		Length: c.length,
-		Type:   int32(c.operator),
+		Type:   api.AsPathLengthType(c.operator),
 	}
 }
 
@@ -1504,8 +1552,8 @@ func (a *CommunityAction) ToApiStruct() *api.CommunityAction {
 		cs = append(cs, exp.String())
 	}
 	return &api.CommunityAction{
+		Type:        api.CommunityActionType(a.action),
 		Communities: cs,
-		Option:      int32(a.action),
 	}
 }
 
@@ -1515,7 +1563,7 @@ func NewCommunityActionFromApiStruct(a *api.CommunityAction) (*CommunityAction, 
 	}
 	var list []uint32
 	var removeList []*regexp.Regexp
-	op := config.BgpSetCommunityOptionType(a.Option)
+	op := config.BgpSetCommunityOptionType(a.Type)
 	if op == config.BGP_SET_COMMUNITY_OPTION_TYPE_REMOVE {
 		removeList = make([]*regexp.Regexp, 0, len(a.Communities))
 	} else {
@@ -1622,8 +1670,8 @@ func (a *ExtCommunityAction) ToApiStruct() *api.CommunityAction {
 		cs = append(cs, f(idx, exp.String()))
 	}
 	return &api.CommunityAction{
+		Type:        api.CommunityActionType(a.action),
 		Communities: cs,
-		Option:      int32(a.action),
 	}
 }
 
@@ -1634,7 +1682,7 @@ func NewExtCommunityActionFromApiStruct(a *api.CommunityAction) (*ExtCommunityAc
 	var list []bgp.ExtendedCommunityInterface
 	var removeList []*regexp.Regexp
 	subtypeList := make([]bgp.ExtendedCommunityAttrSubType, 0, len(a.Communities))
-	op := config.BgpSetCommunityOptionType(a.Option)
+	op := config.BgpSetCommunityOptionType(a.Type)
 	if op == config.BGP_SET_COMMUNITY_OPTION_TYPE_REMOVE {
 		removeList = make([]*regexp.Regexp, 0, len(a.Communities))
 	} else {
@@ -1745,7 +1793,7 @@ func (a *MedAction) Apply(path *Path) *Path {
 
 func (a *MedAction) ToApiStruct() *api.MedAction {
 	return &api.MedAction{
-		Type:  int32(a.action),
+		Type:  api.MedActionType(a.action),
 		Value: int64(a.value),
 	}
 }
