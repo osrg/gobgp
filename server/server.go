@@ -884,7 +884,7 @@ func (server *BgpServer) SetPolicy(pl config.RoutingPolicy) error {
 	if err != nil {
 		log.WithFields(log.Fields{
 			"Topic": "Policy",
-		}).Debugf("failed to create routing policy: %s", err)
+		}).Errorf("failed to create routing policy: %s", err)
 		return err
 	}
 	server.policy = p
@@ -894,8 +894,13 @@ func (server *BgpServer) SetPolicy(pl config.RoutingPolicy) error {
 	return nil
 }
 
-func (server *BgpServer) handlePolicy(pl config.RoutingPolicy) {
-	server.SetPolicy(pl)
+func (server *BgpServer) handlePolicy(pl config.RoutingPolicy) error {
+	if err := server.SetPolicy(pl); err != nil {
+		log.WithFields(log.Fields{
+			"Topic": "Policy",
+		}).Errorf("failed to set new policy: %s", err)
+		return err
+	}
 	for _, peer := range server.neighborMap {
 		log.WithFields(log.Fields{
 			"Topic": "Peer",
@@ -903,6 +908,7 @@ func (server *BgpServer) handlePolicy(pl config.RoutingPolicy) {
 		}).Info("call set policy")
 		server.setPolicyByConfig(peer, peer.conf.ApplyPolicy)
 	}
+	return nil
 }
 
 func (server *BgpServer) checkNeighborRequest(grpcReq *GrpcRequest) (*Peer, error) {

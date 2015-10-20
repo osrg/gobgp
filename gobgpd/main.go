@@ -184,7 +184,9 @@ func main() {
 
 			if policyConfig == nil {
 				policyConfig = &newConfig.Policy
-				bgpServer.SetPolicy(newConfig.Policy)
+				if err := bgpServer.SetPolicy(newConfig.Policy); err != nil {
+					log.Fatal(err)
+				}
 			} else {
 				if config.CheckPolicyDifference(policyConfig, &newConfig.Policy) {
 					log.Info("Policy config is updated")
