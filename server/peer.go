@@ -49,13 +49,14 @@ type Peer struct {
 	localRib              *table.TableManager
 }
 
-func NewPeer(g config.Global, conf config.Neighbor) *Peer {
+func NewPeer(g config.Global, conf config.Neighbor, loc *table.TableManager) *Peer {
 	peer := &Peer{
 		gConf:    g,
 		conf:     conf,
 		rfMap:    make(map[bgp.RouteFamily]bool),
 		capMap:   make(map[bgp.BGPCapabilityCode][]bgp.ParameterCapabilityInterface),
 		outgoing: make(chan *bgp.BGPMessage, 128),
+		localRib: loc,
 	}
 
 	conf.NeighborState.SessionState = uint32(bgp.BGP_FSM_IDLE)
@@ -75,10 +76,6 @@ func NewPeer(g config.Global, conf config.Neighbor) *Peer {
 	}
 	peer.adjRib = table.NewAdjRib(peer.configuredRFlist())
 	peer.fsm = NewFSM(&g, &conf)
-	if peer.isRouteServerClient() {
-		peer.localRib = table.NewTableManager(conf.NeighborConfig.NeighborAddress.String(), peer.configuredRFlist(), g.MplsLabelRange.MinLabel, g.MplsLabelRange.MaxLabel)
-	}
-
 	if conf.NeighborConfig.PeerAs != g.GlobalConfig.As {
 		for _, member := range g.Confederation.ConfederationConfig.MemberAs {
 			if member == conf.NeighborConfig.PeerAs {
@@ -386,9 +383,7 @@ func (peer *Peer) GetPolicy(d table.PolicyDirection) []*table.Policy {
 	case table.POLICY_DIRECTION_IN:
 		return peer.inPolicies
 	default:
-		if peer.localRib != nil {
-			return peer.localRib.GetPolicy(d)
-		}
+		return peer.localRib.GetPolicy(d)
 	}
 	return nil
 }
@@ -398,9 +393,7 @@ func (peer *Peer) SetPolicy(d table.PolicyDirection, policies []*table.Policy) e
 	case table.POLICY_DIRECTION_IN:
 		peer.inPolicies = policies
 	default:
-		if peer.localRib != nil {
-			return peer.localRib.SetPolicy(d, policies)
-		}
+		return peer.localRib.SetPolicy(d, policies)
 	}
 	return nil
 }
@@ -410,9 +403,7 @@ func (peer *Peer) GetDefaultPolicy(d table.PolicyDirection) table.RouteType {
 	case table.POLICY_DIRECTION_IN:
 		return peer.defaultInPolicy
 	default:
-		if peer.localRib != nil {
-			return peer.localRib.GetDefaultPolicy(d)
-		}
+		return peer.localRib.GetDefaultPolicy(d)
 	}
 	return table.ROUTE_TYPE_NONE
 }
@@ -422,7 +413,7 @@ func (peer *Peer) SetDefaultPolicy(d table.PolicyDirection, typ table.RouteType)
 	case table.POLICY_DIRECTION_IN:
 		peer.defaultInPolicy = typ
 	default:
-		if peer.localRib != nil {
+		if peer.isRouteServerClient() {
 			return peer.localRib.SetDefaultPolicy(d, typ)
 		}
 	}
