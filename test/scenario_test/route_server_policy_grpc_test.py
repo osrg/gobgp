@@ -106,6 +106,7 @@ class ImportPolicy(object):
         g1.local('gobgp policy statement add st0')
         g1.local('gobgp policy statement st0 add condition prefix ps0')
         g1.local('gobgp policy statement st0 add condition neighbor ns0')
+        g1.local('gobgp policy statement st0 add action reject')
         g1.local('gobgp policy add policy0 st0')
         g1.local('gobgp neighbor {0} policy import add policy0'.format(g1.peers[q2]['neigh_addr'].split('/')[0]))
 
@@ -153,6 +154,7 @@ class ExportPolicy(object):
         g1.local('gobgp policy statement add st0')
         g1.local('gobgp policy statement st0 add condition prefix ps0')
         g1.local('gobgp policy statement st0 add condition neighbor ns0')
+        g1.local('gobgp policy statement st0 add action reject')
         g1.local('gobgp policy add policy0 st0')
         g1.local('gobgp neighbor {0} policy export add policy0'.format(g1.peers[q2]['neigh_addr'].split('/')[0]))
 
@@ -221,6 +223,7 @@ class ImportPolicyUpdate(object):
         g1.local('gobgp policy statement add st0')
         g1.local('gobgp policy statement st0 add condition prefix ps0')
         g1.local('gobgp policy statement st0 add condition neighbor ns0')
+        g1.local('gobgp policy statement st0 add action reject')
         g1.local('gobgp policy add policy0 st0')
         g1.local('gobgp neighbor {0} policy import add policy0'.format(g1.peers[q2]['neigh_addr'].split('/')[0]))
 
@@ -312,6 +315,7 @@ class ExportPolicyUpdate(object):
         g1.local('gobgp policy statement add st0')
         g1.local('gobgp policy statement st0 add condition prefix ps0')
         g1.local('gobgp policy statement st0 add condition neighbor ns0')
+        g1.local('gobgp policy statement st0 add action reject')
         g1.local('gobgp policy add policy0 st0')
         g1.local('gobgp neighbor {0} policy export add policy0'.format(g1.peers[q2]['neigh_addr'].split('/')[0]))
 
@@ -415,6 +419,7 @@ class ImportPolicyIPV6(object):
         g1.local('gobgp policy statement add st0')
         g1.local('gobgp policy statement st0 add condition prefix ps0')
         g1.local('gobgp policy statement st0 add condition neighbor ns0')
+        g1.local('gobgp policy statement st0 add action reject')
         g1.local('gobgp policy add policy0 st0')
         g1.local('gobgp neighbor {0} policy import add policy0'.format(g1.peers[q2]['neigh_addr'].split('/')[0]))
 
@@ -465,6 +470,7 @@ class ExportPolicyIPV6(object):
         g1.local('gobgp policy statement add st0')
         g1.local('gobgp policy statement st0 add condition prefix ps0')
         g1.local('gobgp policy statement st0 add condition neighbor ns0')
+        g1.local('gobgp policy statement st0 add action reject')
         g1.local('gobgp policy add policy0 st0')
         g1.local('gobgp neighbor {0} policy export add policy0'.format(g1.peers[q2]['neigh_addr'].split('/')[0]))
 
@@ -529,6 +535,7 @@ class ImportPolicyIPV6Update(object):
         g1.local('gobgp policy statement add st0')
         g1.local('gobgp policy statement st0 add condition prefix ps0')
         g1.local('gobgp policy statement st0 add condition neighbor ns0')
+        g1.local('gobgp policy statement st0 add action reject')
         g1.local('gobgp policy add policy0 st0')
         g1.local('gobgp neighbor {0} policy import add policy0'.format(g1.peers[q2]['neigh_addr'].split('/')[0]))
 
@@ -611,6 +618,7 @@ class ExportPolicyIPv6Update(object):
         g1.local('gobgp policy statement add st0')
         g1.local('gobgp policy statement st0 add condition prefix ps0')
         g1.local('gobgp policy statement st0 add condition neighbor ns0')
+        g1.local('gobgp policy statement st0 add action reject')
         g1.local('gobgp policy add policy0 st0')
         g1.local('gobgp neighbor {0} policy export add policy0'.format(g1.peers[q2]['neigh_addr'].split('/')[0]))
 
@@ -676,6 +684,7 @@ class ImportPolicyAsPathLengthCondition(object):
 
         g1.local('gobgp policy statement add st0')
         g1.local('gobgp policy statement st0 add condition as-path-length 10 ge')
+        g1.local('gobgp policy statement st0 add action reject')
         g1.local('gobgp policy add policy0 st0')
         g1.local('gobgp neighbor {0} policy import add policy0'.format(g1.peers[q2]['neigh_addr'].split('/')[0]))
 
@@ -725,6 +734,7 @@ class ImportPolicyAsPathCondition(object):
         g1.local('gobgp policy as-path add as0 ^{0}'.format(e1.asn))
         g1.local('gobgp policy statement add st0')
         g1.local('gobgp policy statement st0 add condition as-path as0')
+        g1.local('gobgp policy statement st0 add action reject')
         g1.local('gobgp policy add policy0 st0')
         g1.local('gobgp neighbor {0} policy import add policy0'.format(g1.peers[q2]['neigh_addr'].split('/')[0]))
 
@@ -766,6 +776,7 @@ class ImportPolicyAsPathAnyCondition(object):
         g1.local('gobgp policy as-path add as0 65098')
         g1.local('gobgp policy statement add st0')
         g1.local('gobgp policy statement st0 add condition as-path as0')
+        g1.local('gobgp policy statement st0 add action reject')
         g1.local('gobgp policy add policy0 st0')
         g1.local('gobgp neighbor {0} policy import add policy0'.format(g1.peers[q2]['neigh_addr'].split('/')[0]))
 
@@ -807,6 +818,7 @@ class ImportPolicyAsPathOriginCondition(object):
         g1.local('gobgp policy as-path add as0 65090$')
         g1.local('gobgp policy statement add st0')
         g1.local('gobgp policy statement st0 add condition as-path as0')
+        g1.local('gobgp policy statement st0 add action reject')
         g1.local('gobgp policy add policy0 st0')
         g1.local('gobgp neighbor {0} policy import add policy0'.format(g1.peers[q2]['neigh_addr'].split('/')[0]))
 
@@ -848,6 +860,7 @@ class ImportPolicyAsPathOnlyCondition(object):
         g1.local('gobgp policy as-path add as0 ^65100$')
         g1.local('gobgp policy statement add st0')
         g1.local('gobgp policy statement st0 add condition as-path as0')
+        g1.local('gobgp policy statement st0 add action reject')
         g1.local('gobgp policy add policy0 st0')
         g1.local('gobgp neighbor {0} policy import add policy0'.format(g1.peers[q2]['neigh_addr'].split('/')[0]))
 
@@ -890,6 +903,7 @@ class ImportPolicyAsPathMismatchCondition(object):
         g1.local('gobgp policy community add cs0 65100:10')
         g1.local('gobgp policy statement add st0')
         g1.local('gobgp policy statement st0 add condition community cs0')
+        g1.local('gobgp policy statement st0 add action reject')
         g1.local('gobgp policy add policy0 st0')
         g1.local('gobgp neighbor {0} policy import add policy0'.format(g1.peers[q2]['neigh_addr'].split('/')[0]))
 
@@ -939,6 +953,7 @@ class ImportPolicyCommunityCondition(object):
         g1.local('gobgp policy community add cs0 65100:10')
         g1.local('gobgp policy statement add st0')
         g1.local('gobgp policy statement st0 add condition community cs0')
+        g1.local('gobgp policy statement st0 add action reject')
         g1.local('gobgp policy add policy0 st0')
         g1.local('gobgp neighbor {0} policy import add policy0'.format(g1.peers[q2]['neigh_addr'].split('/')[0]))
 
@@ -980,6 +995,7 @@ class ImportPolicyCommunityRegexp(object):
         g1.local('gobgp policy community add cs0 6[0-9]+:[0-9]+')
         g1.local('gobgp policy statement add st0')
         g1.local('gobgp policy statement st0 add condition community cs0')
+        g1.local('gobgp policy statement st0 add action reject')
         g1.local('gobgp policy add policy0 st0')
         g1.local('gobgp neighbor {0} policy import add policy0'.format(g1.peers[q2]['neigh_addr'].split('/')[0]))
 
@@ -1850,6 +1866,7 @@ class InPolicyReject(object):
 
         g1.local('gobgp policy community add cs0 65100:10')
         g1.local('gobgp policy statement st0 add condition community cs0')
+        g1.local('gobgp policy statement st0 add action reject')
         g1.local('gobgp policy add policy0 st0')
         g1.local('gobgp neighbor {0} policy in add policy0'.format(g1.peers[e1]['neigh_addr'].split('/')[0]))
 
@@ -1954,6 +1971,7 @@ class InPolicyUpdate(object):
         g1.local('gobgp policy neighbor add ns0 {0}'.format(g1.peers[e1]['neigh_addr'].split('/')[0]))
         g1.local('gobgp policy statement st0 add condition prefix ps0')
         g1.local('gobgp policy statement st0 add condition neighbor ns0')
+        g1.local('gobgp policy statement st0 add action reject')
         g1.local('gobgp policy add policy0 st0')
         g1.local('gobgp neighbor {0} policy in add policy0'.format(g1.peers[e1]['neigh_addr'].split('/')[0]))
 
@@ -2223,6 +2241,7 @@ class ImportPolicyExCommunityOriginCondition(object):
 
         g1.local('gobgp policy ext-community add es0 soo:65001.65100:200')
         g1.local('gobgp policy statement st0 add condition ext-community es0')
+        g1.local('gobgp policy statement st0 add action reject')
         g1.local('gobgp policy add policy0 st0')
         g1.local('gobgp neighbor {0} policy import add policy0'.format(g1.peers[q2]['neigh_addr'].split('/')[0]))
 
@@ -2260,6 +2279,7 @@ class ImportPolicyExCommunityTargetCondition(object):
 
         g1.local('gobgp policy ext-community add es0 rt:6[0-9]+:3[0-9]+')
         g1.local('gobgp policy statement st0 add condition ext-community es0')
+        g1.local('gobgp policy statement st0 add action reject')
         g1.local('gobgp policy add policy0 st0')
         g1.local('gobgp neighbor {0} policy import add policy0'.format(g1.peers[q2]['neigh_addr'].split('/')[0]))
 
@@ -2297,6 +2317,7 @@ class InPolicyPrefixCondition(object):
 
         g1.local('gobgp policy prefix add ps0 192.168.10.0/24')
         g1.local('gobgp policy statement st0 add condition prefix ps0')
+        g1.local('gobgp policy statement st0 add action reject')
         g1.local('gobgp policy add policy0 st0')
         g1.local('gobgp neighbor {0} policy in add policy0'.format(g1.peers[e1]['neigh_addr'].split('/')[0]))
 

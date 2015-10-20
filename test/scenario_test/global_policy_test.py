@@ -115,7 +115,6 @@ class GoBGPTestBase(unittest.TestCase):
         self.gobgp.local('gobgp policy neighbor add ns0 {0}'.format(self.gobgp.peers[self.quaggas['q1']]['neigh_addr'].split('/')[0]))
         self.gobgp.local('gobgp policy statement add st0')
         self.gobgp.local('gobgp policy statement st0 add condition neighbor ns0')
-        self.gobgp.local('gobgp policy statement st0 add action accept')
         self.gobgp.local('gobgp policy statement st0 add action community add 65100:10')
         self.gobgp.local('gobgp policy add p0 st0')
         self.gobgp.local('gobgp global policy export add p0 default accept')
