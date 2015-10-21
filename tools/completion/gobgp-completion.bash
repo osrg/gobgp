@@ -1,39 +1,18 @@
 #!/bin/bash
 
-__gobgp_q() {
-    gobgp 2>/dev/null "$@"
-}
-
-__gobgp_q_neighbor() {
-    neighbors=( $(__gobgp_q $url $port --quiet $q_type) )
-    for n in ${neighbors[*]}; do
-        commands+=($n)
-    done
-    neighbor_searched="True"
-    last_command="gobgp_neighbor"
-}
-
-__gobgp_q_policy() {
-    policies=( $(__gobgp_q $url $port --quiet policy $q_type) )
-    for ps in ${policies[*]}; do
-        commands+=($ps)
-    done
-    if [[ ${want_state} == "True" ]]; then
-        want_state="False"
-    fi
-    if [[ ${last_command} == "gobgp_policy_routepolicy_add" ]]; then
-        want_state="True"
-    else
-        policy_searched="True"
-    fi
-}
-
-
 __debug()
 {
     if [[ -n ${BASH_COMP_DEBUG_FILE} ]]; then
         echo "$*" >> "${BASH_COMP_DEBUG_FILE}"
     fi
+}
+
+# Homebrew on Macs have version 1.3 of bash-completion which doesn't include
+# _init_completion. This is a very minimal version of that function.
+__my_init_completion()
+{
+    COMPREPLY=()
+    _get_comp_words_by_ref cur prev words cword
 }
 
 __index_of_word()
@@ -110,6 +89,12 @@ __handle_filename_extension_flag()
     _filedir "@(${ext})"
 }
 
+__handle_subdirs_in_dir_flag()
+{
+    local dir="$1"
+    pushd "${dir}" >/dev/null 2>&1 && _filedir -d && popd >/dev/null 2>&1
+}
+
 __handle_flag()
 {
     __debug "${FUNCNAME}: c is $c words[c] is ${words[c]}"
@@ -134,12 +119,7 @@ __handle_flag()
             commands=()
         fi
     fi
-    if [ ${words[(c-1)]} == "-u" ]; then
-        url="-u ${words[(c)]}"
-    fi
-    if [ ${words[(c-1)]} == "-p" ]; then
-        port="-p ${words[(c)]}"
-    fi
+
     # skip the flag itself
     c=$((c+1))
 
@@ -167,23 +147,6 @@ __handle_command()
     else
         next_command="_${words[c]}"
     fi
-
-    if [[ ${last_command} == "gobgp_neighbor_someone" ]]; then
-        commands=()
-    fi
-
-    if [[ ${neighbor_searched} == "True" ]]; then
-        next_command="_${last_command}_someone"
-    fi
-
-    if [[ ${policy_searched} == "True" ]]; then
-        commands=()
-    fi
-    if [[ ${want_state} == "True" ]]; then
-        routepolicy="${words[c]}"
-        next_command="_${last_command}_state"
-    fi
-
     c=$((c+1))
     __debug "${FUNCNAME}: looking for ${next_command}"
     declare -F $next_command >/dev/null && $next_command
@@ -216,8 +179,6 @@ _gobgp_global_rib_add()
     flags_with_completion=()
     flags_completion=()
 
-    flags+=("--help")
-    flags+=("-h")
 
     must_have_one_flag=()
     must_have_one_noun=()
@@ -233,8 +194,6 @@ _gobgp_global_rib_del()
     flags_with_completion=()
     flags_completion=()
 
-    flags+=("--help")
-    flags+=("-h")
 
     must_have_one_flag=()
     must_have_one_noun=()
@@ -254,8 +213,213 @@ _gobgp_global_rib()
 
     flags+=("--address-family=")
     two_word_flags+=("-a")
-    flags+=("--help")
-    flags+=("-h")
+
+    must_have_one_flag=()
+    must_have_one_noun=()
+}
+
+_gobgp_global_policy_in_add()
+{
+    last_command="gobgp_global_policy_in_add"
+    commands=()
+
+    flags=()
+    two_word_flags=()
+    flags_with_completion=()
+    flags_completion=()
+
+
+    must_have_one_flag=()
+    must_have_one_noun=()
+}
+
+_gobgp_global_policy_in_del()
+{
+    last_command="gobgp_global_policy_in_del"
+    commands=()
+
+    flags=()
+    two_word_flags=()
+    flags_with_completion=()
+    flags_completion=()
+
+
+    must_have_one_flag=()
+    must_have_one_noun=()
+}
+
+_gobgp_global_policy_in_set()
+{
+    last_command="gobgp_global_policy_in_set"
+    commands=()
+
+    flags=()
+    two_word_flags=()
+    flags_with_completion=()
+    flags_completion=()
+
+
+    must_have_one_flag=()
+    must_have_one_noun=()
+}
+
+_gobgp_global_policy_in()
+{
+    last_command="gobgp_global_policy_in"
+    commands=()
+    commands+=("add")
+    commands+=("del")
+    commands+=("set")
+
+    flags=()
+    two_word_flags=()
+    flags_with_completion=()
+    flags_completion=()
+
+
+    must_have_one_flag=()
+    must_have_one_noun=()
+}
+
+_gobgp_global_policy_import_add()
+{
+    last_command="gobgp_global_policy_import_add"
+    commands=()
+
+    flags=()
+    two_word_flags=()
+    flags_with_completion=()
+    flags_completion=()
+
+
+    must_have_one_flag=()
+    must_have_one_noun=()
+}
+
+_gobgp_global_policy_import_del()
+{
+    last_command="gobgp_global_policy_import_del"
+    commands=()
+
+    flags=()
+    two_word_flags=()
+    flags_with_completion=()
+    flags_completion=()
+
+
+    must_have_one_flag=()
+    must_have_one_noun=()
+}
+
+_gobgp_global_policy_import_set()
+{
+    last_command="gobgp_global_policy_import_set"
+    commands=()
+
+    flags=()
+    two_word_flags=()
+    flags_with_completion=()
+    flags_completion=()
+
+
+    must_have_one_flag=()
+    must_have_one_noun=()
+}
+
+_gobgp_global_policy_import()
+{
+    last_command="gobgp_global_policy_import"
+    commands=()
+    commands+=("add")
+    commands+=("del")
+    commands+=("set")
+
+    flags=()
+    two_word_flags=()
+    flags_with_completion=()
+    flags_completion=()
+
+
+    must_have_one_flag=()
+    must_have_one_noun=()
+}
+
+_gobgp_global_policy_export_add()
+{
+    last_command="gobgp_global_policy_export_add"
+    commands=()
+
+    flags=()
+    two_word_flags=()
+    flags_with_completion=()
+    flags_completion=()
+
+
+    must_have_one_flag=()
+    must_have_one_noun=()
+}
+
+_gobgp_global_policy_export_del()
+{
+    last_command="gobgp_global_policy_export_del"
+    commands=()
+
+    flags=()
+    two_word_flags=()
+    flags_with_completion=()
+    flags_completion=()
+
+
+    must_have_one_flag=()
+    must_have_one_noun=()
+}
+
+_gobgp_global_policy_export_set()
+{
+    last_command="gobgp_global_policy_export_set"
+    commands=()
+
+    flags=()
+    two_word_flags=()
+    flags_with_completion=()
+    flags_completion=()
+
+
+    must_have_one_flag=()
+    must_have_one_noun=()
+}
+
+_gobgp_global_policy_export()
+{
+    last_command="gobgp_global_policy_export"
+    commands=()
+    commands+=("add")
+    commands+=("del")
+    commands+=("set")
+
+    flags=()
+    two_word_flags=()
+    flags_with_completion=()
+    flags_completion=()
+
+
+    must_have_one_flag=()
+    must_have_one_noun=()
+}
+
+_gobgp_global_policy()
+{
+    last_command="gobgp_global_policy"
+    commands=()
+    commands+=("in")
+    commands+=("import")
+    commands+=("export")
+
+    flags=()
+    two_word_flags=()
+    flags_with_completion=()
+    flags_completion=()
+
 
     must_have_one_flag=()
     must_have_one_noun=()
@@ -266,33 +430,6 @@ _gobgp_global()
     last_command="gobgp_global"
     commands=()
     commands+=("rib")
-
-    flags=()
-    two_word_flags=()
-    flags_with_completion=()
-    flags_completion=()
-
-    flags+=("--help")
-    flags+=("-h")
-
-    must_have_one_flag=()
-    must_have_one_noun=()
-}
-
-_gobgp_neighbor_someone()
-{
-    last_command="gobgp_neighbor_someone"
-    commands=()
-    commands+=("local")
-    commands+=("adj-in")
-    commands+=("adj-out")
-    commands+=("reset")
-    commands+=("softreset")
-    commands+=("softresetin")
-    commands+=("softresetout")
-    commands+=("shutdown")
-    commands+=("enable")
-    commands+=("disable")
     commands+=("policy")
 
     flags=()
@@ -300,10 +437,6 @@ _gobgp_neighbor_someone()
     flags_with_completion=()
     flags_completion=()
 
-    flags+=("--address-family=")
-    two_word_flags+=("-a")
-    flags+=("--help")
-    flags+=("-h")
 
     must_have_one_flag=()
     must_have_one_noun=()
@@ -321,13 +454,60 @@ _gobgp_neighbor()
 
     flags+=("--address-family=")
     two_word_flags+=("-a")
-    flags+=("--help")
-    flags+=("-h")
+    flags+=("--transport=")
+    two_word_flags+=("-t")
 
     must_have_one_flag=()
     must_have_one_noun=()
-    q_type="neighbor"
-    __gobgp_q_neighbor
+}
+
+_gobgp_vrf_add()
+{
+    last_command="gobgp_vrf_add"
+    commands=()
+
+    flags=()
+    two_word_flags=()
+    flags_with_completion=()
+    flags_completion=()
+
+
+    must_have_one_flag=()
+    must_have_one_noun=()
+}
+
+_gobgp_vrf_del()
+{
+    last_command="gobgp_vrf_del"
+    commands=()
+
+    flags=()
+    two_word_flags=()
+    flags_with_completion=()
+    flags_completion=()
+
+
+    must_have_one_flag=()
+    must_have_one_noun=()
+}
+
+_gobgp_vrf()
+{
+    last_command="gobgp_vrf"
+    commands=()
+    commands+=("add")
+    commands+=("del")
+
+    flags=()
+    two_word_flags=()
+    flags_with_completion=()
+    flags_completion=()
+
+    flags+=("--address-family=")
+    two_word_flags+=("-a")
+
+    must_have_one_flag=()
+    must_have_one_noun=()
 }
 
 _gobgp_policy_prefix_add()
@@ -340,25 +520,6 @@ _gobgp_policy_prefix_add()
     flags_with_completion=()
     flags_completion=()
 
-    flags+=("--help")
-    flags+=("-h")
-
-    must_have_one_flag=()
-    must_have_one_noun=()
-}
-
-_gobgp_policy_prefix_del_all()
-{
-    last_command="gobgp_policy_prefix_del_all"
-    commands=()
-
-    flags=()
-    two_word_flags=()
-    flags_with_completion=()
-    flags_completion=()
-
-    flags+=("--help")
-    flags+=("-h")
 
     must_have_one_flag=()
     must_have_one_noun=()
@@ -368,17 +529,27 @@ _gobgp_policy_prefix_del()
 {
     last_command="gobgp_policy_prefix_del"
     commands=()
-    commands+=("all")
-    q_type="prefix"
-    __gobgp_q_policy
 
     flags=()
     two_word_flags=()
     flags_with_completion=()
     flags_completion=()
 
-    flags+=("--help")
-    flags+=("-h")
+
+    must_have_one_flag=()
+    must_have_one_noun=()
+}
+
+_gobgp_policy_prefix_set()
+{
+    last_command="gobgp_policy_prefix_set"
+    commands=()
+
+    flags=()
+    two_word_flags=()
+    flags_with_completion=()
+    flags_completion=()
+
 
     must_have_one_flag=()
     must_have_one_noun=()
@@ -390,16 +561,13 @@ _gobgp_policy_prefix()
     commands=()
     commands+=("add")
     commands+=("del")
-    q_type="prefix"
-    __gobgp_q_policy
+    commands+=("set")
 
     flags=()
     two_word_flags=()
     flags_with_completion=()
     flags_completion=()
 
-    flags+=("--help")
-    flags+=("-h")
 
     must_have_one_flag=()
     must_have_one_noun=()
@@ -415,25 +583,6 @@ _gobgp_policy_neighbor_add()
     flags_with_completion=()
     flags_completion=()
 
-    flags+=("--help")
-    flags+=("-h")
-
-    must_have_one_flag=()
-    must_have_one_noun=()
-}
-
-_gobgp_policy_neighbor_del_all()
-{
-    last_command="gobgp_policy_neighbor_del_all"
-    commands=()
-
-    flags=()
-    two_word_flags=()
-    flags_with_completion=()
-    flags_completion=()
-
-    flags+=("--help")
-    flags+=("-h")
 
     must_have_one_flag=()
     must_have_one_noun=()
@@ -443,17 +592,27 @@ _gobgp_policy_neighbor_del()
 {
     last_command="gobgp_policy_neighbor_del"
     commands=()
-    commands+=("all")
-     q_type="neighbor"
-    __gobgp_q_policy
 
     flags=()
     two_word_flags=()
     flags_with_completion=()
     flags_completion=()
 
-    flags+=("--help")
-    flags+=("-h")
+
+    must_have_one_flag=()
+    must_have_one_noun=()
+}
+
+_gobgp_policy_neighbor_set()
+{
+    last_command="gobgp_policy_neighbor_set"
+    commands=()
+
+    flags=()
+    two_word_flags=()
+    flags_with_completion=()
+    flags_completion=()
+
 
     must_have_one_flag=()
     must_have_one_noun=()
@@ -465,24 +624,21 @@ _gobgp_policy_neighbor()
     commands=()
     commands+=("add")
     commands+=("del")
-     q_type="neighbor"
-    __gobgp_q_policy
+    commands+=("set")
 
     flags=()
     two_word_flags=()
     flags_with_completion=()
     flags_completion=()
 
-    flags+=("--help")
-    flags+=("-h")
 
     must_have_one_flag=()
     must_have_one_noun=()
 }
 
-_gobgp_policy_aspath_add()
+_gobgp_policy_as-path_add()
 {
-    last_command="gobgp_policy_aspath_add"
+    last_command="gobgp_policy_as-path_add"
     commands=()
 
     flags=()
@@ -490,16 +646,14 @@ _gobgp_policy_aspath_add()
     flags_with_completion=()
     flags_completion=()
 
-    flags+=("--help")
-    flags+=("-h")
 
     must_have_one_flag=()
     must_have_one_noun=()
 }
 
-_gobgp_policy_aspath_del_all()
+_gobgp_policy_as-path_del()
 {
-    last_command="gobgp_policy_aspath_del_all"
+    last_command="gobgp_policy_as-path_del"
     commands=()
 
     flags=()
@@ -507,49 +661,39 @@ _gobgp_policy_aspath_del_all()
     flags_with_completion=()
     flags_completion=()
 
-    flags+=("--help")
-    flags+=("-h")
 
     must_have_one_flag=()
     must_have_one_noun=()
 }
 
-_gobgp_policy_aspath_del()
+_gobgp_policy_as-path_set()
 {
-    last_command="gobgp_policy_aspath_del"
+    last_command="gobgp_policy_as-path_set"
     commands=()
-    commands+=("all")
-    q_type="aspath"
-    __gobgp_q_policy
 
     flags=()
     two_word_flags=()
     flags_with_completion=()
     flags_completion=()
 
-    flags+=("--help")
-    flags+=("-h")
 
     must_have_one_flag=()
     must_have_one_noun=()
 }
 
-_gobgp_policy_aspath()
+_gobgp_policy_as-path()
 {
-    last_command="gobgp_policy_aspath"
+    last_command="gobgp_policy_as-path"
     commands=()
     commands+=("add")
     commands+=("del")
-    q_type="aspath"
-    __gobgp_q_policy
+    commands+=("set")
 
     flags=()
     two_word_flags=()
     flags_with_completion=()
     flags_completion=()
 
-    flags+=("--help")
-    flags+=("-h")
 
     must_have_one_flag=()
     must_have_one_noun=()
@@ -565,25 +709,6 @@ _gobgp_policy_community_add()
     flags_with_completion=()
     flags_completion=()
 
-    flags+=("--help")
-    flags+=("-h")
-
-    must_have_one_flag=()
-    must_have_one_noun=()
-}
-
-_gobgp_policy_community_del_all()
-{
-    last_command="gobgp_policy_community_del_all"
-    commands=()
-
-    flags=()
-    two_word_flags=()
-    flags_with_completion=()
-    flags_completion=()
-
-    flags+=("--help")
-    flags+=("-h")
 
     must_have_one_flag=()
     must_have_one_noun=()
@@ -593,17 +718,27 @@ _gobgp_policy_community_del()
 {
     last_command="gobgp_policy_community_del"
     commands=()
-    commands+=("all")
-    q_type="community"
-    __gobgp_q_policy
 
     flags=()
     two_word_flags=()
     flags_with_completion=()
     flags_completion=()
 
-    flags+=("--help")
-    flags+=("-h")
+
+    must_have_one_flag=()
+    must_have_one_noun=()
+}
+
+_gobgp_policy_community_set()
+{
+    last_command="gobgp_policy_community_set"
+    commands=()
+
+    flags=()
+    two_word_flags=()
+    flags_with_completion=()
+    flags_completion=()
+
 
     must_have_one_flag=()
     must_have_one_noun=()
@@ -615,24 +750,21 @@ _gobgp_policy_community()
     commands=()
     commands+=("add")
     commands+=("del")
-    q_type="community"
-    __gobgp_q_policy
+    commands+=("set")
 
     flags=()
     two_word_flags=()
     flags_with_completion=()
     flags_completion=()
 
-    flags+=("--help")
-    flags+=("-h")
 
     must_have_one_flag=()
     must_have_one_noun=()
 }
 
-_gobgp_policy_extcommunity_add()
+_gobgp_policy_ext-community_add()
 {
-    last_command="gobgp_policy_extcommunity_add"
+    last_command="gobgp_policy_ext-community_add"
     commands=()
 
     flags=()
@@ -640,16 +772,14 @@ _gobgp_policy_extcommunity_add()
     flags_with_completion=()
     flags_completion=()
 
-    flags+=("--help")
-    flags+=("-h")
 
     must_have_one_flag=()
     must_have_one_noun=()
 }
 
-_gobgp_policy_extcommunity_del_all()
+_gobgp_policy_ext-community_del()
 {
-    last_command="gobgp_policy_extcommunity_del_all"
+    last_command="gobgp_policy_ext-community_del"
     commands=()
 
     flags=()
@@ -657,117 +787,47 @@ _gobgp_policy_extcommunity_del_all()
     flags_with_completion=()
     flags_completion=()
 
-    flags+=("--help")
-    flags+=("-h")
 
     must_have_one_flag=()
     must_have_one_noun=()
 }
 
-_gobgp_policy_extcommunity_del()
+_gobgp_policy_ext-community_set()
 {
-    last_command="gobgp_policy_extcommunity_del"
+    last_command="gobgp_policy_ext-community_set"
     commands=()
-    commands+=("all")
-    q_type="extcommunity"
-    __gobgp_q_policy
 
     flags=()
     two_word_flags=()
     flags_with_completion=()
     flags_completion=()
 
-    flags+=("--help")
-    flags+=("-h")
 
     must_have_one_flag=()
     must_have_one_noun=()
 }
 
-_gobgp_policy_extcommunity()
+_gobgp_policy_ext-community()
 {
-    last_command="gobgp_policy_extcommunity"
+    last_command="gobgp_policy_ext-community"
     commands=()
     commands+=("add")
     commands+=("del")
-    q_type="extcommunity"
-    __gobgp_q_policy
+    commands+=("set")
 
     flags=()
     two_word_flags=()
     flags_with_completion=()
     flags_completion=()
 
-    flags+=("--help")
-    flags+=("-h")
 
     must_have_one_flag=()
     must_have_one_noun=()
 }
 
-_gobgp_policy_routepolicy_add_state()
+_gobgp_policy_statement_add()
 {
-    last_command="gobgp_policy_routepolicy_add_stat"
-    commands=()
-    q_type="routepolicy ${routepolicy}"
-    __gobgp_q_policy
-
-    flags=()
-    two_word_flags=()
-    flags_with_completion=()
-    flags_completion=()
-
-    flags+=("--a-community=")
-    flags+=("--a-med=")
-    flags+=("--a-asprepend=")
-    flags+=("--a-route=")
-    flags+=("--c-aslen=")
-    flags+=("--c-aspath=")
-    flags+=("--c-community=")
-    flags+=("--c-extcommunity=")
-    flags+=("--c-neighbor=")
-    flags+=("--c-option=")
-    flags+=("--c-prefix=")
-    flags+=("--help")
-    flags+=("-h")
-
-    must_have_one_flag=()
-    must_have_one_noun=()
-}
-
-_gobgp_policy_routepolicy_add()
-{
-    last_command="gobgp_policy_routepolicy_add"
-    commands=()
-    q_type="routepolicy"
-    __gobgp_q_policy
-
-    flags=()
-    two_word_flags=()
-    flags_with_completion=()
-    flags_completion=()
-
-    flags+=("--a-community=")
-    flags+=("--a-med=")
-    flags+=("--a-asprepend=")
-    flags+=("--a-route=")
-    flags+=("--c-aslen=")
-    flags+=("--c-aspath=")
-    flags+=("--c-community=")
-    flags+=("--c-extcommunity=")
-    flags+=("--c-neighbor=")
-    flags+=("--c-option=")
-    flags+=("--c-prefix=")
-    flags+=("--help")
-    flags+=("-h")
-
-    must_have_one_flag=()
-    must_have_one_noun=()
-}
-
-_gobgp_policy_routepolicy_del_all()
-{
-    last_command="gobgp_policy_routepolicy_del_all"
+    last_command="gobgp_policy_statement_add"
     commands=()
 
     flags=()
@@ -775,49 +835,83 @@ _gobgp_policy_routepolicy_del_all()
     flags_with_completion=()
     flags_completion=()
 
-    flags+=("--help")
-    flags+=("-h")
 
     must_have_one_flag=()
     must_have_one_noun=()
 }
 
-_gobgp_policy_routepolicy_del()
+_gobgp_policy_statement_del()
 {
-    last_command="gobgp_policy_routepolicy_del"
+    last_command="gobgp_policy_statement_del"
     commands=()
-    commands+=("all")
-    q_type="routepolicy"
-    __gobgp_q_policy
 
     flags=()
     two_word_flags=()
     flags_with_completion=()
     flags_completion=()
 
-    flags+=("--help")
-    flags+=("-h")
 
     must_have_one_flag=()
     must_have_one_noun=()
 }
 
-_gobgp_policy_routepolicy()
+_gobgp_policy_statement()
 {
-    last_command="gobgp_policy_routepolicy"
+    last_command="gobgp_policy_statement"
     commands=()
     commands+=("add")
     commands+=("del")
-    q_type="routepolicy"
-    __gobgp_q_policy
 
     flags=()
     two_word_flags=()
     flags_with_completion=()
     flags_completion=()
 
-    flags+=("--help")
-    flags+=("-h")
+
+    must_have_one_flag=()
+    must_have_one_noun=()
+}
+
+_gobgp_policy_add()
+{
+    last_command="gobgp_policy_add"
+    commands=()
+
+    flags=()
+    two_word_flags=()
+    flags_with_completion=()
+    flags_completion=()
+
+
+    must_have_one_flag=()
+    must_have_one_noun=()
+}
+
+_gobgp_policy_del()
+{
+    last_command="gobgp_policy_del"
+    commands=()
+
+    flags=()
+    two_word_flags=()
+    flags_with_completion=()
+    flags_completion=()
+
+
+    must_have_one_flag=()
+    must_have_one_noun=()
+}
+
+_gobgp_policy_set()
+{
+    last_command="gobgp_policy_set"
+    commands=()
+
+    flags=()
+    two_word_flags=()
+    flags_with_completion=()
+    flags_completion=()
+
 
     must_have_one_flag=()
     must_have_one_noun=()
@@ -829,18 +923,19 @@ _gobgp_policy()
     commands=()
     commands+=("prefix")
     commands+=("neighbor")
-    commands+=("aspath")
+    commands+=("as-path")
     commands+=("community")
-    commands+=("extcommunity")
-    commands+=("routepolicy")
+    commands+=("ext-community")
+    commands+=("statement")
+    commands+=("add")
+    commands+=("del")
+    commands+=("set")
 
     flags=()
     two_word_flags=()
     flags_with_completion=()
     flags_completion=()
 
-    flags+=("--help")
-    flags+=("-h")
 
     must_have_one_flag=()
     must_have_one_noun=()
@@ -856,8 +951,8 @@ _gobgp_monitor_global_rib()
     flags_with_completion=()
     flags_completion=()
 
-    flags+=("--help")
-    flags+=("-h")
+    flags+=("--address-family=")
+    two_word_flags+=("-a")
 
     must_have_one_flag=()
     must_have_one_noun=()
@@ -874,8 +969,6 @@ _gobgp_monitor_global()
     flags_with_completion=()
     flags_completion=()
 
-    flags+=("--help")
-    flags+=("-h")
 
     must_have_one_flag=()
     must_have_one_noun=()
@@ -891,8 +984,6 @@ _gobgp_monitor_neighbor()
     flags_with_completion=()
     flags_completion=()
 
-    flags+=("--help")
-    flags+=("-h")
 
     must_have_one_flag=()
     must_have_one_noun=()
@@ -910,16 +1001,14 @@ _gobgp_monitor()
     flags_with_completion=()
     flags_completion=()
 
-    flags+=("--help")
-    flags+=("-h")
 
     must_have_one_flag=()
     must_have_one_noun=()
 }
 
-_gobgp_help()
+_gobgp_mrt_dump_rib_global()
 {
-    last_command="gobgp_help"
+    last_command="gobgp_mrt_dump_rib_global"
     commands=()
 
     flags=()
@@ -927,8 +1016,157 @@ _gobgp_help()
     flags_with_completion=()
     flags_completion=()
 
-    flags+=("--help")
-    flags+=("-h")
+
+    must_have_one_flag=()
+    must_have_one_noun=()
+}
+
+_gobgp_mrt_dump_rib_neighbor()
+{
+    last_command="gobgp_mrt_dump_rib_neighbor"
+    commands=()
+
+    flags=()
+    two_word_flags=()
+    flags_with_completion=()
+    flags_completion=()
+
+
+    must_have_one_flag=()
+    must_have_one_noun=()
+}
+
+_gobgp_mrt_dump_rib()
+{
+    last_command="gobgp_mrt_dump_rib"
+    commands=()
+    commands+=("global")
+    commands+=("neighbor")
+
+    flags=()
+    two_word_flags=()
+    flags_with_completion=()
+    flags_completion=()
+
+    flags+=("--address-family=")
+    two_word_flags+=("-a")
+
+    must_have_one_flag=()
+    must_have_one_noun=()
+}
+
+_gobgp_mrt_dump()
+{
+    last_command="gobgp_mrt_dump"
+    commands=()
+    commands+=("rib")
+
+    flags=()
+    two_word_flags=()
+    flags_with_completion=()
+    flags_completion=()
+
+    flags+=("--format=")
+    two_word_flags+=("-f")
+    flags+=("--outdir=")
+    two_word_flags+=("-o")
+
+    must_have_one_flag=()
+    must_have_one_noun=()
+}
+
+_gobgp_mrt_inject_global()
+{
+    last_command="gobgp_mrt_inject_global"
+    commands=()
+
+    flags=()
+    two_word_flags=()
+    flags_with_completion=()
+    flags_completion=()
+
+
+    must_have_one_flag=()
+    must_have_one_noun=()
+}
+
+_gobgp_mrt_inject()
+{
+    last_command="gobgp_mrt_inject"
+    commands=()
+    commands+=("global")
+
+    flags=()
+    two_word_flags=()
+    flags_with_completion=()
+    flags_completion=()
+
+
+    must_have_one_flag=()
+    must_have_one_noun=()
+}
+
+_gobgp_mrt()
+{
+    last_command="gobgp_mrt"
+    commands=()
+    commands+=("dump")
+    commands+=("inject")
+
+    flags=()
+    two_word_flags=()
+    flags_with_completion=()
+    flags_completion=()
+
+
+    must_have_one_flag=()
+    must_have_one_noun=()
+}
+
+_gobgp_rpki_server()
+{
+    last_command="gobgp_rpki_server"
+    commands=()
+
+    flags=()
+    two_word_flags=()
+    flags_with_completion=()
+    flags_completion=()
+
+
+    must_have_one_flag=()
+    must_have_one_noun=()
+}
+
+_gobgp_rpki_table()
+{
+    last_command="gobgp_rpki_table"
+    commands=()
+
+    flags=()
+    two_word_flags=()
+    flags_with_completion=()
+    flags_completion=()
+
+    flags+=("--address-family=")
+    two_word_flags+=("-a")
+
+    must_have_one_flag=()
+    must_have_one_noun=()
+}
+
+_gobgp_rpki()
+{
+    last_command="gobgp_rpki"
+    commands=()
+    commands+=("server")
+    commands+=("table")
+
+    flags=()
+    two_word_flags=()
+    flags_with_completion=()
+    flags_completion=()
+
 
     must_have_one_flag=()
     must_have_one_noun=()
@@ -936,16 +1174,15 @@ _gobgp_help()
 
 _gobgp()
 {
-    url=""
-    port=""
-    q_type=""
     last_command="gobgp"
     commands=()
     commands+=("global")
     commands+=("neighbor")
+    commands+=("vrf")
     commands+=("policy")
     commands+=("monitor")
-    commands+=("help")
+    commands+=("mrt")
+    commands+=("rpki")
 
     flags=()
     two_word_flags=()
@@ -957,8 +1194,6 @@ _gobgp()
     flags+=("-d")
     flags+=("--gen-cmpl")
     flags+=("-c")
-    flags+=("--help")
-    flags+=("-h")
     flags+=("--host=")
     two_word_flags+=("-u")
     flags+=("--json")
@@ -975,7 +1210,11 @@ _gobgp()
 __start_gobgp()
 {
     local cur prev words cword
-    _init_completion -s || return
+    if declare -F _init_completions >/dev/null 2>&1; then
+        _init_completion -s || return
+    else
+        __my_init_completion || return
+    fi
 
     local c=0
     local flags=()
@@ -987,12 +1226,6 @@ __start_gobgp()
     local must_have_one_noun=()
     local last_command
     local nouns=()
-
-    neighbor_searched="False"
-    policy_searched="False"
-    want_state="False"
-    routepolicy=""
-
 
     __handle_word
 }
