@@ -95,21 +95,21 @@ func policy() config.RoutingPolicy {
 	cs := config.CommunitySet{
 		CommunitySetName: "community1",
 		CommunityList: []config.Community{
-			config.Community{"65100:10"},
+			config.Community{Community: "65100:10"},
 		},
 	}
 
 	ecs := config.ExtCommunitySet{
 		ExtCommunitySetName: "ecommunity1",
 		ExtCommunityList: []config.ExtCommunity{
-			config.ExtCommunity{"RT:65001:200"},
+			config.ExtCommunity{ExtCommunity: "RT:65001:200"},
 		},
 	}
 
 	as := config.AsPathSet{
 		AsPathSetName: "aspath1",
 		AsPathList: []config.AsPath{
-			config.AsPath{"^65100"},
+			config.AsPath{AsPath: "^65100"},
 		},
 	}
 
