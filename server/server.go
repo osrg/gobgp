@@ -737,7 +737,7 @@ func (server *BgpServer) handleFSMMessage(peer *Peer, e *fsmMsg, incoming chan *
 				}
 				server.broadcastMsgs = append(server.broadcastMsgs, m)
 			}
-			pathList, _ := server.getBestFromLocal(peer)
+			pathList, _ := peer.getBestFromLocal()
 			if len(pathList) > 0 {
 				peer.adjRib.UpdateOut(pathList)
 				msgs = append(msgs, newSenderMsg(peer, table.CreateUpdateMsgFromPaths(pathList)))
@@ -1268,23 +1268,6 @@ func sendMultipleResponses(grpcReq *GrpcRequest, results []*GrpcResponse) {
 	}
 }
 
-func (server *BgpServer) getBestFromLocal(peer *Peer) ([]*table.Path, []*table.Path) {
-	var pathList []*table.Path
-	var filtered []*table.Path
-	if peer.isRouteServerClient() {
-		pathList, filtered = peer.ApplyPolicy(table.POLICY_DIRECTION_EXPORT, filterpath(peer, peer.getBests(peer.localRib)))
-	} else {
-		rib := server.globalRib
-		bests := rib.ApplyPolicy(table.POLICY_DIRECTION_EXPORT, filterpath(peer, peer.getBests(rib)))
-		pathList = make([]*table.Path, 0, len(bests))
-		for _, path := range bests {
-			path.UpdatePathAttrs(&server.bgpConfig.Global, &peer.conf)
-			pathList = append(pathList, path)
-		}
-	}
-	return pathList, filtered
-}
-
 func (server *BgpServer) handleGrpc(grpcReq *GrpcRequest) []*SenderMsg {
 	var msgs []*SenderMsg
 
@@ -1514,7 +1497,7 @@ func (server *BgpServer) handleGrpc(grpcReq *GrpcRequest) []*SenderMsg {
 				peer.adjRib.DropOut(rf)
 			}
 
-			pathList, filtered := server.getBestFromLocal(peer)
+			pathList, filtered := peer.getBestFromLocal()
 			if len(pathList) > 0 {
 				peer.adjRib.UpdateOut(pathList)
 				msgs = append(msgs, newSenderMsg(peer, table.CreateUpdateMsgFromPaths(pathList)))

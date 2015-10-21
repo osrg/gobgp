@@ -125,6 +125,16 @@ func (peer *Peer) getAccepted(rfList []bgp.RouteFamily) []*table.Path {
 	return pathList
 }
 
+func (peer *Peer) getBestFromLocal() ([]*table.Path, []*table.Path) {
+	pathList, filtered := peer.ApplyPolicy(table.POLICY_DIRECTION_EXPORT, filterpath(peer, peer.getBests(peer.localRib)))
+	if peer.isRouteServerClient() == false {
+		for _, path := range pathList {
+			path.UpdatePathAttrs(&peer.gConf, &peer.conf)
+		}
+	}
+	return pathList, filtered
+}
+
 func (peer *Peer) handleBGPmessage(m *bgp.BGPMessage) ([]*table.Path, bool, []*bgp.BGPMessage) {
 	bgpMsgList := []*bgp.BGPMessage{}
 	pathList := []*table.Path{}
