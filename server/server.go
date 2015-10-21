@@ -731,7 +731,7 @@ func (server *BgpServer) handleFSMMessage(peer *Peer, e *fsmMsg, incoming chan *
 				}
 				server.broadcastMsgs = append(server.broadcastMsgs, m)
 			}
-			pathList, _ := peer.getBestFromLocal()
+			pathList, _ := peer.getBestFromLocal(peer.configuredRFlist())
 			if len(pathList) > 0 {
 				peer.adjRib.UpdateOut(pathList)
 				msgs = append(msgs, newSenderMsg(peer, table.CreateUpdateMsgFromPaths(pathList)))
@@ -1487,9 +1487,9 @@ func (server *BgpServer) handleGrpc(grpcReq *GrpcRequest) []*SenderMsg {
 			logOp(grpcReq.Name, "Neighbor soft reset out")
 		}
 		for _, peer := range peers {
-			peer.adjRib.DropOut(peer.configuredRFlist())
-
-			pathList, filtered := peer.getBestFromLocal()
+			rfList := peer.configuredRFlist()
+			peer.adjRib.DropOut(rfList)
+			pathList, filtered := peer.getBestFromLocal(rfList)
 			if len(pathList) > 0 {
 				peer.adjRib.UpdateOut(pathList)
 				msgs = append(msgs, newSenderMsg(peer, table.CreateUpdateMsgFromPaths(pathList)))

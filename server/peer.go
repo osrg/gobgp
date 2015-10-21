@@ -123,8 +123,8 @@ func (peer *Peer) getAccepted(rfList []bgp.RouteFamily) []*table.Path {
 	return pathList
 }
 
-func (peer *Peer) getBestFromLocal() ([]*table.Path, []*table.Path) {
-	pathList, filtered := peer.ApplyPolicy(table.POLICY_DIRECTION_EXPORT, filterpath(peer, peer.localRib.GetBestPathList(peer.localRib.GetRFlist())))
+func (peer *Peer) getBestFromLocal(rfList []bgp.RouteFamily) ([]*table.Path, []*table.Path) {
+	pathList, filtered := peer.ApplyPolicy(table.POLICY_DIRECTION_EXPORT, filterpath(peer, peer.localRib.GetBestPathList(rfList)))
 	if peer.isRouteServerClient() == false {
 		for _, path := range pathList {
 			path.UpdatePathAttrs(&peer.gConf, &peer.conf)
@@ -203,7 +203,14 @@ func (peer *Peer) handleBGPmessage(m *bgp.BGPMessage) ([]*table.Path, bool, []*b
 			break
 		}
 		if _, ok := peer.capMap[bgp.BGP_CAP_ROUTE_REFRESH]; ok {
-			pathList = peer.adjRib.GetOutPathList([]bgp.RouteFamily{rf})
+			rfList := []bgp.RouteFamily{rf}
+			peer.adjRib.DropOut(rfList)
+			pathList, filtered := peer.getBestFromLocal(rfList)
+			peer.adjRib.UpdateOut(pathList)
+			for _, path := range filtered {
+				path.IsWithdraw = true
+				pathList = append(pathList, path)
+			}
 		} else {
 			log.WithFields(log.Fields{
 				"Topic": "Peer",
