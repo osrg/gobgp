@@ -365,7 +365,7 @@ func (c *Client) SendRedistributeDelete(t ROUTE_TYPE) error {
 			return e
 		}
 	} else {
-		fmt.Errorf("unknown route type: %d", t)
+		return fmt.Errorf("unknown route type: %d", t)
 	}
 	return nil
 }
