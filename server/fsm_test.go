@@ -314,10 +314,10 @@ func open() *bgp.BGPMessage {
 		[]bgp.ParameterCapabilityInterface{bgp.NewCapRouteRefresh()})
 	p2 := bgp.NewOptionParameterCapability(
 		[]bgp.ParameterCapabilityInterface{bgp.NewCapMultiProtocol(bgp.RF_IPv4_UC)})
-	g := bgp.CapGracefulRestartTuples{4, 2, 3}
+	g := &bgp.CapGracefulRestartTuple{4, 2, 3}
 	p3 := bgp.NewOptionParameterCapability(
-		[]bgp.ParameterCapabilityInterface{bgp.NewCapGracefulRestart(2, 100,
-			[]bgp.CapGracefulRestartTuples{g})})
+		[]bgp.ParameterCapabilityInterface{bgp.NewCapGracefulRestart(true, 100,
+			[]*bgp.CapGracefulRestartTuple{g})})
 	p4 := bgp.NewOptionParameterCapability(
 		[]bgp.ParameterCapabilityInterface{bgp.NewCapFourOctetASNumber(100000)})
 	return bgp.NewBGPOpenMessage(11033, 303, "100.4.10.3",
