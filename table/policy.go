@@ -770,7 +770,7 @@ func (s *ExtCommunitySet) ToApiStruct() *api.DefinedSet {
 		case bgp.EC_SUBTYPE_ROUTE_ORIGIN:
 			return fmt.Sprintf("soo:%s", arg)
 		default:
-			return fmt.Sprintf("%d:%s", s.subtypeList[idx])
+			return fmt.Sprintf("%d:%s", s.subtypeList[idx], arg)
 		}
 	}
 	for idx, exp := range s.list {
@@ -1660,7 +1660,7 @@ func (a *ExtCommunityAction) ToApiStruct() *api.CommunityAction {
 		case bgp.EC_SUBTYPE_ROUTE_ORIGIN:
 			return fmt.Sprintf("soo:%s", arg)
 		default:
-			return fmt.Sprintf("%d:%s", a.subtypeList[idx])
+			return fmt.Sprintf("%d:%s", a.subtypeList[idx], arg)
 		}
 	}
 	for idx, c := range a.list {
