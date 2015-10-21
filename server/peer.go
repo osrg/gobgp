@@ -205,8 +205,9 @@ func (peer *Peer) handleBGPmessage(m *bgp.BGPMessage) ([]*table.Path, bool, []*b
 		if _, ok := peer.capMap[bgp.BGP_CAP_ROUTE_REFRESH]; ok {
 			rfList := []bgp.RouteFamily{rf}
 			peer.adjRib.DropOut(rfList)
-			pathList, filtered := peer.getBestFromLocal(rfList)
-			peer.adjRib.UpdateOut(pathList)
+			accepted, filtered := peer.getBestFromLocal(rfList)
+			peer.adjRib.UpdateOut(accepted)
+			pathList = append(pathList, accepted...)
 			for _, path := range filtered {
 				path.IsWithdraw = true
 				pathList = append(pathList, path)
