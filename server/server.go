@@ -726,8 +726,10 @@ func (server *BgpServer) handleFSMMessage(peer *Peer, e *fsmMsg, incoming chan *
 		close(peer.outgoing)
 		peer.outgoing = make(chan *bgp.BGPMessage, 128)
 		if nextState == bgp.BGP_FSM_ESTABLISHED {
+			// update for export policy
+			laddr, lport := peer.fsm.LocalHostPort()
+			peer.conf.Transport.TransportConfig.LocalAddress = net.ParseIP(laddr)
 			if ch := server.bmpClient.send(); ch != nil {
-				laddr, lport := peer.fsm.LocalHostPort()
 				_, rport := peer.fsm.RemoteHostPort()
 				m := &broadcastBMPMsg{
 					ch:      ch,
@@ -1273,8 +1275,6 @@ func (server *BgpServer) getBestFromLocal(peer *Peer) ([]*table.Path, []*table.P
 		pathList, filtered = peer.ApplyPolicy(table.POLICY_DIRECTION_EXPORT, filterpath(peer, peer.getBests(peer.localRib)))
 	} else {
 		rib := server.globalRib
-		l, _ := peer.fsm.LocalHostPort()
-		peer.conf.Transport.TransportConfig.LocalAddress = net.ParseIP(l)
 		bests := rib.ApplyPolicy(table.POLICY_DIRECTION_EXPORT, filterpath(peer, peer.getBests(rib)))
 		pathList = make([]*table.Path, 0, len(bests))
 		for _, path := range bests {
