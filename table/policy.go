@@ -611,7 +611,7 @@ func NewAsPathSetFromApiStruct(a *api.DefinedSet) (*AsPathSet, error) {
 		AsPathList:    make([]config.AsPath, 0, len(a.List)),
 	}
 	for _, x := range a.List {
-		c.AsPathList = append(c.AsPathList, config.AsPath{x})
+		c.AsPathList = append(c.AsPathList, config.AsPath{AsPath: x})
 	}
 	return NewAsPathSet(c)
 }
@@ -726,7 +726,7 @@ func NewCommunitySetFromApiStruct(a *api.DefinedSet) (*CommunitySet, error) {
 		CommunityList:    make([]config.Community, 0, len(a.List)),
 	}
 	for _, x := range a.List {
-		c.CommunityList = append(c.CommunityList, config.Community{x})
+		c.CommunityList = append(c.CommunityList, config.Community{Community: x})
 	}
 	return NewCommunitySet(c)
 }
@@ -789,7 +789,7 @@ func NewExtCommunitySetFromApiStruct(a *api.DefinedSet) (*ExtCommunitySet, error
 		ExtCommunityList:    make([]config.ExtCommunity, 0, len(a.List)),
 	}
 	for _, x := range a.List {
-		c.ExtCommunityList = append(c.ExtCommunityList, config.ExtCommunity{x})
+		c.ExtCommunityList = append(c.ExtCommunityList, config.ExtCommunity{ExtCommunity: x})
 	}
 	return NewExtCommunitySet(c)
 }

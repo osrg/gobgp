@@ -47,13 +47,13 @@ func TestPrefixCalcurateNoRange(t *testing.T) {
 	updateMsg := bgp.NewBGPUpdateMessage(nil, pathAttributes, nlri)
 	path := ProcessMessage(updateMsg, peer)[0]
 	// test
-	pl1, _ := NewPrefix(config.Prefix{"10.10.0.0/24", ""})
+	pl1, _ := NewPrefix(config.Prefix{IpPrefix: "10.10.0.0/24", MasklengthRange: ""})
 	match1 := pl1.Match(path)
 	assert.Equal(t, true, match1)
-	pl2, _ := NewPrefix(config.Prefix{"10.10.0.0/23", ""})
+	pl2, _ := NewPrefix(config.Prefix{IpPrefix: "10.10.0.0/23", MasklengthRange: ""})
 	match2 := pl2.Match(path)
 	assert.Equal(t, false, match2)
-	pl3, _ := NewPrefix(config.Prefix{"10.10.0.0/16", "21..24"})
+	pl3, _ := NewPrefix(config.Prefix{IpPrefix: "10.10.0.0/16", MasklengthRange: "21..24"})
 	match3 := pl3.Match(path)
 	assert.Equal(t, true, match3)
 }
@@ -71,10 +71,10 @@ func TestPrefixCalcurateAddress(t *testing.T) {
 	updateMsg := bgp.NewBGPUpdateMessage(nil, pathAttributes, nlri)
 	path := ProcessMessage(updateMsg, peer)[0]
 	// test
-	pl1, _ := NewPrefix(config.Prefix{"10.11.0.0/16", "21..24"})
+	pl1, _ := NewPrefix(config.Prefix{IpPrefix: "10.11.0.0/16", MasklengthRange: "21..24"})
 	match1 := pl1.Match(path)
 	assert.Equal(t, false, match1)
-	pl2, _ := NewPrefix(config.Prefix{"10.10.0.0/16", "21..24"})
+	pl2, _ := NewPrefix(config.Prefix{IpPrefix: "10.10.0.0/16", MasklengthRange: "21..24"})
 	match2 := pl2.Match(path)
 	assert.Equal(t, true, match2)
 }
@@ -92,10 +92,10 @@ func TestPrefixCalcurateLength(t *testing.T) {
 	updateMsg := bgp.NewBGPUpdateMessage(nil, pathAttributes, nlri)
 	path := ProcessMessage(updateMsg, peer)[0]
 	// test
-	pl1, _ := NewPrefix(config.Prefix{"10.10.64.0/24", "21..24"})
+	pl1, _ := NewPrefix(config.Prefix{IpPrefix: "10.10.64.0/24", MasklengthRange: "21..24"})
 	match1 := pl1.Match(path)
 	assert.Equal(t, false, match1)
-	pl2, _ := NewPrefix(config.Prefix{"10.10.64.0/16", "21..24"})
+	pl2, _ := NewPrefix(config.Prefix{IpPrefix: "10.10.64.0/16", MasklengthRange: "21..24"})
 	match2 := pl2.Match(path)
 	assert.Equal(t, true, match2)
 }
@@ -113,13 +113,13 @@ func TestPrefixCalcurateLengthRange(t *testing.T) {
 	updateMsg := bgp.NewBGPUpdateMessage(nil, pathAttributes, nlri)
 	path := ProcessMessage(updateMsg, peer)[0]
 	// test
-	pl1, _ := NewPrefix(config.Prefix{"10.10.0.0/16", "21..23"})
+	pl1, _ := NewPrefix(config.Prefix{IpPrefix: "10.10.0.0/16", MasklengthRange: "21..23"})
 	match1 := pl1.Match(path)
 	assert.Equal(t, false, match1)
-	pl2, _ := NewPrefix(config.Prefix{"10.10.0.0/16", "25..26"})
+	pl2, _ := NewPrefix(config.Prefix{IpPrefix: "10.10.0.0/16", MasklengthRange: "25..26"})
 	match2 := pl2.Match(path)
 	assert.Equal(t, false, match2)
-	pl3, _ := NewPrefix(config.Prefix{"10.10.0.0/16", "21..24"})
+	pl3, _ := NewPrefix(config.Prefix{IpPrefix: "10.10.0.0/16", MasklengthRange: "21..24"})
 	match3 := pl3.Match(path)
 	assert.Equal(t, true, match3)
 }
@@ -138,13 +138,13 @@ func TestPrefixCalcurateNoRangeIPv6(t *testing.T) {
 	updateMsg := bgp.NewBGPUpdateMessage(nil, pathAttributes, nil)
 	path := ProcessMessage(updateMsg, peer)[0]
 	// test
-	pl1, _ := NewPrefix(config.Prefix{"2001:123:123::/48", ""})
+	pl1, _ := NewPrefix(config.Prefix{IpPrefix: "2001:123:123::/48", MasklengthRange: ""})
 	match1 := pl1.Match(path)
 	assert.Equal(t, false, match1)
-	pl2, _ := NewPrefix(config.Prefix{"2001:123:123:1::/64", ""})
+	pl2, _ := NewPrefix(config.Prefix{IpPrefix: "2001:123:123:1::/64", MasklengthRange: ""})
 	match2 := pl2.Match(path)
 	assert.Equal(t, true, match2)
-	pl3, _ := NewPrefix(config.Prefix{"2001:123:123::/48", "64..80"})
+	pl3, _ := NewPrefix(config.Prefix{IpPrefix: "2001:123:123::/48", MasklengthRange: "64..80"})
 	match3 := pl3.Match(path)
 	assert.Equal(t, true, match3)
 }
@@ -162,10 +162,10 @@ func TestPrefixCalcurateAddressIPv6(t *testing.T) {
 	updateMsg := bgp.NewBGPUpdateMessage(nil, pathAttributes, nil)
 	path := ProcessMessage(updateMsg, peer)[0]
 	// test
-	pl1, _ := NewPrefix(config.Prefix{"2001:123:128::/48", "64..80"})
+	pl1, _ := NewPrefix(config.Prefix{IpPrefix: "2001:123:128::/48", MasklengthRange: "64..80"})
 	match1 := pl1.Match(path)
 	assert.Equal(t, false, match1)
-	pl2, _ := NewPrefix(config.Prefix{"2001:123:123::/48", "64..80"})
+	pl2, _ := NewPrefix(config.Prefix{IpPrefix: "2001:123:123::/48", MasklengthRange: "64..80"})
 	match2 := pl2.Match(path)
 	assert.Equal(t, true, match2)
 }
@@ -183,10 +183,10 @@ func TestPrefixCalcurateLengthIPv6(t *testing.T) {
 	updateMsg := bgp.NewBGPUpdateMessage(nil, pathAttributes, nil)
 	path := ProcessMessage(updateMsg, peer)[0]
 	// test
-	pl1, _ := NewPrefix(config.Prefix{"2001:123:123:64::/64", "64..80"})
+	pl1, _ := NewPrefix(config.Prefix{IpPrefix: "2001:123:123:64::/64", MasklengthRange: "64..80"})
 	match1 := pl1.Match(path)
 	assert.Equal(t, false, match1)
-	pl2, _ := NewPrefix(config.Prefix{"2001:123:123:64::/48", "64..80"})
+	pl2, _ := NewPrefix(config.Prefix{IpPrefix: "2001:123:123:64::/48", MasklengthRange: "64..80"})
 	match2 := pl2.Match(path)
 	assert.Equal(t, true, match2)
 }
@@ -204,13 +204,13 @@ func TestPrefixCalcurateLengthRangeIPv6(t *testing.T) {
 	updateMsg := bgp.NewBGPUpdateMessage(nil, pathAttributes, nil)
 	path := ProcessMessage(updateMsg, peer)[0]
 	// test
-	pl1, _ := NewPrefix(config.Prefix{"2001:123:123::/48", "62..63"})
+	pl1, _ := NewPrefix(config.Prefix{IpPrefix: "2001:123:123::/48", MasklengthRange: "62..63"})
 	match1 := pl1.Match(path)
 	assert.Equal(t, false, match1)
-	pl2, _ := NewPrefix(config.Prefix{"2001:123:123::/48", "65..66"})
+	pl2, _ := NewPrefix(config.Prefix{IpPrefix: "2001:123:123::/48", MasklengthRange: "65..66"})
 	match2 := pl2.Match(path)
 	assert.Equal(t, false, match2)
-	pl3, _ := NewPrefix(config.Prefix{"2001:123:123::/48", "63..65"})
+	pl3, _ := NewPrefix(config.Prefix{IpPrefix: "2001:123:123::/48", MasklengthRange: "63..65"})
 	match3 := pl3.Match(path)
 	assert.Equal(t, true, match3)
 }
@@ -937,7 +937,7 @@ func TestAsPathCondition(t *testing.T) {
 	for k, v := range tests {
 		s, _ := NewAsPathSet(config.AsPathSet{
 			AsPathSetName: k,
-			AsPathList:    []config.AsPath{config.AsPath{k}},
+			AsPathList:    []config.AsPath{config.AsPath{AsPath: k}},
 		})
 		c, _ := NewAsPathCondition(config.MatchAsPathSet{
 			AsPathSet:       k,
@@ -979,7 +979,7 @@ func TestAsPathConditionWithOtherCondition(t *testing.T) {
 	// create policy
 	asPathSet := config.AsPathSet{
 		AsPathSetName: "asset1",
-		AsPathList:    []config.AsPath{config.AsPath{"65005$"}},
+		AsPathList:    []config.AsPath{config.AsPath{AsPath: "65005$"}},
 	}
 
 	ps := createPrefixSet("ps1", "10.10.1.0/16", "21..24")
@@ -1283,7 +1283,7 @@ func TestAs4PathConditionWithOtherCondition(t *testing.T) {
 	asPathSet := config.AsPathSet{
 		AsPathSetName: "asset1",
 		AsPathList: []config.AsPath{config.AsPath{
-			fmt.Sprintf("%d$", createAs4Value("65005.1")),
+			AsPath: fmt.Sprintf("%d$", createAs4Value("65005.1")),
 		}},
 	}
 
@@ -1469,75 +1469,75 @@ func TestCommunityConditionEvaluate(t *testing.T) {
 	comSet1 := config.CommunitySet{
 		CommunitySetName: "comset1",
 		CommunityList: []config.Community{
-			config.Community{"65001:10"},
-			config.Community{"65001:50"},
-			config.Community{"65001:100"},
+			config.Community{Community: "65001:10"},
+			config.Community{Community: "65001:50"},
+			config.Community{Community: "65001:100"},
 		},
 	}
 
 	comSet2 := config.CommunitySet{
 		CommunitySetName: "comset2",
 		CommunityList: []config.Community{
-			config.Community{"65001:200"},
+			config.Community{Community: "65001:200"},
 		},
 	}
 
 	comSet3 := config.CommunitySet{
 		CommunitySetName: "comset3",
 		CommunityList: []config.Community{
-			config.Community{"4259905936"},
+			config.Community{Community: "4259905936"},
 		},
 	}
 
 	comSet4 := config.CommunitySet{
 		CommunitySetName: "comset4",
 		CommunityList: []config.Community{
-			config.Community{"^[0-9]*:300$"},
+			config.Community{Community: "^[0-9]*:300$"},
 		},
 	}
 
 	comSet5 := config.CommunitySet{
 		CommunitySetName: "comset5",
 		CommunityList: []config.Community{
-			config.Community{"INTERNET"},
+			config.Community{Community: "INTERNET"},
 		},
 	}
 
 	comSet6 := config.CommunitySet{
 		CommunitySetName: "comset6",
 		CommunityList: []config.Community{
-			config.Community{"NO_EXPORT"},
+			config.Community{Community: "NO_EXPORT"},
 		},
 	}
 
 	comSet7 := config.CommunitySet{
 		CommunitySetName: "comset7",
 		CommunityList: []config.Community{
-			config.Community{"NO_ADVERTISE"},
+			config.Community{Community: "NO_ADVERTISE"},
 		},
 	}
 
 	comSet8 := config.CommunitySet{
 		CommunitySetName: "comset8",
 		CommunityList: []config.Community{
-			config.Community{"NO_EXPORT_SUBCONFED"},
+			config.Community{Community: "NO_EXPORT_SUBCONFED"},
 		},
 	}
 
 	comSet9 := config.CommunitySet{
 		CommunitySetName: "comset9",
 		CommunityList: []config.Community{
-			config.Community{"65001:\\d+"},
-			config.Community{"\\d+:\\d00"},
+			config.Community{Community: "65001:\\d+"},
+			config.Community{Community: "\\d+:\\d00"},
 		},
 	}
 
 	comSet10 := config.CommunitySet{
 		CommunitySetName: "comset10",
 		CommunityList: []config.Community{
-			config.Community{"65001:1"},
-			config.Community{"65001:2"},
-			config.Community{"65001:3"},
+			config.Community{Community: "65001:1"},
+			config.Community{Community: "65001:2"},
+			config.Community{Community: "65001:3"},
 		},
 	}
 
@@ -1619,23 +1619,23 @@ func TestCommunityConditionEvaluateWithOtherCondition(t *testing.T) {
 	asPathSet := config.AsPathSet{
 		AsPathSetName: "asset1",
 		AsPathList: []config.AsPath{
-			config.AsPath{"65005$"},
+			config.AsPath{AsPath: "65005$"},
 		},
 	}
 
 	comSet1 := config.CommunitySet{
 		CommunitySetName: "comset1",
 		CommunityList: []config.Community{
-			config.Community{"65001:100"},
-			config.Community{"65001:200"},
-			config.Community{"65001:300"},
+			config.Community{Community: "65001:100"},
+			config.Community{Community: "65001:200"},
+			config.Community{Community: "65001:300"},
 		},
 	}
 
 	comSet2 := config.CommunitySet{
 		CommunitySetName: "comset2",
 		CommunityList: []config.Community{
-			config.Community{"65050:\\d+"},
+			config.Community{Community: "65050:\\d+"},
 		},
 	}
 
@@ -2028,70 +2028,70 @@ func TestExtCommunityConditionEvaluate(t *testing.T) {
 	ecomSet1 := config.ExtCommunitySet{
 		ExtCommunitySetName: "ecomSet1",
 		ExtCommunityList: []config.ExtCommunity{
-			config.ExtCommunity{"RT:65001:200"},
+			config.ExtCommunity{ExtCommunity: "RT:65001:200"},
 		},
 	}
 	ecomSet2 := config.ExtCommunitySet{
 		ExtCommunitySetName: "ecomSet2",
 		ExtCommunityList: []config.ExtCommunity{
-			config.ExtCommunity{"RT:10.0.0.1:300"},
+			config.ExtCommunity{ExtCommunity: "RT:10.0.0.1:300"},
 		},
 	}
 	ecomSet3 := config.ExtCommunitySet{
 		ExtCommunitySetName: "ecomSet3",
 		ExtCommunityList: []config.ExtCommunity{
-			config.ExtCommunity{fmt.Sprintf("RT:%s:200", convUintStr(65030000))},
+			config.ExtCommunity{ExtCommunity: fmt.Sprintf("RT:%s:200", convUintStr(65030000))},
 		},
 	}
 	ecomSet4 := config.ExtCommunitySet{
 		ExtCommunitySetName: "ecomSet4",
 		ExtCommunityList: []config.ExtCommunity{
-			config.ExtCommunity{"RT:65002:200"},
+			config.ExtCommunity{ExtCommunity: "RT:65002:200"},
 		},
 	}
 	ecomSet5 := config.ExtCommunitySet{
 		ExtCommunitySetName: "ecomSet5",
 		ExtCommunityList: []config.ExtCommunity{
-			config.ExtCommunity{"RT:10.0.0.2:300"},
+			config.ExtCommunity{ExtCommunity: "RT:10.0.0.2:300"},
 		},
 	}
 	ecomSet6 := config.ExtCommunitySet{
 		ExtCommunitySetName: "ecomSet6",
 		ExtCommunityList: []config.ExtCommunity{
-			config.ExtCommunity{fmt.Sprintf("RT:%s:200", convUintStr(65030001))},
+			config.ExtCommunity{ExtCommunity: fmt.Sprintf("RT:%s:200", convUintStr(65030001))},
 		},
 	}
 	ecomSet7 := config.ExtCommunitySet{
 		ExtCommunitySetName: "ecomSet7",
 		ExtCommunityList: []config.ExtCommunity{
-			config.ExtCommunity{"SoO:65010:300"},
+			config.ExtCommunity{ExtCommunity: "SoO:65010:300"},
 		},
 	}
 	ecomSet8 := config.ExtCommunitySet{
 		ExtCommunitySetName: "ecomSet8",
 		ExtCommunityList: []config.ExtCommunity{
-			config.ExtCommunity{"SoO:10.0.10.10:[0-9]+"},
+			config.ExtCommunity{ExtCommunity: "SoO:10.0.10.10:[0-9]+"},
 		},
 	}
 	ecomSet9 := config.ExtCommunitySet{
 		ExtCommunitySetName: "ecomSet9",
 		ExtCommunityList: []config.ExtCommunity{
-			config.ExtCommunity{"RT:[0-9]+:[0-9]+"},
+			config.ExtCommunity{ExtCommunity: "RT:[0-9]+:[0-9]+"},
 		},
 	}
 	ecomSet10 := config.ExtCommunitySet{
 		ExtCommunitySetName: "ecomSet10",
 		ExtCommunityList: []config.ExtCommunity{
-			config.ExtCommunity{"RT:.+:\\d00"},
-			config.ExtCommunity{"SoO:.+:\\d00"},
+			config.ExtCommunity{ExtCommunity: "RT:.+:\\d00"},
+			config.ExtCommunity{ExtCommunity: "SoO:.+:\\d00"},
 		},
 	}
 
 	ecomSet11 := config.ExtCommunitySet{
 		ExtCommunitySetName: "ecomSet11",
 		ExtCommunityList: []config.ExtCommunity{
-			config.ExtCommunity{"RT:65001:2"},
-			config.ExtCommunity{"SoO:11.0.10.10:[0-9]+"},
+			config.ExtCommunity{ExtCommunity: "RT:65001:2"},
+			config.ExtCommunity{ExtCommunity: "SoO:11.0.10.10:[0-9]+"},
 		},
 	}
 
@@ -2224,20 +2224,20 @@ func TestExtCommunityConditionEvaluateWithOtherCondition(t *testing.T) {
 	asPathSet := config.AsPathSet{
 		AsPathSetName: "asset1",
 		AsPathList: []config.AsPath{
-			config.AsPath{"65005$"},
+			config.AsPath{AsPath: "65005$"},
 		},
 	}
 
 	ecomSet1 := config.ExtCommunitySet{
 		ExtCommunitySetName: "ecomSet1",
 		ExtCommunityList: []config.ExtCommunity{
-			config.ExtCommunity{"RT:65001:201"},
+			config.ExtCommunity{ExtCommunity: "RT:65001:201"},
 		},
 	}
 	ecomSet2 := config.ExtCommunitySet{
 		ExtCommunitySetName: "ecomSet2",
 		ExtCommunityList: []config.ExtCommunity{
-			config.ExtCommunity{"RT:[0-9]+:[0-9]+"},
+			config.ExtCommunity{ExtCommunity: "RT:[0-9]+:[0-9]+"},
 		},
 	}
 
