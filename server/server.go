@@ -1124,7 +1124,7 @@ func (server *BgpServer) handleModPathRequest(grpcReq *GrpcRequest) []*table.Pat
 				macIpAdv := evpnNlri.RouteTypeData.(*bgp.EVPNMacIPAdvertisementRoute)
 				etag := macIpAdv.ETag
 				mac := macIpAdv.MacAddress
-				paths := server.globalRib.GetBestPathList(bgp.RF_EVPN)
+				paths := server.globalRib.GetBestPathList([]bgp.RouteFamily{bgp.RF_EVPN})
 				if m := getMacMobilityExtendedCommunity(etag, mac, paths); m != nil {
 					extcomms = append(extcomms, m)
 				}

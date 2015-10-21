@@ -456,6 +456,16 @@ func (manager *TableManager) handleMacMobility(path *Path) []*Destination {
 	return dsts
 }
 
+func (manager *TableManager) getDestinationCount(rfList []bgp.RouteFamily) int {
+	count := 0
+	for _, rf := range rfList {
+		if _, ok := manager.Tables[rf]; ok {
+			count += len(manager.Tables[rf].GetDestinations())
+		}
+	}
+	return count
+}
+
 func (manager *TableManager) GetPathList(rf bgp.RouteFamily) []*Path {
 	if _, ok := manager.Tables[rf]; !ok {
 		return []*Path{}
@@ -468,14 +478,15 @@ func (manager *TableManager) GetPathList(rf bgp.RouteFamily) []*Path {
 	return paths
 }
 
-func (manager *TableManager) GetBestPathList(rf bgp.RouteFamily) []*Path {
-	if _, ok := manager.Tables[rf]; !ok {
-		return []*Path{}
-	}
-	destinations := manager.Tables[rf].GetDestinations()
-	paths := make([]*Path, 0, len(destinations))
-	for _, dest := range destinations {
-		paths = append(paths, dest.GetBestPath())
+func (manager *TableManager) GetBestPathList(rfList []bgp.RouteFamily) []*Path {
+	paths := make([]*Path, 0, manager.getDestinationCount(rfList))
+	for _, rf := range rfList {
+		if _, ok := manager.Tables[rf]; ok {
+			destinations := manager.Tables[rf].GetDestinations()
+			for _, dest := range destinations {
+				paths = append(paths, dest.GetBestPath())
+			}
+		}
 	}
 	return paths
 }
