@@ -540,55 +540,59 @@ func (adj *AdjRib) UpdateOut(pathList []*Path) {
 	adj.update(adj.adjRibOut, pathList)
 }
 
-func (adj *AdjRib) getPathList(rib map[string]*Path) []*Path {
-	pathList := make([]*Path, 0, len(rib))
-	for _, rr := range rib {
-		pathList = append(pathList, rr)
+func (adj *AdjRib) GetInPathList(rfList []bgp.RouteFamily) []*Path {
+	pathList := make([]*Path, 0, adj.GetInCount(rfList))
+	for _, rf := range rfList {
+		for _, rr := range adj.adjRibIn[rf] {
+			pathList = append(pathList, rr)
+		}
 	}
 	return pathList
 }
 
-func (adj *AdjRib) GetInPathList(rf bgp.RouteFamily) []*Path {
-	if _, ok := adj.adjRibIn[rf]; !ok {
-		return []*Path{}
+func (adj *AdjRib) GetOutPathList(rfList []bgp.RouteFamily) []*Path {
+	pathList := make([]*Path, 0, adj.GetOutCount(rfList))
+	for _, rf := range rfList {
+		for _, rr := range adj.adjRibOut[rf] {
+			pathList = append(pathList, rr)
+		}
 	}
-	return adj.getPathList(adj.adjRibIn[rf])
+	return pathList
 }
 
-func (adj *AdjRib) GetOutPathList(rf bgp.RouteFamily) []*Path {
-	if _, ok := adj.adjRibOut[rf]; !ok {
-		return []*Path{}
+func (adj *AdjRib) GetInCount(rfList []bgp.RouteFamily) int {
+	count := 0
+	for _, rf := range rfList {
+		if _, ok := adj.adjRibIn[rf]; ok {
+			count += len(adj.adjRibIn[rf])
+
+		}
 	}
-	return adj.getPathList(adj.adjRibOut[rf])
+	return count
 }
 
-func (adj *AdjRib) GetInCount(rf bgp.RouteFamily) int {
-	if _, ok := adj.adjRibIn[rf]; !ok {
-		return 0
+func (adj *AdjRib) GetOutCount(rfList []bgp.RouteFamily) int {
+	count := 0
+	for _, rf := range rfList {
+		if _, ok := adj.adjRibOut[rf]; ok {
+			count += len(adj.adjRibOut[rf])
+		}
 	}
-	return len(adj.adjRibIn[rf])
+	return count
 }
 
-func (adj *AdjRib) GetOutCount(rf bgp.RouteFamily) int {
-	if _, ok := adj.adjRibOut[rf]; !ok {
-		return 0
-	}
-	return len(adj.adjRibOut[rf])
-}
-
-func (adj *AdjRib) DropIn(rf bgp.RouteFamily) {
-	if _, ok := adj.adjRibIn[rf]; ok {
-		adj.adjRibIn[rf] = make(map[string]*Path)
-	}
-}
-
-func (adj *AdjRib) DropOut(rf bgp.RouteFamily) {
-	if _, ok := adj.adjRibIn[rf]; ok {
-		adj.adjRibOut[rf] = make(map[string]*Path)
+func (adj *AdjRib) DropIn(rfList []bgp.RouteFamily) {
+	for _, rf := range rfList {
+		if _, ok := adj.adjRibIn[rf]; ok {
+			adj.adjRibIn[rf] = make(map[string]*Path)
+		}
 	}
 }
 
-func (adj *AdjRib) DropAll(rf bgp.RouteFamily) {
-	adj.DropIn(rf)
-	adj.DropOut(rf)
+func (adj *AdjRib) DropOut(rfList []bgp.RouteFamily) {
+	for _, rf := range rfList {
+		if _, ok := adj.adjRibIn[rf]; ok {
+			adj.adjRibOut[rf] = make(map[string]*Path)
+		}
+	}
 }

@@ -2154,7 +2154,7 @@ func TestProcessBGPUpdate_Timestamp(t *testing.T) {
 	//t2 = path2.timestamp
 	adjRib.UpdateIn(pList2)
 
-	inList := adjRib.GetInPathList(bgp.RF_IPv4_UC)
+	inList := adjRib.GetInPathList([]bgp.RouteFamily{bgp.RF_IPv4_UC})
 	assert.Equal(t, len(inList), 1)
 	assert.Equal(t, inList[0].GetTimestamp(), t1)
 
@@ -2171,7 +2171,7 @@ func TestProcessBGPUpdate_Timestamp(t *testing.T) {
 	t3 := pList3[0].GetTimestamp()
 	adjRib.UpdateIn(pList3)
 
-	inList = adjRib.GetInPathList(bgp.RF_IPv4_UC)
+	inList = adjRib.GetInPathList([]bgp.RouteFamily{bgp.RF_IPv4_UC})
 	assert.Equal(t, len(inList), 1)
 	assert.Equal(t, inList[0].GetTimestamp(), t3)
 }

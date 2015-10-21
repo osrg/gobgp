@@ -115,11 +115,9 @@ func (peer *Peer) updateAccepted(accepted uint32) {
 
 func (peer *Peer) getAccepted(rfList []bgp.RouteFamily) []*table.Path {
 	var pathList []*table.Path
-	for _, rf := range rfList {
-		for _, path := range peer.adjRib.GetInPathList(rf) {
-			if path.Filtered == false {
-				pathList = append(pathList, path)
-			}
+	for _, path := range peer.adjRib.GetInPathList(rfList) {
+		if path.Filtered == false {
+			pathList = append(pathList, path)
 		}
 	}
 	return pathList
@@ -205,7 +203,7 @@ func (peer *Peer) handleBGPmessage(m *bgp.BGPMessage) ([]*table.Path, bool, []*b
 			break
 		}
 		if _, ok := peer.capMap[bgp.BGP_CAP_ROUTE_REFRESH]; ok {
-			pathList = peer.adjRib.GetOutPathList(rf)
+			pathList = peer.adjRib.GetOutPathList([]bgp.RouteFamily{rf})
 		} else {
 			log.WithFields(log.Fields{
 				"Topic": "Peer",
@@ -327,12 +325,11 @@ func (peer *Peer) ToApiStruct() *api.Peer {
 	received := uint32(0)
 	accepted := uint32(0)
 	if f.state == bgp.BGP_FSM_ESTABLISHED {
-		for _, rf := range peer.configuredRFlist() {
-			advertized += uint32(peer.adjRib.GetOutCount(rf))
-			received += uint32(peer.adjRib.GetInCount(rf))
-		}
+		rfList := peer.configuredRFlist()
+		advertized = uint32(peer.adjRib.GetOutCount(rfList))
+		received = uint32(peer.adjRib.GetInCount(rfList))
 		if peer.staleAccepted {
-			accepted = uint32(len(peer.getAccepted(peer.configuredRFlist())))
+			accepted = uint32(len(peer.getAccepted(rfList)))
 			peer.updateAccepted(accepted)
 		} else {
 			accepted = peer.accepted
@@ -464,8 +461,9 @@ func (peer *Peer) ApplyPolicy(d table.PolicyDirection, paths []*table.Path) ([]*
 	return newpaths, filteredPaths
 }
 
-func (peer *Peer) DropAll(rf bgp.RouteFamily) {
-	peer.adjRib.DropAll(rf)
+func (peer *Peer) DropAll(rfList []bgp.RouteFamily) {
+	peer.adjRib.DropIn(rfList)
+	peer.adjRib.DropOut(rfList)
 	peer.staleAccepted = false
 	peer.accepted = 0
 }

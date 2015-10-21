@@ -308,14 +308,10 @@ func (server *BgpServer) Serve() {
 		case c := <-server.bmpConnCh:
 			bmpMsgList := []*bgp.BMPMessage{}
 			for _, targetPeer := range server.neighborMap {
-				pathList := make([]*table.Path, 0)
 				if targetPeer.fsm.state != bgp.BGP_FSM_ESTABLISHED {
 					continue
 				}
-				for _, rf := range targetPeer.configuredRFlist() {
-					pathList = append(pathList, targetPeer.adjRib.GetInPathList(rf)...)
-				}
-				for _, p := range pathList {
+				for _, p := range targetPeer.adjRib.GetInPathList(targetPeer.configuredRFlist()) {
 					// avoid to merge for timestamp
 					u := table.CreateUpdateMsgFromPaths([]*table.Path{p})
 					bmpMsgList = append(bmpMsgList, bmpPeerRoute(bgp.BMP_PEER_TYPE_GLOBAL, false, 0, targetPeer.peerInfo, p.GetTimestamp().Unix(), u[0]))
@@ -716,9 +712,7 @@ func (server *BgpServer) handleFSMMessage(peer *Peer, e *fsmMsg, incoming chan *
 				peer.conf.NeighborState.Flops++
 			}
 
-			for _, rf := range peer.configuredRFlist() {
-				peer.DropAll(rf)
-			}
+			peer.DropAll(peer.configuredRFlist())
 
 			msgs = append(msgs, server.dropPeerAllRoutes(peer)...)
 		}
@@ -1395,10 +1389,10 @@ func (server *BgpServer) handleGrpc(grpcReq *GrpcRequest) []*SenderMsg {
 		var paths []*table.Path
 
 		if grpcReq.RequestType == REQ_ADJ_RIB_IN {
-			paths = peer.adjRib.GetInPathList(rf)
+			paths = peer.adjRib.GetInPathList([]bgp.RouteFamily{rf})
 			log.Debugf("RouteFamily=%v adj-rib-in found : %d", rf.String(), len(paths))
 		} else {
-			paths = peer.adjRib.GetOutPathList(rf)
+			paths = peer.adjRib.GetOutPathList([]bgp.RouteFamily{rf})
 			log.Debugf("RouteFamily=%v adj-rib-out found : %d", rf.String(), len(paths))
 		}
 
@@ -1471,7 +1465,7 @@ func (server *BgpServer) handleGrpc(grpcReq *GrpcRequest) []*SenderMsg {
 		}
 
 		for _, peer := range peers {
-			pathList := peer.adjRib.GetInPathList(grpcReq.RouteFamily)
+			pathList := peer.adjRib.GetInPathList([]bgp.RouteFamily{grpcReq.RouteFamily})
 			if peer.isRouteServerClient() {
 				pathList, _ = peer.ApplyPolicy(table.POLICY_DIRECTION_IN, pathList)
 			}
@@ -1493,9 +1487,7 @@ func (server *BgpServer) handleGrpc(grpcReq *GrpcRequest) []*SenderMsg {
 			logOp(grpcReq.Name, "Neighbor soft reset out")
 		}
 		for _, peer := range peers {
-			for _, rf := range peer.configuredRFlist() {
-				peer.adjRib.DropOut(rf)
-			}
+			peer.adjRib.DropOut(peer.configuredRFlist())
 
 			pathList, filtered := peer.getBestFromLocal()
 			if len(pathList) > 0 {
