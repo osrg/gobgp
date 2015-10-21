@@ -368,6 +368,64 @@ class ExportPolicyUpdate(object):
 
 
 @register_scenario
+class ExportPolicyUpdateRouteRefresh(object):
+    """
+    export-policy update and route refresh handling test
+
+    r1:192.168.2.0
+    r2:192.168.20.0
+    r3:192.168.200.0
+                      -------------------------------------------------
+                      | q1                                            |
+    e1 ->(r1,r2,r3)-> | ->(r1,r2,r3)-> rib ->(r1,r2,r3)-> adj-rib-out | ->(r1,r2,r3)-> q1
+                      |                                               |
+                      | q2                                            |
+                      | ->(r1,r2,r3)-> rib ->(r1)->       adj-rib-out | ->(r1)-> q2
+                      -------------------------------------------------
+                 |
+         update gobgp.conf
+         q2 sends route refresh
+                 |
+                 V
+                      -------------------------------------------------
+                      | q1                                            |
+    e1 ->(r1,r2,r3)-> | ->(r1,r2,r3)-> rib ->(r1,r2,r3)-> adj-rib-out | ->(r1,r2,r3)-> q1
+                      |                                               |
+                      | q2                                            |
+                      | ->(r1,r2,r3)-> rib ->(r1,r3)->    adj-rib-out | ->(r1,r3)-> q2
+                      -------------------------------------------------
+    """
+    @staticmethod
+    def boot(env):
+        lookup_scenario("ExportPolicyUpdate").boot(env)
+
+    @staticmethod
+    def setup(env):
+        lookup_scenario("ExportPolicyUpdate").setup(env)
+
+    @staticmethod
+    def check(env):
+        lookup_scenario("ExportPolicyUpdate").check(env)
+
+    @staticmethod
+    def setup2(env):
+        g1 = env.g1
+        e1 = env.e1
+        q1 = env.q1
+        q2 = env.q2
+
+        g1.local('gobgp policy prefix del ps0 192.168.200.0/24')
+        q2.send_route_refresh()
+
+        for c in [e1, q1, q2]:
+            g1.wait_for(BGP_FSM_ESTABLISHED, c)
+
+    @staticmethod
+    def check2(env):
+        lookup_scenario("ExportPolicyUpdate").check2(env)
+
+
+@register_scenario
 class ImportPolicyIPV6(object):
     """
     No.5 IPv6 import-policy test

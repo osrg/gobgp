@@ -152,6 +152,11 @@ class QuaggaBGPContainer(BGPContainer):
 
             raise Exception('not found peer {0}'.format(peer.router_id))
 
+    def send_route_refresh(self):
+        with QuaggaTelnetDaemon(self) as tn:
+            tn.write('clear ip bgp * soft\n')
+            #tn.read_until('bgpd#')
+
     def create_config(self):
         self._create_config_bgp()
         if self.zebra:
