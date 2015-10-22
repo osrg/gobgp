@@ -403,6 +403,21 @@ func capabilitiesFromConfig(gConf *config.Global, pConf *config.Neighbor) []bgp.
 		caps = append(caps, bgp.NewCapMultiProtocol(k))
 	}
 	caps = append(caps, bgp.NewCapFourOctetASNumber(gConf.GlobalConfig.As))
+
+	if c := pConf.GracefulRestart.GracefulRestartConfig; c.Enabled {
+		tuples := []*bgp.CapGracefulRestartTuple{}
+		if !c.HelperOnly {
+			for _, rf := range pConf.AfiSafis.AfiSafiList {
+				if rf.MpGracefulRestart.MpGracefulRestartConfig.Enabled {
+					k, _ := bgp.GetRouteFamily(rf.AfiSafiName)
+					tuples = append(tuples, bgp.NewCapGracefulRestartTuple(k, true))
+				}
+			}
+		}
+		time := c.RestartTime
+		restarting := pConf.GracefulRestart.GracefulRestartState.LocalRestarting
+		caps = append(caps, bgp.NewCapGracefulRestart(restarting, time, tuples))
+	}
 	return caps
 }
 

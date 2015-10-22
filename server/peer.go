@@ -104,6 +104,10 @@ func (peer *Peer) isRouteReflectorClient() bool {
 	return peer.conf.RouteReflector.RouteReflectorConfig.RouteReflectorClient
 }
 
+func (peer *Peer) isGracefulRestartEnabled() bool {
+	return peer.conf.GracefulRestart.GracefulRestartState.Enabled
+}
+
 func (peer *Peer) configuredRFlist() []bgp.RouteFamily {
 	return peer.localRib.GetRFlist()
 }
@@ -166,6 +170,13 @@ func (peer *Peer) handleBGPmessage(m *bgp.BGPMessage) ([]*table.Path, bool, []*b
 			}
 		}
 
+		gr, ok := peer.capMap[bgp.BGP_CAP_GRACEFUL_RESTART]
+		if peer.conf.GracefulRestart.GracefulRestartConfig.Enabled && ok {
+			state := &peer.fsm.pConf.GracefulRestart.GracefulRestartState
+			state.Enabled = true
+			state.PeerRestartTime = uint16(gr[0].(*bgp.CapGracefulRestart).Time)
+		}
+
 		for rf, _ := range peer.rfMap {
 			if _, y := r[rf]; !y {
 				delete(peer.rfMap, rf)
@@ -223,6 +234,13 @@ func (peer *Peer) handleBGPmessage(m *bgp.BGPMessage) ([]*table.Path, bool, []*b
 		update = true
 		peer.conf.Timers.TimersState.UpdateRecvTime = time.Now().Unix()
 		body := m.Body.(*bgp.BGPUpdate)
+		if body.IsEndOfRib() {
+			log.WithFields(log.Fields{
+				"Topic": "Peer",
+				"Key":   peer.conf.NeighborConfig.NeighborAddress,
+			}).Info("received end-of-rib")
+			return nil, update, nil
+		}
 		confedCheckRequired := !peer.isConfederationMember && peer.isEBGPPeer()
 		_, err := bgp.ValidateUpdateMsg(body, peer.rfMap, confedCheckRequired)
 		if err != nil {

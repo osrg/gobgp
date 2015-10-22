@@ -41,6 +41,7 @@ type SenderMsg struct {
 	sendCh      chan *bgp.BGPMessage
 	destination string
 	twoBytesAs  bool
+	sendEOR     bool
 }
 
 type broadcastMsg interface {
@@ -188,6 +189,10 @@ func (server *BgpServer) Serve() {
 					table.UpdatePathAttrs2ByteAs(b.Body.(*bgp.BGPUpdate))
 				}
 				w(m.sendCh, b)
+			}
+
+			if m.sendEOR {
+				w(m.sendCh, bgp.NewEndOfRib())
 			}
 		}
 	}(senderCh)
@@ -423,13 +428,14 @@ func (server *BgpServer) Serve() {
 	}
 }
 
-func newSenderMsg(peer *Peer, messages []*bgp.BGPMessage) *SenderMsg {
+func newSenderMsg(peer *Peer, messages []*bgp.BGPMessage, eor bool) *SenderMsg {
 	_, y := peer.capMap[bgp.BGP_CAP_FOUR_OCTET_AS_NUMBER]
 	return &SenderMsg{
 		messages:    messages,
 		sendCh:      peer.outgoing,
 		destination: peer.conf.NeighborConfig.NeighborAddress.String(),
 		twoBytesAs:  y,
+		sendEOR:     eor,
 	}
 }
 
@@ -540,7 +546,7 @@ func (server *BgpServer) dropPeerAllRoutes(peer *Peer) []*SenderMsg {
 					continue
 				}
 				msgList := table.CreateUpdateMsgFromPaths(pathList)
-				msgs = append(msgs, newSenderMsg(targetPeer, msgList))
+				msgs = append(msgs, newSenderMsg(targetPeer, msgList, false))
 				targetPeer.adjRib.UpdateOut(pathList)
 			}
 		} else {
@@ -558,7 +564,7 @@ func (server *BgpServer) dropPeerAllRoutes(peer *Peer) []*SenderMsg {
 					continue
 				}
 				targetPeer.adjRib.UpdateOut(pathList)
-				msgs = append(msgs, newSenderMsg(targetPeer, msgList))
+				msgs = append(msgs, newSenderMsg(targetPeer, msgList, false))
 			}
 		}
 	}
@@ -657,7 +663,7 @@ func (server *BgpServer) propagateUpdate(peer *Peer, pathList []*table.Path) []*
 			}
 			msgList := table.CreateUpdateMsgFromPaths(sendPathList)
 			targetPeer.adjRib.UpdateOut(sendPathList)
-			msgs = append(msgs, newSenderMsg(targetPeer, msgList))
+			msgs = append(msgs, newSenderMsg(targetPeer, msgList, false))
 		}
 	} else {
 		rib := server.globalRib
@@ -683,7 +689,7 @@ func (server *BgpServer) propagateUpdate(peer *Peer, pathList []*table.Path) []*
 			targetPeer.adjRib.UpdateOut(f)
 			msgList := table.CreateUpdateMsgFromPaths(f)
 
-			msgs = append(msgs, newSenderMsg(targetPeer, msgList))
+			msgs = append(msgs, newSenderMsg(targetPeer, msgList, false))
 		}
 	}
 	return msgs
@@ -734,7 +740,7 @@ func (server *BgpServer) handleFSMMessage(peer *Peer, e *fsmMsg, incoming chan *
 			pathList, _ := peer.getBestFromLocal(peer.configuredRFlist())
 			if len(pathList) > 0 {
 				peer.adjRib.UpdateOut(pathList)
-				msgs = append(msgs, newSenderMsg(peer, table.CreateUpdateMsgFromPaths(pathList)))
+				msgs = append(msgs, newSenderMsg(peer, table.CreateUpdateMsgFromPaths(pathList), peer.isGracefulRestartEnabled()))
 			}
 		} else {
 			if server.shutdown && nextState == bgp.BGP_FSM_IDLE {
@@ -762,17 +768,17 @@ func (server *BgpServer) handleFSMMessage(peer *Peer, e *fsmMsg, incoming chan *
 	case FSM_MSG_BGP_MESSAGE:
 		switch m := e.MsgData.(type) {
 		case *bgp.MessageError:
-			msgs = append(msgs, newSenderMsg(peer, []*bgp.BGPMessage{bgp.NewBGPNotificationMessage(m.TypeCode, m.SubTypeCode, m.Data)}))
+			msgs = append(msgs, newSenderMsg(peer, []*bgp.BGPMessage{bgp.NewBGPNotificationMessage(m.TypeCode, m.SubTypeCode, m.Data)}, false))
 		case *bgp.BGPMessage:
 			pathList, update, msgList := peer.handleBGPmessage(m)
 			if len(msgList) > 0 {
-				msgs = append(msgs, newSenderMsg(peer, msgList))
+				msgs = append(msgs, newSenderMsg(peer, msgList, false))
 				break
 			}
 			if update == false {
 				if len(pathList) > 0 {
 					msgList := table.CreateUpdateMsgFromPaths(pathList)
-					msgs = append(msgs, newSenderMsg(peer, msgList))
+					msgs = append(msgs, newSenderMsg(peer, msgList, false))
 				}
 				break
 			} else {
@@ -1434,7 +1440,7 @@ func (server *BgpServer) handleGrpc(grpcReq *GrpcRequest) []*SenderMsg {
 		logOp(grpcReq.Name, "Neighbor shutdown")
 		m := bgp.NewBGPNotificationMessage(bgp.BGP_ERROR_CEASE, bgp.BGP_ERROR_SUB_ADMINISTRATIVE_SHUTDOWN, nil)
 		for _, peer := range peers {
-			msgs = append(msgs, newSenderMsg(peer, []*bgp.BGPMessage{m}))
+			msgs = append(msgs, newSenderMsg(peer, []*bgp.BGPMessage{m}, false))
 		}
 		grpcReq.ResponseCh <- &GrpcResponse{}
 		close(grpcReq.ResponseCh)
@@ -1448,7 +1454,7 @@ func (server *BgpServer) handleGrpc(grpcReq *GrpcRequest) []*SenderMsg {
 		for _, peer := range peers {
 			peer.fsm.idleHoldTime = peer.conf.Timers.TimersConfig.IdleHoldTimeAfterReset
 			m := bgp.NewBGPNotificationMessage(bgp.BGP_ERROR_CEASE, bgp.BGP_ERROR_SUB_ADMINISTRATIVE_RESET, nil)
-			msgs = append(msgs, newSenderMsg(peer, []*bgp.BGPMessage{m}))
+			msgs = append(msgs, newSenderMsg(peer, []*bgp.BGPMessage{m}, false))
 		}
 		grpcReq.ResponseCh <- &GrpcResponse{}
 		close(grpcReq.ResponseCh)
@@ -1492,13 +1498,13 @@ func (server *BgpServer) handleGrpc(grpcReq *GrpcRequest) []*SenderMsg {
 			pathList, filtered := peer.getBestFromLocal(rfList)
 			if len(pathList) > 0 {
 				peer.adjRib.UpdateOut(pathList)
-				msgs = append(msgs, newSenderMsg(peer, table.CreateUpdateMsgFromPaths(pathList)))
+				msgs = append(msgs, newSenderMsg(peer, table.CreateUpdateMsgFromPaths(pathList), false))
 			}
 			if len(filtered) > 0 {
 				for _, p := range filtered {
 					p.IsWithdraw = true
 				}
-				msgs = append(msgs, newSenderMsg(peer, table.CreateUpdateMsgFromPaths(filtered)))
+				msgs = append(msgs, newSenderMsg(peer, table.CreateUpdateMsgFromPaths(filtered), peer.isGracefulRestartEnabled()))
 			}
 		}
 		grpcReq.ResponseCh <- &GrpcResponse{}
