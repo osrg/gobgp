@@ -109,6 +109,15 @@ func SetDefaultConfigValues(md toml.MetaData, bt *Bgp) error {
 				neighbor.NeighborConfig.PeerType = PEER_TYPE_INTERNAL
 			}
 		}
+
+		if c := &neighbor.GracefulRestart.GracefulRestartConfig; c.Enabled {
+			// RFC 4724 4. Operation
+			// A suggested default for the Restart Time is a value less than or
+			// equal to the HOLDTIME carried in the OPEN.
+			if _, ok := n.attributes["Neighbors.NeighborList.GracefulRestart.GracefulRestartConfig.RestartTime"]; !ok {
+				c.RestartTime = uint16(timerConfig.HoldTime)
+			}
+		}
 	}
 	for _, r := range bt.RpkiServers.RpkiServerList {
 		if r.RpkiServerConfig.Port == 0 {
