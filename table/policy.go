@@ -2566,11 +2566,3 @@ func CanImportToVrf(v *Vrf, path *Path) bool {
 	c, _ := NewExtCommunityCondition(matchSet, map[string]DefinedSet{v.Name: set})
 	return c.Evaluate(path)
 }
-
-func PoliciesToString(ps []*api.Policy) []string {
-	names := make([]string, 0, len(ps))
-	for _, p := range ps {
-		names = append(names, p.Name)
-	}
-	return names
-}
