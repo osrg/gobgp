@@ -284,8 +284,8 @@ func TestFSMHandlerEstablished_HoldtimeZero(t *testing.T) {
 }
 
 func makePeerAndHandler() (*Peer, *FSMHandler) {
-	gConf := config.Global{}
-	pConf := config.Neighbor{}
+	gConf := &config.Global{}
+	pConf := &config.Neighbor{}
 
 	p := &Peer{
 		gConf:  gConf,
@@ -293,7 +293,7 @@ func makePeerAndHandler() (*Peer, *FSMHandler) {
 		capMap: make(map[bgp.BGPCapabilityCode][]bgp.ParameterCapabilityInterface),
 	}
 
-	p.fsm = NewFSM(&gConf, &pConf)
+	p.fsm = NewFSM(gConf, pConf)
 
 	incoming := make(chan *fsmMsg, 4096)
 	p.outgoing = make(chan *bgp.BGPMessage, 4096)

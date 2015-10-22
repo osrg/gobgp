@@ -349,7 +349,7 @@ func (server *BgpServer) Serve() {
 			} else {
 				loc = server.globalRib
 			}
-			peer := NewPeer(g, config, loc)
+			peer := NewPeer(&g, &config, loc)
 
 			server.setPolicyByConfig(peer, config.ApplyPolicy)
 			if peer.isRouteServerClient() {
@@ -396,7 +396,7 @@ func (server *BgpServer) Serve() {
 		case config := <-server.updatedPeerCh:
 			addr := config.NeighborConfig.NeighborAddress.String()
 			peer := server.neighborMap[addr]
-			peer.conf = config
+			peer.UpdateConfig(&config)
 			server.setPolicyByConfig(peer, config.ApplyPolicy)
 		case e := <-incoming:
 			peer, found := server.neighborMap[e.MsgSrc]
@@ -678,7 +678,7 @@ func (server *BgpServer) propagateUpdate(peer *Peer, pathList []*table.Path) []*
 				continue
 			}
 			for _, path := range f {
-				path.UpdatePathAttrs(&server.bgpConfig.Global, &targetPeer.conf)
+				path.UpdatePathAttrs(&server.bgpConfig.Global, targetPeer.conf)
 			}
 			targetPeer.adjRib.UpdateOut(f)
 			msgList := table.CreateUpdateMsgFromPaths(f)

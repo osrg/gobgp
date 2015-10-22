@@ -32,8 +32,8 @@ const (
 )
 
 type Peer struct {
-	gConf                 config.Global
-	conf                  config.Neighbor
+	gConf                 *config.Global
+	conf                  *config.Neighbor
 	fsm                   *FSM
 	rfMap                 map[bgp.RouteFamily]bool
 	capMap                map[bgp.BGPCapabilityCode][]bgp.ParameterCapabilityInterface
@@ -49,7 +49,7 @@ type Peer struct {
 	localRib              *table.TableManager
 }
 
-func NewPeer(g config.Global, conf config.Neighbor, loc *table.TableManager) *Peer {
+func NewPeer(g *config.Global, conf *config.Neighbor, loc *table.TableManager) *Peer {
 	peer := &Peer{
 		gConf:    g,
 		conf:     conf,
@@ -75,7 +75,7 @@ func NewPeer(g config.Global, conf config.Neighbor, loc *table.TableManager) *Pe
 		RouteReflectorClusterID: id,
 	}
 	peer.adjRib = table.NewAdjRib(peer.configuredRFlist())
-	peer.fsm = NewFSM(&g, &conf)
+	peer.fsm = NewFSM(g, conf)
 	if conf.NeighborConfig.PeerAs != g.GlobalConfig.As {
 		for _, member := range g.Confederation.ConfederationConfig.MemberAs {
 			if member == conf.NeighborConfig.PeerAs {
@@ -127,7 +127,7 @@ func (peer *Peer) getBestFromLocal(rfList []bgp.RouteFamily) ([]*table.Path, []*
 	pathList, filtered := peer.ApplyPolicy(table.POLICY_DIRECTION_EXPORT, filterpath(peer, peer.localRib.GetBestPathList(rfList)))
 	if peer.isRouteServerClient() == false {
 		for _, path := range pathList {
-			path.UpdatePathAttrs(&peer.gConf, &peer.conf)
+			path.UpdatePathAttrs(peer.gConf, peer.conf)
 		}
 	}
 	return pathList, filtered
@@ -290,7 +290,7 @@ func (peer *Peer) ToApiStruct() *api.Peer {
 		}
 	}
 
-	caps := capabilitiesFromConfig(&peer.gConf, &peer.conf)
+	caps := capabilitiesFromConfig(peer.gConf, peer.conf)
 	localCap := make([][]byte, 0, len(caps))
 	for _, c := range caps {
 		buf, _ := c.Serialize()
@@ -464,4 +464,9 @@ func (peer *Peer) DropAll(rfList []bgp.RouteFamily) {
 	peer.adjRib.DropOut(rfList)
 	peer.staleAccepted = false
 	peer.accepted = 0
+}
+
+func (peer *Peer) UpdateConfig(c *config.Neighbor) {
+	peer.conf = c
+	peer.fsm.pConf = c
 }
