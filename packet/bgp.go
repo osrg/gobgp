@@ -6043,11 +6043,19 @@ func (msg *BGPUpdate) Serialize() ([]byte, error) {
 	return buf, nil
 }
 
+func (msg *BGPUpdate) IsEndOfRib() bool {
+	return len(msg.WithdrawnRoutes) == 0 && len(msg.PathAttributes) == 0 && len(msg.NLRI) == 0
+}
+
 func NewBGPUpdateMessage(withdrawnRoutes []*IPAddrPrefix, pathattrs []PathAttributeInterface, nlri []*IPAddrPrefix) *BGPMessage {
 	return &BGPMessage{
 		Header: BGPHeader{Type: BGP_MSG_UPDATE},
 		Body:   &BGPUpdate{0, withdrawnRoutes, 0, pathattrs, nlri},
 	}
+}
+
+func NewEndOfRib() *BGPMessage {
+	return NewBGPUpdateMessage(nil, nil, nil)
 }
 
 type BGPNotification struct {
