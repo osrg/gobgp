@@ -717,15 +717,12 @@ func (server *BgpServer) handleFSMMessage(peer *Peer, e *fsmMsg, incoming chan *
 			if t.Sub(time.Unix(peer.conf.Timers.TimersState.Uptime, 0)) < FLOP_THRESHOLD {
 				peer.conf.NeighborState.Flops++
 			}
-
-			peer.DropAll(peer.configuredRFlist())
-
-			msgs = append(msgs, server.dropPeerAllRoutes(peer)...)
 		}
 
 		close(peer.outgoing)
 		peer.outgoing = make(chan *bgp.BGPMessage, 128)
-		if nextState == bgp.BGP_FSM_ESTABLISHED {
+		switch nextState {
+		case bgp.BGP_FSM_ESTABLISHED:
 			// update for export policy
 			laddr, lport := peer.fsm.LocalHostPort()
 			peer.conf.Transport.TransportConfig.LocalAddress = net.ParseIP(laddr)
@@ -742,8 +739,10 @@ func (server *BgpServer) handleFSMMessage(peer *Peer, e *fsmMsg, incoming chan *
 				peer.adjRib.UpdateOut(pathList)
 				msgs = append(msgs, newSenderMsg(peer, table.CreateUpdateMsgFromPaths(pathList), peer.isGracefulRestartEnabled()))
 			}
-		} else {
-			if server.shutdown && nextState == bgp.BGP_FSM_IDLE {
+		case bgp.BGP_FSM_IDLE:
+			peer.DropAll(peer.configuredRFlist())
+			msgs = server.dropPeerAllRoutes(peer)
+			if server.shutdown {
 				die := true
 				for _, p := range server.neighborMap {
 					if p.fsm.state != bgp.BGP_FSM_IDLE {
@@ -755,6 +754,8 @@ func (server *BgpServer) handleFSMMessage(peer *Peer, e *fsmMsg, incoming chan *
 					os.Exit(0)
 				}
 			}
+			fallthrough
+		default:
 			peer.conf.Timers.TimersState.Downtime = time.Now().Unix()
 		}
 		// clear counter
