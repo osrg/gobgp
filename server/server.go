@@ -1218,7 +1218,7 @@ func (server *BgpServer) handleVrfRequest(req *GrpcRequest) []*table.Path {
 			break
 		}
 		for _, path := range rib.GetPathList(rf) {
-			ok := table.CanImportToVrf(vrfs[name], path)
+			ok := vrfs[name].CanImport(path)
 			if !ok {
 				continue
 			}

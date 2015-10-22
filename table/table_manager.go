@@ -256,13 +256,7 @@ func (manager *TableManager) AddVrf(name string, rd bgp.RouteDistinguisherInterf
 		"ImportRt": importRt,
 		"ExportRt": exportRt,
 	}).Debugf("add vrf")
-	manager.Vrfs[name] = &Vrf{
-		Name:     name,
-		Rd:       rd,
-		ImportRt: importRt,
-		ExportRt: exportRt,
-		LabelMap: make(map[string]uint32),
-	}
+	manager.Vrfs[name] = NewVrf(name, rd, importRt, exportRt)
 	msgs := make([]*Path, 0, len(importRt))
 	nexthop := "0.0.0.0"
 	for _, target := range importRt {

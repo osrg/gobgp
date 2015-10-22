@@ -2544,25 +2544,3 @@ func NewRoutingPolicy(c config.RoutingPolicy) (*RoutingPolicy, error) {
 		StatementMap:  smap,
 	}, nil
 }
-
-func CanImportToVrf(v *Vrf, path *Path) bool {
-	f := func(arg []bgp.ExtendedCommunityInterface) []config.ExtCommunity {
-		ret := make([]config.ExtCommunity, 0, len(arg))
-		for _, a := range arg {
-			ret = append(ret, config.ExtCommunity{
-				ExtCommunity: fmt.Sprintf("RT:%s", a.String()),
-			})
-		}
-		return ret
-	}
-	set, _ := NewExtCommunitySet(config.ExtCommunitySet{
-		ExtCommunitySetName: v.Name,
-		ExtCommunityList:    f(v.ImportRt),
-	})
-	matchSet := config.MatchExtCommunitySet{
-		ExtCommunitySet: v.Name,
-		MatchSetOptions: config.MATCH_SET_OPTIONS_TYPE_ANY,
-	}
-	c, _ := NewExtCommunityCondition(matchSet, map[string]DefinedSet{v.Name: set})
-	return c.Evaluate(path)
-}
