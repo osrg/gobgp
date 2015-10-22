@@ -6206,10 +6206,35 @@ func (msg *BGPUpdate) Serialize() ([]byte, error) {
 	return buf, nil
 }
 
+func (msg *BGPUpdate) IsEndOfRib() (bool, RouteFamily) {
+	if len(msg.WithdrawnRoutes) == 0 && len(msg.NLRI) == 0 {
+		if len(msg.PathAttributes) == 0 {
+			return true, RF_IPv4_UC
+		} else if len(msg.PathAttributes) == 1 && msg.PathAttributes[0].GetType() == BGP_ATTR_TYPE_MP_UNREACH_NLRI {
+			unreach := msg.PathAttributes[0].(*PathAttributeMpUnreachNLRI)
+			return true, AfiSafiToRouteFamily(unreach.AFI, unreach.SAFI)
+		}
+	}
+	return false, RouteFamily(0)
+}
+
 func NewBGPUpdateMessage(withdrawnRoutes []*IPAddrPrefix, pathattrs []PathAttributeInterface, nlri []*IPAddrPrefix) *BGPMessage {
 	return &BGPMessage{
 		Header: BGPHeader{Type: BGP_MSG_UPDATE},
 		Body:   &BGPUpdate{0, withdrawnRoutes, 0, pathattrs, nlri},
+	}
+}
+
+func NewEndOfRib(family RouteFamily) *BGPMessage {
+	if family == RF_IPv4_UC {
+		return NewBGPUpdateMessage(nil, nil, nil)
+	} else {
+		afi, safi := RouteFamilyToAfiSafi(family)
+		unreach := &PathAttributeMpUnreachNLRI{
+			AFI:  afi,
+			SAFI: safi,
+		}
+		return NewBGPUpdateMessage(nil, []PathAttributeInterface{unreach}, nil)
 	}
 }
 
