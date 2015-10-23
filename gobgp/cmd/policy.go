@@ -547,6 +547,12 @@ func showStatement(args []string) error {
 			m = append(m, p)
 		}
 	}
+	if globalOpts.Quiet {
+		for _, s := range m {
+			fmt.Println(s.Name)
+		}
+		return nil
+	}
 	for _, s := range m {
 		printStatement(0, s)
 	}
