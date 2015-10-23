@@ -61,6 +61,12 @@ func showVrfs() error {
 		fmt.Println(string(j))
 		return nil
 	}
+	if globalOpts.Quiet {
+		for _, v  := range vrfs {
+			fmt.Println(v.Name)
+		}
+		return nil
+	}
 	lines := make([][]string, 0, len(vrfs))
 	for _, v := range vrfs {
 		name := v.Name
