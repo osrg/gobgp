@@ -16,6 +16,7 @@
 package table
 
 import (
+	"bytes"
 	"fmt"
 	"net"
 	"reflect"
@@ -24,6 +25,7 @@ import (
 	"strings"
 
 	log "github.com/Sirupsen/logrus"
+	"github.com/armon/go-radix"
 	api "github.com/osrg/gobgp/api"
 	"github.com/osrg/gobgp/config"
 	"github.com/osrg/gobgp/packet"
@@ -311,7 +313,7 @@ func NewPrefix(c config.Prefix) (*Prefix, error) {
 
 type PrefixSet struct {
 	name string
-	list []*Prefix
+	tree *radix.Tree
 }
 
 func (s *PrefixSet) Name() string {
@@ -327,7 +329,10 @@ func (lhs *PrefixSet) Append(arg DefinedSet) error {
 	if !ok {
 		return fmt.Errorf("type cast failed")
 	}
-	lhs.list = append(lhs.list, rhs.list...)
+	rhs.tree.Walk(func(s string, v interface{}) bool {
+		lhs.tree.Insert(s, v)
+		return false
+	})
 	return nil
 }
 
@@ -336,20 +341,10 @@ func (lhs *PrefixSet) Remove(arg DefinedSet) error {
 	if !ok {
 		return fmt.Errorf("type cast failed")
 	}
-	ps := make([]*Prefix, 0, len(lhs.list))
-	for _, x := range lhs.list {
-		found := false
-		for _, y := range rhs.list {
-			if x.Equal(y) {
-				found = true
-				break
-			}
-		}
-		if !found {
-			ps = append(ps, x)
-		}
-	}
-	lhs.list = ps
+	rhs.tree.Walk(func(s string, v interface{}) bool {
+		lhs.tree.Delete(s)
+		return false
+	})
 	return nil
 }
 
@@ -358,15 +353,16 @@ func (lhs *PrefixSet) Replace(arg DefinedSet) error {
 	if !ok {
 		return fmt.Errorf("type cast failed")
 	}
-	lhs.list = rhs.list
+	lhs.tree = rhs.tree
 	return nil
 }
 
 func (s *PrefixSet) ToApiStruct() *api.DefinedSet {
-	list := make([]*api.Prefix, 0, len(s.list))
-	for _, p := range s.list {
-		list = append(list, p.ToApiStruct())
-	}
+	list := make([]*api.Prefix, 0, s.tree.Len())
+	s.tree.Walk(func(s string, v interface{}) bool {
+		list = append(list, v.(*Prefix).ToApiStruct())
+		return false
+	})
 	return &api.DefinedSet{
 		Type:     api.DefinedType(s.Type()),
 		Name:     s.name,
@@ -378,17 +374,17 @@ func NewPrefixSetFromApiStruct(a *api.DefinedSet) (*PrefixSet, error) {
 	if a.Name == "" {
 		return nil, fmt.Errorf("empty prefix set name")
 	}
-	list := make([]*Prefix, 0, len(a.Prefixes))
+	tree := radix.New()
 	for _, x := range a.Prefixes {
 		y, err := NewPrefixFromApiStruct(x)
 		if err != nil {
 			return nil, err
 		}
-		list = append(list, y)
+		tree.Insert(CidrToRadixkey(y.Prefix.String()), y)
 	}
 	return &PrefixSet{
 		name: a.Name,
-		list: list,
+		tree: tree,
 	}, nil
 }
 
@@ -400,17 +396,17 @@ func NewPrefixSet(c config.PrefixSet) (*PrefixSet, error) {
 		}
 		return nil, fmt.Errorf("empty prefix set name")
 	}
-	list := make([]*Prefix, 0, len(c.PrefixList))
+	tree := radix.New()
 	for _, x := range c.PrefixList {
 		y, err := NewPrefix(x)
 		if err != nil {
 			return nil, err
 		}
-		list = append(list, y)
+		tree.Insert(CidrToRadixkey(y.Prefix.String()), y)
 	}
 	return &PrefixSet{
 		name: name,
-		list: list,
+		tree: tree,
 	}, nil
 }
 
@@ -866,19 +862,32 @@ func (c *PrefixCondition) Option() MatchOption {
 // subsequent comparison is skipped if that matches the conditions.
 // If PrefixList's length is zero, return true.
 func (c *PrefixCondition) Evaluate(path *Path) bool {
-
-	if len(c.set.list) == 0 {
-		log.Debug("PrefixList doesn't have elements")
-		return true
+	var key string
+	var masklen uint8
+	keyf := func(ip net.IP, ones int) string {
+		var buffer bytes.Buffer
+		for i := 0; i < len(ip) && i < ones; i++ {
+			buffer.WriteString(fmt.Sprintf("%08b", ip[i]))
+		}
+		return buffer.String()[:ones]
+	}
+	switch path.GetRouteFamily() {
+	case bgp.RF_IPv4_UC:
+		masklen = path.GetNlri().(*bgp.IPAddrPrefix).Length
+		key = keyf(path.GetNlri().(*bgp.IPAddrPrefix).Prefix, int(masklen))
+	case bgp.RF_IPv6_UC:
+		masklen = path.GetNlri().(*bgp.IPv6AddrPrefix).Length
+		key = keyf(path.GetNlri().(*bgp.IPv6AddrPrefix).Prefix, int(masklen))
+	default:
+		return false
 	}
 
 	result := false
-	for _, p := range c.set.list {
-		if p.Match(path) {
-			result = true
-			break
-		}
+	_, p, ok := c.set.tree.LongestPrefix(key)
+	if ok && p.(*Prefix).MasklengthRangeMin <= masklen && masklen <= p.(*Prefix).MasklengthRangeMax {
+		result = true
 	}
+
 	if c.option == MATCH_OPTION_INVERT {
 		result = !result
 	}
