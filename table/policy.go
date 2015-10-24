@@ -515,6 +515,211 @@ func NewNeighborSet(c config.NeighborSet) (*NeighborSet, error) {
 	}, nil
 }
 
+type singleAsPathMatchMode int
+
+const (
+	INCLUDE singleAsPathMatchMode = iota
+	LEFT_MOST
+	ORIGIN
+)
+
+type singleAsPathMatch struct {
+	asn  uint32
+	mode singleAsPathMatchMode
+}
+
+func (lhs *singleAsPathMatch) Equal(rhs *singleAsPathMatch) bool {
+	return lhs.asn == rhs.asn && lhs.mode == rhs.mode
+}
+
+func (lhs *singleAsPathMatch) String() string {
+	switch lhs.mode {
+	case INCLUDE:
+		return fmt.Sprintf("%d", lhs.asn)
+	case LEFT_MOST:
+		return fmt.Sprintf("^%d", lhs.asn)
+	case ORIGIN:
+		return fmt.Sprintf("%d$", lhs.asn)
+	}
+	return ""
+}
+
+func (m *singleAsPathMatch) Match(aspath []uint32) bool {
+	if len(aspath) == 0 {
+		return false
+	}
+	switch m.mode {
+	case INCLUDE:
+		for _, asn := range aspath {
+			if m.asn == asn {
+				return true
+			}
+		}
+	case LEFT_MOST:
+		if m.asn == aspath[0] {
+			return true
+		}
+	case ORIGIN:
+		if m.asn == aspath[len(aspath)-1] {
+			return true
+		}
+	}
+	return false
+}
+
+func NewSingleAsPathMatch(arg string) *singleAsPathMatch {
+	switch {
+	case len(arg) == 0:
+		return nil
+	case arg[0] == '^':
+		if asn, err := strconv.Atoi(arg[1:]); err == nil {
+			return &singleAsPathMatch{
+				asn:  uint32(asn),
+				mode: LEFT_MOST,
+			}
+		}
+	case arg[len(arg)-1] == '$':
+		if asn, err := strconv.Atoi(arg[:len(arg)-1]); err == nil {
+			return &singleAsPathMatch{
+				asn:  uint32(asn),
+				mode: ORIGIN,
+			}
+		}
+	default:
+		if asn, err := strconv.Atoi(arg); err == nil {
+			return &singleAsPathMatch{
+				asn:  uint32(asn),
+				mode: INCLUDE,
+			}
+		}
+	}
+	return nil
+}
+
+type AsPathSet struct {
+	typ        DefinedType
+	name       string
+	list       []*regexp.Regexp
+	singleList []*singleAsPathMatch
+}
+
+func (s *AsPathSet) Name() string {
+	return s.name
+}
+
+func (s *AsPathSet) Type() DefinedType {
+	return s.typ
+}
+
+func (lhs *AsPathSet) Append(arg DefinedSet) error {
+	if lhs.Type() != arg.Type() {
+		return fmt.Errorf("can't append to different type of defined-set")
+	}
+	lhs.list = append(lhs.list, arg.(*AsPathSet).list...)
+	lhs.singleList = append(lhs.singleList, arg.(*AsPathSet).singleList...)
+	return nil
+}
+
+func (lhs *AsPathSet) Remove(arg DefinedSet) error {
+	if lhs.Type() != arg.Type() {
+		return fmt.Errorf("can't append to different type of defined-set")
+	}
+	newList := make([]*regexp.Regexp, 0, len(lhs.list))
+	for _, x := range lhs.list {
+		found := false
+		for _, y := range arg.(*AsPathSet).list {
+			if x.String() == y.String() {
+				found = true
+				break
+			}
+		}
+		if !found {
+			newList = append(newList, x)
+		}
+	}
+	lhs.list = newList
+	newSingleList := make([]*singleAsPathMatch, 0, len(lhs.singleList))
+	for _, x := range lhs.singleList {
+		found := false
+		for _, y := range arg.(*AsPathSet).singleList {
+			if x.Equal(y) {
+				found = true
+				break
+			}
+		}
+		if !found {
+			newSingleList = append(newSingleList, x)
+		}
+	}
+	lhs.singleList = newSingleList
+	return nil
+}
+
+func (lhs *AsPathSet) Replace(arg DefinedSet) error {
+	rhs, ok := arg.(*AsPathSet)
+	if !ok {
+		return fmt.Errorf("type cast failed")
+	}
+	lhs.list = rhs.list
+	lhs.singleList = rhs.singleList
+	return nil
+}
+
+func (s *AsPathSet) ToApiStruct() *api.DefinedSet {
+	list := make([]string, 0, len(s.list)+len(s.singleList))
+	for _, exp := range s.singleList {
+		list = append(list, exp.String())
+	}
+	for _, exp := range s.list {
+		list = append(list, exp.String())
+	}
+	return &api.DefinedSet{
+		Type: api.DefinedType(s.typ),
+		Name: s.name,
+		List: list,
+	}
+}
+
+func NewAsPathSetFromApiStruct(a *api.DefinedSet) (*AsPathSet, error) {
+	c := config.AsPathSet{
+		AsPathSetName: a.Name,
+		AsPathList:    make([]config.AsPath, 0, len(a.List)),
+	}
+	for _, x := range a.List {
+		c.AsPathList = append(c.AsPathList, config.AsPath{AsPath: x})
+	}
+	return NewAsPathSet(c)
+}
+
+func NewAsPathSet(c config.AsPathSet) (*AsPathSet, error) {
+	name := c.AsPathSetName
+	if name == "" {
+		if len(c.AsPathList) == 0 {
+			return nil, nil
+		}
+		return nil, fmt.Errorf("empty as-path set name")
+	}
+	list := make([]*regexp.Regexp, 0, len(c.AsPathList))
+	singleList := make([]*singleAsPathMatch, 0, len(c.AsPathList))
+	for _, x := range c.AsPathList {
+		if s := NewSingleAsPathMatch(x.AsPath); s != nil {
+			singleList = append(singleList, s)
+		} else {
+			exp, err := regexp.Compile(strings.Replace(x.AsPath, "_", ASPATH_REGEXP_MAGIC, -1))
+			if err != nil {
+				return nil, fmt.Errorf("invalid regular expression: %s", x)
+			}
+			list = append(list, exp)
+		}
+	}
+	return &AsPathSet{
+		typ:        DEFINED_TYPE_AS_PATH,
+		name:       name,
+		list:       list,
+		singleList: singleList,
+	}, nil
+}
+
 type regExpSet struct {
 	typ  DefinedType
 	name string
@@ -599,46 +804,6 @@ func (s *regExpSet) ToApiStruct() *api.DefinedSet {
 		Name: s.name,
 		List: list,
 	}
-}
-
-type AsPathSet struct {
-	regExpSet
-}
-
-func NewAsPathSetFromApiStruct(a *api.DefinedSet) (*AsPathSet, error) {
-	c := config.AsPathSet{
-		AsPathSetName: a.Name,
-		AsPathList:    make([]config.AsPath, 0, len(a.List)),
-	}
-	for _, x := range a.List {
-		c.AsPathList = append(c.AsPathList, config.AsPath{AsPath: x})
-	}
-	return NewAsPathSet(c)
-}
-
-func NewAsPathSet(c config.AsPathSet) (*AsPathSet, error) {
-	name := c.AsPathSetName
-	if name == "" {
-		if len(c.AsPathList) == 0 {
-			return nil, nil
-		}
-		return nil, fmt.Errorf("empty as-path set name")
-	}
-	list := make([]*regexp.Regexp, 0, len(c.AsPathList))
-	for _, x := range c.AsPathList {
-		exp, err := regexp.Compile(strings.Replace(x.AsPath, "_", ASPATH_REGEXP_MAGIC, -1))
-		if err != nil {
-			return nil, fmt.Errorf("invalid regular expression: %s", x)
-		}
-		list = append(list, exp)
-	}
-	return &AsPathSet{
-		regExpSet: regExpSet{
-			typ:  DEFINED_TYPE_AS_PATH,
-			name: name,
-			list: list,
-		},
-	}, nil
 }
 
 type CommunitySet struct {
@@ -1058,18 +1223,27 @@ func (c *AsPathCondition) ToApiStruct() *api.MatchSet {
 }
 
 func (c *AsPathCondition) Evaluate(path *Path) bool {
-	aspath := path.GetAsString()
 	result := false
-	for _, r := range c.set.list {
-		result = false
-		if r.MatchString(aspath) {
-			result = true
-		}
+	aspath := path.GetAsSeqList()
+	for _, m := range c.set.singleList {
+		result = m.Match(aspath)
 		if c.option == MATCH_OPTION_ALL && !result {
 			break
 		}
 		if c.option == MATCH_OPTION_ANY && result {
 			break
+		}
+	}
+	if (c.option == MATCH_OPTION_ALL && result) || (c.option == MATCH_OPTION_ANY && !result) {
+		aspath := path.GetAsString()
+		for _, r := range c.set.list {
+			result = r.MatchString(aspath)
+			if c.option == MATCH_OPTION_ALL && !result {
+				break
+			}
+			if c.option == MATCH_OPTION_ANY && result {
+				break
+			}
 		}
 	}
 	if c.option == MATCH_OPTION_INVERT {
@@ -1842,15 +2016,15 @@ func (a *AsPathPrependAction) Type() ActionType {
 func (a *AsPathPrependAction) Apply(path *Path) *Path {
 	var asn uint32
 	if a.useLeftMost {
-		asns := path.GetAsSeqList()
-		if len(asns) == 0 {
+		aspath := path.GetAsSeqList()
+		if len(aspath) == 0 {
 			log.WithFields(log.Fields{
 				"Topic": "Policy",
 				"Type":  "AsPathPrepend Action",
 			}).Errorf("aspath length is zero.")
 			return path
 		}
-		asn = asns[0]
+		asn = aspath[0]
 		log.WithFields(log.Fields{
 			"Topic":  "Policy",
 			"Type":   "AsPathPrepend Action",
