@@ -717,6 +717,7 @@ func (server *BgpServer) handleFSMMessage(peer *Peer, e *fsmMsg, incoming chan *
 			if t.Sub(time.Unix(peer.conf.Timers.TimersState.Uptime, 0)) < FLOP_THRESHOLD {
 				peer.conf.NeighborState.Flops++
 			}
+			peer.conf.Timers.TimersState.Downtime = t.Unix()
 		}
 
 		close(peer.outgoing)
@@ -739,6 +740,9 @@ func (server *BgpServer) handleFSMMessage(peer *Peer, e *fsmMsg, incoming chan *
 				peer.adjRib.UpdateOut(pathList)
 				msgs = append(msgs, newSenderMsg(peer, table.CreateUpdateMsgFromPaths(pathList), peer.isGracefulRestartEnabled()))
 			}
+		case bgp.BGP_FSM_GRACEFUL_RESTARTING:
+			peer.adjRib.StaleAllIn(peer.configuredRFlist())
+			peer.adjRib.DropOut(peer.configuredRFlist())
 		case bgp.BGP_FSM_IDLE:
 			peer.DropAll(peer.configuredRFlist())
 			msgs = server.dropPeerAllRoutes(peer)
@@ -754,9 +758,6 @@ func (server *BgpServer) handleFSMMessage(peer *Peer, e *fsmMsg, incoming chan *
 					os.Exit(0)
 				}
 			}
-			fallthrough
-		default:
-			peer.conf.Timers.TimersState.Downtime = time.Now().Unix()
 		}
 		// clear counter
 		if peer.fsm.adminState == ADMIN_STATE_DOWN {

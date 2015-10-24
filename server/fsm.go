@@ -306,6 +306,8 @@ func NewFSMHandler(fsm *FSM, incoming chan *fsmMsg, outgoing chan *bgp.BGPMessag
 func (h *FSMHandler) idle() bgp.FSMState {
 	fsm := h.fsm
 
+	state := &fsm.pConf.GracefulRestart.GracefulRestartState
+	state.PeerRestarting = false
 	idleHoldTimer := time.NewTimer(time.Second * time.Duration(fsm.idleHoldTime))
 	for {
 		select {
@@ -896,7 +898,9 @@ func (h *FSMHandler) established() bgp.FSMState {
 
 func (h *FSMHandler) gracefulrestart() bgp.FSMState {
 	fsm := h.fsm
-	restartTimer := time.NewTimer(time.Second * time.Duration(fsm.pConf.GracefulRestart.GracefulRestartState.PeerRestartTime))
+	state := &fsm.pConf.GracefulRestart.GracefulRestartState
+	state.PeerRestarting = true
+	restartTimer := time.NewTimer(time.Second * time.Duration(state.PeerRestartTime))
 
 	for {
 		select {

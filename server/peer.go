@@ -170,11 +170,30 @@ func (peer *Peer) handleBGPmessage(m *bgp.BGPMessage) ([]*table.Path, bool, []*b
 			}
 		}
 
-		gr, ok := peer.capMap[bgp.BGP_CAP_GRACEFUL_RESTART]
-		if peer.conf.GracefulRestart.GracefulRestartConfig.Enabled && ok {
-			state := &peer.fsm.pConf.GracefulRestart.GracefulRestartState
+		var gr *bgp.CapGracefulRestart
+		caps, ok := peer.capMap[bgp.BGP_CAP_GRACEFUL_RESTART]
+		if ok {
+			gr = caps[0].(*bgp.CapGracefulRestart)
+		}
+
+		state := &peer.fsm.pConf.GracefulRestart.GracefulRestartState
+		if peer.conf.GracefulRestart.GracefulRestartConfig.Enabled && gr != nil {
 			state.Enabled = true
-			state.PeerRestartTime = uint16(gr[0].(*bgp.CapGracefulRestart).Time)
+			state.PeerRestartTime = uint16(gr.Time)
+		}
+
+		if state.PeerRestarting {
+			if !ok || !peer.conf.GracefulRestart.GracefulRestartConfig.Enabled || gr.Flags&0x08 == 0 {
+				log.WithFields(log.Fields{
+					"Topic": "Peer",
+					"Key":   peer.conf.NeighborConfig.NeighborAddress,
+					"Me":    peer.conf.GracefulRestart.GracefulRestartConfig.Enabled,
+					"You":   ok,
+					"Flag":  gr.Flags,
+				}).Warn("graceful restart failed")
+				peer.adjRib.DropOut(peer.configuredRFlist())
+				state.PeerRestarting = false
+			}
 		}
 
 		for rf, _ := range peer.rfMap {
@@ -239,6 +258,14 @@ func (peer *Peer) handleBGPmessage(m *bgp.BGPMessage) ([]*table.Path, bool, []*b
 				"Topic": "Peer",
 				"Key":   peer.conf.NeighborConfig.NeighborAddress,
 			}).Info("received end-of-rib")
+			if state := &peer.fsm.pConf.GracefulRestart.GracefulRestartState; state.PeerRestarting {
+				num := peer.adjRib.RemoveStaleIn(peer.configuredRFlist())
+				log.WithFields(log.Fields{
+					"Topic": "Peer",
+					"Key":   peer.conf.NeighborConfig.NeighborAddress,
+				}).Infof("removed %d stale paths. end graceful-restart received procedure", num)
+				state.PeerRestarting = false
+			}
 			return nil, update, nil
 		}
 		confedCheckRequired := !peer.isConfederationMember && peer.isEBGPPeer()

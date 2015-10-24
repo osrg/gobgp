@@ -601,3 +601,32 @@ func (adj *AdjRib) DropOut(rfList []bgp.RouteFamily) {
 		}
 	}
 }
+
+func (adj *AdjRib) StaleAllIn(rfList []bgp.RouteFamily) {
+	for _, rf := range rfList {
+		if m, ok := adj.adjRibIn[rf]; ok {
+			for _, p := range m {
+				p.Stale = true
+			}
+		}
+	}
+}
+
+func (adj *AdjRib) RemoveStaleIn(rfList []bgp.RouteFamily) int {
+	num := 0
+	for _, rf := range rfList {
+		if x, ok := adj.adjRibIn[rf]; ok {
+			y := make(map[string]*Path)
+			for _, p := range x {
+				if !p.Stale {
+					key := p.getPrefix()
+					y[key] = p
+				} else {
+					num++
+				}
+			}
+			adj.adjRibIn[rf] = y
+		}
+	}
+	return num
+}
