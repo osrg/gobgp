@@ -393,6 +393,8 @@ func (path *Path) getAsListofSpecificType(getAsSeq, getAsSet bool) []uint32 {
 			}
 			if getAsSet && segment.Type == bgp.BGP_ASPATH_ATTR_TYPE_SET {
 				asList = append(asList, segment.AS...)
+			} else {
+				asList = append(asList, 0)
 			}
 		}
 	}

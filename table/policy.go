@@ -2021,16 +2021,23 @@ func (a *AsPathPrependAction) Apply(path *Path) *Path {
 			log.WithFields(log.Fields{
 				"Topic": "Policy",
 				"Type":  "AsPathPrepend Action",
-			}).Errorf("aspath length is zero.")
+			}).Warnf("aspath length is zero.")
 			return path
 		}
 		asn = aspath[0]
+		if asn == 0 {
+			log.WithFields(log.Fields{
+				"Topic": "Policy",
+				"Type":  "AsPathPrepend Action",
+			}).Warnf("left-most ASN is not seq")
+			return path
+		}
 		log.WithFields(log.Fields{
 			"Topic":  "Policy",
 			"Type":   "AsPathPrepend Action",
 			"LastAs": asn,
 			"Repeat": a.repeat,
-		}).Debug("use last AS.")
+		}).Debug("use left-most ASN")
 	} else {
 		asn = a.asn
 	}
