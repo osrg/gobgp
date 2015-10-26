@@ -298,26 +298,20 @@ func (peer *Peer) ToApiStruct() *api.Peer {
 	}
 
 	conf := &api.PeerConf{
-		RemoteIp:          c.NeighborConfig.NeighborAddress.String(),
-		Id:                peer.peerInfo.ID.To4().String(),
-		RemoteAs:          c.NeighborConfig.PeerAs,
-		RemoteCap:         remoteCap,
-		LocalCap:          localCap,
-		KeepaliveInterval: uint32(peer.conf.Timers.TimersConfig.KeepaliveInterval),
-		Holdtime:          uint32(peer.conf.Timers.TimersConfig.HoldTime),
+		NeighborAddress:  c.NeighborConfig.NeighborAddress.String(),
+		PeerAs:           c.NeighborConfig.PeerAs,
+		LocalAs:          c.NeighborConfig.LocalAs,
+		PeerType:         uint32(c.NeighborConfig.PeerType),
+		AuthPassword:     c.NeighborConfig.AuthPassword,
+		RemovePrivateAs:  uint32(c.NeighborConfig.RemovePrivateAs),
+		RouteFlapDamping: c.NeighborConfig.RouteFlapDamping,
+		SendCommunity:    uint32(c.NeighborConfig.SendCommunity),
+		Description:      c.NeighborConfig.Description,
+		PeerGroup:        c.NeighborConfig.PeerGroup,
 	}
 
-	s := &c.NeighborState
 	timer := &c.Timers
-
-	uptime := int64(0)
-	if timer.TimersState.Uptime != 0 {
-		uptime = int64(time.Now().Sub(time.Unix(timer.TimersState.Uptime, 0)).Seconds())
-	}
-	downtime := int64(0)
-	if timer.TimersState.Downtime != 0 {
-		downtime = int64(time.Now().Sub(time.Unix(timer.TimersState.Downtime, 0)).Seconds())
-	}
+	s := &c.NeighborState
 
 	advertized := uint32(0)
 	received := uint32(0)
@@ -334,6 +328,15 @@ func (peer *Peer) ToApiStruct() *api.Peer {
 		}
 	}
 
+	uptime := int64(0)
+	if timer.TimersState.Uptime != 0 {
+		uptime = int64(time.Now().Sub(time.Unix(timer.TimersState.Uptime, 0)).Seconds())
+	}
+	downtime := int64(0)
+	if timer.TimersState.Downtime != 0 {
+		downtime = int64(time.Now().Sub(time.Unix(timer.TimersState.Downtime, 0)).Seconds())
+	}
+
 	keepalive := uint32(0)
 	if f.negotiatedHoldTime != 0 {
 		if f.negotiatedHoldTime < timer.TimersConfig.HoldTime {
@@ -343,38 +346,57 @@ func (peer *Peer) ToApiStruct() *api.Peer {
 		}
 	}
 
-	info := &api.PeerInfo{
-		BgpState:                  f.state.String(),
-		AdminState:                f.adminState.String(),
-		FsmEstablishedTransitions: s.EstablishedCount,
-		TotalMessageOut:           s.Messages.Sent.Total,
-		TotalMessageIn:            s.Messages.Received.Total,
-		UpdateMessageOut:          s.Messages.Sent.Update,
-		UpdateMessageIn:           s.Messages.Received.Update,
-		KeepAliveMessageOut:       s.Messages.Sent.Keepalive,
-		KeepAliveMessageIn:        s.Messages.Received.Keepalive,
-		OpenMessageOut:            s.Messages.Sent.Open,
-		OpenMessageIn:             s.Messages.Received.Open,
-		NotificationOut:           s.Messages.Sent.Notification,
-		NotificationIn:            s.Messages.Received.Notification,
-		RefreshMessageOut:         s.Messages.Sent.Refresh,
-		RefreshMessageIn:          s.Messages.Received.Refresh,
-		DiscardedOut:              s.Messages.Sent.Discarded,
-		DiscardedIn:               s.Messages.Received.Discarded,
-		Uptime:                    uptime,
-		Downtime:                  downtime,
-		Received:                  received,
-		Accepted:                  accepted,
-		Advertized:                advertized,
-		OutQ:                      uint32(len(peer.outgoing)),
-		Flops:                     s.Flops,
-		NegotiatedHoldtime:        uint32(f.negotiatedHoldTime),
-		KeepaliveInterval:         keepalive,
+	timerconf := &api.TimersConfig{
+		ConnectRetry:                 uint64(timer.TimersConfig.ConnectRetry),
+		HoldTime:                     uint64(timer.TimersConfig.HoldTime),
+		KeepaliveInterval:            uint64(keepalive),
+		MinimumAdvertisementInterval: uint64(timer.TimersConfig.MinimumAdvertisementInterval),
+	}
+
+	timerstate := &api.TimersState{
+		Uptime:   uint64(uptime),
+		Downtime: uint64(downtime),
+	}
+
+	apitimer := &api.Timers{
+		Config: timerconf,
+		State:  timerstate,
+	}
+	msgrcv := &api.Received{
+		NOTIFICATION: s.Messages.Received.Notification,
+		UPDATE:       s.Messages.Received.Update,
+		OPEN:         s.Messages.Received.Open,
+		KEEPALIVE:    s.Messages.Received.Keepalive,
+		REFRESH:      s.Messages.Received.Refresh,
+		DISCARDED:    s.Messages.Received.Discarded,
+		TOTAL:        s.Messages.Received.Total,
+	}
+	msgsnt := &api.Sent{
+		NOTIFICATION: s.Messages.Sent.Notification,
+		UPDATE:       s.Messages.Sent.Update,
+		OPEN:         s.Messages.Sent.Open,
+		KEEPALIVE:    s.Messages.Sent.Keepalive,
+		REFRESH:      s.Messages.Sent.Refresh,
+		DISCARDED:    s.Messages.Sent.Discarded,
+		TOTAL:        s.Messages.Sent.Total,
+	}
+	msg := &api.Messages{
+		Received: msgrcv,
+		Sent:     msgsnt,
+	}
+	info := &api.PeerState{
+		BgpState:   f.state.String(),
+		AdminState: f.adminState.String(),
+		Messages:   msg,
+		Received:   received,
+		Accepted:   accepted,
+		Advertized: advertized,
 	}
 
 	return &api.Peer{
-		Conf: conf,
-		Info: info,
+		Conf:   conf,
+		Info:   info,
+		Timers: apitimer,
 	}
 }
 

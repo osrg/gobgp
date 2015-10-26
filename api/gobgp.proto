@@ -22,6 +22,7 @@ package gobgpapi;
 service GobgpApi {
   rpc GetNeighbors(Arguments) returns (stream Peer) {}
   rpc GetNeighbor(Arguments) returns (Peer) {}
+  rpc ModNeighbor(ModNeighborArguments) returns(Error) {}
   rpc GetRib(Arguments) returns (stream Destination) {}
   rpc Reset(Arguments) returns (Error) {}
   rpc SoftReset(Arguments) returns (Error) {}
@@ -72,6 +73,10 @@ message ModPathArguments {
     repeated Path paths = 3;
 }
 
+message ModNeighborArguments {
+    Operation operation = 1;
+    Peer peer = 2;
+}
 message MrtArguments {
     Resource resource = 1;
     uint32 rf = 2;
@@ -146,49 +151,268 @@ message Destination {
     repeated Path paths = 2;
 }
 
-message PeerConf {
-    string remote_ip = 1;
-    string id = 2;
-    uint32 remote_as = 3;
-    repeated bytes remote_cap = 6;
-    repeated bytes local_cap = 7;
-    uint32 holdtime = 8;
-    uint32 keepalive_interval = 9;
-}
-
-message PeerInfo {
-    string bgp_state = 1;
-    string admin_state = 2;
-    uint32 fsm_established_transitions = 3;
-    uint64 total_message_out = 4;
-    uint64 total_message_in = 5;
-    uint64 update_message_out = 6;
-    uint64 update_message_in = 7;
-    uint64 keep_alive_message_out = 8;
-    uint64 keep_alive_message_in = 9;
-    uint64 open_message_out = 10;
-    uint64 open_message_in = 11;
-    uint64 notification_out = 12;
-    uint64 notification_in = 13;
-    uint64 refresh_message_out = 14;
-    uint64 refresh_message_in = 15;
-    uint64 discarded_out = 16;
-    uint64 discarded_in = 17;
-    int64 uptime = 18;
-    int64 downtime = 19;
-    string last_error = 20;
-    uint32 received = 21;
-    uint32 accepted = 22;
-    uint32 advertized = 23;
-    uint32 out_q = 24;
-    uint32 flops = 25;
-    uint32 negotiated_holdtime = 26;
-    uint32 keepalive_interval = 27;
-}
-
 message Peer {
-    PeerConf conf = 1;
-    PeerInfo info = 2;
+  AddPaths addpaths = 1;
+  AfiSafis afisafis = 2;
+  ApplyPolicy apply_policy = 3;
+  AsPathOptions as_path_options = 4;
+  PeerConf conf = 5;
+  EbgpMultihop ebgp_multihop = 6;
+  ErrorHandling error_handling = 7;
+  PeerGracefulRestart graceful_restart = 8;
+  LoggingOptions logging_options = 9;
+  string nighbor_address = 10;
+  RouteReflector route_reflector = 11;
+  PeerState info = 12;
+  Timers timers = 13;
+  Transport transport = 14;
+  UseMultiplePaths use_multiple_paths = 15;
+  RouteServer route_server = 16;
+}
+
+message AddPaths {
+  bool receive = 1;
+  uint32 sendMax = 2;
+}
+
+message AfiSafis {
+  repeated AfiSafi afisafi = 1;
+}
+
+message AfiSafi {
+  string name = 1;
+  ApplyPolicy apply_policy = 2;
+  bool enabled = 3;
+  AfiSafiGracefulRestart graceful_restart = 4;
+  Ipv4LabelledUnicast ipv4_labelled_unicast = 5;
+  Ipv4Unicast ipv4_unicast = 6;
+  Ipv6LabelledUnicast ipv6_labelled_unicast = 7;
+  Ipv6Unicast ipv6_unicast = 8;
+  L2VpnEvpn l2_vpn_evpn = 9;
+  L2VpnVpls l2_vpn_vpls = 10;
+  L3VpnIpv4Multicast l3_vpn_ipv4_multicast = 11;
+  L3VpnIpv4Unicast l3_vpn_ipv4_unicast = 12;
+  L3VpnIpv6Multicast l3_vpn_ipv6_multicast = 13;
+  L3VpnIpv6Unicast l3_vpn_ipv6_unicast = 14;
+  UseMultiplePaths use_multiple_paths = 15;
+  bool active = 16;
+  Prefixes prefixes = 17;
+ }
+
+message ApplyPolicy {
+  uint32 default_export_policy = 1;
+  uint32 default_import_policy = 2;
+  repeated string export_policy = 3;
+  repeated string import_policy = 4;
+}
+
+message AfiSafiGracefulRestart {
+  bool advertised = 1;
+  bool enabled = 2;
+  bool received = 3;
+}
+
+message Ipv4LabelledUnicast {
+  PrefixLimit prefix_limit = 1;
+}
+
+message PrefixLimit {
+  uint32 max_prefixes = 1;
+  uint64 restart_timer = 2;
+  uint32 shutdown_threshold_pct = 3;
+}
+
+message Ipv4Unicast {
+  bool send_default_route = 1;
+  PrefixLimit prefix_limit = 2;
+}
+
+message Ipv6LabelledUnicast {
+  PrefixLimit prefix_limit = 1;
+}
+
+message Ipv6Unicast {
+  bool send_default_route = 1;
+  PrefixLimit prefix_limit = 2;
+}
+
+message L2VpnEvpn {
+  PrefixLimit prefix_limit = 1;
+}
+
+message L2VpnVpls {
+  PrefixLimit prefix_limit = 1;
+}
+
+message L3VpnIpv4Multicast {
+  PrefixLimit prefix_limit = 1;
+}
+
+message L3VpnIpv4Unicast {
+  PrefixLimit prefix_limit = 1;
+}
+
+message L3VpnIpv6Multicast {
+  PrefixLimit prefix_limit = 1;
+}
+
+message L3VpnIpv6Unicast {
+  PrefixLimit prefix_limit = 1;
+}
+
+message Prefixes {
+  uint32 installed = 1;
+  uint32 received = 2;
+  uint32 sent = 3;
+}
+
+message UseMultiplePaths {
+  bool enabled = 1;
+  Ebgp ebgp = 2;
+}
+
+message Ebgp {
+  bool allow_multiple_as = 1;
+}
+
+message AsPathOptions {
+  uint32 allow_own_as = 1;
+  bool replace_peer_as = 2;
+}
+
+message PeerConf {
+  string auth_password = 1;
+  string description = 2;
+  uint32 local_as = 3;
+  string neighbor_address = 4;
+  uint32 peer_as = 5;
+  string peer_group = 6;
+  uint32 peer_type = 7;
+  uint32 remove_privateAs = 8;
+  bool route_flap_damping = 9;
+  uint32 send_community = 10;
+  repeated bytes remote_cap = 11;
+  repeated bytes local_cap = 12;
+}
+
+message EbgpMultihop {
+  bool enabled = 1;
+  uint32 multihop_ttl = 2;
+}
+
+message ErrorHandling {
+  uint32 erroneous_update_messages = 1;
+  bool treat_as_withdraw = 2;
+}
+
+message PeerGracefulRestart {
+  bool enabled = 1;
+  bool helper_only = 2;
+  bool local_restarting = 3;
+  uint32 mode = 4;
+  uint32 peer_restart_time = 5;
+  bool peer_restarting = 6;
+  uint32 restart_time = 7;
+  uint64 stale_routes_time = 8;
+}
+
+message LoggingOptions {
+  bool logNeighbor_state_changes = 1;
+}
+
+message RouteReflector {
+  bool route_reflector_client = 1;
+  uint32 route_reflector_clusterId = 2;
+  }
+
+message PeerState {
+  string auth_password = 1;
+  string description = 2;
+  uint32 local_as = 3;
+  Messages messages = 4;
+  string neighbor_address = 5;
+  uint32 peer_as = 6;
+  string peer_group = 7;
+  uint32 peer_type = 8;
+  Queues queues = 9;
+  uint32 remove_privateAs = 10;
+  bool route_flap_damping = 11;
+  uint32 send_community = 12;
+  uint32 session_state = 13;
+  repeated string supported_capabilities = 14;
+  string bgp_state = 15;
+  string admin_state = 16;
+  uint32 received = 17;
+  uint32 accepted = 18;
+  uint32 advertized = 19;
+  uint32 out_q = 20;
+  uint32 flops = 21;
+}
+
+message Messages {
+  Received received = 1;
+  Sent sent = 2;
+}
+
+message Received {
+  uint64 NOTIFICATION = 1;
+  uint64 UPDATE = 2;
+  uint64 OPEN = 3;
+  uint64 KEEPALIVE = 4;
+  uint64 REFRESH = 5;
+  uint64 DISCARDED = 6;
+  uint64 TOTAL = 7;
+}
+
+message Sent {
+  uint64 NOTIFICATION = 1;
+  uint64 UPDATE = 2;
+  uint64 OPEN = 3;
+  uint64 KEEPALIVE = 4;
+  uint64 REFRESH = 5;
+  uint64 DISCARDED = 6;
+  uint64 TOTAL = 7;
+}
+
+message Queues {
+  uint32 input = 1;
+  uint32 output = 2;
+}
+
+message Timers {
+ TimersConfig config =1;
+ TimersState state=2;
+}
+
+message TimersConfig{
+   uint64 connectRetry = 1;
+   uint64 holdTime = 2;
+   uint64 keepaliveInterval = 3;
+   uint64 minimumAdvertisementInterval = 4;
+}
+
+message TimersState{
+   uint64 connectRetry = 1;
+   uint64 holdTime = 2;
+   uint64 keepaliveInterval = 3;
+   uint64 minimumAdvertisementInterval = 4;
+   uint64 negotiatedHoldTime = 5;
+   uint64 uptime = 6;
+   uint64 downtime = 7;
+}
+
+message Transport {
+  string local_address = 1;
+  uint32 local_port = 2;
+  bool mtu_discovery = 3;
+  bool passive_mode = 4;
+  string remote_address = 5;
+  uint32 remote_port = 6;
+  uint32 tcp_mss = 7;
+  }
+
+message RouteServer {
+  bool route_server_client = 1;
 }
 
 message Prefix {

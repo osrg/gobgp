@@ -40,6 +40,7 @@ const (
 	REQ_NEIGHBOR_SOFT_RESET_OUT
 	REQ_NEIGHBOR_ENABLE
 	REQ_NEIGHBOR_DISABLE
+	REQ_MOD_NEIGHBOR
 	REQ_GLOBAL_RIB
 	REQ_MONITOR_GLOBAL_BEST_CHANGED
 	REQ_MONITOR_NEIGHBOR_PEER_STATE
@@ -306,6 +307,10 @@ func (s *Server) mod(typ int, d interface{}) (*api.Error, error) {
 
 func (s *Server) ModVrf(ctx context.Context, arg *api.ModVrfArguments) (*api.Error, error) {
 	return s.mod(REQ_VRF_MOD, arg)
+}
+
+func (s *Server) ModNeighbor(ctx context.Context, arg *api.ModNeighborArguments) (*api.Error, error) {
+	return s.mod(REQ_MOD_NEIGHBOR, arg)
 }
 
 func (s *Server) GetDefinedSet(ctx context.Context, arg *api.DefinedSet) (*api.DefinedSet, error) {

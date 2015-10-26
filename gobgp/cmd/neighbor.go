@@ -47,7 +47,7 @@ func getNeighbors() (peers, error) {
 			return nil, e
 		}
 		if neighborsOpts.Transport != "" {
-			addr := net.ParseIP(p.Conf.RemoteIp)
+			addr := net.ParseIP(p.Conf.NeighborAddress)
 			if addr.To4() != nil {
 				if neighborsOpts.Transport != "ipv4" {
 					continue
@@ -96,12 +96,12 @@ func showNeighbors() error {
 			maxaslen = len(fmt.Sprint(p.Conf.RemoteAs))
 		}
 		var t string
-		if p.Info.Uptime == 0 {
+		if p.Timers.State.Uptime == 0 {
 			t = "never"
 		} else if p.Info.BgpState == "BGP_FSM_ESTABLISHED" {
-			t = formatTimedelta(p.Info.Uptime)
+			t = formatTimedelta(int64(p.Timers.State.Uptime))
 		} else {
-			t = formatTimedelta(p.Info.Downtime)
+			t = formatTimedelta(int64(p.Timers.State.Downtime))
 		}
 		if len(t) > maxtimelen {
 			maxtimelen = len(t)
@@ -157,10 +157,10 @@ func showNeighbor(args []string) error {
 
 	fmt.Printf("BGP neighbor is %s, remote AS %d\n", p.Conf.RemoteIp, p.Conf.RemoteAs)
 	fmt.Printf("  BGP version 4, remote router ID %s\n", p.Conf.Id)
-	fmt.Printf("  BGP state = %s, up for %s\n", p.Info.BgpState, formatTimedelta(p.Info.Uptime))
+	fmt.Printf("  BGP state = %s, up for %s\n", p.Info.BgpState, formatTimedelta(int64(p.Timers.State.Uptime)))
 	fmt.Printf("  BGP OutQ = %d, Flops = %d\n", p.Info.OutQ, p.Info.Flops)
-	fmt.Printf("  Hold time is %d, keepalive interval is %d seconds\n", p.Info.NegotiatedHoldtime, p.Info.KeepaliveInterval)
-	fmt.Printf("  Configured hold time is %d, keepalive interval is %d seconds\n", p.Conf.Holdtime, p.Conf.KeepaliveInterval)
+	fmt.Printf("  Hold time is %d, keepalive interval is %d seconds\n", p.Timers.State.NegotiatedHoldTime, p.Timers.Config.KeepaliveInterval)
+	fmt.Printf("  Configured hold time is %d, keepalive interval is %d seconds\n", p.Timers.Config.HoldTime, p.Timers.Config.KeepaliveInterval)
 
 	fmt.Printf("  Neighbor capabilities:\n")
 	caps := capabilities{}
@@ -218,13 +218,13 @@ func showNeighbor(args []string) error {
 	}
 	fmt.Print("  Message statistics:\n")
 	fmt.Print("                         Sent       Rcvd\n")
-	fmt.Printf("    Opens:         %10d %10d\n", p.Info.OpenMessageOut, p.Info.OpenMessageIn)
-	fmt.Printf("    Notifications: %10d %10d\n", p.Info.NotificationOut, p.Info.NotificationIn)
-	fmt.Printf("    Updates:       %10d %10d\n", p.Info.UpdateMessageOut, p.Info.UpdateMessageIn)
-	fmt.Printf("    Keepalives:    %10d %10d\n", p.Info.KeepAliveMessageOut, p.Info.KeepAliveMessageIn)
-	fmt.Printf("    Route Refesh:  %10d %10d\n", p.Info.RefreshMessageOut, p.Info.RefreshMessageIn)
-	fmt.Printf("    Discarded:     %10d %10d\n", p.Info.DiscardedOut, p.Info.DiscardedIn)
-	fmt.Printf("    Total:         %10d %10d\n", p.Info.TotalMessageOut, p.Info.TotalMessageIn)
+	fmt.Printf("    Opens:         %10d %10d\n", p.Info.Messages.Sent.OPEN, p.Info.Messages.Received.OPEN)
+	fmt.Printf("    Notifications: %10d %10d\n", p.Info.Messages.Sent.NOTIFICATION, p.Info.Messages.Received.NOTIFICATION)
+	fmt.Printf("    Updates:       %10d %10d\n", p.Info.Messages.Sent.UPDATE, p.Info.Messages.Received.UPDATE)
+	fmt.Printf("    Keepalives:    %10d %10d\n", p.Info.Messages.Sent.KEEPALIVE, p.Info.Messages.Received.KEEPALIVE)
+	fmt.Printf("    Route Refesh:  %10d %10d\n", p.Info.Messages.Sent.REFRESH, p.Info.Messages.Received.REFRESH)
+	fmt.Printf("    Discarded:     %10d %10d\n", p.Info.Messages.Sent.DISCARDED, p.Info.Messages.Received.DISCARDED)
+	fmt.Printf("    Total:         %10d %10d\n", p.Info.Messages.Sent.TOTAL, p.Info.Messages.Received.TOTAL)
 	fmt.Print("  Route statistics:\n")
 	fmt.Printf("    Advertised:    %10d\n", p.Info.Advertized)
 	fmt.Printf("    Received:      %10d\n", p.Info.Received)

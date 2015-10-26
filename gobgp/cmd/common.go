@@ -237,8 +237,9 @@ type PeerConf struct {
 }
 
 type Peer struct {
-	Conf PeerConf           `json:"conf,omitempty"`
-	Info *gobgpapi.PeerInfo `json:"info,omitempty"`
+	Conf   PeerConf            `json:"conf,omitempty"`
+	Info   *gobgpapi.PeerState `json:"info,omitempty"`
+	Timers *gobgpapi.Timers    `json:"timers,,omitempty"`
 }
 
 func ApiStruct2Peer(p *gobgpapi.Peer) *Peer {
@@ -253,17 +254,16 @@ func ApiStruct2Peer(p *gobgpapi.Peer) *Peer {
 		remoteCaps = append(remoteCaps, c)
 	}
 	conf := PeerConf{
-		RemoteIp:          net.ParseIP(p.Conf.RemoteIp),
-		Id:                net.ParseIP(p.Conf.Id),
-		RemoteAs:          p.Conf.RemoteAs,
-		RemoteCap:         remoteCaps,
-		LocalCap:          localCaps,
-		Holdtime:          p.Conf.Holdtime,
-		KeepaliveInterval: p.Conf.KeepaliveInterval,
+		RemoteIp:  net.ParseIP(p.Conf.NeighborAddress),
+		Id:        net.ParseIP(p.Conf.NeighborAddress),
+		RemoteAs:  p.Conf.PeerAs,
+		RemoteCap: remoteCaps,
+		LocalCap:  localCaps,
 	}
 	return &Peer{
-		Conf: conf,
-		Info: p.Info,
+		Conf:   conf,
+		Info:   p.Info,
+		Timers: p.Timers,
 	}
 }
 

@@ -105,7 +105,7 @@ func NewMonitorCmd() *cobra.Command {
 					j, _ := json.Marshal(s)
 					fmt.Println(string(j))
 				} else {
-					fmt.Printf("[NEIGH] %s fsm: %s admin: %s\n", s.Conf.RemoteIp, s.Info.BgpState, s.Info.AdminState)
+					fmt.Printf("[NEIGH] %s fsm: %s admin: %s\n", s.Conf.NeighborAddress, s.Info.BgpState, s.Info.AdminState)
 				}
 			}
 		},
