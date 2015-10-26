@@ -30,24 +30,15 @@ import (
 	"time"
 )
 
-type roa struct {
-	AS        uint32
-	PrefixLen uint8
-	MaxLen    uint8
+type roaBucket struct {
 	Prefix    net.IP
+	PrefixLen uint8
+	entries   []*roa
 }
 
-func (r *roa) key() string {
-	return fmt.Sprintf("%s/%d", r.Prefix.String(), r.PrefixLen)
-}
-
-func (r *roa) toApiStruct() *api.ROA {
-	return &api.ROA{
-		As:        r.AS,
-		Prefixlen: uint32(r.PrefixLen),
-		Maxlen:    uint32(r.MaxLen),
-		Prefix:    r.Prefix.String(),
-	}
+type roa struct {
+	MaxLen uint8
+	AS     []uint32
 }
 
 type roaClient struct {
@@ -60,12 +51,49 @@ func (c *roaClient) recieveROA() chan []byte {
 	return c.outgoing
 }
 
-func roa2key(r *roa) string {
-	var buffer bytes.Buffer
-	for i := 0; i < len(r.Prefix) && i < int(r.PrefixLen); i++ {
-		buffer.WriteString(fmt.Sprintf("%08b", r.Prefix[i]))
+func handleIPPrefix(tree *radix.Tree, key string, as uint32, prefix []byte, prefixLen, maxLen uint8) {
+	b, _ := tree.Get(key)
+	if b == nil {
+		p := make([]byte, len(prefix))
+		copy(p, prefix)
+
+		r := &roa{
+			AS:     []uint32{as},
+			MaxLen: maxLen,
+		}
+
+		b := &roaBucket{
+			PrefixLen: prefixLen,
+			Prefix:    p,
+			entries:   []*roa{r},
+		}
+
+		tree.Insert(key, b)
+	} else {
+		bucket := b.(*roaBucket)
+		found := false
+		for _, r := range bucket.entries {
+			if r.MaxLen == maxLen {
+				found = true
+				r.AS = append(r.AS, as)
+			}
+		}
+		if found == false {
+			r := &roa{
+				MaxLen: maxLen,
+				AS:     []uint32{as},
+			}
+			bucket.entries = append(bucket.entries, r)
+		}
 	}
-	return buffer.String()[:r.PrefixLen]
+}
+
+func prefixToKey(prefix []byte, prefixLen uint8) string {
+	var buffer bytes.Buffer
+	for i := 0; i < len(prefix) && i < int(prefixLen); i++ {
+		buffer.WriteString(fmt.Sprintf("%08b", prefix[i]))
+	}
+	return buffer.String()[:prefixLen]
 }
 
 func (c *roaClient) handleRTRMsg(buf []byte) {
@@ -81,21 +109,16 @@ func (c *roaClient) handleRTRMsg(buf []byte) {
 		case *bgp.RTRCacheResponse:
 			received.CacheResponse++
 		case *bgp.RTRIPPrefix:
-			p := make([]byte, len(msg.Prefix))
-			copy(p, msg.Prefix)
-			r := &roa{
-				AS:        msg.AS,
-				PrefixLen: msg.PrefixLen,
-				MaxLen:    msg.MaxLen,
-				Prefix:    p,
-			}
-			if r.Prefix.To4() != nil {
+			key := prefixToKey(msg.Prefix, msg.PrefixLen)
+			var tree *radix.Tree
+			if net.IP(msg.Prefix).To4() != nil {
 				received.Ipv4Prefix++
-				c.roas[bgp.RF_IPv4_UC].Insert(roa2key(r), r)
+				tree = c.roas[bgp.RF_IPv4_UC]
 			} else {
 				received.Ipv6Prefix++
-				c.roas[bgp.RF_IPv6_UC].Insert(roa2key(r), r)
+				tree = c.roas[bgp.RF_IPv6_UC]
 			}
+			handleIPPrefix(tree, key, msg.AS, msg.Prefix, msg.PrefixLen, msg.MaxLen)
 		case *bgp.RTREndOfData:
 			received.EndOfData++
 		case *bgp.RTRCacheReset:
@@ -141,14 +164,53 @@ func (c *roaClient) handleGRPC(grpcReq *GrpcRequest) {
 		results := make([]*GrpcResponse, 0)
 		if tree, ok := c.roas[grpcReq.RouteFamily]; ok {
 			tree.Walk(func(s string, v interface{}) bool {
-				r, _ := v.(*roa)
-				result := &GrpcResponse{}
-				result.Data = r.toApiStruct()
-				results = append(results, result)
+				b, _ := v.(*roaBucket)
+				for _, r := range b.entries {
+					for _, as := range r.AS {
+						result := &GrpcResponse{}
+						result.Data = &api.ROA{
+							As:        as,
+							Maxlen:    uint32(r.MaxLen),
+							Prefixlen: uint32(b.PrefixLen),
+							Prefix:    b.Prefix.String(),
+						}
+						results = append(results, result)
+					}
+				}
 				return false
 			})
 		}
 		go sendMultipleResponses(grpcReq, results)
+	}
+}
+
+func validateOne(tree *radix.Tree, key string, prefixLen uint8, as uint32) config.RpkiValidationResultType {
+	_, b, _ := tree.LongestPrefix(key)
+	if b == nil {
+		return config.RPKI_VALIDATION_RESULT_TYPE_NOT_FOUND
+	} else {
+		result := config.RPKI_VALIDATION_RESULT_TYPE_INVALID
+		bucket, _ := b.(*roaBucket)
+		for _, r := range bucket.entries {
+			if prefixLen > r.MaxLen {
+				continue
+			}
+
+			y := func(x uint32, asList []uint32) bool {
+				for _, as := range asList {
+					if x == as {
+						return true
+					}
+				}
+				return false
+			}(as, r.AS)
+
+			if y {
+				result = config.RPKI_VALIDATION_RESULT_TYPE_VALID
+				break
+			}
+		}
+		return result
 	}
 }
 
@@ -161,17 +223,7 @@ func (c *roaClient) validate(pathList []*table.Path) {
 			for i := 0; i < len(n.IP) && i < ones; i++ {
 				buffer.WriteString(fmt.Sprintf("%08b", n.IP[i]))
 			}
-			_, r, _ := tree.LongestPrefix(buffer.String()[:ones])
-			if r == nil {
-				path.Validation = config.RPKI_VALIDATION_RESULT_TYPE_NOT_FOUND
-			} else {
-				roa, _ := r.(*roa)
-				if roa.AS == path.GetSourceAs() {
-					path.Validation = config.RPKI_VALIDATION_RESULT_TYPE_VALID
-				} else {
-					path.Validation = config.RPKI_VALIDATION_RESULT_TYPE_INVALID
-				}
-			}
+			path.Validation = validateOne(tree, buffer.String()[:ones], uint8(ones), path.GetSourceAs())
 		}
 	}
 }
