@@ -19,7 +19,7 @@ import (
 	//"fmt"
 	"github.com/osrg/gobgp/packet"
 	"github.com/stretchr/testify/assert"
-	//"net"
+	"net"
 	"testing"
 	"time"
 )
@@ -190,4 +190,10 @@ func updateMsgD3() *bgp.BGPMessage {
 	updateMsg := bgp.NewBGPUpdateMessage(withdrawnRoutes, pathAttributes, nlri)
 	UpdatePathAttrs4ByteAs(updateMsg.Body.(*bgp.BGPUpdate))
 	return updateMsg
+}
+
+func TestRadixkey(t *testing.T) {
+	assert.Equal(t, "000010100000001100100000", CidrToRadixkey("10.3.32.0/24"))
+	assert.Equal(t, "000010100000001100100000", IpToRadixkey(net.ParseIP("10.3.32.0"), 24))
+	assert.Equal(t, "000010100000001100100000", IpToRadixkey(net.ParseIP("10.3.32.0").To4(), 24))
 }

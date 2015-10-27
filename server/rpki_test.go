@@ -23,37 +23,28 @@ import (
 	"testing"
 )
 
-func addROA(tree *radix.Tree, addr string, as uint32, prefixLen, maxLen uint8) {
-	a := net.ParseIP(addr)
-	b := a.To4()
-	if b == nil {
-		b = a.To16()
-	}
-	handleIPPrefix(tree, prefixToKey(net.ParseIP(addr), prefixLen), as, b, prefixLen, maxLen)
-}
-
 func TestValidate(t *testing.T) {
 	assert := assert.New(t)
 
 	tree := radix.New()
-	addROA(tree, "192.168.0.0", 100, 24, 32)
-	addROA(tree, "192.168.0.0", 200, 24, 24)
+	addROA(tree, 100, net.ParseIP("192.168.0.0"), 24, 32)
+	addROA(tree, 200, net.ParseIP("192.168.0.0"), 24, 24)
 
-	r1 := validateOne(tree, prefixToKey(net.ParseIP("192.168.0.0"), 24), 24, 100)
+	r1 := validateOne(tree, "192.168.0.0/24", 100)
 	assert.Equal(r1, config.RPKI_VALIDATION_RESULT_TYPE_VALID)
 
-	r2 := validateOne(tree, prefixToKey(net.ParseIP("192.168.0.0"), 24), 24, 200)
+	r2 := validateOne(tree, "192.168.0.0/24", 200)
 	assert.Equal(r2, config.RPKI_VALIDATION_RESULT_TYPE_VALID)
 
-	r3 := validateOne(tree, prefixToKey(net.ParseIP("192.168.0.0"), 24), 24, 300)
+	r3 := validateOne(tree, "192.168.0.0/24", 300)
 	assert.Equal(r3, config.RPKI_VALIDATION_RESULT_TYPE_INVALID)
 
-	r4 := validateOne(tree, prefixToKey(net.ParseIP("192.168.0.0"), 25), 25, 100)
+	r4 := validateOne(tree, "192.168.0.0/25", 100)
 	assert.Equal(r4, config.RPKI_VALIDATION_RESULT_TYPE_VALID)
 
-	r5 := validateOne(tree, prefixToKey(net.ParseIP("192.168.0.0"), 25), 25, 200)
+	r5 := validateOne(tree, "192.168.0.0/25", 200)
 	assert.Equal(r5, config.RPKI_VALIDATION_RESULT_TYPE_INVALID)
 
-	r6 := validateOne(tree, prefixToKey(net.ParseIP("192.168.0.0"), 25), 25, 300)
+	r6 := validateOne(tree, "192.168.0.0/25", 300)
 	assert.Equal(r6, config.RPKI_VALIDATION_RESULT_TYPE_INVALID)
 }

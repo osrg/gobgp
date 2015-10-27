@@ -17,7 +17,6 @@ package server
 
 import (
 	"bufio"
-	"bytes"
 	"fmt"
 	log "github.com/Sirupsen/logrus"
 	"github.com/armon/go-radix"
@@ -51,7 +50,8 @@ func (c *roaClient) recieveROA() chan []byte {
 	return c.outgoing
 }
 
-func handleIPPrefix(tree *radix.Tree, key string, as uint32, prefix []byte, prefixLen, maxLen uint8) {
+func addROA(tree *radix.Tree, as uint32, prefix []byte, prefixLen, maxLen uint8) {
+	key := table.IpToRadixkey(prefix, prefixLen)
 	b, _ := tree.Get(key)
 	if b == nil {
 		p := make([]byte, len(prefix))
@@ -88,14 +88,6 @@ func handleIPPrefix(tree *radix.Tree, key string, as uint32, prefix []byte, pref
 	}
 }
 
-func prefixToKey(prefix []byte, prefixLen uint8) string {
-	var buffer bytes.Buffer
-	for i := 0; i < len(prefix) && i < int(prefixLen); i++ {
-		buffer.WriteString(fmt.Sprintf("%08b", prefix[i]))
-	}
-	return buffer.String()[:prefixLen]
-}
-
 func (c *roaClient) handleRTRMsg(buf []byte) {
 	received := &c.config.RpkiServerList[0].RpkiServerState.RpkiMessages.RpkiReceived
 
@@ -109,7 +101,6 @@ func (c *roaClient) handleRTRMsg(buf []byte) {
 		case *bgp.RTRCacheResponse:
 			received.CacheResponse++
 		case *bgp.RTRIPPrefix:
-			key := prefixToKey(msg.Prefix, msg.PrefixLen)
 			var tree *radix.Tree
 			if net.IP(msg.Prefix).To4() != nil {
 				received.Ipv4Prefix++
@@ -118,7 +109,7 @@ func (c *roaClient) handleRTRMsg(buf []byte) {
 				received.Ipv6Prefix++
 				tree = c.roas[bgp.RF_IPv6_UC]
 			}
-			handleIPPrefix(tree, key, msg.AS, msg.Prefix, msg.PrefixLen, msg.MaxLen)
+			addROA(tree, msg.AS, msg.Prefix, msg.PrefixLen, msg.MaxLen)
 		case *bgp.RTREndOfData:
 			received.EndOfData++
 		case *bgp.RTRCacheReset:
@@ -184,8 +175,11 @@ func (c *roaClient) handleGRPC(grpcReq *GrpcRequest) {
 	}
 }
 
-func validateOne(tree *radix.Tree, key string, prefixLen uint8, as uint32) config.RpkiValidationResultType {
-	_, b, _ := tree.LongestPrefix(key)
+func validateOne(tree *radix.Tree, cidr string, as uint32) config.RpkiValidationResultType {
+	_, n, _ := net.ParseCIDR(cidr)
+	ones, _ := n.Mask.Size()
+	prefixLen := uint8(ones)
+	_, b, _ := tree.LongestPrefix(table.IpToRadixkey(n.IP, prefixLen))
 	if b == nil {
 		return config.RPKI_VALIDATION_RESULT_TYPE_NOT_FOUND
 	} else {
@@ -217,13 +211,7 @@ func validateOne(tree *radix.Tree, key string, prefixLen uint8, as uint32) confi
 func (c *roaClient) validate(pathList []*table.Path) {
 	for _, path := range pathList {
 		if tree, ok := c.roas[path.GetRouteFamily()]; ok {
-			_, n, _ := net.ParseCIDR(path.GetNlri().String())
-			ones, _ := n.Mask.Size()
-			var buffer bytes.Buffer
-			for i := 0; i < len(n.IP) && i < ones; i++ {
-				buffer.WriteString(fmt.Sprintf("%08b", n.IP[i]))
-			}
-			path.Validation = validateOne(tree, buffer.String()[:ones], uint8(ones), path.GetSourceAs())
+			path.Validation = validateOne(tree, path.GetNlri().String(), path.GetSourceAs())
 		}
 	}
 }
