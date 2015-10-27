@@ -18,33 +18,168 @@ package server
 import (
 	"github.com/armon/go-radix"
 	"github.com/osrg/gobgp/config"
+	"github.com/osrg/gobgp/packet"
 	"github.com/stretchr/testify/assert"
 	"net"
+	"strconv"
+	"strings"
 	"testing"
 )
 
-func TestValidate(t *testing.T) {
+func strToASParam(str string) *bgp.PathAttributeAsPath {
+	toList := func(asstr, sep string) []uint32 {
+		as := make([]uint32, 0)
+		l := strings.Split(asstr, sep)
+		for _, s := range l {
+			v, _ := strconv.ParseUint(s, 10, 32)
+			as = append(as, uint32(v))
+		}
+		return as
+	}
+	var atype uint8
+	var as []uint32
+	if strings.HasPrefix(str, "{") {
+		atype = bgp.BGP_ASPATH_ATTR_TYPE_SET
+		as = toList(str[1:len(str)-1], ",")
+	} else if strings.HasPrefix(str, "(") {
+		atype = bgp.BGP_ASPATH_ATTR_TYPE_CONFED_SET
+		as = toList(str[1:len(str)-1], " ")
+	} else {
+		atype = bgp.BGP_ASPATH_ATTR_TYPE_SEQ
+		as = toList(str, " ")
+	}
+
+	return bgp.NewPathAttributeAsPath([]bgp.AsPathParamInterface{bgp.NewAs4PathParam(atype, as)})
+}
+
+func validateOne(tree *radix.Tree, cidr, aspathStr string) config.RpkiValidationResultType {
+	return validatePath(65500, tree, cidr, strToASParam(aspathStr))
+}
+
+func TestValidate0(t *testing.T) {
 	assert := assert.New(t)
 
 	tree := radix.New()
 	addROA(tree, 100, net.ParseIP("192.168.0.0"), 24, 32)
 	addROA(tree, 200, net.ParseIP("192.168.0.0"), 24, 24)
 
-	r1 := validateOne(tree, "192.168.0.0/24", 100)
-	assert.Equal(r1, config.RPKI_VALIDATION_RESULT_TYPE_VALID)
+	var r config.RpkiValidationResultType
 
-	r2 := validateOne(tree, "192.168.0.0/24", 200)
-	assert.Equal(r2, config.RPKI_VALIDATION_RESULT_TYPE_VALID)
+	r = validateOne(tree, "192.168.0.0/24", "100")
+	assert.Equal(r, config.RPKI_VALIDATION_RESULT_TYPE_VALID)
 
-	r3 := validateOne(tree, "192.168.0.0/24", 300)
-	assert.Equal(r3, config.RPKI_VALIDATION_RESULT_TYPE_INVALID)
+	r = validateOne(tree, "192.168.0.0/24", "100 200")
+	assert.Equal(r, config.RPKI_VALIDATION_RESULT_TYPE_VALID)
 
-	r4 := validateOne(tree, "192.168.0.0/25", 100)
-	assert.Equal(r4, config.RPKI_VALIDATION_RESULT_TYPE_VALID)
+	r = validateOne(tree, "192.168.0.0/24", "300")
+	assert.Equal(r, config.RPKI_VALIDATION_RESULT_TYPE_INVALID)
 
-	r5 := validateOne(tree, "192.168.0.0/25", 200)
-	assert.Equal(r5, config.RPKI_VALIDATION_RESULT_TYPE_INVALID)
+	r = validateOne(tree, "192.168.0.0/25", "100")
+	assert.Equal(r, config.RPKI_VALIDATION_RESULT_TYPE_VALID)
 
-	r6 := validateOne(tree, "192.168.0.0/25", 300)
-	assert.Equal(r6, config.RPKI_VALIDATION_RESULT_TYPE_INVALID)
+	r = validateOne(tree, "192.168.0.0/25", "200")
+	assert.Equal(r, config.RPKI_VALIDATION_RESULT_TYPE_INVALID)
+
+	r = validateOne(tree, "192.168.0.0/25", "300")
+	assert.Equal(r, config.RPKI_VALIDATION_RESULT_TYPE_INVALID)
+}
+
+func TestValidate2(t *testing.T) {
+	assert := assert.New(t)
+
+	tree := radix.New()
+
+	var r config.RpkiValidationResultType
+
+	r = validateOne(tree, "10.0.0.0/16", "65000")
+	assert.Equal(r, config.RPKI_VALIDATION_RESULT_TYPE_NOT_FOUND)
+
+	r = validateOne(tree, "10.0.0.0/16", "65001")
+	assert.Equal(r, config.RPKI_VALIDATION_RESULT_TYPE_NOT_FOUND)
+}
+
+func TestValidate3(t *testing.T) {
+	assert := assert.New(t)
+
+	tree1 := radix.New()
+	addROA(tree1, 65000, net.ParseIP("10.0.0.0"), 16, 16)
+
+	var r config.RpkiValidationResultType
+
+	r = validateOne(tree1, "10.0.0.0/8", "65000")
+	assert.Equal(r, config.RPKI_VALIDATION_RESULT_TYPE_NOT_FOUND)
+
+	r = validateOne(tree1, "10.0.0.0/17", "65000")
+	assert.Equal(r, config.RPKI_VALIDATION_RESULT_TYPE_INVALID)
+
+	tree2 := radix.New()
+	addROA(tree2, 65000, net.ParseIP("10.0.0.0"), 16, 24)
+
+	r = validateOne(tree2, "10.0.0.0/17", "65000")
+	assert.Equal(r, config.RPKI_VALIDATION_RESULT_TYPE_VALID)
+}
+
+func TestValidate4(t *testing.T) {
+	assert := assert.New(t)
+
+	tree := radix.New()
+	addROA(tree, 65000, net.ParseIP("10.0.0.0"), 16, 16)
+	addROA(tree, 65001, net.ParseIP("10.0.0.0"), 16, 16)
+
+	var r config.RpkiValidationResultType
+
+	r = validateOne(tree, "10.0.0.0/16", "65000")
+	assert.Equal(r, config.RPKI_VALIDATION_RESULT_TYPE_VALID)
+
+	r = validateOne(tree, "10.0.0.0/16", "65001")
+	assert.Equal(r, config.RPKI_VALIDATION_RESULT_TYPE_VALID)
+}
+
+func TestValidate5(t *testing.T) {
+	assert := assert.New(t)
+
+	tree := radix.New()
+	addROA(tree, 65000, net.ParseIP("10.0.0.0"), 17, 17)
+	addROA(tree, 65000, net.ParseIP("10.0.128.0"), 17, 17)
+
+	var r config.RpkiValidationResultType
+
+	r = validateOne(tree, "10.0.0.0/16", "65000")
+	assert.Equal(r, config.RPKI_VALIDATION_RESULT_TYPE_NOT_FOUND)
+}
+
+func TestValidate6(t *testing.T) {
+	assert := assert.New(t)
+
+	tree := radix.New()
+	addROA(tree, 0, net.ParseIP("10.0.0.0"), 8, 32)
+
+	var r config.RpkiValidationResultType
+
+	r = validateOne(tree, "10.0.0.0/7", "65000")
+	assert.Equal(r, config.RPKI_VALIDATION_RESULT_TYPE_NOT_FOUND)
+
+	r = validateOne(tree, "10.0.0.0/8", "65000")
+	assert.Equal(r, config.RPKI_VALIDATION_RESULT_TYPE_INVALID)
+
+	r = validateOne(tree, "10.0.0.0/24", "65000")
+	assert.Equal(r, config.RPKI_VALIDATION_RESULT_TYPE_INVALID)
+}
+
+func TestValidate7(t *testing.T) {
+	assert := assert.New(t)
+
+	tree := radix.New()
+	addROA(tree, 65000, net.ParseIP("10.0.0.0"), 16, 24)
+
+	var r config.RpkiValidationResultType
+
+	r = validateOne(tree, "10.0.0.0/24", "{65000}")
+	assert.Equal(r, config.RPKI_VALIDATION_RESULT_TYPE_NOT_FOUND)
+
+	r = validateOne(tree, "10.0.0.0/24", "{65001}")
+	assert.Equal(r, config.RPKI_VALIDATION_RESULT_TYPE_NOT_FOUND)
+
+	r = validateOne(tree, "10.0.0.0/24", "{65000,65001}")
+	assert.Equal(r, config.RPKI_VALIDATION_RESULT_TYPE_NOT_FOUND)
 }

@@ -41,6 +41,7 @@ type roa struct {
 }
 
 type roaClient struct {
+	AS       uint32
 	roas     map[bgp.RouteFamily]*radix.Tree
 	outgoing chan []byte
 	config   config.RpkiServers
@@ -175,7 +176,20 @@ func (c *roaClient) handleGRPC(grpcReq *GrpcRequest) {
 	}
 }
 
-func validateOne(tree *radix.Tree, cidr string, as uint32) config.RpkiValidationResultType {
+func validatePath(ownAs uint32, tree *radix.Tree, cidr string, asPath *bgp.PathAttributeAsPath) config.RpkiValidationResultType {
+	var as uint32
+	if asPath == nil {
+		return config.RPKI_VALIDATION_RESULT_TYPE_NOT_FOUND
+	}
+	asParam := asPath.Value[len(asPath.Value)-1].(*bgp.As4PathParam)
+	switch asParam.Type {
+	case bgp.BGP_ASPATH_ATTR_TYPE_SEQ:
+		as = asParam.AS[len(asParam.AS)-1]
+	case bgp.BGP_ASPATH_ATTR_TYPE_CONFED_SET, bgp.BGP_ASPATH_ATTR_TYPE_CONFED_SEQ:
+		as = ownAs
+	default:
+		return config.RPKI_VALIDATION_RESULT_TYPE_NOT_FOUND
+	}
 	_, n, _ := net.ParseCIDR(cidr)
 	ones, _ := n.Mask.Size()
 	prefixLen := uint8(ones)
@@ -211,15 +225,16 @@ func validateOne(tree *radix.Tree, cidr string, as uint32) config.RpkiValidation
 func (c *roaClient) validate(pathList []*table.Path) {
 	for _, path := range pathList {
 		if tree, ok := c.roas[path.GetRouteFamily()]; ok {
-			path.Validation = validateOne(tree, path.GetNlri().String(), path.GetSourceAs())
+			path.Validation = validatePath(c.AS, tree, path.GetNlri().String(), path.GetAsPath())
 		}
 	}
 }
 
-func newROAClient(conf config.RpkiServers) (*roaClient, error) {
+func newROAClient(as uint32, conf config.RpkiServers) (*roaClient, error) {
 	var url string
 
 	c := &roaClient{
+		AS:     as,
 		roas:   make(map[bgp.RouteFamily]*radix.Tree),
 		config: conf,
 	}
