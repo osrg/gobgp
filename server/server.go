@@ -112,7 +112,6 @@ func NewBgpServer(port int) *BgpServer {
 	b.policyUpdateCh = make(chan config.RoutingPolicy)
 	b.neighborMap = make(map[string]*Peer)
 	b.listenPort = port
-	b.roaClient, _ = newROAClient(config.RpkiServers{})
 	return &b
 }
 
@@ -143,6 +142,8 @@ func listenAndAccept(proto string, port int, ch chan *net.TCPConn) (*net.TCPList
 func (server *BgpServer) Serve() {
 	g := <-server.globalTypeCh
 	server.bgpConfig.Global = g
+
+	server.roaClient, _ = newROAClient(g.GlobalConfig.As, config.RpkiServers{})
 
 	if g.Mrt.FileName != "" {
 		d, err := newDumper(g.Mrt.FileName)
@@ -302,7 +303,7 @@ func (server *BgpServer) Serve() {
 
 		select {
 		case c := <-server.rpkiConfigCh:
-			server.roaClient, _ = newROAClient(c)
+			server.roaClient, _ = newROAClient(server.bgpConfig.Global.GlobalConfig.As, c)
 		case c := <-server.bmpConfigCh:
 			server.bmpClient, _ = newBMPClient(c, server.bmpConnCh)
 		case c := <-server.bmpConnCh:
