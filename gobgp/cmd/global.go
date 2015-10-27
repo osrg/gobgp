@@ -657,13 +657,22 @@ func NewGlobalCmd() *cobra.Command {
 
 	policyCmd := &cobra.Command{
 		Use: CMD_POLICY,
+		Run: func(cmd *cobra.Command, args []string) {
+			for _, v := range []string{CMD_IMPORT, CMD_EXPORT} {
+				fmt.Printf("%s policy:\n", strings.Title(v))
+				if err := showNeighborPolicy(nil, v, 4); err != nil {
+					fmt.Println(err)
+					os.Exit(1)
+				}
+			}
+		},
 	}
 
 	for _, v := range []string{CMD_IN, CMD_IMPORT, CMD_EXPORT} {
 		cmd := &cobra.Command{
 			Use: v,
 			Run: func(cmd *cobra.Command, args []string) {
-				if err := showNeighborPolicy(nil, cmd.Use); err != nil {
+				if err := showNeighborPolicy(nil, cmd.Use, 0); err != nil {
 					fmt.Println(err)
 					os.Exit(1)
 				}

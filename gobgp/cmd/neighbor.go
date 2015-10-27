@@ -610,7 +610,7 @@ func stateChangeNeighbor(cmd string, remoteIP string, args []string) error {
 	return err
 }
 
-func showNeighborPolicy(remoteIP net.IP, policyType string) error {
+func showNeighborPolicy(remoteIP net.IP, policyType string, indent int) error {
 	var typ api.PolicyType
 	switch strings.ToLower(policyType) {
 	case "in":
@@ -641,10 +641,10 @@ func showNeighborPolicy(remoteIP net.IP, policyType string) error {
 		return nil
 	}
 
-	fmt.Printf("Default: %s\n", ap.Default)
+	fmt.Printf("%sDefault: %s\n", strings.Repeat(" ", indent), ap.Default)
 	for _, p := range ap.Policies {
-		fmt.Printf("Name %s:\n", p.Name)
-		printPolicy(4, p)
+		fmt.Printf("%sName %s:\n", strings.Repeat(" ", indent), p.Name)
+		printPolicy(indent+4, p)
 	}
 	return nil
 }
@@ -656,7 +656,7 @@ func extractDefaultAction(args []string) ([]string, api.RouteAction, error) {
 				return nil, api.RouteAction_NONE, fmt.Errorf("specify default action [accept|reject]")
 			}
 			typ := args[idx+1]
-			switch typ {
+			switch strings.ToLower(typ) {
 			case "accept":
 				return append(args[:idx], args[idx+2:]...), api.RouteAction_ACCEPT, nil
 			case "reject":
@@ -774,6 +774,21 @@ func NewNeighborCmd() *cobra.Command {
 
 	policyCmd := &cobra.Command{
 		Use: CMD_POLICY,
+		Run: func(cmd *cobra.Command, args []string) {
+			remoteIP := net.ParseIP(args[0])
+			if remoteIP == nil {
+				fmt.Println("invalid ip address:", args[0])
+				os.Exit(1)
+			}
+
+			for _, v := range []string{CMD_IN, CMD_IMPORT, CMD_EXPORT} {
+				fmt.Printf("%s policy:\n", strings.Title(v))
+				if err := showNeighborPolicy(remoteIP, v, 4); err != nil {
+					fmt.Println(err)
+					os.Exit(1)
+				}
+			}
+		},
 	}
 
 	for _, v := range []string{CMD_IN, CMD_IMPORT, CMD_EXPORT} {
@@ -785,7 +800,7 @@ func NewNeighborCmd() *cobra.Command {
 				if remoteIP == nil {
 					err = fmt.Errorf("invalid ip address: %s", args[0])
 				} else {
-					err = showNeighborPolicy(remoteIP, cmd.Use)
+					err = showNeighborPolicy(remoteIP, cmd.Use, 0)
 				}
 				if err != nil {
 					fmt.Println(err)
