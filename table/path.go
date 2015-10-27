@@ -327,6 +327,14 @@ func (path *Path) getPrefix() string {
 	return path.nlri.String()
 }
 
+func (path *Path) GetAsPath() *bgp.PathAttributeAsPath {
+	_, attr := path.getPathAttr(bgp.BGP_ATTR_TYPE_AS_PATH)
+	if attr != nil {
+		return attr.(*bgp.PathAttributeAsPath)
+	}
+	return nil
+}
+
 // GetAsPathLen returns the number of AS_PATH
 func (path *Path) GetAsPathLen() int {
 
