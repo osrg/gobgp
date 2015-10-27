@@ -416,6 +416,7 @@ func showNeighborRib(r string, name string, args []string) error {
 	def := addr2AddressFamily(net.ParseIP(name))
 	switch r {
 	case CMD_GLOBAL:
+		def = bgp.RF_IPv4_UC
 		showBest = true
 		resource = api.Resource_GLOBAL
 	case CMD_LOCAL:
