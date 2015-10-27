@@ -18,6 +18,7 @@ It has these top-level messages:
 	ModStatementArguments
 	ModPolicyArguments
 	ModPolicyAssignmentArguments
+	ModGlobalConfigArguments
 	Path
 	Destination
 	PeerConf
@@ -41,6 +42,7 @@ It has these top-level messages:
 	RPKI
 	ROA
 	Vrf
+	Global
 */
 package gobgpapi
 
@@ -431,6 +433,22 @@ func (*ModPolicyAssignmentArguments) ProtoMessage()    {}
 func (m *ModPolicyAssignmentArguments) GetAssignment() *PolicyAssignment {
 	if m != nil {
 		return m.Assignment
+	}
+	return nil
+}
+
+type ModGlobalConfigArguments struct {
+	Operation Operation `protobuf:"varint,1,opt,name=operation,enum=gobgpapi.Operation" json:"operation,omitempty"`
+	Global    *Global   `protobuf:"bytes,2,opt,name=global" json:"global,omitempty"`
+}
+
+func (m *ModGlobalConfigArguments) Reset()         { *m = ModGlobalConfigArguments{} }
+func (m *ModGlobalConfigArguments) String() string { return proto.CompactTextString(m) }
+func (*ModGlobalConfigArguments) ProtoMessage()    {}
+
+func (m *ModGlobalConfigArguments) GetGlobal() *Global {
+	if m != nil {
+		return m.Global
 	}
 	return nil
 }
@@ -841,6 +859,15 @@ func (m *Vrf) Reset()         { *m = Vrf{} }
 func (m *Vrf) String() string { return proto.CompactTextString(m) }
 func (*Vrf) ProtoMessage()    {}
 
+type Global struct {
+	As       uint32 `protobuf:"varint,1,opt,name=as" json:"as,omitempty"`
+	RouterId string `protobuf:"bytes,2,opt,name=router_id" json:"router_id,omitempty"`
+}
+
+func (m *Global) Reset()         { *m = Global{} }
+func (m *Global) String() string { return proto.CompactTextString(m) }
+func (*Global) ProtoMessage()    {}
+
 func init() {
 	proto.RegisterEnum("gobgpapi.Resource", Resource_name, Resource_value)
 	proto.RegisterEnum("gobgpapi.Operation", Operation_name, Operation_value)
@@ -861,6 +888,8 @@ var _ grpc.ClientConn
 // Client API for GobgpApi service
 
 type GobgpApiClient interface {
+	GetGlobalConfig(ctx context.Context, in *Arguments, opts ...grpc.CallOption) (*Global, error)
+	ModGlobalConfig(ctx context.Context, in *ModGlobalConfigArguments, opts ...grpc.CallOption) (*Error, error)
 	GetNeighbors(ctx context.Context, in *Arguments, opts ...grpc.CallOption) (GobgpApi_GetNeighborsClient, error)
 	GetNeighbor(ctx context.Context, in *Arguments, opts ...grpc.CallOption) (*Peer, error)
 	GetRib(ctx context.Context, in *Arguments, opts ...grpc.CallOption) (GobgpApi_GetRibClient, error)
@@ -898,6 +927,24 @@ type gobgpApiClient struct {
 
 func NewGobgpApiClient(cc *grpc.ClientConn) GobgpApiClient {
 	return &gobgpApiClient{cc}
+}
+
+func (c *gobgpApiClient) GetGlobalConfig(ctx context.Context, in *Arguments, opts ...grpc.CallOption) (*Global, error) {
+	out := new(Global)
+	err := grpc.Invoke(ctx, "/gobgpapi.GobgpApi/GetGlobalConfig", in, out, c.cc, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *gobgpApiClient) ModGlobalConfig(ctx context.Context, in *ModGlobalConfigArguments, opts ...grpc.CallOption) (*Error, error) {
+	out := new(Error)
+	err := grpc.Invoke(ctx, "/gobgpapi.GobgpApi/ModGlobalConfig", in, out, c.cc, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
 }
 
 func (c *gobgpApiClient) GetNeighbors(ctx context.Context, in *Arguments, opts ...grpc.CallOption) (GobgpApi_GetNeighborsClient, error) {
@@ -1442,6 +1489,8 @@ func (c *gobgpApiClient) ModPolicyAssignment(ctx context.Context, in *ModPolicyA
 // Server API for GobgpApi service
 
 type GobgpApiServer interface {
+	GetGlobalConfig(context.Context, *Arguments) (*Global, error)
+	ModGlobalConfig(context.Context, *ModGlobalConfigArguments) (*Error, error)
 	GetNeighbors(*Arguments, GobgpApi_GetNeighborsServer) error
 	GetNeighbor(context.Context, *Arguments) (*Peer, error)
 	GetRib(*Arguments, GobgpApi_GetRibServer) error
@@ -1475,6 +1524,30 @@ type GobgpApiServer interface {
 
 func RegisterGobgpApiServer(s *grpc.Server, srv GobgpApiServer) {
 	s.RegisterService(&_GobgpApi_serviceDesc, srv)
+}
+
+func _GobgpApi_GetGlobalConfig_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error) (interface{}, error) {
+	in := new(Arguments)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	out, err := srv.(GobgpApiServer).GetGlobalConfig(ctx, in)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func _GobgpApi_ModGlobalConfig_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error) (interface{}, error) {
+	in := new(ModGlobalConfigArguments)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	out, err := srv.(GobgpApiServer).ModGlobalConfig(ctx, in)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
 }
 
 func _GobgpApi_GetNeighbors_Handler(srv interface{}, stream grpc.ServerStream) error {
@@ -1942,6 +2015,14 @@ var _GobgpApi_serviceDesc = grpc.ServiceDesc{
 	ServiceName: "gobgpapi.GobgpApi",
 	HandlerType: (*GobgpApiServer)(nil),
 	Methods: []grpc.MethodDesc{
+		{
+			MethodName: "GetGlobalConfig",
+			Handler:    _GobgpApi_GetGlobalConfig_Handler,
+		},
+		{
+			MethodName: "ModGlobalConfig",
+			Handler:    _GobgpApi_ModGlobalConfig_Handler,
+		},
 		{
 			MethodName: "GetNeighbor",
 			Handler:    _GobgpApi_GetNeighbor_Handler,

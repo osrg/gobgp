@@ -627,15 +627,62 @@ usage: %s rib %s match <MATCH_EXPR> then <THEN_EXPR> -a %%s
 	return nil
 }
 
+func showGlobalConfig(args []string) error {
+	g, err := client.GetGlobalConfig(context.Background(), &api.Arguments{})
+	if err != nil {
+		return err
+	}
+	fmt.Println("AS:       ", g.As)
+	fmt.Println("Router-ID:", g.RouterId)
+	return nil
+}
+
+func modGlobalConfig(args []string) error {
+	if len(args) != 4 || args[0] != "as" || args[2] != "router-id" {
+		return fmt.Errorf("usage: gobgp global as <asn> router-id <route-id>")
+	}
+	asn, err := strconv.Atoi(args[1])
+	if err != nil {
+		return err
+	}
+	id := net.ParseIP(args[3])
+	if id.To4() == nil {
+		return fmt.Errorf("invalid router-id format")
+	}
+	_, err = client.ModGlobalConfig(context.Background(), &api.ModGlobalConfigArguments{
+		Operation: api.Operation_ADD,
+		Global: &api.Global{
+			As:       uint32(asn),
+			RouterId: args[3],
+		},
+	})
+	return err
+}
+
 func NewGlobalCmd() *cobra.Command {
 	globalCmd := &cobra.Command{
 		Use: CMD_GLOBAL,
+		Run: func(cmd *cobra.Command, args []string) {
+			var err error
+			if len(args) != 0 {
+				err = modGlobalConfig(args)
+			} else {
+				err = showGlobalConfig(args)
+			}
+			if err != nil {
+				fmt.Println(err)
+				os.Exit(1)
+			}
+		},
 	}
 
 	ribCmd := &cobra.Command{
 		Use: CMD_RIB,
 		Run: func(cmd *cobra.Command, args []string) {
-			showGlobalRib(args)
+			if err := showGlobalRib(args); err != nil {
+				fmt.Println(err)
+				os.Exit(1)
+			}
 		},
 	}
 

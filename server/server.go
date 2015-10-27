@@ -18,6 +18,7 @@ package server
 import (
 	"bytes"
 	"fmt"
+	"github.com/BurntSushi/toml"
 	log "github.com/Sirupsen/logrus"
 	"github.com/armon/go-radix"
 	api "github.com/osrg/gobgp/api"
@@ -141,8 +142,19 @@ func listenAndAccept(proto string, port int, ch chan *net.TCPConn) (*net.TCPList
 }
 
 func (server *BgpServer) Serve() {
-	g := <-server.globalTypeCh
-	server.bgpConfig.Global = g
+	var g config.Global
+	for {
+		select {
+		case grpcReq := <-server.GrpcReqCh:
+			server.handleGrpc(grpcReq)
+		case g = <-server.globalTypeCh:
+			server.bgpConfig.Global = g
+			server.globalTypeCh = nil
+		}
+		if server.globalTypeCh == nil {
+			break
+		}
+	}
 
 	if g.Mrt.FileName != "" {
 		d, err := newDumper(g.Mrt.FileName)
@@ -827,7 +839,9 @@ func (server *BgpServer) handleFSMMessage(peer *Peer, e *fsmMsg, incoming chan *
 }
 
 func (server *BgpServer) SetGlobalType(g config.Global) {
-	server.globalTypeCh <- g
+	if server.globalTypeCh != nil {
+		server.globalTypeCh <- g
+	}
 }
 
 func (server *BgpServer) SetRpkiConfig(c config.RpkiServers) {
@@ -1251,6 +1265,33 @@ END:
 	return msgs
 }
 
+func (server *BgpServer) handleModGlobalConfig(grpcReq *GrpcRequest) error {
+	arg := grpcReq.Data.(*api.ModGlobalConfigArguments)
+	if arg.Operation != api.Operation_ADD {
+		return fmt.Errorf("invalid operation %s", arg.Operation)
+	}
+	if server.globalTypeCh == nil {
+		return fmt.Errorf("gobgp is already started")
+	}
+	g := arg.Global
+	c := config.Bgp{
+		Global: config.Global{
+			GlobalConfig: config.GlobalConfig{
+				As:       g.As,
+				RouterId: net.ParseIP(g.RouterId),
+			},
+		},
+	}
+	err := config.SetDefaultConfigValues(toml.MetaData{}, &c)
+	if err != nil {
+		return err
+	}
+	go func() {
+		server.globalTypeCh <- c.Global
+	}()
+	return nil
+}
+
 func sendMultipleResponses(grpcReq *GrpcRequest, results []*GrpcResponse) {
 	defer close(grpcReq.ResponseCh)
 	for _, r := range results {
@@ -1304,7 +1345,30 @@ func (server *BgpServer) handleGrpc(grpcReq *GrpcRequest) []*SenderMsg {
 		return results
 	}
 
+	if server.globalTypeCh != nil && grpcReq.RequestType != REQ_MOD_GLOBAL_CONFIG {
+		grpcReq.ResponseCh <- &GrpcResponse{
+			ResponseErr: fmt.Errorf("bgpd main loop is not started yet"),
+		}
+		close(grpcReq.ResponseCh)
+		return nil
+	}
+
 	switch grpcReq.RequestType {
+	case REQ_GLOBAL_CONFIG:
+		result := &GrpcResponse{
+			Data: &api.Global{
+				As:       server.bgpConfig.Global.GlobalConfig.As,
+				RouterId: server.bgpConfig.Global.GlobalConfig.RouterId.String(),
+			},
+		}
+		grpcReq.ResponseCh <- result
+		close(grpcReq.ResponseCh)
+	case REQ_MOD_GLOBAL_CONFIG:
+		err := server.handleModGlobalConfig(grpcReq)
+		grpcReq.ResponseCh <- &GrpcResponse{
+			ResponseErr: err,
+		}
+		close(grpcReq.ResponseCh)
 	case REQ_GLOBAL_RIB:
 		var results []*GrpcResponse
 		if t, ok := server.globalRib.Tables[grpcReq.RouteFamily]; ok {
