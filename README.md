@@ -1,3 +1,4 @@
+[![Stories in Ready](https://badge.waffle.io/osrg/gobgp.png?label=ready&title=Ready)](https://waffle.io/osrg/gobgp)
 # GoBGP: BGP implementation in Go
 
 [![Build Status](https://travis-ci.org/osrg/gobgp.svg?branch=master)](https://travis-ci.org/osrg/gobgp/builds)
