@@ -80,6 +80,7 @@ type BgpServer struct {
 	addedPeerCh   chan config.Neighbor
 	deletedPeerCh chan config.Neighbor
 	updatedPeerCh chan config.Neighbor
+	fsmincomingCh chan *fsmMsg
 	rpkiConfigCh  chan config.RpkiServers
 	bmpConfigCh   chan config.BmpServers
 	dumper        *dumper
@@ -90,6 +91,7 @@ type BgpServer struct {
 	policy         *table.RoutingPolicy
 	broadcastReqs  []*GrpcRequest
 	broadcastMsgs  []broadcastMsg
+	listenerMap    map[string]*net.TCPListener
 	neighborMap    map[string]*Peer
 	globalRib      *table.TableManager
 	zclient        *zebra.Client
@@ -210,12 +212,12 @@ func (server *BgpServer) Serve() {
 		return rfList
 	}
 	server.globalRib = table.NewTableManager(GLOBAL_RIB_NAME, toRFlist(g.AfiSafis.AfiSafiList), g.MplsLabelRange.MinLabel, g.MplsLabelRange.MaxLabel)
-	listenerMap := make(map[string]*net.TCPListener)
+	server.listenerMap = make(map[string]*net.TCPListener)
 	acceptCh := make(chan *net.TCPConn)
 	l4, err1 := listenAndAccept("tcp4", server.listenPort, acceptCh)
-	listenerMap["tcp4"] = l4
+	server.listenerMap["tcp4"] = l4
 	l6, err2 := listenAndAccept("tcp6", server.listenPort, acceptCh)
-	listenerMap["tcp6"] = l6
+	server.listenerMap["tcp6"] = l6
 	if err1 != nil && err2 != nil {
 		log.Fatal("can't listen either v4 and v6")
 		os.Exit(1)
@@ -224,14 +226,14 @@ func (server *BgpServer) Serve() {
 	listener := func(addr net.IP) *net.TCPListener {
 		var l *net.TCPListener
 		if addr.To4() != nil {
-			l = listenerMap["tcp4"]
+			l = server.listenerMap["tcp4"]
 		} else {
-			l = listenerMap["tcp6"]
+			l = server.listenerMap["tcp6"]
 		}
 		return l
 	}
 
-	incoming := make(chan *fsmMsg, 4096)
+	server.fsmincomingCh = make(chan *fsmMsg, 4096)
 	var senderMsgs []*SenderMsg
 
 	var zapiMsgCh chan *zebra.Message
@@ -367,7 +369,7 @@ func (server *BgpServer) Serve() {
 				}
 			}
 			server.neighborMap[addr] = peer
-			peer.startFSMHandler(incoming)
+			peer.startFSMHandler(server.fsmincomingCh)
 			server.broadcastPeerState(peer)
 		case config := <-server.deletedPeerCh:
 			addr := config.NeighborConfig.NeighborAddress.String()
@@ -399,13 +401,13 @@ func (server *BgpServer) Serve() {
 			peer := server.neighborMap[addr]
 			peer.conf = config
 			server.setPolicyByConfig(peer, config.ApplyPolicy)
-		case e := <-incoming:
+		case e := <-server.fsmincomingCh:
 			peer, found := server.neighborMap[e.MsgSrc]
 			if !found {
 				log.Warn("Can't find the neighbor ", e.MsgSrc)
 				break
 			}
-			m := server.handleFSMMessage(peer, e, incoming)
+			m := server.handleFSMMessage(peer, e, server.fsmincomingCh)
 			if len(m) > 0 {
 				senderMsgs = append(senderMsgs, m...)
 			}
@@ -1544,6 +1546,15 @@ func (server *BgpServer) handleGrpc(grpcReq *GrpcRequest) []*SenderMsg {
 		result.Data = err
 		grpcReq.ResponseCh <- result
 		close(grpcReq.ResponseCh)
+	case REQ_MOD_NEIGHBOR:
+		m, err := server.handleGrpcModNeighbor(grpcReq)
+		grpcReq.ResponseCh <- &GrpcResponse{
+			ResponseErr: err,
+		}
+		if len(m) > 0 {
+			msgs = append(msgs, m...)
+		}
+		close(grpcReq.ResponseCh)
 	case REQ_DEFINED_SET:
 		if err := server.handleGrpcGetDefinedSet(grpcReq); err != nil {
 			grpcReq.ResponseCh <- &GrpcResponse{
@@ -1643,6 +1654,149 @@ func (server *BgpServer) handleGrpcGetDefinedSet(grpcReq *GrpcRequest) error {
 		return fmt.Errorf("not found %s", name)
 	}
 	return nil
+}
+func (server *BgpServer) handleGrpcModNeighbor(grpcReq *GrpcRequest) (sMsgs []*SenderMsg, err error) {
+	arg := grpcReq.Data.(*api.ModNeighborArguments)
+	addr := arg.Peer.Conf.NeighborAddress
+	n, ok := server.neighborMap[addr]
+	if arg.Operation != api.Operation_ADD && !ok {
+		return nil, fmt.Errorf("not found neighbor %s", addr)
+	}
+	listener := func(addr net.IP) *net.TCPListener {
+		var l *net.TCPListener
+		if addr.To4() != nil {
+			l = server.listenerMap["tcp4"]
+		} else {
+			l = server.listenerMap["tcp6"]
+		}
+		return l
+	}
+
+	switch arg.Operation {
+	case api.Operation_ADD:
+		if ok {
+			return nil, fmt.Errorf("Can't overwrite the exising peer %s", addr)
+		} else {
+			log.Infof("Peer %s is added", addr)
+		}
+		SetTcpMD5SigSockopts(listener(net.ParseIP(addr)), addr, arg.Peer.Conf.AuthPassword)
+		var loc *table.TableManager
+		if arg.Peer.RouteServer != nil {
+			if arg.Peer.RouteServer.RouteServerClient {
+				apitoRFlist := func(l []*api.AfiSafi) []bgp.RouteFamily {
+					rfList := []bgp.RouteFamily{}
+					for _, rf := range l {
+						k, _ := bgp.GetRouteFamily(rf.Name)
+						rfList = append(rfList, k)
+					}
+					return rfList
+				}
+				loc = table.NewTableManager(addr, apitoRFlist(arg.Peer.Afisafis.Afisafi), server.bgpConfig.Global.MplsLabelRange.MinLabel, server.bgpConfig.Global.MplsLabelRange.MaxLabel)
+			} else {
+				loc = server.globalRib
+			}
+		} else {
+			loc = server.globalRib
+		}
+		apitoConfig := func(a *api.Peer) config.Neighbor {
+			var pconf config.Neighbor
+			if a.Conf != nil {
+				pconf.NeighborAddress = net.ParseIP(a.Conf.NeighborAddress)
+				pconf.NeighborConfig.PeerAs = a.Conf.PeerAs
+				pconf.NeighborConfig.LocalAs = a.Conf.LocalAs
+				if pconf.NeighborConfig.PeerAs != server.bgpConfig.Global.GlobalConfig.As {
+					pconf.NeighborConfig.PeerType = config.PEER_TYPE_EXTERNAL
+				} else {
+					pconf.NeighborConfig.PeerType = config.PEER_TYPE_INTERNAL
+				}
+				pconf.NeighborConfig.AuthPassword = a.Conf.AuthPassword
+				pconf.NeighborConfig.RemovePrivateAs = config.RemovePrivateAsOption(a.Conf.RemovePrivateAs)
+				pconf.NeighborConfig.RouteFlapDamping = a.Conf.RouteFlapDamping
+				pconf.NeighborConfig.SendCommunity = config.CommunityType(a.Conf.SendCommunity)
+				pconf.NeighborConfig.Description = a.Conf.Description
+				pconf.NeighborConfig.PeerGroup = a.Conf.PeerGroup
+				pconf.NeighborConfig.NeighborAddress = net.ParseIP(a.Conf.NeighborAddress)
+			}
+			if a.Timers != nil {
+				if a.Timers.Config != nil {
+					pconf.Timers.TimersConfig.ConnectRetry = float64(a.Timers.Config.ConnectRetry)
+					pconf.Timers.TimersConfig.HoldTime = float64(a.Timers.Config.HoldTime)
+					pconf.Timers.TimersConfig.KeepaliveInterval = float64(a.Timers.Config.KeepaliveInterval)
+					pconf.Timers.TimersConfig.MinimumAdvertisementInterval = float64(a.Timers.Config.MinimumAdvertisementInterval)
+				}
+			} else {
+				pconf.Timers.TimersConfig.ConnectRetry = float64(config.DEFAULT_CONNECT_RETRY)
+				pconf.Timers.TimersConfig.HoldTime = float64(config.DEFAULT_HOLDTIME)
+				pconf.Timers.TimersConfig.KeepaliveInterval = float64(config.DEFAULT_HOLDTIME / 3)
+			}
+			if a.RouteReflector != nil {
+				pconf.RouteReflector.RouteReflectorConfig.RouteReflectorClusterId = config.RrClusterIdType(a.RouteReflector.RouteReflectorClusterId)
+				pconf.RouteReflector.RouteReflectorConfig.RouteReflectorClient = a.RouteReflector.RouteReflectorClient
+			}
+			if a.RouteServer != nil {
+				pconf.RouteServer.RouteServerConfig.RouteServerClient = a.RouteServer.RouteServerClient
+			}
+			if a.ApplyPolicy != nil {
+				if a.ApplyPolicy.ImportPolicy != nil {
+					pconf.ApplyPolicy.ApplyPolicyConfig.DefaultImportPolicy = config.DefaultPolicyType(a.ApplyPolicy.ImportPolicy.Default)
+					for _, p := range a.ApplyPolicy.ImportPolicy.Policies {
+						pconf.ApplyPolicy.ApplyPolicyConfig.ImportPolicy = append(pconf.ApplyPolicy.ApplyPolicyConfig.ImportPolicy, p.Name)
+					}
+				}
+				if a.ApplyPolicy.ExportPolicy != nil {
+					pconf.ApplyPolicy.ApplyPolicyConfig.DefaultExportPolicy = config.DefaultPolicyType(a.ApplyPolicy.ExportPolicy.Default)
+					for _, p := range a.ApplyPolicy.ExportPolicy.Policies {
+						pconf.ApplyPolicy.ApplyPolicyConfig.ExportPolicy = append(pconf.ApplyPolicy.ApplyPolicyConfig.ExportPolicy, p.Name)
+					}
+				}
+				if a.ApplyPolicy.InPolicy != nil {
+					pconf.ApplyPolicy.ApplyPolicyConfig.DefaultInPolicy = config.DefaultPolicyType(a.ApplyPolicy.InPolicy.Default)
+					for _, p := range a.ApplyPolicy.InPolicy.Policies {
+						pconf.ApplyPolicy.ApplyPolicyConfig.InPolicy = append(pconf.ApplyPolicy.ApplyPolicyConfig.InPolicy, p.Name)
+					}
+				}
+			}
+			return pconf
+		}
+		configneigh := apitoConfig(arg.Peer)
+		peer := NewPeer(server.bgpConfig.Global, configneigh, loc)
+		server.setPolicyByConfig(peer, configneigh.ApplyPolicy)
+		if peer.isRouteServerClient() {
+			pathList := make([]*table.Path, 0)
+			rfList := peer.configuredRFlist()
+			for _, p := range server.neighborMap {
+				if p.isRouteServerClient() == true {
+					pathList = append(pathList, p.getAccepted(rfList)...)
+				}
+			}
+			pathList, _ = peer.ApplyPolicy(table.POLICY_DIRECTION_IMPORT, pathList)
+			if len(pathList) > 0 {
+				peer.localRib.ProcessPaths(pathList)
+			}
+		}
+		server.neighborMap[addr] = peer
+		peer.startFSMHandler(server.fsmincomingCh)
+		server.broadcastPeerState(peer)
+	case api.Operation_DEL:
+		SetTcpMD5SigSockopts(listener(net.ParseIP(addr)), addr, "")
+		log.Info("Delete a peer configuration for ", addr)
+		go func(addr string) {
+			t := time.AfterFunc(time.Minute*5, func() { log.Fatal("failed to free the fsm.h.t for ", addr) })
+			n.fsm.h.t.Kill(nil)
+			n.fsm.h.t.Wait()
+			t.Stop()
+			t = time.AfterFunc(time.Minute*5, func() { log.Fatal("failed to free the fsm.h for ", addr) })
+			n.fsm.t.Kill(nil)
+			n.fsm.t.Wait()
+			t.Stop()
+		}(addr)
+		m := server.dropPeerAllRoutes(n)
+		if len(m) > 0 {
+			sMsgs = append(sMsgs, m...)
+		}
+		delete(server.neighborMap, addr)
+	}
+	return sMsgs, err
 }
 
 func (server *BgpServer) handleGrpcModDefinedSet(grpcReq *GrpcRequest) error {
