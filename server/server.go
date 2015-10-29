@@ -1737,10 +1737,24 @@ func (server *BgpServer) handleGrpcModNeighbor(grpcReq *GrpcRequest) (sMsgs []*S
 				pconf.RouteServer.RouteServerConfig.RouteServerClient = a.RouteServer.RouteServerClient
 			}
 			if a.ApplyPolicy != nil {
-				pconf.ApplyPolicy.ApplyPolicyConfig.ImportPolicy = a.ApplyPolicy.ImportPolicy
-				pconf.ApplyPolicy.ApplyPolicyConfig.DefaultImportPolicy = config.DefaultPolicyType(a.ApplyPolicy.DefaultImportPolicy)
-				pconf.ApplyPolicy.ApplyPolicyConfig.ExportPolicy = a.ApplyPolicy.ExportPolicy
-				pconf.ApplyPolicy.ApplyPolicyConfig.DefaultExportPolicy = config.DefaultPolicyType(a.ApplyPolicy.DefaultExportPolicy)
+				if a.ApplyPolicy.ImportPolicy != nil {
+					pconf.ApplyPolicy.ApplyPolicyConfig.DefaultImportPolicy = config.DefaultPolicyType(a.ApplyPolicy.ImportPolicy.Default)
+					for _, p := range a.ApplyPolicy.ImportPolicy.Policies {
+						pconf.ApplyPolicy.ApplyPolicyConfig.ImportPolicy = append(pconf.ApplyPolicy.ApplyPolicyConfig.ImportPolicy, p.Name)
+					}
+				}
+				if a.ApplyPolicy.ExportPolicy != nil {
+					pconf.ApplyPolicy.ApplyPolicyConfig.DefaultExportPolicy = config.DefaultPolicyType(a.ApplyPolicy.ExportPolicy.Default)
+					for _, p := range a.ApplyPolicy.ExportPolicy.Policies {
+						pconf.ApplyPolicy.ApplyPolicyConfig.ExportPolicy = append(pconf.ApplyPolicy.ApplyPolicyConfig.ExportPolicy, p.Name)
+					}
+				}
+				if a.ApplyPolicy.InPolicy != nil {
+					pconf.ApplyPolicy.ApplyPolicyConfig.DefaultInPolicy = config.DefaultPolicyType(a.ApplyPolicy.InPolicy.Default)
+					for _, p := range a.ApplyPolicy.InPolicy.Policies {
+						pconf.ApplyPolicy.ApplyPolicyConfig.InPolicy = append(pconf.ApplyPolicy.ApplyPolicyConfig.InPolicy, p.Name)
+					}
+				}
 			}
 			return pconf
 		}

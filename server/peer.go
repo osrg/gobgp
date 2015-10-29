@@ -362,7 +362,7 @@ func (peer *Peer) ToApiStruct() *api.Peer {
 		Config: timerconf,
 		State:  timerstate,
 	}
-	msgrcv := &api.Received{
+	msgrcv := &api.Message{
 		NOTIFICATION: s.Messages.Received.Notification,
 		UPDATE:       s.Messages.Received.Update,
 		OPEN:         s.Messages.Received.Open,
@@ -371,7 +371,7 @@ func (peer *Peer) ToApiStruct() *api.Peer {
 		DISCARDED:    s.Messages.Received.Discarded,
 		TOTAL:        s.Messages.Received.Total,
 	}
-	msgsnt := &api.Sent{
+	msgsnt := &api.Message{
 		NOTIFICATION: s.Messages.Sent.Notification,
 		UPDATE:       s.Messages.Sent.Update,
 		OPEN:         s.Messages.Sent.Open,
