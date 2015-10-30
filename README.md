@@ -2,6 +2,7 @@
 
 [![Build Status](https://travis-ci.org/osrg/gobgp.svg?branch=master)](https://travis-ci.org/osrg/gobgp/builds)
 [![Join the chat at https://gitter.im/osrg/gobgp](https://badges.gitter.im/Join%20Chat.svg)](https://gitter.im/osrg/gobgp?utm_source=badge&utm_medium=badge&utm_campaign=pr-badge&utm_content=badge)
+[![Stories in Ready](https://badge.waffle.io/osrg/gobgp.png?label=ready&title=Ready)](https://waffle.io/osrg/gobgp)
 
 GoBGP is an open source BGP implementation designed from scratch for
 modern environment and implemented in a modern programming language,
