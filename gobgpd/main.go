@@ -148,14 +148,12 @@ func main() {
 
 	log.Info("gobgpd started")
 
-	if opts.ConfigFile == "" {
-		opts.ConfigFile = "gobgpd.conf"
-	}
-
 	configCh := make(chan config.BgpConfigSet)
 	reloadCh := make(chan bool)
-	go config.ReadConfigfileServe(opts.ConfigFile, configCh, reloadCh)
-	reloadCh <- true
+	if opts.ConfigFile != "" {
+		go config.ReadConfigfileServe(opts.ConfigFile, configCh, reloadCh)
+		reloadCh <- true
+	}
 	bgpServer := server.NewBgpServer(bgp.BGP_PORT)
 	go bgpServer.Serve()
 

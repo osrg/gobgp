@@ -28,6 +28,8 @@ import (
 
 const (
 	_ = iota
+	REQ_GLOBAL_CONFIG
+	REQ_MOD_GLOBAL_CONFIG
 	REQ_NEIGHBOR
 	REQ_NEIGHBORS
 	REQ_ADJ_RIB_IN
@@ -383,6 +385,18 @@ func (s *Server) GetPolicyAssignment(ctx context.Context, arg *api.PolicyAssignm
 
 func (s *Server) ModPolicyAssignment(ctx context.Context, arg *api.ModPolicyAssignmentArguments) (*api.Error, error) {
 	return s.mod(REQ_MOD_POLICY_ASSIGNMENT, arg)
+}
+
+func (s *Server) GetGlobalConfig(ctx context.Context, arg *api.Arguments) (*api.Global, error) {
+	d, err := s.get(REQ_GLOBAL_CONFIG, arg)
+	if err != nil {
+		return nil, err
+	}
+	return d.(*api.Global), nil
+}
+
+func (s *Server) ModGlobalConfig(ctx context.Context, arg *api.ModGlobalConfigArguments) (*api.Error, error) {
+	return s.mod(REQ_MOD_GLOBAL_CONFIG, arg)
 }
 
 type GrpcRequest struct {
