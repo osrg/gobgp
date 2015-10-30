@@ -62,7 +62,7 @@ func showVrfs() error {
 		return nil
 	}
 	if globalOpts.Quiet {
-		for _, v  := range vrfs {
+		for _, v := range vrfs {
 			fmt.Println(v.Name)
 		}
 		return nil
