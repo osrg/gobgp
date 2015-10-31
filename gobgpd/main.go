@@ -20,6 +20,7 @@ import (
 	"github.com/Sirupsen/logrus/hooks/syslog"
 	"github.com/jessevdk/go-flags"
 	"github.com/osrg/gobgp/config"
+	ops "github.com/osrg/gobgp/openswitch"
 	"github.com/osrg/gobgp/packet"
 	"github.com/osrg/gobgp/server"
 	"io/ioutil"
@@ -45,6 +46,7 @@ func main() {
 		Facility      string `long:"syslog-facility" description:"specify syslog facility"`
 		DisableStdlog bool   `long:"disable-stdlog" description:"disable standard logging"`
 		CPUs          int    `long:"cpus" description:"specify the number of CPUs to be used"`
+		Ops           bool   `long:"openswitch" description:"openswitch mode"`
 	}
 	_, err := flags.Parse(&opts)
 	if err != nil {
@@ -150,11 +152,18 @@ func main() {
 
 	configCh := make(chan config.BgpConfigSet)
 	reloadCh := make(chan bool)
-	if opts.ConfigFile != "" {
+	bgpServer := server.NewBgpServer(bgp.BGP_PORT)
+	if opts.Ops {
+		m, err := ops.NewOpsConfigManager(bgpServer.GrpcReqCh)
+		if err != nil {
+			log.Errorf("Failed to start ops config manager: %s", err)
+			os.Exit(1)
+		}
+		go m.Serve()
+	} else if opts.ConfigFile != "" {
 		go config.ReadConfigfileServe(opts.ConfigFile, configCh, reloadCh)
 		reloadCh <- true
 	}
-	bgpServer := server.NewBgpServer(bgp.BGP_PORT)
 	go bgpServer.Serve()
 
 	// start grpc Server
