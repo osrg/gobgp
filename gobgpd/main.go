@@ -146,10 +146,19 @@ func main() {
 		log.SetFormatter(&log.JSONFormatter{})
 	}
 
-	log.Info("gobgpd started")
-
 	configCh := make(chan config.BgpConfigSet)
 	reloadCh := make(chan bool)
+	grpcCh := make(chan *server.GrpcRequest, 1)
+	var bgpServer *server.BgpServer
+	go func() {
+		for {
+			bgpServer = server.NewBgpServer(bgp.BGP_PORT, grpcCh)
+			log.Info("gobgpd started")
+			bgpServer.Serve()
+			log.Info("restart gobgpd")
+		}
+	}()
+
 	if opts.ConfigFile != "" {
 		go config.ReadConfigfileServe(opts.ConfigFile, configCh, reloadCh)
 		reloadCh <- true
@@ -158,7 +167,7 @@ func main() {
 	go bgpServer.Serve()
 
 	// start grpc Server
-	grpcServer := server.NewGrpcServer(server.GRPC_PORT, bgpServer.GrpcReqCh)
+	grpcServer := server.NewGrpcServer(server.GRPC_PORT, grpcCh)
 	go grpcServer.Serve()
 
 	var bgpConfig *config.Bgp = nil

@@ -16,6 +16,7 @@
 package cmd
 
 import (
+	"bufio"
 	"fmt"
 	api "github.com/osrg/gobgp/api"
 	"github.com/osrg/gobgp/packet"
@@ -676,6 +677,26 @@ func NewGlobalCmd() *cobra.Command {
 		},
 	}
 
+	restartCmd := &cobra.Command{
+		Use: CMD_RESTART,
+		Run: func(cmd *cobra.Command, args []string) {
+			fmt.Printf("Are you sure? this will remove all configuration, and restart gobgpd (y/n) ")
+			scanner := bufio.NewScanner(os.Stdin)
+			scanner.Scan()
+			if !strings.HasPrefix(scanner.Text(), "y") {
+				return
+			}
+			_, err := client.ModGlobalConfig(context.Background(), &api.ModGlobalConfigArguments{
+				Operation: api.Operation_DEL,
+			})
+			if err != nil {
+				fmt.Println(err)
+				os.Exit(1)
+			}
+
+		},
+	}
+
 	ribCmd := &cobra.Command{
 		Use: CMD_RIB,
 		Run: func(cmd *cobra.Command, args []string) {
@@ -743,6 +764,6 @@ func NewGlobalCmd() *cobra.Command {
 		policyCmd.AddCommand(cmd)
 	}
 
-	globalCmd.AddCommand(ribCmd, policyCmd)
+	globalCmd.AddCommand(ribCmd, policyCmd, restartCmd)
 	return globalCmd
 }
