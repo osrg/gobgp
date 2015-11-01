@@ -102,7 +102,7 @@ type BgpServer struct {
 	shutdown       bool
 }
 
-func NewBgpServer(port int) *BgpServer {
+func NewBgpServer(port int, grpcCh chan *GrpcRequest) *BgpServer {
 	b := BgpServer{}
 	b.globalTypeCh = make(chan config.Global)
 	b.addedPeerCh = make(chan config.Neighbor)
@@ -111,7 +111,7 @@ func NewBgpServer(port int) *BgpServer {
 	b.rpkiConfigCh = make(chan config.RpkiServers)
 	b.bmpConfigCh = make(chan config.BmpServers)
 	b.bmpConnCh = make(chan *bmpConn)
-	b.GrpcReqCh = make(chan *GrpcRequest, 1)
+	b.GrpcReqCh = grpcCh
 	b.policyUpdateCh = make(chan config.RoutingPolicy)
 	b.neighborMap = make(map[string]*Peer)
 	b.listenPort = port
@@ -119,7 +119,7 @@ func NewBgpServer(port int) *BgpServer {
 }
 
 // avoid mapped IPv6 address
-func listenAndAccept(proto string, port int, ch chan *net.TCPConn) (*net.TCPListener, error) {
+func (server *BgpServer) listenAndAccept(proto string, port int, ch chan *net.TCPConn) (*net.TCPListener, error) {
 	service := ":" + strconv.Itoa(port)
 	addr, _ := net.ResolveTCPAddr(proto, service)
 
@@ -131,6 +131,9 @@ func listenAndAccept(proto string, port int, ch chan *net.TCPConn) (*net.TCPList
 	go func() {
 		for {
 			conn, err := l.AcceptTCP()
+			if server.shutdown {
+				return
+			}
 			if err != nil {
 				log.Info(err)
 				continue
@@ -187,12 +190,14 @@ func (server *BgpServer) Serve() {
 		for {
 			// TODO: must be more clever. Slow peer makes other peers slow too.
 			m := <-ch
+			if m == nil {
+				return
+			}
 			w := func(c chan *bgp.BGPMessage, msg *bgp.BGPMessage) {
 				// nasty but the peer could already become non established state before here.
 				defer func() { recover() }()
 				c <- msg
 			}
-
 			for _, b := range m.messages {
 				if m.twoBytesAs == false && b.Header.Type == bgp.BGP_MSG_UPDATE {
 					log.WithFields(log.Fields{
@@ -211,6 +216,9 @@ func (server *BgpServer) Serve() {
 	go func(ch chan broadcastMsg) {
 		for {
 			m := <-ch
+			if m == nil {
+				break
+			}
 			m.send()
 		}
 	}(broadcastCh)
@@ -226,9 +234,9 @@ func (server *BgpServer) Serve() {
 	server.globalRib = table.NewTableManager(GLOBAL_RIB_NAME, toRFlist(g.AfiSafis.AfiSafiList), g.MplsLabelRange.MinLabel, g.MplsLabelRange.MaxLabel)
 	server.listenerMap = make(map[string]*net.TCPListener)
 	acceptCh := make(chan *net.TCPConn)
-	l4, err1 := listenAndAccept("tcp4", server.listenPort, acceptCh)
+	l4, err1 := server.listenAndAccept("tcp4", server.listenPort, acceptCh)
 	server.listenerMap["tcp4"] = l4
-	l6, err2 := listenAndAccept("tcp6", server.listenPort, acceptCh)
+	l6, err2 := server.listenAndAccept("tcp6", server.listenPort, acceptCh)
 	server.listenerMap["tcp6"] = l6
 	if err1 != nil && err2 != nil {
 		log.Fatal("can't listen either v4 and v6")
@@ -306,7 +314,10 @@ func (server *BgpServer) Serve() {
 
 		select {
 		case grpcReq := <-server.GrpcReqCh:
-			m := server.handleGrpc(grpcReq)
+			m, shutdown := server.handleGrpc(grpcReq)
+			if shutdown {
+				goto SHUTDOWN
+			}
 			if len(m) > 0 {
 				senderMsgs = append(senderMsgs, m...)
 			}
@@ -428,7 +439,10 @@ func (server *BgpServer) Serve() {
 		case bCh <- firstBroadcastMsg:
 			server.broadcastMsgs = server.broadcastMsgs[1:]
 		case grpcReq := <-server.GrpcReqCh:
-			m := server.handleGrpc(grpcReq)
+			m, shutdown := server.handleGrpc(grpcReq)
+			if shutdown {
+				goto SHUTDOWN
+			}
 			if len(m) > 0 {
 				senderMsgs = append(senderMsgs, m...)
 			}
@@ -436,6 +450,25 @@ func (server *BgpServer) Serve() {
 			server.handlePolicy(pl)
 		}
 	}
+SHUTDOWN:
+	server.Shutdown()
+	for _, l := range server.listenerMap {
+		l.Close()
+	}
+	if server.bmpClient != nil {
+		err := server.bmpClient.shutdown()
+		if err != nil {
+			log.Errorf("%s", err)
+		}
+	}
+	if server.dumper != nil {
+		err := server.dumper.shutdown()
+		if err != nil {
+			log.Errorf("%s", err)
+		}
+	}
+	close(senderCh)
+	close(broadcastCh)
 }
 
 func newSenderMsg(peer *Peer, messages []*bgp.BGPMessage) *SenderMsg {
@@ -1268,31 +1301,39 @@ END:
 	return msgs
 }
 
-func (server *BgpServer) handleModGlobalConfig(grpcReq *GrpcRequest) error {
+func (server *BgpServer) handleModGlobalConfig(grpcReq *GrpcRequest) (bool, error) {
+	var shutdown bool
 	arg := grpcReq.Data.(*api.ModGlobalConfigArguments)
-	if arg.Operation != api.Operation_ADD {
-		return fmt.Errorf("invalid operation %s", arg.Operation)
-	}
-	if server.globalTypeCh == nil {
-		return fmt.Errorf("gobgp is already started")
-	}
-	g := arg.Global
-	c := config.Bgp{
-		Global: config.Global{
-			GlobalConfig: config.GlobalConfig{
-				As:       g.As,
-				RouterId: net.ParseIP(g.RouterId),
+	switch arg.Operation {
+	case api.Operation_ADD:
+		if server.globalTypeCh == nil {
+			return shutdown, fmt.Errorf("gobgp is already started")
+		}
+		g := arg.Global
+		c := config.Bgp{
+			Global: config.Global{
+				GlobalConfig: config.GlobalConfig{
+					As:       g.As,
+					RouterId: net.ParseIP(g.RouterId),
+				},
 			},
-		},
+		}
+		err := config.SetDefaultConfigValues(toml.MetaData{}, &c)
+		if err != nil {
+			return shutdown, err
+		}
+		go func() {
+			server.globalTypeCh <- c.Global
+		}()
+	case api.Operation_DEL:
+		if server.globalTypeCh != nil {
+			return shutdown, fmt.Errorf("gobgp main loop isn't started yet")
+		}
+		shutdown = true
+	default:
+		return shutdown, fmt.Errorf("invalid operation %s", arg.Operation)
 	}
-	err := config.SetDefaultConfigValues(toml.MetaData{}, &c)
-	if err != nil {
-		return err
-	}
-	go func() {
-		server.globalTypeCh <- c.Global
-	}()
-	return nil
+	return shutdown, nil
 }
 
 func sendMultipleResponses(grpcReq *GrpcRequest, results []*GrpcResponse) {
@@ -1306,8 +1347,9 @@ func sendMultipleResponses(grpcReq *GrpcRequest, results []*GrpcResponse) {
 	}
 }
 
-func (server *BgpServer) handleGrpc(grpcReq *GrpcRequest) []*SenderMsg {
+func (server *BgpServer) handleGrpc(grpcReq *GrpcRequest) ([]*SenderMsg, bool) {
 	var msgs []*SenderMsg
+	var shutdown bool
 
 	logOp := func(addr string, action string) {
 		log.WithFields(log.Fields{
@@ -1353,7 +1395,7 @@ func (server *BgpServer) handleGrpc(grpcReq *GrpcRequest) []*SenderMsg {
 			ResponseErr: fmt.Errorf("bgpd main loop is not started yet"),
 		}
 		close(grpcReq.ResponseCh)
-		return nil
+		return nil, shutdown
 	}
 
 	switch grpcReq.RequestType {
@@ -1367,7 +1409,8 @@ func (server *BgpServer) handleGrpc(grpcReq *GrpcRequest) []*SenderMsg {
 		grpcReq.ResponseCh <- result
 		close(grpcReq.ResponseCh)
 	case REQ_MOD_GLOBAL_CONFIG:
-		err := server.handleModGlobalConfig(grpcReq)
+		var err error
+		shutdown, err = server.handleModGlobalConfig(grpcReq)
 		grpcReq.ResponseCh <- &GrpcResponse{
 			ResponseErr: err,
 		}
@@ -1690,7 +1733,7 @@ func (server *BgpServer) handleGrpc(grpcReq *GrpcRequest) []*SenderMsg {
 		grpcReq.ResponseCh <- result
 		close(grpcReq.ResponseCh)
 	}
-	return msgs
+	return msgs, shutdown
 }
 
 func (server *BgpServer) handleGrpcGetDefinedSet(grpcReq *GrpcRequest) error {
