@@ -16,18 +16,37 @@
 package server
 
 import (
+	"fmt"
 	log "github.com/Sirupsen/logrus"
 	"github.com/osrg/gobgp/packet"
+	"gopkg.in/tomb.v2"
 	"os"
 	"time"
 )
 
 type dumper struct {
+	t  tomb.Tomb
 	ch chan *broadcastBGPMsg
 }
 
 func (d *dumper) sendCh() chan *broadcastBGPMsg {
 	return d.ch
+}
+
+func (d *dumper) shutdown() error {
+	d.t.Kill(nil)
+	var timeoutCh chan struct{}
+	e := time.AfterFunc(time.Second*10, func() {
+		timeoutCh <- struct{}{}
+	})
+	select {
+	case <-d.t.Dead():
+		log.Info("shut down bmp client")
+		e.Stop()
+	case <-timeoutCh:
+		return fmt.Errorf("failed to shutdown mrt dumper")
+	}
+	return nil
 }
 
 func newDumper(filename string) (*dumper, error) {
@@ -38,34 +57,41 @@ func newDumper(filename string) (*dumper, error) {
 
 	ch := make(chan *broadcastBGPMsg, 16)
 
-	go func() {
+	d := &dumper{
+		ch: ch,
+	}
+
+	d.t.Go(func() error {
 		for {
-			m := <-ch
-			subtype := bgp.MESSAGE_AS4
-			mp := bgp.NewBGP4MPMessage(m.peerAS, m.localAS, 0, m.peerAddress.String(), m.localAddress.String(), m.fourBytesAs, m.message)
-			if m.fourBytesAs == false {
-				subtype = bgp.MESSAGE
-			}
-			bm, err := bgp.NewMRTMessage(uint32(time.Now().Unix()), bgp.BGP4MP, subtype, mp)
-			if err != nil {
-				log.WithFields(log.Fields{
-					"Topic": "mrt",
-					"Data":  m,
-				}).Warn(err)
-				continue
-			}
-			buf, err := bm.Serialize()
-			if err != nil {
-				log.WithFields(log.Fields{
-					"Topic": "mrt",
-					"Data":  m,
-				}).Warn(err)
-			} else {
-				f.Write(buf)
+			select {
+			case <-d.t.Dying():
+				return nil
+			case m := <-ch:
+				subtype := bgp.MESSAGE_AS4
+				mp := bgp.NewBGP4MPMessage(m.peerAS, m.localAS, 0, m.peerAddress.String(), m.localAddress.String(), m.fourBytesAs, m.message)
+				if m.fourBytesAs == false {
+					subtype = bgp.MESSAGE
+				}
+				bm, err := bgp.NewMRTMessage(uint32(time.Now().Unix()), bgp.BGP4MP, subtype, mp)
+				if err != nil {
+					log.WithFields(log.Fields{
+						"Topic": "mrt",
+						"Data":  m,
+					}).Warn(err)
+					continue
+				}
+				buf, err := bm.Serialize()
+				if err != nil {
+					log.WithFields(log.Fields{
+						"Topic": "mrt",
+						"Data":  m,
+					}).Warn(err)
+				} else {
+					f.Write(buf)
+				}
 			}
 		}
-	}()
-	return &dumper{
-		ch: ch,
-	}, nil
+	})
+
+	return d, nil
 }
