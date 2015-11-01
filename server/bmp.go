@@ -16,10 +16,12 @@
 package server
 
 import (
+	"fmt"
 	log "github.com/Sirupsen/logrus"
 	"github.com/osrg/gobgp/config"
 	"github.com/osrg/gobgp/packet"
 	"github.com/osrg/gobgp/table"
+	"gopkg.in/tomb.v2"
 	"net"
 	"strconv"
 	"time"
@@ -42,6 +44,7 @@ type bmpConn struct {
 }
 
 type bmpClient struct {
+	t      tomb.Tomb
 	ch     chan *broadcastBMPMsg
 	connCh chan *bmpConn
 }
@@ -57,29 +60,40 @@ func newBMPClient(conf config.BmpServers, connCh chan *bmpConn) (*bmpClient, err
 
 	tryConnect := func(addr string) {
 		for {
+			var timerCh <-chan time.Time
+			select {
+			case <-b.t.Dying():
+				return
+			case <-timerCh:
+			}
 			conn, err := net.Dial("tcp", addr)
-			if err != nil {
-				time.Sleep(30 * time.Second)
-			} else {
+			if err == nil {
 				log.Info("bmp server is connected, ", addr)
 				connCh <- &bmpConn{
 					conn: conn.(*net.TCPConn),
 					addr: addr,
 				}
-				break
+				return
 			}
+			timer := time.NewTimer(time.Second * 30)
+			timerCh = timer.C
 		}
 	}
 
 	for _, c := range conf.BmpServerList {
-		b := c.BmpServerConfig
-		go tryConnect(net.JoinHostPort(b.Address.String(), strconv.Itoa(int(b.Port))))
+		bmpc := c.BmpServerConfig
+		b.t.Go(func() error {
+			tryConnect(net.JoinHostPort(bmpc.Address.String(), strconv.Itoa(int(bmpc.Port))))
+			return nil
+		})
 	}
 
-	go func() {
+	b.t.Go(func() error {
 		connMap := make(map[string]*net.TCPConn)
 		for {
 			select {
+			case <-b.t.Dying():
+				return nil
 			case m := <-b.ch:
 				if m.conn != nil {
 					i := bgp.NewBMPInitiation([]bgp.BMPTLV{})
@@ -96,24 +110,43 @@ func newBMPClient(conf config.BmpServers, connCh chan *bmpConn) (*bmpClient, err
 					}
 
 					for _, msg := range m.msgList {
-						b, _ := msg.Serialize()
-						_, err := conn.Write(b)
+						buf, _ := msg.Serialize()
+						_, err := conn.Write(buf)
 						if err != nil {
 							delete(connMap, addr)
-							go tryConnect(addr)
+							b.t.Go(func() error {
+								tryConnect(addr)
+								return nil
+							})
 							break
 						}
 					}
 				}
 			}
 		}
-	}()
+	})
 
 	return b, nil
 }
 
 func (c *bmpClient) send() chan *broadcastBMPMsg {
 	return c.ch
+}
+
+func (c *bmpClient) shutdown() error {
+	c.t.Kill(nil)
+	var timeoutCh chan struct{}
+	e := time.AfterFunc(time.Second*10, func() {
+		timeoutCh <- struct{}{}
+	})
+	select {
+	case <-c.t.Dead():
+		log.Info("shut down bmp client")
+		e.Stop()
+	case <-timeoutCh:
+		return fmt.Errorf("failed to shutdown bmp client")
+	}
+	return nil
 }
 
 func bmpPeerUp(laddr string, lport, rport uint16, sent, recv *bgp.BGPMessage, t int, policy bool, pd uint64, peeri *table.PeerInfo, timestamp int64) *bgp.BMPMessage {
