@@ -308,6 +308,8 @@ func (peer *Peer) ToApiStruct() *api.Peer {
 		SendCommunity:    uint32(c.NeighborConfig.SendCommunity),
 		Description:      c.NeighborConfig.Description,
 		PeerGroup:        c.NeighborConfig.PeerGroup,
+		RemoteCap:        remoteCap,
+		LocalCap:         localCap,
 	}
 
 	timer := &c.Timers
