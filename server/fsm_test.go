@@ -284,8 +284,8 @@ func TestFSMHandlerEstablished_HoldtimeZero(t *testing.T) {
 }
 
 func makePeerAndHandler() (*Peer, *FSMHandler) {
-	gConf := config.Global{}
-	pConf := config.Neighbor{}
+	gConf := &config.Global{}
+	pConf := &config.Neighbor{}
 
 	p := &Peer{
 		gConf:  gConf,
@@ -293,7 +293,7 @@ func makePeerAndHandler() (*Peer, *FSMHandler) {
 		capMap: make(map[bgp.BGPCapabilityCode][]bgp.ParameterCapabilityInterface),
 	}
 
-	p.fsm = NewFSM(&gConf, &pConf)
+	p.fsm = NewFSM(gConf, pConf)
 
 	incoming := make(chan *fsmMsg, 4096)
 	p.outgoing = make(chan *bgp.BGPMessage, 4096)
@@ -314,10 +314,10 @@ func open() *bgp.BGPMessage {
 		[]bgp.ParameterCapabilityInterface{bgp.NewCapRouteRefresh()})
 	p2 := bgp.NewOptionParameterCapability(
 		[]bgp.ParameterCapabilityInterface{bgp.NewCapMultiProtocol(bgp.RF_IPv4_UC)})
-	g := bgp.CapGracefulRestartTuples{4, 2, 3}
+	g := &bgp.CapGracefulRestartTuple{4, 2, 3}
 	p3 := bgp.NewOptionParameterCapability(
-		[]bgp.ParameterCapabilityInterface{bgp.NewCapGracefulRestart(2, 100,
-			[]bgp.CapGracefulRestartTuples{g})})
+		[]bgp.ParameterCapabilityInterface{bgp.NewCapGracefulRestart(true, 100,
+			[]*bgp.CapGracefulRestartTuple{g})})
 	p4 := bgp.NewOptionParameterCapability(
 		[]bgp.ParameterCapabilityInterface{bgp.NewCapFourOctetASNumber(100000)})
 	return bgp.NewBGPOpenMessage(11033, 303, "100.4.10.3",

@@ -32,8 +32,8 @@ const (
 )
 
 type Peer struct {
-	gConf                 config.Global
-	conf                  config.Neighbor
+	gConf                 *config.Global
+	conf                  *config.Neighbor
 	fsm                   *FSM
 	rfMap                 map[bgp.RouteFamily]bool
 	capMap                map[bgp.BGPCapabilityCode][]bgp.ParameterCapabilityInterface
@@ -49,7 +49,7 @@ type Peer struct {
 	localRib              *table.TableManager
 }
 
-func NewPeer(g config.Global, conf config.Neighbor, loc *table.TableManager) *Peer {
+func NewPeer(g *config.Global, conf *config.Neighbor, loc *table.TableManager) *Peer {
 	peer := &Peer{
 		gConf:    g,
 		conf:     conf,
@@ -75,7 +75,7 @@ func NewPeer(g config.Global, conf config.Neighbor, loc *table.TableManager) *Pe
 		RouteReflectorClusterID: id,
 	}
 	peer.adjRib = table.NewAdjRib(peer.configuredRFlist())
-	peer.fsm = NewFSM(&g, &conf)
+	peer.fsm = NewFSM(g, conf)
 	if conf.NeighborConfig.PeerAs != g.GlobalConfig.As {
 		for _, member := range g.Confederation.ConfederationConfig.MemberAs {
 			if member == conf.NeighborConfig.PeerAs {
@@ -104,6 +104,10 @@ func (peer *Peer) isRouteReflectorClient() bool {
 	return peer.conf.RouteReflector.RouteReflectorConfig.RouteReflectorClient
 }
 
+func (peer *Peer) isGracefulRestartEnabled() bool {
+	return peer.conf.GracefulRestart.GracefulRestartState.Enabled
+}
+
 func (peer *Peer) configuredRFlist() []bgp.RouteFamily {
 	return peer.localRib.GetRFlist()
 }
@@ -127,7 +131,7 @@ func (peer *Peer) getBestFromLocal(rfList []bgp.RouteFamily) ([]*table.Path, []*
 	pathList, filtered := peer.ApplyPolicy(table.POLICY_DIRECTION_EXPORT, filterpath(peer, peer.localRib.GetBestPathList(rfList)))
 	if peer.isRouteServerClient() == false {
 		for _, path := range pathList {
-			path.UpdatePathAttrs(&peer.gConf, &peer.conf)
+			path.UpdatePathAttrs(peer.gConf, peer.conf)
 		}
 	}
 	return pathList, filtered
@@ -163,6 +167,32 @@ func (peer *Peer) handleBGPmessage(m *bgp.BGPMessage) ([]*table.Path, bool, []*b
 						r[m.CapValue] = true
 					}
 				}
+			}
+		}
+
+		var gr *bgp.CapGracefulRestart
+		caps, ok := peer.capMap[bgp.BGP_CAP_GRACEFUL_RESTART]
+		if ok {
+			gr = caps[0].(*bgp.CapGracefulRestart)
+		}
+
+		state := &peer.fsm.pConf.GracefulRestart.GracefulRestartState
+		if peer.conf.GracefulRestart.GracefulRestartConfig.Enabled && gr != nil {
+			state.Enabled = true
+			state.PeerRestartTime = uint16(gr.Time)
+		}
+
+		if state.PeerRestarting {
+			if !ok || !peer.conf.GracefulRestart.GracefulRestartConfig.Enabled || gr.Flags&0x08 == 0 {
+				log.WithFields(log.Fields{
+					"Topic": "Peer",
+					"Key":   peer.conf.NeighborConfig.NeighborAddress,
+					"Me":    peer.conf.GracefulRestart.GracefulRestartConfig.Enabled,
+					"You":   ok,
+					"Flag":  gr.Flags,
+				}).Warn("graceful restart failed")
+				peer.adjRib.DropOut(peer.configuredRFlist())
+				state.PeerRestarting = false
 			}
 		}
 
@@ -223,6 +253,21 @@ func (peer *Peer) handleBGPmessage(m *bgp.BGPMessage) ([]*table.Path, bool, []*b
 		update = true
 		peer.conf.Timers.TimersState.UpdateRecvTime = time.Now().Unix()
 		body := m.Body.(*bgp.BGPUpdate)
+		if body.IsEndOfRib() {
+			log.WithFields(log.Fields{
+				"Topic": "Peer",
+				"Key":   peer.conf.NeighborConfig.NeighborAddress,
+			}).Info("received end-of-rib")
+			if state := &peer.fsm.pConf.GracefulRestart.GracefulRestartState; state.PeerRestarting {
+				num := peer.adjRib.RemoveStaleIn(peer.configuredRFlist())
+				log.WithFields(log.Fields{
+					"Topic": "Peer",
+					"Key":   peer.conf.NeighborConfig.NeighborAddress,
+				}).Infof("removed %d stale paths. end graceful-restart received procedure", num)
+				state.PeerRestarting = false
+			}
+			return nil, update, nil
+		}
 		confedCheckRequired := !peer.isConfederationMember && peer.isEBGPPeer()
 		_, err := bgp.ValidateUpdateMsg(body, peer.rfMap, confedCheckRequired)
 		if err != nil {
@@ -290,7 +335,7 @@ func (peer *Peer) ToApiStruct() *api.Peer {
 		}
 	}
 
-	caps := capabilitiesFromConfig(&peer.gConf, &peer.conf)
+	caps := capabilitiesFromConfig(peer.gConf, peer.conf)
 	localCap := make([][]byte, 0, len(caps))
 	for _, c := range caps {
 		buf, _ := c.Serialize()
@@ -488,4 +533,9 @@ func (peer *Peer) DropAll(rfList []bgp.RouteFamily) {
 	peer.adjRib.DropOut(rfList)
 	peer.staleAccepted = false
 	peer.accepted = 0
+}
+
+func (peer *Peer) UpdateConfig(c *config.Neighbor) {
+	peer.conf = c
+	peer.fsm.pConf = c
 }

@@ -40,6 +40,7 @@ type Path struct {
 	IsFromZebra            bool
 	Filtered               bool
 	Owner                  net.IP
+	Stale                  bool
 }
 
 func NewPath(source *PeerInfo, nlri bgp.AddrPrefixInterface, isWithdraw bool, pattrs []bgp.PathAttributeInterface, medSetByTargetNeighbor bool, timestamp time.Time, noImplicitWithdraw bool) *Path {
@@ -200,6 +201,7 @@ func (path *Path) ToApiStruct() *api.Path {
 		Validation: int32(path.Validation),
 		Filtered:   path.Filtered,
 		Rf:         rf,
+		Stale:      path.Stale,
 	}
 }
 

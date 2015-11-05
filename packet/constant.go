@@ -34,6 +34,7 @@ const (
 	BGP_FSM_OPENSENT
 	BGP_FSM_OPENCONFIRM
 	BGP_FSM_ESTABLISHED
+	BGP_FSM_GRACEFUL_RESTARTING
 )
 
 // partially taken from http://www.iana.org/assignments/protocol-numbers/protocol-numbers.xhtml

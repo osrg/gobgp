@@ -508,6 +508,7 @@ type Path struct {
 	SourceAsn          uint32   `protobuf:"varint,9,opt,name=source_asn" json:"source_asn,omitempty"`
 	SourceId           string   `protobuf:"bytes,10,opt,name=source_id" json:"source_id,omitempty"`
 	Filtered           bool     `protobuf:"varint,11,opt,name=filtered" json:"filtered,omitempty"`
+	Stale              bool     `protobuf:"varint,12,opt,name=stale" json:"stale,omitempty"`
 }
 
 func (m *Path) Reset()         { *m = Path{} }

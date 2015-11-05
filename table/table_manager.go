@@ -256,13 +256,7 @@ func (manager *TableManager) AddVrf(name string, rd bgp.RouteDistinguisherInterf
 		"ImportRt": importRt,
 		"ExportRt": exportRt,
 	}).Debugf("add vrf")
-	manager.Vrfs[name] = &Vrf{
-		Name:     name,
-		Rd:       rd,
-		ImportRt: importRt,
-		ExportRt: exportRt,
-		LabelMap: make(map[string]uint32),
-	}
+	manager.Vrfs[name] = NewVrf(name, rd, importRt, exportRt)
 	msgs := make([]*Path, 0, len(importRt))
 	nexthop := "0.0.0.0"
 	for _, target := range importRt {
@@ -606,4 +600,33 @@ func (adj *AdjRib) DropOut(rfList []bgp.RouteFamily) {
 			adj.adjRibOut[rf] = make(map[string]*Path)
 		}
 	}
+}
+
+func (adj *AdjRib) StaleAllIn(rfList []bgp.RouteFamily) {
+	for _, rf := range rfList {
+		if m, ok := adj.adjRibIn[rf]; ok {
+			for _, p := range m {
+				p.Stale = true
+			}
+		}
+	}
+}
+
+func (adj *AdjRib) RemoveStaleIn(rfList []bgp.RouteFamily) int {
+	num := 0
+	for _, rf := range rfList {
+		if x, ok := adj.adjRibIn[rf]; ok {
+			y := make(map[string]*Path)
+			for _, p := range x {
+				if !p.Stale {
+					key := p.getPrefix()
+					y[key] = p
+				} else {
+					num++
+				}
+			}
+			adj.adjRibIn[rf] = y
+		}
+	}
+	return num
 }

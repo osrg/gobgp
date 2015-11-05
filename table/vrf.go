@@ -16,7 +16,9 @@
 package table
 
 import (
+	"fmt"
 	api "github.com/osrg/gobgp/api"
+	"github.com/osrg/gobgp/config"
 	"github.com/osrg/gobgp/packet"
 )
 
@@ -26,6 +28,7 @@ type Vrf struct {
 	ImportRt []bgp.ExtendedCommunityInterface
 	ExportRt []bgp.ExtendedCommunityInterface
 	LabelMap map[string]uint32
+	filter   Condition
 }
 
 func (v *Vrf) ToApiStruct() *api.Vrf {
@@ -55,4 +58,38 @@ func isLastTargetUser(vrfs map[string]*Vrf, target bgp.ExtendedCommunityInterfac
 		}
 	}
 	return true
+}
+
+func (v *Vrf) CanImport(path *Path) bool {
+	return v.filter.Evaluate(path)
+}
+
+func NewVrf(name string, rd bgp.RouteDistinguisherInterface, importRt, exportRt []bgp.ExtendedCommunityInterface) *Vrf {
+	f := func(arg []bgp.ExtendedCommunityInterface) []config.ExtCommunity {
+		ret := make([]config.ExtCommunity, 0, len(arg))
+		for _, a := range arg {
+			ret = append(ret, config.ExtCommunity{
+				ExtCommunity: fmt.Sprintf("RT:%s", a.String()),
+			})
+		}
+		return ret
+	}
+	set, _ := NewExtCommunitySet(config.ExtCommunitySet{
+		ExtCommunitySetName: name,
+		ExtCommunityList:    f(importRt),
+	})
+	matchSet := config.MatchExtCommunitySet{
+		ExtCommunitySet: name,
+		MatchSetOptions: config.MATCH_SET_OPTIONS_TYPE_ANY,
+	}
+	filter, _ := NewExtCommunityCondition(matchSet, map[string]DefinedSet{name: set})
+
+	return &Vrf{
+		Name:     name,
+		Rd:       rd,
+		ImportRt: importRt,
+		ExportRt: exportRt,
+		LabelMap: make(map[string]uint32),
+		filter:   filter,
+	}
 }

@@ -279,15 +279,16 @@ func (fsm *FSM) connectLoop() error {
 }
 
 type FSMHandler struct {
-	t                tomb.Tomb
-	fsm              *FSM
-	conn             net.Conn
-	msgCh            chan *fsmMsg
-	errorCh          chan bool
-	incoming         chan *fsmMsg
-	outgoing         chan *bgp.BGPMessage
-	holdTimerResetCh chan bool
-	reason           string
+	t                    tomb.Tomb
+	fsm                  *FSM
+	conn                 net.Conn
+	msgCh                chan *fsmMsg
+	errorCh              chan bool
+	incoming             chan *fsmMsg
+	outgoing             chan *bgp.BGPMessage
+	holdTimerResetCh     chan bool
+	reason               string
+	notificationReceived bool
 }
 
 func NewFSMHandler(fsm *FSM, incoming chan *fsmMsg, outgoing chan *bgp.BGPMessage) *FSMHandler {
@@ -305,6 +306,8 @@ func NewFSMHandler(fsm *FSM, incoming chan *fsmMsg, outgoing chan *bgp.BGPMessag
 func (h *FSMHandler) idle() bgp.FSMState {
 	fsm := h.fsm
 
+	state := &fsm.pConf.GracefulRestart.GracefulRestartState
+	state.PeerRestarting = false
 	idleHoldTimer := time.NewTimer(time.Second * time.Duration(fsm.idleHoldTime))
 	for {
 		select {
@@ -403,6 +406,21 @@ func capabilitiesFromConfig(gConf *config.Global, pConf *config.Neighbor) []bgp.
 		caps = append(caps, bgp.NewCapMultiProtocol(k))
 	}
 	caps = append(caps, bgp.NewCapFourOctetASNumber(gConf.GlobalConfig.As))
+
+	if c := pConf.GracefulRestart.GracefulRestartConfig; c.Enabled {
+		tuples := []*bgp.CapGracefulRestartTuple{}
+		if !c.HelperOnly {
+			for _, rf := range pConf.AfiSafis.AfiSafiList {
+				if rf.MpGracefulRestart.MpGracefulRestartConfig.Enabled {
+					k, _ := bgp.GetRouteFamily(rf.AfiSafiName)
+					tuples = append(tuples, bgp.NewCapGracefulRestartTuple(k, true))
+				}
+			}
+		}
+		time := c.RestartTime
+		restarting := pConf.GracefulRestart.GracefulRestartState.LocalRestarting
+		caps = append(caps, bgp.NewCapGracefulRestart(restarting, time, tuples))
+	}
 	return caps
 }
 
@@ -493,6 +511,7 @@ func (h *FSMHandler) recvMessageWithError() error {
 					h.holdTimerResetCh <- true
 				}
 			} else if m.Header.Type == bgp.BGP_MSG_NOTIFICATION {
+				h.notificationReceived = true
 				h.reason = "Notification received"
 			}
 		}
@@ -843,6 +862,9 @@ func (h *FSMHandler) established() bgp.FSMState {
 			h.conn.Close()
 			h.t.Kill(nil)
 			h.reason = "Peer closed the session"
+			if h.fsm.pConf.GracefulRestart.GracefulRestartState.Enabled && !h.notificationReceived {
+				return bgp.BGP_FSM_GRACEFUL_RESTARTING
+			}
 			return bgp.BGP_FSM_IDLE
 		case <-holdTimer.C:
 			log.WithFields(log.Fields{
@@ -874,6 +896,63 @@ func (h *FSMHandler) established() bgp.FSMState {
 	return 0
 }
 
+func (h *FSMHandler) gracefulrestart() bgp.FSMState {
+	fsm := h.fsm
+	state := &fsm.pConf.GracefulRestart.GracefulRestartState
+	state.PeerRestarting = true
+	restartTimer := time.NewTimer(time.Second * time.Duration(state.PeerRestartTime))
+
+	for {
+		select {
+		case <-h.t.Dying():
+			return 0
+		case <-restartTimer.C:
+			log.WithFields(log.Fields{
+				"Topic": "Peer",
+				"Key":   fsm.pConf.NeighborConfig.NeighborAddress,
+				"State": fsm.state,
+			}).Warn("restart timer expired")
+			h.reason = "RestartTimer expired"
+			return bgp.BGP_FSM_IDLE
+		case conn, ok := <-fsm.connCh:
+			if !ok {
+				break
+			}
+			fsm.conn = conn
+			if fsm.gConf.GlobalConfig.As != fsm.pConf.NeighborConfig.PeerAs {
+				ttl := 1
+				if fsm.pConf.EbgpMultihop.EbgpMultihopConfig.Enabled == true {
+					ttl = int(fsm.pConf.EbgpMultihop.EbgpMultihopConfig.MultihopTtl)
+				}
+				if ttl != 0 {
+					SetTcpTTLSockopts(conn.(*net.TCPConn), ttl)
+				}
+			}
+			// we don't implement delayed open timer so move to opensent right
+			// away.
+			return bgp.BGP_FSM_OPENSENT
+		case <-h.errorCh:
+			return bgp.BGP_FSM_IDLE
+		case s := <-fsm.adminStateCh:
+			err := h.changeAdminState(s)
+			if err == nil {
+				switch s {
+				case ADMIN_STATE_DOWN:
+					return bgp.BGP_FSM_IDLE
+				case ADMIN_STATE_UP:
+					log.WithFields(log.Fields{
+						"Topic":      "Peer",
+						"Key":        fsm.pConf.NeighborConfig.NeighborAddress,
+						"State":      fsm.state,
+						"AdminState": s.String(),
+					}).Panic("code logic bug")
+				}
+			}
+		}
+	}
+	return 0
+}
+
 func (h *FSMHandler) loop() error {
 	fsm := h.fsm
 	ch := make(chan bgp.FSMState)
@@ -894,6 +973,8 @@ func (h *FSMHandler) loop() error {
 			nextState = h.openconfirm()
 		case bgp.BGP_FSM_ESTABLISHED:
 			nextState = h.established()
+		case bgp.BGP_FSM_GRACEFUL_RESTARTING:
+			nextState = h.gracefulrestart()
 		}
 
 		ch <- nextState
