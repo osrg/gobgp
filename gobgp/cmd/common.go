@@ -138,11 +138,11 @@ type Destination struct {
 func ApiStruct2Destination(dst *gobgpapi.Destination) (*Destination, error) {
 	paths := make([]*Path, 0, len(dst.Paths))
 	for _, p := range dst.Paths {
-		path, err := ApiStruct2Path(p)
+		ps, err := ApiStruct2Path(p)
 		if err != nil {
 			return nil, err
 		}
-		paths = append(paths, path)
+		paths = append(paths, ps...)
 	}
 	return &Destination{
 		Prefix: dst.Prefix,
@@ -161,15 +161,16 @@ type Path struct {
 	Filtered   bool                         `json:"filtered"`
 }
 
-func ApiStruct2Path(p *gobgpapi.Path) (*Path, error) {
-	var nlri bgp.AddrPrefixInterface
+func ApiStruct2Path(p *gobgpapi.Path) ([]*Path, error) {
+	nlris := make([]bgp.AddrPrefixInterface, 0, 1)
 	data := p.Nlri
-	if len(data) > 0 {
-		nlri = &bgp.IPAddrPrefix{}
+	if p.Rf == uint32(bgp.RF_IPv4_UC) && len(data) > 0 {
+		nlri := &bgp.IPAddrPrefix{}
 		err := nlri.DecodeFromBytes(data)
 		if err != nil {
 			return nil, err
 		}
+		nlris = append(nlris, nlri)
 	}
 
 	pattr := make([]bgp.PathAttributeInterface, 0, len(p.Pattrs))
@@ -187,22 +188,26 @@ func ApiStruct2Path(p *gobgpapi.Path) (*Path, error) {
 		switch p.GetType() {
 		case bgp.BGP_ATTR_TYPE_MP_REACH_NLRI:
 			mpreach := p.(*bgp.PathAttributeMpReachNLRI)
-			if len(mpreach.Value) != 1 {
-				return nil, fmt.Errorf("include only one route in mp_reach_nlri")
+			for _, nlri := range mpreach.Value {
+				nlris = append(nlris, nlri)
 			}
-			nlri = mpreach.Value[0]
 		}
 		pattr = append(pattr, p)
 	}
-	return &Path{
-		Nlri:       nlri,
-		PathAttrs:  pattr,
-		Age:        p.Age,
-		Best:       p.Best,
-		IsWithdraw: p.IsWithdraw,
-		Validation: p.Validation,
-		Filtered:   p.Filtered,
-	}, nil
+
+	paths := make([]*Path, 0, len(nlris))
+	for _, nlri := range nlris {
+		paths = append(paths, &Path{
+			Nlri:       nlri,
+			PathAttrs:  pattr,
+			Age:        p.Age,
+			Best:       p.Best,
+			IsWithdraw: p.IsWithdraw,
+			Validation: p.Validation,
+			Filtered:   p.Filtered,
+		})
+	}
+	return paths, nil
 }
 
 type paths []*Path
