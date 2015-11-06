@@ -1766,6 +1766,7 @@ func (server *BgpServer) handleGrpcModNeighbor(grpcReq *GrpcRequest) (sMsgs []*S
 			var pconf config.Neighbor
 			if a.Conf != nil {
 				pconf.NeighborAddress = net.ParseIP(a.Conf.NeighborAddress)
+				pconf.NeighborConfig.NeighborAddress = net.ParseIP(a.Conf.NeighborAddress)
 				pconf.NeighborConfig.PeerAs = a.Conf.PeerAs
 				pconf.NeighborConfig.LocalAs = a.Conf.LocalAs
 				if pconf.NeighborConfig.PeerAs != server.bgpConfig.Global.GlobalConfig.As {

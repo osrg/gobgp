@@ -168,13 +168,12 @@ message Peer {
   ErrorHandling error_handling = 7;
   PeerGracefulRestart graceful_restart = 8;
   LoggingOptions logging_options = 9;
-  string nighbor_address = 10;
-  RouteReflector route_reflector = 11;
-  PeerState info = 12;
-  Timers timers = 13;
-  Transport transport = 14;
-  UseMultiplePaths use_multiple_paths = 15;
-  RouteServer route_server = 16;
+  RouteReflector route_reflector = 10;
+  PeerState info = 11;
+  Timers timers = 12;
+  Transport transport = 13;
+  UseMultiplePaths use_multiple_paths = 14;
+  RouteServer route_server = 15;
 }
 
 message AddPaths {
@@ -270,6 +269,7 @@ message PeerConf {
   uint32 send_community = 10;
   repeated bytes remote_cap = 11;
   repeated bytes local_cap = 12;
+  string id = 13;
 }
 
 message EbgpMultihop {

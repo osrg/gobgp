@@ -540,13 +540,12 @@ type Peer struct {
 	ErrorHandling    *ErrorHandling       `protobuf:"bytes,7,opt,name=error_handling" json:"error_handling,omitempty"`
 	GracefulRestart  *PeerGracefulRestart `protobuf:"bytes,8,opt,name=graceful_restart" json:"graceful_restart,omitempty"`
 	LoggingOptions   *LoggingOptions      `protobuf:"bytes,9,opt,name=logging_options" json:"logging_options,omitempty"`
-	NighborAddress   string               `protobuf:"bytes,10,opt,name=nighbor_address" json:"nighbor_address,omitempty"`
-	RouteReflector   *RouteReflector      `protobuf:"bytes,11,opt,name=route_reflector" json:"route_reflector,omitempty"`
-	Info             *PeerState           `protobuf:"bytes,12,opt,name=info" json:"info,omitempty"`
-	Timers           *Timers              `protobuf:"bytes,13,opt,name=timers" json:"timers,omitempty"`
-	Transport        *Transport           `protobuf:"bytes,14,opt,name=transport" json:"transport,omitempty"`
-	UseMultiplePaths *UseMultiplePaths    `protobuf:"bytes,15,opt,name=use_multiple_paths" json:"use_multiple_paths,omitempty"`
-	RouteServer      *RouteServer         `protobuf:"bytes,16,opt,name=route_server" json:"route_server,omitempty"`
+	RouteReflector   *RouteReflector      `protobuf:"bytes,10,opt,name=route_reflector" json:"route_reflector,omitempty"`
+	Info             *PeerState           `protobuf:"bytes,11,opt,name=info" json:"info,omitempty"`
+	Timers           *Timers              `protobuf:"bytes,12,opt,name=timers" json:"timers,omitempty"`
+	Transport        *Transport           `protobuf:"bytes,13,opt,name=transport" json:"transport,omitempty"`
+	UseMultiplePaths *UseMultiplePaths    `protobuf:"bytes,14,opt,name=use_multiple_paths" json:"use_multiple_paths,omitempty"`
+	RouteServer      *RouteServer         `protobuf:"bytes,15,opt,name=route_server" json:"route_server,omitempty"`
 }
 
 func (m *Peer) Reset()         { *m = Peer{} }
@@ -957,6 +956,7 @@ type PeerConf struct {
 	SendCommunity    uint32   `protobuf:"varint,10,opt,name=send_community" json:"send_community,omitempty"`
 	RemoteCap        [][]byte `protobuf:"bytes,11,rep,name=remote_cap,proto3" json:"remote_cap,omitempty"`
 	LocalCap         [][]byte `protobuf:"bytes,12,rep,name=local_cap,proto3" json:"local_cap,omitempty"`
+	Id               string   `protobuf:"bytes,13,opt,name=id" json:"id,omitempty"`
 }
 
 func (m *PeerConf) Reset()         { *m = PeerConf{} }

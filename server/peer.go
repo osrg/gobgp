@@ -299,6 +299,7 @@ func (peer *Peer) ToApiStruct() *api.Peer {
 
 	conf := &api.PeerConf{
 		NeighborAddress:  c.NeighborConfig.NeighborAddress.String(),
+		Id:               peer.peerInfo.ID.To4().String(),
 		PeerAs:           c.NeighborConfig.PeerAs,
 		LocalAs:          c.NeighborConfig.LocalAs,
 		PeerType:         uint32(c.NeighborConfig.PeerType),

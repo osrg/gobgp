@@ -255,7 +255,7 @@ func ApiStruct2Peer(p *gobgpapi.Peer) *Peer {
 	}
 	conf := PeerConf{
 		RemoteIp:  net.ParseIP(p.Conf.NeighborAddress),
-		Id:        net.ParseIP(p.Conf.NeighborAddress),
+		Id:        net.ParseIP(p.Conf.Id),
 		RemoteAs:  p.Conf.PeerAs,
 		RemoteCap: remoteCaps,
 		LocalCap:  localCaps,
