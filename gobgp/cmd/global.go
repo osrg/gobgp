@@ -396,6 +396,21 @@ func extractNexthop(rf bgp.RouteFamily, args []string) ([]string, string, error)
 	return args, nexthop, nil
 }
 
+func extractLocalPref(args []string) ([]string, []byte, error) {
+	for idx, arg := range args {
+		if arg == "local-pref" && len(args) > (idx+1) {
+			metric, err := strconv.Atoi(args[idx+1])
+			if err != nil {
+				return nil, nil, err
+			}
+			args = append(args[:idx], args[idx+2:]...)
+			localPref, _ := bgp.NewPathAttributeLocalPref(uint32(metric)).Serialize()
+			return args, localPref, nil
+		}
+	}
+	return args, nil, nil
+}
+
 func extractAigp(args []string) ([]string, []byte, error) {
 	for idx, arg := range args {
 		if arg == "aigp" {
@@ -431,6 +446,15 @@ func ParsePath(rf bgp.RouteFamily, args []string) (*api.Path, error) {
 	args, nexthop, err := extractNexthop(rf, args)
 	if err != nil {
 		return nil, err
+	}
+
+	var localPref []byte
+	args, localPref, err = extractLocalPref(args)
+	if err != nil {
+		return nil, err
+	}
+	if localPref != nil {
+		path.Pattrs = append(path.Pattrs, localPref)
 	}
 
 	var aigp []byte
@@ -557,8 +581,8 @@ func modPath(resource api.Resource, name, modtype string, args []string) error {
 		}
 		flags := strings.Join(ss, ", ")
 		helpErrMap := map[bgp.RouteFamily]error{}
-		helpErrMap[bgp.RF_IPv4_UC] = fmt.Errorf("usage: %s rib %s <PREFIX> [nexthop <ADDRESS>] [aigp metric <METRIC>] -a ipv4", cmdstr, modtype)
-		helpErrMap[bgp.RF_IPv6_UC] = fmt.Errorf("usage: %s rib %s <PREFIX> [nexthop <ADDRESS>] [aigp metric <METRIC>] -a ipv6", cmdstr, modtype)
+		helpErrMap[bgp.RF_IPv4_UC] = fmt.Errorf("usage: %s rib %s <PREFIX> [nexthop <ADDRESS>] [aigp metric <METRIC>] [local-pref <VALUE>] -a ipv4", cmdstr, modtype)
+		helpErrMap[bgp.RF_IPv6_UC] = fmt.Errorf("usage: %s rib %s <PREFIX> [nexthop <ADDRESS>] [aigp metric <METRIC>] [local-pref <VALUE>] -a ipv6", cmdstr, modtype)
 		fsHelpMsgFmt := fmt.Sprintf(`err: %s
 usage: %s rib %s match <MATCH_EXPR> then <THEN_EXPR> -a %%s
     <MATCH_EXPR> : { %s <PREFIX> [<OFFSET>] | %s <PREFIX> [<OFFSET>] |
