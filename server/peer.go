@@ -172,12 +172,6 @@ func (peer *Peer) handleBGPmessage(m *bgp.BGPMessage) ([]*table.Path, bool, []*b
 			}
 		}
 
-		for _, rf := range peer.configuredRFlist() {
-			if _, ok := r[rf]; ok {
-				peer.rfMap[rf] = true
-			}
-		}
-
 		// calculate HoldTime
 		// RFC 4271 P.13
 		// a BGP speaker MUST calculate the value of the Hold Timer
