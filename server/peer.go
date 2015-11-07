@@ -76,15 +76,7 @@ func NewPeer(g config.Global, conf config.Neighbor, loc *table.TableManager) *Pe
 	}
 	peer.adjRib = table.NewAdjRib(peer.configuredRFlist())
 	peer.fsm = NewFSM(&g, &conf)
-	if conf.NeighborConfig.PeerAs != g.GlobalConfig.As {
-		for _, member := range g.Confederation.ConfederationConfig.MemberAs {
-			if member == conf.NeighborConfig.PeerAs {
-				peer.isConfederationMember = true
-				break
-			}
-		}
-	}
-
+	peer.isConfederationMember = config.IsConfederationMember(&g, &conf)
 	return peer
 }
 
