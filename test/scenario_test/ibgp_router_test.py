@@ -104,7 +104,7 @@ class GoBGPTestBase(unittest.TestCase):
         self.assertTrue(len(dst[0]['paths']) == 1)
         path = dst[0]['paths'][0]
         self.assertTrue(path['nexthop'] == '0.0.0.0')
-        self.assertTrue(len(path['as_path']) == 0)
+        self.assertTrue(len(path['aspath']) == 0)
 
     def test_05_check_gobgp_adj_rib_out(self):
         for q in self.quaggas.itervalues():
@@ -115,7 +115,7 @@ class GoBGPTestBase(unittest.TestCase):
             peer_info = self.gobgp.peers[q]
             local_addr = peer_info['local_addr'].split('/')[0]
             self.assertTrue(path['nexthop'] == local_addr)
-            self.assertTrue(len(path['as_path']) == 0)
+            self.assertTrue(len(path['aspath']) == 0)
 
     # check routes are properly advertised to all BGP speaker
     def test_06_check_quagga_global_rib(self):
@@ -181,7 +181,7 @@ class GoBGPTestBase(unittest.TestCase):
             peer_info = self.gobgp.peers[q3]
             local_addr = peer_info['local_addr'].split('/')[0]
             self.assertTrue(path['nexthop'] == local_addr)
-            self.assertTrue(path['as_path'] == [self.gobgp.asn])
+            self.assertTrue(path['aspath'] == [self.gobgp.asn])
 
     def test_10_check_gobgp_ibgp_adj_rib_out(self):
         q1 = self.quaggas['q1']
@@ -198,7 +198,7 @@ class GoBGPTestBase(unittest.TestCase):
             self.assertTrue(path['nexthop'] == neigh_addr)
             # bgp router mustn't change aspath of routes from eBGP peers
             # which are sent to iBGP peers
-            self.assertTrue(path['as_path'] == [q3.asn])
+            self.assertTrue(path['aspath'] == [q3.asn])
 
     # disable ebgp peer, check ebgp routes are removed
     def test_11_disable_ebgp_peer(self):

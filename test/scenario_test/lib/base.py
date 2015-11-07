@@ -286,7 +286,8 @@ class BGPContainer(Container):
 
     def add_route(self, route, rf='ipv4', attribute=None, aspath=None,
                   community=None, med=None, extendedcommunity=None,
-                  nexthop=None, matchs=None, thens=None):
+                  nexthop=None, matchs=None, thens=None,
+                  local_pref=None):
         self.routes[route] = {'prefix': route,
                               'rf': rf,
                               'attr': attribute,
@@ -294,6 +295,7 @@ class BGPContainer(Container):
                               'as-path': aspath,
                               'community': community,
                               'med': med,
+                              'local-pref': local_pref,
                               'extended-community': extendedcommunity,
                               'matchs': matchs,
                               'thens' : thens}
