@@ -99,6 +99,13 @@ func (path *Path) UpdatePathAttrs(global *config.Global, peer *config.Neighbor) 
 		if idx >= 0 && !path.IsLocal() {
 			path.pathAttrs = append(path.pathAttrs[:idx], path.pathAttrs[idx+1:]...)
 		}
+
+		// remove local-pref attribute
+		idx, _ = path.getPathAttr(bgp.BGP_ATTR_TYPE_LOCAL_PREF)
+		if idx >= 0 && !config.IsConfederationMember(global, peer) {
+			path.pathAttrs = append(path.pathAttrs[:idx], path.pathAttrs[idx+1:]...)
+		}
+
 	} else if peer.NeighborConfig.PeerType == config.PEER_TYPE_INTERNAL {
 		// NEXTHOP handling for iBGP
 		// if the path generated locally set local address as nexthop.
