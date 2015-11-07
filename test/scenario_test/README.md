@@ -68,7 +68,7 @@ Execute the following commands inside the VM to install the dependencies:
  $ mkdir -p $GOPATH/src/github.com/osrg
  $ cd $GOPATH/src/github.com/osrg
  $ git clone https://github.com/osrg/gobgp.git
- $ cd ./gobgp/test/scenario_test
+ $ cd ./gobgp/test
  $ sudo pip install -r pip-requires.txt
  ```
 <br>
@@ -79,7 +79,7 @@ You also need this operation at every modification to the source code.
 
 ```
 $ cd $GOPATH/src/github.com/osrg/gobgp
-$ sudo fab -f ./test/scenario_test/lib/base.py make_gobgp_ctn --set tag=gobgp
+$ sudo fab -f ./test/lib/base.py make_gobgp_ctn --set tag=gobgp
 ```
 
 
