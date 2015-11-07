@@ -70,9 +70,6 @@ def boot(env):
     initial_wait_time = max(ctn.run() for ctn in ctns)
     time.sleep(initial_wait_time)
 
-    br01 = Bridge(name='br01', subnet='192.168.10.0/24')
-    [br01.addif(ctn) for ctn in ctns]
-
     for q in [e1, e2]:
         g1.add_peer(q, is_rs_client=True)
         q.add_peer(g1)

@@ -51,22 +51,26 @@ class GoBGPTestBase(unittest.TestCase):
         o2_v6 = QuaggaBGPContainer(name='o2_v6', asn=65002, router_id='192.168.0.4')
 
         # preparing the bridge for ipv4
-        br01v4 = Bridge(name='br01', subnet='192.168.10.0/24')
-        br02v4 = Bridge(name='br02', subnet='192.168.20.0/24')
-        br03v4 = Bridge(name='br03', subnet='192.168.30.0/24')
+        br01_v4 = Bridge(name='br01_v4', subnet='192.168.10.0/24')
+        br02_v4 = Bridge(name='br02_v4', subnet='192.168.20.0/24')
+        br03_v4 = Bridge(name='br03_v4', subnet='192.168.30.0/24')
 
         # preparing the bridge for ipv6
-        br01v6 = Bridge(name='br01', subnet='2001:10::/32')
-        br02v6 = Bridge(name='br02', subnet='2001:20::/32')
-        br03v6 = Bridge(name='br03', subnet='2001:30::/32')
+        br01_v6 = Bridge(name='br01_v6', subnet='2001:10::/32')
+        br02_v6 = Bridge(name='br02_v6', subnet='2001:20::/32')
+        br03_v6 = Bridge(name='br03_v6', subnet='2001:30::/32')
 
         cls.ctns = {'ipv4': [g1_v4, q1_v4, o1_v4, o2_v4],
                     'ipv6': [g1_v6, q1_v6, o1_v6, o2_v6]}
         cls.gobgps = {'ipv4': g1_v4, 'ipv6': g1_v6}
         cls.quaggas = {'ipv4': q1_v4, 'ipv6': q1_v6}
         cls.others = {'ipv4': [o1_v4, o2_v4], 'ipv6': [o1_v6, o2_v6]}
-        cls.bridges = {'ipv4': {'br01': br01v4, 'br02': br02v4, 'br03': br03v4},
-                       'ipv6': {'br01': br01v6, 'br02': br02v6, 'br03': br03v6}}
+        cls.bridges = {'br01_v4' : br01_v4,
+                'br02_v4' : br02_v4,
+                'br03_v4' : br03_v4,
+                'br01_v6' : br01_v6,
+                'br02_v6' : br02_v6,
+                'br03_v6' : br03_v6}
 
     """
       No.1 start up ipv4 containers and check state
@@ -82,12 +86,12 @@ class GoBGPTestBase(unittest.TestCase):
         time.sleep(initial_wait_time)
 
         # make ipv4 bridge and set ip to each container
-        [self.bridges['ipv4']['br01'].addif(ctn) for ctn in [o1, g1]]
-        [self.bridges['ipv4']['br02'].addif(ctn) for ctn in [g1, q1]]
-        [self.bridges['ipv4']['br03'].addif(ctn) for ctn in [q1, o2]]
+        [self.bridges['br01_v4'].addif(ctn) for ctn in [o1, g1]]
+        [self.bridges['br02_v4'].addif(ctn) for ctn in [g1, q1]]
+        [self.bridges['br03_v4'].addif(ctn) for ctn in [q1, o2]]
 
-        g1.add_peer(q1)
-        q1.add_peer(g1)
+        g1.add_peer(q1, bridge=self.bridges['br02_v4'].name)
+        q1.add_peer(g1, bridge=self.bridges['br02_v4'].name)
 
         g1.wait_for(expected_state=BGP_FSM_ESTABLISHED, peer=q1)
 
@@ -100,8 +104,12 @@ class GoBGPTestBase(unittest.TestCase):
         q1 = self.quaggas['ipv4']
         o1 = self.others['ipv4'][0]
 
-        next_hop = g1.ip_addrs[0][1].split('/')[0]
-        o1.add_static_route(self.bridges['ipv4']['br02'].subnet, next_hop)
+        next_hop = None
+        for info in g1.ip_addrs:
+            if 'br01_v4' in info[2]:
+                next_hop = info[1].split('/')[0]
+        self.assertFalse(next_hop == None)
+        o1.add_static_route(self.bridges['br02_v4'].subnet, next_hop)
         q1.get_reachablily('192.168.10.1')
 
     """
@@ -113,8 +121,8 @@ class GoBGPTestBase(unittest.TestCase):
         q1 = self.quaggas['ipv4']
         o2 = self.others['ipv4'][1]
 
-        next_hop = q1.ip_addrs[1][1].split('/')[0]
-        o2.add_static_route(self.bridges['ipv4']['br02'].subnet, next_hop)
+        next_hop = q1.ip_addrs[2][1].split('/')[0]
+        o2.add_static_route(self.bridges['br02_v4'].subnet, next_hop)
         g1.get_reachablily('192.168.30.2')
 
     """
@@ -131,12 +139,12 @@ class GoBGPTestBase(unittest.TestCase):
         time.sleep(initial_wait_time)
 
         # make ipv6 bridge and set ip to each container
-        [self.bridges['ipv6']['br01'].addif(ctn) for ctn in [o1, g1]]
-        [self.bridges['ipv6']['br02'].addif(ctn) for ctn in [g1, q1]]
-        [self.bridges['ipv6']['br03'].addif(ctn) for ctn in [q1, o2]]
+        [self.bridges['br01_v6'].addif(ctn) for ctn in [o1, g1]]
+        [self.bridges['br02_v6'].addif(ctn) for ctn in [g1, q1]]
+        [self.bridges['br03_v6'].addif(ctn) for ctn in [q1, o2]]
 
-        g1.add_peer(q1)
-        q1.add_peer(g1)
+        g1.add_peer(q1, bridge=self.bridges['br02_v6'].name)
+        q1.add_peer(g1, bridge=self.bridges['br02_v6'].name)
 
         g1.wait_for(expected_state=BGP_FSM_ESTABLISHED, peer=q1)
 
@@ -149,9 +157,9 @@ class GoBGPTestBase(unittest.TestCase):
         q1 = self.quaggas['ipv6']
         o1 = self.others['ipv6'][0]
 
-        next_hop = g1.ip_addrs[0][1].split('/')[0]
+        next_hop = g1.ip_addrs[1][1].split('/')[0]
         g1.set_ipv6_forward()
-        o1.add_static_route(self.bridges['ipv6']['br02'].subnet, next_hop)
+        o1.add_static_route(self.bridges['br02_v6'].subnet, next_hop)
         q1.get_reachablily('2001:10::1')
 
     """
@@ -163,9 +171,9 @@ class GoBGPTestBase(unittest.TestCase):
         q1 = self.quaggas['ipv6']
         o2 = self.others['ipv6'][1]
 
-        next_hop = q1.ip_addrs[1][1].split('/')[0]
+        next_hop = q1.ip_addrs[2][1].split('/')[0]
         q1.set_ipv6_forward()
-        o2.add_static_route(self.bridges['ipv6']['br02'].subnet, next_hop)
+        o2.add_static_route(self.bridges['br02_v6'].subnet, next_hop)
         g1.get_reachablily('2001:30::2')
 
 

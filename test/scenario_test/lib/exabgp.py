@@ -65,15 +65,7 @@ class ExaBGPContainer(BGPContainer):
         for peer, info in self.peers.iteritems():
             cmd << 'neighbor {0} {{'.format(info['neigh_addr'].split('/')[0])
             cmd << '    router-id {0};'.format(self.router_id)
-
-            local_addr = ''
-            for me, you in itertools.product(self.ip_addrs, peer.ip_addrs):
-                if me[2] == you[2]:
-                    local_addr = me[1]
-            if local_addr == '':
-                raise Exception('local_addr not found')
-            local_addr = local_addr.split('/')[0]
-            cmd << '    local-address {0};'.format(local_addr)
+            cmd << '    local-address {0};'.format(info['local_addr'].split('/')[0])
             cmd << '    local-as {0};'.format(self.asn)
             cmd << '    peer-as {0};'.format(peer.asn)
 
@@ -83,7 +75,7 @@ class ExaBGPContainer(BGPContainer):
                 cmd << '    static {'
                 for route in routes:
                     r = CmdBuffer(' ')
-                    nexthop = local_addr
+                    nexthop = info['local_addr'].split('/')[0]
                     if route['next-hop']:
                         nexthop = route['next-hop']
                     r << '      route {0} next-hop {1}'.format(route['prefix'], nexthop)

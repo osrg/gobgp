@@ -58,9 +58,6 @@ class GoBGPTestBase(unittest.TestCase):
 
         time.sleep(initial_wait_time)
 
-        br01 = Bridge(name='br01', subnet='192.168.10.0/24', self_ip=True)
-        [br01.addif(ctn) for ctn in ctns]
-
         # ibgp peer. loop topology
         for a, b in combinations(ctns, 2):
             a.add_peer(b, flowspec=True)
@@ -68,7 +65,6 @@ class GoBGPTestBase(unittest.TestCase):
 
         cls.gobgp = g1
         cls.exabgp = e1
-        cls.bridges = {'br01': br01}
 
     # test each neighbor state is turned establish
     def test_01_neighbor_established(self):

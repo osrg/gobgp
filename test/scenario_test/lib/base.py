@@ -174,6 +174,10 @@ class Container(object):
         self.id = try_several_times(lambda : local(str(c), capture=True))
         self.is_running = True
         self.local("ip li set up dev lo")
+        for line in self.local("ip a show dev eth0", capture=True).split('\n'):
+            if line.strip().startswith("inet "):
+                elems = [e.strip() for e in line.strip().split(' ')]
+                self.ip_addrs.append(('eth0', elems[1], 'docker0'))
         return 0
 
     def stop(self):
@@ -198,7 +202,7 @@ class Container(object):
         else:
             intf_name = "eth1"
         c << "{0} {1}".format(self.docker_name(), ip_addr)
-        self.ip_addrs.append((intf_name, ip_addr, bridge))
+        self.ip_addrs.append((intf_name, ip_addr, bridge.name))
         try_several_times(lambda :local(str(c)))
 
     def local(self, cmd, capture=False, flag=''):
@@ -215,7 +219,7 @@ class Container(object):
 
 class BGPContainer(Container):
 
-    WAIT_FOR_BOOT = 0
+    WAIT_FOR_BOOT = 1
     RETRY_INTERVAL = 5
 
     def __init__(self, name, asn, router_id, ctn_image_name):
@@ -241,13 +245,16 @@ class BGPContainer(Container):
     def add_peer(self, peer, passwd=None, evpn=False, is_rs_client=False,
                  policies=None, passive=False,
                  is_rr_client=False, cluster_id=None,
-                 flowspec=False):
+                 flowspec=False, bridge='', reload_config=True):
         neigh_addr = ''
         local_addr = ''
         for me, you in itertools.product(self.ip_addrs, peer.ip_addrs):
+            if bridge != '' and bridge != me[2]:
+                continue
             if me[2] == you[2]:
                 neigh_addr = you[1]
                 local_addr = me[1]
+                break
 
         if neigh_addr == '':
             raise Exception('peer {0} seems not ip reachable'.format(peer))
@@ -265,13 +272,13 @@ class BGPContainer(Container):
                             'policies': policies,
                             'passive': passive,
                             'local_addr': local_addr}
-        if self.is_running:
+        if self.is_running and reload_config:
             self.create_config()
             self.reload_config()
 
-    def del_peer(self, peer):
+    def del_peer(self, peer, reload_config=True):
         del self.peers[peer]
-        if self.is_running:
+        if self.is_running and reload_config:
             self.create_config()
             self.reload_config()
 
@@ -287,7 +294,7 @@ class BGPContainer(Container):
     def add_route(self, route, rf='ipv4', attribute=None, aspath=None,
                   community=None, med=None, extendedcommunity=None,
                   nexthop=None, matchs=None, thens=None,
-                  local_pref=None):
+                  local_pref=None, reload_config=True):
         self.routes[route] = {'prefix': route,
                               'rf': rf,
                               'attr': attribute,
@@ -299,15 +306,15 @@ class BGPContainer(Container):
                               'extended-community': extendedcommunity,
                               'matchs': matchs,
                               'thens' : thens}
-        if self.is_running:
+        if self.is_running and reload_config:
             self.create_config()
             self.reload_config()
 
-    def add_policy(self, policy, peer=None):
+    def add_policy(self, policy, peer=None, reload_config=True):
         self.policies[policy['name']] = policy
         if peer in self.peers:
             self.peers[peer]['policies'][policy['name']] = policy
-        if self.is_running:
+        if self.is_running and reload_config:
             self.create_config()
             self.reload_config()
 

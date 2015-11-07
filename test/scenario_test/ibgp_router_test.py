@@ -51,9 +51,6 @@ class GoBGPTestBase(unittest.TestCase):
 
         time.sleep(initial_wait_time)
 
-        br01 = Bridge(name='br01', subnet='192.168.10.0/24')
-        [br01.addif(ctn) for ctn in ctns]
-
         # ibgp peer. loop topology
         for a, b in combinations(ctns, 2):
             a.add_peer(b)
@@ -61,7 +58,6 @@ class GoBGPTestBase(unittest.TestCase):
 
         cls.gobgp = g1
         cls.quaggas = {'q1': q1, 'q2': q2}
-        cls.bridges = {'br01': br01}
 
     # test each neighbor state is turned establish
     def test_01_neighbor_established(self):
@@ -161,7 +157,6 @@ class GoBGPTestBase(unittest.TestCase):
 
         initial_wait_time = q3.run()
         time.sleep(initial_wait_time)
-        self.bridges['br01'].addif(q3)
         self.gobgp.add_peer(q3)
         q3.add_peer(self.gobgp)
 

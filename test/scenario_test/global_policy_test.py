@@ -61,9 +61,6 @@ class GoBGPTestBase(unittest.TestCase):
 
         time.sleep(initial_wait_time)
 
-        br01 = Bridge(name='br01', subnet='192.168.10.0/24')
-        [br01.addif(ctn) for ctn in ctns]
-
         g1.local('gobgp global policy export add default reject')
 
         for q in qs:
@@ -72,7 +69,6 @@ class GoBGPTestBase(unittest.TestCase):
 
         cls.gobgp = g1
         cls.quaggas = {'q1': q1, 'q2': q2, 'q3': q3}
-        cls.bridges = {'br01': br01}
 
     # test each neighbor state is turned establish
     def test_01_neighbor_established(self):
@@ -86,8 +82,7 @@ class GoBGPTestBase(unittest.TestCase):
     def test_03_add_peer(self):
         q = ExaBGPContainer(name='q4', asn=65004, router_id='192.168.0.5')
         q.add_route('10.10.0.0/24')
-        q.run()
-        self.bridges['br01'].addif(q)
+        time.sleep(q.run())
         self.gobgp.add_peer(q)
         q.add_peer(self.gobgp)
         self.gobgp.wait_for(expected_state=BGP_FSM_ESTABLISHED, peer=q)

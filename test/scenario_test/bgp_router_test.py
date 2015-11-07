@@ -52,16 +52,15 @@ class GoBGPTestBase(unittest.TestCase):
 
         time.sleep(initial_wait_time)
 
-        br01 = Bridge(name='br01', subnet='192.168.10.0/24')
-        [br01.addif(ctn) for ctn in ctns]
-
         for q in qs:
-            g1.add_peer(q)
+            g1.add_peer(q, reload_config=False)
             q.add_peer(g1)
+
+        g1.create_config()
+        g1.reload_config()
 
         cls.gobgp = g1
         cls.quaggas = {'q1': q1, 'q2': q2, 'q3': q3}
-        cls.bridges = {'br01': br01}
 
     # test each neighbor state is turned establish
     def test_01_neighbor_established(self):
@@ -132,7 +131,6 @@ class GoBGPTestBase(unittest.TestCase):
 
         initial_wait_time = q4.run()
         time.sleep(initial_wait_time)
-        self.bridges['br01'].addif(q4)
         self.gobgp.add_peer(q4)
         q4.add_peer(self.gobgp)
 
@@ -161,14 +159,6 @@ class GoBGPTestBase(unittest.TestCase):
 
         initial_wait_time = q5.run()
         time.sleep(initial_wait_time)
-
-        br02 = Bridge(name='br02', subnet='192.168.20.0/24')
-        br02.addif(q5)
-        br02.addif(q2)
-
-        br03 = Bridge(name='br03', subnet='192.168.30.0/24')
-        br03.addif(q5)
-        br03.addif(q3)
 
         for q in [q2, q3]:
             q5.add_peer(q)
@@ -261,10 +251,8 @@ class GoBGPTestBase(unittest.TestCase):
         g2 = GoBGPContainer(name='g2', asn=65000, router_id='192.168.0.5',
                             ctn_image_name=self.gobgp.image,
                             log_level=parser_option.gobgp_log_level)
-        g2.run()
+        time.sleep(g2.run())
         self.quaggas['g2'] = g2
-        br01 = self.bridges['br01']
-        br01.addif(g2)
         g2.add_peer(g1, passive=True)
         g1.add_peer(g2)
         g1.wait_for(expected_state=BGP_FSM_ESTABLISHED, peer=g2)
