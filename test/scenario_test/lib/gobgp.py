@@ -18,6 +18,11 @@ import json
 import toml
 from itertools import chain
 
+def extract_path_attribute(path, typ):
+    for a in path['attrs']:
+        if a['type'] == typ:
+            return a
+    return None
 
 class GoBGPContainer(BGPContainer):
 
@@ -105,7 +110,7 @@ class GoBGPContainer(BGPContainer):
         for d in ret:
             for p in d["paths"]:
                 p["nexthop"] = self._get_nexthop(p)
-                p["as_path"] = self._get_as_path(p)
+                p["aspath"] = self._get_as_path(p)
         return ret
 
     def get_global_rib(self, prefix='', rf='ipv4'):
@@ -115,7 +120,7 @@ class GoBGPContainer(BGPContainer):
         for d in ret:
             for p in d["paths"]:
                 p["nexthop"] = self._get_nexthop(p)
-                p["as_path"] = self._get_as_path(p)
+                p["aspath"] = self._get_as_path(p)
         return ret
 
     def _get_adj_rib(self, adj_type, peer, prefix='', rf='ipv4'):
@@ -129,7 +134,7 @@ class GoBGPContainer(BGPContainer):
         ret = [p["paths"][0] for p in json.loads(output)]
         for p in ret:
             p["nexthop"] = self._get_nexthop(p)
-            p["as_path"] = self._get_as_path(p)
+            p["aspath"] = self._get_as_path(p)
         return ret
 
     def get_adj_rib_in(self, peer, prefix='', rf='ipv4'):
@@ -308,8 +313,16 @@ class GoBGPContainer(BGPContainer):
             self.local(cmd)
         for v in self.routes.itervalues():
             if v['rf'] == 'ipv4' or v['rf'] == 'ipv6':
-                cmd = 'gobgp global '\
-                      'rib add {0} -a {1}'.format(v['prefix'], v['rf'])
+                r = CmdBuffer(' ')
+                r << 'gobgp global -a {0}'.format(v['rf'])
+                r << 'rib add {0}'.format(v['prefix'])
+                if v['next-hop']:
+                    r << 'nexthop {0}'.format(v['next-hop'])
+                if v['local-pref']:
+                    r << 'local-pref {0}'.format(v['local-pref'])
+                if v['med']:
+                    r << 'med {0}'.format(v['med'])
+                cmd = str(r)
             elif v['rf'] == 'ipv4-flowspec' or v['rf'] == 'ipv6-flowspec':
                 cmd = 'gobgp global '\
                       'rib add match {0} then {1} -a {2}'.format(' '.join(v['matchs']), ' '.join(v['thens']), v['rf'])

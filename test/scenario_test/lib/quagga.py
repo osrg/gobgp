@@ -108,10 +108,19 @@ class QuaggaBGPContainer(BGPContainer):
                 lines = lines[2:]  # other useless lines
             else:
                 raise Exception('unknown output format {0}'.format(lines))
-            nexthop = lines[1].split()[0].strip()
             aspath = [int(asn) for asn in lines[0].split()]
+            nexthop = lines[1].split()[0].strip()
+            info = [s.strip(',') for s in lines[2].split()]
+            attrs = []
+            if 'metric' in info:
+                med = info[info.index('metric') + 1]
+                attrs.append({'type': BGP_ATTR_TYPE_MULTI_EXIT_DISC, 'metric': int(med)})
+            if 'localpref' in info:
+                localpref = info[info.index('localpref') + 1]
+                attrs.append({'type': BGP_ATTR_TYPE_LOCAL_PREF, 'value': int(localpref)})
+
             rib.append({'prefix': prefix, 'nexthop': nexthop,
-                        'aspath': aspath})
+                        'aspath': aspath, 'attrs': attrs})
         return rib
 
     def get_neighbor_state(self, peer):

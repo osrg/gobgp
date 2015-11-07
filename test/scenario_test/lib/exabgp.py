@@ -93,6 +93,8 @@ class ExaBGPContainer(BGPContainer):
                         r << 'community [{0}]'.format(' '.join(c for c in route['community']))
                     if route['med']:
                         r << 'med {0}'.format(route['med'])
+                    if route['local-pref']:
+                        r << 'local-preference {0}'.format(route['local-pref'])
                     if route['extended-community']:
                         r << 'extended-community [{0}]'.format(route['extended-community'])
                     if route['attr']:

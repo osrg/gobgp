@@ -95,7 +95,7 @@ class GoBGPTestBase(unittest.TestCase):
     def test_03_check_gobgp_adj_out_rib(self):
         for q in self.quaggas.itervalues():
             for path in self.gobgp.get_adj_rib_out(q):
-                asns = path['as_path']
+                asns = path['aspath']
                 self.assertTrue(self.gobgp.asn in asns)
 
     # check routes are properly advertised to all BGP speaker
@@ -219,7 +219,7 @@ class GoBGPTestBase(unittest.TestCase):
         self.assertTrue(len(dst[0]['paths']) == 1)
         path = dst[0]['paths'][0]
         self.assertTrue(path['nexthop'] == '0.0.0.0')
-        self.assertTrue(len(path['as_path']) == 0)
+        self.assertTrue(len(path['aspath']) == 0)
 
     def test_11_check_adj_rib_out(self):
         for q in self.quaggas.itervalues():
@@ -229,7 +229,7 @@ class GoBGPTestBase(unittest.TestCase):
             peer_info = self.gobgp.peers[q]
             local_addr = peer_info['local_addr'].split('/')[0]
             self.assertTrue(path['nexthop'] == local_addr)
-            self.assertTrue(path['as_path'] == [self.gobgp.asn])
+            self.assertTrue(path['aspath'] == [self.gobgp.asn])
 
     def test_12_disable_peer(self):
         q1 = self.quaggas['q1']
@@ -262,12 +262,37 @@ class GoBGPTestBase(unittest.TestCase):
                             ctn_image_name=self.gobgp.image,
                             log_level=parser_option.gobgp_log_level)
         g2.run()
+        self.quaggas['g2'] = g2
         br01 = self.bridges['br01']
         br01.addif(g2)
         g2.add_peer(g1, passive=True)
         g1.add_peer(g2)
         g1.wait_for(expected_state=BGP_FSM_ESTABLISHED, peer=g2)
 
+    def test_16_check_local_pref_and_med_handling(self):
+        g1 = self.gobgp
+        g1.add_route('10.20.0.0/24', local_pref=1000, med=2000)
+        # iBGP peer
+        g2 = self.quaggas['g2']
+        paths = g2.get_global_rib('10.20.0.0/24')
+        self.assertTrue(len(paths) == 1)
+        self.assertTrue(len(paths[0]['paths']) == 1)
+        path = paths[0]['paths'][0]
+        local_pref = extract_path_attribute(path, BGP_ATTR_TYPE_LOCAL_PREF)
+        self.assertTrue(local_pref['value'] == 1000)
+        med = extract_path_attribute(path, BGP_ATTR_TYPE_MULTI_EXIT_DISC)
+        self.assertTrue(med['metric'] == 2000)
+
+        # eBGP peer
+        q1 = self.quaggas['q1']
+        paths = q1.get_global_rib('10.20.0.0/24')
+        self.assertTrue(len(paths) == 1)
+        path = paths[0]
+        local_pref = extract_path_attribute(path, BGP_ATTR_TYPE_LOCAL_PREF)
+        # local_pref's default value is 100
+        self.assertTrue(local_pref['value'] == 100)
+        med = extract_path_attribute(path, BGP_ATTR_TYPE_MULTI_EXIT_DISC)
+        self.assertTrue(med['metric'] == 2000)
 
 if __name__ == '__main__':
     if os.geteuid() is not 0:

@@ -2440,19 +2440,19 @@ class ExportPolicyAsPathPrepend(object):
         q2 = env.q2
 
         path = g1.get_adj_rib_out(q1, prefix='192.168.20.0/24')[0]
-        env.assertTrue(path['as_path'] == [e1.asn])
+        env.assertTrue(path['aspath'] == [e1.asn])
 
         path = g1.get_adj_rib_out(q1, prefix='192.168.200.0/24')[0]
-        env.assertTrue(path['as_path'] == [e1.asn])
+        env.assertTrue(path['aspath'] == [e1.asn])
 
         path = g1.get_local_rib(q2, prefix='192.168.20.0/24')[0]['paths'][0]
-        env.assertTrue(path['as_path'] == [e1.asn])
+        env.assertTrue(path['aspath'] == [e1.asn])
 
         path = g1.get_adj_rib_out(q2, prefix='192.168.20.0/24')[0]
-        env.assertTrue(path['as_path'] == [65005]*5 + [e1.asn])
+        env.assertTrue(path['aspath'] == [65005]*5 + [e1.asn])
 
         path = g1.get_adj_rib_out(q2, prefix='192.168.200.0/24')[0]
-        env.assertTrue(path['as_path'] == [e1.asn])
+        env.assertTrue(path['aspath'] == [e1.asn])
 
 
 @register_scenario
@@ -2511,19 +2511,19 @@ class ImportPolicyAsPathPrependLastAS(object):
         q2 = env.q2
 
         path = g1.get_adj_rib_out(q1, prefix='192.168.20.0/24')[0]
-        env.assertTrue(path['as_path'] == [e1.asn])
+        env.assertTrue(path['aspath'] == [e1.asn])
 
         path = g1.get_adj_rib_out(q1, prefix='192.168.200.0/24')[0]
-        env.assertTrue(path['as_path'] == [e1.asn])
+        env.assertTrue(path['aspath'] == [e1.asn])
 
         path = g1.get_local_rib(q2, prefix='192.168.20.0/24')[0]['paths'][0]
-        env.assertTrue(path['as_path'] == [e1.asn]*5 + [e1.asn])
+        env.assertTrue(path['aspath'] == [e1.asn]*5 + [e1.asn])
 
         path = g1.get_adj_rib_out(q2, prefix='192.168.20.0/24')[0]
-        env.assertTrue(path['as_path'] == [e1.asn]*5 + [e1.asn])
+        env.assertTrue(path['aspath'] == [e1.asn]*5 + [e1.asn])
 
         path = g1.get_adj_rib_out(q2, prefix='192.168.200.0/24')[0]
-        env.assertTrue(path['as_path'] == [e1.asn])
+        env.assertTrue(path['aspath'] == [e1.asn])
 
 
 @register_scenario
@@ -2582,19 +2582,19 @@ class ExportPolicyAsPathPrependLastAS(object):
         q2 = env.q2
 
         path = g1.get_adj_rib_out(q1, prefix='192.168.20.0/24')[0]
-        env.assertTrue(path['as_path'] == [e1.asn])
+        env.assertTrue(path['aspath'] == [e1.asn])
 
         path = g1.get_adj_rib_out(q1, prefix='192.168.200.0/24')[0]
-        env.assertTrue(path['as_path'] == [e1.asn])
+        env.assertTrue(path['aspath'] == [e1.asn])
 
         path = g1.get_local_rib(q2, prefix='192.168.20.0/24')[0]['paths'][0]
-        env.assertTrue(path['as_path'] == [e1.asn])
+        env.assertTrue(path['aspath'] == [e1.asn])
 
         path = g1.get_adj_rib_out(q2, prefix='192.168.20.0/24')[0]
-        env.assertTrue(path['as_path'] == [e1.asn]*5 + [e1.asn])
+        env.assertTrue(path['aspath'] == [e1.asn]*5 + [e1.asn])
 
         path = g1.get_adj_rib_out(q2, prefix='192.168.200.0/24')[0]
-        env.assertTrue(path['as_path'] == [e1.asn])
+        env.assertTrue(path['aspath'] == [e1.asn])
 
 
 @register_scenario
