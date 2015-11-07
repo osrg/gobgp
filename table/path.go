@@ -96,7 +96,7 @@ func (path *Path) UpdatePathAttrs(global *config.Global, peer *config.Neighbor) 
 
 		// MED Handling
 		idx, _ := path.getPathAttr(bgp.BGP_ATTR_TYPE_MULTI_EXIT_DISC)
-		if idx >= 0 {
+		if idx >= 0 && !path.IsLocal() {
 			path.pathAttrs = append(path.pathAttrs[:idx], path.pathAttrs[idx+1:]...)
 		}
 	} else if peer.NeighborConfig.PeerType == config.PEER_TYPE_INTERNAL {
@@ -124,7 +124,7 @@ func (path *Path) UpdatePathAttrs(global *config.Global, peer *config.Neighbor) 
 		idx, _ = path.getPathAttr(bgp.BGP_ATTR_TYPE_LOCAL_PREF)
 		if idx < 0 {
 			path.pathAttrs = append(path.pathAttrs, p)
-		} else {
+		} else if !path.IsLocal() {
 			path.pathAttrs[idx] = p
 		}
 
