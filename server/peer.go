@@ -63,6 +63,14 @@ func NewPeer(g config.Global, conf config.Neighbor, loc *table.TableManager) *Pe
 	return peer
 }
 
+func (peer *Peer) Fsm() *FSM {
+	return peer.fsm
+}
+
+func (peer *Peer) Outgoing() chan *bgp.BGPMessage {
+	return peer.outgoing
+}
+
 func (peer *Peer) isIBGPPeer() bool {
 	return peer.conf.NeighborConfig.PeerAs == peer.gConf.GlobalConfig.As
 }
