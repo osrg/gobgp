@@ -61,10 +61,6 @@ func NewPeer(g config.Global, conf config.Neighbor, loc *table.TableManager) *Pe
 
 	conf.NeighborState.SessionState = uint32(bgp.BGP_FSM_IDLE)
 	conf.Timers.TimersState.Downtime = time.Now().Unix()
-	for _, rf := range conf.AfiSafis.AfiSafiList {
-		k, _ := bgp.GetRouteFamily(rf.AfiSafiName)
-		peer.rfMap[k] = true
-	}
 	id := net.ParseIP(string(conf.RouteReflector.RouteReflectorConfig.RouteReflectorClusterId)).To4()
 	peer.peerInfo = &table.PeerInfo{
 		AS:                      conf.NeighborConfig.PeerAs,
@@ -125,6 +121,35 @@ func (peer *Peer) getBestFromLocal(rfList []bgp.RouteFamily) ([]*table.Path, []*
 	return pathList, filtered
 }
 
+func open2Cap(open *bgp.BGPOpen, n *config.Neighbor) (map[bgp.BGPCapabilityCode][]bgp.ParameterCapabilityInterface, map[bgp.RouteFamily]bool) {
+	capMap := make(map[bgp.BGPCapabilityCode][]bgp.ParameterCapabilityInterface)
+	rfMap := config.CreateRfMap(n)
+	r := make(map[bgp.RouteFamily]bool)
+	for _, p := range open.OptParams {
+		if paramCap, y := p.(*bgp.OptionParameterCapability); y {
+			for _, c := range paramCap.Capability {
+				m, ok := capMap[c.Code()]
+				if !ok {
+					m = make([]bgp.ParameterCapabilityInterface, 0, 1)
+				}
+				capMap[c.Code()] = append(m, c)
+
+				if c.Code() == bgp.BGP_CAP_MULTIPROTOCOL {
+					m := c.(*bgp.CapMultiProtocol)
+					r[m.CapValue] = true
+				}
+			}
+		}
+	}
+
+	for rf, _ := range rfMap {
+		if _, y := r[rf]; !y {
+			delete(rfMap, rf)
+		}
+	}
+	return capMap, rfMap
+}
+
 func (peer *Peer) handleBGPmessage(m *bgp.BGPMessage) ([]*table.Path, bool, []*bgp.BGPMessage) {
 	bgpMsgList := []*bgp.BGPMessage{}
 	pathList := []*table.Path{}
@@ -140,29 +165,7 @@ func (peer *Peer) handleBGPmessage(m *bgp.BGPMessage) ([]*table.Path, bool, []*b
 		peer.recvOpen = m
 		body := m.Body.(*bgp.BGPOpen)
 		peer.peerInfo.ID = m.Body.(*bgp.BGPOpen).ID
-		r := make(map[bgp.RouteFamily]bool)
-		for _, p := range body.OptParams {
-			if paramCap, y := p.(*bgp.OptionParameterCapability); y {
-				for _, c := range paramCap.Capability {
-					m, ok := peer.capMap[c.Code()]
-					if !ok {
-						m = make([]bgp.ParameterCapabilityInterface, 0, 1)
-					}
-					peer.capMap[c.Code()] = append(m, c)
-
-					if c.Code() == bgp.BGP_CAP_MULTIPROTOCOL {
-						m := c.(*bgp.CapMultiProtocol)
-						r[m.CapValue] = true
-					}
-				}
-			}
-		}
-
-		for rf, _ := range peer.rfMap {
-			if _, y := r[rf]; !y {
-				delete(peer.rfMap, rf)
-			}
-		}
+		peer.capMap, peer.rfMap = open2Cap(body, &peer.conf)
 
 		// calculate HoldTime
 		// RFC 4271 P.13

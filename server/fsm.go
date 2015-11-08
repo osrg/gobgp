@@ -78,6 +78,7 @@ type FSM struct {
 	adminStateCh       chan AdminState
 	getActiveCh        chan struct{}
 	h                  *FSMHandler
+	rfMap              map[bgp.RouteFamily]bool
 }
 
 func (fsm *FSM) bgpMessageStateUpdate(MessageType uint8, isIn bool) {
@@ -143,6 +144,7 @@ func NewFSM(gConf *config.Global, pConf *config.Neighbor) *FSM {
 		adminState:       adminState,
 		adminStateCh:     make(chan AdminState, 1),
 		getActiveCh:      make(chan struct{}),
+		rfMap:            make(map[bgp.RouteFamily]bool),
 	}
 	fsm.t.Go(fsm.connectLoop)
 	return fsm
@@ -550,6 +552,7 @@ func (h *FSMHandler) opensent() bgp.FSMState {
 						fsm.sendNotificatonFromErrorMsg(h.conn, err.(*bgp.MessageError))
 						return bgp.BGP_FSM_IDLE
 					}
+					_, fsm.rfMap = open2Cap(body, fsm.pConf)
 
 					e := &fsmMsg{
 						MsgType: FSM_MSG_BGP_MESSAGE,

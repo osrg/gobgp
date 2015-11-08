@@ -15,6 +15,10 @@
 
 package config
 
+import (
+	"github.com/osrg/gobgp/packet"
+)
+
 func IsConfederationMember(g *Global, p *Neighbor) bool {
 	if p.NeighborConfig.PeerAs != g.GlobalConfig.As {
 		for _, member := range g.Confederation.ConfederationConfig.MemberAs {
@@ -24,4 +28,13 @@ func IsConfederationMember(g *Global, p *Neighbor) bool {
 		}
 	}
 	return false
+}
+
+func CreateRfMap(p *Neighbor) map[bgp.RouteFamily]bool {
+	rfMap := make(map[bgp.RouteFamily]bool)
+	for _, rf := range p.AfiSafis.AfiSafiList {
+		k, _ := bgp.GetRouteFamily(rf.AfiSafiName)
+		rfMap[k] = true
+	}
+	return rfMap
 }
