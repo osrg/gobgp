@@ -100,7 +100,9 @@ def make_gobgp_ctn(tag='gobgp', local_gobgp_path='', from_image='osrg/quagga'):
 
 class Bridge(object):
     def __init__(self, name, subnet='', with_ip=True, self_ip=False):
-        self.name = '{0}_{1}'.format(TEST_PREFIX, name)
+        self.name = name
+        if TEST_PREFIX != '':
+            self.name = '{0}_{1}'.format(TEST_PREFIX, name)
         self.with_ip = with_ip
         if with_ip:
             self.subnet = netaddr.IPNetwork(subnet)
