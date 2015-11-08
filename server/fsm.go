@@ -28,16 +28,16 @@ import (
 	"time"
 )
 
-type fsmMsgType int
+type FsmMsgType int
 
 const (
-	_ fsmMsgType = iota
+	_ FsmMsgType = iota
 	FSM_MSG_STATE_CHANGE
 	FSM_MSG_BGP_MESSAGE
 )
 
-type fsmMsg struct {
-	MsgType  fsmMsgType
+type FsmMsg struct {
+	MsgType  FsmMsgType
 	MsgSrc   string
 	MsgData  interface{}
 	PathList []*table.Path
@@ -292,15 +292,15 @@ type FSMHandler struct {
 	t                tomb.Tomb
 	fsm              *FSM
 	conn             net.Conn
-	msgCh            chan *fsmMsg
+	msgCh            chan *FsmMsg
 	errorCh          chan bool
-	incoming         chan *fsmMsg
+	incoming         chan *FsmMsg
 	outgoing         chan *bgp.BGPMessage
 	holdTimerResetCh chan bool
 	reason           string
 }
 
-func NewFSMHandler(fsm *FSM, incoming chan *fsmMsg, outgoing chan *bgp.BGPMessage) *FSMHandler {
+func NewFSMHandler(fsm *FSM, incoming chan *FsmMsg, outgoing chan *bgp.BGPMessage) *FSMHandler {
 	h := &FSMHandler{
 		fsm:              fsm,
 		errorCh:          make(chan bool, 2),
@@ -454,7 +454,7 @@ func (h *FSMHandler) recvMessageWithError() error {
 			"State": h.fsm.state,
 			"error": err,
 		}).Warn("malformed BGP Header")
-		h.msgCh <- &fsmMsg{
+		h.msgCh <- &FsmMsg{
 			MsgType: FSM_MSG_BGP_MESSAGE,
 			MsgSrc:  h.fsm.pConf.NeighborConfig.NeighborAddress.String(),
 			MsgData: err,
@@ -468,7 +468,7 @@ func (h *FSMHandler) recvMessageWithError() error {
 		return err
 	}
 
-	var fmsg *fsmMsg
+	var fmsg *FsmMsg
 	m, err := bgp.ParseBGPBody(hd, bodyBuf)
 	if err == nil {
 		h.fsm.bgpMessageStateUpdate(m.Header.Type, true)
@@ -483,13 +483,13 @@ func (h *FSMHandler) recvMessageWithError() error {
 			"State": h.fsm.state,
 			"error": err,
 		}).Warn("malformed BGP message")
-		fmsg = &fsmMsg{
+		fmsg = &FsmMsg{
 			MsgType: FSM_MSG_BGP_MESSAGE,
 			MsgSrc:  h.fsm.pConf.NeighborConfig.NeighborAddress.String(),
 			MsgData: err,
 		}
 	} else {
-		fmsg = &fsmMsg{
+		fmsg = &FsmMsg{
 			MsgType: FSM_MSG_BGP_MESSAGE,
 			MsgSrc:  h.fsm.pConf.NeighborConfig.NeighborAddress.String(),
 			MsgData: m,
@@ -543,7 +543,7 @@ func (h *FSMHandler) opensent() bgp.FSMState {
 	fsm.conn.Write(b)
 	fsm.bgpMessageStateUpdate(m.Header.Type, false)
 
-	h.msgCh = make(chan *fsmMsg)
+	h.msgCh = make(chan *FsmMsg)
 	h.conn = fsm.conn
 
 	h.t.Go(h.recvMessage)
@@ -583,7 +583,7 @@ func (h *FSMHandler) opensent() bgp.FSMState {
 					fsm.peerInfo.ID = body.ID
 					_, fsm.rfMap = open2Cap(body, fsm.pConf)
 
-					e := &fsmMsg{
+					e := &FsmMsg{
 						MsgType: FSM_MSG_BGP_MESSAGE,
 						MsgSrc:  fsm.pConf.NeighborConfig.NeighborAddress.String(),
 						MsgData: m,
@@ -654,7 +654,7 @@ func keepaliveTicker(fsm *FSM) *time.Ticker {
 func (h *FSMHandler) openconfirm() bgp.FSMState {
 	fsm := h.fsm
 	ticker := keepaliveTicker(fsm)
-	h.msgCh = make(chan *fsmMsg)
+	h.msgCh = make(chan *FsmMsg)
 	h.conn = fsm.conn
 
 	h.t.Go(h.recvMessage)
@@ -961,7 +961,7 @@ func (h *FSMHandler) loop() error {
 
 	// zero means that tomb.Dying()
 	if nextState >= bgp.BGP_FSM_IDLE {
-		e := &fsmMsg{
+		e := &FsmMsg{
 			MsgType: FSM_MSG_STATE_CHANGE,
 			MsgSrc:  fsm.pConf.NeighborConfig.NeighborAddress.String(),
 			MsgData: nextState,

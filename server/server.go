@@ -84,7 +84,7 @@ type BgpServer struct {
 	addedPeerCh   chan config.Neighbor
 	deletedPeerCh chan config.Neighbor
 	updatedPeerCh chan config.Neighbor
-	fsmincomingCh chan *fsmMsg
+	fsmincomingCh chan *FsmMsg
 	rpkiConfigCh  chan config.RpkiServers
 	bmpConfigCh   chan config.BmpServers
 	dumper        *dumper
@@ -248,7 +248,7 @@ func (server *BgpServer) Serve() {
 		return l
 	}
 
-	server.fsmincomingCh = make(chan *fsmMsg, 4096)
+	server.fsmincomingCh = make(chan *FsmMsg, 4096)
 	var senderMsgs []*SenderMsg
 
 	var zapiMsgCh chan *zebra.Message
@@ -707,7 +707,7 @@ func (server *BgpServer) propagateUpdate(peer *Peer, pathList []*table.Path) []*
 	return msgs
 }
 
-func (server *BgpServer) handleFSMMessage(peer *Peer, e *fsmMsg, incoming chan *fsmMsg) []*SenderMsg {
+func (server *BgpServer) handleFSMMessage(peer *Peer, e *FsmMsg, incoming chan *FsmMsg) []*SenderMsg {
 	msgs := make([]*SenderMsg, 0)
 
 	switch e.MsgType {
