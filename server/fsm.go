@@ -39,6 +39,7 @@ const (
 type FsmMsg struct {
 	MsgType  FsmMsgType
 	MsgSrc   string
+	MsgDst   string
 	MsgData  interface{}
 	PathList []*table.Path
 }
@@ -457,6 +458,7 @@ func (h *FSMHandler) recvMessageWithError() error {
 		h.msgCh <- &FsmMsg{
 			MsgType: FSM_MSG_BGP_MESSAGE,
 			MsgSrc:  h.fsm.pConf.NeighborConfig.NeighborAddress.String(),
+			MsgDst:  h.fsm.pConf.Transport.TransportConfig.LocalAddress.String(),
 			MsgData: err,
 		}
 		return err
@@ -486,12 +488,14 @@ func (h *FSMHandler) recvMessageWithError() error {
 		fmsg = &FsmMsg{
 			MsgType: FSM_MSG_BGP_MESSAGE,
 			MsgSrc:  h.fsm.pConf.NeighborConfig.NeighborAddress.String(),
+			MsgDst:  h.fsm.pConf.Transport.TransportConfig.LocalAddress.String(),
 			MsgData: err,
 		}
 	} else {
 		fmsg = &FsmMsg{
 			MsgType: FSM_MSG_BGP_MESSAGE,
 			MsgSrc:  h.fsm.pConf.NeighborConfig.NeighborAddress.String(),
+			MsgDst:  h.fsm.pConf.Transport.TransportConfig.LocalAddress.String(),
 			MsgData: m,
 		}
 		if h.fsm.state == bgp.BGP_FSM_ESTABLISHED {
@@ -586,6 +590,7 @@ func (h *FSMHandler) opensent() bgp.FSMState {
 					e := &FsmMsg{
 						MsgType: FSM_MSG_BGP_MESSAGE,
 						MsgSrc:  fsm.pConf.NeighborConfig.NeighborAddress.String(),
+						MsgDst:  fsm.pConf.Transport.TransportConfig.LocalAddress.String(),
 						MsgData: m,
 					}
 					h.incoming <- e
@@ -964,6 +969,7 @@ func (h *FSMHandler) loop() error {
 		e := &FsmMsg{
 			MsgType: FSM_MSG_STATE_CHANGE,
 			MsgSrc:  fsm.pConf.NeighborConfig.NeighborAddress.String(),
+			MsgDst:  fsm.pConf.Transport.TransportConfig.LocalAddress.String(),
 			MsgData: nextState,
 		}
 		h.incoming <- e
