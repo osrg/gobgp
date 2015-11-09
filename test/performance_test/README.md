@@ -22,3 +22,10 @@ $ cd $GOPATH/src/github.com/osrg/gobgp/test/performance_test
 $ sudo PYTHONPATH=../ python test.py -t gobgp -n 1000 T1
 $ sudo PYTHONPATH=../ python test.py -t quagga -n 1000 T1
 ```
+
+To test BIRD, pull BIRD docker image first.
+
+```shell
+$ docker pull osrg/bird
+$ sudo PYTHONPATH=../ python test.py -t bird -n 1000 T1
+```
