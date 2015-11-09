@@ -38,7 +38,6 @@ type Peer struct {
 	rfMap           map[bgp.RouteFamily]bool
 	capMap          map[bgp.BGPCapabilityCode][]bgp.ParameterCapabilityInterface
 	adjRib          *table.AdjRib
-	peerInfo        *table.PeerInfo
 	outgoing        chan *bgp.BGPMessage
 	inPolicies      []*table.Policy
 	defaultInPolicy table.RouteType
@@ -57,18 +56,8 @@ func NewPeer(g config.Global, conf config.Neighbor, loc *table.TableManager) *Pe
 		outgoing: make(chan *bgp.BGPMessage, 128),
 		localRib: loc,
 	}
-
 	conf.NeighborState.SessionState = uint32(bgp.BGP_FSM_IDLE)
 	conf.Timers.TimersState.Downtime = time.Now().Unix()
-	id := net.ParseIP(string(conf.RouteReflector.RouteReflectorConfig.RouteReflectorClusterId)).To4()
-	peer.peerInfo = &table.PeerInfo{
-		AS:                      conf.NeighborConfig.PeerAs,
-		LocalAS:                 g.GlobalConfig.As,
-		LocalID:                 g.GlobalConfig.RouterId,
-		Address:                 conf.NeighborConfig.NeighborAddress,
-		RouteReflectorClient:    peer.isRouteReflectorClient(),
-		RouteReflectorClusterID: id,
-	}
 	peer.adjRib = table.NewAdjRib(peer.configuredRFlist())
 	peer.fsm = NewFSM(&g, &conf)
 	return peer
@@ -158,7 +147,6 @@ func (peer *Peer) handleBGPmessage(m *bgp.BGPMessage) ([]*table.Path, bool, []*b
 	case bgp.BGP_MSG_OPEN:
 		peer.recvOpen = m
 		body := m.Body.(*bgp.BGPOpen)
-		peer.peerInfo.ID = m.Body.(*bgp.BGPOpen).ID
 		peer.capMap, peer.rfMap = open2Cap(body, &peer.conf)
 
 		// calculate HoldTime
@@ -207,7 +195,7 @@ func (peer *Peer) handleBGPmessage(m *bgp.BGPMessage) ([]*table.Path, bool, []*b
 		peer.conf.Timers.TimersState.UpdateRecvTime = time.Now().Unix()
 		body := m.Body.(*bgp.BGPUpdate)
 		table.UpdatePathAttrs4ByteAs(body)
-		pathList = table.ProcessMessage(m, peer.peerInfo)
+		pathList = table.ProcessMessage(m, peer.fsm.peerInfo)
 		if len(pathList) > 0 {
 			peer.staleAccepted = true
 			peer.ApplyPolicy(table.POLICY_DIRECTION_IN, pathList)
@@ -268,7 +256,7 @@ func (peer *Peer) ToApiStruct() *api.Peer {
 
 	conf := &api.PeerConf{
 		NeighborAddress:  c.NeighborConfig.NeighborAddress.String(),
-		Id:               peer.peerInfo.ID.To4().String(),
+		Id:               peer.fsm.peerInfo.ID.To4().String(),
 		PeerAs:           c.NeighborConfig.PeerAs,
 		LocalAs:          c.NeighborConfig.LocalAs,
 		PeerType:         uint32(c.NeighborConfig.PeerType),

@@ -20,6 +20,7 @@ import (
 	log "github.com/Sirupsen/logrus"
 	"github.com/osrg/gobgp/config"
 	"github.com/osrg/gobgp/packet"
+	"github.com/osrg/gobgp/table"
 	"gopkg.in/tomb.v2"
 	"io"
 	"net"
@@ -80,6 +81,7 @@ type FSM struct {
 	h                  *FSMHandler
 	rfMap              map[bgp.RouteFamily]bool
 	confedCheck        bool
+	peerInfo           *table.PeerInfo
 }
 
 func (fsm *FSM) bgpMessageStateUpdate(MessageType uint8, isIn bool) {
@@ -147,6 +149,7 @@ func NewFSM(gConf *config.Global, pConf *config.Neighbor) *FSM {
 		getActiveCh:      make(chan struct{}),
 		rfMap:            make(map[bgp.RouteFamily]bool),
 		confedCheck:      !config.IsConfederationMember(gConf, pConf) && config.IsEBGPPeer(gConf, pConf),
+		peerInfo:         table.NewPeerInfo(gConf, pConf),
 	}
 	fsm.t.Go(fsm.connectLoop)
 	return fsm
@@ -567,6 +570,7 @@ func (h *FSMHandler) opensent() bgp.FSMState {
 						fsm.sendNotificatonFromErrorMsg(h.conn, err.(*bgp.MessageError))
 						return bgp.BGP_FSM_IDLE
 					}
+					fsm.peerInfo.ID = body.ID
 					_, fsm.rfMap = open2Cap(body, fsm.pConf)
 
 					e := &fsmMsg{

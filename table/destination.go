@@ -22,6 +22,7 @@ import (
 	"fmt"
 	log "github.com/Sirupsen/logrus"
 	api "github.com/osrg/gobgp/api"
+	"github.com/osrg/gobgp/config"
 	"github.com/osrg/gobgp/packet"
 	"net"
 )
@@ -101,6 +102,18 @@ func (i *PeerInfo) String() string {
 	}
 	s.WriteString(" }")
 	return s.String()
+}
+
+func NewPeerInfo(g *config.Global, p *config.Neighbor) *PeerInfo {
+	id := net.ParseIP(string(p.RouteReflector.RouteReflectorConfig.RouteReflectorClusterId)).To4()
+	return &PeerInfo{
+		AS:                      p.NeighborConfig.PeerAs,
+		LocalAS:                 g.GlobalConfig.As,
+		LocalID:                 g.GlobalConfig.RouterId,
+		Address:                 p.NeighborConfig.NeighborAddress,
+		RouteReflectorClient:    p.RouteReflector.RouteReflectorConfig.RouteReflectorClient,
+		RouteReflectorClusterID: id,
+	}
 }
 
 type Destination struct {

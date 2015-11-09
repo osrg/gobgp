@@ -329,7 +329,7 @@ func (server *BgpServer) Serve() {
 				for _, p := range targetPeer.adjRib.GetInPathList(targetPeer.configuredRFlist()) {
 					// avoid to merge for timestamp
 					u := table.CreateUpdateMsgFromPaths([]*table.Path{p})
-					bmpMsgList = append(bmpMsgList, bmpPeerRoute(bgp.BMP_PEER_TYPE_GLOBAL, false, 0, targetPeer.peerInfo, p.GetTimestamp().Unix(), u[0]))
+					bmpMsgList = append(bmpMsgList, bmpPeerRoute(bgp.BMP_PEER_TYPE_GLOBAL, false, 0, targetPeer.fsm.peerInfo, p.GetTimestamp().Unix(), u[0]))
 				}
 			}
 
@@ -487,7 +487,7 @@ func filterpath(peer *Peer, pathList []*table.Path) []*table.Path {
 				// If the local CLUSTER_ID is found in the CLUSTER_LIST,
 				// the advertisement received SHOULD be ignored.
 				for _, clusterId := range path.GetClusterList() {
-					if clusterId.Equal(peer.peerInfo.RouteReflectorClusterID) {
+					if clusterId.Equal(peer.fsm.peerInfo.RouteReflectorClusterID) {
 						log.WithFields(log.Fields{
 							"Topic":     "Peer",
 							"Key":       remoteAddr,
@@ -550,7 +550,7 @@ func (server *BgpServer) dropPeerAllRoutes(peer *Peer) []*SenderMsg {
 				if !targetPeer.isRouteServerClient() || rib.OwnerName() == peer.conf.NeighborConfig.NeighborAddress.String() {
 					continue
 				}
-				pathList, _ := rib.DeletePathsforPeer(peer.peerInfo, rf)
+				pathList, _ := rib.DeletePathsforPeer(peer.fsm.peerInfo, rf)
 				if targetPeer.fsm.state != bgp.BGP_FSM_ESTABLISHED || len(pathList) == 0 {
 					continue
 				}
@@ -560,7 +560,7 @@ func (server *BgpServer) dropPeerAllRoutes(peer *Peer) []*SenderMsg {
 			}
 		} else {
 			rib := server.globalRib
-			pathList, _ := rib.DeletePathsforPeer(peer.peerInfo, rf)
+			pathList, _ := rib.DeletePathsforPeer(peer.fsm.peerInfo, rf)
 			if len(pathList) == 0 {
 				continue
 			}
@@ -718,7 +718,7 @@ func (server *BgpServer) handleFSMMessage(peer *Peer, e *fsmMsg, incoming chan *
 			if ch := server.bmpClient.send(); ch != nil {
 				m := &broadcastBMPMsg{
 					ch:      ch,
-					msgList: []*bgp.BMPMessage{bmpPeerDown(bgp.BMP_PEER_DOWN_REASON_UNKNOWN, bgp.BMP_PEER_TYPE_GLOBAL, false, 0, peer.peerInfo, peer.conf.Timers.TimersState.Downtime)},
+					msgList: []*bgp.BMPMessage{bmpPeerDown(bgp.BMP_PEER_DOWN_REASON_UNKNOWN, bgp.BMP_PEER_TYPE_GLOBAL, false, 0, peer.fsm.peerInfo, peer.conf.Timers.TimersState.Downtime)},
 				}
 				server.broadcastMsgs = append(server.broadcastMsgs, m)
 			}
@@ -742,7 +742,7 @@ func (server *BgpServer) handleFSMMessage(peer *Peer, e *fsmMsg, incoming chan *
 				_, rport := peer.fsm.RemoteHostPort()
 				m := &broadcastBMPMsg{
 					ch:      ch,
-					msgList: []*bgp.BMPMessage{bmpPeerUp(laddr, lport, rport, buildopen(peer.fsm.gConf, peer.fsm.pConf), peer.recvOpen, bgp.BMP_PEER_TYPE_GLOBAL, false, 0, peer.peerInfo, peer.conf.Timers.TimersState.Uptime)},
+					msgList: []*bgp.BMPMessage{bmpPeerUp(laddr, lport, rport, buildopen(peer.fsm.gConf, peer.fsm.pConf), peer.recvOpen, bgp.BMP_PEER_TYPE_GLOBAL, false, 0, peer.fsm.peerInfo, peer.conf.Timers.TimersState.Uptime)},
 				}
 				server.broadcastMsgs = append(server.broadcastMsgs, m)
 			}
@@ -801,9 +801,9 @@ func (server *BgpServer) handleFSMMessage(peer *Peer, e *fsmMsg, incoming chan *
 					l, _ := peer.fsm.LocalHostPort()
 					bm := &broadcastBGPMsg{
 						message:      m,
-						peerAS:       peer.peerInfo.AS,
-						localAS:      peer.peerInfo.LocalAS,
-						peerAddress:  peer.peerInfo.Address,
+						peerAS:       peer.fsm.peerInfo.AS,
+						localAS:      peer.fsm.peerInfo.LocalAS,
+						peerAddress:  peer.fsm.peerInfo.Address,
 						localAddress: net.ParseIP(l),
 						fourBytesAs:  y,
 						ch:           server.dumper.sendCh(),
@@ -813,7 +813,7 @@ func (server *BgpServer) handleFSMMessage(peer *Peer, e *fsmMsg, incoming chan *
 				if ch := server.bmpClient.send(); ch != nil {
 					bm := &broadcastBMPMsg{
 						ch:      ch,
-						msgList: []*bgp.BMPMessage{bmpPeerRoute(bgp.BMP_PEER_TYPE_GLOBAL, false, 0, peer.peerInfo, time.Now().Unix(), m)},
+						msgList: []*bgp.BMPMessage{bmpPeerRoute(bgp.BMP_PEER_TYPE_GLOBAL, false, 0, peer.fsm.peerInfo, time.Now().Unix(), m)},
 					}
 					server.broadcastMsgs = append(server.broadcastMsgs, bm)
 				}
@@ -2275,7 +2275,7 @@ func (server *BgpServer) handleMrt(grpcReq *GrpcRequest) {
 func (server *BgpServer) mkMrtPeerIndexTableMsg(t uint32, view string) (*bgp.MRTMessage, error) {
 	peers := make([]*bgp.Peer, 0, len(server.neighborMap))
 	for _, peer := range server.neighborMap {
-		id := peer.peerInfo.ID.To4().String()
+		id := peer.fsm.peerInfo.ID.To4().String()
 		ipaddr := peer.conf.NeighborConfig.NeighborAddress.String()
 		asn := peer.conf.NeighborConfig.PeerAs
 		peers = append(peers, bgp.NewPeer(id, ipaddr, asn, true))
@@ -2289,7 +2289,7 @@ func (server *BgpServer) mkMrtRibMsgs(tbl *table.Table, t uint32) ([]*bgp.MRTMes
 	getPeerIndex := func(info *table.PeerInfo) uint16 {
 		var idx uint16
 		for _, peer := range server.neighborMap {
-			if peer.peerInfo.Equal(info) {
+			if peer.fsm.peerInfo.Equal(info) {
 				return idx
 			}
 			idx++
