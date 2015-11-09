@@ -30,12 +30,15 @@ import (
 	"os"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
 )
 
 const (
 	GLOBAL_RIB_NAME = "global"
 )
+
+var policyMutex sync.RWMutex
 
 type SenderMsg struct {
 	messages    []*bgp.BGPMessage
@@ -2000,6 +2003,8 @@ func (server *BgpServer) policyInUse(x *table.Policy) bool {
 }
 
 func (server *BgpServer) handleGrpcModPolicy(grpcReq *GrpcRequest) error {
+	policyMutex.Lock()
+	defer policyMutex.Unlock()
 	arg := grpcReq.Data.(*api.ModPolicyArguments)
 	x, err := table.NewPolicyFromApiStruct(arg.Policy, server.policy.DefinedSetMap)
 	if err != nil {
@@ -2121,6 +2126,8 @@ func (server *BgpServer) handleGrpcModPolicyAssignment(grpcReq *GrpcRequest) err
 	var err error
 	var dir table.PolicyDirection
 	var i policyPoint
+	policyMutex.Lock()
+	defer policyMutex.Unlock()
 	arg := grpcReq.Data.(*api.ModPolicyAssignmentArguments)
 	assignment := arg.Assignment
 	i, dir, err = server.getPolicyInfo(assignment)

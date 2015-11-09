@@ -37,9 +37,9 @@ const (
 )
 
 type fsmMsg struct {
-	MsgType fsmMsgType
-	MsgSrc  string
-	MsgData interface{}
+	MsgType  fsmMsgType
+	MsgSrc   string
+	MsgData  interface{}
 	PathList []*table.Path
 }
 
@@ -83,6 +83,7 @@ type FSM struct {
 	rfMap              map[bgp.RouteFamily]bool
 	confedCheck        bool
 	peerInfo           *table.PeerInfo
+	peer               *Peer
 }
 
 func (fsm *FSM) bgpMessageStateUpdate(MessageType uint8, isIn bool) {
@@ -134,7 +135,7 @@ func (fsm *FSM) bgpMessageStateUpdate(MessageType uint8, isIn bool) {
 	}
 }
 
-func NewFSM(gConf *config.Global, pConf *config.Neighbor) *FSM {
+func NewFSM(gConf *config.Global, pConf *config.Neighbor, peer *Peer) *FSM {
 	adminState := ADMIN_STATE_UP
 	if pConf.NeighborState.AdminDown == true {
 		adminState = ADMIN_STATE_DOWN
@@ -151,6 +152,7 @@ func NewFSM(gConf *config.Global, pConf *config.Neighbor) *FSM {
 		rfMap:            make(map[bgp.RouteFamily]bool),
 		confedCheck:      !config.IsConfederationMember(gConf, pConf) && config.IsEBGPPeer(gConf, pConf),
 		peerInfo:         table.NewPeerInfo(gConf, pConf),
+		peer:             peer,
 	}
 	fsm.t.Go(fsm.connectLoop)
 	return fsm
@@ -508,6 +510,9 @@ func (h *FSMHandler) recvMessageWithError() error {
 					// FIXME: we should use the original message for bmp/mrt
 					table.UpdatePathAttrs4ByteAs(body)
 					fmsg.PathList = table.ProcessMessage(m, h.fsm.peerInfo)
+					policyMutex.RLock()
+					h.fsm.peer.ApplyPolicy(table.POLICY_DIRECTION_IN, fmsg.PathList)
+					policyMutex.RUnlock()
 				}
 				fallthrough
 			case bgp.BGP_MSG_KEEPALIVE:

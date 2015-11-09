@@ -59,7 +59,7 @@ func NewPeer(g config.Global, conf config.Neighbor, loc *table.TableManager) *Pe
 	conf.NeighborState.SessionState = uint32(bgp.BGP_FSM_IDLE)
 	conf.Timers.TimersState.Downtime = time.Now().Unix()
 	peer.adjRib = table.NewAdjRib(peer.configuredRFlist())
-	peer.fsm = NewFSM(&g, &conf)
+	peer.fsm = NewFSM(&g, &conf, peer)
 	return peer
 }
 
@@ -197,7 +197,6 @@ func (peer *Peer) handleBGPmessage(e *fsmMsg) ([]*table.Path, bool, []*bgp.BGPMe
 		if len(e.PathList) > 0 {
 			pathList = e.PathList
 			peer.staleAccepted = true
-			peer.ApplyPolicy(table.POLICY_DIRECTION_IN, pathList)
 			peer.adjRib.UpdateIn(pathList)
 		}
 	case bgp.BGP_MSG_NOTIFICATION:
