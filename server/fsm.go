@@ -40,6 +40,7 @@ type fsmMsg struct {
 	MsgType fsmMsgType
 	MsgSrc  string
 	MsgData interface{}
+	PathList []*table.Path
 }
 
 const (
@@ -503,6 +504,10 @@ func (h *FSMHandler) recvMessageWithError() error {
 						"error": err,
 					}).Warn("malformed BGP update message")
 					fmsg.MsgData = err
+				} else {
+					// FIXME: we should use the original message for bmp/mrt
+					table.UpdatePathAttrs4ByteAs(body)
+					fmsg.PathList = table.ProcessMessage(m, h.fsm.peerInfo)
 				}
 				fallthrough
 			case bgp.BGP_MSG_KEEPALIVE:

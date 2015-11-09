@@ -133,7 +133,8 @@ func open2Cap(open *bgp.BGPOpen, n *config.Neighbor) (map[bgp.BGPCapabilityCode]
 	return capMap, rfMap
 }
 
-func (peer *Peer) handleBGPmessage(m *bgp.BGPMessage) ([]*table.Path, bool, []*bgp.BGPMessage) {
+func (peer *Peer) handleBGPmessage(e *fsmMsg) ([]*table.Path, bool, []*bgp.BGPMessage) {
+	m := e.MsgData.(*bgp.BGPMessage)
 	bgpMsgList := []*bgp.BGPMessage{}
 	pathList := []*table.Path{}
 	log.WithFields(log.Fields{
@@ -193,10 +194,8 @@ func (peer *Peer) handleBGPmessage(m *bgp.BGPMessage) ([]*table.Path, bool, []*b
 	case bgp.BGP_MSG_UPDATE:
 		update = true
 		peer.conf.Timers.TimersState.UpdateRecvTime = time.Now().Unix()
-		body := m.Body.(*bgp.BGPUpdate)
-		table.UpdatePathAttrs4ByteAs(body)
-		pathList = table.ProcessMessage(m, peer.fsm.peerInfo)
-		if len(pathList) > 0 {
+		if len(e.PathList) > 0 {
+			pathList = e.PathList
 			peer.staleAccepted = true
 			peer.ApplyPolicy(table.POLICY_DIRECTION_IN, pathList)
 			peer.adjRib.UpdateIn(pathList)

@@ -779,7 +779,7 @@ func (server *BgpServer) handleFSMMessage(peer *Peer, e *fsmMsg, incoming chan *
 		case *bgp.MessageError:
 			msgs = append(msgs, newSenderMsg(peer, []*bgp.BGPMessage{bgp.NewBGPNotificationMessage(m.TypeCode, m.SubTypeCode, m.Data)}))
 		case *bgp.BGPMessage:
-			pathList, update, msgList := peer.handleBGPmessage(m)
+			pathList, update, msgList := peer.handleBGPmessage(e)
 			if len(msgList) > 0 {
 				msgs = append(msgs, newSenderMsg(peer, msgList))
 				break
