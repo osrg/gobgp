@@ -32,21 +32,20 @@ const (
 )
 
 type Peer struct {
-	gConf                 config.Global
-	conf                  config.Neighbor
-	fsm                   *FSM
-	rfMap                 map[bgp.RouteFamily]bool
-	capMap                map[bgp.BGPCapabilityCode][]bgp.ParameterCapabilityInterface
-	adjRib                *table.AdjRib
-	peerInfo              *table.PeerInfo
-	outgoing              chan *bgp.BGPMessage
-	inPolicies            []*table.Policy
-	defaultInPolicy       table.RouteType
-	accepted              uint32
-	staleAccepted         bool
-	isConfederationMember bool
-	recvOpen              *bgp.BGPMessage
-	localRib              *table.TableManager
+	gConf           config.Global
+	conf            config.Neighbor
+	fsm             *FSM
+	rfMap           map[bgp.RouteFamily]bool
+	capMap          map[bgp.BGPCapabilityCode][]bgp.ParameterCapabilityInterface
+	adjRib          *table.AdjRib
+	peerInfo        *table.PeerInfo
+	outgoing        chan *bgp.BGPMessage
+	inPolicies      []*table.Policy
+	defaultInPolicy table.RouteType
+	accepted        uint32
+	staleAccepted   bool
+	recvOpen        *bgp.BGPMessage
+	localRib        *table.TableManager
 }
 
 func NewPeer(g config.Global, conf config.Neighbor, loc *table.TableManager) *Peer {
@@ -72,12 +71,7 @@ func NewPeer(g config.Global, conf config.Neighbor, loc *table.TableManager) *Pe
 	}
 	peer.adjRib = table.NewAdjRib(peer.configuredRFlist())
 	peer.fsm = NewFSM(&g, &conf)
-	peer.isConfederationMember = config.IsConfederationMember(&g, &conf)
 	return peer
-}
-
-func (peer *Peer) isEBGPPeer() bool {
-	return peer.conf.NeighborConfig.PeerAs != peer.gConf.GlobalConfig.As
 }
 
 func (peer *Peer) isIBGPPeer() bool {
@@ -212,20 +206,6 @@ func (peer *Peer) handleBGPmessage(m *bgp.BGPMessage) ([]*table.Path, bool, []*b
 		update = true
 		peer.conf.Timers.TimersState.UpdateRecvTime = time.Now().Unix()
 		body := m.Body.(*bgp.BGPUpdate)
-		confedCheckRequired := !peer.isConfederationMember && peer.isEBGPPeer()
-		_, err := bgp.ValidateUpdateMsg(body, peer.rfMap, confedCheckRequired)
-		if err != nil {
-			log.WithFields(log.Fields{
-				"Topic": "Peer",
-				"Key":   peer.conf.NeighborConfig.NeighborAddress,
-				"error": err,
-			}).Warn("malformed BGP update message")
-			m := err.(*bgp.MessageError)
-			if m.TypeCode != 0 {
-				bgpMsgList = append(bgpMsgList, bgp.NewBGPNotificationMessage(m.TypeCode, m.SubTypeCode, m.Data))
-			}
-			break
-		}
 		table.UpdatePathAttrs4ByteAs(body)
 		pathList = table.ProcessMessage(m, peer.peerInfo)
 		if len(pathList) > 0 {

@@ -30,6 +30,10 @@ func IsConfederationMember(g *Global, p *Neighbor) bool {
 	return false
 }
 
+func IsEBGPPeer(g *Global, p *Neighbor) bool {
+	return p.NeighborConfig.PeerAs != g.GlobalConfig.As
+}
+
 func CreateRfMap(p *Neighbor) map[bgp.RouteFamily]bool {
 	rfMap := make(map[bgp.RouteFamily]bool)
 	for _, rf := range p.AfiSafis.AfiSafiList {

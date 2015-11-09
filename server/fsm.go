@@ -79,6 +79,7 @@ type FSM struct {
 	getActiveCh        chan struct{}
 	h                  *FSMHandler
 	rfMap              map[bgp.RouteFamily]bool
+	confedCheck        bool
 }
 
 func (fsm *FSM) bgpMessageStateUpdate(MessageType uint8, isIn bool) {
@@ -145,6 +146,7 @@ func NewFSM(gConf *config.Global, pConf *config.Neighbor) *FSM {
 		adminStateCh:     make(chan AdminState, 1),
 		getActiveCh:      make(chan struct{}),
 		rfMap:            make(map[bgp.RouteFamily]bool),
+		confedCheck:      !config.IsConfederationMember(gConf, pConf) && config.IsEBGPPeer(gConf, pConf),
 	}
 	fsm.t.Go(fsm.connectLoop)
 	return fsm
@@ -487,14 +489,27 @@ func (h *FSMHandler) recvMessageWithError() error {
 			MsgData: m,
 		}
 		if h.fsm.state == bgp.BGP_FSM_ESTABLISHED {
-			if m.Header.Type == bgp.BGP_MSG_KEEPALIVE || m.Header.Type == bgp.BGP_MSG_UPDATE {
+			switch m.Header.Type {
+			case bgp.BGP_MSG_UPDATE:
+				body := m.Body.(*bgp.BGPUpdate)
+				_, err := bgp.ValidateUpdateMsg(body, h.fsm.rfMap, h.fsm.confedCheck)
+				if err != nil {
+					log.WithFields(log.Fields{
+						"Topic": "Peer",
+						"Key":   h.fsm.pConf.NeighborConfig.NeighborAddress.String(),
+						"error": err,
+					}).Warn("malformed BGP update message")
+					fmsg.MsgData = err
+				}
+				fallthrough
+			case bgp.BGP_MSG_KEEPALIVE:
 				// if the lenght of h.holdTimerResetCh
 				// isn't zero, the timer will be reset
 				// soon anyway.
 				if len(h.holdTimerResetCh) == 0 {
 					h.holdTimerResetCh <- true
 				}
-			} else if m.Header.Type == bgp.BGP_MSG_NOTIFICATION {
+			case bgp.BGP_MSG_NOTIFICATION:
 				h.reason = "Notification received"
 			}
 		}
