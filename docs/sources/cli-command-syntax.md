@@ -33,7 +33,7 @@ gobgp has six subcommands.
 #### - example
 If you want to add routes with the address of the ipv4 to global rib：
 ```shell
-% gobgp global rib add 10.33.0.0 -a ipv4
+% gobgp global rib add 10.33.0.0/16 -a ipv4
 ```
 If you want to remove routes with the address of the ipv6 from global rib：
 ```shell
