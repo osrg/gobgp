@@ -24,6 +24,7 @@ import os
 import time
 import nose
 import inspect
+from nose.tools import *
 from noseplugin import OptionParser, parser_option
 
 
@@ -139,6 +140,12 @@ class ImportPolicy(object):
         wait_for(lambda: len(env.g1.get_adj_rib_out(env.q2)) == 1)
         wait_for(lambda: len(env.q2.get_global_rib()) == 1)
 
+    @staticmethod
+    def executor(env):
+        lookup_scenario("ImportPolicy").boot(env)
+        lookup_scenario("ImportPolicy").setup(env)
+        lookup_scenario("ImportPolicy").check(env)
+
 
 @register_scenario
 class ExportPolicy(object):
@@ -204,6 +211,12 @@ class ExportPolicy(object):
         wait_for(lambda: len(g1.get_local_rib(q2)) == 2)
         wait_for(lambda: len(g1.get_adj_rib_out(q2)) == 1)
         wait_for(lambda: len(q2.get_global_rib()) == 1)
+
+    @staticmethod
+    def executor(env):
+        lookup_scenario("ExportPolicy").boot(env)
+        lookup_scenario("ExportPolicy").setup(env)
+        lookup_scenario("ExportPolicy").check(env)
 
 
 @register_scenario
@@ -331,6 +344,14 @@ class ImportPolicyUpdate(object):
         wait_for(lambda: len(g1.get_local_rib(q2)) == 2)
         wait_for(lambda: len(g1.get_adj_rib_out(q2)) == 2)
         wait_for(lambda: len(q2.get_global_rib()) == 2)
+
+    @staticmethod
+    def executor(env):
+        lookup_scenario("ImportPolicyUpdate").boot(env)
+        lookup_scenario("ImportPolicyUpdate").setup(env)
+        lookup_scenario("ImportPolicyUpdate").check(env)
+        lookup_scenario("ImportPolicyUpdate").setup2(env)
+        lookup_scenario("ImportPolicyUpdate").check2(env)
 
 
 @register_scenario
@@ -462,6 +483,14 @@ class ExportPolicyUpdate(object):
         wait_for(lambda: len(g1.get_adj_rib_out(q2)) == 2)
         wait_for(lambda: len(q2.get_global_rib()) == 2)
 
+    @staticmethod
+    def executor(env):
+        lookup_scenario("ExportPolicyUpdate").boot(env)
+        lookup_scenario("ExportPolicyUpdate").setup(env)
+        lookup_scenario("ExportPolicyUpdate").check(env)
+        lookup_scenario("ExportPolicyUpdate").setup2(env)
+        lookup_scenario("ExportPolicyUpdate").check2(env)
+
 
 @register_scenario
 class ImportPolicyIPV6(object):
@@ -551,6 +580,12 @@ class ImportPolicyIPV6(object):
         wait_for(lambda: len(env.g1.get_adj_rib_out(env.q2, rf='ipv6')) == 1)
         wait_for(lambda: len(env.q2.get_global_rib(rf='ipv6')) == 1)
 
+    @staticmethod
+    def executor(env):
+        lookup_scenario("ImportPolicyIPV6").boot(env)
+        lookup_scenario("ImportPolicyIPV6").setup(env)
+        lookup_scenario("ImportPolicyIPV6").check(env)
+
 
 @register_scenario
 class ExportPolicyIPV6(object):
@@ -616,6 +651,12 @@ class ExportPolicyIPV6(object):
         wait_for(lambda: len(env.g1.get_local_rib(env.q2, rf='ipv6')) == 2)
         wait_for(lambda: len(env.g1.get_adj_rib_out(env.q2, rf='ipv6')) == 1)
         wait_for(lambda: len(env.q2.get_global_rib(rf='ipv6')) == 1)
+
+    @staticmethod
+    def executor(env):
+        lookup_scenario("ExportPolicyIPV6").boot(env)
+        lookup_scenario("ExportPolicyIPV6").setup(env)
+        lookup_scenario("ExportPolicyIPV6").check(env)
 
 
 @register_scenario
@@ -735,6 +776,14 @@ class ImportPolicyIPV6Update(object):
         wait_for(lambda: len(env.g1.get_local_rib(env.q2, rf='ipv6')) == 2)
         wait_for(lambda: len(env.g1.get_adj_rib_out(env.q2, rf='ipv6')) == 2)
         wait_for(lambda: len(env.q2.get_global_rib(rf='ipv6')) == 2)
+
+    @staticmethod
+    def executor(env):
+        lookup_scenario("ImportPolicyIPV6Update").boot(env)
+        lookup_scenario("ImportPolicyIPV6Update").setup(env)
+        lookup_scenario("ImportPolicyIPV6Update").check(env)
+        lookup_scenario("ImportPolicyIPV6Update").setup2(env)
+        lookup_scenario("ImportPolicyIPV6Update").check2(env)
 
 
 @register_scenario
@@ -857,6 +906,14 @@ class ExportPolicyIPv6Update(object):
         wait_for(lambda: len(env.g1.get_adj_rib_out(env.q2, rf='ipv6')) == 2)
         wait_for(lambda: len(env.q2.get_global_rib(rf='ipv6')) == 2)
 
+    @staticmethod
+    def executor(env):
+        lookup_scenario("ExportPolicyIPv6Update").boot(env)
+        lookup_scenario("ExportPolicyIPv6Update").setup(env)
+        lookup_scenario("ExportPolicyIPv6Update").check(env)
+        lookup_scenario("ExportPolicyIPv6Update").setup2(env)
+        lookup_scenario("ExportPolicyIPv6Update").check2(env)
+
 
 @register_scenario
 class ImportPolicyAsPathLengthCondition(object):
@@ -909,6 +966,12 @@ class ImportPolicyAsPathLengthCondition(object):
         wait_for(lambda: len(g1.get_adj_rib_out(q2)) == 1)
         wait_for(lambda: len(q2.get_global_rib()) == 1)
 
+    @staticmethod
+    def executor(env):
+        lookup_scenario("ImportPolicyAsPathLengthCondition").boot(env)
+        lookup_scenario("ImportPolicyAsPathLengthCondition").setup(env)
+        lookup_scenario("ImportPolicyAsPathLengthCondition").check(env)
+
 
 @register_scenario
 class ImportPolicyAsPathCondition(object):
@@ -955,6 +1018,12 @@ class ImportPolicyAsPathCondition(object):
     def check(env):
         # same check function as previous No.1 scenario
         lookup_scenario("ImportPolicy").check(env)
+
+    @staticmethod
+    def executor(env):
+        lookup_scenario("ImportPolicyAsPathCondition").boot(env)
+        lookup_scenario("ImportPolicyAsPathCondition").setup(env)
+        lookup_scenario("ImportPolicyAsPathCondition").check(env)
 
 
 @register_scenario
@@ -1003,6 +1072,12 @@ class ImportPolicyAsPathAnyCondition(object):
         # same check function as previous No.1 scenario
         lookup_scenario("ImportPolicy").check(env)
 
+    @staticmethod
+    def executor(env):
+        lookup_scenario("ImportPolicyAsPathAnyCondition").boot(env)
+        lookup_scenario("ImportPolicyAsPathAnyCondition").setup(env)
+        lookup_scenario("ImportPolicyAsPathAnyCondition").check(env)
+
 
 @register_scenario
 class ImportPolicyAsPathOriginCondition(object):
@@ -1050,6 +1125,12 @@ class ImportPolicyAsPathOriginCondition(object):
         # same check function as previous No.1 scenario
         lookup_scenario("ImportPolicy").check(env)
 
+    @staticmethod
+    def executor(env):
+        lookup_scenario("ImportPolicyAsPathOriginCondition").boot(env)
+        lookup_scenario("ImportPolicyAsPathOriginCondition").setup(env)
+        lookup_scenario("ImportPolicyAsPathOriginCondition").check(env)
+
 
 @register_scenario
 class ImportPolicyAsPathOnlyCondition(object):
@@ -1096,6 +1177,12 @@ class ImportPolicyAsPathOnlyCondition(object):
     def check(env):
         # same check function as previous No.1 scenario
         lookup_scenario("ImportPolicy").check(env)
+
+    @staticmethod
+    def executor(env):
+        lookup_scenario("ImportPolicyAsPathOnlyCondition").boot(env)
+        lookup_scenario("ImportPolicyAsPathOnlyCondition").setup(env)
+        lookup_scenario("ImportPolicyAsPathOnlyCondition").check(env)
 
 
 @register_scenario
@@ -1155,6 +1242,12 @@ class ImportPolicyAsPathMismatchCondition(object):
         wait_for(lambda: len(g1.get_adj_rib_out(q2)) == 2)
         wait_for(lambda: len(q2.get_global_rib()) == 2)
 
+    @staticmethod
+    def executor(env):
+        lookup_scenario("ImportPolicyAsPathMismatchCondition").boot(env)
+        lookup_scenario("ImportPolicyAsPathMismatchCondition").setup(env)
+        lookup_scenario("ImportPolicyAsPathMismatchCondition").check(env)
+
 
 @register_scenario
 class ImportPolicyCommunityCondition(object):
@@ -1204,6 +1297,12 @@ class ImportPolicyCommunityCondition(object):
     def check(env):
         lookup_scenario("ImportPolicy").check(env)
 
+    @staticmethod
+    def executor(env):
+        lookup_scenario("ImportPolicyCommunityCondition").boot(env)
+        lookup_scenario("ImportPolicyCommunityCondition").setup(env)
+        lookup_scenario("ImportPolicyCommunityCondition").check(env)
+
 
 @register_scenario
 class ImportPolicyCommunityRegexp(object):
@@ -1249,6 +1348,12 @@ class ImportPolicyCommunityRegexp(object):
     @staticmethod
     def check(env):
         lookup_scenario("ImportPolicy").check(env)
+
+    @staticmethod
+    def executor(env):
+        lookup_scenario("ImportPolicyCommunityRegexp").boot(env)
+        lookup_scenario("ImportPolicyCommunityRegexp").setup(env)
+        lookup_scenario("ImportPolicyCommunityRegexp").check(env)
 
 
 def community_exists(path, com):
@@ -1320,11 +1425,18 @@ class ImportPolicyCommunityAction(object):
         q1 = env.q1
         q2 = env.q2
         path = g1.get_adj_rib_out(q1)[0]
-        env.assertTrue(community_exists(path, '65100:10'))
-        env.assertFalse(community_exists(path, '65100:20'))
+        assert_true(community_exists(path, '65100:10'))
+        assert_false(community_exists(path, '65100:20'))
         path = g1.get_adj_rib_out(q2)[0]
-        env.assertTrue(community_exists(path, '65100:10'))
-        env.assertTrue(community_exists(path, '65100:20'))
+        assert_true(community_exists(path, '65100:10'))
+        assert_true(community_exists(path, '65100:20'))
+
+    @staticmethod
+    def executor(env):
+        lookup_scenario("ImportPolicyCommunityAction").boot(env)
+        lookup_scenario("ImportPolicyCommunityAction").setup(env)
+        lookup_scenario("ImportPolicyCommunityAction").check(env)
+        lookup_scenario("ImportPolicyCommunityAction").check2(env)
 
 
 @register_scenario
@@ -1381,11 +1493,18 @@ class ImportPolicyCommunityReplace(object):
         q1 = env.q1
         q2 = env.q2
         path = g1.get_adj_rib_out(q1)[0]
-        env.assertTrue(community_exists(path, '65100:10'))
-        env.assertFalse(community_exists(path, '65100:20'))
+        assert_true(community_exists(path, '65100:10'))
+        assert_false(community_exists(path, '65100:20'))
         path = g1.get_adj_rib_out(q2)[0]
-        env.assertFalse(community_exists(path, '65100:10'))
-        env.assertTrue(community_exists(path, '65100:20'))
+        assert_false(community_exists(path, '65100:10'))
+        assert_true(community_exists(path, '65100:20'))
+
+    @staticmethod
+    def executor(env):
+        lookup_scenario("ImportPolicyCommunityReplace").boot(env)
+        lookup_scenario("ImportPolicyCommunityReplace").setup(env)
+        lookup_scenario("ImportPolicyCommunityReplace").check(env)
+        lookup_scenario("ImportPolicyCommunityReplace").check2(env)
 
 
 @register_scenario
@@ -1452,18 +1571,25 @@ class ImportPolicyCommunityRemove(object):
         q2 = env.q2
         adj_out = g1.get_adj_rib_out(q1)
         for path in adj_out:
-            env.assertTrue(community_exists(path, '65100:10'))
+            assert_true(community_exists(path, '65100:10'))
             if path['nlri']['prefix'] == '192.168.110.0/24':
-                env.assertTrue(community_exists(path, '65100:20'))
+                assert_true(community_exists(path, '65100:20'))
             if path['nlri']['prefix'] == '192.168.120.0/24':
-                env.assertTrue(community_exists(path, '65100:30'))
+                assert_true(community_exists(path, '65100:30'))
         adj_out = g1.get_adj_rib_out(q2)
         for path in adj_out:
-            env.assertFalse(community_exists(path, '65100:10'))
+            assert_false(community_exists(path, '65100:10'))
             if path['nlri']['prefix'] == '192.168.110.0/24':
-                env.assertFalse(community_exists(path, '65100:20'))
+                assert_false(community_exists(path, '65100:20'))
             if path['nlri']['prefix'] == '192.168.120.0/24':
-                env.assertTrue(community_exists(path, '65100:30'))
+                assert_true(community_exists(path, '65100:30'))
+
+    @staticmethod
+    def executor(env):
+        lookup_scenario("ImportPolicyCommunityRemove").boot(env)
+        lookup_scenario("ImportPolicyCommunityRemove").setup(env)
+        lookup_scenario("ImportPolicyCommunityRemove").check(env)
+        lookup_scenario("ImportPolicyCommunityRemove").check2(env)
 
 
 @register_scenario
@@ -1520,18 +1646,25 @@ class ImportPolicyCommunityNull(object):
         q2 = env.q2
         adj_out = g1.get_adj_rib_out(q1)
         for path in adj_out:
-            env.assertTrue(community_exists(path, '65100:10'))
+            assert_true(community_exists(path, '65100:10'))
             if path['nlri']['prefix'] == '192.168.110.0/24':
-                env.assertTrue(community_exists(path, '65100:20'))
+                assert_true(community_exists(path, '65100:20'))
             if path['nlri']['prefix'] == '192.168.120.0/24':
-                env.assertTrue(community_exists(path, '65100:30'))
+                assert_true(community_exists(path, '65100:30'))
         adj_out = g1.get_adj_rib_out(q2)
         for path in adj_out:
-            env.assertFalse(community_exists(path, '65100:10'))
+            assert_false(community_exists(path, '65100:10'))
             if path['nlri']['prefix'] == '192.168.110.0/24':
-                env.assertFalse(community_exists(path, '65100:20'))
+                assert_false(community_exists(path, '65100:20'))
             if path['nlri']['prefix'] == '192.168.120.0/24':
-                env.assertFalse(community_exists(path, '65100:30'))
+                assert_false(community_exists(path, '65100:30'))
+
+    @staticmethod
+    def executor(env):
+        lookup_scenario("ImportPolicyCommunityNull").boot(env)
+        lookup_scenario("ImportPolicyCommunityNull").setup(env)
+        lookup_scenario("ImportPolicyCommunityNull").check(env)
+        lookup_scenario("ImportPolicyCommunityNull").check2(env)
 
 
 @register_scenario
@@ -1587,18 +1720,25 @@ class ExportPolicyCommunityAdd(object):
 
         adj_out = g1.get_adj_rib_out(q1)
         for path in adj_out:
-            env.assertTrue(community_exists(path, '65100:10'))
-            env.assertFalse(community_exists(path, '65100:20'))
+            assert_true(community_exists(path, '65100:10'))
+            assert_false(community_exists(path, '65100:20'))
 
         local_rib = g1.get_local_rib(q2)
         for path in local_rib[0]['paths']:
-            env.assertTrue(community_exists(path, '65100:10'))
-            env.assertFalse(community_exists(path, '65100:20'))
+            assert_true(community_exists(path, '65100:10'))
+            assert_false(community_exists(path, '65100:20'))
 
         adj_out = g1.get_adj_rib_out(q2)
         for path in adj_out:
-            env.assertTrue(community_exists(path, '65100:10'))
-            env.assertTrue(community_exists(path, '65100:20'))
+            assert_true(community_exists(path, '65100:10'))
+            assert_true(community_exists(path, '65100:20'))
+
+    @staticmethod
+    def executor(env):
+        lookup_scenario("ExportPolicyCommunityAdd").boot(env)
+        lookup_scenario("ExportPolicyCommunityAdd").setup(env)
+        lookup_scenario("ExportPolicyCommunityAdd").check(env)
+        lookup_scenario("ExportPolicyCommunityAdd").check2(env)
 
 
 @register_scenario
@@ -1654,18 +1794,25 @@ class ExportPolicyCommunityReplace(object):
 
         adj_out = g1.get_adj_rib_out(q1)
         for path in adj_out:
-            env.assertTrue(community_exists(path, '65100:10'))
-            env.assertFalse(community_exists(path, '65100:20'))
+            assert_true(community_exists(path, '65100:10'))
+            assert_false(community_exists(path, '65100:20'))
 
         local_rib = g1.get_local_rib(q2)
         for path in local_rib[0]['paths']:
-            env.assertTrue(community_exists(path, '65100:10'))
-            env.assertFalse(community_exists(path, '65100:20'))
+            assert_true(community_exists(path, '65100:10'))
+            assert_false(community_exists(path, '65100:20'))
 
         adj_out = g1.get_adj_rib_out(q2)
         for path in adj_out:
-            env.assertFalse(community_exists(path, '65100:10'))
-            env.assertTrue(community_exists(path, '65100:20'))
+            assert_false(community_exists(path, '65100:10'))
+            assert_true(community_exists(path, '65100:20'))
+
+    @staticmethod
+    def executor(env):
+        lookup_scenario("ExportPolicyCommunityReplace").boot(env)
+        lookup_scenario("ExportPolicyCommunityReplace").setup(env)
+        lookup_scenario("ExportPolicyCommunityReplace").check(env)
+        lookup_scenario("ExportPolicyCommunityReplace").check2(env)
 
 
 @register_scenario
@@ -1721,21 +1868,28 @@ class ExportPolicyCommunityRemove(object):
 
         adj_out = g1.get_adj_rib_out(q1)
         for path in adj_out:
-            env.assertTrue(community_exists(path, '65100:10'))
-            env.assertTrue(community_exists(path, '65100:20'))
-            env.assertTrue(community_exists(path, '65100:30'))
+            assert_true(community_exists(path, '65100:10'))
+            assert_true(community_exists(path, '65100:20'))
+            assert_true(community_exists(path, '65100:30'))
 
         local_rib = g1.get_local_rib(q2)
         for path in local_rib[0]['paths']:
-            env.assertTrue(community_exists(path, '65100:10'))
-            env.assertTrue(community_exists(path, '65100:20'))
-            env.assertTrue(community_exists(path, '65100:30'))
+            assert_true(community_exists(path, '65100:10'))
+            assert_true(community_exists(path, '65100:20'))
+            assert_true(community_exists(path, '65100:30'))
 
         adj_out = g1.get_adj_rib_out(q2)
         for path in adj_out:
-            env.assertTrue(community_exists(path, '65100:10'))
-            env.assertFalse(community_exists(path, '65100:20'))
-            env.assertFalse(community_exists(path, '65100:30'))
+            assert_true(community_exists(path, '65100:10'))
+            assert_false(community_exists(path, '65100:20'))
+            assert_false(community_exists(path, '65100:30'))
+
+    @staticmethod
+    def executor(env):
+        lookup_scenario("ExportPolicyCommunityRemove").boot(env)
+        lookup_scenario("ExportPolicyCommunityRemove").setup(env)
+        lookup_scenario("ExportPolicyCommunityRemove").check(env)
+        lookup_scenario("ExportPolicyCommunityRemove").check2(env)
 
 
 @register_scenario
@@ -1791,21 +1945,29 @@ class ExportPolicyCommunityNull(object):
 
         adj_out = g1.get_adj_rib_out(q1)
         for path in adj_out:
-            env.assertTrue(community_exists(path, '65100:10'))
-            env.assertTrue(community_exists(path, '65100:20'))
-            env.assertTrue(community_exists(path, '65100:30'))
+            assert_true(community_exists(path, '65100:10'))
+            assert_true(community_exists(path, '65100:20'))
+            assert_true(community_exists(path, '65100:30'))
 
         local_rib = g1.get_local_rib(q2)
         for path in local_rib[0]['paths']:
-            env.assertTrue(community_exists(path, '65100:10'))
-            env.assertTrue(community_exists(path, '65100:20'))
-            env.assertTrue(community_exists(path, '65100:30'))
+            assert_true(community_exists(path, '65100:10'))
+            assert_true(community_exists(path, '65100:20'))
+            assert_true(community_exists(path, '65100:30'))
 
         adj_out = g1.get_adj_rib_out(q2)
         for path in adj_out:
-            env.assertFalse(community_exists(path, '65100:10'))
-            env.assertFalse(community_exists(path, '65100:20'))
-            env.assertFalse(community_exists(path, '65100:30'))
+            assert_false(community_exists(path, '65100:10'))
+            assert_false(community_exists(path, '65100:20'))
+            assert_false(community_exists(path, '65100:30'))
+
+    @staticmethod
+    def executor(env):
+        lookup_scenario("ExportPolicyCommunityNull").boot(env)
+        lookup_scenario("ExportPolicyCommunityNull").setup(env)
+        lookup_scenario("ExportPolicyCommunityNull").check(env)
+        lookup_scenario("ExportPolicyCommunityNull").check2(env)
+
 
 def metric(path):
     for a in path['attrs']:
@@ -1860,13 +2022,20 @@ class ImportPolicyMedReplace(object):
         q2 = env.q2
 
         adj_out = g1.get_adj_rib_out(q1)
-        env.assertTrue(metric(adj_out[0]) == 300)
+        assert_true(metric(adj_out[0]) == 300)
 
         local_rib = g1.get_local_rib(q2)
-        env.assertTrue(metric(local_rib[0]['paths'][0]) == 100)
+        assert_true(metric(local_rib[0]['paths'][0]) == 100)
 
         adj_out = g1.get_adj_rib_out(q2)
-        env.assertTrue(metric(adj_out[0]) == 100)
+        assert_true(metric(adj_out[0]) == 100)
+
+    @staticmethod
+    def executor(env):
+        lookup_scenario("ImportPolicyMedReplace").boot(env)
+        lookup_scenario("ImportPolicyMedReplace").setup(env)
+        lookup_scenario("ImportPolicyMedReplace").check(env)
+        lookup_scenario("ImportPolicyMedReplace").check2(env)
 
 
 @register_scenario
@@ -1915,13 +2084,20 @@ class ImportPolicyMedAdd(object):
         q2 = env.q2
 
         adj_out = g1.get_adj_rib_out(q1)
-        env.assertTrue(metric(adj_out[0]) == 300)
+        assert_true(metric(adj_out[0]) == 300)
 
         local_rib = g1.get_local_rib(q2)
-        env.assertTrue(metric(local_rib[0]['paths'][0]) == 400)
+        assert_true(metric(local_rib[0]['paths'][0]) == 400)
 
         adj_out = g1.get_adj_rib_out(q2)
-        env.assertTrue(metric(adj_out[0]) == 400)
+        assert_true(metric(adj_out[0]) == 400)
+
+    @staticmethod
+    def executor(env):
+        lookup_scenario("ImportPolicyMedAdd").boot(env)
+        lookup_scenario("ImportPolicyMedAdd").setup(env)
+        lookup_scenario("ImportPolicyMedAdd").check(env)
+        lookup_scenario("ImportPolicyMedAdd").check2(env)
 
 
 @register_scenario
@@ -1970,13 +2146,20 @@ class ImportPolicyMedSub(object):
         q2 = env.q2
 
         adj_out = g1.get_adj_rib_out(q1)
-        env.assertTrue(metric(adj_out[0]) == 300)
+        assert_true(metric(adj_out[0]) == 300)
 
         local_rib = g1.get_local_rib(q2)
-        env.assertTrue(metric(local_rib[0]['paths'][0]) == 200)
+        assert_true(metric(local_rib[0]['paths'][0]) == 200)
 
         adj_out = g1.get_adj_rib_out(q2)
-        env.assertTrue(metric(adj_out[0]) == 200)
+        assert_true(metric(adj_out[0]) == 200)
+
+    @staticmethod
+    def executor(env):
+        lookup_scenario("ImportPolicyMedSub").boot(env)
+        lookup_scenario("ImportPolicyMedSub").setup(env)
+        lookup_scenario("ImportPolicyMedSub").check(env)
+        lookup_scenario("ImportPolicyMedSub").check2(env)
 
 
 @register_scenario
@@ -2025,13 +2208,20 @@ class ExportPolicyMedReplace(object):
         q2 = env.q2
 
         adj_out = g1.get_adj_rib_out(q1)
-        env.assertTrue(metric(adj_out[0]) == 300)
+        assert_true(metric(adj_out[0]) == 300)
 
         local_rib = g1.get_local_rib(q2)
-        env.assertTrue(metric(local_rib[0]['paths'][0]) == 300)
+        assert_true(metric(local_rib[0]['paths'][0]) == 300)
 
         adj_out = g1.get_adj_rib_out(q2)
-        env.assertTrue(metric(adj_out[0]) == 100)
+        assert_true(metric(adj_out[0]) == 100)
+
+    @staticmethod
+    def executor(env):
+        lookup_scenario("ExportPolicyMedReplace").boot(env)
+        lookup_scenario("ExportPolicyMedReplace").setup(env)
+        lookup_scenario("ExportPolicyMedReplace").check(env)
+        lookup_scenario("ExportPolicyMedReplace").check2(env)
 
 
 @register_scenario
@@ -2080,13 +2270,20 @@ class ExportPolicyMedAdd(object):
         q2 = env.q2
 
         adj_out = g1.get_adj_rib_out(q1)
-        env.assertTrue(metric(adj_out[0]) == 300)
+        assert_true(metric(adj_out[0]) == 300)
 
         local_rib = g1.get_local_rib(q2)
-        env.assertTrue(metric(local_rib[0]['paths'][0]) == 300)
+        assert_true(metric(local_rib[0]['paths'][0]) == 300)
 
         adj_out = g1.get_adj_rib_out(q2)
-        env.assertTrue(metric(adj_out[0]) == 400)
+        assert_true(metric(adj_out[0]) == 400)
+
+    @staticmethod
+    def executor(env):
+        lookup_scenario("ExportPolicyMedAdd").boot(env)
+        lookup_scenario("ExportPolicyMedAdd").setup(env)
+        lookup_scenario("ExportPolicyMedAdd").check(env)
+        lookup_scenario("ExportPolicyMedAdd").check2(env)
 
 
 @register_scenario
@@ -2135,13 +2332,20 @@ class ExportPolicyMedSub(object):
         q2 = env.q2
 
         adj_out = g1.get_adj_rib_out(q1)
-        env.assertTrue(metric(adj_out[0]) == 300)
+        assert_true(metric(adj_out[0]) == 300)
 
         local_rib = g1.get_local_rib(q2)
-        env.assertTrue(metric(local_rib[0]['paths'][0]) == 300)
+        assert_true(metric(local_rib[0]['paths'][0]) == 300)
 
         adj_out = g1.get_adj_rib_out(q2)
-        env.assertTrue(metric(adj_out[0]) == 200)
+        assert_true(metric(adj_out[0]) == 200)
+
+    @staticmethod
+    def executor(env):
+        lookup_scenario("ExportPolicyMedSub").boot(env)
+        lookup_scenario("ExportPolicyMedSub").setup(env)
+        lookup_scenario("ExportPolicyMedSub").check(env)
+        lookup_scenario("ExportPolicyMedSub").check2(env)
 
 
 @register_scenario
@@ -2197,6 +2401,12 @@ class InPolicyReject(object):
         wait_for(lambda: len(g1.get_adj_rib_out(q2)) == 1)
         wait_for(lambda: len(q2.get_global_rib()) == 1)
 
+    @staticmethod
+    def executor(env):
+        lookup_scenario("InPolicyReject").boot(env)
+        lookup_scenario("InPolicyReject").setup(env)
+        lookup_scenario("InPolicyReject").check(env)
+
 
 @register_scenario
 class InPolicyAccept(object):
@@ -2241,6 +2451,12 @@ class InPolicyAccept(object):
     @staticmethod
     def check(env):
         lookup_scenario('InPolicyReject').check(env)
+
+    @staticmethod
+    def executor(env):
+        lookup_scenario("InPolicyAccept").boot(env)
+        lookup_scenario("InPolicyAccept").setup(env)
+        lookup_scenario("InPolicyAccept").check(env)
 
 
 @register_scenario
@@ -2370,6 +2586,14 @@ class InPolicyUpdate(object):
         wait_for(lambda: len(g1.get_adj_rib_out(q2)) == 2)
         wait_for(lambda: len(q2.get_global_rib()) == 2)
 
+    @staticmethod
+    def executor(env):
+        lookup_scenario("InPolicyUpdate").boot(env)
+        lookup_scenario("InPolicyUpdate").setup(env)
+        lookup_scenario("InPolicyUpdate").check(env)
+        lookup_scenario("InPolicyUpdate").setup2(env)
+        lookup_scenario("InPolicyUpdate").check2(env)
+
 
 @register_scenario
 class ExportPolicyAsPathPrepend(object):
@@ -2437,19 +2661,26 @@ class ExportPolicyAsPathPrepend(object):
         q2 = env.q2
 
         path = g1.get_adj_rib_out(q1, prefix='192.168.20.0/24')[0]
-        env.assertTrue(path['aspath'] == [e1.asn])
+        assert_true(path['aspath'] == [e1.asn])
 
         path = g1.get_adj_rib_out(q1, prefix='192.168.200.0/24')[0]
-        env.assertTrue(path['aspath'] == [e1.asn])
+        assert_true(path['aspath'] == [e1.asn])
 
         path = g1.get_local_rib(q2, prefix='192.168.20.0/24')[0]['paths'][0]
-        env.assertTrue(path['aspath'] == [e1.asn])
+        assert_true(path['aspath'] == [e1.asn])
 
         path = g1.get_adj_rib_out(q2, prefix='192.168.20.0/24')[0]
-        env.assertTrue(path['aspath'] == [65005]*5 + [e1.asn])
+        assert_true(path['aspath'] == [65005]*5 + [e1.asn])
 
         path = g1.get_adj_rib_out(q2, prefix='192.168.200.0/24')[0]
-        env.assertTrue(path['aspath'] == [e1.asn])
+        assert_true(path['aspath'] == [e1.asn])
+
+    @staticmethod
+    def executor(env):
+        lookup_scenario("ExportPolicyAsPathPrepend").boot(env)
+        lookup_scenario("ExportPolicyAsPathPrepend").setup(env)
+        lookup_scenario("ExportPolicyAsPathPrepend").check(env)
+        lookup_scenario("ExportPolicyAsPathPrepend").check2(env)
 
 
 @register_scenario
@@ -2508,19 +2739,26 @@ class ImportPolicyAsPathPrependLastAS(object):
         q2 = env.q2
 
         path = g1.get_adj_rib_out(q1, prefix='192.168.20.0/24')[0]
-        env.assertTrue(path['aspath'] == [e1.asn])
+        assert_true(path['aspath'] == [e1.asn])
 
         path = g1.get_adj_rib_out(q1, prefix='192.168.200.0/24')[0]
-        env.assertTrue(path['aspath'] == [e1.asn])
+        assert_true(path['aspath'] == [e1.asn])
 
         path = g1.get_local_rib(q2, prefix='192.168.20.0/24')[0]['paths'][0]
-        env.assertTrue(path['aspath'] == [e1.asn]*5 + [e1.asn])
+        assert_true(path['aspath'] == [e1.asn]*5 + [e1.asn])
 
         path = g1.get_adj_rib_out(q2, prefix='192.168.20.0/24')[0]
-        env.assertTrue(path['aspath'] == [e1.asn]*5 + [e1.asn])
+        assert_true(path['aspath'] == [e1.asn]*5 + [e1.asn])
 
         path = g1.get_adj_rib_out(q2, prefix='192.168.200.0/24')[0]
-        env.assertTrue(path['aspath'] == [e1.asn])
+        assert_true(path['aspath'] == [e1.asn])
+
+    @staticmethod
+    def executor(env):
+        lookup_scenario("ImportPolicyAsPathPrependLastAS").boot(env)
+        lookup_scenario("ImportPolicyAsPathPrependLastAS").setup(env)
+        lookup_scenario("ImportPolicyAsPathPrependLastAS").check(env)
+        lookup_scenario("ImportPolicyAsPathPrependLastAS").check2(env)
 
 
 @register_scenario
@@ -2579,19 +2817,26 @@ class ExportPolicyAsPathPrependLastAS(object):
         q2 = env.q2
 
         path = g1.get_adj_rib_out(q1, prefix='192.168.20.0/24')[0]
-        env.assertTrue(path['aspath'] == [e1.asn])
+        assert_true(path['aspath'] == [e1.asn])
 
         path = g1.get_adj_rib_out(q1, prefix='192.168.200.0/24')[0]
-        env.assertTrue(path['aspath'] == [e1.asn])
+        assert_true(path['aspath'] == [e1.asn])
 
         path = g1.get_local_rib(q2, prefix='192.168.20.0/24')[0]['paths'][0]
-        env.assertTrue(path['aspath'] == [e1.asn])
+        assert_true(path['aspath'] == [e1.asn])
 
         path = g1.get_adj_rib_out(q2, prefix='192.168.20.0/24')[0]
-        env.assertTrue(path['aspath'] == [e1.asn]*5 + [e1.asn])
+        assert_true(path['aspath'] == [e1.asn]*5 + [e1.asn])
 
         path = g1.get_adj_rib_out(q2, prefix='192.168.200.0/24')[0]
-        env.assertTrue(path['aspath'] == [e1.asn])
+        assert_true(path['aspath'] == [e1.asn])
+
+    @staticmethod
+    def executor(env):
+        lookup_scenario("ExportPolicyAsPathPrependLastAS").boot(env)
+        lookup_scenario("ExportPolicyAsPathPrependLastAS").setup(env)
+        lookup_scenario("ExportPolicyAsPathPrependLastAS").check(env)
+        lookup_scenario("ExportPolicyAsPathPrependLastAS").check2(env)
 
 
 @register_scenario
@@ -2639,6 +2884,12 @@ class ImportPolicyExCommunityOriginCondition(object):
     def check(env):
         lookup_scenario("ImportPolicy").check(env)
 
+    @staticmethod
+    def executor(env):
+        lookup_scenario("ImportPolicyExCommunityOriginCondition").boot(env)
+        lookup_scenario("ImportPolicyExCommunityOriginCondition").setup(env)
+        lookup_scenario("ImportPolicyExCommunityOriginCondition").check(env)
+
 
 @register_scenario
 class ImportPolicyExCommunityTargetCondition(object):
@@ -2684,6 +2935,12 @@ class ImportPolicyExCommunityTargetCondition(object):
     @staticmethod
     def check(env):
         lookup_scenario("ImportPolicy").check(env)
+
+    @staticmethod
+    def executor(env):
+        lookup_scenario("ImportPolicyExCommunityTargetCondition").boot(env)
+        lookup_scenario("ImportPolicyExCommunityTargetCondition").setup(env)
+        lookup_scenario("ImportPolicyExCommunityTargetCondition").check(env)
 
 
 @register_scenario
@@ -2734,6 +2991,12 @@ class InPolicyPrefixCondition(object):
     @staticmethod
     def check(env):
         lookup_scenario('InPolicyReject').check(env)
+
+    @staticmethod
+    def executor(env):
+        lookup_scenario("InPolicyPrefixCondition").boot(env)
+        lookup_scenario("InPolicyPrefixCondition").setup(env)
+        lookup_scenario("InPolicyPrefixCondition").check(env)
 
 
 def ext_community_exists(path, extcomm):
@@ -2816,9 +3079,16 @@ class ImportPolicyExCommunityAdd(object):
         q1 = env.q1
         q2 = env.q2
         path = g1.get_adj_rib_out(q1)[0]
-        env.assertFalse(ext_community_exists(path, 'RT:65000:1'))
+        assert_false(ext_community_exists(path, 'RT:65000:1'))
         path = g1.get_adj_rib_out(q2)[0]
-        env.assertTrue(ext_community_exists(path, 'RT:65000:1'))
+        assert_true(ext_community_exists(path, 'RT:65000:1'))
+
+    @staticmethod
+    def executor(env):
+        lookup_scenario("ImportPolicyExCommunityAdd").boot(env)
+        lookup_scenario("ImportPolicyExCommunityAdd").setup(env)
+        lookup_scenario("ImportPolicyExCommunityAdd").check(env)
+        lookup_scenario("ImportPolicyExCommunityAdd").check2(env)
 
 
 @register_scenario
@@ -2890,14 +3160,21 @@ class ImportPolicyExCommunityAdd2(object):
         q1 = env.q1
         q2 = env.q2
         path = g1.get_adj_rib_out(q1)[0]
-        env.assertTrue(ext_community_exists(path, 'RT:65000:1'))
-        env.assertFalse(ext_community_exists(path, 'RT:65100:100'))
+        assert_true(ext_community_exists(path, 'RT:65000:1'))
+        assert_false(ext_community_exists(path, 'RT:65100:100'))
         path = g1.get_local_rib(q2)[0]['paths'][0]
-        env.assertTrue(ext_community_exists(path, 'RT:65000:1'))
-        env.assertTrue(ext_community_exists(path, 'RT:65100:100'))
+        assert_true(ext_community_exists(path, 'RT:65000:1'))
+        assert_true(ext_community_exists(path, 'RT:65100:100'))
         path = g1.get_adj_rib_out(q2)[0]
-        env.assertTrue(ext_community_exists(path, 'RT:65000:1'))
-        env.assertTrue(ext_community_exists(path, 'RT:65100:100'))
+        assert_true(ext_community_exists(path, 'RT:65000:1'))
+        assert_true(ext_community_exists(path, 'RT:65100:100'))
+
+    @staticmethod
+    def executor(env):
+        lookup_scenario("ImportPolicyExCommunityAdd2").boot(env)
+        lookup_scenario("ImportPolicyExCommunityAdd2").setup(env)
+        lookup_scenario("ImportPolicyExCommunityAdd2").check(env)
+        lookup_scenario("ImportPolicyExCommunityAdd2").check2(env)
 
 
 @register_scenario
@@ -2969,14 +3246,21 @@ class ImportPolicyExCommunityMultipleAdd(object):
         q1 = env.q1
         q2 = env.q2
         path = g1.get_adj_rib_out(q1)[0]
-        env.assertFalse(ext_community_exists(path, 'RT:65100:100'))
-        env.assertFalse(ext_community_exists(path, 'RT:100:100'))
+        assert_false(ext_community_exists(path, 'RT:65100:100'))
+        assert_false(ext_community_exists(path, 'RT:100:100'))
         path = g1.get_local_rib(q2)[0]['paths'][0]
-        env.assertTrue(ext_community_exists(path, 'RT:65100:100'))
-        env.assertTrue(ext_community_exists(path, 'RT:100:100'))
+        assert_true(ext_community_exists(path, 'RT:65100:100'))
+        assert_true(ext_community_exists(path, 'RT:100:100'))
         path = g1.get_adj_rib_out(q2)[0]
-        env.assertTrue(ext_community_exists(path, 'RT:65100:100'))
-        env.assertTrue(ext_community_exists(path, 'RT:100:100'))
+        assert_true(ext_community_exists(path, 'RT:65100:100'))
+        assert_true(ext_community_exists(path, 'RT:100:100'))
+
+    @staticmethod
+    def executor(env):
+        lookup_scenario("ImportPolicyExCommunityMultipleAdd").boot(env)
+        lookup_scenario("ImportPolicyExCommunityMultipleAdd").setup(env)
+        lookup_scenario("ImportPolicyExCommunityMultipleAdd").check(env)
+        lookup_scenario("ImportPolicyExCommunityMultipleAdd").check2(env)
 
 
 @register_scenario
@@ -3048,14 +3332,21 @@ class ExportPolicyExCommunityAdd(object):
         q1 = env.q1
         q2 = env.q2
         path = g1.get_adj_rib_out(q1)[0]
-        env.assertFalse(ext_community_exists(path, 'RT:65000:1'))
+        assert_false(ext_community_exists(path, 'RT:65000:1'))
         path = g1.get_local_rib(q2)[0]['paths'][0]
-        env.assertFalse(ext_community_exists(path, 'RT:65000:1'))
+        assert_false(ext_community_exists(path, 'RT:65000:1'))
         path = g1.get_adj_rib_out(q2)[0]
-        env.assertTrue(ext_community_exists(path, 'RT:65000:1'))
+        assert_true(ext_community_exists(path, 'RT:65000:1'))
+
+    @staticmethod
+    def executor(env):
+        lookup_scenario("ExportPolicyExCommunityAdd").boot(env)
+        lookup_scenario("ExportPolicyExCommunityAdd").setup(env)
+        lookup_scenario("ExportPolicyExCommunityAdd").check(env)
+        lookup_scenario("ExportPolicyExCommunityAdd").check2(env)
 
 
-class GoBGPTestBase(unittest.TestCase):
+class TestGoBGPBase():
 
     wait_per_retry = 5
     retry_limit = 10
@@ -3065,37 +3356,27 @@ class GoBGPTestBase(unittest.TestCase):
         idx = parser_option.test_index
         base.TEST_PREFIX = parser_option.test_prefix
         cls.parser_option = parser_option
-
-        if idx not in _SCENARIOS:
+        cls.executors = []
+        if idx == 0:
+            print 'unset test-index. run all test sequential'
+            for _, v in _SCENARIOS.items():
+                for k, m in inspect.getmembers(v, inspect.isfunction):
+                    if k == 'executor':
+                        cls.executor = m
+                cls.executors.append(cls.executor)
+        elif idx not in _SCENARIOS:
             print 'invalid test-index. # of scenarios: {0}'.format(len(_SCENARIOS))
             sys.exit(1)
-
-        cls.setup2 = None
-        cls.check2 = None
-        for k, m in inspect.getmembers(_SCENARIOS[idx], inspect.isfunction):
-            if k == 'boot':
-                cls.boot = m
-            elif k == 'setup':
-                cls.setup = m
-            elif k == 'check':
-                cls.check = m
-            elif k == 'setup2':
-                cls.setup2 = m
-            elif k == 'check2':
-                cls.check2 = m
+        else:
+            for k, m in inspect.getmembers(_SCENARIOS[idx], inspect.isfunction):
+                if k == 'executor':
+                    cls.executor = m
+            cls.executors.append(cls.executor)
 
     def test(self):
-        self.boot()
+        for e in self.executors:
+            yield e
 
-        self.setup()
-
-        self.check()
-
-        if self.setup2:
-            self.setup2()
-
-        if self.check2:
-            self.check2()
 
 if __name__ == '__main__':
     if os.geteuid() is not 0:
