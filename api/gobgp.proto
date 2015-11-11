@@ -553,4 +553,6 @@ message Vrf {
 message Global {
     uint32 as = 1;
     string router_id = 2;
+    bool deaf = 3;
+    uint32 listen_port = 4;
 }
