@@ -16,13 +16,13 @@
 package openswitch
 
 import (
-	"code.google.com/p/go-uuid/uuid"
 	"fmt"
 	log "github.com/Sirupsen/logrus"
 	api "github.com/osrg/gobgp/api"
 	"github.com/osrg/gobgp/packet"
 	"github.com/osrg/gobgp/server"
 	ovsdb "github.com/osrg/libovsdb"
+	"github.com/satori/go.uuid"
 	"net"
 	"reflect"
 )
@@ -76,40 +76,40 @@ func (m *OpsConfigManager) populateCache(updates ovsdb.TableUpdates) {
 func extractUUID(v interface{}) uuid.UUID {
 	vv, ok := v.([]interface{})
 	if !ok {
-		return nil
+		return uuid.Nil
 	}
 	if len(vv) != 2 || vv[0].(string) != "uuid" {
-		return nil
+		return uuid.Nil
 	}
-	return uuid.Parse(vv[1].(string))
+	return uuid.FromStringOrNil(vv[1].(string))
 }
 
 func (m *OpsConfigManager) getBGPRouterUUID() (uint32, uuid.UUID, error) {
 	var asn uint32
 	vrfs, ok := m.cache["VRF"]
 	if !ok {
-		return asn, nil, fmt.Errorf("no vrf table")
+		return asn, uuid.Nil, fmt.Errorf("no vrf table")
 	}
 	for _, v := range vrfs {
 		if v.Fields["name"] == "vrf_default" {
 			routers := v.Fields["bgp_routers"].(ovsdb.OvsMap).GoMap
 			if len(routers) < 1 {
-				return asn, nil, fmt.Errorf("no bgp router configured")
+				return asn, uuid.Nil, fmt.Errorf("no bgp router configured")
 			}
 			if len(routers) > 1 {
-				return asn, nil, fmt.Errorf("default vrf has multiple bgp router setting")
+				return asn, uuid.Nil, fmt.Errorf("default vrf has multiple bgp router setting")
 			}
 			for k, v := range routers {
 				asn = uint32(k.(float64))
 				id := extractUUID(v)
-				if id == nil {
-					return asn, nil, fmt.Errorf("invalid bgp router schema")
+				if id == uuid.Nil {
+					return asn, uuid.Nil, fmt.Errorf("invalid bgp router schema")
 				}
 				return asn, id, nil
 			}
 		}
 	}
-	return asn, nil, fmt.Errorf("not found")
+	return asn, uuid.Nil, fmt.Errorf("not found")
 }
 
 func (m *OpsConfigManager) getBGPNeighborUUIDs(id uuid.UUID) ([]net.IP, []uuid.UUID, error) {
@@ -118,7 +118,7 @@ func (m *OpsConfigManager) getBGPNeighborUUIDs(id uuid.UUID) ([]net.IP, []uuid.U
 		return nil, nil, fmt.Errorf("BGP_Router table not found")
 	}
 	for k, v := range global {
-		if uuid.Equal(id, uuid.Parse(k)) {
+		if uuid.Equal(id, uuid.FromStringOrNil(k)) {
 			neighbors := v.Fields["bgp_neighbors"].(ovsdb.OvsMap).GoMap
 			if len(neighbors) < 1 {
 				return nil, nil, fmt.Errorf("no bgp neighbor configured")
@@ -128,7 +128,7 @@ func (m *OpsConfigManager) getBGPNeighborUUIDs(id uuid.UUID) ([]net.IP, []uuid.U
 			for k, v := range neighbors {
 				addrs = append(addrs, net.ParseIP(k.(string)))
 				id := extractUUID(v)
-				if id == nil {
+				if id == uuid.Nil {
 					return nil, nil, fmt.Errorf("invalid uuid schema")
 				}
 				ids = append(ids, id)
@@ -165,7 +165,7 @@ func (m *OpsConfigManager) handleBgpRouterUpdate(update ovsdb.TableUpdate) []*se
 	}
 	reqs := []*server.GrpcRequest{}
 	for k, v := range update.Rows {
-		if uuid.Equal(id, uuid.Parse(k)) {
+		if uuid.Equal(id, uuid.FromStringOrNil(k)) {
 			initial := false
 			if len(v.Old.Fields) == 0 {
 				log.WithFields(log.Fields{
@@ -217,7 +217,7 @@ func (m *OpsConfigManager) handleNeighborUpdate(update ovsdb.TableUpdate) []*ser
 	reqs := make([]*server.GrpcRequest, 0, len(addrs))
 	for k, v := range update.Rows {
 		for idx, id := range ids {
-			if uuid.Equal(id, uuid.Parse(k)) {
+			if uuid.Equal(id, uuid.FromStringOrNil(k)) {
 				asn, ok := v.New.Fields["remote_as"].(float64)
 				if !ok {
 					log.Debugf("remote-as is not configured yet")
