@@ -47,6 +47,10 @@ func SetDefaultConfigValues(md toml.MetaData, bt *Bgp) error {
 		}
 	}
 
+	if bt.Global.ListenConfig.Port == 0 {
+		bt.Global.ListenConfig.Port = bgp.BGP_PORT
+	}
+
 	if _, ok := global["Global.MplsLabelRange.MinLabel"]; !ok {
 		bt.Global.MplsLabelRange.MinLabel = DEFAULT_MPLS_LABEL_MIN
 	}

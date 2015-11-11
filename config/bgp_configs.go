@@ -802,6 +802,12 @@ type Neighbors struct {
 	NeighborList []Neighbor
 }
 
+//struct for container gobgp:listen-config
+type ListenConfig struct {
+	// original -> gobgp:port
+	Port int32
+}
+
 //struct for container gobgp:mpls-label-range
 type MplsLabelRange struct {
 	// original -> gobgp:min-label
@@ -1376,6 +1382,8 @@ type Global struct {
 	Zebra Zebra
 	// original -> gobgp:mpls-label-range
 	MplsLabelRange MplsLabelRange
+	// original -> gobgp:listen-config
+	ListenConfig ListenConfig
 }
 
 //struct for container bgp:bgp

@@ -467,4 +467,5 @@ message Vrf {
 message Global {
     uint32 as = 1;
     string router_id = 2;
+    int32 listen_port = 3;
 }
