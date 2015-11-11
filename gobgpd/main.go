@@ -21,7 +21,6 @@ import (
 	"github.com/jessevdk/go-flags"
 	"github.com/osrg/gobgp/config"
 	ops "github.com/osrg/gobgp/openswitch"
-	"github.com/osrg/gobgp/packet"
 	"github.com/osrg/gobgp/server"
 	"io/ioutil"
 	"log/syslog"
@@ -152,7 +151,7 @@ func main() {
 
 	configCh := make(chan config.BgpConfigSet)
 	reloadCh := make(chan bool)
-	bgpServer := server.NewBgpServer(bgp.BGP_PORT)
+	bgpServer := server.NewBgpServer()
 	if opts.Ops {
 		m, err := ops.NewOpsConfigManager(bgpServer.GrpcReqCh)
 		if err != nil {

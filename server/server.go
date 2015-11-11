@@ -89,7 +89,6 @@ type BgpServer struct {
 	bmpConfigCh   chan config.BmpServers
 
 	GrpcReqCh      chan *GrpcRequest
-	listenPort     int
 	policyUpdateCh chan config.RoutingPolicy
 	policy         *table.RoutingPolicy
 	broadcastReqs  []*GrpcRequest
@@ -105,7 +104,7 @@ type BgpServer struct {
 	watchers       map[watcherType]watcher
 }
 
-func NewBgpServer(port int) *BgpServer {
+func NewBgpServer() *BgpServer {
 	b := BgpServer{}
 	b.globalTypeCh = make(chan config.Global)
 	b.addedPeerCh = make(chan config.Neighbor)
@@ -117,14 +116,13 @@ func NewBgpServer(port int) *BgpServer {
 	b.GrpcReqCh = make(chan *GrpcRequest, 1)
 	b.policyUpdateCh = make(chan config.RoutingPolicy)
 	b.neighborMap = make(map[string]*Peer)
-	b.listenPort = port
 	b.watchers = make(map[watcherType]watcher)
 	return &b
 }
 
 // avoid mapped IPv6 address
-func listenAndAccept(proto string, port int, ch chan *net.TCPConn) (*net.TCPListener, error) {
-	service := ":" + strconv.Itoa(port)
+func listenAndAccept(proto string, port uint32, ch chan *net.TCPConn) (*net.TCPListener, error) {
+	service := ":" + strconv.Itoa(int(port))
 	addr, _ := net.ResolveTCPAddr(proto, service)
 
 	l, err := net.ListenTCP(proto, addr)
@@ -230,13 +228,15 @@ func (server *BgpServer) Serve() {
 	server.globalRib = table.NewTableManager(GLOBAL_RIB_NAME, toRFlist(g.AfiSafis.AfiSafiList), g.MplsLabelRange.MinLabel, g.MplsLabelRange.MaxLabel)
 	server.listenerMap = make(map[string]*net.TCPListener)
 	acceptCh := make(chan *net.TCPConn)
-	l4, err1 := listenAndAccept("tcp4", server.listenPort, acceptCh)
-	server.listenerMap["tcp4"] = l4
-	l6, err2 := listenAndAccept("tcp6", server.listenPort, acceptCh)
-	server.listenerMap["tcp6"] = l6
-	if err1 != nil && err2 != nil {
-		log.Fatal("can't listen either v4 and v6")
-		os.Exit(1)
+	if !g.ListenConfig.Deaf {
+		l4, err1 := listenAndAccept("tcp4", g.ListenConfig.Port, acceptCh)
+		server.listenerMap["tcp4"] = l4
+		l6, err2 := listenAndAccept("tcp6", g.ListenConfig.Port, acceptCh)
+		server.listenerMap["tcp6"] = l6
+		if err1 != nil && err2 != nil {
+			log.Fatal("can't listen either v4 and v6")
+			os.Exit(1)
+		}
 	}
 
 	listener := func(addr net.IP) *net.TCPListener {
@@ -361,8 +361,9 @@ func (server *BgpServer) Serve() {
 				log.Warn("Can't overwrite the exising peer ", addr)
 				continue
 			}
-
-			SetTcpMD5SigSockopts(listener(config.NeighborConfig.NeighborAddress), addr, config.NeighborConfig.AuthPassword)
+			if !g.ListenConfig.Deaf {
+				SetTcpMD5SigSockopts(listener(config.NeighborConfig.NeighborAddress), addr, config.NeighborConfig.AuthPassword)
+			}
 			var loc *table.TableManager
 			if config.RouteServer.RouteServerConfig.RouteServerClient {
 				loc = table.NewTableManager(config.NeighborConfig.NeighborAddress.String(), toRFlist(config.AfiSafis.AfiSafiList), g.MplsLabelRange.MinLabel, g.MplsLabelRange.MaxLabel)
@@ -1303,6 +1304,10 @@ func (server *BgpServer) handleModGlobalConfig(grpcReq *GrpcRequest) error {
 				As:       g.As,
 				RouterId: net.ParseIP(g.RouterId),
 			},
+			ListenConfig: config.ListenConfig{
+				Deaf: g.Deaf,
+				Port: g.ListenPort,
+			},
 		},
 	}
 	err := config.SetDefaultConfigValues(toml.MetaData{}, &c)
@@ -1765,7 +1770,9 @@ func (server *BgpServer) handleGrpcModNeighbor(grpcReq *GrpcRequest) (sMsgs []*S
 		} else {
 			log.Infof("Peer %s is added", addr)
 		}
-		SetTcpMD5SigSockopts(listener(net.ParseIP(addr)), addr, arg.Peer.Conf.AuthPassword)
+		if !server.bgpConfig.Global.ListenConfig.Deaf {
+			SetTcpMD5SigSockopts(listener(net.ParseIP(addr)), addr, arg.Peer.Conf.AuthPassword)
+		}
 		var loc *table.TableManager
 		if arg.Peer.RouteServer != nil {
 			if arg.Peer.RouteServer.RouteServerClient {
