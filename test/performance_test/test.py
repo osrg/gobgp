@@ -1,6 +1,7 @@
 from lib.gobgp import *
 from lib.quagga import *
 from lib.bird import *
+from lib.exabgp import *
 from fabric.api import local
 from optparse import OptionParser
 import sys
@@ -43,6 +44,8 @@ if __name__ == '__main__':
         target = QuaggaBGPContainer("target", 1000, "10.10.0.1")
     elif options.target_rs == "bird":
         target = BirdContainer("target", 1000, "10.10.0.1")
+    elif options.target_rs == "exabgp":
+        target = ExaBGPContainer("target", 1000, "10.10.0.1")
     else:
         print 'Unknown target implementation:', options.target_rs
         sys.exit(1)
