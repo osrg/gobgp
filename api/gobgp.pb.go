@@ -14,6 +14,7 @@ It has these top-level messages:
 	ModPathArguments
 	ModNeighborArguments
 	MrtArguments
+	ModMrtArguments
 	ModVrfArguments
 	ModDefinedSetArguments
 	ModStatementArguments
@@ -391,6 +392,15 @@ type MrtArguments struct {
 func (m *MrtArguments) Reset()         { *m = MrtArguments{} }
 func (m *MrtArguments) String() string { return proto.CompactTextString(m) }
 func (*MrtArguments) ProtoMessage()    {}
+
+type ModMrtArguments struct {
+	Operation Operation `protobuf:"varint,1,opt,name=operation,enum=gobgpapi.Operation" json:"operation,omitempty"`
+	Filename  string    `protobuf:"bytes,2,opt,name=filename" json:"filename,omitempty"`
+}
+
+func (m *ModMrtArguments) Reset()         { *m = ModMrtArguments{} }
+func (m *ModMrtArguments) String() string { return proto.CompactTextString(m) }
+func (*ModMrtArguments) ProtoMessage()    {}
 
 type ModVrfArguments struct {
 	Operation Operation `protobuf:"varint,1,opt,name=operation,enum=gobgpapi.Operation" json:"operation,omitempty"`
@@ -1518,6 +1528,7 @@ type GobgpApiClient interface {
 	MonitorBestChanged(ctx context.Context, in *Arguments, opts ...grpc.CallOption) (GobgpApi_MonitorBestChangedClient, error)
 	MonitorPeerState(ctx context.Context, in *Arguments, opts ...grpc.CallOption) (GobgpApi_MonitorPeerStateClient, error)
 	GetMrt(ctx context.Context, in *MrtArguments, opts ...grpc.CallOption) (GobgpApi_GetMrtClient, error)
+	ModMrt(ctx context.Context, in *ModMrtArguments, opts ...grpc.CallOption) (*Error, error)
 	GetRPKI(ctx context.Context, in *Arguments, opts ...grpc.CallOption) (GobgpApi_GetRPKIClient, error)
 	GetROA(ctx context.Context, in *Arguments, opts ...grpc.CallOption) (GobgpApi_GetROAClient, error)
 	GetVrfs(ctx context.Context, in *Arguments, opts ...grpc.CallOption) (GobgpApi_GetVrfsClient, error)
@@ -1836,6 +1847,15 @@ func (x *gobgpApiGetMrtClient) Recv() (*MrtMessage, error) {
 	return m, nil
 }
 
+func (c *gobgpApiClient) ModMrt(ctx context.Context, in *ModMrtArguments, opts ...grpc.CallOption) (*Error, error) {
+	out := new(Error)
+	err := grpc.Invoke(ctx, "/gobgpapi.GobgpApi/ModMrt", in, out, c.cc, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 func (c *gobgpApiClient) GetRPKI(ctx context.Context, in *Arguments, opts ...grpc.CallOption) (GobgpApi_GetRPKIClient, error) {
 	stream, err := grpc.NewClientStream(ctx, &_GobgpApi_serviceDesc.Streams[6], c.cc, "/gobgpapi.GobgpApi/GetRPKI", opts...)
 	if err != nil {
@@ -2129,6 +2149,7 @@ type GobgpApiServer interface {
 	MonitorBestChanged(*Arguments, GobgpApi_MonitorBestChangedServer) error
 	MonitorPeerState(*Arguments, GobgpApi_MonitorPeerStateServer) error
 	GetMrt(*MrtArguments, GobgpApi_GetMrtServer) error
+	ModMrt(context.Context, *ModMrtArguments) (*Error, error)
 	GetRPKI(*Arguments, GobgpApi_GetRPKIServer) error
 	GetROA(*Arguments, GobgpApi_GetROAServer) error
 	GetVrfs(*Arguments, GobgpApi_GetVrfsServer) error
@@ -2413,6 +2434,18 @@ func (x *gobgpApiGetMrtServer) Send(m *MrtMessage) error {
 	return x.ServerStream.SendMsg(m)
 }
 
+func _GobgpApi_ModMrt_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error) (interface{}, error) {
+	in := new(ModMrtArguments)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	out, err := srv.(GobgpApiServer).ModMrt(ctx, in)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 func _GobgpApi_GetRPKI_Handler(srv interface{}, stream grpc.ServerStream) error {
 	m := new(Arguments)
 	if err := stream.RecvMsg(m); err != nil {
@@ -2694,6 +2727,10 @@ var _GobgpApi_serviceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "Disable",
 			Handler:    _GobgpApi_Disable_Handler,
+		},
+		{
+			MethodName: "ModMrt",
+			Handler:    _GobgpApi_ModMrt_Handler,
 		},
 		{
 			MethodName: "ModVrf",

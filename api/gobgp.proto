@@ -37,6 +37,7 @@ service GobgpApi {
   rpc MonitorBestChanged(Arguments) returns (stream Destination) {}
   rpc MonitorPeerState(Arguments) returns (stream Peer) {}
   rpc GetMrt(MrtArguments) returns (stream MrtMessage) {}
+  rpc ModMrt(ModMrtArguments) returns (Error) {}
   rpc GetRPKI(Arguments) returns (stream RPKI) {}
   rpc GetROA(Arguments) returns (stream ROA) {}
   rpc GetVrfs(Arguments) returns (stream Vrf) {}
@@ -79,11 +80,17 @@ message ModNeighborArguments {
     Operation operation = 1;
     Peer peer = 2;
 }
+
 message MrtArguments {
     Resource resource = 1;
     uint32 rf = 2;
     uint64 interval = 3;
     string neighbor_address = 4;
+}
+
+message ModMrtArguments {
+    Operation operation = 1;
+    string filename = 2;
 }
 
 message ModVrfArguments {

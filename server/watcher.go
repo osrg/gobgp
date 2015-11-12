@@ -16,6 +16,7 @@
 package server
 
 import (
+	"fmt"
 	log "github.com/Sirupsen/logrus"
 	"github.com/osrg/gobgp/packet"
 	"gopkg.in/tomb.v2"
@@ -66,7 +67,13 @@ type watcherEventUpdateMsg struct {
 
 type watcher interface {
 	notify(watcherEventType) chan watcherEvent
+	restart(string) error
 	stop()
+}
+
+type mrtWatcherOp struct {
+	filename string //used for rotate
+	result   chan error
 }
 
 type mrtWatcher struct {
@@ -74,6 +81,7 @@ type mrtWatcher struct {
 	filename string
 	file     *os.File
 	ch       chan watcherEvent
+	opCh     chan *mrtWatcherOp
 }
 
 func (w *mrtWatcher) notify(t watcherEventType) chan watcherEvent {
@@ -87,7 +95,21 @@ func (w *mrtWatcher) stop() {
 	w.t.Kill(nil)
 }
 
+func (w *mrtWatcher) restart(filename string) error {
+	adminOp := &mrtWatcherOp{
+		filename: filename,
+		result:   make(chan error),
+	}
+	select {
+	case w.opCh <- adminOp:
+	default:
+		return fmt.Errorf("already an admin operaiton in progress")
+	}
+	return <-adminOp.result
+}
+
 func (w *mrtWatcher) loop() error {
+	defer w.file.Close()
 	for {
 		write := func(ev watcherEvent) {
 			m := ev.(*watcherEventUpdateMsg)
@@ -117,28 +139,55 @@ func (w *mrtWatcher) loop() error {
 			}
 		}
 
-		select {
-		case <-w.t.Dying():
+		drain := func() {
 			for len(w.ch) > 0 {
 				m := <-w.ch
 				write(m)
 			}
+		}
+
+		select {
+		case <-w.t.Dying():
+			drain()
 			return nil
 		case m := <-w.ch:
 			write(m)
+		case adminOp := <-w.opCh:
+			var err error
+			if adminOp.filename != "" {
+				err = os.Rename(w.file.Name(), adminOp.filename)
+			}
+			if err == nil {
+				var file *os.File
+				file, err = mrtFileOpen(w.file.Name())
+				if err == nil {
+					w.file.Close()
+					w.file = file
+				}
+			}
+			adminOp.result <- err
 		}
 	}
 }
 
-func newMrtWatcher(filename string) (*mrtWatcher, error) {
+func mrtFileOpen(filename string) (*os.File, error) {
 	file, err := os.OpenFile(filename, os.O_CREATE|os.O_RDWR|os.O_APPEND, 0644)
 	if err != nil {
-		log.Fatal(err)
+		log.Warn(err)
+	}
+	return file, err
+}
+
+func newMrtWatcher(filename string) (*mrtWatcher, error) {
+	file, err := mrtFileOpen(filename)
+	if err != nil {
+		return nil, err
 	}
 	w := mrtWatcher{
 		filename: filename,
 		file:     file,
 		ch:       make(chan watcherEvent),
+		opCh:     make(chan *mrtWatcherOp, 1),
 	}
 	w.t.Go(w.loop)
 	return &w, nil

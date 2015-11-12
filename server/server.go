@@ -1691,6 +1691,8 @@ func (server *BgpServer) handleGrpc(grpcReq *GrpcRequest) []*SenderMsg {
 		server.broadcastReqs = append(server.broadcastReqs, grpcReq)
 	case REQ_MRT_GLOBAL_RIB, REQ_MRT_LOCAL_RIB:
 		server.handleMrt(grpcReq)
+	case REQ_MOD_MRT:
+		server.handleModMrt(grpcReq)
 	case REQ_ROA, REQ_RPKI:
 		server.roaClient.handleGRPC(grpcReq)
 	case REQ_VRF, REQ_VRFS, REQ_VRF_MOD:
@@ -2195,6 +2197,46 @@ func (server *BgpServer) handleGrpcModPolicyAssignment(grpcReq *GrpcRequest) err
 		err = i.SetDefaultPolicy(dir, table.ROUTE_TYPE_NONE)
 	}
 	return err
+}
+
+func (server *BgpServer) handleModMrt(grpcReq *GrpcRequest) {
+	done := func(e error) {
+		result := &GrpcResponse{
+			ResponseErr: e,
+		}
+		grpcReq.ResponseCh <- result
+		close(grpcReq.ResponseCh)
+	}
+	arg := grpcReq.Data.(*api.ModMrtArguments)
+	w, y := server.watchers[WATCHER_MRT]
+	if arg.Operation == api.Operation_ADD {
+		if y {
+			done(fmt.Errorf("already enabled"))
+			return
+		}
+	} else {
+		if !y {
+			done(fmt.Errorf("not enabled yet"))
+			return
+		}
+	}
+	switch arg.Operation {
+	case api.Operation_ADD:
+		w, err := newMrtWatcher(arg.Filename)
+		if err == nil {
+			server.watchers[WATCHER_MRT] = w
+		}
+		done(err)
+	case api.Operation_DEL:
+		delete(server.watchers, WATCHER_MRT)
+		w.stop()
+		done(nil)
+	case api.Operation_REPLACE:
+		go func() {
+			err := w.restart(arg.Filename)
+			done(err)
+		}()
+	}
 }
 
 func (server *BgpServer) handleMrt(grpcReq *GrpcRequest) {

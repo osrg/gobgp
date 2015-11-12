@@ -413,10 +413,43 @@ func NewMrtCmd() *cobra.Command {
 	}
 	injectCmd.AddCommand(globalInjectCmd)
 
+	rotateCmd := &cobra.Command{
+		Use: CMD_ROTATE,
+		Run: func(cmd *cobra.Command, args []string) {
+			if len(args) != 1 {
+				fmt.Println("usage: gobgp mrt update rotate <filename>")
+				os.Exit(1)
+			}
+			arg := &api.ModMrtArguments{
+				Operation: api.Operation_REPLACE,
+				Filename:  args[0],
+			}
+			client.ModMrt(context.Background(), arg)
+		},
+	}
+	restartCmd := &cobra.Command{
+		Use: CMD_RESET,
+		Run: func(cmd *cobra.Command, args []string) {
+			if len(args) > 0 {
+				fmt.Println("usage: gobgp mrt update reset")
+				os.Exit(1)
+			}
+			arg := &api.ModMrtArguments{
+				Operation: api.Operation_REPLACE,
+			}
+			client.ModMrt(context.Background(), arg)
+		},
+	}
+
+	updateCmd := &cobra.Command{
+		Use: CMD_UPDATE,
+	}
+	updateCmd.AddCommand(restartCmd, rotateCmd)
+
 	mrtCmd := &cobra.Command{
 		Use: CMD_MRT,
 	}
-	mrtCmd.AddCommand(dumpCmd, injectCmd)
+	mrtCmd.AddCommand(dumpCmd, injectCmd, updateCmd)
 
 	return mrtCmd
 }

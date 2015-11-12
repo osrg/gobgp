@@ -66,6 +66,8 @@ const (
 	CMD_STATEMENT      = "statement"
 	CMD_CONDITION      = "condition"
 	CMD_ACTION         = "action"
+	CMD_UPDATE         = "update"
+	CMD_ROTATE         = "rotate"
 )
 
 var subOpts struct {

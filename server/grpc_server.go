@@ -48,6 +48,7 @@ const (
 	REQ_MONITOR_NEIGHBOR_PEER_STATE
 	REQ_MRT_GLOBAL_RIB
 	REQ_MRT_LOCAL_RIB
+	REQ_MOD_MRT
 	REQ_RPKI
 	REQ_ROA
 	REQ_VRF
@@ -257,6 +258,10 @@ func (s *Server) GetMrt(arg *api.MrtArguments, stream api.GobgpApi_GetMrtServer)
 	return handleMultipleResponses(req, func(res *GrpcResponse) error {
 		return stream.Send(res.Data.(*api.MrtMessage))
 	})
+}
+
+func (s *Server) ModMrt(ctx context.Context, arg *api.ModMrtArguments) (*api.Error, error) {
+	return s.mod(REQ_MOD_MRT, arg)
 }
 
 func (s *Server) GetRPKI(arg *api.Arguments, stream api.GobgpApi_GetRPKIServer) error {
