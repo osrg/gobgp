@@ -102,7 +102,7 @@ type BgpServer struct {
 
 func NewBgpServer() *BgpServer {
 	b := BgpServer{}
-	b.globalTypeCh = make(chan config.Global)
+	b.globalTypeCh = make(chan config.Global, 1)
 	b.addedPeerCh = make(chan config.Neighbor)
 	b.deletedPeerCh = make(chan config.Neighbor)
 	b.updatedPeerCh = make(chan config.Neighbor)
@@ -146,14 +146,22 @@ func (server *BgpServer) Serve() {
 	var g config.Global
 	for {
 		select {
+		case g = <-server.globalTypeCh:
+			server.bgpConfig.Global = g
+			server.globalTypeCh = nil
+		default:
+		}
+
+		if server.globalTypeCh == nil {
+			break
+		}
+
+		select {
 		case grpcReq := <-server.GrpcReqCh:
 			server.handleGrpc(grpcReq)
 		case g = <-server.globalTypeCh:
 			server.bgpConfig.Global = g
 			server.globalTypeCh = nil
-		}
-		if server.globalTypeCh == nil {
-			break
 		}
 	}
 
@@ -1315,9 +1323,7 @@ func (server *BgpServer) handleModGlobalConfig(grpcReq *GrpcRequest) error {
 	if err != nil {
 		return err
 	}
-	go func() {
-		server.globalTypeCh <- c.Global
-	}()
+	server.globalTypeCh <- c.Global
 	return nil
 }
 
