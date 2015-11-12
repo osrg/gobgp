@@ -167,6 +167,9 @@ func (server *BgpServer) Serve() {
 		}
 	}
 
+	server.bmpClient, _ = newBMPClient(config.BmpServers{BmpServerList: []config.BmpServer{}}, server.bmpConnCh)
+	server.roaClient, _ = newROAClient(g.GlobalConfig.As, config.RpkiServers{})
+
 	if g.Mrt.FileName != "" {
 		w, err := newMrtWatcher(g.Mrt.FileName)
 		if err != nil {

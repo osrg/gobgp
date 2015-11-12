@@ -170,11 +170,6 @@ func main() {
 	grpcServer := server.NewGrpcServer(server.GRPC_PORT, bgpServer.GrpcReqCh)
 	go grpcServer.Serve()
 
-	if opts.ConfigFile == "" {
-		bgpServer.SetBmpConfig(config.BmpServers{
-			BmpServerList: []config.BmpServer{},
-		})
-	}
 	var bgpConfig *config.Bgp = nil
 	var policyConfig *config.RoutingPolicy = nil
 	for {
