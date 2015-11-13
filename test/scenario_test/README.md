@@ -84,17 +84,45 @@ $ sudo fab -f ./test/lib/base.py make_gobgp_ctn --set tag=gobgp
 
 
 ## <a name="section3"> Run test
-You can run all scenario tests with run_all_tests.sh.
-If all tests passed, you can see "all tests passed successfully" at the end of the test.
 
-```shell
-$ cd $GOPATH/src/github.com/osrg/gobgp/test/scenario_test
-$ ./run_all_tests.sh
-...
-OK
-all tests passed successfully
-```
+1. Run all test
 
+ You can run all scenario tests with run_all_tests.sh.
+ If all tests passed, you can see "all tests passed successfully" at the end of the test.
+
+ ```shell
+ $ cd $GOPATH/src/github.com/osrg/gobgp/test/scenario_test
+ $ ./run_all_tests.sh
+ ...
+ OK
+ all tests passed successfully
+ ```
+ <br>
+2. Run each test
+
+ Gobgp have a scenario test shown in the following.
+ You can run scenario tests individually with each test file.
+
+ ```shell
+ $ cd $GOPATH/src/github.com/osrg/gobgp/test/scenario_test
+ $ udo -E PYTHONPATH=$GOBGP/test python <scenario test name>.py -s
+ ...
+ OK
+ ```
+
+ kind of scenaio tests:
+ - bgp_router_test
+ - bgp_zebra_test
+ - evpn_test
+ - flow_spec_test
+ - global_policy_test
+ - ibgp_router_test
+ - route_reflector_test
+ - route_server_ipv4_v6_test
+ - route_server_malformed_test
+ - route_server_policy_grpc_test
+ - route_server_policy_test
+ - route_server_test
 
 ## <a name="section4"> Clean up
 A lot of containers are created during the test.
