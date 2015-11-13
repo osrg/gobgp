@@ -17,23 +17,21 @@ package main
 
 import (
 	"fmt"
-	"net"
 	"os"
 	"time"
 
 	log "github.com/Sirupsen/logrus"
 	"github.com/jessevdk/go-flags"
+	api "github.com/osrg/gobgp/api"
 	"github.com/osrg/gobgp/config"
 	"github.com/osrg/gobgp/packet"
 	"github.com/osrg/gobgp/server"
-	"github.com/osrg/gobgp/table"
 )
 
-func newPeer(g config.Global, p config.Neighbor, incoming chan *server.FsmMsg) *server.Peer {
-	tbl := table.NewTableManager(g.GlobalConfig.RouterId.String(), []bgp.RouteFamily{bgp.RF_IPv4_UC, bgp.RF_IPv6_UC}, 0, 0)
-	peer := server.NewPeer(g, p, tbl)
-	server.NewFSMHandler(peer.Fsm(), incoming, peer.Outgoing())
-	return peer
+func newServer() *server.BgpServer {
+	s := server.NewBgpServer()
+	go s.Serve()
+	return s
 }
 
 func main() {
@@ -49,50 +47,76 @@ func main() {
 		os.Exit(1)
 	}
 
-	peerMap := make(map[string]*server.Peer)
-	incoming := make(chan *server.FsmMsg, 1024)
 	num := opts.NumPeer
+	serverMap := make(map[string]*server.BgpServer)
+	estabCh := make(chan struct{}, 8)
 	start := time.Now()
+
 	for i := 0; i < num; i++ {
+		s := newServer()
 		localAddr := fmt.Sprintf("10.10.%d.%d", (i+2)/255, (i+2)%255)
-		g := config.Global{
-			GlobalConfig: config.GlobalConfig{
+		serverMap[localAddr] = s
+		req := server.NewGrpcRequest(server.REQ_MOD_GLOBAL_CONFIG, "", bgp.RouteFamily(0), &api.ModGlobalConfigArguments{
+			Operation: api.Operation_ADD,
+			Global: &api.Global{
 				As:       uint32(1001 + i),
-				RouterId: net.ParseIP(localAddr),
+				RouterId: localAddr,
+				Deaf:     true,
 			},
+		})
+		s.GrpcReqCh <- req
+		res := <-req.ResponseCh
+		if err := res.Err(); err != nil {
+			log.Fatalf("%s", err)
 		}
-		p := config.Neighbor{
-			NeighborConfig: config.NeighborConfig{
-				PeerAs:          1000,
-				NeighborAddress: net.ParseIP("10.10.0.1"),
-			},
-			Transport: config.Transport{
-				TransportConfig: config.TransportConfig{
-					LocalAddress: net.ParseIP(localAddr),
+
+		req = server.NewGrpcRequest(server.REQ_MONITOR_NEIGHBOR_PEER_STATE, "", bgp.RouteFamily(0), nil)
+		s.GrpcReqCh <- req
+		go func(r *server.GrpcRequest) {
+			for {
+				select {
+				case msg := <-r.ResponseCh:
+					if msg.Data.(*api.Peer).Info.BgpState == api.PeerState_ESTABLISHED {
+						estabCh <- struct{}{}
+						return
+					}
+				}
+			}
+		}(req)
+
+		req = server.NewGrpcRequest(server.REQ_MOD_NEIGHBOR, "", bgp.RouteFamily(0), &api.ModNeighborArguments{
+			Operation: api.Operation_ADD,
+			Peer: &api.Peer{
+				Conf: &api.PeerConf{
+					NeighborAddress: "10.10.0.1",
+					PeerAs:          1000,
+				},
+				Transport: &api.Transport{
+					LocalAddress: localAddr,
+				},
+				Timers: &api.Timers{
+					Config: &api.TimersConfig{
+						ConnectRetry:      1,
+						HoldTime:          config.DEFAULT_HOLDTIME,
+						KeepaliveInterval: config.DEFAULT_HOLDTIME / 3,
+					},
 				},
 			},
+		})
+		s.GrpcReqCh <- req
+		res = <-req.ResponseCh
+		if err := res.Err(); err != nil {
+			log.Fatalf("%s", err)
 		}
-		peer := newPeer(g, p, incoming)
-		peerMap[p.Transport.TransportConfig.LocalAddress.String()] = peer
 	}
 	established := 0
 	ticker := time.NewTicker(time.Second * 5)
 	for {
 		select {
-		case msg := <-incoming:
-			peer := peerMap[msg.MsgDst]
-			switch msg.MsgType {
-			case server.FSM_MSG_STATE_CHANGE:
-				nextState := msg.MsgData.(bgp.FSMState)
-				fsm := peer.Fsm()
-				fsm.StateChange(nextState)
-				server.NewFSMHandler(fsm, incoming, peer.Outgoing())
-				if nextState == bgp.BGP_FSM_ESTABLISHED {
-					established++
-				}
-				if num == established {
-					goto END
-				}
+		case <-estabCh:
+			established++
+			if num == established {
+				goto END
 			}
 		case <-ticker.C:
 			now := time.Now()
@@ -104,11 +128,5 @@ END:
 	log.Infof("all established. elapsed time: %s", end.Sub(start))
 	if args[0] == "T1" {
 		return
-	}
-	for {
-		select {
-		case msg := <-incoming:
-			fmt.Println(msg)
-		}
 	}
 }
