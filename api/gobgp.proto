@@ -331,7 +331,16 @@ message PeerState {
   uint32 send_community = 12;
   uint32 session_state = 13;
   repeated string supported_capabilities = 14;
-  string bgp_state = 15;
+  enum BgpState {
+      UNKNOWN = 0;
+      IDLE = 1;
+      CONNECT = 2;
+      ACTIVE = 3;
+      OPENSENT = 4;
+      OPENCONFIRM = 5;
+      ESTABLISHED = 6;
+  }
+  BgpState bgp_state = 15;
   string admin_state = 16;
   uint32 received = 17;
   uint32 accepted = 18;

@@ -97,7 +97,7 @@ func showNeighbors() error {
 		var t string
 		if p.Timers.State.Uptime == 0 {
 			t = "never"
-		} else if p.Info.BgpState == "BGP_FSM_ESTABLISHED" {
+		} else if p.Info.BgpState == api.PeerState_ESTABLISHED {
 			t = formatTimedelta(int64(p.Timers.State.Uptime))
 		} else {
 			t = formatTimedelta(int64(p.Timers.State.Downtime))
@@ -111,23 +111,26 @@ func showNeighbors() error {
 	format = "%-" + fmt.Sprint(maxaddrlen) + "s" + " %" + fmt.Sprint(maxaslen) + "s" + " %" + fmt.Sprint(maxtimelen) + "s"
 	format += " %-11s |%11s %8s %8s\n"
 	fmt.Printf(format, "Peer", "AS", "Up/Down", "State", "#Advertised", "Received", "Accepted")
-	format_fsm := func(admin, fsm string) string {
+	format_fsm := func(admin string, fsm api.PeerState_BgpState) string {
 		if admin == "ADMIN_STATE_DOWN" {
 			return "Idle(Admin)"
 		}
 
-		if fsm == "BGP_FSM_IDLE" {
+		switch fsm {
+		case api.PeerState_IDLE:
 			return "Idle"
-		} else if fsm == "BGP_FSM_CONNECT" {
+		case api.PeerState_CONNECT:
 			return "Connect"
-		} else if fsm == "BGP_FSM_ACTIVE" {
+		case api.PeerState_ACTIVE:
 			return "Active"
-		} else if fsm == "BGP_FSM_OPENSENT" {
+		case api.PeerState_OPENSENT:
 			return "Sent"
-		} else if fsm == "BGP_FSM_OPENCONFIRM" {
+		case api.PeerState_OPENCONFIRM:
 			return "Confirm"
-		} else {
+		case api.PeerState_ESTABLISHED:
 			return "Establ"
+		default:
+			return "Unknown"
 		}
 	}
 
