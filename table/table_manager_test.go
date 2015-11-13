@@ -23,6 +23,7 @@ import (
 	"net"
 	"os"
 	"testing"
+	"time"
 )
 
 func getLogger(lv log.Level) *log.Logger {
@@ -2143,13 +2144,13 @@ func TestProcessBGPUpdate_Timestamp(t *testing.T) {
 	adjRib := NewAdjRib([]bgp.RouteFamily{bgp.RF_IPv4_UC, bgp.RF_IPv6_UC})
 	m1 := bgp.NewBGPUpdateMessage(nil, pathAttributes, nlri)
 	peer := peerR1()
-	pList1 := ProcessMessage(m1, peer)
+	pList1 := ProcessMessage(m1, peer, time.Now())
 	path1 := pList1[0]
 	t1 := path1.timestamp
 	adjRib.UpdateIn(pList1)
 
 	m2 := bgp.NewBGPUpdateMessage(nil, pathAttributes, nlri)
-	pList2 := ProcessMessage(m2, peer)
+	pList2 := ProcessMessage(m2, peer, time.Now())
 	//path2 := pList2[0].(*IPv4Path)
 	//t2 = path2.timestamp
 	adjRib.UpdateIn(pList2)
@@ -2167,7 +2168,7 @@ func TestProcessBGPUpdate_Timestamp(t *testing.T) {
 	}
 
 	m3 := bgp.NewBGPUpdateMessage(nil, pathAttributes2, nlri)
-	pList3 := ProcessMessage(m3, peer)
+	pList3 := ProcessMessage(m3, peer, time.Now())
 	t3 := pList3[0].GetTimestamp()
 	adjRib.UpdateIn(pList3)
 

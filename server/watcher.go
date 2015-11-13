@@ -63,6 +63,7 @@ type watcherEventUpdateMsg struct {
 	peerAddress  net.IP
 	localAddress net.IP
 	fourBytesAs  bool
+	timestamp    time.Time
 }
 
 type watcher interface {
@@ -118,7 +119,7 @@ func (w *mrtWatcher) loop() error {
 			if m.fourBytesAs == false {
 				subtype = bgp.MESSAGE
 			}
-			bm, err := bgp.NewMRTMessage(uint32(time.Now().Unix()), bgp.BGP4MP, subtype, mp)
+			bm, err := bgp.NewMRTMessage(uint32(m.timestamp.Unix()), bgp.BGP4MP, subtype, mp)
 			if err != nil {
 				log.WithFields(log.Fields{
 					"Topic": "mrt",

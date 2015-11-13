@@ -37,11 +37,12 @@ const (
 )
 
 type FsmMsg struct {
-	MsgType  FsmMsgType
-	MsgSrc   string
-	MsgDst   string
-	MsgData  interface{}
-	PathList []*table.Path
+	MsgType   FsmMsgType
+	MsgSrc    string
+	MsgDst    string
+	MsgData   interface{}
+	PathList  []*table.Path
+	timestamp time.Time
 }
 
 const (
@@ -470,13 +471,18 @@ func (h *FSMHandler) recvMessageWithError() error {
 		return err
 	}
 
-	var fmsg *FsmMsg
 	m, err := bgp.ParseBGPBody(hd, bodyBuf)
 	if err == nil {
 		h.fsm.bgpMessageStateUpdate(m.Header.Type, true)
 		err = bgp.ValidateBGPMessage(m)
 	} else {
 		h.fsm.bgpMessageStateUpdate(0, true)
+	}
+	fmsg := &FsmMsg{
+		MsgType:   FSM_MSG_BGP_MESSAGE,
+		MsgSrc:    h.fsm.pConf.NeighborConfig.NeighborAddress.String(),
+		MsgDst:    h.fsm.pConf.Transport.TransportConfig.LocalAddress.String(),
+		timestamp: time.Now(),
 	}
 	if err != nil {
 		log.WithFields(log.Fields{
@@ -485,19 +491,9 @@ func (h *FSMHandler) recvMessageWithError() error {
 			"State": h.fsm.state,
 			"error": err,
 		}).Warn("malformed BGP message")
-		fmsg = &FsmMsg{
-			MsgType: FSM_MSG_BGP_MESSAGE,
-			MsgSrc:  h.fsm.pConf.NeighborConfig.NeighborAddress.String(),
-			MsgDst:  h.fsm.pConf.Transport.TransportConfig.LocalAddress.String(),
-			MsgData: err,
-		}
+		fmsg.MsgData = err
 	} else {
-		fmsg = &FsmMsg{
-			MsgType: FSM_MSG_BGP_MESSAGE,
-			MsgSrc:  h.fsm.pConf.NeighborConfig.NeighborAddress.String(),
-			MsgDst:  h.fsm.pConf.Transport.TransportConfig.LocalAddress.String(),
-			MsgData: m,
-		}
+		fmsg.MsgData = m
 		if h.fsm.state == bgp.BGP_FSM_ESTABLISHED {
 			switch m.Header.Type {
 			case bgp.BGP_MSG_UPDATE:
@@ -513,7 +509,7 @@ func (h *FSMHandler) recvMessageWithError() error {
 				} else {
 					// FIXME: we should use the original message for bmp/mrt
 					table.UpdatePathAttrs4ByteAs(body)
-					fmsg.PathList = table.ProcessMessage(m, h.fsm.peerInfo)
+					fmsg.PathList = table.ProcessMessage(m, h.fsm.peerInfo, fmsg.timestamp)
 					policyMutex.RLock()
 					h.fsm.peer.ApplyPolicy(table.POLICY_DIRECTION_IN, fmsg.PathList)
 					policyMutex.RUnlock()

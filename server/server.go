@@ -816,6 +816,7 @@ func (server *BgpServer) handleFSMMessage(peer *Peer, e *FsmMsg, incoming chan *
 						peerAddress:  peer.fsm.peerInfo.Address,
 						localAddress: net.ParseIP(l),
 						fourBytesAs:  y,
+						timestamp:    e.timestamp,
 					}
 					for _, ch := range listener {
 						bm := &broadcastWatcherMsg{
@@ -829,7 +830,7 @@ func (server *BgpServer) handleFSMMessage(peer *Peer, e *FsmMsg, incoming chan *
 				if ch := server.bmpClient.send(); ch != nil {
 					bm := &broadcastBMPMsg{
 						ch:      ch,
-						msgList: []*bgp.BMPMessage{bmpPeerRoute(bgp.BMP_PEER_TYPE_GLOBAL, false, 0, peer.fsm.peerInfo, time.Now().Unix(), m)},
+						msgList: []*bgp.BMPMessage{bmpPeerRoute(bgp.BMP_PEER_TYPE_GLOBAL, false, 0, peer.fsm.peerInfo, e.timestamp.Unix(), m)},
 					}
 					server.broadcastMsgs = append(server.broadcastMsgs, bm)
 				}

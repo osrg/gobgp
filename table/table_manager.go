@@ -96,13 +96,12 @@ func mpunreachNlri2Path(m *bgp.BGPMessage, p *PeerInfo, now time.Time) []*Path {
 	return pathList
 }
 
-func ProcessMessage(m *bgp.BGPMessage, peerInfo *PeerInfo) []*Path {
+func ProcessMessage(m *bgp.BGPMessage, peerInfo *PeerInfo, timestamp time.Time) []*Path {
 	pathList := make([]*Path, 0)
-	now := time.Now()
-	pathList = append(pathList, nlri2Path(m, peerInfo, now)...)
-	pathList = append(pathList, withdraw2Path(m, peerInfo, now)...)
-	pathList = append(pathList, mpreachNlri2Path(m, peerInfo, now)...)
-	pathList = append(pathList, mpunreachNlri2Path(m, peerInfo, now)...)
+	pathList = append(pathList, nlri2Path(m, peerInfo, timestamp)...)
+	pathList = append(pathList, withdraw2Path(m, peerInfo, timestamp)...)
+	pathList = append(pathList, mpreachNlri2Path(m, peerInfo, timestamp)...)
+	pathList = append(pathList, mpunreachNlri2Path(m, peerInfo, timestamp)...)
 	return pathList
 }
 
@@ -505,7 +504,7 @@ func (manager *TableManager) ProcessUpdate(fromPeer *PeerInfo, message *bgp.BGPM
 		return []*Path{}, nil
 	}
 
-	return manager.ProcessPaths(ProcessMessage(message, fromPeer))
+	return manager.ProcessPaths(ProcessMessage(message, fromPeer, time.Now()))
 }
 
 type AdjRib struct {
