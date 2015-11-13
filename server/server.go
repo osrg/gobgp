@@ -1787,6 +1787,11 @@ func (server *BgpServer) handleGrpcModNeighbor(grpcReq *GrpcRequest) (sMsgs []*S
 				pconf.NeighborConfig.NeighborAddress = net.ParseIP(a.Conf.NeighborAddress)
 				pconf.NeighborConfig.PeerAs = a.Conf.PeerAs
 				pconf.NeighborConfig.LocalAs = a.Conf.LocalAs
+				list := make([]config.AfiSafi, 0, len(a.Afisafis))
+				for _, name := range a.Afisafis {
+					list = append(list, config.AfiSafi{AfiSafiName: name})
+				}
+				pconf.AfiSafis.AfiSafiList = list
 				if pconf.NeighborConfig.PeerAs != server.bgpConfig.Global.GlobalConfig.As {
 					pconf.NeighborConfig.PeerType = config.PEER_TYPE_EXTERNAL
 				} else {
