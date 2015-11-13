@@ -333,7 +333,8 @@ func (server *BgpServer) Serve() {
 				for _, p := range targetPeer.adjRib.GetInPathList(targetPeer.configuredRFlist()) {
 					// avoid to merge for timestamp
 					u := table.CreateUpdateMsgFromPaths([]*table.Path{p})
-					bmpMsgList = append(bmpMsgList, bmpPeerRoute(bgp.BMP_PEER_TYPE_GLOBAL, false, 0, targetPeer.fsm.peerInfo, p.GetTimestamp().Unix(), u[0]))
+					buf, _ := u[0].Serialize()
+					bmpMsgList = append(bmpMsgList, bmpPeerRoute(bgp.BMP_PEER_TYPE_GLOBAL, false, 0, targetPeer.fsm.peerInfo, p.GetTimestamp().Unix(), buf))
 				}
 			}
 
@@ -815,7 +816,7 @@ func (server *BgpServer) handleFSMMessage(peer *Peer, e *FsmMsg, incoming chan *
 				if ch := server.bmpClient.send(); ch != nil {
 					bm := &broadcastBMPMsg{
 						ch:      ch,
-						msgList: []*bgp.BMPMessage{bmpPeerRoute(bgp.BMP_PEER_TYPE_GLOBAL, false, 0, peer.fsm.peerInfo, e.timestamp.Unix(), m)},
+						msgList: []*bgp.BMPMessage{bmpPeerRoute(bgp.BMP_PEER_TYPE_GLOBAL, false, 0, peer.fsm.peerInfo, e.timestamp.Unix(), e.payload)},
 					}
 					server.broadcastMsgs = append(server.broadcastMsgs, bm)
 				}

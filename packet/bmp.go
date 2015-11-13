@@ -136,7 +136,8 @@ func (h *BMPPeerHeader) Serialize() ([]byte, error) {
 }
 
 type BMPRouteMonitoring struct {
-	BGPUpdate *BGPMessage
+	BGPUpdate        *BGPMessage
+	BGPUpdatePayload []byte
 }
 
 func NewBMPRouteMonitoring(p BMPPeerHeader, update *BGPMessage) *BMPMessage {
@@ -162,6 +163,9 @@ func (body *BMPRouteMonitoring) ParseBody(msg *BMPMessage, data []byte) error {
 }
 
 func (body *BMPRouteMonitoring) Serialize() ([]byte, error) {
+	if body.BGPUpdatePayload != nil {
+		return body.BGPUpdatePayload, nil
+	}
 	return body.BGPUpdate.Serialize()
 }
 

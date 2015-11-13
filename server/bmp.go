@@ -126,7 +126,10 @@ func bmpPeerDown(reason uint8, t int, policy bool, pd uint64, peeri *table.PeerI
 	return bgp.NewBMPPeerDownNotification(*ph, reason, nil, []byte{})
 }
 
-func bmpPeerRoute(t int, policy bool, pd uint64, peeri *table.PeerInfo, timestamp int64, u *bgp.BGPMessage) *bgp.BMPMessage {
+func bmpPeerRoute(t int, policy bool, pd uint64, peeri *table.PeerInfo, timestamp int64, payload []byte) *bgp.BMPMessage {
 	ph := bgp.NewBMPPeerHeader(uint8(t), policy, pd, peeri.Address.String(), peeri.AS, peeri.LocalID.String(), float64(timestamp))
-	return bgp.NewBMPRouteMonitoring(*ph, u)
+	m := bgp.NewBMPRouteMonitoring(*ph, nil)
+	body := m.Body.(*bgp.BMPRouteMonitoring)
+	body.BGPUpdatePayload = payload
+	return m
 }
