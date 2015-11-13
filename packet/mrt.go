@@ -641,8 +641,9 @@ func NewBGP4MPStateChange(peeras, localas uint32, intfindex uint16, peerip, loca
 
 type BGP4MPMessage struct {
 	*BGP4MPHeader
-	BGPMessage *BGPMessage
-	isLocal    bool
+	BGPMessage        *BGPMessage
+	BGPMessagePayload []byte
+	isLocal           bool
 }
 
 func (m *BGP4MPMessage) DecodeFromBytes(data []byte) error {
@@ -667,6 +668,9 @@ func (m *BGP4MPMessage) Serialize() ([]byte, error) {
 	buf, err := m.serialize()
 	if err != nil {
 		return nil, err
+	}
+	if m.BGPMessagePayload != nil {
+		return append(buf, m.BGPMessagePayload...), nil
 	}
 	bbuf, err := m.BGPMessage.Serialize()
 	if err != nil {

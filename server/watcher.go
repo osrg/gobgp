@@ -64,6 +64,7 @@ type watcherEventUpdateMsg struct {
 	localAddress net.IP
 	fourBytesAs  bool
 	timestamp    time.Time
+	payload      []byte
 }
 
 type watcher interface {
@@ -115,7 +116,8 @@ func (w *mrtWatcher) loop() error {
 		write := func(ev watcherEvent) {
 			m := ev.(*watcherEventUpdateMsg)
 			subtype := bgp.MESSAGE_AS4
-			mp := bgp.NewBGP4MPMessage(m.peerAS, m.localAS, 0, m.peerAddress.String(), m.localAddress.String(), m.fourBytesAs, m.message)
+			mp := bgp.NewBGP4MPMessage(m.peerAS, m.localAS, 0, m.peerAddress.String(), m.localAddress.String(), m.fourBytesAs, nil)
+			mp.BGPMessagePayload = m.payload
 			if m.fourBytesAs == false {
 				subtype = bgp.MESSAGE
 			}

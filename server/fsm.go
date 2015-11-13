@@ -43,6 +43,7 @@ type FsmMsg struct {
 	MsgData   interface{}
 	PathList  []*table.Path
 	timestamp time.Time
+	payload   []byte
 }
 
 const (
@@ -471,6 +472,7 @@ func (h *FSMHandler) recvMessageWithError() error {
 		return err
 	}
 
+	now := time.Now()
 	m, err := bgp.ParseBGPBody(hd, bodyBuf)
 	if err == nil {
 		h.fsm.bgpMessageStateUpdate(m.Header.Type, true)
@@ -482,7 +484,7 @@ func (h *FSMHandler) recvMessageWithError() error {
 		MsgType:   FSM_MSG_BGP_MESSAGE,
 		MsgSrc:    h.fsm.pConf.NeighborConfig.NeighborAddress.String(),
 		MsgDst:    h.fsm.pConf.Transport.TransportConfig.LocalAddress.String(),
-		timestamp: time.Now(),
+		timestamp: now,
 	}
 	if err != nil {
 		log.WithFields(log.Fields{
@@ -514,6 +516,9 @@ func (h *FSMHandler) recvMessageWithError() error {
 					h.fsm.peer.ApplyPolicy(table.POLICY_DIRECTION_IN, fmsg.PathList)
 					policyMutex.RUnlock()
 				}
+				fmsg.payload = make([]byte, len(headerBuf)+len(bodyBuf))
+				copy(fmsg.payload, headerBuf)
+				copy(fmsg.payload[len(headerBuf):], bodyBuf)
 				fallthrough
 			case bgp.BGP_MSG_KEEPALIVE:
 				// if the lenght of h.holdTimerResetCh

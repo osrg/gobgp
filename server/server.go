@@ -801,6 +801,7 @@ func (server *BgpServer) handleFSMMessage(peer *Peer, e *FsmMsg, incoming chan *
 						localAddress: net.ParseIP(l),
 						fourBytesAs:  y,
 						timestamp:    e.timestamp,
+						payload:      e.payload,
 					}
 					for _, ch := range listener {
 						bm := &broadcastWatcherMsg{
