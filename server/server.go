@@ -783,22 +783,6 @@ func (server *BgpServer) handleFSMMessage(peer *Peer, e *FsmMsg, incoming chan *
 		case *bgp.MessageError:
 			msgs = append(msgs, newSenderMsg(peer, []*bgp.BGPMessage{bgp.NewBGPNotificationMessage(m.TypeCode, m.SubTypeCode, m.Data)}))
 		case *bgp.BGPMessage:
-			pathList, update, msgList := peer.handleBGPmessage(e)
-			if len(msgList) > 0 {
-				msgs = append(msgs, newSenderMsg(peer, msgList))
-				break
-			}
-			if update == false {
-				if len(pathList) > 0 {
-					msgList := table.CreateUpdateMsgFromPaths(pathList)
-					msgs = append(msgs, newSenderMsg(peer, msgList))
-				}
-				break
-			} else {
-				if len(pathList) > 0 {
-					server.roaClient.validate(pathList)
-				}
-			}
 			if m.Header.Type == bgp.BGP_MSG_UPDATE {
 				listener := make(map[watcher]chan watcherEvent)
 				for _, watcher := range server.watchers {
@@ -833,6 +817,23 @@ func (server *BgpServer) handleFSMMessage(peer *Peer, e *FsmMsg, incoming chan *
 						msgList: []*bgp.BMPMessage{bmpPeerRoute(bgp.BMP_PEER_TYPE_GLOBAL, false, 0, peer.fsm.peerInfo, e.timestamp.Unix(), m)},
 					}
 					server.broadcastMsgs = append(server.broadcastMsgs, bm)
+				}
+			}
+
+			pathList, update, msgList := peer.handleBGPmessage(e)
+			if len(msgList) > 0 {
+				msgs = append(msgs, newSenderMsg(peer, msgList))
+				break
+			}
+			if update == false {
+				if len(pathList) > 0 {
+					msgList := table.CreateUpdateMsgFromPaths(pathList)
+					msgs = append(msgs, newSenderMsg(peer, msgList))
+				}
+				break
+			} else {
+				if len(pathList) > 0 {
+					server.roaClient.validate(pathList)
 				}
 			}
 			// FIXME: refactor peer.handleBGPmessage and this func
