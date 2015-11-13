@@ -4144,6 +4144,9 @@ func (p *PathAttributeMpReachNLRI) Serialize() ([]byte, error) {
 	nexthoplen := 4
 	if afi == AFI_IP6 {
 		nexthoplen = 16
+		if p.LinkLocalNexthop != nil {
+			nexthoplen += 16
+		}
 	}
 	offset := 0
 	switch safi {
@@ -4158,6 +4161,9 @@ func (p *PathAttributeMpReachNLRI) Serialize() ([]byte, error) {
 	buf[2] = safi
 	buf[3] = uint8(nexthoplen)
 	copy(buf[4+offset:], p.Nexthop)
+	if p.LinkLocalNexthop != nil {
+		copy(buf[4+offset+len(p.Nexthop):], p.LinkLocalNexthop)
+	}
 	buf = append(buf, make([]byte, 1)...)
 	for _, prefix := range p.Value {
 		pbuf, err := prefix.Serialize()
