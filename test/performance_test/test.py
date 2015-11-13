@@ -36,6 +36,10 @@ if __name__ == '__main__':
     parser = OptionParser()
     parser.add_option("-t", "--target", dest="target_rs", default="gobgp")
     parser.add_option("-n", "--num-peer", dest="num_peer", type="int", default=1000)
+    parser.add_option("-p", "--num-prefix", dest="num_prefix", type="int", default=1000)
+    parser.add_option("-l", "--log-level", dest="log_level")
+    parser.add_option("-u", "--unique", dest="unique", action="store_true")
+    parser.add_option("-r", "--route-server", dest="route_server", action="store_true")
     (options, args) = parser.parse_args()
 
     if options.target_rs == "gobgp":
@@ -72,7 +76,7 @@ if __name__ == '__main__':
                       'passwd': None,
                       'evpn': False,
                       'flowspec': False,
-                      'is_rs_client': True,
+                      'is_rs_client': options.route_server,
                       'is_rr_client': False,
                       'cluster_id': None,
                       'policies': {},
@@ -86,7 +90,7 @@ if __name__ == '__main__':
 
     c = CmdBuffer()
     c << "#!/bin/sh"
-    c << "performance_test -n {0} {1} > /root/shared_volume/test.log".format(options.num_peer, ' '.join(args))
+    c << "performance_test -n {0} -p {1} -l {2} {3} {4} > /root/shared_volume/test.log".format(options.num_peer, options.num_prefix, options.log_level, '-u' if options.unique else '', ' '.join(args))
     with open('/tmp/start_test.sh', 'w') as f:
         f.write(str(c))
     local('chmod +x /tmp/start_test.sh')

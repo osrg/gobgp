@@ -20,9 +20,11 @@ class BirdContainer(BGPContainer):
     WAIT_FOR_BOOT = 1
     SHARED_VOLUME = '/etc/bird'
 
-    def __init__(self, name, asn, router_id, ctn_image_name='osrg/bird'):
+    def __init__(self, name, asn, router_id, ctn_image_name='osrg/bird',
+                 log_level='info'):
         super(BirdContainer, self).__init__(name, asn, router_id,
                                             ctn_image_name)
+        self.log_level = log_level
         self.shared_volumes.append((self.config_dir, self.SHARED_VOLUME))
 
     def _start_bird(self):
@@ -43,12 +45,38 @@ class BirdContainer(BGPContainer):
     def create_config(self):
         c = CmdBuffer()
         c << 'router id {0};'.format(self.router_id)
+        c << 'listen bgp port 179;'
+        if self.log_level == 'info':
+            c << 'log "{0}/bird.log" {{error, fatal, bug, warning}};'.format(self.SHARED_VOLUME)
+        elif self.log_level == 'debug':
+            c << 'log "{0}/bird.log" all;'.format(self.SHARED_VOLUME)
+        c << 'debug protocols all;'
+        c << 'protocol device { }'
+        c << 'protocol direct {'
+        c << '  disabled;'
+        c << '}'
+        c << 'protocol kernel {'
+        c << '  disabled;'
+        c << '}'
+        c << 'table master;'
         for peer, info in self.peers.iteritems():
-            c << 'protocol bgp {'
+            if info['is_rs_client']:
+                c << 'table table_{0};'.format(peer.asn)
+                c << 'protocol pipe pipe_{0} {{'.format(peer.asn)
+                c << '  table master;'
+                c << '  mode transparent;'
+                c << '  peer table table_{0};'.format(peer.asn)
+                c << '  import all;'
+                c << '  export all;'
+                c << '}'
+            c << 'protocol bgp bgp_{0} {{'.format(peer.asn)
             c << '  local as {0};'.format(self.asn)
             n_addr = info['neigh_addr'].split('/')[0]
             c << '  neighbor {0} as {1};'.format(n_addr, peer.asn)
-            c << '  multihop;'
+            c << '  import all;'
+            c << '  export all;'
+            if info['is_rs_client']:
+                c << '  rs client;'
             c << '}'
 
         with open('{0}/bird.conf'.format(self.config_dir), 'w') as f:
