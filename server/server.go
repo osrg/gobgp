@@ -1857,6 +1857,10 @@ func (server *BgpServer) handleGrpcModNeighbor(grpcReq *GrpcRequest) (sMsgs []*S
 					}
 				}
 			}
+			if a.Transport != nil {
+				pconf.Transport.TransportConfig.LocalAddress = net.ParseIP(a.Transport.LocalAddress)
+				pconf.Transport.TransportConfig.PassiveMode = a.Transport.PassiveMode
+			}
 			return pconf
 		}
 		configneigh := apitoConfig(arg.Peer)
