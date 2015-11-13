@@ -330,6 +330,41 @@ func (x Error_ErrorCode) String() string {
 	return proto.EnumName(Error_ErrorCode_name, int32(x))
 }
 
+type PeerState_BgpState int32
+
+const (
+	PeerState_UNKNOWN     PeerState_BgpState = 0
+	PeerState_IDLE        PeerState_BgpState = 1
+	PeerState_CONNECT     PeerState_BgpState = 2
+	PeerState_ACTIVE      PeerState_BgpState = 3
+	PeerState_OPENSENT    PeerState_BgpState = 4
+	PeerState_OPENCONFIRM PeerState_BgpState = 5
+	PeerState_ESTABLISHED PeerState_BgpState = 6
+)
+
+var PeerState_BgpState_name = map[int32]string{
+	0: "UNKNOWN",
+	1: "IDLE",
+	2: "CONNECT",
+	3: "ACTIVE",
+	4: "OPENSENT",
+	5: "OPENCONFIRM",
+	6: "ESTABLISHED",
+}
+var PeerState_BgpState_value = map[string]int32{
+	"UNKNOWN":     0,
+	"IDLE":        1,
+	"CONNECT":     2,
+	"ACTIVE":      3,
+	"OPENSENT":    4,
+	"OPENCONFIRM": 5,
+	"ESTABLISHED": 6,
+}
+
+func (x PeerState_BgpState) String() string {
+	return proto.EnumName(PeerState_BgpState_name, int32(x))
+}
+
 type Error struct {
 	Code Error_ErrorCode `protobuf:"varint,1,opt,name=code,enum=gobgpapi.Error_ErrorCode" json:"code,omitempty"`
 	Msg  string          `protobuf:"bytes,2,opt,name=msg" json:"msg,omitempty"`
@@ -1024,27 +1059,27 @@ func (m *RouteReflector) String() string { return proto.CompactTextString(m) }
 func (*RouteReflector) ProtoMessage()    {}
 
 type PeerState struct {
-	AuthPassword          string    `protobuf:"bytes,1,opt,name=auth_password" json:"auth_password,omitempty"`
-	Description           string    `protobuf:"bytes,2,opt,name=description" json:"description,omitempty"`
-	LocalAs               uint32    `protobuf:"varint,3,opt,name=local_as" json:"local_as,omitempty"`
-	Messages              *Messages `protobuf:"bytes,4,opt,name=messages" json:"messages,omitempty"`
-	NeighborAddress       string    `protobuf:"bytes,5,opt,name=neighbor_address" json:"neighbor_address,omitempty"`
-	PeerAs                uint32    `protobuf:"varint,6,opt,name=peer_as" json:"peer_as,omitempty"`
-	PeerGroup             string    `protobuf:"bytes,7,opt,name=peer_group" json:"peer_group,omitempty"`
-	PeerType              uint32    `protobuf:"varint,8,opt,name=peer_type" json:"peer_type,omitempty"`
-	Queues                *Queues   `protobuf:"bytes,9,opt,name=queues" json:"queues,omitempty"`
-	RemovePrivateAs       uint32    `protobuf:"varint,10,opt,name=remove_private_as" json:"remove_private_as,omitempty"`
-	RouteFlapDamping      bool      `protobuf:"varint,11,opt,name=route_flap_damping" json:"route_flap_damping,omitempty"`
-	SendCommunity         uint32    `protobuf:"varint,12,opt,name=send_community" json:"send_community,omitempty"`
-	SessionState          uint32    `protobuf:"varint,13,opt,name=session_state" json:"session_state,omitempty"`
-	SupportedCapabilities []string  `protobuf:"bytes,14,rep,name=supported_capabilities" json:"supported_capabilities,omitempty"`
-	BgpState              string    `protobuf:"bytes,15,opt,name=bgp_state" json:"bgp_state,omitempty"`
-	AdminState            string    `protobuf:"bytes,16,opt,name=admin_state" json:"admin_state,omitempty"`
-	Received              uint32    `protobuf:"varint,17,opt,name=received" json:"received,omitempty"`
-	Accepted              uint32    `protobuf:"varint,18,opt,name=accepted" json:"accepted,omitempty"`
-	Advertized            uint32    `protobuf:"varint,19,opt,name=advertized" json:"advertized,omitempty"`
-	OutQ                  uint32    `protobuf:"varint,20,opt,name=out_q" json:"out_q,omitempty"`
-	Flops                 uint32    `protobuf:"varint,21,opt,name=flops" json:"flops,omitempty"`
+	AuthPassword          string             `protobuf:"bytes,1,opt,name=auth_password" json:"auth_password,omitempty"`
+	Description           string             `protobuf:"bytes,2,opt,name=description" json:"description,omitempty"`
+	LocalAs               uint32             `protobuf:"varint,3,opt,name=local_as" json:"local_as,omitempty"`
+	Messages              *Messages          `protobuf:"bytes,4,opt,name=messages" json:"messages,omitempty"`
+	NeighborAddress       string             `protobuf:"bytes,5,opt,name=neighbor_address" json:"neighbor_address,omitempty"`
+	PeerAs                uint32             `protobuf:"varint,6,opt,name=peer_as" json:"peer_as,omitempty"`
+	PeerGroup             string             `protobuf:"bytes,7,opt,name=peer_group" json:"peer_group,omitempty"`
+	PeerType              uint32             `protobuf:"varint,8,opt,name=peer_type" json:"peer_type,omitempty"`
+	Queues                *Queues            `protobuf:"bytes,9,opt,name=queues" json:"queues,omitempty"`
+	RemovePrivateAs       uint32             `protobuf:"varint,10,opt,name=remove_private_as" json:"remove_private_as,omitempty"`
+	RouteFlapDamping      bool               `protobuf:"varint,11,opt,name=route_flap_damping" json:"route_flap_damping,omitempty"`
+	SendCommunity         uint32             `protobuf:"varint,12,opt,name=send_community" json:"send_community,omitempty"`
+	SessionState          uint32             `protobuf:"varint,13,opt,name=session_state" json:"session_state,omitempty"`
+	SupportedCapabilities []string           `protobuf:"bytes,14,rep,name=supported_capabilities" json:"supported_capabilities,omitempty"`
+	BgpState              PeerState_BgpState `protobuf:"varint,15,opt,name=bgp_state,enum=gobgpapi.PeerState_BgpState" json:"bgp_state,omitempty"`
+	AdminState            string             `protobuf:"bytes,16,opt,name=admin_state" json:"admin_state,omitempty"`
+	Received              uint32             `protobuf:"varint,17,opt,name=received" json:"received,omitempty"`
+	Accepted              uint32             `protobuf:"varint,18,opt,name=accepted" json:"accepted,omitempty"`
+	Advertized            uint32             `protobuf:"varint,19,opt,name=advertized" json:"advertized,omitempty"`
+	OutQ                  uint32             `protobuf:"varint,20,opt,name=out_q" json:"out_q,omitempty"`
+	Flops                 uint32             `protobuf:"varint,21,opt,name=flops" json:"flops,omitempty"`
 }
 
 func (m *PeerState) Reset()         { *m = PeerState{} }
@@ -1504,6 +1539,7 @@ func init() {
 	proto.RegisterEnum("gobgpapi.MedActionType", MedActionType_name, MedActionType_value)
 	proto.RegisterEnum("gobgpapi.PolicyType", PolicyType_name, PolicyType_value)
 	proto.RegisterEnum("gobgpapi.Error_ErrorCode", Error_ErrorCode_name, Error_ErrorCode_value)
+	proto.RegisterEnum("gobgpapi.PeerState_BgpState", PeerState_BgpState_name, PeerState_BgpState_value)
 }
 
 // Reference imports to suppress errors if they are not otherwise used.
