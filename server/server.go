@@ -226,15 +226,8 @@ func (server *BgpServer) Serve() {
 		}
 	}(broadcastCh)
 
-	toRFlist := func(l []config.AfiSafi) []bgp.RouteFamily {
-		rfList := []bgp.RouteFamily{}
-		for _, rf := range l {
-			k, _ := bgp.GetRouteFamily(rf.AfiSafiName)
-			rfList = append(rfList, k)
-		}
-		return rfList
-	}
-	server.globalRib = table.NewTableManager(GLOBAL_RIB_NAME, toRFlist(g.AfiSafis.AfiSafiList), g.MplsLabelRange.MinLabel, g.MplsLabelRange.MaxLabel)
+	rfs, _ := g.AfiSafis.ToRfList()
+	server.globalRib = table.NewTableManager(GLOBAL_RIB_NAME, rfs, g.MplsLabelRange.MinLabel, g.MplsLabelRange.MaxLabel)
 	server.listenerMap = make(map[string]*net.TCPListener)
 	acceptCh := make(chan *net.TCPConn)
 	if !g.ListenConfig.Deaf {
@@ -375,7 +368,8 @@ func (server *BgpServer) Serve() {
 			}
 			var loc *table.TableManager
 			if config.RouteServer.RouteServerConfig.RouteServerClient {
-				loc = table.NewTableManager(config.NeighborConfig.NeighborAddress.String(), toRFlist(config.AfiSafis.AfiSafiList), g.MplsLabelRange.MinLabel, g.MplsLabelRange.MaxLabel)
+				rfs, _ := config.AfiSafis.ToRfList()
+				loc = table.NewTableManager(config.NeighborConfig.NeighborAddress.String(), rfs, g.MplsLabelRange.MinLabel, g.MplsLabelRange.MaxLabel)
 			} else {
 				loc = server.globalRib
 			}
@@ -1780,18 +1774,18 @@ func (server *BgpServer) handleGrpcModNeighbor(grpcReq *GrpcRequest) (sMsgs []*S
 		if !server.bgpConfig.Global.ListenConfig.Deaf {
 			SetTcpMD5SigSockopts(listener(net.ParseIP(addr)), addr, arg.Peer.Conf.AuthPassword)
 		}
+		rfs := make([]bgp.RouteFamily, 0, len(arg.Peer.Afisafis))
+		for _, a := range arg.Peer.Afisafis {
+			rf, err := bgp.GetRouteFamily(a)
+			if err != nil {
+				return nil, err
+			}
+			rfs = append(rfs, rf)
+		}
 		var loc *table.TableManager
 		if arg.Peer.RouteServer != nil {
 			if arg.Peer.RouteServer.RouteServerClient {
-				apitoRFlist := func(l []*api.AfiSafi) []bgp.RouteFamily {
-					rfList := []bgp.RouteFamily{}
-					for _, rf := range l {
-						k, _ := bgp.GetRouteFamily(rf.Name)
-						rfList = append(rfList, k)
-					}
-					return rfList
-				}
-				loc = table.NewTableManager(addr, apitoRFlist(arg.Peer.Afisafis.Afisafi), server.bgpConfig.Global.MplsLabelRange.MinLabel, server.bgpConfig.Global.MplsLabelRange.MaxLabel)
+				loc = table.NewTableManager(addr, rfs, server.bgpConfig.Global.MplsLabelRange.MinLabel, server.bgpConfig.Global.MplsLabelRange.MaxLabel)
 			} else {
 				loc = server.globalRib
 			}
@@ -1805,6 +1799,11 @@ func (server *BgpServer) handleGrpcModNeighbor(grpcReq *GrpcRequest) (sMsgs []*S
 				pconf.NeighborConfig.NeighborAddress = net.ParseIP(a.Conf.NeighborAddress)
 				pconf.NeighborConfig.PeerAs = a.Conf.PeerAs
 				pconf.NeighborConfig.LocalAs = a.Conf.LocalAs
+				list := make([]config.AfiSafi, 0, len(a.Afisafis))
+				for _, name := range a.Afisafis {
+					list = append(list, config.AfiSafi{AfiSafiName: name})
+				}
+				pconf.AfiSafis.AfiSafiList = list
 				if pconf.NeighborConfig.PeerAs != server.bgpConfig.Global.GlobalConfig.As {
 					pconf.NeighborConfig.PeerType = config.PEER_TYPE_EXTERNAL
 				} else {

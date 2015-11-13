@@ -25,14 +25,7 @@ It has these top-level messages:
 	Destination
 	Peer
 	AddPaths
-	AfiSafis
-	AfiSafi
 	ApplyPolicy
-	AfiSafiGracefulRestart
-	LabelledUnicast
-	PrefixLimit
-	Unicast
-	Vpn
 	Prefixes
 	UseMultiplePaths
 	Ebgp
@@ -577,7 +570,7 @@ func (m *Destination) GetPaths() []*Path {
 
 type Peer struct {
 	Addpaths         *AddPaths            `protobuf:"bytes,1,opt,name=addpaths" json:"addpaths,omitempty"`
-	Afisafis         *AfiSafis            `protobuf:"bytes,2,opt,name=afisafis" json:"afisafis,omitempty"`
+	Afisafis         []string             `protobuf:"bytes,2,rep,name=afisafis" json:"afisafis,omitempty"`
 	ApplyPolicy      *ApplyPolicy         `protobuf:"bytes,3,opt,name=apply_policy" json:"apply_policy,omitempty"`
 	AsPathOptions    *AsPathOptions       `protobuf:"bytes,4,opt,name=as_path_options" json:"as_path_options,omitempty"`
 	Conf             *PeerConf            `protobuf:"bytes,5,opt,name=conf" json:"conf,omitempty"`
@@ -600,13 +593,6 @@ func (*Peer) ProtoMessage()    {}
 func (m *Peer) GetAddpaths() *AddPaths {
 	if m != nil {
 		return m.Addpaths
-	}
-	return nil
-}
-
-func (m *Peer) GetAfisafis() *AfiSafis {
-	if m != nil {
-		return m.Afisafis
 	}
 	return nil
 }
@@ -711,143 +697,6 @@ func (m *AddPaths) Reset()         { *m = AddPaths{} }
 func (m *AddPaths) String() string { return proto.CompactTextString(m) }
 func (*AddPaths) ProtoMessage()    {}
 
-type AfiSafis struct {
-	Afisafi []*AfiSafi `protobuf:"bytes,1,rep,name=afisafi" json:"afisafi,omitempty"`
-}
-
-func (m *AfiSafis) Reset()         { *m = AfiSafis{} }
-func (m *AfiSafis) String() string { return proto.CompactTextString(m) }
-func (*AfiSafis) ProtoMessage()    {}
-
-func (m *AfiSafis) GetAfisafi() []*AfiSafi {
-	if m != nil {
-		return m.Afisafi
-	}
-	return nil
-}
-
-type AfiSafi struct {
-	Name                string                  `protobuf:"bytes,1,opt,name=name" json:"name,omitempty"`
-	ApplyPolicy         *ApplyPolicy            `protobuf:"bytes,2,opt,name=apply_policy" json:"apply_policy,omitempty"`
-	Enabled             bool                    `protobuf:"varint,3,opt,name=enabled" json:"enabled,omitempty"`
-	GracefulRestart     *AfiSafiGracefulRestart `protobuf:"bytes,4,opt,name=graceful_restart" json:"graceful_restart,omitempty"`
-	Ipv4LabelledUnicast *LabelledUnicast        `protobuf:"bytes,5,opt,name=ipv4_labelled_unicast" json:"ipv4_labelled_unicast,omitempty"`
-	Ipv4Unicast         *Unicast                `protobuf:"bytes,6,opt,name=ipv4_unicast" json:"ipv4_unicast,omitempty"`
-	Ipv6LabelledUnicast *LabelledUnicast        `protobuf:"bytes,7,opt,name=ipv6_labelled_unicast" json:"ipv6_labelled_unicast,omitempty"`
-	Ipv6Unicast         *Unicast                `protobuf:"bytes,8,opt,name=ipv6_unicast" json:"ipv6_unicast,omitempty"`
-	L2VpnEvpn           *Vpn                    `protobuf:"bytes,9,opt,name=l2_vpn_evpn" json:"l2_vpn_evpn,omitempty"`
-	L2VpnVpls           *Vpn                    `protobuf:"bytes,10,opt,name=l2_vpn_vpls" json:"l2_vpn_vpls,omitempty"`
-	L3VpnIpv4Multicast  *Vpn                    `protobuf:"bytes,11,opt,name=l3_vpn_ipv4_multicast" json:"l3_vpn_ipv4_multicast,omitempty"`
-	L3VpnIpv4Unicast    *Vpn                    `protobuf:"bytes,12,opt,name=l3_vpn_ipv4_unicast" json:"l3_vpn_ipv4_unicast,omitempty"`
-	L3VpnIpv6Multicast  *Vpn                    `protobuf:"bytes,13,opt,name=l3_vpn_ipv6_multicast" json:"l3_vpn_ipv6_multicast,omitempty"`
-	L3VpnIpv6Unicast    *Vpn                    `protobuf:"bytes,14,opt,name=l3_vpn_ipv6_unicast" json:"l3_vpn_ipv6_unicast,omitempty"`
-	UseMultiplePaths    *UseMultiplePaths       `protobuf:"bytes,15,opt,name=use_multiple_paths" json:"use_multiple_paths,omitempty"`
-	Active              bool                    `protobuf:"varint,16,opt,name=active" json:"active,omitempty"`
-	Prefixes            *Prefixes               `protobuf:"bytes,17,opt,name=prefixes" json:"prefixes,omitempty"`
-}
-
-func (m *AfiSafi) Reset()         { *m = AfiSafi{} }
-func (m *AfiSafi) String() string { return proto.CompactTextString(m) }
-func (*AfiSafi) ProtoMessage()    {}
-
-func (m *AfiSafi) GetApplyPolicy() *ApplyPolicy {
-	if m != nil {
-		return m.ApplyPolicy
-	}
-	return nil
-}
-
-func (m *AfiSafi) GetGracefulRestart() *AfiSafiGracefulRestart {
-	if m != nil {
-		return m.GracefulRestart
-	}
-	return nil
-}
-
-func (m *AfiSafi) GetIpv4LabelledUnicast() *LabelledUnicast {
-	if m != nil {
-		return m.Ipv4LabelledUnicast
-	}
-	return nil
-}
-
-func (m *AfiSafi) GetIpv4Unicast() *Unicast {
-	if m != nil {
-		return m.Ipv4Unicast
-	}
-	return nil
-}
-
-func (m *AfiSafi) GetIpv6LabelledUnicast() *LabelledUnicast {
-	if m != nil {
-		return m.Ipv6LabelledUnicast
-	}
-	return nil
-}
-
-func (m *AfiSafi) GetIpv6Unicast() *Unicast {
-	if m != nil {
-		return m.Ipv6Unicast
-	}
-	return nil
-}
-
-func (m *AfiSafi) GetL2VpnEvpn() *Vpn {
-	if m != nil {
-		return m.L2VpnEvpn
-	}
-	return nil
-}
-
-func (m *AfiSafi) GetL2VpnVpls() *Vpn {
-	if m != nil {
-		return m.L2VpnVpls
-	}
-	return nil
-}
-
-func (m *AfiSafi) GetL3VpnIpv4Multicast() *Vpn {
-	if m != nil {
-		return m.L3VpnIpv4Multicast
-	}
-	return nil
-}
-
-func (m *AfiSafi) GetL3VpnIpv4Unicast() *Vpn {
-	if m != nil {
-		return m.L3VpnIpv4Unicast
-	}
-	return nil
-}
-
-func (m *AfiSafi) GetL3VpnIpv6Multicast() *Vpn {
-	if m != nil {
-		return m.L3VpnIpv6Multicast
-	}
-	return nil
-}
-
-func (m *AfiSafi) GetL3VpnIpv6Unicast() *Vpn {
-	if m != nil {
-		return m.L3VpnIpv6Unicast
-	}
-	return nil
-}
-
-func (m *AfiSafi) GetUseMultiplePaths() *UseMultiplePaths {
-	if m != nil {
-		return m.UseMultiplePaths
-	}
-	return nil
-}
-
-func (m *AfiSafi) GetPrefixes() *Prefixes {
-	if m != nil {
-		return m.Prefixes
-	}
-	return nil
-}
-
 type ApplyPolicy struct {
 	InPolicy     *PolicyAssignment `protobuf:"bytes,1,opt,name=in_policy" json:"in_policy,omitempty"`
 	ExportPolicy *PolicyAssignment `protobuf:"bytes,2,opt,name=export_policy" json:"export_policy,omitempty"`
@@ -875,72 +724,6 @@ func (m *ApplyPolicy) GetExportPolicy() *PolicyAssignment {
 func (m *ApplyPolicy) GetImportPolicy() *PolicyAssignment {
 	if m != nil {
 		return m.ImportPolicy
-	}
-	return nil
-}
-
-type AfiSafiGracefulRestart struct {
-	Advertised bool `protobuf:"varint,1,opt,name=advertised" json:"advertised,omitempty"`
-	Enabled    bool `protobuf:"varint,2,opt,name=enabled" json:"enabled,omitempty"`
-	Received   bool `protobuf:"varint,3,opt,name=received" json:"received,omitempty"`
-}
-
-func (m *AfiSafiGracefulRestart) Reset()         { *m = AfiSafiGracefulRestart{} }
-func (m *AfiSafiGracefulRestart) String() string { return proto.CompactTextString(m) }
-func (*AfiSafiGracefulRestart) ProtoMessage()    {}
-
-type LabelledUnicast struct {
-	PrefixLimit *PrefixLimit `protobuf:"bytes,1,opt,name=prefix_limit" json:"prefix_limit,omitempty"`
-}
-
-func (m *LabelledUnicast) Reset()         { *m = LabelledUnicast{} }
-func (m *LabelledUnicast) String() string { return proto.CompactTextString(m) }
-func (*LabelledUnicast) ProtoMessage()    {}
-
-func (m *LabelledUnicast) GetPrefixLimit() *PrefixLimit {
-	if m != nil {
-		return m.PrefixLimit
-	}
-	return nil
-}
-
-type PrefixLimit struct {
-	MaxPrefixes          uint32 `protobuf:"varint,1,opt,name=max_prefixes" json:"max_prefixes,omitempty"`
-	RestartTimer         uint64 `protobuf:"varint,2,opt,name=restart_timer" json:"restart_timer,omitempty"`
-	ShutdownThresholdPct uint32 `protobuf:"varint,3,opt,name=shutdown_threshold_pct" json:"shutdown_threshold_pct,omitempty"`
-}
-
-func (m *PrefixLimit) Reset()         { *m = PrefixLimit{} }
-func (m *PrefixLimit) String() string { return proto.CompactTextString(m) }
-func (*PrefixLimit) ProtoMessage()    {}
-
-type Unicast struct {
-	SendDefaultRoute bool         `protobuf:"varint,1,opt,name=send_default_route" json:"send_default_route,omitempty"`
-	PrefixLimit      *PrefixLimit `protobuf:"bytes,2,opt,name=prefix_limit" json:"prefix_limit,omitempty"`
-}
-
-func (m *Unicast) Reset()         { *m = Unicast{} }
-func (m *Unicast) String() string { return proto.CompactTextString(m) }
-func (*Unicast) ProtoMessage()    {}
-
-func (m *Unicast) GetPrefixLimit() *PrefixLimit {
-	if m != nil {
-		return m.PrefixLimit
-	}
-	return nil
-}
-
-type Vpn struct {
-	PrefixLimit *PrefixLimit `protobuf:"bytes,1,opt,name=prefix_limit" json:"prefix_limit,omitempty"`
-}
-
-func (m *Vpn) Reset()         { *m = Vpn{} }
-func (m *Vpn) String() string { return proto.CompactTextString(m) }
-func (*Vpn) ProtoMessage()    {}
-
-func (m *Vpn) GetPrefixLimit() *PrefixLimit {
-	if m != nil {
-		return m.PrefixLimit
 	}
 	return nil
 }
