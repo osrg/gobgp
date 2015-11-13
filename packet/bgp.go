@@ -3285,12 +3285,26 @@ func NewPathAttributeOrigin(value uint8) *PathAttributeOrigin {
 	}
 }
 
+type AsPathParamFormat struct {
+	start     string
+	end       string
+	separator string
+}
+
+var asPathParamFormatMap = map[uint8]*AsPathParamFormat{
+	BGP_ASPATH_ATTR_TYPE_SET:        &AsPathParamFormat{"{", "}", ","},
+	BGP_ASPATH_ATTR_TYPE_SEQ:        &AsPathParamFormat{"", "", " "},
+	BGP_ASPATH_ATTR_TYPE_CONFED_SET: &AsPathParamFormat{"(", ")", " "},
+	BGP_ASPATH_ATTR_TYPE_CONFED_SEQ: &AsPathParamFormat{"[", "]", ","},
+}
+
 type AsPathParamInterface interface {
 	Serialize() ([]byte, error)
 	DecodeFromBytes([]byte) error
 	Len() int
 	ASLen() int
 	MarshalJSON() ([]byte, error)
+	String() string
 }
 
 type AsPathParam struct {
@@ -3342,6 +3356,22 @@ func (a *AsPathParam) ASLen() int {
 		return 0
 	}
 	return 0
+}
+
+func (a *AsPathParam) String() string {
+	format, ok := asPathParamFormatMap[a.Type]
+	if !ok {
+		return fmt.Sprintf("%v", a.AS)
+	}
+	aspath := make([]string, 0, len(a.AS))
+	for _, asn := range a.AS {
+		aspath = append(aspath, fmt.Sprintf("%d", asn))
+	}
+	s := bytes.NewBuffer(make([]byte, 0, 32))
+	s.WriteString(format.start)
+	s.WriteString(strings.Join(aspath, format.separator))
+	s.WriteString(format.end)
+	return s.String()
 }
 
 func (a *AsPathParam) MarshalJSON() ([]byte, error) {
@@ -3413,6 +3443,22 @@ func (a *As4PathParam) ASLen() int {
 		return 0
 	}
 	return 0
+}
+
+func (a *As4PathParam) String() string {
+	format, ok := asPathParamFormatMap[a.Type]
+	if !ok {
+		return fmt.Sprintf("%v", a.AS)
+	}
+	aspath := make([]string, 0, len(a.AS))
+	for _, asn := range a.AS {
+		aspath = append(aspath, fmt.Sprintf("%d", asn))
+	}
+	s := bytes.NewBuffer(make([]byte, 0, 32))
+	s.WriteString(format.start)
+	s.WriteString(strings.Join(aspath, format.separator))
+	s.WriteString(format.end)
+	return s.String()
 }
 
 func (a *As4PathParam) MarshalJSON() ([]byte, error) {
@@ -3536,6 +3582,14 @@ func (p *PathAttributeAsPath) Serialize() ([]byte, error) {
 	}
 	p.PathAttribute.Value = buf
 	return p.PathAttribute.Serialize()
+}
+
+func (p *PathAttributeAsPath) String() string {
+	params := make([]string, 0, len(p.Value))
+	for _, param := range p.Value {
+		params = append(params, param.String())
+	}
+	return strings.Join(params, " ")
 }
 
 func (p *PathAttributeAsPath) MarshalJSON() ([]byte, error) {
@@ -5299,6 +5353,14 @@ func (p *PathAttributeAs4Path) Serialize() ([]byte, error) {
 	}
 	p.PathAttribute.Value = buf
 	return p.PathAttribute.Serialize()
+}
+
+func (p *PathAttributeAs4Path) String() string {
+	params := make([]string, 0, len(p.Value))
+	for _, param := range p.Value {
+		params = append(params, param.String())
+	}
+	return strings.Join(params, " ")
 }
 
 func NewPathAttributeAs4Path(value []*As4PathParam) *PathAttributeAs4Path {

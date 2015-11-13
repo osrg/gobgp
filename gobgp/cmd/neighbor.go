@@ -16,7 +16,6 @@
 package cmd
 
 import (
-	"bytes"
 	"encoding/json"
 	"fmt"
 	api "github.com/osrg/gobgp/api"
@@ -246,44 +245,6 @@ func showRoute(pathList []*Path, showAge, showBest, showLabel, isMonitor, printH
 	maxNexthopLen := 20
 	maxAsPathLen := 20
 	maxLabelLen := 10
-	aspath := func(a bgp.PathAttributeInterface) string {
-
-		delimiter := make(map[uint8]*AsPathFormat)
-		delimiter[bgp.BGP_ASPATH_ATTR_TYPE_SET] = &AsPathFormat{"{", "}", ","}
-		delimiter[bgp.BGP_ASPATH_ATTR_TYPE_SEQ] = &AsPathFormat{"", "", " "}
-		delimiter[bgp.BGP_ASPATH_ATTR_TYPE_CONFED_SEQ] = &AsPathFormat{"(", ")", " "}
-		delimiter[bgp.BGP_ASPATH_ATTR_TYPE_CONFED_SET] = &AsPathFormat{"[", "]", ","}
-
-		var segments []string = make([]string, 0)
-		aspaths := a.(*bgp.PathAttributeAsPath).Value
-		for _, aspath := range aspaths {
-			var t uint8
-			var asnsStr []string
-			switch aspath.(type) {
-			case *bgp.AsPathParam:
-				a := aspath.(*bgp.AsPathParam)
-				t = a.Type
-				for _, asn := range a.AS {
-					asnsStr = append(asnsStr, fmt.Sprintf("%d", asn))
-				}
-			case *bgp.As4PathParam:
-				a := aspath.(*bgp.As4PathParam)
-				t = a.Type
-				for _, asn := range a.AS {
-					asnsStr = append(asnsStr, fmt.Sprintf("%d", asn))
-				}
-			}
-			s := bytes.NewBuffer(make([]byte, 0, 64))
-			start := delimiter[t].start
-			end := delimiter[t].end
-			separator := delimiter[t].separator
-			s.WriteString(start)
-			s.WriteString(strings.Join(asnsStr, separator))
-			s.WriteString(end)
-			segments = append(segments, s.String())
-		}
-		return strings.Join(segments, " ")
-	}
 
 	for _, p := range pathList {
 		var nexthop string
@@ -302,7 +263,7 @@ func showRoute(pathList []*Path, showAge, showBest, showLabel, isMonitor, printH
 					nexthop = "fictitious"
 				}
 			case bgp.BGP_ATTR_TYPE_AS_PATH:
-				aspathstr = aspath(a)
+				aspathstr = a.String()
 			case bgp.BGP_ATTR_TYPE_AS4_PATH:
 				continue
 			default:
