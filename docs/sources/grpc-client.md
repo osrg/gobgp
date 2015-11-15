@@ -3,13 +3,14 @@
 This page explains how to managing GoBGP with your favorite Language.
 You can use any language supported by [gRPC](http://www.grpc.io/) (10
 languages are supported now). This page gives an example in Python,
-Ruby, and C++. It assumes that you use Ubuntu 14.04 (64bit).
+Ruby, C++ and Node.js. It assumes that you use Ubuntu 14.04 (64bit).
 
 ## Contents
 
 - [Python](#python)
 - [Ruby](#ruby)
 - [C++](#cpp)
+- [Node.js](#nodejs)
 
 ## <a name="python"> Python
 
@@ -236,4 +237,101 @@ List of announced prefixes for route family: 65669
 
 Prefix: [destination:10.0.0.0/24][protocol: tcp][source:20.0.0.0/24]
 NLRI: {"nlri":{"value":[{"type":1,"value":{"prefix":"10.0.0.0/24"}},{"type":3,"value":[{"op":129,"value":6}]},{"type":2,"value":{"prefix":"20.0.0.0/24"}}]},"attrs":[{"type":1,"value":0},{"type":14,"nexthop":"0.0.0.0","afi":1,"safi":133,"value":[{"value":[{"type":1,"value":{"prefix":"10.0.0.0/24"}},{"type":3,"value":[{"op":129,"value":6}]},{"type":2,"value":{"prefix":"20.0.0.0/24"}}]}]},{"type":16,"value":[{"type":128,"subtype":8,"value":"10:10"}]}]}
+```
+
+## <a name="nodejs"> Node.js
+
+Build from source code because there is no official gRPC package for Ubuntu 14.04.
+(Debian Linux and Mac OSX are much easier. See [the document](https://github.com/grpc/grpc/tree/release-0_11/src/node))
+
+
+### Install Protocol Buffers:
+
+Install protobuf v3.0.0-beta before gRPC. gRPC installation process will try to do it automatically but fail. (Probably because it tries another version of protobuf)
+
+See [installation document](https://github.com/grpc/grpc/blob/master/INSTALL).
+
+```bash
+$ [sudo] apt-get install unzip autoconf libtool build-essential
+
+$ wget https://github.com/google/protobuf/archive/v3.0.0-beta-1.tar.gz
+$ tar zxvf v3.0.0-beta-1.tar.gz
+$ cd protobuf-3.0.0-beta-1/
+$ ./autogen.sh
+$ ./configure
+$ make
+$ [sudo] make install
+```
+
+### Install gRPC:
+
+```bash
+$ [sudo] apt-get install git
+
+$ git clone https://github.com/grpc/grpc.git
+$ cd grpc
+$ git submodule update --init
+$ make 
+$ [sudo] make install
+```
+
+### Install Node.js gRPC library:
+
+Let's say Node.js is already installed,
+
+```bash
+npm install grpc
+```
+
+### Example
+
+Copy protocol definition.
+
+```bash
+cp $GOPATH/src/github.com/osrg/gobgp/api/gobgp.proto .
+```
+
+Here is an example to show neighbor information.
+
+```javascript
+var grpc = require('grpc');
+var api = grpc.load('gobgp.proto').gobgpapi;
+var stub = new api.GobgpApi('localhost:8080', grpc.Credentials.createInsecure());
+
+var call = stub.getNeighbors({});
+call.on('data', function(neighbor) {
+  console.log('BGP neighbor is', neighbor.conf.remote_ip,
+              ', remote AS', neighbor.conf.remote_as);
+  console.log("\tBGP version 4, remote route ID", neighbor.conf.id);
+  console.log("\tBGP state =", neighbor.info.bgp_state,
+              ', up for', neighbor.info.uptime);
+  console.log("\tBGP OutQ =", neighbor.info.out_q,
+              ', Flops =', neighbor.info.flops);
+  console.log("\tHold time is", neighbor.info.negotiated_holdtime,
+              ', keepalive interval is', neighbor.info.keepalive_interval, 'seconds');
+  console.log("\tConfigured hold time is", neighbor.conf.holdtime);
+});
+call.on('end', function() {
+  // do something when the server has finished sending
+});
+call.on('status', function(status) {
+  // do something with the status
+});
+```
+
+Let's run this:
+
+```
+BGP neighbor is undefined , remote AS undefined
+        BGP version 4, remote route ID <nil>
+        BGP state = BGP_FSM_ACTIVE , up for undefined
+        BGP OutQ = 0 , Flops = 0
+        Hold time is undefined , keepalive interval is undefined seconds
+        Configured hold time is undefined
+BGP neighbor is undefined , remote AS undefined
+        BGP version 4, remote route ID <nil>
+        BGP state = BGP_FSM_ACTIVE , up for undefined
+        BGP OutQ = 0 , Flops = 0
+        Hold time is undefined , keepalive interval is undefined seconds
+        Configured hold time is undefined
 ```
