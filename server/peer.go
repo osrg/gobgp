@@ -141,7 +141,7 @@ func open2Cap(open *bgp.BGPOpen, n *config.Neighbor) (map[bgp.BGPCapabilityCode]
 	return capMap, rfMap
 }
 
-func (peer *Peer) handleBGPmessage(e *FsmMsg) ([]*table.Path, bool, []*bgp.BGPMessage) {
+func (peer *Peer) handleBGPmessage(e *fsmMsg) ([]*table.Path, bool, []*bgp.BGPMessage) {
 	m := e.MsgData.(*bgp.BGPMessage)
 	bgpMsgList := []*bgp.BGPMessage{}
 	pathList := []*table.Path{}
@@ -220,7 +220,7 @@ func (peer *Peer) handleBGPmessage(e *FsmMsg) ([]*table.Path, bool, []*bgp.BGPMe
 	return pathList, update, bgpMsgList
 }
 
-func (peer *Peer) startFSMHandler(incoming chan *FsmMsg) {
+func (peer *Peer) startFSMHandler(incoming chan *fsmMsg) {
 	peer.fsm.h = NewFSMHandler(peer.fsm, incoming, peer.outgoing)
 }
 
