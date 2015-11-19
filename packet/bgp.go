@@ -794,6 +794,21 @@ func (r *IPv6AddrPrefix) AFI() uint16 {
 	return AFI_IP6
 }
 
+func (r *IPv6AddrPrefix) String() string {
+	isZero := func(p net.IP) bool {
+		for i := 0; i < len(p); i++ {
+			if p[i] != 0 {
+				return false
+			}
+		}
+		return true
+	}(r.Prefix[0:10])
+	if isZero && r.Prefix[10] == 0xff && r.Prefix[11] == 0xff {
+		return fmt.Sprintf("::ffff:%s/%d", r.Prefix.String(), r.Length)
+	}
+	return fmt.Sprintf("%s/%d", r.Prefix.String(), r.Length)
+}
+
 func NewIPv6AddrPrefix(length uint8, prefix string) *IPv6AddrPrefix {
 	return &IPv6AddrPrefix{
 		IPAddrPrefix{
