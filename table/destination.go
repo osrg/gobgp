@@ -42,7 +42,7 @@ const (
 	BPR_ROUTER_ID          = "Router ID"
 )
 
-func toRadixkey(b []byte, max uint8) string {
+func IpToRadixkey(b []byte, max uint8) string {
 	var buffer bytes.Buffer
 	for i := 0; i < len(b) && i < int(max); i++ {
 		buffer.WriteString(fmt.Sprintf("%08b", b[i]))
@@ -50,18 +50,10 @@ func toRadixkey(b []byte, max uint8) string {
 	return buffer.String()[:max]
 }
 
-func IpToRadixkey(prefix net.IP, prefixLen uint8) string {
-	b := prefix.To4()
-	if b == nil {
-		b = prefix.To16()
-	}
-	return toRadixkey(b, prefixLen)
-}
-
 func CidrToRadixkey(cidr string) string {
 	_, n, _ := net.ParseCIDR(cidr)
 	ones, _ := n.Mask.Size()
-	return toRadixkey(n.IP, uint8(ones))
+	return IpToRadixkey(n.IP, uint8(ones))
 }
 
 type PeerInfo struct {
