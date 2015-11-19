@@ -103,7 +103,7 @@ func (c *roaClient) handleRTRMsg(buf []byte) {
 			received.CacheResponse++
 		case *bgp.RTRIPPrefix:
 			var tree *radix.Tree
-			if net.IP(msg.Prefix).To4() != nil {
+			if msg.Type == bgp.RTR_IPV4_PREFIX {
 				received.Ipv4Prefix++
 				tree = c.roas[bgp.RF_IPv4_UC]
 			} else {

@@ -194,6 +194,6 @@ func updateMsgD3() *bgp.BGPMessage {
 
 func TestRadixkey(t *testing.T) {
 	assert.Equal(t, "000010100000001100100000", CidrToRadixkey("10.3.32.0/24"))
-	assert.Equal(t, "000010100000001100100000", IpToRadixkey(net.ParseIP("10.3.32.0"), 24))
+	assert.Equal(t, "000010100000001100100000", IpToRadixkey(net.ParseIP("10.3.32.0").To4(), 24))
 	assert.Equal(t, "000010100000001100100000", IpToRadixkey(net.ParseIP("10.3.32.0").To4(), 24))
 }
