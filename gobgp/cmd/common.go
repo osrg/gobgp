@@ -24,6 +24,7 @@ import (
 	"net"
 	"os"
 	"sort"
+	"strconv"
 	"time"
 )
 
@@ -378,14 +379,7 @@ func (v vrfs) Less(i, j int) bool {
 
 func connGrpc() *grpc.ClientConn {
 	timeout := grpc.WithTimeout(time.Second)
-
-	// determine IP address version
-	host := net.ParseIP(globalOpts.Host)
-	target := fmt.Sprintf("%s:%d", globalOpts.Host, globalOpts.Port)
-	if host.To4() == nil {
-		target = fmt.Sprintf("[%s]:%d", globalOpts.Host, globalOpts.Port)
-	}
-
+	target := net.JoinHostPort(globalOpts.Host, strconv.Itoa(globalOpts.Port))
 	conn, err := grpc.Dial(target, timeout, grpc.WithBlock(), grpc.WithInsecure())
 	if err != nil {
 		fmt.Println(err)
