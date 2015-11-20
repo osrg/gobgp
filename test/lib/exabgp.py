@@ -29,7 +29,7 @@ class ExaBGPContainer(BGPContainer):
 
     def _start_exabgp(self):
         cmd = CmdBuffer(' ')
-        cmd << 'env exabgp.log.destination={0}/exabgpd.log'.format(self.SHARED_VOLUME)
+        cmd << 'env exabgp.tcp.bind="0.0.0.0" exabgp.tcp.port=179 exabgp.log.destination={0}/exabgpd.log'.format(self.SHARED_VOLUME)
         cmd << './exabgp/sbin/exabgp {0}/exabgpd.conf'.format(self.SHARED_VOLUME)
         self.local(str(cmd), flag='-d')
 
@@ -68,6 +68,8 @@ class ExaBGPContainer(BGPContainer):
             cmd << '    local-address {0};'.format(info['local_addr'].split('/')[0])
             cmd << '    local-as {0};'.format(self.asn)
             cmd << '    peer-as {0};'.format(peer.asn)
+            if info['passive']:
+                cmd << '    passive;'
 
             routes = [r for r in self.routes.values() if r['rf'] == 'ipv4' or r['rf'] == 'ipv6']
 

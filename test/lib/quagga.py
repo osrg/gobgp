@@ -44,11 +44,13 @@ class QuaggaBGPContainer(BGPContainer):
     WAIT_FOR_BOOT = 1
     SHARED_VOLUME = '/etc/quagga'
 
-    def __init__(self, name, asn, router_id, ctn_image_name='osrg/quagga', zebra=False):
+    def __init__(self, name, asn, router_id, ctn_image_name='osrg/quagga',
+                 zebra=False, log_level='info'):
         super(QuaggaBGPContainer, self).__init__(name, asn, router_id,
                                                  ctn_image_name)
         self.shared_volumes.append((self.config_dir, self.SHARED_VOLUME))
         self.zebra = zebra
+        self.log_level = log_level
 
     def run(self):
         super(QuaggaBGPContainer, self).run()
@@ -187,6 +189,7 @@ class QuaggaBGPContainer(BGPContainer):
                 c << 'no bgp default ipv4-unicast'
 
             c << 'neighbor {0} remote-as {1}'.format(n_addr, peer.asn)
+            c << 'neighbor {0} advertisement-interval 0'.format(n_addr)
             if info['is_rs_client']:
                 c << 'neighbor {0} route-server-client'.format(n_addr)
             for name, policy in info['policies'].iteritems():
@@ -225,10 +228,11 @@ class QuaggaBGPContainer(BGPContainer):
             c << 'match ip address {0}'.format(name)
             c << 'set metric {0}'.format(policy['med'])
 
-        c << 'debug bgp as4'
-        c << 'debug bgp fsm'
-        c << 'debug bgp updates'
-        c << 'debug bgp events'
+        if self.log_level == 'debug':
+            c << 'debug bgp as4'
+            c << 'debug bgp fsm'
+            c << 'debug bgp updates'
+            c << 'debug bgp events'
         c << 'log file {0}/bgpd.log'.format(self.SHARED_VOLUME)
 
         with open('{0}/bgpd.conf'.format(self.config_dir), 'w') as f:

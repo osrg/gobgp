@@ -660,4 +660,15 @@ module bgp-gobgp {
       }
     }
   }
+
+  augment "/bgp:bgp/bgp:global" {
+    container listen-config {
+        leaf deaf {
+            type boolean;
+        }
+        leaf port {
+            type uint32;
+        }
+    }
+  }
 }

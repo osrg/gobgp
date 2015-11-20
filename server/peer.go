@@ -141,7 +141,7 @@ func open2Cap(open *bgp.BGPOpen, n *config.Neighbor) (map[bgp.BGPCapabilityCode]
 	return capMap, rfMap
 }
 
-func (peer *Peer) handleBGPmessage(e *FsmMsg) ([]*table.Path, bool, []*bgp.BGPMessage) {
+func (peer *Peer) handleBGPmessage(e *fsmMsg) ([]*table.Path, bool, []*bgp.BGPMessage) {
 	m := e.MsgData.(*bgp.BGPMessage)
 	bgpMsgList := []*bgp.BGPMessage{}
 	pathList := []*table.Path{}
@@ -220,7 +220,7 @@ func (peer *Peer) handleBGPmessage(e *FsmMsg) ([]*table.Path, bool, []*bgp.BGPMe
 	return pathList, update, bgpMsgList
 }
 
-func (peer *Peer) startFSMHandler(incoming chan *FsmMsg) {
+func (peer *Peer) startFSMHandler(incoming chan *fsmMsg) {
 	peer.fsm.h = NewFSMHandler(peer.fsm, incoming, peer.outgoing)
 }
 
@@ -350,8 +350,25 @@ func (peer *Peer) ToApiStruct() *api.Peer {
 		Received: msgrcv,
 		Sent:     msgsnt,
 	}
+	stateToApiStruct := func(s bgp.FSMState) api.PeerState_BgpState {
+		switch s {
+		case bgp.BGP_FSM_IDLE:
+			return api.PeerState_IDLE
+		case bgp.BGP_FSM_CONNECT:
+			return api.PeerState_CONNECT
+		case bgp.BGP_FSM_ACTIVE:
+			return api.PeerState_ACTIVE
+		case bgp.BGP_FSM_OPENSENT:
+			return api.PeerState_OPENSENT
+		case bgp.BGP_FSM_OPENCONFIRM:
+			return api.PeerState_OPENCONFIRM
+		case bgp.BGP_FSM_ESTABLISHED:
+			return api.PeerState_ESTABLISHED
+		}
+		return api.PeerState_UNKNOWN
+	}
 	info := &api.PeerState{
-		BgpState:   f.state.String(),
+		BgpState:   stateToApiStruct(f.state),
 		AdminState: f.adminState.String(),
 		Messages:   msg,
 		Received:   received,

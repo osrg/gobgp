@@ -121,13 +121,15 @@ type TableManager struct {
 
 func NewTableManager(owner string, rfList []bgp.RouteFamily, minLabel, maxLabel uint32) *TableManager {
 	t := &TableManager{
-		Tables:    make(map[bgp.RouteFamily]*Table),
-		Vrfs:      make(map[string]*Vrf),
-		owner:     owner,
-		minLabel:  minLabel,
-		maxLabel:  maxLabel,
-		nextLabel: minLabel,
-		rfList:    rfList,
+		Tables:              make(map[bgp.RouteFamily]*Table),
+		Vrfs:                make(map[string]*Vrf),
+		owner:               owner,
+		minLabel:            minLabel,
+		maxLabel:            maxLabel,
+		nextLabel:           minLabel,
+		rfList:              rfList,
+		defaultImportPolicy: ROUTE_TYPE_ACCEPT,
+		defaultExportPolicy: ROUTE_TYPE_ACCEPT,
 	}
 	for _, rf := range rfList {
 		t.Tables[rf] = NewTable(rf)

@@ -295,7 +295,7 @@ func makePeerAndHandler() (*Peer, *FSMHandler) {
 
 	p.fsm = NewFSM(&gConf, &pConf, &Peer{})
 
-	incoming := make(chan *FsmMsg, 4096)
+	incoming := make(chan *fsmMsg, 4096)
 	p.outgoing = make(chan *bgp.BGPMessage, 4096)
 
 	h := &FSMHandler{

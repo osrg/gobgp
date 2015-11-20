@@ -167,7 +167,7 @@ message Destination {
 
 message Peer {
   AddPaths addpaths = 1;
-  AfiSafis afisafis = 2;
+  repeated string afisafis = 2;
   ApplyPolicy apply_policy = 3;
   AsPathOptions as_path_options = 4;
   PeerConf conf = 5;
@@ -188,59 +188,10 @@ message AddPaths {
   uint32 send_max = 2;
 }
 
-message AfiSafis {
-  repeated AfiSafi afisafi = 1;
-}
-
-message AfiSafi {
-  string name = 1;
-  ApplyPolicy apply_policy = 2;
-  bool enabled = 3;
-  AfiSafiGracefulRestart graceful_restart = 4;
-  LabelledUnicast ipv4_labelled_unicast = 5;
-  Unicast ipv4_unicast = 6;
-  LabelledUnicast ipv6_labelled_unicast = 7;
-  Unicast ipv6_unicast = 8;
-  Vpn l2_vpn_evpn = 9;
-  Vpn l2_vpn_vpls = 10;
-  Vpn l3_vpn_ipv4_multicast = 11;
-  Vpn l3_vpn_ipv4_unicast = 12;
-  Vpn l3_vpn_ipv6_multicast = 13;
-  Vpn l3_vpn_ipv6_unicast = 14;
-  UseMultiplePaths use_multiple_paths = 15;
-  bool active = 16;
-  Prefixes prefixes = 17;
- }
-
 message ApplyPolicy {
   PolicyAssignment in_policy = 1;
   PolicyAssignment export_policy = 2;
   PolicyAssignment import_policy = 3;
-}
-
-message AfiSafiGracefulRestart {
-  bool advertised = 1;
-  bool enabled = 2;
-  bool received = 3;
-}
-
-message LabelledUnicast {
-  PrefixLimit prefix_limit = 1;
-}
-
-message PrefixLimit {
-  uint32 max_prefixes = 1;
-  uint64 restart_timer = 2;
-  uint32 shutdown_threshold_pct = 3;
-}
-
-message Unicast {
-  bool send_default_route = 1;
-  PrefixLimit prefix_limit = 2;
-}
-
-message Vpn {
-  PrefixLimit prefix_limit = 1;
 }
 
 message Prefixes {
@@ -324,7 +275,16 @@ message PeerState {
   uint32 send_community = 12;
   uint32 session_state = 13;
   repeated string supported_capabilities = 14;
-  string bgp_state = 15;
+  enum BgpState {
+      UNKNOWN = 0;
+      IDLE = 1;
+      CONNECT = 2;
+      ACTIVE = 3;
+      OPENSENT = 4;
+      OPENCONFIRM = 5;
+      ESTABLISHED = 6;
+  }
+  BgpState bgp_state = 15;
   string admin_state = 16;
   uint32 received = 17;
   uint32 accepted = 18;
@@ -546,4 +506,6 @@ message Vrf {
 message Global {
     uint32 as = 1;
     string router_id = 2;
+    bool deaf = 3;
+    uint32 listen_port = 4;
 }
