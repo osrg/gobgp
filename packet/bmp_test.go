@@ -16,6 +16,7 @@
 package bgp
 
 import (
+	"github.com/stretchr/testify/assert"
 	"reflect"
 	"testing"
 )
@@ -63,4 +64,10 @@ func Test_RouteMonitoring(t *testing.T) {
 	m := update()
 	p0 := NewBMPPeerHeader(0, false, 1000, "fe80::6e40:8ff:feab:2c2a", 70000, "10.0.0.2", 1)
 	verify(t, NewBMPRouteMonitoring(*p0, m))
+}
+
+func Test_BogusHeader(t *testing.T) {
+	h, err := ParseBMPMessage(make([]byte, 10))
+	assert.Nil(t, h)
+	assert.NotNil(t, err)
 }

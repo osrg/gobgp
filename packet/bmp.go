@@ -541,7 +541,10 @@ const (
 
 func ParseBMPMessage(data []byte) (*BMPMessage, error) {
 	msg := &BMPMessage{}
-	msg.Header.DecodeFromBytes(data)
+	err := msg.Header.DecodeFromBytes(data)
+	if err != nil {
+		return nil, err
+	}
 	data = data[BMP_HEADER_SIZE:msg.Header.Length]
 
 	switch msg.Header.Type {
@@ -564,7 +567,7 @@ func ParseBMPMessage(data []byte) (*BMPMessage, error) {
 		data = data[BMP_PEER_HEADER_SIZE:]
 	}
 
-	err := msg.Body.ParseBody(msg, data)
+	err = msg.Body.ParseBody(msg, data)
 	if err != nil {
 		return nil, err
 	}
