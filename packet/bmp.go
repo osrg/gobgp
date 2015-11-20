@@ -45,7 +45,7 @@ const (
 
 func (h *BMPHeader) DecodeFromBytes(data []byte) error {
 	h.Version = data[0]
-	if data[0] != 3 {
+	if data[0] != BMP_VERSION {
 		return fmt.Errorf("error version")
 	}
 	h.Length = binary.BigEndian.Uint32(data[1:5])
