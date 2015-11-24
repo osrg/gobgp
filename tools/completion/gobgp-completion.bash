@@ -285,11 +285,11 @@ __handle_word()
 {
     if [[ $c -ge $cword ]]; then
         __handle_reply
-	return
+        return
     fi
     __debug "${FUNCNAME}: c is $c words[c] is ${words[c]}"
     if [[ "${words[c]}" == -* ]]; then
-	__handle_flag
+        __handle_flag
     elif __contains_word "${words[c]}" "${commands[@]}"; then
         __handle_command
     else
@@ -2142,12 +2142,107 @@ _gobgp_mrt_inject()
     must_have_one_noun=()
 }
 
+_gobgp_mrt_update_enable()
+{
+    last_command="gobgp_mrt_update_enable"
+    commands=()
+
+    flags=()
+    two_word_flags=()
+    flags_with_completion=()
+    flags_completion=()
+
+
+    must_have_one_flag=()
+    must_have_one_noun=()
+}
+
+_gobgp_mrt_update_disable()
+{
+    last_command="gobgp_mrt_update_disable"
+    commands=()
+
+    flags=()
+    two_word_flags=()
+    flags_with_completion=()
+    flags_completion=()
+
+
+    must_have_one_flag=()
+    must_have_one_noun=()
+}
+
+_gobgp_mrt_update_reset()
+{
+    last_command="gobgp_mrt_update_reset"
+    commands=()
+
+    flags=()
+    two_word_flags=()
+    flags_with_completion=()
+    flags_completion=()
+
+
+    must_have_one_flag=()
+    must_have_one_noun=()
+}
+
+_gobgp_mrt_update_rotate()
+{
+    last_command="gobgp_mrt_update_rotate"
+    commands=()
+
+    flags=()
+    two_word_flags=()
+    flags_with_completion=()
+    flags_completion=()
+
+
+    must_have_one_flag=()
+    must_have_one_noun=()
+}
+
+_gobgp_mrt_update()
+{
+    last_command="gobgp_mrt_update"
+    commands=()
+    commands+=("enable")
+    commands+=("disable")
+    commands+=("reset")
+    commands+=("rotate")
+
+    flags=()
+    two_word_flags=()
+    flags_with_completion=()
+    flags_completion=()
+
+
+    must_have_one_flag=()
+    must_have_one_noun=()
+}
+
 _gobgp_mrt()
 {
     last_command="gobgp_mrt"
     commands=()
     commands+=("dump")
     commands+=("inject")
+    commands+=("update")
+
+    flags=()
+    two_word_flags=()
+    flags_with_completion=()
+    flags_completion=()
+
+
+    must_have_one_flag=()
+    must_have_one_noun=()
+}
+
+_gobgp_rpki_enable()
+{
+    last_command="gobgp_rpki_enable"
+    commands=()
 
     flags=()
     two_word_flags=()
@@ -2195,6 +2290,7 @@ _gobgp_rpki()
 {
     last_command="gobgp_rpki"
     commands=()
+    commands+=("enable")
     commands+=("server")
     commands+=("table")
 
