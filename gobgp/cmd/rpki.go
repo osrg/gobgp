@@ -95,6 +95,27 @@ func NewRPKICmd() *cobra.Command {
 		Use: CMD_RPKI,
 	}
 
+	modRPKI := func(op api.Operation, address string) {
+		arg := &api.ModRpkiArguments{
+			Operation: op,
+			Address:   address,
+			Port:      323,
+		}
+		client.ModRPKI(context.Background(), arg)
+	}
+
+	enableCmd := &cobra.Command{
+		Use: CMD_ENABLE,
+		Run: func(cmd *cobra.Command, args []string) {
+			if len(args) != 1 {
+				fmt.Println("usage: gobgp rpki enable <ip address>")
+				os.Exit(1)
+			}
+			modRPKI(api.Operation_ADD, args[0])
+		},
+	}
+	rpkiCmd.AddCommand(enableCmd)
+
 	serverCmd := &cobra.Command{
 		Use: CMD_RPKI_SERVER,
 		Run: func(cmd *cobra.Command, args []string) {

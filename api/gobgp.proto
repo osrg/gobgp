@@ -39,6 +39,7 @@ service GobgpApi {
   rpc GetMrt(MrtArguments) returns (stream MrtMessage) {}
   rpc ModMrt(ModMrtArguments) returns (Error) {}
   rpc GetRPKI(Arguments) returns (stream RPKI) {}
+  rpc ModRPKI(ModRpkiArguments) returns (Error) {}
   rpc GetROA(Arguments) returns (stream ROA) {}
   rpc GetVrfs(Arguments) returns (stream Vrf) {}
   rpc ModVrf(ModVrfArguments) returns (Error) {}
@@ -91,6 +92,12 @@ message MrtArguments {
 message ModMrtArguments {
     Operation operation = 1;
     string filename = 2;
+}
+
+message ModRpkiArguments {
+    Operation operation = 1;
+    string address = 2;
+    uint32 port = 3;
 }
 
 message ModVrfArguments {

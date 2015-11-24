@@ -15,6 +15,7 @@ It has these top-level messages:
 	ModNeighborArguments
 	MrtArguments
 	ModMrtArguments
+	ModRpkiArguments
 	ModVrfArguments
 	ModDefinedSetArguments
 	ModStatementArguments
@@ -401,6 +402,16 @@ type ModMrtArguments struct {
 func (m *ModMrtArguments) Reset()         { *m = ModMrtArguments{} }
 func (m *ModMrtArguments) String() string { return proto.CompactTextString(m) }
 func (*ModMrtArguments) ProtoMessage()    {}
+
+type ModRpkiArguments struct {
+	Operation Operation `protobuf:"varint,1,opt,name=operation,enum=gobgpapi.Operation" json:"operation,omitempty"`
+	Address   string    `protobuf:"bytes,2,opt,name=address" json:"address,omitempty"`
+	Port      uint32    `protobuf:"varint,3,opt,name=port" json:"port,omitempty"`
+}
+
+func (m *ModRpkiArguments) Reset()         { *m = ModRpkiArguments{} }
+func (m *ModRpkiArguments) String() string { return proto.CompactTextString(m) }
+func (*ModRpkiArguments) ProtoMessage()    {}
 
 type ModVrfArguments struct {
 	Operation Operation `protobuf:"varint,1,opt,name=operation,enum=gobgpapi.Operation" json:"operation,omitempty"`
@@ -1492,6 +1503,69 @@ func (m *Global) String() string { return proto.CompactTextString(m) }
 func (*Global) ProtoMessage()    {}
 
 func init() {
+	proto.RegisterType((*Error)(nil), "gobgpapi.Error")
+	proto.RegisterType((*Arguments)(nil), "gobgpapi.Arguments")
+	proto.RegisterType((*ModPathArguments)(nil), "gobgpapi.ModPathArguments")
+	proto.RegisterType((*ModNeighborArguments)(nil), "gobgpapi.ModNeighborArguments")
+	proto.RegisterType((*MrtArguments)(nil), "gobgpapi.MrtArguments")
+	proto.RegisterType((*ModMrtArguments)(nil), "gobgpapi.ModMrtArguments")
+	proto.RegisterType((*ModRpkiArguments)(nil), "gobgpapi.ModRpkiArguments")
+	proto.RegisterType((*ModVrfArguments)(nil), "gobgpapi.ModVrfArguments")
+	proto.RegisterType((*ModDefinedSetArguments)(nil), "gobgpapi.ModDefinedSetArguments")
+	proto.RegisterType((*ModStatementArguments)(nil), "gobgpapi.ModStatementArguments")
+	proto.RegisterType((*ModPolicyArguments)(nil), "gobgpapi.ModPolicyArguments")
+	proto.RegisterType((*ModPolicyAssignmentArguments)(nil), "gobgpapi.ModPolicyAssignmentArguments")
+	proto.RegisterType((*ModGlobalConfigArguments)(nil), "gobgpapi.ModGlobalConfigArguments")
+	proto.RegisterType((*Path)(nil), "gobgpapi.Path")
+	proto.RegisterType((*Destination)(nil), "gobgpapi.Destination")
+	proto.RegisterType((*Peer)(nil), "gobgpapi.Peer")
+	proto.RegisterType((*AddPaths)(nil), "gobgpapi.AddPaths")
+	proto.RegisterType((*AfiSafis)(nil), "gobgpapi.AfiSafis")
+	proto.RegisterType((*AfiSafi)(nil), "gobgpapi.AfiSafi")
+	proto.RegisterType((*ApplyPolicy)(nil), "gobgpapi.ApplyPolicy")
+	proto.RegisterType((*AfiSafiGracefulRestart)(nil), "gobgpapi.AfiSafiGracefulRestart")
+	proto.RegisterType((*LabelledUnicast)(nil), "gobgpapi.LabelledUnicast")
+	proto.RegisterType((*PrefixLimit)(nil), "gobgpapi.PrefixLimit")
+	proto.RegisterType((*Unicast)(nil), "gobgpapi.Unicast")
+	proto.RegisterType((*Vpn)(nil), "gobgpapi.Vpn")
+	proto.RegisterType((*Prefixes)(nil), "gobgpapi.Prefixes")
+	proto.RegisterType((*UseMultiplePaths)(nil), "gobgpapi.UseMultiplePaths")
+	proto.RegisterType((*Ebgp)(nil), "gobgpapi.Ebgp")
+	proto.RegisterType((*AsPathOptions)(nil), "gobgpapi.AsPathOptions")
+	proto.RegisterType((*PeerConf)(nil), "gobgpapi.PeerConf")
+	proto.RegisterType((*EbgpMultihop)(nil), "gobgpapi.EbgpMultihop")
+	proto.RegisterType((*ErrorHandling)(nil), "gobgpapi.ErrorHandling")
+	proto.RegisterType((*PeerGracefulRestart)(nil), "gobgpapi.PeerGracefulRestart")
+	proto.RegisterType((*LoggingOptions)(nil), "gobgpapi.LoggingOptions")
+	proto.RegisterType((*RouteReflector)(nil), "gobgpapi.RouteReflector")
+	proto.RegisterType((*PeerState)(nil), "gobgpapi.PeerState")
+	proto.RegisterType((*Messages)(nil), "gobgpapi.Messages")
+	proto.RegisterType((*Message)(nil), "gobgpapi.Message")
+	proto.RegisterType((*Queues)(nil), "gobgpapi.Queues")
+	proto.RegisterType((*Timers)(nil), "gobgpapi.Timers")
+	proto.RegisterType((*TimersConfig)(nil), "gobgpapi.TimersConfig")
+	proto.RegisterType((*TimersState)(nil), "gobgpapi.TimersState")
+	proto.RegisterType((*Transport)(nil), "gobgpapi.Transport")
+	proto.RegisterType((*RouteServer)(nil), "gobgpapi.RouteServer")
+	proto.RegisterType((*Prefix)(nil), "gobgpapi.Prefix")
+	proto.RegisterType((*DefinedSet)(nil), "gobgpapi.DefinedSet")
+	proto.RegisterType((*MatchSet)(nil), "gobgpapi.MatchSet")
+	proto.RegisterType((*AsPathLength)(nil), "gobgpapi.AsPathLength")
+	proto.RegisterType((*Conditions)(nil), "gobgpapi.Conditions")
+	proto.RegisterType((*CommunityAction)(nil), "gobgpapi.CommunityAction")
+	proto.RegisterType((*MedAction)(nil), "gobgpapi.MedAction")
+	proto.RegisterType((*AsPrependAction)(nil), "gobgpapi.AsPrependAction")
+	proto.RegisterType((*Actions)(nil), "gobgpapi.Actions")
+	proto.RegisterType((*Statement)(nil), "gobgpapi.Statement")
+	proto.RegisterType((*Policy)(nil), "gobgpapi.Policy")
+	proto.RegisterType((*PolicyAssignment)(nil), "gobgpapi.PolicyAssignment")
+	proto.RegisterType((*MrtMessage)(nil), "gobgpapi.MrtMessage")
+	proto.RegisterType((*RPKIConf)(nil), "gobgpapi.RPKIConf")
+	proto.RegisterType((*RPKIState)(nil), "gobgpapi.RPKIState")
+	proto.RegisterType((*RPKI)(nil), "gobgpapi.RPKI")
+	proto.RegisterType((*ROA)(nil), "gobgpapi.ROA")
+	proto.RegisterType((*Vrf)(nil), "gobgpapi.Vrf")
+	proto.RegisterType((*Global)(nil), "gobgpapi.Global")
 	proto.RegisterEnum("gobgpapi.Resource", Resource_name, Resource_value)
 	proto.RegisterEnum("gobgpapi.Operation", Operation_name, Operation_value)
 	proto.RegisterEnum("gobgpapi.DefinedType", DefinedType_name, DefinedType_value)
@@ -1530,6 +1604,7 @@ type GobgpApiClient interface {
 	GetMrt(ctx context.Context, in *MrtArguments, opts ...grpc.CallOption) (GobgpApi_GetMrtClient, error)
 	ModMrt(ctx context.Context, in *ModMrtArguments, opts ...grpc.CallOption) (*Error, error)
 	GetRPKI(ctx context.Context, in *Arguments, opts ...grpc.CallOption) (GobgpApi_GetRPKIClient, error)
+	ModRPKI(ctx context.Context, in *ModRpkiArguments, opts ...grpc.CallOption) (*Error, error)
 	GetROA(ctx context.Context, in *Arguments, opts ...grpc.CallOption) (GobgpApi_GetROAClient, error)
 	GetVrfs(ctx context.Context, in *Arguments, opts ...grpc.CallOption) (GobgpApi_GetVrfsClient, error)
 	ModVrf(ctx context.Context, in *ModVrfArguments, opts ...grpc.CallOption) (*Error, error)
@@ -1888,6 +1963,15 @@ func (x *gobgpApiGetRPKIClient) Recv() (*RPKI, error) {
 	return m, nil
 }
 
+func (c *gobgpApiClient) ModRPKI(ctx context.Context, in *ModRpkiArguments, opts ...grpc.CallOption) (*Error, error) {
+	out := new(Error)
+	err := grpc.Invoke(ctx, "/gobgpapi.GobgpApi/ModRPKI", in, out, c.cc, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 func (c *gobgpApiClient) GetROA(ctx context.Context, in *Arguments, opts ...grpc.CallOption) (GobgpApi_GetROAClient, error) {
 	stream, err := grpc.NewClientStream(ctx, &_GobgpApi_serviceDesc.Streams[7], c.cc, "/gobgpapi.GobgpApi/GetROA", opts...)
 	if err != nil {
@@ -2151,6 +2235,7 @@ type GobgpApiServer interface {
 	GetMrt(*MrtArguments, GobgpApi_GetMrtServer) error
 	ModMrt(context.Context, *ModMrtArguments) (*Error, error)
 	GetRPKI(*Arguments, GobgpApi_GetRPKIServer) error
+	ModRPKI(context.Context, *ModRpkiArguments) (*Error, error)
 	GetROA(*Arguments, GobgpApi_GetROAServer) error
 	GetVrfs(*Arguments, GobgpApi_GetVrfsServer) error
 	ModVrf(context.Context, *ModVrfArguments) (*Error, error)
@@ -2467,6 +2552,18 @@ func (x *gobgpApiGetRPKIServer) Send(m *RPKI) error {
 	return x.ServerStream.SendMsg(m)
 }
 
+func _GobgpApi_ModRPKI_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error) (interface{}, error) {
+	in := new(ModRpkiArguments)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	out, err := srv.(GobgpApiServer).ModRPKI(ctx, in)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 func _GobgpApi_GetROA_Handler(srv interface{}, stream grpc.ServerStream) error {
 	m := new(Arguments)
 	if err := stream.RecvMsg(m); err != nil {
@@ -2731,6 +2828,10 @@ var _GobgpApi_serviceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "ModMrt",
 			Handler:    _GobgpApi_ModMrt_Handler,
+		},
+		{
+			MethodName: "ModRPKI",
+			Handler:    _GobgpApi_ModRPKI_Handler,
 		},
 		{
 			MethodName: "ModVrf",

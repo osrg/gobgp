@@ -119,6 +119,7 @@ func NewBgpServer(port int) *BgpServer {
 	b.neighborMap = make(map[string]*Peer)
 	b.listenPort = port
 	b.watchers = make(map[watcherType]watcher)
+	b.roaClient, _ = newROAClient(0, config.RpkiServers{})
 	return &b
 }
 
@@ -160,8 +161,6 @@ func (server *BgpServer) Serve() {
 			break
 		}
 	}
-
-	server.roaClient, _ = newROAClient(g.GlobalConfig.As, config.RpkiServers{})
 
 	if g.Mrt.FileName != "" {
 		w, err := newMrtWatcher(g.Mrt.FileName)
@@ -1697,6 +1696,8 @@ func (server *BgpServer) handleGrpc(grpcReq *GrpcRequest) []*SenderMsg {
 		server.handleMrt(grpcReq)
 	case REQ_MOD_MRT:
 		server.handleModMrt(grpcReq)
+	case REQ_MOD_RPKI:
+		server.handleModRpki(grpcReq)
 	case REQ_ROA, REQ_RPKI:
 		server.roaClient.handleGRPC(grpcReq)
 	case REQ_VRF, REQ_VRFS, REQ_VRF_MOD:
@@ -2203,24 +2204,25 @@ func (server *BgpServer) handleGrpcModPolicyAssignment(grpcReq *GrpcRequest) err
 	return err
 }
 
-func (server *BgpServer) handleModMrt(grpcReq *GrpcRequest) {
-	done := func(e error) {
-		result := &GrpcResponse{
-			ResponseErr: e,
-		}
-		grpcReq.ResponseCh <- result
-		close(grpcReq.ResponseCh)
+func grpcDone(grpcReq *GrpcRequest, e error) {
+	result := &GrpcResponse{
+		ResponseErr: e,
 	}
+	grpcReq.ResponseCh <- result
+	close(grpcReq.ResponseCh)
+}
+
+func (server *BgpServer) handleModMrt(grpcReq *GrpcRequest) {
 	arg := grpcReq.Data.(*api.ModMrtArguments)
 	w, y := server.watchers[WATCHER_MRT]
 	if arg.Operation == api.Operation_ADD {
 		if y {
-			done(fmt.Errorf("already enabled"))
+			grpcDone(grpcReq, fmt.Errorf("already enabled"))
 			return
 		}
 	} else {
 		if !y {
-			done(fmt.Errorf("not enabled yet"))
+			grpcDone(grpcReq, fmt.Errorf("not enabled yet"))
 			return
 		}
 	}
@@ -2230,17 +2232,48 @@ func (server *BgpServer) handleModMrt(grpcReq *GrpcRequest) {
 		if err == nil {
 			server.watchers[WATCHER_MRT] = w
 		}
-		done(err)
+		grpcDone(grpcReq, err)
 	case api.Operation_DEL:
 		delete(server.watchers, WATCHER_MRT)
 		w.stop()
-		done(nil)
+		grpcDone(grpcReq, nil)
 	case api.Operation_REPLACE:
 		go func() {
 			err := w.restart(arg.Filename)
-			done(err)
+			grpcDone(grpcReq, err)
 		}()
 	}
+}
+
+func (server *BgpServer) handleModRpki(grpcReq *GrpcRequest) {
+	arg := grpcReq.Data.(*api.ModRpkiArguments)
+	configured := false
+	if len(server.bgpConfig.RpkiServers.RpkiServerList) > 0 {
+		configured = true
+	}
+
+	if arg.Operation == api.Operation_ADD {
+		if configured {
+			grpcDone(grpcReq, fmt.Errorf("already enabled"))
+			return
+		}
+	} else {
+		if !configured {
+			grpcDone(grpcReq, fmt.Errorf("not enabled yet"))
+			return
+		}
+	}
+	switch arg.Operation {
+	case api.Operation_ADD:
+		r := config.RpkiServer{}
+		r.RpkiServerConfig.Address = net.ParseIP(arg.Address)
+		r.RpkiServerConfig.Port = arg.Port
+		server.bgpConfig.RpkiServers.RpkiServerList = append(server.bgpConfig.RpkiServers.RpkiServerList, r)
+		server.roaClient, _ = newROAClient(server.bgpConfig.Global.GlobalConfig.As, server.bgpConfig.RpkiServers)
+		grpcDone(grpcReq, nil)
+		return
+	}
+	grpcDone(grpcReq, fmt.Errorf("not supported yet"))
 }
 
 func (server *BgpServer) handleMrt(grpcReq *GrpcRequest) {
