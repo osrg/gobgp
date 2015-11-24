@@ -5161,11 +5161,14 @@ func parseFlowSpecExtended(data []byte) (ExtendedCommunityInterface, error) {
 		dscp := data[7]
 		return NewTrafficRemarkExtended(dscp), nil
 	}
-	return nil, fmt.Errorf("unknown flowspec subtype: %d", subType)
+	return &UnknownExtended{
+		Type:  ExtendedCommunityAttrType(data[0]),
+		Value: data[1:8],
+	}, nil
 }
 
 type UnknownExtended struct {
-	Type  BGPAttrType
+	Type  ExtendedCommunityAttrType
 	Value []byte
 }
 
@@ -5245,13 +5248,12 @@ func ParseExtended(data []byte) (ExtendedCommunityInterface, error) {
 	case EC_TYPE_EVPN:
 		return parseEvpnExtended(data)
 	case EC_TYPE_GENERIC_TRANSITIVE_EXPERIMENTAL, EC_TYPE_GENERIC_TRANSITIVE_EXPERIMENTAL2, EC_TYPE_GENERIC_TRANSITIVE_EXPERIMENTAL3:
-		p, err := parseFlowSpecExtended(data)
-		return p, err
+		return parseFlowSpecExtended(data)
 	default:
-		e := &UnknownExtended{}
-		e.Type = BGPAttrType(data[0])
-		e.Value = data[1:8]
-		return e, nil
+		return &UnknownExtended{
+			Type:  ExtendedCommunityAttrType(data[0]),
+			Value: data[1:8],
+		}, nil
 	}
 }
 
