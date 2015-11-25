@@ -69,7 +69,7 @@ type BMPPeerHeader struct {
 	PeerAS            uint32
 	PeerBGPID         net.IP
 	Timestamp         float64
-	flags             uint8
+	Flags             uint8
 }
 
 func NewBMPPeerHeader(t uint8, policy bool, dist uint64, address string, as uint32, id string, stamp float64) *BMPPeerHeader {
@@ -82,27 +82,27 @@ func NewBMPPeerHeader(t uint8, policy bool, dist uint64, address string, as uint
 		Timestamp:         stamp,
 	}
 	if policy == true {
-		h.flags |= (1 << 6)
+		h.Flags |= (1 << 6)
 	}
 	if net.ParseIP(address).To4() != nil {
 		h.PeerAddress = net.ParseIP(address).To4()
 	} else {
 		h.PeerAddress = net.ParseIP(address).To16()
-		h.flags |= (1 << 7)
+		h.Flags |= (1 << 7)
 	}
 	return h
 }
 
 func (h *BMPPeerHeader) DecodeFromBytes(data []byte) error {
 	h.PeerType = data[0]
-	h.flags = data[1]
-	if h.flags&(1<<6) != 0 {
+	h.Flags = data[1]
+	if h.Flags&(1<<6) != 0 {
 		h.IsPostPolicy = true
 	} else {
 		h.IsPostPolicy = false
 	}
 	h.PeerDistinguisher = binary.BigEndian.Uint64(data[2:10])
-	if h.flags&(1<<7) != 0 {
+	if h.Flags&(1<<7) != 0 {
 		h.PeerAddress = net.IP(data[10:26]).To16()
 	} else {
 		h.PeerAddress = net.IP(data[10:14]).To4()
@@ -119,9 +119,9 @@ func (h *BMPPeerHeader) DecodeFromBytes(data []byte) error {
 func (h *BMPPeerHeader) Serialize() ([]byte, error) {
 	buf := make([]byte, BMP_PEER_HEADER_SIZE)
 	buf[0] = h.PeerType
-	buf[1] = h.flags
+	buf[1] = h.Flags
 	binary.BigEndian.PutUint64(buf[2:10], h.PeerDistinguisher)
-	if h.flags&(1<<7) != 0 {
+	if h.Flags&(1<<7) != 0 {
 		copy(buf[10:26], h.PeerAddress)
 	} else {
 		copy(buf[10:14], h.PeerAddress.To4())
@@ -294,7 +294,7 @@ func NewBMPPeerUpNotification(p BMPPeerHeader, lAddr string, lPort, rPort uint16
 }
 
 func (body *BMPPeerUpNotification) ParseBody(msg *BMPMessage, data []byte) error {
-	if msg.PeerHeader.flags&(1<<7) != 0 {
+	if msg.PeerHeader.Flags&(1<<7) != 0 {
 		body.LocalAddress = net.IP(data[:16]).To16()
 	} else {
 		body.LocalAddress = net.IP(data[:4]).To4()
