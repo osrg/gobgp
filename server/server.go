@@ -576,6 +576,9 @@ func (server *BgpServer) dropPeerAllRoutes(peer *Peer) []*SenderMsg {
 				if targetPeer.isRouteServerClient() || targetPeer.fsm.state != bgp.BGP_FSM_ESTABLISHED {
 					continue
 				}
+				if _, ok := targetPeer.rfMap[rf]; !ok {
+					continue
+				}
 				targetPeer.adjRib.UpdateOut(pathList)
 				msgs = append(msgs, newSenderMsg(targetPeer, msgList))
 			}
