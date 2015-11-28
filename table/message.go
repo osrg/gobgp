@@ -194,6 +194,9 @@ func CreateUpdateMsgFromPaths(pathList []*Path) []*bgp.BGPMessage {
 	pathByAttrs := make(map[uint32][]*bucket)
 	pathLen := len(pathList)
 	for _, path := range pathList {
+		if path == nil {
+			continue
+		}
 		y := func(p *Path) bool {
 			// the merging logic makes gobgpd slower so if
 			// paths are not many, let's avoid mering.
