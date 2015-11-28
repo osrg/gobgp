@@ -204,7 +204,7 @@ func main() {
 				// allocated before the above
 				// SetPolicy. But this should be
 				// handled more cleanly.
-				if err := bgpServer.SetPolicy(newConfig.Policy); err != nil {
+				if err := bgpServer.SetRoutingPolicy(newConfig.Policy); err != nil {
 					log.Fatal(err)
 				}
 			} else {
