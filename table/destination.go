@@ -18,7 +18,6 @@ package table
 import (
 	"bytes"
 	"encoding/binary"
-	"encoding/json"
 	"fmt"
 	log "github.com/Sirupsen/logrus"
 	api "github.com/osrg/gobgp/api"
@@ -112,14 +111,13 @@ func NewPeerInfo(g *config.Global, p *config.Neighbor) *PeerInfo {
 }
 
 type Destination struct {
-	routeFamily    bgp.RouteFamily
-	nlri           bgp.AddrPrefixInterface
-	knownPathList  paths
-	withdrawList   paths
-	newPathList    paths
-	bestPath       *Path
-	bestPathReason BestPathReason
-	RadixKey       string
+	routeFamily      bgp.RouteFamily
+	nlri             bgp.AddrPrefixInterface
+	oldKnownPathList paths
+	knownPathList    paths
+	withdrawList     paths
+	newPathList      paths
+	RadixKey         string
 }
 
 func NewDestination(nlri bgp.AddrPrefixInterface) *Destination {
@@ -137,24 +135,27 @@ func NewDestination(nlri bgp.AddrPrefixInterface) *Destination {
 	return d
 }
 
-func (dd *Destination) MarshalJSON() ([]byte, error) {
-	return json.Marshal(dd.ToApiStruct())
-}
-
-func (dd *Destination) ToApiStruct() *api.Destination {
+func (dd *Destination) ToApiStruct(id string) *api.Destination {
 	prefix := dd.GetNlri().String()
 	paths := func(arg []*Path) []*api.Path {
 		ret := make([]*api.Path, 0, len(arg))
+		first := true
 		for _, p := range arg {
-			pp := p.ToApiStruct()
-			if dd.GetBestPath() == p {
-				pp.Best = true
+			if p.filtered[id] == POLICY_DIRECTION_NONE {
+				pp := p.ToApiStruct(id)
+				if first {
+					pp.Best = true
+					first = false
+				}
+				ret = append(ret, pp)
 			}
-			ret = append(ret, pp)
 		}
 		return ret
 	}(dd.knownPathList)
 
+	if len(paths) == 0 {
+		return nil
+	}
 	return &api.Destination{
 		Prefix: prefix,
 		Paths:  paths,
@@ -177,28 +178,32 @@ func (dd *Destination) setNlri(nlri bgp.AddrPrefixInterface) {
 	dd.nlri = nlri
 }
 
-func (dd *Destination) getBestPathReason() BestPathReason {
-	return dd.bestPathReason
+func (dd *Destination) GetKnownPathList(id string) []*Path {
+	list := make([]*Path, 0, len(dd.knownPathList))
+	for _, p := range dd.knownPathList {
+		if p.filtered[id] == POLICY_DIRECTION_NONE {
+			list = append(list, p)
+		}
+	}
+	return list
 }
 
-func (dd *Destination) setBestPathReason(reason BestPathReason) {
-	dd.bestPathReason = reason
+func (dd *Destination) GetBestPath(id string) *Path {
+	for _, p := range dd.knownPathList {
+		if p.filtered[id] == POLICY_DIRECTION_NONE {
+			return p
+		}
+	}
+	return nil
 }
 
-func (dd *Destination) GetBestPath() *Path {
-	return dd.bestPath
-}
-
-func (dd *Destination) setBestPath(path *Path) {
-	dd.bestPath = path
-}
-
-func (dd *Destination) GetKnownPathList() []*Path {
-	return dd.knownPathList
-}
-
-func (dd *Destination) setKnownPathList(List []*Path) {
-	dd.knownPathList = List
+func (dd *Destination) oldBest(id string) *Path {
+	for _, p := range dd.oldKnownPathList {
+		if p.filtered[id] == POLICY_DIRECTION_NONE {
+			return p
+		}
+	}
+	return nil
 }
 
 func (dd *Destination) addWithdraw(withdraw *Path) {
@@ -229,8 +234,8 @@ func (dd *Destination) validatePath(path *Path) {
 //
 // Modifies destination's state related to stored paths. Removes withdrawn
 // paths from known paths. Also, adds new paths to known paths.
-func (dest *Destination) Calculate() (*Path, BestPathReason, error) {
-
+func (dest *Destination) Calculate() {
+	dest.oldKnownPathList = dest.knownPathList
 	// First remove the withdrawn paths.
 	dest.explicitWithdraw()
 	// Do implicit withdrawal
@@ -240,7 +245,22 @@ func (dest *Destination) Calculate() (*Path, BestPathReason, error) {
 	// Clear new paths as we copied them.
 	dest.newPathList = make([]*Path, 0)
 	// Compute new best path
-	return dest.computeKnownBestPath()
+	dest.computeKnownBestPath()
+}
+
+func (dest *Destination) NewFeed(id string) *Path {
+	old := dest.oldBest(id)
+	best := dest.GetBestPath(id)
+	if best != nil && best.Equal(old) {
+		return nil
+	}
+	if best == nil {
+		if old == nil {
+			return nil
+		}
+		return old.Clone(old.Owner, true)
+	}
+	return best
 }
 
 // Removes withdrawn paths.

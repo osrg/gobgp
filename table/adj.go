@@ -21,17 +21,19 @@ import (
 )
 
 type AdjRib struct {
+	id       string
 	counter  map[bgp.RouteFamily]int
 	accepted map[bgp.RouteFamily]int
 	table    map[bgp.RouteFamily]map[string]*Path
 }
 
-func NewAdjRib(rfList []bgp.RouteFamily) *AdjRib {
+func NewAdjRib(id string, rfList []bgp.RouteFamily) *AdjRib {
 	table := make(map[bgp.RouteFamily]map[string]*Path)
 	for _, rf := range rfList {
 		table[rf] = make(map[string]*Path)
 	}
 	return &AdjRib{
+		id:       id,
 		table:    table,
 		counter:  make(map[bgp.RouteFamily]int),
 		accepted: make(map[bgp.RouteFamily]int),
@@ -50,20 +52,22 @@ func (adj *AdjRib) Update(pathList []*Path) {
 			if found {
 				delete(adj.table[rf], key)
 				adj.counter[rf]--
-				if !old.Filtered {
+				if old.Filtered(adj.id) > POLICY_DIRECTION_NONE {
 					adj.accepted[rf]--
 				}
 			}
 		} else {
+			n := path.Filtered(adj.id)
 			if found {
-				if old.Filtered && !path.Filtered {
+				o := old.Filtered(adj.id)
+				if o == POLICY_DIRECTION_IN && n == POLICY_DIRECTION_NONE {
 					adj.accepted[rf]++
-				} else if !old.Filtered && path.Filtered {
+				} else if o == POLICY_DIRECTION_NONE && n == POLICY_DIRECTION_IN {
 					adj.accepted[rf]--
 				}
 			} else {
 				adj.counter[rf]++
-				if !path.Filtered {
+				if n == POLICY_DIRECTION_NONE {
 					adj.accepted[rf]++
 				}
 			}
@@ -79,7 +83,7 @@ func (adj *AdjRib) PathList(rfList []bgp.RouteFamily, accepted bool) []*Path {
 	pathList := make([]*Path, 0, adj.Count(rfList))
 	for _, rf := range rfList {
 		for _, rr := range adj.table[rf] {
-			if accepted && rr.Filtered {
+			if accepted && rr.Filtered(adj.id) > POLICY_DIRECTION_NONE {
 				continue
 			}
 			pathList = append(pathList, rr)
