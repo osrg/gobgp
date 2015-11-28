@@ -30,7 +30,15 @@ import (
 // this function processes only BGPUpdate
 func (manager *TableManager) ProcessUpdate(fromPeer *PeerInfo, message *bgp.BGPMessage) ([]*Path, error) {
 	paths := ProcessMessage(message, fromPeer, time.Now())
-	return manager.ProcessPaths(paths)
+	dsts := manager.ProcessPaths(paths)
+	paths2 := make([]*Path, 0, len(paths))
+	for _, dst := range dsts {
+		p := dst.NewFeed(GLOBAL_RIB_NAME)
+		if p != nil {
+			paths2 = append(paths2, p)
+		}
+	}
+	return paths2, nil
 }
 
 func getLogger(lv log.Level) *log.Logger {
@@ -2148,7 +2156,7 @@ func TestProcessBGPUpdate_Timestamp(t *testing.T) {
 
 	nlri := []*bgp.IPAddrPrefix{bgp.NewIPAddrPrefix(24, "10.10.10.0")}
 
-	adjRib := NewAdjRib([]bgp.RouteFamily{bgp.RF_IPv4_UC, bgp.RF_IPv6_UC})
+	adjRib := NewAdjRib("test", []bgp.RouteFamily{bgp.RF_IPv4_UC, bgp.RF_IPv6_UC})
 	m1 := bgp.NewBGPUpdateMessage(nil, pathAttributes, nlri)
 	peer := peerR1()
 	pList1 := ProcessMessage(m1, peer, time.Now())
