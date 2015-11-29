@@ -67,6 +67,9 @@ func NewPeer(g config.Global, conf config.Neighbor, loc *table.TableManager, pol
 	peer.adjRibIn = table.NewAdjRib(peer.ID(), rfs)
 	peer.adjRibOut = table.NewAdjRib(peer.ID(), rfs)
 	peer.fsm = NewFSM(&g, &conf, policy)
+	peer.policy.SetDefaultPolicy(peer.ID(), table.POLICY_DIRECTION_IN, table.ROUTE_TYPE_ACCEPT)
+	peer.policy.SetDefaultPolicy(peer.ID(), table.POLICY_DIRECTION_IMPORT, table.ROUTE_TYPE_ACCEPT)
+	peer.policy.SetDefaultPolicy(peer.ID(), table.POLICY_DIRECTION_EXPORT, table.ROUTE_TYPE_ACCEPT)
 	return peer
 }
 

@@ -115,6 +115,8 @@ func NewBgpServer() *BgpServer {
 	b.watchers = make(map[watcherType]watcher)
 	b.roaClient, _ = newROAClient(0, config.RpkiServers{})
 	b.policy = table.NewRoutingPolicy()
+	b.policy.SetDefaultPolicy(table.GLOBAL_RIB_NAME, table.POLICY_DIRECTION_IMPORT, table.ROUTE_TYPE_ACCEPT)
+	b.policy.SetDefaultPolicy(table.GLOBAL_RIB_NAME, table.POLICY_DIRECTION_EXPORT, table.ROUTE_TYPE_ACCEPT)
 	return &b
 }
 
