@@ -30,7 +30,8 @@ do
     sudo ip li del $link
 done
 
-sudo fab -f $GOBGP/test/scenario_test/lib/base.py make_gobgp_ctn --set tag=$GOBGP_IMAGE
+sudo docker rmi $GOBGP_IMAGE
+sudo fab -f $GOBGP/test/lib/base.py make_gobgp_ctn:tag=$GOBGP_IMAGE
 
 cd $GOBGP/gobgpd
 $GOROOT/bin/go get -v
