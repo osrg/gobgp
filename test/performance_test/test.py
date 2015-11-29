@@ -15,6 +15,7 @@ def make_tester_ctn(tag='tester', local_gobgp_path='', from_image='osrg/quagga')
     c << 'ADD gobgp /go/src/github.com/osrg/gobgp/'
     c << 'RUN go get github.com/osrg/gobgp/test/performance_test'
     c << 'RUN go install github.com/osrg/gobgp/test/performance_test'
+    c << 'RUN go install github.com/osrg/gobgp/gobgp'
 
     rindex = local_gobgp_path.rindex('gobgp')
     if rindex < 0:
@@ -39,6 +40,7 @@ if __name__ == '__main__':
     parser.add_option("-l", "--log-level", dest="log_level")
     parser.add_option("-u", "--unique", dest="unique", action="store_true")
     parser.add_option("-r", "--route-server", dest="route_server", action="store_true")
+    parser.add_option("-g", "--grpc-server", dest="grpc_server", action="store_true")
     (options, args) = parser.parse_args()
 
     if options.target_rs.startswith("gobgp"):
@@ -87,7 +89,7 @@ if __name__ == '__main__':
 
     c = CmdBuffer()
     c << "#!/bin/sh"
-    c << "performance_test -n {0} -p {1} -l {2} {3} {4} > /root/shared_volume/test.log".format(options.num_peer, options.num_prefix, options.log_level, '-u' if options.unique else '', ' '.join(args))
+    c << "performance_test -n {0} -p {1} -l {2} {3} {4} {5}> /root/shared_volume/test.log".format(options.num_peer, options.num_prefix, options.log_level, '-u' if options.unique else '', '-g' if options.grpc_server else '', ' '.join(args))
     with open('/tmp/start_test.sh', 'w') as f:
         f.write(str(c))
     local('chmod +x /tmp/start_test.sh')

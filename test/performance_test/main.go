@@ -29,9 +29,12 @@ import (
 	"github.com/osrg/gobgp/server"
 )
 
-func newServer() *server.BgpServer {
+func newServer(grpc bool, idx int) *server.BgpServer {
 	s := server.NewBgpServer()
 	go s.Serve()
+	if grpc {
+		go server.NewGrpcServer(server.GRPC_PORT+idx, s.GrpcReqCh).Serve()
+	}
 	return s
 }
 
@@ -40,6 +43,7 @@ type Option struct {
 	NumPrefix int    `short:"p" long:"num-prefix" description:"num of peers"`
 	LogLevel  string `short:"l" long:"log-level" description:"specifying log level"`
 	Unique    bool   `short:"u" long:"unique" description:"send unique paths from each peers"`
+	Grpc      bool   `short:"g" long:"grpc-server" description:"run gRPC server"`
 }
 
 type testFunc func(Option, map[string]*server.BgpServer)
@@ -84,7 +88,7 @@ func main() {
 	start := time.Now()
 
 	for i := 0; i < num; i++ {
-		s := newServer()
+		s := newServer(opt.Grpc, i)
 		localAddr := fmt.Sprintf("10.10.%d.%d", (i+2)/255, (i+2)%255)
 		serverMap[localAddr] = s
 		req := server.NewGrpcRequest(server.REQ_MOD_GLOBAL_CONFIG, "", bgp.RouteFamily(0), &api.ModGlobalConfigArguments{
