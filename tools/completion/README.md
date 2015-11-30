@@ -139,9 +139,9 @@ You can use tab completion for gobgp after loading gobgp-completion.bash.
     }
     ```
 
- 1. implement a handle processing
+ 1. implement the handle processing
 
-	If you want to add the completion  following the "gobgp" command, you need to add handle process following to "__handle_gobgp_command ()" function of **gobgp-dynamic-completion**.
+	If you want to add the completion following the "gobgp neighbor <neighbor address>" command, you need to add handle process following to "__handle_gobgp_command ()" function of **gobgp-dynamic-completion**.
 
     ```
     case "${last_command}" in
@@ -158,13 +158,27 @@ You can use tab completion for gobgp after loading gobgp-completion.bash.
     _gobgp_neighbor_addr()
     {
         last_command="gobgp_neighbor_addr"
+
         commands=()
+        commands+=("local")
+        commands+=("adj-in")
+        commands+=("adj-out")
+        commands+=("reset")
+        commands+=("softreset")
+        commands+=("softresetin")
+        commands+=("softresetout")
+        commands+=("shutdown")
+        commands+=("enable")
+        commands+=("disable")
+        commands+=("policy")
 
         flags=()
         two_word_flags=()
         flags_with_completion=()
         flags_completion=()
 
+        flags+=("--address-family=")
+        two_word_flags+=("-a")
         flags+=("--bash-cmpl-file=")
         flags+=("--debug")
         flags+=("-d")
