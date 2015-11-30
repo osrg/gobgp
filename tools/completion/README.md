@@ -34,7 +34,7 @@ You can use tab completion for gobgp after loading gobgp-completion.bash.
 
 1. generate bash completion file
 
- generate the bash completion file by using binary of gobgp client.
+ Generate the bash completion file by using binary of gobgp client.
  ```
  % gobgp --gen-cmpl --bash-cmpl-file=<specifying a file name>
  ```
