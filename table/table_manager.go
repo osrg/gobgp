@@ -21,8 +21,11 @@ import (
 	log "github.com/Sirupsen/logrus"
 	"github.com/osrg/gobgp/packet"
 	"net"
-	"reflect"
 	"time"
+)
+
+const (
+	GLOBAL_RIB_NAME = "global"
 )
 
 func nlri2Path(m *bgp.BGPMessage, p *PeerInfo, now time.Time) []*Path {
@@ -106,17 +109,13 @@ func ProcessMessage(m *bgp.BGPMessage, peerInfo *PeerInfo, timestamp time.Time) 
 }
 
 type TableManager struct {
-	Tables              map[bgp.RouteFamily]*Table
-	Vrfs                map[string]*Vrf
-	owner               string
-	minLabel            uint32
-	maxLabel            uint32
-	nextLabel           uint32
-	rfList              []bgp.RouteFamily
-	importPolicies      []*Policy
-	defaultImportPolicy RouteType
-	exportPolicies      []*Policy
-	defaultExportPolicy RouteType
+	Tables    map[bgp.RouteFamily]*Table
+	Vrfs      map[string]*Vrf
+	owner     string
+	minLabel  uint32
+	maxLabel  uint32
+	nextLabel uint32
+	rfList    []bgp.RouteFamily
 }
 
 func NewTableManager(owner string, rfList []bgp.RouteFamily, minLabel, maxLabel uint32) *TableManager {
@@ -137,82 +136,6 @@ func NewTableManager(owner string, rfList []bgp.RouteFamily, minLabel, maxLabel 
 
 func (manager *TableManager) GetRFlist() []bgp.RouteFamily {
 	return manager.rfList
-}
-
-func (manager *TableManager) GetPolicy(d PolicyDirection) []*Policy {
-	switch d {
-	case POLICY_DIRECTION_IMPORT:
-		return manager.importPolicies
-	case POLICY_DIRECTION_EXPORT:
-		return manager.exportPolicies
-	}
-	return nil
-}
-
-func (manager *TableManager) SetPolicy(d PolicyDirection, policies []*Policy) error {
-	switch d {
-	case POLICY_DIRECTION_IMPORT:
-		manager.importPolicies = policies
-	case POLICY_DIRECTION_EXPORT:
-		manager.exportPolicies = policies
-	default:
-		return fmt.Errorf("unsupported policy type: %d", d)
-	}
-	return nil
-}
-
-func (manager *TableManager) GetDefaultPolicy(d PolicyDirection) RouteType {
-	switch d {
-	case POLICY_DIRECTION_IMPORT:
-		return manager.defaultImportPolicy
-	case POLICY_DIRECTION_EXPORT:
-		return manager.defaultExportPolicy
-	}
-	return ROUTE_TYPE_NONE
-}
-
-func (manager *TableManager) SetDefaultPolicy(d PolicyDirection, typ RouteType) error {
-	switch d {
-	case POLICY_DIRECTION_IMPORT:
-		manager.defaultImportPolicy = typ
-	case POLICY_DIRECTION_EXPORT:
-		manager.defaultExportPolicy = typ
-	default:
-		return fmt.Errorf("unsupported policy type: %d", d)
-	}
-	return nil
-}
-
-func (manager *TableManager) ApplyPolicy(d PolicyDirection, paths []*Path) []*Path {
-	newpaths := make([]*Path, 0, len(paths))
-	for _, path := range paths {
-		result := ROUTE_TYPE_NONE
-		newpath := path
-		for _, p := range manager.GetPolicy(d) {
-			result, newpath = p.Apply(path)
-			if result != ROUTE_TYPE_NONE {
-				break
-			}
-		}
-
-		if result == ROUTE_TYPE_NONE {
-			result = manager.GetDefaultPolicy(d)
-		}
-
-		switch result {
-		case ROUTE_TYPE_ACCEPT:
-			newpaths = append(newpaths, newpath)
-		case ROUTE_TYPE_REJECT:
-			path.Filtered = true
-			log.WithFields(log.Fields{
-				"Topic":     "Peer",
-				"Key":       path.GetSource().Address,
-				"Path":      path,
-				"Direction": d,
-			}).Debug("reject")
-		}
-	}
-	return newpaths
 }
 
 func (manager *TableManager) GetNextLabel(name, nexthop string, isWithdraw bool) (uint32, error) {
@@ -296,122 +219,67 @@ func (manager *TableManager) DeleteVrf(name string) ([]*Path, error) {
 	return msgs, nil
 }
 
-func (manager *TableManager) calculate(destinationList []*Destination) ([]*Path, error) {
-	newPaths := make([]*Path, 0)
-
-	for _, destination := range destinationList {
-		// compute best path
-
+func (manager *TableManager) calculate(destinations []*Destination) {
+	for _, destination := range destinations {
 		log.WithFields(log.Fields{
 			"Topic": "table",
 			"Owner": manager.owner,
 			"Key":   destination.GetNlri().String(),
 		}).Debug("Processing destination")
-
-		newBestPath, reason, err := destination.Calculate()
-
-		if err != nil {
-			log.Error(err)
-			continue
-		}
-
-		destination.setBestPathReason(reason)
-		currentBestPath := destination.GetBestPath()
-
-		if newBestPath != nil && newBestPath.Equal(currentBestPath) {
-			// best path is not changed
-			log.WithFields(log.Fields{
-				"Topic":    "table",
-				"Owner":    manager.owner,
-				"Key":      destination.GetNlri().String(),
-				"peer":     newBestPath.GetSource().Address,
-				"next_hop": newBestPath.GetNexthop().String(),
-				"reason":   reason,
-			}).Debug("best path is not changed")
-			continue
-		}
-
-		if newBestPath == nil {
-			log.WithFields(log.Fields{
-				"Topic": "table",
-				"Owner": manager.owner,
-				"Key":   destination.GetNlri().String(),
-			}).Debug("best path is nil")
-
-			if len(destination.GetKnownPathList()) == 0 {
-				// create withdraw path
-				if currentBestPath != nil {
-					log.WithFields(log.Fields{
-						"Topic":    "table",
-						"Owner":    manager.owner,
-						"Key":      destination.GetNlri().String(),
-						"peer":     currentBestPath.GetSource().Address,
-						"next_hop": currentBestPath.GetNexthop().String(),
-					}).Debug("best path is lost")
-
-					p := destination.GetBestPath()
-					newPaths = append(newPaths, p.Clone(p.Owner, true))
-				}
-				destination.setBestPath(nil)
-			} else {
-				log.WithFields(log.Fields{
-					"Topic": "table",
-					"Owner": manager.owner,
-					"Key":   destination.GetNlri().String(),
-				}).Error("known path list is not empty")
-			}
-		} else {
-			log.WithFields(log.Fields{
-				"Topic":    "table",
-				"Owner":    manager.owner,
-				"Key":      newBestPath.GetNlri().String(),
-				"peer":     newBestPath.GetSource().Address,
-				"next_hop": newBestPath.GetNexthop(),
-				"reason":   reason,
-			}).Debug("new best path")
-
-			newPaths = append(newPaths, newBestPath)
-			destination.setBestPath(newBestPath)
-		}
-
-		if len(destination.GetKnownPathList()) == 0 && destination.GetBestPath() == nil {
-			rf := destination.getRouteFamily()
-			t := manager.Tables[rf]
-			t.deleteDest(destination)
-			log.WithFields(log.Fields{
-				"Topic":        "table",
-				"Owner":        manager.owner,
-				"Key":          destination.GetNlri().String(),
-				"route_family": rf,
-			}).Debug("destination removed")
-		}
+		destination.Calculate()
 	}
-	return newPaths, nil
 }
 
-func (manager *TableManager) DeletePathsforPeer(peerInfo *PeerInfo, rf bgp.RouteFamily) ([]*Path, error) {
+func (manager *TableManager) DeletePathsByPeer(info *PeerInfo, rf bgp.RouteFamily) []*Destination {
+	if t, ok := manager.Tables[rf]; ok {
+		dsts := t.DeleteDestByPeer(info)
+		manager.calculate(dsts)
+		return dsts
+	}
+	return nil
+}
+
+func (manager *TableManager) DeletePathsforPeer(id string, peerInfo *PeerInfo, rf bgp.RouteFamily) ([]*Path, error) {
 	if t, ok := manager.Tables[rf]; ok {
 		destinationList := t.DeleteDestByPeer(peerInfo)
-		return manager.calculate(destinationList)
+		manager.calculate(destinationList)
+		paths := make([]*Path, 0, len(destinationList))
+		for _, dst := range destinationList {
+			paths = append(paths, dst.NewFeed(id))
+		}
+		return paths, nil
 	}
-	return []*Path{}, nil
+	return nil, nil
 }
 
-func (manager *TableManager) ProcessPaths(pathList []*Path) ([]*Path, error) {
-	destinationList := make([]*Destination, 0, len(pathList))
+func (manager *TableManager) ProcessPaths(pathList []*Path) []*Destination {
+	m := make(map[string]bool, len(pathList))
+	dsts := make([]*Destination, 0, len(pathList))
 	for _, path := range pathList {
+		if path == nil {
+			continue
+		}
 		rf := path.GetRouteFamily()
 		if t, ok := manager.Tables[rf]; ok {
-			destinationList = append(destinationList, t.insert(path))
+			dst := t.insert(path)
+			key := dst.GetNlri().String()
+			if !m[key] {
+				m[key] = true
+				dsts = append(dsts, dst)
+			}
 			if rf == bgp.RF_EVPN {
-				dsts := manager.handleMacMobility(path)
-				if len(dsts) > 0 {
-					destinationList = append(destinationList, dsts...)
+				for _, dst := range manager.handleMacMobility(path) {
+					key := dst.GetNlri().String()
+					if !m[key] {
+						m[key] = true
+						dsts = append(dsts, dst)
+					}
 				}
 			}
 		}
 	}
-	return manager.calculate(destinationList)
+	manager.calculate(dsts)
+	return dsts
 }
 
 // EVPN MAC MOBILITY HANDLING
@@ -428,7 +296,7 @@ func (manager *TableManager) handleMacMobility(path *Path) []*Destination {
 	if path.IsWithdraw || path.IsLocal() || nlri.RouteType != bgp.EVPN_ROUTE_TYPE_MAC_IP_ADVERTISEMENT {
 		return nil
 	}
-	for _, path2 := range manager.GetPathList(bgp.RF_EVPN) {
+	for _, path2 := range manager.GetPathList(GLOBAL_RIB_NAME, bgp.RF_EVPN) {
 		if !path2.IsLocal() || path2.GetNlri().(*bgp.EVPNNLRI).RouteType != bgp.EVPN_ROUTE_TYPE_MAC_IP_ADVERTISEMENT {
 			continue
 		}
@@ -465,144 +333,19 @@ func (manager *TableManager) getDestinationCount(rfList []bgp.RouteFamily) int {
 	return count
 }
 
-func (manager *TableManager) GetPathList(rf bgp.RouteFamily) []*Path {
-	if _, ok := manager.Tables[rf]; !ok {
-		return []*Path{}
-	}
-	destinations := manager.Tables[rf].GetDestinations()
-	paths := make([]*Path, 0, len(destinations))
-	for _, dest := range destinations {
-		paths = append(paths, dest.knownPathList...)
-	}
-	return paths
-}
-
-func (manager *TableManager) GetBestPathList(rfList []bgp.RouteFamily) []*Path {
+func (manager *TableManager) GetBestPathList(id string, rfList []bgp.RouteFamily) []*Path {
 	paths := make([]*Path, 0, manager.getDestinationCount(rfList))
 	for _, rf := range rfList {
-		if _, ok := manager.Tables[rf]; ok {
-			destinations := manager.Tables[rf].GetDestinations()
-			for _, dest := range destinations {
-				paths = append(paths, dest.GetBestPath())
-			}
+		if t, ok := manager.Tables[rf]; ok {
+			paths = append(paths, t.Bests(id)...)
 		}
 	}
 	return paths
 }
 
-// process BGPUpdate message
-// this function processes only BGPUpdate
-func (manager *TableManager) ProcessUpdate(fromPeer *PeerInfo, message *bgp.BGPMessage) ([]*Path, error) {
-	// check msg's type if it's BGPUpdate
-	if message.Header.Type != bgp.BGP_MSG_UPDATE {
-		log.WithFields(log.Fields{
-			"Topic": "table",
-			"Owner": manager.owner,
-			"key":   fromPeer.Address.String(),
-			"Type":  message.Header.Type,
-		}).Warn("message is not BGPUpdate")
-		return []*Path{}, nil
+func (manager *TableManager) GetPathList(id string, rf bgp.RouteFamily) []*Path {
+	if t, ok := manager.Tables[rf]; ok {
+		return t.GetKnownPathList(id)
 	}
-
-	return manager.ProcessPaths(ProcessMessage(message, fromPeer, time.Now()))
-}
-
-type AdjRib struct {
-	adjRibIn  map[bgp.RouteFamily]map[string]*Path
-	adjRibOut map[bgp.RouteFamily]map[string]*Path
-}
-
-func NewAdjRib(rfList []bgp.RouteFamily) *AdjRib {
-	r := &AdjRib{
-		adjRibIn:  make(map[bgp.RouteFamily]map[string]*Path),
-		adjRibOut: make(map[bgp.RouteFamily]map[string]*Path),
-	}
-	for _, rf := range rfList {
-		r.adjRibIn[rf] = make(map[string]*Path)
-		r.adjRibOut[rf] = make(map[string]*Path)
-	}
-	return r
-}
-
-func (adj *AdjRib) update(rib map[bgp.RouteFamily]map[string]*Path, pathList []*Path) {
-	for _, path := range pathList {
-		rf := path.GetRouteFamily()
-		key := path.getPrefix()
-		old, found := rib[rf][key]
-		if path.IsWithdraw {
-			if found {
-				delete(rib[rf], key)
-			}
-		} else {
-			if found && reflect.DeepEqual(old.GetPathAttrs(), path.GetPathAttrs()) {
-				path.setTimestamp(old.GetTimestamp())
-			}
-			rib[rf][key] = path
-		}
-	}
-}
-
-func (adj *AdjRib) UpdateIn(pathList []*Path) {
-	adj.update(adj.adjRibIn, pathList)
-}
-
-func (adj *AdjRib) UpdateOut(pathList []*Path) {
-	adj.update(adj.adjRibOut, pathList)
-}
-
-func (adj *AdjRib) GetInPathList(rfList []bgp.RouteFamily) []*Path {
-	pathList := make([]*Path, 0, adj.GetInCount(rfList))
-	for _, rf := range rfList {
-		for _, rr := range adj.adjRibIn[rf] {
-			pathList = append(pathList, rr)
-		}
-	}
-	return pathList
-}
-
-func (adj *AdjRib) GetOutPathList(rfList []bgp.RouteFamily) []*Path {
-	pathList := make([]*Path, 0, adj.GetOutCount(rfList))
-	for _, rf := range rfList {
-		for _, rr := range adj.adjRibOut[rf] {
-			pathList = append(pathList, rr)
-		}
-	}
-	return pathList
-}
-
-func (adj *AdjRib) GetInCount(rfList []bgp.RouteFamily) int {
-	count := 0
-	for _, rf := range rfList {
-		if _, ok := adj.adjRibIn[rf]; ok {
-			count += len(adj.adjRibIn[rf])
-
-		}
-	}
-	return count
-}
-
-func (adj *AdjRib) GetOutCount(rfList []bgp.RouteFamily) int {
-	count := 0
-	for _, rf := range rfList {
-		if _, ok := adj.adjRibOut[rf]; ok {
-			count += len(adj.adjRibOut[rf])
-		}
-	}
-	return count
-}
-
-func (adj *AdjRib) DropIn(rfList []bgp.RouteFamily) {
-	for _, rf := range rfList {
-		if _, ok := adj.adjRibIn[rf]; ok {
-			adj.adjRibIn[rf] = make(map[string]*Path)
-		}
-	}
-}
-
-func (adj *AdjRib) DropOut(rfList []bgp.RouteFamily) {
-	for _, rf := range rfList {
-		if _, ok := adj.adjRibIn[rf]; ok {
-			adj.adjRibOut[rf] = make(map[string]*Path)
-		}
-	}
+	return nil
 }

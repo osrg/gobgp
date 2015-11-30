@@ -64,10 +64,22 @@ type PolicyDirection int
 
 const (
 	POLICY_DIRECTION_NONE PolicyDirection = iota
+	POLICY_DIRECTION_IN
 	POLICY_DIRECTION_IMPORT
 	POLICY_DIRECTION_EXPORT
-	POLICY_DIRECTION_IN
 )
+
+func (d PolicyDirection) String() string {
+	switch d {
+	case POLICY_DIRECTION_IN:
+		return "in"
+	case POLICY_DIRECTION_IMPORT:
+		return "import"
+	case POLICY_DIRECTION_EXPORT:
+		return "export"
+	}
+	return fmt.Sprintf("unknown(%d)", d)
+}
 
 type MatchOption int
 
@@ -2597,10 +2609,115 @@ func NewPolicy(c config.PolicyDefinition, dmap DefinedSetMap) (*Policy, error) {
 	}, nil
 }
 
+type Assignment struct {
+	inPolicies          []*Policy
+	defaultInPolicy     RouteType
+	importPolicies      []*Policy
+	defaultImportPolicy RouteType
+	exportPolicies      []*Policy
+	defaultExportPolicy RouteType
+}
+
 type RoutingPolicy struct {
 	DefinedSetMap DefinedSetMap
 	PolicyMap     map[string]*Policy
 	StatementMap  map[string]*Statement
+	AssignmentMap map[string]*Assignment
+}
+
+func (r *RoutingPolicy) ApplyPolicy(id string, dir PolicyDirection, before *Path) *Path {
+	if before == nil {
+		return nil
+	}
+	if filtered := before.Filtered(id); filtered > POLICY_DIRECTION_NONE && filtered < dir {
+		return nil
+	}
+	result := ROUTE_TYPE_NONE
+	after := before
+	for _, p := range r.GetPolicy(id, dir) {
+		result, after = p.Apply(before)
+		if result != ROUTE_TYPE_NONE {
+			break
+		}
+	}
+	if result == ROUTE_TYPE_NONE {
+		result = r.GetDefaultPolicy(id, dir)
+	}
+	switch result {
+	case ROUTE_TYPE_ACCEPT:
+		return after
+	default:
+		return nil
+	}
+}
+
+func (r *RoutingPolicy) GetPolicy(id string, dir PolicyDirection) []*Policy {
+	a, ok := r.AssignmentMap[id]
+	if !ok {
+		return nil
+	}
+	switch dir {
+	case POLICY_DIRECTION_IN:
+		return a.inPolicies
+	case POLICY_DIRECTION_IMPORT:
+		return a.importPolicies
+	case POLICY_DIRECTION_EXPORT:
+		return a.exportPolicies
+	default:
+		return nil
+	}
+}
+
+func (r *RoutingPolicy) GetDefaultPolicy(id string, dir PolicyDirection) RouteType {
+	a, ok := r.AssignmentMap[id]
+	if !ok {
+		return ROUTE_TYPE_NONE
+	}
+	switch dir {
+	case POLICY_DIRECTION_IN:
+		return a.defaultInPolicy
+	case POLICY_DIRECTION_IMPORT:
+		return a.defaultImportPolicy
+	case POLICY_DIRECTION_EXPORT:
+		return a.defaultExportPolicy
+	default:
+		return ROUTE_TYPE_NONE
+	}
+
+}
+
+func (r *RoutingPolicy) SetPolicy(id string, dir PolicyDirection, policies []*Policy) error {
+	a, ok := r.AssignmentMap[id]
+	if !ok {
+		a = &Assignment{}
+	}
+	switch dir {
+	case POLICY_DIRECTION_IN:
+		a.inPolicies = policies
+	case POLICY_DIRECTION_IMPORT:
+		a.importPolicies = policies
+	case POLICY_DIRECTION_EXPORT:
+		a.exportPolicies = policies
+	}
+	r.AssignmentMap[id] = a
+	return nil
+}
+
+func (r *RoutingPolicy) SetDefaultPolicy(id string, dir PolicyDirection, typ RouteType) error {
+	a, ok := r.AssignmentMap[id]
+	if !ok {
+		a = &Assignment{}
+	}
+	switch dir {
+	case POLICY_DIRECTION_IN:
+		a.defaultInPolicy = typ
+	case POLICY_DIRECTION_IMPORT:
+		a.defaultImportPolicy = typ
+	case POLICY_DIRECTION_EXPORT:
+		a.defaultExportPolicy = typ
+	}
+	r.AssignmentMap[id] = a
+	return nil
 }
 
 func (r *RoutingPolicy) GetAssignmentFromConfig(dir PolicyDirection, a config.ApplyPolicy) ([]*Policy, RouteType, error) {
@@ -2660,14 +2777,14 @@ func (r *RoutingPolicy) StatementInUse(x *Statement) bool {
 	return false
 }
 
-func NewRoutingPolicy(c config.RoutingPolicy) (*RoutingPolicy, error) {
+func (r *RoutingPolicy) Reload(c config.RoutingPolicy) error {
 	dmap := make(map[DefinedType]map[string]DefinedSet)
 	dmap[DEFINED_TYPE_PREFIX] = make(map[string]DefinedSet)
 	d := c.DefinedSets
 	for _, x := range d.PrefixSets.PrefixSetList {
 		y, err := NewPrefixSet(x)
 		if err != nil {
-			return nil, err
+			return err
 		}
 		dmap[DEFINED_TYPE_PREFIX][y.Name()] = y
 	}
@@ -2675,7 +2792,7 @@ func NewRoutingPolicy(c config.RoutingPolicy) (*RoutingPolicy, error) {
 	for _, x := range d.NeighborSets.NeighborSetList {
 		y, err := NewNeighborSet(x)
 		if err != nil {
-			return nil, err
+			return err
 		}
 		dmap[DEFINED_TYPE_NEIGHBOR][y.Name()] = y
 	}
@@ -2692,7 +2809,7 @@ func NewRoutingPolicy(c config.RoutingPolicy) (*RoutingPolicy, error) {
 	for _, x := range bd.AsPathSets.AsPathSetList {
 		y, err := NewAsPathSet(x)
 		if err != nil {
-			return nil, err
+			return err
 		}
 		dmap[DEFINED_TYPE_AS_PATH][y.Name()] = y
 	}
@@ -2700,7 +2817,7 @@ func NewRoutingPolicy(c config.RoutingPolicy) (*RoutingPolicy, error) {
 	for _, x := range bd.CommunitySets.CommunitySetList {
 		y, err := NewCommunitySet(x)
 		if err != nil {
-			return nil, err
+			return err
 		}
 		dmap[DEFINED_TYPE_COMMUNITY][y.Name()] = y
 	}
@@ -2708,7 +2825,7 @@ func NewRoutingPolicy(c config.RoutingPolicy) (*RoutingPolicy, error) {
 	for _, x := range bd.ExtCommunitySets.ExtCommunitySetList {
 		y, err := NewExtCommunitySet(x)
 		if err != nil {
-			return nil, err
+			return err
 		}
 		dmap[DEFINED_TYPE_EXT_COMMUNITY][y.Name()] = y
 	}
@@ -2717,22 +2834,31 @@ func NewRoutingPolicy(c config.RoutingPolicy) (*RoutingPolicy, error) {
 	for _, x := range c.PolicyDefinitions.PolicyDefinitionList {
 		y, err := NewPolicy(x, dmap)
 		if err != nil {
-			return nil, err
+			return err
 		}
 		pmap[y.Name()] = y
 		for _, s := range y.Statements {
 			_, ok := smap[s.Name]
 			if ok {
-				return nil, fmt.Errorf("duplicated statement name. statement name must be unique.")
+				return fmt.Errorf("duplicated statement name. statement name must be unique.")
 			}
 			smap[s.Name] = s
 		}
 	}
+	r.DefinedSetMap = dmap
+	r.PolicyMap = pmap
+	r.StatementMap = smap
+	r.AssignmentMap = make(map[string]*Assignment)
+	return nil
+}
+
+func NewRoutingPolicy() *RoutingPolicy {
 	return &RoutingPolicy{
-		DefinedSetMap: dmap,
-		PolicyMap:     pmap,
-		StatementMap:  smap,
-	}, nil
+		DefinedSetMap: make(map[DefinedType]map[string]DefinedSet),
+		PolicyMap:     make(map[string]*Policy),
+		StatementMap:  make(map[string]*Statement),
+		AssignmentMap: make(map[string]*Assignment),
+	}
 }
 
 func CanImportToVrf(v *Vrf, path *Path) bool {

@@ -63,49 +63,6 @@ func TestDestinationGetNlri(t *testing.T) {
 	r_nlri := dd.GetNlri()
 	assert.Equal(t, r_nlri, nlri)
 }
-func TestDestinationSetBestPathReason(t *testing.T) {
-	dd := &Destination{}
-	reason := "reason1"
-	dd.setBestPathReason(reason)
-	r_reason := dd.getBestPathReason()
-	assert.Equal(t, r_reason, reason)
-}
-func TestDestinationGetBestPathReason(t *testing.T) {
-	dd := &Destination{}
-	reason := "reason2"
-	dd.setBestPathReason(reason)
-	r_reason := dd.getBestPathReason()
-	assert.Equal(t, r_reason, reason)
-}
-func TestDestinationSetBestPath(t *testing.T) {
-	peerD := DestCreatePeer()
-	pathD := DestCreatePath(peerD)
-	ipv4d := NewDestination(pathD[0].GetNlri())
-	ipv4d.setBestPath(pathD[0])
-	r_pathD := ipv4d.GetBestPath()
-	assert.Equal(t, r_pathD, pathD[0])
-}
-func TestDestinationGetBestPath(t *testing.T) {
-	peerD := DestCreatePeer()
-	pathD := DestCreatePath(peerD)
-	ipv4d := NewDestination(pathD[0].GetNlri())
-	ipv4d.setBestPath(pathD[0])
-	r_pathD := ipv4d.GetBestPath()
-	assert.Equal(t, r_pathD, pathD[0])
-}
-func TestDestinationCalculate(t *testing.T) {
-	peerD := DestCreatePeer()
-	pathD := DestCreatePath(peerD)
-	ipv4d := NewDestination(pathD[0].GetNlri())
-	//best path selection
-	ipv4d.addNewPath(pathD[0])
-	ipv4d.addNewPath(pathD[1])
-	ipv4d.addNewPath(pathD[2])
-	ipv4d.addWithdraw(pathD[2])
-	_, _, e := ipv4d.Calculate()
-	assert.Nil(t, e)
-}
-
 func DestCreatePeer() []*PeerInfo {
 	peerD1 := &PeerInfo{AS: 65000}
 	peerD2 := &PeerInfo{AS: 65001}

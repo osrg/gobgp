@@ -26,6 +26,21 @@ import (
 	"time"
 )
 
+// process BGPUpdate message
+// this function processes only BGPUpdate
+func (manager *TableManager) ProcessUpdate(fromPeer *PeerInfo, message *bgp.BGPMessage) ([]*Path, error) {
+	paths := ProcessMessage(message, fromPeer, time.Now())
+	dsts := manager.ProcessPaths(paths)
+	paths2 := make([]*Path, 0, len(paths))
+	for _, dst := range dsts {
+		p := dst.NewFeed(GLOBAL_RIB_NAME)
+		if p != nil {
+			paths2 = append(paths2, p)
+		}
+	}
+	return paths2, nil
+}
+
 func getLogger(lv log.Level) *log.Logger {
 	var l *log.Logger = &log.Logger{
 		Out:       os.Stderr,
@@ -2141,21 +2156,21 @@ func TestProcessBGPUpdate_Timestamp(t *testing.T) {
 
 	nlri := []*bgp.IPAddrPrefix{bgp.NewIPAddrPrefix(24, "10.10.10.0")}
 
-	adjRib := NewAdjRib([]bgp.RouteFamily{bgp.RF_IPv4_UC, bgp.RF_IPv6_UC})
+	adjRib := NewAdjRib("test", []bgp.RouteFamily{bgp.RF_IPv4_UC, bgp.RF_IPv6_UC})
 	m1 := bgp.NewBGPUpdateMessage(nil, pathAttributes, nlri)
 	peer := peerR1()
 	pList1 := ProcessMessage(m1, peer, time.Now())
 	path1 := pList1[0]
 	t1 := path1.timestamp
-	adjRib.UpdateIn(pList1)
+	adjRib.Update(pList1)
 
 	m2 := bgp.NewBGPUpdateMessage(nil, pathAttributes, nlri)
 	pList2 := ProcessMessage(m2, peer, time.Now())
 	//path2 := pList2[0].(*IPv4Path)
 	//t2 = path2.timestamp
-	adjRib.UpdateIn(pList2)
+	adjRib.Update(pList2)
 
-	inList := adjRib.GetInPathList([]bgp.RouteFamily{bgp.RF_IPv4_UC})
+	inList := adjRib.PathList([]bgp.RouteFamily{bgp.RF_IPv4_UC}, false)
 	assert.Equal(t, len(inList), 1)
 	assert.Equal(t, inList[0].GetTimestamp(), t1)
 
@@ -2170,9 +2185,9 @@ func TestProcessBGPUpdate_Timestamp(t *testing.T) {
 	m3 := bgp.NewBGPUpdateMessage(nil, pathAttributes2, nlri)
 	pList3 := ProcessMessage(m3, peer, time.Now())
 	t3 := pList3[0].GetTimestamp()
-	adjRib.UpdateIn(pList3)
+	adjRib.Update(pList3)
 
-	inList = adjRib.GetInPathList([]bgp.RouteFamily{bgp.RF_IPv4_UC})
+	inList = adjRib.PathList([]bgp.RouteFamily{bgp.RF_IPv4_UC}, false)
 	assert.Equal(t, len(inList), 1)
 	assert.Equal(t, inList[0].GetTimestamp(), t3)
 }

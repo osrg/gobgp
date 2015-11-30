@@ -15,6 +15,7 @@ def make_tester_ctn(tag='tester', local_gobgp_path='', from_image='osrg/quagga')
     c << 'ADD gobgp /go/src/github.com/osrg/gobgp/'
     c << 'RUN go get github.com/osrg/gobgp/test/performance_test'
     c << 'RUN go install github.com/osrg/gobgp/test/performance_test'
+    c << 'RUN go install github.com/osrg/gobgp/gobgp'
 
     rindex = local_gobgp_path.rindex('gobgp')
     if rindex < 0:
@@ -35,10 +36,15 @@ if __name__ == '__main__':
     parser = OptionParser()
     parser.add_option("-t", "--target", dest="target_rs", default="gobgp")
     parser.add_option("-n", "--num-peer", dest="num_peer", type="int", default=1000)
+    parser.add_option("-p", "--num-prefix", dest="num_prefix", type="int", default=1000)
+    parser.add_option("-l", "--log-level", dest="log_level")
+    parser.add_option("-u", "--unique", dest="unique", action="store_true")
+    parser.add_option("-r", "--route-server", dest="route_server", action="store_true")
+    parser.add_option("-g", "--grpc-server", dest="grpc_server", action="store_true")
     (options, args) = parser.parse_args()
 
-    if options.target_rs == "gobgp":
-        target = GoBGPContainer("target", 1000, "10.10.0.1", log_level='info')
+    if options.target_rs.startswith("gobgp"):
+        target = GoBGPContainer("target", 1000, "10.10.0.1", log_level='info', ctn_image_name=options.target_rs)
     elif options.target_rs == "quagga":
         target = QuaggaBGPContainer("target", 1000, "10.10.0.1")
     elif options.target_rs == "bird":
@@ -69,7 +75,7 @@ if __name__ == '__main__':
                       'passwd': None,
                       'evpn': False,
                       'flowspec': False,
-                      'is_rs_client': True,
+                      'is_rs_client': options.route_server,
                       'is_rr_client': False,
                       'cluster_id': None,
                       'policies': {},
@@ -83,7 +89,7 @@ if __name__ == '__main__':
 
     c = CmdBuffer()
     c << "#!/bin/sh"
-    c << "performance_test -n {0} {1} > /root/shared_volume/test.log".format(options.num_peer, ' '.join(args))
+    c << "performance_test -n {0} -p {1} -l {2} {3} {4} {5}> /root/shared_volume/test.log".format(options.num_peer, options.num_prefix, options.log_level, '-u' if options.unique else '', '-g' if options.grpc_server else '', ' '.join(args))
     with open('/tmp/start_test.sh', 'w') as f:
         f.write(str(c))
     local('chmod +x /tmp/start_test.sh')

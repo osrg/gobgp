@@ -71,10 +71,11 @@ const GRPC_PORT = 8080
 type Server struct {
 	grpcServer  *grpc.Server
 	bgpServerCh chan *GrpcRequest
+	port        int
 }
 
 func (s *Server) Serve() error {
-	lis, err := net.Listen("tcp", fmt.Sprintf(":%d", GRPC_PORT))
+	lis, err := net.Listen("tcp", fmt.Sprintf(":%d", s.port))
 	if err != nil {
 		return fmt.Errorf("failed to listen: %v", err)
 	}
@@ -445,6 +446,7 @@ func NewGrpcServer(port int, bgpServerCh chan *GrpcRequest) *Server {
 	server := &Server{
 		grpcServer:  grpcServer,
 		bgpServerCh: bgpServerCh,
+		port:        port,
 	}
 	api.RegisterGobgpApiServer(grpcServer, server)
 	return server
