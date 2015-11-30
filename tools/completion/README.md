@@ -141,7 +141,7 @@ You can use tab completion for gobgp after loading gobgp-completion.bash.
 
  1. implement the handle processing
 
-	If you want to add the completion following the "gobgp neighbor <neighbor address>" command, you need to add handle process following to "__handle_gobgp_command ()" function of **gobgp-dynamic-completion**.
+	If you want to add the completion following the "gobgp neighbor \<neighbor address\>" command, you need to add handle process following to "__handle_gobgp_command ()" function of **gobgp-dynamic-completion**.
 
     ```
     case "${last_command}" in
