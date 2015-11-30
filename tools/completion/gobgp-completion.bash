@@ -156,7 +156,10 @@ __handle_command()
     # echo "${FUNCNAME}: c is $c words[c] is ${words[c]} searched is ${searched} through ${through}"
     next_command=""
     through="False"
-    __handle_gobgp_command
+    if [[ ${searched} == "True" ]]; then
+        __handle_gobgp_command
+        through="True"
+    fi
     searched="False"
     if [[ ${through} == "False" ]]; then
         if [[ -n ${last_command} ]]; then

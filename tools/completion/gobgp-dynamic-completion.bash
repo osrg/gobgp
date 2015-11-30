@@ -2,6 +2,7 @@
 
 __gobgp_q()
 {
+    searched="True"
     gobgp 2>/dev/null "$@"
 }
 
@@ -18,7 +19,6 @@ __gobgp_q_neighbor()
     for n in ${neighbors[*]}; do
         commands+=($n)
     done
-    searched="True"
 }
 
 # Get gobgp configration of vrfs use gobgp command.
@@ -34,7 +34,6 @@ __gobgp_q_vrf()
     for n in ${vrfs[*]}; do
         commands+=($n)
     done
-    searched="True"
 }
 
 # Get gobgp configration of policies use gobgp command.
@@ -51,7 +50,6 @@ __gobgp_q_policy()
     for ps in ${policies[*]}; do
         commands+=($ps)
     done
-    searched="True"
 }
 
 # Get gobgp configration of policiy statements use gobgp command.
@@ -67,61 +65,57 @@ __gobgp_q_statement()
     for sts in ${statements[*]}; do
         commands+=($sts)
     done
-    searched="True"
 }
 
 # Handler for controlling obtained when the dynamic complement.
 # This function checks the last command to control the next operation.
 __handle_gobgp_command()
 {
-    if [[ ${searched} == "True" ]]; then
-        case "${last_command}" in
-            # Control after dynamic complement of bgp neighbor command
-            gobgp_neighbor )
-                next_command="_${last_command}_addr"
-            ;;
+    case "${last_command}" in
+        # Control after dynamic complement of bgp neighbor command
+        gobgp_neighbor )
+            next_command="_${last_command}_addr"
+        ;;
 
-            # Control after dynamic complement of bgp policy command
-            gobgp_policy_prefix_* | gobgp_policy_neighbor_* | gobgp_policy_as-path_* | gobgp_policy_community_* | gobgp_policy_ext-community_* )
-                next_command="__gobgp_null"
-            ;;
-            gobgp_policy_del | gobgp_policy_set )
-                next_command="__gobgp_null"
-            ;;
-            gobgp_policy_statement )
-                if [[ ${words[c]} == "del" || ${words[c]} == "add" ]]; then
-                    return
-                fi
-                next_command="_gobgp_policy_statement_sname"
-            ;;
-            gobgp_policy_statement_del )
-                next_command="__gobgp_null"
-            ;;
-            *_condition_prefix | *_condition_neighbor | *_condition_as-path | *_condition_community  | *_ext-condition_community )
-                next_command="__gobgp_null"
-            ;;
+        # Control after dynamic complement of bgp policy command
+        gobgp_policy_prefix_* | gobgp_policy_neighbor_* | gobgp_policy_as-path_* | gobgp_policy_community_* | gobgp_policy_ext-community_* )
+            next_command="__gobgp_null"
+        ;;
+        gobgp_policy_del | gobgp_policy_set )
+            next_command="__gobgp_null"
+        ;;
+        gobgp_policy_statement )
+            if [[ ${words[c]} == "del" || ${words[c]} == "add" ]]; then
+                return
+            fi
+            next_command="_gobgp_policy_statement_sname"
+        ;;
+        gobgp_policy_statement_del )
+            next_command="__gobgp_null"
+        ;;
+        *_condition_prefix | *_condition_neighbor | *_condition_as-path | *_condition_community  | *_ext-condition_community )
+            next_command="__gobgp_null"
+        ;;
 
-            # Control after dynamic complement of bgp vrf command
-            gobgp_vrf )
-                if [[ ${words[c]} == "del" || ${words[c]} == "add" ]]; then
-                    return
-                fi
-                next_command="_global_vrf_vname"
-            ;;
-            gobgp_vrf_del )
-                next_command="__gobgp_null"
-            ;;
+        # Control after dynamic complement of bgp vrf command
+        gobgp_vrf )
+            if [[ ${words[c]} == "del" || ${words[c]} == "add" ]]; then
+                return
+            fi
+            next_command="_global_vrf_vname"
+        ;;
+        gobgp_vrf_del )
+            next_command="__gobgp_null"
+        ;;
 
-            # Control after dynamic complement of bgp mrt command
-            gobgp_mrt_dump_rib_neighbor )
-                next_command="__gobgp_null"
-            ;;
-            gobgp_monitor_neighbor )
-                next_command="__gobgp_null"
-            ;;
-        esac
-        through="True"
-    fi
+        # Control after dynamic complement of bgp mrt command
+        gobgp_mrt_dump_rib_neighbor )
+            next_command="__gobgp_null"
+        ;;
+        gobgp_monitor_neighbor )
+            next_command="__gobgp_null"
+        ;;
+    esac
 }
 
 __gobgp_null()
