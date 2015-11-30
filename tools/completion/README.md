@@ -83,7 +83,8 @@ You can use tab completion for gobgp after loading gobgp-completion.bash.
  If you want to add dynamic completion, you need to implement that part yourself.
  For example, if you want to add the neighbor address following the "gobgp neighbor" command dynamically, you can achieve it by implementing the specific internal command in **gobgp-dynamic-completion.bash**.
 
- 1.1 implement command to get a list of the neighbor address
+ 1. implement command to get a list of the neighbor address
+
 	You need to add the processing function of the following like below to **gobgp-dynamic-completion.bash**.
     ```
     # Get bgp neighbors by using gobgp command.
@@ -102,7 +103,8 @@ You can use tab completion for gobgp after loading gobgp-completion.bash.
     }
     ```
 
- 1.1 implement a call processing of above
+ 1. implement a call processing of above
+
 	You can call the above functions by implementing as follows to gobgp-static-completion:
     ```
     _gobgp_neighbor()
@@ -137,7 +139,8 @@ You can use tab completion for gobgp after loading gobgp-completion.bash.
     }
     ```
 
- 1.1 implement a handle processing
+ 1. implement a handle processing
+
 	If you want to add the completion  following the "gobgp" command, you need to add handle process following to "__handle_gobgp_command ()" function of **gobgp-dynamic-completion**.
 
     ```
@@ -181,8 +184,7 @@ You can use tab completion for gobgp after loading gobgp-completion.bash.
     }
     ```
 
-
-1. delete the generate bash completion file.
+1. delete the generated bash completion file.
 
 ## Zsh completion
 
