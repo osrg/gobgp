@@ -25,7 +25,7 @@ service GobgpApi {
   rpc GetNeighbors(Arguments) returns (stream Peer) {}
   rpc GetNeighbor(Arguments) returns (Peer) {}
   rpc ModNeighbor(ModNeighborArguments) returns(Error) {}
-  rpc GetRib(Arguments) returns (stream Destination) {}
+  rpc GetRib(Table) returns (Table) {}
   rpc Reset(Arguments) returns (Error) {}
   rpc SoftReset(Arguments) returns (Error) {}
   rpc SoftResetIn(Arguments) returns (Error) {}
@@ -170,6 +170,13 @@ message Path {
 message Destination {
     string prefix = 1;
     repeated Path paths = 2;
+}
+
+message Table {
+    Resource type = 1;
+    string name = 2;
+    uint32 family = 3;
+    repeated Destination destinations = 4;
 }
 
 message Peer {

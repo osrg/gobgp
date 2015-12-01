@@ -22,6 +22,7 @@ It has these top-level messages:
 	ModPolicyArguments
 	ModPolicyAssignmentArguments
 	ModGlobalConfigArguments
+	Table
 	Path
 	Destination
 	Peer
@@ -513,6 +514,24 @@ func (*ModGlobalConfigArguments) ProtoMessage()    {}
 func (m *ModGlobalConfigArguments) GetGlobal() *Global {
 	if m != nil {
 		return m.Global
+	}
+	return nil
+}
+
+type Table struct {
+	Type         Resource       `protobuf:"varint,1,opt,name=type,enum=gobgpapi.Resource" json:"type,omitempty"`
+	Name         string         `protobuf:"bytes,2,opt,name=name" json:"name,omitempty"`
+	Family       uint32         `protobuf:"varint,3,opt,name=family" json:"family,omitempty"`
+	Destinations []*Destination `protobuf:"bytes,4,rep,name=destinations" json:"destinations,omitempty"`
+}
+
+func (m *Table) Reset()         { *m = Table{} }
+func (m *Table) String() string { return proto.CompactTextString(m) }
+func (*Table) ProtoMessage()    {}
+
+func (m *Table) GetDestinations() []*Destination {
+	if m != nil {
+		return m.Destinations
 	}
 	return nil
 }
@@ -1527,7 +1546,7 @@ type GobgpApiClient interface {
 	GetNeighbors(ctx context.Context, in *Arguments, opts ...grpc.CallOption) (GobgpApi_GetNeighborsClient, error)
 	GetNeighbor(ctx context.Context, in *Arguments, opts ...grpc.CallOption) (*Peer, error)
 	ModNeighbor(ctx context.Context, in *ModNeighborArguments, opts ...grpc.CallOption) (*Error, error)
-	GetRib(ctx context.Context, in *Arguments, opts ...grpc.CallOption) (GobgpApi_GetRibClient, error)
+	GetRib(ctx context.Context, in *Table, opts ...grpc.CallOption) (*Table, error)
 	Reset(ctx context.Context, in *Arguments, opts ...grpc.CallOption) (*Error, error)
 	SoftReset(ctx context.Context, in *Arguments, opts ...grpc.CallOption) (*Error, error)
 	SoftResetIn(ctx context.Context, in *Arguments, opts ...grpc.CallOption) (*Error, error)
@@ -1634,36 +1653,13 @@ func (c *gobgpApiClient) ModNeighbor(ctx context.Context, in *ModNeighborArgumen
 	return out, nil
 }
 
-func (c *gobgpApiClient) GetRib(ctx context.Context, in *Arguments, opts ...grpc.CallOption) (GobgpApi_GetRibClient, error) {
-	stream, err := grpc.NewClientStream(ctx, &_GobgpApi_serviceDesc.Streams[1], c.cc, "/gobgpapi.GobgpApi/GetRib", opts...)
+func (c *gobgpApiClient) GetRib(ctx context.Context, in *Table, opts ...grpc.CallOption) (*Table, error) {
+	out := new(Table)
+	err := grpc.Invoke(ctx, "/gobgpapi.GobgpApi/GetRib", in, out, c.cc, opts...)
 	if err != nil {
 		return nil, err
 	}
-	x := &gobgpApiGetRibClient{stream}
-	if err := x.ClientStream.SendMsg(in); err != nil {
-		return nil, err
-	}
-	if err := x.ClientStream.CloseSend(); err != nil {
-		return nil, err
-	}
-	return x, nil
-}
-
-type GobgpApi_GetRibClient interface {
-	Recv() (*Destination, error)
-	grpc.ClientStream
-}
-
-type gobgpApiGetRibClient struct {
-	grpc.ClientStream
-}
-
-func (x *gobgpApiGetRibClient) Recv() (*Destination, error) {
-	m := new(Destination)
-	if err := x.ClientStream.RecvMsg(m); err != nil {
-		return nil, err
-	}
-	return m, nil
+	return out, nil
 }
 
 func (c *gobgpApiClient) Reset(ctx context.Context, in *Arguments, opts ...grpc.CallOption) (*Error, error) {
@@ -1730,7 +1726,7 @@ func (c *gobgpApiClient) Disable(ctx context.Context, in *Arguments, opts ...grp
 }
 
 func (c *gobgpApiClient) ModPath(ctx context.Context, opts ...grpc.CallOption) (GobgpApi_ModPathClient, error) {
-	stream, err := grpc.NewClientStream(ctx, &_GobgpApi_serviceDesc.Streams[2], c.cc, "/gobgpapi.GobgpApi/ModPath", opts...)
+	stream, err := grpc.NewClientStream(ctx, &_GobgpApi_serviceDesc.Streams[1], c.cc, "/gobgpapi.GobgpApi/ModPath", opts...)
 	if err != nil {
 		return nil, err
 	}
@@ -1764,7 +1760,7 @@ func (x *gobgpApiModPathClient) CloseAndRecv() (*Error, error) {
 }
 
 func (c *gobgpApiClient) MonitorBestChanged(ctx context.Context, in *Arguments, opts ...grpc.CallOption) (GobgpApi_MonitorBestChangedClient, error) {
-	stream, err := grpc.NewClientStream(ctx, &_GobgpApi_serviceDesc.Streams[3], c.cc, "/gobgpapi.GobgpApi/MonitorBestChanged", opts...)
+	stream, err := grpc.NewClientStream(ctx, &_GobgpApi_serviceDesc.Streams[2], c.cc, "/gobgpapi.GobgpApi/MonitorBestChanged", opts...)
 	if err != nil {
 		return nil, err
 	}
@@ -1796,7 +1792,7 @@ func (x *gobgpApiMonitorBestChangedClient) Recv() (*Destination, error) {
 }
 
 func (c *gobgpApiClient) MonitorPeerState(ctx context.Context, in *Arguments, opts ...grpc.CallOption) (GobgpApi_MonitorPeerStateClient, error) {
-	stream, err := grpc.NewClientStream(ctx, &_GobgpApi_serviceDesc.Streams[4], c.cc, "/gobgpapi.GobgpApi/MonitorPeerState", opts...)
+	stream, err := grpc.NewClientStream(ctx, &_GobgpApi_serviceDesc.Streams[3], c.cc, "/gobgpapi.GobgpApi/MonitorPeerState", opts...)
 	if err != nil {
 		return nil, err
 	}
@@ -1828,7 +1824,7 @@ func (x *gobgpApiMonitorPeerStateClient) Recv() (*Peer, error) {
 }
 
 func (c *gobgpApiClient) GetMrt(ctx context.Context, in *MrtArguments, opts ...grpc.CallOption) (GobgpApi_GetMrtClient, error) {
-	stream, err := grpc.NewClientStream(ctx, &_GobgpApi_serviceDesc.Streams[5], c.cc, "/gobgpapi.GobgpApi/GetMrt", opts...)
+	stream, err := grpc.NewClientStream(ctx, &_GobgpApi_serviceDesc.Streams[4], c.cc, "/gobgpapi.GobgpApi/GetMrt", opts...)
 	if err != nil {
 		return nil, err
 	}
@@ -1869,7 +1865,7 @@ func (c *gobgpApiClient) ModMrt(ctx context.Context, in *ModMrtArguments, opts .
 }
 
 func (c *gobgpApiClient) GetRPKI(ctx context.Context, in *Arguments, opts ...grpc.CallOption) (GobgpApi_GetRPKIClient, error) {
-	stream, err := grpc.NewClientStream(ctx, &_GobgpApi_serviceDesc.Streams[6], c.cc, "/gobgpapi.GobgpApi/GetRPKI", opts...)
+	stream, err := grpc.NewClientStream(ctx, &_GobgpApi_serviceDesc.Streams[5], c.cc, "/gobgpapi.GobgpApi/GetRPKI", opts...)
 	if err != nil {
 		return nil, err
 	}
@@ -1910,7 +1906,7 @@ func (c *gobgpApiClient) ModRPKI(ctx context.Context, in *ModRpkiArguments, opts
 }
 
 func (c *gobgpApiClient) GetROA(ctx context.Context, in *Arguments, opts ...grpc.CallOption) (GobgpApi_GetROAClient, error) {
-	stream, err := grpc.NewClientStream(ctx, &_GobgpApi_serviceDesc.Streams[7], c.cc, "/gobgpapi.GobgpApi/GetROA", opts...)
+	stream, err := grpc.NewClientStream(ctx, &_GobgpApi_serviceDesc.Streams[6], c.cc, "/gobgpapi.GobgpApi/GetROA", opts...)
 	if err != nil {
 		return nil, err
 	}
@@ -1942,7 +1938,7 @@ func (x *gobgpApiGetROAClient) Recv() (*ROA, error) {
 }
 
 func (c *gobgpApiClient) GetVrfs(ctx context.Context, in *Arguments, opts ...grpc.CallOption) (GobgpApi_GetVrfsClient, error) {
-	stream, err := grpc.NewClientStream(ctx, &_GobgpApi_serviceDesc.Streams[8], c.cc, "/gobgpapi.GobgpApi/GetVrfs", opts...)
+	stream, err := grpc.NewClientStream(ctx, &_GobgpApi_serviceDesc.Streams[7], c.cc, "/gobgpapi.GobgpApi/GetVrfs", opts...)
 	if err != nil {
 		return nil, err
 	}
@@ -1992,7 +1988,7 @@ func (c *gobgpApiClient) GetDefinedSet(ctx context.Context, in *DefinedSet, opts
 }
 
 func (c *gobgpApiClient) GetDefinedSets(ctx context.Context, in *DefinedSet, opts ...grpc.CallOption) (GobgpApi_GetDefinedSetsClient, error) {
-	stream, err := grpc.NewClientStream(ctx, &_GobgpApi_serviceDesc.Streams[9], c.cc, "/gobgpapi.GobgpApi/GetDefinedSets", opts...)
+	stream, err := grpc.NewClientStream(ctx, &_GobgpApi_serviceDesc.Streams[8], c.cc, "/gobgpapi.GobgpApi/GetDefinedSets", opts...)
 	if err != nil {
 		return nil, err
 	}
@@ -2042,7 +2038,7 @@ func (c *gobgpApiClient) GetStatement(ctx context.Context, in *Statement, opts .
 }
 
 func (c *gobgpApiClient) GetStatements(ctx context.Context, in *Statement, opts ...grpc.CallOption) (GobgpApi_GetStatementsClient, error) {
-	stream, err := grpc.NewClientStream(ctx, &_GobgpApi_serviceDesc.Streams[10], c.cc, "/gobgpapi.GobgpApi/GetStatements", opts...)
+	stream, err := grpc.NewClientStream(ctx, &_GobgpApi_serviceDesc.Streams[9], c.cc, "/gobgpapi.GobgpApi/GetStatements", opts...)
 	if err != nil {
 		return nil, err
 	}
@@ -2092,7 +2088,7 @@ func (c *gobgpApiClient) GetPolicy(ctx context.Context, in *Policy, opts ...grpc
 }
 
 func (c *gobgpApiClient) GetPolicies(ctx context.Context, in *Policy, opts ...grpc.CallOption) (GobgpApi_GetPoliciesClient, error) {
-	stream, err := grpc.NewClientStream(ctx, &_GobgpApi_serviceDesc.Streams[11], c.cc, "/gobgpapi.GobgpApi/GetPolicies", opts...)
+	stream, err := grpc.NewClientStream(ctx, &_GobgpApi_serviceDesc.Streams[10], c.cc, "/gobgpapi.GobgpApi/GetPolicies", opts...)
 	if err != nil {
 		return nil, err
 	}
@@ -2158,7 +2154,7 @@ type GobgpApiServer interface {
 	GetNeighbors(*Arguments, GobgpApi_GetNeighborsServer) error
 	GetNeighbor(context.Context, *Arguments) (*Peer, error)
 	ModNeighbor(context.Context, *ModNeighborArguments) (*Error, error)
-	GetRib(*Arguments, GobgpApi_GetRibServer) error
+	GetRib(context.Context, *Table) (*Table, error)
 	Reset(context.Context, *Arguments) (*Error, error)
 	SoftReset(context.Context, *Arguments) (*Error, error)
 	SoftResetIn(context.Context, *Arguments) (*Error, error)
@@ -2262,25 +2258,16 @@ func _GobgpApi_ModNeighbor_Handler(srv interface{}, ctx context.Context, dec fun
 	return out, nil
 }
 
-func _GobgpApi_GetRib_Handler(srv interface{}, stream grpc.ServerStream) error {
-	m := new(Arguments)
-	if err := stream.RecvMsg(m); err != nil {
-		return err
+func _GobgpApi_GetRib_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error) (interface{}, error) {
+	in := new(Table)
+	if err := dec(in); err != nil {
+		return nil, err
 	}
-	return srv.(GobgpApiServer).GetRib(m, &gobgpApiGetRibServer{stream})
-}
-
-type GobgpApi_GetRibServer interface {
-	Send(*Destination) error
-	grpc.ServerStream
-}
-
-type gobgpApiGetRibServer struct {
-	grpc.ServerStream
-}
-
-func (x *gobgpApiGetRibServer) Send(m *Destination) error {
-	return x.ServerStream.SendMsg(m)
+	out, err := srv.(GobgpApiServer).GetRib(ctx, in)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
 }
 
 func _GobgpApi_Reset_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error) (interface{}, error) {
@@ -2735,6 +2722,10 @@ var _GobgpApi_serviceDesc = grpc.ServiceDesc{
 			Handler:    _GobgpApi_ModNeighbor_Handler,
 		},
 		{
+			MethodName: "GetRib",
+			Handler:    _GobgpApi_GetRib_Handler,
+		},
+		{
 			MethodName: "Reset",
 			Handler:    _GobgpApi_Reset_Handler,
 		},
@@ -2811,11 +2802,6 @@ var _GobgpApi_serviceDesc = grpc.ServiceDesc{
 		{
 			StreamName:    "GetNeighbors",
 			Handler:       _GobgpApi_GetNeighbors_Handler,
-			ServerStreams: true,
-		},
-		{
-			StreamName:    "GetRib",
-			Handler:       _GobgpApi_GetRib_Handler,
 			ServerStreams: true,
 		},
 		{

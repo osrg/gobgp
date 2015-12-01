@@ -121,9 +121,9 @@ func (s *Server) GetNeighbors(_ *api.Arguments, stream api.GobgpApi_GetNeighbors
 	})
 }
 
-func (s *Server) GetRib(arg *api.Arguments, stream api.GobgpApi_GetRibServer) error {
+func (s *Server) GetRib(ctx context.Context, arg *api.Table) (*api.Table, error) {
 	var reqType int
-	switch arg.Resource {
+	switch arg.Type {
 	case api.Resource_LOCAL:
 		reqType = REQ_LOCAL_RIB
 	case api.Resource_GLOBAL:
@@ -135,15 +135,13 @@ func (s *Server) GetRib(arg *api.Arguments, stream api.GobgpApi_GetRibServer) er
 	case api.Resource_VRF:
 		reqType = REQ_VRF
 	default:
-		return fmt.Errorf("unsupported resource type: %v", arg.Resource)
+		return nil, fmt.Errorf("unsupported resource type: %v", arg.Type)
 	}
-
-	req := NewGrpcRequest(reqType, arg.Name, bgp.RouteFamily(arg.Rf), nil)
-	s.bgpServerCh <- req
-
-	return handleMultipleResponses(req, func(res *GrpcResponse) error {
-		return stream.Send(res.Data.(*api.Destination))
-	})
+	d, err := s.get(reqType, arg)
+	if err != nil {
+		return nil, err
+	}
+	return d.(*api.Table), nil
 }
 
 func (s *Server) MonitorBestChanged(arg *api.Arguments, stream api.GobgpApi_MonitorBestChangedServer) error {

@@ -1237,7 +1237,8 @@ func (server *BgpServer) handleVrfRequest(req *GrpcRequest) []*table.Path {
 
 	switch req.RequestType {
 	case REQ_VRF:
-		name := req.Name
+		arg := req.Data.(*api.Table)
+		name := arg.Name
 		rib := server.globalRib
 		vrfs := rib.Vrfs
 		if _, ok := vrfs[name]; !ok {
@@ -1245,7 +1246,7 @@ func (server *BgpServer) handleVrfRequest(req *GrpcRequest) []*table.Path {
 			break
 		}
 		var rf bgp.RouteFamily
-		switch req.RouteFamily {
+		switch bgp.RouteFamily(arg.Family) {
 		case bgp.RF_IPv4_UC:
 			rf = bgp.RF_IPv4_VPN
 		case bgp.RF_IPv6_UC:
@@ -1253,20 +1254,27 @@ func (server *BgpServer) handleVrfRequest(req *GrpcRequest) []*table.Path {
 		case bgp.RF_EVPN:
 			rf = bgp.RF_EVPN
 		default:
-			result.ResponseErr = fmt.Errorf("unsupported route family: %s", req.RouteFamily)
+			result.ResponseErr = fmt.Errorf("unsupported route family: %s", bgp.RouteFamily(arg.Family))
 			break
 		}
-		for _, path := range rib.GetPathList(rf) {
+		paths := rib.GetPathList(rf)
+		dsts := make([]*api.Destination, 0, len(paths))
+		for _, path := range paths {
 			ok := table.CanImportToVrf(vrfs[name], path)
 			if !ok {
 				continue
 			}
-			req.ResponseCh <- &GrpcResponse{
-				Data: &api.Destination{
-					Prefix: path.GetNlri().String(),
-					Paths:  []*api.Path{path.ToApiStruct()},
-				},
-			}
+			dsts = append(dsts, &api.Destination{
+				Prefix: path.GetNlri().String(),
+				Paths:  []*api.Path{path.ToApiStruct()},
+			})
+		}
+		req.ResponseCh <- &GrpcResponse{
+			Data: &api.Table{
+				Type:         arg.Type,
+				Family:       arg.Family,
+				Destinations: dsts,
+			},
 		}
 		goto END
 	case REQ_VRFS:
@@ -1350,20 +1358,15 @@ func (server *BgpServer) handleGrpc(grpcReq *GrpcRequest) []*SenderMsg {
 		return []*Peer{peer}, err
 	}
 
-	sortedDsts := func(t *table.Table) []*GrpcResponse {
-		results := make([]*GrpcResponse, len(t.GetDestinations()))
+	sortedDsts := func(t *table.Table) []*api.Destination {
+		results := make([]*api.Destination, 0, len(t.GetDestinations()))
 
 		r := radix.New()
 		for _, dst := range t.GetDestinations() {
-			result := &GrpcResponse{}
-			result.Data = dst.ToApiStruct()
-			r.Insert(dst.RadixKey, result)
+			r.Insert(dst.RadixKey, dst.ToApiStruct())
 		}
-		i := 0
 		r.Walk(func(s string, v interface{}) bool {
-			r, _ := v.(*GrpcResponse)
-			results[i] = r
-			i++
+			results = append(results, v.(*api.Destination))
 			return false
 		})
 
@@ -1377,6 +1380,8 @@ func (server *BgpServer) handleGrpc(grpcReq *GrpcRequest) []*SenderMsg {
 		close(grpcReq.ResponseCh)
 		return nil
 	}
+
+	var err error
 
 	switch grpcReq.RequestType {
 	case REQ_GLOBAL_CONFIG:
@@ -1394,25 +1399,41 @@ func (server *BgpServer) handleGrpc(grpcReq *GrpcRequest) []*SenderMsg {
 			ResponseErr: err,
 		}
 		close(grpcReq.ResponseCh)
-	case REQ_GLOBAL_RIB:
-		var results []*GrpcResponse
-		if t, ok := server.globalRib.Tables[grpcReq.RouteFamily]; ok {
-			results = make([]*GrpcResponse, len(t.GetDestinations()))
-			switch grpcReq.RouteFamily {
+	case REQ_GLOBAL_RIB, REQ_LOCAL_RIB:
+		arg := grpcReq.Data.(*api.Table)
+		d := &api.Table{
+			Type:   arg.Type,
+			Family: arg.Family,
+		}
+		rib := server.globalRib
+		if grpcReq.RequestType == REQ_LOCAL_RIB {
+			peer, ok := server.neighborMap[arg.Name]
+			if !ok {
+				err = fmt.Errorf("Neighbor that has %v doesn't exist.", arg.Name)
+				goto ERROR
+			}
+			if !peer.isRouteServerClient() {
+				err = fmt.Errorf("Neighbor %v doesn't have local rib", arg.Name)
+				goto ERROR
+			}
+			rib = peer.localRib
+		}
+		rf := bgp.RouteFamily(arg.Family)
+		if t, ok := rib.Tables[rf]; ok {
+			switch rf {
 			case bgp.RF_IPv4_UC, bgp.RF_IPv6_UC:
-				results = sortedDsts(server.globalRib.Tables[grpcReq.RouteFamily])
+				d.Destinations = sortedDsts(rib.Tables[rf])
 			default:
-				i := 0
+				d.Destinations = make([]*api.Destination, 0, len(t.GetDestinations()))
 				for _, dst := range t.GetDestinations() {
-					result := &GrpcResponse{}
-					result.Data = dst.ToApiStruct()
-					results[i] = result
-					i++
+					d.Destinations = append(d.Destinations, dst.ToApiStruct())
 				}
 			}
 		}
-		go sendMultipleResponses(grpcReq, results)
-
+		grpcReq.ResponseCh <- &GrpcResponse{
+			Data: d,
+		}
+		close(grpcReq.ResponseCh)
 	case REQ_MOD_PATH:
 		pathList := server.handleModPathRequest(grpcReq)
 		if len(pathList) > 0 {
@@ -1444,39 +1465,21 @@ func (server *BgpServer) handleGrpc(grpcReq *GrpcRequest) []*SenderMsg {
 		grpcReq.ResponseCh <- result
 		close(grpcReq.ResponseCh)
 
-	case REQ_LOCAL_RIB:
-		peer, err := server.checkNeighborRequest(grpcReq)
-		if err != nil {
-			break
-		}
-		var results []*GrpcResponse
-		if peer.isRouteServerClient() && peer.fsm.adminState != ADMIN_STATE_DOWN {
-			if t, ok := peer.localRib.Tables[grpcReq.RouteFamily]; ok {
-				results = make([]*GrpcResponse, len(t.GetDestinations()))
-				switch grpcReq.RouteFamily {
-				case bgp.RF_IPv4_UC, bgp.RF_IPv6_UC:
-					results = sortedDsts(peer.localRib.Tables[grpcReq.RouteFamily])
-				default:
-					i := 0
-					for _, dst := range t.GetDestinations() {
-						result := &GrpcResponse{}
-						result.Data = dst.ToApiStruct()
-						results[i] = result
-						i++
-					}
-				}
-			}
-		}
-		go sendMultipleResponses(grpcReq, results)
-
 	case REQ_ADJ_RIB_IN, REQ_ADJ_RIB_OUT:
-		peer, err := server.checkNeighborRequest(grpcReq)
-		if err != nil {
-			break
+		arg := grpcReq.Data.(*api.Table)
+		d := &api.Table{
+			Type:   arg.Type,
+			Family: arg.Family,
 		}
-		rf := grpcReq.RouteFamily
-		var paths []*table.Path
 
+		peer, ok := server.neighborMap[arg.Name]
+		if !ok {
+			err = fmt.Errorf("Neighbor that has %v doesn't exist.", arg.Name)
+			goto ERROR
+		}
+
+		rf := bgp.RouteFamily(arg.Family)
+		var paths []*table.Path
 		if grpcReq.RequestType == REQ_ADJ_RIB_IN {
 			paths = peer.adjRib.GetInPathList([]bgp.RouteFamily{rf})
 			log.Debugf("RouteFamily=%v adj-rib-in found : %d", rf.String(), len(paths))
@@ -1485,36 +1488,34 @@ func (server *BgpServer) handleGrpc(grpcReq *GrpcRequest) []*SenderMsg {
 			log.Debugf("RouteFamily=%v adj-rib-out found : %d", rf.String(), len(paths))
 		}
 
-		toResult := func(p *table.Path) *GrpcResponse {
-			return &GrpcResponse{
-				Data: &api.Destination{
-					Prefix: p.GetNlri().String(),
-					Paths:  []*api.Path{p.ToApiStruct()},
-				},
-			}
-		}
-
-		results := make([]*GrpcResponse, len(paths))
+		results := make([]*api.Destination, 0, len(paths))
 		switch rf {
 		case bgp.RF_IPv4_UC, bgp.RF_IPv6_UC:
 			r := radix.New()
 			for _, p := range paths {
-				r.Insert(table.CidrToRadixkey(p.GetNlri().String()), toResult(p))
+				key := p.GetNlri().String()
+				r.Insert(table.CidrToRadixkey(key), &api.Destination{
+					Prefix: key,
+					Paths:  []*api.Path{p.ToApiStruct()},
+				})
 			}
-			i := 0
 			r.Walk(func(s string, v interface{}) bool {
-				r, _ := v.(*GrpcResponse)
-				results[i] = r
-				i++
+				results = append(results, v.(*api.Destination))
 				return false
 			})
 		default:
-			for i, p := range paths {
-				results[i] = toResult(p)
+			for _, p := range paths {
+				results = append(results, &api.Destination{
+					Prefix: p.GetNlri().String(),
+					Paths:  []*api.Path{p.ToApiStruct()},
+				})
 			}
 		}
-		go sendMultipleResponses(grpcReq, results)
-
+		d.Destinations = results
+		grpcReq.ResponseCh <- &GrpcResponse{
+			Data: d,
+		}
+		close(grpcReq.ResponseCh)
 	case REQ_NEIGHBOR_SHUTDOWN:
 		peers, err := reqToPeers(grpcReq)
 		if err != nil {
@@ -1709,13 +1710,15 @@ func (server *BgpServer) handleGrpc(grpcReq *GrpcRequest) []*SenderMsg {
 			msgs = server.propagateUpdate(nil, pathList)
 		}
 	default:
-		errmsg := fmt.Errorf("Unknown request type: %v", grpcReq.RequestType)
-		result := &GrpcResponse{
-			ResponseErr: errmsg,
-		}
-		grpcReq.ResponseCh <- result
-		close(grpcReq.ResponseCh)
+		err = fmt.Errorf("Unknown request type: %v", grpcReq.RequestType)
+		goto ERROR
 	}
+	return msgs
+ERROR:
+	grpcReq.ResponseCh <- &GrpcResponse{
+		ResponseErr: err,
+	}
+	close(grpcReq.ResponseCh)
 	return msgs
 }
 
