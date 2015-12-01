@@ -415,13 +415,13 @@ func showNeighborRib(r string, name string, args []string) error {
 		}
 	}
 
-	arg := &api.Arguments{
-		Resource: resource,
-		Rf:       uint32(rf),
-		Name:     name,
+	arg := &api.Table{
+		Type:   resource,
+		Family: uint32(rf),
+		Name:   name,
 	}
 
-	stream, err := client.GetRib(context.Background(), arg)
+	rib, err := client.GetRib(context.Background(), arg)
 	if err != nil {
 		return err
 	}
@@ -437,13 +437,7 @@ func showNeighborRib(r string, name string, args []string) error {
 	dsts := []*Destination{}
 	maxOnes := 0
 	counter := 0
-	for {
-		d, e := stream.Recv()
-		if e == io.EOF {
-			break
-		} else if e != nil {
-			return e
-		}
+	for _, d := range rib.Destinations {
 		if prefix != "" && prefix != d.Prefix {
 			continue
 		}
