@@ -34,11 +34,23 @@ func IsEBGPPeer(g *Global, p *Neighbor) bool {
 	return p.NeighborConfig.PeerAs != g.GlobalConfig.As
 }
 
+func (c AfiSafis) ToRfList() ([]bgp.RouteFamily, error) {
+	rfs := make([]bgp.RouteFamily, 0, len(c.AfiSafiList))
+	for _, rf := range c.AfiSafiList {
+		k, err := bgp.GetRouteFamily(rf.AfiSafiName)
+		if err != nil {
+			return nil, err
+		}
+		rfs = append(rfs, k)
+	}
+	return rfs, nil
+}
+
 func CreateRfMap(p *Neighbor) map[bgp.RouteFamily]bool {
+	rfs, _ := p.AfiSafis.ToRfList()
 	rfMap := make(map[bgp.RouteFamily]bool)
-	for _, rf := range p.AfiSafis.AfiSafiList {
-		k, _ := bgp.GetRouteFamily(rf.AfiSafiName)
-		rfMap[k] = true
+	for _, rf := range rfs {
+		rfMap[rf] = true
 	}
 	return rfMap
 }

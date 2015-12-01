@@ -238,7 +238,8 @@ func TestPolicyNotMatch(t *testing.T) {
 	pd := createPolicyDefinition("pd1", s)
 	pl := createRoutingPolicy(ds, pd)
 
-	r, err := NewRoutingPolicy(pl)
+	r := NewRoutingPolicy()
+	err := r.Reload(pl)
 	assert.Nil(t, err)
 	pType, newPath := r.PolicyMap["pd1"].Apply(path)
 	assert.Equal(t, ROUTE_TYPE_NONE, pType)
@@ -268,7 +269,8 @@ func TestPolicyMatchAndReject(t *testing.T) {
 	pd := createPolicyDefinition("pd1", s)
 	pl := createRoutingPolicy(ds, pd)
 
-	r, err := NewRoutingPolicy(pl)
+	r := NewRoutingPolicy()
+	err := r.Reload(pl)
 	assert.Nil(t, err)
 	pType, newPath := r.PolicyMap["pd1"].Apply(path)
 	assert.Equal(t, ROUTE_TYPE_REJECT, pType)
@@ -299,7 +301,8 @@ func TestPolicyMatchAndAccept(t *testing.T) {
 	pl := createRoutingPolicy(ds, pd)
 
 	//test
-	r, err := NewRoutingPolicy(pl)
+	r := NewRoutingPolicy()
+	err := r.Reload(pl)
 	assert.Nil(t, err)
 	pType, newPath := r.PolicyMap["pd1"].Apply(path)
 	assert.Equal(t, ROUTE_TYPE_ACCEPT, pType)
@@ -340,7 +343,8 @@ func TestPolicyRejectOnlyPrefixSet(t *testing.T) {
 	pl := createRoutingPolicy(ds, pd)
 
 	//test
-	r, err := NewRoutingPolicy(pl)
+	r := NewRoutingPolicy()
+	err := r.Reload(pl)
 	assert.Nil(t, err)
 	p := r.PolicyMap["pd1"]
 	pType, newPath := p.Apply(path1)
@@ -386,7 +390,8 @@ func TestPolicyRejectOnlyNeighborSet(t *testing.T) {
 	pl := createRoutingPolicy(ds, pd)
 
 	//test
-	r, err := NewRoutingPolicy(pl)
+	r := NewRoutingPolicy()
+	err := r.Reload(pl)
 	assert.Nil(t, err)
 	pType, newPath := r.PolicyMap["pd1"].Apply(path1)
 	assert.Equal(t, ROUTE_TYPE_REJECT, pType)
@@ -438,7 +443,8 @@ func TestPolicyDifferentRoutefamilyOfPathAndPolicy(t *testing.T) {
 	pl := createRoutingPolicy(ds, pd)
 
 	//test
-	r, err := NewRoutingPolicy(pl)
+	r := NewRoutingPolicy()
+	err := r.Reload(pl)
 	assert.Nil(t, err)
 	p := r.PolicyMap["pd1"]
 	pType1, newPath1 := p.Apply(pathIPv4)
@@ -537,7 +543,8 @@ func TestAsPathLengthConditionWithOtherCondition(t *testing.T) {
 	pl := createRoutingPolicy(ds, pd)
 
 	//test
-	r, err := NewRoutingPolicy(pl)
+	r := NewRoutingPolicy()
+	err := r.Reload(pl)
 	assert.Nil(t, err)
 	p := r.PolicyMap["pd1"]
 	pType, newPath := p.Apply(path)
@@ -654,7 +661,8 @@ func TestAs4PathLengthConditionWithOtherCondition(t *testing.T) {
 	pl := createRoutingPolicy(ds, pd)
 
 	//test
-	r, _ := NewRoutingPolicy(pl)
+	r := NewRoutingPolicy()
+	r.Reload(pl)
 	p, _ := NewPolicy(pl.PolicyDefinitions.PolicyDefinitionList[0], r.DefinedSetMap)
 	pType, newPath := p.Apply(path)
 	assert.Equal(t, ROUTE_TYPE_REJECT, pType)
@@ -997,7 +1005,8 @@ func TestAsPathConditionWithOtherCondition(t *testing.T) {
 	pl := createRoutingPolicy(ds, pd)
 
 	//test
-	r, err := NewRoutingPolicy(pl)
+	r := NewRoutingPolicy()
+	err := r.Reload(pl)
 	assert.Nil(t, err)
 	p := r.PolicyMap["pd1"]
 	pType, newPath := p.Apply(path)
@@ -1302,7 +1311,8 @@ func TestAs4PathConditionWithOtherCondition(t *testing.T) {
 	pl := createRoutingPolicy(ds, pd)
 
 	//test
-	r, _ := NewRoutingPolicy(pl)
+	r := NewRoutingPolicy()
+	r.Reload(pl)
 	p, _ := NewPolicy(pl.PolicyDefinitions.PolicyDefinitionList[0], r.DefinedSetMap)
 	pType, newPath := p.Apply(path)
 	assert.Equal(t, ROUTE_TYPE_REJECT, pType)
@@ -1661,7 +1671,8 @@ func TestCommunityConditionEvaluateWithOtherCondition(t *testing.T) {
 	pl := createRoutingPolicy(ds, pd1, pd2)
 
 	//test
-	r, err := NewRoutingPolicy(pl)
+	r := NewRoutingPolicy()
+	err := r.Reload(pl)
 	assert.Nil(t, err)
 	p := r.PolicyMap["pd1"]
 	pType, newPath := p.Apply(path)
@@ -1705,7 +1716,8 @@ func TestPolicyMatchAndAddCommunities(t *testing.T) {
 	pl := createRoutingPolicy(ds, pd)
 
 	//test
-	r, err := NewRoutingPolicy(pl)
+	r := NewRoutingPolicy()
+	err := r.Reload(pl)
 	assert.Nil(t, err)
 	p := r.PolicyMap["pd1"]
 
@@ -1749,7 +1761,8 @@ func TestPolicyMatchAndReplaceCommunities(t *testing.T) {
 	pl := createRoutingPolicy(ds, pd)
 
 	//test
-	r, err := NewRoutingPolicy(pl)
+	r := NewRoutingPolicy()
+	err := r.Reload(pl)
 	assert.Nil(t, err)
 	p := r.PolicyMap["pd1"]
 
@@ -1793,7 +1806,8 @@ func TestPolicyMatchAndRemoveCommunities(t *testing.T) {
 	pl := createRoutingPolicy(ds, pd)
 
 	//test
-	r, err := NewRoutingPolicy(pl)
+	r := NewRoutingPolicy()
+	err := r.Reload(pl)
 	assert.Nil(t, err)
 	p := r.PolicyMap["pd1"]
 	pType, newPath := p.Apply(path)
@@ -1838,7 +1852,8 @@ func TestPolicyMatchAndRemoveCommunitiesRegexp(t *testing.T) {
 	pl := createRoutingPolicy(ds, pd)
 
 	//test
-	r, err := NewRoutingPolicy(pl)
+	r := NewRoutingPolicy()
+	err := r.Reload(pl)
 	assert.Nil(t, err)
 	p := r.PolicyMap["pd1"]
 	pType, newPath := p.Apply(path)
@@ -1883,7 +1898,8 @@ func TestPolicyMatchAndRemoveCommunitiesRegexp2(t *testing.T) {
 	pl := createRoutingPolicy(ds, pd)
 
 	//test
-	r, err := NewRoutingPolicy(pl)
+	r := NewRoutingPolicy()
+	err := r.Reload(pl)
 	assert.Nil(t, err)
 	p := r.PolicyMap["pd1"]
 	pType, newPath := p.Apply(path)
@@ -1928,7 +1944,8 @@ func TestPolicyMatchAndClearCommunities(t *testing.T) {
 	pl := createRoutingPolicy(ds, pd)
 
 	//test
-	r, err := NewRoutingPolicy(pl)
+	r := NewRoutingPolicy()
+	err := r.Reload(pl)
 	assert.Nil(t, err)
 	p := r.PolicyMap["pd1"]
 
@@ -2262,7 +2279,8 @@ func TestExtCommunityConditionEvaluateWithOtherCondition(t *testing.T) {
 	pd2 := createPolicyDefinition("pd2", s2)
 	pl := createRoutingPolicy(ds, pd1, pd2)
 	//test
-	r, err := NewRoutingPolicy(pl)
+	r := NewRoutingPolicy()
+	err := r.Reload(pl)
 	assert.Nil(t, err)
 	p := r.PolicyMap["pd1"]
 	pType, newPath := p.Apply(path)
@@ -2306,7 +2324,8 @@ func TestPolicyMatchAndReplaceMed(t *testing.T) {
 	pl := createRoutingPolicy(ds, pd)
 
 	//test
-	r, err := NewRoutingPolicy(pl)
+	r := NewRoutingPolicy()
+	err := r.Reload(pl)
 	assert.Nil(t, err)
 	p := r.PolicyMap["pd1"]
 
@@ -2349,7 +2368,8 @@ func TestPolicyMatchAndAddingMed(t *testing.T) {
 	pd := createPolicyDefinition("pd1", s)
 	pl := createRoutingPolicy(ds, pd)
 	//test
-	r, err := NewRoutingPolicy(pl)
+	r := NewRoutingPolicy()
+	err := r.Reload(pl)
 	assert.Nil(t, err)
 	p := r.PolicyMap["pd1"]
 	pType, newPath := p.Apply(path)
@@ -2393,7 +2413,8 @@ func TestPolicyMatchAndAddingMedOverFlow(t *testing.T) {
 	pd := createPolicyDefinition("pd1", s)
 	pl := createRoutingPolicy(ds, pd)
 	//test
-	r, err := NewRoutingPolicy(pl)
+	r := NewRoutingPolicy()
+	err := r.Reload(pl)
 	assert.Nil(t, err)
 	p := r.PolicyMap["pd1"]
 
@@ -2438,7 +2459,8 @@ func TestPolicyMatchAndSubtractMed(t *testing.T) {
 	pd := createPolicyDefinition("pd1", s)
 	pl := createRoutingPolicy(ds, pd)
 	//test
-	r, err := NewRoutingPolicy(pl)
+	r := NewRoutingPolicy()
+	err := r.Reload(pl)
 	assert.Nil(t, err)
 	p := r.PolicyMap["pd1"]
 
@@ -2483,7 +2505,8 @@ func TestPolicyMatchAndSubtractMedUnderFlow(t *testing.T) {
 	pd := createPolicyDefinition("pd1", s)
 	pl := createRoutingPolicy(ds, pd)
 	//test
-	r, err := NewRoutingPolicy(pl)
+	r := NewRoutingPolicy()
+	err := r.Reload(pl)
 	assert.Nil(t, err)
 	p := r.PolicyMap["pd1"]
 
@@ -2525,7 +2548,8 @@ func TestPolicyMatchWhenPathHaveNotMed(t *testing.T) {
 	pd := createPolicyDefinition("pd1", s)
 	pl := createRoutingPolicy(ds, pd)
 	//test
-	r, err := NewRoutingPolicy(pl)
+	r := NewRoutingPolicy()
+	err := r.Reload(pl)
 	assert.Nil(t, err)
 	p := r.PolicyMap["pd1"]
 
@@ -2572,8 +2596,8 @@ func TestPolicyAsPathPrepend(t *testing.T) {
 	pd := createPolicyDefinition("pd1", s)
 	pl := createRoutingPolicy(ds, pd)
 	//test
-	r, _ := NewRoutingPolicy(pl)
-	//	assert.Nil(t, err)
+	r := NewRoutingPolicy()
+	r.Reload(pl)
 	p := r.PolicyMap["pd1"]
 
 	pType, newPath := p.Apply(path)
@@ -2616,8 +2640,8 @@ func TestPolicyAsPathPrependLastAs(t *testing.T) {
 	pd := createPolicyDefinition("pd1", s)
 	pl := createRoutingPolicy(ds, pd)
 	//test
-	r, _ := NewRoutingPolicy(pl)
-	//	assert.Nil(t, err)
+	r := NewRoutingPolicy()
+	r.Reload(pl)
 	p := r.PolicyMap["pd1"]
 
 	pType, newPath := p.Apply(path)
@@ -2666,7 +2690,8 @@ func TestPolicyAs4PathPrepend(t *testing.T) {
 	pd := createPolicyDefinition("pd1", s)
 	pl := createRoutingPolicy(ds, pd)
 	//test
-	r, _ := NewRoutingPolicy(pl)
+	r := NewRoutingPolicy()
+	r.Reload(pl)
 	p, _ := NewPolicy(pl.PolicyDefinitions.PolicyDefinitionList[0], r.DefinedSetMap)
 
 	pType, newPath := p.Apply(path)
@@ -2720,7 +2745,8 @@ func TestPolicyAs4PathPrependLastAs(t *testing.T) {
 	pd := createPolicyDefinition("pd1", s)
 	pl := createRoutingPolicy(ds, pd)
 	//test
-	r, _ := NewRoutingPolicy(pl)
+	r := NewRoutingPolicy()
+	r.Reload(pl)
 	p, _ := NewPolicy(pl.PolicyDefinitions.PolicyDefinitionList[0], r.DefinedSetMap)
 
 	pType, newPath := p.Apply(path)
