@@ -1418,16 +1418,43 @@ func (server *BgpServer) handleGrpc(grpcReq *GrpcRequest) []*SenderMsg {
 			}
 			rib = peer.localRib
 		}
-		rf := bgp.RouteFamily(arg.Family)
-		if t, ok := rib.Tables[rf]; ok {
-			switch rf {
-			case bgp.RF_IPv4_UC, bgp.RF_IPv6_UC:
-				d.Destinations = sortedDsts(rib.Tables[rf])
-			default:
-				d.Destinations = make([]*api.Destination, 0, len(t.GetDestinations()))
-				for _, dst := range t.GetDestinations() {
-					d.Destinations = append(d.Destinations, dst.ToApiStruct())
+		af := bgp.RouteFamily(arg.Family)
+		if _, ok := rib.Tables[af]; !ok {
+			err = fmt.Errorf("address family: %s not supported", af)
+			goto ERROR
+		}
+
+		switch af {
+		case bgp.RF_IPv4_UC, bgp.RF_IPv6_UC:
+			if len(arg.Destinations) > 0 {
+				dsts := []*api.Destination{}
+				for _, dst := range arg.Destinations {
+					key := dst.Prefix
+					if _, prefix, err := net.ParseCIDR(key); err == nil {
+						if dst := rib.Tables[af].GetDestination(prefix.String()); dst != nil {
+							dsts = append(dsts, dst.ToApiStruct())
+						}
+					} else if host := net.ParseIP(key); host != nil {
+						masklen := 32
+						if af == bgp.RF_IPv6_UC {
+							masklen = 128
+						}
+						for i := masklen; i > 0; i-- {
+							if dst := rib.Tables[af].GetDestination(fmt.Sprintf("%s/%d", key, i)); dst != nil {
+								dsts = append(dsts, dst.ToApiStruct())
+								break
+							}
+						}
+					}
 				}
+				d.Destinations = dsts
+			} else {
+				d.Destinations = sortedDsts(rib.Tables[af])
+			}
+		default:
+			d.Destinations = make([]*api.Destination, 0, len(rib.Tables[af].GetDestinations()))
+			for _, dst := range rib.Tables[af].GetDestinations() {
+				d.Destinations = append(d.Destinations, dst.ToApiStruct())
 			}
 		}
 		grpcReq.ResponseCh <- &GrpcResponse{
@@ -1494,10 +1521,21 @@ func (server *BgpServer) handleGrpc(grpcReq *GrpcRequest) []*SenderMsg {
 			r := radix.New()
 			for _, p := range paths {
 				key := p.GetNlri().String()
-				r.Insert(table.CidrToRadixkey(key), &api.Destination{
-					Prefix: key,
-					Paths:  []*api.Path{p.ToApiStruct()},
-				})
+				found := true
+				for _, dst := range arg.Destinations {
+					found = false
+					if dst.Prefix == key {
+						found = true
+						break
+					}
+				}
+
+				if found {
+					r.Insert(table.CidrToRadixkey(key), &api.Destination{
+						Prefix: key,
+						Paths:  []*api.Path{p.ToApiStruct()},
+					})
+				}
 			}
 			r.Walk(func(s string, v interface{}) bool {
 				results = append(results, v.(*api.Destination))

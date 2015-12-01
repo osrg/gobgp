@@ -400,25 +400,21 @@ func showNeighborRib(r string, name string, args []string) error {
 
 	var prefix string
 	var host net.IP
-	if len(args) > 0 {
-		if rf != bgp.RF_IPv4_UC && rf != bgp.RF_IPv6_UC {
-			return fmt.Errorf("route filtering is only supported for IPv4/IPv6 unicast routes")
-		}
-		_, p, err := net.ParseCIDR(args[0])
-		if err != nil {
-			host = net.ParseIP(args[0])
-			if host == nil {
-				return err
-			}
-		} else {
-			prefix = p.String()
-		}
-	}
-
 	arg := &api.Table{
 		Type:   resource,
 		Family: uint32(rf),
 		Name:   name,
+	}
+
+	if len(args) > 0 {
+		if rf != bgp.RF_IPv4_UC && rf != bgp.RF_IPv6_UC {
+			return fmt.Errorf("route filtering is only supported for IPv4/IPv6 unicast routes")
+		}
+		arg.Destinations = []*api.Destination{
+			&api.Destination{
+				Prefix: args[0],
+			},
+		}
 	}
 
 	rib, err := client.GetRib(context.Background(), arg)
