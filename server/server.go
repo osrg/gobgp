@@ -1428,21 +1428,30 @@ func (server *BgpServer) handleGrpc(grpcReq *GrpcRequest) []*SenderMsg {
 		case bgp.RF_IPv4_UC, bgp.RF_IPv6_UC:
 			if len(arg.Destinations) > 0 {
 				dsts := []*api.Destination{}
+				f := func(cidr string) (bool, error) {
+					_, prefix, err := net.ParseCIDR(cidr)
+					if err != nil {
+						return false, err
+					}
+					if dst := rib.Tables[af].GetDestination(prefix.String()); dst != nil {
+						dsts = append(dsts, dst.ToApiStruct())
+						return true, nil
+					} else {
+						return false, nil
+					}
+				}
 				for _, dst := range arg.Destinations {
 					key := dst.Prefix
-					if _, prefix, err := net.ParseCIDR(key); err == nil {
-						if dst := rib.Tables[af].GetDestination(prefix.String()); dst != nil {
-							dsts = append(dsts, dst.ToApiStruct())
-						}
-					} else if host := net.ParseIP(key); host != nil {
-						masklen := 32
-						if af == bgp.RF_IPv6_UC {
-							masklen = 128
-						}
-						for i := masklen; i > 0; i-- {
-							if dst := rib.Tables[af].GetDestination(fmt.Sprintf("%s/%d", key, i)); dst != nil {
-								dsts = append(dsts, dst.ToApiStruct())
-								break
+					if _, err := f(key); err != nil {
+						if host := net.ParseIP(key); host != nil {
+							masklen := 32
+							if af == bgp.RF_IPv6_UC {
+								masklen = 128
+							}
+							for i := masklen; i > 0; i-- {
+								if y, _ := f(fmt.Sprintf("%s/%d", key, i)); y {
+									break
+								}
 							}
 						}
 					}
