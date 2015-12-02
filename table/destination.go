@@ -333,15 +333,13 @@ func (dest *Destination) explicitWithdraw() paths {
 // Known paths will no longer have paths whose new version is present in
 // new paths.
 func (dest *Destination) implicitWithdraw() {
-	newPaths := dest.newPathList
-	knownPaths := dest.knownPathList
-
-	newKnownPaths := make([]*Path, 0, len(knownPaths))
-	for _, newPath := range newPaths {
-		if newPath.NoImplicitWithdraw {
-			continue
-		}
-		for _, path := range knownPaths {
+	newKnownPaths := make([]*Path, 0, len(dest.knownPathList))
+	for _, path := range dest.knownPathList {
+		found := false
+		for _, newPath := range dest.newPathList {
+			if newPath.NoImplicitWithdraw {
+				continue
+			}
 			// Here we just check if source is same and not check if path
 			// version num. as newPaths are implicit withdrawal of old
 			// paths and when doing RouteRefresh (not EnhancedRouteRefresh)
@@ -352,19 +350,14 @@ func (dest *Destination) implicitWithdraw() {
 					"Key":   dest.GetNlri().String(),
 					"Path":  path,
 				}).Debug("Implicit withdrawal of old path, since we have learned new path from the same peer")
-				// just use as a flag whether to leave in knownPathList
-				path.IsWithdraw = true
+
+				found = true
 				break
 			}
 		}
-	}
-
-	for _, path := range dest.knownPathList {
-		if !path.IsWithdraw {
+		if !found {
 			newKnownPaths = append(newKnownPaths, path)
 		}
-		// we've used the flag. flag it down.
-		path.IsWithdraw = false
 	}
 	dest.knownPathList = newKnownPaths
 }
