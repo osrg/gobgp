@@ -21,7 +21,6 @@ import (
 )
 
 type AdjRib struct {
-	counter  map[bgp.RouteFamily]int
 	accepted map[bgp.RouteFamily]int
 	table    map[bgp.RouteFamily]map[string]*Path
 }
@@ -33,7 +32,6 @@ func NewAdjRib(rfList []bgp.RouteFamily) *AdjRib {
 	}
 	return &AdjRib{
 		table:    table,
-		counter:  make(map[bgp.RouteFamily]int),
 		accepted: make(map[bgp.RouteFamily]int),
 	}
 }
@@ -49,7 +47,6 @@ func (adj *AdjRib) Update(pathList []*Path) {
 		if path.IsWithdraw {
 			if found {
 				delete(adj.table[rf], key)
-				adj.counter[rf]--
 				if !old.Filtered {
 					adj.accepted[rf]--
 				}
@@ -62,7 +59,6 @@ func (adj *AdjRib) Update(pathList []*Path) {
 					adj.accepted[rf]--
 				}
 			} else {
-				adj.counter[rf]++
 				if !path.Filtered {
 					adj.accepted[rf]++
 				}
@@ -91,8 +87,8 @@ func (adj *AdjRib) PathList(rfList []bgp.RouteFamily, accepted bool) []*Path {
 func (adj *AdjRib) Count(rfList []bgp.RouteFamily) int {
 	count := 0
 	for _, rf := range rfList {
-		if n, ok := adj.counter[rf]; ok {
-			count += n
+		if table, ok := adj.table[rf]; ok {
+			count += len(table)
 		}
 	}
 	return count
@@ -112,7 +108,6 @@ func (adj *AdjRib) Drop(rfList []bgp.RouteFamily) {
 	for _, rf := range rfList {
 		if _, ok := adj.table[rf]; ok {
 			adj.table[rf] = make(map[string]*Path)
-			adj.counter[rf] = 0
 			adj.accepted[rf] = 0
 		}
 	}
