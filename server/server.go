@@ -329,7 +329,7 @@ func (server *BgpServer) Serve() {
 				if targetPeer.fsm.state != bgp.BGP_FSM_ESTABLISHED {
 					continue
 				}
-				for _, p := range targetPeer.adjRib.GetInPathList(targetPeer.configuredRFlist()) {
+				for _, p := range targetPeer.adjRibIn.PathList(targetPeer.configuredRFlist(), false) {
 					// avoid to merge for timestamp
 					u := table.CreateUpdateMsgFromPaths([]*table.Path{p})
 					buf, _ := u[0].Serialize()
@@ -560,7 +560,7 @@ func (server *BgpServer) dropPeerAllRoutes(peer *Peer) []*SenderMsg {
 				}
 				msgList := table.CreateUpdateMsgFromPaths(pathList)
 				msgs = append(msgs, newSenderMsg(targetPeer, msgList))
-				targetPeer.adjRib.UpdateOut(pathList)
+				targetPeer.adjRibOut.Update(pathList)
 			}
 		} else {
 			rib := server.globalRib
@@ -579,7 +579,7 @@ func (server *BgpServer) dropPeerAllRoutes(peer *Peer) []*SenderMsg {
 				if _, ok := targetPeer.rfMap[rf]; !ok {
 					continue
 				}
-				targetPeer.adjRib.UpdateOut(pathList)
+				targetPeer.adjRibOut.Update(pathList)
 				msgs = append(msgs, newSenderMsg(targetPeer, msgList))
 			}
 		}
@@ -678,7 +678,7 @@ func (server *BgpServer) propagateUpdate(peer *Peer, pathList []*table.Path) []*
 				continue
 			}
 			msgList := table.CreateUpdateMsgFromPaths(sendPathList)
-			targetPeer.adjRib.UpdateOut(sendPathList)
+			targetPeer.adjRibOut.Update(sendPathList)
 			msgs = append(msgs, newSenderMsg(targetPeer, msgList))
 		}
 	} else {
@@ -702,9 +702,8 @@ func (server *BgpServer) propagateUpdate(peer *Peer, pathList []*table.Path) []*
 			for _, path := range f {
 				path.UpdatePathAttrs(&server.bgpConfig.Global, &targetPeer.conf)
 			}
-			targetPeer.adjRib.UpdateOut(f)
+			targetPeer.adjRibOut.Update(f)
 			msgList := table.CreateUpdateMsgFromPaths(f)
-
 			msgs = append(msgs, newSenderMsg(targetPeer, msgList))
 		}
 	}
@@ -755,7 +754,7 @@ func (server *BgpServer) handleFSMMessage(peer *Peer, e *FsmMsg, incoming chan *
 			}
 			pathList, _ := peer.getBestFromLocal(peer.configuredRFlist())
 			if len(pathList) > 0 {
-				peer.adjRib.UpdateOut(pathList)
+				peer.adjRibOut.Update(pathList)
 				msgs = append(msgs, newSenderMsg(peer, table.CreateUpdateMsgFromPaths(pathList)))
 			}
 		} else {
@@ -1517,10 +1516,10 @@ func (server *BgpServer) handleGrpc(grpcReq *GrpcRequest) []*SenderMsg {
 		rf := bgp.RouteFamily(arg.Family)
 		var paths []*table.Path
 		if grpcReq.RequestType == REQ_ADJ_RIB_IN {
-			paths = peer.adjRib.GetInPathList([]bgp.RouteFamily{rf})
+			paths = peer.adjRibIn.PathList([]bgp.RouteFamily{rf}, false)
 			log.Debugf("RouteFamily=%v adj-rib-in found : %d", rf.String(), len(paths))
 		} else {
-			paths = peer.adjRib.GetOutPathList([]bgp.RouteFamily{rf})
+			paths = peer.adjRibOut.PathList([]bgp.RouteFamily{rf}, false)
 			log.Debugf("RouteFamily=%v adj-rib-out found : %d", rf.String(), len(paths))
 		}
 
@@ -1602,7 +1601,7 @@ func (server *BgpServer) handleGrpc(grpcReq *GrpcRequest) []*SenderMsg {
 		}
 
 		for _, peer := range peers {
-			pathList := peer.adjRib.GetInPathList([]bgp.RouteFamily{grpcReq.RouteFamily})
+			pathList := peer.adjRibIn.PathList([]bgp.RouteFamily{grpcReq.RouteFamily}, false)
 			if peer.isRouteServerClient() {
 				pathList, _ = peer.ApplyPolicy(table.POLICY_DIRECTION_IN, pathList)
 			}
@@ -1625,10 +1624,10 @@ func (server *BgpServer) handleGrpc(grpcReq *GrpcRequest) []*SenderMsg {
 		}
 		for _, peer := range peers {
 			rfList := peer.configuredRFlist()
-			peer.adjRib.DropOut(rfList)
+			peer.adjRibOut.Drop(rfList)
 			pathList, filtered := peer.getBestFromLocal(rfList)
 			if len(pathList) > 0 {
-				peer.adjRib.UpdateOut(pathList)
+				peer.adjRibOut.Update(pathList)
 				msgs = append(msgs, newSenderMsg(peer, table.CreateUpdateMsgFromPaths(pathList)))
 			}
 			if len(filtered) > 0 {
