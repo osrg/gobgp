@@ -678,7 +678,7 @@ func (server *BgpServer) propagateUpdate(peer *Peer, pathList []*table.Path) []*
 				continue
 			}
 			msgList := table.CreateUpdateMsgFromPaths(sendPathList)
-			targetPeer.adjRibOut.Update(pathList)
+			targetPeer.adjRibOut.Update(sendPathList)
 			msgs = append(msgs, newSenderMsg(targetPeer, msgList))
 		}
 	} else {
