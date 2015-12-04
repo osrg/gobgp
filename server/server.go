@@ -1441,16 +1441,26 @@ func (server *BgpServer) handleGrpc(grpcReq *GrpcRequest) []*SenderMsg {
 				}
 				for _, dst := range arg.Destinations {
 					key := dst.Prefix
-					if _, err := f(key); err != nil {
+					y, err := f(key)
+					if err != nil {
 						if host := net.ParseIP(key); host != nil {
 							masklen := 32
 							if af == bgp.RF_IPv6_UC {
 								masklen = 128
 							}
 							for i := masklen; i > 0; i-- {
-								if y, _ := f(fmt.Sprintf("%s/%d", key, i)); y {
+								if y, _ = f(fmt.Sprintf("%s/%d", key, i)); y {
 									break
 								}
+							}
+						}
+					} else if !y && dst.LongerPrefix {
+						_, prefix, _ := net.ParseCIDR(key)
+						ones, bits := prefix.Mask.Size()
+						for i := ones + 1; i <= bits; i++ {
+							prefix.Mask = net.CIDRMask(i, bits)
+							if y, _ = f(prefix.String()); y {
+								break
 							}
 						}
 					}

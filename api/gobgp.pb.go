@@ -22,9 +22,9 @@ It has these top-level messages:
 	ModPolicyArguments
 	ModPolicyAssignmentArguments
 	ModGlobalConfigArguments
-	Table
 	Path
 	Destination
+	Table
 	Peer
 	AddPaths
 	AfiSafis
@@ -518,24 +518,6 @@ func (m *ModGlobalConfigArguments) GetGlobal() *Global {
 	return nil
 }
 
-type Table struct {
-	Type         Resource       `protobuf:"varint,1,opt,name=type,enum=gobgpapi.Resource" json:"type,omitempty"`
-	Name         string         `protobuf:"bytes,2,opt,name=name" json:"name,omitempty"`
-	Family       uint32         `protobuf:"varint,3,opt,name=family" json:"family,omitempty"`
-	Destinations []*Destination `protobuf:"bytes,4,rep,name=destinations" json:"destinations,omitempty"`
-}
-
-func (m *Table) Reset()         { *m = Table{} }
-func (m *Table) String() string { return proto.CompactTextString(m) }
-func (*Table) ProtoMessage()    {}
-
-func (m *Table) GetDestinations() []*Destination {
-	if m != nil {
-		return m.Destinations
-	}
-	return nil
-}
-
 type Path struct {
 	Nlri               []byte   `protobuf:"bytes,1,opt,name=nlri,proto3" json:"nlri,omitempty"`
 	Pattrs             [][]byte `protobuf:"bytes,2,rep,name=pattrs,proto3" json:"pattrs,omitempty"`
@@ -555,8 +537,9 @@ func (m *Path) String() string { return proto.CompactTextString(m) }
 func (*Path) ProtoMessage()    {}
 
 type Destination struct {
-	Prefix string  `protobuf:"bytes,1,opt,name=prefix" json:"prefix,omitempty"`
-	Paths  []*Path `protobuf:"bytes,2,rep,name=paths" json:"paths,omitempty"`
+	Prefix       string  `protobuf:"bytes,1,opt,name=prefix" json:"prefix,omitempty"`
+	Paths        []*Path `protobuf:"bytes,2,rep,name=paths" json:"paths,omitempty"`
+	LongerPrefix bool    `protobuf:"varint,3,opt,name=longer_prefix" json:"longer_prefix,omitempty"`
 }
 
 func (m *Destination) Reset()         { *m = Destination{} }
@@ -566,6 +549,24 @@ func (*Destination) ProtoMessage()    {}
 func (m *Destination) GetPaths() []*Path {
 	if m != nil {
 		return m.Paths
+	}
+	return nil
+}
+
+type Table struct {
+	Type         Resource       `protobuf:"varint,1,opt,name=type,enum=gobgpapi.Resource" json:"type,omitempty"`
+	Name         string         `protobuf:"bytes,2,opt,name=name" json:"name,omitempty"`
+	Family       uint32         `protobuf:"varint,3,opt,name=family" json:"family,omitempty"`
+	Destinations []*Destination `protobuf:"bytes,4,rep,name=destinations" json:"destinations,omitempty"`
+}
+
+func (m *Table) Reset()         { *m = Table{} }
+func (m *Table) String() string { return proto.CompactTextString(m) }
+func (*Table) ProtoMessage()    {}
+
+func (m *Table) GetDestinations() []*Destination {
+	if m != nil {
+		return m.Destinations
 	}
 	return nil
 }

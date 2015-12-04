@@ -170,6 +170,7 @@ message Path {
 message Destination {
     string prefix = 1;
     repeated Path paths = 2;
+    bool longer_prefix = 3;
 }
 
 message Table {
