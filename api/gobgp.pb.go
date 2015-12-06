@@ -537,9 +537,9 @@ func (m *Path) String() string { return proto.CompactTextString(m) }
 func (*Path) ProtoMessage()    {}
 
 type Destination struct {
-	Prefix       string  `protobuf:"bytes,1,opt,name=prefix" json:"prefix,omitempty"`
-	Paths        []*Path `protobuf:"bytes,2,rep,name=paths" json:"paths,omitempty"`
-	LongerPrefix bool    `protobuf:"varint,3,opt,name=longer_prefix" json:"longer_prefix,omitempty"`
+	Prefix         string  `protobuf:"bytes,1,opt,name=prefix" json:"prefix,omitempty"`
+	Paths          []*Path `protobuf:"bytes,2,rep,name=paths" json:"paths,omitempty"`
+	LongerPrefixes bool    `protobuf:"varint,3,opt,name=longer_prefixes" json:"longer_prefixes,omitempty"`
 }
 
 func (m *Destination) Reset()         { *m = Destination{} }
