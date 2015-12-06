@@ -398,8 +398,6 @@ func showNeighborRib(r string, name string, args []string) error {
 		return err
 	}
 
-	var prefix string
-	var host net.IP
 	arg := &api.Table{
 		Type:   resource,
 		Family: uint32(rf),
@@ -439,27 +437,8 @@ func showNeighborRib(r string, name string, args []string) error {
 	}
 
 	dsts := []*Destination{}
-	maxOnes := 0
 	counter := 0
 	for _, d := range rib.Destinations {
-		if prefix != "" && prefix != d.Prefix {
-			continue
-		}
-		if host != nil {
-			_, prefix, _ := net.ParseCIDR(d.Prefix)
-			ones, _ := prefix.Mask.Size()
-			if prefix.Contains(host) {
-				if maxOnes < ones {
-					dsts = []*Destination{}
-					maxOnes = ones
-				} else if maxOnes > ones {
-					continue
-				}
-			} else {
-				continue
-			}
-		}
-
 		dst, err := ApiStruct2Destination(d)
 		if err != nil {
 			return err
