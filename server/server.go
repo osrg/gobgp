@@ -18,7 +18,6 @@ package server
 import (
 	"bytes"
 	"fmt"
-	"github.com/BurntSushi/toml"
 	log "github.com/Sirupsen/logrus"
 	"github.com/armon/go-radix"
 	api "github.com/osrg/gobgp/api"
@@ -240,9 +239,9 @@ func (server *BgpServer) Serve() {
 		}
 	}
 
-	listener := func(addr net.IP) *net.TCPListener {
+	listener := func(addr string) *net.TCPListener {
 		var l *net.TCPListener
-		if addr.To4() != nil {
+		if net.ParseIP(addr).To4() != nil {
 			l = server.listenerMap["tcp4"]
 		} else {
 			l = server.listenerMap["tcp6"]
@@ -296,7 +295,7 @@ func (server *BgpServer) Serve() {
 						return false
 					}
 					return true
-				}(peer.conf.Transport.Config.LocalAddress)
+				}(net.ParseIP(peer.conf.Transport.Config.LocalAddress))
 				if localAddrValid == false {
 					conn.Close()
 					return
@@ -360,14 +359,14 @@ func (server *BgpServer) Serve() {
 		case conn := <-acceptCh:
 			passConn(conn)
 		case config := <-server.addedPeerCh:
-			addr := config.Config.NeighborAddress.String()
+			addr := config.Config.NeighborAddress
 			_, found := server.neighborMap[addr]
 			if found {
 				log.Warn("Can't overwrite the exising peer ", addr)
 				continue
 			}
 			if g.ListenConfig.Port > 0 {
-				SetTcpMD5SigSockopts(listener(config.Config.NeighborAddress), addr, config.Config.AuthPassword)
+				SetTcpMD5SigSockopts(listener(addr), addr, config.Config.AuthPassword)
 			}
 			peer := NewPeer(g, config, server.globalRib, server.policy)
 			server.setPolicyByConfig(peer.ID(), config.ApplyPolicy)
@@ -389,8 +388,8 @@ func (server *BgpServer) Serve() {
 			peer.startFSMHandler(server.fsmincomingCh)
 			server.broadcastPeerState(peer)
 		case config := <-server.deletedPeerCh:
-			addr := config.Config.NeighborAddress.String()
-			SetTcpMD5SigSockopts(listener(config.Config.NeighborAddress), addr, "")
+			addr := config.Config.NeighborAddress
+			SetTcpMD5SigSockopts(listener(addr), addr, "")
 			peer, found := server.neighborMap[addr]
 			if found {
 				log.Info("Delete a peer configuration for ", addr)
@@ -414,7 +413,7 @@ func (server *BgpServer) Serve() {
 				log.Info("Can't delete a peer configuration for ", addr)
 			}
 		case config := <-server.updatedPeerCh:
-			addr := config.Config.NeighborAddress.String()
+			addr := config.Config.NeighborAddress
 			peer := server.neighborMap[addr]
 			peer.conf = config
 			server.setPolicyByConfig(peer.ID(), config.ApplyPolicy)
@@ -448,7 +447,7 @@ func newSenderMsg(peer *Peer, messages []*bgp.BGPMessage) *SenderMsg {
 	return &SenderMsg{
 		messages:    messages,
 		sendCh:      peer.outgoing,
-		destination: peer.conf.Config.NeighborAddress.String(),
+		destination: peer.conf.Config.NeighborAddress,
 		twoBytesAs:  y,
 	}
 }
@@ -484,7 +483,7 @@ func filterpath(peer *Peer, path *table.Path) *table.Path {
 		// RFC4456 8. Avoiding Routing Information Loops
 		// A router that recognizes the ORIGINATOR_ID attribute SHOULD
 		// ignore a route received with its BGP Identifier as the ORIGINATOR_ID.
-		if id := path.GetOriginatorID(); peer.gConf.Config.RouterId.Equal(id) {
+		if id := path.GetOriginatorID(); peer.gConf.Config.RouterId == id.String() {
 			log.WithFields(log.Fields{
 				"Topic":        "Peer",
 				"Key":          remoteAddr,
@@ -524,7 +523,7 @@ func filterpath(peer *Peer, path *table.Path) *table.Path {
 		}
 	}
 
-	if remoteAddr.Equal(path.GetSource().Address) {
+	if remoteAddr == path.GetSource().Address.String() {
 		log.WithFields(log.Fields{
 			"Topic": "Peer",
 			"Key":   remoteAddr,
@@ -536,7 +535,7 @@ func filterpath(peer *Peer, path *table.Path) *table.Path {
 	if !peer.isRouteServerClient() && isASLoop(peer, path) {
 		return nil
 	}
-	return path.Clone(remoteAddr, path.IsWithdraw)
+	return path.Clone(net.ParseIP(remoteAddr), path.IsWithdraw)
 }
 
 func (server *BgpServer) dropPeerAllRoutes(peer *Peer) []*SenderMsg {
@@ -652,7 +651,7 @@ func (server *BgpServer) broadcastPeerState(peer *Peer) {
 		default:
 		}
 		ignore := req.RequestType != REQ_MONITOR_NEIGHBOR_PEER_STATE
-		ignore = ignore || (req.Name != "" && req.Name != peer.conf.Config.NeighborAddress.String())
+		ignore = ignore || (req.Name != "" && req.Name != peer.conf.Config.NeighborAddress)
 		if ignore {
 			remainReqs = append(remainReqs, req)
 			continue
@@ -797,7 +796,7 @@ func (server *BgpServer) handleFSMMessage(peer *Peer, e *FsmMsg, incoming chan *
 		if nextState == bgp.BGP_FSM_ESTABLISHED {
 			// update for export policy
 			laddr, lport := peer.fsm.LocalHostPort()
-			peer.conf.Transport.Config.LocalAddress = net.ParseIP(laddr)
+			peer.conf.Transport.Config.LocalAddress = laddr
 			if ch := server.bmpClient.send(); ch != nil {
 				_, rport := peer.fsm.RemoteHostPort()
 				m := &broadcastBMPMsg{
@@ -1093,7 +1092,7 @@ func (server *BgpServer) Api2PathList(resource api.Resource, name string, ApiPat
 		} else {
 			pi = &table.PeerInfo{
 				AS:      server.bgpConfig.Global.Config.As,
-				LocalID: server.bgpConfig.Global.Config.RouterId,
+				LocalID: net.ParseIP(server.bgpConfig.Global.Config.RouterId).To4(),
 			}
 		}
 
@@ -1304,7 +1303,7 @@ func (server *BgpServer) handleVrfMod(arg *api.ModVrfArguments) ([]*table.Path, 
 		}
 		pi := &table.PeerInfo{
 			AS:      server.bgpConfig.Global.Config.As,
-			LocalID: server.bgpConfig.Global.Config.RouterId,
+			LocalID: net.ParseIP(server.bgpConfig.Global.Config.RouterId).To4(),
 		}
 		msgs, err = rib.AddVrf(arg.Vrf.Name, rd, importRt, exportRt, pi)
 		if err != nil {
@@ -1406,14 +1405,14 @@ func (server *BgpServer) handleModConfig(grpcReq *GrpcRequest) error {
 		Global: config.Global{
 			Config: config.GlobalConfig{
 				As:       g.As,
-				RouterId: net.ParseIP(g.RouterId),
+				RouterId: g.RouterId,
 			},
 			ListenConfig: config.ListenConfig{
 				Port: g.ListenPort,
 			},
 		},
 	}
-	err := config.SetDefaultConfigValues(toml.MetaData{}, &c)
+	err := config.SetDefaultConfigValues(nil, &c)
 	if err != nil {
 		return err
 	}
@@ -1490,7 +1489,7 @@ func (server *BgpServer) handleGrpc(grpcReq *GrpcRequest) []*SenderMsg {
 		result := &GrpcResponse{
 			Data: &api.Global{
 				As:       server.bgpConfig.Global.Config.As,
-				RouterId: server.bgpConfig.Global.Config.RouterId.String(),
+				RouterId: server.bgpConfig.Global.Config.RouterId,
 			},
 		}
 		grpcReq.ResponseCh <- result
@@ -1723,7 +1722,7 @@ func (server *BgpServer) handleGrpc(grpcReq *GrpcRequest) []*SenderMsg {
 			pathList := []*table.Path{}
 			for _, path := range peer.adjRibIn.PathList([]bgp.RouteFamily{grpcReq.RouteFamily}, false) {
 				if path = server.policy.ApplyPolicy(peer.ID(), table.POLICY_DIRECTION_IN, path); path != nil {
-					pathList = append(pathList, path.Clone(peer.conf.Config.NeighborAddress, false))
+					pathList = append(pathList, path.Clone(net.ParseIP(peer.conf.Config.NeighborAddress), false))
 				}
 			}
 			m, _ := server.propagateUpdate(peer, pathList)
@@ -1958,8 +1957,8 @@ func (server *BgpServer) handleGrpcModNeighbor(grpcReq *GrpcRequest) (sMsgs []*S
 		apitoConfig := func(a *api.Peer) (config.Neighbor, error) {
 			var pconf config.Neighbor
 			if a.Conf != nil {
-				pconf.NeighborAddress = net.ParseIP(a.Conf.NeighborAddress)
-				pconf.Config.NeighborAddress = net.ParseIP(a.Conf.NeighborAddress)
+				pconf.NeighborAddress = a.Conf.NeighborAddress
+				pconf.Config.NeighborAddress = a.Conf.NeighborAddress
 				pconf.Config.PeerAs = a.Conf.PeerAs
 				pconf.Config.LocalAs = a.Conf.LocalAs
 				if pconf.Config.PeerAs != server.bgpConfig.Global.Config.As {
@@ -1973,7 +1972,7 @@ func (server *BgpServer) handleGrpcModNeighbor(grpcReq *GrpcRequest) (sMsgs []*S
 				pconf.Config.SendCommunity = config.CommunityType(a.Conf.SendCommunity)
 				pconf.Config.Description = a.Conf.Description
 				pconf.Config.PeerGroup = a.Conf.PeerGroup
-				pconf.Config.NeighborAddress = net.ParseIP(a.Conf.NeighborAddress)
+				pconf.Config.NeighborAddress = a.Conf.NeighborAddress
 			}
 			if a.Timers != nil {
 				if a.Timers.Config != nil {
@@ -2033,7 +2032,7 @@ func (server *BgpServer) handleGrpcModNeighbor(grpcReq *GrpcRequest) (sMsgs []*S
 				}
 			}
 			if a.Transport != nil {
-				pconf.Transport.Config.LocalAddress = net.ParseIP(a.Transport.LocalAddress)
+				pconf.Transport.Config.LocalAddress = a.Transport.LocalAddress
 				pconf.Transport.Config.PassiveMode = a.Transport.PassiveMode
 			}
 			return pconf, nil
@@ -2443,7 +2442,7 @@ func (server *BgpServer) handleModRpki(grpcReq *GrpcRequest) {
 	switch arg.Operation {
 	case api.Operation_ADD:
 		r := config.RpkiServer{}
-		r.Config.Address = net.ParseIP(arg.Address)
+		r.Config.Address = arg.Address
 		r.Config.Port = arg.Port
 		server.bgpConfig.RpkiServers.RpkiServerList = append(server.bgpConfig.RpkiServers.RpkiServerList, r)
 		server.roaManager, _ = newROAManager(server.bgpConfig.Global.Config.As, server.bgpConfig.RpkiServers)
@@ -2555,11 +2554,11 @@ func (server *BgpServer) mkMrtPeerIndexTableMsg(t uint32, view string) (*bgp.MRT
 	peers := make([]*bgp.Peer, 0, len(server.neighborMap))
 	for _, peer := range server.neighborMap {
 		id := peer.fsm.peerInfo.ID.To4().String()
-		ipaddr := peer.conf.Config.NeighborAddress.String()
+		ipaddr := peer.conf.Config.NeighborAddress
 		asn := peer.conf.Config.PeerAs
 		peers = append(peers, bgp.NewPeer(id, ipaddr, asn, true))
 	}
-	bgpid := server.bgpConfig.Global.Config.RouterId.To4().String()
+	bgpid := server.bgpConfig.Global.Config.RouterId
 	table := bgp.NewPeerIndexTable(bgpid, view, peers)
 	return bgp.NewMRTMessage(t, bgp.TABLE_DUMPv2, bgp.PEER_INDEX_TABLE, table)
 }

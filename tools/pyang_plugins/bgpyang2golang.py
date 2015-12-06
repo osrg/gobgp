@@ -528,9 +528,9 @@ _type_translation_map = {
     'decimal64': 'float64',
     'boolean': 'bool',
     'empty': 'bool',
-    'inet:ip-address': 'net.IP',
+    'inet:ip-address': 'string',
     'inet:ip-prefix': 'string',
-    'inet:ipv4-address': 'net.IP',
+    'inet:ipv4-address': 'string',
     'inet:as-number': 'uint32',
     'bgp-set-community-option-type' : 'string',
     'identityref' : 'string',
@@ -569,8 +569,6 @@ _typedef_exclude =["/bgp-types:bgp-origin-attr-type"]
 def generate_header(ctx):
     print _COPYRIGHT_NOTICE
     print 'package config'
-    print ''
-    print 'import "net"'
     print ''
 
 

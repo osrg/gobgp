@@ -72,7 +72,7 @@ func main() {
 			},
 		}
 		peer := newPeer(g, p, incoming)
-		peerMap[p.Transport.Config.LocalAddress.String()] = peer
+		peerMap[p.Transport.Config.LocalAddress] = peer
 	}
 	established := 0
 	ticker := time.NewTicker(time.Second * 5)

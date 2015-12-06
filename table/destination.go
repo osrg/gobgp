@@ -103,8 +103,8 @@ func NewPeerInfo(g *config.Global, p *config.Neighbor) *PeerInfo {
 	return &PeerInfo{
 		AS:                      p.Config.PeerAs,
 		LocalAS:                 g.Config.As,
-		LocalID:                 g.Config.RouterId,
-		Address:                 p.Config.NeighborAddress,
+		LocalID:                 net.ParseIP(g.Config.RouterId).To4(),
+		Address:                 net.ParseIP(p.Config.NeighborAddress),
 		RouteReflectorClient:    p.RouteReflector.Config.RouteReflectorClient,
 		RouteReflectorClusterID: id,
 	}

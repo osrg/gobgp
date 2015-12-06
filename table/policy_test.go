@@ -2839,7 +2839,7 @@ func createNeighborSet(name string, addr string) config.NeighborSet {
 		NeighborSetName: name,
 		NeighborInfoList: []config.NeighborInfo{
 			config.NeighborInfo{
-				Address: net.ParseIP(addr),
+				Address: addr,
 			}},
 	}
 	return ns

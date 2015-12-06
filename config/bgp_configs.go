@@ -15,8 +15,6 @@
 
 package config
 
-import "net"
-
 // typedef for typedef bgp-types:rr-cluster-id-type
 type RrClusterIdType string
 
@@ -148,7 +146,7 @@ type BmpServerState struct {
 type BmpServerConfig struct {
 	// original -> gobgp:address
 	//gobgp:address's original type is inet:ip-address
-	Address net.IP
+	Address string
 	// original -> gobgp:port
 	Port uint32
 	// original -> gobgp:route-monitoring-policy
@@ -221,7 +219,7 @@ type RpkiServerState struct {
 type RpkiServerConfig struct {
 	// original -> gobgp:address
 	//gobgp:address's original type is inet:ip-address
-	Address net.IP
+	Address string
 	// original -> gobgp:port
 	Port uint32
 	// original -> gobgp:refresh-time
@@ -541,13 +539,13 @@ type TransportState struct {
 	LocalPort uint16
 	// original -> bgp-op:remote-address
 	//bgp-op:remote-address's original type is inet:ip-address
-	RemoteAddress net.IP
+	RemoteAddress string
 	// original -> bgp-op:remote-port
 	//bgp-op:remote-port's original type is inet:port-number
 	RemotePort uint16
 	// original -> gobgp:local-address
 	//gobgp:local-address's original type is inet:ip-address
-	LocalAddress net.IP
+	LocalAddress string
 }
 
 //struct for container bgp:config
@@ -562,7 +560,7 @@ type TransportConfig struct {
 	PassiveMode bool
 	// original -> gobgp:local-address
 	//gobgp:local-address's original type is inet:ip-address
-	LocalAddress net.IP
+	LocalAddress string
 }
 
 //struct for container bgp:transport
@@ -711,7 +709,7 @@ type NeighborState struct {
 	PeerGroup string
 	// original -> bgp:neighbor-address
 	//bgp:neighbor-address's original type is inet:ip-address
-	NeighborAddress net.IP
+	NeighborAddress string
 	// original -> bgp-op:session-state
 	//bgp-op:session-state's original type is enumeration
 	SessionState uint32
@@ -756,14 +754,14 @@ type NeighborConfig struct {
 	PeerGroup string
 	// original -> bgp:neighbor-address
 	//bgp:neighbor-address's original type is inet:ip-address
-	NeighborAddress net.IP
+	NeighborAddress string
 }
 
 //struct for container bgp:neighbor
 type Neighbor struct {
 	// original -> bgp:neighbor-address
 	//bgp:neighbor-address's original type is inet:ip-address
-	NeighborAddress net.IP
+	NeighborAddress string
 	// original -> bgp:neighbor-config
 	Config NeighborConfig
 	// original -> bgp:neighbor-state
@@ -1339,7 +1337,7 @@ type GlobalState struct {
 	As uint32
 	// original -> bgp:router-id
 	//bgp:router-id's original type is inet:ipv4-address
-	RouterId net.IP
+	RouterId string
 	// original -> bgp-op:total-paths
 	TotalPaths uint32
 	// original -> bgp-op:total-prefixes
@@ -1353,7 +1351,7 @@ type GlobalConfig struct {
 	As uint32
 	// original -> bgp:router-id
 	//bgp:router-id's original type is inet:ipv4-address
-	RouterId net.IP
+	RouterId string
 }
 
 //struct for container bgp:global
@@ -1543,7 +1541,7 @@ type BgpConditions struct {
 	OriginEq BgpOriginAttrType
 	// original -> bgp-pol:next-hop-in
 	//original type is list of inet:ip-address
-	NextHopIn []net.IP
+	NextHopIn []string
 	// original -> bgp-pol:local-pref-eq
 	LocalPrefEq uint32
 	// original -> bgp-pol:community-count
@@ -1727,7 +1725,7 @@ type TagSets struct {
 type NeighborInfo struct {
 	// original -> gobgp:address
 	//gobgp:address's original type is inet:ip-address
-	Address net.IP
+	Address string
 }
 
 //struct for container rpol:neighbor-set

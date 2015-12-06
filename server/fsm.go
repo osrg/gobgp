@@ -237,11 +237,11 @@ func (fsm *FSM) connectLoop() error {
 	connect := func() {
 		if fsm.state == bgp.BGP_FSM_ACTIVE {
 			addr := fsm.pConf.Config.NeighborAddress
-			host := net.JoinHostPort(addr.String(), strconv.Itoa(bgp.BGP_PORT))
+			host := net.JoinHostPort(addr, strconv.Itoa(bgp.BGP_PORT))
 			// check if LocalAddress has been configured
 			laddr := fsm.pConf.Transport.Config.LocalAddress
-			if laddr != nil {
-				lhost := net.JoinHostPort(laddr.String(), "0")
+			if laddr != "" {
+				lhost := net.JoinHostPort(laddr, "0")
 				ltcpaddr, err := net.ResolveTCPAddr("tcp", lhost)
 				if err != nil {
 					log.WithFields(log.Fields{
@@ -427,7 +427,7 @@ func buildopen(gConf *config.Global, pConf *config.Neighbor) *bgp.BGPMessage {
 	if as > (1<<16)-1 {
 		as = bgp.AS_TRANS
 	}
-	return bgp.NewBGPOpenMessage(uint16(as), holdTime, gConf.Config.RouterId.String(),
+	return bgp.NewBGPOpenMessage(uint16(as), holdTime, gConf.Config.RouterId,
 		[]bgp.OptionParameterInterface{opt})
 }
 
@@ -459,8 +459,8 @@ func (h *FSMHandler) recvMessageWithError() error {
 		}).Warn("malformed BGP Header")
 		h.msgCh <- &FsmMsg{
 			MsgType: FSM_MSG_BGP_MESSAGE,
-			MsgSrc:  h.fsm.pConf.Config.NeighborAddress.String(),
-			MsgDst:  h.fsm.pConf.Transport.Config.LocalAddress.String(),
+			MsgSrc:  h.fsm.pConf.Config.NeighborAddress,
+			MsgDst:  h.fsm.pConf.Transport.Config.LocalAddress,
 			MsgData: err,
 		}
 		return err
@@ -482,8 +482,8 @@ func (h *FSMHandler) recvMessageWithError() error {
 	}
 	fmsg := &FsmMsg{
 		MsgType:   FSM_MSG_BGP_MESSAGE,
-		MsgSrc:    h.fsm.pConf.Config.NeighborAddress.String(),
-		MsgDst:    h.fsm.pConf.Transport.Config.LocalAddress.String(),
+		MsgSrc:    h.fsm.pConf.Config.NeighborAddress,
+		MsgDst:    h.fsm.pConf.Transport.Config.LocalAddress,
 		timestamp: now,
 	}
 	if err != nil {
@@ -504,7 +504,7 @@ func (h *FSMHandler) recvMessageWithError() error {
 				if err != nil {
 					log.WithFields(log.Fields{
 						"Topic": "Peer",
-						"Key":   h.fsm.pConf.Config.NeighborAddress.String(),
+						"Key":   h.fsm.pConf.Config.NeighborAddress,
 						"error": err,
 					}).Warn("malformed BGP update message")
 					fmsg.MsgData = err
@@ -512,7 +512,7 @@ func (h *FSMHandler) recvMessageWithError() error {
 					// FIXME: we should use the original message for bmp/mrt
 					table.UpdatePathAttrs4ByteAs(body)
 					fmsg.PathList = table.ProcessMessage(m, h.fsm.peerInfo, fmsg.timestamp)
-					id := h.fsm.pConf.Config.NeighborAddress.String()
+					id := h.fsm.pConf.Config.NeighborAddress
 					policyMutex.RLock()
 					for _, path := range fmsg.PathList {
 						if h.fsm.policy.ApplyPolicy(id, table.POLICY_DIRECTION_IN, path) == nil {
@@ -595,8 +595,8 @@ func (h *FSMHandler) opensent() bgp.FSMState {
 
 					e := &FsmMsg{
 						MsgType: FSM_MSG_BGP_MESSAGE,
-						MsgSrc:  fsm.pConf.Config.NeighborAddress.String(),
-						MsgDst:  fsm.pConf.Transport.Config.LocalAddress.String(),
+						MsgSrc:  fsm.pConf.Config.NeighborAddress,
+						MsgDst:  fsm.pConf.Transport.Config.LocalAddress,
 						MsgData: m,
 					}
 					h.incoming <- e
@@ -974,8 +974,8 @@ func (h *FSMHandler) loop() error {
 	if nextState >= bgp.BGP_FSM_IDLE {
 		e := &FsmMsg{
 			MsgType: FSM_MSG_STATE_CHANGE,
-			MsgSrc:  fsm.pConf.Config.NeighborAddress.String(),
-			MsgDst:  fsm.pConf.Transport.Config.LocalAddress.String(),
+			MsgSrc:  fsm.pConf.Config.NeighborAddress,
+			MsgDst:  fsm.pConf.Transport.Config.LocalAddress,
 			MsgData: nextState,
 		}
 		h.incoming <- e

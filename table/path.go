@@ -90,7 +90,7 @@ func (path *Path) UpdatePathAttrs(global *config.Global, peer *config.Neighbor) 
 		return
 	}
 
-	localAddress := peer.Transport.Config.LocalAddress
+	localAddress := net.ParseIP(peer.Transport.Config.LocalAddress)
 	if peer.Config.PeerType == config.PEER_TYPE_EXTERNAL {
 		// NEXTHOP handling
 		path.SetNexthop(localAddress)

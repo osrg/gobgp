@@ -58,7 +58,7 @@ func NewPeer(g config.Global, conf config.Neighbor, loc *table.TableManager, pol
 	}
 	tableId := table.GLOBAL_RIB_NAME
 	if peer.isRouteServerClient() {
-		tableId = conf.Config.NeighborAddress.String()
+		tableId = conf.Config.NeighborAddress
 	}
 	peer.tableId = tableId
 	conf.State.SessionState = uint32(bgp.BGP_FSM_IDLE)
@@ -79,7 +79,7 @@ func (peer *Peer) Outgoing() chan *bgp.BGPMessage {
 }
 
 func (peer *Peer) ID() string {
-	return peer.conf.Config.NeighborAddress.String()
+	return peer.conf.Config.NeighborAddress
 }
 
 func (peer *Peer) TableID() string {
@@ -274,7 +274,7 @@ func (peer *Peer) ToApiStruct() *api.Peer {
 	}
 
 	conf := &api.PeerConf{
-		NeighborAddress:  c.Config.NeighborAddress.String(),
+		NeighborAddress:  c.Config.NeighborAddress,
 		Id:               peer.fsm.peerInfo.ID.To4().String(),
 		PeerAs:           c.Config.PeerAs,
 		LocalAs:          c.Config.LocalAs,

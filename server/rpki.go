@@ -105,7 +105,7 @@ func newROAManager(as uint32, conf config.RpkiServers) (*roaManager, error) {
 	for _, entry := range conf.RpkiServerList {
 		c := entry.Config
 		client := &roaClient{
-			host:    net.JoinHostPort(c.Address.String(), strconv.Itoa(int(c.Port))),
+			host:    net.JoinHostPort(c.Address, strconv.Itoa(int(c.Port))),
 			eventCh: m.eventCh,
 		}
 		m.clientMap[client.host] = client

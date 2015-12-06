@@ -39,6 +39,7 @@ func main() {
 
 	var opts struct {
 		ConfigFile    string `short:"f" long:"config-file" description:"specifying a config file"`
+		ConfigType    string `short:"t" long:"config-type" description:"specifying config type (toml, yaml, json)" default:"toml"`
 		LogLevel      string `short:"l" long:"log-level" description:"specifying log level"`
 		LogPlain      bool   `short:"p" long:"log-plain" description:"use plain format for logging (json by default)"`
 		UseSyslog     string `short:"s" long:"syslog" description:"use syslogd"`
@@ -161,7 +162,7 @@ func main() {
 		}
 		go m.Serve()
 	} else if opts.ConfigFile != "" {
-		go config.ReadConfigfileServe(opts.ConfigFile, configCh, reloadCh)
+		go config.ReadConfigfileServe(opts.ConfigFile, opts.ConfigType, configCh, reloadCh)
 		reloadCh <- true
 	}
 	go bgpServer.Serve()

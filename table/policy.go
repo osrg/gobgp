@@ -515,7 +515,11 @@ func NewNeighborSet(c config.NeighborSet) (*NeighborSet, error) {
 	}
 	list := make([]net.IP, 0, len(c.NeighborInfoList))
 	for _, x := range c.NeighborInfoList {
-		list = append(list, x.Address)
+		addr := net.ParseIP(x.Address)
+		if addr == nil {
+			return nil, fmt.Errorf("invalid address: %s", x.Address)
+		}
+		list = append(list, addr)
 	}
 	return &NeighborSet{
 		name: name,
