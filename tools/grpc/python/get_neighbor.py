@@ -1,11 +1,14 @@
 import gobgp_pb2
 import sys
 
+from grpc.beta import implementations
+
 _TIMEOUT_SECONDS = 10
 
 
 def run(gobgpd_addr, neighbor_addr):
-    with gobgp_pb2.early_adopter_create_GobgpApi_stub(gobgpd_addr, 8080) as stub:
+    channel = implementations.insecure_channel(gobgpd_addr, 8080)
+    with gobgp_pb2.beta_create_GobgpApi_stub(channel) as stub:
         peer = stub.GetNeighbor(gobgp_pb2.Arguments(rf=4, name=neighbor_addr), _TIMEOUT_SECONDS)
         print("BGP neighbor is %s, remote AS %d" % (peer.conf.neighbor_address, peer.conf.peer_as))
         print("  BGP version 4, remote router ID %s" % (peer.conf.id))
