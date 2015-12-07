@@ -189,8 +189,8 @@ func (m *RTRIPPrefix) DecodeFromBytes(data []byte) error {
 
 func (m *RTRIPPrefix) Serialize() ([]byte, error) {
 	data := make([]byte, m.Len)
-	data[0] = m.Type
-	data[1] = m.Version
+	data[0] = m.Version
+	data[1] = m.Type
 	binary.BigEndian.PutUint16(data[2:4], m.SessionID)
 	binary.BigEndian.PutUint32(data[4:8], m.Len)
 	data[8] = m.Flags
