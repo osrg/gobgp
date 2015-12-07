@@ -14,37 +14,58 @@ Ruby, C++ and Node.js. It assumes that you use Ubuntu 14.04 (64bit).
 
 ## <a name="python"> Python
 
-### Installing LinuxBrew
+We need to install ProtocolBuffers and gRPC libraries.
 
-We use LinuxBrew to simplify the instruction.
+### Install ProtocolBuffers:
 ```bash
 $ sudo apt-get update
-$ sudo apt-get install -y build-essential curl git python-dev python-pip m4 ruby
-$ ruby -e "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/linuxbrew/go/install)"
-$ export PATH=$HOME/.linuxbrew/bin:$PATH
-$ brew doctor
+$ sudo apt-get install -y build-essential autoconf git libtool unzip
+$ mkdir ~/work
+$ cd ~/work
+$ wget https://github.com/google/protobuf/archive/v3.0.0-beta-1.tar.gz
+$ tar xvzf v3.0.0-beta-1.tar.gz
+$ cd protobuf-3.0.0-beta-1
+$ ./autogen.sh
+$ ./configure
+$ make
+$ sudo make install
+$ vi ~/.bashrc
+  export LD_LIBRARY_PATH=/usr/local/lib
 ```
-It's useful to add '$HOME/.linuxbrew/bin' to your PATH environment variable.
 
-And then add configuration to load libs under '.linuxbrew'.
-```
-$ echo "$HOME/.linuxbrew/lib" | sudo tee /etc/ld.so.conf.d/grpc.conf
-$ sudo ldconfig
-```
+please check the version.
+ ```bash
+ $ protoc --version
+ libprotoc 3.0.0
+ ```
 
-### Installing gRPC and Python Libraries
-
-We install gRPC and python liblaries in python virtual environment by using LinuxBrew.
-These steps are based on [gRPC HomeBrew](https://github.com/grpc/homebrew-grpc).
-
+### Install gRPC:
 ```bash
 $ sudo apt-get update
-$ sudo apt-get install python-virtualenv
-$ cd $GOPATH/src/github.com/osrg/gobgp/tools/grpc/python
-$ virtualenv venv
-$ source ./venv/bin/activate
-$ curl -fsSL https://goo.gl/getgrpc | bash -s python
-$ sudo ldconfig
+$ sudo apt-get install -y python-all-dev python-virtualenv
+$ cd ~/work
+$ git clone https://github.com/grpc/grpc.git
+$ cd grpc
+$ git checkout -b release-0_11_1 release-0_11_1
+$ git submodule update --init
+$ make
+$ sudo make install
+```
+
+### Install Python Libraries:
+
+Install python libraries for protobuf and gRPC.
+Please use virtualenv if you want to keep your environment clean.
+In this example we create venv directory at $HOME/venv.
+
+```bash
+$ virtualenv ~/venv
+$ source ~/venv/bin/activate
+$ cd ~/work/protobuf-3.0.0-beta-1/python
+$ python setup.py install
+$ cd ~/work/grpc/src/python/grpcio/
+$ python setup.py install
+$ deactivate
 ```
 
 ### Generating Stub Code
@@ -63,19 +84,22 @@ Here is an example for getting neighbor's information and we assumed that it's c
 import gobgp_pb2
 import sys
 
+from grpc.beta import implementations
+
 _TIMEOUT_SECONDS = 10
 
 
 def run(gobgpd_addr, neighbor_addr):
-    with gobgp_pb2.early_adopter_create_GobgpApi_stub(gobgpd_addr, 8080) as stub:
+    channel = implementations.insecure_channel(gobgpd_addr, 8080)
+    with gobgp_pb2.beta_create_GobgpApi_stub(channel) as stub:
         peer = stub.GetNeighbor(gobgp_pb2.Arguments(rf=4, name=neighbor_addr), _TIMEOUT_SECONDS)
-        print("BGP neighbor is %s, remote AS %d" % (peer.conf.remote_ip, peer.conf.remote_as))
-        print("  BGP version 4, remote router ID %s" % ( peer.conf.id))
-        print("  BGP state = %s, up for %s" % ( peer.info.bgp_state, peer.info.uptime))
+        print("BGP neighbor is %s, remote AS %d" % (peer.conf.neighbor_address, peer.conf.peer_as))
+        print("  BGP version 4, remote router ID %s" % (peer.conf.id))
+        print("  BGP state = %s, up for %s" % (peer.info.bgp_state, peer.timers.state.uptime))
         print("  BGP OutQ = %d, Flops = %d" % (peer.info.out_q, peer.info.flops))
-        print("  Hold time is %d, keepalive interval is %d seconds" % ( peer.info.negotiated_holdtime, peer.info.keepalive_interval))
-        print("  Configured hold time is %d, keepalive interval is %d seconds" % ( peer.conf.holdtime, peer.conf.keepalive_interval))
-        print("")
+        print("  Hold time is %d, keepalive interval is %d seconds" % (peer.timers.state.negotiated_hold_time, peer.timers.state.keepalive_interval))
+        print("  Configured hold time is %d, keepalive interval is %d seconds" % (peer.timers.config.hold_time, peer.timers.config.keepalive_interval))
+
 
 if __name__ == '__main__':
     gobgp = sys.argv[1]
@@ -83,12 +107,12 @@ if __name__ == '__main__':
     run(gobgp, neighbor)
 ```
 
-We need to import gobgp_pb2 and call 'early_adopter_create_GobgpApi_stub' in your code.
+We need to import gobgp_pb2 and call 'beta_create_GobgpApi_stub' in your code.
 
 Let's run this script.
 
 ```bash
-$ source ./venv/bin/activate
+$ source ~/venv/bin/activate
 (venv)$ python get_neighbor.py 10.0.255.1 10.0.0.1
 BGP neighbor is 10.0.0.1, remote AS 65001
   BGP version 4, remote router ID 192.168.0.1
@@ -97,18 +121,29 @@ BGP neighbor is 10.0.0.1, remote AS 65001
   Hold time is 30, keepalive interval is 10 seconds
   Configured hold time is 30, keepalive interval is 10 seconds
 
-D0821 12:31:07.821508149   91029 iomgr.c:119]                Waiting for 1 iomgr objects to be destroyed and executing final callbacks
-
 ```
 
-We got neighbor information successfully.
+We got the neighbor information successfully.
 
 ## <a name="ruby"> Ruby
 
 ### Installing LinuxBrew
 
-See [python](#python).
+We use LinuxBrew to simplify the instruction.
+```bash
+$ sudo apt-get update
+$ sudo apt-get install -y build-essential curl git python-dev python-pip m4 ruby
+$ ruby -e "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/linuxbrew/go/install)"
+$ export PATH=$HOME/.linuxbrew/bin:$PATH
+$ brew doctor
+```
+It's useful to add '$HOME/.linuxbrew/bin' to your PATH environment variable.
 
+Add configuration to load libs under '.linuxbrew'.
+```
+$ echo "$HOME/.linuxbrew/lib" | sudo tee /etc/ld.so.conf.d/grpc.conf
+$ sudo ldconfig
+```
 
 ### Installing gRPC and Ruby Libraries
 
