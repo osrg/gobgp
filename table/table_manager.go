@@ -116,6 +116,7 @@ type TableManager struct {
 	maxLabel  uint32
 	nextLabel uint32
 	rfList    []bgp.RouteFamily
+	garbage   []*Destination
 }
 
 func NewTableManager(owner string, rfList []bgp.RouteFamily, minLabel, maxLabel uint32) *TableManager {
@@ -220,6 +221,16 @@ func (manager *TableManager) DeleteVrf(name string) ([]*Path, error) {
 }
 
 func (manager *TableManager) calculate(destinations []*Destination) {
+	// garbage collect
+	for _, dst := range manager.garbage {
+		if len(dst.newPathList) > 0 {
+			continue
+		}
+		tbl := manager.Tables[dst.getRouteFamily()]
+		tbl.deleteDest(dst)
+	}
+	manager.garbage = []*Destination{}
+
 	for _, destination := range destinations {
 		log.WithFields(log.Fields{
 			"Topic": "table",
@@ -227,6 +238,9 @@ func (manager *TableManager) calculate(destinations []*Destination) {
 			"Key":   destination.GetNlri().String(),
 		}).Debug("Processing destination")
 		destination.Calculate()
+		if len(destination.knownPathList) == 0 {
+			manager.garbage = append(manager.garbage, destination)
+		}
 	}
 }
 
