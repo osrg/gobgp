@@ -534,6 +534,10 @@ func (server *BgpServer) dropPeerAllRoutes(peer *Peer) []*SenderMsg {
 				if !targetPeer.isRouteServerClient() || targetPeer == peer || targetPeer.fsm.state != bgp.BGP_FSM_ESTABLISHED {
 					continue
 				}
+				if _, ok := targetPeer.rfMap[rf]; !ok {
+					continue
+				}
+
 				i := 0
 				for _, dst := range dsts {
 					feed := dst.NewFeed(targetPeer.TableID())
