@@ -239,19 +239,6 @@ func (manager *TableManager) DeletePathsByPeer(info *PeerInfo, rf bgp.RouteFamil
 	return nil
 }
 
-func (manager *TableManager) DeletePathsforPeer(id string, peerInfo *PeerInfo, rf bgp.RouteFamily) ([]*Path, error) {
-	if t, ok := manager.Tables[rf]; ok {
-		destinationList := t.DeleteDestByPeer(peerInfo)
-		manager.calculate(destinationList)
-		paths := make([]*Path, 0, len(destinationList))
-		for _, dst := range destinationList {
-			paths = append(paths, dst.NewFeed(id))
-		}
-		return paths, nil
-	}
-	return nil, nil
-}
-
 func (manager *TableManager) ProcessPaths(pathList []*Path) []*Destination {
 	m := make(map[string]bool, len(pathList))
 	dsts := make([]*Destination, 0, len(pathList))
