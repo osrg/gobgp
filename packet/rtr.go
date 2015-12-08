@@ -51,6 +51,11 @@ const (
 	RTR_MIN_LEN            = 8
 )
 
+const (
+	WITHDRAWAL uint8 = iota
+	ANNOUNCEMENT
+)
+
 type RTRMessage interface {
 	DecodeFromBytes([]byte) error
 	Serialize() ([]byte, error)
@@ -87,8 +92,30 @@ type RTRSerialNotify struct {
 	RTRCommon
 }
 
+func NewRTRSerialNotify(id uint16, sn uint32) *RTRSerialNotify {
+	return &RTRSerialNotify{
+		RTRCommon{
+			Type:         RTR_SERIAL_NOTIFY,
+			SessionID:    id,
+			Len:          RTR_SERIAL_NOTIFY_LEN,
+			SerialNumber: sn,
+		},
+	}
+}
+
 type RTRSerialQuery struct {
 	RTRCommon
+}
+
+func NewRTRSerialQuery(id uint16, sn uint32) *RTRSerialQuery {
+	return &RTRSerialQuery{
+		RTRCommon{
+			Type:         RTR_SERIAL_QUERY,
+			SessionID:    id,
+			Len:          RTR_SERIAL_QUERY_LEN,
+			SerialNumber: sn,
+		},
+	}
 }
 
 type RTRReset struct {
@@ -157,6 +184,14 @@ func (m *RTRCacheResponse) Serialize() ([]byte, error) {
 	return data, nil
 }
 
+func NewRTRCacheResponse(id uint16) *RTRCacheResponse {
+	return &RTRCacheResponse{
+		Type:      RTR_CACHE_RESPONSE,
+		SessionID: id,
+		Len:       RTR_CACHE_RESPONSE_LEN,
+	}
+}
+
 type RTRIPPrefix struct {
 	Version   uint8
 	Type      uint8
@@ -203,12 +238,54 @@ func (m *RTRIPPrefix) Serialize() ([]byte, error) {
 	return data, nil
 }
 
+func NewRTRIPPrefix(prefix net.IP, prefixLen, maxLen uint8, as uint32, flags uint8) *RTRIPPrefix {
+	var pduType uint8
+	var pduLen uint32
+	if prefix.To4() != nil && prefixLen <= 32 {
+		pduType = RTR_IPV4_PREFIX
+		pduLen = RTR_IPV4_PREFIX_LEN
+	} else {
+		pduType = RTR_IPV6_PREFIX
+		pduLen = RTR_IPV6_PREFIX_LEN
+	}
+
+	return &RTRIPPrefix{
+		Type:      pduType,
+		Len:       pduLen,
+		Flags:     flags,
+		PrefixLen: prefixLen,
+		MaxLen:    maxLen,
+		Prefix:    prefix,
+		AS:        as,
+	}
+}
+
 type RTREndOfData struct {
 	RTRCommon
 }
 
+func NewRTREndOfData(id uint16, sn uint32) *RTREndOfData {
+	return &RTREndOfData{
+		RTRCommon{
+			Type:         RTR_END_OF_DATA,
+			SessionID:    id,
+			Len:          RTR_END_OF_DATA_LEN,
+			SerialNumber: sn,
+		},
+	}
+}
+
 type RTRCacheReset struct {
 	RTRReset
+}
+
+func NewRTRCacheReset() *RTRCacheReset {
+	return &RTRCacheReset{
+		RTRReset{
+			Type: RTR_CACHE_RESET,
+			Len:  RTR_CACHE_RESET_LEN,
+		},
+	}
 }
 
 type RTRErrorReport struct {
