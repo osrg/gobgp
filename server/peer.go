@@ -103,6 +103,15 @@ func (peer *Peer) configuredRFlist() []bgp.RouteFamily {
 	return rfs
 }
 
+func (peer *Peer) isConfiguredFamily(family bgp.RouteFamily) bool {
+	for _, f := range peer.configuredRFlist() {
+		if f == family {
+			return true
+		}
+	}
+	return false
+}
+
 func (peer *Peer) getAccepted(rfList []bgp.RouteFamily) []*table.Path {
 	return peer.adjRibIn.PathList(rfList, true)
 }

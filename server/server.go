@@ -531,7 +531,7 @@ func (server *BgpServer) dropPeerAllRoutes(peer *Peer) []*SenderMsg {
 		if peer.isRouteServerClient() {
 			pathList := make([]*table.Path, len(dsts))
 			for _, targetPeer := range server.neighborMap {
-				if !targetPeer.isRouteServerClient() || targetPeer == peer || targetPeer.fsm.state != bgp.BGP_FSM_ESTABLISHED {
+				if !targetPeer.isRouteServerClient() || targetPeer == peer || targetPeer.fsm.state != bgp.BGP_FSM_ESTABLISHED || !targetPeer.isConfiguredFamily(rf) {
 					continue
 				}
 				i := 0
