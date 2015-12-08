@@ -20,6 +20,7 @@ import (
 	log "github.com/Sirupsen/logrus"
 	"github.com/osrg/gobgp/config"
 	"github.com/osrg/gobgp/packet"
+	"github.com/osrg/gobgp/table"
 	"github.com/stretchr/testify/assert"
 	"net"
 	"strconv"
@@ -293,7 +294,7 @@ func makePeerAndHandler() (*Peer, *FSMHandler) {
 		capMap: make(map[bgp.BGPCapabilityCode][]bgp.ParameterCapabilityInterface),
 	}
 
-	p.fsm = NewFSM(&gConf, &pConf, &Peer{})
+	p.fsm = NewFSM(&gConf, &pConf, table.NewRoutingPolicy())
 
 	incoming := make(chan *FsmMsg, 4096)
 	p.outgoing = make(chan *bgp.BGPMessage, 4096)

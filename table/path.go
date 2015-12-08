@@ -38,9 +38,10 @@ type Path struct {
 	NoImplicitWithdraw     bool
 	Validation             config.RpkiValidationResultType
 	IsFromZebra            bool
-	Filtered               bool
 	Owner                  net.IP
 	reason                 BestPathReason
+	filtered               map[string]PolicyDirection
+	key                    string
 }
 
 func NewPath(source *PeerInfo, nlri bgp.AddrPrefixInterface, isWithdraw bool, pattrs []bgp.PathAttributeInterface, medSetByTargetNeighbor bool, timestamp time.Time, noImplicitWithdraw bool) *Path {
@@ -67,6 +68,7 @@ func NewPath(source *PeerInfo, nlri bgp.AddrPrefixInterface, isWithdraw bool, pa
 		timestamp:              timestamp,
 		NoImplicitWithdraw:     noImplicitWithdraw,
 		Owner:                  owner,
+		filtered:               make(map[string]PolicyDirection),
 	}
 }
 
@@ -188,7 +190,7 @@ func (path *Path) IsIBGP() bool {
 	return path.source.AS == path.source.LocalAS
 }
 
-func (path *Path) ToApiStruct() *api.Path {
+func (path *Path) ToApiStruct(id string) *api.Path {
 	nlri := path.GetNlri()
 	n, _ := nlri.Serialize()
 	rf := uint32(bgp.AfiSafiToRouteFamily(nlri.AFI(), nlri.SAFI()))
@@ -206,25 +208,9 @@ func (path *Path) ToApiStruct() *api.Path {
 		Age:        int64(time.Now().Sub(path.timestamp).Seconds()),
 		IsWithdraw: path.IsWithdraw,
 		Validation: int32(path.Validation),
-		Filtered:   path.Filtered,
+		Filtered:   path.Filtered(id) > POLICY_DIRECTION_NONE,
 		Rf:         rf,
 	}
-}
-
-func (path *Path) MarshalJSON() ([]byte, error) {
-	return json.Marshal(struct {
-		Source     *PeerInfo                    `json:"source"`
-		IsWithdraw bool                         `json:"is_withdraw"`
-		Nlri       bgp.AddrPrefixInterface      `json:"nlri"`
-		Pathattrs  []bgp.PathAttributeInterface `json:"pattrs"`
-		Filtered   bool                         `json:"filtered"`
-	}{
-		Source:     path.source,
-		IsWithdraw: path.IsWithdraw,
-		Nlri:       path.nlri,
-		Pathattrs:  path.pathAttrs,
-		Filtered:   path.Filtered,
-	})
 }
 
 // create new PathAttributes
@@ -237,7 +223,16 @@ func (path *Path) Clone(owner net.IP, isWithdraw bool) *Path {
 	p := NewPath(path.source, path.nlri, isWithdraw, newPathAttrs, false, path.timestamp, path.NoImplicitWithdraw)
 	p.Validation = path.Validation
 	p.Owner = owner
+	p.key = path.key
 	return p
+}
+
+func (path *Path) Filter(id string, reason PolicyDirection) {
+	path.filtered[id] = reason
+}
+
+func (path *Path) Filtered(id string) PolicyDirection {
+	return path.filtered[id]
 }
 
 func (path *Path) GetRouteFamily() bgp.RouteFamily {
@@ -332,7 +327,10 @@ func (path *Path) String() string {
 }
 
 func (path *Path) getPrefix() string {
-	return path.nlri.String()
+	if path.key == "" {
+		return path.nlri.String()
+	}
+	return path.key
 }
 
 func (path *Path) GetAsPath() *bgp.PathAttributeAsPath {
@@ -655,7 +653,7 @@ func (lhs *Path) Equal(rhs *Path) bool {
 		return true
 	}
 	f := func(p *Path) []byte {
-		s := p.ToApiStruct()
+		s := p.ToApiStruct(GLOBAL_RIB_NAME)
 		s.Age = 0
 		buf, _ := json.Marshal(s)
 		return buf
