@@ -160,7 +160,6 @@ func (m *RTRCacheResponse) Serialize() ([]byte, error) {
 type RTRIPPrefix struct {
 	Version   uint8
 	Type      uint8
-	SessionID uint16
 	Len       uint32
 	Flags     uint8
 	PrefixLen uint8
@@ -172,7 +171,6 @@ type RTRIPPrefix struct {
 func (m *RTRIPPrefix) DecodeFromBytes(data []byte) error {
 	m.Version = data[0]
 	m.Type = data[1]
-	m.SessionID = binary.BigEndian.Uint16(data[2:4])
 	m.Len = binary.BigEndian.Uint32(data[4:8])
 	m.Flags = data[8]
 	m.PrefixLen = data[9]
@@ -191,7 +189,6 @@ func (m *RTRIPPrefix) Serialize() ([]byte, error) {
 	data := make([]byte, m.Len)
 	data[0] = m.Version
 	data[1] = m.Type
-	binary.BigEndian.PutUint16(data[2:4], m.SessionID)
 	binary.BigEndian.PutUint32(data[4:8], m.Len)
 	data[8] = m.Flags
 	data[9] = m.PrefixLen
