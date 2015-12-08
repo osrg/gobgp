@@ -143,14 +143,6 @@ type RTRResetQuery struct {
 	RTRReset
 }
 
-func (m *RTRResetQuery) Serialize() ([]byte, error) {
-	data := make([]byte, m.Len)
-	data[0] = m.Version
-	data[1] = m.Type
-	binary.BigEndian.PutUint32(data[4:8], m.Len)
-	return data, nil
-}
-
 func NewRTRResetQuery() *RTRResetQuery {
 	return &RTRResetQuery{
 		RTRReset{
