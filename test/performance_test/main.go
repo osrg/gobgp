@@ -30,7 +30,7 @@ import (
 )
 
 func newPeer(g config.Global, p config.Neighbor, incoming chan *server.FsmMsg) *server.Peer {
-	tbl := table.NewTableManager(g.GlobalConfig.RouterId.String(), []bgp.RouteFamily{bgp.RF_IPv4_UC, bgp.RF_IPv6_UC}, 0, 0)
+	tbl := table.NewTableManager([]bgp.RouteFamily{bgp.RF_IPv4_UC, bgp.RF_IPv6_UC}, 0, 0)
 	peer := server.NewPeer(g, p, tbl, table.NewRoutingPolicy())
 	server.NewFSMHandler(peer.Fsm(), incoming, peer.Outgoing())
 	return peer

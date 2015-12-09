@@ -111,18 +111,16 @@ func ProcessMessage(m *bgp.BGPMessage, peerInfo *PeerInfo, timestamp time.Time) 
 type TableManager struct {
 	Tables    map[bgp.RouteFamily]*Table
 	Vrfs      map[string]*Vrf
-	owner     string
 	minLabel  uint32
 	maxLabel  uint32
 	nextLabel uint32
 	rfList    []bgp.RouteFamily
 }
 
-func NewTableManager(owner string, rfList []bgp.RouteFamily, minLabel, maxLabel uint32) *TableManager {
+func NewTableManager(rfList []bgp.RouteFamily, minLabel, maxLabel uint32) *TableManager {
 	t := &TableManager{
 		Tables:    make(map[bgp.RouteFamily]*Table),
 		Vrfs:      make(map[string]*Vrf),
-		owner:     owner,
 		minLabel:  minLabel,
 		maxLabel:  maxLabel,
 		nextLabel: minLabel,
@@ -161,10 +159,6 @@ func (manager *TableManager) getNextLabel() (uint32, error) {
 	label := manager.nextLabel
 	manager.nextLabel += 1
 	return label, nil
-}
-
-func (manager *TableManager) OwnerName() string {
-	return manager.owner
 }
 
 func (manager *TableManager) AddVrf(name string, rd bgp.RouteDistinguisherInterface, importRt, exportRt []bgp.ExtendedCommunityInterface, info *PeerInfo) ([]*Path, error) {
@@ -223,7 +217,6 @@ func (manager *TableManager) calculate(destinations []*Destination) {
 	for _, destination := range destinations {
 		log.WithFields(log.Fields{
 			"Topic": "table",
-			"Owner": manager.owner,
 			"Key":   destination.GetNlri().String(),
 		}).Debug("Processing destination")
 		destination.Calculate()
