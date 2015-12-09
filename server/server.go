@@ -656,7 +656,7 @@ func (server *BgpServer) propagateUpdate(peer *Peer, pathList []*table.Path) []*
 	rib := server.globalRib
 	if peer != nil && peer.isRouteServerClient() {
 		for _, path := range pathList {
-			path.Filter(peer.TableID(), table.POLICY_DIRECTION_IMPORT)
+			path.Filter(peer.ID(), table.POLICY_DIRECTION_IMPORT)
 			path.Filter(table.GLOBAL_RIB_NAME, table.POLICY_DIRECTION_IMPORT)
 		}
 		moded := []*table.Path{}
@@ -667,14 +667,14 @@ func (server *BgpServer) propagateUpdate(peer *Peer, pathList []*table.Path) []*
 			for _, before := range pathList {
 				after := server.policy.ApplyPolicy(targetPeer.TableID(), table.POLICY_DIRECTION_IMPORT, before)
 				if after == nil {
-					before.Filter(targetPeer.TableID(), table.POLICY_DIRECTION_IMPORT)
+					before.Filter(targetPeer.ID(), table.POLICY_DIRECTION_IMPORT)
 				} else if after != before {
-					before.Filter(targetPeer.TableID(), table.POLICY_DIRECTION_IMPORT)
+					before.Filter(targetPeer.ID(), table.POLICY_DIRECTION_IMPORT)
 					for _, n := range server.neighborMap {
 						if n == targetPeer {
 							continue
 						}
-						after.Filter(n.TableID(), table.POLICY_DIRECTION_IMPORT)
+						after.Filter(n.ID(), table.POLICY_DIRECTION_IMPORT)
 					}
 					moded = append(moded, after)
 				}

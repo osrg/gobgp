@@ -214,7 +214,7 @@ func (peer *Peer) handleBGPmessage(e *FsmMsg) ([]*table.Path, []*bgp.BGPMessage)
 			peer.adjRibIn.Update(e.PathList)
 			paths := make([]*table.Path, 0, len(e.PathList))
 			for _, path := range e.PathList {
-				if path.Filtered(peer.TableID()) != table.POLICY_DIRECTION_IN {
+				if path.Filtered(peer.ID()) != table.POLICY_DIRECTION_IN {
 					paths = append(paths, path)
 				}
 			}
