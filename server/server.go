@@ -1898,6 +1898,20 @@ func (server *BgpServer) handleGrpcModNeighbor(grpcReq *GrpcRequest) (sMsgs []*S
 					}
 				}
 			}
+			if a.Afisafis != nil {
+				for _, afisafi := range a.Afisafis.Afisafi {
+					cAfiSafi := config.AfiSafi{AfiSafiName: afisafi.Name}
+					pconf.AfiSafis.AfiSafiList = append(pconf.AfiSafis.AfiSafiList, cAfiSafi)
+				}
+			} else {
+				if net.ParseIP(a.Conf.NeighborAddress).To4() != nil {
+					pconf.AfiSafis.AfiSafiList = []config.AfiSafi{
+						config.AfiSafi{AfiSafiName: "ipv4-unicast"}}
+				} else {
+					pconf.AfiSafis.AfiSafiList = []config.AfiSafi{
+						config.AfiSafi{AfiSafiName: "ipv6-unicast"}}
+				}
+			}
 			return pconf
 		}
 		configneigh := apitoConfig(arg.Peer)
