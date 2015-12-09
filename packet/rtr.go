@@ -331,6 +331,23 @@ func (m *RTRErrorReport) Serialize() ([]byte, error) {
 	return data, nil
 }
 
+func NewRTRErrorReport(errCode uint16, errPDU []byte, errMsg []byte) *RTRErrorReport {
+	pdu := &RTRErrorReport{Type: RTR_ERROR_REPORT}
+	if errPDU != nil {
+		if errPDU[1] == RTR_ERROR_REPORT {
+			return nil
+		}
+		pdu.PDULen = uint32(len(errPDU))
+		pdu.PDU = errPDU
+	}
+	if errMsg != nil {
+		pdu.Text = errMsg
+		pdu.TextLen = uint32(len(errMsg))
+	}
+	pdu.Len = uint32(RTR_MIN_LEN) + uint32(RTR_ERROR_REPORT_ERR_PDU_LEN) + pdu.PDULen + uint32(RTR_ERROR_REPORT_ERR_TEXT_LEN) + pdu.TextLen
+	return pdu
+}
+
 func SplitRTR(data []byte, atEOF bool) (advance int, token []byte, err error) {
 	if atEOF && len(data) == 0 || len(data) < RTR_MIN_LEN {
 		return 0, nil, nil
