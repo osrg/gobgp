@@ -211,7 +211,7 @@ func (t *Table) tableKey(nlri bgp.AddrPrefixInterface) string {
 	return nlri.String()
 }
 
-func (t *Table) Bests(id string) []*Path {
+func (t *Table) Bests(id uint32) []*Path {
 	paths := make([]*Path, 0, len(t.destinations))
 	for _, dst := range t.destinations {
 		path := dst.GetBestPath(id)
@@ -222,7 +222,7 @@ func (t *Table) Bests(id string) []*Path {
 	return paths
 }
 
-func (t *Table) GetKnownPathList(id string) []*Path {
+func (t *Table) GetKnownPathList(id uint32) []*Path {
 	paths := make([]*Path, 0, len(t.destinations))
 	for _, dst := range t.destinations {
 		paths = append(paths, dst.GetKnownPathList(id)...)

@@ -33,7 +33,7 @@ func (manager *TableManager) ProcessUpdate(fromPeer *PeerInfo, message *bgp.BGPM
 	dsts := manager.ProcessPaths(paths)
 	paths2 := make([]*Path, 0, len(paths))
 	for _, dst := range dsts {
-		p := dst.NewFeed(GLOBAL_RIB_NAME)
+		p := dst.NewFeed(GLOBAL_RIB_ID)
 		if p != nil {
 			paths2 = append(paths2, p)
 		}
@@ -2127,7 +2127,7 @@ func TestProcessBGPUpdate_Timestamp(t *testing.T) {
 
 	nlri := []*bgp.IPAddrPrefix{bgp.NewIPAddrPrefix(24, "10.10.10.0")}
 
-	adjRib := NewAdjRib("test", []bgp.RouteFamily{bgp.RF_IPv4_UC, bgp.RF_IPv6_UC})
+	adjRib := NewAdjRib(0, []bgp.RouteFamily{bgp.RF_IPv4_UC, bgp.RF_IPv6_UC})
 	m1 := bgp.NewBGPUpdateMessage(nil, pathAttributes, nlri)
 	peer := peerR1()
 	pList1 := ProcessMessage(m1, peer, time.Now())

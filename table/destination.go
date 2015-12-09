@@ -135,7 +135,7 @@ func NewDestination(nlri bgp.AddrPrefixInterface) *Destination {
 	return d
 }
 
-func (dd *Destination) ToApiStruct(id string) *api.Destination {
+func (dd *Destination) ToApiStruct(id uint32) *api.Destination {
 	prefix := dd.GetNlri().String()
 	paths := func(arg []*Path) []*api.Path {
 		ret := make([]*api.Path, 0, len(arg))
@@ -178,7 +178,7 @@ func (dd *Destination) setNlri(nlri bgp.AddrPrefixInterface) {
 	dd.nlri = nlri
 }
 
-func (dd *Destination) GetKnownPathList(id string) []*Path {
+func (dd *Destination) GetKnownPathList(id uint32) []*Path {
 	list := make([]*Path, 0, len(dd.knownPathList))
 	for _, p := range dd.knownPathList {
 		if p.filtered[id] == POLICY_DIRECTION_NONE {
@@ -188,7 +188,7 @@ func (dd *Destination) GetKnownPathList(id string) []*Path {
 	return list
 }
 
-func (dd *Destination) GetBestPath(id string) *Path {
+func (dd *Destination) GetBestPath(id uint32) *Path {
 	for _, p := range dd.knownPathList {
 		if p.filtered[id] == POLICY_DIRECTION_NONE {
 			return p
@@ -197,7 +197,7 @@ func (dd *Destination) GetBestPath(id string) *Path {
 	return nil
 }
 
-func (dd *Destination) oldBest(id string) *Path {
+func (dd *Destination) oldBest(id uint32) *Path {
 	for _, p := range dd.oldKnownPathList {
 		if p.filtered[id] == POLICY_DIRECTION_NONE {
 			return p
@@ -248,7 +248,7 @@ func (dest *Destination) Calculate() {
 	dest.computeKnownBestPath()
 }
 
-func (dest *Destination) NewFeed(id string) *Path {
+func (dest *Destination) NewFeed(id uint32) *Path {
 	old := dest.oldBest(id)
 	best := dest.GetBestPath(id)
 	if best != nil && best.Equal(old) {

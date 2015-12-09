@@ -2622,10 +2622,10 @@ type RoutingPolicy struct {
 	DefinedSetMap DefinedSetMap
 	PolicyMap     map[string]*Policy
 	StatementMap  map[string]*Statement
-	AssignmentMap map[string]*Assignment
+	AssignmentMap map[uint32]*Assignment
 }
 
-func (r *RoutingPolicy) ApplyPolicy(id string, dir PolicyDirection, before *Path) *Path {
+func (r *RoutingPolicy) ApplyPolicy(id uint32, dir PolicyDirection, before *Path) *Path {
 	if before == nil {
 		return nil
 	}
@@ -2651,7 +2651,7 @@ func (r *RoutingPolicy) ApplyPolicy(id string, dir PolicyDirection, before *Path
 	}
 }
 
-func (r *RoutingPolicy) GetPolicy(id string, dir PolicyDirection) []*Policy {
+func (r *RoutingPolicy) GetPolicy(id uint32, dir PolicyDirection) []*Policy {
 	a, ok := r.AssignmentMap[id]
 	if !ok {
 		return nil
@@ -2668,7 +2668,7 @@ func (r *RoutingPolicy) GetPolicy(id string, dir PolicyDirection) []*Policy {
 	}
 }
 
-func (r *RoutingPolicy) GetDefaultPolicy(id string, dir PolicyDirection) RouteType {
+func (r *RoutingPolicy) GetDefaultPolicy(id uint32, dir PolicyDirection) RouteType {
 	a, ok := r.AssignmentMap[id]
 	if !ok {
 		return ROUTE_TYPE_NONE
@@ -2686,7 +2686,7 @@ func (r *RoutingPolicy) GetDefaultPolicy(id string, dir PolicyDirection) RouteTy
 
 }
 
-func (r *RoutingPolicy) SetPolicy(id string, dir PolicyDirection, policies []*Policy) error {
+func (r *RoutingPolicy) SetPolicy(id uint32, dir PolicyDirection, policies []*Policy) error {
 	a, ok := r.AssignmentMap[id]
 	if !ok {
 		a = &Assignment{}
@@ -2703,7 +2703,7 @@ func (r *RoutingPolicy) SetPolicy(id string, dir PolicyDirection, policies []*Po
 	return nil
 }
 
-func (r *RoutingPolicy) SetDefaultPolicy(id string, dir PolicyDirection, typ RouteType) error {
+func (r *RoutingPolicy) SetDefaultPolicy(id uint32, dir PolicyDirection, typ RouteType) error {
 	a, ok := r.AssignmentMap[id]
 	if !ok {
 		a = &Assignment{}
@@ -2848,7 +2848,7 @@ func (r *RoutingPolicy) Reload(c config.RoutingPolicy) error {
 	r.DefinedSetMap = dmap
 	r.PolicyMap = pmap
 	r.StatementMap = smap
-	r.AssignmentMap = make(map[string]*Assignment)
+	r.AssignmentMap = make(map[uint32]*Assignment)
 	return nil
 }
 
@@ -2857,7 +2857,7 @@ func NewRoutingPolicy() *RoutingPolicy {
 		DefinedSetMap: make(map[DefinedType]map[string]DefinedSet),
 		PolicyMap:     make(map[string]*Policy),
 		StatementMap:  make(map[string]*Statement),
-		AssignmentMap: make(map[string]*Assignment),
+		AssignmentMap: make(map[uint32]*Assignment),
 	}
 }
 

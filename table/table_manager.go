@@ -25,7 +25,7 @@ import (
 )
 
 const (
-	GLOBAL_RIB_NAME = "global"
+	GLOBAL_RIB_ID uint32 = 0
 )
 
 func nlri2Path(m *bgp.BGPMessage, p *PeerInfo, now time.Time) []*Path {
@@ -276,7 +276,7 @@ func (manager *TableManager) handleMacMobility(path *Path) []*Destination {
 	if path.IsWithdraw || path.IsLocal() || nlri.RouteType != bgp.EVPN_ROUTE_TYPE_MAC_IP_ADVERTISEMENT {
 		return nil
 	}
-	for _, path2 := range manager.GetPathList(GLOBAL_RIB_NAME, bgp.RF_EVPN) {
+	for _, path2 := range manager.GetPathList(GLOBAL_RIB_ID, bgp.RF_EVPN) {
 		if !path2.IsLocal() || path2.GetNlri().(*bgp.EVPNNLRI).RouteType != bgp.EVPN_ROUTE_TYPE_MAC_IP_ADVERTISEMENT {
 			continue
 		}
@@ -313,7 +313,7 @@ func (manager *TableManager) getDestinationCount(rfList []bgp.RouteFamily) int {
 	return count
 }
 
-func (manager *TableManager) GetBestPathList(id string, rfList []bgp.RouteFamily) []*Path {
+func (manager *TableManager) GetBestPathList(id uint32, rfList []bgp.RouteFamily) []*Path {
 	paths := make([]*Path, 0, manager.getDestinationCount(rfList))
 	for _, rf := range rfList {
 		if t, ok := manager.Tables[rf]; ok {
@@ -323,7 +323,7 @@ func (manager *TableManager) GetBestPathList(id string, rfList []bgp.RouteFamily
 	return paths
 }
 
-func (manager *TableManager) GetPathList(id string, rf bgp.RouteFamily) []*Path {
+func (manager *TableManager) GetPathList(id uint32, rf bgp.RouteFamily) []*Path {
 	if t, ok := manager.Tables[rf]; ok {
 		return t.GetKnownPathList(id)
 	}

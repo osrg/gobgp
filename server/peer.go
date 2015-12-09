@@ -32,7 +32,7 @@ const (
 )
 
 type Peer struct {
-	tableId   string
+	tableId   uint32
 	gConf     config.Global
 	conf      config.Neighbor
 	fsm       *FSM
@@ -46,8 +46,9 @@ type Peer struct {
 	localRib  *table.TableManager
 }
 
-func NewPeer(g config.Global, conf config.Neighbor, loc *table.TableManager, policy *table.RoutingPolicy) *Peer {
+func NewPeer(g config.Global, conf config.Neighbor, loc *table.TableManager, tableId uint32, policy *table.RoutingPolicy) *Peer {
 	peer := &Peer{
+		tableId:  tableId,
 		gConf:    g,
 		conf:     conf,
 		rfMap:    make(map[bgp.RouteFamily]bool),
@@ -56,17 +57,12 @@ func NewPeer(g config.Global, conf config.Neighbor, loc *table.TableManager, pol
 		localRib: loc,
 		policy:   policy,
 	}
-	tableId := table.GLOBAL_RIB_NAME
-	if peer.isRouteServerClient() {
-		tableId = conf.NeighborConfig.NeighborAddress.String()
-	}
-	peer.tableId = tableId
 	conf.NeighborState.SessionState = uint32(bgp.BGP_FSM_IDLE)
 	conf.Timers.TimersState.Downtime = time.Now().Unix()
 	rfs, _ := conf.AfiSafis.ToRfList()
 	peer.adjRibIn = table.NewAdjRib(peer.ID(), rfs)
 	peer.adjRibOut = table.NewAdjRib(peer.ID(), rfs)
-	peer.fsm = NewFSM(&g, &conf, policy)
+	peer.fsm = NewFSM(&g, &conf, policy, tableId)
 	return peer
 }
 
@@ -78,11 +74,7 @@ func (peer *Peer) Outgoing() chan *bgp.BGPMessage {
 	return peer.outgoing
 }
 
-func (peer *Peer) ID() string {
-	return peer.conf.NeighborConfig.NeighborAddress.String()
-}
-
-func (peer *Peer) TableID() string {
+func (peer *Peer) ID() uint32 {
 	return peer.tableId
 }
 
@@ -110,8 +102,8 @@ func (peer *Peer) getAccepted(rfList []bgp.RouteFamily) []*table.Path {
 func (peer *Peer) getBestFromLocal(rfList []bgp.RouteFamily) ([]*table.Path, []*table.Path) {
 	pathList := []*table.Path{}
 	filtered := []*table.Path{}
-	for _, path := range peer.localRib.GetBestPathList(peer.TableID(), rfList) {
-		p := peer.policy.ApplyPolicy(peer.TableID(), table.POLICY_DIRECTION_EXPORT, filterpath(peer, path))
+	for _, path := range peer.localRib.GetBestPathList(peer.ID(), rfList) {
+		p := peer.policy.ApplyPolicy(peer.ID(), table.POLICY_DIRECTION_EXPORT, filterpath(peer, path))
 		if p == nil {
 			filtered = append(filtered, path)
 			continue
@@ -214,7 +206,7 @@ func (peer *Peer) handleBGPmessage(e *FsmMsg) ([]*table.Path, []*bgp.BGPMessage)
 			peer.adjRibIn.Update(e.PathList)
 			paths := make([]*table.Path, 0, len(e.PathList))
 			for _, path := range e.PathList {
-				if path.Filtered(peer.TableID()) != table.POLICY_DIRECTION_IN {
+				if path.Filtered(peer.ID()) != table.POLICY_DIRECTION_IN {
 					paths = append(paths, path)
 				}
 			}

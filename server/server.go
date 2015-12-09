@@ -99,6 +99,7 @@ type BgpServer struct {
 	bmpConnCh      chan *bmpConn
 	shutdown       bool
 	watchers       map[watcherType]watcher
+	tableIds       []uint32
 }
 
 func NewBgpServer(port int) *BgpServer {
@@ -117,6 +118,7 @@ func NewBgpServer(port int) *BgpServer {
 	b.watchers = make(map[watcherType]watcher)
 	b.roaClient, _ = newROAClient(0, config.RpkiServers{})
 	b.policy = table.NewRoutingPolicy()
+	b.tableIds = make([]uint32, 0)
 	return &b
 }
 
@@ -142,6 +144,43 @@ func listenAndAccept(proto string, port int, ch chan *net.TCPConn) (*net.TCPList
 	}()
 
 	return l, nil
+}
+
+func (server *BgpServer) newTableId() (uint32, error) {
+	var start uint32
+	if len(server.tableIds) > 0 {
+		start = server.tableIds[len(server.tableIds)-1]
+	} else {
+		start = table.GLOBAL_RIB_ID
+	}
+
+	l := append(server.tableIds, table.GLOBAL_RIB_ID)
+
+	for id := start + 1; id != start; id++ {
+		found := func() bool {
+			for _, v := range l {
+				if id == v {
+					return true
+				}
+			}
+			return false
+		}()
+		if !found {
+			server.tableIds = append(server.tableIds, id)
+			return id, nil
+		}
+	}
+	return 0, fmt.Errorf("no more table id space")
+}
+
+func (server *BgpServer) removeTableId(id uint32) {
+	for idx, v := range server.tableIds {
+		if v == id {
+			server.tableIds = append(server.tableIds[:idx], server.tableIds[idx+1:]...)
+			return
+		}
+	}
+	log.Fatal("Failed to remove id ", id, server.tableIds)
 }
 
 func (server *BgpServer) Serve() {
@@ -351,8 +390,13 @@ func (server *BgpServer) Serve() {
 				continue
 			}
 
+			tableId, err := server.newTableId()
+			if err != nil {
+				log.Error(err)
+				continue
+			}
 			SetTcpMD5SigSockopts(listener(config.NeighborConfig.NeighborAddress), addr, config.NeighborConfig.AuthPassword)
-			peer := NewPeer(g, config, server.globalRib, server.policy)
+			peer := NewPeer(g, config, server.globalRib, tableId, server.policy)
 			server.setPolicyByConfig(peer.ID(), config.ApplyPolicy)
 			if peer.isRouteServerClient() {
 				pathList := make([]*table.Path, 0)
@@ -360,7 +404,7 @@ func (server *BgpServer) Serve() {
 				for _, p := range server.neighborMap {
 					if p.isRouteServerClient() {
 						for _, path := range p.getAccepted(rfList) {
-							path = server.policy.ApplyPolicy(peer.TableID(), table.POLICY_DIRECTION_IMPORT, path)
+							path = server.policy.ApplyPolicy(peer.ID(), table.POLICY_DIRECTION_IMPORT, path)
 							if path != nil {
 								pathList = append(pathList, path)
 							}
@@ -395,6 +439,7 @@ func (server *BgpServer) Serve() {
 				if len(m) > 0 {
 					senderMsgs = append(senderMsgs, m...)
 				}
+				server.removeTableId(peer.ID())
 				delete(server.neighborMap, addr)
 			} else {
 				log.Info("Can't delete a peer configuration for ", addr)
@@ -540,7 +585,7 @@ func (server *BgpServer) dropPeerAllRoutes(peer *Peer) []*SenderMsg {
 
 				i := 0
 				for _, dst := range dsts {
-					feed := dst.NewFeed(targetPeer.TableID())
+					feed := dst.NewFeed(targetPeer.ID())
 					pathList[i] = feed
 					i++
 				}
@@ -551,7 +596,7 @@ func (server *BgpServer) dropPeerAllRoutes(peer *Peer) []*SenderMsg {
 		} else {
 			pathList := make([]*table.Path, 0, len(dsts))
 			for _, dst := range dsts {
-				path := dst.NewFeed(table.GLOBAL_RIB_NAME)
+				path := dst.NewFeed(table.GLOBAL_RIB_ID)
 				if path != nil {
 					pathList = append(pathList, path)
 				}
@@ -597,7 +642,7 @@ func (server *BgpServer) broadcastBests(bests []*table.Path) {
 		result := &GrpcResponse{
 			Data: &api.Destination{
 				Prefix: path.GetNlri().String(),
-				Paths:  []*api.Path{path.ToApiStruct(table.GLOBAL_RIB_NAME)},
+				Paths:  []*api.Path{path.ToApiStruct(table.GLOBAL_RIB_ID)},
 			},
 		}
 		remainReqs := make([]*GrpcRequest, 0, len(server.broadcastReqs))
@@ -656,8 +701,8 @@ func (server *BgpServer) propagateUpdate(peer *Peer, pathList []*table.Path) []*
 	rib := server.globalRib
 	if peer != nil && peer.isRouteServerClient() {
 		for _, path := range pathList {
-			path.Filter(peer.TableID(), table.POLICY_DIRECTION_IMPORT)
-			path.Filter(table.GLOBAL_RIB_NAME, table.POLICY_DIRECTION_IMPORT)
+			path.Filter(peer.ID(), table.POLICY_DIRECTION_IMPORT)
+			path.Filter(table.GLOBAL_RIB_ID, table.POLICY_DIRECTION_IMPORT)
 		}
 		moded := []*table.Path{}
 		for _, targetPeer := range server.neighborMap {
@@ -665,16 +710,16 @@ func (server *BgpServer) propagateUpdate(peer *Peer, pathList []*table.Path) []*
 				continue
 			}
 			for _, before := range pathList {
-				after := server.policy.ApplyPolicy(targetPeer.TableID(), table.POLICY_DIRECTION_IMPORT, before)
+				after := server.policy.ApplyPolicy(targetPeer.ID(), table.POLICY_DIRECTION_IMPORT, before)
 				if after == nil {
-					before.Filter(targetPeer.TableID(), table.POLICY_DIRECTION_IMPORT)
+					before.Filter(targetPeer.ID(), table.POLICY_DIRECTION_IMPORT)
 				} else if after != before {
-					before.Filter(targetPeer.TableID(), table.POLICY_DIRECTION_IMPORT)
+					before.Filter(targetPeer.ID(), table.POLICY_DIRECTION_IMPORT)
 					for _, n := range server.neighborMap {
 						if n == targetPeer {
 							continue
 						}
-						after.Filter(n.TableID(), table.POLICY_DIRECTION_IMPORT)
+						after.Filter(n.ID(), table.POLICY_DIRECTION_IMPORT)
 					}
 					moded = append(moded, after)
 				}
@@ -687,7 +732,7 @@ func (server *BgpServer) propagateUpdate(peer *Peer, pathList []*table.Path) []*
 			}
 			sendPathList := make([]*table.Path, 0, len(dsts))
 			for _, dst := range dsts {
-				path := server.policy.ApplyPolicy(targetPeer.TableID(), table.POLICY_DIRECTION_EXPORT, filterpath(targetPeer, dst.NewFeed(targetPeer.TableID())))
+				path := server.policy.ApplyPolicy(targetPeer.ID(), table.POLICY_DIRECTION_EXPORT, filterpath(targetPeer, dst.NewFeed(targetPeer.ID())))
 				if path != nil {
 					sendPathList = append(sendPathList, path)
 				}
@@ -698,12 +743,12 @@ func (server *BgpServer) propagateUpdate(peer *Peer, pathList []*table.Path) []*
 		}
 	} else {
 		for idx, path := range pathList {
-			pathList[idx] = server.policy.ApplyPolicy(table.GLOBAL_RIB_NAME, table.POLICY_DIRECTION_IMPORT, path)
+			pathList[idx] = server.policy.ApplyPolicy(table.GLOBAL_RIB_ID, table.POLICY_DIRECTION_IMPORT, path)
 		}
 		dsts := rib.ProcessPaths(pathList)
 		sendPathList := make([]*table.Path, 0, len(dsts))
 		for _, dst := range dsts {
-			path := dst.NewFeed(table.GLOBAL_RIB_NAME)
+			path := dst.NewFeed(table.GLOBAL_RIB_ID)
 			if path != nil {
 				sendPathList = append(sendPathList, path)
 			}
@@ -721,7 +766,7 @@ func (server *BgpServer) propagateUpdate(peer *Peer, pathList []*table.Path) []*
 			pathList := make([]*table.Path, len(sendPathList))
 			copy(pathList, sendPathList)
 			for idx, path := range pathList {
-				path = server.policy.ApplyPolicy(table.GLOBAL_RIB_NAME, table.POLICY_DIRECTION_EXPORT, filterpath(targetPeer, path))
+				path = server.policy.ApplyPolicy(table.GLOBAL_RIB_ID, table.POLICY_DIRECTION_EXPORT, filterpath(targetPeer, path))
 				if path != nil {
 					path.UpdatePathAttrs(&server.bgpConfig.Global, &targetPeer.conf)
 				}
@@ -905,7 +950,7 @@ func (server *BgpServer) UpdatePolicy(policy config.RoutingPolicy) {
 	server.policyUpdateCh <- policy
 }
 
-func (server *BgpServer) setPolicyByConfig(id string, c config.ApplyPolicy) {
+func (server *BgpServer) setPolicyByConfig(id uint32, c config.ApplyPolicy) {
 	for _, dir := range []table.PolicyDirection{table.POLICY_DIRECTION_IN, table.POLICY_DIRECTION_IMPORT, table.POLICY_DIRECTION_EXPORT} {
 		ps, def, err := server.policy.GetAssignmentFromConfig(dir, c)
 		if err != nil {
@@ -927,7 +972,7 @@ func (server *BgpServer) SetRoutingPolicy(pl config.RoutingPolicy) error {
 		}).Errorf("failed to create routing policy: %s", err)
 		return err
 	}
-	server.setPolicyByConfig(table.GLOBAL_RIB_NAME, server.bgpConfig.Global.ApplyPolicy)
+	server.setPolicyByConfig(table.GLOBAL_RIB_ID, server.bgpConfig.Global.ApplyPolicy)
 	return nil
 }
 
@@ -1166,7 +1211,7 @@ func (server *BgpServer) handleModPathRequest(grpcReq *GrpcRequest) []*table.Pat
 				macIpAdv := evpnNlri.RouteTypeData.(*bgp.EVPNMacIPAdvertisementRoute)
 				etag := macIpAdv.ETag
 				mac := macIpAdv.MacAddress
-				paths := server.globalRib.GetBestPathList(table.GLOBAL_RIB_NAME, []bgp.RouteFamily{bgp.RF_EVPN})
+				paths := server.globalRib.GetBestPathList(table.GLOBAL_RIB_ID, []bgp.RouteFamily{bgp.RF_EVPN})
 				if m := getMacMobilityExtendedCommunity(etag, mac, paths); m != nil {
 					extcomms = append(extcomms, m)
 				}
@@ -1260,7 +1305,7 @@ func (server *BgpServer) handleVrfRequest(req *GrpcRequest) []*table.Path {
 			result.ResponseErr = fmt.Errorf("unsupported route family: %s", bgp.RouteFamily(arg.Family))
 			break
 		}
-		paths := rib.GetPathList(table.GLOBAL_RIB_NAME, rf)
+		paths := rib.GetPathList(table.GLOBAL_RIB_ID, rf)
 		dsts := make([]*api.Destination, 0, len(paths))
 		for _, path := range paths {
 			ok := table.CanImportToVrf(vrfs[name], path)
@@ -1269,7 +1314,7 @@ func (server *BgpServer) handleVrfRequest(req *GrpcRequest) []*table.Path {
 			}
 			dsts = append(dsts, &api.Destination{
 				Prefix: path.GetNlri().String(),
-				Paths:  []*api.Path{path.ToApiStruct(table.GLOBAL_RIB_NAME)},
+				Paths:  []*api.Path{path.ToApiStruct(table.GLOBAL_RIB_ID)},
 			})
 		}
 		req.ResponseCh <- &GrpcResponse{
@@ -1361,7 +1406,7 @@ func (server *BgpServer) handleGrpc(grpcReq *GrpcRequest) []*SenderMsg {
 		return []*Peer{peer}, err
 	}
 
-	sortedDsts := func(id string, t *table.Table) []*api.Destination {
+	sortedDsts := func(id uint32, t *table.Table) []*api.Destination {
 		results := make([]*api.Destination, 0, len(t.GetDestinations()))
 
 		r := radix.New()
@@ -1411,7 +1456,7 @@ func (server *BgpServer) handleGrpc(grpcReq *GrpcRequest) []*SenderMsg {
 			Family: arg.Family,
 		}
 		rib := server.globalRib
-		id := table.GLOBAL_RIB_NAME
+		id := table.GLOBAL_RIB_ID
 		if grpcReq.RequestType == REQ_LOCAL_RIB {
 			peer, ok := server.neighborMap[arg.Name]
 			if !ok {
@@ -1434,7 +1479,7 @@ func (server *BgpServer) handleGrpc(grpcReq *GrpcRequest) []*SenderMsg {
 		case bgp.RF_IPv4_UC, bgp.RF_IPv6_UC:
 			if len(arg.Destinations) > 0 {
 				dsts := []*api.Destination{}
-				f := func(id, cidr string) (bool, error) {
+				f := func(id uint32, cidr string) (bool, error) {
 					_, prefix, err := net.ParseCIDR(cidr)
 					if err != nil {
 						return false, err
@@ -1559,7 +1604,7 @@ func (server *BgpServer) handleGrpc(grpcReq *GrpcRequest) []*SenderMsg {
 				if found {
 					r.Insert(table.CidrToRadixkey(key), &api.Destination{
 						Prefix: key,
-						Paths:  []*api.Path{p.ToApiStruct(peer.TableID())},
+						Paths:  []*api.Path{p.ToApiStruct(peer.ID())},
 					})
 				}
 			}
@@ -1571,7 +1616,7 @@ func (server *BgpServer) handleGrpc(grpcReq *GrpcRequest) []*SenderMsg {
 			for _, p := range paths {
 				results = append(results, &api.Destination{
 					Prefix: p.GetNlri().String(),
-					Paths:  []*api.Path{p.ToApiStruct(peer.TableID())},
+					Paths:  []*api.Path{p.ToApiStruct(peer.ID())},
 				})
 			}
 		}
@@ -1814,6 +1859,7 @@ func (server *BgpServer) handleGrpcGetDefinedSet(grpcReq *GrpcRequest) error {
 	}
 	return nil
 }
+
 func (server *BgpServer) handleGrpcModNeighbor(grpcReq *GrpcRequest) (sMsgs []*SenderMsg, err error) {
 	arg := grpcReq.Data.(*api.ModNeighborArguments)
 	addr := arg.Peer.Conf.NeighborAddress
@@ -1901,7 +1947,11 @@ func (server *BgpServer) handleGrpcModNeighbor(grpcReq *GrpcRequest) (sMsgs []*S
 			return pconf
 		}
 		configneigh := apitoConfig(arg.Peer)
-		peer := NewPeer(server.bgpConfig.Global, configneigh, server.globalRib, server.policy)
+		tableId, err := server.newTableId()
+		if err != nil {
+			return nil, err
+		}
+		peer := NewPeer(server.bgpConfig.Global, configneigh, server.globalRib, tableId, server.policy)
 		server.setPolicyByConfig(peer.ID(), configneigh.ApplyPolicy)
 		if peer.isRouteServerClient() {
 			pathList := make([]*table.Path, 0)
@@ -1909,7 +1959,7 @@ func (server *BgpServer) handleGrpcModNeighbor(grpcReq *GrpcRequest) (sMsgs []*S
 			for _, p := range server.neighborMap {
 				if p.isRouteServerClient() {
 					for _, path := range p.getAccepted(rfList) {
-						pathList = append(pathList, server.policy.ApplyPolicy(peer.TableID(), table.POLICY_DIRECTION_IMPORT, path))
+						pathList = append(pathList, server.policy.ApplyPolicy(peer.ID(), table.POLICY_DIRECTION_IMPORT, path))
 					}
 				}
 			}
@@ -1937,6 +1987,7 @@ func (server *BgpServer) handleGrpcModNeighbor(grpcReq *GrpcRequest) (sMsgs []*S
 		if len(m) > 0 {
 			sMsgs = append(sMsgs, m...)
 		}
+		server.removeTableId(server.neighborMap[addr].ID())
 		delete(server.neighborMap, addr)
 	}
 	return sMsgs, err
@@ -2068,7 +2119,7 @@ func (server *BgpServer) policyInUse(x *table.Policy) bool {
 		}
 	}
 	for _, dir := range []table.PolicyDirection{table.POLICY_DIRECTION_EXPORT, table.POLICY_DIRECTION_EXPORT} {
-		for _, y := range server.policy.GetPolicy(table.GLOBAL_RIB_NAME, dir) {
+		for _, y := range server.policy.GetPolicy(table.GLOBAL_RIB_ID, dir) {
 			if x.Name() == y.Name() {
 				return true
 			}
@@ -2140,21 +2191,21 @@ func (server *BgpServer) handleGrpcModPolicy(grpcReq *GrpcRequest) error {
 	return err
 }
 
-func (server *BgpServer) getPolicyInfo(a *api.PolicyAssignment) (string, table.PolicyDirection, error) {
+func (server *BgpServer) getPolicyInfo(a *api.PolicyAssignment) (uint32, table.PolicyDirection, error) {
 	switch a.Resource {
 	case api.Resource_GLOBAL:
 		switch a.Type {
 		case api.PolicyType_IMPORT:
-			return table.GLOBAL_RIB_NAME, table.POLICY_DIRECTION_IMPORT, nil
+			return table.GLOBAL_RIB_ID, table.POLICY_DIRECTION_IMPORT, nil
 		case api.PolicyType_EXPORT:
-			return table.GLOBAL_RIB_NAME, table.POLICY_DIRECTION_EXPORT, nil
+			return table.GLOBAL_RIB_ID, table.POLICY_DIRECTION_EXPORT, nil
 		default:
-			return "", table.POLICY_DIRECTION_NONE, fmt.Errorf("invalid policy type")
+			return 0, table.POLICY_DIRECTION_NONE, fmt.Errorf("invalid policy type")
 		}
 	case api.Resource_LOCAL:
 		peer, ok := server.neighborMap[a.Name]
 		if !ok {
-			return "", table.POLICY_DIRECTION_NONE, fmt.Errorf("not found peer %s", a.Name)
+			return 0, table.POLICY_DIRECTION_NONE, fmt.Errorf("not found peer %s", a.Name)
 		}
 		switch a.Type {
 		case api.PolicyType_IN:
@@ -2164,10 +2215,10 @@ func (server *BgpServer) getPolicyInfo(a *api.PolicyAssignment) (string, table.P
 		case api.PolicyType_EXPORT:
 			return peer.ID(), table.POLICY_DIRECTION_EXPORT, nil
 		default:
-			return "", table.POLICY_DIRECTION_NONE, fmt.Errorf("invalid policy type")
+			return 0, table.POLICY_DIRECTION_NONE, fmt.Errorf("invalid policy type")
 		}
 	default:
-		return "", table.POLICY_DIRECTION_NONE, fmt.Errorf("invalid resource type")
+		return 0, table.POLICY_DIRECTION_NONE, fmt.Errorf("invalid resource type")
 	}
 
 }
@@ -2191,14 +2242,11 @@ func (server *BgpServer) handleGrpcGetPolicyAssignment(grpcReq *GrpcRequest) err
 }
 
 func (server *BgpServer) handleGrpcModPolicyAssignment(grpcReq *GrpcRequest) error {
-	var err error
-	var dir table.PolicyDirection
-	var id string
 	policyMutex.Lock()
 	defer policyMutex.Unlock()
 	arg := grpcReq.Data.(*api.ModPolicyAssignmentArguments)
 	assignment := arg.Assignment
-	id, dir, err = server.getPolicyInfo(assignment)
+	id, dir, err := server.getPolicyInfo(assignment)
 	if err != nil {
 		return err
 	}
@@ -2462,7 +2510,7 @@ func (server *BgpServer) mkMrtRibMsgs(tbl *table.Table, t uint32) ([]*bgp.MRTMes
 	var seq uint32
 	msgs := make([]*bgp.MRTMessage, 0, len(tbl.GetDestinations()))
 	for _, dst := range tbl.GetDestinations() {
-		l := dst.GetKnownPathList(table.GLOBAL_RIB_NAME)
+		l := dst.GetKnownPathList(table.GLOBAL_RIB_ID)
 		entries := make([]*bgp.RibEntry, 0, len(l))
 		for _, p := range l {
 			// mrt doesn't assume to dump locally generated routes

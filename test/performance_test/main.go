@@ -29,9 +29,9 @@ import (
 	"github.com/osrg/gobgp/table"
 )
 
-func newPeer(g config.Global, p config.Neighbor, incoming chan *server.FsmMsg) *server.Peer {
+func newPeer(g config.Global, p config.Neighbor, incoming chan *server.FsmMsg, id uint32) *server.Peer {
 	tbl := table.NewTableManager([]bgp.RouteFamily{bgp.RF_IPv4_UC, bgp.RF_IPv6_UC}, 0, 0)
-	peer := server.NewPeer(g, p, tbl, table.NewRoutingPolicy())
+	peer := server.NewPeer(g, p, tbl, id, table.NewRoutingPolicy())
 	server.NewFSMHandler(peer.Fsm(), incoming, peer.Outgoing())
 	return peer
 }
@@ -72,7 +72,7 @@ func main() {
 				},
 			},
 		}
-		peer := newPeer(g, p, incoming)
+		peer := newPeer(g, p, incoming, uint32(i+1))
 		peerMap[p.Transport.TransportConfig.LocalAddress.String()] = peer
 	}
 	established := 0

@@ -40,7 +40,7 @@ type Path struct {
 	IsFromZebra            bool
 	Owner                  net.IP
 	reason                 BestPathReason
-	filtered               map[string]PolicyDirection
+	filtered               map[uint32]PolicyDirection
 	key                    string
 }
 
@@ -68,7 +68,7 @@ func NewPath(source *PeerInfo, nlri bgp.AddrPrefixInterface, isWithdraw bool, pa
 		timestamp:              timestamp,
 		NoImplicitWithdraw:     noImplicitWithdraw,
 		Owner:                  owner,
-		filtered:               make(map[string]PolicyDirection),
+		filtered:               make(map[uint32]PolicyDirection),
 	}
 }
 
@@ -190,7 +190,7 @@ func (path *Path) IsIBGP() bool {
 	return path.source.AS == path.source.LocalAS
 }
 
-func (path *Path) ToApiStruct(id string) *api.Path {
+func (path *Path) ToApiStruct(id uint32) *api.Path {
 	nlri := path.GetNlri()
 	n, _ := nlri.Serialize()
 	rf := uint32(bgp.AfiSafiToRouteFamily(nlri.AFI(), nlri.SAFI()))
@@ -227,11 +227,11 @@ func (path *Path) Clone(owner net.IP, isWithdraw bool) *Path {
 	return p
 }
 
-func (path *Path) Filter(id string, reason PolicyDirection) {
+func (path *Path) Filter(id uint32, reason PolicyDirection) {
 	path.filtered[id] = reason
 }
 
-func (path *Path) Filtered(id string) PolicyDirection {
+func (path *Path) Filtered(id uint32) PolicyDirection {
 	return path.filtered[id]
 }
 
@@ -653,7 +653,7 @@ func (lhs *Path) Equal(rhs *Path) bool {
 		return true
 	}
 	f := func(p *Path) []byte {
-		s := p.ToApiStruct(GLOBAL_RIB_NAME)
+		s := p.ToApiStruct(GLOBAL_RIB_ID)
 		s.Age = 0
 		buf, _ := json.Marshal(s)
 		return buf
