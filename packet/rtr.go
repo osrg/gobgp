@@ -300,7 +300,7 @@ func (m *RTRErrorReport) DecodeFromBytes(data []byte) error {
 	m.PDU = make([]byte, m.PDULen)
 	copy(m.PDU, data[12:12+m.PDULen])
 	m.TextLen = binary.BigEndian.Uint32(data[12+m.PDULen : 16+m.PDULen])
-	m.PDU = make([]byte, m.TextLen)
+	m.Text = make([]byte, m.TextLen)
 	copy(m.Text, data[16+m.PDULen:])
 	return nil
 }
