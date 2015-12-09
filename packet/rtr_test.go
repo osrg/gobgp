@@ -102,7 +102,21 @@ func Test_RTRCacheReset(t *testing.T) {
 	verifyRTRMessage(t, NewRTRCacheReset())
 }
 
-//TO BE IMPLEMENTED:
-//func Test_RTRErrorReport(t *testing.T) {
-//	verifyRTRMessage(t, NewRTRErrorReport())
-//}
+func Test_RTRErrorReport(t *testing.T) {
+	errPDU, _ := NewRTRResetQuery().Serialize()
+	errText1 := []byte("Couldn't send CacheResponce PDU")
+	errText2 := []byte("Wrong Length of PDU: 10 bytes")
+
+	// See 5.10 ErrorReport in RFC6810
+	// when it doesn't have both "erroneous PDU" and "Arbitrary Text"
+	verifyRTRMessage(t, NewRTRErrorReport(NO_DATA_AVAILABLE, nil, nil))
+
+	// when it has "erroneous PDU"
+	verifyRTRMessage(t, NewRTRErrorReport(UNSUPPORTED_PROTOCOL_VERSION, errPDU, nil))
+
+	// when it has "ArbitaryText"
+	verifyRTRMessage(t, NewRTRErrorReport(INTERNAL_ERROR, nil, errText1))
+
+	// when it has both "erroneous PDU" and "Arbitrary Text"
+	verifyRTRMessage(t, NewRTRErrorReport(CORRUPT_DATA, errPDU, errText2))
+}
