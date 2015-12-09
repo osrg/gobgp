@@ -283,7 +283,7 @@ func NewRTRCacheReset() *RTRCacheReset {
 type RTRErrorReport struct {
 	Version   uint8
 	Type      uint8
-	SessionID uint16
+	ErrorCode uint16
 	Len       uint32
 	PDULen    uint32
 	PDU       []byte
@@ -294,7 +294,7 @@ type RTRErrorReport struct {
 func (m *RTRErrorReport) DecodeFromBytes(data []byte) error {
 	m.Version = data[0]
 	m.Type = data[1]
-	m.SessionID = binary.BigEndian.Uint16(data[2:4])
+	m.ErrorCode = binary.BigEndian.Uint16(data[2:4])
 	m.Len = binary.BigEndian.Uint32(data[4:8])
 	m.PDULen = binary.BigEndian.Uint32(data[8:12])
 	m.PDU = make([]byte, m.PDULen)
@@ -309,7 +309,7 @@ func (m *RTRErrorReport) Serialize() ([]byte, error) {
 	data := make([]byte, m.Len)
 	data[0] = m.Version
 	data[1] = m.Type
-	binary.BigEndian.PutUint16(data[2:4], m.SessionID)
+	binary.BigEndian.PutUint16(data[2:4], m.ErrorCode)
 	binary.BigEndian.PutUint32(data[4:8], m.Len)
 	binary.BigEndian.PutUint32(data[8:12], m.PDULen)
 	copy(data[12:], m.PDU)
