@@ -1322,6 +1322,10 @@ func (server *BgpServer) handleModGlobalConfig(grpcReq *GrpcRequest) error {
 	if err != nil {
 		return err
 	}
+	p := config.RoutingPolicy{}
+	if err := server.SetRoutingPolicy(p); err != nil {
+		log.Fatal(err)
+	}
 	go func() {
 		server.globalTypeCh <- c.Global
 	}()
