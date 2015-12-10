@@ -22,7 +22,9 @@ import (
 	"github.com/spf13/cobra"
 	"golang.org/x/net/context"
 	"io"
+	"net"
 	"os"
+	"strconv"
 	"time"
 )
 
@@ -52,17 +54,16 @@ func showRPKIServer(args []string) error {
 }
 
 func showRPKITable(args []string) error {
-	if len(args) == 0 {
-		return fmt.Errorf("Needs to specify RPKI server address")
-	}
-	rf, err := checkAddressFamily(bgp.RF_IPv4_UC)
+	rf, err := checkAddressFamily(bgp.RouteFamily(0))
 	if err != nil {
 		fmt.Println(err)
 		os.Exit(1)
 	}
 	arg := &api.Arguments{
-		Rf:   uint32(rf),
-		Name: args[0],
+		Rf: uint32(rf),
+	}
+	if len(args) > 0 {
+		arg.Name = args[0]
 	}
 	stream, err := client.GetROA(context.Background(), arg)
 	if err != nil {
@@ -73,11 +74,11 @@ func showRPKITable(args []string) error {
 	var format string
 	afi, _ := bgp.RouteFamilyToAfiSafi(rf)
 	if afi == bgp.AFI_IP {
-		format = "%-18s %-6s %s\n"
+		format = "%-18s %-6s %-10s %s\n"
 	} else {
-		format = "%-42s %-6s %s\n"
+		format = "%-42s %-6s %-10s %s\n"
 	}
-	fmt.Printf(format, "Network", "Maxlen", "AS")
+	fmt.Printf(format, "Network", "Maxlen", "AS", "Server")
 	for {
 		r, err := stream.Recv()
 		if err == io.EOF {
@@ -85,7 +86,12 @@ func showRPKITable(args []string) error {
 		} else if err != nil {
 			return err
 		}
-		fmt.Printf(format, fmt.Sprintf("%s/%d", r.Prefix, r.Prefixlen), fmt.Sprint(r.Maxlen), fmt.Sprint(r.As))
+		if len(args) > 0 && args[0] != r.Conf.Address {
+			continue
+		}
+
+		server := net.JoinHostPort(r.Conf.Address, strconv.Itoa(int(r.Conf.RemotePort)))
+		fmt.Printf(format, fmt.Sprintf("%s/%d", r.Prefix, r.Prefixlen), fmt.Sprint(r.Maxlen), fmt.Sprint(r.As), server)
 	}
 	return nil
 }

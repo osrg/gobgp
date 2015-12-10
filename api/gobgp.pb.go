@@ -1450,7 +1450,8 @@ func (m *MrtMessage) String() string { return proto.CompactTextString(m) }
 func (*MrtMessage) ProtoMessage()    {}
 
 type RPKIConf struct {
-	Address string `protobuf:"bytes,1,opt,name=address" json:"address,omitempty"`
+	Address    string `protobuf:"bytes,1,opt,name=address" json:"address,omitempty"`
+	RemotePort uint32 `protobuf:"varint,2,opt,name=remote_port" json:"remote_port,omitempty"`
 }
 
 func (m *RPKIConf) Reset()         { *m = RPKIConf{} }
@@ -1492,15 +1493,23 @@ func (m *RPKI) GetState() *RPKIState {
 }
 
 type ROA struct {
-	As        uint32 `protobuf:"varint,1,opt,name=as" json:"as,omitempty"`
-	Prefixlen uint32 `protobuf:"varint,2,opt,name=prefixlen" json:"prefixlen,omitempty"`
-	Maxlen    uint32 `protobuf:"varint,3,opt,name=maxlen" json:"maxlen,omitempty"`
-	Prefix    string `protobuf:"bytes,4,opt,name=prefix" json:"prefix,omitempty"`
+	As        uint32    `protobuf:"varint,1,opt,name=as" json:"as,omitempty"`
+	Prefixlen uint32    `protobuf:"varint,2,opt,name=prefixlen" json:"prefixlen,omitempty"`
+	Maxlen    uint32    `protobuf:"varint,3,opt,name=maxlen" json:"maxlen,omitempty"`
+	Prefix    string    `protobuf:"bytes,4,opt,name=prefix" json:"prefix,omitempty"`
+	Conf      *RPKIConf `protobuf:"bytes,5,opt,name=conf" json:"conf,omitempty"`
 }
 
 func (m *ROA) Reset()         { *m = ROA{} }
 func (m *ROA) String() string { return proto.CompactTextString(m) }
 func (*ROA) ProtoMessage()    {}
+
+func (m *ROA) GetConf() *RPKIConf {
+	if m != nil {
+		return m.Conf
+	}
+	return nil
+}
 
 type Vrf struct {
 	Name     string   `protobuf:"bytes,1,opt,name=name" json:"name,omitempty"`

@@ -145,32 +145,46 @@ func (c *roaClient) handleGRPC(grpcReq *GrpcRequest) {
 		go sendMultipleResponses(grpcReq, results)
 
 	case REQ_ROA:
-		if len(c.config.RpkiServerList) == 0 || c.config.RpkiServerList[0].RpkiServerConfig.Address.String() != grpcReq.Name {
+		if len(c.config.RpkiServerList) == 0 {
 			result := &GrpcResponse{}
-			result.ResponseErr = fmt.Errorf("RPKI server that has %v doesn't exist.", grpcReq.Name)
-
+			result.ResponseErr = fmt.Errorf("RPKI server isn't configured.")
 			grpcReq.ResponseCh <- result
 			break
 		}
-
+		conf := c.config.RpkiServerList[0].RpkiServerConfig
 		results := make([]*GrpcResponse, 0)
-		if tree, ok := c.roas[grpcReq.RouteFamily]; ok {
-			tree.Walk(func(s string, v interface{}) bool {
-				b, _ := v.(*roaBucket)
-				for _, r := range b.entries {
-					for _, as := range r.AS {
-						result := &GrpcResponse{}
-						result.Data = &api.ROA{
-							As:        as,
-							Maxlen:    uint32(r.MaxLen),
-							Prefixlen: uint32(b.PrefixLen),
-							Prefix:    b.Prefix.String(),
+		var rfList []bgp.RouteFamily
+		switch grpcReq.RouteFamily {
+		case bgp.RF_IPv4_UC:
+			rfList = []bgp.RouteFamily{bgp.RF_IPv4_UC}
+		case bgp.RF_IPv6_UC:
+			rfList = []bgp.RouteFamily{bgp.RF_IPv6_UC}
+		default:
+			rfList = []bgp.RouteFamily{bgp.RF_IPv4_UC, bgp.RF_IPv6_UC}
+		}
+		for _, rf := range rfList {
+			if tree, ok := c.roas[rf]; ok {
+				tree.Walk(func(s string, v interface{}) bool {
+					b, _ := v.(*roaBucket)
+					for _, r := range b.entries {
+						for _, as := range r.AS {
+							result := &GrpcResponse{}
+							result.Data = &api.ROA{
+								As:        as,
+								Maxlen:    uint32(r.MaxLen),
+								Prefixlen: uint32(b.PrefixLen),
+								Prefix:    b.Prefix.String(),
+								Conf: &api.RPKIConf{
+									Address:    conf.Address.String(),
+									RemotePort: conf.Port,
+								},
+							}
+							results = append(results, result)
 						}
-						results = append(results, result)
 					}
-				}
-				return false
-			})
+					return false
+				})
+			}
 		}
 		go sendMultipleResponses(grpcReq, results)
 	}

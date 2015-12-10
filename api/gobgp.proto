@@ -530,6 +530,7 @@ message MrtMessage {
 
 message RPKIConf {
     string address = 1;
+    uint32 remote_port = 2;
 }
 
 message RPKIState {
@@ -549,6 +550,7 @@ message ROA {
     uint32 prefixlen = 2;
     uint32 maxlen = 3;
     string prefix = 4;
+    RPKIConf conf = 5;
 }
 
 message Vrf {
