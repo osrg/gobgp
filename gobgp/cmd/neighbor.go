@@ -238,7 +238,7 @@ type AsPathFormat struct {
 	separator string
 }
 
-func showRoute(pathList []*Path, showAge, showBest, showLabel, isMonitor, printHeader bool) {
+func ShowRoute(pathList []*Path, showAge, showBest, showLabel, isMonitor, printHeader bool) {
 
 	var pathStrs [][]interface{}
 	maxPrefixLen := 20
@@ -461,9 +461,9 @@ func showNeighborRib(r string, name string, args []string) error {
 			}
 			sort.Sort(ps)
 			if counter == 0 {
-				showRoute(ps, showAge, showBest, showLabel, false, true)
+				ShowRoute(ps, showAge, showBest, showLabel, false, true)
 			} else {
-				showRoute(ps, showAge, showBest, showLabel, false, false)
+				ShowRoute(ps, showAge, showBest, showLabel, false, false)
 			}
 			counter++
 		}
@@ -505,7 +505,7 @@ func showNeighborRib(r string, name string, args []string) error {
 	}
 
 	sort.Sort(ps)
-	showRoute(ps, showAge, showBest, showLabel, false, true)
+	ShowRoute(ps, showAge, showBest, showLabel, false, true)
 	return nil
 }
 
