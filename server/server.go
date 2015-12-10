@@ -1327,6 +1327,10 @@ func (server *BgpServer) handleModGlobalConfig(grpcReq *GrpcRequest) error {
 		return fmt.Errorf("gobgp is already started")
 	}
 	g := arg.Global
+	id := net.ParseIP(g.RouterId)
+	if id == nil {
+		return fmt.Errorf("invalid router-id format: %s", g.RouterId)
+	}
 	c := config.Bgp{
 		Global: config.Global{
 			GlobalConfig: config.GlobalConfig{
