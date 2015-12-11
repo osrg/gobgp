@@ -36,6 +36,7 @@ No dependency hell (library, package, etc) thanks to Go.
  * [Flowspec](https://github.com/osrg/gobgp/blob/master/docs/sources/flowspec.md)
  * [RPKI](https://github.com/osrg/gobgp/blob/master/docs/sources/rpki.md)
  * [Managing GoBGP with your favorite language](https://github.com/osrg/gobgp/blob/master/docs/sources/grpc-client.md)
+ * [Using GoBGP as a Go Native BGP library](https://github.com/osrg/gobgp/blob/master/docs/sources/lib.md)
  
 ## Community, discussion and support
 

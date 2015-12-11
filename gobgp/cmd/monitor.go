@@ -63,7 +63,7 @@ func NewMonitorCmd() *cobra.Command {
 					j, _ := json.Marshal(p)
 					fmt.Println(string(j))
 				} else {
-					showRoute(p, false, false, false, true, false)
+					ShowRoute(p, false, false, false, true, false)
 				}
 			}
 

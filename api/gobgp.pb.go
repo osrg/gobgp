@@ -1523,8 +1523,9 @@ func (m *Vrf) String() string { return proto.CompactTextString(m) }
 func (*Vrf) ProtoMessage()    {}
 
 type Global struct {
-	As       uint32 `protobuf:"varint,1,opt,name=as" json:"as,omitempty"`
-	RouterId string `protobuf:"bytes,2,opt,name=router_id" json:"router_id,omitempty"`
+	As         uint32 `protobuf:"varint,1,opt,name=as" json:"as,omitempty"`
+	RouterId   string `protobuf:"bytes,2,opt,name=router_id" json:"router_id,omitempty"`
+	ListenPort int32  `protobuf:"varint,3,opt,name=listen_port" json:"listen_port,omitempty"`
 }
 
 func (m *Global) Reset()         { *m = Global{} }
