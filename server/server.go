@@ -218,7 +218,7 @@ func (server *BgpServer) Serve() {
 	rfs, _ := g.AfiSafis.ToRfList()
 	server.globalRib = table.NewTableManager(rfs, g.MplsLabelRange.MinLabel, g.MplsLabelRange.MaxLabel)
 	server.listenerMap = make(map[string]*net.TCPListener)
-	acceptCh := make(chan *net.TCPConn)
+	acceptCh := make(chan *net.TCPConn, 4096)
 	l4, err1 := listenAndAccept("tcp4", server.listenPort, acceptCh)
 	server.listenerMap["tcp4"] = l4
 	l6, err2 := listenAndAccept("tcp6", server.listenPort, acceptCh)
