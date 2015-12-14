@@ -439,6 +439,15 @@ func newSenderMsg(peer *Peer, messages []*bgp.BGPMessage) *SenderMsg {
 	}
 }
 
+func isASLoop(peer *Peer, path *table.Path) bool {
+	for _, as := range path.GetAsList() {
+		if as == peer.conf.NeighborConfig.PeerAs {
+			return true
+		}
+	}
+	return false
+}
+
 func filterpath(peer *Peer, path *table.Path) *table.Path {
 	if path == nil {
 		return nil
@@ -510,15 +519,8 @@ func filterpath(peer *Peer, path *table.Path) *table.Path {
 		return nil
 	}
 
-	for _, as := range path.GetAsList() {
-		if as == peer.conf.NeighborConfig.PeerAs {
-			log.WithFields(log.Fields{
-				"Topic": "Peer",
-				"Key":   remoteAddr,
-				"Data":  path,
-			}).Debug("AS PATH loop, ignore.")
-			return nil
-		}
+	if isASLoop(peer, path) {
+		return nil
 	}
 	return path.Clone(remoteAddr, path.IsWithdraw)
 }
@@ -665,6 +667,10 @@ func (server *BgpServer) propagateUpdate(peer *Peer, pathList []*table.Path) []*
 				continue
 			}
 			for _, before := range pathList {
+				if isASLoop(targetPeer, before) {
+					before.Filter(targetPeer.ID(), table.POLICY_DIRECTION_IMPORT)
+					continue
+				}
 				after := server.policy.ApplyPolicy(targetPeer.TableID(), table.POLICY_DIRECTION_IMPORT, before)
 				if after == nil {
 					before.Filter(targetPeer.ID(), table.POLICY_DIRECTION_IMPORT)
