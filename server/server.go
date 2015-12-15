@@ -2207,6 +2207,9 @@ func (server *BgpServer) getPolicyInfo(a *api.PolicyAssignment) (string, table.P
 		if !ok {
 			return "", table.POLICY_DIRECTION_NONE, fmt.Errorf("not found peer %s", a.Name)
 		}
+		if !peer.isRouteServerClient() {
+			return "", table.POLICY_DIRECTION_NONE, fmt.Errorf("non-rs-client peer %s doesn't have per peer policy", a.Name)
+		}
 		switch a.Type {
 		case api.PolicyType_IN:
 			return peer.ID(), table.POLICY_DIRECTION_IN, nil
