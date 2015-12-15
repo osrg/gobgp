@@ -579,6 +579,7 @@ func showNeighborPolicy(remoteIP net.IP, policyType string, indent int) error {
 		return nil
 	}
 
+	fmt.Printf("%s policy:\n", strings.Title(policyType))
 	fmt.Printf("%sDefault: %s\n", strings.Repeat(" ", indent), ap.Default)
 	for _, p := range ap.Policies {
 		fmt.Printf("%sName %s:\n", strings.Repeat(" ", indent), p.Name)
@@ -720,7 +721,6 @@ func NewNeighborCmd() *cobra.Command {
 			}
 
 			for _, v := range []string{CMD_IN, CMD_IMPORT, CMD_EXPORT} {
-				fmt.Printf("%s policy:\n", strings.Title(v))
 				if err := showNeighborPolicy(remoteIP, v, 4); err != nil {
 					fmt.Println(err)
 					os.Exit(1)
