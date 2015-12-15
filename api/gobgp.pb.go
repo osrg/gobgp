@@ -26,24 +26,9 @@ It has these top-level messages:
 	Destination
 	Table
 	Peer
-	AddPaths
-	AfiSafis
-	AfiSafi
 	ApplyPolicy
-	AfiSafiGracefulRestart
-	LabelledUnicast
-	PrefixLimit
-	Unicast
-	Vpn
-	Prefixes
-	UseMultiplePaths
-	Ebgp
-	AsPathOptions
 	PeerConf
 	EbgpMultihop
-	ErrorHandling
-	PeerGracefulRestart
-	LoggingOptions
 	RouteReflector
 	PeerState
 	Messages
@@ -343,7 +328,7 @@ func (*Error) ProtoMessage()    {}
 
 type Arguments struct {
 	Resource Resource `protobuf:"varint,1,opt,name=resource,enum=gobgpapi.Resource" json:"resource,omitempty"`
-	Rf       uint32   `protobuf:"varint,2,opt,name=rf" json:"rf,omitempty"`
+	Family   uint32   `protobuf:"varint,2,opt,name=family" json:"family,omitempty"`
 	Name     string   `protobuf:"bytes,3,opt,name=name" json:"name,omitempty"`
 }
 
@@ -386,7 +371,7 @@ func (m *ModNeighborArguments) GetPeer() *Peer {
 
 type MrtArguments struct {
 	Resource        Resource `protobuf:"varint,1,opt,name=resource,enum=gobgpapi.Resource" json:"resource,omitempty"`
-	Rf              uint32   `protobuf:"varint,2,opt,name=rf" json:"rf,omitempty"`
+	Family          uint32   `protobuf:"varint,2,opt,name=family" json:"family,omitempty"`
 	Interval        uint64   `protobuf:"varint,3,opt,name=interval" json:"interval,omitempty"`
 	NeighborAddress string   `protobuf:"bytes,4,opt,name=neighbor_address" json:"neighbor_address,omitempty"`
 }
@@ -526,7 +511,7 @@ type Path struct {
 	IsWithdraw         bool     `protobuf:"varint,5,opt,name=is_withdraw" json:"is_withdraw,omitempty"`
 	Validation         int32    `protobuf:"varint,6,opt,name=validation" json:"validation,omitempty"`
 	NoImplicitWithdraw bool     `protobuf:"varint,7,opt,name=no_implicit_withdraw" json:"no_implicit_withdraw,omitempty"`
-	Rf                 uint32   `protobuf:"varint,8,opt,name=rf" json:"rf,omitempty"`
+	Family             uint32   `protobuf:"varint,8,opt,name=family" json:"family,omitempty"`
 	SourceAsn          uint32   `protobuf:"varint,9,opt,name=source_asn" json:"source_asn,omitempty"`
 	SourceId           string   `protobuf:"bytes,10,opt,name=source_id" json:"source_id,omitempty"`
 	Filtered           bool     `protobuf:"varint,11,opt,name=filtered" json:"filtered,omitempty"`
@@ -572,51 +557,24 @@ func (m *Table) GetDestinations() []*Destination {
 }
 
 type Peer struct {
-	Addpaths         *AddPaths            `protobuf:"bytes,1,opt,name=addpaths" json:"addpaths,omitempty"`
-	Afisafis         *AfiSafis            `protobuf:"bytes,2,opt,name=afisafis" json:"afisafis,omitempty"`
-	ApplyPolicy      *ApplyPolicy         `protobuf:"bytes,3,opt,name=apply_policy" json:"apply_policy,omitempty"`
-	AsPathOptions    *AsPathOptions       `protobuf:"bytes,4,opt,name=as_path_options" json:"as_path_options,omitempty"`
-	Conf             *PeerConf            `protobuf:"bytes,5,opt,name=conf" json:"conf,omitempty"`
-	EbgpMultihop     *EbgpMultihop        `protobuf:"bytes,6,opt,name=ebgp_multihop" json:"ebgp_multihop,omitempty"`
-	ErrorHandling    *ErrorHandling       `protobuf:"bytes,7,opt,name=error_handling" json:"error_handling,omitempty"`
-	GracefulRestart  *PeerGracefulRestart `protobuf:"bytes,8,opt,name=graceful_restart" json:"graceful_restart,omitempty"`
-	LoggingOptions   *LoggingOptions      `protobuf:"bytes,9,opt,name=logging_options" json:"logging_options,omitempty"`
-	RouteReflector   *RouteReflector      `protobuf:"bytes,10,opt,name=route_reflector" json:"route_reflector,omitempty"`
-	Info             *PeerState           `protobuf:"bytes,11,opt,name=info" json:"info,omitempty"`
-	Timers           *Timers              `protobuf:"bytes,12,opt,name=timers" json:"timers,omitempty"`
-	Transport        *Transport           `protobuf:"bytes,13,opt,name=transport" json:"transport,omitempty"`
-	UseMultiplePaths *UseMultiplePaths    `protobuf:"bytes,14,opt,name=use_multiple_paths" json:"use_multiple_paths,omitempty"`
-	RouteServer      *RouteServer         `protobuf:"bytes,15,opt,name=route_server" json:"route_server,omitempty"`
+	Families       []uint32        `protobuf:"varint,2,rep,name=families" json:"families,omitempty"`
+	ApplyPolicy    *ApplyPolicy    `protobuf:"bytes,3,opt,name=apply_policy" json:"apply_policy,omitempty"`
+	Conf           *PeerConf       `protobuf:"bytes,5,opt,name=conf" json:"conf,omitempty"`
+	EbgpMultihop   *EbgpMultihop   `protobuf:"bytes,6,opt,name=ebgp_multihop" json:"ebgp_multihop,omitempty"`
+	RouteReflector *RouteReflector `protobuf:"bytes,10,opt,name=route_reflector" json:"route_reflector,omitempty"`
+	Info           *PeerState      `protobuf:"bytes,11,opt,name=info" json:"info,omitempty"`
+	Timers         *Timers         `protobuf:"bytes,12,opt,name=timers" json:"timers,omitempty"`
+	Transport      *Transport      `protobuf:"bytes,13,opt,name=transport" json:"transport,omitempty"`
+	RouteServer    *RouteServer    `protobuf:"bytes,15,opt,name=route_server" json:"route_server,omitempty"`
 }
 
 func (m *Peer) Reset()         { *m = Peer{} }
 func (m *Peer) String() string { return proto.CompactTextString(m) }
 func (*Peer) ProtoMessage()    {}
 
-func (m *Peer) GetAddpaths() *AddPaths {
-	if m != nil {
-		return m.Addpaths
-	}
-	return nil
-}
-
-func (m *Peer) GetAfisafis() *AfiSafis {
-	if m != nil {
-		return m.Afisafis
-	}
-	return nil
-}
-
 func (m *Peer) GetApplyPolicy() *ApplyPolicy {
 	if m != nil {
 		return m.ApplyPolicy
-	}
-	return nil
-}
-
-func (m *Peer) GetAsPathOptions() *AsPathOptions {
-	if m != nil {
-		return m.AsPathOptions
 	}
 	return nil
 }
@@ -631,27 +589,6 @@ func (m *Peer) GetConf() *PeerConf {
 func (m *Peer) GetEbgpMultihop() *EbgpMultihop {
 	if m != nil {
 		return m.EbgpMultihop
-	}
-	return nil
-}
-
-func (m *Peer) GetErrorHandling() *ErrorHandling {
-	if m != nil {
-		return m.ErrorHandling
-	}
-	return nil
-}
-
-func (m *Peer) GetGracefulRestart() *PeerGracefulRestart {
-	if m != nil {
-		return m.GracefulRestart
-	}
-	return nil
-}
-
-func (m *Peer) GetLoggingOptions() *LoggingOptions {
-	if m != nil {
-		return m.LoggingOptions
 	}
 	return nil
 }
@@ -684,162 +621,9 @@ func (m *Peer) GetTransport() *Transport {
 	return nil
 }
 
-func (m *Peer) GetUseMultiplePaths() *UseMultiplePaths {
-	if m != nil {
-		return m.UseMultiplePaths
-	}
-	return nil
-}
-
 func (m *Peer) GetRouteServer() *RouteServer {
 	if m != nil {
 		return m.RouteServer
-	}
-	return nil
-}
-
-type AddPaths struct {
-	Receive bool   `protobuf:"varint,1,opt,name=receive" json:"receive,omitempty"`
-	SendMax uint32 `protobuf:"varint,2,opt,name=send_max" json:"send_max,omitempty"`
-}
-
-func (m *AddPaths) Reset()         { *m = AddPaths{} }
-func (m *AddPaths) String() string { return proto.CompactTextString(m) }
-func (*AddPaths) ProtoMessage()    {}
-
-type AfiSafis struct {
-	Afisafi []*AfiSafi `protobuf:"bytes,1,rep,name=afisafi" json:"afisafi,omitempty"`
-}
-
-func (m *AfiSafis) Reset()         { *m = AfiSafis{} }
-func (m *AfiSafis) String() string { return proto.CompactTextString(m) }
-func (*AfiSafis) ProtoMessage()    {}
-
-func (m *AfiSafis) GetAfisafi() []*AfiSafi {
-	if m != nil {
-		return m.Afisafi
-	}
-	return nil
-}
-
-type AfiSafi struct {
-	Name                string                  `protobuf:"bytes,1,opt,name=name" json:"name,omitempty"`
-	ApplyPolicy         *ApplyPolicy            `protobuf:"bytes,2,opt,name=apply_policy" json:"apply_policy,omitempty"`
-	Enabled             bool                    `protobuf:"varint,3,opt,name=enabled" json:"enabled,omitempty"`
-	GracefulRestart     *AfiSafiGracefulRestart `protobuf:"bytes,4,opt,name=graceful_restart" json:"graceful_restart,omitempty"`
-	Ipv4LabelledUnicast *LabelledUnicast        `protobuf:"bytes,5,opt,name=ipv4_labelled_unicast" json:"ipv4_labelled_unicast,omitempty"`
-	Ipv4Unicast         *Unicast                `protobuf:"bytes,6,opt,name=ipv4_unicast" json:"ipv4_unicast,omitempty"`
-	Ipv6LabelledUnicast *LabelledUnicast        `protobuf:"bytes,7,opt,name=ipv6_labelled_unicast" json:"ipv6_labelled_unicast,omitempty"`
-	Ipv6Unicast         *Unicast                `protobuf:"bytes,8,opt,name=ipv6_unicast" json:"ipv6_unicast,omitempty"`
-	L2VpnEvpn           *Vpn                    `protobuf:"bytes,9,opt,name=l2_vpn_evpn" json:"l2_vpn_evpn,omitempty"`
-	L2VpnVpls           *Vpn                    `protobuf:"bytes,10,opt,name=l2_vpn_vpls" json:"l2_vpn_vpls,omitempty"`
-	L3VpnIpv4Multicast  *Vpn                    `protobuf:"bytes,11,opt,name=l3_vpn_ipv4_multicast" json:"l3_vpn_ipv4_multicast,omitempty"`
-	L3VpnIpv4Unicast    *Vpn                    `protobuf:"bytes,12,opt,name=l3_vpn_ipv4_unicast" json:"l3_vpn_ipv4_unicast,omitempty"`
-	L3VpnIpv6Multicast  *Vpn                    `protobuf:"bytes,13,opt,name=l3_vpn_ipv6_multicast" json:"l3_vpn_ipv6_multicast,omitempty"`
-	L3VpnIpv6Unicast    *Vpn                    `protobuf:"bytes,14,opt,name=l3_vpn_ipv6_unicast" json:"l3_vpn_ipv6_unicast,omitempty"`
-	UseMultiplePaths    *UseMultiplePaths       `protobuf:"bytes,15,opt,name=use_multiple_paths" json:"use_multiple_paths,omitempty"`
-	Active              bool                    `protobuf:"varint,16,opt,name=active" json:"active,omitempty"`
-	Prefixes            *Prefixes               `protobuf:"bytes,17,opt,name=prefixes" json:"prefixes,omitempty"`
-}
-
-func (m *AfiSafi) Reset()         { *m = AfiSafi{} }
-func (m *AfiSafi) String() string { return proto.CompactTextString(m) }
-func (*AfiSafi) ProtoMessage()    {}
-
-func (m *AfiSafi) GetApplyPolicy() *ApplyPolicy {
-	if m != nil {
-		return m.ApplyPolicy
-	}
-	return nil
-}
-
-func (m *AfiSafi) GetGracefulRestart() *AfiSafiGracefulRestart {
-	if m != nil {
-		return m.GracefulRestart
-	}
-	return nil
-}
-
-func (m *AfiSafi) GetIpv4LabelledUnicast() *LabelledUnicast {
-	if m != nil {
-		return m.Ipv4LabelledUnicast
-	}
-	return nil
-}
-
-func (m *AfiSafi) GetIpv4Unicast() *Unicast {
-	if m != nil {
-		return m.Ipv4Unicast
-	}
-	return nil
-}
-
-func (m *AfiSafi) GetIpv6LabelledUnicast() *LabelledUnicast {
-	if m != nil {
-		return m.Ipv6LabelledUnicast
-	}
-	return nil
-}
-
-func (m *AfiSafi) GetIpv6Unicast() *Unicast {
-	if m != nil {
-		return m.Ipv6Unicast
-	}
-	return nil
-}
-
-func (m *AfiSafi) GetL2VpnEvpn() *Vpn {
-	if m != nil {
-		return m.L2VpnEvpn
-	}
-	return nil
-}
-
-func (m *AfiSafi) GetL2VpnVpls() *Vpn {
-	if m != nil {
-		return m.L2VpnVpls
-	}
-	return nil
-}
-
-func (m *AfiSafi) GetL3VpnIpv4Multicast() *Vpn {
-	if m != nil {
-		return m.L3VpnIpv4Multicast
-	}
-	return nil
-}
-
-func (m *AfiSafi) GetL3VpnIpv4Unicast() *Vpn {
-	if m != nil {
-		return m.L3VpnIpv4Unicast
-	}
-	return nil
-}
-
-func (m *AfiSafi) GetL3VpnIpv6Multicast() *Vpn {
-	if m != nil {
-		return m.L3VpnIpv6Multicast
-	}
-	return nil
-}
-
-func (m *AfiSafi) GetL3VpnIpv6Unicast() *Vpn {
-	if m != nil {
-		return m.L3VpnIpv6Unicast
-	}
-	return nil
-}
-
-func (m *AfiSafi) GetUseMultiplePaths() *UseMultiplePaths {
-	if m != nil {
-		return m.UseMultiplePaths
-	}
-	return nil
-}
-
-func (m *AfiSafi) GetPrefixes() *Prefixes {
-	if m != nil {
-		return m.Prefixes
 	}
 	return nil
 }
@@ -875,115 +659,6 @@ func (m *ApplyPolicy) GetImportPolicy() *PolicyAssignment {
 	return nil
 }
 
-type AfiSafiGracefulRestart struct {
-	Advertised bool `protobuf:"varint,1,opt,name=advertised" json:"advertised,omitempty"`
-	Enabled    bool `protobuf:"varint,2,opt,name=enabled" json:"enabled,omitempty"`
-	Received   bool `protobuf:"varint,3,opt,name=received" json:"received,omitempty"`
-}
-
-func (m *AfiSafiGracefulRestart) Reset()         { *m = AfiSafiGracefulRestart{} }
-func (m *AfiSafiGracefulRestart) String() string { return proto.CompactTextString(m) }
-func (*AfiSafiGracefulRestart) ProtoMessage()    {}
-
-type LabelledUnicast struct {
-	PrefixLimit *PrefixLimit `protobuf:"bytes,1,opt,name=prefix_limit" json:"prefix_limit,omitempty"`
-}
-
-func (m *LabelledUnicast) Reset()         { *m = LabelledUnicast{} }
-func (m *LabelledUnicast) String() string { return proto.CompactTextString(m) }
-func (*LabelledUnicast) ProtoMessage()    {}
-
-func (m *LabelledUnicast) GetPrefixLimit() *PrefixLimit {
-	if m != nil {
-		return m.PrefixLimit
-	}
-	return nil
-}
-
-type PrefixLimit struct {
-	MaxPrefixes          uint32 `protobuf:"varint,1,opt,name=max_prefixes" json:"max_prefixes,omitempty"`
-	RestartTimer         uint64 `protobuf:"varint,2,opt,name=restart_timer" json:"restart_timer,omitempty"`
-	ShutdownThresholdPct uint32 `protobuf:"varint,3,opt,name=shutdown_threshold_pct" json:"shutdown_threshold_pct,omitempty"`
-}
-
-func (m *PrefixLimit) Reset()         { *m = PrefixLimit{} }
-func (m *PrefixLimit) String() string { return proto.CompactTextString(m) }
-func (*PrefixLimit) ProtoMessage()    {}
-
-type Unicast struct {
-	SendDefaultRoute bool         `protobuf:"varint,1,opt,name=send_default_route" json:"send_default_route,omitempty"`
-	PrefixLimit      *PrefixLimit `protobuf:"bytes,2,opt,name=prefix_limit" json:"prefix_limit,omitempty"`
-}
-
-func (m *Unicast) Reset()         { *m = Unicast{} }
-func (m *Unicast) String() string { return proto.CompactTextString(m) }
-func (*Unicast) ProtoMessage()    {}
-
-func (m *Unicast) GetPrefixLimit() *PrefixLimit {
-	if m != nil {
-		return m.PrefixLimit
-	}
-	return nil
-}
-
-type Vpn struct {
-	PrefixLimit *PrefixLimit `protobuf:"bytes,1,opt,name=prefix_limit" json:"prefix_limit,omitempty"`
-}
-
-func (m *Vpn) Reset()         { *m = Vpn{} }
-func (m *Vpn) String() string { return proto.CompactTextString(m) }
-func (*Vpn) ProtoMessage()    {}
-
-func (m *Vpn) GetPrefixLimit() *PrefixLimit {
-	if m != nil {
-		return m.PrefixLimit
-	}
-	return nil
-}
-
-type Prefixes struct {
-	Installed uint32 `protobuf:"varint,1,opt,name=installed" json:"installed,omitempty"`
-	Received  uint32 `protobuf:"varint,2,opt,name=received" json:"received,omitempty"`
-	Sent      uint32 `protobuf:"varint,3,opt,name=sent" json:"sent,omitempty"`
-}
-
-func (m *Prefixes) Reset()         { *m = Prefixes{} }
-func (m *Prefixes) String() string { return proto.CompactTextString(m) }
-func (*Prefixes) ProtoMessage()    {}
-
-type UseMultiplePaths struct {
-	Enabled bool  `protobuf:"varint,1,opt,name=enabled" json:"enabled,omitempty"`
-	Ebgp    *Ebgp `protobuf:"bytes,2,opt,name=ebgp" json:"ebgp,omitempty"`
-}
-
-func (m *UseMultiplePaths) Reset()         { *m = UseMultiplePaths{} }
-func (m *UseMultiplePaths) String() string { return proto.CompactTextString(m) }
-func (*UseMultiplePaths) ProtoMessage()    {}
-
-func (m *UseMultiplePaths) GetEbgp() *Ebgp {
-	if m != nil {
-		return m.Ebgp
-	}
-	return nil
-}
-
-type Ebgp struct {
-	AllowMultipleAs bool `protobuf:"varint,1,opt,name=allow_multiple_as" json:"allow_multiple_as,omitempty"`
-}
-
-func (m *Ebgp) Reset()         { *m = Ebgp{} }
-func (m *Ebgp) String() string { return proto.CompactTextString(m) }
-func (*Ebgp) ProtoMessage()    {}
-
-type AsPathOptions struct {
-	AllowOwnAs    uint32 `protobuf:"varint,1,opt,name=allow_own_as" json:"allow_own_as,omitempty"`
-	ReplacePeerAs bool   `protobuf:"varint,2,opt,name=replace_peer_as" json:"replace_peer_as,omitempty"`
-}
-
-func (m *AsPathOptions) Reset()         { *m = AsPathOptions{} }
-func (m *AsPathOptions) String() string { return proto.CompactTextString(m) }
-func (*AsPathOptions) ProtoMessage()    {}
-
 type PeerConf struct {
 	AuthPassword     string   `protobuf:"bytes,1,opt,name=auth_password" json:"auth_password,omitempty"`
 	Description      string   `protobuf:"bytes,2,opt,name=description" json:"description,omitempty"`
@@ -1012,38 +687,6 @@ type EbgpMultihop struct {
 func (m *EbgpMultihop) Reset()         { *m = EbgpMultihop{} }
 func (m *EbgpMultihop) String() string { return proto.CompactTextString(m) }
 func (*EbgpMultihop) ProtoMessage()    {}
-
-type ErrorHandling struct {
-	ErroneousUpdateMessages uint32 `protobuf:"varint,1,opt,name=erroneous_update_messages" json:"erroneous_update_messages,omitempty"`
-	TreatAsWithdraw         bool   `protobuf:"varint,2,opt,name=treat_as_withdraw" json:"treat_as_withdraw,omitempty"`
-}
-
-func (m *ErrorHandling) Reset()         { *m = ErrorHandling{} }
-func (m *ErrorHandling) String() string { return proto.CompactTextString(m) }
-func (*ErrorHandling) ProtoMessage()    {}
-
-type PeerGracefulRestart struct {
-	Enabled         bool   `protobuf:"varint,1,opt,name=enabled" json:"enabled,omitempty"`
-	HelperOnly      bool   `protobuf:"varint,2,opt,name=helper_only" json:"helper_only,omitempty"`
-	LocalRestarting bool   `protobuf:"varint,3,opt,name=local_restarting" json:"local_restarting,omitempty"`
-	Mode            uint32 `protobuf:"varint,4,opt,name=mode" json:"mode,omitempty"`
-	PeerRestartTime uint32 `protobuf:"varint,5,opt,name=peer_restart_time" json:"peer_restart_time,omitempty"`
-	PeerRestarting  bool   `protobuf:"varint,6,opt,name=peer_restarting" json:"peer_restarting,omitempty"`
-	RestartTime     uint32 `protobuf:"varint,7,opt,name=restart_time" json:"restart_time,omitempty"`
-	StaleRoutesTime uint64 `protobuf:"varint,8,opt,name=stale_routes_time" json:"stale_routes_time,omitempty"`
-}
-
-func (m *PeerGracefulRestart) Reset()         { *m = PeerGracefulRestart{} }
-func (m *PeerGracefulRestart) String() string { return proto.CompactTextString(m) }
-func (*PeerGracefulRestart) ProtoMessage()    {}
-
-type LoggingOptions struct {
-	LogNeighborStateChanges bool `protobuf:"varint,1,opt,name=logNeighbor_state_changes" json:"logNeighbor_state_changes,omitempty"`
-}
-
-func (m *LoggingOptions) Reset()         { *m = LoggingOptions{} }
-func (m *LoggingOptions) String() string { return proto.CompactTextString(m) }
-func (*LoggingOptions) ProtoMessage()    {}
 
 type RouteReflector struct {
 	RouteReflectorClient    bool   `protobuf:"varint,1,opt,name=route_reflector_client" json:"route_reflector_client,omitempty"`

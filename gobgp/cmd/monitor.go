@@ -30,14 +30,14 @@ func NewMonitorCmd() *cobra.Command {
 	ribCmd := &cobra.Command{
 		Use: CMD_RIB,
 		Run: func(cmd *cobra.Command, args []string) {
-			rf, err := checkAddressFamily(bgp.RouteFamily(0))
+			family, err := checkAddressFamily(bgp.RouteFamily(0))
 			if err != nil {
 				fmt.Println(err)
 				os.Exit(1)
 			}
 			arg := &gobgpapi.Arguments{
 				Resource: gobgpapi.Resource_GLOBAL,
-				Rf:       uint32(rf),
+				Family:   uint32(family),
 			}
 
 			stream, err := client.MonitorBestChanged(context.Background(), arg)

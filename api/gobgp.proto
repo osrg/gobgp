@@ -67,7 +67,7 @@ message Error {
 
 message Arguments {
     Resource resource = 1;
-    uint32 rf = 2;
+    uint32 family = 2;
     string name = 3;
 }
 
@@ -84,7 +84,7 @@ message ModNeighborArguments {
 
 message MrtArguments {
     Resource resource = 1;
-    uint32 rf = 2;
+    uint32 family = 2;
     uint64 interval = 3;
     string neighbor_address = 4;
 }
@@ -161,7 +161,7 @@ message Path {
     bool is_withdraw = 5;
     int32 validation = 6;
     bool no_implicit_withdraw = 7;
-    uint32 rf = 8;
+    uint32 family = 8;
     uint32 source_asn = 9;
     string source_id = 10;
     bool filtered = 11;
@@ -181,101 +181,21 @@ message Table {
 }
 
 message Peer {
-  AddPaths addpaths = 1;
-  AfiSafis afisafis = 2;
+  repeated uint32 families = 2;
   ApplyPolicy apply_policy = 3;
-  AsPathOptions as_path_options = 4;
   PeerConf conf = 5;
   EbgpMultihop ebgp_multihop = 6;
-  ErrorHandling error_handling = 7;
-  PeerGracefulRestart graceful_restart = 8;
-  LoggingOptions logging_options = 9;
   RouteReflector route_reflector = 10;
   PeerState info = 11;
   Timers timers = 12;
   Transport transport = 13;
-  UseMultiplePaths use_multiple_paths = 14;
   RouteServer route_server = 15;
 }
-
-message AddPaths {
-  bool receive = 1;
-  uint32 send_max = 2;
-}
-
-message AfiSafis {
-  repeated AfiSafi afisafi = 1;
-}
-
-message AfiSafi {
-  string name = 1;
-  ApplyPolicy apply_policy = 2;
-  bool enabled = 3;
-  AfiSafiGracefulRestart graceful_restart = 4;
-  LabelledUnicast ipv4_labelled_unicast = 5;
-  Unicast ipv4_unicast = 6;
-  LabelledUnicast ipv6_labelled_unicast = 7;
-  Unicast ipv6_unicast = 8;
-  Vpn l2_vpn_evpn = 9;
-  Vpn l2_vpn_vpls = 10;
-  Vpn l3_vpn_ipv4_multicast = 11;
-  Vpn l3_vpn_ipv4_unicast = 12;
-  Vpn l3_vpn_ipv6_multicast = 13;
-  Vpn l3_vpn_ipv6_unicast = 14;
-  UseMultiplePaths use_multiple_paths = 15;
-  bool active = 16;
-  Prefixes prefixes = 17;
- }
 
 message ApplyPolicy {
   PolicyAssignment in_policy = 1;
   PolicyAssignment export_policy = 2;
   PolicyAssignment import_policy = 3;
-}
-
-message AfiSafiGracefulRestart {
-  bool advertised = 1;
-  bool enabled = 2;
-  bool received = 3;
-}
-
-message LabelledUnicast {
-  PrefixLimit prefix_limit = 1;
-}
-
-message PrefixLimit {
-  uint32 max_prefixes = 1;
-  uint64 restart_timer = 2;
-  uint32 shutdown_threshold_pct = 3;
-}
-
-message Unicast {
-  bool send_default_route = 1;
-  PrefixLimit prefix_limit = 2;
-}
-
-message Vpn {
-  PrefixLimit prefix_limit = 1;
-}
-
-message Prefixes {
-  uint32 installed = 1;
-  uint32 received = 2;
-  uint32 sent = 3;
-}
-
-message UseMultiplePaths {
-  bool enabled = 1;
-  Ebgp ebgp = 2;
-}
-
-message Ebgp {
-  bool allow_multiple_as = 1;
-}
-
-message AsPathOptions {
-  uint32 allow_own_as = 1;
-  bool replace_peer_as = 2;
 }
 
 message PeerConf {
@@ -297,26 +217,6 @@ message PeerConf {
 message EbgpMultihop {
   bool enabled = 1;
   uint32 multihop_ttl = 2;
-}
-
-message ErrorHandling {
-  uint32 erroneous_update_messages = 1;
-  bool treat_as_withdraw = 2;
-}
-
-message PeerGracefulRestart {
-  bool enabled = 1;
-  bool helper_only = 2;
-  bool local_restarting = 3;
-  uint32 mode = 4;
-  uint32 peer_restart_time = 5;
-  bool peer_restarting = 6;
-  uint32 restart_time = 7;
-  uint64 stale_routes_time = 8;
-}
-
-message LoggingOptions {
-  bool logNeighbor_state_changes = 1;
 }
 
 message RouteReflector {

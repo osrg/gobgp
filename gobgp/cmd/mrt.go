@@ -81,7 +81,7 @@ func dumpRib(r string, remoteIP net.IP, args []string) error {
 		return fmt.Errorf("unknown resource type: %s", r)
 	}
 
-	rf, err := checkAddressFamily(addr2AddressFamily(remoteIP))
+	family, err := checkAddressFamily(addr2AddressFamily(remoteIP))
 	if err != nil {
 		return err
 	}
@@ -97,12 +97,12 @@ func dumpRib(r string, remoteIP net.IP, args []string) error {
 
 	arg := &api.MrtArguments{
 		Resource:        resource,
-		Rf:              uint32(rf),
+		Family:          uint32(family),
 		Interval:        interval,
 		NeighborAddress: remoteIP.String(),
 	}
 
-	afi, _ := bgp.RouteFamilyToAfiSafi(rf)
+	afi, _ := bgp.RouteFamilyToAfiSafi(family)
 	var af string
 	switch afi {
 	case bgp.AFI_IP:

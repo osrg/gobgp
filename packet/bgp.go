@@ -2926,44 +2926,51 @@ const (
 	RF_FS_IPv6_VPN RouteFamily = AFI_IP6<<16 | SAFI_FLOW_SPEC_VPN
 )
 
+var AddressFamilyNameMap = map[RouteFamily]string{
+	RF_IPv4_UC:     "ipv4-unicast",
+	RF_IPv6_UC:     "ipv6-unicast",
+	RF_IPv4_MC:     "ipv4-multicast",
+	RF_IPv6_MC:     "ipv6-multicast",
+	RF_IPv4_MPLS:   "ipv4-labelled-unicast",
+	RF_IPv6_MPLS:   "ipv6-labelled-unicast",
+	RF_IPv4_VPN:    "l3vpn-ipv4-unicast",
+	RF_IPv6_VPN:    "l3vpn-ipv6-unicast",
+	RF_IPv4_VPN_MC: "l3vpn-ipv4-multicast",
+	RF_IPv6_VPN_MC: "l3vpn-ipv6-multicast",
+	RF_VPLS:        "l2vpn-vpls",
+	RF_EVPN:        "l2vpn-evpn",
+	RF_RTC_UC:      "rtc",
+	RF_ENCAP:       "encap",
+	RF_FS_IPv4_UC:  "ipv4-flowspec",
+	RF_FS_IPv4_VPN: "l3vpn-ipv4-flowspec",
+	RF_FS_IPv6_UC:  "ipv6-flowspec",
+	RF_FS_IPv6_VPN: "l3vpn-ipv6-flowspec",
+}
+
+var AddressFamilyValueMap = map[string]RouteFamily{
+	AddressFamilyNameMap[RF_IPv4_UC]:     RF_IPv4_UC,
+	AddressFamilyNameMap[RF_IPv6_UC]:     RF_IPv6_UC,
+	AddressFamilyNameMap[RF_IPv4_MC]:     RF_IPv4_MC,
+	AddressFamilyNameMap[RF_IPv6_MC]:     RF_IPv6_MC,
+	AddressFamilyNameMap[RF_IPv4_MPLS]:   RF_IPv4_MPLS,
+	AddressFamilyNameMap[RF_IPv6_MPLS]:   RF_IPv6_MPLS,
+	AddressFamilyNameMap[RF_IPv4_VPN]:    RF_IPv4_VPN,
+	AddressFamilyNameMap[RF_IPv6_VPN]:    RF_IPv6_VPN,
+	AddressFamilyNameMap[RF_IPv4_VPN_MC]: RF_IPv4_VPN_MC,
+	AddressFamilyNameMap[RF_IPv6_VPN_MC]: RF_IPv6_VPN_MC,
+	AddressFamilyNameMap[RF_VPLS]:        RF_VPLS,
+	AddressFamilyNameMap[RF_EVPN]:        RF_EVPN,
+	AddressFamilyNameMap[RF_RTC_UC]:      RF_RTC_UC,
+	AddressFamilyNameMap[RF_ENCAP]:       RF_ENCAP,
+	AddressFamilyNameMap[RF_FS_IPv4_UC]:  RF_FS_IPv4_UC,
+	AddressFamilyNameMap[RF_FS_IPv4_VPN]: RF_FS_IPv4_VPN,
+	AddressFamilyNameMap[RF_FS_IPv6_UC]:  RF_FS_IPv6_UC,
+	AddressFamilyNameMap[RF_FS_IPv6_VPN]: RF_FS_IPv6_VPN,
+}
+
 func GetRouteFamily(name string) (RouteFamily, error) {
-	switch name {
-	case "ipv4-unicast":
-		return RF_IPv4_UC, nil
-	case "ipv6-unicast":
-		return RF_IPv6_UC, nil
-	case "ipv4-multicast":
-		return RF_IPv4_MC, nil
-	case "ipv6-multicast":
-		return RF_IPv6_MC, nil
-	case "ipv4-labelled-unicast":
-		return RF_IPv4_MPLS, nil
-	case "ipv6-labelled-unicast":
-		return RF_IPv6_MPLS, nil
-	case "l3vpn-ipv4-unicast":
-		return RF_IPv4_VPN, nil
-	case "l3vpn-ipv6-unicast":
-		return RF_IPv6_VPN, nil
-	case "l3vpn-ipv4-multicast":
-		return RF_IPv4_VPN_MC, nil
-	case "l3vpn-ipv6-multicast":
-		return RF_IPv6_VPN_MC, nil
-	case "l2vpn-vpls":
-		return RF_VPLS, nil
-	case "l2vpn-evpn":
-		return RF_EVPN, nil
-	case "rtc":
-		return RF_RTC_UC, nil
-	case "encap":
-		return RF_ENCAP, nil
-	case "ipv4-flowspec":
-		return RF_FS_IPv4_UC, nil
-	case "l3vpn-ipv4-flowspec":
-		return RF_FS_IPv4_VPN, nil
-	case "ipv6-flowspec":
-		return RF_FS_IPv6_UC, nil
-	case "l3vpn-ipv6-flowspec":
-		return RF_FS_IPv6_VPN, nil
+	if v, ok := AddressFamilyValueMap[name]; ok {
+		return v, nil
 	}
 	return RouteFamily(0), fmt.Errorf("%s isn't a valid route family name", name)
 }

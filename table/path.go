@@ -193,7 +193,7 @@ func (path *Path) IsIBGP() bool {
 func (path *Path) ToApiStruct(id string) *api.Path {
 	nlri := path.GetNlri()
 	n, _ := nlri.Serialize()
-	rf := uint32(bgp.AfiSafiToRouteFamily(nlri.AFI(), nlri.SAFI()))
+	family := uint32(bgp.AfiSafiToRouteFamily(nlri.AFI(), nlri.SAFI()))
 	pattrs := func(arg []bgp.PathAttributeInterface) [][]byte {
 		ret := make([][]byte, 0, len(arg))
 		for _, a := range arg {
@@ -209,7 +209,7 @@ func (path *Path) ToApiStruct(id string) *api.Path {
 		IsWithdraw: path.IsWithdraw,
 		Validation: int32(path.Validation),
 		Filtered:   path.Filtered(id) > POLICY_DIRECTION_NONE,
-		Rf:         rf,
+		Family:     family,
 	}
 }
 

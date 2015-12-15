@@ -1865,7 +1865,7 @@ func (server *BgpServer) handleGrpcModNeighbor(grpcReq *GrpcRequest) (sMsgs []*S
 			log.Infof("Peer %s is added", addr)
 		}
 		SetTcpMD5SigSockopts(listener(net.ParseIP(addr)), addr, arg.Peer.Conf.AuthPassword)
-		apitoConfig := func(a *api.Peer) config.Neighbor {
+		apitoConfig := func(a *api.Peer) (config.Neighbor, error) {
 			var pconf config.Neighbor
 			if a.Conf != nil {
 				pconf.NeighborAddress = net.ParseIP(a.Conf.NeighborAddress)
@@ -1924,9 +1924,13 @@ func (server *BgpServer) handleGrpcModNeighbor(grpcReq *GrpcRequest) (sMsgs []*S
 					}
 				}
 			}
-			if a.Afisafis != nil {
-				for _, afisafi := range a.Afisafis.Afisafi {
-					cAfiSafi := config.AfiSafi{AfiSafiName: afisafi.Name}
+			if a.Families != nil {
+				for _, family := range a.Families {
+					name, ok := bgp.AddressFamilyNameMap[bgp.RouteFamily(family)]
+					if !ok {
+						return pconf, fmt.Errorf("invalid address family: %d", family)
+					}
+					cAfiSafi := config.AfiSafi{AfiSafiName: name}
 					pconf.AfiSafis.AfiSafiList = append(pconf.AfiSafis.AfiSafiList, cAfiSafi)
 				}
 			} else {
@@ -1942,9 +1946,12 @@ func (server *BgpServer) handleGrpcModNeighbor(grpcReq *GrpcRequest) (sMsgs []*S
 				pconf.Transport.TransportConfig.LocalAddress = net.ParseIP(a.Transport.LocalAddress)
 				pconf.Transport.TransportConfig.PassiveMode = a.Transport.PassiveMode
 			}
-			return pconf
+			return pconf, nil
 		}
-		configneigh := apitoConfig(arg.Peer)
+		configneigh, err := apitoConfig(arg.Peer)
+		if err != nil {
+			return nil, err
+		}
 		peer := NewPeer(server.bgpConfig.Global, configneigh, server.globalRib, server.policy)
 		server.setPolicyByConfig(peer.ID(), configneigh.ApplyPolicy)
 		if peer.isRouteServerClient() {

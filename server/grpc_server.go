@@ -154,7 +154,7 @@ func (s *Server) MonitorBestChanged(arg *api.Arguments, stream api.GobgpApi_Moni
 		return fmt.Errorf("unsupported resource type: %v", arg.Resource)
 	}
 
-	req := NewGrpcRequest(reqType, "", bgp.RouteFamily(arg.Rf), nil)
+	req := NewGrpcRequest(reqType, "", bgp.RouteFamily(arg.Family), nil)
 	s.bgpServerCh <- req
 
 	return handleMultipleResponses(req, func(res *GrpcResponse) error {
@@ -174,7 +174,7 @@ func (s *Server) MonitorPeerState(arg *api.Arguments, stream api.GobgpApi_Monito
 
 func (s *Server) neighbor(reqType int, arg *api.Arguments) (*api.Error, error) {
 	none := &api.Error{}
-	req := NewGrpcRequest(reqType, arg.Name, bgp.RouteFamily(arg.Rf), nil)
+	req := NewGrpcRequest(reqType, arg.Name, bgp.RouteFamily(arg.Family), nil)
 	s.bgpServerCh <- req
 
 	res := <-req.ResponseCh
@@ -253,7 +253,7 @@ func (s *Server) GetMrt(arg *api.MrtArguments, stream api.GobgpApi_GetMrtServer)
 	default:
 		return fmt.Errorf("unsupported resource type: %v", arg.Resource)
 	}
-	req := NewGrpcRequest(reqType, arg.NeighborAddress, bgp.RouteFamily(arg.Rf), arg.Interval)
+	req := NewGrpcRequest(reqType, arg.NeighborAddress, bgp.RouteFamily(arg.Family), arg.Interval)
 	s.bgpServerCh <- req
 	return handleMultipleResponses(req, func(res *GrpcResponse) error {
 		return stream.Send(res.Data.(*api.MrtMessage))
@@ -269,7 +269,7 @@ func (s *Server) ModRPKI(ctx context.Context, arg *api.ModRpkiArguments) (*api.E
 }
 
 func (s *Server) GetRPKI(arg *api.Arguments, stream api.GobgpApi_GetRPKIServer) error {
-	req := NewGrpcRequest(REQ_RPKI, "", bgp.RouteFamily(arg.Rf), nil)
+	req := NewGrpcRequest(REQ_RPKI, "", bgp.RouteFamily(arg.Family), nil)
 	s.bgpServerCh <- req
 
 	return handleMultipleResponses(req, func(res *GrpcResponse) error {
@@ -278,7 +278,7 @@ func (s *Server) GetRPKI(arg *api.Arguments, stream api.GobgpApi_GetRPKIServer) 
 }
 
 func (s *Server) GetROA(arg *api.Arguments, stream api.GobgpApi_GetROAServer) error {
-	req := NewGrpcRequest(REQ_ROA, arg.Name, bgp.RouteFamily(arg.Rf), nil)
+	req := NewGrpcRequest(REQ_ROA, arg.Name, bgp.RouteFamily(arg.Family), nil)
 	s.bgpServerCh <- req
 
 	return handleMultipleResponses(req, func(res *GrpcResponse) error {

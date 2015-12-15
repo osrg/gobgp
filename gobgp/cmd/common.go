@@ -167,7 +167,7 @@ type Path struct {
 func ApiStruct2Path(p *gobgpapi.Path) ([]*Path, error) {
 	nlris := make([]bgp.AddrPrefixInterface, 0, 1)
 	data := p.Nlri
-	if p.Rf == uint32(bgp.RF_IPv4_UC) && len(data) > 0 {
+	if p.Family == uint32(bgp.RF_IPv4_UC) && len(data) > 0 {
 		nlri := &bgp.IPAddrPrefix{}
 		err := nlri.DecodeFromBytes(data)
 		if err != nil {

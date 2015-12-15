@@ -510,13 +510,13 @@ func showNeighborRib(r string, name string, args []string) error {
 }
 
 func resetNeighbor(cmd string, remoteIP string, args []string) error {
-	rf, err := checkAddressFamily(addr2AddressFamily(net.ParseIP(remoteIP)))
+	family, err := checkAddressFamily(addr2AddressFamily(net.ParseIP(remoteIP)))
 	if err != nil {
 		return err
 	}
 	arg := &api.Arguments{
-		Name: remoteIP,
-		Rf:   uint32(rf),
+		Name:   remoteIP,
+		Family: uint32(family),
 	}
 	switch cmd {
 	case CMD_RESET:
@@ -533,8 +533,8 @@ func resetNeighbor(cmd string, remoteIP string, args []string) error {
 
 func stateChangeNeighbor(cmd string, remoteIP string, args []string) error {
 	arg := &api.Arguments{
-		Rf:   uint32(bgp.RF_IPv4_UC),
-		Name: remoteIP,
+		Family: uint32(bgp.RF_IPv4_UC),
+		Name:   remoteIP,
 	}
 	var err error
 	switch cmd {
