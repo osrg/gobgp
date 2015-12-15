@@ -530,7 +530,7 @@ func filterpath(peer *Peer, path *table.Path) *table.Path {
 		return nil
 	}
 
-	if isASLoop(peer, path) {
+	if !peer.isRouteServerClient() && isASLoop(peer, path) {
 		return nil
 	}
 	return path.Clone(remoteAddr, path.IsWithdraw)
