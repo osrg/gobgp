@@ -369,17 +369,14 @@ func (server *BgpServer) Serve() {
 				pathList := make([]*table.Path, 0)
 				rfList := peer.configuredRFlist()
 				for _, p := range server.neighborMap {
-					if p.isRouteServerClient() {
-						for _, path := range p.getAccepted(rfList) {
-							path = server.policy.ApplyPolicy(peer.TableID(), table.POLICY_DIRECTION_IMPORT, path)
-							if path != nil {
-								pathList = append(pathList, path)
-							}
-						}
+					if !p.isRouteServerClient() {
+						continue
 					}
+					pathList = append(pathList, p.getAccepted(rfList)...)
 				}
-				if len(pathList) > 0 {
-					server.globalRib.ProcessPaths(pathList)
+				moded := server.RSimportPaths(peer, pathList)
+				if len(moded) > 0 {
+					server.globalRib.ProcessPaths(moded)
 				}
 			}
 			server.neighborMap[addr] = peer
@@ -664,6 +661,30 @@ func (server *BgpServer) broadcastPeerState(peer *Peer) {
 	server.broadcastReqs = remainReqs
 }
 
+func (server *BgpServer) RSimportPaths(peer *Peer, pathList []*table.Path) []*table.Path {
+	moded := make([]*table.Path, 0, len(pathList)/2)
+	for _, before := range pathList {
+		if isASLoop(peer, before) {
+			before.Filter(peer.ID(), table.POLICY_DIRECTION_IMPORT)
+			continue
+		}
+		after := server.policy.ApplyPolicy(peer.TableID(), table.POLICY_DIRECTION_IMPORT, before)
+		if after == nil {
+			before.Filter(peer.ID(), table.POLICY_DIRECTION_IMPORT)
+		} else if after != before {
+			before.Filter(peer.ID(), table.POLICY_DIRECTION_IMPORT)
+			for _, n := range server.neighborMap {
+				if n == peer {
+					continue
+				}
+				after.Filter(n.ID(), table.POLICY_DIRECTION_IMPORT)
+			}
+			moded = append(moded, after)
+		}
+	}
+	return moded
+}
+
 func (server *BgpServer) propagateUpdate(peer *Peer, pathList []*table.Path) []*SenderMsg {
 	msgs := make([]*SenderMsg, 0)
 	rib := server.globalRib
@@ -672,30 +693,12 @@ func (server *BgpServer) propagateUpdate(peer *Peer, pathList []*table.Path) []*
 			path.Filter(peer.ID(), table.POLICY_DIRECTION_IMPORT)
 			path.Filter(table.GLOBAL_RIB_NAME, table.POLICY_DIRECTION_IMPORT)
 		}
-		moded := []*table.Path{}
+		moded := make([]*table.Path, 0)
 		for _, targetPeer := range server.neighborMap {
 			if !targetPeer.isRouteServerClient() || peer == targetPeer {
 				continue
 			}
-			for _, before := range pathList {
-				if isASLoop(targetPeer, before) {
-					before.Filter(targetPeer.ID(), table.POLICY_DIRECTION_IMPORT)
-					continue
-				}
-				after := server.policy.ApplyPolicy(targetPeer.TableID(), table.POLICY_DIRECTION_IMPORT, before)
-				if after == nil {
-					before.Filter(targetPeer.ID(), table.POLICY_DIRECTION_IMPORT)
-				} else if after != before {
-					before.Filter(targetPeer.ID(), table.POLICY_DIRECTION_IMPORT)
-					for _, n := range server.neighborMap {
-						if n == targetPeer {
-							continue
-						}
-						after.Filter(n.ID(), table.POLICY_DIRECTION_IMPORT)
-					}
-					moded = append(moded, after)
-				}
-			}
+			moded = append(moded, server.RSimportPaths(targetPeer, pathList)...)
 		}
 		dsts := rib.ProcessPaths(append(pathList, moded...))
 		for _, targetPeer := range server.neighborMap {
@@ -1948,14 +1951,14 @@ func (server *BgpServer) handleGrpcModNeighbor(grpcReq *GrpcRequest) (sMsgs []*S
 			pathList := make([]*table.Path, 0)
 			rfList := peer.configuredRFlist()
 			for _, p := range server.neighborMap {
-				if p.isRouteServerClient() {
-					for _, path := range p.getAccepted(rfList) {
-						pathList = append(pathList, server.policy.ApplyPolicy(peer.TableID(), table.POLICY_DIRECTION_IMPORT, path))
-					}
+				if !p.isRouteServerClient() {
+					continue
 				}
+				pathList = append(pathList, p.getAccepted(rfList)...)
 			}
-			if len(pathList) > 0 {
-				server.globalRib.ProcessPaths(pathList)
+			moded := server.RSimportPaths(peer, pathList)
+			if len(moded) > 0 {
+				server.globalRib.ProcessPaths(moded)
 			}
 		}
 		server.neighborMap[addr] = peer
