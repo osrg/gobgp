@@ -45,10 +45,14 @@ func showRPKIServer(args []string) error {
 		} else if err != nil {
 			return err
 		}
-		s := "Up"
-		uptime := int64(time.Now().Sub(time.Unix(r.State.Uptime, 0)).Seconds())
+		s := "Down"
+		uptime := "never"
+		if r.State.Uptime != 0 {
+			s = "Up"
+			uptime = fmt.Sprint(formatTimedelta(int64(time.Now().Sub(time.Unix(r.State.Uptime, 0)).Seconds())))
+		}
 
-		fmt.Printf(format, fmt.Sprintf(r.Conf.Address), s, fmt.Sprint(formatTimedelta(uptime)), fmt.Sprintf("%d/%d", r.State.ReceivedIpv4, r.State.ReceivedIpv6))
+		fmt.Printf(format, fmt.Sprintf(r.Conf.Address), s, uptime, fmt.Sprintf("%d/%d", r.State.ReceivedIpv4, r.State.ReceivedIpv6))
 	}
 	return nil
 }
