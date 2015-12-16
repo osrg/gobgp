@@ -1670,6 +1670,7 @@ func (server *BgpServer) handleGrpc(grpcReq *GrpcRequest) []*SenderMsg {
 		}
 		for _, peer := range peers {
 			rfList := peer.configuredRFlist()
+			sentPathList := peer.adjRibOut.PathList(rfList, false)
 			peer.adjRibOut.Drop(rfList)
 			pathList, filtered := peer.getBestFromLocal(rfList)
 			if len(pathList) > 0 {
@@ -1677,10 +1678,21 @@ func (server *BgpServer) handleGrpc(grpcReq *GrpcRequest) []*SenderMsg {
 				msgs = append(msgs, newSenderMsg(peer, table.CreateUpdateMsgFromPaths(pathList)))
 			}
 			if len(filtered) > 0 {
+				withdrawnList := make([]*table.Path, 0, len(filtered))
 				for _, p := range filtered {
-					p.IsWithdraw = true
+					found := false
+					for _, sentPath := range sentPathList {
+						if p.GetNlri() == sentPath.GetNlri() {
+							found = true
+							break
+						}
+					}
+					if found {
+						p.IsWithdraw = true
+						withdrawnList = append(withdrawnList, p)
+					}
 				}
-				msgs = append(msgs, newSenderMsg(peer, table.CreateUpdateMsgFromPaths(filtered)))
+				msgs = append(msgs, newSenderMsg(peer, table.CreateUpdateMsgFromPaths(withdrawnList)))
 			}
 		}
 		grpcReq.ResponseCh <- &GrpcResponse{}
