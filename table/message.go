@@ -198,11 +198,6 @@ func CreateUpdateMsgFromPaths(pathList []*Path) []*bgp.BGPMessage {
 			continue
 		}
 		y := func(p *Path) bool {
-			// the merging logic makes gobgpd slower so if
-			// paths are not many, let's avoid mering.
-			if pathLen < 1024 {
-				return false
-			}
 			if p.GetRouteFamily() != bgp.RF_IPv4_UC {
 				return false
 			}
