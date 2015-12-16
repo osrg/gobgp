@@ -29,7 +29,6 @@ type broadcastBMPMsg struct {
 	ch      chan *broadcastBMPMsg
 	msgList []*bgp.BMPMessage
 	conn    *net.TCPConn
-	addr    string
 }
 
 func (m *broadcastBMPMsg) send() {
@@ -38,7 +37,7 @@ func (m *broadcastBMPMsg) send() {
 
 type bmpConn struct {
 	conn *net.TCPConn
-	addr string
+	host string
 }
 
 type bmpClient struct {
@@ -55,16 +54,16 @@ func newBMPClient(conf config.BmpServers, connCh chan *bmpConn) (*bmpClient, err
 	b.ch = make(chan *broadcastBMPMsg)
 	b.connCh = connCh
 
-	tryConnect := func(addr string) {
+	tryConnect := func(host string) {
 		for {
-			conn, err := net.Dial("tcp", addr)
+			conn, err := net.Dial("tcp", host)
 			if err != nil {
 				time.Sleep(30 * time.Second)
 			} else {
-				log.Info("bmp server is connected, ", addr)
+				log.Info("bmp server is connected, ", host)
 				connCh <- &bmpConn{
 					conn: conn.(*net.TCPConn),
-					addr: addr,
+					host: host,
 				}
 				break
 			}
@@ -86,21 +85,47 @@ func newBMPClient(conf config.BmpServers, connCh chan *bmpConn) (*bmpClient, err
 					buf, _ := i.Serialize()
 					_, err := m.conn.Write(buf)
 					if err == nil {
-						connMap[m.addr] = m.conn
+						connMap[m.conn.RemoteAddr().String()] = m.conn
 					}
 				}
 
-				for addr, conn := range connMap {
+				for host, conn := range connMap {
 					if m.conn != nil && m.conn != conn {
 						continue
 					}
 
 					for _, msg := range m.msgList {
+						if msg.Header.Type == bgp.BMP_MSG_ROUTE_MONITORING {
+							c := func() *config.BmpServerConfig {
+								for _, c := range conf.BmpServerList {
+									b := &c.BmpServerConfig
+									if host == net.JoinHostPort(b.Address.String(), strconv.Itoa(int(b.Port))) {
+										return b
+									}
+								}
+								return nil
+							}()
+							if c == nil {
+								log.Fatal(host)
+							}
+							ph := msg.PeerHeader
+							switch c.RouteMonitoringPolicy {
+							case config.BMP_ROUTE_MONITORING_POLICY_TYPE_PRE_POLICY:
+								if ph.IsPostPolicy != false {
+									continue
+								}
+							case config.BMP_ROUTE_MONITORING_POLICY_TYPE_POST_POLICY:
+								if ph.IsPostPolicy != true {
+									continue
+								}
+							}
+
+						}
 						b, _ := msg.Serialize()
 						_, err := conn.Write(b)
 						if err != nil {
-							delete(connMap, addr)
-							go tryConnect(addr)
+							delete(connMap, host)
+							go tryConnect(host)
 							break
 						}
 					}

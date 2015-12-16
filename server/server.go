@@ -341,7 +341,6 @@ func (server *BgpServer) Serve() {
 			m := &broadcastBMPMsg{
 				ch:      server.bmpClient.send(),
 				conn:    c.conn,
-				addr:    c.addr,
 				msgList: bmpMsgList,
 			}
 			server.broadcastMsgs = append(server.broadcastMsgs, m)
@@ -685,9 +684,10 @@ func (server *BgpServer) RSimportPaths(peer *Peer, pathList []*table.Path) []*ta
 	return moded
 }
 
-func (server *BgpServer) propagateUpdate(peer *Peer, pathList []*table.Path) []*SenderMsg {
+func (server *BgpServer) propagateUpdate(peer *Peer, pathList []*table.Path) ([]*SenderMsg, []*table.Path) {
 	msgs := make([]*SenderMsg, 0)
 	rib := server.globalRib
+	var alteredPathList []*table.Path
 	if peer != nil && peer.isRouteServerClient() {
 		for _, path := range pathList {
 			path.Filter(peer.ID(), table.POLICY_DIRECTION_IMPORT)
@@ -720,6 +720,7 @@ func (server *BgpServer) propagateUpdate(peer *Peer, pathList []*table.Path) []*
 		for idx, path := range pathList {
 			pathList[idx] = server.policy.ApplyPolicy(table.GLOBAL_RIB_NAME, table.POLICY_DIRECTION_IMPORT, path)
 		}
+		alteredPathList = pathList
 		dsts := rib.ProcessPaths(pathList)
 		sendPathList := make([]*table.Path, 0, len(dsts))
 		for _, dst := range dsts {
@@ -729,7 +730,7 @@ func (server *BgpServer) propagateUpdate(peer *Peer, pathList []*table.Path) []*
 			}
 		}
 		if len(sendPathList) == 0 {
-			return msgs
+			return msgs, alteredPathList
 		}
 
 		server.broadcastBests(sendPathList)
@@ -753,7 +754,7 @@ func (server *BgpServer) propagateUpdate(peer *Peer, pathList []*table.Path) []*
 			msgs = append(msgs, newSenderMsg(targetPeer, msgList))
 		}
 	}
-	return msgs
+	return msgs, alteredPathList
 }
 
 func (server *BgpServer) handleFSMMessage(peer *Peer, e *FsmMsg, incoming chan *FsmMsg) []*SenderMsg {
@@ -875,7 +876,19 @@ func (server *BgpServer) handleFSMMessage(peer *Peer, e *FsmMsg, incoming chan *
 			}
 			if len(pathList) > 0 {
 				server.roaClient.validate(pathList)
-				msgs = append(msgs, server.propagateUpdate(peer, pathList)...)
+				m, altered := server.propagateUpdate(peer, pathList)
+				msgs = append(msgs, m...)
+
+				if ch := server.bmpClient.send(); ch != nil {
+					for _, u := range table.CreateUpdateMsgFromPaths(altered) {
+						payload, _ := u.Serialize()
+						bm := &broadcastBMPMsg{
+							ch:      ch,
+							msgList: []*bgp.BMPMessage{bmpPeerRoute(bgp.BMP_PEER_TYPE_GLOBAL, true, 0, peer.fsm.peerInfo, e.timestamp.Unix(), payload)},
+						}
+						server.broadcastMsgs = append(server.broadcastMsgs, bm)
+					}
+				}
 			}
 		default:
 			log.WithFields(log.Fields{
@@ -1516,7 +1529,7 @@ func (server *BgpServer) handleGrpc(grpcReq *GrpcRequest) []*SenderMsg {
 	case REQ_MOD_PATH:
 		pathList := server.handleModPathRequest(grpcReq)
 		if len(pathList) > 0 {
-			msgs = server.propagateUpdate(nil, pathList)
+			msgs, _ = server.propagateUpdate(nil, pathList)
 			grpcReq.ResponseCh <- &GrpcResponse{}
 			close(grpcReq.ResponseCh)
 		}
@@ -1651,7 +1664,8 @@ func (server *BgpServer) handleGrpc(grpcReq *GrpcRequest) []*SenderMsg {
 					pathList = append(pathList, path.Clone(peer.conf.NeighborConfig.NeighborAddress, false))
 				}
 			}
-			msgs = append(msgs, server.propagateUpdate(peer, pathList)...)
+			m, _ := server.propagateUpdate(peer, pathList)
+			msgs = append(msgs, m...)
 		}
 
 		if grpcReq.RequestType == REQ_NEIGHBOR_SOFT_RESET_IN {
@@ -1811,7 +1825,7 @@ func (server *BgpServer) handleGrpc(grpcReq *GrpcRequest) []*SenderMsg {
 	case REQ_VRF, REQ_VRFS, REQ_VRF_MOD:
 		pathList := server.handleVrfRequest(grpcReq)
 		if len(pathList) > 0 {
-			msgs = server.propagateUpdate(nil, pathList)
+			msgs, _ = server.propagateUpdate(nil, pathList)
 		}
 	default:
 		err = fmt.Errorf("Unknown request type: %v", grpcReq.RequestType)

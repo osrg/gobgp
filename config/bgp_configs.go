@@ -112,6 +112,15 @@ const (
 	BGP_SET_COMMUNITY_OPTION_TYPE_REPLACE
 )
 
+// typedef for typedef gobgp:bmp-route-monitoring-policy-type
+type BmpRouteMonitoringPolicyType int
+
+const (
+	BMP_ROUTE_MONITORING_POLICY_TYPE_PRE_POLICY  BmpRouteMonitoringPolicyType = 0
+	BMP_ROUTE_MONITORING_POLICY_TYPE_POST_POLICY                              = 1
+	BMP_ROUTE_MONITORING_POLICY_TYPE_BOTH                                     = 2
+)
+
 // typedef for typedef gobgp:rpki-validation-result-type
 type RpkiValidationResultType int
 
@@ -142,6 +151,8 @@ type BmpServerConfig struct {
 	Address net.IP
 	// original -> gobgp:port
 	Port uint32
+	// original -> gobgp:route-monitoring-policy
+	RouteMonitoringPolicy BmpRouteMonitoringPolicyType
 }
 
 //struct for container gobgp:bmp-server

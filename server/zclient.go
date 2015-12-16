@@ -157,7 +157,7 @@ func handleZapiMsg(msg *zebra.Message, server *BgpServer) []*SenderMsg {
 
 		if b.Prefix != nil && len(b.Nexthops) > 0 && b.Type != zebra.ROUTE_KERNEL {
 			p := createPathFromIPRouteMessage(msg, pi)
-			msgs := server.propagateUpdate(nil, []*table.Path{p})
+			msgs, _ := server.propagateUpdate(nil, []*table.Path{p})
 			return msgs
 		}
 	}
