@@ -48,6 +48,23 @@ module bgp-gobgp {
     }
   }
 
+  typedef bmp-route-monitoring-policy-type {
+    type enumeration {
+      enum PRE-POLICY {
+        value 0;
+        description "send pre-policy routes";
+      }
+      enum POST-POLICY {
+        value 1;
+        description "send post-policy routes";
+      }
+      enum BOTH {
+        value 2;
+        description "send both pre and post-policy routes";
+      }
+    }
+  }
+
   grouping gobgp-message-counter {
     description
       "Counters for all BGPMessage types";
@@ -409,6 +426,10 @@ module bgp-gobgp {
       type uint32;
       description
         "Reference to the port of the BMP server";
+    }
+    leaf route-monitoring-policy {
+      type bmp-route-monitoring-policy-type;
+      default PRE-POLICY;
     }
   }
 
