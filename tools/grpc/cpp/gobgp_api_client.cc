@@ -27,19 +27,28 @@ class GrpcClient {
         GrpcClient(std::shared_ptr<Channel> channel) : stub_(GobgpApi::NewStub(channel)) {}
         void GetAllActiveAnnounces(unsigned int route_family) {
             ClientContext context;
-            gobgpapi::Arguments arguments;
+            gobgpapi::Table table;
 
-            arguments.set_rf(route_family);
+            table.set_family(route_family);
             // We could specify certain neighbor here
-            arguments.set_name("");
-            arguments.set_resource(gobgpapi::Resource::GLOBAL);
+            table.set_name("");
+            table.set_type(gobgpapi::Resource::GLOBAL);
 
-            auto destinations_list = stub_->GetRib(&context, arguments);
+            gobgpapi::Table response_table; 
 
-            gobgpapi::Destination current_destination;
+            auto status = stub_->GetRib(&context, table, &response_table);
+
+            if (!status.ok()) {
+                // error_message
+                std::cout << "Problem with RPC: " << status.error_code() << " message " << status.error_message() << std::endl;
+                return;
+            } else {
+                // std::cout << "RPC working well" << std::endl;
+            } 
 
             std::cout << "List of announced prefixes for route family: " << route_family << std::endl << std::endl;
-            while (destinations_list->Read(&current_destination)) {
+            
+            for (auto current_destination : response_table.destinations()) {
                 std::cout << "Prefix: " << current_destination.prefix() << std::endl;
     
                 //std::cout << "Paths size: " << current_destination.paths_size() << std::endl;
@@ -69,17 +78,9 @@ class GrpcClient {
 
                 std::cout << "NLRI: " << decode_path(&gobgp_lib_path) << std::endl; 
             }
-
-            Status status = destinations_list->Finish();
-            if (!status.ok()) {
-                // error_message
-                std::cout << "Problem with RPC: " << status.error_code() << " message " << status.error_message() << std::endl;
-            } else {
-                // std::cout << "RPC working well" << std::endl;
-            }
         }
-
-        void AnnounceFlowSpecPrefix() {
+        
+        void AnnounceFlowSpecPrefix(bool withdraw) {
             const gobgpapi::ModPathArguments current_mod_path_arguments;
 
             unsigned int AFI_IP = 1;
@@ -87,8 +88,7 @@ class GrpcClient {
             unsigned int ipv4_flow_spec_route_family = AFI_IP<<16 | SAFI_FLOW_SPEC_UNICAST;   
 
             gobgpapi::Path* current_path = new gobgpapi::Path;
-            // If you want withdraw, please use it 
-            // current_path->set_is_withdraw(true);
+            current_path->set_is_withdraw(withdraw);
 
             /*
             buf:
@@ -146,7 +146,7 @@ class GrpcClient {
             }
         }
 
-        void AnnounceUnicastPrefix() {
+        void AnnounceUnicastPrefix(bool withdraw) {
             const gobgpapi::ModPathArguments current_mod_path_arguments;
 
             unsigned int AFI_IP = 1;
@@ -154,8 +154,7 @@ class GrpcClient {
             unsigned int ipv4_unicast_route_family = AFI_IP<<16 | SAFI_UNICAST;
 
             gobgpapi::Path* current_path = new gobgpapi::Path;
-            // If you want withdraw, please use it 
-            // current_path->set_is_withdraw(true);
+            current_path->set_is_withdraw(withdraw);
 
             /*
             buf:
@@ -213,9 +212,9 @@ class GrpcClient {
             }
         }
 
-        std::string GetAllNeighbor(std::string neighbor_ip) {
+        std::string GetNeighbor(std::string neighbor_ip) {
             gobgpapi::Arguments request;
-            request.set_rf(4);
+            request.set_family(4);
             request.set_name(neighbor_ip);
 
             ClientContext context;
@@ -225,12 +224,12 @@ class GrpcClient {
 
             if (status.ok()) {
                 gobgpapi::PeerConf peer_conf = peer.conf();
-                gobgpapi::PeerInfo peer_info = peer.info();
+                gobgpapi::PeerState peer_info = peer.info();
 
                 std::stringstream buffer;
   
                 buffer
-                    << "Peer AS: " << peer_conf.remote_as() << "\n"
+                    << "Peer AS: " << peer_conf.peer_as() << "\n"
                     << "Peer router id: " << peer_conf.id() << "\n"
                     << "Peer flops: " << peer_info.flops() << "\n"
                     << "BGP state: " << peer_info.bgp_state();
@@ -246,14 +245,14 @@ class GrpcClient {
 };
 
 int main(int argc, char** argv) {
-    GrpcClient gobgp_client(grpc::CreateChannel("localhost:8080", grpc::InsecureCredentials()));
+    GrpcClient gobgp_client(grpc::CreateChannel("localhost:8080", grpc::InsecureChannelCredentials()));
  
-    //std::string reply = gobgp_client.GetAllNeighbor("213.133.111.200");
-    //std::cout << "We received: " << reply << std::endl;
+    std::string reply = gobgp_client.GetNeighbor("213.133.111.200");
+    std::cout << "Neighbor information: " << reply << std::endl;
 
-    gobgp_client.AnnounceUnicastPrefix();
+    gobgp_client.AnnounceUnicastPrefix(false);
 
-    gobgp_client.AnnounceFlowSpecPrefix();
+    gobgp_client.AnnounceFlowSpecPrefix(false);
 
     unsigned int AFI_IP = 1;
     unsigned int SAFI_UNICAST = 1;
@@ -261,10 +260,10 @@ int main(int argc, char** argv) {
 
     unsigned int ipv4_unicast_route_family = AFI_IP<<16 | SAFI_UNICAST;
     unsigned int ipv4_flow_spec_route_family = AFI_IP<<16 | SAFI_FLOW_SPEC_UNICAST;   
- 
+
     gobgp_client.GetAllActiveAnnounces(ipv4_unicast_route_family);
     std::cout << std::endl << std::endl;
     gobgp_client.GetAllActiveAnnounces(ipv4_flow_spec_route_family);
-
+    
     return 0;
 }

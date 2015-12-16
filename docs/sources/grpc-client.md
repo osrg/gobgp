@@ -229,16 +229,11 @@ apt-get install -y gcc make autoconf automake git libtool g++ python-all-dev pyt
 cd /usr/src/
 git clone https://github.com/grpc/grpc.git
 cd grpc
+# We are using specific commit because gRPC is under heavy development right now
+git checkout e5cdbea1530a99a95fd3d032e7d69a19c61a0d16
 git submodule update --init
 make -j 4
 make install prefix=/opt/grpc
-```
-
-Add libs to the system path:
-```bash
-echo "/opt/grpc/lib" > /etc/ld.so.conf.d/grpc.conf
-echo "/opt/protobuf_3.0.0_alpha4/lib" > /etc/ld.so.conf.d/protobuf.conf
-ldconfig
 ```
 
 We use .so compilation with golang, please use only 1.5 or newer version of Go Lang.
@@ -260,7 +255,7 @@ make
 
 ### Let's run it:
 ```bash
-LD_LIBRARY_PATH=. ./gobgp_api_client
+LD_LIBRARY_PATH=".:/opt/grpc/lib:/opt/protobuf_3.0.0_alpha4/lib" ./gobgp_api_client
 
 List of announced prefixes for route family: 65537
 
