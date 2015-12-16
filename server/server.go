@@ -1644,11 +1644,14 @@ func (server *BgpServer) handleGrpc(grpcReq *GrpcRequest) []*SenderMsg {
 			logOp(grpcReq.Name, "Neighbor soft reset in")
 		}
 
+		rfList := []bgp.RouteFamily{grpcReq.RouteFamily}
 		for _, peer := range peers {
-			pathList := []*table.Path{}
-			for _, path := range peer.adjRibIn.PathList([]bgp.RouteFamily{grpcReq.RouteFamily}, false) {
+			pathList := make([]*table.Path, 0, peer.adjRibIn.Count(rfList))
+			for _, path := range peer.adjRibIn.PathList(rfList, false) {
 				if path = server.policy.ApplyPolicy(peer.ID(), table.POLICY_DIRECTION_IN, path); path != nil {
-					pathList = append(pathList, path.Clone(peer.conf.NeighborConfig.NeighborAddress, false))
+					pathList = append(pathList, path)
+				} else {
+					path.Filter(peer.ID(), table.POLICY_DIRECTION_IN)
 				}
 			}
 			msgs = append(msgs, server.propagateUpdate(peer, pathList)...)
