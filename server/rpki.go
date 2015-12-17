@@ -64,6 +64,31 @@ type roaManager struct {
 	clientMap map[string]*roaClient
 }
 
+func newROAManager(as uint32, conf config.RpkiServers) (*roaManager, error) {
+	m := &roaManager{
+		AS:     as,
+		roas:   make(map[bgp.RouteFamily]*radix.Tree),
+		config: conf,
+	}
+	m.roas[bgp.RF_IPv4_UC] = radix.New()
+	m.roas[bgp.RF_IPv6_UC] = radix.New()
+	m.eventCh = make(chan *roaClientEvent)
+	m.clientMap = make(map[string]*roaClient)
+
+	for _, entry := range conf.RpkiServerList {
+		c := entry.RpkiServerConfig
+		client := &roaClient{
+			host:    net.JoinHostPort(c.Address.String(), strconv.Itoa(int(c.Port))),
+			eventCh: m.eventCh,
+			state:   &entry.RpkiServerState,
+		}
+		m.clientMap[client.host] = client
+		client.t.Go(client.tryConnect)
+	}
+
+	return m, nil
+}
+
 func (c *roaManager) recieveROA() chan *roaClientEvent {
 	return c.eventCh
 }
@@ -193,9 +218,10 @@ func (c *roaManager) handleGRPC(grpcReq *GrpcRequest) {
 		for _, client := range c.clientMap {
 			state := client.state
 			received := &state.RpkiMessages.RpkiReceived
+			addr, _ := splitHostPort(client.host)
 			rpki := &api.RPKI{
 				Conf: &api.RPKIConf{
-					Address: client.addr,
+					Address: addr,
 				},
 				State: &api.RPKIState{
 					Uptime:       state.Uptime,
@@ -318,7 +344,6 @@ func (c *roaManager) validate(pathList []*table.Path) {
 type roaClient struct {
 	t       tomb.Tomb
 	host    string
-	addr    string
 	conn    *net.TCPConn
 	state   *config.RpkiServerState
 	eventCh chan *roaClientEvent
@@ -381,30 +406,4 @@ func (c *roaClient) established() error {
 	}
 	disconnected()
 	return nil
-}
-
-func newROAManager(as uint32, conf config.RpkiServers) (*roaManager, error) {
-	m := &roaManager{
-		AS:     as,
-		roas:   make(map[bgp.RouteFamily]*radix.Tree),
-		config: conf,
-	}
-	m.roas[bgp.RF_IPv4_UC] = radix.New()
-	m.roas[bgp.RF_IPv6_UC] = radix.New()
-	m.eventCh = make(chan *roaClientEvent)
-	m.clientMap = make(map[string]*roaClient)
-
-	for _, entry := range conf.RpkiServerList {
-		c := entry.RpkiServerConfig
-		client := &roaClient{
-			host:    net.JoinHostPort(c.Address.String(), strconv.Itoa(int(c.Port))),
-			addr:    c.Address.String(),
-			eventCh: m.eventCh,
-			state:   &entry.RpkiServerState,
-		}
-		m.clientMap[client.host] = client
-		client.t.Go(client.tryConnect)
-	}
-
-	return m, nil
 }
