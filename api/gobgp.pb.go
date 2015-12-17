@@ -107,10 +107,14 @@ func (x Resource) String() string {
 type Operation int32
 
 const (
-	Operation_ADD     Operation = 0
-	Operation_DEL     Operation = 1
-	Operation_DEL_ALL Operation = 2
-	Operation_REPLACE Operation = 3
+	Operation_ADD       Operation = 0
+	Operation_DEL       Operation = 1
+	Operation_DEL_ALL   Operation = 2
+	Operation_REPLACE   Operation = 3
+	Operation_ENABLE    Operation = 4
+	Operation_DISABLE   Operation = 5
+	Operation_RESET     Operation = 6
+	Operation_SOFTRESET Operation = 7
 )
 
 var Operation_name = map[int32]string{
@@ -118,12 +122,20 @@ var Operation_name = map[int32]string{
 	1: "DEL",
 	2: "DEL_ALL",
 	3: "REPLACE",
+	4: "ENABLE",
+	5: "DISABLE",
+	6: "RESET",
+	7: "SOFTRESET",
 }
 var Operation_value = map[string]int32{
-	"ADD":     0,
-	"DEL":     1,
-	"DEL_ALL": 2,
-	"REPLACE": 3,
+	"ADD":       0,
+	"DEL":       1,
+	"DEL_ALL":   2,
+	"REPLACE":   3,
+	"ENABLE":    4,
+	"DISABLE":   5,
+	"RESET":     6,
+	"SOFTRESET": 7,
 }
 
 func (x Operation) String() string {
@@ -1104,8 +1116,8 @@ func (*RPKIConf) ProtoMessage()    {}
 type RPKIState struct {
 	Uptime       int64 `protobuf:"varint,1,opt,name=uptime" json:"uptime,omitempty"`
 	Downtime     int64 `protobuf:"varint,2,opt,name=downtime" json:"downtime,omitempty"`
-	ReceivedIpv4 int32 `protobuf:"varint,3,opt,name=received_ipv4" json:"received_ipv4,omitempty"`
-	ReceivedIpv6 int32 `protobuf:"varint,4,opt,name=received_ipv6" json:"received_ipv6,omitempty"`
+	ReceivedIpv4 int64 `protobuf:"varint,3,opt,name=received_ipv4" json:"received_ipv4,omitempty"`
+	ReceivedIpv6 int64 `protobuf:"varint,4,opt,name=received_ipv6" json:"received_ipv6,omitempty"`
 }
 
 func (m *RPKIState) Reset()         { *m = RPKIState{} }
@@ -1175,6 +1187,55 @@ func (m *Global) String() string { return proto.CompactTextString(m) }
 func (*Global) ProtoMessage()    {}
 
 func init() {
+	proto.RegisterType((*Error)(nil), "gobgpapi.Error")
+	proto.RegisterType((*Arguments)(nil), "gobgpapi.Arguments")
+	proto.RegisterType((*ModPathArguments)(nil), "gobgpapi.ModPathArguments")
+	proto.RegisterType((*ModNeighborArguments)(nil), "gobgpapi.ModNeighborArguments")
+	proto.RegisterType((*MrtArguments)(nil), "gobgpapi.MrtArguments")
+	proto.RegisterType((*ModMrtArguments)(nil), "gobgpapi.ModMrtArguments")
+	proto.RegisterType((*ModRpkiArguments)(nil), "gobgpapi.ModRpkiArguments")
+	proto.RegisterType((*ModVrfArguments)(nil), "gobgpapi.ModVrfArguments")
+	proto.RegisterType((*ModDefinedSetArguments)(nil), "gobgpapi.ModDefinedSetArguments")
+	proto.RegisterType((*ModStatementArguments)(nil), "gobgpapi.ModStatementArguments")
+	proto.RegisterType((*ModPolicyArguments)(nil), "gobgpapi.ModPolicyArguments")
+	proto.RegisterType((*ModPolicyAssignmentArguments)(nil), "gobgpapi.ModPolicyAssignmentArguments")
+	proto.RegisterType((*ModGlobalConfigArguments)(nil), "gobgpapi.ModGlobalConfigArguments")
+	proto.RegisterType((*Path)(nil), "gobgpapi.Path")
+	proto.RegisterType((*Destination)(nil), "gobgpapi.Destination")
+	proto.RegisterType((*Table)(nil), "gobgpapi.Table")
+	proto.RegisterType((*Peer)(nil), "gobgpapi.Peer")
+	proto.RegisterType((*ApplyPolicy)(nil), "gobgpapi.ApplyPolicy")
+	proto.RegisterType((*PeerConf)(nil), "gobgpapi.PeerConf")
+	proto.RegisterType((*EbgpMultihop)(nil), "gobgpapi.EbgpMultihop")
+	proto.RegisterType((*RouteReflector)(nil), "gobgpapi.RouteReflector")
+	proto.RegisterType((*PeerState)(nil), "gobgpapi.PeerState")
+	proto.RegisterType((*Messages)(nil), "gobgpapi.Messages")
+	proto.RegisterType((*Message)(nil), "gobgpapi.Message")
+	proto.RegisterType((*Queues)(nil), "gobgpapi.Queues")
+	proto.RegisterType((*Timers)(nil), "gobgpapi.Timers")
+	proto.RegisterType((*TimersConfig)(nil), "gobgpapi.TimersConfig")
+	proto.RegisterType((*TimersState)(nil), "gobgpapi.TimersState")
+	proto.RegisterType((*Transport)(nil), "gobgpapi.Transport")
+	proto.RegisterType((*RouteServer)(nil), "gobgpapi.RouteServer")
+	proto.RegisterType((*Prefix)(nil), "gobgpapi.Prefix")
+	proto.RegisterType((*DefinedSet)(nil), "gobgpapi.DefinedSet")
+	proto.RegisterType((*MatchSet)(nil), "gobgpapi.MatchSet")
+	proto.RegisterType((*AsPathLength)(nil), "gobgpapi.AsPathLength")
+	proto.RegisterType((*Conditions)(nil), "gobgpapi.Conditions")
+	proto.RegisterType((*CommunityAction)(nil), "gobgpapi.CommunityAction")
+	proto.RegisterType((*MedAction)(nil), "gobgpapi.MedAction")
+	proto.RegisterType((*AsPrependAction)(nil), "gobgpapi.AsPrependAction")
+	proto.RegisterType((*Actions)(nil), "gobgpapi.Actions")
+	proto.RegisterType((*Statement)(nil), "gobgpapi.Statement")
+	proto.RegisterType((*Policy)(nil), "gobgpapi.Policy")
+	proto.RegisterType((*PolicyAssignment)(nil), "gobgpapi.PolicyAssignment")
+	proto.RegisterType((*MrtMessage)(nil), "gobgpapi.MrtMessage")
+	proto.RegisterType((*RPKIConf)(nil), "gobgpapi.RPKIConf")
+	proto.RegisterType((*RPKIState)(nil), "gobgpapi.RPKIState")
+	proto.RegisterType((*RPKI)(nil), "gobgpapi.RPKI")
+	proto.RegisterType((*ROA)(nil), "gobgpapi.ROA")
+	proto.RegisterType((*Vrf)(nil), "gobgpapi.Vrf")
+	proto.RegisterType((*Global)(nil), "gobgpapi.Global")
 	proto.RegisterEnum("gobgpapi.Resource", Resource_name, Resource_value)
 	proto.RegisterEnum("gobgpapi.Operation", Operation_name, Operation_value)
 	proto.RegisterEnum("gobgpapi.DefinedType", DefinedType_name, DefinedType_value)

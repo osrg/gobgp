@@ -121,10 +121,34 @@ func NewRPKICmd() *cobra.Command {
 				fmt.Println("usage: gobgp rpki enable <ip address>")
 				os.Exit(1)
 			}
-			modRPKI(api.Operation_ADD, args[0])
+			modRPKI(api.Operation_ENABLE, args[0])
 		},
 	}
 	rpkiCmd.AddCommand(enableCmd)
+
+	resetCmd := &cobra.Command{
+		Use: CMD_RESET,
+		Run: func(cmd *cobra.Command, args []string) {
+			if len(args) != 1 {
+				fmt.Println("usage: gobgp rpki reset <ip address>")
+				os.Exit(1)
+			}
+			modRPKI(api.Operation_RESET, args[0])
+		},
+	}
+	rpkiCmd.AddCommand(resetCmd)
+
+	softResetCmd := &cobra.Command{
+		Use: CMD_SOFT_RESET,
+		Run: func(cmd *cobra.Command, args []string) {
+			if len(args) != 1 {
+				fmt.Println("usage: gobgp rpki softreset <ip address>")
+				os.Exit(1)
+			}
+			modRPKI(api.Operation_SOFTRESET, args[0])
+		},
+	}
+	rpkiCmd.AddCommand(softResetCmd)
 
 	serverCmd := &cobra.Command{
 		Use: CMD_RPKI_SERVER,

@@ -151,6 +151,10 @@ enum Operation {
     DEL = 1;
     DEL_ALL = 2;
     REPLACE = 3;
+    ENABLE = 4;
+    DISABLE = 5;
+    RESET = 6;
+    SOFTRESET = 7;
 }
 
 message Path {
@@ -436,8 +440,8 @@ message RPKIConf {
 message RPKIState {
     int64 uptime = 1;
     int64 downtime = 2;
-    int32 received_ipv4 = 3;
-    int32 received_ipv6 = 4;
+    int64 received_ipv4 = 3;
+    int64 received_ipv6 = 4;
 }
 
 message RPKI {

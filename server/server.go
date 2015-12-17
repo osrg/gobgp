@@ -94,7 +94,7 @@ type BgpServer struct {
 	neighborMap    map[string]*Peer
 	globalRib      *table.TableManager
 	zclient        *zebra.Client
-	roaClient      *roaClient
+	roaManager     *roaManager
 	bmpClient      *bmpClient
 	bmpConnCh      chan *bmpConn
 	shutdown       bool
@@ -115,7 +115,7 @@ func NewBgpServer(port int) *BgpServer {
 	b.neighborMap = make(map[string]*Peer)
 	b.listenPort = port
 	b.watchers = make(map[watcherType]watcher)
-	b.roaClient, _ = newROAClient(0, config.RpkiServers{})
+	b.roaManager, _ = newROAManager(0, config.RpkiServers{})
 	b.policy = table.NewRoutingPolicy()
 	return &b
 }
@@ -168,7 +168,7 @@ func (server *BgpServer) Serve() {
 	}
 
 	server.bmpClient, _ = newBMPClient(config.BmpServers{BmpServerList: []config.BmpServer{}}, server.bmpConnCh)
-	server.roaClient, _ = newROAClient(g.GlobalConfig.As, config.RpkiServers{})
+	server.roaManager, _ = newROAManager(g.GlobalConfig.As, config.RpkiServers{})
 
 	if g.Mrt.FileName != "" {
 		w, err := newMrtWatcher(g.Mrt.FileName)
@@ -321,7 +321,7 @@ func (server *BgpServer) Serve() {
 
 		select {
 		case c := <-server.rpkiConfigCh:
-			server.roaClient, _ = newROAClient(server.bgpConfig.Global.GlobalConfig.As, c)
+			server.roaManager, _ = newROAManager(server.bgpConfig.Global.GlobalConfig.As, c)
 		case c := <-server.bmpConfigCh:
 			server.bmpClient, _ = newBMPClient(c, server.bmpConnCh)
 		case c := <-server.bmpConnCh:
@@ -344,8 +344,8 @@ func (server *BgpServer) Serve() {
 				msgList: bmpMsgList,
 			}
 			server.broadcastMsgs = append(server.broadcastMsgs, m)
-		case rmsg := <-server.roaClient.recieveROA():
-			server.roaClient.handleRTRMsg(rmsg)
+		case rmsg := <-server.roaManager.recieveROA():
+			server.roaManager.handleROAEvent(rmsg)
 		case zmsg := <-zapiMsgCh:
 			m := handleZapiMsg(zmsg, server)
 			if len(m) > 0 {
@@ -875,7 +875,7 @@ func (server *BgpServer) handleFSMMessage(peer *Peer, e *FsmMsg, incoming chan *
 				msgs = append(msgs, newSenderMsg(peer, msgList))
 			}
 			if len(pathList) > 0 {
-				server.roaClient.validate(pathList)
+				server.roaManager.validate(pathList)
 				m, altered := server.propagateUpdate(peer, pathList)
 				msgs = append(msgs, m...)
 
@@ -1821,7 +1821,7 @@ func (server *BgpServer) handleGrpc(grpcReq *GrpcRequest) []*SenderMsg {
 	case REQ_MOD_RPKI:
 		server.handleModRpki(grpcReq)
 	case REQ_ROA, REQ_RPKI:
-		server.roaClient.handleGRPC(grpcReq)
+		server.roaManager.handleGRPC(grpcReq)
 	case REQ_VRF, REQ_VRFS, REQ_VRF_MOD:
 		pathList := server.handleVrfRequest(grpcReq)
 		if len(pathList) > 0 {
@@ -2397,7 +2397,7 @@ func (server *BgpServer) handleModRpki(grpcReq *GrpcRequest) {
 		r.RpkiServerConfig.Address = net.ParseIP(arg.Address)
 		r.RpkiServerConfig.Port = arg.Port
 		server.bgpConfig.RpkiServers.RpkiServerList = append(server.bgpConfig.RpkiServers.RpkiServerList, r)
-		server.roaClient, _ = newROAClient(server.bgpConfig.Global.GlobalConfig.As, server.bgpConfig.RpkiServers)
+		server.roaManager, _ = newROAManager(server.bgpConfig.Global.GlobalConfig.As, server.bgpConfig.RpkiServers)
 		grpcDone(grpcReq, nil)
 		return
 	}
