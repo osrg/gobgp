@@ -120,21 +120,24 @@ func addROA(host string, tree *radix.Tree, as uint32, prefix []byte, prefixLen, 
 		tree.Insert(key, b)
 	} else {
 		bucket := b.(*roaBucket)
-		found := false
 		for _, r := range bucket.entries {
 			if r.MaxLen == maxLen && r.Src == host {
-				found = true
+				// we already have?
+				for _, a := range r.AS {
+					if a == as {
+						return
+					}
+				}
 				r.AS = append(r.AS, as)
+				return
 			}
 		}
-		if found == false {
-			r := &roa{
-				MaxLen: maxLen,
-				AS:     []uint32{as},
-				Src:    host,
-			}
-			bucket.entries = append(bucket.entries, r)
+		r := &roa{
+			MaxLen: maxLen,
+			AS:     []uint32{as},
+			Src:    host,
 		}
+		bucket.entries = append(bucket.entries, r)
 	}
 }
 
