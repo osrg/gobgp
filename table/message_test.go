@@ -20,6 +20,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"reflect"
 	"testing"
+	"time"
 )
 
 func updateMsg1(as []uint16) *bgp.BGPMessage {
@@ -98,4 +99,26 @@ func TestAs4PathUnchanged(t *testing.T) {
 			assert.Equal(t, v, as4[i])
 		}
 	}
+}
+
+func TestBMP(t *testing.T) {
+	aspath1 := []bgp.AsPathParamInterface{
+		bgp.NewAs4PathParam(2, []uint32{1000000}),
+		bgp.NewAs4PathParam(1, []uint32{1000001, 1002}),
+		bgp.NewAs4PathParam(2, []uint32{1003, 100004}),
+	}
+	mp_nlri := []bgp.AddrPrefixInterface{bgp.NewIPv6AddrPrefix(100,
+		"fe80:1234:1234:5667:8967:af12:8912:1023")}
+
+	p := []bgp.PathAttributeInterface{
+		bgp.NewPathAttributeOrigin(3),
+		bgp.NewPathAttributeAsPath(aspath1),
+		bgp.NewPathAttributeMpUnreachNLRI(mp_nlri),
+	}
+	w := []*bgp.IPAddrPrefix{}
+	n := []*bgp.IPAddrPrefix{}
+
+	msg := bgp.NewBGPUpdateMessage(w, p, n)
+	pList := ProcessMessage(msg, peerR1(), time.Now())
+	CreateUpdateMsgFromPaths(pList)
 }

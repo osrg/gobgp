@@ -160,8 +160,15 @@ func createUpdateMsgFromPath(path *Path, msg *bgp.BGPMessage) *bgp.BGPMessage {
 			} else {
 				clonedAttrs := cloneAttrSlice(path.GetPathAttrs())
 				idx, attr := path.getPathAttr(bgp.BGP_ATTR_TYPE_MP_REACH_NLRI)
-				reach := attr.(*bgp.PathAttributeMpReachNLRI)
-				clonedAttrs[idx] = bgp.NewPathAttributeMpUnreachNLRI(reach.Value)
+				if attr == nil {
+					// for bmp post-policy
+					idx, attr := path.getPathAttr(bgp.BGP_ATTR_TYPE_MP_UNREACH_NLRI)
+					reach := attr.(*bgp.PathAttributeMpUnreachNLRI)
+					clonedAttrs[idx] = bgp.NewPathAttributeMpUnreachNLRI(reach.Value)
+				} else {
+					reach := attr.(*bgp.PathAttributeMpReachNLRI)
+					clonedAttrs[idx] = bgp.NewPathAttributeMpUnreachNLRI(reach.Value)
+				}
 				return bgp.NewBGPUpdateMessage(nil, clonedAttrs, nil)
 			}
 		} else {
