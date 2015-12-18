@@ -105,55 +105,47 @@ func NewRPKICmd() *cobra.Command {
 		Use: CMD_RPKI,
 	}
 
-	modRPKI := func(op api.Operation, address string) {
+	modRPKI := func(op api.Operation, address string) error {
 		arg := &api.ModRpkiArguments{
 			Operation: op,
 			Address:   address,
 			Port:      323,
 		}
-		client.ModRPKI(context.Background(), arg)
+		_, err := client.ModRPKI(context.Background(), arg)
+		return err
 	}
-
-	enableCmd := &cobra.Command{
-		Use: CMD_ENABLE,
-		Run: func(cmd *cobra.Command, args []string) {
-			if len(args) != 1 {
-				fmt.Println("usage: gobgp rpki enable <ip address>")
-				os.Exit(1)
-			}
-			modRPKI(api.Operation_ENABLE, args[0])
-		},
-	}
-	rpkiCmd.AddCommand(enableCmd)
-
-	resetCmd := &cobra.Command{
-		Use: CMD_RESET,
-		Run: func(cmd *cobra.Command, args []string) {
-			if len(args) != 1 {
-				fmt.Println("usage: gobgp rpki reset <ip address>")
-				os.Exit(1)
-			}
-			modRPKI(api.Operation_RESET, args[0])
-		},
-	}
-	rpkiCmd.AddCommand(resetCmd)
-
-	softResetCmd := &cobra.Command{
-		Use: CMD_SOFT_RESET,
-		Run: func(cmd *cobra.Command, args []string) {
-			if len(args) != 1 {
-				fmt.Println("usage: gobgp rpki softreset <ip address>")
-				os.Exit(1)
-			}
-			modRPKI(api.Operation_SOFTRESET, args[0])
-		},
-	}
-	rpkiCmd.AddCommand(softResetCmd)
 
 	serverCmd := &cobra.Command{
 		Use: CMD_RPKI_SERVER,
 		Run: func(cmd *cobra.Command, args []string) {
-			showRPKIServer(args)
+			if len(args) == 0 {
+				showRPKIServer(args)
+				return
+			} else if len(args) != 2 {
+				fmt.Println("usage: gobgp rpki server <ip address> [reset|softreset|enable]")
+				os.Exit(1)
+			}
+			addr := net.ParseIP(args[0])
+			if addr == nil {
+				fmt.Println("invalid ip address:", args[0])
+				os.Exit(1)
+			}
+			var op api.Operation
+			switch args[1] {
+			case "reset":
+				op = api.Operation_RESET
+			case "softreset":
+				op = api.Operation_SOFTRESET
+			case "enable":
+				op = api.Operation_ENABLE
+			default:
+				fmt.Println("unknown operation:", args[1])
+				os.Exit(1)
+			}
+			err := modRPKI(op, addr.String())
+			if err != nil {
+				fmt.Println(err)
+			}
 		},
 	}
 

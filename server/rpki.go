@@ -80,13 +80,31 @@ func newROAManager(as uint32, conf config.RpkiServers) (*roaManager, error) {
 		client := &roaClient{
 			host:    net.JoinHostPort(c.Address.String(), strconv.Itoa(int(c.Port))),
 			eventCh: m.eventCh,
-			state:   &entry.RpkiServerState,
 		}
 		m.clientMap[client.host] = client
 		client.t.Go(client.tryConnect)
 	}
 
 	return m, nil
+}
+
+func (m *roaManager) operate(op api.Operation, address string) error {
+	for network, client := range m.clientMap {
+		add, _ := splitHostPort(network)
+		if add == address {
+			switch op {
+			case api.Operation_ENABLE:
+				client.enable()
+			case api.Operation_DISABLE:
+			case api.Operation_RESET:
+				client.reset()
+			case api.Operation_SOFTRESET:
+				client.softReset()
+			}
+			return nil
+		}
+	}
+	return fmt.Errorf("roa server not found %s", address)
 }
 
 func (c *roaManager) recieveROA() chan *roaClientEvent {
@@ -108,7 +126,6 @@ func (m *roaManager) handleROAEvent(ev *roaClientEvent) {
 		client.state.Downtime = time.Now().Unix()
 		// clear state
 		client.state.RpkiMessages = config.RpkiMessages{}
-		client.conn.Close()
 		client.conn = nil
 		client.t = tomb.Tomb{}
 		client.t.Go(client.tryConnect)
@@ -119,7 +136,7 @@ func (m *roaManager) handleROAEvent(ev *roaClientEvent) {
 		client.t = tomb.Tomb{}
 		client.t.Go(client.established)
 	case RTR:
-		m.handleRTRMsg(ev.src, client.state, ev.data)
+		m.handleRTRMsg(client, &client.state, ev.data)
 	}
 }
 
@@ -166,13 +183,16 @@ func addROA(host string, tree *radix.Tree, as uint32, prefix []byte, prefixLen, 
 	}
 }
 
-func (c *roaManager) handleRTRMsg(host string, state *config.RpkiServerState, buf []byte) {
+func (c *roaManager) handleRTRMsg(client *roaClient, state *config.RpkiServerState, buf []byte) {
 	received := &state.RpkiMessages.RpkiReceived
 
 	m, _ := bgp.ParseRTR(buf)
 	if m != nil {
+
 		switch msg := m.(type) {
 		case *bgp.RTRSerialNotify:
+			client.sessionID = msg.RTRCommon.SessionID
+			client.serialNumber = msg.RTRCommon.SerialNumber
 			received.SerialNotify++
 		case *bgp.RTRSerialQuery:
 		case *bgp.RTRResetQuery:
@@ -187,9 +207,11 @@ func (c *roaManager) handleRTRMsg(host string, state *config.RpkiServerState, bu
 				received.Ipv6Prefix++
 				tree = c.roas[bgp.RF_IPv6_UC]
 			}
-			addROA(host, tree, msg.AS, msg.Prefix, msg.PrefixLen, msg.MaxLen)
+			addROA(client.host, tree, msg.AS, msg.Prefix, msg.PrefixLen, msg.MaxLen)
 		case *bgp.RTREndOfData:
 			received.EndOfData++
+			client.sessionID = msg.RTRCommon.SessionID
+			client.serialNumber = msg.RTRCommon.SerialNumber
 		case *bgp.RTRCacheReset:
 			received.CacheReset++
 		case *bgp.RTRErrorReport:
@@ -342,14 +364,42 @@ func (c *roaManager) validate(pathList []*table.Path) {
 }
 
 type roaClient struct {
-	t       tomb.Tomb
-	host    string
-	conn    *net.TCPConn
-	state   *config.RpkiServerState
-	eventCh chan *roaClientEvent
+	t            tomb.Tomb
+	host         string
+	conn         *net.TCPConn
+	state        config.RpkiServerState
+	eventCh      chan *roaClientEvent
+	sessionID    uint16
+	serialNumber uint32
 }
 
-func (c *roaClient) kill() {
+func (c *roaClient) enable() error {
+	if c.conn != nil {
+		r := bgp.NewRTRSerialQuery(c.sessionID, c.serialNumber)
+		data, _ := r.Serialize()
+		_, err := c.conn.Write(data)
+		if err != nil {
+			return err
+		}
+		c.state.RpkiMessages.RpkiSent.SerialQuery++
+	}
+	return nil
+}
+
+func (c *roaClient) softReset() error {
+	if c.conn != nil {
+		r := bgp.NewRTRResetQuery()
+		data, _ := r.Serialize()
+		_, err := c.conn.Write(data)
+		if err != nil {
+			return err
+		}
+		c.state.RpkiMessages.RpkiSent.ResetQuery++
+	}
+	return nil
+}
+
+func (c *roaClient) reset() {
 	c.t.Kill(nil)
 	if c.conn != nil {
 		c.conn.Close()
@@ -383,15 +433,11 @@ func (c *roaClient) established() error {
 		}
 	}
 
-	r := bgp.NewRTRResetQuery()
-	data, _ := r.Serialize()
-	_, err := c.conn.Write(data)
+	err := c.softReset()
 	if err != nil {
 		disconnected()
 		return nil
 	}
-
-	c.state.RpkiMessages.RpkiSent.ResetQuery++
 
 	reader := bufio.NewReader(c.conn)
 	scanner := bufio.NewScanner(reader)

@@ -2375,22 +2375,7 @@ func (server *BgpServer) handleModMrt(grpcReq *GrpcRequest) {
 
 func (server *BgpServer) handleModRpki(grpcReq *GrpcRequest) {
 	arg := grpcReq.Data.(*api.ModRpkiArguments)
-	configured := false
-	if len(server.bgpConfig.RpkiServers.RpkiServerList) > 0 {
-		configured = true
-	}
 
-	if arg.Operation == api.Operation_ADD {
-		if configured {
-			grpcDone(grpcReq, fmt.Errorf("already enabled"))
-			return
-		}
-	} else {
-		if !configured {
-			grpcDone(grpcReq, fmt.Errorf("not enabled yet"))
-			return
-		}
-	}
 	switch arg.Operation {
 	case api.Operation_ADD:
 		r := config.RpkiServer{}
@@ -2399,6 +2384,9 @@ func (server *BgpServer) handleModRpki(grpcReq *GrpcRequest) {
 		server.bgpConfig.RpkiServers.RpkiServerList = append(server.bgpConfig.RpkiServers.RpkiServerList, r)
 		server.roaManager, _ = newROAManager(server.bgpConfig.Global.GlobalConfig.As, server.bgpConfig.RpkiServers)
 		grpcDone(grpcReq, nil)
+		return
+	case api.Operation_ENABLE, api.Operation_DISABLE, api.Operation_RESET, api.Operation_SOFTRESET:
+		grpcDone(grpcReq, server.roaManager.operate(arg.Operation, arg.Address))
 		return
 	}
 	grpcDone(grpcReq, fmt.Errorf("not supported yet"))
