@@ -754,7 +754,6 @@ func NewGlobalCmd() *cobra.Command {
 		Use: CMD_POLICY,
 		Run: func(cmd *cobra.Command, args []string) {
 			for _, v := range []string{CMD_IMPORT, CMD_EXPORT} {
-				fmt.Printf("%s policy:\n", strings.Title(v))
 				if err := showNeighborPolicy(nil, v, 4); err != nil {
 					fmt.Println(err)
 					os.Exit(1)
