@@ -26,6 +26,7 @@ import (
 	"github.com/osrg/gobgp/table"
 	"gopkg.in/tomb.v2"
 	"net"
+	"sort"
 	"strconv"
 	"strings"
 	"time"
@@ -41,6 +42,32 @@ type roa struct {
 	Src    string
 	MaxLen uint8
 	AS     []uint32
+}
+
+type roas []*api.ROA
+
+func (r roas) Len() int {
+	return len(r)
+}
+
+func (r roas) Swap(i, j int) {
+	r[i], r[j] = r[j], r[i]
+}
+
+func (r roas) Less(i, j int) bool {
+	r1 := r[i]
+	r2 := r[j]
+
+	if r1.Maxlen < r1.Maxlen {
+		return true
+	} else if r1.Maxlen > r1.Maxlen {
+		return false
+	}
+
+	if r1.As < r2.As {
+		return true
+	}
+	return false
 }
 
 const (
@@ -278,11 +305,11 @@ func (c *roaManager) handleGRPC(grpcReq *GrpcRequest) {
 			if tree, ok := c.roas[rf]; ok {
 				tree.Walk(func(s string, v interface{}) bool {
 					b, _ := v.(*roaBucket)
+					var roaList roas
 					for _, r := range b.entries {
 						for _, as := range r.AS {
-							result := &GrpcResponse{}
 							host, port := splitHostPort(r.Src)
-							result.Data = &api.ROA{
+							roa := &api.ROA{
 								As:        as,
 								Maxlen:    uint32(r.MaxLen),
 								Prefixlen: uint32(b.PrefixLen),
@@ -292,8 +319,15 @@ func (c *roaManager) handleGRPC(grpcReq *GrpcRequest) {
 									RemotePort: uint32(port),
 								},
 							}
-							results = append(results, result)
+							roaList = append(roaList, roa)
 						}
+					}
+					sort.Sort(roaList)
+					for _, roa := range roaList {
+						result := &GrpcResponse{
+							Data: roa,
+						}
+						results = append(results, result)
 					}
 					return false
 				})
