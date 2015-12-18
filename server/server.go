@@ -336,6 +336,11 @@ func (server *BgpServer) Serve() {
 					buf, _ := u[0].Serialize()
 					bmpMsgList = append(bmpMsgList, bmpPeerRoute(bgp.BMP_PEER_TYPE_GLOBAL, false, 0, targetPeer.fsm.peerInfo, p.GetTimestamp().Unix(), buf))
 				}
+				for _, p := range server.globalRib.GetBestPathList(table.GLOBAL_RIB_NAME, server.globalRib.GetRFlist()) {
+					u := table.CreateUpdateMsgFromPaths([]*table.Path{p})
+					buf, _ := u[0].Serialize()
+					bmpMsgList = append(bmpMsgList, bmpPeerRoute(bgp.BMP_PEER_TYPE_GLOBAL, true, 0, p.GetSource(), p.GetTimestamp().Unix(), buf))
+				}
 			}
 
 			m := &broadcastBMPMsg{
