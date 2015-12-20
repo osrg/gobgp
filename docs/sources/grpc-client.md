@@ -127,29 +127,43 @@ We got the neighbor information successfully.
 
 ## <a name="ruby"> Ruby
 
-### Installing LinuxBrew
+### Install ProtoBuffers:
 
-We use LinuxBrew to simplify the instruction.
 ```bash
 $ sudo apt-get update
-$ sudo apt-get install -y build-essential curl git python-dev python-pip m4 ruby
-$ ruby -e "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/linuxbrew/go/install)"
-$ export PATH=$HOME/.linuxbrew/bin:$PATH
-$ brew doctor
-```
-It's useful to add '$HOME/.linuxbrew/bin' to your PATH environment variable.
-
-Add configuration to load libs under '.linuxbrew'.
-```
-$ echo "$HOME/.linuxbrew/lib" | sudo tee /etc/ld.so.conf.d/grpc.conf
-$ sudo ldconfig
+$ sudo apt-get install -y build-essential curl git m4 ruby autoconf libtool unzip
+$ mkdir ~/work
+$ cd ~/work
+$ wget https://github.com/google/protobuf/archive/v3.0.0-beta-1.tar.gz
+$ tar xvzf v3.0.0-beta-1.tar.gz
+$ cd protobuf-3.0.0-beta-1
+$ ./autogen.sh
+$ ./configure
+$ make
+$ sudo make install
+$ vi ~/.bashrc
+  export LD_LIBRARY_PATH=/usr/local/lib
 ```
 
 ### Installing gRPC and Ruby Libraries
 
 ```bash
-$ curl -fsSL https://goo.gl/getgrpc | bash -s ruby
-$ sudo ldconfig
+$ command curl -sSL https://rvm.io/mpapis.asc | gpg --import -
+$ \curl -sSL https://get.rvm.io | bash -s stable --ruby=ruby-2
+$ source $HOME/.rvm/scripts/rvm
+$ rvm install 2.1
+$ gem install bundler
+$ cd ~/work/
+$ git clone https://github.com/grpc/grpc.git
+$ cd grpc
+$ git checkout -b release-0_11_1 release-0_11_1
+$ git submodule update --init
+$ $ make
+$ $ sudo make install
+$ cd src/ruby/
+$ gem build grpc.gemspec
+$ bundle install
+$ gem install -l grpc-0.11.0.gem
 ```
 
 ### Generating Stub Code
@@ -171,15 +185,15 @@ require 'gobgp_services'
 host = 'localhost'
 host = ARGV[0] if ARGV.length > 0
 
-stub = Api::Grpc::Stub.new("#{host}:8080")
-arg = Api::Arguments.new()
+stub = Gobgpapi::GobgpApi::Stub.new("#{host}:8080")
+arg = Gobgpapi::Arguments.new()
 stub.get_neighbors(arg).each do |n|
-    puts "BGP neighbor is #{n.conf.remote_ip}, remote AS #{n.conf.remote_as}"
+    puts "BGP neighbor is #{n.conf.neighbor_address}, remote AS #{n.conf.peer_as}"
     puts "\tBGP version 4, remote route ID #{n.conf.id}"
-    puts "\tBGP state = #{n.info.bgp_state}, up for #{n.info.uptime}"
+    puts "\tBGP state = #{n.info.bgp_state}, up for #{n.timers.state.uptime}"
     puts "\tBGP OutQ = #{n.info.out_q}, Flops = #{n.info.flops}"
-    puts "\tHold time is #{n.info.negotiated_holdtime}, keepalive interval is #{n.info.keepalive_interval} seconds"
-    puts "\tConfigured hold time is #{n.conf.holdtime}"
+    puts "\tHold time is #{n.timers.state.hold_time}, keepalive interval is #{n.timers.state.keepalive_interval} seconds"
+    puts "\tConfigured hold time is #{n.timers.config.hold_time}"
 end
 ```
 
@@ -199,7 +213,6 @@ BGP neighbor is 192.168.10.3, remote AS 65001
     BGP OutQ = 0, Flops = 0
     Hold time is 0, keepalive interval is 0 seconds
     Configured hold time is 90
-D0827 18:43:24.628846574    3379 iomgr.c:119] Waiting for 1 iomgr objects to be destroyed and executing final callbacks
 ```
 
 ## <a name="cpp"> C++
