@@ -7,7 +7,7 @@ _TIMEOUT_SECONDS = 10
 
 
 def run(gobgpd_addr, neighbor_addr):
-    channel = implementations.insecure_channel(gobgpd_addr, 8080)
+    channel = implementations.insecure_channel(gobgpd_addr, 50051)
     with gobgp_pb2.beta_create_GobgpApi_stub(channel) as stub:
         peer = stub.GetNeighbor(gobgp_pb2.Arguments(rf=4, name=neighbor_addr), _TIMEOUT_SECONDS)
         print("BGP neighbor is %s, remote AS %d" % (peer.conf.neighbor_address, peer.conf.peer_as))

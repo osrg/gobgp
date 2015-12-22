@@ -245,7 +245,7 @@ class GrpcClient {
 };
 
 int main(int argc, char** argv) {
-    GrpcClient gobgp_client(grpc::CreateChannel("localhost:8080", grpc::InsecureChannelCredentials()));
+    GrpcClient gobgp_client(grpc::CreateChannel("localhost:50051", grpc::InsecureChannelCredentials()));
  
     std::string reply = gobgp_client.GetNeighbor("213.133.111.200");
     std::cout << "Neighbor information: " << reply << std::endl;

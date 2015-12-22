@@ -90,7 +90,7 @@ _TIMEOUT_SECONDS = 10
 
 
 def run(gobgpd_addr, neighbor_addr):
-    channel = implementations.insecure_channel(gobgpd_addr, 8080)
+    channel = implementations.insecure_channel(gobgpd_addr, 50051)
     with gobgp_pb2.beta_create_GobgpApi_stub(channel) as stub:
         peer = stub.GetNeighbor(gobgp_pb2.Arguments(rf=4, name=neighbor_addr), _TIMEOUT_SECONDS)
         print("BGP neighbor is %s, remote AS %d" % (peer.conf.neighbor_address, peer.conf.peer_as))
@@ -185,7 +185,7 @@ require 'gobgp_services'
 host = 'localhost'
 host = ARGV[0] if ARGV.length > 0
 
-stub = Gobgpapi::GobgpApi::Stub.new("#{host}:8080")
+stub = Gobgpapi::GobgpApi::Stub.new("#{host}:50051")
 arg = Gobgpapi::Arguments.new()
 stub.get_neighbors(arg).each do |n|
     puts "BGP neighbor is #{n.conf.neighbor_address}, remote AS #{n.conf.peer_as}"
@@ -339,7 +339,7 @@ Here is an example to show neighbor information.
 ```javascript
 var grpc = require('grpc');
 var api = grpc.load('gobgp.proto').gobgpapi;
-var stub = new api.GobgpApi('localhost:8080', grpc.Credentials.createInsecure());
+var stub = new api.GobgpApi('localhost:50051', grpc.Credentials.createInsecure());
 
 var call = stub.getNeighbors({});
 call.on('data', function(neighbor) {

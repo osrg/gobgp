@@ -1,6 +1,6 @@
 var grpc = require('grpc');
 var api = grpc.load('gobgp.proto').gobgpapi;
-var stub = new api.GobgpApi('localhost:8080', grpc.Credentials.createInsecure());
+var stub = new api.GobgpApi('localhost:50051', grpc.Credentials.createInsecure());
 
 var call = stub.getNeighbors({});
 call.on('data', function(neighbor) {

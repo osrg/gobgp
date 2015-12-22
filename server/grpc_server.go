@@ -66,8 +66,6 @@ const (
 	REQ_MOD_POLICY_ASSIGNMENT
 )
 
-const GRPC_PORT = 8080
-
 type Server struct {
 	grpcServer  *grpc.Server
 	bgpServerCh chan *GrpcRequest

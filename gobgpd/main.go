@@ -46,6 +46,7 @@ func main() {
 		DisableStdlog bool   `long:"disable-stdlog" description:"disable standard logging"`
 		CPUs          int    `long:"cpus" description:"specify the number of CPUs to be used"`
 		Ops           bool   `long:"openswitch" description:"openswitch mode"`
+		GrpcPort      int    `long:"grpc-port" description:"grpc port" default:"50051"`
 	}
 	_, err := flags.Parse(&opts)
 	if err != nil {
@@ -166,7 +167,7 @@ func main() {
 	go bgpServer.Serve()
 
 	// start grpc Server
-	grpcServer := server.NewGrpcServer(server.GRPC_PORT, bgpServer.GrpcReqCh)
+	grpcServer := server.NewGrpcServer(opts.GrpcPort, bgpServer.GrpcReqCh)
 	go grpcServer.Serve()
 
 	var bgpConfig *config.Bgp = nil

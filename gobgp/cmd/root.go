@@ -21,12 +21,12 @@ import (
 )
 
 var globalOpts struct {
-	Host         string `short:"u" long:"url" description:"specifying an url" default:"127.0.0.1"`
-	Port         int    `short:"p" long:"port" description:"specifying a port" default:"8080"`
-	Debug        bool   `short:"d" long:"debug" description:"use debug"`
-	Quiet        bool   `short:"q" long:"quiet" description:"use quiet"`
-	Json         bool   `short:"j" long:"json" description:"use json format to output format"`
-	GenCmpl      bool   `short:"c" long:"genbashcmpl" description:"use json format to output format"`
+	Host         string
+	Port         int
+	Debug        bool
+	Quiet        bool
+	Json         bool
+	GenCmpl      bool
 	BashCmplFile string
 }
 
@@ -49,7 +49,7 @@ func NewRootCmd() *cobra.Command {
 	}
 
 	rootCmd.PersistentFlags().StringVarP(&globalOpts.Host, "host", "u", "127.0.0.1", "host")
-	rootCmd.PersistentFlags().IntVarP(&globalOpts.Port, "port", "p", 8080, "port")
+	rootCmd.PersistentFlags().IntVarP(&globalOpts.Port, "port", "p", 50051, "port")
 	rootCmd.PersistentFlags().BoolVarP(&globalOpts.Json, "json", "j", false, "use json format to output format")
 	rootCmd.PersistentFlags().BoolVarP(&globalOpts.Debug, "debug", "d", false, "use debug")
 	rootCmd.PersistentFlags().BoolVarP(&globalOpts.Quiet, "quiet", "q", false, "use quiet")
