@@ -108,9 +108,9 @@ PrefixSets and NeighborSets section are prefix match part and neighbor match par
 
  # neighbor match part
   [DefinedSets.NeighborSets]
-    [[DefinedSets.NeighborSetList]]
+    [[DefinedSets.NeighborSets.NeighborSetList]]
       NeighborSetName = "ns1"
-      [[DefinedSets.NeighborSetList.NeighborInfoList]]
+      [[DefinedSets.NeighborSets.NeighborSetList.NeighborInfoList]]
         Address = "10.0.255.1"
  ```
 
@@ -849,9 +849,9 @@ define an import policy for neighbor 10.0.255.2 that drops
 
 
   [DefinedSets.NeighborSets]
-    [[DefinedSets.NeighborSetList]]
+    [[DefinedSets.NeighborSets.NeighborSetList]]
       NeighborSetName = "ns1"
-      [[DefinedSets.NeighborSetList.NeighborInfoList]]
+      [[DefinedSets.NeighborSets.NeighborSetList.NeighborInfoList]]
         Address = "10.0.255.1"
 
 [PolicyDefinitions]
