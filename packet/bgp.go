@@ -5938,10 +5938,10 @@ type PathAttributeUnknown struct {
 }
 
 func GetPathAttribute(data []byte) (PathAttributeInterface, error) {
-	if len(data) < 1 {
+	if len(data) < 2 {
 		eCode := uint8(BGP_ERROR_UPDATE_MESSAGE_ERROR)
-		eSubCode := uint8(BGP_ERROR_SUB_MALFORMED_ATTRIBUTE_LIST)
-		return nil, NewMessageError(eCode, eSubCode, nil, "attribute type length is short")
+		eSubCode := uint8(BGP_ERROR_SUB_ATTRIBUTE_LENGTH_ERROR)
+		return nil, NewMessageError(eCode, eSubCode, data, "attribute type length is short")
 	}
 	switch BGPAttrType(data[1]) {
 	case BGP_ATTR_TYPE_ORIGIN:
