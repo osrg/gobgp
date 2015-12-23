@@ -25,16 +25,16 @@ func main() {
 
 	// start grpc api server. this is not mandatory
 	// but you will be able to use `gobgp` cmd with this.
-	g := gobgp.NewGrpcServer(gobgp.GRPC_PORT, s.GrpcReqCh)
+	g := gobgp.NewGrpcServer(50051, s.GrpcReqCh)
 	go g.Serve()
 
 	// global configuration
 	req := gobgp.NewGrpcRequest(gobgp.REQ_MOD_GLOBAL_CONFIG, "", bgp.RouteFamily(0), &api.ModGlobalConfigArguments{
 		Operation: api.Operation_ADD,
 		Global: &api.Global{
-			As:       65003,
-			RouterId: "192.168.0.4",
-			Port:     -1, // gobgp won't listen on tcp:179
+			As:         65003,
+			RouterId:   "192.168.0.4",
+			ListenPort: -1, // gobgp won't listen on tcp:179
 		},
 	})
 	s.GrpcReqCh <- req
