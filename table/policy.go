@@ -2151,7 +2151,7 @@ func (s *Statement) Apply(path *Path) (RouteType, *Path) {
 			}
 		}
 		//Routing action
-		if s.RouteAction == nil {
+		if s.RouteAction == nil || reflect.ValueOf(s.RouteAction).IsNil() {
 			log.WithFields(log.Fields{
 				"Topic":      "Policy",
 				"Path":       path,
