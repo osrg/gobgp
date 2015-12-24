@@ -267,10 +267,11 @@ func (c *roaManager) handleGRPC(grpcReq *GrpcRequest) {
 		for _, client := range c.clientMap {
 			state := client.state
 			received := &state.RpkiMessages.RpkiReceived
-			addr, _ := splitHostPort(client.host)
+			addr, port := splitHostPort(client.host)
 			rpki := &api.RPKI{
 				Conf: &api.RPKIConf{
-					Address: addr,
+					Address:    addr,
+					RemotePort: uint32(port),
 				},
 				State: &api.RPKIState{
 					Uptime:       state.Uptime,
