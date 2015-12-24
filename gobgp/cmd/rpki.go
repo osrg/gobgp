@@ -36,7 +36,7 @@ func showRPKIServer(args []string) error {
 		fmt.Println(err)
 		return err
 	}
-	format := "%-18s %-6s %-10s %s\n"
+	format := "%-23s %-6s %-10s %s\n"
 	fmt.Printf(format, "Session", "State", "Uptime", "#IPv4/IPv6 records")
 	for {
 		r, err := stream.Recv()
@@ -52,7 +52,7 @@ func showRPKIServer(args []string) error {
 			uptime = fmt.Sprint(formatTimedelta(int64(time.Now().Sub(time.Unix(r.State.Uptime, 0)).Seconds())))
 		}
 
-		fmt.Printf(format, fmt.Sprintf(r.Conf.Address), s, uptime, fmt.Sprintf("%d/%d", r.State.ReceivedIpv4, r.State.ReceivedIpv6))
+		fmt.Printf(format, net.JoinHostPort(r.Conf.Address, strconv.Itoa(int(r.Conf.RemotePort))), s, uptime, fmt.Sprintf("%d/%d", r.State.ReceivedIpv4, r.State.ReceivedIpv6))
 	}
 	return nil
 }
