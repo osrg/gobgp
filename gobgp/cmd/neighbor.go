@@ -139,10 +139,10 @@ func showNeighbors() error {
 }
 
 func showNeighbor(args []string) error {
-	id := &api.Arguments{
+	arg := &api.Arguments{
 		Name: args[0],
 	}
-	peer, e := client.GetNeighbor(context.Background(), id)
+	peer, e := client.GetNeighbor(context.Background(), arg)
 	if e != nil {
 		return e
 	}
@@ -155,7 +155,11 @@ func showNeighbor(args []string) error {
 	}
 
 	fmt.Printf("BGP neighbor is %s, remote AS %d\n", p.Conf.RemoteIp, p.Conf.RemoteAs)
-	fmt.Printf("  BGP version 4, remote router ID %s\n", p.Conf.Id)
+	id := "unknown"
+	if p.Conf.Id != nil {
+		id = p.Conf.Id.String()
+	}
+	fmt.Printf("  BGP version 4, remote router ID %s\n", id)
 	fmt.Printf("  BGP state = %s, up for %s\n", p.Info.BgpState, formatTimedelta(int64(p.Timers.State.Uptime)))
 	fmt.Printf("  BGP OutQ = %d, Flops = %d\n", p.Info.OutQ, p.Info.Flops)
 	fmt.Printf("  Hold time is %d, keepalive interval is %d seconds\n", p.Timers.State.NegotiatedHoldTime, p.Timers.Config.KeepaliveInterval)
