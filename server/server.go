@@ -99,6 +99,7 @@ type BgpServer struct {
 	bmpConnCh      chan *bmpConn
 	shutdown       bool
 	watchers       map[watcherType]watcher
+	neighborMutex  sync.RWMutex
 }
 
 func NewBgpServer() *BgpServer {
@@ -120,7 +121,7 @@ func NewBgpServer() *BgpServer {
 }
 
 // avoid mapped IPv6 address
-func listenAndAccept(proto string, port uint32, ch chan *net.TCPConn) (*net.TCPListener, error) {
+func (server *BgpServer) listenAndAccept(proto string, port uint32) (*net.TCPListener, error) {
 	service := ":" + strconv.Itoa(int(port))
 	addr, _ := net.ResolveTCPAddr(proto, service)
 
@@ -136,7 +137,43 @@ func listenAndAccept(proto string, port uint32, ch chan *net.TCPConn) (*net.TCPL
 				log.Info(err)
 				continue
 			}
-			ch <- conn
+			remoteAddr, _, _ := net.SplitHostPort(conn.RemoteAddr().String())
+			server.neighborMutex.RLock()
+			peer, found := server.neighborMap[remoteAddr]
+			if found {
+				localAddrValid := func(laddr string) bool {
+					if laddr == "" {
+						return true
+					}
+					l := conn.LocalAddr()
+					if l == nil {
+						// already closed
+						return false
+					}
+
+					host, _, _ := net.SplitHostPort(l.String())
+					if host != laddr {
+						log.WithFields(log.Fields{
+							"Topic":           "Peer",
+							"Key":             remoteAddr,
+							"Configured addr": laddr,
+							"Addr":            host,
+						}).Info("Mismatched local address")
+						return false
+					}
+					return true
+				}(peer.conf.Transport.Config.LocalAddress)
+				if localAddrValid == false {
+					conn.Close()
+					return
+				}
+				log.Debug("accepted a new passive connection from ", remoteAddr)
+				peer.PassConn(conn)
+			} else {
+				log.Info("can't find configuration for a new passive connection from ", remoteAddr)
+				conn.Close()
+			}
+			server.neighborMutex.RUnlock()
 		}
 	}()
 
@@ -228,11 +265,10 @@ func (server *BgpServer) Serve() {
 	rfs, _ := g.AfiSafis.ToRfList()
 	server.globalRib = table.NewTableManager(rfs, g.MplsLabelRange.MinLabel, g.MplsLabelRange.MaxLabel)
 	server.listenerMap = make(map[string]*net.TCPListener)
-	acceptCh := make(chan *net.TCPConn, 4096)
 	if g.ListenConfig.Port > 0 {
-		l4, err1 := listenAndAccept("tcp4", uint32(g.ListenConfig.Port), acceptCh)
+		l4, err1 := server.listenAndAccept("tcp4", uint32(g.ListenConfig.Port))
 		server.listenerMap["tcp4"] = l4
-		l6, err2 := listenAndAccept("tcp6", uint32(g.ListenConfig.Port), acceptCh)
+		l6, err2 := server.listenAndAccept("tcp6", uint32(g.ListenConfig.Port))
 		server.listenerMap["tcp6"] = l6
 		if err1 != nil && err2 != nil {
 			log.Fatal("can't listen either v4 and v6")
@@ -285,52 +321,12 @@ func (server *BgpServer) Serve() {
 			firstBroadcastMsg = server.broadcastMsgs[0]
 		}
 
-		passConn := func(conn *net.TCPConn) {
-			remoteAddr, _, _ := net.SplitHostPort(conn.RemoteAddr().String())
-			peer, found := server.neighborMap[remoteAddr]
-			if found {
-				localAddrValid := func(laddr net.IP) bool {
-					if laddr == nil {
-						return true
-					}
-					l := conn.LocalAddr()
-					if l == nil {
-						// already closed
-						return false
-					}
-
-					host, _, _ := net.SplitHostPort(l.String())
-					if host != laddr.String() {
-						log.WithFields(log.Fields{
-							"Topic":           "Peer",
-							"Key":             remoteAddr,
-							"Configured addr": laddr.String(),
-							"Addr":            host,
-						}).Info("Mismatched local address")
-						return false
-					}
-					return true
-				}(net.ParseIP(peer.conf.Transport.Config.LocalAddress))
-				if localAddrValid == false {
-					conn.Close()
-					return
-				}
-				log.Debug("accepted a new passive connection from ", remoteAddr)
-				peer.PassConn(conn)
-			} else {
-				log.Info("can't find configuration for a new passive connection from ", remoteAddr)
-				conn.Close()
-			}
-		}
-
 		select {
 		case grpcReq := <-server.GrpcReqCh:
 			m := server.handleGrpc(grpcReq)
 			if len(m) > 0 {
 				senderMsgs = append(senderMsgs, m...)
 			}
-		case conn := <-acceptCh:
-			passConn(conn)
 		default:
 		}
 
@@ -382,9 +378,8 @@ func (server *BgpServer) Serve() {
 			if len(m) > 0 {
 				senderMsgs = append(senderMsgs, m...)
 			}
-		case conn := <-acceptCh:
-			passConn(conn)
 		case config := <-server.addedPeerCh:
+			server.neighborMutex.Lock()
 			addr := config.Config.NeighborAddress
 			_, found := server.neighborMap[addr]
 			if found {
@@ -413,7 +408,9 @@ func (server *BgpServer) Serve() {
 			server.neighborMap[addr] = peer
 			peer.startFSMHandler(server.fsmincomingCh, server.fsmStateCh)
 			server.broadcastPeerState(peer)
+			server.neighborMutex.Unlock()
 		case config := <-server.deletedPeerCh:
+			server.neighborMutex.Lock()
 			addr := config.Config.NeighborAddress
 			SetTcpMD5SigSockopts(listener(addr), addr, "")
 			peer, found := server.neighborMap[addr]
@@ -438,6 +435,7 @@ func (server *BgpServer) Serve() {
 			} else {
 				log.Info("Can't delete a peer configuration for ", addr)
 			}
+			server.neighborMutex.Unlock()
 		case config := <-server.updatedPeerCh:
 			addr := config.Config.NeighborAddress
 			peer := server.neighborMap[addr]
