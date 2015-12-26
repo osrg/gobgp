@@ -1071,30 +1071,18 @@ func getMacMobilityExtendedCommunity(etag uint32, mac net.HardwareAddr, evpnPath
 	return nil
 }
 
-func (server *BgpServer) handleModPathRequest(grpcReq *GrpcRequest) []*table.Path {
+func (server *BgpServer) Api2PathList(resource api.Resource, name string, ApiPathList []*api.Path) ([]*table.Path, error) {
 	var nlri bgp.AddrPrefixInterface
-	result := &GrpcResponse{}
-
-	var pattr []bgp.PathAttributeInterface
-	var extcomms []bgp.ExtendedCommunityInterface
 	var nexthop string
-	var rf bgp.RouteFamily
-	var paths []*table.Path
-	var path *api.Path
 	var pi *table.PeerInfo
-	arg, ok := grpcReq.Data.(*api.ModPathArguments)
-	if !ok {
-		result.ResponseErr = fmt.Errorf("type assertion failed")
-		goto ERR
-	}
 
-	paths = make([]*table.Path, 0, len(arg.Paths))
+	paths := make([]*table.Path, 0, len(ApiPathList))
 
-	for _, path = range arg.Paths {
+	for _, path := range ApiPathList {
 		seen := make(map[bgp.BGPAttrType]bool)
 
-		pattr = make([]bgp.PathAttributeInterface, 0)
-		extcomms = make([]bgp.ExtendedCommunityInterface, 0)
+		pattr := make([]bgp.PathAttributeInterface, 0)
+		extcomms := make([]bgp.ExtendedCommunityInterface, 0)
 
 		if path.SourceAsn != 0 {
 			pi = &table.PeerInfo{
@@ -1112,29 +1100,25 @@ func (server *BgpServer) handleModPathRequest(grpcReq *GrpcRequest) []*table.Pat
 			nlri = &bgp.IPAddrPrefix{}
 			err := nlri.DecodeFromBytes(path.Nlri)
 			if err != nil {
-				result.ResponseErr = err
-				goto ERR
+				return nil, err
 			}
 		}
 
 		for _, attr := range path.Pattrs {
 			p, err := bgp.GetPathAttribute(attr)
 			if err != nil {
-				result.ResponseErr = err
-				goto ERR
+				return nil, err
 			}
 
 			err = p.DecodeFromBytes(attr)
 			if err != nil {
-				result.ResponseErr = err
-				goto ERR
+				return nil, err
 			}
 
 			if _, ok := seen[p.GetType()]; !ok {
 				seen[p.GetType()] = true
 			} else {
-				result.ResponseErr = fmt.Errorf("the path attribute apears twice. Type : " + strconv.Itoa(int(p.GetType())))
-				goto ERR
+				return nil, fmt.Errorf("the path attribute apears twice. Type : " + strconv.Itoa(int(p.GetType())))
 			}
 			switch p.GetType() {
 			case bgp.BGP_ATTR_TYPE_NEXT_HOP:
@@ -1147,8 +1131,7 @@ func (server *BgpServer) handleModPathRequest(grpcReq *GrpcRequest) []*table.Pat
 			case bgp.BGP_ATTR_TYPE_MP_REACH_NLRI:
 				mpreach := p.(*bgp.PathAttributeMpReachNLRI)
 				if len(mpreach.Value) != 1 {
-					result.ResponseErr = fmt.Errorf("include only one route in mp_reach_nlri")
-					goto ERR
+					return nil, fmt.Errorf("include only one route in mp_reach_nlri")
 				}
 				nlri = mpreach.Value[0]
 				nexthop = mpreach.Nexthop.String()
@@ -1158,19 +1141,17 @@ func (server *BgpServer) handleModPathRequest(grpcReq *GrpcRequest) []*table.Pat
 		}
 
 		if nlri == nil || nexthop == "" {
-			result.ResponseErr = fmt.Errorf("not found nlri or nexthop")
-			goto ERR
+			return nil, fmt.Errorf("not found nlri or nexthop")
 		}
 
-		rf = bgp.AfiSafiToRouteFamily(nlri.AFI(), nlri.SAFI())
+		rf := bgp.AfiSafiToRouteFamily(nlri.AFI(), nlri.SAFI())
 
-		if arg.Resource == api.Resource_VRF {
-			label, err := server.globalRib.GetNextLabel(arg.Name, nexthop, path.IsWithdraw)
+		if resource == api.Resource_VRF {
+			label, err := server.globalRib.GetNextLabel(name, nexthop, path.IsWithdraw)
 			if err != nil {
-				result.ResponseErr = err
-				goto ERR
+				return nil, err
 			}
-			vrf := server.globalRib.Vrfs[arg.Name]
+			vrf := server.globalRib.Vrfs[name]
 			switch rf {
 			case bgp.RF_IPv4_UC:
 				n := nlri.(*bgp.IPAddrPrefix)
@@ -1187,13 +1168,12 @@ func (server *BgpServer) handleModPathRequest(grpcReq *GrpcRequest) []*table.Pat
 					n.RouteTypeData.(*bgp.EVPNMulticastEthernetTagRoute).RD = vrf.Rd
 				}
 			default:
-				result.ResponseErr = fmt.Errorf("unsupported route family for vrf: %s", rf)
-				goto ERR
+				return nil, fmt.Errorf("unsupported route family for vrf: %s", rf)
 			}
 			extcomms = append(extcomms, vrf.ExportRt...)
 		}
 
-		if arg.Resource != api.Resource_VRF && rf == bgp.RF_IPv4_UC {
+		if resource != api.Resource_VRF && rf == bgp.RF_IPv4_UC {
 			pattr = append(pattr, bgp.NewPathAttributeNextHop(nexthop))
 		} else {
 			pattr = append(pattr, bgp.NewPathAttributeMpReachNLRI(nexthop, []bgp.AddrPrefixInterface{nlri}))
@@ -1219,9 +1199,25 @@ func (server *BgpServer) handleModPathRequest(grpcReq *GrpcRequest) []*table.Pat
 		paths = append(paths, table.NewPath(pi, nlri, path.IsWithdraw, pattr, false, time.Now(), path.NoImplicitWithdraw))
 
 	}
+	return paths, nil
+}
 
-	return paths
-ERR:
+func (server *BgpServer) handleModPathRequest(grpcReq *GrpcRequest) []*table.Path {
+	var err error
+	var paths []*table.Path
+	arg, ok := grpcReq.Data.(*api.ModPathArguments)
+	if !ok {
+		err = fmt.Errorf("type assertion failed")
+	}
+	if err == nil {
+		paths, err = server.Api2PathList(arg.Resource, arg.Name, arg.Paths)
+		if err == nil {
+			return paths
+		}
+	}
+	result := &GrpcResponse{
+		ResponseErr: err,
+	}
 	grpcReq.ResponseCh <- result
 	close(grpcReq.ResponseCh)
 	return []*table.Path{}
