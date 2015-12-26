@@ -55,7 +55,7 @@ const (
 	REQ_VRF
 	REQ_VRFS
 	REQ_VRF_MOD
-	REQ_MOD_PATH
+	REQ_MOD_PATHS
 	REQ_DEFINED_SET
 	REQ_MOD_DEFINED_SET
 	REQ_STATEMENT
@@ -211,7 +211,7 @@ func (s *Server) Disable(ctx context.Context, arg *api.Arguments) (*api.Error, e
 	return s.neighbor(REQ_NEIGHBOR_DISABLE, arg)
 }
 
-func (s *Server) ModPath(stream api.GobgpApi_ModPathServer) error {
+func (s *Server) ModPaths(stream api.GobgpApi_ModPathsServer) error {
 	for {
 		arg, err := stream.Recv()
 
@@ -225,7 +225,7 @@ func (s *Server) ModPath(stream api.GobgpApi_ModPathServer) error {
 			return fmt.Errorf("unsupported resource: %s", arg.Resource)
 		}
 
-		req := NewGrpcRequest(REQ_MOD_PATH, arg.Name, bgp.RouteFamily(0), arg)
+		req := NewGrpcRequest(REQ_MOD_PATHS, arg.Name, bgp.RouteFamily(0), arg)
 		s.bgpServerCh <- req
 
 		res := <-req.ResponseCh

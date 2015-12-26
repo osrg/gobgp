@@ -11,7 +11,7 @@ It is generated from these files:
 It has these top-level messages:
 	Error
 	Arguments
-	ModPathArguments
+	ModPathsArguments
 	ModNeighborArguments
 	MrtArguments
 	ModMrtArguments
@@ -348,17 +348,17 @@ func (m *Arguments) Reset()         { *m = Arguments{} }
 func (m *Arguments) String() string { return proto.CompactTextString(m) }
 func (*Arguments) ProtoMessage()    {}
 
-type ModPathArguments struct {
+type ModPathsArguments struct {
 	Resource Resource `protobuf:"varint,1,opt,name=resource,enum=gobgpapi.Resource" json:"resource,omitempty"`
 	Name     string   `protobuf:"bytes,2,opt,name=name" json:"name,omitempty"`
 	Paths    []*Path  `protobuf:"bytes,3,rep,name=paths" json:"paths,omitempty"`
 }
 
-func (m *ModPathArguments) Reset()         { *m = ModPathArguments{} }
-func (m *ModPathArguments) String() string { return proto.CompactTextString(m) }
-func (*ModPathArguments) ProtoMessage()    {}
+func (m *ModPathsArguments) Reset()         { *m = ModPathsArguments{} }
+func (m *ModPathsArguments) String() string { return proto.CompactTextString(m) }
+func (*ModPathsArguments) ProtoMessage()    {}
 
-func (m *ModPathArguments) GetPaths() []*Path {
+func (m *ModPathsArguments) GetPaths() []*Path {
 	if m != nil {
 		return m.Paths
 	}
@@ -1190,7 +1190,7 @@ func (*Global) ProtoMessage()    {}
 func init() {
 	proto.RegisterType((*Error)(nil), "gobgpapi.Error")
 	proto.RegisterType((*Arguments)(nil), "gobgpapi.Arguments")
-	proto.RegisterType((*ModPathArguments)(nil), "gobgpapi.ModPathArguments")
+	proto.RegisterType((*ModPathsArguments)(nil), "gobgpapi.ModPathsArguments")
 	proto.RegisterType((*ModNeighborArguments)(nil), "gobgpapi.ModNeighborArguments")
 	proto.RegisterType((*MrtArguments)(nil), "gobgpapi.MrtArguments")
 	proto.RegisterType((*ModMrtArguments)(nil), "gobgpapi.ModMrtArguments")
@@ -1269,7 +1269,7 @@ type GobgpApiClient interface {
 	Shutdown(ctx context.Context, in *Arguments, opts ...grpc.CallOption) (*Error, error)
 	Enable(ctx context.Context, in *Arguments, opts ...grpc.CallOption) (*Error, error)
 	Disable(ctx context.Context, in *Arguments, opts ...grpc.CallOption) (*Error, error)
-	ModPath(ctx context.Context, opts ...grpc.CallOption) (GobgpApi_ModPathClient, error)
+	ModPaths(ctx context.Context, opts ...grpc.CallOption) (GobgpApi_ModPathsClient, error)
 	MonitorBestChanged(ctx context.Context, in *Arguments, opts ...grpc.CallOption) (GobgpApi_MonitorBestChangedClient, error)
 	MonitorPeerState(ctx context.Context, in *Arguments, opts ...grpc.CallOption) (GobgpApi_MonitorPeerStateClient, error)
 	GetMrt(ctx context.Context, in *MrtArguments, opts ...grpc.CallOption) (GobgpApi_GetMrtClient, error)
@@ -1440,30 +1440,30 @@ func (c *gobgpApiClient) Disable(ctx context.Context, in *Arguments, opts ...grp
 	return out, nil
 }
 
-func (c *gobgpApiClient) ModPath(ctx context.Context, opts ...grpc.CallOption) (GobgpApi_ModPathClient, error) {
-	stream, err := grpc.NewClientStream(ctx, &_GobgpApi_serviceDesc.Streams[1], c.cc, "/gobgpapi.GobgpApi/ModPath", opts...)
+func (c *gobgpApiClient) ModPaths(ctx context.Context, opts ...grpc.CallOption) (GobgpApi_ModPathsClient, error) {
+	stream, err := grpc.NewClientStream(ctx, &_GobgpApi_serviceDesc.Streams[1], c.cc, "/gobgpapi.GobgpApi/ModPaths", opts...)
 	if err != nil {
 		return nil, err
 	}
-	x := &gobgpApiModPathClient{stream}
+	x := &gobgpApiModPathsClient{stream}
 	return x, nil
 }
 
-type GobgpApi_ModPathClient interface {
-	Send(*ModPathArguments) error
+type GobgpApi_ModPathsClient interface {
+	Send(*ModPathsArguments) error
 	CloseAndRecv() (*Error, error)
 	grpc.ClientStream
 }
 
-type gobgpApiModPathClient struct {
+type gobgpApiModPathsClient struct {
 	grpc.ClientStream
 }
 
-func (x *gobgpApiModPathClient) Send(m *ModPathArguments) error {
+func (x *gobgpApiModPathsClient) Send(m *ModPathsArguments) error {
 	return x.ClientStream.SendMsg(m)
 }
 
-func (x *gobgpApiModPathClient) CloseAndRecv() (*Error, error) {
+func (x *gobgpApiModPathsClient) CloseAndRecv() (*Error, error) {
 	if err := x.ClientStream.CloseSend(); err != nil {
 		return nil, err
 	}
@@ -1877,7 +1877,7 @@ type GobgpApiServer interface {
 	Shutdown(context.Context, *Arguments) (*Error, error)
 	Enable(context.Context, *Arguments) (*Error, error)
 	Disable(context.Context, *Arguments) (*Error, error)
-	ModPath(GobgpApi_ModPathServer) error
+	ModPaths(GobgpApi_ModPathsServer) error
 	MonitorBestChanged(*Arguments, GobgpApi_MonitorBestChangedServer) error
 	MonitorPeerState(*Arguments, GobgpApi_MonitorPeerStateServer) error
 	GetMrt(*MrtArguments, GobgpApi_GetMrtServer) error
@@ -2069,26 +2069,26 @@ func _GobgpApi_Disable_Handler(srv interface{}, ctx context.Context, dec func(in
 	return out, nil
 }
 
-func _GobgpApi_ModPath_Handler(srv interface{}, stream grpc.ServerStream) error {
-	return srv.(GobgpApiServer).ModPath(&gobgpApiModPathServer{stream})
+func _GobgpApi_ModPaths_Handler(srv interface{}, stream grpc.ServerStream) error {
+	return srv.(GobgpApiServer).ModPaths(&gobgpApiModPathsServer{stream})
 }
 
-type GobgpApi_ModPathServer interface {
+type GobgpApi_ModPathsServer interface {
 	SendAndClose(*Error) error
-	Recv() (*ModPathArguments, error)
+	Recv() (*ModPathsArguments, error)
 	grpc.ServerStream
 }
 
-type gobgpApiModPathServer struct {
+type gobgpApiModPathsServer struct {
 	grpc.ServerStream
 }
 
-func (x *gobgpApiModPathServer) SendAndClose(m *Error) error {
+func (x *gobgpApiModPathsServer) SendAndClose(m *Error) error {
 	return x.ServerStream.SendMsg(m)
 }
 
-func (x *gobgpApiModPathServer) Recv() (*ModPathArguments, error) {
-	m := new(ModPathArguments)
+func (x *gobgpApiModPathsServer) Recv() (*ModPathsArguments, error) {
+	m := new(ModPathsArguments)
 	if err := x.ServerStream.RecvMsg(m); err != nil {
 		return nil, err
 	}
@@ -2520,8 +2520,8 @@ var _GobgpApi_serviceDesc = grpc.ServiceDesc{
 			ServerStreams: true,
 		},
 		{
-			StreamName:    "ModPath",
-			Handler:       _GobgpApi_ModPath_Handler,
+			StreamName:    "ModPaths",
+			Handler:       _GobgpApi_ModPaths_Handler,
 			ClientStreams: true,
 		},
 		{

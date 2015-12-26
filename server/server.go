@@ -1205,7 +1205,7 @@ func (server *BgpServer) Api2PathList(resource api.Resource, name string, ApiPat
 func (server *BgpServer) handleModPathRequest(grpcReq *GrpcRequest) []*table.Path {
 	var err error
 	var paths []*table.Path
-	arg, ok := grpcReq.Data.(*api.ModPathArguments)
+	arg, ok := grpcReq.Data.(*api.ModPathsArguments)
 	if !ok {
 		err = fmt.Errorf("type assertion failed")
 	}
@@ -1531,7 +1531,7 @@ func (server *BgpServer) handleGrpc(grpcReq *GrpcRequest) []*SenderMsg {
 			Data: d,
 		}
 		close(grpcReq.ResponseCh)
-	case REQ_MOD_PATH:
+	case REQ_MOD_PATHS:
 		pathList := server.handleModPathRequest(grpcReq)
 		if len(pathList) > 0 {
 			msgs, _ = server.propagateUpdate(nil, pathList)

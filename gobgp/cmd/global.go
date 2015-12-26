@@ -650,13 +650,13 @@ usage: %s rib %s match <MATCH_EXPR> then <THEN_EXPR> -a %%s
 		path.IsWithdraw = true
 	}
 
-	arg := &api.ModPathArguments{
+	arg := &api.ModPathsArguments{
 		Resource: resource,
 		Name:     name,
 		Paths:    []*api.Path{path},
 	}
 
-	stream, err := client.ModPath(context.Background())
+	stream, err := client.ModPaths(context.Background())
 	if err != nil {
 		return err
 	}

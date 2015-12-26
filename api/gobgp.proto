@@ -33,7 +33,7 @@ service GobgpApi {
   rpc Shutdown(Arguments) returns (Error) {}
   rpc Enable(Arguments) returns (Error) {}
   rpc Disable(Arguments) returns (Error) {}
-  rpc ModPath(stream ModPathArguments) returns (Error) {}
+  rpc ModPaths(stream ModPathsArguments) returns (Error) {}
   rpc MonitorBestChanged(Arguments) returns (stream Destination) {}
   rpc MonitorPeerState(Arguments) returns (stream Peer) {}
   rpc GetMrt(MrtArguments) returns (stream MrtMessage) {}
@@ -71,7 +71,7 @@ message Arguments {
     string name = 3;
 }
 
-message ModPathArguments {
+message ModPathsArguments {
     Resource resource = 1;
     string name = 2;
     repeated Path paths = 3;
