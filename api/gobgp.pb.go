@@ -58,6 +58,7 @@ It has these top-level messages:
 	RPKIState
 	RPKI
 	ROA
+	ROAResult
 	Vrf
 	Global
 */
@@ -329,6 +330,32 @@ var Error_ErrorCode_value = map[string]int32{
 
 func (x Error_ErrorCode) String() string {
 	return proto.EnumName(Error_ErrorCode_name, int32(x))
+}
+
+type ROAResult_ValidationResult int32
+
+const (
+	ROAResult_NONE      ROAResult_ValidationResult = 0
+	ROAResult_NOT_FOUND ROAResult_ValidationResult = 1
+	ROAResult_VALID     ROAResult_ValidationResult = 2
+	ROAResult_INVALID   ROAResult_ValidationResult = 3
+)
+
+var ROAResult_ValidationResult_name = map[int32]string{
+	0: "NONE",
+	1: "NOT_FOUND",
+	2: "VALID",
+	3: "INVALID",
+}
+var ROAResult_ValidationResult_value = map[string]int32{
+	"NONE":      0,
+	"NOT_FOUND": 1,
+	"VALID":     2,
+	"INVALID":   3,
+}
+
+func (x ROAResult_ValidationResult) String() string {
+	return proto.EnumName(ROAResult_ValidationResult_name, int32(x))
 }
 
 type Error struct {
@@ -1195,6 +1222,16 @@ func (m *ROA) GetConf() *RPKIConf {
 	return nil
 }
 
+type ROAResult struct {
+	OriginAs uint32                     `protobuf:"varint,1,opt,name=origin_as" json:"origin_as,omitempty"`
+	Prefix   string                     `protobuf:"bytes,2,opt,name=prefix" json:"prefix,omitempty"`
+	Result   ROAResult_ValidationResult `protobuf:"varint,3,opt,name=result,enum=gobgpapi.ROAResult_ValidationResult" json:"result,omitempty"`
+}
+
+func (m *ROAResult) Reset()         { *m = ROAResult{} }
+func (m *ROAResult) String() string { return proto.CompactTextString(m) }
+func (*ROAResult) ProtoMessage()    {}
+
 type Vrf struct {
 	Name     string   `protobuf:"bytes,1,opt,name=name" json:"name,omitempty"`
 	Rd       []byte   `protobuf:"bytes,2,opt,name=rd,proto3" json:"rd,omitempty"`
@@ -1266,6 +1303,7 @@ func init() {
 	proto.RegisterType((*RPKIState)(nil), "gobgpapi.RPKIState")
 	proto.RegisterType((*RPKI)(nil), "gobgpapi.RPKI")
 	proto.RegisterType((*ROA)(nil), "gobgpapi.ROA")
+	proto.RegisterType((*ROAResult)(nil), "gobgpapi.ROAResult")
 	proto.RegisterType((*Vrf)(nil), "gobgpapi.Vrf")
 	proto.RegisterType((*Global)(nil), "gobgpapi.Global")
 	proto.RegisterEnum("gobgpapi.Resource", Resource_name, Resource_value)
@@ -1278,6 +1316,7 @@ func init() {
 	proto.RegisterEnum("gobgpapi.MedActionType", MedActionType_name, MedActionType_value)
 	proto.RegisterEnum("gobgpapi.PolicyType", PolicyType_name, PolicyType_value)
 	proto.RegisterEnum("gobgpapi.Error_ErrorCode", Error_ErrorCode_name, Error_ErrorCode_value)
+	proto.RegisterEnum("gobgpapi.ROAResult_ValidationResult", ROAResult_ValidationResult_name, ROAResult_ValidationResult_value)
 }
 
 // Reference imports to suppress errors if they are not otherwise used.
@@ -1304,6 +1343,7 @@ type GobgpApiClient interface {
 	ModPaths(ctx context.Context, opts ...grpc.CallOption) (GobgpApi_ModPathsClient, error)
 	MonitorBestChanged(ctx context.Context, in *Arguments, opts ...grpc.CallOption) (GobgpApi_MonitorBestChangedClient, error)
 	MonitorPeerState(ctx context.Context, in *Arguments, opts ...grpc.CallOption) (GobgpApi_MonitorPeerStateClient, error)
+	MonitorROAValidation(ctx context.Context, in *Arguments, opts ...grpc.CallOption) (GobgpApi_MonitorROAValidationClient, error)
 	GetMrt(ctx context.Context, in *MrtArguments, opts ...grpc.CallOption) (GobgpApi_GetMrtClient, error)
 	ModMrt(ctx context.Context, in *ModMrtArguments, opts ...grpc.CallOption) (*Error, error)
 	GetRPKI(ctx context.Context, in *Arguments, opts ...grpc.CallOption) (GobgpApi_GetRPKIClient, error)
@@ -1579,8 +1619,40 @@ func (x *gobgpApiMonitorPeerStateClient) Recv() (*Peer, error) {
 	return m, nil
 }
 
+func (c *gobgpApiClient) MonitorROAValidation(ctx context.Context, in *Arguments, opts ...grpc.CallOption) (GobgpApi_MonitorROAValidationClient, error) {
+	stream, err := grpc.NewClientStream(ctx, &_GobgpApi_serviceDesc.Streams[4], c.cc, "/gobgpapi.GobgpApi/MonitorROAValidation", opts...)
+	if err != nil {
+		return nil, err
+	}
+	x := &gobgpApiMonitorROAValidationClient{stream}
+	if err := x.ClientStream.SendMsg(in); err != nil {
+		return nil, err
+	}
+	if err := x.ClientStream.CloseSend(); err != nil {
+		return nil, err
+	}
+	return x, nil
+}
+
+type GobgpApi_MonitorROAValidationClient interface {
+	Recv() (*ROAResult, error)
+	grpc.ClientStream
+}
+
+type gobgpApiMonitorROAValidationClient struct {
+	grpc.ClientStream
+}
+
+func (x *gobgpApiMonitorROAValidationClient) Recv() (*ROAResult, error) {
+	m := new(ROAResult)
+	if err := x.ClientStream.RecvMsg(m); err != nil {
+		return nil, err
+	}
+	return m, nil
+}
+
 func (c *gobgpApiClient) GetMrt(ctx context.Context, in *MrtArguments, opts ...grpc.CallOption) (GobgpApi_GetMrtClient, error) {
-	stream, err := grpc.NewClientStream(ctx, &_GobgpApi_serviceDesc.Streams[4], c.cc, "/gobgpapi.GobgpApi/GetMrt", opts...)
+	stream, err := grpc.NewClientStream(ctx, &_GobgpApi_serviceDesc.Streams[5], c.cc, "/gobgpapi.GobgpApi/GetMrt", opts...)
 	if err != nil {
 		return nil, err
 	}
@@ -1621,7 +1693,7 @@ func (c *gobgpApiClient) ModMrt(ctx context.Context, in *ModMrtArguments, opts .
 }
 
 func (c *gobgpApiClient) GetRPKI(ctx context.Context, in *Arguments, opts ...grpc.CallOption) (GobgpApi_GetRPKIClient, error) {
-	stream, err := grpc.NewClientStream(ctx, &_GobgpApi_serviceDesc.Streams[5], c.cc, "/gobgpapi.GobgpApi/GetRPKI", opts...)
+	stream, err := grpc.NewClientStream(ctx, &_GobgpApi_serviceDesc.Streams[6], c.cc, "/gobgpapi.GobgpApi/GetRPKI", opts...)
 	if err != nil {
 		return nil, err
 	}
@@ -1662,7 +1734,7 @@ func (c *gobgpApiClient) ModRPKI(ctx context.Context, in *ModRpkiArguments, opts
 }
 
 func (c *gobgpApiClient) GetROA(ctx context.Context, in *Arguments, opts ...grpc.CallOption) (GobgpApi_GetROAClient, error) {
-	stream, err := grpc.NewClientStream(ctx, &_GobgpApi_serviceDesc.Streams[6], c.cc, "/gobgpapi.GobgpApi/GetROA", opts...)
+	stream, err := grpc.NewClientStream(ctx, &_GobgpApi_serviceDesc.Streams[7], c.cc, "/gobgpapi.GobgpApi/GetROA", opts...)
 	if err != nil {
 		return nil, err
 	}
@@ -1694,7 +1766,7 @@ func (x *gobgpApiGetROAClient) Recv() (*ROA, error) {
 }
 
 func (c *gobgpApiClient) GetVrfs(ctx context.Context, in *Arguments, opts ...grpc.CallOption) (GobgpApi_GetVrfsClient, error) {
-	stream, err := grpc.NewClientStream(ctx, &_GobgpApi_serviceDesc.Streams[7], c.cc, "/gobgpapi.GobgpApi/GetVrfs", opts...)
+	stream, err := grpc.NewClientStream(ctx, &_GobgpApi_serviceDesc.Streams[8], c.cc, "/gobgpapi.GobgpApi/GetVrfs", opts...)
 	if err != nil {
 		return nil, err
 	}
@@ -1744,7 +1816,7 @@ func (c *gobgpApiClient) GetDefinedSet(ctx context.Context, in *DefinedSet, opts
 }
 
 func (c *gobgpApiClient) GetDefinedSets(ctx context.Context, in *DefinedSet, opts ...grpc.CallOption) (GobgpApi_GetDefinedSetsClient, error) {
-	stream, err := grpc.NewClientStream(ctx, &_GobgpApi_serviceDesc.Streams[8], c.cc, "/gobgpapi.GobgpApi/GetDefinedSets", opts...)
+	stream, err := grpc.NewClientStream(ctx, &_GobgpApi_serviceDesc.Streams[9], c.cc, "/gobgpapi.GobgpApi/GetDefinedSets", opts...)
 	if err != nil {
 		return nil, err
 	}
@@ -1794,7 +1866,7 @@ func (c *gobgpApiClient) GetStatement(ctx context.Context, in *Statement, opts .
 }
 
 func (c *gobgpApiClient) GetStatements(ctx context.Context, in *Statement, opts ...grpc.CallOption) (GobgpApi_GetStatementsClient, error) {
-	stream, err := grpc.NewClientStream(ctx, &_GobgpApi_serviceDesc.Streams[9], c.cc, "/gobgpapi.GobgpApi/GetStatements", opts...)
+	stream, err := grpc.NewClientStream(ctx, &_GobgpApi_serviceDesc.Streams[10], c.cc, "/gobgpapi.GobgpApi/GetStatements", opts...)
 	if err != nil {
 		return nil, err
 	}
@@ -1844,7 +1916,7 @@ func (c *gobgpApiClient) GetPolicy(ctx context.Context, in *Policy, opts ...grpc
 }
 
 func (c *gobgpApiClient) GetPolicies(ctx context.Context, in *Policy, opts ...grpc.CallOption) (GobgpApi_GetPoliciesClient, error) {
-	stream, err := grpc.NewClientStream(ctx, &_GobgpApi_serviceDesc.Streams[10], c.cc, "/gobgpapi.GobgpApi/GetPolicies", opts...)
+	stream, err := grpc.NewClientStream(ctx, &_GobgpApi_serviceDesc.Streams[11], c.cc, "/gobgpapi.GobgpApi/GetPolicies", opts...)
 	if err != nil {
 		return nil, err
 	}
@@ -1922,6 +1994,7 @@ type GobgpApiServer interface {
 	ModPaths(GobgpApi_ModPathsServer) error
 	MonitorBestChanged(*Arguments, GobgpApi_MonitorBestChangedServer) error
 	MonitorPeerState(*Arguments, GobgpApi_MonitorPeerStateServer) error
+	MonitorROAValidation(*Arguments, GobgpApi_MonitorROAValidationServer) error
 	GetMrt(*MrtArguments, GobgpApi_GetMrtServer) error
 	ModMrt(context.Context, *ModMrtArguments) (*Error, error)
 	GetRPKI(*Arguments, GobgpApi_GetRPKIServer) error
@@ -2188,6 +2261,27 @@ type gobgpApiMonitorPeerStateServer struct {
 }
 
 func (x *gobgpApiMonitorPeerStateServer) Send(m *Peer) error {
+	return x.ServerStream.SendMsg(m)
+}
+
+func _GobgpApi_MonitorROAValidation_Handler(srv interface{}, stream grpc.ServerStream) error {
+	m := new(Arguments)
+	if err := stream.RecvMsg(m); err != nil {
+		return err
+	}
+	return srv.(GobgpApiServer).MonitorROAValidation(m, &gobgpApiMonitorROAValidationServer{stream})
+}
+
+type GobgpApi_MonitorROAValidationServer interface {
+	Send(*ROAResult) error
+	grpc.ServerStream
+}
+
+type gobgpApiMonitorROAValidationServer struct {
+	grpc.ServerStream
+}
+
+func (x *gobgpApiMonitorROAValidationServer) Send(m *ROAResult) error {
 	return x.ServerStream.SendMsg(m)
 }
 
@@ -2590,6 +2684,11 @@ var _GobgpApi_serviceDesc = grpc.ServiceDesc{
 		{
 			StreamName:    "MonitorPeerState",
 			Handler:       _GobgpApi_MonitorPeerState_Handler,
+			ServerStreams: true,
+		},
+		{
+			StreamName:    "MonitorROAValidation",
+			Handler:       _GobgpApi_MonitorROAValidation_Handler,
 			ServerStreams: true,
 		},
 		{
