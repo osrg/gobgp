@@ -260,6 +260,20 @@ func splitHostPort(network string) (host string, port int) {
 	}
 }
 
+func Struct2API(b *roaBucket, r *roa, as uint32) *api.ROA {
+	host, port := splitHostPort(r.Src)
+	return &api.ROA{
+		As:        as,
+		Maxlen:    uint32(r.MaxLen),
+		Prefixlen: uint32(b.PrefixLen),
+		Prefix:    b.Prefix.String(),
+		Conf: &api.RPKIConf{
+			Address:    host,
+			RemotePort: uint32(port),
+		},
+	}
+}
+
 func (c *roaManager) handleGRPC(grpcReq *GrpcRequest) {
 	switch grpcReq.RequestType {
 	case REQ_RPKI:
@@ -387,15 +401,29 @@ func validatePath(ownAs uint32, tree *radix.Tree, cidr string, asPath *bgp.PathA
 	}
 }
 
-func (c *roaManager) validate(pathList []*table.Path) {
-	if c.roas[bgp.RF_IPv4_UC].Len() == 0 && c.roas[bgp.RF_IPv6_UC].Len() == 0 {
-		return
-	}
-	for _, path := range pathList {
-		if tree, ok := c.roas[path.GetRouteFamily()]; ok {
-			path.Validation = validatePath(c.AS, tree, path.GetNlri().String(), path.GetAsPath())
+func (c *roaManager) validate(pathList []*table.Path, isMonitor bool) []*api.ROAResult {
+	results := make([]*api.ROAResult, 0, len(pathList))
+	if isMonitor {
+		for _, path := range pathList {
+			results = append(results, &api.ROAResult{
+				OriginAs: path.GetSourceAs(),
+				Prefix:   path.GetNlri().String(),
+				Result:   api.ROAResult_NOT_FOUND,
+			})
 		}
 	}
+	if c.roas[bgp.RF_IPv4_UC].Len() == 0 && c.roas[bgp.RF_IPv6_UC].Len() == 0 {
+		return results
+	}
+	for i, path := range pathList {
+		if tree, ok := c.roas[path.GetRouteFamily()]; ok {
+			path.Validation = validatePath(c.AS, tree, path.GetNlri().String(), path.GetAsPath())
+			if isMonitor {
+				results[i].Result = api.ROAResult_ValidationResult(path.Validation)
+			}
+		}
+	}
+	return results
 }
 
 type roaClient struct {

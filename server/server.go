@@ -594,6 +594,33 @@ func (server *BgpServer) dropPeerAllRoutes(peer *Peer) []*SenderMsg {
 	return msgs
 }
 
+func (server *BgpServer) broadcastValidationResults(results []*api.ROAResult) {
+	for _, result := range results {
+		remainReqs := make([]*GrpcRequest, 0, len(server.broadcastReqs))
+		for _, req := range server.broadcastReqs {
+			select {
+			case <-req.EndCh:
+				continue
+			default:
+			}
+			if req.RequestType != REQ_MONITOR_ROA_VALIDATION_RESULT {
+				remainReqs = append(remainReqs, req)
+				continue
+			}
+			m := &broadcastGrpcMsg{
+				req: req,
+				result: &GrpcResponse{
+					Data: result,
+				},
+			}
+			server.broadcastMsgs = append(server.broadcastMsgs, m)
+
+			remainReqs = append(remainReqs, req)
+		}
+		server.broadcastReqs = remainReqs
+	}
+}
+
 func (server *BgpServer) broadcastBests(bests []*table.Path) {
 	for _, path := range bests {
 		if !path.IsFromZebra {
@@ -882,7 +909,16 @@ func (server *BgpServer) handleFSMMessage(peer *Peer, e *FsmMsg, incoming chan *
 				msgs = append(msgs, newSenderMsg(peer, msgList))
 			}
 			if len(pathList) > 0 {
-				server.roaManager.validate(pathList)
+				isMonitor := func() bool {
+					if len(server.broadcastReqs) > 0 {
+						return true
+					}
+					return false
+				}()
+				vResults := server.roaManager.validate(pathList, isMonitor)
+				if isMonitor {
+					server.broadcastValidationResults(vResults)
+				}
 				m, altered := server.propagateUpdate(peer, pathList)
 				msgs = append(msgs, m...)
 
@@ -1874,7 +1910,7 @@ func (server *BgpServer) handleGrpc(grpcReq *GrpcRequest) []*SenderMsg {
 			ResponseErr: err,
 		}
 		close(grpcReq.ResponseCh)
-	case REQ_MONITOR_GLOBAL_BEST_CHANGED, REQ_MONITOR_NEIGHBOR_PEER_STATE:
+	case REQ_MONITOR_GLOBAL_BEST_CHANGED, REQ_MONITOR_NEIGHBOR_PEER_STATE, REQ_MONITOR_ROA_VALIDATION_RESULT:
 		server.broadcastReqs = append(server.broadcastReqs, grpcReq)
 	case REQ_MRT_GLOBAL_RIB, REQ_MRT_LOCAL_RIB:
 		server.handleMrt(grpcReq)
