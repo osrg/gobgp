@@ -26,6 +26,7 @@ import (
 	"github.com/osrg/gobgp/packet"
 	"github.com/osrg/gobgp/table"
 	"github.com/osrg/gobgp/zebra"
+	"github.com/satori/go.uuid"
 	"net"
 	"os"
 	"strconv"
@@ -1204,6 +1205,58 @@ func (server *BgpServer) Api2PathList(resource api.Resource, name string, ApiPat
 
 func (server *BgpServer) handleModPathRequest(grpcReq *GrpcRequest) []*table.Path {
 	var err error
+	var uuidBytes []byte
+	paths := make([]*table.Path, 0, 1)
+	arg, ok := grpcReq.Data.(*api.ModPathArguments)
+	if !ok {
+		err = fmt.Errorf("type assertion failed")
+	}
+
+	if err == nil {
+		switch arg.Operation {
+		case api.Operation_DEL:
+			if len(arg.Uuid) > 0 {
+				path := func() *table.Path {
+					for _, rf := range server.globalRib.GetRFlist() {
+						for _, path := range server.globalRib.GetPathList(table.GLOBAL_RIB_NAME, rf) {
+							if len(path.Uuid) > 0 && bytes.Equal(path.Uuid, arg.Uuid) {
+								return path
+							}
+						}
+					}
+					return nil
+				}()
+				if path != nil {
+					paths = append(paths, path.Clone(path.Owner, true))
+				} else {
+					err = fmt.Errorf("Can't find a specified path")
+				}
+				break
+			}
+			arg.Path.IsWithdraw = true
+			fallthrough
+		case api.Operation_ADD:
+			paths, err = server.Api2PathList(arg.Resource, arg.Name, []*api.Path{arg.Path})
+			if err == nil {
+				u := uuid.NewV4()
+				uuidBytes = u.Bytes()
+				paths[0].Uuid = uuidBytes
+			}
+		}
+	}
+	result := &GrpcResponse{
+		ResponseErr: err,
+		Data: &api.ModPathResponse{
+			Uuid: uuidBytes,
+		},
+	}
+	grpcReq.ResponseCh <- result
+	close(grpcReq.ResponseCh)
+	return paths
+}
+
+func (server *BgpServer) handleModPathsRequest(grpcReq *GrpcRequest) []*table.Path {
+	var err error
 	var paths []*table.Path
 	arg, ok := grpcReq.Data.(*api.ModPathsArguments)
 	if !ok {
@@ -1531,14 +1584,18 @@ func (server *BgpServer) handleGrpc(grpcReq *GrpcRequest) []*SenderMsg {
 			Data: d,
 		}
 		close(grpcReq.ResponseCh)
-	case REQ_MOD_PATHS:
+	case REQ_MOD_PATH:
 		pathList := server.handleModPathRequest(grpcReq)
+		if len(pathList) > 0 {
+			msgs, _ = server.propagateUpdate(nil, pathList)
+		}
+	case REQ_MOD_PATHS:
+		pathList := server.handleModPathsRequest(grpcReq)
 		if len(pathList) > 0 {
 			msgs, _ = server.propagateUpdate(nil, pathList)
 			grpcReq.ResponseCh <- &GrpcResponse{}
 			close(grpcReq.ResponseCh)
 		}
-
 	case REQ_NEIGHBORS:
 		results := make([]*GrpcResponse, len(server.neighborMap))
 		i := 0

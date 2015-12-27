@@ -646,33 +646,19 @@ usage: %s rib %s match <MATCH_EXPR> then <THEN_EXPR> -a %%s
 		return err
 	}
 
+	arg := &api.ModPathArguments{
+		Operation: api.Operation_ADD,
+		Resource:  resource,
+		Name:      name,
+		Path:      path,
+	}
+
 	if modtype == CMD_DEL {
-		path.IsWithdraw = true
+		arg.Operation = api.Operation_DEL
 	}
 
-	arg := &api.ModPathsArguments{
-		Resource: resource,
-		Name:     name,
-		Paths:    []*api.Path{path},
-	}
-
-	stream, err := client.ModPaths(context.Background())
-	if err != nil {
-		return err
-	}
-	err = stream.Send(arg)
-	if err != nil {
-		return err
-	}
-	stream.CloseSend()
-	res, e := stream.CloseAndRecv()
-	if e != nil {
-		return e
-	}
-	if res.Code != api.Error_SUCCESS {
-		return fmt.Errorf("error: code: %d, msg: %s", res.Code, res.Msg)
-	}
-	return nil
+	_, err = client.ModPath(context.Background(), arg)
+	return err
 }
 
 func showGlobalConfig(args []string) error {

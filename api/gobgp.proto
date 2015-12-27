@@ -33,6 +33,7 @@ service GobgpApi {
   rpc Shutdown(Arguments) returns (Error) {}
   rpc Enable(Arguments) returns (Error) {}
   rpc Disable(Arguments) returns (Error) {}
+  rpc ModPath(ModPathArguments) returns (ModPathResponse) {}
   rpc ModPaths(stream ModPathsArguments) returns (Error) {}
   rpc MonitorBestChanged(Arguments) returns (stream Destination) {}
   rpc MonitorPeerState(Arguments) returns (stream Peer) {}
@@ -69,6 +70,18 @@ message Arguments {
     Resource resource = 1;
     uint32 family = 2;
     string name = 3;
+}
+
+message ModPathArguments {
+    Operation operation = 1;
+    Resource resource = 2;
+    string name = 3;
+    Path path = 4;
+    bytes uuid = 5;
+}
+
+message ModPathResponse {
+    bytes uuid = 1;
 }
 
 message ModPathsArguments {

@@ -55,6 +55,7 @@ const (
 	REQ_VRF
 	REQ_VRFS
 	REQ_VRF_MOD
+	REQ_MOD_PATH
 	REQ_MOD_PATHS
 	REQ_DEFINED_SET
 	REQ_MOD_DEFINED_SET
@@ -209,6 +210,14 @@ func (s *Server) Enable(ctx context.Context, arg *api.Arguments) (*api.Error, er
 
 func (s *Server) Disable(ctx context.Context, arg *api.Arguments) (*api.Error, error) {
 	return s.neighbor(REQ_NEIGHBOR_DISABLE, arg)
+}
+
+func (s *Server) ModPath(ctx context.Context, arg *api.ModPathArguments) (*api.ModPathResponse, error) {
+	d, err := s.get(REQ_MOD_PATH, arg)
+	if err != nil {
+		return nil, err
+	}
+	return d.(*api.ModPathResponse), nil
 }
 
 func (s *Server) ModPaths(stream api.GobgpApi_ModPathsServer) error {
