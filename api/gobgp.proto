@@ -37,6 +37,7 @@ service GobgpApi {
   rpc ModPaths(stream ModPathsArguments) returns (Error) {}
   rpc MonitorBestChanged(Arguments) returns (stream Destination) {}
   rpc MonitorPeerState(Arguments) returns (stream Peer) {}
+  rpc MonitorROAValidation(Arguments) returns (stream ROAResult) {}
   rpc GetMrt(MrtArguments) returns (stream MrtMessage) {}
   rpc ModMrt(ModMrtArguments) returns (Error) {}
   rpc GetRPKI(Arguments) returns (stream RPKI) {}
@@ -468,6 +469,18 @@ message ROA {
     uint32 maxlen = 3;
     string prefix = 4;
     RPKIConf conf = 5;
+}
+
+message ROAResult {
+    uint32 origin_as = 1;
+    string prefix = 2;
+    enum ValidationResult {
+        NONE = 0;
+        NOT_FOUND = 1;
+        VALID = 2;
+        INVALID = 3;
+    }
+    ValidationResult result = 3;
 }
 
 message Vrf {
