@@ -210,15 +210,15 @@ func main() {
 			}
 
 			for _, p := range added {
-				log.Infof("Peer %v is added", p.NeighborConfig.NeighborAddress)
+				log.Infof("Peer %v is added", p.Config.NeighborAddress)
 				bgpServer.PeerAdd(p)
 			}
 			for _, p := range deleted {
-				log.Infof("Peer %v is deleted", p.NeighborConfig.NeighborAddress)
+				log.Infof("Peer %v is deleted", p.Config.NeighborAddress)
 				bgpServer.PeerDelete(p)
 			}
 			for _, p := range updated {
-				log.Infof("Peer %v is updated", p.NeighborConfig.NeighborAddress)
+				log.Infof("Peer %v is updated", p.Config.NeighborAddress)
 				bgpServer.PeerUpdate(p)
 			}
 		case sig := <-sigCh:

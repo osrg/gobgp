@@ -36,18 +36,18 @@ uses the following very simple configuration file, `gobgpd.conf`:
 ```
 $ cat gobgpd.conf
 [Global]
-  [Global.GlobalConfig]
+  [Global.Config]
     As = 64512
     RouterId = "192.168.255.1"
 
 [Neighbors]
   [[Neighbors.NeighborList]]
-    [Neighbors.NeighborList.NeighborConfig]
+    [Neighbors.NeighborList.Config]
       NeighborAddress = "10.0.255.1"
       PeerAs = 65001
 
   [[Neighbors.NeighborList]]
-    [Neighbors.NeighborList.NeighborConfig]
+    [Neighbors.NeighborList.Config]
       NeighborAddress = "10.0.255.2"
       PeerAs = 65002
 ```

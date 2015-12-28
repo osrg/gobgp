@@ -190,7 +190,7 @@ func TestFSMHandlerOpenconfirm_HoldTimerExpired(t *testing.T) {
 	p.fsm.conn = m
 
 	// set up keepalive ticker
-	p.fsm.pConf.Timers.TimersConfig.KeepaliveInterval = 1
+	p.fsm.pConf.Timers.Config.KeepaliveInterval = 1
 
 	// set holdtime
 	p.fsm.negotiatedHoldTime = 2
@@ -227,7 +227,7 @@ func TestFSMHandlerEstablish_HoldTimerExpired(t *testing.T) {
 	}
 
 	// set holdtime
-	p.fsm.pConf.Timers.TimersConfig.HoldTime = 2
+	p.fsm.pConf.Timers.Config.HoldTime = 2
 	p.fsm.negotiatedHoldTime = 2
 
 	go pushPackets()
@@ -251,7 +251,7 @@ func TestFSMHandlerOpenconfirm_HoldtimeZero(t *testing.T) {
 	p.fsm.conn = m
 
 	// set up keepalive ticker
-	p.fsm.pConf.Timers.TimersConfig.KeepaliveInterval = 1
+	p.fsm.pConf.Timers.Config.KeepaliveInterval = 1
 	// set holdtime
 	p.fsm.negotiatedHoldTime = 0
 	go h.openconfirm()

@@ -86,17 +86,17 @@ func cloneAsPath(asAttr *bgp.PathAttributeAsPath) *bgp.PathAttributeAsPath {
 
 func (path *Path) UpdatePathAttrs(global *config.Global, peer *config.Neighbor) {
 
-	if peer.RouteServer.RouteServerConfig.RouteServerClient {
+	if peer.RouteServer.Config.RouteServerClient {
 		return
 	}
 
-	localAddress := peer.Transport.TransportConfig.LocalAddress
-	if peer.NeighborConfig.PeerType == config.PEER_TYPE_EXTERNAL {
+	localAddress := peer.Transport.Config.LocalAddress
+	if peer.Config.PeerType == config.PEER_TYPE_EXTERNAL {
 		// NEXTHOP handling
 		path.SetNexthop(localAddress)
 
 		// AS_PATH handling
-		path.PrependAsn(global.GlobalConfig.As, 1)
+		path.PrependAsn(global.Config.As, 1)
 
 		// MED Handling
 		idx, _ := path.getPathAttr(bgp.BGP_ATTR_TYPE_MULTI_EXIT_DISC)
@@ -110,7 +110,7 @@ func (path *Path) UpdatePathAttrs(global *config.Global, peer *config.Neighbor) 
 			path.pathAttrs = append(path.pathAttrs[:idx], path.pathAttrs[idx+1:]...)
 		}
 
-	} else if peer.NeighborConfig.PeerType == config.PEER_TYPE_INTERNAL {
+	} else if peer.Config.PeerType == config.PEER_TYPE_INTERNAL {
 		// NEXTHOP handling for iBGP
 		// if the path generated locally set local address as nexthop.
 		// if not, don't modify it.
@@ -142,7 +142,7 @@ func (path *Path) UpdatePathAttrs(global *config.Global, peer *config.Neighbor) 
 		// RFC4456: BGP Route Reflection
 		// 8. Avoiding Routing Information Loops
 		info := path.source
-		if peer.RouteReflector.RouteReflectorConfig.RouteReflectorClient {
+		if peer.RouteReflector.Config.RouteReflectorClient {
 			// This attribute will carry the BGP Identifier of the originator of the route in the local AS.
 			// A BGP speaker SHOULD NOT create an ORIGINATOR_ID attribute if one already exists.
 			idx, _ = path.getPathAttr(bgp.BGP_ATTR_TYPE_ORIGINATOR_ID)
@@ -153,7 +153,7 @@ func (path *Path) UpdatePathAttrs(global *config.Global, peer *config.Neighbor) 
 			// When an RR reflects a route, it MUST prepend the local CLUSTER_ID to the CLUSTER_LIST.
 			// If the CLUSTER_LIST is empty, it MUST create a new one.
 			idx, _ = path.getPathAttr(bgp.BGP_ATTR_TYPE_CLUSTER_LIST)
-			id := string(peer.RouteReflector.RouteReflectorConfig.RouteReflectorClusterId)
+			id := string(peer.RouteReflector.Config.RouteReflectorClusterId)
 			if idx < 0 {
 				p := bgp.NewPathAttributeClusterList([]string{id})
 				path.pathAttrs = append(path.pathAttrs, p)
@@ -170,8 +170,8 @@ func (path *Path) UpdatePathAttrs(global *config.Global, peer *config.Neighbor) 
 	} else {
 		log.WithFields(log.Fields{
 			"Topic": "Peer",
-			"Key":   peer.NeighborConfig.NeighborAddress,
-		}).Warnf("invalid peer type: %d", peer.NeighborConfig.PeerType)
+			"Key":   peer.Config.NeighborAddress,
+		}).Warnf("invalid peer type: %d", peer.Config.PeerType)
 	}
 }
 

@@ -20,13 +20,13 @@ implementations can interchange EVPN messages.
 
 ```
 [Global]
-  [Global.GlobalConfig]
+  [Global.Config]
     As = 64512
     RouterId = "192.168.255.1"
 
 [Neighbors]
   [[Neighbors.NeighborList]]
-    [Neighbors.NeighborList.NeighborConfig]
+    [Neighbors.NeighborList.Config]
       NeighborAddress = "10.0.255.1"
       PeerAs = 64512
     [Neighbors.NeighborList.AfiSafis]
@@ -34,7 +34,7 @@ implementations can interchange EVPN messages.
         AfiSafiName = "l2vpn-evpn"
 
   [[Neighbors.NeighborList]]
-    [Neighbors.NeighborList.NeighborConfig]
+    [Neighbors.NeighborList.Config]
       NeighborAddress = "10.0.255.2"
       PeerAs = 64512
     [Neighbors.NeighborList.AfiSafis]

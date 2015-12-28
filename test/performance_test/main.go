@@ -17,7 +17,6 @@ package main
 
 import (
 	"fmt"
-	"net"
 	"os"
 	"time"
 
@@ -56,24 +55,24 @@ func main() {
 	for i := 0; i < num; i++ {
 		localAddr := fmt.Sprintf("10.10.%d.%d", (i+2)/255, (i+2)%255)
 		g := config.Global{
-			GlobalConfig: config.GlobalConfig{
+			Config: config.GlobalConfig{
 				As:       uint32(1001 + i),
-				RouterId: net.ParseIP(localAddr),
+				RouterId: localAddr,
 			},
 		}
 		p := config.Neighbor{
-			NeighborConfig: config.NeighborConfig{
+			Config: config.NeighborConfig{
 				PeerAs:          1000,
-				NeighborAddress: net.ParseIP("10.10.0.1"),
+				NeighborAddress: "10.10.0.1",
 			},
 			Transport: config.Transport{
-				TransportConfig: config.TransportConfig{
-					LocalAddress: net.ParseIP(localAddr),
+				Config: config.TransportConfig{
+					LocalAddress: localAddr,
 				},
 			},
 		}
 		peer := newPeer(g, p, incoming)
-		peerMap[p.Transport.TransportConfig.LocalAddress.String()] = peer
+		peerMap[p.Transport.Config.LocalAddress.String()] = peer
 	}
 	established := 0
 	ticker := time.NewTicker(time.Second * 5)

@@ -5,24 +5,23 @@ import (
 	"fmt"
 	"github.com/BurntSushi/toml"
 	"github.com/osrg/gobgp/config"
-	"net"
 )
 
 func main() {
 	b := config.Bgp{
 		Global: config.Global{
-			GlobalConfig: config.GlobalConfig{
+			Config: config.GlobalConfig{
 				As:       12332,
-				RouterId: net.ParseIP("10.0.0.1"),
+				RouterId: "10.0.0.1",
 			},
 		},
 		Neighbors: config.Neighbors{
 			NeighborList: []config.Neighbor{
 				config.Neighbor{
-					NeighborConfig: config.NeighborConfig{
+					Config: config.NeighborConfig{
 						PeerAs:          12333,
 						AuthPassword:    "apple",
-						NeighborAddress: net.ParseIP("192.168.177.33"),
+						NeighborAddress: "192.168.177.33",
 					},
 					AfiSafis: config.AfiSafis{
 
@@ -33,7 +32,7 @@ func main() {
 					},
 					ApplyPolicy: config.ApplyPolicy{
 
-						ApplyPolicyConfig: config.ApplyPolicyConfig{
+						Config: config.ApplyPolicyConfig{
 							ImportPolicy:        []string{"pd1"},
 							DefaultImportPolicy: config.DEFAULT_POLICY_TYPE_ACCEPT_ROUTE,
 						},
@@ -41,18 +40,18 @@ func main() {
 				},
 
 				config.Neighbor{
-					NeighborConfig: config.NeighborConfig{
+					Config: config.NeighborConfig{
 						PeerAs:          12334,
 						AuthPassword:    "orange",
-						NeighborAddress: net.ParseIP("192.168.177.32"),
+						NeighborAddress: "192.168.177.32",
 					},
 				},
 
 				config.Neighbor{
-					NeighborConfig: config.NeighborConfig{
+					Config: config.NeighborConfig{
 						PeerAs:          12335,
 						AuthPassword:    "grape",
-						NeighborAddress: net.ParseIP("192.168.177.34"),
+						NeighborAddress: "192.168.177.34",
 					},
 				},
 			},
@@ -88,7 +87,7 @@ func policy() config.RoutingPolicy {
 		NeighborSetName: "ns1",
 		NeighborInfoList: []config.NeighborInfo{
 			config.NeighborInfo{
-				Address: net.ParseIP("10.0.0.2"),
+				Address: "10.0.0.2",
 			}},
 	}
 

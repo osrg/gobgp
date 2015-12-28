@@ -13,30 +13,30 @@ The configuration below configures two route reflector clients and two normal iB
 
 ```toml
 [Global]
-  [Global.GlobalConfig]
+  [Global.Config]
     RouterId = "192.168.0.1"
     As = 65000
 [Neighbors]
   [[Neighbors.NeighborList]]
-    [Neighbors.NeighborList.NeighborConfig]
+    [Neighbors.NeighborList.Config]
       NeighborAddress = "192.168.10.2"
       PeerAs = 65000
-    [Neighbors.NeighborList.RouteReflector.RouteReflectorConfig]
+    [Neighbors.NeighborList.RouteReflector.Config]
       RouteReflectorClient = true
       RouteReflectorClusterId = "192.168.0.1"
   [[Neighbors.NeighborList]]
-    [Neighbors.NeighborList.NeighborConfig]
+    [Neighbors.NeighborList.Config]
       NeighborAddress = "192.168.10.3"
       PeerAs = 65000
-    [Neighbors.NeighborList.RouteReflector.RouteReflectorConfig]
+    [Neighbors.NeighborList.RouteReflector.Config]
       RouteReflectorClient = true
       RouteReflectorClusterId = "192.168.0.1"
   [[Neighbors.NeighborList]]
-    [Neighbors.NeighborList.NeighborConfig]
+    [Neighbors.NeighborList.Config]
       NeighborAddress = "192.168.10.4"
       PeerAs = 65000
   [[Neighbors.NeighborList]]
-    [Neighbors.NeighborList.NeighborConfig]
+    [Neighbors.NeighborList.Config]
       NeighborAddress = "192.168.10.5"
       PeerAs = 65000
 ```

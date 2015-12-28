@@ -16,13 +16,13 @@ Add `[BmpServers]` section to enable BMP like below.
 
 ```toml
 [Global]
-  [Global.GlobalConfig]
+  [Global.Config]
     As = 64512
     RouterId = "192.168.255.1"
 
 [BmpServers]
   [[BmpServers.BmpServerList]]
-    [BmpServers.BmpServerList.BmpServerConfig]
+    [BmpServers.BmpServerList.Config]
       Address = "127.0.0.1"
       Port=11019
 ```

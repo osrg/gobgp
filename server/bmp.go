@@ -71,7 +71,7 @@ func newBMPClient(conf config.BmpServers, connCh chan *bmpConn) (*bmpClient, err
 	}
 
 	for _, c := range conf.BmpServerList {
-		b := c.BmpServerConfig
+		b := c.Config
 		go tryConnect(net.JoinHostPort(b.Address.String(), strconv.Itoa(int(b.Port))))
 	}
 
@@ -98,7 +98,7 @@ func newBMPClient(conf config.BmpServers, connCh chan *bmpConn) (*bmpClient, err
 						if msg.Header.Type == bgp.BMP_MSG_ROUTE_MONITORING {
 							c := func() *config.BmpServerConfig {
 								for _, c := range conf.BmpServerList {
-									b := &c.BmpServerConfig
+									b := &c.Config
 									if host == net.JoinHostPort(b.Address.String(), strconv.Itoa(int(b.Port))) {
 										return b
 									}

@@ -45,7 +45,7 @@ func ReadConfigfileServe(path string, configCh chan BgpConfigSet, reloadCh chan 
 
 func inSlice(n Neighbor, b []Neighbor) int {
 	for i, nb := range b {
-		if nb.NeighborConfig.NeighborAddress.String() == n.NeighborConfig.NeighborAddress.String() {
+		if nb.Config.NeighborAddress.String() == n.Config.NeighborAddress.String() {
 			return i
 		}
 	}

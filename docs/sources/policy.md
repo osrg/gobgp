@@ -760,14 +760,14 @@ This example attatches *policy1* to Import policy and *policy2* to Export policy
 ```
 [Neighbors]
   [[Neighbors.NeighborList]]
-    [Neighbors.NeighborList.NeighborConfig]
+    [Neighbors.NeighborList.Config]
       NeighborAddress = "10.0.255.2"
       PeerAs = 65002
     [Neighbors.NeighborList.RouteServer]
-      [Neighbors.NeighborList.RouteServer.RouteServerConfig]
+      [Neighbors.NeighborList.RouteServer.Config]
         RouteServerClient = true
     [Neighbors.NeighborList.ApplyPolicy]
-      [Neighbors.NeighborList.ApplyPolicy.ApplyPolicyConfig]
+      [Neighbors.NeighborList.ApplyPolicy.Config]
         ImportPolicy = ["policy1"]
         ExportPolicy = ["policy2"]
         InPolicy = ["policy3"]
@@ -812,30 +812,30 @@ define an import policy for neighbor 10.0.255.2 that drops
 
 [Neighbors]
   [[Neighbors.NeighborList]]
-    [Neighbors.NeighborList.NeighborConfig]
+    [Neighbors.NeighborList.Config]
       NeighborAddress = "10.0.255.1"
       PeerAs = 65001
     [Neighbors.NeighborList.RouteServer]
-      [Neighbors.NeighborList.RouteServer.RouteServerConfig]
+      [Neighbors.NeighborList.RouteServer.Config]
         RouteServerClient = true
 
   [[Neighbors.NeighborList]]
-    [Neighbors.NeighborList.NeighborConfig]
+    [Neighbors.NeighborList.Config]
       NeighborAddress = "10.0.255.2"
       PeerAs = 65002
     [Neighbors.NeighborList.RouteServer]
-      [Neighbors.NeighborList.RouteServer.RouteServerConfig]
+      [Neighbors.NeighborList.RouteServer.Config]
         RouteServerClient = true
     [Neighbors.NeighborList.ApplyPolicy]
-      [Neighbors.NeighborList.ApplyPolicy.ApplyPolicyConfig]
+      [Neighbors.NeighborList.ApplyPolicy.Config]
         ImportPolicy = ["pd2"]
 
   [[Neighbors.NeighborList]]
-    [Neighbors.NeighborList.NeighborConfig]
+    [Neighbors.NeighborList.Config]
       NeighborAddress = "10.0.255.3"
       PeerAs = 65003
     [Neighbors.NeighborList.RouteServer]
-      [Neighbors.NeighborList.RouteServer.RouteServerConfig]
+      [Neighbors.NeighborList.RouteServer.Config]
         RouteServerClient = true
 
 [DefinedSets]

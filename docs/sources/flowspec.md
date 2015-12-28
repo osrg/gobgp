@@ -19,13 +19,13 @@ afi-safi-list like below.
 
 ```toml
 [Global]
-  [Global.GlobalConfig]
+  [Global.Config]
     As = 64512
     RouterId = "192.168.255.1"
 
 [Neighbors]
   [[Neighbors.NeighborList]]
-    [Neighbors.NeighborList.NeighborConfig]
+    [Neighbors.NeighborList.Config]
       NeighborAddress = "10.0.255.1"
       PeerAs = 64512
     [Neighbors.NeighborList.AfiSafis]

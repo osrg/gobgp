@@ -31,33 +31,33 @@ should be like the following.
 
 ```
 [Global]
-  [Global.GlobalConfig]
+  [Global.Config]
     As = 64512
     RouterId = "192.168.255.1"
 
 [Neighbors]
   [[Neighbors.NeighborList]]
-    [Neighbors.NeighborList.NeighborConfig]
+    [Neighbors.NeighborList.Config]
       NeighborAddress = "10.0.255.1"
       PeerAs = 65001
     [Neighbors.NeighborList.RouteServer]
-      [Neighbors.NeighborList.RouteServer.RouteServerConfig]
+      [Neighbors.NeighborList.RouteServer.Config]
         RouteServerClient = true
 
   [[Neighbors.NeighborList]]
-    [Neighbors.NeighborList.NeighborConfig]
+    [Neighbors.NeighborList.Config]
       NeighborAddress = "10.0.255.2"
       PeerAs = 65002
     [Neighbors.NeighborList.RouteServer]
-      [Neighbors.NeighborList.RouteServer.RouteServerConfig]
+      [Neighbors.NeighborList.RouteServer.Config]
         RouteServerClient = true
 
   [[Neighbors.NeighborList]]
-    [Neighbors.NeighborList.NeighborConfig]
+    [Neighbors.NeighborList.Config]
       NeighborAddress = "10.0.255.3"
       PeerAs = 65003
     [Neighbors.NeighborList.RouteServer]
-      [Neighbors.NeighborList.RouteServer.RouteServerConfig]
+      [Neighbors.NeighborList.RouteServer.Config]
         RouteServerClient = true
 ```
 

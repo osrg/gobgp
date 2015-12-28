@@ -158,9 +158,9 @@ type BmpServerConfig struct {
 //struct for container gobgp:bmp-server
 type BmpServer struct {
 	// original -> gobgp:bmp-server-config
-	BmpServerConfig BmpServerConfig
+	Config BmpServerConfig
 	// original -> gobgp:bmp-server-state
-	BmpServerState BmpServerState
+	State BmpServerState
 }
 
 //struct for container gobgp:bmp-servers
@@ -237,9 +237,9 @@ type RpkiServerConfig struct {
 //struct for container gobgp:rpki-server
 type RpkiServer struct {
 	// original -> gobgp:rpki-server-config
-	RpkiServerConfig RpkiServerConfig
+	Config RpkiServerConfig
 	// original -> gobgp:rpki-server-state
-	RpkiServerState RpkiServerState
+	State RpkiServerState
 }
 
 //struct for container gobgp:rpki-servers
@@ -307,9 +307,9 @@ type PeerGroup struct {
 	// original -> bgp:peer-group-name
 	PeerGroupName string
 	// original -> bgp:peer-group-config
-	PeerGroupConfig PeerGroupConfig
+	Config PeerGroupConfig
 	// original -> bgp:peer-group-state
-	PeerGroupState PeerGroupState
+	State PeerGroupState
 	// original -> bgp:timers
 	Timers Timers
 	// original -> bgp:transport
@@ -361,9 +361,9 @@ type RouteServerConfig struct {
 //struct for container gobgp:route-server
 type RouteServer struct {
 	// original -> gobgp:route-server-config
-	RouteServerConfig RouteServerConfig
+	Config RouteServerConfig
 	// original -> gobgp:route-server-state
-	RouteServerState RouteServerState
+	State RouteServerState
 }
 
 //struct for container bgp-op:prefixes
@@ -397,9 +397,9 @@ type AddPathsConfig struct {
 //struct for container bgp:add-paths
 type AddPaths struct {
 	// original -> bgp:add-paths-config
-	AddPathsConfig AddPathsConfig
+	Config AddPathsConfig
 	// original -> bgp:add-paths-state
-	AddPathsState AddPathsState
+	State AddPathsState
 }
 
 //struct for container bgp:state
@@ -423,9 +423,9 @@ type AsPathOptionsConfig struct {
 //struct for container bgp:as-path-options
 type AsPathOptions struct {
 	// original -> bgp:as-path-options-config
-	AsPathOptionsConfig AsPathOptionsConfig
+	Config AsPathOptionsConfig
 	// original -> bgp:as-path-options-state
-	AsPathOptionsState AsPathOptionsState
+	State AsPathOptionsState
 }
 
 //struct for container bgp:state
@@ -449,9 +449,9 @@ type RouteReflectorConfig struct {
 //struct for container bgp:route-reflector
 type RouteReflector struct {
 	// original -> bgp:route-reflector-config
-	RouteReflectorConfig RouteReflectorConfig
+	Config RouteReflectorConfig
 	// original -> bgp:route-reflector-state
-	RouteReflectorState RouteReflectorState
+	State RouteReflectorState
 }
 
 //struct for container bgp:state
@@ -475,9 +475,9 @@ type EbgpMultihopConfig struct {
 //struct for container bgp:ebgp-multihop
 type EbgpMultihop struct {
 	// original -> bgp:ebgp-multihop-config
-	EbgpMultihopConfig EbgpMultihopConfig
+	Config EbgpMultihopConfig
 	// original -> bgp:ebgp-multihop-state
-	EbgpMultihopState EbgpMultihopState
+	State EbgpMultihopState
 }
 
 //struct for container bgp:state
@@ -497,9 +497,9 @@ type LoggingOptionsConfig struct {
 //struct for container bgp:logging-options
 type LoggingOptions struct {
 	// original -> bgp:logging-options-config
-	LoggingOptionsConfig LoggingOptionsConfig
+	Config LoggingOptionsConfig
 	// original -> bgp:logging-options-state
-	LoggingOptionsState LoggingOptionsState
+	State LoggingOptionsState
 }
 
 //struct for container bgp:state
@@ -521,9 +521,9 @@ type ErrorHandlingConfig struct {
 //struct for container bgp:error-handling
 type ErrorHandling struct {
 	// original -> bgp:error-handling-config
-	ErrorHandlingConfig ErrorHandlingConfig
+	Config ErrorHandlingConfig
 	// original -> bgp:error-handling-state
-	ErrorHandlingState ErrorHandlingState
+	State ErrorHandlingState
 }
 
 //struct for container bgp:state
@@ -568,9 +568,9 @@ type TransportConfig struct {
 //struct for container bgp:transport
 type Transport struct {
 	// original -> bgp:transport-config
-	TransportConfig TransportConfig
+	Config TransportConfig
 	// original -> bgp:transport-state
-	TransportState TransportState
+	State TransportState
 }
 
 //struct for container bgp:state
@@ -625,9 +625,9 @@ type TimersConfig struct {
 //struct for container bgp:timers
 type Timers struct {
 	// original -> bgp:timers-config
-	TimersConfig TimersConfig
+	Config TimersConfig
 	// original -> bgp:timers-state
-	TimersState TimersState
+	State TimersState
 }
 
 //struct for container bgp:queues
@@ -765,9 +765,9 @@ type Neighbor struct {
 	//bgp:neighbor-address's original type is inet:ip-address
 	NeighborAddress net.IP
 	// original -> bgp:neighbor-config
-	NeighborConfig NeighborConfig
+	Config NeighborConfig
 	// original -> bgp:neighbor-state
-	NeighborState NeighborState
+	State NeighborState
 	// original -> bgp:timers
 	Timers Timers
 	// original -> bgp:transport
@@ -907,9 +907,9 @@ type Ipv6Unicast struct {
 	// original -> bgp-mp:prefix-limit
 	PrefixLimit PrefixLimit
 	// original -> bgp-mp:ipv6-unicast-config
-	Ipv6UnicastConfig Ipv6UnicastConfig
+	Config Ipv6UnicastConfig
 	// original -> bgp-mp:ipv6-unicast-state
-	Ipv6UnicastState Ipv6UnicastState
+	State Ipv6UnicastState
 }
 
 //struct for container bgp-mp:state
@@ -951,9 +951,9 @@ type PrefixLimitConfig struct {
 //struct for container bgp-mp:prefix-limit
 type PrefixLimit struct {
 	// original -> bgp-mp:prefix-limit-config
-	PrefixLimitConfig PrefixLimitConfig
+	Config PrefixLimitConfig
 	// original -> bgp-mp:prefix-limit-state
-	PrefixLimitState PrefixLimitState
+	State PrefixLimitState
 }
 
 //struct for container bgp-mp:ipv4-unicast
@@ -961,9 +961,9 @@ type Ipv4Unicast struct {
 	// original -> bgp-mp:prefix-limit
 	PrefixLimit PrefixLimit
 	// original -> bgp-mp:ipv4-unicast-config
-	Ipv4UnicastConfig Ipv4UnicastConfig
+	Config Ipv4UnicastConfig
 	// original -> bgp-mp:ipv4-unicast-state
-	Ipv4UnicastState Ipv4UnicastState
+	State Ipv4UnicastState
 }
 
 //struct for container rpol:state
@@ -1001,9 +1001,9 @@ type ApplyPolicyConfig struct {
 //struct for container rpol:apply-policy
 type ApplyPolicy struct {
 	// original -> rpol:apply-policy-config
-	ApplyPolicyConfig ApplyPolicyConfig
+	Config ApplyPolicyConfig
 	// original -> rpol:apply-policy-state
-	ApplyPolicyState ApplyPolicyState
+	State ApplyPolicyState
 }
 
 //struct for container bgp-mp:state
@@ -1051,9 +1051,9 @@ type MpGracefulRestartConfig struct {
 //struct for container bgp-mp:graceful-restart
 type MpGracefulRestart struct {
 	// original -> bgp-mp:mp-graceful-restart-config
-	MpGracefulRestartConfig MpGracefulRestartConfig
+	Config MpGracefulRestartConfig
 	// original -> bgp-mp:mp-graceful-restart-state
-	MpGracefulRestartState MpGracefulRestartState
+	State MpGracefulRestartState
 }
 
 //struct for container bgp-mp:afi-safi
@@ -1064,9 +1064,9 @@ type AfiSafi struct {
 	// original -> bgp-mp:mp-graceful-restart
 	MpGracefulRestart MpGracefulRestart
 	// original -> bgp-mp:afi-safi-config
-	AfiSafiConfig AfiSafiConfig
+	Config AfiSafiConfig
 	// original -> bgp-mp:afi-safi-state
-	AfiSafiState AfiSafiState
+	State AfiSafiState
 	// original -> rpol:apply-policy
 	ApplyPolicy ApplyPolicy
 	// original -> bgp-mp:ipv4-unicast
@@ -1145,9 +1145,9 @@ type GracefulRestartConfig struct {
 //struct for container bgp:graceful-restart
 type GracefulRestart struct {
 	// original -> bgp:graceful-restart-config
-	GracefulRestartConfig GracefulRestartConfig
+	Config GracefulRestartConfig
 	// original -> bgp:graceful-restart-state
-	GracefulRestartState GracefulRestartState
+	State GracefulRestartState
 }
 
 //struct for container bgp-mp:state
@@ -1165,9 +1165,9 @@ type IbgpConfig struct {
 //struct for container bgp-mp:ibgp
 type Ibgp struct {
 	// original -> bgp-mp:ibgp-config
-	IbgpConfig IbgpConfig
+	Config IbgpConfig
 	// original -> bgp-mp:ibgp-state
-	IbgpState IbgpState
+	State IbgpState
 }
 
 //struct for container bgp-mp:state
@@ -1191,9 +1191,9 @@ type EbgpConfig struct {
 //struct for container bgp-mp:ebgp
 type Ebgp struct {
 	// original -> bgp-mp:ebgp-config
-	EbgpConfig EbgpConfig
+	Config EbgpConfig
 	// original -> bgp-mp:ebgp-state
-	EbgpState EbgpState
+	State EbgpState
 }
 
 //struct for container bgp-mp:state
@@ -1213,9 +1213,9 @@ type UseMultiplePathsConfig struct {
 //struct for container bgp-mp:use-multiple-paths
 type UseMultiplePaths struct {
 	// original -> bgp-mp:use-multiple-paths-config
-	UseMultiplePathsConfig UseMultiplePathsConfig
+	Config UseMultiplePathsConfig
 	// original -> bgp-mp:use-multiple-paths-state
-	UseMultiplePathsState UseMultiplePathsState
+	State UseMultiplePathsState
 	// original -> bgp-mp:ebgp
 	Ebgp Ebgp
 	// original -> bgp-mp:ibgp
@@ -1251,9 +1251,9 @@ type ConfederationConfig struct {
 //struct for container bgp:confederation
 type Confederation struct {
 	// original -> bgp:confederation-config
-	ConfederationConfig ConfederationConfig
+	Config ConfederationConfig
 	// original -> bgp:confederation-state
-	ConfederationState ConfederationState
+	State ConfederationState
 }
 
 //struct for container bgp:state
@@ -1275,9 +1275,9 @@ type DefaultRouteDistanceConfig struct {
 //struct for container bgp:default-route-distance
 type DefaultRouteDistance struct {
 	// original -> bgp:default-route-distance-config
-	DefaultRouteDistanceConfig DefaultRouteDistanceConfig
+	Config DefaultRouteDistanceConfig
 	// original -> bgp:default-route-distance-state
-	DefaultRouteDistanceState DefaultRouteDistanceState
+	State DefaultRouteDistanceState
 }
 
 //struct for container bgp-mp:state
@@ -1327,9 +1327,9 @@ type RouteSelectionOptionsConfig struct {
 //struct for container bgp-mp:route-selection-options
 type RouteSelectionOptions struct {
 	// original -> bgp-mp:route-selection-options-config
-	RouteSelectionOptionsConfig RouteSelectionOptionsConfig
+	Config RouteSelectionOptionsConfig
 	// original -> bgp-mp:route-selection-options-state
-	RouteSelectionOptionsState RouteSelectionOptionsState
+	State RouteSelectionOptionsState
 }
 
 //struct for container bgp:state
@@ -1359,9 +1359,9 @@ type GlobalConfig struct {
 //struct for container bgp:global
 type Global struct {
 	// original -> bgp:global-config
-	GlobalConfig GlobalConfig
+	Config GlobalConfig
 	// original -> bgp:global-state
-	GlobalState GlobalState
+	State GlobalState
 	// original -> bgp-mp:route-selection-options
 	RouteSelectionOptions RouteSelectionOptions
 	// original -> bgp:default-route-distance

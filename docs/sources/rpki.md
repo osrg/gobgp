@@ -21,30 +21,30 @@ setup but RPKI can be used with non route server setup.
 
 ```toml
 [Global]
-  [Global.GlobalConfig]
+  [Global.Config]
     As = 64512
     RouterId = "10.0.255.254"
 
 [Neighbors]
   [[Neighbors.NeighborList]]
-    [Neighbors.NeighborList.NeighborConfig]
+    [Neighbors.NeighborList.Config]
       PeerAs = 65001
       NeighborAddress = "10.0.255.1"
     [Neighbors.NeighborList.RouteServer]
-      [Neighbors.NeighborList.RouteServer.RouteServerConfig]
+      [Neighbors.NeighborList.RouteServer.Config]
         RouteServerClient = true
 
   [[Neighbors.NeighborList]]
-    [Neighbors.NeighborList.NeighborConfig]
+    [Neighbors.NeighborList.Config]
       PeerAs = 65002
       NeighborAddress = "10.0.255.2"
     [Neighbors.NeighborList.RouteServer]
-      [Neighbors.NeighborList.RouteServer.RouteServerConfig]
+      [Neighbors.NeighborList.RouteServer.Config]
         RouteServerClient = true
 
 [RpkiServers]
   [[RpkiServers.RpkiServerList]]
-    [RpkiServers.RpkiServerList.RpkiServerConfig]
+    [RpkiServers.RpkiServerList.Config]
       Address = "210.173.170.254"
       Port = 323
 ```
@@ -126,33 +126,33 @@ We add a policy to the above configuration.
 
 ```toml
 [Global]
-  [Global.GlobalConfig]
+  [Global.Config]
     As = 64512
     RouterId = "10.0.255.254"
 
 [Neighbors]
   [[Neighbors.NeighborList]]
-    [Neighbors.NeighborList.NeighborConfig]
+    [Neighbors.NeighborList.Config]
       PeerAs = 65001
       NeighborAddress = "10.0.255.1"
     [Neighbors.NeighborList.RouteServer]
-      [Neighbors.NeighborList.RouteServer.RouteServerConfig]
+      [Neighbors.NeighborList.RouteServer.Config]
         RouteServerClient = true
 
   [[Neighbors.NeighborList]]
-    [Neighbors.NeighborList.NeighborConfig]
+    [Neighbors.NeighborList.Config]
       PeerAs = 65002
       NeighborAddress = "10.0.255.2"
     [Neighbors.NeighborList.RouteServer]
-      [Neighbors.NeighborList.RouteServer.RouteServerConfig]
+      [Neighbors.NeighborList.RouteServer.Config]
         RouteServerClient = true
     [Neighbors.NeighborList.ApplyPolicy]
-      [Neighbors.NeighborList.ApplyPolicy.ApplyPolicyConfig]
+      [Neighbors.NeighborList.ApplyPolicy.Config]
 	ImportPolicy = ["AS65002-IMPORT-RPKI"]
 
 [RpkiServers]
   [[RpkiServers.RpkiServerList]]
-    [RpkiServers.RpkiServerList.RpkiServerConfig]
+    [RpkiServers.RpkiServerList.Config]
       Address = "210.173.170.254"
       Port = 323
 

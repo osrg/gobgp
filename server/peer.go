@@ -58,11 +58,11 @@ func NewPeer(g config.Global, conf config.Neighbor, loc *table.TableManager, pol
 	}
 	tableId := table.GLOBAL_RIB_NAME
 	if peer.isRouteServerClient() {
-		tableId = conf.NeighborConfig.NeighborAddress.String()
+		tableId = conf.Config.NeighborAddress.String()
 	}
 	peer.tableId = tableId
-	conf.NeighborState.SessionState = uint32(bgp.BGP_FSM_IDLE)
-	conf.Timers.TimersState.Downtime = time.Now().Unix()
+	conf.State.SessionState = uint32(bgp.BGP_FSM_IDLE)
+	conf.Timers.State.Downtime = time.Now().Unix()
 	rfs, _ := conf.AfiSafis.ToRfList()
 	peer.adjRibIn = table.NewAdjRib(peer.ID(), rfs)
 	peer.adjRibOut = table.NewAdjRib(peer.ID(), rfs)
@@ -79,7 +79,7 @@ func (peer *Peer) Outgoing() chan *bgp.BGPMessage {
 }
 
 func (peer *Peer) ID() string {
-	return peer.conf.NeighborConfig.NeighborAddress.String()
+	return peer.conf.Config.NeighborAddress.String()
 }
 
 func (peer *Peer) TableID() string {
@@ -87,15 +87,15 @@ func (peer *Peer) TableID() string {
 }
 
 func (peer *Peer) isIBGPPeer() bool {
-	return peer.conf.NeighborConfig.PeerAs == peer.gConf.GlobalConfig.As
+	return peer.conf.Config.PeerAs == peer.gConf.Config.As
 }
 
 func (peer *Peer) isRouteServerClient() bool {
-	return peer.conf.RouteServer.RouteServerConfig.RouteServerClient
+	return peer.conf.RouteServer.Config.RouteServerClient
 }
 
 func (peer *Peer) isRouteReflectorClient() bool {
-	return peer.conf.RouteReflector.RouteReflectorConfig.RouteReflectorClient
+	return peer.conf.RouteReflector.Config.RouteReflectorClient
 }
 
 func (peer *Peer) configuredRFlist() []bgp.RouteFamily {
@@ -157,7 +157,7 @@ func (peer *Peer) handleBGPmessage(e *FsmMsg) ([]*table.Path, []*bgp.BGPMessage)
 	m := e.MsgData.(*bgp.BGPMessage)
 	log.WithFields(log.Fields{
 		"Topic": "Peer",
-		"Key":   peer.conf.NeighborConfig.NeighborAddress,
+		"Key":   peer.conf.Config.NeighborAddress,
 		"data":  m,
 	}).Debug("received")
 
@@ -173,7 +173,7 @@ func (peer *Peer) handleBGPmessage(e *FsmMsg) ([]*table.Path, []*bgp.BGPMessage)
 		// by using the smaller of its configured Hold Time and the Hold Time
 		// received in the OPEN message.
 		holdTime := float64(body.HoldTime)
-		myHoldTime := peer.conf.Timers.TimersConfig.HoldTime
+		myHoldTime := peer.conf.Timers.Config.HoldTime
 		if holdTime > myHoldTime {
 			peer.fsm.negotiatedHoldTime = myHoldTime
 		} else {
@@ -186,7 +186,7 @@ func (peer *Peer) handleBGPmessage(e *FsmMsg) ([]*table.Path, []*bgp.BGPMessage)
 		if _, ok := peer.rfMap[rf]; !ok {
 			log.WithFields(log.Fields{
 				"Topic": "Peer",
-				"Key":   peer.conf.NeighborConfig.NeighborAddress,
+				"Key":   peer.conf.Config.NeighborAddress,
 				"Data":  rf,
 			}).Warn("Route family isn't supported")
 			break
@@ -204,12 +204,12 @@ func (peer *Peer) handleBGPmessage(e *FsmMsg) ([]*table.Path, []*bgp.BGPMessage)
 		} else {
 			log.WithFields(log.Fields{
 				"Topic": "Peer",
-				"Key":   peer.conf.NeighborConfig.NeighborAddress,
+				"Key":   peer.conf.Config.NeighborAddress,
 			}).Warn("ROUTE_REFRESH received but the capability wasn't advertised")
 		}
 
 	case bgp.BGP_MSG_UPDATE:
-		peer.conf.Timers.TimersState.UpdateRecvTime = time.Now().Unix()
+		peer.conf.Timers.State.UpdateRecvTime = time.Now().Unix()
 		if len(e.PathList) > 0 {
 			peer.adjRibIn.Update(e.PathList)
 			paths := make([]*table.Path, 0, len(e.PathList))
@@ -224,7 +224,7 @@ func (peer *Peer) handleBGPmessage(e *FsmMsg) ([]*table.Path, []*bgp.BGPMessage)
 		body := m.Body.(*bgp.BGPNotification)
 		log.WithFields(log.Fields{
 			"Topic":   "Peer",
-			"Key":     peer.conf.NeighborConfig.NeighborAddress,
+			"Key":     peer.conf.Config.NeighborAddress,
 			"Code":    body.ErrorCode,
 			"Subcode": body.ErrorSubcode,
 			"Data":    body.Data,
@@ -244,7 +244,7 @@ func (peer *Peer) PassConn(conn *net.TCPConn) {
 		conn.Close()
 		log.WithFields(log.Fields{
 			"Topic": "Peer",
-			"Key":   peer.conf.NeighborConfig.NeighborAddress,
+			"Key":   peer.conf.Config.NeighborAddress,
 		}).Warn("accepted conn is closed to avoid be blocked")
 	}
 }
@@ -274,23 +274,23 @@ func (peer *Peer) ToApiStruct() *api.Peer {
 	}
 
 	conf := &api.PeerConf{
-		NeighborAddress:  c.NeighborConfig.NeighborAddress.String(),
+		NeighborAddress:  c.Config.NeighborAddress.String(),
 		Id:               peer.fsm.peerInfo.ID.To4().String(),
-		PeerAs:           c.NeighborConfig.PeerAs,
-		LocalAs:          c.NeighborConfig.LocalAs,
-		PeerType:         uint32(c.NeighborConfig.PeerType),
-		AuthPassword:     c.NeighborConfig.AuthPassword,
-		RemovePrivateAs:  uint32(c.NeighborConfig.RemovePrivateAs),
-		RouteFlapDamping: c.NeighborConfig.RouteFlapDamping,
-		SendCommunity:    uint32(c.NeighborConfig.SendCommunity),
-		Description:      c.NeighborConfig.Description,
-		PeerGroup:        c.NeighborConfig.PeerGroup,
+		PeerAs:           c.Config.PeerAs,
+		LocalAs:          c.Config.LocalAs,
+		PeerType:         uint32(c.Config.PeerType),
+		AuthPassword:     c.Config.AuthPassword,
+		RemovePrivateAs:  uint32(c.Config.RemovePrivateAs),
+		RouteFlapDamping: c.Config.RouteFlapDamping,
+		SendCommunity:    uint32(c.Config.SendCommunity),
+		Description:      c.Config.Description,
+		PeerGroup:        c.Config.PeerGroup,
 		RemoteCap:        remoteCap,
 		LocalCap:         localCap,
 	}
 
 	timer := &c.Timers
-	s := &c.NeighborState
+	s := &c.State
 
 	advertized := uint32(0)
 	received := uint32(0)
@@ -303,28 +303,28 @@ func (peer *Peer) ToApiStruct() *api.Peer {
 	}
 
 	uptime := int64(0)
-	if timer.TimersState.Uptime != 0 {
-		uptime = int64(time.Now().Sub(time.Unix(timer.TimersState.Uptime, 0)).Seconds())
+	if timer.State.Uptime != 0 {
+		uptime = int64(time.Now().Sub(time.Unix(timer.State.Uptime, 0)).Seconds())
 	}
 	downtime := int64(0)
-	if timer.TimersState.Downtime != 0 {
-		downtime = int64(time.Now().Sub(time.Unix(timer.TimersState.Downtime, 0)).Seconds())
+	if timer.State.Downtime != 0 {
+		downtime = int64(time.Now().Sub(time.Unix(timer.State.Downtime, 0)).Seconds())
 	}
 
 	keepalive := uint32(0)
 	if f.negotiatedHoldTime != 0 {
-		if f.negotiatedHoldTime < timer.TimersConfig.HoldTime {
+		if f.negotiatedHoldTime < timer.Config.HoldTime {
 			keepalive = uint32(f.negotiatedHoldTime / 3)
 		} else {
-			keepalive = uint32(timer.TimersConfig.KeepaliveInterval)
+			keepalive = uint32(timer.Config.KeepaliveInterval)
 		}
 	}
 
 	timerconf := &api.TimersConfig{
-		ConnectRetry:                 uint64(timer.TimersConfig.ConnectRetry),
-		HoldTime:                     uint64(timer.TimersConfig.HoldTime),
+		ConnectRetry:                 uint64(timer.Config.ConnectRetry),
+		HoldTime:                     uint64(timer.Config.HoldTime),
 		KeepaliveInterval:            uint64(keepalive),
-		MinimumAdvertisementInterval: uint64(timer.TimersConfig.MinimumAdvertisementInterval),
+		MinimumAdvertisementInterval: uint64(timer.Config.MinimumAdvertisementInterval),
 	}
 
 	timerstate := &api.TimersState{

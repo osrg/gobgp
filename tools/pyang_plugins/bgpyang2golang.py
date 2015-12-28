@@ -242,7 +242,12 @@ def emit_class_def(ctx, yang_statement, struct_name, prefix):
             emit_type_name = '[]' + t.golang_name
 
         if is_container(child):
-            print >> o, '  %s\t%s' % (emit_type_name, emit_type_name)
+            name = emit_type_name
+            if name.startswith(convert_to_golang(struct_name)) and name.endswith("Config"):
+                name = 'Config'
+            elif name.startswith(convert_to_golang(struct_name)) and name.endswith("State"):
+                name = 'State'
+            print >> o, '  %s\t%s' % (name, emit_type_name)
         else:
             print >> o, '  %s\t%s' % (val_name_go, emit_type_name)
 

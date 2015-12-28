@@ -174,7 +174,7 @@ class GoBGPContainer(BGPContainer):
             self._create_config_zebra()
 
     def _create_config_bgp(self):
-        config = {'Global': {'GlobalConfig': {'As': self.asn, 'RouterId': self.router_id}}}
+        config = {'Global': {'Config': {'As': self.asn, 'RouterId': self.router_id}}}
         for peer, info in self.peers.iteritems():
             afi_safi_list = []
             version = netaddr.IPNetwork(info['neigh_addr']).version
@@ -196,7 +196,7 @@ class GoBGPContainer(BGPContainer):
                 afi_safi_list.append({'AfiSafiName': 'ipv6-flowspec'})
                 afi_safi_list.append({'AfiSafiName': 'l3vpn-ipv6-flowspec'})
 
-            n = {'NeighborConfig':
+            n = {'Config':
                  {'NeighborAddress': info['neigh_addr'].split('/')[0],
                   'PeerAs': peer.asn,
                   'AuthPassword': info['passwd'],
@@ -205,17 +205,17 @@ class GoBGPContainer(BGPContainer):
                  }
 
             if info['passive']:
-                n['Transport'] = {'TransportConfig': {'PassiveMode': True}}
+                n['Transport'] = {'Config': {'PassiveMode': True}}
 
             if info['is_rs_client']:
-                n['RouteServer'] = {'RouteServerConfig': {'RouteServerClient': True}}
+                n['RouteServer'] = {'Config': {'RouteServerClient': True}}
 
             if info['is_rr_client']:
                 clusterId = self.router_id
                 if 'cluster_id' in info and info['cluster_id'] is not None:
                     clusterId = info['cluster_id']
-                n['RouteReflector'] = {'RouteReflectorConfig' : {'RouteReflectorClient': True,
-                                                                 'RouteReflectorClusterId': clusterId}}
+                n['RouteReflector'] = {'Config' : {'RouteReflectorClient': True,
+                                                   'RouteReflectorClusterId': clusterId}}
 
             f = lambda typ: [p for p in info['policies'].itervalues() if p['type'] == typ]
             import_policies = f('import')
@@ -228,16 +228,16 @@ class GoBGPContainer(BGPContainer):
 
             if len(import_policies) + len(export_policies) + len(in_policies) + len(default_import_policy) \
                 + len(default_export_policy) + len(default_in_policy) > 0:
-                n['ApplyPolicy'] = {'ApplyPolicyConfig': {}}
+                n['ApplyPolicy'] = {'Config': {}}
 
             if len(import_policies) > 0:
-                n['ApplyPolicy']['ApplyPolicyConfig']['ImportPolicy'] = [p['name'] for p in import_policies]
+                n['ApplyPolicy']['Config']['ImportPolicy'] = [p['name'] for p in import_policies]
 
             if len(export_policies) > 0:
-                n['ApplyPolicy']['ApplyPolicyConfig']['ExportPolicy'] = [p['name'] for p in export_policies]
+                n['ApplyPolicy']['Config']['ExportPolicy'] = [p['name'] for p in export_policies]
 
             if len(in_policies) > 0:
-                n['ApplyPolicy']['ApplyPolicyConfig']['InPolicy'] = [p['name'] for p in in_policies]
+                n['ApplyPolicy']['Config']['InPolicy'] = [p['name'] for p in in_policies]
 
             def f(v):
                 if v == 'reject':
@@ -247,13 +247,13 @@ class GoBGPContainer(BGPContainer):
                 raise Exception('invalid default policy type {0}'.format(v))
 
             if len(default_import_policy) > 0:
-               n['ApplyPolicy']['ApplyPolicyConfig']['DefaultImportPolicy'] = f(default_import_policy[0])
+               n['ApplyPolicy']['Config']['DefaultImportPolicy'] = f(default_import_policy[0])
 
             if len(default_export_policy) > 0:
-               n['ApplyPolicy']['ApplyPolicyConfig']['DefaultExportPolicy'] = f(default_export_policy[0])
+               n['ApplyPolicy']['Config']['DefaultExportPolicy'] = f(default_export_policy[0])
 
             if len(default_in_policy) > 0:
-               n['ApplyPolicy']['ApplyPolicyConfig']['DefaultInPolicy'] = f(default_in_policy[0])
+               n['ApplyPolicy']['Config']['DefaultInPolicy'] = f(default_in_policy[0])
 
             if 'Neighbors' not in config:
                 config['Neighbors'] = {'NeighborList': []}

@@ -2724,7 +2724,7 @@ func (r *RoutingPolicy) GetAssignmentFromConfig(dir PolicyDirection, a config.Ap
 	var names []string
 	var cdef config.DefaultPolicyType
 	def := ROUTE_TYPE_ACCEPT
-	c := a.ApplyPolicyConfig
+	c := a.Config
 	switch dir {
 	case POLICY_DIRECTION_IN:
 		names = c.InPolicy

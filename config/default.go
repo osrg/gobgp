@@ -73,24 +73,24 @@ func SetDefaultConfigValues(md toml.MetaData, bt *Bgp) error {
 	}
 	for i, n := range neighbors {
 		neighbor := &bt.Neighbors.NeighborList[i]
-		timerConfig := &neighbor.Timers.TimersConfig
+		timerConfig := &neighbor.Timers.Config
 
-		if _, ok := n.attributes["Neighbors.NeighborList.Timers.TimersConfig.ConnectRetry"]; !ok {
+		if _, ok := n.attributes["Neighbors.NeighborList.Timers.Config.ConnectRetry"]; !ok {
 			timerConfig.HoldTime = float64(DEFAULT_CONNECT_RETRY)
 		}
-		if _, ok := n.attributes["Neighbors.NeighborList.Timers.TimersConfig.HoldTime"]; !ok {
+		if _, ok := n.attributes["Neighbors.NeighborList.Timers.Config.HoldTime"]; !ok {
 			timerConfig.HoldTime = float64(DEFAULT_HOLDTIME)
 		}
-		if _, ok := n.attributes["Neighbors.NeighborList.Timers.TimersConfig.KeepaliveInterval"]; !ok {
+		if _, ok := n.attributes["Neighbors.NeighborList.Timers.Config.KeepaliveInterval"]; !ok {
 			timerConfig.KeepaliveInterval = timerConfig.HoldTime / 3
 		}
 
-		if _, ok := n.attributes["Neighbors.NeighborList.Timers.TimersConfig.IdleHoldTimeAfterReset"]; !ok {
+		if _, ok := n.attributes["Neighbors.NeighborList.Timers.Config.IdleHoldTimeAfterReset"]; !ok {
 			timerConfig.IdleHoldTimeAfterReset = float64(DEFAULT_IDLE_HOLDTIME_AFTER_RESET)
 		}
 
 		if _, ok := n.attributes["Neighbors.NeighborList.AfiSafis.AfiSafiList"]; !ok {
-			if neighbor.NeighborConfig.NeighborAddress.To4() != nil {
+			if neighbor.Config.NeighborAddress.To4() != nil {
 				neighbor.AfiSafis.AfiSafiList = []AfiSafi{
 					AfiSafi{AfiSafiName: "ipv4-unicast"}}
 			} else {
@@ -106,17 +106,17 @@ func SetDefaultConfigValues(md toml.MetaData, bt *Bgp) error {
 			}
 		}
 
-		if _, ok := n.attributes["Neighbors.NeighborList.NeighborConfig.PeerType"]; !ok {
-			if neighbor.NeighborConfig.PeerAs != bt.Global.GlobalConfig.As {
-				neighbor.NeighborConfig.PeerType = PEER_TYPE_EXTERNAL
+		if _, ok := n.attributes["Neighbors.NeighborList.Config.PeerType"]; !ok {
+			if neighbor.Config.PeerAs != bt.Global.Config.As {
+				neighbor.Config.PeerType = PEER_TYPE_EXTERNAL
 			} else {
-				neighbor.NeighborConfig.PeerType = PEER_TYPE_INTERNAL
+				neighbor.Config.PeerType = PEER_TYPE_INTERNAL
 			}
 		}
 	}
 	for _, r := range bt.RpkiServers.RpkiServerList {
-		if r.RpkiServerConfig.Port == 0 {
-			r.RpkiServerConfig.Port = bgp.RPKI_DEFAULT_PORT
+		if r.Config.Port == 0 {
+			r.Config.Port = bgp.RPKI_DEFAULT_PORT
 		}
 	}
 	return nil

@@ -93,16 +93,16 @@ Configuration is something like below.
 ```
 $ cat gobgpd.conf
 [Global]
-    [Global.GlobalConfig]
+    [Global.Config]
         As = 64512
         RouterId = "192.168.255.1"
 [Neighbors]
     [[Neighbors.NeighborList]]
-        [Neighbors.NeighborList.NeighborConfig]
+        [Neighbors.NeighborList.Config]
             NeighborAddress = "10.0.0.1"
             PeerAs = 65001
         [Neighbors.NeighborList.RouteServer]
-            [Neighbors.NeighborList.RouteServer.RouteServerConfig]
+            [Neighbors.NeighborList.RouteServer.Config]
             RouteServerClient = true
 ```
 

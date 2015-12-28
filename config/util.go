@@ -20,9 +20,9 @@ import (
 )
 
 func IsConfederationMember(g *Global, p *Neighbor) bool {
-	if p.NeighborConfig.PeerAs != g.GlobalConfig.As {
-		for _, member := range g.Confederation.ConfederationConfig.MemberAs {
-			if member == p.NeighborConfig.PeerAs {
+	if p.Config.PeerAs != g.Config.As {
+		for _, member := range g.Confederation.Config.MemberAs {
+			if member == p.Config.PeerAs {
 				return true
 			}
 		}
@@ -31,7 +31,7 @@ func IsConfederationMember(g *Global, p *Neighbor) bool {
 }
 
 func IsEBGPPeer(g *Global, p *Neighbor) bool {
-	return p.NeighborConfig.PeerAs != g.GlobalConfig.As
+	return p.Config.PeerAs != g.Config.As
 }
 
 func (c AfiSafis) ToRfList() ([]bgp.RouteFamily, error) {

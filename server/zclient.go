@@ -151,8 +151,8 @@ func handleZapiMsg(msg *zebra.Message, server *BgpServer) []*SenderMsg {
 	switch b := msg.Body.(type) {
 	case *zebra.IPRouteBody:
 		pi := &table.PeerInfo{
-			AS:      server.bgpConfig.Global.GlobalConfig.As,
-			LocalID: server.bgpConfig.Global.GlobalConfig.RouterId,
+			AS:      server.bgpConfig.Global.Config.As,
+			LocalID: server.bgpConfig.Global.Config.RouterId,
 		}
 
 		if b.Prefix != nil && len(b.Nexthops) > 0 && b.Type != zebra.ROUTE_KERNEL {
