@@ -145,7 +145,7 @@ func NewMonitorCmd() *cobra.Command {
 						reason = "Unknown"
 					}
 					aspath := &bgp.PathAttributeAsPath{}
-					aspath.DecodeFromBytes(s.AspathAttr)
+					aspath.DecodeFromBytes(s.AspathAttr, bgp.DefaultMarshallingOptions())
 					fmt.Printf("[VALIDATION] Reason: %s, Peer: %s, Timestamp: %s, Prefix:%s, OriginAS:%d, ASPath:%s, Old:%s, New:%s", reason, s.Address, time.Unix(s.Timestamp, 0).String(), s.Prefix, s.OriginAs, aspath.String(), s.OldResult, s.NewResult)
 					if len(s.Roas) == 0 {
 						fmt.Printf("\n")

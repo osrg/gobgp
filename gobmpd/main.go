@@ -32,7 +32,7 @@ func connLoop(conn *net.TCPConn) {
 	scanner.Split(bgp.SplitBMP)
 
 	for scanner.Scan() {
-		msg, err := bgp.ParseBMPMessage(scanner.Bytes())
+		msg, err := bgp.ParseBMPMessage(scanner.Bytes(), bgp.DefaultMarshallingOptions())
 		if err != nil {
 			log.Info(err)
 			continue

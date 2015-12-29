@@ -170,7 +170,7 @@ func ApiStruct2Path(p *gobgpapi.Path) ([]*Path, error) {
 	data := p.Nlri
 	if p.Family == uint32(bgp.RF_IPv4_UC) && len(data) > 0 {
 		nlri := &bgp.IPAddrPrefix{}
-		err := nlri.DecodeFromBytes(data)
+		err := nlri.DecodeFromBytes(data, bgp.DefaultMarshallingOptions())
 		if err != nil {
 			return nil, err
 		}
@@ -184,7 +184,7 @@ func ApiStruct2Path(p *gobgpapi.Path) ([]*Path, error) {
 			return nil, err
 		}
 
-		err = p.DecodeFromBytes(attr)
+		err = p.DecodeFromBytes(attr, bgp.DefaultMarshallingOptions())
 		if err != nil {
 			return nil, err
 		}

@@ -116,24 +116,25 @@ func (s AdminState) String() string {
 }
 
 type FSM struct {
-	t                tomb.Tomb
-	gConf            *config.Global
-	pConf            *config.Neighbor
-	state            bgp.FSMState
-	reason           FsmStateReason
-	conn             net.Conn
-	connCh           chan net.Conn
-	idleHoldTime     float64
-	opensentHoldTime float64
-	adminState       AdminState
-	adminStateCh     chan AdminState
-	getActiveCh      chan struct{}
-	h                *FSMHandler
-	rfMap            map[bgp.RouteFamily]bool
-	capMap           map[bgp.BGPCapabilityCode][]bgp.ParameterCapabilityInterface
-	recvOpen         *bgp.BGPMessage
-	peerInfo         *table.PeerInfo
-	policy           *table.RoutingPolicy
+	t                  tomb.Tomb
+	gConf              *config.Global
+	pConf              *config.Neighbor
+	state              bgp.FSMState
+	reason             FsmStateReason
+	conn               net.Conn
+	connCh             chan net.Conn
+	idleHoldTime       float64
+	opensentHoldTime   float64
+	adminState         AdminState
+	adminStateCh       chan AdminState
+	getActiveCh        chan struct{}
+	h                  *FSMHandler
+	rfMap              map[bgp.RouteFamily]bool
+	capMap             map[bgp.BGPCapabilityCode][]bgp.ParameterCapabilityInterface
+	recvOpen           *bgp.BGPMessage
+	peerInfo           *table.PeerInfo
+	policy             *table.RoutingPolicy
+	marshallingOptions *bgp.MarshallingOptions
 }
 
 func (fsm *FSM) bgpMessageStateUpdate(MessageType uint8, isIn bool) {
@@ -191,18 +192,19 @@ func NewFSM(gConf *config.Global, pConf *config.Neighbor, policy *table.RoutingP
 		adminState = ADMIN_STATE_DOWN
 	}
 	fsm := &FSM{
-		gConf:            gConf,
-		pConf:            pConf,
-		state:            bgp.BGP_FSM_IDLE,
-		connCh:           make(chan net.Conn, 1),
-		opensentHoldTime: float64(HOLDTIME_OPENSENT),
-		adminState:       adminState,
-		adminStateCh:     make(chan AdminState, 1),
-		getActiveCh:      make(chan struct{}),
-		rfMap:            make(map[bgp.RouteFamily]bool),
-		capMap:           make(map[bgp.BGPCapabilityCode][]bgp.ParameterCapabilityInterface),
-		peerInfo:         table.NewPeerInfo(gConf, pConf),
-		policy:           policy,
+		gConf:              gConf,
+		pConf:              pConf,
+		state:              bgp.BGP_FSM_IDLE,
+		connCh:             make(chan net.Conn, 1),
+		opensentHoldTime:   float64(HOLDTIME_OPENSENT),
+		adminState:         adminState,
+		adminStateCh:       make(chan AdminState, 1),
+		getActiveCh:        make(chan struct{}),
+		rfMap:              make(map[bgp.RouteFamily]bool),
+		capMap:             make(map[bgp.BGPCapabilityCode][]bgp.ParameterCapabilityInterface),
+		peerInfo:           table.NewPeerInfo(gConf, pConf),
+		policy:             policy,
+		marshallingOptions: bgp.DefaultMarshallingOptions(),
 	}
 	fsm.t.Go(fsm.connectLoop)
 	return fsm
@@ -254,7 +256,7 @@ func (fsm *FSM) LocalHostPort() (string, uint16) {
 
 func (fsm *FSM) sendNotificatonFromErrorMsg(conn net.Conn, e *bgp.MessageError) {
 	m := bgp.NewBGPNotificationMessage(e.TypeCode, e.SubTypeCode, e.Data)
-	b, _ := m.Serialize()
+	b, _ := m.Serialize(fsm.marshallingOptions)
 	_, err := conn.Write(b)
 	if err != nil {
 		fsm.bgpMessageStateUpdate(m.Header.Type, false)
@@ -501,7 +503,7 @@ func (h *FSMHandler) recvMessageWithError() error {
 	}
 
 	hd := &bgp.BGPHeader{}
-	err = hd.DecodeFromBytes(headerBuf)
+	err = hd.DecodeFromBytes(headerBuf, h.fsm.marshallingOptions)
 	if err != nil {
 		h.fsm.bgpMessageStateUpdate(0, true)
 		log.WithFields(log.Fields{
@@ -526,7 +528,7 @@ func (h *FSMHandler) recvMessageWithError() error {
 	}
 
 	now := time.Now()
-	m, err := bgp.ParseBGPBody(hd, bodyBuf)
+	m, err := bgp.ParseBGPBody(hd, bodyBuf, h.fsm.marshallingOptions)
 	if err == nil {
 		h.fsm.bgpMessageStateUpdate(m.Header.Type, true)
 		err = bgp.ValidateBGPMessage(m)
@@ -554,7 +556,7 @@ func (h *FSMHandler) recvMessageWithError() error {
 			case bgp.BGP_MSG_UPDATE:
 				body := m.Body.(*bgp.BGPUpdate)
 				confedCheck := !config.IsConfederationMember(h.fsm.gConf, h.fsm.pConf) && config.IsEBGPPeer(h.fsm.gConf, h.fsm.pConf)
-				_, err := bgp.ValidateUpdateMsg(body, h.fsm.rfMap, confedCheck)
+				_, err := bgp.ValidateUpdateMsg(body, h.fsm.rfMap, confedCheck, h.fsm.marshallingOptions)
 				if err != nil {
 					log.WithFields(log.Fields{
 						"Topic": "Peer",
@@ -649,7 +651,7 @@ func open2Cap(open *bgp.BGPOpen, n *config.Neighbor) (map[bgp.BGPCapabilityCode]
 func (h *FSMHandler) opensent() (bgp.FSMState, FsmStateReason) {
 	fsm := h.fsm
 	m := buildopen(fsm.gConf, fsm.pConf)
-	b, _ := m.Serialize()
+	b, _ := m.Serialize(h.fsm.marshallingOptions)
 	fsm.conn.Write(b)
 	fsm.bgpMessageStateUpdate(m.Header.Type, false)
 
@@ -714,7 +716,7 @@ func (h *FSMHandler) opensent() (bgp.FSMState, FsmStateReason) {
 					fsm.pConf.Timers.State.KeepaliveInterval = keepalive
 
 					msg := bgp.NewBGPKeepAliveMessage()
-					b, _ := msg.Serialize()
+					b, _ := msg.Serialize(fsm.marshallingOptions)
 					fsm.conn.Write(b)
 					fsm.bgpMessageStateUpdate(msg.Header.Type, false)
 					return bgp.BGP_FSM_OPENCONFIRM, 0
@@ -807,7 +809,7 @@ func (h *FSMHandler) openconfirm() (bgp.FSMState, FsmStateReason) {
 			}).Warn("Closed an accepted connection")
 		case <-ticker.C:
 			m := bgp.NewBGPKeepAliveMessage()
-			b, _ := m.Serialize()
+			b, _ := m.Serialize(fsm.marshallingOptions)
 			// TODO: check error
 			fsm.conn.Write(b)
 			fsm.bgpMessageStateUpdate(m.Header.Type, false)
@@ -866,7 +868,7 @@ func (h *FSMHandler) sendMessageloop() error {
 	fsm := h.fsm
 	ticker := keepaliveTicker(fsm)
 	send := func(m *bgp.BGPMessage) error {
-		b, err := m.Serialize()
+		b, err := m.Serialize(fsm.marshallingOptions)
 		if err != nil {
 			log.WithFields(log.Fields{
 				"Topic": "Peer",

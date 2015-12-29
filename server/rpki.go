@@ -585,7 +585,7 @@ func (c *roaManager) validate(pathList []*table.Path, isMonitor bool) []*api.ROA
 					Roas:      apiRoaList,
 				}
 				if b := path.GetAsPath(); b != nil {
-					rr.AspathAttr, _ = b.Serialize()
+					rr.AspathAttr, _ = b.Serialize(bgp.DefaultMarshallingOptions())
 				}
 				results = append(results, rr)
 			}
