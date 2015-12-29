@@ -71,10 +71,11 @@ func serialize_path(rf C.int, input *C.char) *C.path {
 func decode_path(p *C.path) *C.char {
 	var buf []byte
 	var nlri bgp.AddrPrefixInterface
+	options := bgp.DefaultMarshallingOptions()
 	if p.nlri.len > 0 {
 		buf = []byte(C.GoStringN(p.nlri.value, p.nlri.len))
 		nlri = &bgp.IPAddrPrefix{}
-		err := nlri.DecodeFromBytes(buf)
+		err := nlri.DecodeFromBytes(buf, options)
 		if err != nil {
 			return nil
 		}
@@ -88,7 +89,7 @@ func decode_path(p *C.path) *C.char {
 			return nil
 		}
 
-		err = pattr.DecodeFromBytes(buf)
+		err = pattr.DecodeFromBytes(buf, options)
 		if err != nil {
 			return nil
 		}

@@ -8,8 +8,8 @@ import (
 )
 
 func bgpupdate() *BGPMessage {
-	aspath := []AsPathParamInterface{
-		NewAsPathParam(2, []uint16{65001}),
+	aspath := []*AsPathParam{
+		NewAsPathParam(2, []uint32{65001}),
 	}
 
 	p := []PathAttributeInterface{
@@ -23,8 +23,8 @@ func bgpupdate() *BGPMessage {
 }
 
 func bgpupdateV6() *BGPMessage {
-	aspath := []AsPathParamInterface{
-		NewAsPathParam(2, []uint16{65001}),
+	aspath := []*AsPathParam{
+		NewAsPathParam(2, []uint32{65001}),
 	}
 
 	mp_nlri := []AddrPrefixInterface{NewIPv6AddrPrefix(100,
@@ -310,8 +310,8 @@ func Test_Validate_aspath(t *testing.T) {
 	attrs := message.PathAttributes
 	for _, attr := range attrs {
 		if _, y := attr.(*PathAttributeAsPath); y {
-			aspath := []AsPathParamInterface{
-				NewAsPathParam(BGP_ASPATH_ATTR_TYPE_CONFED_SET, []uint16{65001}),
+			aspath := []*AsPathParam{
+				NewAsPathParam(BGP_ASPATH_ATTR_TYPE_CONFED_SET, []uint32{65001}),
 			}
 			newAttrs = append(newAttrs, NewPathAttributeAsPath(aspath))
 		} else {
@@ -333,8 +333,8 @@ func Test_Validate_aspath(t *testing.T) {
 	attrs = message.PathAttributes
 	for _, attr := range attrs {
 		if _, y := attr.(*PathAttributeAsPath); y {
-			aspath := []AsPathParamInterface{
-				NewAsPathParam(BGP_ASPATH_ATTR_TYPE_CONFED_SEQ, []uint16{65001}),
+			aspath := []*AsPathParam{
+				NewAsPathParam(BGP_ASPATH_ATTR_TYPE_CONFED_SEQ, []uint32{65001}),
 			}
 			newAttrs = append(newAttrs, NewPathAttributeAsPath(aspath))
 		} else {

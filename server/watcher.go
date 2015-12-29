@@ -129,7 +129,7 @@ func (w *mrtWatcher) loop() error {
 				}).Warn(err)
 				return
 			}
-			buf, err := bm.Serialize(bgp.DefaultMarshallingOptions)
+			buf, err := bm.Serialize(bgp.DefaultMarshallingOptions())
 			if err == nil {
 				_, err = w.file.Write(buf)
 			}

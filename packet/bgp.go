@@ -29,9 +29,12 @@ import (
 )
 
 type MarshallingOptions struct {
+	AS2 bool
 }
 
-var DefaultMarshallingOptions = &MarshallingOptions{}
+func DefaultMarshallingOptions() *MarshallingOptions {
+	return &MarshallingOptions{}
+}
 
 const (
 	AFI_IP    = 1
@@ -3325,32 +3328,38 @@ var asPathParamFormatMap = map[uint8]*AsPathParamFormat{
 	BGP_ASPATH_ATTR_TYPE_CONFED_SEQ: &AsPathParamFormat{"[", "]", ","},
 }
 
-type AsPathParamInterface interface {
-	Serialize() ([]byte, error)
-	DecodeFromBytes([]byte) error
-	Len() int
-	ASLen() int
-	MarshalJSON() ([]byte, error)
-	String() string
-}
-
 type AsPathParam struct {
 	Type uint8
 	Num  uint8
-	AS   []uint16
+	AS   []uint32
 }
 
-func (a *AsPathParam) Serialize() ([]byte, error) {
-	buf := make([]byte, 2+len(a.AS)*2)
-	buf[0] = uint8(a.Type)
+func (a *AsPathParam) Serialize(options *MarshallingOptions) ([]byte, error) {
+	size := 4
+	if options.AS2 {
+		size = 2
+	}
+	buf := make([]byte, 2+len(a.AS)*size)
+	buf[0] = a.Type
 	buf[1] = a.Num
 	for j, as := range a.AS {
-		binary.BigEndian.PutUint16(buf[2+j*2:], as)
+		if options.AS2 {
+			if as > (1<<16)-1 {
+				as = AS_TRANS
+			}
+			binary.BigEndian.PutUint16(buf[2+j*size:], uint16(as))
+		} else {
+			binary.BigEndian.PutUint32(buf[2+j*size:], as)
+		}
 	}
 	return buf, nil
 }
 
-func (a *AsPathParam) DecodeFromBytes(data []byte) error {
+func (a *AsPathParam) DecodeFromBytes(data []byte, options *MarshallingOptions) error {
+	size := 4
+	if options.AS2 {
+		size = 2
+	}
 	eCode := uint8(BGP_ERROR_UPDATE_MESSAGE_ERROR)
 	eSubCode := uint8(BGP_ERROR_SUB_MALFORMED_AS_PATH)
 	if len(data) < 2 {
@@ -3359,18 +3368,26 @@ func (a *AsPathParam) DecodeFromBytes(data []byte) error {
 	a.Type = data[0]
 	a.Num = data[1]
 	data = data[2:]
-	if len(data) < int(a.Num*2) {
+	if len(data) < int(a.Num)*size {
 		return NewMessageError(eCode, eSubCode, nil, "AS param data length is short")
 	}
 	for i := 0; i < int(a.Num); i++ {
-		a.AS = append(a.AS, binary.BigEndian.Uint16(data))
-		data = data[2:]
+		if options.AS2 {
+			a.AS = append(a.AS, uint32(binary.BigEndian.Uint16(data)))
+		} else {
+			a.AS = append(a.AS, binary.BigEndian.Uint32(data))
+		}
+		data = data[size:]
 	}
 	return nil
 }
 
-func (a *AsPathParam) Len() int {
-	return 2 + len(a.AS)*2
+func (a *AsPathParam) Len(options *MarshallingOptions) int {
+	size := 4
+	if options.AS2 {
+		size = 2
+	}
+	return 2 + len(a.AS)*size
 }
 
 func (a *AsPathParam) ASLen() int {
@@ -3405,93 +3422,6 @@ func (a *AsPathParam) MarshalJSON() ([]byte, error) {
 	return json.Marshal(struct {
 		Type uint8    `json:"segment_type"`
 		Num  uint8    `json:"num"`
-		AS   []uint16 `json:"asns"`
-	}{
-		Type: a.Type,
-		Num:  a.Num,
-		AS:   a.AS,
-	})
-}
-
-func NewAsPathParam(segType uint8, as []uint16) *AsPathParam {
-	return &AsPathParam{
-		Type: segType,
-		Num:  uint8(len(as)),
-		AS:   as,
-	}
-}
-
-type As4PathParam struct {
-	Type uint8
-	Num  uint8
-	AS   []uint32
-}
-
-func (a *As4PathParam) Serialize() ([]byte, error) {
-	buf := make([]byte, 2+len(a.AS)*4)
-	buf[0] = a.Type
-	buf[1] = a.Num
-	for j, as := range a.AS {
-		binary.BigEndian.PutUint32(buf[2+j*4:], as)
-	}
-	return buf, nil
-}
-
-func (a *As4PathParam) DecodeFromBytes(data []byte) error {
-	eCode := uint8(BGP_ERROR_UPDATE_MESSAGE_ERROR)
-	eSubCode := uint8(BGP_ERROR_SUB_MALFORMED_AS_PATH)
-	if len(data) < 2 {
-		return NewMessageError(eCode, eSubCode, nil, "AS4 param header length is short")
-	}
-	a.Type = data[0]
-	a.Num = data[1]
-	data = data[2:]
-	if len(data) < int(a.Num)*4 {
-		return NewMessageError(eCode, eSubCode, nil, "AS4 param data length is short")
-	}
-	for i := 0; i < int(a.Num); i++ {
-		a.AS = append(a.AS, binary.BigEndian.Uint32(data))
-		data = data[4:]
-	}
-	return nil
-}
-
-func (a *As4PathParam) Len() int {
-	return 2 + len(a.AS)*4
-}
-
-func (a *As4PathParam) ASLen() int {
-	switch a.Type {
-	case BGP_ASPATH_ATTR_TYPE_SEQ:
-		return len(a.AS)
-	case BGP_ASPATH_ATTR_TYPE_SET:
-		return 1
-	case BGP_ASPATH_ATTR_TYPE_CONFED_SET, BGP_ASPATH_ATTR_TYPE_CONFED_SEQ:
-		return 0
-	}
-	return 0
-}
-
-func (a *As4PathParam) String() string {
-	format, ok := asPathParamFormatMap[a.Type]
-	if !ok {
-		return fmt.Sprintf("%v", a.AS)
-	}
-	aspath := make([]string, 0, len(a.AS))
-	for _, asn := range a.AS {
-		aspath = append(aspath, fmt.Sprintf("%d", asn))
-	}
-	s := bytes.NewBuffer(make([]byte, 0, 32))
-	s.WriteString(format.start)
-	s.WriteString(strings.Join(aspath, format.separator))
-	s.WriteString(format.end)
-	return s.String()
-}
-
-func (a *As4PathParam) MarshalJSON() ([]byte, error) {
-	return json.Marshal(struct {
-		Type uint8    `json:"segment_type"`
-		Num  uint8    `json:"num"`
 		AS   []uint32 `json:"asns"`
 	}{
 		Type: a.Type,
@@ -3500,67 +3430,17 @@ func (a *As4PathParam) MarshalJSON() ([]byte, error) {
 	})
 }
 
-func NewAs4PathParam(segType uint8, as []uint32) *As4PathParam {
-	return &As4PathParam{
+func NewAsPathParam(segType uint8, as []uint32) *AsPathParam {
+	return &AsPathParam{
 		Type: segType,
 		Num:  uint8(len(as)),
 		AS:   as,
 	}
 }
 
-type DefaultAsPath struct {
-}
-
-func (p *DefaultAsPath) isValidAspath(data []byte) (bool, error) {
-	eCode := uint8(BGP_ERROR_UPDATE_MESSAGE_ERROR)
-	eSubCode := uint8(BGP_ERROR_SUB_MALFORMED_AS_PATH)
-	if len(data)%2 != 0 {
-		return false, NewMessageError(eCode, eSubCode, nil, "AS PATH length is not odd")
-	}
-
-	tryParse := func(data []byte, use4byte bool) (bool, error) {
-		for len(data) > 0 {
-			if len(data) < 2 {
-				return false, NewMessageError(eCode, eSubCode, nil, "AS PATH header is short")
-			}
-			segType := data[0]
-			if segType == 0 || segType > 4 {
-				return false, NewMessageError(eCode, eSubCode, nil, "unknown AS_PATH seg type")
-			}
-			asNum := data[1]
-			data = data[2:]
-			if asNum == 0 || int(asNum) > math.MaxUint8 {
-				return false, NewMessageError(eCode, eSubCode, nil, "AS PATH the number of AS is incorrect")
-			}
-			segLength := int(asNum)
-			if use4byte == true {
-				segLength *= 4
-			} else {
-				segLength *= 2
-			}
-			if int(segLength) > len(data) {
-				return false, NewMessageError(eCode, eSubCode, nil, "seg length is short")
-			}
-			data = data[segLength:]
-		}
-		return true, nil
-	}
-	_, err := tryParse(data, true)
-	if err == nil {
-		return true, nil
-	}
-
-	_, err = tryParse(data, false)
-	if err == nil {
-		return false, nil
-	}
-	return false, NewMessageError(eCode, eSubCode, nil, "can't parse AS_PATH")
-}
-
 type PathAttributeAsPath struct {
-	DefaultAsPath
 	PathAttribute
-	Value []AsPathParamInterface
+	Value []*AsPathParam
 }
 
 func (p *PathAttributeAsPath) DecodeFromBytes(data []byte, options *MarshallingOptions) error {
@@ -3572,28 +3452,15 @@ func (p *PathAttributeAsPath) DecodeFromBytes(data []byte, options *MarshallingO
 		// ibgp or something
 		return nil
 	}
-	as4Bytes, err := p.DefaultAsPath.isValidAspath(p.PathAttribute.Value)
-	if err != nil {
-		err.(*MessageError).Data = data[:p.Len(options)]
-		return err
-	}
 	v := p.PathAttribute.Value
 	for len(v) > 0 {
-		var tuple AsPathParamInterface
-		if as4Bytes == true {
-			tuple = &As4PathParam{}
-		} else {
-			tuple = &AsPathParam{}
-		}
-		err := tuple.DecodeFromBytes(v)
-		if err != nil {
+		tuple := &AsPathParam{}
+		if err := tuple.DecodeFromBytes(v, options); err != nil {
+			err.(*MessageError).Data = data
 			return err
 		}
 		p.Value = append(p.Value, tuple)
-		if tuple.Len() > len(v) {
-
-		}
-		v = v[tuple.Len():]
+		v = v[tuple.Len(options):]
 	}
 	return nil
 }
@@ -3601,7 +3468,7 @@ func (p *PathAttributeAsPath) DecodeFromBytes(data []byte, options *MarshallingO
 func (p *PathAttributeAsPath) Serialize(options *MarshallingOptions) ([]byte, error) {
 	buf := make([]byte, 0)
 	for _, v := range p.Value {
-		vbuf, err := v.Serialize()
+		vbuf, err := v.Serialize(options)
 		if err != nil {
 			return nil, err
 		}
@@ -3621,15 +3488,15 @@ func (p *PathAttributeAsPath) String() string {
 
 func (p *PathAttributeAsPath) MarshalJSON() ([]byte, error) {
 	return json.Marshal(struct {
-		Type  BGPAttrType            `json:"type"`
-		Value []AsPathParamInterface `json:"as_paths"`
+		Type  BGPAttrType    `json:"type"`
+		Value []*AsPathParam `json:"as_paths"`
 	}{
 		Type:  p.GetType(),
 		Value: p.Value,
 	})
 }
 
-func NewPathAttributeAsPath(value []AsPathParamInterface) *PathAttributeAsPath {
+func NewPathAttributeAsPath(value []*AsPathParam) *PathAttributeAsPath {
 	t := BGP_ATTR_TYPE_AS_PATH
 	return &PathAttributeAsPath{
 		PathAttribute: PathAttribute{
@@ -5340,8 +5207,7 @@ func NewPathAttributeExtendedCommunities(value []ExtendedCommunityInterface) *Pa
 
 type PathAttributeAs4Path struct {
 	PathAttribute
-	Value []*As4PathParam
-	DefaultAsPath
+	Value []*AsPathParam
 }
 
 func (p *PathAttributeAs4Path) DecodeFromBytes(data []byte, options *MarshallingOptions) error {
@@ -5352,29 +5218,30 @@ func (p *PathAttributeAs4Path) DecodeFromBytes(data []byte, options *Marshalling
 	eCode := uint8(BGP_ERROR_UPDATE_MESSAGE_ERROR)
 	eSubCode := uint8(BGP_ERROR_SUB_MALFORMED_ATTRIBUTE_LIST)
 	v := p.PathAttribute.Value
-	as4Bytes, err := p.DefaultAsPath.isValidAspath(p.PathAttribute.Value)
-	if err != nil {
-		return err
-	}
-	if as4Bytes == false {
-		return NewMessageError(eCode, eSubCode, nil, "AS4 PATH param is malformed")
-	}
+	options4 := *options
+	// decode param as 4byte segment even if given options' AS2 flag is true
+	options4.AS2 = false
 	for len(v) > 0 {
-		tuple := &As4PathParam{}
-		tuple.DecodeFromBytes(v)
+		tuple := &AsPathParam{}
+		if err := tuple.DecodeFromBytes(v, &options4); err != nil {
+			return err
+		}
 		p.Value = append(p.Value, tuple)
-		if len(v) < tuple.Len() {
+		if len(v) < tuple.Len(&options4) {
 			return NewMessageError(eCode, eSubCode, nil, "AS4 PATH param is malformed")
 		}
-		v = v[tuple.Len():]
+		v = v[tuple.Len(&options4):]
 	}
 	return nil
 }
 
 func (p *PathAttributeAs4Path) Serialize(options *MarshallingOptions) ([]byte, error) {
 	buf := make([]byte, 0)
+	options4 := *options
+	// serialize param as 4byte segment even if given options' AS2 flag is true
+	options4.AS2 = false
 	for _, v := range p.Value {
-		vbuf, err := v.Serialize()
+		vbuf, err := v.Serialize(&options4)
 		if err != nil {
 			return nil, err
 		}
@@ -5392,7 +5259,7 @@ func (p *PathAttributeAs4Path) String() string {
 	return strings.Join(params, " ")
 }
 
-func NewPathAttributeAs4Path(value []*As4PathParam) *PathAttributeAs4Path {
+func NewPathAttributeAs4Path(value []*AsPathParam) *PathAttributeAs4Path {
 	t := BGP_ATTR_TYPE_AS4_PATH
 	return &PathAttributeAs4Path{
 		PathAttribute: PathAttribute{

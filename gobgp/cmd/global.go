@@ -404,7 +404,7 @@ func extractLocalPref(args []string) ([]string, []byte, error) {
 				return nil, nil, err
 			}
 			args = append(args[:idx], args[idx+2:]...)
-			localPref, _ := bgp.NewPathAttributeLocalPref(uint32(metric)).Serialize()
+			localPref, _ := bgp.NewPathAttributeLocalPref(uint32(metric)).Serialize(bgp.DefaultMarshallingOptions())
 			return args, localPref, nil
 		}
 	}
@@ -419,7 +419,7 @@ func extractMed(args []string) ([]string, []byte, error) {
 				return nil, nil, err
 			}
 			args = append(args[:idx], args[idx+2:]...)
-			med, _ := bgp.NewPathAttributeMultiExitDisc(uint32(metric)).Serialize()
+			med, _ := bgp.NewPathAttributeMultiExitDisc(uint32(metric)).Serialize(bgp.DefaultMarshallingOptions())
 			return args, med, nil
 		}
 	}
@@ -439,7 +439,7 @@ func extractAigp(args []string) ([]string, []byte, error) {
 				if err != nil {
 					return nil, nil, err
 				}
-				aigp, _ := bgp.NewPathAttributeAigp([]bgp.AigpTLV{bgp.NewAigpTLVIgpMetric(uint64(metric))}).Serialize()
+				aigp, _ := bgp.NewPathAttributeAigp([]bgp.AigpTLV{bgp.NewAigpTLVIgpMetric(uint64(metric))}).Serialize(bgp.DefaultMarshallingOptions())
 				return append(args[:idx], args[idx+3:]...), aigp, nil
 			default:
 				return nil, nil, fmt.Errorf("unknown aigp type: %s", typ)
@@ -550,15 +550,15 @@ func ParsePath(rf bgp.RouteFamily, args []string) (*api.Path, error) {
 	}
 
 	if rf == bgp.RF_IPv4_UC {
-		path.Nlri, _ = nlri.Serialize()
-		n, _ := bgp.NewPathAttributeNextHop(nexthop).Serialize()
+		path.Nlri, _ = nlri.Serialize(bgp.DefaultMarshallingOptions())
+		n, _ := bgp.NewPathAttributeNextHop(nexthop).Serialize(bgp.DefaultMarshallingOptions())
 		path.Pattrs = append(path.Pattrs, n)
 	} else {
-		mpreach, _ := bgp.NewPathAttributeMpReachNLRI(nexthop, []bgp.AddrPrefixInterface{nlri}).Serialize()
+		mpreach, _ := bgp.NewPathAttributeMpReachNLRI(nexthop, []bgp.AddrPrefixInterface{nlri}).Serialize(bgp.DefaultMarshallingOptions())
 		path.Pattrs = append(path.Pattrs, mpreach)
 	}
 
-	origin, _ := bgp.NewPathAttributeOrigin(bgp.BGP_ORIGIN_ATTR_TYPE_INCOMPLETE).Serialize()
+	origin, _ := bgp.NewPathAttributeOrigin(bgp.BGP_ORIGIN_ATTR_TYPE_INCOMPLETE).Serialize(bgp.DefaultMarshallingOptions())
 	path.Pattrs = append(path.Pattrs, origin)
 
 	if extcomms != nil && len(extcomms) > 0 {
@@ -567,7 +567,7 @@ func ParsePath(rf bgp.RouteFamily, args []string) (*api.Path, error) {
 			return nil, err
 		}
 		p := bgp.NewPathAttributeExtendedCommunities(extcomms)
-		buf, err := p.Serialize()
+		buf, err := p.Serialize(bgp.DefaultMarshallingOptions())
 		if err != nil {
 			return nil, err
 		}

@@ -101,10 +101,10 @@ func TestMrtPeerIndexTable(t *testing.T) {
 }
 
 func TestMrtRibEntry(t *testing.T) {
-	aspath1 := []AsPathParamInterface{
-		NewAsPathParam(2, []uint16{1000}),
-		NewAsPathParam(1, []uint16{1001, 1002}),
-		NewAsPathParam(2, []uint16{1003, 1004}),
+	aspath1 := []*AsPathParam{
+		NewAsPathParam(2, []uint32{1000}),
+		NewAsPathParam(1, []uint32{1001, 1002}),
+		NewAsPathParam(2, []uint32{1003, 1004}),
 	}
 
 	p := []PathAttributeInterface{
@@ -132,10 +132,10 @@ func TestMrtRibEntry(t *testing.T) {
 }
 
 func TestMrtRib(t *testing.T) {
-	aspath1 := []AsPathParamInterface{
-		NewAsPathParam(2, []uint16{1000}),
-		NewAsPathParam(1, []uint16{1001, 1002}),
-		NewAsPathParam(2, []uint16{1003, 1004}),
+	aspath1 := []*AsPathParam{
+		NewAsPathParam(2, []uint32{1000}),
+		NewAsPathParam(1, []uint32{1001, 1002}),
+		NewAsPathParam(2, []uint32{1003, 1004}),
 	}
 
 	p := []PathAttributeInterface{

@@ -146,19 +146,6 @@ func (t *Table) validatePath(path *Path) {
 			"ReceivedRf": path.GetRouteFamily().String(),
 		}).Error("Invalid path. RouteFamily mismatch")
 	}
-	if _, attr := path.getPathAttr(bgp.BGP_ATTR_TYPE_AS_PATH); attr != nil {
-		pathParam := attr.(*bgp.PathAttributeAsPath).Value
-		for _, as := range pathParam {
-			_, y := as.(*bgp.As4PathParam)
-			if !y {
-				log.WithFields(log.Fields{
-					"Topic": "Table",
-					"Key":   t.routeFamily,
-					"As":    as,
-				}).Fatal("AsPathParam must be converted to As4PathParam")
-			}
-		}
-	}
 	if _, attr := path.getPathAttr(bgp.BGP_ATTR_TYPE_AS4_PATH); attr != nil {
 		log.WithFields(log.Fields{
 			"Topic": "Table",

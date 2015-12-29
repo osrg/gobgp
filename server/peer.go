@@ -166,7 +166,9 @@ func (peer *Peer) handleBGPmessage(e *FsmMsg) ([]*table.Path, []*bgp.BGPMessage)
 		peer.recvOpen = m
 		body := m.Body.(*bgp.BGPOpen)
 		peer.capMap, peer.rfMap = open2Cap(body, &peer.conf)
-
+		if _, y := peer.capMap[bgp.BGP_CAP_FOUR_OCTET_AS_NUMBER]; !y {
+			peer.fsm.marshallingOptions.AS2 = true
+		}
 		// calculate HoldTime
 		// RFC 4271 P.13
 		// a BGP speaker MUST calculate the value of the Hold Timer

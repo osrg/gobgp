@@ -43,22 +43,22 @@ func update() *BGPMessage {
 	w2 := NewIPAddrPrefix(17, "100.33.3.0")
 	w := []*IPAddrPrefix{w1, w2}
 
-	aspath1 := []AsPathParamInterface{
-		NewAsPathParam(2, []uint16{1000}),
-		NewAsPathParam(1, []uint16{1001, 1002}),
-		NewAsPathParam(2, []uint16{1003, 1004}),
+	aspath1 := []*AsPathParam{
+		NewAsPathParam(2, []uint32{1000}),
+		NewAsPathParam(1, []uint32{1001, 1002}),
+		NewAsPathParam(2, []uint32{1003, 1004}),
 	}
 
-	aspath2 := []AsPathParamInterface{
-		NewAs4PathParam(2, []uint32{1000000}),
-		NewAs4PathParam(1, []uint32{1000001, 1002}),
-		NewAs4PathParam(2, []uint32{1003, 100004}),
+	aspath2 := []*AsPathParam{
+		NewAsPathParam(2, []uint32{1000000}),
+		NewAsPathParam(1, []uint32{1000001, 1002}),
+		NewAsPathParam(2, []uint32{1003, 100004}),
 	}
 
-	aspath3 := []*As4PathParam{
-		NewAs4PathParam(2, []uint32{1000000}),
-		NewAs4PathParam(1, []uint32{1000001, 1002}),
-		NewAs4PathParam(2, []uint32{1003, 100004}),
+	aspath3 := []*AsPathParam{
+		NewAsPathParam(2, []uint32{1000000}),
+		NewAsPathParam(1, []uint32{1000001, 1002}),
+		NewAsPathParam(2, []uint32{1003, 100004}),
 	}
 
 	isTransitive := true
@@ -342,7 +342,7 @@ func Test_ASLen(t *testing.T) {
 
 	aspath := AsPathParam{
 		Num: 2,
-		AS:  []uint16{65000, 65001},
+		AS:  []uint32{65000, 65001},
 	}
 	aspath.Type = BGP_ASPATH_ATTR_TYPE_SEQ
 	assert.Equal(2, aspath.ASLen())
@@ -356,22 +356,10 @@ func Test_ASLen(t *testing.T) {
 	aspath.Type = BGP_ASPATH_ATTR_TYPE_CONFED_SET
 	assert.Equal(0, aspath.ASLen())
 
-	as4path := As4PathParam{
-		Num: 2,
-		AS:  []uint32{65000, 65001},
-	}
-	as4path.Type = BGP_ASPATH_ATTR_TYPE_SEQ
-	assert.Equal(2, as4path.ASLen())
-
-	as4path.Type = BGP_ASPATH_ATTR_TYPE_SET
-	assert.Equal(1, as4path.ASLen())
-
-	as4path.Type = BGP_ASPATH_ATTR_TYPE_CONFED_SEQ
-	assert.Equal(0, as4path.ASLen())
-
-	as4path.Type = BGP_ASPATH_ATTR_TYPE_CONFED_SET
-	assert.Equal(0, as4path.ASLen())
-
+	assert.Equal(6, aspath.Len(&MarshallingOptions{
+		AS2: true,
+	}))
+	assert.Equal(10, aspath.Len(DefaultMarshallingOptions()))
 }
 
 func Test_MPLSLabelStack(t *testing.T) {

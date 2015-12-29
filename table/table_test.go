@@ -115,7 +115,7 @@ func TableCreatePath(peerT []*PeerInfo) []*Path {
 func updateMsgT1() *bgp.BGPMessage {
 
 	origin := bgp.NewPathAttributeOrigin(0)
-	aspathParam := []bgp.AsPathParamInterface{bgp.NewAsPathParam(2, []uint16{65000})}
+	aspathParam := []*bgp.AsPathParam{bgp.NewAsPathParam(2, []uint32{65000})}
 	aspath := bgp.NewPathAttributeAsPath(aspathParam)
 	nexthop := bgp.NewPathAttributeNextHop("192.168.50.1")
 	med := bgp.NewPathAttributeMultiExitDisc(0)
@@ -134,7 +134,7 @@ func updateMsgT1() *bgp.BGPMessage {
 func updateMsgT2() *bgp.BGPMessage {
 
 	origin := bgp.NewPathAttributeOrigin(0)
-	aspathParam := []bgp.AsPathParamInterface{bgp.NewAsPathParam(2, []uint16{65100})}
+	aspathParam := []*bgp.AsPathParam{bgp.NewAsPathParam(2, []uint32{65100})}
 	aspath := bgp.NewPathAttributeAsPath(aspathParam)
 	nexthop := bgp.NewPathAttributeNextHop("192.168.100.1")
 	med := bgp.NewPathAttributeMultiExitDisc(100)
@@ -151,7 +151,7 @@ func updateMsgT2() *bgp.BGPMessage {
 }
 func updateMsgT3() *bgp.BGPMessage {
 	origin := bgp.NewPathAttributeOrigin(0)
-	aspathParam := []bgp.AsPathParamInterface{bgp.NewAsPathParam(2, []uint16{65100})}
+	aspathParam := []*bgp.AsPathParam{bgp.NewAsPathParam(2, []uint32{65100})}
 	aspath := bgp.NewPathAttributeAsPath(aspathParam)
 	nexthop := bgp.NewPathAttributeNextHop("192.168.150.1")
 	med := bgp.NewPathAttributeMultiExitDisc(100)

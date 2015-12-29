@@ -157,7 +157,7 @@ func NewFSM(gConf *config.Global, pConf *config.Neighbor, policy *table.RoutingP
 		confedCheck:        !config.IsConfederationMember(gConf, pConf) && config.IsEBGPPeer(gConf, pConf),
 		peerInfo:           table.NewPeerInfo(gConf, pConf),
 		policy:             policy,
-		marshallingOptions: bgp.DefaultMarshallingOptions,
+		marshallingOptions: bgp.DefaultMarshallingOptions(),
 	}
 	fsm.t.Go(fsm.connectLoop)
 	return fsm
@@ -763,6 +763,13 @@ func (h *FSMHandler) sendMessageloop() error {
 	fsm := h.fsm
 	ticker := keepaliveTicker(fsm)
 	send := func(m *bgp.BGPMessage) error {
+		if m.Header.Type == bgp.BGP_MSG_UPDATE && fsm.marshallingOptions.AS2 {
+			log.WithFields(log.Fields{
+				"Topic": "Peer",
+				"Key":   fsm.pConf.Config.NeighborAddress,
+			}).Debug("update for 2byte AS peer")
+			table.UpdatePathAttrs2ByteAs(m.Body.(*bgp.BGPUpdate))
+		}
 		b, err := m.Serialize(fsm.marshallingOptions)
 		if err != nil {
 			log.WithFields(log.Fields{

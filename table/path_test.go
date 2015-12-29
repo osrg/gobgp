@@ -96,11 +96,11 @@ func TestPathGetAttribute(t *testing.T) {
 func TestASPathLen(t *testing.T) {
 	assert := assert.New(t)
 	origin := bgp.NewPathAttributeOrigin(0)
-	aspathParam := []bgp.AsPathParamInterface{
-		bgp.NewAsPathParam(bgp.BGP_ASPATH_ATTR_TYPE_SEQ, []uint16{65001, 65002, 65003, 65004, 65004, 65004, 65004, 65004, 65005}),
-		bgp.NewAsPathParam(bgp.BGP_ASPATH_ATTR_TYPE_SET, []uint16{65001, 65002, 65003, 65004, 65005}),
-		bgp.NewAsPathParam(bgp.BGP_ASPATH_ATTR_TYPE_CONFED_SEQ, []uint16{65100, 65101, 65102}),
-		bgp.NewAsPathParam(bgp.BGP_ASPATH_ATTR_TYPE_CONFED_SET, []uint16{65100, 65101})}
+	aspathParam := []*bgp.AsPathParam{
+		bgp.NewAsPathParam(bgp.BGP_ASPATH_ATTR_TYPE_SEQ, []uint32{65001, 65002, 65003, 65004, 65004, 65004, 65004, 65004, 65005}),
+		bgp.NewAsPathParam(bgp.BGP_ASPATH_ATTR_TYPE_SET, []uint32{65001, 65002, 65003, 65004, 65005}),
+		bgp.NewAsPathParam(bgp.BGP_ASPATH_ATTR_TYPE_CONFED_SEQ, []uint32{65100, 65101, 65102}),
+		bgp.NewAsPathParam(bgp.BGP_ASPATH_ATTR_TYPE_CONFED_SET, []uint32{65100, 65101})}
 	aspath := bgp.NewPathAttributeAsPath(aspathParam)
 	nexthop := bgp.NewPathAttributeNextHop("192.168.50.1")
 	med := bgp.NewPathAttributeMultiExitDisc(0)
@@ -124,11 +124,11 @@ func TestASPathLen(t *testing.T) {
 func TestPathPrependAsnToExistingSeqAttr(t *testing.T) {
 	assert := assert.New(t)
 	origin := bgp.NewPathAttributeOrigin(0)
-	aspathParam := []bgp.AsPathParamInterface{
-		bgp.NewAsPathParam(bgp.BGP_ASPATH_ATTR_TYPE_SEQ, []uint16{65001, 65002, 65003, 65004, 65005}),
-		bgp.NewAsPathParam(bgp.BGP_ASPATH_ATTR_TYPE_SET, []uint16{65001, 65002, 65003, 65004, 65005}),
-		bgp.NewAsPathParam(bgp.BGP_ASPATH_ATTR_TYPE_CONFED_SEQ, []uint16{65100, 65101, 65102}),
-		bgp.NewAsPathParam(bgp.BGP_ASPATH_ATTR_TYPE_CONFED_SET, []uint16{65100, 65101})}
+	aspathParam := []*bgp.AsPathParam{
+		bgp.NewAsPathParam(bgp.BGP_ASPATH_ATTR_TYPE_SEQ, []uint32{65001, 65002, 65003, 65004, 65005}),
+		bgp.NewAsPathParam(bgp.BGP_ASPATH_ATTR_TYPE_SET, []uint32{65001, 65002, 65003, 65004, 65005}),
+		bgp.NewAsPathParam(bgp.BGP_ASPATH_ATTR_TYPE_CONFED_SEQ, []uint32{65100, 65101, 65102}),
+		bgp.NewAsPathParam(bgp.BGP_ASPATH_ATTR_TYPE_CONFED_SET, []uint32{65100, 65101})}
 	aspath := bgp.NewPathAttributeAsPath(aspathParam)
 	nexthop := bgp.NewPathAttributeNextHop("192.168.50.1")
 
@@ -175,10 +175,10 @@ func TestPathPrependAsnToNewAsPathAttr(t *testing.T) {
 func TestPathPrependAsnToNewAsPathSeq(t *testing.T) {
 	assert := assert.New(t)
 	origin := bgp.NewPathAttributeOrigin(0)
-	aspathParam := []bgp.AsPathParamInterface{
-		bgp.NewAsPathParam(bgp.BGP_ASPATH_ATTR_TYPE_SET, []uint16{65001, 65002, 65003, 65004, 65005}),
-		bgp.NewAsPathParam(bgp.BGP_ASPATH_ATTR_TYPE_CONFED_SEQ, []uint16{65100, 65101, 65102}),
-		bgp.NewAsPathParam(bgp.BGP_ASPATH_ATTR_TYPE_CONFED_SET, []uint16{65100, 65101})}
+	aspathParam := []*bgp.AsPathParam{
+		bgp.NewAsPathParam(bgp.BGP_ASPATH_ATTR_TYPE_SET, []uint32{65001, 65002, 65003, 65004, 65005}),
+		bgp.NewAsPathParam(bgp.BGP_ASPATH_ATTR_TYPE_CONFED_SEQ, []uint32{65100, 65101, 65102}),
+		bgp.NewAsPathParam(bgp.BGP_ASPATH_ATTR_TYPE_CONFED_SET, []uint32{65100, 65101})}
 	aspath := bgp.NewPathAttributeAsPath(aspathParam)
 	nexthop := bgp.NewPathAttributeNextHop("192.168.50.1")
 
@@ -204,11 +204,11 @@ func TestPathPrependAsnToNewAsPathSeq(t *testing.T) {
 func TestPathPrependAsnToEmptyAsPathAttr(t *testing.T) {
 	assert := assert.New(t)
 	origin := bgp.NewPathAttributeOrigin(0)
-	aspathParam := []bgp.AsPathParamInterface{
-		bgp.NewAsPathParam(bgp.BGP_ASPATH_ATTR_TYPE_SEQ, []uint16{}),
-		bgp.NewAsPathParam(bgp.BGP_ASPATH_ATTR_TYPE_SET, []uint16{65001, 65002, 65003, 65004, 65005}),
-		bgp.NewAsPathParam(bgp.BGP_ASPATH_ATTR_TYPE_CONFED_SEQ, []uint16{65100, 65101, 65102}),
-		bgp.NewAsPathParam(bgp.BGP_ASPATH_ATTR_TYPE_CONFED_SET, []uint16{65100, 65101})}
+	aspathParam := []*bgp.AsPathParam{
+		bgp.NewAsPathParam(bgp.BGP_ASPATH_ATTR_TYPE_SEQ, []uint32{}),
+		bgp.NewAsPathParam(bgp.BGP_ASPATH_ATTR_TYPE_SET, []uint32{65001, 65002, 65003, 65004, 65005}),
+		bgp.NewAsPathParam(bgp.BGP_ASPATH_ATTR_TYPE_CONFED_SEQ, []uint32{65100, 65101, 65102}),
+		bgp.NewAsPathParam(bgp.BGP_ASPATH_ATTR_TYPE_CONFED_SET, []uint32{65100, 65101})}
 	aspath := bgp.NewPathAttributeAsPath(aspathParam)
 	nexthop := bgp.NewPathAttributeNextHop("192.168.50.1")
 
@@ -235,16 +235,16 @@ func TestPathPrependAsnToFullPathAttr(t *testing.T) {
 	assert := assert.New(t)
 	origin := bgp.NewPathAttributeOrigin(0)
 
-	asns := make([]uint16, 255)
+	asns := make([]uint32, 255)
 	for i, _ := range asns {
-		asns[i] = 65000 + uint16(i)
+		asns[i] = 65000 + uint32(i)
 	}
 
-	aspathParam := []bgp.AsPathParamInterface{
+	aspathParam := []*bgp.AsPathParam{
 		bgp.NewAsPathParam(bgp.BGP_ASPATH_ATTR_TYPE_SEQ, asns),
-		bgp.NewAsPathParam(bgp.BGP_ASPATH_ATTR_TYPE_SET, []uint16{65001, 65002, 65003, 65004, 65005}),
-		bgp.NewAsPathParam(bgp.BGP_ASPATH_ATTR_TYPE_CONFED_SEQ, []uint16{65100, 65101, 65102}),
-		bgp.NewAsPathParam(bgp.BGP_ASPATH_ATTR_TYPE_CONFED_SET, []uint16{65100, 65101})}
+		bgp.NewAsPathParam(bgp.BGP_ASPATH_ATTR_TYPE_SET, []uint32{65001, 65002, 65003, 65004, 65005}),
+		bgp.NewAsPathParam(bgp.BGP_ASPATH_ATTR_TYPE_CONFED_SEQ, []uint32{65100, 65101, 65102}),
+		bgp.NewAsPathParam(bgp.BGP_ASPATH_ATTR_TYPE_CONFED_SET, []uint32{65100, 65101})}
 	aspath := bgp.NewPathAttributeAsPath(aspathParam)
 	nexthop := bgp.NewPathAttributeNextHop("192.168.50.1")
 
@@ -296,7 +296,7 @@ func PathCreatePath(peerP []*PeerInfo) []*Path {
 func updateMsgP1() *bgp.BGPMessage {
 
 	origin := bgp.NewPathAttributeOrigin(0)
-	aspathParam := []bgp.AsPathParamInterface{bgp.NewAsPathParam(2, []uint16{65000})}
+	aspathParam := []*bgp.AsPathParam{bgp.NewAsPathParam(2, []uint32{65000})}
 	aspath := bgp.NewPathAttributeAsPath(aspathParam)
 	nexthop := bgp.NewPathAttributeNextHop("192.168.50.1")
 	med := bgp.NewPathAttributeMultiExitDisc(0)
@@ -315,7 +315,7 @@ func updateMsgP1() *bgp.BGPMessage {
 func updateMsgP2() *bgp.BGPMessage {
 
 	origin := bgp.NewPathAttributeOrigin(0)
-	aspathParam := []bgp.AsPathParamInterface{bgp.NewAsPathParam(2, []uint16{65100})}
+	aspathParam := []*bgp.AsPathParam{bgp.NewAsPathParam(2, []uint32{65100})}
 	aspath := bgp.NewPathAttributeAsPath(aspathParam)
 	nexthop := bgp.NewPathAttributeNextHop("192.168.100.1")
 	med := bgp.NewPathAttributeMultiExitDisc(100)
@@ -332,7 +332,7 @@ func updateMsgP2() *bgp.BGPMessage {
 }
 func updateMsgP3() *bgp.BGPMessage {
 	origin := bgp.NewPathAttributeOrigin(0)
-	aspathParam := []bgp.AsPathParamInterface{bgp.NewAsPathParam(2, []uint16{65100})}
+	aspathParam := []*bgp.AsPathParam{bgp.NewAsPathParam(2, []uint32{65100})}
 	aspath := bgp.NewPathAttributeAsPath(aspathParam)
 	nexthop := bgp.NewPathAttributeNextHop("192.168.150.1")
 	med := bgp.NewPathAttributeMultiExitDisc(100)
