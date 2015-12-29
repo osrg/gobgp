@@ -696,6 +696,10 @@ func (h *FSMHandler) opensent() (bgp.FSMState, FsmStateReason) {
 					fsm.peerInfo.ID = body.ID
 					fsm.capMap, fsm.rfMap = open2Cap(body, fsm.pConf)
 
+					if _, y := fsm.capMap[bgp.BGP_CAP_FOUR_OCTET_AS_NUMBER]; !y {
+						fsm.marshallingOptions.AS2 = true
+					}
+
 					// calculate HoldTime
 					// RFC 4271 P.13
 					// a BGP speaker MUST calculate the value of the Hold Timer
@@ -868,6 +872,13 @@ func (h *FSMHandler) sendMessageloop() error {
 	fsm := h.fsm
 	ticker := keepaliveTicker(fsm)
 	send := func(m *bgp.BGPMessage) error {
+		if m.Header.Type == bgp.BGP_MSG_UPDATE && fsm.marshallingOptions.AS2 {
+			log.WithFields(log.Fields{
+				"Topic": "Peer",
+				"Key":   fsm.pConf.Config.NeighborAddress,
+			}).Debug("update for 2byte AS peer")
+			table.UpdatePathAttrs2ByteAs(m.Body.(*bgp.BGPUpdate))
+		}
 		b, err := m.Serialize(fsm.marshallingOptions)
 		if err != nil {
 			log.WithFields(log.Fields{

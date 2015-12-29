@@ -90,12 +90,11 @@ func NewPath(source *PeerInfo, nlri bgp.AddrPrefixInterface, isWithdraw bool, pa
 }
 
 func cloneAsPath(asAttr *bgp.PathAttributeAsPath) *bgp.PathAttributeAsPath {
-	newASparams := make([]bgp.AsPathParamInterface, len(asAttr.Value))
+	newASparams := make([]*bgp.AsPathParam, len(asAttr.Value))
 	for i, param := range asAttr.Value {
-		asParam := param.(*bgp.As4PathParam)
-		as := make([]uint32, len(asParam.AS))
-		copy(as, asParam.AS)
-		newASparams[i] = bgp.NewAs4PathParam(asParam.Type, as)
+		as := make([]uint32, len(param.AS))
+		copy(as, param.AS)
+		newASparams[i] = bgp.NewAsPathParam(param.Type, as)
 	}
 	return bgp.NewPathAttributeAsPath(newASparams)
 }
@@ -294,7 +293,7 @@ func (path *Path) GetSourceAs() uint32 {
 		if len(asPathParam) == 0 {
 			return 0
 		}
-		asPath := asPathParam[len(asPathParam)-1].(*bgp.As4PathParam)
+		asPath := asPathParam[len(asPathParam)-1]
 		if asPath.Num == 0 {
 			return 0
 		}
@@ -437,8 +436,7 @@ func (path *Path) GetAsPathLen() int {
 func (path *Path) GetAsString() string {
 	s := bytes.NewBuffer(make([]byte, 0, 64))
 	if aspath := path.GetAsPath(); aspath != nil {
-		for i, paramIf := range aspath.Value {
-			segment := paramIf.(*bgp.As4PathParam)
+		for i, segment := range aspath.Value {
 			if i != 0 {
 				s.WriteString(" ")
 			}
@@ -477,8 +475,7 @@ func (path *Path) GetAsSeqList() []uint32 {
 func (path *Path) getAsListofSpecificType(getAsSeq, getAsSet bool) []uint32 {
 	asList := []uint32{}
 	if aspath := path.GetAsPath(); aspath != nil {
-		for _, paramIf := range aspath.Value {
-			segment := paramIf.(*bgp.As4PathParam)
+		for _, segment := range aspath.Value {
 			if getAsSeq && segment.Type == bgp.BGP_ASPATH_ATTR_TYPE_SEQ {
 				asList = append(asList, segment.AS...)
 				continue
@@ -524,13 +521,13 @@ func (path *Path) PrependAsn(asn uint32, repeat uint8) {
 
 	var asPath *bgp.PathAttributeAsPath
 	if original == nil {
-		asPath = bgp.NewPathAttributeAsPath([]bgp.AsPathParamInterface{})
+		asPath = bgp.NewPathAttributeAsPath([]*bgp.AsPathParam{})
 	} else {
 		asPath = cloneAsPath(original)
 	}
 
 	if len(asPath.Value) > 0 {
-		fst := asPath.Value[0].(*bgp.As4PathParam)
+		fst := asPath.Value[0]
 		if fst.Type == bgp.BGP_ASPATH_ATTR_TYPE_SEQ {
 			if len(fst.AS)+int(repeat) > 255 {
 				repeat = uint8(255 - len(fst.AS))
@@ -542,8 +539,8 @@ func (path *Path) PrependAsn(asn uint32, repeat uint8) {
 	}
 
 	if len(asns) > 0 {
-		p := bgp.NewAs4PathParam(bgp.BGP_ASPATH_ATTR_TYPE_SEQ, asns)
-		asPath.Value = append([]bgp.AsPathParamInterface{p}, asPath.Value...)
+		p := bgp.NewAsPathParam(bgp.BGP_ASPATH_ATTR_TYPE_SEQ, asns)
+		asPath.Value = append([]*bgp.AsPathParam{p}, asPath.Value...)
 	}
 	path.setPathAttr(asPath)
 }

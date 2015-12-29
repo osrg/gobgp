@@ -122,15 +122,8 @@ func ValidateAttribute(a PathAttributeInterface, rfs map[RouteFamily]bool, doCon
 		}
 	case *PathAttributeAsPath:
 		if doConfedCheck {
-			for _, paramIf := range p.Value {
-				var segType uint8
-				asParam, y := paramIf.(*As4PathParam)
-				if y {
-					segType = asParam.Type
-				} else {
-					segType = paramIf.(*AsPathParam).Type
-				}
-
+			for _, param := range p.Value {
+				segType := param.Type
 				if segType == BGP_ASPATH_ATTR_TYPE_CONFED_SET || segType == BGP_ASPATH_ATTR_TYPE_CONFED_SEQ {
 					return false, NewMessageError(eCode, eSubCodeMalformedAspath, nil, fmt.Sprintf("segment type confederation(%d) found", segType))
 				}
