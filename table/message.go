@@ -291,7 +291,7 @@ func CreateUpdateMsgFromPaths(pathList []*Path) []*bgp.BGPMessage {
 				h := fnv.New32()
 				total := bytes.NewBuffer(make([]byte, 0))
 				for _, v := range p.GetPathAttrs() {
-					b, _ := v.Serialize()
+					b, _ := v.Serialize(bgp.DefaultMarshallingOptions)
 					total.Write(b)
 				}
 				h.Write(total.Bytes())
@@ -338,7 +338,7 @@ func CreateUpdateMsgFromPaths(pathList []*Path) []*bgp.BGPMessage {
 					msgLen := func(u *bgp.BGPUpdate) int {
 						attrsLen := 0
 						for _, a := range u.PathAttributes {
-							attrsLen += a.Len()
+							attrsLen += a.Len(bgp.DefaultMarshallingOptions)
 						}
 						// Header + Update (WithdrawnRoutesLen +
 						// TotalPathAttributeLen + attributes + maxlen of

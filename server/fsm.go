@@ -87,6 +87,7 @@ type FSM struct {
 	confedCheck        bool
 	peerInfo           *table.PeerInfo
 	policy             *table.RoutingPolicy
+	marshallingOptions *bgp.MarshallingOptions
 }
 
 func (fsm *FSM) bgpMessageStateUpdate(MessageType uint8, isIn bool) {
@@ -144,18 +145,19 @@ func NewFSM(gConf *config.Global, pConf *config.Neighbor, policy *table.RoutingP
 		adminState = ADMIN_STATE_DOWN
 	}
 	fsm := &FSM{
-		gConf:            gConf,
-		pConf:            pConf,
-		state:            bgp.BGP_FSM_IDLE,
-		connCh:           make(chan net.Conn, 1),
-		opensentHoldTime: float64(HOLDTIME_OPENSENT),
-		adminState:       adminState,
-		adminStateCh:     make(chan AdminState, 1),
-		getActiveCh:      make(chan struct{}),
-		rfMap:            make(map[bgp.RouteFamily]bool),
-		confedCheck:      !config.IsConfederationMember(gConf, pConf) && config.IsEBGPPeer(gConf, pConf),
-		peerInfo:         table.NewPeerInfo(gConf, pConf),
-		policy:           policy,
+		gConf:              gConf,
+		pConf:              pConf,
+		state:              bgp.BGP_FSM_IDLE,
+		connCh:             make(chan net.Conn, 1),
+		opensentHoldTime:   float64(HOLDTIME_OPENSENT),
+		adminState:         adminState,
+		adminStateCh:       make(chan AdminState, 1),
+		getActiveCh:        make(chan struct{}),
+		rfMap:              make(map[bgp.RouteFamily]bool),
+		confedCheck:        !config.IsConfederationMember(gConf, pConf) && config.IsEBGPPeer(gConf, pConf),
+		peerInfo:           table.NewPeerInfo(gConf, pConf),
+		policy:             policy,
+		marshallingOptions: bgp.DefaultMarshallingOptions,
 	}
 	fsm.t.Go(fsm.connectLoop)
 	return fsm
@@ -206,7 +208,7 @@ func (fsm *FSM) LocalHostPort() (string, uint16) {
 
 func (fsm *FSM) sendNotificatonFromErrorMsg(conn net.Conn, e *bgp.MessageError) {
 	m := bgp.NewBGPNotificationMessage(e.TypeCode, e.SubTypeCode, e.Data)
-	b, _ := m.Serialize()
+	b, _ := m.Serialize(fsm.marshallingOptions)
 	_, err := conn.Write(b)
 	if err != nil {
 		fsm.bgpMessageStateUpdate(m.Header.Type, false)
@@ -448,7 +450,7 @@ func (h *FSMHandler) recvMessageWithError() error {
 	}
 
 	hd := &bgp.BGPHeader{}
-	err = hd.DecodeFromBytes(headerBuf)
+	err = hd.DecodeFromBytes(headerBuf, h.fsm.marshallingOptions)
 	if err != nil {
 		h.fsm.bgpMessageStateUpdate(0, true)
 		log.WithFields(log.Fields{
@@ -473,7 +475,7 @@ func (h *FSMHandler) recvMessageWithError() error {
 	}
 
 	now := time.Now()
-	m, err := bgp.ParseBGPBody(hd, bodyBuf)
+	m, err := bgp.ParseBGPBody(hd, bodyBuf, h.fsm.marshallingOptions)
 	if err == nil {
 		h.fsm.bgpMessageStateUpdate(m.Header.Type, true)
 		err = bgp.ValidateBGPMessage(m)
@@ -500,7 +502,7 @@ func (h *FSMHandler) recvMessageWithError() error {
 			switch m.Header.Type {
 			case bgp.BGP_MSG_UPDATE:
 				body := m.Body.(*bgp.BGPUpdate)
-				_, err := bgp.ValidateUpdateMsg(body, h.fsm.rfMap, h.fsm.confedCheck)
+				_, err := bgp.ValidateUpdateMsg(body, h.fsm.rfMap, h.fsm.confedCheck, h.fsm.marshallingOptions)
 				if err != nil {
 					log.WithFields(log.Fields{
 						"Topic": "Peer",
@@ -549,7 +551,7 @@ func (h *FSMHandler) recvMessage() error {
 func (h *FSMHandler) opensent() bgp.FSMState {
 	fsm := h.fsm
 	m := buildopen(fsm.gConf, fsm.pConf)
-	b, _ := m.Serialize()
+	b, _ := m.Serialize(h.fsm.marshallingOptions)
 	fsm.conn.Write(b)
 	fsm.bgpMessageStateUpdate(m.Header.Type, false)
 
@@ -601,7 +603,7 @@ func (h *FSMHandler) opensent() bgp.FSMState {
 					}
 					h.incoming <- e
 					msg := bgp.NewBGPKeepAliveMessage()
-					b, _ := msg.Serialize()
+					b, _ := msg.Serialize(fsm.marshallingOptions)
 					fsm.conn.Write(b)
 					fsm.bgpMessageStateUpdate(msg.Header.Type, false)
 					return bgp.BGP_FSM_OPENCONFIRM
@@ -696,7 +698,7 @@ func (h *FSMHandler) openconfirm() bgp.FSMState {
 			}).Warn("Closed an accepted connection")
 		case <-ticker.C:
 			m := bgp.NewBGPKeepAliveMessage()
-			b, _ := m.Serialize()
+			b, _ := m.Serialize(fsm.marshallingOptions)
 			// TODO: check error
 			fsm.conn.Write(b)
 			fsm.bgpMessageStateUpdate(m.Header.Type, false)
@@ -761,7 +763,7 @@ func (h *FSMHandler) sendMessageloop() error {
 	fsm := h.fsm
 	ticker := keepaliveTicker(fsm)
 	send := func(m *bgp.BGPMessage) error {
-		b, err := m.Serialize()
+		b, err := m.Serialize(fsm.marshallingOptions)
 		if err != nil {
 			log.WithFields(log.Fields{
 				"Topic": "Peer",

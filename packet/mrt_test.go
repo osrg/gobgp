@@ -53,12 +53,13 @@ func TestMrtHdrTime(t *testing.T) {
 }
 
 func testPeer(t *testing.T, p1 *Peer) {
-	b1, err := p1.Serialize()
+	options := &MarshallingOptions{}
+	b1, err := p1.Serialize(options)
 	if err != nil {
 		t.Fatal(err)
 	}
 	p2 := &Peer{}
-	rest, err := p2.DecodeFromBytes(b1)
+	rest, err := p2.DecodeFromBytes(b1, options)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -82,16 +83,17 @@ func TestMrtPeerAS4(t *testing.T) {
 }
 
 func TestMrtPeerIndexTable(t *testing.T) {
+	options := &MarshallingOptions{}
 	p1 := NewPeer("192.168.0.1", "10.0.0.1", 65000, false)
 	p2 := NewPeer("192.168.0.1", "2001::1", 65000, false)
 	p3 := NewPeer("192.168.0.1", "2001::1", 135500, true)
 	pt1 := NewPeerIndexTable("192.168.0.1", "test", []*Peer{p1, p2, p3})
-	b1, err := pt1.Serialize()
+	b1, err := pt1.Serialize(options)
 	if err != nil {
 		t.Fatal(err)
 	}
 	pt2 := &PeerIndexTable{}
-	err = pt2.DecodeFromBytes(b1)
+	err = pt2.DecodeFromBytes(b1, options)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -113,14 +115,15 @@ func TestMrtRibEntry(t *testing.T) {
 		NewPathAttributeLocalPref(1 << 22),
 	}
 
+	options := &MarshallingOptions{}
 	e1 := NewRibEntry(1, uint32(time.Now().Unix()), p)
-	b1, err := e1.Serialize()
+	b1, err := e1.Serialize(options)
 	if err != nil {
 		t.Fatal(err)
 	}
 
 	e2 := &RibEntry{}
-	rest, err := e2.DecodeFromBytes(b1)
+	rest, err := e2.DecodeFromBytes(b1, options)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -148,14 +151,15 @@ func TestMrtRib(t *testing.T) {
 	e3 := NewRibEntry(3, uint32(time.Now().Unix()), p)
 
 	r1 := NewRib(1, NewIPAddrPrefix(24, "192.168.0.0"), []*RibEntry{e1, e2, e3})
-	b1, err := r1.Serialize()
+	options := &MarshallingOptions{}
+	b1, err := r1.Serialize(options)
 	if err != nil {
 		t.Fatal(err)
 	}
 	r2 := &Rib{
 		RouteFamily: RF_IPv4_UC,
 	}
-	err = r2.DecodeFromBytes(b1)
+	err = r2.DecodeFromBytes(b1, options)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -163,17 +167,18 @@ func TestMrtRib(t *testing.T) {
 }
 
 func TestMrtBgp4mpStateChange(t *testing.T) {
+	options := &MarshallingOptions{}
 	c1 := NewBGP4MPStateChange(65000, 65001, 1, "192.168.0.1", "192.168.0.2", false, ACTIVE, ESTABLISHED)
-	b1, err := c1.Serialize()
+	b1, err := c1.Serialize(options)
 	if err != nil {
 		t.Fatal(err)
 	}
 	c2 := &BGP4MPStateChange{BGP4MPHeader: &BGP4MPHeader{}}
-	err = c2.DecodeFromBytes(b1)
+	err = c2.DecodeFromBytes(b1, options)
 	if err != nil {
 		t.Fatal(err)
 	}
-	_, err = c2.Serialize()
+	_, err = c2.Serialize(options)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -181,14 +186,15 @@ func TestMrtBgp4mpStateChange(t *testing.T) {
 }
 
 func TestMrtBgp4mpMessage(t *testing.T) {
+	options := &MarshallingOptions{}
 	msg := NewBGPKeepAliveMessage()
 	m1 := NewBGP4MPMessage(65000, 65001, 1, "192.168.0.1", "192.168.0.2", false, msg)
-	b1, err := m1.Serialize()
+	b1, err := m1.Serialize(options)
 	if err != nil {
 		t.Fatal(err)
 	}
 	m2 := &BGP4MPMessage{BGP4MPHeader: &BGP4MPHeader{}}
-	err = m2.DecodeFromBytes(b1)
+	err = m2.DecodeFromBytes(b1, options)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -202,7 +208,7 @@ func TestMrtSplit(t *testing.T) {
 		msg := NewBGPKeepAliveMessage()
 		m1 := NewBGP4MPMessage(65000, 65001, 1, "192.168.0.1", "192.168.0.2", false, msg)
 		mm, _ := NewMRTMessage(1234, BGP4MP, MESSAGE, m1)
-		b1, err := mm.Serialize()
+		b1, err := mm.Serialize(&MarshallingOptions{})
 		if err != nil {
 			t.Fatal(err)
 		}

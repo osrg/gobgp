@@ -193,12 +193,12 @@ func (path *Path) IsIBGP() bool {
 
 func (path *Path) ToApiStruct(id string) *api.Path {
 	nlri := path.GetNlri()
-	n, _ := nlri.Serialize()
+	n, _ := nlri.Serialize(bgp.DefaultMarshallingOptions)
 	family := uint32(bgp.AfiSafiToRouteFamily(nlri.AFI(), nlri.SAFI()))
 	pattrs := func(arg []bgp.PathAttributeInterface) [][]byte {
 		ret := make([][]byte, 0, len(arg))
 		for _, a := range arg {
-			aa, _ := a.Serialize()
+			aa, _ := a.Serialize(bgp.DefaultMarshallingOptions)
 			ret = append(ret, aa)
 		}
 		return ret

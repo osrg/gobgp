@@ -333,14 +333,14 @@ func (server *BgpServer) Serve() {
 				for _, p := range targetPeer.adjRibIn.PathList(targetPeer.configuredRFlist(), false) {
 					// avoid to merge for timestamp
 					u := table.CreateUpdateMsgFromPaths([]*table.Path{p})
-					buf, _ := u[0].Serialize()
+					buf, _ := u[0].Serialize(bgp.DefaultMarshallingOptions)
 					bmpMsgList = append(bmpMsgList, bmpPeerRoute(bgp.BMP_PEER_TYPE_GLOBAL, false, 0, targetPeer.fsm.peerInfo, p.GetTimestamp().Unix(), buf))
 				}
 			}
 
 			for _, p := range server.globalRib.GetBestPathList(table.GLOBAL_RIB_NAME, server.globalRib.GetRFlist()) {
 				u := table.CreateUpdateMsgFromPaths([]*table.Path{p})
-				buf, _ := u[0].Serialize()
+				buf, _ := u[0].Serialize(bgp.DefaultMarshallingOptions)
 				bmpMsgList = append(bmpMsgList, bmpPeerRoute(bgp.BMP_PEER_TYPE_GLOBAL, true, 0, p.GetSource(), p.GetTimestamp().Unix(), buf))
 			}
 
@@ -888,7 +888,7 @@ func (server *BgpServer) handleFSMMessage(peer *Peer, e *FsmMsg, incoming chan *
 
 				if ch := server.bmpClient.send(); ch != nil {
 					for _, u := range table.CreateUpdateMsgFromPaths(altered) {
-						payload, _ := u.Serialize()
+						payload, _ := u.Serialize(bgp.DefaultMarshallingOptions)
 						bm := &broadcastBMPMsg{
 							ch:      ch,
 							msgList: []*bgp.BMPMessage{bmpPeerRoute(bgp.BMP_PEER_TYPE_GLOBAL, true, 0, peer.fsm.peerInfo, e.timestamp.Unix(), payload)},
@@ -1099,7 +1099,7 @@ func (server *BgpServer) Api2PathList(resource api.Resource, name string, ApiPat
 
 		if len(path.Nlri) > 0 {
 			nlri = &bgp.IPAddrPrefix{}
-			err := nlri.DecodeFromBytes(path.Nlri)
+			err := nlri.DecodeFromBytes(path.Nlri, bgp.DefaultMarshallingOptions)
 			if err != nil {
 				return nil, err
 			}
@@ -1111,7 +1111,7 @@ func (server *BgpServer) Api2PathList(resource api.Resource, name string, ApiPat
 				return nil, err
 			}
 
-			err = p.DecodeFromBytes(attr)
+			err = p.DecodeFromBytes(attr, bgp.DefaultMarshallingOptions)
 			if err != nil {
 				return nil, err
 			}
@@ -2487,7 +2487,7 @@ func (server *BgpServer) handleMrt(grpcReq *GrpcRequest) {
 		close(grpcReq.ResponseCh)
 		return
 	}
-	data, err := msg.Serialize()
+	data, err := msg.Serialize(bgp.DefaultMarshallingOptions)
 	if err != nil {
 		result.ResponseErr = fmt.Errorf("failed to serialize table: %s", err)
 		grpcReq.ResponseCh <- result
@@ -2511,7 +2511,7 @@ func (server *BgpServer) handleMrt(grpcReq *GrpcRequest) {
 		return
 	}
 	for _, msg := range msgs {
-		d, err := msg.Serialize()
+		d, err := msg.Serialize(bgp.DefaultMarshallingOptions)
 		if err != nil {
 			result.ResponseErr = fmt.Errorf("failed to serialize rib msg: %s", err)
 			grpcReq.ResponseCh <- result

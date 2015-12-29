@@ -39,31 +39,34 @@ func bgpupdateV6() *BGPMessage {
 }
 
 func Test_Validate_CapV4(t *testing.T) {
+	options := &MarshallingOptions{}
 	assert := assert.New(t)
 	message := bgpupdate().Body.(*BGPUpdate)
-	res, err := ValidateUpdateMsg(message, map[RouteFamily]bool{RF_IPv6_UC: true}, false)
+	res, err := ValidateUpdateMsg(message, map[RouteFamily]bool{RF_IPv6_UC: true}, false, options)
 	assert.Equal(false, res)
 	assert.Error(err)
 
-	res, err = ValidateUpdateMsg(message, map[RouteFamily]bool{RF_IPv4_UC: true}, false)
+	res, err = ValidateUpdateMsg(message, map[RouteFamily]bool{RF_IPv4_UC: true}, false, options)
 	assert.Equal(true, res)
 }
 
 func Test_Validate_CapV6(t *testing.T) {
+	options := &MarshallingOptions{}
 	assert := assert.New(t)
 	message := bgpupdateV6().Body.(*BGPUpdate)
-	res, err := ValidateUpdateMsg(message, map[RouteFamily]bool{RF_IPv6_UC: true}, false)
+	res, err := ValidateUpdateMsg(message, map[RouteFamily]bool{RF_IPv6_UC: true}, false, options)
 	assert.Equal(true, res)
 	assert.NoError(err)
 
-	res, err = ValidateUpdateMsg(message, map[RouteFamily]bool{RF_IPv4_UC: true}, false)
+	res, err = ValidateUpdateMsg(message, map[RouteFamily]bool{RF_IPv4_UC: true}, false, options)
 	assert.Equal(false, res)
 }
 
 func Test_Validate_OK(t *testing.T) {
+	options := &MarshallingOptions{}
 	assert := assert.New(t)
 	message := bgpupdate().Body.(*BGPUpdate)
-	res, err := ValidateUpdateMsg(message, map[RouteFamily]bool{RF_IPv4_UC: true}, false)
+	res, err := ValidateUpdateMsg(message, map[RouteFamily]bool{RF_IPv4_UC: true}, false, options)
 	assert.Equal(true, res)
 	assert.NoError(err)
 
@@ -143,15 +146,16 @@ func Test_Validate_OK(t *testing.T) {
 // }
 
 func Test_Validate_duplicate_attribute(t *testing.T) {
+	options := &MarshallingOptions{}
 	assert := assert.New(t)
 	message := bgpupdate().Body.(*BGPUpdate)
 	// duplicate origin path attribute
 	originBytes := []byte{byte(pathAttrFlags[BGP_ATTR_TYPE_ORIGIN]), 1, 1, 1}
 	origin := &PathAttributeOrigin{}
-	origin.DecodeFromBytes(originBytes)
+	origin.DecodeFromBytes(originBytes, options)
 	message.PathAttributes = append(message.PathAttributes, origin)
 
-	res, err := ValidateUpdateMsg(message, map[RouteFamily]bool{RF_IPv4_UC: true}, false)
+	res, err := ValidateUpdateMsg(message, map[RouteFamily]bool{RF_IPv4_UC: true}, false, options)
 	assert.Equal(false, res)
 	assert.Error(err)
 	e := err.(*MessageError)
@@ -161,10 +165,11 @@ func Test_Validate_duplicate_attribute(t *testing.T) {
 }
 
 func Test_Validate_mandatory_missing(t *testing.T) {
+	options := &MarshallingOptions{}
 	assert := assert.New(t)
 	message := bgpupdate().Body.(*BGPUpdate)
 	message.PathAttributes = message.PathAttributes[1:]
-	res, err := ValidateUpdateMsg(message, map[RouteFamily]bool{RF_IPv4_UC: true}, false)
+	res, err := ValidateUpdateMsg(message, map[RouteFamily]bool{RF_IPv4_UC: true}, false, options)
 	assert.Equal(false, res)
 	assert.Error(err)
 	e := err.(*MessageError)
@@ -175,26 +180,28 @@ func Test_Validate_mandatory_missing(t *testing.T) {
 }
 
 func Test_Validate_mandatory_missing_nocheck(t *testing.T) {
+	options := &MarshallingOptions{}
 	assert := assert.New(t)
 	message := bgpupdate().Body.(*BGPUpdate)
 	message.PathAttributes = message.PathAttributes[1:]
 	message.NLRI = nil
 
-	res, err := ValidateUpdateMsg(message, map[RouteFamily]bool{RF_IPv4_UC: true}, false)
+	res, err := ValidateUpdateMsg(message, map[RouteFamily]bool{RF_IPv4_UC: true}, false, options)
 	assert.Equal(true, res)
 	assert.NoError(err)
 }
 
 func Test_Validate_invalid_origin(t *testing.T) {
+	options := &MarshallingOptions{}
 	assert := assert.New(t)
 	message := bgpupdate().Body.(*BGPUpdate)
 	// origin needs to be well-known
 	originBytes := []byte{byte(pathAttrFlags[BGP_ATTR_TYPE_ORIGIN]), 1, 1, 5}
 	origin := &PathAttributeOrigin{}
-	origin.DecodeFromBytes(originBytes)
+	origin.DecodeFromBytes(originBytes, options)
 	message.PathAttributes[0] = origin
 
-	res, err := ValidateUpdateMsg(message, map[RouteFamily]bool{RF_IPv4_UC: true}, false)
+	res, err := ValidateUpdateMsg(message, map[RouteFamily]bool{RF_IPv4_UC: true}, false, options)
 	assert.Equal(false, res)
 	assert.Error(err)
 	e := err.(*MessageError)
@@ -204,6 +211,7 @@ func Test_Validate_invalid_origin(t *testing.T) {
 }
 
 func Test_Validate_invalid_nexthop_zero(t *testing.T) {
+	options := &MarshallingOptions{}
 	assert := assert.New(t)
 	message := bgpupdate().Body.(*BGPUpdate)
 
@@ -212,10 +220,10 @@ func Test_Validate_invalid_nexthop_zero(t *testing.T) {
 	nexthopBytes := []byte{byte(pathAttrFlags[BGP_ATTR_TYPE_NEXT_HOP]), 3, 4}
 	nexthopBytes = append(nexthopBytes, addr...)
 	nexthop := &PathAttributeNextHop{}
-	nexthop.DecodeFromBytes(nexthopBytes)
+	nexthop.DecodeFromBytes(nexthopBytes, options)
 	message.PathAttributes[2] = nexthop
 
-	res, err := ValidateUpdateMsg(message, map[RouteFamily]bool{RF_IPv4_UC: true}, false)
+	res, err := ValidateUpdateMsg(message, map[RouteFamily]bool{RF_IPv4_UC: true}, false, options)
 	assert.Equal(false, res)
 	assert.Error(err)
 	e := err.(*MessageError)
@@ -225,6 +233,7 @@ func Test_Validate_invalid_nexthop_zero(t *testing.T) {
 }
 
 func Test_Validate_invalid_nexthop_lo(t *testing.T) {
+	options := &MarshallingOptions{}
 	assert := assert.New(t)
 	message := bgpupdate().Body.(*BGPUpdate)
 
@@ -233,10 +242,10 @@ func Test_Validate_invalid_nexthop_lo(t *testing.T) {
 	nexthopBytes := []byte{byte(pathAttrFlags[BGP_ATTR_TYPE_NEXT_HOP]), 3, 4}
 	nexthopBytes = append(nexthopBytes, addr...)
 	nexthop := &PathAttributeNextHop{}
-	nexthop.DecodeFromBytes(nexthopBytes)
+	nexthop.DecodeFromBytes(nexthopBytes, options)
 	message.PathAttributes[2] = nexthop
 
-	res, err := ValidateUpdateMsg(message, map[RouteFamily]bool{RF_IPv4_UC: true}, false)
+	res, err := ValidateUpdateMsg(message, map[RouteFamily]bool{RF_IPv4_UC: true}, false, options)
 	assert.Equal(false, res)
 	assert.Error(err)
 	e := err.(*MessageError)
@@ -246,6 +255,7 @@ func Test_Validate_invalid_nexthop_lo(t *testing.T) {
 }
 
 func Test_Validate_invalid_nexthop_de(t *testing.T) {
+	options := &MarshallingOptions{}
 	assert := assert.New(t)
 	message := bgpupdate().Body.(*BGPUpdate)
 
@@ -254,10 +264,10 @@ func Test_Validate_invalid_nexthop_de(t *testing.T) {
 	nexthopBytes := []byte{byte(pathAttrFlags[BGP_ATTR_TYPE_NEXT_HOP]), 3, 4}
 	nexthopBytes = append(nexthopBytes, addr...)
 	nexthop := &PathAttributeNextHop{}
-	nexthop.DecodeFromBytes(nexthopBytes)
+	nexthop.DecodeFromBytes(nexthopBytes, options)
 	message.PathAttributes[2] = nexthop
 
-	res, err := ValidateUpdateMsg(message, map[RouteFamily]bool{RF_IPv4_UC: true}, false)
+	res, err := ValidateUpdateMsg(message, map[RouteFamily]bool{RF_IPv4_UC: true}, false, options)
 	assert.Equal(false, res)
 	assert.Error(err)
 	e := err.(*MessageError)
@@ -268,16 +278,16 @@ func Test_Validate_invalid_nexthop_de(t *testing.T) {
 }
 
 func Test_Validate_unrecognized_well_known(t *testing.T) {
-
+	options := &MarshallingOptions{}
 	assert := assert.New(t)
 	message := bgpupdate().Body.(*BGPUpdate)
 	f := BGP_ATTR_FLAG_TRANSITIVE
 	unknownBytes := []byte{byte(f), 30, 1, 1}
 	unknown := &PathAttributeUnknown{}
-	unknown.DecodeFromBytes(unknownBytes)
+	unknown.DecodeFromBytes(unknownBytes, options)
 	message.PathAttributes = append(message.PathAttributes, unknown)
 
-	res, err := ValidateUpdateMsg(message, map[RouteFamily]bool{RF_IPv4_UC: true}, false)
+	res, err := ValidateUpdateMsg(message, map[RouteFamily]bool{RF_IPv4_UC: true}, false, options)
 	assert.Equal(false, res)
 	assert.Error(err)
 	e := err.(*MessageError)
@@ -287,12 +297,12 @@ func Test_Validate_unrecognized_well_known(t *testing.T) {
 }
 
 func Test_Validate_aspath(t *testing.T) {
-
+	options := &MarshallingOptions{}
 	assert := assert.New(t)
 	message := bgpupdate().Body.(*BGPUpdate)
 
 	// VALID AS_PATH
-	res, err := ValidateUpdateMsg(message, map[RouteFamily]bool{RF_IPv4_UC: true}, true)
+	res, err := ValidateUpdateMsg(message, map[RouteFamily]bool{RF_IPv4_UC: true}, true, options)
 	assert.Equal(true, res)
 
 	// CONFED_SET
@@ -310,7 +320,7 @@ func Test_Validate_aspath(t *testing.T) {
 	}
 
 	message.PathAttributes = newAttrs
-	res, err = ValidateUpdateMsg(message, map[RouteFamily]bool{RF_IPv4_UC: true}, true)
+	res, err = ValidateUpdateMsg(message, map[RouteFamily]bool{RF_IPv4_UC: true}, true, options)
 	assert.Equal(false, res)
 	assert.Error(err)
 	e := err.(*MessageError)
@@ -333,7 +343,7 @@ func Test_Validate_aspath(t *testing.T) {
 	}
 
 	message.PathAttributes = newAttrs
-	res, err = ValidateUpdateMsg(message, map[RouteFamily]bool{RF_IPv4_UC: true}, true)
+	res, err = ValidateUpdateMsg(message, map[RouteFamily]bool{RF_IPv4_UC: true}, true, options)
 	assert.Equal(false, res)
 	assert.Error(err)
 	e = err.(*MessageError)
