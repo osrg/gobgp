@@ -54,13 +54,30 @@ func newBMPClient(conf config.BmpServers, connCh chan *bmpConn) (*bmpClient, err
 	b.ch = make(chan *broadcastBMPMsg)
 	b.connCh = connCh
 
+	endCh := make(chan *net.TCPConn)
+
 	tryConnect := func(host string) {
+		interval := 1
 		for {
+			log.Debug("connecting bmp server: ", host)
 			conn, err := net.Dial("tcp", host)
 			if err != nil {
-				time.Sleep(30 * time.Second)
+				time.Sleep(time.Duration(interval) * time.Second)
+				if interval < 30 {
+					interval *= 2
+				}
 			} else {
 				log.Info("bmp server is connected, ", host)
+				go func() {
+					buf := make([]byte, 1)
+					for {
+						_, err := conn.Read(buf)
+						if err != nil {
+							endCh <- conn.(*net.TCPConn)
+							return
+						}
+					}
+				}()
 				connCh <- &bmpConn{
 					conn: conn.(*net.TCPConn),
 					host: host,
@@ -122,14 +139,16 @@ func newBMPClient(conf config.BmpServers, connCh chan *bmpConn) (*bmpClient, err
 
 						}
 						b, _ := msg.Serialize()
-						_, err := conn.Write(b)
-						if err != nil {
-							delete(connMap, host)
-							go tryConnect(host)
+						if _, err := conn.Write(b); err != nil {
 							break
 						}
 					}
 				}
+			case conn := <-endCh:
+				host := conn.RemoteAddr().String()
+				log.Debugf("bmp connection to %s killed", host)
+				delete(connMap, host)
+				go tryConnect(host)
 			}
 		}
 	}()
