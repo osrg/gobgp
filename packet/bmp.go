@@ -39,7 +39,7 @@ const (
 )
 
 const (
-	BMP_PEER_TYPE_GLOBAL = iota
+	BMP_PEER_TYPE_GLOBAL uint8 = iota
 	BMP_PEER_TYPE_L3VPN
 )
 

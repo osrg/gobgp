@@ -1607,7 +1607,25 @@ func (server *BgpServer) handleGrpc(grpcReq *GrpcRequest) []*SenderMsg {
 			i++
 		}
 		go sendMultipleResponses(grpcReq, results)
-
+	case REQ_BMP_NEIGHBORS:
+		//TODO: merge REQ_NEIGHBORS and REQ_BMP_NEIGHBORS
+		msgs := make([]*bgp.BMPMessage, 0, len(server.neighborMap))
+		for _, peer := range server.neighborMap {
+			if peer.fsm.state != bgp.BGP_FSM_ESTABLISHED {
+				continue
+			}
+			laddr, lport := peer.fsm.LocalHostPort()
+			_, rport := peer.fsm.RemoteHostPort()
+			sentOpen := buildopen(peer.fsm.gConf, peer.fsm.pConf)
+			info := peer.fsm.peerInfo
+			timestamp := peer.conf.Timers.State.Uptime
+			msg := bmpPeerUp(laddr, lport, rport, sentOpen, peer.recvOpen, bgp.BMP_PEER_TYPE_GLOBAL, false, 0, info, timestamp)
+			msgs = append(msgs, msg)
+		}
+		grpcReq.ResponseCh <- &GrpcResponse{
+			Data: msgs,
+		}
+		close(grpcReq.ResponseCh)
 	case REQ_NEIGHBOR:
 		peer, err := server.checkNeighborRequest(grpcReq)
 		if err != nil {

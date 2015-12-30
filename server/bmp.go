@@ -35,7 +35,7 @@ func (m *broadcastBMPMsg) send() {
 	m.ch <- m
 }
 
-type bmpConn struct {
+type bmpServer struct {
 	conn *net.TCPConn
 	host string
 }
@@ -160,18 +160,18 @@ func (c *bmpClient) send() chan *broadcastBMPMsg {
 	return c.ch
 }
 
-func bmpPeerUp(laddr string, lport, rport uint16, sent, recv *bgp.BGPMessage, t int, policy bool, pd uint64, peeri *table.PeerInfo, timestamp int64) *bgp.BMPMessage {
-	ph := bgp.NewBMPPeerHeader(uint8(t), policy, pd, peeri.Address.String(), peeri.AS, peeri.LocalID.String(), float64(timestamp))
+func bmpPeerUp(laddr string, lport, rport uint16, sent, recv *bgp.BGPMessage, t uint8, policy bool, pd uint64, peeri *table.PeerInfo, timestamp int64) *bgp.BMPMessage {
+	ph := bgp.NewBMPPeerHeader(t, policy, pd, peeri.Address.String(), peeri.AS, peeri.ID.String(), float64(timestamp))
 	return bgp.NewBMPPeerUpNotification(*ph, laddr, lport, rport, sent, recv)
 }
 
-func bmpPeerDown(reason uint8, t int, policy bool, pd uint64, peeri *table.PeerInfo, timestamp int64) *bgp.BMPMessage {
-	ph := bgp.NewBMPPeerHeader(uint8(t), policy, pd, peeri.Address.String(), peeri.AS, peeri.LocalID.String(), float64(timestamp))
+func bmpPeerDown(reason uint8, t uint8, policy bool, pd uint64, peeri *table.PeerInfo, timestamp int64) *bgp.BMPMessage {
+	ph := bgp.NewBMPPeerHeader(t, policy, pd, peeri.Address.String(), peeri.AS, peeri.ID.String(), float64(timestamp))
 	return bgp.NewBMPPeerDownNotification(*ph, reason, nil, []byte{})
 }
 
-func bmpPeerRoute(t int, policy bool, pd uint64, peeri *table.PeerInfo, timestamp int64, payload []byte) *bgp.BMPMessage {
-	ph := bgp.NewBMPPeerHeader(uint8(t), policy, pd, peeri.Address.String(), peeri.AS, peeri.LocalID.String(), float64(timestamp))
+func bmpPeerRoute(t uint8, policy bool, pd uint64, peeri *table.PeerInfo, timestamp int64, payload []byte) *bgp.BMPMessage {
+	ph := bgp.NewBMPPeerHeader(t, policy, pd, peeri.Address.String(), peeri.AS, peeri.ID.String(), float64(timestamp))
 	m := bgp.NewBMPRouteMonitoring(*ph, nil)
 	body := m.Body.(*bgp.BMPRouteMonitoring)
 	body.BGPUpdatePayload = payload
