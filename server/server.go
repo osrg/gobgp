@@ -74,6 +74,19 @@ func (m *broadcastBGPMsg) send() {
 	m.ch <- m
 }
 
+type Watchers map[watcherType]watcher
+
+func (ws Watchers) watching(typ watcherEventType) bool {
+	for _, w := range ws {
+		for _, ev := range w.watchingEventTypes() {
+			if ev == typ {
+				return true
+			}
+		}
+	}
+	return false
+}
+
 type BgpServer struct {
 	bgpConfig     config.Bgp
 	globalTypeCh  chan config.Global
@@ -82,7 +95,6 @@ type BgpServer struct {
 	updatedPeerCh chan config.Neighbor
 	fsmincomingCh chan *FsmMsg
 	rpkiConfigCh  chan config.RpkiServers
-	bmpConfigCh   chan config.BmpServers
 
 	GrpcReqCh      chan *GrpcRequest
 	policyUpdateCh chan config.RoutingPolicy
@@ -94,10 +106,8 @@ type BgpServer struct {
 	globalRib      *table.TableManager
 	zclient        *zebra.Client
 	roaManager     *roaManager
-	bmpClient      *bmpClient
-	bmpConnCh      chan *bmpConn
 	shutdown       bool
-	watchers       map[watcherType]watcher
+	watchers       Watchers
 }
 
 func NewBgpServer() *BgpServer {
@@ -107,12 +117,10 @@ func NewBgpServer() *BgpServer {
 	b.deletedPeerCh = make(chan config.Neighbor)
 	b.updatedPeerCh = make(chan config.Neighbor)
 	b.rpkiConfigCh = make(chan config.RpkiServers)
-	b.bmpConfigCh = make(chan config.BmpServers)
-	b.bmpConnCh = make(chan *bmpConn)
 	b.GrpcReqCh = make(chan *GrpcRequest, 1)
 	b.policyUpdateCh = make(chan config.RoutingPolicy)
 	b.neighborMap = make(map[string]*Peer)
-	b.watchers = make(map[watcherType]watcher)
+	b.watchers = Watchers(make(map[watcherType]watcher))
 	b.roaManager, _ = newROAManager(0, config.RpkiServers{})
 	b.policy = table.NewRoutingPolicy()
 	return &b
@@ -142,6 +150,18 @@ func listenAndAccept(proto string, port uint32, ch chan *net.TCPConn) (*net.TCPL
 	return l, nil
 }
 
+func (server *BgpServer) notify2watchers(typ watcherEventType, ev watcherEvent) error {
+	for _, watcher := range server.watchers {
+		if ch := watcher.notify(typ); ch != nil {
+			server.broadcastMsgs = append(server.broadcastMsgs, &broadcastWatcherMsg{
+				ch:    ch,
+				event: ev,
+			})
+		}
+	}
+	return nil
+}
+
 func (server *BgpServer) Serve() {
 	var g config.Global
 	for {
@@ -165,7 +185,6 @@ func (server *BgpServer) Serve() {
 		}
 	}
 
-	server.bmpClient, _ = newBMPClient(config.BmpServers{BmpServerList: []config.BmpServer{}}, server.bmpConnCh)
 	server.roaManager, _ = newROAManager(g.Config.As, config.RpkiServers{})
 
 	if g.Mrt.FileName != "" {
@@ -174,6 +193,20 @@ func (server *BgpServer) Serve() {
 			log.Warn(err)
 		} else {
 			server.watchers[WATCHER_MRT] = w
+		}
+	}
+
+	if len(g.BmpServers.BmpServerList) > 0 {
+		w, err := newBmpWatcher(server.GrpcReqCh)
+		if err != nil {
+			log.Warn(err)
+		} else {
+			for _, server := range g.BmpServers.BmpServerList {
+				if err := w.addServer(server.Config); err != nil {
+					log.Warn(err)
+				}
+			}
+			server.watchers[WATCHER_BMP] = w
 		}
 	}
 
@@ -322,34 +355,6 @@ func (server *BgpServer) Serve() {
 		select {
 		case c := <-server.rpkiConfigCh:
 			server.roaManager, _ = newROAManager(server.bgpConfig.Global.Config.As, c)
-		case c := <-server.bmpConfigCh:
-			server.bmpClient, _ = newBMPClient(c, server.bmpConnCh)
-		case c := <-server.bmpConnCh:
-			bmpMsgList := []*bgp.BMPMessage{}
-			for _, targetPeer := range server.neighborMap {
-				if targetPeer.fsm.state != bgp.BGP_FSM_ESTABLISHED {
-					continue
-				}
-				for _, p := range targetPeer.adjRibIn.PathList(targetPeer.configuredRFlist(), false) {
-					// avoid to merge for timestamp
-					u := table.CreateUpdateMsgFromPaths([]*table.Path{p})
-					buf, _ := u[0].Serialize()
-					bmpMsgList = append(bmpMsgList, bmpPeerRoute(bgp.BMP_PEER_TYPE_GLOBAL, false, 0, targetPeer.fsm.peerInfo, p.GetTimestamp().Unix(), buf))
-				}
-			}
-
-			for _, p := range server.globalRib.GetBestPathList(table.GLOBAL_RIB_NAME, server.globalRib.GetRFlist()) {
-				u := table.CreateUpdateMsgFromPaths([]*table.Path{p})
-				buf, _ := u[0].Serialize()
-				bmpMsgList = append(bmpMsgList, bmpPeerRoute(bgp.BMP_PEER_TYPE_GLOBAL, true, 0, p.GetSource(), p.GetTimestamp().Unix(), buf))
-			}
-
-			m := &broadcastBMPMsg{
-				ch:      server.bmpClient.send(),
-				conn:    c.conn,
-				msgList: bmpMsgList,
-			}
-			server.broadcastMsgs = append(server.broadcastMsgs, m)
 		case rmsg := <-server.roaManager.recieveROA():
 			server.roaManager.handleROAEvent(rmsg)
 		case zmsg := <-zapiMsgCh:
@@ -387,7 +392,7 @@ func (server *BgpServer) Serve() {
 			}
 			server.neighborMap[addr] = peer
 			peer.startFSMHandler(server.fsmincomingCh)
-			server.broadcastPeerState(peer)
+			server.broadcastPeerState(peer, bgp.BGP_FSM_IDLE)
 		case config := <-server.deletedPeerCh:
 			addr := config.Config.NeighborAddress
 			SetTcpMD5SigSockopts(listener(addr), addr, "")
@@ -640,7 +645,7 @@ func (server *BgpServer) broadcastBests(bests []*table.Path) {
 	}
 }
 
-func (server *BgpServer) broadcastPeerState(peer *Peer) {
+func (server *BgpServer) broadcastPeerState(peer *Peer, oldState bgp.FSMState) {
 	result := &GrpcResponse{
 		Data: peer.ToApiStruct(),
 	}
@@ -665,6 +670,29 @@ func (server *BgpServer) broadcastPeerState(peer *Peer) {
 		remainReqs = append(remainReqs, req)
 	}
 	server.broadcastReqs = remainReqs
+	newState := peer.fsm.state
+	if oldState == bgp.BGP_FSM_ESTABLISHED || newState == bgp.BGP_FSM_ESTABLISHED {
+		if server.watchers.watching(WATCHER_EVENT_STATE_CHANGE) {
+			_, rport := peer.fsm.RemoteHostPort()
+			laddr, lport := peer.fsm.LocalHostPort()
+			sentOpen := buildopen(peer.fsm.gConf, peer.fsm.pConf)
+			recvOpen := peer.recvOpen
+			ev := &watcherEventStateChangedMsg{
+				peerAS:       peer.fsm.peerInfo.AS,
+				localAS:      peer.fsm.peerInfo.LocalAS,
+				peerAddress:  peer.fsm.peerInfo.Address,
+				localAddress: net.ParseIP(laddr),
+				peerPort:     rport,
+				localPort:    lport,
+				peerID:       peer.fsm.peerInfo.ID,
+				sentOpen:     sentOpen,
+				recvOpen:     recvOpen,
+				state:        newState,
+				timestamp:    time.Now(),
+			}
+			server.notify2watchers(WATCHER_EVENT_STATE_CHANGE, ev)
+		}
+	}
 }
 
 func (server *BgpServer) RSimportPaths(peer *Peer, pathList []*table.Path) []*table.Path {
@@ -775,13 +803,6 @@ func (server *BgpServer) handleFSMMessage(peer *Peer, e *FsmMsg, incoming chan *
 		peer.fsm.StateChange(nextState)
 
 		if oldState == bgp.BGP_FSM_ESTABLISHED {
-			if ch := server.bmpClient.send(); ch != nil {
-				m := &broadcastBMPMsg{
-					ch:      ch,
-					msgList: []*bgp.BMPMessage{bmpPeerDown(bgp.BMP_PEER_DOWN_REASON_UNKNOWN, bgp.BMP_PEER_TYPE_GLOBAL, false, 0, peer.fsm.peerInfo, peer.conf.Timers.State.Downtime)},
-				}
-				server.broadcastMsgs = append(server.broadcastMsgs, m)
-			}
 			t := time.Now()
 			if t.Sub(time.Unix(peer.conf.Timers.State.Uptime, 0)) < FLOP_THRESHOLD {
 				peer.conf.State.Flops++
@@ -796,16 +817,8 @@ func (server *BgpServer) handleFSMMessage(peer *Peer, e *FsmMsg, incoming chan *
 		peer.outgoing = make(chan *bgp.BGPMessage, 128)
 		if nextState == bgp.BGP_FSM_ESTABLISHED {
 			// update for export policy
-			laddr, lport := peer.fsm.LocalHostPort()
+			laddr, _ := peer.fsm.LocalHostPort()
 			peer.conf.Transport.Config.LocalAddress = laddr
-			if ch := server.bmpClient.send(); ch != nil {
-				_, rport := peer.fsm.RemoteHostPort()
-				m := &broadcastBMPMsg{
-					ch:      ch,
-					msgList: []*bgp.BMPMessage{bmpPeerUp(laddr, lport, rport, buildopen(peer.fsm.gConf, peer.fsm.pConf), peer.recvOpen, bgp.BMP_PEER_TYPE_GLOBAL, false, 0, peer.fsm.peerInfo, peer.conf.Timers.State.Uptime)},
-				}
-				server.broadcastMsgs = append(server.broadcastMsgs, m)
-			}
 			pathList, _ := peer.getBestFromLocal(peer.configuredRFlist())
 			if len(pathList) > 0 {
 				peer.adjRibOut.Update(pathList)
@@ -832,68 +845,57 @@ func (server *BgpServer) handleFSMMessage(peer *Peer, e *FsmMsg, incoming chan *
 			peer.conf.Timers.State = config.TimersState{}
 		}
 		peer.startFSMHandler(incoming)
-		server.broadcastPeerState(peer)
+		server.broadcastPeerState(peer, oldState)
 
 	case FSM_MSG_BGP_MESSAGE:
 		switch m := e.MsgData.(type) {
 		case *bgp.MessageError:
 			msgs = append(msgs, newSenderMsg(peer, []*bgp.BGPMessage{bgp.NewBGPNotificationMessage(m.TypeCode, m.SubTypeCode, m.Data)}))
 		case *bgp.BGPMessage:
-			if m.Header.Type == bgp.BGP_MSG_UPDATE {
-				listener := make(map[watcher]chan watcherEvent)
-				for _, watcher := range server.watchers {
-					if ch := watcher.notify(WATCHER_EVENT_UPDATE_MSG); ch != nil {
-						listener[watcher] = ch
-					}
+			if m.Header.Type == bgp.BGP_MSG_UPDATE && server.watchers.watching(WATCHER_EVENT_UPDATE_MSG) {
+				_, y := peer.capMap[bgp.BGP_CAP_FOUR_OCTET_AS_NUMBER]
+				l, _ := peer.fsm.LocalHostPort()
+				ev := &watcherEventUpdateMsg{
+					message:      m,
+					peerAS:       peer.fsm.peerInfo.AS,
+					localAS:      peer.fsm.peerInfo.LocalAS,
+					peerAddress:  peer.fsm.peerInfo.Address,
+					localAddress: net.ParseIP(l),
+					peerID:       peer.fsm.peerInfo.ID,
+					fourBytesAs:  y,
+					timestamp:    e.timestamp,
+					payload:      e.payload,
+					postPolicy:   false,
 				}
-				if len(listener) > 0 {
-					_, y := peer.capMap[bgp.BGP_CAP_FOUR_OCTET_AS_NUMBER]
-					l, _ := peer.fsm.LocalHostPort()
-					ev := &watcherEventUpdateMsg{
-						message:      m,
-						peerAS:       peer.fsm.peerInfo.AS,
-						localAS:      peer.fsm.peerInfo.LocalAS,
-						peerAddress:  peer.fsm.peerInfo.Address,
-						localAddress: net.ParseIP(l),
-						fourBytesAs:  y,
-						timestamp:    e.timestamp,
-						payload:      e.payload,
-					}
-					for _, ch := range listener {
-						bm := &broadcastWatcherMsg{
-							ch:    ch,
-							event: ev,
-						}
-						server.broadcastMsgs = append(server.broadcastMsgs, bm)
-					}
-				}
-
-				if ch := server.bmpClient.send(); ch != nil {
-					bm := &broadcastBMPMsg{
-						ch:      ch,
-						msgList: []*bgp.BMPMessage{bmpPeerRoute(bgp.BMP_PEER_TYPE_GLOBAL, false, 0, peer.fsm.peerInfo, e.timestamp.Unix(), e.payload)},
-					}
-					server.broadcastMsgs = append(server.broadcastMsgs, bm)
-				}
+				server.notify2watchers(WATCHER_EVENT_UPDATE_MSG, ev)
 			}
 
 			pathList, msgList := peer.handleBGPmessage(e)
 			if len(msgList) > 0 {
 				msgs = append(msgs, newSenderMsg(peer, msgList))
 			}
+
 			if len(pathList) > 0 {
 				server.roaManager.validate(pathList)
 				m, altered := server.propagateUpdate(peer, pathList)
 				msgs = append(msgs, m...)
-
-				if ch := server.bmpClient.send(); ch != nil {
+				if server.watchers.watching(WATCHER_EVENT_POST_POLICY_UPDATE_MSG) {
+					_, y := peer.capMap[bgp.BGP_CAP_FOUR_OCTET_AS_NUMBER]
+					l, _ := peer.fsm.LocalHostPort()
+					ev := &watcherEventUpdateMsg{
+						peerAS:       peer.fsm.peerInfo.AS,
+						localAS:      peer.fsm.peerInfo.LocalAS,
+						peerAddress:  peer.fsm.peerInfo.Address,
+						localAddress: net.ParseIP(l),
+						peerID:       peer.fsm.peerInfo.ID,
+						fourBytesAs:  y,
+						timestamp:    e.timestamp,
+						postPolicy:   true,
+					}
 					for _, u := range table.CreateUpdateMsgFromPaths(altered) {
 						payload, _ := u.Serialize()
-						bm := &broadcastBMPMsg{
-							ch:      ch,
-							msgList: []*bgp.BMPMessage{bmpPeerRoute(bgp.BMP_PEER_TYPE_GLOBAL, true, 0, peer.fsm.peerInfo, e.timestamp.Unix(), payload)},
-						}
-						server.broadcastMsgs = append(server.broadcastMsgs, bm)
+						ev.payload = payload
+						server.notify2watchers(WATCHER_EVENT_POST_POLICY_UPDATE_MSG, ev)
 					}
 				}
 			}
@@ -916,10 +918,6 @@ func (server *BgpServer) SetGlobalType(g config.Global) {
 
 func (server *BgpServer) SetRpkiConfig(c config.RpkiServers) {
 	server.rpkiConfigCh <- c
-}
-
-func (server *BgpServer) SetBmpConfig(c config.BmpServers) {
-	server.bmpConfigCh <- c
 }
 
 func (server *BgpServer) PeerAdd(peer config.Neighbor) {
@@ -1584,6 +1582,18 @@ func (server *BgpServer) handleGrpc(grpcReq *GrpcRequest) []*SenderMsg {
 			Data: d,
 		}
 		close(grpcReq.ResponseCh)
+	case REQ_BMP_GLOBAL:
+		paths := server.globalRib.GetBestPathList(table.GLOBAL_RIB_NAME, server.globalRib.GetRFlist())
+		bmpmsgs := make([]*bgp.BMPMessage, 0, len(paths))
+		for _, path := range paths {
+			msgs := table.CreateUpdateMsgFromPaths([]*table.Path{path})
+			buf, _ := msgs[0].Serialize()
+			bmpmsgs = append(bmpmsgs, bmpPeerRoute(bgp.BMP_PEER_TYPE_GLOBAL, true, 0, path.GetSource(), path.GetTimestamp().Unix(), buf))
+		}
+		grpcReq.ResponseCh <- &GrpcResponse{
+			Data: bmpmsgs,
+		}
+		close(grpcReq.ResponseCh)
 	case REQ_MOD_PATH:
 		pathList := server.handleModPathRequest(grpcReq)
 		if len(pathList) > 0 {
@@ -1697,6 +1707,22 @@ func (server *BgpServer) handleGrpc(grpcReq *GrpcRequest) []*SenderMsg {
 		d.Destinations = results
 		grpcReq.ResponseCh <- &GrpcResponse{
 			Data: d,
+		}
+		close(grpcReq.ResponseCh)
+	case REQ_BMP_ADJ_IN:
+		bmpmsgs := make([]*bgp.BMPMessage, 0)
+		for _, peer := range server.neighborMap {
+			if peer.fsm.state != bgp.BGP_FSM_ESTABLISHED {
+				continue
+			}
+			for _, path := range peer.adjRibIn.PathList(peer.configuredRFlist(), false) {
+				msgs := table.CreateUpdateMsgFromPaths([]*table.Path{path})
+				buf, _ := msgs[0].Serialize()
+				bmpmsgs = append(bmpmsgs, bmpPeerRoute(bgp.BMP_PEER_TYPE_GLOBAL, false, 0, peer.fsm.peerInfo, path.GetTimestamp().Unix(), buf))
+			}
+		}
+		grpcReq.ResponseCh <- &GrpcResponse{
+			Data: bmpmsgs,
 		}
 		close(grpcReq.ResponseCh)
 	case REQ_NEIGHBOR_SHUTDOWN:
@@ -2078,7 +2104,7 @@ func (server *BgpServer) handleGrpcModNeighbor(grpcReq *GrpcRequest) (sMsgs []*S
 		}
 		server.neighborMap[addr] = peer
 		peer.startFSMHandler(server.fsmincomingCh)
-		server.broadcastPeerState(peer)
+		server.broadcastPeerState(peer, bgp.BGP_FSM_IDLE)
 	case api.Operation_DEL:
 		SetTcpMD5SigSockopts(listener(net.ParseIP(addr)), addr, "")
 		log.Info("Delete a peer configuration for ", addr)

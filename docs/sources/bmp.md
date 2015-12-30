@@ -12,19 +12,18 @@ Assume you finished [Getting Started](https://github.com/osrg/gobgp/blob/master/
 
 ## <a name="config"> Configuration
 
-Add `[BmpServers]` section to enable BMP like below.
+Add `[BmpServers]` section under `[Global]` to enable BMP like below.
 
 ```toml
 [Global]
   [Global.Config]
     As = 64512
     RouterId = "192.168.255.1"
-
-[BmpServers]
-  [[BmpServers.BmpServerList]]
-    [BmpServers.BmpServerList.Config]
-      Address = "127.0.0.1"
-      Port=11019
+  [Global.BmpServers]
+    [[Global.BmpServers.BmpServerList]]
+      [Global.BmpServers.BmpServerList.Config]
+        Address = "127.0.0.1"
+        Port=11019
 ```
 
 ## <a name="verify"> Verification
