@@ -224,8 +224,10 @@ func (w *bmpWatcher) loop() error {
 		case conn := <-w.endCh:
 			host := conn.RemoteAddr().String()
 			log.Debugf("bmp connection to %s killed", host)
-			w.connMap[host].conn = nil
-			go w.tryConnect(w.connMap[host])
+			if _, y := w.connMap[host]; y {
+				w.connMap[host].conn = nil
+				go w.tryConnect(w.connMap[host])
+			}
 		}
 	}
 }
@@ -256,6 +258,16 @@ func (w *bmpWatcher) addServer(c config.BmpServerConfig) error {
 	ch := make(chan error)
 	w.ctlCh <- &bmpConfig{
 		config: c,
+		errCh:  ch,
+	}
+	return <-ch
+}
+
+func (w *bmpWatcher) deleteServer(c config.BmpServerConfig) error {
+	ch := make(chan error)
+	w.ctlCh <- &bmpConfig{
+		config: c,
+		del:    true,
 		errCh:  ch,
 	}
 	return <-ch
