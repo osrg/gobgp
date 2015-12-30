@@ -51,6 +51,7 @@ const (
 	WATCHER_EVENT_UPDATE_MSG
 	WATCHER_EVENT_STATE_CHANGE
 	WATCHER_EVENT_BESTPATH_CHANGE
+	WATCHER_EVENT_POST_POLICY_UPDATE_MSG
 )
 
 type watcherEvent interface {
@@ -62,15 +63,32 @@ type watcherEventUpdateMsg struct {
 	localAS      uint32
 	peerAddress  net.IP
 	localAddress net.IP
+	peerID       net.IP
 	fourBytesAs  bool
 	timestamp    time.Time
 	payload      []byte
+	postPolicy   bool
+}
+
+type watcherEventStateChangedMsg struct {
+	peerAS       uint32
+	localAS      uint32
+	peerAddress  net.IP
+	localAddress net.IP
+	peerPort     uint16
+	localPort    uint16
+	peerID       net.IP
+	sentOpen     *bgp.BGPMessage
+	recvOpen     *bgp.BGPMessage
+	state        bgp.FSMState
+	timestamp    time.Time
 }
 
 type watcher interface {
 	notify(watcherEventType) chan watcherEvent
 	restart(string) error
 	stop()
+	watchingEventTypes() []watcherEventType
 }
 
 type mrtWatcherOp struct {
@@ -171,6 +189,10 @@ func (w *mrtWatcher) loop() error {
 			adminOp.result <- err
 		}
 	}
+}
+
+func (w *mrtWatcher) watchingEventTypes() []watcherEventType {
+	return []watcherEventType{WATCHER_EVENT_UPDATE_MSG}
 }
 
 func mrtFileOpen(filename string) (*os.File, error) {
