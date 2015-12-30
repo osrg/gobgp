@@ -39,6 +39,7 @@ service GobgpApi {
   rpc MonitorPeerState(Arguments) returns (stream Peer) {}
   rpc GetMrt(MrtArguments) returns (stream MrtMessage) {}
   rpc ModMrt(ModMrtArguments) returns (Error) {}
+  rpc ModBmp(ModBmpArguments) returns (Error) {}
   rpc GetRPKI(Arguments) returns (stream RPKI) {}
   rpc ModRPKI(ModRpkiArguments) returns (Error) {}
   rpc GetROA(Arguments) returns (stream ROA) {}
@@ -105,6 +106,18 @@ message MrtArguments {
 message ModMrtArguments {
     Operation operation = 1;
     string filename = 2;
+}
+
+message ModBmpArguments {
+    Operation operation = 1;
+    string address = 2;
+    uint32 port = 3;
+    enum MonitoringPolicy {
+        PRE = 0;
+        POST = 1;
+        BOTH = 2;
+    }
+    MonitoringPolicy type = 4;
 }
 
 message ModRpkiArguments {

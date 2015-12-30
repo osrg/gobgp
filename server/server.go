@@ -1924,6 +1924,8 @@ func (server *BgpServer) handleGrpc(grpcReq *GrpcRequest) []*SenderMsg {
 		server.handleMrt(grpcReq)
 	case REQ_MOD_MRT:
 		server.handleModMrt(grpcReq)
+	case REQ_MOD_BMP:
+		server.handleModBmp(grpcReq)
 	case REQ_MOD_RPKI:
 		server.handleModRpki(grpcReq)
 	case REQ_ROA, REQ_RPKI:
@@ -2478,6 +2480,35 @@ func (server *BgpServer) handleModMrt(grpcReq *GrpcRequest) {
 			err := w.restart(arg.Filename)
 			grpcDone(grpcReq, err)
 		}()
+	}
+}
+
+func (server *BgpServer) handleModBmp(grpcReq *GrpcRequest) {
+	arg := grpcReq.Data.(*api.ModBmpArguments)
+	w, y := server.watchers[WATCHER_BMP]
+	if !y {
+		if arg.Operation == api.Operation_ADD {
+			w, _ = newBmpWatcher(server.GrpcReqCh)
+			server.watchers[WATCHER_BMP] = w
+		} else if arg.Operation == api.Operation_DEL {
+			grpcDone(grpcReq, fmt.Errorf("not enabled yet"))
+			return
+		}
+	}
+	c := config.BmpServerConfig{
+		Address: arg.Address,
+		Port:    arg.Port,
+		RouteMonitoringPolicy: config.BmpRouteMonitoringPolicyType(arg.Type),
+	}
+	switch arg.Operation {
+	case api.Operation_ADD:
+		err := w.(*bmpWatcher).addServer(c)
+		grpcDone(grpcReq, err)
+	case api.Operation_DEL:
+		err := w.(*bmpWatcher).deleteServer(c)
+		grpcDone(grpcReq, err)
+	default:
+		grpcDone(grpcReq, fmt.Errorf("unsupported operation: %s", arg.Operation))
 	}
 }
 

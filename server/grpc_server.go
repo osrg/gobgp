@@ -49,6 +49,7 @@ const (
 	REQ_MRT_GLOBAL_RIB
 	REQ_MRT_LOCAL_RIB
 	REQ_MOD_MRT
+	REQ_MOD_BMP
 	REQ_RPKI
 	REQ_MOD_RPKI
 	REQ_ROA
@@ -272,6 +273,10 @@ func (s *Server) GetMrt(arg *api.MrtArguments, stream api.GobgpApi_GetMrtServer)
 
 func (s *Server) ModMrt(ctx context.Context, arg *api.ModMrtArguments) (*api.Error, error) {
 	return s.mod(REQ_MOD_MRT, arg)
+}
+
+func (s *Server) ModBmp(ctx context.Context, arg *api.ModBmpArguments) (*api.Error, error) {
+	return s.mod(REQ_MOD_BMP, arg)
 }
 
 func (s *Server) ModRPKI(ctx context.Context, arg *api.ModRpkiArguments) (*api.Error, error) {
