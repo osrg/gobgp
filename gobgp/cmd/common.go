@@ -69,6 +69,7 @@ const (
 	CMD_ACTION         = "action"
 	CMD_UPDATE         = "update"
 	CMD_ROTATE         = "rotate"
+	CMD_BMP            = "bmp"
 )
 
 var subOpts struct {
