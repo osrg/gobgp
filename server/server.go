@@ -444,7 +444,7 @@ func (server *BgpServer) Serve() {
 }
 
 func newSenderMsg(peer *Peer, messages []*bgp.BGPMessage) *SenderMsg {
-	_, y := peer.capMap[bgp.BGP_CAP_FOUR_OCTET_AS_NUMBER]
+	_, y := peer.fsm.capMap[bgp.BGP_CAP_FOUR_OCTET_AS_NUMBER]
 	return &SenderMsg{
 		messages:    messages,
 		sendCh:      peer.outgoing,
@@ -466,7 +466,7 @@ func filterpath(peer *Peer, path *table.Path) *table.Path {
 	if path == nil {
 		return nil
 	}
-	if _, ok := peer.rfMap[path.GetRouteFamily()]; !ok {
+	if _, ok := peer.fsm.rfMap[path.GetRouteFamily()]; !ok {
 		return nil
 	}
 
@@ -550,7 +550,7 @@ func (server *BgpServer) dropPeerAllRoutes(peer *Peer) []*SenderMsg {
 				if !targetPeer.isRouteServerClient() || targetPeer == peer || targetPeer.fsm.state != bgp.BGP_FSM_ESTABLISHED {
 					continue
 				}
-				if _, ok := targetPeer.rfMap[rf]; !ok {
+				if _, ok := targetPeer.fsm.rfMap[rf]; !ok {
 					continue
 				}
 
@@ -583,7 +583,7 @@ func (server *BgpServer) dropPeerAllRoutes(peer *Peer) []*SenderMsg {
 				if targetPeer.isRouteServerClient() || targetPeer.fsm.state != bgp.BGP_FSM_ESTABLISHED {
 					continue
 				}
-				if _, ok := targetPeer.rfMap[rf]; !ok {
+				if _, ok := targetPeer.fsm.rfMap[rf]; !ok {
 					continue
 				}
 				targetPeer.adjRibOut.Update(pathList)
@@ -847,7 +847,7 @@ func (server *BgpServer) handleFSMMessage(peer *Peer, e *FsmMsg, incoming chan *
 					}
 				}
 				if len(listener) > 0 {
-					_, y := peer.capMap[bgp.BGP_CAP_FOUR_OCTET_AS_NUMBER]
+					_, y := peer.fsm.capMap[bgp.BGP_CAP_FOUR_OCTET_AS_NUMBER]
 					l, _ := peer.fsm.LocalHostPort()
 					ev := &watcherEventUpdateMsg{
 						message:      m,

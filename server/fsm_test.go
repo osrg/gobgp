@@ -289,9 +289,8 @@ func makePeerAndHandler() (*Peer, *FSMHandler) {
 	pConf := config.Neighbor{}
 
 	p := &Peer{
-		gConf:  gConf,
-		conf:   pConf,
-		capMap: make(map[bgp.BGPCapabilityCode][]bgp.ParameterCapabilityInterface),
+		gConf: gConf,
+		conf:  pConf,
 	}
 
 	p.fsm = NewFSM(&gConf, &pConf, table.NewRoutingPolicy())
