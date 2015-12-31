@@ -332,7 +332,7 @@ func (m *RTRErrorReport) Serialize() ([]byte, error) {
 }
 
 func NewRTRErrorReport(errCode uint16, errPDU []byte, errMsg []byte) *RTRErrorReport {
-	pdu := &RTRErrorReport{Type: RTR_ERROR_REPORT}
+	pdu := &RTRErrorReport{Type: RTR_ERROR_REPORT, ErrorCode: errCode}
 	if errPDU != nil {
 		if errPDU[1] == RTR_ERROR_REPORT {
 			return nil
