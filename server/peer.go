@@ -36,12 +36,9 @@ type Peer struct {
 	gConf     config.Global
 	conf      config.Neighbor
 	fsm       *FSM
-	rfMap     map[bgp.RouteFamily]bool
-	capMap    map[bgp.BGPCapabilityCode][]bgp.ParameterCapabilityInterface
 	adjRibIn  *table.AdjRib
 	adjRibOut *table.AdjRib
 	outgoing  chan *bgp.BGPMessage
-	recvOpen  *bgp.BGPMessage
 	policy    *table.RoutingPolicy
 	localRib  *table.TableManager
 }
@@ -50,8 +47,6 @@ func NewPeer(g config.Global, conf config.Neighbor, loc *table.TableManager, pol
 	peer := &Peer{
 		gConf:    g,
 		conf:     conf,
-		rfMap:    make(map[bgp.RouteFamily]bool),
-		capMap:   make(map[bgp.BGPCapabilityCode][]bgp.ParameterCapabilityInterface),
 		outgoing: make(chan *bgp.BGPMessage, 128),
 		localRib: loc,
 		policy:   policy,
@@ -124,35 +119,6 @@ func (peer *Peer) getBestFromLocal(rfList []bgp.RouteFamily) ([]*table.Path, []*
 	return pathList, filtered
 }
 
-func open2Cap(open *bgp.BGPOpen, n *config.Neighbor) (map[bgp.BGPCapabilityCode][]bgp.ParameterCapabilityInterface, map[bgp.RouteFamily]bool) {
-	capMap := make(map[bgp.BGPCapabilityCode][]bgp.ParameterCapabilityInterface)
-	rfMap := config.CreateRfMap(n)
-	r := make(map[bgp.RouteFamily]bool)
-	for _, p := range open.OptParams {
-		if paramCap, y := p.(*bgp.OptionParameterCapability); y {
-			for _, c := range paramCap.Capability {
-				m, ok := capMap[c.Code()]
-				if !ok {
-					m = make([]bgp.ParameterCapabilityInterface, 0, 1)
-				}
-				capMap[c.Code()] = append(m, c)
-
-				if c.Code() == bgp.BGP_CAP_MULTIPROTOCOL {
-					m := c.(*bgp.CapMultiProtocol)
-					r[m.CapValue] = true
-				}
-			}
-		}
-	}
-
-	for rf, _ := range rfMap {
-		if _, y := r[rf]; !y {
-			delete(rfMap, rf)
-		}
-	}
-	return capMap, rfMap
-}
-
 func (peer *Peer) handleBGPmessage(e *FsmMsg) ([]*table.Path, []*bgp.BGPMessage) {
 	m := e.MsgData.(*bgp.BGPMessage)
 	log.WithFields(log.Fields{
@@ -162,28 +128,10 @@ func (peer *Peer) handleBGPmessage(e *FsmMsg) ([]*table.Path, []*bgp.BGPMessage)
 	}).Debug("received")
 
 	switch m.Header.Type {
-	case bgp.BGP_MSG_OPEN:
-		peer.recvOpen = m
-		body := m.Body.(*bgp.BGPOpen)
-		peer.capMap, peer.rfMap = open2Cap(body, &peer.conf)
-
-		// calculate HoldTime
-		// RFC 4271 P.13
-		// a BGP speaker MUST calculate the value of the Hold Timer
-		// by using the smaller of its configured Hold Time and the Hold Time
-		// received in the OPEN message.
-		holdTime := float64(body.HoldTime)
-		myHoldTime := peer.conf.Timers.Config.HoldTime
-		if holdTime > myHoldTime {
-			peer.fsm.negotiatedHoldTime = myHoldTime
-		} else {
-			peer.fsm.negotiatedHoldTime = holdTime
-		}
-
 	case bgp.BGP_MSG_ROUTE_REFRESH:
 		rr := m.Body.(*bgp.BGPRouteRefresh)
 		rf := bgp.AfiSafiToRouteFamily(rr.AFI, rr.SAFI)
-		if _, ok := peer.rfMap[rf]; !ok {
+		if _, ok := peer.fsm.rfMap[rf]; !ok {
 			log.WithFields(log.Fields{
 				"Topic": "Peer",
 				"Key":   peer.conf.Config.NeighborAddress,
@@ -191,7 +139,7 @@ func (peer *Peer) handleBGPmessage(e *FsmMsg) ([]*table.Path, []*bgp.BGPMessage)
 			}).Warn("Route family isn't supported")
 			break
 		}
-		if _, ok := peer.capMap[bgp.BGP_CAP_ROUTE_REFRESH]; ok {
+		if _, ok := peer.fsm.capMap[bgp.BGP_CAP_ROUTE_REFRESH]; ok {
 			rfList := []bgp.RouteFamily{rf}
 			peer.adjRibOut.Drop(rfList)
 			accepted, filtered := peer.getBestFromLocal(rfList)
@@ -258,8 +206,8 @@ func (peer *Peer) ToApiStruct() *api.Peer {
 	f := peer.fsm
 	c := f.pConf
 
-	remoteCap := make([][]byte, 0, len(peer.capMap))
-	for _, c := range peer.capMap {
+	remoteCap := make([][]byte, 0, len(peer.fsm.capMap))
+	for _, c := range peer.fsm.capMap {
 		for _, m := range c {
 			buf, _ := m.Serialize()
 			remoteCap = append(remoteCap, buf)
