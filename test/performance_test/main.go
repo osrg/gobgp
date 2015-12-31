@@ -31,7 +31,7 @@ import (
 func newPeer(g config.Global, p config.Neighbor, incoming chan *server.FsmMsg) *server.Peer {
 	tbl := table.NewTableManager([]bgp.RouteFamily{bgp.RF_IPv4_UC, bgp.RF_IPv6_UC}, 0, 0)
 	peer := server.NewPeer(g, p, tbl, table.NewRoutingPolicy())
-	server.NewFSMHandler(peer.Fsm(), incoming, peer.Outgoing())
+	server.NewFSMHandler(peer.Fsm(), incoming, incoming, peer.Outgoing())
 	return peer
 }
 
@@ -85,7 +85,7 @@ func main() {
 				nextState := msg.MsgData.(bgp.FSMState)
 				fsm := peer.Fsm()
 				fsm.StateChange(nextState)
-				server.NewFSMHandler(fsm, incoming, peer.Outgoing())
+				server.NewFSMHandler(fsm, incoming, incoming, peer.Outgoing())
 				if nextState == bgp.BGP_FSM_ESTABLISHED {
 					established++
 				}

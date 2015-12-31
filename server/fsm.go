@@ -305,16 +305,18 @@ type FSMHandler struct {
 	msgCh            chan *FsmMsg
 	errorCh          chan bool
 	incoming         chan *FsmMsg
+	stateCh          chan *FsmMsg
 	outgoing         chan *bgp.BGPMessage
 	holdTimerResetCh chan bool
 	reason           string
 }
 
-func NewFSMHandler(fsm *FSM, incoming chan *FsmMsg, outgoing chan *bgp.BGPMessage) *FSMHandler {
+func NewFSMHandler(fsm *FSM, incoming, stateCh chan *FsmMsg, outgoing chan *bgp.BGPMessage) *FSMHandler {
 	h := &FSMHandler{
 		fsm:              fsm,
 		errorCh:          make(chan bool, 2),
 		incoming:         incoming,
+		stateCh:          stateCh,
 		outgoing:         outgoing,
 		holdTimerResetCh: make(chan bool, 2),
 	}
@@ -1020,7 +1022,7 @@ func (h *FSMHandler) loop() error {
 			MsgDst:  fsm.pConf.Transport.Config.LocalAddress,
 			MsgData: nextState,
 		}
-		h.incoming <- e
+		h.stateCh <- e
 	}
 	return nil
 }
