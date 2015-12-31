@@ -182,8 +182,8 @@ func (peer *Peer) handleBGPmessage(e *FsmMsg) ([]*table.Path, []*bgp.BGPMessage)
 	return nil, nil
 }
 
-func (peer *Peer) startFSMHandler(incoming chan *FsmMsg) {
-	peer.fsm.h = NewFSMHandler(peer.fsm, incoming, peer.outgoing)
+func (peer *Peer) startFSMHandler(incoming, stateCh chan *FsmMsg) {
+	peer.fsm.h = NewFSMHandler(peer.fsm, incoming, stateCh, peer.outgoing)
 }
 
 func (peer *Peer) PassConn(conn *net.TCPConn) {
