@@ -81,6 +81,7 @@ type BgpServer struct {
 	deletedPeerCh chan config.Neighbor
 	updatedPeerCh chan config.Neighbor
 	fsmincomingCh chan *FsmMsg
+	fsmStateCh    chan *FsmMsg
 	rpkiConfigCh  chan config.RpkiServers
 	bmpConfigCh   chan config.BmpServers
 
@@ -250,6 +251,7 @@ func (server *BgpServer) Serve() {
 	}
 
 	server.fsmincomingCh = make(chan *FsmMsg, 4096)
+	server.fsmStateCh = make(chan *FsmMsg, 4096)
 	var senderMsgs []*SenderMsg
 
 	var zapiMsgCh chan *zebra.Message
@@ -319,6 +321,24 @@ func (server *BgpServer) Serve() {
 		default:
 		}
 
+		for {
+			select {
+			case e := <-server.fsmStateCh:
+				peer, found := server.neighborMap[e.MsgSrc]
+				if !found {
+					log.Warn("Can't find the neighbor ", e.MsgSrc)
+					break
+				}
+				m := server.handleFSMMessage(peer, e)
+				if len(m) > 0 {
+					senderMsgs = append(senderMsgs, m...)
+				}
+			default:
+				goto CONT
+			}
+		}
+	CONT:
+
 		select {
 		case c := <-server.rpkiConfigCh:
 			server.roaManager, _ = newROAManager(server.bgpConfig.Global.Config.As, c)
@@ -386,7 +406,7 @@ func (server *BgpServer) Serve() {
 				}
 			}
 			server.neighborMap[addr] = peer
-			peer.startFSMHandler(server.fsmincomingCh)
+			peer.startFSMHandler(server.fsmincomingCh, server.fsmStateCh)
 			server.broadcastPeerState(peer)
 		case config := <-server.deletedPeerCh:
 			addr := config.Config.NeighborAddress
@@ -424,7 +444,7 @@ func (server *BgpServer) Serve() {
 				log.Warn("Can't find the neighbor ", e.MsgSrc)
 				break
 			}
-			m := server.handleFSMMessage(peer, e, server.fsmincomingCh)
+			m := server.handleFSMMessage(peer, e)
 			if len(m) > 0 {
 				senderMsgs = append(senderMsgs, m...)
 			}
@@ -444,7 +464,7 @@ func (server *BgpServer) Serve() {
 }
 
 func newSenderMsg(peer *Peer, messages []*bgp.BGPMessage) *SenderMsg {
-	_, y := peer.capMap[bgp.BGP_CAP_FOUR_OCTET_AS_NUMBER]
+	_, y := peer.fsm.capMap[bgp.BGP_CAP_FOUR_OCTET_AS_NUMBER]
 	return &SenderMsg{
 		messages:    messages,
 		sendCh:      peer.outgoing,
@@ -466,7 +486,7 @@ func filterpath(peer *Peer, path *table.Path) *table.Path {
 	if path == nil {
 		return nil
 	}
-	if _, ok := peer.rfMap[path.GetRouteFamily()]; !ok {
+	if _, ok := peer.fsm.rfMap[path.GetRouteFamily()]; !ok {
 		return nil
 	}
 
@@ -550,7 +570,7 @@ func (server *BgpServer) dropPeerAllRoutes(peer *Peer) []*SenderMsg {
 				if !targetPeer.isRouteServerClient() || targetPeer == peer || targetPeer.fsm.state != bgp.BGP_FSM_ESTABLISHED {
 					continue
 				}
-				if _, ok := targetPeer.rfMap[rf]; !ok {
+				if _, ok := targetPeer.fsm.rfMap[rf]; !ok {
 					continue
 				}
 
@@ -583,7 +603,7 @@ func (server *BgpServer) dropPeerAllRoutes(peer *Peer) []*SenderMsg {
 				if targetPeer.isRouteServerClient() || targetPeer.fsm.state != bgp.BGP_FSM_ESTABLISHED {
 					continue
 				}
-				if _, ok := targetPeer.rfMap[rf]; !ok {
+				if _, ok := targetPeer.fsm.rfMap[rf]; !ok {
 					continue
 				}
 				targetPeer.adjRibOut.Update(pathList)
@@ -764,7 +784,7 @@ func (server *BgpServer) propagateUpdate(peer *Peer, pathList []*table.Path) ([]
 	return msgs, alteredPathList
 }
 
-func (server *BgpServer) handleFSMMessage(peer *Peer, e *FsmMsg, incoming chan *FsmMsg) []*SenderMsg {
+func (server *BgpServer) handleFSMMessage(peer *Peer, e *FsmMsg) []*SenderMsg {
 	msgs := make([]*SenderMsg, 0)
 
 	switch e.MsgType {
@@ -831,7 +851,7 @@ func (server *BgpServer) handleFSMMessage(peer *Peer, e *FsmMsg, incoming chan *
 			peer.conf.State = config.NeighborState{}
 			peer.conf.Timers.State = config.TimersState{}
 		}
-		peer.startFSMHandler(incoming)
+		peer.startFSMHandler(server.fsmincomingCh, server.fsmStateCh)
 		server.broadcastPeerState(peer)
 
 	case FSM_MSG_BGP_MESSAGE:
@@ -847,7 +867,7 @@ func (server *BgpServer) handleFSMMessage(peer *Peer, e *FsmMsg, incoming chan *
 					}
 				}
 				if len(listener) > 0 {
-					_, y := peer.capMap[bgp.BGP_CAP_FOUR_OCTET_AS_NUMBER]
+					_, y := peer.fsm.capMap[bgp.BGP_CAP_FOUR_OCTET_AS_NUMBER]
 					l, _ := peer.fsm.LocalHostPort()
 					ev := &watcherEventUpdateMsg{
 						message:      m,
@@ -2059,7 +2079,7 @@ func (server *BgpServer) handleGrpcModNeighbor(grpcReq *GrpcRequest) (sMsgs []*S
 			}
 		}
 		server.neighborMap[addr] = peer
-		peer.startFSMHandler(server.fsmincomingCh)
+		peer.startFSMHandler(server.fsmincomingCh, server.fsmStateCh)
 		server.broadcastPeerState(peer)
 	case api.Operation_DEL:
 		SetTcpMD5SigSockopts(listener(net.ParseIP(addr)), addr, "")
