@@ -22,12 +22,13 @@ import (
 )
 
 func verify(t *testing.T, m1 *BMPMessage) {
-	buf1, _ := m1.Serialize()
-	m2, err := ParseBMPMessage(buf1)
+	options := &MarshallingOptions{}
+	buf1, _ := m1.Serialize(options)
+	m2, err := ParseBMPMessage(buf1, options)
 	if err != nil {
 		t.Error(err)
 	}
-	buf2, _ := m2.Serialize()
+	buf2, _ := m2.Serialize(options)
 
 	if reflect.DeepEqual(m1, m2) == true {
 		t.Log("OK")
@@ -67,7 +68,8 @@ func Test_RouteMonitoring(t *testing.T) {
 }
 
 func Test_BogusHeader(t *testing.T) {
-	h, err := ParseBMPMessage(make([]byte, 10))
+	options := &MarshallingOptions{}
+	h, err := ParseBMPMessage(make([]byte, 10), options)
 	assert.Nil(t, h)
 	assert.NotNil(t, err)
 }

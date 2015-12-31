@@ -150,8 +150,8 @@ type MRTMessage struct {
 	Body   Body
 }
 
-func (m *MRTMessage) Serialize() ([]byte, error) {
-	buf, err := m.Body.Serialize()
+func (m *MRTMessage) Serialize(options *MarshallingOptions) ([]byte, error) {
+	buf, err := m.Body.Serialize(options)
 	if err != nil {
 		return nil, err
 	}
@@ -175,8 +175,8 @@ func NewMRTMessage(timestamp uint32, t MRTType, subtype MRTSubTyper, body Body) 
 }
 
 type Body interface {
-	DecodeFromBytes([]byte) error
-	Serialize() ([]byte, error)
+	DecodeFromBytes([]byte, *MarshallingOptions) error
+	Serialize(*MarshallingOptions) ([]byte, error)
 }
 
 type Peer struct {
@@ -186,7 +186,7 @@ type Peer struct {
 	AS        uint32
 }
 
-func (p *Peer) DecodeFromBytes(data []byte) ([]byte, error) {
+func (p *Peer) DecodeFromBytes(data []byte, _ *MarshallingOptions) ([]byte, error) {
 	notAllBytesAvail := fmt.Errorf("not all Peer bytes are available")
 	if len(data) < 5 {
 		return nil, notAllBytesAvail
@@ -226,7 +226,7 @@ func (p *Peer) DecodeFromBytes(data []byte) ([]byte, error) {
 	return data, nil
 }
 
-func (p *Peer) Serialize() ([]byte, error) {
+func (p *Peer) Serialize(_ *MarshallingOptions) ([]byte, error) {
 	var err error
 	var bbuf []byte
 	buf := make([]byte, 5)
@@ -279,7 +279,7 @@ type PeerIndexTable struct {
 	Peers          []*Peer
 }
 
-func (t *PeerIndexTable) DecodeFromBytes(data []byte) error {
+func (t *PeerIndexTable) DecodeFromBytes(data []byte, options *MarshallingOptions) error {
 	notAllBytesAvail := fmt.Errorf("not all PeerIndexTable bytes are available")
 	if len(data) < 6 {
 		return notAllBytesAvail
@@ -302,7 +302,7 @@ func (t *PeerIndexTable) DecodeFromBytes(data []byte) error {
 	var err error
 	for i := 0; i < int(peerNum); i++ {
 		p := &Peer{}
-		data, err = p.DecodeFromBytes(data)
+		data, err = p.DecodeFromBytes(data, options)
 		if err != nil {
 			return err
 		}
@@ -312,14 +312,14 @@ func (t *PeerIndexTable) DecodeFromBytes(data []byte) error {
 	return nil
 }
 
-func (t *PeerIndexTable) Serialize() ([]byte, error) {
+func (t *PeerIndexTable) Serialize(options *MarshallingOptions) ([]byte, error) {
 	buf := make([]byte, 8+len(t.ViewName))
 	copy(buf, t.CollectorBgpId.To4())
 	binary.BigEndian.PutUint16(buf[4:], uint16(len(t.ViewName)))
 	copy(buf[6:], t.ViewName)
 	binary.BigEndian.PutUint16(buf[6+len(t.ViewName):], uint16(len(t.Peers)))
 	for _, peer := range t.Peers {
-		bbuf, err := peer.Serialize()
+		bbuf, err := peer.Serialize(options)
 		if err != nil {
 			return nil, err
 		}
@@ -346,7 +346,7 @@ type RibEntry struct {
 	PathAttributes []PathAttributeInterface
 }
 
-func (e *RibEntry) DecodeFromBytes(data []byte) ([]byte, error) {
+func (e *RibEntry) DecodeFromBytes(data []byte, options *MarshallingOptions) ([]byte, error) {
 	notAllBytesAvail := fmt.Errorf("not all RibEntry bytes are available")
 	if len(data) < 8 {
 		return nil, notAllBytesAvail
@@ -360,21 +360,21 @@ func (e *RibEntry) DecodeFromBytes(data []byte) ([]byte, error) {
 		if err != nil {
 			return nil, err
 		}
-		err = p.DecodeFromBytes(data)
+		err = p.DecodeFromBytes(data, options)
 		if err != nil {
 			return nil, err
 		}
-		attrLen -= uint16(p.Len())
-		if len(data) < p.Len() {
+		attrLen -= uint16(p.Len(options))
+		if len(data) < p.Len(options) {
 			return nil, notAllBytesAvail
 		}
-		data = data[p.Len():]
+		data = data[p.Len(options):]
 		e.PathAttributes = append(e.PathAttributes, p)
 	}
 	return data, nil
 }
 
-func (e *RibEntry) Serialize() ([]byte, error) {
+func (e *RibEntry) Serialize(options *MarshallingOptions) ([]byte, error) {
 	buf := make([]byte, 8)
 	binary.BigEndian.PutUint16(buf, e.PeerIndex)
 	binary.BigEndian.PutUint32(buf[2:], e.OriginatedTime)
@@ -391,7 +391,7 @@ func (e *RibEntry) Serialize() ([]byte, error) {
 		// in the RIB Entry Header or RIB_GENERIC Entry Header,
 		// only the Next Hop Address Length and Next Hop Address fields are included.
 
-		bbuf, err := pattr.Serialize()
+		bbuf, err := pattr.Serialize(options)
 		if err != nil {
 			return nil, err
 		}
@@ -421,7 +421,7 @@ type Rib struct {
 	RouteFamily    RouteFamily
 }
 
-func (u *Rib) DecodeFromBytes(data []byte) error {
+func (u *Rib) DecodeFromBytes(data []byte, options *MarshallingOptions) error {
 	if len(data) < 4 {
 		return fmt.Errorf("Not all RibIpv4Unicast message bytes available")
 	}
@@ -437,18 +437,18 @@ func (u *Rib) DecodeFromBytes(data []byte) error {
 	if err != nil {
 		return err
 	}
-	err = prefix.DecodeFromBytes(data)
+	err = prefix.DecodeFromBytes(data, options)
 	if err != nil {
 		return err
 	}
 	u.Prefix = prefix
-	data = data[prefix.Len():]
+	data = data[prefix.Len(options):]
 	entryNum := binary.BigEndian.Uint16(data[:2])
 	data = data[2:]
 	u.Entries = make([]*RibEntry, 0, entryNum)
 	for i := 0; i < int(entryNum); i++ {
 		e := &RibEntry{}
-		data, err = e.DecodeFromBytes(data)
+		data, err = e.DecodeFromBytes(data, options)
 		if err != nil {
 			return err
 		}
@@ -457,7 +457,7 @@ func (u *Rib) DecodeFromBytes(data []byte) error {
 	return nil
 }
 
-func (u *Rib) Serialize() ([]byte, error) {
+func (u *Rib) Serialize(options *MarshallingOptions) ([]byte, error) {
 	buf := make([]byte, 4)
 	binary.BigEndian.PutUint32(buf, u.SequenceNumber)
 	rf := AfiSafiToRouteFamily(u.Prefix.AFI(), u.Prefix.SAFI())
@@ -469,7 +469,7 @@ func (u *Rib) Serialize() ([]byte, error) {
 		buf = append(buf, bbuf...)
 		buf = append(buf, u.Prefix.SAFI())
 	}
-	bbuf, err := u.Prefix.Serialize()
+	bbuf, err := u.Prefix.Serialize(options)
 	if err != nil {
 		return nil, err
 	}
@@ -480,7 +480,7 @@ func (u *Rib) Serialize() ([]byte, error) {
 	}
 	buf = append(buf, bbuf...)
 	for _, entry := range u.Entries {
-		bbuf, err = entry.Serialize()
+		bbuf, err = entry.Serialize(options)
 		if err != nil {
 			return nil, err
 		}
@@ -605,7 +605,7 @@ type BGP4MPStateChange struct {
 	NewState BGPState
 }
 
-func (m *BGP4MPStateChange) DecodeFromBytes(data []byte) error {
+func (m *BGP4MPStateChange) DecodeFromBytes(data []byte, _ *MarshallingOptions) error {
 	rest, err := m.decodeFromBytes(data)
 	if err != nil {
 		return err
@@ -618,7 +618,7 @@ func (m *BGP4MPStateChange) DecodeFromBytes(data []byte) error {
 	return nil
 }
 
-func (m *BGP4MPStateChange) Serialize() ([]byte, error) {
+func (m *BGP4MPStateChange) Serialize(_ *MarshallingOptions) ([]byte, error) {
 	buf, err := m.serialize()
 	if err != nil {
 		return nil, err
@@ -646,7 +646,7 @@ type BGP4MPMessage struct {
 	isLocal           bool
 }
 
-func (m *BGP4MPMessage) DecodeFromBytes(data []byte) error {
+func (m *BGP4MPMessage) DecodeFromBytes(data []byte, options *MarshallingOptions) error {
 	rest, err := m.decodeFromBytes(data)
 	if err != nil {
 		return err
@@ -656,7 +656,7 @@ func (m *BGP4MPMessage) DecodeFromBytes(data []byte) error {
 		return fmt.Errorf("Not all BGP4MPMessageAS4 bytes available")
 	}
 
-	msg, err := ParseBGPMessage(rest)
+	msg, err := ParseBGPMessage(rest, options)
 	if err != nil {
 		return err
 	}
@@ -664,7 +664,7 @@ func (m *BGP4MPMessage) DecodeFromBytes(data []byte) error {
 	return nil
 }
 
-func (m *BGP4MPMessage) Serialize() ([]byte, error) {
+func (m *BGP4MPMessage) Serialize(options *MarshallingOptions) ([]byte, error) {
 	buf, err := m.serialize()
 	if err != nil {
 		return nil, err
@@ -672,7 +672,7 @@ func (m *BGP4MPMessage) Serialize() ([]byte, error) {
 	if m.BGPMessagePayload != nil {
 		return append(buf, m.BGPMessagePayload...), nil
 	}
-	bbuf, err := m.BGPMessage.Serialize()
+	bbuf, err := m.BGPMessage.Serialize(options)
 	if err != nil {
 		return nil, err
 	}
@@ -728,7 +728,7 @@ func SplitMrt(data []byte, atEOF bool) (advance int, token []byte, err error) {
 	return totlen, data[0:totlen], nil
 }
 
-func ParseMRTBody(h *MRTHeader, data []byte) (*MRTMessage, error) {
+func ParseMRTBody(h *MRTHeader, data []byte, options *MarshallingOptions) (*MRTMessage, error) {
 	if len(data) < int(h.Len) {
 		return nil, fmt.Errorf("Not all MRT message bytes available. expected: %d, actual: %d", int(h.Len), len(data))
 	}
@@ -790,7 +790,7 @@ func ParseMRTBody(h *MRTHeader, data []byte) (*MRTMessage, error) {
 	default:
 		return nil, fmt.Errorf("unsupported type: %v\n", h.Type)
 	}
-	err := msg.Body.DecodeFromBytes(data)
+	err := msg.Body.DecodeFromBytes(data, options)
 	if err != nil {
 		return nil, err
 	}

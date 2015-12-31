@@ -99,7 +99,7 @@ func newBMPClient(conf config.BmpServers, connCh chan *bmpConn) (*bmpClient, err
 			case m := <-b.ch:
 				if m.conn != nil {
 					i := bgp.NewBMPInitiation([]bgp.BMPTLV{})
-					buf, _ := i.Serialize()
+					buf, _ := i.Serialize(bgp.DefaultMarshallingOptions())
 					_, err := m.conn.Write(buf)
 					if err == nil {
 						connMap[m.conn.RemoteAddr().String()] = m.conn
@@ -138,7 +138,7 @@ func newBMPClient(conf config.BmpServers, connCh chan *bmpConn) (*bmpClient, err
 							}
 
 						}
-						b, _ := msg.Serialize()
+						b, _ := msg.Serialize(bgp.DefaultMarshallingOptions())
 						if _, err := conn.Write(b); err != nil {
 							break
 						}

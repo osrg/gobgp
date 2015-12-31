@@ -2113,7 +2113,7 @@ func TestProcessBGPUpdate_multiple_nlri_ipv6(t *testing.T) {
 
 func TestProcessBGPUpdate_Timestamp(t *testing.T) {
 	origin := bgp.NewPathAttributeOrigin(0)
-	aspathParam := []bgp.AsPathParamInterface{bgp.NewAs4PathParam(2, []uint32{65000})}
+	aspathParam := []*bgp.AsPathParam{bgp.NewAsPathParam(2, []uint32{65000})}
 	aspath := bgp.NewPathAttributeAsPath(aspathParam)
 	nexthop := bgp.NewPathAttributeNextHop("192.168.50.1")
 	med := bgp.NewPathAttributeMultiExitDisc(0)
@@ -2166,7 +2166,7 @@ func TestProcessBGPUpdate_Timestamp(t *testing.T) {
 func update_fromR1() *bgp.BGPMessage {
 
 	origin := bgp.NewPathAttributeOrigin(0)
-	aspathParam := []bgp.AsPathParamInterface{bgp.NewAs4PathParam(2, []uint32{65000})}
+	aspathParam := []*bgp.AsPathParam{bgp.NewAsPathParam(2, []uint32{65000})}
 	aspath := bgp.NewPathAttributeAsPath(aspathParam)
 	nexthop := bgp.NewPathAttributeNextHop("192.168.50.1")
 	med := bgp.NewPathAttributeMultiExitDisc(0)
@@ -2186,7 +2186,7 @@ func update_fromR1() *bgp.BGPMessage {
 func update_fromR1_ipv6() *bgp.BGPMessage {
 
 	origin := bgp.NewPathAttributeOrigin(0)
-	aspathParam := []bgp.AsPathParamInterface{bgp.NewAs4PathParam(2, []uint32{65000})}
+	aspathParam := []*bgp.AsPathParam{bgp.NewAsPathParam(2, []uint32{65000})}
 	aspath := bgp.NewPathAttributeAsPath(aspathParam)
 
 	mp_nlri := []bgp.AddrPrefixInterface{bgp.NewIPv6AddrPrefix(64, "2001:123:123:1::")}
@@ -2205,7 +2205,7 @@ func update_fromR1_ipv6() *bgp.BGPMessage {
 func update_fromR2() *bgp.BGPMessage {
 
 	origin := bgp.NewPathAttributeOrigin(0)
-	aspathParam := []bgp.AsPathParamInterface{bgp.NewAs4PathParam(2, []uint32{65100})}
+	aspathParam := []*bgp.AsPathParam{bgp.NewAsPathParam(2, []uint32{65100})}
 	aspath := bgp.NewPathAttributeAsPath(aspathParam)
 	nexthop := bgp.NewPathAttributeNextHop("192.168.100.1")
 	med := bgp.NewPathAttributeMultiExitDisc(100)
@@ -2239,7 +2239,7 @@ func update_fromR2_ipv6() *bgp.BGPMessage {
 }
 
 func createAsPathAttribute(ases []uint32) *bgp.PathAttributeAsPath {
-	aspathParam := []bgp.AsPathParamInterface{bgp.NewAs4PathParam(2, ases)}
+	aspathParam := []*bgp.AsPathParam{bgp.NewAsPathParam(2, ases)}
 	aspath := bgp.NewPathAttributeAsPath(aspathParam)
 	return aspath
 }
@@ -2258,7 +2258,7 @@ func createMpUNReach(nlri string, len uint8) *bgp.PathAttributeMpUnreachNLRI {
 func update_fromR2viaR1() *bgp.BGPMessage {
 
 	origin := bgp.NewPathAttributeOrigin(0)
-	aspathParam := []bgp.AsPathParamInterface{bgp.NewAs4PathParam(2, []uint32{65000, 65100})}
+	aspathParam := []*bgp.AsPathParam{bgp.NewAsPathParam(2, []uint32{65000, 65100})}
 	aspath := bgp.NewPathAttributeAsPath(aspathParam)
 	nexthop := bgp.NewPathAttributeNextHop("192.168.50.1")
 

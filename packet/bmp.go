@@ -153,8 +153,8 @@ func NewBMPRouteMonitoring(p BMPPeerHeader, update *BGPMessage) *BMPMessage {
 	}
 }
 
-func (body *BMPRouteMonitoring) ParseBody(msg *BMPMessage, data []byte) error {
-	update, err := ParseBGPMessage(data)
+func (body *BMPRouteMonitoring) ParseBody(msg *BMPMessage, data []byte, options *MarshallingOptions) error {
+	update, err := ParseBGPMessage(data, options)
 	if err != nil {
 		return err
 	}
@@ -162,11 +162,11 @@ func (body *BMPRouteMonitoring) ParseBody(msg *BMPMessage, data []byte) error {
 	return nil
 }
 
-func (body *BMPRouteMonitoring) Serialize() ([]byte, error) {
+func (body *BMPRouteMonitoring) Serialize(options *MarshallingOptions) ([]byte, error) {
 	if body.BGPUpdatePayload != nil {
 		return body.BGPUpdatePayload, nil
 	}
-	return body.BGPUpdate.Serialize()
+	return body.BGPUpdate.Serialize(options)
 }
 
 const (
@@ -226,11 +226,11 @@ func NewBMPPeerDownNotification(p BMPPeerHeader, reason uint8, notification *BGP
 	}
 }
 
-func (body *BMPPeerDownNotification) ParseBody(msg *BMPMessage, data []byte) error {
+func (body *BMPPeerDownNotification) ParseBody(msg *BMPMessage, data []byte, options *MarshallingOptions) error {
 	body.Reason = data[0]
 	data = data[1:]
 	if body.Reason == BMP_PEER_DOWN_REASON_LOCAL_BGP_NOTIFICATION || body.Reason == BMP_PEER_DOWN_REASON_REMOTE_BGP_NOTIFICATION {
-		notification, err := ParseBGPMessage(data)
+		notification, err := ParseBGPMessage(data, options)
 		if err != nil {
 			return err
 		}
@@ -241,13 +241,13 @@ func (body *BMPPeerDownNotification) ParseBody(msg *BMPMessage, data []byte) err
 	return nil
 }
 
-func (body *BMPPeerDownNotification) Serialize() ([]byte, error) {
+func (body *BMPPeerDownNotification) Serialize(options *MarshallingOptions) ([]byte, error) {
 	buf := make([]byte, 1)
 	buf[0] = body.Reason
 	switch body.Reason {
 	case BMP_PEER_DOWN_REASON_LOCAL_BGP_NOTIFICATION, BMP_PEER_DOWN_REASON_REMOTE_BGP_NOTIFICATION:
 		if body.BGPNotification != nil {
-			b, err := body.BGPNotification.Serialize()
+			b, err := body.BGPNotification.Serialize(options)
 			if err != nil {
 				return nil, err
 			} else {
@@ -293,7 +293,7 @@ func NewBMPPeerUpNotification(p BMPPeerHeader, lAddr string, lPort, rPort uint16
 	}
 }
 
-func (body *BMPPeerUpNotification) ParseBody(msg *BMPMessage, data []byte) error {
+func (body *BMPPeerUpNotification) ParseBody(msg *BMPMessage, data []byte, options *MarshallingOptions) error {
 	if msg.PeerHeader.Flags&(1<<7) != 0 {
 		body.LocalAddress = net.IP(data[:16]).To16()
 	} else {
@@ -304,20 +304,20 @@ func (body *BMPPeerUpNotification) ParseBody(msg *BMPMessage, data []byte) error
 	body.RemotePort = binary.BigEndian.Uint16(data[18:20])
 
 	data = data[20:]
-	sentopen, err := ParseBGPMessage(data)
+	sentopen, err := ParseBGPMessage(data, options)
 	if err != nil {
 		return err
 	}
 	body.SentOpenMsg = sentopen
 	data = data[body.SentOpenMsg.Header.Len:]
-	body.ReceivedOpenMsg, err = ParseBGPMessage(data)
+	body.ReceivedOpenMsg, err = ParseBGPMessage(data, options)
 	if err != nil {
 		return err
 	}
 	return nil
 }
 
-func (body *BMPPeerUpNotification) Serialize() ([]byte, error) {
+func (body *BMPPeerUpNotification) Serialize(options *MarshallingOptions) ([]byte, error) {
 	buf := make([]byte, 20)
 	if body.LocalAddress.To4() != nil {
 		copy(buf[:4], body.LocalAddress.To4())
@@ -328,14 +328,14 @@ func (body *BMPPeerUpNotification) Serialize() ([]byte, error) {
 	binary.BigEndian.PutUint16(buf[16:18], body.LocalPort)
 	binary.BigEndian.PutUint16(buf[18:20], body.RemotePort)
 
-	m, _ := body.SentOpenMsg.Serialize()
+	m, _ := body.SentOpenMsg.Serialize(options)
 	buf = append(buf, m...)
-	m, _ = body.ReceivedOpenMsg.Serialize()
+	m, _ = body.ReceivedOpenMsg.Serialize(options)
 	buf = append(buf, m...)
 	return buf, nil
 }
 
-func (body *BMPStatisticsReport) ParseBody(msg *BMPMessage, data []byte) error {
+func (body *BMPStatisticsReport) ParseBody(msg *BMPMessage, data []byte, _ *MarshallingOptions) error {
 	body.Count = binary.BigEndian.Uint32(data[0:4])
 	data = data[4:]
 	for len(data) >= 4 {
@@ -363,7 +363,7 @@ func (body *BMPStatisticsReport) ParseBody(msg *BMPMessage, data []byte) error {
 	return nil
 }
 
-func (body *BMPStatisticsReport) Serialize() ([]byte, error) {
+func (body *BMPStatisticsReport) Serialize(_ *MarshallingOptions) ([]byte, error) {
 	// TODO
 	buf := make([]byte, 4)
 	body.Count = uint32(len(body.Stats))
@@ -425,7 +425,7 @@ func NewBMPInitiation(info []BMPTLV) *BMPMessage {
 	}
 }
 
-func (body *BMPInitiation) ParseBody(msg *BMPMessage, data []byte) error {
+func (body *BMPInitiation) ParseBody(msg *BMPMessage, data []byte, _ *MarshallingOptions) error {
 	for len(data) > 0 {
 		tlv := BMPTLV{}
 		tlv.DecodeFromBytes(data)
@@ -435,7 +435,7 @@ func (body *BMPInitiation) ParseBody(msg *BMPMessage, data []byte) error {
 	return nil
 }
 
-func (body *BMPInitiation) Serialize() ([]byte, error) {
+func (body *BMPInitiation) Serialize(_ *MarshallingOptions) ([]byte, error) {
 	buf := make([]byte, 0)
 	for _, tlv := range body.Info {
 		b, err := tlv.Serialize()
@@ -463,7 +463,7 @@ func NewBMPTermination(info []BMPTLV) *BMPMessage {
 	}
 }
 
-func (body *BMPTermination) ParseBody(msg *BMPMessage, data []byte) error {
+func (body *BMPTermination) ParseBody(msg *BMPMessage, data []byte, _ *MarshallingOptions) error {
 	for len(data) > 0 {
 		tlv := BMPTLV{}
 		tlv.DecodeFromBytes(data)
@@ -473,7 +473,7 @@ func (body *BMPTermination) ParseBody(msg *BMPMessage, data []byte) error {
 	return nil
 }
 
-func (body *BMPTermination) Serialize() ([]byte, error) {
+func (body *BMPTermination) Serialize(_ *MarshallingOptions) ([]byte, error) {
 	buf := make([]byte, 0)
 	for _, tlv := range body.Info {
 		b, err := tlv.Serialize()
@@ -489,8 +489,8 @@ type BMPBody interface {
 	// Sigh, some body messages need a BMPHeader to parse the body
 	// data so we need to pass BMPHeader (avoid DecodeFromBytes
 	// function name).
-	ParseBody(*BMPMessage, []byte) error
-	Serialize() ([]byte, error)
+	ParseBody(*BMPMessage, []byte, *MarshallingOptions) error
+	Serialize(*MarshallingOptions) ([]byte, error)
 }
 
 type BMPMessage struct {
@@ -499,7 +499,7 @@ type BMPMessage struct {
 	Body       BMPBody
 }
 
-func (msg *BMPMessage) Serialize() ([]byte, error) {
+func (msg *BMPMessage) Serialize(options *MarshallingOptions) ([]byte, error) {
 	buf := make([]byte, 0)
 	if msg.Header.Type != BMP_MSG_INITIATION {
 		p, err := msg.PeerHeader.Serialize()
@@ -509,7 +509,7 @@ func (msg *BMPMessage) Serialize() ([]byte, error) {
 		buf = append(buf, p...)
 	}
 
-	b, err := msg.Body.Serialize()
+	b, err := msg.Body.Serialize(options)
 	if err != nil {
 		return nil, err
 	}
@@ -539,7 +539,7 @@ const (
 	BMP_MSG_TERMINATION
 )
 
-func ParseBMPMessage(data []byte) (*BMPMessage, error) {
+func ParseBMPMessage(data []byte, options *MarshallingOptions) (*BMPMessage, error) {
 	msg := &BMPMessage{}
 	err := msg.Header.DecodeFromBytes(data)
 	if err != nil {
@@ -567,7 +567,7 @@ func ParseBMPMessage(data []byte) (*BMPMessage, error) {
 		data = data[BMP_PEER_HEADER_SIZE:]
 	}
 
-	err = msg.Body.ParseBody(msg, data)
+	err = msg.Body.ParseBody(msg, data, options)
 	if err != nil {
 		return nil, err
 	}
