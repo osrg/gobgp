@@ -84,6 +84,7 @@ type FSM struct {
 	getActiveCh        chan struct{}
 	h                  *FSMHandler
 	rfMap              map[bgp.RouteFamily]bool
+	capMap             map[bgp.BGPCapabilityCode][]bgp.ParameterCapabilityInterface
 	confedCheck        bool
 	peerInfo           *table.PeerInfo
 	policy             *table.RoutingPolicy
@@ -153,6 +154,7 @@ func NewFSM(gConf *config.Global, pConf *config.Neighbor, policy *table.RoutingP
 		adminStateCh:     make(chan AdminState, 1),
 		getActiveCh:      make(chan struct{}),
 		rfMap:            make(map[bgp.RouteFamily]bool),
+		capMap:           make(map[bgp.BGPCapabilityCode][]bgp.ParameterCapabilityInterface),
 		confedCheck:      !config.IsConfederationMember(gConf, pConf) && config.IsEBGPPeer(gConf, pConf),
 		peerInfo:         table.NewPeerInfo(gConf, pConf),
 		policy:           policy,
@@ -546,6 +548,35 @@ func (h *FSMHandler) recvMessage() error {
 	return nil
 }
 
+func open2Cap(open *bgp.BGPOpen, n *config.Neighbor) (map[bgp.BGPCapabilityCode][]bgp.ParameterCapabilityInterface, map[bgp.RouteFamily]bool) {
+	capMap := make(map[bgp.BGPCapabilityCode][]bgp.ParameterCapabilityInterface)
+	rfMap := config.CreateRfMap(n)
+	r := make(map[bgp.RouteFamily]bool)
+	for _, p := range open.OptParams {
+		if paramCap, y := p.(*bgp.OptionParameterCapability); y {
+			for _, c := range paramCap.Capability {
+				m, ok := capMap[c.Code()]
+				if !ok {
+					m = make([]bgp.ParameterCapabilityInterface, 0, 1)
+				}
+				capMap[c.Code()] = append(m, c)
+
+				if c.Code() == bgp.BGP_CAP_MULTIPROTOCOL {
+					m := c.(*bgp.CapMultiProtocol)
+					r[m.CapValue] = true
+				}
+			}
+		}
+	}
+
+	for rf, _ := range rfMap {
+		if _, y := r[rf]; !y {
+			delete(rfMap, rf)
+		}
+	}
+	return capMap, rfMap
+}
+
 func (h *FSMHandler) opensent() bgp.FSMState {
 	fsm := h.fsm
 	m := buildopen(fsm.gConf, fsm.pConf)
@@ -591,15 +622,21 @@ func (h *FSMHandler) opensent() bgp.FSMState {
 						return bgp.BGP_FSM_IDLE
 					}
 					fsm.peerInfo.ID = body.ID
-					_, fsm.rfMap = open2Cap(body, fsm.pConf)
+					fsm.capMap, fsm.rfMap = open2Cap(body, fsm.pConf)
 
-					e := &FsmMsg{
-						MsgType: FSM_MSG_BGP_MESSAGE,
-						MsgSrc:  fsm.pConf.Config.NeighborAddress,
-						MsgDst:  fsm.pConf.Transport.Config.LocalAddress,
-						MsgData: m,
+					// calculate HoldTime
+					// RFC 4271 P.13
+					// a BGP speaker MUST calculate the value of the Hold Timer
+					// by using the smaller of its configured Hold Time and the Hold Time
+					// received in the OPEN message.
+					holdTime := float64(body.HoldTime)
+					myHoldTime := fsm.pConf.Timers.Config.HoldTime
+					if holdTime > myHoldTime {
+						fsm.negotiatedHoldTime = myHoldTime
+					} else {
+						fsm.negotiatedHoldTime = holdTime
 					}
-					h.incoming <- e
+
 					msg := bgp.NewBGPKeepAliveMessage()
 					b, _ := msg.Serialize()
 					fsm.conn.Write(b)
