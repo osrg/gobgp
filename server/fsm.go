@@ -23,6 +23,7 @@ import (
 	"github.com/osrg/gobgp/table"
 	"gopkg.in/tomb.v2"
 	"io"
+	"math/rand"
 	"net"
 	"strconv"
 	"time"
@@ -231,6 +232,8 @@ func (fsm *FSM) connectLoop() error {
 		tick = MIN_CONNECT_RETRY
 	}
 
+	r := rand.New(rand.NewSource(time.Now().UnixNano()))
+
 	ticker := time.NewTicker(time.Duration(tick) * time.Second)
 	ticker.Stop()
 
@@ -286,6 +289,8 @@ func (fsm *FSM) connectLoop() error {
 		case <-ticker.C:
 			connect()
 		case <-fsm.getActiveCh:
+			time.Sleep(time.Duration(r.Intn(tick)+MIN_CONNECT_RETRY) * time.Second)
+			connect()
 			ticker = time.NewTicker(time.Duration(tick) * time.Second)
 		}
 	}
