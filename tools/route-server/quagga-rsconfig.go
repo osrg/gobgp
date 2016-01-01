@@ -57,7 +57,7 @@ func create_config_files(nr int, outputDir string) {
 		c.Config.NeighborAddress = fmt.Sprintf("10.0.0.%d", i)
 		c.Config.AuthPassword = fmt.Sprintf("hoge%d", i)
 
-		gobgpConf.Neighbors.NeighborList = append(gobgpConf.Neighbors.NeighborList, c)
+		gobgpConf.Neighbors = append(gobgpConf.Neighbors, c)
 		q := NewQuaggaConfig(i, &gobgpConf.Global, &c, net.ParseIP("10.0.255.1"))
 		quaggaConfigList = append(quaggaConfigList, q)
 		os.Mkdir(fmt.Sprintf("%s/q%d", outputDir, i), 0755)

@@ -451,1416 +451,1386 @@ type BmpServerState struct {
 type BmpServerConfig struct {
 	// original -> gobgp:address
 	//gobgp:address's original type is inet:ip-address
-	Address string
+	Address string `mapstructure:"address"`
 	// original -> gobgp:port
-	Port uint32
+	Port uint32 `mapstructure:"port"`
 	// original -> gobgp:route-monitoring-policy
-	RouteMonitoringPolicy BmpRouteMonitoringPolicyType
+	RouteMonitoringPolicy BmpRouteMonitoringPolicyType `mapstructure:"route-monitoring-policy"`
 }
 
 //struct for container gobgp:bmp-server
 type BmpServer struct {
 	// original -> gobgp:address
 	//gobgp:address's original type is inet:ip-address
-	Address string
+	Address string `mapstructure:"address"`
 	// original -> gobgp:bmp-server-config
-	Config BmpServerConfig
+	Config BmpServerConfig `mapstructure:"config"`
 	// original -> gobgp:bmp-server-state
-	State BmpServerState
-}
-
-//struct for container gobgp:bmp-servers
-type BmpServers struct {
-	// original -> gobgp:bmp-server
-	BmpServerList []BmpServer
+	State BmpServerState `mapstructure:"state"`
 }
 
 //struct for container gobgp:rpki-received
 type RpkiReceived struct {
 	// original -> gobgp:serial-notify
-	SerialNotify int64
+	SerialNotify int64 `mapstructure:"serial-notify"`
 	// original -> gobgp:cache-reset
-	CacheReset int64
+	CacheReset int64 `mapstructure:"cache-reset"`
 	// original -> gobgp:cache-response
-	CacheResponse int64
+	CacheResponse int64 `mapstructure:"cache-response"`
 	// original -> gobgp:ipv4-prefix
-	Ipv4Prefix int64
+	Ipv4Prefix int64 `mapstructure:"ipv4-prefix"`
 	// original -> gobgp:ipv6-prefix
-	Ipv6Prefix int64
+	Ipv6Prefix int64 `mapstructure:"ipv6-prefix"`
 	// original -> gobgp:end-of-data
-	EndOfData int64
+	EndOfData int64 `mapstructure:"end-of-data"`
 	// original -> gobgp:error
-	Error int64
+	Error int64 `mapstructure:"error"`
 }
 
 //struct for container gobgp:rpki-sent
 type RpkiSent struct {
 	// original -> gobgp:serial-query
-	SerialQuery int64
+	SerialQuery int64 `mapstructure:"serial-query"`
 	// original -> gobgp:reset-query
-	ResetQuery int64
+	ResetQuery int64 `mapstructure:"reset-query"`
 	// original -> gobgp:error
-	Error int64
+	Error int64 `mapstructure:"error"`
 }
 
 //struct for container gobgp:rpki-messages
 type RpkiMessages struct {
 	// original -> gobgp:rpki-sent
-	RpkiSent RpkiSent
+	RpkiSent RpkiSent `mapstructure:"rpki-sent"`
 	// original -> gobgp:rpki-received
-	RpkiReceived RpkiReceived
+	RpkiReceived RpkiReceived `mapstructure:"rpki-received"`
 }
 
 //struct for container gobgp:state
 type RpkiServerState struct {
 	// original -> gobgp:uptime
-	Uptime int64
+	Uptime int64 `mapstructure:"uptime"`
 	// original -> gobgp:downtime
-	Downtime int64
+	Downtime int64 `mapstructure:"downtime"`
 	// original -> gobgp:last-pdu-recv-time
-	LastPduRecvTime int64
+	LastPduRecvTime int64 `mapstructure:"last-pdu-recv-time"`
 	// original -> gobgp:rpki-messages
-	RpkiMessages RpkiMessages
+	RpkiMessages RpkiMessages `mapstructure:"rpki-messages"`
 }
 
 //struct for container gobgp:config
 type RpkiServerConfig struct {
 	// original -> gobgp:address
 	//gobgp:address's original type is inet:ip-address
-	Address string
+	Address string `mapstructure:"address"`
 	// original -> gobgp:port
-	Port uint32
+	Port uint32 `mapstructure:"port"`
 	// original -> gobgp:refresh-time
-	RefreshTime int64
+	RefreshTime int64 `mapstructure:"refresh-time"`
 	// original -> gobgp:hold-time
-	HoldTime int64
+	HoldTime int64 `mapstructure:"hold-time"`
 	// original -> gobgp:record-lifetime
-	RecordLifetime int64
+	RecordLifetime int64 `mapstructure:"record-lifetime"`
 	// original -> gobgp:preference
-	Preference uint8
+	Preference uint8 `mapstructure:"preference"`
 }
 
 //struct for container gobgp:rpki-server
 type RpkiServer struct {
 	// original -> gobgp:address
 	//gobgp:address's original type is inet:ip-address
-	Address string
+	Address string `mapstructure:"address"`
 	// original -> gobgp:rpki-server-config
-	Config RpkiServerConfig
+	Config RpkiServerConfig `mapstructure:"config"`
 	// original -> gobgp:rpki-server-state
-	State RpkiServerState
-}
-
-//struct for container gobgp:rpki-servers
-type RpkiServers struct {
-	// original -> gobgp:rpki-server
-	RpkiServerList []RpkiServer
+	State RpkiServerState `mapstructure:"state"`
 }
 
 //struct for container bgp:state
 type PeerGroupState struct {
 	// original -> bgp:peer-as
 	//bgp:peer-as's original type is inet:as-number
-	PeerAs uint32
+	PeerAs uint32 `mapstructure:"peer-as"`
 	// original -> bgp:local-as
 	//bgp:local-as's original type is inet:as-number
-	LocalAs uint32
+	LocalAs uint32 `mapstructure:"local-as"`
 	// original -> bgp:peer-type
-	PeerType PeerType
+	PeerType PeerType `mapstructure:"peer-type"`
 	// original -> bgp:auth-password
-	AuthPassword string
+	AuthPassword string `mapstructure:"auth-password"`
 	// original -> bgp:remove-private-as
-	RemovePrivateAs RemovePrivateAsOption
+	RemovePrivateAs RemovePrivateAsOption `mapstructure:"remove-private-as"`
 	// original -> bgp:route-flap-damping
 	//bgp:route-flap-damping's original type is boolean
-	RouteFlapDamping bool
+	RouteFlapDamping bool `mapstructure:"route-flap-damping"`
 	// original -> bgp:send-community
-	SendCommunity CommunityType
+	SendCommunity CommunityType `mapstructure:"send-community"`
 	// original -> bgp:description
-	Description string
+	Description string `mapstructure:"description"`
 	// original -> bgp:peer-group-name
-	PeerGroupName string
+	PeerGroupName string `mapstructure:"peer-group-name"`
 	// original -> bgp-op:total-paths
-	TotalPaths uint32
+	TotalPaths uint32 `mapstructure:"total-paths"`
 	// original -> bgp-op:total-prefixes
-	TotalPrefixes uint32
+	TotalPrefixes uint32 `mapstructure:"total-prefixes"`
 }
 
 //struct for container bgp:config
 type PeerGroupConfig struct {
 	// original -> bgp:peer-as
 	//bgp:peer-as's original type is inet:as-number
-	PeerAs uint32
+	PeerAs uint32 `mapstructure:"peer-as"`
 	// original -> bgp:local-as
 	//bgp:local-as's original type is inet:as-number
-	LocalAs uint32
+	LocalAs uint32 `mapstructure:"local-as"`
 	// original -> bgp:peer-type
-	PeerType PeerType
+	PeerType PeerType `mapstructure:"peer-type"`
 	// original -> bgp:auth-password
-	AuthPassword string
+	AuthPassword string `mapstructure:"auth-password"`
 	// original -> bgp:remove-private-as
-	RemovePrivateAs RemovePrivateAsOption
+	RemovePrivateAs RemovePrivateAsOption `mapstructure:"remove-private-as"`
 	// original -> bgp:route-flap-damping
 	//bgp:route-flap-damping's original type is boolean
-	RouteFlapDamping bool
+	RouteFlapDamping bool `mapstructure:"route-flap-damping"`
 	// original -> bgp:send-community
-	SendCommunity CommunityType
+	SendCommunity CommunityType `mapstructure:"send-community"`
 	// original -> bgp:description
-	Description string
+	Description string `mapstructure:"description"`
 	// original -> bgp:peer-group-name
-	PeerGroupName string
+	PeerGroupName string `mapstructure:"peer-group-name"`
 }
 
 //struct for container bgp:peer-group
 type PeerGroup struct {
 	// original -> bgp:peer-group-name
-	PeerGroupName string
+	PeerGroupName string `mapstructure:"peer-group-name"`
 	// original -> bgp:peer-group-config
-	Config PeerGroupConfig
+	Config PeerGroupConfig `mapstructure:"config"`
 	// original -> bgp:peer-group-state
-	State PeerGroupState
+	State PeerGroupState `mapstructure:"state"`
 	// original -> bgp:timers
-	Timers Timers
+	Timers Timers `mapstructure:"timers"`
 	// original -> bgp:transport
-	Transport Transport
+	Transport Transport `mapstructure:"transport"`
 	// original -> bgp:error-handling
-	ErrorHandling ErrorHandling
+	ErrorHandling ErrorHandling `mapstructure:"error-handling"`
 	// original -> bgp:logging-options
-	LoggingOptions LoggingOptions
+	LoggingOptions LoggingOptions `mapstructure:"logging-options"`
 	// original -> bgp:ebgp-multihop
-	EbgpMultihop EbgpMultihop
+	EbgpMultihop EbgpMultihop `mapstructure:"ebgp-multihop"`
 	// original -> bgp:route-reflector
-	RouteReflector RouteReflector
+	RouteReflector RouteReflector `mapstructure:"route-reflector"`
 	// original -> bgp:as-path-options
-	AsPathOptions AsPathOptions
+	AsPathOptions AsPathOptions `mapstructure:"as-path-options"`
 	// original -> bgp:add-paths
-	AddPaths AddPaths
+	AddPaths AddPaths `mapstructure:"add-paths"`
 	// original -> bgp:afi-safis
-	AfiSafis AfiSafis
+	AfiSafis []AfiSafi `mapstructure:"afi-safis"`
 	// original -> bgp:graceful-restart
-	GracefulRestart GracefulRestart
+	GracefulRestart GracefulRestart `mapstructure:"graceful-restart"`
 	// original -> rpol:apply-policy
-	ApplyPolicy ApplyPolicy
+	ApplyPolicy ApplyPolicy `mapstructure:"apply-policy"`
 	// original -> bgp-mp:use-multiple-paths
-	UseMultiplePaths UseMultiplePaths
+	UseMultiplePaths UseMultiplePaths `mapstructure:"use-multiple-paths"`
 	// original -> gobgp:route-server
-	RouteServer RouteServer
-}
-
-//struct for container bgp:peer-groups
-type PeerGroups struct {
-	// original -> bgp:peer-group
-	PeerGroupList []PeerGroup
+	RouteServer RouteServer `mapstructure:"route-server"`
 }
 
 //struct for container gobgp:state
 type RouteServerState struct {
 	// original -> gobgp:route-server-client
 	//gobgp:route-server-client's original type is boolean
-	RouteServerClient bool
+	RouteServerClient bool `mapstructure:"route-server-client"`
 }
 
 //struct for container gobgp:config
 type RouteServerConfig struct {
 	// original -> gobgp:route-server-client
 	//gobgp:route-server-client's original type is boolean
-	RouteServerClient bool
+	RouteServerClient bool `mapstructure:"route-server-client"`
 }
 
 //struct for container gobgp:route-server
 type RouteServer struct {
 	// original -> gobgp:route-server-config
-	Config RouteServerConfig
+	Config RouteServerConfig `mapstructure:"config"`
 	// original -> gobgp:route-server-state
-	State RouteServerState
+	State RouteServerState `mapstructure:"state"`
 }
 
 //struct for container bgp-op:prefixes
 type Prefixes struct {
 	// original -> bgp-op:received
-	Received uint32
+	Received uint32 `mapstructure:"received"`
 	// original -> bgp-op:sent
-	Sent uint32
+	Sent uint32 `mapstructure:"sent"`
 	// original -> bgp-op:installed
-	Installed uint32
+	Installed uint32 `mapstructure:"installed"`
 }
 
 //struct for container bgp:state
 type AddPathsState struct {
 	// original -> bgp:receive
 	//bgp:receive's original type is boolean
-	Receive bool
+	Receive bool `mapstructure:"receive"`
 	// original -> bgp:send-max
-	SendMax uint8
+	SendMax uint8 `mapstructure:"send-max"`
 }
 
 //struct for container bgp:config
 type AddPathsConfig struct {
 	// original -> bgp:receive
 	//bgp:receive's original type is boolean
-	Receive bool
+	Receive bool `mapstructure:"receive"`
 	// original -> bgp:send-max
-	SendMax uint8
+	SendMax uint8 `mapstructure:"send-max"`
 }
 
 //struct for container bgp:add-paths
 type AddPaths struct {
 	// original -> bgp:add-paths-config
-	Config AddPathsConfig
+	Config AddPathsConfig `mapstructure:"config"`
 	// original -> bgp:add-paths-state
-	State AddPathsState
+	State AddPathsState `mapstructure:"state"`
 }
 
 //struct for container bgp:state
 type AsPathOptionsState struct {
 	// original -> bgp:allow-own-as
-	AllowOwnAs uint8
+	AllowOwnAs uint8 `mapstructure:"allow-own-as"`
 	// original -> bgp:replace-peer-as
 	//bgp:replace-peer-as's original type is boolean
-	ReplacePeerAs bool
+	ReplacePeerAs bool `mapstructure:"replace-peer-as"`
 }
 
 //struct for container bgp:config
 type AsPathOptionsConfig struct {
 	// original -> bgp:allow-own-as
-	AllowOwnAs uint8
+	AllowOwnAs uint8 `mapstructure:"allow-own-as"`
 	// original -> bgp:replace-peer-as
 	//bgp:replace-peer-as's original type is boolean
-	ReplacePeerAs bool
+	ReplacePeerAs bool `mapstructure:"replace-peer-as"`
 }
 
 //struct for container bgp:as-path-options
 type AsPathOptions struct {
 	// original -> bgp:as-path-options-config
-	Config AsPathOptionsConfig
+	Config AsPathOptionsConfig `mapstructure:"config"`
 	// original -> bgp:as-path-options-state
-	State AsPathOptionsState
+	State AsPathOptionsState `mapstructure:"state"`
 }
 
 //struct for container bgp:state
 type RouteReflectorState struct {
 	// original -> bgp:route-reflector-cluster-id
-	RouteReflectorClusterId RrClusterIdType
+	RouteReflectorClusterId RrClusterIdType `mapstructure:"route-reflector-cluster-id"`
 	// original -> bgp:route-reflector-client
 	//bgp:route-reflector-client's original type is boolean
-	RouteReflectorClient bool
+	RouteReflectorClient bool `mapstructure:"route-reflector-client"`
 }
 
 //struct for container bgp:config
 type RouteReflectorConfig struct {
 	// original -> bgp:route-reflector-cluster-id
-	RouteReflectorClusterId RrClusterIdType
+	RouteReflectorClusterId RrClusterIdType `mapstructure:"route-reflector-cluster-id"`
 	// original -> bgp:route-reflector-client
 	//bgp:route-reflector-client's original type is boolean
-	RouteReflectorClient bool
+	RouteReflectorClient bool `mapstructure:"route-reflector-client"`
 }
 
 //struct for container bgp:route-reflector
 type RouteReflector struct {
 	// original -> bgp:route-reflector-config
-	Config RouteReflectorConfig
+	Config RouteReflectorConfig `mapstructure:"config"`
 	// original -> bgp:route-reflector-state
-	State RouteReflectorState
+	State RouteReflectorState `mapstructure:"state"`
 }
 
 //struct for container bgp:state
 type EbgpMultihopState struct {
 	// original -> bgp:enabled
 	//bgp:enabled's original type is boolean
-	Enabled bool
+	Enabled bool `mapstructure:"enabled"`
 	// original -> bgp:multihop-ttl
-	MultihopTtl uint8
+	MultihopTtl uint8 `mapstructure:"multihop-ttl"`
 }
 
 //struct for container bgp:config
 type EbgpMultihopConfig struct {
 	// original -> bgp:enabled
 	//bgp:enabled's original type is boolean
-	Enabled bool
+	Enabled bool `mapstructure:"enabled"`
 	// original -> bgp:multihop-ttl
-	MultihopTtl uint8
+	MultihopTtl uint8 `mapstructure:"multihop-ttl"`
 }
 
 //struct for container bgp:ebgp-multihop
 type EbgpMultihop struct {
 	// original -> bgp:ebgp-multihop-config
-	Config EbgpMultihopConfig
+	Config EbgpMultihopConfig `mapstructure:"config"`
 	// original -> bgp:ebgp-multihop-state
-	State EbgpMultihopState
+	State EbgpMultihopState `mapstructure:"state"`
 }
 
 //struct for container bgp:state
 type LoggingOptionsState struct {
 	// original -> bgp:log-neighbor-state-changes
 	//bgp:log-neighbor-state-changes's original type is boolean
-	LogNeighborStateChanges bool
+	LogNeighborStateChanges bool `mapstructure:"log-neighbor-state-changes"`
 }
 
 //struct for container bgp:config
 type LoggingOptionsConfig struct {
 	// original -> bgp:log-neighbor-state-changes
 	//bgp:log-neighbor-state-changes's original type is boolean
-	LogNeighborStateChanges bool
+	LogNeighborStateChanges bool `mapstructure:"log-neighbor-state-changes"`
 }
 
 //struct for container bgp:logging-options
 type LoggingOptions struct {
 	// original -> bgp:logging-options-config
-	Config LoggingOptionsConfig
+	Config LoggingOptionsConfig `mapstructure:"config"`
 	// original -> bgp:logging-options-state
-	State LoggingOptionsState
+	State LoggingOptionsState `mapstructure:"state"`
 }
 
 //struct for container bgp:state
 type ErrorHandlingState struct {
 	// original -> bgp:treat-as-withdraw
 	//bgp:treat-as-withdraw's original type is boolean
-	TreatAsWithdraw bool
+	TreatAsWithdraw bool `mapstructure:"treat-as-withdraw"`
 	// original -> bgp-op:erroneous-update-messages
-	ErroneousUpdateMessages uint32
+	ErroneousUpdateMessages uint32 `mapstructure:"erroneous-update-messages"`
 }
 
 //struct for container bgp:config
 type ErrorHandlingConfig struct {
 	// original -> bgp:treat-as-withdraw
 	//bgp:treat-as-withdraw's original type is boolean
-	TreatAsWithdraw bool
+	TreatAsWithdraw bool `mapstructure:"treat-as-withdraw"`
 }
 
 //struct for container bgp:error-handling
 type ErrorHandling struct {
 	// original -> bgp:error-handling-config
-	Config ErrorHandlingConfig
+	Config ErrorHandlingConfig `mapstructure:"config"`
 	// original -> bgp:error-handling-state
-	State ErrorHandlingState
+	State ErrorHandlingState `mapstructure:"state"`
 }
 
 //struct for container bgp:state
 type TransportState struct {
 	// original -> bgp:tcp-mss
-	TcpMss uint16
+	TcpMss uint16 `mapstructure:"tcp-mss"`
 	// original -> bgp:mtu-discovery
 	//bgp:mtu-discovery's original type is boolean
-	MtuDiscovery bool
+	MtuDiscovery bool `mapstructure:"mtu-discovery"`
 	// original -> bgp:passive-mode
 	//bgp:passive-mode's original type is boolean
-	PassiveMode bool
+	PassiveMode bool `mapstructure:"passive-mode"`
 	// original -> bgp:local-address
 	//bgp:local-address's original type is union
-	LocalAddress string
+	LocalAddress string `mapstructure:"local-address"`
 	// original -> bgp-op:local-port
 	//bgp-op:local-port's original type is inet:port-number
-	LocalPort uint16
+	LocalPort uint16 `mapstructure:"local-port"`
 	// original -> bgp-op:remote-address
 	//bgp-op:remote-address's original type is inet:ip-address
-	RemoteAddress string
+	RemoteAddress string `mapstructure:"remote-address"`
 	// original -> bgp-op:remote-port
 	//bgp-op:remote-port's original type is inet:port-number
-	RemotePort uint16
+	RemotePort uint16 `mapstructure:"remote-port"`
 }
 
 //struct for container bgp:config
 type TransportConfig struct {
 	// original -> bgp:tcp-mss
-	TcpMss uint16
+	TcpMss uint16 `mapstructure:"tcp-mss"`
 	// original -> bgp:mtu-discovery
 	//bgp:mtu-discovery's original type is boolean
-	MtuDiscovery bool
+	MtuDiscovery bool `mapstructure:"mtu-discovery"`
 	// original -> bgp:passive-mode
 	//bgp:passive-mode's original type is boolean
-	PassiveMode bool
+	PassiveMode bool `mapstructure:"passive-mode"`
 	// original -> bgp:local-address
 	//bgp:local-address's original type is union
-	LocalAddress string
+	LocalAddress string `mapstructure:"local-address"`
 }
 
 //struct for container bgp:transport
 type Transport struct {
 	// original -> bgp:transport-config
-	Config TransportConfig
+	Config TransportConfig `mapstructure:"config"`
 	// original -> bgp:transport-state
-	State TransportState
+	State TransportState `mapstructure:"state"`
 }
 
 //struct for container bgp:state
 type TimersState struct {
 	// original -> bgp:connect-retry
 	//bgp:connect-retry's original type is decimal64
-	ConnectRetry float64
+	ConnectRetry float64 `mapstructure:"connect-retry"`
 	// original -> bgp:hold-time
 	//bgp:hold-time's original type is decimal64
-	HoldTime float64
+	HoldTime float64 `mapstructure:"hold-time"`
 	// original -> bgp:keepalive-interval
 	//bgp:keepalive-interval's original type is decimal64
-	KeepaliveInterval float64
+	KeepaliveInterval float64 `mapstructure:"keepalive-interval"`
 	// original -> bgp:minimum-advertisement-interval
 	//bgp:minimum-advertisement-interval's original type is decimal64
-	MinimumAdvertisementInterval float64
+	MinimumAdvertisementInterval float64 `mapstructure:"minimum-advertisement-interval"`
 	// original -> bgp-op:uptime
 	//bgp-op:uptime's original type is yang:timeticks
-	Uptime int64
+	Uptime int64 `mapstructure:"uptime"`
 	// original -> bgp-op:negotiated-hold-time
 	//bgp-op:negotiated-hold-time's original type is decimal64
-	NegotiatedHoldTime float64
+	NegotiatedHoldTime float64 `mapstructure:"negotiated-hold-time"`
 	// original -> gobgp:idle-hold-time-after-reset
 	//gobgp:idle-hold-time-after-reset's original type is decimal64
-	IdleHoldTimeAfterReset float64
+	IdleHoldTimeAfterReset float64 `mapstructure:"idle-hold-time-after-reset"`
 	// original -> gobgp:downtime
 	//gobgp:downtime's original type is yang:timeticks
-	Downtime int64
+	Downtime int64 `mapstructure:"downtime"`
 	// original -> gobgp:update-recv-time
-	UpdateRecvTime int64
+	UpdateRecvTime int64 `mapstructure:"update-recv-time"`
 }
 
 //struct for container bgp:config
 type TimersConfig struct {
 	// original -> bgp:connect-retry
 	//bgp:connect-retry's original type is decimal64
-	ConnectRetry float64
+	ConnectRetry float64 `mapstructure:"connect-retry"`
 	// original -> bgp:hold-time
 	//bgp:hold-time's original type is decimal64
-	HoldTime float64
+	HoldTime float64 `mapstructure:"hold-time"`
 	// original -> bgp:keepalive-interval
 	//bgp:keepalive-interval's original type is decimal64
-	KeepaliveInterval float64
+	KeepaliveInterval float64 `mapstructure:"keepalive-interval"`
 	// original -> bgp:minimum-advertisement-interval
 	//bgp:minimum-advertisement-interval's original type is decimal64
-	MinimumAdvertisementInterval float64
+	MinimumAdvertisementInterval float64 `mapstructure:"minimum-advertisement-interval"`
 	// original -> gobgp:idle-hold-time-after-reset
 	//gobgp:idle-hold-time-after-reset's original type is decimal64
-	IdleHoldTimeAfterReset float64
+	IdleHoldTimeAfterReset float64 `mapstructure:"idle-hold-time-after-reset"`
 }
 
 //struct for container bgp:timers
 type Timers struct {
 	// original -> bgp:timers-config
-	Config TimersConfig
+	Config TimersConfig `mapstructure:"config"`
 	// original -> bgp:timers-state
-	State TimersState
+	State TimersState `mapstructure:"state"`
 }
 
 //struct for container bgp:queues
 type Queues struct {
 	// original -> bgp-op:input
-	Input uint32
+	Input uint32 `mapstructure:"input"`
 	// original -> bgp-op:output
-	Output uint32
+	Output uint32 `mapstructure:"output"`
 }
 
 //struct for container bgp:received
 type Received struct {
 	// original -> bgp-op:UPDATE
-	Update uint64
+	Update uint64 `mapstructure:"update"`
 	// original -> bgp-op:NOTIFICATION
-	Notification uint64
+	Notification uint64 `mapstructure:"notification"`
 	// original -> gobgp:OPEN
-	Open uint64
+	Open uint64 `mapstructure:"open"`
 	// original -> gobgp:REFRESH
-	Refresh uint64
+	Refresh uint64 `mapstructure:"refresh"`
 	// original -> gobgp:KEEPALIVE
-	Keepalive uint64
+	Keepalive uint64 `mapstructure:"keepalive"`
 	// original -> gobgp:DYNAMIC-CAP
-	DynamicCap uint64
+	DynamicCap uint64 `mapstructure:"dynamic-cap"`
 	// original -> gobgp:DISCARDED
-	Discarded uint64
+	Discarded uint64 `mapstructure:"discarded"`
 	// original -> gobgp:TOTAL
-	Total uint64
+	Total uint64 `mapstructure:"total"`
 }
 
 //struct for container bgp:sent
 type Sent struct {
 	// original -> bgp-op:UPDATE
-	Update uint64
+	Update uint64 `mapstructure:"update"`
 	// original -> bgp-op:NOTIFICATION
-	Notification uint64
+	Notification uint64 `mapstructure:"notification"`
 	// original -> gobgp:OPEN
-	Open uint64
+	Open uint64 `mapstructure:"open"`
 	// original -> gobgp:REFRESH
-	Refresh uint64
+	Refresh uint64 `mapstructure:"refresh"`
 	// original -> gobgp:KEEPALIVE
-	Keepalive uint64
+	Keepalive uint64 `mapstructure:"keepalive"`
 	// original -> gobgp:DYNAMIC-CAP
-	DynamicCap uint64
+	DynamicCap uint64 `mapstructure:"dynamic-cap"`
 	// original -> gobgp:DISCARDED
-	Discarded uint64
+	Discarded uint64 `mapstructure:"discarded"`
 	// original -> gobgp:TOTAL
-	Total uint64
+	Total uint64 `mapstructure:"total"`
 }
 
 //struct for container bgp:messages
 type Messages struct {
 	// original -> bgp:sent
-	Sent Sent
+	Sent Sent `mapstructure:"sent"`
 	// original -> bgp:received
-	Received Received
+	Received Received `mapstructure:"received"`
 }
 
 //struct for container bgp:state
 type NeighborState struct {
 	// original -> bgp:peer-as
 	//bgp:peer-as's original type is inet:as-number
-	PeerAs uint32
+	PeerAs uint32 `mapstructure:"peer-as"`
 	// original -> bgp:local-as
 	//bgp:local-as's original type is inet:as-number
-	LocalAs uint32
+	LocalAs uint32 `mapstructure:"local-as"`
 	// original -> bgp:peer-type
-	PeerType PeerType
+	PeerType PeerType `mapstructure:"peer-type"`
 	// original -> bgp:auth-password
-	AuthPassword string
+	AuthPassword string `mapstructure:"auth-password"`
 	// original -> bgp:remove-private-as
-	RemovePrivateAs RemovePrivateAsOption
+	RemovePrivateAs RemovePrivateAsOption `mapstructure:"remove-private-as"`
 	// original -> bgp:route-flap-damping
 	//bgp:route-flap-damping's original type is boolean
-	RouteFlapDamping bool
+	RouteFlapDamping bool `mapstructure:"route-flap-damping"`
 	// original -> bgp:send-community
-	SendCommunity CommunityType
+	SendCommunity CommunityType `mapstructure:"send-community"`
 	// original -> bgp:description
-	Description string
+	Description string `mapstructure:"description"`
 	// original -> bgp:peer-group
-	PeerGroup string
+	PeerGroup string `mapstructure:"peer-group"`
 	// original -> bgp:neighbor-address
 	//bgp:neighbor-address's original type is inet:ip-address
-	NeighborAddress string
+	NeighborAddress string `mapstructure:"neighbor-address"`
 	// original -> bgp-op:session-state
 	//bgp-op:session-state's original type is enumeration
-	SessionState uint32
+	SessionState uint32 `mapstructure:"session-state"`
 	// original -> bgp-op:supported-capabilities
-	//original type is list of identityref
-	SupportedCapabilities []string
+	// original type is list of identityref
+	SupportedCapabilitiesList []string `mapstructure:"supported-capabilities-list"`
 	// original -> bgp:messages
-	Messages Messages
+	Messages Messages `mapstructure:"messages"`
 	// original -> bgp:queues
-	Queues Queues
+	Queues Queues `mapstructure:"queues"`
 	// original -> gobgp:admin-down
 	//gobgp:admin-down's original type is boolean
-	AdminDown bool
+	AdminDown bool `mapstructure:"admin-down"`
 	// original -> gobgp:established-count
-	EstablishedCount uint32
+	EstablishedCount uint32 `mapstructure:"established-count"`
 	// original -> gobgp:flops
-	Flops uint32
+	Flops uint32 `mapstructure:"flops"`
 }
 
 //struct for container bgp:config
 type NeighborConfig struct {
 	// original -> bgp:peer-as
 	//bgp:peer-as's original type is inet:as-number
-	PeerAs uint32
+	PeerAs uint32 `mapstructure:"peer-as"`
 	// original -> bgp:local-as
 	//bgp:local-as's original type is inet:as-number
-	LocalAs uint32
+	LocalAs uint32 `mapstructure:"local-as"`
 	// original -> bgp:peer-type
-	PeerType PeerType
+	PeerType PeerType `mapstructure:"peer-type"`
 	// original -> bgp:auth-password
-	AuthPassword string
+	AuthPassword string `mapstructure:"auth-password"`
 	// original -> bgp:remove-private-as
-	RemovePrivateAs RemovePrivateAsOption
+	RemovePrivateAs RemovePrivateAsOption `mapstructure:"remove-private-as"`
 	// original -> bgp:route-flap-damping
 	//bgp:route-flap-damping's original type is boolean
-	RouteFlapDamping bool
+	RouteFlapDamping bool `mapstructure:"route-flap-damping"`
 	// original -> bgp:send-community
-	SendCommunity CommunityType
+	SendCommunity CommunityType `mapstructure:"send-community"`
 	// original -> bgp:description
-	Description string
+	Description string `mapstructure:"description"`
 	// original -> bgp:peer-group
-	PeerGroup string
+	PeerGroup string `mapstructure:"peer-group"`
 	// original -> bgp:neighbor-address
 	//bgp:neighbor-address's original type is inet:ip-address
-	NeighborAddress string
+	NeighborAddress string `mapstructure:"neighbor-address"`
 }
 
 //struct for container bgp:neighbor
 type Neighbor struct {
 	// original -> bgp:neighbor-address
 	//bgp:neighbor-address's original type is inet:ip-address
-	NeighborAddress string
+	NeighborAddress string `mapstructure:"neighbor-address"`
 	// original -> bgp:neighbor-config
-	Config NeighborConfig
+	Config NeighborConfig `mapstructure:"config"`
 	// original -> bgp:neighbor-state
-	State NeighborState
+	State NeighborState `mapstructure:"state"`
 	// original -> bgp:timers
-	Timers Timers
+	Timers Timers `mapstructure:"timers"`
 	// original -> bgp:transport
-	Transport Transport
+	Transport Transport `mapstructure:"transport"`
 	// original -> bgp:error-handling
-	ErrorHandling ErrorHandling
+	ErrorHandling ErrorHandling `mapstructure:"error-handling"`
 	// original -> bgp:logging-options
-	LoggingOptions LoggingOptions
+	LoggingOptions LoggingOptions `mapstructure:"logging-options"`
 	// original -> bgp:ebgp-multihop
-	EbgpMultihop EbgpMultihop
+	EbgpMultihop EbgpMultihop `mapstructure:"ebgp-multihop"`
 	// original -> bgp:route-reflector
-	RouteReflector RouteReflector
+	RouteReflector RouteReflector `mapstructure:"route-reflector"`
 	// original -> bgp:as-path-options
-	AsPathOptions AsPathOptions
+	AsPathOptions AsPathOptions `mapstructure:"as-path-options"`
 	// original -> bgp:add-paths
-	AddPaths AddPaths
+	AddPaths AddPaths `mapstructure:"add-paths"`
 	// original -> bgp:afi-safis
-	AfiSafis AfiSafis
+	AfiSafis []AfiSafi `mapstructure:"afi-safis"`
 	// original -> bgp:graceful-restart
-	GracefulRestart GracefulRestart
+	GracefulRestart GracefulRestart `mapstructure:"graceful-restart"`
 	// original -> rpol:apply-policy
-	ApplyPolicy ApplyPolicy
+	ApplyPolicy ApplyPolicy `mapstructure:"apply-policy"`
 	// original -> bgp-mp:use-multiple-paths
-	UseMultiplePaths UseMultiplePaths
+	UseMultiplePaths UseMultiplePaths `mapstructure:"use-multiple-paths"`
 	// original -> gobgp:route-server
-	RouteServer RouteServer
-}
-
-//struct for container bgp:neighbors
-type Neighbors struct {
-	// original -> bgp:neighbor
-	NeighborList []Neighbor
+	RouteServer RouteServer `mapstructure:"route-server"`
 }
 
 //struct for container gobgp:listen-config
 type ListenConfig struct {
 	// original -> gobgp:port
-	Port int32
+	Port int32 `mapstructure:"port"`
 }
 
 //struct for container gobgp:mpls-label-range
 type MplsLabelRange struct {
 	// original -> gobgp:min-label
-	MinLabel uint32
+	MinLabel uint32 `mapstructure:"min-label"`
 	// original -> gobgp:max-label
-	MaxLabel uint32
+	MaxLabel uint32 `mapstructure:"max-label"`
 }
 
 //struct for container gobgp:zebra
 type Zebra struct {
 	// original -> gobgp:enabled
 	//gobgp:enabled's original type is boolean
-	Enabled bool
+	Enabled bool `mapstructure:"enabled"`
 	// original -> gobgp:url
-	Url string
+	Url string `mapstructure:"url"`
 	// original -> gobgp:redistribute-route-type
-	//original type is list of identityref
-	RedistributeRouteType []string
+	// original type is list of identityref
+	RedistributeRouteTypeList []string `mapstructure:"redistribute-route-type-list"`
 }
 
 //struct for container gobgp:mrt
 type Mrt struct {
 	// original -> gobgp:file-name
-	FileName string
+	FileName string `mapstructure:"file-name"`
 }
 
 //struct for container bgp-mp:l2vpn-evpn
 type L2vpnEvpn struct {
 	// original -> bgp-mp:prefix-limit
-	PrefixLimit PrefixLimit
+	PrefixLimit PrefixLimit `mapstructure:"prefix-limit"`
 }
 
 //struct for container bgp-mp:l2vpn-vpls
 type L2vpnVpls struct {
 	// original -> bgp-mp:prefix-limit
-	PrefixLimit PrefixLimit
+	PrefixLimit PrefixLimit `mapstructure:"prefix-limit"`
 }
 
 //struct for container bgp-mp:l3vpn-ipv6-multicast
 type L3vpnIpv6Multicast struct {
 	// original -> bgp-mp:prefix-limit
-	PrefixLimit PrefixLimit
+	PrefixLimit PrefixLimit `mapstructure:"prefix-limit"`
 }
 
 //struct for container bgp-mp:l3vpn-ipv4-multicast
 type L3vpnIpv4Multicast struct {
 	// original -> bgp-mp:prefix-limit
-	PrefixLimit PrefixLimit
+	PrefixLimit PrefixLimit `mapstructure:"prefix-limit"`
 }
 
 //struct for container bgp-mp:l3vpn-ipv6-unicast
 type L3vpnIpv6Unicast struct {
 	// original -> bgp-mp:prefix-limit
-	PrefixLimit PrefixLimit
+	PrefixLimit PrefixLimit `mapstructure:"prefix-limit"`
 }
 
 //struct for container bgp-mp:l3vpn-ipv4-unicast
 type L3vpnIpv4Unicast struct {
 	// original -> bgp-mp:prefix-limit
-	PrefixLimit PrefixLimit
+	PrefixLimit PrefixLimit `mapstructure:"prefix-limit"`
 }
 
 //struct for container bgp-mp:ipv6-labelled-unicast
 type Ipv6LabelledUnicast struct {
 	// original -> bgp-mp:prefix-limit
-	PrefixLimit PrefixLimit
+	PrefixLimit PrefixLimit `mapstructure:"prefix-limit"`
 }
 
 //struct for container bgp-mp:ipv4-labelled-unicast
 type Ipv4LabelledUnicast struct {
 	// original -> bgp-mp:prefix-limit
-	PrefixLimit PrefixLimit
+	PrefixLimit PrefixLimit `mapstructure:"prefix-limit"`
 }
 
 //struct for container bgp-mp:state
 type Ipv6UnicastState struct {
 	// original -> bgp-mp:send-default-route
 	//bgp-mp:send-default-route's original type is boolean
-	SendDefaultRoute bool
+	SendDefaultRoute bool `mapstructure:"send-default-route"`
 }
 
 //struct for container bgp-mp:config
 type Ipv6UnicastConfig struct {
 	// original -> bgp-mp:send-default-route
 	//bgp-mp:send-default-route's original type is boolean
-	SendDefaultRoute bool
+	SendDefaultRoute bool `mapstructure:"send-default-route"`
 }
 
 //struct for container bgp-mp:ipv6-unicast
 type Ipv6Unicast struct {
 	// original -> bgp-mp:prefix-limit
-	PrefixLimit PrefixLimit
+	PrefixLimit PrefixLimit `mapstructure:"prefix-limit"`
 	// original -> bgp-mp:ipv6-unicast-config
-	Config Ipv6UnicastConfig
+	Config Ipv6UnicastConfig `mapstructure:"config"`
 	// original -> bgp-mp:ipv6-unicast-state
-	State Ipv6UnicastState
+	State Ipv6UnicastState `mapstructure:"state"`
 }
 
 //struct for container bgp-mp:state
 type Ipv4UnicastState struct {
 	// original -> bgp-mp:send-default-route
 	//bgp-mp:send-default-route's original type is boolean
-	SendDefaultRoute bool
+	SendDefaultRoute bool `mapstructure:"send-default-route"`
 }
 
 //struct for container bgp-mp:config
 type Ipv4UnicastConfig struct {
 	// original -> bgp-mp:send-default-route
 	//bgp-mp:send-default-route's original type is boolean
-	SendDefaultRoute bool
+	SendDefaultRoute bool `mapstructure:"send-default-route"`
 }
 
 //struct for container bgp-mp:state
 type PrefixLimitState struct {
 	// original -> bgp-mp:max-prefixes
-	MaxPrefixes uint32
+	MaxPrefixes uint32 `mapstructure:"max-prefixes"`
 	// original -> bgp-mp:shutdown-threshold-pct
-	ShutdownThresholdPct Percentage
+	ShutdownThresholdPct Percentage `mapstructure:"shutdown-threshold-pct"`
 	// original -> bgp-mp:restart-timer
 	//bgp-mp:restart-timer's original type is decimal64
-	RestartTimer float64
+	RestartTimer float64 `mapstructure:"restart-timer"`
 }
 
 //struct for container bgp-mp:config
 type PrefixLimitConfig struct {
 	// original -> bgp-mp:max-prefixes
-	MaxPrefixes uint32
+	MaxPrefixes uint32 `mapstructure:"max-prefixes"`
 	// original -> bgp-mp:shutdown-threshold-pct
-	ShutdownThresholdPct Percentage
+	ShutdownThresholdPct Percentage `mapstructure:"shutdown-threshold-pct"`
 	// original -> bgp-mp:restart-timer
 	//bgp-mp:restart-timer's original type is decimal64
-	RestartTimer float64
+	RestartTimer float64 `mapstructure:"restart-timer"`
 }
 
 //struct for container bgp-mp:prefix-limit
 type PrefixLimit struct {
 	// original -> bgp-mp:prefix-limit-config
-	Config PrefixLimitConfig
+	Config PrefixLimitConfig `mapstructure:"config"`
 	// original -> bgp-mp:prefix-limit-state
-	State PrefixLimitState
+	State PrefixLimitState `mapstructure:"state"`
 }
 
 //struct for container bgp-mp:ipv4-unicast
 type Ipv4Unicast struct {
 	// original -> bgp-mp:prefix-limit
-	PrefixLimit PrefixLimit
+	PrefixLimit PrefixLimit `mapstructure:"prefix-limit"`
 	// original -> bgp-mp:ipv4-unicast-config
-	Config Ipv4UnicastConfig
+	Config Ipv4UnicastConfig `mapstructure:"config"`
 	// original -> bgp-mp:ipv4-unicast-state
-	State Ipv4UnicastState
+	State Ipv4UnicastState `mapstructure:"state"`
 }
 
 //struct for container rpol:state
 type ApplyPolicyState struct {
 	// original -> rpol:import-policy
-	ImportPolicy []string
+	ImportPolicyList []string `mapstructure:"import-policy-list"`
 	// original -> rpol:default-import-policy
-	DefaultImportPolicy DefaultPolicyType
+	DefaultImportPolicy DefaultPolicyType `mapstructure:"default-import-policy"`
 	// original -> rpol:export-policy
-	ExportPolicy []string
+	ExportPolicyList []string `mapstructure:"export-policy-list"`
 	// original -> rpol:default-export-policy
-	DefaultExportPolicy DefaultPolicyType
+	DefaultExportPolicy DefaultPolicyType `mapstructure:"default-export-policy"`
 	// original -> gobgp:in-policy
-	InPolicy []string
+	InPolicyList []string `mapstructure:"in-policy-list"`
 	// original -> gobgp:default-in-policy
-	DefaultInPolicy DefaultPolicyType
+	DefaultInPolicy DefaultPolicyType `mapstructure:"default-in-policy"`
 }
 
 //struct for container rpol:config
 type ApplyPolicyConfig struct {
 	// original -> rpol:import-policy
-	ImportPolicy []string
+	ImportPolicyList []string `mapstructure:"import-policy-list"`
 	// original -> rpol:default-import-policy
-	DefaultImportPolicy DefaultPolicyType
+	DefaultImportPolicy DefaultPolicyType `mapstructure:"default-import-policy"`
 	// original -> rpol:export-policy
-	ExportPolicy []string
+	ExportPolicyList []string `mapstructure:"export-policy-list"`
 	// original -> rpol:default-export-policy
-	DefaultExportPolicy DefaultPolicyType
+	DefaultExportPolicy DefaultPolicyType `mapstructure:"default-export-policy"`
 	// original -> gobgp:in-policy
-	InPolicy []string
+	InPolicyList []string `mapstructure:"in-policy-list"`
 	// original -> gobgp:default-in-policy
-	DefaultInPolicy DefaultPolicyType
+	DefaultInPolicy DefaultPolicyType `mapstructure:"default-in-policy"`
 }
 
 //struct for container rpol:apply-policy
 type ApplyPolicy struct {
 	// original -> rpol:apply-policy-config
-	Config ApplyPolicyConfig
+	Config ApplyPolicyConfig `mapstructure:"config"`
 	// original -> rpol:apply-policy-state
-	State ApplyPolicyState
+	State ApplyPolicyState `mapstructure:"state"`
 }
 
 //struct for container bgp-mp:state
 type AfiSafiState struct {
 	// original -> bgp-mp:afi-safi-name
-	AfiSafiName string
+	AfiSafiName string `mapstructure:"afi-safi-name"`
 	// original -> bgp-mp:enabled
 	//bgp-mp:enabled's original type is boolean
-	Enabled bool
+	Enabled bool `mapstructure:"enabled"`
 	// original -> bgp-op:total-paths
-	TotalPaths uint32
+	TotalPaths uint32 `mapstructure:"total-paths"`
 	// original -> bgp-op:total-prefixes
-	TotalPrefixes uint32
+	TotalPrefixes uint32 `mapstructure:"total-prefixes"`
 }
 
 //struct for container bgp-mp:config
 type AfiSafiConfig struct {
 	// original -> bgp-mp:afi-safi-name
-	AfiSafiName string
+	AfiSafiName string `mapstructure:"afi-safi-name"`
 	// original -> bgp-mp:enabled
 	//bgp-mp:enabled's original type is boolean
-	Enabled bool
+	Enabled bool `mapstructure:"enabled"`
 }
 
 //struct for container bgp-mp:state
 type MpGracefulRestartState struct {
 	// original -> bgp-mp:enabled
 	//bgp-mp:enabled's original type is boolean
-	Enabled bool
+	Enabled bool `mapstructure:"enabled"`
 	// original -> bgp-op:received
 	//bgp-op:received's original type is boolean
-	Received bool
+	Received bool `mapstructure:"received"`
 	// original -> bgp-op:advertised
 	//bgp-op:advertised's original type is boolean
-	Advertised bool
+	Advertised bool `mapstructure:"advertised"`
 }
 
 //struct for container bgp-mp:config
 type MpGracefulRestartConfig struct {
 	// original -> bgp-mp:enabled
 	//bgp-mp:enabled's original type is boolean
-	Enabled bool
+	Enabled bool `mapstructure:"enabled"`
 }
 
 //struct for container bgp-mp:graceful-restart
 type MpGracefulRestart struct {
 	// original -> bgp-mp:mp-graceful-restart-config
-	Config MpGracefulRestartConfig
+	Config MpGracefulRestartConfig `mapstructure:"config"`
 	// original -> bgp-mp:mp-graceful-restart-state
-	State MpGracefulRestartState
+	State MpGracefulRestartState `mapstructure:"state"`
 }
 
 //struct for container bgp-mp:afi-safi
 type AfiSafi struct {
 	// original -> bgp-mp:afi-safi-name
 	//bgp-mp:afi-safi-name's original type is identityref
-	AfiSafiName string
+	AfiSafiName string `mapstructure:"afi-safi-name"`
 	// original -> bgp-mp:mp-graceful-restart
-	MpGracefulRestart MpGracefulRestart
+	MpGracefulRestart MpGracefulRestart `mapstructure:"mp-graceful-restart"`
 	// original -> bgp-mp:afi-safi-config
-	Config AfiSafiConfig
+	Config AfiSafiConfig `mapstructure:"config"`
 	// original -> bgp-mp:afi-safi-state
-	State AfiSafiState
+	State AfiSafiState `mapstructure:"state"`
 	// original -> rpol:apply-policy
-	ApplyPolicy ApplyPolicy
+	ApplyPolicy ApplyPolicy `mapstructure:"apply-policy"`
 	// original -> bgp-mp:ipv4-unicast
-	Ipv4Unicast Ipv4Unicast
+	Ipv4Unicast Ipv4Unicast `mapstructure:"ipv4-unicast"`
 	// original -> bgp-mp:ipv6-unicast
-	Ipv6Unicast Ipv6Unicast
+	Ipv6Unicast Ipv6Unicast `mapstructure:"ipv6-unicast"`
 	// original -> bgp-mp:ipv4-labelled-unicast
-	Ipv4LabelledUnicast Ipv4LabelledUnicast
+	Ipv4LabelledUnicast Ipv4LabelledUnicast `mapstructure:"ipv4-labelled-unicast"`
 	// original -> bgp-mp:ipv6-labelled-unicast
-	Ipv6LabelledUnicast Ipv6LabelledUnicast
+	Ipv6LabelledUnicast Ipv6LabelledUnicast `mapstructure:"ipv6-labelled-unicast"`
 	// original -> bgp-mp:l3vpn-ipv4-unicast
-	L3vpnIpv4Unicast L3vpnIpv4Unicast
+	L3vpnIpv4Unicast L3vpnIpv4Unicast `mapstructure:"l3vpn-ipv4-unicast"`
 	// original -> bgp-mp:l3vpn-ipv6-unicast
-	L3vpnIpv6Unicast L3vpnIpv6Unicast
+	L3vpnIpv6Unicast L3vpnIpv6Unicast `mapstructure:"l3vpn-ipv6-unicast"`
 	// original -> bgp-mp:l3vpn-ipv4-multicast
-	L3vpnIpv4Multicast L3vpnIpv4Multicast
+	L3vpnIpv4Multicast L3vpnIpv4Multicast `mapstructure:"l3vpn-ipv4-multicast"`
 	// original -> bgp-mp:l3vpn-ipv6-multicast
-	L3vpnIpv6Multicast L3vpnIpv6Multicast
+	L3vpnIpv6Multicast L3vpnIpv6Multicast `mapstructure:"l3vpn-ipv6-multicast"`
 	// original -> bgp-mp:l2vpn-vpls
-	L2vpnVpls L2vpnVpls
+	L2vpnVpls L2vpnVpls `mapstructure:"l2vpn-vpls"`
 	// original -> bgp-mp:l2vpn-evpn
-	L2vpnEvpn L2vpnEvpn
+	L2vpnEvpn L2vpnEvpn `mapstructure:"l2vpn-evpn"`
 	// original -> bgp-mp:route-selection-options
-	RouteSelectionOptions RouteSelectionOptions
+	RouteSelectionOptions RouteSelectionOptions `mapstructure:"route-selection-options"`
 	// original -> bgp-mp:use-multiple-paths
-	UseMultiplePaths UseMultiplePaths
-}
-
-//struct for container bgp:afi-safis
-type AfiSafis struct {
-	// original -> bgp-mp:afi-safi
-	AfiSafiList []AfiSafi
+	UseMultiplePaths UseMultiplePaths `mapstructure:"use-multiple-paths"`
 }
 
 //struct for container bgp:state
 type GracefulRestartState struct {
 	// original -> bgp:enabled
 	//bgp:enabled's original type is boolean
-	Enabled bool
+	Enabled bool `mapstructure:"enabled"`
 	// original -> bgp:restart-time
-	RestartTime uint16
+	RestartTime uint16 `mapstructure:"restart-time"`
 	// original -> bgp:stale-routes-time
 	//bgp:stale-routes-time's original type is decimal64
-	StaleRoutesTime float64
+	StaleRoutesTime float64 `mapstructure:"stale-routes-time"`
 	// original -> bgp:helper-only
 	//bgp:helper-only's original type is boolean
-	HelperOnly bool
+	HelperOnly bool `mapstructure:"helper-only"`
 	// original -> bgp-op:peer-restart-time
-	PeerRestartTime uint16
+	PeerRestartTime uint16 `mapstructure:"peer-restart-time"`
 	// original -> bgp-op:peer-restarting
 	//bgp-op:peer-restarting's original type is boolean
-	PeerRestarting bool
+	PeerRestarting bool `mapstructure:"peer-restarting"`
 	// original -> bgp-op:local-restarting
 	//bgp-op:local-restarting's original type is boolean
-	LocalRestarting bool
+	LocalRestarting bool `mapstructure:"local-restarting"`
 	// original -> bgp-op:mode
 	//bgp-op:mode's original type is enumeration
-	Mode uint32
+	Mode uint32 `mapstructure:"mode"`
 }
 
 //struct for container bgp:config
 type GracefulRestartConfig struct {
 	// original -> bgp:enabled
 	//bgp:enabled's original type is boolean
-	Enabled bool
+	Enabled bool `mapstructure:"enabled"`
 	// original -> bgp:restart-time
-	RestartTime uint16
+	RestartTime uint16 `mapstructure:"restart-time"`
 	// original -> bgp:stale-routes-time
 	//bgp:stale-routes-time's original type is decimal64
-	StaleRoutesTime float64
+	StaleRoutesTime float64 `mapstructure:"stale-routes-time"`
 	// original -> bgp:helper-only
 	//bgp:helper-only's original type is boolean
-	HelperOnly bool
+	HelperOnly bool `mapstructure:"helper-only"`
 }
 
 //struct for container bgp:graceful-restart
 type GracefulRestart struct {
 	// original -> bgp:graceful-restart-config
-	Config GracefulRestartConfig
+	Config GracefulRestartConfig `mapstructure:"config"`
 	// original -> bgp:graceful-restart-state
-	State GracefulRestartState
+	State GracefulRestartState `mapstructure:"state"`
 }
 
 //struct for container bgp-mp:state
 type IbgpState struct {
 	// original -> bgp-mp:maximum-paths
-	MaximumPaths uint32
+	MaximumPaths uint32 `mapstructure:"maximum-paths"`
 }
 
 //struct for container bgp-mp:config
 type IbgpConfig struct {
 	// original -> bgp-mp:maximum-paths
-	MaximumPaths uint32
+	MaximumPaths uint32 `mapstructure:"maximum-paths"`
 }
 
 //struct for container bgp-mp:ibgp
 type Ibgp struct {
 	// original -> bgp-mp:ibgp-config
-	Config IbgpConfig
+	Config IbgpConfig `mapstructure:"config"`
 	// original -> bgp-mp:ibgp-state
-	State IbgpState
+	State IbgpState `mapstructure:"state"`
 }
 
 //struct for container bgp-mp:state
 type EbgpState struct {
 	// original -> bgp-mp:allow-multiple-as
 	//bgp-mp:allow-multiple-as's original type is boolean
-	AllowMultipleAs bool
+	AllowMultipleAs bool `mapstructure:"allow-multiple-as"`
 	// original -> bgp-mp:maximum-paths
-	MaximumPaths uint32
+	MaximumPaths uint32 `mapstructure:"maximum-paths"`
 }
 
 //struct for container bgp-mp:config
 type EbgpConfig struct {
 	// original -> bgp-mp:allow-multiple-as
 	//bgp-mp:allow-multiple-as's original type is boolean
-	AllowMultipleAs bool
+	AllowMultipleAs bool `mapstructure:"allow-multiple-as"`
 	// original -> bgp-mp:maximum-paths
-	MaximumPaths uint32
+	MaximumPaths uint32 `mapstructure:"maximum-paths"`
 }
 
 //struct for container bgp-mp:ebgp
 type Ebgp struct {
 	// original -> bgp-mp:ebgp-config
-	Config EbgpConfig
+	Config EbgpConfig `mapstructure:"config"`
 	// original -> bgp-mp:ebgp-state
-	State EbgpState
+	State EbgpState `mapstructure:"state"`
 }
 
 //struct for container bgp-mp:state
 type UseMultiplePathsState struct {
 	// original -> bgp-mp:enabled
 	//bgp-mp:enabled's original type is boolean
-	Enabled bool
+	Enabled bool `mapstructure:"enabled"`
 }
 
 //struct for container bgp-mp:config
 type UseMultiplePathsConfig struct {
 	// original -> bgp-mp:enabled
 	//bgp-mp:enabled's original type is boolean
-	Enabled bool
+	Enabled bool `mapstructure:"enabled"`
 }
 
 //struct for container bgp-mp:use-multiple-paths
 type UseMultiplePaths struct {
 	// original -> bgp-mp:use-multiple-paths-config
-	Config UseMultiplePathsConfig
+	Config UseMultiplePathsConfig `mapstructure:"config"`
 	// original -> bgp-mp:use-multiple-paths-state
-	State UseMultiplePathsState
+	State UseMultiplePathsState `mapstructure:"state"`
 	// original -> bgp-mp:ebgp
-	Ebgp Ebgp
+	Ebgp Ebgp `mapstructure:"ebgp"`
 	// original -> bgp-mp:ibgp
-	Ibgp Ibgp
+	Ibgp Ibgp `mapstructure:"ibgp"`
 }
 
 //struct for container bgp:state
 type ConfederationState struct {
 	// original -> bgp:enabled
 	//bgp:enabled's original type is boolean
-	Enabled bool
+	Enabled bool `mapstructure:"enabled"`
 	// original -> bgp:identifier
 	//bgp:identifier's original type is inet:as-number
-	Identifier uint32
+	Identifier uint32 `mapstructure:"identifier"`
 	// original -> bgp:member-as
-	//original type is list of inet:as-number
-	MemberAs []uint32
+	// original type is list of inet:as-number
+	MemberAsList []uint32 `mapstructure:"member-as-list"`
 }
 
 //struct for container bgp:config
 type ConfederationConfig struct {
 	// original -> bgp:enabled
 	//bgp:enabled's original type is boolean
-	Enabled bool
+	Enabled bool `mapstructure:"enabled"`
 	// original -> bgp:identifier
 	//bgp:identifier's original type is inet:as-number
-	Identifier uint32
+	Identifier uint32 `mapstructure:"identifier"`
 	// original -> bgp:member-as
-	//original type is list of inet:as-number
-	MemberAs []uint32
+	// original type is list of inet:as-number
+	MemberAsList []uint32 `mapstructure:"member-as-list"`
 }
 
 //struct for container bgp:confederation
 type Confederation struct {
 	// original -> bgp:confederation-config
-	Config ConfederationConfig
+	Config ConfederationConfig `mapstructure:"config"`
 	// original -> bgp:confederation-state
-	State ConfederationState
+	State ConfederationState `mapstructure:"state"`
 }
 
 //struct for container bgp:state
 type DefaultRouteDistanceState struct {
 	// original -> bgp:external-route-distance
-	ExternalRouteDistance uint8
+	ExternalRouteDistance uint8 `mapstructure:"external-route-distance"`
 	// original -> bgp:internal-route-distance
-	InternalRouteDistance uint8
+	InternalRouteDistance uint8 `mapstructure:"internal-route-distance"`
 }
 
 //struct for container bgp:config
 type DefaultRouteDistanceConfig struct {
 	// original -> bgp:external-route-distance
-	ExternalRouteDistance uint8
+	ExternalRouteDistance uint8 `mapstructure:"external-route-distance"`
 	// original -> bgp:internal-route-distance
-	InternalRouteDistance uint8
+	InternalRouteDistance uint8 `mapstructure:"internal-route-distance"`
 }
 
 //struct for container bgp:default-route-distance
 type DefaultRouteDistance struct {
 	// original -> bgp:default-route-distance-config
-	Config DefaultRouteDistanceConfig
+	Config DefaultRouteDistanceConfig `mapstructure:"config"`
 	// original -> bgp:default-route-distance-state
-	State DefaultRouteDistanceState
+	State DefaultRouteDistanceState `mapstructure:"state"`
 }
 
 //struct for container bgp-mp:state
 type RouteSelectionOptionsState struct {
 	// original -> bgp-mp:always-compare-med
 	//bgp-mp:always-compare-med's original type is boolean
-	AlwaysCompareMed bool
+	AlwaysCompareMed bool `mapstructure:"always-compare-med"`
 	// original -> bgp-mp:ignore-as-path-length
 	//bgp-mp:ignore-as-path-length's original type is boolean
-	IgnoreAsPathLength bool
+	IgnoreAsPathLength bool `mapstructure:"ignore-as-path-length"`
 	// original -> bgp-mp:external-compare-router-id
 	//bgp-mp:external-compare-router-id's original type is boolean
-	ExternalCompareRouterId bool
+	ExternalCompareRouterId bool `mapstructure:"external-compare-router-id"`
 	// original -> bgp-mp:advertise-inactive-routes
 	//bgp-mp:advertise-inactive-routes's original type is boolean
-	AdvertiseInactiveRoutes bool
+	AdvertiseInactiveRoutes bool `mapstructure:"advertise-inactive-routes"`
 	// original -> bgp-mp:enable-aigp
 	//bgp-mp:enable-aigp's original type is boolean
-	EnableAigp bool
+	EnableAigp bool `mapstructure:"enable-aigp"`
 	// original -> bgp-mp:ignore-next-hop-igp-metric
 	//bgp-mp:ignore-next-hop-igp-metric's original type is boolean
-	IgnoreNextHopIgpMetric bool
+	IgnoreNextHopIgpMetric bool `mapstructure:"ignore-next-hop-igp-metric"`
 }
 
 //struct for container bgp-mp:config
 type RouteSelectionOptionsConfig struct {
 	// original -> bgp-mp:always-compare-med
 	//bgp-mp:always-compare-med's original type is boolean
-	AlwaysCompareMed bool
+	AlwaysCompareMed bool `mapstructure:"always-compare-med"`
 	// original -> bgp-mp:ignore-as-path-length
 	//bgp-mp:ignore-as-path-length's original type is boolean
-	IgnoreAsPathLength bool
+	IgnoreAsPathLength bool `mapstructure:"ignore-as-path-length"`
 	// original -> bgp-mp:external-compare-router-id
 	//bgp-mp:external-compare-router-id's original type is boolean
-	ExternalCompareRouterId bool
+	ExternalCompareRouterId bool `mapstructure:"external-compare-router-id"`
 	// original -> bgp-mp:advertise-inactive-routes
 	//bgp-mp:advertise-inactive-routes's original type is boolean
-	AdvertiseInactiveRoutes bool
+	AdvertiseInactiveRoutes bool `mapstructure:"advertise-inactive-routes"`
 	// original -> bgp-mp:enable-aigp
 	//bgp-mp:enable-aigp's original type is boolean
-	EnableAigp bool
+	EnableAigp bool `mapstructure:"enable-aigp"`
 	// original -> bgp-mp:ignore-next-hop-igp-metric
 	//bgp-mp:ignore-next-hop-igp-metric's original type is boolean
-	IgnoreNextHopIgpMetric bool
+	IgnoreNextHopIgpMetric bool `mapstructure:"ignore-next-hop-igp-metric"`
 }
 
 //struct for container bgp-mp:route-selection-options
 type RouteSelectionOptions struct {
 	// original -> bgp-mp:route-selection-options-config
-	Config RouteSelectionOptionsConfig
+	Config RouteSelectionOptionsConfig `mapstructure:"config"`
 	// original -> bgp-mp:route-selection-options-state
-	State RouteSelectionOptionsState
+	State RouteSelectionOptionsState `mapstructure:"state"`
 }
 
 //struct for container bgp:state
 type GlobalState struct {
 	// original -> bgp:as
 	//bgp:as's original type is inet:as-number
-	As uint32
+	As uint32 `mapstructure:"as"`
 	// original -> bgp:router-id
 	//bgp:router-id's original type is inet:ipv4-address
-	RouterId string
+	RouterId string `mapstructure:"router-id"`
 	// original -> bgp-op:total-paths
-	TotalPaths uint32
+	TotalPaths uint32 `mapstructure:"total-paths"`
 	// original -> bgp-op:total-prefixes
-	TotalPrefixes uint32
+	TotalPrefixes uint32 `mapstructure:"total-prefixes"`
 }
 
 //struct for container bgp:config
 type GlobalConfig struct {
 	// original -> bgp:as
 	//bgp:as's original type is inet:as-number
-	As uint32
+	As uint32 `mapstructure:"as"`
 	// original -> bgp:router-id
 	//bgp:router-id's original type is inet:ipv4-address
-	RouterId string
+	RouterId string `mapstructure:"router-id"`
 }
 
 //struct for container bgp:global
 type Global struct {
 	// original -> bgp:global-config
-	Config GlobalConfig
+	Config GlobalConfig `mapstructure:"config"`
 	// original -> bgp:global-state
-	State GlobalState
+	State GlobalState `mapstructure:"state"`
 	// original -> bgp-mp:route-selection-options
-	RouteSelectionOptions RouteSelectionOptions
+	RouteSelectionOptions RouteSelectionOptions `mapstructure:"route-selection-options"`
 	// original -> bgp:default-route-distance
-	DefaultRouteDistance DefaultRouteDistance
+	DefaultRouteDistance DefaultRouteDistance `mapstructure:"default-route-distance"`
 	// original -> bgp:confederation
-	Confederation Confederation
+	Confederation Confederation `mapstructure:"confederation"`
 	// original -> bgp-mp:use-multiple-paths
-	UseMultiplePaths UseMultiplePaths
+	UseMultiplePaths UseMultiplePaths `mapstructure:"use-multiple-paths"`
 	// original -> bgp:graceful-restart
-	GracefulRestart GracefulRestart
+	GracefulRestart GracefulRestart `mapstructure:"graceful-restart"`
 	// original -> bgp:afi-safis
-	AfiSafis AfiSafis
+	AfiSafis []AfiSafi `mapstructure:"afi-safis"`
 	// original -> rpol:apply-policy
-	ApplyPolicy ApplyPolicy
+	ApplyPolicy ApplyPolicy `mapstructure:"apply-policy"`
 	// original -> gobgp:mrt
-	Mrt Mrt
+	Mrt Mrt `mapstructure:"mrt"`
 	// original -> gobgp:zebra
-	Zebra Zebra
+	Zebra Zebra `mapstructure:"zebra"`
 	// original -> gobgp:mpls-label-range
-	MplsLabelRange MplsLabelRange
+	MplsLabelRange MplsLabelRange `mapstructure:"mpls-label-range"`
 	// original -> gobgp:listen-config
-	ListenConfig ListenConfig
+	ListenConfig ListenConfig `mapstructure:"listen-config"`
 }
 
 //struct for container bgp:bgp
 type Bgp struct {
 	// original -> bgp:global
-	Global Global
+	Global Global `mapstructure:"global"`
 	// original -> bgp:neighbors
-	Neighbors Neighbors
+	Neighbors []Neighbor `mapstructure:"neighbors"`
 	// original -> bgp:peer-groups
-	PeerGroups PeerGroups
+	PeerGroups []PeerGroup `mapstructure:"peer-groups"`
 	// original -> gobgp:rpki-servers
-	RpkiServers RpkiServers
+	RpkiServers []RpkiServer `mapstructure:"rpki-servers"`
 	// original -> gobgp:bmp-servers
-	BmpServers BmpServers
+	BmpServers []BmpServer `mapstructure:"bmp-servers"`
 }
 
 //struct for container bgp-pol:set-ext-community-method
 type SetExtCommunityMethod struct {
 	// original -> bgp-pol:communities
-	//original type is list of union
-	Communities []string
+	// original type is list of union
+	CommunitiesList []string `mapstructure:"communities-list"`
 	// original -> bgp-pol:ext-community-set-ref
-	ExtCommunitySetRef string
+	ExtCommunitySetRef string `mapstructure:"ext-community-set-ref"`
 }
 
 //struct for container bgp-pol:set-ext-community
 type SetExtCommunity struct {
 	// original -> bgp-pol:set-ext-community-method
-	SetExtCommunityMethod SetExtCommunityMethod
+	SetExtCommunityMethod SetExtCommunityMethod `mapstructure:"set-ext-community-method"`
 	// original -> bgp-pol:options
 	//bgp-pol:options's original type is bgp-set-community-option-type
-	Options string
+	Options string `mapstructure:"options"`
 }
 
 //struct for container bgp-pol:set-community-method
 type SetCommunityMethod struct {
 	// original -> bgp-pol:communities
-	//original type is list of union
-	Communities []string
+	// original type is list of union
+	CommunitiesList []string `mapstructure:"communities-list"`
 	// original -> bgp-pol:community-set-ref
-	CommunitySetRef string
+	CommunitySetRef string `mapstructure:"community-set-ref"`
 }
 
 //struct for container bgp-pol:set-community
 type SetCommunity struct {
 	// original -> bgp-pol:set-community-method
-	SetCommunityMethod SetCommunityMethod
+	SetCommunityMethod SetCommunityMethod `mapstructure:"set-community-method"`
 	// original -> bgp-pol:options
 	//bgp-pol:options's original type is bgp-set-community-option-type
-	Options string
+	Options string `mapstructure:"options"`
 }
 
 //struct for container bgp-pol:set-as-path-prepend
 type SetAsPathPrepend struct {
 	// original -> bgp-pol:repeat-n
-	RepeatN uint8
+	RepeatN uint8 `mapstructure:"repeat-n"`
 	// original -> gobgp:as
 	//gobgp:as's original type is union
-	As string
+	As string `mapstructure:"as"`
 }
 
 //struct for container bgp-pol:bgp-actions
 type BgpActions struct {
 	// original -> bgp-pol:set-as-path-prepend
-	SetAsPathPrepend SetAsPathPrepend
+	SetAsPathPrepend SetAsPathPrepend `mapstructure:"set-as-path-prepend"`
 	// original -> bgp-pol:set-community
-	SetCommunity SetCommunity
+	SetCommunity SetCommunity `mapstructure:"set-community"`
 	// original -> bgp-pol:set-ext-community
-	SetExtCommunity SetExtCommunity
+	SetExtCommunity SetExtCommunity `mapstructure:"set-ext-community"`
 	// original -> bgp-pol:set-route-origin
-	SetRouteOrigin BgpOriginAttrType
+	SetRouteOrigin BgpOriginAttrType `mapstructure:"set-route-origin"`
 	// original -> bgp-pol:set-local-pref
-	SetLocalPref uint32
+	SetLocalPref uint32 `mapstructure:"set-local-pref"`
 	// original -> bgp-pol:set-next-hop
-	SetNextHop BgpNextHopType
+	SetNextHop BgpNextHopType `mapstructure:"set-next-hop"`
 	// original -> bgp-pol:set-med
-	SetMed BgpSetMedType
+	SetMed BgpSetMedType `mapstructure:"set-med"`
 }
 
 //struct for container rpol:igp-actions
 type IgpActions struct {
 	// original -> rpol:set-tag
-	SetTag TagType
+	SetTag TagType `mapstructure:"set-tag"`
 }
 
 //struct for container rpol:route-disposition
 type RouteDisposition struct {
 	// original -> rpol:accept-route
 	//rpol:accept-route's original type is empty
-	AcceptRoute bool
+	AcceptRoute bool `mapstructure:"accept-route"`
 	// original -> rpol:reject-route
 	//rpol:reject-route's original type is empty
-	RejectRoute bool
+	RejectRoute bool `mapstructure:"reject-route"`
 }
 
 //struct for container rpol:actions
 type Actions struct {
 	// original -> rpol:route-disposition
-	RouteDisposition RouteDisposition
+	RouteDisposition RouteDisposition `mapstructure:"route-disposition"`
 	// original -> rpol:igp-actions
-	IgpActions IgpActions
+	IgpActions IgpActions `mapstructure:"igp-actions"`
 	// original -> bgp-pol:bgp-actions
-	BgpActions BgpActions
+	BgpActions BgpActions `mapstructure:"bgp-actions"`
 }
 
 //struct for container bgp-pol:as-path-length
 type AsPathLength struct {
 	// original -> ptypes:operator
-	Operator string
+	Operator string `mapstructure:"operator"`
 	// original -> ptypes:value
-	Value uint32
+	Value uint32 `mapstructure:"value"`
 }
 
 //struct for container bgp-pol:community-count
 type CommunityCount struct {
 	// original -> ptypes:operator
-	Operator string
+	Operator string `mapstructure:"operator"`
 	// original -> ptypes:value
-	Value uint32
+	Value uint32 `mapstructure:"value"`
 }
 
 //struct for container bgp-pol:match-as-path-set
 type MatchAsPathSet struct {
 	// original -> bgp-pol:as-path-set
-	AsPathSet string
+	AsPathSet string `mapstructure:"as-path-set"`
 	// original -> rpol:match-set-options
-	MatchSetOptions MatchSetOptionsType
+	MatchSetOptions MatchSetOptionsType `mapstructure:"match-set-options"`
 }
 
 //struct for container bgp-pol:match-ext-community-set
 type MatchExtCommunitySet struct {
 	// original -> bgp-pol:ext-community-set
-	ExtCommunitySet string
+	ExtCommunitySet string `mapstructure:"ext-community-set"`
 	// original -> rpol:match-set-options
-	MatchSetOptions MatchSetOptionsType
+	MatchSetOptions MatchSetOptionsType `mapstructure:"match-set-options"`
 }
 
 //struct for container bgp-pol:match-community-set
 type MatchCommunitySet struct {
 	// original -> bgp-pol:community-set
-	CommunitySet string
+	CommunitySet string `mapstructure:"community-set"`
 	// original -> rpol:match-set-options
-	MatchSetOptions MatchSetOptionsType
+	MatchSetOptions MatchSetOptionsType `mapstructure:"match-set-options"`
 }
 
 //struct for container bgp-pol:bgp-conditions
 type BgpConditions struct {
 	// original -> bgp-pol:match-community-set
-	MatchCommunitySet MatchCommunitySet
+	MatchCommunitySet MatchCommunitySet `mapstructure:"match-community-set"`
 	// original -> bgp-pol:match-ext-community-set
-	MatchExtCommunitySet MatchExtCommunitySet
+	MatchExtCommunitySet MatchExtCommunitySet `mapstructure:"match-ext-community-set"`
 	// original -> bgp-pol:match-as-path-set
-	MatchAsPathSet MatchAsPathSet
+	MatchAsPathSet MatchAsPathSet `mapstructure:"match-as-path-set"`
 	// original -> bgp-pol:med-eq
-	MedEq uint32
+	MedEq uint32 `mapstructure:"med-eq"`
 	// original -> bgp-pol:origin-eq
-	OriginEq BgpOriginAttrType
+	OriginEq BgpOriginAttrType `mapstructure:"origin-eq"`
 	// original -> bgp-pol:next-hop-in
-	//original type is list of inet:ip-address
-	NextHopIn []string
+	// original type is list of inet:ip-address
+	NextHopInList []string `mapstructure:"next-hop-in-list"`
 	// original -> bgp-pol:afi-safi-in
-	//original type is list of identityref
-	AfiSafiIn []string
+	// original type is list of identityref
+	AfiSafiInList []string `mapstructure:"afi-safi-in-list"`
 	// original -> bgp-pol:local-pref-eq
-	LocalPrefEq uint32
+	LocalPrefEq uint32 `mapstructure:"local-pref-eq"`
 	// original -> bgp-pol:community-count
-	CommunityCount CommunityCount
+	CommunityCount CommunityCount `mapstructure:"community-count"`
 	// original -> bgp-pol:as-path-length
-	AsPathLength AsPathLength
+	AsPathLength AsPathLength `mapstructure:"as-path-length"`
 	// original -> bgp-pol:route-type
 	//bgp-pol:route-type's original type is enumeration
-	RouteType uint32
+	RouteType uint32 `mapstructure:"route-type"`
 	// original -> gobgp:rpki-validation-result
-	RpkiValidationResult RpkiValidationResultType
+	RpkiValidationResult RpkiValidationResultType `mapstructure:"rpki-validation-result"`
 }
 
 //struct for container rpol:igp-conditions
@@ -1870,201 +1840,153 @@ type IgpConditions struct {
 //struct for container rpol:match-tag-set
 type MatchTagSet struct {
 	// original -> rpol:tag-set
-	TagSet string
+	TagSet string `mapstructure:"tag-set"`
 	// original -> rpol:match-set-options
-	MatchSetOptions MatchSetOptionsRestrictedType
+	MatchSetOptions MatchSetOptionsRestrictedType `mapstructure:"match-set-options"`
 }
 
 //struct for container rpol:match-neighbor-set
 type MatchNeighborSet struct {
 	// original -> rpol:neighbor-set
-	NeighborSet string
+	NeighborSet string `mapstructure:"neighbor-set"`
 	// original -> rpol:match-set-options
-	MatchSetOptions MatchSetOptionsRestrictedType
+	MatchSetOptions MatchSetOptionsRestrictedType `mapstructure:"match-set-options"`
 }
 
 //struct for container rpol:match-prefix-set
 type MatchPrefixSet struct {
 	// original -> rpol:prefix-set
-	PrefixSet string
+	PrefixSet string `mapstructure:"prefix-set"`
 	// original -> rpol:match-set-options
-	MatchSetOptions MatchSetOptionsRestrictedType
+	MatchSetOptions MatchSetOptionsRestrictedType `mapstructure:"match-set-options"`
 }
 
 //struct for container rpol:conditions
 type Conditions struct {
 	// original -> rpol:call-policy
-	CallPolicy string
+	CallPolicy string `mapstructure:"call-policy"`
 	// original -> rpol:match-prefix-set
-	MatchPrefixSet MatchPrefixSet
+	MatchPrefixSet MatchPrefixSet `mapstructure:"match-prefix-set"`
 	// original -> rpol:match-neighbor-set
-	MatchNeighborSet MatchNeighborSet
+	MatchNeighborSet MatchNeighborSet `mapstructure:"match-neighbor-set"`
 	// original -> rpol:match-tag-set
-	MatchTagSet MatchTagSet
+	MatchTagSet MatchTagSet `mapstructure:"match-tag-set"`
 	// original -> rpol:install-protocol-eq
-	InstallProtocolEq string
+	InstallProtocolEq string `mapstructure:"install-protocol-eq"`
 	// original -> rpol:igp-conditions
-	IgpConditions IgpConditions
+	IgpConditions IgpConditions `mapstructure:"igp-conditions"`
 	// original -> bgp-pol:bgp-conditions
-	BgpConditions BgpConditions
+	BgpConditions BgpConditions `mapstructure:"bgp-conditions"`
 }
 
 //struct for container rpol:statement
 type Statement struct {
 	// original -> rpol:name
-	Name string
+	Name string `mapstructure:"name"`
 	// original -> rpol:conditions
-	Conditions Conditions
+	Conditions Conditions `mapstructure:"conditions"`
 	// original -> rpol:actions
-	Actions Actions
-}
-
-//struct for container rpol:statements
-type Statements struct {
-	// original -> rpol:statement
-	StatementList []Statement
+	Actions Actions `mapstructure:"actions"`
 }
 
 //struct for container rpol:policy-definition
 type PolicyDefinition struct {
 	// original -> rpol:name
-	Name string
+	Name string `mapstructure:"name"`
 	// original -> rpol:statements
-	Statements Statements
-}
-
-//struct for container rpol:policy-definitions
-type PolicyDefinitions struct {
-	// original -> rpol:policy-definition
-	PolicyDefinitionList []PolicyDefinition
+	Statements []Statement `mapstructure:"statements"`
 }
 
 //struct for container bgp-pol:as-path-set
 type AsPathSet struct {
 	// original -> bgp-pol:as-path-set-name
-	AsPathSetName string
+	AsPathSetName string `mapstructure:"as-path-set-name"`
 	// original -> gobgp:as-path
-	AsPath []string
-}
-
-//struct for container bgp-pol:as-path-sets
-type AsPathSets struct {
-	// original -> bgp-pol:as-path-set
-	AsPathSetList []AsPathSet
+	AsPathList []string `mapstructure:"as-path-list"`
 }
 
 //struct for container bgp-pol:ext-community-set
 type ExtCommunitySet struct {
 	// original -> bgp-pol:ext-community-set-name
-	ExtCommunitySetName string
+	ExtCommunitySetName string `mapstructure:"ext-community-set-name"`
 	// original -> gobgp:ext-community
-	ExtCommunity []string
-}
-
-//struct for container bgp-pol:ext-community-sets
-type ExtCommunitySets struct {
-	// original -> bgp-pol:ext-community-set
-	ExtCommunitySetList []ExtCommunitySet
+	ExtCommunityList []string `mapstructure:"ext-community-list"`
 }
 
 //struct for container bgp-pol:community-set
 type CommunitySet struct {
 	// original -> bgp-pol:community-set-name
-	CommunitySetName string
+	CommunitySetName string `mapstructure:"community-set-name"`
 	// original -> gobgp:community
-	Community []string
-}
-
-//struct for container bgp-pol:community-sets
-type CommunitySets struct {
-	// original -> bgp-pol:community-set
-	CommunitySetList []CommunitySet
+	CommunityList []string `mapstructure:"community-list"`
 }
 
 //struct for container bgp-pol:bgp-defined-sets
 type BgpDefinedSets struct {
 	// original -> bgp-pol:community-sets
-	CommunitySets CommunitySets
+	CommunitySets []CommunitySet `mapstructure:"community-sets"`
 	// original -> bgp-pol:ext-community-sets
-	ExtCommunitySets ExtCommunitySets
+	ExtCommunitySets []ExtCommunitySet `mapstructure:"ext-community-sets"`
 	// original -> bgp-pol:as-path-sets
-	AsPathSets AsPathSets
+	AsPathSets []AsPathSet `mapstructure:"as-path-sets"`
 }
 
 //struct for container rpol:tag
 type Tag struct {
 	// original -> rpol:value
-	Value TagType
+	Value TagType `mapstructure:"value"`
 }
 
 //struct for container rpol:tag-set
 type TagSet struct {
 	// original -> rpol:tag-set-name
-	TagSetName string
+	TagSetName string `mapstructure:"tag-set-name"`
 	// original -> rpol:tag
-	TagList []Tag
-}
-
-//struct for container rpol:tag-sets
-type TagSets struct {
-	// original -> rpol:tag-set
-	TagSetList []TagSet
+	TagList []Tag `mapstructure:"tag-list"`
 }
 
 //struct for container rpol:neighbor-set
 type NeighborSet struct {
 	// original -> rpol:neighbor-set-name
-	NeighborSetName string
+	NeighborSetName string `mapstructure:"neighbor-set-name"`
 	// original -> gobgp:neighbor-info
-	//original type is list of inet:ip-address
-	NeighborInfo []string
-}
-
-//struct for container rpol:neighbor-sets
-type NeighborSets struct {
-	// original -> rpol:neighbor-set
-	NeighborSetList []NeighborSet
+	// original type is list of inet:ip-address
+	NeighborInfoList []string `mapstructure:"neighbor-info-list"`
 }
 
 //struct for container rpol:prefix
 type Prefix struct {
 	// original -> rpol:ip-prefix
 	//rpol:ip-prefix's original type is inet:ip-prefix
-	IpPrefix string
+	IpPrefix string `mapstructure:"ip-prefix"`
 	// original -> rpol:masklength-range
-	MasklengthRange string
+	MasklengthRange string `mapstructure:"masklength-range"`
 }
 
 //struct for container rpol:prefix-set
 type PrefixSet struct {
 	// original -> rpol:prefix-set-name
-	PrefixSetName string
+	PrefixSetName string `mapstructure:"prefix-set-name"`
 	// original -> rpol:prefix
-	PrefixList []Prefix
-}
-
-//struct for container rpol:prefix-sets
-type PrefixSets struct {
-	// original -> rpol:prefix-set
-	PrefixSetList []PrefixSet
+	PrefixList []Prefix `mapstructure:"prefix-list"`
 }
 
 //struct for container rpol:defined-sets
 type DefinedSets struct {
 	// original -> rpol:prefix-sets
-	PrefixSets PrefixSets
+	PrefixSets []PrefixSet `mapstructure:"prefix-sets"`
 	// original -> rpol:neighbor-sets
-	NeighborSets NeighborSets
+	NeighborSets []NeighborSet `mapstructure:"neighbor-sets"`
 	// original -> rpol:tag-sets
-	TagSets TagSets
+	TagSets []TagSet `mapstructure:"tag-sets"`
 	// original -> bgp-pol:bgp-defined-sets
-	BgpDefinedSets BgpDefinedSets
+	BgpDefinedSets BgpDefinedSets `mapstructure:"bgp-defined-sets"`
 }
 
 //struct for container rpol:routing-policy
 type RoutingPolicy struct {
 	// original -> rpol:defined-sets
-	DefinedSets DefinedSets
+	DefinedSets DefinedSets `mapstructure:"defined-sets"`
 	// original -> rpol:policy-definitions
-	PolicyDefinitions PolicyDefinitions
+	PolicyDefinitions []PolicyDefinition `mapstructure:"policy-definitions"`
 }

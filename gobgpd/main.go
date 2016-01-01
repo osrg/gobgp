@@ -187,7 +187,7 @@ func main() {
 				bgpConfig = &newConfig.Bgp
 				bgpServer.SetRpkiConfig(newConfig.Bgp.RpkiServers)
 				bgpServer.SetBmpConfig(newConfig.Bgp.BmpServers)
-				added = newConfig.Bgp.Neighbors.NeighborList
+				added = newConfig.Bgp.Neighbors
 				deleted = []config.Neighbor{}
 				updated = []config.Neighbor{}
 			} else {

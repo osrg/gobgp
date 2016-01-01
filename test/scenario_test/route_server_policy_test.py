@@ -99,22 +99,22 @@ class ImportPolicy(object):
         q1 = env.q1
         q2 = env.q2
 
-        p0 = {'IpPrefix': '192.168.0.0/16',
-              'MasklengthRange': '16..24'}
+        p0 = {'ip-prefix': '192.168.0.0/16',
+              'masklength-range': '16..24'}
 
-        ps0 = {'PrefixSetName': 'ps0',
-               'PrefixList': [p0]}
+        ps0 = {'prefix-set-name': 'ps0',
+               'prefix-list': [p0]}
         g1.set_prefix_set(ps0)
 
-        ns0 = {'NeighborSetName': 'ns0',
-               'NeighborInfo': [g1.peers[e1]['neigh_addr'].split('/')[0]]}
+        ns0 = {'neighbor-set-name': 'ns0',
+               'neighbor-info-list': [g1.peers[e1]['neigh_addr'].split('/')[0]]}
         g1.set_neighbor_set(ns0)
 
-        st0 = {'Name': 'st0',
-               'Conditions': {
-                'MatchPrefixSet': {'PrefixSet': ps0['PrefixSetName']},
-                'MatchNeighborSet': {'NeighborSet': ns0['NeighborSetName']}},
-               'Actions': {'RouteDisposition': {'AcceptRoute': False}}}
+        st0 = {'name': 'st0',
+               'conditions': {
+                'match-prefix-set': {'prefix-set': ps0['prefix-set-name']},
+                'match-neighbor-set': {'neighbor-set': ns0['neighbor-set-name']}},
+               'actions': {'route-disposition': {'accept-route': False}}}
 
         policy = {'name': 'policy0',
                   'type': 'import',
@@ -166,22 +166,22 @@ class ExportPolicy(object):
         q1 = env.q1
         q2 = env.q2
 
-        p0 = {'IpPrefix': '192.168.0.0/16',
-              'MasklengthRange': '16..24'}
+        p0 = {'ip-prefix': '192.168.0.0/16',
+              'masklength-range': '16..24'}
 
-        ps0 = {'PrefixSetName': 'ps0',
-               'PrefixList': [p0]}
+        ps0 = {'prefix-set-name': 'ps0',
+               'prefix-list': [p0]}
         g1.set_prefix_set(ps0)
 
-        ns0 = {'NeighborSetName': 'ns0',
-               'NeighborInfo': [g1.peers[q2]['neigh_addr'].split('/')[0]]}
+        ns0 = {'neighbor-set-name': 'ns0',
+               'neighbor-info-list': [g1.peers[q2]['neigh_addr'].split('/')[0]]}
         g1.set_neighbor_set(ns0)
 
-        st0 = {'Name': 'st0',
-               'Conditions': {
-                'MatchPrefixSet': {'PrefixSet': ps0['PrefixSetName']},
-                'MatchNeighborSet': {'NeighborSet': ns0['NeighborSetName']}},
-               'Actions': {'RouteDisposition': {'AcceptRoute': False}}}
+        st0 = {'name': 'st0',
+               'conditions': {
+                'match-prefix-set': {'prefix-set': ps0['prefix-set-name']},
+                'match-neighbor-set': {'neighbor-set': ns0['neighbor-set-name']}},
+               'actions': {'route-disposition': {'accept-route': False}}}
 
         policy = {'name': 'policy0',
                   'type': 'export',
@@ -253,22 +253,22 @@ class ImportPolicyUpdate(object):
         q1 = env.q1
         q2 = env.q2
 
-        p0 = {'IpPrefix': '192.168.20.0/24'}
-        p1 = {'IpPrefix': '192.168.200.0/24'}
+        p0 = {'ip-prefix': '192.168.20.0/24'}
+        p1 = {'ip-prefix': '192.168.200.0/24'}
 
-        ps0 = {'PrefixSetName': 'ps0',
-               'PrefixList': [p0, p1]}
+        ps0 = {'prefix-set-name': 'ps0',
+               'prefix-list': [p0, p1]}
         g1.set_prefix_set(ps0)
 
-        ns0 = {'NeighborSetName': 'ns0',
-               'NeighborInfo': [g1.peers[e1]['neigh_addr'].split('/')[0]]}
+        ns0 = {'neighbor-set-name': 'ns0',
+               'neighbor-info-list': [g1.peers[e1]['neigh_addr'].split('/')[0]]}
         g1.set_neighbor_set(ns0)
 
-        st0 = {'Name': 'st0',
-               'Conditions': {
-                'MatchPrefixSet': {'PrefixSet': ps0['PrefixSetName']},
-                'MatchNeighborSet': {'NeighborSet': ns0['NeighborSetName']}},
-               'Actions': {'RouteDisposition': {'AcceptRoute': False}}}
+        st0 = {'name': 'st0',
+               'conditions': {
+                'match-prefix-set': {'prefix-set': ps0['prefix-set-name']},
+                'match-neighbor-set': {'neighbor-set': ns0['neighbor-set-name']}},
+               'actions': {'route-disposition': {'accept-route': False}}}
 
         policy = {'name': 'policy0',
                   'type': 'import',
@@ -303,20 +303,20 @@ class ImportPolicyUpdate(object):
         q2 = env.q2
         g1.clear_policy()
 
-        p0 = {'IpPrefix': '192.168.20.0/24'}
+        p0 = {'ip-prefix': '192.168.20.0/24'}
 
-        ps0 = {'PrefixSetName': 'ps0',
-               'PrefixList': [p0]}
+        ps0 = {'prefix-set-name': 'ps0',
+               'prefix-list': [p0]}
         g1.set_prefix_set(ps0)
 
-        ns0 = {'NeighborSetName': 'ns0',
-               'NeighborInfo': [g1.peers[e1]['neigh_addr'].split('/')[0]]}
+        ns0 = {'neighbor-set-name': 'ns0',
+               'neighbor-info-list': [g1.peers[e1]['neigh_addr'].split('/')[0]]}
         g1.set_neighbor_set(ns0)
 
-        st0 = {'Name': 'st0',
-               'Conditions': {'MatchPrefixSet': {'PrefixSet': ps0['PrefixSetName']},
-                              'MatchNeighborSet': {'NeighborSet': ns0['NeighborSetName']}},
-               'Actions': {'RouteDisposition': {'AcceptRoute': False}}}
+        st0 = {'name': 'st0',
+               'conditions': {'match-prefix-set': {'prefix-set': ps0['prefix-set-name']},
+                              'match-neighbor-set': {'neighbor-set': ns0['neighbor-set-name']}},
+               'actions': {'route-disposition': {'accept-route': False}}}
 
         policy = {'name': 'policy0',
                   'type': 'import',
@@ -383,21 +383,21 @@ class ExportPolicyUpdate(object):
         e1 = env.e1
         q1 = env.q1
         q2 = env.q2
-        p0 = {'IpPrefix': '192.168.20.0/24'}
-        p1 = {'IpPrefix': '192.168.200.0/24'}
+        p0 = {'ip-prefix': '192.168.20.0/24'}
+        p1 = {'ip-prefix': '192.168.200.0/24'}
 
-        ps0 = {'PrefixSetName': 'ps0',
-               'PrefixList': [p0, p1]}
+        ps0 = {'prefix-set-name': 'ps0',
+               'prefix-list': [p0, p1]}
         g1.set_prefix_set(ps0)
 
-        ns0 = {'NeighborSetName': 'ns0',
-               'NeighborInfo': [g1.peers[q2]['neigh_addr'].split('/')[0]]}
+        ns0 = {'neighbor-set-name': 'ns0',
+               'neighbor-info-list': [g1.peers[q2]['neigh_addr'].split('/')[0]]}
         g1.set_neighbor_set(ns0)
 
-        st0 = {'Name': 'st0',
-               'Conditions': {'MatchPrefixSet': {'PrefixSet': ps0['PrefixSetName']},
-                              'MatchNeighborSet': {'NeighborSet': ns0['NeighborSetName']}},
-               'Actions': {'RouteDisposition': {'AcceptRoute': False}}}
+        st0 = {'name': 'st0',
+               'conditions': {'match-prefix-set': {'prefix-set': ps0['prefix-set-name']},
+                              'match-neighbor-set': {'neighbor-set': ns0['neighbor-set-name']}},
+               'actions': {'route-disposition': {'accept-route': False}}}
 
         policy = {'name': 'policy0',
                   'type': 'export',
@@ -432,20 +432,20 @@ class ExportPolicyUpdate(object):
         q2 = env.q2
         g1.clear_policy()
 
-        p0 = {'IpPrefix': '192.168.20.0/24'}
+        p0 = {'ip-prefix': '192.168.20.0/24'}
 
-        ps0 = {'PrefixSetName': 'ps0',
-               'PrefixList': [p0]}
+        ps0 = {'prefix-set-name': 'ps0',
+               'prefix-list': [p0]}
         g1.set_prefix_set(ps0)
 
-        ns0 = {'NeighborSetName': 'ns0',
-               'NeighborInfo': [g1.peers[q2]['neigh_addr'].split('/')[0]]}
+        ns0 = {'neighbor-set-name': 'ns0',
+               'neighbor-info-list': [g1.peers[q2]['neigh_addr'].split('/')[0]]}
         g1.set_neighbor_set(ns0)
 
-        st0 = {'Name': 'st0',
-               'Conditions': {'MatchPrefixSet': {'PrefixSet': ps0['PrefixSetName']},
-                              'MatchNeighborSet': {'NeighborSet': ns0['NeighborSetName']}},
-               'Actions': {'RouteDisposition': {'AcceptRoute': False}}}
+        st0 = {'name': 'st0',
+               'conditions': {'match-prefix-set': {'prefix-set': ps0['prefix-set-name']},
+                              'match-neighbor-set': {'neighbor-set': ns0['neighbor-set-name']}},
+               'actions': {'route-disposition': {'accept-route': False}}}
 
         policy = {'name': 'policy0',
                   'type': 'export',
@@ -527,22 +527,22 @@ class ImportPolicyIPV6(object):
         q1 = env.q1
         q2 = env.q2
 
-        p0 = {'IpPrefix': '2001::/32',
-              'MasklengthRange': '64..128'}
+        p0 = {'ip-prefix': '2001::/32',
+              'masklength-range': '64..128'}
 
-        ps0 = {'PrefixSetName': 'ps0',
-               'PrefixList': [p0]}
+        ps0 = {'prefix-set-name': 'ps0',
+               'prefix-list': [p0]}
         g1.set_prefix_set(ps0)
 
-        ns0 = {'NeighborSetName': 'ns0',
-               'NeighborInfo': [g1.peers[e1]['neigh_addr'].split('/')[0]]}
+        ns0 = {'neighbor-set-name': 'ns0',
+               'neighbor-info-list': [g1.peers[e1]['neigh_addr'].split('/')[0]]}
         g1.set_neighbor_set(ns0)
 
-        st0 = {'Name': 'st0',
-               'Conditions': {
-                'MatchPrefixSet': {'PrefixSet': ps0['PrefixSetName']},
-                'MatchNeighborSet': {'NeighborSet': ns0['NeighborSetName']}},
-               'Actions': {'RouteDisposition': {'AcceptRoute': False}}}
+        st0 = {'name': 'st0',
+               'conditions': {
+                'match-prefix-set': {'prefix-set': ps0['prefix-set-name']},
+                'match-neighbor-set': {'neighbor-set': ns0['neighbor-set-name']}},
+               'actions': {'route-disposition': {'accept-route': False}}}
 
         policy = {'name': 'policy0',
                   'type': 'import',
@@ -597,22 +597,22 @@ class ExportPolicyIPV6(object):
         q1 = env.q1
         q2 = env.q2
 
-        p0 = {'IpPrefix': '2001::/32',
-              'MasklengthRange': '64..128'}
+        p0 = {'ip-prefix': '2001::/32',
+              'masklength-range': '64..128'}
 
-        ps0 = {'PrefixSetName': 'ps0',
-               'PrefixList': [p0]}
+        ps0 = {'prefix-set-name': 'ps0',
+               'prefix-list': [p0]}
         g1.set_prefix_set(ps0)
 
-        ns0 = {'NeighborSetName': 'ns0',
-               'NeighborInfo': [g1.peers[q2]['neigh_addr'].split('/')[0]]}
+        ns0 = {'neighbor-set-name': 'ns0',
+               'neighbor-info-list': [g1.peers[q2]['neigh_addr'].split('/')[0]]}
         g1.set_neighbor_set(ns0)
 
-        st0 = {'Name': 'st0',
-               'Conditions': {
-                'MatchPrefixSet': {'PrefixSet': ps0['PrefixSetName']},
-                'MatchNeighborSet': {'NeighborSet': ns0['NeighborSetName']}},
-               'Actions': {'RouteDisposition': {'AcceptRoute': False}}}
+        st0 = {'name': 'st0',
+               'conditions': {
+                'match-prefix-set': {'prefix-set': ps0['prefix-set-name']},
+                'match-neighbor-set': {'neighbor-set': ns0['neighbor-set-name']}},
+               'actions': {'route-disposition': {'accept-route': False}}}
 
         policy = {'name': 'policy0',
                   'type': 'export',
@@ -680,22 +680,22 @@ class ImportPolicyIPV6Update(object):
         q1 = env.q1
         q2 = env.q2
 
-        p0 = {'IpPrefix': '2001:0:10:2::/64'}
-        p1 = {'IpPrefix': '2001:0:10:20::/64'}
+        p0 = {'ip-prefix': '2001:0:10:2::/64'}
+        p1 = {'ip-prefix': '2001:0:10:20::/64'}
 
-        ps0 = {'PrefixSetName': 'ps0',
-               'PrefixList': [p0, p1]}
+        ps0 = {'prefix-set-name': 'ps0',
+               'prefix-list': [p0, p1]}
         g1.set_prefix_set(ps0)
 
-        ns0 = {'NeighborSetName': 'ns0',
-               'NeighborInfo': [g1.peers[e1]['neigh_addr'].split('/')[0]]}
+        ns0 = {'neighbor-set-name': 'ns0',
+               'neighbor-info-list': [g1.peers[e1]['neigh_addr'].split('/')[0]]}
         g1.set_neighbor_set(ns0)
 
-        st0 = {'Name': 'st0',
-               'Conditions': {
-                'MatchPrefixSet': {'PrefixSet': ps0['PrefixSetName']},
-                'MatchNeighborSet': {'NeighborSet': ns0['NeighborSetName']}},
-               'Actions': {'RouteDisposition': {'AcceptRoute': False}}}
+        st0 = {'name': 'st0',
+               'conditions': {
+                'match-prefix-set': {'prefix-set': ps0['prefix-set-name']},
+                'match-neighbor-set': {'neighbor-set': ns0['neighbor-set-name']}},
+               'actions': {'route-disposition': {'accept-route': False}}}
 
         policy = {'name': 'policy0',
                   'type': 'import',
@@ -725,22 +725,22 @@ class ImportPolicyIPV6Update(object):
         q1 = env.q1
         q2 = env.q2
 
-        p0 = {'IpPrefix': '2001:0:10:2::/64'}
+        p0 = {'ip-prefix': '2001:0:10:2::/64'}
 
-        ps0 = {'PrefixSetName': 'ps0',
-               'PrefixList': [p0]}
+        ps0 = {'prefix-set-name': 'ps0',
+               'prefix-list': [p0]}
         g1.set_prefix_set(ps0)
 
-        ns0 = {'NeighborSetName': 'ns0',
-               'NeighborInfo': [g1.peers[e1]['neigh_addr'].split('/')[0]]}
+        ns0 = {'neighbor-set-name': 'ns0',
+               'neighbor-info-list': [g1.peers[e1]['neigh_addr'].split('/')[0]]}
         g1.set_neighbor_set(ns0)
 
-        st0 = {'Name': 'st0',
-               'Conditions': {
-                'MatchPrefixSet': {'PrefixSet': ps0['PrefixSetName']},
-                'MatchNeighborSet': {'NeighborSet': ns0['NeighborSetName']}},
-               'Actions': {
-                   'RouteDisposition': {'AcceptRoute': False}}}
+        st0 = {'name': 'st0',
+               'conditions': {
+                'match-prefix-set': {'prefix-set': ps0['prefix-set-name']},
+                'match-neighbor-set': {'neighbor-set': ns0['neighbor-set-name']}},
+               'actions': {
+                   'route-disposition': {'accept-route': False}}}
 
         policy = {'name': 'policy0',
                   'type': 'import',
@@ -803,22 +803,22 @@ class ExportPolicyIPv6Update(object):
         q1 = env.q1
         q2 = env.q2
 
-        p0 = {'IpPrefix': '2001:0:10:2::/64'}
-        p1 = {'IpPrefix': '2001:0:10:20::/64'}
+        p0 = {'ip-prefix': '2001:0:10:2::/64'}
+        p1 = {'ip-prefix': '2001:0:10:20::/64'}
 
-        ps0 = {'PrefixSetName': 'ps0',
-               'PrefixList': [p0, p1]}
+        ps0 = {'prefix-set-name': 'ps0',
+               'prefix-list': [p0, p1]}
         g1.set_prefix_set(ps0)
 
-        ns0 = {'NeighborSetName': 'ns0',
-               'NeighborInfo': [g1.peers[q2]['neigh_addr'].split('/')[0]]}
+        ns0 = {'neighbor-set-name': 'ns0',
+               'neighbor-info-list': [g1.peers[q2]['neigh_addr'].split('/')[0]]}
         g1.set_neighbor_set(ns0)
 
-        st0 = {'Name': 'st0',
-               'Conditions': {
-                'MatchPrefixSet': {'PrefixSet': ps0['PrefixSetName']},
-                'MatchNeighborSet': {'NeighborSet': ns0['NeighborSetName']}},
-               'Actions': {'RouteDisposition': {'AcceptRoute': False}}}
+        st0 = {'name': 'st0',
+               'conditions': {
+                'match-prefix-set': {'prefix-set': ps0['prefix-set-name']},
+                'match-neighbor-set': {'neighbor-set': ns0['neighbor-set-name']}},
+               'actions': {'route-disposition': {'accept-route': False}}}
 
         policy = {'name': 'policy0',
                   'type': 'export',
@@ -848,21 +848,21 @@ class ExportPolicyIPv6Update(object):
         q1 = env.q1
         q2 = env.q2
 
-        p0 = {'IpPrefix': '2001:0:10:2::/64'}
+        p0 = {'ip-prefix': '2001:0:10:2::/64'}
 
-        ps0 = {'PrefixSetName': 'ps0',
-               'PrefixList': [p0]}
+        ps0 = {'prefix-set-name': 'ps0',
+               'prefix-list': [p0]}
         g1.set_prefix_set(ps0)
 
-        ns0 = {'NeighborSetName': 'ns0',
-               'NeighborInfo': [g1.peers[q2]['neigh_addr'].split('/')[0]]}
+        ns0 = {'neighbor-set-name': 'ns0',
+               'neighbor-info-list': [g1.peers[q2]['neigh_addr'].split('/')[0]]}
         g1.set_neighbor_set(ns0)
 
-        st0 = {'Name': 'st0',
-               'Conditions': {
-                'MatchPrefixSet': {'PrefixSet': ps0['PrefixSetName']},
-                'MatchNeighborSet': {'NeighborSet': ns0['NeighborSetName']}},
-               'Actions': {'RouteDisposition': {'AcceptRoute': False}}}
+        st0 = {'name': 'st0',
+               'conditions': {
+                'match-prefix-set': {'prefix-set': ps0['prefix-set-name']},
+                'match-neighbor-set': {'neighbor-set': ns0['neighbor-set-name']}},
+               'actions': {'route-disposition': {'accept-route': False}}}
 
         policy = {'name': 'policy0',
                   'type': 'export',
@@ -911,10 +911,10 @@ class ImportPolicyAsPathLengthCondition(object):
         e1 = env.e1
         q1 = env.q1
         q2 = env.q2
-        st0 = {'Name': 'st0',
-               'Conditions': {'BgpConditions': {'AsPathLength': {'Operator': 'ge',
-                                                                 'Value': 10}}},
-               'Actions': {'RouteDisposition': {'AcceptRoute': False}}}
+        st0 = {'name': 'st0',
+               'conditions': {'bgp-conditions': {'as-path-length': {'operator': 'ge',
+                                                                    'value': 10}}},
+               'actions': {'route-disposition': {'accept-route': False}}}
 
         policy = {'name': 'policy0',
                   'type': 'import',
@@ -969,13 +969,13 @@ class ImportPolicyAsPathCondition(object):
         e1 = env.e1
         q1 = env.q1
         q2 = env.q2
-        as0 = {'AsPathSets': {'AsPathSetList': [{'AsPathSetName': 'as0', 'AsPath': ['^{0}'.format(e1.asn)]}]}}
+        as0 = {'as-path-sets': [{'as-path-set-name': 'as0', 'as-path-list': ['^{0}'.format(e1.asn)]}]}
 
         g1.set_bgp_defined_set(as0)
 
-        st0 = {'Name': 'st0',
-               'Conditions': {'BgpConditions': {'MatchAsPathSet': {'AsPathSet': 'as0'}}},
-               'Actions': {'RouteDisposition': {'AcceptRoute': False}}}
+        st0 = {'name': 'st0',
+               'conditions': {'bgp-conditions': {'match-as-path-set': {'as-path-set': 'as0'}}},
+               'actions': {'route-disposition': {'accept-route': False}}}
 
         policy = {'name': 'policy0',
                   'type': 'import',
@@ -1022,13 +1022,13 @@ class ImportPolicyAsPathAnyCondition(object):
         e1 = env.e1
         q1 = env.q1
         q2 = env.q2
-        as0 = {'AsPathSets': {'AsPathSetList': [{'AsPathSetName': 'as0', 'AsPath': ['65098']}]}}
+        as0 = {'as-path-sets': [{'as-path-set-name': 'as0', 'as-path-list': ['65098']}]}
 
         g1.set_bgp_defined_set(as0)
 
-        st0 = {'Name': 'st0',
-               'Conditions': {'BgpConditions': {'MatchAsPathSet': {'AsPathSet': 'as0'}}},
-               'Actions': {'RouteDisposition': {'AcceptRoute': False}}}
+        st0 = {'name': 'st0',
+               'conditions': {'bgp-conditions': {'match-as-path-set': {'as-path-set': 'as0'}}},
+               'actions': {'route-disposition': {'accept-route': False}}}
 
         policy = {'name': 'policy0',
                   'type': 'import',
@@ -1075,13 +1075,13 @@ class ImportPolicyAsPathOriginCondition(object):
         e1 = env.e1
         q1 = env.q1
         q2 = env.q2
-        as0 = {'AsPathSets': {'AsPathSetList': [{'AsPathSetName': 'as0', 'AsPath': ['65090$']}]}}
+        as0 = {'as-path-sets': [{'as-path-set-name': 'as0', 'as-path-list': ['65090$']}]}
 
         g1.set_bgp_defined_set(as0)
 
-        st0 = {'Name': 'st0',
-               'Conditions': {'BgpConditions': {'MatchAsPathSet': {'AsPathSet': 'as0'}}},
-               'Actions': {'RouteDisposition': {'AcceptRoute': False}}}
+        st0 = {'name': 'st0',
+               'conditions': {'bgp-conditions': {'match-as-path-set': {'as-path-set': 'as0'}}},
+               'actions': {'route-disposition': {'accept-route': False}}}
 
         policy = {'name': 'policy0',
                   'type': 'import',
@@ -1128,13 +1128,13 @@ class ImportPolicyAsPathOnlyCondition(object):
         e1 = env.e1
         q1 = env.q1
         q2 = env.q2
-        as0 = {'AsPathSets': {'AsPathSetList': [{'AsPathSetName': 'as0', 'AsPath': ['^65100$']}]}}
+        as0 = {'as-path-sets': [{'as-path-set-name': 'as0', 'as-path-list': ['^65100$']}]}
 
         g1.set_bgp_defined_set(as0)
 
-        st0 = {'Name': 'st0',
-               'Conditions': {'BgpConditions': {'MatchAsPathSet': {'AsPathSet': 'as0'}}},
-               'Actions': {'RouteDisposition': {'AcceptRoute': False}}}
+        st0 = {'name': 'st0',
+               'conditions': {'bgp-conditions': {'match-as-path-set': {'as-path-set': 'as0'}}},
+               'actions': {'route-disposition': {'accept-route': False}}}
 
         policy = {'name': 'policy0',
                   'type': 'import',
@@ -1182,15 +1182,14 @@ class ImportPolicyAsPathMismatchCondition(object):
         e1 = env.e1
         q1 = env.q1
         q2 = env.q2
-        cs0 = {'CommunitySets': {'CommunitySetList':
-                                     [{'CommunitySetName': 'cs0',
-                                       'Community': ['65100:10']}]}}
+        cs0 = {'community-sets': [{'community-set-name': 'cs0',
+                                   'community-list': ['65100:10']}]}
 
         g1.set_bgp_defined_set(cs0)
 
-        st0 = {'Name': 'st0',
-               'Conditions': {'BgpConditions': {'MatchCommunitySet': {'CommunitySet': 'cs0'}}},
-               'Actions': {'RouteDisposition': {'AcceptRoute': False}}}
+        st0 = {'name': 'st0',
+               'conditions': {'bgp-conditions': {'match-community-set': {'community-set': 'cs0'}}},
+               'actions': {'route-disposition': {'accept-route': False}}}
 
         policy = {'name': 'policy0',
                   'type': 'import',
@@ -1245,14 +1244,13 @@ class ImportPolicyCommunityCondition(object):
         e1 = env.e1
         q1 = env.q1
         q2 = env.q2
-        cs0 = {'CommunitySets':
-                   {'CommunitySetList': [{'CommunitySetName': 'cs0', 'Community': ['65100:10']}]}}
+        cs0 = {'community-sets': [{'community-set-name': 'cs0', 'community-list': ['65100:10']}]}
 
         g1.set_bgp_defined_set(cs0)
 
-        st0 = {'Name': 'st0',
-               'Conditions': {'BgpConditions': {'MatchCommunitySet': {'CommunitySet': 'cs0'}}},
-               'Actions': {'RouteDisposition': {'AcceptRoute': False}}}
+        st0 = {'name': 'st0',
+               'conditions': {'bgp-conditions': {'match-community-set': {'community-set': 'cs0'}}},
+               'actions': {'route-disposition': {'accept-route': False}}}
 
         policy = {'name': 'policy0',
                   'type': 'import',
@@ -1300,13 +1298,13 @@ class ImportPolicyCommunityRegexp(object):
         e1 = env.e1
         q1 = env.q1
         q2 = env.q2
-        cs0 = {'CommunitySets': {'CommunitySetList': [{'CommunitySetName': 'cs0', 'Community': ['6[0-9]+:[0-9]+']}]}}
+        cs0 = {'community-sets': [{'community-set-name': 'cs0', 'community-list': ['6[0-9]+:[0-9]+']}]}
 
         g1.set_bgp_defined_set(cs0)
 
-        st0 = {'Name': 'st0',
-               'Conditions': {'BgpConditions': {'MatchCommunitySet': {'CommunitySet': 'cs0'}}},
-               'Actions': {'RouteDisposition': {'AcceptRoute': False}}}
+        st0 = {'name': 'st0',
+               'conditions': {'bgp-conditions': {'match-community-set': {'community-set': 'cs0'}}},
+               'actions': {'route-disposition': {'accept-route': False}}}
 
         policy = {'name': 'policy0',
                   'type': 'import',
@@ -1362,15 +1360,15 @@ class ImportPolicyCommunityAction(object):
         e1 = env.e1
         q1 = env.q1
         q2 = env.q2
-        cs0 = {'CommunitySets': {'CommunitySetList': [{'CommunitySetName': 'cs0', 'Community': ['65100:10']}]}}
+        cs0 = {'community-sets': [{'community-set-name': 'cs0', 'community-list': ['65100:10']}]}
 
         g1.set_bgp_defined_set(cs0)
 
-        st0 = {'Name': 'st0',
-               'Conditions': {'BgpConditions': {'MatchCommunitySet': {'CommunitySet': 'cs0'}}},
-               'Actions': {'RouteDisposition': {'AcceptRoute': True},
-                           'BgpActions': {'SetCommunity': {'Options': 'ADD',
-                                                           'SetCommunityMethod': {'Communities': ['65100:20']}}}}}
+        st0 = {'name': 'st0',
+                'conditions': {'bgp-conditions': {'match-community-set': {'community-set': 'cs0', 'match-set-options': 'any'}}},
+               'actions': {'route-disposition': {'accept-route': True},
+                           'bgp-actions': {'set-community': {'options': 'add',
+                                                           'set-community-method': {'communities-list': ['65100:20']}}}}}
 
         policy = {'name': 'policy0',
                   'type': 'import',
@@ -1437,15 +1435,15 @@ class ImportPolicyCommunityReplace(object):
         e1 = env.e1
         q1 = env.q1
         q2 = env.q2
-        cs0 = {'CommunitySets': {'CommunitySetList': [{'CommunitySetName': 'cs0', 'Community': ['65100:10']}]}}
+        cs0 = {'community-sets': [{'community-set-name': 'cs0', 'community-list': ['65100:10']}]}
 
         g1.set_bgp_defined_set(cs0)
 
-        st0 = {'Name': 'st0',
-               'Conditions':{'BgpConditions':{'MatchCommunitySet':{'CommunitySet': 'cs0'}}},
-               'Actions': {'RouteDisposition': {'AcceptRoute': True},
-                           'BgpActions': {'SetCommunity': {'Options': 'REPLACE',
-                                                           'SetCommunityMethod': {'Communities': ['65100:20']}}}}}
+        st0 = {'name': 'st0',
+               'conditions':{'bgp-conditions':{'match-community-set':{'community-set': 'cs0'}}},
+               'actions': {'route-disposition': {'accept-route': True},
+                           'bgp-actions': {'set-community': {'options': 'REPLACE',
+                                                           'set-community-method': {'communities-list': ['65100:20']}}}}}
 
         policy = {'name': 'policy0',
                   'type': 'import',
@@ -1504,15 +1502,15 @@ class ImportPolicyCommunityRemove(object):
         e1 = env.e1
         q1 = env.q1
         q2 = env.q2
-        cs0 = {'CommunitySets': {'CommunitySetList': [{'CommunitySetName': 'cs0', 'Community': ['65100:10']}]}}
+        cs0 = {'community-sets': [{'community-set-name': 'cs0', 'community-list': ['65100:10']}]}
 
         g1.set_bgp_defined_set(cs0)
 
-        st0 = {'Name': 'st0',
-               'Conditions':{'BgpConditions':{'MatchCommunitySet':{'CommunitySet': 'cs0'}}},
-               'Actions': {'RouteDisposition': {'AcceptRoute': True},
-                           'BgpActions': {'SetCommunity': {'Options': 'REMOVE',
-                                                           'SetCommunityMethod': {'Communities': ['65100:10', '65100:20']}}}}}
+        st0 = {'name': 'st0',
+               'conditions':{'bgp-conditions':{'match-community-set':{'community-set': 'cs0'}}},
+               'actions': {'route-disposition': {'accept-route': True},
+                           'bgp-actions': {'set-community': {'options': 'REMOVE',
+                                                           'set-community-method': {'communities-list': ['65100:10', '65100:20']}}}}}
 
         policy = {'name': 'policy0',
                   'type': 'import',
@@ -1589,15 +1587,15 @@ class ImportPolicyCommunityNull(object):
         e1 = env.e1
         q1 = env.q1
         q2 = env.q2
-        cs0 = {'CommunitySets': {'CommunitySetList': [{'CommunitySetName': 'cs0', 'Community': ['65100:10']}]}}
+        cs0 = {'community-sets': [{'community-set-name': 'cs0', 'community-list': ['65100:10']}]}
 
         g1.set_bgp_defined_set(cs0)
 
-        st0 = {'Name': 'st0',
-               'Conditions':{'BgpConditions':{'MatchCommunitySet':{'CommunitySet': 'cs0'}}},
-               'Actions': {'RouteDisposition': {'AcceptRoute': True},
-                           'BgpActions': {'SetCommunity': {'Options': 'REPLACE',
-                                                           'SetCommunityMethod': {'Communities': []}}}}}
+        st0 = {'name': 'st0',
+               'conditions':{'bgp-conditions':{'match-community-set':{'community-set': 'cs0'}}},
+               'actions': {'route-disposition': {'accept-route': True},
+                           'bgp-actions': {'set-community': {'options': 'REPLACE',
+                                                             'set-community-method': {'communities-list': []}}}}}
 
         policy = {'name': 'policy0',
                   'type': 'import',
@@ -1664,15 +1662,15 @@ class ExportPolicyCommunityAdd(object):
         e1 = env.e1
         q1 = env.q1
         q2 = env.q2
-        cs0 = {'CommunitySets': {'CommunitySetList': [{'CommunitySetName': 'cs0', 'Community': ['65100:10']}]}}
+        cs0 = {'community-sets': [{'community-set-name': 'cs0', 'community-list': ['65100:10']}]}
 
         g1.set_bgp_defined_set(cs0)
 
-        st0 = {'Name': 'st0',
-               'Conditions':{'BgpConditions':{'MatchCommunitySet':{'CommunitySet': 'cs0'}}},
-               'Actions': {'RouteDisposition': {'AcceptRoute': True},
-                           'BgpActions': {'SetCommunity': {'Options': 'ADD',
-                                                           'SetCommunityMethod': {'Communities': ['65100:20']}}}}}
+        st0 = {'name': 'st0',
+               'conditions':{'bgp-conditions':{'match-community-set':{'community-set': 'cs0'}}},
+               'actions': {'route-disposition': {'accept-route': True},
+                           'bgp-actions': {'set-community': {'options': 'add',
+                                                           'set-community-method': {'communities-list': ['65100:20']}}}}}
 
         policy = {'name': 'policy0',
                   'type': 'export',
@@ -1738,15 +1736,15 @@ class ExportPolicyCommunityReplace(object):
         e1 = env.e1
         q1 = env.q1
         q2 = env.q2
-        cs0 = {'CommunitySets': {'CommunitySetList': [{'CommunitySetName': 'cs0', 'Community': ['65100:10']}]}}
+        cs0 = {'community-sets': [{'community-set-name': 'cs0', 'community-list': ['65100:10']}]}
 
         g1.set_bgp_defined_set(cs0)
 
-        st0 = {'Name': 'st0',
-               'Conditions':{'BgpConditions':{'MatchCommunitySet':{'CommunitySet': 'cs0'}}},
-               'Actions': {'RouteDisposition': {'AcceptRoute': True},
-                           'BgpActions': {'SetCommunity': {'Options': 'REPLACE',
-                                                           'SetCommunityMethod': {'Communities': ['65100:20']}}}}}
+        st0 = {'name': 'st0',
+               'conditions':{'bgp-conditions':{'match-community-set':{'community-set': 'cs0'}}},
+               'actions': {'route-disposition': {'accept-route': True},
+                           'bgp-actions': {'set-community': {'options': 'REPLACE',
+                                                           'set-community-method': {'communities-list': ['65100:20']}}}}}
 
         policy = {'name': 'policy0',
                   'type': 'export',
@@ -1812,15 +1810,15 @@ class ExportPolicyCommunityRemove(object):
         e1 = env.e1
         q1 = env.q1
         q2 = env.q2
-        cs0 = {'CommunitySets': {'CommunitySetList': [{'CommunitySetName': 'cs0', 'Community': ['65100:10']}]}}
+        cs0 = {'community-sets': [{'community-set-name': 'cs0', 'community-list': ['65100:10']}]}
 
         g1.set_bgp_defined_set(cs0)
 
-        st0 = {'Name': 'st0',
-               'Conditions':{'BgpConditions':{'MatchCommunitySet':{'CommunitySet': 'cs0'}}},
-               'Actions': {'RouteDisposition': {'AcceptRoute': True},
-                           'BgpActions': {'SetCommunity': {'Options': 'REMOVE',
-                                                           'SetCommunityMethod': {'Communities': ['65100:20', '65100:30']}}}}}
+        st0 = {'name': 'st0',
+               'conditions':{'bgp-conditions':{'match-community-set':{'community-set': 'cs0'}}},
+               'actions': {'route-disposition': {'accept-route': True},
+                           'bgp-actions': {'set-community': {'options': 'REMOVE',
+                                                           'set-community-method': {'communities-list': ['65100:20', '65100:30']}}}}}
 
         policy = {'name': 'policy0',
                   'type': 'export',
@@ -1889,15 +1887,15 @@ class ExportPolicyCommunityNull(object):
         e1 = env.e1
         q1 = env.q1
         q2 = env.q2
-        cs0 = {'CommunitySets': {'CommunitySetList': [{'CommunitySetName': 'cs0', 'Community': ['65100:10']}]}}
+        cs0 = {'community-sets':  [{'community-set-name': 'cs0', 'community-list': ['65100:10']}]}
 
         g1.set_bgp_defined_set(cs0)
 
-        st0 = {'Name': 'st0',
-               'Conditions':{'BgpConditions':{'MatchCommunitySet':{'CommunitySet': 'cs0'}}},
-               'Actions': {'RouteDisposition': {'AcceptRoute': True},
-                           'BgpActions': {'SetCommunity': {'Options': 'REPLACE',
-                                                           'SetCommunityMethod': {'Communities': []}}}}}
+        st0 = {'name': 'st0',
+               'conditions':{'bgp-conditions':{'match-community-set':{'community-set': 'cs0'}}},
+               'actions': {'route-disposition': {'accept-route': True},
+                           'bgp-actions': {'set-community': {'options': 'REPLACE',
+                                                           'set-community-method': {'communities-list': []}}}}}
 
         policy = {'name': 'policy0',
                   'type': 'export',
@@ -1973,9 +1971,9 @@ class ImportPolicyMedReplace(object):
         e1 = env.e1
         q1 = env.q1
         q2 = env.q2
-        st0 = {'Name': 'st0',
-               'Actions': {'RouteDisposition': {'AcceptRoute': True},
-                           'BgpActions': {'SetMed': '100'}}}
+        st0 = {'name': 'st0',
+               'actions': {'route-disposition': {'accept-route': True},
+                           'bgp-actions': {'set-med': '100'}}}
 
         policy = {'name': 'policy0',
                   'type': 'import',
@@ -2035,9 +2033,9 @@ class ImportPolicyMedAdd(object):
         e1 = env.e1
         q1 = env.q1
         q2 = env.q2
-        st0 = {'Name': 'st0',
-               'Actions': {'RouteDisposition': {'AcceptRoute': True},
-                           'BgpActions': {'SetMed': '+100'}}}
+        st0 = {'name': 'st0',
+               'actions': {'route-disposition': {'accept-route': True},
+                           'bgp-actions': {'set-med': '+100'}}}
 
         policy = {'name': 'policy0',
                   'type': 'import',
@@ -2097,9 +2095,9 @@ class ImportPolicyMedSub(object):
         e1 = env.e1
         q1 = env.q1
         q2 = env.q2
-        st0 = {'Name': 'st0',
-               'Actions': {'RouteDisposition': {'AcceptRoute': True},
-                           'BgpActions': {'SetMed': '-100'}}}
+        st0 = {'name': 'st0',
+               'actions': {'route-disposition': {'accept-route': True},
+                           'bgp-actions': {'set-med': '-100'}}}
 
         policy = {'name': 'policy0',
                   'type': 'import',
@@ -2159,9 +2157,9 @@ class ExportPolicyMedReplace(object):
         e1 = env.e1
         q1 = env.q1
         q2 = env.q2
-        st0 = {'Name': 'st0',
-               'Actions': {'RouteDisposition': {'AcceptRoute': True},
-                           'BgpActions': {'SetMed': '100'}}}
+        st0 = {'name': 'st0',
+               'actions': {'route-disposition': {'accept-route': True},
+                           'bgp-actions': {'set-med': '100'}}}
 
         policy = {'name': 'policy0',
                   'type': 'export',
@@ -2221,9 +2219,9 @@ class ExportPolicyMedAdd(object):
         e1 = env.e1
         q1 = env.q1
         q2 = env.q2
-        st0 = {'Name': 'st0',
-               'Actions': {'RouteDisposition': {'AcceptRoute': True},
-                           'BgpActions': {'SetMed': '+100'}}}
+        st0 = {'name': 'st0',
+               'actions': {'route-disposition': {'accept-route': True},
+                           'bgp-actions': {'set-med': '+100'}}}
 
         policy = {'name': 'policy0',
                   'type': 'export',
@@ -2283,9 +2281,9 @@ class ExportPolicyMedSub(object):
         e1 = env.e1
         q1 = env.q1
         q2 = env.q2
-        st0 = {'Name': 'st0',
-               'Actions': {'RouteDisposition': {'AcceptRoute': True},
-                           'BgpActions': {'SetMed': '-100'}}}
+        st0 = {'name': 'st0',
+               'actions': {'route-disposition': {'accept-route': True},
+                           'bgp-actions': {'set-med': '-100'}}}
 
         policy = {'name': 'policy0',
                   'type': 'export',
@@ -2344,13 +2342,13 @@ class InPolicyReject(object):
         e1 = env.e1
         q1 = env.q1
         q2 = env.q2
-        cs0 = {'CommunitySets': {'CommunitySetList': [{'CommunitySetName': 'cs0', 'Community': ['65100:10']}]}}
+        cs0 = {'community-sets': [{'community-set-name': 'cs0', 'community-list': ['65100:10']}]}
 
         g1.set_bgp_defined_set(cs0)
 
-        st0 = {'Name': 'st0',
-               'Conditions':{'BgpConditions':{'MatchCommunitySet':{'CommunitySet': 'cs0'}}},
-               'Actions': {'RouteDisposition': {'AcceptRoute': False}}}
+        st0 = {'name': 'st0',
+               'conditions':{'bgp-conditions':{'match-community-set':{'community-set': 'cs0'}}},
+               'actions': {'route-disposition': {'accept-route': False}}}
 
         policy = {'name': 'policy0',
                   'type': 'in',
@@ -2404,13 +2402,13 @@ class InPolicyAccept(object):
         e1 = env.e1
         q1 = env.q1
         q2 = env.q2
-        cs0 = {'CommunitySets': {'CommunitySetList': [{'CommunitySetName': 'cs0', 'Community': ['65100:10']}]}}
+        cs0 = {'community-sets': [{'community-set-name': 'cs0', 'community-list': ['65100:10']}]}
 
         g1.set_bgp_defined_set(cs0)
 
-        st0 = {'Name': 'st0',
-               'Conditions':{'BgpConditions':{'MatchCommunitySet':{'CommunitySet': 'cs0'}}},
-               'Actions':{'RouteDisposition': {'AcceptRoute': True}}}
+        st0 = {'name': 'st0',
+               'conditions':{'bgp-conditions':{'match-community-set':{'community-set': 'cs0'}}},
+               'actions':{'route-disposition': {'accept-route': True}}}
 
         policy = {'name': 'policy0',
                   'type': 'in',
@@ -2472,22 +2470,22 @@ class InPolicyUpdate(object):
         q1 = env.q1
         q2 = env.q2
 
-        p0 = {'IpPrefix': '192.168.20.0/24'}
-        p1 = {'IpPrefix': '192.168.200.0/24'}
+        p0 = {'ip-prefix': '192.168.20.0/24'}
+        p1 = {'ip-prefix': '192.168.200.0/24'}
 
-        ps0 = {'PrefixSetName': 'ps0',
-               'PrefixList': [p0, p1]}
+        ps0 = {'prefix-set-name': 'ps0',
+               'prefix-list': [p0, p1]}
         g1.set_prefix_set(ps0)
 
-        ns0 = {'NeighborSetName': 'ns0',
-               'NeighborInfo': [g1.peers[e1]['neigh_addr'].split('/')[0]]}
+        ns0 = {'neighbor-set-name': 'ns0',
+               'neighbor-info-list': [g1.peers[e1]['neigh_addr'].split('/')[0]]}
         g1.set_neighbor_set(ns0)
 
-        st0 = {'Name': 'st0',
-               'Conditions': {
-                'MatchPrefixSet': {'PrefixSet': ps0['PrefixSetName']},
-                'MatchNeighborSet': {'NeighborSet': ns0['NeighborSetName']}},
-               'Actions': {'RouteDisposition': {'AcceptRoute': False}}}
+        st0 = {'name': 'st0',
+               'conditions': {
+                'match-prefix-set': {'prefix-set': ps0['prefix-set-name']},
+                'match-neighbor-set': {'neighbor-set': ns0['neighbor-set-name']}},
+               'actions': {'route-disposition': {'accept-route': False}}}
 
         policy = {'name': 'policy0',
                   'type': 'in',
@@ -2523,20 +2521,20 @@ class InPolicyUpdate(object):
         q2 = env.q2
         g1.clear_policy()
 
-        p0 = {'IpPrefix': '192.168.20.0/24'}
+        p0 = {'ip-prefix': '192.168.20.0/24'}
 
-        ps0 = {'PrefixSetName': 'ps0',
-               'PrefixList': [p0]}
+        ps0 = {'prefix-set-name': 'ps0',
+               'prefix-list': [p0]}
         g1.set_prefix_set(ps0)
 
-        ns0 = {'NeighborSetName': 'ns0',
-               'NeighborInfo': [g1.peers[e1]['neigh_addr'].split('/')[0]]}
+        ns0 = {'neighbor-set-name': 'ns0',
+               'neighbor-info-list': [g1.peers[e1]['neigh_addr'].split('/')[0]]}
         g1.set_neighbor_set(ns0)
 
-        st0 = {'Name': 'st0',
-               'Conditions': {'MatchPrefixSet': {'PrefixSet': ps0['PrefixSetName']},
-                          'MatchNeighborSet': {'NeighborSet': ns0['NeighborSetName']}},
-               'Actions': {'RouteDisposition': {'AcceptRoute': False}}}
+        st0 = {'name': 'st0',
+               'conditions': {'match-prefix-set': {'prefix-set': ps0['prefix-set-name']},
+                          'match-neighbor-set': {'neighbor-set': ns0['neighbor-set-name']}},
+               'actions': {'route-disposition': {'accept-route': False}}}
 
         policy = {'name': 'policy0',
                   'type': 'in',
@@ -2589,16 +2587,16 @@ class ExportPolicyAsPathPrepend(object):
         q1 = env.q1
         q2 = env.q2
 
-        p0 = {'IpPrefix': '192.168.20.0/24'}
+        p0 = {'ip-prefix': '192.168.20.0/24'}
 
-        ps0 = {'PrefixSetName': 'ps0',
-               'PrefixList': [p0]}
+        ps0 = {'prefix-set-name': 'ps0',
+               'prefix-list': [p0]}
         g1.set_prefix_set(ps0)
 
-        st0 = {'Name': 'st0',
-               'Conditions': {'MatchPrefixSet': {'PrefixSet': ps0['PrefixSetName']}},
-               'Actions': {'RouteDisposition': {'AcceptRoute': True},
-                           'BgpActions': {'SetAsPathPrepend': {'RepeatN': 5, 'As': "65005"}}}}
+        st0 = {'name': 'st0',
+               'conditions': {'match-prefix-set': {'prefix-set': ps0['prefix-set-name']}},
+               'actions': {'route-disposition': {'accept-route': True},
+                           'bgp-actions': {'set-as-path-prepend': {'repeat-n': 5, 'as': "65005"}}}}
 
         policy = {'name': 'policy0',
                   'type': 'export',
@@ -2677,16 +2675,16 @@ class ImportPolicyAsPathPrependLastAS(object):
         q1 = env.q1
         q2 = env.q2
 
-        p0 = {'IpPrefix': '192.168.20.0/24'}
+        p0 = {'ip-prefix': '192.168.20.0/24'}
 
-        ps0 = {'PrefixSetName': 'ps0',
-               'PrefixList': [p0]}
+        ps0 = {'prefix-set-name': 'ps0',
+               'prefix-list': [p0]}
         g1.set_prefix_set(ps0)
 
-        st0 = {'Name': 'st0',
-               'Conditions': {'MatchPrefixSet': {'PrefixSet': ps0['PrefixSetName']}},
-               'Actions': {'RouteDisposition': {'AcceptRoute': True},
-                           'BgpActions': {'SetAsPathPrepend': {'RepeatN': 5, 'As': "last-as"}}}}
+        st0 = {'name': 'st0',
+               'conditions': {'match-prefix-set': {'prefix-set': ps0['prefix-set-name']}},
+               'actions': {'route-disposition': {'accept-route': True},
+                           'bgp-actions': {'set-as-path-prepend': {'repeat-n': 5, 'as': "last-as"}}}}
 
         policy = {'name': 'policy0',
                   'type': 'import',
@@ -2755,16 +2753,16 @@ class ExportPolicyAsPathPrependLastAS(object):
         q1 = env.q1
         q2 = env.q2
 
-        p0 = {'IpPrefix': '192.168.20.0/24'}
+        p0 = {'ip-prefix': '192.168.20.0/24'}
 
-        ps0 = {'PrefixSetName': 'ps0',
-               'PrefixList': [p0]}
+        ps0 = {'prefix-set-name': 'ps0',
+               'prefix-list': [p0]}
         g1.set_prefix_set(ps0)
 
-        st0 = {'Name': 'st0',
-               'Conditions': {'MatchPrefixSet': {'PrefixSet': ps0['PrefixSetName']}},
-               'Actions': {'RouteDisposition': {'AcceptRoute': True},
-                           'BgpActions': {'SetAsPathPrepend': {'RepeatN': 5, 'As': "last-as"}}}}
+        st0 = {'name': 'st0',
+               'conditions': {'match-prefix-set': {'prefix-set': ps0['prefix-set-name']}},
+               'actions': {'route-disposition': {'accept-route': True},
+                           'bgp-actions': {'set-as-path-prepend': {'repeat-n': 5, 'as': "last-as"}}}}
 
         policy = {'name': 'policy0',
                   'type': 'export',
@@ -2832,14 +2830,14 @@ class ImportPolicyExCommunityOriginCondition(object):
         q1 = env.q1
         q2 = env.q2
 
-        es0 = {'ExtCommunitySets': {'ExtCommunitySetList': [{'ExtCommunitySetName': 'es0',
-                                                             'ExtCommunity': ['SoO:65001.65100:200']}]}}
+        es0 = {'ext-community-sets': [{'ext-community-set-name': 'es0',
+                                       'ext-community-list': ['SoO:65001.65100:200']}]}
 
         g1.set_bgp_defined_set(es0)
 
-        st0 = {'Name': 'st0',
-               'Conditions': {'BgpConditions':{'MatchExtCommunitySet':{'ExtCommunitySet': 'es0'}}},
-               'Actions': {'RouteDisposition': {'AcceptRoute': False}}}
+        st0 = {'name': 'st0',
+               'conditions': {'bgp-conditions':{'match-ext-community-set':{'ext-community-set': 'es0'}}},
+               'actions': {'route-disposition': {'accept-route': False}}}
 
         policy = {'name': 'policy0',
                   'type': 'import',
@@ -2884,14 +2882,14 @@ class ImportPolicyExCommunityTargetCondition(object):
         q1 = env.q1
         q2 = env.q2
 
-        es0 = {'ExtCommunitySets': {'ExtCommunitySetList': [{'ExtCommunitySetName': 'es0',
-                                                             'ExtCommunity': ['RT:6[0-9]+:3[0-9]+']}]}}
+        es0 = {'ext-community-sets': [{'ext-community-set-name': 'es0',
+                                       'ext-community-list': ['RT:6[0-9]+:3[0-9]+']}]}
 
         g1.set_bgp_defined_set(es0)
 
-        st0 = {'Name': 'st0',
-               'Conditions': {'BgpConditions':{'MatchExtCommunitySet':{'ExtCommunitySet': 'es0'}}},
-               'Actions': {'RouteDisposition': {'AcceptRoute': False}}}
+        st0 = {'name': 'st0',
+               'conditions': {'bgp-conditions':{'match-ext-community-set':{'ext-community-set': 'es0'}}},
+               'actions': {'route-disposition': {'accept-route': False}}}
 
         policy = {'name': 'policy0',
                   'type': 'import',
@@ -2936,16 +2934,16 @@ class InPolicyPrefixCondition(object):
         q1 = env.q1
         q2 = env.q2
 
-        p0 = {'IpPrefix': '192.168.10.0/24'}
+        p0 = {'ip-prefix': '192.168.10.0/24'}
 
-        ps0 = {'PrefixSetName': 'ps0',
-               'PrefixList': [p0]}
+        ps0 = {'prefix-set-name': 'ps0',
+               'prefix-list': [p0]}
         g1.set_prefix_set(ps0)
 
-        st0 = {'Name': 'st0',
-               'Conditions': {
-                'MatchPrefixSet': {'PrefixSet': ps0['PrefixSetName']}},
-               'Actions': {'RouteDisposition': {'AcceptRoute': False}}}
+        st0 = {'name': 'st0',
+               'conditions': {
+                'match-prefix-set': {'prefix-set': ps0['prefix-set-name']}},
+               'actions': {'route-disposition': {'accept-route': False}}}
 
         policy = {'name': 'policy0',
                   'type': 'in',
@@ -3004,26 +3002,26 @@ class ImportPolicyExCommunityAdd(object):
         q1 = env.q1
         q2 = env.q2
 
-        p0 = {'IpPrefix': '192.168.10.0/24'}
+        p0 = {'ip-prefix': '192.168.10.0/24'}
 
-        ps0 = {'PrefixSetName': 'ps0',
-               'PrefixList': [p0]}
+        ps0 = {'prefix-set-name': 'ps0',
+               'prefix-list': [p0]}
         g1.set_prefix_set(ps0)
 
         st0 = {
-            'Name': 'st0',
-            'Conditions': {
-                'MatchPrefixSet': {
-                    'PrefixSet': ps0['PrefixSetName']
+            'name': 'st0',
+            'conditions': {
+                'match-prefix-set': {
+                    'prefix-set': ps0['prefix-set-name']
                     }
                 },
-            'Actions': {
-                'RouteDisposition': {'AcceptRoute': True},
-                'BgpActions': {
-                    'SetExtCommunity': {
-                        'Options': 'ADD',
-                        'SetExtCommunityMethod': {
-                            'Communities': ['rt:65000:1'],
+            'actions': {
+                'route-disposition': {'accept-route': True},
+                'bgp-actions': {
+                    'set-ext-community': {
+                        'options': 'add',
+                        'set-ext-community-method': {
+                            'communities-list': ['rt:65000:1'],
                             }
                         },
                     }
@@ -3085,26 +3083,26 @@ class ImportPolicyExCommunityAdd2(object):
         q1 = env.q1
         q2 = env.q2
 
-        p0 = {'IpPrefix': '192.168.10.0/24'}
+        p0 = {'ip-prefix': '192.168.10.0/24'}
 
-        ps0 = {'PrefixSetName': 'ps0',
-               'PrefixList': [p0]}
+        ps0 = {'prefix-set-name': 'ps0',
+               'prefix-list': [p0]}
         g1.set_prefix_set(ps0)
 
         st0 = {
-            'Name': 'st0',
-            'Conditions': {
-                'MatchPrefixSet': {
-                    'PrefixSet': ps0['PrefixSetName']
+            'name': 'st0',
+            'conditions': {
+                'match-prefix-set': {
+                    'prefix-set': ps0['prefix-set-name']
                     }
                 },
-            'Actions': {
-                'RouteDisposition': {'AcceptRoute': True},
-                'BgpActions': {
-                    'SetExtCommunity': {
-                        'Options': 'ADD',
-                        'SetExtCommunityMethod': {
-                            'Communities': ['rt:65100:100'],
+            'actions': {
+                'route-disposition': {'accept-route': True},
+                'bgp-actions': {
+                    'set-ext-community': {
+                        'options': 'add',
+                        'set-ext-community-method': {
+                            'communities-list': ['rt:65100:100'],
                             }
                         },
                     }
@@ -3171,26 +3169,26 @@ class ImportPolicyExCommunityMultipleAdd(object):
         q1 = env.q1
         q2 = env.q2
 
-        p0 = {'IpPrefix': '192.168.10.0/24'}
+        p0 = {'ip-prefix': '192.168.10.0/24'}
 
-        ps0 = {'PrefixSetName': 'ps0',
-               'PrefixList': [p0]}
+        ps0 = {'prefix-set-name': 'ps0',
+               'prefix-list': [p0]}
         g1.set_prefix_set(ps0)
 
         st0 = {
-            'Name': 'st0',
-            'Conditions': {
-                'MatchPrefixSet': {
-                    'PrefixSet': ps0['PrefixSetName']
+            'name': 'st0',
+            'conditions': {
+                'match-prefix-set': {
+                    'prefix-set': ps0['prefix-set-name']
                     }
                 },
-            'Actions': {
-                'RouteDisposition': {'AcceptRoute': True},
-                'BgpActions': {
-                    'SetExtCommunity': {
-                        'Options': 'ADD',
-                        'SetExtCommunityMethod': {
-                            'Communities': ['rt:65100:100', 'rt:100:100'],
+            'actions': {
+                'route-disposition': {'accept-route': True},
+                'bgp-actions': {
+                    'set-ext-community': {
+                        'options': 'add',
+                        'set-ext-community-method': {
+                            'communities-list': ['rt:65100:100', 'rt:100:100'],
                             }
                         },
                     }
@@ -3257,26 +3255,26 @@ class ExportPolicyExCommunityAdd(object):
         q1 = env.q1
         q2 = env.q2
 
-        p0 = {'IpPrefix': '192.168.10.0/24'}
+        p0 = {'ip-prefix': '192.168.10.0/24'}
 
-        ps0 = {'PrefixSetName': 'ps0',
-               'PrefixList': [p0]}
+        ps0 = {'prefix-set-name': 'ps0',
+               'prefix-list': [p0]}
         g1.set_prefix_set(ps0)
 
         st0 = {
-            'Name': 'st0',
-            'Conditions': {
-                'MatchPrefixSet': {
-                    'PrefixSet': ps0['PrefixSetName']
+            'name': 'st0',
+            'conditions': {
+                'match-prefix-set': {
+                    'prefix-set': ps0['prefix-set-name']
                     }
                 },
-            'Actions': {
-                'RouteDisposition': {'AcceptRoute': True},
-                'BgpActions': {
-                    'SetExtCommunity': {
-                        'Options': 'ADD',
-                        'SetExtCommunityMethod': {
-                            'Communities': ['rt:65000:1'],
+            'actions': {
+                'route-disposition': {'accept-route': True},
+                'bgp-actions': {
+                    'set-ext-community': {
+                        'options': 'add',
+                        'set-ext-community-method': {
+                            'communities-list': ['rt:65000:1'],
                             }
                         },
                     }

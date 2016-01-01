@@ -78,23 +78,23 @@ func UpdateConfig(curC *Bgp, newC *Bgp) (*Bgp, []Neighbor, []Neighbor, []Neighbo
 	deleted := []Neighbor{}
 	updated := []Neighbor{}
 
-	for _, n := range newC.Neighbors.NeighborList {
-		if idx := inSlice(n, curC.Neighbors.NeighborList); idx < 0 {
+	for _, n := range newC.Neighbors {
+		if idx := inSlice(n, curC.Neighbors); idx < 0 {
 			added = append(added, n)
 		} else {
-			if !reflect.DeepEqual(n.ApplyPolicy, curC.Neighbors.NeighborList[idx].ApplyPolicy) {
+			if !reflect.DeepEqual(n.ApplyPolicy, curC.Neighbors[idx].ApplyPolicy) {
 				updated = append(updated, n)
 			}
 		}
 	}
 
-	for _, n := range curC.Neighbors.NeighborList {
-		if inSlice(n, newC.Neighbors.NeighborList) < 0 {
+	for _, n := range curC.Neighbors {
+		if inSlice(n, newC.Neighbors) < 0 {
 			deleted = append(deleted, n)
 		}
 	}
 
-	bgpConfig.Neighbors.NeighborList = newC.Neighbors.NeighborList
+	bgpConfig.Neighbors = newC.Neighbors
 	return &bgpConfig, added, deleted, updated
 }
 

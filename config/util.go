@@ -21,7 +21,7 @@ import (
 
 func IsConfederationMember(g *Global, p *Neighbor) bool {
 	if p.Config.PeerAs != g.Config.As {
-		for _, member := range g.Confederation.Config.MemberAs {
+		for _, member := range g.Confederation.Config.MemberAsList {
 			if member == p.Config.PeerAs {
 				return true
 			}
@@ -34,9 +34,11 @@ func IsEBGPPeer(g *Global, p *Neighbor) bool {
 	return p.Config.PeerAs != g.Config.As
 }
 
+type AfiSafis []AfiSafi
+
 func (c AfiSafis) ToRfList() ([]bgp.RouteFamily, error) {
-	rfs := make([]bgp.RouteFamily, 0, len(c.AfiSafiList))
-	for _, rf := range c.AfiSafiList {
+	rfs := make([]bgp.RouteFamily, 0, len(c))
+	for _, rf := range c {
 		k, err := bgp.GetRouteFamily(rf.AfiSafiName)
 		if err != nil {
 			return nil, err
@@ -47,7 +49,7 @@ func (c AfiSafis) ToRfList() ([]bgp.RouteFamily, error) {
 }
 
 func CreateRfMap(p *Neighbor) map[bgp.RouteFamily]bool {
-	rfs, _ := p.AfiSafis.ToRfList()
+	rfs, _ := AfiSafis(p.AfiSafis).ToRfList()
 	rfMap := make(map[bgp.RouteFamily]bool)
 	for _, rf := range rfs {
 		rfMap[rf] = true
