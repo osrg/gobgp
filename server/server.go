@@ -82,8 +82,8 @@ type BgpServer struct {
 	updatedPeerCh chan config.Neighbor
 	fsmincomingCh chan *FsmMsg
 	fsmStateCh    chan *FsmMsg
-	rpkiConfigCh  chan config.RpkiServers
-	bmpConfigCh   chan config.BmpServers
+	rpkiConfigCh  chan []config.RpkiServer
+	bmpConfigCh   chan []config.BmpServer
 
 	GrpcReqCh      chan *GrpcRequest
 	policyUpdateCh chan config.RoutingPolicy
@@ -107,14 +107,14 @@ func NewBgpServer() *BgpServer {
 	b.addedPeerCh = make(chan config.Neighbor)
 	b.deletedPeerCh = make(chan config.Neighbor)
 	b.updatedPeerCh = make(chan config.Neighbor)
-	b.rpkiConfigCh = make(chan config.RpkiServers)
-	b.bmpConfigCh = make(chan config.BmpServers)
+	b.rpkiConfigCh = make(chan []config.RpkiServer)
+	b.bmpConfigCh = make(chan []config.BmpServer)
 	b.bmpConnCh = make(chan *bmpConn)
 	b.GrpcReqCh = make(chan *GrpcRequest, 1)
 	b.policyUpdateCh = make(chan config.RoutingPolicy)
 	b.neighborMap = make(map[string]*Peer)
 	b.watchers = make(map[watcherType]watcher)
-	b.roaManager, _ = newROAManager(0, config.RpkiServers{})
+	b.roaManager, _ = newROAManager(0, nil)
 	b.policy = table.NewRoutingPolicy()
 	return &b
 }
@@ -166,8 +166,8 @@ func (server *BgpServer) Serve() {
 		}
 	}
 
-	server.bmpClient, _ = newBMPClient(config.BmpServers{BmpServerList: []config.BmpServer{}}, server.bmpConnCh)
-	server.roaManager, _ = newROAManager(g.Config.As, config.RpkiServers{})
+	server.bmpClient, _ = newBMPClient(nil, server.bmpConnCh)
+	server.roaManager, _ = newROAManager(g.Config.As, nil)
 
 	if g.Mrt.FileName != "" {
 		w, err := newMrtWatcher(g.Mrt.FileName)
@@ -182,7 +182,7 @@ func (server *BgpServer) Serve() {
 		if g.Zebra.Url == "" {
 			g.Zebra.Url = "unix:/var/run/quagga/zserv.api"
 		}
-		err := server.NewZclient(g.Zebra.Url, g.Zebra.RedistributeRouteType)
+		err := server.NewZclient(g.Zebra.Url, g.Zebra.RedistributeRouteTypeList)
 		if err != nil {
 			log.Error(err)
 		}
@@ -221,7 +221,7 @@ func (server *BgpServer) Serve() {
 		}
 	}(broadcastCh)
 
-	rfs, _ := g.AfiSafis.ToRfList()
+	rfs, _ := config.AfiSafis(g.AfiSafis).ToRfList()
 	server.globalRib = table.NewTableManager(rfs, g.MplsLabelRange.MinLabel, g.MplsLabelRange.MaxLabel)
 	server.listenerMap = make(map[string]*net.TCPListener)
 	acceptCh := make(chan *net.TCPConn, 4096)
@@ -965,11 +965,11 @@ func (server *BgpServer) SetGlobalType(g config.Global) {
 	}
 }
 
-func (server *BgpServer) SetRpkiConfig(c config.RpkiServers) {
+func (server *BgpServer) SetRpkiConfig(c []config.RpkiServer) {
 	server.rpkiConfigCh <- c
 }
 
-func (server *BgpServer) SetBmpConfig(c config.BmpServers) {
+func (server *BgpServer) SetBmpConfig(c []config.BmpServer) {
 	server.bmpConfigCh <- c
 }
 
@@ -2049,19 +2049,19 @@ func (server *BgpServer) handleGrpcModNeighbor(grpcReq *GrpcRequest) (sMsgs []*S
 				if a.ApplyPolicy.ImportPolicy != nil {
 					pconf.ApplyPolicy.Config.DefaultImportPolicy = config.DefaultPolicyType(a.ApplyPolicy.ImportPolicy.Default)
 					for _, p := range a.ApplyPolicy.ImportPolicy.Policies {
-						pconf.ApplyPolicy.Config.ImportPolicy = append(pconf.ApplyPolicy.Config.ImportPolicy, p.Name)
+						pconf.ApplyPolicy.Config.ImportPolicyList = append(pconf.ApplyPolicy.Config.ImportPolicyList, p.Name)
 					}
 				}
 				if a.ApplyPolicy.ExportPolicy != nil {
 					pconf.ApplyPolicy.Config.DefaultExportPolicy = config.DefaultPolicyType(a.ApplyPolicy.ExportPolicy.Default)
 					for _, p := range a.ApplyPolicy.ExportPolicy.Policies {
-						pconf.ApplyPolicy.Config.ExportPolicy = append(pconf.ApplyPolicy.Config.ExportPolicy, p.Name)
+						pconf.ApplyPolicy.Config.ExportPolicyList = append(pconf.ApplyPolicy.Config.ExportPolicyList, p.Name)
 					}
 				}
 				if a.ApplyPolicy.InPolicy != nil {
 					pconf.ApplyPolicy.Config.DefaultInPolicy = config.DefaultPolicyType(a.ApplyPolicy.InPolicy.Default)
 					for _, p := range a.ApplyPolicy.InPolicy.Policies {
-						pconf.ApplyPolicy.Config.InPolicy = append(pconf.ApplyPolicy.Config.InPolicy, p.Name)
+						pconf.ApplyPolicy.Config.InPolicyList = append(pconf.ApplyPolicy.Config.InPolicyList, p.Name)
 					}
 				}
 			}
@@ -2072,14 +2072,14 @@ func (server *BgpServer) handleGrpcModNeighbor(grpcReq *GrpcRequest) (sMsgs []*S
 						return pconf, fmt.Errorf("invalid address family: %d", family)
 					}
 					cAfiSafi := config.AfiSafi{AfiSafiName: name}
-					pconf.AfiSafis.AfiSafiList = append(pconf.AfiSafis.AfiSafiList, cAfiSafi)
+					pconf.AfiSafis = append(pconf.AfiSafis, cAfiSafi)
 				}
 			} else {
 				if net.ParseIP(a.Conf.NeighborAddress).To4() != nil {
-					pconf.AfiSafis.AfiSafiList = []config.AfiSafi{
+					pconf.AfiSafis = []config.AfiSafi{
 						config.AfiSafi{AfiSafiName: "ipv4-unicast"}}
 				} else {
-					pconf.AfiSafis.AfiSafiList = []config.AfiSafi{
+					pconf.AfiSafis = []config.AfiSafi{
 						config.AfiSafi{AfiSafiName: "ipv6-unicast"}}
 				}
 			}
@@ -2496,7 +2496,7 @@ func (server *BgpServer) handleModRpki(grpcReq *GrpcRequest) {
 		r := config.RpkiServer{}
 		r.Config.Address = arg.Address
 		r.Config.Port = arg.Port
-		server.bgpConfig.RpkiServers.RpkiServerList = append(server.bgpConfig.RpkiServers.RpkiServerList, r)
+		server.bgpConfig.RpkiServers = append(server.bgpConfig.RpkiServers, r)
 		server.roaManager, _ = newROAManager(server.bgpConfig.Global.Config.As, server.bgpConfig.RpkiServers)
 		grpcDone(grpcReq, nil)
 		return

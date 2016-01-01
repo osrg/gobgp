@@ -174,51 +174,51 @@ class GoBGPContainer(BGPContainer):
             self._create_config_zebra()
 
     def _create_config_bgp(self):
-        config = {'Global': {'Config': {'As': self.asn, 'RouterId': self.router_id}}}
+        config = {'global': {'config': {'as': self.asn, 'router-id': self.router_id}}}
         for peer, info in self.peers.iteritems():
             afi_safi_list = []
             version = netaddr.IPNetwork(info['neigh_addr']).version
             if version == 4:
-                afi_safi_list.append({'AfiSafiName': 'ipv4-unicast'})
+                afi_safi_list.append({'afi-safi-name': 'ipv4-unicast'})
             elif version == 6:
-                afi_safi_list.append({'AfiSafiName': 'ipv6-unicast'})
+                afi_safi_list.append({'afi-safi-name': 'ipv6-unicast'})
             else:
                 Exception('invalid ip address version. {0}'.format(version))
 
             if info['evpn']:
-                afi_safi_list.append({'AfiSafiName': 'l2vpn-evpn'})
-                afi_safi_list.append({'AfiSafiName': 'encap'})
-                afi_safi_list.append({'AfiSafiName': 'rtc'})
+                afi_safi_list.append({'afi-safi-name': 'l2vpn-evpn'})
+                afi_safi_list.append({'afi-safi-name': 'encap'})
+                afi_safi_list.append({'afi-safi-name': 'rtc'})
 
             if info['flowspec']:
-                afi_safi_list.append({'AfiSafiName': 'ipv4-flowspec'})
-                afi_safi_list.append({'AfiSafiName': 'l3vpn-ipv4-flowspec'})
-                afi_safi_list.append({'AfiSafiName': 'ipv6-flowspec'})
-                afi_safi_list.append({'AfiSafiName': 'l3vpn-ipv6-flowspec'})
+                afi_safi_list.append({'afi-safi-name': 'ipv4-flowspec'})
+                afi_safi_list.append({'afi-safi-name': 'l3vpn-ipv4-flowspec'})
+                afi_safi_list.append({'afi-safi-name': 'ipv6-flowspec'})
+                afi_safi_list.append({'afi-safi-name': 'l3vpn-ipv6-flowspec'})
 
-            n = {'Config':
-                 {'NeighborAddress': info['neigh_addr'].split('/')[0],
-                  'PeerAs': peer.asn,
-                  'AuthPassword': info['passwd'],
+            n = {'config':
+                 {'neighbor-address': info['neigh_addr'].split('/')[0],
+                  'peer-as': peer.asn,
+                  'auth-password': info['passwd'],
                   },
-                 'AfiSafis': {'AfiSafiList': afi_safi_list},
-                 'Timers': {'Config': {
-                        'ConnectRetry': 10,
-                     }},
+                 'afi-safis': afi_safi_list,
+                 'timers': {'config': {
+                     'connect-retry': 10,
+                    }},
                  }
 
             if info['passive']:
-                n['Transport'] = {'Config': {'PassiveMode': True}}
+                n['transport'] = {'config': {'passive-mode': True}}
 
             if info['is_rs_client']:
-                n['RouteServer'] = {'Config': {'RouteServerClient': True}}
+                n['route-server'] = {'config': {'route-server-client': True}}
 
             if info['is_rr_client']:
                 clusterId = self.router_id
                 if 'cluster_id' in info and info['cluster_id'] is not None:
                     clusterId = info['cluster_id']
-                n['RouteReflector'] = {'Config' : {'RouteReflectorClient': True,
-                                                   'RouteReflectorClusterId': clusterId}}
+                n['route-reflector'] = {'config' : {'route-reflector-client': True,
+                                                   'route-reflector-cluster-id': clusterId}}
 
             f = lambda typ: [p for p in info['policies'].itervalues() if p['type'] == typ]
             import_policies = f('import')
@@ -231,16 +231,16 @@ class GoBGPContainer(BGPContainer):
 
             if len(import_policies) + len(export_policies) + len(in_policies) + len(default_import_policy) \
                 + len(default_export_policy) + len(default_in_policy) > 0:
-                n['ApplyPolicy'] = {'Config': {}}
+                n['apply-policy'] = {'config': {}}
 
             if len(import_policies) > 0:
-                n['ApplyPolicy']['Config']['ImportPolicy'] = [p['name'] for p in import_policies]
+                n['apply-policy']['config']['import-policy-list'] = [p['name'] for p in import_policies]
 
             if len(export_policies) > 0:
-                n['ApplyPolicy']['Config']['ExportPolicy'] = [p['name'] for p in export_policies]
+                n['apply-policy']['config']['export-policy-list'] = [p['name'] for p in export_policies]
 
             if len(in_policies) > 0:
-                n['ApplyPolicy']['Config']['InPolicy'] = [p['name'] for p in in_policies]
+                n['apply-policy']['config']['in-policy-list'] = [p['name'] for p in in_policies]
 
             def f(v):
                 if v == 'reject':
@@ -250,41 +250,41 @@ class GoBGPContainer(BGPContainer):
                 raise Exception('invalid default policy type {0}'.format(v))
 
             if len(default_import_policy) > 0:
-               n['ApplyPolicy']['Config']['DefaultImportPolicy'] = f(default_import_policy[0])
+               n['apply-policy']['config']['default-import-policy'] = f(default_import_policy[0])
 
             if len(default_export_policy) > 0:
-               n['ApplyPolicy']['Config']['DefaultExportPolicy'] = f(default_export_policy[0])
+               n['apply-policy']['config']['default-export-policy'] = f(default_export_policy[0])
 
             if len(default_in_policy) > 0:
-               n['ApplyPolicy']['Config']['DefaultInPolicy'] = f(default_in_policy[0])
+               n['apply-policy']['config']['default-in-policy'] = f(default_in_policy[0])
 
-            if 'Neighbors' not in config:
-                config['Neighbors'] = {'NeighborList': []}
+            if 'neighbors' not in config:
+                config['neighbors'] = []
 
-            config['Neighbors']['NeighborList'].append(n)
+            config['neighbors'].append(n)
 
-        config['DefinedSets'] = {}
+        config['defined-sets'] = {}
         if self.prefix_set:
-            config['DefinedSets']['PrefixSets'] = {'PrefixSetList': [self.prefix_set]}
+            config['defined-sets']['prefix-sets'] = [self.prefix_set]
 
         if self.neighbor_set:
-            config['DefinedSets']['NeighborSets'] = {'NeighborSetList': [self.neighbor_set]}
+            config['defined-sets']['neighbor-sets'] = [self.neighbor_set]
 
         if self.bgp_set:
-            config['DefinedSets']['BgpDefinedSets'] = self.bgp_set
+            config['defined-sets']['bgp-defined-sets'] = self.bgp_set
 
         policy_list = []
         for p in self.policies.itervalues():
-            policy = {'Name': p['name'],
-                      'Statements':{'StatementList': p['statements']}}
+            policy = {'name': p['name'],
+                      'statements': p['statements']}
             policy_list.append(policy)
 
         if len(policy_list) > 0:
-            config['PolicyDefinitions'] = {'PolicyDefinitionList': policy_list}
+            config['policy-definitions'] = policy_list
 
         if self.zebra:
-            config['Global']['Zebra'] = {'Enabled': True,
-                                         'RedistributeRouteType':['connect']}
+            config['global']['zebra'] = {'enabled': True,
+                                         'redistribute-route-type-list':['connect']}
 
         with open('{0}/gobgpd.conf'.format(self.config_dir), 'w') as f:
             print colors.yellow('[{0}\'s new config]'.format(self.name))

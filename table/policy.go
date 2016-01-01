@@ -510,13 +510,13 @@ func NewNeighborSetFromApiStruct(a *api.DefinedSet) (*NeighborSet, error) {
 func NewNeighborSet(c config.NeighborSet) (*NeighborSet, error) {
 	name := c.NeighborSetName
 	if name == "" {
-		if len(c.NeighborInfo) == 0 {
+		if len(c.NeighborInfoList) == 0 {
 			return nil, nil
 		}
 		return nil, fmt.Errorf("empty neighbor set name")
 	}
-	list := make([]net.IP, 0, len(c.NeighborInfo))
-	for _, x := range c.NeighborInfo {
+	list := make([]net.IP, 0, len(c.NeighborInfoList))
+	for _, x := range c.NeighborInfoList {
 		addr := net.ParseIP(x)
 		if addr == nil {
 			return nil, fmt.Errorf("invalid address: %s", x)
@@ -697,7 +697,7 @@ func (s *AsPathSet) ToApiStruct() *api.DefinedSet {
 func NewAsPathSetFromApiStruct(a *api.DefinedSet) (*AsPathSet, error) {
 	c := config.AsPathSet{
 		AsPathSetName: a.Name,
-		AsPath:        a.List,
+		AsPathList:    a.List,
 	}
 	return NewAsPathSet(c)
 }
@@ -705,14 +705,14 @@ func NewAsPathSetFromApiStruct(a *api.DefinedSet) (*AsPathSet, error) {
 func NewAsPathSet(c config.AsPathSet) (*AsPathSet, error) {
 	name := c.AsPathSetName
 	if name == "" {
-		if len(c.AsPath) == 0 {
+		if len(c.AsPathList) == 0 {
 			return nil, nil
 		}
 		return nil, fmt.Errorf("empty as-path set name")
 	}
-	list := make([]*regexp.Regexp, 0, len(c.AsPath))
-	singleList := make([]*singleAsPathMatch, 0, len(c.AsPath))
-	for _, x := range c.AsPath {
+	list := make([]*regexp.Regexp, 0, len(c.AsPathList))
+	singleList := make([]*singleAsPathMatch, 0, len(c.AsPathList))
+	for _, x := range c.AsPathList {
 		if s := NewSingleAsPathMatch(x); s != nil {
 			singleList = append(singleList, s)
 		} else {
@@ -899,7 +899,7 @@ func ParseExtCommunityRegexp(arg string) (bgp.ExtendedCommunityAttrSubType, *reg
 func NewCommunitySetFromApiStruct(a *api.DefinedSet) (*CommunitySet, error) {
 	c := config.CommunitySet{
 		CommunitySetName: a.Name,
-		Community:        a.List,
+		CommunityList:    a.List,
 	}
 	return NewCommunitySet(c)
 }
@@ -907,13 +907,13 @@ func NewCommunitySetFromApiStruct(a *api.DefinedSet) (*CommunitySet, error) {
 func NewCommunitySet(c config.CommunitySet) (*CommunitySet, error) {
 	name := c.CommunitySetName
 	if name == "" {
-		if len(c.Community) == 0 {
+		if len(c.CommunityList) == 0 {
 			return nil, nil
 		}
 		return nil, fmt.Errorf("empty community set name")
 	}
-	list := make([]*regexp.Regexp, 0, len(c.Community))
-	for _, x := range c.Community {
+	list := make([]*regexp.Regexp, 0, len(c.CommunityList))
+	for _, x := range c.CommunityList {
 		exp, err := ParseCommunityRegexp(x)
 		if err != nil {
 			return nil, err
@@ -959,7 +959,7 @@ func (s *ExtCommunitySet) ToApiStruct() *api.DefinedSet {
 func NewExtCommunitySetFromApiStruct(a *api.DefinedSet) (*ExtCommunitySet, error) {
 	c := config.ExtCommunitySet{
 		ExtCommunitySetName: a.Name,
-		ExtCommunity:        a.List,
+		ExtCommunityList:    a.List,
 	}
 	return NewExtCommunitySet(c)
 }
@@ -967,14 +967,14 @@ func NewExtCommunitySetFromApiStruct(a *api.DefinedSet) (*ExtCommunitySet, error
 func NewExtCommunitySet(c config.ExtCommunitySet) (*ExtCommunitySet, error) {
 	name := c.ExtCommunitySetName
 	if name == "" {
-		if len(c.ExtCommunity) == 0 {
+		if len(c.ExtCommunityList) == 0 {
 			return nil, nil
 		}
 		return nil, fmt.Errorf("empty ext-community set name")
 	}
-	list := make([]*regexp.Regexp, 0, len(c.ExtCommunity))
-	subtypeList := make([]bgp.ExtendedCommunityAttrSubType, 0, len(c.ExtCommunity))
-	for _, x := range c.ExtCommunity {
+	list := make([]*regexp.Regexp, 0, len(c.ExtCommunityList))
+	subtypeList := make([]bgp.ExtendedCommunityAttrSubType, 0, len(c.ExtCommunityList))
+	for _, x := range c.ExtCommunityList {
 		subtype, exp, err := ParseExtCommunityRegexp(x)
 		if err != nil {
 			return nil, err
@@ -1741,7 +1741,7 @@ func NewCommunityActionFromApiStruct(a *api.CommunityAction) (*CommunityAction, 
 func NewCommunityAction(c config.SetCommunity) (*CommunityAction, error) {
 	a, ok := CommunityOptionValueMap[strings.ToLower(c.Options)]
 	if !ok {
-		if len(c.SetCommunityMethod.Communities) == 0 {
+		if len(c.SetCommunityMethod.CommunitiesList) == 0 {
 			return nil, nil
 		}
 		return nil, fmt.Errorf("invalid option name: %s", c.Options)
@@ -1749,11 +1749,11 @@ func NewCommunityAction(c config.SetCommunity) (*CommunityAction, error) {
 	var list []uint32
 	var removeList []*regexp.Regexp
 	if a == config.BGP_SET_COMMUNITY_OPTION_TYPE_REMOVE {
-		removeList = make([]*regexp.Regexp, 0, len(c.SetCommunityMethod.Communities))
+		removeList = make([]*regexp.Regexp, 0, len(c.SetCommunityMethod.CommunitiesList))
 	} else {
-		list = make([]uint32, 0, len(c.SetCommunityMethod.Communities))
+		list = make([]uint32, 0, len(c.SetCommunityMethod.CommunitiesList))
 	}
-	for _, x := range c.SetCommunityMethod.Communities {
+	for _, x := range c.SetCommunityMethod.CommunitiesList {
 		if a == config.BGP_SET_COMMUNITY_OPTION_TYPE_REMOVE {
 			exp, err := ParseCommunityRegexp(x)
 			if err != nil {
@@ -1865,20 +1865,20 @@ func NewExtCommunityActionFromApiStruct(a *api.CommunityAction) (*ExtCommunityAc
 func NewExtCommunityAction(c config.SetExtCommunity) (*ExtCommunityAction, error) {
 	a, ok := CommunityOptionValueMap[strings.ToLower(c.Options)]
 	if !ok {
-		if len(c.SetExtCommunityMethod.Communities) == 0 {
+		if len(c.SetExtCommunityMethod.CommunitiesList) == 0 {
 			return nil, nil
 		}
 		return nil, fmt.Errorf("invalid option name: %s", c.Options)
 	}
 	var list []bgp.ExtendedCommunityInterface
 	var removeList []*regexp.Regexp
-	subtypeList := make([]bgp.ExtendedCommunityAttrSubType, 0, len(c.SetExtCommunityMethod.Communities))
+	subtypeList := make([]bgp.ExtendedCommunityAttrSubType, 0, len(c.SetExtCommunityMethod.CommunitiesList))
 	if a == config.BGP_SET_COMMUNITY_OPTION_TYPE_REMOVE {
-		removeList = make([]*regexp.Regexp, 0, len(c.SetExtCommunityMethod.Communities))
+		removeList = make([]*regexp.Regexp, 0, len(c.SetExtCommunityMethod.CommunitiesList))
 	} else {
-		list = make([]bgp.ExtendedCommunityInterface, 0, len(c.SetExtCommunityMethod.Communities))
+		list = make([]bgp.ExtendedCommunityInterface, 0, len(c.SetExtCommunityMethod.CommunitiesList))
 	}
-	for _, x := range c.SetExtCommunityMethod.Communities {
+	for _, x := range c.SetExtCommunityMethod.CommunitiesList {
 		if a == config.BGP_SET_COMMUNITY_OPTION_TYPE_REMOVE {
 			subtype, exp, err := ParseExtCommunityRegexp(x)
 			if err != nil {
@@ -2516,7 +2516,7 @@ func NewPolicy(c config.PolicyDefinition, dmap DefinedSetMap) (*Policy, error) {
 		return nil, fmt.Errorf("empty policy name")
 	}
 	var st []*Statement
-	stmts := c.Statements.StatementList
+	stmts := c.Statements
 	if len(stmts) != 0 {
 		st = make([]*Statement, 0, len(stmts))
 		for idx, stmt := range stmts {
@@ -2654,13 +2654,13 @@ func (r *RoutingPolicy) GetAssignmentFromConfig(dir PolicyDirection, a config.Ap
 	c := a.Config
 	switch dir {
 	case POLICY_DIRECTION_IN:
-		names = c.InPolicy
+		names = c.InPolicyList
 		cdef = c.DefaultInPolicy
 	case POLICY_DIRECTION_IMPORT:
-		names = c.ImportPolicy
+		names = c.ImportPolicyList
 		cdef = c.DefaultImportPolicy
 	case POLICY_DIRECTION_EXPORT:
-		names = c.ExportPolicy
+		names = c.ExportPolicyList
 		cdef = c.DefaultExportPolicy
 	default:
 		return nil, def, fmt.Errorf("invalid policy direction")
@@ -2708,23 +2708,29 @@ func (r *RoutingPolicy) Reload(c config.RoutingPolicy) error {
 	dmap := make(map[DefinedType]map[string]DefinedSet)
 	dmap[DEFINED_TYPE_PREFIX] = make(map[string]DefinedSet)
 	d := c.DefinedSets
-	for _, x := range d.PrefixSets.PrefixSetList {
+	for _, x := range d.PrefixSets {
 		y, err := NewPrefixSet(x)
 		if err != nil {
 			return err
 		}
+		if y == nil {
+			return fmt.Errorf("empty prefix set")
+		}
 		dmap[DEFINED_TYPE_PREFIX][y.Name()] = y
 	}
 	dmap[DEFINED_TYPE_NEIGHBOR] = make(map[string]DefinedSet)
-	for _, x := range d.NeighborSets.NeighborSetList {
+	for _, x := range d.NeighborSets {
 		y, err := NewNeighborSet(x)
 		if err != nil {
 			return err
 		}
+		if y == nil {
+			return fmt.Errorf("empty neighbor set")
+		}
 		dmap[DEFINED_TYPE_NEIGHBOR][y.Name()] = y
 	}
 	//	dmap[DEFINED_TYPE_TAG] = make(map[string]DefinedSet)
-	//	for _, x := range c.DefinedSets.TagSets.TagSetList {
+	//	for _, x := range c.DefinedSets.TagSets{
 	//		y, err := NewTagSet(x)
 	//		if err != nil {
 	//			return nil, err
@@ -2733,32 +2739,41 @@ func (r *RoutingPolicy) Reload(c config.RoutingPolicy) error {
 	//	}
 	bd := c.DefinedSets.BgpDefinedSets
 	dmap[DEFINED_TYPE_AS_PATH] = make(map[string]DefinedSet)
-	for _, x := range bd.AsPathSets.AsPathSetList {
+	for _, x := range bd.AsPathSets {
 		y, err := NewAsPathSet(x)
 		if err != nil {
 			return err
 		}
+		if y == nil {
+			return fmt.Errorf("empty as path set")
+		}
 		dmap[DEFINED_TYPE_AS_PATH][y.Name()] = y
 	}
 	dmap[DEFINED_TYPE_COMMUNITY] = make(map[string]DefinedSet)
-	for _, x := range bd.CommunitySets.CommunitySetList {
+	for _, x := range bd.CommunitySets {
 		y, err := NewCommunitySet(x)
 		if err != nil {
 			return err
 		}
+		if y == nil {
+			return fmt.Errorf("empty community set")
+		}
 		dmap[DEFINED_TYPE_COMMUNITY][y.Name()] = y
 	}
 	dmap[DEFINED_TYPE_EXT_COMMUNITY] = make(map[string]DefinedSet)
-	for _, x := range bd.ExtCommunitySets.ExtCommunitySetList {
+	for _, x := range bd.ExtCommunitySets {
 		y, err := NewExtCommunitySet(x)
 		if err != nil {
 			return err
+		}
+		if y == nil {
+			return fmt.Errorf("empty ext-community set")
 		}
 		dmap[DEFINED_TYPE_EXT_COMMUNITY][y.Name()] = y
 	}
 	pmap := make(map[string]*Policy)
 	smap := make(map[string]*Statement)
-	for _, x := range c.PolicyDefinitions.PolicyDefinitionList {
+	for _, x := range c.PolicyDefinitions {
 		y, err := NewPolicy(x, dmap)
 		if err != nil {
 			return err
@@ -2798,7 +2813,7 @@ func CanImportToVrf(v *Vrf, path *Path) bool {
 	}
 	set, _ := NewExtCommunitySet(config.ExtCommunitySet{
 		ExtCommunitySetName: v.Name,
-		ExtCommunity:        f(v.ImportRt),
+		ExtCommunityList:    f(v.ImportRt),
 	})
 	matchSet := config.MatchExtCommunitySet{
 		ExtCommunitySet: v.Name,

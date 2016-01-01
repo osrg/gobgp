@@ -1,7 +1,7 @@
 What's this ?
 =============
 This is a pyang plugin to generate config/bgp_configs.go from
-openconfig yang files (see [https://github.com/openconfig/public](https://github.com/openconfig/public))
+openconfig yang files (see https://github.com/openconfig/public).
 
 How to use
 ==========

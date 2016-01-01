@@ -106,23 +106,23 @@ type roaClientEvent struct {
 type roaManager struct {
 	AS        uint32
 	roas      map[bgp.RouteFamily]*radix.Tree
-	config    config.RpkiServers
+	config    []config.RpkiServer
 	eventCh   chan *roaClientEvent
 	clientMap map[string]*roaClient
 }
 
-func newROAManager(as uint32, conf config.RpkiServers) (*roaManager, error) {
+func newROAManager(as uint32, servers []config.RpkiServer) (*roaManager, error) {
 	m := &roaManager{
 		AS:     as,
 		roas:   make(map[bgp.RouteFamily]*radix.Tree),
-		config: conf,
+		config: servers,
 	}
 	m.roas[bgp.RF_IPv4_UC] = radix.New()
 	m.roas[bgp.RF_IPv6_UC] = radix.New()
 	m.eventCh = make(chan *roaClientEvent)
 	m.clientMap = make(map[string]*roaClient)
 
-	for _, entry := range conf.RpkiServerList {
+	for _, entry := range servers {
 		c := entry.Config
 		client := &roaClient{
 			host:    net.JoinHostPort(c.Address, strconv.Itoa(int(c.Port))),

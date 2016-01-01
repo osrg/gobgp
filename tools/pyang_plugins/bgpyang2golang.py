@@ -128,6 +128,10 @@ def dig_leafref(type_obj):
 def emit_class_def(ctx, yang_statement, struct_name, prefix):
 
     o = StringIO.StringIO()
+
+    if len(yang_statement.i_children) == 1 and is_list(yang_statement.i_children[0]):
+        return
+
     print >> o, '//struct for container %s:%s' % (prefix, yang_statement.arg)
     print >> o, 'type %s struct {' % convert_to_golang(struct_name)
     for child in yang_statement.i_children:
@@ -138,6 +142,7 @@ def emit_class_def(ctx, yang_statement, struct_name, prefix):
         container_or_list_name = child.uniq_name
         val_name_go = convert_to_golang(child.arg)
         child_prefix = get_orig_prefix(child.i_orig_module)
+        tag_name = child.uniq_name.lower()
         print >> o, '  // original -> %s:%s' % \
                     (child_prefix, container_or_list_name)
 
@@ -197,7 +202,7 @@ def emit_class_def(ctx, yang_statement, struct_name, prefix):
 
             # case translation required
             elif is_translation_required(type_obj):
-                print >> o, '  //original type is list of %s' % (type_obj.arg)
+                print >> o, '  // original type is list of %s' % (type_obj.arg)
                 emit_type_name = '[]'+translate_type(type_name)
 
             # case other primitives
@@ -214,24 +219,30 @@ def emit_class_def(ctx, yang_statement, struct_name, prefix):
         elif is_container(child) or is_choice(child):
             key = child_prefix+':'+container_or_list_name
             t = ctx.golang_struct_names[key]
-            emit_type_name = t.golang_name
+            val_name_go = t.golang_name
+            if len(t.i_children) == 1 and is_list(t.i_children[0]):
+                l = t.i_children[0]
+                emit_type_name = '[]' + l.golang_name
+            else:
+                emit_type_name = t.golang_name
 
         # case list
         elif is_list(child):
             key = child_prefix+':'+container_or_list_name
             t = ctx.golang_struct_names[key]
             val_name_go = val_name_go + 'List'
+            tag_name += '-list'
             emit_type_name = '[]' + t.golang_name
 
         if is_container(child):
             name = emit_type_name
             if name.startswith(convert_to_golang(struct_name)) and name.endswith("Config"):
-                name = 'Config'
+                tag_name = 'config'
+                val_name_go = 'Config'
             elif name.startswith(convert_to_golang(struct_name)) and name.endswith("State"):
-                name = 'State'
-            print >> o, '  %s\t%s' % (name, emit_type_name)
-        else:
-            print >> o, '  %s\t%s' % (val_name_go, emit_type_name)
+                tag_name = 'state'
+                val_name_go = 'State'
+        print >> o, '  {0}\t{1} `mapstructure:"{2}"`'.format(val_name_go, emit_type_name, tag_name)
 
     print >> o, '}'
     print o.getvalue()
