@@ -138,35 +138,6 @@ const (
 	BGP_ORIGIN_ATTR_TYPE_INCOMPLETE                   = 2
 )
 
-//struct for container gobgp:state
-type BmpServerState struct {
-}
-
-//struct for container gobgp:config
-type BmpServerConfig struct {
-	// original -> gobgp:address
-	//gobgp:address's original type is inet:ip-address
-	Address string
-	// original -> gobgp:port
-	Port uint32
-	// original -> gobgp:route-monitoring-policy
-	RouteMonitoringPolicy BmpRouteMonitoringPolicyType
-}
-
-//struct for container gobgp:bmp-server
-type BmpServer struct {
-	// original -> gobgp:bmp-server-config
-	Config BmpServerConfig
-	// original -> gobgp:bmp-server-state
-	State BmpServerState
-}
-
-//struct for container gobgp:bmp-servers
-type BmpServers struct {
-	// original -> gobgp:bmp-server
-	BmpServerList []BmpServer
-}
-
 //struct for container gobgp:rpki-received
 type RpkiReceived struct {
 	// original -> gobgp:serial-notify
@@ -838,6 +809,35 @@ type Mrt struct {
 	FileName string
 }
 
+//struct for container gobgp:state
+type BmpServerState struct {
+}
+
+//struct for container gobgp:config
+type BmpServerConfig struct {
+	// original -> gobgp:address
+	//gobgp:address's original type is inet:ip-address
+	Address string
+	// original -> gobgp:port
+	Port uint32
+	// original -> gobgp:route-monitoring-policy
+	RouteMonitoringPolicy BmpRouteMonitoringPolicyType
+}
+
+//struct for container gobgp:bmp-server
+type BmpServer struct {
+	// original -> gobgp:bmp-server-config
+	Config BmpServerConfig
+	// original -> gobgp:bmp-server-state
+	State BmpServerState
+}
+
+//struct for container gobgp:bmp-servers
+type BmpServers struct {
+	// original -> gobgp:bmp-server
+	BmpServerList []BmpServer
+}
+
 //struct for container bgp-mp:l2vpn-evpn
 type L2vpnEvpn struct {
 	// original -> bgp-mp:prefix-limit
@@ -1374,6 +1374,8 @@ type Global struct {
 	AfiSafis AfiSafis
 	// original -> rpol:apply-policy
 	ApplyPolicy ApplyPolicy
+	// original -> gobgp:bmp-servers
+	BmpServers BmpServers
 	// original -> gobgp:mrt
 	Mrt Mrt
 	// original -> gobgp:zebra
@@ -1394,8 +1396,6 @@ type Bgp struct {
 	PeerGroups PeerGroups
 	// original -> gobgp:rpki-servers
 	RpkiServers RpkiServers
-	// original -> gobgp:bmp-servers
-	BmpServers BmpServers
 }
 
 //struct for container bgp-pol:set-ext-community-method

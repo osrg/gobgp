@@ -628,7 +628,7 @@ module bgp-gobgp {
     uses gobgp-rpki-servers;
   }
 
-  augment "/bgp:bgp" {
+  augment "/bgp:bgp/bgp:global" {
     description "additional bmp configuration";
     uses gobgp-bmp-servers;
   }
