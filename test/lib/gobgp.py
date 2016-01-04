@@ -201,7 +201,10 @@ class GoBGPContainer(BGPContainer):
                   'PeerAs': peer.asn,
                   'AuthPassword': info['passwd'],
                   },
-                 'AfiSafis': {'AfiSafiList': afi_safi_list}
+                 'AfiSafis': {'AfiSafiList': afi_safi_list},
+                 'Timers': {'Config': {
+                        'ConnectRetry': 10,
+                     }},
                  }
 
             if info['passive']:

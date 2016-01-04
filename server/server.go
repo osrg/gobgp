@@ -81,6 +81,7 @@ type BgpServer struct {
 	deletedPeerCh chan config.Neighbor
 	updatedPeerCh chan config.Neighbor
 	fsmincomingCh chan *FsmMsg
+	fsmStateCh    chan *FsmMsg
 	rpkiConfigCh  chan config.RpkiServers
 	bmpConfigCh   chan config.BmpServers
 
@@ -98,6 +99,7 @@ type BgpServer struct {
 	bmpConnCh      chan *bmpConn
 	shutdown       bool
 	watchers       map[watcherType]watcher
+	neighborMutex  sync.RWMutex
 }
 
 func NewBgpServer() *BgpServer {
@@ -119,7 +121,7 @@ func NewBgpServer() *BgpServer {
 }
 
 // avoid mapped IPv6 address
-func listenAndAccept(proto string, port uint32, ch chan *net.TCPConn) (*net.TCPListener, error) {
+func (server *BgpServer) listenAndAccept(proto string, port uint32) (*net.TCPListener, error) {
 	service := ":" + strconv.Itoa(int(port))
 	addr, _ := net.ResolveTCPAddr(proto, service)
 
@@ -135,7 +137,43 @@ func listenAndAccept(proto string, port uint32, ch chan *net.TCPConn) (*net.TCPL
 				log.Info(err)
 				continue
 			}
-			ch <- conn
+			remoteAddr, _, _ := net.SplitHostPort(conn.RemoteAddr().String())
+			server.neighborMutex.RLock()
+			peer, found := server.neighborMap[remoteAddr]
+			if found {
+				localAddrValid := func(laddr string) bool {
+					if laddr == "" {
+						return true
+					}
+					l := conn.LocalAddr()
+					if l == nil {
+						// already closed
+						return false
+					}
+
+					host, _, _ := net.SplitHostPort(l.String())
+					if host != laddr {
+						log.WithFields(log.Fields{
+							"Topic":           "Peer",
+							"Key":             remoteAddr,
+							"Configured addr": laddr,
+							"Addr":            host,
+						}).Info("Mismatched local address")
+						return false
+					}
+					return true
+				}(peer.conf.Transport.Config.LocalAddress)
+				if localAddrValid == false {
+					conn.Close()
+					return
+				}
+				log.Debug("accepted a new passive connection from ", remoteAddr)
+				peer.PassConn(conn)
+			} else {
+				log.Info("can't find configuration for a new passive connection from ", remoteAddr)
+				conn.Close()
+			}
+			server.neighborMutex.RUnlock()
 		}
 	}()
 
@@ -227,11 +265,10 @@ func (server *BgpServer) Serve() {
 	rfs, _ := g.AfiSafis.ToRfList()
 	server.globalRib = table.NewTableManager(rfs, g.MplsLabelRange.MinLabel, g.MplsLabelRange.MaxLabel)
 	server.listenerMap = make(map[string]*net.TCPListener)
-	acceptCh := make(chan *net.TCPConn, 4096)
 	if g.ListenConfig.Port > 0 {
-		l4, err1 := listenAndAccept("tcp4", uint32(g.ListenConfig.Port), acceptCh)
+		l4, err1 := server.listenAndAccept("tcp4", uint32(g.ListenConfig.Port))
 		server.listenerMap["tcp4"] = l4
-		l6, err2 := listenAndAccept("tcp6", uint32(g.ListenConfig.Port), acceptCh)
+		l6, err2 := server.listenAndAccept("tcp6", uint32(g.ListenConfig.Port))
 		server.listenerMap["tcp6"] = l6
 		if err1 != nil && err2 != nil {
 			log.Fatal("can't listen either v4 and v6")
@@ -250,12 +287,26 @@ func (server *BgpServer) Serve() {
 	}
 
 	server.fsmincomingCh = make(chan *FsmMsg, 4096)
+	server.fsmStateCh = make(chan *FsmMsg, 4096)
 	var senderMsgs []*SenderMsg
 
 	var zapiMsgCh chan *zebra.Message
 	if server.zclient != nil {
 		zapiMsgCh = server.zclient.Receive()
 	}
+
+	handleFsmMsg := func(e *FsmMsg) {
+		peer, found := server.neighborMap[e.MsgSrc]
+		if !found {
+			log.Warn("Can't find the neighbor ", e.MsgSrc)
+			return
+		}
+		m := server.handleFSMMessage(peer, e)
+		if len(m) > 0 {
+			senderMsgs = append(senderMsgs, m...)
+		}
+	}
+
 	for {
 		var firstMsg *SenderMsg
 		var sCh chan *SenderMsg
@@ -270,54 +321,24 @@ func (server *BgpServer) Serve() {
 			firstBroadcastMsg = server.broadcastMsgs[0]
 		}
 
-		passConn := func(conn *net.TCPConn) {
-			remoteAddr, _, _ := net.SplitHostPort(conn.RemoteAddr().String())
-			peer, found := server.neighborMap[remoteAddr]
-			if found {
-				localAddrValid := func(laddr net.IP) bool {
-					if laddr == nil {
-						return true
-					}
-					l := conn.LocalAddr()
-					if l == nil {
-						// already closed
-						return false
-					}
-
-					host, _, _ := net.SplitHostPort(l.String())
-					if host != laddr.String() {
-						log.WithFields(log.Fields{
-							"Topic":           "Peer",
-							"Key":             remoteAddr,
-							"Configured addr": laddr.String(),
-							"Addr":            host,
-						}).Info("Mismatched local address")
-						return false
-					}
-					return true
-				}(net.ParseIP(peer.conf.Transport.Config.LocalAddress))
-				if localAddrValid == false {
-					conn.Close()
-					return
-				}
-				log.Debug("accepted a new passive connection from ", remoteAddr)
-				peer.PassConn(conn)
-			} else {
-				log.Info("can't find configuration for a new passive connection from ", remoteAddr)
-				conn.Close()
-			}
-		}
-
 		select {
 		case grpcReq := <-server.GrpcReqCh:
 			m := server.handleGrpc(grpcReq)
 			if len(m) > 0 {
 				senderMsgs = append(senderMsgs, m...)
 			}
-		case conn := <-acceptCh:
-			passConn(conn)
 		default:
 		}
+
+		for {
+			select {
+			case e := <-server.fsmStateCh:
+				handleFsmMsg(e)
+			default:
+				goto CONT
+			}
+		}
+	CONT:
 
 		select {
 		case c := <-server.rpkiConfigCh:
@@ -357,9 +378,8 @@ func (server *BgpServer) Serve() {
 			if len(m) > 0 {
 				senderMsgs = append(senderMsgs, m...)
 			}
-		case conn := <-acceptCh:
-			passConn(conn)
 		case config := <-server.addedPeerCh:
+			server.neighborMutex.Lock()
 			addr := config.Config.NeighborAddress
 			_, found := server.neighborMap[addr]
 			if found {
@@ -386,9 +406,11 @@ func (server *BgpServer) Serve() {
 				}
 			}
 			server.neighborMap[addr] = peer
-			peer.startFSMHandler(server.fsmincomingCh)
+			peer.startFSMHandler(server.fsmincomingCh, server.fsmStateCh)
 			server.broadcastPeerState(peer)
+			server.neighborMutex.Unlock()
 		case config := <-server.deletedPeerCh:
+			server.neighborMutex.Lock()
 			addr := config.Config.NeighborAddress
 			SetTcpMD5SigSockopts(listener(addr), addr, "")
 			peer, found := server.neighborMap[addr]
@@ -413,21 +435,16 @@ func (server *BgpServer) Serve() {
 			} else {
 				log.Info("Can't delete a peer configuration for ", addr)
 			}
+			server.neighborMutex.Unlock()
 		case config := <-server.updatedPeerCh:
 			addr := config.Config.NeighborAddress
 			peer := server.neighborMap[addr]
 			peer.conf = config
 			server.setPolicyByConfig(peer.ID(), config.ApplyPolicy)
 		case e := <-server.fsmincomingCh:
-			peer, found := server.neighborMap[e.MsgSrc]
-			if !found {
-				log.Warn("Can't find the neighbor ", e.MsgSrc)
-				break
-			}
-			m := server.handleFSMMessage(peer, e, server.fsmincomingCh)
-			if len(m) > 0 {
-				senderMsgs = append(senderMsgs, m...)
-			}
+			handleFsmMsg(e)
+		case e := <-server.fsmStateCh:
+			handleFsmMsg(e)
 		case sCh <- firstMsg:
 			senderMsgs = senderMsgs[1:]
 		case bCh <- firstBroadcastMsg:
@@ -444,7 +461,7 @@ func (server *BgpServer) Serve() {
 }
 
 func newSenderMsg(peer *Peer, messages []*bgp.BGPMessage) *SenderMsg {
-	_, y := peer.capMap[bgp.BGP_CAP_FOUR_OCTET_AS_NUMBER]
+	_, y := peer.fsm.capMap[bgp.BGP_CAP_FOUR_OCTET_AS_NUMBER]
 	return &SenderMsg{
 		messages:    messages,
 		sendCh:      peer.outgoing,
@@ -466,7 +483,7 @@ func filterpath(peer *Peer, path *table.Path) *table.Path {
 	if path == nil {
 		return nil
 	}
-	if _, ok := peer.rfMap[path.GetRouteFamily()]; !ok {
+	if _, ok := peer.fsm.rfMap[path.GetRouteFamily()]; !ok {
 		return nil
 	}
 
@@ -550,7 +567,7 @@ func (server *BgpServer) dropPeerAllRoutes(peer *Peer) []*SenderMsg {
 				if !targetPeer.isRouteServerClient() || targetPeer == peer || targetPeer.fsm.state != bgp.BGP_FSM_ESTABLISHED {
 					continue
 				}
-				if _, ok := targetPeer.rfMap[rf]; !ok {
+				if _, ok := targetPeer.fsm.rfMap[rf]; !ok {
 					continue
 				}
 
@@ -583,7 +600,7 @@ func (server *BgpServer) dropPeerAllRoutes(peer *Peer) []*SenderMsg {
 				if targetPeer.isRouteServerClient() || targetPeer.fsm.state != bgp.BGP_FSM_ESTABLISHED {
 					continue
 				}
-				if _, ok := targetPeer.rfMap[rf]; !ok {
+				if _, ok := targetPeer.fsm.rfMap[rf]; !ok {
 					continue
 				}
 				targetPeer.adjRibOut.Update(pathList)
@@ -764,7 +781,7 @@ func (server *BgpServer) propagateUpdate(peer *Peer, pathList []*table.Path) ([]
 	return msgs, alteredPathList
 }
 
-func (server *BgpServer) handleFSMMessage(peer *Peer, e *FsmMsg, incoming chan *FsmMsg) []*SenderMsg {
+func (server *BgpServer) handleFSMMessage(peer *Peer, e *FsmMsg) []*SenderMsg {
 	msgs := make([]*SenderMsg, 0)
 
 	switch e.MsgType {
@@ -802,7 +819,7 @@ func (server *BgpServer) handleFSMMessage(peer *Peer, e *FsmMsg, incoming chan *
 				_, rport := peer.fsm.RemoteHostPort()
 				m := &broadcastBMPMsg{
 					ch:      ch,
-					msgList: []*bgp.BMPMessage{bmpPeerUp(laddr, lport, rport, buildopen(peer.fsm.gConf, peer.fsm.pConf), peer.recvOpen, bgp.BMP_PEER_TYPE_GLOBAL, false, 0, peer.fsm.peerInfo, peer.conf.Timers.State.Uptime)},
+					msgList: []*bgp.BMPMessage{bmpPeerUp(laddr, lport, rport, buildopen(peer.fsm.gConf, peer.fsm.pConf), peer.fsm.recvOpen, bgp.BMP_PEER_TYPE_GLOBAL, false, 0, peer.fsm.peerInfo, peer.conf.Timers.State.Uptime)},
 				}
 				server.broadcastMsgs = append(server.broadcastMsgs, m)
 			}
@@ -831,7 +848,7 @@ func (server *BgpServer) handleFSMMessage(peer *Peer, e *FsmMsg, incoming chan *
 			peer.conf.State = config.NeighborState{}
 			peer.conf.Timers.State = config.TimersState{}
 		}
-		peer.startFSMHandler(incoming)
+		peer.startFSMHandler(server.fsmincomingCh, server.fsmStateCh)
 		server.broadcastPeerState(peer)
 
 	case FSM_MSG_BGP_MESSAGE:
@@ -847,7 +864,7 @@ func (server *BgpServer) handleFSMMessage(peer *Peer, e *FsmMsg, incoming chan *
 					}
 				}
 				if len(listener) > 0 {
-					_, y := peer.capMap[bgp.BGP_CAP_FOUR_OCTET_AS_NUMBER]
+					_, y := peer.fsm.capMap[bgp.BGP_CAP_FOUR_OCTET_AS_NUMBER]
 					l, _ := peer.fsm.LocalHostPort()
 					ev := &watcherEventUpdateMsg{
 						message:      m,
@@ -2059,7 +2076,7 @@ func (server *BgpServer) handleGrpcModNeighbor(grpcReq *GrpcRequest) (sMsgs []*S
 			}
 		}
 		server.neighborMap[addr] = peer
-		peer.startFSMHandler(server.fsmincomingCh)
+		peer.startFSMHandler(server.fsmincomingCh, server.fsmStateCh)
 		server.broadcastPeerState(peer)
 	case api.Operation_DEL:
 		SetTcpMD5SigSockopts(listener(net.ParseIP(addr)), addr, "")
