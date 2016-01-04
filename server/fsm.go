@@ -541,8 +541,12 @@ func (h *FSMHandler) recvMessageWithError() error {
 				if len(h.holdTimerResetCh) == 0 {
 					h.holdTimerResetCh <- true
 				}
+				if m.Header.Type == bgp.BGP_MSG_KEEPALIVE {
+					return nil
+				}
 			case bgp.BGP_MSG_NOTIFICATION:
 				h.reason = "Notification received"
+				return nil
 			}
 		}
 	}
