@@ -167,6 +167,27 @@ func (m *roaManager) handleROAEvent(ev *roaClientEvent) {
 	}
 }
 
+func deleteROA(host string, tree *radix.Tree, as uint32, prefix []byte, prefixLen, maxLen uint8) {
+	key := table.IpToRadixkey(prefix, prefixLen)
+	b, _ := tree.Get(key)
+	if b != nil {
+		bucket := b.(*roaBucket)
+		for _, r := range bucket.entries {
+			if r.MaxLen == maxLen && r.Src == host {
+				for idx, a := range r.AS {
+					if a == as {
+						r.AS = append(r.AS[:idx], r.AS[idx+1:]...)
+						return
+					}
+				}
+
+			}
+		}
+	}
+	p := net.IP(prefix)
+	log.Info("can't withdraw a roa", p.String(), as, prefixLen, maxLen)
+}
+
 func addROA(host string, tree *radix.Tree, as uint32, prefix []byte, prefixLen, maxLen uint8) {
 	key := table.IpToRadixkey(prefix, prefixLen)
 	b, _ := tree.Get(key)
@@ -213,9 +234,8 @@ func addROA(host string, tree *radix.Tree, as uint32, prefix []byte, prefixLen, 
 func (c *roaManager) handleRTRMsg(client *roaClient, state *config.RpkiServerState, buf []byte) {
 	received := &state.RpkiMessages.RpkiReceived
 
-	m, _ := bgp.ParseRTR(buf)
-	if m != nil {
-
+	m, err := bgp.ParseRTR(buf)
+	if err == nil {
 		switch msg := m.(type) {
 		case *bgp.RTRSerialNotify:
 			client.sessionID = msg.RTRCommon.SessionID
@@ -234,7 +254,11 @@ func (c *roaManager) handleRTRMsg(client *roaClient, state *config.RpkiServerSta
 				received.Ipv6Prefix++
 				tree = c.roas[bgp.RF_IPv6_UC]
 			}
-			addROA(client.host, tree, msg.AS, msg.Prefix, msg.PrefixLen, msg.MaxLen)
+			if (msg.Flags & 1) == 1 {
+				addROA(client.host, tree, msg.AS, msg.Prefix, msg.PrefixLen, msg.MaxLen)
+			} else {
+				deleteROA(client.host, tree, msg.AS, msg.Prefix, msg.PrefixLen, msg.MaxLen)
+			}
 		case *bgp.RTREndOfData:
 			received.EndOfData++
 			client.sessionID = msg.RTRCommon.SessionID
@@ -242,9 +266,10 @@ func (c *roaManager) handleRTRMsg(client *roaClient, state *config.RpkiServerSta
 		case *bgp.RTRCacheReset:
 			received.CacheReset++
 		case *bgp.RTRErrorReport:
+			received.Error++
 		}
 	} else {
-		received.Error++
+		log.Info("failed to parse a RTR message", client.host)
 	}
 }
 
