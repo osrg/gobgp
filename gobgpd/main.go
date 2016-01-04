@@ -169,7 +169,11 @@ func main() {
 
 	// start grpc Server
 	grpcServer := server.NewGrpcServer(opts.GrpcPort, bgpServer.GrpcReqCh)
-	go grpcServer.Serve()
+	go func() {
+		if err := grpcServer.Serve(); err != nil {
+			log.Fatalf("failed to listen grpc port: %s", err)
+		}
+	}()
 
 	var bgpConfig *config.Bgp = nil
 	var policyConfig *config.RoutingPolicy = nil
