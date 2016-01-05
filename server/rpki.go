@@ -178,10 +178,12 @@ func deleteROA(host string, tree *radix.Tree, as uint32, prefix []byte, prefixLe
 				for idx, a := range r.AS {
 					if a == as {
 						r.AS = append(r.AS[:idx], r.AS[idx+1:]...)
+						if len(bucket.entries) == 0 {
+							tree.Delete(key)
+						}
 						return
 					}
 				}
-
 			}
 		}
 	}
