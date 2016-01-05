@@ -39,6 +39,7 @@ type roaBucket struct {
 }
 
 type roa struct {
+	bucket *roaBucket
 	Src    string
 	MaxLen uint8
 	AS     []uint32
@@ -206,6 +207,7 @@ func addROA(host string, tree *radix.Tree, as uint32, prefix []byte, prefixLen, 
 			Prefix:    p,
 			entries:   []*roa{r},
 		}
+		r.bucket = b
 
 		tree.Insert(key, b)
 	} else {
@@ -223,6 +225,7 @@ func addROA(host string, tree *radix.Tree, as uint32, prefix []byte, prefixLen, 
 			}
 		}
 		r := &roa{
+			bucket: bucket,
 			MaxLen: maxLen,
 			AS:     []uint32{as},
 			Src:    host,
@@ -363,62 +366,67 @@ func (c *roaManager) handleGRPC(grpcReq *GrpcRequest) {
 	}
 }
 
-func validatePath(ownAs uint32, tree *radix.Tree, cidr string, asPath *bgp.PathAttributeAsPath) config.RpkiValidationResultType {
+func validatePath(ownAs uint32, tree *radix.Tree, cidr string, asPath *bgp.PathAttributeAsPath) (config.RpkiValidationResultType, []*roa) {
 	var as uint32
 	if asPath == nil || len(asPath.Value) == 0 {
-		return config.RPKI_VALIDATION_RESULT_TYPE_NOT_FOUND
+		return config.RPKI_VALIDATION_RESULT_TYPE_NOT_FOUND, []*roa{}
 	}
 	asParam := asPath.Value[len(asPath.Value)-1].(*bgp.As4PathParam)
 	switch asParam.Type {
 	case bgp.BGP_ASPATH_ATTR_TYPE_SEQ:
 		if len(asParam.AS) == 0 {
-			return config.RPKI_VALIDATION_RESULT_TYPE_NOT_FOUND
+			return config.RPKI_VALIDATION_RESULT_TYPE_NOT_FOUND, []*roa{}
 		}
 		as = asParam.AS[len(asParam.AS)-1]
 	case bgp.BGP_ASPATH_ATTR_TYPE_CONFED_SET, bgp.BGP_ASPATH_ATTR_TYPE_CONFED_SEQ:
 		as = ownAs
 	default:
-		return config.RPKI_VALIDATION_RESULT_TYPE_NOT_FOUND
+		return config.RPKI_VALIDATION_RESULT_TYPE_NOT_FOUND, []*roa{}
 	}
 	_, n, _ := net.ParseCIDR(cidr)
 	ones, _ := n.Mask.Size()
 	prefixLen := uint8(ones)
 	_, b, _ := tree.LongestPrefix(table.IpToRadixkey(n.IP, prefixLen))
 	if b == nil {
-		return config.RPKI_VALIDATION_RESULT_TYPE_NOT_FOUND
-	} else {
-		result := config.RPKI_VALIDATION_RESULT_TYPE_INVALID
-		bucket, _ := b.(*roaBucket)
-		for _, r := range bucket.entries {
-			if prefixLen > r.MaxLen {
-				continue
-			}
-
-			y := func(x uint32, asList []uint32) bool {
-				for _, as := range asList {
-					if x == as {
-						return true
-					}
-				}
-				return false
-			}(as, r.AS)
-
-			if y {
-				result = config.RPKI_VALIDATION_RESULT_TYPE_VALID
-				break
-			}
-		}
-		return result
+		return config.RPKI_VALIDATION_RESULT_TYPE_NOT_FOUND, []*roa{}
 	}
+
+	roaList := make([]*roa, 0)
+
+	result := config.RPKI_VALIDATION_RESULT_TYPE_INVALID
+	bucket, _ := b.(*roaBucket)
+	for _, r := range bucket.entries {
+		if prefixLen > r.MaxLen {
+			continue
+		}
+
+		y := func(x uint32, asList []uint32) bool {
+			for _, as := range asList {
+				if x == as {
+					return true
+				}
+			}
+			return false
+		}(as, r.AS)
+
+		if y {
+			return config.RPKI_VALIDATION_RESULT_TYPE_VALID, []*roa{r}
+		}
+		roaList = append(roaList, r)
+	}
+	return result, roaList
 }
 
 func (c *roaManager) validate(pathList []*table.Path) {
-	if c.roas[bgp.RF_IPv4_UC].Len() == 0 && c.roas[bgp.RF_IPv6_UC].Len() == 0 {
+	if len(c.clientMap) == 0 {
 		return
 	}
 	for _, path := range pathList {
+		if path.IsWithdraw {
+			continue
+		}
 		if tree, ok := c.roas[path.GetRouteFamily()]; ok {
-			path.Validation = validatePath(c.AS, tree, path.GetNlri().String(), path.GetAsPath())
+			path.Validation, _ = validatePath(c.AS, tree, path.GetNlri().String(), path.GetAsPath())
 		}
 	}
 }
