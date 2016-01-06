@@ -45,6 +45,25 @@ type roa struct {
 	AS     []uint32
 }
 
+func (r *roa) toApiStruct() []*api.ROA {
+	l := make([]*api.ROA, 0, len(r.AS))
+	for _, as := range r.AS {
+		host, port := splitHostPort(r.Src)
+		a := &api.ROA{
+			As:        as,
+			Maxlen:    uint32(r.MaxLen),
+			Prefixlen: uint32(r.bucket.PrefixLen),
+			Prefix:    r.bucket.Prefix.String(),
+			Conf: &api.RPKIConf{
+				Address:    host,
+				RemotePort: uint32(port),
+			},
+		}
+		l = append(l, a)
+	}
+	return l
+}
+
 type roas []*api.ROA
 
 func (r roas) Len() int {
@@ -419,18 +438,38 @@ func validatePath(ownAs uint32, tree *radix.Tree, cidr string, asPath *bgp.PathA
 	return result, roaList
 }
 
-func (c *roaManager) validate(pathList []*table.Path) {
+func (c *roaManager) validate(pathList []*table.Path, isMonitor bool) []*api.ROAResult {
+	results := make([]*api.ROAResult, 0)
 	if len(c.clientMap) == 0 {
-		return
+		return results
 	}
 	for _, path := range pathList {
 		if path.IsWithdraw {
 			continue
 		}
 		if tree, ok := c.roas[path.GetRouteFamily()]; ok {
-			path.Validation, _ = validatePath(c.AS, tree, path.GetNlri().String(), path.GetAsPath())
+			r, roaList := validatePath(c.AS, tree, path.GetNlri().String(), path.GetAsPath())
+			if isMonitor && path.Validation != config.RpkiValidationResultType(r) {
+				apiRoaList := func() []*api.ROA {
+					apiRoaList := make([]*api.ROA, 0)
+					for _, r := range roaList {
+						apiRoaList = append(apiRoaList, r.toApiStruct()...)
+					}
+					return apiRoaList
+				}()
+				rr := &api.ROAResult{
+					OriginAs:  path.GetSourceAs(),
+					Prefix:    path.GetNlri().String(),
+					OldResult: api.ROAResult_ValidationResult(path.Validation),
+					NewResult: api.ROAResult_ValidationResult(r),
+					Roas:      apiRoaList,
+				}
+				results = append(results, rr)
+			}
+			path.Validation = config.RpkiValidationResultType(r)
 		}
 	}
+	return results
 }
 
 type roaClient struct {

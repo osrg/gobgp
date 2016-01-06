@@ -111,11 +111,38 @@ func NewMonitorCmd() *cobra.Command {
 		},
 	}
 
+	rpkiCmd := &cobra.Command{
+		Use: CMD_RPKI,
+		Run: func(cmd *cobra.Command, args []string) {
+			stream, err := client.MonitorROAValidation(context.Background(), &gobgpapi.Arguments{})
+			if err != nil {
+				fmt.Println(err)
+				os.Exit(1)
+			}
+			for {
+				s, err := stream.Recv()
+				if err == io.EOF {
+					break
+				} else if err != nil {
+					fmt.Println(err)
+					os.Exit(1)
+				}
+				if globalOpts.Json {
+					j, _ := json.Marshal(s)
+					fmt.Println(string(j))
+				} else {
+					fmt.Println("validation:", s)
+				}
+			}
+		},
+	}
+
 	monitorCmd := &cobra.Command{
 		Use: CMD_MONITOR,
 	}
 	monitorCmd.AddCommand(globalCmd)
 	monitorCmd.AddCommand(neighborCmd)
+	monitorCmd.AddCommand(rpkiCmd)
 
 	return monitorCmd
 }

@@ -58,6 +58,7 @@ It has these top-level messages:
 	RPKIState
 	RPKI
 	ROA
+	ROAResult
 	Vrf
 	Global
 */
@@ -105,6 +106,7 @@ var Resource_value = map[string]int32{
 func (x Resource) String() string {
 	return proto.EnumName(Resource_name, int32(x))
 }
+func (Resource) EnumDescriptor() ([]byte, []int) { return fileDescriptor0, []int{0} }
 
 type Operation int32
 
@@ -143,6 +145,7 @@ var Operation_value = map[string]int32{
 func (x Operation) String() string {
 	return proto.EnumName(Operation_name, int32(x))
 }
+func (Operation) EnumDescriptor() ([]byte, []int) { return fileDescriptor0, []int{1} }
 
 type DefinedType int32
 
@@ -175,6 +178,7 @@ var DefinedType_value = map[string]int32{
 func (x DefinedType) String() string {
 	return proto.EnumName(DefinedType_name, int32(x))
 }
+func (DefinedType) EnumDescriptor() ([]byte, []int) { return fileDescriptor0, []int{2} }
 
 type MatchType int32
 
@@ -198,6 +202,7 @@ var MatchType_value = map[string]int32{
 func (x MatchType) String() string {
 	return proto.EnumName(MatchType_name, int32(x))
 }
+func (MatchType) EnumDescriptor() ([]byte, []int) { return fileDescriptor0, []int{3} }
 
 type AsPathLengthType int32
 
@@ -221,6 +226,7 @@ var AsPathLengthType_value = map[string]int32{
 func (x AsPathLengthType) String() string {
 	return proto.EnumName(AsPathLengthType_name, int32(x))
 }
+func (AsPathLengthType) EnumDescriptor() ([]byte, []int) { return fileDescriptor0, []int{4} }
 
 type RouteAction int32
 
@@ -244,6 +250,7 @@ var RouteAction_value = map[string]int32{
 func (x RouteAction) String() string {
 	return proto.EnumName(RouteAction_name, int32(x))
 }
+func (RouteAction) EnumDescriptor() ([]byte, []int) { return fileDescriptor0, []int{5} }
 
 type CommunityActionType int32
 
@@ -267,6 +274,7 @@ var CommunityActionType_value = map[string]int32{
 func (x CommunityActionType) String() string {
 	return proto.EnumName(CommunityActionType_name, int32(x))
 }
+func (CommunityActionType) EnumDescriptor() ([]byte, []int) { return fileDescriptor0, []int{6} }
 
 type MedActionType int32
 
@@ -287,6 +295,7 @@ var MedActionType_value = map[string]int32{
 func (x MedActionType) String() string {
 	return proto.EnumName(MedActionType_name, int32(x))
 }
+func (MedActionType) EnumDescriptor() ([]byte, []int) { return fileDescriptor0, []int{7} }
 
 type PolicyType int32
 
@@ -310,6 +319,7 @@ var PolicyType_value = map[string]int32{
 func (x PolicyType) String() string {
 	return proto.EnumName(PolicyType_name, int32(x))
 }
+func (PolicyType) EnumDescriptor() ([]byte, []int) { return fileDescriptor0, []int{8} }
 
 type Error_ErrorCode int32
 
@@ -330,15 +340,46 @@ var Error_ErrorCode_value = map[string]int32{
 func (x Error_ErrorCode) String() string {
 	return proto.EnumName(Error_ErrorCode_name, int32(x))
 }
+func (Error_ErrorCode) EnumDescriptor() ([]byte, []int) { return fileDescriptor0, []int{0, 0} }
+
+type ROAResult_ValidationResult int32
+
+const (
+	ROAResult_NONE      ROAResult_ValidationResult = 0
+	ROAResult_NOT_FOUND ROAResult_ValidationResult = 1
+	ROAResult_VALID     ROAResult_ValidationResult = 2
+	ROAResult_INVALID   ROAResult_ValidationResult = 3
+)
+
+var ROAResult_ValidationResult_name = map[int32]string{
+	0: "NONE",
+	1: "NOT_FOUND",
+	2: "VALID",
+	3: "INVALID",
+}
+var ROAResult_ValidationResult_value = map[string]int32{
+	"NONE":      0,
+	"NOT_FOUND": 1,
+	"VALID":     2,
+	"INVALID":   3,
+}
+
+func (x ROAResult_ValidationResult) String() string {
+	return proto.EnumName(ROAResult_ValidationResult_name, int32(x))
+}
+func (ROAResult_ValidationResult) EnumDescriptor() ([]byte, []int) {
+	return fileDescriptor0, []int{49, 0}
+}
 
 type Error struct {
 	Code Error_ErrorCode `protobuf:"varint,1,opt,name=code,enum=gobgpapi.Error_ErrorCode" json:"code,omitempty"`
 	Msg  string          `protobuf:"bytes,2,opt,name=msg" json:"msg,omitempty"`
 }
 
-func (m *Error) Reset()         { *m = Error{} }
-func (m *Error) String() string { return proto.CompactTextString(m) }
-func (*Error) ProtoMessage()    {}
+func (m *Error) Reset()                    { *m = Error{} }
+func (m *Error) String() string            { return proto.CompactTextString(m) }
+func (*Error) ProtoMessage()               {}
+func (*Error) Descriptor() ([]byte, []int) { return fileDescriptor0, []int{0} }
 
 type Arguments struct {
 	Resource Resource `protobuf:"varint,1,opt,name=resource,enum=gobgpapi.Resource" json:"resource,omitempty"`
@@ -346,9 +387,10 @@ type Arguments struct {
 	Name     string   `protobuf:"bytes,3,opt,name=name" json:"name,omitempty"`
 }
 
-func (m *Arguments) Reset()         { *m = Arguments{} }
-func (m *Arguments) String() string { return proto.CompactTextString(m) }
-func (*Arguments) ProtoMessage()    {}
+func (m *Arguments) Reset()                    { *m = Arguments{} }
+func (m *Arguments) String() string            { return proto.CompactTextString(m) }
+func (*Arguments) ProtoMessage()               {}
+func (*Arguments) Descriptor() ([]byte, []int) { return fileDescriptor0, []int{1} }
 
 type ModPathArguments struct {
 	Operation Operation `protobuf:"varint,1,opt,name=operation,enum=gobgpapi.Operation" json:"operation,omitempty"`
@@ -358,9 +400,10 @@ type ModPathArguments struct {
 	Uuid      []byte    `protobuf:"bytes,5,opt,name=uuid,proto3" json:"uuid,omitempty"`
 }
 
-func (m *ModPathArguments) Reset()         { *m = ModPathArguments{} }
-func (m *ModPathArguments) String() string { return proto.CompactTextString(m) }
-func (*ModPathArguments) ProtoMessage()    {}
+func (m *ModPathArguments) Reset()                    { *m = ModPathArguments{} }
+func (m *ModPathArguments) String() string            { return proto.CompactTextString(m) }
+func (*ModPathArguments) ProtoMessage()               {}
+func (*ModPathArguments) Descriptor() ([]byte, []int) { return fileDescriptor0, []int{2} }
 
 func (m *ModPathArguments) GetPath() *Path {
 	if m != nil {
@@ -373,9 +416,10 @@ type ModPathResponse struct {
 	Uuid []byte `protobuf:"bytes,1,opt,name=uuid,proto3" json:"uuid,omitempty"`
 }
 
-func (m *ModPathResponse) Reset()         { *m = ModPathResponse{} }
-func (m *ModPathResponse) String() string { return proto.CompactTextString(m) }
-func (*ModPathResponse) ProtoMessage()    {}
+func (m *ModPathResponse) Reset()                    { *m = ModPathResponse{} }
+func (m *ModPathResponse) String() string            { return proto.CompactTextString(m) }
+func (*ModPathResponse) ProtoMessage()               {}
+func (*ModPathResponse) Descriptor() ([]byte, []int) { return fileDescriptor0, []int{3} }
 
 type ModPathsArguments struct {
 	Resource Resource `protobuf:"varint,1,opt,name=resource,enum=gobgpapi.Resource" json:"resource,omitempty"`
@@ -383,9 +427,10 @@ type ModPathsArguments struct {
 	Paths    []*Path  `protobuf:"bytes,3,rep,name=paths" json:"paths,omitempty"`
 }
 
-func (m *ModPathsArguments) Reset()         { *m = ModPathsArguments{} }
-func (m *ModPathsArguments) String() string { return proto.CompactTextString(m) }
-func (*ModPathsArguments) ProtoMessage()    {}
+func (m *ModPathsArguments) Reset()                    { *m = ModPathsArguments{} }
+func (m *ModPathsArguments) String() string            { return proto.CompactTextString(m) }
+func (*ModPathsArguments) ProtoMessage()               {}
+func (*ModPathsArguments) Descriptor() ([]byte, []int) { return fileDescriptor0, []int{4} }
 
 func (m *ModPathsArguments) GetPaths() []*Path {
 	if m != nil {
@@ -399,9 +444,10 @@ type ModNeighborArguments struct {
 	Peer      *Peer     `protobuf:"bytes,2,opt,name=peer" json:"peer,omitempty"`
 }
 
-func (m *ModNeighborArguments) Reset()         { *m = ModNeighborArguments{} }
-func (m *ModNeighborArguments) String() string { return proto.CompactTextString(m) }
-func (*ModNeighborArguments) ProtoMessage()    {}
+func (m *ModNeighborArguments) Reset()                    { *m = ModNeighborArguments{} }
+func (m *ModNeighborArguments) String() string            { return proto.CompactTextString(m) }
+func (*ModNeighborArguments) ProtoMessage()               {}
+func (*ModNeighborArguments) Descriptor() ([]byte, []int) { return fileDescriptor0, []int{5} }
 
 func (m *ModNeighborArguments) GetPeer() *Peer {
 	if m != nil {
@@ -417,18 +463,20 @@ type MrtArguments struct {
 	NeighborAddress string   `protobuf:"bytes,4,opt,name=neighbor_address" json:"neighbor_address,omitempty"`
 }
 
-func (m *MrtArguments) Reset()         { *m = MrtArguments{} }
-func (m *MrtArguments) String() string { return proto.CompactTextString(m) }
-func (*MrtArguments) ProtoMessage()    {}
+func (m *MrtArguments) Reset()                    { *m = MrtArguments{} }
+func (m *MrtArguments) String() string            { return proto.CompactTextString(m) }
+func (*MrtArguments) ProtoMessage()               {}
+func (*MrtArguments) Descriptor() ([]byte, []int) { return fileDescriptor0, []int{6} }
 
 type ModMrtArguments struct {
 	Operation Operation `protobuf:"varint,1,opt,name=operation,enum=gobgpapi.Operation" json:"operation,omitempty"`
 	Filename  string    `protobuf:"bytes,2,opt,name=filename" json:"filename,omitempty"`
 }
 
-func (m *ModMrtArguments) Reset()         { *m = ModMrtArguments{} }
-func (m *ModMrtArguments) String() string { return proto.CompactTextString(m) }
-func (*ModMrtArguments) ProtoMessage()    {}
+func (m *ModMrtArguments) Reset()                    { *m = ModMrtArguments{} }
+func (m *ModMrtArguments) String() string            { return proto.CompactTextString(m) }
+func (*ModMrtArguments) ProtoMessage()               {}
+func (*ModMrtArguments) Descriptor() ([]byte, []int) { return fileDescriptor0, []int{7} }
 
 type ModRpkiArguments struct {
 	Operation Operation `protobuf:"varint,1,opt,name=operation,enum=gobgpapi.Operation" json:"operation,omitempty"`
@@ -436,18 +484,20 @@ type ModRpkiArguments struct {
 	Port      uint32    `protobuf:"varint,3,opt,name=port" json:"port,omitempty"`
 }
 
-func (m *ModRpkiArguments) Reset()         { *m = ModRpkiArguments{} }
-func (m *ModRpkiArguments) String() string { return proto.CompactTextString(m) }
-func (*ModRpkiArguments) ProtoMessage()    {}
+func (m *ModRpkiArguments) Reset()                    { *m = ModRpkiArguments{} }
+func (m *ModRpkiArguments) String() string            { return proto.CompactTextString(m) }
+func (*ModRpkiArguments) ProtoMessage()               {}
+func (*ModRpkiArguments) Descriptor() ([]byte, []int) { return fileDescriptor0, []int{8} }
 
 type ModVrfArguments struct {
 	Operation Operation `protobuf:"varint,1,opt,name=operation,enum=gobgpapi.Operation" json:"operation,omitempty"`
 	Vrf       *Vrf      `protobuf:"bytes,2,opt,name=vrf" json:"vrf,omitempty"`
 }
 
-func (m *ModVrfArguments) Reset()         { *m = ModVrfArguments{} }
-func (m *ModVrfArguments) String() string { return proto.CompactTextString(m) }
-func (*ModVrfArguments) ProtoMessage()    {}
+func (m *ModVrfArguments) Reset()                    { *m = ModVrfArguments{} }
+func (m *ModVrfArguments) String() string            { return proto.CompactTextString(m) }
+func (*ModVrfArguments) ProtoMessage()               {}
+func (*ModVrfArguments) Descriptor() ([]byte, []int) { return fileDescriptor0, []int{9} }
 
 func (m *ModVrfArguments) GetVrf() *Vrf {
 	if m != nil {
@@ -461,9 +511,10 @@ type ModDefinedSetArguments struct {
 	Set       *DefinedSet `protobuf:"bytes,2,opt,name=set" json:"set,omitempty"`
 }
 
-func (m *ModDefinedSetArguments) Reset()         { *m = ModDefinedSetArguments{} }
-func (m *ModDefinedSetArguments) String() string { return proto.CompactTextString(m) }
-func (*ModDefinedSetArguments) ProtoMessage()    {}
+func (m *ModDefinedSetArguments) Reset()                    { *m = ModDefinedSetArguments{} }
+func (m *ModDefinedSetArguments) String() string            { return proto.CompactTextString(m) }
+func (*ModDefinedSetArguments) ProtoMessage()               {}
+func (*ModDefinedSetArguments) Descriptor() ([]byte, []int) { return fileDescriptor0, []int{10} }
 
 func (m *ModDefinedSetArguments) GetSet() *DefinedSet {
 	if m != nil {
@@ -477,9 +528,10 @@ type ModStatementArguments struct {
 	Statement *Statement `protobuf:"bytes,2,opt,name=statement" json:"statement,omitempty"`
 }
 
-func (m *ModStatementArguments) Reset()         { *m = ModStatementArguments{} }
-func (m *ModStatementArguments) String() string { return proto.CompactTextString(m) }
-func (*ModStatementArguments) ProtoMessage()    {}
+func (m *ModStatementArguments) Reset()                    { *m = ModStatementArguments{} }
+func (m *ModStatementArguments) String() string            { return proto.CompactTextString(m) }
+func (*ModStatementArguments) ProtoMessage()               {}
+func (*ModStatementArguments) Descriptor() ([]byte, []int) { return fileDescriptor0, []int{11} }
 
 func (m *ModStatementArguments) GetStatement() *Statement {
 	if m != nil {
@@ -501,9 +553,10 @@ type ModPolicyArguments struct {
 	PreserveStatements bool `protobuf:"varint,4,opt,name=preserve_statements" json:"preserve_statements,omitempty"`
 }
 
-func (m *ModPolicyArguments) Reset()         { *m = ModPolicyArguments{} }
-func (m *ModPolicyArguments) String() string { return proto.CompactTextString(m) }
-func (*ModPolicyArguments) ProtoMessage()    {}
+func (m *ModPolicyArguments) Reset()                    { *m = ModPolicyArguments{} }
+func (m *ModPolicyArguments) String() string            { return proto.CompactTextString(m) }
+func (*ModPolicyArguments) ProtoMessage()               {}
+func (*ModPolicyArguments) Descriptor() ([]byte, []int) { return fileDescriptor0, []int{12} }
 
 func (m *ModPolicyArguments) GetPolicy() *Policy {
 	if m != nil {
@@ -517,9 +570,10 @@ type ModPolicyAssignmentArguments struct {
 	Assignment *PolicyAssignment `protobuf:"bytes,2,opt,name=assignment" json:"assignment,omitempty"`
 }
 
-func (m *ModPolicyAssignmentArguments) Reset()         { *m = ModPolicyAssignmentArguments{} }
-func (m *ModPolicyAssignmentArguments) String() string { return proto.CompactTextString(m) }
-func (*ModPolicyAssignmentArguments) ProtoMessage()    {}
+func (m *ModPolicyAssignmentArguments) Reset()                    { *m = ModPolicyAssignmentArguments{} }
+func (m *ModPolicyAssignmentArguments) String() string            { return proto.CompactTextString(m) }
+func (*ModPolicyAssignmentArguments) ProtoMessage()               {}
+func (*ModPolicyAssignmentArguments) Descriptor() ([]byte, []int) { return fileDescriptor0, []int{13} }
 
 func (m *ModPolicyAssignmentArguments) GetAssignment() *PolicyAssignment {
 	if m != nil {
@@ -533,9 +587,10 @@ type ModGlobalConfigArguments struct {
 	Global    *Global   `protobuf:"bytes,2,opt,name=global" json:"global,omitempty"`
 }
 
-func (m *ModGlobalConfigArguments) Reset()         { *m = ModGlobalConfigArguments{} }
-func (m *ModGlobalConfigArguments) String() string { return proto.CompactTextString(m) }
-func (*ModGlobalConfigArguments) ProtoMessage()    {}
+func (m *ModGlobalConfigArguments) Reset()                    { *m = ModGlobalConfigArguments{} }
+func (m *ModGlobalConfigArguments) String() string            { return proto.CompactTextString(m) }
+func (*ModGlobalConfigArguments) ProtoMessage()               {}
+func (*ModGlobalConfigArguments) Descriptor() ([]byte, []int) { return fileDescriptor0, []int{14} }
 
 func (m *ModGlobalConfigArguments) GetGlobal() *Global {
 	if m != nil {
@@ -558,9 +613,10 @@ type Path struct {
 	Filtered           bool     `protobuf:"varint,11,opt,name=filtered" json:"filtered,omitempty"`
 }
 
-func (m *Path) Reset()         { *m = Path{} }
-func (m *Path) String() string { return proto.CompactTextString(m) }
-func (*Path) ProtoMessage()    {}
+func (m *Path) Reset()                    { *m = Path{} }
+func (m *Path) String() string            { return proto.CompactTextString(m) }
+func (*Path) ProtoMessage()               {}
+func (*Path) Descriptor() ([]byte, []int) { return fileDescriptor0, []int{15} }
 
 type Destination struct {
 	Prefix         string  `protobuf:"bytes,1,opt,name=prefix" json:"prefix,omitempty"`
@@ -568,9 +624,10 @@ type Destination struct {
 	LongerPrefixes bool    `protobuf:"varint,3,opt,name=longer_prefixes" json:"longer_prefixes,omitempty"`
 }
 
-func (m *Destination) Reset()         { *m = Destination{} }
-func (m *Destination) String() string { return proto.CompactTextString(m) }
-func (*Destination) ProtoMessage()    {}
+func (m *Destination) Reset()                    { *m = Destination{} }
+func (m *Destination) String() string            { return proto.CompactTextString(m) }
+func (*Destination) ProtoMessage()               {}
+func (*Destination) Descriptor() ([]byte, []int) { return fileDescriptor0, []int{16} }
 
 func (m *Destination) GetPaths() []*Path {
 	if m != nil {
@@ -586,9 +643,10 @@ type Table struct {
 	Destinations []*Destination `protobuf:"bytes,4,rep,name=destinations" json:"destinations,omitempty"`
 }
 
-func (m *Table) Reset()         { *m = Table{} }
-func (m *Table) String() string { return proto.CompactTextString(m) }
-func (*Table) ProtoMessage()    {}
+func (m *Table) Reset()                    { *m = Table{} }
+func (m *Table) String() string            { return proto.CompactTextString(m) }
+func (*Table) ProtoMessage()               {}
+func (*Table) Descriptor() ([]byte, []int) { return fileDescriptor0, []int{17} }
 
 func (m *Table) GetDestinations() []*Destination {
 	if m != nil {
@@ -609,9 +667,10 @@ type Peer struct {
 	RouteServer    *RouteServer    `protobuf:"bytes,15,opt,name=route_server" json:"route_server,omitempty"`
 }
 
-func (m *Peer) Reset()         { *m = Peer{} }
-func (m *Peer) String() string { return proto.CompactTextString(m) }
-func (*Peer) ProtoMessage()    {}
+func (m *Peer) Reset()                    { *m = Peer{} }
+func (m *Peer) String() string            { return proto.CompactTextString(m) }
+func (*Peer) ProtoMessage()               {}
+func (*Peer) Descriptor() ([]byte, []int) { return fileDescriptor0, []int{18} }
 
 func (m *Peer) GetApplyPolicy() *ApplyPolicy {
 	if m != nil {
@@ -675,9 +734,10 @@ type ApplyPolicy struct {
 	ImportPolicy *PolicyAssignment `protobuf:"bytes,3,opt,name=import_policy" json:"import_policy,omitempty"`
 }
 
-func (m *ApplyPolicy) Reset()         { *m = ApplyPolicy{} }
-func (m *ApplyPolicy) String() string { return proto.CompactTextString(m) }
-func (*ApplyPolicy) ProtoMessage()    {}
+func (m *ApplyPolicy) Reset()                    { *m = ApplyPolicy{} }
+func (m *ApplyPolicy) String() string            { return proto.CompactTextString(m) }
+func (*ApplyPolicy) ProtoMessage()               {}
+func (*ApplyPolicy) Descriptor() ([]byte, []int) { return fileDescriptor0, []int{19} }
 
 func (m *ApplyPolicy) GetInPolicy() *PolicyAssignment {
 	if m != nil {
@@ -716,27 +776,30 @@ type PeerConf struct {
 	Id               string   `protobuf:"bytes,13,opt,name=id" json:"id,omitempty"`
 }
 
-func (m *PeerConf) Reset()         { *m = PeerConf{} }
-func (m *PeerConf) String() string { return proto.CompactTextString(m) }
-func (*PeerConf) ProtoMessage()    {}
+func (m *PeerConf) Reset()                    { *m = PeerConf{} }
+func (m *PeerConf) String() string            { return proto.CompactTextString(m) }
+func (*PeerConf) ProtoMessage()               {}
+func (*PeerConf) Descriptor() ([]byte, []int) { return fileDescriptor0, []int{20} }
 
 type EbgpMultihop struct {
 	Enabled     bool   `protobuf:"varint,1,opt,name=enabled" json:"enabled,omitempty"`
 	MultihopTtl uint32 `protobuf:"varint,2,opt,name=multihop_ttl" json:"multihop_ttl,omitempty"`
 }
 
-func (m *EbgpMultihop) Reset()         { *m = EbgpMultihop{} }
-func (m *EbgpMultihop) String() string { return proto.CompactTextString(m) }
-func (*EbgpMultihop) ProtoMessage()    {}
+func (m *EbgpMultihop) Reset()                    { *m = EbgpMultihop{} }
+func (m *EbgpMultihop) String() string            { return proto.CompactTextString(m) }
+func (*EbgpMultihop) ProtoMessage()               {}
+func (*EbgpMultihop) Descriptor() ([]byte, []int) { return fileDescriptor0, []int{21} }
 
 type RouteReflector struct {
 	RouteReflectorClient    bool   `protobuf:"varint,1,opt,name=route_reflector_client" json:"route_reflector_client,omitempty"`
 	RouteReflectorClusterId uint32 `protobuf:"varint,2,opt,name=route_reflector_cluster_id" json:"route_reflector_cluster_id,omitempty"`
 }
 
-func (m *RouteReflector) Reset()         { *m = RouteReflector{} }
-func (m *RouteReflector) String() string { return proto.CompactTextString(m) }
-func (*RouteReflector) ProtoMessage()    {}
+func (m *RouteReflector) Reset()                    { *m = RouteReflector{} }
+func (m *RouteReflector) String() string            { return proto.CompactTextString(m) }
+func (*RouteReflector) ProtoMessage()               {}
+func (*RouteReflector) Descriptor() ([]byte, []int) { return fileDescriptor0, []int{22} }
 
 type PeerState struct {
 	AuthPassword          string    `protobuf:"bytes,1,opt,name=auth_password" json:"auth_password,omitempty"`
@@ -762,9 +825,10 @@ type PeerState struct {
 	Flops                 uint32    `protobuf:"varint,21,opt,name=flops" json:"flops,omitempty"`
 }
 
-func (m *PeerState) Reset()         { *m = PeerState{} }
-func (m *PeerState) String() string { return proto.CompactTextString(m) }
-func (*PeerState) ProtoMessage()    {}
+func (m *PeerState) Reset()                    { *m = PeerState{} }
+func (m *PeerState) String() string            { return proto.CompactTextString(m) }
+func (*PeerState) ProtoMessage()               {}
+func (*PeerState) Descriptor() ([]byte, []int) { return fileDescriptor0, []int{23} }
 
 func (m *PeerState) GetMessages() *Messages {
 	if m != nil {
@@ -785,9 +849,10 @@ type Messages struct {
 	Sent     *Message `protobuf:"bytes,2,opt,name=sent" json:"sent,omitempty"`
 }
 
-func (m *Messages) Reset()         { *m = Messages{} }
-func (m *Messages) String() string { return proto.CompactTextString(m) }
-func (*Messages) ProtoMessage()    {}
+func (m *Messages) Reset()                    { *m = Messages{} }
+func (m *Messages) String() string            { return proto.CompactTextString(m) }
+func (*Messages) ProtoMessage()               {}
+func (*Messages) Descriptor() ([]byte, []int) { return fileDescriptor0, []int{24} }
 
 func (m *Messages) GetReceived() *Message {
 	if m != nil {
@@ -813,27 +878,30 @@ type Message struct {
 	TOTAL        uint64 `protobuf:"varint,7,opt,name=TOTAL" json:"TOTAL,omitempty"`
 }
 
-func (m *Message) Reset()         { *m = Message{} }
-func (m *Message) String() string { return proto.CompactTextString(m) }
-func (*Message) ProtoMessage()    {}
+func (m *Message) Reset()                    { *m = Message{} }
+func (m *Message) String() string            { return proto.CompactTextString(m) }
+func (*Message) ProtoMessage()               {}
+func (*Message) Descriptor() ([]byte, []int) { return fileDescriptor0, []int{25} }
 
 type Queues struct {
 	Input  uint32 `protobuf:"varint,1,opt,name=input" json:"input,omitempty"`
 	Output uint32 `protobuf:"varint,2,opt,name=output" json:"output,omitempty"`
 }
 
-func (m *Queues) Reset()         { *m = Queues{} }
-func (m *Queues) String() string { return proto.CompactTextString(m) }
-func (*Queues) ProtoMessage()    {}
+func (m *Queues) Reset()                    { *m = Queues{} }
+func (m *Queues) String() string            { return proto.CompactTextString(m) }
+func (*Queues) ProtoMessage()               {}
+func (*Queues) Descriptor() ([]byte, []int) { return fileDescriptor0, []int{26} }
 
 type Timers struct {
 	Config *TimersConfig `protobuf:"bytes,1,opt,name=config" json:"config,omitempty"`
 	State  *TimersState  `protobuf:"bytes,2,opt,name=state" json:"state,omitempty"`
 }
 
-func (m *Timers) Reset()         { *m = Timers{} }
-func (m *Timers) String() string { return proto.CompactTextString(m) }
-func (*Timers) ProtoMessage()    {}
+func (m *Timers) Reset()                    { *m = Timers{} }
+func (m *Timers) String() string            { return proto.CompactTextString(m) }
+func (*Timers) ProtoMessage()               {}
+func (*Timers) Descriptor() ([]byte, []int) { return fileDescriptor0, []int{27} }
 
 func (m *Timers) GetConfig() *TimersConfig {
 	if m != nil {
@@ -856,9 +924,10 @@ type TimersConfig struct {
 	MinimumAdvertisementInterval uint64 `protobuf:"varint,4,opt,name=minimum_advertisement_interval" json:"minimum_advertisement_interval,omitempty"`
 }
 
-func (m *TimersConfig) Reset()         { *m = TimersConfig{} }
-func (m *TimersConfig) String() string { return proto.CompactTextString(m) }
-func (*TimersConfig) ProtoMessage()    {}
+func (m *TimersConfig) Reset()                    { *m = TimersConfig{} }
+func (m *TimersConfig) String() string            { return proto.CompactTextString(m) }
+func (*TimersConfig) ProtoMessage()               {}
+func (*TimersConfig) Descriptor() ([]byte, []int) { return fileDescriptor0, []int{28} }
 
 type TimersState struct {
 	ConnectRetry                 uint64 `protobuf:"varint,1,opt,name=connect_retry" json:"connect_retry,omitempty"`
@@ -870,9 +939,10 @@ type TimersState struct {
 	Downtime                     uint64 `protobuf:"varint,7,opt,name=downtime" json:"downtime,omitempty"`
 }
 
-func (m *TimersState) Reset()         { *m = TimersState{} }
-func (m *TimersState) String() string { return proto.CompactTextString(m) }
-func (*TimersState) ProtoMessage()    {}
+func (m *TimersState) Reset()                    { *m = TimersState{} }
+func (m *TimersState) String() string            { return proto.CompactTextString(m) }
+func (*TimersState) ProtoMessage()               {}
+func (*TimersState) Descriptor() ([]byte, []int) { return fileDescriptor0, []int{29} }
 
 type Transport struct {
 	LocalAddress  string `protobuf:"bytes,1,opt,name=local_address" json:"local_address,omitempty"`
@@ -884,17 +954,19 @@ type Transport struct {
 	TcpMss        uint32 `protobuf:"varint,7,opt,name=tcp_mss" json:"tcp_mss,omitempty"`
 }
 
-func (m *Transport) Reset()         { *m = Transport{} }
-func (m *Transport) String() string { return proto.CompactTextString(m) }
-func (*Transport) ProtoMessage()    {}
+func (m *Transport) Reset()                    { *m = Transport{} }
+func (m *Transport) String() string            { return proto.CompactTextString(m) }
+func (*Transport) ProtoMessage()               {}
+func (*Transport) Descriptor() ([]byte, []int) { return fileDescriptor0, []int{30} }
 
 type RouteServer struct {
 	RouteServerClient bool `protobuf:"varint,1,opt,name=route_server_client" json:"route_server_client,omitempty"`
 }
 
-func (m *RouteServer) Reset()         { *m = RouteServer{} }
-func (m *RouteServer) String() string { return proto.CompactTextString(m) }
-func (*RouteServer) ProtoMessage()    {}
+func (m *RouteServer) Reset()                    { *m = RouteServer{} }
+func (m *RouteServer) String() string            { return proto.CompactTextString(m) }
+func (*RouteServer) ProtoMessage()               {}
+func (*RouteServer) Descriptor() ([]byte, []int) { return fileDescriptor0, []int{31} }
 
 type Prefix struct {
 	IpPrefix      string `protobuf:"bytes,1,opt,name=ip_prefix" json:"ip_prefix,omitempty"`
@@ -902,9 +974,10 @@ type Prefix struct {
 	MaskLengthMax uint32 `protobuf:"varint,3,opt,name=mask_length_max" json:"mask_length_max,omitempty"`
 }
 
-func (m *Prefix) Reset()         { *m = Prefix{} }
-func (m *Prefix) String() string { return proto.CompactTextString(m) }
-func (*Prefix) ProtoMessage()    {}
+func (m *Prefix) Reset()                    { *m = Prefix{} }
+func (m *Prefix) String() string            { return proto.CompactTextString(m) }
+func (*Prefix) ProtoMessage()               {}
+func (*Prefix) Descriptor() ([]byte, []int) { return fileDescriptor0, []int{32} }
 
 type DefinedSet struct {
 	Type     DefinedType `protobuf:"varint,1,opt,name=type,enum=gobgpapi.DefinedType" json:"type,omitempty"`
@@ -913,9 +986,10 @@ type DefinedSet struct {
 	Prefixes []*Prefix   `protobuf:"bytes,4,rep,name=prefixes" json:"prefixes,omitempty"`
 }
 
-func (m *DefinedSet) Reset()         { *m = DefinedSet{} }
-func (m *DefinedSet) String() string { return proto.CompactTextString(m) }
-func (*DefinedSet) ProtoMessage()    {}
+func (m *DefinedSet) Reset()                    { *m = DefinedSet{} }
+func (m *DefinedSet) String() string            { return proto.CompactTextString(m) }
+func (*DefinedSet) ProtoMessage()               {}
+func (*DefinedSet) Descriptor() ([]byte, []int) { return fileDescriptor0, []int{33} }
 
 func (m *DefinedSet) GetPrefixes() []*Prefix {
 	if m != nil {
@@ -929,18 +1003,20 @@ type MatchSet struct {
 	Name string    `protobuf:"bytes,2,opt,name=name" json:"name,omitempty"`
 }
 
-func (m *MatchSet) Reset()         { *m = MatchSet{} }
-func (m *MatchSet) String() string { return proto.CompactTextString(m) }
-func (*MatchSet) ProtoMessage()    {}
+func (m *MatchSet) Reset()                    { *m = MatchSet{} }
+func (m *MatchSet) String() string            { return proto.CompactTextString(m) }
+func (*MatchSet) ProtoMessage()               {}
+func (*MatchSet) Descriptor() ([]byte, []int) { return fileDescriptor0, []int{34} }
 
 type AsPathLength struct {
 	Type   AsPathLengthType `protobuf:"varint,1,opt,name=type,enum=gobgpapi.AsPathLengthType" json:"type,omitempty"`
 	Length uint32           `protobuf:"varint,2,opt,name=length" json:"length,omitempty"`
 }
 
-func (m *AsPathLength) Reset()         { *m = AsPathLength{} }
-func (m *AsPathLength) String() string { return proto.CompactTextString(m) }
-func (*AsPathLength) ProtoMessage()    {}
+func (m *AsPathLength) Reset()                    { *m = AsPathLength{} }
+func (m *AsPathLength) String() string            { return proto.CompactTextString(m) }
+func (*AsPathLength) ProtoMessage()               {}
+func (*AsPathLength) Descriptor() ([]byte, []int) { return fileDescriptor0, []int{35} }
 
 type Conditions struct {
 	PrefixSet       *MatchSet     `protobuf:"bytes,1,opt,name=prefix_set" json:"prefix_set,omitempty"`
@@ -952,9 +1028,10 @@ type Conditions struct {
 	RpkiResult      int32         `protobuf:"varint,7,opt,name=rpki_result" json:"rpki_result,omitempty"`
 }
 
-func (m *Conditions) Reset()         { *m = Conditions{} }
-func (m *Conditions) String() string { return proto.CompactTextString(m) }
-func (*Conditions) ProtoMessage()    {}
+func (m *Conditions) Reset()                    { *m = Conditions{} }
+func (m *Conditions) String() string            { return proto.CompactTextString(m) }
+func (*Conditions) ProtoMessage()               {}
+func (*Conditions) Descriptor() ([]byte, []int) { return fileDescriptor0, []int{36} }
 
 func (m *Conditions) GetPrefixSet() *MatchSet {
 	if m != nil {
@@ -1003,18 +1080,20 @@ type CommunityAction struct {
 	Communities []string            `protobuf:"bytes,2,rep,name=communities" json:"communities,omitempty"`
 }
 
-func (m *CommunityAction) Reset()         { *m = CommunityAction{} }
-func (m *CommunityAction) String() string { return proto.CompactTextString(m) }
-func (*CommunityAction) ProtoMessage()    {}
+func (m *CommunityAction) Reset()                    { *m = CommunityAction{} }
+func (m *CommunityAction) String() string            { return proto.CompactTextString(m) }
+func (*CommunityAction) ProtoMessage()               {}
+func (*CommunityAction) Descriptor() ([]byte, []int) { return fileDescriptor0, []int{37} }
 
 type MedAction struct {
 	Type  MedActionType `protobuf:"varint,1,opt,name=type,enum=gobgpapi.MedActionType" json:"type,omitempty"`
 	Value int64         `protobuf:"varint,2,opt,name=value" json:"value,omitempty"`
 }
 
-func (m *MedAction) Reset()         { *m = MedAction{} }
-func (m *MedAction) String() string { return proto.CompactTextString(m) }
-func (*MedAction) ProtoMessage()    {}
+func (m *MedAction) Reset()                    { *m = MedAction{} }
+func (m *MedAction) String() string            { return proto.CompactTextString(m) }
+func (*MedAction) ProtoMessage()               {}
+func (*MedAction) Descriptor() ([]byte, []int) { return fileDescriptor0, []int{38} }
 
 type AsPrependAction struct {
 	Asn         uint32 `protobuf:"varint,1,opt,name=asn" json:"asn,omitempty"`
@@ -1022,9 +1101,10 @@ type AsPrependAction struct {
 	UseLeftMost bool   `protobuf:"varint,3,opt,name=use_left_most" json:"use_left_most,omitempty"`
 }
 
-func (m *AsPrependAction) Reset()         { *m = AsPrependAction{} }
-func (m *AsPrependAction) String() string { return proto.CompactTextString(m) }
-func (*AsPrependAction) ProtoMessage()    {}
+func (m *AsPrependAction) Reset()                    { *m = AsPrependAction{} }
+func (m *AsPrependAction) String() string            { return proto.CompactTextString(m) }
+func (*AsPrependAction) ProtoMessage()               {}
+func (*AsPrependAction) Descriptor() ([]byte, []int) { return fileDescriptor0, []int{39} }
 
 type Actions struct {
 	RouteAction  RouteAction      `protobuf:"varint,1,opt,name=route_action,enum=gobgpapi.RouteAction" json:"route_action,omitempty"`
@@ -1034,9 +1114,10 @@ type Actions struct {
 	ExtCommunity *CommunityAction `protobuf:"bytes,5,opt,name=ext_community" json:"ext_community,omitempty"`
 }
 
-func (m *Actions) Reset()         { *m = Actions{} }
-func (m *Actions) String() string { return proto.CompactTextString(m) }
-func (*Actions) ProtoMessage()    {}
+func (m *Actions) Reset()                    { *m = Actions{} }
+func (m *Actions) String() string            { return proto.CompactTextString(m) }
+func (*Actions) ProtoMessage()               {}
+func (*Actions) Descriptor() ([]byte, []int) { return fileDescriptor0, []int{40} }
 
 func (m *Actions) GetCommunity() *CommunityAction {
 	if m != nil {
@@ -1072,9 +1153,10 @@ type Statement struct {
 	Actions    *Actions    `protobuf:"bytes,3,opt,name=actions" json:"actions,omitempty"`
 }
 
-func (m *Statement) Reset()         { *m = Statement{} }
-func (m *Statement) String() string { return proto.CompactTextString(m) }
-func (*Statement) ProtoMessage()    {}
+func (m *Statement) Reset()                    { *m = Statement{} }
+func (m *Statement) String() string            { return proto.CompactTextString(m) }
+func (*Statement) ProtoMessage()               {}
+func (*Statement) Descriptor() ([]byte, []int) { return fileDescriptor0, []int{41} }
 
 func (m *Statement) GetConditions() *Conditions {
 	if m != nil {
@@ -1095,9 +1177,10 @@ type Policy struct {
 	Statements []*Statement `protobuf:"bytes,2,rep,name=statements" json:"statements,omitempty"`
 }
 
-func (m *Policy) Reset()         { *m = Policy{} }
-func (m *Policy) String() string { return proto.CompactTextString(m) }
-func (*Policy) ProtoMessage()    {}
+func (m *Policy) Reset()                    { *m = Policy{} }
+func (m *Policy) String() string            { return proto.CompactTextString(m) }
+func (*Policy) ProtoMessage()               {}
+func (*Policy) Descriptor() ([]byte, []int) { return fileDescriptor0, []int{42} }
 
 func (m *Policy) GetStatements() []*Statement {
 	if m != nil {
@@ -1114,9 +1197,10 @@ type PolicyAssignment struct {
 	Default  RouteAction `protobuf:"varint,5,opt,name=default,enum=gobgpapi.RouteAction" json:"default,omitempty"`
 }
 
-func (m *PolicyAssignment) Reset()         { *m = PolicyAssignment{} }
-func (m *PolicyAssignment) String() string { return proto.CompactTextString(m) }
-func (*PolicyAssignment) ProtoMessage()    {}
+func (m *PolicyAssignment) Reset()                    { *m = PolicyAssignment{} }
+func (m *PolicyAssignment) String() string            { return proto.CompactTextString(m) }
+func (*PolicyAssignment) ProtoMessage()               {}
+func (*PolicyAssignment) Descriptor() ([]byte, []int) { return fileDescriptor0, []int{43} }
 
 func (m *PolicyAssignment) GetPolicies() []*Policy {
 	if m != nil {
@@ -1129,18 +1213,20 @@ type MrtMessage struct {
 	Data []byte `protobuf:"bytes,1,opt,name=data,proto3" json:"data,omitempty"`
 }
 
-func (m *MrtMessage) Reset()         { *m = MrtMessage{} }
-func (m *MrtMessage) String() string { return proto.CompactTextString(m) }
-func (*MrtMessage) ProtoMessage()    {}
+func (m *MrtMessage) Reset()                    { *m = MrtMessage{} }
+func (m *MrtMessage) String() string            { return proto.CompactTextString(m) }
+func (*MrtMessage) ProtoMessage()               {}
+func (*MrtMessage) Descriptor() ([]byte, []int) { return fileDescriptor0, []int{44} }
 
 type RPKIConf struct {
 	Address    string `protobuf:"bytes,1,opt,name=address" json:"address,omitempty"`
 	RemotePort uint32 `protobuf:"varint,2,opt,name=remote_port" json:"remote_port,omitempty"`
 }
 
-func (m *RPKIConf) Reset()         { *m = RPKIConf{} }
-func (m *RPKIConf) String() string { return proto.CompactTextString(m) }
-func (*RPKIConf) ProtoMessage()    {}
+func (m *RPKIConf) Reset()                    { *m = RPKIConf{} }
+func (m *RPKIConf) String() string            { return proto.CompactTextString(m) }
+func (*RPKIConf) ProtoMessage()               {}
+func (*RPKIConf) Descriptor() ([]byte, []int) { return fileDescriptor0, []int{45} }
 
 type RPKIState struct {
 	Uptime       int64 `protobuf:"varint,1,opt,name=uptime" json:"uptime,omitempty"`
@@ -1149,18 +1235,20 @@ type RPKIState struct {
 	ReceivedIpv6 int64 `protobuf:"varint,4,opt,name=received_ipv6" json:"received_ipv6,omitempty"`
 }
 
-func (m *RPKIState) Reset()         { *m = RPKIState{} }
-func (m *RPKIState) String() string { return proto.CompactTextString(m) }
-func (*RPKIState) ProtoMessage()    {}
+func (m *RPKIState) Reset()                    { *m = RPKIState{} }
+func (m *RPKIState) String() string            { return proto.CompactTextString(m) }
+func (*RPKIState) ProtoMessage()               {}
+func (*RPKIState) Descriptor() ([]byte, []int) { return fileDescriptor0, []int{46} }
 
 type RPKI struct {
 	Conf  *RPKIConf  `protobuf:"bytes,1,opt,name=conf" json:"conf,omitempty"`
 	State *RPKIState `protobuf:"bytes,2,opt,name=state" json:"state,omitempty"`
 }
 
-func (m *RPKI) Reset()         { *m = RPKI{} }
-func (m *RPKI) String() string { return proto.CompactTextString(m) }
-func (*RPKI) ProtoMessage()    {}
+func (m *RPKI) Reset()                    { *m = RPKI{} }
+func (m *RPKI) String() string            { return proto.CompactTextString(m) }
+func (*RPKI) ProtoMessage()               {}
+func (*RPKI) Descriptor() ([]byte, []int) { return fileDescriptor0, []int{47} }
 
 func (m *RPKI) GetConf() *RPKIConf {
 	if m != nil {
@@ -1184,13 +1272,34 @@ type ROA struct {
 	Conf      *RPKIConf `protobuf:"bytes,5,opt,name=conf" json:"conf,omitempty"`
 }
 
-func (m *ROA) Reset()         { *m = ROA{} }
-func (m *ROA) String() string { return proto.CompactTextString(m) }
-func (*ROA) ProtoMessage()    {}
+func (m *ROA) Reset()                    { *m = ROA{} }
+func (m *ROA) String() string            { return proto.CompactTextString(m) }
+func (*ROA) ProtoMessage()               {}
+func (*ROA) Descriptor() ([]byte, []int) { return fileDescriptor0, []int{48} }
 
 func (m *ROA) GetConf() *RPKIConf {
 	if m != nil {
 		return m.Conf
+	}
+	return nil
+}
+
+type ROAResult struct {
+	OriginAs  uint32                     `protobuf:"varint,1,opt,name=origin_as" json:"origin_as,omitempty"`
+	Prefix    string                     `protobuf:"bytes,2,opt,name=prefix" json:"prefix,omitempty"`
+	OldResult ROAResult_ValidationResult `protobuf:"varint,3,opt,name=old_result,enum=gobgpapi.ROAResult_ValidationResult" json:"old_result,omitempty"`
+	NewResult ROAResult_ValidationResult `protobuf:"varint,4,opt,name=new_result,enum=gobgpapi.ROAResult_ValidationResult" json:"new_result,omitempty"`
+	Roas      []*ROA                     `protobuf:"bytes,5,rep,name=roas" json:"roas,omitempty"`
+}
+
+func (m *ROAResult) Reset()                    { *m = ROAResult{} }
+func (m *ROAResult) String() string            { return proto.CompactTextString(m) }
+func (*ROAResult) ProtoMessage()               {}
+func (*ROAResult) Descriptor() ([]byte, []int) { return fileDescriptor0, []int{49} }
+
+func (m *ROAResult) GetRoas() []*ROA {
+	if m != nil {
+		return m.Roas
 	}
 	return nil
 }
@@ -1202,9 +1311,10 @@ type Vrf struct {
 	ExportRt [][]byte `protobuf:"bytes,4,rep,name=export_rt,proto3" json:"export_rt,omitempty"`
 }
 
-func (m *Vrf) Reset()         { *m = Vrf{} }
-func (m *Vrf) String() string { return proto.CompactTextString(m) }
-func (*Vrf) ProtoMessage()    {}
+func (m *Vrf) Reset()                    { *m = Vrf{} }
+func (m *Vrf) String() string            { return proto.CompactTextString(m) }
+func (*Vrf) ProtoMessage()               {}
+func (*Vrf) Descriptor() ([]byte, []int) { return fileDescriptor0, []int{50} }
 
 type Global struct {
 	As         uint32 `protobuf:"varint,1,opt,name=as" json:"as,omitempty"`
@@ -1212,9 +1322,10 @@ type Global struct {
 	ListenPort int32  `protobuf:"varint,3,opt,name=listen_port" json:"listen_port,omitempty"`
 }
 
-func (m *Global) Reset()         { *m = Global{} }
-func (m *Global) String() string { return proto.CompactTextString(m) }
-func (*Global) ProtoMessage()    {}
+func (m *Global) Reset()                    { *m = Global{} }
+func (m *Global) String() string            { return proto.CompactTextString(m) }
+func (*Global) ProtoMessage()               {}
+func (*Global) Descriptor() ([]byte, []int) { return fileDescriptor0, []int{51} }
 
 func init() {
 	proto.RegisterType((*Error)(nil), "gobgpapi.Error")
@@ -1266,6 +1377,7 @@ func init() {
 	proto.RegisterType((*RPKIState)(nil), "gobgpapi.RPKIState")
 	proto.RegisterType((*RPKI)(nil), "gobgpapi.RPKI")
 	proto.RegisterType((*ROA)(nil), "gobgpapi.ROA")
+	proto.RegisterType((*ROAResult)(nil), "gobgpapi.ROAResult")
 	proto.RegisterType((*Vrf)(nil), "gobgpapi.Vrf")
 	proto.RegisterType((*Global)(nil), "gobgpapi.Global")
 	proto.RegisterEnum("gobgpapi.Resource", Resource_name, Resource_value)
@@ -1278,6 +1390,7 @@ func init() {
 	proto.RegisterEnum("gobgpapi.MedActionType", MedActionType_name, MedActionType_value)
 	proto.RegisterEnum("gobgpapi.PolicyType", PolicyType_name, PolicyType_value)
 	proto.RegisterEnum("gobgpapi.Error_ErrorCode", Error_ErrorCode_name, Error_ErrorCode_value)
+	proto.RegisterEnum("gobgpapi.ROAResult_ValidationResult", ROAResult_ValidationResult_name, ROAResult_ValidationResult_value)
 }
 
 // Reference imports to suppress errors if they are not otherwise used.
@@ -1304,6 +1417,7 @@ type GobgpApiClient interface {
 	ModPaths(ctx context.Context, opts ...grpc.CallOption) (GobgpApi_ModPathsClient, error)
 	MonitorBestChanged(ctx context.Context, in *Arguments, opts ...grpc.CallOption) (GobgpApi_MonitorBestChangedClient, error)
 	MonitorPeerState(ctx context.Context, in *Arguments, opts ...grpc.CallOption) (GobgpApi_MonitorPeerStateClient, error)
+	MonitorROAValidation(ctx context.Context, in *Arguments, opts ...grpc.CallOption) (GobgpApi_MonitorROAValidationClient, error)
 	GetMrt(ctx context.Context, in *MrtArguments, opts ...grpc.CallOption) (GobgpApi_GetMrtClient, error)
 	ModMrt(ctx context.Context, in *ModMrtArguments, opts ...grpc.CallOption) (*Error, error)
 	GetRPKI(ctx context.Context, in *Arguments, opts ...grpc.CallOption) (GobgpApi_GetRPKIClient, error)
@@ -1579,8 +1693,40 @@ func (x *gobgpApiMonitorPeerStateClient) Recv() (*Peer, error) {
 	return m, nil
 }
 
+func (c *gobgpApiClient) MonitorROAValidation(ctx context.Context, in *Arguments, opts ...grpc.CallOption) (GobgpApi_MonitorROAValidationClient, error) {
+	stream, err := grpc.NewClientStream(ctx, &_GobgpApi_serviceDesc.Streams[4], c.cc, "/gobgpapi.GobgpApi/MonitorROAValidation", opts...)
+	if err != nil {
+		return nil, err
+	}
+	x := &gobgpApiMonitorROAValidationClient{stream}
+	if err := x.ClientStream.SendMsg(in); err != nil {
+		return nil, err
+	}
+	if err := x.ClientStream.CloseSend(); err != nil {
+		return nil, err
+	}
+	return x, nil
+}
+
+type GobgpApi_MonitorROAValidationClient interface {
+	Recv() (*ROAResult, error)
+	grpc.ClientStream
+}
+
+type gobgpApiMonitorROAValidationClient struct {
+	grpc.ClientStream
+}
+
+func (x *gobgpApiMonitorROAValidationClient) Recv() (*ROAResult, error) {
+	m := new(ROAResult)
+	if err := x.ClientStream.RecvMsg(m); err != nil {
+		return nil, err
+	}
+	return m, nil
+}
+
 func (c *gobgpApiClient) GetMrt(ctx context.Context, in *MrtArguments, opts ...grpc.CallOption) (GobgpApi_GetMrtClient, error) {
-	stream, err := grpc.NewClientStream(ctx, &_GobgpApi_serviceDesc.Streams[4], c.cc, "/gobgpapi.GobgpApi/GetMrt", opts...)
+	stream, err := grpc.NewClientStream(ctx, &_GobgpApi_serviceDesc.Streams[5], c.cc, "/gobgpapi.GobgpApi/GetMrt", opts...)
 	if err != nil {
 		return nil, err
 	}
@@ -1621,7 +1767,7 @@ func (c *gobgpApiClient) ModMrt(ctx context.Context, in *ModMrtArguments, opts .
 }
 
 func (c *gobgpApiClient) GetRPKI(ctx context.Context, in *Arguments, opts ...grpc.CallOption) (GobgpApi_GetRPKIClient, error) {
-	stream, err := grpc.NewClientStream(ctx, &_GobgpApi_serviceDesc.Streams[5], c.cc, "/gobgpapi.GobgpApi/GetRPKI", opts...)
+	stream, err := grpc.NewClientStream(ctx, &_GobgpApi_serviceDesc.Streams[6], c.cc, "/gobgpapi.GobgpApi/GetRPKI", opts...)
 	if err != nil {
 		return nil, err
 	}
@@ -1662,7 +1808,7 @@ func (c *gobgpApiClient) ModRPKI(ctx context.Context, in *ModRpkiArguments, opts
 }
 
 func (c *gobgpApiClient) GetROA(ctx context.Context, in *Arguments, opts ...grpc.CallOption) (GobgpApi_GetROAClient, error) {
-	stream, err := grpc.NewClientStream(ctx, &_GobgpApi_serviceDesc.Streams[6], c.cc, "/gobgpapi.GobgpApi/GetROA", opts...)
+	stream, err := grpc.NewClientStream(ctx, &_GobgpApi_serviceDesc.Streams[7], c.cc, "/gobgpapi.GobgpApi/GetROA", opts...)
 	if err != nil {
 		return nil, err
 	}
@@ -1694,7 +1840,7 @@ func (x *gobgpApiGetROAClient) Recv() (*ROA, error) {
 }
 
 func (c *gobgpApiClient) GetVrfs(ctx context.Context, in *Arguments, opts ...grpc.CallOption) (GobgpApi_GetVrfsClient, error) {
-	stream, err := grpc.NewClientStream(ctx, &_GobgpApi_serviceDesc.Streams[7], c.cc, "/gobgpapi.GobgpApi/GetVrfs", opts...)
+	stream, err := grpc.NewClientStream(ctx, &_GobgpApi_serviceDesc.Streams[8], c.cc, "/gobgpapi.GobgpApi/GetVrfs", opts...)
 	if err != nil {
 		return nil, err
 	}
@@ -1744,7 +1890,7 @@ func (c *gobgpApiClient) GetDefinedSet(ctx context.Context, in *DefinedSet, opts
 }
 
 func (c *gobgpApiClient) GetDefinedSets(ctx context.Context, in *DefinedSet, opts ...grpc.CallOption) (GobgpApi_GetDefinedSetsClient, error) {
-	stream, err := grpc.NewClientStream(ctx, &_GobgpApi_serviceDesc.Streams[8], c.cc, "/gobgpapi.GobgpApi/GetDefinedSets", opts...)
+	stream, err := grpc.NewClientStream(ctx, &_GobgpApi_serviceDesc.Streams[9], c.cc, "/gobgpapi.GobgpApi/GetDefinedSets", opts...)
 	if err != nil {
 		return nil, err
 	}
@@ -1794,7 +1940,7 @@ func (c *gobgpApiClient) GetStatement(ctx context.Context, in *Statement, opts .
 }
 
 func (c *gobgpApiClient) GetStatements(ctx context.Context, in *Statement, opts ...grpc.CallOption) (GobgpApi_GetStatementsClient, error) {
-	stream, err := grpc.NewClientStream(ctx, &_GobgpApi_serviceDesc.Streams[9], c.cc, "/gobgpapi.GobgpApi/GetStatements", opts...)
+	stream, err := grpc.NewClientStream(ctx, &_GobgpApi_serviceDesc.Streams[10], c.cc, "/gobgpapi.GobgpApi/GetStatements", opts...)
 	if err != nil {
 		return nil, err
 	}
@@ -1844,7 +1990,7 @@ func (c *gobgpApiClient) GetPolicy(ctx context.Context, in *Policy, opts ...grpc
 }
 
 func (c *gobgpApiClient) GetPolicies(ctx context.Context, in *Policy, opts ...grpc.CallOption) (GobgpApi_GetPoliciesClient, error) {
-	stream, err := grpc.NewClientStream(ctx, &_GobgpApi_serviceDesc.Streams[10], c.cc, "/gobgpapi.GobgpApi/GetPolicies", opts...)
+	stream, err := grpc.NewClientStream(ctx, &_GobgpApi_serviceDesc.Streams[11], c.cc, "/gobgpapi.GobgpApi/GetPolicies", opts...)
 	if err != nil {
 		return nil, err
 	}
@@ -1922,6 +2068,7 @@ type GobgpApiServer interface {
 	ModPaths(GobgpApi_ModPathsServer) error
 	MonitorBestChanged(*Arguments, GobgpApi_MonitorBestChangedServer) error
 	MonitorPeerState(*Arguments, GobgpApi_MonitorPeerStateServer) error
+	MonitorROAValidation(*Arguments, GobgpApi_MonitorROAValidationServer) error
 	GetMrt(*MrtArguments, GobgpApi_GetMrtServer) error
 	ModMrt(context.Context, *ModMrtArguments) (*Error, error)
 	GetRPKI(*Arguments, GobgpApi_GetRPKIServer) error
@@ -2188,6 +2335,27 @@ type gobgpApiMonitorPeerStateServer struct {
 }
 
 func (x *gobgpApiMonitorPeerStateServer) Send(m *Peer) error {
+	return x.ServerStream.SendMsg(m)
+}
+
+func _GobgpApi_MonitorROAValidation_Handler(srv interface{}, stream grpc.ServerStream) error {
+	m := new(Arguments)
+	if err := stream.RecvMsg(m); err != nil {
+		return err
+	}
+	return srv.(GobgpApiServer).MonitorROAValidation(m, &gobgpApiMonitorROAValidationServer{stream})
+}
+
+type GobgpApi_MonitorROAValidationServer interface {
+	Send(*ROAResult) error
+	grpc.ServerStream
+}
+
+type gobgpApiMonitorROAValidationServer struct {
+	grpc.ServerStream
+}
+
+func (x *gobgpApiMonitorROAValidationServer) Send(m *ROAResult) error {
 	return x.ServerStream.SendMsg(m)
 }
 
@@ -2593,6 +2761,11 @@ var _GobgpApi_serviceDesc = grpc.ServiceDesc{
 			ServerStreams: true,
 		},
 		{
+			StreamName:    "MonitorROAValidation",
+			Handler:       _GobgpApi_MonitorROAValidation_Handler,
+			ServerStreams: true,
+		},
+		{
 			StreamName:    "GetMrt",
 			Handler:       _GobgpApi_GetMrt_Handler,
 			ServerStreams: true,
@@ -2628,4 +2801,209 @@ var _GobgpApi_serviceDesc = grpc.ServiceDesc{
 			ServerStreams: true,
 		},
 	},
+}
+
+var fileDescriptor0 = []byte{
+	// 3213 bytes of a gzipped FileDescriptorProto
+	0x1f, 0x8b, 0x08, 0x00, 0x00, 0x09, 0x6e, 0x88, 0x02, 0xff, 0xbc, 0x1a, 0xdb, 0x72, 0xdb, 0xc6,
+	0xd5, 0xbc, 0x8a, 0x3c, 0x24, 0x25, 0x0a, 0x92, 0x1d, 0x9a, 0xb9, 0x39, 0x68, 0x6a, 0x3b, 0x4a,
+	0xec, 0x38, 0xce, 0xa5, 0x99, 0x24, 0x9d, 0x96, 0x26, 0x61, 0x9b, 0x89, 0x24, 0x2a, 0x14, 0xa5,
+	0x49, 0xa6, 0x9d, 0xc1, 0x40, 0x24, 0x48, 0xa1, 0x21, 0x01, 0x18, 0x00, 0x6d, 0xab, 0xd3, 0xb7,
+	0xf6, 0x2b, 0x3a, 0x9d, 0xce, 0xb4, 0x0f, 0xfd, 0x84, 0xbe, 0xf4, 0x23, 0xfa, 0x11, 0x7d, 0xc8,
+	0x2f, 0xf4, 0xb1, 0xe7, 0x9c, 0x5d, 0x10, 0x00, 0x09, 0xd9, 0x92, 0x33, 0xd3, 0x17, 0x8b, 0xd8,
+	0x3d, 0xb7, 0x3d, 0xf7, 0xb3, 0x6b, 0xa8, 0x4c, 0x9c, 0x93, 0x89, 0x7b, 0xd7, 0xf5, 0x9c, 0xc0,
+	0x51, 0x4a, 0xfc, 0x61, 0xb8, 0x96, 0x6a, 0x40, 0x41, 0xf3, 0x3c, 0xc7, 0x53, 0x6e, 0x41, 0x7e,
+	0xe8, 0x8c, 0xcc, 0x46, 0xe6, 0x46, 0xe6, 0xf6, 0xfa, 0xfd, 0xeb, 0x77, 0x43, 0x88, 0xbb, 0xbc,
+	0x2d, 0xfe, 0x6d, 0x23, 0x80, 0x52, 0x81, 0xdc, 0xcc, 0x9f, 0x34, 0xb2, 0x08, 0x57, 0x56, 0x55,
+	0x28, 0xc7, 0x77, 0xd6, 0x0e, 0x8f, 0xda, 0x6d, 0xed, 0xf0, 0xb0, 0x7e, 0x45, 0x29, 0x41, 0xfe,
+	0x61, 0xab, 0xbb, 0x5b, 0xcf, 0xa8, 0x3d, 0x28, 0xb7, 0xbc, 0xc9, 0x7c, 0x66, 0xda, 0x81, 0xaf,
+	0xbc, 0x0b, 0x25, 0xcf, 0xf4, 0x9d, 0xb9, 0x37, 0x0c, 0x59, 0x29, 0x11, 0xab, 0xbe, 0xdc, 0x51,
+	0xd6, 0xa1, 0x38, 0x36, 0x66, 0xd6, 0xf4, 0x8c, 0xd9, 0xd4, 0x94, 0x2a, 0xe4, 0x6d, 0x63, 0x66,
+	0x36, 0x72, 0xcc, 0xf4, 0xcf, 0x19, 0xa8, 0xef, 0x39, 0xa3, 0x03, 0x23, 0x38, 0x8d, 0x08, 0xdf,
+	0x84, 0xb2, 0xe3, 0x9a, 0x9e, 0x11, 0x58, 0x8e, 0x2d, 0x29, 0x6f, 0x45, 0x94, 0x7b, 0xe1, 0x56,
+	0x42, 0x80, 0xec, 0xb9, 0x02, 0x24, 0x18, 0x2a, 0x6f, 0x40, 0xde, 0x45, 0x66, 0x8d, 0x3c, 0x7e,
+	0x55, 0xee, 0xaf, 0x47, 0xf0, 0x24, 0x02, 0xc1, 0xce, 0xe7, 0xd6, 0xa8, 0x51, 0xc0, 0xdd, 0xaa,
+	0xfa, 0x36, 0x6c, 0x48, 0xd9, 0x90, 0x98, 0xeb, 0xd8, 0xbe, 0xb9, 0x00, 0xc8, 0x30, 0xc0, 0x18,
+	0x36, 0x25, 0x80, 0x7f, 0x59, 0xb5, 0x84, 0x52, 0xb1, 0xee, 0x95, 0x37, 0xa1, 0x40, 0x52, 0xf9,
+	0x28, 0x64, 0x6e, 0x55, 0x2c, 0xf5, 0xb7, 0xb0, 0x8d, 0x7c, 0xf6, 0x4d, 0x6b, 0x72, 0x7a, 0xe2,
+	0x78, 0x97, 0x57, 0x14, 0x1d, 0xda, 0x34, 0x3d, 0x66, 0x96, 0xa4, 0x8e, 0xab, 0xaa, 0x0b, 0xd5,
+	0x3d, 0x2f, 0xf8, 0xa9, 0x76, 0xad, 0x43, 0xc9, 0xb2, 0x03, 0xd3, 0x7b, 0x6a, 0x4c, 0x59, 0xd5,
+	0x79, 0xa5, 0x01, 0x75, 0x5b, 0x8a, 0xac, 0x1b, 0xa3, 0x11, 0xd2, 0xf4, 0x59, 0xed, 0x65, 0xf5,
+	0x1b, 0x56, 0x6c, 0x82, 0xe9, 0x45, 0x8f, 0x82, 0x6c, 0xc6, 0xd6, 0xd4, 0x8c, 0x74, 0xa7, 0x7e,
+	0xcf, 0x1e, 0xd4, 0x77, 0x7f, 0xb0, 0x2e, 0x4f, 0x6d, 0x03, 0xd6, 0x42, 0xc9, 0x84, 0x21, 0xd0,
+	0x2c, 0xae, 0xe3, 0x05, 0x7c, 0x82, 0x9a, 0x7a, 0xc4, 0x72, 0x1e, 0x7b, 0xe3, 0xcb, 0x53, 0x6e,
+	0x42, 0xee, 0xa9, 0x37, 0x96, 0x1a, 0xaf, 0x45, 0x10, 0x48, 0x4c, 0x1d, 0xc2, 0x35, 0x24, 0xdb,
+	0x31, 0xc7, 0x96, 0x6d, 0x8e, 0x0e, 0xcd, 0x57, 0xd0, 0xc2, 0x3b, 0x90, 0xf3, 0xcd, 0x40, 0x52,
+	0xdf, 0x8e, 0x20, 0x22, 0x9a, 0xea, 0x04, 0xae, 0x22, 0x93, 0xc3, 0xc0, 0x08, 0x4c, 0xa2, 0x7d,
+	0x79, 0x1e, 0x08, 0xe7, 0x87, 0xd8, 0x92, 0x53, 0x0c, 0x6e, 0x41, 0x58, 0xfd, 0x6b, 0x06, 0x14,
+	0x8a, 0x02, 0x67, 0x6a, 0x0d, 0xcf, 0x2e, 0xcf, 0xe6, 0x06, 0x14, 0x5d, 0x46, 0x95, 0x3c, 0xea,
+	0x31, 0xef, 0xe4, 0x75, 0x3c, 0xec, 0x75, 0xcf, 0x1c, 0x9b, 0x9e, 0x6e, 0x3e, 0xb7, 0xfc, 0xc0,
+	0xb2, 0x27, 0xfa, 0x42, 0x2e, 0x9f, 0x0d, 0x55, 0x52, 0x5e, 0x87, 0x2d, 0x17, 0xad, 0x88, 0xde,
+	0x67, 0xc6, 0x37, 0xc9, 0xdb, 0x4a, 0xea, 0x53, 0x78, 0x23, 0x92, 0xcf, 0xf7, 0xad, 0x89, 0xfd,
+	0x6a, 0x0a, 0xb9, 0x0b, 0x60, 0x2c, 0xd0, 0xa5, 0xb4, 0xcd, 0x65, 0x69, 0x23, 0x06, 0xea, 0x08,
+	0x1a, 0xc8, 0xf7, 0xd1, 0xd4, 0x39, 0x31, 0xa6, 0x6d, 0xc7, 0x1e, 0x5b, 0x93, 0x57, 0xd2, 0xce,
+	0x84, 0x09, 0xac, 0x6a, 0x47, 0x10, 0x56, 0xff, 0x9d, 0x81, 0x7c, 0x98, 0xbb, 0xec, 0xa9, 0x67,
+	0x89, 0xd4, 0x44, 0xe1, 0x89, 0x19, 0x25, 0xf0, 0xc8, 0xb1, 0x73, 0xf8, 0x8d, 0xa9, 0xde, 0x98,
+	0x88, 0x24, 0x98, 0x23, 0xd0, 0x13, 0xd3, 0x0f, 0x84, 0x7e, 0x94, 0x2d, 0xa8, 0x58, 0xbe, 0xfe,
+	0xcc, 0x0a, 0x4e, 0x47, 0x9e, 0xf1, 0x8c, 0x73, 0x5f, 0x49, 0x51, 0x00, 0x30, 0x92, 0xad, 0x91,
+	0x90, 0xb0, 0x88, 0x6b, 0x05, 0x4c, 0x23, 0xdb, 0xb6, 0xa3, 0x5b, 0x33, 0x17, 0x0f, 0x6a, 0x05,
+	0x11, 0xc6, 0x1a, 0x63, 0x44, 0x09, 0xa1, 0xc4, 0x09, 0x01, 0x29, 0x88, 0x54, 0xa1, 0x1b, 0xbe,
+	0xdd, 0x28, 0xf3, 0xda, 0x26, 0xfa, 0x94, 0x58, 0xc3, 0x1c, 0x0a, 0x1c, 0x71, 0x22, 0xa0, 0x31,
+	0x71, 0x98, 0xa3, 0x46, 0x85, 0xed, 0x75, 0x04, 0x95, 0x8e, 0x49, 0x86, 0x16, 0x2a, 0xa0, 0x93,
+	0xa0, 0xfd, 0xad, 0xe7, 0x7c, 0xb2, 0x58, 0xae, 0xcc, 0xa6, 0xe5, 0x4a, 0xe5, 0x35, 0xd8, 0x98,
+	0x3a, 0xf6, 0x04, 0xdd, 0x45, 0x60, 0x99, 0xd2, 0x47, 0xd4, 0x00, 0x0a, 0x03, 0xe3, 0x64, 0x6a,
+	0xa2, 0x4e, 0xf3, 0xc1, 0x99, 0x7b, 0xf1, 0xe4, 0x1c, 0x1d, 0x8c, 0xb3, 0x82, 0xf2, 0x3e, 0x54,
+	0x47, 0x91, 0x7c, 0xe4, 0x65, 0x24, 0xc7, 0xd5, 0x78, 0x14, 0x2e, 0x76, 0xd5, 0xff, 0x64, 0xd1,
+	0x3c, 0x98, 0x65, 0xf9, 0x9c, 0x44, 0xc5, 0x32, 0x85, 0xe4, 0x4c, 0xc7, 0x70, 0xdd, 0xe9, 0x99,
+	0x2e, 0xfd, 0x3f, 0xc7, 0x16, 0x8e, 0xd1, 0x69, 0xd1, 0xae, 0x0c, 0x82, 0x1b, 0x54, 0xd3, 0xed,
+	0x31, 0x5b, 0xa7, 0x12, 0x17, 0x9a, 0x88, 0x93, 0x77, 0x29, 0x77, 0xa0, 0x66, 0xe2, 0x9a, 0x3e,
+	0x9b, 0x4f, 0x03, 0xeb, 0xd4, 0x71, 0xd9, 0x68, 0x95, 0xfb, 0xd7, 0x62, 0xe5, 0x1f, 0xff, 0xee,
+	0xc9, 0x5d, 0xe5, 0x23, 0xd8, 0xf0, 0x9c, 0x79, 0x60, 0xea, 0xa8, 0xa5, 0xa9, 0x39, 0x0c, 0x1c,
+	0x8f, 0x0d, 0x52, 0xb9, 0xdf, 0x88, 0x29, 0x84, 0x00, 0xfa, 0xe1, 0x3e, 0x06, 0x62, 0xde, 0xb2,
+	0xc7, 0x0e, 0x9b, 0x29, 0x91, 0x0c, 0x48, 0x06, 0x4e, 0x08, 0xe4, 0xaf, 0x81, 0x35, 0x33, 0xd1,
+	0xed, 0xaa, 0xcb, 0xfe, 0x3a, 0xe0, 0x75, 0xf2, 0xfc, 0xc0, 0x33, 0x6c, 0x9f, 0xd3, 0x6c, 0x6d,
+	0x99, 0xd2, 0x20, 0xdc, 0x22, 0xed, 0x08, 0xf9, 0x38, 0xaa, 0xbd, 0xc6, 0xc6, 0xb2, 0x76, 0x58,
+	0xb8, 0x43, 0xde, 0x54, 0xff, 0x9e, 0x81, 0x4a, 0x5c, 0x5b, 0x77, 0xa0, 0x6c, 0xd9, 0xa1, 0x5e,
+	0x33, 0x2f, 0x8b, 0x54, 0xd4, 0x45, 0xcd, 0x7c, 0x4e, 0x5c, 0xf5, 0x44, 0x2a, 0x7a, 0x09, 0x0a,
+	0x06, 0x42, 0x0c, 0x25, 0xf7, 0xd2, 0x7c, 0xf0, 0x97, 0x2c, 0x94, 0x16, 0xd6, 0xba, 0x0a, 0x35,
+	0x63, 0x1e, 0x9c, 0xea, 0x2e, 0xa6, 0x94, 0x67, 0x8e, 0x37, 0x92, 0xce, 0x8d, 0xb1, 0x88, 0xbe,
+	0x35, 0xf4, 0x2c, 0x97, 0xe3, 0x2e, 0x1b, 0x86, 0xc8, 0xd4, 0x19, 0x1a, 0x53, 0x0c, 0x24, 0xe9,
+	0x82, 0xe7, 0x96, 0x56, 0xaa, 0x68, 0x54, 0xea, 0x09, 0xb4, 0x10, 0x86, 0x21, 0x2f, 0x4c, 0x50,
+	0x9b, 0xc2, 0x27, 0xca, 0x14, 0x86, 0xbc, 0xc6, 0x61, 0xb0, 0xc6, 0x60, 0xd7, 0x61, 0xd3, 0x33,
+	0x67, 0x0e, 0xe6, 0x4f, 0xd7, 0xb3, 0x9e, 0xa2, 0x29, 0x89, 0x82, 0x08, 0xe4, 0x26, 0x28, 0xc2,
+	0x12, 0xe3, 0xa9, 0xe1, 0xea, 0x23, 0x63, 0xe6, 0x62, 0x0e, 0xe6, 0x80, 0x2e, 0x29, 0xd7, 0x60,
+	0xdd, 0x37, 0xed, 0x91, 0x3e, 0x74, 0x66, 0xb3, 0xb9, 0x6d, 0x05, 0x67, 0xec, 0x44, 0xcc, 0x95,
+	0xc8, 0x21, 0xd2, 0xd0, 0x70, 0xd1, 0x61, 0x28, 0x05, 0x21, 0x57, 0x71, 0x0c, 0x5a, 0xaa, 0xf2,
+	0x12, 0x40, 0x16, 0x13, 0x41, 0x8d, 0xeb, 0xf8, 0xa7, 0x50, 0x4d, 0x38, 0x28, 0x9e, 0x04, 0xcb,
+	0x3c, 0x06, 0xac, 0xd0, 0x4d, 0x49, 0xd9, 0x86, 0x6a, 0xe8, 0xdb, 0x7a, 0x10, 0x88, 0x8c, 0x58,
+	0x53, 0x07, 0xb0, 0xbe, 0xe4, 0xa6, 0x6f, 0xc1, 0xb5, 0x25, 0xcf, 0xd6, 0x87, 0x18, 0x76, 0x98,
+	0xb3, 0x05, 0x1d, 0x15, 0x9a, 0xab, 0xfb, 0x73, 0x1f, 0x53, 0x10, 0x65, 0x25, 0x41, 0xf5, 0xc7,
+	0x1c, 0x94, 0x23, 0xaf, 0xfe, 0x69, 0xc6, 0xc2, 0x7e, 0x6a, 0x86, 0x06, 0xc2, 0xf4, 0xeb, 0xcb,
+	0xb6, 0x33, 0x16, 0xbe, 0x7b, 0x72, 0x27, 0xd5, 0xa4, 0x85, 0x65, 0x93, 0x16, 0x53, 0x4c, 0xba,
+	0xb6, 0x6a, 0x52, 0x61, 0x37, 0x8c, 0xc5, 0x27, 0x73, 0x73, 0x8e, 0x5c, 0xcb, 0xcb, 0xb1, 0xf8,
+	0x2d, 0xaf, 0xa7, 0x1b, 0x1d, 0x5e, 0x60, 0xf4, 0xca, 0x39, 0x46, 0xaf, 0x32, 0x0e, 0xaa, 0xc9,
+	0x47, 0xb1, 0x51, 0x17, 0xa2, 0x08, 0xb3, 0x61, 0x6b, 0x64, 0x0f, 0x7f, 0xee, 0x52, 0xac, 0x98,
+	0x23, 0xb2, 0xbd, 0x71, 0x82, 0x59, 0x30, 0xa0, 0x3c, 0xb8, 0x8e, 0x4e, 0xc0, 0xa2, 0x53, 0xde,
+	0x12, 0x28, 0x1b, 0xa1, 0x66, 0x8d, 0xd1, 0xcc, 0x0a, 0xe9, 0xd4, 0x43, 0xcd, 0x7a, 0xe6, 0xd0,
+	0xb4, 0x9e, 0xa2, 0x47, 0x6c, 0x86, 0x3d, 0xa7, 0x31, 0x1c, 0x9a, 0x2e, 0x12, 0x6e, 0x28, 0xa1,
+	0x6a, 0x8c, 0x11, 0x66, 0x84, 0xc0, 0xfa, 0x3d, 0xae, 0x6d, 0xf1, 0x5a, 0x0d, 0x0a, 0x78, 0x12,
+	0xfd, 0x49, 0x63, 0x3b, 0xfc, 0x1c, 0x4f, 0x1d, 0xd7, 0x6f, 0x5c, 0x65, 0x4b, 0x1f, 0x40, 0x69,
+	0x61, 0x83, 0x9f, 0xc5, 0x38, 0x88, 0xac, 0xb1, 0xb9, 0x62, 0x29, 0xe5, 0x6d, 0xc8, 0xfb, 0x51,
+	0x03, 0xb0, 0x0a, 0xa0, 0xfe, 0x31, 0x03, 0x6b, 0x21, 0x30, 0xfa, 0xec, 0x7e, 0x6f, 0xd0, 0x7d,
+	0xd8, 0x6d, 0xb7, 0x06, 0xdd, 0xde, 0x3e, 0x53, 0xcd, 0x53, 0x45, 0x39, 0x3a, 0xe8, 0xb4, 0x06,
+	0x1a, 0x13, 0xc9, 0x53, 0xbd, 0xe9, 0x1d, 0x68, 0xfb, 0xb2, 0x6f, 0x46, 0x7d, 0x7c, 0xa3, 0x69,
+	0x07, 0xad, 0xdd, 0xee, 0xb1, 0xc6, 0x0e, 0x93, 0x27, 0x17, 0xe8, 0x6b, 0x0f, 0xfb, 0xda, 0xe1,
+	0x63, 0xf6, 0x09, 0x86, 0xe9, 0x74, 0x0f, 0xdb, 0xad, 0x7e, 0x47, 0xeb, 0xb0, 0x57, 0xe4, 0xe9,
+	0x5c, 0x83, 0xde, 0xa0, 0xb5, 0xcb, 0x0e, 0x91, 0x57, 0x6f, 0x41, 0x51, 0x5a, 0x19, 0x37, 0x2c,
+	0xdb, 0x9d, 0x0b, 0xf7, 0xaf, 0x11, 0x73, 0x54, 0x07, 0x7d, 0x0b, 0x57, 0x3f, 0x86, 0xe2, 0x22,
+	0x35, 0x17, 0x87, 0xdc, 0xa7, 0xc8, 0xc3, 0x5f, 0x5b, 0x4e, 0xde, 0xa2, 0x8b, 0x41, 0x87, 0x2e,
+	0x08, 0xbb, 0x64, 0x97, 0x73, 0xb2, 0x00, 0xe3, 0xa0, 0x51, 0xff, 0x00, 0xd5, 0x04, 0x16, 0x7a,
+	0x07, 0x52, 0xb7, 0x31, 0xe0, 0x30, 0xf0, 0x02, 0xef, 0x4c, 0xea, 0x02, 0x4f, 0x72, 0xea, 0x4c,
+	0x47, 0x3a, 0x95, 0x0d, 0xa9, 0x0e, 0xf4, 0xbd, 0x1f, 0x4c, 0xd3, 0xc5, 0xf6, 0x03, 0x3d, 0x73,
+	0x69, 0xa8, 0xb8, 0x09, 0x6f, 0xa1, 0x5f, 0x58, 0xb3, 0xf9, 0x4c, 0x97, 0x86, 0xf6, 0xb9, 0xd9,
+	0x8b, 0xe0, 0x58, 0x63, 0xea, 0xbf, 0xb0, 0x22, 0xc4, 0xa4, 0xf9, 0xff, 0x72, 0xe7, 0x4e, 0xc9,
+	0x9c, 0x38, 0x81, 0x65, 0x90, 0xcf, 0x47, 0x1c, 0x0a, 0xa1, 0xf9, 0xe7, 0x2e, 0x7f, 0x0b, 0xcb,
+	0xa1, 0x1b, 0x8f, 0x9c, 0x67, 0x36, 0xaf, 0x08, 0xe3, 0xfd, 0x2d, 0x03, 0xe5, 0xa8, 0x14, 0xa2,
+	0xec, 0x32, 0xa5, 0xc8, 0xbc, 0x20, 0xd2, 0x0f, 0xfa, 0xba, 0x58, 0xe6, 0x52, 0x9a, 0x0d, 0x43,
+	0x70, 0x16, 0xcc, 0xf5, 0x91, 0xe5, 0x0f, 0x31, 0xac, 0xbd, 0x33, 0xd9, 0x1f, 0xa3, 0x1b, 0x52,
+	0xee, 0xa2, 0x13, 0xcd, 0xe8, 0x66, 0x20, 0x1f, 0xc6, 0xb1, 0x4c, 0xd2, 0xc9, 0x84, 0x83, 0xd1,
+	0x27, 0xd7, 0x99, 0xb2, 0x48, 0x3a, 0xe8, 0x82, 0xc1, 0x10, 0xbb, 0x0b, 0x84, 0xe2, 0x8a, 0xa1,
+	0xee, 0x40, 0x25, 0x56, 0x82, 0xa9, 0x05, 0x8f, 0xd7, 0xeb, 0x44, 0xca, 0x55, 0xf7, 0xa0, 0x78,
+	0xc0, 0xdd, 0x18, 0x29, 0xdc, 0x72, 0xf5, 0x44, 0x43, 0x87, 0x1d, 0xdb, 0xcc, 0xf0, 0x7f, 0xd0,
+	0x71, 0xaa, 0x9b, 0x60, 0x92, 0x45, 0x05, 0xcb, 0xc3, 0x2c, 0x6f, 0x18, 0xcf, 0xe5, 0x5c, 0xf6,
+	0x04, 0x20, 0x9a, 0x74, 0x30, 0x6a, 0xe3, 0xfd, 0xdc, 0xd5, 0x95, 0x69, 0x68, 0x80, 0x9b, 0x4b,
+	0x2d, 0x1d, 0x7e, 0x4d, 0x71, 0x96, 0xe0, 0x71, 0xbb, 0x8c, 0x05, 0xa1, 0xb4, 0xe8, 0x15, 0x45,
+	0x33, 0x17, 0x1f, 0x42, 0x78, 0x47, 0xfd, 0x12, 0xd3, 0x84, 0x11, 0x0c, 0x4f, 0x89, 0xe1, 0x3b,
+	0x09, 0x86, 0xb1, 0xee, 0x85, 0x21, 0x56, 0xd9, 0xa9, 0x8f, 0xa1, 0xda, 0xf2, 0xa9, 0x3b, 0xdd,
+	0xe5, 0x93, 0x28, 0xb7, 0x13, 0x04, 0x62, 0x3d, 0x43, 0x1c, 0x8a, 0xe9, 0xa0, 0xab, 0x88, 0xd3,
+	0xcb, 0x60, 0xfd, 0x47, 0x16, 0x00, 0xe3, 0x69, 0x64, 0x71, 0xeb, 0x89, 0xfe, 0x08, 0x42, 0x72,
+	0x9d, 0xc6, 0xc1, 0xcc, 0x4a, 0x71, 0x09, 0x25, 0xbe, 0x0d, 0xd5, 0x45, 0x71, 0x89, 0x06, 0xc7,
+	0x34, 0xc8, 0xbb, 0xb0, 0x6e, 0xf8, 0x3a, 0x35, 0xd8, 0x52, 0xed, 0xb2, 0xb1, 0xb9, 0x96, 0x2e,
+	0xa4, 0x72, 0x0b, 0x33, 0xb5, 0x84, 0x27, 0xc2, 0xf9, 0x73, 0x09, 0xbf, 0x47, 0x01, 0x28, 0xeb,
+	0x05, 0x83, 0x16, 0xce, 0x05, 0xbd, 0x03, 0x9b, 0xe6, 0xf3, 0x40, 0x4f, 0x82, 0x17, 0xcf, 0x05,
+	0x27, 0x77, 0xc5, 0xe9, 0x1f, 0xe3, 0xda, 0xc7, 0xf6, 0x80, 0xbd, 0xb3, 0xa0, 0x1e, 0xc2, 0x46,
+	0x3b, 0xc4, 0x6f, 0x0d, 0x79, 0x90, 0x78, 0x3f, 0xa1, 0xf5, 0x37, 0x23, 0x4a, 0x4b, 0x80, 0xac,
+	0x78, 0x24, 0x1a, 0xf2, 0x0f, 0x3b, 0xf6, 0xb2, 0xda, 0x82, 0xf2, 0x9e, 0x39, 0x92, 0xe4, 0x7e,
+	0x9e, 0x20, 0xf7, 0x5a, 0xbc, 0x0e, 0x8c, 0x62, 0x84, 0x30, 0xfb, 0x62, 0x5e, 0x98, 0x0b, 0x57,
+	0xc8, 0xa9, 0x1a, 0x6c, 0xa0, 0xfe, 0x3c, 0xd3, 0xc5, 0x02, 0x2a, 0x09, 0xd1, 0x68, 0xe6, 0xdb,
+	0x51, 0x76, 0xa6, 0x4d, 0x23, 0x16, 0xd0, 0x73, 0xdf, 0x44, 0x5b, 0x8c, 0x03, 0x0c, 0x5d, 0x3f,
+	0x90, 0xc3, 0xcc, 0x8f, 0x58, 0x63, 0x04, 0xba, 0x1f, 0x75, 0xca, 0xc6, 0x30, 0x36, 0x4e, 0x2e,
+	0x77, 0xca, 0x92, 0xd9, 0x07, 0x50, 0x8e, 0xca, 0xb6, 0x70, 0x83, 0xeb, 0xe7, 0x6a, 0x02, 0x5b,
+	0x88, 0xdc, 0x0c, 0x6b, 0x61, 0x6e, 0xb9, 0x4d, 0x8f, 0xb4, 0x70, 0x87, 0x86, 0x62, 0x8a, 0x67,
+	0x3a, 0x90, 0x34, 0xff, 0xf5, 0x84, 0xaf, 0x24, 0xce, 0x7a, 0x8f, 0x3a, 0xed, 0x98, 0x69, 0xa5,
+	0x17, 0x9c, 0x2f, 0x82, 0x3a, 0x81, 0xf2, 0xe2, 0xae, 0x61, 0x11, 0x56, 0x22, 0x71, 0xdc, 0x06,
+	0x18, 0x2e, 0x62, 0x61, 0xf5, 0x32, 0x24, 0x16, 0x27, 0x2a, 0xac, 0x09, 0xe5, 0xf8, 0xf2, 0x2c,
+	0xb1, 0xb2, 0x2d, 0xd5, 0xa8, 0xfe, 0x0a, 0x73, 0x94, 0x98, 0x1e, 0x92, 0x5c, 0x6e, 0xe1, 0x1c,
+	0x1b, 0x5d, 0x29, 0x88, 0xa1, 0x33, 0xf5, 0x22, 0xe4, 0x9f, 0x19, 0xa8, 0xaf, 0xcc, 0x09, 0x6a,
+	0xc2, 0x4b, 0xb6, 0x97, 0xc7, 0x03, 0x76, 0x91, 0x57, 0xb9, 0xc7, 0xa4, 0x9c, 0x45, 0x14, 0xac,
+	0xd4, 0x9c, 0x25, 0xce, 0x71, 0x13, 0xd6, 0x46, 0xe6, 0xd8, 0xa0, 0xa0, 0x28, 0xbc, 0xc0, 0x27,
+	0xd4, 0x26, 0xc0, 0x9e, 0x17, 0x84, 0x2d, 0x0b, 0xf2, 0xc1, 0xa9, 0xdf, 0x90, 0x57, 0x9c, 0xf7,
+	0xa0, 0xd4, 0x3f, 0xf8, 0xa6, 0xcb, 0x33, 0x4b, 0xec, 0xb6, 0x2c, 0x93, 0x56, 0x28, 0x44, 0x8a,
+	0xfa, 0x0d, 0x94, 0x09, 0x43, 0x94, 0xdd, 0xa8, 0xd4, 0x65, 0xf8, 0xe6, 0x21, 0x5e, 0xea, 0x38,
+	0x20, 0xc8, 0xc1, 0xc3, 0x9e, 0x4b, 0xb7, 0xdc, 0xa7, 0x9f, 0xc8, 0x2b, 0x8a, 0xa5, 0xe5, 0xcf,
+	0xd8, 0xb5, 0x72, 0xea, 0x2e, 0xe4, 0x89, 0xf8, 0x62, 0x1c, 0x5e, 0x49, 0x79, 0x0b, 0x61, 0xd5,
+	0x64, 0x93, 0xb2, 0x95, 0x04, 0x11, 0x2d, 0xca, 0x18, 0x72, 0xfd, 0x5e, 0x8b, 0xa6, 0x10, 0xc3,
+	0x97, 0xf1, 0x47, 0x7d, 0x34, 0x67, 0x54, 0xcc, 0x7e, 0x32, 0x04, 0xf1, 0x0c, 0x58, 0x7a, 0xe8,
+	0x3b, 0x17, 0x7e, 0xcb, 0xfa, 0x25, 0x46, 0xae, 0x73, 0x47, 0xf3, 0x50, 0x16, 0xf5, 0x4f, 0x59,
+	0xd4, 0x49, 0xaf, 0xd5, 0xe7, 0x04, 0x45, 0x2c, 0x1c, 0xcf, 0x9a, 0x60, 0x77, 0xbb, 0xe0, 0x1a,
+	0x91, 0x14, 0xf5, 0xe9, 0x73, 0x00, 0xea, 0x19, 0x64, 0x46, 0xcb, 0xb1, 0xf1, 0xde, 0x8d, 0x11,
+	0x0e, 0x69, 0xdd, 0x3d, 0x5e, 0xdc, 0xd1, 0x48, 0xe2, 0x88, 0x69, 0x9b, 0xcf, 0x42, 0xcc, 0xfc,
+	0x25, 0x30, 0x5f, 0x87, 0xbc, 0xe7, 0xf0, 0xd8, 0x98, 0x4b, 0x5e, 0x59, 0x22, 0x8e, 0xda, 0x86,
+	0xfa, 0x0a, 0x42, 0x09, 0xf2, 0xfb, 0xbd, 0x7d, 0xad, 0x7e, 0x05, 0x73, 0x5c, 0x19, 0xbb, 0x5c,
+	0xfd, 0x61, 0xef, 0x68, 0xbf, 0x53, 0xcf, 0x28, 0x65, 0x28, 0x1c, 0x63, 0xf7, 0xda, 0xa9, 0x67,
+	0xe9, 0x1d, 0xa1, 0xbb, 0x2f, 0x3e, 0x28, 0xf7, 0xe5, 0x8e, 0xbd, 0xf1, 0x52, 0x78, 0xa1, 0xf2,
+	0x3d, 0x31, 0x75, 0xf1, 0x84, 0x28, 0x87, 0x6a, 0x4f, 0xd4, 0x66, 0x5e, 0x92, 0xa3, 0xb9, 0x17,
+	0xb0, 0xa3, 0x57, 0xd5, 0xaf, 0xa0, 0x28, 0xee, 0xbe, 0x96, 0x0d, 0xc7, 0x59, 0x70, 0x31, 0xc4,
+	0xb1, 0x7b, 0x52, 0x95, 0x37, 0x6d, 0x7d, 0x71, 0xa7, 0x5b, 0xd8, 0x69, 0xa3, 0x43, 0x87, 0x21,
+	0x05, 0x48, 0x69, 0xb7, 0xf7, 0xa0, 0xb5, 0x8b, 0x67, 0x40, 0xa1, 0x77, 0x7b, 0x6d, 0xfc, 0x99,
+	0xa1, 0xe5, 0x56, 0xe7, 0x6b, 0xbd, 0xbb, 0x2f, 0x0e, 0x40, 0xbf, 0x7b, 0x47, 0x83, 0x7a, 0x4e,
+	0x59, 0xc3, 0x03, 0xf4, 0x1f, 0xd6, 0xf3, 0x3b, 0xbf, 0x83, 0x72, 0x74, 0x47, 0x87, 0xab, 0xad,
+	0x4e, 0x07, 0x49, 0xe0, 0x8f, 0x8e, 0x46, 0x04, 0x10, 0x09, 0x7f, 0xe8, 0xad, 0xdd, 0x5d, 0x41,
+	0xa1, 0xaf, 0x1d, 0xec, 0xb6, 0xda, 0x1a, 0x52, 0x40, 0xd2, 0xda, 0x7e, 0xeb, 0xc1, 0xae, 0x56,
+	0xcf, 0x33, 0x54, 0xf7, 0x90, 0x3f, 0x0a, 0xc4, 0x1e, 0xdb, 0x7b, 0x6d, 0x50, 0x2f, 0x92, 0x36,
+	0x0f, 0x7b, 0x0f, 0x07, 0xe2, 0x73, 0x6d, 0x47, 0xa7, 0xeb, 0xb0, 0xa8, 0x91, 0x41, 0x0a, 0x07,
+	0x38, 0x0b, 0x74, 0xbf, 0x43, 0x86, 0x55, 0x28, 0xed, 0x6b, 0xdd, 0x47, 0x8f, 0x1f, 0xf4, 0xfa,
+	0xc8, 0x15, 0xd9, 0x0f, 0x5a, 0x8f, 0xa4, 0xcc, 0x87, 0xfa, 0x41, 0x6b, 0xf0, 0x18, 0x39, 0x22,
+	0xb5, 0x76, 0x6f, 0x6f, 0xef, 0x68, 0xbf, 0x3b, 0xf8, 0xbe, 0x4e, 0x0d, 0x6f, 0x4d, 0xfb, 0x6e,
+	0xa0, 0x47, 0x4b, 0x85, 0x9d, 0xf7, 0xb0, 0xaa, 0x2d, 0x1a, 0x17, 0x3a, 0xcc, 0xfe, 0xf7, 0xe2,
+	0x30, 0x24, 0x3f, 0x6b, 0x03, 0x4d, 0xa8, 0xf5, 0x07, 0xf5, 0xec, 0xce, 0x0e, 0xd4, 0x57, 0x5a,
+	0x94, 0x22, 0x64, 0xb5, 0x6f, 0x11, 0x01, 0xff, 0x3e, 0xd2, 0x10, 0x1e, 0xff, 0xe2, 0x89, 0xb2,
+	0x3b, 0x1f, 0xca, 0xfe, 0x50, 0x66, 0xfe, 0xc8, 0x5b, 0x48, 0xbd, 0xed, 0xb6, 0x76, 0x30, 0x10,
+	0xc4, 0xfb, 0xda, 0xd7, 0x5a, 0x9b, 0x88, 0x1f, 0xc1, 0x56, 0x5a, 0x25, 0x46, 0x89, 0x17, 0xd2,
+	0xea, 0x42, 0xd1, 0xdb, 0x50, 0x8f, 0x96, 0xfa, 0xda, 0x5e, 0xef, 0x98, 0x18, 0x5f, 0x85, 0xcd,
+	0xf8, 0xaa, 0x50, 0x79, 0x76, 0xe7, 0x0e, 0xd4, 0x92, 0x15, 0x19, 0xd5, 0xb3, 0xa7, 0x75, 0xf4,
+	0xbd, 0x1e, 0x91, 0xda, 0x80, 0x0a, 0x7d, 0x84, 0xe0, 0x99, 0x9d, 0x0f, 0x00, 0x62, 0xa9, 0x19,
+	0x0f, 0x83, 0x6e, 0xc0, 0x32, 0x77, 0xf7, 0x0e, 0x7a, 0x7d, 0x29, 0xb3, 0xf6, 0x1d, 0xff, 0xce,
+	0xde, 0xff, 0x2f, 0x26, 0xb4, 0x47, 0x14, 0x28, 0x2d, 0xd7, 0x52, 0xbe, 0x80, 0x8d, 0x47, 0x66,
+	0x10, 0xbf, 0xf0, 0x55, 0x62, 0x69, 0x67, 0x71, 0xf9, 0xdb, 0x5c, 0xbd, 0xc4, 0xbd, 0xa2, 0x3c,
+	0xe6, 0xa7, 0x86, 0x04, 0xae, 0x1a, 0xab, 0xb7, 0xe7, 0xdc, 0x23, 0x37, 0x37, 0x96, 0x1e, 0xf7,
+	0x90, 0xd2, 0x2f, 0xa0, 0x8a, 0x52, 0x84, 0x8f, 0x45, 0x7e, 0xba, 0x08, 0xcb, 0x6f, 0x40, 0x57,
+	0xee, 0x65, 0x94, 0x4f, 0xa0, 0x12, 0x43, 0xbc, 0x20, 0x9e, 0xf2, 0x6b, 0x54, 0x60, 0xf4, 0x36,
+	0xa5, 0xbc, 0x95, 0x10, 0x7a, 0xe5, 0xc9, 0x2a, 0x4d, 0xe0, 0x0f, 0x30, 0x0a, 0xcd, 0xa0, 0x6f,
+	0x9d, 0x28, 0xb1, 0x4d, 0xbe, 0xaa, 0x6d, 0x2e, 0x2f, 0x20, 0xf4, 0x87, 0x18, 0x28, 0xa6, 0x4f,
+	0x6d, 0x5f, 0x9a, 0x7c, 0x29, 0xe4, 0x3f, 0xc6, 0x70, 0x72, 0xc6, 0xc1, 0xe5, 0x90, 0x3e, 0x85,
+	0xca, 0x02, 0xa9, 0x6b, 0x5f, 0x18, 0xed, 0x33, 0xa8, 0x2e, 0xd0, 0x7a, 0xf3, 0x8b, 0xb3, 0xbb,
+	0x0f, 0xa5, 0xc3, 0xd3, 0x79, 0x40, 0xa5, 0xf1, 0xc2, 0x38, 0xf7, 0xd0, 0x0d, 0xf9, 0x7e, 0xec,
+	0xc2, 0x18, 0x1f, 0x61, 0xc2, 0xb1, 0xfc, 0x4b, 0xa1, 0x3c, 0xc0, 0x58, 0x11, 0x2f, 0x9c, 0x4a,
+	0x33, 0x61, 0xd9, 0xc4, 0x8b, 0x6d, 0xf3, 0xfa, 0xca, 0x5e, 0xf8, 0x62, 0x8a, 0x34, 0xbe, 0xc2,
+	0xd1, 0x49, 0xbe, 0x92, 0x2a, 0xaf, 0xaf, 0x00, 0xfa, 0x2f, 0xe2, 0x7f, 0x3b, 0xa3, 0x74, 0xe8,
+	0x75, 0x09, 0x53, 0x82, 0xe3, 0x3d, 0x30, 0xfd, 0xa0, 0x7d, 0x6a, 0xd8, 0x13, 0x73, 0x94, 0x2e,
+	0xff, 0x39, 0x57, 0xf0, 0xe4, 0xdb, 0x5f, 0xd2, 0x23, 0x21, 0x53, 0x89, 0x6e, 0xf5, 0x2e, 0x1c,
+	0x18, 0x1d, 0x7a, 0x7e, 0x65, 0x64, 0x2c, 0x85, 0x51, 0x19, 0x4c, 0x27, 0xb0, 0x95, 0x52, 0x6c,
+	0x99, 0xca, 0x17, 0xec, 0xe6, 0xd8, 0x68, 0x29, 0xb1, 0x59, 0x2a, 0xfe, 0x06, 0xda, 0xdc, 0x4e,
+	0xac, 0x87, 0xd7, 0x49, 0x84, 0xfb, 0x19, 0x14, 0xc5, 0x83, 0xa9, 0x92, 0xd4, 0x74, 0x02, 0x3d,
+	0xd5, 0xaf, 0xd6, 0x28, 0xb4, 0xa8, 0x63, 0x7a, 0xd9, 0x69, 0x09, 0x88, 0x79, 0x7d, 0xce, 0x26,
+	0x67, 0x9c, 0xa4, 0xc9, 0x13, 0x4f, 0xac, 0xe7, 0x78, 0x24, 0x71, 0xc3, 0x8e, 0x2a, 0x95, 0xd9,
+	0x52, 0x4b, 0x41, 0xbc, 0x3e, 0x62, 0xf9, 0xb0, 0x29, 0xf0, 0x5f, 0x8a, 0x42, 0x0f, 0xa7, 0x91,
+	0x2a, 0xa8, 0x8f, 0x48, 0xaa, 0x22, 0xfe, 0x4a, 0x9b, 0x26, 0xdc, 0x2f, 0xa1, 0x86, 0xac, 0x62,
+	0xd7, 0x06, 0xa9, 0xcf, 0xa6, 0xcd, 0xf4, 0xc7, 0x54, 0x4a, 0x73, 0xeb, 0x09, 0x74, 0xff, 0x72,
+	0xf8, 0xec, 0x45, 0xb5, 0xc4, 0xab, 0xaf, 0x72, 0x23, 0x21, 0x7f, 0xca, 0x73, 0x70, 0xda, 0x31,
+	0xbe, 0xe0, 0xec, 0x1e, 0x4d, 0x44, 0x69, 0x93, 0x48, 0x33, 0x75, 0x3c, 0x09, 0x55, 0xb0, 0x58,
+	0xf1, 0x2f, 0x83, 0x8c, 0x07, 0x78, 0x00, 0xd5, 0xf8, 0x8b, 0xb2, 0xf2, 0x76, 0x42, 0xfe, 0xd5,
+	0x97, 0xe6, 0xf4, 0x14, 0x54, 0x46, 0x11, 0xe4, 0x7c, 0xb2, 0x32, 0xb1, 0x34, 0x57, 0x56, 0x44,
+	0x2a, 0x0e, 0x51, 0x70, 0xd8, 0xb9, 0x18, 0x12, 0x4a, 0xfb, 0x15, 0x76, 0x35, 0xe1, 0xab, 0xaf,
+	0xf2, 0x46, 0x32, 0xed, 0x24, 0x9f, 0xaa, 0xd3, 0xe4, 0xec, 0xc1, 0xd6, 0x42, 0xce, 0xd8, 0x34,
+	0xf7, 0x82, 0xe7, 0x9d, 0xe6, 0x8b, 0x9e, 0x7e, 0xae, 0x28, 0x07, 0xb0, 0x95, 0xf2, 0x08, 0xad,
+	0xdc, 0x4c, 0x13, 0x6c, 0xf5, 0x8d, 0x3a, 0x45, 0xc4, 0x93, 0x22, 0xff, 0xff, 0x9f, 0x8f, 0xff,
+	0x17, 0x00, 0x00, 0xff, 0xff, 0xb7, 0x09, 0x8a, 0xbc, 0x0e, 0x24, 0x00, 0x00,
 }
