@@ -86,6 +86,7 @@ type FSM struct {
 	h                  *FSMHandler
 	rfMap              map[bgp.RouteFamily]bool
 	capMap             map[bgp.BGPCapabilityCode][]bgp.ParameterCapabilityInterface
+	recvOpen           *bgp.BGPMessage
 	confedCheck        bool
 	peerInfo           *table.PeerInfo
 	policy             *table.RoutingPolicy
@@ -626,6 +627,7 @@ func (h *FSMHandler) opensent() bgp.FSMState {
 			case *bgp.BGPMessage:
 				m := e.MsgData.(*bgp.BGPMessage)
 				if m.Header.Type == bgp.BGP_MSG_OPEN {
+					fsm.recvOpen = m
 					body := m.Body.(*bgp.BGPOpen)
 					err := bgp.ValidateOpenMsg(body, fsm.pConf.Config.PeerAs)
 					if err != nil {

@@ -39,7 +39,6 @@ type Peer struct {
 	adjRibIn  *table.AdjRib
 	adjRibOut *table.AdjRib
 	outgoing  chan *bgp.BGPMessage
-	recvOpen  *bgp.BGPMessage
 	policy    *table.RoutingPolicy
 	localRib  *table.TableManager
 }
