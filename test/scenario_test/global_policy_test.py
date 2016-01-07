@@ -106,21 +106,31 @@ class GoBGPTestBase(unittest.TestCase):
         for q in self.quaggas.itervalues():
             self.assertTrue(len(self.gobgp.get_adj_rib_out(q)) == 0)
 
-    def test_06_change_global_policy(self):
+    def test_06_adv_to_one_peer(self):
         self.gobgp.local('gobgp policy neighbor add ns0 {0}'.format(self.gobgp.peers[self.quaggas['q1']]['neigh_addr'].split('/')[0]))
         self.gobgp.local('gobgp policy statement add st0')
         self.gobgp.local('gobgp policy statement st0 add condition neighbor ns0')
-        self.gobgp.local('gobgp policy statement st0 add action community add 65100:10')
+        self.gobgp.local('gobgp policy statement st0 add action accept')
         self.gobgp.local('gobgp policy add p0 st0')
-        self.gobgp.local('gobgp global policy export add p0 default accept')
+        self.gobgp.local('gobgp global policy export add p0 default reject')
         for q in self.quaggas.itervalues():
-            self.gobgp.reset(q)
+            self.gobgp.softreset(q, type='out')
 
-    def test_07_neighbor_established(self):
+    def test_07_check_adj_rib_out(self):
         for q in self.quaggas.itervalues():
-            self.gobgp.wait_for(expected_state=BGP_FSM_ESTABLISHED, peer=q)
+            paths = self.gobgp.get_adj_rib_out(q)
+            if q == self.quaggas['q1']:
+                self.assertTrue(len(paths) == 3)
+            else:
+                self.assertTrue(len(paths) == 0)
 
-    def test_08_check_adj_rib_out(self):
+    def test_08_change_global_policy(self):
+        self.gobgp.local('gobgp policy statement st0 add action community add 65100:10')
+        self.gobgp.local('gobgp global policy export set p0 default accept')
+        for q in self.quaggas.itervalues():
+            self.gobgp.softreset(q, type='out')
+
+    def test_09_check_adj_rib_out(self):
         for q in self.quaggas.itervalues():
             paths = self.gobgp.get_adj_rib_out(q)
             self.assertTrue(len(paths) == 3)
