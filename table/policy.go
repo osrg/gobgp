@@ -1709,7 +1709,8 @@ func NewCommunityActionFromApiStruct(a *api.CommunityAction) (*CommunityAction, 
 	}
 	var list []uint32
 	var removeList []*regexp.Regexp
-	op := config.BgpSetCommunityOptionType(a.Type)
+	var op config.BgpSetCommunityOptionType
+	op = op.FromInt(int(a.Type))
 	if op == config.BGP_SET_COMMUNITY_OPTION_TYPE_REMOVE {
 		removeList = make([]*regexp.Regexp, 0, len(a.Communities))
 	} else {
@@ -1828,7 +1829,8 @@ func NewExtCommunityActionFromApiStruct(a *api.CommunityAction) (*ExtCommunityAc
 	var list []bgp.ExtendedCommunityInterface
 	var removeList []*regexp.Regexp
 	subtypeList := make([]bgp.ExtendedCommunityAttrSubType, 0, len(a.Communities))
-	op := config.BgpSetCommunityOptionType(a.Type)
+	var op config.BgpSetCommunityOptionType
+	op = op.FromInt(int(a.Type))
 	if op == config.BGP_SET_COMMUNITY_OPTION_TYPE_REMOVE {
 		removeList = make([]*regexp.Regexp, 0, len(a.Communities))
 	} else {
