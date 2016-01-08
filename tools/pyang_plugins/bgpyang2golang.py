@@ -330,8 +330,6 @@ def visit_typedef(ctx, module):
             # print(stmts.path)
             name = stmts.arg
             stmts.golang_name = convert_to_golang(name)
-            if stmts.golang_name == 'PeerType':
-                stmts.golang_name = 'PeerTypeDef'
             child_map[name] = stmts
 
     ctx.golang_typedef_map[prefix] = child_map
