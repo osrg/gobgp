@@ -570,7 +570,7 @@ _path_exclude = ["/bgp:bgp/bgp:neighbors/bgp:neighbor/bgp:transport/bgp:config/b
                  "/rpol:routing-policy/rpol:defined-sets/bgp-pol:bgp-defined-sets/bgp-pol:ext-community-sets/bgp-pol:ext-community-set/bgp-pol:ext-community-member",
                  "/rpol:routing-policy/rpol:defined-sets/bgp-pol:bgp-defined-sets/bgp-pol:as-path-sets/bgp-pol:as-path-set/bgp-pol:as-path-set-member"]
 
-_typedef_exclude =["/bgp-types:bgp-origin-attr-type"]
+_typedef_exclude =[]
 
 def generate_header(ctx):
     print _COPYRIGHT_NOTICE
