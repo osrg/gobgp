@@ -576,6 +576,9 @@ func (server *BgpServer) dropPeerAllRoutes(peer *Peer) []*SenderMsg {
 				i := 0
 				for _, dst := range dsts {
 					feed := dst.NewFeed(targetPeer.TableID())
+					if feed != nil {
+						feed = feed.Clone(feed.Owner, true)
+					}
 					pathList[i] = feed
 					i++
 				}
