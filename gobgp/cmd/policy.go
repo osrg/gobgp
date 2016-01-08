@@ -436,6 +436,13 @@ func printStatement(indent int, s *api.Statement) {
 	if asPathLentgh != nil {
 		fmt.Printf("%sAsPathLength: %s %d\n", sIndent(indent+4), asPathLentgh.Type, asPathLentgh.Length)
 	}
+
+	rpki := s.Conditions.RpkiResult
+	var r config.RpkiValidationResultType
+	if rpki > -1 {
+		fmt.Printf("%sRPKI result: %s\n", sIndent(indent+4), r.FromInt(int(rpki)))
+	}
+
 	fmt.Printf("%sActions:\n", sIndent(indent+2))
 
 	formatComAction := func(c *api.CommunityAction) string {
