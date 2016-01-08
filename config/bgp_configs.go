@@ -104,14 +104,14 @@ type BgpExtCommunityType string
 type BgpStdCommunityType string
 
 // typedef for typedef bgp-types:peer-type
-type PeerTypeDef string
+type PeerType string
 
 const (
-	PEER_TYPE_INTERNAL PeerTypeDef = "internal"
-	PEER_TYPE_EXTERNAL PeerTypeDef = "external"
+	PEER_TYPE_INTERNAL PeerType = "internal"
+	PEER_TYPE_EXTERNAL PeerType = "external"
 )
 
-func (v PeerTypeDef) ToInt() int {
+func (v PeerType) ToInt() int {
 	for i, vv := range []string{"internal", "external"} {
 		if string(v) == vv {
 			return i
@@ -120,18 +120,18 @@ func (v PeerTypeDef) ToInt() int {
 	return -1
 }
 
-func (v PeerTypeDef) FromInt(i int) PeerTypeDef {
+func (v PeerType) FromInt(i int) PeerType {
 	for j, vv := range []string{"internal", "external"} {
 		if i == j {
-			return PeerTypeDef(vv)
+			return PeerType(vv)
 		}
 	}
-	return PeerTypeDef("")
+	return PeerType("")
 }
 
-func (v PeerTypeDef) Validate() error {
+func (v PeerType) Validate() error {
 	if v.ToInt() < 0 {
-		return fmt.Errorf("invalid PeerTypeDef: %s", v)
+		return fmt.Errorf("invalid PeerType: %s", v)
 	}
 	return nil
 }
@@ -563,7 +563,7 @@ type PeerGroupState struct {
 	//bgp:local-as's original type is inet:as-number
 	LocalAs uint32
 	// original -> bgp:peer-type
-	PeerType PeerTypeDef
+	PeerType PeerType
 	// original -> bgp:auth-password
 	AuthPassword string
 	// original -> bgp:remove-private-as
@@ -592,7 +592,7 @@ type PeerGroupConfig struct {
 	//bgp:local-as's original type is inet:as-number
 	LocalAs uint32
 	// original -> bgp:peer-type
-	PeerType PeerTypeDef
+	PeerType PeerType
 	// original -> bgp:auth-password
 	AuthPassword string
 	// original -> bgp:remove-private-as
@@ -1001,7 +1001,7 @@ type NeighborState struct {
 	//bgp:local-as's original type is inet:as-number
 	LocalAs uint32
 	// original -> bgp:peer-type
-	PeerType PeerTypeDef
+	PeerType PeerType
 	// original -> bgp:auth-password
 	AuthPassword string
 	// original -> bgp:remove-private-as
@@ -1046,7 +1046,7 @@ type NeighborConfig struct {
 	//bgp:local-as's original type is inet:as-number
 	LocalAs uint32
 	// original -> bgp:peer-type
-	PeerType PeerTypeDef
+	PeerType PeerType
 	// original -> bgp:auth-password
 	AuthPassword string
 	// original -> bgp:remove-private-as
