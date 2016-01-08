@@ -34,6 +34,7 @@ _COPYRIGHT_NOTICE = """
 // implied.
 // See the License for the specific language governing permissions and
 // limitations under the License.
+
 """
 
 emitted_type_names = {}
@@ -268,7 +269,6 @@ def visit_children(ctx, module, children):
             c.uniq_name = c.parent.uniq_name + '-config'
 
         if c.arg == 'state':
-
             c.uniq_name = c.parent.uniq_name + '-state'
 
         if c.arg == 'graceful-restart' and prefix == 'bgp-mp':
@@ -377,7 +377,6 @@ def emit_typedef(ctx, module):
     prefix = module.i_prefix
     t_map = ctx.golang_typedef_map[prefix]
     for name, stmt in t_map.items():
-
         if stmt.path in _typedef_exclude:
             continue
 
@@ -402,31 +401,46 @@ def emit_typedef(ctx, module):
         if t.arg == 'enumeration':
             print >> o, '// typedef for typedef %s:%s'\
                         % (prefix, type_name_org)
-            print >> o, 'type %s int' % (type_name)
+            print >> o, 'type %s string' % (type_name)
 
             const_prefix = convert_const_prefix(type_name_org)
             print >> o, 'const ('
-
-            already_added_iota = False
-            already_added_type = False
+            m = {}
             for sub in t.substmts:
-                if sub.search_one('value'):
-                    enum_value = " = "+sub.search_one('value').arg
-                else:
-                    if already_added_iota:
-                        enum_value = ""
-                    else:
-                        enum_value = " = iota"
-                        already_added_iota = True
+                enum_name = '%s_%s' % (const_prefix, convert_const_prefix(sub.arg))
+                m[sub.arg.lower()] = enum_name
+                print >> o, ' %s %s = "%s"' % (enum_name, type_name, sub.arg.lower())
+            print >> o, ')\n'
+
+            print >> o, '\nfunc (v %s) ToInt() int {' % (type_name)
+            print >> o, 'for i, vv := range []string{%s} {' % (",".join('"%s"' % s.arg.lower() for s in t.substmts))
+            print >> o, 'if string(v) == vv {return i}'
+            print >> o, '}'
+            print >> o, 'return -1'
+            print >> o, '}\n'
+
+            print >> o, 'func (v %s) Validate() error {' % (type_name)
+            print >> o, 'if v.ToInt() < 0 {'
+            print >> o, 'return fmt.Errorf("invalid %s: %%s", v)' % (type_name)
+            print >> o, '}'
+            print >> o, 'return nil'
+            print >> o, '}\n'
+
+            if stmt.search_one('default'):
+                default = stmt.search_one('default')
+                print >> o, 'func (v %s) Default() %s {' % (type_name, type_name)
+                print >> o, 'return %s' % m[default.arg.lower()]
+                print >> o, '}\n'
+
+                print >> o, 'func (v %s) DefaultAsNeeded() %s {' % (type_name, type_name)
+                print >> o, ' if string(v) == "" {'
+                print >> o, ' return v.Default()'
+                print >> o, '}'
+                print >> o, ' return v'
+                print >> o, '}'
 
 
-                enum_name = convert_const_prefix(sub.arg)
 
-                t = type_name if not already_added_type else ""
-                already_added_type = True
-
-                print >> o, ' %s_%s %s%s' % (const_prefix, enum_name, t, enum_value)
-            print >> o, ')'
         elif t.arg == 'union':
             print >> o, '// typedef for typedef %s:%s'\
                         % (prefix, type_name_org)
@@ -547,6 +561,8 @@ _typedef_exclude =["/bgp-types:bgp-origin-attr-type"]
 def generate_header(ctx):
     print _COPYRIGHT_NOTICE
     print 'package config'
+    print ''
+    print 'import "fmt"'
     print ''
 
 
