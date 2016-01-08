@@ -561,9 +561,7 @@ _module_excluded = ["ietf-inet-types",
                     "ietf-yang-types",
                     ]
 
-_path_exclude = ["/bgp:bgp/bgp:neighbors/bgp:neighbor/bgp:transport/bgp:config/bgp:local-address",
-                 "/bgp:bgp/bgp:neighbors/bgp:neighbor/bgp:transport/bgp:state/bgp:local-address",
-                 "/rpol:routing-policy/rpol:defined-sets/rpol:neighbor-sets/rpol:neighbor-set/rpol:neighbor",
+_path_exclude = ["/rpol:routing-policy/rpol:defined-sets/rpol:neighbor-sets/rpol:neighbor-set/rpol:neighbor",
                  "/rpol:routing-policy/rpol:defined-sets/bgp-pol:bgp-defined-sets/bgp-pol:community-sets/bgp-pol:community-set/bgp-pol:community-member",
                  "/rpol:routing-policy/rpol:defined-sets/bgp-pol:bgp-defined-sets/bgp-pol:ext-community-sets/bgp-pol:ext-community-set/bgp-pol:ext-community-member",
                  "/rpol:routing-policy/rpol:defined-sets/bgp-pol:bgp-defined-sets/bgp-pol:as-path-sets/bgp-pol:as-path-set/bgp-pol:as-path-set-member"]

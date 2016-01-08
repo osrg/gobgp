@@ -513,20 +513,6 @@ module gobgp {
     uses gobgp-route-server-config-set;
   }
 
-  augment "/bgp:bgp/bgp:neighbors/bgp:neighbor/bgp:transport/bgp:config" {
-    description "neighbor's local ip address, whose type is inet:ip-address";
-    leaf local-address {
-        type inet:ip-address;
-    }
-  }
-
-  augment "/bgp:bgp/bgp:neighbors/bgp:neighbor/bgp:transport/bgp:state" {
-    description "neighbor's local ip address, whose type is inet:ip-address";
-    leaf local-address {
-      type inet:ip-address;
-    }
-  }
-
   augment "/bgp:bgp/bgp:global/bgp:apply-policy/bgp:config" {
     description "addtional policy";
     uses gobgp-in-policy;

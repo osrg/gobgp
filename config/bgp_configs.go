@@ -842,6 +842,9 @@ type TransportState struct {
 	// original -> bgp:passive-mode
 	//bgp:passive-mode's original type is boolean
 	PassiveMode bool
+	// original -> bgp:local-address
+	//bgp:local-address's original type is union
+	LocalAddress string
 	// original -> bgp-op:local-port
 	//bgp-op:local-port's original type is inet:port-number
 	LocalPort uint16
@@ -851,9 +854,6 @@ type TransportState struct {
 	// original -> bgp-op:remote-port
 	//bgp-op:remote-port's original type is inet:port-number
 	RemotePort uint16
-	// original -> gobgp:local-address
-	//gobgp:local-address's original type is inet:ip-address
-	LocalAddress string
 }
 
 //struct for container bgp:config
@@ -866,8 +866,8 @@ type TransportConfig struct {
 	// original -> bgp:passive-mode
 	//bgp:passive-mode's original type is boolean
 	PassiveMode bool
-	// original -> gobgp:local-address
-	//gobgp:local-address's original type is inet:ip-address
+	// original -> bgp:local-address
+	//bgp:local-address's original type is union
 	LocalAddress string
 }
 
