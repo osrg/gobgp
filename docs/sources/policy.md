@@ -459,20 +459,20 @@ You can write condition and action under Statements.
         [PolicyDefinitions.PolicyDefinitionList.Statements.StatementList.Conditions]
           [PolicyDefinitions.PolicyDefinitionList.Statements.StatementList.Conditions.MatchPrefixSet]
             PrefixSet = "ps1"
-            MatchSetOptions = 0
+            MatchSetOptions = "any"
           [PolicyDefinitions.PolicyDefinitionList.Statements.StatementList.Conditions.MatchNeighborSet]
             NeighborSet = "ns1"
-            MatchSetOptions = 1
+            MatchSetOptions = "invert"
           [PolicyDefinitions.PolicyDefinitionList.Statements.StatementList.Conditions.BgpConditions]
             [PolicyDefinitions.PolicyDefinitionList.Statements.StatementList.Conditions.BgpConditions.MatchCommunitySet]
               CommunitySet = "community1"
-              MatchSetOptions = 0
+              MatchSetOptions = "any"
             [PolicyDefinitions.PolicyDefinitionList.Statements.StatementList.Conditions.BgpConditions.MatchExtCommunitySet]
               ExtCommunitySet = "ecommunity1"
-              MatchSetOptions = 0
+              MatchSetOptions = "any"
             [PolicyDefinitions.PolicyDefinitionList.Statements.StatementList.Conditions.BgpConditions.MatchAsPathSet]
               AsPathSet = "aspath1"
-              MatchSetOptions = 0
+              MatchSetOptions = "any"
             [PolicyDefinitions.PolicyDefinitionList.Statements.StatementList.Conditions.BgpConditions.AsPathLength]
               Operator = "eq"
               Value = 2
@@ -510,35 +510,35 @@ You can write condition and action under Statements.
  | Element          | Description                                                               | Example |
  |------------------|---------------------------------------------------------------------------|---------|
  | PrefixSet        | name for DefinedSets.PrefixSets.PrefixSetList that is used in this policy | "ps1"   |
- | MatchSetOptions  | option for the check:<br> 0 means **ANY**,<br>  1 means **INVERT**        | 0       |
+ | MatchSetOptions  | option for the check:<br> "any" or "invert". default is "any"             | "any"   |
 
   - PolicyDefinitions.PolicyDefinitionList.Statements.StatementList.Conditions.MatchNegihborSet
 
  | Element          | Description                                                                   | Example |
  |------------------|-------------------------------------------------------------------------------|---------|
  | NegihborSet      | name for DefinedSets.NeighborSets.NeighborSetList that is used in this policy | "ns1"   |
- | MatchSetOptions  | option for the check:<br> 0 means **ANY**,<br>  1 means **INVERT**            | 1       |
+ | MatchSetOptions  | option for the check:<br> "any" or "invert". default is "any"                 | "any"   |
 
   - PolicyDefinitions.PolicyDefinitionList.Statements.StatementList.Conditions.BgpConditions.MatchCommunitySet
 
  | Element          | Description                                                                                    | Example        |
  |------------------|------------------------------------------------------------------------------------------------|----------------|
  | CommunitySet     | name for DefinedSets.BgpDefinedSets.CommunitySets.CommunitySetList that is used in this policy | "community1"   |
- | MatchSetOptions  | option for the check:<br> 0 means **ANY**,<br> 1 means **ALL**,<br> 2 means **INVERT**         | 0              |
+ | MatchSetOptions  | option for the check:<br> "any" or "all" or "invert". default is "any"                         | "invert"       |
 
   - PolicyDefinitions.PolicyDefinitionList.Statements.StatementList.Conditions.BgpConditions.MatchExtCommunitySet
 
  | Element          | Description                                                                                          | Example       |
  |------------------|------------------------------------------------------------------------------------------------------|---------------|
  | ExtCommunitySet  | name for DefinedSets.BgpDefinedSets.ExtCommunitySets.ExtCommunitySetList that is used in this policy | "ecommunity1" |
- | MatchSetOptions  | option for the check:<br> 0 means **ANY**,<br> 1 means **ALL**,<br> 2 means **INVERT**               | 1             |
+ | MatchSetOptions  | option for the check:<br> "any" or "all" or "invert". default is "any"                               | "invert"      |
 
   - PolicyDefinitions.PolicyDefinitionList.Statements.StatementList.Conditions.BgpConditions.MatchAsPathSet
 
  | Element          | Description                                                                                    | Example   |
  |------------------|------------------------------------------------------------------------------------------------|-----------|
  | AsPathSet        | name for DefinedSets.BgpDefinedSets.AsPathSets.AsPathSetList that is used in this policy       | "aspath1" |
- | MatchSetOptions  | option for the check:<br> 0 means **ANY**,<br> 1 means **ALL**,<br> 2 means **INVERT**         | 0         |
+ | MatchSetOptions  | option for the check:<br> "any" or "all" or "invert". default is "any"                         | "invert"  |
 
   - PolicyDefinitions.PolicyDefinitionList.Statements.StatementList.Conditions.BgpConditions.AsPathLength
 
@@ -581,9 +581,9 @@ You can write condition and action under Statements.
 
  | Value  | Description                                                               |
  |--------|---------------------------------------------------------------------------|
- | ANY    | match is true if given value matches any member of the defined set        |
- | ALL    | match is true if given value matches all members of the defined set       |
- | INVERT | match is true if given value does not match any member of the defined set |
+ | any    | match is true if given value matches any member of the defined set        |
+ | all    | match is true if given value matches all members of the defined set       |
+ | invert | match is true if given value does not match any member of the defined set |
 
 
 
@@ -604,10 +604,8 @@ You can write condition and action under Statements.
         [PolicyDefinitions.PolicyDefinitionList.Statements.StatementList.Conditions]
           [PolicyDefinitions.PolicyDefinitionList.Statements.StatementList.Conditions.MatchPrefixSet]
             PrefixSet = "ps1"
-            MatchSetOptions = 0
           [PolicyDefinitions.PolicyDefinitionList.Statements.StatementList.Conditions.MatchNeighborSet]
             NeighborSet = "ns1"
-            MatchSetOptions = 0
         [PolicyDefinitions.PolicyDefinitionList.Statements.StatementList.Actions]
           [PolicyDefinitions.PolicyDefinitionList.Statements.StatementList.Actions.RouteDisposition]
             RejectRoute = true
@@ -628,10 +626,8 @@ You can write condition and action under Statements.
         [PolicyDefinitions.PolicyDefinitionList.Statements.StatementList.Conditions]
           [PolicyDefinitions.PolicyDefinitionList.Statements.StatementList.Conditions.MatchPrefixSet]
             PrefixSet = "ps1"
-            MatchSetOptions = 0
           [PolicyDefinitions.PolicyDefinitionList.Statements.StatementList.Conditions.MatchNeighborSet]
             NeighborSet = "ns1"
-            MatchSetOptions = 0
         [PolicyDefinitions.PolicyDefinitionList.Statements.StatementList.Actions]
           [PolicyDefinitions.PolicyDefinitionList.Statements.StatementList.Actions.RouteDisposition]
             RejectRoute = true
@@ -641,10 +637,10 @@ You can write condition and action under Statements.
         [PolicyDefinitions.PolicyDefinitionList.Statements.StatementList.Conditions]
           [PolicyDefinitions.PolicyDefinitionList.Statements.StatementList.Conditions.MatchPrefixSet]
             PrefixSet = "ps2"
-            MatchSetOptions = 0
+            MatchSetOptions = "any"
           [PolicyDefinitions.PolicyDefinitionList.Statements.StatementList.Conditions.MatchNeighborSet]
             NeighborSet = "ns2"
-            MatchSetOptions = 0
+            MatchSetOptions = "any"
         [PolicyDefinitions.PolicyDefinitionList.Statements.StatementList.Actions]
           [PolicyDefinitions.PolicyDefinitionList.Statements.StatementList.Actions.RouteDisposition]
             RejectRoute = true
@@ -667,10 +663,8 @@ You can write condition and action under Statements.
         [PolicyDefinitions.PolicyDefinitionList.Statements.StatementList.Conditions]
           [PolicyDefinitions.PolicyDefinitionList.Statements.StatementList.Conditions.MatchPrefixSet]
             PrefixSet = "ps1"
-            MatchSetOptions = 0
           [PolicyDefinitions.PolicyDefinitionList.Statements.StatementList.Conditions.MatchNeighborSet]
             NeighborSet = "ns1"
-            MatchSetOptions = 0
         [PolicyDefinitions.PolicyDefinitionList.Statements.StatementList.Actions]
           [PolicyDefinitions.PolicyDefinitionList.Statements.StatementList.Actions.RouteDisposition]
             RejectRoute = true
@@ -683,10 +677,8 @@ You can write condition and action under Statements.
         [PolicyDefinitions.PolicyDefinitionList.Statements.StatementList.Conditions]
           [PolicyDefinitions.PolicyDefinitionList.Statements.StatementList.Conditions.MatchPrefixSet]
             PrefixSet = "ps2"
-            MatchSetOptions = 0
           [PolicyDefinitions.PolicyDefinitionList.Statements.StatementList.Conditions.MatchNeighborSet]
             NeighborSet = "ns2"
-            MatchSetOptions = 0
         [PolicyDefinitions.PolicyDefinitionList.Statements.StatementList.Actions]
           [PolicyDefinitions.PolicyDefinitionList.Statements.StatementList.Actions.RouteDisposition]
             RejectRoute = true
@@ -714,20 +706,15 @@ You can write condition and action under Statements.
         [PolicyDefinitions.PolicyDefinitionList.Statements.StatementList.Conditions]
           [PolicyDefinitions.PolicyDefinitionList.Statements.StatementList.Conditions.MatchPrefixSet]
             PrefixSet = "ps1"
-            MatchSetOptions = 0
           [PolicyDefinitions.PolicyDefinitionList.Statements.StatementList.Conditions.MatchNeighborSet]
             NeighborSet = "ns1"
-            MatchSetOptions = 0
           [PolicyDefinitions.PolicyDefinitionList.Statements.StatementList.Conditions.BgpConditions]
             [PolicyDefinitions.PolicyDefinitionList.Statements.StatementList.Conditions.BgpConditions.MatchCommunitySet]
               CommunitySet = "community1"
-              MatchSetOptions = 0
             [PolicyDefinitions.PolicyDefinitionList.Statements.StatementList.Conditions.BgpConditions.MatchExtCommunitySet]
               ExtCommunitySet = "ecommunity1"
-              MatchSetOptions = 0
             [PolicyDefinitions.PolicyDefinitionList.Statements.StatementList.Conditions.BgpConditions.MatchAsPathSet]
               AsPathSet = "aspath1"
-              MatchSetOptions = 0
             [PolicyDefinitions.PolicyDefinitionList.Statements.StatementList.Conditions.BgpConditions.AsPathLength]
               Operator = "eq"
               Value = 2
@@ -757,36 +744,33 @@ attaching them to neighbors.
 To attach policies to neighbors, you need to add policy's name to Neighbors.NeighborList.ApplyPolicy in the neighbor's setting.
 This example attatches *policy1* to Import policy and *policy2* to Export policy and *policy3* is used as the In policy.
 
-```
-[Neighbors]
-  [[Neighbors.NeighborList]]
-    [Neighbors.NeighborList.Config]
-      NeighborAddress = "10.0.255.2"
-      PeerAs = 65002
-    [Neighbors.NeighborList.RouteServer]
-      [Neighbors.NeighborList.RouteServer.Config]
-        RouteServerClient = true
-    [Neighbors.NeighborList.ApplyPolicy]
-      [Neighbors.NeighborList.ApplyPolicy.Config]
-        ImportPolicy = ["policy1"]
-        ExportPolicy = ["policy2"]
-        InPolicy = ["policy3"]
-        DefaultImportPolicy = 0
-        DefaultExportPolicy = 0
-        DefaultInPolicy = 0
+```toml
+[[neighbors]]
+  [neighbors.config]
+    neighbor-address = "10.0.255.2"
+    peer-as = 65002
+  [neighbors.route-server.config]
+    route-server-client = true
+  [neighbors.apply-policy.config]
+    import-policy-list = ["policy1"]
+    export-policy-list = ["policy2"]
+    in-policy-list = ["policy3"]
+    default-import-policy = "accept-route"
+    default-export-policy = "accept-route"
+    default-in-policy = "accept-route"
 ```
 
 Neighbors.NeighborList has a section to specify policies and the section's name is ApplyPolicy.
 The ApplyPolicy has 6 elements.
 
-| Element                 | Description                                                                                 | Example    |
-|-------------------------|---------------------------------------------------------------------------------------------|------------|
-| ImportPolicy            | PolicyDefinitions.PolicyDefinitionList.name for Import policy                               | "policy1"  |
-| ExportPolicy            | PolicyDefinitions.PolicyDefinitionList.name for Export policy                               | "policy2"  |
-| InPolicy       | PolicyDefinitions.PolicyDefinitionList.name for In policy                                    | "policy3"  |
-| DefaultImportPolicy     | action when the route doesn't match any policy:<br> 0 means Import,<br>  1 means reject     | 0          |
-| DefaultExportPolicy     | action when the route doesn't match any policy:<br> 0 means Export,<br>  1 means discard    | 0          |
-| DefaultInPolicy | action when the route doesn't match any policy:<br> 0 means In,<br>  1 means reject         | 0          |
+| Element                 | Description                                                                                 | Example        |
+|-------------------------|---------------------------------------------------------------------------------------------|----------------|
+| ImportPolicy            | PolicyDefinitions.PolicyDefinitionList.name for Import policy                               | "policy1"      |
+| ExportPolicy            | PolicyDefinitions.PolicyDefinitionList.name for Export policy                               | "policy2"      |
+| InPolicy       | PolicyDefinitions.PolicyDefinitionList.name for In policy                                            | "policy3"      |
+| DefaultImportPolicy     | action when the route doesn't match any policy:<br> "accept-route" or "reject-route". default is "accept-route"        | "accept-route" |
+| DefaultExportPolicy     | action when the route doesn't match any policy:<br> "accept-route" or "reject-route". default is "accept-route"       | "accept-route" |
+| DefaultInPolicy | action when the route doesn't match any policy:<br> "accept-route" or "reject-route". default is "accept-route"                | "reject-route" |
 
 
 ## Simple configuration example
@@ -804,85 +788,71 @@ Neighbor 10.0.255.1 advertises 10.33.0.0/16 and 10.3.0.0/16 routes. We
 define an import policy for neighbor 10.0.255.2 that drops
 10.33.0.0/16 route from Neighbor 10.0.255.1.
 
-```
-[Global]
-  [Global.GlobalConfig]
-    As = 64512
-    RouterId = "192.168.255.1"
+```toml
+[global.config]
+  as = 64512
+  router-id = "192.168.255.1"
 
-[Neighbors]
-  [[Neighbors.NeighborList]]
-    [Neighbors.NeighborList.Config]
-      NeighborAddress = "10.0.255.1"
-      PeerAs = 65001
-    [Neighbors.NeighborList.RouteServer]
-      [Neighbors.NeighborList.RouteServer.Config]
-        RouteServerClient = true
+[[neighbors]]
+  [neighbors.config]
+    neighbor-address = "10.0.255.1"
+    peer-as = 65001
+  [neighbors.route-server.config]
+    route-server-client = true
 
-  [[Neighbors.NeighborList]]
-    [Neighbors.NeighborList.Config]
-      NeighborAddress = "10.0.255.2"
-      PeerAs = 65002
-    [Neighbors.NeighborList.RouteServer]
-      [Neighbors.NeighborList.RouteServer.Config]
-        RouteServerClient = true
-    [Neighbors.NeighborList.ApplyPolicy]
-      [Neighbors.NeighborList.ApplyPolicy.Config]
-        ImportPolicy = ["pd2"]
+[[neighbors]]
+  [neighbors.config]
+    neighbor-address = "10.0.255.2"
+    peer-as = 65002
+  [neighbors.route-server.config]
+    route-server-client = true
+  [neighbors.apply-policy.config]
+    import-policy-list = ["pd2"]
 
-  [[Neighbors.NeighborList]]
-    [Neighbors.NeighborList.Config]
-      NeighborAddress = "10.0.255.3"
-      PeerAs = 65003
-    [Neighbors.NeighborList.RouteServer]
-      [Neighbors.NeighborList.RouteServer.Config]
-        RouteServerClient = true
+[[neighbors]]
+  [neighbors.config]
+    neighbor-address = "10.0.255.3"
+    peer-as = 65003
+  [neighbors.route-server.config]
+    route-server-client = true
 
-[DefinedSets]
-  [DefinedSets.PrefixSets]
-    [[DefinedSets.PrefixSets.PrefixSetList]]
-      PrefixSetName = "ps2"
-      [[DefinedSets.PrefixSets.PrefixSetList.PrefixList]]
-        IpPrefix = "10.33.0.0/16"
-      [[DefinedSets.PrefixSets.PrefixSetList.PrefixList]]
-        IpPrefix = "10.50.0.0/16"
+[[defined-sets.prefix-sets]]
+  prefix-set-name = "ps2"
+  [[defined-sets.prefix-sets.prefix-list]]
+    ip-prefix = "10.33.0.0/16"
+  [[defined-sets.prefix-sets.prefix-list]]
+    ip-prefix = "10.50.0.0/16"
 
+[[defined-sets.neighbor-sets]]
+  neighbor-set-name = "ns1"
+  [[defined-sets.neighbor-sets.neighbor-info-list]]
+    address = "10.0.255.1"
 
-  [DefinedSets.NeighborSets]
-    [[DefinedSets.NeighborSets.NeighborSetList]]
-      NeighborSetName = "ns1"
-      [[DefinedSets.NeighborSets.NeighborSetList.NeighborInfoList]]
-        Address = "10.0.255.1"
-
-[PolicyDefinitions]
-  [[PolicyDefinitions.PolicyDefinitionList]]
-    Name = "pd2"
-    [PolicyDefinitions.PolicyDefinitionList.Statements]
-      [[PolicyDefinitions.PolicyDefinitionList.Statements.StatementList]]
-        Name = "statement1"
-        [PolicyDefinitions.PolicyDefinitionList.Statements.StatementList.Conditions]
-          [PolicyDefinitions.PolicyDefinitionList.Statements.StatementList.Conditions.MatchPrefixSet]
-            PrefixSet = "ps2"
-            MatchSetOptions = 0
-          [PolicyDefinitions.PolicyDefinitionList.Statements.StatementList.Conditions.MatchNeighborSet]
-            NeighborSet = "ns1"
-            MatchSetOptions = 0
-        [PolicyDefinitions.PolicyDefinitionList.Statements.StatementList.Actions]
-          [PolicyDefinitions.PolicyDefinitionList.Statements.StatementList.Actions.RouteDisposition]
-            RejectRoute = true
+[[policy-definitions]]
+  name = "pd2"
+  [[policy-definitions.statements]]
+    name = "statement1"
+    [policy-definitions.statements.conditions.match-prefix-set]
+      prefix-set = "ps2"
+      match-set-options = "any"
+    [policy-definitions.statements.conditions.match-neighbor-set]
+      neighbor-set = "ns1"
+      match-set-options = "any"
+    [policy-definitions.statements.actions.route-dispodition]
+      reject-route = true
 ```
 
 Neighbor 10.0.255.2 has pd2 policy. The pd2 policy consists of ps2 prefix match and ns1 neighbor match. The ps2 specifies 10.33.0.0 and 10.50.0.0 address. The ps2 specifies the mask with **MASK** keyword. **MasklengthRange** keyword can specify the range of mask length like ```MasklengthRange 24..26```. The *ns1* specifies neighbor 10.0.255.1.
 
 The pd2 sets multiple condition, This means that only when all match conditions meets, the policy will be applied.
 
-The MatchPrefixSet sets MatchSetOptions to 0. This means that when match to any of PrefixList, the policy will be applied. the policy will be applied to 10.33.0.0/16 or 10.50.0.0 route from neighbor 10.0.255.1.
+The MatchPrefixSet sets MatchSetOptions to "any". This means that when match to any of PrefixList, the policy will be applied. the policy will be applied to 10.33.0.0/16 or 10.50.0.0 route from neighbor 10.0.255.1.
 
-If the MatchPrefixSet sets MatchSetOptions to 1, It does not match to any of PrefixList, the policy will be applied. the policy will be applied to other than 10.33.0.0/16 or 10.50.0.0 route from neighbor 10.0.255.1
+If the MatchPrefixSet sets MatchSetOptions to "invert", It does not match to any of PrefixList, the policy will be applied. the policy will be applied to other than 10.33.0.0/16 or 10.50.0.0 route from neighbor 10.0.255.1
 
 Let's confirm that 10.0.255.1 neighbor advertises two routes.
 
-```
+```bash
 $ gobgp neighbor 10.0.255.1 adj-in
    Network            Next Hop        AS_PATH    Age        Attrs
    10.3.0.0/16        10.0.255.1      [65001]    00:51:57   [{Origin: 0} {Med: 0}]
@@ -891,7 +861,7 @@ $ gobgp neighbor 10.0.255.1 adj-in
 
 Now let's check out if the policy works as expected.
 
-```
+```bash
 $ gobgp neighbor 10.0.255.2 local
    Network            Next Hop        AS_PATH    Age        Attrs
 *> 10.3.0.0/16        10.0.255.1      [65001]    00:49:36   [{Origin: 0} {Med: 0}]

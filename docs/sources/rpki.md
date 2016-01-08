@@ -20,33 +20,28 @@ file. We use the following file. Note that this is for route server
 setup but RPKI can be used with non route server setup.
 
 ```toml
-[Global]
-  [Global.Config]
-    As = 64512
-    RouterId = "10.0.255.254"
+[global.config]
+as = 64512
+router-id = "10.0.255.254"
 
-[Neighbors]
-  [[Neighbors.NeighborList]]
-    [Neighbors.NeighborList.Config]
-      PeerAs = 65001
-      NeighborAddress = "10.0.255.1"
-    [Neighbors.NeighborList.RouteServer]
-      [Neighbors.NeighborList.RouteServer.Config]
-        RouteServerClient = true
+[[neighbors]]
+  [neighbors.config]
+    peer-as = 65001
+    neighbor-address = "10.0.255.1"
+  [neighbors.route-server.config]
+    route-server-client = true
 
-  [[Neighbors.NeighborList]]
-    [Neighbors.NeighborList.Config]
-      PeerAs = 65002
-      NeighborAddress = "10.0.255.2"
-    [Neighbors.NeighborList.RouteServer]
-      [Neighbors.NeighborList.RouteServer.Config]
-        RouteServerClient = true
+[[neighbors]]
+  [neighbors.config]
+    peer-as = 65002
+    neighbor-address = "10.0.255.2"
+  [neighbors.route-server.config]
+    route-server-client = true
 
-[RpkiServers]
-  [[RpkiServers.RpkiServerList]]
-    [RpkiServers.RpkiServerList.Config]
-      Address = "210.173.170.254"
-      Port = 323
+[[rpki-servers]]
+  [rpki-servers.config]
+    address = "210.173.170.254"
+    port = 323
 ```
 
 ## <a name="section1"> Validation
@@ -125,59 +120,49 @@ $ gobgp neighbor 10.0.255.2 local
 We add a policy to the above configuration.
 
 ```toml
-[Global]
-  [Global.Config]
-    As = 64512
-    RouterId = "10.0.255.254"
+[global.config]
+as = 64512
+router-id = "10.0.255.254"
 
-[Neighbors]
-  [[Neighbors.NeighborList]]
-    [Neighbors.NeighborList.Config]
-      PeerAs = 65001
-      NeighborAddress = "10.0.255.1"
-    [Neighbors.NeighborList.RouteServer]
-      [Neighbors.NeighborList.RouteServer.Config]
-        RouteServerClient = true
+[[neighbors]]
+  [neighbors.config]
+    peer-as = 65001
+    neighbor-address = "10.0.255.1"
+  [neighbors.route-server.config]
+    route-server-client = true
 
-  [[Neighbors.NeighborList]]
-    [Neighbors.NeighborList.Config]
-      PeerAs = 65002
-      NeighborAddress = "10.0.255.2"
-    [Neighbors.NeighborList.RouteServer]
-      [Neighbors.NeighborList.RouteServer.Config]
-        RouteServerClient = true
-    [Neighbors.NeighborList.ApplyPolicy]
-      [Neighbors.NeighborList.ApplyPolicy.Config]
-	ImportPolicy = ["AS65002-IMPORT-RPKI"]
+[[neighbors]]
+  [neighbors.config]
+    peer-as = 65002
+    neighbor-address = "10.0.255.2"
+  [neighbors.route-server.config]
+    route-server-client = true
+  [neighbors.apply-policy-config]
+    import-policy-list = ["AS65002-IMPORT-RPKI"]
 
-[RpkiServers]
-  [[RpkiServers.RpkiServerList]]
-    [RpkiServers.RpkiServerList.Config]
-      Address = "210.173.170.254"
-      Port = 323
 
-[PolicyDefinitions]
-  [[PolicyDefinitions.PolicyDefinitionList]]
-    Name = "AS65002-IMPORT-RPKI"
-    [PolicyDefinitions.PolicyDefinitionList.Statements]
-      [[PolicyDefinitions.PolicyDefinitionList.Statements.StatementList]]
-        Name = "statement1"
-        [PolicyDefinitions.PolicyDefinitionList.Statements.StatementList.Conditions]
-          [PolicyDefinitions.PolicyDefinitionList.Statements.StatementList.Conditions.BgpConditions]
-             RpkiValidationResult = 3
+[[rpki-servers]]
+  [rpki-servers.config]
+    address = "210.173.170.254"
+    port = 323
 
-        [PolicyDefinitions.PolicyDefinitionList.Statements.StatementList.Actions]
-          [PolicyDefinitions.PolicyDefinitionList.Statements.StatementList.Actions.RouteDisposition]
-	     RejectRoute = true
+[[policy-definitions]]
+  name = "AS65002-IMPORT-RPKI"
+  [[policy-definitions.statements]]
+    name = "statement1"
+    [policy-definitions.statements.conditions.bgp-conditions]
+      rpki-validation-result = "invalid"
+    [policy-definitions.statements.conditions.actions.route-disposition]
+      reject-route = true
 ```
 
 The value for **RpkiValidationResult** are defined as below.
 
-| Validation Result | Value |
-|-------------------|-------|
-| Not Found         |   1   |
-| Valid             |   2   |
-| Invalid           |   3   |
+| Validation Result | Value           |
+|-------------------|-----------------|
+| Not Found         |   "not-found"   |
+| Valid             |   "valid"       |
+| Invalid           |   "invalid"     |
 
 With the new configuration, the IMPORT policy rejects the invalid 2.1.0.0/16.
 
