@@ -169,6 +169,40 @@ func (v BgpSessionDirection) Validate() error {
 	return nil
 }
 
+// typedef for typedef bgp-types:bgp-origin-attr-type
+type BgpOriginAttrType string
+
+const (
+	BGP_ORIGIN_ATTR_TYPE_IGP        BgpOriginAttrType = "igp"
+	BGP_ORIGIN_ATTR_TYPE_EGP        BgpOriginAttrType = "egp"
+	BGP_ORIGIN_ATTR_TYPE_INCOMPLETE BgpOriginAttrType = "incomplete"
+)
+
+func (v BgpOriginAttrType) ToInt() int {
+	for i, vv := range []string{"igp", "egp", "incomplete"} {
+		if string(v) == vv {
+			return i
+		}
+	}
+	return -1
+}
+
+func (v BgpOriginAttrType) FromInt(i int) BgpOriginAttrType {
+	for j, vv := range []string{"igp", "egp", "incomplete"} {
+		if i == j {
+			return BgpOriginAttrType(vv)
+		}
+	}
+	return BgpOriginAttrType("")
+}
+
+func (v BgpOriginAttrType) Validate() error {
+	if v.ToInt() < 0 {
+		return fmt.Errorf("invalid BgpOriginAttrType: %s", v)
+	}
+	return nil
+}
+
 // typedef for typedef ptypes:match-set-options-restricted-type
 type MatchSetOptionsRestrictedType string
 
@@ -402,40 +436,6 @@ func (v RpkiValidationResultType) FromInt(i int) RpkiValidationResultType {
 func (v RpkiValidationResultType) Validate() error {
 	if v.ToInt() < 0 {
 		return fmt.Errorf("invalid RpkiValidationResultType: %s", v)
-	}
-	return nil
-}
-
-// typedef for typedef gobgp:bgp-origin-attr-type
-type BgpOriginAttrType string
-
-const (
-	BGP_ORIGIN_ATTR_TYPE_IGP        BgpOriginAttrType = "igp"
-	BGP_ORIGIN_ATTR_TYPE_EGP        BgpOriginAttrType = "egp"
-	BGP_ORIGIN_ATTR_TYPE_INCOMPLETE BgpOriginAttrType = "incomplete"
-)
-
-func (v BgpOriginAttrType) ToInt() int {
-	for i, vv := range []string{"igp", "egp", "incomplete"} {
-		if string(v) == vv {
-			return i
-		}
-	}
-	return -1
-}
-
-func (v BgpOriginAttrType) FromInt(i int) BgpOriginAttrType {
-	for j, vv := range []string{"igp", "egp", "incomplete"} {
-		if i == j {
-			return BgpOriginAttrType(vv)
-		}
-	}
-	return BgpOriginAttrType("")
-}
-
-func (v BgpOriginAttrType) Validate() error {
-	if v.ToInt() < 0 {
-		return fmt.Errorf("invalid BgpOriginAttrType: %s", v)
 	}
 	return nil
 }
