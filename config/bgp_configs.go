@@ -43,6 +43,15 @@ func (v RemovePrivateAsOption) ToInt() int {
 	return -1
 }
 
+func (v RemovePrivateAsOption) FromInt(i int) RemovePrivateAsOption {
+	for j, vv := range []string{"all", "replace"} {
+		if i == j {
+			return RemovePrivateAsOption(vv)
+		}
+	}
+	return RemovePrivateAsOption("")
+}
+
 func (v RemovePrivateAsOption) Validate() error {
 	if v.ToInt() < 0 {
 		return fmt.Errorf("invalid RemovePrivateAsOption: %s", v)
@@ -70,6 +79,15 @@ func (v CommunityType) ToInt() int {
 		}
 	}
 	return -1
+}
+
+func (v CommunityType) FromInt(i int) CommunityType {
+	for j, vv := range []string{"standard", "extended", "both", "none"} {
+		if i == j {
+			return CommunityType(vv)
+		}
+	}
+	return CommunityType("")
 }
 
 func (v CommunityType) Validate() error {
@@ -102,6 +120,15 @@ func (v PeerTypeDef) ToInt() int {
 	return -1
 }
 
+func (v PeerTypeDef) FromInt(i int) PeerTypeDef {
+	for j, vv := range []string{"internal", "external"} {
+		if i == j {
+			return PeerTypeDef(vv)
+		}
+	}
+	return PeerTypeDef("")
+}
+
 func (v PeerTypeDef) Validate() error {
 	if v.ToInt() < 0 {
 		return fmt.Errorf("invalid PeerTypeDef: %s", v)
@@ -126,6 +153,15 @@ func (v BgpSessionDirection) ToInt() int {
 	return -1
 }
 
+func (v BgpSessionDirection) FromInt(i int) BgpSessionDirection {
+	for j, vv := range []string{"inbound", "outbound"} {
+		if i == j {
+			return BgpSessionDirection(vv)
+		}
+	}
+	return BgpSessionDirection("")
+}
+
 func (v BgpSessionDirection) Validate() error {
 	if v.ToInt() < 0 {
 		return fmt.Errorf("invalid BgpSessionDirection: %s", v)
@@ -148,6 +184,15 @@ func (v MatchSetOptionsRestrictedType) ToInt() int {
 		}
 	}
 	return -1
+}
+
+func (v MatchSetOptionsRestrictedType) FromInt(i int) MatchSetOptionsRestrictedType {
+	for j, vv := range []string{"any", "invert"} {
+		if i == j {
+			return MatchSetOptionsRestrictedType(vv)
+		}
+	}
+	return MatchSetOptionsRestrictedType("")
 }
 
 func (v MatchSetOptionsRestrictedType) Validate() error {
@@ -184,6 +229,15 @@ func (v MatchSetOptionsType) ToInt() int {
 		}
 	}
 	return -1
+}
+
+func (v MatchSetOptionsType) FromInt(i int) MatchSetOptionsType {
+	for j, vv := range []string{"any", "all", "invert"} {
+		if i == j {
+			return MatchSetOptionsType(vv)
+		}
+	}
+	return MatchSetOptionsType("")
 }
 
 func (v MatchSetOptionsType) Validate() error {
@@ -224,6 +278,15 @@ func (v DefaultPolicyType) ToInt() int {
 	return -1
 }
 
+func (v DefaultPolicyType) FromInt(i int) DefaultPolicyType {
+	for j, vv := range []string{"accept-route", "reject-route"} {
+		if i == j {
+			return DefaultPolicyType(vv)
+		}
+	}
+	return DefaultPolicyType("")
+}
+
 func (v DefaultPolicyType) Validate() error {
 	if v.ToInt() < 0 {
 		return fmt.Errorf("invalid DefaultPolicyType: %s", v)
@@ -258,6 +321,15 @@ func (v BgpSetCommunityOptionType) ToInt() int {
 	return -1
 }
 
+func (v BgpSetCommunityOptionType) FromInt(i int) BgpSetCommunityOptionType {
+	for j, vv := range []string{"add", "remove", "replace"} {
+		if i == j {
+			return BgpSetCommunityOptionType(vv)
+		}
+	}
+	return BgpSetCommunityOptionType("")
+}
+
 func (v BgpSetCommunityOptionType) Validate() error {
 	if v.ToInt() < 0 {
 		return fmt.Errorf("invalid BgpSetCommunityOptionType: %s", v)
@@ -281,6 +353,15 @@ func (v BmpRouteMonitoringPolicyType) ToInt() int {
 		}
 	}
 	return -1
+}
+
+func (v BmpRouteMonitoringPolicyType) FromInt(i int) BmpRouteMonitoringPolicyType {
+	for j, vv := range []string{"pre-policy", "post-policy", "both"} {
+		if i == j {
+			return BmpRouteMonitoringPolicyType(vv)
+		}
+	}
+	return BmpRouteMonitoringPolicyType("")
 }
 
 func (v BmpRouteMonitoringPolicyType) Validate() error {
@@ -309,6 +390,15 @@ func (v RpkiValidationResultType) ToInt() int {
 	return -1
 }
 
+func (v RpkiValidationResultType) FromInt(i int) RpkiValidationResultType {
+	for j, vv := range []string{"none", "not-found", "valid", "invalid"} {
+		if i == j {
+			return RpkiValidationResultType(vv)
+		}
+	}
+	return RpkiValidationResultType("")
+}
+
 func (v RpkiValidationResultType) Validate() error {
 	if v.ToInt() < 0 {
 		return fmt.Errorf("invalid RpkiValidationResultType: %s", v)
@@ -332,6 +422,15 @@ func (v BgpOriginAttrType) ToInt() int {
 		}
 	}
 	return -1
+}
+
+func (v BgpOriginAttrType) FromInt(i int) BgpOriginAttrType {
+	for j, vv := range []string{"igp", "egp", "incomplete"} {
+		if i == j {
+			return BgpOriginAttrType(vv)
+		}
+	}
+	return BgpOriginAttrType("")
 }
 
 func (v BgpOriginAttrType) Validate() error {

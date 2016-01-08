@@ -412,11 +412,18 @@ def emit_typedef(ctx, module):
                 print >> o, ' %s %s = "%s"' % (enum_name, type_name, sub.arg.lower())
             print >> o, ')\n'
 
-            print >> o, '\nfunc (v %s) ToInt() int {' % (type_name)
+            print >> o, 'func (v %s) ToInt() int {' % (type_name)
             print >> o, 'for i, vv := range []string{%s} {' % (",".join('"%s"' % s.arg.lower() for s in t.substmts))
             print >> o, 'if string(v) == vv {return i}'
             print >> o, '}'
             print >> o, 'return -1'
+            print >> o, '}\n'
+
+            print >> o, 'func (v %s) FromInt(i int) %s {' % (type_name, type_name)
+            print >> o, 'for j, vv := range []string{%s} {' % (",".join('"%s"' % s.arg.lower() for s in t.substmts))
+            print >> o, 'if i == j {return %s(vv)}' % (type_name)
+            print >> o, '}'
+            print >> o, 'return %s("")' % (type_name)
             print >> o, '}\n'
 
             print >> o, 'func (v %s) Validate() error {' % (type_name)
