@@ -244,9 +244,9 @@ class GoBGPContainer(BGPContainer):
 
             def f(v):
                 if v == 'reject':
-                    return 1
+                    return 'reject-route'
                 elif v == 'accept':
-                    return 0
+                    return 'accept-route'
                 raise Exception('invalid default policy type {0}'.format(v))
 
             if len(default_import_policy) > 0:

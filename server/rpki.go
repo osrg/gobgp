@@ -460,8 +460,8 @@ func (c *roaManager) validate(pathList []*table.Path, isMonitor bool) []*api.ROA
 				rr := &api.ROAResult{
 					OriginAs:  path.GetSourceAs(),
 					Prefix:    path.GetNlri().String(),
-					OldResult: api.ROAResult_ValidationResult(path.Validation),
-					NewResult: api.ROAResult_ValidationResult(r),
+					OldResult: api.ROAResult_ValidationResult(path.Validation.ToInt()),
+					NewResult: api.ROAResult_ValidationResult(r.ToInt()),
 					Roas:      apiRoaList,
 				}
 				results = append(results, rr)

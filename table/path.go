@@ -208,7 +208,7 @@ func (path *Path) ToApiStruct(id string) *api.Path {
 		Pattrs:     pattrs,
 		Age:        int64(time.Now().Sub(path.timestamp).Seconds()),
 		IsWithdraw: path.IsWithdraw,
-		Validation: int32(path.Validation),
+		Validation: int32(path.Validation.ToInt()),
 		Filtered:   path.Filtered(id) > POLICY_DIRECTION_NONE,
 		Family:     family,
 	}

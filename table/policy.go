@@ -172,9 +172,10 @@ const (
 )
 
 func NewMatchOption(c interface{}) (MatchOption, error) {
-	switch c.(type) {
+	switch t := c.(type) {
 	case config.MatchSetOptionsType:
-		switch c.(config.MatchSetOptionsType) {
+		t = t.DefaultAsNeeded()
+		switch t {
 		case config.MATCH_SET_OPTIONS_TYPE_ANY:
 			return MATCH_OPTION_ANY, nil
 		case config.MATCH_SET_OPTIONS_TYPE_ALL:
@@ -183,7 +184,8 @@ func NewMatchOption(c interface{}) (MatchOption, error) {
 			return MATCH_OPTION_INVERT, nil
 		}
 	case config.MatchSetOptionsRestrictedType:
-		switch c.(config.MatchSetOptionsRestrictedType) {
+		t = t.DefaultAsNeeded()
+		switch t {
 		case config.MATCH_SET_OPTIONS_RESTRICTED_TYPE_ANY:
 			return MATCH_OPTION_ANY, nil
 		case config.MATCH_SET_OPTIONS_RESTRICTED_TYPE_INVERT:
@@ -1696,7 +1698,7 @@ func (a *CommunityAction) ToApiStruct() *api.CommunityAction {
 		cs = append(cs, exp.String())
 	}
 	return &api.CommunityAction{
-		Type:        api.CommunityActionType(a.action),
+		Type:        api.CommunityActionType(a.action.ToInt()),
 		Communities: cs,
 	}
 }
@@ -1814,7 +1816,7 @@ func (a *ExtCommunityAction) ToApiStruct() *api.CommunityAction {
 		cs = append(cs, f(idx, exp.String()))
 	}
 	return &api.CommunityAction{
-		Type:        api.CommunityActionType(a.action),
+		Type:        api.CommunityActionType(a.action.ToInt()),
 		Communities: cs,
 	}
 }
@@ -2108,7 +2110,7 @@ func (s *Statement) ToApiStruct() *api.Statement {
 		case *ExtCommunityCondition:
 			cs.ExtCommunitySet = c.(*ExtCommunityCondition).ToApiStruct()
 		case *RpkiValidationCondition:
-			cs.RpkiResult = int32(c.(*RpkiValidationCondition).result)
+			cs.RpkiResult = int32(c.(*RpkiValidationCondition).result.ToInt())
 		}
 	}
 	as := &api.Actions{}

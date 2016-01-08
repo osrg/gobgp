@@ -734,11 +734,11 @@ func modCondition(name, op string, args []string) error {
 		}
 		switch strings.ToLower(args[0]) {
 		case "valid":
-			stmt.Conditions.RpkiResult = int32(config.RPKI_VALIDATION_RESULT_TYPE_VALID)
+			stmt.Conditions.RpkiResult = int32(config.RPKI_VALIDATION_RESULT_TYPE_VALID.ToInt())
 		case "invalid":
-			stmt.Conditions.RpkiResult = int32(config.RPKI_VALIDATION_RESULT_TYPE_INVALID)
+			stmt.Conditions.RpkiResult = int32(config.RPKI_VALIDATION_RESULT_TYPE_INVALID.ToInt())
 		case "not-found":
-			stmt.Conditions.RpkiResult = int32(config.RPKI_VALIDATION_RESULT_TYPE_NOT_FOUND)
+			stmt.Conditions.RpkiResult = int32(config.RPKI_VALIDATION_RESULT_TYPE_NOT_FOUND.ToInt())
 		default:
 			return fmt.Errorf("%s rpki { valid | invalid | not-found }")
 		}

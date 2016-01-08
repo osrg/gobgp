@@ -15,29 +15,63 @@
 
 package config
 
+import "fmt"
+
 // typedef for typedef bgp-types:rr-cluster-id-type
 type RrClusterIdType string
 
 // typedef for typedef bgp-types:remove-private-as-option
-type RemovePrivateAsOption int
+type RemovePrivateAsOption string
 
 const (
-	REMOVE_PRIVATE_AS_OPTION_ALL RemovePrivateAsOption = iota
-	REMOVE_PRIVATE_AS_OPTION_REPLACE
+	REMOVE_PRIVATE_AS_OPTION_ALL     RemovePrivateAsOption = "all"
+	REMOVE_PRIVATE_AS_OPTION_REPLACE RemovePrivateAsOption = "replace"
 )
+
+func (v RemovePrivateAsOption) ToInt() int {
+	for i, vv := range []string{"all", "replace"} {
+		if string(v) == vv {
+			return i
+		}
+	}
+	return -1
+}
+
+func (v RemovePrivateAsOption) Validate() error {
+	if v.ToInt() < 0 {
+		return fmt.Errorf("invalid RemovePrivateAsOption: %s", v)
+	}
+	return nil
+}
 
 // typedef for typedef bgp-types:bgp-community-regexp-type
 type BgpCommunityRegexpType string
 
 // typedef for typedef bgp-types:community-type
-type CommunityType int
+type CommunityType string
 
 const (
-	COMMUNITY_TYPE_STANDARD CommunityType = iota
-	COMMUNITY_TYPE_EXTENDED
-	COMMUNITY_TYPE_BOTH
-	COMMUNITY_TYPE_NONE
+	COMMUNITY_TYPE_STANDARD CommunityType = "standard"
+	COMMUNITY_TYPE_EXTENDED CommunityType = "extended"
+	COMMUNITY_TYPE_BOTH     CommunityType = "both"
+	COMMUNITY_TYPE_NONE     CommunityType = "none"
 )
+
+func (v CommunityType) ToInt() int {
+	for i, vv := range []string{"standard", "extended", "both", "none"} {
+		if string(v) == vv {
+			return i
+		}
+	}
+	return -1
+}
+
+func (v CommunityType) Validate() error {
+	if v.ToInt() < 0 {
+		return fmt.Errorf("invalid CommunityType: %s", v)
+	}
+	return nil
+}
 
 // typedef for typedef bgp-types:bgp-ext-community-type
 type BgpExtCommunityType string
@@ -46,51 +80,153 @@ type BgpExtCommunityType string
 type BgpStdCommunityType string
 
 // typedef for typedef bgp-types:peer-type
-type PeerTypeDef int
+type PeerTypeDef string
 
 const (
-	PEER_TYPE_INTERNAL PeerTypeDef = iota
-	PEER_TYPE_EXTERNAL
+	PEER_TYPE_INTERNAL PeerTypeDef = "internal"
+	PEER_TYPE_EXTERNAL PeerTypeDef = "external"
 )
+
+func (v PeerTypeDef) ToInt() int {
+	for i, vv := range []string{"internal", "external"} {
+		if string(v) == vv {
+			return i
+		}
+	}
+	return -1
+}
+
+func (v PeerTypeDef) Validate() error {
+	if v.ToInt() < 0 {
+		return fmt.Errorf("invalid PeerTypeDef: %s", v)
+	}
+	return nil
+}
 
 // typedef for typedef bgp-types:percentage
 type Percentage uint8
 
 // typedef for typedef bgp-types:bgp-session-direction
-type BgpSessionDirection int
+type BgpSessionDirection string
 
 const (
-	BGP_SESSION_DIRECTION_INBOUND BgpSessionDirection = iota
-	BGP_SESSION_DIRECTION_OUTBOUND
+	BGP_SESSION_DIRECTION_INBOUND  BgpSessionDirection = "inbound"
+	BGP_SESSION_DIRECTION_OUTBOUND BgpSessionDirection = "outbound"
 )
+
+func (v BgpSessionDirection) ToInt() int {
+	for i, vv := range []string{"inbound", "outbound"} {
+		if string(v) == vv {
+			return i
+		}
+	}
+	return -1
+}
+
+func (v BgpSessionDirection) Validate() error {
+	if v.ToInt() < 0 {
+		return fmt.Errorf("invalid BgpSessionDirection: %s", v)
+	}
+	return nil
+}
 
 // typedef for typedef ptypes:match-set-options-restricted-type
-type MatchSetOptionsRestrictedType int
+type MatchSetOptionsRestrictedType string
 
 const (
-	MATCH_SET_OPTIONS_RESTRICTED_TYPE_ANY MatchSetOptionsRestrictedType = iota
-	MATCH_SET_OPTIONS_RESTRICTED_TYPE_INVERT
+	MATCH_SET_OPTIONS_RESTRICTED_TYPE_ANY    MatchSetOptionsRestrictedType = "any"
+	MATCH_SET_OPTIONS_RESTRICTED_TYPE_INVERT MatchSetOptionsRestrictedType = "invert"
 )
+
+func (v MatchSetOptionsRestrictedType) ToInt() int {
+	for i, vv := range []string{"any", "invert"} {
+		if string(v) == vv {
+			return i
+		}
+	}
+	return -1
+}
+
+func (v MatchSetOptionsRestrictedType) Validate() error {
+	if v.ToInt() < 0 {
+		return fmt.Errorf("invalid MatchSetOptionsRestrictedType: %s", v)
+	}
+	return nil
+}
+
+func (v MatchSetOptionsRestrictedType) Default() MatchSetOptionsRestrictedType {
+	return MATCH_SET_OPTIONS_RESTRICTED_TYPE_ANY
+}
+
+func (v MatchSetOptionsRestrictedType) DefaultAsNeeded() MatchSetOptionsRestrictedType {
+	if string(v) == "" {
+		return v.Default()
+	}
+	return v
+}
 
 // typedef for typedef ptypes:match-set-options-type
-type MatchSetOptionsType int
+type MatchSetOptionsType string
 
 const (
-	MATCH_SET_OPTIONS_TYPE_ANY MatchSetOptionsType = iota
-	MATCH_SET_OPTIONS_TYPE_ALL
-	MATCH_SET_OPTIONS_TYPE_INVERT
+	MATCH_SET_OPTIONS_TYPE_ANY    MatchSetOptionsType = "any"
+	MATCH_SET_OPTIONS_TYPE_ALL    MatchSetOptionsType = "all"
+	MATCH_SET_OPTIONS_TYPE_INVERT MatchSetOptionsType = "invert"
 )
+
+func (v MatchSetOptionsType) ToInt() int {
+	for i, vv := range []string{"any", "all", "invert"} {
+		if string(v) == vv {
+			return i
+		}
+	}
+	return -1
+}
+
+func (v MatchSetOptionsType) Validate() error {
+	if v.ToInt() < 0 {
+		return fmt.Errorf("invalid MatchSetOptionsType: %s", v)
+	}
+	return nil
+}
+
+func (v MatchSetOptionsType) Default() MatchSetOptionsType {
+	return MATCH_SET_OPTIONS_TYPE_ANY
+}
+
+func (v MatchSetOptionsType) DefaultAsNeeded() MatchSetOptionsType {
+	if string(v) == "" {
+		return v.Default()
+	}
+	return v
+}
 
 // typedef for typedef ptypes:tag-type
 type TagType string
 
 // typedef for typedef rpol:default-policy-type
-type DefaultPolicyType int
+type DefaultPolicyType string
 
 const (
-	DEFAULT_POLICY_TYPE_ACCEPT_ROUTE DefaultPolicyType = iota
-	DEFAULT_POLICY_TYPE_REJECT_ROUTE
+	DEFAULT_POLICY_TYPE_ACCEPT_ROUTE DefaultPolicyType = "accept-route"
+	DEFAULT_POLICY_TYPE_REJECT_ROUTE DefaultPolicyType = "reject-route"
 )
+
+func (v DefaultPolicyType) ToInt() int {
+	for i, vv := range []string{"accept-route", "reject-route"} {
+		if string(v) == vv {
+			return i
+		}
+	}
+	return -1
+}
+
+func (v DefaultPolicyType) Validate() error {
+	if v.ToInt() < 0 {
+		return fmt.Errorf("invalid DefaultPolicyType: %s", v)
+	}
+	return nil
+}
 
 // typedef for typedef bgp-pol:bgp-next-hop-type
 type BgpNextHopType string
@@ -102,41 +238,105 @@ type BgpAsPathPrependRepeat uint8
 type BgpSetMedType string
 
 // typedef for typedef bgp-pol:bgp-set-community-option-type
-type BgpSetCommunityOptionType int
+type BgpSetCommunityOptionType string
 
 const (
-	BGP_SET_COMMUNITY_OPTION_TYPE_ADD BgpSetCommunityOptionType = iota
-	BGP_SET_COMMUNITY_OPTION_TYPE_REMOVE
-	BGP_SET_COMMUNITY_OPTION_TYPE_REPLACE
+	BGP_SET_COMMUNITY_OPTION_TYPE_ADD     BgpSetCommunityOptionType = "add"
+	BGP_SET_COMMUNITY_OPTION_TYPE_REMOVE  BgpSetCommunityOptionType = "remove"
+	BGP_SET_COMMUNITY_OPTION_TYPE_REPLACE BgpSetCommunityOptionType = "replace"
 )
+
+func (v BgpSetCommunityOptionType) ToInt() int {
+	for i, vv := range []string{"add", "remove", "replace"} {
+		if string(v) == vv {
+			return i
+		}
+	}
+	return -1
+}
+
+func (v BgpSetCommunityOptionType) Validate() error {
+	if v.ToInt() < 0 {
+		return fmt.Errorf("invalid BgpSetCommunityOptionType: %s", v)
+	}
+	return nil
+}
 
 // typedef for typedef gobgp:bmp-route-monitoring-policy-type
-type BmpRouteMonitoringPolicyType int
+type BmpRouteMonitoringPolicyType string
 
 const (
-	BMP_ROUTE_MONITORING_POLICY_TYPE_PRE_POLICY  BmpRouteMonitoringPolicyType = 0
-	BMP_ROUTE_MONITORING_POLICY_TYPE_POST_POLICY                              = 1
-	BMP_ROUTE_MONITORING_POLICY_TYPE_BOTH                                     = 2
+	BMP_ROUTE_MONITORING_POLICY_TYPE_PRE_POLICY  BmpRouteMonitoringPolicyType = "pre-policy"
+	BMP_ROUTE_MONITORING_POLICY_TYPE_POST_POLICY BmpRouteMonitoringPolicyType = "post-policy"
+	BMP_ROUTE_MONITORING_POLICY_TYPE_BOTH        BmpRouteMonitoringPolicyType = "both"
 )
+
+func (v BmpRouteMonitoringPolicyType) ToInt() int {
+	for i, vv := range []string{"pre-policy", "post-policy", "both"} {
+		if string(v) == vv {
+			return i
+		}
+	}
+	return -1
+}
+
+func (v BmpRouteMonitoringPolicyType) Validate() error {
+	if v.ToInt() < 0 {
+		return fmt.Errorf("invalid BmpRouteMonitoringPolicyType: %s", v)
+	}
+	return nil
+}
 
 // typedef for typedef gobgp:rpki-validation-result-type
-type RpkiValidationResultType int
+type RpkiValidationResultType string
 
 const (
-	RPKI_VALIDATION_RESULT_TYPE_NONE RpkiValidationResultType = iota
-	RPKI_VALIDATION_RESULT_TYPE_NOT_FOUND
-	RPKI_VALIDATION_RESULT_TYPE_VALID
-	RPKI_VALIDATION_RESULT_TYPE_INVALID
+	RPKI_VALIDATION_RESULT_TYPE_NONE      RpkiValidationResultType = "none"
+	RPKI_VALIDATION_RESULT_TYPE_NOT_FOUND RpkiValidationResultType = "not-found"
+	RPKI_VALIDATION_RESULT_TYPE_VALID     RpkiValidationResultType = "valid"
+	RPKI_VALIDATION_RESULT_TYPE_INVALID   RpkiValidationResultType = "invalid"
 )
+
+func (v RpkiValidationResultType) ToInt() int {
+	for i, vv := range []string{"none", "not-found", "valid", "invalid"} {
+		if string(v) == vv {
+			return i
+		}
+	}
+	return -1
+}
+
+func (v RpkiValidationResultType) Validate() error {
+	if v.ToInt() < 0 {
+		return fmt.Errorf("invalid RpkiValidationResultType: %s", v)
+	}
+	return nil
+}
 
 // typedef for typedef gobgp:bgp-origin-attr-type
-type BgpOriginAttrType int
+type BgpOriginAttrType string
 
 const (
-	BGP_ORIGIN_ATTR_TYPE_IGP        BgpOriginAttrType = 0
-	BGP_ORIGIN_ATTR_TYPE_EGP                          = 1
-	BGP_ORIGIN_ATTR_TYPE_INCOMPLETE                   = 2
+	BGP_ORIGIN_ATTR_TYPE_IGP        BgpOriginAttrType = "igp"
+	BGP_ORIGIN_ATTR_TYPE_EGP        BgpOriginAttrType = "egp"
+	BGP_ORIGIN_ATTR_TYPE_INCOMPLETE BgpOriginAttrType = "incomplete"
 )
+
+func (v BgpOriginAttrType) ToInt() int {
+	for i, vv := range []string{"igp", "egp", "incomplete"} {
+		if string(v) == vv {
+			return i
+		}
+	}
+	return -1
+}
+
+func (v BgpOriginAttrType) Validate() error {
+	if v.ToInt() < 0 {
+		return fmt.Errorf("invalid BgpOriginAttrType: %s", v)
+	}
+	return nil
+}
 
 //struct for container gobgp:state
 type BmpServerState struct {
