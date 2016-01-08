@@ -15,22 +15,19 @@ Assume you finished [Getting Started](https://github.com/osrg/gobgp/blob/master/
 ## <a name="section0"> Configuration
 
 To advertise flowspec routes, enumerate `ipv4-flowspec` to neighbor's
-afi-safi-list like below.
+afi-safis like below.
 
 ```toml
-[Global]
-  [Global.Config]
-    As = 64512
-    RouterId = "192.168.255.1"
+[global.config]
+  as = 64512
+  router-id = "192.168.255.1"
 
-[Neighbors]
-  [[Neighbors.NeighborList]]
-    [Neighbors.NeighborList.Config]
-      NeighborAddress = "10.0.255.1"
-      PeerAs = 64512
-    [Neighbors.NeighborList.AfiSafis]
-      [[Neighbors.NeighborList.AfiSafis.AfiSafiList]]
-        AfiSafiName = "ipv4-flowspec"
+[[neighbors]]
+[neighbors.config]
+  neighbor-address = "10.0.255.1"
+  peer-as = 64512
+[[neighbors.afi-safis]]
+  afi-safi-name = "ipv4-flowspec"
 ```
 
 ## <a name="section1"> Add Flowspec routes through CLI

@@ -18,28 +18,24 @@ peers. Two BaGPipe peers are not connected. It's incorrect from the
 perspective of BGP but this example just shows two OSS BGP
 implementations can interchange EVPN messages.
 
-```
-[Global]
-  [Global.Config]
-    As = 64512
-    RouterId = "192.168.255.1"
+```toml
+[global.config]
+  as = 64512
+  router-id = "192.168.255.1"
 
-[Neighbors]
-  [[Neighbors.NeighborList]]
-    [Neighbors.NeighborList.Config]
-      NeighborAddress = "10.0.255.1"
-      PeerAs = 64512
-    [Neighbors.NeighborList.AfiSafis]
-      [[Neighbors.NeighborList.AfiSafis.AfiSafiList]]
-        AfiSafiName = "l2vpn-evpn"
+[[neighbors]]
+[neighbors.config]
+  neighbor-address = "10.0.255.1"
+  peer-as = 64512
+[[neighbors.afi-safis]]
+  afi-safi-name = "l2vpn-evpn"
 
-  [[Neighbors.NeighborList]]
-    [Neighbors.NeighborList.Config]
-      NeighborAddress = "10.0.255.2"
-      PeerAs = 64512
-    [Neighbors.NeighborList.AfiSafis]
-      [[Neighbors.NeighborList.AfiSafis.AfiSafiList]]
-        AfiSafiName = "l2vpn-evpn"
+[[neighbors]]
+[neighbors.config]
+  neighbor-address = "10.0.255.2"
+  peer-as = 64512
+[[neighbors.afi-safis]]
+  afi-safi-name = "l2vpn-evpn"
 ```
 
 The point is that route families to be advertised need to be
@@ -47,7 +43,7 @@ specified. We expect that many people are not familiar with [BaGPipe
 BGP](https://github.com/Orange-OpenSource/bagpipe-bgp), the following
 is our configuration files.
 
-```
+```bash
 bagpipe-peer1:/etc/bagpipe-bgp# cat bgp.conf
 [BGP]
 local_address=10.0.255.1
@@ -71,7 +67,7 @@ dataplane_driver = DummyDataplaneDriver
 
 As you expect, the RIBs at 10.0.255.2 peer has nothing.
 
-```
+```bash
 bagpipe-peer2:~# bagpipe-looking-glass bgp routes
 match:IPv4/mpls-vpn,*: -
 match:IPv4/rtc,*: -
@@ -80,12 +76,12 @@ match:L2VPN/evpn,*: -
 
 Let's advertise something from 10.0.255.1 peer.
 
-```
+```bash
 bagpipe-peer1:~# bagpipe-rest-attach --attach --port tap42 --mac 00:11:22:33:44:55 --ip 11.11.11.1 --gateway-ip 11.11.11.254 --network-type evpn --rt 65000:77
 ```
 
 Now the RIBs at 10.0.255.2 peer has the above route. The route was interchanged via GoBGP peer.
-```
+```bash
 bagpipe-peer2:~# bagpipe-looking-glass bgp routes
 match:IPv4/mpls-vpn,*: -
 match:IPv4/rtc,*: -
