@@ -17,6 +17,12 @@ package config
 
 import "fmt"
 
+// typedef for typedef openconfig-types:std-regexp
+type StdRegexp string
+
+// typedef for typedef openconfig-types:percentage
+type Percentage uint8
+
 // typedef for typedef bgp-types:rr-cluster-id-type
 type RrClusterIdType string
 
@@ -45,7 +51,7 @@ func (v RemovePrivateAsOption) Validate() error {
 }
 
 // typedef for typedef bgp-types:bgp-community-regexp-type
-type BgpCommunityRegexpType string
+type BgpCommunityRegexpType StdRegexp
 
 // typedef for typedef bgp-types:community-type
 type CommunityType string
@@ -102,9 +108,6 @@ func (v PeerTypeDef) Validate() error {
 	}
 	return nil
 }
-
-// typedef for typedef bgp-types:percentage
-type Percentage uint8
 
 // typedef for typedef bgp-types:bgp-session-direction
 type BgpSessionDirection string
@@ -1742,6 +1745,9 @@ type BgpConditions struct {
 	// original -> bgp-pol:next-hop-in
 	//original type is list of inet:ip-address
 	NextHopIn []string
+	// original -> bgp-pol:afi-safi-in
+	//original type is list of identityref
+	AfiSafiIn []string
 	// original -> bgp-pol:local-pref-eq
 	LocalPrefEq uint32
 	// original -> bgp-pol:community-count

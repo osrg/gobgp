@@ -448,7 +448,14 @@ def emit_typedef(ctx, module):
         else:
             print >> o, '// typedef for typedef %s:%s'\
                         % (prefix, type_name_org)
-            print >> o, 'type %s %s' % (type_name, t.arg)
+
+            if not is_builtin_type(t):
+                m = ctx.golang_typedef_map
+                for k in t.arg.split(':'):
+                    m = m[k]
+                print >> o, 'type %s %s' % (type_name, m.golang_name)
+            else:
+                print >> o, 'type %s %s' % (type_name, t.arg)
 
         print o.getvalue()
 

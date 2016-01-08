@@ -8,10 +8,10 @@ module gobgp {
   prefix "gobgp";
 
   // import some basic types
-  import bgp { prefix bgp; }
-  import routing-policy {prefix rpol; }
-  import policy-types {prefix ptypes; }
-  import bgp-policy {prefix bgp-pol; }
+  import openconfig-bgp { prefix bgp; }
+  import openconfig-routing-policy {prefix rpol; }
+  import openconfig-policy-types {prefix ptypes; }
+  import openconfig-bgp-policy {prefix bgp-pol; }
   import ietf-inet-types { prefix inet; }
   import ietf-yang-types { prefix yang; }
 
