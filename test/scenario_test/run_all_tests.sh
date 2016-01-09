@@ -67,6 +67,10 @@ PIDS=("${PIDS[@]}" $!)
 sudo -E PYTHONPATH=$GOBGP/test python global_policy_test.py --gobgp-image $GOBGP_IMAGE --test-prefix gpol -s -x --with-xunit --xunit-file=${WS}/nosetest_global_policy.xml &
 PIDS=("${PIDS[@]}" $!)
 
+# route server as2 test
+sudo -E PYTHONPATH=$GOBGP/test python route_server_as2_test.py --gobgp-image $GOBGP_IMAGE --test-prefix as2 -s -x --with-xunit --xunit-file=${WS}/nosetest_rs_as2.xml &
+PIDS=("${PIDS[@]}" $!)
+
 # route server malformed message test
 NUM=$(sudo -E PYTHONPATH=$GOBGP/test python route_server_malformed_test.py --test-index -1 -s 2> /dev/null | awk '/invalid/{print $NF}')
 PARALLEL_NUM=10

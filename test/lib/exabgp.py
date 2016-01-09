@@ -69,6 +69,11 @@ class ExaBGPContainer(BGPContainer):
             cmd << '    local-as {0};'.format(self.asn)
             cmd << '    peer-as {0};'.format(peer.asn)
 
+            if info['as2']:
+                cmd << '    capability {'
+                cmd << '        asn4 disable;'
+                cmd << '    }'
+
             routes = [r for r in self.routes.values() if r['rf'] == 'ipv4' or r['rf'] == 'ipv6']
 
             if len(routes) > 0:
