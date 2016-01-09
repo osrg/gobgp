@@ -23,6 +23,9 @@ import (
 )
 
 func UpdatePathAttrs2ByteAs(msg *bgp.BGPUpdate) error {
+	ps := msg.PathAttributes
+	msg.PathAttributes = make([]bgp.PathAttributeInterface, len(ps))
+	copy(msg.PathAttributes, ps)
 	var asAttr *bgp.PathAttributeAsPath
 	idx := 0
 	for i, attr := range msg.PathAttributes {
