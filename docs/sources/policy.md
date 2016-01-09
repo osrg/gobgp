@@ -97,22 +97,19 @@ PrefixSets and NeighborSets section are prefix match part and neighbor match par
 
 - DefinedSets example
 
- ```
- # prefix match part
-  [DefinedSets.PrefixSets]
-    [[DefinedSets.PrefixSets.PrefixSetList]]
-      PrefixSetName = "ps1"
-      [[DefinedSets.PrefixSets.PrefixSetList.PrefixList]]
-        IpPrefix = "10.33.0.0/16"
-        MasklengthRange = "21..24"
+```toml
+# prefix match part
+[[defined-sets.prefix-sets]]
+  prefix-set-name = "ps1"
+  [[defined-sets.prefix-sets.prefix-list]]
+    ip-prefix = "10.33.0.0/16"
+    masklength-range = "21..24"
 
- # neighbor match part
-  [DefinedSets.NeighborSets]
-    [[DefinedSets.NeighborSets.NeighborSetList]]
-      NeighborSetName = "ns1"
-      [[DefinedSets.NeighborSets.NeighborSetList.NeighborInfoList]]
-        Address = "10.0.255.1"
- ```
+# neighbor match part
+[[defined-sets.neighbor-sets]]
+  prefix-set-name = "ps1"
+  neighbor-info-list = ["10.0.255.1"]
+```
 
   ----
 
@@ -139,54 +136,49 @@ PrefixSets and NeighborSets section are prefix match part and neighbor match par
     - Match routes whose high order 2 octets of NLRI is 10.33 and its prefix length is between from 21 to 24
     - If you define a PrefixList that doesn't have MasklengthRange, it matches routes that have just 10.33.0.0/16 as NLRI.
 
-  ```
-  # example 1
-  [DefinedSets.PrefixSets]
-    [[DefinedSets.PrefixSets.PrefixSetList]]
-      PrefixSetName = "ps1"
-      [[DefinedSets.PrefixSets.PrefixSetList.PrefixList]]
-        IpPrefix = "10.33.0.0/16"
-        MasklengthRange = "21..24"
-  ```
+```toml
+# example 1
+[[defined-sets.prefix-sets]]
+  prefix-set-name = "ps1"
+  [[defined-sets.prefix-sets.prefix-list]]
+    ip-prefix = "10.33.0.0/16"
+    masklength-range = "21..24"
+```
 
 
  - example 2
     - If you want to evaluate multiple routes with a single PrefixSetList, you can do this by adding an another PrefixList like this:
     - This PrefixSetList match checks if a route has 10.33.0.0/21 to 24 or 10.50.0.0/21 to 24.
 
-  ```
-  # example 2
-  [DefinedSets.PrefixSets]
-    [[DefinedSets.PrefixSets.PrefixSetList]]
-      PrefixSetName = "ps1"
-      [[DefinedSets.PrefixSets.PrefixSetList.PrefixList]]
-        IpPrefix = "10.33.0.0/16"
-        MasklengthRange = "21..24"
-      [[DefinedSets.PrefixSets.PrefixSetList.PrefixList]]
-        IpPrefix = "10.50.0.0/16"
-        MasklengthRange = "21..24"
-  ```
+```toml
+# example 2
+[[defined-sets.prefix-sets]]
+  prefix-set-name = "ps1"
+  [[defined-sets.prefix-sets.prefix-list]]
+    ip-prefix = "10.33.0.0/16"
+    masklength-range = "21..24"
+  [[defined-sets.prefix-sets.prefix-list]]
+    ip-prefix = "10.50.0.0/16"
+    masklength-range = "21..24"
+```
 
  - example 3
     - PrefixSetName under PrefixSetList is reference to a single PrefixSet.
     - If you want to add different PrefixSet more, you can add other blocks that form the same structure with example 1.
 
-  ```
-  # example 3
-  [DefinedSets.PrefixSets]
-    # PrefixSetList
-    [[DefinedSets.PrefixSets.PrefixSetList]]
-      PrefixSetName = "ps1"
-      [[DefinedSets.PrefixSets.PrefixSetList.PrefixList]]
-        IpPrefix = "10.33.0.0/16"
-        MasklengthRange = "21..24"
-    # another PrefixSetList
-    [[DefinedSets.PrefixSets.PrefixSetList]]
-      PrefixSetName = "ps2"
-      [[DefinedSets.PrefixSets.PrefixSetList.PrefixList]]
-        IpPrefix = "10.50.0.0/16"
-        MasklengthRange = "21..24"
-  ```
+```toml
+# example 3
+[[defined-sets.prefix-sets]]
+  prefix-set-name = "ps1"
+  [[defined-sets.prefix-sets.prefix-list]]
+    ip-prefix = "10.33.0.0/16"
+    masklength-range = "21..24"
+[[defined-sets.prefix-sets]]
+  prefix-set-name = "ps2"
+  [[defined-sets.prefix-sets.prefix-list]]
+    ip-prefix = "10.50.0.0/16"
+    masklength-range = "21..24"
+```
 
   ----
 
@@ -210,44 +202,34 @@ PrefixSets and NeighborSets section are prefix match part and neighbor match par
  ##### Examples
 
  - example 1
-  ```
-  # example 1
-  [DefinedSets.NeighborSets]
-    [[DefinedSets.NeighborSets.NeighborSetList]]
-      NeighborSetName = "ns1"
-      [[DefinedSets.NeighborSets.NeighborSetList.NeighborInfoList]]
-        Address = "10.0.255.1"
-  ```
+```toml
+# example 1
+[[defined-sets.neighbor-sets]]
+  prefix-set-name = "ns1"
+  neighbor-info-list = ["10.0.255.1"]
+```
 
  - example 2
     - As with PrefixSetList, NeighborSetList can have multiple NeighborInfoList like this.
 
-  ```
-  # example 2
-  [DefinedSets.NeighborSets]
-    [[DefinedSets.NeighborSets.NeighborSetList]]
-      NeighborSetName = "ns2"
-      [[DefinedSets.NeighborSets.NeighborSetList.NeighborInfoList]]
-        Address = "10.0.255.1"
-      [[DefinedSets.NeighborSets.NeighborSetList.NeighborInfoList]]
-        Address = "10.0.255.2"
-  ```
-
- - example 3
+```toml
+# example 2
+[[defined-sets.neighbor-sets]]
+  prefix-set-name = "ns1"
+  neighbor-info-list = ["10.0.255.1", "10.0.255.2"]
+```
+- example 3
     - As with PrefixSetList, multiple NeighborSetLists can be defined. 
  
-  ```
+  ```toml
   # example 3
-  [DefinedSets.NeighborSets]
-    [[DefinedSets.NeighborSets.NeighborSetList]]
-      NeighborSetName = "ns1"
-      [[DefinedSets.NeighborSets.NeighborSetList.NeighborInfoList]]
-        Address = "10.0.255.1"
-    # another NeighborSetList
-    [[DefinedSets.NeighborSets.NeighborSetList]]
-      NeighborSetName = "ns2"
-      [[DefinedSets.NeighborSets.NeighborSetList.NeighborInfoList]]
-        Address = "10.0.254.1"
+  [[defined-sets.neighbor-sets]]
+    prefix-set-name = "ns1"
+    neighbor-info-list = ["10.0.255.1"]
+  # another NeighborSetList
+  [[defined-sets.neighbor-sets]]
+    prefix-set-name = "ns2"
+    neighbor-info-list = ["10.0.254.1"]
   ```
 
 ---
@@ -262,26 +244,19 @@ part. Like PrefixSets and NeighborSets, each can have multiple sets and each set
 
 - BgpDefinedSets example
 
- ```
-  [DefinedSets.BgpDefinedSets]
-      # Community match part
-    [DefinedSets.BgpDefinedSets.CommunitySets]
-      [[DefinedSets.BgpDefinedSets.CommunitySets.CommunitySetList]]
-        CommunitySetName = "community1"
-        [[DefinedSets.BgpDefinedSets.CommunitySets.CommunitySetList.CommunityList]]
-          Community = "65100:10"
-      # Extended Community match part
-    [DefinedSets.BgpDefinedSets.ExtCommunitySets]
-      [[DefinedSets.BgpDefinedSets.ExtCommunitySets.ExtCommunitySetList]]
-        ExtCommunitySetName = "ecommunity1"
-        [[DefinedSets.BgpDefinedSets.ExtCommunitySets.ExtCommunitySetList.ExtCommunityList]]
-          ExtCommunity = "RT:65001:200"
-      # AS_PATH match part
-    [DefinedSets.BgpDefinedSets.AsPathSets]
-      [[DefinedSets.BgpDefinedSets.AsPathSets.AsPathSetList]]
-        AsPathSetName = "aspath1"
-        [[DefinedSets.BgpDefinedSets.AsPathSets.AsPathSetList.AsPathList]]
-          AsPath = "^65100"
+ ```toml
+ # Community match part
+ [[defined-sets.bgp-defined-sets.community-sets]]
+   community-set-name = "community1"
+   community-list = ["65100:10"]
+ # Extended Community match part
+ [[defined-sets.bgp-defined-sets.ext-community-sets]]
+   ext-community-set-name = "ecommunity1"
+   ext-community-list = ["RT:65100:10"]
+ # AS_PATH match part
+ [[defined-sets.bgp-defined-sets.as-path-sets]]
+   as-path-set-name = "aspath1"
+   as-path-list = ["^65100"]
  ```
 
   ----
@@ -308,28 +283,22 @@ part. Like PrefixSets and NeighborSets, each can have multiple sets and each set
  - example 1
    - Match routes which has "65100:10" as a community value.
 
-  ```
+  ```toml
   # example 1
-  [DefinedSets.BgpDefinedSets]
-    [DefinedSets.BgpDefinedSets.CommunitySets]
-      [[DefinedSets.BgpDefinedSets.CommunitySets.CommunitySetList]]
-        CommunitySetName = "community1"
-        [[DefinedSets.BgpDefinedSets.CommunitySets.CommunitySetList.CommunityList]]
-          Community = "65100:10"
+  [[defined-sets.bgp-defined-sets.community-sets]]
+    community-set-name = "community1"
+    community-list = ["65100:10"]
   ```
 
  - example 2
     - Specifying community by regular expression
     - You can use regular expressions based on POSIX 1003.2 regular expressions.
 
-  ```
+  ```toml
   # example 2
-  [DefinedSets.BgpDefinedSets]
-    [DefinedSets.BgpDefinedSets.CommunitySets]
-      [[DefinedSets.BgpDefinedSets.CommunitySets.CommunitySetList]]
-        CommunitySetName = "community2"
-        [[DefinedSets.BgpDefinedSets.CommunitySets.CommunitySetList.CommunityList]]
-          Community = 6[0-9]+:[0-9]+"
+  [[defined-sets.bgp-defined-sets.community-sets]]
+    community-set-name = "community2"
+    community-list = ["6[0-9]+:[0-9]+"]
   ```
    ----
 
@@ -360,28 +329,22 @@ part. Like PrefixSets and NeighborSets, each can have multiple sets and each set
  - example 1
       - Match routes which has "RT:65001:200" as a extended community value.
 
-  ```
+  ```toml
   # example 1
-  [DefinedSets.BgpDefinedSets]
-    [DefinedSets.BgpDefinedSets.ExtCommunitySets]
-      [[DefinedSets.BgpDefinedSets.ExtCommunitySets.ExtCommunitySetList]]
-        ExtCommunitySetName = "ecommunity1"
-        [[DefinedSets.BgpDefinedSets.ExtCommunitySets.ExtCommunitySetList.ExtCommunityList]]
-          ExtCommunity = "RT:65001:200"
+  [[defined-sets.bgp-defined-sets.ext-community-sets]]
+    ext-community-set-name = "ecommunity1"
+    ext-community-list = ["RT:65100:200"]
   ```
 
  - example 2
     - Specifying extended community by regular expression
     - You can use regular expressions that is available in Golang.
 
-  ```
+  ```toml
   # example 2
-  [DefinedSets.BgpDefinedSets]
-    [DefinedSets.BgpDefinedSets.ExtCommunitySets]
-      [[DefinedSets.BgpDefinedSets.ExtCommunitySets.ExtCommunitySetList]]
-        ExtCommunitySetName = "ecommunity1"
-        [[DefinedSets.BgpDefinedSets.ExtCommunitySets.ExtCommunitySetList.ExtCommunityList]]
-          ExtCommunity = "RT:6[0-9]+:[0-9]+"
+  [[defined-sets.bgp-defined-sets.ext-community-sets]]
+    ext-community-set-name = "ecommunity2"
+    ext-community-list = ["RT:6[0-9]+:[0-9]+"]
   ```
 
    ----
@@ -416,27 +379,21 @@ part. Like PrefixSets and NeighborSets, each can have multiple sets and each set
   - example 1
       - Match routes which come from AS 65100.
 
-  ```
+  ```toml
   # example 1
-  [DefinedSets.BgpDefinedSets]
-    [DefinedSets.BgpDefinedSets.AsPathSets]
-      [[DefinedSets.BgpDefinedSets.AsPathSets.AsPathSetList]]
-        AsPathSetName = "aspath1"
-        [[DefinedSets.BgpDefinedSets.AsPathSets.AsPathSetList.AsPathList]]
-          AsPath = "^65100"
+  [[defined-sets.bgp-defined-sets.as-path-sets]]
+    as-path-set-name = "aspath1"
+    as-path-list = ["^65100"]
   ```
 
   - example 2
       - Match routes which come Origin AS 65100 and use regular expressions to other AS.
 
-  ```
+  ```toml
   # example 2
-  [DefinedSets.BgpDefinedSets]
-    [DefinedSets.BgpDefinedSets.AsPathSets]
-      [[DefinedSets.BgpDefinedSets.AsPathSets.AsPathSetList]]
-        AsPathSetName = "aspath2"
-        [[DefinedSets.BgpDefinedSets.AsPathSets.AsPathSetList.AsPathList]]
-          AsPath = "[0-9]+_65[0-9]+_65100$"
+  [[defined-sets.bgp-defined-sets.as-path-sets]]
+    as-path-set-name = "aspath1"
+    as-path-list = ["[0-9]+_65[0-9]+_65100$"]
   ```
 
 ---
@@ -449,46 +406,40 @@ You can write condition and action under Statements.
 
  - an example of PolicyDefinitions
 
- ```
-[PolicyDefinitions]
-  [[PolicyDefinitions.PolicyDefinitionList]]
-    Name = "example-policy"
-    [PolicyDefinitions.PolicyDefinitionList.Statements]
-      [[PolicyDefinitions.PolicyDefinitionList.Statements.StatementList]]
-        Name = "statement1"
-        [PolicyDefinitions.PolicyDefinitionList.Statements.StatementList.Conditions]
-          [PolicyDefinitions.PolicyDefinitionList.Statements.StatementList.Conditions.MatchPrefixSet]
-            PrefixSet = "ps1"
-            MatchSetOptions = "any"
-          [PolicyDefinitions.PolicyDefinitionList.Statements.StatementList.Conditions.MatchNeighborSet]
-            NeighborSet = "ns1"
-            MatchSetOptions = "invert"
-          [PolicyDefinitions.PolicyDefinitionList.Statements.StatementList.Conditions.BgpConditions]
-            [PolicyDefinitions.PolicyDefinitionList.Statements.StatementList.Conditions.BgpConditions.MatchCommunitySet]
-              CommunitySet = "community1"
-              MatchSetOptions = "any"
-            [PolicyDefinitions.PolicyDefinitionList.Statements.StatementList.Conditions.BgpConditions.MatchExtCommunitySet]
-              ExtCommunitySet = "ecommunity1"
-              MatchSetOptions = "any"
-            [PolicyDefinitions.PolicyDefinitionList.Statements.StatementList.Conditions.BgpConditions.MatchAsPathSet]
-              AsPathSet = "aspath1"
-              MatchSetOptions = "any"
-            [PolicyDefinitions.PolicyDefinitionList.Statements.StatementList.Conditions.BgpConditions.AsPathLength]
-              Operator = "eq"
-              Value = 2
-        [PolicyDefinitions.PolicyDefinitionList.Statements.StatementList.Actions]
-          [PolicyDefinitions.PolicyDefinitionList.Statements.StatementList.Actions.RouteDisposition]
-            AcceptRoute = true
-          [PolicyDefinitions.PolicyDefinitionList.Statements.StatementList.Actions.BgpActions]
-            SetMed = "-200"
-            [PolicyDefinitions.PolicyDefinitionList.Statements.StatementList.Actions.BgpActions.SetAsPathPrepend]
-              As = "65005"
-              RepeatN = 5
-            [PolicyDefinitions.PolicyDefinitionList.Statements.StatementList.Actions.BgpActions.SetCommunity]
-              Options = "ADD"
-              [PolicyDefinitions.PolicyDefinitionList.Statements.StatementList.Actions.BgpActions.SetCommunity.SetCommunityMethod]
-                Communities = ["65100:20"]
-
+ ```toml
+  [[policy-definitions]]
+    name = "example-policy"
+    [[policy-definitions.statements]]
+      name = "statement1"
+      [policy-definitions.statements.conditions.match-prefix-set]
+        prefix-set = "ps1"
+        match-set-options = "any"
+      [policy-definitions.statements.conditions.match-neighbor-set]
+        neighbor-set = "ns1"
+        match-set-options = "invert"
+      [policy-definitions.statements.conditions.bgp-conditions.match-community-set]
+        community-set = "community1"
+        match-set-options = "any"
+      [policy-definitions.statements.conditions.bgp-conditions.match-ext-community-set]
+        community-set = "ecommunity1"
+        match-set-options = "any"
+      [policy-definitions.statements.conditions.bgp-conditions.match-as-path-set]
+        as-path-set = "aspath1"
+        match-set-options = "any"
+      [policy-definitions.statements.conditions.bgp-conditions.as-path-length]
+        operator = "eq"
+        value = 2
+      [policy-definitions.statements.actions.route-dispodition]
+        accept-route = true
+      [policy-definitions.statements.actions.bgp-actions]
+        set-med = "-200"
+        [policy-definitions.statements.actions.bgp-actions.set-as-path-prepend]
+          as = "65005"
+          repeat-n = 5
+        [policy-definitions.statements.actions.bgp-actions.set-community]
+          options = "add"
+          [policy-definitions.statements.actions.bgp-actions.set-community.set-community-method]
+            communities-list = ["65100:20"]
  ```
 
  The elements of PolicyDefinitionList are as follows:
@@ -593,57 +544,45 @@ You can write condition and action under Statements.
  - example 1
   - This PolicyDefinition has PrefixSet *ps1* and NeighborSet *ns1* as its condition and routes matches the condition is rejected.
 
- ```
+ ```toml
  # example 1
-[PolicyDefinitions]
-  [[PolicyDefinitions.PolicyDefinitionList]]
-    Name = "policy1"
-    [PolicyDefinitions.PolicyDefinitionList.Statements]
-      [[PolicyDefinitions.PolicyDefinitionList.Statements.StatementList]]
-        Name = "statement1"
-        [PolicyDefinitions.PolicyDefinitionList.Statements.StatementList.Conditions]
-          [PolicyDefinitions.PolicyDefinitionList.Statements.StatementList.Conditions.MatchPrefixSet]
-            PrefixSet = "ps1"
-          [PolicyDefinitions.PolicyDefinitionList.Statements.StatementList.Conditions.MatchNeighborSet]
-            NeighborSet = "ns1"
-        [PolicyDefinitions.PolicyDefinitionList.Statements.StatementList.Actions]
-          [PolicyDefinitions.PolicyDefinitionList.Statements.StatementList.Actions.RouteDisposition]
-            RejectRoute = true
+ [[policy-definitions]]
+   name = "policy1"
+   [[policy-definitions.statements]]
+     name = "statement1"
+     [policy-definitions.statements.conditions.match-prefix-set]
+       prefix-set = "ps1"
+     [policy-definitions.statements.conditions.match-neighbor-set]
+       neighbor-set = "ns1"
+     [policy-definitions.statements.actions.route-dispodition]
+       reject-route = true
  ```
 
  - example 2
   - PolicyDefinition has two statements
 
- ```
+ ```toml
  # example 2
-[PolicyDefinitions]
-  [[PolicyDefinitions.PolicyDefinitionList]]
-    Name = "policy1"
-    [PolicyDefinitions.PolicyDefinitionList.Statements]
-      # first statement - (1)
-      [[PolicyDefinitions.PolicyDefinitionList.Statements.StatementList]]
-        Name = "statement1"
-        [PolicyDefinitions.PolicyDefinitionList.Statements.StatementList.Conditions]
-          [PolicyDefinitions.PolicyDefinitionList.Statements.StatementList.Conditions.MatchPrefixSet]
-            PrefixSet = "ps1"
-          [PolicyDefinitions.PolicyDefinitionList.Statements.StatementList.Conditions.MatchNeighborSet]
-            NeighborSet = "ns1"
-        [PolicyDefinitions.PolicyDefinitionList.Statements.StatementList.Actions]
-          [PolicyDefinitions.PolicyDefinitionList.Statements.StatementList.Actions.RouteDisposition]
-            RejectRoute = true
-      # second statement - (2)
-      [[PolicyDefinitions.PolicyDefinitionList.Statements.StatementList]]
-        Name = "statement2"
-        [PolicyDefinitions.PolicyDefinitionList.Statements.StatementList.Conditions]
-          [PolicyDefinitions.PolicyDefinitionList.Statements.StatementList.Conditions.MatchPrefixSet]
-            PrefixSet = "ps2"
-            MatchSetOptions = "any"
-          [PolicyDefinitions.PolicyDefinitionList.Statements.StatementList.Conditions.MatchNeighborSet]
-            NeighborSet = "ns2"
-            MatchSetOptions = "any"
-        [PolicyDefinitions.PolicyDefinitionList.Statements.StatementList.Actions]
-          [PolicyDefinitions.PolicyDefinitionList.Statements.StatementList.Actions.RouteDisposition]
-            RejectRoute = true
+ [[policy-definitions]]
+   name = "policy1"
+   # first statement - (1)
+   [[policy-definitions.statements]]
+     name = "statement1"
+     [policy-definitions.statements.conditions.match-prefix-set]
+       prefix-set = "ps1"
+     [policy-definitions.statements.conditions.match-neighbor-set]
+       neighbor-set = "ns1"
+     [policy-definitions.statements.actions.route-dispodition]
+       reject-route = true
+   # second statement - (2)
+   [[policy-definitions.statements]]
+     name = "statement2"
+     [policy-definitions.statements.conditions.match-prefix-set]
+       prefix-set = "ps2"
+     [policy-definitions.statements.conditions.match-neighbor-set]
+       neighbor-set = "ns2"
+     [policy-definitions.statements.actions.route-dispodition]
+       reject-route = true
  ```
   - if a route matches the condition inside the first statement(1), GoBGP applies its action and quits the policy evaluation.
 
@@ -651,37 +590,30 @@ You can write condition and action under Statements.
  - example 3
   - If you want to add other policies, just add PolicyDefinitionList block following the first one like this
 
- ```
+ ```toml
  # example 3
  # first policy
-[PolicyDefinitions]
-  [[PolicyDefinitions.PolicyDefinitionList]]
-    Name = "policy1"
-    [PolicyDefinitions.PolicyDefinitionList.Statements]
-      [[PolicyDefinitions.PolicyDefinitionList.Statements.StatementList]]
-        Name = "statement1"
-        [PolicyDefinitions.PolicyDefinitionList.Statements.StatementList.Conditions]
-          [PolicyDefinitions.PolicyDefinitionList.Statements.StatementList.Conditions.MatchPrefixSet]
-            PrefixSet = "ps1"
-          [PolicyDefinitions.PolicyDefinitionList.Statements.StatementList.Conditions.MatchNeighborSet]
-            NeighborSet = "ns1"
-        [PolicyDefinitions.PolicyDefinitionList.Statements.StatementList.Actions]
-          [PolicyDefinitions.PolicyDefinitionList.Statements.StatementList.Actions.RouteDisposition]
-            RejectRoute = true
-  # second policy
-  [[PolicyDefinitions.PolicyDefinitionList]]
-    Name = "policy2"
-    [PolicyDefinitions.PolicyDefinitionList.Statements]
-      [[PolicyDefinitions.PolicyDefinitionList.Statements.StatementList]]
-        Name = "statement2"
-        [PolicyDefinitions.PolicyDefinitionList.Statements.StatementList.Conditions]
-          [PolicyDefinitions.PolicyDefinitionList.Statements.StatementList.Conditions.MatchPrefixSet]
-            PrefixSet = "ps2"
-          [PolicyDefinitions.PolicyDefinitionList.Statements.StatementList.Conditions.MatchNeighborSet]
-            NeighborSet = "ns2"
-        [PolicyDefinitions.PolicyDefinitionList.Statements.StatementList.Actions]
-          [PolicyDefinitions.PolicyDefinitionList.Statements.StatementList.Actions.RouteDisposition]
-            RejectRoute = true
+ [[policy-definitions]]
+    name = "policy1"
+    [[policy-definitions.statements]]
+      name = "statement1"
+      [policy-definitions.statements.conditions.match-prefix-set]
+        prefix-set = "ps1"
+      [policy-definitions.statements.conditions.match-neighbor-set]
+        neighbor-set = "ns1"
+      [policy-definitions.statements.actions.route-dispodition]
+        reject-route = true
+ # second policy
+ [[policy-definitions]]
+    name = "policy2"
+    [[policy-definitions.statements]]
+      name = "statement2"
+      [policy-definitions.statements.conditions.match-prefix-set]
+        prefix-set = "ps2"
+      [policy-definitions.statements.conditions.match-neighbor-set]
+        neighbor-set = "ns2"
+      [policy-definitions.statements.actions.route-dispodition]
+        reject-route = true
  ```
 
  - example 4
@@ -695,41 +627,36 @@ You can write condition and action under Statements.
 
   - If a route matches all these conditions, the route is accepted and added community "65100:20" and subtracted 200 from med value and prepended 65005 five times in its AS_PATH attribute.
 
- ```
+ ```toml
  # example 4
-[PolicyDefinitions]
-  [[PolicyDefinitions.PolicyDefinitionList]]
-    Name = "policy1"
-    [PolicyDefinitions.PolicyDefinitionList.Statements]
-      [[PolicyDefinitions.PolicyDefinitionList.Statements.StatementList]]
-        Name = "statement1"
-        [PolicyDefinitions.PolicyDefinitionList.Statements.StatementList.Conditions]
-          [PolicyDefinitions.PolicyDefinitionList.Statements.StatementList.Conditions.MatchPrefixSet]
-            PrefixSet = "ps1"
-          [PolicyDefinitions.PolicyDefinitionList.Statements.StatementList.Conditions.MatchNeighborSet]
-            NeighborSet = "ns1"
-          [PolicyDefinitions.PolicyDefinitionList.Statements.StatementList.Conditions.BgpConditions]
-            [PolicyDefinitions.PolicyDefinitionList.Statements.StatementList.Conditions.BgpConditions.MatchCommunitySet]
-              CommunitySet = "community1"
-            [PolicyDefinitions.PolicyDefinitionList.Statements.StatementList.Conditions.BgpConditions.MatchExtCommunitySet]
-              ExtCommunitySet = "ecommunity1"
-            [PolicyDefinitions.PolicyDefinitionList.Statements.StatementList.Conditions.BgpConditions.MatchAsPathSet]
-              AsPathSet = "aspath1"
-            [PolicyDefinitions.PolicyDefinitionList.Statements.StatementList.Conditions.BgpConditions.AsPathLength]
-              Operator = "eq"
-              Value = 2
-        [PolicyDefinitions.PolicyDefinitionList.Statements.StatementList.Actions]
-          [PolicyDefinitions.PolicyDefinitionList.Statements.StatementList.Actions.RouteDisposition]
-            AcceptRoute = true
-          [PolicyDefinitions.PolicyDefinitionList.Statements.StatementList.Actions.BgpActions]
-            SetMed = "-200"
-            [PolicyDefinitions.PolicyDefinitionList.Statements.StatementList.Actions.BgpActions.SetAsPathPrepend]
-              As = "65005"
-              RepeatN = 5
-            [PolicyDefinitions.PolicyDefinitionList.Statements.StatementList.Actions.BgpActions.SetCommunity]
-              Options = "ADD"
-              [PolicyDefinitions.PolicyDefinitionList.Statements.StatementList.Actions.BgpActions.SetCommunity.SetCommunityMethod]
-                Communities = ["65100:20"]
+ [[policy-definitions]]
+    name = "policy1"
+    [[policy-definitions.statements]]
+      name = "statement1"
+      [policy-definitions.statements.conditions.match-prefix-set]
+        prefix-set = "ps1"
+      [policy-definitions.statements.conditions.match-neighbor-set]
+        neighbor-set = "ns1"
+      [policy-definitions.statements.conditions.bgp-conditions.match-community-set]
+        community-set = "community1"
+      [policy-definitions.statements.conditions.bgp-conditions.match-ext-community-set]
+        community-set = "ecommunity1"
+      [policy-definitions.statements.conditions.bgp-conditions.match-as-path-set]
+        community-set = "aspath1"
+      [policy-definitions.statements.conditions.bgp-conditions.as-path-length]
+        operator = "eq"
+        value = 2
+      [policy-definitions.statements.actions.route-dispodition]
+        accept-route = true
+      [policy-definitions.statements.actions.bgp-actions]
+        set-med = "-200"
+        [policy-definitions.statements.actions.bgp-actions.set-as-path-prepend]
+          as = "65005"
+          repeat-n = 5
+        [policy-definitions.statements.actions.bgp-actions.set-community]
+          options = "ADD"
+          [policy-definitions.statements.actions.bgp-actions.set-community.set-community-method]
+            communities-list = ["65100:20"]
  ```
 
 
