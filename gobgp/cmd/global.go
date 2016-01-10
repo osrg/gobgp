@@ -39,28 +39,37 @@ const (
 	ACTION
 	RT
 	ENCAP
+	VALID
+	NOT_FOUND
+	INVALID
 )
 
 var ExtCommNameMap = map[ExtCommType]string{
-	ACCEPT:   "accept",
-	DISCARD:  "discard",
-	RATE:     "rate-limit",
-	REDIRECT: "redirect",
-	MARK:     "mark",
-	ACTION:   "action",
-	RT:       "rt",
-	ENCAP:    "encap",
+	ACCEPT:    "accept",
+	DISCARD:   "discard",
+	RATE:      "rate-limit",
+	REDIRECT:  "redirect",
+	MARK:      "mark",
+	ACTION:    "action",
+	RT:        "rt",
+	ENCAP:     "encap",
+	VALID:     "valid",
+	NOT_FOUND: "not-found",
+	INVALID:   "invalid",
 }
 
 var ExtCommValueMap = map[string]ExtCommType{
-	ExtCommNameMap[ACCEPT]:   ACCEPT,
-	ExtCommNameMap[DISCARD]:  DISCARD,
-	ExtCommNameMap[RATE]:     RATE,
-	ExtCommNameMap[REDIRECT]: REDIRECT,
-	ExtCommNameMap[MARK]:     MARK,
-	ExtCommNameMap[ACTION]:   ACTION,
-	ExtCommNameMap[RT]:       RT,
-	ExtCommNameMap[ENCAP]:    ENCAP,
+	ExtCommNameMap[ACCEPT]:    ACCEPT,
+	ExtCommNameMap[DISCARD]:   DISCARD,
+	ExtCommNameMap[RATE]:      RATE,
+	ExtCommNameMap[REDIRECT]:  REDIRECT,
+	ExtCommNameMap[MARK]:      MARK,
+	ExtCommNameMap[ACTION]:    ACTION,
+	ExtCommNameMap[RT]:        RT,
+	ExtCommNameMap[ENCAP]:     ENCAP,
+	ExtCommNameMap[VALID]:     VALID,
+	ExtCommNameMap[NOT_FOUND]: NOT_FOUND,
+	ExtCommNameMap[INVALID]:   INVALID,
 }
 
 func rateLimitParser(args []string) ([]bgp.ExtendedCommunityInterface, error) {
@@ -189,15 +198,40 @@ func encapParser(args []string) ([]bgp.ExtendedCommunityInterface, error) {
 	return []bgp.ExtendedCommunityInterface{o}, nil
 }
 
+func validationParser(args []string) ([]bgp.ExtendedCommunityInterface, error) {
+	if len(args) < 1 {
+		return nil, fmt.Errorf("invalid validation state")
+	}
+	var typ bgp.ValidationState
+	switch args[0] {
+	case "valid":
+		typ = bgp.VALIDATION_STATE_VALID
+	case "not-found":
+		typ = bgp.VALIDATION_STATE_NOT_FOUND
+	case "invalid":
+		typ = bgp.VALIDATION_STATE_INVALID
+	default:
+		return nil, fmt.Errorf("invalid validation state")
+	}
+	isTransitive := false
+	o := bgp.NewOpaqueExtended(isTransitive)
+	o.SubType = bgp.EC_SUBTYPE_ORIGIN_VALIDATION
+	o.Value = &bgp.ValidationExtended{typ}
+	return []bgp.ExtendedCommunityInterface{o}, nil
+}
+
 var ExtCommParserMap = map[ExtCommType]func([]string) ([]bgp.ExtendedCommunityInterface, error){
-	ACCEPT:   nil,
-	DISCARD:  rateLimitParser,
-	RATE:     rateLimitParser,
-	REDIRECT: redirectParser,
-	MARK:     markParser,
-	ACTION:   actionParser,
-	RT:       rtParser,
-	ENCAP:    encapParser,
+	ACCEPT:    nil,
+	DISCARD:   rateLimitParser,
+	RATE:      rateLimitParser,
+	REDIRECT:  redirectParser,
+	MARK:      markParser,
+	ACTION:    actionParser,
+	RT:        rtParser,
+	ENCAP:     encapParser,
+	VALID:     validationParser,
+	NOT_FOUND: validationParser,
+	INVALID:   validationParser,
 }
 
 func ParseExtendedCommunities(input string) ([]bgp.ExtendedCommunityInterface, error) {
@@ -492,7 +526,7 @@ func ParsePath(rf bgp.RouteFamily, args []string) (*api.Path, error) {
 
 	switch rf {
 	case bgp.RF_IPv4_UC, bgp.RF_IPv6_UC:
-		if len(args) != 1 {
+		if len(args) < 1 {
 			return nil, fmt.Errorf("invalid format")
 		}
 		ip, net, err := net.ParseCIDR(args[0])
@@ -511,6 +545,9 @@ func ParsePath(rf bgp.RouteFamily, args []string) (*api.Path, error) {
 			}
 			nlri = bgp.NewIPv6AddrPrefix(uint8(ones), ip.String())
 		}
+
+		extcomms = args[1:]
+
 	case bgp.RF_IPv4_VPN, bgp.RF_IPv6_VPN:
 		if len(args) < 3 || args[1] != "rd" {
 			return nil, fmt.Errorf("invalid format")
