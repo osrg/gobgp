@@ -554,6 +554,11 @@ func showStatement(args []string) error {
 			m = append(m, p)
 		}
 	}
+	if globalOpts.Json {
+		j, _ := json.Marshal(m)
+		fmt.Println(string(j))
+		return nil
+	}
 	if globalOpts.Quiet {
 		for _, s := range m {
 			fmt.Println(s.Name)
