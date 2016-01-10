@@ -1554,10 +1554,11 @@ func (c *RpkiValidationCondition) Set() DefinedSet {
 }
 
 func NewRpkiValidationConditionFromApiStruct(a int32) (*RpkiValidationCondition, error) {
-	if a == 0 {
+	if a < 1 {
 		return nil, nil
 	}
-	typ := config.RpkiValidationResultType(a)
+	var typ config.RpkiValidationResultType
+	typ = typ.FromInt(int(a))
 	return NewRpkiValidationCondition(typ)
 }
 
