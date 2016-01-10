@@ -98,33 +98,36 @@ const (
 type ExtendedCommunityAttrSubType uint8
 
 const (
-	EC_SUBTYPE_ORIGIN_VALIDATION       ExtendedCommunityAttrSubType = 0x00
-	EC_SUBTYPE_ROUTE_TARGET            ExtendedCommunityAttrSubType = 0x02
-	EC_SUBTYPE_ROUTE_ORIGIN            ExtendedCommunityAttrSubType = 0x03
-	EC_SUBTYPE_LINK_BANDWIDTH          ExtendedCommunityAttrSubType = 0x04
-	EC_SUBTYPE_GENERIC                 ExtendedCommunityAttrSubType = 0x04
-	EC_SUBTYPE_OSPF_DOMAIN_ID          ExtendedCommunityAttrSubType = 0x05
-	EC_SUBTYPE_OSPF_ROUTE_TYPE         ExtendedCommunityAttrSubType = 0x06
-	EC_SUBTYPE_OSPF_ROUTE_ID           ExtendedCommunityAttrSubType = 0x07
-	EC_SUBTYPE_BGP_DATA_COLLECTION     ExtendedCommunityAttrSubType = 0x08
-	EC_SUBTYPE_SOURCE_AS               ExtendedCommunityAttrSubType = 0x09
-	EC_SUBTYPE_L2VPN_ID                ExtendedCommunityAttrSubType = 0x0A
-	EC_SUBTYPE_L2_INFO                 ExtendedCommunityAttrSubType = 0x0A
-	EC_SUBTYPE_VRF_ROUTE_IMPORT        ExtendedCommunityAttrSubType = 0x0B
-	EC_SUBTYPE_COLOR                   ExtendedCommunityAttrSubType = 0x0B
-	EC_SUBTYPE_ENCAPSULATION           ExtendedCommunityAttrSubType = 0x0C
-	EC_SUBTYPE_DEFAULT_GATEWAY         ExtendedCommunityAttrSubType = 0x0D
-	EC_SUBTYPE_CISCO_VPN_DISTINGUISHER ExtendedCommunityAttrSubType = 0x10
-	EC_SUBTYPE_UUID_BASED_RT           ExtendedCommunityAttrSubType = 0x11
+	EC_SUBTYPE_ROUTE_TARGET            ExtendedCommunityAttrSubType = 0x02 // EC_TYPE: 0x00, 0x01, 0x02
+	EC_SUBTYPE_ROUTE_ORIGIN            ExtendedCommunityAttrSubType = 0x03 // EC_TYPE: 0x00, 0x01, 0x02
+	EC_SUBTYPE_LINK_BANDWIDTH          ExtendedCommunityAttrSubType = 0x04 // EC_TYPE: 0x40
+	EC_SUBTYPE_GENERIC                 ExtendedCommunityAttrSubType = 0x04 // EC_TYPE: 0x02, 0x42
+	EC_SUBTYPE_OSPF_DOMAIN_ID          ExtendedCommunityAttrSubType = 0x05 // EC_TYPE: 0x00, 0x01, 0x02
+	EC_SUBTYPE_OSPF_ROUTE_ID           ExtendedCommunityAttrSubType = 0x07 // EC_TYPE: 0x01
+	EC_SUBTYPE_BGP_DATA_COLLECTION     ExtendedCommunityAttrSubType = 0x08 // EC_TYPE: 0x00, 0x02
+	EC_SUBTYPE_SOURCE_AS               ExtendedCommunityAttrSubType = 0x09 // EC_TYPE: 0x00, 0x02
+	EC_SUBTYPE_L2VPN_ID                ExtendedCommunityAttrSubType = 0x0A // EC_TYPE: 0x00, 0x01
+	EC_SUBTYPE_VRF_ROUTE_IMPORT        ExtendedCommunityAttrSubType = 0x0B // EC_TYPE: 0x01
+	EC_SUBTYPE_CISCO_VPN_DISTINGUISHER ExtendedCommunityAttrSubType = 0x10 // EC_TYPE: 0x00, 0x01, 0x02
 
-	EC_SUBTYPE_FLOWSPEC_TRAFFIC_RATE   ExtendedCommunityAttrSubType = 0x06
-	EC_SUBTYPE_FLOWSPEC_TRAFFIC_ACTION ExtendedCommunityAttrSubType = 0x07
-	EC_SUBTYPE_FLOWSPEC_REDIRECT       ExtendedCommunityAttrSubType = 0x08
-	EC_SUBTYPE_FLOWSPEC_TRAFFIC_REMARK ExtendedCommunityAttrSubType = 0x09
+	EC_SUBTYPE_OSPF_ROUTE_TYPE ExtendedCommunityAttrSubType = 0x06 // EC_TYPE: 0x03
+	EC_SUBTYPE_COLOR           ExtendedCommunityAttrSubType = 0x0B // EC_TYPE: 0x03
+	EC_SUBTYPE_ENCAPSULATION   ExtendedCommunityAttrSubType = 0x0C // EC_TYPE: 0x03
+	EC_SUBTYPE_DEFAULT_GATEWAY ExtendedCommunityAttrSubType = 0x0D // EC_TYPE: 0x03
 
-	EC_SUBTYPE_MAC_MOBILITY ExtendedCommunityAttrSubType = 0x00
-	EC_SUBTYPE_ESI_LABEL    ExtendedCommunityAttrSubType = 0x01
-	EC_SUBTYPE_ES_IMPORT    ExtendedCommunityAttrSubType = 0x02
+	EC_SUBTYPE_ORIGIN_VALIDATION ExtendedCommunityAttrSubType = 0x00 // EC_TYPE: 0x43
+
+	EC_SUBTYPE_FLOWSPEC_TRAFFIC_RATE   ExtendedCommunityAttrSubType = 0x06 // EC_TYPE: 0x80
+	EC_SUBTYPE_FLOWSPEC_TRAFFIC_ACTION ExtendedCommunityAttrSubType = 0x07 // EC_TYPE: 0x80
+	EC_SUBTYPE_FLOWSPEC_REDIRECT       ExtendedCommunityAttrSubType = 0x08 // EC_TYPE: 0x80
+	EC_SUBTYPE_FLOWSPEC_TRAFFIC_REMARK ExtendedCommunityAttrSubType = 0x09 // EC_TYPE: 0x80
+	EC_SUBTYPE_L2_INFO                 ExtendedCommunityAttrSubType = 0x0A // EC_TYPE: 0x80
+
+	EC_SUBTYPE_MAC_MOBILITY ExtendedCommunityAttrSubType = 0x00 // EC_TYPE: 0x06
+	EC_SUBTYPE_ESI_LABEL    ExtendedCommunityAttrSubType = 0x01 // EC_TYPE: 0x06
+	EC_SUBTYPE_ES_IMPORT    ExtendedCommunityAttrSubType = 0x02 // EC_TYPE: 0x06
+
+	EC_SUBTYPE_UUID_BASED_RT ExtendedCommunityAttrSubType = 0x11
 )
 
 type TunnelType uint16
@@ -4602,6 +4605,41 @@ func (v *DefaultOpaqueExtendedValue) String() string {
 	return fmt.Sprintf("%d", d)
 }
 
+type ValidationState uint8
+
+const (
+	VALIDATION_STATE_VALID     ValidationState = 0
+	VALIDATION_STATE_NOT_FOUND ValidationState = 1
+	VALIDATION_STATE_INVALID   ValidationState = 2
+)
+
+func (s ValidationState) String() string {
+	switch s {
+	case VALIDATION_STATE_VALID:
+		return "valid"
+	case VALIDATION_STATE_NOT_FOUND:
+		return "not-found"
+	case VALIDATION_STATE_INVALID:
+		return "invalid"
+	}
+	return fmt.Sprintf("unknown validatation state(%d)", s)
+}
+
+type ValidationExtended struct {
+	Value ValidationState
+}
+
+func (e *ValidationExtended) Serialize() ([]byte, error) {
+	buf := make([]byte, 7)
+	buf[0] = byte(EC_SUBTYPE_ORIGIN_VALIDATION)
+	buf[6] = byte(e.Value)
+	return buf, nil
+}
+
+func (e *ValidationExtended) String() string {
+	return e.Value.String()
+}
+
 type ColorExtended struct {
 	Value uint32
 }
@@ -4663,20 +4701,33 @@ func (e *OpaqueExtended) DecodeFromBytes(data []byte) error {
 	}
 	e.SubType = ExtendedCommunityAttrSubType(data[0])
 
-	switch e.SubType {
-	case EC_SUBTYPE_COLOR:
-		v := binary.BigEndian.Uint32(data[3:7])
-		e.Value = &ColorExtended{
-			Value: v,
+	if e.IsTransitive {
+		switch e.SubType {
+		case EC_SUBTYPE_COLOR:
+			v := binary.BigEndian.Uint32(data[3:7])
+			e.Value = &ColorExtended{
+				Value: v,
+			}
+		case EC_SUBTYPE_ENCAPSULATION:
+			t := TunnelType(binary.BigEndian.Uint16(data[5:7]))
+			e.Value = &EncapExtended{
+				TunnelType: t,
+			}
+		default:
+			e.Value = &DefaultOpaqueExtendedValue{
+				Value: data, //7byte
+			}
 		}
-	case EC_SUBTYPE_ENCAPSULATION:
-		t := TunnelType(binary.BigEndian.Uint16(data[5:7]))
-		e.Value = &EncapExtended{
-			TunnelType: t,
-		}
-	default:
-		e.Value = &DefaultOpaqueExtendedValue{
-			Value: data, //7byte
+	} else {
+		switch e.SubType {
+		case EC_SUBTYPE_ORIGIN_VALIDATION:
+			e.Value = &ValidationExtended{
+				Value: ValidationState(data[6]),
+			}
+		default:
+			e.Value = &DefaultOpaqueExtendedValue{
+				Value: data, //7byte
+			}
 		}
 	}
 	return nil
@@ -4690,6 +4741,7 @@ func (e *OpaqueExtended) Serialize() ([]byte, error) {
 		buf[0] = byte(EC_TYPE_NON_TRANSITIVE_OPAQUE)
 	}
 	bbuf, err := e.Value.Serialize()
+	e.SubType = ExtendedCommunityAttrSubType(bbuf[0])
 	if err != nil {
 		return nil, err
 	}
