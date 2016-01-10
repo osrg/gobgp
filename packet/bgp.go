@@ -4559,6 +4559,25 @@ func NewFourOctetAsSpecificExtended(subtype ExtendedCommunityAttrSubType, as uin
 }
 
 func ParseExtendedCommunity(subtype ExtendedCommunityAttrSubType, com string) (ExtendedCommunityInterface, error) {
+	if subtype == EC_SUBTYPE_ORIGIN_VALIDATION {
+		var value ValidationState
+		switch com {
+		case VALIDATION_STATE_VALID.String():
+			value = VALIDATION_STATE_VALID
+		case VALIDATION_STATE_NOT_FOUND.String():
+			value = VALIDATION_STATE_NOT_FOUND
+		case VALIDATION_STATE_INVALID.String():
+			value = VALIDATION_STATE_INVALID
+		default:
+			return nil, fmt.Errorf("invalid validation state")
+		}
+		return &OpaqueExtended{
+			SubType: EC_SUBTYPE_ORIGIN_VALIDATION,
+			Value: &ValidationExtended{
+				Value: value,
+			},
+		}, nil
+	}
 	elems, err := parseRdAndRt(com)
 	if err != nil {
 		return nil, err

@@ -843,19 +843,33 @@ func ParseCommunity(arg string) (uint32, error) {
 
 func ParseExtCommunity(arg string) (bgp.ExtendedCommunityInterface, error) {
 	var subtype bgp.ExtendedCommunityAttrSubType
+	var value string
 	elems := strings.SplitN(arg, ":", 2)
-	if len(elems) < 2 {
-		return nil, fmt.Errorf("invalid ext-community format([rt|soo]:<value>)")
+
+	isValidationState := func(s string) bool {
+		s = strings.ToLower(s)
+		r := s == bgp.VALIDATION_STATE_VALID.String()
+		r = r || s == bgp.VALIDATION_STATE_NOT_FOUND.String()
+		return r || s == bgp.VALIDATION_STATE_INVALID.String()
 	}
-	switch strings.ToLower(elems[0]) {
-	case "rt":
-		subtype = bgp.EC_SUBTYPE_ROUTE_TARGET
-	case "soo":
-		subtype = bgp.EC_SUBTYPE_ROUTE_ORIGIN
-	default:
-		return nil, fmt.Errorf("unknown ext-community subtype. rt, soo is supported")
+	if len(elems) < 2 && (len(elems) < 1 && !isValidationState(elems[0])) {
+		return nil, fmt.Errorf("invalid ext-community (rt|soo):<value> | valid | not-found | invalid")
 	}
-	return bgp.ParseExtendedCommunity(subtype, elems[1])
+	if isValidationState(elems[0]) {
+		subtype = bgp.EC_SUBTYPE_ORIGIN_VALIDATION
+		value = elems[0]
+	} else {
+		switch strings.ToLower(elems[0]) {
+		case "rt":
+			subtype = bgp.EC_SUBTYPE_ROUTE_TARGET
+		case "soo":
+			subtype = bgp.EC_SUBTYPE_ROUTE_ORIGIN
+		default:
+			return nil, fmt.Errorf("invalid ext-community (rt|soo):<value> | valid | not-found | invalid")
+		}
+		value = elems[1]
+	}
+	return bgp.ParseExtendedCommunity(subtype, value)
 }
 
 func ParseCommunityRegexp(arg string) (*regexp.Regexp, error) {
@@ -942,6 +956,8 @@ func (s *ExtCommunitySet) ToApiStruct() *api.DefinedSet {
 			return fmt.Sprintf("rt:%s", arg)
 		case bgp.EC_SUBTYPE_ROUTE_ORIGIN:
 			return fmt.Sprintf("soo:%s", arg)
+		case bgp.EC_SUBTYPE_ORIGIN_VALIDATION:
+			return arg
 		default:
 			return fmt.Sprintf("%d:%s", s.subtypeList[idx], arg)
 		}
@@ -1807,6 +1823,8 @@ func (a *ExtCommunityAction) ToApiStruct() *api.CommunityAction {
 			return fmt.Sprintf("rt:%s", arg)
 		case bgp.EC_SUBTYPE_ROUTE_ORIGIN:
 			return fmt.Sprintf("soo:%s", arg)
+		case bgp.EC_SUBTYPE_ORIGIN_VALIDATION:
+			return arg
 		default:
 			return fmt.Sprintf("%d:%s", a.subtypeList[idx], arg)
 		}
