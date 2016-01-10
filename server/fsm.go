@@ -581,10 +581,15 @@ func open2Cap(open *bgp.BGPOpen, n *config.Neighbor) (map[bgp.BGPCapabilityCode]
 		}
 	}
 
-	for rf, _ := range rfMap {
-		if _, y := r[rf]; !y {
-			delete(rfMap, rf)
+	if len(r) > 0 {
+		for rf, _ := range rfMap {
+			if _, y := r[rf]; !y {
+				delete(rfMap, rf)
+			}
 		}
+	} else {
+		rfMap = make(map[bgp.RouteFamily]bool)
+		rfMap[bgp.RF_IPv4_UC] = true
 	}
 	return capMap, rfMap
 }
