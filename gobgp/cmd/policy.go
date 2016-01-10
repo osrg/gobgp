@@ -742,7 +742,7 @@ func modCondition(name, op string, args []string) error {
 		}
 	case "rpki":
 		if len(args) < 1 {
-			return fmt.Errorf("%s rpki { valid | invalid | not-found }")
+			return fmt.Errorf("%s rpki { valid | invalid | not-found }", usage)
 		}
 		switch strings.ToLower(args[0]) {
 		case "valid":
@@ -752,7 +752,7 @@ func modCondition(name, op string, args []string) error {
 		case "not-found":
 			stmt.Conditions.RpkiResult = int32(config.RPKI_VALIDATION_RESULT_TYPE_NOT_FOUND.ToInt())
 		default:
-			return fmt.Errorf("%s rpki { valid | invalid | not-found }")
+			return fmt.Errorf("%s rpki { valid | invalid | not-found }", usage)
 		}
 	}
 	_, err := client.ModStatement(context.Background(), arg)
