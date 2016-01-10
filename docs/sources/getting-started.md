@@ -64,6 +64,22 @@ $ sudo -E gobgpd -f gobgpd.conf
 If you use a configuration format other than `toml`, you must specify the format
 by `-t` option.
 
+equivalent yaml configuration.
+
+```yaml
+global:
+    config:
+        as: 64512
+        router-id: 192.168.255.1
+neighbors:
+    - config:
+        neighbor-address: 10.0.255.1
+        peer-as: 65001
+    - config:
+        neighbor-address: 10.0.255.2
+        peer-as: 65002
+```
+
 ```bash
 $ sudo -E gobgpd -t yaml gobgpd.yml
 {"level":"info","msg":"Peer 10.0.255.1 is added","time":"2015-04-06T20:32:28+09:00"}
