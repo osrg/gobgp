@@ -24,7 +24,7 @@ the configuration file used in [Getting Started](https://github.com/osrg/gobgp/b
   [neighbors.config]
     neighbor-address = "10.0.255.1"
     peer-as = 65001
-    auto-password = "hoge1"
+    auth-password = "hoge1"
   [neighbors.transport.config]
     passive-mode = true
   [neighbors.route-server.config]
@@ -34,7 +34,7 @@ the configuration file used in [Getting Started](https://github.com/osrg/gobgp/b
   [neighbors.config]
     neighbor-address = "10.0.255.2"
     peer-as = 65002
-    auto-password = "hoge2"
+    auth-password = "hoge2"
   [neighbors.transport.config]
     passive-mode = true
   [neighbors.route-server.config]
