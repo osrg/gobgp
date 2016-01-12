@@ -1246,7 +1246,7 @@ func (server *BgpServer) Api2PathList(resource api.Resource, name string, ApiPat
 			pattr = append(pattr, bgp.NewPathAttributeExtendedCommunities(extcomms))
 		}
 
-		paths = append(paths, table.NewPath(pi, nlri, path.IsWithdraw, pattr, false, time.Now(), path.NoImplicitWithdraw))
+		paths = append(paths, table.NewPath(pi, nlri, path.IsWithdraw, pattr, time.Now(), path.NoImplicitWithdraw))
 
 	}
 	return paths, nil

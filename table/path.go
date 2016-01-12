@@ -29,23 +29,22 @@ import (
 )
 
 type Path struct {
-	source                 *PeerInfo
-	IsWithdraw             bool
-	nlri                   bgp.AddrPrefixInterface
-	pathAttrs              []bgp.PathAttributeInterface
-	medSetByTargetNeighbor bool
-	timestamp              time.Time
-	NoImplicitWithdraw     bool
-	Validation             config.RpkiValidationResultType
-	IsFromZebra            bool
-	Owner                  net.IP
-	reason                 BestPathReason
-	filtered               map[string]PolicyDirection
-	key                    string
-	Uuid                   []byte
+	source             *PeerInfo
+	IsWithdraw         bool
+	nlri               bgp.AddrPrefixInterface
+	pathAttrs          []bgp.PathAttributeInterface
+	timestamp          time.Time
+	NoImplicitWithdraw bool
+	Validation         config.RpkiValidationResultType
+	IsFromZebra        bool
+	Owner              net.IP
+	reason             BestPathReason
+	filtered           map[string]PolicyDirection
+	key                string
+	Uuid               []byte
 }
 
-func NewPath(source *PeerInfo, nlri bgp.AddrPrefixInterface, isWithdraw bool, pattrs []bgp.PathAttributeInterface, medSetByTargetNeighbor bool, timestamp time.Time, noImplicitWithdraw bool) *Path {
+func NewPath(source *PeerInfo, nlri bgp.AddrPrefixInterface, isWithdraw bool, pattrs []bgp.PathAttributeInterface, timestamp time.Time, noImplicitWithdraw bool) *Path {
 	if !isWithdraw && pattrs == nil {
 		log.WithFields(log.Fields{
 			"Topic": "Table",
@@ -61,15 +60,14 @@ func NewPath(source *PeerInfo, nlri bgp.AddrPrefixInterface, isWithdraw bool, pa
 	}
 
 	return &Path{
-		source:                 source,
-		IsWithdraw:             isWithdraw,
-		nlri:                   nlri,
-		pathAttrs:              pattrs,
-		medSetByTargetNeighbor: medSetByTargetNeighbor,
-		timestamp:              timestamp,
-		NoImplicitWithdraw:     noImplicitWithdraw,
-		Owner:                  owner,
-		filtered:               make(map[string]PolicyDirection),
+		source:             source,
+		IsWithdraw:         isWithdraw,
+		nlri:               nlri,
+		pathAttrs:          pattrs,
+		timestamp:          timestamp,
+		NoImplicitWithdraw: noImplicitWithdraw,
+		Owner:              owner,
+		filtered:           make(map[string]PolicyDirection),
 	}
 }
 
@@ -221,7 +219,7 @@ func (path *Path) Clone(owner net.IP, isWithdraw bool) *Path {
 		newPathAttrs[i] = v
 	}
 
-	p := NewPath(path.source, path.nlri, isWithdraw, newPathAttrs, false, path.timestamp, path.NoImplicitWithdraw)
+	p := NewPath(path.source, path.nlri, isWithdraw, newPathAttrs, path.timestamp, path.NoImplicitWithdraw)
 	p.Validation = path.Validation
 	p.Owner = owner
 	p.key = path.key
@@ -291,14 +289,6 @@ func (path *Path) SetNexthop(nexthop net.IP) {
 
 func (path *Path) GetNlri() bgp.AddrPrefixInterface {
 	return path.nlri
-}
-
-func (path *Path) setMedSetByTargetNeighbor(medSetByTargetNeighbor bool) {
-	path.medSetByTargetNeighbor = medSetByTargetNeighbor
-}
-
-func (path *Path) getMedSetByTargetNeighbor() bool {
-	return path.medSetByTargetNeighbor
 }
 
 func (path *Path) GetPathAttrs() []bgp.PathAttributeInterface {
