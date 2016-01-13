@@ -285,12 +285,12 @@ func ShowRoute(pathList []*Path, showAge, showBest, showLabel, isMonitor, printH
 		}
 
 		best := ""
-		switch config.RpkiValidationResultType(p.Validation) {
-		case config.RPKI_VALIDATION_RESULT_TYPE_NOT_FOUND:
+		switch int(p.Validation) {
+		case config.RPKI_VALIDATION_RESULT_TYPE_NOT_FOUND.ToInt():
 			best += "N"
-		case config.RPKI_VALIDATION_RESULT_TYPE_VALID:
+		case config.RPKI_VALIDATION_RESULT_TYPE_VALID.ToInt():
 			best += "V"
-		case config.RPKI_VALIDATION_RESULT_TYPE_INVALID:
+		case config.RPKI_VALIDATION_RESULT_TYPE_INVALID.ToInt():
 			best += "I"
 		}
 		if showBest {
