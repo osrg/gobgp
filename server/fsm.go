@@ -827,7 +827,7 @@ func (h *FSMHandler) sendMessageloop() error {
 			fsm.bgpMessageStateUpdate(0, false)
 			return nil
 		}
-		if err := conn.SetWriteDeadline(time.Now().Add(time.Second * 30)); err != nil {
+		if err := conn.SetWriteDeadline(time.Now().Add(time.Second * time.Duration(fsm.negotiatedHoldTime))); err != nil {
 			h.errorCh <- true
 			conn.Close()
 			return fmt.Errorf("failed to set write deadline")
