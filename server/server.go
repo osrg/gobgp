@@ -556,7 +556,7 @@ func filterpath(peer *Peer, path *table.Path) *table.Path {
 	if !peer.isRouteServerClient() && isASLoop(peer, path) {
 		return nil
 	}
-	return path.Clone(net.ParseIP(remoteAddr), path.IsWithdraw)
+	return path.Clone(peer.fsm.peerInfo.Address, path.IsWithdraw)
 }
 
 func (server *BgpServer) dropPeerAllRoutes(peer *Peer) []*SenderMsg {
@@ -643,7 +643,7 @@ func (server *BgpServer) broadcastValidationResults(results []*api.ROAResult) {
 
 func (server *BgpServer) broadcastBests(bests []*table.Path) {
 	for _, path := range bests {
-		if !path.IsFromZebra {
+		if !path.IsFromZebra() {
 			z := newBroadcastZapiBestMsg(server.zclient, path)
 			if z != nil {
 				server.broadcastMsgs = append(server.broadcastMsgs, z)
@@ -1268,7 +1268,7 @@ func (server *BgpServer) handleModPathRequest(grpcReq *GrpcRequest) []*table.Pat
 				path := func() *table.Path {
 					for _, rf := range server.globalRib.GetRFlist() {
 						for _, path := range server.globalRib.GetPathList(table.GLOBAL_RIB_NAME, rf) {
-							if len(path.Uuid) > 0 && bytes.Equal(path.Uuid, arg.Uuid) {
+							if len(path.UUID()) > 0 && bytes.Equal(path.UUID(), arg.Uuid) {
 								return path
 							}
 						}
@@ -1289,7 +1289,7 @@ func (server *BgpServer) handleModPathRequest(grpcReq *GrpcRequest) []*table.Pat
 			if err == nil {
 				u := uuid.NewV4()
 				uuidBytes = u.Bytes()
-				paths[0].Uuid = uuidBytes
+				paths[0].SetUUID(uuidBytes)
 			}
 		}
 	}

@@ -198,12 +198,6 @@ func UpdatePathAttrs4ByteAs(msg *bgp.BGPUpdate) error {
 	return nil
 }
 
-func cloneAttrSlice(attrs []bgp.PathAttributeInterface) []bgp.PathAttributeInterface {
-	clonedAttrs := make([]bgp.PathAttributeInterface, 0)
-	clonedAttrs = append(clonedAttrs, attrs...)
-	return clonedAttrs
-}
-
 func createUpdateMsgFromPath(path *Path, msg *bgp.BGPMessage) *bgp.BGPMessage {
 	rf := path.GetRouteFamily()
 
@@ -229,37 +223,47 @@ func createUpdateMsgFromPath(path *Path, msg *bgp.BGPMessage) *bgp.BGPMessage {
 	} else {
 		if path.IsWithdraw {
 			if msg != nil {
-				idx, _ := path.getPathAttr(bgp.BGP_ATTR_TYPE_MP_UNREACH_NLRI)
 				u := msg.Body.(*bgp.BGPUpdate)
-				unreach := u.PathAttributes[idx].(*bgp.PathAttributeMpUnreachNLRI)
-				unreach.Value = append(unreach.Value, path.GetNlri())
+				for _, p := range u.PathAttributes {
+					if p.GetType() == bgp.BGP_ATTR_TYPE_MP_UNREACH_NLRI {
+						unreach := p.(*bgp.PathAttributeMpUnreachNLRI)
+						unreach.Value = append(unreach.Value, path.GetNlri())
+					}
+				}
 			} else {
-				clonedAttrs := cloneAttrSlice(path.GetPathAttrs())
-				idx, attr := path.getPathAttr(bgp.BGP_ATTR_TYPE_MP_REACH_NLRI)
+				var nlris []bgp.AddrPrefixInterface
+				attr := path.getPathAttr(bgp.BGP_ATTR_TYPE_MP_REACH_NLRI)
 				if attr == nil {
 					// for bmp post-policy
-					idx, attr := path.getPathAttr(bgp.BGP_ATTR_TYPE_MP_UNREACH_NLRI)
-					reach := attr.(*bgp.PathAttributeMpUnreachNLRI)
-					clonedAttrs[idx] = bgp.NewPathAttributeMpUnreachNLRI(reach.Value)
+					attr = path.getPathAttr(bgp.BGP_ATTR_TYPE_MP_UNREACH_NLRI)
+					nlris = attr.(*bgp.PathAttributeMpUnreachNLRI).Value
 				} else {
-					reach := attr.(*bgp.PathAttributeMpReachNLRI)
-					clonedAttrs[idx] = bgp.NewPathAttributeMpUnreachNLRI(reach.Value)
+					nlris = attr.(*bgp.PathAttributeMpReachNLRI).Value
+				}
+
+				clonedAttrs := path.GetPathAttrs()
+				for i, a := range clonedAttrs {
+					if a.GetType() == bgp.BGP_ATTR_TYPE_MP_UNREACH_NLRI || a.GetType() == bgp.BGP_ATTR_TYPE_MP_REACH_NLRI {
+						clonedAttrs[i] = bgp.NewPathAttributeMpUnreachNLRI(nlris)
+						break
+					}
 				}
 				return bgp.NewBGPUpdateMessage(nil, clonedAttrs, nil)
 			}
 		} else {
 			if msg != nil {
-				idx, _ := path.getPathAttr(bgp.BGP_ATTR_TYPE_MP_REACH_NLRI)
 				u := msg.Body.(*bgp.BGPUpdate)
-				reachAttr := u.PathAttributes[idx].(*bgp.PathAttributeMpReachNLRI)
-				u.PathAttributes[idx] = bgp.NewPathAttributeMpReachNLRI(reachAttr.Nexthop.String(),
-					append(reachAttr.Value, path.GetNlri()))
+				for _, p := range u.PathAttributes {
+					if p.GetType() == bgp.BGP_ATTR_TYPE_MP_REACH_NLRI {
+						reach := p.(*bgp.PathAttributeMpReachNLRI)
+						reach.Value = append(reach.Value, path.GetNlri())
+					}
+				}
 			} else {
 				// we don't need to clone here but we
 				// might merge path to this message in
 				// the future so let's clone anyway.
-				clonedAttrs := cloneAttrSlice(path.GetPathAttrs())
-				return bgp.NewBGPUpdateMessage(nil, clonedAttrs, nil)
+				return bgp.NewBGPUpdateMessage(nil, path.GetPathAttrs(), nil)
 			}
 		}
 	}

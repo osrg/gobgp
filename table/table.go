@@ -72,7 +72,7 @@ func (t *Table) deletePathsByVrf(vrf *Vrf) []*Path {
 	for _, dest := range t.destinations {
 		for _, p := range dest.knownPathList {
 			var rd bgp.RouteDistinguisherInterface
-			nlri := p.nlri
+			nlri := p.GetNlri()
 			switch nlri.(type) {
 			case *bgp.LabeledVPNIPAddrPrefix:
 				rd = nlri.(*bgp.LabeledVPNIPAddrPrefix).RD
@@ -146,7 +146,7 @@ func (t *Table) validatePath(path *Path) {
 			"ReceivedRf": path.GetRouteFamily().String(),
 		}).Error("Invalid path. RouteFamily mismatch")
 	}
-	if _, attr := path.getPathAttr(bgp.BGP_ATTR_TYPE_AS_PATH); attr != nil {
+	if attr := path.getPathAttr(bgp.BGP_ATTR_TYPE_AS_PATH); attr != nil {
 		pathParam := attr.(*bgp.PathAttributeAsPath).Value
 		for _, as := range pathParam {
 			_, y := as.(*bgp.As4PathParam)
@@ -159,7 +159,7 @@ func (t *Table) validatePath(path *Path) {
 			}
 		}
 	}
-	if _, attr := path.getPathAttr(bgp.BGP_ATTR_TYPE_AS4_PATH); attr != nil {
+	if attr := path.getPathAttr(bgp.BGP_ATTR_TYPE_AS4_PATH); attr != nil {
 		log.WithFields(log.Fields{
 			"Topic": "Table",
 			"Key":   t.routeFamily,

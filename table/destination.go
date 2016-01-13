@@ -141,7 +141,7 @@ func (dd *Destination) ToApiStruct(id string) *api.Destination {
 		ret := make([]*api.Path, 0, len(arg))
 		first := true
 		for _, p := range arg {
-			if p.filtered[id] == POLICY_DIRECTION_NONE {
+			if p.Filtered(id) == POLICY_DIRECTION_NONE {
 				pp := p.ToApiStruct(id)
 				if first {
 					pp.Best = true
@@ -181,7 +181,7 @@ func (dd *Destination) setNlri(nlri bgp.AddrPrefixInterface) {
 func (dd *Destination) GetKnownPathList(id string) []*Path {
 	list := make([]*Path, 0, len(dd.knownPathList))
 	for _, p := range dd.knownPathList {
-		if p.filtered[id] == POLICY_DIRECTION_NONE {
+		if p.Filtered(id) == POLICY_DIRECTION_NONE {
 			list = append(list, p)
 		}
 	}
@@ -190,7 +190,7 @@ func (dd *Destination) GetKnownPathList(id string) []*Path {
 
 func (dd *Destination) GetBestPath(id string) *Path {
 	for _, p := range dd.knownPathList {
-		if p.filtered[id] == POLICY_DIRECTION_NONE {
+		if p.Filtered(id) == POLICY_DIRECTION_NONE {
 			return p
 		}
 	}
@@ -199,7 +199,7 @@ func (dd *Destination) GetBestPath(id string) *Path {
 
 func (dd *Destination) oldBest(id string) *Path {
 	for _, p := range dd.oldKnownPathList {
-		if p.filtered[id] == POLICY_DIRECTION_NONE {
+		if p.Filtered(id) == POLICY_DIRECTION_NONE {
 			return p
 		}
 	}
@@ -357,7 +357,7 @@ func (dest *Destination) implicitWithdraw() {
 	for _, path := range dest.knownPathList {
 		found := false
 		for _, newPath := range dest.newPathList {
-			if newPath.NoImplicitWithdraw {
+			if newPath.NoImplicitWithdraw() {
 				continue
 			}
 			// Here we just check if source is same and not check if path
@@ -540,8 +540,8 @@ func compareByLocalPref(path1, path2 *Path) *Path {
 	//
 	//	# Default local-pref values is 100
 	log.Debugf("enter compareByLocalPref")
-	_, attribute1 := path1.getPathAttr(bgp.BGP_ATTR_TYPE_LOCAL_PREF)
-	_, attribute2 := path2.getPathAttr(bgp.BGP_ATTR_TYPE_LOCAL_PREF)
+	attribute1 := path1.getPathAttr(bgp.BGP_ATTR_TYPE_LOCAL_PREF)
+	attribute2 := path2.getPathAttr(bgp.BGP_ATTR_TYPE_LOCAL_PREF)
 
 	if attribute1 == nil || attribute2 == nil {
 		return nil
@@ -591,8 +591,8 @@ func compareByASPath(path1, path2 *Path) *Path {
 	// Shortest as-path length is preferred. If both path have same lengths,
 	// we return None.
 	log.Debugf("enter compareByASPath")
-	_, attribute1 := path1.getPathAttr(bgp.BGP_ATTR_TYPE_AS_PATH)
-	_, attribute2 := path2.getPathAttr(bgp.BGP_ATTR_TYPE_AS_PATH)
+	attribute1 := path1.getPathAttr(bgp.BGP_ATTR_TYPE_AS_PATH)
+	attribute2 := path2.getPathAttr(bgp.BGP_ATTR_TYPE_AS_PATH)
 
 	if attribute1 == nil || attribute2 == nil {
 		log.WithFields(log.Fields{
@@ -622,8 +622,8 @@ func compareByOrigin(path1, path2 *Path) *Path {
 	//	IGP is preferred over EGP; EGP is preferred over Incomplete.
 	//	If both paths have same origin, we return None.
 	log.Debugf("enter compareByOrigin")
-	_, attribute1 := path1.getPathAttr(bgp.BGP_ATTR_TYPE_ORIGIN)
-	_, attribute2 := path2.getPathAttr(bgp.BGP_ATTR_TYPE_ORIGIN)
+	attribute1 := path1.getPathAttr(bgp.BGP_ATTR_TYPE_ORIGIN)
+	attribute2 := path2.getPathAttr(bgp.BGP_ATTR_TYPE_ORIGIN)
 
 	if attribute1 == nil || attribute2 == nil {
 		log.WithFields(log.Fields{
@@ -660,7 +660,7 @@ func compareByMED(path1, path2 *Path) *Path {
 	//  like bgp always-compare-med
 	log.Debugf("enter compareByMED")
 	getMed := func(path *Path) uint32 {
-		_, attribute := path.getPathAttr(bgp.BGP_ATTR_TYPE_MULTI_EXIT_DISC)
+		attribute := path.getPathAttr(bgp.BGP_ATTR_TYPE_MULTI_EXIT_DISC)
 		if attribute == nil {
 			return 0
 		}
@@ -687,7 +687,7 @@ func compareByASNumber(path1, path2 *Path) *Path {
 	//peers, return None.
 	log.Debugf("enter compareByASNumber")
 
-	log.Debugf("compareByASNumber -- p1Asn: %d, p2Asn: %d", path1.source.AS, path2.source.AS)
+	log.Debugf("compareByASNumber -- p1Asn: %d, p2Asn: %d", path1.GetSource().AS, path2.GetSource().AS)
 	// If one path is from ibgp peer and another is from ebgp peer, take the ebgp path
 	if path1.IsIBGP() != path2.IsIBGP() {
 		if path1.IsIBGP() {
@@ -734,8 +734,8 @@ func compareByRouterID(path1, path2 *Path) (*Path, error) {
 	}
 
 	// At least one path is not coming from NC, so we get local bgp id.
-	id1 := binary.BigEndian.Uint32(path1.source.ID)
-	id2 := binary.BigEndian.Uint32(path2.source.ID)
+	id1 := binary.BigEndian.Uint32(path1.GetSource().ID)
+	id2 := binary.BigEndian.Uint32(path2.GetSource().ID)
 
 	// If both router ids are same/equal we cannot decide.
 	// This case is possible since router ids are arbitrary.

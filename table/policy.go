@@ -1562,7 +1562,7 @@ func (c *RpkiValidationCondition) Type() ConditionType {
 }
 
 func (c *RpkiValidationCondition) Evaluate(path *Path) bool {
-	return c.result == path.Validation
+	return c.result == path.Validation()
 }
 
 func (c *RpkiValidationCondition) Set() DefinedSet {

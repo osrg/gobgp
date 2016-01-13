@@ -24,26 +24,12 @@ func TestPathNewIPv6(t *testing.T) {
 	assert.NotNil(t, ipv6p)
 }
 
-func TestPathSetSource(t *testing.T) {
-	pd := &Path{}
-	pr := &PeerInfo{AS: 65000}
-	pd.setSource(pr)
-	r_pr := pd.GetSource()
-	assert.Equal(t, r_pr, pr)
-}
-
-func TestPathGetSource(t *testing.T) {
-	pd := &Path{}
-	pr := &PeerInfo{AS: 65001}
-	pd.setSource(pr)
-	r_pr := pd.GetSource()
-	assert.Equal(t, r_pr, pr)
-}
-
 func TestPathGetNlri(t *testing.T) {
 	nlri := bgp.NewIPAddrPrefix(24, "13.2.3.2")
 	pd := &Path{
-		nlri: nlri,
+		info: &originInfo{
+			nlri: nlri,
+		},
 	}
 	r_nlri := pd.GetNlri()
 	assert.Equal(t, r_nlri, nlri)
@@ -72,7 +58,7 @@ func TestPathGetAttribute(t *testing.T) {
 	peerP := PathCreatePeer()
 	pathP := PathCreatePath(peerP)
 	nh := "192.168.50.1"
-	_, pa := pathP[0].getPathAttr(bgp.BGP_ATTR_TYPE_NEXT_HOP)
+	pa := pathP[0].getPathAttr(bgp.BGP_ATTR_TYPE_NEXT_HOP)
 	r_nh := pa.(*bgp.PathAttributeNextHop).Value.String()
 	assert.Equal(t, r_nh, nh)
 }

@@ -453,7 +453,7 @@ func (c *roaManager) validate(pathList []*table.Path, isMonitor bool) []*api.ROA
 		}
 		if tree, ok := c.roas[path.GetRouteFamily()]; ok {
 			r, roaList := validatePath(c.AS, tree, path.GetNlri().String(), path.GetAsPath())
-			if isMonitor && path.Validation != config.RpkiValidationResultType(r) {
+			if isMonitor && path.Validation() != config.RpkiValidationResultType(r) {
 				apiRoaList := func() []*api.ROA {
 					apiRoaList := make([]*api.ROA, 0)
 					for _, r := range roaList {
@@ -464,13 +464,13 @@ func (c *roaManager) validate(pathList []*table.Path, isMonitor bool) []*api.ROA
 				rr := &api.ROAResult{
 					OriginAs:  path.GetSourceAs(),
 					Prefix:    path.GetNlri().String(),
-					OldResult: api.ROAResult_ValidationResult(path.Validation.ToInt()),
+					OldResult: api.ROAResult_ValidationResult(path.Validation().ToInt()),
 					NewResult: api.ROAResult_ValidationResult(r.ToInt()),
 					Roas:      apiRoaList,
 				}
 				results = append(results, rr)
 			}
-			path.Validation = config.RpkiValidationResultType(r)
+			path.SetValidation(config.RpkiValidationResultType(r))
 		}
 	}
 	return results
