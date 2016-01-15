@@ -1,4 +1,4 @@
-// Copyright (C) 2015 Nippon Telegraph and Telephone Corporation.
+// Copyright (C) 2015,2016 Nippon Telegraph and Telephone Corporation.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -141,7 +141,7 @@ func (m *roaManager) operate(op api.Operation, address string) error {
 		if add == address {
 			switch op {
 			case api.Operation_ENABLE:
-				client.enable()
+				client.enable(client.serialNumber)
 			case api.Operation_DISABLE:
 			case api.Operation_RESET:
 				client.reset()
@@ -262,8 +262,12 @@ func (c *roaManager) handleRTRMsg(client *roaClient, state *config.RpkiServerSta
 	if err == nil {
 		switch msg := m.(type) {
 		case *bgp.RTRSerialNotify:
-			client.sessionID = msg.RTRCommon.SessionID
-			client.serialNumber = msg.RTRCommon.SerialNumber
+			if client.serialNumber < msg.RTRCommon.SerialNumber {
+				client.enable(client.serialNumber)
+			} else if client.serialNumber > msg.RTRCommon.SerialNumber {
+				// should not happen. try to get the whole ROAs.
+				client.softReset()
+			}
 			received.SerialNotify++
 		case *bgp.RTRSerialQuery:
 		case *bgp.RTRResetQuery:
@@ -482,9 +486,9 @@ type roaClient struct {
 	serialNumber uint32
 }
 
-func (c *roaClient) enable() error {
+func (c *roaClient) enable(serial uint32) error {
 	if c.conn != nil {
-		r := bgp.NewRTRSerialQuery(c.sessionID, c.serialNumber)
+		r := bgp.NewRTRSerialQuery(c.sessionID, serial)
 		data, _ := r.Serialize()
 		_, err := c.conn.Write(data)
 		if err != nil {
