@@ -262,8 +262,13 @@ func (c *roaManager) handleRTRMsg(client *roaClient, state *config.RpkiServerSta
 	if err == nil {
 		switch msg := m.(type) {
 		case *bgp.RTRSerialNotify:
-			client.sessionID = msg.RTRCommon.SessionID
-			client.serialNumber = msg.RTRCommon.SerialNumber
+			if client.serialNumber != msg.RTRCommon.SerialNumber {
+				r := bgp.NewRTRSerialQuery(client.sessionID, client.serialNumber)
+				data, _ := r.Serialize()
+				if _, err := client.conn.Write(data); err != nil {
+					log.Info("failed to send serial query", client.host)
+				}
+			}
 			received.SerialNotify++
 		case *bgp.RTRSerialQuery:
 		case *bgp.RTRResetQuery:
