@@ -106,7 +106,7 @@ func (peer *Peer) getBestFromLocal(rfList []bgp.RouteFamily) ([]*table.Path, []*
 	pathList := []*table.Path{}
 	filtered := []*table.Path{}
 	for _, path := range peer.localRib.GetBestPathList(peer.TableID(), rfList) {
-		p := peer.policy.ApplyPolicy(peer.TableID(), table.POLICY_DIRECTION_EXPORT, filterpath(peer, path))
+		p := peer.policy.ApplyPolicy(peer.TableID(), table.POLICY_DIRECTION_EXPORT, filterpath(peer, path), nil)
 		if p == nil {
 			filtered = append(filtered, path)
 			continue

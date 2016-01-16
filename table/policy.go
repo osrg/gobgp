@@ -31,6 +31,9 @@ import (
 	"github.com/osrg/gobgp/packet"
 )
 
+type PolicyOptions struct {
+}
+
 type DefinedType int
 
 const (
@@ -1027,7 +1030,7 @@ func NewDefinedSetFromApiStruct(a *api.DefinedSet) (DefinedSet, error) {
 
 type Condition interface {
 	Type() ConditionType
-	Evaluate(*Path) bool
+	Evaluate(*Path, *PolicyOptions) bool
 	Set() DefinedSet
 }
 
@@ -1051,7 +1054,7 @@ func (c *PrefixCondition) Option() MatchOption {
 // compare prefixes in this condition and nlri of path and
 // subsequent comparison is skipped if that matches the conditions.
 // If PrefixList's length is zero, return true.
-func (c *PrefixCondition) Evaluate(path *Path) bool {
+func (c *PrefixCondition) Evaluate(path *Path, _ *PolicyOptions) bool {
 	var key string
 	var masklen uint8
 	keyf := func(ip net.IP, ones int) string {
@@ -1149,7 +1152,7 @@ func (c *NeighborCondition) Option() MatchOption {
 // compare neighbor ipaddress of this condition and source address of path
 // and, subsequent comparisons are skipped if that matches the conditions.
 // If NeighborList's length is zero, return true.
-func (c *NeighborCondition) Evaluate(path *Path) bool {
+func (c *NeighborCondition) Evaluate(path *Path, _ *PolicyOptions) bool {
 
 	if len(c.set.list) == 0 {
 		log.Debug("NeighborList doesn't have elements")
@@ -1242,7 +1245,7 @@ func (c *AsPathCondition) ToApiStruct() *api.MatchSet {
 	}
 }
 
-func (c *AsPathCondition) Evaluate(path *Path) bool {
+func (c *AsPathCondition) Evaluate(path *Path, _ *PolicyOptions) bool {
 	result := false
 	aspath := path.GetAsSeqList()
 	for _, m := range c.set.singleList {
@@ -1333,7 +1336,7 @@ func (c *CommunityCondition) ToApiStruct() *api.MatchSet {
 	}
 }
 
-func (c *CommunityCondition) Evaluate(path *Path) bool {
+func (c *CommunityCondition) Evaluate(path *Path, _ *PolicyOptions) bool {
 	cs := path.GetCommunities()
 	result := false
 	for _, x := range cs {
@@ -1418,7 +1421,7 @@ func (c *ExtCommunityCondition) ToApiStruct() *api.MatchSet {
 	}
 }
 
-func (c *ExtCommunityCondition) Evaluate(path *Path) bool {
+func (c *ExtCommunityCondition) Evaluate(path *Path, _ *PolicyOptions) bool {
 	es := path.GetExtCommunities()
 	result := false
 	for _, x := range es {
@@ -1495,7 +1498,7 @@ func (c *AsPathLengthCondition) Type() ConditionType {
 
 // compare AS_PATH length in the message's AS_PATH attribute with
 // the one in condition.
-func (c *AsPathLengthCondition) Evaluate(path *Path) bool {
+func (c *AsPathLengthCondition) Evaluate(path *Path, _ *PolicyOptions) bool {
 
 	length := uint32(path.GetAsPathLen())
 	result := false
@@ -1561,7 +1564,7 @@ func (c *RpkiValidationCondition) Type() ConditionType {
 	return CONDITION_RPKI
 }
 
-func (c *RpkiValidationCondition) Evaluate(path *Path) bool {
+func (c *RpkiValidationCondition) Evaluate(path *Path, _ *PolicyOptions) bool {
 	return c.result == path.Validation()
 }
 
@@ -2077,17 +2080,17 @@ type Statement struct {
 }
 
 // evaluate each condition in the statement according to MatchSetOptions
-func (s *Statement) Evaluate(p *Path) bool {
+func (s *Statement) Evaluate(p *Path, options *PolicyOptions) bool {
 	for _, c := range s.Conditions {
-		if !c.Evaluate(p) {
+		if !c.Evaluate(p, options) {
 			return false
 		}
 	}
 	return true
 }
 
-func (s *Statement) Apply(path *Path) (RouteType, *Path) {
-	result := s.Evaluate(path)
+func (s *Statement) Apply(path *Path, options *PolicyOptions) (RouteType, *Path) {
+	result := s.Evaluate(path, options)
 	if result {
 		if len(s.ModActions) != 0 {
 			// apply all modification actions
@@ -2446,10 +2449,10 @@ func (p *Policy) Name() string {
 // Compare path with a policy's condition in stored order in the policy.
 // If a condition match, then this function stops evaluation and
 // subsequent conditions are skipped.
-func (p *Policy) Apply(path *Path) (RouteType, *Path) {
+func (p *Policy) Apply(path *Path, options *PolicyOptions) (RouteType, *Path) {
 	for _, stmt := range p.Statements {
 		var result RouteType
-		result, path = stmt.Apply(path)
+		result, path = stmt.Apply(path, options)
 		if result != ROUTE_TYPE_NONE {
 			return result, path
 		}
@@ -2571,7 +2574,7 @@ type RoutingPolicy struct {
 	AssignmentMap map[string]*Assignment
 }
 
-func (r *RoutingPolicy) ApplyPolicy(id string, dir PolicyDirection, before *Path) *Path {
+func (r *RoutingPolicy) ApplyPolicy(id string, dir PolicyDirection, before *Path, options *PolicyOptions) *Path {
 	if before == nil {
 		return nil
 	}
@@ -2581,7 +2584,7 @@ func (r *RoutingPolicy) ApplyPolicy(id string, dir PolicyDirection, before *Path
 	result := ROUTE_TYPE_NONE
 	after := before
 	for _, p := range r.GetPolicy(id, dir) {
-		result, after = p.Apply(before)
+		result, after = p.Apply(before, options)
 		if result != ROUTE_TYPE_NONE {
 			break
 		}
@@ -2839,7 +2842,7 @@ func CanImportToVrf(v *Vrf, path *Path) bool {
 		MatchSetOptions: config.MATCH_SET_OPTIONS_TYPE_ANY,
 	}
 	c, _ := NewExtCommunityCondition(matchSet, map[string]DefinedSet{v.Name: set})
-	return c.Evaluate(path)
+	return c.Evaluate(path, nil)
 }
 
 func PoliciesToString(ps []*api.Policy) []string {

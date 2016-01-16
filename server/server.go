@@ -744,7 +744,7 @@ func (server *BgpServer) RSimportPaths(peer *Peer, pathList []*table.Path) []*ta
 			before.Filter(peer.ID(), table.POLICY_DIRECTION_IMPORT)
 			continue
 		}
-		after := server.policy.ApplyPolicy(peer.TableID(), table.POLICY_DIRECTION_IMPORT, before)
+		after := server.policy.ApplyPolicy(peer.TableID(), table.POLICY_DIRECTION_IMPORT, before, nil)
 		if after == nil {
 			before.Filter(peer.ID(), table.POLICY_DIRECTION_IMPORT)
 		} else if after != before {
@@ -784,7 +784,7 @@ func (server *BgpServer) propagateUpdate(peer *Peer, pathList []*table.Path) ([]
 			}
 			sendPathList := make([]*table.Path, 0, len(dsts))
 			for _, dst := range dsts {
-				path := server.policy.ApplyPolicy(targetPeer.TableID(), table.POLICY_DIRECTION_EXPORT, filterpath(targetPeer, dst.NewFeed(targetPeer.TableID())))
+				path := server.policy.ApplyPolicy(targetPeer.TableID(), table.POLICY_DIRECTION_EXPORT, filterpath(targetPeer, dst.NewFeed(targetPeer.TableID())), nil)
 				if path != nil {
 					sendPathList = append(sendPathList, path)
 				}
@@ -795,7 +795,7 @@ func (server *BgpServer) propagateUpdate(peer *Peer, pathList []*table.Path) ([]
 		}
 	} else {
 		for idx, path := range pathList {
-			pathList[idx] = server.policy.ApplyPolicy(table.GLOBAL_RIB_NAME, table.POLICY_DIRECTION_IMPORT, path)
+			pathList[idx] = server.policy.ApplyPolicy(table.GLOBAL_RIB_NAME, table.POLICY_DIRECTION_IMPORT, path, nil)
 		}
 		alteredPathList = pathList
 		dsts := rib.ProcessPaths(pathList)
@@ -819,7 +819,7 @@ func (server *BgpServer) propagateUpdate(peer *Peer, pathList []*table.Path) ([]
 			pathList := make([]*table.Path, len(sendPathList))
 			copy(pathList, sendPathList)
 			for idx, path := range pathList {
-				path = server.policy.ApplyPolicy(table.GLOBAL_RIB_NAME, table.POLICY_DIRECTION_EXPORT, filterpath(targetPeer, path))
+				path = server.policy.ApplyPolicy(table.GLOBAL_RIB_NAME, table.POLICY_DIRECTION_EXPORT, filterpath(targetPeer, path), nil)
 				if path != nil {
 					path.UpdatePathAttrs(&server.bgpConfig.Global, &targetPeer.conf)
 				}
@@ -1817,7 +1817,7 @@ func (server *BgpServer) handleGrpc(grpcReq *GrpcRequest) []*SenderMsg {
 		for _, peer := range peers {
 			pathList := []*table.Path{}
 			for _, path := range peer.adjRibIn.PathList([]bgp.RouteFamily{grpcReq.RouteFamily}, false) {
-				if path = server.policy.ApplyPolicy(peer.ID(), table.POLICY_DIRECTION_IN, path); path != nil {
+				if path = server.policy.ApplyPolicy(peer.ID(), table.POLICY_DIRECTION_IN, path, nil); path != nil {
 					pathList = append(pathList, path.Clone(net.ParseIP(peer.conf.Config.NeighborAddress), false))
 				}
 			}
