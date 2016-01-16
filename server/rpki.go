@@ -462,11 +462,16 @@ func (c *roaManager) validate(pathList []*table.Path, isMonitor bool) []*api.ROA
 					return apiRoaList
 				}()
 				rr := &api.ROAResult{
+					Address:   path.GetSource().Address.String(),
+					Timestamp: path.GetTimestamp().Unix(),
 					OriginAs:  path.GetSourceAs(),
 					Prefix:    path.GetNlri().String(),
 					OldResult: api.ROAResult_ValidationResult(path.Validation.ToInt()),
 					NewResult: api.ROAResult_ValidationResult(r.ToInt()),
 					Roas:      apiRoaList,
+				}
+				if b := path.GetAsPath(); b != nil {
+					rr.AspathAttr, _ = b.Serialize()
 				}
 				results = append(results, rr)
 			}

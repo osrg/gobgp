@@ -485,17 +485,20 @@ message ROA {
 }
 
 message ROAResult {
-    uint32 origin_as = 1;
-    string prefix = 2;
+    string address = 1;
+    int64 timestamp = 2;
+    bytes aspath_attr = 3;
+    uint32 origin_as = 4;
+    string prefix = 5;
     enum ValidationResult {
         NONE = 0;
         NOT_FOUND = 1;
         VALID = 2;
         INVALID = 3;
     }
-    ValidationResult old_result = 3;
-    ValidationResult new_result = 4;
-    repeated ROA roas = 5;
+    ValidationResult old_result = 6;
+    ValidationResult new_result = 7;
+    repeated ROA roas = 8;
 }
 
 message Vrf {

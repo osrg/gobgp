@@ -117,8 +117,9 @@ type Destination struct {
 	knownPathList         paths
 	withdrawList          paths
 	newPathList           paths
-	withdrawnList         paths
-	implicitWithdrawnList paths
+	WithdrawnList         paths
+	ImplicitWithdrawnList paths
+	UpdatedPathList       paths
 	RadixKey              string
 }
 
@@ -238,10 +239,11 @@ func (dd *Destination) validatePath(path *Path) {
 // paths from known paths. Also, adds new paths to known paths.
 func (dest *Destination) Calculate() {
 	dest.oldKnownPathList = dest.knownPathList
+	dest.UpdatedPathList = dest.newPathList
 	// First remove the withdrawn paths.
-	dest.withdrawnList = dest.explicitWithdraw()
+	dest.WithdrawnList = dest.explicitWithdraw()
 	// Do implicit withdrawal
-	dest.implicitWithdrawnList = dest.implicitWithdraw()
+	dest.ImplicitWithdrawnList = dest.implicitWithdraw()
 	// Collect all new paths into known paths.
 	dest.knownPathList = append(dest.knownPathList, dest.newPathList...)
 	// Clear new paths as we copied them.
