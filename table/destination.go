@@ -258,7 +258,7 @@ func (dest *Destination) NewFeed(id string) *Path {
 		if old == nil {
 			return nil
 		}
-		return old.Clone(old.Owner, true)
+		return old.Clone(true)
 	}
 	return best
 }

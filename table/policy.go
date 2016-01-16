@@ -32,6 +32,7 @@ import (
 )
 
 type PolicyOptions struct {
+	Neighbor net.IP
 }
 
 type DefinedType int
@@ -1152,19 +1153,24 @@ func (c *NeighborCondition) Option() MatchOption {
 // compare neighbor ipaddress of this condition and source address of path
 // and, subsequent comparisons are skipped if that matches the conditions.
 // If NeighborList's length is zero, return true.
-func (c *NeighborCondition) Evaluate(path *Path, _ *PolicyOptions) bool {
+func (c *NeighborCondition) Evaluate(path *Path, options *PolicyOptions) bool {
 
 	if len(c.set.list) == 0 {
 		log.Debug("NeighborList doesn't have elements")
 		return true
 	}
 
-	if path.Owner == nil {
+	neighbor := path.GetSource().Address
+	if options != nil && options.Neighbor != nil {
+		neighbor = options.Neighbor
+	}
+
+	if neighbor == nil {
 		return false
 	}
 	result := false
 	for _, n := range c.set.list {
-		if path.Owner.Equal(n) {
+		if neighbor.Equal(n) {
 			result = true
 			break
 		}
@@ -2094,7 +2100,7 @@ func (s *Statement) Apply(path *Path, options *PolicyOptions) (RouteType, *Path)
 	if result {
 		if len(s.ModActions) != 0 {
 			// apply all modification actions
-			path = path.Clone(path.Owner, path.IsWithdraw)
+			path = path.Clone(path.IsWithdraw)
 			for _, action := range s.ModActions {
 				path = action.Apply(path)
 			}

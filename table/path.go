@@ -17,7 +17,6 @@ package table
 
 import (
 	"bytes"
-	"encoding/json"
 	"fmt"
 	log "github.com/Sirupsen/logrus"
 	api "github.com/osrg/gobgp/api"
@@ -61,7 +60,6 @@ type Path struct {
 	info       *originInfo
 	IsWithdraw bool
 	pathAttrs  []bgp.PathAttributeInterface
-	Owner      net.IP
 	reason     BestPathReason
 	parent     *Path
 	dels       []bgp.BGPAttrType
@@ -78,11 +76,6 @@ func NewPath(source *PeerInfo, nlri bgp.AddrPrefixInterface, isWithdraw bool, pa
 		return nil
 	}
 
-	var owner net.IP
-	if source != nil {
-		owner = source.Address
-	}
-
 	return &Path{
 		info: &originInfo{
 			nlri:               nlri,
@@ -92,7 +85,6 @@ func NewPath(source *PeerInfo, nlri bgp.AddrPrefixInterface, isWithdraw bool, pa
 		},
 		IsWithdraw: isWithdraw,
 		pathAttrs:  pattrs,
-		Owner:      owner,
 		filtered:   make(map[string]PolicyDirection),
 	}
 }
@@ -228,11 +220,10 @@ func (path *Path) ToApiStruct(id string) *api.Path {
 }
 
 // create new PathAttributes
-func (path *Path) Clone(owner net.IP, isWithdraw bool) *Path {
+func (path *Path) Clone(isWithdraw bool) *Path {
 	return &Path{
 		parent:     path,
 		IsWithdraw: isWithdraw,
-		Owner:      owner,
 		filtered:   make(map[string]PolicyDirection),
 	}
 }
@@ -714,16 +705,5 @@ func (path *Path) GetClusterList() []net.IP {
 }
 
 func (lhs *Path) Equal(rhs *Path) bool {
-	if rhs == nil {
-		return false
-	} else if lhs == rhs {
-		return true
-	}
-	f := func(p *Path) []byte {
-		s := p.ToApiStruct(GLOBAL_RIB_NAME)
-		s.Age = 0
-		buf, _ := json.Marshal(s)
-		return buf
-	}
-	return bytes.Equal(f(lhs), f(rhs))
+	return lhs == rhs
 }

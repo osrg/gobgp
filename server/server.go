@@ -556,7 +556,7 @@ func filterpath(peer *Peer, path *table.Path) *table.Path {
 	if !peer.isRouteServerClient() && isASLoop(peer, path) {
 		return nil
 	}
-	return path.Clone(peer.fsm.peerInfo.Address, path.IsWithdraw)
+	return path
 }
 
 func (server *BgpServer) dropPeerAllRoutes(peer *Peer) []*SenderMsg {
@@ -765,6 +765,7 @@ func (server *BgpServer) propagateUpdate(peer *Peer, pathList []*table.Path) ([]
 	msgs := make([]*SenderMsg, 0)
 	rib := server.globalRib
 	var alteredPathList []*table.Path
+	options := &table.PolicyOptions{}
 	if peer != nil && peer.isRouteServerClient() {
 		for _, path := range pathList {
 			path.Filter(peer.ID(), table.POLICY_DIRECTION_IMPORT)
@@ -783,8 +784,9 @@ func (server *BgpServer) propagateUpdate(peer *Peer, pathList []*table.Path) ([]
 				continue
 			}
 			sendPathList := make([]*table.Path, 0, len(dsts))
+			options.Neighbor = targetPeer.fsm.peerInfo.Address
 			for _, dst := range dsts {
-				path := server.policy.ApplyPolicy(targetPeer.TableID(), table.POLICY_DIRECTION_EXPORT, filterpath(targetPeer, dst.NewFeed(targetPeer.TableID())), nil)
+				path := server.policy.ApplyPolicy(targetPeer.TableID(), table.POLICY_DIRECTION_EXPORT, filterpath(targetPeer, dst.NewFeed(targetPeer.TableID())), options)
 				if path != nil {
 					sendPathList = append(sendPathList, path)
 				}
@@ -818,9 +820,11 @@ func (server *BgpServer) propagateUpdate(peer *Peer, pathList []*table.Path) ([]
 			}
 			pathList := make([]*table.Path, len(sendPathList))
 			copy(pathList, sendPathList)
+			options.Neighbor = targetPeer.fsm.peerInfo.Address
 			for idx, path := range pathList {
-				path = server.policy.ApplyPolicy(table.GLOBAL_RIB_NAME, table.POLICY_DIRECTION_EXPORT, filterpath(targetPeer, path), nil)
+				path = server.policy.ApplyPolicy(table.GLOBAL_RIB_NAME, table.POLICY_DIRECTION_EXPORT, filterpath(targetPeer, path), options)
 				if path != nil {
+					path = path.Clone(path.IsWithdraw)
 					path.UpdatePathAttrs(&server.bgpConfig.Global, &targetPeer.conf)
 				}
 				pathList[idx] = path
@@ -1276,7 +1280,7 @@ func (server *BgpServer) handleModPathRequest(grpcReq *GrpcRequest) []*table.Pat
 					return nil
 				}()
 				if path != nil {
-					paths = append(paths, path.Clone(path.Owner, true))
+					paths = append(paths, path.Clone(true))
 				} else {
 					err = fmt.Errorf("Can't find a specified path")
 				}
@@ -1818,7 +1822,7 @@ func (server *BgpServer) handleGrpc(grpcReq *GrpcRequest) []*SenderMsg {
 			pathList := []*table.Path{}
 			for _, path := range peer.adjRibIn.PathList([]bgp.RouteFamily{grpcReq.RouteFamily}, false) {
 				if path = server.policy.ApplyPolicy(peer.ID(), table.POLICY_DIRECTION_IN, path, nil); path != nil {
-					pathList = append(pathList, path.Clone(net.ParseIP(peer.conf.Config.NeighborAddress), false))
+					pathList = append(pathList, path.Clone(false))
 				}
 			}
 			m, _ := server.propagateUpdate(peer, pathList)
