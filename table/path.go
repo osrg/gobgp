@@ -42,7 +42,7 @@ func (b Bitmap) GetFlag(i uint) bool {
 }
 
 func NewBitmap(size int) Bitmap {
-	return Bitmap(make([]uint64, size/64+1))
+	return Bitmap(make([]uint64, (size+64-1)/64))
 }
 
 type originInfo struct {
