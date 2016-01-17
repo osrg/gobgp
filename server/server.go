@@ -564,6 +564,7 @@ func (server *BgpServer) dropPeerAllRoutes(peer *Peer) []*SenderMsg {
 
 	for _, rf := range peer.configuredRFlist() {
 		dsts := server.globalRib.DeletePathsByPeer(peer.fsm.peerInfo, rf)
+		server.validatePaths(dsts)
 		if peer.isRouteServerClient() {
 			pathList := make([]*table.Path, len(dsts))
 			for _, targetPeer := range server.neighborMap {
@@ -761,6 +762,63 @@ func (server *BgpServer) RSimportPaths(peer *Peer, pathList []*table.Path) []*ta
 	return moded
 }
 
+func (server *BgpServer) validatePaths(dsts []*table.Destination) {
+	isMonitor := func() bool {
+		if len(server.broadcastReqs) > 0 {
+			for _, req := range server.broadcastReqs {
+				if req.RequestType == REQ_MONITOR_ROA_VALIDATION_RESULT {
+					return true
+				}
+			}
+			return false
+		}
+		return false
+	}()
+	for _, dst := range dsts {
+		if isMonitor {
+			rrList := make([]*api.ROAResult, 0, len(dst.WithdrawnList))
+			for _, path := range dst.WithdrawnList {
+				if path.Validation == config.RPKI_VALIDATION_RESULT_TYPE_INVALID {
+					rr := &api.ROAResult{
+						Address:   path.GetSource().Address.String(),
+						Timestamp: path.GetTimestamp().Unix(),
+						OriginAs:  path.GetSourceAs(),
+						Prefix:    path.GetNlri().String(),
+						OldResult: api.ROAResult_ValidationResult(path.Validation.ToInt()),
+						NewResult: api.ROAResult_ValidationResult(path.Validation.ToInt()),
+					}
+					if b := path.GetAsPath(); b != nil {
+						rr.AspathAttr, _ = b.Serialize()
+					}
+					rrList = append(rrList, rr)
+				}
+			}
+			server.broadcastValidationResults(rrList)
+		}
+		if vResults := server.roaManager.validate(dst.UpdatedPathList, isMonitor); isMonitor {
+			for i, path := range dst.UpdatedPathList {
+				old := func() config.RpkiValidationResultType {
+					for _, withdrawn := range dst.WithdrawnList {
+						if path.GetSource().Equal(withdrawn.GetSource()) {
+							return withdrawn.Validation
+						}
+					}
+					return config.RPKI_VALIDATION_RESULT_TYPE_NONE
+				}()
+				vResults[i].OldResult = api.ROAResult_ValidationResult(old.ToInt())
+			}
+			rrList := make([]*api.ROAResult, 0, len(vResults))
+			for _, rr := range vResults {
+				invalid := api.ROAResult_ValidationResult(config.RPKI_VALIDATION_RESULT_TYPE_INVALID.ToInt())
+				if rr.NewResult == invalid || rr.OldResult == invalid {
+					rrList = append(rrList, rr)
+				}
+			}
+			server.broadcastValidationResults(rrList)
+		}
+	}
+}
+
 func (server *BgpServer) propagateUpdate(peer *Peer, pathList []*table.Path) ([]*SenderMsg, []*table.Path) {
 	msgs := make([]*SenderMsg, 0)
 	rib := server.globalRib
@@ -779,6 +837,7 @@ func (server *BgpServer) propagateUpdate(peer *Peer, pathList []*table.Path) ([]
 			moded = append(moded, server.RSimportPaths(targetPeer, pathList)...)
 		}
 		dsts := rib.ProcessPaths(append(pathList, moded...))
+		server.validatePaths(dsts)
 		for _, targetPeer := range server.neighborMap {
 			if !targetPeer.isRouteServerClient() || targetPeer.fsm.state != bgp.BGP_FSM_ESTABLISHED {
 				continue
@@ -801,6 +860,7 @@ func (server *BgpServer) propagateUpdate(peer *Peer, pathList []*table.Path) ([]
 		}
 		alteredPathList = pathList
 		dsts := rib.ProcessPaths(pathList)
+		server.validatePaths(dsts)
 		sendPathList := make([]*table.Path, 0, len(dsts))
 		for _, dst := range dsts {
 			path := dst.NewFeed(table.GLOBAL_RIB_NAME)
@@ -922,16 +982,6 @@ func (server *BgpServer) handleFSMMessage(peer *Peer, e *FsmMsg) []*SenderMsg {
 			}
 
 			if len(pathList) > 0 {
-				isMonitor := func() bool {
-					if len(server.broadcastReqs) > 0 {
-						return true
-					}
-					return false
-				}()
-				vResults := server.roaManager.validate(pathList, isMonitor)
-				if isMonitor {
-					server.broadcastValidationResults(vResults)
-				}
 				m, altered := server.propagateUpdate(peer, pathList)
 				msgs = append(msgs, m...)
 				if server.watchers.watching(WATCHER_EVENT_POST_POLICY_UPDATE_MSG) {
