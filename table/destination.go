@@ -111,13 +111,16 @@ func NewPeerInfo(g *config.Global, p *config.Neighbor) *PeerInfo {
 }
 
 type Destination struct {
-	routeFamily      bgp.RouteFamily
-	nlri             bgp.AddrPrefixInterface
-	oldKnownPathList paths
-	knownPathList    paths
-	withdrawList     paths
-	newPathList      paths
-	RadixKey         string
+	routeFamily           bgp.RouteFamily
+	nlri                  bgp.AddrPrefixInterface
+	oldKnownPathList      paths
+	knownPathList         paths
+	withdrawList          paths
+	newPathList           paths
+	WithdrawnList         paths
+	ImplicitWithdrawnList paths
+	UpdatedPathList       paths
+	RadixKey              string
 }
 
 func NewDestination(nlri bgp.AddrPrefixInterface) *Destination {
@@ -236,10 +239,11 @@ func (dd *Destination) validatePath(path *Path) {
 // paths from known paths. Also, adds new paths to known paths.
 func (dest *Destination) Calculate() {
 	dest.oldKnownPathList = dest.knownPathList
+	dest.UpdatedPathList = dest.newPathList
 	// First remove the withdrawn paths.
-	dest.explicitWithdraw()
+	dest.WithdrawnList = dest.explicitWithdraw()
 	// Do implicit withdrawal
-	dest.implicitWithdraw()
+	dest.ImplicitWithdrawnList = dest.implicitWithdraw()
 	// Collect all new paths into known paths.
 	dest.knownPathList = append(dest.knownPathList, dest.newPathList...)
 	// Clear new paths as we copied them.
@@ -352,8 +356,9 @@ func (dest *Destination) explicitWithdraw() paths {
 //
 // Known paths will no longer have paths whose new version is present in
 // new paths.
-func (dest *Destination) implicitWithdraw() {
+func (dest *Destination) implicitWithdraw() paths {
 	newKnownPaths := make([]*Path, 0, len(dest.knownPathList))
+	implicitWithdrawn := make([]*Path, 0, len(dest.knownPathList))
 	for _, path := range dest.knownPathList {
 		found := false
 		for _, newPath := range dest.newPathList {
@@ -375,11 +380,14 @@ func (dest *Destination) implicitWithdraw() {
 				break
 			}
 		}
-		if !found {
+		if found {
+			implicitWithdrawn = append(implicitWithdrawn, path)
+		} else {
 			newKnownPaths = append(newKnownPaths, path)
 		}
 	}
 	dest.knownPathList = newKnownPaths
+	return implicitWithdrawn
 }
 
 func (dest *Destination) computeKnownBestPath() (*Path, BestPathReason, error) {
