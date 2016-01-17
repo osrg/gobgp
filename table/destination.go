@@ -181,6 +181,10 @@ func (dd *Destination) setNlri(nlri bgp.AddrPrefixInterface) {
 	dd.nlri = nlri
 }
 
+func (dd *Destination) GetAllKnownPathList() []*Path {
+	return dd.knownPathList
+}
+
 func (dd *Destination) GetKnownPathList(id string) []*Path {
 	list := make([]*Path, 0, len(dd.knownPathList))
 	for _, p := range dd.knownPathList {

@@ -762,18 +762,19 @@ func (server *BgpServer) RSimportPaths(peer *Peer, pathList []*table.Path) []*ta
 	return moded
 }
 
-func (server *BgpServer) validatePaths(dsts []*table.Destination) {
-	isMonitor := func() bool {
-		if len(server.broadcastReqs) > 0 {
-			for _, req := range server.broadcastReqs {
-				if req.RequestType == REQ_MONITOR_ROA_VALIDATION_RESULT {
-					return true
-				}
+func (server *BgpServer) isRpkiMonitored() bool {
+	if len(server.broadcastReqs) > 0 {
+		for _, req := range server.broadcastReqs {
+			if req.RequestType == REQ_MONITOR_ROA_VALIDATION_RESULT {
+				return true
 			}
-			return false
 		}
-		return false
-	}()
+	}
+	return false
+}
+
+func (server *BgpServer) validatePaths(dsts []*table.Destination) {
+	isMonitor := server.isRpkiMonitored()
 	for _, dst := range dsts {
 		if isMonitor {
 			rrList := make([]*api.ROAResult, 0, len(dst.WithdrawnList))
@@ -2631,6 +2632,27 @@ func (server *BgpServer) handleModRpki(grpcReq *GrpcRequest) {
 		return
 	case api.Operation_ENABLE, api.Operation_DISABLE, api.Operation_RESET, api.Operation_SOFTRESET:
 		grpcDone(grpcReq, server.roaManager.operate(arg.Operation, arg.Address))
+		return
+	case api.Operation_REPLACE:
+		isMonitored := server.isRpkiMonitored()
+		for _, rf := range server.globalRib.GetRFlist() {
+			if t, ok := server.globalRib.Tables[rf]; ok {
+				for _, dst := range t.GetDestinations() {
+					if rr := server.roaManager.validate(dst.GetAllKnownPathList(), isMonitored); isMonitored {
+						send := make([]*api.ROAResult, 0, len(rr))
+						for _, r := range rr {
+							invalid := api.ROAResult_ValidationResult(config.RPKI_VALIDATION_RESULT_TYPE_INVALID.ToInt())
+
+							if r.OldResult != r.NewResult && (r.OldResult == invalid || r.NewResult == invalid) {
+								send = append(send, r)
+							}
+						}
+						server.broadcastValidationResults(send)
+					}
+				}
+			}
+		}
+		grpcDone(grpcReq, nil)
 		return
 	}
 	grpcDone(grpcReq, fmt.Errorf("not supported yet"))

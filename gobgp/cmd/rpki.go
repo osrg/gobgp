@@ -132,6 +132,8 @@ func NewRPKICmd() *cobra.Command {
 			}
 			var op api.Operation
 			switch args[1] {
+			case "add":
+				op = api.Operation_ADD
 			case "reset":
 				op = api.Operation_RESET
 			case "softreset":
@@ -148,7 +150,6 @@ func NewRPKICmd() *cobra.Command {
 			}
 		},
 	}
-
 	rpkiCmd.AddCommand(serverCmd)
 
 	tableCmd := &cobra.Command{
@@ -158,6 +159,14 @@ func NewRPKICmd() *cobra.Command {
 		},
 	}
 	tableCmd.PersistentFlags().StringVarP(&subOpts.AddressFamily, "address-family", "a", "", "address family")
+
+	validateCmd := &cobra.Command{
+		Use: "validate",
+		Run: func(cmd *cobra.Command, args []string) {
+			modRPKI(api.Operation_REPLACE, "")
+		},
+	}
+	rpkiCmd.AddCommand(validateCmd)
 
 	rpkiCmd.AddCommand(tableCmd)
 	return rpkiCmd
