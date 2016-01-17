@@ -564,7 +564,7 @@ func (server *BgpServer) dropPeerAllRoutes(peer *Peer) []*SenderMsg {
 
 	for _, rf := range peer.configuredRFlist() {
 		dsts := server.globalRib.DeletePathsByPeer(peer.fsm.peerInfo, rf)
-		server.validatePaths(dsts)
+		server.validatePaths(dsts, true)
 		if peer.isRouteServerClient() {
 			pathList := make([]*table.Path, len(dsts))
 			for _, targetPeer := range server.neighborMap {
@@ -773,14 +773,19 @@ func (server *BgpServer) isRpkiMonitored() bool {
 	return false
 }
 
-func (server *BgpServer) validatePaths(dsts []*table.Destination) {
+func (server *BgpServer) validatePaths(dsts []*table.Destination, peerDown bool) {
 	isMonitor := server.isRpkiMonitored()
 	for _, dst := range dsts {
 		if isMonitor {
 			rrList := make([]*api.ROAResult, 0, len(dst.WithdrawnList))
 			for _, path := range dst.WithdrawnList {
 				if path.Validation() == config.RPKI_VALIDATION_RESULT_TYPE_INVALID {
+					reason := api.ROAResult_WITHDRAW
+					if peerDown {
+						reason = api.ROAResult_PEER_DOWN
+					}
 					rr := &api.ROAResult{
+						Reason:    reason,
 						Address:   path.GetSource().Address.String(),
 						Timestamp: path.GetTimestamp().Unix(),
 						OriginAs:  path.GetSourceAs(),
@@ -838,7 +843,7 @@ func (server *BgpServer) propagateUpdate(peer *Peer, pathList []*table.Path) ([]
 			moded = append(moded, server.RSimportPaths(targetPeer, pathList)...)
 		}
 		dsts := rib.ProcessPaths(append(pathList, moded...))
-		server.validatePaths(dsts)
+		server.validatePaths(dsts, false)
 		for _, targetPeer := range server.neighborMap {
 			if !targetPeer.isRouteServerClient() || targetPeer.fsm.state != bgp.BGP_FSM_ESTABLISHED {
 				continue
@@ -861,7 +866,7 @@ func (server *BgpServer) propagateUpdate(peer *Peer, pathList []*table.Path) ([]
 		}
 		alteredPathList = pathList
 		dsts := rib.ProcessPaths(pathList)
-		server.validatePaths(dsts)
+		server.validatePaths(dsts, false)
 		sendPathList := make([]*table.Path, 0, len(dsts))
 		for _, dst := range dsts {
 			path := dst.NewFeed(table.GLOBAL_RIB_NAME)
