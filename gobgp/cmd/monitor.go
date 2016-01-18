@@ -23,7 +23,10 @@ import (
 	"github.com/spf13/cobra"
 	"golang.org/x/net/context"
 	"io"
+	"net"
 	"os"
+	"strconv"
+	"time"
 )
 
 func NewMonitorCmd() *cobra.Command {
@@ -131,7 +134,27 @@ func NewMonitorCmd() *cobra.Command {
 					j, _ := json.Marshal(s)
 					fmt.Println(string(j))
 				} else {
-					fmt.Println("validation:", s)
+					reason := "Update"
+					if s.Reason == gobgpapi.ROAResult_WITHDRAW {
+						reason = "Withdraw"
+					} else if s.Reason == gobgpapi.ROAResult_PEER_DOWN {
+						reason = "PeerDown"
+					}
+					aspath := &bgp.PathAttributeAsPath{}
+					aspath.DecodeFromBytes(s.AspathAttr)
+					fmt.Printf("[VALIDATION] Reason: %s, Peer: %s, Timestamp: %s, Prefix:%s, OriginAS:%d, ASPath:%s, Old:%s, New:%s", reason, s.Address, time.Unix(s.Timestamp, 0).String(), s.Prefix, s.OriginAs, aspath.String(), s.OldResult, s.NewResult)
+					if len(s.Roas) == 0 {
+						fmt.Printf("\n")
+					} else {
+						fmt.Printf(", ROAs:")
+						for i, roa := range s.Roas {
+							if i != 0 {
+								fmt.Printf(",")
+							}
+							fmt.Printf(" [Source: %s, AS: %v, Prefix: %s, Prefixlen: %v, Maxlen: %v]", net.JoinHostPort(roa.Conf.Address, strconv.Itoa(int(roa.Conf.RemotePort))), roa.As, roa.Prefix, roa.Prefixlen, roa.Maxlen)
+						}
+						fmt.Printf("\n")
+					}
 				}
 			}
 		},
