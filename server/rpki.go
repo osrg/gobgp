@@ -18,6 +18,12 @@ package server
 import (
 	"bufio"
 	"fmt"
+	"net"
+	"sort"
+	"strconv"
+	"strings"
+	"time"
+
 	log "github.com/Sirupsen/logrus"
 	"github.com/armon/go-radix"
 	api "github.com/osrg/gobgp/api"
@@ -25,11 +31,6 @@ import (
 	"github.com/osrg/gobgp/packet"
 	"github.com/osrg/gobgp/table"
 	"gopkg.in/tomb.v2"
-	"net"
-	"sort"
-	"strconv"
-	"strings"
-	"time"
 )
 
 type roaBucket struct {
@@ -292,6 +293,7 @@ func (c *roaManager) handleRTRMsg(client *roaClient, state *config.RpkiServerSta
 			client.sessionID = msg.RTRCommon.SessionID
 			client.serialNumber = msg.RTRCommon.SerialNumber
 		case *bgp.RTRCacheReset:
+			client.softReset()
 			received.CacheReset++
 		case *bgp.RTRErrorReport:
 			received.Error++
