@@ -126,8 +126,10 @@ func newROAManager(as uint32, servers []config.RpkiServer) (*roaManager, error) 
 	for _, entry := range servers {
 		c := entry.Config
 		client := &roaClient{
-			host:    net.JoinHostPort(c.Address, strconv.Itoa(int(c.Port))),
-			eventCh: m.eventCh,
+			host:     net.JoinHostPort(c.Address, strconv.Itoa(int(c.Port))),
+			eventCh:  m.eventCh,
+			records:  make(map[int]uint32),
+			prefixes: make(map[int]uint32),
 		}
 		m.clientMap[client.host] = client
 		client.t.Go(client.tryConnect)
@@ -188,30 +190,54 @@ func (m *roaManager) handleROAEvent(ev *roaClientEvent) {
 	}
 }
 
-func deleteROA(host string, tree *radix.Tree, as uint32, prefix []byte, prefixLen, maxLen uint8) {
+func deleteROA(client *roaClient, family int, tree *radix.Tree, as uint32, prefix []byte, prefixLen, maxLen uint8) {
+	host := client.host
 	key := table.IpToRadixkey(prefix, prefixLen)
 	b, _ := tree.Get(key)
-	if b != nil {
-		bucket := b.(*roaBucket)
-		for _, r := range bucket.entries {
-			if r.MaxLen == maxLen && r.Src == host {
-				for idx, a := range r.AS {
-					if a == as {
-						r.AS = append(r.AS[:idx], r.AS[idx+1:]...)
-						if len(bucket.entries) == 0 {
-							tree.Delete(key)
+	isDeleted := func() bool {
+		if b != nil {
+			bucket := b.(*roaBucket)
+			for _, r := range bucket.entries {
+				if r.MaxLen == maxLen && r.Src == host {
+					for idx, a := range r.AS {
+						if a == as {
+							r.AS = append(r.AS[:idx], r.AS[idx+1:]...)
+							if len(bucket.entries) == 0 {
+								tree.Delete(key)
+							}
+							return true
 						}
-						return
 					}
 				}
 			}
 		}
+		return false
+	}()
+	if isDeleted {
+		client.records[family]--
+		isNoPrefix := func() bool {
+			if b, _ := tree.Get(key); b != nil {
+				bucket := b.(*roaBucket)
+				for _, r := range bucket.entries {
+					if r.Src == host {
+						return false
+					}
+				}
+				return true
+			} else {
+				return true
+			}
+		}()
+		if isNoPrefix {
+			client.prefixes[family]--
+		}
+	} else {
+		log.Info("can't withdraw a roa", net.IP(prefix).String(), as, prefixLen, maxLen)
 	}
-	p := net.IP(prefix)
-	log.Info("can't withdraw a roa", p.String(), as, prefixLen, maxLen)
 }
 
-func addROA(host string, tree *radix.Tree, as uint32, prefix []byte, prefixLen, maxLen uint8) {
+func addROA(client *roaClient, family int, tree *radix.Tree, as uint32, prefix []byte, prefixLen, maxLen uint8) {
+	host := client.host
 	key := table.IpToRadixkey(prefix, prefixLen)
 	b, _ := tree.Get(key)
 	if b == nil {
@@ -232,8 +258,22 @@ func addROA(host string, tree *radix.Tree, as uint32, prefix []byte, prefixLen, 
 		r.bucket = b
 
 		tree.Insert(key, b)
+		client.prefixes[family]++
+		client.records[family]++
 	} else {
 		bucket := b.(*roaBucket)
+		isNewPrefix := func() bool {
+			for _, r := range bucket.entries {
+				if r.Src == host {
+					return false
+				}
+			}
+			return true
+		}()
+		if isNewPrefix {
+			client.prefixes[family]++
+		}
+
 		for _, r := range bucket.entries {
 			if r.MaxLen == maxLen && r.Src == host {
 				// we already have?
@@ -243,6 +283,7 @@ func addROA(host string, tree *radix.Tree, as uint32, prefix []byte, prefixLen, 
 					}
 				}
 				r.AS = append(r.AS, as)
+				client.records[family]++
 				return
 			}
 		}
@@ -253,6 +294,7 @@ func addROA(host string, tree *radix.Tree, as uint32, prefix []byte, prefixLen, 
 			Src:    host,
 		}
 		bucket.entries = append(bucket.entries, r)
+		client.records[family]++
 	}
 }
 
@@ -276,17 +318,19 @@ func (c *roaManager) handleRTRMsg(client *roaClient, state *config.RpkiServerSta
 			received.CacheResponse++
 		case *bgp.RTRIPPrefix:
 			var tree *radix.Tree
+			family := bgp.AFI_IP
 			if msg.Type == bgp.RTR_IPV4_PREFIX {
 				received.Ipv4Prefix++
 				tree = c.roas[bgp.RF_IPv4_UC]
 			} else {
+				family = bgp.AFI_IP6
 				received.Ipv6Prefix++
 				tree = c.roas[bgp.RF_IPv6_UC]
 			}
 			if (msg.Flags & 1) == 1 {
-				addROA(client.host, tree, msg.AS, msg.Prefix, msg.PrefixLen, msg.MaxLen)
+				addROA(client, family, tree, msg.AS, msg.Prefix, msg.PrefixLen, msg.MaxLen)
 			} else {
-				deleteROA(client.host, tree, msg.AS, msg.Prefix, msg.PrefixLen, msg.MaxLen)
+				deleteROA(client, family, tree, msg.AS, msg.Prefix, msg.PrefixLen, msg.MaxLen)
 			}
 		case *bgp.RTREndOfData:
 			received.EndOfData++
@@ -321,17 +365,36 @@ func (c *roaManager) handleGRPC(grpcReq *GrpcRequest) {
 		results := make([]*GrpcResponse, 0)
 		for _, client := range c.clientMap {
 			state := client.state
-			received := &state.RpkiMessages.RpkiReceived
 			addr, port := splitHostPort(client.host)
+			received := &state.RpkiMessages.RpkiReceived
+			sent := client.state.RpkiMessages.RpkiSent
+			up := true
+			if client.conn == nil {
+				up = false
+			}
 			rpki := &api.RPKI{
 				Conf: &api.RPKIConf{
 					Address:    addr,
 					RemotePort: uint32(port),
 				},
 				State: &api.RPKIState{
-					Uptime:       state.Uptime,
-					ReceivedIpv4: received.Ipv4Prefix,
-					ReceivedIpv6: received.Ipv6Prefix,
+					Uptime:        state.Uptime,
+					Downtime:      state.Downtime,
+					Up:            up,
+					RecordIpv4:    client.records[bgp.AFI_IP],
+					RecordIpv6:    client.records[bgp.AFI_IP6],
+					PrefixIpv4:    client.prefixes[bgp.AFI_IP],
+					PrefixIpv6:    client.prefixes[bgp.AFI_IP6],
+					Serial:        client.serialNumber,
+					ReceivedIpv4:  received.Ipv4Prefix,
+					ReceivedIpv6:  received.Ipv6Prefix,
+					SerialNotify:  received.SerialNotify,
+					CacheReset:    received.CacheReset,
+					CacheResponse: received.CacheResponse,
+					EndOfData:     received.EndOfData,
+					Error:         received.Error,
+					SerialQuery:   sent.SerialQuery,
+					ResetQuery:    sent.ResetQuery,
 				},
 			}
 			result := &GrpcResponse{}
@@ -491,6 +554,8 @@ type roaClient struct {
 	eventCh      chan *roaClientEvent
 	sessionID    uint16
 	serialNumber uint32
+	prefixes     map[int]uint32
+	records      map[int]uint32
 }
 
 func (c *roaClient) enable(serial uint32) error {
