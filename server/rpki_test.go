@@ -60,9 +60,13 @@ func validateOne(tree *radix.Tree, cidr, aspathStr string) config.RpkiValidation
 func TestValidate0(t *testing.T) {
 	assert := assert.New(t)
 
+	client := &roaClient{
+		records:  make(map[int]uint32),
+		prefixes: make(map[int]uint32),
+	}
 	tree := radix.New()
-	addROA("", tree, 100, net.ParseIP("192.168.0.0").To4(), 24, 32)
-	addROA("", tree, 200, net.ParseIP("192.168.0.0").To4(), 24, 24)
+	addROA(client, bgp.AFI_IP, tree, 100, net.ParseIP("192.168.0.0").To4(), 24, 32)
+	addROA(client, bgp.AFI_IP, tree, 200, net.ParseIP("192.168.0.0").To4(), 24, 24)
 
 	var r config.RpkiValidationResultType
 
@@ -88,8 +92,12 @@ func TestValidate0(t *testing.T) {
 func TestValidate1(t *testing.T) {
 	assert := assert.New(t)
 
+	client := &roaClient{
+		records:  make(map[int]uint32),
+		prefixes: make(map[int]uint32),
+	}
 	tree := radix.New()
-	addROA("", tree, 65000, net.ParseIP("10.0.0.0").To4(), 16, 16)
+	addROA(client, bgp.AFI_IP, tree, 65000, net.ParseIP("10.0.0.0").To4(), 16, 16)
 
 	var r config.RpkiValidationResultType
 
@@ -117,8 +125,12 @@ func TestValidate2(t *testing.T) {
 func TestValidate3(t *testing.T) {
 	assert := assert.New(t)
 
+	client := &roaClient{
+		records:  make(map[int]uint32),
+		prefixes: make(map[int]uint32),
+	}
 	tree1 := radix.New()
-	addROA("", tree1, 65000, net.ParseIP("10.0.0.0").To4(), 16, 16)
+	addROA(client, bgp.AFI_IP, tree1, 65000, net.ParseIP("10.0.0.0").To4(), 16, 16)
 
 	var r config.RpkiValidationResultType
 
@@ -129,7 +141,7 @@ func TestValidate3(t *testing.T) {
 	assert.Equal(r, config.RPKI_VALIDATION_RESULT_TYPE_INVALID)
 
 	tree2 := radix.New()
-	addROA("", tree2, 65000, net.ParseIP("10.0.0.0").To4(), 16, 24)
+	addROA(client, bgp.AFI_IP, tree2, 65000, net.ParseIP("10.0.0.0").To4(), 16, 24)
 
 	r = validateOne(tree2, "10.0.0.0/17", "65000")
 	assert.Equal(r, config.RPKI_VALIDATION_RESULT_TYPE_VALID)
@@ -138,9 +150,13 @@ func TestValidate3(t *testing.T) {
 func TestValidate4(t *testing.T) {
 	assert := assert.New(t)
 
+	client := &roaClient{
+		records:  make(map[int]uint32),
+		prefixes: make(map[int]uint32),
+	}
 	tree := radix.New()
-	addROA("", tree, 65000, net.ParseIP("10.0.0.0").To4(), 16, 16)
-	addROA("", tree, 65001, net.ParseIP("10.0.0.0").To4(), 16, 16)
+	addROA(client, bgp.AFI_IP, tree, 65000, net.ParseIP("10.0.0.0").To4(), 16, 16)
+	addROA(client, bgp.AFI_IP, tree, 65001, net.ParseIP("10.0.0.0").To4(), 16, 16)
 
 	var r config.RpkiValidationResultType
 
@@ -154,9 +170,13 @@ func TestValidate4(t *testing.T) {
 func TestValidate5(t *testing.T) {
 	assert := assert.New(t)
 
+	client := &roaClient{
+		records:  make(map[int]uint32),
+		prefixes: make(map[int]uint32),
+	}
 	tree := radix.New()
-	addROA("", tree, 65000, net.ParseIP("10.0.0.0").To4(), 17, 17)
-	addROA("", tree, 65000, net.ParseIP("10.0.128.0").To4(), 17, 17)
+	addROA(client, bgp.AFI_IP, tree, 65000, net.ParseIP("10.0.0.0").To4(), 17, 17)
+	addROA(client, bgp.AFI_IP, tree, 65000, net.ParseIP("10.0.128.0").To4(), 17, 17)
 
 	var r config.RpkiValidationResultType
 
@@ -167,8 +187,12 @@ func TestValidate5(t *testing.T) {
 func TestValidate6(t *testing.T) {
 	assert := assert.New(t)
 
+	client := &roaClient{
+		records:  make(map[int]uint32),
+		prefixes: make(map[int]uint32),
+	}
 	tree := radix.New()
-	addROA("", tree, 0, net.ParseIP("10.0.0.0").To4(), 8, 32)
+	addROA(client, bgp.AFI_IP, tree, 0, net.ParseIP("10.0.0.0").To4(), 8, 32)
 
 	var r config.RpkiValidationResultType
 
@@ -185,8 +209,12 @@ func TestValidate6(t *testing.T) {
 func TestValidate7(t *testing.T) {
 	assert := assert.New(t)
 
+	client := &roaClient{
+		records:  make(map[int]uint32),
+		prefixes: make(map[int]uint32),
+	}
 	tree := radix.New()
-	addROA("", tree, 65000, net.ParseIP("10.0.0.0").To4(), 16, 24)
+	addROA(client, bgp.AFI_IP, tree, 65000, net.ParseIP("10.0.0.0").To4(), 16, 24)
 
 	var r config.RpkiValidationResultType
 
@@ -203,9 +231,13 @@ func TestValidate7(t *testing.T) {
 func TestValidate8(t *testing.T) {
 	assert := assert.New(t)
 
+	client := &roaClient{
+		records:  make(map[int]uint32),
+		prefixes: make(map[int]uint32),
+	}
 	tree := radix.New()
-	addROA("", tree, 0, net.ParseIP("10.0.0.0").To4(), 16, 24)
-	addROA("", tree, 65000, net.ParseIP("10.0.0.0").To4(), 16, 24)
+	addROA(client, bgp.AFI_IP, tree, 0, net.ParseIP("10.0.0.0").To4(), 16, 24)
+	addROA(client, bgp.AFI_IP, tree, 65000, net.ParseIP("10.0.0.0").To4(), 16, 24)
 
 	var r config.RpkiValidationResultType
 

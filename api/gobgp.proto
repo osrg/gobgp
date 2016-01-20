@@ -467,8 +467,21 @@ message RPKIConf {
 message RPKIState {
     int64 uptime = 1;
     int64 downtime = 2;
-    int64 received_ipv4 = 3;
-    int64 received_ipv6 = 4;
+    bool  up = 3;
+    uint32 record_ipv4 = 4;
+    uint32 record_ipv6 = 5;
+    uint32 prefix_ipv4 = 6;
+    uint32 prefix_ipv6 = 7;
+    uint32 serial = 8;
+    int64 received_ipv4 = 9;
+    int64 received_ipv6 = 10;
+    int64 serial_notify = 11;
+    int64 cache_reset = 12;
+    int64 cache_response = 13;
+    int64 end_of_data = 14;
+    int64 error = 15;
+    int64 serial_query = 16;
+    int64 reset_query = 17;
 }
 
 message RPKI {
