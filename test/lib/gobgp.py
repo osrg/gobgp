@@ -42,18 +42,20 @@ class GoBGPContainer(BGPContainer):
         self.default_policy = None
         self.zebra = zebra
 
-    def _start_gobgp(self):
-        zebra_op = ''
+    def _start_gobgp(self, graceful_restart=False):
         c = CmdBuffer()
         c << '#!/bin/bash'
         c << '/go/bin/gobgpd -f {0}/gobgpd.conf -l {1} -p {2} > ' \
-             '{0}/gobgpd.log 2>&1'.format(self.SHARED_VOLUME, self.log_level, zebra_op)
+             '{0}/gobgpd.log 2>&1'.format(self.SHARED_VOLUME, self.log_level, '-r' if graceful_restart else '')
 
         cmd = 'echo "{0:s}" > {1}/start.sh'.format(c, self.config_dir)
         local(cmd, capture=True)
         cmd = "chmod 755 {0}/start.sh".format(self.config_dir)
         local(cmd, capture=True)
         self.local("{0}/start.sh".format(self.SHARED_VOLUME), flag='-d')
+
+    def graceful_restart(self):
+        self.local("pkill -INT gobgpd")
 
     def _start_zebra(self):
         cmd = 'cp {0}/zebra.conf {1}/'.format(self.SHARED_VOLUME, self.QUAGGA_VOLUME)
@@ -212,6 +214,11 @@ class GoBGPContainer(BGPContainer):
 
             if info['is_rs_client']:
                 n['route-server'] = {'config': {'route-server-client': True}}
+
+            if info['graceful_restart'] is not None:
+                n['graceful-restart'] = {'config': {'enabled': True, 'restart-time': 20}}
+                for afi_safi in afi_safi_list:
+                    afi_safi['mp-graceful-restart'] = {'config': {'enabled': True}}
 
             if info['is_rr_client']:
                 clusterId = self.router_id
