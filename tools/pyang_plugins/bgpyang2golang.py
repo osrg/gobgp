@@ -166,6 +166,9 @@ def emit_class_def(ctx, yang_statement, struct_name, prefix):
                 else:
                     emit_type_name = t.arg
 
+            # case embeded enumeration
+            elif type_name == 'enumeration':
+                emit_type_name = val_name_go
 
             # case translation required
             elif is_translation_required(type_obj):
@@ -289,6 +292,16 @@ def visit_children(ctx, module, children):
              c.uniq_name = 'mp-graceful-restart'
 
         t = c.search_one('type')
+
+        # define container embeded enums
+        if is_leaf(c) and c.search_one('type').arg == 'enumeration':
+            prefix = module.i_prefix
+            c.path = get_path(c)
+            c.golang_name = convert_to_golang(c.arg)
+            if prefix in ctx.golang_typedef_map:
+                ctx.golang_typedef_map[prefix][c.arg] = c
+            else:
+                ctx.golang_typedef_map[prefix] = {c.arg: c}
 
         if is_list(c) or is_container(c) or is_choice(c):
             c.golang_name = convert_to_golang(c.uniq_name)
@@ -542,7 +555,6 @@ def is_translation_required(t):
 
 _type_translation_map = {
     'union': 'string',
-    'enumeration': 'uint32',
     'decimal64': 'float64',
     'boolean': 'bool',
     'empty': 'bool',

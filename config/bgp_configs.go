@@ -298,6 +298,39 @@ func (v MatchSetOptionsType) DefaultAsNeeded() MatchSetOptionsType {
 // typedef for typedef ptypes:tag-type
 type TagType string
 
+// typedef for typedef rpol:route-type
+type RouteType string
+
+const (
+	ROUTE_TYPE_INTERNAL RouteType = "internal"
+	ROUTE_TYPE_EXTERNAL RouteType = "external"
+)
+
+func (v RouteType) ToInt() int {
+	for i, vv := range []string{"internal", "external"} {
+		if string(v) == vv {
+			return i
+		}
+	}
+	return -1
+}
+
+func (v RouteType) FromInt(i int) RouteType {
+	for j, vv := range []string{"internal", "external"} {
+		if i == j {
+			return RouteType(vv)
+		}
+	}
+	return RouteType("")
+}
+
+func (v RouteType) Validate() error {
+	if v.ToInt() < 0 {
+		return fmt.Errorf("invalid RouteType: %s", v)
+	}
+	return nil
+}
+
 // typedef for typedef rpol:default-policy-type
 type DefaultPolicyType string
 
@@ -327,6 +360,77 @@ func (v DefaultPolicyType) FromInt(i int) DefaultPolicyType {
 func (v DefaultPolicyType) Validate() error {
 	if v.ToInt() < 0 {
 		return fmt.Errorf("invalid DefaultPolicyType: %s", v)
+	}
+	return nil
+}
+
+// typedef for typedef bgp:session-state
+type SessionState string
+
+const (
+	SESSION_STATE_IDLE        SessionState = "idle"
+	SESSION_STATE_CONNECT     SessionState = "connect"
+	SESSION_STATE_ACTIVE      SessionState = "active"
+	SESSION_STATE_OPENSENT    SessionState = "opensent"
+	SESSION_STATE_OPENCONFIRM SessionState = "openconfirm"
+	SESSION_STATE_ESTABLISHED SessionState = "established"
+)
+
+func (v SessionState) ToInt() int {
+	for i, vv := range []string{"idle", "connect", "active", "opensent", "openconfirm", "established"} {
+		if string(v) == vv {
+			return i
+		}
+	}
+	return -1
+}
+
+func (v SessionState) FromInt(i int) SessionState {
+	for j, vv := range []string{"idle", "connect", "active", "opensent", "openconfirm", "established"} {
+		if i == j {
+			return SessionState(vv)
+		}
+	}
+	return SessionState("")
+}
+
+func (v SessionState) Validate() error {
+	if v.ToInt() < 0 {
+		return fmt.Errorf("invalid SessionState: %s", v)
+	}
+	return nil
+}
+
+// typedef for typedef bgp:mode
+type Mode string
+
+const (
+	MODE_HELPER_ONLY   Mode = "helper-only"
+	MODE_BILATERAL     Mode = "bilateral"
+	MODE_REMOTE_HELPER Mode = "remote-helper"
+)
+
+func (v Mode) ToInt() int {
+	for i, vv := range []string{"helper-only", "bilateral", "remote-helper"} {
+		if string(v) == vv {
+			return i
+		}
+	}
+	return -1
+}
+
+func (v Mode) FromInt(i int) Mode {
+	for j, vv := range []string{"helper-only", "bilateral", "remote-helper"} {
+		if i == j {
+			return Mode(vv)
+		}
+	}
+	return Mode("")
+}
+
+func (v Mode) Validate() error {
+	if v.ToInt() < 0 {
+		return fmt.Errorf("invalid Mode: %s", v)
 	}
 	return nil
 }
@@ -978,8 +1082,7 @@ type NeighborState struct {
 	//bgp:neighbor-address's original type is inet:ip-address
 	NeighborAddress string `mapstructure:"neighbor-address"`
 	// original -> bgp-op:session-state
-	//bgp-op:session-state's original type is enumeration
-	SessionState uint32 `mapstructure:"session-state"`
+	SessionState SessionState `mapstructure:"session-state"`
 	// original -> bgp-op:supported-capabilities
 	// original type is list of identityref
 	SupportedCapabilitiesList []string `mapstructure:"supported-capabilities-list"`
@@ -1396,8 +1499,7 @@ type GracefulRestartState struct {
 	//bgp-op:local-restarting's original type is boolean
 	LocalRestarting bool `mapstructure:"local-restarting"`
 	// original -> bgp-op:mode
-	//bgp-op:mode's original type is enumeration
-	Mode uint32 `mapstructure:"mode"`
+	Mode Mode `mapstructure:"mode"`
 }
 
 //struct for container bgp:config
@@ -1827,8 +1929,7 @@ type BgpConditions struct {
 	// original -> bgp-pol:as-path-length
 	AsPathLength AsPathLength `mapstructure:"as-path-length"`
 	// original -> bgp-pol:route-type
-	//bgp-pol:route-type's original type is enumeration
-	RouteType uint32 `mapstructure:"route-type"`
+	RouteType RouteType `mapstructure:"route-type"`
 	// original -> gobgp:rpki-validation-result
 	RpkiValidationResult RpkiValidationResultType `mapstructure:"rpki-validation-result"`
 }
