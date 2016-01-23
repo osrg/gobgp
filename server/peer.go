@@ -56,7 +56,7 @@ func NewPeer(g config.Global, conf config.Neighbor, loc *table.TableManager, pol
 		tableId = conf.Config.NeighborAddress
 	}
 	peer.tableId = tableId
-	conf.State.SessionState = conf.State.SessionState.FromInt(int(bgp.BGP_FSM_IDLE))
+	conf.State.SessionState = config.IntToSessionStateMap[int(bgp.BGP_FSM_IDLE)]
 	conf.Timers.State.Downtime = time.Now().Unix()
 	rfs, _ := config.AfiSafis(conf.AfiSafis).ToRfList()
 	peer.adjRibIn = table.NewAdjRib(peer.ID(), rfs)

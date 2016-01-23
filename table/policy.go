@@ -1546,15 +1546,12 @@ func NewAsPathLengthCondition(c config.AsPathLength) (*AsPathLengthCondition, er
 		return nil, nil
 	}
 	var op AttributeComparison
-	switch strings.ToLower(c.Operator) {
-	case "eq":
-		op = ATTRIBUTE_EQ
-	case "ge":
-		op = ATTRIBUTE_GE
-	case "le":
-		op = ATTRIBUTE_LE
-	default:
+	if i := c.Operator.ToInt(); i < 0 {
 		return nil, fmt.Errorf("invalid as path length operator: %s", c.Operator)
+	} else {
+		// take mod 3 because we have extended openconfig attribute-comparison
+		// for simple configuration. see config.AttributeComparison definition
+		op = AttributeComparison(i % 3)
 	}
 	return &AsPathLengthCondition{
 		length:   c.Value,
@@ -1582,9 +1579,7 @@ func NewRpkiValidationConditionFromApiStruct(a int32) (*RpkiValidationCondition,
 	if a < 1 {
 		return nil, nil
 	}
-	var typ config.RpkiValidationResultType
-	typ = typ.FromInt(int(a))
-	return NewRpkiValidationCondition(typ)
+	return NewRpkiValidationCondition(config.IntToRpkiValidationResultTypeMap[int(a)])
 }
 
 func NewRpkiValidationCondition(c config.RpkiValidationResultType) (*RpkiValidationCondition, error) {
@@ -1735,8 +1730,7 @@ func NewCommunityActionFromApiStruct(a *api.CommunityAction) (*CommunityAction, 
 	}
 	var list []uint32
 	var removeList []*regexp.Regexp
-	var op config.BgpSetCommunityOptionType
-	op = op.FromInt(int(a.Type))
+	op := config.IntToBgpSetCommunityOptionTypeMap[int(a.Type)]
 	if op == config.BGP_SET_COMMUNITY_OPTION_TYPE_REMOVE {
 		removeList = make([]*regexp.Regexp, 0, len(a.Communities))
 	} else {
@@ -1857,8 +1851,7 @@ func NewExtCommunityActionFromApiStruct(a *api.CommunityAction) (*ExtCommunityAc
 	var list []bgp.ExtendedCommunityInterface
 	var removeList []*regexp.Regexp
 	subtypeList := make([]bgp.ExtendedCommunityAttrSubType, 0, len(a.Communities))
-	var op config.BgpSetCommunityOptionType
-	op = op.FromInt(int(a.Type))
+	op := config.IntToBgpSetCommunityOptionTypeMap[int(a.Type)]
 	if op == config.BGP_SET_COMMUNITY_OPTION_TYPE_REMOVE {
 		removeList = make([]*regexp.Regexp, 0, len(a.Communities))
 	} else {
