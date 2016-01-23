@@ -172,15 +172,6 @@ func (peer *Peer) handleBGPmessage(e *FsmMsg) ([]*table.Path, []*bgp.BGPMessage)
 			}
 			return paths, nil
 		}
-	case bgp.BGP_MSG_NOTIFICATION:
-		body := m.Body.(*bgp.BGPNotification)
-		log.WithFields(log.Fields{
-			"Topic":   "Peer",
-			"Key":     peer.conf.Config.NeighborAddress,
-			"Code":    body.ErrorCode,
-			"Subcode": body.ErrorSubcode,
-			"Data":    body.Data,
-		}).Warn("received notification")
 	}
 	return nil, nil
 }
