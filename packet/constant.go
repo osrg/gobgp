@@ -27,8 +27,7 @@ const BGP_PORT = 179
 type FSMState int
 
 const (
-	_ FSMState = iota
-	BGP_FSM_IDLE
+	BGP_FSM_IDLE FSMState = iota
 	BGP_FSM_CONNECT
 	BGP_FSM_ACTIVE
 	BGP_FSM_OPENSENT

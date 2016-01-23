@@ -438,9 +438,8 @@ func printStatement(indent int, s *api.Statement) {
 	}
 
 	rpki := s.Conditions.RpkiResult
-	var r config.RpkiValidationResultType
 	if rpki > -1 {
-		fmt.Printf("%sRPKI result: %s\n", sIndent(indent+4), r.FromInt(int(rpki)))
+		fmt.Printf("%sRPKI result: %s\n", sIndent(indent+4), config.IntToRpkiValidationResultTypeMap[int(rpki)])
 	}
 
 	fmt.Printf("%sActions:\n", sIndent(indent+2))

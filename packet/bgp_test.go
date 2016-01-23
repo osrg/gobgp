@@ -26,10 +26,10 @@ func open() *BGPMessage {
 		[]ParameterCapabilityInterface{NewCapRouteRefresh()})
 	p2 := NewOptionParameterCapability(
 		[]ParameterCapabilityInterface{NewCapMultiProtocol(RF_IPv4_UC)})
-	g := CapGracefulRestartTuples{4, 2, 3}
+	g := &CapGracefulRestartTuple{4, 2, 3}
 	p3 := NewOptionParameterCapability(
-		[]ParameterCapabilityInterface{NewCapGracefulRestart(2, 100,
-			[]CapGracefulRestartTuples{g})})
+		[]ParameterCapabilityInterface{NewCapGracefulRestart(false, 100,
+			[]*CapGracefulRestartTuple{g})})
 	p4 := NewOptionParameterCapability(
 		[]ParameterCapabilityInterface{NewCapFourOctetASNumber(100000)})
 	p5 := NewOptionParameterCapability(
