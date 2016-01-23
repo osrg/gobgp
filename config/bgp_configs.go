@@ -29,7 +29,7 @@ type Percentage uint8
 // typedef for typedef bgp-types:rr-cluster-id-type
 type RrClusterIdType string
 
-// typedef for typedef bgp-types:remove-private-as-option
+// typedef for identity bgp-types:remove-private-as-option
 type RemovePrivateAsOption string
 
 const (
@@ -37,26 +37,26 @@ const (
 	REMOVE_PRIVATE_AS_OPTION_REPLACE RemovePrivateAsOption = "replace"
 )
 
-func (v RemovePrivateAsOption) ToInt() int {
-	for i, vv := range []string{"all", "replace"} {
-		if string(v) == vv {
-			return i
-		}
-	}
-	return -1
+var RemovePrivateAsOptionToIntMap = map[RemovePrivateAsOption]int{
+	REMOVE_PRIVATE_AS_OPTION_ALL:     0,
+	REMOVE_PRIVATE_AS_OPTION_REPLACE: 1,
 }
 
-func (v RemovePrivateAsOption) FromInt(i int) RemovePrivateAsOption {
-	for j, vv := range []string{"all", "replace"} {
-		if i == j {
-			return RemovePrivateAsOption(vv)
-		}
+func (v RemovePrivateAsOption) ToInt() int {
+	i, ok := RemovePrivateAsOptionToIntMap[v]
+	if !ok {
+		return -1
 	}
-	return RemovePrivateAsOption("")
+	return i
+}
+
+var IntToRemovePrivateAsOptionMap = map[int]RemovePrivateAsOption{
+	0: REMOVE_PRIVATE_AS_OPTION_ALL,
+	1: REMOVE_PRIVATE_AS_OPTION_REPLACE,
 }
 
 func (v RemovePrivateAsOption) Validate() error {
-	if v.ToInt() < 0 {
+	if _, ok := RemovePrivateAsOptionToIntMap[v]; !ok {
 		return fmt.Errorf("invalid RemovePrivateAsOption: %s", v)
 	}
 	return nil
@@ -65,7 +65,7 @@ func (v RemovePrivateAsOption) Validate() error {
 // typedef for typedef bgp-types:bgp-community-regexp-type
 type BgpCommunityRegexpType StdRegexp
 
-// typedef for typedef bgp-types:community-type
+// typedef for identity bgp-types:community-type
 type CommunityType string
 
 const (
@@ -75,26 +75,30 @@ const (
 	COMMUNITY_TYPE_NONE     CommunityType = "none"
 )
 
-func (v CommunityType) ToInt() int {
-	for i, vv := range []string{"standard", "extended", "both", "none"} {
-		if string(v) == vv {
-			return i
-		}
-	}
-	return -1
+var CommunityTypeToIntMap = map[CommunityType]int{
+	COMMUNITY_TYPE_STANDARD: 0,
+	COMMUNITY_TYPE_EXTENDED: 1,
+	COMMUNITY_TYPE_BOTH:     2,
+	COMMUNITY_TYPE_NONE:     3,
 }
 
-func (v CommunityType) FromInt(i int) CommunityType {
-	for j, vv := range []string{"standard", "extended", "both", "none"} {
-		if i == j {
-			return CommunityType(vv)
-		}
+func (v CommunityType) ToInt() int {
+	i, ok := CommunityTypeToIntMap[v]
+	if !ok {
+		return -1
 	}
-	return CommunityType("")
+	return i
+}
+
+var IntToCommunityTypeMap = map[int]CommunityType{
+	0: COMMUNITY_TYPE_STANDARD,
+	1: COMMUNITY_TYPE_EXTENDED,
+	2: COMMUNITY_TYPE_BOTH,
+	3: COMMUNITY_TYPE_NONE,
 }
 
 func (v CommunityType) Validate() error {
-	if v.ToInt() < 0 {
+	if _, ok := CommunityTypeToIntMap[v]; !ok {
 		return fmt.Errorf("invalid CommunityType: %s", v)
 	}
 	return nil
@@ -106,7 +110,7 @@ type BgpExtCommunityType string
 // typedef for typedef bgp-types:bgp-std-community-type
 type BgpStdCommunityType string
 
-// typedef for typedef bgp-types:peer-type
+// typedef for identity bgp-types:peer-type
 type PeerType string
 
 const (
@@ -114,32 +118,32 @@ const (
 	PEER_TYPE_EXTERNAL PeerType = "external"
 )
 
-func (v PeerType) ToInt() int {
-	for i, vv := range []string{"internal", "external"} {
-		if string(v) == vv {
-			return i
-		}
-	}
-	return -1
+var PeerTypeToIntMap = map[PeerType]int{
+	PEER_TYPE_INTERNAL: 0,
+	PEER_TYPE_EXTERNAL: 1,
 }
 
-func (v PeerType) FromInt(i int) PeerType {
-	for j, vv := range []string{"internal", "external"} {
-		if i == j {
-			return PeerType(vv)
-		}
+func (v PeerType) ToInt() int {
+	i, ok := PeerTypeToIntMap[v]
+	if !ok {
+		return -1
 	}
-	return PeerType("")
+	return i
+}
+
+var IntToPeerTypeMap = map[int]PeerType{
+	0: PEER_TYPE_INTERNAL,
+	1: PEER_TYPE_EXTERNAL,
 }
 
 func (v PeerType) Validate() error {
-	if v.ToInt() < 0 {
+	if _, ok := PeerTypeToIntMap[v]; !ok {
 		return fmt.Errorf("invalid PeerType: %s", v)
 	}
 	return nil
 }
 
-// typedef for typedef bgp-types:bgp-session-direction
+// typedef for identity bgp-types:bgp-session-direction
 type BgpSessionDirection string
 
 const (
@@ -147,32 +151,32 @@ const (
 	BGP_SESSION_DIRECTION_OUTBOUND BgpSessionDirection = "outbound"
 )
 
-func (v BgpSessionDirection) ToInt() int {
-	for i, vv := range []string{"inbound", "outbound"} {
-		if string(v) == vv {
-			return i
-		}
-	}
-	return -1
+var BgpSessionDirectionToIntMap = map[BgpSessionDirection]int{
+	BGP_SESSION_DIRECTION_INBOUND:  0,
+	BGP_SESSION_DIRECTION_OUTBOUND: 1,
 }
 
-func (v BgpSessionDirection) FromInt(i int) BgpSessionDirection {
-	for j, vv := range []string{"inbound", "outbound"} {
-		if i == j {
-			return BgpSessionDirection(vv)
-		}
+func (v BgpSessionDirection) ToInt() int {
+	i, ok := BgpSessionDirectionToIntMap[v]
+	if !ok {
+		return -1
 	}
-	return BgpSessionDirection("")
+	return i
+}
+
+var IntToBgpSessionDirectionMap = map[int]BgpSessionDirection{
+	0: BGP_SESSION_DIRECTION_INBOUND,
+	1: BGP_SESSION_DIRECTION_OUTBOUND,
 }
 
 func (v BgpSessionDirection) Validate() error {
-	if v.ToInt() < 0 {
+	if _, ok := BgpSessionDirectionToIntMap[v]; !ok {
 		return fmt.Errorf("invalid BgpSessionDirection: %s", v)
 	}
 	return nil
 }
 
-// typedef for typedef bgp-types:bgp-origin-attr-type
+// typedef for identity bgp-types:bgp-origin-attr-type
 type BgpOriginAttrType string
 
 const (
@@ -181,32 +185,196 @@ const (
 	BGP_ORIGIN_ATTR_TYPE_INCOMPLETE BgpOriginAttrType = "incomplete"
 )
 
-func (v BgpOriginAttrType) ToInt() int {
-	for i, vv := range []string{"igp", "egp", "incomplete"} {
-		if string(v) == vv {
-			return i
-		}
-	}
-	return -1
+var BgpOriginAttrTypeToIntMap = map[BgpOriginAttrType]int{
+	BGP_ORIGIN_ATTR_TYPE_IGP:        0,
+	BGP_ORIGIN_ATTR_TYPE_EGP:        1,
+	BGP_ORIGIN_ATTR_TYPE_INCOMPLETE: 2,
 }
 
-func (v BgpOriginAttrType) FromInt(i int) BgpOriginAttrType {
-	for j, vv := range []string{"igp", "egp", "incomplete"} {
-		if i == j {
-			return BgpOriginAttrType(vv)
-		}
+func (v BgpOriginAttrType) ToInt() int {
+	i, ok := BgpOriginAttrTypeToIntMap[v]
+	if !ok {
+		return -1
 	}
-	return BgpOriginAttrType("")
+	return i
+}
+
+var IntToBgpOriginAttrTypeMap = map[int]BgpOriginAttrType{
+	0: BGP_ORIGIN_ATTR_TYPE_IGP,
+	1: BGP_ORIGIN_ATTR_TYPE_EGP,
+	2: BGP_ORIGIN_ATTR_TYPE_INCOMPLETE,
 }
 
 func (v BgpOriginAttrType) Validate() error {
-	if v.ToInt() < 0 {
+	if _, ok := BgpOriginAttrTypeToIntMap[v]; !ok {
 		return fmt.Errorf("invalid BgpOriginAttrType: %s", v)
 	}
 	return nil
 }
 
-// typedef for typedef ptypes:match-set-options-restricted-type
+// typedef for identity bgp-types:afi-safi-type
+type AfiSafiType string
+
+const (
+	AFI_SAFI_TYPE_IPV4_UNICAST          AfiSafiType = "ipv4-unicast"
+	AFI_SAFI_TYPE_IPV6_UNICAST          AfiSafiType = "ipv6-unicast"
+	AFI_SAFI_TYPE_IPV4_LABELLED_UNICAST AfiSafiType = "ipv4-labelled-unicast"
+	AFI_SAFI_TYPE_IPV6_LABELLED_UNICAST AfiSafiType = "ipv6-labelled-unicast"
+	AFI_SAFI_TYPE_L3VPN_IPV4_UNICAST    AfiSafiType = "l3vpn-ipv4-unicast"
+	AFI_SAFI_TYPE_L3VPN_IPV6_UNICAST    AfiSafiType = "l3vpn-ipv6-unicast"
+	AFI_SAFI_TYPE_L3VPN_IPV4_MULTICAST  AfiSafiType = "l3vpn-ipv4-multicast"
+	AFI_SAFI_TYPE_L3VPN_IPV6_MULTICAST  AfiSafiType = "l3vpn-ipv6-multicast"
+	AFI_SAFI_TYPE_L2VPN_VPLS            AfiSafiType = "l2vpn-vpls"
+	AFI_SAFI_TYPE_L2VPN_EVPN            AfiSafiType = "l2vpn-evpn"
+	AFI_SAFI_TYPE_IPV4_MULTICAST        AfiSafiType = "ipv4-multicast"
+	AFI_SAFI_TYPE_IPV6_MULTICAST        AfiSafiType = "ipv6-multicast"
+	AFI_SAFI_TYPE_RTC                   AfiSafiType = "rtc"
+	AFI_SAFI_TYPE_ENCAP                 AfiSafiType = "encap"
+	AFI_SAFI_TYPE_IPV4_FLOWSPEC         AfiSafiType = "ipv4-flowspec"
+	AFI_SAFI_TYPE_L3VPN_IPV4_FLOWSPEC   AfiSafiType = "l3vpn-ipv4-flowspec"
+	AFI_SAFI_TYPE_IPV6_FLOWSPEC         AfiSafiType = "ipv6-flowspec"
+	AFI_SAFI_TYPE_L3VPN_IPV6_FLOWSPEC   AfiSafiType = "l3vpn-ipv6-flowspec"
+)
+
+var AfiSafiTypeToIntMap = map[AfiSafiType]int{
+	AFI_SAFI_TYPE_IPV4_UNICAST:          0,
+	AFI_SAFI_TYPE_IPV6_UNICAST:          1,
+	AFI_SAFI_TYPE_IPV4_LABELLED_UNICAST: 2,
+	AFI_SAFI_TYPE_IPV6_LABELLED_UNICAST: 3,
+	AFI_SAFI_TYPE_L3VPN_IPV4_UNICAST:    4,
+	AFI_SAFI_TYPE_L3VPN_IPV6_UNICAST:    5,
+	AFI_SAFI_TYPE_L3VPN_IPV4_MULTICAST:  6,
+	AFI_SAFI_TYPE_L3VPN_IPV6_MULTICAST:  7,
+	AFI_SAFI_TYPE_L2VPN_VPLS:            8,
+	AFI_SAFI_TYPE_L2VPN_EVPN:            9,
+	AFI_SAFI_TYPE_IPV4_MULTICAST:        10,
+	AFI_SAFI_TYPE_IPV6_MULTICAST:        11,
+	AFI_SAFI_TYPE_RTC:                   12,
+	AFI_SAFI_TYPE_ENCAP:                 13,
+	AFI_SAFI_TYPE_IPV4_FLOWSPEC:         14,
+	AFI_SAFI_TYPE_L3VPN_IPV4_FLOWSPEC:   15,
+	AFI_SAFI_TYPE_IPV6_FLOWSPEC:         16,
+	AFI_SAFI_TYPE_L3VPN_IPV6_FLOWSPEC:   17,
+}
+
+func (v AfiSafiType) ToInt() int {
+	i, ok := AfiSafiTypeToIntMap[v]
+	if !ok {
+		return -1
+	}
+	return i
+}
+
+var IntToAfiSafiTypeMap = map[int]AfiSafiType{
+	0:  AFI_SAFI_TYPE_IPV4_UNICAST,
+	1:  AFI_SAFI_TYPE_IPV6_UNICAST,
+	2:  AFI_SAFI_TYPE_IPV4_LABELLED_UNICAST,
+	3:  AFI_SAFI_TYPE_IPV6_LABELLED_UNICAST,
+	4:  AFI_SAFI_TYPE_L3VPN_IPV4_UNICAST,
+	5:  AFI_SAFI_TYPE_L3VPN_IPV6_UNICAST,
+	6:  AFI_SAFI_TYPE_L3VPN_IPV4_MULTICAST,
+	7:  AFI_SAFI_TYPE_L3VPN_IPV6_MULTICAST,
+	8:  AFI_SAFI_TYPE_L2VPN_VPLS,
+	9:  AFI_SAFI_TYPE_L2VPN_EVPN,
+	10: AFI_SAFI_TYPE_IPV4_MULTICAST,
+	11: AFI_SAFI_TYPE_IPV6_MULTICAST,
+	12: AFI_SAFI_TYPE_RTC,
+	13: AFI_SAFI_TYPE_ENCAP,
+	14: AFI_SAFI_TYPE_IPV4_FLOWSPEC,
+	15: AFI_SAFI_TYPE_L3VPN_IPV4_FLOWSPEC,
+	16: AFI_SAFI_TYPE_IPV6_FLOWSPEC,
+	17: AFI_SAFI_TYPE_L3VPN_IPV6_FLOWSPEC,
+}
+
+func (v AfiSafiType) Validate() error {
+	if _, ok := AfiSafiTypeToIntMap[v]; !ok {
+		return fmt.Errorf("invalid AfiSafiType: %s", v)
+	}
+	return nil
+}
+
+// typedef for identity bgp-types:bgp-capability
+type BgpCapability string
+
+const (
+	BGP_CAPABILITY_MPBGP            BgpCapability = "mpbgp"
+	BGP_CAPABILITY_ROUTE_REFRESH    BgpCapability = "route-refresh"
+	BGP_CAPABILITY_ASN32            BgpCapability = "asn32"
+	BGP_CAPABILITY_GRACEFUL_RESTART BgpCapability = "graceful-restart"
+	BGP_CAPABILITY_ADD_PATHS        BgpCapability = "add-paths"
+)
+
+var BgpCapabilityToIntMap = map[BgpCapability]int{
+	BGP_CAPABILITY_MPBGP:            0,
+	BGP_CAPABILITY_ROUTE_REFRESH:    1,
+	BGP_CAPABILITY_ASN32:            2,
+	BGP_CAPABILITY_GRACEFUL_RESTART: 3,
+	BGP_CAPABILITY_ADD_PATHS:        4,
+}
+
+func (v BgpCapability) ToInt() int {
+	i, ok := BgpCapabilityToIntMap[v]
+	if !ok {
+		return -1
+	}
+	return i
+}
+
+var IntToBgpCapabilityMap = map[int]BgpCapability{
+	0: BGP_CAPABILITY_MPBGP,
+	1: BGP_CAPABILITY_ROUTE_REFRESH,
+	2: BGP_CAPABILITY_ASN32,
+	3: BGP_CAPABILITY_GRACEFUL_RESTART,
+	4: BGP_CAPABILITY_ADD_PATHS,
+}
+
+func (v BgpCapability) Validate() error {
+	if _, ok := BgpCapabilityToIntMap[v]; !ok {
+		return fmt.Errorf("invalid BgpCapability: %s", v)
+	}
+	return nil
+}
+
+// typedef for identity bgp-types:bgp-well-known-std-community
+type BgpWellKnownStdCommunity string
+
+const (
+	BGP_WELL_KNOWN_STD_COMMUNITY_NO_EXPORT           BgpWellKnownStdCommunity = "no_export"
+	BGP_WELL_KNOWN_STD_COMMUNITY_NO_ADVERTISE        BgpWellKnownStdCommunity = "no_advertise"
+	BGP_WELL_KNOWN_STD_COMMUNITY_NO_EXPORT_SUBCONFED BgpWellKnownStdCommunity = "no_export_subconfed"
+	BGP_WELL_KNOWN_STD_COMMUNITY_NOPEER              BgpWellKnownStdCommunity = "nopeer"
+)
+
+var BgpWellKnownStdCommunityToIntMap = map[BgpWellKnownStdCommunity]int{
+	BGP_WELL_KNOWN_STD_COMMUNITY_NO_EXPORT:           0,
+	BGP_WELL_KNOWN_STD_COMMUNITY_NO_ADVERTISE:        1,
+	BGP_WELL_KNOWN_STD_COMMUNITY_NO_EXPORT_SUBCONFED: 2,
+	BGP_WELL_KNOWN_STD_COMMUNITY_NOPEER:              3,
+}
+
+func (v BgpWellKnownStdCommunity) ToInt() int {
+	i, ok := BgpWellKnownStdCommunityToIntMap[v]
+	if !ok {
+		return -1
+	}
+	return i
+}
+
+var IntToBgpWellKnownStdCommunityMap = map[int]BgpWellKnownStdCommunity{
+	0: BGP_WELL_KNOWN_STD_COMMUNITY_NO_EXPORT,
+	1: BGP_WELL_KNOWN_STD_COMMUNITY_NO_ADVERTISE,
+	2: BGP_WELL_KNOWN_STD_COMMUNITY_NO_EXPORT_SUBCONFED,
+	3: BGP_WELL_KNOWN_STD_COMMUNITY_NOPEER,
+}
+
+func (v BgpWellKnownStdCommunity) Validate() error {
+	if _, ok := BgpWellKnownStdCommunityToIntMap[v]; !ok {
+		return fmt.Errorf("invalid BgpWellKnownStdCommunity: %s", v)
+	}
+	return nil
+}
+
+// typedef for identity ptypes:match-set-options-restricted-type
 type MatchSetOptionsRestrictedType string
 
 const (
@@ -214,26 +382,26 @@ const (
 	MATCH_SET_OPTIONS_RESTRICTED_TYPE_INVERT MatchSetOptionsRestrictedType = "invert"
 )
 
-func (v MatchSetOptionsRestrictedType) ToInt() int {
-	for i, vv := range []string{"any", "invert"} {
-		if string(v) == vv {
-			return i
-		}
-	}
-	return -1
+var MatchSetOptionsRestrictedTypeToIntMap = map[MatchSetOptionsRestrictedType]int{
+	MATCH_SET_OPTIONS_RESTRICTED_TYPE_ANY:    0,
+	MATCH_SET_OPTIONS_RESTRICTED_TYPE_INVERT: 1,
 }
 
-func (v MatchSetOptionsRestrictedType) FromInt(i int) MatchSetOptionsRestrictedType {
-	for j, vv := range []string{"any", "invert"} {
-		if i == j {
-			return MatchSetOptionsRestrictedType(vv)
-		}
+func (v MatchSetOptionsRestrictedType) ToInt() int {
+	i, ok := MatchSetOptionsRestrictedTypeToIntMap[v]
+	if !ok {
+		return -1
 	}
-	return MatchSetOptionsRestrictedType("")
+	return i
+}
+
+var IntToMatchSetOptionsRestrictedTypeMap = map[int]MatchSetOptionsRestrictedType{
+	0: MATCH_SET_OPTIONS_RESTRICTED_TYPE_ANY,
+	1: MATCH_SET_OPTIONS_RESTRICTED_TYPE_INVERT,
 }
 
 func (v MatchSetOptionsRestrictedType) Validate() error {
-	if v.ToInt() < 0 {
+	if _, ok := MatchSetOptionsRestrictedTypeToIntMap[v]; !ok {
 		return fmt.Errorf("invalid MatchSetOptionsRestrictedType: %s", v)
 	}
 	return nil
@@ -250,7 +418,7 @@ func (v MatchSetOptionsRestrictedType) DefaultAsNeeded() MatchSetOptionsRestrict
 	return v
 }
 
-// typedef for typedef ptypes:match-set-options-type
+// typedef for identity ptypes:match-set-options-type
 type MatchSetOptionsType string
 
 const (
@@ -259,26 +427,28 @@ const (
 	MATCH_SET_OPTIONS_TYPE_INVERT MatchSetOptionsType = "invert"
 )
 
-func (v MatchSetOptionsType) ToInt() int {
-	for i, vv := range []string{"any", "all", "invert"} {
-		if string(v) == vv {
-			return i
-		}
-	}
-	return -1
+var MatchSetOptionsTypeToIntMap = map[MatchSetOptionsType]int{
+	MATCH_SET_OPTIONS_TYPE_ANY:    0,
+	MATCH_SET_OPTIONS_TYPE_ALL:    1,
+	MATCH_SET_OPTIONS_TYPE_INVERT: 2,
 }
 
-func (v MatchSetOptionsType) FromInt(i int) MatchSetOptionsType {
-	for j, vv := range []string{"any", "all", "invert"} {
-		if i == j {
-			return MatchSetOptionsType(vv)
-		}
+func (v MatchSetOptionsType) ToInt() int {
+	i, ok := MatchSetOptionsTypeToIntMap[v]
+	if !ok {
+		return -1
 	}
-	return MatchSetOptionsType("")
+	return i
+}
+
+var IntToMatchSetOptionsTypeMap = map[int]MatchSetOptionsType{
+	0: MATCH_SET_OPTIONS_TYPE_ANY,
+	1: MATCH_SET_OPTIONS_TYPE_ALL,
+	2: MATCH_SET_OPTIONS_TYPE_INVERT,
 }
 
 func (v MatchSetOptionsType) Validate() error {
-	if v.ToInt() < 0 {
+	if _, ok := MatchSetOptionsTypeToIntMap[v]; !ok {
 		return fmt.Errorf("invalid MatchSetOptionsType: %s", v)
 	}
 	return nil
@@ -298,7 +468,100 @@ func (v MatchSetOptionsType) DefaultAsNeeded() MatchSetOptionsType {
 // typedef for typedef ptypes:tag-type
 type TagType string
 
-// typedef for typedef rpol:route-type
+// typedef for identity ptypes:install-protocol-type
+type InstallProtocolType string
+
+const (
+	INSTALL_PROTOCOL_TYPE_BGP                InstallProtocolType = "bgp"
+	INSTALL_PROTOCOL_TYPE_ISIS               InstallProtocolType = "isis"
+	INSTALL_PROTOCOL_TYPE_OSPF               InstallProtocolType = "ospf"
+	INSTALL_PROTOCOL_TYPE_OSPF3              InstallProtocolType = "ospf3"
+	INSTALL_PROTOCOL_TYPE_STATIC             InstallProtocolType = "static"
+	INSTALL_PROTOCOL_TYPE_DIRECTLY_CONNECTED InstallProtocolType = "directly-connected"
+	INSTALL_PROTOCOL_TYPE_LOCAL_AGGREGATE    InstallProtocolType = "local-aggregate"
+)
+
+var InstallProtocolTypeToIntMap = map[InstallProtocolType]int{
+	INSTALL_PROTOCOL_TYPE_BGP:                0,
+	INSTALL_PROTOCOL_TYPE_ISIS:               1,
+	INSTALL_PROTOCOL_TYPE_OSPF:               2,
+	INSTALL_PROTOCOL_TYPE_OSPF3:              3,
+	INSTALL_PROTOCOL_TYPE_STATIC:             4,
+	INSTALL_PROTOCOL_TYPE_DIRECTLY_CONNECTED: 5,
+	INSTALL_PROTOCOL_TYPE_LOCAL_AGGREGATE:    6,
+}
+
+func (v InstallProtocolType) ToInt() int {
+	i, ok := InstallProtocolTypeToIntMap[v]
+	if !ok {
+		return -1
+	}
+	return i
+}
+
+var IntToInstallProtocolTypeMap = map[int]InstallProtocolType{
+	0: INSTALL_PROTOCOL_TYPE_BGP,
+	1: INSTALL_PROTOCOL_TYPE_ISIS,
+	2: INSTALL_PROTOCOL_TYPE_OSPF,
+	3: INSTALL_PROTOCOL_TYPE_OSPF3,
+	4: INSTALL_PROTOCOL_TYPE_STATIC,
+	5: INSTALL_PROTOCOL_TYPE_DIRECTLY_CONNECTED,
+	6: INSTALL_PROTOCOL_TYPE_LOCAL_AGGREGATE,
+}
+
+func (v InstallProtocolType) Validate() error {
+	if _, ok := InstallProtocolTypeToIntMap[v]; !ok {
+		return fmt.Errorf("invalid InstallProtocolType: %s", v)
+	}
+	return nil
+}
+
+// typedef for identity ptypes:attribute-comparison
+type AttributeComparison string
+
+const (
+	ATTRIBUTE_COMPARISON_ATTRIBUTE_EQ AttributeComparison = "attribute-eq"
+	ATTRIBUTE_COMPARISON_ATTRIBUTE_GE AttributeComparison = "attribute-ge"
+	ATTRIBUTE_COMPARISON_ATTRIBUTE_LE AttributeComparison = "attribute-le"
+	ATTRIBUTE_COMPARISON_EQ           AttributeComparison = "eq"
+	ATTRIBUTE_COMPARISON_GE           AttributeComparison = "ge"
+	ATTRIBUTE_COMPARISON_LE           AttributeComparison = "le"
+)
+
+var AttributeComparisonToIntMap = map[AttributeComparison]int{
+	ATTRIBUTE_COMPARISON_ATTRIBUTE_EQ: 0,
+	ATTRIBUTE_COMPARISON_ATTRIBUTE_GE: 1,
+	ATTRIBUTE_COMPARISON_ATTRIBUTE_LE: 2,
+	ATTRIBUTE_COMPARISON_EQ:           3,
+	ATTRIBUTE_COMPARISON_GE:           4,
+	ATTRIBUTE_COMPARISON_LE:           5,
+}
+
+func (v AttributeComparison) ToInt() int {
+	i, ok := AttributeComparisonToIntMap[v]
+	if !ok {
+		return -1
+	}
+	return i
+}
+
+var IntToAttributeComparisonMap = map[int]AttributeComparison{
+	0: ATTRIBUTE_COMPARISON_ATTRIBUTE_EQ,
+	1: ATTRIBUTE_COMPARISON_ATTRIBUTE_GE,
+	2: ATTRIBUTE_COMPARISON_ATTRIBUTE_LE,
+	3: ATTRIBUTE_COMPARISON_EQ,
+	4: ATTRIBUTE_COMPARISON_GE,
+	5: ATTRIBUTE_COMPARISON_LE,
+}
+
+func (v AttributeComparison) Validate() error {
+	if _, ok := AttributeComparisonToIntMap[v]; !ok {
+		return fmt.Errorf("invalid AttributeComparison: %s", v)
+	}
+	return nil
+}
+
+// typedef for identity rpol:route-type
 type RouteType string
 
 const (
@@ -306,32 +569,32 @@ const (
 	ROUTE_TYPE_EXTERNAL RouteType = "external"
 )
 
-func (v RouteType) ToInt() int {
-	for i, vv := range []string{"internal", "external"} {
-		if string(v) == vv {
-			return i
-		}
-	}
-	return -1
+var RouteTypeToIntMap = map[RouteType]int{
+	ROUTE_TYPE_INTERNAL: 0,
+	ROUTE_TYPE_EXTERNAL: 1,
 }
 
-func (v RouteType) FromInt(i int) RouteType {
-	for j, vv := range []string{"internal", "external"} {
-		if i == j {
-			return RouteType(vv)
-		}
+func (v RouteType) ToInt() int {
+	i, ok := RouteTypeToIntMap[v]
+	if !ok {
+		return -1
 	}
-	return RouteType("")
+	return i
+}
+
+var IntToRouteTypeMap = map[int]RouteType{
+	0: ROUTE_TYPE_INTERNAL,
+	1: ROUTE_TYPE_EXTERNAL,
 }
 
 func (v RouteType) Validate() error {
-	if v.ToInt() < 0 {
+	if _, ok := RouteTypeToIntMap[v]; !ok {
 		return fmt.Errorf("invalid RouteType: %s", v)
 	}
 	return nil
 }
 
-// typedef for typedef rpol:default-policy-type
+// typedef for identity rpol:default-policy-type
 type DefaultPolicyType string
 
 const (
@@ -339,32 +602,32 @@ const (
 	DEFAULT_POLICY_TYPE_REJECT_ROUTE DefaultPolicyType = "reject-route"
 )
 
-func (v DefaultPolicyType) ToInt() int {
-	for i, vv := range []string{"accept-route", "reject-route"} {
-		if string(v) == vv {
-			return i
-		}
-	}
-	return -1
+var DefaultPolicyTypeToIntMap = map[DefaultPolicyType]int{
+	DEFAULT_POLICY_TYPE_ACCEPT_ROUTE: 0,
+	DEFAULT_POLICY_TYPE_REJECT_ROUTE: 1,
 }
 
-func (v DefaultPolicyType) FromInt(i int) DefaultPolicyType {
-	for j, vv := range []string{"accept-route", "reject-route"} {
-		if i == j {
-			return DefaultPolicyType(vv)
-		}
+func (v DefaultPolicyType) ToInt() int {
+	i, ok := DefaultPolicyTypeToIntMap[v]
+	if !ok {
+		return -1
 	}
-	return DefaultPolicyType("")
+	return i
+}
+
+var IntToDefaultPolicyTypeMap = map[int]DefaultPolicyType{
+	0: DEFAULT_POLICY_TYPE_ACCEPT_ROUTE,
+	1: DEFAULT_POLICY_TYPE_REJECT_ROUTE,
 }
 
 func (v DefaultPolicyType) Validate() error {
-	if v.ToInt() < 0 {
+	if _, ok := DefaultPolicyTypeToIntMap[v]; !ok {
 		return fmt.Errorf("invalid DefaultPolicyType: %s", v)
 	}
 	return nil
 }
 
-// typedef for typedef bgp:session-state
+// typedef for identity bgp:session-state
 type SessionState string
 
 const (
@@ -376,32 +639,40 @@ const (
 	SESSION_STATE_ESTABLISHED SessionState = "established"
 )
 
-func (v SessionState) ToInt() int {
-	for i, vv := range []string{"idle", "connect", "active", "opensent", "openconfirm", "established"} {
-		if string(v) == vv {
-			return i
-		}
-	}
-	return -1
+var SessionStateToIntMap = map[SessionState]int{
+	SESSION_STATE_IDLE:        0,
+	SESSION_STATE_CONNECT:     1,
+	SESSION_STATE_ACTIVE:      2,
+	SESSION_STATE_OPENSENT:    3,
+	SESSION_STATE_OPENCONFIRM: 4,
+	SESSION_STATE_ESTABLISHED: 5,
 }
 
-func (v SessionState) FromInt(i int) SessionState {
-	for j, vv := range []string{"idle", "connect", "active", "opensent", "openconfirm", "established"} {
-		if i == j {
-			return SessionState(vv)
-		}
+func (v SessionState) ToInt() int {
+	i, ok := SessionStateToIntMap[v]
+	if !ok {
+		return -1
 	}
-	return SessionState("")
+	return i
+}
+
+var IntToSessionStateMap = map[int]SessionState{
+	0: SESSION_STATE_IDLE,
+	1: SESSION_STATE_CONNECT,
+	2: SESSION_STATE_ACTIVE,
+	3: SESSION_STATE_OPENSENT,
+	4: SESSION_STATE_OPENCONFIRM,
+	5: SESSION_STATE_ESTABLISHED,
 }
 
 func (v SessionState) Validate() error {
-	if v.ToInt() < 0 {
+	if _, ok := SessionStateToIntMap[v]; !ok {
 		return fmt.Errorf("invalid SessionState: %s", v)
 	}
 	return nil
 }
 
-// typedef for typedef bgp:mode
+// typedef for identity bgp:mode
 type Mode string
 
 const (
@@ -410,26 +681,28 @@ const (
 	MODE_REMOTE_HELPER Mode = "remote-helper"
 )
 
-func (v Mode) ToInt() int {
-	for i, vv := range []string{"helper-only", "bilateral", "remote-helper"} {
-		if string(v) == vv {
-			return i
-		}
-	}
-	return -1
+var ModeToIntMap = map[Mode]int{
+	MODE_HELPER_ONLY:   0,
+	MODE_BILATERAL:     1,
+	MODE_REMOTE_HELPER: 2,
 }
 
-func (v Mode) FromInt(i int) Mode {
-	for j, vv := range []string{"helper-only", "bilateral", "remote-helper"} {
-		if i == j {
-			return Mode(vv)
-		}
+func (v Mode) ToInt() int {
+	i, ok := ModeToIntMap[v]
+	if !ok {
+		return -1
 	}
-	return Mode("")
+	return i
+}
+
+var IntToModeMap = map[int]Mode{
+	0: MODE_HELPER_ONLY,
+	1: MODE_BILATERAL,
+	2: MODE_REMOTE_HELPER,
 }
 
 func (v Mode) Validate() error {
-	if v.ToInt() < 0 {
+	if _, ok := ModeToIntMap[v]; !ok {
 		return fmt.Errorf("invalid Mode: %s", v)
 	}
 	return nil
@@ -444,7 +717,7 @@ type BgpAsPathPrependRepeat uint8
 // typedef for typedef bgp-pol:bgp-set-med-type
 type BgpSetMedType string
 
-// typedef for typedef bgp-pol:bgp-set-community-option-type
+// typedef for identity bgp-pol:bgp-set-community-option-type
 type BgpSetCommunityOptionType string
 
 const (
@@ -453,32 +726,34 @@ const (
 	BGP_SET_COMMUNITY_OPTION_TYPE_REPLACE BgpSetCommunityOptionType = "replace"
 )
 
-func (v BgpSetCommunityOptionType) ToInt() int {
-	for i, vv := range []string{"add", "remove", "replace"} {
-		if string(v) == vv {
-			return i
-		}
-	}
-	return -1
+var BgpSetCommunityOptionTypeToIntMap = map[BgpSetCommunityOptionType]int{
+	BGP_SET_COMMUNITY_OPTION_TYPE_ADD:     0,
+	BGP_SET_COMMUNITY_OPTION_TYPE_REMOVE:  1,
+	BGP_SET_COMMUNITY_OPTION_TYPE_REPLACE: 2,
 }
 
-func (v BgpSetCommunityOptionType) FromInt(i int) BgpSetCommunityOptionType {
-	for j, vv := range []string{"add", "remove", "replace"} {
-		if i == j {
-			return BgpSetCommunityOptionType(vv)
-		}
+func (v BgpSetCommunityOptionType) ToInt() int {
+	i, ok := BgpSetCommunityOptionTypeToIntMap[v]
+	if !ok {
+		return -1
 	}
-	return BgpSetCommunityOptionType("")
+	return i
+}
+
+var IntToBgpSetCommunityOptionTypeMap = map[int]BgpSetCommunityOptionType{
+	0: BGP_SET_COMMUNITY_OPTION_TYPE_ADD,
+	1: BGP_SET_COMMUNITY_OPTION_TYPE_REMOVE,
+	2: BGP_SET_COMMUNITY_OPTION_TYPE_REPLACE,
 }
 
 func (v BgpSetCommunityOptionType) Validate() error {
-	if v.ToInt() < 0 {
+	if _, ok := BgpSetCommunityOptionTypeToIntMap[v]; !ok {
 		return fmt.Errorf("invalid BgpSetCommunityOptionType: %s", v)
 	}
 	return nil
 }
 
-// typedef for typedef gobgp:bmp-route-monitoring-policy-type
+// typedef for identity gobgp:bmp-route-monitoring-policy-type
 type BmpRouteMonitoringPolicyType string
 
 const (
@@ -487,32 +762,34 @@ const (
 	BMP_ROUTE_MONITORING_POLICY_TYPE_BOTH        BmpRouteMonitoringPolicyType = "both"
 )
 
-func (v BmpRouteMonitoringPolicyType) ToInt() int {
-	for i, vv := range []string{"pre-policy", "post-policy", "both"} {
-		if string(v) == vv {
-			return i
-		}
-	}
-	return -1
+var BmpRouteMonitoringPolicyTypeToIntMap = map[BmpRouteMonitoringPolicyType]int{
+	BMP_ROUTE_MONITORING_POLICY_TYPE_PRE_POLICY:  0,
+	BMP_ROUTE_MONITORING_POLICY_TYPE_POST_POLICY: 1,
+	BMP_ROUTE_MONITORING_POLICY_TYPE_BOTH:        2,
 }
 
-func (v BmpRouteMonitoringPolicyType) FromInt(i int) BmpRouteMonitoringPolicyType {
-	for j, vv := range []string{"pre-policy", "post-policy", "both"} {
-		if i == j {
-			return BmpRouteMonitoringPolicyType(vv)
-		}
+func (v BmpRouteMonitoringPolicyType) ToInt() int {
+	i, ok := BmpRouteMonitoringPolicyTypeToIntMap[v]
+	if !ok {
+		return -1
 	}
-	return BmpRouteMonitoringPolicyType("")
+	return i
+}
+
+var IntToBmpRouteMonitoringPolicyTypeMap = map[int]BmpRouteMonitoringPolicyType{
+	0: BMP_ROUTE_MONITORING_POLICY_TYPE_PRE_POLICY,
+	1: BMP_ROUTE_MONITORING_POLICY_TYPE_POST_POLICY,
+	2: BMP_ROUTE_MONITORING_POLICY_TYPE_BOTH,
 }
 
 func (v BmpRouteMonitoringPolicyType) Validate() error {
-	if v.ToInt() < 0 {
+	if _, ok := BmpRouteMonitoringPolicyTypeToIntMap[v]; !ok {
 		return fmt.Errorf("invalid BmpRouteMonitoringPolicyType: %s", v)
 	}
 	return nil
 }
 
-// typedef for typedef gobgp:rpki-validation-result-type
+// typedef for identity gobgp:rpki-validation-result-type
 type RpkiValidationResultType string
 
 const (
@@ -522,26 +799,30 @@ const (
 	RPKI_VALIDATION_RESULT_TYPE_INVALID   RpkiValidationResultType = "invalid"
 )
 
-func (v RpkiValidationResultType) ToInt() int {
-	for i, vv := range []string{"none", "not-found", "valid", "invalid"} {
-		if string(v) == vv {
-			return i
-		}
-	}
-	return -1
+var RpkiValidationResultTypeToIntMap = map[RpkiValidationResultType]int{
+	RPKI_VALIDATION_RESULT_TYPE_NONE:      0,
+	RPKI_VALIDATION_RESULT_TYPE_NOT_FOUND: 1,
+	RPKI_VALIDATION_RESULT_TYPE_VALID:     2,
+	RPKI_VALIDATION_RESULT_TYPE_INVALID:   3,
 }
 
-func (v RpkiValidationResultType) FromInt(i int) RpkiValidationResultType {
-	for j, vv := range []string{"none", "not-found", "valid", "invalid"} {
-		if i == j {
-			return RpkiValidationResultType(vv)
-		}
+func (v RpkiValidationResultType) ToInt() int {
+	i, ok := RpkiValidationResultTypeToIntMap[v]
+	if !ok {
+		return -1
 	}
-	return RpkiValidationResultType("")
+	return i
+}
+
+var IntToRpkiValidationResultTypeMap = map[int]RpkiValidationResultType{
+	0: RPKI_VALIDATION_RESULT_TYPE_NONE,
+	1: RPKI_VALIDATION_RESULT_TYPE_NOT_FOUND,
+	2: RPKI_VALIDATION_RESULT_TYPE_VALID,
+	3: RPKI_VALIDATION_RESULT_TYPE_INVALID,
 }
 
 func (v RpkiValidationResultType) Validate() error {
-	if v.ToInt() < 0 {
+	if _, ok := RpkiValidationResultTypeToIntMap[v]; !ok {
 		return fmt.Errorf("invalid RpkiValidationResultType: %s", v)
 	}
 	return nil
@@ -1084,8 +1365,7 @@ type NeighborState struct {
 	// original -> bgp-op:session-state
 	SessionState SessionState `mapstructure:"session-state"`
 	// original -> bgp-op:supported-capabilities
-	// original type is list of identityref
-	SupportedCapabilitiesList []string `mapstructure:"supported-capabilities-list"`
+	SupportedCapabilitiesList []BgpCapability `mapstructure:"supported-capabilities-list"`
 	// original -> bgp:messages
 	Messages Messages `mapstructure:"messages"`
 	// original -> bgp:queues
@@ -1186,8 +1466,7 @@ type Zebra struct {
 	// original -> gobgp:url
 	Url string `mapstructure:"url"`
 	// original -> gobgp:redistribute-route-type
-	// original type is list of identityref
-	RedistributeRouteTypeList []string `mapstructure:"redistribute-route-type-list"`
+	RedistributeRouteTypeList []InstallProtocolType `mapstructure:"redistribute-route-type-list"`
 }
 
 //struct for container gobgp:mrt
@@ -1391,7 +1670,7 @@ type ApplyPolicy struct {
 //struct for container bgp-mp:state
 type AfiSafiState struct {
 	// original -> bgp-mp:afi-safi-name
-	AfiSafiName string `mapstructure:"afi-safi-name"`
+	AfiSafiName AfiSafiType `mapstructure:"afi-safi-name"`
 	// original -> bgp-mp:enabled
 	//bgp-mp:enabled's original type is boolean
 	Enabled bool `mapstructure:"enabled"`
@@ -1404,7 +1683,7 @@ type AfiSafiState struct {
 //struct for container bgp-mp:config
 type AfiSafiConfig struct {
 	// original -> bgp-mp:afi-safi-name
-	AfiSafiName string `mapstructure:"afi-safi-name"`
+	AfiSafiName AfiSafiType `mapstructure:"afi-safi-name"`
 	// original -> bgp-mp:enabled
 	//bgp-mp:enabled's original type is boolean
 	Enabled bool `mapstructure:"enabled"`
@@ -1441,8 +1720,7 @@ type MpGracefulRestart struct {
 //struct for container bgp-mp:afi-safi
 type AfiSafi struct {
 	// original -> bgp-mp:afi-safi-name
-	//bgp-mp:afi-safi-name's original type is identityref
-	AfiSafiName string `mapstructure:"afi-safi-name"`
+	AfiSafiName AfiSafiType `mapstructure:"afi-safi-name"`
 	// original -> bgp-mp:mp-graceful-restart
 	MpGracefulRestart MpGracefulRestart `mapstructure:"mp-graceful-restart"`
 	// original -> bgp-mp:afi-safi-config
@@ -1867,7 +2145,7 @@ type Actions struct {
 //struct for container bgp-pol:as-path-length
 type AsPathLength struct {
 	// original -> ptypes:operator
-	Operator string `mapstructure:"operator"`
+	Operator AttributeComparison `mapstructure:"operator"`
 	// original -> ptypes:value
 	Value uint32 `mapstructure:"value"`
 }
@@ -1875,7 +2153,7 @@ type AsPathLength struct {
 //struct for container bgp-pol:community-count
 type CommunityCount struct {
 	// original -> ptypes:operator
-	Operator string `mapstructure:"operator"`
+	Operator AttributeComparison `mapstructure:"operator"`
 	// original -> ptypes:value
 	Value uint32 `mapstructure:"value"`
 }
@@ -1920,8 +2198,7 @@ type BgpConditions struct {
 	// original type is list of inet:ip-address
 	NextHopInList []string `mapstructure:"next-hop-in-list"`
 	// original -> bgp-pol:afi-safi-in
-	// original type is list of identityref
-	AfiSafiInList []string `mapstructure:"afi-safi-in-list"`
+	AfiSafiInList []AfiSafiType `mapstructure:"afi-safi-in-list"`
 	// original -> bgp-pol:local-pref-eq
 	LocalPrefEq uint32 `mapstructure:"local-pref-eq"`
 	// original -> bgp-pol:community-count
@@ -1973,7 +2250,7 @@ type Conditions struct {
 	// original -> rpol:match-tag-set
 	MatchTagSet MatchTagSet `mapstructure:"match-tag-set"`
 	// original -> rpol:install-protocol-eq
-	InstallProtocolEq string `mapstructure:"install-protocol-eq"`
+	InstallProtocolEq InstallProtocolType `mapstructure:"install-protocol-eq"`
 	// original -> rpol:igp-conditions
 	IgpConditions IgpConditions `mapstructure:"igp-conditions"`
 	// original -> bgp-pol:bgp-conditions

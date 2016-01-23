@@ -911,7 +911,7 @@ func (server *BgpServer) handleFSMMessage(peer *Peer, e *FsmMsg) []*SenderMsg {
 	case FSM_MSG_STATE_CHANGE:
 		nextState := e.MsgData.(bgp.FSMState)
 		oldState := bgp.FSMState(peer.conf.State.SessionState.ToInt())
-		peer.conf.State.SessionState = peer.conf.State.SessionState.FromInt(int(nextState))
+		peer.conf.State.SessionState = config.IntToSessionStateMap[int(nextState)]
 		peer.fsm.StateChange(nextState)
 
 		if oldState == bgp.BGP_FSM_ESTABLISHED {
@@ -2177,7 +2177,7 @@ func (server *BgpServer) handleGrpcModNeighbor(grpcReq *GrpcRequest) (sMsgs []*S
 					if !ok {
 						return pconf, fmt.Errorf("invalid address family: %d", family)
 					}
-					cAfiSafi := config.AfiSafi{AfiSafiName: name}
+					cAfiSafi := config.AfiSafi{AfiSafiName: config.AfiSafiType(name)}
 					pconf.AfiSafis = append(pconf.AfiSafis, cAfiSafi)
 				}
 			} else {
@@ -2827,7 +2827,7 @@ func (server *BgpServer) mkMrtRibMsgs(tbl *table.Table, t uint32) ([]*bgp.MRTMes
 	return msgs, nil
 }
 
-func (server *BgpServer) NewZclient(url string, redistRouteTypes []string) error {
+func (server *BgpServer) NewZclient(url string, redistRouteTypes []config.InstallProtocolType) error {
 	l := strings.SplitN(url, ":", 2)
 	if len(l) != 2 {
 		return fmt.Errorf("unsupported url: %s", url)
@@ -2840,7 +2840,7 @@ func (server *BgpServer) NewZclient(url string, redistRouteTypes []string) error
 	cli.SendRouterIDAdd()
 	cli.SendInterfaceAdd()
 	for _, typ := range redistRouteTypes {
-		t, err := zebra.RouteTypeFromString(typ)
+		t, err := zebra.RouteTypeFromString(string(typ))
 		if err != nil {
 			return err
 		}

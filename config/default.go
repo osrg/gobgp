@@ -19,6 +19,7 @@ func SetDefaultConfigValues(v *viper.Viper, b *Bgp) error {
 	if v == nil {
 		v = viper.New()
 	}
+
 	if !v.IsSet("global.afi-safis") {
 		b.Global.AfiSafis = []AfiSafi{
 			AfiSafi{AfiSafiName: "ipv4-unicast"},
