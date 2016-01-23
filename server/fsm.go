@@ -837,7 +837,6 @@ func (h *FSMHandler) sendMessageloop() error {
 		}
 		if err := conn.SetWriteDeadline(time.Now().Add(time.Second * time.Duration(fsm.negotiatedHoldTime))); err != nil {
 			h.errorCh <- true
-			conn.Close()
 			return fmt.Errorf("failed to set write deadline")
 		}
 		_, err = conn.Write(b)
@@ -849,7 +848,6 @@ func (h *FSMHandler) sendMessageloop() error {
 				"Data":  err,
 			}).Warn("failed to send")
 			h.errorCh <- true
-			conn.Close()
 			return fmt.Errorf("closed")
 		}
 		fsm.bgpMessageStateUpdate(m.Header.Type, false)
@@ -864,7 +862,6 @@ func (h *FSMHandler) sendMessageloop() error {
 
 			h.errorCh <- true
 			h.reason = "Notificaiton sent"
-			conn.Close()
 			return fmt.Errorf("closed")
 		} else {
 			log.WithFields(log.Fields{
