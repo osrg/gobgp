@@ -55,6 +55,7 @@ type originInfo struct {
 	key                string
 	uuid               []byte
 	eor                bool
+	stale              bool
 }
 
 type Path struct {
@@ -237,6 +238,7 @@ func (path *Path) ToApiStruct(id string) *api.Path {
 		Family:     family,
 		SourceAsn:  path.OriginInfo().source.AS,
 		SourceId:   path.OriginInfo().source.ID.String(),
+		Stale:      path.IsStale(),
 	}
 }
 
@@ -306,6 +308,14 @@ func (path *Path) setSource(source *PeerInfo) {
 }
 func (path *Path) GetSource() *PeerInfo {
 	return path.OriginInfo().source
+}
+
+func (path *Path) MarkStale(s bool) {
+	path.OriginInfo().stale = s
+}
+
+func (path *Path) IsStale() bool {
+	return path.OriginInfo().stale
 }
 
 func (path *Path) GetSourceAs() uint32 {

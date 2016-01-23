@@ -451,7 +451,7 @@ func (server *BgpServer) Serve() {
 					t.Stop()
 				}(addr)
 
-				m := server.dropPeerAllRoutes(peer)
+				m := server.dropPeerAllRoutes(peer, peer.configuredRFlist())
 				if len(m) > 0 {
 					senderMsgs = append(senderMsgs, m...)
 				}
@@ -579,11 +579,11 @@ func filterpath(peer *Peer, path *table.Path) *table.Path {
 	return path
 }
 
-func (server *BgpServer) dropPeerAllRoutes(peer *Peer) []*SenderMsg {
+func (server *BgpServer) dropPeerAllRoutes(peer *Peer, families []bgp.RouteFamily) []*SenderMsg {
 	msgs := make([]*SenderMsg, 0)
 
 	options := &table.PolicyOptions{}
-	for _, rf := range peer.configuredRFlist() {
+	for _, rf := range families {
 		dsts := server.globalRib.DeletePathsByPeer(peer.fsm.peerInfo, rf)
 		server.validatePaths(dsts, true)
 		if peer.isRouteServerClient() {
@@ -956,10 +956,26 @@ func (server *BgpServer) handleFSMMessage(peer *Peer, e *FsmMsg) []*SenderMsg {
 			if t.Sub(time.Unix(peer.conf.Timers.State.Uptime, 0)) < FLOP_THRESHOLD {
 				peer.conf.State.Flops++
 			}
-
+			var drop []bgp.RouteFamily
+			if peer.fsm.reason == FSM_GRACEFUL_RESTART {
+				peer.fsm.pConf.GracefulRestart.State.PeerRestarting = true
+				var p []bgp.RouteFamily
+				p, drop = peer.forwardingPreservedFamilies()
+				peer.StaleAll(p)
+			} else {
+				drop = peer.configuredRFlist()
+			}
+			peer.DropAll(drop)
+			msgs = append(msgs, server.dropPeerAllRoutes(peer, drop)...)
+		} else if peer.fsm.pConf.GracefulRestart.State.PeerRestarting && nextState == bgp.BGP_FSM_IDLE {
+			// RFC 4724 4.2
+			// If the session does not get re-established within the "Restart Time"
+			// that the peer advertised previously, the Receiving Speaker MUST
+			// delete all the stale routes from the peer that it is retaining.
+			peer.fsm.pConf.GracefulRestart.State.PeerRestarting = false
 			peer.DropAll(peer.configuredRFlist())
 
-			msgs = append(msgs, server.dropPeerAllRoutes(peer)...)
+			msgs = append(msgs, server.dropPeerAllRoutes(peer, peer.configuredRFlist())...)
 		}
 
 		close(peer.outgoing)
@@ -1071,6 +1087,14 @@ func (server *BgpServer) handleFSMMessage(peer *Peer, e *FsmMsg) []*SenderMsg {
 			}
 
 			if len(eor) > 0 {
+				for _, f := range eor {
+					for i, a := range peer.fsm.pConf.AfiSafis {
+						if g, _ := bgp.GetRouteFamily(string(a.AfiSafiName)); f == g {
+							peer.fsm.pConf.AfiSafis[i].MpGracefulRestart.State.EndOfRibReceived = true
+						}
+					}
+				}
+
 				// RFC 4724 4.1
 				// Once the session between the Restarting Speaker and the Receiving
 				// Speaker is re-established, ...snip... it MUST defer route
@@ -1079,33 +1103,17 @@ func (server *BgpServer) handleFSMMessage(peer *Peer, e *FsmMsg) []*SenderMsg {
 				// "Restart State" bit set in the received capability and excluding the
 				// ones that do not advertise the graceful restart capability) or ...snip...
 				if peer.fsm.pConf.GracefulRestart.State.LocalRestarting {
-					var end bool
-					for _, f := range eor {
-						end = true
-						for i, a := range peer.fsm.pConf.AfiSafis {
-							if g, _ := bgp.GetRouteFamily(string(a.AfiSafiName)); f == g {
-								peer.fsm.pConf.AfiSafis[i].MpGracefulRestart.State.EndOfRibReceived = true
-							}
-							if s := a.MpGracefulRestart.State; s.Enabled && !s.EndOfRibReceived {
-								end = false
+					allEnd := func() bool {
+						for _, p := range server.neighborMap {
+							if !p.recvedAllEOR() {
+								return false
 							}
 						}
-					}
-					if end {
-						log.WithFields(log.Fields{
-							"Topic": "Peer",
-							"Key":   peer.conf.Config.NeighborAddress,
-						}).Debug("all family's EOR received")
-						peer.fsm.pConf.GracefulRestart.State.LocalRestarting = false
-					}
-					allEnd := true
-					for _, p := range server.neighborMap {
-						if p.fsm.pConf.GracefulRestart.State.LocalRestarting {
-							allEnd = false
-						}
-					}
+						return true
+					}()
 					if allEnd {
 						for _, p := range server.neighborMap {
+							p.fsm.pConf.GracefulRestart.State.LocalRestarting = false
 							if !p.isGracefulRestartEnabled() {
 								continue
 							}
@@ -1118,6 +1126,18 @@ func (server *BgpServer) handleFSMMessage(peer *Peer, e *FsmMsg) []*SenderMsg {
 						log.WithFields(log.Fields{
 							"Topic": "Server",
 						}).Info("sync finished")
+					}
+				}
+				if peer.fsm.pConf.GracefulRestart.State.PeerRestarting {
+					if peer.recvedAllEOR() {
+						peer.fsm.pConf.GracefulRestart.State.PeerRestarting = false
+						pathList := peer.adjRibIn.DropStale(peer.configuredRFlist())
+						log.WithFields(log.Fields{
+							"Topic": "Peer",
+							"Key":   peer.conf.Config.NeighborAddress,
+						}).Debugf("withdraw %d stale routes", len(pathList))
+						m, _ := server.propagateUpdate(peer, pathList)
+						msgs = append(msgs, m...)
 					}
 				}
 			}
@@ -2380,7 +2400,7 @@ func (server *BgpServer) handleGrpcModNeighbor(grpcReq *GrpcRequest) (sMsgs []*S
 			n.fsm.t.Wait()
 			t.Stop()
 		}(addr)
-		m := server.dropPeerAllRoutes(n)
+		m := server.dropPeerAllRoutes(n, n.configuredRFlist())
 		if len(m) > 0 {
 			sMsgs = append(sMsgs, m...)
 		}
