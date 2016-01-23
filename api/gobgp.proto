@@ -197,6 +197,7 @@ message Path {
     uint32 source_asn = 9;
     string source_id = 10;
     bool filtered = 11;
+    bool stale = 12;
 }
 
 message Destination {

@@ -285,6 +285,9 @@ func ShowRoute(pathList []*Path, showAge, showBest, showLabel, isMonitor, printH
 		}
 
 		best := ""
+		if p.Stale {
+			best += "S"
+		}
 		switch int(p.Validation) {
 		case config.RPKI_VALIDATION_RESULT_TYPE_NOT_FOUND.ToInt():
 			best += "N"
