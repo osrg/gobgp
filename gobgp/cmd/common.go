@@ -163,6 +163,7 @@ type Path struct {
 	IsWithdraw bool                         `json:"isWithdraw"`
 	Validation int32                        `json:"validation"`
 	Filtered   bool                         `json:"filtered"`
+	Stale      bool                         `json:"stale"`
 }
 
 func ApiStruct2Path(p *gobgpapi.Path) ([]*Path, error) {

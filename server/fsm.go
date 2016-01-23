@@ -116,26 +116,27 @@ func (s AdminState) String() string {
 }
 
 type FSM struct {
-	t                  tomb.Tomb
-	gConf              *config.Global
-	pConf              *config.Neighbor
-	state              bgp.FSMState
-	reason             FsmStateReason
-	conn               net.Conn
-	connCh             chan net.Conn
-	idleHoldTime       float64
-	opensentHoldTime   float64
-	negotiatedHoldTime float64
-	adminState         AdminState
-	adminStateCh       chan AdminState
-	getActiveCh        chan struct{}
-	h                  *FSMHandler
-	rfMap              map[bgp.RouteFamily]bool
-	capMap             map[bgp.BGPCapabilityCode][]bgp.ParameterCapabilityInterface
-	recvOpen           *bgp.BGPMessage
-	confedCheck        bool
-	peerInfo           *table.PeerInfo
-	policy             *table.RoutingPolicy
+	t                    tomb.Tomb
+	gConf                *config.Global
+	pConf                *config.Neighbor
+	state                bgp.FSMState
+	reason               FsmStateReason
+	conn                 net.Conn
+	connCh               chan net.Conn
+	idleHoldTime         float64
+	opensentHoldTime     float64
+	negotiatedHoldTime   float64
+	adminState           AdminState
+	adminStateCh         chan AdminState
+	getActiveCh          chan struct{}
+	h                    *FSMHandler
+	rfMap                map[bgp.RouteFamily]bool
+	capMap               map[bgp.BGPCapabilityCode][]bgp.ParameterCapabilityInterface
+	recvOpen             *bgp.BGPMessage
+	confedCheck          bool
+	peerInfo             *table.PeerInfo
+	policy               *table.RoutingPolicy
+	gracefulRestartTimer *time.Timer
 }
 
 func (fsm *FSM) bgpMessageStateUpdate(MessageType uint8, isIn bool) {
@@ -193,20 +194,22 @@ func NewFSM(gConf *config.Global, pConf *config.Neighbor, policy *table.RoutingP
 		adminState = ADMIN_STATE_DOWN
 	}
 	fsm := &FSM{
-		gConf:            gConf,
-		pConf:            pConf,
-		state:            bgp.BGP_FSM_IDLE,
-		connCh:           make(chan net.Conn, 1),
-		opensentHoldTime: float64(HOLDTIME_OPENSENT),
-		adminState:       adminState,
-		adminStateCh:     make(chan AdminState, 1),
-		getActiveCh:      make(chan struct{}),
-		rfMap:            make(map[bgp.RouteFamily]bool),
-		capMap:           make(map[bgp.BGPCapabilityCode][]bgp.ParameterCapabilityInterface),
-		confedCheck:      !config.IsConfederationMember(gConf, pConf) && config.IsEBGPPeer(gConf, pConf),
-		peerInfo:         table.NewPeerInfo(gConf, pConf),
-		policy:           policy,
+		gConf:                gConf,
+		pConf:                pConf,
+		state:                bgp.BGP_FSM_IDLE,
+		connCh:               make(chan net.Conn, 1),
+		opensentHoldTime:     float64(HOLDTIME_OPENSENT),
+		adminState:           adminState,
+		adminStateCh:         make(chan AdminState, 1),
+		getActiveCh:          make(chan struct{}),
+		rfMap:                make(map[bgp.RouteFamily]bool),
+		capMap:               make(map[bgp.BGPCapabilityCode][]bgp.ParameterCapabilityInterface),
+		confedCheck:          !config.IsConfederationMember(gConf, pConf) && config.IsEBGPPeer(gConf, pConf),
+		peerInfo:             table.NewPeerInfo(gConf, pConf),
+		policy:               policy,
+		gracefulRestartTimer: time.NewTimer(time.Hour),
 	}
+	fsm.gracefulRestartTimer.Stop()
 	fsm.t.Go(fsm.connectLoop)
 	return fsm
 }
@@ -288,7 +291,7 @@ func (fsm *FSM) connectLoop() error {
 	ticker.Stop()
 
 	connect := func() {
-		if fsm.state == bgp.BGP_FSM_ACTIVE {
+		if fsm.state == bgp.BGP_FSM_ACTIVE && !fsm.pConf.GracefulRestart.State.PeerRestarting {
 			addr := fsm.pConf.Config.NeighborAddress
 			host := net.JoinHostPort(addr, strconv.Itoa(bgp.BGP_PORT))
 			// check if LocalAddress has been configured
@@ -379,6 +382,15 @@ func (h *FSMHandler) idle() (bgp.FSMState, FsmStateReason) {
 		select {
 		case <-h.t.Dying():
 			return -1, FSM_DYING
+		case <-fsm.gracefulRestartTimer.C:
+			if fsm.pConf.GracefulRestart.State.PeerRestarting {
+				log.WithFields(log.Fields{
+					"Topic": "Peer",
+					"Key":   fsm.pConf.Config.NeighborAddress,
+					"State": fsm.state,
+				}).Warn("graceful restart timer expired")
+				return bgp.BGP_FSM_IDLE, FSM_RESTART_TIMER_EXPIRED
+			}
 		case conn, ok := <-fsm.connCh:
 			if !ok {
 				break
@@ -443,6 +455,15 @@ func (h *FSMHandler) active() (bgp.FSMState, FsmStateReason) {
 			// we don't implement delayed open timer so move to opensent right
 			// away.
 			return bgp.BGP_FSM_OPENSENT, 0
+		case <-fsm.gracefulRestartTimer.C:
+			if fsm.pConf.GracefulRestart.State.PeerRestarting {
+				log.WithFields(log.Fields{
+					"Topic": "Peer",
+					"Key":   fsm.pConf.Config.NeighborAddress,
+					"State": fsm.state,
+				}).Warn("graceful restart timer expired")
+				return bgp.BGP_FSM_IDLE, FSM_RESTART_TIMER_EXPIRED
+			}
 		case err := <-h.errorCh:
 			return bgp.BGP_FSM_IDLE, err
 		case s := <-fsm.adminStateCh:
@@ -700,6 +721,15 @@ func (h *FSMHandler) opensent() (bgp.FSMState, FsmStateReason) {
 				"Key":   fsm.pConf.Config.NeighborAddress,
 				"State": fsm.state,
 			}).Warn("Closed an accepted connection")
+		case <-fsm.gracefulRestartTimer.C:
+			if fsm.pConf.GracefulRestart.State.PeerRestarting {
+				log.WithFields(log.Fields{
+					"Topic": "Peer",
+					"Key":   fsm.pConf.Config.NeighborAddress,
+					"State": fsm.state,
+				}).Warn("graceful restart timer expired")
+				return bgp.BGP_FSM_IDLE, FSM_RESTART_TIMER_EXPIRED
+			}
 		case e := <-h.msgCh:
 			switch e.MsgData.(type) {
 			case *bgp.BGPMessage:
@@ -845,6 +875,15 @@ func (h *FSMHandler) openconfirm() (bgp.FSMState, FsmStateReason) {
 				"Key":   fsm.pConf.Config.NeighborAddress,
 				"State": fsm.state,
 			}).Warn("Closed an accepted connection")
+		case <-fsm.gracefulRestartTimer.C:
+			if fsm.pConf.GracefulRestart.State.PeerRestarting {
+				log.WithFields(log.Fields{
+					"Topic": "Peer",
+					"Key":   fsm.pConf.Config.NeighborAddress,
+					"State": fsm.state,
+				}).Warn("graceful restart timer expired")
+				return bgp.BGP_FSM_IDLE, FSM_RESTART_TIMER_EXPIRED
+			}
 		case <-ticker.C:
 			m := bgp.NewBGPKeepAliveMessage()
 			b, _ := m.Serialize()
@@ -1008,6 +1047,8 @@ func (h *FSMHandler) established() (bgp.FSMState, FsmStateReason) {
 		holdTimer = time.NewTimer(time.Second * time.Duration(fsm.negotiatedHoldTime))
 	}
 
+	fsm.gracefulRestartTimer.Stop()
+
 	for {
 		select {
 		case <-h.t.Dying():
@@ -1025,6 +1066,15 @@ func (h *FSMHandler) established() (bgp.FSMState, FsmStateReason) {
 		case err := <-h.errorCh:
 			h.conn.Close()
 			h.t.Kill(nil)
+			if s := fsm.pConf.GracefulRestart.State; s.Enabled && (err == FSM_READ_FAILED || err == FSM_WRITE_FAILED) {
+				err = FSM_GRACEFUL_RESTART
+				log.WithFields(log.Fields{
+					"Topic": "Peer",
+					"Key":   fsm.pConf.Config.NeighborAddress,
+					"State": fsm.state,
+				}).Info("peer graceful restart")
+				fsm.gracefulRestartTimer.Reset(time.Duration(fsm.pConf.GracefulRestart.State.PeerRestartTime) * time.Second)
+			}
 			return bgp.BGP_FSM_IDLE, err
 		case <-holdTimer.C:
 			log.WithFields(log.Fields{

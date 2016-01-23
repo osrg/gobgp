@@ -200,6 +200,10 @@ func (peer *Peer) startFSMHandler(incoming, stateCh chan *FsmMsg) {
 	peer.fsm.h = NewFSMHandler(peer.fsm, incoming, stateCh, peer.outgoing)
 }
 
+func (peer *Peer) StaleAll(rfList []bgp.RouteFamily) {
+	peer.adjRibIn.StaleAll(rfList)
+}
+
 func (peer *Peer) PassConn(conn *net.TCPConn) {
 	select {
 	case peer.fsm.connCh <- conn:
