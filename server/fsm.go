@@ -472,6 +472,35 @@ func capabilitiesFromConfig(gConf *config.Global, pConf *config.Neighbor) []bgp.
 		caps = append(caps, bgp.NewCapMultiProtocol(family))
 	}
 	caps = append(caps, bgp.NewCapFourOctetASNumber(gConf.Config.As))
+
+	if c := pConf.GracefulRestart.Config; c.Enabled {
+		tuples := []*bgp.CapGracefulRestartTuple{}
+
+		// RFC 4724 4.1
+		// To re-establish the session with its peer, the Restarting Speaker
+		// MUST set the "Restart State" bit in the Graceful Restart Capability
+		// of the OPEN message.
+		restarting := pConf.GracefulRestart.State.LocalRestarting
+
+		if !c.HelperOnly {
+			for i, rf := range pConf.AfiSafis {
+				if rf.MpGracefulRestart.Config.Enabled {
+					k, _ := bgp.GetRouteFamily(string(rf.AfiSafiName))
+					// When restarting, always flag forwaring bit.
+					// This can be a lie, depending on how gobgpd is used.
+					// For a route-server use-case, since a route-server
+					// itself doesn't forward packets, and the dataplane
+					// is a l2 switch which continues to work with no
+					// relation to bgpd, this behavior is ok.
+					// TODO consideration of other use-cases
+					tuples = append(tuples, bgp.NewCapGracefulRestartTuple(k, restarting))
+					pConf.AfiSafis[i].MpGracefulRestart.State.Advertised = true
+				}
+			}
+		}
+		time := c.RestartTime
+		caps = append(caps, bgp.NewCapGracefulRestart(restarting, time, tuples))
+	}
 	return caps
 }
 
