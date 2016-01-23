@@ -20,19 +20,23 @@ func SetDefaultConfigValues(v *viper.Viper, b *Bgp) error {
 		v = viper.New()
 	}
 
+	defaultAfiSafi := func(typ AfiSafiType, enable bool) AfiSafi {
+		return AfiSafi{
+			AfiSafiName: typ,
+			Config: AfiSafiConfig{
+				AfiSafiName: typ,
+				Enabled:     enable,
+			},
+			State: AfiSafiState{
+				AfiSafiName: typ,
+			},
+		}
+	}
+
 	if !v.IsSet("global.afi-safis") {
-		b.Global.AfiSafis = []AfiSafi{
-			AfiSafi{AfiSafiName: "ipv4-unicast"},
-			AfiSafi{AfiSafiName: "ipv6-unicast"},
-			AfiSafi{AfiSafiName: "l3vpn-ipv4-unicast"},
-			AfiSafi{AfiSafiName: "l3vpn-ipv6-unicast"},
-			AfiSafi{AfiSafiName: "l2vpn-evpn"},
-			AfiSafi{AfiSafiName: "encap"},
-			AfiSafi{AfiSafiName: "rtc"},
-			AfiSafi{AfiSafiName: "ipv4-flowspec"},
-			AfiSafi{AfiSafiName: "l3vpn-ipv4-flowspec"},
-			AfiSafi{AfiSafiName: "ipv6-flowspec"},
-			AfiSafi{AfiSafiName: "l3vpn-ipv6-flowspec"},
+		b.Global.AfiSafis = []AfiSafi{}
+		for k, _ := range AfiSafiTypeToIntMap {
+			b.Global.AfiSafis = append(b.Global.AfiSafis, defaultAfiSafi(k, true))
 		}
 	}
 
@@ -59,21 +63,28 @@ func SetDefaultConfigValues(v *viper.Viper, b *Bgp) error {
 	// but toml is decoded as []map[string]interface{}.
 	// currently, viper can't hide this difference.
 	// handle the difference here.
-	var list []interface{}
-	intf := v.Get("neighbors")
-	if intf != nil {
-		var ok bool
-		list, ok = intf.([]interface{})
-		if !ok {
+	extractArray := func(intf interface{}) ([]interface{}, error) {
+		if intf != nil {
+			list, ok := intf.([]interface{})
+			if ok {
+				return list, nil
+			}
 			l, ok := intf.([]map[string]interface{})
 			if !ok {
-				return fmt.Errorf("invalid configuration: neighborlist must be a list")
+				return nil, fmt.Errorf("invalid configuration: neither []interface{} nor []map[string]interface{}")
 			}
 			list = make([]interface{}, 0, len(l))
 			for _, m := range l {
 				list = append(list, m)
 			}
+			return list, nil
 		}
+		return nil, nil
+	}
+
+	list, err := extractArray(v.Get("neighbors"))
+	if err != nil {
+		return err
 	}
 	for idx, n := range b.Neighbors {
 		vv := viper.New()
@@ -95,15 +106,28 @@ func SetDefaultConfigValues(v *viper.Viper, b *Bgp) error {
 
 		if !vv.IsSet("neighbor.afi-safis") {
 			if ip := net.ParseIP(n.Config.NeighborAddress); ip.To4() != nil {
-				n.AfiSafis = []AfiSafi{
-					AfiSafi{AfiSafiName: "ipv4-unicast"},
-				}
+				n.AfiSafis = []AfiSafi{defaultAfiSafi(AFI_SAFI_TYPE_IPV4_UNICAST, true)}
 			} else if ip.To16() != nil {
-				n.AfiSafis = []AfiSafi{
-					AfiSafi{AfiSafiName: "ipv6-unicast"},
-				}
+				n.AfiSafis = []AfiSafi{defaultAfiSafi(AFI_SAFI_TYPE_IPV6_UNICAST, true)}
 			} else {
 				return fmt.Errorf("invalid neighbor address: %s", n.Config.NeighborAddress)
+			}
+		} else {
+			afs, err := extractArray(vv.Get("neighbor.afi-safis"))
+			if err != nil {
+				return err
+			}
+			for i, af := range n.AfiSafis {
+				vvv := viper.New()
+				if len(afs) > i {
+					vvv.Set("afi-safi", afs[i])
+				}
+				af.Config.AfiSafiName = af.AfiSafiName
+				af.State.AfiSafiName = af.AfiSafiName
+				if !vvv.IsSet("afi-safi.config") {
+					af.Config.Enabled = true
+				}
+				n.AfiSafis[i] = af
 			}
 		}
 
