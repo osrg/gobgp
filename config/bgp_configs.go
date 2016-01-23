@@ -1700,6 +1700,12 @@ type MpGracefulRestartState struct {
 	// original -> bgp-op:advertised
 	//bgp-op:advertised's original type is boolean
 	Advertised bool `mapstructure:"advertised"`
+	// original -> gobgp:end-of-rib-received
+	//gobgp:end-of-rib-received's original type is boolean
+	EndOfRibReceived bool `mapstructure:"end-of-rib-received"`
+	// original -> gobgp:end-of-rib-sent
+	//gobgp:end-of-rib-sent's original type is boolean
+	EndOfRibSent bool `mapstructure:"end-of-rib-sent"`
 }
 
 //struct for container bgp-mp:config
@@ -1778,6 +1784,8 @@ type GracefulRestartState struct {
 	LocalRestarting bool `mapstructure:"local-restarting"`
 	// original -> bgp-op:mode
 	Mode Mode `mapstructure:"mode"`
+	// original -> gobgp:deferral-time
+	DeferralTime uint16 `mapstructure:"deferral-time"`
 }
 
 //struct for container bgp:config
@@ -1793,6 +1801,8 @@ type GracefulRestartConfig struct {
 	// original -> bgp:helper-only
 	//bgp:helper-only's original type is boolean
 	HelperOnly bool `mapstructure:"helper-only"`
+	// original -> gobgp:deferral-time
+	DeferralTime uint16 `mapstructure:"deferral-time"`
 }
 
 //struct for container bgp:graceful-restart
