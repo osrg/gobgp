@@ -170,7 +170,7 @@ func TestFSMHandlerOpensent_HoldTimerExpired(t *testing.T) {
 	// set holdtime
 	p.fsm.opensentHoldTime = 2
 
-	state := h.opensent()
+	state, _ := h.opensent()
 
 	assert.Equal(bgp.BGP_FSM_IDLE, state)
 	lastMsg := m.sendBuf[len(m.sendBuf)-1]
@@ -194,7 +194,7 @@ func TestFSMHandlerOpenconfirm_HoldTimerExpired(t *testing.T) {
 
 	// set holdtime
 	p.fsm.negotiatedHoldTime = 2
-	state := h.openconfirm()
+	state, _ := h.openconfirm()
 
 	assert.Equal(bgp.BGP_FSM_IDLE, state)
 	lastMsg := m.sendBuf[len(m.sendBuf)-1]
@@ -231,7 +231,7 @@ func TestFSMHandlerEstablish_HoldTimerExpired(t *testing.T) {
 	p.fsm.negotiatedHoldTime = 2
 
 	go pushPackets()
-	state := h.established()
+	state, _ := h.established()
 	time.Sleep(time.Second * 1)
 	assert.Equal(bgp.BGP_FSM_IDLE, state)
 	lastMsg := m.sendBuf[len(m.sendBuf)-1]
@@ -300,7 +300,7 @@ func makePeerAndHandler() (*Peer, *FSMHandler) {
 
 	h := &FSMHandler{
 		fsm:      p.fsm,
-		errorCh:  make(chan bool, 2),
+		errorCh:  make(chan FsmStateReason, 2),
 		incoming: incoming,
 		outgoing: p.outgoing,
 	}
