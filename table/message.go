@@ -282,6 +282,9 @@ func CreateUpdateMsgFromPaths(pathList []*Path) []*bgp.BGPMessage {
 	for _, path := range pathList {
 		if path == nil {
 			continue
+		} else if path.IsEOR() {
+			msgs = append(msgs, bgp.NewEndOfRib(path.GetRouteFamily()))
+			continue
 		}
 		y := func(p *Path) bool {
 			if p.GetRouteFamily() != bgp.RF_IPv4_UC {

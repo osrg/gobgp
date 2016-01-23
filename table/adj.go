@@ -42,7 +42,7 @@ func NewAdjRib(id string, rfList []bgp.RouteFamily, isCollector bool) *AdjRib {
 
 func (adj *AdjRib) Update(pathList []*Path) {
 	for _, path := range pathList {
-		if path == nil {
+		if path == nil || path.IsEOR() {
 			continue
 		}
 		rf := path.GetRouteFamily()
