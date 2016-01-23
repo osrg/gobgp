@@ -472,6 +472,25 @@ func capabilitiesFromConfig(gConf *config.Global, pConf *config.Neighbor) []bgp.
 		caps = append(caps, bgp.NewCapMultiProtocol(family))
 	}
 	caps = append(caps, bgp.NewCapFourOctetASNumber(gConf.Config.As))
+
+	if c := pConf.GracefulRestart.Config; c.Enabled {
+		tuples := []*bgp.CapGracefulRestartTuple{}
+		if !c.HelperOnly {
+			for _, rf := range pConf.AfiSafis {
+				if rf.MpGracefulRestart.Config.Enabled {
+					k, _ := bgp.GetRouteFamily(string(rf.AfiSafiName))
+					tuples = append(tuples, bgp.NewCapGracefulRestartTuple(k, true))
+				}
+			}
+		}
+		time := c.RestartTime
+		// RFC 4724 4.1
+		// To re-establish the session with its peer, the Restarting Speaker
+		// MUST set the "Restart State" bit in the Graceful Restart Capability
+		// of the OPEN message.
+		restarting := pConf.GracefulRestart.State.LocalRestarting
+		caps = append(caps, bgp.NewCapGracefulRestart(restarting, time, tuples))
+	}
 	return caps
 }
 
