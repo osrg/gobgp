@@ -97,9 +97,43 @@ func (peer *Peer) isGracefulRestartEnabled() bool {
 	return peer.fsm.pConf.GracefulRestart.State.Enabled
 }
 
+func (peer *Peer) recvedAllEOR() bool {
+	for _, a := range peer.fsm.pConf.AfiSafis {
+		if s := a.MpGracefulRestart.State; s.Enabled && !s.EndOfRibReceived {
+			return false
+		}
+	}
+	return true
+}
+
 func (peer *Peer) configuredRFlist() []bgp.RouteFamily {
 	rfs, _ := config.AfiSafis(peer.conf.AfiSafis).ToRfList()
 	return rfs
+}
+
+func (peer *Peer) forwardingPreservedFamilies() ([]bgp.RouteFamily, []bgp.RouteFamily) {
+	list := []bgp.RouteFamily{}
+	for _, a := range peer.fsm.pConf.AfiSafis {
+		if s := a.MpGracefulRestart.State; s.Enabled && s.Received {
+			f, _ := bgp.GetRouteFamily(string(a.AfiSafiName))
+			list = append(list, f)
+		}
+	}
+	preserved := []bgp.RouteFamily{}
+	notPreserved := []bgp.RouteFamily{}
+	for _, f := range peer.configuredRFlist() {
+		p := true
+		for _, g := range list {
+			if f == g {
+				p = false
+				preserved = append(preserved, f)
+			}
+		}
+		if p {
+			notPreserved = append(notPreserved, f)
+		}
+	}
+	return preserved, notPreserved
 }
 
 func (peer *Peer) getAccepted(rfList []bgp.RouteFamily) []*table.Path {
@@ -198,6 +232,10 @@ func (peer *Peer) handleBGPmessage(e *FsmMsg) ([]*table.Path, []*bgp.BGPMessage,
 
 func (peer *Peer) startFSMHandler(incoming, stateCh chan *FsmMsg) {
 	peer.fsm.h = NewFSMHandler(peer.fsm, incoming, stateCh, peer.outgoing)
+}
+
+func (peer *Peer) StaleAll(rfList []bgp.RouteFamily) {
+	peer.adjRibIn.StaleAll(rfList)
 }
 
 func (peer *Peer) PassConn(conn *net.TCPConn) {

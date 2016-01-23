@@ -127,3 +127,27 @@ func (adj *AdjRib) Drop(rfList []bgp.RouteFamily) {
 		}
 	}
 }
+
+func (adj *AdjRib) DropStale(rfList []bgp.RouteFamily) []*Path {
+	pathList := make([]*Path, 0, adj.Count(rfList))
+	for _, rf := range rfList {
+		for _, path := range adj.table[rf] {
+			if path.IsStale() {
+				delete(adj.table[rf], path.getPrefix())
+				if path.Filtered(adj.id) == POLICY_DIRECTION_NONE {
+					adj.accepted[rf]--
+				}
+				pathList = append(pathList, path.Clone(true))
+			}
+		}
+	}
+	return pathList
+}
+
+func (adj *AdjRib) StaleAll(rfList []bgp.RouteFamily) {
+	for _, rf := range rfList {
+		for _, path := range adj.table[rf] {
+			path.MarkStale(true)
+		}
+	}
+}
