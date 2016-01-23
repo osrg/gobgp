@@ -742,6 +742,40 @@ func (h *FSMHandler) opensent() (bgp.FSMState, FsmStateReason) {
 					}
 					fsm.pConf.Timers.State.KeepaliveInterval = keepalive
 
+					gr, ok := fsm.capMap[bgp.BGP_CAP_GRACEFUL_RESTART]
+					if fsm.pConf.GracefulRestart.Config.Enabled && ok {
+						state := &fsm.pConf.GracefulRestart.State
+						state.Enabled = true
+						cap := gr[len(gr)-1].(*bgp.CapGracefulRestart)
+						state.PeerRestartTime = uint16(cap.Time)
+
+						for _, t := range cap.Tuples {
+							n := bgp.AddressFamilyNameMap[bgp.AfiSafiToRouteFamily(t.AFI, t.SAFI)]
+							for i, a := range fsm.pConf.AfiSafis {
+								if string(a.AfiSafiName) == n {
+									fsm.pConf.AfiSafis[i].MpGracefulRestart.State.Enabled = true
+									fsm.pConf.AfiSafis[i].MpGracefulRestart.State.Received = true
+									break
+								}
+							}
+						}
+
+						// RFC 4724 4.1
+						// To re-establish the session with its peer, the Restarting Speaker
+						// MUST set the "Restart State" bit in the Graceful Restart Capability
+						// of the OPEN message.
+						if fsm.pConf.GracefulRestart.State.PeerRestarting && cap.Flags != 0x08 {
+							log.WithFields(log.Fields{
+								"Topic": "Peer",
+								"Key":   fsm.pConf.Config.NeighborAddress,
+								"State": fsm.state,
+							}).Warn("restart flag is not set")
+							// send notification?
+							h.conn.Close()
+							return bgp.BGP_FSM_IDLE, FSM_INVALID_MSG
+						}
+					}
+
 					msg := bgp.NewBGPKeepAliveMessage()
 					b, _ := msg.Serialize()
 					fsm.conn.Write(b)
