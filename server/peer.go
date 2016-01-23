@@ -93,6 +93,10 @@ func (peer *Peer) isRouteReflectorClient() bool {
 	return peer.conf.RouteReflector.Config.RouteReflectorClient
 }
 
+func (peer *Peer) isGracefulRestartEnabled() bool {
+	return peer.fsm.pConf.GracefulRestart.State.Enabled
+}
+
 func (peer *Peer) configuredRFlist() []bgp.RouteFamily {
 	rfs, _ := config.AfiSafis(peer.conf.AfiSafis).ToRfList()
 	return rfs
@@ -125,6 +129,11 @@ func (peer *Peer) getBestFromLocal(rfList []bgp.RouteFamily) ([]*table.Path, []*
 			p.UpdatePathAttrs(&peer.gConf, &peer.conf)
 		}
 		pathList = append(pathList, p)
+	}
+	if peer.isGracefulRestartEnabled() {
+		for _, family := range rfList {
+			pathList = append(pathList, table.NewEOR(family))
+		}
 	}
 	return pathList, filtered
 }
