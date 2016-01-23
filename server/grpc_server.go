@@ -70,6 +70,7 @@ const (
 	REQ_BMP_NEIGHBORS
 	REQ_BMP_GLOBAL
 	REQ_BMP_ADJ_IN
+	REQ_DEFERRAL_TIMER_EXPIRED
 )
 
 type Server struct {
