@@ -138,13 +138,14 @@ func (peer *Peer) getBestFromLocal(rfList []bgp.RouteFamily) ([]*table.Path, []*
 	return pathList, filtered
 }
 
-func (peer *Peer) handleBGPmessage(e *FsmMsg) ([]*table.Path, []*bgp.BGPMessage) {
+func (peer *Peer) handleBGPmessage(e *FsmMsg) ([]*table.Path, []*bgp.BGPMessage, []bgp.RouteFamily) {
 	m := e.MsgData.(*bgp.BGPMessage)
 	log.WithFields(log.Fields{
 		"Topic": "Peer",
 		"Key":   peer.conf.Config.NeighborAddress,
 		"data":  m,
 	}).Debug("received")
+	eor := []bgp.RouteFamily{}
 
 	switch m.Header.Type {
 	case bgp.BGP_MSG_ROUTE_REFRESH:
@@ -167,7 +168,7 @@ func (peer *Peer) handleBGPmessage(e *FsmMsg) ([]*table.Path, []*bgp.BGPMessage)
 				path.IsWithdraw = true
 				accepted = append(accepted, path)
 			}
-			return nil, table.CreateUpdateMsgFromPaths(accepted)
+			return nil, table.CreateUpdateMsgFromPaths(accepted), eor
 		} else {
 			log.WithFields(log.Fields{
 				"Topic": "Peer",
@@ -181,14 +182,24 @@ func (peer *Peer) handleBGPmessage(e *FsmMsg) ([]*table.Path, []*bgp.BGPMessage)
 			peer.adjRibIn.Update(e.PathList)
 			paths := make([]*table.Path, 0, len(e.PathList))
 			for _, path := range e.PathList {
+				if path.IsEOR() {
+					family := path.GetRouteFamily()
+					log.WithFields(log.Fields{
+						"Topic":         "Peer",
+						"Key":           peer.conf.Config.NeighborAddress,
+						"AddressFamily": family,
+					}).Debug("EOR received")
+					eor = append(eor, family)
+					continue
+				}
 				if path.Filtered(peer.ID()) != table.POLICY_DIRECTION_IN {
 					paths = append(paths, path)
 				}
 			}
-			return paths, nil
+			return paths, nil, eor
 		}
 	}
-	return nil, nil
+	return nil, nil, eor
 }
 
 func (peer *Peer) startFSMHandler(incoming, stateCh chan *FsmMsg) {
