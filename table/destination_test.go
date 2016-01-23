@@ -40,13 +40,13 @@ func TestDestinationNewIPv6(t *testing.T) {
 func TestDestinationSetRouteFamily(t *testing.T) {
 	dd := &Destination{}
 	dd.setRouteFamily(bgp.RF_IPv4_UC)
-	rf := dd.getRouteFamily()
+	rf := dd.Family()
 	assert.Equal(t, rf, bgp.RF_IPv4_UC)
 }
 func TestDestinationGetRouteFamily(t *testing.T) {
 	dd := &Destination{}
 	dd.setRouteFamily(bgp.RF_IPv6_UC)
-	rf := dd.getRouteFamily()
+	rf := dd.Family()
 	assert.Equal(t, rf, bgp.RF_IPv6_UC)
 }
 func TestDestinationSetNlri(t *testing.T) {
