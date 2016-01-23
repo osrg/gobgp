@@ -546,6 +546,14 @@ func (h *FSMHandler) recvMessageWithError() error {
 					return nil
 				}
 			case bgp.BGP_MSG_NOTIFICATION:
+				body := m.Body.(*bgp.BGPNotification)
+				log.WithFields(log.Fields{
+					"Topic":   "Peer",
+					"Key":     h.fsm.pConf.Config.NeighborAddress,
+					"Code":    body.ErrorCode,
+					"Subcode": body.ErrorSubcode,
+					"Data":    body.Data,
+				}).Warn("received notification")
 				h.reason = "Notification received"
 				return nil
 			}
