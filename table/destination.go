@@ -165,7 +165,7 @@ func (dd *Destination) ToApiStruct(id string) *api.Destination {
 	}
 }
 
-func (dd *Destination) getRouteFamily() bgp.RouteFamily {
+func (dd *Destination) Family() bgp.RouteFamily {
 	return dd.routeFamily
 }
 
