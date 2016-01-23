@@ -54,6 +54,7 @@ type originInfo struct {
 	isFromZebra        bool
 	key                string
 	uuid               []byte
+	eor                bool
 }
 
 type Path struct {
@@ -87,6 +88,24 @@ func NewPath(source *PeerInfo, nlri bgp.AddrPrefixInterface, isWithdraw bool, pa
 		pathAttrs:  pattrs,
 		filtered:   make(map[string]PolicyDirection),
 	}
+}
+
+func NewEOR(family bgp.RouteFamily) *Path {
+	afi, safi := bgp.RouteFamilyToAfiSafi(family)
+	nlri, _ := bgp.NewPrefixFromRouteFamily(afi, safi)
+	return &Path{
+		info: &originInfo{
+			nlri: nlri,
+			eor:  true,
+		},
+	}
+}
+
+func (path *Path) IsEOR() bool {
+	if path.info != nil && path.info.eor {
+		return true
+	}
+	return false
 }
 
 func cloneAsPath(asAttr *bgp.PathAttributeAsPath) *bgp.PathAttributeAsPath {
