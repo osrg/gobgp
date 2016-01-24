@@ -217,7 +217,6 @@ func (m *roaManager) handleROAEvent(ev *roaClientEvent) {
 		client.conn = nil
 		client.t = tomb.Tomb{}
 		client.t.Go(client.tryConnect)
-		fmt.Println("timeout", client.lifetime)
 		client.timer = time.AfterFunc(time.Duration(client.lifetime)*time.Second, client.lifetimeout)
 	case CONNECTED:
 		log.Info("roa server is connected, ", ev.src)
