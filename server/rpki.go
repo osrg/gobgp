@@ -95,6 +95,7 @@ const (
 	CONNECTED uint8 = iota
 	DISCONNECTED
 	RTR
+	LIFETIMEOUT
 )
 
 type roaClientEvent struct {
@@ -125,11 +126,16 @@ func newROAManager(as uint32, servers []config.RpkiServer) (*roaManager, error) 
 
 	for _, entry := range servers {
 		c := entry.Config
+		// should be set somewhere else
+		if c.RecordLifetime == 0 {
+			c.RecordLifetime = 3600
+		}
 		client := &roaClient{
 			host:     net.JoinHostPort(c.Address, strconv.Itoa(int(c.Port))),
 			eventCh:  m.eventCh,
 			records:  make(map[int]uint32),
 			prefixes: make(map[int]uint32),
+			lifetime: c.RecordLifetime,
 		}
 		m.clientMap[client.host] = client
 		client.t.Go(client.tryConnect)
@@ -186,6 +192,13 @@ func (c *roaManager) recieveROA() chan *roaClientEvent {
 	return c.eventCh
 }
 
+func (c *roaClient) lifetimeout() {
+	c.eventCh <- &roaClientEvent{
+		eventType: LIFETIMEOUT,
+		src:       c.host,
+	}
+}
+
 func (m *roaManager) handleROAEvent(ev *roaClientEvent) {
 	client, y := m.clientMap[ev.src]
 	if !y {
@@ -204,14 +217,26 @@ func (m *roaManager) handleROAEvent(ev *roaClientEvent) {
 		client.conn = nil
 		client.t = tomb.Tomb{}
 		client.t.Go(client.tryConnect)
+		fmt.Println("timeout", client.lifetime)
+		client.timer = time.AfterFunc(time.Duration(client.lifetime)*time.Second, client.lifetimeout)
 	case CONNECTED:
 		log.Info("roa server is connected, ", ev.src)
+		if client.timer != nil {
+			client.timer.Stop()
+		}
 		client.conn = ev.conn
 		client.state.Uptime = time.Now().Unix()
 		client.t = tomb.Tomb{}
 		client.t.Go(client.established)
 	case RTR:
 		m.handleRTRMsg(client, &client.state, ev.data)
+	case LIFETIMEOUT:
+		if client.conn == nil {
+			log.Info("delete all due to timeout", client.host)
+			m.deleteAllROA(client.host)
+		} else {
+			log.Info("reconnected so ignore timeout", client.host)
+		}
 	}
 }
 
@@ -581,6 +606,8 @@ type roaClient struct {
 	serialNumber uint32
 	prefixes     map[int]uint32
 	records      map[int]uint32
+	timer        *time.Timer
+	lifetime     int64
 }
 
 func (c *roaClient) enable(serial uint32) error {
