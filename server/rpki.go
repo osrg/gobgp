@@ -138,6 +138,30 @@ func newROAManager(as uint32, servers []config.RpkiServer) (*roaManager, error) 
 	return m, nil
 }
 
+func (m *roaManager) deleteAllROA(network string) {
+	for _, tree := range m.roas {
+		deleteKeys := make([]string, 0, tree.Len())
+		tree.Walk(func(s string, v interface{}) bool {
+			b, _ := v.(*roaBucket)
+			newEntries := make([]*roa, 0, len(b.entries))
+			for _, r := range b.entries {
+				if r.Src != network {
+					newEntries = append(newEntries, r)
+				}
+			}
+			if len(newEntries) > 0 {
+				b.entries = newEntries
+			} else {
+				deleteKeys = append(deleteKeys, s)
+			}
+			return false
+		})
+		for _, key := range deleteKeys {
+			tree.Delete(key)
+		}
+	}
+}
+
 func (m *roaManager) operate(op api.Operation, address string) error {
 	for network, client := range m.clientMap {
 		add, _ := splitHostPort(network)
@@ -150,6 +174,7 @@ func (m *roaManager) operate(op api.Operation, address string) error {
 				client.reset()
 			case api.Operation_SOFTRESET:
 				client.softReset()
+				m.deleteAllROA(network)
 			}
 			return nil
 		}
