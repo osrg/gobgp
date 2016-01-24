@@ -314,13 +314,13 @@ type CapCarryingLabelInfo struct {
 	DefaultParameterCapability
 }
 
-type CapGracefulRestartTuples struct {
+type CapGracefulRestartTuple struct {
 	AFI   uint16
 	SAFI  uint8
 	Flags uint8
 }
 
-func (c CapGracefulRestartTuples) MarshalJSON() ([]byte, error) {
+func (c *CapGracefulRestartTuple) MarshalJSON() ([]byte, error) {
 	return json.Marshal(struct {
 		RouteFamily RouteFamily `json:"route_family"`
 		Flags       uint8       `json:"flags"`
@@ -330,28 +330,38 @@ func (c CapGracefulRestartTuples) MarshalJSON() ([]byte, error) {
 	})
 }
 
-type CapGracefulRestartValue struct {
-	Flags  uint8                      `json:"flags"`
-	Time   uint16                     `json:"time"`
-	Tuples []CapGracefulRestartTuples `json:"tuples"`
+func NewCapGracefulRestartTuple(rf RouteFamily, forward bool) *CapGracefulRestartTuple {
+	afi, safi := RouteFamilyToAfiSafi(rf)
+	flags := 0
+	if forward {
+		flags = 0x80
+	}
+	return &CapGracefulRestartTuple{
+		AFI:   afi,
+		SAFI:  safi,
+		Flags: uint8(flags),
+	}
 }
 
 type CapGracefulRestart struct {
 	DefaultParameterCapability
-	CapValue CapGracefulRestartValue
+	Flags  uint8
+	Time   uint16
+	Tuples []*CapGracefulRestartTuple
 }
 
 func (c *CapGracefulRestart) DecodeFromBytes(data []byte) error {
 	c.DefaultParameterCapability.DecodeFromBytes(data)
 	data = data[2:]
 	restart := binary.BigEndian.Uint16(data[0:2])
-	c.CapValue.Flags = uint8(restart >> 12)
-	c.CapValue.Time = restart & 0xfff
+	c.Flags = uint8(restart >> 12)
+	c.Time = restart & 0xfff
 	data = data[2:]
+	c.Tuples = make([]*CapGracefulRestartTuple, 0, len(data)/4)
 	for len(data) >= 4 {
-		t := CapGracefulRestartTuples{binary.BigEndian.Uint16(data[0:2]),
+		t := &CapGracefulRestartTuple{binary.BigEndian.Uint16(data[0:2]),
 			data[2], data[3]}
-		c.CapValue.Tuples = append(c.CapValue.Tuples, t)
+		c.Tuples = append(c.Tuples, t)
 		data = data[4:]
 	}
 	return nil
@@ -359,8 +369,8 @@ func (c *CapGracefulRestart) DecodeFromBytes(data []byte) error {
 
 func (c *CapGracefulRestart) Serialize() ([]byte, error) {
 	buf := make([]byte, 2)
-	binary.BigEndian.PutUint16(buf[0:], uint16(c.CapValue.Flags)<<12|c.CapValue.Time)
-	for _, t := range c.CapValue.Tuples {
+	binary.BigEndian.PutUint16(buf[0:], uint16(c.Flags)<<12|c.Time)
+	for _, t := range c.Tuples {
 		tbuf := make([]byte, 4)
 		binary.BigEndian.PutUint16(tbuf[0:2], t.AFI)
 		tbuf[2] = t.SAFI
@@ -371,16 +381,32 @@ func (c *CapGracefulRestart) Serialize() ([]byte, error) {
 	return c.DefaultParameterCapability.Serialize()
 }
 
-func NewCapGracefulRestart(flags uint8, time uint16, tuples []CapGracefulRestartTuples) *CapGracefulRestart {
+func (c *CapGracefulRestart) MarshalJSON() ([]byte, error) {
+	return json.Marshal(struct {
+		Code   BGPCapabilityCode          `json:"code"`
+		Flags  uint8                      `json:"flags"`
+		Time   uint16                     `json:"time"`
+		Tuples []*CapGracefulRestartTuple `json:"tuples"`
+	}{
+		Code:   c.Code(),
+		Flags:  c.Flags,
+		Time:   c.Time,
+		Tuples: c.Tuples,
+	})
+}
+
+func NewCapGracefulRestart(restarting bool, time uint16, tuples []*CapGracefulRestartTuple) *CapGracefulRestart {
+	flags := 0
+	if restarting {
+		flags = 0x08
+	}
 	return &CapGracefulRestart{
-		DefaultParameterCapability{
+		DefaultParameterCapability: DefaultParameterCapability{
 			CapCode: BGP_CAP_GRACEFUL_RESTART,
 		},
-		CapGracefulRestartValue{
-			flags,
-			time,
-			tuples,
-		},
+		Flags:  uint8(flags),
+		Time:   time,
+		Tuples: tuples,
 	}
 }
 
@@ -6180,10 +6206,35 @@ func (msg *BGPUpdate) Serialize() ([]byte, error) {
 	return buf, nil
 }
 
+func (msg *BGPUpdate) IsEndOfRib() (bool, RouteFamily) {
+	if len(msg.WithdrawnRoutes) == 0 && len(msg.NLRI) == 0 {
+		if len(msg.PathAttributes) == 0 {
+			return true, RF_IPv4_UC
+		} else if len(msg.PathAttributes) == 1 && msg.PathAttributes[0].GetType() == BGP_ATTR_TYPE_MP_UNREACH_NLRI {
+			unreach := msg.PathAttributes[0].(*PathAttributeMpUnreachNLRI)
+			return true, AfiSafiToRouteFamily(unreach.AFI, unreach.SAFI)
+		}
+	}
+	return false, RouteFamily(0)
+}
+
 func NewBGPUpdateMessage(withdrawnRoutes []*IPAddrPrefix, pathattrs []PathAttributeInterface, nlri []*IPAddrPrefix) *BGPMessage {
 	return &BGPMessage{
 		Header: BGPHeader{Type: BGP_MSG_UPDATE},
 		Body:   &BGPUpdate{0, withdrawnRoutes, 0, pathattrs, nlri},
+	}
+}
+
+func NewEndOfRib(family RouteFamily) *BGPMessage {
+	if family == RF_IPv4_UC {
+		return NewBGPUpdateMessage(nil, nil, nil)
+	} else {
+		afi, safi := RouteFamilyToAfiSafi(family)
+		unreach := &PathAttributeMpUnreachNLRI{
+			AFI:  afi,
+			SAFI: safi,
+		}
+		return NewBGPUpdateMessage(nil, []PathAttributeInterface{unreach}, nil)
 	}
 }
 

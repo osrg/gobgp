@@ -94,6 +94,7 @@ def emit_go(ctx):
     for mod in ctx.module_deps:
         if mod not in _module_excluded:
             emit_typedef(ctx, mod)
+            emit_identity(ctx, mod)
 
     for struct in ctx.golang_struct_def:
         struct_name = struct.uniq_name
@@ -154,7 +155,7 @@ def emit_class_def(ctx, yang_statement, struct_name, prefix):
 
             # case identityref
             if type_name == 'identityref':
-                emit_type_name = 'string'
+                emit_type_name = convert_to_golang(type_obj.search_one('base').arg.split(':')[-1])
 
             # case leafref
             elif type_name == 'leafref':
@@ -163,9 +164,14 @@ def emit_class_def(ctx, yang_statement, struct_name, prefix):
                     print >> o, '  //%s:%s\'s original type is %s' \
                                 % (child_prefix, container_or_list_name, t.arg)
                     emit_type_name = translate_type(t.arg)
+                elif is_identityref(t):
+                    emit_type_name = convert_to_golang(t.search_one('base').arg.split(':')[-1])
                 else:
                     emit_type_name = t.arg
 
+            # case embeded enumeration
+            elif type_name == 'enumeration':
+                emit_type_name = val_name_go
 
             # case translation required
             elif is_translation_required(type_obj):
@@ -199,6 +205,9 @@ def emit_class_def(ctx, yang_statement, struct_name, prefix):
             if type_name == 'leafref':
                 t = type_obj.i_type_spec.i_target_node.search_one('type')
                 emit_type_name = '[]'+t.arg
+
+            elif type_name == 'identityref':
+                emit_type_name = '[]'+convert_to_golang(type_obj.search_one('base').arg.split(':')[-1])
 
             # case translation required
             elif is_translation_required(type_obj):
@@ -290,6 +299,16 @@ def visit_children(ctx, module, children):
 
         t = c.search_one('type')
 
+        # define container embeded enums
+        if is_leaf(c) and c.search_one('type').arg == 'enumeration':
+            prefix = module.i_prefix
+            c.path = get_path(c)
+            c.golang_name = convert_to_golang(c.arg)
+            if prefix in ctx.golang_typedef_map:
+                ctx.golang_typedef_map[prefix][c.arg] = c
+            else:
+                ctx.golang_typedef_map[prefix] = {c.arg: c}
+
         if is_list(c) or is_container(c) or is_choice(c):
             c.golang_name = convert_to_golang(c.uniq_name)
 
@@ -359,6 +378,15 @@ def visit_identity(ctx, module):
             name = stmts.arg
             stmts.golang_name = convert_to_golang(name)
             child_map[name] = stmts
+
+            base = stmts.search_one('base')
+            if base:
+                elems = base.arg.split(':')
+                if len(elems) > 1:
+                    ctx.golang_identity_map[elems[0]][elems[1]].substmts.append(stmts)
+                else:
+                    child_map[base.arg].substmts.append(stmts)
+
     ctx.golang_identity_map[prefix] = child_map
 
 
@@ -383,6 +411,68 @@ def lookup(basemap, default_prefix, key):
         return basemap[pref].get(name, None)
     else:
         return key
+
+
+def emit_enum(prefix, name, stmt, substmts):
+        type_name_org = name
+        type_name = stmt.golang_name
+        o = StringIO.StringIO()
+
+        print >> o, '// typedef for identity %s:%s' % (prefix, type_name_org)
+        print >> o, 'type %s string' % (type_name)
+
+        const_prefix = convert_const_prefix(type_name_org)
+        print >> o, 'const ('
+        m = {}
+        for sub in substmts:
+            enum_name = '%s_%s' % (const_prefix, convert_const_prefix(sub.arg))
+            m[sub.arg.lower()] = enum_name
+            print >> o, ' %s %s = "%s"' % (enum_name, type_name, sub.arg.lower())
+        print >> o, ')\n'
+
+        print >> o, 'var %sToIntMap = map[%s]int {' % (type_name, type_name)
+        for i, sub in enumerate(substmts):
+            enum_name = '%s_%s' % (const_prefix, convert_const_prefix(sub.arg))
+            print >> o, ' %s: %d,' % (enum_name, i)
+        print >> o, '}\n'
+
+        print >> o, 'func (v %s) ToInt() int {' % (type_name)
+        print >> o, 'i, ok := %sToIntMap[v]' % (type_name)
+        print >> o, 'if !ok {'
+        print >> o, 'return -1'
+        print >> o, '}'
+        print >> o, 'return i'
+        print >> o, '}'
+
+        print >> o, 'var IntTo%sMap = map[int]%s {' % (type_name, type_name)
+        for i, sub in enumerate(substmts):
+            enum_name = '%s_%s' % (const_prefix, convert_const_prefix(sub.arg))
+            print >> o, ' %d: %s,' % (i, enum_name)
+        print >> o, '}\n'
+
+        print >> o, 'func (v %s) Validate() error {' % (type_name)
+        print >> o, 'if _, ok := %sToIntMap[v]; !ok {' % (type_name)
+        print >> o, 'return fmt.Errorf("invalid %s: %%s", v)' % (type_name)
+        print >> o, '}'
+        print >> o, 'return nil'
+        print >> o, '}\n'
+
+        if stmt.search_one('default'):
+            default = stmt.search_one('default')
+            print >> o, 'func (v %s) Default() %s {' % (type_name, type_name)
+            print >> o, 'return %s' % m[default.arg.lower()]
+            print >> o, '}\n'
+
+            print >> o, 'func (v %s) DefaultAsNeeded() %s {' % (type_name, type_name)
+            print >> o, ' if string(v) == "" {'
+            print >> o, ' return v.Default()'
+            print >> o, '}'
+            print >> o, ' return v'
+            print >> o, '}'
+
+
+
+        print o.getvalue()
 
 
 def emit_typedef(ctx, module):
@@ -411,55 +501,7 @@ def emit_typedef(ctx, module):
         o = StringIO.StringIO()
 
         if t.arg == 'enumeration':
-            print >> o, '// typedef for typedef %s:%s'\
-                        % (prefix, type_name_org)
-            print >> o, 'type %s string' % (type_name)
-
-            const_prefix = convert_const_prefix(type_name_org)
-            print >> o, 'const ('
-            m = {}
-            for sub in t.substmts:
-                enum_name = '%s_%s' % (const_prefix, convert_const_prefix(sub.arg))
-                m[sub.arg.lower()] = enum_name
-                print >> o, ' %s %s = "%s"' % (enum_name, type_name, sub.arg.lower())
-            print >> o, ')\n'
-
-            print >> o, 'func (v %s) ToInt() int {' % (type_name)
-            print >> o, 'for i, vv := range []string{%s} {' % (",".join('"%s"' % s.arg.lower() for s in t.substmts))
-            print >> o, 'if string(v) == vv {return i}'
-            print >> o, '}'
-            print >> o, 'return -1'
-            print >> o, '}\n'
-
-            print >> o, 'func (v %s) FromInt(i int) %s {' % (type_name, type_name)
-            print >> o, 'for j, vv := range []string{%s} {' % (",".join('"%s"' % s.arg.lower() for s in t.substmts))
-            print >> o, 'if i == j {return %s(vv)}' % (type_name)
-            print >> o, '}'
-            print >> o, 'return %s("")' % (type_name)
-            print >> o, '}\n'
-
-            print >> o, 'func (v %s) Validate() error {' % (type_name)
-            print >> o, 'if v.ToInt() < 0 {'
-            print >> o, 'return fmt.Errorf("invalid %s: %%s", v)' % (type_name)
-            print >> o, '}'
-            print >> o, 'return nil'
-            print >> o, '}\n'
-
-            if stmt.search_one('default'):
-                default = stmt.search_one('default')
-                print >> o, 'func (v %s) Default() %s {' % (type_name, type_name)
-                print >> o, 'return %s' % m[default.arg.lower()]
-                print >> o, '}\n'
-
-                print >> o, 'func (v %s) DefaultAsNeeded() %s {' % (type_name, type_name)
-                print >> o, ' if string(v) == "" {'
-                print >> o, ' return v.Default()'
-                print >> o, '}'
-                print >> o, ' return v'
-                print >> o, '}'
-
-
-
+            emit_enum(prefix, type_name_org, stmt, t.substmts)
         elif t.arg == 'union':
             print >> o, '// typedef for typedef %s:%s'\
                         % (prefix, type_name_org)
@@ -484,29 +526,18 @@ def emit_identity(ctx, module):
     prefix = module.i_prefix
     i_map = ctx.golang_identity_map[prefix]
     for name, stmt in i_map.items():
-        type_name_org = name
-        type_name = stmt.golang_name
-        base = stmt.search_one('base')
-        o = StringIO.StringIO()
-
-        print >> o, '// typedef for identity %s:%s' % (prefix, type_name_org)
-        print >> o, 'type %s struct {' % (type_name)
-        if base is not None:
-            base_obj = lookup_identity(ctx, prefix, base.arg)
-            print >> o, ' // base_type -> %s' % (base.arg)
-            print >> o, ' %s' % (base_obj.golang_name)
-
-        print >> o, '}'
-        print o.getvalue()
-
+        enums = stmt.search('identity')
+        if len(enums) > 0:
+            emit_enum(prefix, name, stmt, enums)
 
 def is_reference(s):
     return s.arg in ['leafref', 'identityref']
 
-
 def is_leafref(s):
     return s.arg in ['leafref']
 
+def is_identityref(s):
+    return s.arg in ['identityref']
 
 def is_leaf(s):
     return s.keyword in ['leaf']
@@ -542,7 +573,6 @@ def is_translation_required(t):
 
 _type_translation_map = {
     'union': 'string',
-    'enumeration': 'uint32',
     'decimal64': 'float64',
     'boolean': 'bool',
     'empty': 'bool',
@@ -551,7 +581,6 @@ _type_translation_map = {
     'inet:ipv4-address': 'string',
     'inet:as-number': 'uint32',
     'bgp-set-community-option-type': 'string',
-    'identityref' : 'string',
     'inet:port-number': 'uint16',
     'yang:timeticks': 'int64',
     'ptypes:install-protocol-type': 'string',

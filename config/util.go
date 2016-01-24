@@ -16,6 +16,7 @@
 package config
 
 import (
+	"fmt"
 	"github.com/osrg/gobgp/packet"
 )
 
@@ -39,9 +40,9 @@ type AfiSafis []AfiSafi
 func (c AfiSafis) ToRfList() ([]bgp.RouteFamily, error) {
 	rfs := make([]bgp.RouteFamily, 0, len(c))
 	for _, rf := range c {
-		k, err := bgp.GetRouteFamily(rf.AfiSafiName)
+		k, err := bgp.GetRouteFamily(string(rf.AfiSafiName))
 		if err != nil {
-			return nil, err
+			return nil, fmt.Errorf("invalid address family: %s", rf.AfiSafiName)
 		}
 		rfs = append(rfs, k)
 	}

@@ -9,6 +9,8 @@ module gobgp {
 
   // import some basic types
   import openconfig-bgp { prefix bgp; }
+  import openconfig-bgp-types { prefix bgp-types; }
+  import openconfig-bgp-multiprotocol { prefix bgp-mp; }
   import openconfig-routing-policy {prefix rpol; }
   import openconfig-policy-types {prefix ptypes; }
   import openconfig-bgp-policy {prefix bgp-pol; }
@@ -47,6 +49,74 @@ module gobgp {
         description "send both pre and post-policy routes";
       }
     }
+  }
+
+  identity eq {
+      base ptypes:attribute-comparison;
+  }
+
+  identity ge {
+      base ptypes:attribute-comparison;
+  }
+
+  identity le {
+      base ptypes:attribute-comparison;
+  }
+
+  identity IPV4-MULTICAST {
+    base bgp-types:afi-safi-type;
+    description
+      "IPv4 multicast (AFI,SAFI = 1,2)";
+    reference "RFC4760";
+  }
+
+  identity IPV6-MULTICAST {
+    base bgp-types:afi-safi-type;
+    description
+      "IPv4 multicast (AFI,SAFI = 1,2)";
+    reference "RFC4760";
+  }
+
+  identity RTC {
+    base bgp-types:afi-safi-type;
+    description
+      "Route target membership (AFI,SAFI = 1,132)";
+    reference "RFC4684";
+  }
+
+  identity ENCAP {
+    base bgp-types:afi-safi-type;
+    description
+      "Encapsulation (AFI,SAFI = 1,7)";
+    reference "RFC5512";
+  }
+
+  identity IPV4-FLOWSPEC {
+    base bgp-types:afi-safi-type;
+    description
+      "IPv4 flowspec (AFI,SAFI = 1,133)";
+    reference "RFC5575";
+  }
+
+  identity L3VPN-IPV4-FLOWSPEC {
+    base bgp-types:afi-safi-type;
+    description
+      "L3VPN IPv4 flowspec (AFI,SAFI = 1,134)";
+    reference "RFC5575";
+  }
+
+  identity IPV6-FLOWSPEC {
+    base bgp-types:afi-safi-type;
+    description
+      "IPv6 flowspec (AFI,SAFI = 1,133)";
+    reference "RFC5575";
+  }
+
+  identity L3VPN-IPV6-FLOWSPEC {
+    base bgp-types:afi-safi-type;
+    description
+      "L3VPN IPv6 flowspec (AFI,SAFI = 1,134)";
+    reference "RFC5575";
   }
 
   grouping gobgp-message-counter {
@@ -503,6 +573,30 @@ module gobgp {
     uses gobgp-neighbor-timer;
    }
 
+  augment "/bgp:bgp/bgp:neighbors/bgp:neighbor/bgp:afi-safis/bgp:afi-safi/bgp:graceful-restart/bgp:state" {
+    description "additional graceful-restart status";
+    leaf end-of-rib-received {
+      type boolean;
+    }
+    leaf end-of-rib-sent {
+      type boolean;
+    }
+  }
+
+  augment "/bgp:bgp/bgp:neighbors/bgp:neighbor/bgp:graceful-restart/bgp:config" {
+    description "additional graceful-restart status";
+    leaf deferral-time {
+      type uint16;
+    }
+  }
+
+  augment "/bgp:bgp/bgp:neighbors/bgp:neighbor/bgp:graceful-restart/bgp:state" {
+    description "additional graceful-restart status";
+    leaf deferral-time {
+      type uint16;
+    }
+  }
+
   augment "/bgp:bgp/bgp:peer-groups/bgp:peer-group" {
     description "route server configuration for peer-group";
     uses gobgp-route-server-config-set;
@@ -659,4 +753,5 @@ module gobgp {
         }
     }
   }
+
 }
