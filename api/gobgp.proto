@@ -502,6 +502,7 @@ message ROAResult {
         UPDATE = 0;
         WITHDRAW = 1;
         PEER_DOWN = 2;
+	REVALIDATE = 3;
     }
     ValidationReason reason = 1;
     string address = 2;

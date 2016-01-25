@@ -2649,6 +2649,7 @@ func (server *BgpServer) handleModRpki(grpcReq *GrpcRequest) {
 							invalid := api.ROAResult_ValidationResult(config.RPKI_VALIDATION_RESULT_TYPE_INVALID.ToInt())
 
 							if r.OldResult != r.NewResult && (r.OldResult == invalid || r.NewResult == invalid) {
+								r.Reason = api.ROAResult_REVALIDATE
 								send = append(send, r)
 							}
 						}

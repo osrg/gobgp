@@ -139,6 +139,10 @@ func NewMonitorCmd() *cobra.Command {
 						reason = "Withdraw"
 					} else if s.Reason == gobgpapi.ROAResult_PEER_DOWN {
 						reason = "PeerDown"
+					} else if s.Reason == gobgpapi.ROAResult_REVALIDATE {
+						reason = "Revalidate"
+					} else {
+						reason = "Unknown"
 					}
 					aspath := &bgp.PathAttributeAsPath{}
 					aspath.DecodeFromBytes(s.AspathAttr)
