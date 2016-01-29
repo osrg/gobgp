@@ -562,11 +562,11 @@ func filterpath(peer *Peer, path *table.Path) *table.Path {
 func (server *BgpServer) dropPeerAllRoutes(peer *Peer) []*SenderMsg {
 	msgs := make([]*SenderMsg, 0)
 
+	options := &table.PolicyOptions{}
 	for _, rf := range peer.configuredRFlist() {
 		dsts := server.globalRib.DeletePathsByPeer(peer.fsm.peerInfo, rf)
 		server.validatePaths(dsts, true)
 		if peer.isRouteServerClient() {
-			pathList := make([]*table.Path, len(dsts))
 			for _, targetPeer := range server.neighborMap {
 				if !targetPeer.isRouteServerClient() || targetPeer == peer || targetPeer.fsm.state != bgp.BGP_FSM_ESTABLISHED {
 					continue
@@ -574,32 +574,31 @@ func (server *BgpServer) dropPeerAllRoutes(peer *Peer) []*SenderMsg {
 				if _, ok := targetPeer.fsm.rfMap[rf]; !ok {
 					continue
 				}
-
-				i := 0
+				pathList := make([]*table.Path, 0, len(dsts))
+				options.Neighbor = targetPeer.fsm.peerInfo.Address
 				for _, dst := range dsts {
-					feed := dst.NewFeed(targetPeer.TableID())
-					pathList[i] = feed
-					i++
+					if path := server.policy.ApplyPolicy(targetPeer.TableID(), table.POLICY_DIRECTION_EXPORT, filterpath(targetPeer, dst.NewFeed(targetPeer.TableID())), options); path != nil {
+						pathList = append(pathList, path)
+					}
 				}
 				msgList := table.CreateUpdateMsgFromPaths(pathList)
 				msgs = append(msgs, newSenderMsg(targetPeer, msgList))
 				targetPeer.adjRibOut.Update(pathList)
 			}
 		} else {
-			pathList := make([]*table.Path, 0, len(dsts))
+			sendPathList := make([]*table.Path, 0, len(dsts))
 			for _, dst := range dsts {
 				path := dst.NewFeed(table.GLOBAL_RIB_NAME)
 				if path != nil {
-					pathList = append(pathList, path)
+					sendPathList = append(sendPathList, path)
 				}
 			}
-			if len(pathList) == 0 {
+			if len(sendPathList) == 0 {
 				return msgs
 			}
 
-			server.broadcastBests(pathList)
+			server.broadcastBests(sendPathList)
 
-			msgList := table.CreateUpdateMsgFromPaths(pathList)
 			for _, targetPeer := range server.neighborMap {
 				if targetPeer.isRouteServerClient() || targetPeer.fsm.state != bgp.BGP_FSM_ESTABLISHED {
 					continue
@@ -607,7 +606,16 @@ func (server *BgpServer) dropPeerAllRoutes(peer *Peer) []*SenderMsg {
 				if _, ok := targetPeer.fsm.rfMap[rf]; !ok {
 					continue
 				}
+				pathList := make([]*table.Path, 0, len(sendPathList))
+				options.Neighbor = targetPeer.fsm.peerInfo.Address
+				for _, path := range sendPathList {
+					if path := server.policy.ApplyPolicy(table.GLOBAL_RIB_NAME, table.POLICY_DIRECTION_EXPORT, filterpath(targetPeer, path), options); path != nil {
+						pathList = append(pathList, path)
+					}
+				}
 				targetPeer.adjRibOut.Update(pathList)
+				msgList := table.CreateUpdateMsgFromPaths(pathList)
+
 				msgs = append(msgs, newSenderMsg(targetPeer, msgList))
 			}
 		}
