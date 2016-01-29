@@ -1908,6 +1908,9 @@ func (server *BgpServer) handleGrpc(grpcReq *GrpcRequest) []*SenderMsg {
 			logOp(grpcReq.Name, "Neighbor soft reset out")
 		}
 		for _, peer := range peers {
+			if peer.fsm.state != bgp.BGP_FSM_ESTABLISHED {
+				continue
+			}
 			rfList := peer.configuredRFlist()
 			sentPathList := peer.adjRibOut.PathList(rfList, false)
 			peer.adjRibOut.Drop(rfList)
