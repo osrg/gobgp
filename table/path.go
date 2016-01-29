@@ -54,6 +54,8 @@ type originInfo struct {
 	isFromZebra        bool
 	key                string
 	uuid               []byte
+	eor                bool
+	stale              bool
 }
 
 type Path struct {
@@ -87,6 +89,24 @@ func NewPath(source *PeerInfo, nlri bgp.AddrPrefixInterface, isWithdraw bool, pa
 		pathAttrs:  pattrs,
 		filtered:   make(map[string]PolicyDirection),
 	}
+}
+
+func NewEOR(family bgp.RouteFamily) *Path {
+	afi, safi := bgp.RouteFamilyToAfiSafi(family)
+	nlri, _ := bgp.NewPrefixFromRouteFamily(afi, safi)
+	return &Path{
+		info: &originInfo{
+			nlri: nlri,
+			eor:  true,
+		},
+	}
+}
+
+func (path *Path) IsEOR() bool {
+	if path.info != nil && path.info.eor {
+		return true
+	}
+	return false
 }
 
 func cloneAsPath(asAttr *bgp.PathAttributeAsPath) *bgp.PathAttributeAsPath {
@@ -216,6 +236,7 @@ func (path *Path) ToApiStruct(id string) *api.Path {
 		Validation: int32(path.OriginInfo().validation.ToInt()),
 		Filtered:   path.Filtered(id) > POLICY_DIRECTION_NONE,
 		Family:     family,
+		Stale:      path.IsStale(),
 	}
 }
 
@@ -285,6 +306,14 @@ func (path *Path) setSource(source *PeerInfo) {
 }
 func (path *Path) GetSource() *PeerInfo {
 	return path.OriginInfo().source
+}
+
+func (path *Path) MarkStale(s bool) {
+	path.OriginInfo().stale = s
+}
+
+func (path *Path) IsStale() bool {
+	return path.OriginInfo().stale
 }
 
 func (path *Path) GetSourceAs() uint32 {

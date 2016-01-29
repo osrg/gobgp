@@ -431,7 +431,7 @@ func (server *BgpServer) Serve() {
 					t.Stop()
 				}(addr)
 
-				m := server.dropPeerAllRoutes(peer)
+				m := server.dropPeerAllRoutes(peer, peer.configuredRFlist())
 				if len(m) > 0 {
 					senderMsgs = append(senderMsgs, m...)
 				}
@@ -559,10 +559,10 @@ func filterpath(peer *Peer, path *table.Path) *table.Path {
 	return path
 }
 
-func (server *BgpServer) dropPeerAllRoutes(peer *Peer) []*SenderMsg {
+func (server *BgpServer) dropPeerAllRoutes(peer *Peer, families []bgp.RouteFamily) []*SenderMsg {
 	msgs := make([]*SenderMsg, 0)
 
-	for _, rf := range peer.configuredRFlist() {
+	for _, rf := range families {
 		dsts := server.globalRib.DeletePathsByPeer(peer.fsm.peerInfo, rf)
 		server.validatePaths(dsts, true)
 		if peer.isRouteServerClient() {
@@ -845,7 +845,7 @@ func (server *BgpServer) propagateUpdate(peer *Peer, pathList []*table.Path) ([]
 		dsts := rib.ProcessPaths(append(pathList, moded...))
 		server.validatePaths(dsts, false)
 		for _, targetPeer := range server.neighborMap {
-			if !targetPeer.isRouteServerClient() || targetPeer.fsm.state != bgp.BGP_FSM_ESTABLISHED {
+			if !targetPeer.isRouteServerClient() || targetPeer.fsm.state != bgp.BGP_FSM_ESTABLISHED || targetPeer.fsm.pConf.GracefulRestart.State.LocalRestarting {
 				continue
 			}
 			sendPathList := make([]*table.Path, 0, len(dsts))
@@ -881,7 +881,13 @@ func (server *BgpServer) propagateUpdate(peer *Peer, pathList []*table.Path) ([]
 		server.broadcastBests(sendPathList)
 
 		for _, targetPeer := range server.neighborMap {
-			if targetPeer.isRouteServerClient() || targetPeer.fsm.state != bgp.BGP_FSM_ESTABLISHED {
+			if targetPeer.isRouteServerClient() || targetPeer.fsm.state != bgp.BGP_FSM_ESTABLISHED || targetPeer.fsm.pConf.GracefulRestart.State.LocalRestarting {
+				if targetPeer.fsm.pConf.GracefulRestart.State.LocalRestarting {
+					log.WithFields(log.Fields{
+						"Topic": "Peer",
+						"Key":   targetPeer.conf.Config.NeighborAddress,
+					}).Debug("now syncing, suppress sending updates")
+				}
 				continue
 			}
 			pathList := make([]*table.Path, len(sendPathList))
@@ -919,10 +925,26 @@ func (server *BgpServer) handleFSMMessage(peer *Peer, e *FsmMsg) []*SenderMsg {
 			if t.Sub(time.Unix(peer.conf.Timers.State.Uptime, 0)) < FLOP_THRESHOLD {
 				peer.conf.State.Flops++
 			}
-
+			var drop []bgp.RouteFamily
+			if peer.fsm.reason == FSM_GRACEFUL_RESTART {
+				peer.fsm.pConf.GracefulRestart.State.PeerRestarting = true
+				var p []bgp.RouteFamily
+				p, drop = peer.forwardingPreservedFamilies()
+				peer.StaleAll(p)
+			} else {
+				drop = peer.configuredRFlist()
+			}
+			peer.DropAll(drop)
+			msgs = append(msgs, server.dropPeerAllRoutes(peer, drop)...)
+		} else if peer.fsm.pConf.GracefulRestart.State.PeerRestarting && nextState == bgp.BGP_FSM_IDLE {
+			// RFC 4724 4.2
+			// If the session does not get re-established within the "Restart Time"
+			// that the peer advertised previously, the Receiving Speaker MUST
+			// delete all the stale routes from the peer that it is retaining.
+			peer.fsm.pConf.GracefulRestart.State.PeerRestarting = false
 			peer.DropAll(peer.configuredRFlist())
 
-			msgs = append(msgs, server.dropPeerAllRoutes(peer)...)
+			msgs = append(msgs, server.dropPeerAllRoutes(peer, peer.configuredRFlist())...)
 		}
 
 		close(peer.outgoing)
@@ -931,10 +953,29 @@ func (server *BgpServer) handleFSMMessage(peer *Peer, e *FsmMsg) []*SenderMsg {
 			// update for export policy
 			laddr, _ := peer.fsm.LocalHostPort()
 			peer.conf.Transport.Config.LocalAddress = laddr
-			pathList, _ := peer.getBestFromLocal(peer.configuredRFlist())
-			if len(pathList) > 0 {
-				peer.adjRibOut.Update(pathList)
-				msgs = append(msgs, newSenderMsg(peer, table.CreateUpdateMsgFromPaths(pathList)))
+			if !peer.fsm.pConf.GracefulRestart.State.LocalRestarting {
+				pathList, _ := peer.getBestFromLocal(peer.configuredRFlist())
+				if len(pathList) > 0 {
+					peer.adjRibOut.Update(pathList)
+					msgs = append(msgs, newSenderMsg(peer, table.CreateUpdateMsgFromPaths(pathList)))
+				}
+			} else {
+				// RFC 4724 4.1
+				// Once the session between the Restarting Speaker and the Receiving
+				// Speaker is re-established, the Restarting Speaker will receive and
+				// process BGP messages from its peers.  However, it MUST defer route
+				// selection for an address family until it either (a) ...snip...
+				// or (b) the Selection_Deferral_Timer referred to below has expired.
+				deferral := peer.fsm.pConf.GracefulRestart.Config.DeferralTime
+				log.WithFields(log.Fields{
+					"Topic": "Peer",
+					"Key":   peer.conf.Config.NeighborAddress,
+				}).Debugf("now syncing, suppress sending updates. start deferral timer(%d)", deferral)
+				time.AfterFunc(time.Second*time.Duration(deferral), func() {
+					req := NewGrpcRequest(REQ_DEFERRAL_TIMER_EXPIRED, peer.conf.Config.NeighborAddress, bgp.RouteFamily(0), nil)
+					server.GrpcReqCh <- req
+					<-req.ResponseCh
+				})
 			}
 		} else {
 			if server.shutdown && nextState == bgp.BGP_FSM_IDLE {
@@ -982,7 +1023,7 @@ func (server *BgpServer) handleFSMMessage(peer *Peer, e *FsmMsg) []*SenderMsg {
 				server.notify2watchers(WATCHER_EVENT_UPDATE_MSG, ev)
 			}
 
-			pathList, msgList := peer.handleBGPmessage(e)
+			pathList, msgList, eor := peer.handleBGPmessage(e)
 			if len(msgList) > 0 {
 				msgs = append(msgs, newSenderMsg(peer, msgList))
 			}
@@ -1007,6 +1048,62 @@ func (server *BgpServer) handleFSMMessage(peer *Peer, e *FsmMsg) []*SenderMsg {
 						payload, _ := u.Serialize()
 						ev.payload = payload
 						server.notify2watchers(WATCHER_EVENT_POST_POLICY_UPDATE_MSG, ev)
+					}
+				}
+			}
+
+			if len(eor) > 0 {
+				for _, f := range eor {
+					for i, a := range peer.fsm.pConf.AfiSafis {
+						if g, _ := bgp.GetRouteFamily(string(a.AfiSafiName)); f == g {
+							peer.fsm.pConf.AfiSafis[i].MpGracefulRestart.State.EndOfRibReceived = true
+						}
+					}
+				}
+
+				// RFC 4724 4.1
+				// Once the session between the Restarting Speaker and the Receiving
+				// Speaker is re-established, ...snip... it MUST defer route
+				// selection for an address family until it either (a) receives the
+				// End-of-RIB marker from all its peers (excluding the ones with the
+				// "Restart State" bit set in the received capability and excluding the
+				// ones that do not advertise the graceful restart capability) or ...snip...
+				if peer.fsm.pConf.GracefulRestart.State.LocalRestarting {
+					allEnd := func() bool {
+						for _, p := range server.neighborMap {
+							if !p.recvedAllEOR() {
+								return false
+							}
+						}
+						return true
+					}()
+					if allEnd {
+						for _, p := range server.neighborMap {
+							p.fsm.pConf.GracefulRestart.State.LocalRestarting = false
+							if !p.isGracefulRestartEnabled() {
+								continue
+							}
+							pathList, _ := p.getBestFromLocal(p.configuredRFlist())
+							if len(pathList) > 0 {
+								p.adjRibOut.Update(pathList)
+								msgs = append(msgs, newSenderMsg(p, table.CreateUpdateMsgFromPaths(pathList)))
+							}
+						}
+						log.WithFields(log.Fields{
+							"Topic": "Server",
+						}).Info("sync finished")
+					}
+				}
+				if peer.fsm.pConf.GracefulRestart.State.PeerRestarting {
+					if peer.recvedAllEOR() {
+						peer.fsm.pConf.GracefulRestart.State.PeerRestarting = false
+						pathList := peer.adjRibIn.DropStale(peer.configuredRFlist())
+						log.WithFields(log.Fields{
+							"Topic": "Peer",
+							"Key":   peer.conf.Config.NeighborAddress,
+						}).Debugf("withdraw %d stale routes", len(pathList))
+						m, _ := server.propagateUpdate(peer, pathList)
+						msgs = append(msgs, m...)
 					}
 				}
 			}
@@ -1891,7 +1988,7 @@ func (server *BgpServer) handleGrpc(grpcReq *GrpcRequest) []*SenderMsg {
 			break
 		}
 		fallthrough
-	case REQ_NEIGHBOR_SOFT_RESET_OUT:
+	case REQ_NEIGHBOR_SOFT_RESET_OUT, REQ_DEFERRAL_TIMER_EXPIRED:
 		peers, err := reqToPeers(grpcReq)
 		if err != nil {
 			break
@@ -1900,6 +1997,17 @@ func (server *BgpServer) handleGrpc(grpcReq *GrpcRequest) []*SenderMsg {
 			logOp(grpcReq.Name, "Neighbor soft reset out")
 		}
 		for _, peer := range peers {
+			if grpcReq.RequestType == REQ_DEFERRAL_TIMER_EXPIRED {
+				if peer.fsm.pConf.GracefulRestart.State.LocalRestarting {
+					peer.fsm.pConf.GracefulRestart.State.LocalRestarting = false
+					log.WithFields(log.Fields{
+						"Topic": "Peer",
+						"Key":   peer.conf.Config.NeighborAddress,
+					}).Debug("deferral timer expired")
+				} else {
+					continue
+				}
+			}
 			rfList := peer.configuredRFlist()
 			sentPathList := peer.adjRibOut.PathList(rfList, false)
 			peer.adjRibOut.Drop(rfList)
@@ -1908,7 +2016,7 @@ func (server *BgpServer) handleGrpc(grpcReq *GrpcRequest) []*SenderMsg {
 				peer.adjRibOut.Update(pathList)
 				msgs = append(msgs, newSenderMsg(peer, table.CreateUpdateMsgFromPaths(pathList)))
 			}
-			if len(filtered) > 0 {
+			if grpcReq.RequestType != REQ_DEFERRAL_TIMER_EXPIRED && len(filtered) > 0 {
 				withdrawnList := make([]*table.Path, 0, len(filtered))
 				for _, p := range filtered {
 					found := false
@@ -2231,7 +2339,7 @@ func (server *BgpServer) handleGrpcModNeighbor(grpcReq *GrpcRequest) (sMsgs []*S
 			n.fsm.t.Wait()
 			t.Stop()
 		}(addr)
-		m := server.dropPeerAllRoutes(n)
+		m := server.dropPeerAllRoutes(n, n.configuredRFlist())
 		if len(m) > 0 {
 			sMsgs = append(sMsgs, m...)
 		}

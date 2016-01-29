@@ -38,16 +38,17 @@ func main() {
 	signal.Notify(sigCh, syscall.SIGHUP, syscall.SIGTERM)
 
 	var opts struct {
-		ConfigFile    string `short:"f" long:"config-file" description:"specifying a config file"`
-		ConfigType    string `short:"t" long:"config-type" description:"specifying config type (toml, yaml, json)" default:"toml"`
-		LogLevel      string `short:"l" long:"log-level" description:"specifying log level"`
-		LogPlain      bool   `short:"p" long:"log-plain" description:"use plain format for logging (json by default)"`
-		UseSyslog     string `short:"s" long:"syslog" description:"use syslogd"`
-		Facility      string `long:"syslog-facility" description:"specify syslog facility"`
-		DisableStdlog bool   `long:"disable-stdlog" description:"disable standard logging"`
-		CPUs          int    `long:"cpus" description:"specify the number of CPUs to be used"`
-		Ops           bool   `long:"openswitch" description:"openswitch mode"`
-		GrpcPort      int    `long:"grpc-port" description:"grpc port" default:"50051"`
+		ConfigFile      string `short:"f" long:"config-file" description:"specifying a config file"`
+		ConfigType      string `short:"t" long:"config-type" description:"specifying config type (toml, yaml, json)" default:"toml"`
+		LogLevel        string `short:"l" long:"log-level" description:"specifying log level"`
+		LogPlain        bool   `short:"p" long:"log-plain" description:"use plain format for logging (json by default)"`
+		UseSyslog       string `short:"s" long:"syslog" description:"use syslogd"`
+		Facility        string `long:"syslog-facility" description:"specify syslog facility"`
+		DisableStdlog   bool   `long:"disable-stdlog" description:"disable standard logging"`
+		CPUs            int    `long:"cpus" description:"specify the number of CPUs to be used"`
+		Ops             bool   `long:"openswitch" description:"openswitch mode"`
+		GrpcPort        int    `short:"g" long:"grpc-port" description:"grpc port" default:"50051"`
+		GracefulRestart bool   `short:"r" long:"graceful-restart" description:"flag restart-state in graceful-restart capability"`
 	}
 	_, err := flags.Parse(&opts)
 	if err != nil {
@@ -187,6 +188,13 @@ func main() {
 				bgpConfig = &newConfig.Bgp
 				bgpServer.SetRpkiConfig(newConfig.Bgp.RpkiServers)
 				added = newConfig.Bgp.Neighbors
+				if opts.GracefulRestart {
+					for i, n := range added {
+						if n.GracefulRestart.Config.Enabled {
+							added[i].GracefulRestart.State.LocalRestarting = true
+						}
+					}
+				}
 				deleted = []config.Neighbor{}
 				updated = []config.Neighbor{}
 			} else {
