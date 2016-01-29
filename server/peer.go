@@ -254,25 +254,17 @@ func (peer *Peer) ToApiStruct() *api.Peer {
 		downtime = int64(time.Now().Sub(time.Unix(timer.State.Downtime, 0)).Seconds())
 	}
 
-	keepalive := uint32(0)
-	if t := timer.State.NegotiatedHoldTime; t != 0 {
-		if t < timer.Config.HoldTime {
-			keepalive = uint32(t / 3)
-		} else {
-			keepalive = uint32(timer.Config.KeepaliveInterval)
-		}
-	}
-
 	timerconf := &api.TimersConfig{
-		ConnectRetry:                 uint64(timer.Config.ConnectRetry),
-		HoldTime:                     uint64(timer.Config.HoldTime),
-		KeepaliveInterval:            uint64(keepalive),
-		MinimumAdvertisementInterval: uint64(timer.Config.MinimumAdvertisementInterval),
+		ConnectRetry:      uint64(timer.Config.ConnectRetry),
+		HoldTime:          uint64(timer.Config.HoldTime),
+		KeepaliveInterval: uint64(timer.Config.KeepaliveInterval),
 	}
 
 	timerstate := &api.TimersState{
-		Uptime:   uint64(uptime),
-		Downtime: uint64(downtime),
+		KeepaliveInterval:  uint64(timer.State.KeepaliveInterval),
+		NegotiatedHoldTime: uint64(timer.State.NegotiatedHoldTime),
+		Uptime:             uint64(uptime),
+		Downtime:           uint64(downtime),
 	}
 
 	apitimer := &api.Timers{

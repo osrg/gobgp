@@ -708,6 +708,12 @@ func (h *FSMHandler) opensent() (bgp.FSMState, FsmStateReason) {
 						fsm.pConf.Timers.State.NegotiatedHoldTime = holdTime
 					}
 
+					keepalive := fsm.pConf.Timers.Config.KeepaliveInterval
+					if n := fsm.pConf.Timers.State.NegotiatedHoldTime; n < myHoldTime {
+						keepalive = n / 3
+					}
+					fsm.pConf.Timers.State.KeepaliveInterval = keepalive
+
 					msg := bgp.NewBGPKeepAliveMessage()
 					b, _ := msg.Serialize()
 					fsm.conn.Write(b)
@@ -761,10 +767,7 @@ func keepaliveTicker(fsm *FSM) *time.Ticker {
 	if negotiatedTime == 0 {
 		return &time.Ticker{}
 	}
-	sec := time.Second * time.Duration(fsm.pConf.Timers.Config.KeepaliveInterval)
-	if negotiatedTime < fsm.pConf.Timers.Config.HoldTime {
-		sec = time.Second * time.Duration(negotiatedTime) / 3
-	}
+	sec := time.Second * time.Duration(fsm.pConf.Timers.State.KeepaliveInterval)
 	if sec == 0 {
 		sec = 1
 	}
