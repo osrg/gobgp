@@ -116,26 +116,25 @@ func (s AdminState) String() string {
 }
 
 type FSM struct {
-	t                  tomb.Tomb
-	gConf              *config.Global
-	pConf              *config.Neighbor
-	state              bgp.FSMState
-	reason             FsmStateReason
-	conn               net.Conn
-	connCh             chan net.Conn
-	idleHoldTime       float64
-	opensentHoldTime   float64
-	negotiatedHoldTime float64
-	adminState         AdminState
-	adminStateCh       chan AdminState
-	getActiveCh        chan struct{}
-	h                  *FSMHandler
-	rfMap              map[bgp.RouteFamily]bool
-	capMap             map[bgp.BGPCapabilityCode][]bgp.ParameterCapabilityInterface
-	recvOpen           *bgp.BGPMessage
-	confedCheck        bool
-	peerInfo           *table.PeerInfo
-	policy             *table.RoutingPolicy
+	t                tomb.Tomb
+	gConf            *config.Global
+	pConf            *config.Neighbor
+	state            bgp.FSMState
+	reason           FsmStateReason
+	conn             net.Conn
+	connCh           chan net.Conn
+	idleHoldTime     float64
+	opensentHoldTime float64
+	adminState       AdminState
+	adminStateCh     chan AdminState
+	getActiveCh      chan struct{}
+	h                *FSMHandler
+	rfMap            map[bgp.RouteFamily]bool
+	capMap           map[bgp.BGPCapabilityCode][]bgp.ParameterCapabilityInterface
+	recvOpen         *bgp.BGPMessage
+	confedCheck      bool
+	peerInfo         *table.PeerInfo
+	policy           *table.RoutingPolicy
 }
 
 func (fsm *FSM) bgpMessageStateUpdate(MessageType uint8, isIn bool) {
@@ -704,9 +703,9 @@ func (h *FSMHandler) opensent() (bgp.FSMState, FsmStateReason) {
 					holdTime := float64(body.HoldTime)
 					myHoldTime := fsm.pConf.Timers.Config.HoldTime
 					if holdTime > myHoldTime {
-						fsm.negotiatedHoldTime = myHoldTime
+						fsm.pConf.Timers.State.NegotiatedHoldTime = myHoldTime
 					} else {
-						fsm.negotiatedHoldTime = holdTime
+						fsm.pConf.Timers.State.NegotiatedHoldTime = holdTime
 					}
 
 					msg := bgp.NewBGPKeepAliveMessage()
@@ -758,12 +757,13 @@ func (h *FSMHandler) opensent() (bgp.FSMState, FsmStateReason) {
 }
 
 func keepaliveTicker(fsm *FSM) *time.Ticker {
-	if fsm.negotiatedHoldTime == 0 {
+	negotiatedTime := fsm.pConf.Timers.State.NegotiatedHoldTime
+	if negotiatedTime == 0 {
 		return &time.Ticker{}
 	}
 	sec := time.Second * time.Duration(fsm.pConf.Timers.Config.KeepaliveInterval)
-	if fsm.negotiatedHoldTime < fsm.pConf.Timers.Config.HoldTime {
-		sec = time.Second * time.Duration(fsm.negotiatedHoldTime) / 3
+	if negotiatedTime < fsm.pConf.Timers.Config.HoldTime {
+		sec = time.Second * time.Duration(negotiatedTime) / 3
 	}
 	if sec == 0 {
 		sec = 1
@@ -780,12 +780,12 @@ func (h *FSMHandler) openconfirm() (bgp.FSMState, FsmStateReason) {
 	h.t.Go(h.recvMessage)
 
 	var holdTimer *time.Timer
-	if fsm.negotiatedHoldTime == 0 {
+	if fsm.pConf.Timers.State.NegotiatedHoldTime == 0 {
 		holdTimer = &time.Timer{}
 	} else {
 		// RFC 4271 P.65
 		// sets the HoldTimer according to the negotiated value
-		holdTimer = time.NewTimer(time.Second * time.Duration(fsm.negotiatedHoldTime))
+		holdTimer = time.NewTimer(time.Second * time.Duration(fsm.pConf.Timers.State.NegotiatedHoldTime))
 	}
 
 	for {
@@ -875,7 +875,7 @@ func (h *FSMHandler) sendMessageloop() error {
 			fsm.bgpMessageStateUpdate(0, false)
 			return nil
 		}
-		if err := conn.SetWriteDeadline(time.Now().Add(time.Second * time.Duration(fsm.negotiatedHoldTime))); err != nil {
+		if err := conn.SetWriteDeadline(time.Now().Add(time.Second * time.Duration(fsm.pConf.Timers.State.NegotiatedHoldTime))); err != nil {
 			h.errorCh <- FSM_WRITE_FAILED
 			return fmt.Errorf("failed to set write deadline")
 		}
@@ -960,10 +960,10 @@ func (h *FSMHandler) established() (bgp.FSMState, FsmStateReason) {
 	h.t.Go(h.recvMessageloop)
 
 	var holdTimer *time.Timer
-	if fsm.negotiatedHoldTime == 0 {
+	if fsm.pConf.Timers.State.NegotiatedHoldTime == 0 {
 		holdTimer = &time.Timer{}
 	} else {
-		holdTimer = time.NewTimer(time.Second * time.Duration(fsm.negotiatedHoldTime))
+		holdTimer = time.NewTimer(time.Second * time.Duration(fsm.pConf.Timers.State.NegotiatedHoldTime))
 	}
 
 	for {
@@ -995,8 +995,8 @@ func (h *FSMHandler) established() (bgp.FSMState, FsmStateReason) {
 			h.outgoing <- m
 			return bgp.BGP_FSM_IDLE, FSM_HOLD_TIMER_EXPIRED
 		case <-h.holdTimerResetCh:
-			if fsm.negotiatedHoldTime != 0 {
-				holdTimer.Reset(time.Second * time.Duration(fsm.negotiatedHoldTime))
+			if fsm.pConf.Timers.State.NegotiatedHoldTime != 0 {
+				holdTimer.Reset(time.Second * time.Duration(fsm.pConf.Timers.State.NegotiatedHoldTime))
 			}
 		case s := <-fsm.adminStateCh:
 			err := h.changeAdminState(s)

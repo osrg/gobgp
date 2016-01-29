@@ -232,8 +232,8 @@ func (peer *Peer) ToApiStruct() *api.Peer {
 		LocalCap:         localCap,
 	}
 
-	timer := &c.Timers
-	s := &c.State
+	timer := c.Timers
+	s := c.State
 
 	advertized := uint32(0)
 	received := uint32(0)
@@ -255,9 +255,9 @@ func (peer *Peer) ToApiStruct() *api.Peer {
 	}
 
 	keepalive := uint32(0)
-	if f.negotiatedHoldTime != 0 {
-		if f.negotiatedHoldTime < timer.Config.HoldTime {
-			keepalive = uint32(f.negotiatedHoldTime / 3)
+	if t := timer.State.NegotiatedHoldTime; t != 0 {
+		if t < timer.Config.HoldTime {
+			keepalive = uint32(t / 3)
 		} else {
 			keepalive = uint32(timer.Config.KeepaliveInterval)
 		}

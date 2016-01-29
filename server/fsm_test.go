@@ -165,7 +165,7 @@ func TestFSMHandlerOpensent_HoldTimerExpired(t *testing.T) {
 	p.fsm.conn = m
 
 	// set keepalive ticker
-	p.fsm.negotiatedHoldTime = 3
+	p.fsm.pConf.Timers.State.NegotiatedHoldTime = 3
 
 	// set holdtime
 	p.fsm.opensentHoldTime = 2
@@ -193,7 +193,7 @@ func TestFSMHandlerOpenconfirm_HoldTimerExpired(t *testing.T) {
 	p.fsm.pConf.Timers.Config.KeepaliveInterval = 1
 
 	// set holdtime
-	p.fsm.negotiatedHoldTime = 2
+	p.fsm.pConf.Timers.State.NegotiatedHoldTime = 2
 	state, _ := h.openconfirm()
 
 	assert.Equal(bgp.BGP_FSM_IDLE, state)
@@ -214,7 +214,7 @@ func TestFSMHandlerEstablish_HoldTimerExpired(t *testing.T) {
 	p.fsm.conn = m
 
 	// set keepalive ticker
-	p.fsm.negotiatedHoldTime = 3
+	p.fsm.pConf.Timers.State.NegotiatedHoldTime = 3
 
 	msg := keepalive()
 	header, _ := msg.Header.Serialize()
@@ -228,7 +228,7 @@ func TestFSMHandlerEstablish_HoldTimerExpired(t *testing.T) {
 
 	// set holdtime
 	p.fsm.pConf.Timers.Config.HoldTime = 2
-	p.fsm.negotiatedHoldTime = 2
+	p.fsm.pConf.Timers.State.NegotiatedHoldTime = 2
 
 	go pushPackets()
 	state, _ := h.established()
@@ -253,7 +253,7 @@ func TestFSMHandlerOpenconfirm_HoldtimeZero(t *testing.T) {
 	// set up keepalive ticker
 	p.fsm.pConf.Timers.Config.KeepaliveInterval = 1
 	// set holdtime
-	p.fsm.negotiatedHoldTime = 0
+	p.fsm.pConf.Timers.State.NegotiatedHoldTime = 0
 	go h.openconfirm()
 
 	time.Sleep(100 * time.Millisecond)
@@ -272,11 +272,9 @@ func TestFSMHandlerEstablished_HoldtimeZero(t *testing.T) {
 	// push mock connection
 	p.fsm.conn = m
 
-	// set keepalive ticker
-	p.fsm.negotiatedHoldTime = 3
-
 	// set holdtime
-	p.fsm.negotiatedHoldTime = 0
+	p.fsm.pConf.Timers.State.NegotiatedHoldTime = 0
+
 	go h.established()
 
 	time.Sleep(100 * time.Millisecond)
