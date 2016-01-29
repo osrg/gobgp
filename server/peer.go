@@ -235,12 +235,12 @@ func (peer *Peer) ToApiStruct() *api.Peer {
 	timer := c.Timers
 	s := c.State
 
-	advertized := uint32(0)
+	advertised := uint32(0)
 	received := uint32(0)
 	accepted := uint32(0)
 	if f.state == bgp.BGP_FSM_ESTABLISHED {
 		rfList := peer.configuredRFlist()
-		advertized = uint32(peer.adjRibOut.Count(rfList))
+		advertised = uint32(peer.adjRibOut.Count(rfList))
 		received = uint32(peer.adjRibIn.Count(rfList))
 		accepted = uint32(peer.adjRibIn.Accepted(rfList))
 	}
@@ -299,7 +299,7 @@ func (peer *Peer) ToApiStruct() *api.Peer {
 		Messages:   msg,
 		Received:   received,
 		Accepted:   accepted,
-		Advertized: advertized,
+		Advertised: advertised,
 	}
 
 	return &api.Peer{

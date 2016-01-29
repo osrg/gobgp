@@ -132,7 +132,7 @@ func showNeighbors() error {
 	}
 
 	for i, p := range m {
-		fmt.Printf(format, p.Conf.RemoteIp, fmt.Sprint(p.Conf.RemoteAs), timedelta[i], format_fsm(p.Info.AdminState, p.Info.BgpState), fmt.Sprint(p.Info.Advertized), fmt.Sprint(p.Info.Received), fmt.Sprint(p.Info.Accepted))
+		fmt.Printf(format, p.Conf.RemoteIp, fmt.Sprint(p.Conf.RemoteAs), timedelta[i], format_fsm(p.Info.AdminState, p.Info.BgpState), fmt.Sprint(p.Info.Advertised), fmt.Sprint(p.Info.Received), fmt.Sprint(p.Info.Accepted))
 	}
 
 	return nil
@@ -229,7 +229,7 @@ func showNeighbor(args []string) error {
 	fmt.Printf("    Discarded:     %10d %10d\n", p.Info.Messages.Sent.DISCARDED, p.Info.Messages.Received.DISCARDED)
 	fmt.Printf("    Total:         %10d %10d\n", p.Info.Messages.Sent.TOTAL, p.Info.Messages.Received.TOTAL)
 	fmt.Print("  Route statistics:\n")
-	fmt.Printf("    Advertised:    %10d\n", p.Info.Advertized)
+	fmt.Printf("    Advertised:    %10d\n", p.Info.Advertised)
 	fmt.Printf("    Received:      %10d\n", p.Info.Received)
 	fmt.Printf("    Accepted:      %10d\n", p.Info.Accepted)
 

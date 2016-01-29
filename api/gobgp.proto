@@ -274,7 +274,7 @@ message PeerState {
   string admin_state = 16;
   uint32 received = 17;
   uint32 accepted = 18;
-  uint32 advertized = 19;
+  uint32 advertised = 19;
   uint32 out_q = 20;
   uint32 flops = 21;
 }
