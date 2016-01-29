@@ -132,7 +132,6 @@ type FSM struct {
 	rfMap            map[bgp.RouteFamily]bool
 	capMap           map[bgp.BGPCapabilityCode][]bgp.ParameterCapabilityInterface
 	recvOpen         *bgp.BGPMessage
-	confedCheck      bool
 	peerInfo         *table.PeerInfo
 	policy           *table.RoutingPolicy
 }
@@ -202,7 +201,6 @@ func NewFSM(gConf *config.Global, pConf *config.Neighbor, policy *table.RoutingP
 		getActiveCh:      make(chan struct{}),
 		rfMap:            make(map[bgp.RouteFamily]bool),
 		capMap:           make(map[bgp.BGPCapabilityCode][]bgp.ParameterCapabilityInterface),
-		confedCheck:      !config.IsConfederationMember(gConf, pConf) && config.IsEBGPPeer(gConf, pConf),
 		peerInfo:         table.NewPeerInfo(gConf, pConf),
 		policy:           policy,
 	}
@@ -555,7 +553,8 @@ func (h *FSMHandler) recvMessageWithError() error {
 			switch m.Header.Type {
 			case bgp.BGP_MSG_UPDATE:
 				body := m.Body.(*bgp.BGPUpdate)
-				_, err := bgp.ValidateUpdateMsg(body, h.fsm.rfMap, h.fsm.confedCheck)
+				confedCheck := !config.IsConfederationMember(h.fsm.gConf, h.fsm.pConf) && config.IsEBGPPeer(h.fsm.gConf, h.fsm.pConf)
+				_, err := bgp.ValidateUpdateMsg(body, h.fsm.rfMap, confedCheck)
 				if err != nil {
 					log.WithFields(log.Fields{
 						"Topic": "Peer",
