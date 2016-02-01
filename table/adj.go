@@ -75,6 +75,17 @@ func (adj *AdjRib) Update(pathList []*Path) {
 	}
 }
 
+func (adj *AdjRib) RefreshAcceptedNumber(rfList []bgp.RouteFamily) {
+	for _, rf := range rfList {
+		adj.accepted[rf] = 0
+		for _, p := range adj.table[rf] {
+			if p.Filtered(adj.id) != POLICY_DIRECTION_IN {
+				adj.accepted[rf]++
+			}
+		}
+	}
+}
+
 func (adj *AdjRib) PathList(rfList []bgp.RouteFamily, accepted bool) []*Path {
 	pathList := make([]*Path, 0, adj.Count(rfList))
 	for _, rf := range rfList {
