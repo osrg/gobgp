@@ -239,6 +239,12 @@ func (m *OpsManager) handleNeighborUpdate(update ovsdb.TableUpdate) []*server.Gr
 }
 
 func (m *OpsManager) Serve() error {
+	go m.OpsServe()
+	go m.GobgpServe()
+	return nil
+}
+
+func (m *OpsManager) OpsServe() error {
 	initial, err := m.client.MonitorAll("OpenSwitch", "")
 	if err != nil {
 		return err
@@ -292,6 +298,42 @@ func (m *OpsManager) Serve() error {
 				log.Errorf("operation failed. reqtype: %d, err: %s", res.RequestType, err)
 			}
 			ress = ress[1:]
+		}
+	}
+	return nil
+}
+
+func (m *OpsManager) GobgpServe() error {
+	family := bgp.RF_IPv4_UC
+	arg := &api.Arguments{
+		Resource: api.Resource_GLOBAL,
+		Family:   uint32(family),
+	}
+
+	stream, err := client.MonitorBestChanged(context.Background(), arg)
+	if err != nil {
+		fmt.Println(err)
+		os.Exit(1)
+	}
+	for {
+		d, err := stream.Recv()
+		if err == io.EOF {
+			break
+		} else if err != nil {
+			fmt.Println(err)
+			os.Exit(1)
+		}
+		p, err := ApiStruct2Path(d.Paths[0])
+		if err != nil {
+			fmt.Println(err)
+			os.Exit(1)
+		}
+
+		if globalOpts.Json {
+			j, _ := json.Marshal(p)
+			fmt.Println(string(j))
+		} else {
+			ShowRoute(p, false, false, false, true, false)
 		}
 	}
 	return nil
