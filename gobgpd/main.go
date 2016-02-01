@@ -156,7 +156,7 @@ func main() {
 	reloadCh := make(chan bool)
 	bgpServer := server.NewBgpServer()
 	if opts.Ops {
-		m, err := ops.NewOpsConfigManager(bgpServer.GrpcReqCh)
+		m, err := ops.NewOpsManager(bgpServer.GrpcReqCh)
 		if err != nil {
 			log.Errorf("Failed to start ops config manager: %s", err)
 			os.Exit(1)

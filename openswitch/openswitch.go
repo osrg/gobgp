@@ -49,14 +49,14 @@ func NewNotifier(ch chan *ovsdb.TableUpdates) *Notifier {
 	}
 }
 
-type OpsConfigManager struct {
+type OpsManager struct {
 	client   *ovsdb.OvsdbClient
 	grpcCh   chan *server.GrpcRequest
 	updateCh chan *ovsdb.TableUpdates
 	cache    map[string]map[string]ovsdb.Row
 }
 
-func (m *OpsConfigManager) populateCache(updates ovsdb.TableUpdates) {
+func (m *OpsManager) populateCache(updates ovsdb.TableUpdates) {
 	for table, tableUpdate := range updates.Updates {
 		if _, ok := m.cache[table]; !ok {
 			m.cache[table] = make(map[string]ovsdb.Row)
@@ -84,7 +84,7 @@ func extractUUID(v interface{}) uuid.UUID {
 	return uuid.FromStringOrNil(vv[1].(string))
 }
 
-func (m *OpsConfigManager) getBGPRouterUUID() (uint32, uuid.UUID, error) {
+func (m *OpsManager) getBGPRouterUUID() (uint32, uuid.UUID, error) {
 	var asn uint32
 	vrfs, ok := m.cache["VRF"]
 	if !ok {
@@ -112,7 +112,7 @@ func (m *OpsConfigManager) getBGPRouterUUID() (uint32, uuid.UUID, error) {
 	return asn, uuid.Nil, fmt.Errorf("not found")
 }
 
-func (m *OpsConfigManager) getBGPNeighborUUIDs(id uuid.UUID) ([]net.IP, []uuid.UUID, error) {
+func (m *OpsManager) getBGPNeighborUUIDs(id uuid.UUID) ([]net.IP, []uuid.UUID, error) {
 	global, ok := m.cache["BGP_Router"]
 	if !ok {
 		return nil, nil, fmt.Errorf("BGP_Router table not found")
@@ -139,7 +139,7 @@ func (m *OpsConfigManager) getBGPNeighborUUIDs(id uuid.UUID) ([]net.IP, []uuid.U
 	return nil, nil, fmt.Errorf("not found")
 }
 
-func (m *OpsConfigManager) handleVrfUpdate(update ovsdb.TableUpdate) *server.GrpcRequest {
+func (m *OpsManager) handleVrfUpdate(update ovsdb.TableUpdate) *server.GrpcRequest {
 	for _, v := range update.Rows {
 		if len(v.Old.Fields) == 0 {
 			log.WithFields(log.Fields{
@@ -157,7 +157,7 @@ func (m *OpsConfigManager) handleVrfUpdate(update ovsdb.TableUpdate) *server.Grp
 	return nil
 }
 
-func (m *OpsConfigManager) handleBgpRouterUpdate(update ovsdb.TableUpdate) []*server.GrpcRequest {
+func (m *OpsManager) handleBgpRouterUpdate(update ovsdb.TableUpdate) []*server.GrpcRequest {
 	asn, id, err := m.getBGPRouterUUID()
 	if err != nil {
 		log.Debugf("%s", err)
@@ -208,7 +208,7 @@ func (m *OpsConfigManager) handleBgpRouterUpdate(update ovsdb.TableUpdate) []*se
 	return reqs
 }
 
-func (m *OpsConfigManager) handleNeighborUpdate(update ovsdb.TableUpdate) []*server.GrpcRequest {
+func (m *OpsManager) handleNeighborUpdate(update ovsdb.TableUpdate) []*server.GrpcRequest {
 	_, id, _ := m.getBGPRouterUUID()
 	addrs, ids, err := m.getBGPNeighborUUIDs(id)
 	if err != nil {
@@ -238,7 +238,7 @@ func (m *OpsConfigManager) handleNeighborUpdate(update ovsdb.TableUpdate) []*ser
 	return reqs
 }
 
-func (m *OpsConfigManager) Serve() error {
+func (m *OpsManager) Serve() error {
 	initial, err := m.client.MonitorAll("OpenSwitch", "")
 	if err != nil {
 		return err
@@ -297,7 +297,7 @@ func (m *OpsConfigManager) Serve() error {
 	return nil
 }
 
-func NewOpsConfigManager(ch chan *server.GrpcRequest) (*OpsConfigManager, error) {
+func NewOpsManager(ch chan *server.GrpcRequest) (*OpsManager, error) {
 	cli, err := ovsdb.ConnectUnix("")
 	if err != nil {
 		return nil, err
@@ -305,7 +305,7 @@ func NewOpsConfigManager(ch chan *server.GrpcRequest) (*OpsConfigManager, error)
 	updateCh := make(chan *ovsdb.TableUpdates)
 	n := NewNotifier(updateCh)
 	cli.Register(n)
-	return &OpsConfigManager{
+	return &OpsManager{
 		client:   cli,
 		grpcCh:   ch,
 		updateCh: updateCh,
