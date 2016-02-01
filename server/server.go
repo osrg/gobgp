@@ -1885,10 +1885,18 @@ func (server *BgpServer) handleGrpc(grpcReq *GrpcRequest) []*SenderMsg {
 		for _, peer := range peers {
 			pathList := []*table.Path{}
 			for _, path := range peer.adjRibIn.PathList([]bgp.RouteFamily{grpcReq.RouteFamily}, false) {
-				if path = server.policy.ApplyPolicy(peer.ID(), table.POLICY_DIRECTION_IN, path, nil); path != nil {
+				exResult := path.Filtered(peer.ID())
+				path.Filter(peer.ID(), table.POLICY_DIRECTION_NONE)
+				if server.policy.ApplyPolicy(peer.ID(), table.POLICY_DIRECTION_IN, path, nil) != nil {
 					pathList = append(pathList, path.Clone(false))
+				} else {
+					path.Filter(peer.ID(), table.POLICY_DIRECTION_IN)
+					if exResult != table.POLICY_DIRECTION_IN {
+						pathList = append(pathList, path.Clone(true))
+					}
 				}
 			}
+			peer.adjRibIn.RefreshAcceptedNumber([]bgp.RouteFamily{grpcReq.RouteFamily})
 			m, _ := server.propagateUpdate(peer, pathList)
 			msgs = append(msgs, m...)
 		}

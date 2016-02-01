@@ -3316,6 +3316,138 @@ class ExportPolicyExCommunityAdd(object):
         lookup_scenario("ExportPolicyExCommunityAdd").check2(env)
 
 
+@register_scenario
+class InPolicyUpdate2(object):
+    """
+    No.47 in-policy update test
+    r1:192.168.2.0
+    r2:192.168.20.0
+    r3:192.168.200.0
+                     -------------------------------------------
+                      | q1                                      |
+    e1 ->(r1,r2,r3)-> | ->(r1,r2)-> rib ->(r1,r2)-> adj-rib-out | ->(r1,r2)-> q1
+                      |                                         |
+                      | q2                                      |
+                      | ->(r1,r3)-> rib ->(r1,r3)-> adj-rib-out | ->(r1,r3)-> q2
+                      -------------------------------------------
+                 |
+      update distribute policy
+                 |
+                 V
+                      -------------------------------------
+                      | q1                                |
+    e1 ->(r1,r2,r3)-> | ->(r1)-> rib ->(r1)-> adj-rib-out | ->(r1)-> q1
+                      |                                   |
+                      | q2                                |
+                      | ->(r1)-> rib ->(r1)-> adj-rib-out | ->(r1)-> q2
+                      -------------------------------------
+    """
+    @staticmethod
+    def boot(env):
+        lookup_scenario('ImportPolicy').boot(env)
+
+    @staticmethod
+    def setup(env):
+        g1 = env.g1
+        e1 = env.e1
+        q1 = env.q1
+        q2 = env.q2
+
+        p0 = {'ip-prefix': '192.168.20.0/24'}
+
+        ps0 = {'prefix-set-name': 'ps0',
+               'prefix-list': [p0]}
+        g1.set_prefix_set(ps0)
+
+        ns0 = {'neighbor-set-name': 'ns0',
+               'neighbor-info-list': [g1.peers[e1]['neigh_addr'].split('/')[0]]}
+        g1.set_neighbor_set(ns0)
+
+        st0 = {'name': 'st0',
+               'conditions': {
+                'match-prefix-set': {'prefix-set': ps0['prefix-set-name']},
+                'match-neighbor-set': {'neighbor-set': ns0['neighbor-set-name']}},
+               'actions': {'route-disposition': {'accept-route': False}}}
+
+        policy = {'name': 'policy0',
+                  'type': 'in',
+                  'statements': [st0]}
+        g1.add_policy(policy, e1)
+
+        e1.add_route('192.168.2.0/24')
+        e1.add_route('192.168.20.0/24')
+        e1.add_route('192.168.200.0/24')
+
+        for c in [e1, q1, q2]:
+            g1.wait_for(BGP_FSM_ESTABLISHED, c)
+
+    @staticmethod
+    def check(env):
+        g1 = env.g1
+        e1 = env.e1
+        q1 = env.q1
+        q2 = env.q2
+        wait_for(lambda: len(g1.get_adj_rib_in(e1)) == 3)
+        wait_for(lambda: len(g1.get_local_rib(q1)) == 2)
+        wait_for(lambda: len(g1.get_adj_rib_out(q1)) == 2)
+        wait_for(lambda: len(q1.get_global_rib()) == 2)
+        wait_for(lambda: len(g1.get_local_rib(q2)) == 2)
+        wait_for(lambda: len(g1.get_adj_rib_out(q2)) == 2)
+        wait_for(lambda: len(q2.get_global_rib()) == 2)
+
+    @staticmethod
+    def setup2(env):
+        g1 = env.g1
+        e1 = env.e1
+        q1 = env.q1
+        q2 = env.q2
+        g1.clear_policy()
+
+        p0 = {'ip-prefix': '192.168.20.0/24'}
+        p1 = {'ip-prefix': '192.168.200.0/24'}
+
+        ps0 = {'prefix-set-name': 'ps0',
+               'prefix-list': [p0, p1]}
+        g1.set_prefix_set(ps0)
+
+        ns0 = {'neighbor-set-name': 'ns0',
+               'neighbor-info-list': [g1.peers[e1]['neigh_addr'].split('/')[0]]}
+        g1.set_neighbor_set(ns0)
+
+        st0 = {'name': 'st0',
+               'conditions': {'match-prefix-set': {'prefix-set': ps0['prefix-set-name']},
+                          'match-neighbor-set': {'neighbor-set': ns0['neighbor-set-name']}},
+               'actions': {'route-disposition': {'accept-route': False}}}
+
+        policy = {'name': 'policy0',
+                  'type': 'in',
+                  'statements': [st0]}
+        g1.add_policy(policy, e1)
+        g1.softreset(e1)
+
+    @staticmethod
+    def check2(env):
+        g1 = env.g1
+        e1 = env.e1
+        q1 = env.q1
+        q2 = env.q2
+        wait_for(lambda: len(g1.get_adj_rib_in(e1)) == 3)
+        wait_for(lambda: len(g1.get_local_rib(q1)) == 1)
+        wait_for(lambda: len(g1.get_adj_rib_out(q1)) == 1)
+        wait_for(lambda: len(q1.get_global_rib()) == 1)
+        wait_for(lambda: len(g1.get_local_rib(q2)) == 1)
+        wait_for(lambda: len(g1.get_adj_rib_out(q2)) == 1)
+        wait_for(lambda: len(q2.get_global_rib()) == 1)
+
+    @staticmethod
+    def executor(env):
+        lookup_scenario("InPolicyUpdate2").boot(env)
+        lookup_scenario("InPolicyUpdate2").setup(env)
+        lookup_scenario("InPolicyUpdate2").check(env)
+        lookup_scenario("InPolicyUpdate2").setup2(env)
+        lookup_scenario("InPolicyUpdate2").check2(env)
+
+
 class TestGoBGPBase():
 
     wait_per_retry = 5
