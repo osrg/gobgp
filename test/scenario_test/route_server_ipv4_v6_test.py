@@ -138,6 +138,36 @@ class GoBGPIPv6Test(unittest.TestCase):
         self.check_gobgp_local_rib(self.ipv6s, 'ipv6')
         self.check_rs_client_rib(self.ipv6s, 'ipv6')
 
+    def test_04_add_in_policy_to_reject_all(self):
+        for q in self.gobgp.peers.itervalues():
+            self.gobgp.local('gobgp neighbor {0} policy in set default reject'.format(q['neigh_addr'].split('/')[0]))
+
+    def test_05_check_ipv4_peer_rib(self):
+        self.check_gobgp_local_rib(self.ipv4s, 'ipv4')
+        self.check_rs_client_rib(self.ipv4s, 'ipv4')
+
+    def test_06_check_ipv6_peer_rib(self):
+        self.check_gobgp_local_rib(self.ipv6s, 'ipv6')
+        self.check_rs_client_rib(self.ipv6s, 'ipv6')
+
+    def test_07_add_in_policy_to_reject_all(self):
+        self.gobgp.local('gobgp neighbor all softresetin')
+        time.sleep(1)
+
+    def test_08_check_rib(self):
+        for q in self.ipv4s.itervalues():
+            self.assertTrue(all( p['filtered'] for p in self.gobgp.get_adj_rib_in(q)))
+            self.assertTrue(len(self.gobgp.get_adj_rib_out(q)) == 0)
+            self.assertTrue(len(q.get_global_rib()) == len(q.routes))
+
+        for q in self.ipv6s.itervalues():
+            self.assertTrue(all( p['filtered'] for p in self.gobgp.get_adj_rib_in(q, rf='ipv6')))
+            self.assertTrue(len(self.gobgp.get_adj_rib_out(q, rf='ipv6')) == 0)
+            self.assertTrue(len(q.get_global_rib(rf='ipv6')) == len(q.routes))
+
+
+
+
 
 if __name__ == '__main__':
     if os.geteuid() is not 0:
