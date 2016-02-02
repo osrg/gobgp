@@ -1884,7 +1884,11 @@ func (server *BgpServer) handleGrpc(grpcReq *GrpcRequest) []*SenderMsg {
 
 		for _, peer := range peers {
 			pathList := []*table.Path{}
-			for _, path := range peer.adjRibIn.PathList([]bgp.RouteFamily{grpcReq.RouteFamily}, false) {
+			families := []bgp.RouteFamily{grpcReq.RouteFamily}
+			if families[0] == bgp.RouteFamily(0) {
+				families = peer.configuredRFlist()
+			}
+			for _, path := range peer.adjRibIn.PathList(families, false) {
 				exResult := path.Filtered(peer.ID())
 				path.Filter(peer.ID(), table.POLICY_DIRECTION_NONE)
 				if server.policy.ApplyPolicy(peer.ID(), table.POLICY_DIRECTION_IN, path, nil) != nil {
@@ -1896,7 +1900,7 @@ func (server *BgpServer) handleGrpc(grpcReq *GrpcRequest) []*SenderMsg {
 					}
 				}
 			}
-			peer.adjRibIn.RefreshAcceptedNumber([]bgp.RouteFamily{grpcReq.RouteFamily})
+			peer.adjRibIn.RefreshAcceptedNumber(families)
 			m, _ := server.propagateUpdate(peer, pathList)
 			msgs = append(msgs, m...)
 		}
@@ -1919,10 +1923,13 @@ func (server *BgpServer) handleGrpc(grpcReq *GrpcRequest) []*SenderMsg {
 			if peer.fsm.state != bgp.BGP_FSM_ESTABLISHED {
 				continue
 			}
-			rfList := peer.configuredRFlist()
-			sentPathList := peer.adjRibOut.PathList(rfList, false)
-			peer.adjRibOut.Drop(rfList)
-			pathList, filtered := peer.getBestFromLocal(rfList)
+			families := []bgp.RouteFamily{grpcReq.RouteFamily}
+			if families[0] == bgp.RouteFamily(0) {
+				families = peer.configuredRFlist()
+			}
+			sentPathList := peer.adjRibOut.PathList(families, false)
+			peer.adjRibOut.Drop(families)
+			pathList, filtered := peer.getBestFromLocal(families)
 			if len(pathList) > 0 {
 				peer.adjRibOut.Update(pathList)
 				msgs = append(msgs, newSenderMsg(peer, table.CreateUpdateMsgFromPaths(pathList)))
