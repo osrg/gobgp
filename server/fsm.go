@@ -336,7 +336,7 @@ func (fsm *FSM) connectLoop() error {
 		case <-ticker.C:
 			connect()
 		case <-fsm.getActiveCh:
-			time.Sleep(time.Duration(r.Intn(tick)+MIN_CONNECT_RETRY) * time.Second)
+			time.Sleep(time.Duration(r.Intn(MIN_CONNECT_RETRY)+MIN_CONNECT_RETRY) * time.Second)
 			connect()
 			ticker = time.NewTicker(time.Duration(tick) * time.Second)
 		}
