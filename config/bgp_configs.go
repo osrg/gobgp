@@ -1448,6 +1448,8 @@ type Neighbor struct {
 type ListenConfig struct {
 	// original -> gobgp:port
 	Port int32 `mapstructure:"port"`
+	// original -> gobgp:local-address
+	LocalAddressList []string `mapstructure:"local-address-list"`
 }
 
 //struct for container gobgp:mpls-label-range
