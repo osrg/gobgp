@@ -102,7 +102,7 @@ type BgpServer struct {
 	policy         *table.RoutingPolicy
 	broadcastReqs  []*GrpcRequest
 	broadcastMsgs  []broadcastMsg
-	listenerMap    map[string]*net.TCPListener
+	listeners      []*net.TCPListener
 	neighborMap    map[string]*Peer
 	globalRib      *table.TableManager
 	zclient        *zebra.Client
@@ -128,13 +128,21 @@ func NewBgpServer() *BgpServer {
 }
 
 // avoid mapped IPv6 address
-func listenAndAccept(proto string, port uint32, ch chan *net.TCPConn) (*net.TCPListener, error) {
-	service := ":" + strconv.Itoa(int(port))
-	addr, _ := net.ResolveTCPAddr(proto, service)
+func listenAndAccept(address string, port uint32, ch chan *net.TCPConn) (*net.TCPListener, error) {
+	proto := "tcp4"
+	if ip := net.ParseIP(address); ip == nil {
+		return nil, fmt.Errorf("can't listen on %s", address)
+	} else if strings.Contains(address, ":") {
+		address = fmt.Sprintf("[%s]", address)
+		proto = "tcp6"
+	}
+	addr, err := net.ResolveTCPAddr(proto, fmt.Sprintf("%s:%d", address, port))
+	if err != nil {
+		return nil, err
+	}
 
 	l, err := net.ListenTCP(proto, addr)
 	if err != nil {
-		log.Info(err)
 		return nil, err
 	}
 	go func() {
@@ -161,6 +169,20 @@ func (server *BgpServer) notify2watchers(typ watcherEventType, ev watcherEvent) 
 		}
 	}
 	return nil
+}
+
+func (server *BgpServer) Listeners(addr string) []*net.TCPListener {
+	list := make([]*net.TCPListener, 0, len(server.listeners))
+	v4 := net.ParseIP(addr).To4() != nil
+	for _, l := range server.listeners {
+		ip := net.ParseIP(l.Addr().String())
+		if v4 && ip.To4() != nil {
+			list = append(list, l)
+		} else if !v4 && ip.To16() != nil {
+			list = append(list, l)
+		}
+	}
+	return list
 }
 
 func (server *BgpServer) Serve() {
@@ -256,27 +278,21 @@ func (server *BgpServer) Serve() {
 
 	rfs, _ := config.AfiSafis(g.AfiSafis).ToRfList()
 	server.globalRib = table.NewTableManager(rfs, g.MplsLabelRange.MinLabel, g.MplsLabelRange.MaxLabel)
-	server.listenerMap = make(map[string]*net.TCPListener)
+	server.listeners = make([]*net.TCPListener, 0, 2)
 	acceptCh := make(chan *net.TCPConn, 4096)
 	if g.ListenConfig.Port > 0 {
-		l4, err1 := listenAndAccept("tcp4", uint32(g.ListenConfig.Port), acceptCh)
-		server.listenerMap["tcp4"] = l4
-		l6, err2 := listenAndAccept("tcp6", uint32(g.ListenConfig.Port), acceptCh)
-		server.listenerMap["tcp6"] = l6
-		if err1 != nil && err2 != nil {
-			log.Fatal("can't listen either v4 and v6")
-			os.Exit(1)
+		list := []string{"0.0.0.0", "::"}
+		if len(g.ListenConfig.LocalAddressList) > 0 {
+			list = g.ListenConfig.LocalAddressList
 		}
-	}
-
-	listener := func(addr string) *net.TCPListener {
-		var l *net.TCPListener
-		if net.ParseIP(addr).To4() != nil {
-			l = server.listenerMap["tcp4"]
-		} else {
-			l = server.listenerMap["tcp6"]
+		for _, addr := range list {
+			l, err := listenAndAccept(addr, uint32(g.ListenConfig.Port), acceptCh)
+			if err != nil {
+				log.Fatal(err)
+				os.Exit(1)
+			}
+			server.listeners = append(server.listeners, l)
 		}
-		return l
 	}
 
 	server.fsmincomingCh = make(chan *FsmMsg, 4096)
@@ -393,7 +409,9 @@ func (server *BgpServer) Serve() {
 				continue
 			}
 			if g.ListenConfig.Port > 0 {
-				SetTcpMD5SigSockopts(listener(addr), addr, config.Config.AuthPassword)
+				for _, l := range server.Listeners(addr) {
+					SetTcpMD5SigSockopts(l, addr, config.Config.AuthPassword)
+				}
 			}
 			peer := NewPeer(g, config, server.globalRib, server.policy)
 			server.setPolicyByConfig(peer.ID(), config.ApplyPolicy)
@@ -416,7 +434,9 @@ func (server *BgpServer) Serve() {
 			server.broadcastPeerState(peer, bgp.BGP_FSM_IDLE)
 		case config := <-server.deletedPeerCh:
 			addr := config.Config.NeighborAddress
-			SetTcpMD5SigSockopts(listener(addr), addr, "")
+			for _, l := range server.Listeners(addr) {
+				SetTcpMD5SigSockopts(l, addr, "")
+			}
 			peer, found := server.neighborMap[addr]
 			if found {
 				log.Info("Delete a peer configuration for ", addr)
@@ -2118,15 +2138,6 @@ func (server *BgpServer) handleGrpcModNeighbor(grpcReq *GrpcRequest) (sMsgs []*S
 	if arg.Operation != api.Operation_ADD && !ok {
 		return nil, fmt.Errorf("not found neighbor %s", addr)
 	}
-	listener := func(addr net.IP) *net.TCPListener {
-		var l *net.TCPListener
-		if addr.To4() != nil {
-			l = server.listenerMap["tcp4"]
-		} else {
-			l = server.listenerMap["tcp6"]
-		}
-		return l
-	}
 
 	switch arg.Operation {
 	case api.Operation_ADD:
@@ -2136,7 +2147,9 @@ func (server *BgpServer) handleGrpcModNeighbor(grpcReq *GrpcRequest) (sMsgs []*S
 			log.Infof("Peer %s is added", addr)
 		}
 		if server.bgpConfig.Global.ListenConfig.Port > 0 {
-			SetTcpMD5SigSockopts(listener(net.ParseIP(addr)), addr, arg.Peer.Conf.AuthPassword)
+			for _, l := range server.Listeners(addr) {
+				SetTcpMD5SigSockopts(l, addr, arg.Peer.Conf.AuthPassword)
+			}
 		}
 		apitoConfig := func(a *api.Peer) (config.Neighbor, error) {
 			var pconf config.Neighbor
@@ -2245,7 +2258,11 @@ func (server *BgpServer) handleGrpcModNeighbor(grpcReq *GrpcRequest) (sMsgs []*S
 		peer.startFSMHandler(server.fsmincomingCh, server.fsmStateCh)
 		server.broadcastPeerState(peer, bgp.BGP_FSM_IDLE)
 	case api.Operation_DEL:
-		SetTcpMD5SigSockopts(listener(net.ParseIP(addr)), addr, "")
+		if server.bgpConfig.Global.ListenConfig.Port > 0 {
+			for _, l := range server.Listeners(addr) {
+				SetTcpMD5SigSockopts(l, addr, "")
+			}
+		}
 		log.Info("Delete a peer configuration for ", addr)
 		go func(addr string) {
 			t := time.AfterFunc(time.Minute*5, func() { log.Fatal("failed to free the fsm.h.t for ", addr) })
