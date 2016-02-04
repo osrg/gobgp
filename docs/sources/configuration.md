@@ -22,6 +22,14 @@
     [global.mpls-label-range]
         min-label = 1000
         max-label = 2000
+    [global.listen-config]
+        # listen port (by default 179)
+        port = 1790
+        # to disable listening
+        # port = -1
+
+        # listen address list (by default "0.0.0.0" and "::")
+        local-address-list = ["192.168.10.1", "2001:db8::1"]
 
 [[rpki-servers]]
     [rpki-servers.config]

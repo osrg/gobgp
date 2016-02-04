@@ -726,6 +726,9 @@ module gobgp {
         leaf port {
             type int32;
         }
+        leaf-list local-address {
+            type string;
+        }
     }
   }
 }
