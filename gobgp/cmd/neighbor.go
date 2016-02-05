@@ -452,11 +452,11 @@ func showNeighborRib(r string, name string, args []string) error {
 			for _, p := range dst.Paths {
 				switch r {
 				case CMD_ACCEPTED:
-					if !p.Filtered {
+					if !p.InFiltered {
 						ps = append(ps, p)
 					}
 				case CMD_REJECTED:
-					if p.Filtered {
+					if p.InFiltered {
 						ps = append(ps, p)
 					}
 				default:
@@ -490,11 +490,11 @@ func showNeighborRib(r string, name string, args []string) error {
 		for _, p := range dst.Paths {
 			switch r {
 			case CMD_ACCEPTED:
-				if !p.Filtered {
+				if !p.InFiltered {
 					ps = append(ps, p)
 				}
 			case CMD_REJECTED:
-				if p.Filtered {
+				if p.InFiltered {
 					ps = append(ps, p)
 				}
 			default:
