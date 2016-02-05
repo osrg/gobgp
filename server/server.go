@@ -1909,7 +1909,7 @@ func (server *BgpServer) handleGrpc(grpcReq *GrpcRequest) []*SenderMsg {
 				exResult := path.Filtered(peer.ID())
 				path.Filter(peer.ID(), table.POLICY_DIRECTION_NONE)
 				if server.policy.ApplyPolicy(peer.ID(), table.POLICY_DIRECTION_IN, path, nil) != nil {
-					pathList = append(pathList, path.Clone(false))
+					pathList = append(pathList, path)
 				} else {
 					path.Filter(peer.ID(), table.POLICY_DIRECTION_IN)
 					if exResult != table.POLICY_DIRECTION_IN {
