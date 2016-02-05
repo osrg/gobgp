@@ -132,11 +132,10 @@ func listenAndAccept(address string, port uint32, ch chan *net.TCPConn) (*net.TC
 	proto := "tcp4"
 	if ip := net.ParseIP(address); ip == nil {
 		return nil, fmt.Errorf("can't listen on %s", address)
-	} else if strings.Contains(address, ":") {
-		address = fmt.Sprintf("[%s]", address)
+	} else if ip.To4() == nil {
 		proto = "tcp6"
 	}
-	addr, err := net.ResolveTCPAddr(proto, fmt.Sprintf("%s:%d", address, port))
+	addr, err := net.ResolveTCPAddr(proto, net.JoinHostPort(address, strconv.Itoa(int(port))))
 	if err != nil {
 		return nil, err
 	}
