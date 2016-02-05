@@ -195,7 +195,7 @@ message Path {
     uint32 family = 8;
     uint32 source_asn = 9;
     string source_id = 10;
-    bool filtered = 11;
+    bool in_filtered = 11;
 }
 
 message Destination {
