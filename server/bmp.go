@@ -27,16 +27,6 @@ import (
 	"time"
 )
 
-type broadcastBMPMsg struct {
-	ch      chan *broadcastBMPMsg
-	msgList []*bgp.BMPMessage
-	conn    *net.TCPConn
-}
-
-func (m *broadcastBMPMsg) send() {
-	m.ch <- m
-}
-
 type bmpServer struct {
 	conn *net.TCPConn
 	host string
