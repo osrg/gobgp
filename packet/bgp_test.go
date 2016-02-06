@@ -43,22 +43,22 @@ func update() *BGPMessage {
 	w2 := NewIPAddrPrefix(17, "100.33.3.0")
 	w := []*IPAddrPrefix{w1, w2}
 
-	aspath1 := []AsPathParamInterface{
-		NewAsPathParam(2, []uint16{1000}),
-		NewAsPathParam(1, []uint16{1001, 1002}),
-		NewAsPathParam(2, []uint16{1003, 1004}),
+	aspath1 := []*AsPathParam{
+		NewAsPathParam(2, []uint32{1000}),
+		NewAsPathParam(1, []uint32{1001, 1002}),
+		NewAsPathParam(2, []uint32{1003, 1004}),
 	}
 
-	aspath2 := []AsPathParamInterface{
-		NewAs4PathParam(2, []uint32{1000000}),
-		NewAs4PathParam(1, []uint32{1000001, 1002}),
-		NewAs4PathParam(2, []uint32{1003, 100004}),
+	aspath2 := []*AsPathParam{
+		NewAsPathParam(2, []uint32{1000000}),
+		NewAsPathParam(1, []uint32{1000001, 1002}),
+		NewAsPathParam(2, []uint32{1003, 100004}),
 	}
 
-	aspath3 := []*As4PathParam{
-		NewAs4PathParam(2, []uint32{1000000}),
-		NewAs4PathParam(1, []uint32{1000001, 1002}),
-		NewAs4PathParam(2, []uint32{1003, 100004}),
+	aspath3 := []*AsPathParam{
+		NewAsPathParam(2, []uint32{1000000}),
+		NewAsPathParam(1, []uint32{1000001, 1002}),
+		NewAsPathParam(2, []uint32{1003, 100004}),
 	}
 
 	isTransitive := true
@@ -153,15 +153,16 @@ func update() *BGPMessage {
 
 func Test_Message(t *testing.T) {
 	l := []*BGPMessage{keepalive(), notification(), refresh(), open(), update()}
+	options := &MarshallingOptions{}
 	for _, m1 := range l {
-		buf1, _ := m1.Serialize()
+		buf1, _ := m1.Serialize(options)
 		t.Log("LEN =", len(buf1))
-		m2, err := ParseBGPMessage(buf1)
+		m2, err := ParseBGPMessage(buf1, options)
 		if err != nil {
 			t.Error(err)
 		}
 		// FIXME: shouldn't but workaround for some structs.
-		buf2, _ := m2.Serialize()
+		buf2, _ := m2.Serialize(options)
 
 		if reflect.DeepEqual(m1, m2) == true {
 			t.Log("OK")
@@ -184,6 +185,7 @@ func Test_IPAddrPrefixString(t *testing.T) {
 
 func Test_RouteTargetMembershipNLRIString(t *testing.T) {
 	assert := assert.New(t)
+	options := &MarshallingOptions{}
 
 	// TwoOctetAsSpecificExtended
 	buf := make([]byte, 13)
@@ -193,12 +195,12 @@ func Test_RouteTargetMembershipNLRIString(t *testing.T) {
 	binary.BigEndian.PutUint16(buf[7:9], 65000)
 	binary.BigEndian.PutUint32(buf[9:], 65546)
 	r := &RouteTargetMembershipNLRI{}
-	err := r.DecodeFromBytes(buf)
+	err := r.DecodeFromBytes(buf, options)
 	assert.Equal(nil, err)
 	assert.Equal("65546:65000:65546", r.String())
-	buf, err = r.Serialize()
+	buf, err = r.Serialize(options)
 	assert.Equal(nil, err)
-	err = r.DecodeFromBytes(buf)
+	err = r.DecodeFromBytes(buf, options)
 	assert.Equal(nil, err)
 	assert.Equal("65546:65000:65546", r.String())
 
@@ -210,12 +212,12 @@ func Test_RouteTargetMembershipNLRIString(t *testing.T) {
 	copy(buf[7:11], []byte(ip))
 	binary.BigEndian.PutUint16(buf[11:], 65000)
 	r = &RouteTargetMembershipNLRI{}
-	err = r.DecodeFromBytes(buf)
+	err = r.DecodeFromBytes(buf, options)
 	assert.Equal(nil, err)
 	assert.Equal("65546:10.0.0.1:65000", r.String())
-	buf, err = r.Serialize()
+	buf, err = r.Serialize(options)
 	assert.Equal(nil, err)
-	err = r.DecodeFromBytes(buf)
+	err = r.DecodeFromBytes(buf, options)
 	assert.Equal(nil, err)
 	assert.Equal("65546:10.0.0.1:65000", r.String())
 
@@ -227,12 +229,12 @@ func Test_RouteTargetMembershipNLRIString(t *testing.T) {
 	binary.BigEndian.PutUint32(buf[7:], 65546)
 	binary.BigEndian.PutUint16(buf[11:], 65000)
 	r = &RouteTargetMembershipNLRI{}
-	err = r.DecodeFromBytes(buf)
+	err = r.DecodeFromBytes(buf, options)
 	assert.Equal(nil, err)
 	assert.Equal("65546:1.10:65000", r.String())
-	buf, err = r.Serialize()
+	buf, err = r.Serialize(options)
 	assert.Equal(nil, err)
-	err = r.DecodeFromBytes(buf)
+	err = r.DecodeFromBytes(buf, options)
 	assert.Equal(nil, err)
 	assert.Equal("65546:1.10:65000", r.String())
 
@@ -242,12 +244,12 @@ func Test_RouteTargetMembershipNLRIString(t *testing.T) {
 	buf[5] = byte(EC_TYPE_TRANSITIVE_OPAQUE) // typehigh
 	binary.BigEndian.PutUint32(buf[9:], 1000000)
 	r = &RouteTargetMembershipNLRI{}
-	err = r.DecodeFromBytes(buf)
+	err = r.DecodeFromBytes(buf, options)
 	assert.Equal(nil, err)
 	assert.Equal("65546:1000000", r.String())
-	buf, err = r.Serialize()
+	buf, err = r.Serialize(options)
 	assert.Equal(nil, err)
-	err = r.DecodeFromBytes(buf)
+	err = r.DecodeFromBytes(buf, options)
 	assert.Equal(nil, err)
 	assert.Equal("65546:1000000", r.String())
 
@@ -257,12 +259,12 @@ func Test_RouteTargetMembershipNLRIString(t *testing.T) {
 	buf[5] = 0x04 // typehigh
 	binary.BigEndian.PutUint32(buf[9:], 1000000)
 	r = &RouteTargetMembershipNLRI{}
-	err = r.DecodeFromBytes(buf)
+	err = r.DecodeFromBytes(buf, options)
 	assert.Equal(nil, err)
 	assert.Equal("65546:1000000", r.String())
-	buf, err = r.Serialize()
+	buf, err = r.Serialize(options)
 	assert.Equal(nil, err)
-	err = r.DecodeFromBytes(buf)
+	err = r.DecodeFromBytes(buf, options)
 	assert.Equal(nil, err)
 	assert.Equal("65546:1000000", r.String())
 
@@ -270,6 +272,7 @@ func Test_RouteTargetMembershipNLRIString(t *testing.T) {
 
 func Test_RFC5512(t *testing.T) {
 	assert := assert.New(t)
+	options := &MarshallingOptions{}
 
 	buf := make([]byte, 8)
 	buf[0] = byte(EC_TYPE_TRANSITIVE_OPAQUE)
@@ -305,34 +308,34 @@ func Test_RFC5512(t *testing.T) {
 
 	attr := NewPathAttributeTunnelEncap([]*TunnelEncapTLV{tlv})
 
-	buf1, err := attr.Serialize()
+	buf1, err := attr.Serialize(options)
 	assert.Equal(nil, err)
 
 	p, err := GetPathAttribute(buf1)
 	assert.Equal(nil, err)
 
-	err = p.DecodeFromBytes(buf1)
+	err = p.DecodeFromBytes(buf1, options)
 	assert.Equal(nil, err)
 
-	buf2, err := p.Serialize()
+	buf2, err := p.Serialize(options)
 	assert.Equal(nil, err)
 	assert.Equal(buf1, buf2)
 
 	n1 := NewEncapNLRI("10.0.0.1")
-	buf1, err = n1.Serialize()
+	buf1, err = n1.Serialize(options)
 	assert.Equal(nil, err)
 
 	n2 := NewEncapNLRI("")
-	err = n2.DecodeFromBytes(buf1)
+	err = n2.DecodeFromBytes(buf1, options)
 	assert.Equal(nil, err)
 	assert.Equal("10.0.0.1", n2.String())
 
 	n1 = NewEncapNLRI("2001::1")
-	buf1, err = n1.Serialize()
+	buf1, err = n1.Serialize(options)
 	assert.Equal(nil, err)
 
 	n2 = NewEncapNLRI("")
-	err = n2.DecodeFromBytes(buf1)
+	err = n2.DecodeFromBytes(buf1, options)
 	assert.Equal(nil, err)
 	assert.Equal("2001::1", n2.String())
 }
@@ -342,7 +345,7 @@ func Test_ASLen(t *testing.T) {
 
 	aspath := AsPathParam{
 		Num: 2,
-		AS:  []uint16{65000, 65001},
+		AS:  []uint32{65000, 65001},
 	}
 	aspath.Type = BGP_ASPATH_ATTR_TYPE_SEQ
 	assert.Equal(2, aspath.ASLen())
@@ -356,22 +359,10 @@ func Test_ASLen(t *testing.T) {
 	aspath.Type = BGP_ASPATH_ATTR_TYPE_CONFED_SET
 	assert.Equal(0, aspath.ASLen())
 
-	as4path := As4PathParam{
-		Num: 2,
-		AS:  []uint32{65000, 65001},
-	}
-	as4path.Type = BGP_ASPATH_ATTR_TYPE_SEQ
-	assert.Equal(2, as4path.ASLen())
-
-	as4path.Type = BGP_ASPATH_ATTR_TYPE_SET
-	assert.Equal(1, as4path.ASLen())
-
-	as4path.Type = BGP_ASPATH_ATTR_TYPE_CONFED_SEQ
-	assert.Equal(0, as4path.ASLen())
-
-	as4path.Type = BGP_ASPATH_ATTR_TYPE_CONFED_SET
-	assert.Equal(0, as4path.ASLen())
-
+	assert.Equal(6, aspath.Len(&MarshallingOptions{
+		AS2: true,
+	}))
+	assert.Equal(10, aspath.Len(DefaultMarshallingOptions()))
 }
 
 func Test_MPLSLabelStack(t *testing.T) {
@@ -399,6 +390,7 @@ func Test_MPLSLabelStack(t *testing.T) {
 
 func Test_FlowSpecNlri(t *testing.T) {
 	assert := assert.New(t)
+	options := &MarshallingOptions{}
 	cmp := make([]FlowSpecComponentInterface, 0)
 	cmp = append(cmp, NewFlowSpecDestinationPrefix(NewIPAddrPrefix(24, "10.0.0.0")))
 	cmp = append(cmp, NewFlowSpecSourcePrefix(NewIPAddrPrefix(24, "10.0.0.0")))
@@ -426,13 +418,13 @@ func Test_FlowSpecNlri(t *testing.T) {
 	item7 := NewFlowSpecComponentItem(and|not, TCP_FLAG_URGENT)
 	cmp = append(cmp, NewFlowSpecComponent(FLOW_SPEC_TYPE_TCP_FLAG, []*FlowSpecComponentItem{item6, item7}))
 	n1 := NewFlowSpecIPv4Unicast(cmp)
-	buf1, err := n1.Serialize()
+	buf1, err := n1.Serialize(options)
 	assert.Nil(err)
 	n2, err := NewPrefixFromRouteFamily(RouteFamilyToAfiSafi(RF_FS_IPv4_UC))
 	assert.Nil(err)
-	err = n2.DecodeFromBytes(buf1)
+	err = n2.DecodeFromBytes(buf1, options)
 	assert.Nil(err)
-	buf2, _ := n2.Serialize()
+	buf2, _ := n2.Serialize(options)
 	if reflect.DeepEqual(n1, n2) == true {
 		t.Log("OK")
 	} else {
@@ -445,6 +437,7 @@ func Test_FlowSpecNlri(t *testing.T) {
 
 func Test_FlowSpecExtended(t *testing.T) {
 	assert := assert.New(t)
+	options := &MarshallingOptions{}
 	exts := make([]ExtendedCommunityInterface, 0)
 	exts = append(exts, NewTrafficRateExtended(100, 9600.0))
 	exts = append(exts, NewTrafficActionExtended(true, false))
@@ -453,12 +446,12 @@ func Test_FlowSpecExtended(t *testing.T) {
 	exts = append(exts, NewRedirectFourOctetAsSpecificExtended(10000000, 1000))
 	exts = append(exts, NewTrafficRemarkExtended(10))
 	m1 := NewPathAttributeExtendedCommunities(exts)
-	buf1, err := m1.Serialize()
+	buf1, err := m1.Serialize(options)
 	assert.Nil(err)
 	m2 := NewPathAttributeExtendedCommunities(nil)
-	err = m2.DecodeFromBytes(buf1)
+	err = m2.DecodeFromBytes(buf1, options)
 	assert.Nil(err)
-	buf2, _ := m2.Serialize()
+	buf2, _ := m2.Serialize(options)
 	if reflect.DeepEqual(m1, m2) == true {
 		t.Log("OK")
 	} else {
@@ -470,6 +463,7 @@ func Test_FlowSpecExtended(t *testing.T) {
 
 func Test_FlowSpecNlriv6(t *testing.T) {
 	assert := assert.New(t)
+	options := &MarshallingOptions{}
 	cmp := make([]FlowSpecComponentInterface, 0)
 	cmp = append(cmp, NewFlowSpecDestinationPrefix6(NewIPv6AddrPrefix(64, "2001::"), 12))
 	cmp = append(cmp, NewFlowSpecSourcePrefix6(NewIPv6AddrPrefix(64, "2001::"), 12))
@@ -498,13 +492,13 @@ func Test_FlowSpecNlriv6(t *testing.T) {
 	item7 := NewFlowSpecComponentItem(and|not, TCP_FLAG_URGENT)
 	cmp = append(cmp, NewFlowSpecComponent(FLOW_SPEC_TYPE_TCP_FLAG, []*FlowSpecComponentItem{item6, item7}))
 	n1 := NewFlowSpecIPv6Unicast(cmp)
-	buf1, err := n1.Serialize()
+	buf1, err := n1.Serialize(options)
 	assert.Nil(err)
 	n2, err := NewPrefixFromRouteFamily(RouteFamilyToAfiSafi(RF_FS_IPv6_UC))
 	assert.Nil(err)
-	err = n2.DecodeFromBytes(buf1)
+	err = n2.DecodeFromBytes(buf1, options)
 	assert.Nil(err)
-	buf2, _ := n2.Serialize()
+	buf2, _ := n2.Serialize(options)
 	if reflect.DeepEqual(n1, n2) == true {
 		t.Log("OK")
 	} else {
@@ -517,14 +511,15 @@ func Test_FlowSpecNlriv6(t *testing.T) {
 
 func Test_Aigp(t *testing.T) {
 	assert := assert.New(t)
+	options := &MarshallingOptions{}
 	m := NewAigpTLVIgpMetric(1000)
 	a1 := NewPathAttributeAigp([]AigpTLV{m})
-	buf1, err := a1.Serialize()
+	buf1, err := a1.Serialize(options)
 	assert.Nil(err)
 	a2 := NewPathAttributeAigp(nil)
-	err = a2.DecodeFromBytes(buf1)
+	err = a2.DecodeFromBytes(buf1, options)
 	assert.Nil(err)
-	buf2, _ := a2.Serialize()
+	buf2, _ := a2.Serialize(options)
 	if reflect.DeepEqual(a1, a2) == true {
 		t.Log("OK")
 	} else {

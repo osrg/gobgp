@@ -59,7 +59,7 @@ func printMrtMsgs(data []byte) {
 			os.Exit(1)
 		}
 
-		msg, err := bgp.ParseMRTBody(h, buf)
+		msg, err := bgp.ParseMRTBody(h, buf, bgp.DefaultMarshallingOptions())
 		if err != nil {
 			fmt.Println("failed to parse:", err)
 			os.Exit(1)
@@ -236,7 +236,7 @@ func injectMrt(r string, filename string, count int) error {
 				os.Exit(1)
 			}
 
-			msg, err := bgp.ParseMRTBody(h, buf)
+			msg, err := bgp.ParseMRTBody(h, buf, bgp.DefaultMarshallingOptions())
 			if err != nil {
 				fmt.Println("failed to parse:", err)
 				os.Exit(1)
@@ -286,11 +286,11 @@ func injectMrt(r string, filename string, count int) error {
 					}
 
 					if rf == bgp.RF_IPv4_UC {
-						path.Nlri, _ = nlri.Serialize()
+						path.Nlri, _ = nlri.Serialize(bgp.DefaultMarshallingOptions())
 					}
 
 					for _, p := range e.PathAttributes {
-						b, err := p.Serialize()
+						b, err := p.Serialize(bgp.DefaultMarshallingOptions())
 						if err != nil {
 							continue
 						}

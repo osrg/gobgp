@@ -128,7 +128,7 @@ func (w *bmpWatcher) loop() error {
 			close(m.errCh)
 		case server := <-w.newServerCh:
 			i := bgp.NewBMPInitiation([]bgp.BMPTLV{})
-			buf, _ := i.Serialize()
+			buf, _ := i.Serialize(bgp.DefaultMarshallingOptions())
 			_, err := server.conn.Write(buf)
 			if err != nil {
 				log.Warnf("failed to write to bmp server %s", server.host)
@@ -141,7 +141,7 @@ func (w *bmpWatcher) loop() error {
 			write := func(req *GrpcRequest) {
 				for res := range req.ResponseCh {
 					for _, msg := range res.Data.([]*bgp.BMPMessage) {
-						buf, _ = msg.Serialize()
+						buf, _ = msg.Serialize(bgp.DefaultMarshallingOptions())
 						_, err := server.conn.Write(buf)
 						if err != nil {
 							log.Warnf("failed to write to bmp server %s", server.host)
@@ -174,7 +174,7 @@ func (w *bmpWatcher) loop() error {
 					AS:      msg.peerAS,
 					ID:      msg.peerID,
 				}
-				buf, _ := bmpPeerRoute(bgp.BMP_PEER_TYPE_GLOBAL, msg.postPolicy, 0, info, msg.timestamp.Unix(), msg.payload).Serialize()
+				buf, _ := bmpPeerRoute(bgp.BMP_PEER_TYPE_GLOBAL, msg.postPolicy, 0, info, msg.timestamp.Unix(), msg.payload).Serialize(bgp.DefaultMarshallingOptions())
 				for _, server := range w.connMap {
 					if server.conn != nil {
 						send := server.typ != config.BMP_ROUTE_MONITORING_POLICY_TYPE_POST_POLICY && !msg.postPolicy
@@ -199,7 +199,7 @@ func (w *bmpWatcher) loop() error {
 				} else {
 					bmpmsg = bmpPeerDown(bgp.BMP_PEER_DOWN_REASON_UNKNOWN, bgp.BMP_PEER_TYPE_GLOBAL, false, 0, info, msg.timestamp.Unix())
 				}
-				buf, _ := bmpmsg.Serialize()
+				buf, _ := bmpmsg.Serialize(bgp.DefaultMarshallingOptions())
 				for _, server := range w.connMap {
 					if server.conn != nil {
 						_, err := server.conn.Write(buf)

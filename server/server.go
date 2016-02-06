@@ -40,7 +40,6 @@ type SenderMsg struct {
 	messages    []*bgp.BGPMessage
 	sendCh      chan *bgp.BGPMessage
 	destination string
-	twoBytesAs  bool
 }
 
 type broadcastMsg interface {
@@ -255,14 +254,6 @@ func (server *BgpServer) Serve() {
 			}
 
 			for _, b := range m.messages {
-				if m.twoBytesAs == false && b.Header.Type == bgp.BGP_MSG_UPDATE {
-					log.WithFields(log.Fields{
-						"Topic": "Peer",
-						"Key":   m.destination,
-						"Data":  b,
-					}).Debug("update for 2byte AS peer")
-					table.UpdatePathAttrs2ByteAs(b.Body.(*bgp.BGPUpdate))
-				}
 				w(m.sendCh, b)
 			}
 		}
@@ -484,12 +475,10 @@ func (server *BgpServer) Serve() {
 }
 
 func newSenderMsg(peer *Peer, messages []*bgp.BGPMessage) *SenderMsg {
-	_, y := peer.fsm.capMap[bgp.BGP_CAP_FOUR_OCTET_AS_NUMBER]
 	return &SenderMsg{
 		messages:    messages,
 		sendCh:      peer.outgoing,
 		destination: peer.conf.Config.NeighborAddress,
-		twoBytesAs:  y,
 	}
 }
 
@@ -822,7 +811,7 @@ func (server *BgpServer) validatePaths(dsts []*table.Destination, peerDown bool)
 						NewResult: api.ROAResult_ValidationResult(path.Validation().ToInt()),
 					}
 					if b := path.GetAsPath(); b != nil {
-						rr.AspathAttr, _ = b.Serialize()
+						rr.AspathAttr, _ = b.Serialize(bgp.DefaultMarshallingOptions())
 					}
 					rrList = append(rrList, rr)
 				}
@@ -1038,7 +1027,7 @@ func (server *BgpServer) handleFSMMessage(peer *Peer, e *FsmMsg) []*SenderMsg {
 						pathList:     altered,
 					}
 					for _, u := range table.CreateUpdateMsgFromPaths(altered) {
-						payload, _ := u.Serialize()
+						payload, _ := u.Serialize(bgp.DefaultMarshallingOptions())
 						ev.payload = payload
 						server.notify2watchers(WATCHER_EVENT_POST_POLICY_UPDATE_MSG, ev)
 					}
@@ -1242,7 +1231,7 @@ func (server *BgpServer) Api2PathList(resource api.Resource, name string, ApiPat
 
 		if len(path.Nlri) > 0 {
 			nlri = &bgp.IPAddrPrefix{}
-			err := nlri.DecodeFromBytes(path.Nlri)
+			err := nlri.DecodeFromBytes(path.Nlri, bgp.DefaultMarshallingOptions())
 			if err != nil {
 				return nil, err
 			}
@@ -1254,7 +1243,7 @@ func (server *BgpServer) Api2PathList(resource api.Resource, name string, ApiPat
 				return nil, err
 			}
 
-			err = p.DecodeFromBytes(attr)
+			err = p.DecodeFromBytes(attr, bgp.DefaultMarshallingOptions())
 			if err != nil {
 				return nil, err
 			}
@@ -1730,7 +1719,7 @@ func (server *BgpServer) handleGrpc(grpcReq *GrpcRequest) []*SenderMsg {
 		bmpmsgs := make([]*bgp.BMPMessage, 0, len(paths))
 		for _, path := range paths {
 			msgs := table.CreateUpdateMsgFromPaths([]*table.Path{path})
-			buf, _ := msgs[0].Serialize()
+			buf, _ := msgs[0].Serialize(bgp.DefaultMarshallingOptions())
 			bmpmsgs = append(bmpmsgs, bmpPeerRoute(bgp.BMP_PEER_TYPE_GLOBAL, true, 0, path.GetSource(), path.GetTimestamp().Unix(), buf))
 		}
 		grpcReq.ResponseCh <- &GrpcResponse{
@@ -1866,7 +1855,7 @@ func (server *BgpServer) handleGrpc(grpcReq *GrpcRequest) []*SenderMsg {
 			}
 			for _, path := range peer.adjRibIn.PathList(peer.configuredRFlist(), false) {
 				msgs := table.CreateUpdateMsgFromPaths([]*table.Path{path})
-				buf, _ := msgs[0].Serialize()
+				buf, _ := msgs[0].Serialize(bgp.DefaultMarshallingOptions())
 				bmpmsgs = append(bmpmsgs, bmpPeerRoute(bgp.BMP_PEER_TYPE_GLOBAL, false, 0, peer.fsm.peerInfo, path.GetTimestamp().Unix(), buf))
 			}
 		}
@@ -2754,7 +2743,7 @@ func (server *BgpServer) handleMrt(grpcReq *GrpcRequest) {
 		close(grpcReq.ResponseCh)
 		return
 	}
-	data, err := msg.Serialize()
+	data, err := msg.Serialize(bgp.DefaultMarshallingOptions())
 	if err != nil {
 		result.ResponseErr = fmt.Errorf("failed to serialize table: %s", err)
 		grpcReq.ResponseCh <- result
@@ -2778,7 +2767,7 @@ func (server *BgpServer) handleMrt(grpcReq *GrpcRequest) {
 		return
 	}
 	for _, msg := range msgs {
-		d, err := msg.Serialize()
+		d, err := msg.Serialize(bgp.DefaultMarshallingOptions())
 		if err != nil {
 			result.ResponseErr = fmt.Errorf("failed to serialize rib msg: %s", err)
 			grpcReq.ResponseCh <- result

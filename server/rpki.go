@@ -510,7 +510,7 @@ func validatePath(ownAs uint32, tree *radix.Tree, cidr string, asPath *bgp.PathA
 	if asPath == nil || len(asPath.Value) == 0 {
 		return config.RPKI_VALIDATION_RESULT_TYPE_NOT_FOUND, []*roa{}
 	}
-	asParam := asPath.Value[len(asPath.Value)-1].(*bgp.As4PathParam)
+	asParam := asPath.Value[len(asPath.Value)-1]
 	switch asParam.Type {
 	case bgp.BGP_ASPATH_ATTR_TYPE_SEQ:
 		if len(asParam.AS) == 0 {
@@ -585,7 +585,7 @@ func (c *roaManager) validate(pathList []*table.Path, isMonitor bool) []*api.ROA
 					Roas:      apiRoaList,
 				}
 				if b := path.GetAsPath(); b != nil {
-					rr.AspathAttr, _ = b.Serialize()
+					rr.AspathAttr, _ = b.Serialize(bgp.DefaultMarshallingOptions())
 				}
 				results = append(results, rr)
 			}
