@@ -668,6 +668,17 @@ module gobgp {
   }
 
   augment "/bgp:bgp/bgp:global" {
+    description "route collector mode";
+    container collector {
+      leaf enabled {
+        type boolean;
+         description
+          "Configure enabling route-collector mode.";
+      }
+    }
+  }
+
+  augment "/bgp:bgp/bgp:global" {
     description "additional bmp configuration";
     uses gobgp-bmp-servers;
   }

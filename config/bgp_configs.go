@@ -1503,6 +1503,13 @@ type BmpServer struct {
 	State BmpServerState `mapstructure:"state"`
 }
 
+//struct for container gobgp:collector
+type Collector struct {
+	// original -> gobgp:enabled
+	//gobgp:enabled's original type is boolean
+	Enabled bool `mapstructure:"enabled"`
+}
+
 //struct for container bgp-mp:l2vpn-evpn
 type L2vpnEvpn struct {
 	// original -> bgp-mp:prefix-limit
@@ -2031,6 +2038,8 @@ type Global struct {
 	AfiSafis []AfiSafi `mapstructure:"afi-safis"`
 	// original -> rpol:apply-policy
 	ApplyPolicy ApplyPolicy `mapstructure:"apply-policy"`
+	// original -> gobgp:collector
+	Collector Collector `mapstructure:"collector"`
 	// original -> gobgp:bmp-servers
 	BmpServers []BmpServer `mapstructure:"bmp-servers"`
 	// original -> gobgp:mrt

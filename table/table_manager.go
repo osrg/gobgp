@@ -276,7 +276,7 @@ func (manager *TableManager) handleMacMobility(path *Path) []*Destination {
 	if path.IsWithdraw || path.IsLocal() || nlri.RouteType != bgp.EVPN_ROUTE_TYPE_MAC_IP_ADVERTISEMENT {
 		return nil
 	}
-	for _, path2 := range manager.GetPathList(GLOBAL_RIB_NAME, bgp.RF_EVPN) {
+	for _, path2 := range manager.GetPathList(GLOBAL_RIB_NAME, []bgp.RouteFamily{bgp.RF_EVPN}) {
 		if !path2.IsLocal() || path2.GetNlri().(*bgp.EVPNNLRI).RouteType != bgp.EVPN_ROUTE_TYPE_MAC_IP_ADVERTISEMENT {
 			continue
 		}
@@ -323,9 +323,18 @@ func (manager *TableManager) GetBestPathList(id string, rfList []bgp.RouteFamily
 	return paths
 }
 
-func (manager *TableManager) GetPathList(id string, rf bgp.RouteFamily) []*Path {
-	if t, ok := manager.Tables[rf]; ok {
-		return t.GetKnownPathList(id)
+func (manager *TableManager) GetPathList(id string, rfList []bgp.RouteFamily) []*Path {
+	c := 0
+	for _, rf := range rfList {
+		if t, ok := manager.Tables[rf]; ok {
+			c += len(t.destinations)
+		}
 	}
-	return nil
+	paths := make([]*Path, 0, c)
+	for _, rf := range rfList {
+		if t, ok := manager.Tables[rf]; ok {
+			paths = append(paths, t.GetKnownPathList(id)...)
+		}
+	}
+	return paths
 }

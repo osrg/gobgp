@@ -20,16 +20,20 @@ import (
 	"reflect"
 )
 
+type Dest struct {
+	pathList []*Path
+}
+
 type AdjRib struct {
 	id       string
 	accepted map[bgp.RouteFamily]int
-	table    map[bgp.RouteFamily]map[string]*Path
+	table    map[bgp.RouteFamily]map[string]*Dest
 }
 
 func NewAdjRib(id string, rfList []bgp.RouteFamily) *AdjRib {
-	table := make(map[bgp.RouteFamily]map[string]*Path)
+	table := make(map[bgp.RouteFamily]map[string]*Dest)
 	for _, rf := range rfList {
-		table[rf] = make(map[string]*Path)
+		table[rf] = make(map[string]*Dest)
 	}
 	return &AdjRib{
 		id:       id,
@@ -45,17 +49,35 @@ func (adj *AdjRib) Update(pathList []*Path) {
 		}
 		rf := path.GetRouteFamily()
 		key := path.getPrefix()
-		old, found := adj.table[rf][key]
+		dst := adj.table[rf][key]
+		var old *Path
+		oldIdx := 0
+		if dst == nil {
+			dst = &Dest{}
+			dst.pathList = make([]*Path, 0)
+			adj.table[rf][key] = dst
+		} else {
+			for i, known := range dst.pathList {
+				if known.GetSource() == path.GetSource() {
+					old = known
+					oldIdx = i
+				}
+			}
+		}
 		if path.IsWithdraw {
-			if found {
-				delete(adj.table[rf], key)
+			if old != nil {
+				dst.pathList = append(dst.pathList[:oldIdx], dst.pathList[oldIdx+1:]...)
+				if len(dst.pathList) == 0 {
+					delete(adj.table[rf], key)
+				}
+
 				if old.Filtered(adj.id) == POLICY_DIRECTION_NONE {
 					adj.accepted[rf]--
 				}
 			}
 		} else {
 			n := path.Filtered(adj.id)
-			if found {
+			if old != nil {
 				o := old.Filtered(adj.id)
 				if o == POLICY_DIRECTION_IN && n == POLICY_DIRECTION_NONE {
 					adj.accepted[rf]++
@@ -67,10 +89,17 @@ func (adj *AdjRib) Update(pathList []*Path) {
 					adj.accepted[rf]++
 				}
 			}
-			if found && reflect.DeepEqual(old.GetPathAttrs(), path.GetPathAttrs()) {
-				path.setTimestamp(old.GetTimestamp())
+			if old != nil {
+				dst.pathList[oldIdx] = path
+				// avoid updating timestamp for the
+				// exact same message due to soft
+				// reset, etc
+				if reflect.DeepEqual(old.GetPathAttrs(), path.GetPathAttrs()) {
+					path.setTimestamp(old.GetTimestamp())
+				}
+			} else {
+				dst.pathList = append(dst.pathList, path)
 			}
-			adj.table[rf][key] = path
 		}
 	}
 }
@@ -78,9 +107,11 @@ func (adj *AdjRib) Update(pathList []*Path) {
 func (adj *AdjRib) RefreshAcceptedNumber(rfList []bgp.RouteFamily) {
 	for _, rf := range rfList {
 		adj.accepted[rf] = 0
-		for _, p := range adj.table[rf] {
-			if p.Filtered(adj.id) != POLICY_DIRECTION_IN {
-				adj.accepted[rf]++
+		for _, d := range adj.table[rf] {
+			for _, p := range d.pathList {
+				if p.Filtered(adj.id) != POLICY_DIRECTION_IN {
+					adj.accepted[rf]++
+				}
 			}
 		}
 	}
@@ -89,11 +120,13 @@ func (adj *AdjRib) RefreshAcceptedNumber(rfList []bgp.RouteFamily) {
 func (adj *AdjRib) PathList(rfList []bgp.RouteFamily, accepted bool) []*Path {
 	pathList := make([]*Path, 0, adj.Count(rfList))
 	for _, rf := range rfList {
-		for _, rr := range adj.table[rf] {
-			if accepted && rr.Filtered(adj.id) > POLICY_DIRECTION_NONE {
-				continue
+		for _, d := range adj.table[rf] {
+			for _, p := range d.pathList {
+				if accepted && p.Filtered(adj.id) > POLICY_DIRECTION_NONE {
+					continue
+				}
+				pathList = append(pathList, p)
 			}
-			pathList = append(pathList, rr)
 		}
 	}
 	return pathList
@@ -103,7 +136,9 @@ func (adj *AdjRib) Count(rfList []bgp.RouteFamily) int {
 	count := 0
 	for _, rf := range rfList {
 		if table, ok := adj.table[rf]; ok {
-			count += len(table)
+			for _, d := range table {
+				count += len(d.pathList)
+			}
 		}
 	}
 	return count
@@ -122,7 +157,7 @@ func (adj *AdjRib) Accepted(rfList []bgp.RouteFamily) int {
 func (adj *AdjRib) Drop(rfList []bgp.RouteFamily) {
 	for _, rf := range rfList {
 		if _, ok := adj.table[rf]; ok {
-			adj.table[rf] = make(map[string]*Path)
+			adj.table[rf] = make(map[string]*Dest)
 			adj.accepted[rf] = 0
 		}
 	}
