@@ -893,17 +893,20 @@ func (server *BgpServer) propagateUpdate(peer *Peer, pathList []*table.Path) ([]
 		dsts := rib.ProcessPaths(pathList)
 		server.validatePaths(dsts, false)
 		sendPathList := make([]*table.Path, 0, len(dsts))
-		for _, dst := range dsts {
-			path := dst.NewFeed(table.GLOBAL_RIB_NAME)
-			if path != nil {
-				sendPathList = append(sendPathList, path)
+		if server.bgpConfig.Global.Collector.Enabled {
+			sendPathList = pathList
+		} else {
+			for _, dst := range dsts {
+				path := dst.NewFeed(table.GLOBAL_RIB_NAME)
+				if path != nil {
+					sendPathList = append(sendPathList, path)
+				}
 			}
+			if len(sendPathList) == 0 {
+				return msgs, alteredPathList
+			}
+			server.broadcastBests(sendPathList)
 		}
-		if len(sendPathList) == 0 {
-			return msgs, alteredPathList
-		}
-
-		server.broadcastBests(sendPathList)
 
 		for _, targetPeer := range server.neighborMap {
 			if targetPeer.isRouteServerClient() || targetPeer.fsm.state != bgp.BGP_FSM_ESTABLISHED {
@@ -914,7 +917,7 @@ func (server *BgpServer) propagateUpdate(peer *Peer, pathList []*table.Path) ([]
 			options.Neighbor = targetPeer.fsm.peerInfo.Address
 			for idx, path := range pathList {
 				path = server.policy.ApplyPolicy(table.GLOBAL_RIB_NAME, table.POLICY_DIRECTION_EXPORT, filterpath(targetPeer, path), options)
-				if path != nil {
+				if path != nil && !server.bgpConfig.Global.Collector.Enabled {
 					path = path.Clone(path.IsWithdraw)
 					path.UpdatePathAttrs(&server.bgpConfig.Global, &targetPeer.conf)
 				}
@@ -1351,11 +1354,9 @@ func (server *BgpServer) handleModPathRequest(grpcReq *GrpcRequest) []*table.Pat
 		case api.Operation_DEL:
 			if len(arg.Uuid) > 0 {
 				path := func() *table.Path {
-					for _, rf := range server.globalRib.GetRFlist() {
-						for _, path := range server.globalRib.GetPathList(table.GLOBAL_RIB_NAME, rf) {
-							if len(path.UUID()) > 0 && bytes.Equal(path.UUID(), arg.Uuid) {
-								return path
-							}
+					for _, path := range server.globalRib.GetPathList(table.GLOBAL_RIB_NAME, server.globalRib.GetRFlist()) {
+						if len(path.UUID()) > 0 && bytes.Equal(path.UUID(), arg.Uuid) {
+							return path
 						}
 					}
 					return nil
@@ -1482,7 +1483,7 @@ func (server *BgpServer) handleVrfRequest(req *GrpcRequest) []*table.Path {
 			result.ResponseErr = fmt.Errorf("unsupported route family: %s", bgp.RouteFamily(arg.Family))
 			break
 		}
-		paths := rib.GetPathList(table.GLOBAL_RIB_NAME, rf)
+		paths := rib.GetPathList(table.GLOBAL_RIB_NAME, []bgp.RouteFamily{rf})
 		dsts := make([]*api.Destination, 0, len(paths))
 		for _, path := range paths {
 			ok := table.CanImportToVrf(vrfs[name], path)
@@ -1822,10 +1823,16 @@ func (server *BgpServer) handleGrpc(grpcReq *GrpcRequest) []*SenderMsg {
 				}
 
 				if found {
-					r.Insert(table.CidrToRadixkey(key), &api.Destination{
-						Prefix: key,
-						Paths:  []*api.Path{p.ToApiStruct(peer.TableID())},
-					})
+					b, _ := r.Get(table.CidrToRadixkey(key))
+					if b == nil {
+						r.Insert(table.CidrToRadixkey(key), &api.Destination{
+							Prefix: key,
+							Paths:  []*api.Path{p.ToApiStruct(peer.TableID())},
+						})
+					} else {
+						d := b.(*api.Destination)
+						d.Paths = append(d.Paths, p.ToApiStruct(peer.TableID()))
+					}
 				}
 			}
 			r.Walk(func(s string, v interface{}) bool {

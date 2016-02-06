@@ -30,6 +30,8 @@
 
         # listen address list (by default "0.0.0.0" and "::")
         local-address-list = ["192.168.10.1", "2001:db8::1"]
+    [global.collector]
+        enabled = true
 
 [[rpki-servers]]
     [rpki-servers.config]
