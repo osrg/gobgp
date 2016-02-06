@@ -216,6 +216,8 @@ func (path *Path) ToApiStruct(id string) *api.Path {
 		Validation: int32(path.OriginInfo().validation.ToInt()),
 		Filtered:   path.Filtered(id) == POLICY_DIRECTION_IN,
 		Family:     family,
+		SourceAsn:  path.OriginInfo().source.AS,
+		SourceId:   path.OriginInfo().source.ID.String(),
 	}
 }
 
