@@ -10,6 +10,7 @@ module gobgp {
   // import some basic types
   import openconfig-bgp { prefix bgp; }
   import openconfig-bgp-types { prefix bgp-types; }
+  import openconfig-bgp-multiprotocol { prefix bgp-mp; }
   import openconfig-routing-policy {prefix rpol; }
   import openconfig-policy-types {prefix ptypes; }
   import openconfig-bgp-policy {prefix bgp-pol; }
@@ -572,6 +573,30 @@ module gobgp {
     uses gobgp-neighbor-timer;
    }
 
+  augment "/bgp:bgp/bgp:neighbors/bgp:neighbor/bgp:afi-safis/bgp:afi-safi/bgp:graceful-restart/bgp:state" {
+    description "additional graceful-restart status";
+    leaf end-of-rib-received {
+      type boolean;
+    }
+    leaf end-of-rib-sent {
+      type boolean;
+    }
+  }
+
+  augment "/bgp:bgp/bgp:neighbors/bgp:neighbor/bgp:graceful-restart/bgp:config" {
+    description "additional graceful-restart status";
+    leaf deferral-time {
+      type uint16;
+    }
+  }
+
+  augment "/bgp:bgp/bgp:neighbors/bgp:neighbor/bgp:graceful-restart/bgp:state" {
+    description "additional graceful-restart status";
+    leaf deferral-time {
+      type uint16;
+    }
+  }
+
   augment "/bgp:bgp/bgp:peer-groups/bgp:peer-group" {
     description "route server configuration for peer-group";
     uses gobgp-route-server-config-set;
@@ -731,4 +756,5 @@ module gobgp {
         }
     }
   }
+
 }
