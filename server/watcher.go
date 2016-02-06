@@ -19,6 +19,7 @@ import (
 	"fmt"
 	log "github.com/Sirupsen/logrus"
 	"github.com/osrg/gobgp/packet"
+	"github.com/osrg/gobgp/table"
 	"gopkg.in/tomb.v2"
 	"net"
 	"os"
@@ -42,6 +43,7 @@ const (
 	WATCHER_BMP
 	WATCHER_ZEBRA
 	WATCHER_GRPC_BESTPATH
+	WATCHER_GRPC_INCOMING
 )
 
 type watcherEventType uint8
@@ -68,6 +70,7 @@ type watcherEventUpdateMsg struct {
 	timestamp    time.Time
 	payload      []byte
 	postPolicy   bool
+	pathList     []*table.Path
 }
 
 type watcherEventStateChangedMsg struct {

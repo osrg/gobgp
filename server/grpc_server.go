@@ -45,6 +45,7 @@ const (
 	REQ_MOD_NEIGHBOR
 	REQ_GLOBAL_RIB
 	REQ_MONITOR_GLOBAL_BEST_CHANGED
+	REQ_MONITOR_INCOMING
 	REQ_MONITOR_NEIGHBOR_PEER_STATE
 	REQ_MONITOR_ROA_VALIDATION_RESULT
 	REQ_MRT_GLOBAL_RIB
@@ -161,6 +162,20 @@ func (s *Server) MonitorBestChanged(arg *api.Arguments, stream api.GobgpApi_Moni
 	req := NewGrpcRequest(reqType, "", bgp.RouteFamily(arg.Family), nil)
 	s.bgpServerCh <- req
 
+	return handleMultipleResponses(req, func(res *GrpcResponse) error {
+		return stream.Send(res.Data.(*api.Destination))
+	})
+}
+
+func (s *Server) MonitorRib(arg *api.Table, stream api.GobgpApi_MonitorRibServer) error {
+	switch arg.Type {
+	case api.Resource_ADJ_IN:
+	default:
+		return fmt.Errorf("unsupported resource type: %v", arg.Type)
+	}
+
+	req := NewGrpcRequest(REQ_MONITOR_INCOMING, arg.Name, bgp.RouteFamily(arg.Family), arg)
+	s.bgpServerCh <- req
 	return handleMultipleResponses(req, func(res *GrpcResponse) error {
 		return stream.Send(res.Data.(*api.Destination))
 	})

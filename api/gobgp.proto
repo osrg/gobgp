@@ -35,6 +35,7 @@ service GobgpApi {
   rpc Disable(Arguments) returns (Error) {}
   rpc ModPath(ModPathArguments) returns (ModPathResponse) {}
   rpc ModPaths(stream ModPathsArguments) returns (Error) {}
+  rpc MonitorRib(Table) returns (stream Destination) {}
   rpc MonitorBestChanged(Arguments) returns (stream Destination) {}
   rpc MonitorPeerState(Arguments) returns (stream Peer) {}
   rpc MonitorROAValidation(Arguments) returns (stream ROAResult) {}
@@ -209,6 +210,7 @@ message Table {
     string name = 2;
     uint32 family = 3;
     repeated Destination destinations = 4;
+    bool post_policy = 5;
 }
 
 message Peer {

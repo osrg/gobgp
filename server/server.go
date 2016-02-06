@@ -230,6 +230,9 @@ func (server *BgpServer) Serve() {
 		}
 	}
 
+	w, _ := newGrpcIncomingWatcher()
+	server.watchers[WATCHER_GRPC_INCOMING] = w
+
 	if g.Zebra.Enabled == true {
 		if g.Zebra.Url == "" {
 			g.Zebra.Url = "unix:/var/run/quagga/zserv.api"
@@ -989,6 +992,8 @@ func (server *BgpServer) handleFSMMessage(peer *Peer, e *FsmMsg) []*SenderMsg {
 		case *bgp.MessageError:
 			msgs = append(msgs, newSenderMsg(peer, []*bgp.BGPMessage{bgp.NewBGPNotificationMessage(m.TypeCode, m.SubTypeCode, m.Data)}))
 		case *bgp.BGPMessage:
+			pathList, msgList := peer.handleBGPmessage(e)
+
 			if m.Header.Type == bgp.BGP_MSG_UPDATE && server.watchers.watching(WATCHER_EVENT_UPDATE_MSG) {
 				_, y := peer.fsm.capMap[bgp.BGP_CAP_FOUR_OCTET_AS_NUMBER]
 				l, _ := peer.fsm.LocalHostPort()
@@ -1003,11 +1008,11 @@ func (server *BgpServer) handleFSMMessage(peer *Peer, e *FsmMsg) []*SenderMsg {
 					timestamp:    e.timestamp,
 					payload:      e.payload,
 					postPolicy:   false,
+					pathList:     pathList,
 				}
 				server.notify2watchers(WATCHER_EVENT_UPDATE_MSG, ev)
 			}
 
-			pathList, msgList := peer.handleBGPmessage(e)
 			if len(msgList) > 0 {
 				msgs = append(msgs, newSenderMsg(peer, msgList))
 			}
@@ -1027,6 +1032,7 @@ func (server *BgpServer) handleFSMMessage(peer *Peer, e *FsmMsg) []*SenderMsg {
 						fourBytesAs:  y,
 						timestamp:    e.timestamp,
 						postPolicy:   true,
+						pathList:     altered,
 					}
 					for _, u := range table.CreateUpdateMsgFromPaths(altered) {
 						payload, _ := u.Serialize()
@@ -2074,6 +2080,14 @@ func (server *BgpServer) handleGrpc(grpcReq *GrpcRequest) []*SenderMsg {
 		close(grpcReq.ResponseCh)
 	case REQ_MONITOR_GLOBAL_BEST_CHANGED, REQ_MONITOR_NEIGHBOR_PEER_STATE, REQ_MONITOR_ROA_VALIDATION_RESULT:
 		server.broadcastReqs = append(server.broadcastReqs, grpcReq)
+	case REQ_MONITOR_INCOMING:
+		if grpcReq.Name != "" {
+			if _, err = server.checkNeighborRequest(grpcReq); err != nil {
+				break
+			}
+		}
+		w := server.watchers[WATCHER_GRPC_INCOMING]
+		go w.(*grpcIncomingWatcher).addRequest(grpcReq)
 	case REQ_MRT_GLOBAL_RIB, REQ_MRT_LOCAL_RIB:
 		server.handleMrt(grpcReq)
 	case REQ_MOD_MRT:
