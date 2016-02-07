@@ -40,7 +40,6 @@ type SenderMsg struct {
 	messages    []*bgp.BGPMessage
 	sendCh      chan *bgp.BGPMessage
 	destination string
-	twoBytesAs  bool
 }
 
 type broadcastMsg interface {
@@ -223,14 +222,6 @@ func (server *BgpServer) Serve() {
 			}
 
 			for _, b := range m.messages {
-				if m.twoBytesAs == false && b.Header.Type == bgp.BGP_MSG_UPDATE {
-					log.WithFields(log.Fields{
-						"Topic": "Peer",
-						"Key":   m.destination,
-						"Data":  b,
-					}).Debug("update for 2byte AS peer")
-					table.UpdatePathAttrs2ByteAs(b.Body.(*bgp.BGPUpdate))
-				}
 				w(m.sendCh, b)
 			}
 		}
@@ -432,12 +423,10 @@ func (server *BgpServer) Serve() {
 }
 
 func newSenderMsg(peer *Peer, messages []*bgp.BGPMessage) *SenderMsg {
-	_, y := peer.fsm.capMap[bgp.BGP_CAP_FOUR_OCTET_AS_NUMBER]
 	return &SenderMsg{
 		messages:    messages,
 		sendCh:      peer.outgoing,
 		destination: peer.conf.Config.NeighborAddress,
-		twoBytesAs:  y,
 	}
 }
 
