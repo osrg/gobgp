@@ -125,6 +125,7 @@ func (w *bmpWatcher) loop() error {
 			buf, _ := i.Serialize()
 			if _, err := newConn.Write(buf); err != nil {
 				log.Warnf("failed to write to bmp server %s", server.host)
+				go w.tryConnect(server)
 				break
 			}
 			req := &GrpcRequest{
@@ -138,6 +139,7 @@ func (w *bmpWatcher) loop() error {
 						buf, _ = msg.Serialize()
 						if _, err := newConn.Write(buf); err != nil {
 							log.Warnf("failed to write to bmp server %s %s", server.host, err)
+							go w.tryConnect(server)
 							return err
 						}
 					}
