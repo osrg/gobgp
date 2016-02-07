@@ -105,7 +105,7 @@ func (h *BMPPeerHeader) DecodeFromBytes(data []byte) error {
 	if h.Flags&(1<<7) != 0 {
 		h.PeerAddress = net.IP(data[10:26]).To16()
 	} else {
-		h.PeerAddress = net.IP(data[10:14]).To4()
+		h.PeerAddress = net.IP(data[22:26]).To4()
 	}
 	h.PeerAS = binary.BigEndian.Uint32(data[26:30])
 	h.PeerBGPID = data[30:34]
@@ -124,7 +124,7 @@ func (h *BMPPeerHeader) Serialize() ([]byte, error) {
 	if h.Flags&(1<<7) != 0 {
 		copy(buf[10:26], h.PeerAddress)
 	} else {
-		copy(buf[10:14], h.PeerAddress.To4())
+		copy(buf[22:26], h.PeerAddress.To4())
 	}
 	binary.BigEndian.PutUint32(buf[26:30], h.PeerAS)
 	copy(buf[30:34], h.PeerBGPID)
