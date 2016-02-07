@@ -709,8 +709,8 @@ func showGlobalConfig(args []string) error {
 }
 
 func modGlobalConfig(args []string) error {
-	if len(args) != 4 || args[0] != "as" || args[2] != "router-id" {
-		return fmt.Errorf("usage: gobgp global as <asn> router-id <route-id>")
+	if len(args) < 4 || args[0] != "as" || args[2] != "router-id" {
+		return fmt.Errorf("usage: gobgp global as <asn> router-id <router-id> [port <listen-port> | no-listen]")
 	}
 	asn, err := strconv.Atoi(args[1])
 	if err != nil {
@@ -720,11 +720,26 @@ func modGlobalConfig(args []string) error {
 	if id.To4() == nil {
 		return fmt.Errorf("invalid router-id format")
 	}
+	port := 0
+	if len(args) > 4 {
+		if args[4] != "port" && args[4] != "no-listen" {
+			return fmt.Errorf("usage: gobgp global as <asn> router-id <router-id> [port <listen-port> | no-listen]")
+		}
+		if args[4] == "port" {
+			port, err = strconv.Atoi(args[5])
+			if err != nil {
+				return err
+			}
+		} else {
+			port = -1
+		}
+	}
 	_, err = client.ModGlobalConfig(context.Background(), &api.ModGlobalConfigArguments{
 		Operation: api.Operation_ADD,
 		Global: &api.Global{
-			As:       uint32(asn),
-			RouterId: args[3],
+			As:         uint32(asn),
+			RouterId:   args[3],
+			ListenPort: int32(port),
 		},
 	})
 	return err
