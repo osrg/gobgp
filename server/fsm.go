@@ -116,24 +116,25 @@ func (s AdminState) String() string {
 }
 
 type FSM struct {
-	t                tomb.Tomb
-	gConf            *config.Global
-	pConf            *config.Neighbor
-	state            bgp.FSMState
-	reason           FsmStateReason
-	conn             net.Conn
-	connCh           chan net.Conn
-	idleHoldTime     float64
-	opensentHoldTime float64
-	adminState       AdminState
-	adminStateCh     chan AdminState
-	getActiveCh      chan struct{}
-	h                *FSMHandler
-	rfMap            map[bgp.RouteFamily]bool
-	capMap           map[bgp.BGPCapabilityCode][]bgp.ParameterCapabilityInterface
-	recvOpen         *bgp.BGPMessage
-	peerInfo         *table.PeerInfo
-	policy           *table.RoutingPolicy
+	t                  tomb.Tomb
+	gConf              *config.Global
+	pConf              *config.Neighbor
+	state              bgp.FSMState
+	reason             FsmStateReason
+	conn               net.Conn
+	connCh             chan net.Conn
+	idleHoldTime       float64
+	opensentHoldTime   float64
+	adminState         AdminState
+	adminStateCh       chan AdminState
+	getActiveCh        chan struct{}
+	h                  *FSMHandler
+	rfMap              map[bgp.RouteFamily]bool
+	capMap             map[bgp.BGPCapabilityCode][]bgp.ParameterCapabilityInterface
+	recvOpen           *bgp.BGPMessage
+	peerInfo           *table.PeerInfo
+	policy             *table.RoutingPolicy
+	marshallingOptions []bgp.MarshallingOption
 }
 
 func (fsm *FSM) bgpMessageStateUpdate(MessageType uint8, isIn bool) {
@@ -191,18 +192,19 @@ func NewFSM(gConf *config.Global, pConf *config.Neighbor, policy *table.RoutingP
 		adminState = ADMIN_STATE_DOWN
 	}
 	fsm := &FSM{
-		gConf:            gConf,
-		pConf:            pConf,
-		state:            bgp.BGP_FSM_IDLE,
-		connCh:           make(chan net.Conn, 1),
-		opensentHoldTime: float64(HOLDTIME_OPENSENT),
-		adminState:       adminState,
-		adminStateCh:     make(chan AdminState, 1),
-		getActiveCh:      make(chan struct{}),
-		rfMap:            make(map[bgp.RouteFamily]bool),
-		capMap:           make(map[bgp.BGPCapabilityCode][]bgp.ParameterCapabilityInterface),
-		peerInfo:         table.NewPeerInfo(gConf, pConf),
-		policy:           policy,
+		gConf:              gConf,
+		pConf:              pConf,
+		state:              bgp.BGP_FSM_IDLE,
+		connCh:             make(chan net.Conn, 1),
+		opensentHoldTime:   float64(HOLDTIME_OPENSENT),
+		adminState:         adminState,
+		adminStateCh:       make(chan AdminState, 1),
+		getActiveCh:        make(chan struct{}),
+		rfMap:              make(map[bgp.RouteFamily]bool),
+		capMap:             make(map[bgp.BGPCapabilityCode][]bgp.ParameterCapabilityInterface),
+		peerInfo:           table.NewPeerInfo(gConf, pConf),
+		policy:             policy,
+		marshallingOptions: make([]bgp.MarshallingOption, 0),
 	}
 	fsm.t.Go(fsm.connectLoop)
 	return fsm
@@ -526,7 +528,7 @@ func (h *FSMHandler) recvMessageWithError() error {
 	}
 
 	now := time.Now()
-	m, err := bgp.ParseBGPBody(hd, bodyBuf)
+	m, err := bgp.ParseBGPBody(hd, bodyBuf, h.fsm.marshallingOptions...)
 	if err == nil {
 		h.fsm.bgpMessageStateUpdate(m.Header.Type, true)
 		err = bgp.ValidateBGPMessage(m)
@@ -693,6 +695,10 @@ func (h *FSMHandler) opensent() (bgp.FSMState, FsmStateReason) {
 					}
 					fsm.peerInfo.ID = body.ID
 					fsm.capMap, fsm.rfMap = open2Cap(body, fsm.pConf)
+
+					if _, y := fsm.capMap[bgp.BGP_CAP_FOUR_OCTET_AS_NUMBER]; !y {
+						fsm.marshallingOptions = append(fsm.marshallingOptions, bgp.AS2Option{})
+					}
 
 					// calculate HoldTime
 					// RFC 4271 P.13
@@ -866,6 +872,13 @@ func (h *FSMHandler) sendMessageloop() error {
 	fsm := h.fsm
 	ticker := keepaliveTicker(fsm)
 	send := func(m *bgp.BGPMessage) error {
+		if m.Header.Type == bgp.BGP_MSG_UPDATE && bgp.HasAS2Option(fsm.marshallingOptions) {
+			log.WithFields(log.Fields{
+				"Topic": "Peer",
+				"Key":   fsm.pConf.Config.NeighborAddress,
+			}).Debug("update for 2byte AS peer")
+			table.UpdatePathAttrs2ByteAs(m.Body.(*bgp.BGPUpdate))
+		}
 		b, err := m.Serialize()
 		if err != nil {
 			log.WithFields(log.Fields{
