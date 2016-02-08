@@ -65,6 +65,9 @@ func (w *bmpWatcher) tryConnect(server *bmpServer) {
 	interval := 1
 	host := server.host
 	for {
+		if !server.reconnecting {
+			break
+		}
 		log.Debug("connecting bmp server: ", host)
 		conn, err := net.Dial("tcp", host)
 		if err != nil {
@@ -105,13 +108,14 @@ func (w *bmpWatcher) loop() error {
 			c := m.config
 			if m.del {
 				host := net.JoinHostPort(c.Address, strconv.Itoa(int(c.Port)))
-				if _, y := w.connMap[host]; !y {
+				if s, y := w.connMap[host]; !y {
 					m.errCh <- fmt.Errorf("bmp server %s doesn't exists", host)
 					continue
+				} else {
+					s.reconnecting = false
+					delete(w.connMap, host)
+					s.conn.Close()
 				}
-				conn := w.connMap[host].conn
-				delete(w.connMap, host)
-				conn.Close()
 			} else {
 				host := net.JoinHostPort(c.Address, strconv.Itoa(int(c.Port)))
 				if _, y := w.connMap[host]; y {
@@ -128,6 +132,9 @@ func (w *bmpWatcher) loop() error {
 			m.errCh <- nil
 			close(m.errCh)
 		case server := <-w.newServerCh:
+			if _, y := w.connMap[server.host]; !y {
+				break
+			}
 			server.reconnecting = false
 			i := bgp.NewBMPInitiation([]bgp.BMPTLV{})
 			buf, _ := i.Serialize()
