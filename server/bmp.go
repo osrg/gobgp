@@ -47,6 +47,8 @@ type bmpWatcher struct {
 	endCh     chan *net.TCPConn
 	connMap   map[string]*bmpServer
 	ctlCh     chan *bmpConfig
+	sysName   string
+	sysDescr  string
 }
 
 func (w *bmpWatcher) notify(t watcherEventType) chan watcherEvent {
@@ -121,7 +123,10 @@ func (w *bmpWatcher) loop() error {
 				log.Warnf("Can't find bmp server %s", newConn.RemoteAddr().String())
 				break
 			}
-			i := bgp.NewBMPInitiation([]bgp.BMPTLV{})
+			tlvs := make([]*bgp.BMPTLV, 0, 2)
+			tlvs = append(tlvs, bgp.NewBMPTLV(bgp.BMP_INIT_TLV_SYS_DESCR, []byte(w.sysDescr)))
+			tlvs = append(tlvs, bgp.NewBMPTLV(bgp.BMP_INIT_TLV_SYS_NAME, []byte(w.sysName)))
+			i := bgp.NewBMPInitiation(tlvs)
 			buf, _ := i.Serialize()
 			if _, err := newConn.Write(buf); err != nil {
 				log.Warnf("failed to write to bmp server %s", server.host)
@@ -295,7 +300,7 @@ func (w *bmpWatcher) watchingEventTypes() []watcherEventType {
 	return types
 }
 
-func newBmpWatcher(grpcCh chan *GrpcRequest) (*bmpWatcher, error) {
+func newBmpWatcher(sysName, sysDescr string, grpcCh chan *GrpcRequest) (*bmpWatcher, error) {
 	w := &bmpWatcher{
 		ch:        make(chan watcherEvent),
 		apiCh:     grpcCh,
@@ -303,6 +308,8 @@ func newBmpWatcher(grpcCh chan *GrpcRequest) (*bmpWatcher, error) {
 		endCh:     make(chan *net.TCPConn),
 		connMap:   make(map[string]*bmpServer),
 		ctlCh:     make(chan *bmpConfig),
+		sysName:   sysName,
+		sysDescr:  sysDescr,
 	}
 	w.t.Go(w.loop)
 	return w, nil

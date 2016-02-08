@@ -512,18 +512,27 @@ module gobgp {
 
   grouping gobgp-bmp-servers {
     description "BGP Monitoring Protocol servers";
+    reference "BGP Monitoring Protocol draft-ietf-grow-bmp-17";
 
-    container bmp-servers {
-      list bmp-server {
-        key "address";
-        description
-          "List of BMP servers configured on the local system";
-        leaf address {
-          type leafref {
-            path "../config/address";
+    container bmp {
+      leaf sys-name {
+          type string;
+      }
+      leaf sys-descr {
+          type string;
+      }
+      container bmp-servers {
+        list bmp-server {
+          key "address";
+          description
+            "List of BMP servers configured on the local system";
+          leaf address {
+            type leafref {
+              path "../config/address";
+            }
           }
+          uses gobgp-bmp-server-set;
         }
-        uses gobgp-bmp-server-set;
       }
     }
   }

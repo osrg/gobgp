@@ -372,6 +372,12 @@ func (body *BMPStatisticsReport) Serialize() ([]byte, error) {
 	return buf, nil
 }
 
+const (
+	BMP_INIT_TLV_STRING    uint16 = 0
+	BMP_INIT_TLV_SYS_DESCR        = 1
+	BMP_INIT_TLV_SYS_NAME         = 2
+)
+
 type BMPTLV struct {
 	Type   uint16
 	Length uint16
@@ -410,10 +416,10 @@ func (tlv *BMPTLV) Len() int {
 }
 
 type BMPInitiation struct {
-	Info []BMPTLV
+	Info []*BMPTLV
 }
 
-func NewBMPInitiation(info []BMPTLV) *BMPMessage {
+func NewBMPInitiation(info []*BMPTLV) *BMPMessage {
 	return &BMPMessage{
 		Header: BMPHeader{
 			Version: BMP_VERSION,
@@ -427,7 +433,7 @@ func NewBMPInitiation(info []BMPTLV) *BMPMessage {
 
 func (body *BMPInitiation) ParseBody(msg *BMPMessage, data []byte) error {
 	for len(data) > 0 {
-		tlv := BMPTLV{}
+		tlv := &BMPTLV{}
 		tlv.DecodeFromBytes(data)
 		body.Info = append(body.Info, tlv)
 		data = data[tlv.Len():]

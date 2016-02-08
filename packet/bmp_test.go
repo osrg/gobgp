@@ -41,7 +41,7 @@ func verify(t *testing.T, m1 *BMPMessage) {
 func Test_Initiation(t *testing.T) {
 	verify(t, NewBMPInitiation(nil))
 	tlv := NewBMPTLV(1, []byte{0x3, 0xb, 0x0, 0x0, 0x0, 0xf, 0x42, 0x40})
-	m := NewBMPInitiation([]BMPTLV{*tlv})
+	m := NewBMPInitiation([]*BMPTLV{tlv})
 	verify(t, m)
 }
 

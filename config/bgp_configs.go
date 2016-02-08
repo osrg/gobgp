@@ -1503,6 +1503,16 @@ type BmpServer struct {
 	State BmpServerState `mapstructure:"state"`
 }
 
+//struct for container gobgp:bmp
+type Bmp struct {
+	// original -> gobgp:sys-name
+	SysName string `mapstructure:"sys-name"`
+	// original -> gobgp:sys-descr
+	SysDescr string `mapstructure:"sys-descr"`
+	// original -> gobgp:bmp-servers
+	BmpServers []BmpServer `mapstructure:"bmp-servers"`
+}
+
 //struct for container gobgp:collector
 type Collector struct {
 	// original -> gobgp:enabled
@@ -2040,8 +2050,8 @@ type Global struct {
 	ApplyPolicy ApplyPolicy `mapstructure:"apply-policy"`
 	// original -> gobgp:collector
 	Collector Collector `mapstructure:"collector"`
-	// original -> gobgp:bmp-servers
-	BmpServers []BmpServer `mapstructure:"bmp-servers"`
+	// original -> gobgp:bmp
+	Bmp Bmp `mapstructure:"bmp"`
 	// original -> gobgp:mrt
 	Mrt Mrt `mapstructure:"mrt"`
 	// original -> gobgp:zebra
