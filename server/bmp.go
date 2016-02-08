@@ -27,11 +27,40 @@ import (
 	"time"
 )
 
-type bmpServer struct {
+type bmpServer interface {
+	Write([]byte) (int, error)
+	Close() error
+	Type() config.BmpRouteMonitoringPolicyType
+	Name() string
+}
+
+type bmpTcpServer struct {
 	conn         *net.TCPConn
 	host         string
 	typ          config.BmpRouteMonitoringPolicyType
 	reconnecting bool
+}
+
+func (s *bmpTcpServer) Write(p []byte) (int, error) {
+	if s.conn != nil {
+		return s.conn.Write(p)
+	}
+	return 0, nil
+}
+
+func (s *bmpTcpServer) Close() error {
+	if s.conn != nil {
+		return s.conn.Close()
+	}
+	return nil
+}
+
+func (s *bmpTcpServer) Type() config.BmpRouteMonitoringPolicyType {
+	return s.typ
+}
+
+func (s *bmpTcpServer) Name() string {
+	return s.host
 }
 
 type bmpConfig struct {
@@ -44,9 +73,9 @@ type bmpWatcher struct {
 	t           tomb.Tomb
 	ch          chan watcherEvent
 	apiCh       chan *GrpcRequest
-	newServerCh chan *bmpServer
-	endCh       chan *net.TCPConn
-	connMap     map[string]*bmpServer
+	newServerCh chan bmpServer
+	endCh       chan bmpServer
+	connMap     map[string]bmpServer
 	ctlCh       chan *bmpConfig
 }
 
@@ -61,7 +90,7 @@ func (w *bmpWatcher) stop() {
 	w.t.Kill(nil)
 }
 
-func (w *bmpWatcher) tryConnect(server *bmpServer) {
+func (w *bmpWatcher) tryConnect(server *bmpTcpServer) {
 	interval := 1
 	host := server.host
 	for {
@@ -80,7 +109,7 @@ func (w *bmpWatcher) tryConnect(server *bmpServer) {
 				for {
 					_, err := conn.Read(buf)
 					if err != nil {
-						w.endCh <- conn.(*net.TCPConn)
+						w.endCh <- server
 						return
 					}
 				}
@@ -96,9 +125,7 @@ func (w *bmpWatcher) loop() error {
 		select {
 		case <-w.t.Dying():
 			for _, server := range w.connMap {
-				if server.conn != nil {
-					server.conn.Close()
-				}
+				server.Close()
 			}
 			return nil
 		case m := <-w.ctlCh:
@@ -109,16 +136,15 @@ func (w *bmpWatcher) loop() error {
 					m.errCh <- fmt.Errorf("bmp server %s doesn't exists", host)
 					continue
 				}
-				conn := w.connMap[host].conn
+				w.connMap[host].Close()
 				delete(w.connMap, host)
-				conn.Close()
 			} else {
 				host := net.JoinHostPort(c.Address, strconv.Itoa(int(c.Port)))
 				if _, y := w.connMap[host]; y {
 					m.errCh <- fmt.Errorf("bmp server %s already exists", host)
 					continue
 				}
-				server := &bmpServer{
+				server := &bmpTcpServer{
 					host: host,
 					typ:  c.RouteMonitoringPolicy,
 				}
@@ -128,13 +154,15 @@ func (w *bmpWatcher) loop() error {
 			m.errCh <- nil
 			close(m.errCh)
 		case server := <-w.newServerCh:
-			server.reconnecting = false
+			if s, y := server.(*bmpTcpServer); y {
+				s.reconnecting = false
+			}
 			i := bgp.NewBMPInitiation([]bgp.BMPTLV{})
 			buf, _ := i.Serialize()
-			_, err := server.conn.Write(buf)
+			_, err := server.Write(buf)
 			if err != nil {
-				log.Warnf("failed to write to bmp server %s %s", server.host, err)
-				go func() { w.endCh <- server.conn }()
+				log.Warnf("failed to write to bmp server %s %s", server.Name(), err)
+				go func(s bmpServer) { w.endCh <- s }(server)
 				break
 			}
 			req := &GrpcRequest{
@@ -146,10 +174,10 @@ func (w *bmpWatcher) loop() error {
 				for res := range req.ResponseCh {
 					for _, msg := range res.Data.([]*bgp.BMPMessage) {
 						buf, _ = msg.Serialize()
-						_, err := server.conn.Write(buf)
+						_, err := server.Write(buf)
 						if err != nil {
-							log.Warnf("failed to write to bmp server %s %s", server.host, err)
-							go func() { w.endCh <- server.conn }()
+							log.Warnf("failed to write to bmp server %s %s", server.Name(), err)
+							go func(s bmpServer) { w.endCh <- s }(server)
 							return err
 						}
 					}
@@ -159,7 +187,7 @@ func (w *bmpWatcher) loop() error {
 			if write(req) != nil {
 				break
 			}
-			if server.typ != config.BMP_ROUTE_MONITORING_POLICY_TYPE_POST_POLICY {
+			if server.Type() != config.BMP_ROUTE_MONITORING_POLICY_TYPE_POST_POLICY {
 				req = &GrpcRequest{
 					RequestType: REQ_BMP_ADJ_IN,
 					ResponseCh:  make(chan *GrpcResponse, 1),
@@ -169,7 +197,7 @@ func (w *bmpWatcher) loop() error {
 					break
 				}
 			}
-			if server.typ != config.BMP_ROUTE_MONITORING_POLICY_TYPE_PRE_POLICY {
+			if server.Type() != config.BMP_ROUTE_MONITORING_POLICY_TYPE_PRE_POLICY {
 				req = &GrpcRequest{
 					RequestType: REQ_BMP_GLOBAL,
 					ResponseCh:  make(chan *GrpcResponse, 1),
@@ -189,15 +217,13 @@ func (w *bmpWatcher) loop() error {
 				}
 				buf, _ := bmpPeerRoute(bgp.BMP_PEER_TYPE_GLOBAL, msg.postPolicy, 0, info, msg.timestamp.Unix(), msg.payload).Serialize()
 				for _, server := range w.connMap {
-					if server.conn != nil {
-						send := server.typ != config.BMP_ROUTE_MONITORING_POLICY_TYPE_POST_POLICY && !msg.postPolicy
-						send = send || (server.typ != config.BMP_ROUTE_MONITORING_POLICY_TYPE_PRE_POLICY && msg.postPolicy)
-						if send {
-							_, err := server.conn.Write(buf)
-							if err != nil {
-								log.Warnf("failed to write to bmp server %s", server.host)
-								go func() { w.endCh <- server.conn }()
-							}
+					send := server.Type() != config.BMP_ROUTE_MONITORING_POLICY_TYPE_POST_POLICY && !msg.postPolicy
+					send = send || (server.Type() != config.BMP_ROUTE_MONITORING_POLICY_TYPE_PRE_POLICY && msg.postPolicy)
+					if send {
+						_, err := server.Write(buf)
+						if err != nil {
+							log.Warnf("failed to write to bmp server %s", server.Name())
+							go func(s bmpServer) { w.endCh <- s }(server)
 						}
 					}
 				}
@@ -215,25 +241,24 @@ func (w *bmpWatcher) loop() error {
 				}
 				buf, _ := bmpmsg.Serialize()
 				for _, server := range w.connMap {
-					if server.conn != nil {
-						_, err := server.conn.Write(buf)
-						if err != nil {
-							log.Warnf("failed to write to bmp server %s", server.host)
-							go func() { w.endCh <- server.conn }()
-						}
+					if _, err := server.Write(buf); err != nil {
+						log.Warnf("failed to write to bmp server %s", server.Name())
+						go func(s bmpServer) { w.endCh <- s }(server)
 					}
 				}
 			default:
 				log.Warnf("unknown watcher event")
 			}
-		case conn := <-w.endCh:
-			host := conn.RemoteAddr().String()
-			if s, y := w.connMap[host]; y && !s.reconnecting {
-				log.Debugf("bmp connection to %s killed", host)
-				s.reconnecting = true
-				s.conn.Close()
-				s.conn = nil
-				go w.tryConnect(s)
+		case server := <-w.endCh:
+			switch s := server.(type) {
+			case *bmpTcpServer:
+				if !s.reconnecting {
+					log.Debugf("bmp connection to %s killed", s.conn.RemoteAddr().String())
+					s.reconnecting = true
+					s.conn.Close()
+					s.conn = nil
+					go w.tryConnect(s)
+				}
 			}
 		}
 	}
@@ -285,14 +310,12 @@ func (w *bmpWatcher) watchingEventTypes() []watcherEventType {
 	pre := false
 	post := false
 	for _, server := range w.connMap {
-		if server.conn != nil {
-			state = true
-			if server.typ != config.BMP_ROUTE_MONITORING_POLICY_TYPE_POST_POLICY {
-				pre = true
-			}
-			if server.typ != config.BMP_ROUTE_MONITORING_POLICY_TYPE_PRE_POLICY {
-				post = true
-			}
+		state = true
+		if server.Type() != config.BMP_ROUTE_MONITORING_POLICY_TYPE_POST_POLICY {
+			pre = true
+		}
+		if server.Type() != config.BMP_ROUTE_MONITORING_POLICY_TYPE_PRE_POLICY {
+			post = true
 		}
 	}
 	types := make([]watcherEventType, 0, 3)
@@ -312,9 +335,9 @@ func newBmpWatcher(grpcCh chan *GrpcRequest) (*bmpWatcher, error) {
 	w := &bmpWatcher{
 		ch:          make(chan watcherEvent),
 		apiCh:       grpcCh,
-		newServerCh: make(chan *bmpServer),
-		endCh:       make(chan *net.TCPConn),
-		connMap:     make(map[string]*bmpServer),
+		newServerCh: make(chan bmpServer),
+		endCh:       make(chan bmpServer),
+		connMap:     make(map[string]bmpServer),
 		ctlCh:       make(chan *bmpConfig),
 	}
 	w.t.Go(w.loop)
