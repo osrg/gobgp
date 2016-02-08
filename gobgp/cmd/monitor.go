@@ -218,6 +218,49 @@ func NewMonitorCmd() *cobra.Command {
 	}
 	adjInCmd.PersistentFlags().StringVarP(&subOpts.AddressFamily, "address-family", "a", "", "address family")
 
+	bmpCmd := &cobra.Command{
+		Use: CMD_BMP,
+		Run: func(cmd *cobra.Command, args []string) {
+			typ := "pre"
+			if len(args) > 0 {
+				typ = args[0]
+			}
+			arg := &gobgpapi.MonitorBmpArguments{}
+			switch typ {
+			case "pre":
+				arg.Type = gobgpapi.MonitorBmpArguments_PRE
+			case "post":
+				arg.Type = gobgpapi.MonitorBmpArguments_POST
+			case "both":
+				arg.Type = gobgpapi.MonitorBmpArguments_BOTH
+			default:
+				fmt.Println("invalid monitor bmp type: %s", typ)
+				os.Exit(1)
+			}
+			stream, err := client.MonitorBmp(context.Background(), arg)
+			if err != nil {
+				fmt.Println(err)
+				os.Exit(1)
+			}
+			for {
+				d, err := stream.Recv()
+				if err == io.EOF {
+					break
+				} else if err != nil {
+					fmt.Println(err)
+					os.Exit(1)
+				}
+				msg, err := bgp.ParseBMPMessage(d.Data)
+				if err != nil {
+					fmt.Println(err)
+					os.Exit(1)
+				}
+				j, _ := json.Marshal(msg)
+				fmt.Println(string(j))
+			}
+		},
+	}
+
 	monitorCmd := &cobra.Command{
 		Use: CMD_MONITOR,
 	}
@@ -225,6 +268,7 @@ func NewMonitorCmd() *cobra.Command {
 	monitorCmd.AddCommand(neighborCmd)
 	monitorCmd.AddCommand(rpkiCmd)
 	monitorCmd.AddCommand(adjInCmd)
+	monitorCmd.AddCommand(bmpCmd)
 
 	return monitorCmd
 }
