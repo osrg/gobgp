@@ -39,6 +39,7 @@ service GobgpApi {
   rpc MonitorBestChanged(Arguments) returns (stream Destination) {}
   rpc MonitorPeerState(Arguments) returns (stream Peer) {}
   rpc MonitorROAValidation(Arguments) returns (stream ROAResult) {}
+  rpc MonitorBmp(MonitorBmpArguments) returns (stream BmpMessage) {}
   rpc GetMrt(MrtArguments) returns (stream MrtMessage) {}
   rpc ModMrt(ModMrtArguments) returns (Error) {}
   rpc ModBmp(ModBmpArguments) returns (Error) {}
@@ -164,6 +165,15 @@ message ModPolicyAssignmentArguments {
 message ModGlobalConfigArguments {
     Operation operation = 1;
     Global global = 2;
+}
+
+message MonitorBmpArguments {
+    enum Type {
+        PRE = 0;
+        POST = 1;
+        BOTH = 2;
+    }
+    Type type = 1;
 }
 
 enum Resource {
@@ -459,6 +469,10 @@ message PolicyAssignment {
 }
 
 message MrtMessage {
+    bytes data = 1;
+}
+
+message BmpMessage {
     bytes data = 1;
 }
 

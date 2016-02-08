@@ -18,9 +18,11 @@ package server
 import (
 	"fmt"
 	log "github.com/Sirupsen/logrus"
+	api "github.com/osrg/gobgp/api"
 	"github.com/osrg/gobgp/config"
 	"github.com/osrg/gobgp/packet"
 	"github.com/osrg/gobgp/table"
+	"github.com/satori/go.uuid"
 	"gopkg.in/tomb.v2"
 	"net"
 	"strconv"
@@ -63,6 +65,41 @@ func (s *bmpTcpServer) Name() string {
 	return s.host
 }
 
+type bmpGrpcServer struct {
+	req  *GrpcRequest
+	name string
+}
+
+func (s *bmpGrpcServer) Write(p []byte) (int, error) {
+	select {
+	case <-s.req.EndCh:
+		return 0, fmt.Errorf("request ended")
+	default:
+	}
+	s.req.ResponseCh <- &GrpcResponse{Data: &api.BmpMessage{Data: p}}
+	return len(p), nil
+}
+
+func (s *bmpGrpcServer) Close() error {
+	close(s.req.ResponseCh)
+	return nil
+}
+
+func (s *bmpGrpcServer) Type() config.BmpRouteMonitoringPolicyType {
+	return config.IntToBmpRouteMonitoringPolicyTypeMap[int(s.req.Data.(*api.MonitorBmpArguments).Type)]
+}
+
+func (s *bmpGrpcServer) Name() string {
+	return s.name
+}
+
+func newBmpGrpcServer(req *GrpcRequest) *bmpGrpcServer {
+	return &bmpGrpcServer{
+		req:  req,
+		name: uuid.NewV4().String(),
+	}
+}
+
 type bmpConfig struct {
 	config config.BmpServerConfig
 	del    bool
@@ -77,6 +114,7 @@ type bmpWatcher struct {
 	endCh       chan bmpServer
 	connMap     map[string]bmpServer
 	ctlCh       chan *bmpConfig
+	reqCh       chan *GrpcRequest
 }
 
 func (w *bmpWatcher) notify(t watcherEventType) chan watcherEvent {
@@ -131,6 +169,11 @@ func (w *bmpWatcher) loop() error {
 				server.Close()
 			}
 			return nil
+		case req := <-w.reqCh:
+			s := newBmpGrpcServer(req)
+			w.connMap[s.Name()] = s
+			log.Debugf("new grpc bmp monitor request: %s", s.Name())
+			go func() { w.newServerCh <- s }()
 		case m := <-w.ctlCh:
 			c := m.config
 			if m.del {
@@ -259,11 +302,17 @@ func (w *bmpWatcher) loop() error {
 			switch s := server.(type) {
 			case *bmpTcpServer:
 				if !s.reconnecting {
-					log.Debugf("bmp connection to %s killed", s.conn.RemoteAddr().String())
+					log.Debugf("bmp connection to %s killed", s.Name())
 					s.reconnecting = true
 					s.conn.Close()
 					s.conn = nil
 					go w.tryConnect(s)
+				}
+			case *bmpGrpcServer:
+				if _, y := w.connMap[s.Name()]; y {
+					log.Debugf("grpc monitor bmp request %s killed", s.Name())
+					s.Close()
+					delete(w.connMap, s.Name())
 				}
 			}
 		}
@@ -311,6 +360,10 @@ func (w *bmpWatcher) deleteServer(c config.BmpServerConfig) error {
 	return <-ch
 }
 
+func (w *bmpWatcher) addRequest(req *GrpcRequest) {
+	w.reqCh <- req
+}
+
 func (w *bmpWatcher) watchingEventTypes() []watcherEventType {
 	state := false
 	pre := false
@@ -345,6 +398,7 @@ func newBmpWatcher(grpcCh chan *GrpcRequest) (*bmpWatcher, error) {
 		endCh:       make(chan bmpServer),
 		connMap:     make(map[string]bmpServer),
 		ctlCh:       make(chan *bmpConfig),
+		reqCh:       make(chan *GrpcRequest),
 	}
 	w.t.Go(w.loop)
 	return w, nil
