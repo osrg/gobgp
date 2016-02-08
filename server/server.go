@@ -174,7 +174,8 @@ func (server *BgpServer) Listeners(addr string) []*net.TCPListener {
 	list := make([]*net.TCPListener, 0, len(server.listeners))
 	rhs := net.ParseIP(addr).To4() != nil
 	for _, l := range server.listeners {
-		lhs := net.ParseIP(l.Addr().String()).To4() != nil
+		host, _, _ := net.SplitHostPort(l.Addr().String())
+		lhs := net.ParseIP(host).To4() != nil
 		if lhs == rhs {
 			list = append(list, l)
 		}
