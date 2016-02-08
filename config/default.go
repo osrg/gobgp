@@ -5,7 +5,10 @@ import (
 	"github.com/osrg/gobgp/packet"
 	"github.com/spf13/viper"
 	"net"
+	"os"
 )
+
+var VERSION string
 
 const (
 	DEFAULT_HOLDTIME                  = 90
@@ -44,11 +47,23 @@ func SetDefaultConfigValues(v *viper.Viper, b *Bgp) error {
 		b.Global.ListenConfig.Port = bgp.BGP_PORT
 	}
 
-	for idx, server := range b.Global.BmpServers {
+	if !v.IsSet("global.bmp.sys-name") {
+		name, _ := os.Hostname()
+		b.Global.Bmp.SysName = name
+	}
+
+	if !v.IsSet("global.bmp.sys-descr") {
+		b.Global.Bmp.SysDescr = "GoBGP"
+		if VERSION != "" {
+			b.Global.Bmp.SysDescr += fmt.Sprintf(" version %s", VERSION)
+		}
+	}
+
+	for idx, server := range b.Global.Bmp.BmpServers {
 		if server.Config.Port == 0 {
 			server.Config.Port = bgp.BMP_DEFAULT_PORT
 		}
-		b.Global.BmpServers[idx] = server
+		b.Global.Bmp.BmpServers[idx] = server
 	}
 
 	if !v.IsSet("global.mpls-label-range.min-label") {

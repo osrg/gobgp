@@ -217,12 +217,12 @@ func (server *BgpServer) Serve() {
 		}
 	}
 
-	if len(g.BmpServers) > 0 {
-		w, err := newBmpWatcher(server.GrpcReqCh)
+	if len(g.Bmp.BmpServers) > 0 {
+		w, err := newBmpWatcher(g.Bmp.SysName, g.Bmp.SysDescr, server.GrpcReqCh)
 		if err != nil {
 			log.Warn(err)
 		} else {
-			for _, server := range g.BmpServers {
+			for _, server := range g.Bmp.BmpServers {
 				if err := w.addServer(server.Config); err != nil {
 					log.Warn(err)
 				}
@@ -2659,7 +2659,8 @@ func (server *BgpServer) handleModBmp(grpcReq *GrpcRequest) {
 	w, y := server.watchers[WATCHER_BMP]
 	if !y {
 		if arg.Operation == api.Operation_ADD {
-			w, _ = newBmpWatcher(server.GrpcReqCh)
+			g := server.bgpConfig.Global
+			w, _ = newBmpWatcher(g.Bmp.SysName, g.Bmp.SysDescr, server.GrpcReqCh)
 			server.watchers[WATCHER_BMP] = w
 		} else if arg.Operation == api.Operation_DEL {
 			grpcDone(grpcReq, fmt.Errorf("not enabled yet"))

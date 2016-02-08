@@ -4,34 +4,37 @@
 [global.config]
     as = 1
     router-id = "1.1.1.1"
-    [global.apply-policy.config]
-        import-policy-list = ["policy1"]
-        default-import-policy = "reject-route"
-        export-policy-list = ["policy2"]
-        default-export-policy = "accept-route"
-    [[global.bmp-servers]]
-        [global.bmp-servers.config]
+[global.apply-policy.config]
+    import-policy-list = ["policy1"]
+    default-import-policy = "reject-route"
+    export-policy-list = ["policy2"]
+    default-export-policy = "accept-route"
+[global.bmp.bmp-servers]
+    sys-name = "hostname"
+    sys-descr = "gobgp version x.x"
+    [[global.bmp.bmp-servers]]
+        [global.bmp.bmp-servers.config]
             address = "127.0.0.1"
             port = 11019
-    [global.mrt]
-        file-name = "/var/log/mrt.dump"
-    [global.zebra]
-        enabled = true
-        url = "unix:/var/run/quagga/zserv.api"
-        redistribute-route-type-list = ["connect"]
-    [global.mpls-label-range]
-        min-label = 1000
-        max-label = 2000
-    [global.listen-config]
-        # listen port (by default 179)
-        port = 1790
-        # to disable listening
-        # port = -1
+[global.mrt]
+    file-name = "/var/log/mrt.dump"
+[global.zebra]
+    enabled = true
+    url = "unix:/var/run/quagga/zserv.api"
+    redistribute-route-type-list = ["connect"]
+[global.mpls-label-range]
+    min-label = 1000
+    max-label = 2000
+[global.listen-config]
+    # listen port (by default 179)
+    port = 1790
+    # to disable listening
+    # port = -1
 
-        # listen address list (by default "0.0.0.0" and "::")
-        local-address-list = ["192.168.10.1", "2001:db8::1"]
-    [global.collector]
-        enabled = true
+    # listen address list (by default "0.0.0.0" and "::")
+    local-address-list = ["192.168.10.1", "2001:db8::1"]
+[global.collector]
+    enabled = true
 
 [[rpki-servers]]
     [rpki-servers.config]
