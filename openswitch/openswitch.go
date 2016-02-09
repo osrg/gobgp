@@ -394,16 +394,23 @@ func (m *OpsManager) TransactPreparation(p []*cmd.Path) (*OpsOperation, error) {
 	if err != nil {
 		return nil, err
 	}
-	opsRoute, err := createOpsRoute(p)
+	opsRoute, isWithdraw, err := createOpsRoute(p)
 	if err != nil {
 		return nil, err
 	}
-	insNextHopOp := insertNextHop(opsRoute)
-	insRouteOp, err := insertRoute(v, opsRoute)
-	if err != nil {
-		return nil, err
+
+	var o []ovsdb.Operation
+	if !isWithdraw {
+		insNextHopOp := insertNextHop(opsRoute)
+		insRouteOp, err := insertRoute(v, opsRoute)
+		if err != nil {
+			return nil, err
+		}
+		o = []ovsdb.Operation{insNextHopOp, insRouteOp}
+	} else {
+		delRouteOp := deleteRoute(opsRoute)
+		o = []ovsdb.Operation{delRouteOp}
 	}
-	o := []ovsdb.Operation{insNextHopOp, insRouteOp}
 	oOperation := &OpsOperation{
 		operations: o,
 	}
@@ -448,11 +455,22 @@ func insertRoute(vrfId uuid.UUID, opsRoute map[string]interface{}) (ovsdb.Operat
 	return insRouteOp, nil
 }
 
-func createOpsRoute(pl []*cmd.Path) (map[string]interface{}, error) {
+func deleteRoute(opsRoute map[string]interface{}) (ovsdb.Operation) {
+	condition := ovsdb.NewCondition("prefix", "==", opsRoute["prefix"])
+	deleteOp := ovsdb.Operation{
+		Op:    "delete",
+		Table: "BGP_Route",
+		Where: []interface{}{condition},
+	}
+	return deleteOp
+}
 
-	route := make(map[string]interface{})
-	route["metric"] = 0
-	route["peer"] = "Remote announcement"
+func createOpsRoute(pl []*cmd.Path) (map[string]interface{}, bool, error) {
+	route := map[string]interface{}{"metric": 0, "peer": "Remote announcement"}
+	IsWithdraw := false
+//	route := make(map[string]interface{})
+//	route["metric"] = 0
+//	route["peer"] = "Remote announcement"
 	for _, p := range pl {
 		var nexthop string
 		pathAttr := map[string]string{"BGP_iBGP": "false", "BGP_flags": "16", "BGP_internal": "false", "BGP_loc_pref": "0"}
@@ -488,6 +506,7 @@ func createOpsRoute(pl []*cmd.Path) (map[string]interface{}, error) {
 				continue
 			}
 		}
+		IsWithdraw = p.IsWithdraw
 		afi := "ipv4"
 		if p.Nlri.AFI() != bgp.AFI_IP {
 			afi = "ipv6"
@@ -502,7 +521,7 @@ func createOpsRoute(pl []*cmd.Path) (map[string]interface{}, error) {
 		break
 	}
 
-	return route, nil
+	return route, IsWithdraw, nil
 }
 
 type OpsOperation struct {
