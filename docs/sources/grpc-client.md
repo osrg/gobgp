@@ -3,7 +3,7 @@
 This page explains how to managing GoBGP with your favorite Language.
 You can use any language supported by [gRPC](http://www.grpc.io/) (10
 languages are supported now). This page gives an example in Python,
-Ruby, C++ and Node.js. It assumes that you use Ubuntu 14.04 (64bit).
+Ruby, C++, Node.js, and Java. It assumes that you use Ubuntu 14.04 (64bit).
 
 ## Contents
 
@@ -11,6 +11,7 @@ Ruby, C++ and Node.js. It assumes that you use Ubuntu 14.04 (64bit).
 - [Ruby](#ruby)
 - [C++](#cpp)
 - [Node.js](#nodejs)
+- [Java](#java)
 
 ## <a name="python"> Python
 
@@ -377,4 +378,178 @@ BGP neighbor is undefined , remote AS undefined
         BGP OutQ = 0 , Flops = 0
         Hold time is undefined , keepalive interval is undefined seconds
         Configured hold time is undefined
+```
+
+## <a name="java"> Java
+We can make a client in Java using [grpc-java](https://github.com/grpc/grpc-java).
+
+### Install JDK:
+We need to install JDK and we use Oracle JDK8 in this example.
+```bash
+$ sudo add-apt-repository ppa:webupd8team/java
+$ sudo apt-get update
+$ sudo apt-get install oracle-java8-installer
+$ java -version
+java version "1.8.0_72"
+Java(TM) SE Runtime Environment (build 1.8.0_72-b15)
+Java HotSpot(TM) 64-Bit Server VM (build 25.72-b15, mixed mode)
+$ echo "export JAVA_HOME=/usr/lib/jvm/java-8-oracle" >> ~/.bashrc
+$ source ~/.bashrc
+```
+
+
+### Install ProtocolBuffers:
+We use v3.0.0 beta2.
+```bash
+$ sudo apt-get install -y build-essential autoconf git libtool unzip
+$ mkdir ~/work
+$ cd ~/work
+$ wget https://github.com/google/protobuf/archive/v3.0.0-beta-2.tar.gz
+$ tar xvzf v3.0.0-beta-2.tar.gz
+$ cd protobuf-3.0.0-beta-2
+$ ./autogen.sh
+$ ./configure
+$ make
+$ sudo make install
+$ echo "export LD_LIBRARY_PATH=/usr/local/lib" >> ~/.bashrc
+$ source ~/.bashrc
+```
+
+Please check the version.
+ ```bash
+ $ protoc --version
+ libprotoc 3.0.0
+ ```
+
+### Create protobuf library for Java:
+```bash
+$ sudo apt-get install maven
+$ cd ~/work/protobuf-3.0.0-beta-2/java
+$ mvn package
+...
+[INFO]
+[INFO] --- maven-bundle-plugin:3.0.1:bundle (default-bundle) @ protobuf-java ---
+[INFO] ------------------------------------------------------------------------
+[INFO] BUILD SUCCESS
+[INFO] ------------------------------------------------------------------------
+[INFO] Total time: 1:57.106s
+[INFO] Finished at: Mon Feb 08 11:51:51 JST 2016
+[INFO] Final Memory: 31M/228M
+[INFO] ------------------------------------------------------------------------
+$ ls ./target/proto*
+./target/protobuf-java-3.0.0-beta-2.jar
+```
+
+### Clone grpc-java and build protoc plugin and other dependencies:
+```bash
+$ cd ~/work
+$ git clone https://github.com/grpc/grpc-java.git
+$ cd ./grpc-java
+$ git checkout -b v0.12.0 v0.12.0
+$ cd ./all
+$ ../gradlew build
+$ ls ../compiler/build/binaries/java_pluginExecutable/
+protoc-gen-grpc-java
+$ ls ./build/libs/grpc-all-0.12.0*
+./build/libs/grpc-all-0.12.0-javadoc.jar  ./build/libs/grpc-all-0.12.0-sources.jar  ./build/libs/grpc-all-0.12.0.jar
+```
+
+### Generate stub classes:
+```bash
+$ cd $GOPATH/src/github.com/osrg/gobgp/tools/grpc
+$ mkdir -p java/src
+$ cd java
+$ GOBGP_API=$GOPATH/src/github.com/osrg/gobgp/api
+$ protoc --java_out=./src --proto_path="$GOBGP_API" $GOBGP_API/gobgp.proto
+$ protoc --plugin=protoc-gen-grpc-java=$HOME/work/grpc-java/compiler/build/binaries/java_pluginExecutable/protoc-gen-grpc-java --grpc-java_out=./src --proto_path="$GOBGP_API" $GOBGP_API/gobgp.proto
+$ ls ./src/gobgpapi/
+Gobgp.java  GobgpApiGrpc.java
+```
+
+### Create your own client and build it:
+```bash
+$ cd ~/go/src/github.com/osrg/gobgp/tools/grpc/java
+$ mkdir -p src/gobgp/example
+$ cd src/gobgp/example
+$ vi GobgpSampleClient.java
+```
+
+```java
+package gobgp.example;
+
+import gobgpapi.Gobgp;
+import gobgpapi.GobgpApiGrpc;
+import io.grpc.ManagedChannel;
+import io.grpc.ManagedChannelBuilder;
+
+import java.util.Iterator;
+
+public class GobgpSampleClient {
+
+    private final GobgpApiGrpc.GobgpApiBlockingStub blockingStub;
+
+    public GobgpSampleClient(String host, int port) {
+        ManagedChannel channel = ManagedChannelBuilder.forAddress(host, port).usePlaintext(true).build();
+        this.blockingStub = GobgpApiGrpc.newBlockingStub(channel);
+    }
+
+    public void getNeighbors(){
+
+        Gobgp.Arguments request = Gobgp.Arguments.newBuilder().build();
+
+        for(Iterator<Gobgp.Peer> iterator = this.blockingStub.getNeighbors(request); iterator.hasNext(); ) {
+            Gobgp.Peer p = iterator.next();
+            Gobgp.PeerConf conf = p.getConf();
+            Gobgp.PeerState state = p.getInfo();
+            Gobgp.Timers timer = p.getTimers();
+
+            System.out.printf("BGP neighbor is %s, remote AS %d\n", conf.getNeighborAddress(), conf.getPeerAs());
+            System.out.printf("\tBGP version 4, remote router ID %s\n", conf.getId());
+            System.out.printf("\tBGP state = %s, up for %d\n", state.getBgpState(), timer.getState().getUptime());
+            System.out.printf("\tBGP OutQ = %d, Flops = %d\n", state.getOutQ(), state.getFlops());
+            System.out.printf("\tHold time is %d, keepalive interval is %d seconds\n",
+                    timer.getState().getHoldTime(), timer.getState().getKeepaliveInterval());
+            System.out.printf("\tConfigured hold time is %d\n", timer.getConfig().getHoldTime());
+
+        }
+    }
+
+    public static void main(String args[]){
+        new GobgpSampleClient(args[0], 8080).getNeighbors();
+    }
+
+}
+
+```
+
+Let's build and run it. However we need to download and copy some dependencies beforehand.
+```bash
+$ cd $GOPATH/src/github.com/osrg/gobgp/tools/grpc/java
+$ mkdir lib
+$ cd lib
+$ wget http://central.maven.org/maven2/com/google/guava/guava/18.0/guava-18.0.jar
+$ wget http://central.maven.org/maven2/com/squareup/okhttp/okhttp/2.5.0/okhttp-2.5.0.jar
+$ wget http://central.maven.org/maven2/com/squareup/okio/okio/1.6.0/okio-1.6.0.jar
+$ cp ~/work/protobuf-3.0.0-beta-2/java/target/protobuf-java-3.0.0-beta-2.jar ./
+$ cp ~/work/grpc-java/all/build/libs/grpc-all-0.12.0.jar ./
+```
+
+We are ready to build and run.
+```bash
+$ cd $GOPATH/src/github.com/osrg/gobgp/tools/grpc/java
+$ mkdir classes
+$ CLASSPATH=./lib/protobuf-java-3.0.0-beta-2.jar:./lib/grpc-all-0.12.0.jar:./lib/guava-18.0.jar:./lib/okhttp-2.5.0.jar:./lib/okio-1.6.0.jar:./classes
+$ javac -classpath $CLASSPATH -d ./classes ./src/gobgpapi/*.java
+$ javac -classpath $CLASSPATH -d ./classes ./src/gobgp/example/GobgpSampleClient.java
+$ java -cp $CLASSPATH gobgp.example.GobgpSampleClient localhost
+Feb 08, 2016 2:39:29 PM io.grpc.internal.TransportSet$1 run
+INFO: Created transport io.grpc.okhttp.OkHttpClientTransport@ba4d54(localhost/127.0.0.1:8080) for localhost/127.0.0.1:8080
+Feb 08, 2016 2:39:29 PM io.grpc.internal.TransportSet$TransportListener transportReady
+INFO: Transport io.grpc.okhttp.OkHttpClientTransport@ba4d54(localhost/127.0.0.1:8080) for localhost/127.0.0.1:8080 is ready
+BGP neighbor is 10.0.255.1, remote AS 65001
+	BGP version 4, remote router ID <nil>
+	BGP state = BGP_FSM_ACTIVE, up for 0
+	BGP OutQ = 0, Flops = 0
+	Hold time is 0, keepalive interval is 0 seconds
+	Configured hold time is 90
 ```
