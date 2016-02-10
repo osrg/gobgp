@@ -13,7 +13,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package main
+package cmd
 
 import (
 	"bytes"
@@ -24,6 +24,7 @@ import (
 	"net"
 	"os"
 	"sort"
+	"strconv"
 	"time"
 )
 
@@ -35,6 +36,7 @@ const (
 	CMD_ADD            = "add"
 	CMD_DEL            = "del"
 	CMD_ALL            = "all"
+	CMD_SET            = "set"
 	CMD_LOCAL          = "local"
 	CMD_ADJ_IN         = "adj-in"
 	CMD_ADJ_OUT        = "adj-out"
@@ -46,21 +48,28 @@ const (
 	CMD_ENABLE         = "enable"
 	CMD_DISABLE        = "disable"
 	CMD_PREFIX         = "prefix"
-	CMD_ASPATH         = "aspath"
+	CMD_ASPATH         = "as-path"
 	CMD_COMMUNITY      = "community"
-	CMD_EXTCOMMUNITY   = "extcommunity"
-	CMD_ROUTEPOLICY    = "routepolicy"
-	CMD_CONDITIONS     = "conditions"
-	CMD_ACTIONS        = "actions"
+	CMD_EXTCOMMUNITY   = "ext-community"
 	CMD_IMPORT         = "import"
 	CMD_EXPORT         = "export"
-	CMD_DISTRIBUTE     = "distribute"
+	CMD_IN             = "in"
 	CMD_MONITOR        = "monitor"
 	CMD_MRT            = "mrt"
 	CMD_DUMP           = "dump"
 	CMD_INJECT         = "inject"
 	CMD_RPKI           = "rpki"
+	CMD_RPKI_TABLE     = "table"
+	CMD_RPKI_SERVER    = "server"
 	CMD_VRF            = "vrf"
+	CMD_ACCEPTED       = "accepted"
+	CMD_REJECTED       = "rejected"
+	CMD_STATEMENT      = "statement"
+	CMD_CONDITION      = "condition"
+	CMD_ACTION         = "action"
+	CMD_UPDATE         = "update"
+	CMD_ROTATE         = "rotate"
+	CMD_BMP            = "bmp"
 )
 
 var subOpts struct {
@@ -130,14 +139,14 @@ type Destination struct {
 	Paths  []*Path `json:"paths"`
 }
 
-func ApiStruct2Destination(dst *api.Destination) (*Destination, error) {
+func ApiStruct2Destination(dst *gobgpapi.Destination) (*Destination, error) {
 	paths := make([]*Path, 0, len(dst.Paths))
 	for _, p := range dst.Paths {
-		path, err := ApiStruct2Path(p)
+		ps, err := ApiStruct2Path(p)
 		if err != nil {
 			return nil, err
 		}
-		paths = append(paths, path)
+		paths = append(paths, ps...)
 	}
 	return &Destination{
 		Prefix: dst.Prefix,
@@ -152,17 +161,21 @@ type Path struct {
 	Age        int64                        `json:"age"`
 	Best       bool                         `json:"best"`
 	IsWithdraw bool                         `json:"isWithdraw"`
-	Validation int32
+	Validation int32                        `json:"validation"`
+	Filtered   bool                         `json:"filtered"`
+	SourceId   string                       `json:"source-id"`
 }
 
-func ApiStruct2Path(p *api.Path) (*Path, error) {
-	var nlri bgp.AddrPrefixInterface
-	if len(p.Nlri) > 0 {
-		nlri = &bgp.NLRInfo{}
-		err := nlri.DecodeFromBytes(p.Nlri)
+func ApiStruct2Path(p *gobgpapi.Path) ([]*Path, error) {
+	nlris := make([]bgp.AddrPrefixInterface, 0, 1)
+	data := p.Nlri
+	if p.Family == uint32(bgp.RF_IPv4_UC) && len(data) > 0 {
+		nlri := &bgp.IPAddrPrefix{}
+		err := nlri.DecodeFromBytes(data)
 		if err != nil {
 			return nil, err
 		}
+		nlris = append(nlris, nlri)
 	}
 
 	pattr := make([]bgp.PathAttributeInterface, 0, len(p.Pattrs))
@@ -180,21 +193,27 @@ func ApiStruct2Path(p *api.Path) (*Path, error) {
 		switch p.GetType() {
 		case bgp.BGP_ATTR_TYPE_MP_REACH_NLRI:
 			mpreach := p.(*bgp.PathAttributeMpReachNLRI)
-			if len(mpreach.Value) != 1 {
-				return nil, fmt.Errorf("include only one route in mp_reach_nlri")
+			for _, nlri := range mpreach.Value {
+				nlris = append(nlris, nlri)
 			}
-			nlri = mpreach.Value[0]
 		}
 		pattr = append(pattr, p)
 	}
-	return &Path{
-		Nlri:       nlri,
-		PathAttrs:  pattr,
-		Age:        p.Age,
-		Best:       p.Best,
-		IsWithdraw: p.IsWithdraw,
-		Validation: p.Validation,
-	}, nil
+
+	paths := make([]*Path, 0, len(nlris))
+	for _, nlri := range nlris {
+		paths = append(paths, &Path{
+			Nlri:       nlri,
+			PathAttrs:  pattr,
+			Age:        p.Age,
+			Best:       p.Best,
+			IsWithdraw: p.IsWithdraw,
+			Validation: p.Validation,
+			SourceId:   p.SourceId,
+			Filtered:   p.Filtered,
+		})
+	}
+	return paths, nil
 }
 
 type paths []*Path
@@ -218,7 +237,48 @@ func (p paths) Less(i, j int) bool {
 	return strings.Less(0, 1)
 }
 
-type peers []*api.Peer
+type PeerConf struct {
+	RemoteIp          net.IP                             `json:"remote_ip,omitempty"`
+	Id                net.IP                             `json:"id,omitempty"`
+	RemoteAs          uint32                             `json:"remote_as,omitempty"`
+	RemoteCap         []bgp.ParameterCapabilityInterface `json:"remote_cap,omitempty"`
+	LocalCap          []bgp.ParameterCapabilityInterface `json:"local_cap,omitempty"`
+	Holdtime          uint32                             `json:"holdtime,omitempty"`
+	KeepaliveInterval uint32                             `json:"keepalive_interval,omitempty"`
+}
+
+type Peer struct {
+	Conf   PeerConf            `json:"conf,omitempty"`
+	Info   *gobgpapi.PeerState `json:"info,omitempty"`
+	Timers *gobgpapi.Timers    `json:"timers,,omitempty"`
+}
+
+func ApiStruct2Peer(p *gobgpapi.Peer) *Peer {
+	localCaps := capabilities{}
+	remoteCaps := capabilities{}
+	for _, buf := range p.Conf.LocalCap {
+		c, _ := bgp.DecodeCapability(buf)
+		localCaps = append(localCaps, c)
+	}
+	for _, buf := range p.Conf.RemoteCap {
+		c, _ := bgp.DecodeCapability(buf)
+		remoteCaps = append(remoteCaps, c)
+	}
+	conf := PeerConf{
+		RemoteIp:  net.ParseIP(p.Conf.NeighborAddress),
+		Id:        net.ParseIP(p.Conf.Id),
+		RemoteAs:  p.Conf.PeerAs,
+		RemoteCap: remoteCaps,
+		LocalCap:  localCaps,
+	}
+	return &Peer{
+		Conf:   conf,
+		Info:   p.Info,
+		Timers: p.Timers,
+	}
+}
+
+type peers []*Peer
 
 func (p peers) Len() int {
 	return len(p)
@@ -229,8 +289,8 @@ func (p peers) Swap(i, j int) {
 }
 
 func (p peers) Less(i, j int) bool {
-	p1 := net.ParseIP(p[i].Conf.RemoteIp)
-	p2 := net.ParseIP(p[j].Conf.RemoteIp)
+	p1 := p[i].Conf.RemoteIp
+	p2 := p[j].Conf.RemoteIp
 	p1Isv4 := p1.To4() != nil
 	p2Isv4 := p2.To4() != nil
 	if p1Isv4 != p2Isv4 {
@@ -248,7 +308,7 @@ func (p peers) Less(i, j int) bool {
 	return strings.Less(0, 1)
 }
 
-type capabilities []*api.Capability
+type capabilities []bgp.ParameterCapabilityInterface
 
 func (c capabilities) Len() int {
 	return len(c)
@@ -259,94 +319,38 @@ func (c capabilities) Swap(i, j int) {
 }
 
 func (c capabilities) Less(i, j int) bool {
-	return c[i].Code < c[j].Code
+	return c[i].Code() < c[j].Code()
 }
 
-type prefixes []*api.PrefixSet
+type sets []*gobgpapi.DefinedSet
 
-func (p prefixes) Len() int {
-	return len(p)
-}
-
-func (p prefixes) Swap(i, j int) {
-	p[i], p[j] = p[j], p[i]
-}
-
-func (p prefixes) Less(i, j int) bool {
-	return p[i].PrefixSetName < p[j].PrefixSetName
-}
-
-type neighbors []*api.NeighborSet
-
-func (n neighbors) Len() int {
+func (n sets) Len() int {
 	return len(n)
 }
 
-func (n neighbors) Swap(i, j int) {
+func (n sets) Swap(i, j int) {
 	n[i], n[j] = n[j], n[i]
 }
 
-func (n neighbors) Less(i, j int) bool {
-	return n[i].NeighborSetName < n[j].NeighborSetName
+func (n sets) Less(i, j int) bool {
+	return n[i].Name < n[j].Name
 }
 
-type aspaths []*api.AsPathSet
+type policies []*gobgpapi.Policy
 
-func (a aspaths) Len() int {
-	return len(a)
-}
-
-func (a aspaths) Swap(i, j int) {
-	a[i], a[j] = a[j], a[i]
-}
-
-func (a aspaths) Less(i, j int) bool {
-	return a[i].AsPathSetName < a[j].AsPathSetName
-}
-
-type communities []*api.CommunitySet
-
-func (c communities) Len() int {
-	return len(c)
-}
-
-func (c communities) Swap(i, j int) {
-	c[i], c[j] = c[j], c[i]
-}
-
-func (c communities) Less(i, j int) bool {
-	return c[i].CommunitySetName < c[j].CommunitySetName
-}
-
-type extcommunities []*api.ExtCommunitySet
-
-func (e extcommunities) Len() int {
-	return len(e)
-}
-
-func (e extcommunities) Swap(i, j int) {
-	e[i], e[j] = e[j], e[i]
-}
-
-func (e extcommunities) Less(i, j int) bool {
-	return e[i].ExtCommunitySetName < e[j].ExtCommunitySetName
-}
-
-type policyDefinitions []*api.PolicyDefinition
-
-func (p policyDefinitions) Len() int {
+func (p policies) Len() int {
 	return len(p)
 }
 
-func (p policyDefinitions) Swap(i, j int) {
+func (p policies) Swap(i, j int) {
 	p[i], p[j] = p[j], p[i]
 }
 
-func (p policyDefinitions) Less(i, j int) bool {
-	return p[i].PolicyDefinitionName < p[j].PolicyDefinitionName
+func (p policies) Less(i, j int) bool {
+	return p[i].Name < p[j].Name
 }
 
-type roas []*api.ROA
+type roas []*gobgpapi.ROA
 
 func (r roas) Len() int {
 	return len(r)
@@ -362,7 +366,7 @@ func (r roas) Less(i, j int) bool {
 	return strings.Less(0, 1)
 }
 
-type vrfs []*api.Vrf
+type vrfs []*gobgpapi.Vrf
 
 func (v vrfs) Len() int {
 	return len(v)
@@ -378,15 +382,8 @@ func (v vrfs) Less(i, j int) bool {
 
 func connGrpc() *grpc.ClientConn {
 	timeout := grpc.WithTimeout(time.Second)
-
-	// determine IP address version
-	host := net.ParseIP(globalOpts.Host)
-	target := fmt.Sprintf("%s:%d", globalOpts.Host, globalOpts.Port)
-	if host.To4() == nil {
-		target = fmt.Sprintf("[%s]:%d", globalOpts.Host, globalOpts.Port)
-	}
-
-	conn, err := grpc.Dial(target, timeout)
+	target := net.JoinHostPort(globalOpts.Host, strconv.Itoa(globalOpts.Port))
+	conn, err := grpc.Dial(target, timeout, grpc.WithBlock(), grpc.WithInsecure())
 	if err != nil {
 		fmt.Println(err)
 		os.Exit(1)
@@ -394,7 +391,16 @@ func connGrpc() *grpc.ClientConn {
 	return conn
 }
 
-func checkAddressFamily(ip net.IP) (bgp.RouteFamily, error) {
+func addr2AddressFamily(a net.IP) bgp.RouteFamily {
+	if a.To4() != nil {
+		return bgp.RF_IPv4_UC
+	} else if a.To16() != nil {
+		return bgp.RF_IPv6_UC
+	}
+	return bgp.RouteFamily(0)
+}
+
+func checkAddressFamily(def bgp.RouteFamily) (bgp.RouteFamily, error) {
 	var rf bgp.RouteFamily
 	var e error
 	switch subOpts.AddressFamily {
@@ -414,12 +420,10 @@ func checkAddressFamily(ip net.IP) (bgp.RouteFamily, error) {
 		rf = bgp.RF_RTC_UC
 	case "ipv4-flowspec", "ipv4-flow", "flow4":
 		rf = bgp.RF_FS_IPv4_UC
+	case "ipv6-flowspec", "ipv6-flow", "flow6":
+		rf = bgp.RF_FS_IPv6_UC
 	case "":
-		if len(ip) == 0 || ip.To4() != nil {
-			rf = bgp.RF_IPv4_UC
-		} else {
-			rf = bgp.RF_IPv6_UC
-		}
+		rf = def
 	default:
 		e = fmt.Errorf("unsupported address family: %s", subOpts.AddressFamily)
 	}

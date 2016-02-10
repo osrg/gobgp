@@ -3,7 +3,7 @@
 // DO NOT EDIT!
 
 /*
-Package api is a generated protocol buffer package.
+Package gobgpapi is a generated protocol buffer package.
 
 It is generated from these files:
 	gobgp.proto
@@ -12,39 +12,62 @@ It has these top-level messages:
 	Error
 	Arguments
 	ModPathArguments
-	PolicyArguments
+	ModPathResponse
+	ModPathsArguments
+	ModNeighborArguments
 	MrtArguments
+	ModMrtArguments
+	ModBmpArguments
+	ModRpkiArguments
 	ModVrfArguments
-	GracefulRestartTuple
-	GracefulRestart
-	Capability
+	ModDefinedSetArguments
+	ModStatementArguments
+	ModPolicyArguments
+	ModPolicyAssignmentArguments
+	ModGlobalConfigArguments
 	Path
 	Destination
-	PeerConf
-	PeerInfo
+	Table
 	Peer
+	ApplyPolicy
+	PeerConf
+	EbgpMultihop
+	RouteReflector
+	PeerState
+	Messages
+	Message
+	Queues
+	Timers
+	TimersConfig
+	TimersState
+	Transport
+	RouteServer
 	Prefix
-	PrefixSet
-	Neighbor
-	NeighborSet
+	DefinedSet
+	MatchSet
 	AsPathLength
-	AsPathSet
-	CommunitySet
-	ExtCommunitySet
 	Conditions
 	CommunityAction
+	MedAction
 	AsPrependAction
 	Actions
 	Statement
-	PolicyDefinition
-	ApplyPolicy
+	Policy
+	PolicyAssignment
 	MrtMessage
+	RPKIConf
+	RPKIState
+	RPKI
 	ROA
+	ROAResult
 	Vrf
+	Global
 */
-package api
+package gobgpapi
 
 import proto "github.com/golang/protobuf/proto"
+import fmt "fmt"
+import math "math"
 
 import (
 	context "golang.org/x/net/context"
@@ -52,119 +75,256 @@ import (
 )
 
 // Reference imports to suppress errors if they are not otherwise used.
-var _ context.Context
-var _ grpc.ClientConn
-
-// Reference imports to suppress errors if they are not otherwise used.
 var _ = proto.Marshal
+var _ = fmt.Errorf
+var _ = math.Inf
+
+// This is a compile-time assertion to ensure that this generated file
+// is compatible with the proto package it is being compiled against.
+const _ = proto.ProtoPackageIsVersion1
 
 type Resource int32
 
 const (
-	Resource_GLOBAL              Resource = 0
-	Resource_LOCAL               Resource = 1
-	Resource_ADJ_IN              Resource = 2
-	Resource_ADJ_OUT             Resource = 3
-	Resource_POLICY_PREFIX       Resource = 4
-	Resource_POLICY_NEIGHBOR     Resource = 5
-	Resource_POLICY_ASPATH       Resource = 6
-	Resource_POLICY_COMMUNITY    Resource = 7
-	Resource_POLICY_ROUTEPOLICY  Resource = 8
-	Resource_POLICY_EXTCOMMUNITY Resource = 9
-	Resource_VRF                 Resource = 10
+	Resource_GLOBAL  Resource = 0
+	Resource_LOCAL   Resource = 1
+	Resource_ADJ_IN  Resource = 2
+	Resource_ADJ_OUT Resource = 3
+	Resource_VRF     Resource = 4
 )
 
 var Resource_name = map[int32]string{
-	0:  "GLOBAL",
-	1:  "LOCAL",
-	2:  "ADJ_IN",
-	3:  "ADJ_OUT",
-	4:  "POLICY_PREFIX",
-	5:  "POLICY_NEIGHBOR",
-	6:  "POLICY_ASPATH",
-	7:  "POLICY_COMMUNITY",
-	8:  "POLICY_ROUTEPOLICY",
-	9:  "POLICY_EXTCOMMUNITY",
-	10: "VRF",
+	0: "GLOBAL",
+	1: "LOCAL",
+	2: "ADJ_IN",
+	3: "ADJ_OUT",
+	4: "VRF",
 }
 var Resource_value = map[string]int32{
-	"GLOBAL":              0,
-	"LOCAL":               1,
-	"ADJ_IN":              2,
-	"ADJ_OUT":             3,
-	"POLICY_PREFIX":       4,
-	"POLICY_NEIGHBOR":     5,
-	"POLICY_ASPATH":       6,
-	"POLICY_COMMUNITY":    7,
-	"POLICY_ROUTEPOLICY":  8,
-	"POLICY_EXTCOMMUNITY": 9,
-	"VRF": 10,
+	"GLOBAL":  0,
+	"LOCAL":   1,
+	"ADJ_IN":  2,
+	"ADJ_OUT": 3,
+	"VRF":     4,
 }
 
 func (x Resource) String() string {
 	return proto.EnumName(Resource_name, int32(x))
 }
+func (Resource) EnumDescriptor() ([]byte, []int) { return fileDescriptor0, []int{0} }
 
 type Operation int32
 
 const (
-	Operation_ADD     Operation = 0
-	Operation_DEL     Operation = 1
-	Operation_DEL_ALL Operation = 2
+	Operation_ADD       Operation = 0
+	Operation_DEL       Operation = 1
+	Operation_DEL_ALL   Operation = 2
+	Operation_REPLACE   Operation = 3
+	Operation_ENABLE    Operation = 4
+	Operation_DISABLE   Operation = 5
+	Operation_RESET     Operation = 6
+	Operation_SOFTRESET Operation = 7
 )
 
 var Operation_name = map[int32]string{
 	0: "ADD",
 	1: "DEL",
 	2: "DEL_ALL",
+	3: "REPLACE",
+	4: "ENABLE",
+	5: "DISABLE",
+	6: "RESET",
+	7: "SOFTRESET",
 }
 var Operation_value = map[string]int32{
-	"ADD":     0,
-	"DEL":     1,
-	"DEL_ALL": 2,
+	"ADD":       0,
+	"DEL":       1,
+	"DEL_ALL":   2,
+	"REPLACE":   3,
+	"ENABLE":    4,
+	"DISABLE":   5,
+	"RESET":     6,
+	"SOFTRESET": 7,
 }
 
 func (x Operation) String() string {
 	return proto.EnumName(Operation_name, int32(x))
 }
+func (Operation) EnumDescriptor() ([]byte, []int) { return fileDescriptor0, []int{1} }
 
-type BGP_CAPABILITY int32
+type DefinedType int32
 
 const (
-	BGP_CAPABILITY_UNKNOWN_CAP            BGP_CAPABILITY = 0
-	BGP_CAPABILITY_MULTIPROTOCOL          BGP_CAPABILITY = 1
-	BGP_CAPABILITY_ROUTE_REFRESH          BGP_CAPABILITY = 2
-	BGP_CAPABILITY_CARRYING_LABEL_INFO    BGP_CAPABILITY = 4
-	BGP_CAPABILITY_GRACEFUL_RESTART       BGP_CAPABILITY = 64
-	BGP_CAPABILITY_FOUR_OCTET_AS_NUMBER   BGP_CAPABILITY = 65
-	BGP_CAPABILITY_ENHANCED_ROUTE_REFRESH BGP_CAPABILITY = 70
-	BGP_CAPABILITY_ROUTE_REFRESH_CISCO    BGP_CAPABILITY = 128
+	DefinedType_PREFIX        DefinedType = 0
+	DefinedType_NEIGHBOR      DefinedType = 1
+	DefinedType_TAG           DefinedType = 2
+	DefinedType_AS_PATH       DefinedType = 3
+	DefinedType_COMMUNITY     DefinedType = 4
+	DefinedType_EXT_COMMUNITY DefinedType = 5
 )
 
-var BGP_CAPABILITY_name = map[int32]string{
-	0:   "UNKNOWN_CAP",
-	1:   "MULTIPROTOCOL",
-	2:   "ROUTE_REFRESH",
-	4:   "CARRYING_LABEL_INFO",
-	64:  "GRACEFUL_RESTART",
-	65:  "FOUR_OCTET_AS_NUMBER",
-	70:  "ENHANCED_ROUTE_REFRESH",
-	128: "ROUTE_REFRESH_CISCO",
+var DefinedType_name = map[int32]string{
+	0: "PREFIX",
+	1: "NEIGHBOR",
+	2: "TAG",
+	3: "AS_PATH",
+	4: "COMMUNITY",
+	5: "EXT_COMMUNITY",
 }
-var BGP_CAPABILITY_value = map[string]int32{
-	"UNKNOWN_CAP":            0,
-	"MULTIPROTOCOL":          1,
-	"ROUTE_REFRESH":          2,
-	"CARRYING_LABEL_INFO":    4,
-	"GRACEFUL_RESTART":       64,
-	"FOUR_OCTET_AS_NUMBER":   65,
-	"ENHANCED_ROUTE_REFRESH": 70,
-	"ROUTE_REFRESH_CISCO":    128,
+var DefinedType_value = map[string]int32{
+	"PREFIX":        0,
+	"NEIGHBOR":      1,
+	"TAG":           2,
+	"AS_PATH":       3,
+	"COMMUNITY":     4,
+	"EXT_COMMUNITY": 5,
 }
 
-func (x BGP_CAPABILITY) String() string {
-	return proto.EnumName(BGP_CAPABILITY_name, int32(x))
+func (x DefinedType) String() string {
+	return proto.EnumName(DefinedType_name, int32(x))
 }
+func (DefinedType) EnumDescriptor() ([]byte, []int) { return fileDescriptor0, []int{2} }
+
+type MatchType int32
+
+const (
+	MatchType_ANY    MatchType = 0
+	MatchType_ALL    MatchType = 1
+	MatchType_INVERT MatchType = 2
+)
+
+var MatchType_name = map[int32]string{
+	0: "ANY",
+	1: "ALL",
+	2: "INVERT",
+}
+var MatchType_value = map[string]int32{
+	"ANY":    0,
+	"ALL":    1,
+	"INVERT": 2,
+}
+
+func (x MatchType) String() string {
+	return proto.EnumName(MatchType_name, int32(x))
+}
+func (MatchType) EnumDescriptor() ([]byte, []int) { return fileDescriptor0, []int{3} }
+
+type AsPathLengthType int32
+
+const (
+	AsPathLengthType_EQ AsPathLengthType = 0
+	AsPathLengthType_GE AsPathLengthType = 1
+	AsPathLengthType_LE AsPathLengthType = 2
+)
+
+var AsPathLengthType_name = map[int32]string{
+	0: "EQ",
+	1: "GE",
+	2: "LE",
+}
+var AsPathLengthType_value = map[string]int32{
+	"EQ": 0,
+	"GE": 1,
+	"LE": 2,
+}
+
+func (x AsPathLengthType) String() string {
+	return proto.EnumName(AsPathLengthType_name, int32(x))
+}
+func (AsPathLengthType) EnumDescriptor() ([]byte, []int) { return fileDescriptor0, []int{4} }
+
+type RouteAction int32
+
+const (
+	RouteAction_NONE   RouteAction = 0
+	RouteAction_ACCEPT RouteAction = 1
+	RouteAction_REJECT RouteAction = 2
+)
+
+var RouteAction_name = map[int32]string{
+	0: "NONE",
+	1: "ACCEPT",
+	2: "REJECT",
+}
+var RouteAction_value = map[string]int32{
+	"NONE":   0,
+	"ACCEPT": 1,
+	"REJECT": 2,
+}
+
+func (x RouteAction) String() string {
+	return proto.EnumName(RouteAction_name, int32(x))
+}
+func (RouteAction) EnumDescriptor() ([]byte, []int) { return fileDescriptor0, []int{5} }
+
+type CommunityActionType int32
+
+const (
+	CommunityActionType_COMMUNITY_ADD     CommunityActionType = 0
+	CommunityActionType_COMMUNITY_REMOVE  CommunityActionType = 1
+	CommunityActionType_COMMUNITY_REPLACE CommunityActionType = 2
+)
+
+var CommunityActionType_name = map[int32]string{
+	0: "COMMUNITY_ADD",
+	1: "COMMUNITY_REMOVE",
+	2: "COMMUNITY_REPLACE",
+}
+var CommunityActionType_value = map[string]int32{
+	"COMMUNITY_ADD":     0,
+	"COMMUNITY_REMOVE":  1,
+	"COMMUNITY_REPLACE": 2,
+}
+
+func (x CommunityActionType) String() string {
+	return proto.EnumName(CommunityActionType_name, int32(x))
+}
+func (CommunityActionType) EnumDescriptor() ([]byte, []int) { return fileDescriptor0, []int{6} }
+
+type MedActionType int32
+
+const (
+	MedActionType_MED_MOD     MedActionType = 0
+	MedActionType_MED_REPLACE MedActionType = 1
+)
+
+var MedActionType_name = map[int32]string{
+	0: "MED_MOD",
+	1: "MED_REPLACE",
+}
+var MedActionType_value = map[string]int32{
+	"MED_MOD":     0,
+	"MED_REPLACE": 1,
+}
+
+func (x MedActionType) String() string {
+	return proto.EnumName(MedActionType_name, int32(x))
+}
+func (MedActionType) EnumDescriptor() ([]byte, []int) { return fileDescriptor0, []int{7} }
+
+type PolicyType int32
+
+const (
+	PolicyType_IN     PolicyType = 0
+	PolicyType_IMPORT PolicyType = 1
+	PolicyType_EXPORT PolicyType = 2
+)
+
+var PolicyType_name = map[int32]string{
+	0: "IN",
+	1: "IMPORT",
+	2: "EXPORT",
+}
+var PolicyType_value = map[string]int32{
+	"IN":     0,
+	"IMPORT": 1,
+	"EXPORT": 2,
+}
+
+func (x PolicyType) String() string {
+	return proto.EnumName(PolicyType_name, int32(x))
+}
+func (PolicyType) EnumDescriptor() ([]byte, []int) { return fileDescriptor0, []int{8} }
 
 type Error_ErrorCode int32
 
@@ -185,35 +345,125 @@ var Error_ErrorCode_value = map[string]int32{
 func (x Error_ErrorCode) String() string {
 	return proto.EnumName(Error_ErrorCode_name, int32(x))
 }
+func (Error_ErrorCode) EnumDescriptor() ([]byte, []int) { return fileDescriptor0, []int{0, 0} }
+
+type ModBmpArguments_MonitoringPolicy int32
+
+const (
+	ModBmpArguments_PRE  ModBmpArguments_MonitoringPolicy = 0
+	ModBmpArguments_POST ModBmpArguments_MonitoringPolicy = 1
+	ModBmpArguments_BOTH ModBmpArguments_MonitoringPolicy = 2
+)
+
+var ModBmpArguments_MonitoringPolicy_name = map[int32]string{
+	0: "PRE",
+	1: "POST",
+	2: "BOTH",
+}
+var ModBmpArguments_MonitoringPolicy_value = map[string]int32{
+	"PRE":  0,
+	"POST": 1,
+	"BOTH": 2,
+}
+
+func (x ModBmpArguments_MonitoringPolicy) String() string {
+	return proto.EnumName(ModBmpArguments_MonitoringPolicy_name, int32(x))
+}
+func (ModBmpArguments_MonitoringPolicy) EnumDescriptor() ([]byte, []int) {
+	return fileDescriptor0, []int{8, 0}
+}
+
+type ROAResult_ValidationReason int32
+
+const (
+	ROAResult_UPDATE     ROAResult_ValidationReason = 0
+	ROAResult_WITHDRAW   ROAResult_ValidationReason = 1
+	ROAResult_PEER_DOWN  ROAResult_ValidationReason = 2
+	ROAResult_REVALIDATE ROAResult_ValidationReason = 3
+)
+
+var ROAResult_ValidationReason_name = map[int32]string{
+	0: "UPDATE",
+	1: "WITHDRAW",
+	2: "PEER_DOWN",
+	3: "REVALIDATE",
+}
+var ROAResult_ValidationReason_value = map[string]int32{
+	"UPDATE":     0,
+	"WITHDRAW":   1,
+	"PEER_DOWN":  2,
+	"REVALIDATE": 3,
+}
+
+func (x ROAResult_ValidationReason) String() string {
+	return proto.EnumName(ROAResult_ValidationReason_name, int32(x))
+}
+func (ROAResult_ValidationReason) EnumDescriptor() ([]byte, []int) {
+	return fileDescriptor0, []int{50, 0}
+}
+
+type ROAResult_ValidationResult int32
+
+const (
+	ROAResult_NONE      ROAResult_ValidationResult = 0
+	ROAResult_NOT_FOUND ROAResult_ValidationResult = 1
+	ROAResult_VALID     ROAResult_ValidationResult = 2
+	ROAResult_INVALID   ROAResult_ValidationResult = 3
+)
+
+var ROAResult_ValidationResult_name = map[int32]string{
+	0: "NONE",
+	1: "NOT_FOUND",
+	2: "VALID",
+	3: "INVALID",
+}
+var ROAResult_ValidationResult_value = map[string]int32{
+	"NONE":      0,
+	"NOT_FOUND": 1,
+	"VALID":     2,
+	"INVALID":   3,
+}
+
+func (x ROAResult_ValidationResult) String() string {
+	return proto.EnumName(ROAResult_ValidationResult_name, int32(x))
+}
+func (ROAResult_ValidationResult) EnumDescriptor() ([]byte, []int) {
+	return fileDescriptor0, []int{50, 1}
+}
 
 type Error struct {
-	Code Error_ErrorCode `protobuf:"varint,1,opt,name=code,enum=api.Error_ErrorCode" json:"code,omitempty"`
+	Code Error_ErrorCode `protobuf:"varint,1,opt,name=code,enum=gobgpapi.Error_ErrorCode" json:"code,omitempty"`
 	Msg  string          `protobuf:"bytes,2,opt,name=msg" json:"msg,omitempty"`
 }
 
-func (m *Error) Reset()         { *m = Error{} }
-func (m *Error) String() string { return proto.CompactTextString(m) }
-func (*Error) ProtoMessage()    {}
+func (m *Error) Reset()                    { *m = Error{} }
+func (m *Error) String() string            { return proto.CompactTextString(m) }
+func (*Error) ProtoMessage()               {}
+func (*Error) Descriptor() ([]byte, []int) { return fileDescriptor0, []int{0} }
 
 type Arguments struct {
-	Resource Resource `protobuf:"varint,1,opt,name=resource,enum=api.Resource" json:"resource,omitempty"`
-	Rf       uint32   `protobuf:"varint,2,opt,name=rf" json:"rf,omitempty"`
+	Resource Resource `protobuf:"varint,1,opt,name=resource,enum=gobgpapi.Resource" json:"resource,omitempty"`
+	Family   uint32   `protobuf:"varint,2,opt,name=family" json:"family,omitempty"`
 	Name     string   `protobuf:"bytes,3,opt,name=name" json:"name,omitempty"`
 }
 
-func (m *Arguments) Reset()         { *m = Arguments{} }
-func (m *Arguments) String() string { return proto.CompactTextString(m) }
-func (*Arguments) ProtoMessage()    {}
+func (m *Arguments) Reset()                    { *m = Arguments{} }
+func (m *Arguments) String() string            { return proto.CompactTextString(m) }
+func (*Arguments) ProtoMessage()               {}
+func (*Arguments) Descriptor() ([]byte, []int) { return fileDescriptor0, []int{1} }
 
 type ModPathArguments struct {
-	Resource Resource `protobuf:"varint,1,opt,name=resource,enum=api.Resource" json:"resource,omitempty"`
-	Name     string   `protobuf:"bytes,2,opt,name=name" json:"name,omitempty"`
-	Path     *Path    `protobuf:"bytes,3,opt,name=path" json:"path,omitempty"`
+	Operation Operation `protobuf:"varint,1,opt,name=operation,enum=gobgpapi.Operation" json:"operation,omitempty"`
+	Resource  Resource  `protobuf:"varint,2,opt,name=resource,enum=gobgpapi.Resource" json:"resource,omitempty"`
+	Name      string    `protobuf:"bytes,3,opt,name=name" json:"name,omitempty"`
+	Path      *Path     `protobuf:"bytes,4,opt,name=path" json:"path,omitempty"`
+	Uuid      []byte    `protobuf:"bytes,5,opt,name=uuid,proto3" json:"uuid,omitempty"`
 }
 
-func (m *ModPathArguments) Reset()         { *m = ModPathArguments{} }
-func (m *ModPathArguments) String() string { return proto.CompactTextString(m) }
-func (*ModPathArguments) ProtoMessage()    {}
+func (m *ModPathArguments) Reset()                    { *m = ModPathArguments{} }
+func (m *ModPathArguments) String() string            { return proto.CompactTextString(m) }
+func (*ModPathArguments) ProtoMessage()               {}
+func (*ModPathArguments) Descriptor() ([]byte, []int) { return fileDescriptor0, []int{2} }
 
 func (m *ModPathArguments) GetPath() *Path {
 	if m != nil {
@@ -222,52 +472,104 @@ func (m *ModPathArguments) GetPath() *Path {
 	return nil
 }
 
-type PolicyArguments struct {
-	Resource         Resource          `protobuf:"varint,1,opt,name=resource,enum=api.Resource" json:"resource,omitempty"`
-	Operation        Operation         `protobuf:"varint,2,opt,name=operation,enum=api.Operation" json:"operation,omitempty"`
-	NeighborAddress  string            `protobuf:"bytes,3,opt,name=neighbor_address" json:"neighbor_address,omitempty"`
-	Name             string            `protobuf:"bytes,4,opt,name=name" json:"name,omitempty"`
-	PolicyDefinition *PolicyDefinition `protobuf:"bytes,6,opt,name=policy_definition" json:"policy_definition,omitempty"`
-	ApplyPolicy      *ApplyPolicy      `protobuf:"bytes,7,opt,name=apply_policy" json:"apply_policy,omitempty"`
+type ModPathResponse struct {
+	Uuid []byte `protobuf:"bytes,1,opt,name=uuid,proto3" json:"uuid,omitempty"`
 }
 
-func (m *PolicyArguments) Reset()         { *m = PolicyArguments{} }
-func (m *PolicyArguments) String() string { return proto.CompactTextString(m) }
-func (*PolicyArguments) ProtoMessage()    {}
+func (m *ModPathResponse) Reset()                    { *m = ModPathResponse{} }
+func (m *ModPathResponse) String() string            { return proto.CompactTextString(m) }
+func (*ModPathResponse) ProtoMessage()               {}
+func (*ModPathResponse) Descriptor() ([]byte, []int) { return fileDescriptor0, []int{3} }
 
-func (m *PolicyArguments) GetPolicyDefinition() *PolicyDefinition {
+type ModPathsArguments struct {
+	Resource Resource `protobuf:"varint,1,opt,name=resource,enum=gobgpapi.Resource" json:"resource,omitempty"`
+	Name     string   `protobuf:"bytes,2,opt,name=name" json:"name,omitempty"`
+	Paths    []*Path  `protobuf:"bytes,3,rep,name=paths" json:"paths,omitempty"`
+}
+
+func (m *ModPathsArguments) Reset()                    { *m = ModPathsArguments{} }
+func (m *ModPathsArguments) String() string            { return proto.CompactTextString(m) }
+func (*ModPathsArguments) ProtoMessage()               {}
+func (*ModPathsArguments) Descriptor() ([]byte, []int) { return fileDescriptor0, []int{4} }
+
+func (m *ModPathsArguments) GetPaths() []*Path {
 	if m != nil {
-		return m.PolicyDefinition
+		return m.Paths
 	}
 	return nil
 }
 
-func (m *PolicyArguments) GetApplyPolicy() *ApplyPolicy {
+type ModNeighborArguments struct {
+	Operation Operation `protobuf:"varint,1,opt,name=operation,enum=gobgpapi.Operation" json:"operation,omitempty"`
+	Peer      *Peer     `protobuf:"bytes,2,opt,name=peer" json:"peer,omitempty"`
+}
+
+func (m *ModNeighborArguments) Reset()                    { *m = ModNeighborArguments{} }
+func (m *ModNeighborArguments) String() string            { return proto.CompactTextString(m) }
+func (*ModNeighborArguments) ProtoMessage()               {}
+func (*ModNeighborArguments) Descriptor() ([]byte, []int) { return fileDescriptor0, []int{5} }
+
+func (m *ModNeighborArguments) GetPeer() *Peer {
 	if m != nil {
-		return m.ApplyPolicy
+		return m.Peer
 	}
 	return nil
 }
 
 type MrtArguments struct {
-	Resource        Resource `protobuf:"varint,1,opt,name=resource,enum=api.Resource" json:"resource,omitempty"`
-	Rf              uint32   `protobuf:"varint,2,opt,name=rf" json:"rf,omitempty"`
+	Resource        Resource `protobuf:"varint,1,opt,name=resource,enum=gobgpapi.Resource" json:"resource,omitempty"`
+	Family          uint32   `protobuf:"varint,2,opt,name=family" json:"family,omitempty"`
 	Interval        uint64   `protobuf:"varint,3,opt,name=interval" json:"interval,omitempty"`
 	NeighborAddress string   `protobuf:"bytes,4,opt,name=neighbor_address" json:"neighbor_address,omitempty"`
 }
 
-func (m *MrtArguments) Reset()         { *m = MrtArguments{} }
-func (m *MrtArguments) String() string { return proto.CompactTextString(m) }
-func (*MrtArguments) ProtoMessage()    {}
+func (m *MrtArguments) Reset()                    { *m = MrtArguments{} }
+func (m *MrtArguments) String() string            { return proto.CompactTextString(m) }
+func (*MrtArguments) ProtoMessage()               {}
+func (*MrtArguments) Descriptor() ([]byte, []int) { return fileDescriptor0, []int{6} }
+
+type ModMrtArguments struct {
+	Operation Operation `protobuf:"varint,1,opt,name=operation,enum=gobgpapi.Operation" json:"operation,omitempty"`
+	Filename  string    `protobuf:"bytes,2,opt,name=filename" json:"filename,omitempty"`
+}
+
+func (m *ModMrtArguments) Reset()                    { *m = ModMrtArguments{} }
+func (m *ModMrtArguments) String() string            { return proto.CompactTextString(m) }
+func (*ModMrtArguments) ProtoMessage()               {}
+func (*ModMrtArguments) Descriptor() ([]byte, []int) { return fileDescriptor0, []int{7} }
+
+type ModBmpArguments struct {
+	Operation Operation                        `protobuf:"varint,1,opt,name=operation,enum=gobgpapi.Operation" json:"operation,omitempty"`
+	Address   string                           `protobuf:"bytes,2,opt,name=address" json:"address,omitempty"`
+	Port      uint32                           `protobuf:"varint,3,opt,name=port" json:"port,omitempty"`
+	Type      ModBmpArguments_MonitoringPolicy `protobuf:"varint,4,opt,name=type,enum=gobgpapi.ModBmpArguments_MonitoringPolicy" json:"type,omitempty"`
+}
+
+func (m *ModBmpArguments) Reset()                    { *m = ModBmpArguments{} }
+func (m *ModBmpArguments) String() string            { return proto.CompactTextString(m) }
+func (*ModBmpArguments) ProtoMessage()               {}
+func (*ModBmpArguments) Descriptor() ([]byte, []int) { return fileDescriptor0, []int{8} }
+
+type ModRpkiArguments struct {
+	Operation Operation `protobuf:"varint,1,opt,name=operation,enum=gobgpapi.Operation" json:"operation,omitempty"`
+	Address   string    `protobuf:"bytes,2,opt,name=address" json:"address,omitempty"`
+	Port      uint32    `protobuf:"varint,3,opt,name=port" json:"port,omitempty"`
+}
+
+func (m *ModRpkiArguments) Reset()                    { *m = ModRpkiArguments{} }
+func (m *ModRpkiArguments) String() string            { return proto.CompactTextString(m) }
+func (*ModRpkiArguments) ProtoMessage()               {}
+func (*ModRpkiArguments) Descriptor() ([]byte, []int) { return fileDescriptor0, []int{9} }
 
 type ModVrfArguments struct {
-	Operation Operation `protobuf:"varint,1,opt,name=operation,enum=api.Operation" json:"operation,omitempty"`
+	Operation Operation `protobuf:"varint,1,opt,name=operation,enum=gobgpapi.Operation" json:"operation,omitempty"`
 	Vrf       *Vrf      `protobuf:"bytes,2,opt,name=vrf" json:"vrf,omitempty"`
 }
 
-func (m *ModVrfArguments) Reset()         { *m = ModVrfArguments{} }
-func (m *ModVrfArguments) String() string { return proto.CompactTextString(m) }
-func (*ModVrfArguments) ProtoMessage()    {}
+func (m *ModVrfArguments) Reset()                    { *m = ModVrfArguments{} }
+func (m *ModVrfArguments) String() string            { return proto.CompactTextString(m) }
+func (*ModVrfArguments) ProtoMessage()               {}
+func (*ModVrfArguments) Descriptor() ([]byte, []int) { return fileDescriptor0, []int{10} }
 
 func (m *ModVrfArguments) GetVrf() *Vrf {
 	if m != nil {
@@ -276,46 +578,95 @@ func (m *ModVrfArguments) GetVrf() *Vrf {
 	return nil
 }
 
-type GracefulRestartTuple struct {
-	Rf    uint32 `protobuf:"varint,1,opt,name=rf" json:"rf,omitempty"`
-	Flags uint32 `protobuf:"varint,2,opt,name=flags" json:"flags,omitempty"`
+type ModDefinedSetArguments struct {
+	Operation Operation   `protobuf:"varint,1,opt,name=operation,enum=gobgpapi.Operation" json:"operation,omitempty"`
+	Set       *DefinedSet `protobuf:"bytes,2,opt,name=set" json:"set,omitempty"`
 }
 
-func (m *GracefulRestartTuple) Reset()         { *m = GracefulRestartTuple{} }
-func (m *GracefulRestartTuple) String() string { return proto.CompactTextString(m) }
-func (*GracefulRestartTuple) ProtoMessage()    {}
+func (m *ModDefinedSetArguments) Reset()                    { *m = ModDefinedSetArguments{} }
+func (m *ModDefinedSetArguments) String() string            { return proto.CompactTextString(m) }
+func (*ModDefinedSetArguments) ProtoMessage()               {}
+func (*ModDefinedSetArguments) Descriptor() ([]byte, []int) { return fileDescriptor0, []int{11} }
 
-type GracefulRestart struct {
-	Flags  uint32                  `protobuf:"varint,1,opt,name=flags" json:"flags,omitempty"`
-	Time   uint32                  `protobuf:"varint,2,opt,name=time" json:"time,omitempty"`
-	Tuples []*GracefulRestartTuple `protobuf:"bytes,3,rep,name=tuples" json:"tuples,omitempty"`
-}
-
-func (m *GracefulRestart) Reset()         { *m = GracefulRestart{} }
-func (m *GracefulRestart) String() string { return proto.CompactTextString(m) }
-func (*GracefulRestart) ProtoMessage()    {}
-
-func (m *GracefulRestart) GetTuples() []*GracefulRestartTuple {
+func (m *ModDefinedSetArguments) GetSet() *DefinedSet {
 	if m != nil {
-		return m.Tuples
+		return m.Set
 	}
 	return nil
 }
 
-type Capability struct {
-	Code            BGP_CAPABILITY   `protobuf:"varint,1,opt,name=code,enum=api.BGP_CAPABILITY" json:"code,omitempty"`
-	MultiProtocol   uint32           `protobuf:"varint,2,opt,name=multi_protocol" json:"multi_protocol,omitempty"`
-	GracefulRestart *GracefulRestart `protobuf:"bytes,3,opt,name=graceful_restart" json:"graceful_restart,omitempty"`
-	Asn             uint32           `protobuf:"varint,4,opt,name=asn" json:"asn,omitempty"`
+type ModStatementArguments struct {
+	Operation Operation  `protobuf:"varint,1,opt,name=operation,enum=gobgpapi.Operation" json:"operation,omitempty"`
+	Statement *Statement `protobuf:"bytes,2,opt,name=statement" json:"statement,omitempty"`
 }
 
-func (m *Capability) Reset()         { *m = Capability{} }
-func (m *Capability) String() string { return proto.CompactTextString(m) }
-func (*Capability) ProtoMessage()    {}
+func (m *ModStatementArguments) Reset()                    { *m = ModStatementArguments{} }
+func (m *ModStatementArguments) String() string            { return proto.CompactTextString(m) }
+func (*ModStatementArguments) ProtoMessage()               {}
+func (*ModStatementArguments) Descriptor() ([]byte, []int) { return fileDescriptor0, []int{12} }
 
-func (m *Capability) GetGracefulRestart() *GracefulRestart {
+func (m *ModStatementArguments) GetStatement() *Statement {
 	if m != nil {
-		return m.GracefulRestart
+		return m.Statement
+	}
+	return nil
+}
+
+type ModPolicyArguments struct {
+	Operation Operation `protobuf:"varint,1,opt,name=operation,enum=gobgpapi.Operation" json:"operation,omitempty"`
+	Policy    *Policy   `protobuf:"bytes,2,opt,name=policy" json:"policy,omitempty"`
+	// if this flag is set, gobgpd won't define new statements
+	// but refer existing statements using statement's names in this arguments.
+	// this flag only works with Operation_ADD
+	ReferExistingStatements bool `protobuf:"varint,3,opt,name=refer_existing_statements" json:"refer_existing_statements,omitempty"`
+	// if this flag is set, gobgpd won't delete any statements
+	// even if some statements get not used by any policy by this operation.
+	// this flag means nothing if it is used with Operation_ADD
+	PreserveStatements bool `protobuf:"varint,4,opt,name=preserve_statements" json:"preserve_statements,omitempty"`
+}
+
+func (m *ModPolicyArguments) Reset()                    { *m = ModPolicyArguments{} }
+func (m *ModPolicyArguments) String() string            { return proto.CompactTextString(m) }
+func (*ModPolicyArguments) ProtoMessage()               {}
+func (*ModPolicyArguments) Descriptor() ([]byte, []int) { return fileDescriptor0, []int{13} }
+
+func (m *ModPolicyArguments) GetPolicy() *Policy {
+	if m != nil {
+		return m.Policy
+	}
+	return nil
+}
+
+type ModPolicyAssignmentArguments struct {
+	Operation  Operation         `protobuf:"varint,1,opt,name=operation,enum=gobgpapi.Operation" json:"operation,omitempty"`
+	Assignment *PolicyAssignment `protobuf:"bytes,2,opt,name=assignment" json:"assignment,omitempty"`
+}
+
+func (m *ModPolicyAssignmentArguments) Reset()                    { *m = ModPolicyAssignmentArguments{} }
+func (m *ModPolicyAssignmentArguments) String() string            { return proto.CompactTextString(m) }
+func (*ModPolicyAssignmentArguments) ProtoMessage()               {}
+func (*ModPolicyAssignmentArguments) Descriptor() ([]byte, []int) { return fileDescriptor0, []int{14} }
+
+func (m *ModPolicyAssignmentArguments) GetAssignment() *PolicyAssignment {
+	if m != nil {
+		return m.Assignment
+	}
+	return nil
+}
+
+type ModGlobalConfigArguments struct {
+	Operation Operation `protobuf:"varint,1,opt,name=operation,enum=gobgpapi.Operation" json:"operation,omitempty"`
+	Global    *Global   `protobuf:"bytes,2,opt,name=global" json:"global,omitempty"`
+}
+
+func (m *ModGlobalConfigArguments) Reset()                    { *m = ModGlobalConfigArguments{} }
+func (m *ModGlobalConfigArguments) String() string            { return proto.CompactTextString(m) }
+func (*ModGlobalConfigArguments) ProtoMessage()               {}
+func (*ModGlobalConfigArguments) Descriptor() ([]byte, []int) { return fileDescriptor0, []int{15} }
+
+func (m *ModGlobalConfigArguments) GetGlobal() *Global {
+	if m != nil {
+		return m.Global
 	}
 	return nil
 }
@@ -328,21 +679,27 @@ type Path struct {
 	IsWithdraw         bool     `protobuf:"varint,5,opt,name=is_withdraw" json:"is_withdraw,omitempty"`
 	Validation         int32    `protobuf:"varint,6,opt,name=validation" json:"validation,omitempty"`
 	NoImplicitWithdraw bool     `protobuf:"varint,7,opt,name=no_implicit_withdraw" json:"no_implicit_withdraw,omitempty"`
-	Rf                 uint32   `protobuf:"varint,8,opt,name=rf" json:"rf,omitempty"`
+	Family             uint32   `protobuf:"varint,8,opt,name=family" json:"family,omitempty"`
+	SourceAsn          uint32   `protobuf:"varint,9,opt,name=source_asn" json:"source_asn,omitempty"`
+	SourceId           string   `protobuf:"bytes,10,opt,name=source_id" json:"source_id,omitempty"`
+	Filtered           bool     `protobuf:"varint,11,opt,name=filtered" json:"filtered,omitempty"`
 }
 
-func (m *Path) Reset()         { *m = Path{} }
-func (m *Path) String() string { return proto.CompactTextString(m) }
-func (*Path) ProtoMessage()    {}
+func (m *Path) Reset()                    { *m = Path{} }
+func (m *Path) String() string            { return proto.CompactTextString(m) }
+func (*Path) ProtoMessage()               {}
+func (*Path) Descriptor() ([]byte, []int) { return fileDescriptor0, []int{16} }
 
 type Destination struct {
-	Prefix string  `protobuf:"bytes,1,opt,name=prefix" json:"prefix,omitempty"`
-	Paths  []*Path `protobuf:"bytes,2,rep,name=paths" json:"paths,omitempty"`
+	Prefix         string  `protobuf:"bytes,1,opt,name=prefix" json:"prefix,omitempty"`
+	Paths          []*Path `protobuf:"bytes,2,rep,name=paths" json:"paths,omitempty"`
+	LongerPrefixes bool    `protobuf:"varint,3,opt,name=longer_prefixes" json:"longer_prefixes,omitempty"`
 }
 
-func (m *Destination) Reset()         { *m = Destination{} }
-func (m *Destination) String() string { return proto.CompactTextString(m) }
-func (*Destination) ProtoMessage()    {}
+func (m *Destination) Reset()                    { *m = Destination{} }
+func (m *Destination) String() string            { return proto.CompactTextString(m) }
+func (*Destination) ProtoMessage()               {}
+func (*Destination) Descriptor() ([]byte, []int) { return fileDescriptor0, []int{17} }
 
 func (m *Destination) GetPaths() []*Path {
 	if m != nil {
@@ -351,78 +708,49 @@ func (m *Destination) GetPaths() []*Path {
 	return nil
 }
 
-type PeerConf struct {
-	RemoteIp           string        `protobuf:"bytes,1,opt,name=remote_ip" json:"remote_ip,omitempty"`
-	Id                 string        `protobuf:"bytes,2,opt,name=id" json:"id,omitempty"`
-	RemoteAs           uint32        `protobuf:"varint,3,opt,name=remote_as" json:"remote_as,omitempty"`
-	CapRefresh         bool          `protobuf:"varint,4,opt,name=cap_refresh" json:"cap_refresh,omitempty"`
-	CapEnhancedRefresh bool          `protobuf:"varint,5,opt,name=cap_enhanced_refresh" json:"cap_enhanced_refresh,omitempty"`
-	RemoteCap          []*Capability `protobuf:"bytes,6,rep,name=remote_cap" json:"remote_cap,omitempty"`
-	LocalCap           []*Capability `protobuf:"bytes,7,rep,name=local_cap" json:"local_cap,omitempty"`
-	Holdtime           uint32        `protobuf:"varint,8,opt,name=holdtime" json:"holdtime,omitempty"`
-	KeepaliveInterval  uint32        `protobuf:"varint,9,opt,name=keepalive_interval" json:"keepalive_interval,omitempty"`
+type Table struct {
+	Type         Resource       `protobuf:"varint,1,opt,name=type,enum=gobgpapi.Resource" json:"type,omitempty"`
+	Name         string         `protobuf:"bytes,2,opt,name=name" json:"name,omitempty"`
+	Family       uint32         `protobuf:"varint,3,opt,name=family" json:"family,omitempty"`
+	Destinations []*Destination `protobuf:"bytes,4,rep,name=destinations" json:"destinations,omitempty"`
+	PostPolicy   bool           `protobuf:"varint,5,opt,name=post_policy" json:"post_policy,omitempty"`
 }
 
-func (m *PeerConf) Reset()         { *m = PeerConf{} }
-func (m *PeerConf) String() string { return proto.CompactTextString(m) }
-func (*PeerConf) ProtoMessage()    {}
+func (m *Table) Reset()                    { *m = Table{} }
+func (m *Table) String() string            { return proto.CompactTextString(m) }
+func (*Table) ProtoMessage()               {}
+func (*Table) Descriptor() ([]byte, []int) { return fileDescriptor0, []int{18} }
 
-func (m *PeerConf) GetRemoteCap() []*Capability {
+func (m *Table) GetDestinations() []*Destination {
 	if m != nil {
-		return m.RemoteCap
+		return m.Destinations
 	}
 	return nil
 }
-
-func (m *PeerConf) GetLocalCap() []*Capability {
-	if m != nil {
-		return m.LocalCap
-	}
-	return nil
-}
-
-type PeerInfo struct {
-	BgpState                  string `protobuf:"bytes,1,opt,name=bgp_state" json:"bgp_state,omitempty"`
-	AdminState                string `protobuf:"bytes,2,opt,name=admin_state" json:"admin_state,omitempty"`
-	FsmEstablishedTransitions uint32 `protobuf:"varint,3,opt,name=fsm_established_transitions" json:"fsm_established_transitions,omitempty"`
-	TotalMessageOut           uint64 `protobuf:"varint,4,opt,name=total_message_out" json:"total_message_out,omitempty"`
-	TotalMessageIn            uint64 `protobuf:"varint,5,opt,name=total_message_in" json:"total_message_in,omitempty"`
-	UpdateMessageOut          uint64 `protobuf:"varint,6,opt,name=update_message_out" json:"update_message_out,omitempty"`
-	UpdateMessageIn           uint64 `protobuf:"varint,7,opt,name=update_message_in" json:"update_message_in,omitempty"`
-	KeepAliveMessageOut       uint64 `protobuf:"varint,8,opt,name=keep_alive_message_out" json:"keep_alive_message_out,omitempty"`
-	KeepAliveMessageIn        uint64 `protobuf:"varint,9,opt,name=keep_alive_message_in" json:"keep_alive_message_in,omitempty"`
-	OpenMessageOut            uint64 `protobuf:"varint,10,opt,name=open_message_out" json:"open_message_out,omitempty"`
-	OpenMessageIn             uint64 `protobuf:"varint,11,opt,name=open_message_in" json:"open_message_in,omitempty"`
-	NotificationOut           uint64 `protobuf:"varint,12,opt,name=notification_out" json:"notification_out,omitempty"`
-	NotificationIn            uint64 `protobuf:"varint,13,opt,name=notification_in" json:"notification_in,omitempty"`
-	RefreshMessageOut         uint64 `protobuf:"varint,14,opt,name=refresh_message_out" json:"refresh_message_out,omitempty"`
-	RefreshMessageIn          uint64 `protobuf:"varint,15,opt,name=refresh_message_in" json:"refresh_message_in,omitempty"`
-	DiscardedOut              uint64 `protobuf:"varint,16,opt,name=discarded_out" json:"discarded_out,omitempty"`
-	DiscardedIn               uint64 `protobuf:"varint,17,opt,name=discarded_in" json:"discarded_in,omitempty"`
-	Uptime                    int64  `protobuf:"varint,18,opt,name=uptime" json:"uptime,omitempty"`
-	Downtime                  int64  `protobuf:"varint,19,opt,name=downtime" json:"downtime,omitempty"`
-	LastError                 string `protobuf:"bytes,20,opt,name=last_error" json:"last_error,omitempty"`
-	Received                  uint32 `protobuf:"varint,21,opt,name=received" json:"received,omitempty"`
-	Accepted                  uint32 `protobuf:"varint,22,opt,name=accepted" json:"accepted,omitempty"`
-	Advertized                uint32 `protobuf:"varint,23,opt,name=advertized" json:"advertized,omitempty"`
-	OutQ                      uint32 `protobuf:"varint,24,opt,name=out_q" json:"out_q,omitempty"`
-	Flops                     uint32 `protobuf:"varint,25,opt,name=flops" json:"flops,omitempty"`
-	NegotiatedHoldtime        uint32 `protobuf:"varint,26,opt,name=negotiated_holdtime" json:"negotiated_holdtime,omitempty"`
-	KeepaliveInterval         uint32 `protobuf:"varint,27,opt,name=keepalive_interval" json:"keepalive_interval,omitempty"`
-}
-
-func (m *PeerInfo) Reset()         { *m = PeerInfo{} }
-func (m *PeerInfo) String() string { return proto.CompactTextString(m) }
-func (*PeerInfo) ProtoMessage()    {}
 
 type Peer struct {
-	Conf *PeerConf `protobuf:"bytes,1,opt,name=conf" json:"conf,omitempty"`
-	Info *PeerInfo `protobuf:"bytes,2,opt,name=info" json:"info,omitempty"`
+	Families       []uint32        `protobuf:"varint,2,rep,name=families" json:"families,omitempty"`
+	ApplyPolicy    *ApplyPolicy    `protobuf:"bytes,3,opt,name=apply_policy" json:"apply_policy,omitempty"`
+	Conf           *PeerConf       `protobuf:"bytes,5,opt,name=conf" json:"conf,omitempty"`
+	EbgpMultihop   *EbgpMultihop   `protobuf:"bytes,6,opt,name=ebgp_multihop" json:"ebgp_multihop,omitempty"`
+	RouteReflector *RouteReflector `protobuf:"bytes,10,opt,name=route_reflector" json:"route_reflector,omitempty"`
+	Info           *PeerState      `protobuf:"bytes,11,opt,name=info" json:"info,omitempty"`
+	Timers         *Timers         `protobuf:"bytes,12,opt,name=timers" json:"timers,omitempty"`
+	Transport      *Transport      `protobuf:"bytes,13,opt,name=transport" json:"transport,omitempty"`
+	RouteServer    *RouteServer    `protobuf:"bytes,15,opt,name=route_server" json:"route_server,omitempty"`
 }
 
-func (m *Peer) Reset()         { *m = Peer{} }
-func (m *Peer) String() string { return proto.CompactTextString(m) }
-func (*Peer) ProtoMessage()    {}
+func (m *Peer) Reset()                    { *m = Peer{} }
+func (m *Peer) String() string            { return proto.CompactTextString(m) }
+func (*Peer) ProtoMessage()               {}
+func (*Peer) Descriptor() ([]byte, []int) { return fileDescriptor0, []int{19} }
+
+func (m *Peer) GetApplyPolicy() *ApplyPolicy {
+	if m != nil {
+		return m.ApplyPolicy
+	}
+	return nil
+}
 
 func (m *Peer) GetConf() *PeerConf {
 	if m != nil {
@@ -431,191 +759,449 @@ func (m *Peer) GetConf() *PeerConf {
 	return nil
 }
 
-func (m *Peer) GetInfo() *PeerInfo {
+func (m *Peer) GetEbgpMultihop() *EbgpMultihop {
+	if m != nil {
+		return m.EbgpMultihop
+	}
+	return nil
+}
+
+func (m *Peer) GetRouteReflector() *RouteReflector {
+	if m != nil {
+		return m.RouteReflector
+	}
+	return nil
+}
+
+func (m *Peer) GetInfo() *PeerState {
 	if m != nil {
 		return m.Info
 	}
 	return nil
 }
 
+func (m *Peer) GetTimers() *Timers {
+	if m != nil {
+		return m.Timers
+	}
+	return nil
+}
+
+func (m *Peer) GetTransport() *Transport {
+	if m != nil {
+		return m.Transport
+	}
+	return nil
+}
+
+func (m *Peer) GetRouteServer() *RouteServer {
+	if m != nil {
+		return m.RouteServer
+	}
+	return nil
+}
+
+type ApplyPolicy struct {
+	InPolicy     *PolicyAssignment `protobuf:"bytes,1,opt,name=in_policy" json:"in_policy,omitempty"`
+	ExportPolicy *PolicyAssignment `protobuf:"bytes,2,opt,name=export_policy" json:"export_policy,omitempty"`
+	ImportPolicy *PolicyAssignment `protobuf:"bytes,3,opt,name=import_policy" json:"import_policy,omitempty"`
+}
+
+func (m *ApplyPolicy) Reset()                    { *m = ApplyPolicy{} }
+func (m *ApplyPolicy) String() string            { return proto.CompactTextString(m) }
+func (*ApplyPolicy) ProtoMessage()               {}
+func (*ApplyPolicy) Descriptor() ([]byte, []int) { return fileDescriptor0, []int{20} }
+
+func (m *ApplyPolicy) GetInPolicy() *PolicyAssignment {
+	if m != nil {
+		return m.InPolicy
+	}
+	return nil
+}
+
+func (m *ApplyPolicy) GetExportPolicy() *PolicyAssignment {
+	if m != nil {
+		return m.ExportPolicy
+	}
+	return nil
+}
+
+func (m *ApplyPolicy) GetImportPolicy() *PolicyAssignment {
+	if m != nil {
+		return m.ImportPolicy
+	}
+	return nil
+}
+
+type PeerConf struct {
+	AuthPassword     string   `protobuf:"bytes,1,opt,name=auth_password" json:"auth_password,omitempty"`
+	Description      string   `protobuf:"bytes,2,opt,name=description" json:"description,omitempty"`
+	LocalAs          uint32   `protobuf:"varint,3,opt,name=local_as" json:"local_as,omitempty"`
+	NeighborAddress  string   `protobuf:"bytes,4,opt,name=neighbor_address" json:"neighbor_address,omitempty"`
+	PeerAs           uint32   `protobuf:"varint,5,opt,name=peer_as" json:"peer_as,omitempty"`
+	PeerGroup        string   `protobuf:"bytes,6,opt,name=peer_group" json:"peer_group,omitempty"`
+	PeerType         uint32   `protobuf:"varint,7,opt,name=peer_type" json:"peer_type,omitempty"`
+	RemovePrivateAs  uint32   `protobuf:"varint,8,opt,name=remove_private_as" json:"remove_private_as,omitempty"`
+	RouteFlapDamping bool     `protobuf:"varint,9,opt,name=route_flap_damping" json:"route_flap_damping,omitempty"`
+	SendCommunity    uint32   `protobuf:"varint,10,opt,name=send_community" json:"send_community,omitempty"`
+	RemoteCap        [][]byte `protobuf:"bytes,11,rep,name=remote_cap,proto3" json:"remote_cap,omitempty"`
+	LocalCap         [][]byte `protobuf:"bytes,12,rep,name=local_cap,proto3" json:"local_cap,omitempty"`
+	Id               string   `protobuf:"bytes,13,opt,name=id" json:"id,omitempty"`
+}
+
+func (m *PeerConf) Reset()                    { *m = PeerConf{} }
+func (m *PeerConf) String() string            { return proto.CompactTextString(m) }
+func (*PeerConf) ProtoMessage()               {}
+func (*PeerConf) Descriptor() ([]byte, []int) { return fileDescriptor0, []int{21} }
+
+type EbgpMultihop struct {
+	Enabled     bool   `protobuf:"varint,1,opt,name=enabled" json:"enabled,omitempty"`
+	MultihopTtl uint32 `protobuf:"varint,2,opt,name=multihop_ttl" json:"multihop_ttl,omitempty"`
+}
+
+func (m *EbgpMultihop) Reset()                    { *m = EbgpMultihop{} }
+func (m *EbgpMultihop) String() string            { return proto.CompactTextString(m) }
+func (*EbgpMultihop) ProtoMessage()               {}
+func (*EbgpMultihop) Descriptor() ([]byte, []int) { return fileDescriptor0, []int{22} }
+
+type RouteReflector struct {
+	RouteReflectorClient    bool   `protobuf:"varint,1,opt,name=route_reflector_client" json:"route_reflector_client,omitempty"`
+	RouteReflectorClusterId uint32 `protobuf:"varint,2,opt,name=route_reflector_cluster_id" json:"route_reflector_cluster_id,omitempty"`
+}
+
+func (m *RouteReflector) Reset()                    { *m = RouteReflector{} }
+func (m *RouteReflector) String() string            { return proto.CompactTextString(m) }
+func (*RouteReflector) ProtoMessage()               {}
+func (*RouteReflector) Descriptor() ([]byte, []int) { return fileDescriptor0, []int{23} }
+
+type PeerState struct {
+	AuthPassword          string    `protobuf:"bytes,1,opt,name=auth_password" json:"auth_password,omitempty"`
+	Description           string    `protobuf:"bytes,2,opt,name=description" json:"description,omitempty"`
+	LocalAs               uint32    `protobuf:"varint,3,opt,name=local_as" json:"local_as,omitempty"`
+	Messages              *Messages `protobuf:"bytes,4,opt,name=messages" json:"messages,omitempty"`
+	NeighborAddress       string    `protobuf:"bytes,5,opt,name=neighbor_address" json:"neighbor_address,omitempty"`
+	PeerAs                uint32    `protobuf:"varint,6,opt,name=peer_as" json:"peer_as,omitempty"`
+	PeerGroup             string    `protobuf:"bytes,7,opt,name=peer_group" json:"peer_group,omitempty"`
+	PeerType              uint32    `protobuf:"varint,8,opt,name=peer_type" json:"peer_type,omitempty"`
+	Queues                *Queues   `protobuf:"bytes,9,opt,name=queues" json:"queues,omitempty"`
+	RemovePrivateAs       uint32    `protobuf:"varint,10,opt,name=remove_private_as" json:"remove_private_as,omitempty"`
+	RouteFlapDamping      bool      `protobuf:"varint,11,opt,name=route_flap_damping" json:"route_flap_damping,omitempty"`
+	SendCommunity         uint32    `protobuf:"varint,12,opt,name=send_community" json:"send_community,omitempty"`
+	SessionState          uint32    `protobuf:"varint,13,opt,name=session_state" json:"session_state,omitempty"`
+	SupportedCapabilities []string  `protobuf:"bytes,14,rep,name=supported_capabilities" json:"supported_capabilities,omitempty"`
+	BgpState              string    `protobuf:"bytes,15,opt,name=bgp_state" json:"bgp_state,omitempty"`
+	AdminState            string    `protobuf:"bytes,16,opt,name=admin_state" json:"admin_state,omitempty"`
+	Received              uint32    `protobuf:"varint,17,opt,name=received" json:"received,omitempty"`
+	Accepted              uint32    `protobuf:"varint,18,opt,name=accepted" json:"accepted,omitempty"`
+	Advertised            uint32    `protobuf:"varint,19,opt,name=advertised" json:"advertised,omitempty"`
+	OutQ                  uint32    `protobuf:"varint,20,opt,name=out_q" json:"out_q,omitempty"`
+	Flops                 uint32    `protobuf:"varint,21,opt,name=flops" json:"flops,omitempty"`
+}
+
+func (m *PeerState) Reset()                    { *m = PeerState{} }
+func (m *PeerState) String() string            { return proto.CompactTextString(m) }
+func (*PeerState) ProtoMessage()               {}
+func (*PeerState) Descriptor() ([]byte, []int) { return fileDescriptor0, []int{24} }
+
+func (m *PeerState) GetMessages() *Messages {
+	if m != nil {
+		return m.Messages
+	}
+	return nil
+}
+
+func (m *PeerState) GetQueues() *Queues {
+	if m != nil {
+		return m.Queues
+	}
+	return nil
+}
+
+type Messages struct {
+	Received *Message `protobuf:"bytes,1,opt,name=received" json:"received,omitempty"`
+	Sent     *Message `protobuf:"bytes,2,opt,name=sent" json:"sent,omitempty"`
+}
+
+func (m *Messages) Reset()                    { *m = Messages{} }
+func (m *Messages) String() string            { return proto.CompactTextString(m) }
+func (*Messages) ProtoMessage()               {}
+func (*Messages) Descriptor() ([]byte, []int) { return fileDescriptor0, []int{25} }
+
+func (m *Messages) GetReceived() *Message {
+	if m != nil {
+		return m.Received
+	}
+	return nil
+}
+
+func (m *Messages) GetSent() *Message {
+	if m != nil {
+		return m.Sent
+	}
+	return nil
+}
+
+type Message struct {
+	NOTIFICATION uint64 `protobuf:"varint,1,opt,name=NOTIFICATION" json:"NOTIFICATION,omitempty"`
+	UPDATE       uint64 `protobuf:"varint,2,opt,name=UPDATE" json:"UPDATE,omitempty"`
+	OPEN         uint64 `protobuf:"varint,3,opt,name=OPEN" json:"OPEN,omitempty"`
+	KEEPALIVE    uint64 `protobuf:"varint,4,opt,name=KEEPALIVE" json:"KEEPALIVE,omitempty"`
+	REFRESH      uint64 `protobuf:"varint,5,opt,name=REFRESH" json:"REFRESH,omitempty"`
+	DISCARDED    uint64 `protobuf:"varint,6,opt,name=DISCARDED" json:"DISCARDED,omitempty"`
+	TOTAL        uint64 `protobuf:"varint,7,opt,name=TOTAL" json:"TOTAL,omitempty"`
+}
+
+func (m *Message) Reset()                    { *m = Message{} }
+func (m *Message) String() string            { return proto.CompactTextString(m) }
+func (*Message) ProtoMessage()               {}
+func (*Message) Descriptor() ([]byte, []int) { return fileDescriptor0, []int{26} }
+
+type Queues struct {
+	Input  uint32 `protobuf:"varint,1,opt,name=input" json:"input,omitempty"`
+	Output uint32 `protobuf:"varint,2,opt,name=output" json:"output,omitempty"`
+}
+
+func (m *Queues) Reset()                    { *m = Queues{} }
+func (m *Queues) String() string            { return proto.CompactTextString(m) }
+func (*Queues) ProtoMessage()               {}
+func (*Queues) Descriptor() ([]byte, []int) { return fileDescriptor0, []int{27} }
+
+type Timers struct {
+	Config *TimersConfig `protobuf:"bytes,1,opt,name=config" json:"config,omitempty"`
+	State  *TimersState  `protobuf:"bytes,2,opt,name=state" json:"state,omitempty"`
+}
+
+func (m *Timers) Reset()                    { *m = Timers{} }
+func (m *Timers) String() string            { return proto.CompactTextString(m) }
+func (*Timers) ProtoMessage()               {}
+func (*Timers) Descriptor() ([]byte, []int) { return fileDescriptor0, []int{28} }
+
+func (m *Timers) GetConfig() *TimersConfig {
+	if m != nil {
+		return m.Config
+	}
+	return nil
+}
+
+func (m *Timers) GetState() *TimersState {
+	if m != nil {
+		return m.State
+	}
+	return nil
+}
+
+type TimersConfig struct {
+	ConnectRetry                 uint64 `protobuf:"varint,1,opt,name=connect_retry" json:"connect_retry,omitempty"`
+	HoldTime                     uint64 `protobuf:"varint,2,opt,name=hold_time" json:"hold_time,omitempty"`
+	KeepaliveInterval            uint64 `protobuf:"varint,3,opt,name=keepalive_interval" json:"keepalive_interval,omitempty"`
+	MinimumAdvertisementInterval uint64 `protobuf:"varint,4,opt,name=minimum_advertisement_interval" json:"minimum_advertisement_interval,omitempty"`
+}
+
+func (m *TimersConfig) Reset()                    { *m = TimersConfig{} }
+func (m *TimersConfig) String() string            { return proto.CompactTextString(m) }
+func (*TimersConfig) ProtoMessage()               {}
+func (*TimersConfig) Descriptor() ([]byte, []int) { return fileDescriptor0, []int{29} }
+
+type TimersState struct {
+	ConnectRetry                 uint64 `protobuf:"varint,1,opt,name=connect_retry" json:"connect_retry,omitempty"`
+	HoldTime                     uint64 `protobuf:"varint,2,opt,name=hold_time" json:"hold_time,omitempty"`
+	KeepaliveInterval            uint64 `protobuf:"varint,3,opt,name=keepalive_interval" json:"keepalive_interval,omitempty"`
+	MinimumAdvertisementInterval uint64 `protobuf:"varint,4,opt,name=minimum_advertisement_interval" json:"minimum_advertisement_interval,omitempty"`
+	NegotiatedHoldTime           uint64 `protobuf:"varint,5,opt,name=negotiated_hold_time" json:"negotiated_hold_time,omitempty"`
+	Uptime                       uint64 `protobuf:"varint,6,opt,name=uptime" json:"uptime,omitempty"`
+	Downtime                     uint64 `protobuf:"varint,7,opt,name=downtime" json:"downtime,omitempty"`
+}
+
+func (m *TimersState) Reset()                    { *m = TimersState{} }
+func (m *TimersState) String() string            { return proto.CompactTextString(m) }
+func (*TimersState) ProtoMessage()               {}
+func (*TimersState) Descriptor() ([]byte, []int) { return fileDescriptor0, []int{30} }
+
+type Transport struct {
+	LocalAddress  string `protobuf:"bytes,1,opt,name=local_address" json:"local_address,omitempty"`
+	LocalPort     uint32 `protobuf:"varint,2,opt,name=local_port" json:"local_port,omitempty"`
+	MtuDiscovery  bool   `protobuf:"varint,3,opt,name=mtu_discovery" json:"mtu_discovery,omitempty"`
+	PassiveMode   bool   `protobuf:"varint,4,opt,name=passive_mode" json:"passive_mode,omitempty"`
+	RemoteAddress string `protobuf:"bytes,5,opt,name=remote_address" json:"remote_address,omitempty"`
+	RemotePort    uint32 `protobuf:"varint,6,opt,name=remote_port" json:"remote_port,omitempty"`
+	TcpMss        uint32 `protobuf:"varint,7,opt,name=tcp_mss" json:"tcp_mss,omitempty"`
+}
+
+func (m *Transport) Reset()                    { *m = Transport{} }
+func (m *Transport) String() string            { return proto.CompactTextString(m) }
+func (*Transport) ProtoMessage()               {}
+func (*Transport) Descriptor() ([]byte, []int) { return fileDescriptor0, []int{31} }
+
+type RouteServer struct {
+	RouteServerClient bool `protobuf:"varint,1,opt,name=route_server_client" json:"route_server_client,omitempty"`
+}
+
+func (m *RouteServer) Reset()                    { *m = RouteServer{} }
+func (m *RouteServer) String() string            { return proto.CompactTextString(m) }
+func (*RouteServer) ProtoMessage()               {}
+func (*RouteServer) Descriptor() ([]byte, []int) { return fileDescriptor0, []int{32} }
+
 type Prefix struct {
-	IpPrefix        string `protobuf:"bytes,1,opt,name=ip_prefix" json:"ip_prefix,omitempty"`
-	MaskLengthRange string `protobuf:"bytes,2,opt,name=mask_length_range" json:"mask_length_range,omitempty"`
+	IpPrefix      string `protobuf:"bytes,1,opt,name=ip_prefix" json:"ip_prefix,omitempty"`
+	MaskLengthMin uint32 `protobuf:"varint,2,opt,name=mask_length_min" json:"mask_length_min,omitempty"`
+	MaskLengthMax uint32 `protobuf:"varint,3,opt,name=mask_length_max" json:"mask_length_max,omitempty"`
 }
 
-func (m *Prefix) Reset()         { *m = Prefix{} }
-func (m *Prefix) String() string { return proto.CompactTextString(m) }
-func (*Prefix) ProtoMessage()    {}
+func (m *Prefix) Reset()                    { *m = Prefix{} }
+func (m *Prefix) String() string            { return proto.CompactTextString(m) }
+func (*Prefix) ProtoMessage()               {}
+func (*Prefix) Descriptor() ([]byte, []int) { return fileDescriptor0, []int{33} }
 
-type PrefixSet struct {
-	PrefixSetName   string    `protobuf:"bytes,1,opt,name=prefix_set_name" json:"prefix_set_name,omitempty"`
-	PrefixList      []*Prefix `protobuf:"bytes,2,rep,name=prefix_list" json:"prefix_list,omitempty"`
-	MatchSetOptions string    `protobuf:"bytes,3,opt,name=match_set_options" json:"match_set_options,omitempty"`
+type DefinedSet struct {
+	Type     DefinedType `protobuf:"varint,1,opt,name=type,enum=gobgpapi.DefinedType" json:"type,omitempty"`
+	Name     string      `protobuf:"bytes,2,opt,name=name" json:"name,omitempty"`
+	List     []string    `protobuf:"bytes,3,rep,name=list" json:"list,omitempty"`
+	Prefixes []*Prefix   `protobuf:"bytes,4,rep,name=prefixes" json:"prefixes,omitempty"`
 }
 
-func (m *PrefixSet) Reset()         { *m = PrefixSet{} }
-func (m *PrefixSet) String() string { return proto.CompactTextString(m) }
-func (*PrefixSet) ProtoMessage()    {}
+func (m *DefinedSet) Reset()                    { *m = DefinedSet{} }
+func (m *DefinedSet) String() string            { return proto.CompactTextString(m) }
+func (*DefinedSet) ProtoMessage()               {}
+func (*DefinedSet) Descriptor() ([]byte, []int) { return fileDescriptor0, []int{34} }
 
-func (m *PrefixSet) GetPrefixList() []*Prefix {
+func (m *DefinedSet) GetPrefixes() []*Prefix {
 	if m != nil {
-		return m.PrefixList
+		return m.Prefixes
 	}
 	return nil
 }
 
-type Neighbor struct {
-	Address string `protobuf:"bytes,1,opt,name=address" json:"address,omitempty"`
+type MatchSet struct {
+	Type MatchType `protobuf:"varint,1,opt,name=type,enum=gobgpapi.MatchType" json:"type,omitempty"`
+	Name string    `protobuf:"bytes,2,opt,name=name" json:"name,omitempty"`
 }
 
-func (m *Neighbor) Reset()         { *m = Neighbor{} }
-func (m *Neighbor) String() string { return proto.CompactTextString(m) }
-func (*Neighbor) ProtoMessage()    {}
-
-type NeighborSet struct {
-	NeighborSetName string      `protobuf:"bytes,1,opt,name=neighbor_set_name" json:"neighbor_set_name,omitempty"`
-	NeighborList    []*Neighbor `protobuf:"bytes,2,rep,name=neighbor_list" json:"neighbor_list,omitempty"`
-	MatchSetOptions string      `protobuf:"bytes,3,opt,name=match_set_options" json:"match_set_options,omitempty"`
-}
-
-func (m *NeighborSet) Reset()         { *m = NeighborSet{} }
-func (m *NeighborSet) String() string { return proto.CompactTextString(m) }
-func (*NeighborSet) ProtoMessage()    {}
-
-func (m *NeighborSet) GetNeighborList() []*Neighbor {
-	if m != nil {
-		return m.NeighborList
-	}
-	return nil
-}
+func (m *MatchSet) Reset()                    { *m = MatchSet{} }
+func (m *MatchSet) String() string            { return proto.CompactTextString(m) }
+func (*MatchSet) ProtoMessage()               {}
+func (*MatchSet) Descriptor() ([]byte, []int) { return fileDescriptor0, []int{35} }
 
 type AsPathLength struct {
-	Value    string `protobuf:"bytes,1,opt,name=value" json:"value,omitempty"`
-	Operator string `protobuf:"bytes,2,opt,name=operator" json:"operator,omitempty"`
+	Type   AsPathLengthType `protobuf:"varint,1,opt,name=type,enum=gobgpapi.AsPathLengthType" json:"type,omitempty"`
+	Length uint32           `protobuf:"varint,2,opt,name=length" json:"length,omitempty"`
 }
 
-func (m *AsPathLength) Reset()         { *m = AsPathLength{} }
-func (m *AsPathLength) String() string { return proto.CompactTextString(m) }
-func (*AsPathLength) ProtoMessage()    {}
-
-type AsPathSet struct {
-	AsPathSetName   string   `protobuf:"bytes,1,opt,name=as_path_set_name" json:"as_path_set_name,omitempty"`
-	AsPathMembers   []string `protobuf:"bytes,2,rep,name=as_path_members" json:"as_path_members,omitempty"`
-	MatchSetOptions string   `protobuf:"bytes,3,opt,name=match_set_options" json:"match_set_options,omitempty"`
-}
-
-func (m *AsPathSet) Reset()         { *m = AsPathSet{} }
-func (m *AsPathSet) String() string { return proto.CompactTextString(m) }
-func (*AsPathSet) ProtoMessage()    {}
-
-type CommunitySet struct {
-	CommunitySetName string   `protobuf:"bytes,1,opt,name=community_set_name" json:"community_set_name,omitempty"`
-	CommunityMembers []string `protobuf:"bytes,2,rep,name=community_members" json:"community_members,omitempty"`
-	MatchSetOptions  string   `protobuf:"bytes,3,opt,name=match_set_options" json:"match_set_options,omitempty"`
-}
-
-func (m *CommunitySet) Reset()         { *m = CommunitySet{} }
-func (m *CommunitySet) String() string { return proto.CompactTextString(m) }
-func (*CommunitySet) ProtoMessage()    {}
-
-type ExtCommunitySet struct {
-	ExtCommunitySetName string   `protobuf:"bytes,1,opt,name=ext_community_set_name" json:"ext_community_set_name,omitempty"`
-	ExtCommunityMembers []string `protobuf:"bytes,2,rep,name=ext_community_members" json:"ext_community_members,omitempty"`
-	MatchSetOptions     string   `protobuf:"bytes,3,opt,name=match_set_options" json:"match_set_options,omitempty"`
-}
-
-func (m *ExtCommunitySet) Reset()         { *m = ExtCommunitySet{} }
-func (m *ExtCommunitySet) String() string { return proto.CompactTextString(m) }
-func (*ExtCommunitySet) ProtoMessage()    {}
+func (m *AsPathLength) Reset()                    { *m = AsPathLength{} }
+func (m *AsPathLength) String() string            { return proto.CompactTextString(m) }
+func (*AsPathLength) ProtoMessage()               {}
+func (*AsPathLength) Descriptor() ([]byte, []int) { return fileDescriptor0, []int{36} }
 
 type Conditions struct {
-	MatchPrefixSet       *PrefixSet       `protobuf:"bytes,1,opt,name=match_prefix_set" json:"match_prefix_set,omitempty"`
-	MatchNeighborSet     *NeighborSet     `protobuf:"bytes,2,opt,name=match_neighbor_set" json:"match_neighbor_set,omitempty"`
-	MatchAsPathLength    *AsPathLength    `protobuf:"bytes,3,opt,name=match_as_path_length" json:"match_as_path_length,omitempty"`
-	MatchAsPathSet       *AsPathSet       `protobuf:"bytes,4,opt,name=match_as_path_set" json:"match_as_path_set,omitempty"`
-	MatchCommunitySet    *CommunitySet    `protobuf:"bytes,5,opt,name=match_community_set" json:"match_community_set,omitempty"`
-	MatchExtCommunitySet *ExtCommunitySet `protobuf:"bytes,6,opt,name=match_ext_community_set" json:"match_ext_community_set,omitempty"`
+	PrefixSet       *MatchSet     `protobuf:"bytes,1,opt,name=prefix_set" json:"prefix_set,omitempty"`
+	NeighborSet     *MatchSet     `protobuf:"bytes,2,opt,name=neighbor_set" json:"neighbor_set,omitempty"`
+	AsPathLength    *AsPathLength `protobuf:"bytes,3,opt,name=as_path_length" json:"as_path_length,omitempty"`
+	AsPathSet       *MatchSet     `protobuf:"bytes,4,opt,name=as_path_set" json:"as_path_set,omitempty"`
+	CommunitySet    *MatchSet     `protobuf:"bytes,5,opt,name=community_set" json:"community_set,omitempty"`
+	ExtCommunitySet *MatchSet     `protobuf:"bytes,6,opt,name=ext_community_set" json:"ext_community_set,omitempty"`
+	RpkiResult      int32         `protobuf:"varint,7,opt,name=rpki_result" json:"rpki_result,omitempty"`
 }
 
-func (m *Conditions) Reset()         { *m = Conditions{} }
-func (m *Conditions) String() string { return proto.CompactTextString(m) }
-func (*Conditions) ProtoMessage()    {}
+func (m *Conditions) Reset()                    { *m = Conditions{} }
+func (m *Conditions) String() string            { return proto.CompactTextString(m) }
+func (*Conditions) ProtoMessage()               {}
+func (*Conditions) Descriptor() ([]byte, []int) { return fileDescriptor0, []int{37} }
 
-func (m *Conditions) GetMatchPrefixSet() *PrefixSet {
+func (m *Conditions) GetPrefixSet() *MatchSet {
 	if m != nil {
-		return m.MatchPrefixSet
+		return m.PrefixSet
 	}
 	return nil
 }
 
-func (m *Conditions) GetMatchNeighborSet() *NeighborSet {
+func (m *Conditions) GetNeighborSet() *MatchSet {
 	if m != nil {
-		return m.MatchNeighborSet
+		return m.NeighborSet
 	}
 	return nil
 }
 
-func (m *Conditions) GetMatchAsPathLength() *AsPathLength {
+func (m *Conditions) GetAsPathLength() *AsPathLength {
 	if m != nil {
-		return m.MatchAsPathLength
+		return m.AsPathLength
 	}
 	return nil
 }
 
-func (m *Conditions) GetMatchAsPathSet() *AsPathSet {
+func (m *Conditions) GetAsPathSet() *MatchSet {
 	if m != nil {
-		return m.MatchAsPathSet
+		return m.AsPathSet
 	}
 	return nil
 }
 
-func (m *Conditions) GetMatchCommunitySet() *CommunitySet {
+func (m *Conditions) GetCommunitySet() *MatchSet {
 	if m != nil {
-		return m.MatchCommunitySet
+		return m.CommunitySet
 	}
 	return nil
 }
 
-func (m *Conditions) GetMatchExtCommunitySet() *ExtCommunitySet {
+func (m *Conditions) GetExtCommunitySet() *MatchSet {
 	if m != nil {
-		return m.MatchExtCommunitySet
+		return m.ExtCommunitySet
 	}
 	return nil
 }
 
 type CommunityAction struct {
-	Communities []string `protobuf:"bytes,1,rep,name=communities" json:"communities,omitempty"`
-	Options     string   `protobuf:"bytes,2,opt,name=options" json:"options,omitempty"`
+	Type        CommunityActionType `protobuf:"varint,1,opt,name=type,enum=gobgpapi.CommunityActionType" json:"type,omitempty"`
+	Communities []string            `protobuf:"bytes,2,rep,name=communities" json:"communities,omitempty"`
 }
 
-func (m *CommunityAction) Reset()         { *m = CommunityAction{} }
-func (m *CommunityAction) String() string { return proto.CompactTextString(m) }
-func (*CommunityAction) ProtoMessage()    {}
+func (m *CommunityAction) Reset()                    { *m = CommunityAction{} }
+func (m *CommunityAction) String() string            { return proto.CompactTextString(m) }
+func (*CommunityAction) ProtoMessage()               {}
+func (*CommunityAction) Descriptor() ([]byte, []int) { return fileDescriptor0, []int{38} }
+
+type MedAction struct {
+	Type  MedActionType `protobuf:"varint,1,opt,name=type,enum=gobgpapi.MedActionType" json:"type,omitempty"`
+	Value int64         `protobuf:"varint,2,opt,name=value" json:"value,omitempty"`
+}
+
+func (m *MedAction) Reset()                    { *m = MedAction{} }
+func (m *MedAction) String() string            { return proto.CompactTextString(m) }
+func (*MedAction) ProtoMessage()               {}
+func (*MedAction) Descriptor() ([]byte, []int) { return fileDescriptor0, []int{39} }
 
 type AsPrependAction struct {
-	As      string `protobuf:"bytes,1,opt,name=as" json:"as,omitempty"`
-	Repeatn uint32 `protobuf:"varint,2,opt,name=repeatn" json:"repeatn,omitempty"`
+	Asn         uint32 `protobuf:"varint,1,opt,name=asn" json:"asn,omitempty"`
+	Repeat      uint32 `protobuf:"varint,2,opt,name=repeat" json:"repeat,omitempty"`
+	UseLeftMost bool   `protobuf:"varint,3,opt,name=use_left_most" json:"use_left_most,omitempty"`
 }
 
-func (m *AsPrependAction) Reset()         { *m = AsPrependAction{} }
-func (m *AsPrependAction) String() string { return proto.CompactTextString(m) }
-func (*AsPrependAction) ProtoMessage()    {}
+func (m *AsPrependAction) Reset()                    { *m = AsPrependAction{} }
+func (m *AsPrependAction) String() string            { return proto.CompactTextString(m) }
+func (*AsPrependAction) ProtoMessage()               {}
+func (*AsPrependAction) Descriptor() ([]byte, []int) { return fileDescriptor0, []int{40} }
 
 type Actions struct {
-	RouteAction  string           `protobuf:"bytes,1,opt,name=route_action" json:"route_action,omitempty"`
+	RouteAction  RouteAction      `protobuf:"varint,1,opt,name=route_action,enum=gobgpapi.RouteAction" json:"route_action,omitempty"`
 	Community    *CommunityAction `protobuf:"bytes,2,opt,name=community" json:"community,omitempty"`
-	Med          string           `protobuf:"bytes,3,opt,name=med" json:"med,omitempty"`
+	Med          *MedAction       `protobuf:"bytes,3,opt,name=med" json:"med,omitempty"`
 	AsPrepend    *AsPrependAction `protobuf:"bytes,4,opt,name=as_prepend" json:"as_prepend,omitempty"`
 	ExtCommunity *CommunityAction `protobuf:"bytes,5,opt,name=ext_community" json:"ext_community,omitempty"`
 }
 
-func (m *Actions) Reset()         { *m = Actions{} }
-func (m *Actions) String() string { return proto.CompactTextString(m) }
-func (*Actions) ProtoMessage()    {}
+func (m *Actions) Reset()                    { *m = Actions{} }
+func (m *Actions) String() string            { return proto.CompactTextString(m) }
+func (*Actions) ProtoMessage()               {}
+func (*Actions) Descriptor() ([]byte, []int) { return fileDescriptor0, []int{41} }
 
 func (m *Actions) GetCommunity() *CommunityAction {
 	if m != nil {
 		return m.Community
+	}
+	return nil
+}
+
+func (m *Actions) GetMed() *MedAction {
+	if m != nil {
+		return m.Med
 	}
 	return nil
 }
@@ -635,14 +1221,15 @@ func (m *Actions) GetExtCommunity() *CommunityAction {
 }
 
 type Statement struct {
-	StatementNeme string      `protobuf:"bytes,1,opt,name=statement_neme" json:"statement_neme,omitempty"`
-	Conditions    *Conditions `protobuf:"bytes,2,opt,name=conditions" json:"conditions,omitempty"`
-	Actions       *Actions    `protobuf:"bytes,3,opt,name=actions" json:"actions,omitempty"`
+	Name       string      `protobuf:"bytes,1,opt,name=name" json:"name,omitempty"`
+	Conditions *Conditions `protobuf:"bytes,2,opt,name=conditions" json:"conditions,omitempty"`
+	Actions    *Actions    `protobuf:"bytes,3,opt,name=actions" json:"actions,omitempty"`
 }
 
-func (m *Statement) Reset()         { *m = Statement{} }
-func (m *Statement) String() string { return proto.CompactTextString(m) }
-func (*Statement) ProtoMessage()    {}
+func (m *Statement) Reset()                    { *m = Statement{} }
+func (m *Statement) String() string            { return proto.CompactTextString(m) }
+func (*Statement) ProtoMessage()               {}
+func (*Statement) Descriptor() ([]byte, []int) { return fileDescriptor0, []int{42} }
 
 func (m *Statement) GetConditions() *Conditions {
 	if m != nil {
@@ -658,52 +1245,39 @@ func (m *Statement) GetActions() *Actions {
 	return nil
 }
 
-type PolicyDefinition struct {
-	PolicyDefinitionName string       `protobuf:"bytes,1,opt,name=policy_definition_name" json:"policy_definition_name,omitempty"`
-	StatementList        []*Statement `protobuf:"bytes,2,rep,name=statement_list" json:"statement_list,omitempty"`
+type Policy struct {
+	Name       string       `protobuf:"bytes,1,opt,name=name" json:"name,omitempty"`
+	Statements []*Statement `protobuf:"bytes,2,rep,name=statements" json:"statements,omitempty"`
 }
 
-func (m *PolicyDefinition) Reset()         { *m = PolicyDefinition{} }
-func (m *PolicyDefinition) String() string { return proto.CompactTextString(m) }
-func (*PolicyDefinition) ProtoMessage()    {}
+func (m *Policy) Reset()                    { *m = Policy{} }
+func (m *Policy) String() string            { return proto.CompactTextString(m) }
+func (*Policy) ProtoMessage()               {}
+func (*Policy) Descriptor() ([]byte, []int) { return fileDescriptor0, []int{43} }
 
-func (m *PolicyDefinition) GetStatementList() []*Statement {
+func (m *Policy) GetStatements() []*Statement {
 	if m != nil {
-		return m.StatementList
+		return m.Statements
 	}
 	return nil
 }
 
-type ApplyPolicy struct {
-	ImportPolicies      []*PolicyDefinition `protobuf:"bytes,1,rep,name=import_policies" json:"import_policies,omitempty"`
-	DefaultImportPolicy string              `protobuf:"bytes,2,opt,name=default_import_policy" json:"default_import_policy,omitempty"`
-	ExportPolicies      []*PolicyDefinition `protobuf:"bytes,3,rep,name=export_policies" json:"export_policies,omitempty"`
-	DefaultExportPolicy string              `protobuf:"bytes,4,opt,name=default_export_policy" json:"default_export_policy,omitempty"`
-	InPolicies          []*PolicyDefinition `protobuf:"bytes,5,rep,name=in_policies" json:"in_policies,omitempty"`
-	DefaultInPolicy     string              `protobuf:"bytes,6,opt,name=default_in_policy" json:"default_in_policy,omitempty"`
+type PolicyAssignment struct {
+	Type     PolicyType  `protobuf:"varint,1,opt,name=type,enum=gobgpapi.PolicyType" json:"type,omitempty"`
+	Resource Resource    `protobuf:"varint,2,opt,name=resource,enum=gobgpapi.Resource" json:"resource,omitempty"`
+	Name     string      `protobuf:"bytes,3,opt,name=name" json:"name,omitempty"`
+	Policies []*Policy   `protobuf:"bytes,4,rep,name=policies" json:"policies,omitempty"`
+	Default  RouteAction `protobuf:"varint,5,opt,name=default,enum=gobgpapi.RouteAction" json:"default,omitempty"`
 }
 
-func (m *ApplyPolicy) Reset()         { *m = ApplyPolicy{} }
-func (m *ApplyPolicy) String() string { return proto.CompactTextString(m) }
-func (*ApplyPolicy) ProtoMessage()    {}
+func (m *PolicyAssignment) Reset()                    { *m = PolicyAssignment{} }
+func (m *PolicyAssignment) String() string            { return proto.CompactTextString(m) }
+func (*PolicyAssignment) ProtoMessage()               {}
+func (*PolicyAssignment) Descriptor() ([]byte, []int) { return fileDescriptor0, []int{44} }
 
-func (m *ApplyPolicy) GetImportPolicies() []*PolicyDefinition {
+func (m *PolicyAssignment) GetPolicies() []*Policy {
 	if m != nil {
-		return m.ImportPolicies
-	}
-	return nil
-}
-
-func (m *ApplyPolicy) GetExportPolicies() []*PolicyDefinition {
-	if m != nil {
-		return m.ExportPolicies
-	}
-	return nil
-}
-
-func (m *ApplyPolicy) GetInPolicies() []*PolicyDefinition {
-	if m != nil {
-		return m.InPolicies
+		return m.Policies
 	}
 	return nil
 }
@@ -712,20 +1286,113 @@ type MrtMessage struct {
 	Data []byte `protobuf:"bytes,1,opt,name=data,proto3" json:"data,omitempty"`
 }
 
-func (m *MrtMessage) Reset()         { *m = MrtMessage{} }
-func (m *MrtMessage) String() string { return proto.CompactTextString(m) }
-func (*MrtMessage) ProtoMessage()    {}
+func (m *MrtMessage) Reset()                    { *m = MrtMessage{} }
+func (m *MrtMessage) String() string            { return proto.CompactTextString(m) }
+func (*MrtMessage) ProtoMessage()               {}
+func (*MrtMessage) Descriptor() ([]byte, []int) { return fileDescriptor0, []int{45} }
 
-type ROA struct {
-	As        uint32 `protobuf:"varint,1,opt,name=as" json:"as,omitempty"`
-	Prefixlen uint32 `protobuf:"varint,2,opt,name=prefixlen" json:"prefixlen,omitempty"`
-	Maxlen    uint32 `protobuf:"varint,3,opt,name=maxlen" json:"maxlen,omitempty"`
-	Prefix    string `protobuf:"bytes,4,opt,name=prefix" json:"prefix,omitempty"`
+type RPKIConf struct {
+	Address    string `protobuf:"bytes,1,opt,name=address" json:"address,omitempty"`
+	RemotePort uint32 `protobuf:"varint,2,opt,name=remote_port" json:"remote_port,omitempty"`
 }
 
-func (m *ROA) Reset()         { *m = ROA{} }
-func (m *ROA) String() string { return proto.CompactTextString(m) }
-func (*ROA) ProtoMessage()    {}
+func (m *RPKIConf) Reset()                    { *m = RPKIConf{} }
+func (m *RPKIConf) String() string            { return proto.CompactTextString(m) }
+func (*RPKIConf) ProtoMessage()               {}
+func (*RPKIConf) Descriptor() ([]byte, []int) { return fileDescriptor0, []int{46} }
+
+type RPKIState struct {
+	Uptime        int64  `protobuf:"varint,1,opt,name=uptime" json:"uptime,omitempty"`
+	Downtime      int64  `protobuf:"varint,2,opt,name=downtime" json:"downtime,omitempty"`
+	Up            bool   `protobuf:"varint,3,opt,name=up" json:"up,omitempty"`
+	RecordIpv4    uint32 `protobuf:"varint,4,opt,name=record_ipv4" json:"record_ipv4,omitempty"`
+	RecordIpv6    uint32 `protobuf:"varint,5,opt,name=record_ipv6" json:"record_ipv6,omitempty"`
+	PrefixIpv4    uint32 `protobuf:"varint,6,opt,name=prefix_ipv4" json:"prefix_ipv4,omitempty"`
+	PrefixIpv6    uint32 `protobuf:"varint,7,opt,name=prefix_ipv6" json:"prefix_ipv6,omitempty"`
+	Serial        uint32 `protobuf:"varint,8,opt,name=serial" json:"serial,omitempty"`
+	ReceivedIpv4  int64  `protobuf:"varint,9,opt,name=received_ipv4" json:"received_ipv4,omitempty"`
+	ReceivedIpv6  int64  `protobuf:"varint,10,opt,name=received_ipv6" json:"received_ipv6,omitempty"`
+	SerialNotify  int64  `protobuf:"varint,11,opt,name=serial_notify" json:"serial_notify,omitempty"`
+	CacheReset    int64  `protobuf:"varint,12,opt,name=cache_reset" json:"cache_reset,omitempty"`
+	CacheResponse int64  `protobuf:"varint,13,opt,name=cache_response" json:"cache_response,omitempty"`
+	EndOfData     int64  `protobuf:"varint,14,opt,name=end_of_data" json:"end_of_data,omitempty"`
+	Error         int64  `protobuf:"varint,15,opt,name=error" json:"error,omitempty"`
+	SerialQuery   int64  `protobuf:"varint,16,opt,name=serial_query" json:"serial_query,omitempty"`
+	ResetQuery    int64  `protobuf:"varint,17,opt,name=reset_query" json:"reset_query,omitempty"`
+}
+
+func (m *RPKIState) Reset()                    { *m = RPKIState{} }
+func (m *RPKIState) String() string            { return proto.CompactTextString(m) }
+func (*RPKIState) ProtoMessage()               {}
+func (*RPKIState) Descriptor() ([]byte, []int) { return fileDescriptor0, []int{47} }
+
+type RPKI struct {
+	Conf  *RPKIConf  `protobuf:"bytes,1,opt,name=conf" json:"conf,omitempty"`
+	State *RPKIState `protobuf:"bytes,2,opt,name=state" json:"state,omitempty"`
+}
+
+func (m *RPKI) Reset()                    { *m = RPKI{} }
+func (m *RPKI) String() string            { return proto.CompactTextString(m) }
+func (*RPKI) ProtoMessage()               {}
+func (*RPKI) Descriptor() ([]byte, []int) { return fileDescriptor0, []int{48} }
+
+func (m *RPKI) GetConf() *RPKIConf {
+	if m != nil {
+		return m.Conf
+	}
+	return nil
+}
+
+func (m *RPKI) GetState() *RPKIState {
+	if m != nil {
+		return m.State
+	}
+	return nil
+}
+
+type ROA struct {
+	As        uint32    `protobuf:"varint,1,opt,name=as" json:"as,omitempty"`
+	Prefixlen uint32    `protobuf:"varint,2,opt,name=prefixlen" json:"prefixlen,omitempty"`
+	Maxlen    uint32    `protobuf:"varint,3,opt,name=maxlen" json:"maxlen,omitempty"`
+	Prefix    string    `protobuf:"bytes,4,opt,name=prefix" json:"prefix,omitempty"`
+	Conf      *RPKIConf `protobuf:"bytes,5,opt,name=conf" json:"conf,omitempty"`
+}
+
+func (m *ROA) Reset()                    { *m = ROA{} }
+func (m *ROA) String() string            { return proto.CompactTextString(m) }
+func (*ROA) ProtoMessage()               {}
+func (*ROA) Descriptor() ([]byte, []int) { return fileDescriptor0, []int{49} }
+
+func (m *ROA) GetConf() *RPKIConf {
+	if m != nil {
+		return m.Conf
+	}
+	return nil
+}
+
+type ROAResult struct {
+	Reason     ROAResult_ValidationReason `protobuf:"varint,1,opt,name=reason,enum=gobgpapi.ROAResult_ValidationReason" json:"reason,omitempty"`
+	Address    string                     `protobuf:"bytes,2,opt,name=address" json:"address,omitempty"`
+	Timestamp  int64                      `protobuf:"varint,3,opt,name=timestamp" json:"timestamp,omitempty"`
+	AspathAttr []byte                     `protobuf:"bytes,4,opt,name=aspath_attr,proto3" json:"aspath_attr,omitempty"`
+	OriginAs   uint32                     `protobuf:"varint,5,opt,name=origin_as" json:"origin_as,omitempty"`
+	Prefix     string                     `protobuf:"bytes,6,opt,name=prefix" json:"prefix,omitempty"`
+	OldResult  ROAResult_ValidationResult `protobuf:"varint,7,opt,name=old_result,enum=gobgpapi.ROAResult_ValidationResult" json:"old_result,omitempty"`
+	NewResult  ROAResult_ValidationResult `protobuf:"varint,8,opt,name=new_result,enum=gobgpapi.ROAResult_ValidationResult" json:"new_result,omitempty"`
+	Roas       []*ROA                     `protobuf:"bytes,9,rep,name=roas" json:"roas,omitempty"`
+}
+
+func (m *ROAResult) Reset()                    { *m = ROAResult{} }
+func (m *ROAResult) String() string            { return proto.CompactTextString(m) }
+func (*ROAResult) ProtoMessage()               {}
+func (*ROAResult) Descriptor() ([]byte, []int) { return fileDescriptor0, []int{50} }
+
+func (m *ROAResult) GetRoas() []*ROA {
+	if m != nil {
+		return m.Roas
+	}
+	return nil
+}
 
 type Vrf struct {
 	Name     string   `protobuf:"bytes,1,opt,name=name" json:"name,omitempty"`
@@ -734,23 +1401,104 @@ type Vrf struct {
 	ExportRt [][]byte `protobuf:"bytes,4,rep,name=export_rt,proto3" json:"export_rt,omitempty"`
 }
 
-func (m *Vrf) Reset()         { *m = Vrf{} }
-func (m *Vrf) String() string { return proto.CompactTextString(m) }
-func (*Vrf) ProtoMessage()    {}
+func (m *Vrf) Reset()                    { *m = Vrf{} }
+func (m *Vrf) String() string            { return proto.CompactTextString(m) }
+func (*Vrf) ProtoMessage()               {}
+func (*Vrf) Descriptor() ([]byte, []int) { return fileDescriptor0, []int{51} }
 
-func init() {
-	proto.RegisterEnum("api.Resource", Resource_name, Resource_value)
-	proto.RegisterEnum("api.Operation", Operation_name, Operation_value)
-	proto.RegisterEnum("api.BGP_CAPABILITY", BGP_CAPABILITY_name, BGP_CAPABILITY_value)
-	proto.RegisterEnum("api.Error_ErrorCode", Error_ErrorCode_name, Error_ErrorCode_value)
+type Global struct {
+	As         uint32 `protobuf:"varint,1,opt,name=as" json:"as,omitempty"`
+	RouterId   string `protobuf:"bytes,2,opt,name=router_id" json:"router_id,omitempty"`
+	ListenPort int32  `protobuf:"varint,3,opt,name=listen_port" json:"listen_port,omitempty"`
 }
 
-// Client API for Grpc service
+func (m *Global) Reset()                    { *m = Global{} }
+func (m *Global) String() string            { return proto.CompactTextString(m) }
+func (*Global) ProtoMessage()               {}
+func (*Global) Descriptor() ([]byte, []int) { return fileDescriptor0, []int{52} }
 
-type GrpcClient interface {
-	GetNeighbors(ctx context.Context, in *Arguments, opts ...grpc.CallOption) (Grpc_GetNeighborsClient, error)
+func init() {
+	proto.RegisterType((*Error)(nil), "gobgpapi.Error")
+	proto.RegisterType((*Arguments)(nil), "gobgpapi.Arguments")
+	proto.RegisterType((*ModPathArguments)(nil), "gobgpapi.ModPathArguments")
+	proto.RegisterType((*ModPathResponse)(nil), "gobgpapi.ModPathResponse")
+	proto.RegisterType((*ModPathsArguments)(nil), "gobgpapi.ModPathsArguments")
+	proto.RegisterType((*ModNeighborArguments)(nil), "gobgpapi.ModNeighborArguments")
+	proto.RegisterType((*MrtArguments)(nil), "gobgpapi.MrtArguments")
+	proto.RegisterType((*ModMrtArguments)(nil), "gobgpapi.ModMrtArguments")
+	proto.RegisterType((*ModBmpArguments)(nil), "gobgpapi.ModBmpArguments")
+	proto.RegisterType((*ModRpkiArguments)(nil), "gobgpapi.ModRpkiArguments")
+	proto.RegisterType((*ModVrfArguments)(nil), "gobgpapi.ModVrfArguments")
+	proto.RegisterType((*ModDefinedSetArguments)(nil), "gobgpapi.ModDefinedSetArguments")
+	proto.RegisterType((*ModStatementArguments)(nil), "gobgpapi.ModStatementArguments")
+	proto.RegisterType((*ModPolicyArguments)(nil), "gobgpapi.ModPolicyArguments")
+	proto.RegisterType((*ModPolicyAssignmentArguments)(nil), "gobgpapi.ModPolicyAssignmentArguments")
+	proto.RegisterType((*ModGlobalConfigArguments)(nil), "gobgpapi.ModGlobalConfigArguments")
+	proto.RegisterType((*Path)(nil), "gobgpapi.Path")
+	proto.RegisterType((*Destination)(nil), "gobgpapi.Destination")
+	proto.RegisterType((*Table)(nil), "gobgpapi.Table")
+	proto.RegisterType((*Peer)(nil), "gobgpapi.Peer")
+	proto.RegisterType((*ApplyPolicy)(nil), "gobgpapi.ApplyPolicy")
+	proto.RegisterType((*PeerConf)(nil), "gobgpapi.PeerConf")
+	proto.RegisterType((*EbgpMultihop)(nil), "gobgpapi.EbgpMultihop")
+	proto.RegisterType((*RouteReflector)(nil), "gobgpapi.RouteReflector")
+	proto.RegisterType((*PeerState)(nil), "gobgpapi.PeerState")
+	proto.RegisterType((*Messages)(nil), "gobgpapi.Messages")
+	proto.RegisterType((*Message)(nil), "gobgpapi.Message")
+	proto.RegisterType((*Queues)(nil), "gobgpapi.Queues")
+	proto.RegisterType((*Timers)(nil), "gobgpapi.Timers")
+	proto.RegisterType((*TimersConfig)(nil), "gobgpapi.TimersConfig")
+	proto.RegisterType((*TimersState)(nil), "gobgpapi.TimersState")
+	proto.RegisterType((*Transport)(nil), "gobgpapi.Transport")
+	proto.RegisterType((*RouteServer)(nil), "gobgpapi.RouteServer")
+	proto.RegisterType((*Prefix)(nil), "gobgpapi.Prefix")
+	proto.RegisterType((*DefinedSet)(nil), "gobgpapi.DefinedSet")
+	proto.RegisterType((*MatchSet)(nil), "gobgpapi.MatchSet")
+	proto.RegisterType((*AsPathLength)(nil), "gobgpapi.AsPathLength")
+	proto.RegisterType((*Conditions)(nil), "gobgpapi.Conditions")
+	proto.RegisterType((*CommunityAction)(nil), "gobgpapi.CommunityAction")
+	proto.RegisterType((*MedAction)(nil), "gobgpapi.MedAction")
+	proto.RegisterType((*AsPrependAction)(nil), "gobgpapi.AsPrependAction")
+	proto.RegisterType((*Actions)(nil), "gobgpapi.Actions")
+	proto.RegisterType((*Statement)(nil), "gobgpapi.Statement")
+	proto.RegisterType((*Policy)(nil), "gobgpapi.Policy")
+	proto.RegisterType((*PolicyAssignment)(nil), "gobgpapi.PolicyAssignment")
+	proto.RegisterType((*MrtMessage)(nil), "gobgpapi.MrtMessage")
+	proto.RegisterType((*RPKIConf)(nil), "gobgpapi.RPKIConf")
+	proto.RegisterType((*RPKIState)(nil), "gobgpapi.RPKIState")
+	proto.RegisterType((*RPKI)(nil), "gobgpapi.RPKI")
+	proto.RegisterType((*ROA)(nil), "gobgpapi.ROA")
+	proto.RegisterType((*ROAResult)(nil), "gobgpapi.ROAResult")
+	proto.RegisterType((*Vrf)(nil), "gobgpapi.Vrf")
+	proto.RegisterType((*Global)(nil), "gobgpapi.Global")
+	proto.RegisterEnum("gobgpapi.Resource", Resource_name, Resource_value)
+	proto.RegisterEnum("gobgpapi.Operation", Operation_name, Operation_value)
+	proto.RegisterEnum("gobgpapi.DefinedType", DefinedType_name, DefinedType_value)
+	proto.RegisterEnum("gobgpapi.MatchType", MatchType_name, MatchType_value)
+	proto.RegisterEnum("gobgpapi.AsPathLengthType", AsPathLengthType_name, AsPathLengthType_value)
+	proto.RegisterEnum("gobgpapi.RouteAction", RouteAction_name, RouteAction_value)
+	proto.RegisterEnum("gobgpapi.CommunityActionType", CommunityActionType_name, CommunityActionType_value)
+	proto.RegisterEnum("gobgpapi.MedActionType", MedActionType_name, MedActionType_value)
+	proto.RegisterEnum("gobgpapi.PolicyType", PolicyType_name, PolicyType_value)
+	proto.RegisterEnum("gobgpapi.Error_ErrorCode", Error_ErrorCode_name, Error_ErrorCode_value)
+	proto.RegisterEnum("gobgpapi.ModBmpArguments_MonitoringPolicy", ModBmpArguments_MonitoringPolicy_name, ModBmpArguments_MonitoringPolicy_value)
+	proto.RegisterEnum("gobgpapi.ROAResult_ValidationReason", ROAResult_ValidationReason_name, ROAResult_ValidationReason_value)
+	proto.RegisterEnum("gobgpapi.ROAResult_ValidationResult", ROAResult_ValidationResult_name, ROAResult_ValidationResult_value)
+}
+
+// Reference imports to suppress errors if they are not otherwise used.
+var _ context.Context
+var _ grpc.ClientConn
+
+// Client API for GobgpApi service
+
+type GobgpApiClient interface {
+	GetGlobalConfig(ctx context.Context, in *Arguments, opts ...grpc.CallOption) (*Global, error)
+	ModGlobalConfig(ctx context.Context, in *ModGlobalConfigArguments, opts ...grpc.CallOption) (*Error, error)
+	GetNeighbors(ctx context.Context, in *Arguments, opts ...grpc.CallOption) (GobgpApi_GetNeighborsClient, error)
 	GetNeighbor(ctx context.Context, in *Arguments, opts ...grpc.CallOption) (*Peer, error)
-	GetRib(ctx context.Context, in *Arguments, opts ...grpc.CallOption) (Grpc_GetRibClient, error)
+	ModNeighbor(ctx context.Context, in *ModNeighborArguments, opts ...grpc.CallOption) (*Error, error)
+	GetRib(ctx context.Context, in *Table, opts ...grpc.CallOption) (*Table, error)
 	Reset(ctx context.Context, in *Arguments, opts ...grpc.CallOption) (*Error, error)
 	SoftReset(ctx context.Context, in *Arguments, opts ...grpc.CallOption) (*Error, error)
 	SoftResetIn(ctx context.Context, in *Arguments, opts ...grpc.CallOption) (*Error, error)
@@ -758,34 +1506,65 @@ type GrpcClient interface {
 	Shutdown(ctx context.Context, in *Arguments, opts ...grpc.CallOption) (*Error, error)
 	Enable(ctx context.Context, in *Arguments, opts ...grpc.CallOption) (*Error, error)
 	Disable(ctx context.Context, in *Arguments, opts ...grpc.CallOption) (*Error, error)
-	ModPath(ctx context.Context, opts ...grpc.CallOption) (Grpc_ModPathClient, error)
-	GetNeighborPolicy(ctx context.Context, in *Arguments, opts ...grpc.CallOption) (*ApplyPolicy, error)
-	ModNeighborPolicy(ctx context.Context, opts ...grpc.CallOption) (Grpc_ModNeighborPolicyClient, error)
-	GetPolicyRoutePolicies(ctx context.Context, in *PolicyArguments, opts ...grpc.CallOption) (Grpc_GetPolicyRoutePoliciesClient, error)
-	GetPolicyRoutePolicy(ctx context.Context, in *PolicyArguments, opts ...grpc.CallOption) (*PolicyDefinition, error)
-	ModPolicyRoutePolicy(ctx context.Context, opts ...grpc.CallOption) (Grpc_ModPolicyRoutePolicyClient, error)
-	MonitorBestChanged(ctx context.Context, in *Arguments, opts ...grpc.CallOption) (Grpc_MonitorBestChangedClient, error)
-	MonitorPeerState(ctx context.Context, in *Arguments, opts ...grpc.CallOption) (Grpc_MonitorPeerStateClient, error)
-	GetMrt(ctx context.Context, in *MrtArguments, opts ...grpc.CallOption) (Grpc_GetMrtClient, error)
-	GetRPKI(ctx context.Context, in *Arguments, opts ...grpc.CallOption) (Grpc_GetRPKIClient, error)
-	GetVrfs(ctx context.Context, in *Arguments, opts ...grpc.CallOption) (Grpc_GetVrfsClient, error)
+	ModPath(ctx context.Context, in *ModPathArguments, opts ...grpc.CallOption) (*ModPathResponse, error)
+	ModPaths(ctx context.Context, opts ...grpc.CallOption) (GobgpApi_ModPathsClient, error)
+	MonitorRib(ctx context.Context, in *Table, opts ...grpc.CallOption) (GobgpApi_MonitorRibClient, error)
+	MonitorBestChanged(ctx context.Context, in *Arguments, opts ...grpc.CallOption) (GobgpApi_MonitorBestChangedClient, error)
+	MonitorPeerState(ctx context.Context, in *Arguments, opts ...grpc.CallOption) (GobgpApi_MonitorPeerStateClient, error)
+	MonitorROAValidation(ctx context.Context, in *Arguments, opts ...grpc.CallOption) (GobgpApi_MonitorROAValidationClient, error)
+	GetMrt(ctx context.Context, in *MrtArguments, opts ...grpc.CallOption) (GobgpApi_GetMrtClient, error)
+	ModMrt(ctx context.Context, in *ModMrtArguments, opts ...grpc.CallOption) (*Error, error)
+	ModBmp(ctx context.Context, in *ModBmpArguments, opts ...grpc.CallOption) (*Error, error)
+	GetRPKI(ctx context.Context, in *Arguments, opts ...grpc.CallOption) (GobgpApi_GetRPKIClient, error)
+	ModRPKI(ctx context.Context, in *ModRpkiArguments, opts ...grpc.CallOption) (*Error, error)
+	GetROA(ctx context.Context, in *Arguments, opts ...grpc.CallOption) (GobgpApi_GetROAClient, error)
+	GetVrfs(ctx context.Context, in *Arguments, opts ...grpc.CallOption) (GobgpApi_GetVrfsClient, error)
 	ModVrf(ctx context.Context, in *ModVrfArguments, opts ...grpc.CallOption) (*Error, error)
+	GetDefinedSet(ctx context.Context, in *DefinedSet, opts ...grpc.CallOption) (*DefinedSet, error)
+	GetDefinedSets(ctx context.Context, in *DefinedSet, opts ...grpc.CallOption) (GobgpApi_GetDefinedSetsClient, error)
+	ModDefinedSet(ctx context.Context, in *ModDefinedSetArguments, opts ...grpc.CallOption) (*Error, error)
+	GetStatement(ctx context.Context, in *Statement, opts ...grpc.CallOption) (*Statement, error)
+	GetStatements(ctx context.Context, in *Statement, opts ...grpc.CallOption) (GobgpApi_GetStatementsClient, error)
+	ModStatement(ctx context.Context, in *ModStatementArguments, opts ...grpc.CallOption) (*Error, error)
+	GetPolicy(ctx context.Context, in *Policy, opts ...grpc.CallOption) (*Policy, error)
+	GetPolicies(ctx context.Context, in *Policy, opts ...grpc.CallOption) (GobgpApi_GetPoliciesClient, error)
+	ModPolicy(ctx context.Context, in *ModPolicyArguments, opts ...grpc.CallOption) (*Error, error)
+	GetPolicyAssignment(ctx context.Context, in *PolicyAssignment, opts ...grpc.CallOption) (*PolicyAssignment, error)
+	ModPolicyAssignment(ctx context.Context, in *ModPolicyAssignmentArguments, opts ...grpc.CallOption) (*Error, error)
 }
 
-type grpcClient struct {
+type gobgpApiClient struct {
 	cc *grpc.ClientConn
 }
 
-func NewGrpcClient(cc *grpc.ClientConn) GrpcClient {
-	return &grpcClient{cc}
+func NewGobgpApiClient(cc *grpc.ClientConn) GobgpApiClient {
+	return &gobgpApiClient{cc}
 }
 
-func (c *grpcClient) GetNeighbors(ctx context.Context, in *Arguments, opts ...grpc.CallOption) (Grpc_GetNeighborsClient, error) {
-	stream, err := grpc.NewClientStream(ctx, &_Grpc_serviceDesc.Streams[0], c.cc, "/api.Grpc/GetNeighbors", opts...)
+func (c *gobgpApiClient) GetGlobalConfig(ctx context.Context, in *Arguments, opts ...grpc.CallOption) (*Global, error) {
+	out := new(Global)
+	err := grpc.Invoke(ctx, "/gobgpapi.GobgpApi/GetGlobalConfig", in, out, c.cc, opts...)
 	if err != nil {
 		return nil, err
 	}
-	x := &grpcGetNeighborsClient{stream}
+	return out, nil
+}
+
+func (c *gobgpApiClient) ModGlobalConfig(ctx context.Context, in *ModGlobalConfigArguments, opts ...grpc.CallOption) (*Error, error) {
+	out := new(Error)
+	err := grpc.Invoke(ctx, "/gobgpapi.GobgpApi/ModGlobalConfig", in, out, c.cc, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *gobgpApiClient) GetNeighbors(ctx context.Context, in *Arguments, opts ...grpc.CallOption) (GobgpApi_GetNeighborsClient, error) {
+	stream, err := grpc.NewClientStream(ctx, &_GobgpApi_serviceDesc.Streams[0], c.cc, "/gobgpapi.GobgpApi/GetNeighbors", opts...)
+	if err != nil {
+		return nil, err
+	}
+	x := &gobgpApiGetNeighborsClient{stream}
 	if err := x.ClientStream.SendMsg(in); err != nil {
 		return nil, err
 	}
@@ -795,16 +1574,16 @@ func (c *grpcClient) GetNeighbors(ctx context.Context, in *Arguments, opts ...gr
 	return x, nil
 }
 
-type Grpc_GetNeighborsClient interface {
+type GobgpApi_GetNeighborsClient interface {
 	Recv() (*Peer, error)
 	grpc.ClientStream
 }
 
-type grpcGetNeighborsClient struct {
+type gobgpApiGetNeighborsClient struct {
 	grpc.ClientStream
 }
 
-func (x *grpcGetNeighborsClient) Recv() (*Peer, error) {
+func (x *gobgpApiGetNeighborsClient) Recv() (*Peer, error) {
 	m := new(Peer)
 	if err := x.ClientStream.RecvMsg(m); err != nil {
 		return nil, err
@@ -812,134 +1591,129 @@ func (x *grpcGetNeighborsClient) Recv() (*Peer, error) {
 	return m, nil
 }
 
-func (c *grpcClient) GetNeighbor(ctx context.Context, in *Arguments, opts ...grpc.CallOption) (*Peer, error) {
+func (c *gobgpApiClient) GetNeighbor(ctx context.Context, in *Arguments, opts ...grpc.CallOption) (*Peer, error) {
 	out := new(Peer)
-	err := grpc.Invoke(ctx, "/api.Grpc/GetNeighbor", in, out, c.cc, opts...)
+	err := grpc.Invoke(ctx, "/gobgpapi.GobgpApi/GetNeighbor", in, out, c.cc, opts...)
 	if err != nil {
 		return nil, err
 	}
 	return out, nil
 }
 
-func (c *grpcClient) GetRib(ctx context.Context, in *Arguments, opts ...grpc.CallOption) (Grpc_GetRibClient, error) {
-	stream, err := grpc.NewClientStream(ctx, &_Grpc_serviceDesc.Streams[1], c.cc, "/api.Grpc/GetRib", opts...)
+func (c *gobgpApiClient) ModNeighbor(ctx context.Context, in *ModNeighborArguments, opts ...grpc.CallOption) (*Error, error) {
+	out := new(Error)
+	err := grpc.Invoke(ctx, "/gobgpapi.GobgpApi/ModNeighbor", in, out, c.cc, opts...)
 	if err != nil {
 		return nil, err
 	}
-	x := &grpcGetRibClient{stream}
-	if err := x.ClientStream.SendMsg(in); err != nil {
+	return out, nil
+}
+
+func (c *gobgpApiClient) GetRib(ctx context.Context, in *Table, opts ...grpc.CallOption) (*Table, error) {
+	out := new(Table)
+	err := grpc.Invoke(ctx, "/gobgpapi.GobgpApi/GetRib", in, out, c.cc, opts...)
+	if err != nil {
 		return nil, err
 	}
-	if err := x.ClientStream.CloseSend(); err != nil {
+	return out, nil
+}
+
+func (c *gobgpApiClient) Reset(ctx context.Context, in *Arguments, opts ...grpc.CallOption) (*Error, error) {
+	out := new(Error)
+	err := grpc.Invoke(ctx, "/gobgpapi.GobgpApi/Reset", in, out, c.cc, opts...)
+	if err != nil {
 		return nil, err
 	}
+	return out, nil
+}
+
+func (c *gobgpApiClient) SoftReset(ctx context.Context, in *Arguments, opts ...grpc.CallOption) (*Error, error) {
+	out := new(Error)
+	err := grpc.Invoke(ctx, "/gobgpapi.GobgpApi/SoftReset", in, out, c.cc, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *gobgpApiClient) SoftResetIn(ctx context.Context, in *Arguments, opts ...grpc.CallOption) (*Error, error) {
+	out := new(Error)
+	err := grpc.Invoke(ctx, "/gobgpapi.GobgpApi/SoftResetIn", in, out, c.cc, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *gobgpApiClient) SoftResetOut(ctx context.Context, in *Arguments, opts ...grpc.CallOption) (*Error, error) {
+	out := new(Error)
+	err := grpc.Invoke(ctx, "/gobgpapi.GobgpApi/SoftResetOut", in, out, c.cc, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *gobgpApiClient) Shutdown(ctx context.Context, in *Arguments, opts ...grpc.CallOption) (*Error, error) {
+	out := new(Error)
+	err := grpc.Invoke(ctx, "/gobgpapi.GobgpApi/Shutdown", in, out, c.cc, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *gobgpApiClient) Enable(ctx context.Context, in *Arguments, opts ...grpc.CallOption) (*Error, error) {
+	out := new(Error)
+	err := grpc.Invoke(ctx, "/gobgpapi.GobgpApi/Enable", in, out, c.cc, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *gobgpApiClient) Disable(ctx context.Context, in *Arguments, opts ...grpc.CallOption) (*Error, error) {
+	out := new(Error)
+	err := grpc.Invoke(ctx, "/gobgpapi.GobgpApi/Disable", in, out, c.cc, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *gobgpApiClient) ModPath(ctx context.Context, in *ModPathArguments, opts ...grpc.CallOption) (*ModPathResponse, error) {
+	out := new(ModPathResponse)
+	err := grpc.Invoke(ctx, "/gobgpapi.GobgpApi/ModPath", in, out, c.cc, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *gobgpApiClient) ModPaths(ctx context.Context, opts ...grpc.CallOption) (GobgpApi_ModPathsClient, error) {
+	stream, err := grpc.NewClientStream(ctx, &_GobgpApi_serviceDesc.Streams[1], c.cc, "/gobgpapi.GobgpApi/ModPaths", opts...)
+	if err != nil {
+		return nil, err
+	}
+	x := &gobgpApiModPathsClient{stream}
 	return x, nil
 }
 
-type Grpc_GetRibClient interface {
-	Recv() (*Destination, error)
-	grpc.ClientStream
-}
-
-type grpcGetRibClient struct {
-	grpc.ClientStream
-}
-
-func (x *grpcGetRibClient) Recv() (*Destination, error) {
-	m := new(Destination)
-	if err := x.ClientStream.RecvMsg(m); err != nil {
-		return nil, err
-	}
-	return m, nil
-}
-
-func (c *grpcClient) Reset(ctx context.Context, in *Arguments, opts ...grpc.CallOption) (*Error, error) {
-	out := new(Error)
-	err := grpc.Invoke(ctx, "/api.Grpc/Reset", in, out, c.cc, opts...)
-	if err != nil {
-		return nil, err
-	}
-	return out, nil
-}
-
-func (c *grpcClient) SoftReset(ctx context.Context, in *Arguments, opts ...grpc.CallOption) (*Error, error) {
-	out := new(Error)
-	err := grpc.Invoke(ctx, "/api.Grpc/SoftReset", in, out, c.cc, opts...)
-	if err != nil {
-		return nil, err
-	}
-	return out, nil
-}
-
-func (c *grpcClient) SoftResetIn(ctx context.Context, in *Arguments, opts ...grpc.CallOption) (*Error, error) {
-	out := new(Error)
-	err := grpc.Invoke(ctx, "/api.Grpc/SoftResetIn", in, out, c.cc, opts...)
-	if err != nil {
-		return nil, err
-	}
-	return out, nil
-}
-
-func (c *grpcClient) SoftResetOut(ctx context.Context, in *Arguments, opts ...grpc.CallOption) (*Error, error) {
-	out := new(Error)
-	err := grpc.Invoke(ctx, "/api.Grpc/SoftResetOut", in, out, c.cc, opts...)
-	if err != nil {
-		return nil, err
-	}
-	return out, nil
-}
-
-func (c *grpcClient) Shutdown(ctx context.Context, in *Arguments, opts ...grpc.CallOption) (*Error, error) {
-	out := new(Error)
-	err := grpc.Invoke(ctx, "/api.Grpc/Shutdown", in, out, c.cc, opts...)
-	if err != nil {
-		return nil, err
-	}
-	return out, nil
-}
-
-func (c *grpcClient) Enable(ctx context.Context, in *Arguments, opts ...grpc.CallOption) (*Error, error) {
-	out := new(Error)
-	err := grpc.Invoke(ctx, "/api.Grpc/Enable", in, out, c.cc, opts...)
-	if err != nil {
-		return nil, err
-	}
-	return out, nil
-}
-
-func (c *grpcClient) Disable(ctx context.Context, in *Arguments, opts ...grpc.CallOption) (*Error, error) {
-	out := new(Error)
-	err := grpc.Invoke(ctx, "/api.Grpc/Disable", in, out, c.cc, opts...)
-	if err != nil {
-		return nil, err
-	}
-	return out, nil
-}
-
-func (c *grpcClient) ModPath(ctx context.Context, opts ...grpc.CallOption) (Grpc_ModPathClient, error) {
-	stream, err := grpc.NewClientStream(ctx, &_Grpc_serviceDesc.Streams[2], c.cc, "/api.Grpc/ModPath", opts...)
-	if err != nil {
-		return nil, err
-	}
-	x := &grpcModPathClient{stream}
-	return x, nil
-}
-
-type Grpc_ModPathClient interface {
-	Send(*ModPathArguments) error
+type GobgpApi_ModPathsClient interface {
+	Send(*ModPathsArguments) error
 	CloseAndRecv() (*Error, error)
 	grpc.ClientStream
 }
 
-type grpcModPathClient struct {
+type gobgpApiModPathsClient struct {
 	grpc.ClientStream
 }
 
-func (x *grpcModPathClient) Send(m *ModPathArguments) error {
+func (x *gobgpApiModPathsClient) Send(m *ModPathsArguments) error {
 	return x.ClientStream.SendMsg(m)
 }
 
-func (x *grpcModPathClient) CloseAndRecv() (*Error, error) {
+func (x *gobgpApiModPathsClient) CloseAndRecv() (*Error, error) {
 	if err := x.ClientStream.CloseSend(); err != nil {
 		return nil, err
 	}
@@ -950,52 +1724,12 @@ func (x *grpcModPathClient) CloseAndRecv() (*Error, error) {
 	return m, nil
 }
 
-func (c *grpcClient) GetNeighborPolicy(ctx context.Context, in *Arguments, opts ...grpc.CallOption) (*ApplyPolicy, error) {
-	out := new(ApplyPolicy)
-	err := grpc.Invoke(ctx, "/api.Grpc/GetNeighborPolicy", in, out, c.cc, opts...)
+func (c *gobgpApiClient) MonitorRib(ctx context.Context, in *Table, opts ...grpc.CallOption) (GobgpApi_MonitorRibClient, error) {
+	stream, err := grpc.NewClientStream(ctx, &_GobgpApi_serviceDesc.Streams[2], c.cc, "/gobgpapi.GobgpApi/MonitorRib", opts...)
 	if err != nil {
 		return nil, err
 	}
-	return out, nil
-}
-
-func (c *grpcClient) ModNeighborPolicy(ctx context.Context, opts ...grpc.CallOption) (Grpc_ModNeighborPolicyClient, error) {
-	stream, err := grpc.NewClientStream(ctx, &_Grpc_serviceDesc.Streams[3], c.cc, "/api.Grpc/ModNeighborPolicy", opts...)
-	if err != nil {
-		return nil, err
-	}
-	x := &grpcModNeighborPolicyClient{stream}
-	return x, nil
-}
-
-type Grpc_ModNeighborPolicyClient interface {
-	Send(*PolicyArguments) error
-	Recv() (*Error, error)
-	grpc.ClientStream
-}
-
-type grpcModNeighborPolicyClient struct {
-	grpc.ClientStream
-}
-
-func (x *grpcModNeighborPolicyClient) Send(m *PolicyArguments) error {
-	return x.ClientStream.SendMsg(m)
-}
-
-func (x *grpcModNeighborPolicyClient) Recv() (*Error, error) {
-	m := new(Error)
-	if err := x.ClientStream.RecvMsg(m); err != nil {
-		return nil, err
-	}
-	return m, nil
-}
-
-func (c *grpcClient) GetPolicyRoutePolicies(ctx context.Context, in *PolicyArguments, opts ...grpc.CallOption) (Grpc_GetPolicyRoutePoliciesClient, error) {
-	stream, err := grpc.NewClientStream(ctx, &_Grpc_serviceDesc.Streams[4], c.cc, "/api.Grpc/GetPolicyRoutePolicies", opts...)
-	if err != nil {
-		return nil, err
-	}
-	x := &grpcGetPolicyRoutePoliciesClient{stream}
+	x := &gobgpApiMonitorRibClient{stream}
 	if err := x.ClientStream.SendMsg(in); err != nil {
 		return nil, err
 	}
@@ -1005,88 +1739,16 @@ func (c *grpcClient) GetPolicyRoutePolicies(ctx context.Context, in *PolicyArgum
 	return x, nil
 }
 
-type Grpc_GetPolicyRoutePoliciesClient interface {
-	Recv() (*PolicyDefinition, error)
-	grpc.ClientStream
-}
-
-type grpcGetPolicyRoutePoliciesClient struct {
-	grpc.ClientStream
-}
-
-func (x *grpcGetPolicyRoutePoliciesClient) Recv() (*PolicyDefinition, error) {
-	m := new(PolicyDefinition)
-	if err := x.ClientStream.RecvMsg(m); err != nil {
-		return nil, err
-	}
-	return m, nil
-}
-
-func (c *grpcClient) GetPolicyRoutePolicy(ctx context.Context, in *PolicyArguments, opts ...grpc.CallOption) (*PolicyDefinition, error) {
-	out := new(PolicyDefinition)
-	err := grpc.Invoke(ctx, "/api.Grpc/GetPolicyRoutePolicy", in, out, c.cc, opts...)
-	if err != nil {
-		return nil, err
-	}
-	return out, nil
-}
-
-func (c *grpcClient) ModPolicyRoutePolicy(ctx context.Context, opts ...grpc.CallOption) (Grpc_ModPolicyRoutePolicyClient, error) {
-	stream, err := grpc.NewClientStream(ctx, &_Grpc_serviceDesc.Streams[5], c.cc, "/api.Grpc/ModPolicyRoutePolicy", opts...)
-	if err != nil {
-		return nil, err
-	}
-	x := &grpcModPolicyRoutePolicyClient{stream}
-	return x, nil
-}
-
-type Grpc_ModPolicyRoutePolicyClient interface {
-	Send(*PolicyArguments) error
-	Recv() (*Error, error)
-	grpc.ClientStream
-}
-
-type grpcModPolicyRoutePolicyClient struct {
-	grpc.ClientStream
-}
-
-func (x *grpcModPolicyRoutePolicyClient) Send(m *PolicyArguments) error {
-	return x.ClientStream.SendMsg(m)
-}
-
-func (x *grpcModPolicyRoutePolicyClient) Recv() (*Error, error) {
-	m := new(Error)
-	if err := x.ClientStream.RecvMsg(m); err != nil {
-		return nil, err
-	}
-	return m, nil
-}
-
-func (c *grpcClient) MonitorBestChanged(ctx context.Context, in *Arguments, opts ...grpc.CallOption) (Grpc_MonitorBestChangedClient, error) {
-	stream, err := grpc.NewClientStream(ctx, &_Grpc_serviceDesc.Streams[6], c.cc, "/api.Grpc/MonitorBestChanged", opts...)
-	if err != nil {
-		return nil, err
-	}
-	x := &grpcMonitorBestChangedClient{stream}
-	if err := x.ClientStream.SendMsg(in); err != nil {
-		return nil, err
-	}
-	if err := x.ClientStream.CloseSend(); err != nil {
-		return nil, err
-	}
-	return x, nil
-}
-
-type Grpc_MonitorBestChangedClient interface {
+type GobgpApi_MonitorRibClient interface {
 	Recv() (*Destination, error)
 	grpc.ClientStream
 }
 
-type grpcMonitorBestChangedClient struct {
+type gobgpApiMonitorRibClient struct {
 	grpc.ClientStream
 }
 
-func (x *grpcMonitorBestChangedClient) Recv() (*Destination, error) {
+func (x *gobgpApiMonitorRibClient) Recv() (*Destination, error) {
 	m := new(Destination)
 	if err := x.ClientStream.RecvMsg(m); err != nil {
 		return nil, err
@@ -1094,12 +1756,12 @@ func (x *grpcMonitorBestChangedClient) Recv() (*Destination, error) {
 	return m, nil
 }
 
-func (c *grpcClient) MonitorPeerState(ctx context.Context, in *Arguments, opts ...grpc.CallOption) (Grpc_MonitorPeerStateClient, error) {
-	stream, err := grpc.NewClientStream(ctx, &_Grpc_serviceDesc.Streams[7], c.cc, "/api.Grpc/MonitorPeerState", opts...)
+func (c *gobgpApiClient) MonitorBestChanged(ctx context.Context, in *Arguments, opts ...grpc.CallOption) (GobgpApi_MonitorBestChangedClient, error) {
+	stream, err := grpc.NewClientStream(ctx, &_GobgpApi_serviceDesc.Streams[3], c.cc, "/gobgpapi.GobgpApi/MonitorBestChanged", opts...)
 	if err != nil {
 		return nil, err
 	}
-	x := &grpcMonitorPeerStateClient{stream}
+	x := &gobgpApiMonitorBestChangedClient{stream}
 	if err := x.ClientStream.SendMsg(in); err != nil {
 		return nil, err
 	}
@@ -1109,16 +1771,48 @@ func (c *grpcClient) MonitorPeerState(ctx context.Context, in *Arguments, opts .
 	return x, nil
 }
 
-type Grpc_MonitorPeerStateClient interface {
+type GobgpApi_MonitorBestChangedClient interface {
+	Recv() (*Destination, error)
+	grpc.ClientStream
+}
+
+type gobgpApiMonitorBestChangedClient struct {
+	grpc.ClientStream
+}
+
+func (x *gobgpApiMonitorBestChangedClient) Recv() (*Destination, error) {
+	m := new(Destination)
+	if err := x.ClientStream.RecvMsg(m); err != nil {
+		return nil, err
+	}
+	return m, nil
+}
+
+func (c *gobgpApiClient) MonitorPeerState(ctx context.Context, in *Arguments, opts ...grpc.CallOption) (GobgpApi_MonitorPeerStateClient, error) {
+	stream, err := grpc.NewClientStream(ctx, &_GobgpApi_serviceDesc.Streams[4], c.cc, "/gobgpapi.GobgpApi/MonitorPeerState", opts...)
+	if err != nil {
+		return nil, err
+	}
+	x := &gobgpApiMonitorPeerStateClient{stream}
+	if err := x.ClientStream.SendMsg(in); err != nil {
+		return nil, err
+	}
+	if err := x.ClientStream.CloseSend(); err != nil {
+		return nil, err
+	}
+	return x, nil
+}
+
+type GobgpApi_MonitorPeerStateClient interface {
 	Recv() (*Peer, error)
 	grpc.ClientStream
 }
 
-type grpcMonitorPeerStateClient struct {
+type gobgpApiMonitorPeerStateClient struct {
 	grpc.ClientStream
 }
 
-func (x *grpcMonitorPeerStateClient) Recv() (*Peer, error) {
+func (x *gobgpApiMonitorPeerStateClient) Recv() (*Peer, error) {
 	m := new(Peer)
 	if err := x.ClientStream.RecvMsg(m); err != nil {
 		return nil, err
@@ -1126,12 +1820,12 @@ func (x *grpcMonitorPeerStateClient) Recv() (*Peer, error) {
 	return m, nil
 }
 
-func (c *grpcClient) GetMrt(ctx context.Context, in *MrtArguments, opts ...grpc.CallOption) (Grpc_GetMrtClient, error) {
-	stream, err := grpc.NewClientStream(ctx, &_Grpc_serviceDesc.Streams[8], c.cc, "/api.Grpc/GetMrt", opts...)
+func (c *gobgpApiClient) MonitorROAValidation(ctx context.Context, in *Arguments, opts ...grpc.CallOption) (GobgpApi_MonitorROAValidationClient, error) {
+	stream, err := grpc.NewClientStream(ctx, &_GobgpApi_serviceDesc.Streams[5], c.cc, "/gobgpapi.GobgpApi/MonitorROAValidation", opts...)
 	if err != nil {
 		return nil, err
 	}
-	x := &grpcGetMrtClient{stream}
+	x := &gobgpApiMonitorROAValidationClient{stream}
 	if err := x.ClientStream.SendMsg(in); err != nil {
 		return nil, err
 	}
@@ -1141,16 +1835,48 @@ func (c *grpcClient) GetMrt(ctx context.Context, in *MrtArguments, opts ...grpc.
 	return x, nil
 }
 
-type Grpc_GetMrtClient interface {
+type GobgpApi_MonitorROAValidationClient interface {
+	Recv() (*ROAResult, error)
+	grpc.ClientStream
+}
+
+type gobgpApiMonitorROAValidationClient struct {
+	grpc.ClientStream
+}
+
+func (x *gobgpApiMonitorROAValidationClient) Recv() (*ROAResult, error) {
+	m := new(ROAResult)
+	if err := x.ClientStream.RecvMsg(m); err != nil {
+		return nil, err
+	}
+	return m, nil
+}
+
+func (c *gobgpApiClient) GetMrt(ctx context.Context, in *MrtArguments, opts ...grpc.CallOption) (GobgpApi_GetMrtClient, error) {
+	stream, err := grpc.NewClientStream(ctx, &_GobgpApi_serviceDesc.Streams[6], c.cc, "/gobgpapi.GobgpApi/GetMrt", opts...)
+	if err != nil {
+		return nil, err
+	}
+	x := &gobgpApiGetMrtClient{stream}
+	if err := x.ClientStream.SendMsg(in); err != nil {
+		return nil, err
+	}
+	if err := x.ClientStream.CloseSend(); err != nil {
+		return nil, err
+	}
+	return x, nil
+}
+
+type GobgpApi_GetMrtClient interface {
 	Recv() (*MrtMessage, error)
 	grpc.ClientStream
 }
 
-type grpcGetMrtClient struct {
+type gobgpApiGetMrtClient struct {
 	grpc.ClientStream
 }
 
-func (x *grpcGetMrtClient) Recv() (*MrtMessage, error) {
+func (x *gobgpApiGetMrtClient) Recv() (*MrtMessage, error) {
 	m := new(MrtMessage)
 	if err := x.ClientStream.RecvMsg(m); err != nil {
 		return nil, err
@@ -1158,12 +1884,30 @@ func (x *grpcGetMrtClient) Recv() (*MrtMessage, error) {
 	return m, nil
 }
 
-func (c *grpcClient) GetRPKI(ctx context.Context, in *Arguments, opts ...grpc.CallOption) (Grpc_GetRPKIClient, error) {
-	stream, err := grpc.NewClientStream(ctx, &_Grpc_serviceDesc.Streams[9], c.cc, "/api.Grpc/GetRPKI", opts...)
+func (c *gobgpApiClient) ModMrt(ctx context.Context, in *ModMrtArguments, opts ...grpc.CallOption) (*Error, error) {
+	out := new(Error)
+	err := grpc.Invoke(ctx, "/gobgpapi.GobgpApi/ModMrt", in, out, c.cc, opts...)
 	if err != nil {
 		return nil, err
 	}
-	x := &grpcGetRPKIClient{stream}
+	return out, nil
+}
+
+func (c *gobgpApiClient) ModBmp(ctx context.Context, in *ModBmpArguments, opts ...grpc.CallOption) (*Error, error) {
+	out := new(Error)
+	err := grpc.Invoke(ctx, "/gobgpapi.GobgpApi/ModBmp", in, out, c.cc, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *gobgpApiClient) GetRPKI(ctx context.Context, in *Arguments, opts ...grpc.CallOption) (GobgpApi_GetRPKIClient, error) {
+	stream, err := grpc.NewClientStream(ctx, &_GobgpApi_serviceDesc.Streams[7], c.cc, "/gobgpapi.GobgpApi/GetRPKI", opts...)
+	if err != nil {
+		return nil, err
+	}
+	x := &gobgpApiGetRPKIClient{stream}
 	if err := x.ClientStream.SendMsg(in); err != nil {
 		return nil, err
 	}
@@ -1173,16 +1917,57 @@ func (c *grpcClient) GetRPKI(ctx context.Context, in *Arguments, opts ...grpc.Ca
 	return x, nil
 }
 
-type Grpc_GetRPKIClient interface {
+type GobgpApi_GetRPKIClient interface {
+	Recv() (*RPKI, error)
+	grpc.ClientStream
+}
+
+type gobgpApiGetRPKIClient struct {
+	grpc.ClientStream
+}
+
+func (x *gobgpApiGetRPKIClient) Recv() (*RPKI, error) {
+	m := new(RPKI)
+	if err := x.ClientStream.RecvMsg(m); err != nil {
+		return nil, err
+	}
+	return m, nil
+}
+
+func (c *gobgpApiClient) ModRPKI(ctx context.Context, in *ModRpkiArguments, opts ...grpc.CallOption) (*Error, error) {
+	out := new(Error)
+	err := grpc.Invoke(ctx, "/gobgpapi.GobgpApi/ModRPKI", in, out, c.cc, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *gobgpApiClient) GetROA(ctx context.Context, in *Arguments, opts ...grpc.CallOption) (GobgpApi_GetROAClient, error) {
+	stream, err := grpc.NewClientStream(ctx, &_GobgpApi_serviceDesc.Streams[8], c.cc, "/gobgpapi.GobgpApi/GetROA", opts...)
+	if err != nil {
+		return nil, err
+	}
+	x := &gobgpApiGetROAClient{stream}
+	if err := x.ClientStream.SendMsg(in); err != nil {
+		return nil, err
+	}
+	if err := x.ClientStream.CloseSend(); err != nil {
+		return nil, err
+	}
+	return x, nil
+}
+
+type GobgpApi_GetROAClient interface {
 	Recv() (*ROA, error)
 	grpc.ClientStream
 }
 
-type grpcGetRPKIClient struct {
+type gobgpApiGetROAClient struct {
 	grpc.ClientStream
 }
 
-func (x *grpcGetRPKIClient) Recv() (*ROA, error) {
+func (x *gobgpApiGetROAClient) Recv() (*ROA, error) {
 	m := new(ROA)
 	if err := x.ClientStream.RecvMsg(m); err != nil {
 		return nil, err
@@ -1190,12 +1975,12 @@ func (x *grpcGetRPKIClient) Recv() (*ROA, error) {
 	return m, nil
 }
 
-func (c *grpcClient) GetVrfs(ctx context.Context, in *Arguments, opts ...grpc.CallOption) (Grpc_GetVrfsClient, error) {
-	stream, err := grpc.NewClientStream(ctx, &_Grpc_serviceDesc.Streams[10], c.cc, "/api.Grpc/GetVrfs", opts...)
+func (c *gobgpApiClient) GetVrfs(ctx context.Context, in *Arguments, opts ...grpc.CallOption) (GobgpApi_GetVrfsClient, error) {
+	stream, err := grpc.NewClientStream(ctx, &_GobgpApi_serviceDesc.Streams[9], c.cc, "/gobgpapi.GobgpApi/GetVrfs", opts...)
 	if err != nil {
 		return nil, err
 	}
-	x := &grpcGetVrfsClient{stream}
+	x := &gobgpApiGetVrfsClient{stream}
 	if err := x.ClientStream.SendMsg(in); err != nil {
 		return nil, err
 	}
@@ -1205,16 +1990,16 @@ func (c *grpcClient) GetVrfs(ctx context.Context, in *Arguments, opts ...grpc.Ca
 	return x, nil
 }
 
-type Grpc_GetVrfsClient interface {
+type GobgpApi_GetVrfsClient interface {
 	Recv() (*Vrf, error)
 	grpc.ClientStream
 }
 
-type grpcGetVrfsClient struct {
+type gobgpApiGetVrfsClient struct {
 	grpc.ClientStream
 }
 
-func (x *grpcGetVrfsClient) Recv() (*Vrf, error) {
+func (x *gobgpApiGetVrfsClient) Recv() (*Vrf, error) {
 	m := new(Vrf)
 	if err := x.ClientStream.RecvMsg(m); err != nil {
 		return nil, err
@@ -1222,21 +2007,192 @@ func (x *grpcGetVrfsClient) Recv() (*Vrf, error) {
 	return m, nil
 }
 
-func (c *grpcClient) ModVrf(ctx context.Context, in *ModVrfArguments, opts ...grpc.CallOption) (*Error, error) {
+func (c *gobgpApiClient) ModVrf(ctx context.Context, in *ModVrfArguments, opts ...grpc.CallOption) (*Error, error) {
 	out := new(Error)
-	err := grpc.Invoke(ctx, "/api.Grpc/ModVrf", in, out, c.cc, opts...)
+	err := grpc.Invoke(ctx, "/gobgpapi.GobgpApi/ModVrf", in, out, c.cc, opts...)
 	if err != nil {
 		return nil, err
 	}
 	return out, nil
 }
 
-// Server API for Grpc service
+func (c *gobgpApiClient) GetDefinedSet(ctx context.Context, in *DefinedSet, opts ...grpc.CallOption) (*DefinedSet, error) {
+	out := new(DefinedSet)
+	err := grpc.Invoke(ctx, "/gobgpapi.GobgpApi/GetDefinedSet", in, out, c.cc, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
 
-type GrpcServer interface {
-	GetNeighbors(*Arguments, Grpc_GetNeighborsServer) error
+func (c *gobgpApiClient) GetDefinedSets(ctx context.Context, in *DefinedSet, opts ...grpc.CallOption) (GobgpApi_GetDefinedSetsClient, error) {
+	stream, err := grpc.NewClientStream(ctx, &_GobgpApi_serviceDesc.Streams[10], c.cc, "/gobgpapi.GobgpApi/GetDefinedSets", opts...)
+	if err != nil {
+		return nil, err
+	}
+	x := &gobgpApiGetDefinedSetsClient{stream}
+	if err := x.ClientStream.SendMsg(in); err != nil {
+		return nil, err
+	}
+	if err := x.ClientStream.CloseSend(); err != nil {
+		return nil, err
+	}
+	return x, nil
+}
+
+type GobgpApi_GetDefinedSetsClient interface {
+	Recv() (*DefinedSet, error)
+	grpc.ClientStream
+}
+
+type gobgpApiGetDefinedSetsClient struct {
+	grpc.ClientStream
+}
+
+func (x *gobgpApiGetDefinedSetsClient) Recv() (*DefinedSet, error) {
+	m := new(DefinedSet)
+	if err := x.ClientStream.RecvMsg(m); err != nil {
+		return nil, err
+	}
+	return m, nil
+}
+
+func (c *gobgpApiClient) ModDefinedSet(ctx context.Context, in *ModDefinedSetArguments, opts ...grpc.CallOption) (*Error, error) {
+	out := new(Error)
+	err := grpc.Invoke(ctx, "/gobgpapi.GobgpApi/ModDefinedSet", in, out, c.cc, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *gobgpApiClient) GetStatement(ctx context.Context, in *Statement, opts ...grpc.CallOption) (*Statement, error) {
+	out := new(Statement)
+	err := grpc.Invoke(ctx, "/gobgpapi.GobgpApi/GetStatement", in, out, c.cc, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *gobgpApiClient) GetStatements(ctx context.Context, in *Statement, opts ...grpc.CallOption) (GobgpApi_GetStatementsClient, error) {
+	stream, err := grpc.NewClientStream(ctx, &_GobgpApi_serviceDesc.Streams[11], c.cc, "/gobgpapi.GobgpApi/GetStatements", opts...)
+	if err != nil {
+		return nil, err
+	}
+	x := &gobgpApiGetStatementsClient{stream}
+	if err := x.ClientStream.SendMsg(in); err != nil {
+		return nil, err
+	}
+	if err := x.ClientStream.CloseSend(); err != nil {
+		return nil, err
+	}
+	return x, nil
+}
+
+type GobgpApi_GetStatementsClient interface {
+	Recv() (*Statement, error)
+	grpc.ClientStream
+}
+
+type gobgpApiGetStatementsClient struct {
+	grpc.ClientStream
+}
+
+func (x *gobgpApiGetStatementsClient) Recv() (*Statement, error) {
+	m := new(Statement)
+	if err := x.ClientStream.RecvMsg(m); err != nil {
+		return nil, err
+	}
+	return m, nil
+}
+
+func (c *gobgpApiClient) ModStatement(ctx context.Context, in *ModStatementArguments, opts ...grpc.CallOption) (*Error, error) {
+	out := new(Error)
+	err := grpc.Invoke(ctx, "/gobgpapi.GobgpApi/ModStatement", in, out, c.cc, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *gobgpApiClient) GetPolicy(ctx context.Context, in *Policy, opts ...grpc.CallOption) (*Policy, error) {
+	out := new(Policy)
+	err := grpc.Invoke(ctx, "/gobgpapi.GobgpApi/GetPolicy", in, out, c.cc, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *gobgpApiClient) GetPolicies(ctx context.Context, in *Policy, opts ...grpc.CallOption) (GobgpApi_GetPoliciesClient, error) {
+	stream, err := grpc.NewClientStream(ctx, &_GobgpApi_serviceDesc.Streams[12], c.cc, "/gobgpapi.GobgpApi/GetPolicies", opts...)
+	if err != nil {
+		return nil, err
+	}
+	x := &gobgpApiGetPoliciesClient{stream}
+	if err := x.ClientStream.SendMsg(in); err != nil {
+		return nil, err
+	}
+	if err := x.ClientStream.CloseSend(); err != nil {
+		return nil, err
+	}
+	return x, nil
+}
+
+type GobgpApi_GetPoliciesClient interface {
+	Recv() (*Policy, error)
+	grpc.ClientStream
+}
+
+type gobgpApiGetPoliciesClient struct {
+	grpc.ClientStream
+}
+
+func (x *gobgpApiGetPoliciesClient) Recv() (*Policy, error) {
+	m := new(Policy)
+	if err := x.ClientStream.RecvMsg(m); err != nil {
+		return nil, err
+	}
+	return m, nil
+}
+
+func (c *gobgpApiClient) ModPolicy(ctx context.Context, in *ModPolicyArguments, opts ...grpc.CallOption) (*Error, error) {
+	out := new(Error)
+	err := grpc.Invoke(ctx, "/gobgpapi.GobgpApi/ModPolicy", in, out, c.cc, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *gobgpApiClient) GetPolicyAssignment(ctx context.Context, in *PolicyAssignment, opts ...grpc.CallOption) (*PolicyAssignment, error) {
+	out := new(PolicyAssignment)
+	err := grpc.Invoke(ctx, "/gobgpapi.GobgpApi/GetPolicyAssignment", in, out, c.cc, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *gobgpApiClient) ModPolicyAssignment(ctx context.Context, in *ModPolicyAssignmentArguments, opts ...grpc.CallOption) (*Error, error) {
+	out := new(Error)
+	err := grpc.Invoke(ctx, "/gobgpapi.GobgpApi/ModPolicyAssignment", in, out, c.cc, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+// Server API for GobgpApi service
+
+type GobgpApiServer interface {
+	GetGlobalConfig(context.Context, *Arguments) (*Global, error)
+	ModGlobalConfig(context.Context, *ModGlobalConfigArguments) (*Error, error)
+	GetNeighbors(*Arguments, GobgpApi_GetNeighborsServer) error
 	GetNeighbor(context.Context, *Arguments) (*Peer, error)
-	GetRib(*Arguments, Grpc_GetRibServer) error
+	ModNeighbor(context.Context, *ModNeighborArguments) (*Error, error)
+	GetRib(context.Context, *Table) (*Table, error)
 	Reset(context.Context, *Arguments) (*Error, error)
 	SoftReset(context.Context, *Arguments) (*Error, error)
 	SoftResetIn(context.Context, *Arguments) (*Error, error)
@@ -1244,508 +2200,1008 @@ type GrpcServer interface {
 	Shutdown(context.Context, *Arguments) (*Error, error)
 	Enable(context.Context, *Arguments) (*Error, error)
 	Disable(context.Context, *Arguments) (*Error, error)
-	ModPath(Grpc_ModPathServer) error
-	GetNeighborPolicy(context.Context, *Arguments) (*ApplyPolicy, error)
-	ModNeighborPolicy(Grpc_ModNeighborPolicyServer) error
-	GetPolicyRoutePolicies(*PolicyArguments, Grpc_GetPolicyRoutePoliciesServer) error
-	GetPolicyRoutePolicy(context.Context, *PolicyArguments) (*PolicyDefinition, error)
-	ModPolicyRoutePolicy(Grpc_ModPolicyRoutePolicyServer) error
-	MonitorBestChanged(*Arguments, Grpc_MonitorBestChangedServer) error
-	MonitorPeerState(*Arguments, Grpc_MonitorPeerStateServer) error
-	GetMrt(*MrtArguments, Grpc_GetMrtServer) error
-	GetRPKI(*Arguments, Grpc_GetRPKIServer) error
-	GetVrfs(*Arguments, Grpc_GetVrfsServer) error
+	ModPath(context.Context, *ModPathArguments) (*ModPathResponse, error)
+	ModPaths(GobgpApi_ModPathsServer) error
+	MonitorRib(*Table, GobgpApi_MonitorRibServer) error
+	MonitorBestChanged(*Arguments, GobgpApi_MonitorBestChangedServer) error
+	MonitorPeerState(*Arguments, GobgpApi_MonitorPeerStateServer) error
+	MonitorROAValidation(*Arguments, GobgpApi_MonitorROAValidationServer) error
+	GetMrt(*MrtArguments, GobgpApi_GetMrtServer) error
+	ModMrt(context.Context, *ModMrtArguments) (*Error, error)
+	ModBmp(context.Context, *ModBmpArguments) (*Error, error)
+	GetRPKI(*Arguments, GobgpApi_GetRPKIServer) error
+	ModRPKI(context.Context, *ModRpkiArguments) (*Error, error)
+	GetROA(*Arguments, GobgpApi_GetROAServer) error
+	GetVrfs(*Arguments, GobgpApi_GetVrfsServer) error
 	ModVrf(context.Context, *ModVrfArguments) (*Error, error)
+	GetDefinedSet(context.Context, *DefinedSet) (*DefinedSet, error)
+	GetDefinedSets(*DefinedSet, GobgpApi_GetDefinedSetsServer) error
+	ModDefinedSet(context.Context, *ModDefinedSetArguments) (*Error, error)
+	GetStatement(context.Context, *Statement) (*Statement, error)
+	GetStatements(*Statement, GobgpApi_GetStatementsServer) error
+	ModStatement(context.Context, *ModStatementArguments) (*Error, error)
+	GetPolicy(context.Context, *Policy) (*Policy, error)
+	GetPolicies(*Policy, GobgpApi_GetPoliciesServer) error
+	ModPolicy(context.Context, *ModPolicyArguments) (*Error, error)
+	GetPolicyAssignment(context.Context, *PolicyAssignment) (*PolicyAssignment, error)
+	ModPolicyAssignment(context.Context, *ModPolicyAssignmentArguments) (*Error, error)
 }
 
-func RegisterGrpcServer(s *grpc.Server, srv GrpcServer) {
-	s.RegisterService(&_Grpc_serviceDesc, srv)
+func RegisterGobgpApiServer(s *grpc.Server, srv GobgpApiServer) {
+	s.RegisterService(&_GobgpApi_serviceDesc, srv)
 }
 
-func _Grpc_GetNeighbors_Handler(srv interface{}, stream grpc.ServerStream) error {
+func _GobgpApi_GetGlobalConfig_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error) (interface{}, error) {
+	in := new(Arguments)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	out, err := srv.(GobgpApiServer).GetGlobalConfig(ctx, in)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func _GobgpApi_ModGlobalConfig_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error) (interface{}, error) {
+	in := new(ModGlobalConfigArguments)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	out, err := srv.(GobgpApiServer).ModGlobalConfig(ctx, in)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func _GobgpApi_GetNeighbors_Handler(srv interface{}, stream grpc.ServerStream) error {
 	m := new(Arguments)
 	if err := stream.RecvMsg(m); err != nil {
 		return err
 	}
-	return srv.(GrpcServer).GetNeighbors(m, &grpcGetNeighborsServer{stream})
+	return srv.(GobgpApiServer).GetNeighbors(m, &gobgpApiGetNeighborsServer{stream})
 }
 
-type Grpc_GetNeighborsServer interface {
+type GobgpApi_GetNeighborsServer interface {
 	Send(*Peer) error
 	grpc.ServerStream
 }
 
-type grpcGetNeighborsServer struct {
+type gobgpApiGetNeighborsServer struct {
 	grpc.ServerStream
 }
 
-func (x *grpcGetNeighborsServer) Send(m *Peer) error {
+func (x *gobgpApiGetNeighborsServer) Send(m *Peer) error {
 	return x.ServerStream.SendMsg(m)
 }
 
-func _Grpc_GetNeighbor_Handler(srv interface{}, ctx context.Context, codec grpc.Codec, buf []byte) (interface{}, error) {
+func _GobgpApi_GetNeighbor_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error) (interface{}, error) {
 	in := new(Arguments)
-	if err := codec.Unmarshal(buf, in); err != nil {
+	if err := dec(in); err != nil {
 		return nil, err
 	}
-	out, err := srv.(GrpcServer).GetNeighbor(ctx, in)
+	out, err := srv.(GobgpApiServer).GetNeighbor(ctx, in)
 	if err != nil {
 		return nil, err
 	}
 	return out, nil
 }
 
-func _Grpc_GetRib_Handler(srv interface{}, stream grpc.ServerStream) error {
-	m := new(Arguments)
-	if err := stream.RecvMsg(m); err != nil {
-		return err
-	}
-	return srv.(GrpcServer).GetRib(m, &grpcGetRibServer{stream})
-}
-
-type Grpc_GetRibServer interface {
-	Send(*Destination) error
-	grpc.ServerStream
-}
-
-type grpcGetRibServer struct {
-	grpc.ServerStream
-}
-
-func (x *grpcGetRibServer) Send(m *Destination) error {
-	return x.ServerStream.SendMsg(m)
-}
-
-func _Grpc_Reset_Handler(srv interface{}, ctx context.Context, codec grpc.Codec, buf []byte) (interface{}, error) {
-	in := new(Arguments)
-	if err := codec.Unmarshal(buf, in); err != nil {
+func _GobgpApi_ModNeighbor_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error) (interface{}, error) {
+	in := new(ModNeighborArguments)
+	if err := dec(in); err != nil {
 		return nil, err
 	}
-	out, err := srv.(GrpcServer).Reset(ctx, in)
+	out, err := srv.(GobgpApiServer).ModNeighbor(ctx, in)
 	if err != nil {
 		return nil, err
 	}
 	return out, nil
 }
 
-func _Grpc_SoftReset_Handler(srv interface{}, ctx context.Context, codec grpc.Codec, buf []byte) (interface{}, error) {
-	in := new(Arguments)
-	if err := codec.Unmarshal(buf, in); err != nil {
+func _GobgpApi_GetRib_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error) (interface{}, error) {
+	in := new(Table)
+	if err := dec(in); err != nil {
 		return nil, err
 	}
-	out, err := srv.(GrpcServer).SoftReset(ctx, in)
+	out, err := srv.(GobgpApiServer).GetRib(ctx, in)
 	if err != nil {
 		return nil, err
 	}
 	return out, nil
 }
 
-func _Grpc_SoftResetIn_Handler(srv interface{}, ctx context.Context, codec grpc.Codec, buf []byte) (interface{}, error) {
+func _GobgpApi_Reset_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error) (interface{}, error) {
 	in := new(Arguments)
-	if err := codec.Unmarshal(buf, in); err != nil {
+	if err := dec(in); err != nil {
 		return nil, err
 	}
-	out, err := srv.(GrpcServer).SoftResetIn(ctx, in)
+	out, err := srv.(GobgpApiServer).Reset(ctx, in)
 	if err != nil {
 		return nil, err
 	}
 	return out, nil
 }
 
-func _Grpc_SoftResetOut_Handler(srv interface{}, ctx context.Context, codec grpc.Codec, buf []byte) (interface{}, error) {
+func _GobgpApi_SoftReset_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error) (interface{}, error) {
 	in := new(Arguments)
-	if err := codec.Unmarshal(buf, in); err != nil {
+	if err := dec(in); err != nil {
 		return nil, err
 	}
-	out, err := srv.(GrpcServer).SoftResetOut(ctx, in)
+	out, err := srv.(GobgpApiServer).SoftReset(ctx, in)
 	if err != nil {
 		return nil, err
 	}
 	return out, nil
 }
 
-func _Grpc_Shutdown_Handler(srv interface{}, ctx context.Context, codec grpc.Codec, buf []byte) (interface{}, error) {
+func _GobgpApi_SoftResetIn_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error) (interface{}, error) {
 	in := new(Arguments)
-	if err := codec.Unmarshal(buf, in); err != nil {
+	if err := dec(in); err != nil {
 		return nil, err
 	}
-	out, err := srv.(GrpcServer).Shutdown(ctx, in)
+	out, err := srv.(GobgpApiServer).SoftResetIn(ctx, in)
 	if err != nil {
 		return nil, err
 	}
 	return out, nil
 }
 
-func _Grpc_Enable_Handler(srv interface{}, ctx context.Context, codec grpc.Codec, buf []byte) (interface{}, error) {
+func _GobgpApi_SoftResetOut_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error) (interface{}, error) {
 	in := new(Arguments)
-	if err := codec.Unmarshal(buf, in); err != nil {
+	if err := dec(in); err != nil {
 		return nil, err
 	}
-	out, err := srv.(GrpcServer).Enable(ctx, in)
+	out, err := srv.(GobgpApiServer).SoftResetOut(ctx, in)
 	if err != nil {
 		return nil, err
 	}
 	return out, nil
 }
 
-func _Grpc_Disable_Handler(srv interface{}, ctx context.Context, codec grpc.Codec, buf []byte) (interface{}, error) {
+func _GobgpApi_Shutdown_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error) (interface{}, error) {
 	in := new(Arguments)
-	if err := codec.Unmarshal(buf, in); err != nil {
+	if err := dec(in); err != nil {
 		return nil, err
 	}
-	out, err := srv.(GrpcServer).Disable(ctx, in)
+	out, err := srv.(GobgpApiServer).Shutdown(ctx, in)
 	if err != nil {
 		return nil, err
 	}
 	return out, nil
 }
 
-func _Grpc_ModPath_Handler(srv interface{}, stream grpc.ServerStream) error {
-	return srv.(GrpcServer).ModPath(&grpcModPathServer{stream})
+func _GobgpApi_Enable_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error) (interface{}, error) {
+	in := new(Arguments)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	out, err := srv.(GobgpApiServer).Enable(ctx, in)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
 }
 
-type Grpc_ModPathServer interface {
+func _GobgpApi_Disable_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error) (interface{}, error) {
+	in := new(Arguments)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	out, err := srv.(GobgpApiServer).Disable(ctx, in)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func _GobgpApi_ModPath_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error) (interface{}, error) {
+	in := new(ModPathArguments)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	out, err := srv.(GobgpApiServer).ModPath(ctx, in)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func _GobgpApi_ModPaths_Handler(srv interface{}, stream grpc.ServerStream) error {
+	return srv.(GobgpApiServer).ModPaths(&gobgpApiModPathsServer{stream})
+}
+
+type GobgpApi_ModPathsServer interface {
 	SendAndClose(*Error) error
-	Recv() (*ModPathArguments, error)
+	Recv() (*ModPathsArguments, error)
 	grpc.ServerStream
 }
 
-type grpcModPathServer struct {
+type gobgpApiModPathsServer struct {
 	grpc.ServerStream
 }
 
-func (x *grpcModPathServer) SendAndClose(m *Error) error {
+func (x *gobgpApiModPathsServer) SendAndClose(m *Error) error {
 	return x.ServerStream.SendMsg(m)
 }
 
-func (x *grpcModPathServer) Recv() (*ModPathArguments, error) {
-	m := new(ModPathArguments)
+func (x *gobgpApiModPathsServer) Recv() (*ModPathsArguments, error) {
+	m := new(ModPathsArguments)
 	if err := x.ServerStream.RecvMsg(m); err != nil {
 		return nil, err
 	}
 	return m, nil
 }
 
-func _Grpc_GetNeighborPolicy_Handler(srv interface{}, ctx context.Context, codec grpc.Codec, buf []byte) (interface{}, error) {
-	in := new(Arguments)
-	if err := codec.Unmarshal(buf, in); err != nil {
-		return nil, err
-	}
-	out, err := srv.(GrpcServer).GetNeighborPolicy(ctx, in)
-	if err != nil {
-		return nil, err
-	}
-	return out, nil
-}
-
-func _Grpc_ModNeighborPolicy_Handler(srv interface{}, stream grpc.ServerStream) error {
-	return srv.(GrpcServer).ModNeighborPolicy(&grpcModNeighborPolicyServer{stream})
-}
-
-type Grpc_ModNeighborPolicyServer interface {
-	Send(*Error) error
-	Recv() (*PolicyArguments, error)
-	grpc.ServerStream
-}
-
-type grpcModNeighborPolicyServer struct {
-	grpc.ServerStream
-}
-
-func (x *grpcModNeighborPolicyServer) Send(m *Error) error {
-	return x.ServerStream.SendMsg(m)
-}
-
-func (x *grpcModNeighborPolicyServer) Recv() (*PolicyArguments, error) {
-	m := new(PolicyArguments)
-	if err := x.ServerStream.RecvMsg(m); err != nil {
-		return nil, err
-	}
-	return m, nil
-}
-
-func _Grpc_GetPolicyRoutePolicies_Handler(srv interface{}, stream grpc.ServerStream) error {
-	m := new(PolicyArguments)
+func _GobgpApi_MonitorRib_Handler(srv interface{}, stream grpc.ServerStream) error {
+	m := new(Table)
 	if err := stream.RecvMsg(m); err != nil {
 		return err
 	}
-	return srv.(GrpcServer).GetPolicyRoutePolicies(m, &grpcGetPolicyRoutePoliciesServer{stream})
+	return srv.(GobgpApiServer).MonitorRib(m, &gobgpApiMonitorRibServer{stream})
 }
 
-type Grpc_GetPolicyRoutePoliciesServer interface {
-	Send(*PolicyDefinition) error
-	grpc.ServerStream
-}
-
-type grpcGetPolicyRoutePoliciesServer struct {
-	grpc.ServerStream
-}
-
-func (x *grpcGetPolicyRoutePoliciesServer) Send(m *PolicyDefinition) error {
-	return x.ServerStream.SendMsg(m)
-}
-
-func _Grpc_GetPolicyRoutePolicy_Handler(srv interface{}, ctx context.Context, codec grpc.Codec, buf []byte) (interface{}, error) {
-	in := new(PolicyArguments)
-	if err := codec.Unmarshal(buf, in); err != nil {
-		return nil, err
-	}
-	out, err := srv.(GrpcServer).GetPolicyRoutePolicy(ctx, in)
-	if err != nil {
-		return nil, err
-	}
-	return out, nil
-}
-
-func _Grpc_ModPolicyRoutePolicy_Handler(srv interface{}, stream grpc.ServerStream) error {
-	return srv.(GrpcServer).ModPolicyRoutePolicy(&grpcModPolicyRoutePolicyServer{stream})
-}
-
-type Grpc_ModPolicyRoutePolicyServer interface {
-	Send(*Error) error
-	Recv() (*PolicyArguments, error)
-	grpc.ServerStream
-}
-
-type grpcModPolicyRoutePolicyServer struct {
-	grpc.ServerStream
-}
-
-func (x *grpcModPolicyRoutePolicyServer) Send(m *Error) error {
-	return x.ServerStream.SendMsg(m)
-}
-
-func (x *grpcModPolicyRoutePolicyServer) Recv() (*PolicyArguments, error) {
-	m := new(PolicyArguments)
-	if err := x.ServerStream.RecvMsg(m); err != nil {
-		return nil, err
-	}
-	return m, nil
-}
-
-func _Grpc_MonitorBestChanged_Handler(srv interface{}, stream grpc.ServerStream) error {
-	m := new(Arguments)
-	if err := stream.RecvMsg(m); err != nil {
-		return err
-	}
-	return srv.(GrpcServer).MonitorBestChanged(m, &grpcMonitorBestChangedServer{stream})
-}
-
-type Grpc_MonitorBestChangedServer interface {
+type GobgpApi_MonitorRibServer interface {
 	Send(*Destination) error
 	grpc.ServerStream
 }
 
-type grpcMonitorBestChangedServer struct {
+type gobgpApiMonitorRibServer struct {
 	grpc.ServerStream
 }
 
-func (x *grpcMonitorBestChangedServer) Send(m *Destination) error {
+func (x *gobgpApiMonitorRibServer) Send(m *Destination) error {
 	return x.ServerStream.SendMsg(m)
 }
 
-func _Grpc_MonitorPeerState_Handler(srv interface{}, stream grpc.ServerStream) error {
+func _GobgpApi_MonitorBestChanged_Handler(srv interface{}, stream grpc.ServerStream) error {
 	m := new(Arguments)
 	if err := stream.RecvMsg(m); err != nil {
 		return err
 	}
-	return srv.(GrpcServer).MonitorPeerState(m, &grpcMonitorPeerStateServer{stream})
+	return srv.(GobgpApiServer).MonitorBestChanged(m, &gobgpApiMonitorBestChangedServer{stream})
 }
 
-type Grpc_MonitorPeerStateServer interface {
+type GobgpApi_MonitorBestChangedServer interface {
+	Send(*Destination) error
+	grpc.ServerStream
+}
+
+type gobgpApiMonitorBestChangedServer struct {
+	grpc.ServerStream
+}
+
+func (x *gobgpApiMonitorBestChangedServer) Send(m *Destination) error {
+	return x.ServerStream.SendMsg(m)
+}
+
+func _GobgpApi_MonitorPeerState_Handler(srv interface{}, stream grpc.ServerStream) error {
+	m := new(Arguments)
+	if err := stream.RecvMsg(m); err != nil {
+		return err
+	}
+	return srv.(GobgpApiServer).MonitorPeerState(m, &gobgpApiMonitorPeerStateServer{stream})
+}
+
+type GobgpApi_MonitorPeerStateServer interface {
 	Send(*Peer) error
 	grpc.ServerStream
 }
 
-type grpcMonitorPeerStateServer struct {
+type gobgpApiMonitorPeerStateServer struct {
 	grpc.ServerStream
 }
 
-func (x *grpcMonitorPeerStateServer) Send(m *Peer) error {
+func (x *gobgpApiMonitorPeerStateServer) Send(m *Peer) error {
 	return x.ServerStream.SendMsg(m)
 }
 
-func _Grpc_GetMrt_Handler(srv interface{}, stream grpc.ServerStream) error {
+func _GobgpApi_MonitorROAValidation_Handler(srv interface{}, stream grpc.ServerStream) error {
+	m := new(Arguments)
+	if err := stream.RecvMsg(m); err != nil {
+		return err
+	}
+	return srv.(GobgpApiServer).MonitorROAValidation(m, &gobgpApiMonitorROAValidationServer{stream})
+}
+
+type GobgpApi_MonitorROAValidationServer interface {
+	Send(*ROAResult) error
+	grpc.ServerStream
+}
+
+type gobgpApiMonitorROAValidationServer struct {
+	grpc.ServerStream
+}
+
+func (x *gobgpApiMonitorROAValidationServer) Send(m *ROAResult) error {
+	return x.ServerStream.SendMsg(m)
+}
+
+func _GobgpApi_GetMrt_Handler(srv interface{}, stream grpc.ServerStream) error {
 	m := new(MrtArguments)
 	if err := stream.RecvMsg(m); err != nil {
 		return err
 	}
-	return srv.(GrpcServer).GetMrt(m, &grpcGetMrtServer{stream})
+	return srv.(GobgpApiServer).GetMrt(m, &gobgpApiGetMrtServer{stream})
 }
 
-type Grpc_GetMrtServer interface {
+type GobgpApi_GetMrtServer interface {
 	Send(*MrtMessage) error
 	grpc.ServerStream
 }
 
-type grpcGetMrtServer struct {
+type gobgpApiGetMrtServer struct {
 	grpc.ServerStream
 }
 
-func (x *grpcGetMrtServer) Send(m *MrtMessage) error {
+func (x *gobgpApiGetMrtServer) Send(m *MrtMessage) error {
 	return x.ServerStream.SendMsg(m)
 }
 
-func _Grpc_GetRPKI_Handler(srv interface{}, stream grpc.ServerStream) error {
-	m := new(Arguments)
-	if err := stream.RecvMsg(m); err != nil {
-		return err
-	}
-	return srv.(GrpcServer).GetRPKI(m, &grpcGetRPKIServer{stream})
-}
-
-type Grpc_GetRPKIServer interface {
-	Send(*ROA) error
-	grpc.ServerStream
-}
-
-type grpcGetRPKIServer struct {
-	grpc.ServerStream
-}
-
-func (x *grpcGetRPKIServer) Send(m *ROA) error {
-	return x.ServerStream.SendMsg(m)
-}
-
-func _Grpc_GetVrfs_Handler(srv interface{}, stream grpc.ServerStream) error {
-	m := new(Arguments)
-	if err := stream.RecvMsg(m); err != nil {
-		return err
-	}
-	return srv.(GrpcServer).GetVrfs(m, &grpcGetVrfsServer{stream})
-}
-
-type Grpc_GetVrfsServer interface {
-	Send(*Vrf) error
-	grpc.ServerStream
-}
-
-type grpcGetVrfsServer struct {
-	grpc.ServerStream
-}
-
-func (x *grpcGetVrfsServer) Send(m *Vrf) error {
-	return x.ServerStream.SendMsg(m)
-}
-
-func _Grpc_ModVrf_Handler(srv interface{}, ctx context.Context, codec grpc.Codec, buf []byte) (interface{}, error) {
-	in := new(ModVrfArguments)
-	if err := codec.Unmarshal(buf, in); err != nil {
+func _GobgpApi_ModMrt_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error) (interface{}, error) {
+	in := new(ModMrtArguments)
+	if err := dec(in); err != nil {
 		return nil, err
 	}
-	out, err := srv.(GrpcServer).ModVrf(ctx, in)
+	out, err := srv.(GobgpApiServer).ModMrt(ctx, in)
 	if err != nil {
 		return nil, err
 	}
 	return out, nil
 }
 
-var _Grpc_serviceDesc = grpc.ServiceDesc{
-	ServiceName: "api.Grpc",
-	HandlerType: (*GrpcServer)(nil),
+func _GobgpApi_ModBmp_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error) (interface{}, error) {
+	in := new(ModBmpArguments)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	out, err := srv.(GobgpApiServer).ModBmp(ctx, in)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func _GobgpApi_GetRPKI_Handler(srv interface{}, stream grpc.ServerStream) error {
+	m := new(Arguments)
+	if err := stream.RecvMsg(m); err != nil {
+		return err
+	}
+	return srv.(GobgpApiServer).GetRPKI(m, &gobgpApiGetRPKIServer{stream})
+}
+
+type GobgpApi_GetRPKIServer interface {
+	Send(*RPKI) error
+	grpc.ServerStream
+}
+
+type gobgpApiGetRPKIServer struct {
+	grpc.ServerStream
+}
+
+func (x *gobgpApiGetRPKIServer) Send(m *RPKI) error {
+	return x.ServerStream.SendMsg(m)
+}
+
+func _GobgpApi_ModRPKI_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error) (interface{}, error) {
+	in := new(ModRpkiArguments)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	out, err := srv.(GobgpApiServer).ModRPKI(ctx, in)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func _GobgpApi_GetROA_Handler(srv interface{}, stream grpc.ServerStream) error {
+	m := new(Arguments)
+	if err := stream.RecvMsg(m); err != nil {
+		return err
+	}
+	return srv.(GobgpApiServer).GetROA(m, &gobgpApiGetROAServer{stream})
+}
+
+type GobgpApi_GetROAServer interface {
+	Send(*ROA) error
+	grpc.ServerStream
+}
+
+type gobgpApiGetROAServer struct {
+	grpc.ServerStream
+}
+
+func (x *gobgpApiGetROAServer) Send(m *ROA) error {
+	return x.ServerStream.SendMsg(m)
+}
+
+func _GobgpApi_GetVrfs_Handler(srv interface{}, stream grpc.ServerStream) error {
+	m := new(Arguments)
+	if err := stream.RecvMsg(m); err != nil {
+		return err
+	}
+	return srv.(GobgpApiServer).GetVrfs(m, &gobgpApiGetVrfsServer{stream})
+}
+
+type GobgpApi_GetVrfsServer interface {
+	Send(*Vrf) error
+	grpc.ServerStream
+}
+
+type gobgpApiGetVrfsServer struct {
+	grpc.ServerStream
+}
+
+func (x *gobgpApiGetVrfsServer) Send(m *Vrf) error {
+	return x.ServerStream.SendMsg(m)
+}
+
+func _GobgpApi_ModVrf_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error) (interface{}, error) {
+	in := new(ModVrfArguments)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	out, err := srv.(GobgpApiServer).ModVrf(ctx, in)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func _GobgpApi_GetDefinedSet_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error) (interface{}, error) {
+	in := new(DefinedSet)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	out, err := srv.(GobgpApiServer).GetDefinedSet(ctx, in)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func _GobgpApi_GetDefinedSets_Handler(srv interface{}, stream grpc.ServerStream) error {
+	m := new(DefinedSet)
+	if err := stream.RecvMsg(m); err != nil {
+		return err
+	}
+	return srv.(GobgpApiServer).GetDefinedSets(m, &gobgpApiGetDefinedSetsServer{stream})
+}
+
+type GobgpApi_GetDefinedSetsServer interface {
+	Send(*DefinedSet) error
+	grpc.ServerStream
+}
+
+type gobgpApiGetDefinedSetsServer struct {
+	grpc.ServerStream
+}
+
+func (x *gobgpApiGetDefinedSetsServer) Send(m *DefinedSet) error {
+	return x.ServerStream.SendMsg(m)
+}
+
+func _GobgpApi_ModDefinedSet_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error) (interface{}, error) {
+	in := new(ModDefinedSetArguments)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	out, err := srv.(GobgpApiServer).ModDefinedSet(ctx, in)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func _GobgpApi_GetStatement_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error) (interface{}, error) {
+	in := new(Statement)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	out, err := srv.(GobgpApiServer).GetStatement(ctx, in)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func _GobgpApi_GetStatements_Handler(srv interface{}, stream grpc.ServerStream) error {
+	m := new(Statement)
+	if err := stream.RecvMsg(m); err != nil {
+		return err
+	}
+	return srv.(GobgpApiServer).GetStatements(m, &gobgpApiGetStatementsServer{stream})
+}
+
+type GobgpApi_GetStatementsServer interface {
+	Send(*Statement) error
+	grpc.ServerStream
+}
+
+type gobgpApiGetStatementsServer struct {
+	grpc.ServerStream
+}
+
+func (x *gobgpApiGetStatementsServer) Send(m *Statement) error {
+	return x.ServerStream.SendMsg(m)
+}
+
+func _GobgpApi_ModStatement_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error) (interface{}, error) {
+	in := new(ModStatementArguments)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	out, err := srv.(GobgpApiServer).ModStatement(ctx, in)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func _GobgpApi_GetPolicy_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error) (interface{}, error) {
+	in := new(Policy)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	out, err := srv.(GobgpApiServer).GetPolicy(ctx, in)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func _GobgpApi_GetPolicies_Handler(srv interface{}, stream grpc.ServerStream) error {
+	m := new(Policy)
+	if err := stream.RecvMsg(m); err != nil {
+		return err
+	}
+	return srv.(GobgpApiServer).GetPolicies(m, &gobgpApiGetPoliciesServer{stream})
+}
+
+type GobgpApi_GetPoliciesServer interface {
+	Send(*Policy) error
+	grpc.ServerStream
+}
+
+type gobgpApiGetPoliciesServer struct {
+	grpc.ServerStream
+}
+
+func (x *gobgpApiGetPoliciesServer) Send(m *Policy) error {
+	return x.ServerStream.SendMsg(m)
+}
+
+func _GobgpApi_ModPolicy_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error) (interface{}, error) {
+	in := new(ModPolicyArguments)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	out, err := srv.(GobgpApiServer).ModPolicy(ctx, in)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func _GobgpApi_GetPolicyAssignment_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error) (interface{}, error) {
+	in := new(PolicyAssignment)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	out, err := srv.(GobgpApiServer).GetPolicyAssignment(ctx, in)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func _GobgpApi_ModPolicyAssignment_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error) (interface{}, error) {
+	in := new(ModPolicyAssignmentArguments)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	out, err := srv.(GobgpApiServer).ModPolicyAssignment(ctx, in)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+var _GobgpApi_serviceDesc = grpc.ServiceDesc{
+	ServiceName: "gobgpapi.GobgpApi",
+	HandlerType: (*GobgpApiServer)(nil),
 	Methods: []grpc.MethodDesc{
 		{
+			MethodName: "GetGlobalConfig",
+			Handler:    _GobgpApi_GetGlobalConfig_Handler,
+		},
+		{
+			MethodName: "ModGlobalConfig",
+			Handler:    _GobgpApi_ModGlobalConfig_Handler,
+		},
+		{
 			MethodName: "GetNeighbor",
-			Handler:    _Grpc_GetNeighbor_Handler,
+			Handler:    _GobgpApi_GetNeighbor_Handler,
+		},
+		{
+			MethodName: "ModNeighbor",
+			Handler:    _GobgpApi_ModNeighbor_Handler,
+		},
+		{
+			MethodName: "GetRib",
+			Handler:    _GobgpApi_GetRib_Handler,
 		},
 		{
 			MethodName: "Reset",
-			Handler:    _Grpc_Reset_Handler,
+			Handler:    _GobgpApi_Reset_Handler,
 		},
 		{
 			MethodName: "SoftReset",
-			Handler:    _Grpc_SoftReset_Handler,
+			Handler:    _GobgpApi_SoftReset_Handler,
 		},
 		{
 			MethodName: "SoftResetIn",
-			Handler:    _Grpc_SoftResetIn_Handler,
+			Handler:    _GobgpApi_SoftResetIn_Handler,
 		},
 		{
 			MethodName: "SoftResetOut",
-			Handler:    _Grpc_SoftResetOut_Handler,
+			Handler:    _GobgpApi_SoftResetOut_Handler,
 		},
 		{
 			MethodName: "Shutdown",
-			Handler:    _Grpc_Shutdown_Handler,
+			Handler:    _GobgpApi_Shutdown_Handler,
 		},
 		{
 			MethodName: "Enable",
-			Handler:    _Grpc_Enable_Handler,
+			Handler:    _GobgpApi_Enable_Handler,
 		},
 		{
 			MethodName: "Disable",
-			Handler:    _Grpc_Disable_Handler,
+			Handler:    _GobgpApi_Disable_Handler,
 		},
 		{
-			MethodName: "GetNeighborPolicy",
-			Handler:    _Grpc_GetNeighborPolicy_Handler,
+			MethodName: "ModPath",
+			Handler:    _GobgpApi_ModPath_Handler,
 		},
 		{
-			MethodName: "GetPolicyRoutePolicy",
-			Handler:    _Grpc_GetPolicyRoutePolicy_Handler,
+			MethodName: "ModMrt",
+			Handler:    _GobgpApi_ModMrt_Handler,
+		},
+		{
+			MethodName: "ModBmp",
+			Handler:    _GobgpApi_ModBmp_Handler,
+		},
+		{
+			MethodName: "ModRPKI",
+			Handler:    _GobgpApi_ModRPKI_Handler,
 		},
 		{
 			MethodName: "ModVrf",
-			Handler:    _Grpc_ModVrf_Handler,
+			Handler:    _GobgpApi_ModVrf_Handler,
+		},
+		{
+			MethodName: "GetDefinedSet",
+			Handler:    _GobgpApi_GetDefinedSet_Handler,
+		},
+		{
+			MethodName: "ModDefinedSet",
+			Handler:    _GobgpApi_ModDefinedSet_Handler,
+		},
+		{
+			MethodName: "GetStatement",
+			Handler:    _GobgpApi_GetStatement_Handler,
+		},
+		{
+			MethodName: "ModStatement",
+			Handler:    _GobgpApi_ModStatement_Handler,
+		},
+		{
+			MethodName: "GetPolicy",
+			Handler:    _GobgpApi_GetPolicy_Handler,
+		},
+		{
+			MethodName: "ModPolicy",
+			Handler:    _GobgpApi_ModPolicy_Handler,
+		},
+		{
+			MethodName: "GetPolicyAssignment",
+			Handler:    _GobgpApi_GetPolicyAssignment_Handler,
+		},
+		{
+			MethodName: "ModPolicyAssignment",
+			Handler:    _GobgpApi_ModPolicyAssignment_Handler,
 		},
 	},
 	Streams: []grpc.StreamDesc{
 		{
 			StreamName:    "GetNeighbors",
-			Handler:       _Grpc_GetNeighbors_Handler,
+			Handler:       _GobgpApi_GetNeighbors_Handler,
 			ServerStreams: true,
 		},
 		{
-			StreamName:    "GetRib",
-			Handler:       _Grpc_GetRib_Handler,
-			ServerStreams: true,
-		},
-		{
-			StreamName:    "ModPath",
-			Handler:       _Grpc_ModPath_Handler,
+			StreamName:    "ModPaths",
+			Handler:       _GobgpApi_ModPaths_Handler,
 			ClientStreams: true,
 		},
 		{
-			StreamName:    "ModNeighborPolicy",
-			Handler:       _Grpc_ModNeighborPolicy_Handler,
+			StreamName:    "MonitorRib",
+			Handler:       _GobgpApi_MonitorRib_Handler,
 			ServerStreams: true,
-			ClientStreams: true,
-		},
-		{
-			StreamName:    "GetPolicyRoutePolicies",
-			Handler:       _Grpc_GetPolicyRoutePolicies_Handler,
-			ServerStreams: true,
-		},
-		{
-			StreamName:    "ModPolicyRoutePolicy",
-			Handler:       _Grpc_ModPolicyRoutePolicy_Handler,
-			ServerStreams: true,
-			ClientStreams: true,
 		},
 		{
 			StreamName:    "MonitorBestChanged",
-			Handler:       _Grpc_MonitorBestChanged_Handler,
+			Handler:       _GobgpApi_MonitorBestChanged_Handler,
 			ServerStreams: true,
 		},
 		{
 			StreamName:    "MonitorPeerState",
-			Handler:       _Grpc_MonitorPeerState_Handler,
+			Handler:       _GobgpApi_MonitorPeerState_Handler,
+			ServerStreams: true,
+		},
+		{
+			StreamName:    "MonitorROAValidation",
+			Handler:       _GobgpApi_MonitorROAValidation_Handler,
 			ServerStreams: true,
 		},
 		{
 			StreamName:    "GetMrt",
-			Handler:       _Grpc_GetMrt_Handler,
+			Handler:       _GobgpApi_GetMrt_Handler,
 			ServerStreams: true,
 		},
 		{
 			StreamName:    "GetRPKI",
-			Handler:       _Grpc_GetRPKI_Handler,
+			Handler:       _GobgpApi_GetRPKI_Handler,
+			ServerStreams: true,
+		},
+		{
+			StreamName:    "GetROA",
+			Handler:       _GobgpApi_GetROA_Handler,
 			ServerStreams: true,
 		},
 		{
 			StreamName:    "GetVrfs",
-			Handler:       _Grpc_GetVrfs_Handler,
+			Handler:       _GobgpApi_GetVrfs_Handler,
+			ServerStreams: true,
+		},
+		{
+			StreamName:    "GetDefinedSets",
+			Handler:       _GobgpApi_GetDefinedSets_Handler,
+			ServerStreams: true,
+		},
+		{
+			StreamName:    "GetStatements",
+			Handler:       _GobgpApi_GetStatements_Handler,
+			ServerStreams: true,
+		},
+		{
+			StreamName:    "GetPolicies",
+			Handler:       _GobgpApi_GetPolicies_Handler,
 			ServerStreams: true,
 		},
 	},
+}
+
+var fileDescriptor0 = []byte{
+	// 3498 bytes of a gzipped FileDescriptorProto
+	0x1f, 0x8b, 0x08, 0x00, 0x00, 0x09, 0x6e, 0x88, 0x02, 0xff, 0xbc, 0x1a, 0x5d, 0x6f, 0xdb, 0xd6,
+	0x35, 0xfa, 0xb4, 0x74, 0x24, 0xd9, 0x32, 0xed, 0xa4, 0x8e, 0xfa, 0x95, 0x72, 0x5d, 0x92, 0xba,
+	0x4d, 0x9a, 0xa6, 0x6d, 0x56, 0xb4, 0x1d, 0x36, 0x59, 0x62, 0x62, 0x35, 0xb6, 0xa5, 0xca, 0xb2,
+	0xdb, 0x02, 0x03, 0x08, 0x5a, 0xa2, 0x64, 0x2e, 0x92, 0xc8, 0x92, 0x54, 0x12, 0x03, 0x7b, 0xdb,
+	0xd3, 0xfe, 0xc2, 0x30, 0x0c, 0xd8, 0x1e, 0xf6, 0x13, 0xf6, 0xb2, 0x97, 0x01, 0xfb, 0x01, 0xfb,
+	0x07, 0x7b, 0xd9, 0x43, 0x81, 0xfd, 0x8a, 0x9d, 0x73, 0xee, 0xa5, 0x48, 0x4a, 0x74, 0x62, 0xa7,
+	0xc3, 0x5e, 0x6c, 0xf1, 0xf2, 0x7c, 0xdd, 0xf3, 0x7d, 0xee, 0x25, 0x94, 0x46, 0xf6, 0xc9, 0xc8,
+	0xb9, 0xeb, 0xb8, 0xb6, 0x6f, 0x2b, 0x05, 0x7e, 0x30, 0x1c, 0x4b, 0x35, 0x20, 0xa7, 0xb9, 0xae,
+	0xed, 0x2a, 0xb7, 0x20, 0xdb, 0xb7, 0x07, 0xe6, 0x56, 0xea, 0x46, 0xea, 0xf6, 0xea, 0xfd, 0xeb,
+	0x77, 0x03, 0x88, 0xbb, 0xfc, 0x5a, 0xfc, 0x6d, 0x20, 0x80, 0x52, 0x82, 0xcc, 0xc4, 0x1b, 0x6d,
+	0xa5, 0x11, 0xae, 0xa8, 0xaa, 0x50, 0x8c, 0xbe, 0x59, 0x39, 0x3c, 0x6a, 0x34, 0xb4, 0xc3, 0xc3,
+	0xea, 0x15, 0xa5, 0x00, 0xd9, 0x87, 0xf5, 0xd6, 0x5e, 0x35, 0xa5, 0xb6, 0xa1, 0x58, 0x77, 0x47,
+	0xb3, 0x89, 0x39, 0xf5, 0x3d, 0xe5, 0x5d, 0x28, 0xb8, 0xa6, 0x67, 0xcf, 0xdc, 0x7e, 0xc0, 0x4a,
+	0x09, 0x59, 0x75, 0xe5, 0x1b, 0x65, 0x15, 0xf2, 0x43, 0x63, 0x62, 0x8d, 0xcf, 0x98, 0x4d, 0x45,
+	0x29, 0x43, 0x76, 0x6a, 0x4c, 0xcc, 0xad, 0x0c, 0x33, 0xfd, 0x7d, 0x0a, 0xaa, 0xfb, 0xf6, 0xa0,
+	0x63, 0xf8, 0xa7, 0x21, 0xe1, 0x9b, 0x50, 0xb4, 0x1d, 0xd3, 0x35, 0x7c, 0xcb, 0x9e, 0x4a, 0xca,
+	0x1b, 0x21, 0xe5, 0x76, 0xf0, 0x2a, 0x26, 0x40, 0xfa, 0x5c, 0x01, 0x62, 0x0c, 0x95, 0x37, 0x20,
+	0xeb, 0x20, 0xb3, 0xad, 0x2c, 0x3e, 0x95, 0xee, 0xaf, 0x86, 0xf0, 0x24, 0x02, 0xc1, 0xce, 0x66,
+	0xd6, 0x60, 0x2b, 0x87, 0x6f, 0xcb, 0xea, 0xdb, 0xb0, 0x26, 0x65, 0x43, 0x62, 0x8e, 0x3d, 0xf5,
+	0xcc, 0x39, 0x40, 0x8a, 0x01, 0x86, 0xb0, 0x2e, 0x01, 0xbc, 0xcb, 0xaa, 0x25, 0x90, 0x8a, 0x75,
+	0xaf, 0xbc, 0x09, 0x39, 0x92, 0xca, 0x43, 0x21, 0x33, 0xcb, 0x62, 0xa9, 0xbf, 0x82, 0x4d, 0xe4,
+	0x73, 0x60, 0x5a, 0xa3, 0xd3, 0x13, 0xdb, 0xbd, 0xbc, 0xa2, 0x68, 0xd3, 0xa6, 0xe9, 0x32, 0xb3,
+	0x38, 0x75, 0x5c, 0x55, 0x1d, 0x28, 0xef, 0xbb, 0xfe, 0x8f, 0xb5, 0x6b, 0x15, 0x0a, 0xd6, 0xd4,
+	0x37, 0xdd, 0xa7, 0xc6, 0x98, 0x55, 0x9d, 0x55, 0xb6, 0xa0, 0x3a, 0x95, 0x22, 0xeb, 0xc6, 0x60,
+	0x80, 0x34, 0x3d, 0x56, 0x7b, 0x51, 0x7d, 0xcc, 0x8a, 0x8d, 0x31, 0xbd, 0xe8, 0x56, 0x90, 0xcd,
+	0xd0, 0x1a, 0x9b, 0xa1, 0xee, 0xd4, 0x7f, 0xa4, 0x98, 0xda, 0xce, 0xc4, 0xb9, 0x3c, 0xb5, 0x35,
+	0x58, 0x09, 0x24, 0x13, 0x86, 0x40, 0xb3, 0x38, 0xb6, 0xeb, 0xf3, 0x0e, 0x2a, 0xca, 0x67, 0x90,
+	0xf5, 0xcf, 0x1c, 0x93, 0xa5, 0x5e, 0xbd, 0xbf, 0x1d, 0x52, 0x58, 0xe0, 0x87, 0xcf, 0x53, 0xcb,
+	0xb7, 0x5d, 0x6b, 0x3a, 0xea, 0xd8, 0x63, 0xab, 0x7f, 0xa6, 0x7e, 0x48, 0x6e, 0x1d, 0x5f, 0x53,
+	0x56, 0x20, 0xd3, 0xe9, 0x6a, 0x22, 0x9e, 0x3a, 0xed, 0xc3, 0x5e, 0x35, 0x45, 0xbf, 0x76, 0xda,
+	0xbd, 0xdd, 0x6a, 0x5a, 0xfd, 0x8e, 0xe3, 0xa0, 0xeb, 0x3c, 0xb1, 0xfe, 0xd7, 0xbb, 0x50, 0x8f,
+	0x58, 0x3f, 0xc7, 0xee, 0xf0, 0xf2, 0x94, 0x6b, 0x90, 0x79, 0xea, 0x0e, 0xa5, 0xdf, 0x54, 0x42,
+	0x08, 0x24, 0xa6, 0xf6, 0xe1, 0x1a, 0x92, 0x6d, 0x9a, 0x43, 0x6b, 0x6a, 0x0e, 0x0e, 0xcd, 0x57,
+	0xb0, 0xe5, 0x3b, 0x90, 0xf1, 0x4c, 0x5f, 0x52, 0xdf, 0x0c, 0x21, 0x42, 0x9a, 0xea, 0x08, 0xae,
+	0x22, 0x93, 0x43, 0xdf, 0xf0, 0x4d, 0xa2, 0x7d, 0x79, 0x1e, 0x08, 0xe7, 0x05, 0xd8, 0x92, 0x53,
+	0x04, 0x6e, 0x4e, 0x58, 0xfd, 0x63, 0x0a, 0x14, 0x8a, 0x65, 0x36, 0xd5, 0xe5, 0xd9, 0xdc, 0x80,
+	0xbc, 0xc3, 0xa8, 0x92, 0x47, 0x35, 0x12, 0x63, 0xc2, 0xfa, 0xef, 0xc0, 0x75, 0xd7, 0x1c, 0x9a,
+	0xae, 0x6e, 0x3e, 0xb7, 0x3c, 0x1f, 0xbd, 0x42, 0x9f, 0xcb, 0xe5, 0xb1, 0xa1, 0x0a, 0xca, 0xeb,
+	0xb0, 0xe1, 0xa0, 0x15, 0x31, 0x86, 0xcc, 0xe8, 0x4b, 0xf2, 0xbe, 0x82, 0xfa, 0x14, 0xde, 0x08,
+	0xe5, 0xf3, 0x3c, 0x6b, 0x34, 0x7d, 0x35, 0x85, 0xdc, 0x05, 0x30, 0xe6, 0xe8, 0x52, 0xda, 0xda,
+	0xa2, 0xb4, 0x21, 0x03, 0x75, 0x00, 0x5b, 0xc8, 0xf7, 0xd1, 0xd8, 0x3e, 0x31, 0xc6, 0x0d, 0x7b,
+	0x3a, 0xb4, 0x46, 0xaf, 0xa4, 0x9d, 0x11, 0x13, 0x58, 0xd6, 0x8e, 0x20, 0xac, 0xfe, 0x33, 0x85,
+	0x31, 0x21, 0x33, 0xf0, 0x74, 0xec, 0x5a, 0x22, 0xc1, 0x52, 0x92, 0xc1, 0xbc, 0xe8, 0xbb, 0xe4,
+	0xd8, 0x19, 0x7c, 0xc6, 0x82, 0x65, 0x8c, 0x44, 0x2a, 0xcf, 0x10, 0xe8, 0x89, 0xe9, 0xf9, 0x42,
+	0x3f, 0xca, 0x06, 0x94, 0x2c, 0x4f, 0x7f, 0x66, 0xf9, 0xa7, 0x03, 0xd7, 0x78, 0xc6, 0x19, 0xbc,
+	0xa0, 0x28, 0x00, 0x98, 0x8f, 0xac, 0x81, 0x90, 0x30, 0x8f, 0x6b, 0x39, 0x4c, 0x86, 0x9b, 0x53,
+	0x5b, 0xb7, 0x26, 0x0e, 0x6e, 0xd4, 0xf2, 0x43, 0x8c, 0x15, 0xc6, 0x08, 0xd3, 0x5a, 0x81, 0x53,
+	0x00, 0x52, 0x10, 0x09, 0x4f, 0x37, 0xbc, 0xe9, 0x56, 0x91, 0xd7, 0xd6, 0xd1, 0xa7, 0xc4, 0x1a,
+	0x56, 0x02, 0xe0, 0x88, 0x13, 0x69, 0x09, 0xd3, 0x9f, 0x39, 0xd8, 0x2a, 0xb1, 0xbd, 0x8e, 0xa0,
+	0xd4, 0x34, 0xc9, 0xd0, 0x42, 0x05, 0xb4, 0x13, 0xb4, 0xbf, 0xf5, 0x9c, 0x77, 0x16, 0xc9, 0xf8,
+	0xe9, 0xa4, 0x8c, 0xaf, 0xbc, 0x06, 0x6b, 0x63, 0x7b, 0x3a, 0x42, 0x77, 0x11, 0x58, 0xa6, 0xf4,
+	0x11, 0xf5, 0x77, 0x29, 0xc8, 0xf5, 0x8c, 0x93, 0xb1, 0x89, 0x4a, 0x15, 0xc9, 0xe9, 0xa2, 0x35,
+	0x26, 0xdc, 0x99, 0x48, 0x6e, 0xef, 0x43, 0x79, 0x10, 0x0a, 0x48, 0x6e, 0x46, 0x82, 0x5c, 0x8d,
+	0x86, 0x61, 0x28, 0x3e, 0x6a, 0xd7, 0xb1, 0x3d, 0x5f, 0x97, 0x4e, 0xce, 0xda, 0x55, 0xff, 0x9d,
+	0x46, 0xa3, 0x61, 0x05, 0xe1, 0xdd, 0x13, 0x69, 0xcb, 0x14, 0xfb, 0x61, 0xe2, 0x86, 0xe3, 0x8c,
+	0xcf, 0x02, 0x84, 0x0c, 0xdb, 0x3d, 0x42, 0xbc, 0x4e, 0x6f, 0x65, 0x68, 0xdc, 0xa0, 0x7e, 0x65,
+	0x3a, 0x64, 0xaa, 0xa5, 0xe8, 0x4e, 0x88, 0x38, 0xf9, 0x9c, 0x72, 0x07, 0x2a, 0x26, 0xae, 0xe9,
+	0x93, 0xd9, 0xd8, 0xb7, 0x4e, 0x6d, 0x87, 0x4d, 0x59, 0xba, 0x7f, 0x2d, 0xd2, 0xda, 0xe0, 0xff,
+	0x7d, 0xf9, 0x56, 0xf9, 0x08, 0xd6, 0x5c, 0x7b, 0xe6, 0x9b, 0x3a, 0xea, 0x6e, 0x6c, 0xf6, 0x31,
+	0x0b, 0xb3, 0x99, 0x4a, 0xf7, 0xb7, 0x22, 0x5a, 0x22, 0x80, 0x6e, 0xf0, 0x1e, 0xc3, 0x33, 0x6b,
+	0x4d, 0x87, 0x36, 0x1b, 0x2f, 0x96, 0x22, 0x48, 0x06, 0x4e, 0x13, 0xe4, 0xc5, 0xbe, 0x35, 0x31,
+	0xd1, 0x19, 0xcb, 0x8b, 0x5e, 0xdc, 0xe3, 0x75, 0x8a, 0x07, 0xdf, 0x35, 0xa6, 0x1e, 0x27, 0xdf,
+	0xca, 0x22, 0xa5, 0x5e, 0xf0, 0x8a, 0xb4, 0x23, 0xe4, 0xe3, 0x58, 0x77, 0xb7, 0xd6, 0x16, 0xb5,
+	0xc3, 0xc2, 0x1d, 0xf2, 0x4b, 0xf5, 0xcf, 0x29, 0x28, 0x45, 0xb5, 0x75, 0x07, 0x8a, 0xd6, 0x34,
+	0xd0, 0x6b, 0xea, 0x65, 0xf1, 0x8b, 0xba, 0xa8, 0x98, 0xcf, 0x89, 0xab, 0x1e, 0x4b, 0x50, 0x2f,
+	0x41, 0xc1, 0xf0, 0x88, 0xa0, 0x64, 0x5e, 0x9a, 0x25, 0xfe, 0x90, 0x86, 0xc2, 0xdc, 0x5a, 0x57,
+	0xa1, 0x62, 0xcc, 0xfc, 0x53, 0xdd, 0xc1, 0x44, 0xf3, 0xcc, 0x76, 0x07, 0xd2, 0xe5, 0xd1, 0x87,
+	0xd0, 0xe1, 0xfa, 0xae, 0xe5, 0x70, 0x34, 0xa6, 0x83, 0xc0, 0x19, 0xdb, 0x7d, 0x63, 0x8c, 0xe1,
+	0x25, 0xfd, 0xf2, 0xdc, 0xb6, 0x81, 0xea, 0x1c, 0xb5, 0x31, 0x04, 0x9a, 0x0b, 0x82, 0x93, 0x17,
+	0x46, 0xa8, 0x4d, 0xe1, 0x13, 0x45, 0x0a, 0x4e, 0x5e, 0xe3, 0xd8, 0x58, 0x61, 0xb0, 0xeb, 0xb0,
+	0xee, 0x9a, 0x13, 0x1b, 0xb3, 0xaa, 0xe3, 0x5a, 0x4f, 0xd1, 0x94, 0x44, 0x41, 0x84, 0x77, 0x0d,
+	0x14, 0x61, 0x89, 0xe1, 0xd8, 0x70, 0xf4, 0x81, 0x31, 0x71, 0x30, 0x33, 0x73, 0x98, 0x17, 0x94,
+	0x6b, 0xb0, 0xea, 0x99, 0xd3, 0x81, 0xde, 0xb7, 0x27, 0x93, 0x19, 0xd6, 0xf2, 0x33, 0x76, 0x22,
+	0xe6, 0x4a, 0xe4, 0x10, 0xa9, 0x6f, 0x38, 0xe8, 0x30, 0x94, 0x98, 0x90, 0xab, 0xd8, 0x06, 0x2d,
+	0x95, 0x79, 0x09, 0x20, 0x8d, 0xe9, 0xa1, 0xc2, 0x3d, 0xca, 0xa7, 0x50, 0x8e, 0x39, 0x28, 0xee,
+	0x04, 0x5b, 0x18, 0x8c, 0x62, 0xa1, 0x9b, 0x82, 0xb2, 0x09, 0xe5, 0xc0, 0xb7, 0x75, 0xdf, 0x17,
+	0x79, 0xb2, 0xa2, 0xf6, 0x60, 0x75, 0xc1, 0x4d, 0xdf, 0x82, 0x6b, 0x0b, 0x9e, 0xad, 0xf7, 0x31,
+	0xec, 0x30, 0x93, 0x0b, 0x3a, 0x2a, 0xd4, 0x96, 0xdf, 0xcf, 0x3c, 0x4c, 0x4c, 0x94, 0xab, 0x04,
+	0xd5, 0x1f, 0x32, 0x50, 0x0c, 0xbd, 0xfa, 0xc7, 0x19, 0x0b, 0x7b, 0xc5, 0x09, 0x1a, 0x08, 0x93,
+	0xb2, 0x27, 0x5b, 0xea, 0x48, 0xf8, 0xee, 0xcb, 0x37, 0x89, 0x26, 0xcd, 0x2d, 0x9a, 0x34, 0x9f,
+	0x60, 0xd2, 0x95, 0x65, 0x93, 0x0a, 0xbb, 0x61, 0x2c, 0x7e, 0x3f, 0x33, 0x67, 0xc8, 0xb5, 0xb8,
+	0x18, 0x8b, 0x5f, 0xf3, 0x7a, 0xb2, 0xd1, 0xe1, 0x05, 0x46, 0x2f, 0x9d, 0x63, 0xf4, 0x32, 0xe3,
+	0xa0, 0x9a, 0x3c, 0x14, 0x1b, 0x75, 0x21, 0x4a, 0x33, 0x1b, 0xb6, 0x42, 0xf6, 0xf0, 0x66, 0x0e,
+	0xc5, 0x8a, 0x39, 0x20, 0xdb, 0x1b, 0x27, 0x98, 0x05, 0x7d, 0xca, 0x83, 0xab, 0xe8, 0x04, 0x2c,
+	0x3a, 0xe5, 0x2d, 0x81, 0xb2, 0x16, 0x68, 0xd6, 0x18, 0x4c, 0xac, 0x80, 0x4e, 0x35, 0xd0, 0xac,
+	0x6b, 0xf6, 0x4d, 0xeb, 0x29, 0x7a, 0xc4, 0x7a, 0xd0, 0x4f, 0x1b, 0xfd, 0xbe, 0xe9, 0x20, 0xe1,
+	0x2d, 0x25, 0x50, 0x8d, 0x31, 0xc0, 0x8c, 0xe0, 0x5b, 0x1e, 0xae, 0x6d, 0xf0, 0x5a, 0x05, 0x72,
+	0xb8, 0x13, 0xfd, 0xfb, 0xad, 0xcd, 0xe0, 0x71, 0x38, 0xb6, 0x1d, 0x6f, 0xeb, 0x2a, 0x5b, 0xba,
+	0x03, 0x85, 0xb9, 0x0d, 0x7e, 0x12, 0xe1, 0x20, 0xb2, 0xc6, 0xfa, 0x92, 0xa5, 0x94, 0xb7, 0x21,
+	0xeb, 0x85, 0x6d, 0xc1, 0x32, 0x80, 0xfa, 0xdb, 0x14, 0xac, 0x04, 0xc0, 0xe8, 0xb3, 0x07, 0xed,
+	0x5e, 0xeb, 0x61, 0xab, 0x51, 0xef, 0xb5, 0xda, 0x07, 0x4c, 0x35, 0x4b, 0x65, 0xe6, 0xa8, 0xd3,
+	0xac, 0xf7, 0x34, 0x26, 0x92, 0xa5, 0x22, 0xd4, 0xee, 0x68, 0x07, 0x72, 0x26, 0x40, 0x7d, 0x3c,
+	0xd6, 0xb4, 0x4e, 0x7d, 0xaf, 0x75, 0xac, 0xb1, 0xc3, 0x64, 0xc9, 0x05, 0xba, 0xda, 0xc3, 0xae,
+	0x76, 0xb8, 0xcb, 0x3e, 0xc1, 0x30, 0xcd, 0xd6, 0x61, 0xa3, 0xde, 0x6d, 0x6a, 0x4d, 0xf6, 0x8a,
+	0x2c, 0xed, 0xab, 0xd7, 0xee, 0xd5, 0xf7, 0xd8, 0x21, 0xb2, 0xea, 0x2d, 0xc8, 0x4b, 0x2b, 0xe3,
+	0x0b, 0x6b, 0xea, 0xcc, 0x84, 0xfb, 0x57, 0x88, 0x39, 0xaa, 0x83, 0x9e, 0x85, 0xab, 0x1f, 0x43,
+	0x7e, 0x9e, 0x9a, 0xf3, 0x7d, 0xee, 0x5e, 0xe4, 0xe6, 0xaf, 0x2d, 0x26, 0x6f, 0xd1, 0xdb, 0xa0,
+	0x43, 0xe7, 0x84, 0x5d, 0xd2, 0x8b, 0x39, 0x59, 0x80, 0x71, 0xd0, 0xa8, 0xbf, 0x81, 0x72, 0x0c,
+	0x0b, 0xbd, 0x03, 0xa9, 0x4f, 0x31, 0xe0, 0x30, 0xf0, 0x7c, 0xf7, 0x4c, 0xea, 0x02, 0x77, 0x72,
+	0x6a, 0x8f, 0x07, 0x3a, 0x95, 0x0d, 0xa9, 0x0e, 0xf4, 0xbd, 0x27, 0xa6, 0xe9, 0x60, 0x53, 0x82,
+	0x9e, 0xb9, 0x30, 0x30, 0xdd, 0x84, 0xb7, 0xd0, 0x2f, 0xac, 0xc9, 0x6c, 0xa2, 0xcf, 0x0d, 0x4d,
+	0xd9, 0x35, 0x84, 0x63, 0x8d, 0xa9, 0x7f, 0xc3, 0x8a, 0x10, 0x91, 0xe6, 0xff, 0xcb, 0x9d, 0xfb,
+	0x27, 0x73, 0x64, 0xfb, 0x96, 0x41, 0x3e, 0x1f, 0x72, 0xc8, 0x05, 0xe6, 0x9f, 0x39, 0xfc, 0x2c,
+	0x2c, 0x87, 0x6e, 0x3c, 0xb0, 0x9f, 0x4d, 0x79, 0x45, 0x18, 0xef, 0x4f, 0x29, 0x28, 0x86, 0xa5,
+	0x10, 0x65, 0x97, 0x29, 0x45, 0xe6, 0x05, 0x91, 0x7e, 0xd0, 0xd7, 0xc5, 0x32, 0x97, 0xd2, 0x74,
+	0x10, 0x82, 0x13, 0x7f, 0xa6, 0x0f, 0x2c, 0xaf, 0x8f, 0x61, 0xed, 0x9e, 0xc9, 0xae, 0x19, 0xdd,
+	0x90, 0x72, 0x17, 0xed, 0x68, 0x42, 0xa7, 0x1e, 0xd9, 0x20, 0x8e, 0x65, 0x92, 0x8e, 0x27, 0x1c,
+	0x8c, 0x3e, 0xb9, 0xce, 0x94, 0x45, 0xd2, 0x41, 0x17, 0xf4, 0xfb, 0xd8, 0x5d, 0x20, 0x14, 0x57,
+	0x0c, 0x75, 0x1b, 0x4a, 0x91, 0x12, 0x4c, 0x8d, 0x79, 0xb4, 0x5e, 0xc7, 0x52, 0xae, 0xba, 0x0f,
+	0xf9, 0x0e, 0xf7, 0x68, 0xa4, 0x70, 0xcb, 0xd1, 0x63, 0x6d, 0x1e, 0xf6, 0x71, 0x13, 0xc3, 0x7b,
+	0xa2, 0xe3, 0xc4, 0x3a, 0xc2, 0x24, 0x8b, 0x0a, 0x96, 0x9b, 0x59, 0x7c, 0x61, 0x3c, 0x97, 0xd3,
+	0xda, 0xf7, 0x00, 0xe1, 0xfc, 0x83, 0x51, 0x1b, 0x6d, 0xf2, 0xae, 0x2e, 0xcd, 0x48, 0x3d, 0x7c,
+	0xb9, 0xd0, 0xe7, 0xe1, 0xd3, 0x18, 0x27, 0x0c, 0x3e, 0x4a, 0x28, 0x62, 0x41, 0x28, 0xcc, 0x3b,
+	0x48, 0xd1, 0xe1, 0x45, 0x47, 0x13, 0x7e, 0xa3, 0x7e, 0x81, 0x69, 0xc2, 0xf0, 0xfb, 0xa7, 0xc4,
+	0xf0, 0x9d, 0x18, 0xc3, 0x48, 0xf7, 0xc2, 0x10, 0xcb, 0xec, 0xd4, 0x5d, 0x28, 0xd7, 0x3d, 0xea,
+	0x59, 0xf7, 0x78, 0x27, 0xca, 0xed, 0x18, 0x81, 0x48, 0xcf, 0x10, 0x85, 0x62, 0x3a, 0xe8, 0x2a,
+	0x62, 0xf7, 0x32, 0x58, 0xff, 0x92, 0x06, 0xc0, 0x78, 0x1a, 0x58, 0xdc, 0x8f, 0xa2, 0x3f, 0x82,
+	0x90, 0x5c, 0xa7, 0x21, 0x31, 0xb5, 0x54, 0x5c, 0x02, 0x89, 0x6f, 0x43, 0x79, 0x5e, 0x5c, 0xc2,
+	0x71, 0x32, 0x09, 0xf2, 0x2e, 0xac, 0x1a, 0x9e, 0x4e, 0x6d, 0xb7, 0x54, 0xbb, 0x6c, 0x6c, 0xae,
+	0x25, 0x0b, 0xa9, 0xdc, 0xc2, 0x4c, 0x2d, 0xe1, 0x89, 0x70, 0xf6, 0x5c, 0xc2, 0xef, 0x51, 0x00,
+	0xca, 0x7a, 0xc1, 0xa0, 0xb9, 0x73, 0x41, 0xef, 0xc0, 0xba, 0xf9, 0xdc, 0xd7, 0xe3, 0xe0, 0xf9,
+	0x73, 0xc1, 0xc9, 0x5d, 0x9d, 0x27, 0x16, 0xc6, 0xb5, 0x87, 0xed, 0x01, 0x7b, 0x67, 0x4e, 0x3d,
+	0x84, 0xb5, 0x46, 0x80, 0x5f, 0xef, 0x73, 0x7f, 0xfe, 0x7e, 0x4c, 0xeb, 0x6f, 0x86, 0x94, 0x16,
+	0x00, 0x59, 0xf1, 0x48, 0x34, 0xe0, 0x1f, 0x74, 0xec, 0x45, 0xb5, 0x0e, 0xc5, 0x7d, 0x73, 0x20,
+	0xc9, 0xfd, 0x34, 0x46, 0xee, 0xb5, 0x68, 0x1d, 0x18, 0x44, 0x08, 0x61, 0xf6, 0xc5, 0xbc, 0x30,
+	0x13, 0xae, 0x90, 0x51, 0x35, 0x58, 0x43, 0xfd, 0xb9, 0xa6, 0x83, 0x05, 0x54, 0x12, 0xa2, 0x81,
+	0xcd, 0x9b, 0x86, 0xd9, 0x99, 0x5e, 0x1a, 0x91, 0x80, 0x9e, 0x79, 0x26, 0xda, 0x62, 0xe8, 0x63,
+	0xe8, 0x7a, 0xbe, 0x1c, 0x71, 0x7e, 0xc0, 0x1a, 0x23, 0xd0, 0xbd, 0xb0, 0x53, 0x36, 0xfa, 0x91,
+	0x21, 0x73, 0xb1, 0x53, 0x96, 0xcc, 0x3e, 0x80, 0x62, 0x58, 0xb6, 0x85, 0x1b, 0x5c, 0x3f, 0x57,
+	0x13, 0xd8, 0x42, 0x64, 0x26, 0x58, 0x0b, 0x33, 0x8b, 0x6d, 0x7a, 0xa8, 0x85, 0x3b, 0x34, 0x2a,
+	0x53, 0x3c, 0xd3, 0x86, 0xa4, 0xf9, 0xaf, 0xc7, 0x7c, 0x25, 0xb6, 0xd7, 0x7b, 0xd4, 0x69, 0x47,
+	0x4c, 0x2b, 0xbd, 0xe0, 0x7c, 0x11, 0xd4, 0x11, 0x14, 0xe7, 0x27, 0x10, 0xf3, 0xb0, 0x12, 0x89,
+	0xe3, 0x36, 0x40, 0x7f, 0x1e, 0x0b, 0xcb, 0x47, 0x24, 0x91, 0x38, 0x51, 0x61, 0x45, 0x28, 0xc7,
+	0x93, 0x7b, 0x89, 0x94, 0x6d, 0xa9, 0x46, 0xf5, 0x17, 0x98, 0xa3, 0xc4, 0xf4, 0x10, 0xe7, 0x72,
+	0x0b, 0xa7, 0xdb, 0xf0, 0xa0, 0x41, 0x8c, 0xa2, 0x89, 0xc7, 0x23, 0x7f, 0x4d, 0x41, 0x75, 0x69,
+	0x4e, 0x50, 0x63, 0x5e, 0xb2, 0xb9, 0x38, 0x1e, 0xb0, 0x8b, 0xbc, 0xca, 0x19, 0x2d, 0xe5, 0x2c,
+	0xa2, 0x60, 0x25, 0xe6, 0x2c, 0xb1, 0x8f, 0x9b, 0xb0, 0x32, 0x30, 0x87, 0x06, 0x05, 0x45, 0xee,
+	0x05, 0x3e, 0xa1, 0xd6, 0x00, 0xf6, 0x5d, 0x3f, 0x68, 0x59, 0x90, 0xcf, 0xc0, 0xf0, 0x0d, 0x79,
+	0x7c, 0x7b, 0x0f, 0x0a, 0xdd, 0xce, 0xe3, 0x16, 0xcf, 0x2c, 0x91, 0x33, 0xb4, 0x54, 0x52, 0xa1,
+	0x10, 0x29, 0xea, 0x5f, 0x69, 0x28, 0x12, 0x8a, 0xa8, 0xbb, 0x61, 0xad, 0x4b, 0xf1, 0x81, 0x44,
+	0xb4, 0xd6, 0x71, 0x44, 0xd0, 0x0c, 0x80, 0x5d, 0x6c, 0x26, 0x38, 0xa0, 0xc0, 0x06, 0x0c, 0x3b,
+	0x6c, 0xdd, 0x72, 0x9e, 0x7e, 0xc2, 0xee, 0x54, 0x89, 0x2f, 0x3e, 0x90, 0x63, 0x0d, 0x0d, 0xdb,
+	0x22, 0xf3, 0x31, 0x64, 0x7e, 0x79, 0xf1, 0x81, 0x9c, 0x6c, 0x50, 0x02, 0x2c, 0x49, 0x16, 0xd6,
+	0xe6, 0x42, 0x10, 0x51, 0x41, 0x93, 0x27, 0x70, 0x8b, 0x2c, 0xc6, 0xc2, 0xf2, 0x03, 0xee, 0x83,
+	0x33, 0xa2, 0xa7, 0x25, 0x6c, 0x7d, 0x8a, 0xe5, 0x7c, 0x78, 0xc6, 0x2d, 0x70, 0x86, 0xd3, 0x83,
+	0xd1, 0x3f, 0xa5, 0x19, 0x82, 0x92, 0x53, 0x99, 0x17, 0xb1, 0x9e, 0xce, 0x17, 0xf9, 0x28, 0x9c,
+	0x1b, 0x60, 0x06, 0xa6, 0x76, 0xd9, 0x1e, 0xea, 0xac, 0xd8, 0x55, 0x5e, 0xc4, 0xbc, 0x60, 0xd2,
+	0x55, 0x02, 0x77, 0xbc, 0x19, 0xaa, 0xd0, 0x92, 0x0f, 0xf6, 0xec, 0x58, 0xb7, 0xab, 0x01, 0x26,
+	0x33, 0x90, 0x8b, 0xeb, 0x9c, 0x42, 0xf6, 0x20, 0x4b, 0xfa, 0x9d, 0x1f, 0x09, 0x2c, 0xa5, 0xfd,
+	0xb9, 0xc1, 0xd4, 0x78, 0xa3, 0xb6, 0x11, 0x07, 0x11, 0x6d, 0xda, 0x10, 0x32, 0xdd, 0x76, 0x9d,
+	0xac, 0x60, 0x78, 0x32, 0x07, 0xd1, 0x2c, 0xc1, 0x6a, 0xc4, 0x0a, 0x20, 0xd3, 0x10, 0x2a, 0x11,
+	0xcb, 0x2f, 0x3d, 0x67, 0x82, 0x67, 0x59, 0xc3, 0xc5, 0xd8, 0x79, 0xee, 0xf1, 0x44, 0x20, 0x8b,
+	0xfa, 0x77, 0x9c, 0xa8, 0x90, 0x51, 0x97, 0x93, 0xb4, 0xf2, 0x09, 0xa5, 0x39, 0xc3, 0x9b, 0x67,
+	0xab, 0x77, 0x23, 0x18, 0x01, 0xd0, 0xdd, 0xe3, 0xf9, 0xb1, 0x54, 0x97, 0x61, 0x97, 0x0f, 0x71,
+	0x51, 0x52, 0xf2, 0x24, 0xdc, 0xe4, 0xc4, 0x91, 0x27, 0x5e, 0x34, 0x3a, 0x78, 0x5c, 0x8f, 0xe8,
+	0x50, 0x8c, 0xc5, 0xe3, 0xd1, 0xd3, 0x76, 0xad, 0x11, 0x0e, 0x14, 0xf3, 0xb9, 0x38, 0xdc, 0x81,
+	0x98, 0x89, 0x3f, 0x03, 0xa0, 0x36, 0x2d, 0x52, 0x44, 0x2e, 0x20, 0x15, 0xef, 0x05, 0x31, 0xa7,
+	0xe6, 0xb3, 0x00, 0xb3, 0x70, 0x09, 0xcc, 0xd7, 0x21, 0xeb, 0xda, 0x06, 0xcd, 0x67, 0x99, 0xf8,
+	0xd9, 0x31, 0xe2, 0xa8, 0x8f, 0xa1, 0xba, 0xa4, 0x00, 0x08, 0x06, 0x87, 0xea, 0x15, 0x8c, 0xd3,
+	0xc2, 0x37, 0xad, 0xde, 0x6e, 0xb3, 0x5b, 0xff, 0xa6, 0x9a, 0x42, 0x77, 0x2a, 0x76, 0x34, 0xad,
+	0xab, 0x37, 0xdb, 0xdf, 0x1c, 0x54, 0xd3, 0xb8, 0x3b, 0xe8, 0x6a, 0xc7, 0x38, 0x42, 0x30, 0x70,
+	0x46, 0x6d, 0xc4, 0x89, 0x31, 0xf7, 0x02, 0x64, 0x0f, 0xda, 0x07, 0x44, 0x0a, 0x91, 0x71, 0x4a,
+	0xd1, 0x1f, 0xb6, 0x8f, 0x0e, 0x9a, 0x48, 0xab, 0x08, 0x39, 0x46, 0x45, 0x3a, 0x25, 0x58, 0x69,
+	0x1d, 0x88, 0x07, 0xaa, 0x5d, 0x99, 0x63, 0x77, 0xb8, 0x90, 0x1e, 0xd1, 0x71, 0x5c, 0x31, 0x35,
+	0xb3, 0x9a, 0xe5, 0xa1, 0x88, 0x2b, 0x7a, 0x2b, 0x5e, 0x92, 0x47, 0x2b, 0xae, 0xcf, 0x89, 0xaa,
+	0xac, 0x7e, 0x09, 0x79, 0x71, 0xa2, 0xb9, 0xe8, 0x74, 0x5c, 0xc5, 0xe6, 0x43, 0x38, 0xa7, 0x17,
+	0xea, 0xd2, 0xcc, 0xa9, 0x3e, 0x3f, 0xa9, 0xcf, 0x6d, 0x37, 0x30, 0x21, 0x05, 0x29, 0x11, 0xd5,
+	0xf1, 0x68, 0xaf, 0xbd, 0x53, 0xdf, 0xc3, 0x3d, 0xa0, 0xd0, 0x7b, 0xed, 0x06, 0xfe, 0x4c, 0xd1,
+	0x72, 0xbd, 0xf9, 0x95, 0xde, 0x3a, 0x10, 0x1b, 0xa0, 0xdf, 0xed, 0xa3, 0x5e, 0x35, 0x43, 0xb7,
+	0x0b, 0xc7, 0xdd, 0x87, 0xd5, 0xec, 0xf6, 0xaf, 0xa1, 0x18, 0x9e, 0xbc, 0xe2, 0x6a, 0xbd, 0xd9,
+	0x44, 0x12, 0xf8, 0xa3, 0xa9, 0x11, 0x01, 0x44, 0xc2, 0x1f, 0x7a, 0x7d, 0x6f, 0x4f, 0x50, 0xe8,
+	0x6a, 0x9d, 0xbd, 0x7a, 0x03, 0xf5, 0x48, 0xa4, 0xb5, 0x83, 0xfa, 0xce, 0x9e, 0x56, 0xcd, 0x32,
+	0x54, 0xeb, 0x90, 0x1f, 0x72, 0xc4, 0x1e, 0xc7, 0x33, 0xad, 0x57, 0xcd, 0x93, 0x36, 0x0f, 0xdb,
+	0x0f, 0x7b, 0xe2, 0x71, 0x65, 0x5b, 0xa7, 0x43, 0xce, 0xb0, 0x11, 0x45, 0x0a, 0x1d, 0x9c, 0xe5,
+	0x5a, 0xdf, 0x0a, 0x13, 0x1e, 0x68, 0xad, 0x47, 0xbb, 0x3b, 0xed, 0x2e, 0x72, 0x45, 0xf6, 0xbd,
+	0xfa, 0x23, 0x29, 0xf3, 0xa1, 0xde, 0xa9, 0xf7, 0x76, 0xab, 0x94, 0x27, 0x8a, 0x8d, 0xf6, 0xfe,
+	0xfe, 0xd1, 0x41, 0xab, 0xf7, 0x5d, 0x95, 0x06, 0x96, 0x8a, 0xf6, 0x6d, 0x4f, 0x0f, 0x97, 0x72,
+	0xdb, 0xef, 0x61, 0x57, 0x32, 0x6f, 0x3c, 0x69, 0x33, 0x07, 0xdf, 0x89, 0xcd, 0x90, 0xfc, 0xac,
+	0x0d, 0x34, 0xa1, 0xd6, 0xed, 0x55, 0xd3, 0xdb, 0xdb, 0x50, 0x5d, 0x6a, 0x31, 0xf3, 0x90, 0xd6,
+	0xbe, 0x46, 0x04, 0xfc, 0xff, 0x48, 0x43, 0x78, 0xfc, 0x8f, 0x3b, 0x4a, 0x6f, 0x7f, 0x28, 0xfb,
+	0x7b, 0x59, 0xb9, 0x43, 0x6f, 0x21, 0xf5, 0x36, 0x1a, 0x5a, 0xa7, 0x27, 0x88, 0x77, 0xb5, 0xaf,
+	0xb4, 0x06, 0x11, 0x3f, 0x82, 0x8d, 0xa4, 0x4e, 0x0a, 0x25, 0x9e, 0x4b, 0xab, 0x0b, 0x45, 0x6f,
+	0x42, 0x35, 0x5c, 0xea, 0x6a, 0xfb, 0xed, 0x63, 0x62, 0x7c, 0x15, 0xd6, 0xa3, 0xab, 0x42, 0xe5,
+	0xe9, 0xed, 0x3b, 0x50, 0x89, 0x77, 0x54, 0xa8, 0x9e, 0x7d, 0xad, 0xa9, 0xef, 0xb7, 0x89, 0xd4,
+	0x1a, 0x94, 0xe8, 0x21, 0x00, 0x4f, 0x6d, 0x7f, 0x00, 0x10, 0x29, 0xad, 0xb8, 0x19, 0x74, 0x03,
+	0x96, 0xb9, 0xb5, 0xdf, 0x69, 0x77, 0xa5, 0xcc, 0xda, 0xb7, 0xfc, 0x3b, 0x7d, 0xff, 0x3f, 0xeb,
+	0x50, 0x78, 0x44, 0x51, 0x57, 0x77, 0x2c, 0xe5, 0x73, 0x58, 0x7b, 0x64, 0xfa, 0xd1, 0x63, 0x7c,
+	0x25, 0x92, 0x32, 0xe7, 0x47, 0xfa, 0xb5, 0xe5, 0xa3, 0xf9, 0x2b, 0xca, 0x2e, 0x5f, 0x20, 0xc5,
+	0x70, 0xd5, 0xd8, 0x5d, 0x58, 0xe2, 0xed, 0x40, 0x6d, 0x6d, 0xe1, 0xe2, 0x19, 0x29, 0xfd, 0x0c,
+	0xca, 0x28, 0x45, 0x70, 0x91, 0xe9, 0x25, 0x8b, 0xb0, 0x78, 0x3f, 0x79, 0xe5, 0x5e, 0x0a, 0x73,
+	0x6a, 0x29, 0x82, 0x78, 0x41, 0x3c, 0xe5, 0x97, 0xa8, 0xc0, 0xf0, 0xde, 0x54, 0x79, 0x2b, 0x26,
+	0xf4, 0xd2, 0x75, 0x6a, 0x92, 0xc0, 0x1f, 0x60, 0x14, 0x9a, 0x7e, 0xd7, 0x3a, 0x51, 0x22, 0x2f,
+	0xf9, 0xfc, 0xbd, 0xb6, 0xb8, 0x80, 0xd0, 0x1f, 0x62, 0xa0, 0x50, 0x49, 0x4b, 0x96, 0x2f, 0x81,
+	0xfc, 0xc7, 0x18, 0x4e, 0xf6, 0xd0, 0xbf, 0x1c, 0xd2, 0xa7, 0x50, 0x9a, 0x23, 0xb5, 0xa6, 0x17,
+	0x46, 0x7b, 0x00, 0xe5, 0x39, 0x5a, 0x7b, 0x76, 0x71, 0x76, 0xf7, 0xa1, 0x70, 0x78, 0x3a, 0xf3,
+	0xa9, 0xb3, 0xb9, 0x30, 0xce, 0x3d, 0x74, 0x43, 0x3e, 0xdf, 0xbc, 0x30, 0xc6, 0x47, 0x98, 0x70,
+	0x2c, 0xef, 0x52, 0x28, 0x3b, 0x18, 0x2b, 0xe2, 0xf6, 0x5d, 0xa9, 0xc5, 0x2c, 0x1b, 0xfb, 0x9a,
+	0xa0, 0x76, 0x7d, 0xe9, 0x5d, 0x70, 0x9b, 0x8f, 0x34, 0xbe, 0xc4, 0xd1, 0x57, 0xde, 0xe0, 0x2b,
+	0xaf, 0x2f, 0x01, 0x7a, 0x2f, 0xe2, 0x7f, 0x3b, 0x45, 0xd5, 0x51, 0xde, 0xf2, 0x26, 0x7a, 0x48,
+	0xf2, 0x5d, 0x0a, 0xfb, 0x73, 0x93, 0x6e, 0x1b, 0x19, 0x73, 0x07, 0xdf, 0x34, 0x4e, 0x8d, 0xe9,
+	0xc8, 0x1c, 0x24, 0xef, 0xfc, 0x05, 0x54, 0xbe, 0x98, 0xdf, 0x32, 0x87, 0xe7, 0xb9, 0x17, 0x0e,
+	0xa9, 0x26, 0x7d, 0x54, 0x20, 0x84, 0x6f, 0xd7, 0xc3, 0x02, 0x9a, 0x4c, 0x60, 0x23, 0xa1, 0xe6,
+	0x33, 0x95, 0xcf, 0x39, 0x40, 0xb0, 0xc5, 0x56, 0x22, 0x53, 0x74, 0xf4, 0x66, 0xbf, 0xb6, 0x19,
+	0x5b, 0x0f, 0x0e, 0x12, 0x09, 0xf7, 0x01, 0xe4, 0xc5, 0x67, 0x00, 0x4a, 0xdc, 0x46, 0x31, 0xf4,
+	0x44, 0x4f, 0xce, 0x8b, 0x0b, 0xf8, 0x05, 0xbc, 0xe8, 0x95, 0x7c, 0xb2, 0x27, 0xaf, 0x50, 0x30,
+	0x53, 0x7f, 0xf9, 0x32, 0x2d, 0x11, 0x10, 0xcb, 0xf8, 0x19, 0x3b, 0x19, 0xe3, 0xc4, 0x9d, 0x2c,
+	0x76, 0x55, 0x7f, 0x4e, 0x0c, 0x10, 0x37, 0xec, 0x3f, 0x13, 0x99, 0x2d, 0x74, 0x44, 0xc4, 0xeb,
+	0x23, 0x96, 0x0f, 0xdb, 0x10, 0xef, 0xa5, 0x28, 0x74, 0x01, 0x1f, 0xaa, 0x90, 0x3a, 0x97, 0xb8,
+	0x2a, 0xa2, 0xb7, 0xfd, 0x49, 0xc2, 0xfd, 0x1c, 0x2a, 0xc8, 0x2a, 0x72, 0xd0, 0x94, 0x78, 0xfd,
+	0x5e, 0x4b, 0xbe, 0x94, 0xa7, 0xc4, 0xba, 0x1a, 0x43, 0xf7, 0x2e, 0x87, 0xcf, 0xde, 0x57, 0x89,
+	0x7d, 0x3d, 0xa0, 0xdc, 0x88, 0xc9, 0x9f, 0xf0, 0x59, 0x41, 0xd2, 0x36, 0x3e, 0xe7, 0x7a, 0x12,
+	0xce, 0xd0, 0x49, 0xb3, 0x6b, 0x2d, 0x71, 0xa0, 0x0d, 0x54, 0x30, 0x5f, 0xf1, 0x2e, 0x83, 0x8c,
+	0x1b, 0xd8, 0x81, 0x72, 0xf4, 0xcb, 0x04, 0xe5, 0xed, 0x98, 0xfc, 0xcb, 0x5f, 0x2c, 0x24, 0x27,
+	0xbd, 0x22, 0x8a, 0x20, 0x27, 0xda, 0xa5, 0x19, 0xb7, 0xb6, 0xb4, 0x22, 0x92, 0x7f, 0x80, 0x82,
+	0xe3, 0xf1, 0xc5, 0x90, 0x50, 0xda, 0x2f, 0xb1, 0x8f, 0x0a, 0xbe, 0x1e, 0x50, 0xde, 0x88, 0x27,
+	0xba, 0xf8, 0x27, 0x0f, 0x49, 0x72, 0xb6, 0x61, 0x63, 0x2e, 0x67, 0x64, 0xfe, 0x7f, 0xc1, 0x85,
+	0x60, 0xed, 0x45, 0x97, 0x85, 0x57, 0x94, 0x0e, 0x6c, 0x24, 0x7c, 0xcc, 0xa0, 0xdc, 0x4c, 0x12,
+	0x6c, 0xf9, 0x5b, 0x87, 0x04, 0x11, 0x4f, 0xf2, 0xfc, 0x35, 0xdc, 0xc7, 0xff, 0x0d, 0x00, 0x00,
+	0xff, 0xff, 0x1e, 0x2f, 0x9b, 0xe3, 0x1c, 0x27, 0x00, 0x00,
 }

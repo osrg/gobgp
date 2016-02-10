@@ -12,7 +12,7 @@ This example starts with the same configuration with [Getting Started](https://g
 
 Make sure that all the peers are connected.
 
-```
+```bash
 $ gobgp neighbor
 Peer          AS  Up/Down State       |#Advertised Received Accepted
 10.0.255.1 65001 00:00:04 Establ      |          2        2        2
@@ -29,41 +29,36 @@ file and sending `HUP` signal to GoBGP daemon.
 In this example, 10.0.255.3 peer is added. The configuration file
 should be like the following.
 
-```
-[Global]
-  [Global.GlobalConfig]
-    As = 64512
-    RouterId = "192.168.255.1"
+```toml
+[global.config]
+  as = 64512
+  router-id = "192.168.255.1"
 
-[Neighbors]
-  [[Neighbors.NeighborList]]
-    [Neighbors.NeighborList.NeighborConfig]
-      NeighborAddress = "10.0.255.1"
-      PeerAs = 65001
-    [Neighbors.NeighborList.RouteServer]
-      [Neighbors.NeighborList.RouteServer.RouteServerConfig]
-        RouteServerClient = true
+[[neighbors]]
+[neighbors.config]
+  neighbor-address = "10.0.255.1"
+  peer-as = 65001
+[neighbors.route-server.config]
+  route-server-client = true
 
-  [[Neighbors.NeighborList]]
-    [Neighbors.NeighborList.NeighborConfig]
-      NeighborAddress = "10.0.255.2"
-      PeerAs = 65002
-    [Neighbors.NeighborList.RouteServer]
-      [Neighbors.NeighborList.RouteServer.RouteServerConfig]
-        RouteServerClient = true
+[[neighbors]]
+[neighbors.config]
+  neighbor-address = "10.0.255.2"
+  peer-as = 65002
+[neighbors.route-server.config]
+  route-server-client = true
 
-  [[Neighbors.NeighborList]]
-    [Neighbors.NeighborList.NeighborConfig]
-      NeighborAddress = "10.0.255.3"
-      PeerAs = 65003
-    [Neighbors.NeighborList.RouteServer]
-      [Neighbors.NeighborList.RouteServer.RouteServerConfig]
-        RouteServerClient = true
+[[neighbors]]
+[neighbors.config]
+  neighbor-address = "10.0.255.3"
+  peer-as = 65003
+[neighbors.route-server.config]
+  route-server-client = true
 ```
 
 After you send `HUP` signal (`kill` command), you should see 10.0.255.3 peer.
 
-```
+```bash
 $ gobgp neighbor
 Peer          AS  Up/Down State       |#Advertised Received Accepted
 10.0.255.1 65001 00:03:42 Establ      |          3        2        2
@@ -77,7 +72,7 @@ Sometime you might want to disable the configured peer without
 removing the configuration for the peer. Likely, again you enable the
 peer later.
 
-```
+```bash
 $ gobgp neighbor 10.0.255.1 disable
 $ gobgp neighbor
 Peer          AS  Up/Down State       |#Advertised Received Accepted
@@ -88,7 +83,7 @@ Peer          AS  Up/Down State       |#Advertised Received Accepted
 
 The state of 10.0.255.1 is `Idle(Admin)`. Let's enable the peer again.
 
-```
+```bash
 $ gobgp neighbor 10.0.255.1 enable
 $ gobgp neighbor
 Peer          AS  Up/Down State       |#Advertised Received Accepted
@@ -99,7 +94,7 @@ Peer          AS  Up/Down State       |#Advertised Received Accepted
 
 Eventually, the state should be `Established` again.
 
-```
+```bash
 $ gobgp neighbor
 Peer          AS  Up/Down State       |#Advertised Received Accepted
 10.0.255.1 65001 00:00:02 Establ      |          3        2        2
@@ -111,7 +106,7 @@ Peer          AS  Up/Down State       |#Advertised Received Accepted
 
 Various reset operations are supported.
 
-```
+```bash
 $ gobgp neighbor 10.0.255.1 reset
 $ gobgp neighbor 10.0.255.1 softreset
 $ gobgp neighbor 10.0.255.1 softresetin

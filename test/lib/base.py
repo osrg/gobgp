@@ -75,7 +75,7 @@ class CmdBuffer(list):
         return self.delim.join(self)
 
 
-def make_gobgp_ctn(tag='gobgp', local_gobgp_path='', from_image='golang:1.4'):
+def make_gobgp_ctn(tag='gobgp', local_gobgp_path='', from_image='osrg/quagga'):
     if local_gobgp_path == '':
         local_gobgp_path = os.getcwd()
 
@@ -100,7 +100,9 @@ def make_gobgp_ctn(tag='gobgp', local_gobgp_path='', from_image='golang:1.4'):
 
 class Bridge(object):
     def __init__(self, name, subnet='', with_ip=True, self_ip=False):
-        self.name = '{0}_{1}'.format(TEST_PREFIX, name)
+        self.name = name
+        if TEST_PREFIX != '':
+            self.name = '{0}_{1}'.format(TEST_PREFIX, name)
         self.with_ip = with_ip
         if with_ip:
             self.subnet = netaddr.IPNetwork(subnet)
@@ -133,6 +135,7 @@ class Bridge(object):
         name = ctn.next_if_name()
         self.ctns.append(ctn)
         if self.with_ip:
+
             ctn.pipework(self, self.next_ip_address(), name)
         else:
             ctn.pipework(self, '0/0', name)
@@ -152,7 +155,7 @@ class Container(object):
         self.eths = []
 
         if self.docker_name() in get_containers():
-            self.stop()
+            self.remove()
 
     def docker_name(self):
         if TEST_PREFIX == DEFAULT_TEST_PREFIX:
@@ -173,10 +176,19 @@ class Container(object):
         self.id = try_several_times(lambda : local(str(c), capture=True))
         self.is_running = True
         self.local("ip li set up dev lo")
+        for line in self.local("ip a show dev eth0", capture=True).split('\n'):
+            if line.strip().startswith("inet "):
+                elems = [e.strip() for e in line.strip().split(' ')]
+                self.ip_addrs.append(('eth0', elems[1], 'docker0'))
         return 0
 
     def stop(self):
-        ret = local("docker rm -f " + self.docker_name(), capture=True)
+        ret = try_several_times(lambda : local("docker stop -t 0 " + self.docker_name(), capture=True))
+        self.is_running = False
+        return ret
+
+    def remove(self):
+        ret = try_several_times(lambda : local("docker rm -f " + self.docker_name(), capture=True))
         self.is_running = False
         return ret
 
@@ -192,7 +204,7 @@ class Container(object):
         else:
             intf_name = "eth1"
         c << "{0} {1}".format(self.docker_name(), ip_addr)
-        self.ip_addrs.append((intf_name, ip_addr, bridge))
+        self.ip_addrs.append((intf_name, ip_addr, bridge.name))
         try_several_times(lambda :local(str(c)))
 
     def local(self, cmd, capture=False, flag=''):
@@ -209,7 +221,7 @@ class Container(object):
 
 class BGPContainer(Container):
 
-    WAIT_FOR_BOOT = 0
+    WAIT_FOR_BOOT = 1
     RETRY_INTERVAL = 5
 
     def __init__(self, name, asn, router_id, ctn_image_name):
@@ -224,6 +236,9 @@ class BGPContainer(Container):
         self.policies = {}
         super(BGPContainer, self).__init__(name, ctn_image_name)
 
+    def __repr__(self):
+        return str({'name':self.name, 'asn':self.asn, 'router_id':self.router_id})
+
     def run(self):
         self.create_config()
         super(BGPContainer, self).run()
@@ -231,14 +246,17 @@ class BGPContainer(Container):
 
     def add_peer(self, peer, passwd=None, evpn=False, is_rs_client=False,
                  policies=None, passive=False,
-                 is_rr_client=False, cluster_id='',
-                 flowspec=False):
+                 is_rr_client=False, cluster_id=None,
+                 flowspec=False, bridge='', reload_config=True, as2=False):
         neigh_addr = ''
         local_addr = ''
         for me, you in itertools.product(self.ip_addrs, peer.ip_addrs):
+            if bridge != '' and bridge != me[2]:
+                continue
             if me[2] == you[2]:
                 neigh_addr = you[1]
                 local_addr = me[1]
+                break
 
         if neigh_addr == '':
             raise Exception('peer {0} seems not ip reachable'.format(peer))
@@ -255,14 +273,15 @@ class BGPContainer(Container):
                             'cluster_id': cluster_id,
                             'policies': policies,
                             'passive': passive,
-                            'local_addr': local_addr}
-        if self.is_running:
+                            'local_addr': local_addr,
+                            'as2': as2}
+        if self.is_running and reload_config:
             self.create_config()
             self.reload_config()
 
-    def del_peer(self, peer):
+    def del_peer(self, peer, reload_config=True):
         del self.peers[peer]
-        if self.is_running:
+        if self.is_running and reload_config:
             self.create_config()
             self.reload_config()
 
@@ -277,7 +296,8 @@ class BGPContainer(Container):
 
     def add_route(self, route, rf='ipv4', attribute=None, aspath=None,
                   community=None, med=None, extendedcommunity=None,
-                  nexthop=None, matchs=None, thens=None):
+                  nexthop=None, matchs=None, thens=None,
+                  local_pref=None, reload_config=True):
         self.routes[route] = {'prefix': route,
                               'rf': rf,
                               'attr': attribute,
@@ -285,18 +305,19 @@ class BGPContainer(Container):
                               'as-path': aspath,
                               'community': community,
                               'med': med,
+                              'local-pref': local_pref,
                               'extended-community': extendedcommunity,
                               'matchs': matchs,
                               'thens' : thens}
-        if self.is_running:
+        if self.is_running and reload_config:
             self.create_config()
             self.reload_config()
 
-    def add_policy(self, policy, peer=None):
+    def add_policy(self, policy, peer=None, reload_config=True):
         self.policies[policy['name']] = policy
         if peer in self.peers:
             self.peers[peer]['policies'][policy['name']] = policy
-        if self.is_running:
+        if self.is_running and reload_config:
             self.create_config()
             self.reload_config()
 
@@ -308,6 +329,29 @@ class BGPContainer(Container):
 
     def get_neighbor_state(self, peer_id):
         raise Exception('implement get_neighbor() method')
+
+    def get_reachablily(self, prefix, timeout=20):
+            version = netaddr.IPNetwork(prefix).version
+            addr = prefix.split('/')[0]
+            if version == 4:
+                ping_cmd = 'ping'
+            elif version == 6:
+                ping_cmd = 'ping6'
+            else:
+                raise Exception('unsupported route family: {0}'.format(version))
+            cmd = '/bin/bash -c "/bin/{0} -c 1 -w 1 {1} | xargs echo"'.format(ping_cmd, addr)
+            interval = 1
+            count = 0
+            while True:
+                res = self.local(cmd, capture=True)
+                print colors.yellow(res)
+                if '1 packets received' in res and '0% packet loss':
+                    break
+                time.sleep(interval)
+                count += interval
+                if count >= timeout:
+                    raise Exception('timeout')
+            return True
 
     def wait_for(self, expected_state, peer, timeout=120):
         interval = 1
@@ -325,6 +369,14 @@ class BGPContainer(Container):
             count += interval
             if count >= timeout:
                 raise Exception('timeout')
+
+    def add_static_route(self, network, next_hop):
+        cmd = '/sbin/ip route add {0} via {1}'.format(network, next_hop)
+        self.local(cmd)
+
+    def set_ipv6_forward(self):
+        cmd = 'sysctl -w net.ipv6.conf.all.forwarding=1'
+        self.local(cmd)
 
     def create_config(self):
         raise Exception('implement create_config() method')

@@ -13,12 +13,12 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package main
+package cmd
 
 import (
 	"encoding/json"
 	"fmt"
-	"github.com/osrg/gobgp/api"
+	api "github.com/osrg/gobgp/api"
 	"github.com/osrg/gobgp/packet"
 	"github.com/spf13/cobra"
 	"golang.org/x/net/context"
@@ -59,6 +59,12 @@ func showVrfs() error {
 	if globalOpts.Json {
 		j, _ := json.Marshal(vrfs)
 		fmt.Println(string(j))
+		return nil
+	}
+	if globalOpts.Quiet {
+		for _, v := range vrfs {
+			fmt.Println(v.Name)
+		}
 		return nil
 	}
 	lines := make([][]string, 0, len(vrfs))
@@ -133,7 +139,7 @@ func modVrf(typ string, args []string) error {
 			case "import":
 				importRt = append(importRt, buf)
 			case "export":
-				exportRt = append(importRt, buf)
+				exportRt = append(exportRt, buf)
 			case "both":
 				importRt = append(importRt, buf)
 				exportRt = append(exportRt, buf)

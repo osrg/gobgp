@@ -16,53 +16,9 @@
 package main
 
 import (
-	"github.com/osrg/gobgp/api"
-	"github.com/spf13/cobra"
+	"github.com/osrg/gobgp/gobgp/cmd"
 )
 
-var globalOpts struct {
-	Host         string `short:"u" long:"url" description:"specifying an url" default:"127.0.0.1"`
-	Port         int    `short:"p" long:"port" description:"specifying a port" default:"8080"`
-	Debug        bool   `short:"d" long:"debug" description:"use debug"`
-	Quiet        bool   `short:"q" long:"quiet" description:"use quiet"`
-	Json         bool   `short:"j" long:"json" description:"use json format to output format"`
-	GenCmpl      bool   `short:"c" long:"genbashcmpl" description:"use json format to output format"`
-	BashCmplFile string
-}
-
-var cmds []string
-var client api.GrpcClient
-
 func main() {
-	cobra.EnablePrefixMatching = true
-	rootCmd := &cobra.Command{
-		Use: "gobgp",
-		PersistentPreRun: func(cmd *cobra.Command, args []string) {
-			if !globalOpts.GenCmpl {
-				conn := connGrpc()
-				client = api.NewGrpcClient(conn)
-			}
-		},
-		Run: func(cmd *cobra.Command, args []string) {
-			cmd.GenBashCompletionFile(globalOpts.BashCmplFile)
-		},
-	}
-
-	rootCmd.PersistentFlags().StringVarP(&globalOpts.Host, "host", "u", "127.0.0.1", "host")
-	rootCmd.PersistentFlags().IntVarP(&globalOpts.Port, "port", "p", 8080, "port")
-	rootCmd.PersistentFlags().BoolVarP(&globalOpts.Json, "json", "j", false, "use json format to output format")
-	rootCmd.PersistentFlags().BoolVarP(&globalOpts.Debug, "debug", "d", false, "use debug")
-	rootCmd.PersistentFlags().BoolVarP(&globalOpts.Quiet, "quiet", "q", false, "use quiet")
-	rootCmd.PersistentFlags().BoolVarP(&globalOpts.GenCmpl, "gen-cmpl", "c", false, "generate completion file")
-	rootCmd.PersistentFlags().StringVarP(&globalOpts.BashCmplFile, "bash-cmpl-file", "", "gobgp_completion.bash", "bash cmpl filename")
-
-	globalCmd := NewGlobalCmd()
-	neighborCmd := NewNeighborCmd()
-	vrfCmd := NewVrfCmd()
-	policyCmd := NewPolicyCmd()
-	monitorCmd := NewMonitorCmd()
-	mrtCmd := NewMrtCmd()
-	rpkiCmd := NewRPKICmd()
-	rootCmd.AddCommand(globalCmd, neighborCmd, vrfCmd, policyCmd, monitorCmd, mrtCmd, rpkiCmd)
-	rootCmd.Execute()
+	cmd.NewRootCmd().Execute()
 }

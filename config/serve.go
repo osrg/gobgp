@@ -1,8 +1,8 @@
 package config
 
 import (
-	"github.com/BurntSushi/toml"
 	log "github.com/Sirupsen/logrus"
+	"github.com/spf13/viper"
 	"reflect"
 )
 
@@ -11,38 +11,54 @@ type BgpConfigSet struct {
 	Policy RoutingPolicy
 }
 
-func ReadConfigfileServe(path string, configCh chan BgpConfigSet, reloadCh chan bool) {
+func ReadConfigfileServe(path, format string, configCh chan BgpConfigSet, reloadCh chan bool) {
 	cnt := 0
 	for {
 		<-reloadCh
 
 		b := Bgp{}
 		p := RoutingPolicy{}
-		md, err := toml.DecodeFile(path, &b)
-		if err == nil {
-			err = SetDefaultConfigValues(md, &b)
-			if err == nil {
-				_, err = toml.DecodeFile(path, &p)
-			}
+		v := viper.New()
+		v.SetConfigFile(path)
+		v.SetConfigType(format)
+		err := v.ReadInConfig()
+		if err != nil {
+			goto ERROR
+		}
+		err = v.Unmarshal(&b)
+		if err != nil {
+			goto ERROR
+		}
+		err = SetDefaultConfigValues(v, &b)
+		if err != nil {
+			goto ERROR
+		}
+		err = v.Unmarshal(&p)
+		if err != nil {
+			goto ERROR
 		}
 
-		if err != nil {
-			if cnt == 0 {
-				log.Fatal("can't read config file ", path, ", ", err)
-			} else {
-				log.Warning("can't read config file ", path, ", ", err)
-				continue
-			}
+		if cnt == 0 {
+			log.Info("finished reading the config file")
 		}
 		cnt++
-		bgpConfig := BgpConfigSet{Bgp: b, Policy: p}
-		configCh <- bgpConfig
+		configCh <- BgpConfigSet{Bgp: b, Policy: p}
+		continue
+
+	ERROR:
+		if cnt == 0 {
+			log.Fatal("can't read config file ", path, ", ", err)
+		} else {
+			log.Warning("can't read config file ", path, ", ", err)
+			continue
+		}
+
 	}
 }
 
 func inSlice(n Neighbor, b []Neighbor) int {
 	for i, nb := range b {
-		if nb.NeighborConfig.NeighborAddress.String() == n.NeighborConfig.NeighborAddress.String() {
+		if nb.Config.NeighborAddress == n.Config.NeighborAddress {
 			return i
 		}
 	}
@@ -62,23 +78,23 @@ func UpdateConfig(curC *Bgp, newC *Bgp) (*Bgp, []Neighbor, []Neighbor, []Neighbo
 	deleted := []Neighbor{}
 	updated := []Neighbor{}
 
-	for _, n := range newC.Neighbors.NeighborList {
-		if idx := inSlice(n, curC.Neighbors.NeighborList); idx < 0 {
+	for _, n := range newC.Neighbors {
+		if idx := inSlice(n, curC.Neighbors); idx < 0 {
 			added = append(added, n)
 		} else {
-			if !reflect.DeepEqual(n.ApplyPolicy, curC.Neighbors.NeighborList[idx].ApplyPolicy) {
+			if !reflect.DeepEqual(n.ApplyPolicy, curC.Neighbors[idx].ApplyPolicy) {
 				updated = append(updated, n)
 			}
 		}
 	}
 
-	for _, n := range curC.Neighbors.NeighborList {
-		if inSlice(n, newC.Neighbors.NeighborList) < 0 {
+	for _, n := range curC.Neighbors {
+		if inSlice(n, newC.Neighbors) < 0 {
 			deleted = append(deleted, n)
 		}
 	}
 
-	bgpConfig.Neighbors.NeighborList = newC.Neighbors.NeighborList
+	bgpConfig.Neighbors = newC.Neighbors
 	return &bgpConfig, added, deleted, updated
 }
 

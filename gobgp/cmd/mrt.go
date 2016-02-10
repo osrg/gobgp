@@ -13,12 +13,12 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package main
+package cmd
 
 import (
 	"bytes"
 	"fmt"
-	"github.com/osrg/gobgp/api"
+	api "github.com/osrg/gobgp/api"
 	"github.com/osrg/gobgp/packet"
 	"github.com/spf13/cobra"
 	"golang.org/x/net/context"
@@ -81,7 +81,7 @@ func dumpRib(r string, remoteIP net.IP, args []string) error {
 		return fmt.Errorf("unknown resource type: %s", r)
 	}
 
-	rf, err := checkAddressFamily(remoteIP)
+	family, err := checkAddressFamily(addr2AddressFamily(remoteIP))
 	if err != nil {
 		return err
 	}
@@ -97,12 +97,12 @@ func dumpRib(r string, remoteIP net.IP, args []string) error {
 
 	arg := &api.MrtArguments{
 		Resource:        resource,
-		Rf:              uint32(rf),
+		Family:          uint32(family),
 		Interval:        interval,
 		NeighborAddress: remoteIP.String(),
 	}
 
-	afi, _ := bgp.RouteFamilyToAfiSafi(rf)
+	afi, _ := bgp.RouteFamilyToAfiSafi(family)
 	var af string
 	switch afi {
 	case bgp.AFI_IP:
@@ -206,7 +206,7 @@ func injectMrt(r string, filename string, count int) error {
 
 	idx := 0
 
-	ch := make(chan *api.ModPathArguments, 1024)
+	ch := make(chan *api.ModPathsArguments, 1<<20)
 
 	go func() {
 
@@ -270,25 +270,23 @@ func injectMrt(r string, filename string, count int) error {
 				rib := msg.Body.(*bgp.Rib)
 				nlri := rib.Prefix
 
-				for _, e := range rib.Entries {
-					path := &api.Path{
-						Pattrs:             make([][]byte, 0),
-						NoImplicitWithdraw: true,
-					}
+				paths := make([]*api.Path, 0, len(rib.Entries))
 
+				for _, e := range rib.Entries {
 					if len(peers) < int(e.PeerIndex) {
 						fmt.Printf("invalid peer index: %d (PEER_INDEX_TABLE has only %d peers)\n", e.PeerIndex, len(peers))
 						os.Exit(1)
 					}
-					nexthop := peers[e.PeerIndex].IpAddress.String()
+
+					path := &api.Path{
+						Pattrs:             make([][]byte, 0),
+						NoImplicitWithdraw: true,
+						SourceAsn:          peers[e.PeerIndex].AS,
+						SourceId:           peers[e.PeerIndex].BgpId.String(),
+					}
 
 					if rf == bgp.RF_IPv4_UC {
 						path.Nlri, _ = nlri.Serialize()
-						n, _ := bgp.NewPathAttributeNextHop(nexthop).Serialize()
-						path.Pattrs = append(path.Pattrs, n)
-					} else {
-						mpreach, _ := bgp.NewPathAttributeMpReachNLRI(nexthop, []bgp.AddrPrefixInterface{nlri}).Serialize()
-						path.Pattrs = append(path.Pattrs, mpreach)
 					}
 
 					for _, p := range e.PathAttributes {
@@ -299,10 +297,12 @@ func injectMrt(r string, filename string, count int) error {
 						path.Pattrs = append(path.Pattrs, b)
 					}
 
-					ch <- &api.ModPathArguments{
-						Resource: resource,
-						Path:     path,
-					}
+					paths = append(paths, path)
+				}
+
+				ch <- &api.ModPathsArguments{
+					Resource: resource,
+					Paths:    paths,
 				}
 
 				idx += 1
@@ -315,15 +315,15 @@ func injectMrt(r string, filename string, count int) error {
 		close(ch)
 	}()
 
-	stream, err := client.ModPath(context.Background())
+	stream, err := client.ModPaths(context.Background())
 	if err != nil {
-		return fmt.Errorf("failed to modpath:", err)
+		return fmt.Errorf("failed to modpath: %s", err)
 	}
 
 	for arg := range ch {
 		err = stream.Send(arg)
 		if err != nil {
-			return fmt.Errorf("failed to send:", err)
+			return fmt.Errorf("failed to send: %s", err)
 		}
 	}
 
@@ -413,10 +413,67 @@ func NewMrtCmd() *cobra.Command {
 	}
 	injectCmd.AddCommand(globalInjectCmd)
 
+	modMrt := func(op api.Operation, filename string) {
+		arg := &api.ModMrtArguments{
+			Operation: op,
+			Filename:  filename,
+		}
+		client.ModMrt(context.Background(), arg)
+	}
+
+	enableCmd := &cobra.Command{
+		Use: CMD_ENABLE,
+		Run: func(cmd *cobra.Command, args []string) {
+			if len(args) != 1 {
+				fmt.Println("usage: gobgp mrt update enable <filename>")
+				os.Exit(1)
+			}
+			modMrt(api.Operation_ADD, args[0])
+		},
+	}
+
+	disableCmd := &cobra.Command{
+		Use: CMD_DISABLE,
+		Run: func(cmd *cobra.Command, args []string) {
+			if len(args) != 0 {
+				fmt.Println("usage: gobgp mrt update disable")
+				os.Exit(1)
+			}
+			modMrt(api.Operation_DEL, "")
+		},
+	}
+
+	rotateCmd := &cobra.Command{
+		Use: CMD_ROTATE,
+		Run: func(cmd *cobra.Command, args []string) {
+			if len(args) != 1 {
+				fmt.Println("usage: gobgp mrt update rotate <filename>")
+				os.Exit(1)
+			}
+			modMrt(api.Operation_REPLACE, args[0])
+		},
+	}
+
+	restartCmd := &cobra.Command{
+		Use: CMD_RESET,
+		Run: func(cmd *cobra.Command, args []string) {
+			if len(args) > 0 {
+				fmt.Println("usage: gobgp mrt update reset")
+				os.Exit(1)
+			}
+			modMrt(api.Operation_REPLACE, "")
+		},
+	}
+
+	updateCmd := &cobra.Command{
+		Use: CMD_UPDATE,
+	}
+	updateCmd.AddCommand(enableCmd, disableCmd, restartCmd, rotateCmd)
+
 	mrtCmd := &cobra.Command{
 		Use: CMD_MRT,
 	}
-	mrtCmd.AddCommand(dumpCmd, injectCmd)
+	mrtCmd.AddCommand(dumpCmd, injectCmd, updateCmd)
 
 	return mrtCmd
 }

@@ -59,10 +59,7 @@ class GoBGPIPv6Test(unittest.TestCase):
 
         time.sleep(initial_wait_time)
 
-        br01 = Bridge(name='br01', subnet='192.168.10.0/24')
-        br01.addif(g1)
         for ctn in v4:
-            br01.addif(ctn)
             g1.add_peer(ctn, is_rs_client=True)
             ctn.add_peer(g1)
 
@@ -70,12 +67,12 @@ class GoBGPIPv6Test(unittest.TestCase):
         br02.addif(g1)
         for ctn in v6:
             br02.addif(ctn)
-            g1.add_peer(ctn, is_rs_client=True)
-            ctn.add_peer(g1)
+            g1.add_peer(ctn, is_rs_client=True, bridge=br02.name)
+            ctn.add_peer(g1, bridge=br02.name)
 
         cls.gobgp = g1
         cls.quaggas = {'q1': q1, 'q2': q2, 'q3': q3, 'q4': q4}
-        cls.bridges = {'br01': br01, 'br02': br02}
+        cls.bridges = {'br02': br02}
         cls.ipv4s = {'q1': q1, 'q2': q2}
         cls.ipv6s = {'q3': q3, 'q4': q4}
 
@@ -140,6 +137,36 @@ class GoBGPIPv6Test(unittest.TestCase):
     def test_03_check_ipv6_peer_rib(self):
         self.check_gobgp_local_rib(self.ipv6s, 'ipv6')
         self.check_rs_client_rib(self.ipv6s, 'ipv6')
+
+    def test_04_add_in_policy_to_reject_all(self):
+        for q in self.gobgp.peers.itervalues():
+            self.gobgp.local('gobgp neighbor {0} policy in set default reject'.format(q['neigh_addr'].split('/')[0]))
+
+    def test_05_check_ipv4_peer_rib(self):
+        self.check_gobgp_local_rib(self.ipv4s, 'ipv4')
+        self.check_rs_client_rib(self.ipv4s, 'ipv4')
+
+    def test_06_check_ipv6_peer_rib(self):
+        self.check_gobgp_local_rib(self.ipv6s, 'ipv6')
+        self.check_rs_client_rib(self.ipv6s, 'ipv6')
+
+    def test_07_add_in_policy_to_reject_all(self):
+        self.gobgp.local('gobgp neighbor all softresetin')
+        time.sleep(1)
+
+    def test_08_check_rib(self):
+        for q in self.ipv4s.itervalues():
+            self.assertTrue(all( p['filtered'] for p in self.gobgp.get_adj_rib_in(q)))
+            self.assertTrue(len(self.gobgp.get_adj_rib_out(q)) == 0)
+            self.assertTrue(len(q.get_global_rib()) == len(q.routes))
+
+        for q in self.ipv6s.itervalues():
+            self.assertTrue(all( p['filtered'] for p in self.gobgp.get_adj_rib_in(q, rf='ipv6')))
+            self.assertTrue(len(self.gobgp.get_adj_rib_out(q, rf='ipv6')) == 0)
+            self.assertTrue(len(q.get_global_rib(rf='ipv6')) == len(q.routes))
+
+
+
 
 
 if __name__ == '__main__':

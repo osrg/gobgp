@@ -14,55 +14,25 @@ import (
 func TestPathNewIPv4(t *testing.T) {
 	peerP := PathCreatePeer()
 	pathP := PathCreatePath(peerP)
-	ipv4p := NewPath(pathP[0].GetSource(), pathP[0].GetNlri(), true, pathP[0].GetPathAttrs(), pathP[0].getMedSetByTargetNeighbor(), time.Now(), false)
+	ipv4p := NewPath(pathP[0].GetSource(), pathP[0].GetNlri(), true, pathP[0].GetPathAttrs(), time.Now(), false)
 	assert.NotNil(t, ipv4p)
 }
 func TestPathNewIPv6(t *testing.T) {
 	peerP := PathCreatePeer()
 	pathP := PathCreatePath(peerP)
-	ipv6p := NewPath(pathP[0].GetSource(), pathP[0].GetNlri(), true, pathP[0].GetPathAttrs(), pathP[0].getMedSetByTargetNeighbor(), time.Now(), false)
+	ipv6p := NewPath(pathP[0].GetSource(), pathP[0].GetNlri(), true, pathP[0].GetPathAttrs(), time.Now(), false)
 	assert.NotNil(t, ipv6p)
 }
 
-func TestPathSetSource(t *testing.T) {
-	pd := &Path{}
-	pr := &PeerInfo{AS: 65000}
-	pd.setSource(pr)
-	r_pr := pd.GetSource()
-	assert.Equal(t, r_pr, pr)
-}
-
-func TestPathGetSource(t *testing.T) {
-	pd := &Path{}
-	pr := &PeerInfo{AS: 65001}
-	pd.setSource(pr)
-	r_pr := pd.GetSource()
-	assert.Equal(t, r_pr, pr)
-}
-
 func TestPathGetNlri(t *testing.T) {
-	nlri := bgp.NewNLRInfo(24, "13.2.3.2")
+	nlri := bgp.NewIPAddrPrefix(24, "13.2.3.2")
 	pd := &Path{
-		nlri: nlri,
+		info: &originInfo{
+			nlri: nlri,
+		},
 	}
 	r_nlri := pd.GetNlri()
 	assert.Equal(t, r_nlri, nlri)
-}
-
-func TestPathSetMedSetByTargetNeighbor(t *testing.T) {
-	pd := &Path{}
-	msbt := true
-	pd.setMedSetByTargetNeighbor(msbt)
-	r_msbt := pd.getMedSetByTargetNeighbor()
-	assert.Equal(t, r_msbt, msbt)
-}
-
-func TestPathGetMedSetByTargetNeighbor(t *testing.T) {
-	pd := &Path{}
-	msbt := true
-	pd.setMedSetByTargetNeighbor(msbt)
-	r_msbt := pd.getMedSetByTargetNeighbor()
-	assert.Equal(t, r_msbt, msbt)
 }
 
 func TestPathCreatePath(t *testing.T) {
@@ -72,7 +42,7 @@ func TestPathCreatePath(t *testing.T) {
 	nlriList := updateMsgP.NLRI
 	pathAttributes := updateMsgP.PathAttributes
 	nlri_info := nlriList[0]
-	path := NewPath(peerP[0], &nlri_info, false, pathAttributes, false, time.Now(), false)
+	path := NewPath(peerP[0], nlri_info, false, pathAttributes, time.Now(), false)
 	assert.NotNil(t, path)
 
 }
@@ -88,7 +58,7 @@ func TestPathGetAttribute(t *testing.T) {
 	peerP := PathCreatePeer()
 	pathP := PathCreatePath(peerP)
 	nh := "192.168.50.1"
-	_, pa := pathP[0].getPathAttr(bgp.BGP_ATTR_TYPE_NEXT_HOP)
+	pa := pathP[0].getPathAttr(bgp.BGP_ATTR_TYPE_NEXT_HOP)
 	r_nh := pa.(*bgp.PathAttributeNextHop).Value.String()
 	assert.Equal(t, r_nh, nh)
 }
@@ -112,13 +82,12 @@ func TestASPathLen(t *testing.T) {
 		med,
 	}
 
-	nlri := []bgp.NLRInfo{*bgp.NewNLRInfo(24, "10.10.10.0")}
-	withdrawnRoutes := []bgp.WithdrawnRoute{}
-	bgpmsg := bgp.NewBGPUpdateMessage(withdrawnRoutes, pathAttributes, nlri)
+	nlri := []*bgp.IPAddrPrefix{bgp.NewIPAddrPrefix(24, "10.10.10.0")}
+	bgpmsg := bgp.NewBGPUpdateMessage(nil, pathAttributes, nlri)
 	update := bgpmsg.Body.(*bgp.BGPUpdate)
 	UpdatePathAttrs4ByteAs(update)
 	peer := PathCreatePeer()
-	p := NewPath(peer[0], &update.NLRI[0], false, update.PathAttributes, false, time.Now(), false)
+	p := NewPath(peer[0], update.NLRI[0], false, update.PathAttributes, time.Now(), false)
 	assert.Equal(10, p.GetAsPathLen())
 }
 
@@ -139,16 +108,15 @@ func TestPathPrependAsnToExistingSeqAttr(t *testing.T) {
 		nexthop,
 	}
 
-	nlri := []bgp.NLRInfo{*bgp.NewNLRInfo(24, "10.10.10.0")}
-	withdrawnRoutes := []bgp.WithdrawnRoute{}
-	bgpmsg := bgp.NewBGPUpdateMessage(withdrawnRoutes, pathAttributes, nlri)
+	nlri := []*bgp.IPAddrPrefix{bgp.NewIPAddrPrefix(24, "10.10.10.0")}
+	bgpmsg := bgp.NewBGPUpdateMessage(nil, pathAttributes, nlri)
 	update := bgpmsg.Body.(*bgp.BGPUpdate)
 	UpdatePathAttrs4ByteAs(update)
 	peer := PathCreatePeer()
-	p := NewPath(peer[0], &update.NLRI[0], false, update.PathAttributes, false, time.Now(), false)
+	p := NewPath(peer[0], update.NLRI[0], false, update.PathAttributes, time.Now(), false)
 
 	p.PrependAsn(65000, 1)
-	assert.Equal([]uint32{65000, 65001, 65002, 65003, 65004, 65005}, p.GetAsSeqList())
+	assert.Equal([]uint32{65000, 65001, 65002, 65003, 65004, 65005, 0, 0, 0}, p.GetAsSeqList())
 	fmt.Printf("asns: %v", p.GetAsSeqList())
 }
 
@@ -162,13 +130,12 @@ func TestPathPrependAsnToNewAsPathAttr(t *testing.T) {
 		nexthop,
 	}
 
-	nlri := []bgp.NLRInfo{*bgp.NewNLRInfo(24, "10.10.10.0")}
-	withdrawnRoutes := []bgp.WithdrawnRoute{}
-	bgpmsg := bgp.NewBGPUpdateMessage(withdrawnRoutes, pathAttributes, nlri)
+	nlri := []*bgp.IPAddrPrefix{bgp.NewIPAddrPrefix(24, "10.10.10.0")}
+	bgpmsg := bgp.NewBGPUpdateMessage(nil, pathAttributes, nlri)
 	update := bgpmsg.Body.(*bgp.BGPUpdate)
 	UpdatePathAttrs4ByteAs(update)
 	peer := PathCreatePeer()
-	p := NewPath(peer[0], &update.NLRI[0], false, update.PathAttributes, false, time.Now(), false)
+	p := NewPath(peer[0], update.NLRI[0], false, update.PathAttributes, time.Now(), false)
 
 	asn := uint32(65000)
 	p.PrependAsn(asn, 1)
@@ -191,17 +158,16 @@ func TestPathPrependAsnToNewAsPathSeq(t *testing.T) {
 		nexthop,
 	}
 
-	nlri := []bgp.NLRInfo{*bgp.NewNLRInfo(24, "10.10.10.0")}
-	withdrawnRoutes := []bgp.WithdrawnRoute{}
-	bgpmsg := bgp.NewBGPUpdateMessage(withdrawnRoutes, pathAttributes, nlri)
+	nlri := []*bgp.IPAddrPrefix{bgp.NewIPAddrPrefix(24, "10.10.10.0")}
+	bgpmsg := bgp.NewBGPUpdateMessage(nil, pathAttributes, nlri)
 	update := bgpmsg.Body.(*bgp.BGPUpdate)
 	UpdatePathAttrs4ByteAs(update)
 	peer := PathCreatePeer()
-	p := NewPath(peer[0], &update.NLRI[0], false, update.PathAttributes, false, time.Now(), false)
+	p := NewPath(peer[0], update.NLRI[0], false, update.PathAttributes, time.Now(), false)
 
 	asn := uint32(65000)
 	p.PrependAsn(asn, 1)
-	assert.Equal([]uint32{asn}, p.GetAsSeqList())
+	assert.Equal([]uint32{asn, 0, 0, 0}, p.GetAsSeqList())
 	fmt.Printf("asns: %v", p.GetAsSeqList())
 }
 
@@ -222,17 +188,16 @@ func TestPathPrependAsnToEmptyAsPathAttr(t *testing.T) {
 		nexthop,
 	}
 
-	nlri := []bgp.NLRInfo{*bgp.NewNLRInfo(24, "10.10.10.0")}
-	withdrawnRoutes := []bgp.WithdrawnRoute{}
-	bgpmsg := bgp.NewBGPUpdateMessage(withdrawnRoutes, pathAttributes, nlri)
+	nlri := []*bgp.IPAddrPrefix{bgp.NewIPAddrPrefix(24, "10.10.10.0")}
+	bgpmsg := bgp.NewBGPUpdateMessage(nil, pathAttributes, nlri)
 	update := bgpmsg.Body.(*bgp.BGPUpdate)
 	UpdatePathAttrs4ByteAs(update)
 	peer := PathCreatePeer()
-	p := NewPath(peer[0], &update.NLRI[0], false, update.PathAttributes, false, time.Now(), false)
+	p := NewPath(peer[0], update.NLRI[0], false, update.PathAttributes, time.Now(), false)
 
 	asn := uint32(65000)
 	p.PrependAsn(asn, 1)
-	assert.Equal([]uint32{asn}, p.GetAsSeqList())
+	assert.Equal([]uint32{asn, 0, 0, 0}, p.GetAsSeqList())
 	fmt.Printf("asns: %v", p.GetAsSeqList())
 }
 
@@ -259,20 +224,19 @@ func TestPathPrependAsnToFullPathAttr(t *testing.T) {
 		nexthop,
 	}
 
-	nlri := []bgp.NLRInfo{*bgp.NewNLRInfo(24, "10.10.10.0")}
-	withdrawnRoutes := []bgp.WithdrawnRoute{}
-	bgpmsg := bgp.NewBGPUpdateMessage(withdrawnRoutes, pathAttributes, nlri)
+	nlri := []*bgp.IPAddrPrefix{bgp.NewIPAddrPrefix(24, "10.10.10.0")}
+	bgpmsg := bgp.NewBGPUpdateMessage(nil, pathAttributes, nlri)
 	update := bgpmsg.Body.(*bgp.BGPUpdate)
 	UpdatePathAttrs4ByteAs(update)
 	peer := PathCreatePeer()
-	p := NewPath(peer[0], &update.NLRI[0], false, update.PathAttributes, false, time.Now(), false)
+	p := NewPath(peer[0], update.NLRI[0], false, update.PathAttributes, time.Now(), false)
 
 	expected := []uint32{65000, 65000}
 	for _, v := range asns {
 		expected = append(expected, uint32(v))
 	}
 	p.PrependAsn(65000, 2)
-	assert.Equal(expected, p.GetAsSeqList())
+	assert.Equal(append(expected, []uint32{0, 0, 0}...), p.GetAsSeqList())
 	fmt.Printf("asns: %v", p.GetAsSeqList())
 }
 
@@ -294,7 +258,7 @@ func PathCreatePath(peerP []*PeerInfo) []*Path {
 		nlriList := updateMsgP.NLRI
 		pathAttributes := updateMsgP.PathAttributes
 		nlri_info := nlriList[0]
-		pathP[i] = NewPath(peerP[i], &nlri_info, false, pathAttributes, false, time.Now(), false)
+		pathP[i] = NewPath(peerP[i], nlri_info, false, pathAttributes, time.Now(), false)
 	}
 	return pathP
 }
@@ -314,9 +278,8 @@ func updateMsgP1() *bgp.BGPMessage {
 		med,
 	}
 
-	nlri := []bgp.NLRInfo{*bgp.NewNLRInfo(24, "10.10.10.0")}
-	withdrawnRoutes := []bgp.WithdrawnRoute{}
-	return bgp.NewBGPUpdateMessage(withdrawnRoutes, pathAttributes, nlri)
+	nlri := []*bgp.IPAddrPrefix{bgp.NewIPAddrPrefix(24, "10.10.10.0")}
+	return bgp.NewBGPUpdateMessage(nil, pathAttributes, nlri)
 }
 
 func updateMsgP2() *bgp.BGPMessage {
@@ -334,9 +297,8 @@ func updateMsgP2() *bgp.BGPMessage {
 		med,
 	}
 
-	nlri := []bgp.NLRInfo{*bgp.NewNLRInfo(24, "20.20.20.0")}
-	withdrawnRoutes := []bgp.WithdrawnRoute{}
-	return bgp.NewBGPUpdateMessage(withdrawnRoutes, pathAttributes, nlri)
+	nlri := []*bgp.IPAddrPrefix{bgp.NewIPAddrPrefix(24, "20.20.20.0")}
+	return bgp.NewBGPUpdateMessage(nil, pathAttributes, nlri)
 }
 func updateMsgP3() *bgp.BGPMessage {
 	origin := bgp.NewPathAttributeOrigin(0)
@@ -352,8 +314,8 @@ func updateMsgP3() *bgp.BGPMessage {
 		med,
 	}
 
-	nlri := []bgp.NLRInfo{*bgp.NewNLRInfo(24, "30.30.30.0")}
-	w1 := bgp.WithdrawnRoute{*bgp.NewIPAddrPrefix(23, "40.40.40.0")}
-	withdrawnRoutes := []bgp.WithdrawnRoute{w1}
+	nlri := []*bgp.IPAddrPrefix{bgp.NewIPAddrPrefix(24, "30.30.30.0")}
+	w1 := bgp.NewIPAddrPrefix(23, "40.40.40.0")
+	withdrawnRoutes := []*bgp.IPAddrPrefix{w1}
 	return bgp.NewBGPUpdateMessage(withdrawnRoutes, pathAttributes, nlri)
 }

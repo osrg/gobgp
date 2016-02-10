@@ -21,6 +21,7 @@ import (
 	"fmt"
 	"math"
 	"net"
+	"time"
 )
 
 const (
@@ -137,6 +138,11 @@ func NewMRTHeader(timestamp uint32, t MRTType, subtype MRTSubTyper, l uint32) (*
 		SubType:   subtype.ToUint16(),
 		Len:       l,
 	}, nil
+}
+
+func (h *MRTHeader) GetTime() time.Time {
+	t := int64(h.Timestamp)
+	return time.Unix(t, 0)
 }
 
 type MRTMessage struct {
@@ -635,8 +641,9 @@ func NewBGP4MPStateChange(peeras, localas uint32, intfindex uint16, peerip, loca
 
 type BGP4MPMessage struct {
 	*BGP4MPHeader
-	BGPMessage *BGPMessage
-	isLocal    bool
+	BGPMessage        *BGPMessage
+	BGPMessagePayload []byte
+	isLocal           bool
 }
 
 func (m *BGP4MPMessage) DecodeFromBytes(data []byte) error {
@@ -661,6 +668,9 @@ func (m *BGP4MPMessage) Serialize() ([]byte, error) {
 	buf, err := m.serialize()
 	if err != nil {
 		return nil, err
+	}
+	if m.BGPMessagePayload != nil {
+		return append(buf, m.BGPMessagePayload...), nil
 	}
 	bbuf, err := m.BGPMessage.Serialize()
 	if err != nil {
@@ -694,7 +704,7 @@ func (m *BGP4MPMessage) String() string {
 	if m.isLocal {
 		title += "_LOCAL"
 	}
-	return fmt.Sprintf("%s: PeerAS [%d] LocalAS [%d] InterfaceIndex [%d] PeerIP [%s] LocalIP [%s] BGPMessage [%s]", title, m.PeerAS, m.LocalAS, m.InterfaceIndex, m.PeerIpAddress, m.LocalIpAddress, m.BGPMessage)
+	return fmt.Sprintf("%s: PeerAS [%d] LocalAS [%d] InterfaceIndex [%d] PeerIP [%s] LocalIP [%s] BGPMessage [%v]", title, m.PeerAS, m.LocalAS, m.InterfaceIndex, m.PeerIpAddress, m.LocalIpAddress, m.BGPMessage)
 }
 
 //This function can be passed into a bufio.Scanner.Split() to read buffered mrt msgs
@@ -740,7 +750,7 @@ func ParseMRTBody(h *MRTHeader, data []byte) (*MRTMessage, error) {
 			rf = RF_IPv6_MC
 		case RIB_GENERIC:
 		default:
-			return nil, fmt.Errorf("unsupported table dumpv2 subtype: %s\n", subType)
+			return nil, fmt.Errorf("unsupported table dumpv2 subtype: %v\n", subType)
 		}
 
 		if subType != PEER_INDEX_TABLE {
@@ -775,10 +785,10 @@ func ParseMRTBody(h *MRTHeader, data []byte) (*MRTMessage, error) {
 				isLocal:      true,
 			}
 		default:
-			return nil, fmt.Errorf("unsupported bgp4mp subtype: %s\n", subType)
+			return nil, fmt.Errorf("unsupported bgp4mp subtype: %v\n", subType)
 		}
 	default:
-		return nil, fmt.Errorf("unsupported type: %s\n", h.Type)
+		return nil, fmt.Errorf("unsupported type: %v\n", h.Type)
 	}
 	err := msg.Body.DecodeFromBytes(data)
 	if err != nil {

@@ -5,55 +5,49 @@ import (
 	"fmt"
 	"github.com/BurntSushi/toml"
 	"github.com/osrg/gobgp/config"
-	"net"
 )
 
 func main() {
 	b := config.Bgp{
 		Global: config.Global{
-			GlobalConfig: config.GlobalConfig{
+			Config: config.GlobalConfig{
 				As:       12332,
-				RouterId: net.ParseIP("10.0.0.1"),
+				RouterId: "10.0.0.1",
 			},
 		},
-		Neighbors: config.Neighbors{
-			NeighborList: []config.Neighbor{
-				config.Neighbor{
-					NeighborConfig: config.NeighborConfig{
-						PeerAs:          12333,
-						AuthPassword:    "apple",
-						NeighborAddress: net.ParseIP("192.168.177.33"),
-					},
-					AfiSafis: config.AfiSafis{
+		Neighbors: []config.Neighbor{
+			config.Neighbor{
+				Config: config.NeighborConfig{
+					PeerAs:          12333,
+					AuthPassword:    "apple",
+					NeighborAddress: "192.168.177.33",
+				},
+				AfiSafis: []config.AfiSafi{
+					config.AfiSafi{AfiSafiName: "ipv4-unicast"},
+					config.AfiSafi{AfiSafiName: "ipv6-unicast"},
+				},
+				ApplyPolicy: config.ApplyPolicy{
 
-						AfiSafiList: []config.AfiSafi{
-							config.AfiSafi{AfiSafiName: "ipv4-unicast"},
-							config.AfiSafi{AfiSafiName: "ipv6-unicast"},
-						},
-					},
-					ApplyPolicy: config.ApplyPolicy{
-
-						ApplyPolicyConfig: config.ApplyPolicyConfig{
-							ImportPolicy:        []string{"pd1"},
-							DefaultImportPolicy: config.DEFAULT_POLICY_TYPE_ACCEPT_ROUTE,
-						},
+					Config: config.ApplyPolicyConfig{
+						ImportPolicyList:    []string{"pd1"},
+						DefaultImportPolicy: config.DEFAULT_POLICY_TYPE_ACCEPT_ROUTE,
 					},
 				},
+			},
 
-				config.Neighbor{
-					NeighborConfig: config.NeighborConfig{
-						PeerAs:          12334,
-						AuthPassword:    "orange",
-						NeighborAddress: net.ParseIP("192.168.177.32"),
-					},
+			config.Neighbor{
+				Config: config.NeighborConfig{
+					PeerAs:          12334,
+					AuthPassword:    "orange",
+					NeighborAddress: "192.168.177.32",
 				},
+			},
 
-				config.Neighbor{
-					NeighborConfig: config.NeighborConfig{
-						PeerAs:          12335,
-						AuthPassword:    "grape",
-						NeighborAddress: net.ParseIP("192.168.177.34"),
-					},
+			config.Neighbor{
+				Config: config.NeighborConfig{
+					PeerAs:          12335,
+					AuthPassword:    "grape",
+					NeighborAddress: "192.168.177.34",
 				},
 			},
 		},
@@ -85,59 +79,34 @@ func policy() config.RoutingPolicy {
 	}
 
 	ns := config.NeighborSet{
-		NeighborSetName: "ns1",
-		NeighborInfoList: []config.NeighborInfo{
-			config.NeighborInfo{
-				Address: net.ParseIP("10.0.0.2"),
-			}},
+		NeighborSetName:  "ns1",
+		NeighborInfoList: []string{"10.0.0.2"},
 	}
 
 	cs := config.CommunitySet{
 		CommunitySetName: "community1",
-		CommunityList: []config.Community{
-			config.Community{"65100:10"},
-		},
+		CommunityList:    []string{"65100:10"},
 	}
 
 	ecs := config.ExtCommunitySet{
 		ExtCommunitySetName: "ecommunity1",
-		ExtCommunityList: []config.ExtCommunity{
-			config.ExtCommunity{"RT:65001:200"},
-		},
+		ExtCommunityList:    []string{"RT:65001:200"},
 	}
 
 	as := config.AsPathSet{
 		AsPathSetName: "aspath1",
-		AsPathList: []config.AsPath{
-			config.AsPath{"^65100"},
-		},
+		AsPathList:    []string{"^65100"},
 	}
 
 	bds := config.BgpDefinedSets{
-
-		CommunitySets: config.CommunitySets{
-			CommunitySetList: []config.CommunitySet{cs},
-		},
-
-		ExtCommunitySets: config.ExtCommunitySets{
-			ExtCommunitySetList: []config.ExtCommunitySet{ecs},
-		},
-
-		AsPathSets: config.AsPathSets{
-			AsPathSetList: []config.AsPathSet{as},
-		},
+		CommunitySets:    []config.CommunitySet{cs},
+		ExtCommunitySets: []config.ExtCommunitySet{ecs},
+		AsPathSets:       []config.AsPathSet{as},
 	}
 
 	ds := config.DefinedSets{
-
-		PrefixSets: config.PrefixSets{
-			PrefixSetList: []config.PrefixSet{ps},
-		},
-
-		NeighborSets: config.NeighborSets{
-			NeighborSetList: []config.NeighborSet{ns},
-		},
-
+		PrefixSets:     []config.PrefixSet{ps},
+		NeighborSets:   []config.NeighborSet{ns},
 		BgpDefinedSets: bds,
 	}
 
@@ -186,7 +155,7 @@ func policy() config.RoutingPolicy {
 			BgpActions: config.BgpActions{
 				SetCommunity: config.SetCommunity{
 					SetCommunityMethod: config.SetCommunityMethod{
-						Communities: []string{"65100:20"},
+						CommunitiesList: []string{"65100:20"},
 					},
 					Options: "ADD",
 				},
@@ -196,17 +165,13 @@ func policy() config.RoutingPolicy {
 	}
 
 	pd := config.PolicyDefinition{
-		Name: "pd1",
-		Statements: config.Statements{
-			StatementList: []config.Statement{s},
-		},
+		Name:       "pd1",
+		Statements: []config.Statement{s},
 	}
 
 	p := config.RoutingPolicy{
-		DefinedSets: ds,
-		PolicyDefinitions: config.PolicyDefinitions{
-			PolicyDefinitionList: []config.PolicyDefinition{pd},
-		},
+		DefinedSets:       ds,
+		PolicyDefinitions: []config.PolicyDefinition{pd},
 	}
 
 	return p

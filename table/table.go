@@ -37,10 +37,8 @@ func (t *Table) GetRoutefamily() bgp.RouteFamily {
 }
 
 func (t *Table) insert(path *Path) *Destination {
-	var dest *Destination
-
 	t.validatePath(path)
-	dest = t.getOrCreateDest(path.GetNlri())
+	dest := t.getOrCreateDest(path.GetNlri())
 
 	if path.IsWithdraw {
 		// withdraw insert
@@ -53,26 +51,26 @@ func (t *Table) insert(path *Path) *Destination {
 }
 
 func (t *Table) DeleteDestByPeer(peerInfo *PeerInfo) []*Destination {
-	changedDests := make([]*Destination, 0)
-	for _, dest := range t.destinations {
-		newKnownPathList := make([]*Path, 0)
-		for _, p := range dest.GetKnownPathList() {
-			if !p.GetSource().Equal(peerInfo) {
-				newKnownPathList = append(newKnownPathList, p)
+	dsts := []*Destination{}
+	for _, dst := range t.destinations {
+		match := false
+		for _, p := range dst.knownPathList {
+			if p.GetSource().Equal(peerInfo) {
+				dst.addWithdraw(p)
+				match = true
 			}
 		}
-		if len(newKnownPathList) != len(dest.GetKnownPathList()) {
-			changedDests = append(changedDests, dest)
-			dest.setKnownPathList(newKnownPathList)
+		if match {
+			dsts = append(dsts, dst)
 		}
 	}
-	return changedDests
+	return dsts
 }
 
 func (t *Table) deletePathsByVrf(vrf *Vrf) []*Path {
 	pathList := make([]*Path, 0)
 	for _, dest := range t.destinations {
-		for _, p := range dest.GetKnownPathList() {
+		for _, p := range dest.knownPathList {
 			var rd bgp.RouteDistinguisherInterface
 			nlri := p.GetNlri()
 			switch nlri.(type) {
@@ -106,7 +104,7 @@ func (t *Table) deleteRTCPathsByVrf(vrf *Vrf, vrfs map[string]*Vrf) []*Path {
 			nlri := dest.GetNlri().(*bgp.RouteTargetMembershipNLRI)
 			rhs := nlri.RouteTarget.String()
 			if lhs == rhs && isLastTargetUser(vrfs, target) {
-				for _, p := range dest.GetKnownPathList() {
+				for _, p := range dest.knownPathList {
 					if p.IsLocal() {
 						p.IsWithdraw = true
 						pathList = append(pathList, p)
@@ -148,7 +146,7 @@ func (t *Table) validatePath(path *Path) {
 			"ReceivedRf": path.GetRouteFamily().String(),
 		}).Error("Invalid path. RouteFamily mismatch")
 	}
-	if _, attr := path.getPathAttr(bgp.BGP_ATTR_TYPE_AS_PATH); attr != nil {
+	if attr := path.getPathAttr(bgp.BGP_ATTR_TYPE_AS_PATH); attr != nil {
 		pathParam := attr.(*bgp.PathAttributeAsPath).Value
 		for _, as := range pathParam {
 			_, y := as.(*bgp.As4PathParam)
@@ -161,7 +159,7 @@ func (t *Table) validatePath(path *Path) {
 			}
 		}
 	}
-	if _, attr := path.getPathAttr(bgp.BGP_ATTR_TYPE_AS4_PATH); attr != nil {
+	if attr := path.getPathAttr(bgp.BGP_ATTR_TYPE_AS4_PATH); attr != nil {
 		log.WithFields(log.Fields{
 			"Topic": "Table",
 			"Key":   t.routeFamily,
@@ -211,4 +209,23 @@ func (t *Table) setDestination(key string, dest *Destination) {
 
 func (t *Table) tableKey(nlri bgp.AddrPrefixInterface) string {
 	return nlri.String()
+}
+
+func (t *Table) Bests(id string) []*Path {
+	paths := make([]*Path, 0, len(t.destinations))
+	for _, dst := range t.destinations {
+		path := dst.GetBestPath(id)
+		if path != nil {
+			paths = append(paths, path)
+		}
+	}
+	return paths
+}
+
+func (t *Table) GetKnownPathList(id string) []*Path {
+	paths := make([]*Path, 0, len(t.destinations))
+	for _, dst := range t.destinations {
+		paths = append(paths, dst.GetKnownPathList(id)...)
+	}
+	return paths
 }

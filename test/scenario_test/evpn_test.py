@@ -57,9 +57,6 @@ class GoBGPTestBase(unittest.TestCase):
 
         time.sleep(initial_wait_time)
 
-        br01 = Bridge(name='br01', subnet='192.168.10.0/24')
-        [br01.addif(ctn) for ctn in ctns]
-
         for a, b in combinations(ctns, 2):
             a.add_peer(b, evpn=True)
             b.add_peer(a, evpn=True)

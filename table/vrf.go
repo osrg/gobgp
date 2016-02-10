@@ -16,7 +16,7 @@
 package table
 
 import (
-	"github.com/osrg/gobgp/api"
+	api "github.com/osrg/gobgp/api"
 	"github.com/osrg/gobgp/packet"
 )
 
@@ -25,6 +25,7 @@ type Vrf struct {
 	Rd       bgp.RouteDistinguisherInterface
 	ImportRt []bgp.ExtendedCommunityInterface
 	ExportRt []bgp.ExtendedCommunityInterface
+	LabelMap map[string]uint32
 }
 
 func (v *Vrf) ToApiStruct() *api.Vrf {

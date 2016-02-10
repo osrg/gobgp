@@ -20,10 +20,12 @@ import (
 	"github.com/Sirupsen/logrus/hooks/syslog"
 	"github.com/jessevdk/go-flags"
 	"github.com/osrg/gobgp/config"
-	"github.com/osrg/gobgp/packet"
+	ops "github.com/osrg/gobgp/openswitch"
 	"github.com/osrg/gobgp/server"
 	"io/ioutil"
 	"log/syslog"
+	"net/http"
+	_ "net/http/pprof"
 	"os"
 	"os/signal"
 	"runtime"
@@ -32,25 +34,39 @@ import (
 )
 
 func main() {
-	runtime.GOMAXPROCS(runtime.NumCPU())
-
 	sigCh := make(chan os.Signal, 1)
 	signal.Notify(sigCh, syscall.SIGHUP, syscall.SIGTERM)
 
 	var opts struct {
 		ConfigFile    string `short:"f" long:"config-file" description:"specifying a config file"`
+		ConfigType    string `short:"t" long:"config-type" description:"specifying config type (toml, yaml, json)" default:"toml"`
 		LogLevel      string `short:"l" long:"log-level" description:"specifying log level"`
 		LogPlain      bool   `short:"p" long:"log-plain" description:"use plain format for logging (json by default)"`
 		UseSyslog     string `short:"s" long:"syslog" description:"use syslogd"`
 		Facility      string `long:"syslog-facility" description:"specify syslog facility"`
 		DisableStdlog bool   `long:"disable-stdlog" description:"disable standard logging"`
-		EnableZapi    bool   `short:"z" long:"enable-zapi" description:"enable zebra api"`
-		ZapiURL       string `long:"zapi-url" description:"specify zebra api url"`
+		CPUs          int    `long:"cpus" description:"specify the number of CPUs to be used"`
+		Ops           bool   `long:"openswitch" description:"openswitch mode"`
+		GrpcPort      int    `long:"grpc-port" description:"grpc port" default:"50051"`
 	}
 	_, err := flags.Parse(&opts)
 	if err != nil {
 		os.Exit(1)
 	}
+
+	if opts.CPUs == 0 {
+		runtime.GOMAXPROCS(runtime.NumCPU())
+	} else {
+		if runtime.NumCPU() < opts.CPUs {
+			log.Errorf("Only %d CPUs are available but %d is specified", runtime.NumCPU(), opts.CPUs)
+			os.Exit(1)
+		}
+		runtime.GOMAXPROCS(opts.CPUs)
+	}
+
+	go func() {
+		log.Println(http.ListenAndServe("localhost:6060", nil))
+	}()
 
 	switch opts.LogLevel {
 	case "debug":
@@ -133,31 +149,31 @@ func main() {
 		log.SetFormatter(&log.JSONFormatter{})
 	}
 
-	if opts.ConfigFile == "" {
-		opts.ConfigFile = "gobgpd.conf"
-	}
+	log.Info("gobgpd started")
 
 	configCh := make(chan config.BgpConfigSet)
 	reloadCh := make(chan bool)
-	go config.ReadConfigfileServe(opts.ConfigFile, configCh, reloadCh)
-	reloadCh <- true
-	bgpServer := server.NewBgpServer(bgp.BGP_PORT)
+	bgpServer := server.NewBgpServer()
+	if opts.Ops {
+		m, err := ops.NewOpsConfigManager(bgpServer.GrpcReqCh)
+		if err != nil {
+			log.Errorf("Failed to start ops config manager: %s", err)
+			os.Exit(1)
+		}
+		go m.Serve()
+	} else if opts.ConfigFile != "" {
+		go config.ReadConfigfileServe(opts.ConfigFile, opts.ConfigType, configCh, reloadCh)
+		reloadCh <- true
+	}
 	go bgpServer.Serve()
 
 	// start grpc Server
-	grpcServer := server.NewGrpcServer(server.GRPC_PORT, bgpServer.GrpcReqCh)
-	go grpcServer.Serve()
-
-	if opts.EnableZapi == true {
-		if opts.ZapiURL == "" {
-			opts.ZapiURL = "unix:/var/run/quagga/zserv.api"
+	grpcServer := server.NewGrpcServer(opts.GrpcPort, bgpServer.GrpcReqCh)
+	go func() {
+		if err := grpcServer.Serve(); err != nil {
+			log.Fatalf("failed to listen grpc port: %s", err)
 		}
-		err := bgpServer.NewZclient(opts.ZapiURL)
-		if err != nil {
-			log.Error(err)
-			os.Exit(1)
-		}
-	}
+	}()
 
 	var bgpConfig *config.Bgp = nil
 	var policyConfig *config.RoutingPolicy = nil
@@ -170,7 +186,7 @@ func main() {
 				bgpServer.SetGlobalType(newConfig.Bgp.Global)
 				bgpConfig = &newConfig.Bgp
 				bgpServer.SetRpkiConfig(newConfig.Bgp.RpkiServers)
-				added = newConfig.Bgp.Neighbors.NeighborList
+				added = newConfig.Bgp.Neighbors
 				deleted = []config.Neighbor{}
 				updated = []config.Neighbor{}
 			} else {
@@ -179,7 +195,17 @@ func main() {
 
 			if policyConfig == nil {
 				policyConfig = &newConfig.Policy
-				bgpServer.SetPolicy(newConfig.Policy)
+				// FIXME: Currently the following code
+				// is safe because the above
+				// SetRpkiConfig will be blocked
+				// because the length of rpkiConfigCh
+				// is zero. So server.GlobalRib is
+				// allocated before the above
+				// SetPolicy. But this should be
+				// handled more cleanly.
+				if err := bgpServer.SetRoutingPolicy(newConfig.Policy); err != nil {
+					log.Fatal(err)
+				}
 			} else {
 				if config.CheckPolicyDifference(policyConfig, &newConfig.Policy) {
 					log.Info("Policy config is updated")
@@ -188,15 +214,15 @@ func main() {
 			}
 
 			for _, p := range added {
-				log.Infof("Peer %v is added", p.NeighborConfig.NeighborAddress)
+				log.Infof("Peer %v is added", p.Config.NeighborAddress)
 				bgpServer.PeerAdd(p)
 			}
 			for _, p := range deleted {
-				log.Infof("Peer %v is deleted", p.NeighborConfig.NeighborAddress)
+				log.Infof("Peer %v is deleted", p.Config.NeighborAddress)
 				bgpServer.PeerDelete(p)
 			}
 			for _, p := range updated {
-				log.Infof("Peer %v is updated", p.NeighborConfig.NeighborAddress)
+				log.Infof("Peer %v is updated", p.Config.NeighborAddress)
 				bgpServer.PeerUpdate(p)
 			}
 		case sig := <-sigCh:

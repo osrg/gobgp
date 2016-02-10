@@ -19,7 +19,7 @@ import (
 	//"fmt"
 	"github.com/osrg/gobgp/packet"
 	"github.com/stretchr/testify/assert"
-	//"net"
+	"net"
 	"testing"
 	"time"
 )
@@ -51,61 +51,18 @@ func TestDestinationGetRouteFamily(t *testing.T) {
 }
 func TestDestinationSetNlri(t *testing.T) {
 	dd := &Destination{}
-	nlri := bgp.NewNLRInfo(24, "13.2.3.1")
+	nlri := bgp.NewIPAddrPrefix(24, "13.2.3.1")
 	dd.setNlri(nlri)
 	r_nlri := dd.GetNlri()
 	assert.Equal(t, r_nlri, nlri)
 }
 func TestDestinationGetNlri(t *testing.T) {
 	dd := &Destination{}
-	nlri := bgp.NewNLRInfo(24, "10.110.123.1")
+	nlri := bgp.NewIPAddrPrefix(24, "10.110.123.1")
 	dd.setNlri(nlri)
 	r_nlri := dd.GetNlri()
 	assert.Equal(t, r_nlri, nlri)
 }
-func TestDestinationSetBestPathReason(t *testing.T) {
-	dd := &Destination{}
-	reason := "reason1"
-	dd.setBestPathReason(reason)
-	r_reason := dd.getBestPathReason()
-	assert.Equal(t, r_reason, reason)
-}
-func TestDestinationGetBestPathReason(t *testing.T) {
-	dd := &Destination{}
-	reason := "reason2"
-	dd.setBestPathReason(reason)
-	r_reason := dd.getBestPathReason()
-	assert.Equal(t, r_reason, reason)
-}
-func TestDestinationSetBestPath(t *testing.T) {
-	peerD := DestCreatePeer()
-	pathD := DestCreatePath(peerD)
-	ipv4d := NewDestination(pathD[0].GetNlri())
-	ipv4d.setBestPath(pathD[0])
-	r_pathD := ipv4d.GetBestPath()
-	assert.Equal(t, r_pathD, pathD[0])
-}
-func TestDestinationGetBestPath(t *testing.T) {
-	peerD := DestCreatePeer()
-	pathD := DestCreatePath(peerD)
-	ipv4d := NewDestination(pathD[0].GetNlri())
-	ipv4d.setBestPath(pathD[0])
-	r_pathD := ipv4d.GetBestPath()
-	assert.Equal(t, r_pathD, pathD[0])
-}
-func TestDestinationCalculate(t *testing.T) {
-	peerD := DestCreatePeer()
-	pathD := DestCreatePath(peerD)
-	ipv4d := NewDestination(pathD[0].GetNlri())
-	//best path selection
-	ipv4d.addNewPath(pathD[0])
-	ipv4d.addNewPath(pathD[1])
-	ipv4d.addNewPath(pathD[2])
-	ipv4d.addWithdraw(pathD[2])
-	_, _, e := ipv4d.Calculate()
-	assert.Nil(t, e)
-}
-
 func DestCreatePeer() []*PeerInfo {
 	peerD1 := &PeerInfo{AS: 65000}
 	peerD2 := &PeerInfo{AS: 65001}
@@ -124,7 +81,7 @@ func DestCreatePath(peerD []*PeerInfo) []*Path {
 		nlriList := updateMsgD.NLRI
 		pathAttributes := updateMsgD.PathAttributes
 		nlri_info := nlriList[0]
-		pathD[i] = NewPath(peerD[i], &nlri_info, false, pathAttributes, false, time.Now(), false)
+		pathD[i] = NewPath(peerD[i], nlri_info, false, pathAttributes, time.Now(), false)
 	}
 	return pathD
 }
@@ -144,9 +101,8 @@ func updateMsgD1() *bgp.BGPMessage {
 		med,
 	}
 
-	nlri := []bgp.NLRInfo{*bgp.NewNLRInfo(24, "10.10.10.0")}
-	withdrawnRoutes := []bgp.WithdrawnRoute{}
-	updateMsg := bgp.NewBGPUpdateMessage(withdrawnRoutes, pathAttributes, nlri)
+	nlri := []*bgp.IPAddrPrefix{bgp.NewIPAddrPrefix(24, "10.10.10.0")}
+	updateMsg := bgp.NewBGPUpdateMessage(nil, pathAttributes, nlri)
 	UpdatePathAttrs4ByteAs(updateMsg.Body.(*bgp.BGPUpdate))
 	return updateMsg
 }
@@ -166,9 +122,8 @@ func updateMsgD2() *bgp.BGPMessage {
 		med,
 	}
 
-	nlri := []bgp.NLRInfo{*bgp.NewNLRInfo(24, "20.20.20.0")}
-	withdrawnRoutes := []bgp.WithdrawnRoute{}
-	updateMsg := bgp.NewBGPUpdateMessage(withdrawnRoutes, pathAttributes, nlri)
+	nlri := []*bgp.IPAddrPrefix{bgp.NewIPAddrPrefix(24, "20.20.20.0")}
+	updateMsg := bgp.NewBGPUpdateMessage(nil, pathAttributes, nlri)
 	UpdatePathAttrs4ByteAs(updateMsg.Body.(*bgp.BGPUpdate))
 	return updateMsg
 }
@@ -186,10 +141,16 @@ func updateMsgD3() *bgp.BGPMessage {
 		med,
 	}
 
-	nlri := []bgp.NLRInfo{*bgp.NewNLRInfo(24, "30.30.30.0")}
-	w1 := bgp.WithdrawnRoute{*bgp.NewIPAddrPrefix(23, "40.40.40.0")}
-	withdrawnRoutes := []bgp.WithdrawnRoute{w1}
+	nlri := []*bgp.IPAddrPrefix{bgp.NewIPAddrPrefix(24, "30.30.30.0")}
+	w1 := bgp.NewIPAddrPrefix(23, "40.40.40.0")
+	withdrawnRoutes := []*bgp.IPAddrPrefix{w1}
 	updateMsg := bgp.NewBGPUpdateMessage(withdrawnRoutes, pathAttributes, nlri)
 	UpdatePathAttrs4ByteAs(updateMsg.Body.(*bgp.BGPUpdate))
 	return updateMsg
+}
+
+func TestRadixkey(t *testing.T) {
+	assert.Equal(t, "000010100000001100100000", CidrToRadixkey("10.3.32.0/24"))
+	assert.Equal(t, "000010100000001100100000", IpToRadixkey(net.ParseIP("10.3.32.0").To4(), 24))
+	assert.Equal(t, "000010100000001100100000", IpToRadixkey(net.ParseIP("10.3.32.0").To4(), 24))
 }

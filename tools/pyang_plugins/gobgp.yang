@@ -1,4 +1,4 @@
-module bgp-gobgp {
+module gobgp {
 
   yang-version "1";
 
@@ -8,10 +8,13 @@ module bgp-gobgp {
   prefix "gobgp";
 
   // import some basic types
-  import bgp { prefix bgp; }
-  import routing-policy {prefix rpol; }
-  import bgp-policy {prefix bgp-pol; }
+  import openconfig-bgp { prefix bgp; }
+  import openconfig-bgp-types { prefix bgp-types; }
+  import openconfig-routing-policy {prefix rpol; }
+  import openconfig-policy-types {prefix ptypes; }
+  import openconfig-bgp-policy {prefix bgp-pol; }
   import ietf-inet-types { prefix inet; }
+  import ietf-yang-types { prefix yang; }
 
   // meta
   organization
@@ -30,21 +33,89 @@ module bgp-gobgp {
     reference "TBD";
   }
 
-  typedef bgp-origin-attr-type {
+  typedef bmp-route-monitoring-policy-type {
     type enumeration {
-      enum IGP {
+      enum PRE-POLICY {
         value 0;
-        description "Origin of the NLRI is internal";
+        description "send pre-policy routes";
       }
-      enum EGP {
+      enum POST-POLICY {
         value 1;
-        description "Origin of the NLRI is EGP";
+        description "send post-policy routes";
       }
-      enum INCOMPLETE {
+      enum BOTH {
         value 2;
-        description "Origin of the NLRI is neither IGP or EGP";
+        description "send both pre and post-policy routes";
       }
     }
+  }
+
+  identity eq {
+      base ptypes:attribute-comparison;
+  }
+
+  identity ge {
+      base ptypes:attribute-comparison;
+  }
+
+  identity le {
+      base ptypes:attribute-comparison;
+  }
+
+  identity IPV4-MULTICAST {
+    base bgp-types:afi-safi-type;
+    description
+      "IPv4 multicast (AFI,SAFI = 1,2)";
+    reference "RFC4760";
+  }
+
+  identity IPV6-MULTICAST {
+    base bgp-types:afi-safi-type;
+    description
+      "IPv4 multicast (AFI,SAFI = 1,2)";
+    reference "RFC4760";
+  }
+
+  identity RTC {
+    base bgp-types:afi-safi-type;
+    description
+      "Route target membership (AFI,SAFI = 1,132)";
+    reference "RFC4684";
+  }
+
+  identity ENCAP {
+    base bgp-types:afi-safi-type;
+    description
+      "Encapsulation (AFI,SAFI = 1,7)";
+    reference "RFC5512";
+  }
+
+  identity IPV4-FLOWSPEC {
+    base bgp-types:afi-safi-type;
+    description
+      "IPv4 flowspec (AFI,SAFI = 1,133)";
+    reference "RFC5575";
+  }
+
+  identity L3VPN-IPV4-FLOWSPEC {
+    base bgp-types:afi-safi-type;
+    description
+      "L3VPN IPv4 flowspec (AFI,SAFI = 1,134)";
+    reference "RFC5575";
+  }
+
+  identity IPV6-FLOWSPEC {
+    base bgp-types:afi-safi-type;
+    description
+      "IPv6 flowspec (AFI,SAFI = 1,133)";
+    reference "RFC5575";
+  }
+
+  identity L3VPN-IPV6-FLOWSPEC {
+    base bgp-types:afi-safi-type;
+    description
+      "L3VPN IPv6 flowspec (AFI,SAFI = 1,134)";
+    reference "RFC5575";
   }
 
   grouping gobgp-message-counter {
@@ -385,12 +456,74 @@ module bgp-gobgp {
     description "additional RPKI structure";
 
     container rpki-servers {
-      description
-        "List of RPKI servers configured on the local system";
       list rpki-server {
-        container rpki-server {
-          uses gobgp-rpki-server-set;
+        key "address";
+        description
+          "List of RPKI servers configured on the local system";
+        leaf address {
+          type leafref {
+            path "../config/address";
+          }
         }
+        uses gobgp-rpki-server-set;
+      }
+    }
+  }
+
+  grouping gobgp-bmp-server-config {
+    description "additional BMP config";
+
+    leaf address {
+      type inet:ip-address;
+      description
+        "Reference to the address of the BMP server used as
+         a key in the BMP server list";
+    }
+    leaf port {
+      type uint32;
+      description
+        "Reference to the port of the BMP server";
+    }
+    leaf route-monitoring-policy {
+      type bmp-route-monitoring-policy-type;
+      default PRE-POLICY;
+    }
+  }
+
+  grouping gobgp-bmp-server-state {
+    description "additional BMP state";
+  }
+
+  grouping gobgp-bmp-server-set {
+    description "additional BMP configuration and state";
+
+    container config {
+      description
+        "Configuration parameters relating to BMP server";
+      uses gobgp-bmp-server-config;
+    }
+
+    container state {
+      description
+        "Configuration parameters relating to BMP server";
+      uses gobgp-bmp-server-state;
+    }
+  }
+
+  grouping gobgp-bmp-servers {
+    description "BGP Monitoring Protocol servers";
+
+    container bmp-servers {
+      list bmp-server {
+        key "address";
+        description
+          "List of BMP servers configured on the local system";
+        leaf address {
+          type leafref {
+            path "../config/address";
+          }
+        }
+        uses gobgp-bmp-server-set;
       }
     }
   }
@@ -449,20 +582,6 @@ module bgp-gobgp {
     uses gobgp-route-server-config-set;
   }
 
-  augment "/bgp:bgp/bgp:neighbors/bgp:neighbor/bgp:transport/bgp:config" {
-    description "neighbor's local ip address, whose type is inet:ip-address";
-    leaf local-address {
-        type inet:ip-address;
-    }
-  }
-
-  augment "/bgp:bgp/bgp:neighbors/bgp:neighbor/bgp:transport/bgp:state" {
-    description "neighbor's local ip address, whose type is inet:ip-address";
-    leaf local-address {
-      type inet:ip-address;
-    }
-  }
-
   augment "/bgp:bgp/bgp:global/bgp:apply-policy/bgp:config" {
     description "addtional policy";
     uses gobgp-in-policy;
@@ -496,12 +615,10 @@ module bgp-gobgp {
   augment "/rpol:routing-policy/rpol:defined-sets/rpol:neighbor-sets/rpol:neighbor-set" {
     description "alternative for the existing neighbor element";
 
-    list neighbor-info {
-      leaf address {
-        type inet:ip-address;
-        description
+    leaf-list neighbor-info {
+      description
             "neighbor ip address";
-       }
+      type inet:ip-address;
     }
   }
 
@@ -509,12 +626,10 @@ module bgp-gobgp {
     "bgp-pol:bgp-defined-sets/bgp-pol:community-sets/bgp-pol:community-set" {
     description "alternative for the existing community-member";
 
-    list community {
-      leaf community {
-        type string;
-        description
-            "community set member";
-       }
+    leaf-list community {
+      description
+        "community set member";
+      type string;
     }
   }
 
@@ -522,12 +637,10 @@ module bgp-gobgp {
     "bgp-pol:bgp-defined-sets/bgp-pol:ext-community-sets/bgp-pol:ext-community-set" {
     description "alternative for the existing ext-community-member";
 
-    list ext-community {
-      leaf ext-community {
-        type string;
-        description
-            "extended community set member";
-       }
+    leaf-list ext-community {
+      type string;
+      description
+        "extended community set member";
     }
   }
 
@@ -535,12 +648,10 @@ module bgp-gobgp {
     "bgp-pol:bgp-defined-sets/bgp-pol:as-path-sets/bgp-pol:as-path-set" {
     description "alternative for the existing as-path-set-member";
 
-    list as-path {
-      leaf as-path {
-        type string;
-        description
-            "AS path expression";
-       }
+    leaf-list as-path {
+      type string;
+      description
+        "AS path expression";
     }
   }
 
@@ -554,7 +665,81 @@ module bgp-gobgp {
   augment "/bgp:bgp" {
     description "additional rpki configuration and state";
     uses gobgp-rpki-servers;
-
   }
 
+  augment "/bgp:bgp/bgp:global" {
+    description "route collector mode";
+    container collector {
+      leaf enabled {
+        type boolean;
+         description
+          "Configure enabling route-collector mode.";
+      }
+    }
+  }
+
+  augment "/bgp:bgp/bgp:global" {
+    description "additional bmp configuration";
+    uses gobgp-bmp-servers;
+  }
+
+  augment "/bgp:bgp/bgp:global" {
+    description "additional mrt configuration";
+    container mrt {
+       description
+         "Configure dump bgp messages in the mrt format";
+      leaf file-name {
+        type string;
+        description
+          "Configures a file name to be written.";
+      }
+    }
+  }
+
+  augment "/bgp:bgp/bgp:global" {
+    description "zebra configuration";
+    container zebra {
+       description
+         "Configure connection to zebra";
+      leaf enabled {
+        type boolean;
+        description
+          "Configure enabling to connect to zebra.";
+      }
+      leaf url {
+        type string;
+        description
+          "Configure url for zebra.";
+      }
+      leaf-list redistribute-route-type {
+        type identityref {
+          base ptypes:install-protocol-type;
+        }
+      }
+    }
+  }
+
+  augment "/bgp:bgp/bgp:global" {
+    container mpls-label-range {
+      description "mpls labal range";
+
+      leaf min-label {
+          type uint32;
+      }
+      leaf max-label {
+          type uint32;
+      }
+    }
+  }
+
+  augment "/bgp:bgp/bgp:global" {
+    container listen-config {
+        leaf port {
+            type int32;
+        }
+        leaf-list local-address {
+            type string;
+        }
+    }
+  }
 }

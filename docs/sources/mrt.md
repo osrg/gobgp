@@ -17,15 +17,13 @@ You don't need any special configuration for MRT feature.
 This page assume the configuration below.
 
 ```toml
-[Global]
-    [Global.GlobalConfig]
-        As = 64512
-        RouterId = "192.168.255.1"
-[Neighbors]
-    [[Neighbors.NeighborList]]
-        [Neighbors.NeighborList.NeighborConfig]
-        NeighborAddress = "10.0.0.1"
-        PeerAs = 65001
+[global.config]
+  as = 64512
+  router-id = "192.168.255.1"
+[[neighbors]]
+  [neighbors.config]
+    neighbor-address = "10.0.0.1"
+    peer-as = 65001
 ```
 
 ## <a name="section1">Dump MRT Table v2 Records
@@ -90,20 +88,16 @@ rpc error: code = 2 desc = "no local rib for 10.0.0.1"
 Oops! Before trying this feature, you must enable route server feature.
 Configuration is something like below.
 
-```
-$ cat gobgpd.conf
-[Global]
-    [Global.GlobalConfig]
-        As = 64512
-        RouterId = "192.168.255.1"
-[Neighbors]
-    [[Neighbors.NeighborList]]
-        [Neighbors.NeighborList.NeighborConfig]
-            NeighborAddress = "10.0.0.1"
-            PeerAs = 65001
-        [Neighbors.NeighborList.RouteServer]
-            [Neighbors.NeighborList.RouteServer.RouteServerConfig]
-            RouteServerClient = true
+```toml
+[global.config]
+  as = 64512
+  router-id = "192.168.255.1"
+[[neighbors]]
+  [neighbors.config]
+    neighbor-address = "10.0.0.1"
+    peer-as = 65001
+  [neighbors.route-server.config]
+    route-server-client = true
 ```
 
 OK, let's try again.

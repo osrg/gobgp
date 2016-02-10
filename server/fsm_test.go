@@ -20,6 +20,7 @@ import (
 	log "github.com/Sirupsen/logrus"
 	"github.com/osrg/gobgp/config"
 	"github.com/osrg/gobgp/packet"
+	"github.com/osrg/gobgp/table"
 	"github.com/stretchr/testify/assert"
 	"net"
 	"strconv"
@@ -164,12 +165,12 @@ func TestFSMHandlerOpensent_HoldTimerExpired(t *testing.T) {
 	p.fsm.conn = m
 
 	// set keepalive ticker
-	p.fsm.negotiatedHoldTime = 3
+	p.fsm.pConf.Timers.State.NegotiatedHoldTime = 3
 
 	// set holdtime
 	p.fsm.opensentHoldTime = 2
 
-	state := h.opensent()
+	state, _ := h.opensent()
 
 	assert.Equal(bgp.BGP_FSM_IDLE, state)
 	lastMsg := m.sendBuf[len(m.sendBuf)-1]
@@ -189,11 +190,11 @@ func TestFSMHandlerOpenconfirm_HoldTimerExpired(t *testing.T) {
 	p.fsm.conn = m
 
 	// set up keepalive ticker
-	p.fsm.pConf.Timers.TimersConfig.KeepaliveInterval = 1
+	p.fsm.pConf.Timers.Config.KeepaliveInterval = 1
 
 	// set holdtime
-	p.fsm.negotiatedHoldTime = 2
-	state := h.openconfirm()
+	p.fsm.pConf.Timers.State.NegotiatedHoldTime = 2
+	state, _ := h.openconfirm()
 
 	assert.Equal(bgp.BGP_FSM_IDLE, state)
 	lastMsg := m.sendBuf[len(m.sendBuf)-1]
@@ -213,7 +214,7 @@ func TestFSMHandlerEstablish_HoldTimerExpired(t *testing.T) {
 	p.fsm.conn = m
 
 	// set keepalive ticker
-	p.fsm.negotiatedHoldTime = 3
+	p.fsm.pConf.Timers.State.NegotiatedHoldTime = 3
 
 	msg := keepalive()
 	header, _ := msg.Header.Serialize()
@@ -226,11 +227,11 @@ func TestFSMHandlerEstablish_HoldTimerExpired(t *testing.T) {
 	}
 
 	// set holdtime
-	p.fsm.pConf.Timers.TimersConfig.HoldTime = 2
-	p.fsm.negotiatedHoldTime = 2
+	p.fsm.pConf.Timers.Config.HoldTime = 2
+	p.fsm.pConf.Timers.State.NegotiatedHoldTime = 2
 
 	go pushPackets()
-	state := h.established()
+	state, _ := h.established()
 	time.Sleep(time.Second * 1)
 	assert.Equal(bgp.BGP_FSM_IDLE, state)
 	lastMsg := m.sendBuf[len(m.sendBuf)-1]
@@ -250,9 +251,9 @@ func TestFSMHandlerOpenconfirm_HoldtimeZero(t *testing.T) {
 	p.fsm.conn = m
 
 	// set up keepalive ticker
-	p.fsm.pConf.Timers.TimersConfig.KeepaliveInterval = 1
+	p.fsm.pConf.Timers.Config.KeepaliveInterval = 1
 	// set holdtime
-	p.fsm.negotiatedHoldTime = 0
+	p.fsm.pConf.Timers.State.NegotiatedHoldTime = 0
 	go h.openconfirm()
 
 	time.Sleep(100 * time.Millisecond)
@@ -271,11 +272,9 @@ func TestFSMHandlerEstablished_HoldtimeZero(t *testing.T) {
 	// push mock connection
 	p.fsm.conn = m
 
-	// set keepalive ticker
-	p.fsm.negotiatedHoldTime = 3
-
 	// set holdtime
-	p.fsm.negotiatedHoldTime = 0
+	p.fsm.pConf.Timers.State.NegotiatedHoldTime = 0
+
 	go h.established()
 
 	time.Sleep(100 * time.Millisecond)
@@ -288,19 +287,18 @@ func makePeerAndHandler() (*Peer, *FSMHandler) {
 	pConf := config.Neighbor{}
 
 	p := &Peer{
-		gConf:  gConf,
-		conf:   pConf,
-		capMap: make(map[bgp.BGPCapabilityCode][]bgp.ParameterCapabilityInterface),
+		gConf: gConf,
+		conf:  pConf,
 	}
 
-	p.fsm = NewFSM(&gConf, &pConf)
+	p.fsm = NewFSM(&gConf, &pConf, table.NewRoutingPolicy())
 
-	incoming := make(chan *fsmMsg, 4096)
+	incoming := make(chan *FsmMsg, 4096)
 	p.outgoing = make(chan *bgp.BGPMessage, 4096)
 
 	h := &FSMHandler{
 		fsm:      p.fsm,
-		errorCh:  make(chan bool, 2),
+		errorCh:  make(chan FsmStateReason, 2),
 		incoming: incoming,
 		outgoing: p.outgoing,
 	}
@@ -313,7 +311,7 @@ func open() *bgp.BGPMessage {
 	p1 := bgp.NewOptionParameterCapability(
 		[]bgp.ParameterCapabilityInterface{bgp.NewCapRouteRefresh()})
 	p2 := bgp.NewOptionParameterCapability(
-		[]bgp.ParameterCapabilityInterface{bgp.NewCapMultiProtocol(3, 4)})
+		[]bgp.ParameterCapabilityInterface{bgp.NewCapMultiProtocol(bgp.RF_IPv4_UC)})
 	g := bgp.CapGracefulRestartTuples{4, 2, 3}
 	p3 := bgp.NewOptionParameterCapability(
 		[]bgp.ParameterCapabilityInterface{bgp.NewCapGracefulRestart(2, 100,

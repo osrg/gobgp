@@ -58,16 +58,12 @@ class GoBGPTestBase(unittest.TestCase):
 
         time.sleep(initial_wait_time)
 
-        br01 = Bridge(name='br01', subnet='192.168.10.0/24')
-        [br01.addif(ctn) for ctn in ctns]
-
         for rs_client in rs_clients:
             g1.add_peer(rs_client, is_rs_client=True)
             rs_client.add_peer(g1)
 
         cls.gobgp = g1
         cls.quaggas = {'q1': q1, 'q2': q2, 'q3': q3}
-        cls.bridges = {'br01': br01}
 
     def check_gobgp_local_rib(self):
         for rs_client in self.quaggas.itervalues():
@@ -146,7 +142,6 @@ class GoBGPTestBase(unittest.TestCase):
 
         initial_wait_time = q4.run()
         time.sleep(initial_wait_time)
-        self.bridges['br01'].addif(q4)
         self.gobgp.add_peer(q4, is_rs_client=True)
         q4.add_peer(self.gobgp)
 
@@ -183,14 +178,6 @@ class GoBGPTestBase(unittest.TestCase):
 
         initial_wait_time = q5.run()
         time.sleep(initial_wait_time)
-
-        br02 = Bridge(name='br02', subnet='192.168.20.0/24')
-        br02.addif(q5)
-        br02.addif(q2)
-
-        br03 = Bridge(name='br03', subnet='192.168.30.0/24')
-        br03.addif(q5)
-        br03.addif(q3)
 
         for q in [q2, q3]:
             q5.add_peer(q)

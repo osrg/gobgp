@@ -14,7 +14,7 @@
 # limitations under the License.
 
 from base import *
-
+from itertools import chain
 
 class ExaBGPContainer(BGPContainer):
 
@@ -65,17 +65,14 @@ class ExaBGPContainer(BGPContainer):
         for peer, info in self.peers.iteritems():
             cmd << 'neighbor {0} {{'.format(info['neigh_addr'].split('/')[0])
             cmd << '    router-id {0};'.format(self.router_id)
-
-            local_addr = ''
-            for me, you in itertools.product(self.ip_addrs, peer.ip_addrs):
-                if me[2] == you[2]:
-                    local_addr = me[1]
-            if local_addr == '':
-                raise Exception('local_addr not found')
-            local_addr = local_addr.split('/')[0]
-            cmd << '    local-address {0};'.format(local_addr)
+            cmd << '    local-address {0};'.format(info['local_addr'].split('/')[0])
             cmd << '    local-as {0};'.format(self.asn)
             cmd << '    peer-as {0};'.format(peer.asn)
+
+            if info['as2']:
+                cmd << '    capability {'
+                cmd << '        asn4 disable;'
+                cmd << '    }'
 
             routes = [r for r in self.routes.values() if r['rf'] == 'ipv4' or r['rf'] == 'ipv6']
 
@@ -83,7 +80,7 @@ class ExaBGPContainer(BGPContainer):
                 cmd << '    static {'
                 for route in routes:
                     r = CmdBuffer(' ')
-                    nexthop = local_addr
+                    nexthop = info['local_addr'].split('/')[0]
                     if route['next-hop']:
                         nexthop = route['next-hop']
                     r << '      route {0} next-hop {1}'.format(route['prefix'], nexthop)
@@ -93,6 +90,8 @@ class ExaBGPContainer(BGPContainer):
                         r << 'community [{0}]'.format(' '.join(c for c in route['community']))
                     if route['med']:
                         r << 'med {0}'.format(route['med'])
+                    if route['local-pref']:
+                        r << 'local-preference {0}'.format(route['local-pref'])
                     if route['extended-community']:
                         r << 'extended-community [{0}]'.format(route['extended-community'])
                     if route['attr']:
@@ -101,8 +100,7 @@ class ExaBGPContainer(BGPContainer):
                     cmd << '{0};'.format(str(r))
                 cmd << '    }'
 
-            routes = [r for r in self.routes.values() if r['rf'] == 'ipv4-flowspec']
-
+            routes = [r for r in self.routes.itervalues() if 'flowspec' in r['rf']]
             if len(routes) > 0:
                 cmd << '    flow {'
                 for route in routes:

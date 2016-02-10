@@ -44,10 +44,11 @@ class QuaggaBGPContainer(BGPContainer):
     WAIT_FOR_BOOT = 1
     SHARED_VOLUME = '/etc/quagga'
 
-    def __init__(self, name, asn, router_id, ctn_image_name='osrg/quagga'):
+    def __init__(self, name, asn, router_id, ctn_image_name='osrg/quagga', zebra=False):
         super(QuaggaBGPContainer, self).__init__(name, asn, router_id,
                                                  ctn_image_name)
         self.shared_volumes.append((self.config_dir, self.SHARED_VOLUME))
+        self.zebra = zebra
 
     def run(self):
         super(QuaggaBGPContainer, self).run()
@@ -107,10 +108,19 @@ class QuaggaBGPContainer(BGPContainer):
                 lines = lines[2:]  # other useless lines
             else:
                 raise Exception('unknown output format {0}'.format(lines))
-            nexthop = lines[1].split()[0].strip()
             aspath = [int(asn) for asn in lines[0].split()]
+            nexthop = lines[1].split()[0].strip()
+            info = [s.strip(',') for s in lines[2].split()]
+            attrs = []
+            if 'metric' in info:
+                med = info[info.index('metric') + 1]
+                attrs.append({'type': BGP_ATTR_TYPE_MULTI_EXIT_DISC, 'metric': int(med)})
+            if 'localpref' in info:
+                localpref = info[info.index('localpref') + 1]
+                attrs.append({'type': BGP_ATTR_TYPE_LOCAL_PREF, 'value': int(localpref)})
+
             rib.append({'prefix': prefix, 'nexthop': nexthop,
-                        'aspath': aspath})
+                        'aspath': aspath, 'attrs': attrs})
         return rib
 
     def get_neighbor_state(self, peer):
@@ -151,13 +161,25 @@ class QuaggaBGPContainer(BGPContainer):
 
             raise Exception('not found peer {0}'.format(peer.router_id))
 
+    def send_route_refresh(self):
+        with QuaggaTelnetDaemon(self) as tn:
+            tn.write('clear ip bgp * soft\n')
+            #tn.read_until('bgpd#')
+
     def create_config(self):
+        self._create_config_bgp()
+        if self.zebra:
+            self._create_config_zebra()
+
+    def _create_config_bgp(self):
+
         c = CmdBuffer()
         c << 'hostname bgpd'
         c << 'password zebra'
         c << 'router bgp {0}'.format(self.asn)
         c << 'bgp router-id {0}'.format(self.router_id)
 
+        version = 4
         for peer, info in self.peers.iteritems():
             version = netaddr.IPNetwork(info['neigh_addr']).version
             n_addr = info['neigh_addr'].split('/')[0]
@@ -165,6 +187,8 @@ class QuaggaBGPContainer(BGPContainer):
                 c << 'no bgp default ipv4-unicast'
 
             c << 'neighbor {0} remote-as {1}'.format(n_addr, peer.asn)
+            if info['is_rs_client']:
+                c << 'neighbor {0} route-server-client'.format(n_addr)
             for name, policy in info['policies'].iteritems():
                 direction = policy['direction']
                 c << 'neighbor {0} route-map {1} {2}'.format(n_addr, name,
@@ -186,6 +210,13 @@ class QuaggaBGPContainer(BGPContainer):
             else:
                 raise Exception('unsupported route faily: {0}'.format(route['rf']))
 
+        if self.zebra:
+            if version == 6:
+                c << 'address-family ipv6 unicast'
+                c << 'redistribute connected'
+                c << 'exit-address-family'
+            else:
+                c << 'redistribute connected'
 
         for name, policy in self.policies.iteritems():
             c << 'access-list {0} {1} {2}'.format(name, policy['type'],
@@ -205,6 +236,27 @@ class QuaggaBGPContainer(BGPContainer):
             print colors.yellow(indent(str(c)))
             f.writelines(str(c))
 
+    def _create_config_zebra(self):
+        c = CmdBuffer()
+        c << 'hostname zebra'
+        c << 'password zebra'
+        c << 'log file {0}/zebra.log'.format(self.SHARED_VOLUME)
+        c << 'debug zebra packet'
+        c << 'debug zebra kernel'
+        c << 'debug zebra rib'
+        c << ''
+
+        with open('{0}/zebra.conf'.format(self.config_dir), 'w') as f:
+            print colors.yellow('[{0}\'s new config]'.format(self.name))
+            print colors.yellow(indent(str(c)))
+            f.writelines(str(c))
+
     def reload_config(self):
-        cmd = '/usr/bin/pkill bgpd -SIGHUP'
-        self.local(cmd)
+        daemon = []
+        daemon.append('bgpd')
+        if self.zebra:
+            daemon.append('zebra')
+        for d in daemon:
+            cmd = '/usr/bin/pkill {0} -SIGHUP'.format(d)
+            self.local(cmd)
+

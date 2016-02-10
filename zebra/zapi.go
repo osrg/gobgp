@@ -117,6 +117,30 @@ const (
 	ROUTE_MAX
 )
 
+var routeTypeValueMap = map[string]ROUTE_TYPE{
+	"system":  ROUTE_SYSTEM,
+	"kernel":  ROUTE_KERNEL,
+	"connect": ROUTE_CONNECT,
+	"static":  ROUTE_STATIC,
+	"rip":     ROUTE_RIP,
+	"ripng":   ROUTE_RIPNG,
+	"ospf":    ROUTE_OSPF,
+	"ospf3":   ROUTE_OSPF6,
+	"isis":    ROUTE_ISIS,
+	"bgp":     ROUTE_BGP,
+	"hsls":    ROUTE_HSLS,
+	"olsr":    ROUTE_OLSR,
+	"babel":   ROUTE_BABEL,
+}
+
+func RouteTypeFromString(typ string) (ROUTE_TYPE, error) {
+	t, ok := routeTypeValueMap[typ]
+	if ok {
+		return t, nil
+	}
+	return t, fmt.Errorf("unknown route type: %s", typ)
+}
+
 const (
 	MESSAGE_NEXTHOP  = 0x01
 	MESSAGE_IFINDEX  = 0x02
@@ -196,6 +220,15 @@ func NewClient(network, address string, typ ROUTE_TYPE) (*Client, error) {
 		return nil, err
 	}
 	outgoing := make(chan *Message)
+	incoming := make(chan *Message, 64)
+
+	c := &Client{
+		outgoing:      outgoing,
+		incoming:      incoming,
+		redistDefault: typ,
+		conn:          conn,
+	}
+
 	go func() {
 		for {
 			m, more := <-outgoing
@@ -208,8 +241,8 @@ func NewClient(network, address string, typ ROUTE_TYPE) (*Client, error) {
 
 				_, err = conn.Write(b)
 				if err != nil {
-					log.Errorf("failed to write: ", err)
-					return
+					log.Errorf("failed to write: %s", err)
+					close(outgoing)
 				}
 			} else {
 				log.Debug("finish outgoing loop")
@@ -218,28 +251,27 @@ func NewClient(network, address string, typ ROUTE_TYPE) (*Client, error) {
 		}
 	}()
 
-	incoming := make(chan *Message, 64)
-	go func() error {
+	go func() {
 		for {
 			headerBuf, err := readAll(conn, HEADER_SIZE)
 			if err != nil {
 				log.Error("failed to read header: ", err)
-				return err
+				return
 			}
-
+			log.Debugf("read header from zebra: %v", headerBuf)
 			hd := &Header{}
 			err = hd.DecodeFromBytes(headerBuf)
 			if err != nil {
 				log.Error("failed to decode header: ", err)
-				return err
+				return
 			}
 
 			bodyBuf, err := readAll(conn, int(hd.Len-HEADER_SIZE))
 			if err != nil {
 				log.Error("failed to read body: ", err)
-				return err
+				return
 			}
-
+			log.Debugf("read body from zebra: %v", bodyBuf)
 			m, err := ParseMessage(hd, bodyBuf)
 			if err != nil {
 				log.Warn("failed to parse message: ", err)
@@ -249,12 +281,8 @@ func NewClient(network, address string, typ ROUTE_TYPE) (*Client, error) {
 			incoming <- m
 		}
 	}()
-	return &Client{
-		outgoing:      outgoing,
-		incoming:      incoming,
-		redistDefault: typ,
-		conn:          conn,
-	}, nil
+
+	return c, nil
 }
 
 func readAll(conn net.Conn, length int) ([]byte, error) {
@@ -263,15 +291,26 @@ func readAll(conn net.Conn, length int) ([]byte, error) {
 	return buf, err
 }
 
-func (c *Client) Recieve() chan *Message {
+func (c *Client) Receive() chan *Message {
 	return c.incoming
 }
 
 func (c *Client) Send(m *Message) {
+	defer func() {
+		if err := recover(); err != nil {
+			log.Debugf("recovered: %s", err)
+		}
+	}()
 	c.outgoing <- m
 }
 
 func (c *Client) SendCommand(command API_TYPE, body Body) error {
+
+	log.WithFields(log.Fields{
+		"Topic":   "Zebra",
+		"Command": command.String(),
+		"Body":    body,
+	}).Debug("send command to zebra")
 	m := &Message{
 		Header: Header{
 			Len:     HEADER_SIZE,
@@ -288,7 +327,7 @@ func (c *Client) SendCommand(command API_TYPE, body Body) error {
 func (c *Client) SendHello() error {
 	if c.redistDefault > 0 {
 		body := &HelloBody{
-			Redist: c.redistDefault,
+			RedistDefault: c.redistDefault,
 		}
 		return c.SendCommand(HELLO, body)
 	}
@@ -301,6 +340,34 @@ func (c *Client) SendRouterIDAdd() error {
 
 func (c *Client) SendInterfaceAdd() error {
 	return c.SendCommand(INTERFACE_ADD, nil)
+}
+
+func (c *Client) SendRedistribute(t ROUTE_TYPE) error {
+	if c.redistDefault != t {
+		body := &RedistributeBody{
+			Redist: t,
+		}
+		if e := c.SendCommand(REDISTRIBUTE_ADD, body); e != nil {
+			return e
+		}
+	}
+
+	return nil
+}
+
+func (c *Client) SendRedistributeDelete(t ROUTE_TYPE) error {
+
+	if t < ROUTE_MAX {
+		body := &RedistributeBody{
+			Redist: t,
+		}
+		if e := c.SendCommand(REDISTRIBUTE_DELETE, body); e != nil {
+			return e
+		}
+	} else {
+		return fmt.Errorf("unknown route type: %d", t)
+	}
+	return nil
 }
 
 func (c *Client) Close() error {
@@ -341,15 +408,28 @@ type Body interface {
 }
 
 type HelloBody struct {
-	Redist ROUTE_TYPE
+	RedistDefault ROUTE_TYPE
 }
 
 func (b *HelloBody) DecodeFromBytes(data []byte) error {
-	b.Redist = ROUTE_TYPE(data[0])
+	b.RedistDefault = ROUTE_TYPE(data[0])
 	return nil
 }
 
 func (b *HelloBody) Serialize() ([]byte, error) {
+	return []byte{uint8(b.RedistDefault)}, nil
+}
+
+type RedistributeBody struct {
+	Redist ROUTE_TYPE
+}
+
+func (b *RedistributeBody) DecodeFromBytes(data []byte) error {
+	b.Redist = ROUTE_TYPE(data[0])
+	return nil
+}
+
+func (b *RedistributeBody) Serialize() ([]byte, error) {
 	return []byte{uint8(b.Redist)}, nil
 }
 
@@ -471,16 +551,7 @@ type IPRouteBody struct {
 	Ifindexs     []uint32
 	Distance     uint8
 	Metric       uint32
-}
-
-func (b *IPRouteBody) DecodeFromBytes(data []byte) error {
-	b.Type = ROUTE_TYPE(data[0])
-	b.Flags = FLAG(data[1])
-	b.Message = data[2]
-	b.SAFI = SAFI(data[3])
-	b.Prefix = data[3:7]
-	b.PrefixLength = data[7]
-	return nil
+	Api          API_TYPE
 }
 
 func (b *IPRouteBody) Serialize() ([]byte, error) {
@@ -537,6 +608,291 @@ func (b *IPRouteBody) Serialize() ([]byte, error) {
 	return buf, nil
 }
 
+func (b *IPRouteBody) DecodeFromBytes(data []byte) error {
+
+	isV4 := b.Api == IPV4_ROUTE_ADD || b.Api == IPV4_ROUTE_DELETE
+	var addrLen uint8 = net.IPv4len
+	if !isV4 {
+		addrLen = net.IPv6len
+	}
+
+	b.Type = ROUTE_TYPE(data[0])
+	b.Flags = FLAG(data[1])
+	b.Message = data[2]
+	b.PrefixLength = data[3]
+	b.SAFI = SAFI(SAFI_UNICAST)
+
+	if b.PrefixLength > addrLen*8 {
+		return fmt.Errorf("prefix length is greater than %d", addrLen*8)
+	}
+
+	byteLen := int((b.PrefixLength + 7) / 8)
+
+	pos := 4
+	buf := make([]byte, addrLen)
+	copy(buf, data[pos:pos+byteLen])
+
+	if isV4 {
+		b.Prefix = net.IP(buf).To4()
+	} else {
+		b.Prefix = net.IP(buf).To16()
+	}
+
+	pos += byteLen
+
+	rest := 0
+	var numNexthop int
+	if b.Message&MESSAGE_NEXTHOP > 0 {
+		numNexthop = int(data[pos])
+		// rest = numNexthop(1) + (nexthop(4 or 16) + placeholder(1) + ifindex(4)) * numNexthop
+		rest += 1 + numNexthop*(int(addrLen)+5)
+	}
+
+	if b.Message&MESSAGE_DISTANCE > 0 {
+		// distance(1)
+		rest += 1
+	}
+
+	if b.Message&MESSAGE_METRIC > 0 {
+		// metric(4)
+		rest += 4
+	}
+
+	if len(data[pos:]) != rest {
+		return fmt.Errorf("message length invalid")
+	}
+
+	b.Nexthops = []net.IP{}
+	b.Ifindexs = []uint32{}
+
+	if b.Message&MESSAGE_NEXTHOP > 0 {
+		pos += 1
+		for i := 0; i < numNexthop; i++ {
+			addr := data[pos : pos+int(addrLen)]
+			var nexthop net.IP
+			if isV4 {
+				nexthop = net.IP(addr).To4()
+			} else {
+				nexthop = net.IP(addr).To16()
+			}
+			b.Nexthops = append(b.Nexthops, nexthop)
+
+			// skip nexthop and 1byte place holder
+			pos += int(addrLen + 1)
+			ifidx := binary.BigEndian.Uint32(data[pos : pos+4])
+			b.Ifindexs = append(b.Ifindexs, ifidx)
+			pos += 4
+		}
+	}
+
+	if b.Message&MESSAGE_DISTANCE > 0 {
+		b.Distance = data[pos]
+	}
+	if b.Message&MESSAGE_METRIC > 0 {
+		pos += 1
+		b.Metric = binary.BigEndian.Uint32(data[pos : pos+4])
+	}
+
+	return nil
+}
+
+func (b *IPRouteBody) String() string {
+	s := fmt.Sprintf("type: %s, flags: %s, message: %d, prefix: %s, length: %d, nexthop: %s, ifindex: %d, distance: %d, metric: %d",
+		b.Type.String(), b.Flags.String(), b.Message, b.Prefix.String(), b.PrefixLength, b.Nexthops[0].String(), b.Ifindexs[0], b.Distance, b.Metric)
+	return s
+}
+
+type NexthopLookupBody struct {
+	Api      API_TYPE
+	Addr     net.IP
+	Metric   uint32
+	Nexthops []*Nexthop
+}
+
+type Nexthop struct {
+	Ifname  string
+	Ifindex uint32
+	Type    NEXTHOP_FLAG
+	Addr    net.IP
+}
+
+func (n *Nexthop) String() string {
+	s := fmt.Sprintf("type: %s, addr: %s, ifindex: %d, ifname: %s", n.Type.String(), n.Addr.String(), n.Ifindex, n.Ifname)
+	return s
+}
+
+func (b *NexthopLookupBody) Serialize() ([]byte, error) {
+
+	isV4 := b.Api == IPV4_NEXTHOP_LOOKUP
+	buf := make([]byte, 0)
+
+	if isV4 {
+		buf = append(buf, b.Addr.To4()...)
+	} else {
+		buf = append(buf, b.Addr.To16()...)
+	}
+	return buf, nil
+}
+
+func (b *NexthopLookupBody) DecodeFromBytes(data []byte) error {
+
+	isV4 := b.Api == IPV4_NEXTHOP_LOOKUP
+	var addrLen uint8 = net.IPv4len
+	if !isV4 {
+		addrLen = net.IPv6len
+	}
+
+	if len(data) < int(addrLen) {
+		return fmt.Errorf("message length invalid")
+	}
+
+	buf := make([]byte, addrLen)
+	copy(buf, data[0:addrLen])
+	pos := addrLen
+
+	if isV4 {
+		b.Addr = net.IP(buf).To4()
+	} else {
+		b.Addr = net.IP(buf).To16()
+	}
+
+	if len(data[pos:]) > int(1+addrLen) {
+		b.Metric = binary.BigEndian.Uint32(data[pos : pos+4])
+		pos += 4
+		nexthopNum := int(data[pos])
+		b.Nexthops = []*Nexthop{}
+
+		if nexthopNum > 0 {
+			pos += 1
+			for i := 0; i < nexthopNum; i++ {
+				nh := &Nexthop{}
+				nh.Type = NEXTHOP_FLAG(data[pos])
+				pos += 1
+
+				switch nh.Type {
+				case NEXTHOP_IPV4, NEXTHOP_IPV6:
+					b := make([]byte, addrLen)
+					copy(b, data[pos:pos+addrLen])
+					if isV4 {
+						nh.Addr = net.IP(b).To4()
+					} else {
+						nh.Addr = net.IP(b).To16()
+					}
+					pos += addrLen
+
+				case NEXTHOP_IPV4_IFINDEX, NEXTHOP_IPV6_IFINDEX, NEXTHOP_IPV6_IFNAME:
+					b := make([]byte, addrLen)
+					copy(b, data[pos:pos+addrLen])
+					if isV4 {
+						nh.Addr = net.IP(b).To4()
+					} else {
+						nh.Addr = net.IP(b).To16()
+					}
+					pos += addrLen
+					nh.Ifindex = binary.BigEndian.Uint32(data[pos : pos+4])
+					pos += 4
+
+				case NEXTHOP_IFINDEX, NEXTHOP_IFNAME:
+					nh.Ifindex = binary.BigEndian.Uint32(data[pos : pos+4])
+					pos += 4
+				}
+				b.Nexthops = append(b.Nexthops, nh)
+			}
+		}
+	}
+
+	return nil
+}
+
+func (b *NexthopLookupBody) String() string {
+	s := fmt.Sprintf("addr: %s, metric: %d", b.Addr, b.Metric)
+	if len(b.Nexthops) > 0 {
+		for _, nh := range b.Nexthops {
+			s = s + fmt.Sprintf(", nexthop:{%s}", nh.String())
+		}
+	}
+	return s
+}
+
+type ImportLookupBody struct {
+	Api          API_TYPE
+	PrefixLength uint8
+	Prefix       net.IP
+	Addr         net.IP
+	Metric       uint32
+	Nexthops     []*Nexthop
+}
+
+func (b *ImportLookupBody) Serialize() ([]byte, error) {
+	buf := make([]byte, 1)
+	buf[0] = b.PrefixLength
+	buf = append(buf, b.Addr.To4()...)
+	return buf, nil
+}
+
+func (b *ImportLookupBody) DecodeFromBytes(data []byte) error {
+
+	var addrLen uint8 = net.IPv4len
+
+	if len(data) < int(addrLen) {
+		return fmt.Errorf("message length invalid")
+	}
+
+	buf := make([]byte, addrLen)
+	copy(buf, data[0:addrLen])
+	pos := addrLen
+
+	b.Addr = net.IP(buf).To4()
+
+	if len(data[pos:]) > int(1+addrLen) {
+		b.Metric = binary.BigEndian.Uint32(data[pos : pos+4])
+		pos += 4
+		nexthopNum := int(data[pos])
+		b.Nexthops = []*Nexthop{}
+		if nexthopNum > 0 {
+			pos += 1
+			for i := 0; i < nexthopNum; i++ {
+				nh := &Nexthop{}
+				nh.Type = NEXTHOP_FLAG(data[pos])
+				pos += 1
+
+				switch nh.Type {
+				case NEXTHOP_IPV4:
+					b := make([]byte, addrLen)
+					copy(b, data[pos:pos+addrLen])
+					nh.Addr = net.IP(b).To4()
+					pos += addrLen
+
+				case NEXTHOP_IPV4_IFINDEX:
+					b := make([]byte, addrLen)
+					copy(b, data[pos:pos+addrLen])
+					nh.Addr = net.IP(b).To4()
+					pos += addrLen
+					nh.Ifindex = binary.BigEndian.Uint32(data[pos : pos+4])
+					pos += 4
+
+				case NEXTHOP_IFINDEX, NEXTHOP_IFNAME:
+					nh.Ifindex = binary.BigEndian.Uint32(data[pos : pos+4])
+					pos += 4
+				}
+				b.Nexthops = append(b.Nexthops, nh)
+			}
+		}
+	}
+
+	return nil
+}
+
+func (b *ImportLookupBody) String() string {
+	s := fmt.Sprintf("addr: %s, metric: %d", b.Addr, b.Metric)
+	if len(b.Nexthops) > 0 {
+		for _, nh := range b.Nexthops {
+			s = s + fmt.Sprintf(", nexthop:{%s}", nh.String())
+		}
+	}
+	return s
+}
+
 type Message struct {
 	Header Header
 	Body   Body
@@ -569,6 +925,15 @@ func ParseMessage(hdr *Header, data []byte) (*Message, error) {
 		m.Body = &InterfaceAddressUpdateBody{}
 	case ROUTER_ID_UPDATE:
 		m.Body = &RouterIDUpdateBody{}
+	case IPV4_ROUTE_ADD, IPV6_ROUTE_ADD, IPV4_ROUTE_DELETE, IPV6_ROUTE_DELETE:
+		m.Body = &IPRouteBody{Api: m.Header.Command}
+		log.Debugf("ipv4/v6 route add/delete message received: %v", data)
+	case IPV4_NEXTHOP_LOOKUP, IPV6_NEXTHOP_LOOKUP:
+		m.Body = &NexthopLookupBody{Api: m.Header.Command}
+		log.Debugf("ipv4/v6 nexthop lookup received: %v", data)
+	case IPV4_IMPORT_LOOKUP:
+		m.Body = &ImportLookupBody{Api: m.Header.Command}
+		log.Debugf("ipv4 import lookup message received: %v", data)
 	default:
 		return nil, fmt.Errorf("Unknown zapi command: %d", m.Header.Command)
 	}

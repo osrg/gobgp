@@ -1,10 +1,8 @@
 # Flowspec (RFC5575)
 
-GoBGP supports [RFC5575](https://tools.ietf.org/html/rfc5575) and
-[draft-ietf-idr-flowspec-redirect-rt-bis-05](http://tools.ietf.org/html/draft-ietf-idr-flowspec-redirect-rt-bis-05).
-
-Implementation of IPv6 flowspec ([draft-ietf-idr-flow-spec-v6-06](https://tools.ietf.org/html/draft-ietf-idr-flow-spec-v6-06))
-is future work.
+GoBGP supports [RFC5575](https://tools.ietf.org/html/rfc5575),
+[draft-ietf-idr-flowspec-redirect-rt-bis-05](http://tools.ietf.org/html/draft-ietf-idr-flowspec-redirect-rt-bis-05)
+and [draft-ietf-idr-flow-spec-v6-06](https://tools.ietf.org/html/draft-ietf-idr-flow-spec-v6-06).
 
 ## Prerequisites
 
@@ -17,22 +15,19 @@ Assume you finished [Getting Started](https://github.com/osrg/gobgp/blob/master/
 ## <a name="section0"> Configuration
 
 To advertise flowspec routes, enumerate `ipv4-flowspec` to neighbor's
-afi-safi-list like below.
+afi-safis like below.
 
 ```toml
-[Global]
-  [Global.GlobalConfig]
-    As = 64512
-    RouterId = "192.168.255.1"
+[global.config]
+  as = 64512
+  router-id = "192.168.255.1"
 
-[Neighbors]
-  [[Neighbors.NeighborList]]
-    [Neighbors.NeighborList.NeighborConfig]
-      NeighborAddress = "10.0.255.1"
-      PeerAs = 64512
-    [Neighbors.NeighborList.AfiSafis]
-      [[Neighbors.NeighborList.AfiSafis.AfiSafiList]]
-        AfiSafiName = "ipv4-flowspec"
+[[neighbors]]
+[neighbors.config]
+  neighbor-address = "10.0.255.1"
+  peer-as = 64512
+[[neighbors.afi-safis]]
+  afi-safi-name = "ipv4-flowspec"
 ```
 
 ## <a name="section1"> Add Flowspec routes through CLI
@@ -40,7 +35,7 @@ afi-safi-list like below.
 CLI syntax to add flowspec is
 
 ```shell
-% global rib add match <MATCH_EXPR> then <THEN_EXPR> -a ipv4-flowspec
+% global rib add match <MATCH_EXPR> then <THEN_EXPR> -a [ipv4-flowspec|ipv6-flowspec]
     <MATCH_EXPR> : { destination <PREFIX> | source <PREFIX> |
                      protocol <PROTO>... | fragment <FRAGMENT_TYPE> | tcp-flags <TCPFLAG>... |
                      { port | destination-port | source-port | icmp-type | icmp-code | packet-length | dscp } <ITEM>... }...

@@ -41,6 +41,17 @@ func TestMrtHdr(t *testing.T) {
 	assert.Equal(t, reflect.DeepEqual(h1, h2), true)
 }
 
+func TestMrtHdrTime(t *testing.T) {
+	h1, err := NewMRTHeader(10, TABLE_DUMPv2, RIB_IPV4_MULTICAST, 20)
+	if err != nil {
+		t.Fatal(err)
+	}
+	ttime := time.Unix(10, 0)
+	htime := h1.GetTime()
+	t.Logf("this timestamp should be 10s after epoch:%v", htime)
+	assert.Equal(t, h1.GetTime(), ttime)
+}
+
 func testPeer(t *testing.T, p1 *Peer) {
 	b1, err := p1.Serialize()
 	if err != nil {

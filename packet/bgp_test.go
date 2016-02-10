@@ -25,21 +25,23 @@ func open() *BGPMessage {
 	p1 := NewOptionParameterCapability(
 		[]ParameterCapabilityInterface{NewCapRouteRefresh()})
 	p2 := NewOptionParameterCapability(
-		[]ParameterCapabilityInterface{NewCapMultiProtocol(3, 4)})
+		[]ParameterCapabilityInterface{NewCapMultiProtocol(RF_IPv4_UC)})
 	g := CapGracefulRestartTuples{4, 2, 3}
 	p3 := NewOptionParameterCapability(
 		[]ParameterCapabilityInterface{NewCapGracefulRestart(2, 100,
 			[]CapGracefulRestartTuples{g})})
 	p4 := NewOptionParameterCapability(
 		[]ParameterCapabilityInterface{NewCapFourOctetASNumber(100000)})
+	p5 := NewOptionParameterCapability(
+		[]ParameterCapabilityInterface{NewCapAddPath(RF_IPv4_UC, BGP_ADD_PATH_BOTH)})
 	return NewBGPOpenMessage(11033, 303, "100.4.10.3",
-		[]OptionParameterInterface{p1, p2, p3, p4})
+		[]OptionParameterInterface{p1, p2, p3, p4, p5})
 }
 
 func update() *BGPMessage {
-	w1 := WithdrawnRoute{*NewIPAddrPrefix(23, "121.1.3.2")}
-	w2 := WithdrawnRoute{*NewIPAddrPrefix(17, "100.33.3.0")}
-	w := []WithdrawnRoute{w1, w2}
+	w1 := NewIPAddrPrefix(23, "121.1.3.2")
+	w2 := NewIPAddrPrefix(17, "100.33.3.0")
+	w := []*IPAddrPrefix{w1, w2}
 
 	aspath1 := []AsPathParamInterface{
 		NewAsPathParam(2, []uint16{1000}),
@@ -66,7 +68,10 @@ func update() *BGPMessage {
 		NewFourOctetAsSpecificExtended(EC_SUBTYPE_ROUTE_TARGET, 1<<20, 300, isTransitive),
 		NewIPv4AddressSpecificExtended(EC_SUBTYPE_ROUTE_TARGET, "192.2.1.2", 3000, isTransitive),
 		&OpaqueExtended{
-			Value: &DefaultOpaqueExtendedValue{[]byte{0, 1, 2, 3, 4, 5, 6, 7}},
+			Value: &DefaultOpaqueExtendedValue{[]byte{255, 1, 2, 3, 4, 5, 6, 7}},
+		},
+		&OpaqueExtended{
+			Value: &ValidationExtended{Value: VALIDATION_STATE_INVALID},
 		},
 		&UnknownExtended{Type: 99, Value: []byte{0, 1, 2, 3, 4, 5, 6, 7}},
 		NewESILabelExtended(1000, true),
@@ -142,7 +147,7 @@ func update() *BGPMessage {
 			},
 		},
 	}
-	n := []NLRInfo{*NewNLRInfo(24, "13.2.3.1")}
+	n := []*IPAddrPrefix{NewIPAddrPrefix(24, "13.2.3.1")}
 	return NewBGPUpdateMessage(w, p, n)
 }
 
@@ -460,5 +465,72 @@ func Test_FlowSpecExtended(t *testing.T) {
 		t.Error("Something wrong")
 		t.Error(len(buf1), m1, buf1)
 		t.Error(len(buf2), m2, buf2)
+	}
+}
+
+func Test_FlowSpecNlriv6(t *testing.T) {
+	assert := assert.New(t)
+	cmp := make([]FlowSpecComponentInterface, 0)
+	cmp = append(cmp, NewFlowSpecDestinationPrefix6(NewIPv6AddrPrefix(64, "2001::"), 12))
+	cmp = append(cmp, NewFlowSpecSourcePrefix6(NewIPv6AddrPrefix(64, "2001::"), 12))
+	eq := 0x1
+	gt := 0x2
+	lt := 0x4
+	and := 0x40
+	not := 0x2
+	item1 := NewFlowSpecComponentItem(eq, TCP)
+	cmp = append(cmp, NewFlowSpecComponent(FLOW_SPEC_TYPE_IP_PROTO, []*FlowSpecComponentItem{item1}))
+	item2 := NewFlowSpecComponentItem(gt|eq, 20)
+	item3 := NewFlowSpecComponentItem(and|lt|eq, 30)
+	item4 := NewFlowSpecComponentItem(eq, 10)
+	cmp = append(cmp, NewFlowSpecComponent(FLOW_SPEC_TYPE_PORT, []*FlowSpecComponentItem{item2, item3, item4}))
+	cmp = append(cmp, NewFlowSpecComponent(FLOW_SPEC_TYPE_DST_PORT, []*FlowSpecComponentItem{item2, item3, item4}))
+	cmp = append(cmp, NewFlowSpecComponent(FLOW_SPEC_TYPE_SRC_PORT, []*FlowSpecComponentItem{item2, item3, item4}))
+	cmp = append(cmp, NewFlowSpecComponent(FLOW_SPEC_TYPE_ICMP_TYPE, []*FlowSpecComponentItem{item2, item3, item4}))
+	cmp = append(cmp, NewFlowSpecComponent(FLOW_SPEC_TYPE_ICMP_CODE, []*FlowSpecComponentItem{item2, item3, item4}))
+	cmp = append(cmp, NewFlowSpecComponent(FLOW_SPEC_TYPE_PKT_LEN, []*FlowSpecComponentItem{item2, item3, item4}))
+	cmp = append(cmp, NewFlowSpecComponent(FLOW_SPEC_TYPE_DSCP, []*FlowSpecComponentItem{item2, item3, item4}))
+	cmp = append(cmp, NewFlowSpecComponent(FLOW_SPEC_TYPE_LABEL, []*FlowSpecComponentItem{item2, item3, item4}))
+	isFlagment := 0x02
+	item5 := NewFlowSpecComponentItem(isFlagment, 0)
+	cmp = append(cmp, NewFlowSpecComponent(FLOW_SPEC_TYPE_FRAGMENT, []*FlowSpecComponentItem{item5}))
+	item6 := NewFlowSpecComponentItem(0, TCP_FLAG_ACK)
+	item7 := NewFlowSpecComponentItem(and|not, TCP_FLAG_URGENT)
+	cmp = append(cmp, NewFlowSpecComponent(FLOW_SPEC_TYPE_TCP_FLAG, []*FlowSpecComponentItem{item6, item7}))
+	n1 := NewFlowSpecIPv6Unicast(cmp)
+	buf1, err := n1.Serialize()
+	assert.Nil(err)
+	n2, err := NewPrefixFromRouteFamily(RouteFamilyToAfiSafi(RF_FS_IPv6_UC))
+	assert.Nil(err)
+	err = n2.DecodeFromBytes(buf1)
+	assert.Nil(err)
+	buf2, _ := n2.Serialize()
+	if reflect.DeepEqual(n1, n2) == true {
+		t.Log("OK")
+	} else {
+		t.Error("Something wrong")
+		t.Error(len(buf1), n1, buf1)
+		t.Error(len(buf2), n2, buf2)
+		t.Log(bytes.Equal(buf1, buf2))
+	}
+}
+
+func Test_Aigp(t *testing.T) {
+	assert := assert.New(t)
+	m := NewAigpTLVIgpMetric(1000)
+	a1 := NewPathAttributeAigp([]AigpTLV{m})
+	buf1, err := a1.Serialize()
+	assert.Nil(err)
+	a2 := NewPathAttributeAigp(nil)
+	err = a2.DecodeFromBytes(buf1)
+	assert.Nil(err)
+	buf2, _ := a2.Serialize()
+	if reflect.DeepEqual(a1, a2) == true {
+		t.Log("OK")
+	} else {
+		t.Error("Something wrong")
+		t.Error(len(buf1), a1, buf1)
+		t.Error(len(buf2), a2, buf2)
+		t.Log(bytes.Equal(buf1, buf2))
 	}
 }
