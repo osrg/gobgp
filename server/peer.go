@@ -93,9 +93,47 @@ func (peer *Peer) isRouteReflectorClient() bool {
 	return peer.conf.RouteReflector.Config.RouteReflectorClient
 }
 
+func (peer *Peer) isGracefulRestartEnabled() bool {
+	return peer.fsm.pConf.GracefulRestart.State.Enabled
+}
+
+func (peer *Peer) recvedAllEOR() bool {
+	for _, a := range peer.fsm.pConf.AfiSafis {
+		if s := a.MpGracefulRestart.State; s.Enabled && !s.EndOfRibReceived {
+			return false
+		}
+	}
+	return true
+}
+
 func (peer *Peer) configuredRFlist() []bgp.RouteFamily {
 	rfs, _ := config.AfiSafis(peer.conf.AfiSafis).ToRfList()
 	return rfs
+}
+
+func (peer *Peer) forwardingPreservedFamilies() ([]bgp.RouteFamily, []bgp.RouteFamily) {
+	list := []bgp.RouteFamily{}
+	for _, a := range peer.fsm.pConf.AfiSafis {
+		if s := a.MpGracefulRestart.State; s.Enabled && s.Received {
+			f, _ := bgp.GetRouteFamily(string(a.AfiSafiName))
+			list = append(list, f)
+		}
+	}
+	preserved := []bgp.RouteFamily{}
+	notPreserved := []bgp.RouteFamily{}
+	for _, f := range peer.configuredRFlist() {
+		p := true
+		for _, g := range list {
+			if f == g {
+				p = false
+				preserved = append(preserved, f)
+			}
+		}
+		if p {
+			notPreserved = append(notPreserved, f)
+		}
+	}
+	return preserved, notPreserved
 }
 
 func (peer *Peer) getAccepted(rfList []bgp.RouteFamily) []*table.Path {
@@ -126,16 +164,22 @@ func (peer *Peer) getBestFromLocal(rfList []bgp.RouteFamily) ([]*table.Path, []*
 		}
 		pathList = append(pathList, p)
 	}
+	if peer.isGracefulRestartEnabled() {
+		for _, family := range rfList {
+			pathList = append(pathList, table.NewEOR(family))
+		}
+	}
 	return pathList, filtered
 }
 
-func (peer *Peer) handleBGPmessage(e *FsmMsg) ([]*table.Path, []*bgp.BGPMessage) {
+func (peer *Peer) handleBGPmessage(e *FsmMsg) ([]*table.Path, []*bgp.BGPMessage, []bgp.RouteFamily) {
 	m := e.MsgData.(*bgp.BGPMessage)
 	log.WithFields(log.Fields{
 		"Topic": "Peer",
 		"Key":   peer.conf.Config.NeighborAddress,
 		"data":  m,
 	}).Debug("received")
+	eor := []bgp.RouteFamily{}
 
 	switch m.Header.Type {
 	case bgp.BGP_MSG_ROUTE_REFRESH:
@@ -158,7 +202,7 @@ func (peer *Peer) handleBGPmessage(e *FsmMsg) ([]*table.Path, []*bgp.BGPMessage)
 				path.IsWithdraw = true
 				accepted = append(accepted, path)
 			}
-			return nil, table.CreateUpdateMsgFromPaths(accepted)
+			return nil, table.CreateUpdateMsgFromPaths(accepted), eor
 		} else {
 			log.WithFields(log.Fields{
 				"Topic": "Peer",
@@ -172,18 +216,32 @@ func (peer *Peer) handleBGPmessage(e *FsmMsg) ([]*table.Path, []*bgp.BGPMessage)
 			peer.adjRibIn.Update(e.PathList)
 			paths := make([]*table.Path, 0, len(e.PathList))
 			for _, path := range e.PathList {
+				if path.IsEOR() {
+					family := path.GetRouteFamily()
+					log.WithFields(log.Fields{
+						"Topic":         "Peer",
+						"Key":           peer.conf.Config.NeighborAddress,
+						"AddressFamily": family,
+					}).Debug("EOR received")
+					eor = append(eor, family)
+					continue
+				}
 				if path.Filtered(peer.ID()) != table.POLICY_DIRECTION_IN {
 					paths = append(paths, path)
 				}
 			}
-			return paths, nil
+			return paths, nil, eor
 		}
 	}
-	return nil, nil
+	return nil, nil, eor
 }
 
 func (peer *Peer) startFSMHandler(incoming, stateCh chan *FsmMsg) {
 	peer.fsm.h = NewFSMHandler(peer.fsm, incoming, stateCh, peer.outgoing)
+}
+
+func (peer *Peer) StaleAll(rfList []bgp.RouteFamily) {
+	peer.adjRibIn.StaleAll(rfList)
 }
 
 func (peer *Peer) PassConn(conn *net.TCPConn) {

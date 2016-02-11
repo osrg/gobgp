@@ -164,6 +164,7 @@ type Path struct {
 	Validation int32                        `json:"validation"`
 	Filtered   bool                         `json:"filtered"`
 	SourceId   string                       `json:"source-id"`
+	Stale      bool                         `json:"stale"`
 }
 
 func ApiStruct2Path(p *gobgpapi.Path) ([]*Path, error) {
@@ -211,6 +212,7 @@ func ApiStruct2Path(p *gobgpapi.Path) ([]*Path, error) {
 			Validation: p.Validation,
 			SourceId:   p.SourceId,
 			Filtered:   p.Filtered,
+			Stale:      p.Stale,
 		})
 	}
 	return paths, nil

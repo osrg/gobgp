@@ -105,6 +105,9 @@ func ProcessMessage(m *bgp.BGPMessage, peerInfo *PeerInfo, timestamp time.Time) 
 	pathList = append(pathList, withdraw2Path(m, peerInfo, timestamp)...)
 	pathList = append(pathList, mpreachNlri2Path(m, peerInfo, timestamp)...)
 	pathList = append(pathList, mpunreachNlri2Path(m, peerInfo, timestamp)...)
+	if y, f := m.Body.(*bgp.BGPUpdate).IsEndOfRib(); y {
+		pathList = append(pathList, NewEOR(f))
+	}
 	return pathList
 }
 
@@ -236,7 +239,7 @@ func (manager *TableManager) ProcessPaths(pathList []*Path) []*Destination {
 	m := make(map[string]bool, len(pathList))
 	dsts := make([]*Destination, 0, len(pathList))
 	for _, path := range pathList {
-		if path == nil {
+		if path == nil || path.IsEOR() {
 			continue
 		}
 		rf := path.GetRouteFamily()

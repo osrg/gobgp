@@ -37,6 +37,7 @@ No dependency hell (library, package, etc) thanks to Go.
  * [RPKI](https://github.com/osrg/gobgp/blob/master/docs/sources/rpki.md)
  * [Managing GoBGP with your favorite language](https://github.com/osrg/gobgp/blob/master/docs/sources/grpc-client.md)
  * [Using GoBGP as a Go Native BGP library](https://github.com/osrg/gobgp/blob/master/docs/sources/lib.md)
+ * [Graceful Restart](https://github.com/osrg/gobgp/blob/master/docs/sources/graceful-restart.md)
  
 ## Community, discussion and support
 

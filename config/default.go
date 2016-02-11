@@ -138,6 +138,22 @@ func SetDefaultConfigValues(v *viper.Viper, b *Bgp) error {
 				n.Config.PeerType = PEER_TYPE_INTERNAL
 			}
 		}
+
+		if n.GracefulRestart.Config.Enabled {
+			if !vv.IsSet("neighbor.graceful-restart.config.restart-time") {
+				// RFC 4724 4. Operation
+				// A suggested default for the Restart Time is a value less than or
+				// equal to the HOLDTIME carried in the OPEN.
+				n.GracefulRestart.Config.RestartTime = uint16(n.Timers.Config.HoldTime)
+			}
+			if !vv.IsSet("neighbor.graceful-restart.config.deferral-time") {
+				// RFC 4724 4.1. Procedures for the Restarting Speaker
+				// The value of this timer should be large
+				// enough, so as to provide all the peers of the Restarting Speaker with
+				// enough time to send all the routes to the Restarting Speaker
+				n.GracefulRestart.Config.DeferralTime = uint16(360)
+			}
+		}
 		b.Neighbors[idx] = n
 	}
 

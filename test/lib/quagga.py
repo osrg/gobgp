@@ -178,6 +178,8 @@ class QuaggaBGPContainer(BGPContainer):
         c << 'password zebra'
         c << 'router bgp {0}'.format(self.asn)
         c << 'bgp router-id {0}'.format(self.router_id)
+        if any(info['graceful_restart'] for info in self.peers.itervalues()):
+            c << 'bgp graceful-restart'
 
         version = 4
         for peer, info in self.peers.iteritems():

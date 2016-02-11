@@ -71,6 +71,20 @@ PIDS=("${PIDS[@]}" $!)
 sudo -E PYTHONPATH=$GOBGP/test python route_server_as2_test.py --gobgp-image $GOBGP_IMAGE --test-prefix as2 -s -x --with-xunit --xunit-file=${WS}/nosetest_rs_as2.xml &
 PIDS=("${PIDS[@]}" $!)
 
+# graceful restart test
+sudo -E PYTHONPATH=$GOBGP/test python graceful_restart_test.py --gobgp-image $GOBGP_IMAGE --test-prefix gr -s -x --with-xunit --xunit-file=${WS}/nosetest_rs_gr.xml &
+PIDS=("${PIDS[@]}" $!)
+
+for (( i = 0; i < ${#PIDS[@]}; ++i ))
+do
+    wait ${PIDS[$i]}
+    if [ $? != 0 ]; then
+        exit 1
+    fi
+done
+
+PIDS=()
+
 # route server malformed message test
 NUM=$(sudo -E PYTHONPATH=$GOBGP/test python route_server_malformed_test.py --test-index -1 -s 2> /dev/null | awk '/invalid/{print $NF}')
 PARALLEL_NUM=10
