@@ -26,6 +26,7 @@ import (
 	"math/rand"
 	"net"
 	"strconv"
+	"sync"
 	"time"
 )
 
@@ -543,11 +544,11 @@ func readAll(conn net.Conn, length int) ([]byte, error) {
 	return buf, nil
 }
 
-func (h *FSMHandler) recvMessageWithError() error {
+func (h *FSMHandler) recvMessageWithError() (error, *FsmMsg) {
 	headerBuf, err := readAll(h.conn, bgp.BGP_HEADER_LENGTH)
 	if err != nil {
 		h.errorCh <- FSM_READ_FAILED
-		return err
+		return err, nil
 	}
 
 	hd := &bgp.BGPHeader{}
@@ -566,13 +567,13 @@ func (h *FSMHandler) recvMessageWithError() error {
 			MsgDst:  h.fsm.pConf.Transport.Config.LocalAddress,
 			MsgData: err,
 		}
-		return err
+		return err, nil
 	}
 
 	bodyBuf, err := readAll(h.conn, int(hd.Len)-bgp.BGP_HEADER_LENGTH)
 	if err != nil {
 		h.errorCh <- FSM_READ_FAILED
-		return err
+		return err, nil
 	}
 
 	now := time.Now()
@@ -637,7 +638,7 @@ func (h *FSMHandler) recvMessageWithError() error {
 					h.holdTimerResetCh <- true
 				}
 				if m.Header.Type == bgp.BGP_MSG_KEEPALIVE {
-					return nil
+					return nil, nil
 				}
 			case bgp.BGP_MSG_NOTIFICATION:
 				body := m.Body.(*bgp.BGPNotification)
@@ -649,16 +650,18 @@ func (h *FSMHandler) recvMessageWithError() error {
 					"Data":    body.Data,
 				}).Warn("received notification")
 				h.errorCh <- FSM_NOTIFICATION_RECV
-				return nil
+				return nil, nil
 			}
 		}
 	}
-	h.msgCh <- fmsg
-	return err
+	return err, fmsg
 }
 
 func (h *FSMHandler) recvMessage() error {
-	h.recvMessageWithError()
+	_, fmsg := h.recvMessageWithError()
+	if fmsg != nil {
+		h.msgCh <- fmsg
+	}
 	return nil
 }
 
@@ -1048,10 +1051,45 @@ func (h *FSMHandler) sendMessageloop() error {
 }
 
 func (h *FSMHandler) recvMessageloop() error {
+	msgs := make([]*FsmMsg, 0, 128)
+	c := sync.NewCond(&sync.Mutex{})
+	dead := false
+	l := func() error {
+		for {
+			err, fmsg := h.recvMessageWithError()
+			if err != nil {
+				c.L.Lock()
+				dead = true
+				c.L.Unlock()
+				c.Signal()
+				return nil
+			}
+			if fmsg != nil {
+				c.L.Lock()
+				msgs = append(msgs, fmsg)
+				c.L.Unlock()
+				c.Signal()
+			}
+		}
+	}
+	h.t.Go(l)
+
 	for {
-		err := h.recvMessageWithError()
-		if err != nil {
+		c.L.Lock()
+		for len(msgs) == 0 || dead == false {
+			c.Wait()
+		}
+		if dead == true {
+			c.L.Unlock()
 			return nil
+		}
+
+		toSend := msgs
+		msgs = make([]*FsmMsg, 0, 128)
+		c.L.Unlock()
+
+		for _, m := range toSend {
+			h.msgCh <- m
 		}
 	}
 }
