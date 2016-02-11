@@ -208,15 +208,53 @@ func showNeighbor(args []string) error {
 			support += "received"
 		}
 
-		if c.Code() != bgp.BGP_CAP_MULTIPROTOCOL {
-			fmt.Printf("    %s:\t%s\n", c.Code(), support)
-		} else {
+		switch c.Code() {
+		case bgp.BGP_CAP_MULTIPROTOCOL:
 			if firstMp {
 				fmt.Printf("    %s:\n", c.Code())
 				firstMp = false
 			}
 			m := c.(*bgp.CapMultiProtocol).CapValue
 			fmt.Printf("        %s:\t%s\n", m, support)
+		case bgp.BGP_CAP_GRACEFUL_RESTART:
+			fmt.Printf("    %s:\t%s\n", c.Code(), support)
+			grStr := func(g *bgp.CapGracefulRestart) string {
+				str := ""
+				if len(g.Tuples) > 0 {
+					str += fmt.Sprintf("restart time %d sec", g.Time)
+				}
+				if g.Flags == 0x08 {
+					if len(str) > 0 {
+						str += ", "
+					}
+					str += "restart flag set"
+				}
+				if len(str) > 0 {
+					str += "\n"
+				}
+				for _, t := range g.Tuples {
+					str += fmt.Sprintf("	    %s", bgp.AfiSafiToRouteFamily(t.AFI, t.SAFI))
+					if t.Flags == 0x80 {
+						str += ", forward flag set"
+					}
+					str += "\n"
+				}
+				return str
+			}
+			if m := lookup(c, p.Conf.LocalCap); m != nil {
+				g := m.(*bgp.CapGracefulRestart)
+				if s := grStr(g); len(s) > 0 {
+					fmt.Printf("        Local: %s", s)
+				}
+			}
+			if m := lookup(c, p.Conf.RemoteCap); m != nil {
+				g := m.(*bgp.CapGracefulRestart)
+				if s := grStr(g); len(s) > 0 {
+					fmt.Printf("        Remote: %s", s)
+				}
+			}
+		default:
+			fmt.Printf("    %s:\t%s\n", c.Code(), support)
 		}
 	}
 	fmt.Print("  Message statistics:\n")
@@ -285,6 +323,9 @@ func ShowRoute(pathList []*Path, showAge, showBest, showLabel, isMonitor, printH
 		}
 
 		best := ""
+		if p.Stale {
+			best += "S"
+		}
 		switch int(p.Validation) {
 		case config.RPKI_VALIDATION_RESULT_TYPE_NOT_FOUND.ToInt():
 			best += "N"
