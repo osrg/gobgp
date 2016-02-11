@@ -16,8 +16,9 @@
 package server
 
 import (
-	"bufio"
+	"encoding/binary"
 	"fmt"
+	"io"
 	"net"
 	"sort"
 	"strconv"
@@ -392,7 +393,7 @@ func (c *roaManager) handleRTRMsg(client *roaClient, state *config.RpkiServerSta
 			received.Error++
 		}
 	} else {
-		log.Info("failed to parse a RTR message", client.host)
+		log.Info("failed to parse a RTR message ", client.host, err)
 	}
 }
 
@@ -675,16 +676,29 @@ func (c *roaClient) established() error {
 		return nil
 	}
 
-	reader := bufio.NewReader(c.conn)
-	scanner := bufio.NewScanner(reader)
-	scanner.Split(bgp.SplitRTR)
+	for {
+		header := make([]byte, bgp.RTR_MIN_LEN)
+		_, err := io.ReadFull(c.conn, header)
+		if err != nil {
+			break
+		}
+		totalLen := binary.BigEndian.Uint32(header[4:8])
+		if totalLen < bgp.RTR_MIN_LEN {
+			break
+		}
 
-	for scanner.Scan() {
+		body := make([]byte, totalLen-bgp.RTR_MIN_LEN)
+		_, err = io.ReadFull(c.conn, body)
+		if err != nil {
+			break
+		}
+
 		c.eventCh <- &roaClientEvent{
 			eventType: RTR,
 			src:       c.host,
-			data:      scanner.Bytes(),
+			data:      append(header, body...),
 		}
+
 	}
 	disconnected()
 	return nil
