@@ -99,6 +99,7 @@ func NewEOR(family bgp.RouteFamily) *Path {
 			nlri: nlri,
 			eor:  true,
 		},
+		filtered:   make(map[string]PolicyDirection),
 	}
 }
 
