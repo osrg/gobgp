@@ -24,6 +24,8 @@ gobgp has six subcommands.
 % gobgp global rib add <prefix> [-a <address family>]
 # delete a specific Route
 % gobgp global rib del <prefix> [-a <address family>]
+# delete all routes
+% gobgp global rib del all [-a <address family>]
 # show all Route information
 % gobgp global rib [-a <address family>]
 # show a specific route information
