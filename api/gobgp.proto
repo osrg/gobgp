@@ -80,7 +80,10 @@ message ModPathArguments {
     Resource resource = 2;
     string name = 3;
     Path path = 4;
+    // uuid field can be only used when operation is DEL
     bytes uuid = 5;
+    // family field is only used when operation is DEL_ALL
+    uint32 family = 6;
 }
 
 message ModPathResponse {

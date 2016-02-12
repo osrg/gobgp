@@ -1481,6 +1481,14 @@ func (server *BgpServer) handleModPathRequest(grpcReq *GrpcRequest) []*table.Pat
 				uuidBytes = u.Bytes()
 				paths[0].SetUUID(uuidBytes)
 			}
+		case api.Operation_DEL_ALL:
+			families := server.globalRib.GetRFlist()
+			if arg.Family != 0 {
+				families = []bgp.RouteFamily{bgp.RouteFamily(arg.Family)}
+			}
+			for _, path := range server.globalRib.GetPathList(table.GLOBAL_RIB_NAME, families) {
+				paths = append(paths, path.Clone(true))
+			}
 		}
 	}
 	result := &GrpcResponse{
