@@ -2206,6 +2206,13 @@ func (server *BgpServer) handleGrpc(grpcReq *GrpcRequest) []*SenderMsg {
 		}
 		w := server.watchers[WATCHER_GRPC_INCOMING]
 		go w.(*grpcIncomingWatcher).addRequest(grpcReq)
+	case REQ_MONITOR_BMP:
+		w, y := server.watchers[WATCHER_BMP]
+		if !y {
+			w, _ = newBmpWatcher(server.GrpcReqCh)
+			server.watchers[WATCHER_BMP] = w
+		}
+		go w.(*bmpWatcher).addRequest(grpcReq)
 	case REQ_MRT_GLOBAL_RIB, REQ_MRT_LOCAL_RIB:
 		server.handleMrt(grpcReq)
 	case REQ_MOD_MRT:

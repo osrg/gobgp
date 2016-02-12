@@ -48,6 +48,7 @@ const (
 	REQ_MONITOR_INCOMING
 	REQ_MONITOR_NEIGHBOR_PEER_STATE
 	REQ_MONITOR_ROA_VALIDATION_RESULT
+	REQ_MONITOR_BMP
 	REQ_MRT_GLOBAL_RIB
 	REQ_MRT_LOCAL_RIB
 	REQ_MOD_MRT
@@ -447,6 +448,14 @@ func (s *Server) GetGlobalConfig(ctx context.Context, arg *api.Arguments) (*api.
 
 func (s *Server) ModGlobalConfig(ctx context.Context, arg *api.ModGlobalConfigArguments) (*api.Error, error) {
 	return s.mod(REQ_MOD_GLOBAL_CONFIG, arg)
+}
+
+func (s *Server) MonitorBmp(arg *api.MonitorBmpArguments, stream api.GobgpApi_MonitorBmpServer) error {
+	req := NewGrpcRequest(REQ_MONITOR_BMP, "", bgp.RouteFamily(0), arg)
+	s.bgpServerCh <- req
+	return handleMultipleResponses(req, func(res *GrpcResponse) error {
+		return stream.Send(res.Data.(*api.BmpMessage))
+	})
 }
 
 type GrpcRequest struct {
