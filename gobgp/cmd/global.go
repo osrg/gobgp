@@ -771,6 +771,30 @@ func NewGlobalCmd() *cobra.Command {
 			},
 		}
 		ribCmd.AddCommand(cmd)
+
+		if v == CMD_DEL {
+			subcmd := &cobra.Command{
+				Use: CMD_ALL,
+				Run: func(cmd *cobra.Command, args []string) {
+					family, err := checkAddressFamily(bgp.RouteFamily(0))
+					if err != nil {
+						fmt.Println(err)
+						os.Exit(1)
+					}
+					arg := &api.ModPathArguments{
+						Operation: api.Operation_DEL_ALL,
+						Resource:  api.Resource_GLOBAL,
+						Family:    uint32(family),
+					}
+					_, err = client.ModPath(context.Background(), arg)
+					if err != nil {
+						fmt.Println(err)
+						os.Exit(1)
+					}
+				},
+			}
+			cmd.AddCommand(subcmd)
+		}
 	}
 
 	policyCmd := &cobra.Command{
