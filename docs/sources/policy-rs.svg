@@ -880,7 +880,7 @@
     <text
        xml:space="preserve"
        style="font-style:normal;font-weight:normal;font-size:17.5px;line-height:125%;font-family:sans-serif;letter-spacing:0px;word-spacing:0px;fill:#ffffff;fill-opacity:1;stroke:none;stroke-width:1px;stroke-linecap:butt;stroke-linejoin:miter;stroke-opacity:1"
-       x="569.59259"
+       x="567.59259"
        y="341.87881"
        id="text3340-7-3"
        sodipodi:linespacing="125%"
@@ -888,10 +888,10 @@
        inkscape:export-ydpi="90"><tspan
          sodipodi:role="line"
          id="tspan3342-9-7"
-         x="569.59259"
-         y="341.87881">A's Inport</tspan><tspan
+         x="567.59259"
+         y="341.87881">A's Import</tspan><tspan
          sodipodi:role="line"
-         x="569.59259"
+         x="567.59259"
          y="363.75381"
          id="tspan4922-6">Policy</tspan></text>
     <path
@@ -991,7 +991,7 @@
          sodipodi:role="line"
          id="tspan3393-8"
          x="1092.1482"
-         y="340.43625">From</tspan><tspan
+         y="340.43625">To</tspan><tspan
          sodipodi:role="line"
          x="1092.1482"
          y="362.31125"
@@ -1106,7 +1106,7 @@
     <text
        xml:space="preserve"
        style="font-style:normal;font-weight:normal;font-size:17.5px;line-height:125%;font-family:sans-serif;letter-spacing:0px;word-spacing:0px;fill:#ffffff;fill-opacity:1;stroke:none;stroke-width:1px;stroke-linecap:butt;stroke-linejoin:miter;stroke-opacity:1"
-       x="569.25403"
+       x="567.25403"
        y="422.16476"
        id="text3340-7-3-6"
        sodipodi:linespacing="125%"
@@ -1114,10 +1114,10 @@
        inkscape:export-ydpi="90"><tspan
          sodipodi:role="line"
          id="tspan3342-9-7-4"
-         x="569.25403"
-         y="422.16476">B's Inport</tspan><tspan
+         x="567.25403"
+         y="422.16476">B's Import</tspan><tspan
          sodipodi:role="line"
-         x="569.25403"
+         x="567.25403"
          y="444.03976"
          id="tspan4922-6-9">Policy</tspan></text>
     <path
@@ -1217,7 +1217,7 @@
          sodipodi:role="line"
          id="tspan3393-8-1"
          x="1091.8096"
-         y="420.7222">From</tspan><tspan
+         y="420.7222">To</tspan><tspan
          sodipodi:role="line"
          x="1091.8096"
          y="442.5972"
@@ -1332,7 +1332,7 @@
     <text
        xml:space="preserve"
        style="font-style:normal;font-weight:normal;font-size:17.5px;line-height:125%;font-family:sans-serif;letter-spacing:0px;word-spacing:0px;fill:#ffffff;fill-opacity:1;stroke:none;stroke-width:1px;stroke-linecap:butt;stroke-linejoin:miter;stroke-opacity:1"
-       x="568.51331"
+       x="566.51331"
        y="501.97958"
        id="text3340-7-3-6-0"
        sodipodi:linespacing="125%"
@@ -1340,10 +1340,10 @@
        inkscape:export-ydpi="90"><tspan
          sodipodi:role="line"
          id="tspan3342-9-7-4-5"
-         x="568.51331"
-         y="501.97958">C's Inport</tspan><tspan
+         x="566.51331"
+         y="501.97958">C's Import</tspan><tspan
          sodipodi:role="line"
-         x="568.51331"
+         x="566.51331"
          y="523.85461"
          id="tspan4922-6-9-5">Policy</tspan></text>
     <path
@@ -1443,7 +1443,7 @@
          sodipodi:role="line"
          id="tspan3393-8-1-4"
          x="1091.0688"
-         y="500.53702">From</tspan><tspan
+         y="500.53702">To</tspan><tspan
          sodipodi:role="line"
          x="1091.0688"
          y="522.41199"
