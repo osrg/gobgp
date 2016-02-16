@@ -189,7 +189,7 @@ func dumpRib(r string, remoteIP net.IP, args []string) error {
 	return nil
 }
 
-func injectMrt(r string, filename string, count int) error {
+func injectMrt(r string, filename string, count int, skip int) error {
 
 	var resource api.Resource
 	switch r {
@@ -300,13 +300,15 @@ func injectMrt(r string, filename string, count int) error {
 					paths = append(paths, path)
 				}
 
-				ch <- &api.ModPathsArguments{
-					Resource: resource,
-					Paths:    paths,
+				if idx >= skip {
+					ch <- &api.ModPathsArguments{
+						Resource: resource,
+						Paths:    paths,
+					}
 				}
 
 				idx += 1
-				if idx == count {
+				if idx == count+skip {
 					break
 				}
 			}
@@ -387,11 +389,12 @@ func NewMrtCmd() *cobra.Command {
 		Use: CMD_GLOBAL,
 		Run: func(cmd *cobra.Command, args []string) {
 			if len(args) < 1 {
-				fmt.Println("usage: gobgp mrt inject global <filename> [<count>]")
+				fmt.Println("usage: gobgp mrt inject global <filename> [<count> [<skip>]]")
 				os.Exit(1)
 			}
 			filename := args[0]
 			count := -1
+			skip := 0
 			if len(args) > 1 {
 				var err error
 				count, err = strconv.Atoi(args[1])
@@ -399,8 +402,15 @@ func NewMrtCmd() *cobra.Command {
 					fmt.Println("invalid count value:", args[1])
 					os.Exit(1)
 				}
+				if len(args) > 2 {
+					skip, err = strconv.Atoi(args[2])
+					if err != nil {
+						fmt.Println("invalid skip value:", args[2])
+						os.Exit(1)
+					}
+				}
 			}
-			err := injectMrt(CMD_GLOBAL, filename, count)
+			err := injectMrt(CMD_GLOBAL, filename, count, skip)
 			if err != nil {
 				fmt.Println(err)
 				os.Exit(1)
