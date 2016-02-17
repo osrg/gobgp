@@ -107,7 +107,7 @@ func TableCreatePath(peerT []*PeerInfo) []*Path {
 		nlriList := updateMsgT.NLRI
 		pathAttributes := updateMsgT.PathAttributes
 		nlri_info := nlriList[0]
-		pathT[i] = NewPath(peerT[i], nlri_info, false, pathAttributes, time.Now(), false)
+		pathT[i] = NewPath(peerT[i], nlri_info, false, pathAttributes, time.Now(), false, false)
 	}
 	return pathT
 }

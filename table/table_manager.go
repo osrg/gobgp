@@ -33,7 +33,7 @@ func nlri2Path(m *bgp.BGPMessage, p *PeerInfo, now time.Time) []*Path {
 	pathAttributes := updateMsg.PathAttributes
 	pathList := make([]*Path, 0)
 	for _, nlri := range updateMsg.NLRI {
-		path := NewPath(p, nlri, false, pathAttributes, now, false)
+		path := NewPath(p, nlri, false, pathAttributes, now, false, false)
 		pathList = append(pathList, path)
 	}
 	return pathList
@@ -44,7 +44,7 @@ func withdraw2Path(m *bgp.BGPMessage, p *PeerInfo, now time.Time) []*Path {
 	pathAttributes := updateMsg.PathAttributes
 	pathList := make([]*Path, 0)
 	for _, nlri := range updateMsg.WithdrawnRoutes {
-		path := NewPath(p, nlri, true, pathAttributes, now, false)
+		path := NewPath(p, nlri, true, pathAttributes, now, false, false)
 		pathList = append(pathList, path)
 	}
 	return pathList
@@ -67,7 +67,7 @@ func mpreachNlri2Path(m *bgp.BGPMessage, p *PeerInfo, now time.Time) []*Path {
 	for _, mp := range attrList {
 		nlri_info := mp.Value
 		for _, nlri := range nlri_info {
-			path := NewPath(p, nlri, false, pathAttributes, now, false)
+			path := NewPath(p, nlri, false, pathAttributes, now, false, false)
 			pathList = append(pathList, path)
 		}
 	}
@@ -92,7 +92,7 @@ func mpunreachNlri2Path(m *bgp.BGPMessage, p *PeerInfo, now time.Time) []*Path {
 		nlri_info := mp.Value
 
 		for _, nlri := range nlri_info {
-			path := NewPath(p, nlri, true, pathAttributes, now, false)
+			path := NewPath(p, nlri, true, pathAttributes, now, false, false)
 			pathList = append(pathList, path)
 		}
 	}
@@ -189,7 +189,7 @@ func (manager *TableManager) AddVrf(name string, rd bgp.RouteDistinguisherInterf
 		pattr := make([]bgp.PathAttributeInterface, 0, 2)
 		pattr = append(pattr, bgp.NewPathAttributeOrigin(bgp.BGP_ORIGIN_ATTR_TYPE_IGP))
 		pattr = append(pattr, bgp.NewPathAttributeMpReachNLRI(nexthop, []bgp.AddrPrefixInterface{nlri}))
-		msgs = append(msgs, NewPath(info, nlri, false, pattr, time.Now(), false))
+		msgs = append(msgs, NewPath(info, nlri, false, pattr, time.Now(), false, false))
 	}
 	return msgs, nil
 }
