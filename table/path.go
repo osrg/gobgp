@@ -52,6 +52,7 @@ type originInfo struct {
 	noImplicitWithdraw bool
 	validation         config.RpkiValidationResultType
 	isFromZebra        bool
+	isFromOps          bool
 	key                string
 	uuid               []byte
 	eor                bool
@@ -68,7 +69,7 @@ type Path struct {
 	filtered   map[string]PolicyDirection
 }
 
-func NewPath(source *PeerInfo, nlri bgp.AddrPrefixInterface, isWithdraw bool, pattrs []bgp.PathAttributeInterface, timestamp time.Time, noImplicitWithdraw bool) *Path {
+func NewPath(source *PeerInfo, nlri bgp.AddrPrefixInterface, isWithdraw bool, pattrs []bgp.PathAttributeInterface, timestamp time.Time, noImplicitWithdraw bool, isFromOps bool) *Path {
 	if !isWithdraw && pattrs == nil {
 		log.WithFields(log.Fields{
 			"Topic": "Table",
@@ -84,6 +85,7 @@ func NewPath(source *PeerInfo, nlri bgp.AddrPrefixInterface, isWithdraw bool, pa
 			source:             source,
 			timestamp:          timestamp,
 			noImplicitWithdraw: noImplicitWithdraw,
+			isFromOps:          isFromOps,
 		},
 		IsWithdraw: isWithdraw,
 		pathAttrs:  pattrs,
@@ -99,7 +101,7 @@ func NewEOR(family bgp.RouteFamily) *Path {
 			nlri: nlri,
 			eor:  true,
 		},
-		filtered:   make(map[string]PolicyDirection),
+		filtered: make(map[string]PolicyDirection),
 	}
 }
 
@@ -240,6 +242,7 @@ func (path *Path) ToApiStruct(id string) *api.Path {
 		SourceAsn:  path.OriginInfo().source.AS,
 		SourceId:   path.OriginInfo().source.ID.String(),
 		Stale:      path.IsStale(),
+		IsFromOps:  path.OriginInfo().isFromOps,
 	}
 }
 

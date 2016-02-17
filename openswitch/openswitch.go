@@ -35,8 +35,8 @@ const (
 )
 
 const (
-	NEXTHOP_UUID = "nexthop"
-	ROUTE_UUID   = "route"
+	NEXTHOP_TRANSACT_NUUID = "nexthop"
+	ROUTE_TRANSACT_NUUID   = "route"
 )
 
 type Notifier struct {
@@ -104,7 +104,7 @@ func (m *OpsManager) getVrfUUID() (uuid.UUID, error) {
 	for k, _ := range vrfs {
 		return uuid.FromStringOrNil(k), nil
 	}
-	return uuid.Nil, fmt.Errorf("vrf table not found")
+	return uuid.Nil, fmt.Errorf("uuid not found in VRF table")
 }
 
 func (m *OpsManager) getBGPRouterUUID() (uint32, uuid.UUID, error) {
@@ -132,20 +132,27 @@ func (m *OpsManager) getBGPRouterUUID() (uint32, uuid.UUID, error) {
 			}
 		}
 	}
-	return asn, uuid.Nil, fmt.Errorf("not found")
+	return asn, uuid.Nil, fmt.Errorf("row not found in vrf table")
 }
 
-func parseRouteToGobgp(route ovsdb.RowUpdate, nexthops map[string]ovsdb.Row) (*api.Path, bool, error) {
+func parseRouteToGobgp(route ovsdb.RowUpdate, nexthops map[string]ovsdb.Row) (*api.Path, bool, bool, error) {
 	var nlri bgp.AddrPrefixInterface
 	path := &api.Path{
-		Pattrs: make([][]byte, 0),
+		IsFromOps: true,
+		Pattrs:    make([][]byte, 0),
 	}
 	isWithdraw := false
+	isFromGobgp := false
 	prefix := route.New.Fields["prefix"].(string)
 	safi := route.New.Fields["sub_address_family"].(string)
 	afi := route.New.Fields["address_family"].(string)
 	m := route.New.Fields["metric"].(float64)
 	attrs := route.New.Fields["path_attributes"].(ovsdb.OvsMap).GoMap
+
+	if attrs["IsFromGobgp"] == "true" {
+		isFromGobgp = true
+	}
+
 	nh := make([]interface{}, 0)
 	nhId, ok := route.New.Fields["bgp_nexthops"].(ovsdb.UUID)
 	if ok {
@@ -164,12 +171,12 @@ func parseRouteToGobgp(route ovsdb.RowUpdate, nexthops map[string]ovsdb.Row) (*a
 		log.Debug("nexthop addres does not exist")
 	} else if len(nh) == 1 {
 		if net.ParseIP(nh[0].(string)) == nil {
-			return nil, isWithdraw, fmt.Errorf("invalid nexthop address")
+			return nil, isWithdraw, isFromGobgp, fmt.Errorf("invalid nexthop address")
 		} else {
 			nexthop = nh[0].(string)
 		}
 	} else {
-		return nil, isWithdraw, fmt.Errorf("route has multiple nexthop address")
+		return nil, isWithdraw, isFromGobgp, fmt.Errorf("route has multiple nexthop address")
 	}
 
 	med, _ := bgp.NewPathAttributeMultiExitDisc(uint32(m)).Serialize()
@@ -177,7 +184,7 @@ func parseRouteToGobgp(route ovsdb.RowUpdate, nexthops map[string]ovsdb.Row) (*a
 
 	lpref, err := strconv.Atoi(attrs["BGP_loc_pref"].(string))
 	if err != nil {
-		return nil, isWithdraw, err
+		return nil, isWithdraw, isFromGobgp, err
 	}
 	localPref, _ := bgp.NewPathAttributeLocalPref(uint32(lpref)).Serialize()
 	path.Pattrs = append(path.Pattrs, localPref)
@@ -191,7 +198,7 @@ func parseRouteToGobgp(route ovsdb.RowUpdate, nexthops map[string]ovsdb.Row) (*a
 	case "?":
 		origin_t = bgp.BGP_ORIGIN_ATTR_TYPE_INCOMPLETE
 	default:
-		return nil, isWithdraw, fmt.Errorf("invalid origin")
+		return nil, isWithdraw, isFromGobgp, fmt.Errorf("invalid origin")
 	}
 	origin, _ := bgp.NewPathAttributeOrigin(uint8(origin_t)).Serialize()
 	path.Pattrs = append(path.Pattrs, origin)
@@ -200,22 +207,22 @@ func parseRouteToGobgp(route ovsdb.RowUpdate, nexthops map[string]ovsdb.Row) (*a
 	case "ipv4", "ipv6":
 		ip, net, err := net.ParseCIDR(prefix)
 		if err != nil {
-			return nil, isWithdraw, err
+			return nil, isWithdraw, isFromGobgp, err
 		}
 		ones, _ := net.Mask.Size()
 		if afi == "ipv4" {
 			if ip.To4() == nil {
-				return nil, isWithdraw, fmt.Errorf("invalid ipv4 prefix")
+				return nil, isWithdraw, isFromGobgp, fmt.Errorf("invalid ipv4 prefix")
 			}
 			nlri = bgp.NewIPAddrPrefix(uint8(ones), ip.String())
 		} else {
 			if ip.To16() == nil {
-				return nil, isWithdraw, fmt.Errorf("invalid ipv6 prefix")
+				return nil, isWithdraw, isFromGobgp, fmt.Errorf("invalid ipv6 prefix")
 			}
 			nlri = bgp.NewIPv6AddrPrefix(uint8(ones), ip.String())
 		}
 	default:
-		return nil, isWithdraw, fmt.Errorf("unsupported address family: %s", afi)
+		return nil, isWithdraw, isFromGobgp, fmt.Errorf("unsupported address family: %s", afi)
 	}
 
 	if afi == "ipv4" && safi == "unicast" {
@@ -230,7 +237,7 @@ func parseRouteToGobgp(route ovsdb.RowUpdate, nexthops map[string]ovsdb.Row) (*a
 		isWithdraw = true
 	}
 
-	return path, isWithdraw, nil
+	return path, isWithdraw, isFromGobgp, nil
 }
 
 func (m *OpsManager) getBGPNeighborUUIDs(id uuid.UUID) ([]net.IP, []uuid.UUID, error) {
@@ -257,7 +264,7 @@ func (m *OpsManager) getBGPNeighborUUIDs(id uuid.UUID) ([]net.IP, []uuid.UUID, e
 			return addrs, ids, nil
 		}
 	}
-	return nil, nil, fmt.Errorf("not found")
+	return nil, nil, fmt.Errorf("neighbor not found")
 }
 
 func (m *OpsManager) handleVrfUpdate(update ovsdb.TableUpdate) *server.GrpcRequest {
@@ -297,7 +304,9 @@ func (m *OpsManager) handleBgpRouterUpdate(update ovsdb.TableUpdate) []*server.G
 			if _, ok := v.Old.Fields["router_id"]; initial || ok {
 				r, ok := v.New.Fields["router_id"].(string)
 				if !ok {
-					log.Debugf("router-id is not configured yet")
+					log.WithFields(log.Fields{
+						"Topic": "openswitch",
+					}).Debug("router-id is not configured yet")
 					return nil
 				}
 				reqs = append(reqs, server.NewGrpcRequest(server.REQ_MOD_GLOBAL_CONFIG, "add", bgp.RouteFamily(0), &api.ModGlobalConfigArguments{
@@ -341,7 +350,9 @@ func (m *OpsManager) handleNeighborUpdate(update ovsdb.TableUpdate) []*server.Gr
 			if uuid.Equal(id, uuid.FromStringOrNil(k)) {
 				asn, ok := v.New.Fields["remote_as"].(float64)
 				if !ok {
-					log.Debugf("remote-as is not configured yet")
+					log.WithFields(log.Fields{
+						"Topic": "openswitch",
+					}).Debug("remote-as is not configured yet")
 					continue
 				}
 				reqs = append(reqs, server.NewGrpcRequest(server.REQ_MOD_NEIGHBOR, "add", bgp.RouteFamily(0), &api.ModNeighborArguments{
@@ -369,9 +380,13 @@ func (m *OpsManager) handleRouteUpdate(update ovsdb.TableUpdate) []*server.GrpcR
 		}
 		idx := vrf.(ovsdb.UUID).GoUuid
 		if uuid.Equal(id, uuid.FromStringOrNil(idx)) {
-			path, isWithdraw, err := parseRouteToGobgp(v, m.cache["BGP_Nexthop"])
+			path, isWithdraw, isFromGobgp, err := parseRouteToGobgp(v, m.cache["BGP_Nexthop"])
 			if err != nil {
-				log.Error("faild to parse path: %v", err)
+				log.WithFields(log.Fields{
+					"Topic": "openswitch",
+					"Path" : path,
+					"Err" : err,
+				}).Debug("failed to parse path")
 				return nil
 			}
 			if isWithdraw {
@@ -381,8 +396,10 @@ func (m *OpsManager) handleRouteUpdate(update ovsdb.TableUpdate) []*server.GrpcR
 					Name:      "",
 					Path:      path,
 				}))
-				log.Debug("advertised route is withdraw")
 			} else {
+				if isFromGobgp {
+					return nil
+				}
 				reqs = append(reqs, server.NewGrpcRequest(server.REQ_MOD_PATH, "add", bgp.RouteFamily(0), &api.ModPathArguments{
 					Operation: api.Operation_ADD,
 					Resource:  api.Resource_GLOBAL,
@@ -400,7 +417,12 @@ func parseRouteToOps(pl []*cmd.Path) (map[string]interface{}, bool, error) {
 	IsWithdraw := false
 	for _, p := range pl {
 		var nexthop string
-		pathAttr := map[string]string{"BGP_iBGP": "false", "BGP_flags": "16", "BGP_internal": "false", "BGP_loc_pref": "0"}
+		pathAttr := map[string]string{"BGP_iBGP": "false",
+			"BGP_flags": "16",
+			"BGP_internal": "false",
+			"BGP_loc_pref": "0",
+			"IsFromGobgp": "true",
+		}
 		for _, a := range p.PathAttrs {
 			switch a.GetType() {
 			case bgp.BGP_ATTR_TYPE_NEXT_HOP:
@@ -459,7 +481,7 @@ func insertNextHop(opsRoute map[string]interface{}) ovsdb.Operation {
 		Op:       "insert",
 		Table:    "BGP_Nexthop",
 		Row:      nexthop,
-		UUIDName: NEXTHOP_UUID,
+		UUIDName: NEXTHOP_TRANSACT_NUUID,
 	}
 	return insNextHopOp
 }
@@ -469,7 +491,7 @@ func insertRoute(vrfId uuid.UUID, opsRoute map[string]interface{}) (ovsdb.Operat
 	vrfSet, _ := ovsdb.NewOvsSet(v)
 	opsRoute["vrf"] = vrfSet
 
-	nexthop := []ovsdb.UUID{ovsdb.UUID{NEXTHOP_UUID}}
+	nexthop := []ovsdb.UUID{ovsdb.UUID{NEXTHOP_TRANSACT_NUUID}}
 	nexthopSet, _ := ovsdb.NewOvsSet(nexthop)
 	opsRoute["bgp_nexthops"] = nexthopSet
 
@@ -484,7 +506,7 @@ func insertRoute(vrfId uuid.UUID, opsRoute map[string]interface{}) (ovsdb.Operat
 		Op:       "insert",
 		Table:    "BGP_Route",
 		Row:      opsRoute,
-		UUIDName: ROUTE_UUID,
+		UUIDName: ROUTE_TRANSACT_NUUID,
 	}
 	return insRouteOp, nil
 }
@@ -536,20 +558,16 @@ func (m *OpsManager) Transact(operations []ovsdb.Operation) error {
 	if len(reply) < len(operations) {
 		return fmt.Errorf("number of replies should be atleast equal to number of Operations")
 	}
-	ok := true
+	var repErr error
 	for i, o := range reply {
 		if o.Error != "" && i < len(operations) {
-			log.Errorf("transaction failed due to an error :", o.Error, " details:", o.Details, " in ", operations[i])
-			ok = false
+			repErr = fmt.Errorf("transaction failed due to an error :", o.Error, " details:", o.Details, " in ", operations[i])
 		} else if o.Error != "" {
-			log.Errorf("transaction failed due to an error :", o.Error)
-			ok = false
+			repErr = fmt.Errorf("transaction failed due to an error :", o.Error)
 		}
 	}
-	if ok {
-		log.Debugf("bgp route update successful")
-	} else {
-		return fmt.Errorf("bgp route update failed")
+	if repErr != nil {
+		return repErr
 	}
 	return nil
 }
@@ -570,16 +588,33 @@ func (m *OpsManager) GobgpMonitor(ready *bool) {
 		reqCh <- req
 		res := <-req.ResponseCh
 		if err := res.Err(); err != nil {
-			log.Errorf("operation failed. reqtype: %d, err: %s", req.RequestType, err)
+			log.WithFields(log.Fields{
+				"Topic": "openswitch",
+				"Type": "Monitor",
+				"RequestType" : req.RequestType,
+				"Err" : err,
+			}).Error("grpc operation failed")
 		}
 		d := res.Data.(*api.Destination)
-		p, err := cmd.ApiStruct2Path(d.Paths[0])
+		bPath := d.Paths[0]
+		if bPath.IsFromOps && !bPath.IsWithdraw{
+			continue
+		}
+		p, err := cmd.ApiStruct2Path(bPath)
 		if err != nil {
-			log.Error("faild parse")
+			log.WithFields(log.Fields{
+				"Topic": "openswitch",
+				"Type": "MonitorRequest",
+				"Err" : err,
+			}).Error("failed parse path of gobgp")
 		}
 		o, err := m.TransactPreparation(p)
 		if err != nil {
-			log.Errorf("%v", err)
+			log.WithFields(log.Fields{
+				"Topic": "openswitch",
+				"Type": "Monitor",
+				"Err" : err,
+			}).Error("failed transact preparation of ops")
 		}
 		m.opsCh <- o
 	}
@@ -602,10 +637,11 @@ func (m *OpsManager) GobgpServe() error {
 		r := <-grpcRes
 
 		if err := r.Err(); err != nil {
-			log.Errorf("operation failed. err: %s", err)
-		}
-		if err := r.Err(); err != nil {
-			log.Errorf("operation failed. err: %s", err)
+			log.WithFields(log.Fields{
+				"Topic": "openswitch",
+				"Type": "ModRequest",
+				"Err" : err,
+			}).Error("grpc operation failed")
 		} else {
 			if monitorReady {
 				if grpcReq.RequestType == server.REQ_MOD_GLOBAL_CONFIG && grpcReq.Name == "del" {
@@ -681,7 +717,7 @@ type OpsOperation struct {
 }
 
 type GrpcChs struct {
-	grpcCh         chan *server.GrpcRequest
+	grpcCh chan *server.GrpcRequest
 }
 
 type OpsChs struct {
@@ -690,13 +726,13 @@ type OpsChs struct {
 }
 
 type OpsManager struct {
-	ops       *ovsdb.OvsdbClient
-	grpcCh   chan *server.GrpcRequest
-	opsCh    chan *OpsOperation
+	ops         *ovsdb.OvsdbClient
+	grpcCh      chan *server.GrpcRequest
+	opsCh       chan *OpsOperation
 	opsUpdateCh chan *ovsdb.TableUpdates
-	grpcQueue []*server.GrpcRequest
-	bgpReady bool
-	cache    map[string]map[string]ovsdb.Row
+	grpcQueue   []*server.GrpcRequest
+	bgpReady    bool
+	cache       map[string]map[string]ovsdb.Row
 }
 
 func NewOpsManager(grpcCh chan *server.GrpcRequest) (*OpsManager, error) {
@@ -710,12 +746,12 @@ func NewOpsManager(grpcCh chan *server.GrpcRequest) (*OpsManager, error) {
 	ops.Register(n)
 
 	return &OpsManager{
-		ops:       ops,
-		grpcCh:   grpcCh,
-		opsCh:    make(chan *OpsOperation, 1024),
+		ops:         ops,
+		grpcCh:      grpcCh,
+		opsCh:       make(chan *OpsOperation, 1024),
 		opsUpdateCh: opsUpdateCh,
-		grpcQueue: gQueue,
-		bgpReady: false,
-		cache:    make(map[string]map[string]ovsdb.Row),
+		grpcQueue:   gQueue,
+		bgpReady:    false,
+		cache:       make(map[string]map[string]ovsdb.Row),
 	}, nil
 }

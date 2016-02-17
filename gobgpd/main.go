@@ -161,6 +161,7 @@ func main() {
 			log.Errorf("Failed to start ops config manager: %s", err)
 			os.Exit(1)
 		}
+		log.Info("Coordination with OpenSwitch")
 		m.Serve()
 	} else if opts.ConfigFile != "" {
 		go config.ReadConfigfileServe(opts.ConfigFile, opts.ConfigType, configCh, reloadCh)
