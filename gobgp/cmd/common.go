@@ -244,6 +244,7 @@ type PeerConf struct {
 	RemoteIp          net.IP                             `json:"remote_ip,omitempty"`
 	Id                net.IP                             `json:"id,omitempty"`
 	RemoteAs          uint32                             `json:"remote_as,omitempty"`
+	LocalAs           uint32                             `json:"local-as,omitempty"`
 	RemoteCap         []bgp.ParameterCapabilityInterface `json:"remote_cap,omitempty"`
 	LocalCap          []bgp.ParameterCapabilityInterface `json:"local_cap,omitempty"`
 	Holdtime          uint32                             `json:"holdtime,omitempty"`
@@ -271,6 +272,7 @@ func ApiStruct2Peer(p *gobgpapi.Peer) *Peer {
 		RemoteIp:  net.ParseIP(p.Conf.NeighborAddress),
 		Id:        net.ParseIP(p.Conf.Id),
 		RemoteAs:  p.Conf.PeerAs,
+		LocalAs:   p.Conf.LocalAs,
 		RemoteCap: remoteCaps,
 		LocalCap:  localCaps,
 	}

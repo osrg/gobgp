@@ -131,8 +131,12 @@ func SetDefaultConfigValues(v *viper.Viper, b *Bgp) error {
 			}
 		}
 
+		if !vv.IsSet("neighbor.config.local-as") {
+			n.Config.LocalAs = b.Global.Config.As
+		}
+
 		if !vv.IsSet("neighbor.config.peer-type") {
-			if n.Config.PeerAs != b.Global.Config.As {
+			if n.Config.PeerAs != n.Config.LocalAs {
 				n.Config.PeerType = PEER_TYPE_EXTERNAL
 			} else {
 				n.Config.PeerType = PEER_TYPE_INTERNAL

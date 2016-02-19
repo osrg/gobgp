@@ -215,6 +215,9 @@ class GoBGPContainer(BGPContainer):
             if info['is_rs_client']:
                 n['route-server'] = {'config': {'route-server-client': True}}
 
+            if info['local_as']:
+                n['config']['local-as'] = info['local_as']
+
             if info['graceful_restart'] is not None:
                 n['graceful-restart'] = {'config': {'enabled': True, 'restart-time': 20}}
                 for afi_safi in afi_safi_list:
