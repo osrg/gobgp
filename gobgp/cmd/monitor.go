@@ -24,7 +24,6 @@ import (
 	"golang.org/x/net/context"
 	"io"
 	"net"
-	"os"
 	"strconv"
 	"time"
 )
@@ -35,8 +34,7 @@ func NewMonitorCmd() *cobra.Command {
 		Run: func(cmd *cobra.Command, args []string) {
 			family, err := checkAddressFamily(bgp.RouteFamily(0))
 			if err != nil {
-				fmt.Println(err)
-				os.Exit(1)
+				exitWithError(err)
 			}
 			arg := &gobgpapi.Arguments{
 				Resource: gobgpapi.Resource_GLOBAL,
@@ -45,21 +43,18 @@ func NewMonitorCmd() *cobra.Command {
 
 			stream, err := client.MonitorBestChanged(context.Background(), arg)
 			if err != nil {
-				fmt.Println(err)
-				os.Exit(1)
+				exitWithError(err)
 			}
 			for {
 				d, err := stream.Recv()
 				if err == io.EOF {
 					break
 				} else if err != nil {
-					fmt.Println(err)
-					os.Exit(1)
+					exitWithError(err)
 				}
 				p, err := ApiStruct2Path(d.Paths[0])
 				if err != nil {
-					fmt.Println(err)
-					os.Exit(1)
+					exitWithError(err)
 				}
 
 				if globalOpts.Json {
@@ -93,16 +88,14 @@ func NewMonitorCmd() *cobra.Command {
 
 			stream, err := client.MonitorPeerState(context.Background(), arg)
 			if err != nil {
-				fmt.Println(err)
-				os.Exit(1)
+				exitWithError(err)
 			}
 			for {
 				s, err := stream.Recv()
 				if err == io.EOF {
 					break
 				} else if err != nil {
-					fmt.Println(err)
-					os.Exit(1)
+					exitWithError(err)
 				}
 				if globalOpts.Json {
 					j, _ := json.Marshal(s)
@@ -119,16 +112,14 @@ func NewMonitorCmd() *cobra.Command {
 		Run: func(cmd *cobra.Command, args []string) {
 			stream, err := client.MonitorROAValidation(context.Background(), &gobgpapi.Arguments{})
 			if err != nil {
-				fmt.Println(err)
-				os.Exit(1)
+				exitWithError(err)
 			}
 			for {
 				s, err := stream.Recv()
 				if err == io.EOF {
 					break
 				} else if err != nil {
-					fmt.Println(err)
-					os.Exit(1)
+					exitWithError(err)
 				}
 				if globalOpts.Json {
 					j, _ := json.Marshal(s)
@@ -171,15 +162,13 @@ func NewMonitorCmd() *cobra.Command {
 			if len(args) > 0 {
 				remoteIP := net.ParseIP(args[0])
 				if remoteIP == nil {
-					fmt.Println("invalid ip address: %s", args[0])
-					os.Exit(1)
+					exitWithError(fmt.Errorf("invalid ip address: %s", args[0]))
 				}
 				name = args[0]
 			}
 			family, err := checkAddressFamily(bgp.RouteFamily(0))
 			if err != nil {
-				fmt.Println(err)
-				os.Exit(1)
+				exitWithError(err)
 			}
 			arg := &gobgpapi.Table{
 				Type:   gobgpapi.Resource_ADJ_IN,
@@ -189,21 +178,18 @@ func NewMonitorCmd() *cobra.Command {
 
 			stream, err := client.MonitorRib(context.Background(), arg)
 			if err != nil {
-				fmt.Println(err)
-				os.Exit(1)
+				exitWithError(err)
 			}
 			for {
 				d, err := stream.Recv()
 				if err == io.EOF {
 					break
 				} else if err != nil {
-					fmt.Println(err)
-					os.Exit(1)
+					exitWithError(err)
 				}
 				p, err := ApiStruct2Path(d.Paths[0])
 				if err != nil {
-					fmt.Println(err)
-					os.Exit(1)
+					exitWithError(err)
 				}
 
 				if globalOpts.Json {

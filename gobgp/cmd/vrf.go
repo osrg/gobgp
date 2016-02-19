@@ -23,7 +23,6 @@ import (
 	"github.com/spf13/cobra"
 	"golang.org/x/net/context"
 	"io"
-	"os"
 	"sort"
 	"strings"
 )
@@ -185,8 +184,7 @@ func NewVrfCmd() *cobra.Command {
 				err = fmt.Errorf("usage: gobgp vrf <vrf-name> rib")
 			}
 			if err != nil {
-				fmt.Println(err)
-				os.Exit(1)
+				exitWithError(err)
 			}
 		},
 	}
@@ -197,8 +195,7 @@ func NewVrfCmd() *cobra.Command {
 			Run: func(cmd *cobra.Command, args []string) {
 				err := modPath(api.Resource_VRF, args[len(args)-1], cmd.Use, args[:len(args)-1])
 				if err != nil {
-					fmt.Println(err)
-					os.Exit(1)
+					exitWithError(err)
 				}
 			},
 		}
@@ -221,8 +218,7 @@ func NewVrfCmd() *cobra.Command {
 				err = vrfCmdImpl.Execute()
 			}
 			if err != nil {
-				fmt.Println(err)
-				os.Exit(1)
+				exitWithError(err)
 			}
 		},
 	}
@@ -233,8 +229,7 @@ func NewVrfCmd() *cobra.Command {
 			Run: func(cmd *cobra.Command, args []string) {
 				err := modVrf(cmd.Use, args)
 				if err != nil {
-					fmt.Println(err)
-					os.Exit(1)
+					exitWithError(err)
 				}
 			},
 		}

@@ -22,7 +22,6 @@ import (
 	"github.com/spf13/cobra"
 	"golang.org/x/net/context"
 	"net"
-	"os"
 	"strconv"
 )
 
@@ -82,8 +81,7 @@ func NewBmpCmd() *cobra.Command {
 			Run: func(cmd *cobra.Command, args []string) {
 				err := modBmpServer(cmd.Use, args)
 				if err != nil {
-					fmt.Println(err)
-					os.Exit(1)
+					exitWithError(err)
 				}
 			},
 		}

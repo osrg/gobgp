@@ -25,7 +25,6 @@ import (
 	"golang.org/x/net/context"
 	"io"
 	"net"
-	"os"
 	"sort"
 	"strings"
 )
@@ -740,15 +739,13 @@ func NewNeighborCmd() *cobra.Command {
 					if addr == "" {
 						remoteIP := net.ParseIP(args[len(args)-1])
 						if remoteIP == nil {
-							fmt.Println("invalid ip address:", args[len(args)-1])
-							os.Exit(1)
+							exitWithError(fmt.Errorf("invalid ip address: %s", args[len(args)-1]))
 						}
 						addr = remoteIP.String()
 					}
 					err := f(cmd.Use, addr, args[:len(args)-1])
 					if err != nil {
-						fmt.Println(err)
-						os.Exit(1)
+						exitWithError(err)
 					}
 				},
 			}
@@ -761,14 +758,12 @@ func NewNeighborCmd() *cobra.Command {
 		Run: func(cmd *cobra.Command, args []string) {
 			remoteIP := net.ParseIP(args[0])
 			if remoteIP == nil {
-				fmt.Println("invalid ip address:", args[0])
-				os.Exit(1)
+				exitWithError(fmt.Errorf("invalid ip address: %s", args[0]))
 			}
 
 			for _, v := range []string{CMD_IN, CMD_IMPORT, CMD_EXPORT} {
 				if err := showNeighborPolicy(remoteIP, v, 4); err != nil {
-					fmt.Println(err)
-					os.Exit(1)
+					exitWithError(err)
 				}
 			}
 		},
@@ -786,8 +781,7 @@ func NewNeighborCmd() *cobra.Command {
 					err = showNeighborPolicy(remoteIP, cmd.Use, 0)
 				}
 				if err != nil {
-					fmt.Println(err)
-					os.Exit(1)
+					exitWithError(err)
 				}
 
 			},
@@ -800,13 +794,11 @@ func NewNeighborCmd() *cobra.Command {
 					remoteIP := net.ParseIP(args[len(args)-1])
 					args = args[:len(args)-1]
 					if remoteIP == nil {
-						fmt.Println("invalid ip address:", args[len(args)-1])
-						os.Exit(1)
+						exitWithError(fmt.Errorf("invalid ip address: %s", args[len(args)-1]))
 					}
 					err := modNeighborPolicy(remoteIP, cmd.Use, subcmd.Use, args)
 					if err != nil {
-						fmt.Println(err)
-						os.Exit(1)
+						exitWithError(err)
 					}
 				},
 			}
@@ -838,8 +830,7 @@ func NewNeighborCmd() *cobra.Command {
 				err = neighborCmdImpl.Execute()
 			}
 			if err != nil {
-				fmt.Println(err)
-				os.Exit(1)
+				exitWithError(err)
 			}
 		},
 	}

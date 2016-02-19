@@ -22,7 +22,6 @@ import (
 	"github.com/spf13/cobra"
 	"golang.org/x/net/context"
 	"net"
-	"os"
 	"regexp"
 	"strconv"
 	"strings"
@@ -741,8 +740,7 @@ func NewGlobalCmd() *cobra.Command {
 				err = showGlobalConfig(args)
 			}
 			if err != nil {
-				fmt.Println(err)
-				os.Exit(1)
+				exitWithError(err)
 			}
 		},
 	}
@@ -751,8 +749,7 @@ func NewGlobalCmd() *cobra.Command {
 		Use: CMD_RIB,
 		Run: func(cmd *cobra.Command, args []string) {
 			if err := showGlobalRib(args); err != nil {
-				fmt.Println(err)
-				os.Exit(1)
+				exitWithError(err)
 			}
 		},
 	}
@@ -765,8 +762,7 @@ func NewGlobalCmd() *cobra.Command {
 			Run: func(cmd *cobra.Command, args []string) {
 				err := modPath(api.Resource_GLOBAL, "", cmd.Use, args)
 				if err != nil {
-					fmt.Println(err)
-					os.Exit(1)
+					exitWithError(err)
 				}
 			},
 		}
@@ -778,8 +774,7 @@ func NewGlobalCmd() *cobra.Command {
 				Run: func(cmd *cobra.Command, args []string) {
 					family, err := checkAddressFamily(bgp.RouteFamily(0))
 					if err != nil {
-						fmt.Println(err)
-						os.Exit(1)
+						exitWithError(err)
 					}
 					arg := &api.ModPathArguments{
 						Operation: api.Operation_DEL_ALL,
@@ -788,8 +783,7 @@ func NewGlobalCmd() *cobra.Command {
 					}
 					_, err = client.ModPath(context.Background(), arg)
 					if err != nil {
-						fmt.Println(err)
-						os.Exit(1)
+						exitWithError(err)
 					}
 				},
 			}
@@ -802,8 +796,7 @@ func NewGlobalCmd() *cobra.Command {
 		Run: func(cmd *cobra.Command, args []string) {
 			for _, v := range []string{CMD_IMPORT, CMD_EXPORT} {
 				if err := showNeighborPolicy(nil, v, 4); err != nil {
-					fmt.Println(err)
-					os.Exit(1)
+					exitWithError(err)
 				}
 			}
 		},
@@ -814,8 +807,7 @@ func NewGlobalCmd() *cobra.Command {
 			Use: v,
 			Run: func(cmd *cobra.Command, args []string) {
 				if err := showNeighborPolicy(nil, cmd.Use, 0); err != nil {
-					fmt.Println(err)
-					os.Exit(1)
+					exitWithError(err)
 				}
 			},
 		}
@@ -826,8 +818,7 @@ func NewGlobalCmd() *cobra.Command {
 				Run: func(subcmd *cobra.Command, args []string) {
 					err := modNeighborPolicy(nil, cmd.Use, subcmd.Use, args)
 					if err != nil {
-						fmt.Println(err)
-						os.Exit(1)
+						exitWithError(err)
 					}
 				},
 			}

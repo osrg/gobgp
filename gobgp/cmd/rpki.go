@@ -23,7 +23,6 @@ import (
 	"golang.org/x/net/context"
 	"io"
 	"net"
-	"os"
 	"strconv"
 	"time"
 )
@@ -90,8 +89,7 @@ func showRPKIServer(args []string) error {
 func showRPKITable(args []string) error {
 	family, err := checkAddressFamily(bgp.RouteFamily(0))
 	if err != nil {
-		fmt.Println(err)
-		os.Exit(1)
+		exitWithError(err)
 	}
 	arg := &api.Arguments{
 		Family: uint32(family),
@@ -152,13 +150,11 @@ func NewRPKICmd() *cobra.Command {
 				showRPKIServer(args)
 				return
 			} else if len(args) != 2 {
-				fmt.Println("usage: gobgp rpki server <ip address> [reset|softreset|enable]")
-				os.Exit(1)
+				exitWithError(fmt.Errorf("usage: gobgp rpki server <ip address> [reset|softreset|enable]"))
 			}
 			addr := net.ParseIP(args[0])
 			if addr == nil {
-				fmt.Println("invalid ip address:", args[0])
-				os.Exit(1)
+				exitWithError(fmt.Errorf("invalid ip address: %s", args[0]))
 			}
 			var op api.Operation
 			switch args[1] {
@@ -171,12 +167,11 @@ func NewRPKICmd() *cobra.Command {
 			case "enable":
 				op = api.Operation_ENABLE
 			default:
-				fmt.Println("unknown operation:", args[1])
-				os.Exit(1)
+				exitWithError(fmt.Errorf("unknown operation: %s", args[1]))
 			}
 			err := modRPKI(op, addr.String())
 			if err != nil {
-				fmt.Println(err)
+				exitWithError(err)
 			}
 		},
 	}

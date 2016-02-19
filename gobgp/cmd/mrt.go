@@ -41,28 +41,24 @@ func printMrtMsgs(data []byte) {
 		if err == io.EOF {
 			break
 		} else if err != nil {
-			fmt.Println("failed to read:", err)
-			os.Exit(1)
+			exitWithError(fmt.Errorf("failed to read: %s", err))
 		}
 
 		h := &bgp.MRTHeader{}
 		err = h.DecodeFromBytes(buf)
 		if err != nil {
-			fmt.Println("failed to parse")
-			os.Exit(1)
+			exitWithError(fmt.Errorf("failed to parse"))
 		}
 
 		buf = make([]byte, h.Len)
 		_, err = buffer.Read(buf)
 		if err != nil {
-			fmt.Println("failed to read")
-			os.Exit(1)
+			exitWithError(fmt.Errorf("failed to read"))
 		}
 
 		msg, err := bgp.ParseMRTBody(h, buf)
 		if err != nil {
-			fmt.Println("failed to parse:", err)
-			os.Exit(1)
+			exitWithError(fmt.Errorf("failed to parse: %s", err))
 		}
 
 		fmt.Println(msg)
@@ -131,8 +127,7 @@ func dumpRib(r string, remoteIP net.IP, args []string) error {
 
 	stream, err := client.GetMrt(context.Background(), arg)
 	if err != nil {
-		fmt.Println(err)
-		os.Exit(1)
+		exitWithError(err)
 	}
 
 	var fileformat string
@@ -150,8 +145,7 @@ func dumpRib(r string, remoteIP net.IP, args []string) error {
 		if err == io.EOF {
 			break
 		} else if err != nil {
-			fmt.Println(err)
-			os.Exit(1)
+			exitWithError(err)
 		}
 
 		if globalOpts.Debug {
@@ -180,8 +174,7 @@ func dumpRib(r string, remoteIP net.IP, args []string) error {
 
 		err = ioutil.WriteFile(filename, s.Data, 0600)
 		if err != nil {
-			fmt.Println(err)
-			os.Exit(1)
+			exitWithError(err)
 		}
 
 		fmt.Println("mrt dump:", filepath.Clean(filename))
@@ -218,28 +211,24 @@ func injectMrt(r string, filename string, count int, skip int) error {
 			if err == io.EOF {
 				break
 			} else if err != nil {
-				fmt.Println("failed to read:", err)
-				os.Exit(1)
+				exitWithError(fmt.Errorf("failed to read: %s", err))
 			}
 
 			h := &bgp.MRTHeader{}
 			err = h.DecodeFromBytes(buf)
 			if err != nil {
-				fmt.Println("failed to parse")
-				os.Exit(1)
+				exitWithError(fmt.Errorf("failed to parse"))
 			}
 
 			buf = make([]byte, h.Len)
 			_, err = file.Read(buf)
 			if err != nil {
-				fmt.Println("failed to read")
-				os.Exit(1)
+				exitWithError(fmt.Errorf("failed to read"))
 			}
 
 			msg, err := bgp.ParseMRTBody(h, buf)
 			if err != nil {
-				fmt.Println("failed to parse:", err)
-				os.Exit(1)
+				exitWithError(fmt.Errorf("failed to parse: %s", err))
 			}
 
 			if globalOpts.Debug {
@@ -258,13 +247,11 @@ func injectMrt(r string, filename string, count int, skip int) error {
 				case bgp.RIB_IPV6_UNICAST:
 					rf = bgp.RF_IPv6_UC
 				default:
-					fmt.Println("unsupported subType:", subType)
-					os.Exit(1)
+					exitWithError(fmt.Errorf("unsupported subType: %s", subType))
 				}
 
 				if peers == nil {
-					fmt.Println("not found PEER_INDEX_TABLE")
-					os.Exit(1)
+					exitWithError(fmt.Errorf("not found PEER_INDEX_TABLE"))
 				}
 
 				rib := msg.Body.(*bgp.Rib)
@@ -274,8 +261,7 @@ func injectMrt(r string, filename string, count int, skip int) error {
 
 				for _, e := range rib.Entries {
 					if len(peers) < int(e.PeerIndex) {
-						fmt.Printf("invalid peer index: %d (PEER_INDEX_TABLE has only %d peers)\n", e.PeerIndex, len(peers))
-						os.Exit(1)
+						exitWithError(fmt.Errorf("invalid peer index: %d (PEER_INDEX_TABLE has only %d peers)\n", e.PeerIndex, len(peers)))
 					}
 
 					path := &api.Path{
@@ -346,8 +332,7 @@ func NewMrtCmd() *cobra.Command {
 		Run: func(cmd *cobra.Command, args []string) {
 			err := dumpRib(CMD_GLOBAL, net.IP{}, args)
 			if err != nil {
-				fmt.Println(err)
-				os.Exit(1)
+				exitWithError(err)
 			}
 		},
 	}
@@ -356,18 +341,15 @@ func NewMrtCmd() *cobra.Command {
 		Use: CMD_NEIGHBOR,
 		Run: func(cmd *cobra.Command, args []string) {
 			if len(args) < 1 {
-				fmt.Println("usage: gobgp mrt dump neighbor <neighbor address> [<interval>]")
-				os.Exit(1)
+				exitWithError(fmt.Errorf("usage: gobgp mrt dump neighbor <neighbor address> [<interval>]"))
 			}
 			remoteIP := net.ParseIP(args[0])
 			if remoteIP == nil {
-				fmt.Println("invalid ip address:", args[0])
-				os.Exit(1)
+				exitWithError(fmt.Errorf("invalid ip address: %s", args[0]))
 			}
 			err := dumpRib(CMD_LOCAL, remoteIP, args[1:])
 			if err != nil {
-				fmt.Println(err)
-				os.Exit(1)
+				exitWithError(err)
 			}
 		},
 	}
@@ -389,8 +371,7 @@ func NewMrtCmd() *cobra.Command {
 		Use: CMD_GLOBAL,
 		Run: func(cmd *cobra.Command, args []string) {
 			if len(args) < 1 {
-				fmt.Println("usage: gobgp mrt inject global <filename> [<count> [<skip>]]")
-				os.Exit(1)
+				exitWithError(fmt.Errorf("usage: gobgp mrt inject global <filename> [<count> [<skip>]]"))
 			}
 			filename := args[0]
 			count := -1
@@ -399,21 +380,18 @@ func NewMrtCmd() *cobra.Command {
 				var err error
 				count, err = strconv.Atoi(args[1])
 				if err != nil {
-					fmt.Println("invalid count value:", args[1])
-					os.Exit(1)
+					exitWithError(fmt.Errorf("invalid count value: %s", args[1]))
 				}
 				if len(args) > 2 {
 					skip, err = strconv.Atoi(args[2])
 					if err != nil {
-						fmt.Println("invalid skip value:", args[2])
-						os.Exit(1)
+						exitWithError(fmt.Errorf("invalid skip value: %s", args[2]))
 					}
 				}
 			}
 			err := injectMrt(CMD_GLOBAL, filename, count, skip)
 			if err != nil {
-				fmt.Println(err)
-				os.Exit(1)
+				exitWithError(err)
 			}
 		},
 	}
@@ -435,8 +413,7 @@ func NewMrtCmd() *cobra.Command {
 		Use: CMD_ENABLE,
 		Run: func(cmd *cobra.Command, args []string) {
 			if len(args) != 1 {
-				fmt.Println("usage: gobgp mrt update enable <filename>")
-				os.Exit(1)
+				exitWithError(fmt.Errorf("usage: gobgp mrt update enable <filename>"))
 			}
 			modMrt(api.Operation_ADD, args[0])
 		},
@@ -446,8 +423,7 @@ func NewMrtCmd() *cobra.Command {
 		Use: CMD_DISABLE,
 		Run: func(cmd *cobra.Command, args []string) {
 			if len(args) != 0 {
-				fmt.Println("usage: gobgp mrt update disable")
-				os.Exit(1)
+				exitWithError(fmt.Errorf("usage: gobgp mrt update disable"))
 			}
 			modMrt(api.Operation_DEL, "")
 		},
@@ -457,8 +433,7 @@ func NewMrtCmd() *cobra.Command {
 		Use: CMD_ROTATE,
 		Run: func(cmd *cobra.Command, args []string) {
 			if len(args) != 1 {
-				fmt.Println("usage: gobgp mrt update rotate <filename>")
-				os.Exit(1)
+				exitWithError(fmt.Errorf("usage: gobgp mrt update rotate <filename>"))
 			}
 			modMrt(api.Operation_REPLACE, args[0])
 		},
@@ -468,8 +443,7 @@ func NewMrtCmd() *cobra.Command {
 		Use: CMD_RESET,
 		Run: func(cmd *cobra.Command, args []string) {
 			if len(args) > 0 {
-				fmt.Println("usage: gobgp mrt update reset")
-				os.Exit(1)
+				exitWithError(fmt.Errorf("usage: gobgp mrt update reset"))
 			}
 			modMrt(api.Operation_REPLACE, "")
 		},

@@ -26,7 +26,6 @@ import (
 	"golang.org/x/net/context"
 	"io"
 	"net"
-	"os"
 	"regexp"
 	"sort"
 	"strconv"
@@ -912,8 +911,7 @@ func NewPolicyCmd() *cobra.Command {
 		Run: func(cmd *cobra.Command, args []string) {
 			err := showPolicy(args)
 			if err != nil {
-				fmt.Println(err)
-				os.Exit(1)
+				exitWithError(err)
 			}
 		},
 	}
@@ -923,8 +921,7 @@ func NewPolicyCmd() *cobra.Command {
 			Use: v,
 			Run: func(cmd *cobra.Command, args []string) {
 				if err := showDefinedSet(cmd.Use, args); err != nil {
-					fmt.Println(err)
-					os.Exit(1)
+					exitWithError(err)
 				}
 			},
 		}
@@ -933,8 +930,7 @@ func NewPolicyCmd() *cobra.Command {
 				Use: w,
 				Run: func(c *cobra.Command, args []string) {
 					if err := modDefinedSet(cmd.Use, c.Use, args); err != nil {
-						fmt.Println(err)
-						os.Exit(1)
+						exitWithError(err)
 					}
 				},
 			}
@@ -961,8 +957,7 @@ func NewPolicyCmd() *cobra.Command {
 						err = modAction(name, cmd.Use, args)
 					}
 					if err != nil {
-						fmt.Println(err)
-						os.Exit(1)
+						exitWithError(err)
 					}
 				},
 			}
@@ -983,8 +978,7 @@ func NewPolicyCmd() *cobra.Command {
 				err = stmtCmdImpl.Execute()
 			}
 			if err != nil {
-				fmt.Println(err)
-				os.Exit(1)
+				exitWithError(err)
 			}
 		},
 	}
@@ -994,8 +988,7 @@ func NewPolicyCmd() *cobra.Command {
 			Run: func(c *cobra.Command, args []string) {
 				err := modStatement(c.Use, args)
 				if err != nil {
-					fmt.Println(err)
-					os.Exit(1)
+					exitWithError(err)
 				}
 			},
 		}
@@ -1009,8 +1002,7 @@ func NewPolicyCmd() *cobra.Command {
 			Run: func(c *cobra.Command, args []string) {
 				err := modPolicy(c.Use, args)
 				if err != nil {
-					fmt.Println(err)
-					os.Exit(1)
+					exitWithError(err)
 				}
 			},
 		}

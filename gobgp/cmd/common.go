@@ -17,6 +17,7 @@ package cmd
 
 import (
 	"bytes"
+	"encoding/json"
 	"fmt"
 	"github.com/osrg/gobgp/api"
 	"github.com/osrg/gobgp/packet"
@@ -387,8 +388,7 @@ func connGrpc() *grpc.ClientConn {
 	target := net.JoinHostPort(globalOpts.Host, strconv.Itoa(globalOpts.Port))
 	conn, err := grpc.Dial(target, timeout, grpc.WithBlock(), grpc.WithInsecure())
 	if err != nil {
-		fmt.Println(err)
-		os.Exit(1)
+		exitWithError(err)
 	}
 	return conn
 }
@@ -430,4 +430,16 @@ func checkAddressFamily(def bgp.RouteFamily) (bgp.RouteFamily, error) {
 		e = fmt.Errorf("unsupported address family: %s", subOpts.AddressFamily)
 	}
 	return rf, e
+}
+
+func exitWithError(err error) {
+	if globalOpts.Json {
+		j, _ := json.Marshal(struct {
+			Error string `json:"error"`
+		}{Error: err.Error()})
+		fmt.Println(string(j))
+	} else {
+		fmt.Println(err)
+	}
+	os.Exit(1)
 }
