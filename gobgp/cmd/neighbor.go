@@ -27,6 +27,7 @@ import (
 	"net"
 	"sort"
 	"strings"
+	"time"
 )
 
 func getNeighbors() (peers, error) {
@@ -85,26 +86,26 @@ func showNeighbors() error {
 
 	sort.Sort(m)
 
+	now := time.Now()
 	for _, p := range m {
 		if len(p.Conf.RemoteIp) > maxaddrlen {
 			maxaddrlen = len(p.Conf.RemoteIp)
 		}
-
 		if len(fmt.Sprint(p.Conf.RemoteAs)) > maxaslen {
 			maxaslen = len(fmt.Sprint(p.Conf.RemoteAs))
 		}
-		var t string
-		if p.Timers.State.Uptime == 0 {
-			t = "never"
-		} else if p.Info.BgpState == "BGP_FSM_ESTABLISHED" {
-			t = formatTimedelta(int64(p.Timers.State.Uptime))
-		} else {
-			t = formatTimedelta(int64(p.Timers.State.Downtime))
+		timeStr := "never"
+		if p.Timers.State.Uptime != 0 {
+			t := int64(p.Timers.State.Downtime)
+			if p.Info.BgpState == "BGP_FSM_ESTABLISHED" {
+				t = int64(p.Timers.State.Uptime)
+			}
+			timeStr = formatTimedelta(int64(now.Sub(time.Unix(int64(t), 0)).Seconds()))
 		}
-		if len(t) > maxtimelen {
-			maxtimelen = len(t)
+		if len(timeStr) > maxtimelen {
+			maxtimelen = len(timeStr)
 		}
-		timedelta = append(timedelta, t)
+		timedelta = append(timedelta, timeStr)
 	}
 	var format string
 	format = "%-" + fmt.Sprint(maxaddrlen) + "s" + " %" + fmt.Sprint(maxaslen) + "s" + " %" + fmt.Sprint(maxtimelen) + "s"

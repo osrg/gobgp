@@ -303,11 +303,11 @@ func (peer *Peer) ToApiStruct() *api.Peer {
 
 	uptime := int64(0)
 	if timer.State.Uptime != 0 {
-		uptime = int64(time.Now().Sub(time.Unix(timer.State.Uptime, 0)).Seconds())
+		uptime = timer.State.Uptime
 	}
 	downtime := int64(0)
 	if timer.State.Downtime != 0 {
-		downtime = int64(time.Now().Sub(time.Unix(timer.State.Downtime, 0)).Seconds())
+		downtime = timer.State.Downtime
 	}
 
 	timerconf := &api.TimersConfig{
