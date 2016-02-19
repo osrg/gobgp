@@ -446,7 +446,7 @@ func (h *FSMHandler) active() (bgp.FSMState, FsmStateReason) {
 				break
 			}
 			fsm.conn = conn
-			if fsm.gConf.Config.As != fsm.pConf.Config.PeerAs {
+			if fsm.pConf.Config.PeerType == config.PEER_TYPE_EXTERNAL {
 				ttl := 1
 				if fsm.pConf.EbgpMultihop.Config.Enabled == true {
 					ttl = int(fsm.pConf.EbgpMultihop.Config.MultihopTtl)
@@ -488,14 +488,14 @@ func (h *FSMHandler) active() (bgp.FSMState, FsmStateReason) {
 	}
 }
 
-func capabilitiesFromConfig(gConf *config.Global, pConf *config.Neighbor) []bgp.ParameterCapabilityInterface {
+func capabilitiesFromConfig(pConf *config.Neighbor) []bgp.ParameterCapabilityInterface {
 	caps := make([]bgp.ParameterCapabilityInterface, 0, 4)
 	caps = append(caps, bgp.NewCapRouteRefresh())
 	for _, rf := range pConf.AfiSafis {
 		family, _ := bgp.GetRouteFamily(string(rf.AfiSafiName))
 		caps = append(caps, bgp.NewCapMultiProtocol(family))
 	}
-	caps = append(caps, bgp.NewCapFourOctetASNumber(gConf.Config.As))
+	caps = append(caps, bgp.NewCapFourOctetASNumber(pConf.Config.LocalAs))
 
 	if c := pConf.GracefulRestart.Config; c.Enabled {
 		tuples := []*bgp.CapGracefulRestartTuple{}
@@ -529,10 +529,10 @@ func capabilitiesFromConfig(gConf *config.Global, pConf *config.Neighbor) []bgp.
 }
 
 func buildopen(gConf *config.Global, pConf *config.Neighbor) *bgp.BGPMessage {
-	caps := capabilitiesFromConfig(gConf, pConf)
+	caps := capabilitiesFromConfig(pConf)
 	opt := bgp.NewOptionParameterCapability(caps)
 	holdTime := uint16(pConf.Timers.Config.HoldTime)
-	as := gConf.Config.As
+	as := pConf.Config.LocalAs
 	if as > (1<<16)-1 {
 		as = bgp.AS_TRANS
 	}

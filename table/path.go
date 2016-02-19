@@ -167,7 +167,7 @@ func (path *Path) UpdatePathAttrs(global *config.Global, peer *config.Neighbor) 
 		path.SetNexthop(localAddress)
 
 		// AS_PATH handling
-		path.PrependAsn(global.Config.As, 1)
+		path.PrependAsn(peer.Config.LocalAs, 1)
 
 		// MED Handling
 		if med := path.getPathAttr(bgp.BGP_ATTR_TYPE_MULTI_EXIT_DISC); med != nil && !path.IsLocal() {

@@ -43,6 +43,8 @@
         peer-as = 2
         auth-password = "password"
         neighbor-address = "192.168.10.2"
+        # override global.config.as value
+        local-as = 1000
     [neighbors.timers.config]
         connect-retry = 5
         hold-time = 9
