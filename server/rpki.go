@@ -240,6 +240,7 @@ func (m *roaManager) handleROAEvent(ev *roaClientEvent) {
 		client.t = tomb.Tomb{}
 		client.t.Go(client.tryConnect)
 		client.timer = time.AfterFunc(time.Duration(client.lifetime)*time.Second, client.lifetimeout)
+		client.oldSessionID = client.sessionID
 	case CONNECTED:
 		log.Info("roa server is connected, ", ev.src)
 		client.conn = ev.conn
@@ -249,11 +250,18 @@ func (m *roaManager) handleROAEvent(ev *roaClientEvent) {
 	case RTR:
 		m.handleRTRMsg(client, &client.state, ev.data)
 	case LIFETIMEOUT:
-		if client.endOfData == false {
+		// a) already reconnected but hasn't received
+		// EndOfData -> needs to delete stale ROAs
+		// b) not reconnected -> needs to delete stale ROAs
+		//
+		// c) already reconnected and received EndOfData so
+		// all stale ROAs were deleted -> timer was cancelled
+		// so should not be here.
+		if client.oldSessionID != client.sessionID {
+			log.Info("reconnected so ignore timeout", client.host)
+		} else {
 			log.Info("delete all due to timeout", client.host)
 			m.deleteAllROA(client.host)
-		} else {
-			log.Info("reconnected so ignore timeout", client.host)
 		}
 	}
 }
@@ -330,6 +338,7 @@ func (c *roaManager) handleRTRMsg(client *roaClient, state *config.RpkiServerSta
 		case *bgp.RTRResetQuery:
 		case *bgp.RTRCacheResponse:
 			received.CacheResponse++
+			client.endOfData = false
 		case *bgp.RTRIPPrefix:
 			family := bgp.AFI_IP
 			if msg.Type == bgp.RTR_IPV4_PREFIX {
@@ -350,6 +359,11 @@ func (c *roaManager) handleRTRMsg(client *roaClient, state *config.RpkiServerSta
 			}
 		case *bgp.RTREndOfData:
 			received.EndOfData++
+			if client.sessionID != msg.RTRCommon.SessionID {
+				// remove all ROAs related with the
+				// previous session
+				c.deleteAllROA(client.host)
+			}
 			client.sessionID = msg.RTRCommon.SessionID
 			client.serialNumber = msg.RTRCommon.SerialNumber
 			client.endOfData = true
@@ -357,7 +371,6 @@ func (c *roaManager) handleRTRMsg(client *roaClient, state *config.RpkiServerSta
 				client.timer.Stop()
 				client.timer = nil
 			}
-			c.deleteAllROA(client.host)
 			for _, roa := range client.pendingROAs {
 				c.addROA(roa)
 			}
@@ -578,6 +591,7 @@ type roaClient struct {
 	state        config.RpkiServerState
 	eventCh      chan *roaClientEvent
 	sessionID    uint16
+	oldSessionID uint16
 	serialNumber uint32
 	timer        *time.Timer
 	lifetime     int64
