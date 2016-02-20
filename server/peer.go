@@ -65,14 +65,6 @@ func NewPeer(g config.Global, conf config.Neighbor, loc *table.TableManager, pol
 	return peer
 }
 
-func (peer *Peer) Fsm() *FSM {
-	return peer.fsm
-}
-
-func (peer *Peer) Outgoing() chan *bgp.BGPMessage {
-	return peer.outgoing
-}
-
 func (peer *Peer) ID() string {
 	return peer.conf.Config.NeighborAddress
 }
