@@ -23,7 +23,6 @@ import (
 	"golang.org/x/net/context"
 	"io"
 	"net"
-	"strconv"
 	"time"
 )
 
@@ -56,7 +55,7 @@ func showRPKIServer(args []string) error {
 				uptime = fmt.Sprint(formatTimedelta(int64(time.Now().Sub(time.Unix(r.State.Uptime, 0)).Seconds())))
 			}
 
-			fmt.Printf(format, net.JoinHostPort(r.Conf.Address, strconv.Itoa(int(r.Conf.RemotePort))), s, uptime, fmt.Sprintf("%d/%d", r.State.RecordIpv4, r.State.RecordIpv6))
+			fmt.Printf(format, net.JoinHostPort(r.Conf.Address, r.Conf.RemotePort), s, uptime, fmt.Sprintf("%d/%d", r.State.RecordIpv4, r.State.RecordIpv6))
 		}
 	} else {
 		for _, r := range servers {
@@ -122,7 +121,7 @@ func showRPKITable(args []string) error {
 			continue
 		}
 
-		server := net.JoinHostPort(r.Conf.Address, strconv.Itoa(int(r.Conf.RemotePort)))
+		server := net.JoinHostPort(r.Conf.Address, r.Conf.RemotePort)
 		fmt.Printf(format, fmt.Sprintf("%s/%d", r.Prefix, r.Prefixlen), fmt.Sprint(r.Maxlen), fmt.Sprint(r.As), server)
 	}
 	return nil

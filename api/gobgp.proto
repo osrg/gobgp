@@ -468,7 +468,7 @@ message MrtMessage {
 
 message RPKIConf {
     string address = 1;
-    uint32 remote_port = 2;
+    string remote_port = 2;
 }
 
 message RPKIState {

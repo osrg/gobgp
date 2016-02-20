@@ -22,7 +22,6 @@ import (
 	"net"
 	"sort"
 	"strconv"
-	"strings"
 	"time"
 
 	log "github.com/Sirupsen/logrus"
@@ -50,7 +49,7 @@ type roa struct {
 func (r *roa) toApiStruct() []*api.ROA {
 	l := make([]*api.ROA, 0, len(r.AS))
 	for _, as := range r.AS {
-		host, port := splitHostPort(r.Src)
+		host, port, _ := net.SplitHostPort(r.Src)
 		a := &api.ROA{
 			As:        as,
 			Maxlen:    uint32(r.MaxLen),
@@ -58,7 +57,7 @@ func (r *roa) toApiStruct() []*api.ROA {
 			Prefix:    r.bucket.Prefix.String(),
 			Conf: &api.RPKIConf{
 				Address:    host,
-				RemotePort: uint32(port),
+				RemotePort: port,
 			},
 		}
 		l = append(l, a)
@@ -171,7 +170,7 @@ func (m *roaManager) deleteAllROA(network string) {
 
 func (m *roaManager) operate(op api.Operation, address string) error {
 	for network, client := range m.clientMap {
-		add, _ := splitHostPort(network)
+		add, _, _ := net.SplitHostPort(network)
 		if add == address {
 			switch op {
 			case api.Operation_ENABLE:
@@ -397,25 +396,13 @@ func (c *roaManager) handleRTRMsg(client *roaClient, state *config.RpkiServerSta
 	}
 }
 
-func splitHostPort(network string) (host string, port int) {
-	if strings.HasPrefix(network, "[") {
-		l := strings.Split(network, "]:")
-		port, _ := strconv.Atoi(l[1])
-		return l[0][1:], port
-	} else {
-		l := strings.Split(network, ":")
-		port, _ := strconv.Atoi(l[1])
-		return l[0], port
-	}
-}
-
 func (c *roaManager) handleGRPC(grpcReq *GrpcRequest) {
 	switch grpcReq.RequestType {
 	case REQ_RPKI:
 		results := make([]*GrpcResponse, 0)
 		for _, client := range c.clientMap {
 			state := client.state
-			addr, port := splitHostPort(client.host)
+			addr, port, _ := net.SplitHostPort(client.host)
 			received := &state.RpkiMessages.RpkiReceived
 			sent := client.state.RpkiMessages.RpkiSent
 			up := true
@@ -425,7 +412,7 @@ func (c *roaManager) handleGRPC(grpcReq *GrpcRequest) {
 			rpki := &api.RPKI{
 				Conf: &api.RPKIConf{
 					Address:    addr,
-					RemotePort: uint32(port),
+					RemotePort: port,
 				},
 				State: &api.RPKIState{
 					Uptime:        state.Uptime,
@@ -477,7 +464,7 @@ func (c *roaManager) handleGRPC(grpcReq *GrpcRequest) {
 					var roaList roas
 					for _, r := range b.entries {
 						for _, as := range r.AS {
-							host, port := splitHostPort(r.Src)
+							host, port, _ := net.SplitHostPort(r.Src)
 							roa := &api.ROA{
 								As:        as,
 								Maxlen:    uint32(r.MaxLen),
@@ -485,7 +472,7 @@ func (c *roaManager) handleGRPC(grpcReq *GrpcRequest) {
 								Prefix:    b.Prefix.String(),
 								Conf: &api.RPKIConf{
 									Address:    host,
-									RemotePort: uint32(port),
+									RemotePort: port,
 								},
 							}
 							roaList = append(roaList, roa)

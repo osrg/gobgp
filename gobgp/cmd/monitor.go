@@ -24,7 +24,6 @@ import (
 	"golang.org/x/net/context"
 	"io"
 	"net"
-	"strconv"
 	"time"
 )
 
@@ -146,7 +145,7 @@ func NewMonitorCmd() *cobra.Command {
 							if i != 0 {
 								fmt.Printf(",")
 							}
-							fmt.Printf(" [Source: %s, AS: %v, Prefix: %s, Prefixlen: %v, Maxlen: %v]", net.JoinHostPort(roa.Conf.Address, strconv.Itoa(int(roa.Conf.RemotePort))), roa.As, roa.Prefix, roa.Prefixlen, roa.Maxlen)
+							fmt.Printf(" [Source: %s, AS: %v, Prefix: %s, Prefixlen: %v, Maxlen: %v]", net.JoinHostPort(roa.Conf.Address, roa.Conf.RemotePort), roa.As, roa.Prefix, roa.Prefixlen, roa.Maxlen)
 						}
 						fmt.Printf("\n")
 					}
