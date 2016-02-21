@@ -229,6 +229,8 @@ func (m *roaManager) handleROAEvent(ev *roaClientEvent) {
 		log.Info("roa server is disconnected, ", ev.src)
 		client.state.Downtime = time.Now().Unix()
 		// clear state
+		client.endOfData = false
+		client.pendingROAs = make([]*ROA, 0)
 		client.state.RpkiMessages = config.RpkiMessages{}
 		client.conn = nil
 		client.t = tomb.Tomb{}
@@ -236,9 +238,6 @@ func (m *roaManager) handleROAEvent(ev *roaClientEvent) {
 		client.timer = time.AfterFunc(time.Duration(client.lifetime)*time.Second, client.lifetimeout)
 	case CONNECTED:
 		log.Info("roa server is connected, ", ev.src)
-		if client.timer != nil {
-			client.timer.Stop()
-		}
 		client.conn = ev.conn
 		client.state.Uptime = time.Now().Unix()
 		client.t = tomb.Tomb{}
@@ -246,7 +245,7 @@ func (m *roaManager) handleROAEvent(ev *roaClientEvent) {
 	case RTR:
 		m.handleRTRMsg(client, &client.state, ev.data)
 	case LIFETIMEOUT:
-		if client.conn == nil {
+		if client.endOfData == false {
 			log.Info("delete all due to timeout", client.host)
 			m.deleteAllROA(client.host)
 		} else {
@@ -335,7 +334,11 @@ func (c *roaManager) handleRTRMsg(client *roaClient, state *config.RpkiServerSta
 			}
 			roa := NewROA(family, msg.Prefix, msg.PrefixLen, msg.MaxLen, msg.AS, client.host)
 			if (msg.Flags & 1) == 1 {
-				c.addROA(roa)
+				if client.endOfData {
+					c.addROA(roa)
+				} else {
+					client.pendingROAs = append(client.pendingROAs, roa)
+				}
 			} else {
 				c.deleteROA(roa)
 			}
@@ -343,6 +346,16 @@ func (c *roaManager) handleRTRMsg(client *roaClient, state *config.RpkiServerSta
 			received.EndOfData++
 			client.sessionID = msg.RTRCommon.SessionID
 			client.serialNumber = msg.RTRCommon.SerialNumber
+			client.endOfData = true
+			if client.timer != nil {
+				client.timer.Stop()
+				client.timer = nil
+			}
+			c.deleteAllROA(client.host)
+			for _, roa := range client.pendingROAs {
+				c.addROA(roa)
+			}
+			client.pendingROAs = make([]*ROA, 0)
 		case *bgp.RTRCacheReset:
 			client.softReset()
 			received.CacheReset++
@@ -562,13 +575,16 @@ type roaClient struct {
 	serialNumber uint32
 	timer        *time.Timer
 	lifetime     int64
+	endOfData    bool
+	pendingROAs  []*ROA
 }
 
 func NewRoaClient(address, port string, ch chan *roaClientEvent, lifetime int64) *roaClient {
 	return &roaClient{
-		host:     net.JoinHostPort(address, port),
-		eventCh:  ch,
-		lifetime: lifetime,
+		host:        net.JoinHostPort(address, port),
+		eventCh:     ch,
+		lifetime:    lifetime,
+		pendingROAs: make([]*ROA, 0),
 	}
 }
 
@@ -594,6 +610,8 @@ func (c *roaClient) softReset() error {
 			return err
 		}
 		c.state.RpkiMessages.RpkiSent.ResetQuery++
+		c.endOfData = false
+		c.pendingROAs = make([]*ROA, 0)
 	}
 	return nil
 }
