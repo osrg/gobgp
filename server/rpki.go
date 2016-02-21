@@ -43,26 +43,21 @@ type roa struct {
 	bucket *roaBucket
 	Src    string
 	MaxLen uint8
-	AS     []uint32
+	AS     uint32
 }
 
-func (r *roa) toApiStruct() []*api.ROA {
-	l := make([]*api.ROA, 0, len(r.AS))
-	for _, as := range r.AS {
-		host, port, _ := net.SplitHostPort(r.Src)
-		a := &api.ROA{
-			As:        as,
-			Maxlen:    uint32(r.MaxLen),
-			Prefixlen: uint32(r.bucket.PrefixLen),
-			Prefix:    r.bucket.Prefix.String(),
-			Conf: &api.RPKIConf{
-				Address:    host,
-				RemotePort: port,
-			},
-		}
-		l = append(l, a)
+func (r *roa) toApiStruct() *api.ROA {
+	host, port, _ := net.SplitHostPort(r.Src)
+	return &api.ROA{
+		As:        r.AS,
+		Maxlen:    uint32(r.MaxLen),
+		Prefixlen: uint32(r.bucket.PrefixLen),
+		Prefix:    r.bucket.Prefix.String(),
+		Conf: &api.RPKIConf{
+			Address:    host,
+			RemotePort: port,
+		},
 	}
-	return l
 }
 
 type roas []*api.ROA
@@ -246,18 +241,18 @@ func deleteROA(client *roaClient, family int, tree *radix.Tree, as uint32, prefi
 	isDeleted := func() bool {
 		if b != nil {
 			bucket := b.(*roaBucket)
+			newEntries := make([]*roa, 0, len(bucket.entries))
 			for _, r := range bucket.entries {
-				if r.MaxLen == maxLen && r.Src == host {
-					for idx, a := range r.AS {
-						if a == as {
-							r.AS = append(r.AS[:idx], r.AS[idx+1:]...)
-							if len(bucket.entries) == 0 {
-								tree.Delete(key)
-							}
-							return true
-						}
-					}
+				if r.MaxLen != maxLen || r.Src != host || r.AS != as {
+					newEntries = append(newEntries, r)
 				}
+			}
+			if len(newEntries) != len(bucket.entries) {
+				bucket.entries = newEntries
+				if len(newEntries) == 0 {
+					tree.Delete(key)
+				}
+				return true
 			}
 		}
 		return false
@@ -294,7 +289,7 @@ func addROA(client *roaClient, family int, tree *radix.Tree, as uint32, prefix [
 		copy(p, prefix)
 
 		r := &roa{
-			AS:     []uint32{as},
+			AS:     as,
 			MaxLen: maxLen,
 			Src:    host,
 		}
@@ -324,22 +319,15 @@ func addROA(client *roaClient, family int, tree *radix.Tree, as uint32, prefix [
 		}
 
 		for _, r := range bucket.entries {
-			if r.MaxLen == maxLen && r.Src == host {
-				// we already have?
-				for _, a := range r.AS {
-					if a == as {
-						return
-					}
-				}
-				r.AS = append(r.AS, as)
-				client.records[family]++
+			if r.MaxLen == maxLen && r.Src == host && r.AS == as {
+				// we already have
 				return
 			}
 		}
 		r := &roa{
 			bucket: bucket,
 			MaxLen: maxLen,
-			AS:     []uint32{as},
+			AS:     as,
 			Src:    host,
 		}
 		bucket.entries = append(bucket.entries, r)
@@ -463,20 +451,7 @@ func (c *roaManager) handleGRPC(grpcReq *GrpcRequest) {
 					b, _ := v.(*roaBucket)
 					var roaList roas
 					for _, r := range b.entries {
-						for _, as := range r.AS {
-							host, port, _ := net.SplitHostPort(r.Src)
-							roa := &api.ROA{
-								As:        as,
-								Maxlen:    uint32(r.MaxLen),
-								Prefixlen: uint32(b.PrefixLen),
-								Prefix:    b.Prefix.String(),
-								Conf: &api.RPKIConf{
-									Address:    host,
-									RemotePort: port,
-								},
-							}
-							roaList = append(roaList, roa)
-						}
+						roaList = append(roaList, r.toApiStruct())
 					}
 					sort.Sort(roaList)
 					for _, roa := range roaList {
@@ -526,18 +501,8 @@ func validatePath(ownAs uint32, tree *radix.Tree, cidr string, asPath *bgp.PathA
 		if prefixLen > r.MaxLen {
 			continue
 		}
-
-		y := func(x uint32, asList []uint32) bool {
-			for _, as := range asList {
-				if x == as {
-					return true
-				}
-			}
-			return false
-		}(as, r.AS)
-
-		if y {
-			return config.RPKI_VALIDATION_RESULT_TYPE_VALID, []*roa{r}
+		if r.AS == as {
+			result = config.RPKI_VALIDATION_RESULT_TYPE_VALID
 		}
 		roaList = append(roaList, r)
 	}
@@ -559,7 +524,7 @@ func (c *roaManager) validate(pathList []*table.Path, isMonitor bool) []*api.ROA
 				apiRoaList := func() []*api.ROA {
 					apiRoaList := make([]*api.ROA, 0)
 					for _, r := range roaList {
-						apiRoaList = append(apiRoaList, r.toApiStruct()...)
+						apiRoaList = append(apiRoaList, r.toApiStruct())
 					}
 					return apiRoaList
 				}()
