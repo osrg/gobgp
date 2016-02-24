@@ -24,6 +24,7 @@ import (
 	"github.com/osrg/gobgp/packet"
 	"math"
 	"net"
+	"sort"
 	"time"
 )
 
@@ -59,6 +60,20 @@ type originInfo struct {
 	stale              bool
 }
 
+type components []bgp.FlowSpecComponentInterface
+
+func (c components) Len() int {
+	return len(c)
+}
+
+func (c components) Swap(i, j int) {
+	c[i], c[j] = c[j], c[i]
+}
+
+func (c components) Less(i, j int) bool {
+	return c[i].Type() < c[j].Type()
+}
+
 type Path struct {
 	info       *originInfo
 	IsWithdraw bool
@@ -77,6 +92,25 @@ func NewPath(source *PeerInfo, nlri bgp.AddrPrefixInterface, isWithdraw bool, pa
 			"Peer":  source.Address.String(),
 		}).Error("Need to provide patattrs for the path that is not withdraw.")
 		return nil
+	}
+
+	if nlri != nil && (nlri.SAFI() == bgp.SAFI_FLOW_SPEC_UNICAST || nlri.SAFI() == bgp.SAFI_FLOW_SPEC_VPN) {
+		var coms components
+		var f *bgp.FlowSpecNLRI
+		switch nlri.(type) {
+		case *bgp.FlowSpecIPv4Unicast:
+			f = &nlri.(*bgp.FlowSpecIPv4Unicast).FlowSpecNLRI
+		case *bgp.FlowSpecIPv4VPN:
+			f = &nlri.(*bgp.FlowSpecIPv4VPN).FlowSpecNLRI
+		case *bgp.FlowSpecIPv6Unicast:
+			f = &nlri.(*bgp.FlowSpecIPv6Unicast).FlowSpecNLRI
+		case *bgp.FlowSpecIPv6VPN:
+			f = &nlri.(*bgp.FlowSpecIPv6VPN).FlowSpecNLRI
+		}
+		if f != nil {
+			coms = f.Value
+			sort.Sort(coms)
+		}
 	}
 
 	return &Path{
