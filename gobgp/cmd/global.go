@@ -19,10 +19,12 @@ import (
 	"fmt"
 	api "github.com/osrg/gobgp/api"
 	"github.com/osrg/gobgp/packet"
+	"github.com/osrg/gobgp/table"
 	"github.com/spf13/cobra"
 	"golang.org/x/net/context"
 	"net"
 	"regexp"
+	"sort"
 	"strconv"
 	"strings"
 )
@@ -284,14 +286,20 @@ func ParseFlowSpecArgs(rf bgp.RouteFamily, args []string) (bgp.AddrPrefixInterfa
 		return nil, nil, err
 	}
 	var nlri bgp.AddrPrefixInterface
+	var fnlri *bgp.FlowSpecNLRI
 	switch rf {
 	case bgp.RF_FS_IPv4_UC:
 		nlri = bgp.NewFlowSpecIPv4Unicast(cmp)
+		fnlri = &nlri.(*bgp.FlowSpecIPv4Unicast).FlowSpecNLRI
 	case bgp.RF_FS_IPv6_UC:
 		nlri = bgp.NewFlowSpecIPv6Unicast(cmp)
+		fnlri = &nlri.(*bgp.FlowSpecIPv6Unicast).FlowSpecNLRI
 	default:
 		return nil, nil, fmt.Errorf("invalid route family")
 	}
+	var comms table.FlowSpecComponents
+	comms = fnlri.Value
+	sort.Sort(comms)
 	return nlri, args[thenPos:], nil
 }
 

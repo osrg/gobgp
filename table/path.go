@@ -60,17 +60,17 @@ type originInfo struct {
 	stale              bool
 }
 
-type components []bgp.FlowSpecComponentInterface
+type FlowSpecComponents []bgp.FlowSpecComponentInterface
 
-func (c components) Len() int {
+func (c FlowSpecComponents) Len() int {
 	return len(c)
 }
 
-func (c components) Swap(i, j int) {
+func (c FlowSpecComponents) Swap(i, j int) {
 	c[i], c[j] = c[j], c[i]
 }
 
-func (c components) Less(i, j int) bool {
+func (c FlowSpecComponents) Less(i, j int) bool {
 	return c[i].Type() < c[j].Type()
 }
 
@@ -95,7 +95,7 @@ func NewPath(source *PeerInfo, nlri bgp.AddrPrefixInterface, isWithdraw bool, pa
 	}
 
 	if nlri != nil && (nlri.SAFI() == bgp.SAFI_FLOW_SPEC_UNICAST || nlri.SAFI() == bgp.SAFI_FLOW_SPEC_VPN) {
-		var coms components
+		var coms FlowSpecComponents
 		var f *bgp.FlowSpecNLRI
 		switch nlri.(type) {
 		case *bgp.FlowSpecIPv4Unicast:
