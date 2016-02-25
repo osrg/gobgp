@@ -400,22 +400,60 @@ func (path *Path) GetNlri() bgp.AddrPrefixInterface {
 	return path.OriginInfo().nlri
 }
 
+type attrs []bgp.PathAttributeInterface
+
+func (a attrs) Len() int {
+	return len(a)
+}
+
+func (a attrs) Swap(i, j int) {
+	a[i], a[j] = a[j], a[i]
+}
+
+func (a attrs) Less(i, j int) bool {
+	return a[i].GetType() < a[j].GetType()
+}
+
 func (path *Path) GetPathAttrs() []bgp.PathAttributeInterface {
-	seen := NewBitmap(math.MaxUint8)
-	list := make([]bgp.PathAttributeInterface, 0, 4)
+	deleted := NewBitmap(math.MaxUint8)
+	modified := make(map[uint]bgp.PathAttributeInterface)
 	p := path
 	for {
 		for _, t := range p.dels {
-			seen.Flag(uint(t))
-		}
-		for _, a := range p.pathAttrs {
-			if typ := uint(a.GetType()); !seen.GetFlag(typ) {
-				list = append(list, a)
-				seen.Flag(typ)
-			}
+			deleted.Flag(uint(t))
 		}
 		if p.parent == nil {
+			list := make([]bgp.PathAttributeInterface, 0, len(p.pathAttrs))
+			// we assume that the original pathAttrs are
+			// in order, that is, other bgp speakers send
+			// attributes in order.
+			for _, a := range p.pathAttrs {
+				typ := uint(a.GetType())
+				if m, ok := modified[typ]; ok {
+					list = append(list, m)
+					delete(modified, typ)
+				} else if !deleted.GetFlag(typ) {
+					list = append(list, a)
+				}
+			}
+			if len(modified) > 0 {
+				// Huh, some attributes were newly
+				// added. So we need to sort...
+				for _, m := range modified {
+					list = append(list, m)
+				}
+				var sorted attrs
+				sorted = list
+				sort.Sort(sorted)
+			}
 			return list
+		} else {
+			for _, a := range p.pathAttrs {
+				typ := uint(a.GetType())
+				if _, ok := modified[typ]; !deleted.GetFlag(typ) && !ok {
+					modified[typ] = a
+				}
+			}
 		}
 		p = p.parent
 	}
