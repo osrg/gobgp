@@ -2268,12 +2268,12 @@ func flowSpecFragmentParser(rf RouteFamily, args []string) (FlowSpecComponentInt
 	value := 0
 	for _, a := range args[1:] {
 		switch a {
-		case "not-a-fragment":
+		case "dont-fragment":
 			if afi, _ := RouteFamilyToAfiSafi(rf); afi == AFI_IP6 {
-				return nil, fmt.Errorf("can't specify not-a-fragment for ipv6")
+				return nil, fmt.Errorf("can't specify dont-fragment for ipv6")
 			}
 			value |= 0x1
-		case "is-a-fragment":
+		case "is-fragment":
 			value |= 0x2
 		case "first-fragment":
 			value |= 0x4
@@ -2630,10 +2630,10 @@ func formatFlag(op int, value int) string {
 func formatFragment(op int, value int) string {
 	ss := make([]string, 0, 4)
 	if value&0x1 > 0 {
-		ss = append(ss, "not-a-fragment")
+		ss = append(ss, "dont-fragment")
 	}
 	if value&0x2 > 0 {
-		ss = append(ss, "is-a-fragment")
+		ss = append(ss, "is-fragment")
 	}
 	if value&0x4 > 0 {
 		ss = append(ss, "first-fragment")
