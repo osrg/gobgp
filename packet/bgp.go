@@ -2266,20 +2266,22 @@ func flowSpecFragmentParser(rf RouteFamily, args []string) (FlowSpecComponentInt
 		return nil, fmt.Errorf("invalid flowspec fragment specifier")
 	}
 	value := 0
-	switch args[1] {
-	case "not-a-fragment":
-		if afi, _ := RouteFamilyToAfiSafi(rf); afi == AFI_IP6 {
-			return nil, fmt.Errorf("can't specify not-a-fragment for ipv6")
+	for _, a := range args[1:] {
+		switch a {
+		case "not-a-fragment":
+			if afi, _ := RouteFamilyToAfiSafi(rf); afi == AFI_IP6 {
+				return nil, fmt.Errorf("can't specify not-a-fragment for ipv6")
+			}
+			value |= 0x1
+		case "is-a-fragment":
+			value |= 0x2
+		case "first-fragment":
+			value |= 0x4
+		case "last-fragment":
+			value |= 0x8
+		default:
+			return nil, fmt.Errorf("invalid flowspec fragment specifier")
 		}
-		value = 0x1
-	case "is-a-fragment":
-		value = 0x2
-	case "first-fragment":
-		value = 0x4
-	case "last-fragment":
-		value = 0x8
-	default:
-		return nil, fmt.Errorf("invalid flowspec fragment specifier")
 	}
 	items := []*FlowSpecComponentItem{NewFlowSpecComponentItem(0, value)}
 	return NewFlowSpecComponent(FlowSpecValueMap[args[0]], items), nil
