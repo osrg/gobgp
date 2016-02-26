@@ -59,7 +59,7 @@ func Test_createPathFromIPRouteMessage(t *testing.T) {
 	assert.NotEqual(nil, p)
 	assert.Equal("0.0.0.0", p.GetNexthop().String())
 	assert.Equal("192.168.100.0/24", p.GetNlri().String())
-	assert.True(p.IsFromZebra())
+	assert.True(p.IsFromExternal())
 	assert.False(p.IsWithdraw)
 
 	// withdraw
@@ -71,7 +71,7 @@ func Test_createPathFromIPRouteMessage(t *testing.T) {
 	assert.Equal("192.168.100.0/24", p.GetNlri().String())
 	med, _ := p.GetMed()
 	assert.Equal(uint32(100), med)
-	assert.True(p.IsFromZebra())
+	assert.True(p.IsFromExternal())
 	assert.True(p.IsWithdraw)
 
 	// IPv6
@@ -88,7 +88,7 @@ func Test_createPathFromIPRouteMessage(t *testing.T) {
 	assert.Equal("2001:db8:0:f101::/64", p.GetNlri().String())
 	med, _ = p.GetMed()
 	assert.Equal(uint32(100), med)
-	assert.True(p.IsFromZebra())
+	assert.True(p.IsFromExternal())
 	assert.False(p.IsWithdraw)
 
 	// withdraw
@@ -98,7 +98,7 @@ func Test_createPathFromIPRouteMessage(t *testing.T) {
 	assert.NotEqual(nil, p)
 	assert.Equal("::", p.GetNexthop().String())
 	assert.Equal("2001:db8:0:f101::/64", p.GetNlri().String())
-	assert.True(p.IsFromZebra())
+	assert.True(p.IsFromExternal())
 	assert.True(p.IsWithdraw)
 
 }

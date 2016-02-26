@@ -876,7 +876,7 @@ func TestAsPathCondition(t *testing.T) {
 			bgp.NewAs4PathParam(asPathAttrType, ases),
 		}
 		pathAttributes := []bgp.PathAttributeInterface{bgp.NewPathAttributeAsPath(aspathParam)}
-		p := NewPath(nil, nil, false, pathAttributes, time.Time{}, false, false)
+		p := NewPath(nil, nil, false, pathAttributes, time.Time{}, false)
 		return astest{
 			path:   p,
 			result: result,

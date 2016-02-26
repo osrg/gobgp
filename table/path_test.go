@@ -13,14 +13,14 @@ import (
 func TestPathNewIPv4(t *testing.T) {
 	peerP := PathCreatePeer()
 	pathP := PathCreatePath(peerP)
-	ipv4p := NewPath(pathP[0].GetSource(), pathP[0].GetNlri(), true, pathP[0].GetPathAttrs(), time.Now(), false, false)
+	ipv4p := NewPath(pathP[0].GetSource(), pathP[0].GetNlri(), true, pathP[0].GetPathAttrs(), time.Now(), false)
 	assert.NotNil(t, ipv4p)
 }
 
 func TestPathNewIPv6(t *testing.T) {
 	peerP := PathCreatePeer()
 	pathP := PathCreatePath(peerP)
-	ipv6p := NewPath(pathP[0].GetSource(), pathP[0].GetNlri(), true, pathP[0].GetPathAttrs(), time.Now(), false, false)
+	ipv6p := NewPath(pathP[0].GetSource(), pathP[0].GetNlri(), true, pathP[0].GetPathAttrs(), time.Now(), false)
 	assert.NotNil(t, ipv6p)
 }
 
@@ -42,7 +42,7 @@ func TestPathCreatePath(t *testing.T) {
 	nlriList := updateMsgP.NLRI
 	pathAttributes := updateMsgP.PathAttributes
 	nlri_info := nlriList[0]
-	path := NewPath(peerP[0], nlri_info, false, pathAttributes, time.Now(), false, false)
+	path := NewPath(peerP[0], nlri_info, false, pathAttributes, time.Now(), false)
 	assert.NotNil(t, path)
 
 }
@@ -88,7 +88,7 @@ func TestASPathLen(t *testing.T) {
 	update := bgpmsg.Body.(*bgp.BGPUpdate)
 	UpdatePathAttrs4ByteAs(update)
 	peer := PathCreatePeer()
-	p := NewPath(peer[0], update.NLRI[0], false, update.PathAttributes, time.Now(), false, false)
+	p := NewPath(peer[0], update.NLRI[0], false, update.PathAttributes, time.Now(), false)
 	assert.Equal(10, p.GetAsPathLen())
 }
 
@@ -114,7 +114,7 @@ func TestPathPrependAsnToExistingSeqAttr(t *testing.T) {
 	update := bgpmsg.Body.(*bgp.BGPUpdate)
 	UpdatePathAttrs4ByteAs(update)
 	peer := PathCreatePeer()
-	p := NewPath(peer[0], update.NLRI[0], false, update.PathAttributes, time.Now(), false, false)
+	p := NewPath(peer[0], update.NLRI[0], false, update.PathAttributes, time.Now(), false)
 
 	p.PrependAsn(65000, 1)
 	assert.Equal([]uint32{65000, 65001, 65002, 65003, 65004, 65005, 0, 0, 0}, p.GetAsSeqList())
@@ -136,7 +136,7 @@ func TestPathPrependAsnToNewAsPathAttr(t *testing.T) {
 	update := bgpmsg.Body.(*bgp.BGPUpdate)
 	UpdatePathAttrs4ByteAs(update)
 	peer := PathCreatePeer()
-	p := NewPath(peer[0], update.NLRI[0], false, update.PathAttributes, time.Now(), false, false)
+	p := NewPath(peer[0], update.NLRI[0], false, update.PathAttributes, time.Now(), false)
 
 	asn := uint32(65000)
 	p.PrependAsn(asn, 1)
@@ -164,7 +164,7 @@ func TestPathPrependAsnToNewAsPathSeq(t *testing.T) {
 	update := bgpmsg.Body.(*bgp.BGPUpdate)
 	UpdatePathAttrs4ByteAs(update)
 	peer := PathCreatePeer()
-	p := NewPath(peer[0], update.NLRI[0], false, update.PathAttributes, time.Now(), false, false)
+	p := NewPath(peer[0], update.NLRI[0], false, update.PathAttributes, time.Now(), false)
 
 	asn := uint32(65000)
 	p.PrependAsn(asn, 1)
@@ -194,7 +194,7 @@ func TestPathPrependAsnToEmptyAsPathAttr(t *testing.T) {
 	update := bgpmsg.Body.(*bgp.BGPUpdate)
 	UpdatePathAttrs4ByteAs(update)
 	peer := PathCreatePeer()
-	p := NewPath(peer[0], update.NLRI[0], false, update.PathAttributes, time.Now(), false, false)
+	p := NewPath(peer[0], update.NLRI[0], false, update.PathAttributes, time.Now(), false)
 
 	asn := uint32(65000)
 	p.PrependAsn(asn, 1)
@@ -230,7 +230,7 @@ func TestPathPrependAsnToFullPathAttr(t *testing.T) {
 	update := bgpmsg.Body.(*bgp.BGPUpdate)
 	UpdatePathAttrs4ByteAs(update)
 	peer := PathCreatePeer()
-	p := NewPath(peer[0], update.NLRI[0], false, update.PathAttributes, time.Now(), false, false)
+	p := NewPath(peer[0], update.NLRI[0], false, update.PathAttributes, time.Now(), false)
 
 	expected := []uint32{65000, 65000}
 	for _, v := range asns {
@@ -269,7 +269,7 @@ func PathCreatePath(peerP []*PeerInfo) []*Path {
 		nlriList := updateMsgP.NLRI
 		pathAttributes := updateMsgP.PathAttributes
 		nlri_info := nlriList[0]
-		pathP[i] = NewPath(peerP[i], nlri_info, false, pathAttributes, time.Now(), false, false)
+		pathP[i] = NewPath(peerP[i], nlri_info, false, pathAttributes, time.Now(), false)
 	}
 	return pathP
 }

@@ -52,8 +52,7 @@ type originInfo struct {
 	timestamp          time.Time
 	noImplicitWithdraw bool
 	validation         config.RpkiValidationResultType
-	isFromZebra        bool
-	isFromOps          bool
+	isFromExternal     bool
 	key                string
 	uuid               []byte
 	eor                bool
@@ -84,7 +83,7 @@ type Path struct {
 	filtered   map[string]PolicyDirection
 }
 
-func NewPath(source *PeerInfo, nlri bgp.AddrPrefixInterface, isWithdraw bool, pattrs []bgp.PathAttributeInterface, timestamp time.Time, noImplicitWithdraw bool, isFromOps bool) *Path {
+func NewPath(source *PeerInfo, nlri bgp.AddrPrefixInterface, isWithdraw bool, pattrs []bgp.PathAttributeInterface, timestamp time.Time, noImplicitWithdraw bool) *Path {
 	if !isWithdraw && pattrs == nil {
 		log.WithFields(log.Fields{
 			"Topic": "Table",
@@ -119,7 +118,6 @@ func NewPath(source *PeerInfo, nlri bgp.AddrPrefixInterface, isWithdraw bool, pa
 			source:             source,
 			timestamp:          timestamp,
 			noImplicitWithdraw: noImplicitWithdraw,
-			isFromOps:          isFromOps,
 		},
 		IsWithdraw: isWithdraw,
 		pathAttrs:  pattrs,
@@ -266,17 +264,17 @@ func (path *Path) ToApiStruct(id string) *api.Path {
 		return ret
 	}(path.GetPathAttrs())
 	return &api.Path{
-		Nlri:       n,
-		Pattrs:     pattrs,
-		Age:        int64(time.Now().Sub(path.OriginInfo().timestamp).Seconds()),
-		IsWithdraw: path.IsWithdraw,
-		Validation: int32(path.OriginInfo().validation.ToInt()),
-		Filtered:   path.Filtered(id) == POLICY_DIRECTION_IN,
-		Family:     family,
-		SourceAsn:  path.OriginInfo().source.AS,
-		SourceId:   path.OriginInfo().source.ID.String(),
-		Stale:      path.IsStale(),
-		IsFromOps:  path.OriginInfo().isFromOps,
+		Nlri:           n,
+		Pattrs:         pattrs,
+		Age:            int64(time.Now().Sub(path.OriginInfo().timestamp).Seconds()),
+		IsWithdraw:     path.IsWithdraw,
+		Validation:     int32(path.OriginInfo().validation.ToInt()),
+		Filtered:       path.Filtered(id) == POLICY_DIRECTION_IN,
+		Family:         family,
+		SourceAsn:      path.OriginInfo().source.AS,
+		SourceId:       path.OriginInfo().source.ID.String(),
+		Stale:          path.IsStale(),
+		IsFromExternal: path.OriginInfo().isFromExternal,
 	}
 }
 
@@ -313,12 +311,12 @@ func (path *Path) SetValidation(r config.RpkiValidationResultType) {
 	path.OriginInfo().validation = r
 }
 
-func (path *Path) IsFromZebra() bool {
-	return path.OriginInfo().isFromZebra
+func (path *Path) IsFromExternal() bool {
+	return path.OriginInfo().isFromExternal
 }
 
-func (path *Path) SetIsFromZebra(y bool) {
-	path.OriginInfo().isFromZebra = y
+func (path *Path) SetIsFromExternal(y bool) {
+	path.OriginInfo().isFromExternal = y
 }
 
 func (path *Path) UUID() []byte {

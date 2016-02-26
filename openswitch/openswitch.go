@@ -138,8 +138,8 @@ func (m *OpsManager) getBGPRouterUUID() (uint32, uuid.UUID, error) {
 func parseRouteToGobgp(route ovsdb.RowUpdate, nexthops map[string]ovsdb.Row) (*api.Path, bool, bool, error) {
 	var nlri bgp.AddrPrefixInterface
 	path := &api.Path{
-		IsFromOps: true,
-		Pattrs:    make([][]byte, 0),
+		IsFromExternal: true,
+		Pattrs:         make([][]byte, 0),
 	}
 	isWithdraw := false
 	isFromGobgp := false
@@ -597,7 +597,7 @@ func (m *OpsManager) GobgpMonitor(ready *bool) {
 		}
 		d := res.Data.(*api.Destination)
 		bPath := d.Paths[0]
-		if bPath.IsFromOps && !bPath.IsWithdraw {
+		if bPath.IsFromExternal && !bPath.IsWithdraw {
 			continue
 		}
 		p, err := cmd.ApiStruct2Path(bPath)
