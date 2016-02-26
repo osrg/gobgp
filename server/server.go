@@ -673,7 +673,7 @@ func (server *BgpServer) broadcastValidationResults(results []*api.ROAResult) {
 
 func (server *BgpServer) broadcastBests(bests []*table.Path) {
 	for _, path := range bests {
-		if !path.IsFromZebra() {
+		if !path.IsFromExternal() {
 			z := newBroadcastZapiBestMsg(server.zclient, path)
 			if z != nil {
 				server.broadcastMsgs = append(server.broadcastMsgs, z)
@@ -1437,8 +1437,9 @@ func (server *BgpServer) Api2PathList(resource api.Resource, name string, ApiPat
 		if len(extcomms) > 0 {
 			pattr = append(pattr, bgp.NewPathAttributeExtendedCommunities(extcomms))
 		}
-
-		paths = append(paths, table.NewPath(pi, nlri, path.IsWithdraw, pattr, time.Now(), path.NoImplicitWithdraw, path.IsFromOps))
+		newPath := table.NewPath(pi, nlri, path.IsWithdraw, pattr, time.Now(), path.NoImplicitWithdraw)
+		newPath.SetIsFromExternal(path.IsFromExternal)
+		paths = append(paths, newPath)
 
 	}
 	return paths, nil
