@@ -64,7 +64,7 @@ func main() {
 
 	// add routes
 	path, _ := cmd.ParsePath(bgp.RF_IPv4_UC, []string{"10.0.0.0/24", "nexthop", "10.10.10.10"})
-	req = gobgp.NewGrpcRequest(gobgp.REQ_MOD_PATH, "", bgp.RouteFamily(0), &api.ModPathArguments{
+	req = gobgp.NewGrpcRequest(gobgp.REQ_MOD_PATHS, "", bgp.RouteFamily(0), &api.ModPathsArguments{
 		Resource: api.Resource_GLOBAL,
 		Paths:    []*api.Path{path},
 	})
