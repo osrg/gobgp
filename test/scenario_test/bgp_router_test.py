@@ -53,8 +53,8 @@ class GoBGPTestBase(unittest.TestCase):
         time.sleep(initial_wait_time)
 
         for q in qs:
-            g1.add_peer(q, reload_config=False)
-            q.add_peer(g1)
+            g1.add_peer(q, reload_config=False, passwd='passwd')
+            q.add_peer(g1, passwd='passwd', passive=True)
 
         g1.create_config()
         g1.reload_config()

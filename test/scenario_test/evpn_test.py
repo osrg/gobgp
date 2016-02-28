@@ -58,8 +58,8 @@ class GoBGPTestBase(unittest.TestCase):
         time.sleep(initial_wait_time)
 
         for a, b in combinations(ctns, 2):
-            a.add_peer(b, evpn=True)
-            b.add_peer(a, evpn=True)
+            a.add_peer(b, evpn=True, passwd='evpn')
+            b.add_peer(a, evpn=True, passwd='evpn')
 
         cls.g1 = g1
         cls.g2 = g2
