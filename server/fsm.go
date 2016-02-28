@@ -313,7 +313,14 @@ func (fsm *FSM) connectLoop() error {
 				}
 
 			} else {
-				conn, err := net.DialTimeout("tcp", host, time.Duration(MIN_CONNECT_RETRY-1)*time.Second)
+				var conn net.Conn
+				var err error
+				if fsm.pConf.Config.AuthPassword != "" {
+					deadline := (MIN_CONNECT_RETRY - 1) * 1000 // msec
+					conn, err = DialTCPTimeoutWithMD5Sig(addr, bgp.BGP_PORT, fsm.pConf.Config.AuthPassword, deadline)
+				} else {
+					conn, err = net.DialTimeout("tcp", host, time.Duration(MIN_CONNECT_RETRY-1)*time.Second)
+				}
 				if err == nil {
 					fsm.connCh <- conn
 				} else {

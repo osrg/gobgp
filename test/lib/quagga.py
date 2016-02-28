@@ -197,6 +197,8 @@ class QuaggaBGPContainer(BGPContainer):
                                                              direction)
             if info['passwd']:
                 c << 'neighbor {0} password {1}'.format(n_addr, info['passwd'])
+            if info['passive']:
+                c << 'neighbor {0} passive'.format(n_addr)
             if version == 6:
                 c << 'address-family ipv6 unicast'
                 c << 'neighbor {0} activate'.format(n_addr)
