@@ -33,6 +33,10 @@ import (
 	"gopkg.in/tomb.v2"
 )
 
+func before(a, b uint32) bool {
+	return int32(a-b) < 0
+}
+
 type ipPrefix struct {
 	Prefix net.IP
 	Length uint8
@@ -313,9 +317,11 @@ func (c *roaManager) handleRTRMsg(client *roaClient, state *config.RpkiServerSta
 	if err == nil {
 		switch msg := m.(type) {
 		case *bgp.RTRSerialNotify:
-			if client.serialNumber < msg.RTRCommon.SerialNumber {
+			if before(client.serialNumber, msg.RTRCommon.SerialNumber) {
 				client.enable(client.serialNumber)
-			} else if client.serialNumber > msg.RTRCommon.SerialNumber {
+			} else if client.serialNumber == msg.RTRCommon.SerialNumber {
+				// nothing
+			} else {
 				// should not happen. try to get the whole ROAs.
 				client.softReset()
 			}
