@@ -20,7 +20,7 @@ Add `[bmp-servers]` section under `[global]` to enable BMP like below.
   router-id = "192.168.255.1"
 
 [[global.bmp-servers]]
-  [bmp-servers.config]
+  [global.bmp-servers.config]
     address = "127.0.0.1"
     port=11019
 ```
