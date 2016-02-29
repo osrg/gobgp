@@ -558,6 +558,32 @@ func ParsePath(rf bgp.RouteFamily, args []string) (*api.Path, error) {
 			}
 			nlri = bgp.NewLabeledVPNIPv6AddrPrefix(uint8(ones), ip.String(), *mpls, rd)
 		}
+	case bgp.RF_IPv4_MPLS, bgp.RF_IPv6_MPLS:
+		if len(args) < 2 {
+			return nil, fmt.Errorf("invalid format")
+		}
+
+		ip, net, _ := net.ParseCIDR(args[0])
+		ones, _ := net.Mask.Size()
+
+		mpls, err := bgp.ParseMPLSLabelStack(args[1])
+		if err != nil {
+			return nil, err
+		}
+
+		extcomms = args[2:]
+
+		if rf == bgp.RF_IPv4_MPLS {
+			if ip.To4() == nil {
+				return nil, fmt.Errorf("invalid ipv4 prefix")
+			}
+			nlri = bgp.NewLabeledIPAddrPrefix(uint8(ones), ip.String(), *mpls)
+		} else {
+			if ip.To4() != nil {
+				return nil, fmt.Errorf("invalid ipv6 prefix")
+			}
+			nlri = bgp.NewLabeledIPv6AddrPrefix(uint8(ones), ip.String(), *mpls)
+		}
 	case bgp.RF_EVPN:
 		nlri, extcomms, err = ParseEvpnArgs(args)
 	case bgp.RF_FS_IPv4_UC, bgp.RF_FS_IPv6_UC:

@@ -1164,6 +1164,27 @@ func NewMPLSLabelStack(labels ...uint32) *MPLSLabelStack {
 	return &MPLSLabelStack{labels}
 }
 
+func ParseMPLSLabelStack(buf string) (*MPLSLabelStack, error) {
+	elems := strings.Split(buf, "/")
+	labels := make([]uint32, 0, len(elems))
+	if len(elems) == 0 {
+		goto ERR
+	}
+	for _, elem := range elems {
+		i, err := strconv.Atoi(elem)
+		if err != nil {
+			goto ERR
+		}
+		if i < 0 || i > ((1<<20)-1) {
+			goto ERR
+		}
+		labels = append(labels, uint32(i))
+	}
+	return NewMPLSLabelStack(labels...), nil
+ERR:
+	return nil, fmt.Errorf("invalid mpls label stack format")
+}
+
 //
 // RFC3107 Carrying Label Information in BGP-4
 //
@@ -1336,6 +1357,10 @@ func (l *LabeledIPAddrPrefix) Serialize() ([]byte, error) {
 	}
 	buf = append(buf, pbuf...)
 	return buf, nil
+}
+
+func (l *LabeledIPAddrPrefix) String() string {
+	return fmt.Sprintf("%s/%d", l.Prefix.String(), int(l.Length)-l.Labels.Len()*8)
 }
 
 func NewLabeledIPAddrPrefix(length uint8, prefix string, label MPLSLabelStack) *LabeledIPAddrPrefix {

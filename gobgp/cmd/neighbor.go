@@ -441,6 +441,10 @@ func showNeighborRib(r string, name string, args []string) error {
 	if err != nil {
 		return err
 	}
+	switch rf {
+	case bgp.RF_IPv4_MPLS, bgp.RF_IPv6_MPLS, bgp.RF_IPv4_VPN, bgp.RF_IPv6_VPN:
+		showLabel = true
+	}
 
 	arg := &api.Table{
 		Type:   resource,
