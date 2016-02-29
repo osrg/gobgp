@@ -24,7 +24,7 @@ gobgp has six subcommands.
 % gobgp global rib add <prefix> [-a <address family>]
 # delete a specific Route
 % gobgp global rib del <prefix> [-a <address family>]
-# delete all routes
+# delete all locally generated routes
 % gobgp global rib del all [-a <address family>]
 # show all Route information
 % gobgp global rib [-a <address family>]
@@ -42,12 +42,28 @@ If you want to remove routes with the address of the ipv6 from global rib：
 % gobgp global rib del 2001:123:123:1::/64 -a ipv6
 ```
 
+#### more examples
+```shell
+% gobgp global rib add -a ipv4 10.0.0.0/24 nexthop 20.20.20.20
+% gobgp global rib add -a ipv4 10.0.0.0/24 med 10
+% gobgp global rib add -a ipv4 10.0.0.0/24 local-pref 110
+% gobgp global rib add -a ipv4 10.0.0.0/24 aigp metric 200
+% gobgp global rib add -a ipv4-mpls 10.0.0.0/24 100
+% gobgp global rib add -a ipv4-mpls 10.0.0.0/24 100/200
+% gobgp global rib add -a ipv4-mpls 10.0.0.0/24 100 nexthop 20.20.20.20
+% gobgp global rib add -a ipv4-mpls 10.0.0.0/24 100 med 10
+% gobgp global rib add -a vpnv4 10.0.0.0/24 rd 100:100
+% gobgp global rib add -a vpnv4 10.0.0.0/24 rd 100.100:100
+% gobgp global rib add -a vpnv4 10.0.0.0/24 rd 10.10.10.10:100
+% gobgp global rib add -a vpnv4 10.0.0.0/24 rd 100:100 rt 100:200
+```
+
 #### - option
 The following options can be specified in the global subcommand:
 
-| short  |long           | description                                |
-|--------|---------------|--------------------------------------------|
-|a       |address-family |specify the ipv4, ipv6, evpn, encap, or rtc |
+| short  |long           | description                                | default |
+|--------|---------------|--------------------------------------------|---------|
+|a       |address-family |specify any one from among `ipv4`, `ipv6`, `vpnv4`, `vpnv6`, `ipv4-labeled`, `ipv6-labeled`, `evpn`, `encap`, `rtc`, `ipv4-flowspec`, `ipv6-flowspec` | `ipv4` |
 
 <br>
 
@@ -75,10 +91,9 @@ The following options can be specified in the global subcommand:
 #### - option
   The following options can be specified in the neighbor subcommand:
 
-| short  |long           | description                  |
-|--------|---------------|------------------------------|
-|a       |address-family |specify the ipv4 or ipv6      |
-
+| short  |long           | description                                | default |
+|--------|---------------|--------------------------------------------|---------|
+|a       |address-family |specify any one from among `ipv4`, `ipv6`, `vpnv4`, `vpnv6`, `ipv4-labeled`, `ipv6-labeld`, `evpn`, `encap`, `rtc`, `ipv4-flowspec`, `ipv6-flowspec` | `ipv4` |
 
 ### 2.3. Show Rib - local-rib/adj-rib-in/adj-rib-out -
 #### - syntax
@@ -98,9 +113,9 @@ If you want to show the local rib of ipv4 that neighbor(10.0.0.1) has：
 #### - option
 The following options can be specified in the neighbor subcommand:
 
-| short  |long           | description                  |
-|--------|---------------|------------------------------|
-|a       |address-family |specify the ipv4 or ipv6      |
+| short  |long           | description                                | default |
+|--------|---------------|--------------------------------------------|---------|
+|a       |address-family |specify any one from among `ipv4`, `ipv6`, `vpnv4`, `vpnv6`, `ipv4-labeled`, `ipv6-labeld`, `evpn`, `encap`, `rtc`, `ipv4-flowspec`, `ipv6-flowspec` | `ipv4` |
 
 
 ### 2.4. Operations for Policy  - add/del/show -
