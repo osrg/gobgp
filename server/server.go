@@ -2295,8 +2295,12 @@ func (server *BgpServer) handleGrpcModNeighbor(grpcReq *GrpcRequest) (sMsgs []*S
 				pconf.NeighborAddress = a.Conf.NeighborAddress
 				pconf.Config.NeighborAddress = a.Conf.NeighborAddress
 				pconf.Config.PeerAs = a.Conf.PeerAs
-				pconf.Config.LocalAs = a.Conf.LocalAs
-				if pconf.Config.PeerAs != server.bgpConfig.Global.Config.As {
+				if a.Conf.LocalAs == 0 {
+					pconf.Config.LocalAs = server.bgpConfig.Global.Config.As
+				} else {
+					pconf.Config.LocalAs = a.Conf.LocalAs
+				}
+				if pconf.Config.PeerAs != pconf.Config.LocalAs {
 					pconf.Config.PeerType = config.PEER_TYPE_EXTERNAL
 				} else {
 					pconf.Config.PeerType = config.PEER_TYPE_INTERNAL
