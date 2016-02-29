@@ -219,6 +219,20 @@ func ApiStruct2Path(p *gobgpapi.Path) ([]*Path, error) {
 	return paths, nil
 }
 
+type pathAttrs []bgp.PathAttributeInterface
+
+func (p pathAttrs) Len() int {
+	return len(p)
+}
+
+func (p pathAttrs) Swap(i, j int) {
+	p[i], p[j] = p[j], p[i]
+}
+
+func (p pathAttrs) Less(i, j int) bool {
+	return p[i].GetType() < p[j].GetType()
+}
+
 type paths []*Path
 
 func (p paths) Len() int {
