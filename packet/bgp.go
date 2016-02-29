@@ -1350,6 +1350,10 @@ type LabeledIPv6AddrPrefix struct {
 	LabeledIPAddrPrefix
 }
 
+func (l *LabeledIPv6AddrPrefix) AFI() uint16 {
+	return AFI_IP6
+}
+
 func NewLabeledIPv6AddrPrefix(length uint8, prefix string, label MPLSLabelStack) *LabeledIPv6AddrPrefix {
 	return &LabeledIPv6AddrPrefix{
 		LabeledIPAddrPrefix{
