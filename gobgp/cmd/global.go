@@ -257,15 +257,20 @@ func ParseExtendedCommunities(input string) ([]bgp.ExtendedCommunityInterface, e
 			continue
 		}
 		if i < len(idxs)-1 {
-			a = args[idx.i:idxs[i+1].i]
+			a = args[:idxs[i+1].i-idx.i]
+			args = args[(idxs[i+1].i - idx.i):]
 		} else {
-			a = args[idx.i:]
+			a = args
+			args = nil
 		}
 		ext, err := f(a)
 		if err != nil {
 			return nil, err
 		}
 		exts = append(exts, ext...)
+	}
+	if len(args) > 0 {
+		return nil, fmt.Errorf("failed to parse %v", args)
 	}
 	return exts, nil
 }
@@ -275,6 +280,7 @@ func ParseFlowSpecArgs(rf bgp.RouteFamily, args []string) (bgp.AddrPrefixInterfa
 	for idx, v := range args {
 		if v == "then" {
 			thenPos = idx
+			break
 		}
 	}
 	if len(args) < 4 || args[0] != "match" || thenPos > len(args)-2 {
@@ -300,7 +306,7 @@ func ParseFlowSpecArgs(rf bgp.RouteFamily, args []string) (bgp.AddrPrefixInterfa
 	var comms table.FlowSpecComponents
 	comms = fnlri.Value
 	sort.Sort(comms)
-	return nlri, args[thenPos:], nil
+	return nlri, args[thenPos+1:], nil
 }
 
 func ParseEvpnMacAdvArgs(args []string) (bgp.AddrPrefixInterface, []string, error) {
@@ -437,7 +443,7 @@ func extractNexthop(rf bgp.RouteFamily, args []string) ([]string, string, error)
 	return args, nexthop, nil
 }
 
-func extractLocalPref(args []string) ([]string, []byte, error) {
+func extractLocalPref(args []string) ([]string, bgp.PathAttributeInterface, error) {
 	for idx, arg := range args {
 		if arg == "local-pref" && len(args) > (idx+1) {
 			metric, err := strconv.Atoi(args[idx+1])
@@ -445,14 +451,13 @@ func extractLocalPref(args []string) ([]string, []byte, error) {
 				return nil, nil, err
 			}
 			args = append(args[:idx], args[idx+2:]...)
-			localPref, _ := bgp.NewPathAttributeLocalPref(uint32(metric)).Serialize()
-			return args, localPref, nil
+			return args, bgp.NewPathAttributeLocalPref(uint32(metric)), nil
 		}
 	}
 	return args, nil, nil
 }
 
-func extractMed(args []string) ([]string, []byte, error) {
+func extractMed(args []string) ([]string, bgp.PathAttributeInterface, error) {
 	for idx, arg := range args {
 		if arg == "med" && len(args) > (idx+1) {
 			metric, err := strconv.Atoi(args[idx+1])
@@ -460,14 +465,13 @@ func extractMed(args []string) ([]string, []byte, error) {
 				return nil, nil, err
 			}
 			args = append(args[:idx], args[idx+2:]...)
-			med, _ := bgp.NewPathAttributeMultiExitDisc(uint32(metric)).Serialize()
-			return args, med, nil
+			return args, bgp.NewPathAttributeMultiExitDisc(uint32(metric)), nil
 		}
 	}
 	return args, nil, nil
 }
 
-func extractAigp(args []string) ([]string, []byte, error) {
+func extractAigp(args []string) ([]string, bgp.PathAttributeInterface, error) {
 	for idx, arg := range args {
 		if arg == "aigp" {
 			if len(args) < (idx + 3) {
@@ -480,7 +484,7 @@ func extractAigp(args []string) ([]string, []byte, error) {
 				if err != nil {
 					return nil, nil, err
 				}
-				aigp, _ := bgp.NewPathAttributeAigp([]bgp.AigpTLV{bgp.NewAigpTLVIgpMetric(uint64(metric))}).Serialize()
+				aigp := bgp.NewPathAttributeAigp([]bgp.AigpTLV{bgp.NewAigpTLVIgpMetric(uint64(metric))})
 				return append(args[:idx], args[idx+3:]...), aigp, nil
 			default:
 				return nil, nil, fmt.Errorf("unknown aigp type: %s", typ)
@@ -494,17 +498,41 @@ func ParsePath(rf bgp.RouteFamily, args []string) (*api.Path, error) {
 	var nlri bgp.AddrPrefixInterface
 	var extcomms []string
 	var err error
+	attrs := pathAttrs(make([]bgp.PathAttributeInterface, 0, 1))
 
 	path := &api.Path{
 		Pattrs: make([][]byte, 0),
 	}
 
-	origin, _ := bgp.NewPathAttributeOrigin(bgp.BGP_ORIGIN_ATTR_TYPE_INCOMPLETE).Serialize()
-	path.Pattrs = append(path.Pattrs, origin)
+	attrs = append(attrs, bgp.NewPathAttributeOrigin(bgp.BGP_ORIGIN_ATTR_TYPE_INCOMPLETE))
 
 	args, nexthop, err := extractNexthop(rf, args)
 	if err != nil {
 		return nil, err
+	}
+
+	args, med, err := extractMed(args)
+	if err != nil {
+		return nil, err
+	}
+	if med != nil {
+		attrs = append(attrs, med)
+	}
+
+	args, localPref, err := extractLocalPref(args)
+	if err != nil {
+		return nil, err
+	}
+	if localPref != nil {
+		attrs = append(attrs, localPref)
+	}
+
+	args, aigp, err := extractAigp(args)
+	if err != nil {
+		return nil, err
+	}
+	if aigp != nil {
+		attrs = append(attrs, aigp)
 	}
 
 	switch rf {
@@ -597,29 +625,10 @@ func ParsePath(rf bgp.RouteFamily, args []string) (*api.Path, error) {
 
 	if rf == bgp.RF_IPv4_UC {
 		path.Nlri, _ = nlri.Serialize()
-		n, _ := bgp.NewPathAttributeNextHop(nexthop).Serialize()
-		path.Pattrs = append(path.Pattrs, n)
+		attrs = append(attrs, bgp.NewPathAttributeNextHop(nexthop))
 	} else {
-		mpreach, _ := bgp.NewPathAttributeMpReachNLRI(nexthop, []bgp.AddrPrefixInterface{nlri}).Serialize()
-		path.Pattrs = append(path.Pattrs, mpreach)
-	}
-
-	var med []byte
-	args, med, err = extractMed(args)
-	if err != nil {
-		return nil, err
-	}
-	if med != nil {
-		path.Pattrs = append(path.Pattrs, med)
-	}
-
-	var localPref []byte
-	args, localPref, err = extractLocalPref(args)
-	if err != nil {
-		return nil, err
-	}
-	if localPref != nil {
-		path.Pattrs = append(path.Pattrs, localPref)
+		mpreach := bgp.NewPathAttributeMpReachNLRI(nexthop, []bgp.AddrPrefixInterface{nlri})
+		attrs = append(attrs, mpreach)
 	}
 
 	if extcomms != nil && len(extcomms) > 0 {
@@ -628,21 +637,18 @@ func ParsePath(rf bgp.RouteFamily, args []string) (*api.Path, error) {
 			return nil, err
 		}
 		p := bgp.NewPathAttributeExtendedCommunities(extcomms)
-		buf, err := p.Serialize()
+		attrs = append(attrs, p)
+	}
+
+	sort.Sort(attrs)
+
+	for _, attr := range attrs {
+		buf, err := attr.Serialize()
 		if err != nil {
 			return nil, err
 		}
 		path.Pattrs = append(path.Pattrs, buf)
 	}
-	var aigp []byte
-	args, aigp, err = extractAigp(args)
-	if err != nil {
-		return nil, err
-	}
-	if aigp != nil {
-		path.Pattrs = append(path.Pattrs, aigp)
-	}
-
 	return path, nil
 }
 
