@@ -2370,6 +2370,10 @@ func (server *BgpServer) handleGrpcModNeighbor(grpcReq *GrpcRequest) (sMsgs []*S
 				pconf.Transport.Config.LocalAddress = a.Transport.LocalAddress
 				pconf.Transport.Config.PassiveMode = a.Transport.PassiveMode
 			}
+			if a.EbgpMultihop != nil {
+				pconf.EbgpMultihop.Config.Enabled = a.EbgpMultihop.Enabled
+				pconf.EbgpMultihop.Config.MultihopTtl = uint8(a.EbgpMultihop.MultihopTtl)
+			}
 			return pconf, nil
 		}
 		configneigh, err := apitoConfig(arg.Peer)
