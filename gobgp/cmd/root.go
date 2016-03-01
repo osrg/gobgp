@@ -16,8 +16,12 @@
 package cmd
 
 import (
+	"fmt"
 	api "github.com/osrg/gobgp/api"
 	"github.com/spf13/cobra"
+	"net/http"
+	_ "net/http/pprof"
+	"os"
 )
 
 var globalOpts struct {
@@ -28,6 +32,7 @@ var globalOpts struct {
 	Json         bool
 	GenCmpl      bool
 	BashCmplFile string
+	PprofPort    int
 }
 
 var cmds []string
@@ -38,6 +43,15 @@ func NewRootCmd() *cobra.Command {
 	rootCmd := &cobra.Command{
 		Use: "gobgp",
 		PersistentPreRun: func(cmd *cobra.Command, args []string) {
+			if globalOpts.PprofPort > 0 {
+				go func() {
+					if err := http.ListenAndServe(fmt.Sprintf("localhost:%d", globalOpts.PprofPort), nil); err != nil {
+						fmt.Println(err)
+						os.Exit(1)
+					}
+				}()
+			}
+
 			if !globalOpts.GenCmpl {
 				conn := connGrpc()
 				client = api.NewGobgpApiClient(conn)
@@ -59,6 +73,7 @@ func NewRootCmd() *cobra.Command {
 	rootCmd.PersistentFlags().BoolVarP(&globalOpts.Quiet, "quiet", "q", false, "use quiet")
 	rootCmd.PersistentFlags().BoolVarP(&globalOpts.GenCmpl, "gen-cmpl", "c", false, "generate completion file")
 	rootCmd.PersistentFlags().StringVarP(&globalOpts.BashCmplFile, "bash-cmpl-file", "", "gobgp-completion.bash", "bash cmpl filename")
+	rootCmd.PersistentFlags().IntVarP(&globalOpts.PprofPort, "pprof-port", "r", 0, "pprof port")
 
 	globalCmd := NewGlobalCmd()
 	neighborCmd := NewNeighborCmd()
