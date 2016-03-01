@@ -44,7 +44,11 @@ func NewRootCmd() *cobra.Command {
 			}
 		},
 		Run: func(cmd *cobra.Command, args []string) {
-			cmd.GenBashCompletionFile(globalOpts.BashCmplFile)
+			if globalOpts.GenCmpl {
+				cmd.GenBashCompletionFile(globalOpts.BashCmplFile)
+			} else {
+				cmd.HelpFunc()(cmd, args)
+			}
 		},
 	}
 
