@@ -257,15 +257,20 @@ func ParseExtendedCommunities(input string) ([]bgp.ExtendedCommunityInterface, e
 			continue
 		}
 		if i < len(idxs)-1 {
-			a = args[idx.i:idxs[i+1].i]
+			a = args[:idxs[i+1].i-idx.i]
+			args = args[(idxs[i+1].i - idx.i):]
 		} else {
-			a = args[idx.i:]
+			a = args
+			args = nil
 		}
 		ext, err := f(a)
 		if err != nil {
 			return nil, err
 		}
 		exts = append(exts, ext...)
+	}
+	if len(args) > 0 {
+		return nil, fmt.Errorf("failed to parse %v", args)
 	}
 	return exts, nil
 }
@@ -275,6 +280,7 @@ func ParseFlowSpecArgs(rf bgp.RouteFamily, args []string) (bgp.AddrPrefixInterfa
 	for idx, v := range args {
 		if v == "then" {
 			thenPos = idx
+			break
 		}
 	}
 	if len(args) < 4 || args[0] != "match" || thenPos > len(args)-2 {
@@ -300,7 +306,7 @@ func ParseFlowSpecArgs(rf bgp.RouteFamily, args []string) (bgp.AddrPrefixInterfa
 	var comms table.FlowSpecComponents
 	comms = fnlri.Value
 	sort.Sort(comms)
-	return nlri, args[thenPos:], nil
+	return nlri, args[thenPos+1:], nil
 }
 
 func ParseEvpnMacAdvArgs(args []string) (bgp.AddrPrefixInterface, []string, error) {
@@ -507,6 +513,33 @@ func ParsePath(rf bgp.RouteFamily, args []string) (*api.Path, error) {
 		return nil, err
 	}
 
+	var med []byte
+	args, med, err = extractMed(args)
+	if err != nil {
+		return nil, err
+	}
+	if med != nil {
+		path.Pattrs = append(path.Pattrs, med)
+	}
+
+	var localPref []byte
+	args, localPref, err = extractLocalPref(args)
+	if err != nil {
+		return nil, err
+	}
+	if localPref != nil {
+		path.Pattrs = append(path.Pattrs, localPref)
+	}
+
+	var aigp []byte
+	args, aigp, err = extractAigp(args)
+	if err != nil {
+		return nil, err
+	}
+	if aigp != nil {
+		path.Pattrs = append(path.Pattrs, aigp)
+	}
+
 	switch rf {
 	case bgp.RF_IPv4_UC, bgp.RF_IPv6_UC:
 		if len(args) < 1 {
@@ -604,24 +637,6 @@ func ParsePath(rf bgp.RouteFamily, args []string) (*api.Path, error) {
 		path.Pattrs = append(path.Pattrs, mpreach)
 	}
 
-	var med []byte
-	args, med, err = extractMed(args)
-	if err != nil {
-		return nil, err
-	}
-	if med != nil {
-		path.Pattrs = append(path.Pattrs, med)
-	}
-
-	var localPref []byte
-	args, localPref, err = extractLocalPref(args)
-	if err != nil {
-		return nil, err
-	}
-	if localPref != nil {
-		path.Pattrs = append(path.Pattrs, localPref)
-	}
-
 	if extcomms != nil && len(extcomms) > 0 {
 		extcomms, err := ParseExtendedCommunities(strings.Join(extcomms, " "))
 		if err != nil {
@@ -634,15 +649,6 @@ func ParsePath(rf bgp.RouteFamily, args []string) (*api.Path, error) {
 		}
 		path.Pattrs = append(path.Pattrs, buf)
 	}
-	var aigp []byte
-	args, aigp, err = extractAigp(args)
-	if err != nil {
-		return nil, err
-	}
-	if aigp != nil {
-		path.Pattrs = append(path.Pattrs, aigp)
-	}
-
 	return path, nil
 }
 
