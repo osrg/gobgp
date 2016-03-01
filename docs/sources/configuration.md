@@ -63,6 +63,10 @@
     [[neighbors.afi-safis]]
         afi-safi-name = "ipv6-unicast"
     [[neighbors.afi-safis]]
+        afi-safi-name = "ipv4-labelled-unicast"
+    [[neighbors.afi-safis]]
+        afi-safi-name = "ipv6-labelled-unicast"
+    [[neighbors.afi-safis]]
         afi-safi-name = "l3vpn-ipv4-unicast"
     [[neighbors.afi-safis]]
         afi-safi-name = "l3vpn-ipv6-unicast"
