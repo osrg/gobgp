@@ -398,17 +398,17 @@ func (path *Path) GetNlri() bgp.AddrPrefixInterface {
 	return path.OriginInfo().nlri
 }
 
-type attrs []bgp.PathAttributeInterface
+type PathAttrs []bgp.PathAttributeInterface
 
-func (a attrs) Len() int {
+func (a PathAttrs) Len() int {
 	return len(a)
 }
 
-func (a attrs) Swap(i, j int) {
+func (a PathAttrs) Swap(i, j int) {
 	a[i], a[j] = a[j], a[i]
 }
 
-func (a attrs) Less(i, j int) bool {
+func (a PathAttrs) Less(i, j int) bool {
 	return a[i].GetType() < a[j].GetType()
 }
 
@@ -421,7 +421,7 @@ func (path *Path) GetPathAttrs() []bgp.PathAttributeInterface {
 			deleted.Flag(uint(t))
 		}
 		if p.parent == nil {
-			list := make([]bgp.PathAttributeInterface, 0, len(p.pathAttrs))
+			list := PathAttrs(make([]bgp.PathAttributeInterface, 0, len(p.pathAttrs)))
 			// we assume that the original pathAttrs are
 			// in order, that is, other bgp speakers send
 			// attributes in order.
@@ -440,9 +440,7 @@ func (path *Path) GetPathAttrs() []bgp.PathAttributeInterface {
 				for _, m := range modified {
 					list = append(list, m)
 				}
-				var sorted attrs
-				sorted = list
-				sort.Sort(sorted)
+				sort.Sort(list)
 			}
 			return list
 		} else {

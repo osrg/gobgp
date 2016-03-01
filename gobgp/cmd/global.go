@@ -498,7 +498,7 @@ func ParsePath(rf bgp.RouteFamily, args []string) (*api.Path, error) {
 	var nlri bgp.AddrPrefixInterface
 	var extcomms []string
 	var err error
-	attrs := pathAttrs(make([]bgp.PathAttributeInterface, 0, 1))
+	attrs := table.PathAttrs(make([]bgp.PathAttributeInterface, 0, 1))
 
 	path := &api.Path{
 		Pattrs: make([][]byte, 0),
