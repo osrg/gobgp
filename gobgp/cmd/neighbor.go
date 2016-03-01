@@ -288,6 +288,7 @@ func ShowRoute(pathList []*Path, showAge, showBest, showLabel, isMonitor, printH
 	maxAsPathLen := 20
 	maxLabelLen := 10
 
+	now := time.Now()
 	for _, p := range pathList {
 		var nexthop string
 		var aspathstr string
@@ -373,7 +374,7 @@ func ShowRoute(pathList []*Path, showAge, showBest, showLabel, isMonitor, printH
 			}
 			args = append(args, []interface{}{nexthop, aspathstr}...)
 			if showAge {
-				args = append(args, formatTimedelta(p.Age))
+				args = append(args, formatTimedelta(int64(now.Sub(time.Unix(int64(p.Age), 0)).Seconds())))
 			}
 			args = append(args, pattrstr)
 			pathStrs = append(pathStrs, args)
