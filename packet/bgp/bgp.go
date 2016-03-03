@@ -2951,6 +2951,16 @@ func (p *FlowSpecUnknown) String() string {
 	return fmt.Sprintf("[unknown:%v]", p.Value)
 }
 
+func (p *FlowSpecUnknown) MarshalJSON() ([]byte, error) {
+	return json.Marshal(struct {
+		Type  BGPFlowSpecType `json:"type"`
+		Value string          `json:"value"`
+	}{
+		Type:  p.Type(),
+		Value: string(p.Value),
+	})
+}
+
 type FlowSpecNLRI struct {
 	Value []FlowSpecComponentInterface
 	rf    RouteFamily
