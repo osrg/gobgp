@@ -2294,25 +2294,26 @@ func flowSpecFragmentParser(rf RouteFamily, args []string) (FlowSpecComponentInt
 	if len(args) < 2 {
 		return nil, fmt.Errorf("invalid flowspec fragment specifier")
 	}
-	value := 0
+	items := make([]*FlowSpecComponentItem, 0)
 	for _, a := range args[1:] {
+		value := 0
 		switch a {
 		case "dont-fragment":
 			if afi, _ := RouteFamilyToAfiSafi(rf); afi == AFI_IP6 {
 				return nil, fmt.Errorf("can't specify dont-fragment for ipv6")
 			}
-			value |= 0x1
+			value = 0x1
 		case "is-fragment":
-			value |= 0x2
+			value = 0x2
 		case "first-fragment":
-			value |= 0x4
+			value = 0x4
 		case "last-fragment":
-			value |= 0x8
+			value = 0x8
 		default:
 			return nil, fmt.Errorf("invalid flowspec fragment specifier")
 		}
+		items = append(items, NewFlowSpecComponentItem(0, value))
 	}
-	items := []*FlowSpecComponentItem{NewFlowSpecComponentItem(0, value)}
 	return NewFlowSpecComponent(FlowSpecValueMap[args[0]], items), nil
 }
 
@@ -2541,7 +2542,7 @@ func (v *FlowSpecComponentItem) Serialize() ([]byte, error) {
 	}
 
 	buf := make([]byte, 1+(1<<order))
-	buf[0] = byte(uint32(v.Op) | order << 4)
+	buf[0] = byte(uint32(v.Op) | order<<4)
 	switch order {
 	case 0:
 		buf[1] = byte(v.Value)
