@@ -273,6 +273,7 @@ func (path *Path) ToApiStruct(id string) *api.Path {
 		Family:         family,
 		SourceAsn:      path.OriginInfo().source.AS,
 		SourceId:       path.OriginInfo().source.ID.String(),
+		NeighborIp:     path.OriginInfo().source.Address.String(),
 		Stale:          path.IsStale(),
 		IsFromExternal: path.OriginInfo().isFromExternal,
 	}

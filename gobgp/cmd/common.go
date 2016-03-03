@@ -165,6 +165,7 @@ type Path struct {
 	Validation int32                        `json:"validation"`
 	Filtered   bool                         `json:"filtered"`
 	SourceId   string                       `json:"source-id"`
+	NeighborIp string                       `json:"neighbor-ip"`
 	Stale      bool                         `json:"stale"`
 }
 
@@ -212,6 +213,7 @@ func ApiStruct2Path(p *gobgpapi.Path) ([]*Path, error) {
 			IsWithdraw: p.IsWithdraw,
 			Validation: p.Validation,
 			SourceId:   p.SourceId,
+			NeighborIp: p.NeighborIp,
 			Filtered:   p.Filtered,
 			Stale:      p.Stale,
 		})
