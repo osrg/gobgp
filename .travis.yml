@@ -1,13 +1,31 @@
 language: go
 
-go: 
+sudo: required
+services:
+  - docker
+
+go:
  - 1.3
  - 1.4
  - 1.5
  - 1.6
  - tip
 
-script:
- - go test -v ./...
+env:
+ - SCENARIO=false
+ - SCENARIO=true
 
-sudo: false
+matrix:
+  exclude:
+    - go: 1.3
+      env: SCENARIO=true
+    - go: 1.4
+      env: SCENARIO=true
+    - go: 1.5
+      env: SCENARIO=true
+    - go: tip
+      env: SCENARIO=true
+
+script:
+ - bash test/scenario_test/ci-scripts/travis-build-script.sh $SCENARIO
+
