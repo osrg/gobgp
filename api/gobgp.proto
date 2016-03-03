@@ -202,6 +202,7 @@ message Path {
     bool filtered = 11;
     bool stale = 12;
     bool is_from_external = 13;
+    string neighbor_ip = 14;
 }
 
 message Destination {
