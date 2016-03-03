@@ -865,7 +865,7 @@ func keepaliveTicker(fsm *FSM) *time.Ticker {
 	}
 	sec := time.Second * time.Duration(fsm.pConf.Timers.State.KeepaliveInterval)
 	if sec == 0 {
-		sec = 1
+		sec = time.Second
 	}
 	return time.NewTicker(sec)
 }
