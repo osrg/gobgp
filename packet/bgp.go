@@ -2519,32 +2519,38 @@ func (v *FlowSpecComponentItem) Serialize() ([]byte, error) {
 	}
 	if v.Op < 0 || v.Op > math.MaxUint8 {
 		return nil, fmt.Errorf("invalid op size: %d", v.Op)
+
+	}
+	order := uint32(math.Log2(float64(v.Len())))
+	// we don't know if not initialized properly or initialized to
+	// zero...
+	if order == 0 {
+		order = func() uint32 {
+			for i := 0; i < 3; i++ {
+				if v.Value < (1 << ((1 << uint(i)) * 8)) {
+					return uint32(i)
+				}
+			}
+			// return invalid order
+			return 4
+		}()
 	}
 
-	for i := 0; i < 3; i++ {
-		if v.Value < (1 << ((1 << uint(i)) * 8)) {
-			buf := make([]byte, 1+(1<<uint(i)))
-			switch i {
-			case 0:
-				buf[1] = byte(v.Value)
-				v.Op &^= 0x30
-			case 1:
-				binary.BigEndian.PutUint16(buf[1:], uint16(v.Value))
-				v.Op |= 0x10
-				v.Op &^= 0x20
-			case 2:
-				binary.BigEndian.PutUint32(buf[1:], uint32(v.Value))
-				v.Op &^= 0x10
-				v.Op |= 0x20
-			case 3:
-				binary.BigEndian.PutUint64(buf[1:], uint64(v.Value))
-				v.Op |= 0x30
-			}
-			buf[0] = byte(v.Op)
-			return buf, nil
-		}
+	buf := make([]byte, 1+(1<<order))
+	buf[0] = byte(uint32(v.Op) | order << 4)
+	switch order {
+	case 0:
+		buf[1] = byte(v.Value)
+	case 1:
+		binary.BigEndian.PutUint16(buf[1:], uint16(v.Value))
+	case 2:
+		binary.BigEndian.PutUint32(buf[1:], uint32(v.Value))
+	case 3:
+		binary.BigEndian.PutUint64(buf[1:], uint64(v.Value))
+	default:
+		return nil, fmt.Errorf("invalid value size(too big): %d", v.Value)
 	}
-	return nil, fmt.Errorf("invalid value size(too big): %d", v.Value)
+	return buf, nil
 }
 
 func NewFlowSpecComponentItem(op int, value int) *FlowSpecComponentItem {
