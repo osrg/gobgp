@@ -2513,6 +2513,10 @@ type FlowSpecComponentItem struct {
 	Value int `json:"value"`
 }
 
+func (v *FlowSpecComponentItem) Len() int {
+	return 1 << ((uint32(v.Op) >> 4) & 0x3)
+}
+
 func (v *FlowSpecComponentItem) Serialize() ([]byte, error) {
 	if v.Value < 0 {
 		return nil, fmt.Errorf("invalid value size(too small): %d", v.Value)
@@ -2605,8 +2609,11 @@ func (p *FlowSpecComponent) Serialize() ([]byte, error) {
 }
 
 func (p *FlowSpecComponent) Len() int {
-	buf, _ := p.Serialize()
-	return len(buf)
+	l := 1
+	for _, item := range p.Items {
+		l += (item.Len() + 1)
+	}
+	return l
 }
 
 func (p *FlowSpecComponent) Type() BGPFlowSpecType {
