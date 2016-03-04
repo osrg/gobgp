@@ -1,8 +1,7 @@
 # GoBGP: BGP implementation in Go
 
 [![Build Status](https://travis-ci.org/osrg/gobgp.svg?branch=master)](https://travis-ci.org/osrg/gobgp/builds)
-[![Join the chat at https://gitter.im/osrg/gobgp](https://badges.gitter.im/Join%20Chat.svg)](https://gitter.im/osrg/gobgp?utm_source=badge&utm_medium=badge&utm_campaign=pr-badge&utm_content=badge)
-[![Stories in Ready](https://badge.waffle.io/osrg/gobgp.png?label=ready&title=Ready)](https://waffle.io/osrg/gobgp)
+[![Slack Status](https://slackin-gobgp.mybluemix.net/badge.svg)](http://slackin-gobgp.mybluemix.net/)
 
 GoBGP is an open source BGP implementation designed from scratch for
 modern environment and implemented in a modern programming language,
@@ -41,7 +40,7 @@ No dependency hell (library, package, etc) thanks to Go.
  
 ## Community, discussion and support
 
-We have the [the mailing
+We have the [Slack](http://slackin-gobgp.mybluemix.net/) and [mailing
 list](https://lists.sourceforge.net/lists/listinfo/gobgp-devel) for
 questions, discussion, suggestions, etc.
 
