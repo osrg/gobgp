@@ -549,7 +549,7 @@ func readAll(conn net.Conn, length int) ([]byte, error) {
 	return buf, nil
 }
 
-func (h *FSMHandler) recvMessageWithError() error {
+func (h *FSMHandler) recvMessageWithError() (error, *FsmMsg) {
 	sendToErrorCh := func(reason FsmStateReason) {
 		// probably doesn't happen but be cautious
 		select {
@@ -561,7 +561,7 @@ func (h *FSMHandler) recvMessageWithError() error {
 	headerBuf, err := readAll(h.conn, bgp.BGP_HEADER_LENGTH)
 	if err != nil {
 		sendToErrorCh(FSM_READ_FAILED)
-		return err
+		return err, nil
 	}
 
 	hd := &bgp.BGPHeader{}
@@ -574,18 +574,18 @@ func (h *FSMHandler) recvMessageWithError() error {
 			"State": h.fsm.state,
 			"error": err,
 		}).Warn("malformed BGP Header")
-		h.msgCh <- &FsmMsg{
+		fmsg := &FsmMsg{
 			MsgType: FSM_MSG_BGP_MESSAGE,
 			MsgSrc:  h.fsm.pConf.Config.NeighborAddress,
 			MsgData: err,
 		}
-		return err
+		return err, fmsg
 	}
 
 	bodyBuf, err := readAll(h.conn, int(hd.Len)-bgp.BGP_HEADER_LENGTH)
 	if err != nil {
 		sendToErrorCh(FSM_READ_FAILED)
-		return err
+		return err, nil
 	}
 
 	now := time.Now()
@@ -649,7 +649,7 @@ func (h *FSMHandler) recvMessageWithError() error {
 					h.holdTimerResetCh <- true
 				}
 				if m.Header.Type == bgp.BGP_MSG_KEEPALIVE {
-					return nil
+					return nil, nil
 				}
 			case bgp.BGP_MSG_NOTIFICATION:
 				body := m.Body.(*bgp.BGPNotification)
@@ -662,16 +662,18 @@ func (h *FSMHandler) recvMessageWithError() error {
 				}).Warn("received notification")
 
 				sendToErrorCh(FSM_NOTIFICATION_RECV)
-				return nil
+				return nil, nil
 			}
 		}
 	}
-	h.msgCh <- fmsg
-	return err
+	return err, fmsg
 }
 
 func (h *FSMHandler) recvMessage() error {
-	h.recvMessageWithError()
+	_, fmsg := h.recvMessageWithError()
+	if fmsg != nil {
+		h.msgCh <- fmsg
+	}
 	return nil
 }
 
@@ -1062,7 +1064,10 @@ func (h *FSMHandler) sendMessageloop() error {
 
 func (h *FSMHandler) recvMessageloop() error {
 	for {
-		err := h.recvMessageWithError()
+		err, fmsg := h.recvMessageWithError()
+		if fmsg != nil {
+			h.msgCh <- fmsg
+		}
 		if err != nil {
 			return nil
 		}
