@@ -26,6 +26,7 @@ import (
 	"math/rand"
 	"net"
 	"strconv"
+	"sync"
 	"time"
 )
 
@@ -1063,12 +1064,49 @@ func (h *FSMHandler) sendMessageloop() error {
 }
 
 func (h *FSMHandler) recvMessageloop() error {
-	for {
-		err, fmsg := h.recvMessageWithError()
-		if fmsg != nil {
-			h.msgCh <- fmsg
+	sliceSize := 1024
+	fmsgs := make([]*FsmMsg, 0, sliceSize)
+	m := &sync.Mutex{}
+	ready := make(chan struct{}, 1)
+	f := func() error {
+		for {
+			err, fmsg := h.recvMessageWithError()
+			if err == nil && fmsg == nil {
+				continue
+			}
+			if fmsg != nil {
+				m.Lock()
+				fmsgs = append(fmsgs, fmsg)
+				m.Unlock()
+				select {
+				case ready <- struct{}{}:
+				default:
+				}
+			}
+			if err != nil {
+				close(ready)
+				return nil
+			}
 		}
-		if err != nil {
+	}
+	h.t.Go(f)
+
+	for {
+		var ok bool
+		select {
+		case _, ok = <-ready:
+
+		}
+
+		m.Lock()
+		toSend := fmsgs
+		fmsgs = make([]*FsmMsg, 0, sliceSize)
+		m.Unlock()
+
+		for _, m := range toSend {
+			h.msgCh <- m
+		}
+		if !ok {
 			return nil
 		}
 	}
