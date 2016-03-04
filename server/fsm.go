@@ -550,7 +550,7 @@ func readAll(conn net.Conn, length int) ([]byte, error) {
 	return buf, nil
 }
 
-func (h *FSMHandler) recvMessageWithError() (error, *FsmMsg) {
+func (h *FSMHandler) recvMessageWithError() (*FsmMsg, error) {
 	sendToErrorCh := func(reason FsmStateReason) {
 		// probably doesn't happen but be cautious
 		select {
@@ -562,7 +562,7 @@ func (h *FSMHandler) recvMessageWithError() (error, *FsmMsg) {
 	headerBuf, err := readAll(h.conn, bgp.BGP_HEADER_LENGTH)
 	if err != nil {
 		sendToErrorCh(FSM_READ_FAILED)
-		return err, nil
+		return nil, err
 	}
 
 	hd := &bgp.BGPHeader{}
@@ -580,13 +580,13 @@ func (h *FSMHandler) recvMessageWithError() (error, *FsmMsg) {
 			MsgSrc:  h.fsm.pConf.Config.NeighborAddress,
 			MsgData: err,
 		}
-		return err, fmsg
+		return fmsg, err
 	}
 
 	bodyBuf, err := readAll(h.conn, int(hd.Len)-bgp.BGP_HEADER_LENGTH)
 	if err != nil {
 		sendToErrorCh(FSM_READ_FAILED)
-		return err, nil
+		return nil, err
 	}
 
 	now := time.Now()
@@ -667,11 +667,11 @@ func (h *FSMHandler) recvMessageWithError() (error, *FsmMsg) {
 			}
 		}
 	}
-	return err, fmsg
+	return fmsg, err
 }
 
 func (h *FSMHandler) recvMessage() error {
-	_, fmsg := h.recvMessageWithError()
+	fmsg, _ := h.recvMessageWithError()
 	if fmsg != nil {
 		h.msgCh <- fmsg
 	}
@@ -1070,7 +1070,7 @@ func (h *FSMHandler) recvMessageloop() error {
 	ready := make(chan struct{}, 1)
 	f := func() error {
 		for {
-			err, fmsg := h.recvMessageWithError()
+			fmsg, err := h.recvMessageWithError()
 			if err == nil && fmsg == nil {
 				continue
 			}
@@ -1092,11 +1092,8 @@ func (h *FSMHandler) recvMessageloop() error {
 	h.t.Go(f)
 
 	for {
-		var ok bool
-		select {
-		case _, ok = <-ready:
-
-		}
+		// wait for FsmMsg or channel close
+		_, ok := <-ready
 
 		m.Lock()
 		toSend := fmsgs
@@ -1106,6 +1103,7 @@ func (h *FSMHandler) recvMessageloop() error {
 		for _, m := range toSend {
 			h.msgCh <- m
 		}
+
 		if !ok {
 			return nil
 		}
