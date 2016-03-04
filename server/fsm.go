@@ -550,9 +550,17 @@ func readAll(conn net.Conn, length int) ([]byte, error) {
 }
 
 func (h *FSMHandler) recvMessageWithError() error {
+	sendToErrorCh := func(reason FsmStateReason) {
+		// probably doesn't happen but be cautious
+		select {
+		case h.errorCh <- reason:
+		default:
+		}
+	}
+
 	headerBuf, err := readAll(h.conn, bgp.BGP_HEADER_LENGTH)
 	if err != nil {
-		h.errorCh <- FSM_READ_FAILED
+		sendToErrorCh(FSM_READ_FAILED)
 		return err
 	}
 
@@ -576,7 +584,7 @@ func (h *FSMHandler) recvMessageWithError() error {
 
 	bodyBuf, err := readAll(h.conn, int(hd.Len)-bgp.BGP_HEADER_LENGTH)
 	if err != nil {
-		h.errorCh <- FSM_READ_FAILED
+		sendToErrorCh(FSM_READ_FAILED)
 		return err
 	}
 
@@ -652,7 +660,8 @@ func (h *FSMHandler) recvMessageWithError() error {
 					"Subcode": body.ErrorSubcode,
 					"Data":    body.Data,
 				}).Warn("received notification")
-				h.errorCh <- FSM_NOTIFICATION_RECV
+
+				sendToErrorCh(FSM_NOTIFICATION_RECV)
 				return nil
 			}
 		}
