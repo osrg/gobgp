@@ -2527,20 +2527,6 @@ func (v *FlowSpecComponentItem) Serialize() ([]byte, error) {
 
 	}
 	order := uint32(math.Log2(float64(v.Len())))
-	// we don't know if not initialized properly or initialized to
-	// zero...
-	if order == 0 {
-		order = func() uint32 {
-			for i := 0; i < 3; i++ {
-				if v.Value < (1 << ((1 << uint(i)) * 8)) {
-					return uint32(i)
-				}
-			}
-			// return invalid order
-			return 4
-		}()
-	}
-
 	buf := make([]byte, 1+(1<<order))
 	buf[0] = byte(uint32(v.Op) | order<<4)
 	switch order {
@@ -2559,7 +2545,26 @@ func (v *FlowSpecComponentItem) Serialize() ([]byte, error) {
 }
 
 func NewFlowSpecComponentItem(op int, value int) *FlowSpecComponentItem {
-	return &FlowSpecComponentItem{op, value}
+	v := &FlowSpecComponentItem{op, value}
+	order := uint32(math.Log2(float64(v.Len())))
+	// we don't know if not initialized properly or initialized to
+	// zero...
+	if order == 0 {
+		order = func() uint32 {
+			for i := 0; i < 3; i++ {
+				if v.Value < (1 << ((1 << uint(i)) * 8)) {
+					return uint32(i)
+				}
+			}
+			// return invalid order
+			return 4
+		}()
+	}
+	if order > 3 {
+		return nil
+	}
+	v.Op = int(uint32(v.Op) | order<<4)
+	return v
 }
 
 type FlowSpecComponent struct {
