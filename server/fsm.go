@@ -646,8 +646,9 @@ func (h *FSMHandler) recvMessageWithError() (*FsmMsg, error) {
 				// if the lenght of h.holdTimerResetCh
 				// isn't zero, the timer will be reset
 				// soon anyway.
-				if len(h.holdTimerResetCh) == 0 {
-					h.holdTimerResetCh <- true
+				select {
+				case h.holdTimerResetCh <- true:
+				default:
 				}
 				if m.Header.Type == bgp.BGP_MSG_KEEPALIVE {
 					return nil, nil
