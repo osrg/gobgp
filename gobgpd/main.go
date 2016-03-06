@@ -148,7 +148,13 @@ func main() {
 		}
 	}
 
-	if opts.LogPlain == false {
+	if opts.LogPlain {
+		if opts.DisableStdlog {
+			log.SetFormatter(&log.TextFormatter{
+				DisableColors: true,
+			})
+		}
+	} else {
 		log.SetFormatter(&log.JSONFormatter{})
 	}
 
