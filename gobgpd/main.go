@@ -19,6 +19,7 @@ import (
 	log "github.com/Sirupsen/logrus"
 	"github.com/Sirupsen/logrus/hooks/syslog"
 	"github.com/jessevdk/go-flags"
+	p "github.com/kr/pretty"
 	"github.com/osrg/gobgp/config"
 	ops "github.com/osrg/gobgp/openswitch"
 	"github.com/osrg/gobgp/server"
@@ -49,6 +50,7 @@ func main() {
 		Ops             bool   `long:"openswitch" description:"openswitch mode"`
 		GrpcPort        int    `short:"g" long:"grpc-port" description:"grpc port" default:"50051"`
 		GracefulRestart bool   `short:"r" long:"graceful-restart" description:"flag restart-state in graceful-restart capability"`
+		Dry             bool   `short:"d" long:"dry-run" description:"check configuration"`
 	}
 	_, err := flags.Parse(&opts)
 	if err != nil {
@@ -150,10 +152,20 @@ func main() {
 		log.SetFormatter(&log.JSONFormatter{})
 	}
 
-	log.Info("gobgpd started")
-
 	configCh := make(chan config.BgpConfigSet)
 	reloadCh := make(chan bool)
+	if opts.Dry {
+		go config.ReadConfigfileServe(opts.ConfigFile, opts.ConfigType, configCh, reloadCh)
+		reloadCh <- true
+		c := <-configCh
+		if opts.LogLevel == "debug" {
+			p.Println(c)
+		}
+		os.Exit(0)
+	}
+
+	log.Info("gobgpd started")
+
 	bgpServer := server.NewBgpServer()
 	if opts.Ops {
 		m, err := ops.NewOpsManager(bgpServer.GrpcReqCh)
