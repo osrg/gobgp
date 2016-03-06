@@ -20,6 +20,7 @@ import (
 	"fmt"
 	log "github.com/Sirupsen/logrus"
 	"github.com/armon/go-radix"
+	"github.com/eapache/channels"
 	api "github.com/osrg/gobgp/api"
 	"github.com/osrg/gobgp/config"
 	"github.com/osrg/gobgp/packet"
@@ -93,7 +94,7 @@ type BgpServer struct {
 	addedPeerCh   chan config.Neighbor
 	deletedPeerCh chan config.Neighbor
 	updatedPeerCh chan config.Neighbor
-	fsmincomingCh chan *FsmMsg
+	fsmincomingCh *channels.InfiniteChannel
 	fsmStateCh    chan *FsmMsg
 	rpkiConfigCh  chan []config.RpkiServer
 
@@ -296,7 +297,7 @@ func (server *BgpServer) Serve() {
 		}
 	}
 
-	server.fsmincomingCh = make(chan *FsmMsg, 4096)
+	server.fsmincomingCh = channels.NewInfiniteChannel()
 	server.fsmStateCh = make(chan *FsmMsg, 4096)
 	var senderMsgs []*SenderMsg
 
@@ -465,8 +466,11 @@ func (server *BgpServer) Serve() {
 			peer := server.neighborMap[addr]
 			peer.conf = config
 			server.setPolicyByConfig(peer.ID(), config.ApplyPolicy)
-		case e := <-server.fsmincomingCh:
-			handleFsmMsg(e)
+		case e, ok := <-server.fsmincomingCh.Out():
+			if !ok {
+				continue
+			}
+			handleFsmMsg(e.(*FsmMsg))
 		case e := <-server.fsmStateCh:
 			handleFsmMsg(e)
 		case sCh <- firstMsg:
@@ -1180,6 +1184,7 @@ func (server *BgpServer) Shutdown() {
 	for _, p := range server.neighborMap {
 		p.fsm.adminStateCh <- ADMIN_STATE_DOWN
 	}
+	// TODO: call fsmincomingCh.Close()
 }
 
 func (server *BgpServer) UpdatePolicy(policy config.RoutingPolicy) {
