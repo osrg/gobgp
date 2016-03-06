@@ -18,6 +18,7 @@ package server
 import (
 	"encoding/json"
 	log "github.com/Sirupsen/logrus"
+	"github.com/eapache/channels"
 	api "github.com/osrg/gobgp/api"
 	"github.com/osrg/gobgp/config"
 	"github.com/osrg/gobgp/packet"
@@ -228,7 +229,7 @@ func (peer *Peer) handleBGPmessage(e *FsmMsg) ([]*table.Path, []*bgp.BGPMessage,
 	return nil, nil, eor
 }
 
-func (peer *Peer) startFSMHandler(incoming, stateCh chan *FsmMsg) {
+func (peer *Peer) startFSMHandler(incoming *channels.InfiniteChannel, stateCh chan *FsmMsg) {
 	peer.fsm.h = NewFSMHandler(peer.fsm, incoming, stateCh, peer.outgoing)
 }
 

@@ -18,6 +18,7 @@ package server
 import (
 	"fmt"
 	log "github.com/Sirupsen/logrus"
+	"github.com/eapache/channels"
 	"github.com/osrg/gobgp/config"
 	"github.com/osrg/gobgp/packet"
 	"github.com/osrg/gobgp/table"
@@ -293,13 +294,12 @@ func makePeerAndHandler() (*Peer, *FSMHandler) {
 
 	p.fsm = NewFSM(&gConf, &pConf, table.NewRoutingPolicy())
 
-	incoming := make(chan *FsmMsg, 4096)
 	p.outgoing = make(chan *bgp.BGPMessage, 4096)
 
 	h := &FSMHandler{
 		fsm:      p.fsm,
 		errorCh:  make(chan FsmStateReason, 2),
-		incoming: incoming,
+		incoming: channels.NewInfiniteChannel(),
 		outgoing: p.outgoing,
 	}
 
