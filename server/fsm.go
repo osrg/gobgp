@@ -26,6 +26,7 @@ import (
 	"math/rand"
 	"net"
 	"strconv"
+	"sync"
 	"time"
 )
 
@@ -549,11 +550,19 @@ func readAll(conn net.Conn, length int) ([]byte, error) {
 	return buf, nil
 }
 
-func (h *FSMHandler) recvMessageWithError() error {
+func (h *FSMHandler) recvMessageWithError() (*FsmMsg, error) {
+	sendToErrorCh := func(reason FsmStateReason) {
+		// probably doesn't happen but be cautious
+		select {
+		case h.errorCh <- reason:
+		default:
+		}
+	}
+
 	headerBuf, err := readAll(h.conn, bgp.BGP_HEADER_LENGTH)
 	if err != nil {
-		h.errorCh <- FSM_READ_FAILED
-		return err
+		sendToErrorCh(FSM_READ_FAILED)
+		return nil, err
 	}
 
 	hd := &bgp.BGPHeader{}
@@ -566,18 +575,18 @@ func (h *FSMHandler) recvMessageWithError() error {
 			"State": h.fsm.state,
 			"error": err,
 		}).Warn("malformed BGP Header")
-		h.msgCh <- &FsmMsg{
+		fmsg := &FsmMsg{
 			MsgType: FSM_MSG_BGP_MESSAGE,
 			MsgSrc:  h.fsm.pConf.Config.NeighborAddress,
 			MsgData: err,
 		}
-		return err
+		return fmsg, err
 	}
 
 	bodyBuf, err := readAll(h.conn, int(hd.Len)-bgp.BGP_HEADER_LENGTH)
 	if err != nil {
-		h.errorCh <- FSM_READ_FAILED
-		return err
+		sendToErrorCh(FSM_READ_FAILED)
+		return nil, err
 	}
 
 	now := time.Now()
@@ -637,11 +646,12 @@ func (h *FSMHandler) recvMessageWithError() error {
 				// if the lenght of h.holdTimerResetCh
 				// isn't zero, the timer will be reset
 				// soon anyway.
-				if len(h.holdTimerResetCh) == 0 {
-					h.holdTimerResetCh <- true
+				select {
+				case h.holdTimerResetCh <- true:
+				default:
 				}
 				if m.Header.Type == bgp.BGP_MSG_KEEPALIVE {
-					return nil
+					return nil, nil
 				}
 			case bgp.BGP_MSG_NOTIFICATION:
 				body := m.Body.(*bgp.BGPNotification)
@@ -652,17 +662,20 @@ func (h *FSMHandler) recvMessageWithError() error {
 					"Subcode": body.ErrorSubcode,
 					"Data":    body.Data,
 				}).Warn("received notification")
-				h.errorCh <- FSM_NOTIFICATION_RECV
-				return nil
+
+				sendToErrorCh(FSM_NOTIFICATION_RECV)
+				return nil, nil
 			}
 		}
 	}
-	h.msgCh <- fmsg
-	return err
+	return fmsg, err
 }
 
 func (h *FSMHandler) recvMessage() error {
-	h.recvMessageWithError()
+	fmsg, _ := h.recvMessageWithError()
+	if fmsg != nil {
+		h.msgCh <- fmsg
+	}
 	return nil
 }
 
@@ -1052,9 +1065,47 @@ func (h *FSMHandler) sendMessageloop() error {
 }
 
 func (h *FSMHandler) recvMessageloop() error {
+	sliceSize := 1024
+	fmsgs := make([]*FsmMsg, 0, sliceSize)
+	m := &sync.Mutex{}
+	ready := make(chan struct{}, 1)
+	f := func() error {
+		for {
+			fmsg, err := h.recvMessageWithError()
+			if err == nil && fmsg == nil {
+				continue
+			}
+			if fmsg != nil {
+				m.Lock()
+				fmsgs = append(fmsgs, fmsg)
+				m.Unlock()
+				select {
+				case ready <- struct{}{}:
+				default:
+				}
+			}
+			if err != nil {
+				close(ready)
+				return nil
+			}
+		}
+	}
+	h.t.Go(f)
+
 	for {
-		err := h.recvMessageWithError()
-		if err != nil {
+		// wait for FsmMsg or channel close
+		_, ok := <-ready
+
+		m.Lock()
+		toSend := fmsgs
+		fmsgs = make([]*FsmMsg, 0, sliceSize)
+		m.Unlock()
+
+		for _, m := range toSend {
+			h.msgCh <- m
+		}
+
+		if !ok {
 			return nil
 		}
 	}
