@@ -262,5 +262,6 @@ class QuaggaBGPContainer(BGPContainer):
             daemon.append('zebra')
         for d in daemon:
             cmd = '/usr/bin/pkill {0} -SIGHUP'.format(d)
-            self.local(cmd)
+            m = self.local(cmd, capture=True)
+            print("stderr:", m.stderr)
 
