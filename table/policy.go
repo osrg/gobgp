@@ -2489,7 +2489,7 @@ func (lhs *Policy) Add(rhs *Policy) error {
 }
 
 func (lhs *Policy) Remove(rhs *Policy) error {
-	stmts := make([]*Statement, 0, len(lhs.Statements)-len(rhs.Statements))
+	stmts := make([]*Statement, 0, len(lhs.Statements))
 	for _, x := range lhs.Statements {
 		found := false
 		for _, y := range rhs.Statements {
