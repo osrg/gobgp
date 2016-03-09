@@ -30,7 +30,7 @@ cd $GOBGP/test/scenario_test
 PIDS=()
 
 echo route server test
-sudo  PYTHONPATH=$GOBGP/test python route_server_test.py --gobgp-image $GOBGP_IMAGE --test-prefix rs -x &
+sudo  PYTHONPATH=$GOBGP/test python route_server_test.py --gobgp-image $GOBGP_IMAGE -s --test-prefix rs -x &
 PIDS=("${PIDS[@]}" $!)
 
 echo route server ipv4 ipv6 test
