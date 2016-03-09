@@ -16,7 +16,9 @@
 from base import *
 import telnetlib
 from nsenter import Namespace
+from fabric.api import env
 
+env.warn_only = True
 
 class QuaggaTelnetDaemon(object):
     TELNET_PASSWORD = "zebra"
