@@ -1644,38 +1644,51 @@ END:
 
 func (server *BgpServer) handleModConfig(grpcReq *GrpcRequest) error {
 	arg := grpcReq.Data.(*api.ModGlobalConfigArguments)
-	if arg.Operation != api.Operation_ADD {
+	switch arg.Operation {
+	case api.Operation_REPLACE:
+
+		server.bgpConfig.Global.Config.As = arg.Global.As
+		server.bgpConfig.Global.Config.RouterId = arg.Global.RouterId
+
+		for _, p := range server.bgpConfig.Neighbors {
+			log.Infof("Peer %v is updated", p.Config.NeighborAddress)
+			server.PeerUpdate(p)
+		}
+
+		return nil
+	case api.Operation_ADD:
+		if server.globalTypeCh == nil {
+			return fmt.Errorf("gobgp is already started")
+		}
+		g := arg.Global
+		id := net.ParseIP(g.RouterId)
+		if id == nil {
+			return fmt.Errorf("invalid router-id format: %s", g.RouterId)
+		}
+		c := config.Bgp{
+			Global: config.Global{
+				Config: config.GlobalConfig{
+					As:       g.As,
+					RouterId: g.RouterId,
+				},
+				ListenConfig: config.ListenConfig{
+					Port: g.ListenPort,
+				},
+			},
+		}
+		err := config.SetDefaultConfigValues(nil, &c)
+		if err != nil {
+			return err
+		}
+		p := config.RoutingPolicy{}
+		if err := server.SetRoutingPolicy(p); err != nil {
+			log.Fatal(err)
+		}
+		server.globalTypeCh <- c.Global
+		return nil
+	default:
 		return fmt.Errorf("invalid operation %s", arg.Operation)
 	}
-	if server.globalTypeCh == nil {
-		return fmt.Errorf("gobgp is already started")
-	}
-	g := arg.Global
-	id := net.ParseIP(g.RouterId)
-	if id == nil {
-		return fmt.Errorf("invalid router-id format: %s", g.RouterId)
-	}
-	c := config.Bgp{
-		Global: config.Global{
-			Config: config.GlobalConfig{
-				As:       g.As,
-				RouterId: g.RouterId,
-			},
-			ListenConfig: config.ListenConfig{
-				Port: g.ListenPort,
-			},
-		},
-	}
-	err := config.SetDefaultConfigValues(nil, &c)
-	if err != nil {
-		return err
-	}
-	p := config.RoutingPolicy{}
-	if err := server.SetRoutingPolicy(p); err != nil {
-		log.Fatal(err)
-	}
-	server.globalTypeCh <- c.Global
-	return nil
 }
 
 func sendMultipleResponses(grpcReq *GrpcRequest, results []*GrpcResponse) {
