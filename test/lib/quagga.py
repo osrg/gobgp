@@ -264,4 +264,6 @@ class QuaggaBGPContainer(BGPContainer):
             cmd = '/usr/bin/pkill {0} -SIGHUP'.format(d)
             m = self.local(cmd, capture=True)
             print("stderr:", m.stderr)
+            for i in dir(m):
+                print(i, getattrs(m, i))
 
