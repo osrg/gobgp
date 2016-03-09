@@ -265,5 +265,5 @@ class QuaggaBGPContainer(BGPContainer):
             m = self.local(cmd, capture=True)
             print("stderr:", m.stderr)
             for i in dir(m):
-                print(i, getattrs(m, i))
+                print(i, getattr(m, i))
 
