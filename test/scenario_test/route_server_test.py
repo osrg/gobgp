@@ -68,7 +68,7 @@ class GoBGPTestBase(unittest.TestCase):
     def check_gobgp_local_rib(self):
         for rs_client in self.quaggas.itervalues():
             done = False
-            state = self.get_neighbor_state(rs_client)
+            state = self.gobgp.get_neighbor_state(rs_client)
             self.assertEqual(state, BGP_FSM_ESTABLISHED)
 
             for _ in range(self.retry_limit):
