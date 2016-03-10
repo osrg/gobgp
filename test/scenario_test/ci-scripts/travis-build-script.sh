@@ -9,6 +9,9 @@ if [ "$SCENARIO" != "true" ]; then
   exit $?
 fi
 
+echo "Docker version"
+docker version
+
 export GOBGP_IMAGE=gobgp
 export GOBGP=`pwd`
 
@@ -25,7 +28,6 @@ git log | head -20
 sudo fab -f $GOBGP/test/lib/base.py make_gobgp_ctn:tag=$GOBGP_IMAGE
 [ "$?" != 0 ] && exit "$?"
 
-docker version
 cd $GOBGP/test/scenario_test
 
 PIDS=()
