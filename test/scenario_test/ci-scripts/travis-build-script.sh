@@ -73,7 +73,7 @@ sudo  PYTHONPATH=$GOBGP/test python graceful_restart_test.py --gobgp-image $GOBG
 PIDS=("${PIDS[@]}" $!)
 
 echo zebra test
-sudo  PYTHONPATH=$GOBGP/test python bgp_zebra_test.py --gobgp-image $GOBGP_IMAGE --test-prefix zebra -x &
+sudo  PYTHONPATH=$GOBGP/test python bgp_zebra_test.py --gobgp-image $GOBGP_IMAGE -s --test-prefix zebra -x &
 PIDS=("${PIDS[@]}" $!)
 
 for (( i = 0; i < ${#PIDS[@]}; ++i ))
