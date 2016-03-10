@@ -424,6 +424,25 @@ func ParseEvpnArgs(args []string) (bgp.AddrPrefixInterface, []string, error) {
 	return nil, nil, fmt.Errorf("invalid subtype. expect [macadv|multicast] but %s", subtype)
 }
 
+func extractOrigin(args []string) ([]string, bgp.PathAttributeInterface, error) {
+	typ := bgp.BGP_ORIGIN_ATTR_TYPE_INCOMPLETE
+	for idx, arg := range args {
+		if arg == "origin" && len(args) > (idx+1) {
+			switch args[idx+1] {
+			case "igp":
+				typ = bgp.BGP_ORIGIN_ATTR_TYPE_IGP
+			case "egp":
+				typ = bgp.BGP_ORIGIN_ATTR_TYPE_EGP
+			case "incomplete":
+			default:
+				return nil, nil, fmt.Errorf("invalid origin type. expect [igp|egp|incomplete] but %s", args[idx+1])
+			}
+			args = append(args[:idx], args[idx+2:]...)
+			break
+		}
+	}
+	return args, bgp.NewPathAttributeOrigin(uint8(typ)), nil
+}
 func extractNexthop(rf bgp.RouteFamily, args []string) ([]string, string, error) {
 	afi, _ := bgp.RouteFamilyToAfiSafi(rf)
 	nexthop := "0.0.0.0"
@@ -504,7 +523,11 @@ func ParsePath(rf bgp.RouteFamily, args []string) (*api.Path, error) {
 		Pattrs: make([][]byte, 0),
 	}
 
-	attrs = append(attrs, bgp.NewPathAttributeOrigin(bgp.BGP_ORIGIN_ATTR_TYPE_INCOMPLETE))
+	args, origin, err := extractOrigin(args)
+	if err != nil {
+		return nil, err
+	}
+	attrs = append(attrs, origin)
 
 	args, nexthop, err := extractNexthop(rf, args)
 	if err != nil {
@@ -681,8 +704,8 @@ func modPath(resource api.Resource, name, modtype string, args []string) error {
 		}
 		flags := strings.Join(ss, ", ")
 		helpErrMap := map[bgp.RouteFamily]error{}
-		helpErrMap[bgp.RF_IPv4_UC] = fmt.Errorf("usage: %s rib %s <PREFIX> [nexthop <ADDRESS>] [med <VALUE>] [local-pref <VALUE>] [aigp metric <METRIC>] -a ipv4", cmdstr, modtype)
-		helpErrMap[bgp.RF_IPv6_UC] = fmt.Errorf("usage: %s rib %s <PREFIX> [nexthop <ADDRESS>] [med <VALUE>] [local-pref <VALUE>] [aigp metric <METRIC>] -a ipv6", cmdstr, modtype)
+		helpErrMap[bgp.RF_IPv4_UC] = fmt.Errorf("usage: %s rib %s <PREFIX> [origin { igp | egp | incomplete }] [nexthop <ADDRESS>] [med <VALUE>] [local-pref <VALUE>] [aigp metric <METRIC>] -a ipv4", cmdstr, modtype)
+		helpErrMap[bgp.RF_IPv6_UC] = fmt.Errorf("usage: %s rib %s <PREFIX> [origin { igp | egp | incomplete }] [nexthop <ADDRESS>] [med <VALUE>] [local-pref <VALUE>] [aigp metric <METRIC>] -a ipv6", cmdstr, modtype)
 		fsHelpMsgFmt := fmt.Sprintf(`err: %s
 usage: %s rib %s match <MATCH_EXPR> then <THEN_EXPR> -a %%s
     <MATCH_EXPR> : { %s <PREFIX> [<OFFSET>] | %s <PREFIX> [<OFFSET>] |
