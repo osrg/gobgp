@@ -11,6 +11,7 @@ fi
 
 echo "Docker version"
 docker version
+echo ""
 
 export GOBGP_IMAGE=gobgp
 export GOBGP=`pwd`
