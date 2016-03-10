@@ -216,26 +216,32 @@ func (manager *TableManager) DeleteVrf(name string) ([]*Path, error) {
 	return msgs, nil
 }
 
-func (manager *TableManager) calculate(destinations []*Destination) {
+func (manager *TableManager) calculate(destinations []*Destination) ([]*Path, []*Path) {
+	newly := make([]*Path, 0, len(destinations))
+	withdrawn := make([]*Path, 0, len(destinations))
 	for _, destination := range destinations {
 		log.WithFields(log.Fields{
 			"Topic": "table",
 			"Key":   destination.GetNlri().String(),
 		}).Debug("Processing destination")
-		destination.Calculate()
+		n, w := destination.Calculate()
+		newly = append(newly, n...)
+		withdrawn = append(withdrawn, w...)
 	}
+	return newly, withdrawn
 }
 
-func (manager *TableManager) DeletePathsByPeer(info *PeerInfo, rf bgp.RouteFamily) []*Destination {
+func (manager *TableManager) DeletePathsByPeer(info *PeerInfo, rf bgp.RouteFamily) ([]*Destination, []*Path) {
 	if t, ok := manager.Tables[rf]; ok {
 		dsts := t.DeleteDestByPeer(info)
-		manager.calculate(dsts)
-		return dsts
+		// no newly added paths
+		_, withdrawn := manager.calculate(dsts)
+		return dsts, withdrawn
 	}
-	return nil
+	return nil, nil
 }
 
-func (manager *TableManager) ProcessPaths(pathList []*Path) []*Destination {
+func (manager *TableManager) ProcessPaths(pathList []*Path) ([]*Destination, []*Path, []*Path) {
 	m := make(map[string]bool, len(pathList))
 	dsts := make([]*Destination, 0, len(pathList))
 	for _, path := range pathList {
@@ -261,8 +267,8 @@ func (manager *TableManager) ProcessPaths(pathList []*Path) []*Destination {
 			}
 		}
 	}
-	manager.calculate(dsts)
-	return dsts
+	newly, withdrawn := manager.calculate(dsts)
+	return dsts, newly, withdrawn
 }
 
 // EVPN MAC MOBILITY HANDLING
