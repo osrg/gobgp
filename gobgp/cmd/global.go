@@ -542,47 +542,28 @@ func ParsePath(rf bgp.RouteFamily, args []string) (*api.Path, error) {
 		Pattrs: make([][]byte, 0),
 	}
 
-	args, origin, err := extractOrigin(args)
-	if err != nil {
-		return nil, err
+	fns := []func([]string) ([]string, bgp.PathAttributeInterface, error){
+		extractOrigin,
+		extractMed,
+		extractLocalPref,
+		extractCommunity,
+		extractAigp,
 	}
-	attrs = append(attrs, origin)
+
+	for _, fn := range fns {
+		var a bgp.PathAttributeInterface
+		args, a, err = fn(args)
+		if err != nil {
+			return nil, err
+		}
+		if a != nil {
+			attrs = append(attrs, a)
+		}
+	}
 
 	args, nexthop, err := extractNexthop(rf, args)
 	if err != nil {
 		return nil, err
-	}
-
-	args, med, err := extractMed(args)
-	if err != nil {
-		return nil, err
-	}
-	if med != nil {
-		attrs = append(attrs, med)
-	}
-
-	args, localPref, err := extractLocalPref(args)
-	if err != nil {
-		return nil, err
-	}
-	if localPref != nil {
-		attrs = append(attrs, localPref)
-	}
-
-	args, community, err := extractCommunity(args)
-	if err != nil {
-		return nil, err
-	}
-	if community != nil {
-		attrs = append(attrs, community)
-	}
-
-	args, aigp, err := extractAigp(args)
-	if err != nil {
-		return nil, err
-	}
-	if aigp != nil {
-		attrs = append(attrs, aigp)
 	}
 
 	switch rf {
