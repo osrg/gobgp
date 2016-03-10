@@ -265,7 +265,10 @@ class QuaggaBGPContainer(BGPContainer):
         for d in daemon:
             cmd = '/usr/bin/pkill {0} -SIGHUP'.format(d)
             m = self.local(cmd, capture=True)
-            print('return_code', getattr(m, 'return_code'))
-            print('stdout', getattr(m, 'stdout'))
-            print('stderr', getattr(m, 'stderr'))
+            return_code = getattr(m, 'return_code')
+            if return_code != 0:
+                print('return_code', return_code)
+                print('stdout', getattr(m, 'stdout'))
+                print('stderr', getattr(m, 'stderr'))
+                raise Exception('reload_config error')
 

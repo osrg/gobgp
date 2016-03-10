@@ -42,7 +42,7 @@ sudo  PYTHONPATH=$GOBGP/test python route_server_ipv4_v6_test.py --gobgp-image $
 PIDS=("${PIDS[@]}" $!)
 
 echo bgp router test
-sudo  PYTHONPATH=$GOBGP/test python bgp_router_test.py --gobgp-image $GOBGP_IMAGE --test-prefix bgp -x &
+sudo  PYTHONPATH=$GOBGP/test python bgp_router_test.py --gobgp-image $GOBGP_IMAGE -s --test-prefix bgp -x &
 PIDS=("${PIDS[@]}" $!)
 
 echo ibgp router test
