@@ -111,16 +111,15 @@ func NewPeerInfo(g *config.Global, p *config.Neighbor) *PeerInfo {
 }
 
 type Destination struct {
-	routeFamily           bgp.RouteFamily
-	nlri                  bgp.AddrPrefixInterface
-	oldKnownPathList      paths
-	knownPathList         paths
-	withdrawList          paths
-	newPathList           paths
-	WithdrawnList         paths
-	ImplicitWithdrawnList paths
-	UpdatedPathList       paths
-	RadixKey              string
+	routeFamily      bgp.RouteFamily
+	nlri             bgp.AddrPrefixInterface
+	oldKnownPathList paths
+	knownPathList    paths
+	withdrawList     paths
+	newPathList      paths
+	WithdrawnList    paths
+	UpdatedPathList  paths
+	RadixKey         string
 }
 
 func NewDestination(nlri bgp.AddrPrefixInterface) *Destination {
@@ -247,7 +246,7 @@ func (dest *Destination) Calculate() {
 	// First remove the withdrawn paths.
 	dest.WithdrawnList = dest.explicitWithdraw()
 	// Do implicit withdrawal
-	dest.ImplicitWithdrawnList = dest.implicitWithdraw()
+	dest.implicitWithdraw()
 	// Collect all new paths into known paths.
 	dest.knownPathList = append(dest.knownPathList, dest.newPathList...)
 	// Clear new paths as we copied them.
