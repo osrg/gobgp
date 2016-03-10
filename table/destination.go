@@ -117,8 +117,6 @@ type Destination struct {
 	knownPathList    paths
 	withdrawList     paths
 	newPathList      paths
-	WithdrawnList    paths
-	UpdatedPathList  paths
 	RadixKey         string
 }
 
@@ -236,15 +234,13 @@ func (dd *Destination) validatePath(path *Path) {
 
 // Calculates best-path among known paths for this destination.
 //
-// Returns: - Best path
-//
 // Modifies destination's state related to stored paths. Removes withdrawn
 // paths from known paths. Also, adds new paths to known paths.
-func (dest *Destination) Calculate() {
+func (dest *Destination) Calculate() ([]*Path, []*Path) {
 	dest.oldKnownPathList = dest.knownPathList
-	dest.UpdatedPathList = dest.newPathList
+	updated := dest.newPathList
 	// First remove the withdrawn paths.
-	dest.WithdrawnList = dest.explicitWithdraw()
+	withdrawnList := dest.explicitWithdraw()
 	// Do implicit withdrawal
 	dest.implicitWithdraw()
 	// Collect all new paths into known paths.
@@ -253,6 +249,7 @@ func (dest *Destination) Calculate() {
 	dest.newPathList = make([]*Path, 0)
 	// Compute new best path
 	dest.computeKnownBestPath()
+	return updated, withdrawnList
 }
 
 func (dest *Destination) NewFeed(id string) *Path {

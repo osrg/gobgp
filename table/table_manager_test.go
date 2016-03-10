@@ -30,7 +30,7 @@ import (
 // this function processes only BGPUpdate
 func (manager *TableManager) ProcessUpdate(fromPeer *PeerInfo, message *bgp.BGPMessage) ([]*Path, error) {
 	paths := ProcessMessage(message, fromPeer, time.Now())
-	dsts := manager.ProcessPaths(paths)
+	dsts, _, _ := manager.ProcessPaths(paths)
 	paths2 := make([]*Path, 0, len(paths))
 	for _, dst := range dsts {
 		p := dst.NewFeed(GLOBAL_RIB_NAME)
