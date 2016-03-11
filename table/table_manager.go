@@ -216,32 +216,37 @@ func (manager *TableManager) DeleteVrf(name string) ([]*Path, error) {
 	return msgs, nil
 }
 
-func (manager *TableManager) calculate(destinations []*Destination) ([]*Path, []*Path) {
+func (manager *TableManager) calculate(ids []string, destinations []*Destination) (map[string][]*Path, []*Path, []*Path) {
 	newly := make([]*Path, 0, len(destinations))
 	withdrawn := make([]*Path, 0, len(destinations))
+	best := make(map[string][]*Path, len(ids))
+
 	for _, destination := range destinations {
 		log.WithFields(log.Fields{
 			"Topic": "table",
 			"Key":   destination.GetNlri().String(),
 		}).Debug("Processing destination")
-		n, w := destination.Calculate()
+		paths, n, w := destination.Calculate(ids)
+		for id, path := range paths {
+			best[id] = append(best[id], path)
+		}
 		newly = append(newly, n...)
 		withdrawn = append(withdrawn, w...)
 	}
-	return newly, withdrawn
+	return best, newly, withdrawn
 }
 
-func (manager *TableManager) DeletePathsByPeer(info *PeerInfo, rf bgp.RouteFamily) ([]*Destination, []*Path) {
+func (manager *TableManager) DeletePathsByPeer(ids []string, info *PeerInfo, rf bgp.RouteFamily) (map[string][]*Path, []*Path) {
 	if t, ok := manager.Tables[rf]; ok {
 		dsts := t.DeleteDestByPeer(info)
 		// no newly added paths
-		_, withdrawn := manager.calculate(dsts)
-		return dsts, withdrawn
+		best, _, withdrawn := manager.calculate(ids, dsts)
+		return best, withdrawn
 	}
 	return nil, nil
 }
 
-func (manager *TableManager) ProcessPaths(pathList []*Path) ([]*Destination, []*Path, []*Path) {
+func (manager *TableManager) ProcessPaths(ids []string, pathList []*Path) (map[string][]*Path, []*Path, []*Path) {
 	m := make(map[string]bool, len(pathList))
 	dsts := make([]*Destination, 0, len(pathList))
 	for _, path := range pathList {
@@ -267,8 +272,7 @@ func (manager *TableManager) ProcessPaths(pathList []*Path) ([]*Destination, []*
 			}
 		}
 	}
-	newly, withdrawn := manager.calculate(dsts)
-	return dsts, newly, withdrawn
+	return manager.calculate(ids, dsts)
 }
 
 // EVPN MAC MOBILITY HANDLING
