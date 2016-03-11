@@ -74,6 +74,7 @@ class GoBGPTestBase(unittest.TestCase):
                     break
                 local_rib = self.gobgp.get_local_rib(rs_client)
                 local_rib = [p['prefix'] for p in local_rib]
+                
                 state = self.gobgp.get_neighbor_state(rs_client)
                 self.assertEqual(state, BGP_FSM_ESTABLISHED)
                 if len(local_rib) < len(self.quaggas)-1:
