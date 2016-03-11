@@ -201,6 +201,8 @@ func NewFSM(gConf *config.Global, pConf *config.Neighbor, policy *table.RoutingP
 	if pConf.State.AdminDown {
 		adminState = ADMIN_STATE_DOWN
 	}
+	pConf.State.SessionState = config.IntToSessionStateMap[int(bgp.BGP_FSM_IDLE)]
+	pConf.Timers.State.Downtime = time.Now().Unix()
 	fsm := &FSM{
 		gConf:                gConf,
 		pConf:                pConf,
