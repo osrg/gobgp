@@ -277,6 +277,7 @@ func (server *BgpServer) Serve() {
 
 	rfs, _ := config.AfiSafis(g.AfiSafis).ToRfList()
 	server.globalRib = table.NewTableManager(rfs, g.MplsLabelRange.MinLabel, g.MplsLabelRange.MaxLabel)
+	server.setPolicyByConfig(table.GLOBAL_RIB_NAME, server.bgpConfig.Global.ApplyPolicy)
 	server.listeners = make([]*net.TCPListener, 0, 2)
 	acceptCh := make(chan *net.TCPConn, 4096)
 	if g.ListenConfig.Port > 0 {
@@ -1666,10 +1667,6 @@ func (server *BgpServer) handleModConfig(grpcReq *GrpcRequest) error {
 	err := config.SetDefaultConfigValues(nil, &c)
 	if err != nil {
 		return err
-	}
-	p := config.RoutingPolicy{}
-	if err := server.SetRoutingPolicy(p); err != nil {
-		log.Fatal(err)
 	}
 	server.globalTypeCh <- c.Global
 	return nil
