@@ -30,7 +30,6 @@ import (
 	"net"
 	"os"
 	"strconv"
-	"strings"
 	"sync"
 	"time"
 )
@@ -235,14 +234,12 @@ func (server *BgpServer) Serve() {
 	w, _ := newGrpcIncomingWatcher()
 	server.watchers[WATCHER_GRPC_INCOMING] = w
 
-	if g.Zebra.Enabled == true {
-		if g.Zebra.Url == "" {
-			g.Zebra.Url = "unix:/var/run/quagga/zserv.api"
-		}
-		err := server.NewZclient(g.Zebra.Url, g.Zebra.RedistributeRouteTypeList)
+	if g.Zebra.Enabled {
+		cli, err := NewZclient(g.Zebra.Url, g.Zebra.RedistributeRouteTypeList)
 		if err != nil {
 			log.Error(err)
 		}
+		server.zclient = cli
 	}
 
 	senderCh := make(chan *SenderMsg, 1<<16)
@@ -3058,30 +3055,4 @@ func (server *BgpServer) mkMrtRibMsgs(tbl *table.Table, t uint32) ([]*bgp.MRTMes
 		msgs = append(msgs, msg)
 	}
 	return msgs, nil
-}
-
-func (server *BgpServer) NewZclient(url string, redistRouteTypes []config.InstallProtocolType) error {
-	l := strings.SplitN(url, ":", 2)
-	if len(l) != 2 {
-		return fmt.Errorf("unsupported url: %s", url)
-	}
-	cli, err := zebra.NewClient(l[0], l[1], zebra.ROUTE_BGP)
-	if err != nil {
-		return err
-	}
-	cli.SendHello()
-	cli.SendRouterIDAdd()
-	cli.SendInterfaceAdd()
-	for _, typ := range redistRouteTypes {
-		t, err := zebra.RouteTypeFromString(string(typ))
-		if err != nil {
-			return err
-		}
-		cli.SendRedistribute(t)
-	}
-	if e := cli.SendCommand(zebra.REDISTRIBUTE_DEFAULT_ADD, nil); e != nil {
-		return e
-	}
-	server.zclient = cli
-	return nil
 }

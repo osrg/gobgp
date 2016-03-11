@@ -16,7 +16,9 @@
 package server
 
 import (
+	"fmt"
 	log "github.com/Sirupsen/logrus"
+	"github.com/osrg/gobgp/config"
 	"github.com/osrg/gobgp/packet"
 	"github.com/osrg/gobgp/table"
 	"github.com/osrg/gobgp/zebra"
@@ -163,4 +165,29 @@ func handleZapiMsg(msg *zebra.Message, server *BgpServer) []*SenderMsg {
 	}
 
 	return nil
+}
+
+func NewZclient(url string, redistRouteTypes []config.InstallProtocolType) (*zebra.Client, error) {
+	l := strings.SplitN(url, ":", 2)
+	if len(l) != 2 {
+		return nil, fmt.Errorf("unsupported url: %s", url)
+	}
+	cli, err := zebra.NewClient(l[0], l[1], zebra.ROUTE_BGP)
+	if err != nil {
+		return nil, err
+	}
+	cli.SendHello()
+	cli.SendRouterIDAdd()
+	cli.SendInterfaceAdd()
+	for _, typ := range redistRouteTypes {
+		t, err := zebra.RouteTypeFromString(string(typ))
+		if err != nil {
+			return nil, err
+		}
+		cli.SendRedistribute(t)
+	}
+	if e := cli.SendCommand(zebra.REDISTRIBUTE_DEFAULT_ADD, nil); e != nil {
+		return nil, e
+	}
+	return cli, nil
 }

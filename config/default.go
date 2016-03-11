@@ -33,6 +33,10 @@ func SetDefaultConfigValues(v *viper.Viper, b *Bgp) error {
 		}
 	}
 
+	if !v.IsSet("global.zebra.url") {
+		b.Global.Zebra.Url = "unix:/var/run/quagga/zserv.api"
+	}
+
 	if !v.IsSet("global.afi-safis") {
 		b.Global.AfiSafis = []AfiSafi{}
 		for k, _ := range AfiSafiTypeToIntMap {
