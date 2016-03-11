@@ -221,17 +221,28 @@ func (manager *TableManager) calculate(ids []string, destinations []*Destination
 	withdrawn := make([]*Path, 0, len(destinations))
 	best := make(map[string][]*Path, len(ids))
 
-	for _, destination := range destinations {
+	emptyDsts := make([]*Destination, 0, len(destinations))
+
+	for _, dst := range destinations {
 		log.WithFields(log.Fields{
 			"Topic": "table",
-			"Key":   destination.GetNlri().String(),
+			"Key":   dst.GetNlri().String(),
 		}).Debug("Processing destination")
-		paths, n, w := destination.Calculate(ids)
+		paths, n, w := dst.Calculate(ids)
 		for id, path := range paths {
 			best[id] = append(best[id], path)
 		}
 		newly = append(newly, n...)
 		withdrawn = append(withdrawn, w...)
+
+		if len(dst.knownPathList) == 0 {
+			emptyDsts = append(emptyDsts, dst)
+		}
+	}
+
+	for _, dst := range emptyDsts {
+		t := manager.Tables[dst.Family()]
+		t.deleteDest(dst)
 	}
 	return best, newly, withdrawn
 }
