@@ -428,7 +428,7 @@ func (server *BgpServer) Serve() {
 				}
 				moded := server.RSimportPaths(peer, pathList)
 				if len(moded) > 0 {
-					server.globalRib.ProcessPaths(moded)
+					server.globalRib.ProcessPaths(nil, moded)
 				}
 			}
 			server.neighborMap[addr] = peer
@@ -588,9 +588,21 @@ func (server *BgpServer) dropPeerAllRoutes(peer *Peer, families []bgp.RouteFamil
 	msgs := make([]*SenderMsg, 0)
 
 	options := &table.PolicyOptions{}
+	ids := make([]string, 0, len(server.neighborMap))
+	if peer.isRouteServerClient() {
+		for _, targetPeer := range server.neighborMap {
+			if !targetPeer.isRouteServerClient() || targetPeer == peer || targetPeer.fsm.state != bgp.BGP_FSM_ESTABLISHED {
+				continue
+			}
+			ids = append(ids, targetPeer.TableID())
+		}
+	} else {
+		ids = append(ids, table.GLOBAL_RIB_NAME)
+	}
 	for _, rf := range families {
-		dsts := server.globalRib.DeletePathsByPeer(peer.fsm.peerInfo, rf)
-		server.validatePaths(dsts, true)
+		best, withdrawn := server.globalRib.DeletePathsByPeer(ids, peer.fsm.peerInfo, rf)
+		server.validatePaths(nil, withdrawn, true)
+
 		if peer.isRouteServerClient() {
 			for _, targetPeer := range server.neighborMap {
 				if !targetPeer.isRouteServerClient() || targetPeer == peer || targetPeer.fsm.state != bgp.BGP_FSM_ESTABLISHED {
@@ -599,10 +611,10 @@ func (server *BgpServer) dropPeerAllRoutes(peer *Peer, families []bgp.RouteFamil
 				if _, ok := targetPeer.fsm.rfMap[rf]; !ok {
 					continue
 				}
-				pathList := make([]*table.Path, 0, len(dsts))
+				pathList := make([]*table.Path, 0, len(best[targetPeer.TableID()]))
 				options.Neighbor = targetPeer.fsm.peerInfo.Address
-				for _, dst := range dsts {
-					if path := server.policy.ApplyPolicy(targetPeer.TableID(), table.POLICY_DIRECTION_EXPORT, filterpath(targetPeer, dst.NewFeed(targetPeer.TableID())), options); path != nil {
+				for _, bestPath := range best[targetPeer.TableID()] {
+					if path := server.policy.ApplyPolicy(targetPeer.TableID(), table.POLICY_DIRECTION_EXPORT, filterpath(targetPeer, bestPath), options); path != nil {
 						pathList = append(pathList, path)
 					}
 				}
@@ -611,9 +623,8 @@ func (server *BgpServer) dropPeerAllRoutes(peer *Peer, families []bgp.RouteFamil
 				targetPeer.adjRibOut.Update(pathList)
 			}
 		} else {
-			sendPathList := make([]*table.Path, 0, len(dsts))
-			for _, dst := range dsts {
-				path := dst.NewFeed(table.GLOBAL_RIB_NAME)
+			sendPathList := make([]*table.Path, 0, len(best[table.GLOBAL_RIB_NAME]))
+			for _, path := range best[table.GLOBAL_RIB_NAME] {
 				if path != nil {
 					sendPathList = append(sendPathList, path)
 				}
@@ -806,55 +817,54 @@ func (server *BgpServer) isRpkiMonitored() bool {
 	return false
 }
 
-func (server *BgpServer) validatePaths(dsts []*table.Destination, peerDown bool) {
+func (server *BgpServer) validatePaths(newly, withdrawn []*table.Path, peerDown bool) {
 	isMonitor := server.isRpkiMonitored()
-	for _, dst := range dsts {
-		if isMonitor {
-			rrList := make([]*api.ROAResult, 0, len(dst.WithdrawnList))
-			for _, path := range dst.WithdrawnList {
-				if path.Validation() == config.RPKI_VALIDATION_RESULT_TYPE_INVALID {
-					reason := api.ROAResult_WITHDRAW
-					if peerDown {
-						reason = api.ROAResult_PEER_DOWN
-					}
-					rr := &api.ROAResult{
-						Reason:    reason,
-						Address:   path.GetSource().Address.String(),
-						Timestamp: path.GetTimestamp().Unix(),
-						OriginAs:  path.GetSourceAs(),
-						Prefix:    path.GetNlri().String(),
-						OldResult: api.ROAResult_ValidationResult(path.Validation().ToInt()),
-						NewResult: api.ROAResult_ValidationResult(path.Validation().ToInt()),
-					}
-					if b := path.GetAsPath(); b != nil {
-						rr.AspathAttr, _ = b.Serialize()
-					}
-					rrList = append(rrList, rr)
+	if isMonitor {
+		rrList := make([]*api.ROAResult, 0, len(withdrawn))
+		for _, path := range withdrawn {
+			if path.Validation() == config.RPKI_VALIDATION_RESULT_TYPE_INVALID {
+				reason := api.ROAResult_WITHDRAW
+				if peerDown {
+					reason = api.ROAResult_PEER_DOWN
 				}
-			}
-			server.broadcastValidationResults(rrList)
-		}
-		if vResults := server.roaManager.validate(dst.UpdatedPathList, isMonitor); isMonitor {
-			for i, path := range dst.UpdatedPathList {
-				old := func() config.RpkiValidationResultType {
-					for _, withdrawn := range dst.WithdrawnList {
-						if path.GetSource().Equal(withdrawn.GetSource()) {
-							return withdrawn.Validation()
-						}
-					}
-					return config.RPKI_VALIDATION_RESULT_TYPE_NONE
-				}()
-				vResults[i].OldResult = api.ROAResult_ValidationResult(old.ToInt())
-			}
-			rrList := make([]*api.ROAResult, 0, len(vResults))
-			for _, rr := range vResults {
-				invalid := api.ROAResult_ValidationResult(config.RPKI_VALIDATION_RESULT_TYPE_INVALID.ToInt())
-				if rr.NewResult == invalid || rr.OldResult == invalid {
-					rrList = append(rrList, rr)
+				rr := &api.ROAResult{
+					Reason:    reason,
+					Address:   path.GetSource().Address.String(),
+					Timestamp: path.GetTimestamp().Unix(),
+					OriginAs:  path.GetSourceAs(),
+					Prefix:    path.GetNlri().String(),
+					OldResult: api.ROAResult_ValidationResult(path.Validation().ToInt()),
+					NewResult: api.ROAResult_ValidationResult(path.Validation().ToInt()),
 				}
+				if b := path.GetAsPath(); b != nil {
+					rr.AspathAttr, _ = b.Serialize()
+				}
+				rrList = append(rrList, rr)
 			}
-			server.broadcastValidationResults(rrList)
 		}
+		server.broadcastValidationResults(rrList)
+	}
+
+	if vResults := server.roaManager.validate(newly, isMonitor); isMonitor {
+		for i, path := range newly {
+			old := func() config.RpkiValidationResultType {
+				for _, withdrawn := range withdrawn {
+					if path.GetSource().Equal(withdrawn.GetSource()) {
+						return withdrawn.Validation()
+					}
+				}
+				return config.RPKI_VALIDATION_RESULT_TYPE_NONE
+			}()
+			vResults[i].OldResult = api.ROAResult_ValidationResult(old.ToInt())
+		}
+		rrList := make([]*api.ROAResult, 0, len(vResults))
+		for _, rr := range vResults {
+			invalid := api.ROAResult_ValidationResult(config.RPKI_VALIDATION_RESULT_TYPE_INVALID.ToInt())
+			if rr.NewResult == invalid || rr.OldResult == invalid {
+				rrList = append(rrList, rr)
+			}
+		}
+		server.broadcastValidationResults(rrList)
 	}
 }
 
@@ -875,16 +885,30 @@ func (server *BgpServer) propagateUpdate(peer *Peer, pathList []*table.Path) ([]
 			}
 			moded = append(moded, server.RSimportPaths(targetPeer, pathList)...)
 		}
-		dsts := rib.ProcessPaths(append(pathList, moded...))
-		server.validatePaths(dsts, false)
+		isTarget := func(p *Peer) bool {
+			if !p.isRouteServerClient() || p.fsm.state != bgp.BGP_FSM_ESTABLISHED || p.fsm.pConf.GracefulRestart.State.LocalRestarting {
+				return false
+			}
+			return true
+		}
+
+		ids := make([]string, 0, len(server.neighborMap))
 		for _, targetPeer := range server.neighborMap {
-			if !targetPeer.isRouteServerClient() || targetPeer.fsm.state != bgp.BGP_FSM_ESTABLISHED || targetPeer.fsm.pConf.GracefulRestart.State.LocalRestarting {
+			if isTarget(targetPeer) {
+				ids = append(ids, targetPeer.TableID())
+			}
+		}
+		best, newly, withdrawn := rib.ProcessPaths(ids, append(pathList, moded...))
+		server.validatePaths(newly, withdrawn, false)
+
+		for _, targetPeer := range server.neighborMap {
+			if !isTarget(targetPeer) {
 				continue
 			}
-			sendPathList := make([]*table.Path, 0, len(dsts))
+			sendPathList := make([]*table.Path, 0, len(best[targetPeer.TableID()]))
 			options.Neighbor = targetPeer.fsm.peerInfo.Address
-			for _, dst := range dsts {
-				path := server.policy.ApplyPolicy(targetPeer.TableID(), table.POLICY_DIRECTION_EXPORT, filterpath(targetPeer, dst.NewFeed(targetPeer.TableID())), options)
+			for _, bestPath := range best[targetPeer.TableID()] {
+				path := server.policy.ApplyPolicy(targetPeer.TableID(), table.POLICY_DIRECTION_EXPORT, filterpath(targetPeer, bestPath), options)
 				if path != nil {
 					sendPathList = append(sendPathList, path)
 				}
@@ -898,14 +922,13 @@ func (server *BgpServer) propagateUpdate(peer *Peer, pathList []*table.Path) ([]
 			pathList[idx] = server.policy.ApplyPolicy(table.GLOBAL_RIB_NAME, table.POLICY_DIRECTION_IMPORT, path, nil)
 		}
 		alteredPathList = pathList
-		dsts := rib.ProcessPaths(pathList)
-		server.validatePaths(dsts, false)
-		sendPathList := make([]*table.Path, 0, len(dsts))
+		best, newly, withdrawn := rib.ProcessPaths([]string{table.GLOBAL_RIB_NAME}, pathList)
+		server.validatePaths(newly, withdrawn, false)
+		sendPathList := make([]*table.Path, 0, len(best[table.GLOBAL_RIB_NAME]))
 		if server.bgpConfig.Global.Collector.Enabled {
 			sendPathList = pathList
 		} else {
-			for _, dst := range dsts {
-				path := dst.NewFeed(table.GLOBAL_RIB_NAME)
+			for _, path := range best[table.GLOBAL_RIB_NAME] {
 				if path != nil {
 					sendPathList = append(sendPathList, path)
 				}
@@ -2402,7 +2425,7 @@ func (server *BgpServer) handleGrpcModNeighbor(grpcReq *GrpcRequest) (sMsgs []*S
 			}
 			moded := server.RSimportPaths(peer, pathList)
 			if len(moded) > 0 {
-				server.globalRib.ProcessPaths(moded)
+				server.globalRib.ProcessPaths(nil, moded)
 			}
 		}
 		server.neighborMap[addr] = peer
