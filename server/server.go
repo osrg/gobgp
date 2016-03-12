@@ -28,7 +28,6 @@ import (
 	"github.com/osrg/gobgp/zebra"
 	"github.com/satori/go.uuid"
 	"net"
-	"os"
 	"strconv"
 	"sync"
 	"time"
@@ -107,7 +106,6 @@ type BgpServer struct {
 	globalRib      *table.TableManager
 	zclient        *zebra.Client
 	roaManager     *roaManager
-	shutdown       bool
 	watchers       Watchers
 }
 
@@ -1015,18 +1013,6 @@ func (server *BgpServer) handleFSMMessage(peer *Peer, e *FsmMsg) []*SenderMsg {
 				})
 			}
 		} else {
-			if server.shutdown && nextState == bgp.BGP_FSM_IDLE {
-				die := true
-				for _, p := range server.neighborMap {
-					if p.fsm.state != bgp.BGP_FSM_IDLE {
-						die = false
-						break
-					}
-				}
-				if die {
-					os.Exit(0)
-				}
-			}
 			peer.fsm.pConf.Timers.State.Downtime = time.Now().Unix()
 		}
 		// clear counter
@@ -1180,12 +1166,31 @@ func (server *BgpServer) PeerUpdate(peer config.Neighbor) {
 	server.updatedPeerCh <- peer
 }
 
-func (server *BgpServer) Shutdown() {
-	server.shutdown = true
+func (server *BgpServer) Shutdown() error {
+	if len(server.neighborMap) == 0 {
+		return nil
+	}
+	req := &GrpcRequest{
+		RequestType: REQ_MONITOR_NEIGHBOR_PEER_STATE,
+		ResponseCh:  make(chan *GrpcResponse),
+		EndCh:       make(chan struct{}, 1),
+	}
+	server.GrpcReqCh <- req
 	for _, p := range server.neighborMap {
 		p.fsm.adminStateCh <- ADMIN_STATE_DOWN
 	}
-	// TODO: call fsmincomingCh.Close()
+	err := handleMultipleResponses(req, func(*GrpcResponse) error {
+		for _, p := range server.neighborMap {
+			if p.fsm.state != bgp.BGP_FSM_IDLE {
+				return nil
+			}
+		}
+		return fmt.Errorf("all dead end monitoring")
+	})
+	if err != nil {
+		return err
+	}
+	return nil
 }
 
 func (server *BgpServer) UpdatePolicy(policy config.RoutingPolicy) {

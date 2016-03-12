@@ -259,6 +259,7 @@ func main() {
 				reloadCh <- true
 			case syscall.SIGKILL, syscall.SIGTERM:
 				bgpServer.Shutdown()
+				os.Exit(0)
 			}
 		}
 	}
