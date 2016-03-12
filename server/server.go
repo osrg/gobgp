@@ -1678,6 +1678,15 @@ func (server *BgpServer) handleModConfig(grpcReq *GrpcRequest) error {
 	if id == nil {
 		return fmt.Errorf("invalid router-id format: %s", g.RouterId)
 	}
+	families := make([]config.AfiSafi, 0, len(g.Families))
+	for _, f := range g.Families {
+		families = append(families, config.AfiSafi{
+			Config: config.AfiSafiConfig{
+				AfiSafiName: config.AfiSafiType(bgp.RouteFamily(f).String()),
+				Enabled:     true,
+			},
+		})
+	}
 	c := config.Bgp{
 		Global: config.Global{
 			Config: config.GlobalConfig{
@@ -1685,7 +1694,16 @@ func (server *BgpServer) handleModConfig(grpcReq *GrpcRequest) error {
 				RouterId: g.RouterId,
 			},
 			ListenConfig: config.ListenConfig{
-				Port: g.ListenPort,
+				Port:             g.ListenPort,
+				LocalAddressList: g.ListenAddresses,
+			},
+			MplsLabelRange: config.MplsLabelRange{
+				MinLabel: g.MplsLabelMin,
+				MaxLabel: g.MplsLabelMax,
+			},
+			AfiSafis: families,
+			Collector: config.Collector{
+				Enabled: g.Collector,
 			},
 		},
 	}
