@@ -111,16 +111,12 @@ func NewPeerInfo(g *config.Global, p *config.Neighbor) *PeerInfo {
 }
 
 type Destination struct {
-	routeFamily           bgp.RouteFamily
-	nlri                  bgp.AddrPrefixInterface
-	oldKnownPathList      paths
-	knownPathList         paths
-	withdrawList          paths
-	newPathList           paths
-	WithdrawnList         paths
-	ImplicitWithdrawnList paths
-	UpdatedPathList       paths
-	RadixKey              string
+	routeFamily   bgp.RouteFamily
+	nlri          bgp.AddrPrefixInterface
+	knownPathList paths
+	withdrawList  paths
+	newPathList   paths
+	RadixKey      string
 }
 
 func NewDestination(nlri bgp.AddrPrefixInterface) *Destination {
@@ -204,15 +200,6 @@ func (dd *Destination) GetBestPath(id string) *Path {
 	return nil
 }
 
-func (dd *Destination) oldBest(id string) *Path {
-	for _, p := range dd.oldKnownPathList {
-		if p.Filtered(id) == POLICY_DIRECTION_NONE {
-			return p
-		}
-	}
-	return nil
-}
-
 func (dd *Destination) addWithdraw(withdraw *Path) {
 	dd.validatePath(withdraw)
 	dd.withdrawList = append(dd.withdrawList, withdraw)
@@ -237,38 +224,49 @@ func (dd *Destination) validatePath(path *Path) {
 
 // Calculates best-path among known paths for this destination.
 //
-// Returns: - Best path
-//
 // Modifies destination's state related to stored paths. Removes withdrawn
 // paths from known paths. Also, adds new paths to known paths.
-func (dest *Destination) Calculate() {
-	dest.oldKnownPathList = dest.knownPathList
-	dest.UpdatedPathList = dest.newPathList
+func (dest *Destination) Calculate(ids []string) (map[string]*Path, []*Path, []*Path) {
+	best := make(map[string]*Path, len(ids))
+	oldKnownPathList := dest.knownPathList
+	updated := dest.newPathList
 	// First remove the withdrawn paths.
-	dest.WithdrawnList = dest.explicitWithdraw()
+	withdrawnList := dest.explicitWithdraw()
 	// Do implicit withdrawal
-	dest.ImplicitWithdrawnList = dest.implicitWithdraw()
+	dest.implicitWithdraw()
 	// Collect all new paths into known paths.
 	dest.knownPathList = append(dest.knownPathList, dest.newPathList...)
 	// Clear new paths as we copied them.
 	dest.newPathList = make([]*Path, 0)
 	// Compute new best path
 	dest.computeKnownBestPath()
-}
 
-func (dest *Destination) NewFeed(id string) *Path {
-	old := dest.oldBest(id)
-	best := dest.GetBestPath(id)
-	if best != nil && best.Equal(old) {
-		return nil
-	}
-	if best == nil {
-		if old == nil {
+	f := func(id string) *Path {
+		old := func() *Path {
+			for _, p := range oldKnownPathList {
+				if p.Filtered(id) == POLICY_DIRECTION_NONE {
+					return p
+				}
+			}
+			return nil
+		}()
+		best := dest.GetBestPath(id)
+		if best != nil && best.Equal(old) {
 			return nil
 		}
-		return old.Clone(true)
+		if best == nil {
+			if old == nil {
+				return nil
+			}
+			return old.Clone(true)
+		}
+		return best
 	}
-	return best
+
+	for _, id := range ids {
+		best[id] = f(id)
+	}
+	return best, updated, withdrawnList
 }
 
 // Removes withdrawn paths.

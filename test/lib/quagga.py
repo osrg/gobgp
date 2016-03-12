@@ -16,7 +16,9 @@
 from base import *
 import telnetlib
 from nsenter import Namespace
+from fabric.api import env
 
+env.warn_only = True
 
 class QuaggaTelnetDaemon(object):
     TELNET_PASSWORD = "zebra"
@@ -262,5 +264,11 @@ class QuaggaBGPContainer(BGPContainer):
             daemon.append('zebra')
         for d in daemon:
             cmd = '/usr/bin/pkill {0} -SIGHUP'.format(d)
-            self.local(cmd)
+            m = self.local(cmd, capture=True)
+            return_code = getattr(m, 'return_code')
+            if return_code != 0:
+                print('return_code', return_code)
+                print('stdout', getattr(m, 'stdout'))
+                print('stderr', getattr(m, 'stderr'))
+                raise Exception('reload_config error')
 
