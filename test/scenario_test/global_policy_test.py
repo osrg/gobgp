@@ -88,7 +88,7 @@ class GoBGPTestBase(unittest.TestCase):
         self.gobgp.wait_for(expected_state=BGP_FSM_ESTABLISHED, peer=q)
         self.quaggas['q4'] = q
         for q in self.quaggas.itervalues():
-            self.assertTrue(len(self.gobgp.get_adj_rib_out(q)) == 0)
+            self.assertTrue(len(self.gobgp.get_adj_rib_out(q)) == 1)
 
     def test_04_disable_peer(self):
         q3 = self.quaggas['q3']
