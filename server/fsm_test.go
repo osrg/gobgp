@@ -288,13 +288,9 @@ func makePeerAndHandler() (*Peer, *FSMHandler) {
 	pConf := config.Neighbor{}
 
 	p := &Peer{
-		gConf: gConf,
-		conf:  pConf,
+		fsm:      NewFSM(&gConf, &pConf, table.NewRoutingPolicy()),
+		outgoing: make(chan *bgp.BGPMessage, 4096),
 	}
-
-	p.fsm = NewFSM(&gConf, &pConf, table.NewRoutingPolicy())
-
-	p.outgoing = make(chan *bgp.BGPMessage, 4096)
 
 	h := &FSMHandler{
 		fsm:      p.fsm,

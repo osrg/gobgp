@@ -33,6 +33,10 @@ func SetDefaultConfigValues(v *viper.Viper, b *Bgp) error {
 		}
 	}
 
+	if !v.IsSet("global.zebra.url") {
+		b.Global.Zebra.Url = "unix:/var/run/quagga/zserv.api"
+	}
+
 	if !v.IsSet("global.afi-safis") {
 		b.Global.AfiSafis = []AfiSafi{}
 		for k, _ := range AfiSafiTypeToIntMap {
@@ -42,6 +46,10 @@ func SetDefaultConfigValues(v *viper.Viper, b *Bgp) error {
 
 	if b.Global.ListenConfig.Port == 0 {
 		b.Global.ListenConfig.Port = bgp.BGP_PORT
+	}
+
+	if len(b.Global.ListenConfig.LocalAddressList) == 0 {
+		b.Global.ListenConfig.LocalAddressList = []string{"0.0.0.0", "::"}
 	}
 
 	for idx, server := range b.Global.BmpServers {
