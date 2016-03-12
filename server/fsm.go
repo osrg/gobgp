@@ -33,7 +33,7 @@ import (
 type FsmStateReason int
 
 const (
-	_ FsmStateReason = iota
+	_ FFsmStateReason = iota
 	FSM_DYING
 	FSM_ADMIN_DOWN
 	FSM_READ_FAILED
