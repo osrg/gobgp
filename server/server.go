@@ -88,13 +88,14 @@ func (ws Watchers) watching(typ watcherEventType) bool {
 
 type BgpServer struct {
 	bgpConfig     config.Bgp
-	globalTypeCh  chan config.Global
 	addedPeerCh   chan config.Neighbor
 	deletedPeerCh chan config.Neighbor
 	updatedPeerCh chan config.Neighbor
 	fsmincomingCh *channels.InfiniteChannel
 	fsmStateCh    chan *FsmMsg
 	rpkiConfigCh  chan []config.RpkiServer
+	acceptCh      chan *net.TCPConn
+	zapiMsgCh     chan *zebra.Message
 
 	GrpcReqCh      chan *GrpcRequest
 	policyUpdateCh chan config.RoutingPolicy
@@ -111,7 +112,6 @@ type BgpServer struct {
 
 func NewBgpServer() *BgpServer {
 	b := BgpServer{}
-	b.globalTypeCh = make(chan config.Global, 1)
 	b.addedPeerCh = make(chan config.Neighbor)
 	b.deletedPeerCh = make(chan config.Neighbor)
 	b.updatedPeerCh = make(chan config.Neighbor)
@@ -146,8 +146,8 @@ func listenAndAccept(address string, port uint32, ch chan *net.TCPConn) (*net.TC
 		for {
 			conn, err := l.AcceptTCP()
 			if err != nil {
-				log.Info(err)
-				continue
+				log.Error(err)
+				return
 			}
 			ch <- conn
 		}
@@ -182,64 +182,6 @@ func (server *BgpServer) Listeners(addr string) []*net.TCPListener {
 }
 
 func (server *BgpServer) Serve() {
-	var g config.Global
-	for {
-		select {
-		case g = <-server.globalTypeCh:
-			server.bgpConfig.Global = g
-			server.globalTypeCh = nil
-		default:
-		}
-
-		if server.globalTypeCh == nil {
-			break
-		}
-
-		select {
-		case grpcReq := <-server.GrpcReqCh:
-			server.handleGrpc(grpcReq)
-		case g = <-server.globalTypeCh:
-			server.bgpConfig.Global = g
-			server.globalTypeCh = nil
-		}
-	}
-
-	server.roaManager, _ = newROAManager(g.Config.As, nil)
-
-	if g.Mrt.FileName != "" {
-		w, err := newMrtWatcher(g.Mrt.FileName)
-		if err != nil {
-			log.Warn(err)
-		} else {
-			server.watchers[WATCHER_MRT] = w
-		}
-	}
-
-	if len(g.BmpServers) > 0 {
-		w, err := newBmpWatcher(server.GrpcReqCh)
-		if err != nil {
-			log.Warn(err)
-		} else {
-			for _, server := range g.BmpServers {
-				if err := w.addServer(server.Config); err != nil {
-					log.Warn(err)
-				}
-			}
-			server.watchers[WATCHER_BMP] = w
-		}
-	}
-
-	w, _ := newGrpcIncomingWatcher()
-	server.watchers[WATCHER_GRPC_INCOMING] = w
-
-	if g.Zebra.Enabled {
-		cli, err := NewZclient(g.Zebra.Url, g.Zebra.RedistributeRouteTypeList)
-		if err != nil {
-			log.Error(err)
-		}
-		server.zclient = cli
-	}
-
 	senderCh := make(chan *SenderMsg, 1<<16)
 	go func(ch chan *SenderMsg) {
 		for {
@@ -273,34 +215,9 @@ func (server *BgpServer) Serve() {
 		}
 	}(broadcastCh)
 
-	rfs, _ := config.AfiSafis(g.AfiSafis).ToRfList()
-	server.globalRib = table.NewTableManager(rfs, g.MplsLabelRange.MinLabel, g.MplsLabelRange.MaxLabel)
-	server.setPolicyByConfig(table.GLOBAL_RIB_NAME, server.bgpConfig.Global.ApplyPolicy)
-	server.listeners = make([]*net.TCPListener, 0, 2)
-	acceptCh := make(chan *net.TCPConn, 4096)
-	if g.ListenConfig.Port > 0 {
-		list := []string{"0.0.0.0", "::"}
-		if len(g.ListenConfig.LocalAddressList) > 0 {
-			list = g.ListenConfig.LocalAddressList
-		}
-		for _, addr := range list {
-			l, err := listenAndAccept(addr, uint32(g.ListenConfig.Port), acceptCh)
-			if err != nil {
-				log.Fatal(err)
-				os.Exit(1)
-			}
-			server.listeners = append(server.listeners, l)
-		}
-	}
-
 	server.fsmincomingCh = channels.NewInfiniteChannel()
 	server.fsmStateCh = make(chan *FsmMsg, 4096)
 	var senderMsgs []*SenderMsg
-
-	var zapiMsgCh chan *zebra.Message
-	if server.zclient != nil {
-		zapiMsgCh = server.zclient.Receive()
-	}
 
 	handleFsmMsg := func(e *FsmMsg) {
 		peer, found := server.neighborMap[e.MsgSrc]
@@ -372,7 +289,7 @@ func (server *BgpServer) Serve() {
 			if len(m) > 0 {
 				senderMsgs = append(senderMsgs, m...)
 			}
-		case conn := <-acceptCh:
+		case conn := <-server.acceptCh:
 			passConn(conn)
 		default:
 		}
@@ -392,12 +309,12 @@ func (server *BgpServer) Serve() {
 			server.roaManager, _ = newROAManager(server.bgpConfig.Global.Config.As, c)
 		case rmsg := <-server.roaManager.recieveROA():
 			server.roaManager.handleROAEvent(rmsg)
-		case zmsg := <-zapiMsgCh:
+		case zmsg := <-server.zapiMsgCh:
 			m := handleZapiMsg(zmsg, server)
 			if len(m) > 0 {
 				senderMsgs = append(senderMsgs, m...)
 			}
-		case conn := <-acceptCh:
+		case conn := <-server.acceptCh:
 			passConn(conn)
 		case config := <-server.addedPeerCh:
 			addr := config.Config.NeighborAddress
@@ -406,12 +323,12 @@ func (server *BgpServer) Serve() {
 				log.Warn("Can't overwrite the exising peer ", addr)
 				continue
 			}
-			if g.ListenConfig.Port > 0 {
+			if server.bgpConfig.Global.ListenConfig.Port > 0 {
 				for _, l := range server.Listeners(addr) {
 					SetTcpMD5SigSockopts(l, addr, config.Config.AuthPassword)
 				}
 			}
-			peer := NewPeer(&g, &config, server.globalRib, server.policy)
+			peer := NewPeer(&server.bgpConfig.Global, &config, server.globalRib, server.policy)
 			server.setPolicyByConfig(peer.ID(), config.ApplyPolicy)
 			if peer.isRouteServerClient() {
 				pathList := make([]*table.Path, 0)
@@ -1144,10 +1061,79 @@ func (server *BgpServer) handleFSMMessage(peer *Peer, e *FsmMsg) []*SenderMsg {
 	return msgs
 }
 
-func (server *BgpServer) SetGlobalType(g config.Global) {
-	if server.globalTypeCh != nil {
-		server.globalTypeCh <- g
+func (server *BgpServer) SetGlobalType(g config.Global) error {
+	{
+		fs, err := config.AfiSafis(g.AfiSafis).ToRfList()
+		if err != nil {
+			return err
+		}
+		families := make([]uint32, 0, len(fs))
+		for _, f := range fs {
+			families = append(families, uint32(f))
+		}
+		arg := &api.ModGlobalConfigArguments{
+			Operation: api.Operation_ADD,
+			Global: &api.Global{
+				As:              g.Config.As,
+				RouterId:        g.Config.RouterId,
+				ListenPort:      g.ListenConfig.Port,
+				ListenAddresses: g.ListenConfig.LocalAddressList,
+				Families:        families,
+				MplsLabelMin:    g.MplsLabelRange.MinLabel,
+				MplsLabelMax:    g.MplsLabelRange.MaxLabel,
+			},
+		}
+		ch := make(chan *GrpcResponse)
+		server.GrpcReqCh <- &GrpcRequest{
+			RequestType: REQ_MOD_GLOBAL_CONFIG,
+			Data:        arg,
+			ResponseCh:  ch,
+		}
+		if err := (<-ch).ResponseErr; err != nil {
+			return err
+		}
 	}
+	if g.Mrt.FileName != "" {
+		arg := &api.ModMrtArguments{
+			Operation: api.Operation_ADD,
+			Filename:  g.Mrt.FileName,
+		}
+		ch := make(chan *GrpcResponse)
+		server.GrpcReqCh <- &GrpcRequest{
+			RequestType: REQ_MOD_MRT,
+			Data:        arg,
+			ResponseCh:  ch,
+		}
+		if err := (<-ch).ResponseErr; err != nil {
+			return err
+		}
+	}
+	for _, s := range g.BmpServers {
+		arg := &api.ModBmpArguments{
+			Operation: api.Operation_ADD,
+			Address:   s.Config.Address,
+			Port:      s.Config.Port,
+			Type:      api.ModBmpArguments_MonitoringPolicy(s.Config.RouteMonitoringPolicy.ToInt()),
+		}
+		ch := make(chan *GrpcResponse)
+		server.GrpcReqCh <- &GrpcRequest{
+			RequestType: REQ_MOD_BMP,
+			Data:        arg,
+			ResponseCh:  ch,
+		}
+		if err := (<-ch).ResponseErr; err != nil {
+			return err
+		}
+	}
+	if g.Zebra.Enabled && server.zclient == nil {
+		cli, err := NewZclient(g.Zebra.Url, g.Zebra.RedistributeRouteTypeList)
+		if err != nil {
+			return err
+		}
+		server.zclient = cli
+		server.zapiMsgCh = server.zclient.Receive()
+	}
+	return nil
 }
 
 func (server *BgpServer) SetRpkiConfig(c []config.RpkiServer) {
@@ -1650,33 +1636,105 @@ END:
 
 func (server *BgpServer) handleModConfig(grpcReq *GrpcRequest) error {
 	arg := grpcReq.Data.(*api.ModGlobalConfigArguments)
-	if arg.Operation != api.Operation_ADD {
+	switch arg.Operation {
+	case api.Operation_ADD:
+		if server.bgpConfig.Global.Config.As != 0 {
+			return fmt.Errorf("gobgp is already started")
+		}
+		g := arg.Global
+		id := net.ParseIP(g.RouterId)
+		if id == nil {
+			return fmt.Errorf("invalid router-id format: %s", g.RouterId)
+		}
+		families := make([]config.AfiSafi, 0, len(g.Families))
+		for _, f := range g.Families {
+			families = append(families, config.AfiSafi{
+				Config: config.AfiSafiConfig{
+					AfiSafiName: config.AfiSafiType(bgp.RouteFamily(f).String()),
+					Enabled:     true,
+				},
+			})
+		}
+		c := config.Bgp{
+			Global: config.Global{
+				Config: config.GlobalConfig{
+					As:       g.As,
+					RouterId: g.RouterId,
+				},
+				ListenConfig: config.ListenConfig{
+					Port:             g.ListenPort,
+					LocalAddressList: g.ListenAddresses,
+				},
+				MplsLabelRange: config.MplsLabelRange{
+					MinLabel: g.MplsLabelMin,
+					MaxLabel: g.MplsLabelMax,
+				},
+				AfiSafis: families,
+			},
+		}
+		err := config.SetDefaultConfigValues(nil, &c)
+		if err != nil {
+			return err
+		}
+
+		rfs, _ := config.AfiSafis(c.Global.AfiSafis).ToRfList()
+		server.globalRib = table.NewTableManager(rfs, c.Global.MplsLabelRange.MinLabel, c.Global.MplsLabelRange.MaxLabel)
+		server.setPolicyByConfig(table.GLOBAL_RIB_NAME, c.Global.ApplyPolicy)
+		server.bgpConfig.Global = c.Global
+		w, _ := newGrpcIncomingWatcher()
+		server.watchers[WATCHER_GRPC_INCOMING] = w
+		if server.roaManager == nil {
+			server.roaManager, _ = newROAManager(c.Global.Config.As, nil)
+		}
+
+		if port := c.Global.ListenConfig.Port; port > 0 {
+			listeners := make([]*net.TCPListener, 0, 2)
+			acceptCh := make(chan *net.TCPConn)
+			for _, addr := range c.Global.ListenConfig.LocalAddressList {
+				l, err := listenAndAccept(addr, uint32(port), acceptCh)
+				if err != nil {
+					return err
+				}
+				listeners = append(listeners, l)
+			}
+			server.listeners = listeners
+			server.acceptCh = acceptCh
+		}
+	case api.Operation_DEL_ALL:
+		for _, p := range server.neighborMap {
+			p.fsm.adminStateCh <- ADMIN_STATE_DOWN
+		}
+		for _, l := range server.listeners {
+			log.Info("close listener")
+			l.Close()
+		}
+		for _, w := range server.watchers {
+			log.Info("stop watcher")
+			w.stop()
+		}
+		// server.roaManager.stop()
+		for k, _ := range server.neighborMap {
+			log.Info("delete neighbor")
+			req := &GrpcRequest{
+				Data: &api.ModNeighborArguments{
+					Operation: api.Operation_DEL,
+					Peer: &api.Peer{
+						Conf: &api.PeerConf{
+							NeighborAddress: k,
+						},
+					},
+				},
+			}
+			_, err := server.handleGrpcModNeighbor(req)
+			if err != nil {
+				return fmt.Errorf("failed to del global config: %s", err)
+			}
+		}
+		server.globalRib = nil
+		server.bgpConfig.Global = config.Global{}
+	default:
 		return fmt.Errorf("invalid operation %s", arg.Operation)
 	}
-	if server.globalTypeCh == nil {
-		return fmt.Errorf("gobgp is already started")
-	}
-	g := arg.Global
-	id := net.ParseIP(g.RouterId)
-	if id == nil {
-		return fmt.Errorf("invalid router-id format: %s", g.RouterId)
-	}
-	c := config.Bgp{
-		Global: config.Global{
-			Config: config.GlobalConfig{
-				As:       g.As,
-				RouterId: g.RouterId,
-			},
-			ListenConfig: config.ListenConfig{
-				Port: g.ListenPort,
-			},
-		},
-	}
-	err := config.SetDefaultConfigValues(nil, &c)
-	if err != nil {
-		return err
-	}
-	server.globalTypeCh <- c.Global
 	return nil
 }
 
@@ -1730,7 +1788,7 @@ func (server *BgpServer) handleGrpc(grpcReq *GrpcRequest) []*SenderMsg {
 		return results
 	}
 
-	if server.globalTypeCh != nil && grpcReq.RequestType != REQ_MOD_GLOBAL_CONFIG {
+	if server.bgpConfig.Global.Config.As == 0 && grpcReq.RequestType != REQ_MOD_GLOBAL_CONFIG {
 		grpcReq.ResponseCh <- &GrpcResponse{
 			ResponseErr: fmt.Errorf("bgpd main loop is not started yet"),
 		}

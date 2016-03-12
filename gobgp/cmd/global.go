@@ -899,6 +899,24 @@ func NewGlobalCmd() *cobra.Command {
 		policyCmd.AddCommand(cmd)
 	}
 
-	globalCmd.AddCommand(ribCmd, policyCmd)
+	delCmd := &cobra.Command{
+		Use: CMD_DEL,
+	}
+
+	allCmd := &cobra.Command{
+		Use: CMD_ALL,
+		Run: func(cmd *cobra.Command, args []string) {
+			_, err := client.ModGlobalConfig(context.Background(), &api.ModGlobalConfigArguments{
+				Operation: api.Operation_DEL_ALL,
+			})
+			if err != nil {
+				exitWithError(err)
+			}
+		},
+	}
+
+	delCmd.AddCommand(allCmd)
+
+	globalCmd.AddCommand(ribCmd, policyCmd, delCmd)
 	return globalCmd
 }

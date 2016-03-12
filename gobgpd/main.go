@@ -203,7 +203,9 @@ func main() {
 			var added, deleted, updated []config.Neighbor
 
 			if bgpConfig == nil {
-				bgpServer.SetGlobalType(newConfig.Bgp.Global)
+				if err := bgpServer.SetGlobalType(newConfig.Bgp.Global); err != nil {
+					log.Fatalf("failed to set global config: %s", err)
+				}
 				bgpConfig = &newConfig.Bgp
 				bgpServer.SetRpkiConfig(newConfig.Bgp.RpkiServers)
 				added = newConfig.Bgp.Neighbors
