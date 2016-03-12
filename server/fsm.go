@@ -293,43 +293,41 @@ func (fsm *FSM) connectLoop() error {
 			host := net.JoinHostPort(addr, strconv.Itoa(bgp.BGP_PORT))
 			// check if LocalAddress has been configured
 			laddr := fsm.pConf.Transport.Config.LocalAddress
+			var conn net.Conn
+			var err error
 			if laddr != "" {
-				lhost := net.JoinHostPort(laddr, "0")
-				ltcpaddr, err := net.ResolveTCPAddr("tcp", lhost)
-				if err != nil {
-					log.WithFields(log.Fields{
-						"Topic": "Peer",
-						"Key":   fsm.pConf.Config.NeighborAddress,
-					}).Warnf("failed to resolve ltcpaddr: %s", err)
+				if fsm.pConf.Config.AuthPassword != "" {
+					deadline := (MIN_CONNECT_RETRY - 1) * 1000 // msec
+					conn, err = DialTCPTimeoutWithMD5Sig(addr, bgp.BGP_PORT, laddr, fsm.pConf.Config.AuthPassword, deadline)
 				} else {
-					d := net.Dialer{LocalAddr: ltcpaddr, Timeout: time.Duration(MIN_CONNECT_RETRY-1) * time.Second}
-					if conn, err := d.Dial("tcp", host); err == nil {
-						fsm.connCh <- conn
-					} else {
+					lhost := net.JoinHostPort(laddr, "0")
+					ltcpaddr, e := net.ResolveTCPAddr("tcp", lhost)
+					if e != nil {
 						log.WithFields(log.Fields{
 							"Topic": "Peer",
 							"Key":   fsm.pConf.Config.NeighborAddress,
-						}).Debugf("failed to connect from ltcpaddr", err)
+						}).Warnf("failed to resolve ltcpaddr: %s", e)
+						return
 					}
+					d := net.Dialer{LocalAddr: ltcpaddr, Timeout: time.Duration(MIN_CONNECT_RETRY-1) * time.Second}
+					conn, err = d.Dial("tcp", host)
 				}
-
 			} else {
-				var conn net.Conn
-				var err error
 				if fsm.pConf.Config.AuthPassword != "" {
 					deadline := (MIN_CONNECT_RETRY - 1) * 1000 // msec
-					conn, err = DialTCPTimeoutWithMD5Sig(addr, bgp.BGP_PORT, fsm.pConf.Config.AuthPassword, deadline)
+					conn, err = DialTCPTimeoutWithMD5Sig(addr, bgp.BGP_PORT, "0.0.0.0", fsm.pConf.Config.AuthPassword, deadline)
 				} else {
 					conn, err = net.DialTimeout("tcp", host, time.Duration(MIN_CONNECT_RETRY-1)*time.Second)
 				}
-				if err == nil {
-					fsm.connCh <- conn
-				} else {
-					log.WithFields(log.Fields{
-						"Topic": "Peer",
-						"Key":   fsm.pConf.Config.NeighborAddress,
-					}).Debugf("failed to connect: %s", err)
-				}
+			}
+
+			if err == nil {
+				fsm.connCh <- conn
+			} else {
+				log.WithFields(log.Fields{
+					"Topic": "Peer",
+					"Key":   fsm.pConf.Config.NeighborAddress,
+				}).Debugf("failed to connect: %s", err)
 			}
 		}
 	}
