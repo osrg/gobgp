@@ -144,12 +144,12 @@ func listenAndAccept(address string, port uint32, ch chan *net.TCPConn) (*net.TC
 	if err != nil {
 		return nil, err
 	}
-	go func() {
+	go func() error {
 		for {
 			conn, err := l.AcceptTCP()
 			if err != nil {
-				log.Info(err)
-				continue
+				log.Error(err)
+				return err
 			}
 			ch <- conn
 		}
@@ -1630,87 +1630,111 @@ END:
 }
 
 func (server *BgpServer) handleModConfig(grpcReq *GrpcRequest) error {
+	var op api.Operation
 	var c *config.Global
 	switch arg := grpcReq.Data.(type) {
 	case *api.ModGlobalConfigArguments:
-		if arg.Operation != api.Operation_ADD {
-			return fmt.Errorf("invalid operation %s", arg.Operation)
-		}
-		g := arg.Global
-		id := net.ParseIP(g.RouterId)
-		if id == nil {
-			return fmt.Errorf("invalid router-id format: %s", g.RouterId)
-		}
-		families := make([]config.AfiSafi, 0, len(g.Families))
-		for _, f := range g.Families {
-			name := config.AfiSafiType(bgp.RouteFamily(f).String())
-			families = append(families, config.AfiSafi{
-				AfiSafiName: name,
-				Config: config.AfiSafiConfig{
+		op = arg.Operation
+		if op == api.Operation_ADD {
+			g := arg.Global
+			if net.ParseIP(g.RouterId) == nil {
+				return fmt.Errorf("invalid router-id format: %s", g.RouterId)
+			}
+			families := make([]config.AfiSafi, 0, len(g.Families))
+			for _, f := range g.Families {
+				name := config.AfiSafiType(bgp.RouteFamily(f).String())
+				families = append(families, config.AfiSafi{
 					AfiSafiName: name,
-					Enabled:     true,
+					Config: config.AfiSafiConfig{
+						AfiSafiName: name,
+						Enabled:     true,
+					},
+					State: config.AfiSafiState{
+						AfiSafiName: name,
+					},
+				})
+			}
+			b := &config.Bgp{
+				Global: config.Global{
+					Config: config.GlobalConfig{
+						As:       g.As,
+						RouterId: g.RouterId,
+					},
+					ListenConfig: config.ListenConfig{
+						Port:             g.ListenPort,
+						LocalAddressList: g.ListenAddresses,
+					},
+					MplsLabelRange: config.MplsLabelRange{
+						MinLabel: g.MplsLabelMin,
+						MaxLabel: g.MplsLabelMax,
+					},
+					AfiSafis: families,
+					Collector: config.Collector{
+						Enabled: g.Collector,
+					},
 				},
-				State: config.AfiSafiState{
-					AfiSafiName: name,
-				},
-			})
+			}
+			if err := config.SetDefaultConfigValues(nil, b); err != nil {
+				return err
+			}
+			c = &b.Global
 		}
-		b := &config.Bgp{
-			Global: config.Global{
-				Config: config.GlobalConfig{
-					As:       g.As,
-					RouterId: g.RouterId,
-				},
-				ListenConfig: config.ListenConfig{
-					Port:             g.ListenPort,
-					LocalAddressList: g.ListenAddresses,
-				},
-				MplsLabelRange: config.MplsLabelRange{
-					MinLabel: g.MplsLabelMin,
-					MaxLabel: g.MplsLabelMax,
-				},
-				AfiSafis: families,
-				Collector: config.Collector{
-					Enabled: g.Collector,
-				},
-			},
-		}
-		if err := config.SetDefaultConfigValues(nil, b); err != nil {
-			return err
-		}
-		c = &b.Global
 	case *config.Global:
+		op = api.Operation_ADD
 		c = arg
 	}
 
-	if server.bgpConfig.Global.Config.As != 0 {
-		return fmt.Errorf("gobgp is already started")
-	}
-
-	if c.ListenConfig.Port > 0 {
-		acceptCh := make(chan *net.TCPConn, 4096)
-		list := []string{"0.0.0.0", "::"}
-		if len(c.ListenConfig.LocalAddressList) > 0 {
-			list = c.ListenConfig.LocalAddressList
+	switch op {
+	case api.Operation_ADD:
+		if server.bgpConfig.Global.Config.As != 0 {
+			return fmt.Errorf("gobgp is already started")
 		}
-		for _, addr := range list {
-			l, err := listenAndAccept(addr, uint32(c.ListenConfig.Port), acceptCh)
+
+		if c.ListenConfig.Port > 0 {
+			acceptCh := make(chan *net.TCPConn, 4096)
+			list := []string{"0.0.0.0", "::"}
+			if len(c.ListenConfig.LocalAddressList) > 0 {
+				list = c.ListenConfig.LocalAddressList
+			}
+			for _, addr := range list {
+				l, err := listenAndAccept(addr, uint32(c.ListenConfig.Port), acceptCh)
+				if err != nil {
+					return err
+				}
+				server.listeners = append(server.listeners, l)
+			}
+			server.acceptCh = acceptCh
+		}
+
+		rfs, _ := config.AfiSafis(c.AfiSafis).ToRfList()
+		server.globalRib = table.NewTableManager(rfs, c.MplsLabelRange.MinLabel, c.MplsLabelRange.MaxLabel)
+
+		p := config.RoutingPolicy{}
+		if err := server.SetRoutingPolicy(p); err != nil {
+			return err
+		}
+		server.bgpConfig.Global = *c
+	case api.Operation_DEL_ALL:
+		for k, _ := range server.neighborMap {
+			_, err := server.handleGrpcModNeighbor(&GrpcRequest{
+				Data: &api.ModNeighborArguments{
+					Operation: api.Operation_DEL,
+					Peer: &api.Peer{
+						Conf: &api.PeerConf{
+							NeighborAddress: k,
+						},
+					},
+				},
+			})
 			if err != nil {
 				return err
 			}
-			server.listeners = append(server.listeners, l)
 		}
-		server.acceptCh = acceptCh
+		for _, l := range server.listeners {
+			l.Close()
+		}
+		server.bgpConfig.Global = config.Global{}
 	}
-
-	rfs, _ := config.AfiSafis(c.AfiSafis).ToRfList()
-	server.globalRib = table.NewTableManager(rfs, c.MplsLabelRange.MinLabel, c.MplsLabelRange.MaxLabel)
-
-	p := config.RoutingPolicy{}
-	if err := server.SetRoutingPolicy(p); err != nil {
-		return err
-	}
-	server.bgpConfig.Global = *c
 	return nil
 }
 
