@@ -28,7 +28,7 @@ from noseplugin import OptionParser, parser_option
 class GoBGPTestBase(unittest.TestCase):
 
     wait_per_retry = 5
-    retry_limit = 10
+    retry_limit = 15
 
     @classmethod
     def setUpClass(cls):
@@ -73,6 +73,9 @@ class GoBGPTestBase(unittest.TestCase):
                     break
                 local_rib = self.gobgp.get_local_rib(rs_client)
                 local_rib = [p['prefix'] for p in local_rib]
+
+                state = self.gobgp.get_neighbor_state(rs_client)
+                self.assertEqual(state, BGP_FSM_ESTABLISHED)
                 if len(local_rib) < len(self.quaggas)-1:
                     time.sleep(self.wait_per_retry)
                     continue
