@@ -2100,8 +2100,7 @@ func (server *BgpServer) handleGrpc(grpcReq *GrpcRequest) []*SenderMsg {
 						}
 					}
 					if found {
-						p.IsWithdraw = true
-						withdrawnList = append(withdrawnList, p)
+						withdrawnList = append(withdrawnList, p.Clone(true))
 					}
 				}
 				msgs = append(msgs, newSenderMsg(peer, table.CreateUpdateMsgFromPaths(withdrawnList)))
