@@ -237,6 +237,7 @@ func main() {
 				if config.CheckPolicyDifference(policyConfig, &newConfig.Policy) {
 					log.Info("Policy config is updated")
 					bgpServer.UpdatePolicy(newConfig.Policy)
+					policyConfig = &newConfig.Policy
 				}
 			}
 
