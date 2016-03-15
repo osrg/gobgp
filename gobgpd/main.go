@@ -30,13 +30,14 @@ import (
 	"os"
 	"os/signal"
 	"runtime"
+	"runtime/debug"
 	"strings"
 	"syscall"
 )
 
 func main() {
 	sigCh := make(chan os.Signal, 1)
-	signal.Notify(sigCh, syscall.SIGHUP, syscall.SIGTERM)
+	signal.Notify(sigCh, syscall.SIGHUP, syscall.SIGTERM, syscall.SIGUSR1)
 
 	var opts struct {
 		ConfigFile      string `short:"f" long:"config-file" description:"specifying a config file"`
@@ -260,6 +261,9 @@ func main() {
 				reloadCh <- true
 			case syscall.SIGKILL, syscall.SIGTERM:
 				bgpServer.Shutdown()
+			case syscall.SIGUSR1:
+				runtime.GC()
+				debug.FreeOSMemory()
 			}
 		}
 	}
