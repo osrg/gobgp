@@ -21,7 +21,6 @@ import (
 	"github.com/spf13/cobra"
 	"net/http"
 	_ "net/http/pprof"
-	"os"
 )
 
 var globalOpts struct {
@@ -46,8 +45,7 @@ func NewRootCmd() *cobra.Command {
 			if globalOpts.PprofPort > 0 {
 				go func() {
 					if err := http.ListenAndServe(fmt.Sprintf("localhost:%d", globalOpts.PprofPort), nil); err != nil {
-						fmt.Println(err)
-						os.Exit(1)
+						exitWithError(err)
 					}
 				}()
 			}
