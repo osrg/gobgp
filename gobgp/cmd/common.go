@@ -242,6 +242,30 @@ func (p paths) Less(i, j int) bool {
 	return strings.Less(0, 1)
 }
 
+func extractReserved(args, keys []string) map[string][]string {
+	m := make(map[string][]string, len(keys))
+	var k string
+	isReserved := func(s string) bool {
+		for _, r := range keys {
+			if s == r {
+				return true
+			}
+		}
+		return false
+	}
+	for _, arg := range args {
+		if isReserved(arg) {
+			k = arg
+			m[k] = make([]string, 0, 1)
+		} else if k == "" {
+			m[k] = []string{arg}
+		} else {
+			m[k] = append(m[k], arg)
+		}
+	}
+	return m
+}
+
 type PeerConf struct {
 	RemoteIp          net.IP                             `json:"remote_ip,omitempty"`
 	Id                net.IP                             `json:"id,omitempty"`

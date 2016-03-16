@@ -1697,11 +1697,7 @@ func (server *BgpServer) handleModConfig(grpcReq *GrpcRequest) error {
 
 		if c.ListenConfig.Port > 0 {
 			acceptCh := make(chan *net.TCPConn, 4096)
-			list := []string{"0.0.0.0", "::"}
-			if len(c.ListenConfig.LocalAddressList) > 0 {
-				list = c.ListenConfig.LocalAddressList
-			}
-			for _, addr := range list {
+			for _, addr := range c.ListenConfig.LocalAddressList {
 				l, err := listenAndAccept(addr, uint32(c.ListenConfig.Port), acceptCh)
 				if err != nil {
 					return err
@@ -1805,10 +1801,16 @@ func (server *BgpServer) handleGrpc(grpcReq *GrpcRequest) []*SenderMsg {
 
 	switch grpcReq.RequestType {
 	case REQ_GLOBAL_CONFIG:
+		g := server.bgpConfig.Global
 		result := &GrpcResponse{
 			Data: &api.Global{
-				As:       server.bgpConfig.Global.Config.As,
-				RouterId: server.bgpConfig.Global.Config.RouterId,
+				As:              g.Config.As,
+				RouterId:        g.Config.RouterId,
+				ListenPort:      g.ListenConfig.Port,
+				ListenAddresses: g.ListenConfig.LocalAddressList,
+				MplsLabelMin:    g.MplsLabelRange.MinLabel,
+				MplsLabelMax:    g.MplsLabelRange.MaxLabel,
+				Collector:       g.Collector.Enabled,
 			},
 		}
 		grpcReq.ResponseCh <- result

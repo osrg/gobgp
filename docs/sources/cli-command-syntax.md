@@ -17,7 +17,18 @@ gobgp has six subcommands.
 
 
 ## 1. <a name="global"> global subcommand
-### 1.1. Operations for Global-Rib - add/del/show -
+### 1.1 Global Configuration
+#### syntax
+```shell
+# configure global setting and start acting as bgp daemon
+% gobgp global as <VALUE> router-id <VALUE> [listen-port <VALUE>] [listen-addresses <VALUE>...] [mpls-label-min <VALUE>] [mpls-label-max <VALUE>] [collector]
+# delete global setting and stop acting as bgp daemon (all peer sessions will be closed)
+% gobgp global del all
+# show global setting
+% gobgp global
+```
+
+### 1.2. Operations for Global-Rib - add/del/show -
 #### - syntax
 ```shell
 # add Route

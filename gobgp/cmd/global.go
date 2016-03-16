@@ -16,6 +16,7 @@
 package cmd
 
 import (
+	"encoding/json"
 	"fmt"
 	api "github.com/osrg/gobgp/api"
 	"github.com/osrg/gobgp/packet"
@@ -773,28 +774,69 @@ func showGlobalConfig(args []string) error {
 	if err != nil {
 		return err
 	}
+	if globalOpts.Json {
+		j, _ := json.Marshal(g)
+		fmt.Println(string(j))
+		return nil
+	}
 	fmt.Println("AS:       ", g.As)
 	fmt.Println("Router-ID:", g.RouterId)
+	if len(g.ListenAddresses) > 0 {
+		fmt.Printf("Listening Port: %d, Addresses: %s\n", g.ListenPort, strings.Join(g.ListenAddresses, ", "))
+	}
+	fmt.Printf("MPLS Label Range: %d..%d\n", g.MplsLabelMin, g.MplsLabelMax)
+	if g.Collector {
+		fmt.Println("Running in Collector Mode")
+	}
 	return nil
 }
 
 func modGlobalConfig(args []string) error {
-	if len(args) != 4 || args[0] != "as" || args[2] != "router-id" {
-		return fmt.Errorf("usage: gobgp global as <asn> router-id <route-id>")
+	m := extractReserved(args, []string{"as", "router-id", "listen-port",
+		"listen-addresses", "mpls-label-min", "mpls-label-max", "collector"})
+
+	if len(m["as"]) != 1 || len(m["router-id"]) != 1 {
+		return fmt.Errorf("usage: gobgp global as <VALUE> router-id <VALUE> [listen-port <VALUE>] [listen-addresses <VALUE>...] [mpls-label-min <VALUE>] [mpls-label-max <VALUE>] [collector]")
 	}
-	asn, err := strconv.Atoi(args[1])
+	asn, err := strconv.Atoi(m["as"][0])
 	if err != nil {
 		return err
 	}
-	id := net.ParseIP(args[3])
+	id := net.ParseIP(m["router-id"][0])
 	if id.To4() == nil {
 		return fmt.Errorf("invalid router-id format")
 	}
+	var port int
+	if len(m["listen-port"]) > 0 {
+		port, err = strconv.Atoi(m["listen-port"][0])
+		if err != nil {
+			return err
+		}
+	}
+	var min, max int
+	if len(m["mpls-label-min"]) > 0 {
+		min, err = strconv.Atoi(m["mpls-label-min"][0])
+		if err != nil {
+			return err
+		}
+	}
+	if len(m["mpls-label-man"]) > 0 {
+		min, err = strconv.Atoi(m["mpls-label-man"][0])
+		if err != nil {
+			return err
+		}
+	}
+	_, collector := m["collector"]
 	_, err = client.ModGlobalConfig(context.Background(), &api.ModGlobalConfigArguments{
 		Operation: api.Operation_ADD,
 		Global: &api.Global{
-			As:       uint32(asn),
-			RouterId: args[3],
+			As:              uint32(asn),
+			RouterId:        id.String(),
+			ListenPort:      int32(port),
+			ListenAddresses: m["listen-addresses"],
+			MplsLabelMin:    uint32(min),
+			MplsLabelMax:    uint32(max),
+			Collector:       collector,
 		},
 	})
 	return err
