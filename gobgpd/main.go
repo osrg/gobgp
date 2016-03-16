@@ -37,7 +37,7 @@ import (
 
 func main() {
 	sigCh := make(chan os.Signal, 1)
-	signal.Notify(sigCh, syscall.SIGHUP, syscall.SIGTERM, syscall.SIGUSR1)
+	signal.Notify(sigCh, syscall.SIGTERM, syscall.SIGUSR1)
 
 	var opts struct {
 		ConfigFile      string `short:"f" long:"config-file" description:"specifying a config file"`
@@ -160,10 +160,8 @@ func main() {
 	}
 
 	configCh := make(chan config.BgpConfigSet)
-	reloadCh := make(chan bool)
 	if opts.Dry {
-		go config.ReadConfigfileServe(opts.ConfigFile, opts.ConfigType, configCh, reloadCh)
-		reloadCh <- true
+		go config.ReadConfigfileServe(opts.ConfigFile, opts.ConfigType, configCh)
 		c := <-configCh
 		if opts.LogLevel == "debug" {
 			p.Println(c)
@@ -172,20 +170,7 @@ func main() {
 	}
 
 	log.Info("gobgpd started")
-
 	bgpServer := server.NewBgpServer()
-	if opts.Ops {
-		m, err := ops.NewOpsManager(bgpServer.GrpcReqCh)
-		if err != nil {
-			log.Errorf("Failed to start ops config manager: %s", err)
-			os.Exit(1)
-		}
-		log.Info("Coordination with OpenSwitch")
-		m.Serve()
-	} else if opts.ConfigFile != "" {
-		go config.ReadConfigfileServe(opts.ConfigFile, opts.ConfigType, configCh, reloadCh)
-		reloadCh <- true
-	}
 	go bgpServer.Serve()
 
 	// start grpc Server
@@ -195,6 +180,18 @@ func main() {
 			log.Fatalf("failed to listen grpc port: %s", err)
 		}
 	}()
+
+	if opts.Ops {
+		m, err := ops.NewOpsManager(bgpServer.GrpcReqCh)
+		if err != nil {
+			log.Errorf("Failed to start ops config manager: %s", err)
+			os.Exit(1)
+		}
+		log.Info("Coordination with OpenSwitch")
+		m.Serve()
+	} else if opts.ConfigFile != "" {
+		go config.ReadConfigfileServe(opts.ConfigFile, opts.ConfigType, configCh)
+	}
 
 	var bgpConfig *config.Bgp = nil
 	var policyConfig *config.RoutingPolicy = nil
@@ -256,9 +253,6 @@ func main() {
 			}
 		case sig := <-sigCh:
 			switch sig {
-			case syscall.SIGHUP:
-				log.Info("reload the config file")
-				reloadCh <- true
 			case syscall.SIGKILL, syscall.SIGTERM:
 				bgpServer.Shutdown()
 			case syscall.SIGUSR1:

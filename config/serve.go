@@ -3,7 +3,10 @@ package config
 import (
 	log "github.com/Sirupsen/logrus"
 	"github.com/spf13/viper"
+	"os"
+	"os/signal"
 	"reflect"
+	"syscall"
 )
 
 type BgpConfigSet struct {
@@ -11,11 +14,12 @@ type BgpConfigSet struct {
 	Policy RoutingPolicy
 }
 
-func ReadConfigfileServe(path, format string, configCh chan BgpConfigSet, reloadCh chan bool) {
+func ReadConfigfileServe(path, format string, configCh chan BgpConfigSet) {
+	sigCh := make(chan os.Signal, 1)
+	signal.Notify(sigCh, syscall.SIGHUP)
+
 	cnt := 0
 	for {
-		<-reloadCh
-
 		b := Bgp{}
 		v := viper.New()
 		v.SetConfigFile(path)
@@ -53,8 +57,11 @@ func ReadConfigfileServe(path, format string, configCh chan BgpConfigSet, reload
 				PolicyDefinitions: c.PolicyDefinitions,
 			},
 		}
+		select {
+		case <-sigCh:
+			log.Info("reload the config file")
+		}
 		continue
-
 	ERROR:
 		if cnt == 0 {
 			log.Fatal("can't read config file ", path, ", ", err)
