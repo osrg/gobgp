@@ -1102,43 +1102,15 @@ func (server *BgpServer) handleFSMMessage(peer *Peer, e *FsmMsg) []*SenderMsg {
 }
 
 func (server *BgpServer) SetGlobalType(g config.Global) error {
-	{
-		ch := make(chan *GrpcResponse)
-		server.GrpcReqCh <- &GrpcRequest{
-			RequestType: REQ_MOD_GLOBAL_CONFIG,
-			Data:        &g,
-			ResponseCh:  ch,
-		}
-		if err := (<-ch).Err(); err != nil {
-			return err
-		}
+	ch := make(chan *GrpcResponse)
+	server.GrpcReqCh <- &GrpcRequest{
+		RequestType: REQ_MOD_GLOBAL_CONFIG,
+		Data:        &g,
+		ResponseCh:  ch,
 	}
-	if g.Mrt.FileName != "" {
-		ch := make(chan *GrpcResponse)
-		server.GrpcReqCh <- &GrpcRequest{
-			RequestType: REQ_MOD_MRT,
-			Data: &api.ModMrtArguments{
-				Operation: api.Operation_ADD,
-				Filename:  g.Mrt.FileName,
-			},
-			ResponseCh: ch,
-		}
-		if err := (<-ch).Err(); err != nil {
-			return err
-		}
+	if err := (<-ch).Err(); err != nil {
+		return err
 	}
-	for _, s := range g.BmpServers {
-		ch := make(chan *GrpcResponse)
-		server.GrpcReqCh <- &GrpcRequest{
-			RequestType: REQ_MOD_BMP,
-			Data:        &s.Config,
-			ResponseCh:  ch,
-		}
-		if err := (<-ch).Err(); err != nil {
-			return err
-		}
-	}
-
 	if g.Zebra.Enabled {
 		cli, err := NewZclient(g.Zebra.Url, g.Zebra.RedistributeRouteTypeList)
 		if err != nil {
@@ -1152,6 +1124,39 @@ func (server *BgpServer) SetGlobalType(g config.Global) error {
 
 func (server *BgpServer) SetRpkiConfig(c []config.RpkiServer) {
 	server.rpkiConfigCh <- c
+}
+
+func (server *BgpServer) SetBmpConfig(c []config.BmpServer) error {
+	for _, s := range c {
+		ch := make(chan *GrpcResponse)
+		server.GrpcReqCh <- &GrpcRequest{
+			RequestType: REQ_MOD_BMP,
+			Data:        &s.Config,
+			ResponseCh:  ch,
+		}
+		if err := (<-ch).Err(); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func (server *BgpServer) SetMrtConfig(c config.Mrt) error {
+	if c.FileName != "" {
+		ch := make(chan *GrpcResponse)
+		server.GrpcReqCh <- &GrpcRequest{
+			RequestType: REQ_MOD_MRT,
+			Data: &api.ModMrtArguments{
+				Operation: api.Operation_ADD,
+				Filename:  c.FileName,
+			},
+			ResponseCh: ch,
+		}
+		if err := (<-ch).Err(); err != nil {
+			return err
+		}
+	}
+	return nil
 }
 
 func (server *BgpServer) PeerAdd(peer config.Neighbor) {

@@ -20,7 +20,7 @@ func ReadConfigfileServe(path, format string, configCh chan BgpConfigSet) {
 
 	cnt := 0
 	for {
-		b := Bgp{}
+		var b *Bgp
 		v := viper.New()
 		v.SetConfigFile(path)
 		v.SetConfigType(format)
@@ -29,6 +29,8 @@ func ReadConfigfileServe(path, format string, configCh chan BgpConfigSet) {
 			Global            Global             `mapstructure:"global"`
 			Neighbors         []Neighbor         `mapstructure:"neighbors"`
 			RpkiServers       []RpkiServer       `mapstructure:"rpki-servers"`
+			BmpServers        []BmpServer        `mapstructure:"bmp-servers"`
+			Mrt               Mrt                `mapstructure:"mrt"`
 			DefinedSets       DefinedSets        `mapstructure:"defined-sets"`
 			PolicyDefinitions []PolicyDefinition `mapstructure:"policy-definitions"`
 		}{}
@@ -39,10 +41,14 @@ func ReadConfigfileServe(path, format string, configCh chan BgpConfigSet) {
 		if err != nil {
 			goto ERROR
 		}
-		b.Global = c.Global
-		b.Neighbors = c.Neighbors
-		b.RpkiServers = c.RpkiServers
-		err = SetDefaultConfigValues(v, &b)
+		b = &Bgp{
+			Global:      c.Global,
+			Neighbors:   c.Neighbors,
+			RpkiServers: c.RpkiServers,
+			BmpServers:  c.BmpServers,
+			Mrt:         c.Mrt,
+		}
+		err = SetDefaultConfigValues(v, b)
 		if err != nil {
 			goto ERROR
 		}
@@ -51,7 +57,7 @@ func ReadConfigfileServe(path, format string, configCh chan BgpConfigSet) {
 		}
 		cnt++
 		configCh <- BgpConfigSet{
-			Bgp: b,
+			Bgp: *b,
 			Policy: RoutingPolicy{
 				DefinedSets:       c.DefinedSets,
 				PolicyDefinitions: c.PolicyDefinitions,

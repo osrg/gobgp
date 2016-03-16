@@ -828,6 +828,38 @@ func (v RpkiValidationResultType) Validate() error {
 	return nil
 }
 
+//struct for container gobgp:mrt
+type Mrt struct {
+	// original -> gobgp:file-name
+	FileName string `mapstructure:"file-name"`
+}
+
+//struct for container gobgp:state
+type BmpServerState struct {
+}
+
+//struct for container gobgp:config
+type BmpServerConfig struct {
+	// original -> gobgp:address
+	//gobgp:address's original type is inet:ip-address
+	Address string `mapstructure:"address"`
+	// original -> gobgp:port
+	Port uint32 `mapstructure:"port"`
+	// original -> gobgp:route-monitoring-policy
+	RouteMonitoringPolicy BmpRouteMonitoringPolicyType `mapstructure:"route-monitoring-policy"`
+}
+
+//struct for container gobgp:bmp-server
+type BmpServer struct {
+	// original -> gobgp:address
+	//gobgp:address's original type is inet:ip-address
+	Address string `mapstructure:"address"`
+	// original -> gobgp:bmp-server-config
+	Config BmpServerConfig `mapstructure:"config"`
+	// original -> gobgp:bmp-server-state
+	State BmpServerState `mapstructure:"state"`
+}
+
 //struct for container gobgp:rpki-received
 type RpkiReceived struct {
 	// original -> gobgp:serial-notify
@@ -1471,38 +1503,6 @@ type Zebra struct {
 	RedistributeRouteTypeList []InstallProtocolType `mapstructure:"redistribute-route-type-list"`
 }
 
-//struct for container gobgp:mrt
-type Mrt struct {
-	// original -> gobgp:file-name
-	FileName string `mapstructure:"file-name"`
-}
-
-//struct for container gobgp:state
-type BmpServerState struct {
-}
-
-//struct for container gobgp:config
-type BmpServerConfig struct {
-	// original -> gobgp:address
-	//gobgp:address's original type is inet:ip-address
-	Address string `mapstructure:"address"`
-	// original -> gobgp:port
-	Port uint32 `mapstructure:"port"`
-	// original -> gobgp:route-monitoring-policy
-	RouteMonitoringPolicy BmpRouteMonitoringPolicyType `mapstructure:"route-monitoring-policy"`
-}
-
-//struct for container gobgp:bmp-server
-type BmpServer struct {
-	// original -> gobgp:address
-	//gobgp:address's original type is inet:ip-address
-	Address string `mapstructure:"address"`
-	// original -> gobgp:bmp-server-config
-	Config BmpServerConfig `mapstructure:"config"`
-	// original -> gobgp:bmp-server-state
-	State BmpServerState `mapstructure:"state"`
-}
-
 //struct for container gobgp:collector
 type Collector struct {
 	// original -> gobgp:enabled
@@ -2050,10 +2050,6 @@ type Global struct {
 	ApplyPolicy ApplyPolicy `mapstructure:"apply-policy"`
 	// original -> gobgp:collector
 	Collector Collector `mapstructure:"collector"`
-	// original -> gobgp:bmp-servers
-	BmpServers []BmpServer `mapstructure:"bmp-servers"`
-	// original -> gobgp:mrt
-	Mrt Mrt `mapstructure:"mrt"`
 	// original -> gobgp:zebra
 	Zebra Zebra `mapstructure:"zebra"`
 	// original -> gobgp:mpls-label-range
@@ -2072,6 +2068,10 @@ type Bgp struct {
 	PeerGroups []PeerGroup `mapstructure:"peer-groups"`
 	// original -> gobgp:rpki-servers
 	RpkiServers []RpkiServer `mapstructure:"rpki-servers"`
+	// original -> gobgp:bmp-servers
+	BmpServers []BmpServer `mapstructure:"bmp-servers"`
+	// original -> gobgp:mrt
+	Mrt Mrt `mapstructure:"mrt"`
 }
 
 //struct for container bgp-pol:set-ext-community-method

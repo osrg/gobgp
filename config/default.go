@@ -48,11 +48,11 @@ func SetDefaultConfigValues(v *viper.Viper, b *Bgp) error {
 		b.Global.ListenConfig.Port = bgp.BGP_PORT
 	}
 
-	for idx, server := range b.Global.BmpServers {
+	for idx, server := range b.BmpServers {
 		if server.Config.Port == 0 {
 			server.Config.Port = bgp.BMP_DEFAULT_PORT
 		}
-		b.Global.BmpServers[idx] = server
+		b.BmpServers[idx] = server
 	}
 
 	if !v.IsSet("global.mpls-label-range.min-label") {

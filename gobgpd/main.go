@@ -206,6 +206,12 @@ func main() {
 				}
 				bgpConfig = &newConfig.Bgp
 				bgpServer.SetRpkiConfig(newConfig.Bgp.RpkiServers)
+				if err := bgpServer.SetBmpConfig(newConfig.Bgp.BmpServers); err != nil {
+					log.Fatalf("failed to set global config: %s", err)
+				}
+				if err := bgpServer.SetMrtConfig(newConfig.Bgp.Mrt); err != nil {
+					log.Fatalf("failed to set global config: %s", err)
+				}
 				added = newConfig.Bgp.Neighbors
 				if opts.GracefulRestart {
 					for i, n := range added {

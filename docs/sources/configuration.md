@@ -9,12 +9,6 @@
         default-import-policy = "reject-route"
         export-policy-list = ["policy2"]
         default-export-policy = "accept-route"
-    [[global.bmp-servers]]
-        [global.bmp-servers.config]
-            address = "127.0.0.1"
-            port = 11019
-    [global.mrt]
-        file-name = "/var/log/mrt.dump"
     [global.zebra]
         enabled = true
         url = "unix:/var/run/quagga/zserv.api"
@@ -37,6 +31,14 @@
     [rpki-servers.config]
          address = "210.173.170.254"
          port = 323
+
+[[bmp-servers]]
+    [bmp-servers.config]
+        address = "127.0.0.1"
+        port = 11019
+
+[mrt]
+    file-name = "/var/log/mrt.dump"
 
 [[neighbors]]
     [neighbors.config]
