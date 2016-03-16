@@ -96,6 +96,8 @@ class GoBGPTestBase(unittest.TestCase):
         self.gobgp.wait_for(expected_state=BGP_FSM_IDLE, peer=q3)
 
         for q in self.quaggas.itervalues():
+            if q.name == 'q3':
+                continue
             self.assertTrue(len(self.gobgp.get_adj_rib_out(q)) == 0)
 
     def test_05_enable_peer(self):
@@ -118,6 +120,8 @@ class GoBGPTestBase(unittest.TestCase):
         self.gobgp.wait_for(expected_state=BGP_FSM_IDLE, peer=q3)
 
         for q in self.quaggas.itervalues():
+            if q.name == 'q3':
+                continue
             self.assertTrue(len(self.gobgp.get_adj_rib_out(q)) == 0)
 
     def test_07_adv_to_one_peer(self):
@@ -132,6 +136,8 @@ class GoBGPTestBase(unittest.TestCase):
 
     def test_08_check_adj_rib_out(self):
         for q in self.quaggas.itervalues():
+            if q.name == 'q3':
+                continue
             paths = self.gobgp.get_adj_rib_out(q)
             if q == self.quaggas['q1']:
                 self.assertTrue(len(paths) == 2)
@@ -146,11 +152,11 @@ class GoBGPTestBase(unittest.TestCase):
 
     def test_10_check_adj_rib_out(self):
         for q in self.quaggas.itervalues():
+            if q.name == 'q3':
+                continue
             paths = self.gobgp.get_adj_rib_out(q)
             if q != self.quaggas['q3']:
                 self.assertTrue(len(paths) == 2)
-            else:
-                self.assertTrue(len(paths) == 0)
             for path in paths:
                 if q == self.quaggas['q1']:
                     self.assertTrue(community_exists(path, '65100:10'))

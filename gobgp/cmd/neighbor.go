@@ -478,6 +478,21 @@ func showNeighborRib(r string, name string, args []string) error {
 		return err
 	}
 
+	switch r {
+	case CMD_LOCAL, CMD_ADJ_IN, CMD_ACCEPTED, CMD_REJECTED, CMD_ADJ_OUT:
+		if len(rib.Destinations) == 0 {
+			peer, err := client.GetNeighbor(context.Background(), &api.Arguments{
+				Name: name,
+			})
+			if err != nil {
+				return err
+			}
+			if ApiStruct2Peer(peer).Info.BgpState != "BGP_FSM_ESTABLISHED" {
+				return fmt.Errorf("Neighbor %v's BGP session is not established", name)
+			}
+		}
+	}
+
 	isResultSorted := func(rf bgp.RouteFamily) bool {
 		switch rf {
 		case bgp.RF_IPv4_UC, bgp.RF_IPv6_UC:
