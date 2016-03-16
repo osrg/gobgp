@@ -22,6 +22,6 @@ import (
 	"net"
 )
 
-func DialTCPTimeoutWithMD5Sig(host string, port int, key string, msec int) (*net.TCPConn, error) {
+func DialTCPTimeoutWithMD5Sig(host string, port int, localAddr, key string, msec int) (*net.TCPConn, error) {
 	return nil, fmt.Errorf("md5 active connection unsupported")
 }
