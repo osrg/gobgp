@@ -33,11 +33,11 @@ func SetDefaultConfigValues(v *viper.Viper, b *Bgp) error {
 		}
 	}
 
-	if !v.IsSet("global.zebra.url") {
+	if b.Global.Zebra.Url == "" {
 		b.Global.Zebra.Url = "unix:/var/run/quagga/zserv.api"
 	}
 
-	if !v.IsSet("global.afi-safis") {
+	if len(b.Global.AfiSafis) == 0 {
 		b.Global.AfiSafis = []AfiSafi{}
 		for k, _ := range AfiSafiTypeToIntMap {
 			b.Global.AfiSafis = append(b.Global.AfiSafis, defaultAfiSafi(k, true))
@@ -55,11 +55,11 @@ func SetDefaultConfigValues(v *viper.Viper, b *Bgp) error {
 		b.BmpServers[idx] = server
 	}
 
-	if !v.IsSet("global.mpls-label-range.min-label") {
+	if b.Global.MplsLabelRange.MinLabel == 0 {
 		b.Global.MplsLabelRange.MinLabel = DEFAULT_MPLS_LABEL_MIN
 	}
 
-	if !v.IsSet("global.mpls-label-range.max-label") {
+	if b.Global.MplsLabelRange.MaxLabel == 0 {
 		b.Global.MplsLabelRange.MaxLabel = DEFAULT_MPLS_LABEL_MAX
 	}
 
