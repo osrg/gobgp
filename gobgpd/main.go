@@ -159,9 +159,9 @@ func main() {
 		log.SetFormatter(&log.JSONFormatter{})
 	}
 
-	configCh := make(chan config.BgpConfigSet)
+	configCh := make(chan server.BgpConfigSet)
 	if opts.Dry {
-		go config.ReadConfigfileServe(opts.ConfigFile, opts.ConfigType, configCh)
+		go server.ReadConfigfileServe(opts.ConfigFile, opts.ConfigType, configCh)
 		c := <-configCh
 		if opts.LogLevel == "debug" {
 			p.Println(c)
@@ -190,7 +190,7 @@ func main() {
 		log.Info("Coordination with OpenSwitch")
 		m.Serve()
 	} else if opts.ConfigFile != "" {
-		go config.ReadConfigfileServe(opts.ConfigFile, opts.ConfigType, configCh)
+		go server.ReadConfigfileServe(opts.ConfigFile, opts.ConfigType, configCh)
 	}
 
 	var bgpConfig *config.Bgp = nil
@@ -215,7 +215,7 @@ func main() {
 				deleted = []config.Neighbor{}
 				updated = []config.Neighbor{}
 			} else {
-				bgpConfig, added, deleted, updated = config.UpdateConfig(bgpConfig, &newConfig.Bgp)
+				bgpConfig, added, deleted, updated = server.UpdateConfig(bgpConfig, &newConfig.Bgp)
 			}
 
 			if policyConfig == nil {
@@ -232,7 +232,7 @@ func main() {
 					log.Fatal(err)
 				}
 			} else {
-				if config.CheckPolicyDifference(policyConfig, &newConfig.Policy) {
+				if server.CheckPolicyDifference(policyConfig, &newConfig.Policy) {
 					log.Info("Policy config is updated")
 					bgpServer.UpdatePolicy(newConfig.Policy)
 					policyConfig = &newConfig.Policy
