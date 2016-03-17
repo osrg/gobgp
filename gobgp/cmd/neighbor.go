@@ -26,6 +26,7 @@ import (
 	"io"
 	"net"
 	"sort"
+	"strconv"
 	"strings"
 	"time"
 )
@@ -730,6 +731,45 @@ func modNeighborPolicy(remoteIP net.IP, policyType, cmdType string, args []strin
 	return err
 }
 
+func modNeighbor(cmdType string, args []string) error {
+	m := extractReserved(args, []string{"as"})
+	usage := fmt.Sprintf("usage: gobgp neighbor %s <neighbor-address>", cmdType)
+	if cmdType == CMD_ADD {
+		usage += " as <VALUE>"
+	}
+
+	if len(m[""]) != 1 || net.ParseIP(m[""][0]) == nil {
+		return fmt.Errorf("%s", usage)
+	}
+	arg := &api.ModNeighborArguments{}
+	switch cmdType {
+	case CMD_ADD:
+		if len(m["as"]) != 1 {
+			return fmt.Errorf("%s", usage)
+		}
+		as, err := strconv.Atoi(m["as"][0])
+		if err != nil {
+			return err
+		}
+		arg.Operation = api.Operation_ADD
+		arg.Peer = &api.Peer{
+			Conf: &api.PeerConf{
+				NeighborAddress: m[""][0],
+				PeerAs:          uint32(as),
+			},
+		}
+	case CMD_DEL:
+		arg.Operation = api.Operation_DEL
+		arg.Peer = &api.Peer{
+			Conf: &api.PeerConf{
+				NeighborAddress: m[""][0],
+			},
+		}
+	}
+	_, err := client.ModNeighbor(context.Background(), arg)
+	return err
+}
+
 func NewNeighborCmd() *cobra.Command {
 
 	neighborCmdImpl := &cobra.Command{}
@@ -855,6 +895,19 @@ func NewNeighborCmd() *cobra.Command {
 			}
 		},
 	}
+
+	for _, v := range []string{CMD_ADD, CMD_DEL} {
+		cmd := &cobra.Command{
+			Use: v,
+			Run: func(c *cobra.Command, args []string) {
+				if err := modNeighbor(c.Use, args); err != nil {
+					exitWithError(err)
+				}
+			},
+		}
+		neighborCmd.AddCommand(cmd)
+	}
+
 	neighborCmd.PersistentFlags().StringVarP(&subOpts.AddressFamily, "address-family", "a", "", "address family")
 	neighborCmd.PersistentFlags().StringVarP(&neighborsOpts.Transport, "transport", "t", "", "specifying a transport protocol")
 	return neighborCmd
