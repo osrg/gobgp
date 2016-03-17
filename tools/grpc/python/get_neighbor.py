@@ -9,7 +9,7 @@ _TIMEOUT_SECONDS = 10
 def run(gobgpd_addr, neighbor_addr):
     channel = implementations.insecure_channel(gobgpd_addr, 50051)
     with gobgp_pb2.beta_create_GobgpApi_stub(channel) as stub:
-        peer = stub.GetNeighbor(gobgp_pb2.Arguments(rf=4, name=neighbor_addr), _TIMEOUT_SECONDS)
+        peer = stub.GetNeighbor(gobgp_pb2.Arguments(name=neighbor_addr), _TIMEOUT_SECONDS)
         print("BGP neighbor is %s, remote AS %d" % (peer.conf.neighbor_address, peer.conf.peer_as))
         print("  BGP version 4, remote router ID %s" % (peer.conf.id))
         print("  BGP state = %s, up for %s" % (peer.info.bgp_state, peer.timers.state.uptime))
