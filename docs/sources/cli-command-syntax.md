@@ -72,6 +72,7 @@ If you want to remove routes with the address of the ipv6 from global rib：
 % gobgp global rib add -a vpnv4 10.0.0.0/24 rd 100.100:100
 % gobgp global rib add -a vpnv4 10.0.0.0/24 rd 10.10.10.10:100
 % gobgp global rib add -a vpnv4 10.0.0.0/24 rd 100:100 rt 100:200
+% gobgp global rib add -a opaque key hello value world
 ```
 
 #### - option
@@ -79,7 +80,7 @@ The following options can be specified in the global subcommand:
 
 | short  |long           | description                                | default |
 |--------|---------------|--------------------------------------------|---------|
-|a       |address-family |specify any one from among `ipv4`, `ipv6`, `vpnv4`, `vpnv6`, `ipv4-labeled`, `ipv6-labeled`, `evpn`, `encap`, `rtc`, `ipv4-flowspec`, `ipv6-flowspec` | `ipv4` |
+|a       |address-family |specify any one from among `ipv4`, `ipv6`, `vpnv4`, `vpnv6`, `ipv4-labeled`, `ipv6-labeled`, `evpn`, `encap`, `rtc`, `ipv4-flowspec`, `ipv6-flowspec`, `opaque` | `ipv4` |
 
 <br>
 
@@ -109,7 +110,7 @@ The following options can be specified in the global subcommand:
 
 | short  |long           | description                                | default |
 |--------|---------------|--------------------------------------------|---------|
-|a       |address-family |specify any one from among `ipv4`, `ipv6`, `vpnv4`, `vpnv6`, `ipv4-labeled`, `ipv6-labeld`, `evpn`, `encap`, `rtc`, `ipv4-flowspec`, `ipv6-flowspec` | `ipv4` |
+|a       |address-family |specify any one from among `ipv4`, `ipv6`, `vpnv4`, `vpnv6`, `ipv4-labeled`, `ipv6-labeld`, `evpn`, `encap`, `rtc`, `ipv4-flowspec`, `ipv6-flowspec`, `opaque` | `ipv4` |
 
 ### 2.3. Show Rib - local-rib/adj-rib-in/adj-rib-out -
 #### - syntax
@@ -131,7 +132,7 @@ The following options can be specified in the neighbor subcommand:
 
 | short  |long           | description                                | default |
 |--------|---------------|--------------------------------------------|---------|
-|a       |address-family |specify any one from among `ipv4`, `ipv6`, `vpnv4`, `vpnv6`, `ipv4-labeled`, `ipv6-labeld`, `evpn`, `encap`, `rtc`, `ipv4-flowspec`, `ipv6-flowspec` | `ipv4` |
+|a       |address-family |specify any one from among `ipv4`, `ipv6`, `vpnv4`, `vpnv6`, `ipv4-labeled`, `ipv6-labeld`, `evpn`, `encap`, `rtc`, `ipv4-flowspec`, `ipv6-flowspec`, `opaque` | `ipv4` |
 
 
 ### 2.4. Operations for Policy  - add/del/show -
