@@ -119,6 +119,13 @@ module gobgp {
     reference "RFC5575";
   }
 
+  identity OPAQUE {
+    base bgp-types:afi-safi-type;
+    description
+      "Opaque (AFI,SAFI = 16397,241)";
+    reference "https://tools.ietf.org/html/draft-lapukhov-bgp-opaque-signaling-01";
+  }
+
   grouping gobgp-message-counter {
     description
       "Counters for all BGPMessage types";

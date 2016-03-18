@@ -29,9 +29,10 @@ import (
 )
 
 const (
-	AFI_IP    = 1
-	AFI_IP6   = 2
-	AFI_L2VPN = 25
+	AFI_IP     = 1
+	AFI_IP6    = 2
+	AFI_L2VPN  = 25
+	AFI_OPAQUE = 16397
 )
 
 const (
@@ -46,6 +47,7 @@ const (
 	SAFI_ROUTE_TARGET_CONSTRTAINS = 132
 	SAFI_FLOW_SPEC_UNICAST        = 133
 	SAFI_FLOW_SPEC_VPN            = 134
+	SAFI_KEY_VALUE                = 241
 )
 
 const (
@@ -2979,6 +2981,57 @@ func NewFlowSpecIPv6VPN(value []FlowSpecComponentInterface) *FlowSpecIPv6VPN {
 	}}
 }
 
+type OpaqueNLRI struct {
+	Length uint8
+	Key    []byte
+}
+
+func (n *OpaqueNLRI) DecodeFromBytes(data []byte) error {
+	n.Length = data[0]
+	if len(data)-1 < int(n.Length) {
+		return fmt.Errorf("Not all OpaqueNLRI bytes available")
+	}
+	n.Key = data[1 : 1+n.Length]
+	return nil
+}
+
+func (n *OpaqueNLRI) Serialize() ([]byte, error) {
+	if len(n.Key) > math.MaxUint8 {
+		return nil, fmt.Errorf("Key length too big")
+	}
+	return append([]byte{byte(len(n.Key))}, n.Key...), nil
+}
+
+func (n *OpaqueNLRI) AFI() uint16 {
+	return AFI_OPAQUE
+}
+
+func (n *OpaqueNLRI) SAFI() uint8 {
+	return SAFI_KEY_VALUE
+}
+
+func (n *OpaqueNLRI) Len() int {
+	return 1 + len(n.Key)
+}
+
+func (n *OpaqueNLRI) String() string {
+	return string(n.Key)
+}
+
+func (n *OpaqueNLRI) MarshalJSON() ([]byte, error) {
+	return json.Marshal(struct {
+		Key string `json:"key"`
+	}{
+		Key: n.String(),
+	})
+}
+
+func NewOpaqueNLRI(key []byte) *OpaqueNLRI {
+	return &OpaqueNLRI{
+		Key: key,
+	}
+}
+
 func AfiSafiToRouteFamily(afi uint16, safi uint8) RouteFamily {
 	return RouteFamily(int(afi)<<16 | int(safi))
 }
@@ -2988,6 +3041,13 @@ func RouteFamilyToAfiSafi(rf RouteFamily) (uint16, uint8) {
 }
 
 type RouteFamily int
+
+func (f RouteFamily) String() string {
+	if n, y := AddressFamilyNameMap[f]; y {
+		return n
+	}
+	return fmt.Sprintf("UnknownFamily(%d)", f)
+}
 
 const (
 	RF_IPv4_UC     RouteFamily = AFI_IP<<16 | SAFI_UNICAST
@@ -3008,6 +3068,7 @@ const (
 	RF_FS_IPv4_VPN RouteFamily = AFI_IP<<16 | SAFI_FLOW_SPEC_VPN
 	RF_FS_IPv6_UC  RouteFamily = AFI_IP6<<16 | SAFI_FLOW_SPEC_UNICAST
 	RF_FS_IPv6_VPN RouteFamily = AFI_IP6<<16 | SAFI_FLOW_SPEC_VPN
+	RF_OPAQUE      RouteFamily = AFI_OPAQUE<<16 | SAFI_KEY_VALUE
 )
 
 var AddressFamilyNameMap = map[RouteFamily]string{
@@ -3029,6 +3090,7 @@ var AddressFamilyNameMap = map[RouteFamily]string{
 	RF_FS_IPv4_VPN: "l3vpn-ipv4-flowspec",
 	RF_FS_IPv6_UC:  "ipv6-flowspec",
 	RF_FS_IPv6_VPN: "l3vpn-ipv6-flowspec",
+	RF_OPAQUE:      "opaque",
 }
 
 var AddressFamilyValueMap = map[string]RouteFamily{
@@ -3050,6 +3112,7 @@ var AddressFamilyValueMap = map[string]RouteFamily{
 	AddressFamilyNameMap[RF_FS_IPv4_VPN]: RF_FS_IPv4_VPN,
 	AddressFamilyNameMap[RF_FS_IPv6_UC]:  RF_FS_IPv6_UC,
 	AddressFamilyNameMap[RF_FS_IPv6_VPN]: RF_FS_IPv6_VPN,
+	AddressFamilyNameMap[RF_OPAQUE]:      RF_OPAQUE,
 }
 
 func GetRouteFamily(name string) (RouteFamily, error) {
@@ -3087,6 +3150,8 @@ func NewPrefixFromRouteFamily(afi uint16, safi uint8) (prefix AddrPrefixInterfac
 		prefix = &FlowSpecIPv6Unicast{}
 	case RF_FS_IPv6_VPN:
 		prefix = &FlowSpecIPv6VPN{}
+	case RF_OPAQUE:
+		prefix = &OpaqueNLRI{}
 	default:
 		return nil, fmt.Errorf("unknown route family. AFI: %d, SAFI: %d", afi, safi)
 	}
@@ -3148,7 +3213,8 @@ const (
 	BGP_ATTR_TYPE_TUNNEL_ENCAP
 	_
 	_
-	BGP_ATTR_TYPE_AIGP // = 26
+	BGP_ATTR_TYPE_AIGP                     // = 26
+	BGP_ATTR_TYPE_OPAQUE_VALUE BGPAttrType = 41
 )
 
 // NOTIFICATION Error Code  RFC 4271 4.5.
@@ -3241,6 +3307,7 @@ var pathAttrFlags map[BGPAttrType]BGPAttrFlag = map[BGPAttrType]BGPAttrFlag{
 	BGP_ATTR_TYPE_PMSI_TUNNEL:          BGP_ATTR_FLAG_TRANSITIVE | BGP_ATTR_FLAG_OPTIONAL,
 	BGP_ATTR_TYPE_TUNNEL_ENCAP:         BGP_ATTR_FLAG_TRANSITIVE | BGP_ATTR_FLAG_OPTIONAL,
 	BGP_ATTR_TYPE_AIGP:                 BGP_ATTR_FLAG_OPTIONAL,
+	BGP_ATTR_TYPE_OPAQUE_VALUE:         BGP_ATTR_FLAG_TRANSITIVE | BGP_ATTR_FLAG_OPTIONAL,
 }
 
 type PathAttributeInterface interface {
@@ -6085,6 +6152,35 @@ func NewPathAttributeAigp(values []AigpTLV) *PathAttributeAigp {
 	}
 }
 
+type PathAttributeOpaqueValue struct {
+	PathAttribute
+}
+
+func (p *PathAttributeOpaqueValue) String() string {
+	return fmt.Sprintf("{Value: %s}", string(p.Value))
+}
+
+func (p *PathAttributeOpaqueValue) MarshalJSON() ([]byte, error) {
+	return json.Marshal(struct {
+		Type  BGPAttrType `json:"type"`
+		Value string      `json:"value"`
+	}{
+		Type:  p.GetType(),
+		Value: string(p.Value),
+	})
+}
+
+func NewPathAttributeOpaqueValue(value []byte) *PathAttributeOpaqueValue {
+	t := BGP_ATTR_TYPE_OPAQUE_VALUE
+	return &PathAttributeOpaqueValue{
+		PathAttribute: PathAttribute{
+			Flags: pathAttrFlags[t],
+			Type:  t,
+			Value: value,
+		},
+	}
+}
+
 type PathAttributeUnknown struct {
 	PathAttribute
 }
@@ -6132,6 +6228,8 @@ func GetPathAttribute(data []byte) (PathAttributeInterface, error) {
 		return &PathAttributePmsiTunnel{}, nil
 	case BGP_ATTR_TYPE_AIGP:
 		return &PathAttributeAigp{}, nil
+	case BGP_ATTR_TYPE_OPAQUE_VALUE:
+		return &PathAttributeOpaqueValue{}, nil
 	}
 	return &PathAttributeUnknown{}, nil
 }

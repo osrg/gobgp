@@ -456,6 +456,8 @@ func checkAddressFamily(def bgp.RouteFamily) (bgp.RouteFamily, error) {
 		rf = bgp.RF_FS_IPv4_UC
 	case "ipv6-flowspec", "ipv6-flow", "flow6":
 		rf = bgp.RF_FS_IPv6_UC
+	case "opaque":
+		rf = bgp.RF_OPAQUE
 	case "":
 		rf = def
 	default:
