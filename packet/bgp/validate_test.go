@@ -372,7 +372,7 @@ func Test_Validate_flowspec(t *testing.T) {
 	cmp = append(cmp, NewFlowSpecComponent(FLOW_SPEC_TYPE_FRAGMENT, []*FlowSpecComponentItem{item7}))
 	n1 := NewFlowSpecIPv4Unicast(cmp)
 	a := NewPathAttributeMpReachNLRI("", []AddrPrefixInterface{n1})
-	m := map[RouteFamily]bool{RF_FS_IPv4_UC: true}
+	m := map[RouteFamily]BGPAddPathMode{RF_FS_IPv4_UC: BGP_ADD_PATH_NONE}
 	_, err := ValidateAttribute(a, m, false)
 	assert.Nil(err)
 
