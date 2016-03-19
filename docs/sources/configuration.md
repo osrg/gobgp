@@ -29,16 +29,18 @@
 
 [[rpki-servers]]
     [rpki-servers.config]
-         address = "210.173.170.254"
-         port = 323
+        address = "210.173.170.254"
+        port = 323
 
 [[bmp-servers]]
     [bmp-servers.config]
         address = "127.0.0.1"
         port = 11019
 
-[mrt]
-    file-name = "/var/log/mrt.dump"
+[[mrt]]
+    dump-type = "updates"
+    file-name = "/tmp/log/2006/01/02.1504.dump"
+    interval = 180
 
 [[neighbors]]
     [neighbors.config]

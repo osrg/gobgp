@@ -789,6 +789,39 @@ func (v BmpRouteMonitoringPolicyType) Validate() error {
 	return nil
 }
 
+// typedef for identity gobgp:mrt-type
+type MrtType string
+
+const (
+	MRT_TYPE_UPDATES MrtType = "updates"
+	MRT_TYPE_TABLE   MrtType = "table"
+)
+
+var MrtTypeToIntMap = map[MrtType]int{
+	MRT_TYPE_UPDATES: 0,
+	MRT_TYPE_TABLE:   1,
+}
+
+func (v MrtType) ToInt() int {
+	i, ok := MrtTypeToIntMap[v]
+	if !ok {
+		return -1
+	}
+	return i
+}
+
+var IntToMrtTypeMap = map[int]MrtType{
+	0: MRT_TYPE_UPDATES,
+	1: MRT_TYPE_TABLE,
+}
+
+func (v MrtType) Validate() error {
+	if _, ok := MrtTypeToIntMap[v]; !ok {
+		return fmt.Errorf("invalid MrtType: %s", v)
+	}
+	return nil
+}
+
 // typedef for identity gobgp:rpki-validation-result-type
 type RpkiValidationResultType string
 
@@ -830,8 +863,12 @@ func (v RpkiValidationResultType) Validate() error {
 
 //struct for container gobgp:mrt
 type Mrt struct {
+	// original -> gobgp:dump-type
+	DumpType MrtType `mapstructure:"dump-type"`
 	// original -> gobgp:file-name
 	FileName string `mapstructure:"file-name"`
+	// original -> gobgp:interval
+	Interval uint64 `mapstructure:"interval"`
 }
 
 //struct for container gobgp:state
@@ -2070,8 +2107,8 @@ type Bgp struct {
 	RpkiServers []RpkiServer `mapstructure:"rpki-servers"`
 	// original -> gobgp:bmp-servers
 	BmpServers []BmpServer `mapstructure:"bmp-servers"`
-	// original -> gobgp:mrt
-	Mrt Mrt `mapstructure:"mrt"`
+	// original -> gobgp:mrt-dump
+	MrtDump []Mrt `mapstructure:"mrt-dump"`
 }
 
 //struct for container bgp-pol:set-ext-community-method
