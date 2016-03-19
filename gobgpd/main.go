@@ -209,7 +209,7 @@ func main() {
 				if err := bgpServer.SetBmpConfig(newConfig.Bgp.BmpServers); err != nil {
 					log.Fatalf("failed to set global config: %s", err)
 				}
-				if err := bgpServer.SetMrtConfig(newConfig.Bgp.Mrt); err != nil {
+				if err := bgpServer.SetMrtConfig(newConfig.Bgp.MrtDump); err != nil {
 					log.Fatalf("failed to set global config: %s", err)
 				}
 				added = newConfig.Bgp.Neighbors
