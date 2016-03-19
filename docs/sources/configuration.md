@@ -37,7 +37,7 @@
         address = "127.0.0.1"
         port = 11019
 
-[[mrt]]
+[[mrt-dump]]
     dump-type = "updates"
     file-name = "/tmp/log/2006/01/02.1504.dump"
     interval = 180
