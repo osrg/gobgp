@@ -721,7 +721,7 @@ usage: %s rib %s match <MATCH_EXPR> then <THEN_EXPR> -a %%s
 		     %s <PROTO>... | %s <FRAGMENT_TYPE> | %s [not] [match] <TCPFLAG>... |
 		     { %s | %s | %s | %s | %s | %s | %s | %s } <ITEM>... }...
 	<PROTO> : %s
-	<FRAGMENT_TYPE> : dont-fragment, is-fragment, first-fragment, last-fragment
+	<FRAGMENT_TYPE> : dont-fragment, is-fragment, first-fragment, last-fragment, not-a-fragment
 	<TCPFLAG> : %s
 	<ITEM> : &?{<|>|=}<value>
     <THEN_EXPR> : { %s | %s | %s <value> | %s <RT> | %s <value> | %s { sample | terminal | sample-terminal } | %s <RT>... }...

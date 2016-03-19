@@ -40,7 +40,7 @@ CLI syntax to add flowspec is
                      protocol <PROTO>... | fragment <FRAGMENT_TYPE> | tcp-flags <TCPFLAG>... |
                      { port | destination-port | source-port | icmp-type | icmp-code | packet-length | dscp } <ITEM>... }...
         <PROTO> : ipip, sctp, unknown, igmp, tcp, egp, rsvp, pim, icmp, igp, udp, gre, ospf
-        <FRAGMENT_TYPE> : dont-fragment, is-fragment, first-fragment, last-fragment
+        <FRAGMENT_TYPE> : dont-fragment, is-fragment, first-fragment, last-fragment, not-a-fragment
         <TCPFLAG> : push, ack, urgent, fin, syn, rst
         <ITEM> : &?{<|>|=}<value>
     <THEN_EXPR> : { accept | discard | rate-limit <value> | redirect <RT> | mark <value> | action { sample | terminal | sample-terminal } | rt <RT>... }...

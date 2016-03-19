@@ -2309,6 +2309,8 @@ func flowSpecFragmentParser(rf RouteFamily, args []string) (FlowSpecComponentInt
 			value = 0x4
 		case "last-fragment":
 			value = 0x8
+		case "not-a-fragment":
+			value = 0x0
 		default:
 			return nil, fmt.Errorf("invalid flowspec fragment specifier")
 		}
@@ -2676,7 +2678,10 @@ func formatFlag(op int, value int) string {
 }
 
 func formatFragment(op int, value int) string {
-	ss := make([]string, 0, 4)
+	ss := make([]string, 0)
+	if value == 0 {
+		ss = append(ss, "not-a-fragment")
+	}
 	if value&0x1 > 0 {
 		ss = append(ss, "dont-fragment")
 	}
