@@ -8,7 +8,7 @@ import (
 )
 
 // Validator for BGPUpdate
-func ValidateUpdateMsg(m *BGPUpdate, rfs map[RouteFamily]bool, doConfedCheck bool) (bool, error) {
+func ValidateUpdateMsg(m *BGPUpdate, rfs map[RouteFamily]BGPAddPathMode, doConfedCheck bool) (bool, error) {
 	eCode := uint8(BGP_ERROR_UPDATE_MESSAGE_ERROR)
 	eSubCodeAttrList := uint8(BGP_ERROR_SUB_MALFORMED_ATTRIBUTE_LIST)
 	eSubCodeMissing := uint8(BGP_ERROR_SUB_MISSING_WELL_KNOWN_ATTRIBUTE)
@@ -58,7 +58,7 @@ func ValidateUpdateMsg(m *BGPUpdate, rfs map[RouteFamily]bool, doConfedCheck boo
 	return true, nil
 }
 
-func ValidateAttribute(a PathAttributeInterface, rfs map[RouteFamily]bool, doConfedCheck bool) (bool, error) {
+func ValidateAttribute(a PathAttributeInterface, rfs map[RouteFamily]BGPAddPathMode, doConfedCheck bool) (bool, error) {
 
 	eCode := uint8(BGP_ERROR_UPDATE_MESSAGE_ERROR)
 	eSubCodeBadOrigin := uint8(BGP_ERROR_SUB_INVALID_ORIGIN_ATTRIBUTE)
