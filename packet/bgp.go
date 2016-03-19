@@ -238,6 +238,24 @@ const (
 	BGP_CAP_ROUTE_REFRESH_CISCO    BGPCapabilityCode = 128
 )
 
+var CapNameMap = map[BGPCapabilityCode]string{
+	BGP_CAP_MULTIPROTOCOL:          "multiprotocol",
+	BGP_CAP_ROUTE_REFRESH:          "route-refresh",
+	BGP_CAP_CARRYING_LABEL_INFO:    "carrying-label-info",
+	BGP_CAP_GRACEFUL_RESTART:       "graceful-restart",
+	BGP_CAP_FOUR_OCTET_AS_NUMBER:   "4-octet-as",
+	BGP_CAP_ADD_PATH:               "add-path",
+	BGP_CAP_ENHANCED_ROUTE_REFRESH: "enhanced-route-refresh",
+	BGP_CAP_ROUTE_REFRESH_CISCO:    "cisco-route-refresh",
+}
+
+func (c BGPCapabilityCode) String() string {
+	if n, y := CapNameMap[c]; y {
+		return n
+	}
+	return fmt.Sprintf("UnknownCapability(%d)", c)
+}
+
 type ParameterCapabilityInterface interface {
 	DecodeFromBytes([]byte) error
 	Serialize() ([]byte, error)
@@ -497,29 +515,61 @@ func (m BGPAddPathMode) String() string {
 	}
 }
 
+type CapAddPathItem struct {
+	Family RouteFamily
+	Mode   BGPAddPathMode
+}
+
+func (c *CapAddPathItem) MarshalJSON() ([]byte, error) {
+	return json.Marshal(struct {
+		Family RouteFamily    `json:"family"`
+		Mode   BGPAddPathMode `json:"mode"`
+	}{
+		Family: c.Family,
+		Mode:   c.Mode,
+	})
+}
+
+func NewCapAddPathItem(family RouteFamily, mode BGPAddPathMode) *CapAddPathItem {
+	return &CapAddPathItem{
+		Family: family,
+		Mode:   mode,
+	}
+}
+
 type CapAddPath struct {
 	DefaultParameterCapability
-	RouteFamily RouteFamily
-	Mode        BGPAddPathMode
+	Items []*CapAddPathItem
 }
 
 func (c *CapAddPath) DecodeFromBytes(data []byte) error {
 	c.DefaultParameterCapability.DecodeFromBytes(data)
 	data = data[2:]
-	if len(data) < 4 {
+	if len(data)%4 != 0 {
 		return fmt.Errorf("Not all CapabilityAddPath bytes available")
 	}
-	c.RouteFamily = AfiSafiToRouteFamily(binary.BigEndian.Uint16(data[:2]), data[2])
-	c.Mode = BGPAddPathMode(data[3])
+	items := make([]*CapAddPathItem, 0, len(data)%4)
+	for len(data) > 0 {
+		item := &CapAddPathItem{
+			Family: AfiSafiToRouteFamily(binary.BigEndian.Uint16(data[:2]), data[2]),
+			Mode:   BGPAddPathMode(data[3]),
+		}
+		items = append(items, item)
+		data = data[4:]
+	}
+	c.Items = items
 	return nil
 }
 
 func (c *CapAddPath) Serialize() ([]byte, error) {
-	buf := make([]byte, 4)
-	afi, safi := RouteFamilyToAfiSafi(c.RouteFamily)
-	binary.BigEndian.PutUint16(buf, afi)
-	buf[2] = safi
-	buf[3] = byte(c.Mode)
+	buf := make([]byte, 4*len(c.Items))
+	for i, item := range c.Items {
+		offset := 4 * i
+		afi, safi := RouteFamilyToAfiSafi(item.Family)
+		binary.BigEndian.PutUint16(buf[offset:], afi)
+		buf[offset+2] = safi
+		buf[offset+3] = byte(item.Mode)
+	}
 	c.DefaultParameterCapability.CapValue = buf
 	return c.DefaultParameterCapability.Serialize()
 }
@@ -527,22 +577,19 @@ func (c *CapAddPath) Serialize() ([]byte, error) {
 func (c *CapAddPath) MarshalJSON() ([]byte, error) {
 	return json.Marshal(struct {
 		Code  BGPCapabilityCode `json:"code"`
-		Value RouteFamily       `json:"value"`
-		Mode  BGPAddPathMode    `json:"mode"`
+		Value []*CapAddPathItem `json:"value"`
 	}{
 		Code:  c.Code(),
-		Value: c.RouteFamily,
-		Mode:  c.Mode,
+		Value: c.Items,
 	})
 }
 
-func NewCapAddPath(rf RouteFamily, mode BGPAddPathMode) *CapAddPath {
+func NewCapAddPath(items []*CapAddPathItem) *CapAddPath {
 	return &CapAddPath{
 		DefaultParameterCapability: DefaultParameterCapability{
 			CapCode: BGP_CAP_ADD_PATH,
 		},
-		RouteFamily: rf,
-		Mode:        mode,
+		Items: items,
 	}
 }
 
