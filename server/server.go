@@ -279,7 +279,7 @@ func filterpath(peer *Peer, path *table.Path, withdrawals []*table.Path) *table.
 	if peer.isIBGPPeer() {
 		ignore := false
 		//RFC4684 Constrained Route Distribution
-		if peer.fsm.rfMap[bgp.RF_RTC_UC] && path.GetRouteFamily() != bgp.RF_RTC_UC {
+		if _, y := peer.fsm.rfMap[bgp.RF_RTC_UC]; y && path.GetRouteFamily() != bgp.RF_RTC_UC {
 			ignore = true
 			for _, ext := range path.GetExtCommunities() {
 				for _, path := range peer.adjRibIn.PathList([]bgp.RouteFamily{bgp.RF_RTC_UC}, true) {
@@ -656,7 +656,8 @@ func (server *BgpServer) handleFSMMessage(peer *Peer, e *FsmMsg) {
 				// waiting sending non-route-target NLRIs since the peer won't send
 				// any routes (and EORs) before we send ours (or deferral-timer expires).
 				var pathList []*table.Path
-				if c := config.GetAfiSafi(peer.fsm.pConf, bgp.RF_RTC_UC); !peer.fsm.pConf.GracefulRestart.State.PeerRestarting && peer.fsm.rfMap[bgp.RF_RTC_UC] && c.RouteTargetMembership.Config.DeferralTime > 0 {
+				_, y := peer.fsm.rfMap[bgp.RF_RTC_UC]
+				if c := config.GetAfiSafi(peer.fsm.pConf, bgp.RF_RTC_UC); y && !peer.fsm.pConf.GracefulRestart.State.PeerRestarting && c.RouteTargetMembership.Config.DeferralTime > 0 {
 					pathList, _ = peer.getBestFromLocal([]bgp.RouteFamily{bgp.RF_RTC_UC})
 					t := c.RouteTargetMembership.Config.DeferralTime
 					for _, f := range peer.configuredRFlist() {
@@ -1305,6 +1306,7 @@ func (s *BgpServer) softResetOut(addr string, family bgp.RouteFamily, deferral b
 		}
 
 		if deferral {
+			_, y := peer.fsm.rfMap[bgp.RF_RTC_UC]
 			if peer.fsm.pConf.GracefulRestart.State.LocalRestarting {
 				peer.fsm.pConf.GracefulRestart.State.LocalRestarting = false
 				log.WithFields(log.Fields{
@@ -1312,7 +1314,7 @@ func (s *BgpServer) softResetOut(addr string, family bgp.RouteFamily, deferral b
 					"Key":      peer.ID(),
 					"Families": families,
 				}).Debug("deferral timer expired")
-			} else if c := config.GetAfiSafi(peer.fsm.pConf, bgp.RF_RTC_UC); peer.fsm.rfMap[bgp.RF_RTC_UC] && !c.MpGracefulRestart.State.EndOfRibReceived {
+			} else if c := config.GetAfiSafi(peer.fsm.pConf, bgp.RF_RTC_UC); y && !c.MpGracefulRestart.State.EndOfRibReceived {
 				log.WithFields(log.Fields{
 					"Topic":    "Peer",
 					"Key":      peer.ID(),
