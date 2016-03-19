@@ -30,7 +30,7 @@ func ReadConfigfileServe(path, format string, configCh chan BgpConfigSet) {
 			Neighbors         []Neighbor         `mapstructure:"neighbors"`
 			RpkiServers       []RpkiServer       `mapstructure:"rpki-servers"`
 			BmpServers        []BmpServer        `mapstructure:"bmp-servers"`
-			Mrt               Mrt                `mapstructure:"mrt"`
+			Mrt               []Mrt              `mapstructure:"mrt"`
 			DefinedSets       DefinedSets        `mapstructure:"defined-sets"`
 			PolicyDefinitions []PolicyDefinition `mapstructure:"policy-definitions"`
 		}{}
@@ -46,7 +46,7 @@ func ReadConfigfileServe(path, format string, configCh chan BgpConfigSet) {
 			Neighbors:   c.Neighbors,
 			RpkiServers: c.RpkiServers,
 			BmpServers:  c.BmpServers,
-			Mrt:         c.Mrt,
+			MrtDump:     c.Mrt,
 		}
 		err = SetDefaultConfigValues(v, b)
 		if err != nil {

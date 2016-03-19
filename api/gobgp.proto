@@ -110,7 +110,9 @@ message MrtArguments {
 
 message ModMrtArguments {
     Operation operation = 1;
-    string filename = 2;
+    int32 dump_type = 2;
+    string filename = 3;
+    uint64 interval = 4;
 }
 
 message ModBmpArguments {

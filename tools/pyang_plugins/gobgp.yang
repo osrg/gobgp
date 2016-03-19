@@ -708,17 +708,43 @@ module gobgp {
     uses gobgp-bmp-servers;
   }
 
-  augment "/bgp:bgp" {
-    description "additional mrt configuration";
-    container mrt {
-       description
-         "Configure dump bgp messages in the mrt format";
-      leaf file-name {
-        type string;
-        description
-          "Configures a file name to be written.";
+  typedef mrt-type {
+    type enumeration {
+      enum UPDATES {
+        description "RPKI disabled";
+      }
+      enum TABLE {
+        description "If the origin AS, prefix, maximum prefix length is
+        exist in the range of ROA";
       }
     }
+  }
+
+  grouping gobgp-mrt {
+    description "additional mrt configuration";
+    container mrt-dump {
+      list mrt {
+        key "dump-type";
+        description
+          "Configure dump bgp messages in the mrt format";
+        leaf dump-type {
+          type mrt-type;
+        }
+        leaf file-name {
+          type string;
+          description
+            "Configures a file name to be written.";
+        }
+        leaf interval {
+          type int64;
+        }
+      }
+    }
+  }
+
+  augment "/bgp:bgp" {
+    description "additional mrt configuration";
+    uses gobgp-mrt;
   }
 
   augment "/bgp:bgp/bgp:global" {

@@ -1163,19 +1163,23 @@ func (server *BgpServer) SetBmpConfig(c []config.BmpServer) error {
 	return nil
 }
 
-func (server *BgpServer) SetMrtConfig(c config.Mrt) error {
-	if c.FileName != "" {
-		ch := make(chan *GrpcResponse)
-		server.GrpcReqCh <- &GrpcRequest{
-			RequestType: REQ_MOD_MRT,
-			Data: &api.ModMrtArguments{
-				Operation: api.Operation_ADD,
-				Filename:  c.FileName,
-			},
-			ResponseCh: ch,
-		}
-		if err := (<-ch).Err(); err != nil {
-			return err
+func (server *BgpServer) SetMrtConfig(c []config.Mrt) error {
+	for _, s := range c {
+		if s.FileName != "" {
+			ch := make(chan *GrpcResponse)
+			server.GrpcReqCh <- &GrpcRequest{
+				RequestType: REQ_MOD_MRT,
+				Data: &api.ModMrtArguments{
+					Operation: api.Operation_ADD,
+					DumpType:  int32(s.DumpType.ToInt()),
+					Filename:  s.FileName,
+					Interval:  s.Interval,
+				},
+				ResponseCh: ch,
+			}
+			if err := (<-ch).Err(); err != nil {
+				return err
+			}
 		}
 	}
 	return nil
@@ -2857,7 +2861,11 @@ func (server *BgpServer) handleModMrt(grpcReq *GrpcRequest) {
 	}
 	switch arg.Operation {
 	case api.Operation_ADD:
-		w, err := newMrtWatcher(arg.Filename)
+		if arg.Interval != 0 && arg.Interval < 30 {
+			log.Info("minimum mrt dump interval is 30 seconds")
+			arg.Interval = 30
+		}
+		w, err := newMrtWatcher(arg.DumpType, arg.Filename, arg.Interval)
 		if err == nil {
 			server.watchers[WATCHER_MRT] = w
 		}
@@ -2866,11 +2874,6 @@ func (server *BgpServer) handleModMrt(grpcReq *GrpcRequest) {
 		delete(server.watchers, WATCHER_MRT)
 		w.stop()
 		grpcDone(grpcReq, nil)
-	case api.Operation_REPLACE:
-		go func() {
-			err := w.restart(arg.Filename)
-			grpcDone(grpcReq, err)
-		}()
 	}
 }
 

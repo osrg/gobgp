@@ -16,7 +16,6 @@
 package server
 
 import (
-	"fmt"
 	log "github.com/Sirupsen/logrus"
 	"github.com/osrg/gobgp/packet"
 	"github.com/osrg/gobgp/table"
@@ -94,17 +93,12 @@ type watcher interface {
 	watchingEventTypes() []watcherEventType
 }
 
-type mrtWatcherOp struct {
-	filename string //used for rotate
-	result   chan error
-}
-
 type mrtWatcher struct {
 	t        tomb.Tomb
 	filename string
 	file     *os.File
 	ch       chan watcherEvent
-	opCh     chan *mrtWatcherOp
+	interval uint64
 }
 
 func (w *mrtWatcher) notify(t watcherEventType) chan watcherEvent {
@@ -119,20 +113,26 @@ func (w *mrtWatcher) stop() {
 }
 
 func (w *mrtWatcher) restart(filename string) error {
-	adminOp := &mrtWatcherOp{
-		filename: filename,
-		result:   make(chan error),
-	}
-	select {
-	case w.opCh <- adminOp:
-	default:
-		return fmt.Errorf("already an admin operaiton in progress")
-	}
-	return <-adminOp.result
+	return nil
 }
 
 func (w *mrtWatcher) loop() error {
-	defer w.file.Close()
+	c := func() *time.Ticker {
+		if w.interval == 0 {
+			return &time.Ticker{}
+		}
+		return time.NewTicker(time.Second * time.Duration(w.interval))
+	}()
+
+	defer func() {
+		if w.file != nil {
+			w.file.Close()
+		}
+		if w.interval != 0 {
+			c.Stop()
+		}
+	}()
+
 	for {
 		write := func(ev watcherEvent) {
 			m := ev.(*watcherEventUpdateMsg)
@@ -152,9 +152,10 @@ func (w *mrtWatcher) loop() error {
 			}
 			buf, err := bm.Serialize()
 			if err == nil {
-				_, err = w.file.Write(buf)
+				if _, err = w.file.Write(buf); err == nil {
+					err = w.file.Sync()
+				}
 			}
-
 			if err != nil {
 				log.WithFields(log.Fields{
 					"Topic": "mrt",
@@ -176,20 +177,14 @@ func (w *mrtWatcher) loop() error {
 			return nil
 		case m := <-w.ch:
 			write(m)
-		case adminOp := <-w.opCh:
-			var err error
-			if adminOp.filename != "" {
-				err = os.Rename(w.file.Name(), adminOp.filename)
-			}
+		case <-c.C:
+			w.file.Close()
+			file, err := mrtFileOpen(w.filename, w.interval)
 			if err == nil {
-				var file *os.File
-				file, err = mrtFileOpen(w.file.Name())
-				if err == nil {
-					w.file.Close()
-					w.file = file
-				}
+				w.file = file
+			} else {
+				log.Info("can't rotate mrt file", err)
 			}
-			adminOp.result <- err
 		}
 	}
 }
@@ -198,16 +193,39 @@ func (w *mrtWatcher) watchingEventTypes() []watcherEventType {
 	return []watcherEventType{WATCHER_EVENT_UPDATE_MSG}
 }
 
-func mrtFileOpen(filename string) (*os.File, error) {
-	file, err := os.OpenFile(filename, os.O_CREATE|os.O_RDWR|os.O_APPEND, 0644)
+func mrtFileOpen(filename string, interval uint64) (*os.File, error) {
+	realname := filename
+	if interval != 0 {
+		realname = time.Now().Format(filename)
+	}
+
+	i := len(realname)
+	for i > 0 && os.IsPathSeparator(realname[i-1]) {
+		// skip trailing path separators
+		i--
+	}
+	j := i
+
+	for j > 0 && !os.IsPathSeparator(realname[j-1]) {
+		j--
+	}
+
+	if j > 0 {
+		if err := os.MkdirAll(realname[0:j-1], 0755); err != nil {
+			log.Warn(err)
+			return nil, err
+		}
+	}
+
+	file, err := os.OpenFile(realname, os.O_CREATE|os.O_RDWR|os.O_APPEND, 0644)
 	if err != nil {
 		log.Warn(err)
 	}
 	return file, err
 }
 
-func newMrtWatcher(filename string) (*mrtWatcher, error) {
-	file, err := mrtFileOpen(filename)
+func newMrtWatcher(dumpType int32, filename string, interval uint64) (*mrtWatcher, error) {
+	file, err := mrtFileOpen(filename, interval)
 	if err != nil {
 		return nil, err
 	}
@@ -215,7 +233,7 @@ func newMrtWatcher(filename string) (*mrtWatcher, error) {
 		filename: filename,
 		file:     file,
 		ch:       make(chan watcherEvent),
-		opCh:     make(chan *mrtWatcherOp, 1),
+		interval: interval,
 	}
 	w.t.Go(w.loop)
 	return &w, nil
