@@ -63,6 +63,8 @@
     [neighbors.route-reflector.config]
         route-reflector-client = true
         route-reflector-cluster-id = "192.168.0.1"
+    [neighbors.add-paths.config]
+        receive = true
     [[neighbors.afi-safis]]
         [neighbors.afi-safis.config]
         afi-safi-name = "ipv4-unicast"
@@ -102,6 +104,8 @@
     [[neighbors.afi-safis]]
         [neighbors.afi-safis.config]
         afi-safi-name = "ipv6-flowspec"
+    [[neighbors.afi-safis]]
+        afi-safi-name = "opaque"
     [neighbors.apply-policy.config]
         import-policy-list = ["policy1"]
         default-import-policy = "reject-route"
