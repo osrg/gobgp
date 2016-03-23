@@ -25,6 +25,8 @@ In addition, if you use Bash shell, you can enjoy CLI's tab completion:
 
 ```bash
 $ wget https://raw.githubusercontent.com/osrg/gobgp/master/tools/completion/gobgp-completion.bash
+$ wget https://raw.githubusercontent.com/osrg/gobgp/master/tools/completion/gobgp-static-completion.bash
+$ wget https://raw.githubusercontent.com/osrg/gobgp/master/tools/completion/gobgp-dynamic-completion.bash
 $ source gobgp-completion.bash
 ```
 
