@@ -30,4 +30,5 @@ script:
  - bash test/scenario_test/ci-scripts/travis-build-script.sh $SCENARIO
 
 notifications:
- slack: gobgp:kBzBp0KnMd4T3qij1YBUZozK
+ slack:
+  secure: KzuC9kytzS7wTlfj4MqSg8EpqXfJRMbo59dAVTA3w587achnVCS3vhUenWuhMCiWk7+6DVWwNpwzn2+A0S6RwMFMpKAU6Ij6K9sxEOgqBGuMN8w1//w+uJTryzsnebEIhInGt2kKfqz4Wx3QQqW5gVhI+8s+c5M0iXxFtN4soVk=
