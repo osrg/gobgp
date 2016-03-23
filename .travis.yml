@@ -30,6 +30,4 @@ script:
  - bash test/scenario_test/ci-scripts/travis-build-script.sh $SCENARIO
 
 notifications:
- webhooks:
-   urls:
-     - https://webhooks.gitter.im/e/5a843ba64bd0f469337b
+ slack: gobgp:kBzBp0KnMd4T3qij1YBUZozK
