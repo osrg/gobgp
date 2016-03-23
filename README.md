@@ -40,7 +40,7 @@ No dependency hell (library, package, etc) thanks to Go.
  
 ## Community, discussion and support
 
-We have the [Slack](http://slackin-gobgp.mybluemix.net/) and [mailing
+We have the [Slack](https://slackin-gobgp.mybluemix.net/) and [mailing
 list](https://lists.sourceforge.net/lists/listinfo/gobgp-devel) for
 questions, discussion, suggestions, etc.
 
