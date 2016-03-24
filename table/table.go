@@ -122,6 +122,9 @@ func (t *Table) deleteDestByNlri(nlri bgp.AddrPrefixInterface) *Destination {
 	dest := destinations[t.tableKey(nlri)]
 	if dest != nil {
 		delete(destinations, t.tableKey(nlri))
+		if len(destinations) == 0 {
+			t.destinations = make(map[string]*Destination)
+		}
 	}
 	return dest
 }
@@ -129,6 +132,9 @@ func (t *Table) deleteDestByNlri(nlri bgp.AddrPrefixInterface) *Destination {
 func (t *Table) deleteDest(dest *Destination) {
 	destinations := t.GetDestinations()
 	delete(destinations, t.tableKey(dest.GetNlri()))
+	if len(destinations) == 0 {
+		t.destinations = make(map[string]*Destination)
+	}
 }
 
 func (t *Table) validatePath(path *Path) {
