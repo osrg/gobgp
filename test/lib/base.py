@@ -16,7 +16,7 @@
 from fabric.api import local, lcd
 from fabric import colors
 from fabric.utils import indent
-from fabric.state import env
+from fabric.state import env, output
 
 import netaddr
 import os
@@ -42,6 +42,7 @@ BGP_ATTR_TYPE_MP_REACH_NLRI = 14
 BGP_ATTR_TYPE_EXTENDED_COMMUNITIES = 16
 
 env.abort_exception = RuntimeError
+output.stderr = False
 
 def try_several_times(f, t=3, s=1):
     e = None
