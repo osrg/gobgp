@@ -18,7 +18,7 @@ package server
 import (
 	"github.com/armon/go-radix"
 	"github.com/osrg/gobgp/config"
-	"github.com/osrg/gobgp/packet"
+	"github.com/osrg/gobgp/bgp"
 	"github.com/stretchr/testify/assert"
 	"net"
 	"strconv"
