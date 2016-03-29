@@ -158,6 +158,7 @@ func ApiStruct2Destination(dst *gobgpapi.Destination) (*Destination, error) {
 
 type Path struct {
 	Nlri       bgp.AddrPrefixInterface      `json:"nlri"`
+	ID         uint32                       `json:"id"`
 	PathAttrs  []bgp.PathAttributeInterface `json:"attrs"`
 	Age        int64                        `json:"age"`
 	Best       bool                         `json:"best"`
@@ -207,6 +208,7 @@ func ApiStruct2Path(p *gobgpapi.Path) ([]*Path, error) {
 	for _, nlri := range nlris {
 		paths = append(paths, &Path{
 			Nlri:       nlri,
+			ID:         p.Identifier,
 			PathAttrs:  pattr,
 			Age:        p.Age,
 			Best:       p.Best,

@@ -33,7 +33,7 @@ func open() *BGPMessage {
 	p4 := NewOptionParameterCapability(
 		[]ParameterCapabilityInterface{NewCapFourOctetASNumber(100000)})
 	p5 := NewOptionParameterCapability(
-		[]ParameterCapabilityInterface{NewCapAddPath(RF_IPv4_UC, BGP_ADD_PATH_BOTH)})
+		[]ParameterCapabilityInterface{NewCapAddPath([]*CapAddPathItem{NewCapAddPathItem(RF_IPv4_UC, BGP_ADD_PATH_BOTH)})})
 	return NewBGPOpenMessage(11033, 303, "100.4.10.3",
 		[]OptionParameterInterface{p1, p2, p3, p4, p5})
 }
@@ -43,22 +43,22 @@ func update() *BGPMessage {
 	w2 := NewIPAddrPrefix(17, "100.33.3.0")
 	w := []*IPAddrPrefix{w1, w2}
 
-	aspath1 := []AsPathParamInterface{
-		NewAsPathParam(2, []uint16{1000}),
-		NewAsPathParam(1, []uint16{1001, 1002}),
-		NewAsPathParam(2, []uint16{1003, 1004}),
+	aspath1 := []*AsPathParam{
+		NewAsPathParam(2, []uint32{1000}),
+		NewAsPathParam(1, []uint32{1001, 1002}),
+		NewAsPathParam(2, []uint32{1003, 1004}),
 	}
 
-	aspath2 := []AsPathParamInterface{
-		NewAs4PathParam(2, []uint32{1000000}),
-		NewAs4PathParam(1, []uint32{1000001, 1002}),
-		NewAs4PathParam(2, []uint32{1003, 100004}),
+	aspath2 := []*AsPathParam{
+		NewAsPathParam(2, []uint32{1000000}),
+		NewAsPathParam(1, []uint32{1000001, 1002}),
+		NewAsPathParam(2, []uint32{1003, 100004}),
 	}
 
-	aspath3 := []*As4PathParam{
-		NewAs4PathParam(2, []uint32{1000000}),
-		NewAs4PathParam(1, []uint32{1000001, 1002}),
-		NewAs4PathParam(2, []uint32{1003, 100004}),
+	aspath3 := []*AsPathParam{
+		NewAsPathParam(2, []uint32{1000000}),
+		NewAsPathParam(1, []uint32{1000001, 1002}),
+		NewAsPathParam(2, []uint32{1003, 100004}),
 	}
 
 	isTransitive := true
@@ -122,7 +122,7 @@ func update() *BGPMessage {
 		NewPathAttributeMultiExitDisc(1 << 20),
 		NewPathAttributeLocalPref(1 << 22),
 		NewPathAttributeAtomicAggregate(),
-		NewPathAttributeAggregator(uint16(30002), "129.0.2.99"),
+		NewPathAttributeAggregator(uint32(30002), "129.0.2.99"),
 		NewPathAttributeAggregator(uint32(30002), "129.0.2.99"),
 		NewPathAttributeAggregator(uint32(300020), "129.0.2.99"),
 		NewPathAttributeCommunities([]uint32{1, 3}),
@@ -342,7 +342,7 @@ func Test_ASLen(t *testing.T) {
 
 	aspath := AsPathParam{
 		Num: 2,
-		AS:  []uint16{65000, 65001},
+		AS:  []uint32{65000, 65001},
 	}
 	aspath.Type = BGP_ASPATH_ATTR_TYPE_SEQ
 	assert.Equal(2, aspath.ASLen())
@@ -356,7 +356,7 @@ func Test_ASLen(t *testing.T) {
 	aspath.Type = BGP_ASPATH_ATTR_TYPE_CONFED_SET
 	assert.Equal(0, aspath.ASLen())
 
-	as4path := As4PathParam{
+	as4path := AsPathParam{
 		Num: 2,
 		AS:  []uint32{65000, 65001},
 	}
@@ -533,4 +533,151 @@ func Test_Aigp(t *testing.T) {
 		t.Error(len(buf2), a2, buf2)
 		t.Log(bytes.Equal(buf1, buf2))
 	}
+}
+
+func Test_AddPath(t *testing.T) {
+	assert := assert.New(t)
+	opt := AddPathOption(map[RouteFamily]BGPAddPathMode{RF_IPv4_UC: BGP_ADD_PATH_BOTH})
+	{
+		n1 := NewIPAddrPrefix(24, "10.10.10.0")
+		assert.Equal(n1.PathIdentifier(), uint32(0))
+		assert.Equal(n1.PathIdentifierLen(), 0)
+		n1.SetPathIdentifier(10)
+		assert.Equal(n1.PathIdentifier(), uint32(10))
+		assert.Equal(n1.PathIdentifierLen(), 4)
+		bits, err := n1.Serialize(opt)
+		assert.Nil(err)
+		n2 := &IPAddrPrefix{}
+		err = n2.DecodeFromBytes(bits, opt)
+		assert.Nil(err)
+		assert.Equal(n2.PathIdentifier(), uint32(10))
+	}
+	{
+		n1 := NewIPv6AddrPrefix(64, "2001::")
+		n1.SetPathIdentifier(10)
+		bits, err := n1.Serialize(opt)
+		assert.Nil(err)
+		n2 := NewIPv6AddrPrefix(0, "")
+		err = n2.DecodeFromBytes(bits, opt)
+		assert.Nil(err)
+		assert.Equal(n2.PathIdentifier(), uint32(0))
+	}
+	opt = AddPathOption(map[RouteFamily]BGPAddPathMode{RF_IPv4_UC: BGP_ADD_PATH_BOTH, RF_IPv6_UC: BGP_ADD_PATH_BOTH})
+	{
+		n1 := NewIPv6AddrPrefix(64, "2001::")
+		n1.SetPathIdentifier(10)
+		bits, err := n1.Serialize(opt)
+		assert.Nil(err)
+		n2 := NewIPv6AddrPrefix(0, "")
+		err = n2.DecodeFromBytes(bits, opt)
+		assert.Nil(err)
+		assert.Equal(n2.PathIdentifier(), uint32(10))
+	}
+	opt = AddPathOption(map[RouteFamily]BGPAddPathMode{RF_IPv4_VPN: BGP_ADD_PATH_BOTH, RF_IPv6_VPN: BGP_ADD_PATH_BOTH})
+	{
+		rd, _ := ParseRouteDistinguisher("100:100")
+		labels := NewMPLSLabelStack(100, 200)
+		n1 := NewLabeledVPNIPAddrPrefix(24, "10.10.10.0", *labels, rd)
+		n1.SetPathIdentifier(20)
+		bits, err := n1.Serialize(opt)
+		assert.Nil(err)
+		n2 := NewLabeledVPNIPAddrPrefix(0, "", MPLSLabelStack{}, nil)
+		err = n2.DecodeFromBytes(bits, opt)
+		assert.Nil(err)
+		assert.Equal(n2.PathIdentifier(), uint32(20))
+	}
+	{
+		rd, _ := ParseRouteDistinguisher("100:100")
+		labels := NewMPLSLabelStack(100, 200)
+		n1 := NewLabeledVPNIPv6AddrPrefix(64, "2001::", *labels, rd)
+		n1.SetPathIdentifier(20)
+		bits, err := n1.Serialize(opt)
+		assert.Nil(err)
+		n2 := NewLabeledVPNIPAddrPrefix(0, "", MPLSLabelStack{}, nil)
+		err = n2.DecodeFromBytes(bits, opt)
+		assert.Nil(err)
+		assert.Equal(n2.PathIdentifier(), uint32(20))
+	}
+	opt = AddPathOption(map[RouteFamily]BGPAddPathMode{RF_IPv4_MPLS: BGP_ADD_PATH_BOTH, RF_IPv6_MPLS: BGP_ADD_PATH_BOTH})
+	{
+		labels := NewMPLSLabelStack(100, 200)
+		n1 := NewLabeledIPAddrPrefix(24, "10.10.10.0", *labels)
+		n1.SetPathIdentifier(20)
+		bits, err := n1.Serialize(opt)
+		assert.Nil(err)
+		n2 := NewLabeledIPAddrPrefix(0, "", MPLSLabelStack{})
+		err = n2.DecodeFromBytes(bits, opt)
+		assert.Nil(err)
+		assert.Equal(n2.PathIdentifier(), uint32(20))
+	}
+	{
+		labels := NewMPLSLabelStack(100, 200)
+		n1 := NewLabeledIPv6AddrPrefix(64, "2001::", *labels)
+		n1.SetPathIdentifier(20)
+		bits, err := n1.Serialize(opt)
+		assert.Nil(err)
+		n2 := NewLabeledIPAddrPrefix(0, "", MPLSLabelStack{})
+		err = n2.DecodeFromBytes(bits, opt)
+		assert.Nil(err)
+		assert.Equal(n2.PathIdentifier(), uint32(20))
+	}
+	opt = AddPathOption(map[RouteFamily]BGPAddPathMode{RF_RTC_UC: BGP_ADD_PATH_BOTH})
+	{
+		rt, _ := ParseRouteTarget("100:100")
+		n1 := NewRouteTargetMembershipNLRI(65000, rt)
+		n1.SetPathIdentifier(30)
+		bits, err := n1.Serialize(opt)
+		assert.Nil(err)
+		n2 := NewRouteTargetMembershipNLRI(0, nil)
+		err = n2.DecodeFromBytes(bits, opt)
+		assert.Nil(err)
+		assert.Equal(n2.PathIdentifier(), uint32(30))
+	}
+	opt = AddPathOption(map[RouteFamily]BGPAddPathMode{RF_EVPN: BGP_ADD_PATH_BOTH})
+	{
+		n1 := NewEVPNNLRI(EVPN_ROUTE_TYPE_ETHERNET_AUTO_DISCOVERY, 0,
+			&EVPNEthernetAutoDiscoveryRoute{NewRouteDistinguisherFourOctetAS(5, 6),
+				EthernetSegmentIdentifier{ESI_ARBITRARY, make([]byte, 9)}, 2, 2})
+		n1.SetPathIdentifier(40)
+		bits, err := n1.Serialize(opt)
+		assert.Nil(err)
+		n2 := NewEVPNNLRI(0, 0, nil)
+		err = n2.DecodeFromBytes(bits, opt)
+		assert.Nil(err)
+		assert.Equal(n2.PathIdentifier(), uint32(40))
+	}
+	opt = AddPathOption(map[RouteFamily]BGPAddPathMode{RF_ENCAP: BGP_ADD_PATH_BOTH})
+	{
+		n1 := NewEncapNLRI("10.10.10.0")
+		n1.SetPathIdentifier(50)
+		bits, err := n1.Serialize(opt)
+		assert.Nil(err)
+		n2 := NewEncapNLRI("")
+		err = n2.DecodeFromBytes(bits, opt)
+		assert.Nil(err)
+		assert.Equal(n2.PathIdentifier(), uint32(50))
+	}
+	opt = AddPathOption(map[RouteFamily]BGPAddPathMode{RF_FS_IPv4_UC: BGP_ADD_PATH_BOTH})
+	{
+		n1 := NewFlowSpecIPv4Unicast([]FlowSpecComponentInterface{NewFlowSpecDestinationPrefix(NewIPAddrPrefix(24, "10.0.0.0"))})
+		n1.SetPathIdentifier(60)
+		bits, err := n1.Serialize(opt)
+		assert.Nil(err)
+		n2 := NewFlowSpecIPv4Unicast(nil)
+		err = n2.DecodeFromBytes(bits, opt)
+		assert.Nil(err)
+		assert.Equal(n2.PathIdentifier(), uint32(60))
+	}
+	opt = AddPathOption(map[RouteFamily]BGPAddPathMode{RF_OPAQUE: BGP_ADD_PATH_BOTH})
+	{
+		n1 := NewOpaqueNLRI([]byte("hello"))
+		n1.SetPathIdentifier(70)
+		bits, err := n1.Serialize(opt)
+		assert.Nil(err)
+		n2 := &OpaqueNLRI{}
+		err = n2.DecodeFromBytes(bits, opt)
+		assert.Nil(err)
+		assert.Equal(n2.PathIdentifier(), uint32(70))
+	}
+
 }
