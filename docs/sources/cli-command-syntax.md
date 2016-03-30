@@ -80,7 +80,7 @@ The following options can be specified in the global subcommand:
 
 | short  |long           | description                                | default |
 |--------|---------------|--------------------------------------------|---------|
-|a       |address-family |specify any one from among `ipv4`, `ipv6`, `vpnv4`, `vpnv6`, `ipv4-labeled`, `ipv6-labeled`, `evpn`, `encap`, `rtc`, `ipv4-flowspec`, `ipv6-flowspec`, `opaque` | `ipv4` |
+|a       |address-family |specify any one from among `ipv4`, `ipv6`, `vpnv4`, `vpnv6`, `ipv4-labeled`, `ipv6-labeled`, `evpn`, `encap`, `rtc`, `ipv4-flowspec`, `ipv6-flowspec`, `l2vpn-flowspec`, `opaque` | `ipv4` |
 
 <br>
 
@@ -110,7 +110,7 @@ The following options can be specified in the global subcommand:
 
 | short  |long           | description                                | default |
 |--------|---------------|--------------------------------------------|---------|
-|a       |address-family |specify any one from among `ipv4`, `ipv6`, `vpnv4`, `vpnv6`, `ipv4-labeled`, `ipv6-labeld`, `evpn`, `encap`, `rtc`, `ipv4-flowspec`, `ipv6-flowspec`, `opaque` | `ipv4` |
+|a       |address-family |specify any one from among `ipv4`, `ipv6`, `vpnv4`, `vpnv6`, `ipv4-labeled`, `ipv6-labeld`, `evpn`, `encap`, `rtc`, `ipv4-flowspec`, `ipv6-flowspec`, `l2vpn-flowspec`, `opaque` | `ipv4` |
 
 ### 2.3. Show Rib - local-rib/adj-rib-in/adj-rib-out -
 #### - syntax
@@ -132,7 +132,7 @@ The following options can be specified in the neighbor subcommand:
 
 | short  |long           | description                                | default |
 |--------|---------------|--------------------------------------------|---------|
-|a       |address-family |specify any one from among `ipv4`, `ipv6`, `vpnv4`, `vpnv6`, `ipv4-labeled`, `ipv6-labeld`, `evpn`, `encap`, `rtc`, `ipv4-flowspec`, `ipv6-flowspec`, `opaque` | `ipv4` |
+|a       |address-family |specify any one from among `ipv4`, `ipv6`, `vpnv4`, `vpnv6`, `ipv4-labeled`, `ipv6-labeld`, `evpn`, `encap`, `rtc`, `ipv4-flowspec`, `ipv6-flowspec`, `l2vpn-flowspec`, `opaque` | `ipv4` |
 
 
 ### 2.4. Operations for Policy  - add/del/show -

@@ -131,3 +131,64 @@ func (f TCPFlag) String() string {
 	}
 	return strings.Join(ss, "|")
 }
+
+type EthernetType int
+
+const (
+	IPv4            EthernetType = 0x0800
+	ARP             EthernetType = 0x0806
+	RARP            EthernetType = 0x8035
+	VMTP            EthernetType = 0x805B
+	APPLE_TALK      EthernetType = 0x809B
+	AARP            EthernetType = 0x80F3
+	IPX             EthernetType = 0x8137
+	SNMP            EthernetType = 0x814C
+	NET_BIOS        EthernetType = 0x8191
+	XTP             EthernetType = 0x817D
+	IPv6            EthernetType = 0x86DD
+	PPPoE_DISCOVERY EthernetType = 0x8863
+	PPPoE_SESSION   EthernetType = 0x8864
+	LOOPBACK        EthernetType = 0x9000
+)
+
+var EthernetTypeNameMap = map[EthernetType]string{
+	IPv4:            "ipv4",
+	ARP:             "arp",
+	RARP:            "rarp",
+	VMTP:            "vmtp",
+	APPLE_TALK:      "apple-talk",
+	AARP:            "aarp",
+	IPX:             "ipx",
+	SNMP:            "snmp",
+	NET_BIOS:        "net-bios",
+	XTP:             "xtp",
+	IPv6:            "ipv6",
+	PPPoE_DISCOVERY: "pppoe-discovery",
+	PPPoE_SESSION:   "pppoe-session",
+	LOOPBACK:        "loopback",
+}
+
+var EthernetTypeValueMap = map[string]EthernetType{
+	EthernetTypeNameMap[IPv4]:            IPv4,
+	EthernetTypeNameMap[ARP]:             ARP,
+	EthernetTypeNameMap[RARP]:            RARP,
+	EthernetTypeNameMap[VMTP]:            VMTP,
+	EthernetTypeNameMap[APPLE_TALK]:      APPLE_TALK,
+	EthernetTypeNameMap[AARP]:            AARP,
+	EthernetTypeNameMap[IPX]:             IPX,
+	EthernetTypeNameMap[SNMP]:            SNMP,
+	EthernetTypeNameMap[NET_BIOS]:        NET_BIOS,
+	EthernetTypeNameMap[XTP]:             XTP,
+	EthernetTypeNameMap[IPv6]:            IPv6,
+	EthernetTypeNameMap[PPPoE_DISCOVERY]: PPPoE_DISCOVERY,
+	EthernetTypeNameMap[PPPoE_SESSION]:   PPPoE_SESSION,
+	EthernetTypeNameMap[LOOPBACK]:        LOOPBACK,
+}
+
+func (t EthernetType) String() string {
+	n, ok := EthernetTypeNameMap[t]
+	if !ok {
+		return fmt.Sprintf("%d", t)
+	}
+	return n
+}

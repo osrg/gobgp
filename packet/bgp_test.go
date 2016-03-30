@@ -3,6 +3,7 @@ package bgp
 import (
 	"bytes"
 	"encoding/binary"
+	"fmt"
 	"github.com/stretchr/testify/assert"
 	"net"
 	"reflect"
@@ -533,4 +534,32 @@ func Test_Aigp(t *testing.T) {
 		t.Error(len(buf2), a2, buf2)
 		t.Log(bytes.Equal(buf1, buf2))
 	}
+}
+
+func Test_FlowSpecNlriL2(t *testing.T) {
+	assert := assert.New(t)
+	mac, _ := net.ParseMAC("01:23:45:67:89:ab")
+	cmp := make([]FlowSpecComponentInterface, 0)
+	cmp = append(cmp, NewFlowSpecDestinationMac(mac))
+	cmp = append(cmp, NewFlowSpecSourceMac(mac))
+	eq := 0x1
+	item1 := NewFlowSpecComponentItem(eq, int(IPv4))
+	cmp = append(cmp, NewFlowSpecComponent(FLOW_SPEC_TYPE_ETHERNET_TYPE, []*FlowSpecComponentItem{item1}))
+	n1 := NewFlowSpecL2VPN(cmp)
+	buf1, err := n1.Serialize()
+	assert.Nil(err)
+	n2, err := NewPrefixFromRouteFamily(RouteFamilyToAfiSafi(RF_FS_L2_VPN))
+	assert.Nil(err)
+	err = n2.DecodeFromBytes(buf1)
+	assert.Nil(err)
+	buf2, _ := n2.Serialize()
+	if reflect.DeepEqual(n1, n2) == true {
+		t.Log("OK")
+	} else {
+		t.Error("Something wrong")
+		t.Error(len(buf1), n1, buf1)
+		t.Error(len(buf2), n2, buf2)
+		t.Log(bytes.Equal(buf1, buf2))
+	}
+	fmt.Println(n1, n2)
 }
