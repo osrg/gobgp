@@ -2,7 +2,8 @@
 
 GoBGP supports [RFC5575](https://tools.ietf.org/html/rfc5575),
 [draft-ietf-idr-flowspec-redirect-rt-bis-05](http://tools.ietf.org/html/draft-ietf-idr-flowspec-redirect-rt-bis-05)
-and [draft-ietf-idr-flow-spec-v6-06](https://tools.ietf.org/html/draft-ietf-idr-flow-spec-v6-06).
+, [draft-ietf-idr-flow-spec-v6-06](https://tools.ietf.org/html/draft-ietf-idr-flow-spec-v6-06)
+and [draft-ietf-idr-flowspec-l2vpn-03](https://tools.ietf.org/html/draft-ietf-idr-flowspec-l2vpn-03).
 
 ## Prerequisites
 
@@ -28,11 +29,15 @@ afi-safis like below.
   peer-as = 64512
 [[neighbors.afi-safis]]
   afi-safi-name = "ipv4-flowspec"
+[[neighbors.afi-safis]]
+  afi-safi-name = "ipv6-flowspec"
+[[neighbors.afi-safis]]
+  afi-safi-name = "l2vpn-flowspec"
 ```
 
 ## <a name="section1"> Add Flowspec routes through CLI
 
-CLI syntax to add flowspec is
+CLI syntax to add ipv4/ipv6 flowspec rule is
 
 ```shell
 % global rib add match <MATCH_EXPR> then <THEN_EXPR> -a [ipv4-flowspec|ipv6-flowspec]
@@ -45,6 +50,17 @@ CLI syntax to add flowspec is
         <ITEM> : &?{<|>|=}<value>
     <THEN_EXPR> : { accept | discard | rate-limit <value> | redirect <RT> | mark <value> | action { sample | terminal | sample-terminal } | rt <RT>... }...
         <RT> : xxx:yyy, xx.xx.xx.xx:yyy, xxx.xxx:yyy
+```
+
+that for l2vpn flowspec rule is
+
+``` shell
+% global rib add match <MATCH_EXPR> then <THEN_EXPR> -a [l2vpn-flowspec]
+   <MATCH_EXPR> : { { destination-mac | source-mac } <MAC> | ether-type <ETHER_TYPE> | { llc-dsap | llc-ssap | llc-control | snap | vid | cos | inner-vid | inner-cos } <ITEM>... }...
+   <ETHER_TYPE> : arp, vmtp, ipx, snmp, net-bios, xtp, pppoe-discovery, ipv4, rarp, ipv6, pppoe-session, loopback, apple-talk, aarp
+   <ITEM> : &?{<|>|=}<value>
+   <THEN_EXPR> : { accept | discard | rate-limit <value> | redirect <RT> | mark <value> | action { sample | terminal | sample-terminal } | rt <RT>... }...
+   <RT> : xxx:yyy, xx.xx.xx.xx:yyy, xxx.xxx:yyy
 ```
 
 ### Examples

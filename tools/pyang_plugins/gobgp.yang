@@ -119,6 +119,13 @@ module gobgp {
     reference "RFC5575";
   }
 
+  identity L2VPN-FLOWSPEC {
+    base bgp-types:afi-safi-type;
+    description
+      "L2VPN flowspec (AFI,SAFI = 25,134)";
+    reference "draft-ietf-idr-flowspec-l2vpn-03";
+  }
+
   identity OPAQUE {
     base bgp-types:afi-safi-type;
     description
@@ -743,7 +750,7 @@ module gobgp {
             "Configures a file name to be written.";
         }
         leaf interval {
-          type int64;
+          type uint64;
         }
       }
     }

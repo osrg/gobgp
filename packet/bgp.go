@@ -2070,39 +2070,72 @@ const (
 	FLOW_SPEC_TYPE_DSCP
 	FLOW_SPEC_TYPE_FRAGMENT
 	FLOW_SPEC_TYPE_LABEL
+	FLOW_SPEC_TYPE_ETHERNET_TYPE // 14
+	FLOW_SPEC_TYPE_SRC_MAC
+	FLOW_SPEC_TYPE_DST_MAC
+	FLOW_SPEC_TYPE_LLC_DSAP
+	FLOW_SPEC_TYPE_LLC_SSAP
+	FLOW_SPEC_TYPE_LLC_CONTROL
+	FLOW_SPEC_TYPE_SNAP
+	FLOW_SPEC_TYPE_VID
+	FLOW_SPEC_TYPE_COS
+	FLOW_SPEC_TYPE_INNER_VID
+	FLOW_SPEC_TYPE_INNER_COS
 )
 
 var FlowSpecNameMap = map[BGPFlowSpecType]string{
-	FLOW_SPEC_TYPE_UNKNOWN:    "unknown",
-	FLOW_SPEC_TYPE_DST_PREFIX: "destination",
-	FLOW_SPEC_TYPE_SRC_PREFIX: "source",
-	FLOW_SPEC_TYPE_IP_PROTO:   "protocol",
-	FLOW_SPEC_TYPE_PORT:       "port",
-	FLOW_SPEC_TYPE_DST_PORT:   "destination-port",
-	FLOW_SPEC_TYPE_SRC_PORT:   "source-port",
-	FLOW_SPEC_TYPE_ICMP_TYPE:  "icmp-type",
-	FLOW_SPEC_TYPE_ICMP_CODE:  "icmp-code",
-	FLOW_SPEC_TYPE_TCP_FLAG:   "tcp-flags",
-	FLOW_SPEC_TYPE_PKT_LEN:    "packet-length",
-	FLOW_SPEC_TYPE_DSCP:       "dscp",
-	FLOW_SPEC_TYPE_FRAGMENT:   "fragment",
-	FLOW_SPEC_TYPE_LABEL:      "label",
+	FLOW_SPEC_TYPE_UNKNOWN:       "unknown",
+	FLOW_SPEC_TYPE_DST_PREFIX:    "destination",
+	FLOW_SPEC_TYPE_SRC_PREFIX:    "source",
+	FLOW_SPEC_TYPE_IP_PROTO:      "protocol",
+	FLOW_SPEC_TYPE_PORT:          "port",
+	FLOW_SPEC_TYPE_DST_PORT:      "destination-port",
+	FLOW_SPEC_TYPE_SRC_PORT:      "source-port",
+	FLOW_SPEC_TYPE_ICMP_TYPE:     "icmp-type",
+	FLOW_SPEC_TYPE_ICMP_CODE:     "icmp-code",
+	FLOW_SPEC_TYPE_TCP_FLAG:      "tcp-flags",
+	FLOW_SPEC_TYPE_PKT_LEN:       "packet-length",
+	FLOW_SPEC_TYPE_DSCP:          "dscp",
+	FLOW_SPEC_TYPE_FRAGMENT:      "fragment",
+	FLOW_SPEC_TYPE_LABEL:         "label",
+	FLOW_SPEC_TYPE_ETHERNET_TYPE: "ether-type",
+	FLOW_SPEC_TYPE_SRC_MAC:       "source-mac",
+	FLOW_SPEC_TYPE_DST_MAC:       "destination-mac",
+	FLOW_SPEC_TYPE_LLC_DSAP:      "llc-dsap",
+	FLOW_SPEC_TYPE_LLC_SSAP:      "llc-ssap",
+	FLOW_SPEC_TYPE_LLC_CONTROL:   "llc-control",
+	FLOW_SPEC_TYPE_SNAP:          "snap",
+	FLOW_SPEC_TYPE_VID:           "vid",
+	FLOW_SPEC_TYPE_COS:           "cos",
+	FLOW_SPEC_TYPE_INNER_VID:     "inner-vid",
+	FLOW_SPEC_TYPE_INNER_COS:     "inner-cos",
 }
 
 var FlowSpecValueMap = map[string]BGPFlowSpecType{
-	FlowSpecNameMap[FLOW_SPEC_TYPE_DST_PREFIX]: FLOW_SPEC_TYPE_DST_PREFIX,
-	FlowSpecNameMap[FLOW_SPEC_TYPE_SRC_PREFIX]: FLOW_SPEC_TYPE_SRC_PREFIX,
-	FlowSpecNameMap[FLOW_SPEC_TYPE_IP_PROTO]:   FLOW_SPEC_TYPE_IP_PROTO,
-	FlowSpecNameMap[FLOW_SPEC_TYPE_PORT]:       FLOW_SPEC_TYPE_PORT,
-	FlowSpecNameMap[FLOW_SPEC_TYPE_DST_PORT]:   FLOW_SPEC_TYPE_DST_PORT,
-	FlowSpecNameMap[FLOW_SPEC_TYPE_SRC_PORT]:   FLOW_SPEC_TYPE_SRC_PORT,
-	FlowSpecNameMap[FLOW_SPEC_TYPE_ICMP_TYPE]:  FLOW_SPEC_TYPE_ICMP_TYPE,
-	FlowSpecNameMap[FLOW_SPEC_TYPE_ICMP_CODE]:  FLOW_SPEC_TYPE_ICMP_CODE,
-	FlowSpecNameMap[FLOW_SPEC_TYPE_TCP_FLAG]:   FLOW_SPEC_TYPE_TCP_FLAG,
-	FlowSpecNameMap[FLOW_SPEC_TYPE_PKT_LEN]:    FLOW_SPEC_TYPE_PKT_LEN,
-	FlowSpecNameMap[FLOW_SPEC_TYPE_DSCP]:       FLOW_SPEC_TYPE_DSCP,
-	FlowSpecNameMap[FLOW_SPEC_TYPE_FRAGMENT]:   FLOW_SPEC_TYPE_FRAGMENT,
-	FlowSpecNameMap[FLOW_SPEC_TYPE_LABEL]:      FLOW_SPEC_TYPE_LABEL,
+	FlowSpecNameMap[FLOW_SPEC_TYPE_DST_PREFIX]:    FLOW_SPEC_TYPE_DST_PREFIX,
+	FlowSpecNameMap[FLOW_SPEC_TYPE_SRC_PREFIX]:    FLOW_SPEC_TYPE_SRC_PREFIX,
+	FlowSpecNameMap[FLOW_SPEC_TYPE_IP_PROTO]:      FLOW_SPEC_TYPE_IP_PROTO,
+	FlowSpecNameMap[FLOW_SPEC_TYPE_PORT]:          FLOW_SPEC_TYPE_PORT,
+	FlowSpecNameMap[FLOW_SPEC_TYPE_DST_PORT]:      FLOW_SPEC_TYPE_DST_PORT,
+	FlowSpecNameMap[FLOW_SPEC_TYPE_SRC_PORT]:      FLOW_SPEC_TYPE_SRC_PORT,
+	FlowSpecNameMap[FLOW_SPEC_TYPE_ICMP_TYPE]:     FLOW_SPEC_TYPE_ICMP_TYPE,
+	FlowSpecNameMap[FLOW_SPEC_TYPE_ICMP_CODE]:     FLOW_SPEC_TYPE_ICMP_CODE,
+	FlowSpecNameMap[FLOW_SPEC_TYPE_TCP_FLAG]:      FLOW_SPEC_TYPE_TCP_FLAG,
+	FlowSpecNameMap[FLOW_SPEC_TYPE_PKT_LEN]:       FLOW_SPEC_TYPE_PKT_LEN,
+	FlowSpecNameMap[FLOW_SPEC_TYPE_DSCP]:          FLOW_SPEC_TYPE_DSCP,
+	FlowSpecNameMap[FLOW_SPEC_TYPE_FRAGMENT]:      FLOW_SPEC_TYPE_FRAGMENT,
+	FlowSpecNameMap[FLOW_SPEC_TYPE_LABEL]:         FLOW_SPEC_TYPE_LABEL,
+	FlowSpecNameMap[FLOW_SPEC_TYPE_ETHERNET_TYPE]: FLOW_SPEC_TYPE_ETHERNET_TYPE,
+	FlowSpecNameMap[FLOW_SPEC_TYPE_SRC_MAC]:       FLOW_SPEC_TYPE_SRC_MAC,
+	FlowSpecNameMap[FLOW_SPEC_TYPE_DST_MAC]:       FLOW_SPEC_TYPE_DST_MAC,
+	FlowSpecNameMap[FLOW_SPEC_TYPE_LLC_DSAP]:      FLOW_SPEC_TYPE_LLC_DSAP,
+	FlowSpecNameMap[FLOW_SPEC_TYPE_LLC_SSAP]:      FLOW_SPEC_TYPE_LLC_SSAP,
+	FlowSpecNameMap[FLOW_SPEC_TYPE_LLC_CONTROL]:   FLOW_SPEC_TYPE_LLC_CONTROL,
+	FlowSpecNameMap[FLOW_SPEC_TYPE_SNAP]:          FLOW_SPEC_TYPE_SNAP,
+	FlowSpecNameMap[FLOW_SPEC_TYPE_VID]:           FLOW_SPEC_TYPE_VID,
+	FlowSpecNameMap[FLOW_SPEC_TYPE_COS]:           FLOW_SPEC_TYPE_COS,
+	FlowSpecNameMap[FLOW_SPEC_TYPE_INNER_VID]:     FLOW_SPEC_TYPE_INNER_VID,
+	FlowSpecNameMap[FLOW_SPEC_TYPE_INNER_COS]:     FLOW_SPEC_TYPE_INNER_COS,
 }
 
 func flowSpecPrefixParser(rf RouteFamily, args []string) (FlowSpecComponentInterface, error) {
@@ -2203,6 +2236,29 @@ func flowSpecTcpFlagParser(rf RouteFamily, args []string) (FlowSpecComponentInte
 		items = append(items, NewFlowSpecComponentItem(op, flag))
 	}
 	return NewFlowSpecComponent(FLOW_SPEC_TYPE_TCP_FLAG, items), nil
+}
+
+func flowSpecEtherTypeParser(rf RouteFamily, args []string) (FlowSpecComponentInterface, error) {
+	ss := make([]string, 0, len(EthernetTypeNameMap))
+	for _, v := range EthernetTypeNameMap {
+		ss = append(ss, v)
+	}
+	protos := strings.Join(ss, "|")
+	exp := regexp.MustCompile(fmt.Sprintf("^%s (((%s) )*)(%s)$", FlowSpecNameMap[FLOW_SPEC_TYPE_ETHERNET_TYPE], protos, protos))
+	elems := exp.FindStringSubmatch(strings.Join(args, " "))
+	items := make([]*FlowSpecComponentItem, 0)
+	eq := 0x1
+	if elems[1] != "" {
+		for _, v := range strings.Split(elems[1], " ") {
+			p, ok := EthernetTypeValueMap[v]
+			if !ok {
+				continue
+			}
+			items = append(items, NewFlowSpecComponentItem(eq, int(p)))
+		}
+	}
+	items = append(items, NewFlowSpecComponentItem(eq, int(EthernetTypeValueMap[elems[4]])))
+	return NewFlowSpecComponent(FLOW_SPEC_TYPE_ETHERNET_TYPE, items), nil
 }
 
 func doFlowSpecNumericParser(rf RouteFamily, args []string, validationFunc func(int) error) (FlowSpecComponentInterface, error) {
@@ -2321,20 +2377,52 @@ func flowSpecFragmentParser(rf RouteFamily, args []string) (FlowSpecComponentInt
 	return NewFlowSpecComponent(FlowSpecValueMap[args[0]], items), nil
 }
 
+func flowSpecMacParser(rf RouteFamily, args []string) (FlowSpecComponentInterface, error) {
+	if len(args) < 2 {
+		return nil, fmt.Errorf("invalid flowspec dst/src mac")
+	}
+	if rf != RF_FS_L2_VPN {
+		return nil, fmt.Errorf("invalid family")
+	}
+	typ := args[0]
+	mac, err := net.ParseMAC(args[1])
+	if err != nil {
+		return nil, fmt.Errorf("invalid mac")
+	}
+	switch typ {
+	case FlowSpecNameMap[FLOW_SPEC_TYPE_DST_MAC]:
+		return NewFlowSpecDestinationMac(mac), nil
+	case FlowSpecNameMap[FLOW_SPEC_TYPE_SRC_MAC]:
+		return NewFlowSpecSourceMac(mac), nil
+	}
+	return nil, fmt.Errorf("invalid type. only %s or %s allowed", FlowSpecNameMap[FLOW_SPEC_TYPE_DST_MAC], FlowSpecNameMap[FLOW_SPEC_TYPE_SRC_MAC])
+}
+
 var flowSpecParserMap = map[BGPFlowSpecType]func(RouteFamily, []string) (FlowSpecComponentInterface, error){
-	FLOW_SPEC_TYPE_DST_PREFIX: flowSpecPrefixParser,
-	FLOW_SPEC_TYPE_SRC_PREFIX: flowSpecPrefixParser,
-	FLOW_SPEC_TYPE_IP_PROTO:   flowSpecIpProtoParser,
-	FLOW_SPEC_TYPE_PORT:       flowSpecPortParser,
-	FLOW_SPEC_TYPE_DST_PORT:   flowSpecPortParser,
-	FLOW_SPEC_TYPE_SRC_PORT:   flowSpecPortParser,
-	FLOW_SPEC_TYPE_ICMP_TYPE:  flowSpecNumericParser,
-	FLOW_SPEC_TYPE_ICMP_CODE:  flowSpecNumericParser,
-	FLOW_SPEC_TYPE_TCP_FLAG:   flowSpecTcpFlagParser,
-	FLOW_SPEC_TYPE_PKT_LEN:    flowSpecNumericParser,
-	FLOW_SPEC_TYPE_DSCP:       flowSpecDscpParser,
-	FLOW_SPEC_TYPE_FRAGMENT:   flowSpecFragmentParser,
-	FLOW_SPEC_TYPE_LABEL:      flowSpecNumericParser,
+	FLOW_SPEC_TYPE_DST_PREFIX:    flowSpecPrefixParser,
+	FLOW_SPEC_TYPE_SRC_PREFIX:    flowSpecPrefixParser,
+	FLOW_SPEC_TYPE_IP_PROTO:      flowSpecIpProtoParser,
+	FLOW_SPEC_TYPE_PORT:          flowSpecPortParser,
+	FLOW_SPEC_TYPE_DST_PORT:      flowSpecPortParser,
+	FLOW_SPEC_TYPE_SRC_PORT:      flowSpecPortParser,
+	FLOW_SPEC_TYPE_ICMP_TYPE:     flowSpecNumericParser,
+	FLOW_SPEC_TYPE_ICMP_CODE:     flowSpecNumericParser,
+	FLOW_SPEC_TYPE_TCP_FLAG:      flowSpecTcpFlagParser,
+	FLOW_SPEC_TYPE_PKT_LEN:       flowSpecNumericParser,
+	FLOW_SPEC_TYPE_DSCP:          flowSpecDscpParser,
+	FLOW_SPEC_TYPE_FRAGMENT:      flowSpecFragmentParser,
+	FLOW_SPEC_TYPE_LABEL:         flowSpecNumericParser,
+	FLOW_SPEC_TYPE_ETHERNET_TYPE: flowSpecEtherTypeParser,
+	FLOW_SPEC_TYPE_DST_MAC:       flowSpecMacParser,
+	FLOW_SPEC_TYPE_SRC_MAC:       flowSpecMacParser,
+	FLOW_SPEC_TYPE_LLC_DSAP:      flowSpecNumericParser,
+	FLOW_SPEC_TYPE_LLC_SSAP:      flowSpecNumericParser,
+	FLOW_SPEC_TYPE_LLC_CONTROL:   flowSpecNumericParser,
+	FLOW_SPEC_TYPE_SNAP:          flowSpecNumericParser,
+	FLOW_SPEC_TYPE_VID:           flowSpecNumericParser,
+	FLOW_SPEC_TYPE_COS:           flowSpecNumericParser,
+	FLOW_SPEC_TYPE_INNER_VID:     flowSpecNumericParser,
+	FLOW_SPEC_TYPE_INNER_COS:     flowSpecNumericParser,
 }
 
 func ParseFlowSpecComponents(rf RouteFamily, input string) ([]FlowSpecComponentInterface, error) {
@@ -2511,6 +2599,66 @@ type FlowSpecSourcePrefix6 struct {
 
 func NewFlowSpecSourcePrefix6(prefix AddrPrefixInterface, offset uint8) *FlowSpecSourcePrefix6 {
 	return &FlowSpecSourcePrefix6{flowSpecPrefix6{prefix, offset, FLOW_SPEC_TYPE_SRC_PREFIX}}
+}
+
+type flowSpecMac struct {
+	Mac   net.HardwareAddr
+	type_ BGPFlowSpecType
+}
+
+func (p *flowSpecMac) DecodeFromBytes(data []byte) error {
+	if len(data) < 2 || len(data) < 2+int(data[1]) {
+		return fmt.Errorf("not all mac bits available")
+	}
+	p.type_ = BGPFlowSpecType(data[0])
+	p.Mac = net.HardwareAddr(data[2 : 2+int(data[1])])
+	return nil
+}
+
+func (p *flowSpecMac) Serialize() ([]byte, error) {
+	if len(p.Mac) == 0 {
+		return nil, fmt.Errorf("mac unset")
+	}
+	buf := []byte{byte(p.Type()), byte(len(p.Mac))}
+	return append(buf, []byte(p.Mac)...), nil
+}
+
+func (p *flowSpecMac) Len() int {
+	return 2 + len(p.Mac)
+}
+
+func (p *flowSpecMac) Type() BGPFlowSpecType {
+	return p.type_
+}
+
+func (p *flowSpecMac) String() string {
+	return fmt.Sprintf("[%s:%s]", p.Type(), p.Mac.String())
+}
+
+func (p *flowSpecMac) MarshalJSON() ([]byte, error) {
+	return json.Marshal(struct {
+		Type  BGPFlowSpecType `json:"type"`
+		Value string          `json:"value"`
+	}{
+		Type:  p.Type(),
+		Value: p.Mac.String(),
+	})
+}
+
+type FlowSpecSourceMac struct {
+	flowSpecMac
+}
+
+func NewFlowSpecSourceMac(mac net.HardwareAddr) *FlowSpecSourceMac {
+	return &FlowSpecSourceMac{flowSpecMac{Mac: mac, type_: FLOW_SPEC_TYPE_SRC_MAC}}
+}
+
+type FlowSpecDestinationMac struct {
+	flowSpecMac
+}
+
+func NewFlowSpecDestinationMac(mac net.HardwareAddr) *FlowSpecDestinationMac {
+	return &FlowSpecDestinationMac{flowSpecMac{Mac: mac, type_: FLOW_SPEC_TYPE_DST_MAC}}
 }
 
 type FlowSpecComponentItem struct {
@@ -2702,27 +2850,39 @@ func formatFragment(op int, value int) string {
 	return fmt.Sprintf("%s%s", formatNumericOp(op), ss[0])
 }
 
+func formatEtherType(op int, value int) string {
+	return fmt.Sprintf(" %s", EthernetType(value).String())
+}
+
 var flowSpecFormatMap = map[BGPFlowSpecType]func(op int, value int) string{
-	FLOW_SPEC_TYPE_UNKNOWN:   formatRaw,
-	FLOW_SPEC_TYPE_IP_PROTO:  formatProto,
-	FLOW_SPEC_TYPE_PORT:      formatNumeric,
-	FLOW_SPEC_TYPE_DST_PORT:  formatNumeric,
-	FLOW_SPEC_TYPE_SRC_PORT:  formatNumeric,
-	FLOW_SPEC_TYPE_ICMP_TYPE: formatNumeric,
-	FLOW_SPEC_TYPE_ICMP_CODE: formatNumeric,
-	FLOW_SPEC_TYPE_TCP_FLAG:  formatFlag,
-	FLOW_SPEC_TYPE_PKT_LEN:   formatNumeric,
-	FLOW_SPEC_TYPE_DSCP:      formatNumeric,
-	FLOW_SPEC_TYPE_FRAGMENT:  formatFragment,
-	FLOW_SPEC_TYPE_LABEL:     formatNumeric,
+	FLOW_SPEC_TYPE_UNKNOWN:       formatRaw,
+	FLOW_SPEC_TYPE_IP_PROTO:      formatProto,
+	FLOW_SPEC_TYPE_PORT:          formatNumeric,
+	FLOW_SPEC_TYPE_DST_PORT:      formatNumeric,
+	FLOW_SPEC_TYPE_SRC_PORT:      formatNumeric,
+	FLOW_SPEC_TYPE_ICMP_TYPE:     formatNumeric,
+	FLOW_SPEC_TYPE_ICMP_CODE:     formatNumeric,
+	FLOW_SPEC_TYPE_TCP_FLAG:      formatFlag,
+	FLOW_SPEC_TYPE_PKT_LEN:       formatNumeric,
+	FLOW_SPEC_TYPE_DSCP:          formatNumeric,
+	FLOW_SPEC_TYPE_FRAGMENT:      formatFragment,
+	FLOW_SPEC_TYPE_LABEL:         formatNumeric,
+	FLOW_SPEC_TYPE_ETHERNET_TYPE: formatEtherType,
+	FLOW_SPEC_TYPE_LLC_DSAP:      formatNumeric,
+	FLOW_SPEC_TYPE_LLC_SSAP:      formatNumeric,
+	FLOW_SPEC_TYPE_LLC_CONTROL:   formatNumeric,
+	FLOW_SPEC_TYPE_SNAP:          formatNumeric,
+	FLOW_SPEC_TYPE_VID:           formatNumeric,
+	FLOW_SPEC_TYPE_COS:           formatNumeric,
+	FLOW_SPEC_TYPE_INNER_VID:     formatNumeric,
+	FLOW_SPEC_TYPE_INNER_COS:     formatNumeric,
 }
 
 func (p *FlowSpecComponent) String() string {
-	var f func(op int, value int) string
-	if _, ok := flowSpecFormatMap[p.Type()]; !ok {
-		f = flowSpecFormatMap[FLOW_SPEC_TYPE_UNKNOWN]
+	f := flowSpecFormatMap[FLOW_SPEC_TYPE_UNKNOWN]
+	if _, ok := flowSpecFormatMap[p.Type()]; ok {
+		f = flowSpecFormatMap[p.Type()]
 	}
-	f = flowSpecFormatMap[p.Type()]
 	buf := bytes.NewBuffer(make([]byte, 0, 32))
 	for _, i := range p.Items {
 		buf.WriteString(f(i.Op, i.Value))
@@ -2782,17 +2942,22 @@ type FlowSpecNLRI struct {
 
 func (n *FlowSpecNLRI) decodeFromBytes(rf RouteFamily, data []byte) error {
 	var length int
-	if (data[0] >> 4) == 0xf {
+	if (data[0]>>4) == 0xf && len(data) > 2 {
 		length = int(binary.BigEndian.Uint16(data[0:2]))
 		data = data[2:]
-	} else {
+	} else if len(data) > 1 {
 		length = int(data[0])
 		data = data[1:]
+	} else {
+		return fmt.Errorf("not all flowspec component bytes available")
 	}
 
 	n.rf = rf
 
 	for l := length; l > 0; {
+		if len(data) == 0 {
+			return fmt.Errorf("not all flowspec component bytes available")
+		}
 		t := BGPFlowSpecType(data[0])
 		var i FlowSpecComponentInterface
 		switch t {
@@ -2822,9 +2987,25 @@ func (n *FlowSpecNLRI) decodeFromBytes(rf RouteFamily, data []byte) error {
 			default:
 				return fmt.Errorf("Invalid RF: %v", rf)
 			}
+		case FLOW_SPEC_TYPE_SRC_MAC:
+			switch rf {
+			case RF_FS_L2_VPN:
+				i = NewFlowSpecSourceMac(nil)
+			default:
+				return fmt.Errorf("invalid family: %v", rf)
+			}
+		case FLOW_SPEC_TYPE_DST_MAC:
+			switch rf {
+			case RF_FS_L2_VPN:
+				i = NewFlowSpecDestinationMac(nil)
+			default:
+				return fmt.Errorf("invalid family: %v", rf)
+			}
 		case FLOW_SPEC_TYPE_IP_PROTO, FLOW_SPEC_TYPE_PORT, FLOW_SPEC_TYPE_DST_PORT, FLOW_SPEC_TYPE_SRC_PORT,
 			FLOW_SPEC_TYPE_ICMP_TYPE, FLOW_SPEC_TYPE_ICMP_CODE, FLOW_SPEC_TYPE_TCP_FLAG, FLOW_SPEC_TYPE_PKT_LEN,
-			FLOW_SPEC_TYPE_DSCP, FLOW_SPEC_TYPE_FRAGMENT, FLOW_SPEC_TYPE_LABEL:
+			FLOW_SPEC_TYPE_DSCP, FLOW_SPEC_TYPE_FRAGMENT, FLOW_SPEC_TYPE_LABEL, FLOW_SPEC_TYPE_ETHERNET_TYPE,
+			FLOW_SPEC_TYPE_LLC_DSAP, FLOW_SPEC_TYPE_LLC_SSAP, FLOW_SPEC_TYPE_LLC_CONTROL, FLOW_SPEC_TYPE_SNAP,
+			FLOW_SPEC_TYPE_VID, FLOW_SPEC_TYPE_COS, FLOW_SPEC_TYPE_INNER_VID, FLOW_SPEC_TYPE_INNER_COS:
 			i = NewFlowSpecComponent(t, nil)
 		default:
 			i = &FlowSpecUnknown{}
@@ -2981,6 +3162,29 @@ func NewFlowSpecIPv6VPN(value []FlowSpecComponentInterface) *FlowSpecIPv6VPN {
 	}}
 }
 
+type FlowSpecL2VPN struct {
+	FlowSpecNLRI
+}
+
+func (n *FlowSpecL2VPN) DecodeFromBytes(data []byte) error {
+	return n.decodeFromBytes(AfiSafiToRouteFamily(n.AFI(), n.SAFI()), data)
+}
+
+func (n *FlowSpecL2VPN) AFI() uint16 {
+	return AFI_L2VPN
+}
+
+func (n *FlowSpecL2VPN) SAFI() uint8 {
+	return SAFI_FLOW_SPEC_VPN
+}
+
+func NewFlowSpecL2VPN(value []FlowSpecComponentInterface) *FlowSpecL2VPN {
+	return &FlowSpecL2VPN{FlowSpecNLRI{
+		Value: value,
+		rf:    RF_FS_L2_VPN,
+	}}
+}
+
 type OpaqueNLRI struct {
 	Length uint8
 	Key    []byte
@@ -3068,6 +3272,7 @@ const (
 	RF_FS_IPv4_VPN RouteFamily = AFI_IP<<16 | SAFI_FLOW_SPEC_VPN
 	RF_FS_IPv6_UC  RouteFamily = AFI_IP6<<16 | SAFI_FLOW_SPEC_UNICAST
 	RF_FS_IPv6_VPN RouteFamily = AFI_IP6<<16 | SAFI_FLOW_SPEC_VPN
+	RF_FS_L2_VPN   RouteFamily = AFI_L2VPN<<16 | SAFI_FLOW_SPEC_VPN
 	RF_OPAQUE      RouteFamily = AFI_OPAQUE<<16 | SAFI_KEY_VALUE
 )
 
@@ -3090,6 +3295,7 @@ var AddressFamilyNameMap = map[RouteFamily]string{
 	RF_FS_IPv4_VPN: "l3vpn-ipv4-flowspec",
 	RF_FS_IPv6_UC:  "ipv6-flowspec",
 	RF_FS_IPv6_VPN: "l3vpn-ipv6-flowspec",
+	RF_FS_L2_VPN:   "l2vpn-flowspec",
 	RF_OPAQUE:      "opaque",
 }
 
@@ -3112,6 +3318,7 @@ var AddressFamilyValueMap = map[string]RouteFamily{
 	AddressFamilyNameMap[RF_FS_IPv4_VPN]: RF_FS_IPv4_VPN,
 	AddressFamilyNameMap[RF_FS_IPv6_UC]:  RF_FS_IPv6_UC,
 	AddressFamilyNameMap[RF_FS_IPv6_VPN]: RF_FS_IPv6_VPN,
+	AddressFamilyNameMap[RF_FS_L2_VPN]:   RF_FS_L2_VPN,
 	AddressFamilyNameMap[RF_OPAQUE]:      RF_OPAQUE,
 }
 
@@ -3150,6 +3357,8 @@ func NewPrefixFromRouteFamily(afi uint16, safi uint8) (prefix AddrPrefixInterfac
 		prefix = &FlowSpecIPv6Unicast{}
 	case RF_FS_IPv6_VPN:
 		prefix = &FlowSpecIPv6VPN{}
+	case RF_FS_L2_VPN:
+		prefix = &FlowSpecL2VPN{}
 	case RF_OPAQUE:
 		prefix = &OpaqueNLRI{}
 	default:
