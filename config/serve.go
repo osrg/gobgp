@@ -1,13 +1,24 @@
 package config
 
 import (
-	log "github.com/Sirupsen/logrus"
-	"github.com/spf13/viper"
 	"os"
 	"os/signal"
 	"reflect"
 	"syscall"
+
+	log "github.com/Sirupsen/logrus"
+	"github.com/spf13/viper"
 )
+
+type GobgpdConfigSet struct {
+	Global            Global             `mapstructure:"global"`
+	Neighbors         []Neighbor         `mapstructure:"neighbors"`
+	RpkiServers       []RpkiServer       `mapstructure:"rpki-servers"`
+	BmpServers        []BmpServer        `mapstructure:"bmp-servers"`
+	MrtDump           []Mrt              `mapstructure:"mrt-dump"`
+	DefinedSets       DefinedSets        `mapstructure:"defined-sets"`
+	PolicyDefinitions []PolicyDefinition `mapstructure:"policy-definitions"`
+}
 
 type BgpConfigSet struct {
 	Bgp    Bgp
@@ -25,15 +36,7 @@ func ReadConfigfileServe(path, format string, configCh chan BgpConfigSet) {
 		v.SetConfigFile(path)
 		v.SetConfigType(format)
 		err := v.ReadInConfig()
-		c := struct {
-			Global            Global             `mapstructure:"global"`
-			Neighbors         []Neighbor         `mapstructure:"neighbors"`
-			RpkiServers       []RpkiServer       `mapstructure:"rpki-servers"`
-			BmpServers        []BmpServer        `mapstructure:"bmp-servers"`
-			MrtDump           []Mrt              `mapstructure:"mrt-dump"`
-			DefinedSets       DefinedSets        `mapstructure:"defined-sets"`
-			PolicyDefinitions []PolicyDefinition `mapstructure:"policy-definitions"`
-		}{}
+		c := GobgpdConfigSet{}
 		if err != nil {
 			goto ERROR
 		}
