@@ -42,6 +42,7 @@ const (
 	BPR_ASN                BestPathReason = "ASN"
 	BPR_IGP_COST           BestPathReason = "IGP Cost"
 	BPR_ROUTER_ID          BestPathReason = "Router ID"
+	BPR_OLDER              BestPathReason = "Older"
 )
 
 func IpToRadixkey(b []byte, max uint8) string {
@@ -113,19 +114,21 @@ func NewPeerInfo(g *config.Global, p *config.Neighbor) *PeerInfo {
 type Destination struct {
 	routeFamily   bgp.RouteFamily
 	nlri          bgp.AddrPrefixInterface
-	knownPathList paths
-	withdrawList  paths
-	newPathList   paths
+	knownPathList []*Path
+	withdrawList  []*Path
+	newPathList   []*Path
 	RadixKey      string
+	option        *config.RouteSelectionOptionsConfig
 }
 
-func NewDestination(nlri bgp.AddrPrefixInterface) *Destination {
+func NewDestination(nlri bgp.AddrPrefixInterface, option *config.RouteSelectionOptionsConfig) *Destination {
 	d := &Destination{
 		routeFamily:   bgp.AfiSafiToRouteFamily(nlri.AFI(), nlri.SAFI()),
 		nlri:          nlri,
 		knownPathList: make([]*Path, 0),
 		withdrawList:  make([]*Path, 0),
 		newPathList:   make([]*Path, 0),
+		option:        option,
 	}
 	switch d.routeFamily {
 	case bgp.RF_IPv4_UC, bgp.RF_IPv6_UC:
@@ -277,7 +280,7 @@ func (dest *Destination) Calculate(ids []string) (map[string]*Path, []*Path, []*
 // we can receive withdraws for such paths and withdrawals may not be
 // stopped by the same policies.
 //
-func (dest *Destination) explicitWithdraw() paths {
+func (dest *Destination) explicitWithdraw() []*Path {
 
 	// If we have no withdrawals, we have nothing to do.
 	if len(dest.withdrawList) == 0 {
@@ -344,7 +347,7 @@ func (dest *Destination) explicitWithdraw() paths {
 //
 // Known paths will no longer have paths whose new version is present in
 // new paths.
-func (dest *Destination) implicitWithdraw() paths {
+func (dest *Destination) implicitWithdraw() []*Path {
 	newKnownPaths := make([]*Path, 0, len(dest.knownPathList))
 	implicitWithdrawn := make([]*Path, 0, len(dest.knownPathList))
 	for _, path := range dest.knownPathList {
@@ -394,22 +397,20 @@ func (dest *Destination) computeKnownBestPath() (*Path, BestPathReason, error) {
 	if len(dest.knownPathList) == 1 {
 		return dest.knownPathList[0], BPR_ONLY_PATH, nil
 	}
-	sort.Sort(dest.knownPathList)
+	sort.Sort(dest)
 	newBest := dest.knownPathList[0]
 	return newBest, newBest.reason, nil
 }
 
-type paths []*Path
-
-func (p paths) Len() int {
-	return len(p)
+func (d *Destination) Len() int {
+	return len(d.knownPathList)
 }
 
-func (p paths) Swap(i, j int) {
-	p[i], p[j] = p[j], p[i]
+func (d *Destination) Swap(i, j int) {
+	d.knownPathList[i], d.knownPathList[j] = d.knownPathList[j], d.knownPathList[i]
 }
 
-func (p paths) Less(i, j int) bool {
+func (d *Destination) Less(i, j int) bool {
 
 	//Compares given paths and returns best path.
 	//
@@ -441,8 +442,8 @@ func (p paths) Less(i, j int) bool {
 	//	Assumes paths from NC has source equal to None.
 	//
 
-	path1 := p[i]
-	path2 := p[j]
+	path1 := d.knownPathList[i]
+	path2 := d.knownPathList[j]
 
 	var better *Path
 	reason := BPR_UNKNOWN
@@ -485,9 +486,15 @@ func (p paths) Less(i, j int) bool {
 		better = compareByIGPCost(path1, path2)
 		reason = BPR_IGP_COST
 	}
+
+	if better == nil && !d.option.ExternalCompareRouterId {
+		better = compareByAge(path1, path2)
+		reason = BPR_OLDER
+	}
+
 	if better == nil {
 		var e error = nil
-		better, e = compareByRouterID(path1, path2)
+		better, e = compareByRouterID(path1, path2, d.option.ExternalCompareRouterId)
 		if e != nil {
 			log.Error(e)
 		}
@@ -705,7 +712,7 @@ func compareByIGPCost(path1, path2 *Path) *Path {
 	return nil
 }
 
-func compareByRouterID(path1, path2 *Path) (*Path, error) {
+func compareByRouterID(path1, path2 *Path, external bool) (*Path, error) {
 	//	Select the route received from the peer with the lowest BGP router ID.
 	//
 	//	If both paths are eBGP paths, then we do not do any tie breaking, i.e we do
@@ -721,11 +728,11 @@ func compareByRouterID(path1, path2 *Path) (*Path, error) {
 
 	// If both paths are from eBGP peers, then according to RFC we need
 	// not tie break using router id.
-	if !path1.IsIBGP() && !path2.IsIBGP() {
+	if !external && !path1.IsIBGP() && !path2.IsIBGP() {
 		return nil, nil
 	}
 
-	if path1.IsIBGP() != path2.IsIBGP() {
+	if !external && path1.IsIBGP() != path2.IsIBGP() {
 		return nil, fmt.Errorf("This method does not support comparing ebgp with ibgp path")
 	}
 
@@ -741,6 +748,18 @@ func compareByRouterID(path1, path2 *Path) (*Path, error) {
 		return path1, nil
 	} else {
 		return path2, nil
+	}
+}
+
+func compareByAge(path1, path2 *Path) *Path {
+	age1 := path1.info.timestamp.UnixNano()
+	age2 := path2.info.timestamp.UnixNano()
+	if age1 == age2 {
+		return nil
+	} else if age1 < age2 {
+		return path1
+	} else {
+		return path2
 	}
 }
 
