@@ -251,7 +251,7 @@ class GoBGPTestBase(unittest.TestCase):
 
     def test_15_check_active_connection(self):
         g1 = self.gobgp
-        g2 = GoBGPContainer(name='g2', asn=65000, router_id='192.168.0.5',
+        g2 = GoBGPContainer(name='g2', asn=65000, router_id='192.168.0.7',
                             ctn_image_name=self.gobgp.image,
                             log_level=parser_option.gobgp_log_level)
         time.sleep(g2.run())
@@ -284,6 +284,32 @@ class GoBGPTestBase(unittest.TestCase):
         self.assertTrue(local_pref['value'] == 100)
         med = extract_path_attribute(path, BGP_ATTR_TYPE_MULTI_EXIT_DISC)
         self.assertTrue(med['metric'] == 2000)
+
+    def test_17_check_shutdown(self):
+        q1 = self.quaggas['q1']
+        q2 = self.quaggas['q2']
+        q3 = self.quaggas['q3']
+
+        q2.add_route('20.0.0.0/24')
+        q3.add_route('20.0.0.0/24')
+
+        self.test_01_neighbor_established()
+
+        self.test_02_check_gobgp_global_rib()
+
+        paths = q1.get_global_rib('20.0.0.0/24')
+        self.assertTrue(len(paths) == 1)
+        n_addrs = [i[1].split('/')[0] for i in self.gobgp.ip_addrs]
+        self.assertTrue(paths[0]['nexthop'] in n_addrs)
+
+        q3.stop()
+
+        time.sleep(3)
+
+        paths = q1.get_global_rib('20.0.0.0/24')
+        self.assertTrue(len(paths) == 1)
+        self.assertTrue(paths[0]['nexthop'] in n_addrs)
+
 
 if __name__ == '__main__':
     if os.geteuid() is not 0:

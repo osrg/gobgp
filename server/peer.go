@@ -165,6 +165,38 @@ func (peer *Peer) getBestFromLocal(rfList []bgp.RouteFamily) ([]*table.Path, []*
 	return pathList, filtered
 }
 
+func (peer *Peer) processOutgoingPaths(paths []*table.Path) []*table.Path {
+	if peer.fsm.state != bgp.BGP_FSM_ESTABLISHED {
+		return nil
+	}
+	if peer.fsm.pConf.GracefulRestart.State.LocalRestarting {
+		log.WithFields(log.Fields{
+			"Topic": "Peer",
+			"Key":   peer.conf.Config.NeighborAddress,
+		}).Debug("now syncing, suppress sending updates")
+		return nil
+	}
+
+	outgoing := make([]*table.Path, 0, len(paths))
+	options := &table.PolicyOptions{
+		Neighbor: peer.fsm.peerInfo.Address,
+	}
+	for _, path := range paths {
+		path = peer.policy.ApplyPolicy(peer.TableID(), table.POLICY_DIRECTION_EXPORT, filterpath(peer, path), options)
+		if path == nil {
+			continue
+		}
+		if !peer.isRouteServerClient() && !peer.gConf.Collector.Enabled {
+			path = path.Clone(path.IsWithdraw)
+			path.UpdatePathAttrs(&peer.gConf, &peer.conf)
+		}
+		outgoing = append(outgoing, path)
+	}
+
+	peer.adjRibOut.Update(outgoing)
+	return outgoing
+}
+
 func (peer *Peer) handleBGPmessage(e *FsmMsg) ([]*table.Path, []*bgp.BGPMessage, []bgp.RouteFamily) {
 	m := e.MsgData.(*bgp.BGPMessage)
 	log.WithFields(log.Fields{

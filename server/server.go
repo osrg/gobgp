@@ -531,7 +531,6 @@ func filterpath(peer *Peer, path *table.Path) *table.Path {
 func (server *BgpServer) dropPeerAllRoutes(peer *Peer, families []bgp.RouteFamily) []*SenderMsg {
 	msgs := make([]*SenderMsg, 0)
 
-	options := &table.PolicyOptions{}
 	ids := make([]string, 0, len(server.neighborMap))
 	if peer.isRouteServerClient() {
 		for _, targetPeer := range server.neighborMap {
@@ -547,55 +546,12 @@ func (server *BgpServer) dropPeerAllRoutes(peer *Peer, families []bgp.RouteFamil
 		best, withdrawn := server.globalRib.DeletePathsByPeer(ids, peer.fsm.peerInfo, rf)
 		server.validatePaths(nil, withdrawn, true)
 
-		if peer.isRouteServerClient() {
-			for _, targetPeer := range server.neighborMap {
-				if !targetPeer.isRouteServerClient() || targetPeer == peer || targetPeer.fsm.state != bgp.BGP_FSM_ESTABLISHED {
-					continue
-				}
-				if _, ok := targetPeer.fsm.rfMap[rf]; !ok {
-					continue
-				}
-				pathList := make([]*table.Path, 0, len(best[targetPeer.TableID()]))
-				options.Neighbor = targetPeer.fsm.peerInfo.Address
-				for _, bestPath := range best[targetPeer.TableID()] {
-					if path := server.policy.ApplyPolicy(targetPeer.TableID(), table.POLICY_DIRECTION_EXPORT, filterpath(targetPeer, bestPath), options); path != nil {
-						pathList = append(pathList, path)
-					}
-				}
-				msgList := table.CreateUpdateMsgFromPaths(pathList)
-				msgs = append(msgs, newSenderMsg(targetPeer, msgList))
-				targetPeer.adjRibOut.Update(pathList)
+		for _, targetPeer := range server.neighborMap {
+			if peer.isRouteServerClient() != targetPeer.isRouteServerClient() || targetPeer == peer {
+				continue
 			}
-		} else {
-			sendPathList := make([]*table.Path, 0, len(best[table.GLOBAL_RIB_NAME]))
-			for _, path := range best[table.GLOBAL_RIB_NAME] {
-				if path != nil {
-					sendPathList = append(sendPathList, path)
-				}
-			}
-			if len(sendPathList) == 0 {
-				return msgs
-			}
-
-			server.broadcastBests(sendPathList)
-
-			for _, targetPeer := range server.neighborMap {
-				if targetPeer.isRouteServerClient() || targetPeer.fsm.state != bgp.BGP_FSM_ESTABLISHED {
-					continue
-				}
-				if _, ok := targetPeer.fsm.rfMap[rf]; !ok {
-					continue
-				}
-				pathList := make([]*table.Path, 0, len(sendPathList))
-				options.Neighbor = targetPeer.fsm.peerInfo.Address
-				for _, path := range sendPathList {
-					if path := server.policy.ApplyPolicy(table.GLOBAL_RIB_NAME, table.POLICY_DIRECTION_EXPORT, filterpath(targetPeer, path), options); path != nil {
-						pathList = append(pathList, path)
-					}
-				}
-				targetPeer.adjRibOut.Update(pathList)
-				msgList := table.CreateUpdateMsgFromPaths(pathList)
-
+			if paths := targetPeer.processOutgoingPaths(best[targetPeer.TableID()]); len(paths) > 0 {
+				msgList := table.CreateUpdateMsgFromPaths(paths)
 				msgs = append(msgs, newSenderMsg(targetPeer, msgList))
 			}
 		}
@@ -632,6 +588,9 @@ func (server *BgpServer) broadcastValidationResults(results []*api.ROAResult) {
 
 func (server *BgpServer) broadcastBests(bests []*table.Path) {
 	for _, path := range bests {
+		if path == nil {
+			continue
+		}
 		if !path.IsFromExternal() {
 			z := newBroadcastZapiBestMsg(server.zclient, path)
 			if z != nil {
@@ -813,10 +772,10 @@ func (server *BgpServer) validatePaths(newly, withdrawn []*table.Path, peerDown 
 }
 
 func (server *BgpServer) propagateUpdate(peer *Peer, pathList []*table.Path) ([]*SenderMsg, []*table.Path) {
-	msgs := make([]*SenderMsg, 0)
 	rib := server.globalRib
-	var alteredPathList []*table.Path
-	options := &table.PolicyOptions{}
+	var alteredPathList, newly, withdrawn []*table.Path
+	var best map[string][]*table.Path
+
 	if peer != nil && peer.isRouteServerClient() {
 		for _, path := range pathList {
 			path.Filter(peer.ID(), table.POLICY_DIRECTION_IMPORT)
@@ -830,10 +789,7 @@ func (server *BgpServer) propagateUpdate(peer *Peer, pathList []*table.Path) ([]
 			moded = append(moded, server.RSimportPaths(targetPeer, pathList)...)
 		}
 		isTarget := func(p *Peer) bool {
-			if !p.isRouteServerClient() || p.fsm.state != bgp.BGP_FSM_ESTABLISHED || p.fsm.pConf.GracefulRestart.State.LocalRestarting {
-				return false
-			}
-			return true
+			return p.isRouteServerClient() && p.fsm.state == bgp.BGP_FSM_ESTABLISHED && !p.fsm.pConf.GracefulRestart.State.LocalRestarting
 		}
 
 		ids := make([]string, 0, len(server.neighborMap))
@@ -842,71 +798,30 @@ func (server *BgpServer) propagateUpdate(peer *Peer, pathList []*table.Path) ([]
 				ids = append(ids, targetPeer.TableID())
 			}
 		}
-		best, newly, withdrawn := rib.ProcessPaths(ids, append(pathList, moded...))
+		best, newly, withdrawn = rib.ProcessPaths(ids, append(pathList, moded...))
 		server.validatePaths(newly, withdrawn, false)
-
-		for _, targetPeer := range server.neighborMap {
-			if !isTarget(targetPeer) {
-				continue
-			}
-			sendPathList := make([]*table.Path, 0, len(best[targetPeer.TableID()]))
-			options.Neighbor = targetPeer.fsm.peerInfo.Address
-			for _, bestPath := range best[targetPeer.TableID()] {
-				path := server.policy.ApplyPolicy(targetPeer.TableID(), table.POLICY_DIRECTION_EXPORT, filterpath(targetPeer, bestPath), options)
-				if path != nil {
-					sendPathList = append(sendPathList, path)
-				}
-			}
-			msgList := table.CreateUpdateMsgFromPaths(sendPathList)
-			targetPeer.adjRibOut.Update(sendPathList)
-			msgs = append(msgs, newSenderMsg(targetPeer, msgList))
-		}
 	} else {
 		for idx, path := range pathList {
 			pathList[idx] = server.policy.ApplyPolicy(table.GLOBAL_RIB_NAME, table.POLICY_DIRECTION_IMPORT, path, nil)
 		}
 		alteredPathList = pathList
-		best, newly, withdrawn := rib.ProcessPaths([]string{table.GLOBAL_RIB_NAME}, pathList)
+		best, newly, withdrawn = rib.ProcessPaths([]string{table.GLOBAL_RIB_NAME}, pathList)
 		server.validatePaths(newly, withdrawn, false)
-		sendPathList := make([]*table.Path, 0, len(best[table.GLOBAL_RIB_NAME]))
-		if server.bgpConfig.Global.Collector.Enabled {
-			sendPathList = pathList
-		} else {
-			for _, path := range best[table.GLOBAL_RIB_NAME] {
-				if path != nil {
-					sendPathList = append(sendPathList, path)
-				}
-			}
-			if len(sendPathList) == 0 {
-				return msgs, alteredPathList
-			}
-			server.broadcastBests(sendPathList)
+		if len(best[table.GLOBAL_RIB_NAME]) == 0 {
+			return nil, alteredPathList
 		}
+		if !server.bgpConfig.Global.Collector.Enabled {
+			server.broadcastBests(best[table.GLOBAL_RIB_NAME])
+		}
+	}
 
-		for _, targetPeer := range server.neighborMap {
-			if targetPeer.isRouteServerClient() || targetPeer.fsm.state != bgp.BGP_FSM_ESTABLISHED || targetPeer.fsm.pConf.GracefulRestart.State.LocalRestarting {
-				if targetPeer.fsm.pConf.GracefulRestart.State.LocalRestarting {
-					log.WithFields(log.Fields{
-						"Topic": "Peer",
-						"Key":   targetPeer.conf.Config.NeighborAddress,
-					}).Debug("now syncing, suppress sending updates")
-				}
-				continue
-			}
-			pathList := make([]*table.Path, len(sendPathList))
-			copy(pathList, sendPathList)
-			options.Neighbor = targetPeer.fsm.peerInfo.Address
-			for idx, path := range pathList {
-				path = server.policy.ApplyPolicy(table.GLOBAL_RIB_NAME, table.POLICY_DIRECTION_EXPORT, filterpath(targetPeer, path), options)
-				if path != nil && !server.bgpConfig.Global.Collector.Enabled {
-					path = path.Clone(path.IsWithdraw)
-					path.UpdatePathAttrs(&server.bgpConfig.Global, &targetPeer.conf)
-				}
-				pathList[idx] = path
-			}
-			targetPeer.adjRibOut.Update(pathList)
-			msgList := table.CreateUpdateMsgFromPaths(pathList)
-
+	msgs := make([]*SenderMsg, 0)
+	for _, targetPeer := range server.neighborMap {
+		if (peer == nil && targetPeer.isRouteServerClient()) || (peer != nil && peer.isRouteServerClient() != targetPeer.isRouteServerClient()) {
+			continue
+		}
+		if paths := targetPeer.processOutgoingPaths(best[targetPeer.TableID()]); len(paths) > 0 {
+			msgList := table.CreateUpdateMsgFromPaths(paths)
 			msgs = append(msgs, newSenderMsg(targetPeer, msgList))
 		}
 	}
