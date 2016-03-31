@@ -50,7 +50,7 @@ func strToASParam(str string) *bgp.PathAttributeAsPath {
 		as = toList(str, " ")
 	}
 
-	return bgp.NewPathAttributeAsPath([]bgp.AsPathParamInterface{bgp.NewAs4PathParam(atype, as)})
+	return bgp.NewPathAttributeAsPath([]*bgp.AsPathParam{bgp.NewAsPathParam(atype, as)})
 }
 
 func validateOne(tree *radix.Tree, cidr, aspathStr string) config.RpkiValidationResultType {

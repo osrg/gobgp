@@ -44,22 +44,22 @@ func update() *BGPMessage {
 	w2 := NewIPAddrPrefix(17, "100.33.3.0")
 	w := []*IPAddrPrefix{w1, w2}
 
-	aspath1 := []AsPathParamInterface{
-		NewAsPathParam(2, []uint16{1000}),
-		NewAsPathParam(1, []uint16{1001, 1002}),
-		NewAsPathParam(2, []uint16{1003, 1004}),
+	aspath1 := []*AsPathParam{
+		NewAsPathParam(2, []uint32{1000}),
+		NewAsPathParam(1, []uint32{1001, 1002}),
+		NewAsPathParam(2, []uint32{1003, 1004}),
 	}
 
-	aspath2 := []AsPathParamInterface{
-		NewAs4PathParam(2, []uint32{1000000}),
-		NewAs4PathParam(1, []uint32{1000001, 1002}),
-		NewAs4PathParam(2, []uint32{1003, 100004}),
+	aspath2 := []*AsPathParam{
+		NewAsPathParam(2, []uint32{1000000}),
+		NewAsPathParam(1, []uint32{1000001, 1002}),
+		NewAsPathParam(2, []uint32{1003, 100004}),
 	}
 
-	aspath3 := []*As4PathParam{
-		NewAs4PathParam(2, []uint32{1000000}),
-		NewAs4PathParam(1, []uint32{1000001, 1002}),
-		NewAs4PathParam(2, []uint32{1003, 100004}),
+	aspath3 := []*AsPathParam{
+		NewAsPathParam(2, []uint32{1000000}),
+		NewAsPathParam(1, []uint32{1000001, 1002}),
+		NewAsPathParam(2, []uint32{1003, 100004}),
 	}
 
 	isTransitive := true
@@ -123,7 +123,7 @@ func update() *BGPMessage {
 		NewPathAttributeMultiExitDisc(1 << 20),
 		NewPathAttributeLocalPref(1 << 22),
 		NewPathAttributeAtomicAggregate(),
-		NewPathAttributeAggregator(uint16(30002), "129.0.2.99"),
+		NewPathAttributeAggregator(uint32(30002), "129.0.2.99"),
 		NewPathAttributeAggregator(uint32(30002), "129.0.2.99"),
 		NewPathAttributeAggregator(uint32(300020), "129.0.2.99"),
 		NewPathAttributeCommunities([]uint32{1, 3}),
@@ -343,7 +343,7 @@ func Test_ASLen(t *testing.T) {
 
 	aspath := AsPathParam{
 		Num: 2,
-		AS:  []uint16{65000, 65001},
+		AS:  []uint32{65000, 65001},
 	}
 	aspath.Type = BGP_ASPATH_ATTR_TYPE_SEQ
 	assert.Equal(2, aspath.ASLen())
@@ -357,7 +357,7 @@ func Test_ASLen(t *testing.T) {
 	aspath.Type = BGP_ASPATH_ATTR_TYPE_CONFED_SET
 	assert.Equal(0, aspath.ASLen())
 
-	as4path := As4PathParam{
+	as4path := AsPathParam{
 		Num: 2,
 		AS:  []uint32{65000, 65001},
 	}

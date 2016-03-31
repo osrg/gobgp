@@ -135,6 +135,7 @@ type FSM struct {
 	peerInfo             *table.PeerInfo
 	policy               *table.RoutingPolicy
 	gracefulRestartTimer *time.Timer
+	marshallingOptions   []bgp.MarshallingOption
 }
 
 func (fsm *FSM) bgpMessageStateUpdate(MessageType uint8, isIn bool) {
@@ -205,6 +206,7 @@ func NewFSM(gConf *config.Global, pConf *config.Neighbor, policy *table.RoutingP
 		peerInfo:             table.NewPeerInfo(gConf, pConf),
 		policy:               policy,
 		gracefulRestartTimer: time.NewTimer(time.Hour),
+		marshallingOptions:   make([]bgp.MarshallingOption, 0),
 	}
 	fsm.gracefulRestartTimer.Stop()
 	fsm.t.Go(fsm.connectLoop)
@@ -588,7 +590,7 @@ func (h *FSMHandler) recvMessageWithError() (*FsmMsg, error) {
 	}
 
 	now := time.Now()
-	m, err := bgp.ParseBGPBody(hd, bodyBuf)
+	m, err := bgp.ParseBGPBody(hd, bodyBuf, h.fsm.marshallingOptions...)
 	if err == nil {
 		h.fsm.bgpMessageStateUpdate(m.Header.Type, true)
 		err = bgp.ValidateBGPMessage(m)
@@ -772,6 +774,10 @@ func (h *FSMHandler) opensent() (bgp.FSMState, FsmStateReason) {
 					}
 					fsm.peerInfo.ID = body.ID
 					fsm.capMap, fsm.rfMap = open2Cap(body, fsm.pConf)
+
+					if _, y := fsm.capMap[bgp.BGP_CAP_FOUR_OCTET_AS_NUMBER]; !y {
+						fsm.marshallingOptions = append(fsm.marshallingOptions, bgp.AS2Option{})
+					}
 
 					// calculate HoldTime
 					// RFC 4271 P.13
@@ -992,6 +998,13 @@ func (h *FSMHandler) sendMessageloop() error {
 	fsm := h.fsm
 	ticker := keepaliveTicker(fsm)
 	send := func(m *bgp.BGPMessage) error {
+		if m.Header.Type == bgp.BGP_MSG_UPDATE && bgp.HasAS2Option(fsm.marshallingOptions) {
+			log.WithFields(log.Fields{
+				"Topic": "Peer",
+				"Key":   fsm.pConf.Config.NeighborAddress,
+			}).Debug("update for 2byte AS peer")
+			table.UpdatePathAttrs2ByteAs(m.Body.(*bgp.BGPUpdate))
+		}
 		b, err := m.Serialize()
 		if err != nil {
 			log.WithFields(log.Fields{
