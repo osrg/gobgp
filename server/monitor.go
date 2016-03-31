@@ -17,7 +17,7 @@ package server
 
 import (
 	api "github.com/osrg/gobgp/api"
-	"github.com/osrg/gobgp/packet"
+	"github.com/osrg/gobgp/packet/bgp"
 	"github.com/osrg/gobgp/table"
 	"gopkg.in/tomb.v2"
 )

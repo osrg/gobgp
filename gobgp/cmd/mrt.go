@@ -19,7 +19,7 @@ import (
 	"bytes"
 	"fmt"
 	api "github.com/osrg/gobgp/api"
-	"github.com/osrg/gobgp/packet"
+	"github.com/osrg/gobgp/packet/bgp"
 	"github.com/spf13/cobra"
 	"golang.org/x/net/context"
 	"io"

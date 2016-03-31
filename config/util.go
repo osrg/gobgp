@@ -17,7 +17,7 @@ package config
 
 import (
 	"fmt"
-	"github.com/osrg/gobgp/packet"
+	"github.com/osrg/gobgp/packet/bgp"
 )
 
 func IsConfederationMember(g *Global, p *Neighbor) bool {

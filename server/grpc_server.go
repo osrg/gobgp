@@ -19,7 +19,7 @@ import (
 	"fmt"
 	log "github.com/Sirupsen/logrus"
 	api "github.com/osrg/gobgp/api"
-	"github.com/osrg/gobgp/packet"
+	"github.com/osrg/gobgp/packet/bgp"
 	"golang.org/x/net/context"
 	"google.golang.org/grpc"
 	"io"

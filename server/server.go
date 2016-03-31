@@ -29,7 +29,7 @@ import (
 	"github.com/eapache/channels"
 	api "github.com/osrg/gobgp/api"
 	"github.com/osrg/gobgp/config"
-	"github.com/osrg/gobgp/packet"
+	"github.com/osrg/gobgp/packet/bgp"
 	"github.com/osrg/gobgp/table"
 	"github.com/osrg/gobgp/zebra"
 	"github.com/satori/go.uuid"

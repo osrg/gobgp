@@ -28,7 +28,7 @@ import (
 	"github.com/armon/go-radix"
 	api "github.com/osrg/gobgp/api"
 	"github.com/osrg/gobgp/config"
-	"github.com/osrg/gobgp/packet"
+	"github.com/osrg/gobgp/packet/bgp"
 )
 
 type PolicyOptions struct {

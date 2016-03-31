@@ -19,7 +19,7 @@ import (
 	"fmt"
 	log "github.com/Sirupsen/logrus"
 	"github.com/osrg/gobgp/config"
-	"github.com/osrg/gobgp/packet"
+	"github.com/osrg/gobgp/packet/bgp"
 	"github.com/stretchr/testify/assert"
 	"math"
 	"net"

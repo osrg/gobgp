@@ -14,7 +14,7 @@ import (
 	log "github.com/Sirupsen/logrus"
 	api "github.com/osrg/gobgp/api"
 	"github.com/osrg/gobgp/gobgp/cmd"
-	"github.com/osrg/gobgp/packet"
+	"github.com/osrg/gobgp/packet/bgp"
 	gobgp "github.com/osrg/gobgp/server"
 )
 

@@ -17,7 +17,7 @@ package table
 
 import (
 	log "github.com/Sirupsen/logrus"
-	"github.com/osrg/gobgp/packet"
+	"github.com/osrg/gobgp/packet/bgp"
 )
 
 type Table struct {
