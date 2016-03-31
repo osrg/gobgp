@@ -88,9 +88,8 @@ const (
 	EC_TYPE_NON_TRANSITIVE_OPAQUE                 ExtendedCommunityAttrType = 0x43
 	EC_TYPE_NON_TRANSITIVE_QOS_MARKING            ExtendedCommunityAttrType = 0x44
 	EC_TYPE_GENERIC_TRANSITIVE_EXPERIMENTAL       ExtendedCommunityAttrType = 0x80
-	//draft-ietf-idr-flowspec-redirect-rt-bis-05
-	EC_TYPE_GENERIC_TRANSITIVE_EXPERIMENTAL2 ExtendedCommunityAttrType = 0x81
-	EC_TYPE_GENERIC_TRANSITIVE_EXPERIMENTAL3 ExtendedCommunityAttrType = 0x82
+	EC_TYPE_GENERIC_TRANSITIVE_EXPERIMENTAL2      ExtendedCommunityAttrType = 0x81 // RFC7674
+	EC_TYPE_GENERIC_TRANSITIVE_EXPERIMENTAL3      ExtendedCommunityAttrType = 0x82 // RFC7674
 )
 
 // RFC7153 5.2. Registraction for the "Sub-Type" Field
@@ -5577,7 +5576,7 @@ func parseFlowSpecExtended(data []byte) (ExtendedCommunityInterface, error) {
 		sample := (data[7]>>1)&0x1 == 1
 		return NewTrafficActionExtended(terminal, sample), nil
 	case EC_SUBTYPE_FLOWSPEC_REDIRECT:
-		//draft-ietf-idr-flowspec-redirect-rt-bis-05
+		// RFC7674
 		switch typ {
 		case EC_TYPE_GENERIC_TRANSITIVE_EXPERIMENTAL:
 			as := binary.BigEndian.Uint16(data[2:4])

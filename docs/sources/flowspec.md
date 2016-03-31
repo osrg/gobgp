@@ -1,8 +1,8 @@
 # Flowspec (RFC5575)
 
 GoBGP supports [RFC5575](https://tools.ietf.org/html/rfc5575),
-[draft-ietf-idr-flowspec-redirect-rt-bis-05](http://tools.ietf.org/html/draft-ietf-idr-flowspec-redirect-rt-bis-05)
-, [draft-ietf-idr-flow-spec-v6-06](https://tools.ietf.org/html/draft-ietf-idr-flow-spec-v6-06)
+[RFC7674](https://tools.ietf.org/html/rfc7674), 
+[draft-ietf-idr-flow-spec-v6-06](https://tools.ietf.org/html/draft-ietf-idr-flow-spec-v6-06) 
 and [draft-ietf-idr-flowspec-l2vpn-03](https://tools.ietf.org/html/draft-ietf-idr-flowspec-l2vpn-03).
 
 ## Prerequisites
