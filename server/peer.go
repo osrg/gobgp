@@ -240,8 +240,8 @@ func (peer *Peer) handleUpdate(e *FsmMsg) ([]*table.Path, []bgp.RouteFamily, *bg
 		peer.adjRibIn.Update(e.PathList)
 		for _, family := range peer.fsm.pConf.AfiSafis {
 			k, _ := bgp.GetRouteFamily(string(family.AfiSafiName))
-			count := peer.adjRibIn.Count([]bgp.RouteFamily{k})
 			if maxPrefixes := int(family.PrefixLimit.Config.MaxPrefixes); maxPrefixes > 0 {
+				count := peer.adjRibIn.Count([]bgp.RouteFamily{k})
 				pct := int(family.PrefixLimit.Config.ShutdownThresholdPct)
 				if pct > 0 && !peer.prefixLimitWarned && count > (maxPrefixes*pct/100) {
 					peer.prefixLimitWarned = true
