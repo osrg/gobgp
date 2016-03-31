@@ -338,7 +338,7 @@ func (server *BgpServer) Serve() {
 		select {
 		case c := <-server.rpkiConfigCh:
 			server.roaManager, _ = NewROAManager(server.bgpConfig.Global.Config.As, c)
-		case rmsg := <-server.roaManager.RecieveROA():
+		case rmsg := <-server.roaManager.ReceiveROA():
 			server.roaManager.HandleROAEvent(rmsg)
 		case zmsg := <-server.zapiMsgCh:
 			m := handleZapiMsg(zmsg, server)

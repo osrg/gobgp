@@ -208,7 +208,7 @@ func (m *roaManager) operate(op api.Operation, address string) error {
 	return fmt.Errorf("roa server not found %s", address)
 }
 
-func (c *roaManager) RecieveROA() chan *roaClientEvent {
+func (c *roaManager) ReceiveROA() chan *roaClientEvent {
 	return c.eventCh
 }
 
