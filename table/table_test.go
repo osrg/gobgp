@@ -16,6 +16,7 @@
 package table
 
 import (
+	"github.com/osrg/gobgp/config"
 	"github.com/osrg/gobgp/packet/bgp"
 	"github.com/stretchr/testify/assert"
 	"testing"
@@ -25,10 +26,11 @@ import (
 func TestTableDeleteDestByNlri(t *testing.T) {
 	peerT := TableCreatePeer()
 	pathT := TableCreatePath(peerT)
-	ipv4t := NewTable(bgp.RF_IPv4_UC)
+	option := &config.RouteSelectionOptionsConfig{}
+	ipv4t := NewTable(bgp.RF_IPv4_UC, option)
 	for _, path := range pathT {
 		tableKey := ipv4t.tableKey(path.GetNlri())
-		dest := NewDestination(path.GetNlri())
+		dest := NewDestination(path.GetNlri(), option)
 		ipv4t.setDestination(tableKey, dest)
 	}
 	tableKey := ipv4t.tableKey(pathT[0].GetNlri())
@@ -40,14 +42,15 @@ func TestTableDeleteDestByNlri(t *testing.T) {
 func TestTableDeleteDest(t *testing.T) {
 	peerT := TableCreatePeer()
 	pathT := TableCreatePath(peerT)
-	ipv4t := NewTable(bgp.RF_IPv4_UC)
+	option := &config.RouteSelectionOptionsConfig{}
+	ipv4t := NewTable(bgp.RF_IPv4_UC, option)
 	for _, path := range pathT {
 		tableKey := ipv4t.tableKey(path.GetNlri())
-		dest := NewDestination(path.GetNlri())
+		dest := NewDestination(path.GetNlri(), option)
 		ipv4t.setDestination(tableKey, dest)
 	}
 	tableKey := ipv4t.tableKey(pathT[0].GetNlri())
-	dest := NewDestination(pathT[0].GetNlri())
+	dest := NewDestination(pathT[0].GetNlri(), option)
 	ipv4t.setDestination(tableKey, dest)
 	ipv4t.deleteDest(dest)
 	gdest := ipv4t.GetDestination(tableKey)
@@ -55,7 +58,8 @@ func TestTableDeleteDest(t *testing.T) {
 }
 
 func TestTableGetRouteFamily(t *testing.T) {
-	ipv4t := NewTable(bgp.RF_IPv4_UC)
+	option := &config.RouteSelectionOptionsConfig{}
+	ipv4t := NewTable(bgp.RF_IPv4_UC, option)
 	rf := ipv4t.GetRoutefamily()
 	assert.Equal(t, rf, bgp.RF_IPv4_UC)
 }
@@ -63,11 +67,12 @@ func TestTableGetRouteFamily(t *testing.T) {
 func TestTableSetDestinations(t *testing.T) {
 	peerT := TableCreatePeer()
 	pathT := TableCreatePath(peerT)
-	ipv4t := NewTable(bgp.RF_IPv4_UC)
+	option := &config.RouteSelectionOptionsConfig{}
+	ipv4t := NewTable(bgp.RF_IPv4_UC, option)
 	destinations := make(map[string]*Destination)
 	for _, path := range pathT {
 		tableKey := ipv4t.tableKey(path.GetNlri())
-		dest := NewDestination(path.GetNlri())
+		dest := NewDestination(path.GetNlri(), option)
 		destinations[tableKey] = dest
 	}
 	ipv4t.setDestinations(destinations)
@@ -77,11 +82,12 @@ func TestTableSetDestinations(t *testing.T) {
 func TestTableGetDestinations(t *testing.T) {
 	peerT := DestCreatePeer()
 	pathT := DestCreatePath(peerT)
-	ipv4t := NewTable(bgp.RF_IPv4_UC)
+	option := &config.RouteSelectionOptionsConfig{}
+	ipv4t := NewTable(bgp.RF_IPv4_UC, option)
 	destinations := make(map[string]*Destination)
 	for _, path := range pathT {
 		tableKey := ipv4t.tableKey(path.GetNlri())
-		dest := NewDestination(path.GetNlri())
+		dest := NewDestination(path.GetNlri(), option)
 		destinations[tableKey] = dest
 	}
 	ipv4t.setDestinations(destinations)

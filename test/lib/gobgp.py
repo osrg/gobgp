@@ -201,7 +201,13 @@ class GoBGPContainer(BGPContainer):
             self._create_config_zebra()
 
     def _create_config_bgp(self):
-        config = {'global': {'config': {'as': self.asn, 'router-id': self.router_id}}}
+        config = {'global': {'config': {'as': self.asn, 'router-id': self.router_id},
+            'route-selection-options':{
+                'config': {
+                    'external-compare-router-id': True,
+                },
+            },
+        }}
         for peer, info in self.peers.iteritems():
             afi_safi_list = []
             version = netaddr.IPNetwork(info['neigh_addr']).version
