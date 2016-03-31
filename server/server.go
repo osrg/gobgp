@@ -18,6 +18,12 @@ package server
 import (
 	"bytes"
 	"fmt"
+	"net"
+	"os"
+	"strconv"
+	"sync"
+	"time"
+
 	log "github.com/Sirupsen/logrus"
 	"github.com/armon/go-radix"
 	"github.com/eapache/channels"
@@ -27,11 +33,6 @@ import (
 	"github.com/osrg/gobgp/table"
 	"github.com/osrg/gobgp/zebra"
 	"github.com/satori/go.uuid"
-	"net"
-	"os"
-	"strconv"
-	"sync"
-	"time"
 )
 
 var policyMutex sync.RWMutex
@@ -175,7 +176,7 @@ func NewBgpServer() *BgpServer {
 	b.policyUpdateCh = make(chan config.RoutingPolicy)
 	b.neighborMap = make(map[string]*Peer)
 	b.watchers = Watchers(make(map[watcherType]watcher))
-	b.roaManager, _ = newROAManager(0, nil)
+	b.roaManager, _ = NewROAManager(0, nil)
 	b.policy = table.NewRoutingPolicy()
 	return &b
 }
@@ -206,7 +207,7 @@ func (server *BgpServer) Listeners(addr string) []*net.TCPListener {
 }
 
 func (server *BgpServer) Serve() {
-	server.roaManager, _ = newROAManager(0, nil)
+	server.roaManager, _ = NewROAManager(0, nil)
 
 	w, _ := newGrpcIncomingWatcher()
 	server.watchers[WATCHER_GRPC_INCOMING] = w
@@ -336,9 +337,9 @@ func (server *BgpServer) Serve() {
 
 		select {
 		case c := <-server.rpkiConfigCh:
-			server.roaManager, _ = newROAManager(server.bgpConfig.Global.Config.As, c)
-		case rmsg := <-server.roaManager.recieveROA():
-			server.roaManager.handleROAEvent(rmsg)
+			server.roaManager, _ = NewROAManager(server.bgpConfig.Global.Config.As, c)
+		case rmsg := <-server.roaManager.RecieveROA():
+			server.roaManager.HandleROAEvent(rmsg)
 		case zmsg := <-server.zapiMsgCh:
 			m := handleZapiMsg(zmsg, server)
 			if len(m) > 0 {
@@ -2925,7 +2926,7 @@ func (server *BgpServer) handleModRpki(grpcReq *GrpcRequest) {
 		r.Config.Address = arg.Address
 		r.Config.Port = arg.Port
 		server.bgpConfig.RpkiServers = append(server.bgpConfig.RpkiServers, r)
-		server.roaManager, _ = newROAManager(server.bgpConfig.Global.Config.As, server.bgpConfig.RpkiServers)
+		server.roaManager, _ = NewROAManager(server.bgpConfig.Global.Config.As, server.bgpConfig.RpkiServers)
 		grpcDone(grpcReq, nil)
 		return
 	case api.Operation_ENABLE, api.Operation_DISABLE, api.Operation_RESET, api.Operation_SOFTRESET:

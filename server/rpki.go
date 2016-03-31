@@ -133,20 +133,20 @@ type roaClientEvent struct {
 
 type roaManager struct {
 	AS        uint32
-	roas      map[bgp.RouteFamily]*radix.Tree
+	Roas      map[bgp.RouteFamily]*radix.Tree
 	config    []config.RpkiServer
 	eventCh   chan *roaClientEvent
 	clientMap map[string]*roaClient
 }
 
-func newROAManager(as uint32, servers []config.RpkiServer) (*roaManager, error) {
+func NewROAManager(as uint32, servers []config.RpkiServer) (*roaManager, error) {
 	m := &roaManager{
 		AS:     as,
-		roas:   make(map[bgp.RouteFamily]*radix.Tree),
+		Roas:   make(map[bgp.RouteFamily]*radix.Tree),
 		config: servers,
 	}
-	m.roas[bgp.RF_IPv4_UC] = radix.New()
-	m.roas[bgp.RF_IPv6_UC] = radix.New()
+	m.Roas[bgp.RF_IPv4_UC] = radix.New()
+	m.Roas[bgp.RF_IPv6_UC] = radix.New()
 	m.eventCh = make(chan *roaClientEvent)
 	m.clientMap = make(map[string]*roaClient)
 
@@ -165,7 +165,7 @@ func newROAManager(as uint32, servers []config.RpkiServer) (*roaManager, error) 
 }
 
 func (m *roaManager) deleteAllROA(network string) {
-	for _, tree := range m.roas {
+	for _, tree := range m.Roas {
 		deleteKeys := make([]string, 0, tree.Len())
 		tree.Walk(func(s string, v interface{}) bool {
 			b, _ := v.(*roaBucket)
@@ -208,7 +208,7 @@ func (m *roaManager) operate(op api.Operation, address string) error {
 	return fmt.Errorf("roa server not found %s", address)
 }
 
-func (c *roaManager) recieveROA() chan *roaClientEvent {
+func (c *roaManager) RecieveROA() chan *roaClientEvent {
 	return c.eventCh
 }
 
@@ -219,7 +219,7 @@ func (c *roaClient) lifetimeout() {
 	}
 }
 
-func (m *roaManager) handleROAEvent(ev *roaClientEvent) {
+func (m *roaManager) HandleROAEvent(ev *roaClientEvent) {
 	client, y := m.clientMap[ev.src]
 	if !y {
 		if ev.eventType == CONNECTED {
@@ -267,9 +267,9 @@ func (m *roaManager) handleROAEvent(ev *roaClientEvent) {
 }
 
 func (m *roaManager) roa2tree(roa *ROA) (*radix.Tree, string) {
-	tree := m.roas[bgp.RF_IPv4_UC]
+	tree := m.Roas[bgp.RF_IPv4_UC]
 	if roa.Family == bgp.AFI_IP6 {
-		tree = m.roas[bgp.RF_IPv6_UC]
+		tree = m.Roas[bgp.RF_IPv6_UC]
 	}
 	return tree, table.IpToRadixkey(roa.Prefix.Prefix, roa.Prefix.Length)
 }
@@ -413,8 +413,8 @@ func (c *roaManager) handleGRPC(grpcReq *GrpcRequest) {
 			return records, prefixes
 		}
 
-		recordsV4, prefixesV4 := f(c.roas[bgp.RF_IPv4_UC])
-		recordsV6, prefixesV6 := f(c.roas[bgp.RF_IPv6_UC])
+		recordsV4, prefixesV4 := f(c.Roas[bgp.RF_IPv4_UC])
+		recordsV6, prefixesV6 := f(c.Roas[bgp.RF_IPv6_UC])
 
 		for _, client := range c.clientMap {
 			state := client.state
@@ -482,7 +482,7 @@ func (c *roaManager) handleGRPC(grpcReq *GrpcRequest) {
 			rfList = []bgp.RouteFamily{bgp.RF_IPv4_UC, bgp.RF_IPv6_UC}
 		}
 		for _, rf := range rfList {
-			if tree, ok := c.roas[rf]; ok {
+			if tree, ok := c.Roas[rf]; ok {
 				tree.Walk(func(s string, v interface{}) bool {
 					b, _ := v.(*roaBucket)
 					var roaList roas
@@ -554,7 +554,7 @@ func (c *roaManager) validate(pathList []*table.Path, isMonitor bool) []*api.ROA
 		if path.IsWithdraw {
 			continue
 		}
-		if tree, ok := c.roas[path.GetRouteFamily()]; ok {
+		if tree, ok := c.Roas[path.GetRouteFamily()]; ok {
 			r, roaList := validatePath(c.AS, tree, path.GetNlri().String(), path.GetAsPath())
 			if isMonitor && path.Validation() != config.RpkiValidationResultType(r) {
 				apiRoaList := func() []*api.ROA {
