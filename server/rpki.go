@@ -21,7 +21,6 @@ import (
 	"io"
 	"net"
 	"sort"
-	"strconv"
 	"time"
 
 	log "github.com/Sirupsen/logrus"
@@ -134,34 +133,58 @@ type roaClientEvent struct {
 type roaManager struct {
 	AS        uint32
 	Roas      map[bgp.RouteFamily]*radix.Tree
-	config    []config.RpkiServer
 	eventCh   chan *roaClientEvent
 	clientMap map[string]*roaClient
 }
 
-func NewROAManager(as uint32, servers []config.RpkiServer) (*roaManager, error) {
+func NewROAManager(as uint32) (*roaManager, error) {
 	m := &roaManager{
-		AS:     as,
-		Roas:   make(map[bgp.RouteFamily]*radix.Tree),
-		config: servers,
+		AS:   as,
+		Roas: make(map[bgp.RouteFamily]*radix.Tree),
 	}
 	m.Roas[bgp.RF_IPv4_UC] = radix.New()
 	m.Roas[bgp.RF_IPv6_UC] = radix.New()
 	m.eventCh = make(chan *roaClientEvent)
 	m.clientMap = make(map[string]*roaClient)
-
-	for _, entry := range servers {
-		c := entry.Config
-		// should be set somewhere else
-		if c.RecordLifetime == 0 {
-			c.RecordLifetime = 3600
-		}
-		client := NewRoaClient(c.Address, strconv.Itoa(int(c.Port)), m.eventCh, c.RecordLifetime)
-		m.clientMap[client.host] = client
-		client.t.Go(client.tryConnect)
-	}
-
 	return m, nil
+}
+
+func (m *roaManager) SetAS(as uint32) error {
+	if m.AS != 0 {
+		return fmt.Errorf("AS was already configured")
+	}
+	m.AS = as
+	return nil
+}
+
+func (m *roaManager) AddServer(host string, lifetime int64) error {
+	if m.AS == 0 {
+		return fmt.Errorf("AS isn't configured yet")
+	}
+	address, port, err := net.SplitHostPort(host)
+	if err != nil {
+		return err
+	}
+	if lifetime == 0 {
+		lifetime = 3600
+	}
+	if _, ok := m.clientMap[host]; ok {
+		return fmt.Errorf("roa server exists %s", host)
+	}
+	client := NewRoaClient(address, port, m.eventCh, lifetime)
+	m.clientMap[host] = client
+	client.t.Go(client.tryConnect)
+	return nil
+}
+
+func (m *roaManager) DeleteServer(host string) error {
+	client, ok := m.clientMap[host]
+	if !ok {
+		return fmt.Errorf("roa server doesn't exists %s", host)
+	}
+	client.reset()
+	delete(m.clientMap, host)
+	return nil
 }
 
 func (m *roaManager) deleteAllROA(network string) {

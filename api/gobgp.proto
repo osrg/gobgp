@@ -129,8 +129,10 @@ message ModBmpArguments {
 
 message ModRpkiArguments {
     Operation operation = 1;
-    string address = 2;
-    uint32 port = 3;
+    uint32 asn = 2;
+    string address = 3;
+    uint32 port = 4;
+    int64 lifetime = 5;
 }
 
 message ModVrfArguments {
@@ -188,6 +190,7 @@ enum Operation {
     DISABLE = 5;
     RESET = 6;
     SOFTRESET = 7;
+    INITIALIZE = 8;
 }
 
 message Path {

@@ -148,7 +148,6 @@ type BgpServer struct {
 	updatedPeerCh chan config.Neighbor
 	fsmincomingCh *channels.InfiniteChannel
 	fsmStateCh    chan *FsmMsg
-	rpkiConfigCh  chan []config.RpkiServer
 	acceptCh      chan *net.TCPConn
 	zapiMsgCh     chan *zebra.Message
 
@@ -171,12 +170,11 @@ func NewBgpServer() *BgpServer {
 	b.addedPeerCh = make(chan config.Neighbor)
 	b.deletedPeerCh = make(chan config.Neighbor)
 	b.updatedPeerCh = make(chan config.Neighbor)
-	b.rpkiConfigCh = make(chan []config.RpkiServer)
 	b.GrpcReqCh = make(chan *GrpcRequest, 1)
 	b.policyUpdateCh = make(chan config.RoutingPolicy)
 	b.neighborMap = make(map[string]*Peer)
 	b.watchers = Watchers(make(map[watcherType]watcher))
-	b.roaManager, _ = NewROAManager(0, nil)
+	b.roaManager, _ = NewROAManager(0)
 	b.policy = table.NewRoutingPolicy()
 	return &b
 }
@@ -207,8 +205,6 @@ func (server *BgpServer) Listeners(addr string) []*net.TCPListener {
 }
 
 func (server *BgpServer) Serve() {
-	server.roaManager, _ = NewROAManager(0, nil)
-
 	w, _ := newGrpcIncomingWatcher()
 	server.watchers[WATCHER_GRPC_INCOMING] = w
 
@@ -336,8 +332,6 @@ func (server *BgpServer) Serve() {
 	CONT:
 
 		select {
-		case c := <-server.rpkiConfigCh:
-			server.roaManager, _ = NewROAManager(server.bgpConfig.Global.Config.As, c)
 		case rmsg := <-server.roaManager.ReceiveROA():
 			server.roaManager.HandleROAEvent(rmsg)
 		case zmsg := <-server.zapiMsgCh:
@@ -1060,8 +1054,37 @@ func (server *BgpServer) SetGlobalType(g config.Global) error {
 	return nil
 }
 
-func (server *BgpServer) SetRpkiConfig(c []config.RpkiServer) {
-	server.rpkiConfigCh <- c
+func (server *BgpServer) SetRpkiConfig(c []config.RpkiServer) error {
+	ch := make(chan *GrpcResponse)
+	server.GrpcReqCh <- &GrpcRequest{
+		RequestType: REQ_MOD_RPKI,
+		Data: &api.ModRpkiArguments{
+			Operation: api.Operation_INITIALIZE,
+			Asn:       server.bgpConfig.Global.Config.As,
+		},
+		ResponseCh: ch,
+	}
+	if err := (<-ch).Err(); err != nil {
+		return err
+	}
+
+	for _, s := range c {
+		ch := make(chan *GrpcResponse)
+		server.GrpcReqCh <- &GrpcRequest{
+			RequestType: REQ_MOD_RPKI,
+			Data: &api.ModRpkiArguments{
+				Operation: api.Operation_ADD,
+				Address:   s.Config.Address,
+				Port:      s.Config.Port,
+				Lifetime:  s.Config.RecordLifetime,
+			},
+			ResponseCh: ch,
+		}
+		if err := (<-ch).Err(); err != nil {
+			return err
+		}
+	}
+	return nil
 }
 
 func (server *BgpServer) SetBmpConfig(c []config.BmpServer) error {
@@ -2836,13 +2859,14 @@ func (server *BgpServer) handleModRpki(grpcReq *GrpcRequest) {
 	arg := grpcReq.Data.(*api.ModRpkiArguments)
 
 	switch arg.Operation {
+	case api.Operation_INITIALIZE:
+		grpcDone(grpcReq, server.roaManager.SetAS(arg.Asn))
+		return
 	case api.Operation_ADD:
-		r := config.RpkiServer{}
-		r.Config.Address = arg.Address
-		r.Config.Port = arg.Port
-		server.bgpConfig.RpkiServers = append(server.bgpConfig.RpkiServers, r)
-		server.roaManager, _ = NewROAManager(server.bgpConfig.Global.Config.As, server.bgpConfig.RpkiServers)
-		grpcDone(grpcReq, nil)
+		grpcDone(grpcReq, server.roaManager.AddServer(net.JoinHostPort(arg.Address, strconv.Itoa(int(arg.Port))), arg.Lifetime))
+		return
+	case api.Operation_DEL:
+		grpcDone(grpcReq, server.roaManager.DeleteServer(arg.Address))
 		return
 	case api.Operation_ENABLE, api.Operation_DISABLE, api.Operation_RESET, api.Operation_SOFTRESET:
 		grpcDone(grpcReq, server.roaManager.operate(arg.Operation, arg.Address))
