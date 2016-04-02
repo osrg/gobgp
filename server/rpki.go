@@ -116,24 +116,26 @@ func (r roas) Less(i, j int) bool {
 	return false
 }
 
+type ROAEventType uint8
+
 const (
-	CONNECTED uint8 = iota
+	CONNECTED ROAEventType = iota
 	DISCONNECTED
 	RTR
 	LIFETIMEOUT
 )
 
-type roaClientEvent struct {
-	eventType uint8
-	src       string
+type ROAEvent struct {
+	EventType ROAEventType
+	Src       string
+	Data      []byte
 	conn      *net.TCPConn
-	data      []byte
 }
 
 type roaManager struct {
 	AS        uint32
 	Roas      map[bgp.RouteFamily]*radix.Tree
-	eventCh   chan *roaClientEvent
+	eventCh   chan *ROAEvent
 	clientMap map[string]*roaClient
 }
 
@@ -144,7 +146,7 @@ func NewROAManager(as uint32) (*roaManager, error) {
 	}
 	m.Roas[bgp.RF_IPv4_UC] = radix.New()
 	m.Roas[bgp.RF_IPv6_UC] = radix.New()
-	m.eventCh = make(chan *roaClientEvent)
+	m.eventCh = make(chan *ROAEvent)
 	m.clientMap = make(map[string]*roaClient)
 	return m, nil
 }
@@ -231,29 +233,29 @@ func (m *roaManager) operate(op api.Operation, address string) error {
 	return fmt.Errorf("roa server not found %s", address)
 }
 
-func (c *roaManager) ReceiveROA() chan *roaClientEvent {
+func (c *roaManager) ReceiveROA() chan *ROAEvent {
 	return c.eventCh
 }
 
 func (c *roaClient) lifetimeout() {
-	c.eventCh <- &roaClientEvent{
-		eventType: LIFETIMEOUT,
-		src:       c.host,
+	c.eventCh <- &ROAEvent{
+		EventType: LIFETIMEOUT,
+		Src:       c.host,
 	}
 }
 
-func (m *roaManager) HandleROAEvent(ev *roaClientEvent) {
-	client, y := m.clientMap[ev.src]
+func (m *roaManager) HandleROAEvent(ev *ROAEvent) {
+	client, y := m.clientMap[ev.Src]
 	if !y {
-		if ev.eventType == CONNECTED {
+		if ev.EventType == CONNECTED {
 			ev.conn.Close()
 		}
-		log.Error("can't find %s roa server configuration", ev.src)
+		log.Error("can't find %s roa server configuration", ev.Src)
 		return
 	}
-	switch ev.eventType {
+	switch ev.EventType {
 	case DISCONNECTED:
-		log.Info("roa server is disconnected, ", ev.src)
+		log.Info("roa server is disconnected, ", ev.Src)
 		client.state.Downtime = time.Now().Unix()
 		// clear state
 		client.endOfData = false
@@ -265,13 +267,13 @@ func (m *roaManager) HandleROAEvent(ev *roaClientEvent) {
 		client.timer = time.AfterFunc(time.Duration(client.lifetime)*time.Second, client.lifetimeout)
 		client.oldSessionID = client.sessionID
 	case CONNECTED:
-		log.Info("roa server is connected, ", ev.src)
+		log.Info("roa server is connected, ", ev.Src)
 		client.conn = ev.conn
 		client.state.Uptime = time.Now().Unix()
 		client.t = tomb.Tomb{}
 		client.t.Go(client.established)
 	case RTR:
-		m.handleRTRMsg(client, &client.state, ev.data)
+		m.handleRTRMsg(client, &client.state, ev.Data)
 	case LIFETIMEOUT:
 		// a) already reconnected but hasn't received
 		// EndOfData -> needs to delete stale ROAs
@@ -612,7 +614,7 @@ type roaClient struct {
 	host         string
 	conn         *net.TCPConn
 	state        config.RpkiServerState
-	eventCh      chan *roaClientEvent
+	eventCh      chan *ROAEvent
 	sessionID    uint16
 	oldSessionID uint16
 	serialNumber uint32
@@ -622,7 +624,7 @@ type roaClient struct {
 	pendingROAs  []*ROA
 }
 
-func NewRoaClient(address, port string, ch chan *roaClientEvent, lifetime int64) *roaClient {
+func NewRoaClient(address, port string, ch chan *ROAEvent, lifetime int64) *roaClient {
 	return &roaClient{
 		host:        net.JoinHostPort(address, port),
 		eventCh:     ch,
@@ -672,9 +674,9 @@ func (c *roaClient) tryConnect() error {
 		if err != nil {
 			time.Sleep(30 * time.Second)
 		} else {
-			c.eventCh <- &roaClientEvent{
-				eventType: CONNECTED,
-				src:       c.host,
+			c.eventCh <- &ROAEvent{
+				EventType: CONNECTED,
+				Src:       c.host,
 				conn:      conn.(*net.TCPConn),
 			}
 			return nil
@@ -687,9 +689,9 @@ func (c *roaClient) established() error {
 	defer c.conn.Close()
 
 	disconnected := func() {
-		c.eventCh <- &roaClientEvent{
-			eventType: DISCONNECTED,
-			src:       c.host,
+		c.eventCh <- &ROAEvent{
+			EventType: DISCONNECTED,
+			Src:       c.host,
 		}
 	}
 
@@ -716,10 +718,10 @@ func (c *roaClient) established() error {
 			break
 		}
 
-		c.eventCh <- &roaClientEvent{
-			eventType: RTR,
-			src:       c.host,
-			data:      append(header, body...),
+		c.eventCh <- &ROAEvent{
+			EventType: RTR,
+			Src:       c.host,
+			Data:      append(header, body...),
 		}
 
 	}
