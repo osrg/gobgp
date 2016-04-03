@@ -6,3 +6,4 @@ pycrypto>=2.1
 fabric
 netaddr
 nsenter
+docker-py
