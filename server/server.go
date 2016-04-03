@@ -546,6 +546,10 @@ func (server *BgpServer) dropPeerAllRoutes(peer *Peer, families []bgp.RouteFamil
 		best, withdrawn := server.globalRib.DeletePathsByPeer(ids, peer.fsm.peerInfo, rf)
 		server.validatePaths(nil, withdrawn, true)
 
+		if !peer.isRouteServerClient() && !server.bgpConfig.Global.Collector.Enabled {
+			server.broadcastBests(best[table.GLOBAL_RIB_NAME])
+		}
+
 		for _, targetPeer := range server.neighborMap {
 			if peer.isRouteServerClient() != targetPeer.isRouteServerClient() || targetPeer == peer {
 				continue

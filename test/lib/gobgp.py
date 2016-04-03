@@ -17,6 +17,8 @@ from base import *
 import json
 import toml
 from itertools import chain
+from threading import Thread
+import socket
 
 def extract_path_attribute(path, typ):
     for a in path['attrs']:
@@ -52,7 +54,7 @@ class GoBGPContainer(BGPContainer):
         local(cmd, capture=True)
         cmd = "chmod 755 {0}/start.sh".format(self.config_dir)
         local(cmd, capture=True)
-        self.local("{0}/start.sh".format(self.SHARED_VOLUME), flag='-d')
+        self.local("{0}/start.sh".format(self.SHARED_VOLUME), detach=True)
 
     def graceful_restart(self):
         self.local("pkill -INT gobgpd")
@@ -61,7 +63,7 @@ class GoBGPContainer(BGPContainer):
         cmd = 'cp {0}/zebra.conf {1}/'.format(self.SHARED_VOLUME, self.QUAGGA_VOLUME)
         self.local(cmd)
         cmd = '/usr/lib/quagga/zebra -f {0}/zebra.conf'.format(self.QUAGGA_VOLUME)
-        self.local(cmd, flag='-d')
+        self.local(cmd, detach=True)
 
     def run(self):
         super(GoBGPContainer, self).run()
@@ -124,6 +126,29 @@ class GoBGPContainer(BGPContainer):
                 p["nexthop"] = self._get_nexthop(p)
                 p["aspath"] = self._get_as_path(p)
         return ret
+
+    def monitor_global_rib(self, queue, rf='ipv4'):
+        def monitor():
+            it = self.local('gobgp -j monitor global rib -a {0}'.format(rf), stream=True)
+            buf = ''
+            try:
+                for line in it:
+                    if line == '\n':
+                        p = json.loads(buf)[0]
+                        p["nexthop"] = self._get_nexthop(p)
+                        p["aspath"] = self._get_as_path(p)
+                        queue.put(p)
+                        buf = ''
+                    else:
+                        buf += line
+            except socket.timeout:
+                #self.local('pkill -x gobgp')
+                queue.put('timeout')
+                return
+
+        t = Thread(target=monitor)
+        t.daemon = True
+        t.start()
 
     def _get_adj_rib(self, adj_type, peer, prefix='', rf='ipv4'):
         if peer not in self.peers:

@@ -32,7 +32,7 @@ class ExaBGPContainer(BGPContainer):
         cmd << 'env exabgp.log.destination={0}/exabgpd.log'.format(self.SHARED_VOLUME)
         cmd << "exabgp.tcp.bind='0.0.0.0' exabgp.tcp.port=179"
         cmd << './exabgp/sbin/exabgp {0}/exabgpd.conf'.format(self.SHARED_VOLUME)
-        self.local(str(cmd), flag='-d')
+        self.local(str(cmd), detach=True)
 
     def _update_exabgp(self):
         if self.exabgp_path == '':

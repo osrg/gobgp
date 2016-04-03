@@ -21,7 +21,7 @@ sudo apt-get -q -y install iputils-arping bridge-utils lv
 sudo wget https://raw.github.com/jpetazzo/pipework/master/pipework -O /usr/local/bin/pipework
 sudo chmod 755 /usr/local/bin/pipework
 
-sudo -H pip --quiet install nose toml ciscoconfparse ecdsa "pycrypto>=2.1" fabric netaddr nsenter
+sudo -H pip --quiet install -r $GOBGP/test/pip-requires.txt
 
 ls -al
 git log | head -20
@@ -64,6 +64,9 @@ sudo  PYTHONPATH=$GOBGP/test python graceful_restart_test.py --gobgp-image $GOBG
 PIDS=("${PIDS[@]}" $!)
 
 sudo  PYTHONPATH=$GOBGP/test python bgp_zebra_test.py --gobgp-image $GOBGP_IMAGE --test-prefix zebra -x &
+PIDS=("${PIDS[@]}" $!)
+
+sudo  PYTHONPATH=$GOBGP/test python monitor_test.py --gobgp-image $GOBGP_IMAGE --test-prefix mon -x &
 PIDS=("${PIDS[@]}" $!)
 
 for (( i = 0; i < ${#PIDS[@]}; ++i ))
