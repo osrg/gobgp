@@ -2873,29 +2873,29 @@ func (server *BgpServer) handleModRpki(grpcReq *GrpcRequest) {
 
 func (server *BgpServer) handleMrt(grpcReq *GrpcRequest) {
 	now := uint32(time.Now().Unix())
+	arg := grpcReq.Data.(*api.MrtArguments)
 	view := ""
 	result := &GrpcResponse{}
-	var rib *table.TableManager
+	rib := server.globalRib
+	id := table.GLOBAL_RIB_NAME
+	selfGenerated := arg.SelfGenerated
 
-	switch grpcReq.RequestType {
-	case REQ_MRT_GLOBAL_RIB:
-		rib = server.globalRib
-	case REQ_MRT_LOCAL_RIB:
+	if grpcReq.RequestType == REQ_MRT_LOCAL_RIB {
 		peer, err := server.checkNeighborRequest(grpcReq)
 		if err != nil {
 			return
 		}
-		rib = peer.localRib
-		if rib == nil {
+		if !peer.isRouteServerClient() {
 			result.ResponseErr = fmt.Errorf("no local rib for %s", grpcReq.Name)
 			grpcReq.ResponseCh <- result
 			close(grpcReq.ResponseCh)
 			return
 		}
+		id = peer.TableID()
 		view = grpcReq.Name
 	}
 
-	msg, err := server.mkMrtPeerIndexTableMsg(now, view)
+	msg, err := server.mkMrtPeerIndexTableMsg(now, view, selfGenerated)
 	if err != nil {
 		result.ResponseErr = fmt.Errorf("failed to make new mrt peer index table message: %s", err)
 		grpcReq.ResponseCh <- result
@@ -2918,7 +2918,7 @@ func (server *BgpServer) handleMrt(grpcReq *GrpcRequest) {
 		return
 	}
 
-	msgs, err := server.mkMrtRibMsgs(tbl, now)
+	msgs, err := server.mkMrtRibMsgs(id, tbl, now, selfGenerated)
 	if err != nil {
 		result.ResponseErr = fmt.Errorf("failed to make new mrt rib message: %s", err)
 		grpcReq.ResponseCh <- result
@@ -2951,7 +2951,7 @@ func (server *BgpServer) handleMrt(grpcReq *GrpcRequest) {
 		result: result,
 	}
 
-	interval := int64(grpcReq.Data.(uint64))
+	interval := int64(arg.Interval)
 	if interval > 0 {
 		go func() {
 			t := time.NewTimer(time.Second * time.Duration(interval))
@@ -2966,22 +2966,26 @@ func (server *BgpServer) handleMrt(grpcReq *GrpcRequest) {
 	return
 }
 
-func (server *BgpServer) mkMrtPeerIndexTableMsg(t uint32, view string) (*bgp.MRTMessage, error) {
+func (server *BgpServer) mkMrtPeerIndexTableMsg(t uint32, view string, selfGenerated bool) (*bgp.MRTMessage, error) {
 	peers := make([]*bgp.Peer, 0, len(server.neighborMap))
-	for _, peer := range server.neighborMap {
-		id := peer.fsm.peerInfo.ID.To4().String()
-		ipaddr := peer.conf.Config.NeighborAddress
-		asn := peer.conf.Config.PeerAs
-		peers = append(peers, bgp.NewPeer(id, ipaddr, asn, true))
-	}
 	bgpid := server.bgpConfig.Global.Config.RouterId
+	if selfGenerated {
+		peers = append(peers, bgp.NewPeer(bgpid, "0.0.0.0", server.bgpConfig.Global.Config.As, true))
+	} else {
+		for _, peer := range server.neighborMap {
+			id := peer.fsm.peerInfo.ID.To4().String()
+			ipaddr := peer.conf.Config.NeighborAddress
+			asn := peer.conf.Config.PeerAs
+			peers = append(peers, bgp.NewPeer(id, ipaddr, asn, true))
+		}
+	}
 	table := bgp.NewPeerIndexTable(bgpid, view, peers)
 	return bgp.NewMRTMessage(t, bgp.TABLE_DUMPv2, bgp.PEER_INDEX_TABLE, table)
 }
 
-func (server *BgpServer) mkMrtRibMsgs(tbl *table.Table, t uint32) ([]*bgp.MRTMessage, error) {
-	getPeerIndex := func(info *table.PeerInfo) uint16 {
-		var idx uint16
+func (server *BgpServer) mkMrtRibMsgs(id string, tbl *table.Table, t uint32, selfGenerated bool) ([]*bgp.MRTMessage, error) {
+	getPeerIndex := func(info *table.PeerInfo) int {
+		var idx int
 		for _, peer := range server.neighborMap {
 			if peer.fsm.peerInfo.Equal(info) {
 				return idx
@@ -3009,15 +3013,18 @@ func (server *BgpServer) mkMrtRibMsgs(tbl *table.Table, t uint32) ([]*bgp.MRTMes
 	var seq uint32
 	msgs := make([]*bgp.MRTMessage, 0, len(tbl.GetDestinations()))
 	for _, dst := range tbl.GetDestinations() {
-		l := dst.GetKnownPathList(table.GLOBAL_RIB_NAME)
+		l := dst.GetKnownPathList(id)
 		entries := make([]*bgp.RibEntry, 0, len(l))
 		for _, p := range l {
-			// mrt doesn't assume to dump locally generated routes
-			if p.IsLocal() {
+			var idx int
+			if p.IsLocal() && selfGenerated {
+				idx = 0
+			} else if !p.IsLocal() && !selfGenerated {
+				idx = getPeerIndex(p.GetSource())
+			} else {
 				continue
 			}
-			idx := getPeerIndex(p.GetSource())
-			e := bgp.NewRibEntry(idx, uint32(p.GetTimestamp().Unix()), p.GetPathAttrs())
+			e := bgp.NewRibEntry(uint16(idx), uint32(p.GetTimestamp().Unix()), p.GetPathAttrs())
 			entries = append(entries, e)
 		}
 		// if dst only contains locally generated routes, ignore it

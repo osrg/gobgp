@@ -464,7 +464,7 @@ func (u *Rib) Serialize() ([]byte, error) {
 	switch rf {
 	case RF_IPv4_UC, RF_IPv4_MC, RF_IPv6_UC, RF_IPv6_MC:
 	default:
-		bbuf := make([]byte, 0, 2)
+		bbuf := make([]byte, 2)
 		binary.BigEndian.PutUint16(bbuf, u.Prefix.AFI())
 		buf = append(buf, bbuf...)
 		buf = append(buf, u.Prefix.SAFI())
