@@ -205,12 +205,14 @@ func main() {
 					log.Fatalf("failed to set global config: %s", err)
 				}
 				bgpConfig = &newConfig.Bgp
-				bgpServer.SetRpkiConfig(newConfig.Bgp.RpkiServers)
+				if err := bgpServer.SetRpkiConfig(newConfig.Bgp.RpkiServers); err != nil {
+					log.Fatalf("failed to set rpki config: %s", err)
+				}
 				if err := bgpServer.SetBmpConfig(newConfig.Bgp.BmpServers); err != nil {
-					log.Fatalf("failed to set global config: %s", err)
+					log.Fatalf("failed to set bmp config: %s", err)
 				}
 				if err := bgpServer.SetMrtConfig(newConfig.Bgp.MrtDump); err != nil {
-					log.Fatalf("failed to set global config: %s", err)
+					log.Fatalf("failed to set mrt config: %s", err)
 				}
 				added = newConfig.Bgp.Neighbors
 				if opts.GracefulRestart {
