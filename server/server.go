@@ -2225,6 +2225,23 @@ func (server *BgpServer) handleGrpc(grpcReq *GrpcRequest) []*SenderMsg {
 		if len(pathList) > 0 {
 			msgs, _ = server.propagateUpdate(nil, pathList)
 		}
+	case REQ_CONFIG:
+		arg := grpcReq.Data.(*api.Config)
+		ns := make([]config.Neighbor, 0, len(server.neighborMap))
+		c := &config.BgpConfigSet{}
+		c.Global = server.bgpConfig.Global
+		for _, n := range server.neighborMap {
+			ns = append(ns, *n.fsm.pConf)
+		}
+		c.Neighbors = ns
+		d, err := c.Marshal(arg.Format)
+		if err != nil {
+			goto ERROR
+		}
+		arg.Data = d
+		grpcReq.ResponseCh <- &GrpcResponse{
+			Data: arg,
+		}
 	default:
 		err = fmt.Errorf("Unknown request type: %v", grpcReq.RequestType)
 		goto ERROR

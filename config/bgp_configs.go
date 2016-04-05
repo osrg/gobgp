@@ -633,51 +633,6 @@ func (v DefaultPolicyType) Validate() error {
 	return nil
 }
 
-// typedef for typedef bgp-pol:bgp-next-hop-type
-type BgpNextHopType string
-
-// typedef for typedef bgp-pol:bgp-as-path-prepend-repeat
-type BgpAsPathPrependRepeat uint8
-
-// typedef for typedef bgp-pol:bgp-set-med-type
-type BgpSetMedType string
-
-// typedef for identity bgp-pol:bgp-set-community-option-type
-type BgpSetCommunityOptionType string
-
-const (
-	BGP_SET_COMMUNITY_OPTION_TYPE_ADD     BgpSetCommunityOptionType = "add"
-	BGP_SET_COMMUNITY_OPTION_TYPE_REMOVE  BgpSetCommunityOptionType = "remove"
-	BGP_SET_COMMUNITY_OPTION_TYPE_REPLACE BgpSetCommunityOptionType = "replace"
-)
-
-var BgpSetCommunityOptionTypeToIntMap = map[BgpSetCommunityOptionType]int{
-	BGP_SET_COMMUNITY_OPTION_TYPE_ADD:     0,
-	BGP_SET_COMMUNITY_OPTION_TYPE_REMOVE:  1,
-	BGP_SET_COMMUNITY_OPTION_TYPE_REPLACE: 2,
-}
-
-func (v BgpSetCommunityOptionType) ToInt() int {
-	i, ok := BgpSetCommunityOptionTypeToIntMap[v]
-	if !ok {
-		return -1
-	}
-	return i
-}
-
-var IntToBgpSetCommunityOptionTypeMap = map[int]BgpSetCommunityOptionType{
-	0: BGP_SET_COMMUNITY_OPTION_TYPE_ADD,
-	1: BGP_SET_COMMUNITY_OPTION_TYPE_REMOVE,
-	2: BGP_SET_COMMUNITY_OPTION_TYPE_REPLACE,
-}
-
-func (v BgpSetCommunityOptionType) Validate() error {
-	if _, ok := BgpSetCommunityOptionTypeToIntMap[v]; !ok {
-		return fmt.Errorf("invalid BgpSetCommunityOptionType: %s", v)
-	}
-	return nil
-}
-
 // typedef for identity bgp:session-state
 type SessionState string
 
@@ -755,6 +710,51 @@ var IntToModeMap = map[int]Mode{
 func (v Mode) Validate() error {
 	if _, ok := ModeToIntMap[v]; !ok {
 		return fmt.Errorf("invalid Mode: %s", v)
+	}
+	return nil
+}
+
+// typedef for typedef bgp-pol:bgp-next-hop-type
+type BgpNextHopType string
+
+// typedef for typedef bgp-pol:bgp-as-path-prepend-repeat
+type BgpAsPathPrependRepeat uint8
+
+// typedef for typedef bgp-pol:bgp-set-med-type
+type BgpSetMedType string
+
+// typedef for identity bgp-pol:bgp-set-community-option-type
+type BgpSetCommunityOptionType string
+
+const (
+	BGP_SET_COMMUNITY_OPTION_TYPE_ADD     BgpSetCommunityOptionType = "add"
+	BGP_SET_COMMUNITY_OPTION_TYPE_REMOVE  BgpSetCommunityOptionType = "remove"
+	BGP_SET_COMMUNITY_OPTION_TYPE_REPLACE BgpSetCommunityOptionType = "replace"
+)
+
+var BgpSetCommunityOptionTypeToIntMap = map[BgpSetCommunityOptionType]int{
+	BGP_SET_COMMUNITY_OPTION_TYPE_ADD:     0,
+	BGP_SET_COMMUNITY_OPTION_TYPE_REMOVE:  1,
+	BGP_SET_COMMUNITY_OPTION_TYPE_REPLACE: 2,
+}
+
+func (v BgpSetCommunityOptionType) ToInt() int {
+	i, ok := BgpSetCommunityOptionTypeToIntMap[v]
+	if !ok {
+		return -1
+	}
+	return i
+}
+
+var IntToBgpSetCommunityOptionTypeMap = map[int]BgpSetCommunityOptionType{
+	0: BGP_SET_COMMUNITY_OPTION_TYPE_ADD,
+	1: BGP_SET_COMMUNITY_OPTION_TYPE_REMOVE,
+	2: BGP_SET_COMMUNITY_OPTION_TYPE_REPLACE,
+}
+
+func (v BgpSetCommunityOptionType) Validate() error {
+	if _, ok := BgpSetCommunityOptionTypeToIntMap[v]; !ok {
+		return fmt.Errorf("invalid BgpSetCommunityOptionType: %s", v)
 	}
 	return nil
 }
@@ -870,11 +870,11 @@ func (v RpkiValidationResultType) Validate() error {
 //struct for container gobgp:mrt
 type Mrt struct {
 	// original -> gobgp:dump-type
-	DumpType MrtType `mapstructure:"dump-type"`
+	DumpType MrtType `mapstructure:"dump-type" json:"dump-type" yaml:"dump-type" toml:"dump-type"`
 	// original -> gobgp:file-name
-	FileName string `mapstructure:"file-name"`
+	FileName string `mapstructure:"file-name" json:"file-name" yaml:"file-name" toml:"file-name"`
 	// original -> gobgp:interval
-	Interval uint64 `mapstructure:"interval"`
+	Interval uint64 `mapstructure:"interval" json:"interval" yaml:"interval" toml:"interval"`
 }
 
 //struct for container gobgp:state
@@ -885,1396 +885,1396 @@ type BmpServerState struct {
 type BmpServerConfig struct {
 	// original -> gobgp:address
 	//gobgp:address's original type is inet:ip-address
-	Address string `mapstructure:"address"`
+	Address string `mapstructure:"address" json:"address" yaml:"address" toml:"address"`
 	// original -> gobgp:port
-	Port uint32 `mapstructure:"port"`
+	Port uint32 `mapstructure:"port" json:"port" yaml:"port" toml:"port"`
 	// original -> gobgp:route-monitoring-policy
-	RouteMonitoringPolicy BmpRouteMonitoringPolicyType `mapstructure:"route-monitoring-policy"`
+	RouteMonitoringPolicy BmpRouteMonitoringPolicyType `mapstructure:"route-monitoring-policy" json:"route-monitoring-policy" yaml:"route-monitoring-policy" toml:"route-monitoring-policy"`
 }
 
 //struct for container gobgp:bmp-server
 type BmpServer struct {
 	// original -> gobgp:address
 	//gobgp:address's original type is inet:ip-address
-	Address string `mapstructure:"address"`
+	Address string `mapstructure:"address" json:"address" yaml:"address" toml:"address"`
 	// original -> gobgp:bmp-server-config
-	Config BmpServerConfig `mapstructure:"config"`
+	Config BmpServerConfig `mapstructure:"config" json:"config" yaml:"config" toml:"config"`
 	// original -> gobgp:bmp-server-state
-	State BmpServerState `mapstructure:"state"`
+	State BmpServerState `mapstructure:"state" json:"state" yaml:"state" toml:"state"`
 }
 
 //struct for container gobgp:rpki-received
 type RpkiReceived struct {
 	// original -> gobgp:serial-notify
-	SerialNotify int64 `mapstructure:"serial-notify"`
+	SerialNotify int64 `mapstructure:"serial-notify" json:"serial-notify" yaml:"serial-notify" toml:"serial-notify"`
 	// original -> gobgp:cache-reset
-	CacheReset int64 `mapstructure:"cache-reset"`
+	CacheReset int64 `mapstructure:"cache-reset" json:"cache-reset" yaml:"cache-reset" toml:"cache-reset"`
 	// original -> gobgp:cache-response
-	CacheResponse int64 `mapstructure:"cache-response"`
+	CacheResponse int64 `mapstructure:"cache-response" json:"cache-response" yaml:"cache-response" toml:"cache-response"`
 	// original -> gobgp:ipv4-prefix
-	Ipv4Prefix int64 `mapstructure:"ipv4-prefix"`
+	Ipv4Prefix int64 `mapstructure:"ipv4-prefix" json:"ipv4-prefix" yaml:"ipv4-prefix" toml:"ipv4-prefix"`
 	// original -> gobgp:ipv6-prefix
-	Ipv6Prefix int64 `mapstructure:"ipv6-prefix"`
+	Ipv6Prefix int64 `mapstructure:"ipv6-prefix" json:"ipv6-prefix" yaml:"ipv6-prefix" toml:"ipv6-prefix"`
 	// original -> gobgp:end-of-data
-	EndOfData int64 `mapstructure:"end-of-data"`
+	EndOfData int64 `mapstructure:"end-of-data" json:"end-of-data" yaml:"end-of-data" toml:"end-of-data"`
 	// original -> gobgp:error
-	Error int64 `mapstructure:"error"`
+	Error int64 `mapstructure:"error" json:"error" yaml:"error" toml:"error"`
 }
 
 //struct for container gobgp:rpki-sent
 type RpkiSent struct {
 	// original -> gobgp:serial-query
-	SerialQuery int64 `mapstructure:"serial-query"`
+	SerialQuery int64 `mapstructure:"serial-query" json:"serial-query" yaml:"serial-query" toml:"serial-query"`
 	// original -> gobgp:reset-query
-	ResetQuery int64 `mapstructure:"reset-query"`
+	ResetQuery int64 `mapstructure:"reset-query" json:"reset-query" yaml:"reset-query" toml:"reset-query"`
 	// original -> gobgp:error
-	Error int64 `mapstructure:"error"`
+	Error int64 `mapstructure:"error" json:"error" yaml:"error" toml:"error"`
 }
 
 //struct for container gobgp:rpki-messages
 type RpkiMessages struct {
 	// original -> gobgp:rpki-sent
-	RpkiSent RpkiSent `mapstructure:"rpki-sent"`
+	RpkiSent RpkiSent `mapstructure:"rpki-sent" json:"rpki-sent" yaml:"rpki-sent" toml:"rpki-sent"`
 	// original -> gobgp:rpki-received
-	RpkiReceived RpkiReceived `mapstructure:"rpki-received"`
+	RpkiReceived RpkiReceived `mapstructure:"rpki-received" json:"rpki-received" yaml:"rpki-received" toml:"rpki-received"`
 }
 
 //struct for container gobgp:state
 type RpkiServerState struct {
 	// original -> gobgp:uptime
-	Uptime int64 `mapstructure:"uptime"`
+	Uptime int64 `mapstructure:"uptime" json:"uptime" yaml:"uptime" toml:"uptime"`
 	// original -> gobgp:downtime
-	Downtime int64 `mapstructure:"downtime"`
+	Downtime int64 `mapstructure:"downtime" json:"downtime" yaml:"downtime" toml:"downtime"`
 	// original -> gobgp:last-pdu-recv-time
-	LastPduRecvTime int64 `mapstructure:"last-pdu-recv-time"`
+	LastPduRecvTime int64 `mapstructure:"last-pdu-recv-time" json:"last-pdu-recv-time" yaml:"last-pdu-recv-time" toml:"last-pdu-recv-time"`
 	// original -> gobgp:rpki-messages
-	RpkiMessages RpkiMessages `mapstructure:"rpki-messages"`
+	RpkiMessages RpkiMessages `mapstructure:"rpki-messages" json:"rpki-messages" yaml:"rpki-messages" toml:"rpki-messages"`
 }
 
 //struct for container gobgp:config
 type RpkiServerConfig struct {
 	// original -> gobgp:address
 	//gobgp:address's original type is inet:ip-address
-	Address string `mapstructure:"address"`
+	Address string `mapstructure:"address" json:"address" yaml:"address" toml:"address"`
 	// original -> gobgp:port
-	Port uint32 `mapstructure:"port"`
+	Port uint32 `mapstructure:"port" json:"port" yaml:"port" toml:"port"`
 	// original -> gobgp:refresh-time
-	RefreshTime int64 `mapstructure:"refresh-time"`
+	RefreshTime int64 `mapstructure:"refresh-time" json:"refresh-time" yaml:"refresh-time" toml:"refresh-time"`
 	// original -> gobgp:hold-time
-	HoldTime int64 `mapstructure:"hold-time"`
+	HoldTime int64 `mapstructure:"hold-time" json:"hold-time" yaml:"hold-time" toml:"hold-time"`
 	// original -> gobgp:record-lifetime
-	RecordLifetime int64 `mapstructure:"record-lifetime"`
+	RecordLifetime int64 `mapstructure:"record-lifetime" json:"record-lifetime" yaml:"record-lifetime" toml:"record-lifetime"`
 	// original -> gobgp:preference
-	Preference uint8 `mapstructure:"preference"`
+	Preference uint8 `mapstructure:"preference" json:"preference" yaml:"preference" toml:"preference"`
 }
 
 //struct for container gobgp:rpki-server
 type RpkiServer struct {
 	// original -> gobgp:address
 	//gobgp:address's original type is inet:ip-address
-	Address string `mapstructure:"address"`
+	Address string `mapstructure:"address" json:"address" yaml:"address" toml:"address"`
 	// original -> gobgp:rpki-server-config
-	Config RpkiServerConfig `mapstructure:"config"`
+	Config RpkiServerConfig `mapstructure:"config" json:"config" yaml:"config" toml:"config"`
 	// original -> gobgp:rpki-server-state
-	State RpkiServerState `mapstructure:"state"`
+	State RpkiServerState `mapstructure:"state" json:"state" yaml:"state" toml:"state"`
 }
 
 //struct for container bgp:state
 type PeerGroupState struct {
 	// original -> bgp:peer-as
 	//bgp:peer-as's original type is inet:as-number
-	PeerAs uint32 `mapstructure:"peer-as"`
+	PeerAs uint32 `mapstructure:"peer-as" json:"peer-as" yaml:"peer-as" toml:"peer-as"`
 	// original -> bgp:local-as
 	//bgp:local-as's original type is inet:as-number
-	LocalAs uint32 `mapstructure:"local-as"`
+	LocalAs uint32 `mapstructure:"local-as" json:"local-as" yaml:"local-as" toml:"local-as"`
 	// original -> bgp:peer-type
-	PeerType PeerType `mapstructure:"peer-type"`
+	PeerType PeerType `mapstructure:"peer-type" json:"peer-type" yaml:"peer-type" toml:"peer-type"`
 	// original -> bgp:auth-password
-	AuthPassword string `mapstructure:"auth-password"`
+	AuthPassword string `mapstructure:"auth-password" json:"auth-password" yaml:"auth-password" toml:"auth-password"`
 	// original -> bgp:remove-private-as
-	RemovePrivateAs RemovePrivateAsOption `mapstructure:"remove-private-as"`
+	RemovePrivateAs RemovePrivateAsOption `mapstructure:"remove-private-as" json:"remove-private-as" yaml:"remove-private-as" toml:"remove-private-as"`
 	// original -> bgp:route-flap-damping
 	//bgp:route-flap-damping's original type is boolean
-	RouteFlapDamping bool `mapstructure:"route-flap-damping"`
+	RouteFlapDamping bool `mapstructure:"route-flap-damping" json:"route-flap-damping" yaml:"route-flap-damping" toml:"route-flap-damping"`
 	// original -> bgp:send-community
-	SendCommunity CommunityType `mapstructure:"send-community"`
+	SendCommunity CommunityType `mapstructure:"send-community" json:"send-community" yaml:"send-community" toml:"send-community"`
 	// original -> bgp:description
-	Description string `mapstructure:"description"`
+	Description string `mapstructure:"description" json:"description" yaml:"description" toml:"description"`
 	// original -> bgp:peer-group-name
-	PeerGroupName string `mapstructure:"peer-group-name"`
+	PeerGroupName string `mapstructure:"peer-group-name" json:"peer-group-name" yaml:"peer-group-name" toml:"peer-group-name"`
 	// original -> bgp-op:total-paths
-	TotalPaths uint32 `mapstructure:"total-paths"`
+	TotalPaths uint32 `mapstructure:"total-paths" json:"total-paths" yaml:"total-paths" toml:"total-paths"`
 	// original -> bgp-op:total-prefixes
-	TotalPrefixes uint32 `mapstructure:"total-prefixes"`
+	TotalPrefixes uint32 `mapstructure:"total-prefixes" json:"total-prefixes" yaml:"total-prefixes" toml:"total-prefixes"`
 }
 
 //struct for container bgp:config
 type PeerGroupConfig struct {
 	// original -> bgp:peer-as
 	//bgp:peer-as's original type is inet:as-number
-	PeerAs uint32 `mapstructure:"peer-as"`
+	PeerAs uint32 `mapstructure:"peer-as" json:"peer-as" yaml:"peer-as" toml:"peer-as"`
 	// original -> bgp:local-as
 	//bgp:local-as's original type is inet:as-number
-	LocalAs uint32 `mapstructure:"local-as"`
+	LocalAs uint32 `mapstructure:"local-as" json:"local-as" yaml:"local-as" toml:"local-as"`
 	// original -> bgp:peer-type
-	PeerType PeerType `mapstructure:"peer-type"`
+	PeerType PeerType `mapstructure:"peer-type" json:"peer-type" yaml:"peer-type" toml:"peer-type"`
 	// original -> bgp:auth-password
-	AuthPassword string `mapstructure:"auth-password"`
+	AuthPassword string `mapstructure:"auth-password" json:"auth-password" yaml:"auth-password" toml:"auth-password"`
 	// original -> bgp:remove-private-as
-	RemovePrivateAs RemovePrivateAsOption `mapstructure:"remove-private-as"`
+	RemovePrivateAs RemovePrivateAsOption `mapstructure:"remove-private-as" json:"remove-private-as" yaml:"remove-private-as" toml:"remove-private-as"`
 	// original -> bgp:route-flap-damping
 	//bgp:route-flap-damping's original type is boolean
-	RouteFlapDamping bool `mapstructure:"route-flap-damping"`
+	RouteFlapDamping bool `mapstructure:"route-flap-damping" json:"route-flap-damping" yaml:"route-flap-damping" toml:"route-flap-damping"`
 	// original -> bgp:send-community
-	SendCommunity CommunityType `mapstructure:"send-community"`
+	SendCommunity CommunityType `mapstructure:"send-community" json:"send-community" yaml:"send-community" toml:"send-community"`
 	// original -> bgp:description
-	Description string `mapstructure:"description"`
+	Description string `mapstructure:"description" json:"description" yaml:"description" toml:"description"`
 	// original -> bgp:peer-group-name
-	PeerGroupName string `mapstructure:"peer-group-name"`
+	PeerGroupName string `mapstructure:"peer-group-name" json:"peer-group-name" yaml:"peer-group-name" toml:"peer-group-name"`
 }
 
 //struct for container bgp:peer-group
 type PeerGroup struct {
 	// original -> bgp:peer-group-name
-	PeerGroupName string `mapstructure:"peer-group-name"`
+	PeerGroupName string `mapstructure:"peer-group-name" json:"peer-group-name" yaml:"peer-group-name" toml:"peer-group-name"`
 	// original -> bgp:peer-group-config
-	Config PeerGroupConfig `mapstructure:"config"`
+	Config PeerGroupConfig `mapstructure:"config" json:"config" yaml:"config" toml:"config"`
 	// original -> bgp:peer-group-state
-	State PeerGroupState `mapstructure:"state"`
+	State PeerGroupState `mapstructure:"state" json:"state" yaml:"state" toml:"state"`
 	// original -> bgp:timers
-	Timers Timers `mapstructure:"timers"`
+	Timers Timers `mapstructure:"timers" json:"timers" yaml:"timers" toml:"timers"`
 	// original -> bgp:transport
-	Transport Transport `mapstructure:"transport"`
+	Transport Transport `mapstructure:"transport" json:"transport" yaml:"transport" toml:"transport"`
 	// original -> bgp:error-handling
-	ErrorHandling ErrorHandling `mapstructure:"error-handling"`
+	ErrorHandling ErrorHandling `mapstructure:"error-handling" json:"error-handling" yaml:"error-handling" toml:"error-handling"`
 	// original -> bgp:logging-options
-	LoggingOptions LoggingOptions `mapstructure:"logging-options"`
+	LoggingOptions LoggingOptions `mapstructure:"logging-options" json:"logging-options" yaml:"logging-options" toml:"logging-options"`
 	// original -> bgp:ebgp-multihop
-	EbgpMultihop EbgpMultihop `mapstructure:"ebgp-multihop"`
+	EbgpMultihop EbgpMultihop `mapstructure:"ebgp-multihop" json:"ebgp-multihop" yaml:"ebgp-multihop" toml:"ebgp-multihop"`
 	// original -> bgp:route-reflector
-	RouteReflector RouteReflector `mapstructure:"route-reflector"`
+	RouteReflector RouteReflector `mapstructure:"route-reflector" json:"route-reflector" yaml:"route-reflector" toml:"route-reflector"`
 	// original -> bgp:as-path-options
-	AsPathOptions AsPathOptions `mapstructure:"as-path-options"`
+	AsPathOptions AsPathOptions `mapstructure:"as-path-options" json:"as-path-options" yaml:"as-path-options" toml:"as-path-options"`
 	// original -> bgp:add-paths
-	AddPaths AddPaths `mapstructure:"add-paths"`
+	AddPaths AddPaths `mapstructure:"add-paths" json:"add-paths" yaml:"add-paths" toml:"add-paths"`
 	// original -> bgp:afi-safis
-	AfiSafis []AfiSafi `mapstructure:"afi-safis"`
+	AfiSafis []AfiSafi `mapstructure:"afi-safis" json:"afi-safis" yaml:"afi-safis" toml:"afi-safis"`
 	// original -> bgp:graceful-restart
-	GracefulRestart GracefulRestart `mapstructure:"graceful-restart"`
+	GracefulRestart GracefulRestart `mapstructure:"graceful-restart" json:"graceful-restart" yaml:"graceful-restart" toml:"graceful-restart"`
 	// original -> rpol:apply-policy
-	ApplyPolicy ApplyPolicy `mapstructure:"apply-policy"`
+	ApplyPolicy ApplyPolicy `mapstructure:"apply-policy" json:"apply-policy" yaml:"apply-policy" toml:"apply-policy"`
 	// original -> bgp-mp:use-multiple-paths
-	UseMultiplePaths UseMultiplePaths `mapstructure:"use-multiple-paths"`
+	UseMultiplePaths UseMultiplePaths `mapstructure:"use-multiple-paths" json:"use-multiple-paths" yaml:"use-multiple-paths" toml:"use-multiple-paths"`
 	// original -> gobgp:route-server
-	RouteServer RouteServer `mapstructure:"route-server"`
+	RouteServer RouteServer `mapstructure:"route-server" json:"route-server" yaml:"route-server" toml:"route-server"`
 }
 
 //struct for container gobgp:state
 type RouteServerState struct {
 	// original -> gobgp:route-server-client
 	//gobgp:route-server-client's original type is boolean
-	RouteServerClient bool `mapstructure:"route-server-client"`
+	RouteServerClient bool `mapstructure:"route-server-client" json:"route-server-client" yaml:"route-server-client" toml:"route-server-client"`
 }
 
 //struct for container gobgp:config
 type RouteServerConfig struct {
 	// original -> gobgp:route-server-client
 	//gobgp:route-server-client's original type is boolean
-	RouteServerClient bool `mapstructure:"route-server-client"`
+	RouteServerClient bool `mapstructure:"route-server-client" json:"route-server-client" yaml:"route-server-client" toml:"route-server-client"`
 }
 
 //struct for container gobgp:route-server
 type RouteServer struct {
 	// original -> gobgp:route-server-config
-	Config RouteServerConfig `mapstructure:"config"`
+	Config RouteServerConfig `mapstructure:"config" json:"config" yaml:"config" toml:"config"`
 	// original -> gobgp:route-server-state
-	State RouteServerState `mapstructure:"state"`
+	State RouteServerState `mapstructure:"state" json:"state" yaml:"state" toml:"state"`
 }
 
 //struct for container bgp-op:prefixes
 type Prefixes struct {
 	// original -> bgp-op:received
-	Received uint32 `mapstructure:"received"`
+	Received uint32 `mapstructure:"received" json:"received" yaml:"received" toml:"received"`
 	// original -> bgp-op:sent
-	Sent uint32 `mapstructure:"sent"`
+	Sent uint32 `mapstructure:"sent" json:"sent" yaml:"sent" toml:"sent"`
 	// original -> bgp-op:installed
-	Installed uint32 `mapstructure:"installed"`
+	Installed uint32 `mapstructure:"installed" json:"installed" yaml:"installed" toml:"installed"`
 }
 
 //struct for container bgp:state
 type AddPathsState struct {
 	// original -> bgp:receive
 	//bgp:receive's original type is boolean
-	Receive bool `mapstructure:"receive"`
+	Receive bool `mapstructure:"receive" json:"receive" yaml:"receive" toml:"receive"`
 	// original -> bgp:send-max
-	SendMax uint8 `mapstructure:"send-max"`
+	SendMax uint8 `mapstructure:"send-max" json:"send-max" yaml:"send-max" toml:"send-max"`
 }
 
 //struct for container bgp:config
 type AddPathsConfig struct {
 	// original -> bgp:receive
 	//bgp:receive's original type is boolean
-	Receive bool `mapstructure:"receive"`
+	Receive bool `mapstructure:"receive" json:"receive" yaml:"receive" toml:"receive"`
 	// original -> bgp:send-max
-	SendMax uint8 `mapstructure:"send-max"`
+	SendMax uint8 `mapstructure:"send-max" json:"send-max" yaml:"send-max" toml:"send-max"`
 }
 
 //struct for container bgp:add-paths
 type AddPaths struct {
 	// original -> bgp:add-paths-config
-	Config AddPathsConfig `mapstructure:"config"`
+	Config AddPathsConfig `mapstructure:"config" json:"config" yaml:"config" toml:"config"`
 	// original -> bgp:add-paths-state
-	State AddPathsState `mapstructure:"state"`
+	State AddPathsState `mapstructure:"state" json:"state" yaml:"state" toml:"state"`
 }
 
 //struct for container bgp:state
 type AsPathOptionsState struct {
 	// original -> bgp:allow-own-as
-	AllowOwnAs uint8 `mapstructure:"allow-own-as"`
+	AllowOwnAs uint8 `mapstructure:"allow-own-as" json:"allow-own-as" yaml:"allow-own-as" toml:"allow-own-as"`
 	// original -> bgp:replace-peer-as
 	//bgp:replace-peer-as's original type is boolean
-	ReplacePeerAs bool `mapstructure:"replace-peer-as"`
+	ReplacePeerAs bool `mapstructure:"replace-peer-as" json:"replace-peer-as" yaml:"replace-peer-as" toml:"replace-peer-as"`
 }
 
 //struct for container bgp:config
 type AsPathOptionsConfig struct {
 	// original -> bgp:allow-own-as
-	AllowOwnAs uint8 `mapstructure:"allow-own-as"`
+	AllowOwnAs uint8 `mapstructure:"allow-own-as" json:"allow-own-as" yaml:"allow-own-as" toml:"allow-own-as"`
 	// original -> bgp:replace-peer-as
 	//bgp:replace-peer-as's original type is boolean
-	ReplacePeerAs bool `mapstructure:"replace-peer-as"`
+	ReplacePeerAs bool `mapstructure:"replace-peer-as" json:"replace-peer-as" yaml:"replace-peer-as" toml:"replace-peer-as"`
 }
 
 //struct for container bgp:as-path-options
 type AsPathOptions struct {
 	// original -> bgp:as-path-options-config
-	Config AsPathOptionsConfig `mapstructure:"config"`
+	Config AsPathOptionsConfig `mapstructure:"config" json:"config" yaml:"config" toml:"config"`
 	// original -> bgp:as-path-options-state
-	State AsPathOptionsState `mapstructure:"state"`
+	State AsPathOptionsState `mapstructure:"state" json:"state" yaml:"state" toml:"state"`
 }
 
 //struct for container bgp:state
 type RouteReflectorState struct {
 	// original -> bgp:route-reflector-cluster-id
-	RouteReflectorClusterId RrClusterIdType `mapstructure:"route-reflector-cluster-id"`
+	RouteReflectorClusterId RrClusterIdType `mapstructure:"route-reflector-cluster-id" json:"route-reflector-cluster-id" yaml:"route-reflector-cluster-id" toml:"route-reflector-cluster-id"`
 	// original -> bgp:route-reflector-client
 	//bgp:route-reflector-client's original type is boolean
-	RouteReflectorClient bool `mapstructure:"route-reflector-client"`
+	RouteReflectorClient bool `mapstructure:"route-reflector-client" json:"route-reflector-client" yaml:"route-reflector-client" toml:"route-reflector-client"`
 }
 
 //struct for container bgp:config
 type RouteReflectorConfig struct {
 	// original -> bgp:route-reflector-cluster-id
-	RouteReflectorClusterId RrClusterIdType `mapstructure:"route-reflector-cluster-id"`
+	RouteReflectorClusterId RrClusterIdType `mapstructure:"route-reflector-cluster-id" json:"route-reflector-cluster-id" yaml:"route-reflector-cluster-id" toml:"route-reflector-cluster-id"`
 	// original -> bgp:route-reflector-client
 	//bgp:route-reflector-client's original type is boolean
-	RouteReflectorClient bool `mapstructure:"route-reflector-client"`
+	RouteReflectorClient bool `mapstructure:"route-reflector-client" json:"route-reflector-client" yaml:"route-reflector-client" toml:"route-reflector-client"`
 }
 
 //struct for container bgp:route-reflector
 type RouteReflector struct {
 	// original -> bgp:route-reflector-config
-	Config RouteReflectorConfig `mapstructure:"config"`
+	Config RouteReflectorConfig `mapstructure:"config" json:"config" yaml:"config" toml:"config"`
 	// original -> bgp:route-reflector-state
-	State RouteReflectorState `mapstructure:"state"`
+	State RouteReflectorState `mapstructure:"state" json:"state" yaml:"state" toml:"state"`
 }
 
 //struct for container bgp:state
 type EbgpMultihopState struct {
 	// original -> bgp:enabled
 	//bgp:enabled's original type is boolean
-	Enabled bool `mapstructure:"enabled"`
+	Enabled bool `mapstructure:"enabled" json:"enabled" yaml:"enabled" toml:"enabled"`
 	// original -> bgp:multihop-ttl
-	MultihopTtl uint8 `mapstructure:"multihop-ttl"`
+	MultihopTtl uint8 `mapstructure:"multihop-ttl" json:"multihop-ttl" yaml:"multihop-ttl" toml:"multihop-ttl"`
 }
 
 //struct for container bgp:config
 type EbgpMultihopConfig struct {
 	// original -> bgp:enabled
 	//bgp:enabled's original type is boolean
-	Enabled bool `mapstructure:"enabled"`
+	Enabled bool `mapstructure:"enabled" json:"enabled" yaml:"enabled" toml:"enabled"`
 	// original -> bgp:multihop-ttl
-	MultihopTtl uint8 `mapstructure:"multihop-ttl"`
+	MultihopTtl uint8 `mapstructure:"multihop-ttl" json:"multihop-ttl" yaml:"multihop-ttl" toml:"multihop-ttl"`
 }
 
 //struct for container bgp:ebgp-multihop
 type EbgpMultihop struct {
 	// original -> bgp:ebgp-multihop-config
-	Config EbgpMultihopConfig `mapstructure:"config"`
+	Config EbgpMultihopConfig `mapstructure:"config" json:"config" yaml:"config" toml:"config"`
 	// original -> bgp:ebgp-multihop-state
-	State EbgpMultihopState `mapstructure:"state"`
+	State EbgpMultihopState `mapstructure:"state" json:"state" yaml:"state" toml:"state"`
 }
 
 //struct for container bgp:state
 type LoggingOptionsState struct {
 	// original -> bgp:log-neighbor-state-changes
 	//bgp:log-neighbor-state-changes's original type is boolean
-	LogNeighborStateChanges bool `mapstructure:"log-neighbor-state-changes"`
+	LogNeighborStateChanges bool `mapstructure:"log-neighbor-state-changes" json:"log-neighbor-state-changes" yaml:"log-neighbor-state-changes" toml:"log-neighbor-state-changes"`
 }
 
 //struct for container bgp:config
 type LoggingOptionsConfig struct {
 	// original -> bgp:log-neighbor-state-changes
 	//bgp:log-neighbor-state-changes's original type is boolean
-	LogNeighborStateChanges bool `mapstructure:"log-neighbor-state-changes"`
+	LogNeighborStateChanges bool `mapstructure:"log-neighbor-state-changes" json:"log-neighbor-state-changes" yaml:"log-neighbor-state-changes" toml:"log-neighbor-state-changes"`
 }
 
 //struct for container bgp:logging-options
 type LoggingOptions struct {
 	// original -> bgp:logging-options-config
-	Config LoggingOptionsConfig `mapstructure:"config"`
+	Config LoggingOptionsConfig `mapstructure:"config" json:"config" yaml:"config" toml:"config"`
 	// original -> bgp:logging-options-state
-	State LoggingOptionsState `mapstructure:"state"`
+	State LoggingOptionsState `mapstructure:"state" json:"state" yaml:"state" toml:"state"`
 }
 
 //struct for container bgp:state
 type ErrorHandlingState struct {
 	// original -> bgp:treat-as-withdraw
 	//bgp:treat-as-withdraw's original type is boolean
-	TreatAsWithdraw bool `mapstructure:"treat-as-withdraw"`
+	TreatAsWithdraw bool `mapstructure:"treat-as-withdraw" json:"treat-as-withdraw" yaml:"treat-as-withdraw" toml:"treat-as-withdraw"`
 	// original -> bgp-op:erroneous-update-messages
-	ErroneousUpdateMessages uint32 `mapstructure:"erroneous-update-messages"`
+	ErroneousUpdateMessages uint32 `mapstructure:"erroneous-update-messages" json:"erroneous-update-messages" yaml:"erroneous-update-messages" toml:"erroneous-update-messages"`
 }
 
 //struct for container bgp:config
 type ErrorHandlingConfig struct {
 	// original -> bgp:treat-as-withdraw
 	//bgp:treat-as-withdraw's original type is boolean
-	TreatAsWithdraw bool `mapstructure:"treat-as-withdraw"`
+	TreatAsWithdraw bool `mapstructure:"treat-as-withdraw" json:"treat-as-withdraw" yaml:"treat-as-withdraw" toml:"treat-as-withdraw"`
 }
 
 //struct for container bgp:error-handling
 type ErrorHandling struct {
 	// original -> bgp:error-handling-config
-	Config ErrorHandlingConfig `mapstructure:"config"`
+	Config ErrorHandlingConfig `mapstructure:"config" json:"config" yaml:"config" toml:"config"`
 	// original -> bgp:error-handling-state
-	State ErrorHandlingState `mapstructure:"state"`
+	State ErrorHandlingState `mapstructure:"state" json:"state" yaml:"state" toml:"state"`
 }
 
 //struct for container bgp:state
 type TransportState struct {
 	// original -> bgp:tcp-mss
-	TcpMss uint16 `mapstructure:"tcp-mss"`
+	TcpMss uint16 `mapstructure:"tcp-mss" json:"tcp-mss" yaml:"tcp-mss" toml:"tcp-mss"`
 	// original -> bgp:mtu-discovery
 	//bgp:mtu-discovery's original type is boolean
-	MtuDiscovery bool `mapstructure:"mtu-discovery"`
+	MtuDiscovery bool `mapstructure:"mtu-discovery" json:"mtu-discovery" yaml:"mtu-discovery" toml:"mtu-discovery"`
 	// original -> bgp:passive-mode
 	//bgp:passive-mode's original type is boolean
-	PassiveMode bool `mapstructure:"passive-mode"`
+	PassiveMode bool `mapstructure:"passive-mode" json:"passive-mode" yaml:"passive-mode" toml:"passive-mode"`
 	// original -> bgp:local-address
 	//bgp:local-address's original type is union
-	LocalAddress string `mapstructure:"local-address"`
+	LocalAddress string `mapstructure:"local-address" json:"local-address" yaml:"local-address" toml:"local-address"`
 	// original -> bgp-op:local-port
 	//bgp-op:local-port's original type is inet:port-number
-	LocalPort uint16 `mapstructure:"local-port"`
+	LocalPort uint16 `mapstructure:"local-port" json:"local-port" yaml:"local-port" toml:"local-port"`
 	// original -> bgp-op:remote-address
 	//bgp-op:remote-address's original type is inet:ip-address
-	RemoteAddress string `mapstructure:"remote-address"`
+	RemoteAddress string `mapstructure:"remote-address" json:"remote-address" yaml:"remote-address" toml:"remote-address"`
 	// original -> bgp-op:remote-port
 	//bgp-op:remote-port's original type is inet:port-number
-	RemotePort uint16 `mapstructure:"remote-port"`
+	RemotePort uint16 `mapstructure:"remote-port" json:"remote-port" yaml:"remote-port" toml:"remote-port"`
 }
 
 //struct for container bgp:config
 type TransportConfig struct {
 	// original -> bgp:tcp-mss
-	TcpMss uint16 `mapstructure:"tcp-mss"`
+	TcpMss uint16 `mapstructure:"tcp-mss" json:"tcp-mss" yaml:"tcp-mss" toml:"tcp-mss"`
 	// original -> bgp:mtu-discovery
 	//bgp:mtu-discovery's original type is boolean
-	MtuDiscovery bool `mapstructure:"mtu-discovery"`
+	MtuDiscovery bool `mapstructure:"mtu-discovery" json:"mtu-discovery" yaml:"mtu-discovery" toml:"mtu-discovery"`
 	// original -> bgp:passive-mode
 	//bgp:passive-mode's original type is boolean
-	PassiveMode bool `mapstructure:"passive-mode"`
+	PassiveMode bool `mapstructure:"passive-mode" json:"passive-mode" yaml:"passive-mode" toml:"passive-mode"`
 	// original -> bgp:local-address
 	//bgp:local-address's original type is union
-	LocalAddress string `mapstructure:"local-address"`
+	LocalAddress string `mapstructure:"local-address" json:"local-address" yaml:"local-address" toml:"local-address"`
 }
 
 //struct for container bgp:transport
 type Transport struct {
 	// original -> bgp:transport-config
-	Config TransportConfig `mapstructure:"config"`
+	Config TransportConfig `mapstructure:"config" json:"config" yaml:"config" toml:"config"`
 	// original -> bgp:transport-state
-	State TransportState `mapstructure:"state"`
+	State TransportState `mapstructure:"state" json:"state" yaml:"state" toml:"state"`
 }
 
 //struct for container bgp:state
 type TimersState struct {
 	// original -> bgp:connect-retry
 	//bgp:connect-retry's original type is decimal64
-	ConnectRetry float64 `mapstructure:"connect-retry"`
+	ConnectRetry float64 `mapstructure:"connect-retry" json:"connect-retry" yaml:"connect-retry" toml:"connect-retry"`
 	// original -> bgp:hold-time
 	//bgp:hold-time's original type is decimal64
-	HoldTime float64 `mapstructure:"hold-time"`
+	HoldTime float64 `mapstructure:"hold-time" json:"hold-time" yaml:"hold-time" toml:"hold-time"`
 	// original -> bgp:keepalive-interval
 	//bgp:keepalive-interval's original type is decimal64
-	KeepaliveInterval float64 `mapstructure:"keepalive-interval"`
+	KeepaliveInterval float64 `mapstructure:"keepalive-interval" json:"keepalive-interval" yaml:"keepalive-interval" toml:"keepalive-interval"`
 	// original -> bgp:minimum-advertisement-interval
 	//bgp:minimum-advertisement-interval's original type is decimal64
-	MinimumAdvertisementInterval float64 `mapstructure:"minimum-advertisement-interval"`
+	MinimumAdvertisementInterval float64 `mapstructure:"minimum-advertisement-interval" json:"minimum-advertisement-interval" yaml:"minimum-advertisement-interval" toml:"minimum-advertisement-interval"`
 	// original -> bgp-op:uptime
 	//bgp-op:uptime's original type is yang:timeticks
-	Uptime int64 `mapstructure:"uptime"`
+	Uptime int64 `mapstructure:"uptime" json:"uptime" yaml:"uptime" toml:"uptime"`
 	// original -> bgp-op:negotiated-hold-time
 	//bgp-op:negotiated-hold-time's original type is decimal64
-	NegotiatedHoldTime float64 `mapstructure:"negotiated-hold-time"`
+	NegotiatedHoldTime float64 `mapstructure:"negotiated-hold-time" json:"negotiated-hold-time" yaml:"negotiated-hold-time" toml:"negotiated-hold-time"`
 	// original -> gobgp:idle-hold-time-after-reset
 	//gobgp:idle-hold-time-after-reset's original type is decimal64
-	IdleHoldTimeAfterReset float64 `mapstructure:"idle-hold-time-after-reset"`
+	IdleHoldTimeAfterReset float64 `mapstructure:"idle-hold-time-after-reset" json:"idle-hold-time-after-reset" yaml:"idle-hold-time-after-reset" toml:"idle-hold-time-after-reset"`
 	// original -> gobgp:downtime
 	//gobgp:downtime's original type is yang:timeticks
-	Downtime int64 `mapstructure:"downtime"`
+	Downtime int64 `mapstructure:"downtime" json:"downtime" yaml:"downtime" toml:"downtime"`
 	// original -> gobgp:update-recv-time
-	UpdateRecvTime int64 `mapstructure:"update-recv-time"`
+	UpdateRecvTime int64 `mapstructure:"update-recv-time" json:"update-recv-time" yaml:"update-recv-time" toml:"update-recv-time"`
 }
 
 //struct for container bgp:config
 type TimersConfig struct {
 	// original -> bgp:connect-retry
 	//bgp:connect-retry's original type is decimal64
-	ConnectRetry float64 `mapstructure:"connect-retry"`
+	ConnectRetry float64 `mapstructure:"connect-retry" json:"connect-retry" yaml:"connect-retry" toml:"connect-retry"`
 	// original -> bgp:hold-time
 	//bgp:hold-time's original type is decimal64
-	HoldTime float64 `mapstructure:"hold-time"`
+	HoldTime float64 `mapstructure:"hold-time" json:"hold-time" yaml:"hold-time" toml:"hold-time"`
 	// original -> bgp:keepalive-interval
 	//bgp:keepalive-interval's original type is decimal64
-	KeepaliveInterval float64 `mapstructure:"keepalive-interval"`
+	KeepaliveInterval float64 `mapstructure:"keepalive-interval" json:"keepalive-interval" yaml:"keepalive-interval" toml:"keepalive-interval"`
 	// original -> bgp:minimum-advertisement-interval
 	//bgp:minimum-advertisement-interval's original type is decimal64
-	MinimumAdvertisementInterval float64 `mapstructure:"minimum-advertisement-interval"`
+	MinimumAdvertisementInterval float64 `mapstructure:"minimum-advertisement-interval" json:"minimum-advertisement-interval" yaml:"minimum-advertisement-interval" toml:"minimum-advertisement-interval"`
 	// original -> gobgp:idle-hold-time-after-reset
 	//gobgp:idle-hold-time-after-reset's original type is decimal64
-	IdleHoldTimeAfterReset float64 `mapstructure:"idle-hold-time-after-reset"`
+	IdleHoldTimeAfterReset float64 `mapstructure:"idle-hold-time-after-reset" json:"idle-hold-time-after-reset" yaml:"idle-hold-time-after-reset" toml:"idle-hold-time-after-reset"`
 }
 
 //struct for container bgp:timers
 type Timers struct {
 	// original -> bgp:timers-config
-	Config TimersConfig `mapstructure:"config"`
+	Config TimersConfig `mapstructure:"config" json:"config" yaml:"config" toml:"config"`
 	// original -> bgp:timers-state
-	State TimersState `mapstructure:"state"`
+	State TimersState `mapstructure:"state" json:"state" yaml:"state" toml:"state"`
 }
 
 //struct for container bgp:queues
 type Queues struct {
 	// original -> bgp-op:input
-	Input uint32 `mapstructure:"input"`
+	Input uint32 `mapstructure:"input" json:"input" yaml:"input" toml:"input"`
 	// original -> bgp-op:output
-	Output uint32 `mapstructure:"output"`
+	Output uint32 `mapstructure:"output" json:"output" yaml:"output" toml:"output"`
 }
 
 //struct for container bgp:received
 type Received struct {
 	// original -> bgp-op:UPDATE
-	Update uint64 `mapstructure:"update"`
+	Update uint64 `mapstructure:"update" json:"update" yaml:"update" toml:"update"`
 	// original -> bgp-op:NOTIFICATION
-	Notification uint64 `mapstructure:"notification"`
+	Notification uint64 `mapstructure:"notification" json:"notification" yaml:"notification" toml:"notification"`
 	// original -> gobgp:OPEN
-	Open uint64 `mapstructure:"open"`
+	Open uint64 `mapstructure:"open" json:"open" yaml:"open" toml:"open"`
 	// original -> gobgp:REFRESH
-	Refresh uint64 `mapstructure:"refresh"`
+	Refresh uint64 `mapstructure:"refresh" json:"refresh" yaml:"refresh" toml:"refresh"`
 	// original -> gobgp:KEEPALIVE
-	Keepalive uint64 `mapstructure:"keepalive"`
+	Keepalive uint64 `mapstructure:"keepalive" json:"keepalive" yaml:"keepalive" toml:"keepalive"`
 	// original -> gobgp:DYNAMIC-CAP
-	DynamicCap uint64 `mapstructure:"dynamic-cap"`
+	DynamicCap uint64 `mapstructure:"dynamic-cap" json:"dynamic-cap" yaml:"dynamic-cap" toml:"dynamic-cap"`
 	// original -> gobgp:DISCARDED
-	Discarded uint64 `mapstructure:"discarded"`
+	Discarded uint64 `mapstructure:"discarded" json:"discarded" yaml:"discarded" toml:"discarded"`
 	// original -> gobgp:TOTAL
-	Total uint64 `mapstructure:"total"`
+	Total uint64 `mapstructure:"total" json:"total" yaml:"total" toml:"total"`
 }
 
 //struct for container bgp:sent
 type Sent struct {
 	// original -> bgp-op:UPDATE
-	Update uint64 `mapstructure:"update"`
+	Update uint64 `mapstructure:"update" json:"update" yaml:"update" toml:"update"`
 	// original -> bgp-op:NOTIFICATION
-	Notification uint64 `mapstructure:"notification"`
+	Notification uint64 `mapstructure:"notification" json:"notification" yaml:"notification" toml:"notification"`
 	// original -> gobgp:OPEN
-	Open uint64 `mapstructure:"open"`
+	Open uint64 `mapstructure:"open" json:"open" yaml:"open" toml:"open"`
 	// original -> gobgp:REFRESH
-	Refresh uint64 `mapstructure:"refresh"`
+	Refresh uint64 `mapstructure:"refresh" json:"refresh" yaml:"refresh" toml:"refresh"`
 	// original -> gobgp:KEEPALIVE
-	Keepalive uint64 `mapstructure:"keepalive"`
+	Keepalive uint64 `mapstructure:"keepalive" json:"keepalive" yaml:"keepalive" toml:"keepalive"`
 	// original -> gobgp:DYNAMIC-CAP
-	DynamicCap uint64 `mapstructure:"dynamic-cap"`
+	DynamicCap uint64 `mapstructure:"dynamic-cap" json:"dynamic-cap" yaml:"dynamic-cap" toml:"dynamic-cap"`
 	// original -> gobgp:DISCARDED
-	Discarded uint64 `mapstructure:"discarded"`
+	Discarded uint64 `mapstructure:"discarded" json:"discarded" yaml:"discarded" toml:"discarded"`
 	// original -> gobgp:TOTAL
-	Total uint64 `mapstructure:"total"`
+	Total uint64 `mapstructure:"total" json:"total" yaml:"total" toml:"total"`
 }
 
 //struct for container bgp:messages
 type Messages struct {
 	// original -> bgp:sent
-	Sent Sent `mapstructure:"sent"`
+	Sent Sent `mapstructure:"sent" json:"sent" yaml:"sent" toml:"sent"`
 	// original -> bgp:received
-	Received Received `mapstructure:"received"`
+	Received Received `mapstructure:"received" json:"received" yaml:"received" toml:"received"`
 }
 
 //struct for container bgp:state
 type NeighborState struct {
 	// original -> bgp:peer-as
 	//bgp:peer-as's original type is inet:as-number
-	PeerAs uint32 `mapstructure:"peer-as"`
+	PeerAs uint32 `mapstructure:"peer-as" json:"peer-as" yaml:"peer-as" toml:"peer-as"`
 	// original -> bgp:local-as
 	//bgp:local-as's original type is inet:as-number
-	LocalAs uint32 `mapstructure:"local-as"`
+	LocalAs uint32 `mapstructure:"local-as" json:"local-as" yaml:"local-as" toml:"local-as"`
 	// original -> bgp:peer-type
-	PeerType PeerType `mapstructure:"peer-type"`
+	PeerType PeerType `mapstructure:"peer-type" json:"peer-type" yaml:"peer-type" toml:"peer-type"`
 	// original -> bgp:auth-password
-	AuthPassword string `mapstructure:"auth-password"`
+	AuthPassword string `mapstructure:"auth-password" json:"auth-password" yaml:"auth-password" toml:"auth-password"`
 	// original -> bgp:remove-private-as
-	RemovePrivateAs RemovePrivateAsOption `mapstructure:"remove-private-as"`
+	RemovePrivateAs RemovePrivateAsOption `mapstructure:"remove-private-as" json:"remove-private-as" yaml:"remove-private-as" toml:"remove-private-as"`
 	// original -> bgp:route-flap-damping
 	//bgp:route-flap-damping's original type is boolean
-	RouteFlapDamping bool `mapstructure:"route-flap-damping"`
+	RouteFlapDamping bool `mapstructure:"route-flap-damping" json:"route-flap-damping" yaml:"route-flap-damping" toml:"route-flap-damping"`
 	// original -> bgp:send-community
-	SendCommunity CommunityType `mapstructure:"send-community"`
+	SendCommunity CommunityType `mapstructure:"send-community" json:"send-community" yaml:"send-community" toml:"send-community"`
 	// original -> bgp:description
-	Description string `mapstructure:"description"`
+	Description string `mapstructure:"description" json:"description" yaml:"description" toml:"description"`
 	// original -> bgp:peer-group
-	PeerGroup string `mapstructure:"peer-group"`
+	PeerGroup string `mapstructure:"peer-group" json:"peer-group" yaml:"peer-group" toml:"peer-group"`
 	// original -> bgp:neighbor-address
 	//bgp:neighbor-address's original type is inet:ip-address
-	NeighborAddress string `mapstructure:"neighbor-address"`
+	NeighborAddress string `mapstructure:"neighbor-address" json:"neighbor-address" yaml:"neighbor-address" toml:"neighbor-address"`
 	// original -> bgp-op:session-state
-	SessionState SessionState `mapstructure:"session-state"`
+	SessionState SessionState `mapstructure:"session-state" json:"session-state" yaml:"session-state" toml:"session-state"`
 	// original -> bgp-op:supported-capabilities
-	SupportedCapabilitiesList []BgpCapability `mapstructure:"supported-capabilities-list"`
+	SupportedCapabilitiesList []BgpCapability `mapstructure:"supported-capabilities-list" json:"supported-capabilities-list" yaml:"supported-capabilities-list" toml:"supported-capabilities-list"`
 	// original -> bgp:messages
-	Messages Messages `mapstructure:"messages"`
+	Messages Messages `mapstructure:"messages" json:"messages" yaml:"messages" toml:"messages"`
 	// original -> bgp:queues
-	Queues Queues `mapstructure:"queues"`
+	Queues Queues `mapstructure:"queues" json:"queues" yaml:"queues" toml:"queues"`
 	// original -> gobgp:admin-down
 	//gobgp:admin-down's original type is boolean
-	AdminDown bool `mapstructure:"admin-down"`
+	AdminDown bool `mapstructure:"admin-down" json:"admin-down" yaml:"admin-down" toml:"admin-down"`
 	// original -> gobgp:established-count
-	EstablishedCount uint32 `mapstructure:"established-count"`
+	EstablishedCount uint32 `mapstructure:"established-count" json:"established-count" yaml:"established-count" toml:"established-count"`
 	// original -> gobgp:flops
-	Flops uint32 `mapstructure:"flops"`
+	Flops uint32 `mapstructure:"flops" json:"flops" yaml:"flops" toml:"flops"`
 }
 
 //struct for container bgp:config
 type NeighborConfig struct {
 	// original -> bgp:peer-as
 	//bgp:peer-as's original type is inet:as-number
-	PeerAs uint32 `mapstructure:"peer-as"`
+	PeerAs uint32 `mapstructure:"peer-as" json:"peer-as" yaml:"peer-as" toml:"peer-as"`
 	// original -> bgp:local-as
 	//bgp:local-as's original type is inet:as-number
-	LocalAs uint32 `mapstructure:"local-as"`
+	LocalAs uint32 `mapstructure:"local-as" json:"local-as" yaml:"local-as" toml:"local-as"`
 	// original -> bgp:peer-type
-	PeerType PeerType `mapstructure:"peer-type"`
+	PeerType PeerType `mapstructure:"peer-type" json:"peer-type" yaml:"peer-type" toml:"peer-type"`
 	// original -> bgp:auth-password
-	AuthPassword string `mapstructure:"auth-password"`
+	AuthPassword string `mapstructure:"auth-password" json:"auth-password" yaml:"auth-password" toml:"auth-password"`
 	// original -> bgp:remove-private-as
-	RemovePrivateAs RemovePrivateAsOption `mapstructure:"remove-private-as"`
+	RemovePrivateAs RemovePrivateAsOption `mapstructure:"remove-private-as" json:"remove-private-as" yaml:"remove-private-as" toml:"remove-private-as"`
 	// original -> bgp:route-flap-damping
 	//bgp:route-flap-damping's original type is boolean
-	RouteFlapDamping bool `mapstructure:"route-flap-damping"`
+	RouteFlapDamping bool `mapstructure:"route-flap-damping" json:"route-flap-damping" yaml:"route-flap-damping" toml:"route-flap-damping"`
 	// original -> bgp:send-community
-	SendCommunity CommunityType `mapstructure:"send-community"`
+	SendCommunity CommunityType `mapstructure:"send-community" json:"send-community" yaml:"send-community" toml:"send-community"`
 	// original -> bgp:description
-	Description string `mapstructure:"description"`
+	Description string `mapstructure:"description" json:"description" yaml:"description" toml:"description"`
 	// original -> bgp:peer-group
-	PeerGroup string `mapstructure:"peer-group"`
+	PeerGroup string `mapstructure:"peer-group" json:"peer-group" yaml:"peer-group" toml:"peer-group"`
 	// original -> bgp:neighbor-address
 	//bgp:neighbor-address's original type is inet:ip-address
-	NeighborAddress string `mapstructure:"neighbor-address"`
+	NeighborAddress string `mapstructure:"neighbor-address" json:"neighbor-address" yaml:"neighbor-address" toml:"neighbor-address"`
 }
 
 //struct for container bgp:neighbor
 type Neighbor struct {
 	// original -> bgp:neighbor-address
 	//bgp:neighbor-address's original type is inet:ip-address
-	NeighborAddress string `mapstructure:"neighbor-address"`
+	NeighborAddress string `mapstructure:"neighbor-address" json:"neighbor-address" yaml:"neighbor-address" toml:"neighbor-address"`
 	// original -> bgp:neighbor-config
-	Config NeighborConfig `mapstructure:"config"`
+	Config NeighborConfig `mapstructure:"config" json:"config" yaml:"config" toml:"config"`
 	// original -> bgp:neighbor-state
-	State NeighborState `mapstructure:"state"`
+	State NeighborState `mapstructure:"state" json:"state" yaml:"state" toml:"state"`
 	// original -> bgp:timers
-	Timers Timers `mapstructure:"timers"`
+	Timers Timers `mapstructure:"timers" json:"timers" yaml:"timers" toml:"timers"`
 	// original -> bgp:transport
-	Transport Transport `mapstructure:"transport"`
+	Transport Transport `mapstructure:"transport" json:"transport" yaml:"transport" toml:"transport"`
 	// original -> bgp:error-handling
-	ErrorHandling ErrorHandling `mapstructure:"error-handling"`
+	ErrorHandling ErrorHandling `mapstructure:"error-handling" json:"error-handling" yaml:"error-handling" toml:"error-handling"`
 	// original -> bgp:logging-options
-	LoggingOptions LoggingOptions `mapstructure:"logging-options"`
+	LoggingOptions LoggingOptions `mapstructure:"logging-options" json:"logging-options" yaml:"logging-options" toml:"logging-options"`
 	// original -> bgp:ebgp-multihop
-	EbgpMultihop EbgpMultihop `mapstructure:"ebgp-multihop"`
+	EbgpMultihop EbgpMultihop `mapstructure:"ebgp-multihop" json:"ebgp-multihop" yaml:"ebgp-multihop" toml:"ebgp-multihop"`
 	// original -> bgp:route-reflector
-	RouteReflector RouteReflector `mapstructure:"route-reflector"`
+	RouteReflector RouteReflector `mapstructure:"route-reflector" json:"route-reflector" yaml:"route-reflector" toml:"route-reflector"`
 	// original -> bgp:as-path-options
-	AsPathOptions AsPathOptions `mapstructure:"as-path-options"`
+	AsPathOptions AsPathOptions `mapstructure:"as-path-options" json:"as-path-options" yaml:"as-path-options" toml:"as-path-options"`
 	// original -> bgp:add-paths
-	AddPaths AddPaths `mapstructure:"add-paths"`
+	AddPaths AddPaths `mapstructure:"add-paths" json:"add-paths" yaml:"add-paths" toml:"add-paths"`
 	// original -> bgp:afi-safis
-	AfiSafis []AfiSafi `mapstructure:"afi-safis"`
+	AfiSafis []AfiSafi `mapstructure:"afi-safis" json:"afi-safis" yaml:"afi-safis" toml:"afi-safis"`
 	// original -> bgp:graceful-restart
-	GracefulRestart GracefulRestart `mapstructure:"graceful-restart"`
+	GracefulRestart GracefulRestart `mapstructure:"graceful-restart" json:"graceful-restart" yaml:"graceful-restart" toml:"graceful-restart"`
 	// original -> rpol:apply-policy
-	ApplyPolicy ApplyPolicy `mapstructure:"apply-policy"`
+	ApplyPolicy ApplyPolicy `mapstructure:"apply-policy" json:"apply-policy" yaml:"apply-policy" toml:"apply-policy"`
 	// original -> bgp-mp:use-multiple-paths
-	UseMultiplePaths UseMultiplePaths `mapstructure:"use-multiple-paths"`
+	UseMultiplePaths UseMultiplePaths `mapstructure:"use-multiple-paths" json:"use-multiple-paths" yaml:"use-multiple-paths" toml:"use-multiple-paths"`
 	// original -> gobgp:route-server
-	RouteServer RouteServer `mapstructure:"route-server"`
+	RouteServer RouteServer `mapstructure:"route-server" json:"route-server" yaml:"route-server" toml:"route-server"`
 }
 
 //struct for container gobgp:listen-config
 type ListenConfig struct {
 	// original -> gobgp:port
-	Port int32 `mapstructure:"port"`
+	Port int32 `mapstructure:"port" json:"port" yaml:"port" toml:"port"`
 	// original -> gobgp:local-address
-	LocalAddressList []string `mapstructure:"local-address-list"`
+	LocalAddressList []string `mapstructure:"local-address-list" json:"local-address-list" yaml:"local-address-list" toml:"local-address-list"`
 }
 
 //struct for container gobgp:mpls-label-range
 type MplsLabelRange struct {
 	// original -> gobgp:min-label
-	MinLabel uint32 `mapstructure:"min-label"`
+	MinLabel uint32 `mapstructure:"min-label" json:"min-label" yaml:"min-label" toml:"min-label"`
 	// original -> gobgp:max-label
-	MaxLabel uint32 `mapstructure:"max-label"`
+	MaxLabel uint32 `mapstructure:"max-label" json:"max-label" yaml:"max-label" toml:"max-label"`
 }
 
 //struct for container gobgp:zebra
 type Zebra struct {
 	// original -> gobgp:enabled
 	//gobgp:enabled's original type is boolean
-	Enabled bool `mapstructure:"enabled"`
+	Enabled bool `mapstructure:"enabled" json:"enabled" yaml:"enabled" toml:"enabled"`
 	// original -> gobgp:url
-	Url string `mapstructure:"url"`
+	Url string `mapstructure:"url" json:"url" yaml:"url" toml:"url"`
 	// original -> gobgp:redistribute-route-type
-	RedistributeRouteTypeList []InstallProtocolType `mapstructure:"redistribute-route-type-list"`
+	RedistributeRouteTypeList []InstallProtocolType `mapstructure:"redistribute-route-type-list" json:"redistribute-route-type-list" yaml:"redistribute-route-type-list" toml:"redistribute-route-type-list"`
 }
 
 //struct for container gobgp:collector
 type Collector struct {
 	// original -> gobgp:enabled
 	//gobgp:enabled's original type is boolean
-	Enabled bool `mapstructure:"enabled"`
+	Enabled bool `mapstructure:"enabled" json:"enabled" yaml:"enabled" toml:"enabled"`
 }
 
 //struct for container bgp-mp:l2vpn-evpn
 type L2vpnEvpn struct {
 	// original -> bgp-mp:prefix-limit
-	PrefixLimit PrefixLimit `mapstructure:"prefix-limit"`
+	PrefixLimit PrefixLimit `mapstructure:"prefix-limit" json:"prefix-limit" yaml:"prefix-limit" toml:"prefix-limit"`
 }
 
 //struct for container bgp-mp:l2vpn-vpls
 type L2vpnVpls struct {
 	// original -> bgp-mp:prefix-limit
-	PrefixLimit PrefixLimit `mapstructure:"prefix-limit"`
+	PrefixLimit PrefixLimit `mapstructure:"prefix-limit" json:"prefix-limit" yaml:"prefix-limit" toml:"prefix-limit"`
 }
 
 //struct for container bgp-mp:l3vpn-ipv6-multicast
 type L3vpnIpv6Multicast struct {
 	// original -> bgp-mp:prefix-limit
-	PrefixLimit PrefixLimit `mapstructure:"prefix-limit"`
+	PrefixLimit PrefixLimit `mapstructure:"prefix-limit" json:"prefix-limit" yaml:"prefix-limit" toml:"prefix-limit"`
 }
 
 //struct for container bgp-mp:l3vpn-ipv4-multicast
 type L3vpnIpv4Multicast struct {
 	// original -> bgp-mp:prefix-limit
-	PrefixLimit PrefixLimit `mapstructure:"prefix-limit"`
+	PrefixLimit PrefixLimit `mapstructure:"prefix-limit" json:"prefix-limit" yaml:"prefix-limit" toml:"prefix-limit"`
 }
 
 //struct for container bgp-mp:l3vpn-ipv6-unicast
 type L3vpnIpv6Unicast struct {
 	// original -> bgp-mp:prefix-limit
-	PrefixLimit PrefixLimit `mapstructure:"prefix-limit"`
+	PrefixLimit PrefixLimit `mapstructure:"prefix-limit" json:"prefix-limit" yaml:"prefix-limit" toml:"prefix-limit"`
 }
 
 //struct for container bgp-mp:l3vpn-ipv4-unicast
 type L3vpnIpv4Unicast struct {
 	// original -> bgp-mp:prefix-limit
-	PrefixLimit PrefixLimit `mapstructure:"prefix-limit"`
+	PrefixLimit PrefixLimit `mapstructure:"prefix-limit" json:"prefix-limit" yaml:"prefix-limit" toml:"prefix-limit"`
 }
 
 //struct for container bgp-mp:ipv6-labelled-unicast
 type Ipv6LabelledUnicast struct {
 	// original -> bgp-mp:prefix-limit
-	PrefixLimit PrefixLimit `mapstructure:"prefix-limit"`
+	PrefixLimit PrefixLimit `mapstructure:"prefix-limit" json:"prefix-limit" yaml:"prefix-limit" toml:"prefix-limit"`
 }
 
 //struct for container bgp-mp:ipv4-labelled-unicast
 type Ipv4LabelledUnicast struct {
 	// original -> bgp-mp:prefix-limit
-	PrefixLimit PrefixLimit `mapstructure:"prefix-limit"`
+	PrefixLimit PrefixLimit `mapstructure:"prefix-limit" json:"prefix-limit" yaml:"prefix-limit" toml:"prefix-limit"`
 }
 
 //struct for container bgp-mp:state
 type Ipv6UnicastState struct {
 	// original -> bgp-mp:send-default-route
 	//bgp-mp:send-default-route's original type is boolean
-	SendDefaultRoute bool `mapstructure:"send-default-route"`
+	SendDefaultRoute bool `mapstructure:"send-default-route" json:"send-default-route" yaml:"send-default-route" toml:"send-default-route"`
 }
 
 //struct for container bgp-mp:config
 type Ipv6UnicastConfig struct {
 	// original -> bgp-mp:send-default-route
 	//bgp-mp:send-default-route's original type is boolean
-	SendDefaultRoute bool `mapstructure:"send-default-route"`
+	SendDefaultRoute bool `mapstructure:"send-default-route" json:"send-default-route" yaml:"send-default-route" toml:"send-default-route"`
 }
 
 //struct for container bgp-mp:ipv6-unicast
 type Ipv6Unicast struct {
 	// original -> bgp-mp:prefix-limit
-	PrefixLimit PrefixLimit `mapstructure:"prefix-limit"`
+	PrefixLimit PrefixLimit `mapstructure:"prefix-limit" json:"prefix-limit" yaml:"prefix-limit" toml:"prefix-limit"`
 	// original -> bgp-mp:ipv6-unicast-config
-	Config Ipv6UnicastConfig `mapstructure:"config"`
+	Config Ipv6UnicastConfig `mapstructure:"config" json:"config" yaml:"config" toml:"config"`
 	// original -> bgp-mp:ipv6-unicast-state
-	State Ipv6UnicastState `mapstructure:"state"`
+	State Ipv6UnicastState `mapstructure:"state" json:"state" yaml:"state" toml:"state"`
 }
 
 //struct for container bgp-mp:state
 type Ipv4UnicastState struct {
 	// original -> bgp-mp:send-default-route
 	//bgp-mp:send-default-route's original type is boolean
-	SendDefaultRoute bool `mapstructure:"send-default-route"`
+	SendDefaultRoute bool `mapstructure:"send-default-route" json:"send-default-route" yaml:"send-default-route" toml:"send-default-route"`
 }
 
 //struct for container bgp-mp:config
 type Ipv4UnicastConfig struct {
 	// original -> bgp-mp:send-default-route
 	//bgp-mp:send-default-route's original type is boolean
-	SendDefaultRoute bool `mapstructure:"send-default-route"`
+	SendDefaultRoute bool `mapstructure:"send-default-route" json:"send-default-route" yaml:"send-default-route" toml:"send-default-route"`
 }
 
 //struct for container bgp-mp:state
 type PrefixLimitState struct {
 	// original -> bgp-mp:max-prefixes
-	MaxPrefixes uint32 `mapstructure:"max-prefixes"`
+	MaxPrefixes uint32 `mapstructure:"max-prefixes" json:"max-prefixes" yaml:"max-prefixes" toml:"max-prefixes"`
 	// original -> bgp-mp:shutdown-threshold-pct
-	ShutdownThresholdPct Percentage `mapstructure:"shutdown-threshold-pct"`
+	ShutdownThresholdPct Percentage `mapstructure:"shutdown-threshold-pct" json:"shutdown-threshold-pct" yaml:"shutdown-threshold-pct" toml:"shutdown-threshold-pct"`
 	// original -> bgp-mp:restart-timer
 	//bgp-mp:restart-timer's original type is decimal64
-	RestartTimer float64 `mapstructure:"restart-timer"`
+	RestartTimer float64 `mapstructure:"restart-timer" json:"restart-timer" yaml:"restart-timer" toml:"restart-timer"`
 }
 
 //struct for container bgp-mp:config
 type PrefixLimitConfig struct {
 	// original -> bgp-mp:max-prefixes
-	MaxPrefixes uint32 `mapstructure:"max-prefixes"`
+	MaxPrefixes uint32 `mapstructure:"max-prefixes" json:"max-prefixes" yaml:"max-prefixes" toml:"max-prefixes"`
 	// original -> bgp-mp:shutdown-threshold-pct
-	ShutdownThresholdPct Percentage `mapstructure:"shutdown-threshold-pct"`
+	ShutdownThresholdPct Percentage `mapstructure:"shutdown-threshold-pct" json:"shutdown-threshold-pct" yaml:"shutdown-threshold-pct" toml:"shutdown-threshold-pct"`
 	// original -> bgp-mp:restart-timer
 	//bgp-mp:restart-timer's original type is decimal64
-	RestartTimer float64 `mapstructure:"restart-timer"`
+	RestartTimer float64 `mapstructure:"restart-timer" json:"restart-timer" yaml:"restart-timer" toml:"restart-timer"`
 }
 
 //struct for container bgp-mp:prefix-limit
 type PrefixLimit struct {
 	// original -> bgp-mp:prefix-limit-config
-	Config PrefixLimitConfig `mapstructure:"config"`
+	Config PrefixLimitConfig `mapstructure:"config" json:"config" yaml:"config" toml:"config"`
 	// original -> bgp-mp:prefix-limit-state
-	State PrefixLimitState `mapstructure:"state"`
+	State PrefixLimitState `mapstructure:"state" json:"state" yaml:"state" toml:"state"`
 }
 
 //struct for container bgp-mp:ipv4-unicast
 type Ipv4Unicast struct {
 	// original -> bgp-mp:prefix-limit
-	PrefixLimit PrefixLimit `mapstructure:"prefix-limit"`
+	PrefixLimit PrefixLimit `mapstructure:"prefix-limit" json:"prefix-limit" yaml:"prefix-limit" toml:"prefix-limit"`
 	// original -> bgp-mp:ipv4-unicast-config
-	Config Ipv4UnicastConfig `mapstructure:"config"`
+	Config Ipv4UnicastConfig `mapstructure:"config" json:"config" yaml:"config" toml:"config"`
 	// original -> bgp-mp:ipv4-unicast-state
-	State Ipv4UnicastState `mapstructure:"state"`
+	State Ipv4UnicastState `mapstructure:"state" json:"state" yaml:"state" toml:"state"`
 }
 
 //struct for container rpol:state
 type ApplyPolicyState struct {
 	// original -> rpol:import-policy
-	ImportPolicyList []string `mapstructure:"import-policy-list"`
+	ImportPolicyList []string `mapstructure:"import-policy-list" json:"import-policy-list" yaml:"import-policy-list" toml:"import-policy-list"`
 	// original -> rpol:default-import-policy
-	DefaultImportPolicy DefaultPolicyType `mapstructure:"default-import-policy"`
+	DefaultImportPolicy DefaultPolicyType `mapstructure:"default-import-policy" json:"default-import-policy" yaml:"default-import-policy" toml:"default-import-policy"`
 	// original -> rpol:export-policy
-	ExportPolicyList []string `mapstructure:"export-policy-list"`
+	ExportPolicyList []string `mapstructure:"export-policy-list" json:"export-policy-list" yaml:"export-policy-list" toml:"export-policy-list"`
 	// original -> rpol:default-export-policy
-	DefaultExportPolicy DefaultPolicyType `mapstructure:"default-export-policy"`
+	DefaultExportPolicy DefaultPolicyType `mapstructure:"default-export-policy" json:"default-export-policy" yaml:"default-export-policy" toml:"default-export-policy"`
 	// original -> gobgp:in-policy
-	InPolicyList []string `mapstructure:"in-policy-list"`
+	InPolicyList []string `mapstructure:"in-policy-list" json:"in-policy-list" yaml:"in-policy-list" toml:"in-policy-list"`
 	// original -> gobgp:default-in-policy
-	DefaultInPolicy DefaultPolicyType `mapstructure:"default-in-policy"`
+	DefaultInPolicy DefaultPolicyType `mapstructure:"default-in-policy" json:"default-in-policy" yaml:"default-in-policy" toml:"default-in-policy"`
 }
 
 //struct for container rpol:config
 type ApplyPolicyConfig struct {
 	// original -> rpol:import-policy
-	ImportPolicyList []string `mapstructure:"import-policy-list"`
+	ImportPolicyList []string `mapstructure:"import-policy-list" json:"import-policy-list" yaml:"import-policy-list" toml:"import-policy-list"`
 	// original -> rpol:default-import-policy
-	DefaultImportPolicy DefaultPolicyType `mapstructure:"default-import-policy"`
+	DefaultImportPolicy DefaultPolicyType `mapstructure:"default-import-policy" json:"default-import-policy" yaml:"default-import-policy" toml:"default-import-policy"`
 	// original -> rpol:export-policy
-	ExportPolicyList []string `mapstructure:"export-policy-list"`
+	ExportPolicyList []string `mapstructure:"export-policy-list" json:"export-policy-list" yaml:"export-policy-list" toml:"export-policy-list"`
 	// original -> rpol:default-export-policy
-	DefaultExportPolicy DefaultPolicyType `mapstructure:"default-export-policy"`
+	DefaultExportPolicy DefaultPolicyType `mapstructure:"default-export-policy" json:"default-export-policy" yaml:"default-export-policy" toml:"default-export-policy"`
 	// original -> gobgp:in-policy
-	InPolicyList []string `mapstructure:"in-policy-list"`
+	InPolicyList []string `mapstructure:"in-policy-list" json:"in-policy-list" yaml:"in-policy-list" toml:"in-policy-list"`
 	// original -> gobgp:default-in-policy
-	DefaultInPolicy DefaultPolicyType `mapstructure:"default-in-policy"`
+	DefaultInPolicy DefaultPolicyType `mapstructure:"default-in-policy" json:"default-in-policy" yaml:"default-in-policy" toml:"default-in-policy"`
 }
 
 //struct for container rpol:apply-policy
 type ApplyPolicy struct {
 	// original -> rpol:apply-policy-config
-	Config ApplyPolicyConfig `mapstructure:"config"`
+	Config ApplyPolicyConfig `mapstructure:"config" json:"config" yaml:"config" toml:"config"`
 	// original -> rpol:apply-policy-state
-	State ApplyPolicyState `mapstructure:"state"`
+	State ApplyPolicyState `mapstructure:"state" json:"state" yaml:"state" toml:"state"`
 }
 
 //struct for container bgp-mp:state
 type AfiSafiState struct {
 	// original -> bgp-mp:afi-safi-name
-	AfiSafiName AfiSafiType `mapstructure:"afi-safi-name"`
+	AfiSafiName AfiSafiType `mapstructure:"afi-safi-name" json:"afi-safi-name" yaml:"afi-safi-name" toml:"afi-safi-name"`
 	// original -> bgp-mp:enabled
 	//bgp-mp:enabled's original type is boolean
-	Enabled bool `mapstructure:"enabled"`
+	Enabled bool `mapstructure:"enabled" json:"enabled" yaml:"enabled" toml:"enabled"`
 	// original -> bgp-op:total-paths
-	TotalPaths uint32 `mapstructure:"total-paths"`
+	TotalPaths uint32 `mapstructure:"total-paths" json:"total-paths" yaml:"total-paths" toml:"total-paths"`
 	// original -> bgp-op:total-prefixes
-	TotalPrefixes uint32 `mapstructure:"total-prefixes"`
+	TotalPrefixes uint32 `mapstructure:"total-prefixes" json:"total-prefixes" yaml:"total-prefixes" toml:"total-prefixes"`
 }
 
 //struct for container bgp-mp:config
 type AfiSafiConfig struct {
 	// original -> bgp-mp:afi-safi-name
-	AfiSafiName AfiSafiType `mapstructure:"afi-safi-name"`
+	AfiSafiName AfiSafiType `mapstructure:"afi-safi-name" json:"afi-safi-name" yaml:"afi-safi-name" toml:"afi-safi-name"`
 	// original -> bgp-mp:enabled
 	//bgp-mp:enabled's original type is boolean
-	Enabled bool `mapstructure:"enabled"`
+	Enabled bool `mapstructure:"enabled" json:"enabled" yaml:"enabled" toml:"enabled"`
 }
 
 //struct for container bgp-mp:state
 type MpGracefulRestartState struct {
 	// original -> bgp-mp:enabled
 	//bgp-mp:enabled's original type is boolean
-	Enabled bool `mapstructure:"enabled"`
+	Enabled bool `mapstructure:"enabled" json:"enabled" yaml:"enabled" toml:"enabled"`
 	// original -> bgp-op:received
 	//bgp-op:received's original type is boolean
-	Received bool `mapstructure:"received"`
+	Received bool `mapstructure:"received" json:"received" yaml:"received" toml:"received"`
 	// original -> bgp-op:advertised
 	//bgp-op:advertised's original type is boolean
-	Advertised bool `mapstructure:"advertised"`
+	Advertised bool `mapstructure:"advertised" json:"advertised" yaml:"advertised" toml:"advertised"`
 	// original -> gobgp:end-of-rib-received
 	//gobgp:end-of-rib-received's original type is boolean
-	EndOfRibReceived bool `mapstructure:"end-of-rib-received"`
+	EndOfRibReceived bool `mapstructure:"end-of-rib-received" json:"end-of-rib-received" yaml:"end-of-rib-received" toml:"end-of-rib-received"`
 	// original -> gobgp:end-of-rib-sent
 	//gobgp:end-of-rib-sent's original type is boolean
-	EndOfRibSent bool `mapstructure:"end-of-rib-sent"`
+	EndOfRibSent bool `mapstructure:"end-of-rib-sent" json:"end-of-rib-sent" yaml:"end-of-rib-sent" toml:"end-of-rib-sent"`
 }
 
 //struct for container bgp-mp:config
 type MpGracefulRestartConfig struct {
 	// original -> bgp-mp:enabled
 	//bgp-mp:enabled's original type is boolean
-	Enabled bool `mapstructure:"enabled"`
+	Enabled bool `mapstructure:"enabled" json:"enabled" yaml:"enabled" toml:"enabled"`
 }
 
 //struct for container bgp-mp:graceful-restart
 type MpGracefulRestart struct {
 	// original -> bgp-mp:mp-graceful-restart-config
-	Config MpGracefulRestartConfig `mapstructure:"config"`
+	Config MpGracefulRestartConfig `mapstructure:"config" json:"config" yaml:"config" toml:"config"`
 	// original -> bgp-mp:mp-graceful-restart-state
-	State MpGracefulRestartState `mapstructure:"state"`
+	State MpGracefulRestartState `mapstructure:"state" json:"state" yaml:"state" toml:"state"`
 }
 
 //struct for container bgp-mp:afi-safi
 type AfiSafi struct {
 	// original -> bgp-mp:afi-safi-name
-	AfiSafiName AfiSafiType `mapstructure:"afi-safi-name"`
+	AfiSafiName AfiSafiType `mapstructure:"afi-safi-name" json:"afi-safi-name" yaml:"afi-safi-name" toml:"afi-safi-name"`
 	// original -> bgp-mp:mp-graceful-restart
-	MpGracefulRestart MpGracefulRestart `mapstructure:"mp-graceful-restart"`
+	MpGracefulRestart MpGracefulRestart `mapstructure:"mp-graceful-restart" json:"mp-graceful-restart" yaml:"mp-graceful-restart" toml:"mp-graceful-restart"`
 	// original -> bgp-mp:afi-safi-config
-	Config AfiSafiConfig `mapstructure:"config"`
+	Config AfiSafiConfig `mapstructure:"config" json:"config" yaml:"config" toml:"config"`
 	// original -> bgp-mp:afi-safi-state
-	State AfiSafiState `mapstructure:"state"`
+	State AfiSafiState `mapstructure:"state" json:"state" yaml:"state" toml:"state"`
 	// original -> rpol:apply-policy
-	ApplyPolicy ApplyPolicy `mapstructure:"apply-policy"`
+	ApplyPolicy ApplyPolicy `mapstructure:"apply-policy" json:"apply-policy" yaml:"apply-policy" toml:"apply-policy"`
 	// original -> bgp-mp:ipv4-unicast
-	Ipv4Unicast Ipv4Unicast `mapstructure:"ipv4-unicast"`
+	Ipv4Unicast Ipv4Unicast `mapstructure:"ipv4-unicast" json:"ipv4-unicast" yaml:"ipv4-unicast" toml:"ipv4-unicast"`
 	// original -> bgp-mp:ipv6-unicast
-	Ipv6Unicast Ipv6Unicast `mapstructure:"ipv6-unicast"`
+	Ipv6Unicast Ipv6Unicast `mapstructure:"ipv6-unicast" json:"ipv6-unicast" yaml:"ipv6-unicast" toml:"ipv6-unicast"`
 	// original -> bgp-mp:ipv4-labelled-unicast
-	Ipv4LabelledUnicast Ipv4LabelledUnicast `mapstructure:"ipv4-labelled-unicast"`
+	Ipv4LabelledUnicast Ipv4LabelledUnicast `mapstructure:"ipv4-labelled-unicast" json:"ipv4-labelled-unicast" yaml:"ipv4-labelled-unicast" toml:"ipv4-labelled-unicast"`
 	// original -> bgp-mp:ipv6-labelled-unicast
-	Ipv6LabelledUnicast Ipv6LabelledUnicast `mapstructure:"ipv6-labelled-unicast"`
+	Ipv6LabelledUnicast Ipv6LabelledUnicast `mapstructure:"ipv6-labelled-unicast" json:"ipv6-labelled-unicast" yaml:"ipv6-labelled-unicast" toml:"ipv6-labelled-unicast"`
 	// original -> bgp-mp:l3vpn-ipv4-unicast
-	L3vpnIpv4Unicast L3vpnIpv4Unicast `mapstructure:"l3vpn-ipv4-unicast"`
+	L3vpnIpv4Unicast L3vpnIpv4Unicast `mapstructure:"l3vpn-ipv4-unicast" json:"l3vpn-ipv4-unicast" yaml:"l3vpn-ipv4-unicast" toml:"l3vpn-ipv4-unicast"`
 	// original -> bgp-mp:l3vpn-ipv6-unicast
-	L3vpnIpv6Unicast L3vpnIpv6Unicast `mapstructure:"l3vpn-ipv6-unicast"`
+	L3vpnIpv6Unicast L3vpnIpv6Unicast `mapstructure:"l3vpn-ipv6-unicast" json:"l3vpn-ipv6-unicast" yaml:"l3vpn-ipv6-unicast" toml:"l3vpn-ipv6-unicast"`
 	// original -> bgp-mp:l3vpn-ipv4-multicast
-	L3vpnIpv4Multicast L3vpnIpv4Multicast `mapstructure:"l3vpn-ipv4-multicast"`
+	L3vpnIpv4Multicast L3vpnIpv4Multicast `mapstructure:"l3vpn-ipv4-multicast" json:"l3vpn-ipv4-multicast" yaml:"l3vpn-ipv4-multicast" toml:"l3vpn-ipv4-multicast"`
 	// original -> bgp-mp:l3vpn-ipv6-multicast
-	L3vpnIpv6Multicast L3vpnIpv6Multicast `mapstructure:"l3vpn-ipv6-multicast"`
+	L3vpnIpv6Multicast L3vpnIpv6Multicast `mapstructure:"l3vpn-ipv6-multicast" json:"l3vpn-ipv6-multicast" yaml:"l3vpn-ipv6-multicast" toml:"l3vpn-ipv6-multicast"`
 	// original -> bgp-mp:l2vpn-vpls
-	L2vpnVpls L2vpnVpls `mapstructure:"l2vpn-vpls"`
+	L2vpnVpls L2vpnVpls `mapstructure:"l2vpn-vpls" json:"l2vpn-vpls" yaml:"l2vpn-vpls" toml:"l2vpn-vpls"`
 	// original -> bgp-mp:l2vpn-evpn
-	L2vpnEvpn L2vpnEvpn `mapstructure:"l2vpn-evpn"`
+	L2vpnEvpn L2vpnEvpn `mapstructure:"l2vpn-evpn" json:"l2vpn-evpn" yaml:"l2vpn-evpn" toml:"l2vpn-evpn"`
 	// original -> bgp-mp:route-selection-options
-	RouteSelectionOptions RouteSelectionOptions `mapstructure:"route-selection-options"`
+	RouteSelectionOptions RouteSelectionOptions `mapstructure:"route-selection-options" json:"route-selection-options" yaml:"route-selection-options" toml:"route-selection-options"`
 	// original -> bgp-mp:use-multiple-paths
-	UseMultiplePaths UseMultiplePaths `mapstructure:"use-multiple-paths"`
+	UseMultiplePaths UseMultiplePaths `mapstructure:"use-multiple-paths" json:"use-multiple-paths" yaml:"use-multiple-paths" toml:"use-multiple-paths"`
 	// original -> bgp-mp:prefix-limit
-	PrefixLimit PrefixLimit `mapstructure:"prefix-limit"`
+	PrefixLimit PrefixLimit `mapstructure:"prefix-limit" json:"prefix-limit" yaml:"prefix-limit" toml:"prefix-limit"`
 }
 
 //struct for container bgp:state
 type GracefulRestartState struct {
 	// original -> bgp:enabled
 	//bgp:enabled's original type is boolean
-	Enabled bool `mapstructure:"enabled"`
+	Enabled bool `mapstructure:"enabled" json:"enabled" yaml:"enabled" toml:"enabled"`
 	// original -> bgp:restart-time
-	RestartTime uint16 `mapstructure:"restart-time"`
+	RestartTime uint16 `mapstructure:"restart-time" json:"restart-time" yaml:"restart-time" toml:"restart-time"`
 	// original -> bgp:stale-routes-time
 	//bgp:stale-routes-time's original type is decimal64
-	StaleRoutesTime float64 `mapstructure:"stale-routes-time"`
+	StaleRoutesTime float64 `mapstructure:"stale-routes-time" json:"stale-routes-time" yaml:"stale-routes-time" toml:"stale-routes-time"`
 	// original -> bgp:helper-only
 	//bgp:helper-only's original type is boolean
-	HelperOnly bool `mapstructure:"helper-only"`
+	HelperOnly bool `mapstructure:"helper-only" json:"helper-only" yaml:"helper-only" toml:"helper-only"`
 	// original -> bgp-op:peer-restart-time
-	PeerRestartTime uint16 `mapstructure:"peer-restart-time"`
+	PeerRestartTime uint16 `mapstructure:"peer-restart-time" json:"peer-restart-time" yaml:"peer-restart-time" toml:"peer-restart-time"`
 	// original -> bgp-op:peer-restarting
 	//bgp-op:peer-restarting's original type is boolean
-	PeerRestarting bool `mapstructure:"peer-restarting"`
+	PeerRestarting bool `mapstructure:"peer-restarting" json:"peer-restarting" yaml:"peer-restarting" toml:"peer-restarting"`
 	// original -> bgp-op:local-restarting
 	//bgp-op:local-restarting's original type is boolean
-	LocalRestarting bool `mapstructure:"local-restarting"`
+	LocalRestarting bool `mapstructure:"local-restarting" json:"local-restarting" yaml:"local-restarting" toml:"local-restarting"`
 	// original -> bgp-op:mode
-	Mode Mode `mapstructure:"mode"`
+	Mode Mode `mapstructure:"mode" json:"mode" yaml:"mode" toml:"mode"`
 	// original -> gobgp:deferral-time
-	DeferralTime uint16 `mapstructure:"deferral-time"`
+	DeferralTime uint16 `mapstructure:"deferral-time" json:"deferral-time" yaml:"deferral-time" toml:"deferral-time"`
 }
 
 //struct for container bgp:config
 type GracefulRestartConfig struct {
 	// original -> bgp:enabled
 	//bgp:enabled's original type is boolean
-	Enabled bool `mapstructure:"enabled"`
+	Enabled bool `mapstructure:"enabled" json:"enabled" yaml:"enabled" toml:"enabled"`
 	// original -> bgp:restart-time
-	RestartTime uint16 `mapstructure:"restart-time"`
+	RestartTime uint16 `mapstructure:"restart-time" json:"restart-time" yaml:"restart-time" toml:"restart-time"`
 	// original -> bgp:stale-routes-time
 	//bgp:stale-routes-time's original type is decimal64
-	StaleRoutesTime float64 `mapstructure:"stale-routes-time"`
+	StaleRoutesTime float64 `mapstructure:"stale-routes-time" json:"stale-routes-time" yaml:"stale-routes-time" toml:"stale-routes-time"`
 	// original -> bgp:helper-only
 	//bgp:helper-only's original type is boolean
-	HelperOnly bool `mapstructure:"helper-only"`
+	HelperOnly bool `mapstructure:"helper-only" json:"helper-only" yaml:"helper-only" toml:"helper-only"`
 	// original -> gobgp:deferral-time
-	DeferralTime uint16 `mapstructure:"deferral-time"`
+	DeferralTime uint16 `mapstructure:"deferral-time" json:"deferral-time" yaml:"deferral-time" toml:"deferral-time"`
 }
 
 //struct for container bgp:graceful-restart
 type GracefulRestart struct {
 	// original -> bgp:graceful-restart-config
-	Config GracefulRestartConfig `mapstructure:"config"`
+	Config GracefulRestartConfig `mapstructure:"config" json:"config" yaml:"config" toml:"config"`
 	// original -> bgp:graceful-restart-state
-	State GracefulRestartState `mapstructure:"state"`
+	State GracefulRestartState `mapstructure:"state" json:"state" yaml:"state" toml:"state"`
 }
 
 //struct for container bgp-mp:state
 type IbgpState struct {
 	// original -> bgp-mp:maximum-paths
-	MaximumPaths uint32 `mapstructure:"maximum-paths"`
+	MaximumPaths uint32 `mapstructure:"maximum-paths" json:"maximum-paths" yaml:"maximum-paths" toml:"maximum-paths"`
 }
 
 //struct for container bgp-mp:config
 type IbgpConfig struct {
 	// original -> bgp-mp:maximum-paths
-	MaximumPaths uint32 `mapstructure:"maximum-paths"`
+	MaximumPaths uint32 `mapstructure:"maximum-paths" json:"maximum-paths" yaml:"maximum-paths" toml:"maximum-paths"`
 }
 
 //struct for container bgp-mp:ibgp
 type Ibgp struct {
 	// original -> bgp-mp:ibgp-config
-	Config IbgpConfig `mapstructure:"config"`
+	Config IbgpConfig `mapstructure:"config" json:"config" yaml:"config" toml:"config"`
 	// original -> bgp-mp:ibgp-state
-	State IbgpState `mapstructure:"state"`
+	State IbgpState `mapstructure:"state" json:"state" yaml:"state" toml:"state"`
 }
 
 //struct for container bgp-mp:state
 type EbgpState struct {
 	// original -> bgp-mp:allow-multiple-as
 	//bgp-mp:allow-multiple-as's original type is boolean
-	AllowMultipleAs bool `mapstructure:"allow-multiple-as"`
+	AllowMultipleAs bool `mapstructure:"allow-multiple-as" json:"allow-multiple-as" yaml:"allow-multiple-as" toml:"allow-multiple-as"`
 	// original -> bgp-mp:maximum-paths
-	MaximumPaths uint32 `mapstructure:"maximum-paths"`
+	MaximumPaths uint32 `mapstructure:"maximum-paths" json:"maximum-paths" yaml:"maximum-paths" toml:"maximum-paths"`
 }
 
 //struct for container bgp-mp:config
 type EbgpConfig struct {
 	// original -> bgp-mp:allow-multiple-as
 	//bgp-mp:allow-multiple-as's original type is boolean
-	AllowMultipleAs bool `mapstructure:"allow-multiple-as"`
+	AllowMultipleAs bool `mapstructure:"allow-multiple-as" json:"allow-multiple-as" yaml:"allow-multiple-as" toml:"allow-multiple-as"`
 	// original -> bgp-mp:maximum-paths
-	MaximumPaths uint32 `mapstructure:"maximum-paths"`
+	MaximumPaths uint32 `mapstructure:"maximum-paths" json:"maximum-paths" yaml:"maximum-paths" toml:"maximum-paths"`
 }
 
 //struct for container bgp-mp:ebgp
 type Ebgp struct {
 	// original -> bgp-mp:ebgp-config
-	Config EbgpConfig `mapstructure:"config"`
+	Config EbgpConfig `mapstructure:"config" json:"config" yaml:"config" toml:"config"`
 	// original -> bgp-mp:ebgp-state
-	State EbgpState `mapstructure:"state"`
+	State EbgpState `mapstructure:"state" json:"state" yaml:"state" toml:"state"`
 }
 
 //struct for container bgp-mp:state
 type UseMultiplePathsState struct {
 	// original -> bgp-mp:enabled
 	//bgp-mp:enabled's original type is boolean
-	Enabled bool `mapstructure:"enabled"`
+	Enabled bool `mapstructure:"enabled" json:"enabled" yaml:"enabled" toml:"enabled"`
 }
 
 //struct for container bgp-mp:config
 type UseMultiplePathsConfig struct {
 	// original -> bgp-mp:enabled
 	//bgp-mp:enabled's original type is boolean
-	Enabled bool `mapstructure:"enabled"`
+	Enabled bool `mapstructure:"enabled" json:"enabled" yaml:"enabled" toml:"enabled"`
 }
 
 //struct for container bgp-mp:use-multiple-paths
 type UseMultiplePaths struct {
 	// original -> bgp-mp:use-multiple-paths-config
-	Config UseMultiplePathsConfig `mapstructure:"config"`
+	Config UseMultiplePathsConfig `mapstructure:"config" json:"config" yaml:"config" toml:"config"`
 	// original -> bgp-mp:use-multiple-paths-state
-	State UseMultiplePathsState `mapstructure:"state"`
+	State UseMultiplePathsState `mapstructure:"state" json:"state" yaml:"state" toml:"state"`
 	// original -> bgp-mp:ebgp
-	Ebgp Ebgp `mapstructure:"ebgp"`
+	Ebgp Ebgp `mapstructure:"ebgp" json:"ebgp" yaml:"ebgp" toml:"ebgp"`
 	// original -> bgp-mp:ibgp
-	Ibgp Ibgp `mapstructure:"ibgp"`
+	Ibgp Ibgp `mapstructure:"ibgp" json:"ibgp" yaml:"ibgp" toml:"ibgp"`
 }
 
 //struct for container bgp:state
 type ConfederationState struct {
 	// original -> bgp:enabled
 	//bgp:enabled's original type is boolean
-	Enabled bool `mapstructure:"enabled"`
+	Enabled bool `mapstructure:"enabled" json:"enabled" yaml:"enabled" toml:"enabled"`
 	// original -> bgp:identifier
 	//bgp:identifier's original type is inet:as-number
-	Identifier uint32 `mapstructure:"identifier"`
+	Identifier uint32 `mapstructure:"identifier" json:"identifier" yaml:"identifier" toml:"identifier"`
 	// original -> bgp:member-as
 	// original type is list of inet:as-number
-	MemberAsList []uint32 `mapstructure:"member-as-list"`
+	MemberAsList []uint32 `mapstructure:"member-as-list" json:"member-as-list" yaml:"member-as-list" toml:"member-as-list"`
 }
 
 //struct for container bgp:config
 type ConfederationConfig struct {
 	// original -> bgp:enabled
 	//bgp:enabled's original type is boolean
-	Enabled bool `mapstructure:"enabled"`
+	Enabled bool `mapstructure:"enabled" json:"enabled" yaml:"enabled" toml:"enabled"`
 	// original -> bgp:identifier
 	//bgp:identifier's original type is inet:as-number
-	Identifier uint32 `mapstructure:"identifier"`
+	Identifier uint32 `mapstructure:"identifier" json:"identifier" yaml:"identifier" toml:"identifier"`
 	// original -> bgp:member-as
 	// original type is list of inet:as-number
-	MemberAsList []uint32 `mapstructure:"member-as-list"`
+	MemberAsList []uint32 `mapstructure:"member-as-list" json:"member-as-list" yaml:"member-as-list" toml:"member-as-list"`
 }
 
 //struct for container bgp:confederation
 type Confederation struct {
 	// original -> bgp:confederation-config
-	Config ConfederationConfig `mapstructure:"config"`
+	Config ConfederationConfig `mapstructure:"config" json:"config" yaml:"config" toml:"config"`
 	// original -> bgp:confederation-state
-	State ConfederationState `mapstructure:"state"`
+	State ConfederationState `mapstructure:"state" json:"state" yaml:"state" toml:"state"`
 }
 
 //struct for container bgp:state
 type DefaultRouteDistanceState struct {
 	// original -> bgp:external-route-distance
-	ExternalRouteDistance uint8 `mapstructure:"external-route-distance"`
+	ExternalRouteDistance uint8 `mapstructure:"external-route-distance" json:"external-route-distance" yaml:"external-route-distance" toml:"external-route-distance"`
 	// original -> bgp:internal-route-distance
-	InternalRouteDistance uint8 `mapstructure:"internal-route-distance"`
+	InternalRouteDistance uint8 `mapstructure:"internal-route-distance" json:"internal-route-distance" yaml:"internal-route-distance" toml:"internal-route-distance"`
 }
 
 //struct for container bgp:config
 type DefaultRouteDistanceConfig struct {
 	// original -> bgp:external-route-distance
-	ExternalRouteDistance uint8 `mapstructure:"external-route-distance"`
+	ExternalRouteDistance uint8 `mapstructure:"external-route-distance" json:"external-route-distance" yaml:"external-route-distance" toml:"external-route-distance"`
 	// original -> bgp:internal-route-distance
-	InternalRouteDistance uint8 `mapstructure:"internal-route-distance"`
+	InternalRouteDistance uint8 `mapstructure:"internal-route-distance" json:"internal-route-distance" yaml:"internal-route-distance" toml:"internal-route-distance"`
 }
 
 //struct for container bgp:default-route-distance
 type DefaultRouteDistance struct {
 	// original -> bgp:default-route-distance-config
-	Config DefaultRouteDistanceConfig `mapstructure:"config"`
+	Config DefaultRouteDistanceConfig `mapstructure:"config" json:"config" yaml:"config" toml:"config"`
 	// original -> bgp:default-route-distance-state
-	State DefaultRouteDistanceState `mapstructure:"state"`
+	State DefaultRouteDistanceState `mapstructure:"state" json:"state" yaml:"state" toml:"state"`
 }
 
 //struct for container bgp-mp:state
 type RouteSelectionOptionsState struct {
 	// original -> bgp-mp:always-compare-med
 	//bgp-mp:always-compare-med's original type is boolean
-	AlwaysCompareMed bool `mapstructure:"always-compare-med"`
+	AlwaysCompareMed bool `mapstructure:"always-compare-med" json:"always-compare-med" yaml:"always-compare-med" toml:"always-compare-med"`
 	// original -> bgp-mp:ignore-as-path-length
 	//bgp-mp:ignore-as-path-length's original type is boolean
-	IgnoreAsPathLength bool `mapstructure:"ignore-as-path-length"`
+	IgnoreAsPathLength bool `mapstructure:"ignore-as-path-length" json:"ignore-as-path-length" yaml:"ignore-as-path-length" toml:"ignore-as-path-length"`
 	// original -> bgp-mp:external-compare-router-id
 	//bgp-mp:external-compare-router-id's original type is boolean
-	ExternalCompareRouterId bool `mapstructure:"external-compare-router-id"`
+	ExternalCompareRouterId bool `mapstructure:"external-compare-router-id" json:"external-compare-router-id" yaml:"external-compare-router-id" toml:"external-compare-router-id"`
 	// original -> bgp-mp:advertise-inactive-routes
 	//bgp-mp:advertise-inactive-routes's original type is boolean
-	AdvertiseInactiveRoutes bool `mapstructure:"advertise-inactive-routes"`
+	AdvertiseInactiveRoutes bool `mapstructure:"advertise-inactive-routes" json:"advertise-inactive-routes" yaml:"advertise-inactive-routes" toml:"advertise-inactive-routes"`
 	// original -> bgp-mp:enable-aigp
 	//bgp-mp:enable-aigp's original type is boolean
-	EnableAigp bool `mapstructure:"enable-aigp"`
+	EnableAigp bool `mapstructure:"enable-aigp" json:"enable-aigp" yaml:"enable-aigp" toml:"enable-aigp"`
 	// original -> bgp-mp:ignore-next-hop-igp-metric
 	//bgp-mp:ignore-next-hop-igp-metric's original type is boolean
-	IgnoreNextHopIgpMetric bool `mapstructure:"ignore-next-hop-igp-metric"`
+	IgnoreNextHopIgpMetric bool `mapstructure:"ignore-next-hop-igp-metric" json:"ignore-next-hop-igp-metric" yaml:"ignore-next-hop-igp-metric" toml:"ignore-next-hop-igp-metric"`
 }
 
 //struct for container bgp-mp:config
 type RouteSelectionOptionsConfig struct {
 	// original -> bgp-mp:always-compare-med
 	//bgp-mp:always-compare-med's original type is boolean
-	AlwaysCompareMed bool `mapstructure:"always-compare-med"`
+	AlwaysCompareMed bool `mapstructure:"always-compare-med" json:"always-compare-med" yaml:"always-compare-med" toml:"always-compare-med"`
 	// original -> bgp-mp:ignore-as-path-length
 	//bgp-mp:ignore-as-path-length's original type is boolean
-	IgnoreAsPathLength bool `mapstructure:"ignore-as-path-length"`
+	IgnoreAsPathLength bool `mapstructure:"ignore-as-path-length" json:"ignore-as-path-length" yaml:"ignore-as-path-length" toml:"ignore-as-path-length"`
 	// original -> bgp-mp:external-compare-router-id
 	//bgp-mp:external-compare-router-id's original type is boolean
-	ExternalCompareRouterId bool `mapstructure:"external-compare-router-id"`
+	ExternalCompareRouterId bool `mapstructure:"external-compare-router-id" json:"external-compare-router-id" yaml:"external-compare-router-id" toml:"external-compare-router-id"`
 	// original -> bgp-mp:advertise-inactive-routes
 	//bgp-mp:advertise-inactive-routes's original type is boolean
-	AdvertiseInactiveRoutes bool `mapstructure:"advertise-inactive-routes"`
+	AdvertiseInactiveRoutes bool `mapstructure:"advertise-inactive-routes" json:"advertise-inactive-routes" yaml:"advertise-inactive-routes" toml:"advertise-inactive-routes"`
 	// original -> bgp-mp:enable-aigp
 	//bgp-mp:enable-aigp's original type is boolean
-	EnableAigp bool `mapstructure:"enable-aigp"`
+	EnableAigp bool `mapstructure:"enable-aigp" json:"enable-aigp" yaml:"enable-aigp" toml:"enable-aigp"`
 	// original -> bgp-mp:ignore-next-hop-igp-metric
 	//bgp-mp:ignore-next-hop-igp-metric's original type is boolean
-	IgnoreNextHopIgpMetric bool `mapstructure:"ignore-next-hop-igp-metric"`
+	IgnoreNextHopIgpMetric bool `mapstructure:"ignore-next-hop-igp-metric" json:"ignore-next-hop-igp-metric" yaml:"ignore-next-hop-igp-metric" toml:"ignore-next-hop-igp-metric"`
 }
 
 //struct for container bgp-mp:route-selection-options
 type RouteSelectionOptions struct {
 	// original -> bgp-mp:route-selection-options-config
-	Config RouteSelectionOptionsConfig `mapstructure:"config"`
+	Config RouteSelectionOptionsConfig `mapstructure:"config" json:"config" yaml:"config" toml:"config"`
 	// original -> bgp-mp:route-selection-options-state
-	State RouteSelectionOptionsState `mapstructure:"state"`
+	State RouteSelectionOptionsState `mapstructure:"state" json:"state" yaml:"state" toml:"state"`
 }
 
 //struct for container bgp:state
 type GlobalState struct {
 	// original -> bgp:as
 	//bgp:as's original type is inet:as-number
-	As uint32 `mapstructure:"as"`
+	As uint32 `mapstructure:"as" json:"as" yaml:"as" toml:"as"`
 	// original -> bgp:router-id
 	//bgp:router-id's original type is inet:ipv4-address
-	RouterId string `mapstructure:"router-id"`
+	RouterId string `mapstructure:"router-id" json:"router-id" yaml:"router-id" toml:"router-id"`
 	// original -> bgp-op:total-paths
-	TotalPaths uint32 `mapstructure:"total-paths"`
+	TotalPaths uint32 `mapstructure:"total-paths" json:"total-paths" yaml:"total-paths" toml:"total-paths"`
 	// original -> bgp-op:total-prefixes
-	TotalPrefixes uint32 `mapstructure:"total-prefixes"`
+	TotalPrefixes uint32 `mapstructure:"total-prefixes" json:"total-prefixes" yaml:"total-prefixes" toml:"total-prefixes"`
 }
 
 //struct for container bgp:config
 type GlobalConfig struct {
 	// original -> bgp:as
 	//bgp:as's original type is inet:as-number
-	As uint32 `mapstructure:"as"`
+	As uint32 `mapstructure:"as" json:"as" yaml:"as" toml:"as"`
 	// original -> bgp:router-id
 	//bgp:router-id's original type is inet:ipv4-address
-	RouterId string `mapstructure:"router-id"`
+	RouterId string `mapstructure:"router-id" json:"router-id" yaml:"router-id" toml:"router-id"`
 }
 
 //struct for container bgp:global
 type Global struct {
 	// original -> bgp:global-config
-	Config GlobalConfig `mapstructure:"config"`
+	Config GlobalConfig `mapstructure:"config" json:"config" yaml:"config" toml:"config"`
 	// original -> bgp:global-state
-	State GlobalState `mapstructure:"state"`
+	State GlobalState `mapstructure:"state" json:"state" yaml:"state" toml:"state"`
 	// original -> bgp-mp:route-selection-options
-	RouteSelectionOptions RouteSelectionOptions `mapstructure:"route-selection-options"`
+	RouteSelectionOptions RouteSelectionOptions `mapstructure:"route-selection-options" json:"route-selection-options" yaml:"route-selection-options" toml:"route-selection-options"`
 	// original -> bgp:default-route-distance
-	DefaultRouteDistance DefaultRouteDistance `mapstructure:"default-route-distance"`
+	DefaultRouteDistance DefaultRouteDistance `mapstructure:"default-route-distance" json:"default-route-distance" yaml:"default-route-distance" toml:"default-route-distance"`
 	// original -> bgp:confederation
-	Confederation Confederation `mapstructure:"confederation"`
+	Confederation Confederation `mapstructure:"confederation" json:"confederation" yaml:"confederation" toml:"confederation"`
 	// original -> bgp-mp:use-multiple-paths
-	UseMultiplePaths UseMultiplePaths `mapstructure:"use-multiple-paths"`
+	UseMultiplePaths UseMultiplePaths `mapstructure:"use-multiple-paths" json:"use-multiple-paths" yaml:"use-multiple-paths" toml:"use-multiple-paths"`
 	// original -> bgp:graceful-restart
-	GracefulRestart GracefulRestart `mapstructure:"graceful-restart"`
+	GracefulRestart GracefulRestart `mapstructure:"graceful-restart" json:"graceful-restart" yaml:"graceful-restart" toml:"graceful-restart"`
 	// original -> bgp:afi-safis
-	AfiSafis []AfiSafi `mapstructure:"afi-safis"`
+	AfiSafis []AfiSafi `mapstructure:"afi-safis" json:"afi-safis" yaml:"afi-safis" toml:"afi-safis"`
 	// original -> rpol:apply-policy
-	ApplyPolicy ApplyPolicy `mapstructure:"apply-policy"`
+	ApplyPolicy ApplyPolicy `mapstructure:"apply-policy" json:"apply-policy" yaml:"apply-policy" toml:"apply-policy"`
 	// original -> gobgp:collector
-	Collector Collector `mapstructure:"collector"`
+	Collector Collector `mapstructure:"collector" json:"collector" yaml:"collector" toml:"collector"`
 	// original -> gobgp:zebra
-	Zebra Zebra `mapstructure:"zebra"`
+	Zebra Zebra `mapstructure:"zebra" json:"zebra" yaml:"zebra" toml:"zebra"`
 	// original -> gobgp:mpls-label-range
-	MplsLabelRange MplsLabelRange `mapstructure:"mpls-label-range"`
+	MplsLabelRange MplsLabelRange `mapstructure:"mpls-label-range" json:"mpls-label-range" yaml:"mpls-label-range" toml:"mpls-label-range"`
 	// original -> gobgp:listen-config
-	ListenConfig ListenConfig `mapstructure:"listen-config"`
+	ListenConfig ListenConfig `mapstructure:"listen-config" json:"listen-config" yaml:"listen-config" toml:"listen-config"`
 }
 
 //struct for container bgp:bgp
 type Bgp struct {
 	// original -> bgp:global
-	Global Global `mapstructure:"global"`
+	Global Global `mapstructure:"global" json:"global" yaml:"global" toml:"global"`
 	// original -> bgp:neighbors
-	Neighbors []Neighbor `mapstructure:"neighbors"`
+	Neighbors []Neighbor `mapstructure:"neighbors" json:"neighbors" yaml:"neighbors" toml:"neighbors"`
 	// original -> bgp:peer-groups
-	PeerGroups []PeerGroup `mapstructure:"peer-groups"`
+	PeerGroups []PeerGroup `mapstructure:"peer-groups" json:"peer-groups" yaml:"peer-groups" toml:"peer-groups"`
 	// original -> gobgp:rpki-servers
-	RpkiServers []RpkiServer `mapstructure:"rpki-servers"`
+	RpkiServers []RpkiServer `mapstructure:"rpki-servers" json:"rpki-servers" yaml:"rpki-servers" toml:"rpki-servers"`
 	// original -> gobgp:bmp-servers
-	BmpServers []BmpServer `mapstructure:"bmp-servers"`
+	BmpServers []BmpServer `mapstructure:"bmp-servers" json:"bmp-servers" yaml:"bmp-servers" toml:"bmp-servers"`
 	// original -> gobgp:mrt-dump
-	MrtDump []Mrt `mapstructure:"mrt-dump"`
+	MrtDump []Mrt `mapstructure:"mrt-dump" json:"mrt-dump" yaml:"mrt-dump" toml:"mrt-dump"`
 }
 
 //struct for container bgp-pol:set-ext-community-method
 type SetExtCommunityMethod struct {
 	// original -> bgp-pol:communities
 	// original type is list of union
-	CommunitiesList []string `mapstructure:"communities-list"`
+	CommunitiesList []string `mapstructure:"communities-list" json:"communities-list" yaml:"communities-list" toml:"communities-list"`
 	// original -> bgp-pol:ext-community-set-ref
-	ExtCommunitySetRef string `mapstructure:"ext-community-set-ref"`
+	ExtCommunitySetRef string `mapstructure:"ext-community-set-ref" json:"ext-community-set-ref" yaml:"ext-community-set-ref" toml:"ext-community-set-ref"`
 }
 
 //struct for container bgp-pol:set-ext-community
 type SetExtCommunity struct {
 	// original -> bgp-pol:set-ext-community-method
-	SetExtCommunityMethod SetExtCommunityMethod `mapstructure:"set-ext-community-method"`
+	SetExtCommunityMethod SetExtCommunityMethod `mapstructure:"set-ext-community-method" json:"set-ext-community-method" yaml:"set-ext-community-method" toml:"set-ext-community-method"`
 	// original -> bgp-pol:options
 	//bgp-pol:options's original type is bgp-set-community-option-type
-	Options string `mapstructure:"options"`
+	Options string `mapstructure:"options" json:"options" yaml:"options" toml:"options"`
 }
 
 //struct for container bgp-pol:set-community-method
 type SetCommunityMethod struct {
 	// original -> bgp-pol:communities
 	// original type is list of union
-	CommunitiesList []string `mapstructure:"communities-list"`
+	CommunitiesList []string `mapstructure:"communities-list" json:"communities-list" yaml:"communities-list" toml:"communities-list"`
 	// original -> bgp-pol:community-set-ref
-	CommunitySetRef string `mapstructure:"community-set-ref"`
+	CommunitySetRef string `mapstructure:"community-set-ref" json:"community-set-ref" yaml:"community-set-ref" toml:"community-set-ref"`
 }
 
 //struct for container bgp-pol:set-community
 type SetCommunity struct {
 	// original -> bgp-pol:set-community-method
-	SetCommunityMethod SetCommunityMethod `mapstructure:"set-community-method"`
+	SetCommunityMethod SetCommunityMethod `mapstructure:"set-community-method" json:"set-community-method" yaml:"set-community-method" toml:"set-community-method"`
 	// original -> bgp-pol:options
 	//bgp-pol:options's original type is bgp-set-community-option-type
-	Options string `mapstructure:"options"`
+	Options string `mapstructure:"options" json:"options" yaml:"options" toml:"options"`
 }
 
 //struct for container bgp-pol:set-as-path-prepend
 type SetAsPathPrepend struct {
 	// original -> bgp-pol:repeat-n
-	RepeatN uint8 `mapstructure:"repeat-n"`
+	RepeatN uint8 `mapstructure:"repeat-n" json:"repeat-n" yaml:"repeat-n" toml:"repeat-n"`
 	// original -> gobgp:as
 	//gobgp:as's original type is union
-	As string `mapstructure:"as"`
+	As string `mapstructure:"as" json:"as" yaml:"as" toml:"as"`
 }
 
 //struct for container bgp-pol:bgp-actions
 type BgpActions struct {
 	// original -> bgp-pol:set-as-path-prepend
-	SetAsPathPrepend SetAsPathPrepend `mapstructure:"set-as-path-prepend"`
+	SetAsPathPrepend SetAsPathPrepend `mapstructure:"set-as-path-prepend" json:"set-as-path-prepend" yaml:"set-as-path-prepend" toml:"set-as-path-prepend"`
 	// original -> bgp-pol:set-community
-	SetCommunity SetCommunity `mapstructure:"set-community"`
+	SetCommunity SetCommunity `mapstructure:"set-community" json:"set-community" yaml:"set-community" toml:"set-community"`
 	// original -> bgp-pol:set-ext-community
-	SetExtCommunity SetExtCommunity `mapstructure:"set-ext-community"`
+	SetExtCommunity SetExtCommunity `mapstructure:"set-ext-community" json:"set-ext-community" yaml:"set-ext-community" toml:"set-ext-community"`
 	// original -> bgp-pol:set-route-origin
-	SetRouteOrigin BgpOriginAttrType `mapstructure:"set-route-origin"`
+	SetRouteOrigin BgpOriginAttrType `mapstructure:"set-route-origin" json:"set-route-origin" yaml:"set-route-origin" toml:"set-route-origin"`
 	// original -> bgp-pol:set-local-pref
-	SetLocalPref uint32 `mapstructure:"set-local-pref"`
+	SetLocalPref uint32 `mapstructure:"set-local-pref" json:"set-local-pref" yaml:"set-local-pref" toml:"set-local-pref"`
 	// original -> bgp-pol:set-next-hop
-	SetNextHop BgpNextHopType `mapstructure:"set-next-hop"`
+	SetNextHop BgpNextHopType `mapstructure:"set-next-hop" json:"set-next-hop" yaml:"set-next-hop" toml:"set-next-hop"`
 	// original -> bgp-pol:set-med
-	SetMed BgpSetMedType `mapstructure:"set-med"`
+	SetMed BgpSetMedType `mapstructure:"set-med" json:"set-med" yaml:"set-med" toml:"set-med"`
 }
 
 //struct for container rpol:igp-actions
 type IgpActions struct {
 	// original -> rpol:set-tag
-	SetTag TagType `mapstructure:"set-tag"`
+	SetTag TagType `mapstructure:"set-tag" json:"set-tag" yaml:"set-tag" toml:"set-tag"`
 }
 
 //struct for container rpol:route-disposition
 type RouteDisposition struct {
 	// original -> rpol:accept-route
 	//rpol:accept-route's original type is empty
-	AcceptRoute bool `mapstructure:"accept-route"`
+	AcceptRoute bool `mapstructure:"accept-route" json:"accept-route" yaml:"accept-route" toml:"accept-route"`
 	// original -> rpol:reject-route
 	//rpol:reject-route's original type is empty
-	RejectRoute bool `mapstructure:"reject-route"`
+	RejectRoute bool `mapstructure:"reject-route" json:"reject-route" yaml:"reject-route" toml:"reject-route"`
 }
 
 //struct for container rpol:actions
 type Actions struct {
 	// original -> rpol:route-disposition
-	RouteDisposition RouteDisposition `mapstructure:"route-disposition"`
+	RouteDisposition RouteDisposition `mapstructure:"route-disposition" json:"route-disposition" yaml:"route-disposition" toml:"route-disposition"`
 	// original -> rpol:igp-actions
-	IgpActions IgpActions `mapstructure:"igp-actions"`
+	IgpActions IgpActions `mapstructure:"igp-actions" json:"igp-actions" yaml:"igp-actions" toml:"igp-actions"`
 	// original -> bgp-pol:bgp-actions
-	BgpActions BgpActions `mapstructure:"bgp-actions"`
+	BgpActions BgpActions `mapstructure:"bgp-actions" json:"bgp-actions" yaml:"bgp-actions" toml:"bgp-actions"`
 }
 
 //struct for container bgp-pol:as-path-length
 type AsPathLength struct {
 	// original -> ptypes:operator
-	Operator AttributeComparison `mapstructure:"operator"`
+	Operator AttributeComparison `mapstructure:"operator" json:"operator" yaml:"operator" toml:"operator"`
 	// original -> ptypes:value
-	Value uint32 `mapstructure:"value"`
+	Value uint32 `mapstructure:"value" json:"value" yaml:"value" toml:"value"`
 }
 
 //struct for container bgp-pol:community-count
 type CommunityCount struct {
 	// original -> ptypes:operator
-	Operator AttributeComparison `mapstructure:"operator"`
+	Operator AttributeComparison `mapstructure:"operator" json:"operator" yaml:"operator" toml:"operator"`
 	// original -> ptypes:value
-	Value uint32 `mapstructure:"value"`
+	Value uint32 `mapstructure:"value" json:"value" yaml:"value" toml:"value"`
 }
 
 //struct for container bgp-pol:match-as-path-set
 type MatchAsPathSet struct {
 	// original -> bgp-pol:as-path-set
-	AsPathSet string `mapstructure:"as-path-set"`
+	AsPathSet string `mapstructure:"as-path-set" json:"as-path-set" yaml:"as-path-set" toml:"as-path-set"`
 	// original -> rpol:match-set-options
-	MatchSetOptions MatchSetOptionsType `mapstructure:"match-set-options"`
+	MatchSetOptions MatchSetOptionsType `mapstructure:"match-set-options" json:"match-set-options" yaml:"match-set-options" toml:"match-set-options"`
 }
 
 //struct for container bgp-pol:match-ext-community-set
 type MatchExtCommunitySet struct {
 	// original -> bgp-pol:ext-community-set
-	ExtCommunitySet string `mapstructure:"ext-community-set"`
+	ExtCommunitySet string `mapstructure:"ext-community-set" json:"ext-community-set" yaml:"ext-community-set" toml:"ext-community-set"`
 	// original -> rpol:match-set-options
-	MatchSetOptions MatchSetOptionsType `mapstructure:"match-set-options"`
+	MatchSetOptions MatchSetOptionsType `mapstructure:"match-set-options" json:"match-set-options" yaml:"match-set-options" toml:"match-set-options"`
 }
 
 //struct for container bgp-pol:match-community-set
 type MatchCommunitySet struct {
 	// original -> bgp-pol:community-set
-	CommunitySet string `mapstructure:"community-set"`
+	CommunitySet string `mapstructure:"community-set" json:"community-set" yaml:"community-set" toml:"community-set"`
 	// original -> rpol:match-set-options
-	MatchSetOptions MatchSetOptionsType `mapstructure:"match-set-options"`
+	MatchSetOptions MatchSetOptionsType `mapstructure:"match-set-options" json:"match-set-options" yaml:"match-set-options" toml:"match-set-options"`
 }
 
 //struct for container bgp-pol:bgp-conditions
 type BgpConditions struct {
 	// original -> bgp-pol:match-community-set
-	MatchCommunitySet MatchCommunitySet `mapstructure:"match-community-set"`
+	MatchCommunitySet MatchCommunitySet `mapstructure:"match-community-set" json:"match-community-set" yaml:"match-community-set" toml:"match-community-set"`
 	// original -> bgp-pol:match-ext-community-set
-	MatchExtCommunitySet MatchExtCommunitySet `mapstructure:"match-ext-community-set"`
+	MatchExtCommunitySet MatchExtCommunitySet `mapstructure:"match-ext-community-set" json:"match-ext-community-set" yaml:"match-ext-community-set" toml:"match-ext-community-set"`
 	// original -> bgp-pol:match-as-path-set
-	MatchAsPathSet MatchAsPathSet `mapstructure:"match-as-path-set"`
+	MatchAsPathSet MatchAsPathSet `mapstructure:"match-as-path-set" json:"match-as-path-set" yaml:"match-as-path-set" toml:"match-as-path-set"`
 	// original -> bgp-pol:med-eq
-	MedEq uint32 `mapstructure:"med-eq"`
+	MedEq uint32 `mapstructure:"med-eq" json:"med-eq" yaml:"med-eq" toml:"med-eq"`
 	// original -> bgp-pol:origin-eq
-	OriginEq BgpOriginAttrType `mapstructure:"origin-eq"`
+	OriginEq BgpOriginAttrType `mapstructure:"origin-eq" json:"origin-eq" yaml:"origin-eq" toml:"origin-eq"`
 	// original -> bgp-pol:next-hop-in
 	// original type is list of inet:ip-address
-	NextHopInList []string `mapstructure:"next-hop-in-list"`
+	NextHopInList []string `mapstructure:"next-hop-in-list" json:"next-hop-in-list" yaml:"next-hop-in-list" toml:"next-hop-in-list"`
 	// original -> bgp-pol:afi-safi-in
-	AfiSafiInList []AfiSafiType `mapstructure:"afi-safi-in-list"`
+	AfiSafiInList []AfiSafiType `mapstructure:"afi-safi-in-list" json:"afi-safi-in-list" yaml:"afi-safi-in-list" toml:"afi-safi-in-list"`
 	// original -> bgp-pol:local-pref-eq
-	LocalPrefEq uint32 `mapstructure:"local-pref-eq"`
+	LocalPrefEq uint32 `mapstructure:"local-pref-eq" json:"local-pref-eq" yaml:"local-pref-eq" toml:"local-pref-eq"`
 	// original -> bgp-pol:community-count
-	CommunityCount CommunityCount `mapstructure:"community-count"`
+	CommunityCount CommunityCount `mapstructure:"community-count" json:"community-count" yaml:"community-count" toml:"community-count"`
 	// original -> bgp-pol:as-path-length
-	AsPathLength AsPathLength `mapstructure:"as-path-length"`
+	AsPathLength AsPathLength `mapstructure:"as-path-length" json:"as-path-length" yaml:"as-path-length" toml:"as-path-length"`
 	// original -> bgp-pol:route-type
-	RouteType RouteType `mapstructure:"route-type"`
+	RouteType RouteType `mapstructure:"route-type" json:"route-type" yaml:"route-type" toml:"route-type"`
 	// original -> gobgp:rpki-validation-result
-	RpkiValidationResult RpkiValidationResultType `mapstructure:"rpki-validation-result"`
+	RpkiValidationResult RpkiValidationResultType `mapstructure:"rpki-validation-result" json:"rpki-validation-result" yaml:"rpki-validation-result" toml:"rpki-validation-result"`
 }
 
 //struct for container rpol:igp-conditions
@@ -2284,153 +2284,153 @@ type IgpConditions struct {
 //struct for container rpol:match-tag-set
 type MatchTagSet struct {
 	// original -> rpol:tag-set
-	TagSet string `mapstructure:"tag-set"`
+	TagSet string `mapstructure:"tag-set" json:"tag-set" yaml:"tag-set" toml:"tag-set"`
 	// original -> rpol:match-set-options
-	MatchSetOptions MatchSetOptionsRestrictedType `mapstructure:"match-set-options"`
+	MatchSetOptions MatchSetOptionsRestrictedType `mapstructure:"match-set-options" json:"match-set-options" yaml:"match-set-options" toml:"match-set-options"`
 }
 
 //struct for container rpol:match-neighbor-set
 type MatchNeighborSet struct {
 	// original -> rpol:neighbor-set
-	NeighborSet string `mapstructure:"neighbor-set"`
+	NeighborSet string `mapstructure:"neighbor-set" json:"neighbor-set" yaml:"neighbor-set" toml:"neighbor-set"`
 	// original -> rpol:match-set-options
-	MatchSetOptions MatchSetOptionsRestrictedType `mapstructure:"match-set-options"`
+	MatchSetOptions MatchSetOptionsRestrictedType `mapstructure:"match-set-options" json:"match-set-options" yaml:"match-set-options" toml:"match-set-options"`
 }
 
 //struct for container rpol:match-prefix-set
 type MatchPrefixSet struct {
 	// original -> rpol:prefix-set
-	PrefixSet string `mapstructure:"prefix-set"`
+	PrefixSet string `mapstructure:"prefix-set" json:"prefix-set" yaml:"prefix-set" toml:"prefix-set"`
 	// original -> rpol:match-set-options
-	MatchSetOptions MatchSetOptionsRestrictedType `mapstructure:"match-set-options"`
+	MatchSetOptions MatchSetOptionsRestrictedType `mapstructure:"match-set-options" json:"match-set-options" yaml:"match-set-options" toml:"match-set-options"`
 }
 
 //struct for container rpol:conditions
 type Conditions struct {
 	// original -> rpol:call-policy
-	CallPolicy string `mapstructure:"call-policy"`
+	CallPolicy string `mapstructure:"call-policy" json:"call-policy" yaml:"call-policy" toml:"call-policy"`
 	// original -> rpol:match-prefix-set
-	MatchPrefixSet MatchPrefixSet `mapstructure:"match-prefix-set"`
+	MatchPrefixSet MatchPrefixSet `mapstructure:"match-prefix-set" json:"match-prefix-set" yaml:"match-prefix-set" toml:"match-prefix-set"`
 	// original -> rpol:match-neighbor-set
-	MatchNeighborSet MatchNeighborSet `mapstructure:"match-neighbor-set"`
+	MatchNeighborSet MatchNeighborSet `mapstructure:"match-neighbor-set" json:"match-neighbor-set" yaml:"match-neighbor-set" toml:"match-neighbor-set"`
 	// original -> rpol:match-tag-set
-	MatchTagSet MatchTagSet `mapstructure:"match-tag-set"`
+	MatchTagSet MatchTagSet `mapstructure:"match-tag-set" json:"match-tag-set" yaml:"match-tag-set" toml:"match-tag-set"`
 	// original -> rpol:install-protocol-eq
-	InstallProtocolEq InstallProtocolType `mapstructure:"install-protocol-eq"`
+	InstallProtocolEq InstallProtocolType `mapstructure:"install-protocol-eq" json:"install-protocol-eq" yaml:"install-protocol-eq" toml:"install-protocol-eq"`
 	// original -> rpol:igp-conditions
-	IgpConditions IgpConditions `mapstructure:"igp-conditions"`
+	IgpConditions IgpConditions `mapstructure:"igp-conditions" json:"igp-conditions" yaml:"igp-conditions" toml:"igp-conditions"`
 	// original -> bgp-pol:bgp-conditions
-	BgpConditions BgpConditions `mapstructure:"bgp-conditions"`
+	BgpConditions BgpConditions `mapstructure:"bgp-conditions" json:"bgp-conditions" yaml:"bgp-conditions" toml:"bgp-conditions"`
 }
 
 //struct for container rpol:statement
 type Statement struct {
 	// original -> rpol:name
-	Name string `mapstructure:"name"`
+	Name string `mapstructure:"name" json:"name" yaml:"name" toml:"name"`
 	// original -> rpol:conditions
-	Conditions Conditions `mapstructure:"conditions"`
+	Conditions Conditions `mapstructure:"conditions" json:"conditions" yaml:"conditions" toml:"conditions"`
 	// original -> rpol:actions
-	Actions Actions `mapstructure:"actions"`
+	Actions Actions `mapstructure:"actions" json:"actions" yaml:"actions" toml:"actions"`
 }
 
 //struct for container rpol:policy-definition
 type PolicyDefinition struct {
 	// original -> rpol:name
-	Name string `mapstructure:"name"`
+	Name string `mapstructure:"name" json:"name" yaml:"name" toml:"name"`
 	// original -> rpol:statements
-	Statements []Statement `mapstructure:"statements"`
+	Statements []Statement `mapstructure:"statements" json:"statements" yaml:"statements" toml:"statements"`
 }
 
 //struct for container bgp-pol:as-path-set
 type AsPathSet struct {
 	// original -> bgp-pol:as-path-set-name
-	AsPathSetName string `mapstructure:"as-path-set-name"`
+	AsPathSetName string `mapstructure:"as-path-set-name" json:"as-path-set-name" yaml:"as-path-set-name" toml:"as-path-set-name"`
 	// original -> gobgp:as-path
-	AsPathList []string `mapstructure:"as-path-list"`
+	AsPathList []string `mapstructure:"as-path-list" json:"as-path-list" yaml:"as-path-list" toml:"as-path-list"`
 }
 
 //struct for container bgp-pol:ext-community-set
 type ExtCommunitySet struct {
 	// original -> bgp-pol:ext-community-set-name
-	ExtCommunitySetName string `mapstructure:"ext-community-set-name"`
+	ExtCommunitySetName string `mapstructure:"ext-community-set-name" json:"ext-community-set-name" yaml:"ext-community-set-name" toml:"ext-community-set-name"`
 	// original -> gobgp:ext-community
-	ExtCommunityList []string `mapstructure:"ext-community-list"`
+	ExtCommunityList []string `mapstructure:"ext-community-list" json:"ext-community-list" yaml:"ext-community-list" toml:"ext-community-list"`
 }
 
 //struct for container bgp-pol:community-set
 type CommunitySet struct {
 	// original -> bgp-pol:community-set-name
-	CommunitySetName string `mapstructure:"community-set-name"`
+	CommunitySetName string `mapstructure:"community-set-name" json:"community-set-name" yaml:"community-set-name" toml:"community-set-name"`
 	// original -> gobgp:community
-	CommunityList []string `mapstructure:"community-list"`
+	CommunityList []string `mapstructure:"community-list" json:"community-list" yaml:"community-list" toml:"community-list"`
 }
 
 //struct for container bgp-pol:bgp-defined-sets
 type BgpDefinedSets struct {
 	// original -> bgp-pol:community-sets
-	CommunitySets []CommunitySet `mapstructure:"community-sets"`
+	CommunitySets []CommunitySet `mapstructure:"community-sets" json:"community-sets" yaml:"community-sets" toml:"community-sets"`
 	// original -> bgp-pol:ext-community-sets
-	ExtCommunitySets []ExtCommunitySet `mapstructure:"ext-community-sets"`
+	ExtCommunitySets []ExtCommunitySet `mapstructure:"ext-community-sets" json:"ext-community-sets" yaml:"ext-community-sets" toml:"ext-community-sets"`
 	// original -> bgp-pol:as-path-sets
-	AsPathSets []AsPathSet `mapstructure:"as-path-sets"`
+	AsPathSets []AsPathSet `mapstructure:"as-path-sets" json:"as-path-sets" yaml:"as-path-sets" toml:"as-path-sets"`
 }
 
 //struct for container rpol:tag
 type Tag struct {
 	// original -> rpol:value
-	Value TagType `mapstructure:"value"`
+	Value TagType `mapstructure:"value" json:"value" yaml:"value" toml:"value"`
 }
 
 //struct for container rpol:tag-set
 type TagSet struct {
 	// original -> rpol:tag-set-name
-	TagSetName string `mapstructure:"tag-set-name"`
+	TagSetName string `mapstructure:"tag-set-name" json:"tag-set-name" yaml:"tag-set-name" toml:"tag-set-name"`
 	// original -> rpol:tag
-	TagList []Tag `mapstructure:"tag-list"`
+	TagList []Tag `mapstructure:"tag-list" json:"tag-list" yaml:"tag-list" toml:"tag-list"`
 }
 
 //struct for container rpol:neighbor-set
 type NeighborSet struct {
 	// original -> rpol:neighbor-set-name
-	NeighborSetName string `mapstructure:"neighbor-set-name"`
+	NeighborSetName string `mapstructure:"neighbor-set-name" json:"neighbor-set-name" yaml:"neighbor-set-name" toml:"neighbor-set-name"`
 	// original -> gobgp:neighbor-info
 	// original type is list of inet:ip-address
-	NeighborInfoList []string `mapstructure:"neighbor-info-list"`
+	NeighborInfoList []string `mapstructure:"neighbor-info-list" json:"neighbor-info-list" yaml:"neighbor-info-list" toml:"neighbor-info-list"`
 }
 
 //struct for container rpol:prefix
 type Prefix struct {
 	// original -> rpol:ip-prefix
 	//rpol:ip-prefix's original type is inet:ip-prefix
-	IpPrefix string `mapstructure:"ip-prefix"`
+	IpPrefix string `mapstructure:"ip-prefix" json:"ip-prefix" yaml:"ip-prefix" toml:"ip-prefix"`
 	// original -> rpol:masklength-range
-	MasklengthRange string `mapstructure:"masklength-range"`
+	MasklengthRange string `mapstructure:"masklength-range" json:"masklength-range" yaml:"masklength-range" toml:"masklength-range"`
 }
 
 //struct for container rpol:prefix-set
 type PrefixSet struct {
 	// original -> rpol:prefix-set-name
-	PrefixSetName string `mapstructure:"prefix-set-name"`
+	PrefixSetName string `mapstructure:"prefix-set-name" json:"prefix-set-name" yaml:"prefix-set-name" toml:"prefix-set-name"`
 	// original -> rpol:prefix
-	PrefixList []Prefix `mapstructure:"prefix-list"`
+	PrefixList []Prefix `mapstructure:"prefix-list" json:"prefix-list" yaml:"prefix-list" toml:"prefix-list"`
 }
 
 //struct for container rpol:defined-sets
 type DefinedSets struct {
 	// original -> rpol:prefix-sets
-	PrefixSets []PrefixSet `mapstructure:"prefix-sets"`
+	PrefixSets []PrefixSet `mapstructure:"prefix-sets" json:"prefix-sets" yaml:"prefix-sets" toml:"prefix-sets"`
 	// original -> rpol:neighbor-sets
-	NeighborSets []NeighborSet `mapstructure:"neighbor-sets"`
+	NeighborSets []NeighborSet `mapstructure:"neighbor-sets" json:"neighbor-sets" yaml:"neighbor-sets" toml:"neighbor-sets"`
 	// original -> rpol:tag-sets
-	TagSets []TagSet `mapstructure:"tag-sets"`
+	TagSets []TagSet `mapstructure:"tag-sets" json:"tag-sets" yaml:"tag-sets" toml:"tag-sets"`
 	// original -> bgp-pol:bgp-defined-sets
-	BgpDefinedSets BgpDefinedSets `mapstructure:"bgp-defined-sets"`
+	BgpDefinedSets BgpDefinedSets `mapstructure:"bgp-defined-sets" json:"bgp-defined-sets" yaml:"bgp-defined-sets" toml:"bgp-defined-sets"`
 }
 
 //struct for container rpol:routing-policy
 type RoutingPolicy struct {
 	// original -> rpol:defined-sets
-	DefinedSets DefinedSets `mapstructure:"defined-sets"`
+	DefinedSets DefinedSets `mapstructure:"defined-sets" json:"defined-sets" yaml:"defined-sets" toml:"defined-sets"`
 	// original -> rpol:policy-definitions
-	PolicyDefinitions []PolicyDefinition `mapstructure:"policy-definitions"`
+	PolicyDefinitions []PolicyDefinition `mapstructure:"policy-definitions" json:"policy-definitions" yaml:"policy-definitions" toml:"policy-definitions"`
 }

@@ -16,8 +16,13 @@
 package config
 
 import (
+	"bytes"
+	"encoding/json"
 	"fmt"
+	"github.com/BurntSushi/toml"
+	api "github.com/osrg/gobgp/api"
 	"github.com/osrg/gobgp/packet/bgp"
+	"gopkg.in/yaml.v2"
 )
 
 func IsConfederationMember(g *Global, p *Neighbor) bool {
@@ -56,4 +61,20 @@ func CreateRfMap(p *Neighbor) map[bgp.RouteFamily]bool {
 		rfMap[rf] = true
 	}
 	return rfMap
+}
+
+func (b *BgpConfigSet) Marshal(typ api.Config_Format) ([]byte, error) {
+	switch typ {
+	case api.Config_JSON:
+		return json.Marshal(b)
+	case api.Config_TOML:
+		buf := new(bytes.Buffer)
+		if err := toml.NewEncoder(buf).Encode(b); err != nil {
+			return nil, err
+		}
+		return buf.Bytes(), nil
+	case api.Config_YAML:
+		return yaml.Marshal(b)
+	}
+	return nil, fmt.Errorf("invalid format: %v", typ)
 }

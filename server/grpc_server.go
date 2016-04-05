@@ -75,6 +75,7 @@ const (
 	REQ_BMP_GLOBAL
 	REQ_BMP_ADJ_IN
 	REQ_DEFERRAL_TIMER_EXPIRED
+	REQ_CONFIG
 )
 
 type Server struct {
@@ -459,6 +460,14 @@ func (s *Server) GetGlobalConfig(ctx context.Context, arg *api.Arguments) (*api.
 
 func (s *Server) ModGlobalConfig(ctx context.Context, arg *api.ModGlobalConfigArguments) (*api.Error, error) {
 	return s.mod(REQ_MOD_GLOBAL_CONFIG, arg)
+}
+
+func (s *Server) GetRunningConfig(ctx context.Context, arg *api.Config) (*api.Config, error) {
+	d, err := s.get(REQ_CONFIG, arg)
+	if err != nil {
+		return nil, err
+	}
+	return d.(*api.Config), nil
 }
 
 type GrpcRequest struct {
