@@ -54,6 +54,16 @@ PIDS=("${PIDS[@]}" $!)
 sudo  PYTHONPATH=$GOBGP/test python route_reflector_test.py --gobgp-image $GOBGP_IMAGE --test-prefix rr -x &
 PIDS=("${PIDS[@]}" $!)
 
+for (( i = 0; i < ${#PIDS[@]}; ++i ))
+do
+    wait ${PIDS[$i]}
+    if [ $? != 0 ]; then
+        exit 1
+    fi
+done
+
+PIDS=()
+
 sudo  PYTHONPATH=$GOBGP/test python global_policy_test.py --gobgp-image $GOBGP_IMAGE --test-prefix gpol -x &
 PIDS=("${PIDS[@]}" $!)
 
@@ -68,6 +78,7 @@ PIDS=("${PIDS[@]}" $!)
 
 sudo  PYTHONPATH=$GOBGP/test python monitor_test.py --gobgp-image $GOBGP_IMAGE --test-prefix mon -x &
 PIDS=("${PIDS[@]}" $!)
+
 
 for (( i = 0; i < ${#PIDS[@]}; ++i ))
 do
