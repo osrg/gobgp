@@ -10,59 +10,41 @@ import (
 )
 
 type BgpConfigSet struct {
-	Bgp    Bgp
-	Policy RoutingPolicy
+	Global            Global             `mapstructure:"global"`
+	Neighbors         []Neighbor         `mapstructure:"neighbors"`
+	PeerGroups        []PeerGroup        `mapstructure:"peer-groups"`
+	RpkiServers       []RpkiServer       `mapstructure:"rpki-servers"`
+	BmpServers        []BmpServer        `mapstructure:"bmp-servers"`
+	MrtDump           []Mrt              `mapstructure:"mrt-dump"`
+	DefinedSets       DefinedSets        `mapstructure:"defined-sets"`
+	PolicyDefinitions []PolicyDefinition `mapstructure:"policy-definitions"`
 }
 
-func ReadConfigfileServe(path, format string, configCh chan BgpConfigSet) {
+func ReadConfigfileServe(path, format string, configCh chan *BgpConfigSet) {
 	sigCh := make(chan os.Signal, 1)
 	signal.Notify(sigCh, syscall.SIGHUP)
 
 	cnt := 0
 	for {
-		var b *Bgp
+		c := &BgpConfigSet{}
 		v := viper.New()
 		v.SetConfigFile(path)
 		v.SetConfigType(format)
-		err := v.ReadInConfig()
-		c := struct {
-			Global            Global             `mapstructure:"global"`
-			Neighbors         []Neighbor         `mapstructure:"neighbors"`
-			RpkiServers       []RpkiServer       `mapstructure:"rpki-servers"`
-			BmpServers        []BmpServer        `mapstructure:"bmp-servers"`
-			MrtDump           []Mrt              `mapstructure:"mrt-dump"`
-			DefinedSets       DefinedSets        `mapstructure:"defined-sets"`
-			PolicyDefinitions []PolicyDefinition `mapstructure:"policy-definitions"`
-		}{}
-		if err != nil {
+		var err error
+		if err = v.ReadInConfig(); err != nil {
 			goto ERROR
 		}
-		err = v.UnmarshalExact(&c)
-		if err != nil {
+		if err = v.UnmarshalExact(c); err != nil {
 			goto ERROR
 		}
-		b = &Bgp{
-			Global:      c.Global,
-			Neighbors:   c.Neighbors,
-			RpkiServers: c.RpkiServers,
-			BmpServers:  c.BmpServers,
-			MrtDump:     c.MrtDump,
-		}
-		err = SetDefaultConfigValues(v, b)
-		if err != nil {
+		if err = SetDefaultConfigValues(v, c); err != nil {
 			goto ERROR
 		}
 		if cnt == 0 {
 			log.Info("finished reading the config file")
 		}
 		cnt++
-		configCh <- BgpConfigSet{
-			Bgp: *b,
-			Policy: RoutingPolicy{
-				DefinedSets:       c.DefinedSets,
-				PolicyDefinitions: c.PolicyDefinitions,
-			},
-		}
+		configCh <- c
 		select {
 		case <-sigCh:
 			log.Info("reload the config file")
@@ -88,11 +70,18 @@ func inSlice(n Neighbor, b []Neighbor) int {
 	return -1
 }
 
-func UpdateConfig(curC *Bgp, newC *Bgp) (*Bgp, []Neighbor, []Neighbor, []Neighbor) {
-	bgpConfig := Bgp{}
+func ConfigSetToRoutingPolicy(c *BgpConfigSet) *RoutingPolicy {
+	return &RoutingPolicy{
+		DefinedSets:       c.DefinedSets,
+		PolicyDefinitions: c.PolicyDefinitions,
+	}
+}
+
+func UpdateConfig(curC *BgpConfigSet, newC *BgpConfigSet) (*BgpConfigSet, []Neighbor, []Neighbor, []Neighbor, bool) {
+	bgpConfig := &BgpConfigSet{}
 	if curC == nil {
 		bgpConfig.Global = newC.Global
-		curC = &bgpConfig
+		curC = bgpConfig
 	} else {
 		// can't update the global config
 		bgpConfig.Global = curC.Global
@@ -118,7 +107,7 @@ func UpdateConfig(curC *Bgp, newC *Bgp) (*Bgp, []Neighbor, []Neighbor, []Neighbo
 	}
 
 	bgpConfig.Neighbors = newC.Neighbors
-	return &bgpConfig, added, deleted, updated
+	return bgpConfig, added, deleted, updated, CheckPolicyDifference(ConfigSetToRoutingPolicy(curC), ConfigSetToRoutingPolicy(newC))
 }
 
 func CheckPolicyDifference(currentPolicy *RoutingPolicy, newPolicy *RoutingPolicy) bool {

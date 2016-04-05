@@ -1567,7 +1567,7 @@ func (server *BgpServer) handleModConfig(grpcReq *GrpcRequest) error {
 					},
 				})
 			}
-			b := &config.Bgp{
+			b := &config.BgpConfigSet{
 				Global: config.Global{
 					Config: config.GlobalConfig{
 						As:       g.As,
