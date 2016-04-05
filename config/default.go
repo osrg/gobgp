@@ -17,7 +17,7 @@ const (
 	DEFAULT_MPLS_LABEL_MAX            = 1048575
 )
 
-func SetDefaultConfigValues(v *viper.Viper, b *Bgp) error {
+func SetDefaultConfigValues(v *viper.Viper, b *BgpConfigSet) error {
 	if v == nil {
 		v = viper.New()
 	}
