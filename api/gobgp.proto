@@ -58,6 +58,7 @@ service GobgpApi {
   rpc ModPolicy(ModPolicyArguments) returns (Error) {}
   rpc GetPolicyAssignment(PolicyAssignment) returns (PolicyAssignment) {}
   rpc ModPolicyAssignment(ModPolicyAssignmentArguments) returns (Error) {}
+  rpc Log(LogArguments) returns (Error) {}
 }
 
 message Error {
@@ -171,6 +172,18 @@ message ModPolicyAssignmentArguments {
 message ModGlobalConfigArguments {
     Operation operation = 1;
     Global global = 2;
+}
+
+enum LogLevel {
+    DEBUG = 0;
+    INFO = 1;
+    WARN = 2;
+    ERROR = 3;
+}
+
+message LogArguments {
+    LogLevel level = 1;
+    string message = 2;
 }
 
 enum Resource {
@@ -444,12 +457,18 @@ message AsPrependAction {
     bool use_left_most = 3;
 }
 
+message LogAction {
+    LogLevel level = 1;
+    string message = 2;
+}
+
 message Actions {
     RouteAction route_action = 1;
     CommunityAction community = 2;
     MedAction med = 3;
     AsPrependAction as_prepend = 4;
     CommunityAction ext_community = 5;
+    LogAction log = 6;
 }
 
 message Statement {

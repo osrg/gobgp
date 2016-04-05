@@ -379,6 +379,10 @@ func (s *Server) ModGlobalConfig(ctx context.Context, arg *api.ModGlobalConfigAr
 	return s.mod(api.REQ_MOD_GLOBAL_CONFIG, arg)
 }
 
+func (s *Server) Log(ctx context.Context, arg *api.LogArguments) (*api.Error, error) {
+	return s.mod(api.REQ_LOG, arg)
+}
+
 func NewGrpcServer(port int, bgpServerCh chan *api.Request) *Server {
 	grpcServer := grpc.NewServer()
 	server := &Server{

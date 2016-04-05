@@ -176,6 +176,7 @@ const (
 	ACTION_EXT_COMMUNITY
 	ACTION_MED
 	ACTION_AS_PATH_PREPEND
+	ACTION_LOG
 )
 
 func NewMatchOption(c interface{}) (MatchOption, error) {
@@ -2134,6 +2135,44 @@ func NewAsPathPrependAction(action config.SetAsPathPrepend) (*AsPathPrependActio
 	return a, nil
 }
 
+type LogAction struct {
+	Level   api.LogLevel
+	Message string
+	ch      chan *api.Request
+}
+
+func (a *LogAction) Type() ActionType {
+	return ACTION_LOG
+}
+
+func (a *LogAction) Apply(path *Path) *Path {
+	req := api.NewRequest(api.REQ_LOG, &api.LogArguments{
+		Level:   a.Level,
+		Message: a.Message,
+	})
+	a.ch <- req
+	return path
+}
+
+func (a *LogAction) ToApiStruct() *api.LogAction {
+	return &api.LogAction{
+		Level:   a.Level,
+		Message: a.Message,
+	}
+}
+
+func NewLogActionFromApiStruct(a *api.LogAction, ch chan *api.Request) (*LogAction, error) {
+	return NewLogAction(a.Level, a.Message, ch), nil
+}
+
+func NewLogAction(level api.LogLevel, msg string, ch chan *api.Request) *LogAction {
+	return &LogAction{
+		Level:   level,
+		Message: msg,
+		ch:      ch,
+	}
+}
+
 type Statement struct {
 	Name        string
 	Conditions  []Condition
@@ -2224,6 +2263,8 @@ func (s *Statement) ToApiStruct() *api.Statement {
 			as.AsPrepend = a.(*AsPathPrependAction).ToApiStruct()
 		case *ExtCommunityAction:
 			as.ExtCommunity = a.(*ExtCommunityAction).ToApiStruct()
+		case *LogAction:
+			as.Log = a.(*LogAction).ToApiStruct()
 		}
 	}
 	return &api.Statement{
@@ -2352,7 +2393,7 @@ func (lhs *Statement) Replace(rhs *Statement) error {
 	return lhs.mod(REPLACE, rhs)
 }
 
-func NewStatementFromApiStruct(a *api.Statement, dmap DefinedSetMap) (*Statement, error) {
+func NewStatementFromApiStruct(a *api.Statement, dmap DefinedSetMap, ch chan *api.Request) (*Statement, error) {
 	if a.Name == "" {
 		return nil, fmt.Errorf("empty statement name")
 	}
@@ -2415,6 +2456,9 @@ func NewStatementFromApiStruct(a *api.Statement, dmap DefinedSetMap) (*Statement
 			},
 			func() (Action, error) {
 				return NewAsPathPrependActionFromApiStruct(a.Actions.AsPrepend)
+			},
+			func() (Action, error) {
+				return NewLogActionFromApiStruct(a.Actions.Log, ch)
 			},
 		}
 		as = make([]Action, 0, len(afs))
@@ -2594,7 +2638,7 @@ func (lhs *Policy) Replace(rhs *Policy) error {
 	return nil
 }
 
-func NewPolicyFromApiStruct(a *api.Policy, dmap DefinedSetMap) (*Policy, error) {
+func NewPolicyFromApiStruct(a *api.Policy, dmap DefinedSetMap, ch chan *api.Request) (*Policy, error) {
 	if a.Name == "" {
 		return nil, fmt.Errorf("empty policy name")
 	}
@@ -2603,7 +2647,7 @@ func NewPolicyFromApiStruct(a *api.Policy, dmap DefinedSetMap) (*Policy, error) 
 		if x.Name == "" {
 			x.Name = fmt.Sprintf("%s_stmt%d", a.Name, idx)
 		}
-		y, err := NewStatementFromApiStruct(x, dmap)
+		y, err := NewStatementFromApiStruct(x, dmap, ch)
 		if err != nil {
 			return nil, err
 		}
@@ -2655,6 +2699,7 @@ type RoutingPolicy struct {
 	StatementMap  map[string]*Statement
 	AssignmentMap map[string]*Assignment
 	M             sync.RWMutex
+	reqCh         chan *api.Request
 }
 
 func (r *RoutingPolicy) ResetCounters(id string, dir PolicyDirection) {
@@ -2920,12 +2965,13 @@ func (r *RoutingPolicy) Reload(c config.RoutingPolicy) error {
 	return nil
 }
 
-func NewRoutingPolicy() *RoutingPolicy {
+func NewRoutingPolicy(ch chan *api.Request) *RoutingPolicy {
 	return &RoutingPolicy{
 		DefinedSetMap: make(map[DefinedType]map[string]DefinedSet),
 		PolicyMap:     make(map[string]*Policy),
 		StatementMap:  make(map[string]*Statement),
 		AssignmentMap: make(map[string]*Assignment),
+		reqCh:         ch,
 	}
 }
 

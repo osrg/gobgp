@@ -168,7 +168,7 @@ func NewBgpServer() *BgpServer {
 	b.neighborMap = make(map[string]*Peer)
 	b.watchers = Watchers(make(map[watcherType]watcher))
 	b.roaManager, _ = NewROAManager(0)
-	b.policy = table.NewRoutingPolicy()
+	b.policy = table.NewRoutingPolicy(b.ReqCh)
 	return &b
 }
 
@@ -2243,6 +2243,20 @@ func (server *BgpServer) handleRequest(req *api.Request) []*SenderMsg {
 		if len(pathList) > 0 {
 			msgs, _ = server.propagateUpdate(nil, pathList)
 		}
+	case api.REQ_LOG:
+		arg := req.Data.(*api.LogArguments)
+		switch arg.Level {
+		case api.LogLevel_DEBUG:
+			log.Debug(arg.Message)
+		case api.LogLevel_INFO:
+			log.Info(arg.Message)
+		case api.LogLevel_WARN:
+			log.Warn(arg.Message)
+		case api.LogLevel_ERROR:
+			log.Error(arg.Message)
+		}
+		req.ResCh <- &api.Response{}
+		close(req.ResCh)
 	default:
 		err = fmt.Errorf("Unknown request type: %v", req.Type)
 		goto ERROR
@@ -2511,7 +2525,7 @@ func (server *BgpServer) GetStatement(req *api.Request) error {
 
 func (server *BgpServer) ModStatement(req *api.Request) error {
 	arg := req.Data.(*api.ModStatementArguments)
-	s, err := table.NewStatementFromApiStruct(arg.Statement, server.policy.DefinedSetMap)
+	s, err := table.NewStatementFromApiStruct(arg.Statement, server.policy.DefinedSetMap, server.ReqCh)
 	if err != nil {
 		return err
 	}
@@ -2588,7 +2602,7 @@ func (server *BgpServer) ModPolicy(req *api.Request) error {
 	server.policy.M.Lock()
 	defer server.policy.M.Unlock()
 	arg := req.Data.(*api.ModPolicyArguments)
-	x, err := table.NewPolicyFromApiStruct(arg.Policy, server.policy.DefinedSetMap)
+	x, err := table.NewPolicyFromApiStruct(arg.Policy, server.policy.DefinedSetMap, server.ReqCh)
 	if err != nil {
 		return err
 	}

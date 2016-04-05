@@ -485,6 +485,9 @@ func printStatement(indent int, s *api.Statement) {
 
 		fmt.Printf("%sAsPrepend:       %s   %d\n", sIndent(indent+4), asn, s.Actions.AsPrepend.Repeat)
 	}
+	if s.Actions.Log != nil {
+		fmt.Printf("%sLog:      level: %s, msg: %s\n", sIndent(indent+4), s.Actions.Log.Level, s.Actions.Log.Message)
+	}
 	fmt.Printf("%s%s\n", sIndent(indent+4), s.Actions.RouteAction)
 }
 
@@ -812,7 +815,7 @@ func modAction(name, op string, args []string) error {
 	}
 	usage := fmt.Sprintf("usage: gobgp policy statement %s %s action", name, op)
 	if len(args) < 1 {
-		return fmt.Errorf("%s { reject | accept | community | ext-community | med | as-prepend }", usage)
+		return fmt.Errorf("%s { reject | accept | community | ext-community | med | as-prepend | log }", usage)
 	}
 	typ := args[0]
 	args = args[1:]
@@ -897,7 +900,23 @@ func modAction(name, op string, args []string) error {
 			Repeat:      uint32(repeat),
 			UseLeftMost: last,
 		}
+	case "log":
+		err := fmt.Errorf("%s log { info | debug | warn | error } <message>", usage)
+		if len(args) < 2 {
+			return err
+		}
+		lvl, y := api.LogLevel_value[strings.ToUpper(args[0])]
+		if !y {
+			return err
+		}
+		stmt.Actions.Log = &api.LogAction{
+			Level:   api.LogLevel(lvl),
+			Message: args[1],
+		}
+	default:
+		return fmt.Errorf("invalid mod action: %s", typ)
 	}
+
 	_, err := client.ModStatement(context.Background(), arg)
 	return err
 }
