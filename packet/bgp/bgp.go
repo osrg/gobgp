@@ -666,6 +666,9 @@ func (msg *BGPOpen) DecodeFromBytes(data []byte) error {
 	for rest := msg.OptParamLen; rest > 0; {
 		paramtype := data[0]
 		paramlen := data[1]
+		if rest < paramlen+2 {
+			return fmt.Errorf("Malformed BGP Open message")
+		}
 		rest -= paramlen + 2
 
 		if paramtype == BGP_OPT_CAPABILITY {
