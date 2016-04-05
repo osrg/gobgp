@@ -174,7 +174,7 @@ func main() {
 	go bgpServer.Serve()
 
 	// start grpc Server
-	grpcServer := server.NewGrpcServer(opts.GrpcPort, bgpServer.GrpcReqCh)
+	grpcServer := server.NewGrpcServer(opts.GrpcPort, bgpServer.ReqCh)
 	go func() {
 		if err := grpcServer.Serve(); err != nil {
 			log.Fatalf("failed to listen grpc port: %s", err)
@@ -182,7 +182,7 @@ func main() {
 	}()
 
 	if opts.Ops {
-		m, err := ops.NewOpsManager(bgpServer.GrpcReqCh)
+		m, err := ops.NewOpsManager(bgpServer.ReqCh)
 		if err != nil {
 			log.Errorf("Failed to start ops config manager: %s", err)
 			os.Exit(1)
