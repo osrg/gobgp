@@ -992,6 +992,15 @@ func (h *FSMHandler) sendMessageloop() error {
 	fsm := h.fsm
 	ticker := keepaliveTicker(fsm)
 	send := func(m *bgp.BGPMessage) error {
+		if _, y := fsm.capMap[bgp.BGP_CAP_FOUR_OCTET_AS_NUMBER]; !y && m.Header.Type == bgp.BGP_MSG_UPDATE {
+			log.WithFields(log.Fields{
+				"Topic": "Peer",
+				"Key":   fsm.pConf.Config.NeighborAddress,
+				"State": fsm.state,
+				"Data":  m,
+			}).Debug("update for 2byte AS peer")
+			table.UpdatePathAttrs2ByteAs(m.Body.(*bgp.BGPUpdate))
+		}
 		b, err := m.Serialize()
 		if err != nil {
 			log.WithFields(log.Fields{
