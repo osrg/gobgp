@@ -392,6 +392,14 @@ message AsPathLength {
     uint32 length = 2;
 }
 
+message CounterCondition {
+    uint64 threshold = 1;
+    bool loop = 2;
+    uint64 counter = 3;
+    bool once = 4;
+    bool triggered = 5;
+}
+
 message Conditions {
     MatchSet prefix_set = 1;
     MatchSet neighbor_set = 2;
@@ -400,6 +408,7 @@ message Conditions {
     MatchSet community_set = 5;
     MatchSet ext_community_set = 6;
     int32 rpki_result = 7;
+    uint64 counter = 8;
 }
 
 enum RouteAction {

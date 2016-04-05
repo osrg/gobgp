@@ -21,7 +21,6 @@ import (
 	"net"
 	"os"
 	"strconv"
-	"sync"
 	"time"
 
 	log "github.com/Sirupsen/logrus"
@@ -34,8 +33,6 @@ import (
 	"github.com/osrg/gobgp/zebra"
 	"github.com/satori/go.uuid"
 )
-
-var policyMutex sync.RWMutex
 
 type SenderMsg struct {
 	messages    []*bgp.BGPMessage
@@ -790,6 +787,10 @@ func (server *BgpServer) handleFSMMessage(peer *Peer, e *FsmMsg) []*SenderMsg {
 			} else {
 				drop = peer.configuredRFlist()
 			}
+
+			// reset prefix-limit counter
+			server.policy.ResetCounters(peer.ID(), table.POLICY_DIRECTION_IN)
+
 			peer.DropAll(drop)
 			msgs = append(msgs, server.dropPeerAllRoutes(peer, drop)...)
 		} else if peer.fsm.pConf.GracefulRestart.State.PeerRestarting && nextState == bgp.BGP_FSM_IDLE {
@@ -958,7 +959,7 @@ func (server *BgpServer) handleFSMMessage(peer *Peer, e *FsmMsg) []*SenderMsg {
 				if peer.fsm.pConf.GracefulRestart.State.PeerRestarting {
 					if peer.recvedAllEOR() {
 						peer.fsm.pConf.GracefulRestart.State.PeerRestarting = false
-						pathList := peer.adjRibIn.DropStale(peer.configuredRFlist())
+						pathList := peer.fsm.adjRibIn.DropStale(peer.configuredRFlist())
 						log.WithFields(log.Fields{
 							"Topic": "Peer",
 							"Key":   peer.conf.Config.NeighborAddress,
@@ -1911,7 +1912,7 @@ func (server *BgpServer) handleRequest(req *api.Request) []*SenderMsg {
 		rf := bgp.RouteFamily(arg.Family)
 		var paths []*table.Path
 		if req.Type == api.REQ_ADJ_RIB_IN {
-			paths = peer.adjRibIn.PathList([]bgp.RouteFamily{rf}, false)
+			paths = peer.fsm.adjRibIn.PathList([]bgp.RouteFamily{rf}, false)
 			log.Debugf("RouteFamily=%v adj-rib-in found : %d", rf.String(), len(paths))
 		} else {
 			paths = peer.adjRibOut.PathList([]bgp.RouteFamily{rf}, false)
@@ -1969,7 +1970,7 @@ func (server *BgpServer) handleRequest(req *api.Request) []*SenderMsg {
 			if peer.fsm.state != bgp.BGP_FSM_ESTABLISHED {
 				continue
 			}
-			for _, path := range peer.adjRibIn.PathList(peer.configuredRFlist(), false) {
+			for _, path := range peer.fsm.adjRibIn.PathList(peer.configuredRFlist(), false) {
 				msgs := table.CreateUpdateMsgFromPaths([]*table.Path{path})
 				buf, _ := msgs[0].Serialize()
 				bmpmsgs = append(bmpmsgs, bmpPeerRoute(bgp.BMP_PEER_TYPE_GLOBAL, false, 0, peer.fsm.peerInfo, path.GetTimestamp().Unix(), buf))
@@ -2023,7 +2024,7 @@ func (server *BgpServer) handleRequest(req *api.Request) []*SenderMsg {
 			if families[0] == bgp.RouteFamily(0) {
 				families = peer.configuredRFlist()
 			}
-			for _, path := range peer.adjRibIn.PathList(families, false) {
+			for _, path := range peer.fsm.adjRibIn.PathList(families, false) {
 				exResult := path.Filtered(peer.ID())
 				path.Filter(peer.ID(), table.POLICY_DIRECTION_NONE)
 				if server.policy.ApplyPolicy(peer.ID(), table.POLICY_DIRECTION_IN, path, nil) != nil {
@@ -2035,7 +2036,7 @@ func (server *BgpServer) handleRequest(req *api.Request) []*SenderMsg {
 					}
 				}
 			}
-			peer.adjRibIn.RefreshAcceptedNumber(families)
+			peer.fsm.adjRibIn.RefreshAcceptedNumber(families)
 			m, _ := server.propagateUpdate(peer, pathList)
 			msgs = append(msgs, m...)
 		}
@@ -2584,8 +2585,8 @@ func (server *BgpServer) policyInUse(x *table.Policy) bool {
 }
 
 func (server *BgpServer) ModPolicy(req *api.Request) error {
-	policyMutex.Lock()
-	defer policyMutex.Unlock()
+	server.policy.M.Lock()
+	defer server.policy.M.Unlock()
 	arg := req.Data.(*api.ModPolicyArguments)
 	x, err := table.NewPolicyFromApiStruct(arg.Policy, server.policy.DefinedSetMap)
 	if err != nil {
@@ -2703,8 +2704,8 @@ func (server *BgpServer) ModPolicyAssignment(req *api.Request) error {
 	var err error
 	var dir table.PolicyDirection
 	var id string
-	policyMutex.Lock()
-	defer policyMutex.Unlock()
+	server.policy.M.Lock()
+	defer server.policy.M.Unlock()
 	arg := req.Data.(*api.ModPolicyAssignmentArguments)
 	assignment := arg.Assignment
 	id, dir, err = server.getPolicyInfo(assignment)

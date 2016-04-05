@@ -23,6 +23,7 @@ import (
 	"regexp"
 	"strconv"
 	"strings"
+	"sync"
 
 	log "github.com/Sirupsen/logrus"
 	"github.com/armon/go-radix"
@@ -33,6 +34,7 @@ import (
 
 type PolicyOptions struct {
 	Neighbor net.IP
+	Found    bool
 }
 
 type DefinedType int
@@ -163,6 +165,7 @@ const (
 	CONDITION_EXT_COMMUNITY
 	CONDITION_AS_PATH_LENGTH
 	CONDITION_RPKI
+	CONDITION_COUNTER
 )
 
 type ActionType int
@@ -1033,6 +1036,66 @@ type Condition interface {
 	Type() ConditionType
 	Evaluate(*Path, *PolicyOptions) bool
 	Set() DefinedSet
+}
+
+type CounterCondition struct {
+	counter   uint64
+	threshold uint64
+	loop      bool
+	triggered bool
+	once      bool
+}
+
+func (c *CounterCondition) Type() ConditionType {
+	return CONDITION_COUNTER
+}
+
+func (c *CounterCondition) Set() DefinedSet {
+	return nil
+}
+
+func (c *CounterCondition) Evaluate(path *Path, options *PolicyOptions) bool {
+	if options != nil && !options.Found {
+		c.counter++
+	} else if path.IsWithdraw && c.counter > 0 {
+		c.counter--
+	}
+	if c.counter > c.threshold {
+		if c.loop {
+			c.counter = 0
+		}
+		if c.once && c.triggered {
+			return false
+		}
+		c.triggered = true
+		return true
+	}
+	return false
+}
+
+func (c *CounterCondition) ToApiStruct() *api.CounterCondition {
+	return &api.CounterCondition{
+		Counter:   c.counter,
+		Threshold: c.threshold,
+		Loop:      c.loop,
+		Triggered: c.triggered,
+		Once:      c.once,
+	}
+}
+
+func NewCounterConditionFromApiStruct(c *api.CounterCondition) (*CounterCondition, error) {
+	if c == nil {
+		return nil, nil
+	}
+	return NewCounterCondition(c.Threshold, c.Loop, c.Once)
+}
+
+func NewCounterCondition(threshold uint64, loop, once bool) (*CounterCondition, error) {
+	return &CounterCondition{
+		threshold: threshold,
+		loop:      loop,
+		once:      once,
+	}, nil
 }
 
 type PrefixCondition struct {
@@ -2078,6 +2141,15 @@ type Statement struct {
 	ModActions  []Action
 }
 
+func (s *Statement) ResetCounters() {
+	for _, c := range s.Conditions {
+		if cc, y := c.(*CounterCondition); y {
+			cc.counter = 0
+			cc.triggered = false
+		}
+	}
+}
+
 // evaluate each condition in the statement according to MatchSetOptions
 func (s *Statement) Evaluate(p *Path, options *PolicyOptions) bool {
 	for _, c := range s.Conditions {
@@ -2134,6 +2206,8 @@ func (s *Statement) ToApiStruct() *api.Statement {
 			cs.ExtCommunitySet = c.(*ExtCommunityCondition).ToApiStruct()
 		case *RpkiValidationCondition:
 			cs.RpkiResult = int32(c.(*RpkiValidationCondition).result.ToInt())
+		case *CounterCondition:
+			cs.Counter = uint64(c.(*CounterCondition).threshold)
 		}
 	}
 	as := &api.Actions{}
@@ -2309,6 +2383,9 @@ func NewStatementFromApiStruct(a *api.Statement, dmap DefinedSetMap) (*Statement
 			func() (Condition, error) {
 				return NewExtCommunityConditionFromApiStruct(a.Conditions.ExtCommunitySet, dmap[DEFINED_TYPE_EXT_COMMUNITY])
 			},
+			func() (Condition, error) {
+				return NewCounterCondition(a.Conditions.Counter)
+			},
 		}
 		cs = make([]Condition, 0, len(cfs))
 		for _, f := range cfs {
@@ -2445,6 +2522,12 @@ func (p *Policy) Name() string {
 	return p.name
 }
 
+func (p *Policy) ResetCounters() {
+	for _, s := range p.Statements {
+		s.ResetCounters()
+	}
+}
+
 // Compare path with a policy's condition in stored order in the policy.
 // If a condition match, then this function stops evaluation and
 // subsequent conditions are skipped.
@@ -2571,9 +2654,31 @@ type RoutingPolicy struct {
 	PolicyMap     map[string]*Policy
 	StatementMap  map[string]*Statement
 	AssignmentMap map[string]*Assignment
+	M             sync.RWMutex
+}
+
+func (r *RoutingPolicy) ResetCounters(id string, dir PolicyDirection) {
+	r.M.Lock()
+	defer r.M.Unlock()
+	if a, y := r.AssignmentMap[id]; y {
+		var ps []*Policy
+		switch dir {
+		case POLICY_DIRECTION_IN:
+			ps = a.inPolicies
+		case POLICY_DIRECTION_IMPORT:
+			ps = a.importPolicies
+		case POLICY_DIRECTION_EXPORT:
+			ps = a.exportPolicies
+		}
+		for _, p := range ps {
+			p.ResetCounters()
+		}
+	}
 }
 
 func (r *RoutingPolicy) ApplyPolicy(id string, dir PolicyDirection, before *Path, options *PolicyOptions) *Path {
+	r.M.RLock()
+	defer r.M.RUnlock()
 	if before == nil {
 		return nil
 	}

@@ -37,7 +37,6 @@ type Peer struct {
 	gConf     config.Global
 	conf      config.Neighbor
 	fsm       *FSM
-	adjRibIn  *table.AdjRib
 	adjRibOut *table.AdjRib
 	outgoing  chan *bgp.BGPMessage
 	policy    *table.RoutingPolicy
@@ -60,8 +59,7 @@ func NewPeer(g config.Global, conf config.Neighbor, loc *table.TableManager, pol
 	conf.State.SessionState = config.IntToSessionStateMap[int(bgp.BGP_FSM_IDLE)]
 	conf.Timers.State.Downtime = time.Now().Unix()
 	rfs, _ := config.AfiSafis(conf.AfiSafis).ToRfList()
-	peer.adjRibIn = table.NewAdjRib(peer.ID(), rfs, g.Collector.Enabled)
-	peer.adjRibOut = table.NewAdjRib(peer.ID(), rfs, g.Collector.Enabled)
+	peer.adjRibOut = table.NewAdjRib(peer.ID(), rfs, nil, g.Collector.Enabled, table.POLICY_DIRECTION_NONE)
 	peer.fsm = NewFSM(&g, &conf, policy)
 	return peer
 }
@@ -130,7 +128,7 @@ func (peer *Peer) forwardingPreservedFamilies() ([]bgp.RouteFamily, []bgp.RouteF
 }
 
 func (peer *Peer) getAccepted(rfList []bgp.RouteFamily) []*table.Path {
-	return peer.adjRibIn.PathList(rfList, true)
+	return peer.fsm.adjRibIn.PathList(rfList, true)
 }
 
 func (peer *Peer) getBestFromLocal(rfList []bgp.RouteFamily) ([]*table.Path, []*table.Path) {
@@ -238,7 +236,6 @@ func (peer *Peer) handleBGPmessage(e *FsmMsg) ([]*table.Path, []*bgp.BGPMessage,
 	case bgp.BGP_MSG_UPDATE:
 		peer.conf.Timers.State.UpdateRecvTime = time.Now().Unix()
 		if len(e.PathList) > 0 {
-			peer.adjRibIn.Update(e.PathList)
 			paths := make([]*table.Path, 0, len(e.PathList))
 			for _, path := range e.PathList {
 				if path.IsEOR() {
@@ -266,7 +263,7 @@ func (peer *Peer) startFSMHandler(incoming *channels.InfiniteChannel, stateCh ch
 }
 
 func (peer *Peer) StaleAll(rfList []bgp.RouteFamily) {
-	peer.adjRibIn.StaleAll(rfList)
+	peer.fsm.adjRibIn.StaleAll(rfList)
 }
 
 func (peer *Peer) PassConn(conn *net.TCPConn) {
@@ -330,8 +327,8 @@ func (peer *Peer) ToApiStruct() *api.Peer {
 	if f.state == bgp.BGP_FSM_ESTABLISHED {
 		rfList := peer.configuredRFlist()
 		advertised = uint32(peer.adjRibOut.Count(rfList))
-		received = uint32(peer.adjRibIn.Count(rfList))
-		accepted = uint32(peer.adjRibIn.Accepted(rfList))
+		received = uint32(peer.fsm.adjRibIn.Count(rfList))
+		accepted = uint32(peer.fsm.adjRibIn.Accepted(rfList))
 	}
 
 	uptime := int64(0)
@@ -399,6 +396,6 @@ func (peer *Peer) ToApiStruct() *api.Peer {
 }
 
 func (peer *Peer) DropAll(rfList []bgp.RouteFamily) {
-	peer.adjRibIn.Drop(rfList)
+	peer.fsm.adjRibIn.Drop(rfList)
 	peer.adjRibOut.Drop(rfList)
 }

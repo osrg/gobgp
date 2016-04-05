@@ -133,8 +133,8 @@ type FSM struct {
 	capMap               map[bgp.BGPCapabilityCode][]bgp.ParameterCapabilityInterface
 	recvOpen             *bgp.BGPMessage
 	peerInfo             *table.PeerInfo
-	policy               *table.RoutingPolicy
 	gracefulRestartTimer *time.Timer
+	adjRibIn             *table.AdjRib
 }
 
 func (fsm *FSM) bgpMessageStateUpdate(MessageType uint8, isIn bool) {
@@ -191,6 +191,7 @@ func NewFSM(gConf *config.Global, pConf *config.Neighbor, policy *table.RoutingP
 	if pConf.State.AdminDown {
 		adminState = ADMIN_STATE_DOWN
 	}
+	rfs, _ := config.AfiSafis(pConf.AfiSafis).ToRfList()
 	fsm := &FSM{
 		gConf:                gConf,
 		pConf:                pConf,
@@ -203,8 +204,8 @@ func NewFSM(gConf *config.Global, pConf *config.Neighbor, policy *table.RoutingP
 		rfMap:                make(map[bgp.RouteFamily]bool),
 		capMap:               make(map[bgp.BGPCapabilityCode][]bgp.ParameterCapabilityInterface),
 		peerInfo:             table.NewPeerInfo(gConf, pConf),
-		policy:               policy,
 		gracefulRestartTimer: time.NewTimer(time.Hour),
+		adjRibIn:             table.NewAdjRib(pConf.Config.NeighborAddress, rfs, policy, gConf.Collector.Enabled, table.POLICY_DIRECTION_IN),
 	}
 	fsm.gracefulRestartTimer.Stop()
 	fsm.t.Go(fsm.connectLoop)
@@ -627,14 +628,7 @@ func (h *FSMHandler) recvMessageWithError() (*FsmMsg, error) {
 					// FIXME: we should use the original message for bmp/mrt
 					table.UpdatePathAttrs4ByteAs(body)
 					fmsg.PathList = table.ProcessMessage(m, h.fsm.peerInfo, fmsg.timestamp)
-					id := h.fsm.pConf.Config.NeighborAddress
-					policyMutex.RLock()
-					for _, path := range fmsg.PathList {
-						if h.fsm.policy.ApplyPolicy(id, table.POLICY_DIRECTION_IN, path, nil) == nil {
-							path.Filter(id, table.POLICY_DIRECTION_IN)
-						}
-					}
-					policyMutex.RUnlock()
+					h.fsm.adjRibIn.Update(fmsg.PathList)
 				}
 				fmsg.payload = make([]byte, len(headerBuf)+len(bodyBuf))
 				copy(fmsg.payload, headerBuf)

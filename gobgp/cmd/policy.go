@@ -440,6 +440,21 @@ func printStatement(indent int, s *api.Statement) {
 	if rpki > -1 {
 		fmt.Printf("%sRPKI result: %s\n", sIndent(indent+4), config.IntToRpkiValidationResultTypeMap[int(rpki)])
 	}
+	if c := s.Conditions.Counter; c != nil {
+		fmt.Printf("%sCounter: %d/%d", sIndent(indent+4), c.Counter, c.Threshold)
+		if c.Once {
+			fmt.Printf(" (once")
+			if c.Triggered {
+				fmt.Printf(", triggered)\n")
+			} else {
+				fmt.Printf(")\n")
+			}
+		} else if c.Loop {
+			fmt.Printf(" (loop)\n")
+		} else {
+			fmt.Printf("\n")
+		}
+	}
 
 	fmt.Printf("%sActions:\n", sIndent(indent+2))
 
@@ -752,6 +767,24 @@ func modCondition(name, op string, args []string) error {
 		default:
 			return fmt.Errorf("%s rpki { valid | invalid | not-found }", usage)
 		}
+	case "counter":
+		if len(args) < 1 || len(args) > 2 || (len(args) == 2 && (args[1] != "loop" && args[1] != "once")) {
+			return fmt.Errorf("%s counter <value> [{ loop | once }]", usage)
+		}
+		counter, err := strconv.Atoi(args[0])
+		if err != nil {
+			return err
+		}
+		stmt.Conditions.Counter = &api.CounterCondition{
+			Threshold: uint64(counter),
+		}
+		if args[1] == "loop" {
+			stmt.Conditions.Counter.Loop = true
+		} else if args[1] == "once" {
+			stmt.Conditions.Counter.Once = true
+		}
+	default:
+		return fmt.Errorf("invalid coundition")
 	}
 	_, err := client.ModStatement(context.Background(), arg)
 	return err
