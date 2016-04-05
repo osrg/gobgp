@@ -163,15 +163,16 @@ type BgpServer struct {
 }
 
 func NewBgpServer() *BgpServer {
-	b := BgpServer{}
-	b.updatedPeerCh = make(chan config.Neighbor)
-	b.GrpcReqCh = make(chan *GrpcRequest, 1)
-	b.policyUpdateCh = make(chan config.RoutingPolicy)
-	b.neighborMap = make(map[string]*Peer)
-	b.watchers = Watchers(make(map[watcherType]watcher))
-	b.roaManager, _ = NewROAManager(0)
-	b.policy = table.NewRoutingPolicy()
-	return &b
+	roaManager, _ := NewROAManager(0)
+	return &BgpServer{
+		updatedPeerCh:  make(chan config.Neighbor),
+		GrpcReqCh:      make(chan *GrpcRequest, 1),
+		policyUpdateCh: make(chan config.RoutingPolicy),
+		neighborMap:    make(map[string]*Peer),
+		watchers:       Watchers(make(map[watcherType]watcher)),
+		policy:         table.NewRoutingPolicy(),
+		roaManager:     roaManager,
+	}
 }
 
 func (server *BgpServer) notify2watchers(typ watcherEventType, ev watcherEvent) error {
