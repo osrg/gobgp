@@ -59,7 +59,7 @@ class GoBGPTestBase(unittest.TestCase):
         time.sleep(initial_wait_time)
 
         for rs_client in rs_clients:
-            g1.add_peer(rs_client, is_rs_client=True, passwd='passwd', passive=True)
+            g1.add_peer(rs_client, is_rs_client=True, passwd='passwd', passive=True, prefix_limit=10)
             rs_client.add_peer(g1, passwd='passwd')
 
         cls.gobgp = g1

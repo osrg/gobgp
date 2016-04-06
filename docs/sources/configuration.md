@@ -64,6 +64,9 @@
         route-reflector-cluster-id = "192.168.0.1"
     [[neighbors.afi-safis]]
         afi-safi-name = "ipv4-unicast"
+        [neighbors.afi-safis.prefix-limit.config]
+           max-prefixes = 1000
+           shutdown-threshold-pct = 80
     [[neighbors.afi-safis]]
         afi-safi-name = "ipv6-unicast"
     [[neighbors.afi-safis]]

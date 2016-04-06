@@ -243,6 +243,10 @@ class GoBGPContainer(BGPContainer):
             if info['local_as']:
                 n['config']['local-as'] = info['local_as']
 
+            if info['prefix_limit']:
+                for v in afi_safi_list:
+                    v['prefix-limit'] = {'config': {'max-prefixes': info['prefix_limit'], 'shutdown-threshold-pct': 80 }}
+
             if info['graceful_restart'] is not None:
                 n['graceful-restart'] = {'config': {'enabled': True, 'restart-time': 20}}
                 for afi_safi in afi_safi_list:

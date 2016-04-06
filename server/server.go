@@ -774,6 +774,7 @@ func (server *BgpServer) handleFSMMessage(peer *Peer, e *FsmMsg) []*SenderMsg {
 			} else {
 				drop = peer.configuredRFlist()
 			}
+			peer.prefixLimitWarned = false
 			peer.DropAll(drop)
 			msgs = server.dropPeerAllRoutes(peer, drop)
 		} else if peer.fsm.pConf.GracefulRestart.State.PeerRestarting && nextState == bgp.BGP_FSM_IDLE {
@@ -847,8 +848,10 @@ func (server *BgpServer) handleFSMMessage(peer *Peer, e *FsmMsg) []*SenderMsg {
 		case *bgp.MessageError:
 			return []*SenderMsg{newSenderMsg(peer, nil, bgp.NewBGPNotificationMessage(m.TypeCode, m.SubTypeCode, m.Data), false)}
 		case *bgp.BGPMessage:
-			pathList, eor := peer.handleUpdate(e)
-
+			pathList, eor, notification := peer.handleUpdate(e)
+			if notification != nil {
+				return []*SenderMsg{newSenderMsg(peer, nil, notification, true)}
+			}
 			if m.Header.Type == bgp.BGP_MSG_UPDATE && server.watchers.watching(WATCHER_EVENT_UPDATE_MSG) {
 				_, y := peer.fsm.capMap[bgp.BGP_CAP_FOUR_OCTET_AS_NUMBER]
 				l, _ := peer.fsm.LocalHostPort()

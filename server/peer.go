@@ -33,15 +33,16 @@ const (
 )
 
 type Peer struct {
-	tableId   string
-	gConf     config.Global
-	conf      config.Neighbor
-	fsm       *FSM
-	adjRibIn  *table.AdjRib
-	adjRibOut *table.AdjRib
-	outgoing  chan *FsmOutgoingMsg
-	policy    *table.RoutingPolicy
-	localRib  *table.TableManager
+	tableId           string
+	gConf             config.Global
+	conf              config.Neighbor
+	fsm               *FSM
+	adjRibIn          *table.AdjRib
+	adjRibOut         *table.AdjRib
+	outgoing          chan *FsmOutgoingMsg
+	policy            *table.RoutingPolicy
+	localRib          *table.TableManager
+	prefixLimitWarned bool
 }
 
 func NewPeer(g config.Global, conf config.Neighbor, loc *table.TableManager, policy *table.RoutingPolicy) *Peer {
@@ -227,7 +228,7 @@ func (peer *Peer) handleRouteRefresh(e *FsmMsg) []*table.Path {
 	return accepted
 }
 
-func (peer *Peer) handleUpdate(e *FsmMsg) ([]*table.Path, []bgp.RouteFamily) {
+func (peer *Peer) handleUpdate(e *FsmMsg) ([]*table.Path, []bgp.RouteFamily, *bgp.BGPMessage) {
 	m := e.MsgData.(*bgp.BGPMessage)
 	log.WithFields(log.Fields{
 		"Topic": "Peer",
@@ -237,6 +238,29 @@ func (peer *Peer) handleUpdate(e *FsmMsg) ([]*table.Path, []bgp.RouteFamily) {
 	peer.conf.Timers.State.UpdateRecvTime = time.Now().Unix()
 	if len(e.PathList) > 0 {
 		peer.adjRibIn.Update(e.PathList)
+		for _, family := range peer.fsm.pConf.AfiSafis {
+			k, _ := bgp.GetRouteFamily(string(family.AfiSafiName))
+			count := peer.adjRibIn.Count([]bgp.RouteFamily{k})
+			if maxPrefixes := int(family.PrefixLimit.Config.MaxPrefixes); maxPrefixes > 0 {
+				pct := int(family.PrefixLimit.Config.ShutdownThresholdPct)
+				if pct > 0 && !peer.prefixLimitWarned && count > (maxPrefixes*pct/100) {
+					peer.prefixLimitWarned = true
+					log.WithFields(log.Fields{
+						"Topic":         "Peer",
+						"Key":           peer.conf.Config.NeighborAddress,
+						"AddressFamily": family.AfiSafiName,
+					}).Warnf("prefix limit %d%% reached", pct)
+				}
+				if count > maxPrefixes {
+					log.WithFields(log.Fields{
+						"Topic":         "Peer",
+						"Key":           peer.conf.Config.NeighborAddress,
+						"AddressFamily": family.AfiSafiName,
+					}).Warnf("prefix limit reached")
+					return nil, nil, bgp.NewBGPNotificationMessage(bgp.BGP_ERROR_CEASE, bgp.BGP_ERROR_SUB_MAXIMUM_NUMBER_OF_PREFIXES_REACHED, nil)
+				}
+			}
+		}
 		paths := make([]*table.Path, 0, len(e.PathList))
 		eor := []bgp.RouteFamily{}
 		for _, path := range e.PathList {
@@ -254,9 +278,9 @@ func (peer *Peer) handleUpdate(e *FsmMsg) ([]*table.Path, []bgp.RouteFamily) {
 				paths = append(paths, path)
 			}
 		}
-		return paths, eor
+		return paths, eor, nil
 	}
-	return nil, nil
+	return nil, nil, nil
 }
 
 func (peer *Peer) startFSMHandler(incoming *channels.InfiniteChannel, stateCh chan *FsmMsg) {
