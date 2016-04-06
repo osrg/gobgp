@@ -21,6 +21,7 @@ import (
 	"fmt"
 	api "github.com/osrg/gobgp/api"
 	"github.com/osrg/gobgp/config"
+	"github.com/osrg/gobgp/packet/bgp"
 	"github.com/osrg/gobgp/table"
 	"github.com/spf13/cobra"
 	"golang.org/x/net/context"
@@ -406,14 +407,23 @@ func printStatement(indent int, s *api.Statement) {
 	fmt.Printf("%sStatementName %s:\n", sIndent(indent), s.Name)
 	fmt.Printf("%sConditions:\n", sIndent(indent+2))
 
-	ps := s.Conditions.PrefixSet
-	if ps != nil {
-		fmt.Printf("%sPrefixSet: %s %s\n", sIndent(indent+4), ps.Type, ps.Name)
-	}
-
 	ns := s.Conditions.NeighborSet
 	if ns != nil {
 		fmt.Printf("%sNeighborSet: %s %s\n", sIndent(indent+4), ns.Type, ns.Name)
+	}
+
+	if f := s.Conditions.Family; f != nil {
+		fmt.Printf("%sFamily: %s", sIndent(indent+4), bgp.AddressFamilyNameMap[bgp.RouteFamily(f.Family)])
+		if f.Type == api.MatchType_INVERT {
+			fmt.Printf(" (invert)\n")
+		} else {
+			fmt.Printf("\n")
+		}
+	}
+
+	ps := s.Conditions.PrefixSet
+	if ps != nil {
+		fmt.Printf("%sPrefixSet: %s %s\n", sIndent(indent+4), ps.Type, ps.Name)
 	}
 
 	aps := s.Conditions.AsPathSet
@@ -455,7 +465,6 @@ func printStatement(indent int, s *api.Statement) {
 			fmt.Printf("\n")
 		}
 	}
-
 	fmt.Printf("%sActions:\n", sIndent(indent+2))
 
 	formatComAction := func(c *api.CommunityAction) string {
@@ -796,6 +805,22 @@ func modCondition(name, op string, args []string) error {
 			stmt.Conditions.Counter.Loop = true
 		} else if args[1] == "once" {
 			stmt.Conditions.Counter.Once = true
+		}
+	case "family":
+		if len(args) < 1 || (len(args) == 2 && args[1] == "invert") || len(args) > 2 {
+			return fmt.Errorf("%s family <family> [invert]", usage)
+		}
+		f, y := bgp.AddressFamilyValueMap[args[0]]
+		if !y {
+			return fmt.Errorf("invalid address family: %s", args[0])
+		}
+		option := api.MatchType_ANY
+		if len(args) == 2 {
+			option = api.MatchType_INVERT
+		}
+		stmt.Conditions.Family = &api.FamilyCondition{
+			Type:   option,
+			Family: uint32(f),
 		}
 	default:
 		return fmt.Errorf("invalid coundition")

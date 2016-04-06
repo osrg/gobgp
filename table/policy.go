@@ -166,6 +166,7 @@ const (
 	CONDITION_AS_PATH_LENGTH
 	CONDITION_RPKI
 	CONDITION_COUNTER
+	CONDITION_FAMILY
 )
 
 type ActionType int
@@ -1097,6 +1098,60 @@ func NewCounterCondition(threshold uint64, loop, once bool) (*CounterCondition, 
 		threshold: threshold,
 		loop:      loop,
 		once:      once,
+	}, nil
+}
+
+type FamilyCondition struct {
+	family bgp.RouteFamily
+	option MatchOption
+}
+
+func (c *FamilyCondition) Type() ConditionType {
+	return CONDITION_FAMILY
+}
+
+func (c *FamilyCondition) Set() DefinedSet {
+	return nil
+}
+
+func (c *FamilyCondition) Option() MatchOption {
+	return c.option
+}
+
+func (c *FamilyCondition) Evaluate(path *Path, _ *PolicyOptions) bool {
+	result := path.GetRouteFamily() == c.family
+	if c.option == MATCH_OPTION_INVERT {
+		result = !result
+	}
+	return result
+}
+
+func (c *FamilyCondition) ToApiStruct() *api.FamilyCondition {
+	return &api.FamilyCondition{
+		Type:   api.MatchType(c.option),
+		Family: uint32(c.family),
+	}
+}
+
+func NewFamilyConditionFromApiStruct(a *api.FamilyCondition) (*FamilyCondition, error) {
+	if a == nil {
+		return nil, nil
+	}
+	typ, err := toConfigMatchSetOptionRestricted(a.Type)
+	if err != nil {
+		return nil, err
+	}
+	o, err := NewMatchOption(typ)
+	if err != nil {
+		return nil, err
+	}
+	return NewFamilyCondition(bgp.RouteFamily(a.Family), o)
+}
+
+func NewFamilyCondition(family bgp.RouteFamily, option MatchOption) (*FamilyCondition, error) {
+	return &FamilyCondition{
+		family: family,
+		option: option,
 	}, nil
 }
 
@@ -2302,6 +2357,8 @@ func (s *Statement) ToApiStruct() *api.Statement {
 			cs.RpkiResult = int32(c.(*RpkiValidationCondition).result.ToInt())
 		case *CounterCondition:
 			cs.Counter = c.(*CounterCondition).ToApiStruct()
+		case *FamilyCondition:
+			cs.Family = c.(*FamilyCondition).ToApiStruct()
 		}
 	}
 	as := &api.Actions{}
@@ -2483,6 +2540,9 @@ func NewStatementFromApiStruct(a *api.Statement, dmap DefinedSetMap, ch chan *ap
 			},
 			func() (Condition, error) {
 				return NewCounterConditionFromApiStruct(a.Conditions.Counter)
+			},
+			func() (Condition, error) {
+				return NewFamilyConditionFromApiStruct(a.Conditions.Family)
 			},
 		}
 		cs = make([]Condition, 0, len(cfs))

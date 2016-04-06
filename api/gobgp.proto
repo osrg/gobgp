@@ -423,6 +423,11 @@ message CounterCondition {
     bool triggered = 5;
 }
 
+message FamilyCondition {
+    MatchType type = 1;
+    uint32 family = 2;
+}
+
 message Conditions {
     MatchSet prefix_set = 1;
     MatchSet neighbor_set = 2;
@@ -432,6 +437,7 @@ message Conditions {
     MatchSet ext_community_set = 6;
     int32 rpki_result = 7;
     CounterCondition counter = 8;
+    FamilyCondition family = 9;
 }
 
 enum RouteAction {
