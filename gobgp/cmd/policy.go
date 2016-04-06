@@ -437,7 +437,7 @@ func printStatement(indent int, s *api.Statement) {
 	}
 
 	rpki := s.Conditions.RpkiResult
-	if rpki > -1 {
+	if rpki > 0 {
 		fmt.Printf("%sRPKI result: %s\n", sIndent(indent+4), config.IntToRpkiValidationResultTypeMap[int(rpki)])
 	}
 	if c := s.Conditions.Counter; c != nil {
@@ -488,7 +488,9 @@ func printStatement(indent int, s *api.Statement) {
 	if s.Actions.Log != nil {
 		fmt.Printf("%sLog:      level: %s, msg: %s\n", sIndent(indent+4), s.Actions.Log.Level, s.Actions.Log.Message)
 	}
-	fmt.Printf("%s%s\n", sIndent(indent+4), s.Actions.RouteAction)
+	if s.Actions.RouteAction > 0 {
+		fmt.Printf("%s%s\n", sIndent(indent+4), s.Actions.RouteAction)
+	}
 }
 
 func printPolicy(indent int, pd *api.Policy) {
