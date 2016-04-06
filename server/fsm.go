@@ -81,6 +81,7 @@ const (
 	_ FsmMsgType = iota
 	FSM_MSG_STATE_CHANGE
 	FSM_MSG_BGP_MESSAGE
+	FSM_MSG_ROUTE_REFRESH
 )
 
 type FsmMsg struct {
@@ -90,6 +91,12 @@ type FsmMsg struct {
 	PathList  []*table.Path
 	timestamp time.Time
 	payload   []byte
+}
+
+type FsmOutgoingMsg struct {
+	Paths        []*table.Path
+	Notification *bgp.BGPMessage
+	StayIdle     bool
 }
 
 const (
@@ -359,11 +366,11 @@ type FSMHandler struct {
 	errorCh          chan FsmStateReason
 	incoming         *channels.InfiniteChannel
 	stateCh          chan *FsmMsg
-	outgoing         chan *bgp.BGPMessage
+	outgoing         chan *FsmOutgoingMsg
 	holdTimerResetCh chan bool
 }
 
-func NewFSMHandler(fsm *FSM, incoming *channels.InfiniteChannel, stateCh chan *FsmMsg, outgoing chan *bgp.BGPMessage) *FSMHandler {
+func NewFSMHandler(fsm *FSM, incoming *channels.InfiniteChannel, stateCh chan *FsmMsg, outgoing chan *FsmOutgoingMsg) *FSMHandler {
 	h := &FSMHandler{
 		fsm:              fsm,
 		errorCh:          make(chan FsmStateReason, 2),
@@ -612,6 +619,8 @@ func (h *FSMHandler) recvMessageWithError() (*FsmMsg, error) {
 		fmsg.MsgData = m
 		if h.fsm.state == bgp.BGP_FSM_ESTABLISHED {
 			switch m.Header.Type {
+			case bgp.BGP_MSG_ROUTE_REFRESH:
+				fmsg.MsgType = FSM_MSG_ROUTE_REFRESH
 			case bgp.BGP_MSG_UPDATE:
 				body := m.Body.(*bgp.BGPUpdate)
 				confedCheck := !config.IsConfederationMember(h.fsm.gConf, h.fsm.pConf) && config.IsEBGPPeer(h.fsm.gConf, h.fsm.pConf)
@@ -1071,14 +1080,26 @@ func (h *FSMHandler) sendMessageloop() error {
 			}
 			return nil
 		case m := <-h.outgoing:
-			if err := send(m); err != nil {
-				return nil
+			for _, msg := range table.CreateUpdateMsgFromPaths(m.Paths) {
+				if err := send(msg); err != nil {
+					return nil
+				}
+			}
+			if m.Notification != nil {
+				if err := send(m.Notification); err != nil {
+					return nil
+				}
+				if m.StayIdle {
+					select {
+					case h.fsm.adminStateCh <- ADMIN_STATE_DOWN:
+					default:
+					}
+				}
 			}
 		case <-ticker.C:
 			if err := send(bgp.NewBGPKeepAliveMessage()); err != nil {
 				return nil
 			}
-
 		}
 	}
 }
@@ -1146,7 +1167,7 @@ func (h *FSMHandler) established() (bgp.FSMState, FsmStateReason) {
 				"data":  bgp.BGP_FSM_ESTABLISHED,
 			}).Warn("hold timer expired")
 			m := bgp.NewBGPNotificationMessage(bgp.BGP_ERROR_HOLD_TIMER_EXPIRED, 0, nil)
-			h.outgoing <- m
+			h.outgoing <- &FsmOutgoingMsg{Notification: m}
 			return bgp.BGP_FSM_IDLE, FSM_HOLD_TIMER_EXPIRED
 		case <-h.holdTimerResetCh:
 			if fsm.pConf.Timers.State.NegotiatedHoldTime != 0 {
@@ -1157,9 +1178,8 @@ func (h *FSMHandler) established() (bgp.FSMState, FsmStateReason) {
 			if err == nil {
 				switch s {
 				case ADMIN_STATE_DOWN:
-					m := bgp.NewBGPNotificationMessage(
-						bgp.BGP_ERROR_CEASE, bgp.BGP_ERROR_SUB_ADMINISTRATIVE_SHUTDOWN, nil)
-					h.outgoing <- m
+					m := bgp.NewBGPNotificationMessage(bgp.BGP_ERROR_CEASE, bgp.BGP_ERROR_SUB_ADMINISTRATIVE_SHUTDOWN, nil)
+					h.outgoing <- &FsmOutgoingMsg{Notification: m}
 				}
 			}
 		}
