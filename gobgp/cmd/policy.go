@@ -488,6 +488,15 @@ func printStatement(indent int, s *api.Statement) {
 	if s.Actions.Log != nil {
 		fmt.Printf("%sLog:      level: %s, msg: %s\n", sIndent(indent+4), s.Actions.Log.Level, s.Actions.Log.Message)
 	}
+
+	if a := s.Actions.SendNotification; a != nil {
+		fmt.Printf("%sSend Notification(%d, %d) to %s", sIndent(indent+4), a.Code, a.SubCode, a.Name)
+		if a.Lock {
+			fmt.Printf(" (lock)\n")
+		} else {
+			fmt.Printf("\n")
+		}
+	}
 	if s.Actions.RouteAction > 0 {
 		fmt.Printf("%s%s\n", sIndent(indent+4), s.Actions.RouteAction)
 	}
@@ -817,7 +826,7 @@ func modAction(name, op string, args []string) error {
 	}
 	usage := fmt.Sprintf("usage: gobgp policy statement %s %s action", name, op)
 	if len(args) < 1 {
-		return fmt.Errorf("%s { reject | accept | community | ext-community | med | as-prepend | log }", usage)
+		return fmt.Errorf("%s { reject | accept | community | ext-community | med | as-prepend | log | send-notification }", usage)
 	}
 	typ := args[0]
 	args = args[1:]
@@ -914,6 +923,28 @@ func modAction(name, op string, args []string) error {
 		stmt.Actions.Log = &api.LogAction{
 			Level:   api.LogLevel(lvl),
 			Message: args[1],
+		}
+	case "send-notification":
+		if len(args) < 3 || (len(args) == 4 && args[3] != "lock") || len(args) > 4 {
+			return fmt.Errorf("%s send-notifiction <neighbor-address> <code> <sub-code> [<lock>]", usage)
+		}
+		code, err := strconv.Atoi(args[1])
+		if err != nil {
+			return err
+		}
+		sub, err := strconv.Atoi(args[2])
+		if err != nil {
+			return err
+		}
+		lock := false
+		if len(args) == 4 {
+			lock = true
+		}
+		stmt.Actions.SendNotification = &api.SendNotificationAction{
+			Name:    args[0],
+			Code:    uint32(code),
+			SubCode: uint32(sub),
+			Lock:    lock,
 		}
 	default:
 		return fmt.Errorf("invalid mod action: %s", typ)

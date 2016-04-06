@@ -177,6 +177,7 @@ const (
 	ACTION_MED
 	ACTION_AS_PATH_PREPEND
 	ACTION_LOG
+	ACTION_SEND_NOTIFICATION
 )
 
 func NewMatchOption(c interface{}) (MatchOption, error) {
@@ -2162,6 +2163,9 @@ func (a *LogAction) ToApiStruct() *api.LogAction {
 }
 
 func NewLogActionFromApiStruct(a *api.LogAction, ch chan *api.Request) (*LogAction, error) {
+	if a == nil {
+		return nil, nil
+	}
 	return NewLogAction(a.Level, a.Message, ch), nil
 }
 
@@ -2169,6 +2173,57 @@ func NewLogAction(level api.LogLevel, msg string, ch chan *api.Request) *LogActi
 	return &LogAction{
 		Level:   level,
 		Message: msg,
+		ch:      ch,
+	}
+}
+
+type SendNotificationAction struct {
+	Name    string
+	Code    uint8
+	SubCode uint8
+	Data    []byte
+	Lock    bool
+	ch      chan *api.Request
+}
+
+func (a *SendNotificationAction) Type() ActionType {
+	return ACTION_SEND_NOTIFICATION
+}
+
+func (a *SendNotificationAction) Apply(path *Path) *Path {
+	req := api.NewRequest(api.REQ_SEND_NOTIFICATION, &api.SendNotificationArguments{
+		Name:    a.Name,
+		Code:    uint32(a.Code),
+		SubCode: uint32(a.SubCode),
+		Data:    a.Data,
+		Lock:    a.Lock,
+	})
+	a.ch <- req
+	return path
+}
+
+func (a *SendNotificationAction) ToApiStruct() *api.SendNotificationAction {
+	return &api.SendNotificationAction{
+		Name:    a.Name,
+		Code:    uint32(a.Code),
+		SubCode: uint32(a.SubCode),
+		Lock:    a.Lock,
+	}
+}
+
+func NewSendNotificationActionFromApiStruct(a *api.SendNotificationAction, ch chan *api.Request) (*SendNotificationAction, error) {
+	if a == nil {
+		return nil, nil
+	}
+	return NewSendNotificationAction(a.Name, uint8(a.Code), uint8(a.SubCode), a.Lock, ch), nil
+}
+
+func NewSendNotificationAction(name string, code, subcode uint8, lock bool, ch chan *api.Request) *SendNotificationAction {
+	return &SendNotificationAction{
+		Name:    name,
+		Code:    code,
+		SubCode: subcode,
+		Lock:    lock,
 		ch:      ch,
 	}
 }
@@ -2246,7 +2301,7 @@ func (s *Statement) ToApiStruct() *api.Statement {
 		case *RpkiValidationCondition:
 			cs.RpkiResult = int32(c.(*RpkiValidationCondition).result.ToInt())
 		case *CounterCondition:
-			cs.Counter = uint64(c.(*CounterCondition).threshold)
+			cs.Counter = c.(*CounterCondition).ToApiStruct()
 		}
 	}
 	as := &api.Actions{}
@@ -2265,6 +2320,8 @@ func (s *Statement) ToApiStruct() *api.Statement {
 			as.ExtCommunity = a.(*ExtCommunityAction).ToApiStruct()
 		case *LogAction:
 			as.Log = a.(*LogAction).ToApiStruct()
+		case *SendNotificationAction:
+			as.SendNotification = a.(*SendNotificationAction).ToApiStruct()
 		}
 	}
 	return &api.Statement{
@@ -2425,7 +2482,7 @@ func NewStatementFromApiStruct(a *api.Statement, dmap DefinedSetMap, ch chan *ap
 				return NewExtCommunityConditionFromApiStruct(a.Conditions.ExtCommunitySet, dmap[DEFINED_TYPE_EXT_COMMUNITY])
 			},
 			func() (Condition, error) {
-				return NewCounterCondition(a.Conditions.Counter)
+				return NewCounterConditionFromApiStruct(a.Conditions.Counter)
 			},
 		}
 		cs = make([]Condition, 0, len(cfs))
@@ -2459,6 +2516,9 @@ func NewStatementFromApiStruct(a *api.Statement, dmap DefinedSetMap, ch chan *ap
 			},
 			func() (Action, error) {
 				return NewLogActionFromApiStruct(a.Actions.Log, ch)
+			},
+			func() (Action, error) {
+				return NewSendNotificationActionFromApiStruct(a.Actions.SendNotification, ch)
 			},
 		}
 		as = make([]Action, 0, len(afs))

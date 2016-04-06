@@ -1098,7 +1098,9 @@ func (server *BgpServer) PeerUpdate(peer config.Neighbor) {
 func (server *BgpServer) Shutdown() {
 	server.shutdown = true
 	for _, p := range server.neighborMap {
-		p.fsm.adminStateCh <- ADMIN_STATE_DOWN
+		p.fsm.adminStateCh <- &StateChangeMsg{
+			State: ADMIN_STATE_DOWN,
+		}
 	}
 	// TODO: call fsmincomingCh.Close()
 }
@@ -2108,39 +2110,61 @@ func (server *BgpServer) handleRequest(req *api.Request) []*SenderMsg {
 		if err1 != nil {
 			break
 		}
+		msg := &StateChangeMsg{}
+		switch req.Type {
+		case api.REQ_NEIGHBOR_ENABLE:
+			msg.State = ADMIN_STATE_UP
+		case api.REQ_NEIGHBOR_DISABLE:
+			msg.State = ADMIN_STATE_DOWN
+			msg.Code = bgp.BGP_ERROR_CEASE
+			msg.SubCode = bgp.BGP_ERROR_SUB_ADMINISTRATIVE_SHUTDOWN
+		}
 		var err api.Error
 		result := &api.Response{}
-		if req.Type == api.REQ_NEIGHBOR_ENABLE {
-			select {
-			case peer.fsm.adminStateCh <- ADMIN_STATE_UP:
-				log.WithFields(log.Fields{
-					"Topic": "Peer",
-					"Key":   peer.conf.Config.NeighborAddress,
-				}).Debug("ADMIN_STATE_UP requested")
-				err.Code = api.Error_SUCCESS
-				err.Msg = "ADMIN_STATE_UP"
-			default:
-				log.Warning("previous request is still remaining. : ", peer.conf.Config.NeighborAddress)
-				err.Code = api.Error_FAIL
-				err.Msg = "previous request is still remaining"
-			}
-		} else {
-			select {
-			case peer.fsm.adminStateCh <- ADMIN_STATE_DOWN:
-				log.WithFields(log.Fields{
-					"Topic": "Peer",
-					"Key":   peer.conf.Config.NeighborAddress,
-				}).Debug("ADMIN_STATE_DOWN requested")
-				err.Code = api.Error_SUCCESS
-				err.Msg = "ADMIN_STATE_DOWN"
-			default:
-				log.Warning("previous request is still remaining. : ", peer.conf.Config.NeighborAddress)
-				err.Code = api.Error_FAIL
-				err.Msg = "previous request is still remaining"
-			}
+		select {
+		case peer.fsm.adminStateCh <- msg:
+			log.WithFields(log.Fields{
+				"Topic": "Peer",
+				"Key":   peer.conf.Config.NeighborAddress,
+			}).Debugf("%s requested", msg.State)
+			err.Code = api.Error_SUCCESS
+			err.Msg = msg.State.String()
+		default:
+			log.Warning("previous request is still remaining. : ", peer.conf.Config.NeighborAddress)
+			err.Code = api.Error_FAIL
+			err.Msg = "previous request is still remaining"
 		}
 		result.Data = err
 		req.ResCh <- result
+		close(req.ResCh)
+	case api.REQ_SEND_NOTIFICATION:
+		peer, err := server.checkNeighborRequest(req)
+		if err != nil {
+			break
+		}
+		arg := req.Data.(*api.SendNotificationArguments)
+		state := ADMIN_STATE_UP
+		if arg.Lock {
+			state = ADMIN_STATE_DOWN
+		}
+		msg := &StateChangeMsg{
+			State:   state,
+			Code:    uint8(arg.Code),
+			SubCode: uint8(arg.SubCode),
+			Data:    arg.Data,
+		}
+		select {
+		case peer.fsm.adminStateCh <- msg:
+			log.WithFields(log.Fields{
+				"Topic": "Peer",
+				"Key":   peer.conf.Config.NeighborAddress,
+			}).Debugf("%s requested", msg.State)
+		default:
+			log.Warning("previous request is still remaining. : ", peer.conf.Config.NeighborAddress)
+			err = fmt.Errorf("prefious request is still remaining")
+			break
+		}
+		req.ResCh <- &api.Response{}
 		close(req.ResCh)
 	case api.REQ_MOD_NEIGHBOR:
 		m, err := server.ModNeighbor(req)

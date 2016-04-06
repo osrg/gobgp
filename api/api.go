@@ -70,6 +70,7 @@ const (
 	REQ_BMP_ADJ_IN
 	REQ_DEFERRAL_TIMER_EXPIRED
 	REQ_LOG
+	REQ_SEND_NOTIFICATION
 )
 
 type Request struct {
@@ -91,6 +92,8 @@ func (req *Request) Name() (string, error) {
 	case *MrtArguments:
 		return arg.NeighborAddress, nil
 	case *Table:
+		return arg.Name, nil
+	case *SendNotificationArguments:
 		return arg.Name, nil
 	}
 	return "", fmt.Errorf("request doesn't have a name field")

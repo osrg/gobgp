@@ -59,6 +59,7 @@ service GobgpApi {
   rpc GetPolicyAssignment(PolicyAssignment) returns (PolicyAssignment) {}
   rpc ModPolicyAssignment(ModPolicyAssignmentArguments) returns (Error) {}
   rpc Log(LogArguments) returns (Error) {}
+  rpc SendNotification(SendNotificationArguments) returns (Error) {}
 }
 
 message Error {
@@ -184,6 +185,15 @@ enum LogLevel {
 message LogArguments {
     LogLevel level = 1;
     string message = 2;
+}
+
+message SendNotificationArguments {
+    string name = 1;
+    uint32 code = 2;
+    uint32 sub_code = 3;
+    bytes data = 4;
+    // lock to idle state
+    bool lock = 5;
 }
 
 enum Resource {
@@ -421,7 +431,7 @@ message Conditions {
     MatchSet community_set = 5;
     MatchSet ext_community_set = 6;
     int32 rpki_result = 7;
-    uint64 counter = 8;
+    CounterCondition counter = 8;
 }
 
 enum RouteAction {
@@ -462,6 +472,15 @@ message LogAction {
     string message = 2;
 }
 
+message SendNotificationAction {
+    string name = 1;
+    uint32 code = 2;
+    uint32 sub_code = 3;
+    bytes data = 4;
+    // lock to idle state
+    bool lock = 5;
+}
+
 message Actions {
     RouteAction route_action = 1;
     CommunityAction community = 2;
@@ -469,6 +488,7 @@ message Actions {
     AsPrependAction as_prepend = 4;
     CommunityAction ext_community = 5;
     LogAction log = 6;
+    SendNotificationAction send_notification = 7;
 }
 
 message Statement {

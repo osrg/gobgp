@@ -383,6 +383,10 @@ func (s *Server) Log(ctx context.Context, arg *api.LogArguments) (*api.Error, er
 	return s.mod(api.REQ_LOG, arg)
 }
 
+func (s *Server) SendNotification(ctx context.Context, arg *api.SendNotificationArguments) (*api.Error, error) {
+	return s.mod(api.REQ_SEND_NOTIFICATION, arg)
+}
+
 func NewGrpcServer(port int, bgpServerCh chan *api.Request) *Server {
 	grpcServer := grpc.NewServer()
 	server := &Server{
