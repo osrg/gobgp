@@ -25,8 +25,8 @@ import (
 type grpcIncomingWatcher struct {
 	t     tomb.Tomb
 	ch    chan watcherEvent
-	ctlCh chan *GrpcRequest
-	reqs  []*GrpcRequest
+	ctlCh chan *api.Request
+	reqs  []*api.Request
 }
 
 func (w *grpcIncomingWatcher) notify(t watcherEventType) chan watcherEvent {
@@ -65,7 +65,7 @@ func (w *grpcIncomingWatcher) loop() error {
 		select {
 		case <-w.t.Dying():
 			for _, req := range w.reqs {
-				close(req.ResponseCh)
+				close(req.ResCh)
 			}
 			return nil
 		case req := <-w.ctlCh:
@@ -73,13 +73,14 @@ func (w *grpcIncomingWatcher) loop() error {
 		case ev := <-w.ch:
 			msg := ev.(*watcherEventUpdateMsg)
 			for _, path := range msg.pathList {
-				remains := make([]*GrpcRequest, 0, len(w.reqs))
-				result := &GrpcResponse{
+				remains := make([]*api.Request, 0, len(w.reqs))
+				result := &api.Response{
 					Data: &api.Destination{
 						Prefix: path.GetNlri().String(),
 						Paths:  []*api.Path{path.ToApiStruct(table.GLOBAL_RIB_NAME)},
 					},
 				}
+
 				for _, req := range w.reqs {
 					select {
 					case <-req.EndCh:
@@ -87,13 +88,17 @@ func (w *grpcIncomingWatcher) loop() error {
 					default:
 					}
 					remains = append(remains, req)
-					if req.RouteFamily != bgp.RouteFamily(0) && req.RouteFamily != path.GetRouteFamily() {
+					name, err := req.Name()
+					if err != nil {
+						return err
+					}
+					if req.Family() != bgp.RouteFamily(0) && req.Family() != path.GetRouteFamily() {
 						continue
 					}
-					if req.Name != "" && req.Name != path.GetSource().Address.String() {
+					if name != "" && name != path.GetSource().Address.String() {
 						continue
 					}
-					req.ResponseCh <- result
+					req.ResCh <- result
 				}
 				w.reqs = remains
 			}
@@ -105,7 +110,7 @@ func (w *grpcIncomingWatcher) restart(string) error {
 	return nil
 }
 
-func (w *grpcIncomingWatcher) addRequest(req *GrpcRequest) error {
+func (w *grpcIncomingWatcher) addRequest(req *api.Request) error {
 	w.ctlCh <- req
 	return nil
 }
@@ -113,8 +118,8 @@ func (w *grpcIncomingWatcher) addRequest(req *GrpcRequest) error {
 func newGrpcIncomingWatcher() (*grpcIncomingWatcher, error) {
 	w := &grpcIncomingWatcher{
 		ch:    make(chan watcherEvent),
-		ctlCh: make(chan *GrpcRequest),
-		reqs:  make([]*GrpcRequest, 0, 16),
+		ctlCh: make(chan *api.Request),
+		reqs:  make([]*api.Request, 0, 16),
 	}
 	w.t.Go(w.loop)
 	return w, nil

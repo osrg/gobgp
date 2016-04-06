@@ -23,6 +23,7 @@ import (
 	"regexp"
 	"strconv"
 	"strings"
+	"sync"
 
 	log "github.com/Sirupsen/logrus"
 	"github.com/armon/go-radix"
@@ -33,6 +34,7 @@ import (
 
 type PolicyOptions struct {
 	Neighbor net.IP
+	Found    bool
 }
 
 type DefinedType int
@@ -163,6 +165,8 @@ const (
 	CONDITION_EXT_COMMUNITY
 	CONDITION_AS_PATH_LENGTH
 	CONDITION_RPKI
+	CONDITION_COUNTER
+	CONDITION_FAMILY
 )
 
 type ActionType int
@@ -173,6 +177,8 @@ const (
 	ACTION_EXT_COMMUNITY
 	ACTION_MED
 	ACTION_AS_PATH_PREPEND
+	ACTION_LOG
+	ACTION_SEND_NOTIFICATION
 )
 
 func NewMatchOption(c interface{}) (MatchOption, error) {
@@ -1033,6 +1039,120 @@ type Condition interface {
 	Type() ConditionType
 	Evaluate(*Path, *PolicyOptions) bool
 	Set() DefinedSet
+}
+
+type CounterCondition struct {
+	counter   uint64
+	threshold uint64
+	loop      bool
+	triggered bool
+	once      bool
+}
+
+func (c *CounterCondition) Type() ConditionType {
+	return CONDITION_COUNTER
+}
+
+func (c *CounterCondition) Set() DefinedSet {
+	return nil
+}
+
+func (c *CounterCondition) Evaluate(path *Path, options *PolicyOptions) bool {
+	if options != nil && !options.Found {
+		c.counter++
+	} else if path.IsWithdraw && c.counter > 0 {
+		c.counter--
+	}
+	if c.counter > c.threshold {
+		if c.loop {
+			c.counter = 0
+		}
+		if c.once && c.triggered {
+			return false
+		}
+		c.triggered = true
+		return true
+	}
+	return false
+}
+
+func (c *CounterCondition) ToApiStruct() *api.CounterCondition {
+	return &api.CounterCondition{
+		Counter:   c.counter,
+		Threshold: c.threshold,
+		Loop:      c.loop,
+		Triggered: c.triggered,
+		Once:      c.once,
+	}
+}
+
+func NewCounterConditionFromApiStruct(c *api.CounterCondition) (*CounterCondition, error) {
+	if c == nil {
+		return nil, nil
+	}
+	return NewCounterCondition(c.Threshold, c.Loop, c.Once)
+}
+
+func NewCounterCondition(threshold uint64, loop, once bool) (*CounterCondition, error) {
+	return &CounterCondition{
+		threshold: threshold,
+		loop:      loop,
+		once:      once,
+	}, nil
+}
+
+type FamilyCondition struct {
+	family bgp.RouteFamily
+	option MatchOption
+}
+
+func (c *FamilyCondition) Type() ConditionType {
+	return CONDITION_FAMILY
+}
+
+func (c *FamilyCondition) Set() DefinedSet {
+	return nil
+}
+
+func (c *FamilyCondition) Option() MatchOption {
+	return c.option
+}
+
+func (c *FamilyCondition) Evaluate(path *Path, _ *PolicyOptions) bool {
+	result := path.GetRouteFamily() == c.family
+	if c.option == MATCH_OPTION_INVERT {
+		result = !result
+	}
+	return result
+}
+
+func (c *FamilyCondition) ToApiStruct() *api.FamilyCondition {
+	return &api.FamilyCondition{
+		Type:   api.MatchType(c.option),
+		Family: uint32(c.family),
+	}
+}
+
+func NewFamilyConditionFromApiStruct(a *api.FamilyCondition) (*FamilyCondition, error) {
+	if a == nil {
+		return nil, nil
+	}
+	typ, err := toConfigMatchSetOptionRestricted(a.Type)
+	if err != nil {
+		return nil, err
+	}
+	o, err := NewMatchOption(typ)
+	if err != nil {
+		return nil, err
+	}
+	return NewFamilyCondition(bgp.RouteFamily(a.Family), o)
+}
+
+func NewFamilyCondition(family bgp.RouteFamily, option MatchOption) (*FamilyCondition, error) {
+	return &FamilyCondition{
+		family: family,
+		option: option,
+	}, nil
 }
 
 type PrefixCondition struct {
@@ -2071,11 +2191,112 @@ func NewAsPathPrependAction(action config.SetAsPathPrepend) (*AsPathPrependActio
 	return a, nil
 }
 
+type LogAction struct {
+	Level   api.LogLevel
+	Message string
+	ch      chan *api.Request
+}
+
+func (a *LogAction) Type() ActionType {
+	return ACTION_LOG
+}
+
+func (a *LogAction) Apply(path *Path) *Path {
+	req := api.NewRequest(api.REQ_LOG, &api.LogArguments{
+		Level:   a.Level,
+		Message: a.Message,
+	})
+	a.ch <- req
+	return path
+}
+
+func (a *LogAction) ToApiStruct() *api.LogAction {
+	return &api.LogAction{
+		Level:   a.Level,
+		Message: a.Message,
+	}
+}
+
+func NewLogActionFromApiStruct(a *api.LogAction, ch chan *api.Request) (*LogAction, error) {
+	if a == nil {
+		return nil, nil
+	}
+	return NewLogAction(a.Level, a.Message, ch), nil
+}
+
+func NewLogAction(level api.LogLevel, msg string, ch chan *api.Request) *LogAction {
+	return &LogAction{
+		Level:   level,
+		Message: msg,
+		ch:      ch,
+	}
+}
+
+type SendNotificationAction struct {
+	Name    string
+	Code    uint8
+	SubCode uint8
+	Data    []byte
+	Lock    bool
+	ch      chan *api.Request
+}
+
+func (a *SendNotificationAction) Type() ActionType {
+	return ACTION_SEND_NOTIFICATION
+}
+
+func (a *SendNotificationAction) Apply(path *Path) *Path {
+	req := api.NewRequest(api.REQ_SEND_NOTIFICATION, &api.SendNotificationArguments{
+		Name:    a.Name,
+		Code:    uint32(a.Code),
+		SubCode: uint32(a.SubCode),
+		Data:    a.Data,
+		Lock:    a.Lock,
+	})
+	a.ch <- req
+	return path
+}
+
+func (a *SendNotificationAction) ToApiStruct() *api.SendNotificationAction {
+	return &api.SendNotificationAction{
+		Name:    a.Name,
+		Code:    uint32(a.Code),
+		SubCode: uint32(a.SubCode),
+		Lock:    a.Lock,
+	}
+}
+
+func NewSendNotificationActionFromApiStruct(a *api.SendNotificationAction, ch chan *api.Request) (*SendNotificationAction, error) {
+	if a == nil {
+		return nil, nil
+	}
+	return NewSendNotificationAction(a.Name, uint8(a.Code), uint8(a.SubCode), a.Lock, ch), nil
+}
+
+func NewSendNotificationAction(name string, code, subcode uint8, lock bool, ch chan *api.Request) *SendNotificationAction {
+	return &SendNotificationAction{
+		Name:    name,
+		Code:    code,
+		SubCode: subcode,
+		Lock:    lock,
+		ch:      ch,
+	}
+}
+
 type Statement struct {
 	Name        string
 	Conditions  []Condition
 	RouteAction Action
 	ModActions  []Action
+}
+
+func (s *Statement) ResetCounters() {
+	for _, c := range s.Conditions {
+		if cc, y := c.(*CounterCondition); y {
+			cc.counter = 0
+			cc.triggered = false
+		}
+	}
 }
 
 // evaluate each condition in the statement according to MatchSetOptions
@@ -2134,6 +2355,10 @@ func (s *Statement) ToApiStruct() *api.Statement {
 			cs.ExtCommunitySet = c.(*ExtCommunityCondition).ToApiStruct()
 		case *RpkiValidationCondition:
 			cs.RpkiResult = int32(c.(*RpkiValidationCondition).result.ToInt())
+		case *CounterCondition:
+			cs.Counter = c.(*CounterCondition).ToApiStruct()
+		case *FamilyCondition:
+			cs.Family = c.(*FamilyCondition).ToApiStruct()
 		}
 	}
 	as := &api.Actions{}
@@ -2150,6 +2375,10 @@ func (s *Statement) ToApiStruct() *api.Statement {
 			as.AsPrepend = a.(*AsPathPrependAction).ToApiStruct()
 		case *ExtCommunityAction:
 			as.ExtCommunity = a.(*ExtCommunityAction).ToApiStruct()
+		case *LogAction:
+			as.Log = a.(*LogAction).ToApiStruct()
+		case *SendNotificationAction:
+			as.SendNotification = a.(*SendNotificationAction).ToApiStruct()
 		}
 	}
 	return &api.Statement{
@@ -2278,7 +2507,7 @@ func (lhs *Statement) Replace(rhs *Statement) error {
 	return lhs.mod(REPLACE, rhs)
 }
 
-func NewStatementFromApiStruct(a *api.Statement, dmap DefinedSetMap) (*Statement, error) {
+func NewStatementFromApiStruct(a *api.Statement, dmap DefinedSetMap, ch chan *api.Request) (*Statement, error) {
 	if a.Name == "" {
 		return nil, fmt.Errorf("empty statement name")
 	}
@@ -2309,6 +2538,12 @@ func NewStatementFromApiStruct(a *api.Statement, dmap DefinedSetMap) (*Statement
 			func() (Condition, error) {
 				return NewExtCommunityConditionFromApiStruct(a.Conditions.ExtCommunitySet, dmap[DEFINED_TYPE_EXT_COMMUNITY])
 			},
+			func() (Condition, error) {
+				return NewCounterConditionFromApiStruct(a.Conditions.Counter)
+			},
+			func() (Condition, error) {
+				return NewFamilyConditionFromApiStruct(a.Conditions.Family)
+			},
 		}
 		cs = make([]Condition, 0, len(cfs))
 		for _, f := range cfs {
@@ -2338,6 +2573,12 @@ func NewStatementFromApiStruct(a *api.Statement, dmap DefinedSetMap) (*Statement
 			},
 			func() (Action, error) {
 				return NewAsPathPrependActionFromApiStruct(a.Actions.AsPrepend)
+			},
+			func() (Action, error) {
+				return NewLogActionFromApiStruct(a.Actions.Log, ch)
+			},
+			func() (Action, error) {
+				return NewSendNotificationActionFromApiStruct(a.Actions.SendNotification, ch)
 			},
 		}
 		as = make([]Action, 0, len(afs))
@@ -2445,6 +2686,12 @@ func (p *Policy) Name() string {
 	return p.name
 }
 
+func (p *Policy) ResetCounters() {
+	for _, s := range p.Statements {
+		s.ResetCounters()
+	}
+}
+
 // Compare path with a policy's condition in stored order in the policy.
 // If a condition match, then this function stops evaluation and
 // subsequent conditions are skipped.
@@ -2511,7 +2758,7 @@ func (lhs *Policy) Replace(rhs *Policy) error {
 	return nil
 }
 
-func NewPolicyFromApiStruct(a *api.Policy, dmap DefinedSetMap) (*Policy, error) {
+func NewPolicyFromApiStruct(a *api.Policy, dmap DefinedSetMap, ch chan *api.Request) (*Policy, error) {
 	if a.Name == "" {
 		return nil, fmt.Errorf("empty policy name")
 	}
@@ -2520,7 +2767,7 @@ func NewPolicyFromApiStruct(a *api.Policy, dmap DefinedSetMap) (*Policy, error) 
 		if x.Name == "" {
 			x.Name = fmt.Sprintf("%s_stmt%d", a.Name, idx)
 		}
-		y, err := NewStatementFromApiStruct(x, dmap)
+		y, err := NewStatementFromApiStruct(x, dmap, ch)
 		if err != nil {
 			return nil, err
 		}
@@ -2571,9 +2818,32 @@ type RoutingPolicy struct {
 	PolicyMap     map[string]*Policy
 	StatementMap  map[string]*Statement
 	AssignmentMap map[string]*Assignment
+	M             sync.RWMutex
+	reqCh         chan *api.Request
+}
+
+func (r *RoutingPolicy) ResetCounters(id string, dir PolicyDirection) {
+	r.M.Lock()
+	defer r.M.Unlock()
+	if a, y := r.AssignmentMap[id]; y {
+		var ps []*Policy
+		switch dir {
+		case POLICY_DIRECTION_IN:
+			ps = a.inPolicies
+		case POLICY_DIRECTION_IMPORT:
+			ps = a.importPolicies
+		case POLICY_DIRECTION_EXPORT:
+			ps = a.exportPolicies
+		}
+		for _, p := range ps {
+			p.ResetCounters()
+		}
+	}
 }
 
 func (r *RoutingPolicy) ApplyPolicy(id string, dir PolicyDirection, before *Path, options *PolicyOptions) *Path {
+	r.M.RLock()
+	defer r.M.RUnlock()
 	if before == nil {
 		return nil
 	}
@@ -2815,12 +3085,13 @@ func (r *RoutingPolicy) Reload(c config.RoutingPolicy) error {
 	return nil
 }
 
-func NewRoutingPolicy() *RoutingPolicy {
+func NewRoutingPolicy(ch chan *api.Request) *RoutingPolicy {
 	return &RoutingPolicy{
 		DefinedSetMap: make(map[DefinedType]map[string]DefinedSet),
 		PolicyMap:     make(map[string]*Policy),
 		StatementMap:  make(map[string]*Statement),
 		AssignmentMap: make(map[string]*Assignment),
+		reqCh:         ch,
 	}
 }
 

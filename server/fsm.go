@@ -110,9 +110,19 @@ func (s AdminState) String() string {
 		return "ADMIN_STATE_UP"
 	case ADMIN_STATE_DOWN:
 		return "ADMIN_STATE_DOWN"
-	default:
-		return "Unknown"
 	}
+	return fmt.Sprintf("unknown_admin_state(%d)", s)
+}
+
+// if Code > 0  && State == ADMIN_STATE_DOWN, then send notification and move to idle(admin)
+// if Code == 0 && State == ADMIN_STATE_DOWN, then close bgp connection without sending notification and move to idle(admin) (use for graceful-restart)
+// if Code > 0  && State == ADMIN_STATE_UP,   then only sending notification (no admin state change)
+// if Code == 0 && State == ADMIN_STATE_UP,   then start fsm (means nothing when admin-state is already ADMIN_STATE_UP)
+type StateChangeMsg struct {
+	State   AdminState
+	Code    uint8
+	SubCode uint8
+	Data    []byte
 }
 
 type FSM struct {
@@ -126,15 +136,15 @@ type FSM struct {
 	idleHoldTime         float64
 	opensentHoldTime     float64
 	adminState           AdminState
-	adminStateCh         chan AdminState
+	adminStateCh         chan *StateChangeMsg
 	getActiveCh          chan struct{}
 	h                    *FSMHandler
 	rfMap                map[bgp.RouteFamily]bool
 	capMap               map[bgp.BGPCapabilityCode][]bgp.ParameterCapabilityInterface
 	recvOpen             *bgp.BGPMessage
 	peerInfo             *table.PeerInfo
-	policy               *table.RoutingPolicy
 	gracefulRestartTimer *time.Timer
+	adjRibIn             *table.AdjRib
 }
 
 func (fsm *FSM) bgpMessageStateUpdate(MessageType uint8, isIn bool) {
@@ -191,6 +201,7 @@ func NewFSM(gConf *config.Global, pConf *config.Neighbor, policy *table.RoutingP
 	if pConf.State.AdminDown {
 		adminState = ADMIN_STATE_DOWN
 	}
+	rfs, _ := config.AfiSafis(pConf.AfiSafis).ToRfList()
 	fsm := &FSM{
 		gConf:                gConf,
 		pConf:                pConf,
@@ -198,13 +209,13 @@ func NewFSM(gConf *config.Global, pConf *config.Neighbor, policy *table.RoutingP
 		connCh:               make(chan net.Conn, 1),
 		opensentHoldTime:     float64(HOLDTIME_OPENSENT),
 		adminState:           adminState,
-		adminStateCh:         make(chan AdminState, 1),
+		adminStateCh:         make(chan *StateChangeMsg, 1),
 		getActiveCh:          make(chan struct{}),
 		rfMap:                make(map[bgp.RouteFamily]bool),
 		capMap:               make(map[bgp.BGPCapabilityCode][]bgp.ParameterCapabilityInterface),
 		peerInfo:             table.NewPeerInfo(gConf, pConf),
-		policy:               policy,
 		gracefulRestartTimer: time.NewTimer(time.Hour),
+		adjRibIn:             table.NewAdjRib(pConf.Config.NeighborAddress, rfs, policy, gConf.Collector.Enabled, table.POLICY_DIRECTION_IN),
 	}
 	fsm.gracefulRestartTimer.Stop()
 	fsm.t.Go(fsm.connectLoop)
@@ -418,9 +429,9 @@ func (h *FSMHandler) idle() (bgp.FSMState, FsmStateReason) {
 			}
 
 		case s := <-fsm.adminStateCh:
-			err := h.changeAdminState(s)
+			err := h.changeAdminState(s.State)
 			if err == nil {
-				switch s {
+				switch s.State {
 				case ADMIN_STATE_DOWN:
 					// stop idle hold timer
 					idleHoldTimer.Stop()
@@ -469,9 +480,9 @@ func (h *FSMHandler) active() (bgp.FSMState, FsmStateReason) {
 		case err := <-h.errorCh:
 			return bgp.BGP_FSM_IDLE, err
 		case s := <-fsm.adminStateCh:
-			err := h.changeAdminState(s)
+			err := h.changeAdminState(s.State)
 			if err == nil {
-				switch s {
+				switch s.State {
 				case ADMIN_STATE_DOWN:
 					return bgp.BGP_FSM_IDLE, FSM_ADMIN_DOWN
 				case ADMIN_STATE_UP:
@@ -479,7 +490,7 @@ func (h *FSMHandler) active() (bgp.FSMState, FsmStateReason) {
 						"Topic":      "Peer",
 						"Key":        fsm.pConf.Config.NeighborAddress,
 						"State":      fsm.state,
-						"AdminState": s.String(),
+						"AdminState": s.State.String(),
 					}).Panic("code logic bug")
 				}
 			}
@@ -627,14 +638,7 @@ func (h *FSMHandler) recvMessageWithError() (*FsmMsg, error) {
 					// FIXME: we should use the original message for bmp/mrt
 					table.UpdatePathAttrs4ByteAs(body)
 					fmsg.PathList = table.ProcessMessage(m, h.fsm.peerInfo, fmsg.timestamp)
-					id := h.fsm.pConf.Config.NeighborAddress
-					policyMutex.RLock()
-					for _, path := range fmsg.PathList {
-						if h.fsm.policy.ApplyPolicy(id, table.POLICY_DIRECTION_IN, path, nil) == nil {
-							path.Filter(id, table.POLICY_DIRECTION_IN)
-						}
-					}
-					policyMutex.RUnlock()
+					h.fsm.adjRibIn.Update(fmsg.PathList)
 				}
 				fmsg.payload = make([]byte, len(headerBuf)+len(bodyBuf))
 				copy(fmsg.payload, headerBuf)
@@ -855,9 +859,9 @@ func (h *FSMHandler) opensent() (bgp.FSMState, FsmStateReason) {
 			h.t.Kill(nil)
 			return bgp.BGP_FSM_IDLE, FSM_HOLD_TIMER_EXPIRED
 		case s := <-fsm.adminStateCh:
-			err := h.changeAdminState(s)
+			err := h.changeAdminState(s.State)
 			if err == nil {
-				switch s {
+				switch s.State {
 				case ADMIN_STATE_DOWN:
 					h.conn.Close()
 					return bgp.BGP_FSM_IDLE, FSM_ADMIN_DOWN
@@ -866,7 +870,7 @@ func (h *FSMHandler) opensent() (bgp.FSMState, FsmStateReason) {
 						"Topic":      "Peer",
 						"Key":        fsm.pConf.Config.NeighborAddress,
 						"State":      fsm.state,
-						"AdminState": s.String(),
+						"AdminState": s.State.String(),
 					}).Panic("code logic bug")
 				}
 			}
@@ -968,9 +972,9 @@ func (h *FSMHandler) openconfirm() (bgp.FSMState, FsmStateReason) {
 			h.t.Kill(nil)
 			return bgp.BGP_FSM_IDLE, FSM_HOLD_TIMER_EXPIRED
 		case s := <-fsm.adminStateCh:
-			err := h.changeAdminState(s)
+			err := h.changeAdminState(s.State)
 			if err == nil {
-				switch s {
+				switch s.State {
 				case ADMIN_STATE_DOWN:
 					h.conn.Close()
 					return bgp.BGP_FSM_IDLE, FSM_ADMIN_DOWN
@@ -979,7 +983,7 @@ func (h *FSMHandler) openconfirm() (bgp.FSMState, FsmStateReason) {
 						"Topic":      "Peer",
 						"Key":        fsm.pConf.Config.NeighborAddress,
 						"State":      fsm.state,
-						"AdminState": s.String(),
+						"AdminState": s.State.String(),
 					}).Panic("code logic bug")
 				}
 			}
@@ -1144,13 +1148,19 @@ func (h *FSMHandler) established() (bgp.FSMState, FsmStateReason) {
 				holdTimer.Reset(time.Second * time.Duration(fsm.pConf.Timers.State.NegotiatedHoldTime))
 			}
 		case s := <-fsm.adminStateCh:
-			err := h.changeAdminState(s)
+			var err error
+			if s.Code == 0 || s.State == ADMIN_STATE_DOWN {
+				err = h.changeAdminState(s.State)
+			}
 			if err == nil {
-				switch s {
-				case ADMIN_STATE_DOWN:
-					m := bgp.NewBGPNotificationMessage(
-						bgp.BGP_ERROR_CEASE, bgp.BGP_ERROR_SUB_ADMINISTRATIVE_SHUTDOWN, nil)
-					h.outgoing <- m
+				switch {
+				case s.Code > 0 && s.State == ADMIN_STATE_UP:
+					h.outgoing <- bgp.NewBGPNotificationMessage(s.Code, s.SubCode, s.Data)
+				case s.Code == 0 && s.State == ADMIN_STATE_DOWN:
+					h.conn.Close()
+					return bgp.BGP_FSM_IDLE, FSM_ADMIN_DOWN
+				case s.Code > 0 && s.State == ADMIN_STATE_DOWN:
+					h.outgoing <- bgp.NewBGPNotificationMessage(s.Code, s.SubCode, s.Data)
 				}
 			}
 		}

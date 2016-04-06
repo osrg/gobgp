@@ -633,6 +633,51 @@ func (v DefaultPolicyType) Validate() error {
 	return nil
 }
 
+// typedef for typedef bgp-pol:bgp-next-hop-type
+type BgpNextHopType string
+
+// typedef for typedef bgp-pol:bgp-as-path-prepend-repeat
+type BgpAsPathPrependRepeat uint8
+
+// typedef for typedef bgp-pol:bgp-set-med-type
+type BgpSetMedType string
+
+// typedef for identity bgp-pol:bgp-set-community-option-type
+type BgpSetCommunityOptionType string
+
+const (
+	BGP_SET_COMMUNITY_OPTION_TYPE_ADD     BgpSetCommunityOptionType = "add"
+	BGP_SET_COMMUNITY_OPTION_TYPE_REMOVE  BgpSetCommunityOptionType = "remove"
+	BGP_SET_COMMUNITY_OPTION_TYPE_REPLACE BgpSetCommunityOptionType = "replace"
+)
+
+var BgpSetCommunityOptionTypeToIntMap = map[BgpSetCommunityOptionType]int{
+	BGP_SET_COMMUNITY_OPTION_TYPE_ADD:     0,
+	BGP_SET_COMMUNITY_OPTION_TYPE_REMOVE:  1,
+	BGP_SET_COMMUNITY_OPTION_TYPE_REPLACE: 2,
+}
+
+func (v BgpSetCommunityOptionType) ToInt() int {
+	i, ok := BgpSetCommunityOptionTypeToIntMap[v]
+	if !ok {
+		return -1
+	}
+	return i
+}
+
+var IntToBgpSetCommunityOptionTypeMap = map[int]BgpSetCommunityOptionType{
+	0: BGP_SET_COMMUNITY_OPTION_TYPE_ADD,
+	1: BGP_SET_COMMUNITY_OPTION_TYPE_REMOVE,
+	2: BGP_SET_COMMUNITY_OPTION_TYPE_REPLACE,
+}
+
+func (v BgpSetCommunityOptionType) Validate() error {
+	if _, ok := BgpSetCommunityOptionTypeToIntMap[v]; !ok {
+		return fmt.Errorf("invalid BgpSetCommunityOptionType: %s", v)
+	}
+	return nil
+}
+
 // typedef for identity bgp:session-state
 type SessionState string
 
@@ -710,51 +755,6 @@ var IntToModeMap = map[int]Mode{
 func (v Mode) Validate() error {
 	if _, ok := ModeToIntMap[v]; !ok {
 		return fmt.Errorf("invalid Mode: %s", v)
-	}
-	return nil
-}
-
-// typedef for typedef bgp-pol:bgp-next-hop-type
-type BgpNextHopType string
-
-// typedef for typedef bgp-pol:bgp-as-path-prepend-repeat
-type BgpAsPathPrependRepeat uint8
-
-// typedef for typedef bgp-pol:bgp-set-med-type
-type BgpSetMedType string
-
-// typedef for identity bgp-pol:bgp-set-community-option-type
-type BgpSetCommunityOptionType string
-
-const (
-	BGP_SET_COMMUNITY_OPTION_TYPE_ADD     BgpSetCommunityOptionType = "add"
-	BGP_SET_COMMUNITY_OPTION_TYPE_REMOVE  BgpSetCommunityOptionType = "remove"
-	BGP_SET_COMMUNITY_OPTION_TYPE_REPLACE BgpSetCommunityOptionType = "replace"
-)
-
-var BgpSetCommunityOptionTypeToIntMap = map[BgpSetCommunityOptionType]int{
-	BGP_SET_COMMUNITY_OPTION_TYPE_ADD:     0,
-	BGP_SET_COMMUNITY_OPTION_TYPE_REMOVE:  1,
-	BGP_SET_COMMUNITY_OPTION_TYPE_REPLACE: 2,
-}
-
-func (v BgpSetCommunityOptionType) ToInt() int {
-	i, ok := BgpSetCommunityOptionTypeToIntMap[v]
-	if !ok {
-		return -1
-	}
-	return i
-}
-
-var IntToBgpSetCommunityOptionTypeMap = map[int]BgpSetCommunityOptionType{
-	0: BGP_SET_COMMUNITY_OPTION_TYPE_ADD,
-	1: BGP_SET_COMMUNITY_OPTION_TYPE_REMOVE,
-	2: BGP_SET_COMMUNITY_OPTION_TYPE_REPLACE,
-}
-
-func (v BgpSetCommunityOptionType) Validate() error {
-	if _, ok := BgpSetCommunityOptionTypeToIntMap[v]; !ok {
-		return fmt.Errorf("invalid BgpSetCommunityOptionType: %s", v)
 	}
 	return nil
 }
@@ -1811,6 +1811,8 @@ type AfiSafi struct {
 	RouteSelectionOptions RouteSelectionOptions `mapstructure:"route-selection-options"`
 	// original -> bgp-mp:use-multiple-paths
 	UseMultiplePaths UseMultiplePaths `mapstructure:"use-multiple-paths"`
+	// original -> bgp-mp:prefix-limit
+	PrefixLimit PrefixLimit `mapstructure:"prefix-limit"`
 }
 
 //struct for container bgp:state

@@ -21,7 +21,6 @@ import (
 	api "github.com/osrg/gobgp/api"
 	"github.com/osrg/gobgp/gobgp/cmd"
 	"github.com/osrg/gobgp/packet/bgp"
-	"github.com/osrg/gobgp/server"
 	ovsdb "github.com/osrg/libovsdb"
 	"github.com/satori/go.uuid"
 	"net"
@@ -267,7 +266,7 @@ func (m *OpsManager) getBGPNeighborUUIDs(id uuid.UUID) ([]net.IP, []uuid.UUID, e
 	return nil, nil, fmt.Errorf("neighbor not found")
 }
 
-func (m *OpsManager) handleVrfUpdate(update ovsdb.TableUpdate) *server.GrpcRequest {
+func (m *OpsManager) handleVrfUpdate(update ovsdb.TableUpdate) *api.Request {
 	for _, v := range update.Rows {
 		if len(v.Old.Fields) == 0 {
 			log.WithFields(log.Fields{
@@ -276,22 +275,20 @@ func (m *OpsManager) handleVrfUpdate(update ovsdb.TableUpdate) *server.GrpcReque
 		} else if _, ok := v.Old.Fields["bgp_routers"]; ok {
 			_, _, err := m.getBGPRouterUUID()
 			if err != nil {
-				return server.NewGrpcRequest(server.REQ_MOD_GLOBAL_CONFIG, "del", bgp.RouteFamily(0), &api.ModGlobalConfigArguments{
-					Operation: api.Operation_DEL,
-				})
+				return api.NewRequest(api.REQ_MOD_GLOBAL_CONFIG, &api.ModGlobalConfigArguments{Operation: api.Operation_DEL})
 			}
 		}
 	}
 	return nil
 }
 
-func (m *OpsManager) handleBgpRouterUpdate(update ovsdb.TableUpdate) []*server.GrpcRequest {
+func (m *OpsManager) handleBgpRouterUpdate(update ovsdb.TableUpdate) []*api.Request {
 	asn, id, err := m.getBGPRouterUUID()
 	if err != nil {
 		log.Debugf("%s", err)
 		return nil
 	}
-	reqs := []*server.GrpcRequest{}
+	reqs := []*api.Request{}
 	for k, v := range update.Rows {
 		if uuid.Equal(id, uuid.FromStringOrNil(k)) {
 			initial := false
@@ -309,7 +306,7 @@ func (m *OpsManager) handleBgpRouterUpdate(update ovsdb.TableUpdate) []*server.G
 					}).Debug("router-id is not configured yet")
 					return nil
 				}
-				reqs = append(reqs, server.NewGrpcRequest(server.REQ_MOD_GLOBAL_CONFIG, "add", bgp.RouteFamily(0), &api.ModGlobalConfigArguments{
+				reqs = append(reqs, api.NewRequest(api.REQ_MOD_GLOBAL_CONFIG, &api.ModGlobalConfigArguments{
 					Operation: api.Operation_ADD,
 					Global: &api.Global{
 						As:       asn,
@@ -322,7 +319,7 @@ func (m *OpsManager) handleBgpRouterUpdate(update ovsdb.TableUpdate) []*server.G
 				newNeighMap := v.New.Fields["bgp_neighbors"].(ovsdb.OvsMap).GoMap
 				for k, _ := range oldNeighMap {
 					if _, ok := newNeighMap[k]; !ok {
-						reqs = append(reqs, server.NewGrpcRequest(server.REQ_MOD_NEIGHBOR, "del", bgp.RouteFamily(0), &api.ModNeighborArguments{
+						reqs = append(reqs, api.NewRequest(api.REQ_MOD_NEIGHBOR, &api.ModNeighborArguments{
 							Operation: api.Operation_DEL,
 							Peer: &api.Peer{
 								Conf: &api.PeerConf{
@@ -338,13 +335,13 @@ func (m *OpsManager) handleBgpRouterUpdate(update ovsdb.TableUpdate) []*server.G
 	return reqs
 }
 
-func (m *OpsManager) handleNeighborUpdate(update ovsdb.TableUpdate) []*server.GrpcRequest {
+func (m *OpsManager) handleNeighborUpdate(update ovsdb.TableUpdate) []*api.Request {
 	_, id, _ := m.getBGPRouterUUID()
 	addrs, ids, err := m.getBGPNeighborUUIDs(id)
 	if err != nil {
 		return nil
 	}
-	reqs := make([]*server.GrpcRequest, 0, len(addrs))
+	reqs := make([]*api.Request, 0, len(addrs))
 	for k, v := range update.Rows {
 		for idx, id := range ids {
 			if uuid.Equal(id, uuid.FromStringOrNil(k)) {
@@ -355,7 +352,7 @@ func (m *OpsManager) handleNeighborUpdate(update ovsdb.TableUpdate) []*server.Gr
 					}).Debug("remote-as is not configured yet")
 					continue
 				}
-				reqs = append(reqs, server.NewGrpcRequest(server.REQ_MOD_NEIGHBOR, "add", bgp.RouteFamily(0), &api.ModNeighborArguments{
+				reqs = append(reqs, api.NewRequest(api.REQ_MOD_NEIGHBOR, &api.ModNeighborArguments{
 					Operation: api.Operation_ADD,
 					Peer: &api.Peer{
 						Conf: &api.PeerConf{
@@ -370,9 +367,9 @@ func (m *OpsManager) handleNeighborUpdate(update ovsdb.TableUpdate) []*server.Gr
 	return reqs
 }
 
-func (m *OpsManager) handleRouteUpdate(update ovsdb.TableUpdate) []*server.GrpcRequest {
+func (m *OpsManager) handleRouteUpdate(update ovsdb.TableUpdate) []*api.Request {
 	id, _ := m.getVrfUUID()
-	reqs := []*server.GrpcRequest{}
+	reqs := []*api.Request{}
 	for _, v := range update.Rows {
 		vrf := v.New.Fields["vrf"]
 		if vrf == nil {
@@ -390,7 +387,7 @@ func (m *OpsManager) handleRouteUpdate(update ovsdb.TableUpdate) []*server.GrpcR
 				return nil
 			}
 			if isWithdraw {
-				reqs = append(reqs, server.NewGrpcRequest(server.REQ_MOD_PATH, "del", bgp.RouteFamily(0), &api.ModPathArguments{
+				reqs = append(reqs, api.NewRequest(api.REQ_MOD_PATH, &api.ModPathArguments{
 					Operation: api.Operation_DEL,
 					Resource:  api.Resource_GLOBAL,
 					Name:      "",
@@ -400,7 +397,7 @@ func (m *OpsManager) handleRouteUpdate(update ovsdb.TableUpdate) []*server.GrpcR
 				if isFromGobgp {
 					return nil
 				}
-				reqs = append(reqs, server.NewGrpcRequest(server.REQ_MOD_PATH, "add", bgp.RouteFamily(0), &api.ModPathArguments{
+				reqs = append(reqs, api.NewRequest(api.REQ_MOD_PATH, &api.ModPathArguments{
 					Operation: api.Operation_ADD,
 					Resource:  api.Resource_GLOBAL,
 					Name:      "",
@@ -584,15 +581,15 @@ func (m *OpsManager) GobgpMonitor(ready *bool) {
 		if !*ready {
 			return
 		}
-		req := server.NewGrpcRequest(server.REQ_MONITOR_GLOBAL_BEST_CHANGED, "", bgp.RouteFamily(0), arg)
+		req := api.NewRequest(api.REQ_MONITOR_GLOBAL_BEST_CHANGED, arg)
 		reqCh <- req
-		res := <-req.ResponseCh
-		if err := res.Err(); err != nil {
+		res := <-req.ResCh
+		if err := res.Err; err != nil {
 			log.WithFields(log.Fields{
-				"Topic":       "openswitch",
-				"Type":        "Monitor",
-				"RequestType": req.RequestType,
-				"Err":         err,
+				"Topic":   "openswitch",
+				"Type":    "Monitor",
+				"ReqType": req.Type,
+				"Err":     err,
 			}).Error("grpc operation failed")
 		}
 		d := res.Data.(*api.Destination)
@@ -623,34 +620,40 @@ func (m *OpsManager) GobgpMonitor(ready *bool) {
 func (m *OpsManager) GobgpServe() error {
 	monitorReady := false
 	for {
-		var grpcReq *server.GrpcRequest
-		var grpcRes chan *server.GrpcResponse
+		var req *api.Request
+		var grpcRes chan *api.Response
 		if len(m.grpcQueue) < 1 {
 			time.Sleep(time.Duration(time.Millisecond * 10))
 			continue
 		}
-		grpcReq = m.grpcQueue[0]
-		grpcRes = grpcReq.ResponseCh
+		req = m.grpcQueue[0]
+		grpcRes = req.ResCh
 
-		m.grpcCh <- grpcReq
+		m.grpcCh <- req
 		m.grpcQueue = m.grpcQueue[1:]
 		r := <-grpcRes
 
-		if r.Err() != nil {
+		if r.Err != nil {
 			log.WithFields(log.Fields{
 				"Topic": "openswitch",
 				"Type":  "ModRequest",
-				"Err":   r.Err(),
+				"Err":   r.Err,
 			}).Error("grpc operation failed")
 		} else {
 			if monitorReady {
-				if grpcReq.RequestType == server.REQ_MOD_GLOBAL_CONFIG && grpcReq.Name == "del" {
-					monitorReady = false
+				switch arg := req.Data.(type) {
+				case api.ModGlobalConfigArguments:
+					if arg.Operation == api.Operation_DEL {
+						monitorReady = false
+					}
 				}
 			} else {
-				if grpcReq.RequestType == server.REQ_MOD_GLOBAL_CONFIG && grpcReq.Name == "add" {
-					monitorReady = true
-					go m.GobgpMonitor(&monitorReady)
+				switch arg := req.Data.(type) {
+				case api.ModGlobalConfigArguments:
+					if arg.Operation == api.Operation_ADD {
+						monitorReady = true
+						go m.GobgpMonitor(&monitorReady)
+					}
 				}
 			}
 		}
@@ -717,7 +720,7 @@ type OpsOperation struct {
 }
 
 type GrpcChs struct {
-	grpcCh chan *server.GrpcRequest
+	grpcCh chan *api.Request
 }
 
 type OpsChs struct {
@@ -727,20 +730,20 @@ type OpsChs struct {
 
 type OpsManager struct {
 	ops         *ovsdb.OvsdbClient
-	grpcCh      chan *server.GrpcRequest
+	grpcCh      chan *api.Request
 	opsCh       chan *OpsOperation
 	opsUpdateCh chan *ovsdb.TableUpdates
-	grpcQueue   []*server.GrpcRequest
+	grpcQueue   []*api.Request
 	bgpReady    bool
 	cache       map[string]map[string]ovsdb.Row
 }
 
-func NewOpsManager(grpcCh chan *server.GrpcRequest) (*OpsManager, error) {
+func NewOpsManager(grpcCh chan *api.Request) (*OpsManager, error) {
 	ops, err := ovsdb.ConnectUnix("")
 	if err != nil {
 		return nil, err
 	}
-	gQueue := make([]*server.GrpcRequest, 0)
+	gQueue := make([]*api.Request, 0)
 	opsUpdateCh := make(chan *ovsdb.TableUpdates)
 	n := NewNotifier(opsUpdateCh)
 	ops.Register(n)

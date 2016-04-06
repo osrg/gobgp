@@ -18,6 +18,7 @@ package server
 import (
 	"fmt"
 	log "github.com/Sirupsen/logrus"
+	api "github.com/osrg/gobgp/api"
 	"github.com/osrg/gobgp/config"
 	"github.com/osrg/gobgp/packet/bgp"
 	"github.com/osrg/gobgp/table"
@@ -42,7 +43,7 @@ type bmpConfig struct {
 type bmpWatcher struct {
 	t         tomb.Tomb
 	ch        chan watcherEvent
-	apiCh     chan *GrpcRequest
+	apiCh     chan *api.Request
 	newConnCh chan *net.TCPConn
 	endCh     chan *net.TCPConn
 	connMap   map[string]*bmpServer
@@ -128,13 +129,13 @@ func (w *bmpWatcher) loop() error {
 				go w.tryConnect(server)
 				break
 			}
-			req := &GrpcRequest{
-				RequestType: REQ_BMP_NEIGHBORS,
-				ResponseCh:  make(chan *GrpcResponse, 1),
+			req := &api.Request{
+				Type:  api.REQ_BMP_NEIGHBORS,
+				ResCh: make(chan *api.Response, 1),
 			}
 			w.apiCh <- req
-			write := func(req *GrpcRequest) error {
-				for res := range req.ResponseCh {
+			write := func(req *api.Request) error {
+				for res := range req.ResCh {
 					for _, msg := range res.Data.([]*bgp.BMPMessage) {
 						buf, _ = msg.Serialize()
 						if _, err := newConn.Write(buf); err != nil {
@@ -150,9 +151,9 @@ func (w *bmpWatcher) loop() error {
 				break
 			}
 			if server.typ != config.BMP_ROUTE_MONITORING_POLICY_TYPE_POST_POLICY {
-				req = &GrpcRequest{
-					RequestType: REQ_BMP_ADJ_IN,
-					ResponseCh:  make(chan *GrpcResponse, 1),
+				req = &api.Request{
+					Type:  api.REQ_BMP_ADJ_IN,
+					ResCh: make(chan *api.Response, 1),
 				}
 				w.apiCh <- req
 				if err := write(req); err != nil {
@@ -160,9 +161,9 @@ func (w *bmpWatcher) loop() error {
 				}
 			}
 			if server.typ != config.BMP_ROUTE_MONITORING_POLICY_TYPE_PRE_POLICY {
-				req = &GrpcRequest{
-					RequestType: REQ_BMP_GLOBAL,
-					ResponseCh:  make(chan *GrpcResponse, 1),
+				req = &api.Request{
+					Type:  api.REQ_BMP_GLOBAL,
+					ResCh: make(chan *api.Response, 1),
 				}
 				w.apiCh <- req
 				if err := write(req); err != nil {
@@ -295,7 +296,7 @@ func (w *bmpWatcher) watchingEventTypes() []watcherEventType {
 	return types
 }
 
-func newBmpWatcher(grpcCh chan *GrpcRequest) (*bmpWatcher, error) {
+func newBmpWatcher(grpcCh chan *api.Request) (*bmpWatcher, error) {
 	w := &bmpWatcher{
 		ch:        make(chan watcherEvent),
 		apiCh:     grpcCh,

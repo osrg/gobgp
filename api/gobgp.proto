@@ -58,6 +58,8 @@ service GobgpApi {
   rpc ModPolicy(ModPolicyArguments) returns (Error) {}
   rpc GetPolicyAssignment(PolicyAssignment) returns (PolicyAssignment) {}
   rpc ModPolicyAssignment(ModPolicyAssignmentArguments) returns (Error) {}
+  rpc Log(LogArguments) returns (Error) {}
+  rpc SendNotification(SendNotificationArguments) returns (Error) {}
 }
 
 message Error {
@@ -171,6 +173,27 @@ message ModPolicyAssignmentArguments {
 message ModGlobalConfigArguments {
     Operation operation = 1;
     Global global = 2;
+}
+
+enum LogLevel {
+    DEBUG = 0;
+    INFO = 1;
+    WARN = 2;
+    ERROR = 3;
+}
+
+message LogArguments {
+    LogLevel level = 1;
+    string message = 2;
+}
+
+message SendNotificationArguments {
+    string name = 1;
+    uint32 code = 2;
+    uint32 sub_code = 3;
+    bytes data = 4;
+    // lock to idle state
+    bool lock = 5;
 }
 
 enum Resource {
@@ -392,6 +415,19 @@ message AsPathLength {
     uint32 length = 2;
 }
 
+message CounterCondition {
+    uint64 threshold = 1;
+    bool loop = 2;
+    uint64 counter = 3;
+    bool once = 4;
+    bool triggered = 5;
+}
+
+message FamilyCondition {
+    MatchType type = 1;
+    uint32 family = 2;
+}
+
 message Conditions {
     MatchSet prefix_set = 1;
     MatchSet neighbor_set = 2;
@@ -400,6 +436,8 @@ message Conditions {
     MatchSet community_set = 5;
     MatchSet ext_community_set = 6;
     int32 rpki_result = 7;
+    CounterCondition counter = 8;
+    FamilyCondition family = 9;
 }
 
 enum RouteAction {
@@ -435,12 +473,28 @@ message AsPrependAction {
     bool use_left_most = 3;
 }
 
+message LogAction {
+    LogLevel level = 1;
+    string message = 2;
+}
+
+message SendNotificationAction {
+    string name = 1;
+    uint32 code = 2;
+    uint32 sub_code = 3;
+    bytes data = 4;
+    // lock to idle state
+    bool lock = 5;
+}
+
 message Actions {
     RouteAction route_action = 1;
     CommunityAction community = 2;
     MedAction med = 3;
     AsPrependAction as_prepend = 4;
     CommunityAction ext_community = 5;
+    LogAction log = 6;
+    SendNotificationAction send_notification = 7;
 }
 
 message Statement {

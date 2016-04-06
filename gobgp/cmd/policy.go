@@ -21,6 +21,7 @@ import (
 	"fmt"
 	api "github.com/osrg/gobgp/api"
 	"github.com/osrg/gobgp/config"
+	"github.com/osrg/gobgp/packet/bgp"
 	"github.com/osrg/gobgp/table"
 	"github.com/spf13/cobra"
 	"golang.org/x/net/context"
@@ -406,14 +407,23 @@ func printStatement(indent int, s *api.Statement) {
 	fmt.Printf("%sStatementName %s:\n", sIndent(indent), s.Name)
 	fmt.Printf("%sConditions:\n", sIndent(indent+2))
 
-	ps := s.Conditions.PrefixSet
-	if ps != nil {
-		fmt.Printf("%sPrefixSet: %s %s\n", sIndent(indent+4), ps.Type, ps.Name)
-	}
-
 	ns := s.Conditions.NeighborSet
 	if ns != nil {
 		fmt.Printf("%sNeighborSet: %s %s\n", sIndent(indent+4), ns.Type, ns.Name)
+	}
+
+	if f := s.Conditions.Family; f != nil {
+		fmt.Printf("%sFamily: %s", sIndent(indent+4), bgp.AddressFamilyNameMap[bgp.RouteFamily(f.Family)])
+		if f.Type == api.MatchType_INVERT {
+			fmt.Printf(" (invert)\n")
+		} else {
+			fmt.Printf("\n")
+		}
+	}
+
+	ps := s.Conditions.PrefixSet
+	if ps != nil {
+		fmt.Printf("%sPrefixSet: %s %s\n", sIndent(indent+4), ps.Type, ps.Name)
 	}
 
 	aps := s.Conditions.AsPathSet
@@ -437,10 +447,24 @@ func printStatement(indent int, s *api.Statement) {
 	}
 
 	rpki := s.Conditions.RpkiResult
-	if rpki > -1 {
+	if rpki > 0 {
 		fmt.Printf("%sRPKI result: %s\n", sIndent(indent+4), config.IntToRpkiValidationResultTypeMap[int(rpki)])
 	}
-
+	if c := s.Conditions.Counter; c != nil {
+		fmt.Printf("%sCounter: %d/%d", sIndent(indent+4), c.Counter, c.Threshold)
+		if c.Once {
+			fmt.Printf(" (once")
+			if c.Triggered {
+				fmt.Printf(", triggered)\n")
+			} else {
+				fmt.Printf(")\n")
+			}
+		} else if c.Loop {
+			fmt.Printf(" (loop)\n")
+		} else {
+			fmt.Printf("\n")
+		}
+	}
 	fmt.Printf("%sActions:\n", sIndent(indent+2))
 
 	formatComAction := func(c *api.CommunityAction) string {
@@ -470,7 +494,21 @@ func printStatement(indent int, s *api.Statement) {
 
 		fmt.Printf("%sAsPrepend:       %s   %d\n", sIndent(indent+4), asn, s.Actions.AsPrepend.Repeat)
 	}
-	fmt.Printf("%s%s\n", sIndent(indent+4), s.Actions.RouteAction)
+	if s.Actions.Log != nil {
+		fmt.Printf("%sLog:      level: %s, msg: %s\n", sIndent(indent+4), s.Actions.Log.Level, s.Actions.Log.Message)
+	}
+
+	if a := s.Actions.SendNotification; a != nil {
+		fmt.Printf("%sSend Notification(%d, %d) to %s", sIndent(indent+4), a.Code, a.SubCode, a.Name)
+		if a.Lock {
+			fmt.Printf(" (lock)\n")
+		} else {
+			fmt.Printf("\n")
+		}
+	}
+	if s.Actions.RouteAction > 0 {
+		fmt.Printf("%s%s\n", sIndent(indent+4), s.Actions.RouteAction)
+	}
 }
 
 func printPolicy(indent int, pd *api.Policy) {
@@ -752,6 +790,40 @@ func modCondition(name, op string, args []string) error {
 		default:
 			return fmt.Errorf("%s rpki { valid | invalid | not-found }", usage)
 		}
+	case "counter":
+		if len(args) < 1 || len(args) > 2 || (len(args) == 2 && (args[1] != "loop" && args[1] != "once")) {
+			return fmt.Errorf("%s counter <value> [{ loop | once }]", usage)
+		}
+		counter, err := strconv.Atoi(args[0])
+		if err != nil {
+			return err
+		}
+		stmt.Conditions.Counter = &api.CounterCondition{
+			Threshold: uint64(counter),
+		}
+		if args[1] == "loop" {
+			stmt.Conditions.Counter.Loop = true
+		} else if args[1] == "once" {
+			stmt.Conditions.Counter.Once = true
+		}
+	case "family":
+		if len(args) < 1 || (len(args) == 2 && args[1] == "invert") || len(args) > 2 {
+			return fmt.Errorf("%s family <family> [invert]", usage)
+		}
+		f, y := bgp.AddressFamilyValueMap[args[0]]
+		if !y {
+			return fmt.Errorf("invalid address family: %s", args[0])
+		}
+		option := api.MatchType_ANY
+		if len(args) == 2 {
+			option = api.MatchType_INVERT
+		}
+		stmt.Conditions.Family = &api.FamilyCondition{
+			Type:   option,
+			Family: uint32(f),
+		}
+	default:
+		return fmt.Errorf("invalid coundition")
 	}
 	_, err := client.ModStatement(context.Background(), arg)
 	return err
@@ -779,7 +851,7 @@ func modAction(name, op string, args []string) error {
 	}
 	usage := fmt.Sprintf("usage: gobgp policy statement %s %s action", name, op)
 	if len(args) < 1 {
-		return fmt.Errorf("%s { reject | accept | community | ext-community | med | as-prepend }", usage)
+		return fmt.Errorf("%s { reject | accept | community | ext-community | med | as-prepend | log | send-notification }", usage)
 	}
 	typ := args[0]
 	args = args[1:]
@@ -864,7 +936,45 @@ func modAction(name, op string, args []string) error {
 			Repeat:      uint32(repeat),
 			UseLeftMost: last,
 		}
+	case "log":
+		err := fmt.Errorf("%s log { info | debug | warn | error } <message>", usage)
+		if len(args) < 2 {
+			return err
+		}
+		lvl, y := api.LogLevel_value[strings.ToUpper(args[0])]
+		if !y {
+			return err
+		}
+		stmt.Actions.Log = &api.LogAction{
+			Level:   api.LogLevel(lvl),
+			Message: args[1],
+		}
+	case "send-notification":
+		if len(args) < 3 || (len(args) == 4 && args[3] != "lock") || len(args) > 4 {
+			return fmt.Errorf("%s send-notifiction <neighbor-address> <code> <sub-code> [<lock>]", usage)
+		}
+		code, err := strconv.Atoi(args[1])
+		if err != nil {
+			return err
+		}
+		sub, err := strconv.Atoi(args[2])
+		if err != nil {
+			return err
+		}
+		lock := false
+		if len(args) == 4 {
+			lock = true
+		}
+		stmt.Actions.SendNotification = &api.SendNotificationAction{
+			Name:    args[0],
+			Code:    uint32(code),
+			SubCode: uint32(sub),
+			Lock:    lock,
+		}
+	default:
+		return fmt.Errorf("invalid mod action: %s", typ)
 	}
+
 	_, err := client.ModStatement(context.Background(), arg)
 	return err
 }

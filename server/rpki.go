@@ -411,10 +411,10 @@ func (c *roaManager) handleRTRMsg(client *roaClient, state *config.RpkiServerSta
 	}
 }
 
-func (c *roaManager) handleGRPC(grpcReq *GrpcRequest) {
-	switch grpcReq.RequestType {
-	case REQ_RPKI:
-		results := make([]*GrpcResponse, 0)
+func (c *roaManager) handleGRPC(req *api.Request) {
+	switch req.Type {
+	case api.REQ_RPKI:
+		results := make([]*api.Response, 0)
 
 		f := func(tree *radix.Tree) (map[string]uint32, map[string]uint32) {
 			records := make(map[string]uint32)
@@ -483,22 +483,23 @@ func (c *roaManager) handleGRPC(grpcReq *GrpcRequest) {
 					ResetQuery:    sent.ResetQuery,
 				},
 			}
-			result := &GrpcResponse{}
+			result := &api.Response{}
 			result.Data = rpki
 			results = append(results, result)
 		}
-		go sendMultipleResponses(grpcReq, results)
+		go sendMultipleResponses(req, results)
 
-	case REQ_ROA:
+	case api.REQ_ROA:
 		if len(c.clientMap) == 0 {
-			result := &GrpcResponse{}
-			result.ResponseErr = fmt.Errorf("RPKI server isn't configured.")
-			grpcReq.ResponseCh <- result
+			req.ResCh <- &api.Response{
+				Err: fmt.Errorf("RPKI server isn't configured."),
+			}
 			break
 		}
-		results := make([]*GrpcResponse, 0)
+
+		results := make([]*api.Response, 0)
 		var rfList []bgp.RouteFamily
-		switch grpcReq.RouteFamily {
+		switch bgp.RouteFamily(req.Data.(*api.Arguments).Family) {
 		case bgp.RF_IPv4_UC:
 			rfList = []bgp.RouteFamily{bgp.RF_IPv4_UC}
 		case bgp.RF_IPv6_UC:
@@ -516,7 +517,7 @@ func (c *roaManager) handleGRPC(grpcReq *GrpcRequest) {
 					}
 					sort.Sort(roaList)
 					for _, roa := range roaList {
-						result := &GrpcResponse{
+						result := &api.Response{
 							Data: roa,
 						}
 						results = append(results, result)
@@ -525,7 +526,7 @@ func (c *roaManager) handleGRPC(grpcReq *GrpcRequest) {
 				})
 			}
 		}
-		go sendMultipleResponses(grpcReq, results)
+		go sendMultipleResponses(req, results)
 	}
 }
 
