@@ -483,6 +483,7 @@ func (r *GrpcResponse) Err() error {
 }
 
 func NewGrpcServer(port int, bgpServerCh chan *GrpcRequest) *Server {
+	grpc.EnableTracing = false
 	grpcServer := grpc.NewServer()
 	server := &Server{
 		grpcServer:  grpcServer,

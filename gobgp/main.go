@@ -17,8 +17,10 @@ package main
 
 import (
 	"github.com/osrg/gobgp/gobgp/cmd"
+	"google.golang.org/grpc"
 )
 
 func main() {
+	grpc.EnableTracing = false
 	cmd.NewRootCmd().Execute()
 }
