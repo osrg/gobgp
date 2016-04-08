@@ -8,27 +8,78 @@ We explain the overview firstly, then the details,
 
 ## Prerequisites
 
-Assumed that you finished [Getting Started](https://github.com/osrg/gobgp/blob/master/docs/sources/getting-started.md). Also [Route Server](https://github.com/osrg/gobgp/blob/master/docs/sources/route-server.md) is plus because we use Route Server setup for an example configuration.
+Assumed that you finished [Getting Started](https://github.com/osrg/gobgp/blob/master/docs/sources/getting-started.md).
 
-## Overview
+## Contents
+- [Overview](#overview)
+- [Policy Model](#model)
+- [Route Server Policy Model](#rs-model)
+- [Policy Structure](#policy)
+- [Policy Configuration](#configuration)
 
-### How policies works with RIBs
 
-There are three categories for policies: **Import**, **Export** and **In** policies.
+## <a name="overview"> Overview
+
+Policy is a way to control how BGP routes inserted to RIB or advertised to
+peers. Policy has two parts, **Condition** and **Action**. 
+When a policy is configured, **Action** is applied to routes which meet **Condition**
+before routes proceed to next step.
+
+GoBGP supports **Condition** like `prefix`, `neighbor`(source/destination of the route),
+`aspath` etc.., and **Action** like `accept`, `reject`, `MED/aspath/community manipulation`
+etc...
+
+You can configure policy by configuration file, CLI or gRPC API.
+
+## <a name="model"> Policy Model
+
+The following figure shows how policy works in normal BGP configuration.
+
+<p align="center">
+    <img src="./policy.png" alt="policy model"/>
+</p>
+
+There are **Import** and **Export** policy. **Import** policy is invoked
+before best path calculation and pushing routes to RIB.
+**Export** policy is invoked after that.
+
+You can check each policy by the following commands.
+
+```shell
+$ gobgp global policy import
+$ gobgp global policy export
+```
+
+## <a name="rs-model"> Route Server Policy Model
+
+The following figure shows how policy works in [route server BGP configuration](https://github.com/osrg/gobgp/blob/master/docs/sources/route-server.md).
+
+<p align="center">
+    <img src="./rs-policy.png" alt="Announcement processing model implemented by the route server"/>
+</p>
+
+In route server mode, adding to **Import** and **Export**, we have **In** policy.
 
 **Import** and **Export** policies are defined with respect to the
 local routing table. The **Import** policy defines what routes will be
 imported into its local RIBs. The **Export** policy defines what
 routes will be exported from its local RIBs. **In** polices are
-defined with respect to a peer in only Route Server setup. The **In**
-policy defines what routes will go to other peers' local routing tables.
+defined with respect to a peer. The **In** policy defines what routes will go
+to other peers' local routing tables.
 
-The following figure shows how **Import**, **Export**, and **In**
-policies work with RIBs in Route Server setup.
+You can check each policy by the following commands.
 
-![Announcement processing model implemented by the Route Server](./policy-rs.png)
+```shell
+$ gobgp neighbor <neighbor-addr> policy in
+$ gobgp neighbor <neighbor-addr> policy import
+$ gobgp neighbor <neighbor-addr> policy export
+```
 
-### What's a policy?
+## <a name="policy"> Policy Stracture
+
+<p align="center">
+    <img src="./policy-component.png" alt="policy component"/>
+</p>
 
 A policy consists of statements. Each statement has condition(s) and action(s).
 
@@ -40,6 +91,7 @@ Conditions are categorized into attributes below:
 - aspath length
 - community
 - extended community
+- rpki validation result
 
 Actions are categorized into attributes below:
 
@@ -48,7 +100,7 @@ Actions are categorized into attributes below:
 - add/subtract or replace MED value
 - prepend AS number in the AS_PATH attribute
 
-All the condition(s) in the statement are true, the action(s) in the statement are executed.
+If All condition in the statement are true, the action(s) in the statement are executed.
 
 A condition can have multiple values. For example, you can define a prefix
 condition that has 10.20.0.0/16, 10.30.3.0/24, and 10.30.4.0/24. You can specify
@@ -58,11 +110,19 @@ false. In this case, you can specify either:
 - true if a route matches any of 10.20.0.0/16, 10.30.3.0/24, and 10.30.4.0/24.
 - true if a route matches none of 10.20.0.0/16, 10.30.3.0/24, and 10.30.4.0/24.
 
-The details will be explained in the following sections. If you
-quickly check out what policy configuration looks like, skip the next
-sections to go to the last section.
+You can check policy configuration by the following commands.
 
-## The details of steps to define policies
+```shell
+$ gobgp policy
+$ gobgp policy statement
+$ gobgp policy prefix
+$ gobgp policy neighbor
+$ gobgp policy as-path
+$ gobgp policy community
+$ gobgp policy ext-community
+```
+
+## <a name="configuration"> Policy Configuration
 
 GoBGP's configuration file has two parts named **DefinedSets** and **PolicyDefinitions** as its policy configuration. **DefinedSets** part defines conditions. **PolicyDefinitions** defines policies based on actions and these conditions.
 
@@ -701,16 +761,8 @@ The ApplyPolicy has 6 elements.
 | DefaultInPolicy | action when the route doesn't match any policy:<br> "accept-route" or "reject-route". default is "accept-route"                | "reject-route" |
 
 
-## Simple configuration example
 
-A policy consists of a match and an action. A match defines if an
-action will be applied to a route. For now, GoBGP uses only the source
-of a peer and a prefix as match conditions. Only dropping and
-accepting are supported as an action.
-
-This example the configuration in [Route
-Server](https://github.com/osrg/gobgp/blob/master/docs/sources/route-server.md)
-with one more peer (IP:10.0.255.3, AS:65001).
+## Policy Configuration Example
 
 Neighbor 10.0.255.1 advertises 10.33.0.0/16 and 10.3.0.0/16 routes. We
 define an import policy for neighbor 10.0.255.2 that drops
