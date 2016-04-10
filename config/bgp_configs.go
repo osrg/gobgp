@@ -1480,6 +1480,9 @@ type NeighborConfig struct {
 	// original -> bgp:neighbor-address
 	//bgp:neighbor-address's original type is inet:ip-address
 	NeighborAddress string `mapstructure:"neighbor-address"`
+	// original -> gobgp:neighbor-port-number
+	//gobgp:neighbor-port-number's original type is inet:port-number
+	NeighborPortNumber uint16 `mapstructure:"neighbor-port-number"`
 }
 
 //struct for container bgp:neighbor

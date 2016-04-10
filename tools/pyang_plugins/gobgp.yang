@@ -574,6 +574,14 @@ module gobgp {
       description
         "The number of flip-flops";
     }
+
+
+  }
+
+  augment "/bgp:bgp/bgp:neighbors/bgp:neighbor/bgp:config" {
+    leaf neighbor-port-number {
+      type inet:port-number;
+    }
   }
 
   augment "/bgp:bgp/bgp:neighbors/bgp:neighbor/bgp:timers/bgp:config" {

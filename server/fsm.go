@@ -300,7 +300,11 @@ func (fsm *FSM) connectLoop() error {
 	connect := func() {
 		if fsm.state == bgp.BGP_FSM_ACTIVE && !fsm.pConf.GracefulRestart.State.PeerRestarting {
 			addr := fsm.pConf.Config.NeighborAddress
-			host := net.JoinHostPort(addr, strconv.Itoa(bgp.BGP_PORT))
+			port := int(bgp.BGP_PORT)
+			if fsm.pConf.Config.NeighborPortNumber != 0 {
+				port = int(fsm.pConf.Config.NeighborPortNumber)
+			}
+			host := net.JoinHostPort(addr, strconv.Itoa(port))
 			// check if LocalAddress has been configured
 			laddr := fsm.pConf.Transport.Config.LocalAddress
 			var conn net.Conn
@@ -308,7 +312,7 @@ func (fsm *FSM) connectLoop() error {
 			if laddr != "" {
 				if fsm.pConf.Config.AuthPassword != "" {
 					deadline := (MIN_CONNECT_RETRY - 1) * 1000 // msec
-					conn, err = DialTCPTimeoutWithMD5Sig(addr, bgp.BGP_PORT, laddr, fsm.pConf.Config.AuthPassword, deadline)
+					conn, err = DialTCPTimeoutWithMD5Sig(addr, port, laddr, fsm.pConf.Config.AuthPassword, deadline)
 				} else {
 					lhost := net.JoinHostPort(laddr, "0")
 					ltcpaddr, e := net.ResolveTCPAddr("tcp", lhost)
@@ -325,7 +329,7 @@ func (fsm *FSM) connectLoop() error {
 			} else {
 				if fsm.pConf.Config.AuthPassword != "" {
 					deadline := (MIN_CONNECT_RETRY - 1) * 1000 // msec
-					conn, err = DialTCPTimeoutWithMD5Sig(addr, bgp.BGP_PORT, "0.0.0.0", fsm.pConf.Config.AuthPassword, deadline)
+					conn, err = DialTCPTimeoutWithMD5Sig(addr, port, "0.0.0.0", fsm.pConf.Config.AuthPassword, deadline)
 				} else {
 					conn, err = net.DialTimeout("tcp", host, time.Duration(MIN_CONNECT_RETRY-1)*time.Second)
 				}
