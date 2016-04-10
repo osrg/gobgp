@@ -39,7 +39,7 @@ type Peer struct {
 	fsm       *FSM
 	adjRibIn  *table.AdjRib
 	adjRibOut *table.AdjRib
-	outgoing  chan *bgp.BGPMessage
+	outgoing  chan *FsmOutgoingMsg
 	policy    *table.RoutingPolicy
 	localRib  *table.TableManager
 }
@@ -48,7 +48,7 @@ func NewPeer(g config.Global, conf config.Neighbor, loc *table.TableManager, pol
 	peer := &Peer{
 		gConf:    g,
 		conf:     conf,
-		outgoing: make(chan *bgp.BGPMessage, 128),
+		outgoing: make(chan *FsmOutgoingMsg, 128),
 		localRib: loc,
 		policy:   policy,
 	}
@@ -197,68 +197,66 @@ func (peer *Peer) processOutgoingPaths(paths []*table.Path) []*table.Path {
 	return outgoing
 }
 
-func (peer *Peer) handleBGPmessage(e *FsmMsg) ([]*table.Path, []*bgp.BGPMessage, []bgp.RouteFamily) {
+func (peer *Peer) handleRouteRefresh(e *FsmMsg) []*table.Path {
+	m := e.MsgData.(*bgp.BGPMessage)
+	rr := m.Body.(*bgp.BGPRouteRefresh)
+	rf := bgp.AfiSafiToRouteFamily(rr.AFI, rr.SAFI)
+	if _, ok := peer.fsm.rfMap[rf]; !ok {
+		log.WithFields(log.Fields{
+			"Topic": "Peer",
+			"Key":   peer.conf.Config.NeighborAddress,
+			"Data":  rf,
+		}).Warn("Route family isn't supported")
+		return nil
+	}
+	if _, ok := peer.fsm.capMap[bgp.BGP_CAP_ROUTE_REFRESH]; !ok {
+		log.WithFields(log.Fields{
+			"Topic": "Peer",
+			"Key":   peer.conf.Config.NeighborAddress,
+		}).Warn("ROUTE_REFRESH received but the capability wasn't advertised")
+		return nil
+	}
+	rfList := []bgp.RouteFamily{rf}
+	peer.adjRibOut.Drop(rfList)
+	accepted, filtered := peer.getBestFromLocal(rfList)
+	peer.adjRibOut.Update(accepted)
+	for _, path := range filtered {
+		path.IsWithdraw = true
+		accepted = append(accepted, path)
+	}
+	return accepted
+}
+
+func (peer *Peer) handleUpdate(e *FsmMsg) ([]*table.Path, []bgp.RouteFamily) {
 	m := e.MsgData.(*bgp.BGPMessage)
 	log.WithFields(log.Fields{
 		"Topic": "Peer",
 		"Key":   peer.conf.Config.NeighborAddress,
 		"data":  m,
 	}).Debug("received")
-	eor := []bgp.RouteFamily{}
-
-	switch m.Header.Type {
-	case bgp.BGP_MSG_ROUTE_REFRESH:
-		rr := m.Body.(*bgp.BGPRouteRefresh)
-		rf := bgp.AfiSafiToRouteFamily(rr.AFI, rr.SAFI)
-		if _, ok := peer.fsm.rfMap[rf]; !ok {
-			log.WithFields(log.Fields{
-				"Topic": "Peer",
-				"Key":   peer.conf.Config.NeighborAddress,
-				"Data":  rf,
-			}).Warn("Route family isn't supported")
-			break
-		}
-		if _, ok := peer.fsm.capMap[bgp.BGP_CAP_ROUTE_REFRESH]; ok {
-			rfList := []bgp.RouteFamily{rf}
-			peer.adjRibOut.Drop(rfList)
-			accepted, filtered := peer.getBestFromLocal(rfList)
-			peer.adjRibOut.Update(accepted)
-			for _, path := range filtered {
-				path.IsWithdraw = true
-				accepted = append(accepted, path)
+	peer.conf.Timers.State.UpdateRecvTime = time.Now().Unix()
+	if len(e.PathList) > 0 {
+		peer.adjRibIn.Update(e.PathList)
+		paths := make([]*table.Path, 0, len(e.PathList))
+		eor := []bgp.RouteFamily{}
+		for _, path := range e.PathList {
+			if path.IsEOR() {
+				family := path.GetRouteFamily()
+				log.WithFields(log.Fields{
+					"Topic":         "Peer",
+					"Key":           peer.conf.Config.NeighborAddress,
+					"AddressFamily": family,
+				}).Debug("EOR received")
+				eor = append(eor, family)
+				continue
 			}
-			return nil, table.CreateUpdateMsgFromPaths(accepted), eor
-		} else {
-			log.WithFields(log.Fields{
-				"Topic": "Peer",
-				"Key":   peer.conf.Config.NeighborAddress,
-			}).Warn("ROUTE_REFRESH received but the capability wasn't advertised")
-		}
-
-	case bgp.BGP_MSG_UPDATE:
-		peer.conf.Timers.State.UpdateRecvTime = time.Now().Unix()
-		if len(e.PathList) > 0 {
-			peer.adjRibIn.Update(e.PathList)
-			paths := make([]*table.Path, 0, len(e.PathList))
-			for _, path := range e.PathList {
-				if path.IsEOR() {
-					family := path.GetRouteFamily()
-					log.WithFields(log.Fields{
-						"Topic":         "Peer",
-						"Key":           peer.conf.Config.NeighborAddress,
-						"AddressFamily": family,
-					}).Debug("EOR received")
-					eor = append(eor, family)
-					continue
-				}
-				if path.Filtered(peer.ID()) != table.POLICY_DIRECTION_IN {
-					paths = append(paths, path)
-				}
+			if path.Filtered(peer.ID()) != table.POLICY_DIRECTION_IN {
+				paths = append(paths, path)
 			}
-			return paths, nil, eor
 		}
+		return paths, eor
 	}
-	return nil, nil, eor
+	return nil, nil
 }
 
 func (peer *Peer) startFSMHandler(incoming *channels.InfiniteChannel, stateCh chan *FsmMsg) {
