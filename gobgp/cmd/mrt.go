@@ -28,6 +28,7 @@ import (
 	"os"
 	"path/filepath"
 	"strconv"
+	"strings"
 	"text/template"
 	"time"
 )
@@ -68,16 +69,23 @@ func printMrtMsgs(data []byte) {
 
 func dumpRib(r string, remoteIP net.IP, args []string) error {
 	var resource api.Resource
+	var family bgp.RouteFamily
+	selfGenerated := false
 	switch r {
+	case CMD_SELF_GENERATED:
+		selfGenerated = true
+		fallthrough
 	case CMD_GLOBAL:
 		resource = api.Resource_GLOBAL
+		family = bgp.RF_IPv4_UC
 	case CMD_LOCAL:
 		resource = api.Resource_LOCAL
+		family = addr2AddressFamily(remoteIP)
 	default:
 		return fmt.Errorf("unknown resource type: %s", r)
 	}
 
-	family, err := checkAddressFamily(addr2AddressFamily(remoteIP))
+	family, err := checkAddressFamily(family)
 	if err != nil {
 		return err
 	}
@@ -96,17 +104,7 @@ func dumpRib(r string, remoteIP net.IP, args []string) error {
 		Family:          uint32(family),
 		Interval:        interval,
 		NeighborAddress: remoteIP.String(),
-	}
-
-	afi, _ := bgp.RouteFamilyToAfiSafi(family)
-	var af string
-	switch afi {
-	case bgp.AFI_IP:
-		af = "ipv4"
-	case bgp.AFI_IP6:
-		af = "ipv6"
-	case bgp.AFI_L2VPN:
-		af = "l2vpn"
+		SelfGenerated:   selfGenerated,
 	}
 
 	seed := struct {
@@ -120,7 +118,7 @@ func dumpRib(r string, remoteIP net.IP, args []string) error {
 		NeighborAddress string
 		Resource        string
 	}{
-		Af:              af,
+		Af:              strings.Replace(family.String(), "-", "_", -1),
 		NeighborAddress: remoteIP.String(),
 		Resource:        r,
 	}
@@ -134,7 +132,7 @@ func dumpRib(r string, remoteIP net.IP, args []string) error {
 
 	if mrtOpts.FileFormat != "" {
 		fileformat = mrtOpts.FileFormat
-	} else if r == CMD_GLOBAL {
+	} else if r == CMD_GLOBAL || r == CMD_SELF_GENERATED {
 		fileformat = "rib_{{.Af}}_{{.Y}}{{.M}}{{.D}}_{{.H}}{{.Min}}{{.Sec}}"
 	} else {
 		fileformat = "rib_{{.NeighborAddress}}_{{.Y}}{{.M}}{{.D}}_{{.H}}{{.Min}}{{.Sec}}"
@@ -182,6 +180,114 @@ func dumpRib(r string, remoteIP net.IP, args []string) error {
 	return nil
 }
 
+func ExtractRoutesFromMrt(resource api.Resource, filename string, count int, skip int, ch chan *api.ModPathsArguments) error {
+	file, err := os.Open(filename)
+	if err != nil {
+		return fmt.Errorf("failed to open file: %s", err)
+	}
+
+	idx := 0
+	var peers []*bgp.Peer
+
+	for {
+		buf := make([]byte, bgp.MRT_COMMON_HEADER_LEN)
+		_, err := file.Read(buf)
+		if err == io.EOF {
+			break
+		} else if err != nil {
+			return fmt.Errorf("failed to read: %s", err)
+		}
+
+		h := &bgp.MRTHeader{}
+		err = h.DecodeFromBytes(buf)
+		if err != nil {
+			return fmt.Errorf("failed to parse")
+		}
+
+		buf = make([]byte, h.Len)
+		_, err = file.Read(buf)
+		if err != nil {
+			return fmt.Errorf("failed to read")
+		}
+
+		msg, err := bgp.ParseMRTBody(h, buf)
+		if err != nil {
+			return fmt.Errorf("failed to parse: %s", err)
+		}
+
+		if msg.Header.Type == bgp.TABLE_DUMPv2 {
+			subType := bgp.MRTSubTypeTableDumpv2(msg.Header.SubType)
+			var rf bgp.RouteFamily
+			switch subType {
+			case bgp.PEER_INDEX_TABLE:
+				peers = msg.Body.(*bgp.PeerIndexTable).Peers
+				continue
+			case bgp.RIB_IPV4_UNICAST:
+				rf = bgp.RF_IPv4_UC
+			case bgp.RIB_IPV6_UNICAST:
+				rf = bgp.RF_IPv6_UC
+			case bgp.RIB_GENERIC:
+				rib := msg.Body.(*bgp.Rib)
+				nlri := rib.Prefix
+				rf = bgp.AfiSafiToRouteFamily(nlri.AFI(), nlri.SAFI())
+			default:
+				return fmt.Errorf("unsupported subType: %s", subType)
+			}
+
+			if peers == nil {
+				return fmt.Errorf("not found PEER_INDEX_TABLE")
+			}
+
+			rib := msg.Body.(*bgp.Rib)
+			nlri := rib.Prefix
+
+			paths := make([]*api.Path, 0, len(rib.Entries))
+
+			for _, e := range rib.Entries {
+				if len(peers) < int(e.PeerIndex) {
+					return fmt.Errorf("invalid peer index: %d (PEER_INDEX_TABLE has only %d peers)\n", e.PeerIndex, len(peers))
+				}
+
+				path := &api.Path{
+					Pattrs:             make([][]byte, 0),
+					NoImplicitWithdraw: true,
+					SourceAsn:          peers[e.PeerIndex].AS,
+					SourceId:           peers[e.PeerIndex].BgpId.String(),
+				}
+
+				if rf == bgp.RF_IPv4_UC {
+					path.Nlri, _ = nlri.Serialize()
+				}
+
+				for _, p := range e.PathAttributes {
+					b, err := p.Serialize()
+					if err != nil {
+						continue
+					}
+					path.Pattrs = append(path.Pattrs, b)
+				}
+
+				paths = append(paths, path)
+			}
+
+			if idx >= skip {
+				ch <- &api.ModPathsArguments{
+					Resource: resource,
+					Paths:    paths,
+				}
+			}
+
+			idx += 1
+			if idx == count+skip {
+				break
+			}
+		}
+	}
+
+	close(ch)
+	return nil
+}
+
 func injectMrt(r string, filename string, count int, skip int) error {
 
 	var resource api.Resource
@@ -192,115 +298,12 @@ func injectMrt(r string, filename string, count int, skip int) error {
 		return fmt.Errorf("unknown resource type: %s", r)
 	}
 
-	file, err := os.Open(filename)
-	if err != nil {
-		return fmt.Errorf("failed to open file: %s", err)
-	}
-
-	idx := 0
-
 	ch := make(chan *api.ModPathsArguments, 1<<20)
 
 	go func() {
-
-		var peers []*bgp.Peer
-
-		for {
-			buf := make([]byte, bgp.MRT_COMMON_HEADER_LEN)
-			_, err := file.Read(buf)
-			if err == io.EOF {
-				break
-			} else if err != nil {
-				exitWithError(fmt.Errorf("failed to read: %s", err))
-			}
-
-			h := &bgp.MRTHeader{}
-			err = h.DecodeFromBytes(buf)
-			if err != nil {
-				exitWithError(fmt.Errorf("failed to parse"))
-			}
-
-			buf = make([]byte, h.Len)
-			_, err = file.Read(buf)
-			if err != nil {
-				exitWithError(fmt.Errorf("failed to read"))
-			}
-
-			msg, err := bgp.ParseMRTBody(h, buf)
-			if err != nil {
-				exitWithError(fmt.Errorf("failed to parse: %s", err))
-			}
-
-			if globalOpts.Debug {
-				fmt.Println(msg)
-			}
-
-			if msg.Header.Type == bgp.TABLE_DUMPv2 {
-				subType := bgp.MRTSubTypeTableDumpv2(msg.Header.SubType)
-				var rf bgp.RouteFamily
-				switch subType {
-				case bgp.PEER_INDEX_TABLE:
-					peers = msg.Body.(*bgp.PeerIndexTable).Peers
-					continue
-				case bgp.RIB_IPV4_UNICAST:
-					rf = bgp.RF_IPv4_UC
-				case bgp.RIB_IPV6_UNICAST:
-					rf = bgp.RF_IPv6_UC
-				default:
-					exitWithError(fmt.Errorf("unsupported subType: %s", subType))
-				}
-
-				if peers == nil {
-					exitWithError(fmt.Errorf("not found PEER_INDEX_TABLE"))
-				}
-
-				rib := msg.Body.(*bgp.Rib)
-				nlri := rib.Prefix
-
-				paths := make([]*api.Path, 0, len(rib.Entries))
-
-				for _, e := range rib.Entries {
-					if len(peers) < int(e.PeerIndex) {
-						exitWithError(fmt.Errorf("invalid peer index: %d (PEER_INDEX_TABLE has only %d peers)\n", e.PeerIndex, len(peers)))
-					}
-
-					path := &api.Path{
-						Pattrs:             make([][]byte, 0),
-						NoImplicitWithdraw: true,
-						SourceAsn:          peers[e.PeerIndex].AS,
-						SourceId:           peers[e.PeerIndex].BgpId.String(),
-					}
-
-					if rf == bgp.RF_IPv4_UC {
-						path.Nlri, _ = nlri.Serialize()
-					}
-
-					for _, p := range e.PathAttributes {
-						b, err := p.Serialize()
-						if err != nil {
-							continue
-						}
-						path.Pattrs = append(path.Pattrs, b)
-					}
-
-					paths = append(paths, path)
-				}
-
-				if idx >= skip {
-					ch <- &api.ModPathsArguments{
-						Resource: resource,
-						Paths:    paths,
-					}
-				}
-
-				idx += 1
-				if idx == count+skip {
-					break
-				}
-			}
+		if err := ExtractRoutesFromMrt(resource, filename, count, skip, ch); err != nil {
+			exitWithError(err)
 		}
-
-		close(ch)
 	}()
 
 	stream, err := client.ModPaths(context.Background())
@@ -337,11 +340,20 @@ func NewMrtCmd() *cobra.Command {
 		},
 	}
 
+	selfGeneratedCmd := &cobra.Command{
+		Use: CMD_SELF_GENERATED,
+		Run: func(cmd *cobra.Command, args []string) {
+			if err := dumpRib(CMD_SELF_GENERATED, net.IP{}, args); err != nil {
+				exitWithError(err)
+			}
+		},
+	}
+
 	neighborCmd := &cobra.Command{
 		Use: CMD_NEIGHBOR,
 		Run: func(cmd *cobra.Command, args []string) {
 			if len(args) < 1 {
-				exitWithError(fmt.Errorf("usage: gobgp mrt dump neighbor <neighbor address> [<interval>]"))
+				exitWithError(fmt.Errorf("usage: gobgp mrt dump rib neighbor <neighbor address> [<interval>]"))
 			}
 			remoteIP := net.ParseIP(args[0])
 			if remoteIP == nil {
@@ -357,7 +369,7 @@ func NewMrtCmd() *cobra.Command {
 	ribCmd := &cobra.Command{
 		Use: CMD_RIB,
 	}
-	ribCmd.AddCommand(globalDumpCmd, neighborCmd)
+	ribCmd.AddCommand(globalDumpCmd, neighborCmd, selfGeneratedCmd)
 	ribCmd.PersistentFlags().StringVarP(&subOpts.AddressFamily, "address-family", "a", "", "address family")
 
 	dumpCmd := &cobra.Command{

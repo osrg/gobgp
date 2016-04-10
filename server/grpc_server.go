@@ -292,7 +292,7 @@ func (s *Server) GetMrt(arg *api.MrtArguments, stream api.GobgpApi_GetMrtServer)
 	default:
 		return fmt.Errorf("unsupported resource type: %v", arg.Resource)
 	}
-	req := NewGrpcRequest(reqType, arg.NeighborAddress, bgp.RouteFamily(arg.Family), arg.Interval)
+	req := NewGrpcRequest(reqType, arg.NeighborAddress, bgp.RouteFamily(arg.Family), arg)
 	s.bgpServerCh <- req
 	return handleMultipleResponses(req, func(res *GrpcResponse) error {
 		return stream.Send(res.Data.(*api.MrtMessage))

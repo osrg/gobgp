@@ -106,6 +106,9 @@ message MrtArguments {
     uint32 family = 2;
     uint64 interval = 3;
     string neighbor_address = 4;
+    // dump self-generated routes. only used when resource is GLOBAL
+    // CAVEAT: MRT doesn't assume dumping self-generated routes
+    bool self_generated = 5;
 }
 
 message ModMrtArguments {

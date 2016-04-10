@@ -20,8 +20,11 @@ import (
 	"github.com/Sirupsen/logrus/hooks/syslog"
 	"github.com/jessevdk/go-flags"
 	p "github.com/kr/pretty"
+	api "github.com/osrg/gobgp/api"
 	"github.com/osrg/gobgp/config"
+	"github.com/osrg/gobgp/gobgp/cmd"
 	ops "github.com/osrg/gobgp/openswitch"
+	"github.com/osrg/gobgp/packet/bgp"
 	"github.com/osrg/gobgp/server"
 	"io/ioutil"
 	"log/syslog"
@@ -50,7 +53,7 @@ func main() {
 		CPUs            int    `long:"cpus" description:"specify the number of CPUs to be used"`
 		Ops             bool   `long:"openswitch" description:"openswitch mode"`
 		GrpcPort        int    `short:"g" long:"grpc-port" description:"grpc port" default:"50051"`
-		GracefulRestart bool   `short:"r" long:"graceful-restart" description:"flag restart-state in graceful-restart capability"`
+		GracefulRestart string `short:"r" long:"graceful-restart" description:"flag restart-state in graceful-restart capability" optional:"y" optional-value:"no-mrt"`
 		Dry             bool   `short:"d" long:"dry-run" description:"check configuration"`
 	}
 	_, err := flags.Parse(&opts)
@@ -205,15 +208,38 @@ func main() {
 					log.Fatalf("failed to set global config: %s", err)
 				}
 				bgpConfig = &newConfig.Bgp
-				bgpServer.SetRpkiConfig(newConfig.Bgp.RpkiServers)
+				if err := bgpServer.SetRpkiConfig(newConfig.Bgp.RpkiServers); err != nil {
+					log.Fatalf("failed to set rpki config: %s", err)
+				}
 				if err := bgpServer.SetBmpConfig(newConfig.Bgp.BmpServers); err != nil {
-					log.Fatalf("failed to set global config: %s", err)
+					log.Fatalf("failed to set bmp config: %s", err)
 				}
 				if err := bgpServer.SetMrtConfig(newConfig.Bgp.MrtDump); err != nil {
-					log.Fatalf("failed to set global config: %s", err)
+					log.Fatalf("failed to set mrt config: %s", err)
 				}
 				added = newConfig.Bgp.Neighbors
-				if opts.GracefulRestart {
+				if opts.GracefulRestart != "" {
+					log.Info("start graceful restart procedure")
+					if opts.GracefulRestart != "no-mrt" {
+						for _, filename := range strings.Split(opts.GracefulRestart, ",") {
+							log.Infof("loading routes from %s", filename)
+							ch := make(chan *api.ModPathsArguments, 1<<20)
+							go func() {
+								if err := cmd.ExtractRoutesFromMrt(api.Resource_GLOBAL, filename, 0, 0, ch); err != nil {
+									log.Fatalf("failed to inject routes from mrt: %s", err)
+								}
+							}()
+							for arg := range ch {
+								req := server.NewGrpcRequest(server.REQ_MOD_PATHS, arg.Name, bgp.RouteFamily(0), arg)
+								bgpServer.GrpcReqCh <- req
+								res := <-req.ResponseCh
+								if err := res.Err(); err != nil {
+									log.Fatalf("failed to inject routes from mrt: %s", err)
+								}
+							}
+							log.Infof("load complete")
+						}
+					}
 					for i, n := range added {
 						if n.GracefulRestart.Config.Enabled {
 							added[i].GracefulRestart.State.LocalRestarting = true

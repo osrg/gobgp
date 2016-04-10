@@ -9,6 +9,7 @@ to do graceful restart. GoBGP supports both roles.
 
 - [Helper speaker](#helper)
 - [Restarting speaker](#restarting)
+    - [load routes when restarting](#loading)
 
 ## <a name="helper"> Helper speaker
 
@@ -139,3 +140,31 @@ immediately withdraw all routes which were advertised from `gobgpd`.
 Also, when `gobgpd` doesn't recovered within `restart-time`, the peers will
 withdraw all routes.
 Default value of `restart-time` is equal to `hold-time`.
+
+### <a name="loading"> load routes when restarting
+
+When restarting `gobgpd` with `-r` options, you can load routes from MRT files
+before `gobgpd` starts peering with neighbors.
+This feature helps to recover faster to original state.
+
+Before restarting `gobgpd`, prepare MRT files which contain routes which you
+want to load.
+
+```shell
+$ gobgp mrt dump rib self-generated -a ipv4-unicast -f ipv4-unicast.dump
+mrt dump: ipv4-unicast.dump
+$ gobgp mrt dump rib self-generated -a ipv4-flowspec -f ipv4-flowspec.dump
+mrt dump: ipv4-flowspec.dump
+```
+
+Shutdown `gobgpd`
+
+```shell
+$ pkill -9 gobgpd
+```
+
+Restart gobgpd with `-r` option specifying mrt files
+
+``` shell
+$ gobgpd -f config.conf -r="ipv4-unicast.dump,ipv4-flowspec.dump"
+```
