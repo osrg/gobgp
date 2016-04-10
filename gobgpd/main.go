@@ -49,7 +49,7 @@ func main() {
 		DisableStdlog   bool   `long:"disable-stdlog" description:"disable standard logging"`
 		CPUs            int    `long:"cpus" description:"specify the number of CPUs to be used"`
 		Ops             bool   `long:"openswitch" description:"openswitch mode"`
-		GrpcPort        int    `short:"g" long:"grpc-port" description:"grpc port" default:"50051"`
+		GrpcHosts       string `long:"api-hosts" description:"specify the hosts that gobgpd listens on" default:":50051"`
 		GracefulRestart bool   `short:"r" long:"graceful-restart" description:"flag restart-state in graceful-restart capability"`
 		Dry             bool   `short:"d" long:"dry-run" description:"check configuration"`
 	}
@@ -174,7 +174,7 @@ func main() {
 	go bgpServer.Serve()
 
 	// start grpc Server
-	grpcServer := server.NewGrpcServer(opts.GrpcPort, bgpServer.GrpcReqCh)
+	grpcServer := server.NewGrpcServer(opts.GrpcHosts, bgpServer.GrpcReqCh)
 	go func() {
 		if err := grpcServer.Serve(); err != nil {
 			log.Fatalf("failed to listen grpc port: %s", err)
