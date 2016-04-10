@@ -24,6 +24,7 @@ import (
 	"google.golang.org/grpc"
 	"io"
 	"net"
+	"strings"
 )
 
 const (
@@ -79,15 +80,24 @@ const (
 type Server struct {
 	grpcServer  *grpc.Server
 	bgpServerCh chan *GrpcRequest
-	port        int
+	hosts       string
 }
 
 func (s *Server) Serve() error {
-	lis, err := net.Listen("tcp", fmt.Sprintf(":%d", s.port))
-	if err != nil {
-		return fmt.Errorf("failed to listen: %v", err)
+	l := strings.Split(s.hosts, ",")
+	for i, host := range l {
+		lis, err := net.Listen("tcp", fmt.Sprintf(host))
+		if err != nil {
+			return fmt.Errorf("failed to listen: %v", err)
+		}
+		if i == len(l)-1 {
+			s.grpcServer.Serve(lis)
+		} else {
+			go func() {
+				s.grpcServer.Serve(lis)
+			}()
+		}
 	}
-	s.grpcServer.Serve(lis)
 	return nil
 }
 
@@ -482,13 +492,13 @@ func (r *GrpcResponse) Err() error {
 	return r.ResponseErr
 }
 
-func NewGrpcServer(port int, bgpServerCh chan *GrpcRequest) *Server {
+func NewGrpcServer(hosts string, bgpServerCh chan *GrpcRequest) *Server {
 	grpc.EnableTracing = false
 	grpcServer := grpc.NewServer()
 	server := &Server{
 		grpcServer:  grpcServer,
 		bgpServerCh: bgpServerCh,
-		port:        port,
+		hosts:       hosts,
 	}
 	api.RegisterGobgpApiServer(grpcServer, server)
 	return server
