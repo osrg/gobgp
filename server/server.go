@@ -30,6 +30,7 @@ import (
 	api "github.com/osrg/gobgp/api"
 	"github.com/osrg/gobgp/config"
 	"github.com/osrg/gobgp/packet/bgp"
+	"github.com/osrg/gobgp/packet/mrt"
 	"github.com/osrg/gobgp/table"
 	"github.com/osrg/gobgp/zebra"
 	"github.com/satori/go.uuid"
@@ -2954,20 +2955,20 @@ func (server *BgpServer) handleMrt(grpcReq *GrpcRequest) {
 	return
 }
 
-func (server *BgpServer) mkMrtPeerIndexTableMsg(t uint32, view string) (*bgp.MRTMessage, error) {
-	peers := make([]*bgp.Peer, 0, len(server.neighborMap))
+func (server *BgpServer) mkMrtPeerIndexTableMsg(t uint32, view string) (*mrt.MRTMessage, error) {
+	peers := make([]*mrt.Peer, 0, len(server.neighborMap))
 	for _, peer := range server.neighborMap {
 		id := peer.fsm.peerInfo.ID.To4().String()
 		ipaddr := peer.conf.Config.NeighborAddress
 		asn := peer.conf.Config.PeerAs
-		peers = append(peers, bgp.NewPeer(id, ipaddr, asn, true))
+		peers = append(peers, mrt.NewPeer(id, ipaddr, asn, true))
 	}
 	bgpid := server.bgpConfig.Global.Config.RouterId
-	table := bgp.NewPeerIndexTable(bgpid, view, peers)
-	return bgp.NewMRTMessage(t, bgp.TABLE_DUMPv2, bgp.PEER_INDEX_TABLE, table)
+	table := mrt.NewPeerIndexTable(bgpid, view, peers)
+	return mrt.NewMRTMessage(t, mrt.TABLE_DUMPv2, mrt.PEER_INDEX_TABLE, table)
 }
 
-func (server *BgpServer) mkMrtRibMsgs(tbl *table.Table, t uint32) ([]*bgp.MRTMessage, error) {
+func (server *BgpServer) mkMrtRibMsgs(tbl *table.Table, t uint32) ([]*mrt.MRTMessage, error) {
 	getPeerIndex := func(info *table.PeerInfo) uint16 {
 		var idx uint16
 		for _, peer := range server.neighborMap {
@@ -2979,42 +2980,42 @@ func (server *BgpServer) mkMrtRibMsgs(tbl *table.Table, t uint32) ([]*bgp.MRTMes
 		return idx
 	}
 
-	var subtype bgp.MRTSubTypeTableDumpv2
+	var subtype mrt.MRTSubTypeTableDumpv2
 
 	switch tbl.GetRoutefamily() {
 	case bgp.RF_IPv4_UC:
-		subtype = bgp.RIB_IPV4_UNICAST
+		subtype = mrt.RIB_IPV4_UNICAST
 	case bgp.RF_IPv4_MC:
-		subtype = bgp.RIB_IPV4_MULTICAST
+		subtype = mrt.RIB_IPV4_MULTICAST
 	case bgp.RF_IPv6_UC:
-		subtype = bgp.RIB_IPV6_UNICAST
+		subtype = mrt.RIB_IPV6_UNICAST
 	case bgp.RF_IPv6_MC:
-		subtype = bgp.RIB_IPV6_MULTICAST
+		subtype = mrt.RIB_IPV6_MULTICAST
 	default:
-		subtype = bgp.RIB_GENERIC
+		subtype = mrt.RIB_GENERIC
 	}
 
 	var seq uint32
-	msgs := make([]*bgp.MRTMessage, 0, len(tbl.GetDestinations()))
+	msgs := make([]*mrt.MRTMessage, 0, len(tbl.GetDestinations()))
 	for _, dst := range tbl.GetDestinations() {
 		l := dst.GetKnownPathList(table.GLOBAL_RIB_NAME)
-		entries := make([]*bgp.RibEntry, 0, len(l))
+		entries := make([]*mrt.RibEntry, 0, len(l))
 		for _, p := range l {
 			// mrt doesn't assume to dump locally generated routes
 			if p.IsLocal() {
 				continue
 			}
 			idx := getPeerIndex(p.GetSource())
-			e := bgp.NewRibEntry(idx, uint32(p.GetTimestamp().Unix()), p.GetPathAttrs())
+			e := mrt.NewRibEntry(idx, uint32(p.GetTimestamp().Unix()), p.GetPathAttrs())
 			entries = append(entries, e)
 		}
 		// if dst only contains locally generated routes, ignore it
 		if len(entries) == 0 {
 			continue
 		}
-		rib := bgp.NewRib(seq, dst.GetNlri(), entries)
+		rib := mrt.NewRib(seq, dst.GetNlri(), entries)
 		seq++
-		msg, err := bgp.NewMRTMessage(t, bgp.TABLE_DUMPv2, subtype, rib)
+		msg, err := mrt.NewMRTMessage(t, mrt.TABLE_DUMPv2, subtype, rib)
 		if err != nil {
 			return nil, err
 		}
