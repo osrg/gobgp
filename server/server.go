@@ -399,64 +399,81 @@ func filterpath(peer *Peer, path *table.Path) *table.Path {
 		return nil
 	}
 
-	remoteAddr := peer.fsm.pConf.Config.NeighborAddress
-
 	//iBGP handling
-	if !path.IsLocal() && peer.isIBGPPeer() {
-		ignore := true
-		info := path.GetSource()
-
-		//if the path comes from eBGP peer
-		if info.AS != peer.fsm.pConf.Config.PeerAs {
-			ignore = false
-		}
-		// RFC4456 8. Avoiding Routing Information Loops
-		// A router that recognizes the ORIGINATOR_ID attribute SHOULD
-		// ignore a route received with its BGP Identifier as the ORIGINATOR_ID.
-		if id := path.GetOriginatorID(); peer.fsm.gConf.Config.RouterId == id.String() {
-			log.WithFields(log.Fields{
-				"Topic":        "Peer",
-				"Key":          remoteAddr,
-				"OriginatorID": id,
-				"Data":         path,
-			}).Debug("Originator ID is mine, ignore")
-			return nil
-		}
-		if info.RouteReflectorClient {
-			ignore = false
-		}
-		if peer.isRouteReflectorClient() {
-			// RFC4456 8. Avoiding Routing Information Loops
-			// If the local CLUSTER_ID is found in the CLUSTER_LIST,
-			// the advertisement received SHOULD be ignored.
-			for _, clusterId := range path.GetClusterList() {
-				if clusterId.Equal(peer.fsm.peerInfo.RouteReflectorClusterID) {
-					log.WithFields(log.Fields{
-						"Topic":     "Peer",
-						"Key":       remoteAddr,
-						"ClusterID": clusterId,
-						"Data":      path,
-					}).Debug("cluster list path attribute has local cluster id, ignore")
-					return nil
+	if peer.isIBGPPeer() {
+		ignore := false
+		//RFC4684 Constrained Route Distribution
+		if peer.fsm.rfMap[bgp.RF_RTC_UC] && path.GetRouteFamily() != bgp.RF_RTC_UC {
+			ignore = true
+			for _, ext := range path.GetExtCommunities() {
+				for _, path := range peer.adjRibIn.PathList([]bgp.RouteFamily{bgp.RF_RTC_UC}, true) {
+					rt := path.GetNlri().(*bgp.RouteTargetMembershipNLRI).RouteTarget
+					if ext.String() == rt.String() {
+						ignore = false
+						break
+					}
+				}
+				if !ignore {
+					break
 				}
 			}
-			ignore = false
+		}
+
+		if !path.IsLocal() {
+			ignore = true
+			info := path.GetSource()
+			//if the path comes from eBGP peer
+			if info.AS != peer.fsm.pConf.Config.PeerAs {
+				ignore = false
+			}
+			// RFC4456 8. Avoiding Routing Information Loops
+			// A router that recognizes the ORIGINATOR_ID attribute SHOULD
+			// ignore a route received with its BGP Identifier as the ORIGINATOR_ID.
+			if id := path.GetOriginatorID(); peer.fsm.gConf.Config.RouterId == id.String() {
+				log.WithFields(log.Fields{
+					"Topic":        "Peer",
+					"Key":          peer.ID(),
+					"OriginatorID": id,
+					"Data":         path,
+				}).Debug("Originator ID is mine, ignore")
+				return nil
+			}
+			if info.RouteReflectorClient {
+				ignore = false
+			}
+			if peer.isRouteReflectorClient() {
+				// RFC4456 8. Avoiding Routing Information Loops
+				// If the local CLUSTER_ID is found in the CLUSTER_LIST,
+				// the advertisement received SHOULD be ignored.
+				for _, clusterId := range path.GetClusterList() {
+					if clusterId.Equal(peer.fsm.peerInfo.RouteReflectorClusterID) {
+						log.WithFields(log.Fields{
+							"Topic":     "Peer",
+							"Key":       peer.ID(),
+							"ClusterID": clusterId,
+							"Data":      path,
+						}).Debug("cluster list path attribute has local cluster id, ignore")
+						return nil
+					}
+				}
+				ignore = false
+			}
 		}
 
 		if ignore {
 			log.WithFields(log.Fields{
 				"Topic": "Peer",
-				"Key":   remoteAddr,
+				"Key":   peer.ID(),
 				"Data":  path,
 			}).Debug("From same AS, ignore.")
 			return nil
 		}
 	}
 
-	if remoteAddr == path.GetSource().Address.String() {
+	if peer.ID() == path.GetSource().Address.String() {
 		log.WithFields(log.Fields{
 			"Topic": "Peer",
-			"Key":   remoteAddr,
+			"Key":   peer.ID(),
 			"Data":  path,
 		}).Debug("From me, ignore.")
 		return nil
@@ -717,6 +734,7 @@ func (server *BgpServer) propagateUpdate(peer *Peer, pathList []*table.Path) ([]
 	rib := server.globalRib
 	var alteredPathList, newly, withdrawn []*table.Path
 	var best map[string][]*table.Path
+	msgs := make([]*SenderMsg, 0, len(server.neighborMap))
 
 	if peer != nil && peer.isRouteServerClient() {
 		for _, path := range pathList {
@@ -744,7 +762,48 @@ func (server *BgpServer) propagateUpdate(peer *Peer, pathList []*table.Path) ([]
 		server.validatePaths(newly, withdrawn, false)
 	} else {
 		for idx, path := range pathList {
-			pathList[idx] = server.policy.ApplyPolicy(table.GLOBAL_RIB_NAME, table.POLICY_DIRECTION_IMPORT, path, nil)
+			path = server.policy.ApplyPolicy(table.GLOBAL_RIB_NAME, table.POLICY_DIRECTION_IMPORT, path, nil)
+			pathList[idx] = path
+			// RFC4684 Constrained Route Distribution 6. Operation
+			//
+			// When a BGP speaker receives a BGP UPDATE that advertises or withdraws
+			// a given Route Target membership NLRI, it should examine the RIB-OUTs
+			// of VPN NLRIs and re-evaluate the advertisement status of routes that
+			// match the Route Target in question.
+			//
+			// A BGP speaker should generate the minimum set of BGP VPN route
+			// updates (advertisements and/or withdrawls) necessary to transition
+			// between the previous and current state of the route distribution
+			// graph that is derived from Route Target membership information.
+			if peer != nil && path != nil && path.GetRouteFamily() == bgp.RF_RTC_UC {
+				rt := path.GetNlri().(*bgp.RouteTargetMembershipNLRI).RouteTarget
+				fs := make([]bgp.RouteFamily, 0, len(peer.configuredRFlist()))
+				for _, f := range peer.configuredRFlist() {
+					if f != bgp.RF_RTC_UC {
+						fs = append(fs, f)
+					}
+				}
+				var candidates []*table.Path
+				if path.IsWithdraw {
+					candidates = peer.adjRibOut.PathList(fs, false)
+				} else {
+					candidates = rib.GetBestPathList(peer.TableID(), fs)
+				}
+				paths := make([]*table.Path, 0, len(pathList))
+				for _, p := range candidates {
+					t := false
+					for _, ext := range p.GetExtCommunities() {
+						if ext.String() == rt.String() {
+							t = true
+							break
+						}
+					}
+					if t {
+						paths = append(paths, p.Clone(path.IsWithdraw))
+					}
+				}
+				msgs = append(msgs, newSenderMsg(peer, paths, nil, false))
+			}
 		}
 		alteredPathList = pathList
 		best, newly, withdrawn = rib.ProcessPaths([]string{table.GLOBAL_RIB_NAME}, pathList)
@@ -757,7 +816,6 @@ func (server *BgpServer) propagateUpdate(peer *Peer, pathList []*table.Path) ([]
 		}
 	}
 
-	msgs := make([]*SenderMsg, 0, len(server.neighborMap))
 	for _, targetPeer := range server.neighborMap {
 		if (peer == nil && targetPeer.isRouteServerClient()) || (peer != nil && peer.isRouteServerClient() != targetPeer.isRouteServerClient()) {
 			continue
@@ -811,8 +869,36 @@ func (server *BgpServer) handleFSMMessage(peer *Peer, e *FsmMsg) []*SenderMsg {
 			// update for export policy
 			laddr, _ := peer.fsm.LocalHostPort()
 			peer.fsm.pConf.Transport.Config.LocalAddress = laddr
+			deferralExpiredFunc := func(family bgp.RouteFamily) func() {
+				return func() {
+					req := NewGrpcRequest(REQ_DEFERRAL_TIMER_EXPIRED, peer.ID(), family, nil)
+					server.GrpcReqCh <- req
+					<-req.ResponseCh
+				}
+			}
 			if !peer.fsm.pConf.GracefulRestart.State.LocalRestarting {
-				pathList, _ := peer.getBestFromLocal(peer.configuredRFlist())
+				// When graceful-restart cap (which means intention
+				// of sending EOR) and route-target address family are negotiated,
+				// send route-target NLRIs first, and wait to send others
+				// till receiving EOR of route-target address family.
+				// This prevents sending uninterested routes to peers.
+				//
+				// However, when the peer is graceful restarting, give up
+				// waiting sending non-route-target NLRIs since the peer won't send
+				// any routes (and EORs) before we send ours (or deferral-timer expires).
+				var pathList []*table.Path
+				if c := config.GetAfiSafi(peer.fsm.pConf, bgp.RF_RTC_UC); !peer.fsm.pConf.GracefulRestart.State.PeerRestarting && peer.fsm.rfMap[bgp.RF_RTC_UC] && c.RouteTargetMembership.DeferralTime > 0 {
+					pathList, _ = peer.getBestFromLocal([]bgp.RouteFamily{bgp.RF_RTC_UC})
+					t := c.RouteTargetMembership.DeferralTime
+					for _, f := range peer.configuredRFlist() {
+						if f != bgp.RF_RTC_UC {
+							time.AfterFunc(time.Second*time.Duration(t), deferralExpiredFunc(f))
+						}
+					}
+				} else {
+					pathList, _ = peer.getBestFromLocal(peer.configuredRFlist())
+				}
+
 				if len(pathList) > 0 {
 					peer.adjRibOut.Update(pathList)
 					msgs = []*SenderMsg{newSenderMsg(peer, pathList, nil, false)}
@@ -827,13 +913,9 @@ func (server *BgpServer) handleFSMMessage(peer *Peer, e *FsmMsg) []*SenderMsg {
 				deferral := peer.fsm.pConf.GracefulRestart.Config.DeferralTime
 				log.WithFields(log.Fields{
 					"Topic": "Peer",
-					"Key":   peer.fsm.pConf.Config.NeighborAddress,
+					"Key":   peer.ID(),
 				}).Debugf("now syncing, suppress sending updates. start deferral timer(%d)", deferral)
-				time.AfterFunc(time.Second*time.Duration(deferral), func() {
-					req := NewGrpcRequest(REQ_DEFERRAL_TIMER_EXPIRED, peer.fsm.pConf.Config.NeighborAddress, bgp.RouteFamily(0), nil)
-					server.GrpcReqCh <- req
-					<-req.ResponseCh
-				})
+				time.AfterFunc(time.Second*time.Duration(deferral), deferralExpiredFunc(bgp.RouteFamily(0)))
 			}
 		} else {
 			if server.shutdown && nextState == bgp.BGP_FSM_IDLE {
@@ -915,7 +997,11 @@ func (server *BgpServer) handleFSMMessage(peer *Peer, e *FsmMsg) []*SenderMsg {
 			}
 
 			if len(eor) > 0 {
+				rtc := false
 				for _, f := range eor {
+					if f == bgp.RF_RTC_UC {
+						rtc = true
+					}
 					for i, a := range peer.fsm.pConf.AfiSafis {
 						if g, _ := bgp.GetRouteFamily(string(a.AfiSafiName)); f == g {
 							peer.fsm.pConf.AfiSafis[i].MpGracefulRestart.State.EndOfRibReceived = true
@@ -954,7 +1040,11 @@ func (server *BgpServer) handleFSMMessage(peer *Peer, e *FsmMsg) []*SenderMsg {
 						log.WithFields(log.Fields{
 							"Topic": "Server",
 						}).Info("sync finished")
+
 					}
+
+					// we don't delay non-route-target NLRIs when local-restarting
+					rtc = false
 				}
 				if peer.fsm.pConf.GracefulRestart.State.PeerRestarting {
 					if peer.recvedAllEOR() {
@@ -966,6 +1056,28 @@ func (server *BgpServer) handleFSMMessage(peer *Peer, e *FsmMsg) []*SenderMsg {
 						}).Debugf("withdraw %d stale routes", len(pathList))
 						m, _ := server.propagateUpdate(peer, pathList)
 						msgs = append(msgs, m...)
+					}
+
+					// we don't delay non-route-target NLRIs when peer is restarting
+					rtc = false
+				}
+
+				// received EOR of route-target address family
+				// outbound filter is now ready, let's flash non-route-target NLRIs
+				if c := config.GetAfiSafi(peer.fsm.pConf, bgp.RF_RTC_UC); rtc && c != nil && c.RouteTargetMembership.DeferralTime > 0 {
+					log.WithFields(log.Fields{
+						"Topic": "Peer",
+						"Key":   peer.ID(),
+					}).Debug("received route-target eor. flash non-route-target NLRIs")
+					families := make([]bgp.RouteFamily, 0, len(peer.configuredRFlist()))
+					for _, f := range peer.configuredRFlist() {
+						if f != bgp.RF_RTC_UC {
+							families = append(families, f)
+						}
+					}
+					if paths, _ := peer.getBestFromLocal(families); len(paths) > 0 {
+						peer.adjRibOut.Update(paths)
+						msgs = append(msgs, newSenderMsg(peer, paths, nil, false))
 					}
 				}
 			}
@@ -2057,22 +2169,30 @@ func (server *BgpServer) handleGrpc(grpcReq *GrpcRequest) []*SenderMsg {
 				continue
 			}
 
+			families := []bgp.RouteFamily{grpcReq.RouteFamily}
+			if families[0] == bgp.RouteFamily(0) {
+				families = peer.configuredRFlist()
+			}
+
 			if grpcReq.RequestType == REQ_DEFERRAL_TIMER_EXPIRED {
 				if peer.fsm.pConf.GracefulRestart.State.LocalRestarting {
 					peer.fsm.pConf.GracefulRestart.State.LocalRestarting = false
 					log.WithFields(log.Fields{
-						"Topic": "Peer",
-						"Key":   peer.fsm.pConf.Config.NeighborAddress,
+						"Topic":    "Peer",
+						"Key":      peer.ID(),
+						"Families": families,
 					}).Debug("deferral timer expired")
+				} else if c := config.GetAfiSafi(peer.fsm.pConf, bgp.RF_RTC_UC); peer.fsm.rfMap[bgp.RF_RTC_UC] && !c.MpGracefulRestart.State.EndOfRibReceived {
+					log.WithFields(log.Fields{
+						"Topic":    "Peer",
+						"Key":      peer.ID(),
+						"Families": families,
+					}).Debug("route-target deferral timer expired")
 				} else {
 					continue
 				}
 			}
 
-			families := []bgp.RouteFamily{grpcReq.RouteFamily}
-			if families[0] == bgp.RouteFamily(0) {
-				families = peer.configuredRFlist()
-			}
 			sentPathList := peer.adjRibOut.PathList(families, false)
 			peer.adjRibOut.Drop(families)
 			pathList, filtered := peer.getBestFromLocal(families)
