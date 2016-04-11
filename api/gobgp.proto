@@ -133,6 +133,7 @@ message ModRpkiArguments {
     string address = 3;
     uint32 port = 4;
     int64 lifetime = 5;
+    string prefix = 6;
 }
 
 message ModVrfArguments {

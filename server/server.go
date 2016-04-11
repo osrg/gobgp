@@ -2841,7 +2841,14 @@ func (server *BgpServer) handleModRpki(grpcReq *GrpcRequest) {
 		isMonitored := server.isRpkiMonitored()
 		for _, rf := range server.globalRib.GetRFlist() {
 			if t, ok := server.globalRib.Tables[rf]; ok {
-				for _, dst := range t.GetDestinations() {
+				dsts := t.GetDestinations()
+				if arg.Prefix != "" {
+					_, prefix, _ := net.ParseCIDR(arg.Prefix)
+					if dst := t.GetDestination(prefix.String()); dst != nil {
+						dsts = map[string]*table.Destination{prefix.String(): dst}
+					}
+				}
+				for _, dst := range dsts {
 					if rr := server.roaManager.validate(dst.GetAllKnownPathList(), isMonitored); isMonitored {
 						send := make([]*api.ROAResult, 0, len(rr))
 						for _, r := range rr {
