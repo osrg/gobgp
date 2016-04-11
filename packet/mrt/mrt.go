@@ -13,12 +13,13 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package bgp
+package mrt
 
 import (
 	"bytes"
 	"encoding/binary"
 	"fmt"
+	"github.com/osrg/gobgp/packet/bgp"
 	"math"
 	"net"
 	"time"
@@ -343,7 +344,7 @@ func (t *PeerIndexTable) String() string {
 type RibEntry struct {
 	PeerIndex      uint16
 	OriginatedTime uint32
-	PathAttributes []PathAttributeInterface
+	PathAttributes []bgp.PathAttributeInterface
 }
 
 func (e *RibEntry) DecodeFromBytes(data []byte) ([]byte, error) {
@@ -356,7 +357,7 @@ func (e *RibEntry) DecodeFromBytes(data []byte) ([]byte, error) {
 	totalLen := binary.BigEndian.Uint16(data[6:8])
 	data = data[8:]
 	for attrLen := totalLen; attrLen > 0; {
-		p, err := GetPathAttribute(data)
+		p, err := bgp.GetPathAttribute(data)
 		if err != nil {
 			return nil, err
 		}
@@ -402,7 +403,7 @@ func (e *RibEntry) Serialize() ([]byte, error) {
 	return buf, nil
 }
 
-func NewRibEntry(index uint16, time uint32, pathattrs []PathAttributeInterface) *RibEntry {
+func NewRibEntry(index uint16, time uint32, pathattrs []bgp.PathAttributeInterface) *RibEntry {
 	return &RibEntry{
 		PeerIndex:      index,
 		OriginatedTime: time,
@@ -416,9 +417,9 @@ func (e *RibEntry) String() string {
 
 type Rib struct {
 	SequenceNumber uint32
-	Prefix         AddrPrefixInterface
+	Prefix         bgp.AddrPrefixInterface
 	Entries        []*RibEntry
-	RouteFamily    RouteFamily
+	RouteFamily    bgp.RouteFamily
 }
 
 func (u *Rib) DecodeFromBytes(data []byte) error {
@@ -427,13 +428,13 @@ func (u *Rib) DecodeFromBytes(data []byte) error {
 	}
 	u.SequenceNumber = binary.BigEndian.Uint32(data[:4])
 	data = data[4:]
-	afi, safi := RouteFamilyToAfiSafi(u.RouteFamily)
+	afi, safi := bgp.RouteFamilyToAfiSafi(u.RouteFamily)
 	if afi == 0 && safi == 0 {
 		afi = binary.BigEndian.Uint16(data[:2])
 		safi = data[2]
 		data = data[3:]
 	}
-	prefix, err := NewPrefixFromRouteFamily(afi, safi)
+	prefix, err := bgp.NewPrefixFromRouteFamily(afi, safi)
 	if err != nil {
 		return err
 	}
@@ -460,9 +461,9 @@ func (u *Rib) DecodeFromBytes(data []byte) error {
 func (u *Rib) Serialize() ([]byte, error) {
 	buf := make([]byte, 4)
 	binary.BigEndian.PutUint32(buf, u.SequenceNumber)
-	rf := AfiSafiToRouteFamily(u.Prefix.AFI(), u.Prefix.SAFI())
+	rf := bgp.AfiSafiToRouteFamily(u.Prefix.AFI(), u.Prefix.SAFI())
 	switch rf {
-	case RF_IPv4_UC, RF_IPv4_MC, RF_IPv6_UC, RF_IPv6_MC:
+	case bgp.RF_IPv4_UC, bgp.RF_IPv4_MC, bgp.RF_IPv6_UC, bgp.RF_IPv6_MC:
 	default:
 		bbuf := make([]byte, 0, 2)
 		binary.BigEndian.PutUint16(bbuf, u.Prefix.AFI())
@@ -489,8 +490,8 @@ func (u *Rib) Serialize() ([]byte, error) {
 	return buf, nil
 }
 
-func NewRib(seq uint32, prefix AddrPrefixInterface, entries []*RibEntry) *Rib {
-	rf := AfiSafiToRouteFamily(prefix.AFI(), prefix.SAFI())
+func NewRib(seq uint32, prefix bgp.AddrPrefixInterface, entries []*RibEntry) *Rib {
+	rf := bgp.AfiSafiToRouteFamily(prefix.AFI(), prefix.SAFI())
 	return &Rib{
 		SequenceNumber: seq,
 		Prefix:         prefix,
@@ -532,11 +533,11 @@ func (m *BGP4MPHeader) decodeFromBytes(data []byte) ([]byte, error) {
 	m.InterfaceIndex = binary.BigEndian.Uint16(data[:2])
 	m.AddressFamily = binary.BigEndian.Uint16(data[2:4])
 	switch m.AddressFamily {
-	case AFI_IP:
+	case bgp.AFI_IP:
 		m.PeerIpAddress = net.IP(data[4:8]).To4()
 		m.LocalIpAddress = net.IP(data[8:12]).To4()
 		data = data[12:]
-	case AFI_IP6:
+	case bgp.AFI_IP6:
 		m.PeerIpAddress = net.IP(data[4:20])
 		m.LocalIpAddress = net.IP(data[20:36])
 		data = data[36:]
@@ -559,11 +560,11 @@ func (m *BGP4MPHeader) serialize() ([]byte, error) {
 	}
 	var bbuf []byte
 	switch m.AddressFamily {
-	case AFI_IP:
+	case bgp.AFI_IP:
 		bbuf = make([]byte, 8)
 		copy(bbuf, m.PeerIpAddress.To4())
 		copy(bbuf[4:], m.LocalIpAddress.To4())
-	case AFI_IP6:
+	case bgp.AFI_IP6:
 		bbuf = make([]byte, 32)
 		copy(bbuf, m.PeerIpAddress)
 		copy(bbuf[16:], m.LocalIpAddress)
@@ -578,12 +579,12 @@ func newBGP4MPHeader(peeras, localas uint32, intfindex uint16, peerip, localip s
 	paddr := net.ParseIP(peerip).To4()
 	laddr := net.ParseIP(localip).To4()
 	if paddr != nil && laddr != nil {
-		af = AFI_IP
+		af = bgp.AFI_IP
 	} else {
 		paddr = net.ParseIP(peerip).To16()
 		laddr = net.ParseIP(localip).To16()
 		if paddr != nil && laddr != nil {
-			af = AFI_IP6
+			af = bgp.AFI_IP6
 		} else {
 			return nil, fmt.Errorf("Peer IP Address and Local IP Address must have the same address family")
 		}
@@ -641,7 +642,7 @@ func NewBGP4MPStateChange(peeras, localas uint32, intfindex uint16, peerip, loca
 
 type BGP4MPMessage struct {
 	*BGP4MPHeader
-	BGPMessage        *BGPMessage
+	BGPMessage        *bgp.BGPMessage
 	BGPMessagePayload []byte
 	isLocal           bool
 }
@@ -652,11 +653,11 @@ func (m *BGP4MPMessage) DecodeFromBytes(data []byte) error {
 		return err
 	}
 
-	if len(rest) < BGP_HEADER_LENGTH {
+	if len(rest) < bgp.BGP_HEADER_LENGTH {
 		return fmt.Errorf("Not all BGP4MPMessageAS4 bytes available")
 	}
 
-	msg, err := ParseBGPMessage(rest)
+	msg, err := bgp.ParseBGPMessage(rest)
 	if err != nil {
 		return err
 	}
@@ -679,7 +680,7 @@ func (m *BGP4MPMessage) Serialize() ([]byte, error) {
 	return append(buf, bbuf...), nil
 }
 
-func NewBGP4MPMessage(peeras, localas uint32, intfindex uint16, peerip, localip string, isAS4 bool, msg *BGPMessage) *BGP4MPMessage {
+func NewBGP4MPMessage(peeras, localas uint32, intfindex uint16, peerip, localip string, isAS4 bool, msg *bgp.BGPMessage) *BGP4MPMessage {
 	header, _ := newBGP4MPHeader(peeras, localas, intfindex, peerip, localip, isAS4)
 	return &BGP4MPMessage{
 		BGP4MPHeader: header,
@@ -687,7 +688,7 @@ func NewBGP4MPMessage(peeras, localas uint32, intfindex uint16, peerip, localip 
 	}
 }
 
-func NewBGP4MPMessageLocal(peeras, localas uint32, intfindex uint16, peerip, localip string, isAS4 bool, msg *BGPMessage) *BGP4MPMessage {
+func NewBGP4MPMessageLocal(peeras, localas uint32, intfindex uint16, peerip, localip string, isAS4 bool, msg *bgp.BGPMessage) *BGP4MPMessage {
 	header, _ := newBGP4MPHeader(peeras, localas, intfindex, peerip, localip, isAS4)
 	return &BGP4MPMessage{
 		BGP4MPHeader: header,
@@ -736,18 +737,18 @@ func ParseMRTBody(h *MRTHeader, data []byte) (*MRTMessage, error) {
 	switch h.Type {
 	case TABLE_DUMPv2:
 		subType := MRTSubTypeTableDumpv2(h.SubType)
-		rf := RouteFamily(0)
+		rf := bgp.RouteFamily(0)
 		switch subType {
 		case PEER_INDEX_TABLE:
 			msg.Body = &PeerIndexTable{}
 		case RIB_IPV4_UNICAST:
-			rf = RF_IPv4_UC
+			rf = bgp.RF_IPv4_UC
 		case RIB_IPV4_MULTICAST:
-			rf = RF_IPv4_MC
+			rf = bgp.RF_IPv4_MC
 		case RIB_IPV6_UNICAST:
-			rf = RF_IPv6_UC
+			rf = bgp.RF_IPv6_UC
 		case RIB_IPV6_MULTICAST:
-			rf = RF_IPv6_MC
+			rf = bgp.RF_IPv6_MC
 		case RIB_GENERIC:
 		default:
 			return nil, fmt.Errorf("unsupported table dumpv2 subtype: %v\n", subType)

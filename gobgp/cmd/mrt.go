@@ -20,6 +20,7 @@ import (
 	"fmt"
 	api "github.com/osrg/gobgp/api"
 	"github.com/osrg/gobgp/packet/bgp"
+	"github.com/osrg/gobgp/packet/mrt"
 	"github.com/spf13/cobra"
 	"golang.org/x/net/context"
 	"io"
@@ -35,8 +36,8 @@ import (
 func printMrtMsgs(data []byte) {
 	buffer := bytes.NewBuffer(data)
 
-	for buffer.Len() > bgp.MRT_COMMON_HEADER_LEN {
-		buf := make([]byte, bgp.MRT_COMMON_HEADER_LEN)
+	for buffer.Len() > mrt.MRT_COMMON_HEADER_LEN {
+		buf := make([]byte, mrt.MRT_COMMON_HEADER_LEN)
 		_, err := buffer.Read(buf)
 		if err == io.EOF {
 			break
@@ -44,7 +45,7 @@ func printMrtMsgs(data []byte) {
 			exitWithError(fmt.Errorf("failed to read: %s", err))
 		}
 
-		h := &bgp.MRTHeader{}
+		h := &mrt.MRTHeader{}
 		err = h.DecodeFromBytes(buf)
 		if err != nil {
 			exitWithError(fmt.Errorf("failed to parse"))
@@ -56,7 +57,7 @@ func printMrtMsgs(data []byte) {
 			exitWithError(fmt.Errorf("failed to read"))
 		}
 
-		msg, err := bgp.ParseMRTBody(h, buf)
+		msg, err := mrt.ParseMRTBody(h, buf)
 		if err != nil {
 			exitWithError(fmt.Errorf("failed to parse: %s", err))
 		}
@@ -203,10 +204,10 @@ func injectMrt(r string, filename string, count int, skip int) error {
 
 	go func() {
 
-		var peers []*bgp.Peer
+		var peers []*mrt.Peer
 
 		for {
-			buf := make([]byte, bgp.MRT_COMMON_HEADER_LEN)
+			buf := make([]byte, mrt.MRT_COMMON_HEADER_LEN)
 			_, err := file.Read(buf)
 			if err == io.EOF {
 				break
@@ -214,7 +215,7 @@ func injectMrt(r string, filename string, count int, skip int) error {
 				exitWithError(fmt.Errorf("failed to read: %s", err))
 			}
 
-			h := &bgp.MRTHeader{}
+			h := &mrt.MRTHeader{}
 			err = h.DecodeFromBytes(buf)
 			if err != nil {
 				exitWithError(fmt.Errorf("failed to parse"))
@@ -226,7 +227,7 @@ func injectMrt(r string, filename string, count int, skip int) error {
 				exitWithError(fmt.Errorf("failed to read"))
 			}
 
-			msg, err := bgp.ParseMRTBody(h, buf)
+			msg, err := mrt.ParseMRTBody(h, buf)
 			if err != nil {
 				exitWithError(fmt.Errorf("failed to parse: %s", err))
 			}
@@ -235,16 +236,16 @@ func injectMrt(r string, filename string, count int, skip int) error {
 				fmt.Println(msg)
 			}
 
-			if msg.Header.Type == bgp.TABLE_DUMPv2 {
-				subType := bgp.MRTSubTypeTableDumpv2(msg.Header.SubType)
+			if msg.Header.Type == mrt.TABLE_DUMPv2 {
+				subType := mrt.MRTSubTypeTableDumpv2(msg.Header.SubType)
 				var rf bgp.RouteFamily
 				switch subType {
-				case bgp.PEER_INDEX_TABLE:
-					peers = msg.Body.(*bgp.PeerIndexTable).Peers
+				case mrt.PEER_INDEX_TABLE:
+					peers = msg.Body.(*mrt.PeerIndexTable).Peers
 					continue
-				case bgp.RIB_IPV4_UNICAST:
+				case mrt.RIB_IPV4_UNICAST:
 					rf = bgp.RF_IPv4_UC
-				case bgp.RIB_IPV6_UNICAST:
+				case mrt.RIB_IPV6_UNICAST:
 					rf = bgp.RF_IPv6_UC
 				default:
 					exitWithError(fmt.Errorf("unsupported subType: %s", subType))
@@ -254,7 +255,7 @@ func injectMrt(r string, filename string, count int, skip int) error {
 					exitWithError(fmt.Errorf("not found PEER_INDEX_TABLE"))
 				}
 
-				rib := msg.Body.(*bgp.Rib)
+				rib := msg.Body.(*mrt.Rib)
 				nlri := rib.Prefix
 
 				paths := make([]*api.Path, 0, len(rib.Entries))
