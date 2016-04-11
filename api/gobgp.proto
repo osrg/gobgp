@@ -58,6 +58,7 @@ service GobgpApi {
   rpc ModPolicy(ModPolicyArguments) returns (Error) {}
   rpc GetPolicyAssignment(PolicyAssignment) returns (PolicyAssignment) {}
   rpc ModPolicyAssignment(ModPolicyAssignmentArguments) returns (Error) {}
+  rpc GetRunningConfig(Config) returns (Config) {}
 }
 
 message Error {
@@ -550,4 +551,14 @@ message Global {
     uint32 mpls_label_min = 6;
     uint32 mpls_label_max = 7;
     bool collector = 8;
+}
+
+message Config {
+    enum Format {
+        JSON = 0;
+        TOML = 1;
+        YAML = 2;
+    }
+    Format format = 1;
+    bytes data = 2;
 }

@@ -109,6 +109,7 @@ type AdminState int
 const (
 	ADMIN_STATE_UP AdminState = iota
 	ADMIN_STATE_DOWN
+	ADMIN_STATE_PFX_CT
 )
 
 func (s AdminState) String() string {
@@ -117,6 +118,8 @@ func (s AdminState) String() string {
 		return "ADMIN_STATE_UP"
 	case ADMIN_STATE_DOWN:
 		return "ADMIN_STATE_DOWN"
+	case ADMIN_STATE_PFX_CT:
+		return "ADMIN_STATE_PFX_CT"
 	default:
 		return "Unknown"
 	}
@@ -198,6 +201,8 @@ func NewFSM(gConf *config.Global, pConf *config.Neighbor, policy *table.RoutingP
 	if pConf.State.AdminDown {
 		adminState = ADMIN_STATE_DOWN
 	}
+	pConf.State.SessionState = config.IntToSessionStateMap[int(bgp.BGP_FSM_IDLE)]
+	pConf.Timers.State.Downtime = time.Now().Unix()
 	fsm := &FSM{
 		gConf:                gConf,
 		pConf:                pConf,
@@ -1086,14 +1091,13 @@ func (h *FSMHandler) sendMessageloop() error {
 				}
 			}
 			if m.Notification != nil {
+				if m.StayIdle {
+					// current user is only prefix-limit
+					// fix me if this is not the case
+					h.changeAdminState(ADMIN_STATE_PFX_CT)
+				}
 				if err := send(m.Notification); err != nil {
 					return nil
-				}
-				if m.StayIdle {
-					select {
-					case h.fsm.adminStateCh <- ADMIN_STATE_DOWN:
-					default:
-					}
 				}
 			}
 		case <-ticker.C:
@@ -1272,7 +1276,7 @@ func (h *FSMHandler) changeAdminState(s AdminState) error {
 				"State": fsm.state,
 			}).Info("Administrative start")
 
-		case ADMIN_STATE_DOWN:
+		case ADMIN_STATE_DOWN, ADMIN_STATE_PFX_CT:
 			log.WithFields(log.Fields{
 				"Topic": "Peer",
 				"Key":   fsm.pConf.Config.NeighborAddress,

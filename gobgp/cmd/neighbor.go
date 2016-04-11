@@ -113,8 +113,11 @@ func showNeighbors() error {
 	format += " %-11s |%11s %8s %8s\n"
 	fmt.Printf(format, "Peer", "AS", "Up/Down", "State", "#Advertised", "Received", "Accepted")
 	format_fsm := func(admin, fsm string) string {
-		if admin == "ADMIN_STATE_DOWN" {
+		switch admin {
+		case "ADMIN_STATE_DOWN":
 			return "Idle(Admin)"
+		case "ADMIN_STATE_PFX_CT":
+			return "Idle(PfxCt)"
 		}
 
 		if fsm == "BGP_FSM_IDLE" {

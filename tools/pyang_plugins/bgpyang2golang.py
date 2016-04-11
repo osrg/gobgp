@@ -251,7 +251,7 @@ def emit_class_def(ctx, yang_statement, struct_name, prefix):
             elif name.startswith(convert_to_golang(struct_name)) and name.endswith("State"):
                 tag_name = 'state'
                 val_name_go = 'State'
-        print >> o, '  {0}\t{1} `mapstructure:"{2}"`'.format(val_name_go, emit_type_name, tag_name)
+        print >> o, '  {0}\t{1} `{2}`'.format(val_name_go, emit_type_name, ' '.join('{0}:"{1}"'.format(x, tag_name) for x in ['mapstructure', 'json', 'yaml', 'toml']))
 
     print >> o, '}'
     print o.getvalue()
