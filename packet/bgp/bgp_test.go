@@ -18,7 +18,6 @@ package bgp
 import (
 	"bytes"
 	"encoding/binary"
-	"fmt"
 	"github.com/stretchr/testify/assert"
 	"net"
 	"reflect"
@@ -213,14 +212,14 @@ func Test_RFC5512(t *testing.T) {
 	assert.Equal(nil, err)
 	assert.Equal("10.0.0.1", n2.String())
 
-	n1 = NewEncapNLRI("2001::1")
-	buf1, err = n1.Serialize()
+	n3 := NewEncapv6NLRI("2001::1")
+	buf1, err = n3.Serialize()
 	assert.Equal(nil, err)
 
-	n2 = NewEncapNLRI("")
-	err = n2.DecodeFromBytes(buf1)
+	n4 := NewEncapv6NLRI("")
+	err = n4.DecodeFromBytes(buf1)
 	assert.Equal(nil, err)
-	assert.Equal("2001::1", n2.String())
+	assert.Equal("2001::1", n4.String())
 }
 
 func Test_ASLen(t *testing.T) {
@@ -446,5 +445,4 @@ func Test_FlowSpecNlriL2(t *testing.T) {
 		t.Error(len(buf2), n2, buf2)
 		t.Log(bytes.Equal(buf1, buf2))
 	}
-	fmt.Println(n1, n2)
 }

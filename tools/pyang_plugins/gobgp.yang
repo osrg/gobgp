@@ -84,10 +84,17 @@ module gobgp {
     reference "RFC4684";
   }
 
-  identity ENCAP {
+  identity IPV4-ENCAP {
     base bgp-types:afi-safi-type;
     description
       "Encapsulation (AFI,SAFI = 1,7)";
+    reference "RFC5512";
+  }
+
+  identity IPV6-ENCAP {
+    base bgp-types:afi-safi-type;
+    description
+      "Encapsulation (AFI,SAFI = 2,7)";
     reference "RFC5512";
   }
 
