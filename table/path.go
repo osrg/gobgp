@@ -506,6 +506,10 @@ func (path *Path) delPathAttr(typ bgp.BGPAttrType) {
 // return Path's string representation
 func (path *Path) String() string {
 	s := bytes.NewBuffer(make([]byte, 0, 64))
+	if path.IsEOR() {
+		s.WriteString(fmt.Sprintf("{ %s EOR | src: %s }", path.GetRouteFamily(), path.GetSource()))
+		return s.String()
+	}
 	s.WriteString(fmt.Sprintf("{ %s | ", path.getPrefix()))
 	s.WriteString(fmt.Sprintf("src: %s", path.GetSource()))
 	s.WriteString(fmt.Sprintf(", nh: %s", path.GetNexthop()))
