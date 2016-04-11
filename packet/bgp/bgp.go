@@ -6594,7 +6594,13 @@ func NewEndOfRib(family RouteFamily) *BGPMessage {
 		return NewBGPUpdateMessage(nil, nil, nil)
 	} else {
 		afi, safi := RouteFamilyToAfiSafi(family)
+		t := BGP_ATTR_TYPE_MP_UNREACH_NLRI
 		unreach := &PathAttributeMpUnreachNLRI{
+			PathAttribute: PathAttribute{
+				Flags:  pathAttrFlags[t],
+				Type:   t,
+				Length: 0,
+			},
 			AFI:  afi,
 			SAFI: safi,
 		}
