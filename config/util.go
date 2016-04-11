@@ -57,3 +57,12 @@ func CreateRfMap(p *Neighbor) map[bgp.RouteFamily]bool {
 	}
 	return rfMap
 }
+
+func GetAfiSafi(p *Neighbor, family bgp.RouteFamily) *AfiSafi {
+	for _, a := range p.AfiSafis {
+		if string(a.AfiSafiName) == family.String() {
+			return &a
+		}
+	}
+	return nil
+}

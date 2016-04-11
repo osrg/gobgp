@@ -440,9 +440,9 @@ func checkAddressFamily(def bgp.RouteFamily) (bgp.RouteFamily, error) {
 		rf = bgp.RF_IPv4_UC
 	case "ipv6", "v6", "6":
 		rf = bgp.RF_IPv6_UC
-	case "vpnv4", "vpn-ipv4":
+	case "ipv4-l3vpn", "vpnv4", "vpn-ipv4":
 		rf = bgp.RF_IPv4_VPN
-	case "vpnv6", "vpn-ipv6":
+	case "ipv6-l3vpn", "vpnv6", "vpn-ipv6":
 		rf = bgp.RF_IPv6_VPN
 	case "ipv4-labeled", "ipv4-labelled", "ipv4-mpls":
 		rf = bgp.RF_IPv4_MPLS

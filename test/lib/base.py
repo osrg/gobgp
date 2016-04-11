@@ -250,7 +250,7 @@ class BGPContainer(Container):
         super(BGPContainer, self).run()
         return self.WAIT_FOR_BOOT
 
-    def add_peer(self, peer, passwd=None, evpn=False, is_rs_client=False,
+    def add_peer(self, peer, passwd=None, vpn=False, is_rs_client=False,
                  policies=None, passive=False,
                  is_rr_client=False, cluster_id=None,
                  flowspec=False, bridge='', reload_config=True, as2=False,
@@ -273,7 +273,7 @@ class BGPContainer(Container):
 
         self.peers[peer] = {'neigh_addr': neigh_addr,
                             'passwd': passwd,
-                            'evpn': evpn,
+                            'vpn': vpn,
                             'flowspec': flowspec,
                             'is_rs_client': is_rs_client,
                             'is_rr_client': is_rr_client,

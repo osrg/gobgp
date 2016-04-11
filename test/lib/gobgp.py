@@ -212,10 +212,12 @@ class GoBGPContainer(BGPContainer):
             else:
                 Exception('invalid ip address version. {0}'.format(version))
 
-            if info['evpn']:
+            if info['vpn']:
+                afi_safi_list.append({'afi-safi-name': 'l3vpn-ipv4-unicast'})
+                afi_safi_list.append({'afi-safi-name': 'l3vpn-ipv6-unicast'})
                 afi_safi_list.append({'afi-safi-name': 'l2vpn-evpn'})
-                afi_safi_list.append({'afi-safi-name': 'encap'})
-                afi_safi_list.append({'afi-safi-name': 'rtc'})
+                afi_safi_list.append({'afi-safi-name': 'rtc',
+                    'route-target-membership': {'deferral-time': 10}})
 
             if info['flowspec']:
                 afi_safi_list.append({'afi-safi-name': 'ipv4-flowspec'})

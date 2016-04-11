@@ -56,10 +56,12 @@ class GoBGPTestBase(unittest.TestCase):
         initial_wait_time = max(ctn.run() for ctn in ctns)
 
         time.sleep(initial_wait_time)
+        g1.local("gobgp vrf add vrf1 rd 10:10 rt both 10:10")
+        g2.local("gobgp vrf add vrf1 rd 10:10 rt both 10:10")
 
         for a, b in combinations(ctns, 2):
-            a.add_peer(b, evpn=True, passwd='evpn')
-            b.add_peer(a, evpn=True, passwd='evpn')
+            a.add_peer(b, vpn=True, passwd='evpn')
+            b.add_peer(a, vpn=True, passwd='evpn')
 
         cls.g1 = g1
         cls.g2 = g2
