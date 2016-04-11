@@ -450,8 +450,10 @@ func checkAddressFamily(def bgp.RouteFamily) (bgp.RouteFamily, error) {
 		rf = bgp.RF_IPv6_MPLS
 	case "evpn":
 		rf = bgp.RF_EVPN
-	case "encap":
-		rf = bgp.RF_ENCAP
+	case "encap", "ipv4-encap":
+		rf = bgp.RF_IPv4_ENCAP
+	case "ipv6-encap":
+		rf = bgp.RF_IPv6_ENCAP
 	case "rtc":
 		rf = bgp.RF_RTC_UC
 	case "ipv4-flowspec", "ipv4-flow", "flow4":
