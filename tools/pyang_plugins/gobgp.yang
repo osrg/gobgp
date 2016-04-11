@@ -826,4 +826,12 @@ module gobgp {
   augment "/bgp:bgp/bgp:global/bgp:afi-safis/bgp:afi-safi" {
       uses bgp-mp:all-afi-safi-common;
   }
+
+  augment "/bgp:bgp/bgp:global/bgp:afi-safis/bgp:afi-safi" {
+    container route-target-membership {
+        leaf deferral-time {
+          type uint16;
+        }
+    }
+  }
 }

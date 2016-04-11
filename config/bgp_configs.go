@@ -2597,6 +2597,22 @@ func (lhs *Collector) Equal(rhs *Collector) bool {
 	return true
 }
 
+//struct for container gobgp:route-target-membership
+type RouteTargetMembership struct {
+	// original -> gobgp:deferral-time
+	DeferralTime uint16 `mapstructure:"deferral-time"`
+}
+
+func (lhs *RouteTargetMembership) Equal(rhs *RouteTargetMembership) bool {
+	if lhs == nil || rhs == nil {
+		return false
+	}
+	if lhs.DeferralTime != rhs.DeferralTime {
+		return false
+	}
+	return true
+}
+
 //struct for container bgp-mp:l2vpn-evpn
 type L2vpnEvpn struct {
 	// original -> bgp-mp:prefix-limit
@@ -3224,6 +3240,8 @@ type AfiSafi struct {
 	UseMultiplePaths UseMultiplePaths `mapstructure:"use-multiple-paths"`
 	// original -> bgp-mp:prefix-limit
 	PrefixLimit PrefixLimit `mapstructure:"prefix-limit"`
+	// original -> gobgp:route-target-membership
+	RouteTargetMembership RouteTargetMembership `mapstructure:"route-target-membership"`
 }
 
 func (lhs *AfiSafi) Equal(rhs *AfiSafi) bool {
@@ -3282,6 +3300,9 @@ func (lhs *AfiSafi) Equal(rhs *AfiSafi) bool {
 		return false
 	}
 	if !lhs.PrefixLimit.Equal(&(rhs.PrefixLimit)) {
+		return false
+	}
+	if !lhs.RouteTargetMembership.Equal(&(rhs.RouteTargetMembership)) {
 		return false
 	}
 	return true
