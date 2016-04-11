@@ -19,6 +19,7 @@ import (
 	"bytes"
 	log "github.com/Sirupsen/logrus"
 	"github.com/osrg/gobgp/packet/bgp"
+	"github.com/osrg/gobgp/packet/mrt"
 	"github.com/osrg/gobgp/table"
 	"gopkg.in/tomb.v2"
 	"net"
@@ -137,13 +138,13 @@ func (w *mrtWatcher) loop() error {
 	for {
 		serialize := func(ev watcherEvent) ([]byte, error) {
 			m := ev.(*watcherEventUpdateMsg)
-			subtype := bgp.MESSAGE_AS4
-			mp := bgp.NewBGP4MPMessage(m.peerAS, m.localAS, 0, m.peerAddress.String(), m.localAddress.String(), m.fourBytesAs, nil)
+			subtype := mrt.MESSAGE_AS4
+			mp := mrt.NewBGP4MPMessage(m.peerAS, m.localAS, 0, m.peerAddress.String(), m.localAddress.String(), m.fourBytesAs, nil)
 			mp.BGPMessagePayload = m.payload
 			if m.fourBytesAs == false {
-				subtype = bgp.MESSAGE
+				subtype = mrt.MESSAGE
 			}
-			bm, err := bgp.NewMRTMessage(uint32(m.timestamp.Unix()), bgp.BGP4MP, subtype, mp)
+			bm, err := mrt.NewMRTMessage(uint32(m.timestamp.Unix()), mrt.BGP4MP, subtype, mp)
 			if err != nil {
 				log.WithFields(log.Fields{
 					"Topic": "mrt",
