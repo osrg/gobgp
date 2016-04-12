@@ -18,7 +18,7 @@ package cmd
 import (
 	"fmt"
 	api "github.com/osrg/gobgp/api"
-	"github.com/osrg/gobgp/packet/bgp"
+	"github.com/osrg/gobgp/packet/bmp"
 	"github.com/spf13/cobra"
 	"golang.org/x/net/context"
 	"net"
@@ -38,7 +38,7 @@ func modBmpServer(cmdType string, args []string) error {
 			return nil
 		}
 		arg.Address = args[0]
-		arg.Port = bgp.BMP_DEFAULT_PORT
+		arg.Port = bmp.BMP_DEFAULT_PORT
 	} else {
 		arg.Address = host
 		p, _ := strconv.Atoi(port)

@@ -13,11 +13,12 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package bgp
+package bmp
 
 import (
 	"encoding/binary"
 	"fmt"
+	"github.com/osrg/gobgp/packet/bgp"
 	"math"
 	"net"
 )
@@ -136,11 +137,11 @@ func (h *BMPPeerHeader) Serialize() ([]byte, error) {
 }
 
 type BMPRouteMonitoring struct {
-	BGPUpdate        *BGPMessage
+	BGPUpdate        *bgp.BGPMessage
 	BGPUpdatePayload []byte
 }
 
-func NewBMPRouteMonitoring(p BMPPeerHeader, update *BGPMessage) *BMPMessage {
+func NewBMPRouteMonitoring(p BMPPeerHeader, update *bgp.BGPMessage) *BMPMessage {
 	return &BMPMessage{
 		Header: BMPHeader{
 			Version: BMP_VERSION,
@@ -154,7 +155,7 @@ func NewBMPRouteMonitoring(p BMPPeerHeader, update *BGPMessage) *BMPMessage {
 }
 
 func (body *BMPRouteMonitoring) ParseBody(msg *BMPMessage, data []byte) error {
-	update, err := ParseBGPMessage(data)
+	update, err := bgp.ParseBGPMessage(data)
 	if err != nil {
 		return err
 	}
@@ -202,11 +203,11 @@ const (
 
 type BMPPeerDownNotification struct {
 	Reason          uint8
-	BGPNotification *BGPMessage
+	BGPNotification *bgp.BGPMessage
 	Data            []byte
 }
 
-func NewBMPPeerDownNotification(p BMPPeerHeader, reason uint8, notification *BGPMessage, data []byte) *BMPMessage {
+func NewBMPPeerDownNotification(p BMPPeerHeader, reason uint8, notification *bgp.BGPMessage, data []byte) *BMPMessage {
 	b := &BMPPeerDownNotification{
 		Reason: reason,
 	}
@@ -230,7 +231,7 @@ func (body *BMPPeerDownNotification) ParseBody(msg *BMPMessage, data []byte) err
 	body.Reason = data[0]
 	data = data[1:]
 	if body.Reason == BMP_PEER_DOWN_REASON_LOCAL_BGP_NOTIFICATION || body.Reason == BMP_PEER_DOWN_REASON_REMOTE_BGP_NOTIFICATION {
-		notification, err := ParseBGPMessage(data)
+		notification, err := bgp.ParseBGPMessage(data)
 		if err != nil {
 			return err
 		}
@@ -266,11 +267,11 @@ type BMPPeerUpNotification struct {
 	LocalAddress    net.IP
 	LocalPort       uint16
 	RemotePort      uint16
-	SentOpenMsg     *BGPMessage
-	ReceivedOpenMsg *BGPMessage
+	SentOpenMsg     *bgp.BGPMessage
+	ReceivedOpenMsg *bgp.BGPMessage
 }
 
-func NewBMPPeerUpNotification(p BMPPeerHeader, lAddr string, lPort, rPort uint16, sent, recv *BGPMessage) *BMPMessage {
+func NewBMPPeerUpNotification(p BMPPeerHeader, lAddr string, lPort, rPort uint16, sent, recv *bgp.BGPMessage) *BMPMessage {
 	b := &BMPPeerUpNotification{
 		LocalPort:       lPort,
 		RemotePort:      rPort,
@@ -304,13 +305,13 @@ func (body *BMPPeerUpNotification) ParseBody(msg *BMPMessage, data []byte) error
 	body.RemotePort = binary.BigEndian.Uint16(data[18:20])
 
 	data = data[20:]
-	sentopen, err := ParseBGPMessage(data)
+	sentopen, err := bgp.ParseBGPMessage(data)
 	if err != nil {
 		return err
 	}
 	body.SentOpenMsg = sentopen
 	data = data[body.SentOpenMsg.Header.Len:]
-	body.ReceivedOpenMsg, err = ParseBGPMessage(data)
+	body.ReceivedOpenMsg, err = bgp.ParseBGPMessage(data)
 	if err != nil {
 		return err
 	}
@@ -572,26 +573,6 @@ func ParseBMPMessage(data []byte) (*BMPMessage, error) {
 		return nil, err
 	}
 	return msg, nil
-}
-
-type MessageError struct {
-	TypeCode    uint8
-	SubTypeCode uint8
-	Data        []byte
-	Message     string
-}
-
-func NewMessageError(typeCode, subTypeCode uint8, data []byte, msg string) error {
-	return &MessageError{
-		TypeCode:    typeCode,
-		SubTypeCode: subTypeCode,
-		Data:        data,
-		Message:     msg,
-	}
-}
-
-func (e *MessageError) Error() string {
-	return e.Message
 }
 
 func SplitBMP(data []byte, atEOF bool) (advance int, token []byte, err error) {

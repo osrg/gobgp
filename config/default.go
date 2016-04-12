@@ -3,6 +3,7 @@ package config
 import (
 	"fmt"
 	"github.com/osrg/gobgp/packet/bgp"
+	"github.com/osrg/gobgp/packet/bmp"
 	"github.com/osrg/gobgp/packet/rtr"
 	"github.com/spf13/viper"
 	"net"
@@ -55,7 +56,7 @@ func SetDefaultConfigValues(v *viper.Viper, b *Bgp) error {
 
 	for idx, server := range b.BmpServers {
 		if server.Config.Port == 0 {
-			server.Config.Port = bgp.BMP_DEFAULT_PORT
+			server.Config.Port = bmp.BMP_DEFAULT_PORT
 		}
 		b.BmpServers[idx] = server
 	}

@@ -6785,3 +6785,23 @@ func (msg *BGPMessage) Serialize() ([]byte, error) {
 	}
 	return append(h, b...), nil
 }
+
+type MessageError struct {
+	TypeCode    uint8
+	SubTypeCode uint8
+	Data        []byte
+	Message     string
+}
+
+func NewMessageError(typeCode, subTypeCode uint8, data []byte, msg string) error {
+	return &MessageError{
+		TypeCode:    typeCode,
+		SubTypeCode: subTypeCode,
+		Data:        data,
+		Message:     msg,
+	}
+}
+
+func (e *MessageError) Error() string {
+	return e.Message
+}

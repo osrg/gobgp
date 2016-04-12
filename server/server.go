@@ -30,6 +30,7 @@ import (
 	api "github.com/osrg/gobgp/api"
 	"github.com/osrg/gobgp/config"
 	"github.com/osrg/gobgp/packet/bgp"
+	"github.com/osrg/gobgp/packet/bmp"
 	"github.com/osrg/gobgp/packet/mrt"
 	"github.com/osrg/gobgp/table"
 	"github.com/osrg/gobgp/zebra"
@@ -1813,11 +1814,11 @@ func (server *BgpServer) handleGrpc(grpcReq *GrpcRequest) []*SenderMsg {
 		close(grpcReq.ResponseCh)
 	case REQ_BMP_GLOBAL:
 		paths := server.globalRib.GetBestPathList(table.GLOBAL_RIB_NAME, server.globalRib.GetRFlist())
-		bmpmsgs := make([]*bgp.BMPMessage, 0, len(paths))
+		bmpmsgs := make([]*bmp.BMPMessage, 0, len(paths))
 		for _, path := range paths {
 			msgs := table.CreateUpdateMsgFromPaths([]*table.Path{path})
 			buf, _ := msgs[0].Serialize()
-			bmpmsgs = append(bmpmsgs, bmpPeerRoute(bgp.BMP_PEER_TYPE_GLOBAL, true, 0, path.GetSource(), path.GetTimestamp().Unix(), buf))
+			bmpmsgs = append(bmpmsgs, bmpPeerRoute(bmp.BMP_PEER_TYPE_GLOBAL, true, 0, path.GetSource(), path.GetTimestamp().Unix(), buf))
 		}
 		grpcReq.ResponseCh <- &GrpcResponse{
 			Data: bmpmsgs,
@@ -1848,7 +1849,7 @@ func (server *BgpServer) handleGrpc(grpcReq *GrpcRequest) []*SenderMsg {
 		go sendMultipleResponses(grpcReq, results)
 	case REQ_BMP_NEIGHBORS:
 		//TODO: merge REQ_NEIGHBORS and REQ_BMP_NEIGHBORS
-		msgs := make([]*bgp.BMPMessage, 0, len(server.neighborMap))
+		msgs := make([]*bmp.BMPMessage, 0, len(server.neighborMap))
 		for _, peer := range server.neighborMap {
 			if peer.fsm.state != bgp.BGP_FSM_ESTABLISHED {
 				continue
@@ -1858,7 +1859,7 @@ func (server *BgpServer) handleGrpc(grpcReq *GrpcRequest) []*SenderMsg {
 			sentOpen := buildopen(peer.fsm.gConf, peer.fsm.pConf)
 			info := peer.fsm.peerInfo
 			timestamp := peer.conf.Timers.State.Uptime
-			msg := bmpPeerUp(laddr, lport, rport, sentOpen, peer.fsm.recvOpen, bgp.BMP_PEER_TYPE_GLOBAL, false, 0, info, timestamp)
+			msg := bmpPeerUp(laddr, lport, rport, sentOpen, peer.fsm.recvOpen, bmp.BMP_PEER_TYPE_GLOBAL, false, 0, info, timestamp)
 			msgs = append(msgs, msg)
 		}
 		grpcReq.ResponseCh <- &GrpcResponse{
@@ -1945,7 +1946,7 @@ func (server *BgpServer) handleGrpc(grpcReq *GrpcRequest) []*SenderMsg {
 		}
 		close(grpcReq.ResponseCh)
 	case REQ_BMP_ADJ_IN:
-		bmpmsgs := make([]*bgp.BMPMessage, 0)
+		bmpmsgs := make([]*bmp.BMPMessage, 0)
 		for _, peer := range server.neighborMap {
 			if peer.fsm.state != bgp.BGP_FSM_ESTABLISHED {
 				continue
@@ -1953,7 +1954,7 @@ func (server *BgpServer) handleGrpc(grpcReq *GrpcRequest) []*SenderMsg {
 			for _, path := range peer.adjRibIn.PathList(peer.configuredRFlist(), false) {
 				msgs := table.CreateUpdateMsgFromPaths([]*table.Path{path})
 				buf, _ := msgs[0].Serialize()
-				bmpmsgs = append(bmpmsgs, bmpPeerRoute(bgp.BMP_PEER_TYPE_GLOBAL, false, 0, peer.fsm.peerInfo, path.GetTimestamp().Unix(), buf))
+				bmpmsgs = append(bmpmsgs, bmpPeerRoute(bmp.BMP_PEER_TYPE_GLOBAL, false, 0, peer.fsm.peerInfo, path.GetTimestamp().Unix(), buf))
 			}
 		}
 		grpcReq.ResponseCh <- &GrpcResponse{
