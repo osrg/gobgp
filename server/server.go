@@ -477,7 +477,7 @@ func (server *BgpServer) dropPeerAllRoutes(peer *Peer, families []bgp.RouteFamil
 			if peer.isRouteServerClient() != targetPeer.isRouteServerClient() || targetPeer == peer {
 				continue
 			}
-			if paths := targetPeer.processOutgoingPaths(best[targetPeer.TableID()]); len(paths) > 0 {
+			if paths := targetPeer.processOutgoingPaths(best[targetPeer.TableID()], nil); len(paths) > 0 {
 				msgs = append(msgs, newSenderMsg(targetPeer, paths, nil, false))
 			}
 		}
@@ -746,7 +746,7 @@ func (server *BgpServer) propagateUpdate(peer *Peer, pathList []*table.Path) ([]
 		if (peer == nil && targetPeer.isRouteServerClient()) || (peer != nil && peer.isRouteServerClient() != targetPeer.isRouteServerClient()) {
 			continue
 		}
-		if paths := targetPeer.processOutgoingPaths(best[targetPeer.TableID()]); len(paths) > 0 {
+		if paths := targetPeer.processOutgoingPaths(best[targetPeer.TableID()], withdrawn); len(paths) > 0 {
 			msgs = append(msgs, newSenderMsg(targetPeer, paths, nil, false))
 		}
 	}

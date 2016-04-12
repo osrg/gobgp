@@ -303,12 +303,40 @@ class GoBGPTestBase(unittest.TestCase):
         self.assertTrue(paths[0]['nexthop'] in n_addrs)
 
         q3.stop()
+        del self.quaggas['q3']
 
         time.sleep(3)
 
         paths = q1.get_global_rib('20.0.0.0/24')
         self.assertTrue(len(paths) == 1)
         self.assertTrue(paths[0]['nexthop'] in n_addrs)
+
+    def test_18_check_withdrawal(self):
+        g1 = self.gobgp
+        q1 = self.quaggas['q1']
+        q2 = self.quaggas['q2']
+
+        g1.add_route('30.0.0.0/24')
+        q1.add_route('30.0.0.0/24')
+
+        self.test_01_neighbor_established()
+
+        self.test_02_check_gobgp_global_rib()
+
+        paths = g1.get_adj_rib_out(q1, '30.0.0.0/24')
+        self.assertTrue(len(paths) == 1)
+        self.assertTrue(paths[0]['source-id'] == '<nil>')
+        paths = g1.get_adj_rib_out(q2, '30.0.0.0/24')
+        self.assertTrue(len(paths) == 1)
+        self.assertTrue(paths[0]['source-id'] == '<nil>')
+
+        g1.local('gobgp global rib del 30.0.0.0/24')
+
+        paths = g1.get_adj_rib_out(q1, '30.0.0.0/24')
+        self.assertTrue(len(paths) == 0)
+        paths = g1.get_adj_rib_out(q2, '30.0.0.0/24')
+        self.assertTrue(len(paths) == 1)
+        self.assertTrue(paths[0]['source-id'] == '192.168.0.2')
 
 
 if __name__ == '__main__':
