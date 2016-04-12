@@ -28,6 +28,7 @@ import (
 	api "github.com/osrg/gobgp/api"
 	"github.com/osrg/gobgp/config"
 	"github.com/osrg/gobgp/packet/bgp"
+	"github.com/osrg/gobgp/packet/rtr"
 	"github.com/osrg/gobgp/table"
 	"gopkg.in/tomb.v2"
 )
@@ -346,10 +347,10 @@ func (m *roaManager) addROA(roa *ROA) {
 func (c *roaManager) handleRTRMsg(client *roaClient, state *config.RpkiServerState, buf []byte) {
 	received := &state.RpkiMessages.RpkiReceived
 
-	m, err := bgp.ParseRTR(buf)
+	m, err := rtr.ParseRTR(buf)
 	if err == nil {
 		switch msg := m.(type) {
-		case *bgp.RTRSerialNotify:
+		case *rtr.RTRSerialNotify:
 			if before(client.serialNumber, msg.RTRCommon.SerialNumber) {
 				client.enable(client.serialNumber)
 			} else if client.serialNumber == msg.RTRCommon.SerialNumber {
@@ -359,14 +360,14 @@ func (c *roaManager) handleRTRMsg(client *roaClient, state *config.RpkiServerSta
 				client.softReset()
 			}
 			received.SerialNotify++
-		case *bgp.RTRSerialQuery:
-		case *bgp.RTRResetQuery:
-		case *bgp.RTRCacheResponse:
+		case *rtr.RTRSerialQuery:
+		case *rtr.RTRResetQuery:
+		case *rtr.RTRCacheResponse:
 			received.CacheResponse++
 			client.endOfData = false
-		case *bgp.RTRIPPrefix:
+		case *rtr.RTRIPPrefix:
 			family := bgp.AFI_IP
-			if msg.Type == bgp.RTR_IPV4_PREFIX {
+			if msg.Type == rtr.RTR_IPV4_PREFIX {
 				received.Ipv4Prefix++
 			} else {
 				family = bgp.AFI_IP6
@@ -382,7 +383,7 @@ func (c *roaManager) handleRTRMsg(client *roaClient, state *config.RpkiServerSta
 			} else {
 				c.deleteROA(roa)
 			}
-		case *bgp.RTREndOfData:
+		case *rtr.RTREndOfData:
 			received.EndOfData++
 			if client.sessionID != msg.RTRCommon.SessionID {
 				// remove all ROAs related with the
@@ -400,10 +401,10 @@ func (c *roaManager) handleRTRMsg(client *roaClient, state *config.RpkiServerSta
 				c.addROA(roa)
 			}
 			client.pendingROAs = make([]*ROA, 0)
-		case *bgp.RTRCacheReset:
+		case *rtr.RTRCacheReset:
 			client.softReset()
 			received.CacheReset++
-		case *bgp.RTRErrorReport:
+		case *rtr.RTRErrorReport:
 			received.Error++
 		}
 	} else {
@@ -635,7 +636,7 @@ func NewRoaClient(address, port string, ch chan *ROAEvent, lifetime int64) *roaC
 
 func (c *roaClient) enable(serial uint32) error {
 	if c.conn != nil {
-		r := bgp.NewRTRSerialQuery(c.sessionID, serial)
+		r := rtr.NewRTRSerialQuery(c.sessionID, serial)
 		data, _ := r.Serialize()
 		_, err := c.conn.Write(data)
 		if err != nil {
@@ -648,7 +649,7 @@ func (c *roaClient) enable(serial uint32) error {
 
 func (c *roaClient) softReset() error {
 	if c.conn != nil {
-		r := bgp.NewRTRResetQuery()
+		r := rtr.NewRTRResetQuery()
 		data, _ := r.Serialize()
 		_, err := c.conn.Write(data)
 		if err != nil {
@@ -702,17 +703,17 @@ func (c *roaClient) established() error {
 	}
 
 	for {
-		header := make([]byte, bgp.RTR_MIN_LEN)
+		header := make([]byte, rtr.RTR_MIN_LEN)
 		_, err := io.ReadFull(c.conn, header)
 		if err != nil {
 			break
 		}
 		totalLen := binary.BigEndian.Uint32(header[4:8])
-		if totalLen < bgp.RTR_MIN_LEN {
+		if totalLen < rtr.RTR_MIN_LEN {
 			break
 		}
 
-		body := make([]byte, totalLen-bgp.RTR_MIN_LEN)
+		body := make([]byte, totalLen-rtr.RTR_MIN_LEN)
 		_, err = io.ReadFull(c.conn, body)
 		if err != nil {
 			break

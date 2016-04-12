@@ -3,6 +3,7 @@ package config
 import (
 	"fmt"
 	"github.com/osrg/gobgp/packet/bgp"
+	"github.com/osrg/gobgp/packet/rtr"
 	"github.com/spf13/viper"
 	"net"
 )
@@ -171,7 +172,7 @@ func SetDefaultConfigValues(v *viper.Viper, b *Bgp) error {
 
 	for _, r := range b.RpkiServers {
 		if r.Config.Port == 0 {
-			r.Config.Port = bgp.RPKI_DEFAULT_PORT
+			r.Config.Port = rtr.RPKI_DEFAULT_PORT
 		}
 	}
 
