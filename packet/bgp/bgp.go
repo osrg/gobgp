@@ -4660,6 +4660,10 @@ func (p *PathAttributeMpReachNLRI) MarshalJSON() ([]byte, error) {
 	})
 }
 
+func (p *PathAttributeMpReachNLRI) String() string {
+	return fmt.Sprintf("{MpReach(%s): {Nexthop: %s, NLRIs: %s}}", AfiSafiToRouteFamily(p.AFI, p.SAFI), p.Nexthop, p.Value)
+}
+
 func NewPathAttributeMpReachNLRI(nexthop string, nlri []AddrPrefixInterface) *PathAttributeMpReachNLRI {
 	t := BGP_ATTR_TYPE_MP_REACH_NLRI
 	ip := net.ParseIP(nexthop)
@@ -4740,6 +4744,13 @@ func (p *PathAttributeMpUnreachNLRI) Serialize() ([]byte, error) {
 	}
 	p.PathAttribute.Value = buf
 	return p.PathAttribute.Serialize()
+}
+
+func (p *PathAttributeMpUnreachNLRI) String() string {
+	if len(p.Value) > 0 {
+		return fmt.Sprintf("{MpUnreach(%s): {NLRIs: %s}}", AfiSafiToRouteFamily(p.AFI, p.SAFI), p.Value)
+	}
+	return fmt.Sprintf("{MpUnreach(%s): End-of-Rib}", AfiSafiToRouteFamily(p.AFI, p.SAFI))
 }
 
 func NewPathAttributeMpUnreachNLRI(nlri []AddrPrefixInterface) *PathAttributeMpUnreachNLRI {
