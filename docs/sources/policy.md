@@ -167,7 +167,7 @@ PrefixSets and NeighborSets section are prefix match part and neighbor match par
 
 # neighbor match part
 [[defined-sets.neighbor-sets]]
-  prefix-set-name = "ps1"
+  neighbor-set-name = "ps1"
   neighbor-info-list = ["10.0.255.1"]
  ```
 
