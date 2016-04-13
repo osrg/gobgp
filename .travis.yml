@@ -15,6 +15,18 @@ env:
  - SCENARIO=false
  - SCENARIO=true
 
+before_install:
+  - sudo apt-get -qq update
+  - sudo apt-get install -y iputils-arping bridge-utils lv
+
+install:
+  - sudo wget https://raw.github.com/jpetazzo/pipework/master/pipework -O /usr/local/bin/pipework
+  - sudo chmod 755 /usr/local/bin/pipework
+  - sudo -H pip --quiet install -r test/pip-requires.txt
+  - go get github.com/stretchr/testify/assert
+  - go get github.com/osrg/gobgp/gobgpd
+  - go get github.com/osrg/gobgp/gobgp
+
 matrix:
   exclude:
     - go: 1.3

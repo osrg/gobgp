@@ -16,16 +16,6 @@ echo ""
 export GOBGP_IMAGE=gobgp
 export GOBGP=`pwd`
 
-sudo apt-get -q update
-sudo apt-get -q -y install iputils-arping bridge-utils lv
-sudo wget https://raw.github.com/jpetazzo/pipework/master/pipework -O /usr/local/bin/pipework
-sudo chmod 755 /usr/local/bin/pipework
-
-sudo -H pip --quiet install -r $GOBGP/test/pip-requires.txt
-
-ls -al
-git log | head -20
-
 sudo fab -f $GOBGP/test/lib/base.py make_gobgp_ctn:tag=$GOBGP_IMAGE
 [ "$?" != 0 ] && exit "$?"
 
