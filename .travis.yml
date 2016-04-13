@@ -2,7 +2,11 @@ language: go
 
 sudo: required
 services:
-  - docker
+- docker
+
+cache:
+- apt
+- pip
 
 go:
  - 1.3
@@ -12,19 +16,25 @@ go:
  - tip
 
 env:
- - SCENARIO=false
- - SCENARIO=true
+ - SCENARIO=""
+ - SCENARIO=route_server
+ - SCENARIO=route_server_ipv4_v6
+ - SCENARIO=bgp_router
+ - SCENARIO=ibgp_router
+ - SCENARIO=evpn
+ - SCENARIO=flow_spec
+ - SCENARIO=route_reflector
 
 matrix:
-  exclude:
-    - go: 1.3
-      env: SCENARIO=true
-    - go: 1.4
-      env: SCENARIO=true
-    - go: 1.5
-      env: SCENARIO=true
-    - go: tip
-      env: SCENARIO=true
+- go: 1.3
+  env: SCENARIO=""
+- go: 1.4
+  env: SCENARIO=""
+- go: 1.5
+  env: SCENARIO=""
+- go: 1.6
+- go: tip
+  env: SCENARIO=""
 
 script:
  - bash test/scenario_test/ci-scripts/travis-build-script.sh $SCENARIO
