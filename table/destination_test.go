@@ -105,6 +105,61 @@ func TestCalculate(t *testing.T) {
 	assert.Equal(t, len(d.knownPathList), 0)
 }
 
+func TestCalculate2(t *testing.T) {
+
+	origin := bgp.NewPathAttributeOrigin(0)
+	aspathParam := []bgp.AsPathParamInterface{bgp.NewAs4PathParam(2, []uint32{65001})}
+	aspath := bgp.NewPathAttributeAsPath(aspathParam)
+	nexthop := bgp.NewPathAttributeNextHop("10.0.0.1")
+	med := bgp.NewPathAttributeMultiExitDisc(0)
+	pathAttributes := []bgp.PathAttributeInterface{origin, aspath, nexthop, med}
+	nlri := bgp.NewIPAddrPrefix(24, "10.10.0.0")
+
+	// peer1 sends normal update message 10.10.0.0/24
+	update1 := bgp.NewBGPUpdateMessage(nil, pathAttributes, []*bgp.IPAddrPrefix{nlri})
+	peer1 := &PeerInfo{AS: 1, Address: net.IP{1, 1, 1, 1}}
+	path1 := ProcessMessage(update1, peer1, time.Now())[0]
+
+	d := NewDestination(nlri)
+	d.addNewPath(path1)
+	d.Calculate(nil)
+
+	// suppose peer2 sends grammaatically correct but semantically flawed update message
+	// which has a withdrawal nlri not advertised before
+	update2 := bgp.NewBGPUpdateMessage([]*bgp.IPAddrPrefix{nlri}, pathAttributes, nil)
+	peer2 := &PeerInfo{AS: 2, Address: net.IP{2, 2, 2, 2}}
+	path2 := ProcessMessage(update2, peer2, time.Now())[0]
+	assert.Equal(t, path2.IsWithdraw, true)
+
+	d.addWithdraw(path2)
+	d.Calculate(nil)
+
+	// we have a path from peer1 here
+	assert.Equal(t, len(d.knownPathList), 1)
+
+	// after that, new update with the same nlri comes from peer2
+	update3 := bgp.NewBGPUpdateMessage(nil, pathAttributes, []*bgp.IPAddrPrefix{nlri})
+	path3 := ProcessMessage(update3, peer2, time.Now())[0]
+	assert.Equal(t, path3.IsWithdraw, false)
+
+	d.addNewPath(path3)
+	d.Calculate(nil)
+
+	// this time, we have paths from peer1 and peer2
+	assert.Equal(t, len(d.knownPathList), 2)
+
+	// now peer3 sends normal update message 10.10.0.0/24
+	peer3 := &PeerInfo{AS: 3, Address: net.IP{3, 3, 3, 3}}
+	update4 := bgp.NewBGPUpdateMessage(nil, pathAttributes, []*bgp.IPAddrPrefix{nlri})
+	path4 := ProcessMessage(update4, peer3, time.Now())[0]
+
+	d.addNewPath(path4)
+	d.Calculate(nil)
+
+	// we must have paths from peer1, peer2 and peer3
+	assert.Equal(t, len(d.knownPathList), 3)
+}
+
 func DestCreatePeer() []*PeerInfo {
 	peerD1 := &PeerInfo{AS: 65000}
 	peerD2 := &PeerInfo{AS: 65001}
