@@ -274,6 +274,17 @@ func showNeighbor(args []string) error {
 	fmt.Printf("    Advertised:    %10d\n", p.Info.Advertised)
 	fmt.Printf("    Received:      %10d\n", p.Info.Received)
 	fmt.Printf("    Accepted:      %10d\n", p.Info.Accepted)
+	if len(p.Conf.PrefixLimits) > 0 {
+		fmt.Println("  Prefix Limits:")
+		for _, c := range p.Conf.PrefixLimits {
+			fmt.Printf("    %s:\tMaximum prefixes allowed %d", bgp.RouteFamily(c.Family), c.MaxPrefixes)
+			if c.ShutdownThresholdPct > 0 {
+				fmt.Printf(", Threshold for warning message %d%%\n", c.ShutdownThresholdPct)
+			} else {
+				fmt.Printf("\n")
+			}
+		}
+	}
 
 	return nil
 }

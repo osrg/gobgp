@@ -333,6 +333,18 @@ func (peer *Peer) ToApiStruct() *api.Peer {
 		localCap = append(localCap, buf)
 	}
 
+	prefixLimits := make([]*api.PrefixLimit, 0, len(peer.fsm.pConf.AfiSafis))
+	for _, family := range peer.fsm.pConf.AfiSafis {
+		if c := family.PrefixLimit.Config; c.MaxPrefixes > 0 {
+			k, _ := bgp.GetRouteFamily(string(family.AfiSafiName))
+			prefixLimits = append(prefixLimits, &api.PrefixLimit{
+				Family:               uint32(k),
+				MaxPrefixes:          c.MaxPrefixes,
+				ShutdownThresholdPct: uint32(c.ShutdownThresholdPct),
+			})
+		}
+	}
+
 	conf := &api.PeerConf{
 		NeighborAddress:  c.Config.NeighborAddress,
 		Id:               peer.fsm.peerInfo.ID.To4().String(),
@@ -347,6 +359,7 @@ func (peer *Peer) ToApiStruct() *api.Peer {
 		PeerGroup:        c.Config.PeerGroup,
 		RemoteCap:        remoteCap,
 		LocalCap:         localCap,
+		PrefixLimits:     prefixLimits,
 	}
 
 	timer := c.Timers

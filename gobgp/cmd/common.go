@@ -275,6 +275,7 @@ type PeerConf struct {
 	LocalCap          []bgp.ParameterCapabilityInterface `json:"local_cap,omitempty"`
 	Holdtime          uint32                             `json:"holdtime,omitempty"`
 	KeepaliveInterval uint32                             `json:"keepalive_interval,omitempty"`
+	PrefixLimits      []*gobgpapi.PrefixLimit
 }
 
 type Peer struct {
@@ -295,12 +296,13 @@ func ApiStruct2Peer(p *gobgpapi.Peer) *Peer {
 		remoteCaps = append(remoteCaps, c)
 	}
 	conf := PeerConf{
-		RemoteIp:  net.ParseIP(p.Conf.NeighborAddress),
-		Id:        net.ParseIP(p.Conf.Id),
-		RemoteAs:  p.Conf.PeerAs,
-		LocalAs:   p.Conf.LocalAs,
-		RemoteCap: remoteCaps,
-		LocalCap:  localCaps,
+		RemoteIp:     net.ParseIP(p.Conf.NeighborAddress),
+		Id:           net.ParseIP(p.Conf.Id),
+		RemoteAs:     p.Conf.PeerAs,
+		LocalAs:      p.Conf.LocalAs,
+		RemoteCap:    remoteCaps,
+		LocalCap:     localCaps,
+		PrefixLimits: p.Conf.PrefixLimits,
 	}
 	return &Peer{
 		Conf:   conf,

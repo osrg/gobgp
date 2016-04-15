@@ -243,6 +243,12 @@ message ApplyPolicy {
   PolicyAssignment import_policy = 3;
 }
 
+message PrefixLimit {
+    uint32 family = 1;
+    uint32 max_prefixes = 2;
+    uint32 shutdown_threshold_pct = 3;
+}
+
 message PeerConf {
   string auth_password = 1;
   string description = 2;
@@ -257,6 +263,7 @@ message PeerConf {
   repeated bytes remote_cap = 11;
   repeated bytes local_cap = 12;
   string id = 13;
+  repeated PrefixLimit prefix_limits = 14;
 }
 
 message EbgpMultihop {
