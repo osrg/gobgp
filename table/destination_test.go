@@ -17,6 +17,7 @@ package table
 
 import (
 	//"fmt"
+	"github.com/osrg/gobgp/config"
 	"github.com/osrg/gobgp/packet/bgp"
 	"github.com/stretchr/testify/assert"
 	"net"
@@ -27,13 +28,15 @@ import (
 func TestDestinationNewIPv4(t *testing.T) {
 	peerD := DestCreatePeer()
 	pathD := DestCreatePath(peerD)
-	ipv4d := NewDestination(pathD[0].GetNlri())
+	option := &config.RouteSelectionOptionsConfig{}
+	ipv4d := NewDestination(pathD[0].GetNlri(), option)
 	assert.NotNil(t, ipv4d)
 }
 func TestDestinationNewIPv6(t *testing.T) {
 	peerD := DestCreatePeer()
 	pathD := DestCreatePath(peerD)
-	ipv6d := NewDestination(pathD[0].GetNlri())
+	option := &config.RouteSelectionOptionsConfig{}
+	ipv6d := NewDestination(pathD[0].GetNlri(), option)
 	assert.NotNil(t, ipv6d)
 }
 
@@ -63,6 +66,7 @@ func TestDestinationGetNlri(t *testing.T) {
 	r_nlri := dd.GetNlri()
 	assert.Equal(t, r_nlri, nlri)
 }
+
 func DestCreatePeer() []*PeerInfo {
 	peerD1 := &PeerInfo{AS: 65000}
 	peerD2 := &PeerInfo{AS: 65001}
