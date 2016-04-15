@@ -306,7 +306,6 @@ func (dest *Destination) explicitWithdraw() paths {
 	// delete them first.
 	matches := make([]*Path, 0, len(dest.withdrawList)/2)
 	newKnownPaths := make([]*Path, 0, len(dest.knownPathList)/2)
-	newWithdrawPaths := make([]*Path, 0, len(dest.withdrawList)/2)
 
 	// Match all withdrawals from destination paths.
 	for _, withdraw := range dest.withdrawList {
@@ -326,19 +325,8 @@ func (dest *Destination) explicitWithdraw() paths {
 				"Topic": "Table",
 				"Key":   dest.GetNlri().String(),
 				"Path":  withdraw,
-			}).Debug("No matching path for withdraw found, may be path was not installed into table")
-			newWithdrawPaths = append(newWithdrawPaths, withdraw)
+			}).Warn("No matching path for withdraw found, may be path was not installed into table")
 		}
-	}
-
-	// If we have partial match.
-	if len(newWithdrawPaths) > 0 {
-		log.WithFields(log.Fields{
-			"Topic":          "Table",
-			"Key":            dest.GetNlri().String(),
-			"MatchLength":    len(matches),
-			"WithdrawLength": len(dest.withdrawList),
-		}).Debug("Did not find match for some withdrawals.")
 	}
 
 	for _, path := range dest.knownPathList {
@@ -348,7 +336,7 @@ func (dest *Destination) explicitWithdraw() paths {
 	}
 
 	dest.knownPathList = newKnownPaths
-	dest.withdrawList = newWithdrawPaths
+	dest.withdrawList = make([]*Path, 0)
 	return matches
 }
 
