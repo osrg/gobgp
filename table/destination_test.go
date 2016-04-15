@@ -63,6 +63,48 @@ func TestDestinationGetNlri(t *testing.T) {
 	r_nlri := dd.GetNlri()
 	assert.Equal(t, r_nlri, nlri)
 }
+
+func TestCalculate(t *testing.T) {
+	origin := bgp.NewPathAttributeOrigin(0)
+	aspathParam := []bgp.AsPathParamInterface{bgp.NewAs4PathParam(2, []uint32{65001})}
+	aspath := bgp.NewPathAttributeAsPath(aspathParam)
+	nexthop := bgp.NewPathAttributeNextHop("10.0.0.1")
+	med := bgp.NewPathAttributeMultiExitDisc(0)
+	pathAttributes := []bgp.PathAttributeInterface{origin, aspath, nexthop, med}
+	nlri := bgp.NewIPAddrPrefix(24, "10.10.0.101")
+	updateMsg := bgp.NewBGPUpdateMessage(nil, pathAttributes, []*bgp.IPAddrPrefix{nlri})
+	peer1 := &PeerInfo{AS: 1, Address: net.IP{1, 1, 1, 1}}
+	path1 := ProcessMessage(updateMsg, peer1, time.Now())[0]
+	path1.Filter("1", POLICY_DIRECTION_IMPORT)
+
+	action := &AsPathPrependAction{
+		asn:    100,
+		repeat: 10,
+	}
+
+	path2 := action.Apply(path1.Clone(false))
+	path1.Filter("2", POLICY_DIRECTION_IMPORT)
+	path2.Filter("1", POLICY_DIRECTION_IMPORT)
+
+	d := NewDestination(nlri)
+	d.addNewPath(path1)
+	d.addNewPath(path2)
+
+	d.Calculate([]string{"1", "2"})
+
+	assert.Equal(t, len(d.GetKnownPathList("1")), 0)
+	assert.Equal(t, len(d.GetKnownPathList("2")), 1)
+	assert.Equal(t, len(d.knownPathList), 2)
+
+	d.addWithdraw(path1.Clone(true))
+
+	d.Calculate([]string{"1", "2"})
+
+	assert.Equal(t, len(d.GetKnownPathList("1")), 0)
+	assert.Equal(t, len(d.GetKnownPathList("2")), 0)
+	assert.Equal(t, len(d.knownPathList), 0)
+}
+
 func DestCreatePeer() []*PeerInfo {
 	peerD1 := &PeerInfo{AS: 65000}
 	peerD2 := &PeerInfo{AS: 65001}
