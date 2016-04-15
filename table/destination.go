@@ -317,8 +317,6 @@ func (dest *Destination) explicitWithdraw() paths {
 				isFound = true
 				path.IsWithdraw = true
 				matches = append(matches, path)
-				// One withdraw can remove only one path.
-				break
 			}
 		}
 
