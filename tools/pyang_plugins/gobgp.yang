@@ -746,7 +746,7 @@ module gobgp {
     description "additional mrt configuration";
     container mrt-dump {
       list mrt {
-        key "dump-type";
+        key "file-name";
         description
           "Configure dump bgp messages in the mrt format";
         leaf dump-type {
