@@ -135,6 +135,9 @@ def emit_class_def(ctx, yang_statement, struct_name, prefix):
 
     print >> o, '//struct for container %s:%s' % (prefix, yang_statement.arg)
     print >> o, 'type %s struct {' % convert_to_golang(struct_name)
+
+    equal_elems = []
+
     for child in yang_statement.i_children:
 
         if child.path in _path_exclude:
@@ -144,6 +147,7 @@ def emit_class_def(ctx, yang_statement, struct_name, prefix):
         val_name_go = convert_to_golang(child.arg)
         child_prefix = get_orig_prefix(child.i_orig_module)
         tag_name = child.uniq_name.lower()
+        is_array = False
         print >> o, '  // original -> %s:%s' % \
                     (child_prefix, container_or_list_name)
 
@@ -200,6 +204,7 @@ def emit_class_def(ctx, yang_statement, struct_name, prefix):
             type_name = type_obj.arg
             val_name_go = val_name_go + 'List'
             tag_name += '-list'
+            is_array = True
 
             # case leafref
             if type_name == 'leafref':
@@ -230,6 +235,7 @@ def emit_class_def(ctx, yang_statement, struct_name, prefix):
             t = ctx.golang_struct_names[key]
             val_name_go = t.golang_name
             if len(t.i_children) == 1 and is_list(t.i_children[0]):
+                is_array = True
                 l = t.i_children[0]
                 emit_type_name = '[]' + l.golang_name
             else:
@@ -237,6 +243,7 @@ def emit_class_def(ctx, yang_statement, struct_name, prefix):
 
         # case list
         elif is_list(child):
+            is_array = True
             key = child_prefix+':'+container_or_list_name
             t = ctx.golang_struct_names[key]
             val_name_go = val_name_go + 'List'
@@ -251,8 +258,39 @@ def emit_class_def(ctx, yang_statement, struct_name, prefix):
             elif name.startswith(convert_to_golang(struct_name)) and name.endswith("State"):
                 tag_name = 'state'
                 val_name_go = 'State'
+
         print >> o, '  {0}\t{1} `mapstructure:"{2}"`'.format(val_name_go, emit_type_name, tag_name)
 
+        equal_elems.append((val_name_go, is_container(child) or is_choice(child), is_array))
+
+    print >> o, '}'
+
+    print >> o, 'func (lhs {0}) Equal(rhs {0}) bool {{'.format(convert_to_golang(struct_name))
+
+    for val, use_method, is_array in equal_elems:
+        if is_array:
+            print >> o, 'if len(lhs.{0}) != len(rhs.{0}) {{'.format(val)
+            print >> o, 'return false'
+            print >> o, '}'
+
+            print >> o, 'for idx, l := range lhs.{0} {{'.format(val)
+            if use_method:
+                print >> o, 'if !l.Equal(rhs.{0}[idx]) {{'.format(val)
+            else:
+                print >> o, 'if l != rhs.{0}[idx] {{'.format(val)
+            print >> o, 'return false'
+            print >> o, '}'
+            print >> o, '}'
+
+        else:
+            if use_method:
+                print >> o, 'if !lhs.{0}.Equal(rhs.{0}) {{'.format(val)
+            else:
+                print >> o, 'if lhs.{0} != rhs.{0} {{'.format(val)
+            print >> o, 'return false'
+            print >> o, '}'
+
+    print >> o, 'return true'
     print >> o, '}'
     print o.getvalue()
 
