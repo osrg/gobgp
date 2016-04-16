@@ -5,7 +5,6 @@ import (
 	"github.com/spf13/viper"
 	"os"
 	"os/signal"
-	"reflect"
 	"syscall"
 )
 
@@ -94,7 +93,7 @@ func UpdateConfig(curC *BgpConfigSet, newC *BgpConfigSet) (*BgpConfigSet, []Neig
 		if idx := inSlice(n, curC.Neighbors); idx < 0 {
 			added = append(added, n)
 		} else {
-			if !reflect.DeepEqual(n.ApplyPolicy, curC.Neighbors[idx].ApplyPolicy) {
+			if !n.ApplyPolicy.Equal(&curC.Neighbors[idx].ApplyPolicy) {
 				updated = append(updated, n)
 			}
 		}
@@ -121,8 +120,7 @@ func CheckPolicyDifference(currentPolicy *RoutingPolicy, newPolicy *RoutingPolic
 		result = false
 	} else {
 		if currentPolicy != nil && newPolicy != nil {
-			// TODO: reconsider the way of policy object comparison
-			result = !reflect.DeepEqual(*currentPolicy, *newPolicy)
+			result = !currentPolicy.Equal(newPolicy)
 		} else {
 			result = true
 		}
