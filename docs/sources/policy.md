@@ -98,6 +98,7 @@ Actions are categorized into attributes below:
 - accept or reject
 - add/replace/remove community or remove all communities
 - add/subtract or replace MED value
+- set next-hop
 - prepend AS number in the AS_PATH attribute
 
 If All condition in the statement are true, the action(s) in the statement are executed.
@@ -686,7 +687,7 @@ You can write condition and action under Statements.
     - AsPathSet: *aspath1*
     - AsPath length: *equal 2*
 
-  - If a route matches all these conditions, the route is accepted and added community "65100:20" and subtracted 200 from med value and prepended 65005 five times in its AS_PATH attribute.
+  - If a route matches all these conditions, the route is accepted and added community "65100:20" and subtracted 200 from med value and prepended 65005 five times in its AS_PATH attribute, and also next-hop 10.0.0.1 is set.
 
  ```toml
  # example 4
@@ -711,6 +712,7 @@ You can write condition and action under Statements.
         accept-route = true
       [policy-definitions.statements.actions.bgp-actions]
         set-med = "-200"
+        set-next-hop = "10.0.0.1"
         [policy-definitions.statements.actions.bgp-actions.set-as-path-prepend]
           as = "65005"
           repeat-n = 5
