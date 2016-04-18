@@ -657,7 +657,7 @@ func (h *FSMHandler) recvMessageWithError() (*FsmMsg, error) {
 				copy(fmsg.payload[len(headerBuf):], bodyBuf)
 				fallthrough
 			case bgp.BGP_MSG_KEEPALIVE:
-				// if the lenght of h.holdTimerResetCh
+				// if the length of h.holdTimerResetCh
 				// isn't zero, the timer will be reset
 				// soon anyway.
 				select {
