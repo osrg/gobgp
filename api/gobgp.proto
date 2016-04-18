@@ -436,12 +436,17 @@ message AsPrependAction {
     bool use_left_most = 3;
 }
 
+message NexthopAction {
+    string address = 1;
+}
+
 message Actions {
     RouteAction route_action = 1;
     CommunityAction community = 2;
     MedAction med = 3;
     AsPrependAction as_prepend = 4;
     CommunityAction ext_community = 5;
+    NexthopAction nexthop = 6;
 }
 
 message Statement {
