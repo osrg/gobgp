@@ -1347,7 +1347,7 @@ func (c *CommunityCondition) Evaluate(path *Path, _ *PolicyOptions) bool {
 	result := false
 	for _, x := range c.set.list {
 		result = false
-    for _, y := range cs {
+		for _, y := range cs {
 			if x.MatchString(fmt.Sprintf("%d:%d", y>>16, y&0x0000ffff)) {
 				result = true
 				break
