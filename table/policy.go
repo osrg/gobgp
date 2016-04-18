@@ -1345,10 +1345,10 @@ func (c *CommunityCondition) ToApiStruct() *api.MatchSet {
 func (c *CommunityCondition) Evaluate(path *Path, _ *PolicyOptions) bool {
 	cs := path.GetCommunities()
 	result := false
-	for _, x := range cs {
+	for _, x := range c.set.list {
 		result = false
-		for _, y := range c.set.list {
-			if y.MatchString(fmt.Sprintf("%d:%d", x>>16, x&0x0000ffff)) {
+		for _, y := range cs {
+			if x.MatchString(fmt.Sprintf("%d:%d", y>>16, y&0x0000ffff)) {
 				result = true
 				break
 			}
@@ -1356,7 +1356,7 @@ func (c *CommunityCondition) Evaluate(path *Path, _ *PolicyOptions) bool {
 		if c.option == MATCH_OPTION_ALL && !result {
 			break
 		}
-		if c.option == MATCH_OPTION_ANY && result {
+		if (c.option == MATCH_OPTION_ANY || c.option == MATCH_OPTION_INVERT) && result {
 			break
 		}
 	}
