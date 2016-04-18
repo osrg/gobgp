@@ -2073,7 +2073,7 @@ func NewAsPathPrependAction(action config.SetAsPathPrepend) (*AsPathPrependActio
 }
 
 type NexthopAction struct {
-	value  net.IP
+	value net.IP
 }
 
 func (a *NexthopAction) Type() ActionType {
@@ -2081,14 +2081,14 @@ func (a *NexthopAction) Type() ActionType {
 }
 
 func (a *NexthopAction) Apply(path *Path) *Path {
-  path.SetNexthop(a.value)
-  return path
+	path.SetNexthop(a.value)
+	return path
 }
 
 func (a *NexthopAction) ToApiStruct() *api.NexthopAction {
-  return &api.NexthopAction{
-    Address: a.value.String(),
-  }
+	return &api.NexthopAction{
+		Address: a.value.String(),
+	}
 }
 
 func NewNexthopActionFromApiStruct(a *api.NexthopAction) (*NexthopAction, error) {
@@ -2096,7 +2096,7 @@ func NewNexthopActionFromApiStruct(a *api.NexthopAction) (*NexthopAction, error)
 		return nil, nil
 	}
 	return &NexthopAction{
-	  value: net.ParseIP(a.Address),
+		value: net.ParseIP(a.Address),
 	}, nil
 }
 
@@ -2104,8 +2104,8 @@ func NewNexthopAction(c config.BgpNextHopType) (*NexthopAction, error) {
 	if string(c) == "" {
 		return nil, nil
 	}
-  addr := net.ParseIP(string(c))
-  if addr == nil {
+	addr := net.ParseIP(string(c))
+	if addr == nil {
 		return nil, fmt.Errorf("invalid ip address format: %s", string(c))
 	}
 	return &NexthopAction{
@@ -2192,8 +2192,8 @@ func (s *Statement) ToApiStruct() *api.Statement {
 			as.AsPrepend = a.(*AsPathPrependAction).ToApiStruct()
 		case *ExtCommunityAction:
 			as.ExtCommunity = a.(*ExtCommunityAction).ToApiStruct()
-    case *NexthopAction:
-      as.Nexthop = a.(*NexthopAction).ToApiStruct()
+		case *NexthopAction:
+			as.Nexthop = a.(*NexthopAction).ToApiStruct()
 		}
 	}
 	return &api.Statement{
