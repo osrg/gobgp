@@ -167,7 +167,7 @@ PrefixSets and NeighborSets section are prefix match part and neighbor match par
 
 # neighbor match part
 [[defined-sets.neighbor-sets]]
-  prefix-set-name = "ps1"
+  neighbor-set-name = "ns1"
   neighbor-info-list = ["10.0.255.1"]
  ```
 
@@ -265,7 +265,7 @@ PrefixSets and NeighborSets section are prefix match part and neighbor match par
   ```toml
   # example 1
   [[defined-sets.neighbor-sets]]
-    prefix-set-name = "ns1"
+    neighbor-set-name = "ns1"
     neighbor-info-list = ["10.0.255.1"]
   ```
 
@@ -275,7 +275,7 @@ PrefixSets and NeighborSets section are prefix match part and neighbor match par
   ```toml
   # example 2
   [[defined-sets.neighbor-sets]]
-    prefix-set-name = "ns1"
+    neighbor-set-name = "ns1"
     neighbor-info-list = ["10.0.255.1", "10.0.255.2"]
   ```
 
@@ -285,11 +285,11 @@ PrefixSets and NeighborSets section are prefix match part and neighbor match par
   ```toml
   # example 3
   [[defined-sets.neighbor-sets]]
-    prefix-set-name = "ns1"
+    neighbor-set-name = "ns1"
     neighbor-info-list = ["10.0.255.1"]
   # another NeighborSetList
   [[defined-sets.neighbor-sets]]
-    prefix-set-name = "ns2"
+    neighbor-set-name = "ns2"
     neighbor-info-list = ["10.0.254.1"]
   ```
 

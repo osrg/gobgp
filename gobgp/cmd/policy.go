@@ -470,6 +470,9 @@ func printStatement(indent int, s *api.Statement) {
 
 		fmt.Printf("%sAsPrepend:       %s   %d\n", sIndent(indent+4), asn, s.Actions.AsPrepend.Repeat)
 	}
+	if s.Actions.Nexthop != nil {
+		fmt.Printf("%sNexthop:             %s\n", sIndent(indent+4), s.Actions.Nexthop.Address)
+	}
 	fmt.Printf("%s%s\n", sIndent(indent+4), s.Actions.RouteAction)
 }
 
@@ -779,7 +782,7 @@ func modAction(name, op string, args []string) error {
 	}
 	usage := fmt.Sprintf("usage: gobgp policy statement %s %s action", name, op)
 	if len(args) < 1 {
-		return fmt.Errorf("%s { reject | accept | community | ext-community | med | as-prepend }", usage)
+		return fmt.Errorf("%s { reject | accept | community | ext-community | med | as-prepend | next-hop }", usage)
 	}
 	typ := args[0]
 	args = args[1:]
@@ -863,6 +866,13 @@ func modAction(name, op string, args []string) error {
 			Asn:         uint32(asn),
 			Repeat:      uint32(repeat),
 			UseLeftMost: last,
+		}
+	case "next-hop":
+		if len(args) != 1 {
+			return fmt.Errorf("%s next-hop <value>", usage)
+		}
+		stmt.Actions.Nexthop = &api.NexthopAction{
+			Address: args[0],
 		}
 	}
 	_, err := client.ModStatement(context.Background(), arg)

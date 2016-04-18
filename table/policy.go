@@ -173,6 +173,7 @@ const (
 	ACTION_EXT_COMMUNITY
 	ACTION_MED
 	ACTION_AS_PATH_PREPEND
+	ACTION_NEXTHOP
 )
 
 func NewMatchOption(c interface{}) (MatchOption, error) {
@@ -2071,6 +2072,47 @@ func NewAsPathPrependAction(action config.SetAsPathPrepend) (*AsPathPrependActio
 	return a, nil
 }
 
+type NexthopAction struct {
+	value net.IP
+}
+
+func (a *NexthopAction) Type() ActionType {
+	return ACTION_NEXTHOP
+}
+
+func (a *NexthopAction) Apply(path *Path) *Path {
+	path.SetNexthop(a.value)
+	return path
+}
+
+func (a *NexthopAction) ToApiStruct() *api.NexthopAction {
+	return &api.NexthopAction{
+		Address: a.value.String(),
+	}
+}
+
+func NewNexthopActionFromApiStruct(a *api.NexthopAction) (*NexthopAction, error) {
+	if a == nil {
+		return nil, nil
+	}
+	return &NexthopAction{
+		value: net.ParseIP(a.Address),
+	}, nil
+}
+
+func NewNexthopAction(c config.BgpNextHopType) (*NexthopAction, error) {
+	if string(c) == "" {
+		return nil, nil
+	}
+	addr := net.ParseIP(string(c))
+	if addr == nil {
+		return nil, fmt.Errorf("invalid ip address format: %s", string(c))
+	}
+	return &NexthopAction{
+		value: addr,
+	}, nil
+}
+
 type Statement struct {
 	Name        string
 	Conditions  []Condition
@@ -2150,6 +2192,8 @@ func (s *Statement) ToApiStruct() *api.Statement {
 			as.AsPrepend = a.(*AsPathPrependAction).ToApiStruct()
 		case *ExtCommunityAction:
 			as.ExtCommunity = a.(*ExtCommunityAction).ToApiStruct()
+		case *NexthopAction:
+			as.Nexthop = a.(*NexthopAction).ToApiStruct()
 		}
 	}
 	return &api.Statement{
@@ -2339,6 +2383,9 @@ func NewStatementFromApiStruct(a *api.Statement, dmap DefinedSetMap) (*Statement
 			func() (Action, error) {
 				return NewAsPathPrependActionFromApiStruct(a.Actions.AsPrepend)
 			},
+			func() (Action, error) {
+				return NewNexthopActionFromApiStruct(a.Actions.Nexthop)
+			},
 		}
 		as = make([]Action, 0, len(afs))
 		for _, f := range afs {
@@ -2416,6 +2463,9 @@ func NewStatement(c config.Statement, dmap DefinedSetMap) (*Statement, error) {
 		},
 		func() (Action, error) {
 			return NewAsPathPrependAction(c.Actions.BgpActions.SetAsPathPrepend)
+		},
+		func() (Action, error) {
+			return NewNexthopAction(c.Actions.BgpActions.SetNextHop)
 		},
 	}
 	as = make([]Action, 0, len(afs))
