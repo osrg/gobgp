@@ -340,7 +340,7 @@ If you want to remove one element(extended community) of ExtCommunitySet, to spe
 # mod statement
 % gobgp policy statement { add | del } <statement name>
 # mod a condition to a statement
-% gobgp policy statement <statement name> { add | del | set } condition { { prefix | neighbor | as-path | community | ext-community } <set name> [{ any | all | invert }] | as-path-length <len> { eq | ge | le } | rpki { valid | invalid | not-found } }
+% gobgp policy statement <statement name> { add | del | set } condition { { prefix | neighbor | as-path | community | ext-community } <set name> [{ any | all | invert }] | as-path-length <len> { eq | ge | le } | rpki { valid | invalid | not-found } | route-type { internal | external } }
 # mod an action to a statement
 % gobgp policy statement <statement name> { add | del | set } action { reject | accept | { community | ext-community } { add | remove | replace } <value>... | med { add | sub | set } <value> | as-prepend { <asn> | last-as } <repeat-value> }
 # show all statements

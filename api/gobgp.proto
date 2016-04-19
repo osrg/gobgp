@@ -399,6 +399,10 @@ message AsPathLength {
     uint32 length = 2;
 }
 
+message RouteType {
+    int32 type = 1;
+}
+
 message Conditions {
     MatchSet prefix_set = 1;
     MatchSet neighbor_set = 2;
@@ -407,6 +411,7 @@ message Conditions {
     MatchSet community_set = 5;
     MatchSet ext_community_set = 6;
     int32 rpki_result = 7;
+    RouteType route_type = 8;
 }
 
 enum RouteAction {

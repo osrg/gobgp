@@ -163,6 +163,7 @@ const (
 	CONDITION_EXT_COMMUNITY
 	CONDITION_AS_PATH_LENGTH
 	CONDITION_RPKI
+	CONDITION_ROUTE_TYPE
 )
 
 type ActionType int
@@ -1611,6 +1612,47 @@ func NewRpkiValidationCondition(c config.RpkiValidationResultType) (*RpkiValidat
 	}, nil
 }
 
+type RouteTypeCondition struct {
+	typ config.RouteType
+}
+
+func (c *RouteTypeCondition) Type() ConditionType {
+	return CONDITION_ROUTE_TYPE
+}
+
+func (c *RouteTypeCondition) Evaluate(path *Path, _ *PolicyOptions) bool {
+	return path.IsLocal() && c.typ == config.ROUTE_TYPE_INTERNAL
+}
+
+func (c *RouteTypeCondition) Set() DefinedSet {
+	return nil
+}
+
+func (c *RouteTypeCondition) ToApiStruct() *api.RouteType {
+	return &api.RouteType{
+		Type: int32(c.typ.ToInt()),
+	}
+}
+
+func NewRouteTypeConditionFromApiStruct(a *api.RouteType) (*RouteTypeCondition, error) {
+	if a == nil {
+		return nil, nil
+	}
+	return NewRouteTypeCondition(config.IntToRouteTypeMap[int(a.Type)])
+}
+
+func NewRouteTypeCondition(c config.RouteType) (*RouteTypeCondition, error) {
+	if string(c) == "" {
+		return nil, nil
+	}
+	if err := c.Validate(); err != nil {
+		return nil, err
+	}
+	return &RouteTypeCondition{
+		typ: c,
+	}, nil
+}
+
 type Action interface {
 	Type() ActionType
 	Apply(*Path) *Path
@@ -2195,6 +2237,8 @@ func (s *Statement) ToApiStruct() *api.Statement {
 			cs.ExtCommunitySet = c.(*ExtCommunityCondition).ToApiStruct()
 		case *RpkiValidationCondition:
 			cs.RpkiResult = int32(c.(*RpkiValidationCondition).result.ToInt())
+		case *RouteTypeCondition:
+			cs.RouteType = c.(*RouteTypeCondition).ToApiStruct()
 		}
 	}
 	as := &api.Actions{}
@@ -2364,6 +2408,9 @@ func NewStatementFromApiStruct(a *api.Statement, dmap DefinedSetMap) (*Statement
 				return NewRpkiValidationConditionFromApiStruct(a.Conditions.RpkiResult)
 			},
 			func() (Condition, error) {
+				return NewRouteTypeConditionFromApiStruct(a.Conditions.RouteType)
+			},
+			func() (Condition, error) {
 				return NewAsPathConditionFromApiStruct(a.Conditions.AsPathSet, dmap[DEFINED_TYPE_AS_PATH])
 			},
 			func() (Condition, error) {
@@ -2445,6 +2492,9 @@ func NewStatement(c config.Statement, dmap DefinedSetMap) (*Statement, error) {
 		},
 		func() (Condition, error) {
 			return NewRpkiValidationCondition(c.Conditions.BgpConditions.RpkiValidationResult)
+		},
+		func() (Condition, error) {
+			return NewRouteTypeCondition(c.Conditions.BgpConditions.RouteType)
 		},
 		func() (Condition, error) {
 			return NewAsPathCondition(c.Conditions.BgpConditions.MatchAsPathSet, dmap[DEFINED_TYPE_AS_PATH])

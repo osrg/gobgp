@@ -445,6 +445,10 @@ func printStatement(indent int, s *api.Statement) {
 		fmt.Printf("%sRPKI result: %s\n", sIndent(indent+4), config.IntToRpkiValidationResultTypeMap[int(rpki)])
 	}
 
+	if routeType := s.Conditions.RouteType; routeType != nil {
+		fmt.Printf("%s route type: %s\n", sIndent(indent+4), config.IntToRouteTypeMap[int(routeType.Type)])
+	}
+
 	fmt.Printf("%sActions:\n", sIndent(indent+2))
 
 	formatComAction := func(c *api.CommunityAction) string {
@@ -624,7 +628,7 @@ func modCondition(name, op string, args []string) error {
 	}
 	usage := fmt.Sprintf("usage: gobgp policy statement %s %s condition", name, op)
 	if len(args) < 1 {
-		return fmt.Errorf("%s { prefix | neighbor | as-path | community | ext-community | as-path-length | rpki }", usage)
+		return fmt.Errorf("%s { prefix | neighbor | as-path | community | ext-community | as-path-length | rpki | route-type }", usage)
 	}
 	typ := args[0]
 	args = args[1:]
@@ -760,6 +764,20 @@ func modCondition(name, op string, args []string) error {
 		default:
 			return fmt.Errorf("%s rpki { valid | invalid | not-found }", usage)
 		}
+	case "route-type":
+		if len(args) < 1 {
+			return fmt.Errorf("%s route-type { internal | external }", usage)
+		}
+		switch strings.ToLower(args[0]) {
+		case "internal":
+			stmt.Conditions.RouteType = &api.RouteType{Type: int32(config.ROUTE_TYPE_INTERNAL.ToInt())}
+		case "external":
+			stmt.Conditions.RouteType = &api.RouteType{Type: int32(config.ROUTE_TYPE_EXTERNAL.ToInt())}
+		default:
+			return fmt.Errorf("%s route-type { internal | external }", usage)
+		}
+	default:
+		return fmt.Errorf("%s { prefix | neighbor | as-path | community | ext-community | as-path-length | rpki | route-type }", usage)
 	}
 	_, err := client.ModStatement(context.Background(), arg)
 	return err
