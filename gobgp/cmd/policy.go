@@ -119,6 +119,10 @@ func formatDefinedSet(head bool, typ string, indent int, list []*api.DefinedSet)
 			buff.WriteString(fmt.Sprintf(format, s.Name, ""))
 		}
 		for i, x := range s.List {
+			if typ == "COMMUNITY" || typ == "EXT-COMMUNITY" {
+				exp := regexp.MustCompile("\\^(\\S+)\\$")
+				x = exp.ReplaceAllString(x, "$1")
+			}
 			if i == 0 {
 				buff.WriteString(fmt.Sprintf(format, s.Name, x))
 			} else {
@@ -446,7 +450,8 @@ func printStatement(indent int, s *api.Statement) {
 	formatComAction := func(c *api.CommunityAction) string {
 		option := c.Type.String()
 		if len(c.Communities) != 0 {
-			communities := strings.Join(c.Communities, ",")
+			exp := regexp.MustCompile("[\\^\\$]")
+			communities := exp.ReplaceAllString(strings.Join(c.Communities, ","), "")
 			option = fmt.Sprintf("%s[%s]", c.Type, communities)
 		}
 		return option
