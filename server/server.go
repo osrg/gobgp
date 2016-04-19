@@ -1069,7 +1069,7 @@ func (server *BgpServer) PeerDelete(peer config.Neighbor) error {
 	ch := make(chan *GrpcResponse)
 	server.GrpcReqCh <- &GrpcRequest{
 		RequestType: REQ_DEL_NEIGHBOR,
-		Data:        peer,
+		Data:        &peer,
 		ResponseCh:  ch,
 	}
 	return (<-ch).Err()
