@@ -776,7 +776,7 @@ func (server *BgpServer) handleFSMMessage(peer *Peer, e *FsmMsg) []*SenderMsg {
 			} else {
 				drop = peer.configuredRFlist()
 			}
-			peer.prefixLimitWarned = false
+			peer.prefixLimitWarned = make(map[bgp.RouteFamily]bool)
 			peer.DropAll(drop)
 			msgs = server.dropPeerAllRoutes(peer, drop)
 		} else if peer.fsm.pConf.GracefulRestart.State.PeerRestarting && nextState == bgp.BGP_FSM_IDLE {

@@ -42,16 +42,17 @@ type Peer struct {
 	outgoing          chan *FsmOutgoingMsg
 	policy            *table.RoutingPolicy
 	localRib          *table.TableManager
-	prefixLimitWarned bool
+	prefixLimitWarned map[bgp.RouteFamily]bool
 }
 
 func NewPeer(g config.Global, conf config.Neighbor, loc *table.TableManager, policy *table.RoutingPolicy) *Peer {
 	peer := &Peer{
-		gConf:    g,
-		conf:     conf,
-		outgoing: make(chan *FsmOutgoingMsg, 128),
-		localRib: loc,
-		policy:   policy,
+		gConf:             g,
+		conf:              conf,
+		outgoing:          make(chan *FsmOutgoingMsg, 128),
+		localRib:          loc,
+		policy:            policy,
+		prefixLimitWarned: make(map[bgp.RouteFamily]bool),
 	}
 	tableId := table.GLOBAL_RIB_NAME
 	if peer.isRouteServerClient() {
@@ -249,8 +250,8 @@ func (peer *Peer) handleUpdate(e *FsmMsg) ([]*table.Path, []bgp.RouteFamily, *bg
 			if maxPrefixes := int(family.PrefixLimit.Config.MaxPrefixes); maxPrefixes > 0 {
 				count := peer.adjRibIn.Count([]bgp.RouteFamily{k})
 				pct := int(family.PrefixLimit.Config.ShutdownThresholdPct)
-				if pct > 0 && !peer.prefixLimitWarned && count > (maxPrefixes*pct/100) {
-					peer.prefixLimitWarned = true
+				if pct > 0 && !peer.prefixLimitWarned[k] && count > (maxPrefixes*pct/100) {
+					peer.prefixLimitWarned[k] = true
 					log.WithFields(log.Fields{
 						"Topic":         "Peer",
 						"Key":           peer.conf.Config.NeighborAddress,
