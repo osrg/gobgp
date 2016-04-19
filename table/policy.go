@@ -164,6 +164,7 @@ const (
 	CONDITION_AS_PATH_LENGTH
 	CONDITION_RPKI
 	CONDITION_ROUTE_TYPE
+	CONDITION_FAMILY
 )
 
 type ActionType int
@@ -1653,6 +1654,66 @@ func NewRouteTypeCondition(c config.RouteType) (*RouteTypeCondition, error) {
 	}, nil
 }
 
+type FamilyCondition struct {
+	families []bgp.RouteFamily
+}
+
+func (c *FamilyCondition) Type() ConditionType {
+	return CONDITION_FAMILY
+}
+
+func (c *FamilyCondition) Evaluate(path *Path, _ *PolicyOptions) bool {
+	x := path.GetRouteFamily()
+	for _, y := range c.families {
+		if x == y {
+			return true
+		}
+	}
+	return false
+}
+
+func (c *FamilyCondition) Set() DefinedSet {
+	return nil
+}
+
+func (c *FamilyCondition) ToApiStruct() []uint32 {
+	a := make([]uint32, 0, len(c.families))
+	for _, f := range c.families {
+		a = append(a, uint32(f))
+	}
+	return a
+}
+
+func NewFamilyConditionFromApiStruct(a []uint32) (*FamilyCondition, error) {
+	if len(a) == 0 {
+		return nil, nil
+	}
+	fs := make([]bgp.RouteFamily, 0, len(a))
+	for _, f := range a {
+		fs = append(fs, bgp.RouteFamily(f))
+	}
+	return &FamilyCondition{
+		families: fs,
+	}, nil
+}
+
+func NewFamilyCondition(c []config.AfiSafiType) (*FamilyCondition, error) {
+	if len(c) == 0 {
+		return nil, nil
+	}
+	fs := make([]bgp.RouteFamily, 0, len(c))
+	for _, f := range c {
+		k, err := bgp.GetRouteFamily(string(f))
+		if err != nil {
+			return nil, err
+		}
+		fs = append(fs, k)
+	}
+	return &FamilyCondition{
+		families: fs,
+	}, nil
+}
+
 type Action interface {
 	Type() ActionType
 	Apply(*Path) *Path
@@ -2239,6 +2300,8 @@ func (s *Statement) ToApiStruct() *api.Statement {
 			cs.RpkiResult = int32(c.(*RpkiValidationCondition).result.ToInt())
 		case *RouteTypeCondition:
 			cs.RouteType = c.(*RouteTypeCondition).ToApiStruct()
+		case *FamilyCondition:
+			cs.Families = c.(*FamilyCondition).ToApiStruct()
 		}
 	}
 	as := &api.Actions{}
@@ -2411,6 +2474,9 @@ func NewStatementFromApiStruct(a *api.Statement, dmap DefinedSetMap) (*Statement
 				return NewRouteTypeConditionFromApiStruct(a.Conditions.RouteType)
 			},
 			func() (Condition, error) {
+				return NewFamilyConditionFromApiStruct(a.Conditions.Families)
+			},
+			func() (Condition, error) {
 				return NewAsPathConditionFromApiStruct(a.Conditions.AsPathSet, dmap[DEFINED_TYPE_AS_PATH])
 			},
 			func() (Condition, error) {
@@ -2495,6 +2561,9 @@ func NewStatement(c config.Statement, dmap DefinedSetMap) (*Statement, error) {
 		},
 		func() (Condition, error) {
 			return NewRouteTypeCondition(c.Conditions.BgpConditions.RouteType)
+		},
+		func() (Condition, error) {
+			return NewFamilyCondition(c.Conditions.BgpConditions.AfiSafiInList)
 		},
 		func() (Condition, error) {
 			return NewAsPathCondition(c.Conditions.BgpConditions.MatchAsPathSet, dmap[DEFINED_TYPE_AS_PATH])

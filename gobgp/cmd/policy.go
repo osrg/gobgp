@@ -21,6 +21,7 @@ import (
 	"fmt"
 	api "github.com/osrg/gobgp/api"
 	"github.com/osrg/gobgp/config"
+	"github.com/osrg/gobgp/packet/bgp"
 	"github.com/osrg/gobgp/table"
 	"github.com/spf13/cobra"
 	"golang.org/x/net/context"
@@ -449,6 +450,14 @@ func printStatement(indent int, s *api.Statement) {
 		fmt.Printf("%s route type: %s\n", sIndent(indent+4), config.IntToRouteTypeMap[int(routeType.Type)])
 	}
 
+	if fs := s.Conditions.Families; len(fs) > 0 {
+		ss := make([]string, 0, len(fs))
+		for _, f := range fs {
+			ss = append(ss, bgp.RouteFamily(f).String())
+		}
+		fmt.Printf("%s family: %s\n", sIndent(indent+4), strings.Join(ss, ", "))
+	}
+
 	fmt.Printf("%sActions:\n", sIndent(indent+2))
 
 	formatComAction := func(c *api.CommunityAction) string {
@@ -628,7 +637,7 @@ func modCondition(name, op string, args []string) error {
 	}
 	usage := fmt.Sprintf("usage: gobgp policy statement %s %s condition", name, op)
 	if len(args) < 1 {
-		return fmt.Errorf("%s { prefix | neighbor | as-path | community | ext-community | as-path-length | rpki | route-type }", usage)
+		return fmt.Errorf("%s { prefix | neighbor | as-path | community | ext-community | as-path-length | rpki | route-type | family }", usage)
 	}
 	typ := args[0]
 	args = args[1:]
@@ -776,8 +785,21 @@ func modCondition(name, op string, args []string) error {
 		default:
 			return fmt.Errorf("%s route-type { internal | external }", usage)
 		}
+	case "family":
+		if len(args) < 1 {
+			return fmt.Errorf("%s family <address-family>...", usage)
+		}
+		families := make([]uint32, 0, len(args))
+		for _, arg := range args {
+			if f, err := bgp.GetRouteFamily(arg); err != nil {
+				return err
+			} else {
+				families = append(families, uint32(f))
+			}
+		}
+		stmt.Conditions.Families = families
 	default:
-		return fmt.Errorf("%s { prefix | neighbor | as-path | community | ext-community | as-path-length | rpki | route-type }", usage)
+		return fmt.Errorf("%s { prefix | neighbor | as-path | community | ext-community | as-path-length | rpki | route-type | family }", usage)
 	}
 	_, err := client.ModStatement(context.Background(), arg)
 	return err

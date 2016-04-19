@@ -412,6 +412,7 @@ message Conditions {
     MatchSet ext_community_set = 6;
     int32 rpki_result = 7;
     RouteType route_type = 8;
+    repeated uint32 families = 9;
 }
 
 enum RouteAction {
