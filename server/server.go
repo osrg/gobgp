@@ -328,14 +328,27 @@ func (server *BgpServer) Serve() {
 			}
 		case conn := <-server.acceptCh:
 			passConn(conn)
-		case config := <-server.updatedPeerCh:
-			addr := config.Config.NeighborAddress
+		case c := <-server.updatedPeerCh:
+			addr := c.Config.NeighborAddress
 			peer := server.neighborMap[addr]
-			// FIXME: check updated values and restart bgp
-			// session with new value as needed
-			// e.g. timer, supported afi-safi etc.
-			peer.fsm.pConf = &config
-			server.setPolicyByConfig(peer.ID(), config.ApplyPolicy)
+
+			if !peer.fsm.pConf.ApplyPolicy.Equal(&c.ApplyPolicy) {
+				server.setPolicyByConfig(peer.ID(), c.ApplyPolicy)
+				peer.fsm.pConf.ApplyPolicy = c.ApplyPolicy
+			}
+			original := peer.fsm.pConf
+
+			if msgs, err := peer.updatePrefixLimitConfig(c.AfiSafis); err != nil {
+				log.WithFields(log.Fields{
+					"Topic": "Peer",
+					"Key":   addr,
+				}).Error(err)
+				// rollback to original state
+				peer.fsm.pConf = original
+			} else if len(msgs) > 0 {
+				senderMsgs = append(senderMsgs, msgs...)
+			}
+
 		case e, ok := <-server.fsmincomingCh.Out():
 			if !ok {
 				continue

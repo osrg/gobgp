@@ -17,6 +17,7 @@ package server
 
 import (
 	"encoding/json"
+	"fmt"
 	log "github.com/Sirupsen/logrus"
 	"github.com/eapache/channels"
 	api "github.com/osrg/gobgp/api"
@@ -229,6 +230,73 @@ func (peer *Peer) handleRouteRefresh(e *FsmMsg) []*table.Path {
 	return accepted
 }
 
+func (peer *Peer) doPrefixLimit(k bgp.RouteFamily, c *config.PrefixLimitConfig) *bgp.BGPMessage {
+	if maxPrefixes := int(c.MaxPrefixes); maxPrefixes > 0 {
+		count := peer.adjRibIn.Count([]bgp.RouteFamily{k})
+		pct := int(c.ShutdownThresholdPct)
+		if pct > 0 && !peer.prefixLimitWarned[k] && count > (maxPrefixes*pct/100) {
+			peer.prefixLimitWarned[k] = true
+			log.WithFields(log.Fields{
+				"Topic":         "Peer",
+				"Key":           peer.ID(),
+				"AddressFamily": k.String(),
+			}).Warnf("prefix limit %d%% reached", pct)
+		}
+		if count > maxPrefixes {
+			log.WithFields(log.Fields{
+				"Topic":         "Peer",
+				"Key":           peer.ID(),
+				"AddressFamily": k.String(),
+			}).Warnf("prefix limit reached")
+			return bgp.NewBGPNotificationMessage(bgp.BGP_ERROR_CEASE, bgp.BGP_ERROR_SUB_MAXIMUM_NUMBER_OF_PREFIXES_REACHED, nil)
+		}
+	}
+	return nil
+
+}
+
+func (peer *Peer) updatePrefixLimitConfig(c []config.AfiSafi) ([]*SenderMsg, error) {
+	x := peer.fsm.pConf.AfiSafis
+	y := c
+	if len(x) != len(y) {
+		return nil, fmt.Errorf("changing supported afi-safi is not allowed")
+	}
+	m := make(map[bgp.RouteFamily]config.PrefixLimitConfig)
+	for _, e := range x {
+		k, err := bgp.GetRouteFamily(string(e.AfiSafiName))
+		if err != nil {
+			return nil, err
+		}
+		m[k] = e.PrefixLimit.Config
+	}
+	msgs := make([]*SenderMsg, 0, len(y))
+	for _, e := range y {
+		k, err := bgp.GetRouteFamily(string(e.AfiSafiName))
+		if err != nil {
+			return nil, err
+		}
+		if p, ok := m[k]; !ok {
+			return nil, fmt.Errorf("changing supported afi-safi is not allowed")
+		} else if !p.Equal(&e.PrefixLimit.Config) {
+			log.WithFields(log.Fields{
+				"Topic":                   "Peer",
+				"Key":                     peer.ID(),
+				"AddressFamily":           e.AfiSafiName,
+				"OldMaxPrefixes":          p.MaxPrefixes,
+				"NewMaxPrefixes":          e.PrefixLimit.Config.MaxPrefixes,
+				"OldShutdownThresholdPct": p.ShutdownThresholdPct,
+				"NewShutdownThresholdPct": e.PrefixLimit.Config.ShutdownThresholdPct,
+			}).Warnf("update prefix limit configuration")
+			peer.prefixLimitWarned[k] = false
+			if msg := peer.doPrefixLimit(k, &e.PrefixLimit.Config); msg != nil {
+				msgs = append(msgs, newSenderMsg(peer, nil, msg, true))
+			}
+		}
+	}
+	peer.fsm.pConf.AfiSafis = c
+	return msgs, nil
+}
+
 func (peer *Peer) handleUpdate(e *FsmMsg) ([]*table.Path, []bgp.RouteFamily, *bgp.BGPMessage) {
 	m := e.MsgData.(*bgp.BGPMessage)
 	log.WithFields(log.Fields{
@@ -241,25 +309,8 @@ func (peer *Peer) handleUpdate(e *FsmMsg) ([]*table.Path, []bgp.RouteFamily, *bg
 		peer.adjRibIn.Update(e.PathList)
 		for _, family := range peer.fsm.pConf.AfiSafis {
 			k, _ := bgp.GetRouteFamily(string(family.AfiSafiName))
-			if maxPrefixes := int(family.PrefixLimit.Config.MaxPrefixes); maxPrefixes > 0 {
-				count := peer.adjRibIn.Count([]bgp.RouteFamily{k})
-				pct := int(family.PrefixLimit.Config.ShutdownThresholdPct)
-				if pct > 0 && !peer.prefixLimitWarned[k] && count > (maxPrefixes*pct/100) {
-					peer.prefixLimitWarned[k] = true
-					log.WithFields(log.Fields{
-						"Topic":         "Peer",
-						"Key":           peer.ID(),
-						"AddressFamily": family.AfiSafiName,
-					}).Warnf("prefix limit %d%% reached", pct)
-				}
-				if count > maxPrefixes {
-					log.WithFields(log.Fields{
-						"Topic":         "Peer",
-						"Key":           peer.ID(),
-						"AddressFamily": family.AfiSafiName,
-					}).Warnf("prefix limit reached")
-					return nil, nil, bgp.NewBGPNotificationMessage(bgp.BGP_ERROR_CEASE, bgp.BGP_ERROR_SUB_MAXIMUM_NUMBER_OF_PREFIXES_REACHED, nil)
-				}
+			if msg := peer.doPrefixLimit(k, &family.PrefixLimit.Config); msg != nil {
+				return nil, nil, msg
 			}
 		}
 		paths := make([]*table.Path, 0, len(e.PathList))

@@ -92,10 +92,8 @@ func UpdateConfig(curC *BgpConfigSet, newC *BgpConfigSet) (*BgpConfigSet, []Neig
 	for _, n := range newC.Neighbors {
 		if idx := inSlice(n, curC.Neighbors); idx < 0 {
 			added = append(added, n)
-		} else {
-			if !n.ApplyPolicy.Equal(&curC.Neighbors[idx].ApplyPolicy) {
-				updated = append(updated, n)
-			}
+		} else if !n.Equal(&curC.Neighbors[idx]) {
+			updated = append(updated, n)
 		}
 	}
 
