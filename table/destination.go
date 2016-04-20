@@ -226,10 +226,9 @@ func (dd *Destination) validatePath(path *Path) {
 //
 // Modifies destination's state related to stored paths. Removes withdrawn
 // paths from known paths. Also, adds new paths to known paths.
-func (dest *Destination) Calculate(ids []string) (map[string]*Path, []*Path, []*Path) {
+func (dest *Destination) Calculate(ids []string) (map[string]*Path, []*Path) {
 	best := make(map[string]*Path, len(ids))
 	oldKnownPathList := dest.knownPathList
-	updated := dest.newPathList
 	// First remove the withdrawn paths.
 	withdrawnList := dest.explicitWithdraw()
 	// Do implicit withdrawal
@@ -266,7 +265,7 @@ func (dest *Destination) Calculate(ids []string) (map[string]*Path, []*Path, []*
 	for _, id := range ids {
 		best[id] = f(id)
 	}
-	return best, updated, withdrawnList
+	return best, withdrawnList
 }
 
 // Removes withdrawn paths.
