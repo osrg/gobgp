@@ -579,7 +579,7 @@ func modStatement(op string, args []string) error {
 	case CMD_ADD:
 		o = api.Operation_ADD
 	case CMD_DEL:
-		o = api.Operation_DEL
+		o = api.Operation_DEL_ALL
 	default:
 		return fmt.Errorf("invalid operation: %s", op)
 	}
