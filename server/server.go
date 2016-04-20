@@ -2830,20 +2830,34 @@ func (server *BgpServer) handleGrpcModPolicyAssignment(grpcReq *GrpcRequest) err
 		return err
 	}
 	ps := make([]*table.Policy, 0, len(assignment.Policies))
+	seen := make(map[string]bool)
 	for _, x := range assignment.Policies {
 		p, ok := server.policy.PolicyMap[x.Name]
 		if !ok {
 			return fmt.Errorf("not found policy %s", x.Name)
 		}
+		if seen[x.Name] {
+			return fmt.Errorf("duplicated policy %s", x.Name)
+		}
+		seen[x.Name] = true
 		ps = append(ps, p)
 	}
 	cur := server.policy.GetPolicy(id, dir)
+
 	switch arg.Operation {
 	case api.Operation_ADD, api.Operation_REPLACE:
 		if arg.Operation == api.Operation_REPLACE || cur == nil {
 			err = server.policy.SetPolicy(id, dir, ps)
 		} else {
-			err = server.policy.SetPolicy(id, dir, append(cur, ps...))
+			seen = make(map[string]bool)
+			ps = append(cur, ps...)
+			for _, x := range ps {
+				if seen[x.Name()] {
+					return fmt.Errorf("duplicated policy %s", x.Name())
+				}
+				seen[x.Name()] = true
+			}
+			err = server.policy.SetPolicy(id, dir, ps)
 		}
 		if err != nil {
 			return err

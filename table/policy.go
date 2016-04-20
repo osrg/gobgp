@@ -2690,11 +2690,16 @@ func (r *RoutingPolicy) GetAssignmentFromConfig(dir PolicyDirection, a config.Ap
 		def = ROUTE_TYPE_REJECT
 	}
 	ps := make([]*Policy, 0, len(names))
+	seen := make(map[string]bool)
 	for _, name := range names {
 		p, ok := r.PolicyMap[name]
 		if !ok {
 			return nil, def, fmt.Errorf("not found policy %s", name)
 		}
+		if seen[name] {
+			return nil, def, fmt.Errorf("duplicated policy %s", name)
+		}
+		seen[name] = true
 		ps = append(ps, p)
 	}
 	return ps, def, nil
