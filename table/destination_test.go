@@ -217,6 +217,42 @@ func TestImplicitWithdrawCalculate(t *testing.T) {
 	assert.Equal(t, len(d.knownPathList), 1)
 }
 
+func TestTimeTieBreaker(t *testing.T) {
+	origin := bgp.NewPathAttributeOrigin(0)
+	aspathParam := []bgp.AsPathParamInterface{bgp.NewAs4PathParam(2, []uint32{65001})}
+	aspath := bgp.NewPathAttributeAsPath(aspathParam)
+	nexthop := bgp.NewPathAttributeNextHop("10.0.0.1")
+	med := bgp.NewPathAttributeMultiExitDisc(0)
+	pathAttributes := []bgp.PathAttributeInterface{origin, aspath, nexthop, med}
+	nlri := bgp.NewIPAddrPrefix(24, "10.10.0.0")
+	updateMsg := bgp.NewBGPUpdateMessage(nil, pathAttributes, []*bgp.IPAddrPrefix{nlri})
+	peer1 := &PeerInfo{AS: 2, LocalAS: 1, Address: net.IP{1, 1, 1, 1}, ID: net.IP{1, 1, 1, 1}}
+	path1 := ProcessMessage(updateMsg, peer1, time.Now())[0]
+
+	peer2 := &PeerInfo{AS: 2, LocalAS: 1, Address: net.IP{2, 2, 2, 2}, ID: net.IP{2, 2, 2, 2}} // weaker router-id
+	path2 := ProcessMessage(updateMsg, peer2, time.Now().Add(-1*time.Hour))[0]                 // older than path1
+
+	d := NewDestination(nlri)
+	d.addNewPath(path1)
+	d.addNewPath(path2)
+
+	d.Calculate(nil)
+
+	assert.Equal(t, len(d.knownPathList), 2)
+	assert.Equal(t, true, d.GetBestPath("").GetSource().ID.Equal(net.IP{2, 2, 2, 2})) // path from peer2 win
+
+	// this option disables tie breaking by age
+	SelectionOptions.ExternalCompareRouterId = true
+	d = NewDestination(nlri)
+	d.addNewPath(path1)
+	d.addNewPath(path2)
+
+	d.Calculate(nil)
+
+	assert.Equal(t, len(d.knownPathList), 2)
+	assert.Equal(t, true, d.GetBestPath("").GetSource().ID.Equal(net.IP{1, 1, 1, 1})) // path from peer1 win
+}
+
 func DestCreatePeer() []*PeerInfo {
 	peerD1 := &PeerInfo{AS: 65000}
 	peerD2 := &PeerInfo{AS: 65001}

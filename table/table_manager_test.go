@@ -1115,6 +1115,7 @@ func TestProcessBGPUpdate_6_select_ebgp_path_ipv6(t *testing.T) {
 func TestProcessBGPUpdate_7_select_low_routerid_path_ipv4(t *testing.T) {
 
 	tm := NewTableManager([]bgp.RouteFamily{bgp.RF_IPv4_UC}, 0, 0)
+	SelectionOptions.ExternalCompareRouterId = true
 
 	// low origin message
 	origin1 := bgp.NewPathAttributeOrigin(0)

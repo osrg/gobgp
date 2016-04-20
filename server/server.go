@@ -1660,6 +1660,8 @@ func (server *BgpServer) handleModConfig(grpcReq *GrpcRequest) error {
 			return err
 		}
 		server.bgpConfig.Global = *c
+		// update route selection options
+		table.SelectionOptions = c.RouteSelectionOptions.Config
 	case api.Operation_DEL_ALL:
 		for k, _ := range server.neighborMap {
 			_, err := server.handleGrpcModNeighbor(&GrpcRequest{
