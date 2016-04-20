@@ -532,20 +532,23 @@ func (c *roaManager) handleGRPC(grpcReq *GrpcRequest) {
 
 func validatePath(ownAs uint32, tree *radix.Tree, cidr string, asPath *bgp.PathAttributeAsPath) config.RpkiValidationResultType {
 	var as uint32
-	if asPath == nil || len(asPath.Value) == 0 {
-		return config.RPKI_VALIDATION_RESULT_TYPE_NOT_FOUND
-	}
-	asParam := asPath.Value[len(asPath.Value)-1].(*bgp.As4PathParam)
-	switch asParam.Type {
-	case bgp.BGP_ASPATH_ATTR_TYPE_SEQ:
-		if len(asParam.AS) == 0 {
+
+	if len(asPath.Value) == 0 {
+		as = ownAs
+	} else {
+		asParam := asPath.Value[len(asPath.Value)-1].(*bgp.As4PathParam)
+		switch asParam.Type {
+		case bgp.BGP_ASPATH_ATTR_TYPE_SEQ:
+			if len(asParam.AS) == 0 {
+				as = ownAs
+			} else {
+				as = asParam.AS[len(asParam.AS)-1]
+			}
+		case bgp.BGP_ASPATH_ATTR_TYPE_CONFED_SET, bgp.BGP_ASPATH_ATTR_TYPE_CONFED_SEQ:
+			as = ownAs
+		default:
 			return config.RPKI_VALIDATION_RESULT_TYPE_NOT_FOUND
 		}
-		as = asParam.AS[len(asParam.AS)-1]
-	case bgp.BGP_ASPATH_ATTR_TYPE_CONFED_SET, bgp.BGP_ASPATH_ATTR_TYPE_CONFED_SEQ:
-		as = ownAs
-	default:
-		return config.RPKI_VALIDATION_RESULT_TYPE_NOT_FOUND
 	}
 	_, n, _ := net.ParseCIDR(cidr)
 	ones, _ := n.Mask.Size()
