@@ -2856,16 +2856,16 @@ func (server *BgpServer) handleGrpcModPolicyAssignment(grpcReq *GrpcRequest) err
 		}
 	case api.Operation_DEL:
 		n := make([]*table.Policy, 0, len(cur)-len(ps))
-		for _, x := range ps {
+		for _, y := range cur {
 			found := false
-			for _, y := range cur {
+			for _, x := range ps {
 				if x.Name() == y.Name() {
 					found = true
 					break
 				}
 			}
 			if !found {
-				n = append(n, x)
+				n = append(n, y)
 			}
 		}
 		err = server.policy.SetPolicy(id, dir, n)
