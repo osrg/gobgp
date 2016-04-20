@@ -2647,6 +2647,13 @@ func TestPolicyAs4PathPrependLastAs(t *testing.T) {
 	}, newPath.GetAsSeqList())
 }
 
+func TestParseCommunityRegexp(t *testing.T) {
+	exp, err := ParseCommunityRegexp("65000:1")
+	assert.Equal(t, nil, err)
+	assert.Equal(t, true, exp.MatchString("65000:1"))
+	assert.Equal(t, false, exp.MatchString("65000:100"))
+}
+
 func createStatement(name, psname, nsname string, accept bool) config.Statement {
 	c := config.Conditions{
 		MatchPrefixSet: config.MatchPrefixSet{
