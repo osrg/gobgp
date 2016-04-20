@@ -2804,6 +2804,9 @@ func (r *RoutingPolicy) Reload(c config.RoutingPolicy) error {
 		if err != nil {
 			return err
 		}
+		if _, ok := pmap[y.Name()]; ok {
+			return fmt.Errorf("duplicated policy name. policy name must be unique.")
+		}
 		pmap[y.Name()] = y
 		for _, s := range y.Statements {
 			_, ok := smap[s.Name]
