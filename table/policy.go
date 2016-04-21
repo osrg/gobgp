@@ -540,6 +540,7 @@ const (
 	INCLUDE singleAsPathMatchMode = iota
 	LEFT_MOST
 	ORIGIN
+	ONLY
 )
 
 type singleAsPathMatch struct {
@@ -554,11 +555,13 @@ func (lhs *singleAsPathMatch) Equal(rhs *singleAsPathMatch) bool {
 func (lhs *singleAsPathMatch) String() string {
 	switch lhs.mode {
 	case INCLUDE:
-		return fmt.Sprintf("%d", lhs.asn)
+		return fmt.Sprintf("_%d_", lhs.asn)
 	case LEFT_MOST:
-		return fmt.Sprintf("^%d", lhs.asn)
+		return fmt.Sprintf("^%d_", lhs.asn)
 	case ORIGIN:
-		return fmt.Sprintf("%d$", lhs.asn)
+		return fmt.Sprintf("_%d$", lhs.asn)
+	case ONLY:
+		return fmt.Sprintf("^%d$", lhs.asn)
 	}
 	return ""
 }
@@ -582,34 +585,43 @@ func (m *singleAsPathMatch) Match(aspath []uint32) bool {
 		if m.asn == aspath[len(aspath)-1] {
 			return true
 		}
+	case ONLY:
+		if len(aspath) == 1 && m.asn == aspath[0] {
+			return true
+		}
 	}
 	return false
 }
 
 func NewSingleAsPathMatch(arg string) *singleAsPathMatch {
+	leftMostRe := regexp.MustCompile("$\\^([0-9]+)_^")
+	originRe := regexp.MustCompile("^_([0-9]+)\\$$")
+	includeRe := regexp.MustCompile("^_([0-9]+)_$")
+	onlyRe := regexp.MustCompile("^\\^([0-9]+)\\$$")
 	switch {
-	case len(arg) == 0:
-		return nil
-	case arg[0] == '^':
-		if asn, err := strconv.Atoi(arg[1:]); err == nil {
-			return &singleAsPathMatch{
-				asn:  uint32(asn),
-				mode: LEFT_MOST,
-			}
+	case leftMostRe.MatchString(arg):
+		asn, _ := strconv.Atoi(leftMostRe.FindStringSubmatch(arg)[1])
+		return &singleAsPathMatch{
+			asn:  uint32(asn),
+			mode: LEFT_MOST,
 		}
-	case arg[len(arg)-1] == '$':
-		if asn, err := strconv.Atoi(arg[:len(arg)-1]); err == nil {
-			return &singleAsPathMatch{
-				asn:  uint32(asn),
-				mode: ORIGIN,
-			}
+	case originRe.MatchString(arg):
+		asn, _ := strconv.Atoi(originRe.FindStringSubmatch(arg)[1])
+		return &singleAsPathMatch{
+			asn:  uint32(asn),
+			mode: ORIGIN,
 		}
-	default:
-		if asn, err := strconv.Atoi(arg); err == nil {
-			return &singleAsPathMatch{
-				asn:  uint32(asn),
-				mode: INCLUDE,
-			}
+	case includeRe.MatchString(arg):
+		asn, _ := strconv.Atoi(includeRe.FindStringSubmatch(arg)[1])
+		return &singleAsPathMatch{
+			asn:  uint32(asn),
+			mode: INCLUDE,
+		}
+	case onlyRe.MatchString(arg):
+		asn, _ := strconv.Atoi(onlyRe.FindStringSubmatch(arg)[1])
+		return &singleAsPathMatch{
+			asn:  uint32(asn),
+			mode: ONLY,
 		}
 	}
 	return nil
@@ -1253,33 +1265,40 @@ func (c *AsPathCondition) ToApiStruct() *api.MatchSet {
 }
 
 func (c *AsPathCondition) Evaluate(path *Path, _ *PolicyOptions) bool {
-	result := false
-	aspath := path.GetAsSeqList()
-	for _, m := range c.set.singleList {
-		result = m.Match(aspath)
-		if c.option == MATCH_OPTION_ALL && !result {
-			break
-		}
-		if c.option == MATCH_OPTION_ANY && result {
-			break
-		}
-	}
-	if (c.option == MATCH_OPTION_ALL && result) || (c.option == MATCH_OPTION_ANY && !result) {
-		aspath := path.GetAsString()
-		for _, r := range c.set.list {
-			result = r.MatchString(aspath)
+	if len(c.set.singleList) > 0 {
+		aspath := path.GetAsSeqList()
+		for _, m := range c.set.singleList {
+			result := m.Match(aspath)
 			if c.option == MATCH_OPTION_ALL && !result {
-				break
+				return false
 			}
 			if c.option == MATCH_OPTION_ANY && result {
-				break
+				return true
+			}
+			if c.option == MATCH_OPTION_INVERT && result {
+				return false
 			}
 		}
 	}
-	if c.option == MATCH_OPTION_INVERT {
-		result = !result
+	if len(c.set.list) > 0 {
+		aspath := path.GetAsString()
+		for _, r := range c.set.list {
+			result := r.MatchString(aspath)
+			if c.option == MATCH_OPTION_ALL && !result {
+				return false
+			}
+			if c.option == MATCH_OPTION_ANY && result {
+				return true
+			}
+			if c.option == MATCH_OPTION_INVERT && result {
+				return false
+			}
+		}
 	}
-	return result
+	if c.option == MATCH_OPTION_ANY {
+		return false
+	}
+	return true
 }
 
 func NewAsPathConditionFromApiStruct(a *api.MatchSet, m map[string]DefinedSet) (*AsPathCondition, error) {

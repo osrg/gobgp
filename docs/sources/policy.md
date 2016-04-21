@@ -427,15 +427,17 @@ part. Like PrefixSets and NeighborSets, each can have multiple sets and each set
  |------------------|-------------------|------------|----------|
  | AsPathSet        | as path value     | "^65100"   |          |
 
- The AS path regular expression is compatible with [Quagga](http://www.nongnu.org/quagga/docs/docs-multi/AS-Path-Regular-Expression.html) and Cisco. Some examples follow:
+ The AS path regular expression is compatible with [Quagga](http://www.nongnu.org/quagga/docs/docs-multi/AS-Path-Regular-Expression.html) and Cisco.
+ Note Character `_` has special meaning. It is abbreviation for `(^|[,{}() ]|$)`.
 
-    - From: "^65100" means the route is passed from AS 65100 directly.
-    - Any: "65100" means the route comes through AS 65100.
-    - Origin: "65100$" means the route is originated by AS 65100.
-    - Only: "^65100$" means the route is originated by AS 65100 and comes from it directly.
-    - ^65100_65001
-    - 65100_[0-9]+_.*$
-    - ^6[0-9]_5.*_65.?00$
+ Some examples follow:
+    - From: `^65100_` means the route is passed from AS 65100 directly.
+    - Any: `_65100_` means the route comes through AS 65100.
+    - Origin: `_65100$` means the route is originated by AS 65100.
+    - Only: `^65100$` means the route is originated by AS 65100 and comes from it directly.
+    - `^65100_65001`
+    - `65100_[0-9]+_.*$`
+    - `^6[0-9]_5.*_65.?00$`
 
   ##### Examples
   - example 1
@@ -445,7 +447,7 @@ part. Like PrefixSets and NeighborSets, each can have multiple sets and each set
   # example 1
   [[defined-sets.bgp-defined-sets.as-path-sets]]
     as-path-set-name = "aspath1"
-    as-path-list = ["^65100"]
+    as-path-list = ["^65100_"]
   ```
 
   - example 2
