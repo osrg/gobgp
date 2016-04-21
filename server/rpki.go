@@ -571,6 +571,11 @@ func validatePath(ownAs uint32, tree *radix.Tree, cidr string, asPath *bgp.PathA
 }
 
 func (c *roaManager) validate(pathList []*table.Path) {
+	if len(c.clientMap) == 0 {
+		// RPKI isn't enabled
+		return
+	}
+
 	for _, path := range pathList {
 		if path.IsWithdraw || path.IsEOR() {
 			continue
