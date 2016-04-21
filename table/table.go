@@ -17,18 +17,21 @@ package table
 
 import (
 	log "github.com/Sirupsen/logrus"
+	"github.com/osrg/gobgp/config"
 	"github.com/osrg/gobgp/packet/bgp"
 )
 
 type Table struct {
 	routeFamily  bgp.RouteFamily
 	destinations map[string]*Destination
+	option       *config.RouteSelectionOptionsConfig
 }
 
-func NewTable(rf bgp.RouteFamily) *Table {
+func NewTable(rf bgp.RouteFamily, option *config.RouteSelectionOptionsConfig) *Table {
 	return &Table{
 		routeFamily:  rf,
 		destinations: make(map[string]*Destination),
+		option:       option,
 	}
 }
 
@@ -188,7 +191,7 @@ func (t *Table) getOrCreateDest(nlri bgp.AddrPrefixInterface) *Destination {
 			"Topic": "Table",
 			"Key":   tableKey,
 		}).Debugf("create Destination")
-		dest = NewDestination(nlri)
+		dest = NewDestination(nlri, t.option)
 		t.setDestination(tableKey, dest)
 	}
 	return dest

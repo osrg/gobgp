@@ -17,6 +17,7 @@ package table
 
 import (
 	//"fmt"
+	"github.com/osrg/gobgp/config"
 	"github.com/osrg/gobgp/packet/bgp"
 	"github.com/stretchr/testify/assert"
 	"net"
@@ -27,13 +28,15 @@ import (
 func TestDestinationNewIPv4(t *testing.T) {
 	peerD := DestCreatePeer()
 	pathD := DestCreatePath(peerD)
-	ipv4d := NewDestination(pathD[0].GetNlri())
+	option := &config.RouteSelectionOptionsConfig{}
+	ipv4d := NewDestination(pathD[0].GetNlri(), option)
 	assert.NotNil(t, ipv4d)
 }
 func TestDestinationNewIPv6(t *testing.T) {
 	peerD := DestCreatePeer()
 	pathD := DestCreatePath(peerD)
-	ipv6d := NewDestination(pathD[0].GetNlri())
+	option := &config.RouteSelectionOptionsConfig{}
+	ipv6d := NewDestination(pathD[0].GetNlri(), option)
 	assert.NotNil(t, ipv6d)
 }
 
@@ -86,7 +89,8 @@ func TestCalculate(t *testing.T) {
 	path1.Filter("2", POLICY_DIRECTION_IMPORT)
 	path2.Filter("1", POLICY_DIRECTION_IMPORT)
 
-	d := NewDestination(nlri)
+	option := &config.RouteSelectionOptionsConfig{}
+	d := NewDestination(nlri, option)
 	d.addNewPath(path1)
 	d.addNewPath(path2)
 
@@ -120,7 +124,8 @@ func TestCalculate2(t *testing.T) {
 	peer1 := &PeerInfo{AS: 1, Address: net.IP{1, 1, 1, 1}}
 	path1 := ProcessMessage(update1, peer1, time.Now())[0]
 
-	d := NewDestination(nlri)
+	option := &config.RouteSelectionOptionsConfig{}
+	d := NewDestination(nlri, option)
 	d.addNewPath(path1)
 	d.Calculate(nil)
 
@@ -184,7 +189,8 @@ func TestImplicitWithdrawCalculate(t *testing.T) {
 	path2.Filter("1", POLICY_DIRECTION_IMPORT)
 	path2.Filter("3", POLICY_DIRECTION_IMPORT)
 
-	d := NewDestination(nlri)
+	option := &config.RouteSelectionOptionsConfig{}
+	d := NewDestination(nlri, option)
 	d.addNewPath(path1)
 	d.addNewPath(path2)
 
@@ -215,6 +221,45 @@ func TestImplicitWithdrawCalculate(t *testing.T) {
 	assert.Equal(t, len(d.GetKnownPathList("3")), 1)
 	assert.Equal(t, d.GetKnownPathList("3")[0].GetAsString(), "65001 65002") // peer "3" has new original path {65001, 65002}
 	assert.Equal(t, len(d.knownPathList), 1)
+}
+
+func TestTimeTieBreaker(t *testing.T) {
+	origin := bgp.NewPathAttributeOrigin(0)
+	aspathParam := []bgp.AsPathParamInterface{bgp.NewAs4PathParam(2, []uint32{65001})}
+	aspath := bgp.NewPathAttributeAsPath(aspathParam)
+	nexthop := bgp.NewPathAttributeNextHop("10.0.0.1")
+	med := bgp.NewPathAttributeMultiExitDisc(0)
+	pathAttributes := []bgp.PathAttributeInterface{origin, aspath, nexthop, med}
+	nlri := bgp.NewIPAddrPrefix(24, "10.10.0.0")
+	updateMsg := bgp.NewBGPUpdateMessage(nil, pathAttributes, []*bgp.IPAddrPrefix{nlri})
+	peer1 := &PeerInfo{AS: 1, LocalAS: 1, Address: net.IP{1, 1, 1, 1}, ID: net.IP{1, 1, 1, 1}}
+	path1 := ProcessMessage(updateMsg, peer1, time.Now())[0]
+
+	peer2 := &PeerInfo{AS: 1, LocalAS: 1, Address: net.IP{2, 2, 2, 2}, ID: net.IP{2, 2, 2, 2}} // weaker router-id
+	path2 := ProcessMessage(updateMsg, peer2, time.Now().Add(-1*time.Hour))[0]                 // older than path1
+
+	option := &config.RouteSelectionOptionsConfig{}
+	d := NewDestination(nlri, option)
+	d.addNewPath(path1)
+	d.addNewPath(path2)
+
+	d.Calculate(nil)
+
+	assert.Equal(t, len(d.knownPathList), 2)
+	assert.Equal(t, true, d.GetBestPath("").GetSource().ID.Equal(net.IP{2, 2, 2, 2})) // path from peer2 win
+
+	// this option disables tie breaking by age
+	option = &config.RouteSelectionOptionsConfig{
+		ExternalCompareRouterId: true,
+	}
+	d = NewDestination(nlri, option)
+	d.addNewPath(path1)
+	d.addNewPath(path2)
+
+	d.Calculate(nil)
+
+	assert.Equal(t, len(d.knownPathList), 2)
+	assert.Equal(t, true, d.GetBestPath("").GetSource().ID.Equal(net.IP{1, 1, 1, 1})) // path from peer1 win
 }
 
 func DestCreatePeer() []*PeerInfo {

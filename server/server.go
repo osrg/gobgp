@@ -1743,8 +1743,11 @@ func (server *BgpServer) handleModConfig(grpcReq *GrpcRequest) error {
 			server.acceptCh = acceptCh
 		}
 
-		rfs, _ := config.AfiSafis(c.AfiSafis).ToRfList()
-		server.globalRib = table.NewTableManager(rfs, c.MplsLabelRange.MinLabel, c.MplsLabelRange.MaxLabel)
+		var err error
+		server.globalRib, err = table.NewTableManager(c)
+		if err != nil {
+			return err
+		}
 
 		p := config.RoutingPolicy{}
 		if err := server.SetRoutingPolicy(p); err != nil {

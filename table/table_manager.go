@@ -19,6 +19,7 @@ import (
 	"bytes"
 	"fmt"
 	log "github.com/Sirupsen/logrus"
+	"github.com/osrg/gobgp/config"
 	"github.com/osrg/gobgp/packet/bgp"
 	"net"
 	"time"
@@ -120,19 +121,26 @@ type TableManager struct {
 	rfList    []bgp.RouteFamily
 }
 
-func NewTableManager(rfList []bgp.RouteFamily, minLabel, maxLabel uint32) *TableManager {
+func NewTableManager(c *config.Global) (*TableManager, error) {
+	if c == nil {
+		return nil, fmt.Errorf("config.Global is nil")
+	}
+	rfs, err := config.AfiSafis(c.AfiSafis).ToRfList()
+	if err != nil {
+		return nil, err
+	}
 	t := &TableManager{
 		Tables:    make(map[bgp.RouteFamily]*Table),
 		Vrfs:      make(map[string]*Vrf),
-		minLabel:  minLabel,
-		maxLabel:  maxLabel,
-		nextLabel: minLabel,
-		rfList:    rfList,
+		minLabel:  c.MplsLabelRange.MinLabel,
+		maxLabel:  c.MplsLabelRange.MaxLabel,
+		nextLabel: c.MplsLabelRange.MinLabel,
+		rfList:    rfs,
 	}
-	for _, rf := range rfList {
-		t.Tables[rf] = NewTable(rf)
+	for _, rf := range rfs {
+		t.Tables[rf] = NewTable(rf, &c.RouteSelectionOptions.Config)
 	}
-	return t
+	return t, nil
 }
 
 func (manager *TableManager) GetRFlist() []bgp.RouteFamily {
