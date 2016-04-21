@@ -212,24 +212,23 @@ class GoBGPContainer(BGPContainer):
             afi_safi_list = []
             version = netaddr.IPNetwork(info['neigh_addr']).version
             if version == 4:
-                afi_safi_list.append({'afi-safi-name': 'ipv4-unicast'})
+                afi_safi_list.append({'config':{'afi-safi-name': 'ipv4-unicast'}})
             elif version == 6:
-                afi_safi_list.append({'afi-safi-name': 'ipv6-unicast'})
+                afi_safi_list.append({'config':{'afi-safi-name': 'ipv6-unicast'}})
             else:
                 Exception('invalid ip address version. {0}'.format(version))
 
             if info['vpn']:
-                afi_safi_list.append({'afi-safi-name': 'l3vpn-ipv4-unicast'})
-                afi_safi_list.append({'afi-safi-name': 'l3vpn-ipv6-unicast'})
-                afi_safi_list.append({'afi-safi-name': 'l2vpn-evpn'})
-                afi_safi_list.append({'afi-safi-name': 'rtc',
-                    'route-target-membership': {'deferral-time': 10}})
+                afi_safi_list.append({'config': {'afi-safi-name': 'l3vpn-ipv4-unicast'}})
+                afi_safi_list.append({'config': {'afi-safi-name': 'l3vpn-ipv6-unicast'}})
+                afi_safi_list.append({'config': {'afi-safi-name': 'l2vpn-evpn'}})
+                afi_safi_list.append({'config': {'afi-safi-name': 'rtc'}, 'route-target-membership': {'deferral-time': 10}})
 
             if info['flowspec']:
-                afi_safi_list.append({'afi-safi-name': 'ipv4-flowspec'})
-                afi_safi_list.append({'afi-safi-name': 'l3vpn-ipv4-flowspec'})
-                afi_safi_list.append({'afi-safi-name': 'ipv6-flowspec'})
-                afi_safi_list.append({'afi-safi-name': 'l3vpn-ipv6-flowspec'})
+                afi_safi_list.append({'config': {'afi-safi-name': 'ipv4-flowspec'}})
+                afi_safi_list.append({'config': {'afi-safi-name': 'l3vpn-ipv4-flowspec'}})
+                afi_safi_list.append({'config': {'afi-safi-name': 'ipv6-flowspec'}})
+                afi_safi_list.append({'config': {'afi-safi-name': 'l3vpn-ipv6-flowspec'}})
 
             n = {'config':
                  {'neighbor-address': info['neigh_addr'].split('/')[0],

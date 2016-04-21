@@ -28,6 +28,7 @@ implementations can interchange EVPN messages.
   neighbor-address = "10.0.255.1"
   peer-as = 64512
 [[neighbors.afi-safis]]
+  [neighbors.afi-safis.config]
   afi-safi-name = "l2vpn-evpn"
 
 [[neighbors]]
@@ -35,6 +36,7 @@ implementations can interchange EVPN messages.
   neighbor-address = "10.0.255.2"
   peer-as = 64512
 [[neighbors.afi-safis]]
+  [neighbors.afi-safis.config]
   afi-safi-name = "l2vpn-evpn"
 ```
 

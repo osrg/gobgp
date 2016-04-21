@@ -63,29 +63,43 @@
         route-reflector-client = true
         route-reflector-cluster-id = "192.168.0.1"
     [[neighbors.afi-safis]]
+        [neighbors.afi-safis.config]
         afi-safi-name = "ipv4-unicast"
         [neighbors.afi-safis.prefix-limit.config]
            max-prefixes = 1000
            shutdown-threshold-pct = 80
     [[neighbors.afi-safis]]
+        [neighbors.afi-safis.config]
         afi-safi-name = "ipv6-unicast"
     [[neighbors.afi-safis]]
+        [neighbors.afi-safis.config]
         afi-safi-name = "ipv4-labelled-unicast"
     [[neighbors.afi-safis]]
+        [neighbors.afi-safis.config]
         afi-safi-name = "ipv6-labelled-unicast"
     [[neighbors.afi-safis]]
+        [neighbors.afi-safis.config]
         afi-safi-name = "l3vpn-ipv4-unicast"
     [[neighbors.afi-safis]]
+        [neighbors.afi-safis.config]
         afi-safi-name = "l3vpn-ipv6-unicast"
     [[neighbors.afi-safis]]
+        [neighbors.afi-safis.config]
         afi-safi-name = "l2vpn-evpn"
     [[neighbors.afi-safis]]
+        [neighbors.afi-safis.config]
         afi-safi-name = "rtc"
     [[neighbors.afi-safis]]
-        afi-safi-name = "encap"
+        [neighbors.afi-safis.config]
+        afi-safi-name = "ipv4-encap"
     [[neighbors.afi-safis]]
+        [neighbors.afi-safis.config]
+        afi-safi-name = "ipv6-encap"
+    [[neighbors.afi-safis]]
+        [neighbors.afi-safis.config]
         afi-safi-name = "ipv4-flowspec"
     [[neighbors.afi-safis]]
+        [neighbors.afi-safis.config]
         afi-safi-name = "ipv6-flowspec"
     [neighbors.apply-policy.config]
         import-policy-list = ["policy1"]

@@ -24,7 +24,6 @@ func SetDefaultConfigValues(v *viper.Viper, b *BgpConfigSet) error {
 
 	defaultAfiSafi := func(typ AfiSafiType, enable bool) AfiSafi {
 		return AfiSafi{
-			AfiSafiName: typ,
 			Config: AfiSafiConfig{
 				AfiSafiName: typ,
 				Enabled:     enable,
@@ -132,8 +131,7 @@ func SetDefaultConfigValues(v *viper.Viper, b *BgpConfigSet) error {
 				if len(afs) > i {
 					vvv.Set("afi-safi", afs[i])
 				}
-				af.Config.AfiSafiName = af.AfiSafiName
-				af.State.AfiSafiName = af.AfiSafiName
+				af.State.AfiSafiName = af.Config.AfiSafiName
 				if !vvv.IsSet("afi-safi.config") {
 					af.Config.Enabled = true
 				}

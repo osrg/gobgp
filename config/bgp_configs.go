@@ -937,8 +937,6 @@ func (lhs *BmpServerConfig) Equal(rhs *BmpServerConfig) bool {
 //struct for container gobgp:bmp-server
 type BmpServer struct {
 	// original -> gobgp:address
-	//gobgp:address's original type is inet:ip-address
-	Address string `mapstructure:"address"`
 	// original -> gobgp:bmp-server-config
 	Config BmpServerConfig `mapstructure:"config"`
 	// original -> gobgp:bmp-server-state
@@ -947,9 +945,6 @@ type BmpServer struct {
 
 func (lhs *BmpServer) Equal(rhs *BmpServer) bool {
 	if lhs == nil || rhs == nil {
-		return false
-	}
-	if lhs.Address != rhs.Address {
 		return false
 	}
 	if !lhs.Config.Equal(&(rhs.Config)) {
@@ -1130,8 +1125,6 @@ func (lhs *RpkiServerConfig) Equal(rhs *RpkiServerConfig) bool {
 //struct for container gobgp:rpki-server
 type RpkiServer struct {
 	// original -> gobgp:address
-	//gobgp:address's original type is inet:ip-address
-	Address string `mapstructure:"address"`
 	// original -> gobgp:rpki-server-config
 	Config RpkiServerConfig `mapstructure:"config"`
 	// original -> gobgp:rpki-server-state
@@ -1140,9 +1133,6 @@ type RpkiServer struct {
 
 func (lhs *RpkiServer) Equal(rhs *RpkiServer) bool {
 	if lhs == nil || rhs == nil {
-		return false
-	}
-	if lhs.Address != rhs.Address {
 		return false
 	}
 	if !lhs.Config.Equal(&(rhs.Config)) {
@@ -1285,7 +1275,6 @@ func (lhs *PeerGroupConfig) Equal(rhs *PeerGroupConfig) bool {
 //struct for container bgp:peer-group
 type PeerGroup struct {
 	// original -> bgp:peer-group-name
-	PeerGroupName string `mapstructure:"peer-group-name"`
 	// original -> bgp:peer-group-config
 	Config PeerGroupConfig `mapstructure:"config"`
 	// original -> bgp:peer-group-state
@@ -1320,9 +1309,6 @@ type PeerGroup struct {
 
 func (lhs *PeerGroup) Equal(rhs *PeerGroup) bool {
 	if lhs == nil || rhs == nil {
-		return false
-	}
-	if lhs.PeerGroupName != rhs.PeerGroupName {
 		return false
 	}
 	if !lhs.Config.Equal(&(rhs.Config)) {
@@ -1361,10 +1347,10 @@ func (lhs *PeerGroup) Equal(rhs *PeerGroup) bool {
 	{
 		lmap := make(map[string]*AfiSafi)
 		for _, l := range lhs.AfiSafis {
-			lmap[string(l.AfiSafiName)] = &l
+			lmap[string(l.Config.AfiSafiName)] = &l
 		}
 		for _, r := range rhs.AfiSafis {
-			if l, y := lmap[string(r.AfiSafiName)]; !y {
+			if l, y := lmap[string(r.Config.AfiSafiName)]; !y {
 				return false
 			} else if !r.Equal(l) {
 				return false
@@ -2399,8 +2385,6 @@ func (lhs *NeighborConfig) Equal(rhs *NeighborConfig) bool {
 //struct for container bgp:neighbor
 type Neighbor struct {
 	// original -> bgp:neighbor-address
-	//bgp:neighbor-address's original type is inet:ip-address
-	NeighborAddress string `mapstructure:"neighbor-address"`
 	// original -> bgp:neighbor-config
 	Config NeighborConfig `mapstructure:"config"`
 	// original -> bgp:neighbor-state
@@ -2435,9 +2419,6 @@ type Neighbor struct {
 
 func (lhs *Neighbor) Equal(rhs *Neighbor) bool {
 	if lhs == nil || rhs == nil {
-		return false
-	}
-	if lhs.NeighborAddress != rhs.NeighborAddress {
 		return false
 	}
 	if !lhs.Config.Equal(&(rhs.Config)) {
@@ -2476,10 +2457,10 @@ func (lhs *Neighbor) Equal(rhs *Neighbor) bool {
 	{
 		lmap := make(map[string]*AfiSafi)
 		for _, l := range lhs.AfiSafis {
-			lmap[string(l.AfiSafiName)] = &l
+			lmap[string(l.Config.AfiSafiName)] = &l
 		}
 		for _, r := range rhs.AfiSafis {
-			if l, y := lmap[string(r.AfiSafiName)]; !y {
+			if l, y := lmap[string(r.Config.AfiSafiName)]; !y {
 				return false
 			} else if !r.Equal(l) {
 				return false
@@ -3205,7 +3186,6 @@ func (lhs *MpGracefulRestart) Equal(rhs *MpGracefulRestart) bool {
 //struct for container bgp-mp:afi-safi
 type AfiSafi struct {
 	// original -> bgp-mp:afi-safi-name
-	AfiSafiName AfiSafiType `mapstructure:"afi-safi-name"`
 	// original -> bgp-mp:mp-graceful-restart
 	MpGracefulRestart MpGracefulRestart `mapstructure:"mp-graceful-restart"`
 	// original -> bgp-mp:afi-safi-config
@@ -3246,9 +3226,6 @@ type AfiSafi struct {
 
 func (lhs *AfiSafi) Equal(rhs *AfiSafi) bool {
 	if lhs == nil || rhs == nil {
-		return false
-	}
-	if lhs.AfiSafiName != rhs.AfiSafiName {
 		return false
 	}
 	if !lhs.MpGracefulRestart.Equal(&(rhs.MpGracefulRestart)) {
@@ -3996,10 +3973,10 @@ func (lhs *Global) Equal(rhs *Global) bool {
 	{
 		lmap := make(map[string]*AfiSafi)
 		for _, l := range lhs.AfiSafis {
-			lmap[string(l.AfiSafiName)] = &l
+			lmap[string(l.Config.AfiSafiName)] = &l
 		}
 		for _, r := range rhs.AfiSafis {
-			if l, y := lmap[string(r.AfiSafiName)]; !y {
+			if l, y := lmap[string(r.Config.AfiSafiName)]; !y {
 				return false
 			} else if !r.Equal(l) {
 				return false
@@ -4053,10 +4030,10 @@ func (lhs *Bgp) Equal(rhs *Bgp) bool {
 	{
 		lmap := make(map[string]*Neighbor)
 		for _, l := range lhs.Neighbors {
-			lmap[string(l.NeighborAddress)] = &l
+			lmap[string(l.Config.NeighborAddress)] = &l
 		}
 		for _, r := range rhs.Neighbors {
-			if l, y := lmap[string(r.NeighborAddress)]; !y {
+			if l, y := lmap[string(r.Config.NeighborAddress)]; !y {
 				return false
 			} else if !r.Equal(l) {
 				return false
@@ -4069,10 +4046,10 @@ func (lhs *Bgp) Equal(rhs *Bgp) bool {
 	{
 		lmap := make(map[string]*PeerGroup)
 		for _, l := range lhs.PeerGroups {
-			lmap[string(l.PeerGroupName)] = &l
+			lmap[string(l.Config.PeerGroupName)] = &l
 		}
 		for _, r := range rhs.PeerGroups {
-			if l, y := lmap[string(r.PeerGroupName)]; !y {
+			if l, y := lmap[string(r.Config.PeerGroupName)]; !y {
 				return false
 			} else if !r.Equal(l) {
 				return false
@@ -4085,10 +4062,10 @@ func (lhs *Bgp) Equal(rhs *Bgp) bool {
 	{
 		lmap := make(map[string]*RpkiServer)
 		for _, l := range lhs.RpkiServers {
-			lmap[string(l.Address)] = &l
+			lmap[string(l.Config.Address)] = &l
 		}
 		for _, r := range rhs.RpkiServers {
-			if l, y := lmap[string(r.Address)]; !y {
+			if l, y := lmap[string(r.Config.Address)]; !y {
 				return false
 			} else if !r.Equal(l) {
 				return false
@@ -4101,10 +4078,10 @@ func (lhs *Bgp) Equal(rhs *Bgp) bool {
 	{
 		lmap := make(map[string]*BmpServer)
 		for _, l := range lhs.BmpServers {
-			lmap[string(l.Address)] = &l
+			lmap[string(l.Config.Address)] = &l
 		}
 		for _, r := range rhs.BmpServers {
-			if l, y := lmap[string(r.Address)]; !y {
+			if l, y := lmap[string(r.Config.Address)]; !y {
 				return false
 			} else if !r.Equal(l) {
 				return false

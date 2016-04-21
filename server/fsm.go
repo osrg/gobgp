@@ -516,7 +516,7 @@ func capabilitiesFromConfig(pConf *config.Neighbor) []bgp.ParameterCapabilityInt
 	caps := make([]bgp.ParameterCapabilityInterface, 0, 4)
 	caps = append(caps, bgp.NewCapRouteRefresh())
 	for _, rf := range pConf.AfiSafis {
-		family, _ := bgp.GetRouteFamily(string(rf.AfiSafiName))
+		family, _ := bgp.GetRouteFamily(string(rf.Config.AfiSafiName))
 		caps = append(caps, bgp.NewCapMultiProtocol(family))
 	}
 	caps = append(caps, bgp.NewCapFourOctetASNumber(pConf.Config.LocalAs))
@@ -533,7 +533,7 @@ func capabilitiesFromConfig(pConf *config.Neighbor) []bgp.ParameterCapabilityInt
 		if !c.HelperOnly {
 			for i, rf := range pConf.AfiSafis {
 				if rf.MpGracefulRestart.Config.Enabled {
-					k, _ := bgp.GetRouteFamily(string(rf.AfiSafiName))
+					k, _ := bgp.GetRouteFamily(string(rf.Config.AfiSafiName))
 					// When restarting, always flag forwaring bit.
 					// This can be a lie, depending on how gobgpd is used.
 					// For a route-server use-case, since a route-server
@@ -829,7 +829,7 @@ func (h *FSMHandler) opensent() (bgp.FSMState, FsmStateReason) {
 						for _, t := range cap.Tuples {
 							n := bgp.AddressFamilyNameMap[bgp.AfiSafiToRouteFamily(t.AFI, t.SAFI)]
 							for i, a := range fsm.pConf.AfiSafis {
-								if string(a.AfiSafiName) == n {
+								if string(a.Config.AfiSafiName) == n {
 									fsm.pConf.AfiSafis[i].MpGracefulRestart.State.Enabled = true
 									fsm.pConf.AfiSafis[i].MpGracefulRestart.State.Received = true
 									break

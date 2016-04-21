@@ -912,7 +912,7 @@ func (server *BgpServer) handleFSMMessage(peer *Peer, e *FsmMsg) []*SenderMsg {
 						rtc = true
 					}
 					for i, a := range peer.fsm.pConf.AfiSafis {
-						if g, _ := bgp.GetRouteFamily(string(a.AfiSafiName)); f == g {
+						if g, _ := bgp.GetRouteFamily(string(a.Config.AfiSafiName)); f == g {
 							peer.fsm.pConf.AfiSafis[i].MpGracefulRestart.State.EndOfRibReceived = true
 						}
 					}
@@ -1594,7 +1594,6 @@ func (server *BgpServer) handleModConfig(grpcReq *GrpcRequest) error {
 			for _, f := range g.Families {
 				name := config.AfiSafiType(bgp.RouteFamily(f).String())
 				families = append(families, config.AfiSafi{
-					AfiSafiName: name,
 					Config: config.AfiSafiConfig{
 						AfiSafiName: name,
 						Enabled:     true,
@@ -2346,7 +2345,7 @@ func (server *BgpServer) handleAddNeighbor(c *config.Neighbor) ([]*SenderMsg, er
 }
 
 func (server *BgpServer) handleDelNeighbor(c *config.Neighbor) ([]*SenderMsg, error) {
-	addr := c.NeighborAddress
+	addr := c.Config.NeighborAddress
 	n, y := server.neighborMap[addr]
 	if !y {
 		return nil, fmt.Errorf("Can't delete a peer configuration for %s", addr)
@@ -2377,7 +2376,6 @@ func (server *BgpServer) handleGrpcModNeighbor(grpcReq *GrpcRequest) ([]*SenderM
 		apitoConfig := func(a *api.Peer) (*config.Neighbor, error) {
 			pconf := &config.Neighbor{}
 			if a.Conf != nil {
-				pconf.NeighborAddress = a.Conf.NeighborAddress
 				pconf.Config.NeighborAddress = a.Conf.NeighborAddress
 				pconf.Config.PeerAs = a.Conf.PeerAs
 				if a.Conf.LocalAs == 0 {
@@ -2443,16 +2441,30 @@ func (server *BgpServer) handleGrpcModNeighbor(grpcReq *GrpcRequest) ([]*SenderM
 					if !ok {
 						return pconf, fmt.Errorf("invalid address family: %d", family)
 					}
-					cAfiSafi := config.AfiSafi{AfiSafiName: config.AfiSafiType(name)}
+					cAfiSafi := config.AfiSafi{
+						Config: config.AfiSafiConfig{
+							AfiSafiName: config.AfiSafiType(name),
+						},
+					}
 					pconf.AfiSafis = append(pconf.AfiSafis, cAfiSafi)
 				}
 			} else {
 				if net.ParseIP(a.Conf.NeighborAddress).To4() != nil {
 					pconf.AfiSafis = []config.AfiSafi{
-						config.AfiSafi{AfiSafiName: "ipv4-unicast"}}
+						config.AfiSafi{
+							Config: config.AfiSafiConfig{
+								AfiSafiName: "ipv4-unicast",
+							},
+						},
+					}
 				} else {
 					pconf.AfiSafis = []config.AfiSafi{
-						config.AfiSafi{AfiSafiName: "ipv6-unicast"}}
+						config.AfiSafi{
+							Config: config.AfiSafiConfig{
+								AfiSafiName: "ipv6-unicast",
+							},
+						},
+					}
 				}
 			}
 			if a.Transport != nil {
@@ -2471,7 +2483,11 @@ func (server *BgpServer) handleGrpcModNeighbor(grpcReq *GrpcRequest) ([]*SenderM
 		}
 		return server.handleAddNeighbor(c)
 	case api.Operation_DEL:
-		return server.handleDelNeighbor(&config.Neighbor{NeighborAddress: arg.Peer.Conf.NeighborAddress})
+		return server.handleDelNeighbor(&config.Neighbor{
+			Config: config.NeighborConfig{
+				NeighborAddress: arg.Peer.Conf.NeighborAddress,
+			},
+		})
 	default:
 		return nil, fmt.Errorf("unsupported operation %s", arg.Operation)
 	}

@@ -28,10 +28,13 @@ afi-safis like below.
   neighbor-address = "10.0.255.1"
   peer-as = 64512
 [[neighbors.afi-safis]]
+  [neighbors.afi-safis.config]
   afi-safi-name = "ipv4-flowspec"
 [[neighbors.afi-safis]]
+  [neighbors.afi-safis.config]
   afi-safi-name = "ipv6-flowspec"
 [[neighbors.afi-safis]]
+  [neighbors.afi-safis.config]
   afi-safi-name = "l2vpn-flowspec"
 ```
 

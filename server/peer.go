@@ -105,7 +105,7 @@ func (peer *Peer) forwardingPreservedFamilies() ([]bgp.RouteFamily, []bgp.RouteF
 	list := []bgp.RouteFamily{}
 	for _, a := range peer.fsm.pConf.AfiSafis {
 		if s := a.MpGracefulRestart.State; s.Enabled && s.Received {
-			f, _ := bgp.GetRouteFamily(string(a.AfiSafiName))
+			f, _ := bgp.GetRouteFamily(string(a.Config.AfiSafiName))
 			list = append(list, f)
 		}
 	}
@@ -263,7 +263,7 @@ func (peer *Peer) updatePrefixLimitConfig(c []config.AfiSafi) ([]*SenderMsg, err
 	}
 	m := make(map[bgp.RouteFamily]config.PrefixLimitConfig)
 	for _, e := range x {
-		k, err := bgp.GetRouteFamily(string(e.AfiSafiName))
+		k, err := bgp.GetRouteFamily(string(e.Config.AfiSafiName))
 		if err != nil {
 			return nil, err
 		}
@@ -271,7 +271,7 @@ func (peer *Peer) updatePrefixLimitConfig(c []config.AfiSafi) ([]*SenderMsg, err
 	}
 	msgs := make([]*SenderMsg, 0, len(y))
 	for _, e := range y {
-		k, err := bgp.GetRouteFamily(string(e.AfiSafiName))
+		k, err := bgp.GetRouteFamily(string(e.Config.AfiSafiName))
 		if err != nil {
 			return nil, err
 		}
@@ -281,7 +281,7 @@ func (peer *Peer) updatePrefixLimitConfig(c []config.AfiSafi) ([]*SenderMsg, err
 			log.WithFields(log.Fields{
 				"Topic":                   "Peer",
 				"Key":                     peer.ID(),
-				"AddressFamily":           e.AfiSafiName,
+				"AddressFamily":           e.Config.AfiSafiName,
 				"OldMaxPrefixes":          p.MaxPrefixes,
 				"NewMaxPrefixes":          e.PrefixLimit.Config.MaxPrefixes,
 				"OldShutdownThresholdPct": p.ShutdownThresholdPct,
@@ -308,7 +308,7 @@ func (peer *Peer) handleUpdate(e *FsmMsg) ([]*table.Path, []bgp.RouteFamily, *bg
 	if len(e.PathList) > 0 {
 		peer.adjRibIn.Update(e.PathList)
 		for _, family := range peer.fsm.pConf.AfiSafis {
-			k, _ := bgp.GetRouteFamily(string(family.AfiSafiName))
+			k, _ := bgp.GetRouteFamily(string(family.Config.AfiSafiName))
 			if msg := peer.doPrefixLimit(k, &family.PrefixLimit.Config); msg != nil {
 				return nil, nil, msg
 			}
@@ -382,7 +382,7 @@ func (peer *Peer) ToApiStruct() *api.Peer {
 	prefixLimits := make([]*api.PrefixLimit, 0, len(peer.fsm.pConf.AfiSafis))
 	for _, family := range peer.fsm.pConf.AfiSafis {
 		if c := family.PrefixLimit.Config; c.MaxPrefixes > 0 {
-			k, _ := bgp.GetRouteFamily(string(family.AfiSafiName))
+			k, _ := bgp.GetRouteFamily(string(family.Config.AfiSafiName))
 			prefixLimits = append(prefixLimits, &api.PrefixLimit{
 				Family:               uint32(k),
 				MaxPrefixes:          c.MaxPrefixes,
