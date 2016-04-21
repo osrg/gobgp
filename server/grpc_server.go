@@ -50,7 +50,6 @@ const (
 	REQ_MONITOR_GLOBAL_BEST_CHANGED
 	REQ_MONITOR_INCOMING
 	REQ_MONITOR_NEIGHBOR_PEER_STATE
-	REQ_MONITOR_ROA_VALIDATION_RESULT
 	REQ_MRT_GLOBAL_RIB
 	REQ_MRT_LOCAL_RIB
 	REQ_MOD_MRT
@@ -201,15 +200,6 @@ func (s *Server) MonitorPeerState(arg *api.Arguments, stream api.GobgpApi_Monito
 
 	return handleMultipleResponses(req, func(res *GrpcResponse) error {
 		return stream.Send(res.Data.(*api.Peer))
-	})
-}
-
-func (s *Server) MonitorROAValidation(arg *api.Arguments, stream api.GobgpApi_MonitorROAValidationServer) error {
-	req := NewGrpcRequest(REQ_MONITOR_ROA_VALIDATION_RESULT, "", bgp.RouteFamily(arg.Family), nil)
-	s.bgpServerCh <- req
-
-	return handleMultipleResponses(req, func(res *GrpcResponse) error {
-		return stream.Send(res.Data.(*api.ROAResult))
 	})
 }
 

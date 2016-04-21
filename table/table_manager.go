@@ -216,8 +216,7 @@ func (manager *TableManager) DeleteVrf(name string) ([]*Path, error) {
 	return msgs, nil
 }
 
-func (manager *TableManager) calculate(ids []string, destinations []*Destination) (map[string][]*Path, []*Path, []*Path) {
-	newly := make([]*Path, 0, len(destinations))
+func (manager *TableManager) calculate(ids []string, destinations []*Destination) (map[string][]*Path, []*Path) {
 	withdrawn := make([]*Path, 0, len(destinations))
 	best := make(map[string][]*Path, len(ids))
 
@@ -228,11 +227,10 @@ func (manager *TableManager) calculate(ids []string, destinations []*Destination
 			"Topic": "table",
 			"Key":   dst.GetNlri().String(),
 		}).Debug("Processing destination")
-		paths, n, w := dst.Calculate(ids)
+		paths, w := dst.Calculate(ids)
 		for id, path := range paths {
 			best[id] = append(best[id], path)
 		}
-		newly = append(newly, n...)
 		withdrawn = append(withdrawn, w...)
 
 		if len(dst.knownPathList) == 0 {
@@ -244,20 +242,18 @@ func (manager *TableManager) calculate(ids []string, destinations []*Destination
 		t := manager.Tables[dst.Family()]
 		t.deleteDest(dst)
 	}
-	return best, newly, withdrawn
+	return best, withdrawn
 }
 
 func (manager *TableManager) DeletePathsByPeer(ids []string, info *PeerInfo, rf bgp.RouteFamily) (map[string][]*Path, []*Path) {
 	if t, ok := manager.Tables[rf]; ok {
 		dsts := t.DeleteDestByPeer(info)
-		// no newly added paths
-		best, _, withdrawn := manager.calculate(ids, dsts)
-		return best, withdrawn
+		return manager.calculate(ids, dsts)
 	}
 	return nil, nil
 }
 
-func (manager *TableManager) ProcessPaths(ids []string, pathList []*Path) (map[string][]*Path, []*Path, []*Path) {
+func (manager *TableManager) ProcessPaths(ids []string, pathList []*Path) (map[string][]*Path, []*Path) {
 	m := make(map[string]bool, len(pathList))
 	dsts := make([]*Destination, 0, len(pathList))
 	for _, path := range pathList {
