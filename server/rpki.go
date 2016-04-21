@@ -530,84 +530,53 @@ func (c *roaManager) handleGRPC(grpcReq *GrpcRequest) {
 	}
 }
 
-func validatePath(ownAs uint32, tree *radix.Tree, cidr string, asPath *bgp.PathAttributeAsPath) (config.RpkiValidationResultType, []*ROA) {
+func validatePath(ownAs uint32, tree *radix.Tree, cidr string, asPath *bgp.PathAttributeAsPath) config.RpkiValidationResultType {
 	var as uint32
 	if asPath == nil || len(asPath.Value) == 0 {
-		return config.RPKI_VALIDATION_RESULT_TYPE_NOT_FOUND, []*ROA{}
+		return config.RPKI_VALIDATION_RESULT_TYPE_NOT_FOUND
 	}
 	asParam := asPath.Value[len(asPath.Value)-1].(*bgp.As4PathParam)
 	switch asParam.Type {
 	case bgp.BGP_ASPATH_ATTR_TYPE_SEQ:
 		if len(asParam.AS) == 0 {
-			return config.RPKI_VALIDATION_RESULT_TYPE_NOT_FOUND, []*ROA{}
+			return config.RPKI_VALIDATION_RESULT_TYPE_NOT_FOUND
 		}
 		as = asParam.AS[len(asParam.AS)-1]
 	case bgp.BGP_ASPATH_ATTR_TYPE_CONFED_SET, bgp.BGP_ASPATH_ATTR_TYPE_CONFED_SEQ:
 		as = ownAs
 	default:
-		return config.RPKI_VALIDATION_RESULT_TYPE_NOT_FOUND, []*ROA{}
+		return config.RPKI_VALIDATION_RESULT_TYPE_NOT_FOUND
 	}
 	_, n, _ := net.ParseCIDR(cidr)
 	ones, _ := n.Mask.Size()
 	prefixLen := uint8(ones)
 	_, b, _ := tree.LongestPrefix(table.IpToRadixkey(n.IP, prefixLen))
 	if b == nil {
-		return config.RPKI_VALIDATION_RESULT_TYPE_NOT_FOUND, []*ROA{}
+		return config.RPKI_VALIDATION_RESULT_TYPE_NOT_FOUND
 	}
 
-	roaList := make([]*ROA, 0)
-
-	result := config.RPKI_VALIDATION_RESULT_TYPE_INVALID
 	bucket, _ := b.(*roaBucket)
 	for _, r := range bucket.entries {
 		if prefixLen > r.MaxLen {
 			continue
 		}
 		if r.AS == as {
-			result = config.RPKI_VALIDATION_RESULT_TYPE_VALID
+			return config.RPKI_VALIDATION_RESULT_TYPE_VALID
 		}
-		roaList = append(roaList, r)
 	}
-	return result, roaList
+	return config.RPKI_VALIDATION_RESULT_TYPE_INVALID
 }
 
-func (c *roaManager) validate(pathList []*table.Path, isMonitor bool) []*api.ROAResult {
-	results := make([]*api.ROAResult, 0)
-	if len(c.clientMap) == 0 {
-		return results
-	}
+func (c *roaManager) validate(pathList []*table.Path) {
 	for _, path := range pathList {
-		if path.IsWithdraw {
+		if path.IsWithdraw || path.IsEOR() {
 			continue
 		}
 		if tree, ok := c.Roas[path.GetRouteFamily()]; ok {
-			r, roaList := validatePath(c.AS, tree, path.GetNlri().String(), path.GetAsPath())
-			if isMonitor && path.Validation() != config.RpkiValidationResultType(r) {
-				apiRoaList := func() []*api.ROA {
-					apiRoaList := make([]*api.ROA, 0)
-					for _, r := range roaList {
-						apiRoaList = append(apiRoaList, r.toApiStruct())
-					}
-					return apiRoaList
-				}()
-				rr := &api.ROAResult{
-					Address:   path.GetSource().Address.String(),
-					Timestamp: path.GetTimestamp().Unix(),
-					OriginAs:  path.GetSourceAs(),
-					Prefix:    path.GetNlri().String(),
-					OldResult: api.ROAResult_ValidationResult(path.Validation().ToInt()),
-					NewResult: api.ROAResult_ValidationResult(r.ToInt()),
-					Roas:      apiRoaList,
-				}
-				if b := path.GetAsPath(); b != nil {
-					rr.AspathAttr, _ = b.Serialize()
-				}
-				results = append(results, rr)
-			}
+			r := validatePath(c.AS, tree, path.GetNlri().String(), path.GetAsPath())
 			path.SetValidation(config.RpkiValidationResultType(r))
 		}
 	}
-	return results
 }
 
 type roaClient struct {
