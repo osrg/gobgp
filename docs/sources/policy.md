@@ -92,6 +92,8 @@ Conditions are categorized into attributes below:
 - community
 - extended community
 - rpki validation result
+- route type (internal/external)
+- address family
 
 Actions are categorized into attributes below:
 

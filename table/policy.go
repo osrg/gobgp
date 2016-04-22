@@ -163,6 +163,8 @@ const (
 	CONDITION_EXT_COMMUNITY
 	CONDITION_AS_PATH_LENGTH
 	CONDITION_RPKI
+	CONDITION_ROUTE_TYPE
+	CONDITION_FAMILY
 )
 
 type ActionType int
@@ -1611,6 +1613,107 @@ func NewRpkiValidationCondition(c config.RpkiValidationResultType) (*RpkiValidat
 	}, nil
 }
 
+type RouteTypeCondition struct {
+	typ config.RouteType
+}
+
+func (c *RouteTypeCondition) Type() ConditionType {
+	return CONDITION_ROUTE_TYPE
+}
+
+func (c *RouteTypeCondition) Evaluate(path *Path, _ *PolicyOptions) bool {
+	return path.IsLocal() && c.typ == config.ROUTE_TYPE_INTERNAL
+}
+
+func (c *RouteTypeCondition) Set() DefinedSet {
+	return nil
+}
+
+func (c *RouteTypeCondition) ToApiStruct() *api.RouteType {
+	return &api.RouteType{
+		Type: int32(c.typ.ToInt()),
+	}
+}
+
+func NewRouteTypeConditionFromApiStruct(a *api.RouteType) (*RouteTypeCondition, error) {
+	if a == nil {
+		return nil, nil
+	}
+	return NewRouteTypeCondition(config.IntToRouteTypeMap[int(a.Type)])
+}
+
+func NewRouteTypeCondition(c config.RouteType) (*RouteTypeCondition, error) {
+	if string(c) == "" {
+		return nil, nil
+	}
+	if err := c.Validate(); err != nil {
+		return nil, err
+	}
+	return &RouteTypeCondition{
+		typ: c,
+	}, nil
+}
+
+type FamilyCondition struct {
+	families []bgp.RouteFamily
+}
+
+func (c *FamilyCondition) Type() ConditionType {
+	return CONDITION_FAMILY
+}
+
+func (c *FamilyCondition) Evaluate(path *Path, _ *PolicyOptions) bool {
+	x := path.GetRouteFamily()
+	for _, y := range c.families {
+		if x == y {
+			return true
+		}
+	}
+	return false
+}
+
+func (c *FamilyCondition) Set() DefinedSet {
+	return nil
+}
+
+func (c *FamilyCondition) ToApiStruct() []uint32 {
+	a := make([]uint32, 0, len(c.families))
+	for _, f := range c.families {
+		a = append(a, uint32(f))
+	}
+	return a
+}
+
+func NewFamilyConditionFromApiStruct(a []uint32) (*FamilyCondition, error) {
+	if len(a) == 0 {
+		return nil, nil
+	}
+	fs := make([]bgp.RouteFamily, 0, len(a))
+	for _, f := range a {
+		fs = append(fs, bgp.RouteFamily(f))
+	}
+	return &FamilyCondition{
+		families: fs,
+	}, nil
+}
+
+func NewFamilyCondition(c []config.AfiSafiType) (*FamilyCondition, error) {
+	if len(c) == 0 {
+		return nil, nil
+	}
+	fs := make([]bgp.RouteFamily, 0, len(c))
+	for _, f := range c {
+		k, err := bgp.GetRouteFamily(string(f))
+		if err != nil {
+			return nil, err
+		}
+		fs = append(fs, k)
+	}
+	return &FamilyCondition{
+		families: fs,
+	}, nil
+}
+
 type Action interface {
 	Type() ActionType
 	Apply(*Path) *Path
@@ -2195,6 +2298,10 @@ func (s *Statement) ToApiStruct() *api.Statement {
 			cs.ExtCommunitySet = c.(*ExtCommunityCondition).ToApiStruct()
 		case *RpkiValidationCondition:
 			cs.RpkiResult = int32(c.(*RpkiValidationCondition).result.ToInt())
+		case *RouteTypeCondition:
+			cs.RouteType = c.(*RouteTypeCondition).ToApiStruct()
+		case *FamilyCondition:
+			cs.Families = c.(*FamilyCondition).ToApiStruct()
 		}
 	}
 	as := &api.Actions{}
@@ -2364,6 +2471,12 @@ func NewStatementFromApiStruct(a *api.Statement, dmap DefinedSetMap) (*Statement
 				return NewRpkiValidationConditionFromApiStruct(a.Conditions.RpkiResult)
 			},
 			func() (Condition, error) {
+				return NewRouteTypeConditionFromApiStruct(a.Conditions.RouteType)
+			},
+			func() (Condition, error) {
+				return NewFamilyConditionFromApiStruct(a.Conditions.Families)
+			},
+			func() (Condition, error) {
 				return NewAsPathConditionFromApiStruct(a.Conditions.AsPathSet, dmap[DEFINED_TYPE_AS_PATH])
 			},
 			func() (Condition, error) {
@@ -2445,6 +2558,12 @@ func NewStatement(c config.Statement, dmap DefinedSetMap) (*Statement, error) {
 		},
 		func() (Condition, error) {
 			return NewRpkiValidationCondition(c.Conditions.BgpConditions.RpkiValidationResult)
+		},
+		func() (Condition, error) {
+			return NewRouteTypeCondition(c.Conditions.BgpConditions.RouteType)
+		},
+		func() (Condition, error) {
+			return NewFamilyCondition(c.Conditions.BgpConditions.AfiSafiInList)
 		},
 		func() (Condition, error) {
 			return NewAsPathCondition(c.Conditions.BgpConditions.MatchAsPathSet, dmap[DEFINED_TYPE_AS_PATH])
