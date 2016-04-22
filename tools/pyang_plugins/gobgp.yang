@@ -561,6 +561,16 @@ module gobgp {
     uses gobgp-message-counter;
   }
 
+  augment "/bgp:bgp/bgp:neighbors/bgp:neighbor/bgp:config" {
+    description "additional state elements";
+
+    leaf admin-down {
+      type boolean;
+      description
+        "The config of administrative operation. If state, indicates the neighbor is disabled by the administrator";
+    }
+  }
+
   augment "/bgp:bgp/bgp:neighbors/bgp:neighbor/bgp:state" {
     description "additional state elements";
 
