@@ -1126,6 +1126,21 @@ func (server *BgpServer) Shutdown() {
 
 func (server *BgpServer) UpdatePolicy(policy config.RoutingPolicy) {
 	server.policyUpdateCh <- policy
+	// TODO: we want to apply the new policies to the existing
+	// routes here. Sending SOFT_RESET_IN to all the peers works
+	// for the change of in and import policies. SOFT_RESET_OUT is
+	// necessary for the export policy but we can't blindly
+	// execute SOFT_RESET_OUT because we unnecessarily advertize
+	// the existing routes. Needs to investigate the changes of
+	// policies and handle only affected peers.
+
+	ch := make(chan *GrpcResponse)
+	server.GrpcReqCh <- &GrpcRequest{
+		RequestType: REQ_NEIGHBOR_SOFT_RESET_IN,
+		Name:        "all",
+		ResponseCh:  ch,
+	}
+	<-ch
 }
 
 func (server *BgpServer) setPolicyByConfig(id string, c config.ApplyPolicy) {
