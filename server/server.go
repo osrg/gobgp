@@ -338,6 +338,28 @@ func (server *BgpServer) Serve() {
 			}
 			original := peer.fsm.pConf
 
+			if !original.Config.Equal(&c.Config) || !original.Transport.Config.Equal(&c.Transport.Config) {
+				msgs, err := server.handleDelNeighbor(peer.fsm.pConf)
+				if err != nil {
+					log.WithFields(log.Fields{
+						"Topic": "Peer",
+						"Key":   addr,
+					}).Error(err)
+					continue
+				}
+				senderMsgs = append(senderMsgs, msgs...)
+				msgs, err = server.handleAddNeighbor(&c)
+				if err != nil {
+					log.WithFields(log.Fields{
+						"Topic": "Peer",
+						"Key":   addr,
+					}).Error(err)
+					continue
+				}
+				senderMsgs = append(senderMsgs, msgs...)
+				continue
+			}
+
 			if msgs, err := peer.updatePrefixLimitConfig(c.AfiSafis); err != nil {
 				log.WithFields(log.Fields{
 					"Topic": "Peer",
@@ -2336,6 +2358,7 @@ func (server *BgpServer) handleAddNeighbor(c *config.Neighbor) ([]*SenderMsg, er
 			SetTcpMD5SigSockopts(l, addr, c.Config.AuthPassword)
 		}
 	}
+	log.Info("Add a peer configuration for ", addr)
 
 	peer := NewPeer(&server.bgpConfig.Global, c, server.globalRib, server.policy)
 	server.setPolicyByConfig(peer.ID(), c.ApplyPolicy)
@@ -2381,6 +2404,10 @@ func (server *BgpServer) handleDelNeighbor(c *config.Neighbor) ([]*SenderMsg, er
 	}(addr)
 	delete(server.neighborMap, addr)
 	m := server.dropPeerAllRoutes(n, n.configuredRFlist())
+
+	notification := bgp.NewBGPNotificationMessage(bgp.BGP_ERROR_CEASE, bgp.BGP_ERROR_SUB_PEER_DECONFIGURED, nil)
+	m = append(m, newSenderMsg(n, nil, notification, false))
+
 	return m, nil
 }
 
