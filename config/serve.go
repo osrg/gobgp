@@ -86,6 +86,8 @@ func UpdateConfig(curC, newC *BgpConfigSet) ([]Neighbor, []Neighbor, []Neighbor,
 		if idx := inSlice(n, curC.Neighbors); idx < 0 {
 			added = append(added, n)
 		} else if !n.Equal(&curC.Neighbors[idx]) {
+			log.Debug("current neighbor config:", curC.Neighbors[idx])
+			log.Debug("new neighbor config:", n)
 			updated = append(updated, n)
 		}
 	}

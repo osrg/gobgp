@@ -207,7 +207,7 @@ func (fsm *FSM) bgpMessageStateUpdate(MessageType uint8, isIn bool) {
 
 func NewFSM(gConf *config.Global, pConf *config.Neighbor, policy *table.RoutingPolicy) *FSM {
 	adminState := ADMIN_STATE_UP
-	if pConf.State.AdminDown {
+	if pConf.Config.AdminDown {
 		adminState = ADMIN_STATE_DOWN
 	}
 	pConf.State.SessionState = config.IntToSessionStateMap[int(bgp.BGP_FSM_IDLE)]
@@ -1288,6 +1288,8 @@ func (h *FSMHandler) changeAdminState(s AdminState) error {
 		}).Debug("admin state changed")
 
 		fsm.adminState = s
+		fsm.pConf.State.AdminDown = !fsm.pConf.State.AdminDown
+		fsm.pConf.Config.AdminDown = !fsm.pConf.Config.AdminDown
 
 		switch s {
 		case ADMIN_STATE_UP:

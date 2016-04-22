@@ -2307,6 +2307,9 @@ type NeighborConfig struct {
 	// original -> bgp:neighbor-address
 	//bgp:neighbor-address's original type is inet:ip-address
 	NeighborAddress string `mapstructure:"neighbor-address"`
+	// original -> gobgp:admin-down
+	//gobgp:admin-down's original type is boolean
+	AdminDown bool `mapstructure:"admin-down"`
 }
 
 func (lhs *NeighborConfig) Equal(rhs *NeighborConfig) bool {
@@ -2341,6 +2344,9 @@ func (lhs *NeighborConfig) Equal(rhs *NeighborConfig) bool {
 		return false
 	}
 	if lhs.NeighborAddress != rhs.NeighborAddress {
+		return false
+	}
+	if lhs.AdminDown != rhs.AdminDown {
 		return false
 	}
 	return true
