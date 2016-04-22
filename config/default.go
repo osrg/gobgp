@@ -139,6 +139,9 @@ func SetDefaultConfigValues(v *viper.Viper, b *BgpConfigSet) error {
 			}
 		}
 
+		n.State.Description = n.Config.Description
+		n.Config.Description = ""
+
 		if !vv.IsSet("neighbor.config.local-as") {
 			n.Config.LocalAs = b.Global.Config.As
 		}
