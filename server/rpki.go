@@ -137,7 +137,7 @@ type roaManager struct {
 	AS        uint32
 	Roas      map[bgp.RouteFamily]*radix.Tree
 	eventCh   chan *ROAEvent
-	clientMap map[string]*roaClient
+	clientMap map[string]*rtrClient
 }
 
 func NewROAManager(as uint32) (*roaManager, error) {
@@ -148,7 +148,7 @@ func NewROAManager(as uint32) (*roaManager, error) {
 	m.Roas[bgp.RF_IPv4_UC] = radix.New()
 	m.Roas[bgp.RF_IPv6_UC] = radix.New()
 	m.eventCh = make(chan *ROAEvent)
-	m.clientMap = make(map[string]*roaClient)
+	m.clientMap = make(map[string]*rtrClient)
 	return m, nil
 }
 
@@ -238,7 +238,7 @@ func (c *roaManager) ReceiveROA() chan *ROAEvent {
 	return c.eventCh
 }
 
-func (c *roaClient) lifetimeout() {
+func (c *rtrClient) lifetimeout() {
 	c.eventCh <- &ROAEvent{
 		EventType: LIFETIMEOUT,
 		Src:       c.host,
@@ -344,7 +344,7 @@ func (m *roaManager) addROA(roa *ROA) {
 	bucket.entries = append(bucket.entries, roa)
 }
 
-func (c *roaManager) handleRTRMsg(client *roaClient, state *config.RpkiServerState, buf []byte) {
+func (c *roaManager) handleRTRMsg(client *rtrClient, state *config.RpkiServerState, buf []byte) {
 	received := &state.RpkiMessages.RpkiReceived
 
 	m, err := rtr.ParseRTR(buf)
@@ -587,7 +587,7 @@ func (c *roaManager) validate(pathList []*table.Path) {
 	}
 }
 
-type roaClient struct {
+type rtrClient struct {
 	t            tomb.Tomb
 	host         string
 	conn         *net.TCPConn
@@ -602,8 +602,8 @@ type roaClient struct {
 	pendingROAs  []*ROA
 }
 
-func NewRoaClient(address, port string, ch chan *ROAEvent, lifetime int64) *roaClient {
-	return &roaClient{
+func NewRoaClient(address, port string, ch chan *ROAEvent, lifetime int64) *rtrClient {
+	return &rtrClient{
 		host:        net.JoinHostPort(address, port),
 		eventCh:     ch,
 		lifetime:    lifetime,
@@ -611,7 +611,7 @@ func NewRoaClient(address, port string, ch chan *ROAEvent, lifetime int64) *roaC
 	}
 }
 
-func (c *roaClient) enable(serial uint32) error {
+func (c *rtrClient) enable(serial uint32) error {
 	if c.conn != nil {
 		r := rtr.NewRTRSerialQuery(c.sessionID, serial)
 		data, _ := r.Serialize()
@@ -624,7 +624,7 @@ func (c *roaClient) enable(serial uint32) error {
 	return nil
 }
 
-func (c *roaClient) softReset() error {
+func (c *rtrClient) softReset() error {
 	if c.conn != nil {
 		r := rtr.NewRTRResetQuery()
 		data, _ := r.Serialize()
@@ -639,14 +639,14 @@ func (c *roaClient) softReset() error {
 	return nil
 }
 
-func (c *roaClient) reset() {
+func (c *rtrClient) reset() {
 	c.t.Kill(nil)
 	if c.conn != nil {
 		c.conn.Close()
 	}
 }
 
-func (c *roaClient) tryConnect() error {
+func (c *rtrClient) tryConnect() error {
 	for c.t.Alive() {
 		conn, err := net.Dial("tcp", c.host)
 		if err != nil {
@@ -663,7 +663,7 @@ func (c *roaClient) tryConnect() error {
 	return nil
 }
 
-func (c *roaClient) established() error {
+func (c *rtrClient) established() error {
 	defer c.conn.Close()
 
 	disconnected := func() {
