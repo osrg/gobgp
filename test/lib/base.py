@@ -323,21 +323,32 @@ class BGPContainer(Container):
             self.create_config()
             self.reload_config()
 
+    def add_policy(self, policy, peer, typ, default='accept', reload_config=True):
+        self.set_default_policy(peer, typ, default)
+        self.define_policy(policy)
+        self.assign_policy(peer, policy, typ)
+        if self.is_running and reload_config:
+            self.create_config()
+            self.reload_config()
+
     def set_default_policy(self, peer, typ, default):
-        if typ in ['in', 'import', 'export'] and default in ['reject', 'accept']:
+        if typ in ['in', 'out', 'import', 'export'] and default in ['reject', 'accept']:
             if 'default-policy' not in self.peers[peer]:
                 self.peers[peer]['default-policy'] = {}
             self.peers[peer]['default-policy'][typ] = default
         else:
             raise Exception('wrong type or default')
 
-    def add_policy(self, policy, peer=None, reload_config=True):
+    def define_policy(self, policy):
         self.policies[policy['name']] = policy
-        if peer in self.peers:
-            self.peers[peer]['policies'][policy['name']] = policy
-        if self.is_running and reload_config:
-            self.create_config()
-            self.reload_config()
+
+    def assign_policy(self, peer, policy, typ):
+        if peer not in self.peers:
+            raise Exception('peer {0} not found'.format(peer.name))
+        name = policy['name']
+        if name not in self.policies:
+            raise Exception('policy {0} not found'.format(name))
+        self.peers[peer]['policies'][typ] = policy
 
     def get_local_rib(self, peer, rf):
         raise Exception('implement get_local_rib() method')

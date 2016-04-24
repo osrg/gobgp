@@ -164,10 +164,9 @@ class QuaggaBGPContainer(BGPContainer):
             c << 'neighbor {0} remote-as {1}'.format(n_addr, peer.asn)
             if info['is_rs_client']:
                 c << 'neighbor {0} route-server-client'.format(n_addr)
-            for name, policy in info['policies'].iteritems():
-                direction = policy['direction']
-                c << 'neighbor {0} route-map {1} {2}'.format(n_addr, name,
-                                                             direction)
+            for typ, p in info['policies'].iteritems():
+                c << 'neighbor {0} route-map {1} {2}'.format(n_addr, p['name'],
+                                                             typ)
             if info['passwd']:
                 c << 'neighbor {0} password {1}'.format(n_addr, info['passwd'])
             if info['passive']:

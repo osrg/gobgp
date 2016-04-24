@@ -281,27 +281,11 @@ class GoBGPContainer(BGPContainer):
                 n['route-reflector'] = {'config' : {'route-reflector-client': True,
                                                    'route-reflector-cluster-id': clusterId}}
 
-            f = lambda typ: [p for p in info['policies'].itervalues() if p['type'] == typ]
-            import_policies = f('import')
-            export_policies = f('export')
-            in_policies = f('in')
-            f = lambda typ: [p['default'] for p in info['policies'].itervalues() if p['type'] == typ and 'default' in p]
-            default_import_policy = f('import')
-            default_export_policy = f('export')
-            default_in_policy  = f('in')
-
-            if len(import_policies) + len(export_policies) + len(in_policies) + len(default_import_policy) \
-                + len(default_export_policy) + len(default_in_policy) > 0:
+            if len(info.get('default-policy', [])) + len(info.get('policies', [])) > 0:
                 n['apply-policy'] = {'config': {}}
 
-            if len(import_policies) > 0:
-                n['apply-policy']['config']['import-policy-list'] = [p['name'] for p in import_policies]
-
-            if len(export_policies) > 0:
-                n['apply-policy']['config']['export-policy-list'] = [p['name'] for p in export_policies]
-
-            if len(in_policies) > 0:
-                n['apply-policy']['config']['in-policy-list'] = [p['name'] for p in in_policies]
+            for typ, p in info.get('policies', {}).iteritems():
+                n['apply-policy']['config']['{0}-policy-list'.format(typ)] = [p['name']]
 
             def f(v):
                 if v == 'reject':
@@ -310,20 +294,8 @@ class GoBGPContainer(BGPContainer):
                     return 'accept-route'
                 raise Exception('invalid default policy type {0}'.format(v))
 
-            if len(default_import_policy) > 0:
-               n['apply-policy']['config']['default-import-policy'] = f(default_import_policy[0])
-
-            if len(default_export_policy) > 0:
-               n['apply-policy']['config']['default-export-policy'] = f(default_export_policy[0])
-
-            if len(default_in_policy) > 0:
-               n['apply-policy']['config']['default-in-policy'] = f(default_in_policy[0])
-
-            for typ in ['in', 'import', 'export']:
-                if 'default-policy' in info and typ in info['default-policy']:
-                    if 'apply-policy' not in n:
-                        n['apply-policy'] = {'config': {}}
-                    n['apply-policy']['config']['default-{0}-policy'.format(typ)] = f(info['default-policy'][typ])
+            for typ, d in info.get('default-policy', {}).iteritems():
+                n['apply-policy']['config']['default-{0}-policy'.format(typ)] = f(d)
 
             if 'neighbors' not in config:
                 config['neighbors'] = []

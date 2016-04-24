@@ -189,17 +189,15 @@ class GoBGPTestBase(unittest.TestCase):
         med200 = {'name': 'med200',
                   'type': 'permit',
                   'match': '0.0.0.0/0',
-                  'direction': 'out',
                   'med': 200,
                   'priority': 10}
-        q2.add_policy(med200, self.gobgp)
+        q2.add_policy(med200, self.gobgp, 'out')
         med100 = {'name': 'med100',
                   'type': 'permit',
                   'match': '0.0.0.0/0',
-                  'direction': 'out',
                   'med': 100,
                   'priority': 10}
-        q3.add_policy(med100, self.gobgp)
+        q3.add_policy(med100, self.gobgp, 'out')
 
         q5.add_route('10.0.6.0/24')
 
@@ -231,10 +229,9 @@ class GoBGPTestBase(unittest.TestCase):
         med300 = {'name': 'med300',
                   'type': 'permit',
                   'match': '0.0.0.0/0',
-                  'direction': 'out',
                   'med': 300,
                   'priority': 5}
-        q3.add_policy(med300, self.gobgp)
+        q3.add_policy(med300, self.gobgp, 'out')
 
         time.sleep(self.wait_per_retry)
 
