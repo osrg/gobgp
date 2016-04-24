@@ -143,36 +143,32 @@ func NewTCPListener(address string, port uint32, ch chan *net.TCPConn) (*TCPList
 
 type BgpServer struct {
 	bgpConfig     config.Bgp
-	updatedPeerCh chan config.Neighbor
 	fsmincomingCh *channels.InfiniteChannel
 	fsmStateCh    chan *FsmMsg
 	acceptCh      chan *net.TCPConn
 	zapiMsgCh     chan *zebra.Message
 
-	GrpcReqCh      chan *GrpcRequest
-	policyUpdateCh chan config.RoutingPolicy
-	policy         *table.RoutingPolicy
-	broadcastReqs  []*GrpcRequest
-	broadcastMsgs  []broadcastMsg
-	listeners      []*TCPListener
-	neighborMap    map[string]*Peer
-	globalRib      *table.TableManager
-	zclient        *zebra.Client
-	roaManager     *roaManager
-	shutdown       bool
-	watchers       Watchers
+	GrpcReqCh     chan *GrpcRequest
+	policy        *table.RoutingPolicy
+	broadcastReqs []*GrpcRequest
+	broadcastMsgs []broadcastMsg
+	listeners     []*TCPListener
+	neighborMap   map[string]*Peer
+	globalRib     *table.TableManager
+	zclient       *zebra.Client
+	roaManager    *roaManager
+	shutdown      bool
+	watchers      Watchers
 }
 
 func NewBgpServer() *BgpServer {
 	roaManager, _ := NewROAManager(0)
 	return &BgpServer{
-		updatedPeerCh:  make(chan config.Neighbor),
-		GrpcReqCh:      make(chan *GrpcRequest, 1),
-		policyUpdateCh: make(chan config.RoutingPolicy),
-		neighborMap:    make(map[string]*Peer),
-		watchers:       Watchers(make(map[watcherType]watcher)),
-		policy:         table.NewRoutingPolicy(),
-		roaManager:     roaManager,
+		GrpcReqCh:   make(chan *GrpcRequest, 1),
+		neighborMap: make(map[string]*Peer),
+		watchers:    Watchers(make(map[watcherType]watcher)),
+		policy:      table.NewRoutingPolicy(),
+		roaManager:  roaManager,
 	}
 }
 
@@ -328,27 +324,6 @@ func (server *BgpServer) Serve() {
 			}
 		case conn := <-server.acceptCh:
 			passConn(conn)
-		case c := <-server.updatedPeerCh:
-			addr := c.Config.NeighborAddress
-			peer := server.neighborMap[addr]
-
-			if !peer.fsm.pConf.ApplyPolicy.Equal(&c.ApplyPolicy) {
-				server.setPolicyByConfig(peer.ID(), c.ApplyPolicy)
-				peer.fsm.pConf.ApplyPolicy = c.ApplyPolicy
-			}
-			original := peer.fsm.pConf
-
-			if msgs, err := peer.updatePrefixLimitConfig(c.AfiSafis); err != nil {
-				log.WithFields(log.Fields{
-					"Topic": "Peer",
-					"Key":   addr,
-				}).Error(err)
-				// rollback to original state
-				peer.fsm.pConf = original
-			} else if len(msgs) > 0 {
-				senderMsgs = append(senderMsgs, msgs...)
-			}
-
 		case e, ok := <-server.fsmincomingCh.Out():
 			if !ok {
 				continue
@@ -365,8 +340,6 @@ func (server *BgpServer) Serve() {
 			if len(m) > 0 {
 				senderMsgs = append(senderMsgs, m...)
 			}
-		case pl := <-server.policyUpdateCh:
-			server.handlePolicy(pl)
 		}
 	}
 }
@@ -1112,8 +1085,14 @@ func (server *BgpServer) PeerDelete(peer config.Neighbor) error {
 	return (<-ch).Err()
 }
 
-func (server *BgpServer) PeerUpdate(peer config.Neighbor) {
-	server.updatedPeerCh <- peer
+func (server *BgpServer) PeerUpdate(peer config.Neighbor) error {
+	ch := make(chan *GrpcResponse)
+	server.GrpcReqCh <- &GrpcRequest{
+		RequestType: REQ_UPDATE_NEIGHBOR,
+		Data:        &peer,
+		ResponseCh:  ch,
+	}
+	return (<-ch).Err()
 }
 
 func (server *BgpServer) Shutdown() {
@@ -1125,7 +1104,13 @@ func (server *BgpServer) Shutdown() {
 }
 
 func (server *BgpServer) UpdatePolicy(policy config.RoutingPolicy) {
-	server.policyUpdateCh <- policy
+	ch := make(chan *GrpcResponse)
+	server.GrpcReqCh <- &GrpcRequest{
+		RequestType: REQ_RELOAD_POLICY,
+		Data:        policy,
+		ResponseCh:  ch,
+	}
+	<-ch
 	// TODO: we want to apply the new policies to the existing
 	// routes here. Sending SOFT_RESET_IN to all the peers works
 	// for the change of in and import policies. SOFT_RESET_OUT is
@@ -1134,7 +1119,7 @@ func (server *BgpServer) UpdatePolicy(policy config.RoutingPolicy) {
 	// the existing routes. Needs to investigate the changes of
 	// policies and handle only affected peers.
 
-	ch := make(chan *GrpcResponse)
+	ch = make(chan *GrpcResponse)
 	server.GrpcReqCh <- &GrpcRequest{
 		RequestType: REQ_NEIGHBOR_SOFT_RESET_IN,
 		Name:        "all",
@@ -2208,6 +2193,15 @@ func (server *BgpServer) handleGrpc(grpcReq *GrpcRequest) []*SenderMsg {
 			msgs = append(msgs, m...)
 		}
 		close(grpcReq.ResponseCh)
+	case REQ_UPDATE_NEIGHBOR:
+		m, err := server.handleUpdateNeighbor(grpcReq.Data.(*config.Neighbor))
+		grpcReq.ResponseCh <- &GrpcResponse{
+			ResponseErr: err,
+		}
+		if len(m) > 0 {
+			msgs = append(msgs, m...)
+		}
+		close(grpcReq.ResponseCh)
 	case REQ_DEFINED_SET:
 		if err := server.handleGrpcGetDefinedSet(grpcReq); err != nil {
 			grpcReq.ResponseCh <- &GrpcResponse{
@@ -2285,6 +2279,12 @@ func (server *BgpServer) handleGrpc(grpcReq *GrpcRequest) []*SenderMsg {
 		if len(pathList) > 0 {
 			msgs, _ = server.propagateUpdate(nil, pathList)
 		}
+	case REQ_RELOAD_POLICY:
+		err := server.handlePolicy(grpcReq.Data.(config.RoutingPolicy))
+		grpcReq.ResponseCh <- &GrpcResponse{
+			ResponseErr: err,
+		}
+		close(grpcReq.ResponseCh)
 	default:
 		err = fmt.Errorf("Unknown request type: %v", grpcReq.RequestType)
 		goto ERROR
@@ -2382,6 +2382,30 @@ func (server *BgpServer) handleDelNeighbor(c *config.Neighbor) ([]*SenderMsg, er
 	delete(server.neighborMap, addr)
 	m := server.dropPeerAllRoutes(n, n.configuredRFlist())
 	return m, nil
+}
+
+func (server *BgpServer) handleUpdateNeighbor(c *config.Neighbor) ([]*SenderMsg, error) {
+	addr := c.Config.NeighborAddress
+	peer := server.neighborMap[addr]
+
+	if !peer.fsm.pConf.ApplyPolicy.Equal(&c.ApplyPolicy) {
+		server.setPolicyByConfig(peer.ID(), c.ApplyPolicy)
+		peer.fsm.pConf.ApplyPolicy = c.ApplyPolicy
+	}
+	original := peer.fsm.pConf
+
+	msgs, err := peer.updatePrefixLimitConfig(c.AfiSafis)
+	if err != nil {
+		log.WithFields(log.Fields{
+			"Topic": "Peer",
+			"Key":   addr,
+		}).Error(err)
+		// rollback to original state
+		peer.fsm.pConf = original
+		return nil, err
+	}
+	return msgs, nil
+
 }
 
 func (server *BgpServer) handleGrpcModNeighbor(grpcReq *GrpcRequest) ([]*SenderMsg, error) {
