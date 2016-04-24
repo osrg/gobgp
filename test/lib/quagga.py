@@ -14,29 +14,7 @@
 # limitations under the License.
 
 from base import *
-import telnetlib
 from nsenter import Namespace
-
-
-class QuaggaTelnetDaemon(object):
-    TELNET_PASSWORD = "zebra"
-    TELNET_PORT = 2605
-
-    def __init__(self, ctn):
-        self.ns = Namespace(ctn.get_pid(), 'net')
-
-    def __enter__(self):
-        self.ns.__enter__()
-        self.tn = telnetlib.Telnet('127.0.0.1', self.TELNET_PORT)
-        self.tn.read_until("Password: ")
-        self.tn.write(self.TELNET_PASSWORD + "\n")
-        self.tn.write("enable\n")
-        self.tn.read_until('bgpd#')
-        return self.tn
-
-    def __exit__(self, type, value, traceback):
-        self.tn.close()
-        self.ns.__exit__(type, value, traceback)
 
 
 class QuaggaBGPContainer(BGPContainer):
@@ -58,69 +36,76 @@ class QuaggaBGPContainer(BGPContainer):
         rib = []
         if prefix != '':
             return self.get_global_rib_with_prefix(prefix, rf)
-        with QuaggaTelnetDaemon(self) as tn:
-            tn.write('show bgp {0} unicast\n'.format(rf))
-            tn.read_until('   Network          Next Hop            Metric '
-                          'LocPrf Weight Path')
+
+        out = self.vtysh('show bgp {0} unicast'.format(rf), config=False)
+        if out.startswith('No BGP network exists'):
+            return rib
+
+        read_next = False
+
+        for line in out.split('\n'):
+            if line[:2] == '*>':
+                line = line[2:]
+                ibgp = False
+                if line[0] == 'i':
+                    line = line[1:]
+                    ibgp = True
+            elif not read_next:
+                continue
+
+            elems = line.split()
+
+            if len(elems) == 1:
+                read_next = True
+                prefix = elems[0]
+                continue
+            elif read_next:
+                nexthop = elems[0]
+            else:
+                prefix = elems[0]
+                nexthop = elems[1]
             read_next = False
-            for line in tn.read_until('bgpd#').split('\n'):
-                if line[:2] == '*>':
-                    line = line[2:]
-                    ibgp = False
-                    if line[0] == 'i':
-                        line = line[1:]
-                        ibgp = True
-                elif not read_next:
-                    continue
 
-                elems = line.split()
-
-                if len(elems) == 1:
-                    read_next = True
-                    prefix = elems[0]
-                    continue
-                elif read_next:
-                    nexthop = elems[0]
-                else:
-                    prefix = elems[0]
-                    nexthop = elems[1]
-                read_next = False
-
-                rib.append({'prefix': prefix, 'nexthop': nexthop,
-                            'ibgp': ibgp})
+            rib.append({'prefix': prefix, 'nexthop': nexthop,
+                        'ibgp': ibgp})
 
         return rib
 
     def get_global_rib_with_prefix(self, prefix, rf):
         rib = []
-        with QuaggaTelnetDaemon(self) as tn:
-            tn.write('show bgp {0} unicast {1}\n'.format(rf, prefix))
-            lines = [line.strip() for line in tn.read_until('bgpd#').split('\n')]
-            lines.pop(0)  # throw away first line contains 'show bgp...'
-            if lines[0] == '% Network not in table':
-                return rib
 
-            lines = lines[2:]
+        lines = [line.strip() for line in self.vtysh('show bgp {0} unicast {1}'.format(rf, prefix), config=False).split('\n')]
 
-            if lines[0].startswith('Not advertised'):
-                lines.pop(0)  # another useless line
-            elif lines[0].startswith('Advertised to non peer-group peers:'):
-                lines = lines[2:]  # other useless lines
-            else:
-                raise Exception('unknown output format {0}'.format(lines))
+        if lines[0] == '% Network not in table':
+            return rib
+
+        lines = lines[2:]
+
+        if lines[0].startswith('Not advertised'):
+            lines.pop(0)  # another useless line
+        elif lines[0].startswith('Advertised to non peer-group peers:'):
+            lines = lines[2:]  # other useless lines
+        else:
+            raise Exception('unknown output format {0}'.format(lines))
+
+        if lines[0] == 'Local':
+            aspath = []
+        else:
             aspath = [int(asn) for asn in lines[0].split()]
-            nexthop = lines[1].split()[0].strip()
-            info = [s.strip(',') for s in lines[2].split()]
-            attrs = []
-            if 'metric' in info:
-                med = info[info.index('metric') + 1]
-                attrs.append({'type': BGP_ATTR_TYPE_MULTI_EXIT_DISC, 'metric': int(med)})
-            if 'localpref' in info:
-                localpref = info[info.index('localpref') + 1]
-                attrs.append({'type': BGP_ATTR_TYPE_LOCAL_PREF, 'value': int(localpref)})
 
-            rib.append({'prefix': prefix, 'nexthop': nexthop,
-                        'aspath': aspath, 'attrs': attrs})
+        nexthop = lines[1].split()[0].strip()
+        info = [s.strip(',') for s in lines[2].split()]
+        attrs = []
+        if 'metric' in info:
+            med = info[info.index('metric') + 1]
+            attrs.append({'type': BGP_ATTR_TYPE_MULTI_EXIT_DISC, 'metric': int(med)})
+        if 'localpref' in info:
+            localpref = info[info.index('localpref') + 1]
+            attrs.append({'type': BGP_ATTR_TYPE_LOCAL_PREF, 'value': int(localpref)})
+
+        rib.append({'prefix': prefix, 'nexthop': nexthop,
+                    'aspath': aspath, 'attrs': attrs})
+
         return rib
 
     def get_neighbor_state(self, peer):
@@ -129,42 +114,30 @@ class QuaggaBGPContainer(BGPContainer):
 
         neigh_addr = self.peers[peer]['neigh_addr'].split('/')[0]
 
-        with QuaggaTelnetDaemon(self) as tn:
-            tn.write('show bgp neighbors\n')
-            neighbor_info = []
-            curr_info = []
-            for line in tn.read_until('bgpd#').split('\n'):
-                line = line.strip()
-                if line.startswith('BGP neighbor is'):
-                    neighbor_info.append(curr_info)
-                    curr_info = []
-                curr_info.append(line)
-            neighbor_info.append(curr_info)
+        info = [l.strip() for l in self.vtysh('show bgp neighbors {0}'.format(neigh_addr), config=False).split('\n')]
 
-            for info in neighbor_info:
-                if not info[0].startswith('BGP neighbor is'):
-                    continue
-                idx1 = info[0].index('BGP neighbor is ')
-                idx2 = info[0].index(',')
-                n_addr = info[0][idx1+len('BGP neighbor is '):idx2]
-                if n_addr == neigh_addr:
-                    idx1 = info[2].index('= ')
-                    state = info[2][idx1+len('= '):]
-                    if state.startswith('Idle'):
-                        return BGP_FSM_IDLE
-                    elif state.startswith('Active'):
-                        return BGP_FSM_ACTIVE
-                    elif state.startswith('Established'):
-                        return BGP_FSM_ESTABLISHED
-                    else:
-                        return state
+        if not info[0].startswith('BGP neighbor is'):
+            raise Exception('unknown format')
 
-            raise Exception('not found peer {0}'.format(peer.router_id))
+        idx1 = info[0].index('BGP neighbor is ')
+        idx2 = info[0].index(',')
+        n_addr = info[0][idx1+len('BGP neighbor is '):idx2]
+        if n_addr == neigh_addr:
+            idx1 = info[2].index('= ')
+            state = info[2][idx1+len('= '):]
+            if state.startswith('Idle'):
+                return BGP_FSM_IDLE
+            elif state.startswith('Active'):
+                return BGP_FSM_ACTIVE
+            elif state.startswith('Established'):
+                return BGP_FSM_ESTABLISHED
+            else:
+                return state
+
+        raise Exception('not found peer {0}'.format(peer.router_id))
 
     def send_route_refresh(self):
-        with QuaggaTelnetDaemon(self) as tn:
-            tn.write('clear ip bgp * soft\n')
-            #tn.read_until('bgpd#')
+        self.vtysh('clear ip bgp * soft', config=False)
 
     def create_config(self):
         self._create_config_bgp()
@@ -254,6 +227,12 @@ class QuaggaBGPContainer(BGPContainer):
             print colors.yellow('[{0}\'s new config]'.format(self.name))
             print colors.yellow(indent(str(c)))
             f.writelines(str(c))
+
+    def vtysh(self, cmd, config=True):
+        if config:
+            return self.local("vtysh -d bgpd -c 'en' -c 'conf t' -c 'router bgp {0}' -c '{1}'".format(self.asn, cmd), capture=True)
+        else:
+            return self.local("vtysh -d bgpd -c '{0}'".format(cmd), capture=True)
 
     def reload_config(self):
         daemon = []
