@@ -162,6 +162,7 @@ class GoBGPContainer(BGPContainer):
         for p in ret:
             p["nexthop"] = self._get_nexthop(p)
             p["aspath"] = self._get_as_path(p)
+            p["prefix"] = p['nlri']['prefix']
         return ret
 
     def get_adj_rib_in(self, peer, prefix='', rf='ipv4'):
@@ -187,10 +188,24 @@ class GoBGPContainer(BGPContainer):
         self.statements = []
 
     def set_prefix_set(self, ps):
+        if type(ps) is not list:
+            ps = [ps]
         self.prefix_set = ps
 
+    def add_prefix_set(self, ps):
+        if self.prefix_set is None:
+            self.prefix_set = []
+        self.prefix_set.append(ps)
+
     def set_neighbor_set(self, ns):
+        if type(ns) is not list:
+            ns = [ns]
         self.neighbor_set = ns
+
+    def add_neighbor_set(self, ns):
+        if self.neighbor_set is None:
+            self.neighbor_set = []
+        self.neighbor_set.append(ns)
 
     def set_bgp_defined_set(self, bs):
         self.bgp_set = bs
@@ -304,6 +319,12 @@ class GoBGPContainer(BGPContainer):
             if len(default_in_policy) > 0:
                n['apply-policy']['config']['default-in-policy'] = f(default_in_policy[0])
 
+            for typ in ['in', 'import', 'export']:
+                if 'default-policy' in info and typ in info['default-policy']:
+                    if 'apply-policy' not in n:
+                        n['apply-policy'] = {'config': {}}
+                    n['apply-policy']['config']['default-{0}-policy'.format(typ)] = f(info['default-policy'][typ])
+
             if 'neighbors' not in config:
                 config['neighbors'] = []
 
@@ -311,18 +332,19 @@ class GoBGPContainer(BGPContainer):
 
         config['defined-sets'] = {}
         if self.prefix_set:
-            config['defined-sets']['prefix-sets'] = [self.prefix_set]
+            config['defined-sets']['prefix-sets'] = self.prefix_set
 
         if self.neighbor_set:
-            config['defined-sets']['neighbor-sets'] = [self.neighbor_set]
+            config['defined-sets']['neighbor-sets'] = self.neighbor_set
 
         if self.bgp_set:
             config['defined-sets']['bgp-defined-sets'] = self.bgp_set
 
         policy_list = []
         for p in self.policies.itervalues():
-            policy = {'name': p['name'],
-                      'statements': p['statements']}
+            policy = {'name': p['name']}
+            if 'statements' in p:
+                policy['statements'] = p['statements']
             policy_list.append(policy)
 
         if len(policy_list) > 0:

@@ -323,6 +323,14 @@ class BGPContainer(Container):
             self.create_config()
             self.reload_config()
 
+    def set_default_policy(self, peer, typ, default):
+        if typ in ['in', 'import', 'export'] and default in ['reject', 'accept']:
+            if 'default-policy' not in self.peers[peer]:
+                self.peers[peer]['default-policy'] = {}
+            self.peers[peer]['default-policy'][typ] = default
+        else:
+            raise Exception('wrong type or default')
+
     def add_policy(self, policy, peer=None, reload_config=True):
         self.policies[policy['name']] = policy
         if peer in self.peers:
