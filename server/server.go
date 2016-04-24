@@ -1085,14 +1085,15 @@ func (server *BgpServer) PeerDelete(peer config.Neighbor) error {
 	return (<-ch).Err()
 }
 
-func (server *BgpServer) PeerUpdate(peer config.Neighbor) error {
+func (server *BgpServer) PeerUpdate(peer config.Neighbor) (bool, error) {
 	ch := make(chan *GrpcResponse)
 	server.GrpcReqCh <- &GrpcRequest{
 		RequestType: REQ_UPDATE_NEIGHBOR,
 		Data:        &peer,
 		ResponseCh:  ch,
 	}
-	return (<-ch).Err()
+	res := <-ch
+	return res.Data.(bool), res.Err()
 }
 
 func (server *BgpServer) Shutdown() {
@@ -1108,21 +1109,6 @@ func (server *BgpServer) UpdatePolicy(policy config.RoutingPolicy) {
 	server.GrpcReqCh <- &GrpcRequest{
 		RequestType: REQ_RELOAD_POLICY,
 		Data:        policy,
-		ResponseCh:  ch,
-	}
-	<-ch
-	// TODO: we want to apply the new policies to the existing
-	// routes here. Sending SOFT_RESET_IN to all the peers works
-	// for the change of in and import policies. SOFT_RESET_OUT is
-	// necessary for the export policy but we can't blindly
-	// execute SOFT_RESET_OUT because we unnecessarily advertize
-	// the existing routes. Needs to investigate the changes of
-	// policies and handle only affected peers.
-
-	ch = make(chan *GrpcResponse)
-	server.GrpcReqCh <- &GrpcRequest{
-		RequestType: REQ_NEIGHBOR_SOFT_RESET_IN,
-		Name:        "all",
 		ResponseCh:  ch,
 	}
 	<-ch
@@ -2194,8 +2180,9 @@ func (server *BgpServer) handleGrpc(grpcReq *GrpcRequest) []*SenderMsg {
 		}
 		close(grpcReq.ResponseCh)
 	case REQ_UPDATE_NEIGHBOR:
-		m, err := server.handleUpdateNeighbor(grpcReq.Data.(*config.Neighbor))
+		m, policyUpdated, err := server.handleUpdateNeighbor(grpcReq.Data.(*config.Neighbor))
 		grpcReq.ResponseCh <- &GrpcResponse{
+			Data:        policyUpdated,
 			ResponseErr: err,
 		}
 		if len(m) > 0 {
@@ -2384,13 +2371,15 @@ func (server *BgpServer) handleDelNeighbor(c *config.Neighbor) ([]*SenderMsg, er
 	return m, nil
 }
 
-func (server *BgpServer) handleUpdateNeighbor(c *config.Neighbor) ([]*SenderMsg, error) {
+func (server *BgpServer) handleUpdateNeighbor(c *config.Neighbor) ([]*SenderMsg, bool, error) {
 	addr := c.Config.NeighborAddress
 	peer := server.neighborMap[addr]
+	policyUpdated := false
 
 	if !peer.fsm.pConf.ApplyPolicy.Equal(&c.ApplyPolicy) {
 		server.setPolicyByConfig(peer.ID(), c.ApplyPolicy)
 		peer.fsm.pConf.ApplyPolicy = c.ApplyPolicy
+		policyUpdated = true
 	}
 	original := peer.fsm.pConf
 
@@ -2402,10 +2391,9 @@ func (server *BgpServer) handleUpdateNeighbor(c *config.Neighbor) ([]*SenderMsg,
 		}).Error(err)
 		// rollback to original state
 		peer.fsm.pConf = original
-		return nil, err
+		return nil, policyUpdated, err
 	}
-	return msgs, nil
-
+	return msgs, policyUpdated, nil
 }
 
 func (server *BgpServer) handleGrpcModNeighbor(grpcReq *GrpcRequest) ([]*SenderMsg, error) {
