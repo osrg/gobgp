@@ -201,7 +201,6 @@ func main() {
 			var updatePolicy bool
 
 			if c == nil {
-				c = newConfig
 				if err := bgpServer.SetGlobalType(newConfig.Global); err != nil {
 					log.Fatalf("failed to set global config: %s", err)
 				}
@@ -235,8 +234,8 @@ func main() {
 					p := config.ConfigSetToRoutingPolicy(newConfig)
 					bgpServer.UpdatePolicy(*p)
 				}
-				c = newConfig
 			}
+			c = newConfig.Clone()
 
 			for _, p := range added {
 				log.Infof("Peer %v is added", p.Config.NeighborAddress)
