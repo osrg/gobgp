@@ -161,7 +161,7 @@ func (path *Path) UpdatePathAttrs(global *config.Global, peer *config.Neighbor) 
 		return
 	}
 
-	localAddress := net.ParseIP(peer.Transport.Config.LocalAddress)
+	localAddress := net.ParseIP(peer.Transport.State.LocalAddress)
 	isZero := func(ip net.IP) bool {
 		return ip.Equal(net.ParseIP("0.0.0.0")) || ip.Equal(net.ParseIP("::"))
 	}
