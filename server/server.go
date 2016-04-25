@@ -749,7 +749,7 @@ func (server *BgpServer) handleFSMMessage(peer *Peer, e *FsmMsg) []*SenderMsg {
 		if nextState == bgp.BGP_FSM_ESTABLISHED {
 			// update for export policy
 			laddr, _ := peer.fsm.LocalHostPort()
-			peer.fsm.pConf.Transport.Config.LocalAddress = laddr
+			peer.fsm.pConf.Transport.State.LocalAddress = laddr
 			deferralExpiredFunc := func(family bgp.RouteFamily) func() {
 				return func() {
 					req := NewGrpcRequest(REQ_DEFERRAL_TIMER_EXPIRED, peer.ID(), family, nil)
@@ -2323,6 +2323,7 @@ func (server *BgpServer) handleAddNeighbor(c *config.Neighbor) ([]*SenderMsg, er
 			SetTcpMD5SigSockopts(l, addr, c.Config.AuthPassword)
 		}
 	}
+	log.Info("Add a peer configuration for ", addr)
 
 	peer := NewPeer(&server.bgpConfig.Global, c, server.globalRib, server.policy)
 	server.setPolicyByConfig(peer.ID(), c.ApplyPolicy)
@@ -2368,6 +2369,10 @@ func (server *BgpServer) handleDelNeighbor(c *config.Neighbor) ([]*SenderMsg, er
 	}(addr)
 	delete(server.neighborMap, addr)
 	m := server.dropPeerAllRoutes(n, n.configuredRFlist())
+
+	notification := bgp.NewBGPNotificationMessage(bgp.BGP_ERROR_CEASE, bgp.BGP_ERROR_SUB_PEER_DECONFIGURED, nil)
+	m = append(m, newSenderMsg(n, nil, notification, false))
+
 	return m, nil
 }
 
@@ -2382,6 +2387,26 @@ func (server *BgpServer) handleUpdateNeighbor(c *config.Neighbor) ([]*SenderMsg,
 		policyUpdated = true
 	}
 	original := peer.fsm.pConf
+
+	if !original.Config.Equal(&c.Config) || !original.Transport.Config.Equal(&c.Transport.Config) {
+		msgs, err := server.handleDelNeighbor(peer.fsm.pConf)
+		if err != nil {
+			log.WithFields(log.Fields{
+				"Topic": "Peer",
+				"Key":   addr,
+			}).Error(err)
+			return msgs, policyUpdated, err
+		}
+		msgs2, err := server.handleAddNeighbor(c)
+		msgs = append(msgs, msgs2...)
+		if err != nil {
+			log.WithFields(log.Fields{
+				"Topic": "Peer",
+				"Key":   addr,
+			}).Error(err)
+		}
+		return msgs, policyUpdated, err
+	}
 
 	msgs, err := peer.updatePrefixLimitConfig(c.AfiSafis)
 	if err != nil {
