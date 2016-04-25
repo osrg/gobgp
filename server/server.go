@@ -474,7 +474,7 @@ func (server *BgpServer) dropPeerAllRoutes(peer *Peer, families []bgp.RouteFamil
 	for _, rf := range families {
 		best, _ := server.globalRib.DeletePathsByPeer(ids, peer.fsm.peerInfo, rf)
 
-		if !peer.isRouteServerClient() && !server.bgpConfig.Global.Collector.Enabled {
+		if !peer.isRouteServerClient() {
 			server.broadcastBests(best[table.GLOBAL_RIB_NAME])
 		}
 
@@ -692,9 +692,7 @@ func (server *BgpServer) propagateUpdate(peer *Peer, pathList []*table.Path) ([]
 		if len(best[table.GLOBAL_RIB_NAME]) == 0 {
 			return nil, alteredPathList
 		}
-		if !server.bgpConfig.Global.Collector.Enabled {
-			server.broadcastBests(best[table.GLOBAL_RIB_NAME])
-		}
+		server.broadcastBests(best[table.GLOBAL_RIB_NAME])
 	}
 
 	for _, targetPeer := range server.neighborMap {
@@ -1604,9 +1602,6 @@ func (server *BgpServer) handleModConfig(grpcReq *GrpcRequest) error {
 						MaxLabel: g.MplsLabelMax,
 					},
 					AfiSafis: families,
-					Collector: config.Collector{
-						Enabled: g.Collector,
-					},
 				},
 			}
 			if err := config.SetDefaultConfigValues(nil, b); err != nil {
@@ -1742,7 +1737,6 @@ func (server *BgpServer) handleGrpc(grpcReq *GrpcRequest) []*SenderMsg {
 				ListenAddresses: g.ListenConfig.LocalAddressList,
 				MplsLabelMin:    g.MplsLabelRange.MinLabel,
 				MplsLabelMax:    g.MplsLabelRange.MaxLabel,
-				Collector:       g.Collector.Enabled,
 			},
 		}
 		grpcReq.ResponseCh <- result

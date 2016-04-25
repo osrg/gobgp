@@ -537,5 +537,4 @@ message Global {
     repeated uint32 families = 5;
     uint32 mpls_label_min = 6;
     uint32 mpls_label_max = 7;
-    bool collector = 8;
 }

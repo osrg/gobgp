@@ -821,18 +821,15 @@ func showGlobalConfig(args []string) error {
 		fmt.Printf("Listening Port: %d, Addresses: %s\n", g.ListenPort, strings.Join(g.ListenAddresses, ", "))
 	}
 	fmt.Printf("MPLS Label Range: %d..%d\n", g.MplsLabelMin, g.MplsLabelMax)
-	if g.Collector {
-		fmt.Println("Running in Collector Mode")
-	}
 	return nil
 }
 
 func modGlobalConfig(args []string) error {
 	m := extractReserved(args, []string{"as", "router-id", "listen-port",
-		"listen-addresses", "mpls-label-min", "mpls-label-max", "collector"})
+		"listen-addresses", "mpls-label-min", "mpls-label-max"})
 
 	if len(m["as"]) != 1 || len(m["router-id"]) != 1 {
-		return fmt.Errorf("usage: gobgp global as <VALUE> router-id <VALUE> [listen-port <VALUE>] [listen-addresses <VALUE>...] [mpls-label-min <VALUE>] [mpls-label-max <VALUE>] [collector]")
+		return fmt.Errorf("usage: gobgp global as <VALUE> router-id <VALUE> [listen-port <VALUE>] [listen-addresses <VALUE>...] [mpls-label-min <VALUE>] [mpls-label-max <VALUE>]")
 	}
 	asn, err := strconv.Atoi(m["as"][0])
 	if err != nil {
@@ -862,7 +859,6 @@ func modGlobalConfig(args []string) error {
 			return err
 		}
 	}
-	_, collector := m["collector"]
 	_, err = client.ModGlobalConfig(context.Background(), &api.ModGlobalConfigArguments{
 		Operation: api.Operation_ADD,
 		Global: &api.Global{
@@ -872,7 +868,6 @@ func modGlobalConfig(args []string) error {
 			ListenAddresses: m["listen-addresses"],
 			MplsLabelMin:    uint32(min),
 			MplsLabelMax:    uint32(max),
-			Collector:       collector,
 		},
 	})
 	return err

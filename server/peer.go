@@ -58,8 +58,8 @@ func NewPeer(g *config.Global, conf *config.Neighbor, loc *table.TableManager, p
 		peer.tableId = table.GLOBAL_RIB_NAME
 	}
 	rfs, _ := config.AfiSafis(conf.AfiSafis).ToRfList()
-	peer.adjRibIn = table.NewAdjRib(peer.ID(), rfs, g.Collector.Enabled)
-	peer.adjRibOut = table.NewAdjRib(peer.ID(), rfs, g.Collector.Enabled)
+	peer.adjRibIn = table.NewAdjRib(peer.ID(), rfs)
+	peer.adjRibOut = table.NewAdjRib(peer.ID(), rfs)
 	return peer
 }
 
@@ -136,19 +136,13 @@ func (peer *Peer) getBestFromLocal(rfList []bgp.RouteFamily) ([]*table.Path, []*
 	options := &table.PolicyOptions{
 		Neighbor: peer.fsm.peerInfo.Address,
 	}
-	var source []*table.Path
-	if peer.fsm.gConf.Collector.Enabled {
-		source = peer.localRib.GetPathList(peer.TableID(), rfList)
-	} else {
-		source = peer.localRib.GetBestPathList(peer.TableID(), rfList)
-	}
-	for _, path := range source {
+	for _, path := range peer.localRib.GetBestPathList(peer.TableID(), rfList) {
 		p := peer.policy.ApplyPolicy(peer.TableID(), table.POLICY_DIRECTION_EXPORT, filterpath(peer, path), options)
 		if p == nil {
 			filtered = append(filtered, path)
 			continue
 		}
-		if !peer.fsm.gConf.Collector.Enabled && !peer.isRouteServerClient() {
+		if !peer.isRouteServerClient() {
 			p = p.Clone(p.IsWithdraw)
 			p.UpdatePathAttrs(peer.fsm.gConf, peer.fsm.pConf)
 		}
@@ -189,7 +183,7 @@ func (peer *Peer) processOutgoingPaths(paths, withdrawals []*table.Path) []*tabl
 		if path == nil {
 			continue
 		}
-		if !peer.isRouteServerClient() && !peer.fsm.gConf.Collector.Enabled {
+		if !peer.isRouteServerClient() {
 			path = path.Clone(path.IsWithdraw)
 			path.UpdatePathAttrs(peer.fsm.gConf, peer.fsm.pConf)
 		}

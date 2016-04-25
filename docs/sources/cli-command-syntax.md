@@ -21,7 +21,7 @@ gobgp has six subcommands.
 #### syntax
 ```shell
 # configure global setting and start acting as bgp daemon
-% gobgp global as <VALUE> router-id <VALUE> [listen-port <VALUE>] [listen-addresses <VALUE>...] [mpls-label-min <VALUE>] [mpls-label-max <VALUE>] [collector]
+% gobgp global as <VALUE> router-id <VALUE> [listen-port <VALUE>] [listen-addresses <VALUE>...] [mpls-label-min <VALUE>] [mpls-label-max <VALUE>]
 # delete global setting and stop acting as bgp daemon (all peer sessions will be closed)
 % gobgp global del all
 # show global setting

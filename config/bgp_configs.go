@@ -2561,23 +2561,6 @@ func (lhs *Zebra) Equal(rhs *Zebra) bool {
 	return true
 }
 
-//struct for container gobgp:collector
-type Collector struct {
-	// original -> gobgp:enabled
-	//gobgp:enabled's original type is boolean
-	Enabled bool `mapstructure:"enabled"`
-}
-
-func (lhs *Collector) Equal(rhs *Collector) bool {
-	if lhs == nil || rhs == nil {
-		return false
-	}
-	if lhs.Enabled != rhs.Enabled {
-		return false
-	}
-	return true
-}
-
 //struct for container gobgp:route-target-membership
 type RouteTargetMembership struct {
 	// original -> gobgp:deferral-time
@@ -3932,8 +3915,6 @@ type Global struct {
 	AfiSafis []AfiSafi `mapstructure:"afi-safis"`
 	// original -> rpol:apply-policy
 	ApplyPolicy ApplyPolicy `mapstructure:"apply-policy"`
-	// original -> gobgp:collector
-	Collector Collector `mapstructure:"collector"`
 	// original -> gobgp:zebra
 	Zebra Zebra `mapstructure:"zebra"`
 	// original -> gobgp:mpls-label-range
@@ -3984,9 +3965,6 @@ func (lhs *Global) Equal(rhs *Global) bool {
 		}
 	}
 	if !lhs.ApplyPolicy.Equal(&(rhs.ApplyPolicy)) {
-		return false
-	}
-	if !lhs.Collector.Equal(&(rhs.Collector)) {
 		return false
 	}
 	if !lhs.Zebra.Equal(&(rhs.Zebra)) {

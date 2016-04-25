@@ -721,17 +721,6 @@ module gobgp {
     uses gobgp-rpki-servers;
   }
 
-  augment "/bgp:bgp/bgp:global" {
-    description "route collector mode";
-    container collector {
-      leaf enabled {
-        type boolean;
-         description
-          "Configure enabling route-collector mode.";
-      }
-    }
-  }
-
   augment "/bgp:bgp" {
     description "additional bmp configuration";
     uses gobgp-bmp-servers;
