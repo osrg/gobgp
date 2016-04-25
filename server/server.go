@@ -747,7 +747,7 @@ func (server *BgpServer) handleFSMMessage(peer *Peer, e *FsmMsg) []*SenderMsg {
 		if nextState == bgp.BGP_FSM_ESTABLISHED {
 			// update for export policy
 			laddr, _ := peer.fsm.LocalHostPort()
-			peer.fsm.pConf.Transport.Config.LocalAddress = laddr
+			peer.fsm.pConf.Transport.State.LocalAddress = laddr
 			deferralExpiredFunc := func(family bgp.RouteFamily) func() {
 				return func() {
 					req := NewGrpcRequest(REQ_DEFERRAL_TIMER_EXPIRED, peer.ID(), family, nil)
