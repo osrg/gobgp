@@ -1893,6 +1893,9 @@ type TransportConfig struct {
 	// original -> bgp:local-address
 	//bgp:local-address's original type is union
 	LocalAddress string `mapstructure:"local-address"`
+	// original -> gobgp:remote-port
+	//gobgp:remote-port's original type is inet:port-number
+	RemotePort uint16 `mapstructure:"remote-port"`
 }
 
 func (lhs *TransportConfig) Equal(rhs *TransportConfig) bool {
@@ -1909,6 +1912,9 @@ func (lhs *TransportConfig) Equal(rhs *TransportConfig) bool {
 		return false
 	}
 	if lhs.LocalAddress != rhs.LocalAddress {
+		return false
+	}
+	if lhs.RemotePort != rhs.RemotePort {
 		return false
 	}
 	return true
@@ -2337,9 +2343,6 @@ type NeighborConfig struct {
 	// original -> bgp:neighbor-address
 	//bgp:neighbor-address's original type is inet:ip-address
 	NeighborAddress string `mapstructure:"neighbor-address"`
-	// original -> gobgp:neighbor-port-number
-	//gobgp:neighbor-port-number's original type is inet:port-number
-	NeighborPortNumber uint16 `mapstructure:"neighbor-port-number"`
 }
 
 func (lhs *NeighborConfig) Equal(rhs *NeighborConfig) bool {
@@ -2374,9 +2377,6 @@ func (lhs *NeighborConfig) Equal(rhs *NeighborConfig) bool {
 		return false
 	}
 	if lhs.NeighborAddress != rhs.NeighborAddress {
-		return false
-	}
-	if lhs.NeighborPortNumber != rhs.NeighborPortNumber {
 		return false
 	}
 	return true

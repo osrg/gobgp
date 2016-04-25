@@ -585,8 +585,8 @@ module gobgp {
 
   }
 
-  augment "/bgp:bgp/bgp:neighbors/bgp:neighbor/bgp:config" {
-    leaf neighbor-port-number {
+  augment "/bgp:bgp/bgp:neighbors/bgp:neighbor/bgp:transport/bgp:config" {
+    leaf remote-port {
       type inet:port-number;
     }
   }

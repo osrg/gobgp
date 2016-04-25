@@ -312,8 +312,8 @@ func (fsm *FSM) connectLoop() error {
 		if fsm.state == bgp.BGP_FSM_ACTIVE && !fsm.pConf.GracefulRestart.State.PeerRestarting {
 			addr := fsm.pConf.Config.NeighborAddress
 			port := int(bgp.BGP_PORT)
-			if fsm.pConf.Config.NeighborPortNumber != 0 {
-				port = int(fsm.pConf.Config.NeighborPortNumber)
+			if fsm.pConf.Transport.Config.RemotePort != 0 {
+				port = int(fsm.pConf.Transport.Config.RemotePort)
 			}
 			host := net.JoinHostPort(addr, strconv.Itoa(port))
 			// check if LocalAddress has been configured
