@@ -895,6 +895,16 @@ func (lhs *Mrt) Equal(rhs *Mrt) bool {
 	}
 	return true
 }
+func (v *Mrt) Clone() *Mrt {
+	if v == nil {
+		return nil
+	}
+	clone := &Mrt{}
+	clone.DumpType = v.DumpType
+	clone.FileName = v.FileName
+	clone.Interval = v.Interval
+	return clone
+}
 
 //struct for container gobgp:state
 type BmpServerState struct {
@@ -905,6 +915,13 @@ func (lhs *BmpServerState) Equal(rhs *BmpServerState) bool {
 		return false
 	}
 	return true
+}
+func (v *BmpServerState) Clone() *BmpServerState {
+	if v == nil {
+		return nil
+	}
+	clone := &BmpServerState{}
+	return clone
 }
 
 //struct for container gobgp:config
@@ -933,6 +950,16 @@ func (lhs *BmpServerConfig) Equal(rhs *BmpServerConfig) bool {
 	}
 	return true
 }
+func (v *BmpServerConfig) Clone() *BmpServerConfig {
+	if v == nil {
+		return nil
+	}
+	clone := &BmpServerConfig{}
+	clone.Address = v.Address
+	clone.Port = v.Port
+	clone.RouteMonitoringPolicy = v.RouteMonitoringPolicy
+	return clone
+}
 
 //struct for container gobgp:bmp-server
 type BmpServer struct {
@@ -954,6 +981,15 @@ func (lhs *BmpServer) Equal(rhs *BmpServer) bool {
 		return false
 	}
 	return true
+}
+func (v *BmpServer) Clone() *BmpServer {
+	if v == nil {
+		return nil
+	}
+	clone := &BmpServer{}
+	clone.Config = *(v.Config.Clone())
+	clone.State = *(v.State.Clone())
+	return clone
 }
 
 //struct for container gobgp:rpki-received
@@ -1001,6 +1037,20 @@ func (lhs *RpkiReceived) Equal(rhs *RpkiReceived) bool {
 	}
 	return true
 }
+func (v *RpkiReceived) Clone() *RpkiReceived {
+	if v == nil {
+		return nil
+	}
+	clone := &RpkiReceived{}
+	clone.SerialNotify = v.SerialNotify
+	clone.CacheReset = v.CacheReset
+	clone.CacheResponse = v.CacheResponse
+	clone.Ipv4Prefix = v.Ipv4Prefix
+	clone.Ipv6Prefix = v.Ipv6Prefix
+	clone.EndOfData = v.EndOfData
+	clone.Error = v.Error
+	return clone
+}
 
 //struct for container gobgp:rpki-sent
 type RpkiSent struct {
@@ -1027,6 +1077,16 @@ func (lhs *RpkiSent) Equal(rhs *RpkiSent) bool {
 	}
 	return true
 }
+func (v *RpkiSent) Clone() *RpkiSent {
+	if v == nil {
+		return nil
+	}
+	clone := &RpkiSent{}
+	clone.SerialQuery = v.SerialQuery
+	clone.ResetQuery = v.ResetQuery
+	clone.Error = v.Error
+	return clone
+}
 
 //struct for container gobgp:rpki-messages
 type RpkiMessages struct {
@@ -1047,6 +1107,15 @@ func (lhs *RpkiMessages) Equal(rhs *RpkiMessages) bool {
 		return false
 	}
 	return true
+}
+func (v *RpkiMessages) Clone() *RpkiMessages {
+	if v == nil {
+		return nil
+	}
+	clone := &RpkiMessages{}
+	clone.RpkiSent = *(v.RpkiSent.Clone())
+	clone.RpkiReceived = *(v.RpkiReceived.Clone())
+	return clone
 }
 
 //struct for container gobgp:state
@@ -1078,6 +1147,17 @@ func (lhs *RpkiServerState) Equal(rhs *RpkiServerState) bool {
 		return false
 	}
 	return true
+}
+func (v *RpkiServerState) Clone() *RpkiServerState {
+	if v == nil {
+		return nil
+	}
+	clone := &RpkiServerState{}
+	clone.Uptime = v.Uptime
+	clone.Downtime = v.Downtime
+	clone.LastPduRecvTime = v.LastPduRecvTime
+	clone.RpkiMessages = *(v.RpkiMessages.Clone())
+	return clone
 }
 
 //struct for container gobgp:config
@@ -1121,6 +1201,19 @@ func (lhs *RpkiServerConfig) Equal(rhs *RpkiServerConfig) bool {
 	}
 	return true
 }
+func (v *RpkiServerConfig) Clone() *RpkiServerConfig {
+	if v == nil {
+		return nil
+	}
+	clone := &RpkiServerConfig{}
+	clone.Address = v.Address
+	clone.Port = v.Port
+	clone.RefreshTime = v.RefreshTime
+	clone.HoldTime = v.HoldTime
+	clone.RecordLifetime = v.RecordLifetime
+	clone.Preference = v.Preference
+	return clone
+}
 
 //struct for container gobgp:rpki-server
 type RpkiServer struct {
@@ -1142,6 +1235,15 @@ func (lhs *RpkiServer) Equal(rhs *RpkiServer) bool {
 		return false
 	}
 	return true
+}
+func (v *RpkiServer) Clone() *RpkiServer {
+	if v == nil {
+		return nil
+	}
+	clone := &RpkiServer{}
+	clone.Config = *(v.Config.Clone())
+	clone.State = *(v.State.Clone())
+	return clone
 }
 
 //struct for container bgp:state
@@ -1212,6 +1314,24 @@ func (lhs *PeerGroupState) Equal(rhs *PeerGroupState) bool {
 	}
 	return true
 }
+func (v *PeerGroupState) Clone() *PeerGroupState {
+	if v == nil {
+		return nil
+	}
+	clone := &PeerGroupState{}
+	clone.PeerAs = v.PeerAs
+	clone.LocalAs = v.LocalAs
+	clone.PeerType = v.PeerType
+	clone.AuthPassword = v.AuthPassword
+	clone.RemovePrivateAs = v.RemovePrivateAs
+	clone.RouteFlapDamping = v.RouteFlapDamping
+	clone.SendCommunity = v.SendCommunity
+	clone.Description = v.Description
+	clone.PeerGroupName = v.PeerGroupName
+	clone.TotalPaths = v.TotalPaths
+	clone.TotalPrefixes = v.TotalPrefixes
+	return clone
+}
 
 //struct for container bgp:config
 type PeerGroupConfig struct {
@@ -1270,6 +1390,22 @@ func (lhs *PeerGroupConfig) Equal(rhs *PeerGroupConfig) bool {
 		return false
 	}
 	return true
+}
+func (v *PeerGroupConfig) Clone() *PeerGroupConfig {
+	if v == nil {
+		return nil
+	}
+	clone := &PeerGroupConfig{}
+	clone.PeerAs = v.PeerAs
+	clone.LocalAs = v.LocalAs
+	clone.PeerType = v.PeerType
+	clone.AuthPassword = v.AuthPassword
+	clone.RemovePrivateAs = v.RemovePrivateAs
+	clone.RouteFlapDamping = v.RouteFlapDamping
+	clone.SendCommunity = v.SendCommunity
+	clone.Description = v.Description
+	clone.PeerGroupName = v.PeerGroupName
+	return clone
 }
 
 //struct for container bgp:peer-group
@@ -1371,6 +1507,34 @@ func (lhs *PeerGroup) Equal(rhs *PeerGroup) bool {
 	}
 	return true
 }
+func (v *PeerGroup) Clone() *PeerGroup {
+	if v == nil {
+		return nil
+	}
+	clone := &PeerGroup{}
+	clone.Config = *(v.Config.Clone())
+	clone.State = *(v.State.Clone())
+	clone.Timers = *(v.Timers.Clone())
+	clone.Transport = *(v.Transport.Clone())
+	clone.ErrorHandling = *(v.ErrorHandling.Clone())
+	clone.LoggingOptions = *(v.LoggingOptions.Clone())
+	clone.EbgpMultihop = *(v.EbgpMultihop.Clone())
+	clone.RouteReflector = *(v.RouteReflector.Clone())
+	clone.AsPathOptions = *(v.AsPathOptions.Clone())
+	clone.AddPaths = *(v.AddPaths.Clone())
+	{
+		a := make([]AfiSafi, 0, len(v.AfiSafis))
+		for _, i := range v.AfiSafis {
+			a = append(a, *(i.Clone()))
+		}
+		clone.AfiSafis = a
+	}
+	clone.GracefulRestart = *(v.GracefulRestart.Clone())
+	clone.ApplyPolicy = *(v.ApplyPolicy.Clone())
+	clone.UseMultiplePaths = *(v.UseMultiplePaths.Clone())
+	clone.RouteServer = *(v.RouteServer.Clone())
+	return clone
+}
 
 //struct for container gobgp:state
 type RouteServerState struct {
@@ -1388,6 +1552,14 @@ func (lhs *RouteServerState) Equal(rhs *RouteServerState) bool {
 	}
 	return true
 }
+func (v *RouteServerState) Clone() *RouteServerState {
+	if v == nil {
+		return nil
+	}
+	clone := &RouteServerState{}
+	clone.RouteServerClient = v.RouteServerClient
+	return clone
+}
 
 //struct for container gobgp:config
 type RouteServerConfig struct {
@@ -1404,6 +1576,14 @@ func (lhs *RouteServerConfig) Equal(rhs *RouteServerConfig) bool {
 		return false
 	}
 	return true
+}
+func (v *RouteServerConfig) Clone() *RouteServerConfig {
+	if v == nil {
+		return nil
+	}
+	clone := &RouteServerConfig{}
+	clone.RouteServerClient = v.RouteServerClient
+	return clone
 }
 
 //struct for container gobgp:route-server
@@ -1425,6 +1605,15 @@ func (lhs *RouteServer) Equal(rhs *RouteServer) bool {
 		return false
 	}
 	return true
+}
+func (v *RouteServer) Clone() *RouteServer {
+	if v == nil {
+		return nil
+	}
+	clone := &RouteServer{}
+	clone.Config = *(v.Config.Clone())
+	clone.State = *(v.State.Clone())
+	return clone
 }
 
 //struct for container bgp-op:prefixes
@@ -1452,6 +1641,16 @@ func (lhs *Prefixes) Equal(rhs *Prefixes) bool {
 	}
 	return true
 }
+func (v *Prefixes) Clone() *Prefixes {
+	if v == nil {
+		return nil
+	}
+	clone := &Prefixes{}
+	clone.Received = v.Received
+	clone.Sent = v.Sent
+	clone.Installed = v.Installed
+	return clone
+}
 
 //struct for container bgp:state
 type AddPathsState struct {
@@ -1473,6 +1672,15 @@ func (lhs *AddPathsState) Equal(rhs *AddPathsState) bool {
 		return false
 	}
 	return true
+}
+func (v *AddPathsState) Clone() *AddPathsState {
+	if v == nil {
+		return nil
+	}
+	clone := &AddPathsState{}
+	clone.Receive = v.Receive
+	clone.SendMax = v.SendMax
+	return clone
 }
 
 //struct for container bgp:config
@@ -1496,6 +1704,15 @@ func (lhs *AddPathsConfig) Equal(rhs *AddPathsConfig) bool {
 	}
 	return true
 }
+func (v *AddPathsConfig) Clone() *AddPathsConfig {
+	if v == nil {
+		return nil
+	}
+	clone := &AddPathsConfig{}
+	clone.Receive = v.Receive
+	clone.SendMax = v.SendMax
+	return clone
+}
 
 //struct for container bgp:add-paths
 type AddPaths struct {
@@ -1516,6 +1733,15 @@ func (lhs *AddPaths) Equal(rhs *AddPaths) bool {
 		return false
 	}
 	return true
+}
+func (v *AddPaths) Clone() *AddPaths {
+	if v == nil {
+		return nil
+	}
+	clone := &AddPaths{}
+	clone.Config = *(v.Config.Clone())
+	clone.State = *(v.State.Clone())
+	return clone
 }
 
 //struct for container bgp:state
@@ -1539,6 +1765,15 @@ func (lhs *AsPathOptionsState) Equal(rhs *AsPathOptionsState) bool {
 	}
 	return true
 }
+func (v *AsPathOptionsState) Clone() *AsPathOptionsState {
+	if v == nil {
+		return nil
+	}
+	clone := &AsPathOptionsState{}
+	clone.AllowOwnAs = v.AllowOwnAs
+	clone.ReplacePeerAs = v.ReplacePeerAs
+	return clone
+}
 
 //struct for container bgp:config
 type AsPathOptionsConfig struct {
@@ -1561,6 +1796,15 @@ func (lhs *AsPathOptionsConfig) Equal(rhs *AsPathOptionsConfig) bool {
 	}
 	return true
 }
+func (v *AsPathOptionsConfig) Clone() *AsPathOptionsConfig {
+	if v == nil {
+		return nil
+	}
+	clone := &AsPathOptionsConfig{}
+	clone.AllowOwnAs = v.AllowOwnAs
+	clone.ReplacePeerAs = v.ReplacePeerAs
+	return clone
+}
 
 //struct for container bgp:as-path-options
 type AsPathOptions struct {
@@ -1581,6 +1825,15 @@ func (lhs *AsPathOptions) Equal(rhs *AsPathOptions) bool {
 		return false
 	}
 	return true
+}
+func (v *AsPathOptions) Clone() *AsPathOptions {
+	if v == nil {
+		return nil
+	}
+	clone := &AsPathOptions{}
+	clone.Config = *(v.Config.Clone())
+	clone.State = *(v.State.Clone())
+	return clone
 }
 
 //struct for container bgp:state
@@ -1604,6 +1857,15 @@ func (lhs *RouteReflectorState) Equal(rhs *RouteReflectorState) bool {
 	}
 	return true
 }
+func (v *RouteReflectorState) Clone() *RouteReflectorState {
+	if v == nil {
+		return nil
+	}
+	clone := &RouteReflectorState{}
+	clone.RouteReflectorClusterId = v.RouteReflectorClusterId
+	clone.RouteReflectorClient = v.RouteReflectorClient
+	return clone
+}
 
 //struct for container bgp:config
 type RouteReflectorConfig struct {
@@ -1626,6 +1888,15 @@ func (lhs *RouteReflectorConfig) Equal(rhs *RouteReflectorConfig) bool {
 	}
 	return true
 }
+func (v *RouteReflectorConfig) Clone() *RouteReflectorConfig {
+	if v == nil {
+		return nil
+	}
+	clone := &RouteReflectorConfig{}
+	clone.RouteReflectorClusterId = v.RouteReflectorClusterId
+	clone.RouteReflectorClient = v.RouteReflectorClient
+	return clone
+}
 
 //struct for container bgp:route-reflector
 type RouteReflector struct {
@@ -1646,6 +1917,15 @@ func (lhs *RouteReflector) Equal(rhs *RouteReflector) bool {
 		return false
 	}
 	return true
+}
+func (v *RouteReflector) Clone() *RouteReflector {
+	if v == nil {
+		return nil
+	}
+	clone := &RouteReflector{}
+	clone.Config = *(v.Config.Clone())
+	clone.State = *(v.State.Clone())
+	return clone
 }
 
 //struct for container bgp:state
@@ -1669,6 +1949,15 @@ func (lhs *EbgpMultihopState) Equal(rhs *EbgpMultihopState) bool {
 	}
 	return true
 }
+func (v *EbgpMultihopState) Clone() *EbgpMultihopState {
+	if v == nil {
+		return nil
+	}
+	clone := &EbgpMultihopState{}
+	clone.Enabled = v.Enabled
+	clone.MultihopTtl = v.MultihopTtl
+	return clone
+}
 
 //struct for container bgp:config
 type EbgpMultihopConfig struct {
@@ -1691,6 +1980,15 @@ func (lhs *EbgpMultihopConfig) Equal(rhs *EbgpMultihopConfig) bool {
 	}
 	return true
 }
+func (v *EbgpMultihopConfig) Clone() *EbgpMultihopConfig {
+	if v == nil {
+		return nil
+	}
+	clone := &EbgpMultihopConfig{}
+	clone.Enabled = v.Enabled
+	clone.MultihopTtl = v.MultihopTtl
+	return clone
+}
 
 //struct for container bgp:ebgp-multihop
 type EbgpMultihop struct {
@@ -1712,6 +2010,15 @@ func (lhs *EbgpMultihop) Equal(rhs *EbgpMultihop) bool {
 	}
 	return true
 }
+func (v *EbgpMultihop) Clone() *EbgpMultihop {
+	if v == nil {
+		return nil
+	}
+	clone := &EbgpMultihop{}
+	clone.Config = *(v.Config.Clone())
+	clone.State = *(v.State.Clone())
+	return clone
+}
 
 //struct for container bgp:state
 type LoggingOptionsState struct {
@@ -1729,6 +2036,14 @@ func (lhs *LoggingOptionsState) Equal(rhs *LoggingOptionsState) bool {
 	}
 	return true
 }
+func (v *LoggingOptionsState) Clone() *LoggingOptionsState {
+	if v == nil {
+		return nil
+	}
+	clone := &LoggingOptionsState{}
+	clone.LogNeighborStateChanges = v.LogNeighborStateChanges
+	return clone
+}
 
 //struct for container bgp:config
 type LoggingOptionsConfig struct {
@@ -1745,6 +2060,14 @@ func (lhs *LoggingOptionsConfig) Equal(rhs *LoggingOptionsConfig) bool {
 		return false
 	}
 	return true
+}
+func (v *LoggingOptionsConfig) Clone() *LoggingOptionsConfig {
+	if v == nil {
+		return nil
+	}
+	clone := &LoggingOptionsConfig{}
+	clone.LogNeighborStateChanges = v.LogNeighborStateChanges
+	return clone
 }
 
 //struct for container bgp:logging-options
@@ -1766,6 +2089,15 @@ func (lhs *LoggingOptions) Equal(rhs *LoggingOptions) bool {
 		return false
 	}
 	return true
+}
+func (v *LoggingOptions) Clone() *LoggingOptions {
+	if v == nil {
+		return nil
+	}
+	clone := &LoggingOptions{}
+	clone.Config = *(v.Config.Clone())
+	clone.State = *(v.State.Clone())
+	return clone
 }
 
 //struct for container bgp:state
@@ -1789,6 +2121,15 @@ func (lhs *ErrorHandlingState) Equal(rhs *ErrorHandlingState) bool {
 	}
 	return true
 }
+func (v *ErrorHandlingState) Clone() *ErrorHandlingState {
+	if v == nil {
+		return nil
+	}
+	clone := &ErrorHandlingState{}
+	clone.TreatAsWithdraw = v.TreatAsWithdraw
+	clone.ErroneousUpdateMessages = v.ErroneousUpdateMessages
+	return clone
+}
 
 //struct for container bgp:config
 type ErrorHandlingConfig struct {
@@ -1805,6 +2146,14 @@ func (lhs *ErrorHandlingConfig) Equal(rhs *ErrorHandlingConfig) bool {
 		return false
 	}
 	return true
+}
+func (v *ErrorHandlingConfig) Clone() *ErrorHandlingConfig {
+	if v == nil {
+		return nil
+	}
+	clone := &ErrorHandlingConfig{}
+	clone.TreatAsWithdraw = v.TreatAsWithdraw
+	return clone
 }
 
 //struct for container bgp:error-handling
@@ -1826,6 +2175,15 @@ func (lhs *ErrorHandling) Equal(rhs *ErrorHandling) bool {
 		return false
 	}
 	return true
+}
+func (v *ErrorHandling) Clone() *ErrorHandling {
+	if v == nil {
+		return nil
+	}
+	clone := &ErrorHandling{}
+	clone.Config = *(v.Config.Clone())
+	clone.State = *(v.State.Clone())
+	return clone
 }
 
 //struct for container bgp:state
@@ -1879,6 +2237,20 @@ func (lhs *TransportState) Equal(rhs *TransportState) bool {
 	}
 	return true
 }
+func (v *TransportState) Clone() *TransportState {
+	if v == nil {
+		return nil
+	}
+	clone := &TransportState{}
+	clone.TcpMss = v.TcpMss
+	clone.MtuDiscovery = v.MtuDiscovery
+	clone.PassiveMode = v.PassiveMode
+	clone.LocalAddress = v.LocalAddress
+	clone.LocalPort = v.LocalPort
+	clone.RemoteAddress = v.RemoteAddress
+	clone.RemotePort = v.RemotePort
+	return clone
+}
 
 //struct for container bgp:config
 type TransportConfig struct {
@@ -1913,6 +2285,17 @@ func (lhs *TransportConfig) Equal(rhs *TransportConfig) bool {
 	}
 	return true
 }
+func (v *TransportConfig) Clone() *TransportConfig {
+	if v == nil {
+		return nil
+	}
+	clone := &TransportConfig{}
+	clone.TcpMss = v.TcpMss
+	clone.MtuDiscovery = v.MtuDiscovery
+	clone.PassiveMode = v.PassiveMode
+	clone.LocalAddress = v.LocalAddress
+	return clone
+}
 
 //struct for container bgp:transport
 type Transport struct {
@@ -1933,6 +2316,15 @@ func (lhs *Transport) Equal(rhs *Transport) bool {
 		return false
 	}
 	return true
+}
+func (v *Transport) Clone() *Transport {
+	if v == nil {
+		return nil
+	}
+	clone := &Transport{}
+	clone.Config = *(v.Config.Clone())
+	clone.State = *(v.State.Clone())
+	return clone
 }
 
 //struct for container bgp:state
@@ -1998,6 +2390,22 @@ func (lhs *TimersState) Equal(rhs *TimersState) bool {
 	}
 	return true
 }
+func (v *TimersState) Clone() *TimersState {
+	if v == nil {
+		return nil
+	}
+	clone := &TimersState{}
+	clone.ConnectRetry = v.ConnectRetry
+	clone.HoldTime = v.HoldTime
+	clone.KeepaliveInterval = v.KeepaliveInterval
+	clone.MinimumAdvertisementInterval = v.MinimumAdvertisementInterval
+	clone.Uptime = v.Uptime
+	clone.NegotiatedHoldTime = v.NegotiatedHoldTime
+	clone.IdleHoldTimeAfterReset = v.IdleHoldTimeAfterReset
+	clone.Downtime = v.Downtime
+	clone.UpdateRecvTime = v.UpdateRecvTime
+	return clone
+}
 
 //struct for container bgp:config
 type TimersConfig struct {
@@ -2039,6 +2447,18 @@ func (lhs *TimersConfig) Equal(rhs *TimersConfig) bool {
 	}
 	return true
 }
+func (v *TimersConfig) Clone() *TimersConfig {
+	if v == nil {
+		return nil
+	}
+	clone := &TimersConfig{}
+	clone.ConnectRetry = v.ConnectRetry
+	clone.HoldTime = v.HoldTime
+	clone.KeepaliveInterval = v.KeepaliveInterval
+	clone.MinimumAdvertisementInterval = v.MinimumAdvertisementInterval
+	clone.IdleHoldTimeAfterReset = v.IdleHoldTimeAfterReset
+	return clone
+}
 
 //struct for container bgp:timers
 type Timers struct {
@@ -2060,6 +2480,15 @@ func (lhs *Timers) Equal(rhs *Timers) bool {
 	}
 	return true
 }
+func (v *Timers) Clone() *Timers {
+	if v == nil {
+		return nil
+	}
+	clone := &Timers{}
+	clone.Config = *(v.Config.Clone())
+	clone.State = *(v.State.Clone())
+	return clone
+}
 
 //struct for container bgp:queues
 type Queues struct {
@@ -2080,6 +2509,15 @@ func (lhs *Queues) Equal(rhs *Queues) bool {
 		return false
 	}
 	return true
+}
+func (v *Queues) Clone() *Queues {
+	if v == nil {
+		return nil
+	}
+	clone := &Queues{}
+	clone.Input = v.Input
+	clone.Output = v.Output
+	return clone
 }
 
 //struct for container bgp:received
@@ -2132,6 +2570,21 @@ func (lhs *Received) Equal(rhs *Received) bool {
 	}
 	return true
 }
+func (v *Received) Clone() *Received {
+	if v == nil {
+		return nil
+	}
+	clone := &Received{}
+	clone.Update = v.Update
+	clone.Notification = v.Notification
+	clone.Open = v.Open
+	clone.Refresh = v.Refresh
+	clone.Keepalive = v.Keepalive
+	clone.DynamicCap = v.DynamicCap
+	clone.Discarded = v.Discarded
+	clone.Total = v.Total
+	return clone
+}
 
 //struct for container bgp:sent
 type Sent struct {
@@ -2183,6 +2636,21 @@ func (lhs *Sent) Equal(rhs *Sent) bool {
 	}
 	return true
 }
+func (v *Sent) Clone() *Sent {
+	if v == nil {
+		return nil
+	}
+	clone := &Sent{}
+	clone.Update = v.Update
+	clone.Notification = v.Notification
+	clone.Open = v.Open
+	clone.Refresh = v.Refresh
+	clone.Keepalive = v.Keepalive
+	clone.DynamicCap = v.DynamicCap
+	clone.Discarded = v.Discarded
+	clone.Total = v.Total
+	return clone
+}
 
 //struct for container bgp:messages
 type Messages struct {
@@ -2203,6 +2671,15 @@ func (lhs *Messages) Equal(rhs *Messages) bool {
 		return false
 	}
 	return true
+}
+func (v *Messages) Clone() *Messages {
+	if v == nil {
+		return nil
+	}
+	clone := &Messages{}
+	clone.Sent = *(v.Sent.Clone())
+	clone.Received = *(v.Received.Clone())
+	return clone
 }
 
 //struct for container bgp:state
@@ -2310,6 +2787,34 @@ func (lhs *NeighborState) Equal(rhs *NeighborState) bool {
 	}
 	return true
 }
+func (v *NeighborState) Clone() *NeighborState {
+	if v == nil {
+		return nil
+	}
+	clone := &NeighborState{}
+	clone.PeerAs = v.PeerAs
+	clone.LocalAs = v.LocalAs
+	clone.PeerType = v.PeerType
+	clone.AuthPassword = v.AuthPassword
+	clone.RemovePrivateAs = v.RemovePrivateAs
+	clone.RouteFlapDamping = v.RouteFlapDamping
+	clone.SendCommunity = v.SendCommunity
+	clone.Description = v.Description
+	clone.PeerGroup = v.PeerGroup
+	clone.NeighborAddress = v.NeighborAddress
+	clone.SessionState = v.SessionState
+	{
+		a := make([]BgpCapability, 0, len(v.SupportedCapabilitiesList))
+		copy(a, v.SupportedCapabilitiesList)
+		clone.SupportedCapabilitiesList = a
+	}
+	clone.Messages = *(v.Messages.Clone())
+	clone.Queues = *(v.Queues.Clone())
+	clone.AdminDown = v.AdminDown
+	clone.EstablishedCount = v.EstablishedCount
+	clone.Flops = v.Flops
+	return clone
+}
 
 //struct for container bgp:config
 type NeighborConfig struct {
@@ -2380,6 +2885,24 @@ func (lhs *NeighborConfig) Equal(rhs *NeighborConfig) bool {
 		return false
 	}
 	return true
+}
+func (v *NeighborConfig) Clone() *NeighborConfig {
+	if v == nil {
+		return nil
+	}
+	clone := &NeighborConfig{}
+	clone.PeerAs = v.PeerAs
+	clone.LocalAs = v.LocalAs
+	clone.PeerType = v.PeerType
+	clone.AuthPassword = v.AuthPassword
+	clone.RemovePrivateAs = v.RemovePrivateAs
+	clone.RouteFlapDamping = v.RouteFlapDamping
+	clone.SendCommunity = v.SendCommunity
+	clone.Description = v.Description
+	clone.PeerGroup = v.PeerGroup
+	clone.NeighborAddress = v.NeighborAddress
+	clone.NeighborPortNumber = v.NeighborPortNumber
+	return clone
 }
 
 //struct for container bgp:neighbor
@@ -2481,6 +3004,34 @@ func (lhs *Neighbor) Equal(rhs *Neighbor) bool {
 	}
 	return true
 }
+func (v *Neighbor) Clone() *Neighbor {
+	if v == nil {
+		return nil
+	}
+	clone := &Neighbor{}
+	clone.Config = *(v.Config.Clone())
+	clone.State = *(v.State.Clone())
+	clone.Timers = *(v.Timers.Clone())
+	clone.Transport = *(v.Transport.Clone())
+	clone.ErrorHandling = *(v.ErrorHandling.Clone())
+	clone.LoggingOptions = *(v.LoggingOptions.Clone())
+	clone.EbgpMultihop = *(v.EbgpMultihop.Clone())
+	clone.RouteReflector = *(v.RouteReflector.Clone())
+	clone.AsPathOptions = *(v.AsPathOptions.Clone())
+	clone.AddPaths = *(v.AddPaths.Clone())
+	{
+		a := make([]AfiSafi, 0, len(v.AfiSafis))
+		for _, i := range v.AfiSafis {
+			a = append(a, *(i.Clone()))
+		}
+		clone.AfiSafis = a
+	}
+	clone.GracefulRestart = *(v.GracefulRestart.Clone())
+	clone.ApplyPolicy = *(v.ApplyPolicy.Clone())
+	clone.UseMultiplePaths = *(v.UseMultiplePaths.Clone())
+	clone.RouteServer = *(v.RouteServer.Clone())
+	return clone
+}
 
 //struct for container gobgp:listen-config
 type ListenConfig struct {
@@ -2507,6 +3058,19 @@ func (lhs *ListenConfig) Equal(rhs *ListenConfig) bool {
 	}
 	return true
 }
+func (v *ListenConfig) Clone() *ListenConfig {
+	if v == nil {
+		return nil
+	}
+	clone := &ListenConfig{}
+	clone.Port = v.Port
+	{
+		a := make([]string, 0, len(v.LocalAddressList))
+		copy(a, v.LocalAddressList)
+		clone.LocalAddressList = a
+	}
+	return clone
+}
 
 //struct for container gobgp:mpls-label-range
 type MplsLabelRange struct {
@@ -2527,6 +3091,15 @@ func (lhs *MplsLabelRange) Equal(rhs *MplsLabelRange) bool {
 		return false
 	}
 	return true
+}
+func (v *MplsLabelRange) Clone() *MplsLabelRange {
+	if v == nil {
+		return nil
+	}
+	clone := &MplsLabelRange{}
+	clone.MinLabel = v.MinLabel
+	clone.MaxLabel = v.MaxLabel
+	return clone
 }
 
 //struct for container gobgp:zebra
@@ -2560,6 +3133,20 @@ func (lhs *Zebra) Equal(rhs *Zebra) bool {
 	}
 	return true
 }
+func (v *Zebra) Clone() *Zebra {
+	if v == nil {
+		return nil
+	}
+	clone := &Zebra{}
+	clone.Enabled = v.Enabled
+	clone.Url = v.Url
+	{
+		a := make([]InstallProtocolType, 0, len(v.RedistributeRouteTypeList))
+		copy(a, v.RedistributeRouteTypeList)
+		clone.RedistributeRouteTypeList = a
+	}
+	return clone
+}
 
 //struct for container gobgp:collector
 type Collector struct {
@@ -2577,6 +3164,14 @@ func (lhs *Collector) Equal(rhs *Collector) bool {
 	}
 	return true
 }
+func (v *Collector) Clone() *Collector {
+	if v == nil {
+		return nil
+	}
+	clone := &Collector{}
+	clone.Enabled = v.Enabled
+	return clone
+}
 
 //struct for container gobgp:route-target-membership
 type RouteTargetMembership struct {
@@ -2592,6 +3187,14 @@ func (lhs *RouteTargetMembership) Equal(rhs *RouteTargetMembership) bool {
 		return false
 	}
 	return true
+}
+func (v *RouteTargetMembership) Clone() *RouteTargetMembership {
+	if v == nil {
+		return nil
+	}
+	clone := &RouteTargetMembership{}
+	clone.DeferralTime = v.DeferralTime
+	return clone
 }
 
 //struct for container bgp-mp:l2vpn-evpn
@@ -2609,6 +3212,14 @@ func (lhs *L2vpnEvpn) Equal(rhs *L2vpnEvpn) bool {
 	}
 	return true
 }
+func (v *L2vpnEvpn) Clone() *L2vpnEvpn {
+	if v == nil {
+		return nil
+	}
+	clone := &L2vpnEvpn{}
+	clone.PrefixLimit = *(v.PrefixLimit.Clone())
+	return clone
+}
 
 //struct for container bgp-mp:l2vpn-vpls
 type L2vpnVpls struct {
@@ -2624,6 +3235,14 @@ func (lhs *L2vpnVpls) Equal(rhs *L2vpnVpls) bool {
 		return false
 	}
 	return true
+}
+func (v *L2vpnVpls) Clone() *L2vpnVpls {
+	if v == nil {
+		return nil
+	}
+	clone := &L2vpnVpls{}
+	clone.PrefixLimit = *(v.PrefixLimit.Clone())
+	return clone
 }
 
 //struct for container bgp-mp:l3vpn-ipv6-multicast
@@ -2641,6 +3260,14 @@ func (lhs *L3vpnIpv6Multicast) Equal(rhs *L3vpnIpv6Multicast) bool {
 	}
 	return true
 }
+func (v *L3vpnIpv6Multicast) Clone() *L3vpnIpv6Multicast {
+	if v == nil {
+		return nil
+	}
+	clone := &L3vpnIpv6Multicast{}
+	clone.PrefixLimit = *(v.PrefixLimit.Clone())
+	return clone
+}
 
 //struct for container bgp-mp:l3vpn-ipv4-multicast
 type L3vpnIpv4Multicast struct {
@@ -2656,6 +3283,14 @@ func (lhs *L3vpnIpv4Multicast) Equal(rhs *L3vpnIpv4Multicast) bool {
 		return false
 	}
 	return true
+}
+func (v *L3vpnIpv4Multicast) Clone() *L3vpnIpv4Multicast {
+	if v == nil {
+		return nil
+	}
+	clone := &L3vpnIpv4Multicast{}
+	clone.PrefixLimit = *(v.PrefixLimit.Clone())
+	return clone
 }
 
 //struct for container bgp-mp:l3vpn-ipv6-unicast
@@ -2673,6 +3308,14 @@ func (lhs *L3vpnIpv6Unicast) Equal(rhs *L3vpnIpv6Unicast) bool {
 	}
 	return true
 }
+func (v *L3vpnIpv6Unicast) Clone() *L3vpnIpv6Unicast {
+	if v == nil {
+		return nil
+	}
+	clone := &L3vpnIpv6Unicast{}
+	clone.PrefixLimit = *(v.PrefixLimit.Clone())
+	return clone
+}
 
 //struct for container bgp-mp:l3vpn-ipv4-unicast
 type L3vpnIpv4Unicast struct {
@@ -2688,6 +3331,14 @@ func (lhs *L3vpnIpv4Unicast) Equal(rhs *L3vpnIpv4Unicast) bool {
 		return false
 	}
 	return true
+}
+func (v *L3vpnIpv4Unicast) Clone() *L3vpnIpv4Unicast {
+	if v == nil {
+		return nil
+	}
+	clone := &L3vpnIpv4Unicast{}
+	clone.PrefixLimit = *(v.PrefixLimit.Clone())
+	return clone
 }
 
 //struct for container bgp-mp:ipv6-labelled-unicast
@@ -2705,6 +3356,14 @@ func (lhs *Ipv6LabelledUnicast) Equal(rhs *Ipv6LabelledUnicast) bool {
 	}
 	return true
 }
+func (v *Ipv6LabelledUnicast) Clone() *Ipv6LabelledUnicast {
+	if v == nil {
+		return nil
+	}
+	clone := &Ipv6LabelledUnicast{}
+	clone.PrefixLimit = *(v.PrefixLimit.Clone())
+	return clone
+}
 
 //struct for container bgp-mp:ipv4-labelled-unicast
 type Ipv4LabelledUnicast struct {
@@ -2720,6 +3379,14 @@ func (lhs *Ipv4LabelledUnicast) Equal(rhs *Ipv4LabelledUnicast) bool {
 		return false
 	}
 	return true
+}
+func (v *Ipv4LabelledUnicast) Clone() *Ipv4LabelledUnicast {
+	if v == nil {
+		return nil
+	}
+	clone := &Ipv4LabelledUnicast{}
+	clone.PrefixLimit = *(v.PrefixLimit.Clone())
+	return clone
 }
 
 //struct for container bgp-mp:state
@@ -2738,6 +3405,14 @@ func (lhs *Ipv6UnicastState) Equal(rhs *Ipv6UnicastState) bool {
 	}
 	return true
 }
+func (v *Ipv6UnicastState) Clone() *Ipv6UnicastState {
+	if v == nil {
+		return nil
+	}
+	clone := &Ipv6UnicastState{}
+	clone.SendDefaultRoute = v.SendDefaultRoute
+	return clone
+}
 
 //struct for container bgp-mp:config
 type Ipv6UnicastConfig struct {
@@ -2754,6 +3429,14 @@ func (lhs *Ipv6UnicastConfig) Equal(rhs *Ipv6UnicastConfig) bool {
 		return false
 	}
 	return true
+}
+func (v *Ipv6UnicastConfig) Clone() *Ipv6UnicastConfig {
+	if v == nil {
+		return nil
+	}
+	clone := &Ipv6UnicastConfig{}
+	clone.SendDefaultRoute = v.SendDefaultRoute
+	return clone
 }
 
 //struct for container bgp-mp:ipv6-unicast
@@ -2781,6 +3464,16 @@ func (lhs *Ipv6Unicast) Equal(rhs *Ipv6Unicast) bool {
 	}
 	return true
 }
+func (v *Ipv6Unicast) Clone() *Ipv6Unicast {
+	if v == nil {
+		return nil
+	}
+	clone := &Ipv6Unicast{}
+	clone.PrefixLimit = *(v.PrefixLimit.Clone())
+	clone.Config = *(v.Config.Clone())
+	clone.State = *(v.State.Clone())
+	return clone
+}
 
 //struct for container bgp-mp:state
 type Ipv4UnicastState struct {
@@ -2798,6 +3491,14 @@ func (lhs *Ipv4UnicastState) Equal(rhs *Ipv4UnicastState) bool {
 	}
 	return true
 }
+func (v *Ipv4UnicastState) Clone() *Ipv4UnicastState {
+	if v == nil {
+		return nil
+	}
+	clone := &Ipv4UnicastState{}
+	clone.SendDefaultRoute = v.SendDefaultRoute
+	return clone
+}
 
 //struct for container bgp-mp:config
 type Ipv4UnicastConfig struct {
@@ -2814,6 +3515,14 @@ func (lhs *Ipv4UnicastConfig) Equal(rhs *Ipv4UnicastConfig) bool {
 		return false
 	}
 	return true
+}
+func (v *Ipv4UnicastConfig) Clone() *Ipv4UnicastConfig {
+	if v == nil {
+		return nil
+	}
+	clone := &Ipv4UnicastConfig{}
+	clone.SendDefaultRoute = v.SendDefaultRoute
+	return clone
 }
 
 //struct for container bgp-mp:state
@@ -2842,6 +3551,16 @@ func (lhs *PrefixLimitState) Equal(rhs *PrefixLimitState) bool {
 	}
 	return true
 }
+func (v *PrefixLimitState) Clone() *PrefixLimitState {
+	if v == nil {
+		return nil
+	}
+	clone := &PrefixLimitState{}
+	clone.MaxPrefixes = v.MaxPrefixes
+	clone.ShutdownThresholdPct = v.ShutdownThresholdPct
+	clone.RestartTimer = v.RestartTimer
+	return clone
+}
 
 //struct for container bgp-mp:config
 type PrefixLimitConfig struct {
@@ -2869,6 +3588,16 @@ func (lhs *PrefixLimitConfig) Equal(rhs *PrefixLimitConfig) bool {
 	}
 	return true
 }
+func (v *PrefixLimitConfig) Clone() *PrefixLimitConfig {
+	if v == nil {
+		return nil
+	}
+	clone := &PrefixLimitConfig{}
+	clone.MaxPrefixes = v.MaxPrefixes
+	clone.ShutdownThresholdPct = v.ShutdownThresholdPct
+	clone.RestartTimer = v.RestartTimer
+	return clone
+}
 
 //struct for container bgp-mp:prefix-limit
 type PrefixLimit struct {
@@ -2889,6 +3618,15 @@ func (lhs *PrefixLimit) Equal(rhs *PrefixLimit) bool {
 		return false
 	}
 	return true
+}
+func (v *PrefixLimit) Clone() *PrefixLimit {
+	if v == nil {
+		return nil
+	}
+	clone := &PrefixLimit{}
+	clone.Config = *(v.Config.Clone())
+	clone.State = *(v.State.Clone())
+	return clone
 }
 
 //struct for container bgp-mp:ipv4-unicast
@@ -2915,6 +3653,16 @@ func (lhs *Ipv4Unicast) Equal(rhs *Ipv4Unicast) bool {
 		return false
 	}
 	return true
+}
+func (v *Ipv4Unicast) Clone() *Ipv4Unicast {
+	if v == nil {
+		return nil
+	}
+	clone := &Ipv4Unicast{}
+	clone.PrefixLimit = *(v.PrefixLimit.Clone())
+	clone.Config = *(v.Config.Clone())
+	clone.State = *(v.State.Clone())
+	return clone
 }
 
 //struct for container rpol:state
@@ -2972,6 +3720,31 @@ func (lhs *ApplyPolicyState) Equal(rhs *ApplyPolicyState) bool {
 	}
 	return true
 }
+func (v *ApplyPolicyState) Clone() *ApplyPolicyState {
+	if v == nil {
+		return nil
+	}
+	clone := &ApplyPolicyState{}
+	{
+		a := make([]string, 0, len(v.ImportPolicyList))
+		copy(a, v.ImportPolicyList)
+		clone.ImportPolicyList = a
+	}
+	clone.DefaultImportPolicy = v.DefaultImportPolicy
+	{
+		a := make([]string, 0, len(v.ExportPolicyList))
+		copy(a, v.ExportPolicyList)
+		clone.ExportPolicyList = a
+	}
+	clone.DefaultExportPolicy = v.DefaultExportPolicy
+	{
+		a := make([]string, 0, len(v.InPolicyList))
+		copy(a, v.InPolicyList)
+		clone.InPolicyList = a
+	}
+	clone.DefaultInPolicy = v.DefaultInPolicy
+	return clone
+}
 
 //struct for container rpol:config
 type ApplyPolicyConfig struct {
@@ -3028,6 +3801,31 @@ func (lhs *ApplyPolicyConfig) Equal(rhs *ApplyPolicyConfig) bool {
 	}
 	return true
 }
+func (v *ApplyPolicyConfig) Clone() *ApplyPolicyConfig {
+	if v == nil {
+		return nil
+	}
+	clone := &ApplyPolicyConfig{}
+	{
+		a := make([]string, 0, len(v.ImportPolicyList))
+		copy(a, v.ImportPolicyList)
+		clone.ImportPolicyList = a
+	}
+	clone.DefaultImportPolicy = v.DefaultImportPolicy
+	{
+		a := make([]string, 0, len(v.ExportPolicyList))
+		copy(a, v.ExportPolicyList)
+		clone.ExportPolicyList = a
+	}
+	clone.DefaultExportPolicy = v.DefaultExportPolicy
+	{
+		a := make([]string, 0, len(v.InPolicyList))
+		copy(a, v.InPolicyList)
+		clone.InPolicyList = a
+	}
+	clone.DefaultInPolicy = v.DefaultInPolicy
+	return clone
+}
 
 //struct for container rpol:apply-policy
 type ApplyPolicy struct {
@@ -3048,6 +3846,15 @@ func (lhs *ApplyPolicy) Equal(rhs *ApplyPolicy) bool {
 		return false
 	}
 	return true
+}
+func (v *ApplyPolicy) Clone() *ApplyPolicy {
+	if v == nil {
+		return nil
+	}
+	clone := &ApplyPolicy{}
+	clone.Config = *(v.Config.Clone())
+	clone.State = *(v.State.Clone())
+	return clone
 }
 
 //struct for container bgp-mp:state
@@ -3081,6 +3888,17 @@ func (lhs *AfiSafiState) Equal(rhs *AfiSafiState) bool {
 	}
 	return true
 }
+func (v *AfiSafiState) Clone() *AfiSafiState {
+	if v == nil {
+		return nil
+	}
+	clone := &AfiSafiState{}
+	clone.AfiSafiName = v.AfiSafiName
+	clone.Enabled = v.Enabled
+	clone.TotalPaths = v.TotalPaths
+	clone.TotalPrefixes = v.TotalPrefixes
+	return clone
+}
 
 //struct for container bgp-mp:config
 type AfiSafiConfig struct {
@@ -3102,6 +3920,15 @@ func (lhs *AfiSafiConfig) Equal(rhs *AfiSafiConfig) bool {
 		return false
 	}
 	return true
+}
+func (v *AfiSafiConfig) Clone() *AfiSafiConfig {
+	if v == nil {
+		return nil
+	}
+	clone := &AfiSafiConfig{}
+	clone.AfiSafiName = v.AfiSafiName
+	clone.Enabled = v.Enabled
+	return clone
 }
 
 //struct for container bgp-mp:state
@@ -3144,6 +3971,18 @@ func (lhs *MpGracefulRestartState) Equal(rhs *MpGracefulRestartState) bool {
 	}
 	return true
 }
+func (v *MpGracefulRestartState) Clone() *MpGracefulRestartState {
+	if v == nil {
+		return nil
+	}
+	clone := &MpGracefulRestartState{}
+	clone.Enabled = v.Enabled
+	clone.Received = v.Received
+	clone.Advertised = v.Advertised
+	clone.EndOfRibReceived = v.EndOfRibReceived
+	clone.EndOfRibSent = v.EndOfRibSent
+	return clone
+}
 
 //struct for container bgp-mp:config
 type MpGracefulRestartConfig struct {
@@ -3160,6 +3999,14 @@ func (lhs *MpGracefulRestartConfig) Equal(rhs *MpGracefulRestartConfig) bool {
 		return false
 	}
 	return true
+}
+func (v *MpGracefulRestartConfig) Clone() *MpGracefulRestartConfig {
+	if v == nil {
+		return nil
+	}
+	clone := &MpGracefulRestartConfig{}
+	clone.Enabled = v.Enabled
+	return clone
 }
 
 //struct for container bgp-mp:graceful-restart
@@ -3181,6 +4028,15 @@ func (lhs *MpGracefulRestart) Equal(rhs *MpGracefulRestart) bool {
 		return false
 	}
 	return true
+}
+func (v *MpGracefulRestart) Clone() *MpGracefulRestart {
+	if v == nil {
+		return nil
+	}
+	clone := &MpGracefulRestart{}
+	clone.Config = *(v.Config.Clone())
+	clone.State = *(v.State.Clone())
+	return clone
 }
 
 //struct for container bgp-mp:afi-safi
@@ -3284,6 +4140,31 @@ func (lhs *AfiSafi) Equal(rhs *AfiSafi) bool {
 	}
 	return true
 }
+func (v *AfiSafi) Clone() *AfiSafi {
+	if v == nil {
+		return nil
+	}
+	clone := &AfiSafi{}
+	clone.MpGracefulRestart = *(v.MpGracefulRestart.Clone())
+	clone.Config = *(v.Config.Clone())
+	clone.State = *(v.State.Clone())
+	clone.ApplyPolicy = *(v.ApplyPolicy.Clone())
+	clone.Ipv4Unicast = *(v.Ipv4Unicast.Clone())
+	clone.Ipv6Unicast = *(v.Ipv6Unicast.Clone())
+	clone.Ipv4LabelledUnicast = *(v.Ipv4LabelledUnicast.Clone())
+	clone.Ipv6LabelledUnicast = *(v.Ipv6LabelledUnicast.Clone())
+	clone.L3vpnIpv4Unicast = *(v.L3vpnIpv4Unicast.Clone())
+	clone.L3vpnIpv6Unicast = *(v.L3vpnIpv6Unicast.Clone())
+	clone.L3vpnIpv4Multicast = *(v.L3vpnIpv4Multicast.Clone())
+	clone.L3vpnIpv6Multicast = *(v.L3vpnIpv6Multicast.Clone())
+	clone.L2vpnVpls = *(v.L2vpnVpls.Clone())
+	clone.L2vpnEvpn = *(v.L2vpnEvpn.Clone())
+	clone.RouteSelectionOptions = *(v.RouteSelectionOptions.Clone())
+	clone.UseMultiplePaths = *(v.UseMultiplePaths.Clone())
+	clone.PrefixLimit = *(v.PrefixLimit.Clone())
+	clone.RouteTargetMembership = *(v.RouteTargetMembership.Clone())
+	return clone
+}
 
 //struct for container bgp:state
 type GracefulRestartState struct {
@@ -3345,6 +4226,22 @@ func (lhs *GracefulRestartState) Equal(rhs *GracefulRestartState) bool {
 	}
 	return true
 }
+func (v *GracefulRestartState) Clone() *GracefulRestartState {
+	if v == nil {
+		return nil
+	}
+	clone := &GracefulRestartState{}
+	clone.Enabled = v.Enabled
+	clone.RestartTime = v.RestartTime
+	clone.StaleRoutesTime = v.StaleRoutesTime
+	clone.HelperOnly = v.HelperOnly
+	clone.PeerRestartTime = v.PeerRestartTime
+	clone.PeerRestarting = v.PeerRestarting
+	clone.LocalRestarting = v.LocalRestarting
+	clone.Mode = v.Mode
+	clone.DeferralTime = v.DeferralTime
+	return clone
+}
 
 //struct for container bgp:config
 type GracefulRestartConfig struct {
@@ -3384,6 +4281,18 @@ func (lhs *GracefulRestartConfig) Equal(rhs *GracefulRestartConfig) bool {
 	}
 	return true
 }
+func (v *GracefulRestartConfig) Clone() *GracefulRestartConfig {
+	if v == nil {
+		return nil
+	}
+	clone := &GracefulRestartConfig{}
+	clone.Enabled = v.Enabled
+	clone.RestartTime = v.RestartTime
+	clone.StaleRoutesTime = v.StaleRoutesTime
+	clone.HelperOnly = v.HelperOnly
+	clone.DeferralTime = v.DeferralTime
+	return clone
+}
 
 //struct for container bgp:graceful-restart
 type GracefulRestart struct {
@@ -3405,6 +4314,15 @@ func (lhs *GracefulRestart) Equal(rhs *GracefulRestart) bool {
 	}
 	return true
 }
+func (v *GracefulRestart) Clone() *GracefulRestart {
+	if v == nil {
+		return nil
+	}
+	clone := &GracefulRestart{}
+	clone.Config = *(v.Config.Clone())
+	clone.State = *(v.State.Clone())
+	return clone
+}
 
 //struct for container bgp-mp:state
 type IbgpState struct {
@@ -3421,6 +4339,14 @@ func (lhs *IbgpState) Equal(rhs *IbgpState) bool {
 	}
 	return true
 }
+func (v *IbgpState) Clone() *IbgpState {
+	if v == nil {
+		return nil
+	}
+	clone := &IbgpState{}
+	clone.MaximumPaths = v.MaximumPaths
+	return clone
+}
 
 //struct for container bgp-mp:config
 type IbgpConfig struct {
@@ -3436,6 +4362,14 @@ func (lhs *IbgpConfig) Equal(rhs *IbgpConfig) bool {
 		return false
 	}
 	return true
+}
+func (v *IbgpConfig) Clone() *IbgpConfig {
+	if v == nil {
+		return nil
+	}
+	clone := &IbgpConfig{}
+	clone.MaximumPaths = v.MaximumPaths
+	return clone
 }
 
 //struct for container bgp-mp:ibgp
@@ -3457,6 +4391,15 @@ func (lhs *Ibgp) Equal(rhs *Ibgp) bool {
 		return false
 	}
 	return true
+}
+func (v *Ibgp) Clone() *Ibgp {
+	if v == nil {
+		return nil
+	}
+	clone := &Ibgp{}
+	clone.Config = *(v.Config.Clone())
+	clone.State = *(v.State.Clone())
+	return clone
 }
 
 //struct for container bgp-mp:state
@@ -3480,6 +4423,15 @@ func (lhs *EbgpState) Equal(rhs *EbgpState) bool {
 	}
 	return true
 }
+func (v *EbgpState) Clone() *EbgpState {
+	if v == nil {
+		return nil
+	}
+	clone := &EbgpState{}
+	clone.AllowMultipleAs = v.AllowMultipleAs
+	clone.MaximumPaths = v.MaximumPaths
+	return clone
+}
 
 //struct for container bgp-mp:config
 type EbgpConfig struct {
@@ -3502,6 +4454,15 @@ func (lhs *EbgpConfig) Equal(rhs *EbgpConfig) bool {
 	}
 	return true
 }
+func (v *EbgpConfig) Clone() *EbgpConfig {
+	if v == nil {
+		return nil
+	}
+	clone := &EbgpConfig{}
+	clone.AllowMultipleAs = v.AllowMultipleAs
+	clone.MaximumPaths = v.MaximumPaths
+	return clone
+}
 
 //struct for container bgp-mp:ebgp
 type Ebgp struct {
@@ -3523,6 +4484,15 @@ func (lhs *Ebgp) Equal(rhs *Ebgp) bool {
 	}
 	return true
 }
+func (v *Ebgp) Clone() *Ebgp {
+	if v == nil {
+		return nil
+	}
+	clone := &Ebgp{}
+	clone.Config = *(v.Config.Clone())
+	clone.State = *(v.State.Clone())
+	return clone
+}
 
 //struct for container bgp-mp:state
 type UseMultiplePathsState struct {
@@ -3540,6 +4510,14 @@ func (lhs *UseMultiplePathsState) Equal(rhs *UseMultiplePathsState) bool {
 	}
 	return true
 }
+func (v *UseMultiplePathsState) Clone() *UseMultiplePathsState {
+	if v == nil {
+		return nil
+	}
+	clone := &UseMultiplePathsState{}
+	clone.Enabled = v.Enabled
+	return clone
+}
 
 //struct for container bgp-mp:config
 type UseMultiplePathsConfig struct {
@@ -3556,6 +4534,14 @@ func (lhs *UseMultiplePathsConfig) Equal(rhs *UseMultiplePathsConfig) bool {
 		return false
 	}
 	return true
+}
+func (v *UseMultiplePathsConfig) Clone() *UseMultiplePathsConfig {
+	if v == nil {
+		return nil
+	}
+	clone := &UseMultiplePathsConfig{}
+	clone.Enabled = v.Enabled
+	return clone
 }
 
 //struct for container bgp-mp:use-multiple-paths
@@ -3587,6 +4573,17 @@ func (lhs *UseMultiplePaths) Equal(rhs *UseMultiplePaths) bool {
 		return false
 	}
 	return true
+}
+func (v *UseMultiplePaths) Clone() *UseMultiplePaths {
+	if v == nil {
+		return nil
+	}
+	clone := &UseMultiplePaths{}
+	clone.Config = *(v.Config.Clone())
+	clone.State = *(v.State.Clone())
+	clone.Ebgp = *(v.Ebgp.Clone())
+	clone.Ibgp = *(v.Ibgp.Clone())
+	return clone
 }
 
 //struct for container bgp:state
@@ -3622,6 +4619,20 @@ func (lhs *ConfederationState) Equal(rhs *ConfederationState) bool {
 	}
 	return true
 }
+func (v *ConfederationState) Clone() *ConfederationState {
+	if v == nil {
+		return nil
+	}
+	clone := &ConfederationState{}
+	clone.Enabled = v.Enabled
+	clone.Identifier = v.Identifier
+	{
+		a := make([]uint32, 0, len(v.MemberAsList))
+		copy(a, v.MemberAsList)
+		clone.MemberAsList = a
+	}
+	return clone
+}
 
 //struct for container bgp:config
 type ConfederationConfig struct {
@@ -3656,6 +4667,20 @@ func (lhs *ConfederationConfig) Equal(rhs *ConfederationConfig) bool {
 	}
 	return true
 }
+func (v *ConfederationConfig) Clone() *ConfederationConfig {
+	if v == nil {
+		return nil
+	}
+	clone := &ConfederationConfig{}
+	clone.Enabled = v.Enabled
+	clone.Identifier = v.Identifier
+	{
+		a := make([]uint32, 0, len(v.MemberAsList))
+		copy(a, v.MemberAsList)
+		clone.MemberAsList = a
+	}
+	return clone
+}
 
 //struct for container bgp:confederation
 type Confederation struct {
@@ -3676,6 +4701,15 @@ func (lhs *Confederation) Equal(rhs *Confederation) bool {
 		return false
 	}
 	return true
+}
+func (v *Confederation) Clone() *Confederation {
+	if v == nil {
+		return nil
+	}
+	clone := &Confederation{}
+	clone.Config = *(v.Config.Clone())
+	clone.State = *(v.State.Clone())
+	return clone
 }
 
 //struct for container bgp:state
@@ -3698,6 +4732,15 @@ func (lhs *DefaultRouteDistanceState) Equal(rhs *DefaultRouteDistanceState) bool
 	}
 	return true
 }
+func (v *DefaultRouteDistanceState) Clone() *DefaultRouteDistanceState {
+	if v == nil {
+		return nil
+	}
+	clone := &DefaultRouteDistanceState{}
+	clone.ExternalRouteDistance = v.ExternalRouteDistance
+	clone.InternalRouteDistance = v.InternalRouteDistance
+	return clone
+}
 
 //struct for container bgp:config
 type DefaultRouteDistanceConfig struct {
@@ -3719,6 +4762,15 @@ func (lhs *DefaultRouteDistanceConfig) Equal(rhs *DefaultRouteDistanceConfig) bo
 	}
 	return true
 }
+func (v *DefaultRouteDistanceConfig) Clone() *DefaultRouteDistanceConfig {
+	if v == nil {
+		return nil
+	}
+	clone := &DefaultRouteDistanceConfig{}
+	clone.ExternalRouteDistance = v.ExternalRouteDistance
+	clone.InternalRouteDistance = v.InternalRouteDistance
+	return clone
+}
 
 //struct for container bgp:default-route-distance
 type DefaultRouteDistance struct {
@@ -3739,6 +4791,15 @@ func (lhs *DefaultRouteDistance) Equal(rhs *DefaultRouteDistance) bool {
 		return false
 	}
 	return true
+}
+func (v *DefaultRouteDistance) Clone() *DefaultRouteDistance {
+	if v == nil {
+		return nil
+	}
+	clone := &DefaultRouteDistance{}
+	clone.Config = *(v.Config.Clone())
+	clone.State = *(v.State.Clone())
+	return clone
 }
 
 //struct for container bgp-mp:state
@@ -3787,6 +4848,19 @@ func (lhs *RouteSelectionOptionsState) Equal(rhs *RouteSelectionOptionsState) bo
 	}
 	return true
 }
+func (v *RouteSelectionOptionsState) Clone() *RouteSelectionOptionsState {
+	if v == nil {
+		return nil
+	}
+	clone := &RouteSelectionOptionsState{}
+	clone.AlwaysCompareMed = v.AlwaysCompareMed
+	clone.IgnoreAsPathLength = v.IgnoreAsPathLength
+	clone.ExternalCompareRouterId = v.ExternalCompareRouterId
+	clone.AdvertiseInactiveRoutes = v.AdvertiseInactiveRoutes
+	clone.EnableAigp = v.EnableAigp
+	clone.IgnoreNextHopIgpMetric = v.IgnoreNextHopIgpMetric
+	return clone
+}
 
 //struct for container bgp-mp:config
 type RouteSelectionOptionsConfig struct {
@@ -3834,6 +4908,19 @@ func (lhs *RouteSelectionOptionsConfig) Equal(rhs *RouteSelectionOptionsConfig) 
 	}
 	return true
 }
+func (v *RouteSelectionOptionsConfig) Clone() *RouteSelectionOptionsConfig {
+	if v == nil {
+		return nil
+	}
+	clone := &RouteSelectionOptionsConfig{}
+	clone.AlwaysCompareMed = v.AlwaysCompareMed
+	clone.IgnoreAsPathLength = v.IgnoreAsPathLength
+	clone.ExternalCompareRouterId = v.ExternalCompareRouterId
+	clone.AdvertiseInactiveRoutes = v.AdvertiseInactiveRoutes
+	clone.EnableAigp = v.EnableAigp
+	clone.IgnoreNextHopIgpMetric = v.IgnoreNextHopIgpMetric
+	return clone
+}
 
 //struct for container bgp-mp:route-selection-options
 type RouteSelectionOptions struct {
@@ -3854,6 +4941,15 @@ func (lhs *RouteSelectionOptions) Equal(rhs *RouteSelectionOptions) bool {
 		return false
 	}
 	return true
+}
+func (v *RouteSelectionOptions) Clone() *RouteSelectionOptions {
+	if v == nil {
+		return nil
+	}
+	clone := &RouteSelectionOptions{}
+	clone.Config = *(v.Config.Clone())
+	clone.State = *(v.State.Clone())
+	return clone
 }
 
 //struct for container bgp:state
@@ -3888,6 +4984,17 @@ func (lhs *GlobalState) Equal(rhs *GlobalState) bool {
 	}
 	return true
 }
+func (v *GlobalState) Clone() *GlobalState {
+	if v == nil {
+		return nil
+	}
+	clone := &GlobalState{}
+	clone.As = v.As
+	clone.RouterId = v.RouterId
+	clone.TotalPaths = v.TotalPaths
+	clone.TotalPrefixes = v.TotalPrefixes
+	return clone
+}
 
 //struct for container bgp:config
 type GlobalConfig struct {
@@ -3910,6 +5017,15 @@ func (lhs *GlobalConfig) Equal(rhs *GlobalConfig) bool {
 		return false
 	}
 	return true
+}
+func (v *GlobalConfig) Clone() *GlobalConfig {
+	if v == nil {
+		return nil
+	}
+	clone := &GlobalConfig{}
+	clone.As = v.As
+	clone.RouterId = v.RouterId
+	return clone
 }
 
 //struct for container bgp:global
@@ -3999,6 +5115,32 @@ func (lhs *Global) Equal(rhs *Global) bool {
 		return false
 	}
 	return true
+}
+func (v *Global) Clone() *Global {
+	if v == nil {
+		return nil
+	}
+	clone := &Global{}
+	clone.Config = *(v.Config.Clone())
+	clone.State = *(v.State.Clone())
+	clone.RouteSelectionOptions = *(v.RouteSelectionOptions.Clone())
+	clone.DefaultRouteDistance = *(v.DefaultRouteDistance.Clone())
+	clone.Confederation = *(v.Confederation.Clone())
+	clone.UseMultiplePaths = *(v.UseMultiplePaths.Clone())
+	clone.GracefulRestart = *(v.GracefulRestart.Clone())
+	{
+		a := make([]AfiSafi, 0, len(v.AfiSafis))
+		for _, i := range v.AfiSafis {
+			a = append(a, *(i.Clone()))
+		}
+		clone.AfiSafis = a
+	}
+	clone.ApplyPolicy = *(v.ApplyPolicy.Clone())
+	clone.Collector = *(v.Collector.Clone())
+	clone.Zebra = *(v.Zebra.Clone())
+	clone.MplsLabelRange = *(v.MplsLabelRange.Clone())
+	clone.ListenConfig = *(v.ListenConfig.Clone())
+	return clone
 }
 
 //struct for container bgp:bgp
@@ -4106,6 +5248,49 @@ func (lhs *Bgp) Equal(rhs *Bgp) bool {
 	}
 	return true
 }
+func (v *Bgp) Clone() *Bgp {
+	if v == nil {
+		return nil
+	}
+	clone := &Bgp{}
+	clone.Global = *(v.Global.Clone())
+	{
+		a := make([]Neighbor, 0, len(v.Neighbors))
+		for _, i := range v.Neighbors {
+			a = append(a, *(i.Clone()))
+		}
+		clone.Neighbors = a
+	}
+	{
+		a := make([]PeerGroup, 0, len(v.PeerGroups))
+		for _, i := range v.PeerGroups {
+			a = append(a, *(i.Clone()))
+		}
+		clone.PeerGroups = a
+	}
+	{
+		a := make([]RpkiServer, 0, len(v.RpkiServers))
+		for _, i := range v.RpkiServers {
+			a = append(a, *(i.Clone()))
+		}
+		clone.RpkiServers = a
+	}
+	{
+		a := make([]BmpServer, 0, len(v.BmpServers))
+		for _, i := range v.BmpServers {
+			a = append(a, *(i.Clone()))
+		}
+		clone.BmpServers = a
+	}
+	{
+		a := make([]Mrt, 0, len(v.MrtDump))
+		for _, i := range v.MrtDump {
+			a = append(a, *(i.Clone()))
+		}
+		clone.MrtDump = a
+	}
+	return clone
+}
 
 //struct for container bgp-pol:set-ext-community-method
 type SetExtCommunityMethod struct {
@@ -4133,6 +5318,19 @@ func (lhs *SetExtCommunityMethod) Equal(rhs *SetExtCommunityMethod) bool {
 	}
 	return true
 }
+func (v *SetExtCommunityMethod) Clone() *SetExtCommunityMethod {
+	if v == nil {
+		return nil
+	}
+	clone := &SetExtCommunityMethod{}
+	{
+		a := make([]string, 0, len(v.CommunitiesList))
+		copy(a, v.CommunitiesList)
+		clone.CommunitiesList = a
+	}
+	clone.ExtCommunitySetRef = v.ExtCommunitySetRef
+	return clone
+}
 
 //struct for container bgp-pol:set-ext-community
 type SetExtCommunity struct {
@@ -4154,6 +5352,15 @@ func (lhs *SetExtCommunity) Equal(rhs *SetExtCommunity) bool {
 		return false
 	}
 	return true
+}
+func (v *SetExtCommunity) Clone() *SetExtCommunity {
+	if v == nil {
+		return nil
+	}
+	clone := &SetExtCommunity{}
+	clone.SetExtCommunityMethod = *(v.SetExtCommunityMethod.Clone())
+	clone.Options = v.Options
+	return clone
 }
 
 //struct for container bgp-pol:set-community-method
@@ -4182,6 +5389,19 @@ func (lhs *SetCommunityMethod) Equal(rhs *SetCommunityMethod) bool {
 	}
 	return true
 }
+func (v *SetCommunityMethod) Clone() *SetCommunityMethod {
+	if v == nil {
+		return nil
+	}
+	clone := &SetCommunityMethod{}
+	{
+		a := make([]string, 0, len(v.CommunitiesList))
+		copy(a, v.CommunitiesList)
+		clone.CommunitiesList = a
+	}
+	clone.CommunitySetRef = v.CommunitySetRef
+	return clone
+}
 
 //struct for container bgp-pol:set-community
 type SetCommunity struct {
@@ -4204,6 +5424,15 @@ func (lhs *SetCommunity) Equal(rhs *SetCommunity) bool {
 	}
 	return true
 }
+func (v *SetCommunity) Clone() *SetCommunity {
+	if v == nil {
+		return nil
+	}
+	clone := &SetCommunity{}
+	clone.SetCommunityMethod = *(v.SetCommunityMethod.Clone())
+	clone.Options = v.Options
+	return clone
+}
 
 //struct for container bgp-pol:set-as-path-prepend
 type SetAsPathPrepend struct {
@@ -4225,6 +5454,15 @@ func (lhs *SetAsPathPrepend) Equal(rhs *SetAsPathPrepend) bool {
 		return false
 	}
 	return true
+}
+func (v *SetAsPathPrepend) Clone() *SetAsPathPrepend {
+	if v == nil {
+		return nil
+	}
+	clone := &SetAsPathPrepend{}
+	clone.RepeatN = v.RepeatN
+	clone.As = v.As
+	return clone
 }
 
 //struct for container bgp-pol:bgp-actions
@@ -4272,6 +5510,20 @@ func (lhs *BgpActions) Equal(rhs *BgpActions) bool {
 	}
 	return true
 }
+func (v *BgpActions) Clone() *BgpActions {
+	if v == nil {
+		return nil
+	}
+	clone := &BgpActions{}
+	clone.SetAsPathPrepend = *(v.SetAsPathPrepend.Clone())
+	clone.SetCommunity = *(v.SetCommunity.Clone())
+	clone.SetExtCommunity = *(v.SetExtCommunity.Clone())
+	clone.SetRouteOrigin = v.SetRouteOrigin
+	clone.SetLocalPref = v.SetLocalPref
+	clone.SetNextHop = v.SetNextHop
+	clone.SetMed = v.SetMed
+	return clone
+}
 
 //struct for container rpol:igp-actions
 type IgpActions struct {
@@ -4287,6 +5539,14 @@ func (lhs *IgpActions) Equal(rhs *IgpActions) bool {
 		return false
 	}
 	return true
+}
+func (v *IgpActions) Clone() *IgpActions {
+	if v == nil {
+		return nil
+	}
+	clone := &IgpActions{}
+	clone.SetTag = v.SetTag
+	return clone
 }
 
 //struct for container rpol:route-disposition
@@ -4310,6 +5570,15 @@ func (lhs *RouteDisposition) Equal(rhs *RouteDisposition) bool {
 		return false
 	}
 	return true
+}
+func (v *RouteDisposition) Clone() *RouteDisposition {
+	if v == nil {
+		return nil
+	}
+	clone := &RouteDisposition{}
+	clone.AcceptRoute = v.AcceptRoute
+	clone.RejectRoute = v.RejectRoute
+	return clone
 }
 
 //struct for container rpol:actions
@@ -4337,6 +5606,16 @@ func (lhs *Actions) Equal(rhs *Actions) bool {
 	}
 	return true
 }
+func (v *Actions) Clone() *Actions {
+	if v == nil {
+		return nil
+	}
+	clone := &Actions{}
+	clone.RouteDisposition = *(v.RouteDisposition.Clone())
+	clone.IgpActions = *(v.IgpActions.Clone())
+	clone.BgpActions = *(v.BgpActions.Clone())
+	return clone
+}
 
 //struct for container bgp-pol:as-path-length
 type AsPathLength struct {
@@ -4357,6 +5636,15 @@ func (lhs *AsPathLength) Equal(rhs *AsPathLength) bool {
 		return false
 	}
 	return true
+}
+func (v *AsPathLength) Clone() *AsPathLength {
+	if v == nil {
+		return nil
+	}
+	clone := &AsPathLength{}
+	clone.Operator = v.Operator
+	clone.Value = v.Value
+	return clone
 }
 
 //struct for container bgp-pol:community-count
@@ -4379,6 +5667,15 @@ func (lhs *CommunityCount) Equal(rhs *CommunityCount) bool {
 	}
 	return true
 }
+func (v *CommunityCount) Clone() *CommunityCount {
+	if v == nil {
+		return nil
+	}
+	clone := &CommunityCount{}
+	clone.Operator = v.Operator
+	clone.Value = v.Value
+	return clone
+}
 
 //struct for container bgp-pol:match-as-path-set
 type MatchAsPathSet struct {
@@ -4399,6 +5696,15 @@ func (lhs *MatchAsPathSet) Equal(rhs *MatchAsPathSet) bool {
 		return false
 	}
 	return true
+}
+func (v *MatchAsPathSet) Clone() *MatchAsPathSet {
+	if v == nil {
+		return nil
+	}
+	clone := &MatchAsPathSet{}
+	clone.AsPathSet = v.AsPathSet
+	clone.MatchSetOptions = v.MatchSetOptions
+	return clone
 }
 
 //struct for container bgp-pol:match-ext-community-set
@@ -4421,6 +5727,15 @@ func (lhs *MatchExtCommunitySet) Equal(rhs *MatchExtCommunitySet) bool {
 	}
 	return true
 }
+func (v *MatchExtCommunitySet) Clone() *MatchExtCommunitySet {
+	if v == nil {
+		return nil
+	}
+	clone := &MatchExtCommunitySet{}
+	clone.ExtCommunitySet = v.ExtCommunitySet
+	clone.MatchSetOptions = v.MatchSetOptions
+	return clone
+}
 
 //struct for container bgp-pol:match-community-set
 type MatchCommunitySet struct {
@@ -4441,6 +5756,15 @@ func (lhs *MatchCommunitySet) Equal(rhs *MatchCommunitySet) bool {
 		return false
 	}
 	return true
+}
+func (v *MatchCommunitySet) Clone() *MatchCommunitySet {
+	if v == nil {
+		return nil
+	}
+	clone := &MatchCommunitySet{}
+	clone.CommunitySet = v.CommunitySet
+	clone.MatchSetOptions = v.MatchSetOptions
+	return clone
 }
 
 //struct for container bgp-pol:bgp-conditions
@@ -4524,6 +5848,33 @@ func (lhs *BgpConditions) Equal(rhs *BgpConditions) bool {
 	}
 	return true
 }
+func (v *BgpConditions) Clone() *BgpConditions {
+	if v == nil {
+		return nil
+	}
+	clone := &BgpConditions{}
+	clone.MatchCommunitySet = *(v.MatchCommunitySet.Clone())
+	clone.MatchExtCommunitySet = *(v.MatchExtCommunitySet.Clone())
+	clone.MatchAsPathSet = *(v.MatchAsPathSet.Clone())
+	clone.MedEq = v.MedEq
+	clone.OriginEq = v.OriginEq
+	{
+		a := make([]string, 0, len(v.NextHopInList))
+		copy(a, v.NextHopInList)
+		clone.NextHopInList = a
+	}
+	{
+		a := make([]AfiSafiType, 0, len(v.AfiSafiInList))
+		copy(a, v.AfiSafiInList)
+		clone.AfiSafiInList = a
+	}
+	clone.LocalPrefEq = v.LocalPrefEq
+	clone.CommunityCount = *(v.CommunityCount.Clone())
+	clone.AsPathLength = *(v.AsPathLength.Clone())
+	clone.RouteType = v.RouteType
+	clone.RpkiValidationResult = v.RpkiValidationResult
+	return clone
+}
 
 //struct for container rpol:igp-conditions
 type IgpConditions struct {
@@ -4534,6 +5885,13 @@ func (lhs *IgpConditions) Equal(rhs *IgpConditions) bool {
 		return false
 	}
 	return true
+}
+func (v *IgpConditions) Clone() *IgpConditions {
+	if v == nil {
+		return nil
+	}
+	clone := &IgpConditions{}
+	return clone
 }
 
 //struct for container rpol:match-tag-set
@@ -4556,6 +5914,15 @@ func (lhs *MatchTagSet) Equal(rhs *MatchTagSet) bool {
 	}
 	return true
 }
+func (v *MatchTagSet) Clone() *MatchTagSet {
+	if v == nil {
+		return nil
+	}
+	clone := &MatchTagSet{}
+	clone.TagSet = v.TagSet
+	clone.MatchSetOptions = v.MatchSetOptions
+	return clone
+}
 
 //struct for container rpol:match-neighbor-set
 type MatchNeighborSet struct {
@@ -4577,6 +5944,15 @@ func (lhs *MatchNeighborSet) Equal(rhs *MatchNeighborSet) bool {
 	}
 	return true
 }
+func (v *MatchNeighborSet) Clone() *MatchNeighborSet {
+	if v == nil {
+		return nil
+	}
+	clone := &MatchNeighborSet{}
+	clone.NeighborSet = v.NeighborSet
+	clone.MatchSetOptions = v.MatchSetOptions
+	return clone
+}
 
 //struct for container rpol:match-prefix-set
 type MatchPrefixSet struct {
@@ -4597,6 +5973,15 @@ func (lhs *MatchPrefixSet) Equal(rhs *MatchPrefixSet) bool {
 		return false
 	}
 	return true
+}
+func (v *MatchPrefixSet) Clone() *MatchPrefixSet {
+	if v == nil {
+		return nil
+	}
+	clone := &MatchPrefixSet{}
+	clone.PrefixSet = v.PrefixSet
+	clone.MatchSetOptions = v.MatchSetOptions
+	return clone
 }
 
 //struct for container rpol:conditions
@@ -4644,6 +6029,20 @@ func (lhs *Conditions) Equal(rhs *Conditions) bool {
 	}
 	return true
 }
+func (v *Conditions) Clone() *Conditions {
+	if v == nil {
+		return nil
+	}
+	clone := &Conditions{}
+	clone.CallPolicy = v.CallPolicy
+	clone.MatchPrefixSet = *(v.MatchPrefixSet.Clone())
+	clone.MatchNeighborSet = *(v.MatchNeighborSet.Clone())
+	clone.MatchTagSet = *(v.MatchTagSet.Clone())
+	clone.InstallProtocolEq = v.InstallProtocolEq
+	clone.IgpConditions = *(v.IgpConditions.Clone())
+	clone.BgpConditions = *(v.BgpConditions.Clone())
+	return clone
+}
 
 //struct for container rpol:statement
 type Statement struct {
@@ -4669,6 +6068,16 @@ func (lhs *Statement) Equal(rhs *Statement) bool {
 		return false
 	}
 	return true
+}
+func (v *Statement) Clone() *Statement {
+	if v == nil {
+		return nil
+	}
+	clone := &Statement{}
+	clone.Name = v.Name
+	clone.Conditions = *(v.Conditions.Clone())
+	clone.Actions = *(v.Actions.Clone())
+	return clone
 }
 
 //struct for container rpol:policy-definition
@@ -4704,6 +6113,21 @@ func (lhs *PolicyDefinition) Equal(rhs *PolicyDefinition) bool {
 	}
 	return true
 }
+func (v *PolicyDefinition) Clone() *PolicyDefinition {
+	if v == nil {
+		return nil
+	}
+	clone := &PolicyDefinition{}
+	clone.Name = v.Name
+	{
+		a := make([]Statement, 0, len(v.Statements))
+		for _, i := range v.Statements {
+			a = append(a, *(i.Clone()))
+		}
+		clone.Statements = a
+	}
+	return clone
+}
 
 //struct for container bgp-pol:as-path-set
 type AsPathSet struct {
@@ -4729,6 +6153,19 @@ func (lhs *AsPathSet) Equal(rhs *AsPathSet) bool {
 		}
 	}
 	return true
+}
+func (v *AsPathSet) Clone() *AsPathSet {
+	if v == nil {
+		return nil
+	}
+	clone := &AsPathSet{}
+	clone.AsPathSetName = v.AsPathSetName
+	{
+		a := make([]string, 0, len(v.AsPathList))
+		copy(a, v.AsPathList)
+		clone.AsPathList = a
+	}
+	return clone
 }
 
 //struct for container bgp-pol:ext-community-set
@@ -4756,6 +6193,19 @@ func (lhs *ExtCommunitySet) Equal(rhs *ExtCommunitySet) bool {
 	}
 	return true
 }
+func (v *ExtCommunitySet) Clone() *ExtCommunitySet {
+	if v == nil {
+		return nil
+	}
+	clone := &ExtCommunitySet{}
+	clone.ExtCommunitySetName = v.ExtCommunitySetName
+	{
+		a := make([]string, 0, len(v.ExtCommunityList))
+		copy(a, v.ExtCommunityList)
+		clone.ExtCommunityList = a
+	}
+	return clone
+}
 
 //struct for container bgp-pol:community-set
 type CommunitySet struct {
@@ -4781,6 +6231,19 @@ func (lhs *CommunitySet) Equal(rhs *CommunitySet) bool {
 		}
 	}
 	return true
+}
+func (v *CommunitySet) Clone() *CommunitySet {
+	if v == nil {
+		return nil
+	}
+	clone := &CommunitySet{}
+	clone.CommunitySetName = v.CommunitySetName
+	{
+		a := make([]string, 0, len(v.CommunityList))
+		copy(a, v.CommunityList)
+		clone.CommunityList = a
+	}
+	return clone
 }
 
 //struct for container bgp-pol:bgp-defined-sets
@@ -4847,6 +6310,34 @@ func (lhs *BgpDefinedSets) Equal(rhs *BgpDefinedSets) bool {
 	}
 	return true
 }
+func (v *BgpDefinedSets) Clone() *BgpDefinedSets {
+	if v == nil {
+		return nil
+	}
+	clone := &BgpDefinedSets{}
+	{
+		a := make([]CommunitySet, 0, len(v.CommunitySets))
+		for _, i := range v.CommunitySets {
+			a = append(a, *(i.Clone()))
+		}
+		clone.CommunitySets = a
+	}
+	{
+		a := make([]ExtCommunitySet, 0, len(v.ExtCommunitySets))
+		for _, i := range v.ExtCommunitySets {
+			a = append(a, *(i.Clone()))
+		}
+		clone.ExtCommunitySets = a
+	}
+	{
+		a := make([]AsPathSet, 0, len(v.AsPathSets))
+		for _, i := range v.AsPathSets {
+			a = append(a, *(i.Clone()))
+		}
+		clone.AsPathSets = a
+	}
+	return clone
+}
 
 //struct for container rpol:tag
 type Tag struct {
@@ -4862,6 +6353,14 @@ func (lhs *Tag) Equal(rhs *Tag) bool {
 		return false
 	}
 	return true
+}
+func (v *Tag) Clone() *Tag {
+	if v == nil {
+		return nil
+	}
+	clone := &Tag{}
+	clone.Value = v.Value
+	return clone
 }
 
 //struct for container rpol:tag-set
@@ -4897,6 +6396,21 @@ func (lhs *TagSet) Equal(rhs *TagSet) bool {
 	}
 	return true
 }
+func (v *TagSet) Clone() *TagSet {
+	if v == nil {
+		return nil
+	}
+	clone := &TagSet{}
+	clone.TagSetName = v.TagSetName
+	{
+		a := make([]Tag, 0, len(v.TagList))
+		for _, i := range v.TagList {
+			a = append(a, *(i.Clone()))
+		}
+		clone.TagList = a
+	}
+	return clone
+}
 
 //struct for container rpol:neighbor-set
 type NeighborSet struct {
@@ -4924,6 +6438,19 @@ func (lhs *NeighborSet) Equal(rhs *NeighborSet) bool {
 	}
 	return true
 }
+func (v *NeighborSet) Clone() *NeighborSet {
+	if v == nil {
+		return nil
+	}
+	clone := &NeighborSet{}
+	clone.NeighborSetName = v.NeighborSetName
+	{
+		a := make([]string, 0, len(v.NeighborInfoList))
+		copy(a, v.NeighborInfoList)
+		clone.NeighborInfoList = a
+	}
+	return clone
+}
 
 //struct for container rpol:prefix
 type Prefix struct {
@@ -4945,6 +6472,15 @@ func (lhs *Prefix) Equal(rhs *Prefix) bool {
 		return false
 	}
 	return true
+}
+func (v *Prefix) Clone() *Prefix {
+	if v == nil {
+		return nil
+	}
+	clone := &Prefix{}
+	clone.IpPrefix = v.IpPrefix
+	clone.MasklengthRange = v.MasklengthRange
+	return clone
 }
 
 //struct for container rpol:prefix-set
@@ -4979,6 +6515,21 @@ func (lhs *PrefixSet) Equal(rhs *PrefixSet) bool {
 		}
 	}
 	return true
+}
+func (v *PrefixSet) Clone() *PrefixSet {
+	if v == nil {
+		return nil
+	}
+	clone := &PrefixSet{}
+	clone.PrefixSetName = v.PrefixSetName
+	{
+		a := make([]Prefix, 0, len(v.PrefixList))
+		for _, i := range v.PrefixList {
+			a = append(a, *(i.Clone()))
+		}
+		clone.PrefixList = a
+	}
+	return clone
 }
 
 //struct for container rpol:defined-sets
@@ -5050,6 +6601,35 @@ func (lhs *DefinedSets) Equal(rhs *DefinedSets) bool {
 	}
 	return true
 }
+func (v *DefinedSets) Clone() *DefinedSets {
+	if v == nil {
+		return nil
+	}
+	clone := &DefinedSets{}
+	{
+		a := make([]PrefixSet, 0, len(v.PrefixSets))
+		for _, i := range v.PrefixSets {
+			a = append(a, *(i.Clone()))
+		}
+		clone.PrefixSets = a
+	}
+	{
+		a := make([]NeighborSet, 0, len(v.NeighborSets))
+		for _, i := range v.NeighborSets {
+			a = append(a, *(i.Clone()))
+		}
+		clone.NeighborSets = a
+	}
+	{
+		a := make([]TagSet, 0, len(v.TagSets))
+		for _, i := range v.TagSets {
+			a = append(a, *(i.Clone()))
+		}
+		clone.TagSets = a
+	}
+	clone.BgpDefinedSets = *(v.BgpDefinedSets.Clone())
+	return clone
+}
 
 //struct for container rpol:routing-policy
 type RoutingPolicy struct {
@@ -5083,4 +6663,19 @@ func (lhs *RoutingPolicy) Equal(rhs *RoutingPolicy) bool {
 		}
 	}
 	return true
+}
+func (v *RoutingPolicy) Clone() *RoutingPolicy {
+	if v == nil {
+		return nil
+	}
+	clone := &RoutingPolicy{}
+	clone.DefinedSets = *(v.DefinedSets.Clone())
+	{
+		a := make([]PolicyDefinition, 0, len(v.PolicyDefinitions))
+		for _, i := range v.PolicyDefinitions {
+			a = append(a, *(i.Clone()))
+		}
+		clone.PolicyDefinitions = a
+	}
+	return clone
 }

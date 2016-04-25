@@ -323,6 +323,38 @@ def emit_class_def(ctx, yang_statement, struct_name, prefix):
 
     print >> o, 'return true'
     print >> o, '}'
+
+    print >> o, 'func (v *{0}) Clone() *{0} {{'.format(convert_to_golang(struct_name))
+    print >> o, 'if v == nil {'
+    print >> o, 'return nil'
+    print >> o, '}'
+    print >> o, 'clone := &{0}{{}}'.format(convert_to_golang(struct_name))
+
+    for val_name, type_name, typ, elem in equal_elems:
+        if typ == EQUAL_TYPE_LEAF:
+            print >> o, 'clone.{0} = v.{0}'.format(val_name)
+        elif typ == EQUAL_TYPE_CONTAINER:
+            print >> o, 'clone.{0} = *(v.{0}.Clone())'.format(val_name)
+        elif typ == EQUAL_TYPE_ARRAY:
+            print >> o, '{'
+            print >> o, 'a := make({0}, 0, len(v.{1}))'.format(type_name, val_name)
+            print >> o, 'copy(a, v.{0})'.format(val_name)
+            print >> o, 'clone.{0} = a'.format(val_name)
+            print >> o, '}'
+        elif typ == EQUAL_TYPE_MAP:
+            print >> o, '{'
+            print >> o, 'a := make({0}, 0, len(v.{1}))'.format(type_name, val_name)
+            print >> o, 'for _, i := range v.{0} {{'.format(val_name)
+            print >> o, 'a = append(a, *(i.Clone()))'
+            print >> o, '}'
+            print >> o, 'clone.{0} = a'.format(val_name)
+            print >> o, '}'
+        else:
+            sys.stderr.write("invalid equal type %s", typ)
+
+    print >> o, 'return clone'
+    print >> o, '}'
+
     print o.getvalue()
 
 
