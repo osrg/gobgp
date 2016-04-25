@@ -19,6 +19,43 @@ type BgpConfigSet struct {
 	PolicyDefinitions []PolicyDefinition `mapstructure:"policy-definitions"`
 }
 
+func (v *BgpConfigSet) Clone() *BgpConfigSet {
+	neighbors := make([]Neighbor, 0, len(v.Neighbors))
+	for _, a := range v.Neighbors {
+		neighbors = append(neighbors, *(a.Clone()))
+	}
+	peerGroups := make([]PeerGroup, 0, len(v.PeerGroups))
+	for _, a := range v.PeerGroups {
+		peerGroups = append(peerGroups, *(a.Clone()))
+	}
+	rpkiServers := make([]RpkiServer, 0, len(v.RpkiServers))
+	for _, a := range v.RpkiServers {
+		rpkiServers = append(rpkiServers, *(a.Clone()))
+	}
+	bmpServers := make([]BmpServer, 0, len(v.BmpServers))
+	for _, a := range v.BmpServers {
+		bmpServers = append(bmpServers, *(a.Clone()))
+	}
+	mrtDump := make([]Mrt, 0, len(v.MrtDump))
+	for _, a := range v.MrtDump {
+		mrtDump = append(mrtDump, *(a.Clone()))
+	}
+	policyDefinitions := make([]PolicyDefinition, 0, len(v.PolicyDefinitions))
+	for _, a := range v.PolicyDefinitions {
+		policyDefinitions = append(policyDefinitions, *(a.Clone()))
+	}
+	return &BgpConfigSet{
+		Global:            *(v.Global.Clone()),
+		Neighbors:         neighbors,
+		PeerGroups:        peerGroups,
+		RpkiServers:       rpkiServers,
+		BmpServers:        bmpServers,
+		MrtDump:           mrtDump,
+		DefinedSets:       *(v.DefinedSets.Clone()),
+		PolicyDefinitions: policyDefinitions,
+	}
+}
+
 func ReadConfigfileServe(path, format string, configCh chan *BgpConfigSet) {
 	sigCh := make(chan os.Signal, 1)
 	signal.Notify(sigCh, syscall.SIGHUP)
