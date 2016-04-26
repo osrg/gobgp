@@ -228,10 +228,13 @@ class QuaggaBGPContainer(BGPContainer):
             f.writelines(str(c))
 
     def vtysh(self, cmd, config=True):
+        if type(cmd) is not list:
+            cmd = [cmd]
+        cmd = ' '.join("-c '{0}'".format(c) for c in cmd)
         if config:
-            return self.local("vtysh -d bgpd -c 'en' -c 'conf t' -c 'router bgp {0}' -c '{1}'".format(self.asn, cmd), capture=True)
+            return self.local("vtysh -d bgpd -c 'en' -c 'conf t' -c 'router bgp {0}' {1}".format(self.asn, cmd), capture=True)
         else:
-            return self.local("vtysh -d bgpd -c '{0}'".format(cmd), capture=True)
+            return self.local("vtysh -d bgpd {0}".format(cmd), capture=True)
 
     def reload_config(self):
         daemon = []
