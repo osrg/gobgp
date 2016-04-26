@@ -2649,6 +2649,9 @@ func (r *RoutingPolicy) ApplyPolicy(id string, dir PolicyDirection, before *Path
 	if filtered := before.Filtered(id); filtered > POLICY_DIRECTION_NONE && filtered < dir {
 		return nil
 	}
+	if before.IsWithdraw {
+		return before
+	}
 	result := ROUTE_TYPE_NONE
 	after := before
 	for _, p := range r.GetPolicy(id, dir) {
