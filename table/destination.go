@@ -316,8 +316,12 @@ func (dest *Destination) explicitWithdraw() paths {
 			// We have a match if the source are same.
 			if path.GetSource().Equal(withdraw.GetSource()) {
 				isFound = true
+				// this path is referenced in peer's adj-rib-in
+				// when there was no policy modification applied.
+				// we sould flag IsWithdraw down after use to avoid
+				// a path with IsWithdraw flag exists in adj-rib-in
 				path.IsWithdraw = true
-				matches = append(matches, path)
+				matches = append(matches, withdraw)
 			}
 		}
 
@@ -335,6 +339,8 @@ func (dest *Destination) explicitWithdraw() paths {
 		if !path.IsWithdraw {
 			newKnownPaths = append(newKnownPaths, path)
 		}
+		// here we flag IsWithdraw down
+		path.IsWithdraw = false
 	}
 
 	dest.knownPathList = newKnownPaths
