@@ -950,9 +950,6 @@ func (lhs *BmpServer) Equal(rhs *BmpServer) bool {
 	if !lhs.Config.Equal(&(rhs.Config)) {
 		return false
 	}
-	if !lhs.State.Equal(&(rhs.State)) {
-		return false
-	}
 	return true
 }
 
@@ -1138,9 +1135,6 @@ func (lhs *RpkiServer) Equal(rhs *RpkiServer) bool {
 	if !lhs.Config.Equal(&(rhs.Config)) {
 		return false
 	}
-	if !lhs.State.Equal(&(rhs.State)) {
-		return false
-	}
 	return true
 }
 
@@ -1314,9 +1308,6 @@ func (lhs *PeerGroup) Equal(rhs *PeerGroup) bool {
 	if !lhs.Config.Equal(&(rhs.Config)) {
 		return false
 	}
-	if !lhs.State.Equal(&(rhs.State)) {
-		return false
-	}
 	if !lhs.Timers.Equal(&(rhs.Timers)) {
 		return false
 	}
@@ -1421,9 +1412,6 @@ func (lhs *RouteServer) Equal(rhs *RouteServer) bool {
 	if !lhs.Config.Equal(&(rhs.Config)) {
 		return false
 	}
-	if !lhs.State.Equal(&(rhs.State)) {
-		return false
-	}
 	return true
 }
 
@@ -1512,9 +1500,6 @@ func (lhs *AddPaths) Equal(rhs *AddPaths) bool {
 	if !lhs.Config.Equal(&(rhs.Config)) {
 		return false
 	}
-	if !lhs.State.Equal(&(rhs.State)) {
-		return false
-	}
 	return true
 }
 
@@ -1575,9 +1560,6 @@ func (lhs *AsPathOptions) Equal(rhs *AsPathOptions) bool {
 		return false
 	}
 	if !lhs.Config.Equal(&(rhs.Config)) {
-		return false
-	}
-	if !lhs.State.Equal(&(rhs.State)) {
 		return false
 	}
 	return true
@@ -1642,9 +1624,6 @@ func (lhs *RouteReflector) Equal(rhs *RouteReflector) bool {
 	if !lhs.Config.Equal(&(rhs.Config)) {
 		return false
 	}
-	if !lhs.State.Equal(&(rhs.State)) {
-		return false
-	}
 	return true
 }
 
@@ -1707,9 +1686,6 @@ func (lhs *EbgpMultihop) Equal(rhs *EbgpMultihop) bool {
 	if !lhs.Config.Equal(&(rhs.Config)) {
 		return false
 	}
-	if !lhs.State.Equal(&(rhs.State)) {
-		return false
-	}
 	return true
 }
 
@@ -1760,9 +1736,6 @@ func (lhs *LoggingOptions) Equal(rhs *LoggingOptions) bool {
 		return false
 	}
 	if !lhs.Config.Equal(&(rhs.Config)) {
-		return false
-	}
-	if !lhs.State.Equal(&(rhs.State)) {
 		return false
 	}
 	return true
@@ -1820,9 +1793,6 @@ func (lhs *ErrorHandling) Equal(rhs *ErrorHandling) bool {
 		return false
 	}
 	if !lhs.Config.Equal(&(rhs.Config)) {
-		return false
-	}
-	if !lhs.State.Equal(&(rhs.State)) {
 		return false
 	}
 	return true
@@ -1933,9 +1903,6 @@ func (lhs *Transport) Equal(rhs *Transport) bool {
 		return false
 	}
 	if !lhs.Config.Equal(&(rhs.Config)) {
-		return false
-	}
-	if !lhs.State.Equal(&(rhs.State)) {
 		return false
 	}
 	return true
@@ -2059,9 +2026,6 @@ func (lhs *Timers) Equal(rhs *Timers) bool {
 		return false
 	}
 	if !lhs.Config.Equal(&(rhs.Config)) {
-		return false
-	}
-	if !lhs.State.Equal(&(rhs.State)) {
 		return false
 	}
 	return true
@@ -2424,9 +2388,6 @@ func (lhs *Neighbor) Equal(rhs *Neighbor) bool {
 	if !lhs.Config.Equal(&(rhs.Config)) {
 		return false
 	}
-	if !lhs.State.Equal(&(rhs.State)) {
-		return false
-	}
 	if !lhs.Timers.Equal(&(rhs.Timers)) {
 		return false
 	}
@@ -2580,9 +2541,6 @@ func (lhs *RouteTargetMembership) Equal(rhs *RouteTargetMembership) bool {
 		return false
 	}
 	if !lhs.Config.Equal(&(rhs.Config)) {
-		return false
-	}
-	if !lhs.State.Equal(&(rhs.State)) {
 		return false
 	}
 	return true
@@ -2770,9 +2728,6 @@ func (lhs *Ipv6Unicast) Equal(rhs *Ipv6Unicast) bool {
 	if !lhs.Config.Equal(&(rhs.Config)) {
 		return false
 	}
-	if !lhs.State.Equal(&(rhs.State)) {
-		return false
-	}
 	return true
 }
 
@@ -2879,9 +2834,6 @@ func (lhs *PrefixLimit) Equal(rhs *PrefixLimit) bool {
 	if !lhs.Config.Equal(&(rhs.Config)) {
 		return false
 	}
-	if !lhs.State.Equal(&(rhs.State)) {
-		return false
-	}
 	return true
 }
 
@@ -2903,9 +2855,6 @@ func (lhs *Ipv4Unicast) Equal(rhs *Ipv4Unicast) bool {
 		return false
 	}
 	if !lhs.Config.Equal(&(rhs.Config)) {
-		return false
-	}
-	if !lhs.State.Equal(&(rhs.State)) {
 		return false
 	}
 	return true
@@ -3038,9 +2987,6 @@ func (lhs *ApplyPolicy) Equal(rhs *ApplyPolicy) bool {
 	if !lhs.Config.Equal(&(rhs.Config)) {
 		return false
 	}
-	if !lhs.State.Equal(&(rhs.State)) {
-		return false
-	}
 	return true
 }
 
@@ -3171,9 +3117,6 @@ func (lhs *MpGracefulRestart) Equal(rhs *MpGracefulRestart) bool {
 	if !lhs.Config.Equal(&(rhs.Config)) {
 		return false
 	}
-	if !lhs.State.Equal(&(rhs.State)) {
-		return false
-	}
 	return true
 }
 
@@ -3226,9 +3169,6 @@ func (lhs *AfiSafi) Equal(rhs *AfiSafi) bool {
 		return false
 	}
 	if !lhs.Config.Equal(&(rhs.Config)) {
-		return false
-	}
-	if !lhs.State.Equal(&(rhs.State)) {
 		return false
 	}
 	if !lhs.ApplyPolicy.Equal(&(rhs.ApplyPolicy)) {
@@ -3394,9 +3334,6 @@ func (lhs *GracefulRestart) Equal(rhs *GracefulRestart) bool {
 	if !lhs.Config.Equal(&(rhs.Config)) {
 		return false
 	}
-	if !lhs.State.Equal(&(rhs.State)) {
-		return false
-	}
 	return true
 }
 
@@ -3445,9 +3382,6 @@ func (lhs *Ibgp) Equal(rhs *Ibgp) bool {
 		return false
 	}
 	if !lhs.Config.Equal(&(rhs.Config)) {
-		return false
-	}
-	if !lhs.State.Equal(&(rhs.State)) {
 		return false
 	}
 	return true
@@ -3512,9 +3446,6 @@ func (lhs *Ebgp) Equal(rhs *Ebgp) bool {
 	if !lhs.Config.Equal(&(rhs.Config)) {
 		return false
 	}
-	if !lhs.State.Equal(&(rhs.State)) {
-		return false
-	}
 	return true
 }
 
@@ -3569,9 +3500,6 @@ func (lhs *UseMultiplePaths) Equal(rhs *UseMultiplePaths) bool {
 		return false
 	}
 	if !lhs.Config.Equal(&(rhs.Config)) {
-		return false
-	}
-	if !lhs.State.Equal(&(rhs.State)) {
 		return false
 	}
 	if !lhs.Ebgp.Equal(&(rhs.Ebgp)) {
@@ -3666,9 +3594,6 @@ func (lhs *Confederation) Equal(rhs *Confederation) bool {
 	if !lhs.Config.Equal(&(rhs.Config)) {
 		return false
 	}
-	if !lhs.State.Equal(&(rhs.State)) {
-		return false
-	}
 	return true
 }
 
@@ -3727,9 +3652,6 @@ func (lhs *DefaultRouteDistance) Equal(rhs *DefaultRouteDistance) bool {
 		return false
 	}
 	if !lhs.Config.Equal(&(rhs.Config)) {
-		return false
-	}
-	if !lhs.State.Equal(&(rhs.State)) {
 		return false
 	}
 	return true
@@ -3842,9 +3764,6 @@ func (lhs *RouteSelectionOptions) Equal(rhs *RouteSelectionOptions) bool {
 		return false
 	}
 	if !lhs.Config.Equal(&(rhs.Config)) {
-		return false
-	}
-	if !lhs.State.Equal(&(rhs.State)) {
 		return false
 	}
 	return true
@@ -3967,9 +3886,6 @@ func (lhs *Global) Equal(rhs *Global) bool {
 		return false
 	}
 	if !lhs.Config.Equal(&(rhs.Config)) {
-		return false
-	}
-	if !lhs.State.Equal(&(rhs.State)) {
 		return false
 	}
 	if !lhs.RouteSelectionOptions.Equal(&(rhs.RouteSelectionOptions)) {

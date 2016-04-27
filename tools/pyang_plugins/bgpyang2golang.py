@@ -284,6 +284,8 @@ def emit_class_def(ctx, yang_statement, struct_name, prefix):
     print >> o, '}'
 
     for val_name, type_name, typ, elem in equal_elems:
+        if val_name == 'State':
+            continue
         if typ == EQUAL_TYPE_LEAF:
             print >> o, 'if lhs.{0} != rhs.{0} {{'.format(val_name)
             print >> o, 'return false'
