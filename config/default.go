@@ -45,12 +45,12 @@ func SetDefaultConfigValues(v *viper.Viper, b *BgpConfigSet) error {
 		}
 	}
 
-	if b.Global.ListenConfig.Port == 0 {
-		b.Global.ListenConfig.Port = bgp.BGP_PORT
+	if b.Global.Config.Port == 0 {
+		b.Global.Config.Port = bgp.BGP_PORT
 	}
 
-	if len(b.Global.ListenConfig.LocalAddressList) == 0 {
-		b.Global.ListenConfig.LocalAddressList = []string{"0.0.0.0", "::"}
+	if len(b.Global.Config.LocalAddressList) == 0 {
+		b.Global.Config.LocalAddressList = []string{"0.0.0.0", "::"}
 	}
 
 	for idx, server := range b.BmpServers {

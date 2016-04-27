@@ -1590,10 +1590,8 @@ func (server *BgpServer) handleModConfig(grpcReq *GrpcRequest) error {
 			b := &config.BgpConfigSet{
 				Global: config.Global{
 					Config: config.GlobalConfig{
-						As:       g.As,
-						RouterId: g.RouterId,
-					},
-					ListenConfig: config.ListenConfig{
+						As:               g.As,
+						RouterId:         g.RouterId,
 						Port:             g.ListenPort,
 						LocalAddressList: g.ListenAddresses,
 					},
@@ -1620,10 +1618,10 @@ func (server *BgpServer) handleModConfig(grpcReq *GrpcRequest) error {
 			return fmt.Errorf("gobgp is already started")
 		}
 
-		if c.ListenConfig.Port > 0 {
+		if c.Config.Port > 0 {
 			acceptCh := make(chan *net.TCPConn, 4096)
-			for _, addr := range c.ListenConfig.LocalAddressList {
-				l, err := NewTCPListener(addr, uint32(c.ListenConfig.Port), acceptCh)
+			for _, addr := range c.Config.LocalAddressList {
+				l, err := NewTCPListener(addr, uint32(c.Config.Port), acceptCh)
 				if err != nil {
 					return err
 				}
@@ -1733,8 +1731,8 @@ func (server *BgpServer) handleGrpc(grpcReq *GrpcRequest) []*SenderMsg {
 			Data: &api.Global{
 				As:              g.Config.As,
 				RouterId:        g.Config.RouterId,
-				ListenPort:      g.ListenConfig.Port,
-				ListenAddresses: g.ListenConfig.LocalAddressList,
+				ListenPort:      g.Config.Port,
+				ListenAddresses: g.Config.LocalAddressList,
 				MplsLabelMin:    g.MplsLabelRange.MinLabel,
 				MplsLabelMax:    g.MplsLabelRange.MaxLabel,
 			},
@@ -2312,7 +2310,7 @@ func (server *BgpServer) handleAddNeighbor(c *config.Neighbor) ([]*SenderMsg, er
 		return nil, fmt.Errorf("Can't overwrite the exising peer: %s", addr)
 	}
 
-	if server.bgpConfig.Global.ListenConfig.Port > 0 {
+	if server.bgpConfig.Global.Config.Port > 0 {
 		for _, l := range server.Listeners(addr) {
 			SetTcpMD5SigSockopts(l, addr, c.Config.AuthPassword)
 		}

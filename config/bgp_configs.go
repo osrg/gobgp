@@ -2482,32 +2482,6 @@ func (lhs *Neighbor) Equal(rhs *Neighbor) bool {
 	return true
 }
 
-//struct for container gobgp:listen-config
-type ListenConfig struct {
-	// original -> gobgp:port
-	Port int32 `mapstructure:"port"`
-	// original -> gobgp:local-address
-	LocalAddressList []string `mapstructure:"local-address-list"`
-}
-
-func (lhs *ListenConfig) Equal(rhs *ListenConfig) bool {
-	if lhs == nil || rhs == nil {
-		return false
-	}
-	if lhs.Port != rhs.Port {
-		return false
-	}
-	if len(lhs.LocalAddressList) != len(rhs.LocalAddressList) {
-		return false
-	}
-	for idx, l := range lhs.LocalAddressList {
-		if l != rhs.LocalAddressList[idx] {
-			return false
-		}
-	}
-	return true
-}
-
 //struct for container gobgp:mpls-label-range
 type MplsLabelRange struct {
 	// original -> gobgp:min-label
@@ -3888,6 +3862,10 @@ type GlobalState struct {
 	TotalPaths uint32 `mapstructure:"total-paths"`
 	// original -> bgp-op:total-prefixes
 	TotalPrefixes uint32 `mapstructure:"total-prefixes"`
+	// original -> gobgp:port
+	Port int32 `mapstructure:"port"`
+	// original -> gobgp:local-address
+	LocalAddressList []string `mapstructure:"local-address-list"`
 }
 
 func (lhs *GlobalState) Equal(rhs *GlobalState) bool {
@@ -3906,6 +3884,17 @@ func (lhs *GlobalState) Equal(rhs *GlobalState) bool {
 	if lhs.TotalPrefixes != rhs.TotalPrefixes {
 		return false
 	}
+	if lhs.Port != rhs.Port {
+		return false
+	}
+	if len(lhs.LocalAddressList) != len(rhs.LocalAddressList) {
+		return false
+	}
+	for idx, l := range lhs.LocalAddressList {
+		if l != rhs.LocalAddressList[idx] {
+			return false
+		}
+	}
 	return true
 }
 
@@ -3917,6 +3906,10 @@ type GlobalConfig struct {
 	// original -> bgp:router-id
 	//bgp:router-id's original type is inet:ipv4-address
 	RouterId string `mapstructure:"router-id"`
+	// original -> gobgp:port
+	Port int32 `mapstructure:"port"`
+	// original -> gobgp:local-address
+	LocalAddressList []string `mapstructure:"local-address-list"`
 }
 
 func (lhs *GlobalConfig) Equal(rhs *GlobalConfig) bool {
@@ -3928,6 +3921,17 @@ func (lhs *GlobalConfig) Equal(rhs *GlobalConfig) bool {
 	}
 	if lhs.RouterId != rhs.RouterId {
 		return false
+	}
+	if lhs.Port != rhs.Port {
+		return false
+	}
+	if len(lhs.LocalAddressList) != len(rhs.LocalAddressList) {
+		return false
+	}
+	for idx, l := range lhs.LocalAddressList {
+		if l != rhs.LocalAddressList[idx] {
+			return false
+		}
 	}
 	return true
 }
@@ -3956,8 +3960,6 @@ type Global struct {
 	Zebra Zebra `mapstructure:"zebra"`
 	// original -> gobgp:mpls-label-range
 	MplsLabelRange MplsLabelRange `mapstructure:"mpls-label-range"`
-	// original -> gobgp:listen-config
-	ListenConfig ListenConfig `mapstructure:"listen-config"`
 }
 
 func (lhs *Global) Equal(rhs *Global) bool {
@@ -4008,9 +4010,6 @@ func (lhs *Global) Equal(rhs *Global) bool {
 		return false
 	}
 	if !lhs.MplsLabelRange.Equal(&(rhs.MplsLabelRange)) {
-		return false
-	}
-	if !lhs.ListenConfig.Equal(&(rhs.ListenConfig)) {
 		return false
 	}
 	return true

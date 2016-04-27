@@ -801,15 +801,21 @@ module gobgp {
     }
   }
 
-  augment "/bgp:bgp/bgp:global" {
-    container listen-config {
-        leaf port {
-            type int32;
-        }
-        leaf-list local-address {
-            type string;
-        }
+  grouping listen-config {
+    leaf port {
+        type int32;
     }
+    leaf-list local-address {
+        type string;
+    }
+  }
+
+  augment "/bgp:bgp/bgp:global/bgp:config" {
+      uses listen-config;
+  }
+
+  augment "/bgp:bgp/bgp:global/bgp:state" {
+      uses listen-config;
   }
 
   augment "/bgp:bgp/bgp:global/bgp:afi-safis/bgp:afi-safi" {
