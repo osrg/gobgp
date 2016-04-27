@@ -2561,17 +2561,54 @@ func (lhs *Zebra) Equal(rhs *Zebra) bool {
 	return true
 }
 
-//struct for container gobgp:route-target-membership
-type RouteTargetMembership struct {
+//struct for container gobgp:state
+type RouteTargetMembershipState struct {
 	// original -> gobgp:deferral-time
 	DeferralTime uint16 `mapstructure:"deferral-time"`
+}
+
+func (lhs *RouteTargetMembershipState) Equal(rhs *RouteTargetMembershipState) bool {
+	if lhs == nil || rhs == nil {
+		return false
+	}
+	if lhs.DeferralTime != rhs.DeferralTime {
+		return false
+	}
+	return true
+}
+
+//struct for container gobgp:config
+type RouteTargetMembershipConfig struct {
+	// original -> gobgp:deferral-time
+	DeferralTime uint16 `mapstructure:"deferral-time"`
+}
+
+func (lhs *RouteTargetMembershipConfig) Equal(rhs *RouteTargetMembershipConfig) bool {
+	if lhs == nil || rhs == nil {
+		return false
+	}
+	if lhs.DeferralTime != rhs.DeferralTime {
+		return false
+	}
+	return true
+}
+
+//struct for container gobgp:route-target-membership
+type RouteTargetMembership struct {
+	// original -> gobgp:route-target-membership-config
+	Config RouteTargetMembershipConfig `mapstructure:"config"`
+	// original -> gobgp:route-target-membership-state
+	State RouteTargetMembershipState `mapstructure:"state"`
 }
 
 func (lhs *RouteTargetMembership) Equal(rhs *RouteTargetMembership) bool {
 	if lhs == nil || rhs == nil {
 		return false
 	}
-	if lhs.DeferralTime != rhs.DeferralTime {
+	if !lhs.Config.Equal(&(rhs.Config)) {
+		return false
+	}
+	if !lhs.State.Equal(&(rhs.State)) {
 		return false
 	}
 	return true

@@ -816,11 +816,20 @@ module gobgp {
       uses bgp-mp:all-afi-safi-common;
   }
 
+  grouping route-target-membership-config {
+      leaf deferral-time {
+        type uint16;
+      }
+  }
+
   augment "/bgp:bgp/bgp:global/bgp:afi-safis/bgp:afi-safi" {
     container route-target-membership {
-        leaf deferral-time {
-          type uint16;
-        }
+      container config {
+          uses route-target-membership-config;
+      }
+      container state {
+          uses route-target-membership-config;
+      }
     }
   }
 }
