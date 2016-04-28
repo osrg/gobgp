@@ -44,19 +44,18 @@ func ReadConfigfileServe(path, format string, configCh chan *BgpConfigSet) {
 		}
 		cnt++
 		configCh <- c
-		select {
-		case <-sigCh:
-			log.Info("reload the config file")
-		}
-		continue
+		goto NEXT
 	ERROR:
 		if cnt == 0 {
 			log.Fatal("can't read config file ", path, ", ", err)
 		} else {
 			log.Warning("can't read config file ", path, ", ", err)
-			continue
 		}
-
+	NEXT:
+		select {
+		case <-sigCh:
+			log.Info("reload the config file")
+		}
 	}
 }
 
