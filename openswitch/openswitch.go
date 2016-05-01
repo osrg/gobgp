@@ -22,8 +22,8 @@ import (
 	"github.com/osrg/gobgp/gobgp/cmd"
 	"github.com/osrg/gobgp/packet/bgp"
 	"github.com/osrg/gobgp/server"
-	ovsdb "github.com/osrg/libovsdb"
 	"github.com/satori/go.uuid"
+	ovsdb "github.com/socketplane/libovsdb"
 	"net"
 	"reflect"
 	"strconv"
@@ -157,7 +157,7 @@ func parseRouteToGobgp(route ovsdb.RowUpdate, nexthops map[string]ovsdb.Row) (*a
 	nhId, ok := route.New.Fields["bgp_nexthops"].(ovsdb.UUID)
 	if ok {
 		for id, n := range nexthops {
-			if id == nhId.GoUuid {
+			if id == nhId.GoUUID {
 				nh = append(nh, n.Fields["ip_address"])
 			}
 		}
@@ -378,7 +378,7 @@ func (m *OpsManager) handleRouteUpdate(update ovsdb.TableUpdate) []*server.GrpcR
 		if vrf == nil {
 			continue
 		}
-		idx := vrf.(ovsdb.UUID).GoUuid
+		idx := vrf.(ovsdb.UUID).GoUUID
 		if uuid.Equal(id, uuid.FromStringOrNil(idx)) {
 			path, isWithdraw, isFromGobgp, err := parseRouteToGobgp(v, m.cache["BGP_Nexthop"])
 			if err != nil {
@@ -736,7 +736,7 @@ type OpsManager struct {
 }
 
 func NewOpsManager(grpcCh chan *server.GrpcRequest) (*OpsManager, error) {
-	ops, err := ovsdb.ConnectUnix("")
+	ops, err := ovsdb.Connect("", 0)
 	if err != nil {
 		return nil, err
 	}
