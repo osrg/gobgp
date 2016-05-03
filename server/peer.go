@@ -171,7 +171,9 @@ func (peer *Peer) processOutgoingPaths(paths, withdrawals []*table.Path) []*tabl
 	outgoing := make([]*table.Path, 0, len(paths))
 	for _, path := range withdrawals {
 		if path.IsLocal() {
-			outgoing = append(outgoing, path)
+			if _, ok := peer.fsm.rfMap[path.GetRouteFamily()]; ok {
+				outgoing = append(outgoing, path)
+			}
 		}
 	}
 
