@@ -19,6 +19,7 @@ matrix:
   allow_failures:
     - go: 1.3
     - go: 1.4
+    - go: tip
   exclude:
     - go: 1.3
       env: SCENARIO=true
