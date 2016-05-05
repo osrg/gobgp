@@ -83,6 +83,7 @@ def make_gobgp_ctn(tag='gobgp', local_gobgp_path='', from_image='osrg/quagga'):
 
     c = CmdBuffer()
     c << 'FROM {0}'.format(from_image)
+    c << 'RUN mkdir -p /go/src/github.com/kr && cd /go/src/github.com/kr && git clone https://github.com/kr/text && cd /go/src/github.com/kr/text && git checkout -b master main'
     c << 'ADD gobgp /go/src/github.com/osrg/gobgp/'
     c << 'RUN go get github.com/osrg/gobgp/gobgpd'
     c << 'RUN go install github.com/osrg/gobgp/gobgpd'
