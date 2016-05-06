@@ -657,6 +657,9 @@ func (h *FSMHandler) recvMessageWithError() (*FsmMsg, error) {
 					id := h.fsm.pConf.Config.NeighborAddress
 					policyMutex.RLock()
 					for _, path := range fmsg.PathList {
+						if path.IsEOR() {
+							continue
+						}
 						if h.fsm.policy.ApplyPolicy(id, table.POLICY_DIRECTION_IN, path, nil) == nil {
 							path.Filter(id, table.POLICY_DIRECTION_IN)
 						}
