@@ -758,8 +758,8 @@ func compareByRouterID(path1, path2 *Path) (*Path, error) {
 
 func compareByAge(path1, path2 *Path) *Path {
 	if !path1.IsIBGP() && !path2.IsIBGP() && !SelectionOptions.ExternalCompareRouterId {
-		age1 := path1.info.timestamp.UnixNano()
-		age2 := path2.info.timestamp.UnixNano()
+		age1 := path1.GetTimestamp().UnixNano()
+		age2 := path2.GetTimestamp().UnixNano()
 		if age1 == age2 {
 			return nil
 		} else if age1 < age2 {
