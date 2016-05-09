@@ -308,6 +308,9 @@ func (fsm *FSM) connectLoop() error {
 	ticker := time.NewTicker(time.Duration(tick) * time.Second)
 	ticker.Stop()
 
+	timer := time.NewTimer(time.Duration(tick) * time.Second)
+	timer.Stop()
+
 	connect := func() {
 		if fsm.state == bgp.BGP_FSM_ACTIVE && !fsm.pConf.GracefulRestart.State.PeerRestarting {
 			addr := fsm.pConf.Config.NeighborAddress
@@ -366,12 +369,13 @@ func (fsm *FSM) connectLoop() error {
 			}).Debug("stop connect loop")
 			ticker.Stop()
 			return nil
+		case <-timer.C:
+			ticker = time.NewTicker(time.Duration(tick) * time.Second)
+			connect()
 		case <-ticker.C:
 			connect()
 		case <-fsm.getActiveCh:
-			time.Sleep(time.Duration(r.Intn(MIN_CONNECT_RETRY)+MIN_CONNECT_RETRY) * time.Second)
-			connect()
-			ticker = time.NewTicker(time.Duration(tick) * time.Second)
+			timer.Reset(time.Duration(r.Intn(MIN_CONNECT_RETRY)+MIN_CONNECT_RETRY) * time.Second)
 		}
 	}
 }
