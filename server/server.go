@@ -2409,6 +2409,14 @@ func (server *BgpServer) handleUpdateNeighbor(c *config.Neighbor) ([]*SenderMsg,
 		return msgs, policyUpdated, err
 	}
 
+	if !original.Timers.Config.Equal(&c.Timers.Config) {
+		log.WithFields(log.Fields{
+			"Topic": "Peer",
+			"Key":   peer.ID(),
+		}).Info("update timer configuration")
+		peer.fsm.pConf.Timers.Config = c.Timers.Config
+	}
+
 	msgs, err := peer.updatePrefixLimitConfig(c.AfiSafis)
 	if err != nil {
 		log.WithFields(log.Fields{
