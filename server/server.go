@@ -235,6 +235,10 @@ func (server *BgpServer) Serve() {
 			log.Warn("Can't find the neighbor ", e.MsgSrc)
 			return
 		}
+		if e.Version != peer.fsm.version {
+			log.Debug("FSM Version inconsistent")
+			return
+		}
 		m := server.handleFSMMessage(peer, e)
 		if len(m) > 0 {
 			senderMsgs = append(senderMsgs, m...)
