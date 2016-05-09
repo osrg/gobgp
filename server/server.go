@@ -263,6 +263,11 @@ func (server *BgpServer) Serve() {
 			remoteAddr, _, _ := net.SplitHostPort(conn.RemoteAddr().String())
 			peer, found := server.neighborMap[remoteAddr]
 			if found {
+				if peer.fsm.adminState != ADMIN_STATE_UP {
+					log.Debug("new connection for non admin-state-up peer ", remoteAddr, peer.fsm.adminState)
+					conn.Close()
+					return
+				}
 				localAddrValid := func(laddr net.IP) bool {
 					if laddr == nil {
 						return true
