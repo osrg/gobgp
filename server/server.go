@@ -2167,7 +2167,7 @@ func (server *BgpServer) handleGrpc(grpcReq *GrpcRequest) []*SenderMsg {
 		}
 		close(grpcReq.ResponseCh)
 	case REQ_DEL_NEIGHBOR:
-		m, err := server.handleDelNeighbor(grpcReq.Data.(*config.Neighbor))
+		m, err := server.handleDelNeighbor(grpcReq.Data.(*config.Neighbor), bgp.BGP_ERROR_CEASE, bgp.BGP_ERROR_SUB_PEER_DECONFIGURED)
 		grpcReq.ResponseCh <- &GrpcResponse{
 			ResponseErr: err,
 		}
@@ -2343,7 +2343,7 @@ func (server *BgpServer) handleAddNeighbor(c *config.Neighbor) ([]*SenderMsg, er
 	return nil, nil
 }
 
-func (server *BgpServer) handleDelNeighbor(c *config.Neighbor) ([]*SenderMsg, error) {
+func (server *BgpServer) handleDelNeighbor(c *config.Neighbor, code, subcode uint8) ([]*SenderMsg, error) {
 	addr := c.Config.NeighborAddress
 	n, y := server.neighborMap[addr]
 	if !y {
@@ -2366,8 +2366,7 @@ func (server *BgpServer) handleDelNeighbor(c *config.Neighbor) ([]*SenderMsg, er
 	delete(server.neighborMap, addr)
 	m := server.dropPeerAllRoutes(n, n.configuredRFlist())
 
-	notification := bgp.NewBGPNotificationMessage(bgp.BGP_ERROR_CEASE, bgp.BGP_ERROR_SUB_PEER_DECONFIGURED, nil)
-	m = append(m, newSenderMsg(n, nil, notification, false))
+	n.fsm.sendNotification(code, subcode, nil, "")
 
 	return m, nil
 }
@@ -2385,7 +2384,13 @@ func (server *BgpServer) handleUpdateNeighbor(c *config.Neighbor) ([]*SenderMsg,
 	original := peer.fsm.pConf
 
 	if !original.Config.Equal(&c.Config) || !original.Transport.Config.Equal(&c.Transport.Config) {
-		msgs, err := server.handleDelNeighbor(peer.fsm.pConf)
+		sub := uint8(bgp.BGP_ERROR_SUB_OTHER_CONFIGURATION_CHANGE)
+		if original.Config.AdminDown != c.Config.AdminDown {
+			sub = bgp.BGP_ERROR_SUB_ADMINISTRATIVE_SHUTDOWN
+		} else if original.Config.PeerAs != c.Config.PeerAs {
+			sub = bgp.BGP_ERROR_SUB_PEER_DECONFIGURED
+		}
+		msgs, err := server.handleDelNeighbor(peer.fsm.pConf, bgp.BGP_ERROR_CEASE, sub)
 		if err != nil {
 			log.WithFields(log.Fields{
 				"Topic": "Peer",
@@ -2535,7 +2540,7 @@ func (server *BgpServer) handleGrpcModNeighbor(grpcReq *GrpcRequest) ([]*SenderM
 			Config: config.NeighborConfig{
 				NeighborAddress: arg.Peer.Conf.NeighborAddress,
 			},
-		})
+		}, bgp.BGP_ERROR_CEASE, bgp.BGP_ERROR_SUB_PEER_DECONFIGURED)
 	default:
 		return nil, fmt.Errorf("unsupported operation %s", arg.Operation)
 	}
