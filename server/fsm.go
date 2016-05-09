@@ -30,59 +30,24 @@ import (
 	"time"
 )
 
-type FsmStateReason int
+type FsmStateReason string
 
 const (
-	_ FsmStateReason = iota
-	FSM_DYING
-	FSM_ADMIN_DOWN
-	FSM_READ_FAILED
-	FSM_WRITE_FAILED
-	FSM_NOTIFICATION_SENT
-	FSM_NOTIFICATION_RECV
-	FSM_HOLD_TIMER_EXPIRED
-	FSM_IDLE_HOLD_TIMER_EXPIRED
-	FSM_RESTART_TIMER_EXPIRED
-	FSM_GRACEFUL_RESTART
-	FSM_INVALID_MSG
-	FSM_NEW_CONNECTION
-	FSM_OPEN_MSG_RECEIVED
-	FSM_OPEN_MSG_NEGOTIATED
+	FSM_DYING                   = "dying"
+	FSM_ADMIN_DOWN              = "admin-down"
+	FSM_READ_FAILED             = "read-failed"
+	FSM_WRITE_FAILED            = "write-failed"
+	FSM_NOTIFICATION_SENT       = "notificatoin-sent"
+	FSM_NOTIFICATION_RECV       = "notification-received"
+	FSM_HOLD_TIMER_EXPIRED      = "hold-timer-expired"
+	FSM_IDLE_HOLD_TIMER_EXPIRED = "idle-hold-timer-expired"
+	FSM_RESTART_TIMER_EXPIRED   = "restart-timer-expired"
+	FSM_GRACEFUL_RESTART        = "graceful-restart"
+	FSM_INVALID_MSG             = "invalid-msg"
+	FSM_NEW_CONNECTION          = "new-connection"
+	FSM_OPEN_MSG_RECEIVED       = "open-msg-received"
+	FSM_OPEN_MSG_NEGOTIATED     = "open-msg-negotiated"
 )
-
-func (r FsmStateReason) String() string {
-	switch r {
-	case FSM_DYING:
-		return "dying"
-	case FSM_ADMIN_DOWN:
-		return "admin-down"
-	case FSM_READ_FAILED:
-		return "read-failed"
-	case FSM_WRITE_FAILED:
-		return "write-failed"
-	case FSM_NOTIFICATION_SENT:
-		return "notification-sent"
-	case FSM_NOTIFICATION_RECV:
-		return "notification-recved"
-	case FSM_HOLD_TIMER_EXPIRED:
-		return "hold-timer-expired"
-	case FSM_IDLE_HOLD_TIMER_EXPIRED:
-		return "idle-hold-timer-expired"
-	case FSM_RESTART_TIMER_EXPIRED:
-		return "restart-timer-expired"
-	case FSM_GRACEFUL_RESTART:
-		return "graceful-restart"
-	case FSM_INVALID_MSG:
-		return "invalid-msg"
-	case FSM_NEW_CONNECTION:
-		return "new-connection"
-	case FSM_OPEN_MSG_RECEIVED:
-		return "open-msg-received"
-	case FSM_OPEN_MSG_NEGOTIATED:
-		return "open-msg-negotiated"
-	}
-	return "unknown"
-}
 
 type FsmMsgType int
 
@@ -244,7 +209,7 @@ func (fsm *FSM) StateChange(nextState bgp.FSMState) {
 		"Key":    fsm.pConf.Config.NeighborAddress,
 		"old":    fsm.state.String(),
 		"new":    nextState.String(),
-		"reason": fsm.reason.String(),
+		"reason": fsm.reason,
 	}).Debug("state changed")
 	fsm.state = nextState
 	switch nextState {
@@ -706,7 +671,7 @@ func (h *FSMHandler) recvMessageWithError() (*FsmMsg, error) {
 					"Data":    body.Data,
 				}).Warn("received notification")
 
-				sendToErrorCh(FSM_NOTIFICATION_RECV)
+				sendToErrorCh(FsmStateReason(fmt.Sprintf("%s(%d/%d)", FSM_NOTIFICATION_RECV, body.ErrorCode, body.ErrorSubcode)))
 				return nil, nil
 			}
 		}
@@ -1082,7 +1047,8 @@ func (h *FSMHandler) sendMessageloop() error {
 				"State": fsm.state,
 				"Data":  m,
 			}).Warn("sent notification")
-			h.errorCh <- FSM_NOTIFICATION_SENT
+			body := m.Body.(*bgp.BGPNotification)
+			h.errorCh <- FsmStateReason(fmt.Sprintf("%s(%d/%d)", FSM_NOTIFICATION_SENT, body.ErrorCode, body.ErrorSubcode))
 			conn.Close()
 			return fmt.Errorf("closed")
 		case bgp.BGP_MSG_UPDATE:
@@ -1273,7 +1239,7 @@ func (h *FSMHandler) loop() error {
 			"Topic":  "Peer",
 			"Key":    fsm.pConf.Config.NeighborAddress,
 			"State":  fsm.state.String(),
-			"Reason": fsm.reason.String(),
+			"Reason": fsm.reason,
 		}).Info("Peer Down")
 	}
 
