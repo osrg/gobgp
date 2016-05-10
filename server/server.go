@@ -2448,6 +2448,15 @@ func (server *BgpServer) handleUpdateNeighbor(c *config.Neighbor) ([]*SenderMsg,
 		sub := uint8(bgp.BGP_ERROR_SUB_OTHER_CONFIGURATION_CHANGE)
 		if original.Config.AdminDown != c.Config.AdminDown {
 			sub = bgp.BGP_ERROR_SUB_ADMINISTRATIVE_SHUTDOWN
+			state := "Admin Down"
+			if c.Config.AdminDown == false {
+				state = "Admin Up"
+			}
+			log.WithFields(log.Fields{
+				"Topic": "Peer",
+				"Key":   peer.ID(),
+				"State": state,
+			}).Info("update admin-state configuration")
 		} else if original.Config.PeerAs != c.Config.PeerAs {
 			sub = bgp.BGP_ERROR_SUB_PEER_DECONFIGURED
 		}
