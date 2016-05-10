@@ -2382,6 +2382,10 @@ func (server *BgpServer) handleUpdateNeighbor(c *config.Neighbor) ([]*SenderMsg,
 	policyUpdated := false
 
 	if !peer.fsm.pConf.ApplyPolicy.Equal(&c.ApplyPolicy) {
+		log.WithFields(log.Fields{
+			"Topic": "Peer",
+			"Key":   addr,
+		}).Info("Update ApplyPolicy")
 		server.setPolicyByConfig(peer.ID(), c.ApplyPolicy)
 		peer.fsm.pConf.ApplyPolicy = c.ApplyPolicy
 		policyUpdated = true

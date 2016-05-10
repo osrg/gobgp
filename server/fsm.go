@@ -1308,7 +1308,6 @@ func (h *FSMHandler) changeAdminState(s AdminState) error {
 
 		fsm.adminState = s
 		fsm.pConf.State.AdminDown = !fsm.pConf.State.AdminDown
-		fsm.pConf.Config.AdminDown = !fsm.pConf.Config.AdminDown
 
 		switch s {
 		case ADMIN_STATE_UP:
