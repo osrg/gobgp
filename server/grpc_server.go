@@ -53,8 +53,6 @@ const (
 	REQ_MONITOR_GLOBAL_BEST_CHANGED
 	REQ_MONITOR_INCOMING
 	REQ_MONITOR_NEIGHBOR_PEER_STATE
-	REQ_MRT_GLOBAL_RIB
-	REQ_MRT_LOCAL_RIB
 	REQ_ENABLE_MRT
 	REQ_DISABLE_MRT
 	REQ_INJECT_MRT
@@ -309,23 +307,6 @@ func (s *Server) InjectMrt(stream api.GobgpApi_InjectMrtServer) error {
 		}
 	}
 	return stream.SendAndClose(&api.InjectMrtResponse{})
-}
-
-func (s *Server) GetMrt(arg *api.MrtArguments, stream api.GobgpApi_GetMrtServer) error {
-	var reqType int
-	switch arg.Resource {
-	case api.Resource_GLOBAL:
-		reqType = REQ_MRT_GLOBAL_RIB
-	case api.Resource_LOCAL:
-		reqType = REQ_MRT_LOCAL_RIB
-	default:
-		return fmt.Errorf("unsupported resource type: %v", arg.Resource)
-	}
-	req := NewGrpcRequest(reqType, arg.NeighborAddress, bgp.RouteFamily(arg.Family), arg.Interval)
-	s.bgpServerCh <- req
-	return handleMultipleResponses(req, func(res *GrpcResponse) error {
-		return stream.Send(res.Data.(*api.MrtMessage))
-	})
 }
 
 func (s *Server) AddBmp(ctx context.Context, arg *api.AddBmpRequest) (*api.AddBmpResponse, error) {

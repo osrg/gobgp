@@ -31,7 +31,6 @@ import (
 	"github.com/osrg/gobgp/config"
 	"github.com/osrg/gobgp/packet/bgp"
 	"github.com/osrg/gobgp/packet/bmp"
-	"github.com/osrg/gobgp/packet/mrt"
 	"github.com/osrg/gobgp/table"
 	"github.com/osrg/gobgp/zebra"
 	"github.com/satori/go.uuid"
@@ -2302,8 +2301,6 @@ func (server *BgpServer) handleGrpc(grpcReq *GrpcRequest) []*SenderMsg {
 		}
 		w := server.watchers[WATCHER_GRPC_INCOMING]
 		go w.(*grpcIncomingWatcher).addRequest(grpcReq)
-	case REQ_MRT_GLOBAL_RIB, REQ_MRT_LOCAL_RIB:
-		server.handleMrt(grpcReq)
 	case REQ_ENABLE_MRT:
 		server.handleEnableMrtRequest(grpcReq)
 	case REQ_DISABLE_MRT:
@@ -3243,168 +3240,4 @@ func (server *BgpServer) handleModRpki(grpcReq *GrpcRequest) {
 	case *api.SoftResetRpkiRequest:
 		done(grpcReq, &api.SoftResetRpkiResponse{}, server.roaManager.SoftReset(arg.Address))
 	}
-}
-
-func (server *BgpServer) handleMrt(grpcReq *GrpcRequest) {
-	now := uint32(time.Now().Unix())
-	view := ""
-	result := &GrpcResponse{}
-	var rib *table.TableManager
-
-	switch grpcReq.RequestType {
-	case REQ_MRT_GLOBAL_RIB:
-		rib = server.globalRib
-	case REQ_MRT_LOCAL_RIB:
-		peer, err := server.checkNeighborRequest(grpcReq)
-		if err != nil {
-			return
-		}
-		rib = peer.localRib
-		if rib == nil {
-			result.ResponseErr = fmt.Errorf("no local rib for %s", grpcReq.Name)
-			grpcReq.ResponseCh <- result
-			close(grpcReq.ResponseCh)
-			return
-		}
-		view = grpcReq.Name
-	}
-
-	msg, err := server.mkMrtPeerIndexTableMsg(now, view)
-	if err != nil {
-		result.ResponseErr = fmt.Errorf("failed to make new mrt peer index table message: %s", err)
-		grpcReq.ResponseCh <- result
-		close(grpcReq.ResponseCh)
-		return
-	}
-	data, err := msg.Serialize()
-	if err != nil {
-		result.ResponseErr = fmt.Errorf("failed to serialize table: %s", err)
-		grpcReq.ResponseCh <- result
-		close(grpcReq.ResponseCh)
-		return
-	}
-
-	tbl, ok := rib.Tables[grpcReq.RouteFamily]
-	if !ok {
-		result.ResponseErr = fmt.Errorf("unsupported route family: %s", grpcReq.RouteFamily)
-		grpcReq.ResponseCh <- result
-		close(grpcReq.ResponseCh)
-		return
-	}
-
-	msgs, err := server.mkMrtRibMsgs(tbl, now)
-	if err != nil {
-		result.ResponseErr = fmt.Errorf("failed to make new mrt rib message: %s", err)
-		grpcReq.ResponseCh <- result
-		close(grpcReq.ResponseCh)
-		return
-	}
-	for _, msg := range msgs {
-		d, err := msg.Serialize()
-		if err != nil {
-			result.ResponseErr = fmt.Errorf("failed to serialize rib msg: %s", err)
-			grpcReq.ResponseCh <- result
-			close(grpcReq.ResponseCh)
-			return
-		}
-		data = append(data, d...)
-	}
-
-	result.Data = &api.MrtMessage{
-		Data: data,
-	}
-
-	select {
-	case <-grpcReq.EndCh:
-		return
-	default:
-	}
-
-	m := &broadcastGrpcMsg{
-		req:    grpcReq,
-		result: result,
-	}
-
-	interval := int64(grpcReq.Data.(uint64))
-	if interval > 0 {
-		go func() {
-			t := time.NewTimer(time.Second * time.Duration(interval))
-			<-t.C
-			server.GrpcReqCh <- grpcReq
-		}()
-	} else {
-		m.done = true
-	}
-	server.broadcastMsgs = append(server.broadcastMsgs, m)
-
-	return
-}
-
-func (server *BgpServer) mkMrtPeerIndexTableMsg(t uint32, view string) (*mrt.MRTMessage, error) {
-	peers := make([]*mrt.Peer, 0, len(server.neighborMap))
-	for _, peer := range server.neighborMap {
-		id := peer.fsm.peerInfo.ID.To4().String()
-		ipaddr := peer.fsm.pConf.Config.NeighborAddress
-		asn := peer.fsm.pConf.Config.PeerAs
-		peers = append(peers, mrt.NewPeer(id, ipaddr, asn, true))
-	}
-	bgpid := server.bgpConfig.Global.Config.RouterId
-	table := mrt.NewPeerIndexTable(bgpid, view, peers)
-	return mrt.NewMRTMessage(t, mrt.TABLE_DUMPv2, mrt.PEER_INDEX_TABLE, table)
-}
-
-func (server *BgpServer) mkMrtRibMsgs(tbl *table.Table, t uint32) ([]*mrt.MRTMessage, error) {
-	getPeerIndex := func(info *table.PeerInfo) uint16 {
-		var idx uint16
-		for _, peer := range server.neighborMap {
-			if peer.fsm.peerInfo.Equal(info) {
-				return idx
-			}
-			idx++
-		}
-		return idx
-	}
-
-	var subtype mrt.MRTSubTypeTableDumpv2
-
-	switch tbl.GetRoutefamily() {
-	case bgp.RF_IPv4_UC:
-		subtype = mrt.RIB_IPV4_UNICAST
-	case bgp.RF_IPv4_MC:
-		subtype = mrt.RIB_IPV4_MULTICAST
-	case bgp.RF_IPv6_UC:
-		subtype = mrt.RIB_IPV6_UNICAST
-	case bgp.RF_IPv6_MC:
-		subtype = mrt.RIB_IPV6_MULTICAST
-	default:
-		subtype = mrt.RIB_GENERIC
-	}
-
-	var seq uint32
-	msgs := make([]*mrt.MRTMessage, 0, len(tbl.GetDestinations()))
-	for _, dst := range tbl.GetDestinations() {
-		l := dst.GetKnownPathList(table.GLOBAL_RIB_NAME)
-		entries := make([]*mrt.RibEntry, 0, len(l))
-		for _, p := range l {
-			// mrt doesn't assume to dump locally generated routes
-			if p.IsLocal() {
-				continue
-			}
-			idx := getPeerIndex(p.GetSource())
-			e := mrt.NewRibEntry(idx, uint32(p.GetTimestamp().Unix()), p.GetPathAttrs())
-			entries = append(entries, e)
-		}
-		// if dst only contains locally generated routes, ignore it
-		if len(entries) == 0 {
-			continue
-		}
-		rib := mrt.NewRib(seq, dst.GetNlri(), entries)
-		seq++
-		msg, err := mrt.NewMRTMessage(t, mrt.TABLE_DUMPv2, subtype, rib)
-		if err != nil {
-			return nil, err
-		}
-		msgs = append(msgs, msg)
-	}
-	return msgs, nil
 }

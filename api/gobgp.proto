@@ -40,7 +40,6 @@ service GobgpApi {
   rpc MonitorPeerState(Arguments) returns (stream Peer) {}
   rpc EnableMrt(EnableMrtRequest) returns (EnableMrtResponse) {}
   rpc DisableMrt(DisableMrtRequest) returns (DisableMrtResponse) {}
-  rpc GetMrt(MrtArguments) returns (stream MrtMessage) {}
   rpc InjectMrt(stream InjectMrtRequest) returns (InjectMrtResponse) {}
   rpc AddBmp(AddBmpRequest) returns (AddBmpResponse) {}
   rpc DeleteBmp(DeleteBmpRequest) returns (DeleteBmpResponse) {}
@@ -160,13 +159,6 @@ message DisableNeighborRequest {
 }
 
 message DisableNeighborResponse {
-}
-
-message MrtArguments {
-  Resource resource = 1;
-  uint32 family = 2;
-  uint64 interval = 3;
-  string neighbor_address = 4;
 }
 
 message EnableMrtRequest {
@@ -779,10 +771,6 @@ message PolicyAssignment {
   string name = 3;
   repeated Policy policies = 4;
   RouteAction default = 5;
-}
-
-message MrtMessage {
-  bytes data = 1;
 }
 
 message Roa {
