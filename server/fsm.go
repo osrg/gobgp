@@ -671,7 +671,7 @@ func (h *FSMHandler) recvMessageWithError() (*FsmMsg, error) {
 					"Data":    body.Data,
 				}).Warn("received notification")
 
-				sendToErrorCh(FsmStateReason(fmt.Sprintf("%s(%d/%d)", FSM_NOTIFICATION_RECV, body.ErrorCode, body.ErrorSubcode)))
+				sendToErrorCh(FsmStateReason(fmt.Sprintf("%s %s", FSM_NOTIFICATION_RECV, bgp.NewNotificationErrorCode(body.ErrorCode, body.ErrorSubcode).String())))
 				return nil, nil
 			}
 		}
@@ -1048,7 +1048,7 @@ func (h *FSMHandler) sendMessageloop() error {
 				"Data":  m,
 			}).Warn("sent notification")
 			body := m.Body.(*bgp.BGPNotification)
-			h.errorCh <- FsmStateReason(fmt.Sprintf("%s(%d/%d)", FSM_NOTIFICATION_SENT, body.ErrorCode, body.ErrorSubcode))
+			h.errorCh <- FsmStateReason(fmt.Sprintf("%s %s", FSM_NOTIFICATION_SENT, bgp.NewNotificationErrorCode(body.ErrorCode, body.ErrorSubcode).String()))
 			conn.Close()
 			return fmt.Errorf("closed")
 		case bgp.BGP_MSG_UPDATE:

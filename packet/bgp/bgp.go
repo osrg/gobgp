@@ -3528,6 +3528,89 @@ const (
 	BGP_ERROR_SUB_INVALID_MESSAGE_LENGTH
 )
 
+type NotificationErrorCode uint16
+
+func (c NotificationErrorCode) String() string {
+	code := uint8(uint16(c) >> 8)
+	subcode := uint8(uint16(c) & 0xff)
+	UNDEFINED := "undefined"
+	codeStr := UNDEFINED
+	subcodeList := []string{}
+	switch code {
+	case BGP_ERROR_MESSAGE_HEADER_ERROR:
+		codeStr = "header"
+		subcodeList = []string{
+			UNDEFINED,
+			"connection not synchronized",
+			"bad message length",
+			"bad message type"}
+	case BGP_ERROR_OPEN_MESSAGE_ERROR:
+		codeStr = "open"
+		subcodeList = []string{
+			UNDEFINED,
+			"unsupported version number",
+			"bad peer as",
+			"bad bgp identifier",
+			"unsupported optional parameter",
+			"deprecated authentication failure",
+			"unacceptable hold time",
+			"unsupported capability"}
+	case BGP_ERROR_UPDATE_MESSAGE_ERROR:
+		codeStr = "update"
+		subcodeList = []string{
+			UNDEFINED,
+			"malformed attribute list",
+			"unrecognized well known attribute",
+			"missing well known attribute",
+			"attribute flags error",
+			"attribute length error",
+			"invalid origin attribute",
+			"deprecated routing loop",
+			"invalid next hop attribute",
+			"optional attribute error",
+			"invalid network field",
+			"sub malformed as path"}
+	case BGP_ERROR_HOLD_TIMER_EXPIRED:
+		codeStr = "hold timer expired"
+		subcodeList = []string{
+			UNDEFINED,
+			"hold timer expired"}
+	case BGP_ERROR_FSM_ERROR:
+		codeStr = "fsm"
+		subcodeList = []string{
+			UNDEFINED,
+			"receive unexpected message in opensent state",
+			"receive unexpected message in openconfirm state",
+			"receive unexpected message in established state"}
+	case BGP_ERROR_CEASE:
+		codeStr = "cease"
+		subcodeList = []string{
+			UNDEFINED,
+			"maximum number of prefixes reached",
+			"administrative shutdown",
+			"peer deconfigured",
+			"administrative reset",
+			"connection rejected",
+			"other configuration change",
+			"connection collision resolution",
+			"out of resources"}
+	case BGP_ERROR_ROUTE_REFRESH_MESSAGE_ERROR:
+		codeStr = "route refresh"
+		subcodeList = []string{"invalid message length"}
+	}
+	subcodeStr := func(idx uint8, l []string) string {
+		if len(l) == 0 || int(idx) > len(l)-1 {
+			return UNDEFINED
+		}
+		return l[idx]
+	}(subcode, subcodeList)
+	return fmt.Sprintf("code %v(%v) subcode %v(%v)", code, codeStr, subcode, subcodeStr)
+}
+
+func NewNotificationErrorCode(code, subcode uint8) NotificationErrorCode {
+	return NotificationErrorCode(uint16(code)<<8 | uint16(subcode))
+}
+
 var pathAttrFlags map[BGPAttrType]BGPAttrFlag = map[BGPAttrType]BGPAttrFlag{
 	BGP_ATTR_TYPE_ORIGIN:               BGP_ATTR_FLAG_TRANSITIVE,
 	BGP_ATTR_TYPE_AS_PATH:              BGP_ATTR_FLAG_TRANSITIVE,
