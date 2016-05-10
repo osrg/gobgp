@@ -169,6 +169,13 @@ func (peer *Peer) processOutgoingPaths(paths, withdrawals []*table.Path) []*tabl
 	}
 
 	outgoing := make([]*table.Path, 0, len(paths))
+	// Note: multiple paths having the same prefix could exist the
+	// withdrawals list in the case of Route Server setup with
+	// import policies modifying paths. In such case, gobgp sends
+	// duplicated update messages; withdraw messages for the same
+	// prefix.
+	// However, currently we don't support local path for Route
+	// Server setup so this is NOT the case.
 	for _, path := range withdrawals {
 		if path.IsLocal() {
 			if _, ok := peer.fsm.rfMap[path.GetRouteFamily()]; ok {
