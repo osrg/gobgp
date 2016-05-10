@@ -200,7 +200,7 @@ func injectMrt(r string, filename string, count int, skip int) error {
 
 	idx := 0
 
-	ch := make(chan *api.ModPathsArguments, 1<<20)
+	ch := make(chan *api.InjectMrtRequest, 1<<20)
 
 	go func() {
 
@@ -288,7 +288,7 @@ func injectMrt(r string, filename string, count int, skip int) error {
 				}
 
 				if idx >= skip {
-					ch <- &api.ModPathsArguments{
+					ch <- &api.InjectMrtRequest{
 						Resource: resource,
 						Paths:    paths,
 					}
@@ -304,7 +304,7 @@ func injectMrt(r string, filename string, count int, skip int) error {
 		close(ch)
 	}()
 
-	stream, err := client.ModPaths(context.Background())
+	stream, err := client.InjectMrt(context.Background())
 	if err != nil {
 		return fmt.Errorf("failed to modpath: %s", err)
 	}
@@ -316,12 +316,9 @@ func injectMrt(r string, filename string, count int, skip int) error {
 		}
 	}
 
-	res, err := stream.CloseAndRecv()
+	_, err = stream.CloseAndRecv()
 	if err != nil {
 		return fmt.Errorf("failed to send: %s", err)
-	}
-	if res.Code != api.Error_SUCCESS {
-		return fmt.Errorf("error: code: %d, msg: %s", res.Code, res.Msg)
 	}
 	return nil
 }
@@ -402,63 +399,10 @@ func NewMrtCmd() *cobra.Command {
 	}
 	injectCmd.AddCommand(globalInjectCmd)
 
-	modMrt := func(op api.Operation, filename string) {
-		arg := &api.ModMrtArguments{
-			Operation: op,
-			Filename:  filename,
-		}
-		client.ModMrt(context.Background(), arg)
-	}
-
-	enableCmd := &cobra.Command{
-		Use: CMD_ENABLE,
-		Run: func(cmd *cobra.Command, args []string) {
-			if len(args) != 1 {
-				exitWithError(fmt.Errorf("usage: gobgp mrt update enable <filename>"))
-			}
-			modMrt(api.Operation_ADD, args[0])
-		},
-	}
-
-	disableCmd := &cobra.Command{
-		Use: CMD_DISABLE,
-		Run: func(cmd *cobra.Command, args []string) {
-			if len(args) != 0 {
-				exitWithError(fmt.Errorf("usage: gobgp mrt update disable"))
-			}
-			modMrt(api.Operation_DEL, "")
-		},
-	}
-
-	rotateCmd := &cobra.Command{
-		Use: CMD_ROTATE,
-		Run: func(cmd *cobra.Command, args []string) {
-			if len(args) != 1 {
-				exitWithError(fmt.Errorf("usage: gobgp mrt update rotate <filename>"))
-			}
-			modMrt(api.Operation_REPLACE, args[0])
-		},
-	}
-
-	restartCmd := &cobra.Command{
-		Use: CMD_RESET,
-		Run: func(cmd *cobra.Command, args []string) {
-			if len(args) > 0 {
-				exitWithError(fmt.Errorf("usage: gobgp mrt update reset"))
-			}
-			modMrt(api.Operation_REPLACE, "")
-		},
-	}
-
-	updateCmd := &cobra.Command{
-		Use: CMD_UPDATE,
-	}
-	updateCmd.AddCommand(enableCmd, disableCmd, restartCmd, rotateCmd)
-
 	mrtCmd := &cobra.Command{
 		Use: CMD_MRT,
 	}
-	mrtCmd.AddCommand(dumpCmd, injectCmd, updateCmd)
+	mrtCmd.AddCommand(dumpCmd, injectCmd)
 
 	return mrtCmd
 }

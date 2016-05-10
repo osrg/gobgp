@@ -384,7 +384,7 @@ func (p policies) Less(i, j int) bool {
 	return p[i].Name < p[j].Name
 }
 
-type roas []*gobgpapi.ROA
+type roas []*gobgpapi.Roa
 
 func (r roas) Len() int {
 	return len(r)

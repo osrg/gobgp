@@ -276,9 +276,7 @@ func (m *OpsManager) handleVrfUpdate(update ovsdb.TableUpdate) *server.GrpcReque
 		} else if _, ok := v.Old.Fields["bgp_routers"]; ok {
 			_, _, err := m.getBGPRouterUUID()
 			if err != nil {
-				return server.NewGrpcRequest(server.REQ_MOD_GLOBAL_CONFIG, "del", bgp.RouteFamily(0), &api.ModGlobalConfigArguments{
-					Operation: api.Operation_DEL,
-				})
+				return server.NewGrpcRequest(server.REQ_STOP_SERVER, "", bgp.RouteFamily(0), &api.StopServerRequest{})
 			}
 		}
 	}
@@ -309,8 +307,7 @@ func (m *OpsManager) handleBgpRouterUpdate(update ovsdb.TableUpdate) []*server.G
 					}).Debug("router-id is not configured yet")
 					return nil
 				}
-				reqs = append(reqs, server.NewGrpcRequest(server.REQ_MOD_GLOBAL_CONFIG, "add", bgp.RouteFamily(0), &api.ModGlobalConfigArguments{
-					Operation: api.Operation_ADD,
+				reqs = append(reqs, server.NewGrpcRequest(server.REQ_START_SERVER, "", bgp.RouteFamily(0), &api.StartServerRequest{
 					Global: &api.Global{
 						As:       asn,
 						RouterId: r,
@@ -322,8 +319,7 @@ func (m *OpsManager) handleBgpRouterUpdate(update ovsdb.TableUpdate) []*server.G
 				newNeighMap := v.New.Fields["bgp_neighbors"].(ovsdb.OvsMap).GoMap
 				for k, _ := range oldNeighMap {
 					if _, ok := newNeighMap[k]; !ok {
-						reqs = append(reqs, server.NewGrpcRequest(server.REQ_MOD_NEIGHBOR, "del", bgp.RouteFamily(0), &api.ModNeighborArguments{
-							Operation: api.Operation_DEL,
+						reqs = append(reqs, server.NewGrpcRequest(server.REQ_GRPC_DELETE_NEIGHBOR, "", bgp.RouteFamily(0), &api.DeleteNeighborRequest{
 							Peer: &api.Peer{
 								Conf: &api.PeerConf{
 									NeighborAddress: k.(string),
@@ -355,8 +351,7 @@ func (m *OpsManager) handleNeighborUpdate(update ovsdb.TableUpdate) []*server.Gr
 					}).Debug("remote-as is not configured yet")
 					continue
 				}
-				reqs = append(reqs, server.NewGrpcRequest(server.REQ_MOD_NEIGHBOR, "add", bgp.RouteFamily(0), &api.ModNeighborArguments{
-					Operation: api.Operation_ADD,
+				reqs = append(reqs, server.NewGrpcRequest(server.REQ_GRPC_ADD_NEIGHBOR, "", bgp.RouteFamily(0), &api.AddNeighborRequest{
 					Peer: &api.Peer{
 						Conf: &api.PeerConf{
 							NeighborAddress: addrs[idx].String(),
@@ -390,21 +385,17 @@ func (m *OpsManager) handleRouteUpdate(update ovsdb.TableUpdate) []*server.GrpcR
 				return nil
 			}
 			if isWithdraw {
-				reqs = append(reqs, server.NewGrpcRequest(server.REQ_MOD_PATH, "del", bgp.RouteFamily(0), &api.ModPathArguments{
-					Operation: api.Operation_DEL,
-					Resource:  api.Resource_GLOBAL,
-					Name:      "",
-					Path:      path,
+				reqs = append(reqs, server.NewGrpcRequest(server.REQ_DELETE_PATH, "", bgp.RouteFamily(0), &api.AddPathRequest{
+					Resource: api.Resource_GLOBAL,
+					Path:     path,
 				}))
 			} else {
 				if isFromGobgp {
 					return nil
 				}
-				reqs = append(reqs, server.NewGrpcRequest(server.REQ_MOD_PATH, "add", bgp.RouteFamily(0), &api.ModPathArguments{
-					Operation: api.Operation_ADD,
-					Resource:  api.Resource_GLOBAL,
-					Name:      "",
-					Path:      path,
+				reqs = append(reqs, server.NewGrpcRequest(server.REQ_ADD_PATH, "", bgp.RouteFamily(0), &api.AddPathRequest{
+					Resource: api.Resource_GLOBAL,
+					Path:     path,
 				}))
 			}
 		}
@@ -644,11 +635,11 @@ func (m *OpsManager) GobgpServe() error {
 			}).Error("grpc operation failed")
 		} else {
 			if monitorReady {
-				if grpcReq.RequestType == server.REQ_MOD_GLOBAL_CONFIG && grpcReq.Name == "del" {
+				if grpcReq.RequestType == server.REQ_STOP_SERVER {
 					monitorReady = false
 				}
 			} else {
-				if grpcReq.RequestType == server.REQ_MOD_GLOBAL_CONFIG && grpcReq.Name == "add" {
+				if grpcReq.RequestType == server.REQ_START_SERVER {
 					monitorReady = true
 					go m.GobgpMonitor(&monitorReady)
 				}

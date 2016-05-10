@@ -33,36 +33,32 @@ func TestModPolicyAssign(t *testing.T) {
 			RouterId: "1.1.1.1",
 		},
 	})
-	err := s.handleGrpcModPolicy(&GrpcRequest{
-		Data: &api.ModPolicyArguments{
-			Operation: api.Operation_ADD,
+	_, err := s.handleGrpcAddPolicy(&GrpcRequest{
+		Data: &api.AddPolicyRequest{
 			Policy: &api.Policy{
 				Name: "p1",
 			},
 		},
 	})
 	assert.Nil(err)
-	err = s.handleGrpcModPolicy(&GrpcRequest{
-		Data: &api.ModPolicyArguments{
-			Operation: api.Operation_ADD,
+	_, err = s.handleGrpcAddPolicy(&GrpcRequest{
+		Data: &api.AddPolicyRequest{
 			Policy: &api.Policy{
 				Name: "p2",
 			},
 		},
 	})
 	assert.Nil(err)
-	err = s.handleGrpcModPolicy(&GrpcRequest{
-		Data: &api.ModPolicyArguments{
-			Operation: api.Operation_ADD,
+	_, err = s.handleGrpcAddPolicy(&GrpcRequest{
+		Data: &api.AddPolicyRequest{
 			Policy: &api.Policy{
 				Name: "p3",
 			},
 		},
 	})
 	assert.Nil(err)
-	err = s.handleGrpcModPolicyAssignment(&GrpcRequest{
-		Data: &api.ModPolicyAssignmentArguments{
-			Operation: api.Operation_ADD,
+	_, err = s.handleGrpcAddPolicyAssignment(&GrpcRequest{
+		Data: &api.AddPolicyAssignmentRequest{
 			Assignment: &api.PolicyAssignment{
 				Type:     api.PolicyType_IMPORT,
 				Resource: api.Resource_GLOBAL,
@@ -72,9 +68,8 @@ func TestModPolicyAssign(t *testing.T) {
 	})
 	assert.Nil(err)
 
-	err = s.handleGrpcModPolicyAssignment(&GrpcRequest{
-		Data: &api.ModPolicyAssignmentArguments{
-			Operation: api.Operation_DEL,
+	_, err = s.handleGrpcDeletePolicyAssignment(&GrpcRequest{
+		Data: &api.DeletePolicyAssignmentRequest{
 			Assignment: &api.PolicyAssignment{
 				Type:     api.PolicyType_IMPORT,
 				Resource: api.Resource_GLOBAL,

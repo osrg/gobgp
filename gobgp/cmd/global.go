@@ -790,26 +790,30 @@ usage: %s rib %s match <MATCH_EXPR> then <THEN_EXPR> -a %%s
 		return err
 	}
 
-	arg := &api.ModPathArguments{
-		Operation: api.Operation_ADD,
-		Resource:  resource,
-		Name:      name,
-		Path:      path,
+	if modtype == CMD_ADD {
+		arg := &api.AddPathRequest{
+			Resource: resource,
+			VrfId:    name,
+			Path:     path,
+		}
+		_, err = client.AddPath(context.Background(), arg)
+	} else {
+		arg := &api.DeletePathRequest{
+			Resource: resource,
+			VrfId:    name,
+			Path:     path,
+		}
+		_, err = client.DeletePath(context.Background(), arg)
 	}
-
-	if modtype == CMD_DEL {
-		arg.Operation = api.Operation_DEL
-	}
-
-	_, err = client.ModPath(context.Background(), arg)
 	return err
 }
 
 func showGlobalConfig(args []string) error {
-	g, err := client.GetGlobalConfig(context.Background(), &api.Arguments{})
+	rsp, err := client.GetServer(context.Background(), &api.GetServerRequest{})
 	if err != nil {
 		return err
 	}
+	g := rsp.Global
 	if globalOpts.Json {
 		j, _ := json.Marshal(g)
 		fmt.Println(string(j))
@@ -859,8 +863,7 @@ func modGlobalConfig(args []string) error {
 			return err
 		}
 	}
-	_, err = client.ModGlobalConfig(context.Background(), &api.ModGlobalConfigArguments{
-		Operation: api.Operation_ADD,
+	_, err = client.StartServer(context.Background(), &api.StartServerRequest{
 		Global: &api.Global{
 			As:              uint32(asn),
 			RouterId:        id.String(),
@@ -920,12 +923,11 @@ func NewGlobalCmd() *cobra.Command {
 					if err != nil {
 						exitWithError(err)
 					}
-					arg := &api.ModPathArguments{
-						Operation: api.Operation_DEL_ALL,
-						Resource:  api.Resource_GLOBAL,
-						Family:    uint32(family),
+					arg := &api.DeletePathRequest{
+						Resource: api.Resource_GLOBAL,
+						Family:   uint32(family),
 					}
-					_, err = client.ModPath(context.Background(), arg)
+					_, err = client.DeletePath(context.Background(), arg)
 					if err != nil {
 						exitWithError(err)
 					}
@@ -982,9 +984,7 @@ func NewGlobalCmd() *cobra.Command {
 	allCmd := &cobra.Command{
 		Use: CMD_ALL,
 		Run: func(cmd *cobra.Command, args []string) {
-			_, err := client.ModGlobalConfig(context.Background(), &api.ModGlobalConfigArguments{
-				Operation: api.Operation_DEL_ALL,
-			})
+			_, err := client.StopServer(context.Background(), &api.StopServerRequest{})
 			if err != nil {
 				exitWithError(err)
 			}
