@@ -2410,6 +2410,9 @@ func (server *BgpServer) handleDelNeighbor(c *config.Neighbor, code, subcode uin
 		SetTcpMD5SigSockopts(l, addr, "")
 	}
 	log.Info("Delete a peer configuration for ", addr)
+
+	n.fsm.sendNotification(code, subcode, nil, "")
+
 	go func(addr string) {
 		t := time.AfterFunc(time.Minute*5, func() { log.Fatal("failed to free the fsm.h.t for ", addr) })
 		n.fsm.h.t.Kill(nil)
@@ -2422,9 +2425,6 @@ func (server *BgpServer) handleDelNeighbor(c *config.Neighbor, code, subcode uin
 	}(addr)
 	delete(server.neighborMap, addr)
 	m := server.dropPeerAllRoutes(n, n.configuredRFlist())
-
-	n.fsm.sendNotification(code, subcode, nil, "")
-
 	return m, nil
 }
 
