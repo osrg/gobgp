@@ -164,3 +164,30 @@ class ExaBGPContainer(BGPContainer):
             if not _is_running():
                 raise RuntimeError()
         try_several_times(_reload)
+
+
+class RawExaBGPContainer(ExaBGPContainer):
+    def __init__(self, name, config, ctn_image_name='osrg/exabgp',
+                 exabgp_path=''):
+        asn = None
+        router_id = None
+        for line in config.split('\n'):
+            line = line.strip()
+            if line.startswith('local-as'):
+                asn = int(line[len('local-as'):].strip('; '))
+            if line.startswith('router-id'):
+                router_id = line[len('router-id'):].strip('; ')
+        if not asn:
+            raise Exception('asn not in exabgp config')
+        if not router_id:
+            raise Exception('router-id not in exabgp config')
+        self.config = config
+
+        super(RawExaBGPContainer, self).__init__(name, asn, router_id,
+                                                 ctn_image_name, exabgp_path)
+
+    def create_config(self):
+        with open('{0}/exabgpd.conf'.format(self.config_dir), 'w') as f:
+            print colors.yellow('[{0}\'s new config]'.format(self.name))
+            print colors.yellow(self.config)
+            f.write(self.config)
