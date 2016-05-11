@@ -247,13 +247,14 @@ func (fsm *FSM) LocalHostPort() (string, uint16) {
 	return hostport(fsm.conn.LocalAddr())
 }
 
-func (fsm *FSM) sendNotificatonFromErrorMsg(e *bgp.MessageError) error {
+func (fsm *FSM) sendNotificationFromErrorMsg(e *bgp.MessageError) error {
 	if fsm.h != nil && fsm.h.conn != nil {
 		m := bgp.NewBGPNotificationMessage(e.TypeCode, e.SubTypeCode, e.Data)
 		b, _ := m.Serialize()
 		_, err := fsm.h.conn.Write(b)
-		if err != nil {
+		if err == nil {
 			fsm.bgpMessageStateUpdate(m.Header.Type, false)
+			fsm.h.sentNotification = bgp.NewNotificationErrorCode(e.TypeCode, e.SubTypeCode).String()
 		}
 		fsm.h.conn.Close()
 		log.WithFields(log.Fields{
@@ -268,7 +269,7 @@ func (fsm *FSM) sendNotificatonFromErrorMsg(e *bgp.MessageError) error {
 
 func (fsm *FSM) sendNotification(code, subType uint8, data []byte, msg string) error {
 	e := bgp.NewMessageError(code, subType, data, msg)
-	return fsm.sendNotificatonFromErrorMsg(e.(*bgp.MessageError))
+	return fsm.sendNotificationFromErrorMsg(e.(*bgp.MessageError))
 }
 
 func (fsm *FSM) connectLoop() error {
@@ -364,6 +365,7 @@ type FSMHandler struct {
 	stateCh          chan *FsmMsg
 	outgoing         chan *FsmOutgoingMsg
 	holdTimerResetCh chan bool
+	sentNotification string
 }
 
 func NewFSMHandler(fsm *FSM, incoming *channels.InfiniteChannel, stateCh chan *FsmMsg, outgoing chan *FsmOutgoingMsg) *FSMHandler {
@@ -777,7 +779,7 @@ func (h *FSMHandler) opensent() (bgp.FSMState, FsmStateReason) {
 					body := m.Body.(*bgp.BGPOpen)
 					err := bgp.ValidateOpenMsg(body, fsm.pConf.Config.PeerAs)
 					if err != nil {
-						fsm.sendNotificatonFromErrorMsg(err.(*bgp.MessageError))
+						fsm.sendNotificationFromErrorMsg(err.(*bgp.MessageError))
 						return bgp.BGP_FSM_IDLE, FSM_INVALID_MSG
 					}
 					fsm.peerInfo.ID = body.ID
@@ -847,7 +849,7 @@ func (h *FSMHandler) opensent() (bgp.FSMState, FsmStateReason) {
 					return bgp.BGP_FSM_IDLE, FSM_INVALID_MSG
 				}
 			case *bgp.MessageError:
-				fsm.sendNotificatonFromErrorMsg(e.MsgData.(*bgp.MessageError))
+				fsm.sendNotificationFromErrorMsg(e.MsgData.(*bgp.MessageError))
 				return bgp.BGP_FSM_IDLE, FSM_INVALID_MSG
 			default:
 				log.WithFields(log.Fields{
@@ -958,7 +960,7 @@ func (h *FSMHandler) openconfirm() (bgp.FSMState, FsmStateReason) {
 				h.conn.Close()
 				return bgp.BGP_FSM_IDLE, FSM_INVALID_MSG
 			case *bgp.MessageError:
-				fsm.sendNotificatonFromErrorMsg(e.MsgData.(*bgp.MessageError))
+				fsm.sendNotificationFromErrorMsg(e.MsgData.(*bgp.MessageError))
 				return bgp.BGP_FSM_IDLE, FSM_INVALID_MSG
 			default:
 				log.WithFields(log.Fields{
@@ -1221,11 +1223,17 @@ func (h *FSMHandler) loop() error {
 	}
 
 	if oldState == bgp.BGP_FSM_ESTABLISHED {
+		// The main goroutine sent the notificaiton due to
+		// deconfiguration or something.
+		reason := fsm.reason
+		if fsm.h.sentNotification != "" {
+			reason = FsmStateReason(fmt.Sprintf("%s %s", FSM_NOTIFICATION_SENT, fsm.h.sentNotification))
+		}
 		log.WithFields(log.Fields{
 			"Topic":  "Peer",
 			"Key":    fsm.pConf.Config.NeighborAddress,
 			"State":  fsm.state.String(),
-			"Reason": fsm.reason,
+			"Reason": reason,
 		}).Info("Peer Down")
 	}
 
