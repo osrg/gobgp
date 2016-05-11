@@ -127,7 +127,10 @@ func (s *Server) GetNeighbor(ctx context.Context, arg *api.GetNeighborRequest) (
 	req := NewGrpcRequest(REQ_NEIGHBOR, "", rf, nil)
 	s.bgpServerCh <- req
 	res := <-req.ResponseCh
-	return res.Data.(*api.GetNeighborResponse), res.Err()
+	if res.Err() != nil {
+		return nil, res.Err()
+	}
+	return res.Data.(*api.GetNeighborResponse), nil
 }
 
 func handleMultipleResponses(req *GrpcRequest, f func(*GrpcResponse) error) error {
@@ -218,10 +221,10 @@ func (s *Server) neighbor(reqType int, address string, d interface{}) (interface
 
 func (s *Server) ResetNeighbor(ctx context.Context, arg *api.ResetNeighborRequest) (*api.ResetNeighborResponse, error) {
 	d, err := s.neighbor(REQ_NEIGHBOR_RESET, arg.Address, arg)
-	if err == nil {
-		return d.(*api.ResetNeighborResponse), err
+	if err != nil {
+		return nil, err
 	}
-	return nil, err
+	return d.(*api.ResetNeighborResponse), err
 }
 
 func (s *Server) SoftResetNeighbor(ctx context.Context, arg *api.SoftResetNeighborRequest) (*api.SoftResetNeighborResponse, error) {
@@ -233,53 +236,65 @@ func (s *Server) SoftResetNeighbor(ctx context.Context, arg *api.SoftResetNeighb
 		op = REQ_NEIGHBOR_SOFT_RESET_OUT
 	}
 	d, err := s.neighbor(op, arg.Address, arg)
-	if err == nil {
-		return d.(*api.SoftResetNeighborResponse), err
+	if err != nil {
+		return nil, err
 	}
-	return nil, err
+	return d.(*api.SoftResetNeighborResponse), err
 }
 
 func (s *Server) ShutdownNeighbor(ctx context.Context, arg *api.ShutdownNeighborRequest) (*api.ShutdownNeighborResponse, error) {
 	d, err := s.neighbor(REQ_NEIGHBOR_SHUTDOWN, arg.Address, arg)
-	if err == nil {
-		return d.(*api.ShutdownNeighborResponse), err
+	if err != nil {
+		return nil, err
 	}
-	return nil, err
+	return d.(*api.ShutdownNeighborResponse), err
 }
 
 func (s *Server) EnableNeighbor(ctx context.Context, arg *api.EnableNeighborRequest) (*api.EnableNeighborResponse, error) {
 	d, err := s.neighbor(REQ_NEIGHBOR_ENABLE, arg.Address, arg)
-	if err == nil {
-		return d.(*api.EnableNeighborResponse), err
+	if err != nil {
+		return nil, err
 	}
-	return nil, err
+	return d.(*api.EnableNeighborResponse), err
 }
 
 func (s *Server) DisableNeighbor(ctx context.Context, arg *api.DisableNeighborRequest) (*api.DisableNeighborResponse, error) {
 	d, err := s.neighbor(REQ_NEIGHBOR_DISABLE, arg.Address, arg)
-	if err == nil {
-		return d.(*api.DisableNeighborResponse), err
+	if err != nil {
+		return nil, err
 	}
-	return nil, err
+	return d.(*api.DisableNeighborResponse), err
 }
 
 func (s *Server) AddPath(ctx context.Context, arg *api.AddPathRequest) (*api.AddPathResponse, error) {
 	d, err := s.get(REQ_ADD_PATH, arg)
+	if err != nil {
+		return nil, err
+	}
 	return d.(*api.AddPathResponse), err
 }
 
 func (s *Server) DeletePath(ctx context.Context, arg *api.DeletePathRequest) (*api.DeletePathResponse, error) {
 	d, err := s.get(REQ_DELETE_PATH, arg)
+	if err != nil {
+		return nil, err
+	}
 	return d.(*api.DeletePathResponse), err
 }
 
 func (s *Server) EnableMrt(ctx context.Context, arg *api.EnableMrtRequest) (*api.EnableMrtResponse, error) {
 	d, err := s.get(REQ_ENABLE_MRT, arg)
+	if err != nil {
+		return nil, err
+	}
 	return d.(*api.EnableMrtResponse), err
 }
 
 func (s *Server) DisableMrt(ctx context.Context, arg *api.DisableMrtRequest) (*api.DisableMrtResponse, error) {
 	d, err := s.get(REQ_DISABLE_MRT, arg)
+	if err != nil {
+		return nil, err
+	}
 	return d.(*api.DisableMrtResponse), err
 }
 
@@ -311,46 +326,73 @@ func (s *Server) InjectMrt(stream api.GobgpApi_InjectMrtServer) error {
 
 func (s *Server) AddBmp(ctx context.Context, arg *api.AddBmpRequest) (*api.AddBmpResponse, error) {
 	d, err := s.get(REQ_ADD_BMP, arg)
+	if err != nil {
+		return nil, err
+	}
 	return d.(*api.AddBmpResponse), err
 }
 
 func (s *Server) DeleteBmp(ctx context.Context, arg *api.DeleteBmpRequest) (*api.DeleteBmpResponse, error) {
 	d, err := s.get(REQ_DELETE_BMP, arg)
+	if err != nil {
+		return nil, err
+	}
 	return d.(*api.DeleteBmpResponse), err
 }
 
 func (s *Server) ValidateRib(ctx context.Context, arg *api.ValidateRibRequest) (*api.ValidateRibResponse, error) {
 	d, err := s.get(REQ_VALIDATE_RIB, arg)
+	if err != nil {
+		return nil, err
+	}
 	return d.(*api.ValidateRibResponse), err
 }
 
 func (s *Server) AddRpki(ctx context.Context, arg *api.AddRpkiRequest) (*api.AddRpkiResponse, error) {
 	d, err := s.get(REQ_ADD_RPKI, arg)
+	if err != nil {
+		return nil, err
+	}
 	return d.(*api.AddRpkiResponse), err
 }
 
 func (s *Server) DeleteRpki(ctx context.Context, arg *api.DeleteRpkiRequest) (*api.DeleteRpkiResponse, error) {
 	d, err := s.get(REQ_DELETE_RPKI, arg)
+	if err != nil {
+		return nil, err
+	}
 	return d.(*api.DeleteRpkiResponse), err
 }
 
 func (s *Server) EnableRpki(ctx context.Context, arg *api.EnableRpkiRequest) (*api.EnableRpkiResponse, error) {
 	d, err := s.get(REQ_ENABLE_RPKI, arg)
+	if err != nil {
+		return nil, err
+	}
 	return d.(*api.EnableRpkiResponse), err
 }
 
 func (s *Server) DisableRpki(ctx context.Context, arg *api.DisableRpkiRequest) (*api.DisableRpkiResponse, error) {
 	d, err := s.get(REQ_DISABLE_RPKI, arg)
+	if err != nil {
+		return nil, err
+	}
 	return d.(*api.DisableRpkiResponse), err
 }
 
 func (s *Server) ResetRpki(ctx context.Context, arg *api.ResetRpkiRequest) (*api.ResetRpkiResponse, error) {
 	d, err := s.get(REQ_RESET_RPKI, arg)
+	if err != nil {
+		return nil, err
+	}
 	return d.(*api.ResetRpkiResponse), err
 }
 
 func (s *Server) SoftResetRpki(ctx context.Context, arg *api.SoftResetRpkiRequest) (*api.SoftResetRpkiResponse, error) {
 	d, err := s.get(REQ_SOFT_RESET_RPKI, arg)
+	if err != nil {
+		return nil, err
+	}
 	return d.(*api.SoftResetRpkiResponse), err
 }
 
@@ -358,6 +400,9 @@ func (s *Server) GetRpki(ctx context.Context, arg *api.GetRpkiRequest) (*api.Get
 	req := NewGrpcRequest(REQ_GET_RPKI, "", bgp.RouteFamily(arg.Family), nil)
 	s.bgpServerCh <- req
 	res := <-req.ResponseCh
+	if res.Err() != nil {
+		return nil, res.Err()
+	}
 	return res.Data.(*api.GetRpkiResponse), res.Err()
 }
 
@@ -365,6 +410,9 @@ func (s *Server) GetRoa(ctx context.Context, arg *api.GetRoaRequest) (*api.GetRo
 	req := NewGrpcRequest(REQ_ROA, "", bgp.RouteFamily(arg.Family), nil)
 	s.bgpServerCh <- req
 	res := <-req.ResponseCh
+	if res.Err() != nil {
+		return nil, res.Err()
+	}
 	return res.Data.(*api.GetRoaResponse), res.Err()
 }
 
@@ -372,6 +420,9 @@ func (s *Server) GetVrf(ctx context.Context, arg *api.GetVrfRequest) (*api.GetVr
 	req := NewGrpcRequest(REQ_GET_VRF, "", bgp.RouteFamily(0), nil)
 	s.bgpServerCh <- req
 	res := <-req.ResponseCh
+	if res.Err() != nil {
+		return nil, res.Err()
+	}
 	return res.Data.(*api.GetVrfResponse), res.Err()
 }
 
@@ -384,116 +435,185 @@ func (s *Server) get(typ int, d interface{}) (interface{}, error) {
 
 func (s *Server) AddVrf(ctx context.Context, arg *api.AddVrfRequest) (*api.AddVrfResponse, error) {
 	d, err := s.get(REQ_ADD_VRF, arg)
+	if err != nil {
+		return nil, err
+	}
 	return d.(*api.AddVrfResponse), err
 }
 
 func (s *Server) DeleteVrf(ctx context.Context, arg *api.DeleteVrfRequest) (*api.DeleteVrfResponse, error) {
 	d, err := s.get(REQ_DELETE_VRF, arg)
+	if err != nil {
+		return nil, err
+	}
 	return d.(*api.DeleteVrfResponse), err
 }
 
 func (s *Server) AddNeighbor(ctx context.Context, arg *api.AddNeighborRequest) (*api.AddNeighborResponse, error) {
 	d, err := s.get(REQ_GRPC_ADD_NEIGHBOR, arg)
+	if err != nil {
+		return nil, err
+	}
 	return d.(*api.AddNeighborResponse), err
 }
 
 func (s *Server) DeleteNeighbor(ctx context.Context, arg *api.DeleteNeighborRequest) (*api.DeleteNeighborResponse, error) {
 	d, err := s.get(REQ_GRPC_DELETE_NEIGHBOR, arg)
+	if err != nil {
+		return nil, err
+	}
 	return d.(*api.DeleteNeighborResponse), err
 }
 
 func (s *Server) GetDefinedSet(ctx context.Context, arg *api.GetDefinedSetRequest) (*api.GetDefinedSetResponse, error) {
 	d, err := s.get(REQ_GET_DEFINED_SET, arg)
+	if err != nil {
+		return nil, err
+	}
 	return d.(*api.GetDefinedSetResponse), err
 }
 
 func (s *Server) AddDefinedSet(ctx context.Context, arg *api.AddDefinedSetRequest) (*api.AddDefinedSetResponse, error) {
 	d, err := s.get(REQ_ADD_DEFINED_SET, arg)
+	if err != nil {
+		return nil, err
+	}
 	return d.(*api.AddDefinedSetResponse), err
 }
 
 func (s *Server) DeleteDefinedSet(ctx context.Context, arg *api.DeleteDefinedSetRequest) (*api.DeleteDefinedSetResponse, error) {
 	d, err := s.get(REQ_DELETE_DEFINED_SET, arg)
+	if err != nil {
+		return nil, err
+	}
 	return d.(*api.DeleteDefinedSetResponse), err
 }
 
 func (s *Server) ReplaceDefinedSet(ctx context.Context, arg *api.ReplaceDefinedSetRequest) (*api.ReplaceDefinedSetResponse, error) {
 	d, err := s.get(REQ_REPLACE_DEFINED_SET, arg)
+	if err != nil {
+		return nil, err
+	}
 	return d.(*api.ReplaceDefinedSetResponse), err
 }
 
 func (s *Server) GetStatement(ctx context.Context, arg *api.GetStatementRequest) (*api.GetStatementResponse, error) {
 	d, err := s.get(REQ_GET_STATEMENT, arg)
+	if err != nil {
+		return nil, err
+	}
 	return d.(*api.GetStatementResponse), err
 }
 
 func (s *Server) AddStatement(ctx context.Context, arg *api.AddStatementRequest) (*api.AddStatementResponse, error) {
 	d, err := s.get(REQ_ADD_STATEMENT, arg)
+	if err != nil {
+		return nil, err
+	}
 	return d.(*api.AddStatementResponse), err
 }
 
 func (s *Server) DeleteStatement(ctx context.Context, arg *api.DeleteStatementRequest) (*api.DeleteStatementResponse, error) {
 	d, err := s.get(REQ_DELETE_STATEMENT, arg)
+	if err != nil {
+		return nil, err
+	}
 	return d.(*api.DeleteStatementResponse), err
 }
 
 func (s *Server) ReplaceStatement(ctx context.Context, arg *api.ReplaceStatementRequest) (*api.ReplaceStatementResponse, error) {
 	d, err := s.get(REQ_REPLACE_STATEMENT, arg)
+	if err != nil {
+		return nil, err
+	}
 	return d.(*api.ReplaceStatementResponse), err
 }
 
 func (s *Server) GetPolicy(ctx context.Context, arg *api.GetPolicyRequest) (*api.GetPolicyResponse, error) {
 	d, err := s.get(REQ_GET_POLICY, arg)
+	if err != nil {
+		return nil, err
+	}
 	return d.(*api.GetPolicyResponse), err
 }
 
 func (s *Server) AddPolicy(ctx context.Context, arg *api.AddPolicyRequest) (*api.AddPolicyResponse, error) {
 	d, err := s.get(REQ_ADD_POLICY, arg)
+	if err != nil {
+		return nil, err
+	}
 	return d.(*api.AddPolicyResponse), err
 }
 
 func (s *Server) DeletePolicy(ctx context.Context, arg *api.DeletePolicyRequest) (*api.DeletePolicyResponse, error) {
 	d, err := s.get(REQ_DELETE_POLICY, arg)
+	if err != nil {
+		return nil, err
+	}
 	return d.(*api.DeletePolicyResponse), err
 }
 
 func (s *Server) ReplacePolicy(ctx context.Context, arg *api.ReplacePolicyRequest) (*api.ReplacePolicyResponse, error) {
 	d, err := s.get(REQ_REPLACE_POLICY, arg)
+	if err != nil {
+		return nil, err
+	}
 	return d.(*api.ReplacePolicyResponse), err
 }
 
 func (s *Server) GetPolicyAssignment(ctx context.Context, arg *api.GetPolicyAssignmentRequest) (*api.GetPolicyAssignmentResponse, error) {
 	d, err := s.get(REQ_GET_POLICY_ASSIGNMENT, arg)
+	if err != nil {
+		return nil, err
+	}
 	return d.(*api.GetPolicyAssignmentResponse), err
 }
 
 func (s *Server) AddPolicyAssignment(ctx context.Context, arg *api.AddPolicyAssignmentRequest) (*api.AddPolicyAssignmentResponse, error) {
 	d, err := s.get(REQ_ADD_POLICY_ASSIGNMENT, arg)
+	if err != nil {
+		return nil, err
+	}
 	return d.(*api.AddPolicyAssignmentResponse), err
 }
 
 func (s *Server) DeletePolicyAssignment(ctx context.Context, arg *api.DeletePolicyAssignmentRequest) (*api.DeletePolicyAssignmentResponse, error) {
 	d, err := s.get(REQ_DELETE_POLICY_ASSIGNMENT, arg)
+	if err != nil {
+		return nil, err
+	}
 	return d.(*api.DeletePolicyAssignmentResponse), err
 }
 
 func (s *Server) ReplacePolicyAssignment(ctx context.Context, arg *api.ReplacePolicyAssignmentRequest) (*api.ReplacePolicyAssignmentResponse, error) {
 	d, err := s.get(REQ_REPLACE_POLICY_ASSIGNMENT, arg)
+	if err != nil {
+		return nil, err
+	}
 	return d.(*api.ReplacePolicyAssignmentResponse), err
 }
 
 func (s *Server) GetServer(ctx context.Context, arg *api.GetServerRequest) (*api.GetServerResponse, error) {
 	d, err := s.get(REQ_GET_SERVER, arg)
+	if err != nil {
+		return nil, err
+	}
 	return d.(*api.GetServerResponse), err
 }
 
 func (s *Server) StartServer(ctx context.Context, arg *api.StartServerRequest) (*api.StartServerResponse, error) {
 	d, err := s.get(REQ_START_SERVER, arg)
+	if err != nil {
+		return nil, err
+	}
 	return d.(*api.StartServerResponse), err
 }
 
 func (s *Server) StopServer(ctx context.Context, arg *api.StopServerRequest) (*api.StopServerResponse, error) {
 	d, err := s.get(REQ_STOP_SERVER, arg)
+	if err != nil {
+		return nil, err
+	}
 	return d.(*api.StopServerResponse), err
 }
 
