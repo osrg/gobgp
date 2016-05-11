@@ -224,6 +224,12 @@ class Container(object):
             return int(local(cmd, capture=True))
         return -1
 
+    def start_tcpdump(self, interface=None, filename=None):
+        if not interface:
+            interface = "eth0"
+        if not filename:
+            filename = "{0}/{1}.dump".format(self.shared_volumes[0][1], interface)
+        self.local("tcpdump -i {0} -w {1}".format(interface, filename), detach=True)
 
 class BGPContainer(Container):
 
