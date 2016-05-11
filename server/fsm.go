@@ -1075,20 +1075,6 @@ func (h *FSMHandler) sendMessageloop() error {
 	for {
 		select {
 		case <-h.t.Dying():
-			// a) if a configuration is deleted, we need
-			// to send notification before we die.
-			//
-			// b) if a recv goroutin found that the
-			// connection is closed and tried to kill us,
-			// we need to die immediately. Otherwise fms
-			// doesn't go to idle.
-			//
-			// we always try to send. in case b), the
-			// connection was already closed so it
-			// correctly works in both cases.
-			if h.fsm.state == bgp.BGP_FSM_ESTABLISHED {
-				send(bgp.NewBGPNotificationMessage(bgp.BGP_ERROR_CEASE, bgp.BGP_ERROR_SUB_PEER_DECONFIGURED, nil))
-			}
 			return nil
 		case m := <-h.outgoing:
 			for _, msg := range table.CreateUpdateMsgFromPaths(m.Paths) {
