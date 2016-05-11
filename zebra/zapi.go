@@ -302,9 +302,9 @@ func (c *Client) Send(m *Message) {
 		}
 	}()
 	log.WithFields(log.Fields{
-		"Topic":   "Zebra",
-		"Header":  m.Header,
-		"Body":    m.Body,
+		"Topic":  "Zebra",
+		"Header": m.Header,
+		"Body":   m.Body,
 	}).Debug("send command to zebra")
 	c.outgoing <- m
 }
