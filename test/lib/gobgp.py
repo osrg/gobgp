@@ -16,6 +16,7 @@
 from base import *
 import json
 import toml
+import yaml
 from itertools import chain
 from threading import Thread
 import socket
@@ -31,8 +32,8 @@ class GoBGPContainer(BGPContainer):
     SHARED_VOLUME = '/root/shared_volume'
     QUAGGA_VOLUME = '/etc/quagga'
 
-    def __init__(self, name, asn, router_id, ctn_image_name='gobgp',
-                 log_level='debug', zebra=False):
+    def __init__(self, name, asn, router_id, ctn_image_name='osrg/gobgp',
+                 log_level='debug', zebra=False, config_format='toml'):
         super(GoBGPContainer, self).__init__(name, asn, router_id,
                                              ctn_image_name)
         self.shared_volumes.append((self.config_dir, self.SHARED_VOLUME))
@@ -43,12 +44,13 @@ class GoBGPContainer(BGPContainer):
         self.bgp_set = None
         self.default_policy = None
         self.zebra = zebra
+        self.config_format = config_format
 
     def _start_gobgp(self, graceful_restart=False):
         c = CmdBuffer()
         c << '#!/bin/bash'
-        c << '/go/bin/gobgpd -f {0}/gobgpd.conf -l {1} -p {2} > ' \
-             '{0}/gobgpd.log 2>&1'.format(self.SHARED_VOLUME, self.log_level, '-r' if graceful_restart else '')
+        c << '/go/bin/gobgpd -f {0}/gobgpd.conf -l {1} -p {2} -t {3} > ' \
+             '{0}/gobgpd.log 2>&1'.format(self.SHARED_VOLUME, self.log_level, '-r' if graceful_restart else '', self.config_format)
 
         cmd = 'echo "{0:s}" > {1}/start.sh'.format(c, self.config_dir)
         local(cmd, capture=True)
@@ -328,8 +330,16 @@ class GoBGPContainer(BGPContainer):
 
         with open('{0}/gobgpd.conf'.format(self.config_dir), 'w') as f:
             print colors.yellow('[{0}\'s new config]'.format(self.name))
-            print colors.yellow(indent(toml.dumps(config)))
-            f.write(toml.dumps(config))
+            if self.config_format is 'toml':
+                raw = toml.dumps(config)
+            elif self.config_format is 'yaml':
+                raw = yaml.dump(config)
+            elif self.config_format is 'json':
+                raw = json.dumps(config)
+            else:
+                raise Exception('invalid config_format {0}'.format(self.config_format))
+            print colors.yellow(indent(raw))
+            f.write(raw)
 
     def _create_config_zebra(self):
         c = CmdBuffer()
@@ -372,3 +382,27 @@ class GoBGPContainer(BGPContainer):
             else:
                 raise Exception('unsupported route faily: {0}'.format(rf))
             self.local(cmd)
+
+
+class RawGoBGPContainer(GoBGPContainer):
+    def __init__(self, name, config, ctn_image_name='osrg/gobgp',
+                 log_level='debug', zebra=False, config_format='yaml'):
+        if config_format is 'toml':
+            d = toml.loads(config)
+        elif config_format is 'yaml':
+            d = yaml.load(config)
+        elif config_format is 'json':
+            d = json.loads(config)
+        else:
+            raise Exception('invalid config format {0}'.format(config_format))
+        asn = d['global']['config']['as']
+        router_id = d['global']['config']['router-id']
+        self.config = config
+        super(RawGoBGPContainer, self).__init__(name, asn, router_id,
+                                                ctn_image_name, log_level,
+                                                zebra, config_format)
+    def create_config(self):
+        with open('{0}/gobgpd.conf'.format(self.config_dir), 'w') as f:
+            print colors.yellow('[{0}\'s new config]'.format(self.name))
+            print colors.yellow(indent(self.config))
+            f.write(self.config)
