@@ -91,7 +91,7 @@ func (adj *AdjRib) PathList(rfList []bgp.RouteFamily, accepted bool) []*Path {
 	pathList := make([]*Path, 0, adj.Count(rfList))
 	for _, rf := range rfList {
 		for _, rr := range adj.table[rf] {
-			if accepted && rr.Filtered(adj.id) > POLICY_DIRECTION_NONE {
+			if accepted && rr.Filtered(adj.id) == POLICY_DIRECTION_IN {
 				continue
 			}
 			pathList = append(pathList, rr)
