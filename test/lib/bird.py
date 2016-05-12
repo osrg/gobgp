@@ -76,3 +76,28 @@ class BirdContainer(BGPContainer):
             if not _is_running():
                 raise RuntimeError()
         try_several_times(_reload)
+
+
+class RawBirdContainer(BirdContainer):
+    def __init__(self, name, config, ctn_image_name='osrg/bird'):
+        asn = None
+        router_id = None
+        for line in config.split('\n'):
+            line = line.strip()
+            if line.startswith('local as'):
+                asn = int(line[len('local as'):].strip('; '))
+            if line.startswith('router id'):
+                router_id = line[len('router id'):].strip('; ')
+        if not asn:
+            raise Exception('asn not in bird config')
+        if not router_id:
+            raise Exception('router-id not in bird config')
+        self.config = config
+        super(RawBirdContainer, self).__init__(name, asn, router_id,
+                                               ctn_image_name)
+
+    def create_config(self):
+        with open('{0}/bird.conf'.format(self.config_dir), 'w') as f:
+            print colors.yellow('[{0}\'s new config]'.format(self.name))
+            print colors.yellow(indent(self.config))
+            f.writelines(self.config)
