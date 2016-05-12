@@ -666,25 +666,53 @@ func compareByMED(path1, path2 *Path) *Path {
 	//	RFC says lower MED is preferred over higher MED value.
 	//  compare MED among not only same AS path but also all path,
 	//  like bgp always-compare-med
-	log.Debugf("enter compareByMED")
-	getMed := func(path *Path) uint32 {
-		attribute := path.getPathAttr(bgp.BGP_ATTR_TYPE_MULTI_EXIT_DISC)
-		if attribute == nil {
+
+	isInternal := func() bool { return path1.GetAsPathLen() == 0 && path2.GetAsPathLen() == 0 }()
+
+	isSameAS := func() bool {
+		leftmostAS := func(path *Path) uint32 {
+			if aspath := path.GetAsPath(); aspath != nil {
+				asPathParam := aspath.Value
+				for i := len(asPathParam) - 1; i >= 0; i-- {
+					asPath := asPathParam[i].(*bgp.As4PathParam)
+					if asPath.Num == 0 {
+						continue
+					}
+					if asPath.Type == bgp.BGP_ASPATH_ATTR_TYPE_CONFED_SET || asPath.Type == bgp.BGP_ASPATH_ATTR_TYPE_CONFED_SEQ {
+						continue
+					}
+					return asPath.AS[asPath.Num-1]
+				}
+			}
 			return 0
 		}
-		med := attribute.(*bgp.PathAttributeMultiExitDisc).Value
-		return med
-	}
+		return leftmostAS(path1) == leftmostAS(path2)
+	}()
 
-	med1 := getMed(path1)
-	med2 := getMed(path2)
-	log.Debugf("compareByMED -- med1: %d, med2: %d", med1, med2)
-	if med1 == med2 {
+	if SelectionOptions.AlwaysCompareMed || isInternal || isSameAS {
+		log.Debugf("enter compareByMED")
+		getMed := func(path *Path) uint32 {
+			attribute := path.getPathAttr(bgp.BGP_ATTR_TYPE_MULTI_EXIT_DISC)
+			if attribute == nil {
+				return 0
+			}
+			med := attribute.(*bgp.PathAttributeMultiExitDisc).Value
+			return med
+		}
+
+		med1 := getMed(path1)
+		med2 := getMed(path2)
+		log.Debugf("compareByMED -- med1: %d, med2: %d", med1, med2)
+		if med1 == med2 {
+			return nil
+		} else if med1 < med2 {
+			return path1
+		}
+		return path2
+	} else {
+		log.Debugf("skip compareByMED %v %v %v", SelectionOptions.AlwaysCompareMed, isInternal, isSameAS)
 		return nil
-	} else if med1 < med2 {
-		return path1
 	}
-	return path2
 }
 
 func compareByASNumber(path1, path2 *Path) *Path {
