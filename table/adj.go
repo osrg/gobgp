@@ -50,7 +50,7 @@ func (adj *AdjRib) Update(pathList []*Path) {
 		if path.IsWithdraw {
 			if found {
 				delete(adj.table[rf], key)
-				if old.Filtered(adj.id) == POLICY_DIRECTION_NONE {
+				if old.Filtered(adj.id) != POLICY_DIRECTION_IN {
 					adj.accepted[rf]--
 				}
 			}
