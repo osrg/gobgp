@@ -173,13 +173,15 @@ class GoBGPContainer(BGPContainer):
     def get_adj_rib_out(self, peer, prefix='', rf='ipv4'):
         return self._get_adj_rib('out', peer, prefix, rf)
 
-    def get_neighbor_state(self, peer):
+    def get_neighbor(self, peer):
         if peer not in self.peers:
             raise Exception('not found peer {0}'.format(peer.router_id))
         peer_addr = self.peers[peer]['neigh_addr'].split('/')[0]
         cmd = 'gobgp -j neighbor {0}'.format(peer_addr)
-        output = self.local(cmd, capture=True)
-        return json.loads(output)['info']['bgp_state']
+        return json.loads(self.local(cmd, capture=True))
+
+    def get_neighbor_state(self, peer):
+        return self.get_neighbor(peer)['info']['bgp_state']
 
     def clear_policy(self):
         self.policies = {}
