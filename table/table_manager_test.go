@@ -30,7 +30,7 @@ import (
 // this function processes only BGPUpdate
 func (manager *TableManager) ProcessUpdate(fromPeer *PeerInfo, message *bgp.BGPMessage) ([]*Path, error) {
 	paths := ProcessMessage(message, fromPeer, time.Now())
-	best, _, _ := manager.ProcessPaths([]string{GLOBAL_RIB_NAME}, paths)
+	best, _ := manager.ProcessPaths([]string{GLOBAL_RIB_NAME}, paths)
 	paths2 := make([]*Path, 0, len(paths))
 	for _, p := range best[GLOBAL_RIB_NAME] {
 		if p != nil {
@@ -1115,6 +1115,7 @@ func TestProcessBGPUpdate_6_select_ebgp_path_ipv6(t *testing.T) {
 func TestProcessBGPUpdate_7_select_low_routerid_path_ipv4(t *testing.T) {
 
 	tm := NewTableManager([]bgp.RouteFamily{bgp.RF_IPv4_UC}, 0, 0)
+	SelectionOptions.ExternalCompareRouterId = true
 
 	// low origin message
 	origin1 := bgp.NewPathAttributeOrigin(0)
@@ -2126,7 +2127,7 @@ func TestProcessBGPUpdate_Timestamp(t *testing.T) {
 
 	nlri := []*bgp.IPAddrPrefix{bgp.NewIPAddrPrefix(24, "10.10.10.0")}
 
-	adjRib := NewAdjRib("test", []bgp.RouteFamily{bgp.RF_IPv4_UC, bgp.RF_IPv6_UC}, false)
+	adjRib := NewAdjRib("test", []bgp.RouteFamily{bgp.RF_IPv4_UC, bgp.RF_IPv6_UC})
 	m1 := bgp.NewBGPUpdateMessage(nil, pathAttributes, nlri)
 	peer := peerR1()
 	pList1 := ProcessMessage(m1, peer, time.Now())

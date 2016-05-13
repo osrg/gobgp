@@ -561,6 +561,16 @@ module gobgp {
     uses gobgp-message-counter;
   }
 
+  augment "/bgp:bgp/bgp:neighbors/bgp:neighbor/bgp:config" {
+    description "additional state elements";
+
+    leaf admin-down {
+      type boolean;
+      description
+        "The config of administrative operation. If state, indicates the neighbor is disabled by the administrator";
+    }
+  }
+
   augment "/bgp:bgp/bgp:neighbors/bgp:neighbor/bgp:state" {
     description "additional state elements";
 
@@ -585,8 +595,8 @@ module gobgp {
 
   }
 
-  augment "/bgp:bgp/bgp:neighbors/bgp:neighbor/bgp:config" {
-    leaf neighbor-port-number {
+  augment "/bgp:bgp/bgp:neighbors/bgp:neighbor/bgp:transport/bgp:config" {
+    leaf remote-port {
       type inet:port-number;
     }
   }
@@ -721,17 +731,6 @@ module gobgp {
     uses gobgp-rpki-servers;
   }
 
-  augment "/bgp:bgp/bgp:global" {
-    description "route collector mode";
-    container collector {
-      leaf enabled {
-        type boolean;
-         description
-          "Configure enabling route-collector mode.";
-      }
-    }
-  }
-
   augment "/bgp:bgp" {
     description "additional bmp configuration";
     uses gobgp-bmp-servers;
@@ -812,26 +811,41 @@ module gobgp {
     }
   }
 
-  augment "/bgp:bgp/bgp:global" {
-    container listen-config {
-        leaf port {
-            type int32;
-        }
-        leaf-list local-address {
-            type string;
-        }
+  grouping listen-config {
+    leaf port {
+        type int32;
     }
+    leaf-list local-address {
+        type string;
+    }
+  }
+
+  augment "/bgp:bgp/bgp:global/bgp:config" {
+      uses listen-config;
+  }
+
+  augment "/bgp:bgp/bgp:global/bgp:state" {
+      uses listen-config;
   }
 
   augment "/bgp:bgp/bgp:global/bgp:afi-safis/bgp:afi-safi" {
       uses bgp-mp:all-afi-safi-common;
   }
 
+  grouping route-target-membership-config {
+      leaf deferral-time {
+        type uint16;
+      }
+  }
+
   augment "/bgp:bgp/bgp:global/bgp:afi-safis/bgp:afi-safi" {
     container route-target-membership {
-        leaf deferral-time {
-          type uint16;
-        }
+      container config {
+          uses route-target-membership-config;
+      }
+      container state {
+          uses route-target-membership-config;
+      }
     }
   }
 }

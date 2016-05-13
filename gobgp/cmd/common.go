@@ -95,6 +95,7 @@ var actionOpts struct {
 	CommunityAction     string `long:"community" description:"specifying a community action of policy"`
 	MedAction           string `long:"med" description:"specifying a med action of policy"`
 	AsPathPrependAction string `long:"as-prepend" description:"specifying a as-prepend action of policy"`
+	NexthopAction       string `long:"next-hop" description:"specifying a next-hop action of policy"`
 }
 
 var mrtOpts struct {
@@ -383,7 +384,7 @@ func (p policies) Less(i, j int) bool {
 	return p[i].Name < p[j].Name
 }
 
-type roas []*gobgpapi.ROA
+type roas []*gobgpapi.Roa
 
 func (r roas) Len() int {
 	return len(r)

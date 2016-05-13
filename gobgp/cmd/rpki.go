@@ -21,33 +21,20 @@ import (
 	"github.com/osrg/gobgp/packet/bgp"
 	"github.com/spf13/cobra"
 	"golang.org/x/net/context"
-	"io"
 	"net"
 	"time"
 )
 
 func showRPKIServer(args []string) error {
-	arg := &api.Arguments{}
-
-	stream, err := client.GetRPKI(context.Background(), arg)
+	rsp, err := client.GetRpki(context.Background(), &api.GetRpkiRequest{})
 	if err != nil {
 		fmt.Println(err)
 		return err
 	}
-	servers := make([]*api.RPKI, 0)
-	for {
-		r, err := stream.Recv()
-		if err == io.EOF {
-			break
-		} else if err != nil {
-			return err
-		}
-		servers = append(servers, r)
-	}
 	if len(args) == 0 {
 		format := "%-23s %-6s %-10s %s\n"
 		fmt.Printf(format, "Session", "State", "Uptime", "#IPv4/IPv6 records")
-		for _, r := range servers {
+		for _, r := range rsp.Servers {
 			s := "Down"
 			uptime := "never"
 			if r.State.Up == true {
@@ -58,7 +45,7 @@ func showRPKIServer(args []string) error {
 			fmt.Printf(format, net.JoinHostPort(r.Conf.Address, r.Conf.RemotePort), s, uptime, fmt.Sprintf("%d/%d", r.State.RecordIpv4, r.State.RecordIpv6))
 		}
 	} else {
-		for _, r := range servers {
+		for _, r := range rsp.Servers {
 			if r.Conf.Address == args[0] {
 				up := "Down"
 				if r.State.Up == true {
@@ -90,13 +77,10 @@ func showRPKITable(args []string) error {
 	if err != nil {
 		exitWithError(err)
 	}
-	arg := &api.Arguments{
+	arg := &api.GetRoaRequest{
 		Family: uint32(family),
 	}
-	if len(args) > 0 {
-		arg.Name = args[0]
-	}
-	stream, err := client.GetROA(context.Background(), arg)
+	rsp, err := client.GetRoa(context.Background(), arg)
 	if err != nil {
 		fmt.Println(err)
 		return err
@@ -110,13 +94,7 @@ func showRPKITable(args []string) error {
 		format = "%-42s %-6s %-10s %s\n"
 	}
 	fmt.Printf(format, "Network", "Maxlen", "AS", "Server")
-	for {
-		r, err := stream.Recv()
-		if err == io.EOF {
-			break
-		} else if err != nil {
-			return err
-		}
+	for _, r := range rsp.Roas {
 		if len(args) > 0 && args[0] != r.Conf.Address {
 			continue
 		}
@@ -132,16 +110,6 @@ func NewRPKICmd() *cobra.Command {
 		Use: CMD_RPKI,
 	}
 
-	modRPKI := func(op api.Operation, address string) error {
-		arg := &api.ModRpkiArguments{
-			Operation: op,
-			Address:   address,
-			Port:      323,
-		}
-		_, err := client.ModRPKI(context.Background(), arg)
-		return err
-	}
-
 	serverCmd := &cobra.Command{
 		Use: CMD_RPKI_SERVER,
 		Run: func(cmd *cobra.Command, args []string) {
@@ -155,20 +123,32 @@ func NewRPKICmd() *cobra.Command {
 			if addr == nil {
 				exitWithError(fmt.Errorf("invalid ip address: %s", args[0]))
 			}
-			var op api.Operation
+			var err error
 			switch args[1] {
 			case "add":
-				op = api.Operation_ADD
+				_, err = client.AddRpki(context.Background(), &api.AddRpkiRequest{
+					Address: addr.String(),
+					Port:    323,
+				})
 			case "reset":
-				op = api.Operation_RESET
+				_, err = client.ResetRpki(context.Background(), &api.ResetRpkiRequest{
+					Address: addr.String(),
+				})
 			case "softreset":
-				op = api.Operation_SOFTRESET
+				_, err = client.SoftResetRpki(context.Background(), &api.SoftResetRpkiRequest{
+					Address: addr.String(),
+				})
 			case "enable":
-				op = api.Operation_ENABLE
+				_, err = client.EnableRpki(context.Background(), &api.EnableRpkiRequest{
+					Address: addr.String(),
+				})
+			case "disable":
+				_, err = client.DisableRpki(context.Background(), &api.DisableRpkiRequest{
+					Address: addr.String(),
+				})
 			default:
 				exitWithError(fmt.Errorf("unknown operation: %s", args[1]))
 			}
-			err := modRPKI(op, addr.String())
 			if err != nil {
 				exitWithError(err)
 			}
@@ -187,13 +167,11 @@ func NewRPKICmd() *cobra.Command {
 	validateCmd := &cobra.Command{
 		Use: "validate",
 		Run: func(cmd *cobra.Command, args []string) {
-			arg := &api.ModRpkiArguments{
-				Operation: api.Operation_REPLACE,
-			}
+			arg := &api.ValidateRibRequest{}
 			if len(args) == 1 {
 				arg.Prefix = args[0]
 			}
-			client.ModRPKI(context.Background(), arg)
+			client.ValidateRib(context.Background(), arg)
 		},
 	}
 	rpkiCmd.AddCommand(validateCmd)

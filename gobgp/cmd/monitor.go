@@ -24,7 +24,6 @@ import (
 	"golang.org/x/net/context"
 	"io"
 	"net"
-	"time"
 )
 
 func NewMonitorCmd() *cobra.Command {
@@ -106,54 +105,6 @@ func NewMonitorCmd() *cobra.Command {
 		},
 	}
 
-	rpkiCmd := &cobra.Command{
-		Use: CMD_RPKI,
-		Run: func(cmd *cobra.Command, args []string) {
-			stream, err := client.MonitorROAValidation(context.Background(), &gobgpapi.Arguments{})
-			if err != nil {
-				exitWithError(err)
-			}
-			for {
-				s, err := stream.Recv()
-				if err == io.EOF {
-					break
-				} else if err != nil {
-					exitWithError(err)
-				}
-				if globalOpts.Json {
-					j, _ := json.Marshal(s)
-					fmt.Println(string(j))
-				} else {
-					reason := "Update"
-					if s.Reason == gobgpapi.ROAResult_WITHDRAW {
-						reason = "Withdraw"
-					} else if s.Reason == gobgpapi.ROAResult_PEER_DOWN {
-						reason = "PeerDown"
-					} else if s.Reason == gobgpapi.ROAResult_REVALIDATE {
-						reason = "Revalidate"
-					} else {
-						reason = "Unknown"
-					}
-					aspath := &bgp.PathAttributeAsPath{}
-					aspath.DecodeFromBytes(s.AspathAttr)
-					fmt.Printf("[VALIDATION] Reason: %s, Peer: %s, Timestamp: %s, Prefix:%s, OriginAS:%d, ASPath:%s, Old:%s, New:%s", reason, s.Address, time.Unix(s.Timestamp, 0).String(), s.Prefix, s.OriginAs, aspath.String(), s.OldResult, s.NewResult)
-					if len(s.Roas) == 0 {
-						fmt.Printf("\n")
-					} else {
-						fmt.Printf(", ROAs:")
-						for i, roa := range s.Roas {
-							if i != 0 {
-								fmt.Printf(",")
-							}
-							fmt.Printf(" [Source: %s, AS: %v, Prefix: %s, Prefixlen: %v, Maxlen: %v]", net.JoinHostPort(roa.Conf.Address, roa.Conf.RemotePort), roa.As, roa.Prefix, roa.Prefixlen, roa.Maxlen)
-						}
-						fmt.Printf("\n")
-					}
-				}
-			}
-		},
-	}
-
 	adjInCmd := &cobra.Command{
 		Use: CMD_ADJ_IN,
 		Run: func(cmd *cobra.Command, args []string) {
@@ -208,7 +159,6 @@ func NewMonitorCmd() *cobra.Command {
 	}
 	monitorCmd.AddCommand(globalCmd)
 	monitorCmd.AddCommand(neighborCmd)
-	monitorCmd.AddCommand(rpkiCmd)
 	monitorCmd.AddCommand(adjInCmd)
 
 	return monitorCmd

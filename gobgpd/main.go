@@ -198,6 +198,7 @@ func main() {
 		select {
 		case newConfig := <-configCh:
 			var added, deleted, updated []config.Neighbor
+			var updatePolicy bool
 
 			if c == nil {
 				c = newConfig
@@ -228,14 +229,13 @@ func main() {
 				}
 
 			} else {
-				var updatePolicy bool
-				c, added, deleted, updated, updatePolicy = config.UpdateConfig(c, newConfig)
+				added, deleted, updated, updatePolicy = config.UpdateConfig(c, newConfig)
 				if updatePolicy {
 					log.Info("Policy config is updated")
 					p := config.ConfigSetToRoutingPolicy(newConfig)
 					bgpServer.UpdatePolicy(*p)
 				}
-
+				c = newConfig
 			}
 
 			for _, p := range added {
@@ -248,7 +248,25 @@ func main() {
 			}
 			for _, p := range updated {
 				log.Infof("Peer %v is updated", p.Config.NeighborAddress)
-				bgpServer.PeerUpdate(p)
+				u, _ := bgpServer.PeerUpdate(p)
+				updatePolicy = updatePolicy || u
+			}
+
+			if updatePolicy {
+				// TODO: we want to apply the new policies to the existing
+				// routes here. Sending SOFT_RESET_IN to all the peers works
+				// for the change of in and import policies. SOFT_RESET_OUT is
+				// necessary for the export policy but we can't blindly
+				// execute SOFT_RESET_OUT because we unnecessarily advertize
+				// the existing routes. Needs to investigate the changes of
+				// policies and handle only affected peers.
+				ch := make(chan *server.GrpcResponse)
+				bgpServer.GrpcReqCh <- &server.GrpcRequest{
+					RequestType: server.REQ_NEIGHBOR_SOFT_RESET_IN,
+					Name:        "all",
+					ResponseCh:  ch,
+				}
+				<-ch
 			}
 		case sig := <-sigCh:
 			switch sig {

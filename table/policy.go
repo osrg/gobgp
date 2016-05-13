@@ -173,6 +173,7 @@ const (
 	ACTION_EXT_COMMUNITY
 	ACTION_MED
 	ACTION_AS_PATH_PREPEND
+	ACTION_NEXTHOP
 )
 
 func NewMatchOption(c interface{}) (MatchOption, error) {
@@ -539,6 +540,7 @@ const (
 	INCLUDE singleAsPathMatchMode = iota
 	LEFT_MOST
 	ORIGIN
+	ONLY
 )
 
 type singleAsPathMatch struct {
@@ -553,11 +555,13 @@ func (lhs *singleAsPathMatch) Equal(rhs *singleAsPathMatch) bool {
 func (lhs *singleAsPathMatch) String() string {
 	switch lhs.mode {
 	case INCLUDE:
-		return fmt.Sprintf("%d", lhs.asn)
+		return fmt.Sprintf("_%d_", lhs.asn)
 	case LEFT_MOST:
-		return fmt.Sprintf("^%d", lhs.asn)
+		return fmt.Sprintf("^%d_", lhs.asn)
 	case ORIGIN:
-		return fmt.Sprintf("%d$", lhs.asn)
+		return fmt.Sprintf("_%d$", lhs.asn)
+	case ONLY:
+		return fmt.Sprintf("^%d$", lhs.asn)
 	}
 	return ""
 }
@@ -581,34 +585,43 @@ func (m *singleAsPathMatch) Match(aspath []uint32) bool {
 		if m.asn == aspath[len(aspath)-1] {
 			return true
 		}
+	case ONLY:
+		if len(aspath) == 1 && m.asn == aspath[0] {
+			return true
+		}
 	}
 	return false
 }
 
 func NewSingleAsPathMatch(arg string) *singleAsPathMatch {
+	leftMostRe := regexp.MustCompile("$\\^([0-9]+)_^")
+	originRe := regexp.MustCompile("^_([0-9]+)\\$$")
+	includeRe := regexp.MustCompile("^_([0-9]+)_$")
+	onlyRe := regexp.MustCompile("^\\^([0-9]+)\\$$")
 	switch {
-	case len(arg) == 0:
-		return nil
-	case arg[0] == '^':
-		if asn, err := strconv.Atoi(arg[1:]); err == nil {
-			return &singleAsPathMatch{
-				asn:  uint32(asn),
-				mode: LEFT_MOST,
-			}
+	case leftMostRe.MatchString(arg):
+		asn, _ := strconv.Atoi(leftMostRe.FindStringSubmatch(arg)[1])
+		return &singleAsPathMatch{
+			asn:  uint32(asn),
+			mode: LEFT_MOST,
 		}
-	case arg[len(arg)-1] == '$':
-		if asn, err := strconv.Atoi(arg[:len(arg)-1]); err == nil {
-			return &singleAsPathMatch{
-				asn:  uint32(asn),
-				mode: ORIGIN,
-			}
+	case originRe.MatchString(arg):
+		asn, _ := strconv.Atoi(originRe.FindStringSubmatch(arg)[1])
+		return &singleAsPathMatch{
+			asn:  uint32(asn),
+			mode: ORIGIN,
 		}
-	default:
-		if asn, err := strconv.Atoi(arg); err == nil {
-			return &singleAsPathMatch{
-				asn:  uint32(asn),
-				mode: INCLUDE,
-			}
+	case includeRe.MatchString(arg):
+		asn, _ := strconv.Atoi(includeRe.FindStringSubmatch(arg)[1])
+		return &singleAsPathMatch{
+			asn:  uint32(asn),
+			mode: INCLUDE,
+		}
+	case onlyRe.MatchString(arg):
+		asn, _ := strconv.Atoi(onlyRe.FindStringSubmatch(arg)[1])
+		return &singleAsPathMatch{
+			asn:  uint32(asn),
+			mode: ONLY,
 		}
 	}
 	return nil
@@ -1252,33 +1265,40 @@ func (c *AsPathCondition) ToApiStruct() *api.MatchSet {
 }
 
 func (c *AsPathCondition) Evaluate(path *Path, _ *PolicyOptions) bool {
-	result := false
-	aspath := path.GetAsSeqList()
-	for _, m := range c.set.singleList {
-		result = m.Match(aspath)
-		if c.option == MATCH_OPTION_ALL && !result {
-			break
-		}
-		if c.option == MATCH_OPTION_ANY && result {
-			break
-		}
-	}
-	if (c.option == MATCH_OPTION_ALL && result) || (c.option == MATCH_OPTION_ANY && !result) {
-		aspath := path.GetAsString()
-		for _, r := range c.set.list {
-			result = r.MatchString(aspath)
+	if len(c.set.singleList) > 0 {
+		aspath := path.GetAsSeqList()
+		for _, m := range c.set.singleList {
+			result := m.Match(aspath)
 			if c.option == MATCH_OPTION_ALL && !result {
-				break
+				return false
 			}
 			if c.option == MATCH_OPTION_ANY && result {
-				break
+				return true
+			}
+			if c.option == MATCH_OPTION_INVERT && result {
+				return false
 			}
 		}
 	}
-	if c.option == MATCH_OPTION_INVERT {
-		result = !result
+	if len(c.set.list) > 0 {
+		aspath := path.GetAsString()
+		for _, r := range c.set.list {
+			result := r.MatchString(aspath)
+			if c.option == MATCH_OPTION_ALL && !result {
+				return false
+			}
+			if c.option == MATCH_OPTION_ANY && result {
+				return true
+			}
+			if c.option == MATCH_OPTION_INVERT && result {
+				return false
+			}
+		}
 	}
-	return result
+	if c.option == MATCH_OPTION_ANY {
+		return false
+	}
+	return true
 }
 
 func NewAsPathConditionFromApiStruct(a *api.MatchSet, m map[string]DefinedSet) (*AsPathCondition, error) {
@@ -2071,6 +2091,47 @@ func NewAsPathPrependAction(action config.SetAsPathPrepend) (*AsPathPrependActio
 	return a, nil
 }
 
+type NexthopAction struct {
+	value net.IP
+}
+
+func (a *NexthopAction) Type() ActionType {
+	return ACTION_NEXTHOP
+}
+
+func (a *NexthopAction) Apply(path *Path) *Path {
+	path.SetNexthop(a.value)
+	return path
+}
+
+func (a *NexthopAction) ToApiStruct() *api.NexthopAction {
+	return &api.NexthopAction{
+		Address: a.value.String(),
+	}
+}
+
+func NewNexthopActionFromApiStruct(a *api.NexthopAction) (*NexthopAction, error) {
+	if a == nil {
+		return nil, nil
+	}
+	return &NexthopAction{
+		value: net.ParseIP(a.Address),
+	}, nil
+}
+
+func NewNexthopAction(c config.BgpNextHopType) (*NexthopAction, error) {
+	if string(c) == "" {
+		return nil, nil
+	}
+	addr := net.ParseIP(string(c))
+	if addr == nil {
+		return nil, fmt.Errorf("invalid ip address format: %s", string(c))
+	}
+	return &NexthopAction{
+		value: addr,
+	}, nil
+}
+
 type Statement struct {
 	Name        string
 	Conditions  []Condition
@@ -2150,6 +2211,8 @@ func (s *Statement) ToApiStruct() *api.Statement {
 			as.AsPrepend = a.(*AsPathPrependAction).ToApiStruct()
 		case *ExtCommunityAction:
 			as.ExtCommunity = a.(*ExtCommunityAction).ToApiStruct()
+		case *NexthopAction:
+			as.Nexthop = a.(*NexthopAction).ToApiStruct()
 		}
 	}
 	return &api.Statement{
@@ -2339,6 +2402,9 @@ func NewStatementFromApiStruct(a *api.Statement, dmap DefinedSetMap) (*Statement
 			func() (Action, error) {
 				return NewAsPathPrependActionFromApiStruct(a.Actions.AsPrepend)
 			},
+			func() (Action, error) {
+				return NewNexthopActionFromApiStruct(a.Actions.Nexthop)
+			},
 		}
 		as = make([]Action, 0, len(afs))
 		for _, f := range afs {
@@ -2416,6 +2482,9 @@ func NewStatement(c config.Statement, dmap DefinedSetMap) (*Statement, error) {
 		},
 		func() (Action, error) {
 			return NewAsPathPrependAction(c.Actions.BgpActions.SetAsPathPrepend)
+		},
+		func() (Action, error) {
+			return NewNexthopAction(c.Actions.BgpActions.SetNextHop)
 		},
 	}
 	as = make([]Action, 0, len(afs))
@@ -2580,6 +2649,9 @@ func (r *RoutingPolicy) ApplyPolicy(id string, dir PolicyDirection, before *Path
 	if filtered := before.Filtered(id); filtered > POLICY_DIRECTION_NONE && filtered < dir {
 		return nil
 	}
+	if before.IsWithdraw {
+		return before
+	}
 	result := ROUTE_TYPE_NONE
 	after := before
 	for _, p := range r.GetPolicy(id, dir) {
@@ -2690,11 +2762,16 @@ func (r *RoutingPolicy) GetAssignmentFromConfig(dir PolicyDirection, a config.Ap
 		def = ROUTE_TYPE_REJECT
 	}
 	ps := make([]*Policy, 0, len(names))
+	seen := make(map[string]bool)
 	for _, name := range names {
 		p, ok := r.PolicyMap[name]
 		if !ok {
 			return nil, def, fmt.Errorf("not found policy %s", name)
 		}
+		if seen[name] {
+			return nil, def, fmt.Errorf("duplicated policy %s", name)
+		}
+		seen[name] = true
 		ps = append(ps, p)
 	}
 	return ps, def, nil
@@ -2798,6 +2875,9 @@ func (r *RoutingPolicy) Reload(c config.RoutingPolicy) error {
 		y, err := NewPolicy(x, dmap)
 		if err != nil {
 			return err
+		}
+		if _, ok := pmap[y.Name()]; ok {
+			return fmt.Errorf("duplicated policy name. policy name must be unique.")
 		}
 		pmap[y.Name()] = y
 		for _, s := range y.Statements {

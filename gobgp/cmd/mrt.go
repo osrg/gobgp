@@ -16,7 +16,6 @@
 package cmd
 
 import (
-	"bytes"
 	"fmt"
 	api "github.com/osrg/gobgp/api"
 	"github.com/osrg/gobgp/packet/bgp"
@@ -24,164 +23,9 @@ import (
 	"github.com/spf13/cobra"
 	"golang.org/x/net/context"
 	"io"
-	"io/ioutil"
-	"net"
 	"os"
-	"path/filepath"
 	"strconv"
-	"text/template"
-	"time"
 )
-
-func printMrtMsgs(data []byte) {
-	buffer := bytes.NewBuffer(data)
-
-	for buffer.Len() > mrt.MRT_COMMON_HEADER_LEN {
-		buf := make([]byte, mrt.MRT_COMMON_HEADER_LEN)
-		_, err := buffer.Read(buf)
-		if err == io.EOF {
-			break
-		} else if err != nil {
-			exitWithError(fmt.Errorf("failed to read: %s", err))
-		}
-
-		h := &mrt.MRTHeader{}
-		err = h.DecodeFromBytes(buf)
-		if err != nil {
-			exitWithError(fmt.Errorf("failed to parse"))
-		}
-
-		buf = make([]byte, h.Len)
-		_, err = buffer.Read(buf)
-		if err != nil {
-			exitWithError(fmt.Errorf("failed to read"))
-		}
-
-		msg, err := mrt.ParseMRTBody(h, buf)
-		if err != nil {
-			exitWithError(fmt.Errorf("failed to parse: %s", err))
-		}
-
-		fmt.Println(msg)
-	}
-
-}
-
-func dumpRib(r string, remoteIP net.IP, args []string) error {
-	var resource api.Resource
-	switch r {
-	case CMD_GLOBAL:
-		resource = api.Resource_GLOBAL
-	case CMD_LOCAL:
-		resource = api.Resource_LOCAL
-	default:
-		return fmt.Errorf("unknown resource type: %s", r)
-	}
-
-	family, err := checkAddressFamily(addr2AddressFamily(remoteIP))
-	if err != nil {
-		return err
-	}
-
-	var interval uint64
-	if len(args) > 0 {
-		i, err := strconv.Atoi(args[0])
-		if err != nil {
-			return err
-		}
-		interval = uint64(i)
-	}
-
-	arg := &api.MrtArguments{
-		Resource:        resource,
-		Family:          uint32(family),
-		Interval:        interval,
-		NeighborAddress: remoteIP.String(),
-	}
-
-	afi, _ := bgp.RouteFamilyToAfiSafi(family)
-	var af string
-	switch afi {
-	case bgp.AFI_IP:
-		af = "ipv4"
-	case bgp.AFI_IP6:
-		af = "ipv6"
-	case bgp.AFI_L2VPN:
-		af = "l2vpn"
-	}
-
-	seed := struct {
-		Y               string
-		M               string
-		D               string
-		H               string
-		Min             string
-		Sec             string
-		Af              string
-		NeighborAddress string
-		Resource        string
-	}{
-		Af:              af,
-		NeighborAddress: remoteIP.String(),
-		Resource:        r,
-	}
-
-	stream, err := client.GetMrt(context.Background(), arg)
-	if err != nil {
-		exitWithError(err)
-	}
-
-	var fileformat string
-
-	if mrtOpts.FileFormat != "" {
-		fileformat = mrtOpts.FileFormat
-	} else if r == CMD_GLOBAL {
-		fileformat = "rib_{{.Af}}_{{.Y}}{{.M}}{{.D}}_{{.H}}{{.Min}}{{.Sec}}"
-	} else {
-		fileformat = "rib_{{.NeighborAddress}}_{{.Y}}{{.M}}{{.D}}_{{.H}}{{.Min}}{{.Sec}}"
-	}
-
-	for {
-		s, err := stream.Recv()
-		if err == io.EOF {
-			break
-		} else if err != nil {
-			exitWithError(err)
-		}
-
-		if globalOpts.Debug {
-			printMrtMsgs(s.Data)
-		}
-
-		now := time.Now()
-		y, m, d := now.Date()
-		seed.Y = fmt.Sprintf("%04d", y)
-		seed.M = fmt.Sprintf("%02d", int(m))
-		seed.D = fmt.Sprintf("%02d", d)
-		h, min, sec := now.Clock()
-		seed.H = fmt.Sprintf("%02d", h)
-		seed.Min = fmt.Sprintf("%02d", min)
-		seed.Sec = fmt.Sprintf("%02d", sec)
-		t, err := template.New("f").Parse(fileformat)
-		if err != nil {
-			return err
-		}
-		buf := bytes.NewBuffer(make([]byte, 0, 32))
-		err = t.Execute(buf, seed)
-		if err != nil {
-			return err
-		}
-		filename := fmt.Sprintf("%s/%s", mrtOpts.OutputDir, buf.String())
-
-		err = ioutil.WriteFile(filename, s.Data, 0600)
-		if err != nil {
-			exitWithError(err)
-		}
-
-		fmt.Println("mrt dump:", filepath.Clean(filename))
-	}
-	return nil
-}
 
 func injectMrt(r string, filename string, count int, skip int) error {
 
@@ -200,7 +44,7 @@ func injectMrt(r string, filename string, count int, skip int) error {
 
 	idx := 0
 
-	ch := make(chan *api.ModPathsArguments, 1<<20)
+	ch := make(chan *api.InjectMrtRequest, 1<<20)
 
 	go func() {
 
@@ -288,7 +132,7 @@ func injectMrt(r string, filename string, count int, skip int) error {
 				}
 
 				if idx >= skip {
-					ch <- &api.ModPathsArguments{
+					ch <- &api.InjectMrtRequest{
 						Resource: resource,
 						Paths:    paths,
 					}
@@ -304,7 +148,7 @@ func injectMrt(r string, filename string, count int, skip int) error {
 		close(ch)
 	}()
 
-	stream, err := client.ModPaths(context.Background())
+	stream, err := client.InjectMrt(context.Background())
 	if err != nil {
 		return fmt.Errorf("failed to modpath: %s", err)
 	}
@@ -316,58 +160,14 @@ func injectMrt(r string, filename string, count int, skip int) error {
 		}
 	}
 
-	res, err := stream.CloseAndRecv()
+	_, err = stream.CloseAndRecv()
 	if err != nil {
 		return fmt.Errorf("failed to send: %s", err)
-	}
-	if res.Code != api.Error_SUCCESS {
-		return fmt.Errorf("error: code: %d, msg: %s", res.Code, res.Msg)
 	}
 	return nil
 }
 
 func NewMrtCmd() *cobra.Command {
-
-	globalDumpCmd := &cobra.Command{
-		Use: CMD_GLOBAL,
-		Run: func(cmd *cobra.Command, args []string) {
-			err := dumpRib(CMD_GLOBAL, net.IP{}, args)
-			if err != nil {
-				exitWithError(err)
-			}
-		},
-	}
-
-	neighborCmd := &cobra.Command{
-		Use: CMD_NEIGHBOR,
-		Run: func(cmd *cobra.Command, args []string) {
-			if len(args) < 1 {
-				exitWithError(fmt.Errorf("usage: gobgp mrt dump neighbor <neighbor address> [<interval>]"))
-			}
-			remoteIP := net.ParseIP(args[0])
-			if remoteIP == nil {
-				exitWithError(fmt.Errorf("invalid ip address: %s", args[0]))
-			}
-			err := dumpRib(CMD_LOCAL, remoteIP, args[1:])
-			if err != nil {
-				exitWithError(err)
-			}
-		},
-	}
-
-	ribCmd := &cobra.Command{
-		Use: CMD_RIB,
-	}
-	ribCmd.AddCommand(globalDumpCmd, neighborCmd)
-	ribCmd.PersistentFlags().StringVarP(&subOpts.AddressFamily, "address-family", "a", "", "address family")
-
-	dumpCmd := &cobra.Command{
-		Use: CMD_DUMP,
-	}
-	dumpCmd.AddCommand(ribCmd)
-	dumpCmd.PersistentFlags().StringVarP(&mrtOpts.OutputDir, "outdir", "o", ".", "output directory")
-	dumpCmd.PersistentFlags().StringVarP(&mrtOpts.FileFormat, "format", "f", "", "file format")
-
 	globalInjectCmd := &cobra.Command{
 		Use: CMD_GLOBAL,
 		Run: func(cmd *cobra.Command, args []string) {
@@ -402,63 +202,10 @@ func NewMrtCmd() *cobra.Command {
 	}
 	injectCmd.AddCommand(globalInjectCmd)
 
-	modMrt := func(op api.Operation, filename string) {
-		arg := &api.ModMrtArguments{
-			Operation: op,
-			Filename:  filename,
-		}
-		client.ModMrt(context.Background(), arg)
-	}
-
-	enableCmd := &cobra.Command{
-		Use: CMD_ENABLE,
-		Run: func(cmd *cobra.Command, args []string) {
-			if len(args) != 1 {
-				exitWithError(fmt.Errorf("usage: gobgp mrt update enable <filename>"))
-			}
-			modMrt(api.Operation_ADD, args[0])
-		},
-	}
-
-	disableCmd := &cobra.Command{
-		Use: CMD_DISABLE,
-		Run: func(cmd *cobra.Command, args []string) {
-			if len(args) != 0 {
-				exitWithError(fmt.Errorf("usage: gobgp mrt update disable"))
-			}
-			modMrt(api.Operation_DEL, "")
-		},
-	}
-
-	rotateCmd := &cobra.Command{
-		Use: CMD_ROTATE,
-		Run: func(cmd *cobra.Command, args []string) {
-			if len(args) != 1 {
-				exitWithError(fmt.Errorf("usage: gobgp mrt update rotate <filename>"))
-			}
-			modMrt(api.Operation_REPLACE, args[0])
-		},
-	}
-
-	restartCmd := &cobra.Command{
-		Use: CMD_RESET,
-		Run: func(cmd *cobra.Command, args []string) {
-			if len(args) > 0 {
-				exitWithError(fmt.Errorf("usage: gobgp mrt update reset"))
-			}
-			modMrt(api.Operation_REPLACE, "")
-		},
-	}
-
-	updateCmd := &cobra.Command{
-		Use: CMD_UPDATE,
-	}
-	updateCmd.AddCommand(enableCmd, disableCmd, restartCmd, rotateCmd)
-
 	mrtCmd := &cobra.Command{
 		Use: CMD_MRT,
 	}
-	mrtCmd.AddCommand(dumpCmd, injectCmd, updateCmd)
+	mrtCmd.AddCommand(injectCmd)
 
 	return mrtCmd
 }

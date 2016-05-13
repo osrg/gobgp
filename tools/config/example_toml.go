@@ -23,8 +23,16 @@ func main() {
 					NeighborAddress: "192.168.177.33",
 				},
 				AfiSafis: []config.AfiSafi{
-					config.AfiSafi{AfiSafiName: "ipv4-unicast"},
-					config.AfiSafi{AfiSafiName: "ipv6-unicast"},
+					config.AfiSafi{
+						Config: config.AfiSafiConfig{
+							AfiSafiName: "ipv4-unicast",
+						},
+					},
+					config.AfiSafi{
+						Config: config.AfiSafiConfig{
+							AfiSafiName: "ipv6-unicast",
+						},
+					},
 				},
 				ApplyPolicy: config.ApplyPolicy{
 

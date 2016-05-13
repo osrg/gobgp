@@ -77,6 +77,7 @@ To support restarting speaker behavior, try the configuration below.
     enabled = true
     restart-time = 120
   [[neighbors.afi-safis]]
+    [neighbors.afi-safis.config]
     afi-safi-name = "ipv4-unicast"
     [neighbors.afi-safis.mp-graceful-restart.config]
         enabled = true

@@ -58,8 +58,8 @@ func NewPeer(g *config.Global, conf *config.Neighbor, loc *table.TableManager, p
 		peer.tableId = table.GLOBAL_RIB_NAME
 	}
 	rfs, _ := config.AfiSafis(conf.AfiSafis).ToRfList()
-	peer.adjRibIn = table.NewAdjRib(peer.ID(), rfs, g.Collector.Enabled)
-	peer.adjRibOut = table.NewAdjRib(peer.ID(), rfs, g.Collector.Enabled)
+	peer.adjRibIn = table.NewAdjRib(peer.ID(), rfs)
+	peer.adjRibOut = table.NewAdjRib(peer.ID(), rfs)
 	return peer
 }
 
@@ -105,7 +105,7 @@ func (peer *Peer) forwardingPreservedFamilies() ([]bgp.RouteFamily, []bgp.RouteF
 	list := []bgp.RouteFamily{}
 	for _, a := range peer.fsm.pConf.AfiSafis {
 		if s := a.MpGracefulRestart.State; s.Enabled && s.Received {
-			f, _ := bgp.GetRouteFamily(string(a.AfiSafiName))
+			f, _ := bgp.GetRouteFamily(string(a.Config.AfiSafiName))
 			list = append(list, f)
 		}
 	}
@@ -136,19 +136,13 @@ func (peer *Peer) getBestFromLocal(rfList []bgp.RouteFamily) ([]*table.Path, []*
 	options := &table.PolicyOptions{
 		Neighbor: peer.fsm.peerInfo.Address,
 	}
-	var source []*table.Path
-	if peer.fsm.gConf.Collector.Enabled {
-		source = peer.localRib.GetPathList(peer.TableID(), rfList)
-	} else {
-		source = peer.localRib.GetBestPathList(peer.TableID(), rfList)
-	}
-	for _, path := range source {
+	for _, path := range peer.localRib.GetBestPathList(peer.TableID(), rfList) {
 		p := peer.policy.ApplyPolicy(peer.TableID(), table.POLICY_DIRECTION_EXPORT, filterpath(peer, path), options)
 		if p == nil {
 			filtered = append(filtered, path)
 			continue
 		}
-		if !peer.fsm.gConf.Collector.Enabled && !peer.isRouteServerClient() {
+		if !peer.isRouteServerClient() {
 			p = p.Clone(p.IsWithdraw)
 			p.UpdatePathAttrs(peer.fsm.gConf, peer.fsm.pConf)
 		}
@@ -175,9 +169,18 @@ func (peer *Peer) processOutgoingPaths(paths, withdrawals []*table.Path) []*tabl
 	}
 
 	outgoing := make([]*table.Path, 0, len(paths))
+	// Note: multiple paths having the same prefix could exist the
+	// withdrawals list in the case of Route Server setup with
+	// import policies modifying paths. In such case, gobgp sends
+	// duplicated update messages; withdraw messages for the same
+	// prefix.
+	// However, currently we don't support local path for Route
+	// Server setup so this is NOT the case.
 	for _, path := range withdrawals {
 		if path.IsLocal() {
-			outgoing = append(outgoing, path)
+			if _, ok := peer.fsm.rfMap[path.GetRouteFamily()]; ok {
+				outgoing = append(outgoing, path)
+			}
 		}
 	}
 
@@ -189,7 +192,7 @@ func (peer *Peer) processOutgoingPaths(paths, withdrawals []*table.Path) []*tabl
 		if path == nil {
 			continue
 		}
-		if !peer.isRouteServerClient() && !peer.fsm.gConf.Collector.Enabled {
+		if !peer.isRouteServerClient() {
 			path = path.Clone(path.IsWithdraw)
 			path.UpdatePathAttrs(peer.fsm.gConf, peer.fsm.pConf)
 		}
@@ -263,7 +266,7 @@ func (peer *Peer) updatePrefixLimitConfig(c []config.AfiSafi) ([]*SenderMsg, err
 	}
 	m := make(map[bgp.RouteFamily]config.PrefixLimitConfig)
 	for _, e := range x {
-		k, err := bgp.GetRouteFamily(string(e.AfiSafiName))
+		k, err := bgp.GetRouteFamily(string(e.Config.AfiSafiName))
 		if err != nil {
 			return nil, err
 		}
@@ -271,7 +274,7 @@ func (peer *Peer) updatePrefixLimitConfig(c []config.AfiSafi) ([]*SenderMsg, err
 	}
 	msgs := make([]*SenderMsg, 0, len(y))
 	for _, e := range y {
-		k, err := bgp.GetRouteFamily(string(e.AfiSafiName))
+		k, err := bgp.GetRouteFamily(string(e.Config.AfiSafiName))
 		if err != nil {
 			return nil, err
 		}
@@ -281,7 +284,7 @@ func (peer *Peer) updatePrefixLimitConfig(c []config.AfiSafi) ([]*SenderMsg, err
 			log.WithFields(log.Fields{
 				"Topic":                   "Peer",
 				"Key":                     peer.ID(),
-				"AddressFamily":           e.AfiSafiName,
+				"AddressFamily":           e.Config.AfiSafiName,
 				"OldMaxPrefixes":          p.MaxPrefixes,
 				"NewMaxPrefixes":          e.PrefixLimit.Config.MaxPrefixes,
 				"OldShutdownThresholdPct": p.ShutdownThresholdPct,
@@ -308,7 +311,7 @@ func (peer *Peer) handleUpdate(e *FsmMsg) ([]*table.Path, []bgp.RouteFamily, *bg
 	if len(e.PathList) > 0 {
 		peer.adjRibIn.Update(e.PathList)
 		for _, family := range peer.fsm.pConf.AfiSafis {
-			k, _ := bgp.GetRouteFamily(string(family.AfiSafiName))
+			k, _ := bgp.GetRouteFamily(string(family.Config.AfiSafiName))
 			if msg := peer.doPrefixLimit(k, &family.PrefixLimit.Config); msg != nil {
 				return nil, nil, msg
 			}
@@ -382,7 +385,7 @@ func (peer *Peer) ToApiStruct() *api.Peer {
 	prefixLimits := make([]*api.PrefixLimit, 0, len(peer.fsm.pConf.AfiSafis))
 	for _, family := range peer.fsm.pConf.AfiSafis {
 		if c := family.PrefixLimit.Config; c.MaxPrefixes > 0 {
-			k, _ := bgp.GetRouteFamily(string(family.AfiSafiName))
+			k, _ := bgp.GetRouteFamily(string(family.Config.AfiSafiName))
 			prefixLimits = append(prefixLimits, &api.PrefixLimit{
 				Family:               uint32(k),
 				MaxPrefixes:          c.MaxPrefixes,

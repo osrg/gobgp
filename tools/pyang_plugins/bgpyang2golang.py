@@ -168,6 +168,8 @@ def emit_class_def(ctx, yang_statement, struct_name, prefix):
 
             # case leafref
             elif type_name == 'leafref':
+                if type_obj.search_one('path').arg.startswith('../config'):
+                    continue
                 t = dig_leafref(type_obj)
                 if is_translation_required(t):
                     print >> o, '  //%s:%s\'s original type is %s' \
@@ -243,7 +245,10 @@ def emit_class_def(ctx, yang_statement, struct_name, prefix):
                 l = t.i_children[0]
                 emit_type_name = '[]' + l.golang_name
                 equal_type = EQUAL_TYPE_MAP
-                equal_data = t.i_children[0].search_one('key').arg
+                equal_data = l.search_one('key').arg
+                leaf = l.search_one('leaf').search_one('type')
+                if leaf.arg == 'leafref' and leaf.search_one('path').arg.startswith('../config'):
+                    equal_data = 'config.' + equal_data
             else:
                 emit_type_name = t.golang_name
                 equal_type = EQUAL_TYPE_CONTAINER
@@ -279,6 +284,8 @@ def emit_class_def(ctx, yang_statement, struct_name, prefix):
     print >> o, '}'
 
     for val_name, type_name, typ, elem in equal_elems:
+        if val_name == 'State':
+            continue
         if typ == EQUAL_TYPE_LEAF:
             print >> o, 'if lhs.{0} != rhs.{0} {{'.format(val_name)
             print >> o, 'return false'
@@ -692,9 +699,9 @@ def translate_type(key):
 
 # 'hoge-hoge' -> 'HogeHoge'
 def convert_to_golang(type_string):
-    a = type_string.split('-')
+    a = type_string.split('.')
     a = map(lambda x: x.capitalize(), a)  # XXX locale sensitive
-    return ''.join(a)
+    return '.'.join( ''.join(t.capitalize() for t in x.split('-')) for x in a)
 
 
 # 'hoge-hoge' -> 'HOGE_HOGE'

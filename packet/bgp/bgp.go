@@ -3456,6 +3456,7 @@ const (
 	BGP_ERROR_HOLD_TIMER_EXPIRED
 	BGP_ERROR_FSM_ERROR
 	BGP_ERROR_CEASE
+	BGP_ERROR_ROUTE_REFRESH_MESSAGE_ERROR
 )
 
 // NOTIFICATION Error Subcode for BGP_ERROR_MESSAGE_HEADER_ERROR
@@ -3473,8 +3474,9 @@ const (
 	BGP_ERROR_SUB_BAD_PEER_AS
 	BGP_ERROR_SUB_BAD_BGP_IDENTIFIER
 	BGP_ERROR_SUB_UNSUPPORTED_OPTIONAL_PARAMETER
-	BGP_ERROR_SUB_AUTHENTICATION_FAILURE
+	BGP_ERROR_SUB_DEPRECATED_AUTHENTICATION_FAILURE
 	BGP_ERROR_SUB_UNACCEPTABLE_HOLD_TIME
+	BGP_ERROR_SUB_UNSUPPORTED_CAPABILITY
 )
 
 // NOTIFICATION Error Subcode for BGP_ERROR_UPDATE_MESSAGE_ERROR
@@ -3486,7 +3488,7 @@ const (
 	BGP_ERROR_SUB_ATTRIBUTE_FLAGS_ERROR
 	BGP_ERROR_SUB_ATTRIBUTE_LENGTH_ERROR
 	BGP_ERROR_SUB_INVALID_ORIGIN_ATTRIBUTE
-	BGP_ERROR_SUB_ROUTING_LOOP
+	BGP_ERROR_SUB_DEPRECATED_ROUTING_LOOP
 	BGP_ERROR_SUB_INVALID_NEXT_HOP_ATTRIBUTE
 	BGP_ERROR_SUB_OPTIONAL_ATTRIBUTE_ERROR
 	BGP_ERROR_SUB_INVALID_NETWORK_FIELD
@@ -3502,7 +3504,9 @@ const (
 // NOTIFICATION Error Subcode for BGP_ERROR_FSM_ERROR
 const (
 	_ = iota
-	BGP_ERROR_SUB_FSM_ERROR
+	BGP_ERROR_SUB_RECEIVE_UNEXPECTED_MESSAGE_IN_OPENSENT_STATE
+	BGP_ERROR_SUB_RECEIVE_UNEXPECTED_MESSAGE_IN_OPENCONFIRM_STATE
+	BGP_ERROR_SUB_RECEIVE_UNEXPECTED_MESSAGE_IN_ESTABLISHED_STATE
 )
 
 // NOTIFICATION Error Subcode for BGP_ERROR_CEASE  (RFC 4486)
@@ -3512,11 +3516,100 @@ const (
 	BGP_ERROR_SUB_ADMINISTRATIVE_SHUTDOWN
 	BGP_ERROR_SUB_PEER_DECONFIGURED
 	BGP_ERROR_SUB_ADMINISTRATIVE_RESET
-	BGP_ERROR_SUB_CONNECTION_RESET
+	BGP_ERROR_SUB_CONNECTION_REJECTED
 	BGP_ERROR_SUB_OTHER_CONFIGURATION_CHANGE
 	BGP_ERROR_SUB_CONNECTION_COLLISION_RESOLUTION
 	BGP_ERROR_SUB_OUT_OF_RESOURCES
 )
+
+// NOTIFICATION Error Subcode for BGP_ERROR_ROUTE_REFRESH
+const (
+	_ = iota
+	BGP_ERROR_SUB_INVALID_MESSAGE_LENGTH
+)
+
+type NotificationErrorCode uint16
+
+func (c NotificationErrorCode) String() string {
+	code := uint8(uint16(c) >> 8)
+	subcode := uint8(uint16(c) & 0xff)
+	UNDEFINED := "undefined"
+	codeStr := UNDEFINED
+	subcodeList := []string{}
+	switch code {
+	case BGP_ERROR_MESSAGE_HEADER_ERROR:
+		codeStr = "header"
+		subcodeList = []string{
+			UNDEFINED,
+			"connection not synchronized",
+			"bad message length",
+			"bad message type"}
+	case BGP_ERROR_OPEN_MESSAGE_ERROR:
+		codeStr = "open"
+		subcodeList = []string{
+			UNDEFINED,
+			"unsupported version number",
+			"bad peer as",
+			"bad bgp identifier",
+			"unsupported optional parameter",
+			"deprecated authentication failure",
+			"unacceptable hold time",
+			"unsupported capability"}
+	case BGP_ERROR_UPDATE_MESSAGE_ERROR:
+		codeStr = "update"
+		subcodeList = []string{
+			UNDEFINED,
+			"malformed attribute list",
+			"unrecognized well known attribute",
+			"missing well known attribute",
+			"attribute flags error",
+			"attribute length error",
+			"invalid origin attribute",
+			"deprecated routing loop",
+			"invalid next hop attribute",
+			"optional attribute error",
+			"invalid network field",
+			"sub malformed as path"}
+	case BGP_ERROR_HOLD_TIMER_EXPIRED:
+		codeStr = "hold timer expired"
+		subcodeList = []string{
+			UNDEFINED,
+			"hold timer expired"}
+	case BGP_ERROR_FSM_ERROR:
+		codeStr = "fsm"
+		subcodeList = []string{
+			UNDEFINED,
+			"receive unexpected message in opensent state",
+			"receive unexpected message in openconfirm state",
+			"receive unexpected message in established state"}
+	case BGP_ERROR_CEASE:
+		codeStr = "cease"
+		subcodeList = []string{
+			UNDEFINED,
+			"maximum number of prefixes reached",
+			"administrative shutdown",
+			"peer deconfigured",
+			"administrative reset",
+			"connection rejected",
+			"other configuration change",
+			"connection collision resolution",
+			"out of resources"}
+	case BGP_ERROR_ROUTE_REFRESH_MESSAGE_ERROR:
+		codeStr = "route refresh"
+		subcodeList = []string{"invalid message length"}
+	}
+	subcodeStr := func(idx uint8, l []string) string {
+		if len(l) == 0 || int(idx) > len(l)-1 {
+			return UNDEFINED
+		}
+		return l[idx]
+	}(subcode, subcodeList)
+	return fmt.Sprintf("code %v(%v) subcode %v(%v)", code, codeStr, subcode, subcodeStr)
+}
+
+func NewNotificationErrorCode(code, subcode uint8) NotificationErrorCode {
+	return NotificationErrorCode(uint16(code)<<8 | uint16(subcode))
+}
 
 var pathAttrFlags map[BGPAttrType]BGPAttrFlag = map[BGPAttrType]BGPAttrFlag{
 	BGP_ATTR_TYPE_ORIGIN:               BGP_ATTR_FLAG_TRANSITIVE,

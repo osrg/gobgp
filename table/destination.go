@@ -27,6 +27,8 @@ import (
 	"sort"
 )
 
+var SelectionOptions config.RouteSelectionOptionsConfig
+
 type BestPathReason string
 
 const (
@@ -42,6 +44,7 @@ const (
 	BPR_ASN                BestPathReason = "ASN"
 	BPR_IGP_COST           BestPathReason = "IGP Cost"
 	BPR_ROUTER_ID          BestPathReason = "Router ID"
+	BPR_OLDER              BestPathReason = "Older"
 )
 
 func IpToRadixkey(b []byte, max uint8) string {
@@ -226,10 +229,9 @@ func (dd *Destination) validatePath(path *Path) {
 //
 // Modifies destination's state related to stored paths. Removes withdrawn
 // paths from known paths. Also, adds new paths to known paths.
-func (dest *Destination) Calculate(ids []string) (map[string]*Path, []*Path, []*Path) {
+func (dest *Destination) Calculate(ids []string) (map[string]*Path, []*Path) {
 	best := make(map[string]*Path, len(ids))
 	oldKnownPathList := dest.knownPathList
-	updated := dest.newPathList
 	// First remove the withdrawn paths.
 	withdrawnList := dest.explicitWithdraw()
 	// Do implicit withdrawal
@@ -266,7 +268,7 @@ func (dest *Destination) Calculate(ids []string) (map[string]*Path, []*Path, []*
 	for _, id := range ids {
 		best[id] = f(id)
 	}
-	return best, updated, withdrawnList
+	return best, withdrawnList
 }
 
 // Removes withdrawn paths.
@@ -314,8 +316,12 @@ func (dest *Destination) explicitWithdraw() paths {
 			// We have a match if the source are same.
 			if path.GetSource().Equal(withdraw.GetSource()) {
 				isFound = true
+				// this path is referenced in peer's adj-rib-in
+				// when there was no policy modification applied.
+				// we sould flag IsWithdraw down after use to avoid
+				// a path with IsWithdraw flag exists in adj-rib-in
 				path.IsWithdraw = true
-				matches = append(matches, path)
+				matches = append(matches, withdraw)
 			}
 		}
 
@@ -333,6 +339,8 @@ func (dest *Destination) explicitWithdraw() paths {
 		if !path.IsWithdraw {
 			newKnownPaths = append(newKnownPaths, path)
 		}
+		// here we flag IsWithdraw down
+		path.IsWithdraw = false
 	}
 
 	dest.knownPathList = newKnownPaths
@@ -484,6 +492,10 @@ func (p paths) Less(i, j int) bool {
 	if better == nil {
 		better = compareByIGPCost(path1, path2)
 		reason = BPR_IGP_COST
+	}
+	if better == nil {
+		better = compareByAge(path1, path2)
+		reason = BPR_OLDER
 	}
 	if better == nil {
 		var e error = nil
@@ -654,25 +666,53 @@ func compareByMED(path1, path2 *Path) *Path {
 	//	RFC says lower MED is preferred over higher MED value.
 	//  compare MED among not only same AS path but also all path,
 	//  like bgp always-compare-med
-	log.Debugf("enter compareByMED")
-	getMed := func(path *Path) uint32 {
-		attribute := path.getPathAttr(bgp.BGP_ATTR_TYPE_MULTI_EXIT_DISC)
-		if attribute == nil {
+
+	isInternal := func() bool { return path1.GetAsPathLen() == 0 && path2.GetAsPathLen() == 0 }()
+
+	isSameAS := func() bool {
+		leftmostAS := func(path *Path) uint32 {
+			if aspath := path.GetAsPath(); aspath != nil {
+				asPathParam := aspath.Value
+				for i := len(asPathParam) - 1; i >= 0; i-- {
+					asPath := asPathParam[i].(*bgp.As4PathParam)
+					if asPath.Num == 0 {
+						continue
+					}
+					if asPath.Type == bgp.BGP_ASPATH_ATTR_TYPE_CONFED_SET || asPath.Type == bgp.BGP_ASPATH_ATTR_TYPE_CONFED_SEQ {
+						continue
+					}
+					return asPath.AS[asPath.Num-1]
+				}
+			}
 			return 0
 		}
-		med := attribute.(*bgp.PathAttributeMultiExitDisc).Value
-		return med
-	}
+		return leftmostAS(path1) == leftmostAS(path2)
+	}()
 
-	med1 := getMed(path1)
-	med2 := getMed(path2)
-	log.Debugf("compareByMED -- med1: %d, med2: %d", med1, med2)
-	if med1 == med2 {
+	if SelectionOptions.AlwaysCompareMed || isInternal || isSameAS {
+		log.Debugf("enter compareByMED")
+		getMed := func(path *Path) uint32 {
+			attribute := path.getPathAttr(bgp.BGP_ATTR_TYPE_MULTI_EXIT_DISC)
+			if attribute == nil {
+				return 0
+			}
+			med := attribute.(*bgp.PathAttributeMultiExitDisc).Value
+			return med
+		}
+
+		med1 := getMed(path1)
+		med2 := getMed(path2)
+		log.Debugf("compareByMED -- med1: %d, med2: %d", med1, med2)
+		if med1 == med2 {
+			return nil
+		} else if med1 < med2 {
+			return path1
+		}
+		return path2
+	} else {
+		log.Debugf("skip compareByMED %v %v %v", SelectionOptions.AlwaysCompareMed, isInternal, isSameAS)
 		return nil
-	} else if med1 < med2 {
-		return path1
 	}
-	return path2
 }
 
 func compareByASNumber(path1, path2 *Path) *Path {
@@ -721,11 +761,11 @@ func compareByRouterID(path1, path2 *Path) (*Path, error) {
 
 	// If both paths are from eBGP peers, then according to RFC we need
 	// not tie break using router id.
-	if !path1.IsIBGP() && !path2.IsIBGP() {
+	if !SelectionOptions.ExternalCompareRouterId && !path1.IsIBGP() && !path2.IsIBGP() {
 		return nil, nil
 	}
 
-	if path1.IsIBGP() != path2.IsIBGP() {
+	if !SelectionOptions.ExternalCompareRouterId && path1.IsIBGP() != path2.IsIBGP() {
 		return nil, fmt.Errorf("This method does not support comparing ebgp with ibgp path")
 	}
 
@@ -742,6 +782,20 @@ func compareByRouterID(path1, path2 *Path) (*Path, error) {
 	} else {
 		return path2, nil
 	}
+}
+
+func compareByAge(path1, path2 *Path) *Path {
+	if !path1.IsIBGP() && !path2.IsIBGP() && !SelectionOptions.ExternalCompareRouterId {
+		age1 := path1.GetTimestamp().UnixNano()
+		age2 := path2.GetTimestamp().UnixNano()
+		if age1 == age2 {
+			return nil
+		} else if age1 < age2 {
+			return path1
+		}
+		return path2
+	}
+	return nil
 }
 
 func (dest *Destination) String() string {

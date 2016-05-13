@@ -24,7 +24,6 @@ func SetDefaultConfigValues(v *viper.Viper, b *BgpConfigSet) error {
 
 	defaultAfiSafi := func(typ AfiSafiType, enable bool) AfiSafi {
 		return AfiSafi{
-			AfiSafiName: typ,
 			Config: AfiSafiConfig{
 				AfiSafiName: typ,
 				Enabled:     enable,
@@ -46,12 +45,12 @@ func SetDefaultConfigValues(v *viper.Viper, b *BgpConfigSet) error {
 		}
 	}
 
-	if b.Global.ListenConfig.Port == 0 {
-		b.Global.ListenConfig.Port = bgp.BGP_PORT
+	if b.Global.Config.Port == 0 {
+		b.Global.Config.Port = bgp.BGP_PORT
 	}
 
-	if len(b.Global.ListenConfig.LocalAddressList) == 0 {
-		b.Global.ListenConfig.LocalAddressList = []string{"0.0.0.0", "::"}
+	if len(b.Global.Config.LocalAddressList) == 0 {
+		b.Global.Config.LocalAddressList = []string{"0.0.0.0", "::"}
 	}
 
 	for idx, server := range b.BmpServers {
@@ -132,14 +131,17 @@ func SetDefaultConfigValues(v *viper.Viper, b *BgpConfigSet) error {
 				if len(afs) > i {
 					vvv.Set("afi-safi", afs[i])
 				}
-				af.Config.AfiSafiName = af.AfiSafiName
-				af.State.AfiSafiName = af.AfiSafiName
+				af.State.AfiSafiName = af.Config.AfiSafiName
 				if !vvv.IsSet("afi-safi.config") {
 					af.Config.Enabled = true
 				}
 				n.AfiSafis[i] = af
 			}
 		}
+
+		n.State.Description = n.Config.Description
+		n.Config.Description = ""
+		n.State.AdminDown = n.Config.AdminDown
 
 		if !vv.IsSet("neighbor.config.local-as") {
 			n.Config.LocalAs = b.Global.Config.As

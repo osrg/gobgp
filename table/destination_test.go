@@ -217,6 +217,98 @@ func TestImplicitWithdrawCalculate(t *testing.T) {
 	assert.Equal(t, len(d.knownPathList), 1)
 }
 
+func TestMedTieBreaker(t *testing.T) {
+	nlri := bgp.NewIPAddrPrefix(24, "10.10.0.0")
+
+	p0 := func() *Path {
+		aspath := bgp.NewPathAttributeAsPath([]bgp.AsPathParamInterface{bgp.NewAs4PathParam(bgp.BGP_ASPATH_ATTR_TYPE_SEQ, []uint32{65001, 65002}), bgp.NewAs4PathParam(bgp.BGP_ASPATH_ATTR_TYPE_SEQ, []uint32{65003, 65004})})
+		attrs := []bgp.PathAttributeInterface{aspath, bgp.NewPathAttributeMultiExitDisc(0)}
+		return NewPath(nil, nlri, false, attrs, time.Now(), false)
+	}()
+
+	p1 := func() *Path {
+		aspath := bgp.NewPathAttributeAsPath([]bgp.AsPathParamInterface{bgp.NewAs4PathParam(bgp.BGP_ASPATH_ATTR_TYPE_SEQ, []uint32{65001, 65002}), bgp.NewAs4PathParam(bgp.BGP_ASPATH_ATTR_TYPE_SEQ, []uint32{65003, 65004})})
+		attrs := []bgp.PathAttributeInterface{aspath, bgp.NewPathAttributeMultiExitDisc(10)}
+		return NewPath(nil, nlri, false, attrs, time.Now(), false)
+	}()
+
+	// same AS
+	assert.Equal(t, compareByMED(p0, p1), p0)
+
+	p2 := func() *Path {
+		aspath := bgp.NewPathAttributeAsPath([]bgp.AsPathParamInterface{bgp.NewAs4PathParam(bgp.BGP_ASPATH_ATTR_TYPE_SEQ, []uint32{65003})})
+		attrs := []bgp.PathAttributeInterface{aspath, bgp.NewPathAttributeMultiExitDisc(10)}
+		return NewPath(nil, nlri, false, attrs, time.Now(), false)
+	}()
+
+	// different AS
+	assert.Equal(t, compareByMED(p0, p2), (*Path)(nil))
+
+	p3 := func() *Path {
+		aspath := bgp.NewPathAttributeAsPath([]bgp.AsPathParamInterface{bgp.NewAs4PathParam(bgp.BGP_ASPATH_ATTR_TYPE_SEQ, []uint32{65001, 65002}), bgp.NewAs4PathParam(bgp.BGP_ASPATH_ATTR_TYPE_CONFED_SEQ, []uint32{65003, 65004})})
+		attrs := []bgp.PathAttributeInterface{aspath, bgp.NewPathAttributeMultiExitDisc(0)}
+		return NewPath(nil, nlri, false, attrs, time.Now(), false)
+	}()
+
+	p4 := func() *Path {
+		aspath := bgp.NewPathAttributeAsPath([]bgp.AsPathParamInterface{bgp.NewAs4PathParam(bgp.BGP_ASPATH_ATTR_TYPE_SEQ, []uint32{65001, 65002}), bgp.NewAs4PathParam(bgp.BGP_ASPATH_ATTR_TYPE_CONFED_SEQ, []uint32{65005, 65006})})
+		attrs := []bgp.PathAttributeInterface{aspath, bgp.NewPathAttributeMultiExitDisc(10)}
+		return NewPath(nil, nlri, false, attrs, time.Now(), false)
+	}()
+
+	// ignore confed
+	assert.Equal(t, compareByMED(p3, p4), p3)
+
+	p5 := func() *Path {
+		attrs := []bgp.PathAttributeInterface{bgp.NewPathAttributeMultiExitDisc(0)}
+		return NewPath(nil, nlri, false, attrs, time.Now(), false)
+	}()
+
+	p6 := func() *Path {
+		attrs := []bgp.PathAttributeInterface{bgp.NewPathAttributeMultiExitDisc(10)}
+		return NewPath(nil, nlri, false, attrs, time.Now(), false)
+	}()
+
+	// no aspath
+	assert.Equal(t, compareByMED(p5, p6), p5)
+}
+
+func TestTimeTieBreaker(t *testing.T) {
+	origin := bgp.NewPathAttributeOrigin(0)
+	aspathParam := []bgp.AsPathParamInterface{bgp.NewAs4PathParam(2, []uint32{65001})}
+	aspath := bgp.NewPathAttributeAsPath(aspathParam)
+	nexthop := bgp.NewPathAttributeNextHop("10.0.0.1")
+	med := bgp.NewPathAttributeMultiExitDisc(0)
+	pathAttributes := []bgp.PathAttributeInterface{origin, aspath, nexthop, med}
+	nlri := bgp.NewIPAddrPrefix(24, "10.10.0.0")
+	updateMsg := bgp.NewBGPUpdateMessage(nil, pathAttributes, []*bgp.IPAddrPrefix{nlri})
+	peer1 := &PeerInfo{AS: 2, LocalAS: 1, Address: net.IP{1, 1, 1, 1}, ID: net.IP{1, 1, 1, 1}}
+	path1 := ProcessMessage(updateMsg, peer1, time.Now())[0]
+
+	peer2 := &PeerInfo{AS: 2, LocalAS: 1, Address: net.IP{2, 2, 2, 2}, ID: net.IP{2, 2, 2, 2}} // weaker router-id
+	path2 := ProcessMessage(updateMsg, peer2, time.Now().Add(-1*time.Hour))[0]                 // older than path1
+
+	d := NewDestination(nlri)
+	d.addNewPath(path1)
+	d.addNewPath(path2)
+
+	d.Calculate(nil)
+
+	assert.Equal(t, len(d.knownPathList), 2)
+	assert.Equal(t, true, d.GetBestPath("").GetSource().ID.Equal(net.IP{2, 2, 2, 2})) // path from peer2 win
+
+	// this option disables tie breaking by age
+	SelectionOptions.ExternalCompareRouterId = true
+	d = NewDestination(nlri)
+	d.addNewPath(path1)
+	d.addNewPath(path2)
+
+	d.Calculate(nil)
+
+	assert.Equal(t, len(d.knownPathList), 2)
+	assert.Equal(t, true, d.GetBestPath("").GetSource().ID.Equal(net.IP{1, 1, 1, 1})) // path from peer1 win
+}
+
 func DestCreatePeer() []*PeerInfo {
 	peerD1 := &PeerInfo{AS: 65000}
 	peerD2 := &PeerInfo{AS: 65001}

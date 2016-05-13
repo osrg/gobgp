@@ -4,6 +4,14 @@
 [global.config]
     as = 1
     router-id = "1.1.1.1"
+    # listen port (by default 179)
+    port = 1790
+    # to disable listening
+    # port = -1
+
+    # listen address list (by default "0.0.0.0" and "::")
+    local-address-list = ["192.168.10.1", "2001:db8::1"]
+
     [global.apply-policy.config]
         import-policy-list = ["policy1"]
         default-import-policy = "reject-route"
@@ -16,16 +24,6 @@
     [global.mpls-label-range]
         min-label = 1000
         max-label = 2000
-    [global.listen-config]
-        # listen port (by default 179)
-        port = 1790
-        # to disable listening
-        # port = -1
-
-        # listen address list (by default "0.0.0.0" and "::")
-        local-address-list = ["192.168.10.1", "2001:db8::1"]
-    [global.collector]
-        enabled = true
 
 [[rpki-servers]]
     [rpki-servers.config]
@@ -63,29 +61,43 @@
         route-reflector-client = true
         route-reflector-cluster-id = "192.168.0.1"
     [[neighbors.afi-safis]]
+        [neighbors.afi-safis.config]
         afi-safi-name = "ipv4-unicast"
         [neighbors.afi-safis.prefix-limit.config]
            max-prefixes = 1000
            shutdown-threshold-pct = 80
     [[neighbors.afi-safis]]
+        [neighbors.afi-safis.config]
         afi-safi-name = "ipv6-unicast"
     [[neighbors.afi-safis]]
+        [neighbors.afi-safis.config]
         afi-safi-name = "ipv4-labelled-unicast"
     [[neighbors.afi-safis]]
+        [neighbors.afi-safis.config]
         afi-safi-name = "ipv6-labelled-unicast"
     [[neighbors.afi-safis]]
+        [neighbors.afi-safis.config]
         afi-safi-name = "l3vpn-ipv4-unicast"
     [[neighbors.afi-safis]]
+        [neighbors.afi-safis.config]
         afi-safi-name = "l3vpn-ipv6-unicast"
     [[neighbors.afi-safis]]
+        [neighbors.afi-safis.config]
         afi-safi-name = "l2vpn-evpn"
     [[neighbors.afi-safis]]
+        [neighbors.afi-safis.config]
         afi-safi-name = "rtc"
     [[neighbors.afi-safis]]
-        afi-safi-name = "encap"
+        [neighbors.afi-safis.config]
+        afi-safi-name = "ipv4-encap"
     [[neighbors.afi-safis]]
+        [neighbors.afi-safis.config]
+        afi-safi-name = "ipv6-encap"
+    [[neighbors.afi-safis]]
+        [neighbors.afi-safis.config]
         afi-safi-name = "ipv4-flowspec"
     [[neighbors.afi-safis]]
+        [neighbors.afi-safis.config]
         afi-safi-name = "ipv6-flowspec"
     [neighbors.apply-policy.config]
         import-policy-list = ["policy1"]
