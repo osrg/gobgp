@@ -54,6 +54,7 @@
     [neighbors.transport.config]
         passive-mode = true
         local-address = "192.168.10.1"
+        remote-port = 2016
     [neighbors.ebgp-multihop.config]
         enabled = true
         multihop-ttl = 100
