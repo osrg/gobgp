@@ -166,7 +166,7 @@ python yabgp/bin/yabgpd --bgp-local_as=200 --bgp-remote_addr=10.79.45.72 --bgp-r
 From gobgp CMD:
 
 ``` bash
-$ ./gobgp neighbor
+$ gobgp neighbor
 Peer              AS  Up/Down State       |#Advertised Received Accepted
 10.75.44.10      300 00:01:23 Establ      |          0        0        0
 10.75.44.11      200 00:02:26 Establ      |          0        0        0
@@ -285,7 +285,7 @@ EVPN type 4:
 GoBGP will received these four routes and readvertise them to peer 10.75.44.10
 
 ``` bash
-$ ./gobgp monitor adj-in
+$ gobgp monitor adj-in
 [ROUTE] [type:A-D][rd:1.1.1.1:32867][esi:single-homed][etag:100][label:161] via 10.75.44.254 aspath [] attrs [{Extcomms: [esi-label: 8001]} {Origin: i} {LocalPref: 100}]
 [ROUTE] [type:macadv][rd:172.17.0.3:2][esi:single-homed][etag:108][mac:00:11:22:33:44:55][ip:11.11.11.1][labels:[0]] via 10.75.44.254 aspath [] attrs [{Extcomms: [mac-mobility: 500, sticky]} {Origin: i} {LocalPref: 100}]
 [ROUTE] [type:multicast][rd:172.16.0.1:5904][etag:100][ip:192.168.0.1] via 10.75.44.254 aspath [] attrs [{Origin: i} {LocalPref: 100}]
@@ -293,7 +293,7 @@ $ ./gobgp monitor adj-in
 ```
 
 ``` bash
-$ ./gobgp neighbor 
+$ gobgp neighbor 
 Peer              AS  Up/Down State       |#Advertised Received Accepted
 10.75.44.10      300 00:21:00 Establ      |          4        0        0
 10.75.44.11      200 00:22:03 Establ      |          0        4        4
