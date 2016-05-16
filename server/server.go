@@ -2952,7 +2952,9 @@ func (server *BgpServer) handleGrpcGetPolicyAssignment(grpcReq *GrpcRequest) (*a
 	if err != nil {
 		return rsp, err
 	}
-	rsp.Assignment.Default = server.policy.GetDefaultPolicy(id, dir).ToApiStruct()
+	rsp.Assignment = &api.PolicyAssignment{
+		Default: server.policy.GetDefaultPolicy(id, dir).ToApiStruct(),
+	}
 	ps := server.policy.GetPolicy(id, dir)
 	rsp.Assignment.Policies = make([]*api.Policy, 0, len(ps))
 	for _, x := range ps {
