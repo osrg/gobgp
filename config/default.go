@@ -34,8 +34,8 @@ func SetDefaultConfigValues(v *viper.Viper, b *BgpConfigSet) error {
 		}
 	}
 
-	if b.Global.Zebra.Url == "" {
-		b.Global.Zebra.Url = "unix:/var/run/quagga/zserv.api"
+	if b.Zebra.Config.Url == "" {
+		b.Zebra.Config.Url = "unix:/var/run/quagga/zserv.api"
 	}
 
 	if len(b.Global.AfiSafis) == 0 {

@@ -205,6 +205,9 @@ func main() {
 				if err := bgpServer.SetGlobalType(newConfig.Global); err != nil {
 					log.Fatalf("failed to set global config: %s", err)
 				}
+				if err := bgpServer.SetZebraConfig(newConfig.Zebra); err != nil {
+					log.Fatalf("failed to set zebra config: %s", err)
+				}
 				if err := bgpServer.SetRpkiConfig(newConfig.RpkiServers); err != nil {
 					log.Fatalf("failed to set rpki config: %s", err)
 				}

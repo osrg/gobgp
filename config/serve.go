@@ -15,6 +15,7 @@ type BgpConfigSet struct {
 	RpkiServers       []RpkiServer       `mapstructure:"rpki-servers"`
 	BmpServers        []BmpServer        `mapstructure:"bmp-servers"`
 	MrtDump           []Mrt              `mapstructure:"mrt-dump"`
+	Zebra             Zebra              `mapstructure:"zebra"`
 	DefinedSets       DefinedSets        `mapstructure:"defined-sets"`
 	PolicyDefinitions []PolicyDefinition `mapstructure:"policy-definitions"`
 }

@@ -775,27 +775,37 @@ module gobgp {
     uses gobgp-mrt;
   }
 
-  augment "/bgp:bgp/bgp:global" {
-    description "zebra configuration";
-    container zebra {
-       description
-         "Configure connection to zebra";
-      leaf enabled {
-        type boolean;
-        description
-          "Configure enabling to connect to zebra.";
-      }
-      leaf url {
-        type string;
-        description
-          "Configure url for zebra.";
-      }
-      leaf-list redistribute-route-type {
-        type identityref {
-          base ptypes:install-protocol-type;
-        }
+  grouping zebra-config {
+    leaf enabled {
+      type boolean;
+      description
+        "Configure enabling to connect to zebra.";
+    }
+    leaf url {
+      type string;
+      description
+        "Configure url for zebra.";
+    }
+    leaf-list redistribute-route-type {
+      type identityref {
+        base ptypes:install-protocol-type;
       }
     }
+  }
+
+  grouping zebra-set {
+    container zebra {
+      container config {
+        uses zebra-config;
+      }
+      container state {
+        uses zebra-config;
+      }
+    }
+  }
+
+  augment "/bgp:bgp" {
+    uses zebra-set;
   }
 
   augment "/bgp:bgp/bgp:global" {

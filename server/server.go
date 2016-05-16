@@ -990,13 +990,21 @@ func (server *BgpServer) SetGlobalType(g config.Global) error {
 	if err := (<-ch).Err(); err != nil {
 		return err
 	}
-	if g.Zebra.Enabled {
-		cli, err := NewZclient(g.Zebra.Url, g.Zebra.RedistributeRouteTypeList)
-		if err != nil {
-			return err
-		}
-		server.zclient = cli
-		server.zapiMsgCh = server.zclient.Receive()
+	return nil
+}
+
+func (server *BgpServer) SetZebraConfig(z config.Zebra) error {
+	if !z.Config.Enabled {
+		return nil
+	}
+	ch := make(chan *GrpcResponse)
+	server.GrpcReqCh <- &GrpcRequest{
+		RequestType: REQ_INITIALIZE_ZEBRA,
+		Data:        &z.Config,
+		ResponseCh:  ch,
+	}
+	if err := (<-ch).Err(); err != nil {
+		return err
 	}
 	return nil
 }
@@ -2334,6 +2342,17 @@ func (server *BgpServer) handleGrpc(grpcReq *GrpcRequest) []*SenderMsg {
 		}
 	case REQ_RELOAD_POLICY:
 		err := server.handlePolicy(grpcReq.Data.(config.RoutingPolicy))
+		grpcReq.ResponseCh <- &GrpcResponse{
+			ResponseErr: err,
+		}
+		close(grpcReq.ResponseCh)
+	case REQ_INITIALIZE_ZEBRA:
+		c := grpcReq.Data.(*config.ZebraConfig)
+		cli, err := NewZclient(c.Url, c.RedistributeRouteTypeList)
+		if err == nil {
+			server.zclient = cli
+			server.zapiMsgCh = server.zclient.Receive()
+		}
 		grpcReq.ResponseCh <- &GrpcResponse{
 			ResponseErr: err,
 		}

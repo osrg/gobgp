@@ -327,8 +327,8 @@ class GoBGPContainer(BGPContainer):
             config['policy-definitions'] = policy_list
 
         if self.zebra:
-            config['global']['zebra'] = {'enabled': True,
-                                         'redistribute-route-type-list':['connect']}
+            config['zebra'] = {'config':{'enabled': True,
+                                         'redistribute-route-type-list':['connect']}}
 
         with open('{0}/gobgpd.conf'.format(self.config_dir), 'w') as f:
             print colors.yellow('[{0}\'s new config]'.format(self.name))

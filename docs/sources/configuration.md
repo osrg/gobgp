@@ -17,10 +17,6 @@
         default-import-policy = "reject-route"
         export-policy-list = ["policy2"]
         default-export-policy = "accept-route"
-    [global.zebra]
-        enabled = true
-        url = "unix:/var/run/quagga/zserv.api"
-        redistribute-route-type-list = ["connect"]
     [global.mpls-label-range]
         min-label = 1000
         max-label = 2000
@@ -39,6 +35,12 @@
     dump-type = "updates"
     file-name = "/tmp/log/2006/01/02.1504.dump"
     interval = 180
+
+[zebra]
+    [zebra.config]
+        enabled = true
+        url = "unix:/var/run/quagga/zserv.api"
+        redistribute-route-type-list = ["connect"]
 
 [[neighbors]]
     [neighbors.config]

@@ -870,6 +870,88 @@ func (v RpkiValidationResultType) Validate() error {
 	return nil
 }
 
+//struct for container gobgp:state
+type ZebraState struct {
+	// original -> gobgp:enabled
+	//gobgp:enabled's original type is boolean
+	Enabled bool `mapstructure:"enabled"`
+	// original -> gobgp:url
+	Url string `mapstructure:"url"`
+	// original -> gobgp:redistribute-route-type
+	RedistributeRouteTypeList []InstallProtocolType `mapstructure:"redistribute-route-type-list"`
+}
+
+func (lhs *ZebraState) Equal(rhs *ZebraState) bool {
+	if lhs == nil || rhs == nil {
+		return false
+	}
+	if lhs.Enabled != rhs.Enabled {
+		return false
+	}
+	if lhs.Url != rhs.Url {
+		return false
+	}
+	if len(lhs.RedistributeRouteTypeList) != len(rhs.RedistributeRouteTypeList) {
+		return false
+	}
+	for idx, l := range lhs.RedistributeRouteTypeList {
+		if l != rhs.RedistributeRouteTypeList[idx] {
+			return false
+		}
+	}
+	return true
+}
+
+//struct for container gobgp:config
+type ZebraConfig struct {
+	// original -> gobgp:enabled
+	//gobgp:enabled's original type is boolean
+	Enabled bool `mapstructure:"enabled"`
+	// original -> gobgp:url
+	Url string `mapstructure:"url"`
+	// original -> gobgp:redistribute-route-type
+	RedistributeRouteTypeList []InstallProtocolType `mapstructure:"redistribute-route-type-list"`
+}
+
+func (lhs *ZebraConfig) Equal(rhs *ZebraConfig) bool {
+	if lhs == nil || rhs == nil {
+		return false
+	}
+	if lhs.Enabled != rhs.Enabled {
+		return false
+	}
+	if lhs.Url != rhs.Url {
+		return false
+	}
+	if len(lhs.RedistributeRouteTypeList) != len(rhs.RedistributeRouteTypeList) {
+		return false
+	}
+	for idx, l := range lhs.RedistributeRouteTypeList {
+		if l != rhs.RedistributeRouteTypeList[idx] {
+			return false
+		}
+	}
+	return true
+}
+
+//struct for container gobgp:zebra
+type Zebra struct {
+	// original -> gobgp:zebra-config
+	Config ZebraConfig `mapstructure:"config"`
+	// original -> gobgp:zebra-state
+	State ZebraState `mapstructure:"state"`
+}
+
+func (lhs *Zebra) Equal(rhs *Zebra) bool {
+	if lhs == nil || rhs == nil {
+		return false
+	}
+	if !lhs.Config.Equal(&(rhs.Config)) {
+		return false
+	}
+	return true
+}
+
 //struct for container gobgp:mrt
 type Mrt struct {
 	// original -> gobgp:dump-type
@@ -2470,38 +2552,6 @@ func (lhs *MplsLabelRange) Equal(rhs *MplsLabelRange) bool {
 	return true
 }
 
-//struct for container gobgp:zebra
-type Zebra struct {
-	// original -> gobgp:enabled
-	//gobgp:enabled's original type is boolean
-	Enabled bool `mapstructure:"enabled"`
-	// original -> gobgp:url
-	Url string `mapstructure:"url"`
-	// original -> gobgp:redistribute-route-type
-	RedistributeRouteTypeList []InstallProtocolType `mapstructure:"redistribute-route-type-list"`
-}
-
-func (lhs *Zebra) Equal(rhs *Zebra) bool {
-	if lhs == nil || rhs == nil {
-		return false
-	}
-	if lhs.Enabled != rhs.Enabled {
-		return false
-	}
-	if lhs.Url != rhs.Url {
-		return false
-	}
-	if len(lhs.RedistributeRouteTypeList) != len(rhs.RedistributeRouteTypeList) {
-		return false
-	}
-	for idx, l := range lhs.RedistributeRouteTypeList {
-		if l != rhs.RedistributeRouteTypeList[idx] {
-			return false
-		}
-	}
-	return true
-}
-
 //struct for container gobgp:state
 type RouteTargetMembershipState struct {
 	// original -> gobgp:deferral-time
@@ -3881,8 +3931,6 @@ type Global struct {
 	AfiSafis []AfiSafi `mapstructure:"afi-safis"`
 	// original -> rpol:apply-policy
 	ApplyPolicy ApplyPolicy `mapstructure:"apply-policy"`
-	// original -> gobgp:zebra
-	Zebra Zebra `mapstructure:"zebra"`
 	// original -> gobgp:mpls-label-range
 	MplsLabelRange MplsLabelRange `mapstructure:"mpls-label-range"`
 }
@@ -3928,9 +3976,6 @@ func (lhs *Global) Equal(rhs *Global) bool {
 	if !lhs.ApplyPolicy.Equal(&(rhs.ApplyPolicy)) {
 		return false
 	}
-	if !lhs.Zebra.Equal(&(rhs.Zebra)) {
-		return false
-	}
 	if !lhs.MplsLabelRange.Equal(&(rhs.MplsLabelRange)) {
 		return false
 	}
@@ -3951,6 +3996,8 @@ type Bgp struct {
 	BmpServers []BmpServer `mapstructure:"bmp-servers"`
 	// original -> gobgp:mrt-dump
 	MrtDump []Mrt `mapstructure:"mrt-dump"`
+	// original -> gobgp:zebra
+	Zebra Zebra `mapstructure:"zebra"`
 }
 
 func (lhs *Bgp) Equal(rhs *Bgp) bool {
@@ -4039,6 +4086,9 @@ func (lhs *Bgp) Equal(rhs *Bgp) bool {
 				return false
 			}
 		}
+	}
+	if !lhs.Zebra.Equal(&(rhs.Zebra)) {
+		return false
 	}
 	return true
 }
