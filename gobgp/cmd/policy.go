@@ -452,7 +452,7 @@ func printStatement(indent int, s *api.Statement) {
 		fmt.Printf("%sExtCommunity:    %s\n", sIndent(indent+4), formatComAction(s.Actions.ExtCommunity))
 	}
 	if s.Actions.Med != nil {
-		fmt.Printf("%sMed:             %s\n", sIndent(indent+4), s.Actions.Med.Value)
+		fmt.Printf("%sMed:             %d\n", sIndent(indent+4), s.Actions.Med.Value)
 	}
 	if s.Actions.AsPrepend != nil {
 		var asn string
