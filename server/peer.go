@@ -188,14 +188,19 @@ func (peer *Peer) processOutgoingPaths(paths, withdrawals []*table.Path) []*tabl
 		Neighbor: peer.fsm.peerInfo.Address,
 	}
 	for _, path := range paths {
-		path = peer.policy.ApplyPolicy(peer.TableID(), table.POLICY_DIRECTION_EXPORT, filterpath(peer, path), options)
-		if path == nil {
+		if filterpath(peer, path) == nil {
 			continue
 		}
 		if !peer.isRouteServerClient() {
 			path = path.Clone(path.IsWithdraw)
 			path.UpdatePathAttrs(peer.fsm.gConf, peer.fsm.pConf)
 		}
+
+		path = peer.policy.ApplyPolicy(peer.TableID(), table.POLICY_DIRECTION_EXPORT, path, options)
+		if path == nil {
+			continue
+		}
+
 		outgoing = append(outgoing, path)
 	}
 
