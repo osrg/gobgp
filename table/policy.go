@@ -32,7 +32,7 @@ import (
 )
 
 type PolicyOptions struct {
-	Neighbor net.IP
+	Info *PeerInfo
 }
 
 type DefinedType int
@@ -1175,8 +1175,8 @@ func (c *NeighborCondition) Evaluate(path *Path, options *PolicyOptions) bool {
 	}
 
 	neighbor := path.GetSource().Address
-	if options != nil && options.Neighbor != nil {
-		neighbor = options.Neighbor
+	if options != nil && options.Info != nil && options.Info.Address != nil {
+		neighbor = options.Info.Address
 	}
 
 	if neighbor == nil {
@@ -1614,7 +1614,7 @@ func NewRpkiValidationCondition(c config.RpkiValidationResultType) (*RpkiValidat
 
 type Action interface {
 	Type() ActionType
-	Apply(*Path) *Path
+	Apply(*Path, *PolicyOptions) *Path
 }
 
 type RoutingAction struct {
@@ -1625,7 +1625,7 @@ func (a *RoutingAction) Type() ActionType {
 	return ACTION_ROUTING
 }
 
-func (a *RoutingAction) Apply(path *Path) *Path {
+func (a *RoutingAction) Apply(path *Path, _ *PolicyOptions) *Path {
 	if a.AcceptRoute {
 		return path
 	}
@@ -1718,7 +1718,7 @@ func (a *CommunityAction) Type() ActionType {
 	return ACTION_COMMUNITY
 }
 
-func (a *CommunityAction) Apply(path *Path) *Path {
+func (a *CommunityAction) Apply(path *Path, _ *PolicyOptions) *Path {
 	switch a.action {
 	case config.BGP_SET_COMMUNITY_OPTION_TYPE_ADD:
 		path.SetCommunities(a.list, false)
@@ -1827,7 +1827,7 @@ func (a *ExtCommunityAction) Type() ActionType {
 	return ACTION_EXT_COMMUNITY
 }
 
-func (a *ExtCommunityAction) Apply(path *Path) *Path {
+func (a *ExtCommunityAction) Apply(path *Path, _ *PolicyOptions) *Path {
 	switch a.action {
 	case config.BGP_SET_COMMUNITY_OPTION_TYPE_ADD:
 		path.SetExtCommunities(a.list, false)
@@ -1955,7 +1955,7 @@ func (a *MedAction) Type() ActionType {
 	return ACTION_MED
 }
 
-func (a *MedAction) Apply(path *Path) *Path {
+func (a *MedAction) Apply(path *Path, _ *PolicyOptions) *Path {
 	var err error
 	switch a.action {
 	case MED_ACTION_MOD:
@@ -2019,7 +2019,7 @@ func (a *LocalPrefAction) Type() ActionType {
 	return ACTION_LOCAL_PREF
 }
 
-func (a *LocalPrefAction) Apply(path *Path) *Path {
+func (a *LocalPrefAction) Apply(path *Path, _ *PolicyOptions) *Path {
 	path.setPathAttr(bgp.NewPathAttributeLocalPref(a.value))
 	return path
 }
@@ -2058,7 +2058,7 @@ func (a *AsPathPrependAction) Type() ActionType {
 	return ACTION_AS_PATH_PREPEND
 }
 
-func (a *AsPathPrependAction) Apply(path *Path) *Path {
+func (a *AsPathPrependAction) Apply(path *Path, _ *PolicyOptions) *Path {
 	var asn uint32
 	if a.useLeftMost {
 		aspath := path.GetAsSeqList()
@@ -2131,13 +2131,20 @@ func NewAsPathPrependAction(action config.SetAsPathPrepend) (*AsPathPrependActio
 
 type NexthopAction struct {
 	value net.IP
+	self  bool
 }
 
 func (a *NexthopAction) Type() ActionType {
 	return ACTION_NEXTHOP
 }
 
-func (a *NexthopAction) Apply(path *Path) *Path {
+func (a *NexthopAction) Apply(path *Path, options *PolicyOptions) *Path {
+	if a.self {
+		if options != nil && options.Info != nil && options.Info.LocalAddress != nil {
+			path.SetNexthop(options.Info.LocalAddress)
+		}
+		return path
+	}
 	path.SetNexthop(a.value)
 	return path
 }
@@ -2145,6 +2152,7 @@ func (a *NexthopAction) Apply(path *Path) *Path {
 func (a *NexthopAction) ToApiStruct() *api.NexthopAction {
 	return &api.NexthopAction{
 		Address: a.value.String(),
+		Self:    a.self,
 	}
 }
 
@@ -2154,12 +2162,18 @@ func NewNexthopActionFromApiStruct(a *api.NexthopAction) (*NexthopAction, error)
 	}
 	return &NexthopAction{
 		value: net.ParseIP(a.Address),
+		self:  a.Self,
 	}, nil
 }
 
 func NewNexthopAction(c config.BgpNextHopType) (*NexthopAction, error) {
-	if string(c) == "" {
+	switch string(c) {
+	case "":
 		return nil, nil
+	case "self":
+		return &NexthopAction{
+			self: true,
+		}, nil
 	}
 	addr := net.ParseIP(string(c))
 	if addr == nil {
@@ -2194,7 +2208,7 @@ func (s *Statement) Apply(path *Path, options *PolicyOptions) (RouteType, *Path)
 			// apply all modification actions
 			path = path.Clone(path.IsWithdraw)
 			for _, action := range s.ModActions {
-				path = action.Apply(path)
+				path = action.Apply(path, options)
 			}
 		}
 		//Routing action
@@ -2206,7 +2220,7 @@ func (s *Statement) Apply(path *Path, options *PolicyOptions) (RouteType, *Path)
 			}).Warn("route action is nil")
 			return ROUTE_TYPE_NONE, path
 		}
-		p := s.RouteAction.Apply(path)
+		p := s.RouteAction.Apply(path, options)
 		if p == nil {
 			return ROUTE_TYPE_REJECT, path
 		}

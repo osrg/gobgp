@@ -2687,7 +2687,7 @@ func TestLocalPrefAction(t *testing.T) {
 	attrs := []bgp.PathAttributeInterface{origin, aspath, nexthop, med}
 
 	path := NewPath(nil, nlri, false, attrs, time.Now(), false)
-	p := action.Apply(path)
+	p := action.Apply(path, nil)
 	assert.NotNil(t, p)
 
 	attr := path.getPathAttr(bgp.BGP_ATTR_TYPE_LOCAL_PREF)

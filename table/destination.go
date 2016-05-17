@@ -67,6 +67,7 @@ type PeerInfo struct {
 	LocalAS                 uint32
 	LocalID                 net.IP
 	Address                 net.IP
+	LocalAddress            net.IP
 	RouteReflectorClient    bool
 	RouteReflectorClusterID net.IP
 }

@@ -82,7 +82,7 @@ func TestCalculate(t *testing.T) {
 		repeat: 10,
 	}
 
-	path2 := action.Apply(path1.Clone(false))
+	path2 := action.Apply(path1.Clone(false), nil)
 	path1.Filter("2", POLICY_DIRECTION_IMPORT)
 	path2.Filter("1", POLICY_DIRECTION_IMPORT)
 
@@ -179,7 +179,7 @@ func TestImplicitWithdrawCalculate(t *testing.T) {
 		repeat: 1,
 	}
 
-	path2 := action.Apply(path1.Clone(false))
+	path2 := action.Apply(path1.Clone(false), nil)
 	path1.Filter("2", POLICY_DIRECTION_IMPORT)
 	path2.Filter("1", POLICY_DIRECTION_IMPORT)
 	path2.Filter("3", POLICY_DIRECTION_IMPORT)

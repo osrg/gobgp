@@ -157,7 +157,7 @@ func (peer *Peer) filterpath(path *table.Path) *table.Path {
 		path.UpdatePathAttrs(peer.fsm.gConf, peer.fsm.pConf)
 	}
 	options := &table.PolicyOptions{
-		Neighbor: peer.fsm.peerInfo.Address,
+		Info: peer.fsm.peerInfo,
 	}
 	path = peer.policy.ApplyPolicy(peer.TableID(), table.POLICY_DIRECTION_EXPORT, path, options)
 
