@@ -468,7 +468,11 @@ func printStatement(indent int, s *api.Statement) {
 		fmt.Printf("%sAsPrepend:       %s   %d\n", sIndent(indent+4), asn, s.Actions.AsPrepend.Repeat)
 	}
 	if s.Actions.Nexthop != nil {
-		fmt.Printf("%sNexthop:             %s\n", sIndent(indent+4), s.Actions.Nexthop.Address)
+		addr := s.Actions.Nexthop.Address
+		if s.Actions.Nexthop.Self {
+			addr = "SELF"
+		}
+		fmt.Printf("%sNexthop:             %s\n", sIndent(indent+4), addr)
 	}
 	fmt.Printf("%s%s\n", sIndent(indent+4), s.Actions.RouteAction)
 }
@@ -845,10 +849,19 @@ func modAction(name, op string, args []string) error {
 		}
 	case "next-hop":
 		if len(args) != 1 {
-			return fmt.Errorf("%s next-hop <value>", usage)
+			return fmt.Errorf("%s next-hop { <value> | self }", usage)
 		}
-		stmt.Actions.Nexthop = &api.NexthopAction{
-			Address: args[0],
+		if strings.ToLower(args[0]) == "self" {
+			stmt.Actions.Nexthop = &api.NexthopAction{
+				Self: true,
+			}
+		} else {
+			if net.ParseIP(args[0]) == nil {
+				return fmt.Errorf("invalid next-hop format: %s", args[0])
+			}
+			stmt.Actions.Nexthop = &api.NexthopAction{
+				Address: args[0],
+			}
 		}
 	}
 	var err error
