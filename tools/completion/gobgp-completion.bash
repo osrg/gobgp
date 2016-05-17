@@ -1,7 +1,7 @@
 #!/bin/bash
 
-. ./gobgp-static-completion.bash
-. ./gobgp-dynamic-completion.bash
+. `dirname $BASH_SOURCE`/gobgp-static-completion.bash
+. `dirname $BASH_SOURCE`/gobgp-dynamic-completion.bash
 
 __debug()
 {
