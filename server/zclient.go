@@ -186,8 +186,5 @@ func NewZclient(url string, redistRouteTypes []config.InstallProtocolType) (*zeb
 		}
 		cli.SendRedistribute(t)
 	}
-	if e := cli.SendCommand(zebra.REDISTRIBUTE_DEFAULT_ADD, nil); e != nil {
-		return nil, e
-	}
 	return cli, nil
 }
