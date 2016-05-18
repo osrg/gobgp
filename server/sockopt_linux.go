@@ -75,6 +75,9 @@ func DialTCPTimeoutWithMD5Sig(host string, port int, localAddr, key string, msec
 	if err != nil {
 		return nil, err
 	}
+	fi := os.NewFile(uintptr(fd), "")
+	defer fi.Close()
+
 	t, err := buildTcpMD5Sig(host, key)
 	if err != nil {
 		return nil, err
@@ -94,9 +97,7 @@ func DialTCPTimeoutWithMD5Sig(host string, port int, localAddr, key string, msec
 		return nil, os.NewSyscallError("bind", err)
 	}
 
-	tcpconn := func(fd uintptr) (*net.TCPConn, error) {
-		fi := os.NewFile(uintptr(fd), "")
-		defer fi.Close()
+	tcpconn := func(fi *os.File) (*net.TCPConn, error) {
 		conn, err := net.FileConn(fi)
 		return conn.(*net.TCPConn), err
 	}
@@ -106,7 +107,7 @@ func DialTCPTimeoutWithMD5Sig(host string, port int, localAddr, key string, msec
 	case syscall.EINPROGRESS, syscall.EALREADY, syscall.EINTR:
 		// do timeout handling
 	case nil, syscall.EISCONN:
-		return tcpconn(uintptr(fd))
+		return tcpconn(fi)
 	default:
 		return nil, os.NewSyscallError("connect", err)
 	}
@@ -141,7 +142,7 @@ func DialTCPTimeoutWithMD5Sig(host string, port int, localAddr, key string, msec
 			switch err := syscall.Errno(nerr); err {
 			case syscall.EINPROGRESS, syscall.EALREADY, syscall.EINTR:
 			case syscall.Errno(0), syscall.EISCONN:
-				return tcpconn(uintptr(fd))
+				return tcpconn(fi)
 			default:
 				return nil, os.NewSyscallError("getsockopt", err)
 			}
