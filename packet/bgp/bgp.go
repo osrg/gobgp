@@ -2210,6 +2210,9 @@ func flowSpecIpProtoParser(rf RouteFamily, args []string) (FlowSpecComponentInte
 	protos := strings.Join(ss, "|")
 	exp := regexp.MustCompile(fmt.Sprintf("^%s (((%s) )*)(%s)$", FlowSpecNameMap[FLOW_SPEC_TYPE_IP_PROTO], protos, protos))
 	elems := exp.FindStringSubmatch(strings.Join(args, " "))
+	if len(elems) < 2 {
+		return nil, fmt.Errorf("invalid ip-proto format")
+	}
 	items := make([]*FlowSpecComponentItem, 0)
 	eq := 0x1
 	if elems[1] != "" {
