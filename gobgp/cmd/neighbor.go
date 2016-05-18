@@ -510,7 +510,7 @@ func showNeighborRib(r string, name string, args []string) error {
 
 	isResultSorted := func(rf bgp.RouteFamily) bool {
 		switch rf {
-		case bgp.RF_IPv4_UC, bgp.RF_IPv6_UC:
+		case bgp.RF_IPv4_UC, bgp.RF_IPv6_UC, bgp.RF_FS_IPv4_UC, bgp.RF_FS_IPv6_UC, bgp.RF_FS_IPv4_VPN, bgp.RF_FS_IPv6_VPN, bgp.RF_FS_L2_VPN:
 			return true
 		}
 		return false

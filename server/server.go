@@ -1704,23 +1704,6 @@ func (server *BgpServer) handleGrpc(grpcReq *GrpcRequest) []*SenderMsg {
 		return []*Peer{peer}, err
 	}
 
-	sortedDsts := func(id string, t *table.Table) []*api.Destination {
-		results := make([]*api.Destination, 0, len(t.GetDestinations()))
-
-		r := radix.New()
-		for _, dst := range t.GetDestinations() {
-			if d := dst.ToApiStruct(id); d != nil {
-				r.Insert(dst.RadixKey, d)
-			}
-		}
-		r.Walk(func(s string, v interface{}) bool {
-			results = append(results, v.(*api.Destination))
-			return false
-		})
-
-		return results
-	}
-
 	if server.bgpConfig.Global.Config.As == 0 && grpcReq.RequestType != REQ_START_SERVER {
 		grpcReq.ResponseCh <- &GrpcResponse{
 			ResponseErr: fmt.Errorf("bgpd main loop is not started yet"),
@@ -1788,59 +1771,53 @@ func (server *BgpServer) handleGrpc(grpcReq *GrpcRequest) []*SenderMsg {
 			goto ERROR
 		}
 
-		switch af {
-		case bgp.RF_IPv4_UC, bgp.RF_IPv6_UC:
-			if len(arg.Table.Destinations) > 0 {
-				dsts := []*api.Destination{}
-				f := func(id, cidr string) (bool, error) {
-					_, prefix, err := net.ParseCIDR(cidr)
-					if err != nil {
-						return false, err
-					}
-					if dst := rib.Tables[af].GetDestination(prefix.String()); dst != nil {
-						if d := dst.ToApiStruct(id); d != nil {
-							dsts = append(dsts, d)
-						}
-						return true, nil
-					} else {
-						return false, nil
-					}
+		dsts := make([]*api.Destination, 0, len(rib.Tables[af].GetDestinations()))
+		if (af == bgp.RF_IPv4_UC || af == bgp.RF_IPv6_UC) && len(arg.Table.Destinations) > 0 {
+			f := func(id, cidr string) (bool, error) {
+				_, prefix, err := net.ParseCIDR(cidr)
+				if err != nil {
+					return false, err
 				}
-				for _, dst := range arg.Table.Destinations {
-					key := dst.Prefix
-					if _, err := f(id, key); err != nil {
-						if host := net.ParseIP(key); host != nil {
-							masklen := 32
-							if af == bgp.RF_IPv6_UC {
-								masklen = 128
-							}
-							for i := masklen; i > 0; i-- {
-								if y, _ := f(id, fmt.Sprintf("%s/%d", key, i)); y {
-									break
-								}
-							}
-						}
-					} else if dst.LongerPrefixes {
-						_, prefix, _ := net.ParseCIDR(key)
-						ones, bits := prefix.Mask.Size()
-						for i := ones + 1; i <= bits; i++ {
-							prefix.Mask = net.CIDRMask(i, bits)
-							f(id, prefix.String())
-						}
+				if dst := rib.Tables[af].GetDestination(prefix.String()); dst != nil {
+					if d := dst.ToApiStruct(id); d != nil {
+						dsts = append(dsts, d)
 					}
+					return true, nil
+				} else {
+					return false, nil
 				}
-				d.Destinations = dsts
-			} else {
-				d.Destinations = sortedDsts(id, rib.Tables[af])
 			}
-		default:
-			d.Destinations = make([]*api.Destination, 0, len(rib.Tables[af].GetDestinations()))
-			for _, dst := range rib.Tables[af].GetDestinations() {
-				if s := dst.ToApiStruct(id); s != nil {
-					d.Destinations = append(d.Destinations, s)
+			for _, dst := range arg.Table.Destinations {
+				key := dst.Prefix
+				if _, err := f(id, key); err != nil {
+					if host := net.ParseIP(key); host != nil {
+						masklen := 32
+						if af == bgp.RF_IPv6_UC {
+							masklen = 128
+						}
+						for i := masklen; i > 0; i-- {
+							if y, _ := f(id, fmt.Sprintf("%s/%d", key, i)); y {
+								break
+							}
+						}
+					}
+				} else if dst.LongerPrefixes {
+					_, prefix, _ := net.ParseCIDR(key)
+					ones, bits := prefix.Mask.Size()
+					for i := ones + 1; i <= bits; i++ {
+						prefix.Mask = net.CIDRMask(i, bits)
+						f(id, prefix.String())
+					}
+				}
+			}
+		} else {
+			for _, dst := range rib.Tables[af].GetSortedDestinations() {
+				if d := dst.ToApiStruct(id); d != nil {
+					dsts = append(dsts, d)
 				}
 			}
 		}
+		d.Destinations = dsts
 		grpcReq.ResponseCh <- &GrpcResponse{
 			Data: &api.GetRibResponse{Table: d},
 		}

@@ -3115,6 +3115,161 @@ func (n *FlowSpecNLRI) MarshalJSON() ([]byte, error) {
 	})
 }
 
+//
+// CompareFlowSpecNLRI(n, m) returns
+// -1 when m has precedence
+//  0 when n and m have same precedence
+//  1 when n has precedence
+//
+func CompareFlowSpecNLRI(n, m *FlowSpecNLRI) (int, error) {
+	family := AfiSafiToRouteFamily(n.AFI(), n.SAFI())
+	if family != AfiSafiToRouteFamily(m.AFI(), m.SAFI()) {
+		return 0, fmt.Errorf("address family mismatch")
+	}
+	longer := n.Value
+	shorter := m.Value
+	invert := 1
+	if len(n.Value) < len(m.Value) {
+		longer = m.Value
+		shorter = n.Value
+		invert = -1
+	}
+	for idx, v := range longer {
+		if len(shorter) < idx+1 {
+			return invert, nil
+		}
+		w := shorter[idx]
+		if v.Type() < w.Type() {
+			return invert, nil
+		} else if w.Type() > v.Type() {
+			return invert * -1, nil
+		}
+		if v.Type() == FLOW_SPEC_TYPE_DST_PREFIX || v.Type() == FLOW_SPEC_TYPE_SRC_PREFIX {
+			// RFC5575 5.1
+			//
+			// For IP prefix values (IP destination and source prefix) precedence is
+			// given to the lowest IP value of the common prefix length; if the
+			// common prefix is equal, then the most specific prefix has precedence.
+			var p, q *IPAddrPrefixDefault
+			var pCommon, qCommon uint64
+			if family == RF_FS_IPv4_UC || family == RF_FS_IPv4_VPN {
+				if family == RF_FS_IPv4_VPN {
+					var s, t *LabeledVPNIPAddrPrefix
+					if v.Type() == FLOW_SPEC_TYPE_DST_PREFIX {
+						s = v.(*FlowSpecDestinationPrefix).Prefix.(*LabeledVPNIPAddrPrefix)
+						t = w.(*FlowSpecDestinationPrefix).Prefix.(*LabeledVPNIPAddrPrefix)
+					} else {
+						s = v.(*FlowSpecSourcePrefix).Prefix.(*LabeledVPNIPAddrPrefix)
+						t = w.(*FlowSpecSourcePrefix).Prefix.(*LabeledVPNIPAddrPrefix)
+					}
+					k, _ := s.RD.Serialize()
+					l, _ := t.RD.Serialize()
+					if result := bytes.Compare(k, l); result < 0 {
+						return invert, nil
+					} else if result > 0 {
+						return invert * -1, nil
+					}
+					p = &s.IPAddrPrefixDefault
+					q = &t.IPAddrPrefixDefault
+				} else {
+					if v.Type() == FLOW_SPEC_TYPE_DST_PREFIX {
+						p = &v.(*FlowSpecDestinationPrefix).Prefix.(*IPAddrPrefix).IPAddrPrefixDefault
+						q = &w.(*FlowSpecDestinationPrefix).Prefix.(*IPAddrPrefix).IPAddrPrefixDefault
+					} else {
+						p = &v.(*FlowSpecSourcePrefix).Prefix.(*IPAddrPrefix).IPAddrPrefixDefault
+						q = &w.(*FlowSpecSourcePrefix).Prefix.(*IPAddrPrefix).IPAddrPrefixDefault
+					}
+				}
+				min := p.Length
+				if q.Length < p.Length {
+					min = q.Length
+				}
+				pCommon = uint64(binary.BigEndian.Uint32([]byte(p.Prefix.To4())) >> (32 - min))
+				qCommon = uint64(binary.BigEndian.Uint32([]byte(q.Prefix.To4())) >> (32 - min))
+			} else if family == RF_FS_IPv6_UC || family == RF_FS_IPv6_VPN {
+				if family == RF_FS_IPv6_VPN {
+					var s, t *LabeledVPNIPv6AddrPrefix
+					if v.Type() == FLOW_SPEC_TYPE_DST_PREFIX {
+						s = v.(*FlowSpecDestinationPrefix6).Prefix.(*LabeledVPNIPv6AddrPrefix)
+						t = w.(*FlowSpecDestinationPrefix6).Prefix.(*LabeledVPNIPv6AddrPrefix)
+					} else {
+						s = v.(*FlowSpecSourcePrefix6).Prefix.(*LabeledVPNIPv6AddrPrefix)
+						t = w.(*FlowSpecSourcePrefix6).Prefix.(*LabeledVPNIPv6AddrPrefix)
+					}
+					k, _ := s.RD.Serialize()
+					l, _ := t.RD.Serialize()
+					if result := bytes.Compare(k, l); result < 0 {
+						return invert, nil
+					} else if result > 0 {
+						return invert * -1, nil
+					}
+					p = &s.IPAddrPrefixDefault
+					q = &t.IPAddrPrefixDefault
+				} else {
+					if v.Type() == FLOW_SPEC_TYPE_DST_PREFIX {
+						p = &v.(*FlowSpecDestinationPrefix6).Prefix.(*IPv6AddrPrefix).IPAddrPrefixDefault
+						q = &w.(*FlowSpecDestinationPrefix6).Prefix.(*IPv6AddrPrefix).IPAddrPrefixDefault
+					} else {
+						p = &v.(*FlowSpecSourcePrefix6).Prefix.(*IPv6AddrPrefix).IPAddrPrefixDefault
+						q = &w.(*FlowSpecSourcePrefix6).Prefix.(*IPv6AddrPrefix).IPAddrPrefixDefault
+					}
+				}
+				min := uint(p.Length)
+				if q.Length < p.Length {
+					min = uint(q.Length)
+				}
+				var mask uint
+				if min-64 > 0 {
+					mask = min - 64
+				}
+				pCommon = binary.BigEndian.Uint64([]byte(p.Prefix.To16()[:8])) >> mask
+				qCommon = binary.BigEndian.Uint64([]byte(q.Prefix.To16()[:8])) >> mask
+				if pCommon == qCommon && mask == 0 {
+					mask = 64 - min
+					pCommon = binary.BigEndian.Uint64([]byte(p.Prefix.To16()[8:])) >> mask
+					qCommon = binary.BigEndian.Uint64([]byte(q.Prefix.To16()[8:])) >> mask
+				}
+			}
+
+			if pCommon < qCommon {
+				return invert, nil
+			} else if pCommon > qCommon {
+				return invert * -1, nil
+			} else if p.Length > q.Length {
+				return invert, nil
+			} else if p.Length < q.Length {
+				return invert * -1, nil
+			}
+
+		} else {
+			// RFC5575 5.1
+			//
+			// For all other component types, unless otherwise specified, the
+			// comparison is performed by comparing the component data as a binary
+			// string using the memcmp() function as defined by the ISO C standard.
+			// For strings of different lengths, the common prefix is compared.  If
+			// equal, the longest string is considered to have higher precedence
+			// than the shorter one.
+			p, _ := v.Serialize()
+			q, _ := w.Serialize()
+			min := len(p)
+			if len(q) < len(p) {
+				min = len(q)
+			}
+			if result := bytes.Compare(p[:min], q[:min]); result < 0 {
+				return invert, nil
+			} else if result > 0 {
+				return invert * -1, nil
+			} else if len(p) > len(q) {
+				return invert, nil
+			} else if len(q) > len(p) {
+				return invert * -1, nil
+			}
+		}
+	}
+	return 0, nil
+}
+
 type FlowSpecIPv4Unicast struct {
 	FlowSpecNLRI
 }
