@@ -2956,6 +2956,16 @@ type FlowSpecNLRI struct {
 	rf    RouteFamily
 }
 
+func (n *FlowSpecNLRI) AFI() uint16 {
+	afi, _ := RouteFamilyToAfiSafi(n.rf)
+	return afi
+}
+
+func (n *FlowSpecNLRI) SAFI() uint8 {
+	_, safi := RouteFamilyToAfiSafi(n.rf)
+	return safi
+}
+
 func (n *FlowSpecNLRI) decodeFromBytes(rf RouteFamily, data []byte) error {
 	var length int
 	if (data[0]>>4) == 0xf && len(data) > 2 {
@@ -3100,14 +3110,6 @@ func (n *FlowSpecIPv4Unicast) DecodeFromBytes(data []byte) error {
 	return n.decodeFromBytes(AfiSafiToRouteFamily(n.AFI(), n.SAFI()), data)
 }
 
-func (n *FlowSpecIPv4Unicast) AFI() uint16 {
-	return AFI_IP
-}
-
-func (n *FlowSpecIPv4Unicast) SAFI() uint8 {
-	return SAFI_FLOW_SPEC_UNICAST
-}
-
 func NewFlowSpecIPv4Unicast(value []FlowSpecComponentInterface) *FlowSpecIPv4Unicast {
 	return &FlowSpecIPv4Unicast{FlowSpecNLRI{value, RF_FS_IPv4_UC}}
 }
@@ -3120,14 +3122,6 @@ func (n *FlowSpecIPv4VPN) DecodeFromBytes(data []byte) error {
 	return n.decodeFromBytes(AfiSafiToRouteFamily(n.AFI(), n.SAFI()), data)
 }
 
-func (n *FlowSpecIPv4VPN) AFI() uint16 {
-	return AFI_IP
-}
-
-func (n *FlowSpecIPv4VPN) SAFI() uint8 {
-	return SAFI_FLOW_SPEC_VPN
-}
-
 func NewFlowSpecIPv4VPN(value []FlowSpecComponentInterface) *FlowSpecIPv4VPN {
 	return &FlowSpecIPv4VPN{FlowSpecNLRI{value, RF_FS_IPv4_VPN}}
 }
@@ -3138,14 +3132,6 @@ type FlowSpecIPv6Unicast struct {
 
 func (n *FlowSpecIPv6Unicast) DecodeFromBytes(data []byte) error {
 	return n.decodeFromBytes(AfiSafiToRouteFamily(n.AFI(), n.SAFI()), data)
-}
-
-func (n *FlowSpecIPv6Unicast) AFI() uint16 {
-	return AFI_IP6
-}
-
-func (n *FlowSpecIPv6Unicast) SAFI() uint8 {
-	return SAFI_FLOW_SPEC_UNICAST
 }
 
 func NewFlowSpecIPv6Unicast(value []FlowSpecComponentInterface) *FlowSpecIPv6Unicast {
@@ -3163,14 +3149,6 @@ func (n *FlowSpecIPv6VPN) DecodeFromBytes(data []byte) error {
 	return n.decodeFromBytes(AfiSafiToRouteFamily(n.AFI(), n.SAFI()), data)
 }
 
-func (n *FlowSpecIPv6VPN) AFI() uint16 {
-	return AFI_IP6
-}
-
-func (n *FlowSpecIPv6VPN) SAFI() uint8 {
-	return SAFI_FLOW_SPEC_VPN
-}
-
 func NewFlowSpecIPv6VPN(value []FlowSpecComponentInterface) *FlowSpecIPv6VPN {
 	return &FlowSpecIPv6VPN{FlowSpecNLRI{
 		Value: value,
@@ -3184,14 +3162,6 @@ type FlowSpecL2VPN struct {
 
 func (n *FlowSpecL2VPN) DecodeFromBytes(data []byte) error {
 	return n.decodeFromBytes(AfiSafiToRouteFamily(n.AFI(), n.SAFI()), data)
-}
-
-func (n *FlowSpecL2VPN) AFI() uint16 {
-	return AFI_L2VPN
-}
-
-func (n *FlowSpecL2VPN) SAFI() uint8 {
-	return SAFI_FLOW_SPEC_VPN
 }
 
 func NewFlowSpecL2VPN(value []FlowSpecComponentInterface) *FlowSpecL2VPN {
@@ -3371,15 +3341,15 @@ func NewPrefixFromRouteFamily(afi uint16, safi uint8) (prefix AddrPrefixInterfac
 	case RF_IPv6_ENCAP:
 		prefix = NewEncapv6NLRI("")
 	case RF_FS_IPv4_UC:
-		prefix = &FlowSpecIPv4Unicast{}
+		prefix = &FlowSpecIPv4Unicast{FlowSpecNLRI{rf: RF_FS_IPv4_UC}}
 	case RF_FS_IPv4_VPN:
-		prefix = &FlowSpecIPv4VPN{}
+		prefix = &FlowSpecIPv4VPN{FlowSpecNLRI{rf: RF_FS_IPv4_VPN}}
 	case RF_FS_IPv6_UC:
-		prefix = &FlowSpecIPv6Unicast{}
+		prefix = &FlowSpecIPv6Unicast{FlowSpecNLRI{rf: RF_FS_IPv6_UC}}
 	case RF_FS_IPv6_VPN:
-		prefix = &FlowSpecIPv6VPN{}
+		prefix = &FlowSpecIPv6VPN{FlowSpecNLRI{rf: RF_FS_IPv6_VPN}}
 	case RF_FS_L2_VPN:
-		prefix = &FlowSpecL2VPN{}
+		prefix = &FlowSpecL2VPN{FlowSpecNLRI{rf: RF_FS_L2_VPN}}
 	case RF_OPAQUE:
 		prefix = &OpaqueNLRI{}
 	default:
