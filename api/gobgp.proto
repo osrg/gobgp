@@ -565,7 +565,7 @@ message EbgpMultihop {
 
 message RouteReflector {
   bool route_reflector_client = 1;
-  uint32 route_reflector_cluster_id = 2;
+  string route_reflector_cluster_id = 2;
 }
 
 message PeerState {

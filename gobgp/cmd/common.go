@@ -280,9 +280,11 @@ type PeerConf struct {
 }
 
 type Peer struct {
-	Conf   PeerConf            `json:"conf,omitempty"`
-	Info   *gobgpapi.PeerState `json:"info,omitempty"`
-	Timers *gobgpapi.Timers    `json:"timers,,omitempty"`
+	Conf           PeerConf                 `json:"conf,omitempty"`
+	Info           *gobgpapi.PeerState      `json:"info,omitempty"`
+	Timers         *gobgpapi.Timers         `json:"timers,omitempty"`
+	RouteReflector *gobgpapi.RouteReflector `json:"route_reflector,omitempty"`
+	RouteServer    *gobgpapi.RouteServer    `json:"route_server,omitempty"`
 }
 
 func ApiStruct2Peer(p *gobgpapi.Peer) *Peer {
@@ -306,9 +308,11 @@ func ApiStruct2Peer(p *gobgpapi.Peer) *Peer {
 		PrefixLimits: p.Conf.PrefixLimits,
 	}
 	return &Peer{
-		Conf:   conf,
-		Info:   p.Info,
-		Timers: p.Timers,
+		Conf:           conf,
+		Info:           p.Info,
+		Timers:         p.Timers,
+		RouteReflector: p.RouteReflector,
+		RouteServer:    p.RouteServer,
 	}
 }
 

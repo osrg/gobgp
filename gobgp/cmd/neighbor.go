@@ -158,7 +158,16 @@ func showNeighbor(args []string) error {
 		return nil
 	}
 
-	fmt.Printf("BGP neighbor is %s, remote AS %d\n", p.Conf.RemoteIp, p.Conf.RemoteAs)
+	fmt.Printf("BGP neighbor is %s, remote AS %d", p.Conf.RemoteIp, p.Conf.RemoteAs)
+
+	if p.RouteReflector != nil && p.RouteReflector.RouteReflectorClient {
+		fmt.Printf(", route-reflector-client\n")
+	} else if p.RouteServer != nil && p.RouteServer.RouteServerClient {
+		fmt.Printf(", route-server-client\n")
+	} else {
+		fmt.Printf("\n")
+	}
+
 	id := "unknown"
 	if p.Conf.Id != nil {
 		id = p.Conf.Id.String()
