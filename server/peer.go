@@ -480,11 +480,20 @@ func (peer *Peer) ToApiStruct() *api.Peer {
 		Accepted:   accepted,
 		Advertised: advertised,
 	}
+	rr := &api.RouteReflector{
+		RouteReflectorClient:    peer.fsm.pConf.RouteReflector.Config.RouteReflectorClient,
+		RouteReflectorClusterId: string(peer.fsm.pConf.RouteReflector.Config.RouteReflectorClusterId),
+	}
+	rs := &api.RouteServer{
+		RouteServerClient: peer.fsm.pConf.RouteServer.Config.RouteServerClient,
+	}
 
 	return &api.Peer{
-		Conf:   conf,
-		Info:   info,
-		Timers: apitimer,
+		Conf:           conf,
+		Info:           info,
+		Timers:         apitimer,
+		RouteReflector: rr,
+		RouteServer:    rs,
 	}
 }
 
