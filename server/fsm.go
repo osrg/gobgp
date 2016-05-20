@@ -325,7 +325,15 @@ func (fsm *FSM) connectLoop() error {
 			}
 
 			if err == nil {
-				fsm.connCh <- conn
+				select {
+				case fsm.connCh <- conn:
+				default:
+					conn.Close()
+					log.WithFields(log.Fields{
+						"Topic": "Peer",
+						"Key":   fsm.pConf.Config.NeighborAddress,
+					}).Warn("active conn is closed to avoid being blocked")
+				}
 			} else {
 				log.WithFields(log.Fields{
 					"Topic": "Peer",
