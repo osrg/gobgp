@@ -273,73 +273,73 @@ func (fsm *FSM) sendNotification(code, subType uint8, data []byte, msg string) e
 }
 
 func (fsm *FSM) connectLoop() error {
-	var tick int
-	if tick = int(fsm.pConf.Timers.Config.ConnectRetry); tick < MIN_CONNECT_RETRY {
+	tick := int(fsm.pConf.Timers.Config.ConnectRetry)
+	if tick < MIN_CONNECT_RETRY {
 		tick = MIN_CONNECT_RETRY
 	}
 
 	r := rand.New(rand.NewSource(time.Now().UnixNano()))
 
-	ticker := time.NewTicker(time.Duration(tick) * time.Second)
-	ticker.Stop()
-
 	timer := time.NewTimer(time.Duration(tick) * time.Second)
 	timer.Stop()
 
 	connect := func() {
-		if fsm.state == bgp.BGP_FSM_ACTIVE && !fsm.pConf.GracefulRestart.State.PeerRestarting {
-			addr := fsm.pConf.Config.NeighborAddress
-			port := int(bgp.BGP_PORT)
-			if fsm.pConf.Transport.Config.RemotePort != 0 {
-				port = int(fsm.pConf.Transport.Config.RemotePort)
-			}
-			host := net.JoinHostPort(addr, strconv.Itoa(port))
-			// check if LocalAddress has been configured
-			laddr := fsm.pConf.Transport.Config.LocalAddress
-			var conn net.Conn
-			var err error
-			if laddr != "" {
-				if fsm.pConf.Config.AuthPassword != "" {
-					deadline := (MIN_CONNECT_RETRY - 1) * 1000 // msec
-					conn, err = DialTCPTimeoutWithMD5Sig(addr, port, laddr, fsm.pConf.Config.AuthPassword, deadline)
-				} else {
-					lhost := net.JoinHostPort(laddr, "0")
-					ltcpaddr, e := net.ResolveTCPAddr("tcp", lhost)
-					if e != nil {
-						log.WithFields(log.Fields{
-							"Topic": "Peer",
-							"Key":   fsm.pConf.Config.NeighborAddress,
-						}).Warnf("failed to resolve ltcpaddr: %s", e)
-						return
-					}
-					d := net.Dialer{LocalAddr: ltcpaddr, Timeout: time.Duration(MIN_CONNECT_RETRY-1) * time.Second}
-					conn, err = d.Dial("tcp", host)
-				}
+		addr := fsm.pConf.Config.NeighborAddress
+		port := int(bgp.BGP_PORT)
+		if fsm.pConf.Transport.Config.RemotePort != 0 {
+			port = int(fsm.pConf.Transport.Config.RemotePort)
+		}
+		host := net.JoinHostPort(addr, strconv.Itoa(port))
+		// check if LocalAddress has been configured
+		laddr := fsm.pConf.Transport.Config.LocalAddress
+		var conn net.Conn
+		var err error
+		if laddr != "" {
+			if fsm.pConf.Config.AuthPassword != "" {
+				deadline := (MIN_CONNECT_RETRY - 1) * 1000 // msec
+				conn, err = DialTCPTimeoutWithMD5Sig(addr, port, laddr, fsm.pConf.Config.AuthPassword, deadline)
 			} else {
-				if fsm.pConf.Config.AuthPassword != "" {
-					deadline := (MIN_CONNECT_RETRY - 1) * 1000 // msec
-					conn, err = DialTCPTimeoutWithMD5Sig(addr, port, "0.0.0.0", fsm.pConf.Config.AuthPassword, deadline)
-				} else {
-					conn, err = net.DialTimeout("tcp", host, time.Duration(MIN_CONNECT_RETRY-1)*time.Second)
-				}
-			}
-
-			if err == nil {
-				select {
-				case fsm.connCh <- conn:
-				default:
-					conn.Close()
+				lhost := net.JoinHostPort(laddr, "0")
+				ltcpaddr, e := net.ResolveTCPAddr("tcp", lhost)
+				if e != nil {
 					log.WithFields(log.Fields{
 						"Topic": "Peer",
 						"Key":   fsm.pConf.Config.NeighborAddress,
-					}).Warn("active conn is closed to avoid being blocked")
+					}).Warnf("failed to resolve ltcpaddr: %s", e)
+					return
 				}
+				d := net.Dialer{LocalAddr: ltcpaddr, Timeout: time.Duration(MIN_CONNECT_RETRY-1) * time.Second}
+				conn, err = d.Dial("tcp", host)
+			}
+		} else {
+			if fsm.pConf.Config.AuthPassword != "" {
+				deadline := (MIN_CONNECT_RETRY - 1) * 1000 // msec
+				conn, err = DialTCPTimeoutWithMD5Sig(addr, port, "0.0.0.0", fsm.pConf.Config.AuthPassword, deadline)
 			} else {
+				conn, err = net.DialTimeout("tcp", host, time.Duration(MIN_CONNECT_RETRY-1)*time.Second)
+			}
+		}
+
+		if err == nil {
+			select {
+			case fsm.connCh <- conn:
+				return
+			default:
+				conn.Close()
 				log.WithFields(log.Fields{
 					"Topic": "Peer",
 					"Key":   fsm.pConf.Config.NeighborAddress,
-				}).Debugf("failed to connect: %s", err)
+				}).Warn("active conn is closed to avoid being blocked")
 			}
+		} else {
+			log.WithFields(log.Fields{
+				"Topic": "Peer",
+				"Key":   fsm.pConf.Config.NeighborAddress,
+			}).Debugf("failed to connect: %s", err)
+		}
+
+		if fsm.state == bgp.BGP_FSM_ACTIVE && !fsm.pConf.GracefulRestart.State.PeerRestarting {
+			timer.Reset(time.Duration(tick) * time.Second)
 		}
 	}
 
@@ -350,13 +350,11 @@ func (fsm *FSM) connectLoop() error {
 				"Topic": "Peer",
 				"Key":   fsm.pConf.Config.NeighborAddress,
 			}).Debug("stop connect loop")
-			ticker.Stop()
 			return nil
 		case <-timer.C:
-			ticker = time.NewTicker(time.Duration(tick) * time.Second)
-			connect()
-		case <-ticker.C:
-			connect()
+			if fsm.state == bgp.BGP_FSM_ACTIVE && !fsm.pConf.GracefulRestart.State.PeerRestarting {
+				go connect()
+			}
 		case <-fsm.getActiveCh:
 			timer.Reset(time.Duration(r.Intn(MIN_CONNECT_RETRY)+MIN_CONNECT_RETRY) * time.Second)
 		}
