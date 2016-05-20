@@ -394,7 +394,7 @@ func (h *FSMHandler) idle() (bgp.FSMState, FsmStateReason) {
 				log.WithFields(log.Fields{
 					"Topic": "Peer",
 					"Key":   fsm.pConf.Config.NeighborAddress,
-					"State": fsm.state,
+					"State": fsm.state.String(),
 				}).Warn("graceful restart timer expired")
 				return bgp.BGP_FSM_IDLE, FSM_RESTART_TIMER_EXPIRED
 			}
@@ -406,6 +406,7 @@ func (h *FSMHandler) idle() (bgp.FSMState, FsmStateReason) {
 			log.WithFields(log.Fields{
 				"Topic": "Peer",
 				"Key":   fsm.pConf.Config.NeighborAddress,
+				"State": fsm.state.String(),
 			}).Warn("Closed an accepted connection")
 		case <-idleHoldTimer.C:
 
@@ -467,7 +468,7 @@ func (h *FSMHandler) active() (bgp.FSMState, FsmStateReason) {
 				log.WithFields(log.Fields{
 					"Topic": "Peer",
 					"Key":   fsm.pConf.Config.NeighborAddress,
-					"State": fsm.state,
+					"State": fsm.state.String(),
 				}).Warn("graceful restart timer expired")
 				return bgp.BGP_FSM_IDLE, FSM_RESTART_TIMER_EXPIRED
 			}
@@ -483,7 +484,7 @@ func (h *FSMHandler) active() (bgp.FSMState, FsmStateReason) {
 					log.WithFields(log.Fields{
 						"Topic":      "Peer",
 						"Key":        fsm.pConf.Config.NeighborAddress,
-						"State":      fsm.state,
+						"State":      fsm.state.String(),
 						"AdminState": s.String(),
 					}).Panic("code logic bug")
 				}
@@ -575,7 +576,7 @@ func (h *FSMHandler) recvMessageWithError() (*FsmMsg, error) {
 		log.WithFields(log.Fields{
 			"Topic": "Peer",
 			"Key":   h.fsm.pConf.Config.NeighborAddress,
-			"State": h.fsm.state,
+			"State": h.fsm.state.String(),
 			"error": err,
 		}).Warn("malformed BGP Header")
 		fmsg := &FsmMsg{
@@ -611,7 +612,7 @@ func (h *FSMHandler) recvMessageWithError() (*FsmMsg, error) {
 		log.WithFields(log.Fields{
 			"Topic": "Peer",
 			"Key":   h.fsm.pConf.Config.NeighborAddress,
-			"State": h.fsm.state,
+			"State": h.fsm.state.String(),
 			"error": err,
 		}).Warn("malformed BGP message")
 		fmsg.MsgData = err
@@ -629,6 +630,7 @@ func (h *FSMHandler) recvMessageWithError() (*FsmMsg, error) {
 					log.WithFields(log.Fields{
 						"Topic": "Peer",
 						"Key":   h.fsm.pConf.Config.NeighborAddress,
+						"State": h.fsm.state.String(),
 						"error": err,
 					}).Warn("malformed BGP update message")
 					fmsg.MsgData = err
@@ -755,14 +757,14 @@ func (h *FSMHandler) opensent() (bgp.FSMState, FsmStateReason) {
 			log.WithFields(log.Fields{
 				"Topic": "Peer",
 				"Key":   fsm.pConf.Config.NeighborAddress,
-				"State": fsm.state,
+				"State": fsm.state.String(),
 			}).Warn("Closed an accepted connection")
 		case <-fsm.gracefulRestartTimer.C:
 			if fsm.pConf.GracefulRestart.State.PeerRestarting {
 				log.WithFields(log.Fields{
 					"Topic": "Peer",
 					"Key":   fsm.pConf.Config.NeighborAddress,
-					"State": fsm.state,
+					"State": fsm.state.String(),
 				}).Warn("graceful restart timer expired")
 				return bgp.BGP_FSM_IDLE, FSM_RESTART_TIMER_EXPIRED
 			}
@@ -830,7 +832,7 @@ func (h *FSMHandler) opensent() (bgp.FSMState, FsmStateReason) {
 							log.WithFields(log.Fields{
 								"Topic": "Peer",
 								"Key":   fsm.pConf.Config.NeighborAddress,
-								"State": fsm.state,
+								"State": fsm.state.String(),
 							}).Warn("restart flag is not set")
 							// send notification?
 							h.conn.Close()
@@ -855,7 +857,7 @@ func (h *FSMHandler) opensent() (bgp.FSMState, FsmStateReason) {
 				log.WithFields(log.Fields{
 					"Topic": "Peer",
 					"Key":   fsm.pConf.Config.NeighborAddress,
-					"State": fsm.state,
+					"State": fsm.state.String(),
 					"Data":  e.MsgData,
 				}).Panic("unknown msg type")
 			}
@@ -877,7 +879,7 @@ func (h *FSMHandler) opensent() (bgp.FSMState, FsmStateReason) {
 					log.WithFields(log.Fields{
 						"Topic":      "Peer",
 						"Key":        fsm.pConf.Config.NeighborAddress,
-						"State":      fsm.state,
+						"State":      fsm.state.String(),
 						"AdminState": s.String(),
 					}).Panic("code logic bug")
 				}
@@ -928,14 +930,14 @@ func (h *FSMHandler) openconfirm() (bgp.FSMState, FsmStateReason) {
 			log.WithFields(log.Fields{
 				"Topic": "Peer",
 				"Key":   fsm.pConf.Config.NeighborAddress,
-				"State": fsm.state,
+				"State": fsm.state.String(),
 			}).Warn("Closed an accepted connection")
 		case <-fsm.gracefulRestartTimer.C:
 			if fsm.pConf.GracefulRestart.State.PeerRestarting {
 				log.WithFields(log.Fields{
 					"Topic": "Peer",
 					"Key":   fsm.pConf.Config.NeighborAddress,
-					"State": fsm.state,
+					"State": fsm.state.String(),
 				}).Warn("graceful restart timer expired")
 				return bgp.BGP_FSM_IDLE, FSM_RESTART_TIMER_EXPIRED
 			}
@@ -966,7 +968,7 @@ func (h *FSMHandler) openconfirm() (bgp.FSMState, FsmStateReason) {
 				log.WithFields(log.Fields{
 					"Topic": "Peer",
 					"Key":   fsm.pConf.Config.NeighborAddress,
-					"State": fsm.state,
+					"State": fsm.state.String(),
 					"Data":  e.MsgData,
 				}).Panic("unknown msg type")
 			}
@@ -988,7 +990,7 @@ func (h *FSMHandler) openconfirm() (bgp.FSMState, FsmStateReason) {
 					log.WithFields(log.Fields{
 						"Topic":      "Peer",
 						"Key":        fsm.pConf.Config.NeighborAddress,
-						"State":      fsm.state,
+						"State":      fsm.state.String(),
 						"AdminState": s.String(),
 					}).Panic("code logic bug")
 				}
@@ -1006,7 +1008,7 @@ func (h *FSMHandler) sendMessageloop() error {
 			log.WithFields(log.Fields{
 				"Topic": "Peer",
 				"Key":   fsm.pConf.Config.NeighborAddress,
-				"State": fsm.state,
+				"State": fsm.state.String(),
 				"Data":  m,
 			}).Debug("update for 2byte AS peer")
 			table.UpdatePathAttrs2ByteAs(m.Body.(*bgp.BGPUpdate))
@@ -1016,7 +1018,7 @@ func (h *FSMHandler) sendMessageloop() error {
 			log.WithFields(log.Fields{
 				"Topic": "Peer",
 				"Key":   fsm.pConf.Config.NeighborAddress,
-				"State": fsm.state,
+				"State": fsm.state.String(),
 				"Data":  err,
 			}).Warn("failed to serialize")
 			fsm.bgpMessageStateUpdate(0, false)
@@ -1032,7 +1034,7 @@ func (h *FSMHandler) sendMessageloop() error {
 			log.WithFields(log.Fields{
 				"Topic": "Peer",
 				"Key":   fsm.pConf.Config.NeighborAddress,
-				"State": fsm.state,
+				"State": fsm.state.String(),
 				"Data":  err,
 			}).Warn("failed to send")
 			h.errorCh <- FSM_WRITE_FAILED
@@ -1046,7 +1048,7 @@ func (h *FSMHandler) sendMessageloop() error {
 			log.WithFields(log.Fields{
 				"Topic": "Peer",
 				"Key":   fsm.pConf.Config.NeighborAddress,
-				"State": fsm.state,
+				"State": fsm.state.String(),
 				"Data":  m,
 			}).Warn("sent notification")
 			body := m.Body.(*bgp.BGPNotification)
@@ -1058,7 +1060,7 @@ func (h *FSMHandler) sendMessageloop() error {
 			log.WithFields(log.Fields{
 				"Topic":       "Peer",
 				"Key":         fsm.pConf.Config.NeighborAddress,
-				"State":       fsm.state,
+				"State":       fsm.state.String(),
 				"nlri":        update.NLRI,
 				"withdrawals": update.WithdrawnRoutes,
 				"attributes":  update.PathAttributes,
@@ -1067,7 +1069,7 @@ func (h *FSMHandler) sendMessageloop() error {
 			log.WithFields(log.Fields{
 				"Topic": "Peer",
 				"Key":   fsm.pConf.Config.NeighborAddress,
-				"State": fsm.state,
+				"State": fsm.state.String(),
 				"data":  m,
 			}).Debug("sent")
 		}
