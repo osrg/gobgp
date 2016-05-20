@@ -69,7 +69,7 @@ func DialTCPTimeoutWithMD5Sig(host string, port int, localAddr, key string, msec
 		}
 		la = j
 	}
-	sotype := syscall.SOCK_STREAM | syscall.SOCK_CLOEXEC
+	sotype := syscall.SOCK_STREAM | syscall.SOCK_CLOEXEC | syscall.SOCK_NONBLOCK
 	proto := 0
 	fd, err := syscall.Socket(family, sotype, proto)
 	if err != nil {
@@ -87,6 +87,7 @@ func DialTCPTimeoutWithMD5Sig(host string, port int, localAddr, key string, msec
 		uintptr(unsafe.Pointer(&t)), unsafe.Sizeof(t), 0); e > 0 {
 		return nil, os.NewSyscallError("setsockopt", e)
 	}
+
 	if err = syscall.SetsockoptInt(fd, syscall.SOL_SOCKET, syscall.SO_BROADCAST, 1); err != nil {
 		return nil, os.NewSyscallError("setsockopt", err)
 	}
@@ -121,7 +122,7 @@ func DialTCPTimeoutWithMD5Sig(host string, port int, localAddr, key string, msec
 	var event syscall.EpollEvent
 	events := make([]syscall.EpollEvent, 1)
 
-	event.Events = syscall.EPOLLIN
+	event.Events = syscall.EPOLLIN | syscall.EPOLLOUT | syscall.EPOLLPRI
 	event.Fd = int32(fd)
 	if e = syscall.EpollCtl(epfd, syscall.EPOLL_CTL_ADD, fd, &event); e != nil {
 		return nil, e
