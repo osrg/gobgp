@@ -214,7 +214,16 @@ func (path *Path) UpdatePathAttrs(global *config.Global, peer *config.Neighbor) 
 		if peer.RouteReflector.Config.RouteReflectorClient {
 			// This attribute will carry the BGP Identifier of the originator of the route in the local AS.
 			// A BGP speaker SHOULD NOT create an ORIGINATOR_ID attribute if one already exists.
-			if path.getPathAttr(bgp.BGP_ATTR_TYPE_ORIGINATOR_ID) == nil {
+			//
+			// RFC4684 3.2 Intra-AS VPN Route Distribution
+			// When advertising RT membership NLRI to a route-reflector client,
+			// the Originator attribute shall be set to the router-id of the
+			// advertiser, and the Next-hop attribute shall be set of the local
+			// address for that session.
+			if path.GetRouteFamily() == bgp.RF_RTC_UC {
+				path.SetNexthop(localAddress)
+				path.setPathAttr(bgp.NewPathAttributeOriginatorId(info.LocalID.String()))
+			} else if path.getPathAttr(bgp.BGP_ATTR_TYPE_ORIGINATOR_ID) == nil {
 				path.setPathAttr(bgp.NewPathAttributeOriginatorId(info.ID.String()))
 			}
 			// When an RR reflects a route, it MUST prepend the local CLUSTER_ID to the CLUSTER_LIST.
