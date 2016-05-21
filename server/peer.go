@@ -307,11 +307,14 @@ func (peer *Peer) updatePrefixLimitConfig(c []config.AfiSafi) ([]*SenderMsg, err
 
 func (peer *Peer) handleUpdate(e *FsmMsg) ([]*table.Path, []bgp.RouteFamily, *bgp.BGPMessage) {
 	m := e.MsgData.(*bgp.BGPMessage)
+	update := m.Body.(*bgp.BGPUpdate)
 	log.WithFields(log.Fields{
-		"Topic": "Peer",
-		"Key":   peer.fsm.pConf.Config.NeighborAddress,
-		"data":  m,
-	}).Debug("received")
+		"Topic":       "Peer",
+		"Key":         peer.fsm.pConf.Config.NeighborAddress,
+		"nlri":        update.NLRI,
+		"withdrawals": update.WithdrawnRoutes,
+		"attributes":  update.PathAttributes,
+	}).Debug("received update")
 	peer.fsm.pConf.Timers.State.UpdateRecvTime = time.Now().Unix()
 	if len(e.PathList) > 0 {
 		peer.adjRibIn.Update(e.PathList)
