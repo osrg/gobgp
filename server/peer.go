@@ -137,15 +137,20 @@ func (peer *Peer) getBestFromLocal(rfList []bgp.RouteFamily) ([]*table.Path, []*
 		Neighbor: peer.fsm.peerInfo.Address,
 	}
 	for _, path := range peer.localRib.GetBestPathList(peer.TableID(), rfList) {
-		p := peer.policy.ApplyPolicy(peer.TableID(), table.POLICY_DIRECTION_EXPORT, filterpath(peer, path), options)
+		if filterpath(peer, path) == nil {
+			continue
+		}
+		p := path
+		if !peer.isRouteServerClient() {
+			p = path.Clone(p.IsWithdraw)
+			p.UpdatePathAttrs(peer.fsm.gConf, peer.fsm.pConf)
+		}
+		p = peer.policy.ApplyPolicy(peer.TableID(), table.POLICY_DIRECTION_EXPORT, p, options)
 		if p == nil {
 			filtered = append(filtered, path)
 			continue
 		}
-		if !peer.isRouteServerClient() {
-			p = p.Clone(p.IsWithdraw)
-			p.UpdatePathAttrs(peer.fsm.gConf, peer.fsm.pConf)
-		}
+
 		pathList = append(pathList, p)
 	}
 	if peer.isGracefulRestartEnabled() {
