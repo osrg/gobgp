@@ -130,28 +130,48 @@ func (peer *Peer) getAccepted(rfList []bgp.RouteFamily) []*table.Path {
 	return peer.adjRibIn.PathList(rfList, true)
 }
 
-func (peer *Peer) getBestFromLocal(rfList []bgp.RouteFamily) ([]*table.Path, []*table.Path) {
-	pathList := []*table.Path{}
-	filtered := []*table.Path{}
+func (peer *Peer) filterpath(path *table.Path) *table.Path {
+	// special handling for RTC nlri
+	// see comments in (*Destination).Calculate()
+	if path != nil && path.GetRouteFamily() == bgp.RF_RTC_UC && !path.IsWithdraw {
+		// if we already sent the same nlri, ignore this
+		if peer.adjRibOut.Exists(path) {
+			return nil
+		}
+		dst := peer.localRib.GetDestination(path)
+		path = nil
+		// we send a path even if it is not a best path
+		for _, p := range dst.GetKnownPathList(peer.TableID()) {
+			// just take care not to send back it
+			if peer.ID() != p.GetSource().Address.String() {
+				path = p
+				break
+			}
+		}
+	}
+	if filterpath(peer, path) == nil {
+		return nil
+	}
+	if !peer.isRouteServerClient() {
+		path = path.Clone(path.IsWithdraw)
+		path.UpdatePathAttrs(peer.fsm.gConf, peer.fsm.pConf)
+	}
 	options := &table.PolicyOptions{
 		Neighbor: peer.fsm.peerInfo.Address,
 	}
+	return peer.policy.ApplyPolicy(peer.TableID(), table.POLICY_DIRECTION_EXPORT, path, options)
+}
+
+func (peer *Peer) getBestFromLocal(rfList []bgp.RouteFamily) ([]*table.Path, []*table.Path) {
+	pathList := []*table.Path{}
+	filtered := []*table.Path{}
 	for _, path := range peer.localRib.GetBestPathList(peer.TableID(), rfList) {
-		if filterpath(peer, path) == nil {
-			continue
-		}
-		p := path
-		if !peer.isRouteServerClient() {
-			p = path.Clone(p.IsWithdraw)
-			p.UpdatePathAttrs(peer.fsm.gConf, peer.fsm.pConf)
-		}
-		p = peer.policy.ApplyPolicy(peer.TableID(), table.POLICY_DIRECTION_EXPORT, p, options)
-		if p == nil {
+		if p := peer.filterpath(path); p != nil {
+			pathList = append(pathList, p)
+		} else {
 			filtered = append(filtered, path)
-			continue
 		}
 
-		pathList = append(pathList, p)
 	}
 	if peer.isGracefulRestartEnabled() {
 		for _, family := range rfList {
@@ -189,24 +209,10 @@ func (peer *Peer) processOutgoingPaths(paths, withdrawals []*table.Path) []*tabl
 		}
 	}
 
-	options := &table.PolicyOptions{
-		Neighbor: peer.fsm.peerInfo.Address,
-	}
 	for _, path := range paths {
-		if filterpath(peer, path) == nil {
-			continue
+		if p := peer.filterpath(path); p != nil {
+			outgoing = append(outgoing, p)
 		}
-		if !peer.isRouteServerClient() {
-			path = path.Clone(path.IsWithdraw)
-			path.UpdatePathAttrs(peer.fsm.gConf, peer.fsm.pConf)
-		}
-
-		path = peer.policy.ApplyPolicy(peer.TableID(), table.POLICY_DIRECTION_EXPORT, path, options)
-		if path == nil {
-			continue
-		}
-
-		outgoing = append(outgoing, path)
 	}
 
 	peer.adjRibOut.Update(outgoing)
