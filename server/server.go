@@ -679,19 +679,16 @@ func (server *BgpServer) propagateUpdate(peer *Peer, pathList []*table.Path) ([]
 				} else {
 					candidates = rib.GetBestPathList(peer.TableID(), fs)
 				}
-				paths := make([]*table.Path, 0, len(pathList))
+				paths := make([]*table.Path, 0, len(candidates))
 				for _, p := range candidates {
-					t := false
 					for _, ext := range p.GetExtCommunities() {
 						if ext.String() == rt.String() {
-							t = true
+							paths = append(paths, p)
 							break
 						}
 					}
-					if t {
-						paths = append(paths, p.Clone(path.IsWithdraw))
-					}
 				}
+				paths = peer.processOutgoingPaths(paths, nil)
 				msgs = append(msgs, newSenderMsg(peer, paths, nil, false))
 			}
 		}
