@@ -683,12 +683,19 @@ func (server *BgpServer) propagateUpdate(peer *Peer, pathList []*table.Path) ([]
 				for _, p := range candidates {
 					for _, ext := range p.GetExtCommunities() {
 						if ext.String() == rt.String() {
+							if path.IsWithdraw {
+								p = p.Clone(true)
+							}
 							paths = append(paths, p)
 							break
 						}
 					}
 				}
-				paths = peer.processOutgoingPaths(paths, nil)
+				if path.IsWithdraw {
+					paths = peer.processOutgoingPaths(nil, paths)
+				} else {
+					paths = peer.processOutgoingPaths(paths, nil)
+				}
 				msgs = append(msgs, newSenderMsg(peer, paths, nil, false))
 			}
 		}

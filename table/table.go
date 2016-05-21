@@ -86,8 +86,7 @@ func (t *Table) deletePathsByVrf(vrf *Vrf) []*Path {
 				return pathList
 			}
 			if p.IsLocal() && vrf.Rd.String() == rd.String() {
-				p.IsWithdraw = true
-				pathList = append(pathList, p)
+				pathList = append(pathList, p.Clone(true))
 				break
 			}
 		}
@@ -108,8 +107,7 @@ func (t *Table) deleteRTCPathsByVrf(vrf *Vrf, vrfs map[string]*Vrf) []*Path {
 			if lhs == rhs && isLastTargetUser(vrfs, target) {
 				for _, p := range dest.knownPathList {
 					if p.IsLocal() {
-						p.IsWithdraw = true
-						pathList = append(pathList, p)
+						pathList = append(pathList, p.Clone(true))
 						break
 					}
 				}
