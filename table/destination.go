@@ -254,6 +254,14 @@ func (dest *Destination) Calculate(ids []string) (map[string]*Path, []*Path) {
 		}()
 		best := dest.GetBestPath(id)
 		if best != nil && best.Equal(old) {
+			// RFC4684 3.2. Intra-AS VPN Route Distribution
+			// When processing RT membership NLRIs received from internal iBGP
+			// peers, it is necessary to consider all available iBGP paths for a
+			// given RT prefix, for building the outbound route filter, and not just
+			// the best path.
+			if best.GetRouteFamily() == bgp.RF_RTC_UC {
+				return best
+			}
 			return nil
 		}
 		if best == nil {

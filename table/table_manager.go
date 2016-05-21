@@ -358,3 +358,15 @@ func (manager *TableManager) GetPathList(id string, rfList []bgp.RouteFamily) []
 	}
 	return paths
 }
+
+func (manager *TableManager) GetDestination(path *Path) *Destination {
+	if path == nil {
+		return nil
+	}
+	family := path.GetRouteFamily()
+	t, ok := manager.Tables[family]
+	if !ok {
+		return nil
+	}
+	return t.GetDestination(path.getPrefix())
+}

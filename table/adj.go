@@ -156,3 +156,16 @@ func (adj *AdjRib) StaleAll(rfList []bgp.RouteFamily) {
 		}
 	}
 }
+
+func (adj *AdjRib) Exists(path *Path) bool {
+	if path == nil {
+		return false
+	}
+	family := path.GetRouteFamily()
+	table, ok := adj.table[family]
+	if !ok {
+		return false
+	}
+	_, ok = table[path.getPrefix()]
+	return ok
+}
