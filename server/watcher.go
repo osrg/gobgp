@@ -43,6 +43,7 @@ const (
 	WATCHER_MRT             // UPDATE MSG
 	WATCHER_BMP
 	WATCHER_ZEBRA
+	WATCHER_COLLECTOR
 	WATCHER_GRPC_BESTPATH
 	WATCHER_GRPC_INCOMING
 )
@@ -55,6 +56,7 @@ const (
 	WATCHER_EVENT_STATE_CHANGE
 	WATCHER_EVENT_BESTPATH_CHANGE
 	WATCHER_EVENT_POST_POLICY_UPDATE_MSG
+	WATCHER_EVENT_ADJ_IN
 )
 
 type watcherEvent interface {
@@ -86,6 +88,10 @@ type watcherEventStateChangedMsg struct {
 	recvOpen     *bgp.BGPMessage
 	state        bgp.FSMState
 	timestamp    time.Time
+}
+
+type watcherEventAdjInMsg struct {
+	pathList []*table.Path
 }
 
 type watcher interface {
