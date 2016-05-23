@@ -208,6 +208,9 @@ func main() {
 				if err := bgpServer.SetZebraConfig(newConfig.Zebra); err != nil {
 					log.Fatalf("failed to set zebra config: %s", err)
 				}
+				if err := bgpServer.SetCollector(newConfig.Collector); err != nil {
+					log.Fatalf("failed to set collector config: %s", err)
+				}
 				if err := bgpServer.SetRpkiConfig(newConfig.RpkiServers); err != nil {
 					log.Fatalf("failed to set rpki config: %s", err)
 				}

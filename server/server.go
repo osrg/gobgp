@@ -146,6 +146,7 @@ type BgpServer struct {
 	fsmStateCh    chan *FsmMsg
 	acceptCh      chan *net.TCPConn
 	zapiMsgCh     chan *zebra.Message
+	collector     *Collector
 
 	GrpcReqCh     chan *GrpcRequest
 	policy        *table.RoutingPolicy
@@ -989,6 +990,22 @@ func (server *BgpServer) SetGlobalType(g config.Global) error {
 	server.GrpcReqCh <- &GrpcRequest{
 		RequestType: REQ_START_SERVER,
 		Data:        &g,
+		ResponseCh:  ch,
+	}
+	if err := (<-ch).Err(); err != nil {
+		return err
+	}
+	return nil
+}
+
+func (server *BgpServer) SetCollector(c config.Collector) error {
+	if len(c.Config.Url) == 0 {
+		return nil
+	}
+	ch := make(chan *GrpcResponse)
+	server.GrpcReqCh <- &GrpcRequest{
+		RequestType: REQ_INITIALIZE_COLLECTOR,
+		Data:        &c.Config,
 		ResponseCh:  ch,
 	}
 	if err := (<-ch).Err(); err != nil {
@@ -2338,6 +2355,26 @@ func (server *BgpServer) handleGrpc(grpcReq *GrpcRequest) []*SenderMsg {
 			ResponseErr: err,
 		}
 		close(grpcReq.ResponseCh)
+	case REQ_INITIALIZE_COLLECTOR:
+		c := grpcReq.Data.(*config.CollectorConfig)
+		collector, err := NewCollector(server.GrpcReqCh, c.Url, c.DbName, c.TableDumpInterval)
+		if err == nil {
+			server.collector = collector
+			server.watchers[WATCHER_COLLECTOR] = collector
+		}
+		grpcReq.ResponseCh <- &GrpcResponse{
+			ResponseErr: err,
+		}
+		close(grpcReq.ResponseCh)
+	case REQ_WATCHER_ADJ_RIB_IN:
+		pathList := make([]*table.Path, 0)
+		for _, peer := range server.neighborMap {
+			pathList = append(pathList, peer.adjRibIn.PathList(peer.configuredRFlist(), false)...)
+		}
+
+		grpcReq.ResponseCh <- &GrpcResponse{}
+		close(grpcReq.ResponseCh)
+		server.notify2watchers(WATCHER_EVENT_ADJ_IN, &watcherEventAdjInMsg{pathList: pathList})
 	default:
 		err = fmt.Errorf("Unknown request type: %v", grpcReq.RequestType)
 		goto ERROR

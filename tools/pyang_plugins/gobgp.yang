@@ -808,6 +808,33 @@ module gobgp {
     uses zebra-set;
   }
 
+  grouping collector-config {
+    leaf url {
+      type string;
+    }
+    leaf db-name {
+      type string;
+    }
+    leaf table-dump-interval {
+      type uint64;
+    }
+  }
+
+  grouping collector-set {
+    container collector {
+      container config {
+        uses collector-config;
+      }
+      container state {
+        uses collector-config;
+      }
+    }
+  }
+
+  augment "/bgp:bgp" {
+    uses collector-set;
+  }
+
   augment "/bgp:bgp/bgp:global" {
     container mpls-label-range {
       description "mpls labal range";
