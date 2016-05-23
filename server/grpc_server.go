@@ -25,6 +25,7 @@ import (
 	"io"
 	"net"
 	"strings"
+	"sync"
 )
 
 const (
@@ -106,20 +107,34 @@ type Server struct {
 }
 
 func (s *Server) Serve() error {
+	var wg sync.WaitGroup
 	l := strings.Split(s.hosts, ",")
-	for i, host := range l {
-		lis, err := net.Listen("tcp", fmt.Sprintf(host))
-		if err != nil {
-			return fmt.Errorf("failed to listen: %v", err)
-		}
-		if i == len(l)-1 {
-			s.grpcServer.Serve(lis)
-		} else {
-			go func() {
-				s.grpcServer.Serve(lis)
-			}()
+	wg.Add(len(l))
+
+	serve := func(host string) {
+		for {
+			defer wg.Done()
+			lis, err := net.Listen("tcp", fmt.Sprintf(host))
+			if err != nil {
+				log.WithFields(log.Fields{
+					"Topic": "grpc",
+					"Key":   host,
+					"Error": err,
+				}).Warn("listen failed")
+				return
+			}
+			err = s.grpcServer.Serve(lis)
+			log.WithFields(log.Fields{
+				"Topic": "grpc",
+				"Key":   host,
+				"Error": err,
+			}).Warn("accept failed")
 		}
 	}
+	for _, host := range l {
+		go serve(host)
+	}
+	wg.Wait()
 	return nil
 }
 
