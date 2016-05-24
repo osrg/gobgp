@@ -73,7 +73,9 @@ func main() {
 	}
 
 	// monitor new routes
-	req = gobgp.NewGrpcRequest(gobgp.REQ_MONITOR_GLOBAL_BEST_CHANGED, "", bgp.RF_IPv4_UC, nil)
+	req = gobgp.NewGrpcRequest(gobgp.REQ_MONITOR_RIB, "", bgp.RF_IPv4_UC, &api.Table{
+		Type: api.Resource_GLOBAL,
+	})
 	s.GrpcReqCh <- req
 	for res := range req.ResponseCh {
 		p, _ := cmd.ApiStruct2Path(res.Data.(*api.Destination).Paths[0])
