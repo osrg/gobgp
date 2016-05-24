@@ -94,6 +94,10 @@ type watcherEventAdjInMsg struct {
 	pathList []*table.Path
 }
 
+type watcherEventBestPathMsg struct {
+	pathList []*table.Path
+}
+
 type watcher interface {
 	notify(watcherEventType) chan watcherEvent
 	restart(string) error

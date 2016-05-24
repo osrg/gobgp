@@ -32,7 +32,6 @@ import (
 	"github.com/osrg/gobgp/packet/bgp"
 	"github.com/osrg/gobgp/packet/bmp"
 	"github.com/osrg/gobgp/table"
-	"github.com/osrg/gobgp/zebra"
 	"github.com/satori/go.uuid"
 )
 
@@ -145,7 +144,6 @@ type BgpServer struct {
 	fsmincomingCh *channels.InfiniteChannel
 	fsmStateCh    chan *FsmMsg
 	acceptCh      chan *net.TCPConn
-	zapiMsgCh     chan *zebra.Message
 	collector     *Collector
 
 	GrpcReqCh     chan *GrpcRequest
@@ -155,7 +153,6 @@ type BgpServer struct {
 	listeners     []*TCPListener
 	neighborMap   map[string]*Peer
 	globalRib     *table.TableManager
-	zclient       *zebra.Client
 	roaManager    *roaManager
 	shutdown      bool
 	watchers      Watchers
@@ -326,11 +323,6 @@ func (server *BgpServer) Serve() {
 		select {
 		case rmsg := <-server.roaManager.ReceiveROA():
 			server.roaManager.HandleROAEvent(rmsg)
-		case zmsg := <-server.zapiMsgCh:
-			m := handleZapiMsg(zmsg, server)
-			if len(m) > 0 {
-				senderMsgs = append(senderMsgs, m...)
-			}
 		case conn := <-server.acceptCh:
 			passConn(conn)
 		case e, ok := <-server.fsmincomingCh.Out():
@@ -500,22 +492,11 @@ func (server *BgpServer) dropPeerAllRoutes(peer *Peer, families []bgp.RouteFamil
 }
 
 func (server *BgpServer) broadcastBests(bests []*table.Path) {
+	server.notify2watchers(WATCHER_EVENT_BESTPATH_CHANGE, &watcherEventBestPathMsg{pathList: bests})
 	for _, path := range bests {
 		if path == nil {
 			continue
 		}
-		if !path.IsFromExternal() {
-			z := newBroadcastZapiBestMsg(server.zclient, path)
-			if z != nil {
-				server.broadcastMsgs = append(server.broadcastMsgs, z)
-				log.WithFields(log.Fields{
-					"Topic":   "Server",
-					"Client":  z.client,
-					"Message": z.msg,
-				}).Debug("Default policy applied and rejected.")
-			}
-		}
-
 		rf := path.GetRouteFamily()
 
 		result := &GrpcResponse{
@@ -2347,10 +2328,13 @@ func (server *BgpServer) handleGrpc(grpcReq *GrpcRequest) []*SenderMsg {
 		close(grpcReq.ResponseCh)
 	case REQ_INITIALIZE_ZEBRA:
 		c := grpcReq.Data.(*config.ZebraConfig)
-		cli, err := NewZclient(c.Url, c.RedistributeRouteTypeList)
+		protos := make([]string, 0, len(c.RedistributeRouteTypeList))
+		for _, p := range c.RedistributeRouteTypeList {
+			protos = append(protos, string(p))
+		}
+		z, err := newZebraWatcher(server.GrpcReqCh, c.Url, protos)
 		if err == nil {
-			server.zclient = cli
-			server.zapiMsgCh = server.zclient.Receive()
+			server.watchers[WATCHER_ZEBRA] = z
 		}
 		grpcReq.ResponseCh <- &GrpcResponse{
 			ResponseErr: err,
