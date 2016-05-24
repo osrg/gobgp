@@ -22,35 +22,42 @@ import (
 	"gopkg.in/tomb.v2"
 )
 
-type grpcIncomingWatcher struct {
+type grpcWatcher struct {
 	t     tomb.Tomb
 	ch    chan watcherEvent
 	ctlCh chan *GrpcRequest
 	reqs  []*GrpcRequest
 }
 
-func (w *grpcIncomingWatcher) notify(t watcherEventType) chan watcherEvent {
-	if t == WATCHER_EVENT_UPDATE_MSG || t == WATCHER_EVENT_POST_POLICY_UPDATE_MSG {
+func (w *grpcWatcher) notify(t watcherEventType) chan watcherEvent {
+	if t == WATCHER_EVENT_BESTPATH_CHANGE || t == WATCHER_EVENT_UPDATE_MSG || t == WATCHER_EVENT_POST_POLICY_UPDATE_MSG {
 		return w.ch
 	}
 	return nil
 }
 
-func (w *grpcIncomingWatcher) stop() {
+func (w *grpcWatcher) stop() {
 	w.t.Kill(nil)
 }
 
-func (w *grpcIncomingWatcher) watchingEventTypes() []watcherEventType {
+func (w *grpcWatcher) watchingEventTypes() []watcherEventType {
 	pre := false
 	post := false
+	best := false
 	for _, req := range w.reqs {
-		if req.Data.(*api.Table).PostPolicy {
+		tbl := req.Data.(*api.Table)
+		if tbl.Type == api.Resource_GLOBAL {
+			best = true
+		} else if tbl.PostPolicy {
 			post = true
 		} else {
 			pre = true
 		}
 	}
-	types := make([]watcherEventType, 0, 2)
+	types := make([]watcherEventType, 0, 3)
+	if best {
+		types = append(types, WATCHER_EVENT_BESTPATH_CHANGE)
+	}
 	if pre {
 		types = append(types, WATCHER_EVENT_UPDATE_MSG)
 	}
@@ -60,7 +67,7 @@ func (w *grpcIncomingWatcher) watchingEventTypes() []watcherEventType {
 	return types
 }
 
-func (w *grpcIncomingWatcher) loop() error {
+func (w *grpcWatcher) loop() error {
 	for {
 		select {
 		case <-w.t.Dying():
@@ -71,8 +78,18 @@ func (w *grpcIncomingWatcher) loop() error {
 		case req := <-w.ctlCh:
 			w.reqs = append(w.reqs, req)
 		case ev := <-w.ch:
-			msg := ev.(*watcherEventUpdateMsg)
-			for _, path := range msg.pathList {
+			var paths []*table.Path
+			switch msg := ev.(type) {
+			case *watcherEventUpdateMsg:
+				paths = msg.pathList
+			case *watcherEventBestPathMsg:
+				paths = msg.pathList
+			}
+
+			for _, path := range paths {
+				if path == nil {
+					continue
+				}
 				remains := make([]*GrpcRequest, 0, len(w.reqs))
 				result := &GrpcResponse{
 					Data: &api.Destination{
@@ -101,17 +118,17 @@ func (w *grpcIncomingWatcher) loop() error {
 	}
 }
 
-func (w *grpcIncomingWatcher) restart(string) error {
+func (w *grpcWatcher) restart(string) error {
 	return nil
 }
 
-func (w *grpcIncomingWatcher) addRequest(req *GrpcRequest) error {
+func (w *grpcWatcher) addRequest(req *GrpcRequest) error {
 	w.ctlCh <- req
 	return nil
 }
 
-func newGrpcIncomingWatcher() (*grpcIncomingWatcher, error) {
-	w := &grpcIncomingWatcher{
+func newGrpcWatcher() (*grpcWatcher, error) {
+	w := &grpcWatcher{
 		ch:    make(chan watcherEvent),
 		ctlCh: make(chan *GrpcRequest),
 		reqs:  make([]*GrpcRequest, 0, 16),

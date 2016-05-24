@@ -29,7 +29,7 @@ import (
 )
 
 func newIPRouteMessage(path *table.Path) *zebra.Message {
-	if path.IsFromExternal() {
+	if path == nil || path.IsFromExternal() {
 		return nil
 	}
 	l := strings.SplitN(path.GetNlri().String(), "/", 2)
