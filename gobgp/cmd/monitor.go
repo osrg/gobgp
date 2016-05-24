@@ -27,6 +27,33 @@ import (
 )
 
 func NewMonitorCmd() *cobra.Command {
+
+	monitor := func(arg *gobgpapi.Table) {
+		stream, err := client.MonitorRib(context.Background(), arg)
+		if err != nil {
+			exitWithError(err)
+		}
+		for {
+			d, err := stream.Recv()
+			if err == io.EOF {
+				break
+			} else if err != nil {
+				exitWithError(err)
+			}
+			p, err := ApiStruct2Path(d.Paths[0])
+			if err != nil {
+				exitWithError(err)
+			}
+
+			if globalOpts.Json {
+				j, _ := json.Marshal(p)
+				fmt.Println(string(j))
+			} else {
+				ShowRoute(p, false, false, false, true, false)
+			}
+		}
+	}
+
 	ribCmd := &cobra.Command{
 		Use: CMD_RIB,
 		Run: func(cmd *cobra.Command, args []string) {
@@ -34,35 +61,11 @@ func NewMonitorCmd() *cobra.Command {
 			if err != nil {
 				exitWithError(err)
 			}
-			arg := &gobgpapi.Arguments{
-				Resource: gobgpapi.Resource_GLOBAL,
-				Family:   uint32(family),
+			arg := &gobgpapi.Table{
+				Type:   gobgpapi.Resource_GLOBAL,
+				Family: uint32(family),
 			}
-
-			stream, err := client.MonitorBestChanged(context.Background(), arg)
-			if err != nil {
-				exitWithError(err)
-			}
-			for {
-				d, err := stream.Recv()
-				if err == io.EOF {
-					break
-				} else if err != nil {
-					exitWithError(err)
-				}
-				p, err := ApiStruct2Path(d.Paths[0])
-				if err != nil {
-					exitWithError(err)
-				}
-
-				if globalOpts.Json {
-					j, _ := json.Marshal(p)
-					fmt.Println(string(j))
-				} else {
-					ShowRoute(p, false, false, false, true, false)
-				}
-			}
-
+			monitor(arg)
 		},
 	}
 	ribCmd.PersistentFlags().StringVarP(&subOpts.AddressFamily, "address-family", "a", "", "address family")
@@ -125,31 +128,7 @@ func NewMonitorCmd() *cobra.Command {
 				Family: uint32(family),
 				Name:   name,
 			}
-
-			stream, err := client.MonitorRib(context.Background(), arg)
-			if err != nil {
-				exitWithError(err)
-			}
-			for {
-				d, err := stream.Recv()
-				if err == io.EOF {
-					break
-				} else if err != nil {
-					exitWithError(err)
-				}
-				p, err := ApiStruct2Path(d.Paths[0])
-				if err != nil {
-					exitWithError(err)
-				}
-
-				if globalOpts.Json {
-					j, _ := json.Marshal(p)
-					fmt.Println(string(j))
-				} else {
-					ShowRoute(p, false, false, false, true, false)
-				}
-			}
-
+			monitor(arg)
 		},
 	}
 	adjInCmd.PersistentFlags().StringVarP(&subOpts.AddressFamily, "address-family", "a", "", "address family")

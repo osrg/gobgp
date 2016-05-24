@@ -195,8 +195,8 @@ func (server *BgpServer) Listeners(addr string) []*net.TCPListener {
 }
 
 func (server *BgpServer) Serve() {
-	w, _ := newGrpcIncomingWatcher()
-	server.watchers[WATCHER_GRPC_INCOMING] = w
+	w, _ := newGrpcWatcher()
+	server.watchers[WATCHER_GRPC_MONITOR] = w
 
 	senderCh := make(chan *SenderMsg, 1<<16)
 	go func(ch chan *SenderMsg) {
@@ -476,7 +476,7 @@ func (server *BgpServer) dropPeerAllRoutes(peer *Peer, families []bgp.RouteFamil
 		best, _ := server.globalRib.DeletePathsByPeer(ids, peer.fsm.peerInfo, rf)
 
 		if !peer.isRouteServerClient() {
-			server.broadcastBests(best[table.GLOBAL_RIB_NAME])
+			server.notify2watchers(WATCHER_EVENT_BESTPATH_CHANGE, &watcherEventBestPathMsg{pathList: best[table.GLOBAL_RIB_NAME]})
 		}
 
 		for _, targetPeer := range server.neighborMap {
@@ -489,44 +489,6 @@ func (server *BgpServer) dropPeerAllRoutes(peer *Peer, families []bgp.RouteFamil
 		}
 	}
 	return msgs
-}
-
-func (server *BgpServer) broadcastBests(bests []*table.Path) {
-	server.notify2watchers(WATCHER_EVENT_BESTPATH_CHANGE, &watcherEventBestPathMsg{pathList: bests})
-	for _, path := range bests {
-		if path == nil {
-			continue
-		}
-		rf := path.GetRouteFamily()
-
-		result := &GrpcResponse{
-			Data: &api.Destination{
-				Prefix: path.GetNlri().String(),
-				Paths:  []*api.Path{path.ToApiStruct(table.GLOBAL_RIB_NAME)},
-			},
-		}
-		remainReqs := make([]*GrpcRequest, 0, len(server.broadcastReqs))
-		for _, req := range server.broadcastReqs {
-			select {
-			case <-req.EndCh:
-				continue
-			default:
-			}
-			if req.RequestType != REQ_MONITOR_GLOBAL_BEST_CHANGED {
-				remainReqs = append(remainReqs, req)
-				continue
-			}
-			if req.RouteFamily == bgp.RouteFamily(0) || req.RouteFamily == rf {
-				m := &broadcastGrpcMsg{
-					req:    req,
-					result: result,
-				}
-				server.broadcastMsgs = append(server.broadcastMsgs, m)
-			}
-			remainReqs = append(remainReqs, req)
-		}
-		server.broadcastReqs = remainReqs
-	}
 }
 
 func (server *BgpServer) broadcastPeerState(peer *Peer, oldState bgp.FSMState) {
@@ -686,7 +648,7 @@ func (server *BgpServer) propagateUpdate(peer *Peer, pathList []*table.Path) ([]
 		if len(best[table.GLOBAL_RIB_NAME]) == 0 {
 			return nil, alteredPathList
 		}
-		server.broadcastBests(best[table.GLOBAL_RIB_NAME])
+		server.notify2watchers(WATCHER_EVENT_BESTPATH_CHANGE, &watcherEventBestPathMsg{pathList: best[table.GLOBAL_RIB_NAME]})
 	}
 
 	for _, targetPeer := range server.neighborMap {
@@ -2279,16 +2241,16 @@ func (server *BgpServer) handleGrpc(grpcReq *GrpcRequest) []*SenderMsg {
 			Data:        data,
 		}
 		close(grpcReq.ResponseCh)
-	case REQ_MONITOR_GLOBAL_BEST_CHANGED, REQ_MONITOR_NEIGHBOR_PEER_STATE:
+	case REQ_MONITOR_NEIGHBOR_PEER_STATE:
 		server.broadcastReqs = append(server.broadcastReqs, grpcReq)
-	case REQ_MONITOR_INCOMING:
+	case REQ_MONITOR_RIB:
 		if grpcReq.Name != "" {
 			if _, err = server.checkNeighborRequest(grpcReq); err != nil {
 				break
 			}
 		}
-		w := server.watchers[WATCHER_GRPC_INCOMING]
-		go w.(*grpcIncomingWatcher).addRequest(grpcReq)
+		w := server.watchers[WATCHER_GRPC_MONITOR]
+		go w.(*grpcWatcher).addRequest(grpcReq)
 	case REQ_ENABLE_MRT:
 		server.handleEnableMrtRequest(grpcReq)
 	case REQ_DISABLE_MRT:

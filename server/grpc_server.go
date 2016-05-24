@@ -51,8 +51,7 @@ const (
 	REQ_GRPC_DELETE_NEIGHBOR
 	REQ_UPDATE_NEIGHBOR
 	REQ_GLOBAL_RIB
-	REQ_MONITOR_GLOBAL_BEST_CHANGED
-	REQ_MONITOR_INCOMING
+	REQ_MONITOR_RIB
 	REQ_MONITOR_NEIGHBOR_PEER_STATE
 	REQ_ENABLE_MRT
 	REQ_DISABLE_MRT
@@ -189,31 +188,14 @@ func (s *Server) GetRib(ctx context.Context, arg *api.GetRibRequest) (*api.GetRi
 	return d.(*api.GetRibResponse), nil
 }
 
-func (s *Server) MonitorBestChanged(arg *api.Arguments, stream api.GobgpApi_MonitorBestChangedServer) error {
-	var reqType int
-	switch arg.Resource {
-	case api.Resource_GLOBAL:
-		reqType = REQ_MONITOR_GLOBAL_BEST_CHANGED
-	default:
-		return fmt.Errorf("unsupported resource type: %v", arg.Resource)
-	}
-
-	req := NewGrpcRequest(reqType, "", bgp.RouteFamily(arg.Family), nil)
-	s.bgpServerCh <- req
-
-	return handleMultipleResponses(req, func(res *GrpcResponse) error {
-		return stream.Send(res.Data.(*api.Destination))
-	})
-}
-
 func (s *Server) MonitorRib(arg *api.Table, stream api.GobgpApi_MonitorRibServer) error {
 	switch arg.Type {
-	case api.Resource_ADJ_IN:
+	case api.Resource_ADJ_IN, api.Resource_GLOBAL:
 	default:
 		return fmt.Errorf("unsupported resource type: %v", arg.Type)
 	}
 
-	req := NewGrpcRequest(REQ_MONITOR_INCOMING, arg.Name, bgp.RouteFamily(arg.Family), arg)
+	req := NewGrpcRequest(REQ_MONITOR_RIB, arg.Name, bgp.RouteFamily(arg.Family), arg)
 	s.bgpServerCh <- req
 	return handleMultipleResponses(req, func(res *GrpcResponse) error {
 		return stream.Send(res.Data.(*api.Destination))
