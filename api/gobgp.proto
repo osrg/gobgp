@@ -36,7 +36,6 @@ service GobgpApi {
   rpc AddPath(AddPathRequest) returns (AddPathResponse) {}
   rpc DeletePath(DeletePathRequest) returns (DeletePathResponse) {}
   rpc MonitorRib(Table) returns (stream Destination) {}
-  rpc MonitorBestChanged(Arguments) returns (stream Destination) {}
   rpc MonitorPeerState(Arguments) returns (stream Peer) {}
   rpc EnableMrt(EnableMrtRequest) returns (EnableMrtResponse) {}
   rpc DisableMrt(DisableMrtRequest) returns (DisableMrtResponse) {}

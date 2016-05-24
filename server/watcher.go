@@ -44,8 +44,7 @@ const (
 	WATCHER_BMP
 	WATCHER_ZEBRA
 	WATCHER_COLLECTOR
-	WATCHER_GRPC_BESTPATH
-	WATCHER_GRPC_INCOMING
+	WATCHER_GRPC_MONITOR
 )
 
 type watcherEventType uint8
@@ -91,6 +90,10 @@ type watcherEventStateChangedMsg struct {
 }
 
 type watcherEventAdjInMsg struct {
+	pathList []*table.Path
+}
+
+type watcherEventBestPathMsg struct {
 	pathList []*table.Path
 }
 
