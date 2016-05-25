@@ -87,6 +87,12 @@ class GoBGPContainer(BGPContainer):
             if p['type'] == BGP_ATTR_TYPE_NEXT_HOP or p['type'] == BGP_ATTR_TYPE_MP_REACH_NLRI:
                 return p['nexthop']
 
+    def _get_local_pref(self, path):
+        for p in path['attrs']:
+            if p['type'] == BGP_ATTR_TYPE_LOCAL_PREF:
+                return p['value']
+        return None
+
     def _trigger_peer_cmd(self, cmd, peer):
         if peer not in self.peers:
             raise Exception('not found peer {0}'.format(peer.router_id))
@@ -117,6 +123,7 @@ class GoBGPContainer(BGPContainer):
             for p in d["paths"]:
                 p["nexthop"] = self._get_nexthop(p)
                 p["aspath"] = self._get_as_path(p)
+                p["local-pref"] = self._get_local_pref(p)
         return ret
 
     def get_global_rib(self, prefix='', rf='ipv4'):
@@ -127,6 +134,7 @@ class GoBGPContainer(BGPContainer):
             for p in d["paths"]:
                 p["nexthop"] = self._get_nexthop(p)
                 p["aspath"] = self._get_as_path(p)
+                p["local-pref"] = self._get_local_pref(p)
         return ret
 
     def monitor_global_rib(self, queue, rf='ipv4'):
@@ -139,6 +147,7 @@ class GoBGPContainer(BGPContainer):
                         p = json.loads(buf)[0]
                         p["nexthop"] = self._get_nexthop(p)
                         p["aspath"] = self._get_as_path(p)
+                        p["local-pref"] = self._get_local_pref(p)
                         queue.put(p)
                         buf = ''
                     else:
@@ -165,6 +174,7 @@ class GoBGPContainer(BGPContainer):
             p["nexthop"] = self._get_nexthop(p)
             p["aspath"] = self._get_as_path(p)
             p["prefix"] = p['nlri']['prefix']
+            p["local-pref"] = self._get_local_pref(p)
         return ret
 
     def get_adj_rib_in(self, peer, prefix='', rf='ipv4'):

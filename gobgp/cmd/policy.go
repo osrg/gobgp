@@ -454,6 +454,9 @@ func printStatement(indent int, s *api.Statement) {
 	if s.Actions.Med != nil {
 		fmt.Printf("%sMed:             %d\n", sIndent(indent+4), s.Actions.Med.Value)
 	}
+	if s.Actions.LocalPref != nil {
+		fmt.Printf("%sLocalPref:             %d\n", sIndent(indent+4), s.Actions.LocalPref.Value)
+	}
 	if s.Actions.AsPrepend != nil {
 		var asn string
 		if s.Actions.AsPrepend.UseLeftMost {
@@ -744,7 +747,7 @@ func modAction(name, op string, args []string) error {
 	}
 	usage := fmt.Sprintf("usage: gobgp policy statement %s %s action", name, op)
 	if len(args) < 1 {
-		return fmt.Errorf("%s { reject | accept | community | ext-community | med | as-prepend | next-hop }", usage)
+		return fmt.Errorf("%s { reject | accept | community | ext-community | med | local-pref | as-prepend | next-hop }", usage)
 	}
 	typ := args[0]
 	args = args[1:]
@@ -808,6 +811,17 @@ func modAction(name, op string, args []string) error {
 			stmt.Actions.Med.Type = api.MedActionType_MED_REPLACE
 		default:
 			return fmt.Errorf("%s med { add | sub | set } <value>")
+		}
+	case "local-pref":
+		if len(args) < 1 {
+			return fmt.Errorf("%s local-pref <value>", usage)
+		}
+		value, err := strconv.ParseUint(args[0], 10, 32)
+		if err != nil {
+			return err
+		}
+		stmt.Actions.LocalPref = &api.LocalPrefAction{
+			Value: uint32(value),
 		}
 	case "as-prepend":
 		if len(args) < 2 {

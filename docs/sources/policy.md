@@ -108,6 +108,7 @@ Actions are categorized into attributes below:
 - add/replace/remove community or remove all communities
 - add/subtract or replace MED value
 - set next-hop
+- set local-pref
 - prepend AS number in the AS_PATH attribute
 
 When **ALL** conditions in the statement are `true`, the action(s) in the statement are executed.
@@ -680,7 +681,7 @@ policy-definitions consists of condition and action. Condition part is used to e
     - as-path-set: *aspath1*
     - as-path length: *equal 2*
 
-  - If a route matches all these conditions, the route is accepted and added community "65100:20" and subtracted 200 from med value and prepended 65005 five times in its AS_PATH attribute, and also next-hop 10.0.0.1 is set.
+  - If a route matches all these conditions, it will be accepted with community "65100:20", next-hop 10.0.0.1, local-pref 110, med subtracted 200, as-path prepended 65005 five times.
 
  ```toml
  # example 4
@@ -706,13 +707,14 @@ policy-definitions consists of condition and action. Condition part is used to e
       [policy-definitions.statements.actions.bgp-actions]
         set-med = "-200"
         set-next-hop = "10.0.0.1"
-        [policy-definitions.statements.actions.bgp-actions.set-as-path-prepend]
-          as = "65005"
-          repeat-n = 5
-        [policy-definitions.statements.actions.bgp-actions.set-community]
-          options = "ADD"
-          [policy-definitions.statements.actions.bgp-actions.set-community.set-community-method]
-            communities-list = ["65100:20"]
+        set-local-pref = 110
+      [policy-definitions.statements.actions.bgp-actions.set-as-path-prepend]
+        as = "65005"
+        repeat-n = 5
+      [policy-definitions.statements.actions.bgp-actions.set-community]
+        options = "ADD"
+      [policy-definitions.statements.actions.bgp-actions.set-community.set-community-method]
+        communities-list = ["65100:20"]
  ```
 
 

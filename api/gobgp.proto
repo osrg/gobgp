@@ -739,6 +739,10 @@ message NexthopAction {
   string address = 1;
 }
 
+message LocalPrefAction {
+  uint32 value = 1;
+}
+
 message Actions {
   RouteAction route_action = 1;
   CommunityAction community = 2;
@@ -746,6 +750,7 @@ message Actions {
   AsPrependAction as_prepend = 4;
   CommunityAction ext_community = 5;
   NexthopAction nexthop = 6;
+  LocalPrefAction local_pref = 7;
 }
 
 message Statement {

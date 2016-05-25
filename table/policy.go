@@ -174,6 +174,7 @@ const (
 	ACTION_MED
 	ACTION_AS_PATH_PREPEND
 	ACTION_NEXTHOP
+	ACTION_LOCAL_PREF
 )
 
 func NewMatchOption(c interface{}) (MatchOption, error) {
@@ -2010,6 +2011,43 @@ func NewMedAction(c config.BgpSetMedType) (*MedAction, error) {
 	}, nil
 }
 
+type LocalPrefAction struct {
+	value uint32
+}
+
+func (a *LocalPrefAction) Type() ActionType {
+	return ACTION_LOCAL_PREF
+}
+
+func (a *LocalPrefAction) Apply(path *Path) *Path {
+	path.setPathAttr(bgp.NewPathAttributeLocalPref(a.value))
+	return path
+}
+
+func (a *LocalPrefAction) ToApiStruct() *api.LocalPrefAction {
+	return &api.LocalPrefAction{
+		Value: a.value,
+	}
+}
+
+func NewLocalPrefActionFromApiStruct(a *api.LocalPrefAction) (*LocalPrefAction, error) {
+	if a == nil || a.Value == 0 {
+		return nil, nil
+	}
+	return &LocalPrefAction{
+		value: a.Value,
+	}, nil
+}
+
+func NewLocalPrefAction(value uint32) (*LocalPrefAction, error) {
+	if value == 0 {
+		return nil, nil
+	}
+	return &LocalPrefAction{
+		value: value,
+	}, nil
+}
+
 type AsPathPrependAction struct {
 	asn         uint32
 	useLeftMost bool
@@ -2207,6 +2245,8 @@ func (s *Statement) ToApiStruct() *api.Statement {
 			as.Community = a.(*CommunityAction).ToApiStruct()
 		case *MedAction:
 			as.Med = a.(*MedAction).ToApiStruct()
+		case *LocalPrefAction:
+			as.LocalPref = a.(*LocalPrefAction).ToApiStruct()
 		case *AsPathPrependAction:
 			as.AsPrepend = a.(*AsPathPrependAction).ToApiStruct()
 		case *ExtCommunityAction:
@@ -2400,6 +2440,9 @@ func NewStatementFromApiStruct(a *api.Statement, dmap DefinedSetMap) (*Statement
 				return NewMedActionFromApiStruct(a.Actions.Med)
 			},
 			func() (Action, error) {
+				return NewLocalPrefActionFromApiStruct(a.Actions.LocalPref)
+			},
+			func() (Action, error) {
 				return NewAsPathPrependActionFromApiStruct(a.Actions.AsPrepend)
 			},
 			func() (Action, error) {
@@ -2479,6 +2522,9 @@ func NewStatement(c config.Statement, dmap DefinedSetMap) (*Statement, error) {
 		},
 		func() (Action, error) {
 			return NewMedAction(c.Actions.BgpActions.SetMed)
+		},
+		func() (Action, error) {
+			return NewLocalPrefAction(c.Actions.BgpActions.SetLocalPref)
 		},
 		func() (Action, error) {
 			return NewAsPathPrependAction(c.Actions.BgpActions.SetAsPathPrepend)

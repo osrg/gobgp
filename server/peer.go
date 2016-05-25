@@ -159,7 +159,15 @@ func (peer *Peer) filterpath(path *table.Path) *table.Path {
 	options := &table.PolicyOptions{
 		Neighbor: peer.fsm.peerInfo.Address,
 	}
-	return peer.policy.ApplyPolicy(peer.TableID(), table.POLICY_DIRECTION_EXPORT, path, options)
+	path = peer.policy.ApplyPolicy(peer.TableID(), table.POLICY_DIRECTION_EXPORT, path, options)
+
+	// remove local-pref attribute
+	// we should do this after applying export policy since policy may
+	// set local-preference
+	if path != nil && peer.fsm.pConf.Config.PeerType == config.PEER_TYPE_EXTERNAL {
+		path.RemoveLocalPref()
+	}
+	return path
 }
 
 func (peer *Peer) getBestFromLocal(rfList []bgp.RouteFamily) ([]*table.Path, []*table.Path) {

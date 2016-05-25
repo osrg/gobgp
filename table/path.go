@@ -180,11 +180,6 @@ func (path *Path) UpdatePathAttrs(global *config.Global, peer *config.Neighbor) 
 			path.delPathAttr(bgp.BGP_ATTR_TYPE_MULTI_EXIT_DISC)
 		}
 
-		// remove local-pref attribute
-		if pref := path.getPathAttr(bgp.BGP_ATTR_TYPE_LOCAL_PREF); pref != nil && !config.IsConfederationMember(global, peer) {
-			path.delPathAttr(bgp.BGP_ATTR_TYPE_LOCAL_PREF)
-		}
-
 	} else if peer.Config.PeerType == config.PEER_TYPE_INTERNAL {
 		// NEXTHOP handling for iBGP
 		// if the path generated locally set local address as nexthop.
@@ -810,6 +805,12 @@ func (path *Path) SetMed(med int64, doReplace bool) error {
 	}
 	path.setPathAttr(newMed)
 	return nil
+}
+
+func (path *Path) RemoveLocalPref() {
+	if path.getPathAttr(bgp.BGP_ATTR_TYPE_LOCAL_PREF) != nil {
+		path.delPathAttr(bgp.BGP_ATTR_TYPE_LOCAL_PREF)
+	}
 }
 
 func (path *Path) GetOriginatorID() net.IP {
