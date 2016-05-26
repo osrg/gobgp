@@ -354,6 +354,9 @@ type CapGracefulRestart struct {
 func (c *CapGracefulRestart) DecodeFromBytes(data []byte) error {
 	c.DefaultParameterCapability.DecodeFromBytes(data)
 	data = data[2:]
+	if len(data) < 2 {
+		return NewMessageError(BGP_ERROR_OPEN_MESSAGE_ERROR, BGP_ERROR_SUB_UNSUPPORTED_CAPABILITY, nil, "Not all CapabilityGracefulRestart bytes available")
+	}
 	restart := binary.BigEndian.Uint16(data[0:2])
 	c.Flags = uint8(restart >> 12)
 	c.Time = restart & 0xfff
