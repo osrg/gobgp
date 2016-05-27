@@ -309,8 +309,8 @@ def emit_class_def(ctx, yang_statement, struct_name, prefix):
             print >> o, '}'
             print >> o, '{'
             print >> o, 'lmap := make(map[string]*{0})'.format(type_name[2:])
-            print >> o, 'for _, l := range lhs.{0} {{'.format(val_name)
-            print >> o, 'lmap[string({0})] = &l'.format(' + '.join('l.{0}'.format(convert_to_golang(v)) for v in elem.split(' ')))
+            print >> o, 'for i, l := range lhs.{0} {{'.format(val_name)
+            print >> o, 'lmap[string({0})] = &lhs.{1}[i]'.format(' + '.join('l.{0}'.format(convert_to_golang(v)) for v in elem.split(' ')), val_name)
             print >> o, '}'
             print >> o, 'for _, r := range rhs.{0} {{'.format(val_name)
             print >> o, 'if l, y := lmap[string({0})]; !y {{'.format('+'.join('r.{0}'.format(convert_to_golang(v)) for v in elem.split(' ')))
