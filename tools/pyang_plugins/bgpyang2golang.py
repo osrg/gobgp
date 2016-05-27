@@ -95,6 +95,8 @@ def emit_go(ctx):
     # emit
     generate_header(ctx)
 
+    generate_common_functions(ctx)
+
     for mod in ctx.module_deps:
         if mod not in _module_excluded:
             emit_typedef(ctx, mod)
@@ -310,10 +312,10 @@ def emit_class_def(ctx, yang_statement, struct_name, prefix):
             print >> o, '{'
             print >> o, 'lmap := make(map[string]*{0})'.format(type_name[2:])
             print >> o, 'for i, l := range lhs.{0} {{'.format(val_name)
-            print >> o, 'lmap[string({0})] = &lhs.{1}[i]'.format(' + '.join('l.{0}'.format(convert_to_golang(v)) for v in elem.split(' ')), val_name)
+            print >> o, 'lmap[mapkey(i, string({0}))] = &lhs.{1}[i]'.format(' + '.join('l.{0}'.format(convert_to_golang(v)) for v in elem.split(' ')), val_name)
             print >> o, '}'
-            print >> o, 'for _, r := range rhs.{0} {{'.format(val_name)
-            print >> o, 'if l, y := lmap[string({0})]; !y {{'.format('+'.join('r.{0}'.format(convert_to_golang(v)) for v in elem.split(' ')))
+            print >> o, 'for i, r := range rhs.{0} {{'.format(val_name)
+            print >> o, 'if l, y := lmap[mapkey(i, string({0}))]; !y {{'.format('+'.join('r.{0}'.format(convert_to_golang(v)) for v in elem.split(' ')))
             print >> o, 'return false'
             print >> o, '} else if !r.Equal(l) {'
             print >> o, 'return false'
@@ -688,6 +690,15 @@ def generate_header(ctx):
     print ''
     print 'import "fmt"'
     print ''
+
+
+def generate_common_functions(ctx):
+    print 'func mapkey(index int, name string) string {'
+    print 'if name != "" {'
+    print 'return name'
+    print '}'
+    print 'return fmt.Sprintf("%v", index)'
+    print '}'
 
 
 def translate_type(key):
