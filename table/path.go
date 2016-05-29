@@ -835,5 +835,21 @@ func (path *Path) GetOrigin() (uint8, error) {
 }
 
 func (lhs *Path) Equal(rhs *Path) bool {
-	return lhs == rhs
+	if rhs == nil {
+		return false
+	}
+
+	if lhs.GetSource() != rhs.GetSource() {
+		return false
+	}
+
+	pattrs := func(arg []bgp.PathAttributeInterface) []byte {
+		ret := make([]byte, 0)
+		for _, a := range arg {
+			aa, _ := a.Serialize()
+			ret = append(ret, aa...)
+		}
+		return ret
+	}
+	return bytes.Equal(pattrs(lhs.GetPathAttrs()), pattrs(rhs.GetPathAttrs()))
 }
