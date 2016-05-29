@@ -254,26 +254,7 @@ func (dest *Destination) Calculate(ids []string) (map[string]*Path, []*Path) {
 			return nil
 		}()
 		best := dest.GetBestPath(id)
-		equal := func(lhs, rhs *Path) bool {
-			// already know the NLRIs are same and
-			// timestamp must be ignored so check out only
-			// source.
-			if lhs.GetSource() != rhs.GetSource() {
-				return false
-			}
-
-			pattrs := func(arg []bgp.PathAttributeInterface) []byte {
-				ret := make([]byte, 0)
-				for _, a := range arg {
-					aa, _ := a.Serialize()
-					ret = append(ret, aa...)
-				}
-				return ret
-			}
-			return bytes.Equal(pattrs(lhs.GetPathAttrs()), pattrs(rhs.GetPathAttrs()))
-		}
-
-		if best != nil && old != nil && equal(best, old) {
+		if best != nil && best.Equal(old) {
 			// RFC4684 3.2. Intra-AS VPN Route Distribution
 			// When processing RT membership NLRIs received from internal iBGP
 			// peers, it is necessary to consider all available iBGP paths for a
