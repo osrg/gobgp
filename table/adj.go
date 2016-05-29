@@ -17,7 +17,6 @@ package table
 
 import (
 	"github.com/osrg/gobgp/packet/bgp"
-	"reflect"
 )
 
 type AdjRib struct {
@@ -68,7 +67,7 @@ func (adj *AdjRib) Update(pathList []*Path) {
 					adj.accepted[rf]++
 				}
 			}
-			if found && reflect.DeepEqual(old.GetPathAttrs(), path.GetPathAttrs()) {
+			if found && old.Equal(path) {
 				path.setTimestamp(old.GetTimestamp())
 			}
 			adj.table[rf][key] = path
