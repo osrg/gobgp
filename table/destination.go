@@ -540,7 +540,7 @@ func (p paths) Less(i, j int) bool {
 
 	better.reason = reason
 
-	if better.Equal(path1) {
+	if better == path1 {
 		return true
 	}
 	return false
