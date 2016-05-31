@@ -29,8 +29,7 @@ func main() {
 	go g.Serve()
 
 	// global configuration
-	req := gobgp.NewGrpcRequest(gobgp.REQ_MOD_GLOBAL_CONFIG, "", bgp.RouteFamily(0), &api.ModGlobalConfigArguments{
-		Operation: api.Operation_ADD,
+	req := gobgp.NewGrpcRequest(gobgp.REQ_START_SERVER, "", bgp.RouteFamily(0), &api.StartServerRequest{
 		Global: &api.Global{
 			As:         65003,
 			RouterId:   "192.168.0.4",
@@ -44,8 +43,7 @@ func main() {
 	}
 
 	// neighbor configuration
-	req = gobgp.NewGrpcRequest(gobgp.REQ_MOD_NEIGHBOR, "", bgp.RouteFamily(0), &api.ModNeighborArguments{
-		Operation: api.Operation_ADD,
+	req = gobgp.NewGrpcRequest(gobgp.REQ_ADD_NEIGHBOR, "", bgp.RouteFamily(0), &api.AddNeighborRequest{
 		Peer: &api.Peer{
 			Conf: &api.PeerConf{
 				NeighborAddress: "192.168.0.3",
@@ -64,9 +62,9 @@ func main() {
 
 	// add routes
 	path, _ := cmd.ParsePath(bgp.RF_IPv4_UC, []string{"10.0.0.0/24", "nexthop", "10.10.10.10"})
-	req = gobgp.NewGrpcRequest(gobgp.REQ_MOD_PATHS, "", bgp.RouteFamily(0), &api.ModPathsArguments{
+	req = gobgp.NewGrpcRequest(gobgp.REQ_ADD_PATH, "", bgp.RouteFamily(0), &api.AddPathRequest{
 		Resource: api.Resource_GLOBAL,
-		Paths:    []*api.Path{path},
+		Path:     path,
 	})
 	s.GrpcReqCh <- req
 	res = <-req.ResponseCh
