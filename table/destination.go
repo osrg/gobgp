@@ -557,16 +557,8 @@ func compareByLocalPref(path1, path2 *Path) *Path {
 	//
 	//	# Default local-pref values is 100
 	log.Debugf("enter compareByLocalPref")
-	attribute1 := path1.getPathAttr(bgp.BGP_ATTR_TYPE_LOCAL_PREF)
-	attribute2 := path2.getPathAttr(bgp.BGP_ATTR_TYPE_LOCAL_PREF)
-
-	if attribute1 == nil || attribute2 == nil {
-		return nil
-	}
-
-	localPref1 := attribute1.(*bgp.PathAttributeLocalPref).Value
-	localPref2 := attribute2.(*bgp.PathAttributeLocalPref).Value
-
+	localPref1, _ := path1.GetLocalPref()
+	localPref2, _ := path2.GetLocalPref()
 	// Highest local-preference value is preferred.
 	if localPref1 > localPref2 {
 		return path1
