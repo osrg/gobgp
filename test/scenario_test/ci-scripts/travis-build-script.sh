@@ -39,6 +39,9 @@ PIDS=("${PIDS[@]}" $!)
 sudo  PYTHONPATH=$GOBGP/test python route_server_test2.py --gobgp-image $GOBGP_IMAGE --test-prefix rs2 -x &
 PIDS=("${PIDS[@]}" $!)
 
+sudo  PYTHONPATH=$GOBGP/test python route_server_test3.py --gobgp-image $GOBGP_IMAGE --test-prefix rs3 -x &
+PIDS=("${PIDS[@]}" $!)
+
 sudo  PYTHONPATH=$GOBGP/test python route_server_ipv4_v6_test.py --gobgp-image $GOBGP_IMAGE --test-prefix v6 -x &
 PIDS=("${PIDS[@]}" $!)
 
