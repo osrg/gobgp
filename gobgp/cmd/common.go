@@ -172,15 +172,19 @@ type Path struct {
 
 func ApiStruct2Path(p *gobgpapi.Path) ([]*Path, error) {
 	nlris := make([]bgp.AddrPrefixInterface, 0, 1)
-	data := p.Nlri
-	if p.Family == uint32(bgp.RF_IPv4_UC) && len(data) > 0 {
-		nlri := &bgp.IPAddrPrefix{}
-		err := nlri.DecodeFromBytes(data)
-		if err != nil {
-			return nil, err
-		}
-		nlris = append(nlris, nlri)
+	if len(p.Nlri) == 0 {
+		return nil, fmt.Errorf("path doesn't have nlri")
 	}
+	afi, safi := bgp.RouteFamilyToAfiSafi(bgp.RouteFamily(p.Family))
+	nlri, err := bgp.NewPrefixFromRouteFamily(afi, safi)
+	if err != nil {
+		return nil, err
+	}
+
+	if err := nlri.DecodeFromBytes(p.Nlri); err != nil {
+		return nil, err
+	}
+	nlris = append(nlris, nlri)
 
 	pattr := make([]bgp.PathAttributeInterface, 0, len(p.Pattrs))
 	for _, attr := range p.Pattrs {
@@ -192,14 +196,6 @@ func ApiStruct2Path(p *gobgpapi.Path) ([]*Path, error) {
 		err = p.DecodeFromBytes(attr)
 		if err != nil {
 			return nil, err
-		}
-
-		switch p.GetType() {
-		case bgp.BGP_ATTR_TYPE_MP_REACH_NLRI:
-			mpreach := p.(*bgp.PathAttributeMpReachNLRI)
-			for _, nlri := range mpreach.Value {
-				nlris = append(nlris, nlri)
-			}
 		}
 		pattr = append(pattr, p)
 	}
