@@ -28,6 +28,10 @@ import (
 	"time"
 )
 
+const (
+	DEFAULT_LOCAL_PREF = 100
+)
+
 type Bitmap []uint64
 
 func (b Bitmap) Flag(i uint) {
@@ -200,7 +204,7 @@ func (path *Path) UpdatePathAttrs(global *config.Global, peer *config.Neighbor) 
 		// for connected or local prefixes.
 		// We set default local-pref 100.
 		if pref := path.getPathAttr(bgp.BGP_ATTR_TYPE_LOCAL_PREF); pref == nil || !path.IsLocal() {
-			path.setPathAttr(bgp.NewPathAttributeLocalPref(100))
+			path.setPathAttr(bgp.NewPathAttributeLocalPref(DEFAULT_LOCAL_PREF))
 		}
 
 		// RFC4456: BGP Route Reflection
@@ -832,6 +836,15 @@ func (path *Path) GetOrigin() (uint8, error) {
 		return attr.(*bgp.PathAttributeOrigin).Value[0], nil
 	}
 	return 0, fmt.Errorf("no origin path attr")
+}
+
+func (path *Path) GetLocalPref() (uint32, error) {
+	lp := uint32(DEFAULT_LOCAL_PREF)
+	attr := path.getPathAttr(bgp.BGP_ATTR_TYPE_LOCAL_PREF)
+	if attr != nil {
+		lp = attr.(*bgp.PathAttributeLocalPref).Value
+	}
+	return lp, nil
 }
 
 func (lhs *Path) Equal(rhs *Path) bool {
