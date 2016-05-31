@@ -238,7 +238,7 @@ func createUpdateMsgFromPath(path *Path, msg *bgp.BGPMessage) *bgp.BGPMessage {
 					attr = path.getPathAttr(bgp.BGP_ATTR_TYPE_MP_UNREACH_NLRI)
 					nlris = attr.(*bgp.PathAttributeMpUnreachNLRI).Value
 				} else {
-					nlris = attr.(*bgp.PathAttributeMpReachNLRI).Value
+					nlris = []bgp.AddrPrefixInterface{path.GetNlri()}
 				}
 
 				clonedAttrs := path.GetPathAttrs()
@@ -260,10 +260,20 @@ func createUpdateMsgFromPath(path *Path, msg *bgp.BGPMessage) *bgp.BGPMessage {
 					}
 				}
 			} else {
+				attrs := make([]bgp.PathAttributeInterface, 0, 8)
+
+				for _, p := range path.GetPathAttrs() {
+					if p.GetType() == bgp.BGP_ATTR_TYPE_MP_REACH_NLRI {
+						attrs = append(attrs, bgp.NewPathAttributeMpReachNLRI(path.GetNexthop().String(), []bgp.AddrPrefixInterface{path.GetNlri()}))
+					} else {
+						attrs = append(attrs, p)
+					}
+				}
+
 				// we don't need to clone here but we
 				// might merge path to this message in
 				// the future so let's clone anyway.
-				return bgp.NewBGPUpdateMessage(nil, path.GetPathAttrs(), nil)
+				return bgp.NewBGPUpdateMessage(nil, attrs, nil)
 			}
 		}
 	}
