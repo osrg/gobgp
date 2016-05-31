@@ -2029,6 +2029,16 @@ func (server *BgpServer) handleGrpc(grpcReq *GrpcRequest) []*SenderMsg {
 				path.Filter(peer.ID(), table.POLICY_DIRECTION_NONE)
 				if server.policy.ApplyPolicy(peer.ID(), table.POLICY_DIRECTION_IN, path, nil) != nil {
 					pathList = append(pathList, path.Clone(false))
+					// this path still in rib's
+					// knownPathList. We can't
+					// drop
+					// table.POLICY_DIRECTION_IMPORT
+					// flag here. Otherwise, this
+					// path could be the old best
+					// path.
+					if peer.isRouteServerClient() {
+						path.Filter(peer.ID(), table.POLICY_DIRECTION_IMPORT)
+					}
 				} else {
 					path.Filter(peer.ID(), table.POLICY_DIRECTION_IN)
 					if exResult != table.POLICY_DIRECTION_IN {
