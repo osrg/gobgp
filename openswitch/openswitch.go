@@ -567,15 +567,15 @@ func (m *OpsManager) GobgpMonitor(ready *bool) {
 	time.Sleep(time.Duration(time.Second * 2))
 	reqCh := m.grpcCh
 	family := bgp.RF_IPv4_UC
-	arg := &api.Arguments{
-		Resource: api.Resource_GLOBAL,
-		Family:   uint32(family),
+	arg := &api.Table{
+		Type:   api.Resource_GLOBAL,
+		Family: uint32(family),
 	}
 	for {
 		if !*ready {
 			return
 		}
-		req := server.NewGrpcRequest(server.REQ_MONITOR_GLOBAL_BEST_CHANGED, "", bgp.RouteFamily(0), arg)
+		req := server.NewGrpcRequest(server.REQ_MONITOR_RIB, "", bgp.RouteFamily(arg.Family), arg)
 		reqCh <- req
 		res := <-req.ResponseCh
 		if err := res.Err(); err != nil {
