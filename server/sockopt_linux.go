@@ -28,30 +28,30 @@ func DialTCPTimeoutWithMD5Sig(host string, port int, localAddr, key string, msec
 	var family int
 	var ra, la syscall.Sockaddr
 
-	ip := net.ParseIP(host)
-	if ip == nil {
-		return nil, fmt.Errorf("invalid ip: %s", host)
+	ip, err := net.ResolveIPAddr("ip", host)
+	if err != nil {
+		return nil, fmt.Errorf("invalid ip: %s", err)
 	}
-	l := net.ParseIP(localAddr)
+	l, err := net.ResolveIPAddr("ip", localAddr)
 	if l == nil {
-		return nil, fmt.Errorf("invalid local ip: %s", localAddr)
+		return nil, fmt.Errorf("invalid local ip: %s", err)
 	}
-	if (ip.To4() != nil) != (l.To4() != nil) {
+	if (ip.IP.To4() != nil) != (l.IP.To4() != nil) {
 		return nil, fmt.Errorf("remote and local ip address family is not same")
 	}
 	switch {
-	case ip.To4() != nil:
+	case ip.IP.To4() != nil:
 		family = syscall.AF_INET
 		i := &syscall.SockaddrInet4{
 			Port: port,
 		}
 		for idx, _ := range i.Addr {
-			i.Addr[idx] = ip.To4()[idx]
+			i.Addr[idx] = ip.IP.To4()[idx]
 		}
 		ra = i
 		j := &syscall.SockaddrInet4{}
 		for idx, _ := range j.Addr {
-			j.Addr[idx] = l.To4()[idx]
+			j.Addr[idx] = l.IP.To4()[idx]
 		}
 		la = j
 	default:
@@ -60,12 +60,22 @@ func DialTCPTimeoutWithMD5Sig(host string, port int, localAddr, key string, msec
 			Port: port,
 		}
 		for idx, _ := range i.Addr {
-			i.Addr[idx] = ip[idx]
+			i.Addr[idx] = ip.IP[idx]
 		}
 		ra = i
-		j := &syscall.SockaddrInet6{}
+		var zone uint32
+		if l.Zone != "" {
+			intf, err := net.InterfaceByName(l.Zone)
+			if err != nil {
+				return nil, err
+			}
+			zone = uint32(intf.Index)
+		}
+		j := &syscall.SockaddrInet6{
+			ZoneId: zone,
+		}
 		for idx, _ := range j.Addr {
-			j.Addr[idx] = l[idx]
+			j.Addr[idx] = l.IP[idx]
 		}
 		la = j
 	}

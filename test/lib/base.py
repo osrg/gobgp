@@ -155,6 +155,7 @@ class Container(object):
         self.image = image
         self.shared_volumes = []
         self.ip_addrs = []
+        self.ip6_addrs = []
         self.is_running = False
         self.eths = []
 
@@ -184,6 +185,9 @@ class Container(object):
             if line.strip().startswith("inet "):
                 elems = [e.strip() for e in line.strip().split(' ')]
                 self.ip_addrs.append(('eth0', elems[1], 'docker0'))
+            elif line.strip().startswith("inet6 "):
+                elems = [e.strip() for e in line.strip().split(' ')]
+                self.ip6_addrs.append(('eth0', elems[1], 'docker0'))
         return 0
 
     def stop(self):
@@ -262,15 +266,23 @@ class BGPContainer(Container):
                  policies=None, passive=False,
                  is_rr_client=False, cluster_id=None,
                  flowspec=False, bridge='', reload_config=True, as2=False,
-                 graceful_restart=None, local_as=None, prefix_limit=None):
+                 graceful_restart=None, local_as=None, prefix_limit=None,
+                 v6=False):
         neigh_addr = ''
         local_addr = ''
-        for me, you in itertools.product(self.ip_addrs, peer.ip_addrs):
+        it = itertools.product(self.ip_addrs, peer.ip_addrs)
+        if v6:
+            it = itertools.product(self.ip6_addrs, peer.ip6_addrs)
+
+        for me, you in it:
             if bridge != '' and bridge != me[2]:
                 continue
             if me[2] == you[2]:
                 neigh_addr = you[1]
                 local_addr = me[1]
+                if v6:
+                    addr, mask = local_addr.split('/')
+                    local_addr = "{0}%{1}/{2}".format(addr, me[0], mask)
                 break
 
         if neigh_addr == '':

@@ -267,11 +267,14 @@ class GoBGPContainer(BGPContainer):
                  'afi-safis': afi_safi_list,
                  'timers': {'config': {
                      'connect-retry': 10,
-                    }},
+                  }},
+                 'transport': {'config': {
+                     'local-address': info['local_addr'].split('/')[0],
+                  }},
                  }
 
             if info['passive']:
-                n['transport'] = {'config': {'passive-mode': True}}
+                n['transport']['config']['passive-mode'] = True
 
             if info['is_rs_client']:
                 n['route-server'] = {'config': {'route-server-client': True}}
