@@ -113,6 +113,17 @@ func SetDefaultConfigValues(v *viper.Viper, b *BgpConfigSet) error {
 			n.Timers.Config.IdleHoldTimeAfterReset = float64(DEFAULT_IDLE_HOLDTIME_AFTER_RESET)
 		}
 
+		if !vv.IsSet("neighbor.transport.config.local-address") {
+			v6 := true
+			if ip := net.ParseIP(n.Config.NeighborAddress); ip.To4() != nil {
+				v6 = false
+			}
+			if v6 {
+				n.Transport.Config.LocalAddress = "::"
+			} else {
+				n.Transport.Config.LocalAddress = "0.0.0.0"
+			}
+		}
 		if !vv.IsSet("neighbor.afi-safis") {
 			if ip := net.ParseIP(n.Config.NeighborAddress); ip.To4() != nil {
 				n.AfiSafis = []AfiSafi{defaultAfiSafi(AFI_SAFI_TYPE_IPV4_UNICAST, true)}

@@ -294,30 +294,21 @@ func (fsm *FSM) connectLoop() error {
 		laddr := fsm.pConf.Transport.Config.LocalAddress
 		var conn net.Conn
 		var err error
-		if laddr != "" {
-			if fsm.pConf.Config.AuthPassword != "" {
-				deadline := (MIN_CONNECT_RETRY - 1) * 1000 // msec
-				conn, err = DialTCPTimeoutWithMD5Sig(addr, port, laddr, fsm.pConf.Config.AuthPassword, deadline)
-			} else {
-				lhost := net.JoinHostPort(laddr, "0")
-				ltcpaddr, e := net.ResolveTCPAddr("tcp", lhost)
-				if e != nil {
-					log.WithFields(log.Fields{
-						"Topic": "Peer",
-						"Key":   fsm.pConf.Config.NeighborAddress,
-					}).Warnf("failed to resolve ltcpaddr: %s", e)
-					return
-				}
-				d := net.Dialer{LocalAddr: ltcpaddr, Timeout: time.Duration(MIN_CONNECT_RETRY-1) * time.Second}
-				conn, err = d.Dial("tcp", host)
-			}
+		if fsm.pConf.Config.AuthPassword != "" {
+			deadline := (MIN_CONNECT_RETRY - 1) * 1000 // msec
+			conn, err = DialTCPTimeoutWithMD5Sig(addr, port, laddr, fsm.pConf.Config.AuthPassword, deadline)
 		} else {
-			if fsm.pConf.Config.AuthPassword != "" {
-				deadline := (MIN_CONNECT_RETRY - 1) * 1000 // msec
-				conn, err = DialTCPTimeoutWithMD5Sig(addr, port, "0.0.0.0", fsm.pConf.Config.AuthPassword, deadline)
-			} else {
-				conn, err = net.DialTimeout("tcp", host, time.Duration(MIN_CONNECT_RETRY-1)*time.Second)
+			lhost := net.JoinHostPort(laddr, "0")
+			ltcpaddr, e := net.ResolveTCPAddr("tcp", lhost)
+			if e != nil {
+				log.WithFields(log.Fields{
+					"Topic": "Peer",
+					"Key":   fsm.pConf.Config.NeighborAddress,
+				}).Warnf("failed to resolve ltcpaddr: %s", e)
+				return
 			}
+			d := net.Dialer{LocalAddr: ltcpaddr, Timeout: time.Duration(MIN_CONNECT_RETRY-1) * time.Second}
+			conn, err = d.Dial("tcp", host)
 		}
 
 		if err == nil {
