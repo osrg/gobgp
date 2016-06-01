@@ -268,10 +268,11 @@ class GoBGPContainer(BGPContainer):
                  'timers': {'config': {
                      'connect-retry': 10,
                   }},
-                 'transport': {'config': {
-                     'local-address': info['local_addr'].split('/')[0],
-                  }},
+                 'transport': {'config': {}},
                  }
+
+            if ':' in info['local_addr']:
+                n['transport']['config']['local-address'] = info['local_addr'].split('/')[0]
 
             if info['passive']:
                 n['transport']['config']['passive-mode'] = True

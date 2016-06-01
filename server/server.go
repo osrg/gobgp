@@ -270,8 +270,8 @@ func (server *BgpServer) Serve() {
 					conn.Close()
 					return
 				}
-				localAddrValid := func(laddr net.IP) bool {
-					if laddr == nil {
+				localAddrValid := func(laddr string) bool {
+					if laddr == "0.0.0.0" || laddr == "::" {
 						return true
 					}
 					l := conn.LocalAddr()
@@ -281,17 +281,17 @@ func (server *BgpServer) Serve() {
 					}
 
 					host, _, _ := net.SplitHostPort(l.String())
-					if host != laddr.String() {
+					if host != laddr {
 						log.WithFields(log.Fields{
 							"Topic":           "Peer",
 							"Key":             remoteAddr,
-							"Configured addr": laddr.String(),
+							"Configured addr": laddr,
 							"Addr":            host,
 						}).Info("Mismatched local address")
 						return false
 					}
 					return true
-				}(net.ParseIP(peer.fsm.pConf.Transport.Config.LocalAddress))
+				}(peer.fsm.pConf.Transport.Config.LocalAddress)
 				if localAddrValid == false {
 					conn.Close()
 					return
