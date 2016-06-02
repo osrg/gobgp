@@ -85,16 +85,20 @@ func (w *grpcWatcher) loop() error {
 			reqs = append(reqs, req)
 			w.reqs[reqType] = reqs
 		case ev := <-w.ch:
-			sendPaths := func(reqType watcherEventType, paths []*table.Path) {
-				for _, path := range paths {
-					if path == nil {
+			sendMultiPaths := func(reqType watcherEventType, dsts [][]*table.Path) {
+				for _, dst := range dsts {
+					paths := make([]*api.Path, 0, len(dst))
+					for _, path := range dst {
+						paths = append(paths, path.ToApiStruct(table.GLOBAL_RIB_NAME))
+					}
+					if len(paths) == 0 {
 						continue
 					}
 					remains := make([]*GrpcRequest, 0, len(w.reqs[reqType]))
 					result := &GrpcResponse{
 						Data: &api.Destination{
-							Prefix: path.GetNlri().String(),
-							Paths:  []*api.Path{path.ToApiStruct(table.GLOBAL_RIB_NAME)},
+							Prefix: dst[0].GetNlri().String(),
+							Paths:  paths,
 						},
 					}
 					for _, req := range w.reqs[reqType] {
@@ -104,10 +108,10 @@ func (w *grpcWatcher) loop() error {
 						default:
 						}
 						remains = append(remains, req)
-						if req.RouteFamily != bgp.RouteFamily(0) && req.RouteFamily != path.GetRouteFamily() {
+						if req.RouteFamily != bgp.RouteFamily(0) && req.RouteFamily != dst[0].GetRouteFamily() {
 							continue
 						}
-						if req.Name != "" && req.Name != path.GetSource().Address.String() {
+						if req.Name != "" && req.Name != paths[0].NeighborIp {
 							continue
 						}
 						req.ResponseCh <- result
@@ -115,9 +119,23 @@ func (w *grpcWatcher) loop() error {
 					w.reqs[reqType] = remains
 				}
 			}
+			sendPaths := func(reqType watcherEventType, paths []*table.Path) {
+				dsts := make([][]*table.Path, 0, len(paths))
+				for _, path := range paths {
+					if path == nil {
+						continue
+					}
+					dsts = append(dsts, []*table.Path{path})
+				}
+				sendMultiPaths(reqType, dsts)
+			}
 			switch msg := ev.(type) {
 			case *watcherEventBestPathMsg:
-				sendPaths(WATCHER_EVENT_BESTPATH_CHANGE, msg.pathList)
+				if table.UseMultiplePaths.Enabled {
+					sendMultiPaths(WATCHER_EVENT_BESTPATH_CHANGE, msg.multiPathList)
+				} else {
+					sendPaths(WATCHER_EVENT_BESTPATH_CHANGE, msg.pathList)
+				}
 			case *watcherEventUpdateMsg:
 				if msg.postPolicy {
 					sendPaths(WATCHER_EVENT_POST_POLICY_UPDATE_MSG, msg.pathList)
