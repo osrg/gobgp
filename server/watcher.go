@@ -87,7 +87,8 @@ type watcherEventAdjInMsg struct {
 }
 
 type watcherEventBestPathMsg struct {
-	pathList []*table.Path
+	pathList      []*table.Path
+	multiPathList [][]*table.Path
 }
 
 type watcher interface {

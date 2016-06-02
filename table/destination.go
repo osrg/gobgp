@@ -28,6 +28,7 @@ import (
 )
 
 var SelectionOptions config.RouteSelectionOptionsConfig
+var UseMultiplePaths config.UseMultiplePathsConfig
 
 type BestPathReason string
 
@@ -230,7 +231,7 @@ func (dd *Destination) validatePath(path *Path) {
 //
 // Modifies destination's state related to stored paths. Removes withdrawn
 // paths from known paths. Also, adds new paths to known paths.
-func (dest *Destination) Calculate(ids []string) (map[string]*Path, []*Path) {
+func (dest *Destination) Calculate(ids []string) (map[string]*Path, []*Path, []*Path) {
 	best := make(map[string]*Path, len(ids))
 	oldKnownPathList := dest.knownPathList
 	// First remove the withdrawn paths.
@@ -274,10 +275,48 @@ func (dest *Destination) Calculate(ids []string) (map[string]*Path, []*Path) {
 		return best
 	}
 
+	var multi []*Path
 	for _, id := range ids {
 		best[id] = f(id)
+		if id == GLOBAL_RIB_NAME && UseMultiplePaths.Enabled {
+			multipath := func(paths []*Path) []*Path {
+				mp := make([]*Path, 0, len(paths))
+				var best *Path
+				for _, path := range paths {
+					if path.Filtered(id) == POLICY_DIRECTION_NONE {
+						if best == nil {
+							best = path
+							mp = append(mp, path)
+						} else if best.Compare(path) == 0 {
+							mp = append(mp, path)
+						}
+					}
+				}
+				return mp
+			}
+			diff := func(lhs, rhs []*Path) bool {
+				if len(lhs) != len(rhs) {
+					return true
+				}
+				for idx, l := range lhs {
+					if !l.Equal(rhs[idx]) {
+						return true
+					}
+				}
+				return false
+			}
+			oldM := multipath(oldKnownPathList)
+			newM := multipath(dest.knownPathList)
+			if diff(oldM, newM) {
+				multi = newM
+				if len(newM) == 0 {
+					multi = []*Path{best[id]}
+				}
+			}
+		}
 	}
-	return best, withdrawnList
+
+	return best, withdrawnList, multi
 }
 
 // Removes withdrawn paths.

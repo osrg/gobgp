@@ -866,3 +866,39 @@ func (lhs *Path) Equal(rhs *Path) bool {
 	}
 	return bytes.Equal(pattrs(lhs.GetPathAttrs()), pattrs(rhs.GetPathAttrs()))
 }
+
+func (lhs *Path) Compare(rhs *Path) int {
+	if lhs.IsLocal() && !rhs.IsLocal() {
+		return 1
+	} else if !lhs.IsLocal() && rhs.IsLocal() {
+		return -1
+	}
+
+	if !lhs.IsIBGP() && rhs.IsIBGP() {
+		return 1
+	} else if lhs.IsIBGP() && !rhs.IsIBGP() {
+		return -1
+	}
+
+	lp1, _ := lhs.GetLocalPref()
+	lp2, _ := rhs.GetLocalPref()
+	if lp1 != lp2 {
+		return int(lp1 - lp2)
+	}
+
+	l1 := lhs.GetAsPathLen()
+	l2 := rhs.GetAsPathLen()
+	if l1 != l2 {
+		return int(l2 - l1)
+	}
+
+	o1, _ := lhs.GetOrigin()
+	o2, _ := rhs.GetOrigin()
+	if o1 != o2 {
+		return int(o2 - o1)
+	}
+
+	m1, _ := lhs.GetMed()
+	m2, _ := rhs.GetMed()
+	return int(m2 - m1)
+}

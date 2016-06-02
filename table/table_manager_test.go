@@ -30,7 +30,7 @@ import (
 // this function processes only BGPUpdate
 func (manager *TableManager) ProcessUpdate(fromPeer *PeerInfo, message *bgp.BGPMessage) ([]*Path, error) {
 	paths := ProcessMessage(message, fromPeer, time.Now())
-	best, _ := manager.ProcessPaths([]string{GLOBAL_RIB_NAME}, paths)
+	best, _, _ := manager.ProcessPaths([]string{GLOBAL_RIB_NAME}, paths)
 	paths2 := make([]*Path, 0, len(paths))
 	for _, p := range best[GLOBAL_RIB_NAME] {
 		if p != nil {

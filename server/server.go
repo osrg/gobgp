@@ -401,10 +401,10 @@ func (server *BgpServer) dropPeerAllRoutes(peer *Peer, families []bgp.RouteFamil
 		ids = append(ids, table.GLOBAL_RIB_NAME)
 	}
 	for _, rf := range families {
-		best, _ := server.globalRib.DeletePathsByPeer(ids, peer.fsm.peerInfo, rf)
+		best, _, multipath := server.globalRib.DeletePathsByPeer(ids, peer.fsm.peerInfo, rf)
 
 		if !peer.isRouteServerClient() {
-			server.watchers.notify(WATCHER_EVENT_BESTPATH_CHANGE, &watcherEventBestPathMsg{pathList: best[table.GLOBAL_RIB_NAME]})
+			server.watchers.notify(WATCHER_EVENT_BESTPATH_CHANGE, &watcherEventBestPathMsg{pathList: best[table.GLOBAL_RIB_NAME], multiPathList: multipath})
 		}
 
 		for _, targetPeer := range server.neighborMap {
@@ -498,7 +498,7 @@ func (server *BgpServer) propagateUpdate(peer *Peer, pathList []*table.Path) ([]
 				ids = append(ids, targetPeer.TableID())
 			}
 		}
-		best, withdrawn = rib.ProcessPaths(ids, append(pathList, moded...))
+		best, withdrawn, _ = rib.ProcessPaths(ids, append(pathList, moded...))
 	} else {
 		for idx, path := range pathList {
 			path = server.policy.ApplyPolicy(table.GLOBAL_RIB_NAME, table.POLICY_DIRECTION_IMPORT, path, nil)
@@ -549,11 +549,12 @@ func (server *BgpServer) propagateUpdate(peer *Peer, pathList []*table.Path) ([]
 			}
 		}
 		alteredPathList = pathList
-		best, withdrawn = rib.ProcessPaths([]string{table.GLOBAL_RIB_NAME}, pathList)
+		var multi [][]*table.Path
+		best, withdrawn, multi = rib.ProcessPaths([]string{table.GLOBAL_RIB_NAME}, pathList)
 		if len(best[table.GLOBAL_RIB_NAME]) == 0 {
 			return nil, alteredPathList
 		}
-		server.watchers.notify(WATCHER_EVENT_BESTPATH_CHANGE, &watcherEventBestPathMsg{pathList: best[table.GLOBAL_RIB_NAME]})
+		server.watchers.notify(WATCHER_EVENT_BESTPATH_CHANGE, &watcherEventBestPathMsg{pathList: best[table.GLOBAL_RIB_NAME], multiPathList: multi})
 	}
 
 	for _, targetPeer := range server.neighborMap {
@@ -1538,6 +1539,7 @@ func (server *BgpServer) handleModConfig(grpcReq *GrpcRequest) error {
 	server.bgpConfig.Global = *c
 	// update route selection options
 	table.SelectionOptions = c.RouteSelectionOptions.Config
+	table.UseMultiplePaths = c.UseMultiplePaths.Config
 	return nil
 }
 
