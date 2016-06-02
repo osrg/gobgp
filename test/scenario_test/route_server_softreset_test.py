@@ -44,11 +44,14 @@ class GoBGPTestBase(unittest.TestCase):
         g3 = GoBGPContainer(name='g3', asn=65002, router_id='192.168.0.3',
                             ctn_image_name=gobgp_ctn_image_name,
                             log_level=parser_option.gobgp_log_level)
-        ctns = [g1, g2, g3]
+        g4 = GoBGPContainer(name='g4', asn=65003, router_id='192.168.0.4',
+                            ctn_image_name=gobgp_ctn_image_name,
+                            log_level=parser_option.gobgp_log_level)
+        ctns = [g1, g2, g3, g4]
 
         # advertise a route from route-server-clients
         cls.clients = {}
-        for cli in [g2, g3]:
+        for cli in [g2, g3, g4]:
             cls.clients[cli.name] = cli
         initial_wait_time = max(ctn.run() for ctn in ctns)
 
@@ -65,7 +68,7 @@ class GoBGPTestBase(unittest.TestCase):
         for cli in self.clients.itervalues():
             self.gobgp.wait_for(expected_state=BGP_FSM_ESTABLISHED, peer=cli)
 
-    def test_02_test(self):
+    def test_02_softresetin_test1(self):
         g1 = self.gobgp
         g2 = self.clients['g2']
         g3 = self.clients['g3']
@@ -93,6 +96,7 @@ class GoBGPTestBase(unittest.TestCase):
         ps0 = {'prefix-set-name': 'ps0', 'prefix-list': [p1]}
         g1.set_prefix_set(ps0)
         g1.create_config()
+        # this will cause g1 to do softresetin for all neighbors (policy is changed)
         g1.reload_config()
 
         time.sleep(1)
@@ -106,6 +110,23 @@ class GoBGPTestBase(unittest.TestCase):
 
         num3 = g2.get_neighbor(g1)['info']['messages']['received']['UPDATE']
         self.assertTrue(num2 == num3)
+
+    def test_03_softresetin_test2(self):
+        g1 = self.gobgp
+        g2 = self.clients['g2']
+
+        g2.add_route('10.0.10.0/24')
+        time.sleep(1)
+
+        num = g2.get_neighbor(g1)['info']['messages']['received']['UPDATE']
+        time.sleep(3)
+
+        g1.local('gobgp n all softresetin')
+        time.sleep(3)
+
+        num1 = g2.get_neighbor(g1)['info']['messages']['received']['UPDATE']
+
+        self.assertTrue(num == num1)
 
 
 if __name__ == '__main__':
