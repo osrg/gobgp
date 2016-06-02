@@ -400,3 +400,92 @@ func TestRadixkey(t *testing.T) {
 	assert.Equal(t, "000010100000001100100000", IpToRadixkey(net.ParseIP("10.3.32.0").To4(), 24))
 	assert.Equal(t, "000010100000001100100000", IpToRadixkey(net.ParseIP("10.3.32.0").To4(), 24))
 }
+
+func TestMultipath(t *testing.T) {
+	UseMultiplePaths.Enabled = true
+	origin := bgp.NewPathAttributeOrigin(0)
+	aspathParam := []bgp.AsPathParamInterface{bgp.NewAs4PathParam(2, []uint32{65000})}
+	aspath := bgp.NewPathAttributeAsPath(aspathParam)
+	nexthop := bgp.NewPathAttributeNextHop("192.168.150.1")
+	med := bgp.NewPathAttributeMultiExitDisc(100)
+
+	pathAttributes := []bgp.PathAttributeInterface{
+		origin,
+		aspath,
+		nexthop,
+		med,
+	}
+
+	nlri := []*bgp.IPAddrPrefix{bgp.NewIPAddrPrefix(24, "10.10.10.0")}
+	updateMsg := bgp.NewBGPUpdateMessage(nil, pathAttributes, nlri)
+	peer1 := &PeerInfo{AS: 1, Address: net.IP{1, 1, 1, 1}, ID: net.IP{1, 1, 1, 1}}
+	path1 := ProcessMessage(updateMsg, peer1, time.Now())[0]
+	peer2 := &PeerInfo{AS: 2, Address: net.IP{2, 2, 2, 2}, ID: net.IP{2, 2, 2, 2}}
+
+	med = bgp.NewPathAttributeMultiExitDisc(100)
+	nexthop = bgp.NewPathAttributeNextHop("192.168.150.2")
+	pathAttributes = []bgp.PathAttributeInterface{
+		origin,
+		aspath,
+		nexthop,
+		med,
+	}
+	updateMsg = bgp.NewBGPUpdateMessage(nil, pathAttributes, nlri)
+	path2 := ProcessMessage(updateMsg, peer2, time.Now())[0]
+
+	d := NewDestination(nlri[0])
+	d.addNewPath(path1)
+	d.addNewPath(path2)
+
+	best, w, multi := d.Calculate([]string{GLOBAL_RIB_NAME})
+	assert.Equal(t, len(best), 1)
+	assert.Equal(t, len(w), 0)
+	assert.Equal(t, len(multi), 2)
+	assert.Equal(t, len(d.GetKnownPathList(GLOBAL_RIB_NAME)), 2)
+
+	path3 := path2.Clone(true)
+	d.addWithdraw(path3)
+	best, w, multi = d.Calculate([]string{GLOBAL_RIB_NAME})
+	assert.Equal(t, len(best), 1)
+	assert.Equal(t, len(w), 1)
+	assert.Equal(t, len(multi), 1)
+	assert.Equal(t, len(d.GetKnownPathList(GLOBAL_RIB_NAME)), 1)
+
+	peer3 := &PeerInfo{AS: 3, Address: net.IP{3, 3, 3, 3}, ID: net.IP{3, 3, 3, 3}}
+	med = bgp.NewPathAttributeMultiExitDisc(50)
+	nexthop = bgp.NewPathAttributeNextHop("192.168.150.3")
+	pathAttributes = []bgp.PathAttributeInterface{
+		origin,
+		aspath,
+		nexthop,
+		med,
+	}
+	updateMsg = bgp.NewBGPUpdateMessage(nil, pathAttributes, nlri)
+	path4 := ProcessMessage(updateMsg, peer3, time.Now())[0]
+	d.addNewPath(path4)
+
+	best, w, multi = d.Calculate([]string{GLOBAL_RIB_NAME})
+	assert.Equal(t, len(best), 1)
+	assert.Equal(t, len(w), 0)
+	assert.Equal(t, len(multi), 1)
+	assert.Equal(t, len(d.GetKnownPathList(GLOBAL_RIB_NAME)), 2)
+
+	nexthop = bgp.NewPathAttributeNextHop("192.168.150.2")
+	pathAttributes = []bgp.PathAttributeInterface{
+		origin,
+		aspath,
+		nexthop,
+		med,
+	}
+	updateMsg = bgp.NewBGPUpdateMessage(nil, pathAttributes, nlri)
+	path5 := ProcessMessage(updateMsg, peer2, time.Now())[0]
+	d.addNewPath(path5)
+
+	best, w, multi = d.Calculate([]string{GLOBAL_RIB_NAME})
+	assert.Equal(t, len(best), 1)
+	assert.Equal(t, len(w), 0)
+	assert.Equal(t, len(multi), 2)
+	assert.Equal(t, len(d.GetKnownPathList(GLOBAL_RIB_NAME)), 3)
+
+	UseMultiplePaths.Enabled = false
+}

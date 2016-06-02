@@ -216,22 +216,29 @@ func (manager *TableManager) DeleteVrf(name string) ([]*Path, error) {
 	return msgs, nil
 }
 
-func (manager *TableManager) calculate(ids []string, destinations []*Destination) (map[string][]*Path, []*Path) {
+func (manager *TableManager) calculate(ids []string, destinations []*Destination) (map[string][]*Path, []*Path, [][]*Path) {
 	withdrawn := make([]*Path, 0, len(destinations))
 	best := make(map[string][]*Path, len(ids))
 
 	emptyDsts := make([]*Destination, 0, len(destinations))
+	var multi [][]*Path
+	if UseMultiplePaths.Enabled && len(ids) == 1 && ids[0] == GLOBAL_RIB_NAME {
+		multi = make([][]*Path, 0, len(destinations))
+	}
 
 	for _, dst := range destinations {
 		log.WithFields(log.Fields{
 			"Topic": "table",
 			"Key":   dst.GetNlri().String(),
 		}).Debug("Processing destination")
-		paths, w := dst.Calculate(ids)
+		paths, w, m := dst.Calculate(ids)
 		for id, path := range paths {
 			best[id] = append(best[id], path)
 		}
 		withdrawn = append(withdrawn, w...)
+		if m != nil {
+			multi = append(multi, m)
+		}
 
 		if len(dst.knownPathList) == 0 {
 			emptyDsts = append(emptyDsts, dst)
@@ -242,18 +249,18 @@ func (manager *TableManager) calculate(ids []string, destinations []*Destination
 		t := manager.Tables[dst.Family()]
 		t.deleteDest(dst)
 	}
-	return best, withdrawn
+	return best, withdrawn, multi
 }
 
-func (manager *TableManager) DeletePathsByPeer(ids []string, info *PeerInfo, rf bgp.RouteFamily) (map[string][]*Path, []*Path) {
+func (manager *TableManager) DeletePathsByPeer(ids []string, info *PeerInfo, rf bgp.RouteFamily) (map[string][]*Path, []*Path, [][]*Path) {
 	if t, ok := manager.Tables[rf]; ok {
 		dsts := t.DeleteDestByPeer(info)
 		return manager.calculate(ids, dsts)
 	}
-	return nil, nil
+	return nil, nil, nil
 }
 
-func (manager *TableManager) ProcessPaths(ids []string, pathList []*Path) (map[string][]*Path, []*Path) {
+func (manager *TableManager) ProcessPaths(ids []string, pathList []*Path) (map[string][]*Path, []*Path, [][]*Path) {
 	m := make(map[string]bool, len(pathList))
 	dsts := make([]*Destination, 0, len(pathList))
 	for _, path := range pathList {
