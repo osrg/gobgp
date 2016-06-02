@@ -28,14 +28,23 @@ import (
 	"strings"
 )
 
-func newIPRouteMessage(path *table.Path) *zebra.Message {
-	if path == nil || path.IsFromExternal() {
+func newIPRouteMessage(dst []*table.Path) *zebra.Message {
+	paths := make([]*table.Path, 0, len(dst))
+	for _, path := range dst {
+		if path == nil || path.IsFromExternal() {
+			continue
+		}
+		paths = append(paths, path)
+	}
+	if len(paths) == 0 {
 		return nil
 	}
+	path := paths[0]
+
 	l := strings.SplitN(path.GetNlri().String(), "/", 2)
 	var command zebra.API_TYPE
 	var prefix net.IP
-	nexthops := []net.IP{}
+	nexthops := make([]net.IP, 0, len(paths))
 	switch path.GetRouteFamily() {
 	case bgp.RF_IPv4_UC:
 		if path.IsWithdraw == true {
@@ -44,7 +53,9 @@ func newIPRouteMessage(path *table.Path) *zebra.Message {
 			command = zebra.IPV4_ROUTE_ADD
 		}
 		prefix = net.ParseIP(l[0]).To4()
-		nexthops = append(nexthops, path.GetNexthop().To4())
+		for _, p := range paths {
+			nexthops = append(nexthops, p.GetNexthop().To4())
+		}
 	case bgp.RF_IPv6_UC:
 		if path.IsWithdraw == true {
 			command = zebra.IPV6_ROUTE_DELETE
@@ -52,11 +63,12 @@ func newIPRouteMessage(path *table.Path) *zebra.Message {
 			command = zebra.IPV6_ROUTE_ADD
 		}
 		prefix = net.ParseIP(l[0]).To16()
-		nexthops = append(nexthops, path.GetNexthop().To16())
+		for _, p := range paths {
+			nexthops = append(nexthops, p.GetNexthop().To16())
+		}
 	default:
 		return nil
 	}
-
 	flags := uint8(zebra.MESSAGE_NEXTHOP)
 	plen, _ := strconv.Atoi(l[1])
 	med, err := path.GetMed()
@@ -203,9 +215,17 @@ func (w *zebraWatcher) loop() error {
 			}
 		case ev := <-w.ch:
 			msg := ev.(*watcherEventBestPathMsg)
-			for _, path := range msg.pathList {
-				if m := newIPRouteMessage(path); m != nil {
-					w.client.Send(m)
+			if table.UseMultiplePaths.Enabled {
+				for _, dst := range msg.multiPathList {
+					if m := newIPRouteMessage(dst); m != nil {
+						w.client.Send(m)
+					}
+				}
+			} else {
+				for _, path := range msg.pathList {
+					if m := newIPRouteMessage([]*table.Path{path}); m != nil {
+						w.client.Send(m)
+					}
 				}
 			}
 		}

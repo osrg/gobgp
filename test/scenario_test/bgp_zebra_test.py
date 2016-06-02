@@ -176,6 +176,106 @@ class GoBGPTestBase(unittest.TestCase):
         o2.add_static_route(self.bridges['br02_v6'].subnet, next_hop)
         g1.get_reachablily('2001:30::2')
 
+    def test_07_mpath_test_setup(self):
+        g1 = GoBGPContainer(name='g1', asn=65000, router_id='192.168.0.1',
+                            ctn_image_name=parser_option.gobgp_image,
+                            log_level=parser_option.gobgp_log_level,
+                            config_format=parser_option.config_format,
+                            zebra=True)
+        g2 = GoBGPContainer(name='g2', asn=65001, router_id='192.168.0.2')
+        g3 = GoBGPContainer(name='g3', asn=65001, router_id='192.168.0.3')
+        g4 = GoBGPContainer(name='g4', asn=65000, router_id='192.168.0.4')
+        g5 = GoBGPContainer(name='g5', asn=65000, router_id='192.168.0.5')
+
+        ctns = [g1, g2, g3, g4, g5]
+        for ctn in ctns:
+            self.ctns[ctn.name] = ctn
+
+        initial_wait_time = max(ctn.run() for ctn in ctns)
+
+        time.sleep(initial_wait_time)
+
+        # advertise same prefix
+        g2.add_route('10.0.10.0/24')
+        g3.add_route('10.0.10.0/24')
+        g4.add_route('10.0.10.0/24')
+        g5.add_route('10.0.10.0/24')
+
+        for g in [g2, g3, g4, g5]:
+            g1.add_peer(g)
+            g.add_peer(g1)
+
+    def test_08_mpath_test_check_neighbor_established(self):
+        g1 = self.ctns['g1']
+        g2 = self.ctns['g2']
+        g3 = self.ctns['g3']
+        g4 = self.ctns['g4']
+        g5 = self.ctns['g5']
+        for g in [g2, g3, g4, g5]:
+            g1.wait_for(expected_state=BGP_FSM_ESTABLISHED, peer=g)
+        time.sleep(3)
+
+    def test_09_mpath_test_check_mpath_injected(self):
+        g1 = self.ctns['g1']
+        g2 = self.ctns['g2']
+        g3 = self.ctns['g3']
+        g4 = self.ctns['g4']
+        g5 = self.ctns['g5']
+
+        def nexthops():
+            n = []
+            for line in g1.local('ip route show 10.0.10.0/24', capture=True).split('\n'):
+                line = line.strip()
+                if 'via' in line:
+                    n.append(line.split(' ')[2].strip())
+            return n
+
+        nhs = nexthops()
+        self.assertTrue(len(nhs) == 2)
+        self.assertTrue(g1.peers[g4]['neigh_addr'].split('/')[0] in nhs)
+        self.assertTrue(g1.peers[g5]['neigh_addr'].split('/')[0] in nhs)
+
+        g4.local('gobgp g ri del 10.0.10.0/24')
+        time.sleep(3)
+
+        nhs = nexthops()
+        self.assertTrue(len(nhs) == 1)
+        self.assertTrue(g1.peers[g5]['neigh_addr'].split('/')[0] in nhs)
+
+        g4.local('gobgp g ri add 10.0.10.0/24 local-pref 200')
+        time.sleep(3)
+
+        nhs = nexthops()
+        self.assertTrue(len(nhs) == 1)
+        self.assertTrue(g1.peers[g4]['neigh_addr'].split('/')[0] in nhs)
+
+        g4.local('gobgp g ri del 10.0.10.0/24')
+        g5.local('gobgp g ri del 10.0.10.0/24')
+        time.sleep(3)
+
+        nhs = nexthops()
+        self.assertTrue(len(nhs) == 2)
+        self.assertTrue(g1.peers[g2]['neigh_addr'].split('/')[0] in nhs)
+        self.assertTrue(g1.peers[g3]['neigh_addr'].split('/')[0] in nhs)
+
+        g3.local('gobgp g ri del 10.0.10.0/24')
+        time.sleep(3)
+
+        nhs = nexthops()
+        self.assertTrue(len(nhs) == 1)
+        self.assertTrue(g1.peers[g2]['neigh_addr'].split('/')[0] in nhs)
+
+        g3.local('gobgp g ri add 10.0.10.0/24 med 10')
+
+        nhs = nexthops()
+        self.assertTrue(len(nhs) == 1)
+        self.assertTrue(g1.peers[g2]['neigh_addr'].split('/')[0] in nhs)
+
+        g2.local('gobgp g ri add 10.0.10.0/24 med 20')
+
+        nhs = nexthops()
+        self.assertTrue(len(nhs) == 1)
+        self.assertTrue(g1.peers[g3]['neigh_addr'].split('/')[0] in nhs)
 
 if __name__ == '__main__':
     if os.geteuid() is not 0:
