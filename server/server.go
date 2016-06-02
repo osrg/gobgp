@@ -2652,6 +2652,12 @@ func (server *BgpServer) handleAddNeighborRequest(grpcReq *GrpcRequest) ([]*Send
 			if a.Transport != nil {
 				pconf.Transport.Config.LocalAddress = a.Transport.LocalAddress
 				pconf.Transport.Config.PassiveMode = a.Transport.PassiveMode
+			} else {
+				if net.ParseIP(a.Conf.NeighborAddress).To4() != nil {
+					pconf.Transport.Config.LocalAddress = "0.0.0.0"
+				} else {
+					pconf.Transport.Config.LocalAddress = "::"
+				}
 			}
 			if a.EbgpMultihop != nil {
 				pconf.EbgpMultihop.Config.Enabled = a.EbgpMultihop.Enabled

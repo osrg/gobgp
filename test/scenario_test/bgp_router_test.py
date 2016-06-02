@@ -18,6 +18,7 @@ from fabric.api import local
 from lib import base
 from lib.gobgp import *
 from lib.quagga import *
+from lib.exabgp import *
 import sys
 import os
 import time
@@ -335,6 +336,18 @@ class GoBGPTestBase(unittest.TestCase):
         paths = g1.get_adj_rib_out(q2, '30.0.0.0/24')
         self.assertTrue(len(paths) == 1)
         self.assertTrue(paths[0]['source-id'] == '192.168.0.2')
+
+    def test_19_check_grpc_add_neighbor(self):
+        g1 = self.gobgp
+        e1 = ExaBGPContainer(name='e1', asn=65000, router_id='192.168.0.7')
+        time.sleep(e1.run())
+        e1.add_peer(g1)
+        n = e1.peers[g1]['local_addr'].split('/')[0]
+        g1.local('gobgp n add {0} as 65000'.format(n))
+        g1.add_peer(e1, reload_config=False) 
+
+        g1.wait_for(expected_state=BGP_FSM_ESTABLISHED, peer=e1)
+
 
 
 if __name__ == '__main__':
