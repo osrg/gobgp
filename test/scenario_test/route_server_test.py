@@ -173,6 +173,7 @@ class GoBGPTestBase(unittest.TestCase):
     def test_09_check_rs_clients_rib(self):
         self.check_rs_client_rib()
 
+    @unittest.skip("med shouldn't work with different AS peers by default")
     def test_10_add_distant_relative(self):
         q1 = self.quaggas['q1']
         q2 = self.quaggas['q2']

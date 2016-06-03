@@ -679,10 +679,10 @@ func compareByMED(path1, path2 *Path) *Path {
 	isInternal := func() bool { return path1.GetAsPathLen() == 0 && path2.GetAsPathLen() == 0 }()
 
 	isSameAS := func() bool {
-		leftmostAS := func(path *Path) uint32 {
+		firstAS := func(path *Path) uint32 {
 			if aspath := path.GetAsPath(); aspath != nil {
 				asPathParam := aspath.Value
-				for i := len(asPathParam) - 1; i >= 0; i-- {
+				for i := 0; i < len(asPathParam); i++ {
 					asPath := asPathParam[i].(*bgp.As4PathParam)
 					if asPath.Num == 0 {
 						continue
@@ -690,12 +690,12 @@ func compareByMED(path1, path2 *Path) *Path {
 					if asPath.Type == bgp.BGP_ASPATH_ATTR_TYPE_CONFED_SET || asPath.Type == bgp.BGP_ASPATH_ATTR_TYPE_CONFED_SEQ {
 						continue
 					}
-					return asPath.AS[asPath.Num-1]
+					return asPath.AS[0]
 				}
 			}
 			return 0
 		}
-		return leftmostAS(path1) == leftmostAS(path2)
+		return firstAS(path1) != 0 && firstAS(path1) == firstAS(path2)
 	}()
 
 	if SelectionOptions.AlwaysCompareMed || isInternal || isSameAS {
