@@ -211,6 +211,19 @@ func NewCollector(grpcCh chan *GrpcRequest, url, dbName string, interval uint64)
 	if err != nil {
 		return nil, err
 	}
+
+	_, _, err = c.Ping(0)
+	if err != nil {
+		log.Error("can not connect to InfluxDB")
+		return nil, err
+	}
+
+	q := client.NewQuery("CREATE DATABASE " + dbName, "", "")
+	if response, err := c.Query(q); err != nil || response.Error() != nil {
+		log.Error("can not create database " + dbName)
+		return nil, err
+	}
+
 	collector := &Collector{
 		grpcCh:   grpcCh,
 		url:      url,
