@@ -227,10 +227,6 @@ func (w *bmpWatcher) loop() error {
 	}
 }
 
-func (w *bmpWatcher) restart(string) error {
-	return nil
-}
-
 func bmpPeerUp(laddr string, lport, rport uint16, sent, recv *bgp.BGPMessage, t uint8, policy bool, pd uint64, peeri *table.PeerInfo, timestamp int64) *bmp.BMPMessage {
 	ph := bmp.NewBMPPeerHeader(t, policy, pd, peeri.Address.String(), peeri.AS, peeri.ID.String(), float64(timestamp))
 	return bmp.NewBMPPeerUpNotification(*ph, laddr, lport, rport, sent, recv)

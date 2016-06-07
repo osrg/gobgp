@@ -186,10 +186,6 @@ func (w *grpcWatcher) loop() error {
 	}
 }
 
-func (w *grpcWatcher) restart(string) error {
-	return nil
-}
-
 func (w *grpcWatcher) addRequest(req *GrpcRequest) error {
 	w.ctlCh <- req
 	return nil

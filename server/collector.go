@@ -50,10 +50,6 @@ func (c *Collector) notify(t watcherEventType) chan watcherEvent {
 func (c *Collector) stop() {
 }
 
-func (c *Collector) restart(filename string) error {
-	return nil
-}
-
 func (c *Collector) watchingEventTypes() []watcherEventType {
 	return []watcherEventType{WATCHER_EVENT_UPDATE_MSG, WATCHER_EVENT_STATE_CHANGE, WATCHER_EVENT_ADJ_IN}
 }

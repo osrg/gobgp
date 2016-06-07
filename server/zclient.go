@@ -184,10 +184,6 @@ func (w *zebraWatcher) stop() {
 	w.t.Kill(nil)
 }
 
-func (w *zebraWatcher) restart(filename string) error {
-	return nil
-}
-
 func (w *zebraWatcher) watchingEventTypes() []watcherEventType {
 	return []watcherEventType{WATCHER_EVENT_BESTPATH_CHANGE}
 }

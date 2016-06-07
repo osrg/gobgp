@@ -93,7 +93,6 @@ type watcherEventBestPathMsg struct {
 
 type watcher interface {
 	notify(watcherEventType) chan watcherEvent
-	restart(string) error
 	stop()
 	watchingEventTypes() []watcherEventType
 }
