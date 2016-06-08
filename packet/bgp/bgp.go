@@ -726,6 +726,10 @@ type AddrPrefixInterface interface {
 	Len() int
 	String() string
 	MarshalJSON() ([]byte, error)
+
+	// Create a flat map to describe attributes and their
+	// values. This can be used to create structured outputs.
+	Flat() map[string]string
 }
 
 type IPAddrPrefixDefault struct {
@@ -7074,4 +7078,46 @@ func NewMessageError(typeCode, subTypeCode uint8, data []byte, msg string) error
 
 func (e *MessageError) Error() string {
 	return e.Message
+}
+
+func (l *LabeledVPNIPAddrPrefix) Flat() map[string]string {
+	return map[string]string{
+		"Prefix":    l.IPAddrPrefixDefault.Prefix.String(),
+		"PrefixLen": string(l.IPAddrPrefixDefault.Length - uint8(8*(l.Labels.Len()+l.RD.Len())))}
+}
+
+func (p *IPAddrPrefixDefault) Flat() map[string]string {
+	l := strings.Split(p.String(), "/")
+	if len(l) == 2 {
+		return map[string]string{
+			"Prefix":    l[0],
+			"PrefixLen": l[1],
+		}
+	}
+	return map[string]string{}
+}
+
+func (l *EVPNNLRI) Flat() map[string]string {
+	return map[string]string{}
+}
+func (l *RouteTargetMembershipNLRI) Flat() map[string]string {
+	return map[string]string{}
+}
+func (l *FlowSpecIPv4Unicast) Flat() map[string]string {
+	return map[string]string{}
+}
+func (l *FlowSpecIPv4VPN) Flat() map[string]string {
+	return map[string]string{}
+}
+func (l *FlowSpecIPv6Unicast) Flat() map[string]string {
+	return map[string]string{}
+}
+func (l *FlowSpecIPv6VPN) Flat() map[string]string {
+	return map[string]string{}
+}
+func (l *FlowSpecL2VPN) Flat() map[string]string {
+	return map[string]string{}
+}
+func (l *OpaqueNLRI) Flat() map[string]string {
+	return map[string]string{}
 }
