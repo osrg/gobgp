@@ -7081,9 +7081,12 @@ func (e *MessageError) Error() string {
 }
 
 func (l *LabeledVPNIPAddrPrefix) Flat() map[string]string {
+	prefixLen := l.IPAddrPrefixDefault.Length - uint8(8*(l.Labels.Len()+l.RD.Len()))
 	return map[string]string{
 		"Prefix":    l.IPAddrPrefixDefault.Prefix.String(),
-		"PrefixLen": string(l.IPAddrPrefixDefault.Length - uint8(8*(l.Labels.Len()+l.RD.Len())))}
+		"PrefixLen": fmt.Sprintf("%d", prefixLen),
+		"NLRI":      l.String(),
+	}
 }
 
 func (p *IPAddrPrefixDefault) Flat() map[string]string {
