@@ -21,7 +21,6 @@ import (
 	"github.com/influxdata/influxdb/client/v2"
 	"github.com/osrg/gobgp/packet/bgp"
 	"github.com/osrg/gobgp/table"
-	"strings"
 	"time"
 )
 
@@ -115,20 +114,17 @@ func path2data(path *table.Path) (map[string]interface{}, map[string]string) {
 		fields["Med"] = med
 	}
 
-	var prefix, prefixLen string
-	l := strings.Split(path.GetNlri().String(), "/")
-	if len(l) == 2 {
-		prefix = l[0]
-		prefixLen = l[1]
-	}
 	tags := map[string]string{
 		"PeerAddress": path.GetSource().Address.String(),
 		"PeerAS":      fmt.Sprintf("%v", path.GetSource().AS),
-		"Prefix":      prefix,
-		"PrefixLen":   prefixLen,
 		"NextHop":     path.GetNexthop().String(),
 		"OriginAS":    fmt.Sprintf("%v", path.GetSourceAs()),
 		"Timestamp":   path.GetTimestamp().String(),
+	}
+
+	flat := path.GetNlri().Flat()
+	for key, value := range flat {
+		tags[key] = value
 	}
 	return fields, tags
 }
@@ -218,7 +214,7 @@ func NewCollector(grpcCh chan *GrpcRequest, url, dbName string, interval uint64)
 		return nil, err
 	}
 
-	q := client.NewQuery("CREATE DATABASE " + dbName, "", "")
+	q := client.NewQuery("CREATE DATABASE "+dbName, "", "")
 	if response, err := c.Query(q); err != nil || response.Error() != nil {
 		log.Error("can not create database " + dbName)
 		return nil, err
