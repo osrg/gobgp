@@ -218,7 +218,7 @@ func NewCollector(grpcCh chan *GrpcRequest, url, dbName string, interval uint64)
 		return nil, err
 	}
 
-	q := client.NewQuery("CREATE DATABASE " + dbName, "", "")
+	q := client.NewQuery("CREATE DATABASE "+dbName, "", "")
 	if response, err := c.Query(q); err != nil || response.Error() != nil {
 		log.Error("can not create database " + dbName)
 		return nil, err
