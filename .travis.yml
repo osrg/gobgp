@@ -34,6 +34,7 @@ go_import_path: github.com/osrg/gobgp
 
 script:
  - bash test/scenario_test/ci-scripts/travis-build-script.sh $SCENARIO
+ - echo "$TRAVIS_GO_VERSION"
 
 notifications:
  slack:
