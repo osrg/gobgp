@@ -33,7 +33,7 @@ matrix:
 go_import_path: github.com/osrg/gobgp
 
 script:
- - bash test/scenario_test/ci-scripts/travis-build-script.sh $SCENARIO
+ - if [[ "$TRAVIS_GO_VERSION" == "1.5" ]]; then test -z "$(go fmt ./...)"; fi && bash test/scenario_test/ci-scripts/travis-build-script.sh $SCENARIO
 
 notifications:
  slack:
