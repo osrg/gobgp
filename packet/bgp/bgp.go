@@ -5015,6 +5015,7 @@ type ExtendedCommunityInterface interface {
 	String() string
 	GetTypes() (ExtendedCommunityAttrType, ExtendedCommunityAttrSubType)
 	MarshalJSON() ([]byte, error)
+	Flat() map[string]string
 }
 
 type TwoOctetAsSpecificExtended struct {
@@ -7082,6 +7083,68 @@ func NewMessageError(typeCode, subTypeCode uint8, data []byte, msg string) error
 
 func (e *MessageError) Error() string {
 	return e.Message
+}
+
+func (e *TwoOctetAsSpecificExtended) Flat() map[string]string {
+	return map[string]string{}
+}
+
+func (e *OpaqueExtended) Flat() map[string]string {
+	return map[string]string{}
+}
+
+func (e *IPv4AddressSpecificExtended) Flat() map[string]string {
+	return map[string]string{}
+}
+
+func (e *FourOctetAsSpecificExtended) Flat() map[string]string {
+	return map[string]string{}
+}
+
+func (e *ESILabelExtended) Flat() map[string]string {
+	return map[string]string{}
+}
+
+func (e *ESImportRouteTarget) Flat() map[string]string {
+	return map[string]string{}
+}
+
+func (e *MacMobilityExtended) Flat() map[string]string {
+	return map[string]string{}
+}
+
+func (e *TrafficRateExtended) Flat() map[string]string {
+	return map[string]string{}
+}
+
+func (e *TrafficRemarkExtended) Flat() map[string]string {
+	return map[string]string{}
+}
+
+func (e *RedirectIPv4AddressSpecificExtended) Flat() map[string]string {
+	return map[string]string{}
+}
+
+func (e *RedirectFourOctetAsSpecificExtended) Flat() map[string]string {
+	return map[string]string{}
+}
+
+func (e *UnknownExtended) Flat() map[string]string {
+	return map[string]string{}
+}
+
+func (e *TrafficActionExtended) Flat() map[string]string {
+	return map[string]string{}
+}
+
+func (p *PathAttributeExtendedCommunities) Flat() map[string]string {
+	flat := map[string]string{}
+	for _, ec := range p.Value {
+		for k, v := range ec.Flat() {
+			flat[k] = v
+		}
+	}
+	return flat
 }
 
 func (p *PathAttribute) Flat() map[string]string {
