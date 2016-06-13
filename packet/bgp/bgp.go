@@ -3782,7 +3782,7 @@ type PathAttributeInterface interface {
 	DecodeFromBytes([]byte) error
 	Serialize() ([]byte, error)
 	Len() int
-	getFlags() BGPAttrFlag
+	GetFlags() BGPAttrFlag
 	GetType() BGPAttrType
 	String() string
 	MarshalJSON() ([]byte, error)
@@ -3808,7 +3808,7 @@ func (p *PathAttribute) Len() int {
 	return int(l)
 }
 
-func (p *PathAttribute) getFlags() BGPAttrFlag {
+func (p *PathAttribute) GetFlags() BGPAttrFlag {
 	return p.Flags
 }
 

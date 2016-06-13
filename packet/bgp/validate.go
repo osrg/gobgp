@@ -161,7 +161,7 @@ func ValidateAttribute(a PathAttributeInterface, rfs map[RouteFamily]bool, doCon
 		}
 
 	case *PathAttributeUnknown:
-		if p.getFlags()&BGP_ATTR_FLAG_OPTIONAL == 0 {
+		if p.GetFlags()&BGP_ATTR_FLAG_OPTIONAL == 0 {
 			eMsg := fmt.Sprintf("unrecognized well-known attribute %s", p.GetType())
 			data, _ := a.Serialize()
 			return false, NewMessageError(eCode, eSubCodeUnknown, data, eMsg)
