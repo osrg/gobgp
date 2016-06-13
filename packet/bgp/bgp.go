@@ -3756,7 +3756,7 @@ func NewNotificationErrorCode(code, subcode uint8) NotificationErrorCode {
 	return NotificationErrorCode(uint16(code)<<8 | uint16(subcode))
 }
 
-var pathAttrFlags map[BGPAttrType]BGPAttrFlag = map[BGPAttrType]BGPAttrFlag{
+var PathAttrFlags map[BGPAttrType]BGPAttrFlag = map[BGPAttrType]BGPAttrFlag{
 	BGP_ATTR_TYPE_ORIGIN:               BGP_ATTR_FLAG_TRANSITIVE,
 	BGP_ATTR_TYPE_AS_PATH:              BGP_ATTR_FLAG_TRANSITIVE,
 	BGP_ATTR_TYPE_NEXT_HOP:             BGP_ATTR_FLAG_TRANSITIVE,
@@ -3919,7 +3919,7 @@ func NewPathAttributeOrigin(value uint8) *PathAttributeOrigin {
 	return &PathAttributeOrigin{
 
 		PathAttribute: PathAttribute{
-			Flags: pathAttrFlags[t],
+			Flags: PathAttrFlags[t],
 			Type:  t,
 			Value: []byte{byte(value)},
 		},
@@ -4247,7 +4247,7 @@ func NewPathAttributeAsPath(value []AsPathParamInterface) *PathAttributeAsPath {
 	t := BGP_ATTR_TYPE_AS_PATH
 	return &PathAttributeAsPath{
 		PathAttribute: PathAttribute{
-			Flags: pathAttrFlags[t],
+			Flags: PathAttrFlags[t],
 			Type:  t,
 		},
 		Value: value,
@@ -4300,7 +4300,7 @@ func NewPathAttributeNextHop(value string) *PathAttributeNextHop {
 	t := BGP_ATTR_TYPE_NEXT_HOP
 	return &PathAttributeNextHop{
 		PathAttribute: PathAttribute{
-			Flags: pathAttrFlags[t],
+			Flags: PathAttrFlags[t],
 			Type:  t,
 		},
 		Value: net.ParseIP(value).To4(),
@@ -4351,7 +4351,7 @@ func NewPathAttributeMultiExitDisc(value uint32) *PathAttributeMultiExitDisc {
 	t := BGP_ATTR_TYPE_MULTI_EXIT_DISC
 	return &PathAttributeMultiExitDisc{
 		PathAttribute: PathAttribute{
-			Flags: pathAttrFlags[t],
+			Flags: PathAttrFlags[t],
 			Type:  t,
 		},
 		Value: value,
@@ -4402,7 +4402,7 @@ func NewPathAttributeLocalPref(value uint32) *PathAttributeLocalPref {
 	t := BGP_ATTR_TYPE_LOCAL_PREF
 	return &PathAttributeLocalPref{
 		PathAttribute: PathAttribute{
-			Flags: pathAttrFlags[t],
+			Flags: PathAttrFlags[t],
 			Type:  t,
 		},
 		Value: value,
@@ -4429,7 +4429,7 @@ func NewPathAttributeAtomicAggregate() *PathAttributeAtomicAggregate {
 	t := BGP_ATTR_TYPE_ATOMIC_AGGREGATE
 	return &PathAttributeAtomicAggregate{
 		PathAttribute: PathAttribute{
-			Flags: pathAttrFlags[t],
+			Flags: PathAttrFlags[t],
 			Type:  t,
 		},
 	}
@@ -4506,7 +4506,7 @@ func NewPathAttributeAggregator(as interface{}, address string) *PathAttributeAg
 	t := BGP_ATTR_TYPE_AGGREGATOR
 	return &PathAttributeAggregator{
 		PathAttribute: PathAttribute{
-			Flags: pathAttrFlags[t],
+			Flags: PathAttrFlags[t],
 			Type:  t,
 		},
 		Value: PathAttributeAggregatorParam{
@@ -4626,7 +4626,7 @@ func NewPathAttributeCommunities(value []uint32) *PathAttributeCommunities {
 	t := BGP_ATTR_TYPE_COMMUNITIES
 	return &PathAttributeCommunities{
 		PathAttribute{
-			Flags:  pathAttrFlags[t],
+			Flags:  PathAttrFlags[t],
 			Type:   t,
 			Length: 0,
 			Value:  nil},
@@ -4678,7 +4678,7 @@ func NewPathAttributeOriginatorId(value string) *PathAttributeOriginatorId {
 	t := BGP_ATTR_TYPE_ORIGINATOR_ID
 	return &PathAttributeOriginatorId{
 		PathAttribute{
-			Flags:  pathAttrFlags[t],
+			Flags:  PathAttrFlags[t],
 			Type:   t,
 			Length: 0,
 			Value:  nil},
@@ -4744,7 +4744,7 @@ func NewPathAttributeClusterList(value []string) *PathAttributeClusterList {
 	t := BGP_ATTR_TYPE_CLUSTER_LIST
 	return &PathAttributeClusterList{
 		PathAttribute{
-			Flags:  pathAttrFlags[t],
+			Flags:  PathAttrFlags[t],
 			Type:   t,
 			Length: 0,
 			Value:  nil},
@@ -4910,7 +4910,7 @@ func NewPathAttributeMpReachNLRI(nexthop string, nlri []AddrPrefixInterface) *Pa
 	}
 	p := &PathAttributeMpReachNLRI{
 		PathAttribute: PathAttribute{
-			Flags: pathAttrFlags[t],
+			Flags: PathAttrFlags[t],
 			Type:  t,
 		},
 		Nexthop: ip,
@@ -4995,7 +4995,7 @@ func NewPathAttributeMpUnreachNLRI(nlri []AddrPrefixInterface) *PathAttributeMpU
 	t := BGP_ATTR_TYPE_MP_UNREACH_NLRI
 	p := &PathAttributeMpUnreachNLRI{
 		PathAttribute: PathAttribute{
-			Flags:  pathAttrFlags[t],
+			Flags:  PathAttrFlags[t],
 			Type:   t,
 			Length: 0,
 		},
@@ -6024,7 +6024,7 @@ func NewPathAttributeExtendedCommunities(value []ExtendedCommunityInterface) *Pa
 	t := BGP_ATTR_TYPE_EXTENDED_COMMUNITIES
 	return &PathAttributeExtendedCommunities{
 		PathAttribute: PathAttribute{
-			Flags: pathAttrFlags[t],
+			Flags: PathAttrFlags[t],
 			Type:  t,
 		},
 		Value: value,
@@ -6089,7 +6089,7 @@ func NewPathAttributeAs4Path(value []*As4PathParam) *PathAttributeAs4Path {
 	t := BGP_ATTR_TYPE_AS4_PATH
 	return &PathAttributeAs4Path{
 		PathAttribute: PathAttribute{
-			Flags: pathAttrFlags[t],
+			Flags: PathAttrFlags[t],
 			Type:  t,
 		},
 		Value: value,
@@ -6128,7 +6128,7 @@ func NewPathAttributeAs4Aggregator(as uint32, address string) *PathAttributeAs4A
 	t := BGP_ATTR_TYPE_AS4_AGGREGATOR
 	return &PathAttributeAs4Aggregator{
 		PathAttribute: PathAttribute{
-			Flags: pathAttrFlags[t],
+			Flags: PathAttrFlags[t],
 			Type:  t,
 		},
 		Value: PathAttributeAggregatorParam{
@@ -6330,7 +6330,7 @@ func NewPathAttributeTunnelEncap(value []*TunnelEncapTLV) *PathAttributeTunnelEn
 	t := BGP_ATTR_TYPE_TUNNEL_ENCAP
 	return &PathAttributeTunnelEncap{
 		PathAttribute: PathAttribute{
-			Flags: pathAttrFlags[t],
+			Flags: PathAttrFlags[t],
 			Type:  t,
 		},
 		Value: value,
@@ -6451,7 +6451,7 @@ func NewPathAttributePmsiTunnel(typ PmsiTunnelType, isLeafInfoRequired bool, lab
 	t := BGP_ATTR_TYPE_PMSI_TUNNEL
 	return &PathAttributePmsiTunnel{
 		PathAttribute: PathAttribute{
-			Flags: pathAttrFlags[t],
+			Flags: PathAttrFlags[t],
 			Type:  t,
 		},
 		IsLeafInfoRequired: isLeafInfoRequired,
@@ -6624,7 +6624,7 @@ func NewPathAttributeAigp(values []AigpTLV) *PathAttributeAigp {
 	t := BGP_ATTR_TYPE_AIGP
 	return &PathAttributeAigp{
 		PathAttribute: PathAttribute{
-			Flags: pathAttrFlags[t],
+			Flags: PathAttrFlags[t],
 			Type:  t,
 		},
 		Values: values,
@@ -6653,7 +6653,7 @@ func NewPathAttributeOpaqueValue(value []byte) *PathAttributeOpaqueValue {
 	t := BGP_ATTR_TYPE_OPAQUE_VALUE
 	return &PathAttributeOpaqueValue{
 		PathAttribute: PathAttribute{
-			Flags: pathAttrFlags[t],
+			Flags: PathAttrFlags[t],
 			Type:  t,
 			Value: value,
 		},
@@ -6865,7 +6865,7 @@ func NewEndOfRib(family RouteFamily) *BGPMessage {
 		t := BGP_ATTR_TYPE_MP_UNREACH_NLRI
 		unreach := &PathAttributeMpUnreachNLRI{
 			PathAttribute: PathAttribute{
-				Flags:  pathAttrFlags[t],
+				Flags:  PathAttrFlags[t],
 				Type:   t,
 				Length: 0,
 			},

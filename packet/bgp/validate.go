@@ -196,7 +196,7 @@ func ValidateFlags(t BGPAttrType, flags BGPAttrFlag) (bool, string) {
 	}
 
 	// check flags are correct
-	if f, ok := pathAttrFlags[t]; ok {
+	if f, ok := PathAttrFlags[t]; ok {
 		if f != flags & ^BGP_ATTR_FLAG_EXTENDED_LENGTH & ^BGP_ATTR_FLAG_PARTIAL {
 			eMsg := fmt.Sprintf("flags are invalid. attribute type: %s, expect: %s, actual: %s", t, f, flags)
 			return false, eMsg
