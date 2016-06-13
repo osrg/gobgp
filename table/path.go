@@ -160,6 +160,13 @@ func cloneAsPath(asAttr *bgp.PathAttributeAsPath) *bgp.PathAttributeAsPath {
 }
 
 func (path *Path) UpdatePathAttrs(global *config.Global, peer *config.Neighbor) {
+	for _, a := range path.GetPathAttrs() {
+		if _, y := bgp.PathAttrFlags[a.GetType()]; !y {
+			if a.GetFlags()&bgp.BGP_ATTR_FLAG_TRANSITIVE == 0 {
+				path.delPathAttr(a.GetType())
+			}
+		}
+	}
 
 	if peer.RouteServer.Config.RouteServerClient {
 		return

@@ -152,10 +152,10 @@ func (peer *Peer) filterpath(path *table.Path) *table.Path {
 	if filterpath(peer, path) == nil {
 		return nil
 	}
-	if !peer.isRouteServerClient() {
-		path = path.Clone(path.IsWithdraw)
-		path.UpdatePathAttrs(peer.fsm.gConf, peer.fsm.pConf)
-	}
+
+	path = path.Clone(path.IsWithdraw)
+	path.UpdatePathAttrs(peer.fsm.gConf, peer.fsm.pConf)
+
 	options := &table.PolicyOptions{
 		Info: peer.fsm.peerInfo,
 	}
