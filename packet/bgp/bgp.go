@@ -7086,10 +7086,16 @@ func (e *MessageError) Error() string {
 }
 
 func (e *TwoOctetAsSpecificExtended) Flat() map[string]string {
+	if e.SubType == EC_SUBTYPE_ROUTE_TARGET {
+		return map[string]string{"routeTarget": e.String()}
+	}
 	return map[string]string{}
 }
 
 func (e *OpaqueExtended) Flat() map[string]string {
+	if e.SubType == EC_SUBTYPE_ENCAPSULATION {
+		return map[string]string{"encaspulation": e.Value.String()}
+	}
 	return map[string]string{}
 }
 
