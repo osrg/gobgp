@@ -142,6 +142,7 @@ const (
 	TUNNEL_TYPE_MPLS        TunnelType = 10
 	TUNNEL_TYPE_MPLS_IN_GRE TunnelType = 11
 	TUNNEL_TYPE_VXLAN_GRE   TunnelType = 12
+	TUNNEL_TYPE_MPLS_IN_UDP TunnelType = 13
 )
 
 type PmsiTunnelType uint8
@@ -5330,6 +5331,8 @@ func (e *EncapExtended) String() string {
 		return "MPLS in GRE"
 	case TUNNEL_TYPE_VXLAN_GRE:
 		return "VXLAN GRE"
+	case TUNNEL_TYPE_MPLS_IN_UDP:
+		return "MPLS in UDP"
 	default:
 		return fmt.Sprintf("tunnel: %d", e.TunnelType)
 	}
