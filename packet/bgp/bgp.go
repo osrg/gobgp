@@ -3787,6 +3787,7 @@ type PathAttributeInterface interface {
 	GetType() BGPAttrType
 	String() string
 	MarshalJSON() ([]byte, error)
+	Flat() map[string]string
 }
 
 type PathAttribute struct {
@@ -7081,6 +7082,10 @@ func NewMessageError(typeCode, subTypeCode uint8, data []byte, msg string) error
 
 func (e *MessageError) Error() string {
 	return e.Message
+}
+
+func (p *PathAttribute) Flat() map[string]string {
+	return map[string]string{}
 }
 
 func (l *LabeledVPNIPAddrPrefix) Flat() map[string]string {
