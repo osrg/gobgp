@@ -41,13 +41,7 @@ func (w *grpcWatcher) stop() {
 }
 
 func (w *grpcWatcher) watchingEventTypes() []watcherEventType {
-	types := make([]watcherEventType, 0, 4)
-	for _, t := range []watcherEventType{WATCHER_EVENT_UPDATE_MSG, WATCHER_EVENT_POST_POLICY_UPDATE_MSG, WATCHER_EVENT_BESTPATH_CHANGE, WATCHER_EVENT_STATE_CHANGE} {
-		if len(w.reqs[t]) > 0 {
-			types = append(types, t)
-		}
-	}
-	return types
+	return []watcherEventType{WATCHER_EVENT_UPDATE_MSG, WATCHER_EVENT_POST_POLICY_UPDATE_MSG, WATCHER_EVENT_BESTPATH_CHANGE, WATCHER_EVENT_STATE_CHANGE}
 }
 
 func (w *grpcWatcher) loop() error {
