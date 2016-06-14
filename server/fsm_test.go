@@ -291,7 +291,7 @@ func TestFSMHandlerEstablished_HoldtimeZero(t *testing.T) {
 func makePeerAndHandler() (*Peer, *FSMHandler) {
 	p := &Peer{
 		fsm:      NewFSM(&config.Global{}, &config.Neighbor{}, table.NewRoutingPolicy()),
-		outgoing: make(chan *FsmOutgoingMsg, 4096),
+		outgoing: channels.NewInfiniteChannel(),
 	}
 
 	h := &FSMHandler{
