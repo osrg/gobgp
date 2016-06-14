@@ -38,7 +38,7 @@ type Peer struct {
 	fsm               *FSM
 	adjRibIn          *table.AdjRib
 	adjRibOut         *table.AdjRib
-	outgoing          chan *FsmOutgoingMsg
+	outgoing          *channels.InfiniteChannel
 	policy            *table.RoutingPolicy
 	localRib          *table.TableManager
 	prefixLimitWarned map[bgp.RouteFamily]bool
@@ -46,7 +46,7 @@ type Peer struct {
 
 func NewPeer(g *config.Global, conf *config.Neighbor, loc *table.TableManager, policy *table.RoutingPolicy) *Peer {
 	peer := &Peer{
-		outgoing:          make(chan *FsmOutgoingMsg, 128),
+		outgoing:          channels.NewInfiniteChannel(),
 		localRib:          loc,
 		policy:            policy,
 		fsm:               NewFSM(g, conf, policy),
@@ -282,28 +282,27 @@ func (peer *Peer) doPrefixLimit(k bgp.RouteFamily, c *config.PrefixLimitConfig) 
 
 }
 
-func (peer *Peer) updatePrefixLimitConfig(c []config.AfiSafi) ([]*SenderMsg, error) {
+func (peer *Peer) updatePrefixLimitConfig(c []config.AfiSafi) error {
 	x := peer.fsm.pConf.AfiSafis
 	y := c
 	if len(x) != len(y) {
-		return nil, fmt.Errorf("changing supported afi-safi is not allowed")
+		return fmt.Errorf("changing supported afi-safi is not allowed")
 	}
 	m := make(map[bgp.RouteFamily]config.PrefixLimitConfig)
 	for _, e := range x {
 		k, err := bgp.GetRouteFamily(string(e.Config.AfiSafiName))
 		if err != nil {
-			return nil, err
+			return err
 		}
 		m[k] = e.PrefixLimit.Config
 	}
-	msgs := make([]*SenderMsg, 0, len(y))
 	for _, e := range y {
 		k, err := bgp.GetRouteFamily(string(e.Config.AfiSafiName))
 		if err != nil {
-			return nil, err
+			return err
 		}
 		if p, ok := m[k]; !ok {
-			return nil, fmt.Errorf("changing supported afi-safi is not allowed")
+			return fmt.Errorf("changing supported afi-safi is not allowed")
 		} else if !p.Equal(&e.PrefixLimit.Config) {
 			log.WithFields(log.Fields{
 				"Topic":                   "Peer",
@@ -316,12 +315,12 @@ func (peer *Peer) updatePrefixLimitConfig(c []config.AfiSafi) ([]*SenderMsg, err
 			}).Warnf("update prefix limit configuration")
 			peer.prefixLimitWarned[k] = false
 			if msg := peer.doPrefixLimit(k, &e.PrefixLimit.Config); msg != nil {
-				msgs = append(msgs, newSenderMsg(peer, nil, msg, true))
+				sendFsmOutgoingMsg(peer, nil, msg, true)
 			}
 		}
 	}
 	peer.fsm.pConf.AfiSafis = c
-	return msgs, nil
+	return nil
 }
 
 func (peer *Peer) handleUpdate(e *FsmMsg) ([]*table.Path, []bgp.RouteFamily, *bgp.BGPMessage) {
