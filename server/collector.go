@@ -118,9 +118,13 @@ func path2data(path *table.Path) (map[string]interface{}, map[string]string) {
 		"Timestamp":   path.GetTimestamp().String(),
 	}
 
-	flat := path.GetNlri().Flat()
-	for key, value := range flat {
-		tags[key] = value
+	if err := bgp.FlatUpdate(tags, path.GetNlri().Flat()); err != nil {
+		log.Error(err)
+	}
+	for _, p := range path.GetPathAttrs() {
+		if err := bgp.FlatUpdate(tags, p.Flat()); err != nil {
+			log.Error(err)
+		}
 	}
 	return fields, tags
 }
