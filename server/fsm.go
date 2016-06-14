@@ -360,12 +360,12 @@ type FSMHandler struct {
 	errorCh          chan FsmStateReason
 	incoming         *channels.InfiniteChannel
 	stateCh          chan *FsmMsg
-	outgoing         chan *FsmOutgoingMsg
+	outgoing         *channels.InfiniteChannel
 	holdTimerResetCh chan bool
 	sentNotification string
 }
 
-func NewFSMHandler(fsm *FSM, incoming *channels.InfiniteChannel, stateCh chan *FsmMsg, outgoing chan *FsmOutgoingMsg) *FSMHandler {
+func NewFSMHandler(fsm *FSM, incoming *channels.InfiniteChannel, stateCh chan *FsmMsg, outgoing *channels.InfiniteChannel) *FSMHandler {
 	h := &FSMHandler{
 		fsm:              fsm,
 		errorCh:          make(chan FsmStateReason, 2),
@@ -1077,7 +1077,8 @@ func (h *FSMHandler) sendMessageloop() error {
 		select {
 		case <-h.t.Dying():
 			return nil
-		case m := <-h.outgoing:
+		case o := <-h.outgoing.Out():
+			m := o.(*FsmOutgoingMsg)
 			for _, msg := range table.CreateUpdateMsgFromPaths(m.Paths) {
 				if err := send(msg); err != nil {
 					return nil
@@ -1163,7 +1164,7 @@ func (h *FSMHandler) established() (bgp.FSMState, FsmStateReason) {
 				"State": fsm.state.String(),
 			}).Warn("hold timer expired")
 			m := bgp.NewBGPNotificationMessage(bgp.BGP_ERROR_HOLD_TIMER_EXPIRED, 0, nil)
-			h.outgoing <- &FsmOutgoingMsg{Notification: m}
+			h.outgoing.In() <- &FsmOutgoingMsg{Notification: m}
 			return bgp.BGP_FSM_IDLE, FSM_HOLD_TIMER_EXPIRED
 		case <-h.holdTimerResetCh:
 			if fsm.pConf.Timers.State.NegotiatedHoldTime != 0 {
@@ -1175,7 +1176,7 @@ func (h *FSMHandler) established() (bgp.FSMState, FsmStateReason) {
 				switch s {
 				case ADMIN_STATE_DOWN:
 					m := bgp.NewBGPNotificationMessage(bgp.BGP_ERROR_CEASE, bgp.BGP_ERROR_SUB_ADMINISTRATIVE_SHUTDOWN, nil)
-					h.outgoing <- &FsmOutgoingMsg{Notification: m}
+					h.outgoing.In() <- &FsmOutgoingMsg{Notification: m}
 				}
 			}
 		}
