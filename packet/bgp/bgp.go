@@ -7146,9 +7146,7 @@ func (e *TrafficActionExtended) Flat() map[string]string {
 func (p *PathAttributeExtendedCommunities) Flat() map[string]string {
 	flat := map[string]string{}
 	for _, ec := range p.Value {
-		for k, v := range ec.Flat() {
-			flat[k] = v
-		}
+		FlatUpdate(flat, ec.Flat())
 	}
 	return flat
 }
@@ -7200,4 +7198,25 @@ func (l *FlowSpecL2VPN) Flat() map[string]string {
 }
 func (l *OpaqueNLRI) Flat() map[string]string {
 	return map[string]string{}
+}
+
+// Update a Flat representation by adding elements of the second
+// one. If two elements use same keys, values are separated with
+// ';'. In this case, it returns an error but the update has been
+// realized.
+func FlatUpdate(f1, f2 map[string]string) error {
+	conflict := false
+	for k2, v2 := range f2 {
+		if v1, ok := f1[k2]; ok {
+			f1[k2] = v1 + ";" + v2
+			conflict = true
+		} else {
+			f1[k2] = v2
+		}
+	}
+	if conflict {
+		return fmt.Errorf("Keys conflict")
+	} else {
+		return nil
+	}
 }
