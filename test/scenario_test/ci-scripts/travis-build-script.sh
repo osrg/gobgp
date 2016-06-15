@@ -7,8 +7,7 @@ export GOBGP=`pwd`
 if [ "$SCENARIO" != "true" ]; then
   echo "execute unit test."
   go version
-  go test -v ./...
-  [ "$?" != 0 ] && exit "$?"
+  go test -v ./... || exit "$?"
   python $GOBGP/test/scenario_test/ci-scripts/build_embeded_go.py $GOBGP/docs/sources/lib.md
   exit $?
 fi
