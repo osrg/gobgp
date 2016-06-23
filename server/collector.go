@@ -116,9 +116,13 @@ func path2data(path *table.Path) (map[string]interface{}, map[string]string) {
 	tags := map[string]string{
 		"PeerAddress": path.GetSource().Address.String(),
 		"PeerAS":      fmt.Sprintf("%v", path.GetSource().AS),
-		"NextHop":     path.GetNexthop().String(),
-		"OriginAS":    fmt.Sprintf("%v", path.GetSourceAs()),
 		"Timestamp":   path.GetTimestamp().String(),
+	}
+	if nexthop := path.GetNexthop(); len(nexthop) > 0 {
+		fields["NextHop"] = nexthop.String()
+	}
+	if originAS := path.GetSourceAs(); originAS != 0 {
+		fields["OriginAS"] = fmt.Sprintf("%v", originAS)
 	}
 
 	if err := bgp.FlatUpdate(tags, path.GetNlri().Flat()); err != nil {
