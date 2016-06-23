@@ -92,7 +92,10 @@ func (c *Collector) writePeer(msg *watcherEventStateChangedMsg) error {
 
 func path2data(path *table.Path) (map[string]interface{}, map[string]string) {
 	fields := map[string]interface{}{
-		"ASPath": path.GetAsPath().String(),
+		"RouterID": path.GetSource().ID,
+	}
+	if asPath := path.GetAsPath(); asPath != nil {
+		fields["ASPath"] = asPath.String()
 	}
 	if origin, err := path.GetOrigin(); err == nil {
 		typ := "-"
