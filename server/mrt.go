@@ -44,10 +44,6 @@ func (w *mrtWatcher) stop() {
 	w.t.Kill(nil)
 }
 
-func (w *mrtWatcher) restart(filename string) error {
-	return nil
-}
-
 func (w *mrtWatcher) loop() error {
 	c := func() *time.Ticker {
 		if w.interval == 0 {

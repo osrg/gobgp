@@ -95,7 +95,6 @@ type BgpServer struct {
 	fsmincomingCh *channels.InfiniteChannel
 	fsmStateCh    chan *FsmMsg
 	acceptCh      chan *net.TCPConn
-	collector     *Collector
 
 	GrpcReqCh   chan *GrpcRequest
 	policy      *table.RoutingPolicy
@@ -1497,17 +1496,6 @@ func (server *BgpServer) handleModConfig(grpcReq *GrpcRequest) error {
 	table.SelectionOptions = c.RouteSelectionOptions.Config
 	table.UseMultiplePaths = c.UseMultiplePaths.Config
 	return nil
-}
-
-func sendMultipleResponses(grpcReq *GrpcRequest, results []*GrpcResponse) {
-	defer close(grpcReq.ResponseCh)
-	for _, r := range results {
-		select {
-		case grpcReq.ResponseCh <- r:
-		case <-grpcReq.EndCh:
-			return
-		}
-	}
 }
 
 func (server *BgpServer) handleGrpc(grpcReq *GrpcRequest) {

@@ -34,7 +34,6 @@ type MockConnection struct {
 	recvCh    chan chan byte
 	sendBuf   [][]byte
 	currentCh chan byte
-	readBytes int
 	isClosed  bool
 	wait      int
 }
