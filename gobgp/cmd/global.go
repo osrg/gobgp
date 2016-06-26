@@ -536,6 +536,27 @@ func extractAigp(args []string) ([]string, bgp.PathAttributeInterface, error) {
 	return args, nil, nil
 }
 
+func extractAggregator(args []string) ([]string, bgp.PathAttributeInterface, error) {
+	for idx, arg := range args {
+		if arg == "aggregator" {
+			if len(args) < (idx + 1) {
+				return nil, nil, fmt.Errorf("invalid aggregator format")
+			}
+			v := strings.SplitN(args[idx+1], ":", 2)
+			if len(v) != 2 {
+				return nil, nil, fmt.Errorf("invalid aggregator format")
+			}
+			as, err := strconv.ParseUint(v[0], 10, 32)
+			if err != nil {
+				return nil, nil, fmt.Errorf("invalid aggregator format")
+			}
+			attr := bgp.NewPathAttributeAggregator(uint32(as), net.ParseIP(v[1]).String())
+			return append(args[:idx], args[idx+2:]...), attr, nil
+		}
+	}
+	return args, nil, nil
+}
+
 func ParsePath(rf bgp.RouteFamily, args []string) (*api.Path, error) {
 	var nlri bgp.AddrPrefixInterface
 	var extcomms []string
@@ -552,6 +573,7 @@ func ParsePath(rf bgp.RouteFamily, args []string) (*api.Path, error) {
 		extractLocalPref,
 		extractCommunity,
 		extractAigp,
+		extractAggregator,
 	}
 
 	for _, fn := range fns {
