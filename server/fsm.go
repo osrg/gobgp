@@ -634,18 +634,23 @@ func (h *FSMHandler) recvMessageWithError() (*FsmMsg, error) {
 				} else {
 					// FIXME: we should use the original message for bmp/mrt
 					table.UpdatePathAttrs4ByteAs(body)
-					fmsg.PathList = table.ProcessMessage(m, h.fsm.peerInfo, fmsg.timestamp)
-					id := h.fsm.pConf.Config.NeighborAddress
-					policyMutex.RLock()
-					for _, path := range fmsg.PathList {
-						if path.IsEOR() {
-							continue
+					err := table.UpdatePathAggregator4ByteAs(body)
+					if err == nil {
+						fmsg.PathList = table.ProcessMessage(m, h.fsm.peerInfo, fmsg.timestamp)
+						id := h.fsm.pConf.Config.NeighborAddress
+						policyMutex.RLock()
+						for _, path := range fmsg.PathList {
+							if path.IsEOR() {
+								continue
+							}
+							if h.fsm.policy.ApplyPolicy(id, table.POLICY_DIRECTION_IN, path, nil) == nil {
+								path.Filter(id, table.POLICY_DIRECTION_IN)
+							}
 						}
-						if h.fsm.policy.ApplyPolicy(id, table.POLICY_DIRECTION_IN, path, nil) == nil {
-							path.Filter(id, table.POLICY_DIRECTION_IN)
-						}
+						policyMutex.RUnlock()
+					} else {
+						fmsg.MsgData = err
 					}
-					policyMutex.RUnlock()
 				}
 				fmsg.payload = make([]byte, len(headerBuf)+len(bodyBuf))
 				copy(fmsg.payload, headerBuf)
@@ -1009,6 +1014,7 @@ func (h *FSMHandler) sendMessageloop() error {
 				"Data":  m,
 			}).Debug("update for 2byte AS peer")
 			table.UpdatePathAttrs2ByteAs(m.Body.(*bgp.BGPUpdate))
+			table.UpdatePathAggregator2ByteAs(m.Body.(*bgp.BGPUpdate))
 		}
 		b, err := m.Serialize()
 		if err != nil {

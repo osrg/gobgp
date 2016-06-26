@@ -4439,7 +4439,7 @@ func NewPathAttributeAtomicAggregate() *PathAttributeAtomicAggregate {
 
 type PathAttributeAggregatorParam struct {
 	AS      uint32
-	askind  reflect.Kind
+	Askind  reflect.Kind
 	Address net.IP
 }
 
@@ -4461,18 +4461,18 @@ func (p *PathAttributeAggregator) DecodeFromBytes(data []byte) error {
 	if len(p.PathAttribute.Value) == 6 {
 		p.Value.AS = uint32(binary.BigEndian.Uint16(p.PathAttribute.Value[0:2]))
 		p.Value.Address = p.PathAttribute.Value[2:]
-		p.Value.askind = reflect.Uint16
+		p.Value.Askind = reflect.Uint16
 	} else {
 		p.Value.AS = binary.BigEndian.Uint32(p.PathAttribute.Value[0:4])
 		p.Value.Address = p.PathAttribute.Value[4:]
-		p.Value.askind = reflect.Uint32
+		p.Value.Askind = reflect.Uint32
 	}
 	return nil
 }
 
 func (p *PathAttributeAggregator) Serialize() ([]byte, error) {
 	var buf []byte
-	switch p.Value.askind {
+	switch p.Value.Askind {
 	case reflect.Uint16:
 		buf = make([]byte, 6)
 		binary.BigEndian.PutUint16(buf, uint16(p.Value.AS))
@@ -4513,7 +4513,7 @@ func NewPathAttributeAggregator(as interface{}, address string) *PathAttributeAg
 		},
 		Value: PathAttributeAggregatorParam{
 			AS:      uint32(v.Uint()),
-			askind:  v.Kind(),
+			Askind:  v.Kind(),
 			Address: net.ParseIP(address).To4(),
 		},
 	}
