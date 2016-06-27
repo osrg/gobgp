@@ -7161,6 +7161,7 @@ func (l *LabeledVPNIPAddrPrefix) Flat() map[string]string {
 		"Prefix":    l.IPAddrPrefixDefault.Prefix.String(),
 		"PrefixLen": fmt.Sprintf("%d", prefixLen),
 		"NLRI":      l.String(),
+		"Label":     l.Labels.String(),
 	}
 }
 
