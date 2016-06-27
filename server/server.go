@@ -267,7 +267,9 @@ func filterpath(peer *Peer, path *table.Path) *table.Path {
 			for _, ext := range path.GetExtCommunities() {
 				for _, path := range peer.adjRibIn.PathList([]bgp.RouteFamily{bgp.RF_RTC_UC}, true) {
 					rt := path.GetNlri().(*bgp.RouteTargetMembershipNLRI).RouteTarget
-					if ext.String() == rt.String() {
+					if rt == nil {
+						ignore = false
+					} else if ext.String() == rt.String() {
 						ignore = false
 						break
 					}
@@ -485,7 +487,7 @@ func (server *BgpServer) propagateUpdate(peer *Peer, pathList []*table.Path) []*
 				paths := make([]*table.Path, 0, len(candidates))
 				for _, p := range candidates {
 					for _, ext := range p.GetExtCommunities() {
-						if ext.String() == rt.String() {
+						if rt == nil || ext.String() == rt.String() {
 							if path.IsWithdraw {
 								p = p.Clone(true)
 							}
