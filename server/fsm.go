@@ -217,6 +217,8 @@ func (fsm *FSM) StateChange(nextState bgp.FSMState) {
 	case bgp.BGP_FSM_ESTABLISHED:
 		fsm.pConf.Timers.State.Uptime = time.Now().Unix()
 		fsm.pConf.State.EstablishedCount++
+		// reset the state set by the previous session
+		fsm.twoByteAsTrans = false
 		if _, y := fsm.capMap[bgp.BGP_CAP_FOUR_OCTET_AS_NUMBER]; !y {
 			fsm.twoByteAsTrans = true
 			break
