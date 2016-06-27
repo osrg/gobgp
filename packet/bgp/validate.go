@@ -82,9 +82,9 @@ func ValidateAttribute(a PathAttributeInterface, rfs map[RouteFamily]bool, doCon
 				case RF_FS_IPv6_UC:
 					value = prefix.(*FlowSpecIPv6Unicast).Value
 				case RF_FS_IPv4_VPN:
-					value = prefix.(*FlowSpecIPv6VPN).Value
-				case RF_FS_IPv6_VPN:
 					value = prefix.(*FlowSpecIPv4VPN).Value
+				case RF_FS_IPv6_VPN:
+					value = prefix.(*FlowSpecIPv6VPN).Value
 				case RF_FS_L2_VPN:
 					value = prefix.(*FlowSpecL2VPN).Value
 				}
