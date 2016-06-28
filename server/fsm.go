@@ -122,6 +122,7 @@ type FSM struct {
 	peerInfo             *table.PeerInfo
 	policy               *table.RoutingPolicy
 	gracefulRestartTimer *time.Timer
+	twoByteAsTrans       bool
 	version              uint
 }
 
@@ -216,6 +217,22 @@ func (fsm *FSM) StateChange(nextState bgp.FSMState) {
 	case bgp.BGP_FSM_ESTABLISHED:
 		fsm.pConf.Timers.State.Uptime = time.Now().Unix()
 		fsm.pConf.State.EstablishedCount++
+		if _, y := fsm.capMap[bgp.BGP_CAP_FOUR_OCTET_AS_NUMBER]; !y {
+			fsm.twoByteAsTrans = true
+			break
+		}
+		y := func() bool {
+			for _, c := range capabilitiesFromConfig(fsm.pConf) {
+				switch c.(type) {
+				case *bgp.CapFourOctetASNumber:
+					return true
+				}
+			}
+			return false
+		}()
+		if !y {
+			fsm.twoByteAsTrans = true
+		}
 	case bgp.BGP_FSM_ACTIVE:
 		if !fsm.pConf.Transport.Config.PassiveMode {
 			fsm.getActiveCh <- struct{}{}
@@ -1006,7 +1023,7 @@ func (h *FSMHandler) sendMessageloop() error {
 	fsm := h.fsm
 	ticker := keepaliveTicker(fsm)
 	send := func(m *bgp.BGPMessage) error {
-		if _, y := fsm.capMap[bgp.BGP_CAP_FOUR_OCTET_AS_NUMBER]; !y && m.Header.Type == bgp.BGP_MSG_UPDATE {
+		if fsm.twoByteAsTrans && m.Header.Type == bgp.BGP_MSG_UPDATE {
 			log.WithFields(log.Fields{
 				"Topic": "Peer",
 				"Key":   fsm.pConf.Config.NeighborAddress,
