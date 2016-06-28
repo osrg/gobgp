@@ -52,6 +52,8 @@ func main() {
 		GrpcHosts       string `long:"api-hosts" description:"specify the hosts that gobgpd listens on" default:":50051"`
 		GracefulRestart bool   `short:"r" long:"graceful-restart" description:"flag restart-state in graceful-restart capability"`
 		Dry             bool   `short:"d" long:"dry-run" description:"check configuration"`
+		PProfHost       string `long:"pprof-host" description:"specify the host that gobgpd listens on for pprof" default:"localhost:6060"`
+		PProfDisable    bool   `long:"pprof-disable" description:"disable pprof profiling"`
 	}
 	_, err := flags.Parse(&opts)
 	if err != nil {
@@ -68,9 +70,11 @@ func main() {
 		runtime.GOMAXPROCS(opts.CPUs)
 	}
 
-	go func() {
-		log.Println(http.ListenAndServe("localhost:6060", nil))
-	}()
+	if !opts.PProfDisable {
+		go func() {
+			log.Println(http.ListenAndServe(opts.PProfHost, nil))
+		}()
+	}
 
 	switch opts.LogLevel {
 	case "debug":
