@@ -202,15 +202,16 @@ func UpdatePathAttrs4ByteAs(msg *bgp.BGPUpdate) error {
 func UpdatePathAggregator2ByteAs(msg *bgp.BGPUpdate) {
 	as := uint32(0)
 	var addr string
-	for _, attr := range msg.PathAttributes {
+	for i, attr := range msg.PathAttributes {
 		switch attr.(type) {
 		case *bgp.PathAttributeAggregator:
 			agg := attr.(*bgp.PathAttributeAggregator)
-			agg.Value.Askind = reflect.Uint16
+			addr = agg.Value.Address.String()
 			if agg.Value.AS > (1<<16)-1 {
 				as = agg.Value.AS
-				addr = agg.Value.Address.String()
-				agg.Value.AS = bgp.AS_TRANS
+				msg.PathAttributes[i] = bgp.NewPathAttributeAggregator(uint16(bgp.AS_TRANS), addr)
+			} else {
+				msg.PathAttributes[i] = bgp.NewPathAttributeAggregator(uint16(agg.Value.AS), addr)
 			}
 		}
 	}
