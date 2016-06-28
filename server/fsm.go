@@ -37,7 +37,7 @@ const (
 	FSM_ADMIN_DOWN              = "admin-down"
 	FSM_READ_FAILED             = "read-failed"
 	FSM_WRITE_FAILED            = "write-failed"
-	FSM_NOTIFICATION_SENT       = "notificatoin-sent"
+	FSM_NOTIFICATION_SENT       = "notification-sent"
 	FSM_NOTIFICATION_RECV       = "notification-received"
 	FSM_HOLD_TIMER_EXPIRED      = "hold-timer-expired"
 	FSM_IDLE_HOLD_TIMER_EXPIRED = "idle-hold-timer-expired"
