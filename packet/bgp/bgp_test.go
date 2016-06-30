@@ -429,7 +429,8 @@ func Test_FlowSpecNlriL2(t *testing.T) {
 	eq := 0x1
 	item1 := NewFlowSpecComponentItem(eq, int(IPv4))
 	cmp = append(cmp, NewFlowSpecComponent(FLOW_SPEC_TYPE_ETHERNET_TYPE, []*FlowSpecComponentItem{item1}))
-	n1 := NewFlowSpecL2VPN(cmp)
+	rd, _ := ParseRouteDistinguisher("100:100")
+	n1 := NewFlowSpecL2VPN(rd, cmp)
 	buf1, err := n1.Serialize()
 	assert.Nil(err)
 	n2, err := NewPrefixFromRouteFamily(RouteFamilyToAfiSafi(RF_FS_L2_VPN))
@@ -454,4 +455,28 @@ func Test_NotificationErrorCode(t *testing.T) {
 	NewNotificationErrorCode(BGP_ERROR_MESSAGE_HEADER_ERROR, 0).String()
 	NewNotificationErrorCode(0, BGP_ERROR_SUB_BAD_MESSAGE_TYPE).String()
 	NewNotificationErrorCode(BGP_ERROR_ROUTE_REFRESH_MESSAGE_ERROR+1, 0).String()
+}
+
+func Test_FlowSpecNlriVPN(t *testing.T) {
+	assert := assert.New(t)
+	cmp := make([]FlowSpecComponentInterface, 0)
+	cmp = append(cmp, NewFlowSpecDestinationPrefix(NewIPAddrPrefix(24, "10.0.0.0")))
+	cmp = append(cmp, NewFlowSpecSourcePrefix(NewIPAddrPrefix(24, "10.0.0.0")))
+	rd, _ := ParseRouteDistinguisher("100:100")
+	n1 := NewFlowSpecIPv4VPN(rd, cmp)
+	buf1, err := n1.Serialize()
+	assert.Nil(err)
+	n2, err := NewPrefixFromRouteFamily(RouteFamilyToAfiSafi(RF_FS_IPv4_VPN))
+	assert.Nil(err)
+	err = n2.DecodeFromBytes(buf1)
+	assert.Nil(err)
+	buf2, _ := n2.Serialize()
+	if reflect.DeepEqual(n1, n2) == true {
+		t.Log("OK")
+	} else {
+		t.Error("Something wrong")
+		t.Error(len(buf1), n1, buf1)
+		t.Error(len(buf2), n2, buf2)
+		t.Log(bytes.Equal(buf1, buf2))
+	}
 }

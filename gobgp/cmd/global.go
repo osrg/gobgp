@@ -276,7 +276,7 @@ func ParseExtendedCommunities(input string) ([]bgp.ExtendedCommunityInterface, e
 	return exts, nil
 }
 
-func ParseFlowSpecArgs(rf bgp.RouteFamily, args []string) (bgp.AddrPrefixInterface, []string, error) {
+func ParseFlowSpecArgs(rf bgp.RouteFamily, args []string, rd bgp.RouteDistinguisherInterface) (bgp.AddrPrefixInterface, []string, error) {
 	thenPos := len(args)
 	for idx, v := range args {
 		if v == "then" {
@@ -302,7 +302,7 @@ func ParseFlowSpecArgs(rf bgp.RouteFamily, args []string) (bgp.AddrPrefixInterfa
 		nlri = bgp.NewFlowSpecIPv6Unicast(cmp)
 		fnlri = &nlri.(*bgp.FlowSpecIPv6Unicast).FlowSpecNLRI
 	case bgp.RF_FS_L2_VPN:
-		nlri = bgp.NewFlowSpecL2VPN(cmp)
+		nlri = bgp.NewFlowSpecL2VPN(rd, cmp)
 		fnlri = &nlri.(*bgp.FlowSpecL2VPN).FlowSpecNLRI
 	default:
 		return nil, nil, fmt.Errorf("invalid route family")
@@ -557,8 +557,25 @@ func extractAggregator(args []string) ([]string, bgp.PathAttributeInterface, err
 	return args, nil, nil
 }
 
+func extractRouteDistinguisher(args []string) ([]string, bgp.RouteDistinguisherInterface, error) {
+	for idx, arg := range args {
+		if arg == "rd" {
+			if len(args) < (idx + 1) {
+				return nil, nil, fmt.Errorf("invalid rd format")
+			}
+			rd, err := bgp.ParseRouteDistinguisher(args[idx+1])
+			if err != nil {
+				return nil, nil, err
+			}
+			return append(args[:idx], args[idx+2:]...), rd, nil
+		}
+	}
+	return args, nil, nil
+}
+
 func ParsePath(rf bgp.RouteFamily, args []string) (*api.Path, error) {
 	var nlri bgp.AddrPrefixInterface
+	var rd bgp.RouteDistinguisherInterface
 	var extcomms []string
 	var err error
 	attrs := table.PathAttrs(make([]bgp.PathAttributeInterface, 0, 1))
@@ -623,7 +640,7 @@ func ParsePath(rf bgp.RouteFamily, args []string) (*api.Path, error) {
 		ip, net, _ := net.ParseCIDR(args[0])
 		ones, _ := net.Mask.Size()
 
-		rd, err := bgp.ParseRouteDistinguisher(args[2])
+		rd, err = bgp.ParseRouteDistinguisher(args[2])
 		if err != nil {
 			return nil, err
 		}
@@ -671,8 +688,14 @@ func ParsePath(rf bgp.RouteFamily, args []string) (*api.Path, error) {
 		}
 	case bgp.RF_EVPN:
 		nlri, extcomms, err = ParseEvpnArgs(args)
-	case bgp.RF_FS_IPv4_UC, bgp.RF_FS_IPv6_UC, bgp.RF_FS_L2_VPN:
-		nlri, extcomms, err = ParseFlowSpecArgs(rf, args)
+	case bgp.RF_FS_L2_VPN:
+		args, rd, err = extractRouteDistinguisher(args)
+		if err != nil {
+			return nil, err
+		}
+		fallthrough
+	case bgp.RF_FS_IPv4_UC, bgp.RF_FS_IPv6_UC:
+		nlri, extcomms, err = ParseFlowSpecArgs(rf, args, rd)
 	case bgp.RF_OPAQUE:
 		m := extractReserved(args, []string{"key", "value"})
 		if len(m["key"]) != 1 || len(m["value"]) != 1 {
