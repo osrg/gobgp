@@ -1605,7 +1605,21 @@ func (server *BgpServer) handleGrpc(grpcReq *GrpcRequest) {
 			}
 			for _, dst := range arg.Table.Destinations {
 				key := dst.Prefix
-				if _, err := f(id, key); err != nil {
+				if dst.LongerPrefixes {
+					_, prefix, _ := net.ParseCIDR(key)
+					ones, bits := prefix.Mask.Size()
+					for i := ones + 1; i <= bits; i++ {
+						prefix.Mask = net.CIDRMask(i, bits)
+						f(id, prefix.String())
+					}
+				} else if dst.ShorterPrefixes {
+					_, prefix, _ := net.ParseCIDR(key)
+					ones, bits := prefix.Mask.Size()
+					for i := ones; i > 0; i-- {
+						prefix.Mask = net.CIDRMask(i, bits)
+						f(id, prefix.String())
+					}
+				} else if _, err := f(id, key); err != nil {
 					if host := net.ParseIP(key); host != nil {
 						masklen := 32
 						if af == bgp.RF_IPv6_UC {
@@ -1616,13 +1630,6 @@ func (server *BgpServer) handleGrpc(grpcReq *GrpcRequest) {
 								break
 							}
 						}
-					}
-				} else if dst.LongerPrefixes {
-					_, prefix, _ := net.ParseCIDR(key)
-					ones, bits := prefix.Mask.Size()
-					for i := ones + 1; i <= bits; i++ {
-						prefix.Mask = net.CIDRMask(i, bits)
-						f(id, prefix.String())
 					}
 				}
 			}
