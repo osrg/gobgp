@@ -301,6 +301,12 @@ func ParseFlowSpecArgs(rf bgp.RouteFamily, args []string, rd bgp.RouteDistinguis
 	case bgp.RF_FS_IPv6_UC:
 		nlri = bgp.NewFlowSpecIPv6Unicast(cmp)
 		fnlri = &nlri.(*bgp.FlowSpecIPv6Unicast).FlowSpecNLRI
+	case bgp.RF_FS_IPv4_VPN:
+		nlri = bgp.NewFlowSpecIPv4VPN(rd, cmp)
+		fnlri = &nlri.(*bgp.FlowSpecIPv4VPN).FlowSpecNLRI
+	case bgp.RF_FS_IPv6_VPN:
+		nlri = bgp.NewFlowSpecIPv6VPN(rd, cmp)
+		fnlri = &nlri.(*bgp.FlowSpecIPv6VPN).FlowSpecNLRI
 	case bgp.RF_FS_L2_VPN:
 		nlri = bgp.NewFlowSpecL2VPN(rd, cmp)
 		fnlri = &nlri.(*bgp.FlowSpecL2VPN).FlowSpecNLRI
@@ -688,7 +694,7 @@ func ParsePath(rf bgp.RouteFamily, args []string) (*api.Path, error) {
 		}
 	case bgp.RF_EVPN:
 		nlri, extcomms, err = ParseEvpnArgs(args)
-	case bgp.RF_FS_L2_VPN:
+	case bgp.RF_FS_IPv4_VPN, bgp.RF_FS_IPv6_VPN, bgp.RF_FS_L2_VPN:
 		args, rd, err = extractRouteDistinguisher(args)
 		if err != nil {
 			return nil, err
@@ -776,7 +782,7 @@ func modPath(resource api.Resource, name, modtype string, args []string) error {
 		helpErrMap[bgp.RF_IPv4_UC] = fmt.Errorf("usage: %s rib %s <PREFIX> [origin { igp | egp | incomplete }] [nexthop <ADDRESS>] [med <VALUE>] [local-pref <VALUE>] [community <VALUE>] [aigp metric <METRIC>] -a ipv4", cmdstr, modtype)
 		helpErrMap[bgp.RF_IPv6_UC] = fmt.Errorf("usage: %s rib %s <PREFIX> [origin { igp | egp | incomplete }] [nexthop <ADDRESS>] [med <VALUE>] [local-pref <VALUE>] [community <VALUE>] [aigp metric <METRIC>] -a ipv6", cmdstr, modtype)
 		fsHelpMsgFmt := fmt.Sprintf(`err: %s
-usage: %s rib %s match <MATCH_EXPR> then <THEN_EXPR> -a %%s
+usage: %s rib %s%%smatch <MATCH_EXPR> then <THEN_EXPR> -a %%s
 %%s
    <THEN_EXPR> : { %s | %s | %s <value> | %s <RT> | %s <value> | %s { sample | terminal | sample-terminal } | %s <RT>... }...
    <RT> : xxx:yyy, xx.xx.xx.xx:yyy, xxx.xxx:yyy`, err, cmdstr, modtype,
@@ -806,8 +812,10 @@ usage: %s rib %s match <MATCH_EXPR> then <THEN_EXPR> -a %%s
 			protos,
 			flags,
 		)
-		helpErrMap[bgp.RF_FS_IPv4_UC] = fmt.Errorf(fsHelpMsgFmt, "ipv4-flowspec", ipFsMatchExpr)
-		helpErrMap[bgp.RF_FS_IPv6_UC] = fmt.Errorf(fsHelpMsgFmt, "ipv6-flowspec", ipFsMatchExpr)
+		helpErrMap[bgp.RF_FS_IPv4_UC] = fmt.Errorf(fsHelpMsgFmt, " ", "ipv4-flowspec", ipFsMatchExpr)
+		helpErrMap[bgp.RF_FS_IPv6_UC] = fmt.Errorf(fsHelpMsgFmt, " ", "ipv6-flowspec", ipFsMatchExpr)
+		helpErrMap[bgp.RF_FS_IPv4_VPN] = fmt.Errorf(fsHelpMsgFmt, " rd <RD> ", "ipv4-l3vpn-flowspec", ipFsMatchExpr)
+		helpErrMap[bgp.RF_FS_IPv6_VPN] = fmt.Errorf(fsHelpMsgFmt, " rd <RD> ", "ipv6-l3vpn-flowspec", ipFsMatchExpr)
 		macFsMatchExpr := fmt.Sprintf(`   <MATCH_EXPR> : { { %s | %s } <MAC> | %s <ETHER_TYPE> | { %s | %s | %s | %s | %s | %s | %s | %s } <ITEM>... }...
    <ETHER_TYPE> : %s
    <ITEM> : &?{<|>|=}<value>`,

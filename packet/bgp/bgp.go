@@ -2190,21 +2190,21 @@ func flowSpecPrefixParser(rf RouteFamily, args []string) (FlowSpecComponentInter
 	switch typ {
 	case FlowSpecNameMap[FLOW_SPEC_TYPE_DST_PREFIX]:
 		switch rf {
-		case RF_FS_IPv4_UC:
+		case RF_FS_IPv4_UC, RF_FS_IPv4_VPN:
 			return NewFlowSpecDestinationPrefix(NewIPAddrPrefix(uint8(ones), ip.String())), nil
-		case RF_FS_IPv6_UC:
+		case RF_FS_IPv6_UC, RF_FS_IPv6_VPN:
 			return NewFlowSpecDestinationPrefix6(NewIPv6AddrPrefix(uint8(ones), ip.String()), offset), nil
 		default:
-			return nil, fmt.Errorf("invalid type. only RF_FS_IPv4_UC or RF_FS_IPv6_UC is allowed")
+			return nil, fmt.Errorf("invalid type")
 		}
 	case FlowSpecNameMap[FLOW_SPEC_TYPE_SRC_PREFIX]:
 		switch rf {
-		case RF_FS_IPv4_UC:
+		case RF_FS_IPv4_UC, RF_FS_IPv4_VPN:
 			return NewFlowSpecSourcePrefix(NewIPAddrPrefix(uint8(ones), ip.String())), nil
-		case RF_FS_IPv6_UC:
+		case RF_FS_IPv6_UC, RF_FS_IPv6_VPN:
 			return NewFlowSpecSourcePrefix6(NewIPv6AddrPrefix(uint8(ones), ip.String()), offset), nil
 		default:
-			return nil, fmt.Errorf("invalid type. only RF_FS_IPv4_UC or RF_FS_IPv6_UC is allowed")
+			return nil, fmt.Errorf("invalid type")
 		}
 	}
 	return nil, fmt.Errorf("invalid type. only destination or source is allowed")
