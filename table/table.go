@@ -234,6 +234,26 @@ func (t *Table) GetDestination(key string) *Destination {
 	}
 }
 
+func (t *Table) GetLongerPrefixDestinations(key string) []*Destination {
+	results := make([]*Destination, 0, len(t.GetDestinations()))
+	switch t.routeFamily {
+	case bgp.RF_IPv4_UC, bgp.RF_IPv6_UC:
+		r := radix.New()
+		for _, dst := range t.GetDestinations() {
+			r.Insert(dst.RadixKey, dst)
+		}
+		r.WalkPrefix(key, func(s string, v interface{}) bool {
+			results = append(results, v.(*Destination))
+			return false
+		})
+	default:
+		for _, dst := range t.GetDestinations() {
+			results = append(results, dst)
+		}
+	}
+	return results
+}
+
 func (t *Table) setDestination(key string, dest *Destination) {
 	t.destinations[key] = dest
 }
