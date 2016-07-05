@@ -186,7 +186,7 @@ func main() {
 	}()
 
 	if opts.Ops {
-		m, err := ops.NewOpsManager(bgpServer.GrpcReqCh)
+		m, err := ops.NewOpsManager(grpcServer, bgpServer.GrpcReqCh)
 		if err != nil {
 			log.Errorf("Failed to start ops config manager: %s", err)
 			os.Exit(1)
