@@ -1,4 +1,4 @@
-// Copyright (C) 2014,2015 Nippon Telegraph and Telephone Corporation.
+// Copyright (C) 2014-2016 Nippon Telegraph and Telephone Corporation.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -19,6 +19,7 @@ import (
 	"fmt"
 	log "github.com/Sirupsen/logrus"
 	api "github.com/osrg/gobgp/api"
+	"github.com/osrg/gobgp/config"
 	"github.com/osrg/gobgp/packet/bgp"
 	"golang.org/x/net/context"
 	"google.golang.org/grpc"
@@ -147,7 +148,94 @@ func (s *Server) GetNeighbor(ctx context.Context, arg *api.GetNeighborRequest) (
 	if res.Err() != nil {
 		return nil, res.Err()
 	}
-	return res.Data.(*api.GetNeighborResponse), nil
+
+	toApi := func(pconf *config.Neighbor) *api.Peer {
+		prefixLimits := make([]*api.PrefixLimit, 0, len(pconf.AfiSafis))
+		for _, family := range pconf.AfiSafis {
+			if c := family.PrefixLimit.Config; c.MaxPrefixes > 0 {
+				k, _ := bgp.GetRouteFamily(string(family.Config.AfiSafiName))
+				prefixLimits = append(prefixLimits, &api.PrefixLimit{
+					Family:               uint32(k),
+					MaxPrefixes:          c.MaxPrefixes,
+					ShutdownThresholdPct: uint32(c.ShutdownThresholdPct),
+				})
+			}
+		}
+
+		timer := pconf.Timers
+		s := pconf.State
+		return &api.Peer{
+			Conf: &api.PeerConf{
+				NeighborAddress:  pconf.Config.NeighborAddress,
+				Id:               s.Description,
+				PeerAs:           pconf.Config.PeerAs,
+				LocalAs:          pconf.Config.LocalAs,
+				PeerType:         uint32(pconf.Config.PeerType.ToInt()),
+				AuthPassword:     pconf.Config.AuthPassword,
+				RemovePrivateAs:  uint32(pconf.Config.RemovePrivateAs.ToInt()),
+				RouteFlapDamping: pconf.Config.RouteFlapDamping,
+				SendCommunity:    uint32(pconf.Config.SendCommunity.ToInt()),
+				Description:      pconf.Config.Description,
+				PeerGroup:        pconf.Config.PeerGroup,
+				RemoteCap:        s.Capabilities.RemoteList,
+				LocalCap:         s.Capabilities.LocalList,
+				PrefixLimits:     prefixLimits,
+			},
+			Info: &api.PeerState{
+				BgpState:   bgp.FSMState(s.SessionState.ToInt()).String(),
+				AdminState: s.AdminState,
+				Messages: &api.Messages{
+					Received: &api.Message{
+						NOTIFICATION: s.Messages.Received.Notification,
+						UPDATE:       s.Messages.Received.Update,
+						OPEN:         s.Messages.Received.Open,
+						KEEPALIVE:    s.Messages.Received.Keepalive,
+						REFRESH:      s.Messages.Received.Refresh,
+						DISCARDED:    s.Messages.Received.Discarded,
+						TOTAL:        s.Messages.Received.Total,
+					},
+					Sent: &api.Message{
+						NOTIFICATION: s.Messages.Sent.Notification,
+						UPDATE:       s.Messages.Sent.Update,
+						OPEN:         s.Messages.Sent.Open,
+						KEEPALIVE:    s.Messages.Sent.Keepalive,
+						REFRESH:      s.Messages.Sent.Refresh,
+						DISCARDED:    s.Messages.Sent.Discarded,
+						TOTAL:        s.Messages.Sent.Total,
+					},
+				},
+				Received:   s.AdjTable.Received,
+				Accepted:   s.AdjTable.Accepted,
+				Advertised: s.AdjTable.Advertised,
+			},
+			Timers: &api.Timers{
+				Config: &api.TimersConfig{
+					ConnectRetry:      uint64(timer.Config.ConnectRetry),
+					HoldTime:          uint64(timer.Config.HoldTime),
+					KeepaliveInterval: uint64(timer.Config.KeepaliveInterval),
+				},
+				State: &api.TimersState{
+					KeepaliveInterval:  uint64(timer.State.KeepaliveInterval),
+					NegotiatedHoldTime: uint64(timer.State.NegotiatedHoldTime),
+					Uptime:             uint64(timer.State.Uptime),
+					Downtime:           uint64(timer.State.Downtime),
+				},
+			},
+			RouteReflector: &api.RouteReflector{
+				RouteReflectorClient:    pconf.RouteReflector.Config.RouteReflectorClient,
+				RouteReflectorClusterId: string(pconf.RouteReflector.Config.RouteReflectorClusterId),
+			},
+			RouteServer: &api.RouteServer{
+				RouteServerClient: pconf.RouteServer.Config.RouteServerClient,
+			},
+		}
+	}
+
+	p := []*api.Peer{}
+	for _, e := range res.Data.([]*config.Neighbor) {
+		p = append(p, toApi(e))
+	}
+	return &api.GetNeighborResponse{Peers: p}, nil
 }
 
 func handleMultipleResponses(req *GrpcRequest, f func(*GrpcResponse) error) error {
