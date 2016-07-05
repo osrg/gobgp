@@ -1680,14 +1680,12 @@ func (server *BgpServer) handleGrpc(grpcReq *GrpcRequest) {
 		}
 		close(grpcReq.ResponseCh)
 	case REQ_NEIGHBOR:
-		l := []*api.Peer{}
+		l := make([]*config.Neighbor, 0)
 		for _, peer := range server.neighborMap {
-			l = append(l, peer.ToApiStruct())
+			l = append(l, peer.ToConfig())
 		}
 		grpcReq.ResponseCh <- &GrpcResponse{
-			Data: &api.GetNeighborResponse{
-				Peers: l,
-			},
+			Data: l,
 		}
 		close(grpcReq.ResponseCh)
 	case REQ_ADJ_RIB_IN, REQ_ADJ_RIB_OUT:
