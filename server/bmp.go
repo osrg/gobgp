@@ -129,44 +129,80 @@ func (w *bmpWatcher) loop() error {
 				go w.tryConnect(server)
 				break
 			}
-			req := &GrpcRequest{
-				RequestType: REQ_BMP_NEIGHBORS,
-				ResponseCh:  make(chan *GrpcResponse, 1),
-			}
-			w.apiCh <- req
-			write := func(req *GrpcRequest) error {
-				for res := range req.ResponseCh {
-					for _, msg := range res.Data.([]*bmp.BMPMessage) {
-						buf, _ = msg.Serialize()
-						if _, err := newConn.Write(buf); err != nil {
-							log.Warnf("failed to write to bmp server %s %s", server.host, err)
-							go w.tryConnect(server)
-							return err
-						}
+
+			gconf := func() *config.Global {
+				req := &GrpcRequest{
+					RequestType: REQ_GET_SERVER,
+					ResponseCh:  make(chan *GrpcResponse, 1),
+				}
+				w.apiCh <- req
+				res := <-req.ResponseCh
+				return res.Data.(*config.Global)
+			}()
+
+			peerUpMsgs := func() []*bmp.BMPMessage {
+				req := &GrpcRequest{
+					RequestType: REQ_NEIGHBOR,
+					ResponseCh:  make(chan *GrpcResponse, 1),
+				}
+				w.apiCh <- req
+				res := <-req.ResponseCh
+				msgs := make([]*bmp.BMPMessage, 0)
+				for _, pconf := range res.Data.([]*config.Neighbor) {
+					if pconf.State.SessionState != config.SESSION_STATE_ESTABLISHED {
+						continue
+					}
+					sentOpen := buildopen(gconf, pconf)
+					peeri := &table.PeerInfo{
+						ID: net.ParseIP(pconf.State.Description),
+						AS: pconf.Config.PeerAs,
+					}
+					recv, _ := bgp.ParseBGPMessage(pconf.State.ReceivedOpenMessage)
+					msgs = append(msgs, bmpPeerUp(pconf.Transport.State.LocalAddress, pconf.Transport.State.LocalPort, pconf.Transport.State.RemotePort, sentOpen, recv, bmp.BMP_PEER_TYPE_GLOBAL, false, 0, peeri, pconf.Timers.State.Uptime))
+				}
+				return msgs
+			}()
+
+			write := func(msgs []*bmp.BMPMessage) error {
+				for _, msg := range msgs {
+					buf, _ = msg.Serialize()
+					if _, err := newConn.Write(buf); err != nil {
+						log.Warnf("failed to write to bmp server %s %s", server.host, err)
+						go w.tryConnect(server)
+						return err
 					}
 				}
 				return nil
 			}
-			if err := write(req); err != nil {
+
+			writeRsp := func(req *GrpcRequest) error {
+				for res := range req.ResponseCh {
+					if err := write(res.Data.([]*bmp.BMPMessage)); err != nil {
+						return err
+					}
+				}
+				return nil
+			}
+			if err := write(peerUpMsgs); err != nil {
 				break
 			}
 			if server.typ != config.BMP_ROUTE_MONITORING_POLICY_TYPE_POST_POLICY {
-				req = &GrpcRequest{
+				req := &GrpcRequest{
 					RequestType: REQ_BMP_ADJ_IN,
 					ResponseCh:  make(chan *GrpcResponse, 1),
 				}
 				w.apiCh <- req
-				if err := write(req); err != nil {
+				if err := writeRsp(req); err != nil {
 					break
 				}
 			}
 			if server.typ != config.BMP_ROUTE_MONITORING_POLICY_TYPE_PRE_POLICY {
-				req = &GrpcRequest{
+				req := &GrpcRequest{
 					RequestType: REQ_BMP_GLOBAL,
 					ResponseCh:  make(chan *GrpcResponse, 1),
 				}
 				w.apiCh <- req
-				if err := write(req); err != nil {
+				if err := writeRsp(req); err != nil {
 					break
 				}
 			}

@@ -289,7 +289,10 @@ def emit_class_def(ctx, yang_statement, struct_name, prefix):
         if val_name == 'State':
             continue
         if typ == EQUAL_TYPE_LEAF:
-            print >> o, 'if lhs.{0} != rhs.{0} {{'.format(val_name)
+            if type_name == '[]byte':
+                print >> o, 'if bytes.Compare(lhs.{0}, rhs.{0}) != 0 {{'.format(val_name)
+            else:
+                print >> o, 'if lhs.{0} != rhs.{0} {{'.format(val_name)
             print >> o, 'return false'
             print >> o, '}'
         elif typ == EQUAL_TYPE_CONTAINER:

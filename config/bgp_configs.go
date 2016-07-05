@@ -2434,6 +2434,9 @@ type NeighborState struct {
 	AdjTable AdjTable `mapstructure:"adj-table"`
 	// original -> gobgp:Capabilities
 	Capabilities Capabilities `mapstructure:"capabilities"`
+	// original -> gobgp:received-open-message
+	//gobgp:received-open-message's original type is binary
+	ReceivedOpenMessage []byte `mapstructure:"received-open-message"`
 	// original -> gobgp:admin-down
 	//gobgp:admin-down's original type is boolean
 	AdminDown bool `mapstructure:"admin-down"`
@@ -2500,6 +2503,9 @@ func (lhs *NeighborState) Equal(rhs *NeighborState) bool {
 		return false
 	}
 	if !lhs.Capabilities.Equal(&(rhs.Capabilities)) {
+		return false
+	}
+	if bytes.Compare(lhs.ReceivedOpenMessage, rhs.ReceivedOpenMessage) != 0 {
 		return false
 	}
 	if lhs.AdminDown != rhs.AdminDown {
