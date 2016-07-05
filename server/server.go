@@ -1916,13 +1916,6 @@ func (server *BgpServer) handleGrpc(grpcReq *GrpcRequest) {
 		}
 		grpcReq.ResponseCh <- result
 		close(grpcReq.ResponseCh)
-	case REQ_GRPC_ADD_NEIGHBOR:
-		err := server.handleAddNeighborRequest(grpcReq)
-		grpcReq.ResponseCh <- &GrpcResponse{
-			Data:        &api.AddNeighborResponse{},
-			ResponseErr: err,
-		}
-		close(grpcReq.ResponseCh)
 	case REQ_GRPC_DELETE_NEIGHBOR:
 		err := server.handleDeleteNeighborRequest(grpcReq)
 		grpcReq.ResponseCh <- &GrpcResponse{
@@ -1933,6 +1926,7 @@ func (server *BgpServer) handleGrpc(grpcReq *GrpcRequest) {
 	case REQ_ADD_NEIGHBOR:
 		err := server.handleAddNeighbor(grpcReq.Data.(*config.Neighbor))
 		grpcReq.ResponseCh <- &GrpcResponse{
+			Data:        &api.AddNeighborResponse{},
 			ResponseErr: err,
 		}
 		close(grpcReq.ResponseCh)
@@ -2181,6 +2175,10 @@ func (server *BgpServer) handleAddNeighbor(c *config.Neighbor) error {
 	}
 	log.Info("Add a peer configuration for ", addr)
 
+	if c.Config.LocalAs == 0 {
+		c.Config.LocalAs = server.bgpConfig.Global.Config.As
+	}
+
 	peer := NewPeer(&server.bgpConfig.Global, c, server.globalRib, server.policy)
 	server.setPolicyByConfig(peer.ID(), c.ApplyPolicy)
 	if peer.isRouteServerClient() {
@@ -2298,129 +2296,6 @@ func (server *BgpServer) handleUpdateNeighbor(c *config.Neighbor) (bool, error) 
 		peer.fsm.pConf = original
 	}
 	return policyUpdated, err
-}
-
-func (server *BgpServer) handleAddNeighborRequest(grpcReq *GrpcRequest) error {
-	arg, ok := grpcReq.Data.(*api.AddNeighborRequest)
-	if !ok {
-		return fmt.Errorf("AddNeighborRequest type assertion failed")
-	} else {
-		apitoConfig := func(a *api.Peer) (*config.Neighbor, error) {
-			pconf := &config.Neighbor{}
-			if a.Conf != nil {
-				pconf.Config.NeighborAddress = a.Conf.NeighborAddress
-				pconf.Config.PeerAs = a.Conf.PeerAs
-				if a.Conf.LocalAs == 0 {
-					pconf.Config.LocalAs = server.bgpConfig.Global.Config.As
-				} else {
-					pconf.Config.LocalAs = a.Conf.LocalAs
-				}
-				if pconf.Config.PeerAs != pconf.Config.LocalAs {
-					pconf.Config.PeerType = config.PEER_TYPE_EXTERNAL
-				} else {
-					pconf.Config.PeerType = config.PEER_TYPE_INTERNAL
-				}
-				pconf.Config.AuthPassword = a.Conf.AuthPassword
-				pconf.Config.RemovePrivateAs = config.RemovePrivateAsOption(a.Conf.RemovePrivateAs)
-				pconf.Config.RouteFlapDamping = a.Conf.RouteFlapDamping
-				pconf.Config.SendCommunity = config.CommunityType(a.Conf.SendCommunity)
-				pconf.Config.Description = a.Conf.Description
-				pconf.Config.PeerGroup = a.Conf.PeerGroup
-				pconf.Config.NeighborAddress = a.Conf.NeighborAddress
-			}
-			if a.Timers != nil {
-				if a.Timers.Config != nil {
-					pconf.Timers.Config.ConnectRetry = float64(a.Timers.Config.ConnectRetry)
-					pconf.Timers.Config.HoldTime = float64(a.Timers.Config.HoldTime)
-					pconf.Timers.Config.KeepaliveInterval = float64(a.Timers.Config.KeepaliveInterval)
-					pconf.Timers.Config.MinimumAdvertisementInterval = float64(a.Timers.Config.MinimumAdvertisementInterval)
-				}
-			} else {
-				pconf.Timers.Config.ConnectRetry = float64(config.DEFAULT_CONNECT_RETRY)
-				pconf.Timers.Config.HoldTime = float64(config.DEFAULT_HOLDTIME)
-				pconf.Timers.Config.KeepaliveInterval = float64(config.DEFAULT_HOLDTIME / 3)
-			}
-			if a.RouteReflector != nil {
-				pconf.RouteReflector.Config.RouteReflectorClusterId = config.RrClusterIdType(a.RouteReflector.RouteReflectorClusterId)
-				pconf.RouteReflector.Config.RouteReflectorClient = a.RouteReflector.RouteReflectorClient
-			}
-			if a.RouteServer != nil {
-				pconf.RouteServer.Config.RouteServerClient = a.RouteServer.RouteServerClient
-			}
-			if a.ApplyPolicy != nil {
-				if a.ApplyPolicy.ImportPolicy != nil {
-					pconf.ApplyPolicy.Config.DefaultImportPolicy = config.DefaultPolicyType(a.ApplyPolicy.ImportPolicy.Default)
-					for _, p := range a.ApplyPolicy.ImportPolicy.Policies {
-						pconf.ApplyPolicy.Config.ImportPolicyList = append(pconf.ApplyPolicy.Config.ImportPolicyList, p.Name)
-					}
-				}
-				if a.ApplyPolicy.ExportPolicy != nil {
-					pconf.ApplyPolicy.Config.DefaultExportPolicy = config.DefaultPolicyType(a.ApplyPolicy.ExportPolicy.Default)
-					for _, p := range a.ApplyPolicy.ExportPolicy.Policies {
-						pconf.ApplyPolicy.Config.ExportPolicyList = append(pconf.ApplyPolicy.Config.ExportPolicyList, p.Name)
-					}
-				}
-				if a.ApplyPolicy.InPolicy != nil {
-					pconf.ApplyPolicy.Config.DefaultInPolicy = config.DefaultPolicyType(a.ApplyPolicy.InPolicy.Default)
-					for _, p := range a.ApplyPolicy.InPolicy.Policies {
-						pconf.ApplyPolicy.Config.InPolicyList = append(pconf.ApplyPolicy.Config.InPolicyList, p.Name)
-					}
-				}
-			}
-			if a.Families != nil {
-				for _, family := range a.Families {
-					name, ok := bgp.AddressFamilyNameMap[bgp.RouteFamily(family)]
-					if !ok {
-						return pconf, fmt.Errorf("invalid address family: %d", family)
-					}
-					cAfiSafi := config.AfiSafi{
-						Config: config.AfiSafiConfig{
-							AfiSafiName: config.AfiSafiType(name),
-						},
-					}
-					pconf.AfiSafis = append(pconf.AfiSafis, cAfiSafi)
-				}
-			} else {
-				if net.ParseIP(a.Conf.NeighborAddress).To4() != nil {
-					pconf.AfiSafis = []config.AfiSafi{
-						config.AfiSafi{
-							Config: config.AfiSafiConfig{
-								AfiSafiName: "ipv4-unicast",
-							},
-						},
-					}
-				} else {
-					pconf.AfiSafis = []config.AfiSafi{
-						config.AfiSafi{
-							Config: config.AfiSafiConfig{
-								AfiSafiName: "ipv6-unicast",
-							},
-						},
-					}
-				}
-			}
-			if a.Transport != nil {
-				pconf.Transport.Config.LocalAddress = a.Transport.LocalAddress
-				pconf.Transport.Config.PassiveMode = a.Transport.PassiveMode
-			} else {
-				if net.ParseIP(a.Conf.NeighborAddress).To4() != nil {
-					pconf.Transport.Config.LocalAddress = "0.0.0.0"
-				} else {
-					pconf.Transport.Config.LocalAddress = "::"
-				}
-			}
-			if a.EbgpMultihop != nil {
-				pconf.EbgpMultihop.Config.Enabled = a.EbgpMultihop.Enabled
-				pconf.EbgpMultihop.Config.MultihopTtl = uint8(a.EbgpMultihop.MultihopTtl)
-			}
-			return pconf, nil
-		}
-		c, err := apitoConfig(arg.Peer)
-		if err != nil {
-			return err
-		}
-		return server.handleAddNeighbor(c)
-	}
 }
 
 func (server *BgpServer) handleDeleteNeighborRequest(grpcReq *GrpcRequest) error {
