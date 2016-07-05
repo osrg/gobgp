@@ -1533,19 +1533,9 @@ func (server *BgpServer) handleGrpc(grpcReq *GrpcRequest) {
 	switch grpcReq.RequestType {
 	case REQ_GET_SERVER:
 		g := server.bgpConfig.Global
-		result := &GrpcResponse{
-			Data: &api.GetServerResponse{
-				Global: &api.Global{
-					As:              g.Config.As,
-					RouterId:        g.Config.RouterId,
-					ListenPort:      g.Config.Port,
-					ListenAddresses: g.Config.LocalAddressList,
-					MplsLabelMin:    g.MplsLabelRange.MinLabel,
-					MplsLabelMax:    g.MplsLabelRange.MaxLabel,
-				},
-			},
+		grpcReq.ResponseCh <- &GrpcResponse{
+			Data: &g,
 		}
-		grpcReq.ResponseCh <- result
 		close(grpcReq.ResponseCh)
 	case REQ_START_SERVER:
 		err := server.handleModConfig(grpcReq)
