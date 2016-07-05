@@ -686,7 +686,17 @@ func (s *Server) GetServer(ctx context.Context, arg *api.GetServerRequest) (*api
 	if err != nil {
 		return nil, err
 	}
-	return d.(*api.GetServerResponse), err
+	g := d.(*config.Global)
+	return &api.GetServerResponse{
+		Global: &api.Global{
+			As:              g.Config.As,
+			RouterId:        g.Config.RouterId,
+			ListenPort:      g.Config.Port,
+			ListenAddresses: g.Config.LocalAddressList,
+			MplsLabelMin:    g.MplsLabelRange.MinLabel,
+			MplsLabelMax:    g.MplsLabelRange.MaxLabel,
+		},
+	}, err
 }
 
 func (s *Server) StartServer(ctx context.Context, arg *api.StartServerRequest) (*api.StartServerResponse, error) {
