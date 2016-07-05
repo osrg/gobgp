@@ -593,6 +593,10 @@ module gobgp {
         type binary;
       }
     }
+
+    leaf received-open-message {
+      type binary;
+    }
   }
 
   augment "/bgp:bgp/bgp:neighbors/bgp:neighbor/bgp:config" {
