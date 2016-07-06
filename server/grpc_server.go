@@ -46,9 +46,7 @@ const (
 	REQ_NEIGHBOR_ENABLE
 	REQ_NEIGHBOR_DISABLE
 	REQ_ADD_NEIGHBOR
-	REQ_DEL_NEIGHBOR
-	// FIXME: we should merge
-	REQ_GRPC_DELETE_NEIGHBOR
+	REQ_DELETE_NEIGHBOR
 	REQ_UPDATE_NEIGHBOR
 	REQ_GLOBAL_RIB
 	REQ_MONITOR_RIB
@@ -655,7 +653,9 @@ func (s *Server) AddNeighbor(ctx context.Context, arg *api.AddNeighborRequest) (
 }
 
 func (s *Server) DeleteNeighbor(ctx context.Context, arg *api.DeleteNeighborRequest) (*api.DeleteNeighborResponse, error) {
-	d, err := s.get(REQ_GRPC_DELETE_NEIGHBOR, arg)
+	d, err := s.get(REQ_DELETE_NEIGHBOR, &config.Neighbor{Config: config.NeighborConfig{
+		NeighborAddress: arg.Peer.Conf.NeighborAddress,
+	}})
 	if err != nil {
 		return nil, err
 	}
