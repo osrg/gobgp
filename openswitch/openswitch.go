@@ -320,13 +320,13 @@ func (m *OpsManager) handleBgpRouterUpdate(update ovsdb.TableUpdate) []*server.G
 				newNeighMap := v.New.Fields["bgp_neighbors"].(ovsdb.OvsMap).GoMap
 				for k, _ := range oldNeighMap {
 					if _, ok := newNeighMap[k]; !ok {
-						reqs = append(reqs, server.NewGrpcRequest(server.REQ_GRPC_DELETE_NEIGHBOR, "", bgp.RouteFamily(0), &api.DeleteNeighborRequest{
+						m.grpcServer.DeleteNeighbor(context.Background(), &api.DeleteNeighborRequest{
 							Peer: &api.Peer{
 								Conf: &api.PeerConf{
 									NeighborAddress: k.(string),
 								},
 							},
-						}))
+						})
 					}
 				}
 			}

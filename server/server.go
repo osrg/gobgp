@@ -915,7 +915,7 @@ func (server *BgpServer) PeerAdd(peer config.Neighbor) error {
 func (server *BgpServer) PeerDelete(peer config.Neighbor) error {
 	ch := make(chan *GrpcResponse)
 	server.GrpcReqCh <- &GrpcRequest{
-		RequestType: REQ_DEL_NEIGHBOR,
+		RequestType: REQ_DELETE_NEIGHBOR,
 		Data:        &peer,
 		ResponseCh:  ch,
 	}
@@ -1450,15 +1450,8 @@ func (server *BgpServer) handleModConfig(grpcReq *GrpcRequest) error {
 		c = arg
 	case *api.StopServerRequest:
 		for k, _ := range server.neighborMap {
-			err := server.handleDeleteNeighborRequest(&GrpcRequest{
-				Data: &api.DeleteNeighborRequest{
-					Peer: &api.Peer{
-						Conf: &api.PeerConf{
-							NeighborAddress: k,
-						},
-					},
-				},
-			})
+			err := server.handleDeleteNeighbor(&config.Neighbor{Config: config.NeighborConfig{
+				NeighborAddress: k}}, bgp.BGP_ERROR_CEASE, bgp.BGP_ERROR_SUB_PEER_DECONFIGURED)
 			if err != nil {
 				return err
 			}
@@ -1916,13 +1909,6 @@ func (server *BgpServer) handleGrpc(grpcReq *GrpcRequest) {
 		}
 		grpcReq.ResponseCh <- result
 		close(grpcReq.ResponseCh)
-	case REQ_GRPC_DELETE_NEIGHBOR:
-		err := server.handleDeleteNeighborRequest(grpcReq)
-		grpcReq.ResponseCh <- &GrpcResponse{
-			Data:        &api.DeleteNeighborResponse{},
-			ResponseErr: err,
-		}
-		close(grpcReq.ResponseCh)
 	case REQ_ADD_NEIGHBOR:
 		err := server.handleAddNeighbor(grpcReq.Data.(*config.Neighbor))
 		grpcReq.ResponseCh <- &GrpcResponse{
@@ -1930,9 +1916,10 @@ func (server *BgpServer) handleGrpc(grpcReq *GrpcRequest) {
 			ResponseErr: err,
 		}
 		close(grpcReq.ResponseCh)
-	case REQ_DEL_NEIGHBOR:
-		err := server.handleDelNeighbor(grpcReq.Data.(*config.Neighbor), bgp.BGP_ERROR_CEASE, bgp.BGP_ERROR_SUB_PEER_DECONFIGURED)
+	case REQ_DELETE_NEIGHBOR:
+		err := server.handleDeleteNeighbor(grpcReq.Data.(*config.Neighbor), bgp.BGP_ERROR_CEASE, bgp.BGP_ERROR_SUB_PEER_DECONFIGURED)
 		grpcReq.ResponseCh <- &GrpcResponse{
+			Data:        &api.DeleteNeighborResponse{},
 			ResponseErr: err,
 		}
 		close(grpcReq.ResponseCh)
@@ -2201,7 +2188,7 @@ func (server *BgpServer) handleAddNeighbor(c *config.Neighbor) error {
 	return nil
 }
 
-func (server *BgpServer) handleDelNeighbor(c *config.Neighbor, code, subcode uint8) error {
+func (server *BgpServer) handleDeleteNeighbor(c *config.Neighbor, code, subcode uint8) error {
 	addr := c.Config.NeighborAddress
 	n, y := server.neighborMap[addr]
 	if !y {
@@ -2261,7 +2248,7 @@ func (server *BgpServer) handleUpdateNeighbor(c *config.Neighbor) (bool, error) 
 		} else if original.Config.PeerAs != c.Config.PeerAs {
 			sub = bgp.BGP_ERROR_SUB_PEER_DECONFIGURED
 		}
-		if err := server.handleDelNeighbor(peer.fsm.pConf, bgp.BGP_ERROR_CEASE, sub); err != nil {
+		if err := server.handleDeleteNeighbor(peer.fsm.pConf, bgp.BGP_ERROR_CEASE, sub); err != nil {
 			log.WithFields(log.Fields{
 				"Topic": "Peer",
 				"Key":   addr,
@@ -2296,15 +2283,6 @@ func (server *BgpServer) handleUpdateNeighbor(c *config.Neighbor) (bool, error) 
 		peer.fsm.pConf = original
 	}
 	return policyUpdated, err
-}
-
-func (server *BgpServer) handleDeleteNeighborRequest(grpcReq *GrpcRequest) error {
-	arg := grpcReq.Data.(*api.DeleteNeighborRequest)
-	return server.handleDelNeighbor(&config.Neighbor{
-		Config: config.NeighborConfig{
-			NeighborAddress: arg.Peer.Conf.NeighborAddress,
-		},
-	}, bgp.BGP_ERROR_CEASE, bgp.BGP_ERROR_SUB_PEER_DECONFIGURED)
 }
 
 func (server *BgpServer) handleGrpcAddDefinedSet(grpcReq *GrpcRequest) (*api.AddDefinedSetResponse, error) {
