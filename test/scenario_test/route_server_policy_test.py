@@ -117,9 +117,8 @@ class ImportPolicy(object):
                'actions': {'route-disposition': {'accept-route': False}}}
 
         policy = {'name': 'policy0',
-                  'type': 'import',
                   'statements': [st0]}
-        g1.add_policy(policy, q2)
+        g1.add_policy(policy, q2, 'import')
 
         # this will be blocked
         e1.add_route('192.168.2.0/24')
@@ -184,9 +183,8 @@ class ExportPolicy(object):
                'actions': {'route-disposition': {'accept-route': False}}}
 
         policy = {'name': 'policy0',
-                  'type': 'export',
                   'statements': [st0]}
-        g1.add_policy(policy, q2)
+        g1.add_policy(policy, q2, 'export')
 
         # this will be blocked
         e1.add_route('192.168.2.0/24')
@@ -271,9 +269,8 @@ class ImportPolicyUpdate(object):
                'actions': {'route-disposition': {'accept-route': False}}}
 
         policy = {'name': 'policy0',
-                  'type': 'import',
                   'statements': [st0]}
-        g1.add_policy(policy, q2)
+        g1.add_policy(policy, q2, 'import')
 
         e1.add_route('192.168.2.0/24')
         e1.add_route('192.168.20.0/24')
@@ -319,9 +316,8 @@ class ImportPolicyUpdate(object):
                'actions': {'route-disposition': {'accept-route': False}}}
 
         policy = {'name': 'policy0',
-                  'type': 'import',
                   'statements': [st0]}
-        g1.add_policy(policy, q2)
+        g1.add_policy(policy, q2, 'import')
         g1.softreset(e1)
 
     @staticmethod
@@ -400,9 +396,8 @@ class ExportPolicyUpdate(object):
                'actions': {'route-disposition': {'accept-route': False}}}
 
         policy = {'name': 'policy0',
-                  'type': 'export',
                   'statements': [st0]}
-        g1.add_policy(policy, q2)
+        g1.add_policy(policy, q2, 'export')
 
         e1.add_route('192.168.2.0/24')
         e1.add_route('192.168.20.0/24')
@@ -448,9 +443,8 @@ class ExportPolicyUpdate(object):
                'actions': {'route-disposition': {'accept-route': False}}}
 
         policy = {'name': 'policy0',
-                  'type': 'export',
                   'statements': [st0]}
-        g1.add_policy(policy, q2)
+        g1.add_policy(policy, q2, 'export')
 
         # we need hard reset to flush q2's local rib
         g1.reset(e1)
@@ -545,9 +539,8 @@ class ImportPolicyIPV6(object):
                'actions': {'route-disposition': {'accept-route': False}}}
 
         policy = {'name': 'policy0',
-                  'type': 'import',
                   'statements': [st0]}
-        g1.add_policy(policy, q2)
+        g1.add_policy(policy, q2, 'import')
 
         # this will be blocked
         e1.add_route('2001::/64', rf='ipv6')
@@ -615,9 +608,8 @@ class ExportPolicyIPV6(object):
                'actions': {'route-disposition': {'accept-route': False}}}
 
         policy = {'name': 'policy0',
-                  'type': 'export',
                   'statements': [st0]}
-        g1.add_policy(policy, q2)
+        g1.add_policy(policy, q2, 'export')
 
         # this will be blocked
         e1.add_route('2001::/64', rf='ipv6')
@@ -698,9 +690,8 @@ class ImportPolicyIPV6Update(object):
                'actions': {'route-disposition': {'accept-route': False}}}
 
         policy = {'name': 'policy0',
-                  'type': 'import',
                   'statements': [st0]}
-        g1.add_policy(policy, q2)
+        g1.add_policy(policy, q2, 'import')
 
         e1.add_route('2001:0:10:2::/64', rf='ipv6')
         e1.add_route('2001:0:10:20::/64', rf='ipv6')
@@ -743,9 +734,8 @@ class ImportPolicyIPV6Update(object):
                    'route-disposition': {'accept-route': False}}}
 
         policy = {'name': 'policy0',
-                  'type': 'import',
                   'statements': [st0]}
-        g1.add_policy(policy, q2)
+        g1.add_policy(policy, q2, 'import')
         g1.softreset(e1, rf='ipv6')
 
     @staticmethod
@@ -821,9 +811,8 @@ class ExportPolicyIPv6Update(object):
                'actions': {'route-disposition': {'accept-route': False}}}
 
         policy = {'name': 'policy0',
-                  'type': 'export',
                   'statements': [st0]}
-        g1.add_policy(policy, q2)
+        g1.add_policy(policy, q2, 'export')
 
         e1.add_route('2001:0:10:2::/64', rf='ipv6')
         e1.add_route('2001:0:10:20::/64', rf='ipv6')
@@ -865,9 +854,8 @@ class ExportPolicyIPv6Update(object):
                'actions': {'route-disposition': {'accept-route': False}}}
 
         policy = {'name': 'policy0',
-                  'type': 'export',
                   'statements': [st0]}
-        g1.add_policy(policy, q2)
+        g1.add_policy(policy, q2, 'export')
         g1.reset(e1)
 
         for c in [e1, q1, q2]:
@@ -917,9 +905,8 @@ class ImportPolicyAsPathLengthCondition(object):
                'actions': {'route-disposition': {'accept-route': False}}}
 
         policy = {'name': 'policy0',
-                  'type': 'import',
                   'statements': [st0]}
-        g1.add_policy(policy, q2)
+        g1.add_policy(policy, q2, 'import')
 
         # this will be blocked
         e1.add_route('192.168.100.0/24', aspath=range(e1.asn, e1.asn-10, -1))
@@ -978,9 +965,8 @@ class ImportPolicyAsPathCondition(object):
                'actions': {'route-disposition': {'accept-route': False}}}
 
         policy = {'name': 'policy0',
-                  'type': 'import',
                   'statements': [st0]}
-        g1.add_policy(policy, q2)
+        g1.add_policy(policy, q2, 'import')
 
         # this will be blocked
         e1.add_route('192.168.100.0/24', aspath=range(e1.asn, e1.asn-10, -1))
@@ -1031,9 +1017,8 @@ class ImportPolicyAsPathAnyCondition(object):
                'actions': {'route-disposition': {'accept-route': False}}}
 
         policy = {'name': 'policy0',
-                  'type': 'import',
                   'statements': [st0]}
-        g1.add_policy(policy, q2)
+        g1.add_policy(policy, q2, 'import')
 
         # this will be blocked
         e1.add_route('192.168.100.0/24', aspath=[65000, 65098, 65010])
@@ -1084,9 +1069,8 @@ class ImportPolicyAsPathOriginCondition(object):
                'actions': {'route-disposition': {'accept-route': False}}}
 
         policy = {'name': 'policy0',
-                  'type': 'import',
                   'statements': [st0]}
-        g1.add_policy(policy, q2)
+        g1.add_policy(policy, q2, 'import')
 
         # this will be blocked
         e1.add_route('192.168.100.0/24', aspath=[65000, 65098, 65090])
@@ -1137,9 +1121,8 @@ class ImportPolicyAsPathOnlyCondition(object):
                'actions': {'route-disposition': {'accept-route': False}}}
 
         policy = {'name': 'policy0',
-                  'type': 'import',
                   'statements': [st0]}
-        g1.add_policy(policy, q2)
+        g1.add_policy(policy, q2, 'import')
 
         # this will be blocked
         e1.add_route('192.168.100.0/24', aspath=[65100])
@@ -1192,9 +1175,8 @@ class ImportPolicyAsPathMismatchCondition(object):
                'actions': {'route-disposition': {'accept-route': False}}}
 
         policy = {'name': 'policy0',
-                  'type': 'import',
                   'statements': [st0]}
-        g1.add_policy(policy, q2)
+        g1.add_policy(policy, q2, 'import')
 
         # this will be blocked
         e1.add_route('192.168.100.0/24', aspath=[65100, 65090])
@@ -1253,9 +1235,8 @@ class ImportPolicyCommunityCondition(object):
                'actions': {'route-disposition': {'accept-route': False}}}
 
         policy = {'name': 'policy0',
-                  'type': 'import',
                   'statements': [st0]}
-        g1.add_policy(policy, q2)
+        g1.add_policy(policy, q2, 'import')
 
         # this will be blocked
         e1.add_route('192.168.100.0/24', community=['65100:10'])
@@ -1307,9 +1288,8 @@ class ImportPolicyCommunityRegexp(object):
                'actions': {'route-disposition': {'accept-route': False}}}
 
         policy = {'name': 'policy0',
-                  'type': 'import',
                   'statements': [st0]}
-        g1.add_policy(policy, q2)
+        g1.add_policy(policy, q2, 'import')
 
         # this will be blocked
         e1.add_route('192.168.100.0/24', community=['65100:10'])
@@ -1371,9 +1351,8 @@ class ImportPolicyCommunityAction(object):
                                                            'set-community-method': {'communities-list': ['65100:20']}}}}}
 
         policy = {'name': 'policy0',
-                  'type': 'import',
                   'statements': [st0]}
-        g1.add_policy(policy, q2)
+        g1.add_policy(policy, q2, 'import')
 
         e1.add_route('192.168.100.0/24', community=['65100:10'])
 
@@ -1446,9 +1425,8 @@ class ImportPolicyCommunityReplace(object):
                                                            'set-community-method': {'communities-list': ['65100:20']}}}}}
 
         policy = {'name': 'policy0',
-                  'type': 'import',
                   'statements': [st0]}
-        g1.add_policy(policy, q2)
+        g1.add_policy(policy, q2, 'import')
 
         e1.add_route('192.168.100.0/24', community=['65100:10'])
 
@@ -1513,9 +1491,8 @@ class ImportPolicyCommunityRemove(object):
                                                            'set-community-method': {'communities-list': ['65100:10', '65100:20']}}}}}
 
         policy = {'name': 'policy0',
-                  'type': 'import',
                   'statements': [st0]}
-        g1.add_policy(policy, q2)
+        g1.add_policy(policy, q2, 'import')
 
         e1.add_route('192.168.100.0/24', community=['65100:10'])
         e1.add_route('192.168.110.0/24', community=['65100:10', '65100:20'])
@@ -1598,9 +1575,8 @@ class ImportPolicyCommunityNull(object):
                                                              'set-community-method': {'communities-list': []}}}}}
 
         policy = {'name': 'policy0',
-                  'type': 'import',
                   'statements': [st0]}
-        g1.add_policy(policy, q2)
+        g1.add_policy(policy, q2, 'import')
 
         e1.add_route('192.168.100.0/24', community=['65100:10'])
         e1.add_route('192.168.110.0/24', community=['65100:10', '65100:20'])
@@ -1673,9 +1649,8 @@ class ExportPolicyCommunityAdd(object):
                                                            'set-community-method': {'communities-list': ['65100:20']}}}}}
 
         policy = {'name': 'policy0',
-                  'type': 'export',
                   'statements': [st0]}
-        g1.add_policy(policy, q2)
+        g1.add_policy(policy, q2, 'export')
 
         e1.add_route('192.168.100.0/24', community=['65100:10'])
 
@@ -1747,9 +1722,8 @@ class ExportPolicyCommunityReplace(object):
                                                            'set-community-method': {'communities-list': ['65100:20']}}}}}
 
         policy = {'name': 'policy0',
-                  'type': 'export',
                   'statements': [st0]}
-        g1.add_policy(policy, q2)
+        g1.add_policy(policy, q2, 'export')
 
         e1.add_route('192.168.100.0/24', community=['65100:10'])
 
@@ -1821,9 +1795,8 @@ class ExportPolicyCommunityRemove(object):
                                                            'set-community-method': {'communities-list': ['65100:20', '65100:30']}}}}}
 
         policy = {'name': 'policy0',
-                  'type': 'export',
                   'statements': [st0]}
-        g1.add_policy(policy, q2)
+        g1.add_policy(policy, q2, 'export')
 
         e1.add_route('192.168.100.0/24', community=['65100:10', '65100:20', '65100:30'])
 
@@ -1898,9 +1871,8 @@ class ExportPolicyCommunityNull(object):
                                                            'set-community-method': {'communities-list': []}}}}}
 
         policy = {'name': 'policy0',
-                  'type': 'export',
                   'statements': [st0]}
-        g1.add_policy(policy, q2)
+        g1.add_policy(policy, q2, 'export')
 
         e1.add_route('192.168.100.0/24', community=['65100:10', '65100:20', '65100:30'])
 
@@ -1976,9 +1948,8 @@ class ImportPolicyMedReplace(object):
                            'bgp-actions': {'set-med': '100'}}}
 
         policy = {'name': 'policy0',
-                  'type': 'import',
                   'statements': [st0]}
-        g1.add_policy(policy, q2)
+        g1.add_policy(policy, q2, 'import')
 
         e1.add_route('192.168.100.0/24', med=300)
 
@@ -2038,9 +2009,8 @@ class ImportPolicyMedAdd(object):
                            'bgp-actions': {'set-med': '+100'}}}
 
         policy = {'name': 'policy0',
-                  'type': 'import',
                   'statements': [st0]}
-        g1.add_policy(policy, q2)
+        g1.add_policy(policy, q2, 'import')
 
         e1.add_route('192.168.100.0/24', med=300)
 
@@ -2100,9 +2070,8 @@ class ImportPolicyMedSub(object):
                            'bgp-actions': {'set-med': '-100'}}}
 
         policy = {'name': 'policy0',
-                  'type': 'import',
                   'statements': [st0]}
-        g1.add_policy(policy, q2)
+        g1.add_policy(policy, q2, 'import')
 
         e1.add_route('192.168.100.0/24', med=300)
 
@@ -2162,9 +2131,8 @@ class ExportPolicyMedReplace(object):
                            'bgp-actions': {'set-med': '100'}}}
 
         policy = {'name': 'policy0',
-                  'type': 'export',
                   'statements': [st0]}
-        g1.add_policy(policy, q2)
+        g1.add_policy(policy, q2, 'export')
 
         e1.add_route('192.168.100.0/24', med=300)
 
@@ -2224,9 +2192,8 @@ class ExportPolicyMedAdd(object):
                            'bgp-actions': {'set-med': '+100'}}}
 
         policy = {'name': 'policy0',
-                  'type': 'export',
                   'statements': [st0]}
-        g1.add_policy(policy, q2)
+        g1.add_policy(policy, q2, 'export')
 
         e1.add_route('192.168.100.0/24', med=300)
 
@@ -2286,9 +2253,8 @@ class ExportPolicyMedSub(object):
                            'bgp-actions': {'set-med': '-100'}}}
 
         policy = {'name': 'policy0',
-                  'type': 'export',
                   'statements': [st0]}
-        g1.add_policy(policy, q2)
+        g1.add_policy(policy, q2, 'export')
 
         e1.add_route('192.168.100.0/24', med=300)
 
@@ -2351,9 +2317,8 @@ class InPolicyReject(object):
                'actions': {'route-disposition': {'accept-route': False}}}
 
         policy = {'name': 'policy0',
-                  'type': 'in',
                   'statements': [st0]}
-        g1.add_policy(policy, e1)
+        g1.add_policy(policy, e1, 'in')
 
         e1.add_route('192.168.100.0/24', community=['65100:10'])
         e1.add_route('192.168.10.0/24')
@@ -2411,10 +2376,8 @@ class InPolicyAccept(object):
                'actions':{'route-disposition': {'accept-route': True}}}
 
         policy = {'name': 'policy0',
-                  'type': 'in',
-                  'statements': [st0],
-                  'default': 'reject'}
-        g1.add_policy(policy, e1)
+                  'statements': [st0]}
+        g1.add_policy(policy, e1, 'in', 'reject')
 
         e1.add_route('192.168.100.0/24', community=['65100:10'])
         e1.add_route('192.168.10.0/24')
@@ -2488,9 +2451,8 @@ class InPolicyUpdate(object):
                'actions': {'route-disposition': {'accept-route': False}}}
 
         policy = {'name': 'policy0',
-                  'type': 'in',
                   'statements': [st0]}
-        g1.add_policy(policy, e1)
+        g1.add_policy(policy, e1, 'in')
 
         e1.add_route('192.168.2.0/24')
         e1.add_route('192.168.20.0/24')
@@ -2537,9 +2499,8 @@ class InPolicyUpdate(object):
                'actions': {'route-disposition': {'accept-route': False}}}
 
         policy = {'name': 'policy0',
-                  'type': 'in',
                   'statements': [st0]}
-        g1.add_policy(policy, e1)
+        g1.add_policy(policy, e1, 'in')
         g1.softreset(e1)
 
     @staticmethod
@@ -2599,9 +2560,8 @@ class ExportPolicyAsPathPrepend(object):
                            'bgp-actions': {'set-as-path-prepend': {'repeat-n': 5, 'as': "65005"}}}}
 
         policy = {'name': 'policy0',
-                  'type': 'export',
                   'statements': [st0]}
-        g1.add_policy(policy, q2)
+        g1.add_policy(policy, q2, 'export')
 
         e1.add_route('192.168.20.0/24')
         e1.add_route('192.168.200.0/24')
@@ -2687,9 +2647,8 @@ class ImportPolicyAsPathPrependLastAS(object):
                            'bgp-actions': {'set-as-path-prepend': {'repeat-n': 5, 'as': "last-as"}}}}
 
         policy = {'name': 'policy0',
-                  'type': 'import',
                   'statements': [st0]}
-        g1.add_policy(policy, q2)
+        g1.add_policy(policy, q2, 'import')
 
         e1.add_route('192.168.20.0/24')
         e1.add_route('192.168.200.0/24')
@@ -2765,9 +2724,8 @@ class ExportPolicyAsPathPrependLastAS(object):
                            'bgp-actions': {'set-as-path-prepend': {'repeat-n': 5, 'as': "last-as"}}}}
 
         policy = {'name': 'policy0',
-                  'type': 'export',
                   'statements': [st0]}
-        g1.add_policy(policy, q2)
+        g1.add_policy(policy, q2, 'export')
 
         e1.add_route('192.168.20.0/24')
         e1.add_route('192.168.200.0/24')
@@ -2840,9 +2798,8 @@ class ImportPolicyExCommunityOriginCondition(object):
                'actions': {'route-disposition': {'accept-route': False}}}
 
         policy = {'name': 'policy0',
-                  'type': 'import',
                   'statements': [st0]}
-        g1.add_policy(policy, q2)
+        g1.add_policy(policy, q2, 'import')
 
         e1.add_route('192.168.20.0/24', extendedcommunity='origin:{0}:200'.format((65001 << 16) + 65100))
         e1.add_route('192.168.200.0/24', extendedcommunity='origin:{0}:100'.format((65001 << 16) + 65200))
@@ -2892,9 +2849,8 @@ class ImportPolicyExCommunityTargetCondition(object):
                'actions': {'route-disposition': {'accept-route': False}}}
 
         policy = {'name': 'policy0',
-                  'type': 'import',
                   'statements': [st0]}
-        g1.add_policy(policy, q2)
+        g1.add_policy(policy, q2, 'import')
 
         e1.add_route('192.168.20.0/24', extendedcommunity='target:65010:320')
         e1.add_route('192.168.200.0/24', extendedcommunity='target:55000:320')
@@ -2946,9 +2902,8 @@ class InPolicyPrefixCondition(object):
                'actions': {'route-disposition': {'accept-route': False}}}
 
         policy = {'name': 'policy0',
-                  'type': 'in',
                   'statements': [st0]}
-        g1.add_policy(policy, e1)
+        g1.add_policy(policy, e1, 'in')
 
         # this will be blocked
         e1.add_route('192.168.100.0/24')
@@ -3029,9 +2984,8 @@ class ImportPolicyExCommunityAdd(object):
             }
 
         policy = {'name': 'policy0',
-                  'type': 'import',
                   'statements': [st0]}
-        g1.add_policy(policy, q2)
+        g1.add_policy(policy, q2, 'import')
 
         e1.add_route('192.168.10.0/24')
 
@@ -3110,9 +3064,8 @@ class ImportPolicyExCommunityAdd2(object):
             }
 
         policy = {'name': 'policy0',
-                  'type': 'import',
                   'statements': [st0]}
-        g1.add_policy(policy, q2)
+        g1.add_policy(policy, q2, 'import')
 
         e1.add_route('192.168.10.0/24', extendedcommunity='target:65000:1')
 
@@ -3196,9 +3149,8 @@ class ImportPolicyExCommunityMultipleAdd(object):
             }
 
         policy = {'name': 'policy0',
-                  'type': 'import',
                   'statements': [st0]}
-        g1.add_policy(policy, q2)
+        g1.add_policy(policy, q2, 'import')
 
         e1.add_route('192.168.10.0/24')
 
@@ -3282,9 +3234,8 @@ class ExportPolicyExCommunityAdd(object):
             }
 
         policy = {'name': 'policy0',
-                  'type': 'export',
                   'statements': [st0]}
-        g1.add_policy(policy, q2)
+        g1.add_policy(policy, q2, 'export')
 
         e1.add_route('192.168.10.0/24')
 
@@ -3370,9 +3321,8 @@ class InPolicyUpdate2(object):
                'actions': {'route-disposition': {'accept-route': False}}}
 
         policy = {'name': 'policy0',
-                  'type': 'in',
                   'statements': [st0]}
-        g1.add_policy(policy, e1)
+        g1.add_policy(policy, e1, 'in')
 
         e1.add_route('192.168.2.0/24')
         e1.add_route('192.168.20.0/24')
@@ -3420,9 +3370,8 @@ class InPolicyUpdate2(object):
                'actions': {'route-disposition': {'accept-route': False}}}
 
         policy = {'name': 'policy0',
-                  'type': 'in',
                   'statements': [st0]}
-        g1.add_policy(policy, e1)
+        g1.add_policy(policy, e1, 'in')
         g1.softreset(e1)
 
     @staticmethod

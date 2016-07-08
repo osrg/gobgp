@@ -16,7 +16,8 @@
 from fabric.api import local, lcd
 from fabric import colors
 from fabric.utils import indent
-from fabric.state import env
+from fabric.state import env, output
+from docker import Client
 
 import netaddr
 import os
@@ -38,10 +39,13 @@ BGP_ATTR_TYPE_NEXT_HOP = 3
 BGP_ATTR_TYPE_MULTI_EXIT_DISC = 4
 BGP_ATTR_TYPE_LOCAL_PREF = 5
 BGP_ATTR_TYPE_COMMUNITIES = 8
+BGP_ATTR_TYPE_ORIGINATOR_ID = 9
+BGP_ATTR_TYPE_CLUSTER_LIST = 10
 BGP_ATTR_TYPE_MP_REACH_NLRI = 14
 BGP_ATTR_TYPE_EXTENDED_COMMUNITIES = 16
 
 env.abort_exception = RuntimeError
+output.stderr = False
 
 def try_several_times(f, t=3, s=1):
     e = None
@@ -151,6 +155,7 @@ class Container(object):
         self.image = image
         self.shared_volumes = []
         self.ip_addrs = []
+        self.ip6_addrs = []
         self.is_running = False
         self.eths = []
 
@@ -180,6 +185,9 @@ class Container(object):
             if line.strip().startswith("inet "):
                 elems = [e.strip() for e in line.strip().split(' ')]
                 self.ip_addrs.append(('eth0', elems[1], 'docker0'))
+            elif line.strip().startswith("inet6 "):
+                elems = [e.strip() for e in line.strip().split(' ')]
+                self.ip6_addrs.append(('eth0', elems[1], 'docker0'))
         return 0
 
     def stop(self):
@@ -207,10 +215,14 @@ class Container(object):
         self.ip_addrs.append((intf_name, ip_addr, bridge.name))
         try_several_times(lambda :local(str(c)))
 
-    def local(self, cmd, capture=False, flag=''):
-        return local("docker exec {0} {1} {2}".format(flag,
-                                                      self.docker_name(),
-                                                      cmd), capture)
+    def local(self, cmd, capture=False, stream=False, detach=False):
+        if stream:
+            dckr = Client(timeout=120, version='auto')
+            i = dckr.exec_create(container=self.docker_name(), cmd=cmd)
+            return dckr.exec_start(i['Id'], tty=True, stream=stream, detach=detach)
+        else:
+            flag = '-d' if detach else ''
+            return local('docker exec {0} {1} {2}'.format(flag, self.docker_name(), cmd), capture)
 
     def get_pid(self):
         if self.is_running:
@@ -218,6 +230,12 @@ class Container(object):
             return int(local(cmd, capture=True))
         return -1
 
+    def start_tcpdump(self, interface=None, filename=None):
+        if not interface:
+            interface = "eth0"
+        if not filename:
+            filename = "{0}/{1}.dump".format(self.shared_volumes[0][1], interface)
+        self.local("tcpdump -i {0} -w {1}".format(interface, filename), detach=True)
 
 class BGPContainer(Container):
 
@@ -244,18 +262,27 @@ class BGPContainer(Container):
         super(BGPContainer, self).run()
         return self.WAIT_FOR_BOOT
 
-    def add_peer(self, peer, passwd=None, evpn=False, is_rs_client=False,
+    def add_peer(self, peer, passwd=None, vpn=False, is_rs_client=False,
                  policies=None, passive=False,
                  is_rr_client=False, cluster_id=None,
-                 flowspec=False, bridge='', reload_config=True, as2=False):
+                 flowspec=False, bridge='', reload_config=True, as2=False,
+                 graceful_restart=None, local_as=None, prefix_limit=None,
+                 v6=False):
         neigh_addr = ''
         local_addr = ''
-        for me, you in itertools.product(self.ip_addrs, peer.ip_addrs):
+        it = itertools.product(self.ip_addrs, peer.ip_addrs)
+        if v6:
+            it = itertools.product(self.ip6_addrs, peer.ip6_addrs)
+
+        for me, you in it:
             if bridge != '' and bridge != me[2]:
                 continue
             if me[2] == you[2]:
                 neigh_addr = you[1]
                 local_addr = me[1]
+                if v6:
+                    addr, mask = local_addr.split('/')
+                    local_addr = "{0}%{1}/{2}".format(addr, me[0], mask)
                 break
 
         if neigh_addr == '':
@@ -266,7 +293,7 @@ class BGPContainer(Container):
 
         self.peers[peer] = {'neigh_addr': neigh_addr,
                             'passwd': passwd,
-                            'evpn': evpn,
+                            'vpn': vpn,
                             'flowspec': flowspec,
                             'is_rs_client': is_rs_client,
                             'is_rr_client': is_rr_client,
@@ -274,7 +301,10 @@ class BGPContainer(Container):
                             'policies': policies,
                             'passive': passive,
                             'local_addr': local_addr,
-                            'as2': as2}
+                            'as2': as2,
+                            'graceful_restart': graceful_restart,
+                            'local_as': local_as,
+                            'prefix_limit': prefix_limit}
         if self.is_running and reload_config:
             self.create_config()
             self.reload_config()
@@ -313,13 +343,32 @@ class BGPContainer(Container):
             self.create_config()
             self.reload_config()
 
-    def add_policy(self, policy, peer=None, reload_config=True):
-        self.policies[policy['name']] = policy
-        if peer in self.peers:
-            self.peers[peer]['policies'][policy['name']] = policy
+    def add_policy(self, policy, peer, typ, default='accept', reload_config=True):
+        self.set_default_policy(peer, typ, default)
+        self.define_policy(policy)
+        self.assign_policy(peer, policy, typ)
         if self.is_running and reload_config:
             self.create_config()
             self.reload_config()
+
+    def set_default_policy(self, peer, typ, default):
+        if typ in ['in', 'out', 'import', 'export'] and default in ['reject', 'accept']:
+            if 'default-policy' not in self.peers[peer]:
+                self.peers[peer]['default-policy'] = {}
+            self.peers[peer]['default-policy'][typ] = default
+        else:
+            raise Exception('wrong type or default')
+
+    def define_policy(self, policy):
+        self.policies[policy['name']] = policy
+
+    def assign_policy(self, peer, policy, typ):
+        if peer not in self.peers:
+            raise Exception('peer {0} not found'.format(peer.name))
+        name = policy['name']
+        if name not in self.policies:
+            raise Exception('policy {0} not found'.format(name))
+        self.peers[peer]['policies'][typ] = policy
 
     def get_local_rib(self, peer, rf):
         raise Exception('implement get_local_rib() method')

@@ -20,7 +20,7 @@ import (
 	"encoding/json"
 	"fmt"
 	log "github.com/Sirupsen/logrus"
-	"github.com/osrg/gobgp/packet"
+	"github.com/osrg/gobgp/packet/bmp"
 	"net"
 	"os"
 	"strconv"
@@ -29,10 +29,10 @@ import (
 func connLoop(conn *net.TCPConn) {
 	addr := conn.RemoteAddr()
 	scanner := bufio.NewScanner(bufio.NewReader(conn))
-	scanner.Split(bgp.SplitBMP)
+	scanner.Split(bmp.SplitBMP)
 
 	for scanner.Scan() {
-		msg, err := bgp.ParseBMPMessage(scanner.Bytes())
+		msg, err := bmp.ParseBMPMessage(scanner.Bytes())
 		if err != nil {
 			log.Info(err)
 			continue
@@ -44,7 +44,7 @@ func connLoop(conn *net.TCPConn) {
 }
 
 func main() {
-	service := ":" + strconv.Itoa(bgp.BMP_DEFAULT_PORT)
+	service := ":" + strconv.Itoa(bmp.BMP_DEFAULT_PORT)
 	addr, _ := net.ResolveTCPAddr("tcp", service)
 
 	l, err := net.ListenTCP("tcp", addr)

@@ -2,12 +2,11 @@
 package table
 
 import (
-	//"fmt"
 	"fmt"
 	"testing"
 	"time"
 
-	"github.com/osrg/gobgp/packet"
+	"github.com/osrg/gobgp/packet/bgp"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -17,6 +16,7 @@ func TestPathNewIPv4(t *testing.T) {
 	ipv4p := NewPath(pathP[0].GetSource(), pathP[0].GetNlri(), true, pathP[0].GetPathAttrs(), time.Now(), false)
 	assert.NotNil(t, ipv4p)
 }
+
 func TestPathNewIPv6(t *testing.T) {
 	peerP := PathCreatePeer()
 	pathP := PathCreatePath(peerP)
@@ -54,6 +54,7 @@ func TestPathGetPrefix(t *testing.T) {
 	r_prefix := pathP[0].getPrefix()
 	assert.Equal(t, r_prefix, prefix)
 }
+
 func TestPathGetAttribute(t *testing.T) {
 	peerP := PathCreatePeer()
 	pathP := PathCreatePath(peerP)
@@ -240,6 +241,16 @@ func TestPathPrependAsnToFullPathAttr(t *testing.T) {
 	fmt.Printf("asns: %v", p.GetAsSeqList())
 }
 
+func TestGetPathAttrs(t *testing.T) {
+	paths := PathCreatePath(PathCreatePeer())
+	path0 := paths[0]
+	path1 := path0.Clone(false)
+	path1.delPathAttr(bgp.BGP_ATTR_TYPE_NEXT_HOP)
+	path2 := path1.Clone(false)
+	path2.setPathAttr(bgp.NewPathAttributeNextHop("192.168.50.1"))
+	assert.NotNil(t, path2.getPathAttr(bgp.BGP_ATTR_TYPE_NEXT_HOP))
+}
+
 func PathCreatePeer() []*PeerInfo {
 	peerP1 := &PeerInfo{AS: 65000}
 	peerP2 := &PeerInfo{AS: 65001}
@@ -300,6 +311,7 @@ func updateMsgP2() *bgp.BGPMessage {
 	nlri := []*bgp.IPAddrPrefix{bgp.NewIPAddrPrefix(24, "20.20.20.0")}
 	return bgp.NewBGPUpdateMessage(nil, pathAttributes, nlri)
 }
+
 func updateMsgP3() *bgp.BGPMessage {
 	origin := bgp.NewPathAttributeOrigin(0)
 	aspathParam := []bgp.AsPathParamInterface{bgp.NewAsPathParam(2, []uint16{65100})}

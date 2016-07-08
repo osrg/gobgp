@@ -19,7 +19,8 @@ import (
 	"fmt"
 	log "github.com/Sirupsen/logrus"
 	"github.com/osrg/gobgp/config"
-	"github.com/osrg/gobgp/packet"
+	"github.com/osrg/gobgp/packet/bgp"
+	"github.com/osrg/gobgp/packet/bmp"
 	"github.com/osrg/gobgp/table"
 	"gopkg.in/tomb.v2"
 	"net"
@@ -121,7 +122,7 @@ func (w *bmpWatcher) loop() error {
 				log.Warnf("Can't find bmp server %s", newConn.RemoteAddr().String())
 				break
 			}
-			i := bgp.NewBMPInitiation([]bgp.BMPTLV{})
+			i := bmp.NewBMPInitiation([]bmp.BMPTLV{})
 			buf, _ := i.Serialize()
 			if _, err := newConn.Write(buf); err != nil {
 				log.Warnf("failed to write to bmp server %s", server.host)
@@ -135,7 +136,7 @@ func (w *bmpWatcher) loop() error {
 			w.apiCh <- req
 			write := func(req *GrpcRequest) error {
 				for res := range req.ResponseCh {
-					for _, msg := range res.Data.([]*bgp.BMPMessage) {
+					for _, msg := range res.Data.([]*bmp.BMPMessage) {
 						buf, _ = msg.Serialize()
 						if _, err := newConn.Write(buf); err != nil {
 							log.Warnf("failed to write to bmp server %s %s", server.host, err)
@@ -178,7 +179,7 @@ func (w *bmpWatcher) loop() error {
 					AS:      msg.peerAS,
 					ID:      msg.peerID,
 				}
-				buf, _ := bmpPeerRoute(bgp.BMP_PEER_TYPE_GLOBAL, msg.postPolicy, 0, info, msg.timestamp.Unix(), msg.payload).Serialize()
+				buf, _ := bmpPeerRoute(bmp.BMP_PEER_TYPE_GLOBAL, msg.postPolicy, 0, info, msg.timestamp.Unix(), msg.payload).Serialize()
 				for _, server := range w.connMap {
 					if server.conn != nil {
 						send := server.typ != config.BMP_ROUTE_MONITORING_POLICY_TYPE_POST_POLICY && !msg.postPolicy
@@ -192,16 +193,16 @@ func (w *bmpWatcher) loop() error {
 					}
 				}
 			case *watcherEventStateChangedMsg:
-				var bmpmsg *bgp.BMPMessage
+				var bmpmsg *bmp.BMPMessage
 				info := &table.PeerInfo{
 					Address: msg.peerAddress,
 					AS:      msg.peerAS,
 					ID:      msg.peerID,
 				}
 				if msg.state == bgp.BGP_FSM_ESTABLISHED {
-					bmpmsg = bmpPeerUp(msg.localAddress.String(), msg.localPort, msg.peerPort, msg.sentOpen, msg.recvOpen, bgp.BMP_PEER_TYPE_GLOBAL, false, 0, info, msg.timestamp.Unix())
+					bmpmsg = bmpPeerUp(msg.localAddress.String(), msg.localPort, msg.peerPort, msg.sentOpen, msg.recvOpen, bmp.BMP_PEER_TYPE_GLOBAL, false, 0, info, msg.timestamp.Unix())
 				} else {
-					bmpmsg = bmpPeerDown(bgp.BMP_PEER_DOWN_REASON_UNKNOWN, bgp.BMP_PEER_TYPE_GLOBAL, false, 0, info, msg.timestamp.Unix())
+					bmpmsg = bmpPeerDown(bmp.BMP_PEER_DOWN_REASON_UNKNOWN, bmp.BMP_PEER_TYPE_GLOBAL, false, 0, info, msg.timestamp.Unix())
 				}
 				buf, _ := bmpmsg.Serialize()
 				for _, server := range w.connMap {
@@ -226,24 +227,20 @@ func (w *bmpWatcher) loop() error {
 	}
 }
 
-func (w *bmpWatcher) restart(string) error {
-	return nil
+func bmpPeerUp(laddr string, lport, rport uint16, sent, recv *bgp.BGPMessage, t uint8, policy bool, pd uint64, peeri *table.PeerInfo, timestamp int64) *bmp.BMPMessage {
+	ph := bmp.NewBMPPeerHeader(t, policy, pd, peeri.Address.String(), peeri.AS, peeri.ID.String(), float64(timestamp))
+	return bmp.NewBMPPeerUpNotification(*ph, laddr, lport, rport, sent, recv)
 }
 
-func bmpPeerUp(laddr string, lport, rport uint16, sent, recv *bgp.BGPMessage, t uint8, policy bool, pd uint64, peeri *table.PeerInfo, timestamp int64) *bgp.BMPMessage {
-	ph := bgp.NewBMPPeerHeader(t, policy, pd, peeri.Address.String(), peeri.AS, peeri.ID.String(), float64(timestamp))
-	return bgp.NewBMPPeerUpNotification(*ph, laddr, lport, rport, sent, recv)
+func bmpPeerDown(reason uint8, t uint8, policy bool, pd uint64, peeri *table.PeerInfo, timestamp int64) *bmp.BMPMessage {
+	ph := bmp.NewBMPPeerHeader(t, policy, pd, peeri.Address.String(), peeri.AS, peeri.ID.String(), float64(timestamp))
+	return bmp.NewBMPPeerDownNotification(*ph, reason, nil, []byte{})
 }
 
-func bmpPeerDown(reason uint8, t uint8, policy bool, pd uint64, peeri *table.PeerInfo, timestamp int64) *bgp.BMPMessage {
-	ph := bgp.NewBMPPeerHeader(t, policy, pd, peeri.Address.String(), peeri.AS, peeri.ID.String(), float64(timestamp))
-	return bgp.NewBMPPeerDownNotification(*ph, reason, nil, []byte{})
-}
-
-func bmpPeerRoute(t uint8, policy bool, pd uint64, peeri *table.PeerInfo, timestamp int64, payload []byte) *bgp.BMPMessage {
-	ph := bgp.NewBMPPeerHeader(t, policy, pd, peeri.Address.String(), peeri.AS, peeri.ID.String(), float64(timestamp))
-	m := bgp.NewBMPRouteMonitoring(*ph, nil)
-	body := m.Body.(*bgp.BMPRouteMonitoring)
+func bmpPeerRoute(t uint8, policy bool, pd uint64, peeri *table.PeerInfo, timestamp int64, payload []byte) *bmp.BMPMessage {
+	ph := bmp.NewBMPPeerHeader(t, policy, pd, peeri.Address.String(), peeri.AS, peeri.ID.String(), float64(timestamp))
+	m := bmp.NewBMPRouteMonitoring(*ph, nil)
+	body := m.Body.(*bmp.BMPRouteMonitoring)
 	body.BGPUpdatePayload = payload
 	return m
 }

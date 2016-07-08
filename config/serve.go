@@ -3,56 +3,61 @@ package config
 import (
 	log "github.com/Sirupsen/logrus"
 	"github.com/spf13/viper"
-	"reflect"
+	"os"
+	"os/signal"
+	"syscall"
 )
 
 type BgpConfigSet struct {
-	Bgp    Bgp
-	Policy RoutingPolicy
+	Global            Global             `mapstructure:"global"`
+	Neighbors         []Neighbor         `mapstructure:"neighbors"`
+	PeerGroups        []PeerGroup        `mapstructure:"peer-groups"`
+	RpkiServers       []RpkiServer       `mapstructure:"rpki-servers"`
+	BmpServers        []BmpServer        `mapstructure:"bmp-servers"`
+	MrtDump           []Mrt              `mapstructure:"mrt-dump"`
+	Zebra             Zebra              `mapstructure:"zebra"`
+	Collector         Collector          `mapstructure:"collector"`
+	DefinedSets       DefinedSets        `mapstructure:"defined-sets"`
+	PolicyDefinitions []PolicyDefinition `mapstructure:"policy-definitions"`
 }
 
-func ReadConfigfileServe(path, format string, configCh chan BgpConfigSet, reloadCh chan bool) {
+func ReadConfigfileServe(path, format string, configCh chan *BgpConfigSet) {
+	sigCh := make(chan os.Signal, 1)
+	signal.Notify(sigCh, syscall.SIGHUP)
+
 	cnt := 0
 	for {
-		<-reloadCh
-
-		b := Bgp{}
-		p := RoutingPolicy{}
+		c := &BgpConfigSet{}
 		v := viper.New()
 		v.SetConfigFile(path)
 		v.SetConfigType(format)
-		err := v.ReadInConfig()
-		if err != nil {
+		var err error
+		if err = v.ReadInConfig(); err != nil {
 			goto ERROR
 		}
-		err = v.Unmarshal(&b)
-		if err != nil {
+		if err = v.UnmarshalExact(c); err != nil {
 			goto ERROR
 		}
-		err = SetDefaultConfigValues(v, &b)
-		if err != nil {
+		if err = SetDefaultConfigValues(v, c); err != nil {
 			goto ERROR
 		}
-		err = v.Unmarshal(&p)
-		if err != nil {
-			goto ERROR
-		}
-
 		if cnt == 0 {
 			log.Info("finished reading the config file")
 		}
 		cnt++
-		configCh <- BgpConfigSet{Bgp: b, Policy: p}
-		continue
-
+		configCh <- c
+		goto NEXT
 	ERROR:
 		if cnt == 0 {
 			log.Fatal("can't read config file ", path, ", ", err)
 		} else {
 			log.Warning("can't read config file ", path, ", ", err)
-			continue
 		}
-
+	NEXT:
+		select {
+		case <-sigCh:
+			log.Info("reload the config file")
+		}
 	}
 }
 
@@ -65,15 +70,15 @@ func inSlice(n Neighbor, b []Neighbor) int {
 	return -1
 }
 
-func UpdateConfig(curC *Bgp, newC *Bgp) (*Bgp, []Neighbor, []Neighbor, []Neighbor) {
-	bgpConfig := Bgp{}
-	if curC == nil {
-		bgpConfig.Global = newC.Global
-		curC = &bgpConfig
-	} else {
-		// can't update the global config
-		bgpConfig.Global = curC.Global
+func ConfigSetToRoutingPolicy(c *BgpConfigSet) *RoutingPolicy {
+	return &RoutingPolicy{
+		DefinedSets:       c.DefinedSets,
+		PolicyDefinitions: c.PolicyDefinitions,
 	}
+}
+
+func UpdateConfig(curC, newC *BgpConfigSet) ([]Neighbor, []Neighbor, []Neighbor, bool) {
+
 	added := []Neighbor{}
 	deleted := []Neighbor{}
 	updated := []Neighbor{}
@@ -81,10 +86,10 @@ func UpdateConfig(curC *Bgp, newC *Bgp) (*Bgp, []Neighbor, []Neighbor, []Neighbo
 	for _, n := range newC.Neighbors {
 		if idx := inSlice(n, curC.Neighbors); idx < 0 {
 			added = append(added, n)
-		} else {
-			if !reflect.DeepEqual(n.ApplyPolicy, curC.Neighbors[idx].ApplyPolicy) {
-				updated = append(updated, n)
-			}
+		} else if !n.Equal(&curC.Neighbors[idx]) {
+			log.Debug("current neighbor config:", curC.Neighbors[idx])
+			log.Debug("new neighbor config:", n)
+			updated = append(updated, n)
 		}
 	}
 
@@ -94,8 +99,7 @@ func UpdateConfig(curC *Bgp, newC *Bgp) (*Bgp, []Neighbor, []Neighbor, []Neighbo
 		}
 	}
 
-	bgpConfig.Neighbors = newC.Neighbors
-	return &bgpConfig, added, deleted, updated
+	return added, deleted, updated, CheckPolicyDifference(ConfigSetToRoutingPolicy(curC), ConfigSetToRoutingPolicy(newC))
 }
 
 func CheckPolicyDifference(currentPolicy *RoutingPolicy, newPolicy *RoutingPolicy) bool {
@@ -109,8 +113,7 @@ func CheckPolicyDifference(currentPolicy *RoutingPolicy, newPolicy *RoutingPolic
 		result = false
 	} else {
 		if currentPolicy != nil && newPolicy != nil {
-			// TODO: reconsider the way of policy object comparison
-			result = !reflect.DeepEqual(*currentPolicy, *newPolicy)
+			result = !currentPolicy.Equal(newPolicy)
 		} else {
 			result = true
 		}

@@ -19,6 +19,7 @@ import (
 	log "github.com/Sirupsen/logrus"
 	"github.com/Sirupsen/logrus/hooks/syslog"
 	"github.com/jessevdk/go-flags"
+	p "github.com/kr/pretty"
 	"github.com/osrg/gobgp/config"
 	ops "github.com/osrg/gobgp/openswitch"
 	"github.com/osrg/gobgp/server"
@@ -29,25 +30,30 @@ import (
 	"os"
 	"os/signal"
 	"runtime"
+	"runtime/debug"
 	"strings"
 	"syscall"
 )
 
 func main() {
 	sigCh := make(chan os.Signal, 1)
-	signal.Notify(sigCh, syscall.SIGHUP, syscall.SIGTERM)
+	signal.Notify(sigCh, syscall.SIGTERM, syscall.SIGUSR1)
 
 	var opts struct {
-		ConfigFile    string `short:"f" long:"config-file" description:"specifying a config file"`
-		ConfigType    string `short:"t" long:"config-type" description:"specifying config type (toml, yaml, json)" default:"toml"`
-		LogLevel      string `short:"l" long:"log-level" description:"specifying log level"`
-		LogPlain      bool   `short:"p" long:"log-plain" description:"use plain format for logging (json by default)"`
-		UseSyslog     string `short:"s" long:"syslog" description:"use syslogd"`
-		Facility      string `long:"syslog-facility" description:"specify syslog facility"`
-		DisableStdlog bool   `long:"disable-stdlog" description:"disable standard logging"`
-		CPUs          int    `long:"cpus" description:"specify the number of CPUs to be used"`
-		Ops           bool   `long:"openswitch" description:"openswitch mode"`
-		GrpcPort      int    `long:"grpc-port" description:"grpc port" default:"50051"`
+		ConfigFile      string `short:"f" long:"config-file" description:"specifying a config file"`
+		ConfigType      string `short:"t" long:"config-type" description:"specifying config type (toml, yaml, json)" default:"toml"`
+		LogLevel        string `short:"l" long:"log-level" description:"specifying log level"`
+		LogPlain        bool   `short:"p" long:"log-plain" description:"use plain format for logging (json by default)"`
+		UseSyslog       string `short:"s" long:"syslog" description:"use syslogd"`
+		Facility        string `long:"syslog-facility" description:"specify syslog facility"`
+		DisableStdlog   bool   `long:"disable-stdlog" description:"disable standard logging"`
+		CPUs            int    `long:"cpus" description:"specify the number of CPUs to be used"`
+		Ops             bool   `long:"openswitch" description:"openswitch mode"`
+		GrpcHosts       string `long:"api-hosts" description:"specify the hosts that gobgpd listens on" default:":50051"`
+		GracefulRestart bool   `short:"r" long:"graceful-restart" description:"flag restart-state in graceful-restart capability"`
+		Dry             bool   `short:"d" long:"dry-run" description:"check configuration"`
+		PProfHost       string `long:"pprof-host" description:"specify the host that gobgpd listens on for pprof" default:"localhost:6060"`
+		PProfDisable    bool   `long:"pprof-disable" description:"disable pprof profiling"`
 	}
 	_, err := flags.Parse(&opts)
 	if err != nil {
@@ -64,9 +70,11 @@ func main() {
 		runtime.GOMAXPROCS(opts.CPUs)
 	}
 
-	go func() {
-		log.Println(http.ListenAndServe("localhost:6060", nil))
-	}()
+	if !opts.PProfDisable {
+		go func() {
+			log.Println(http.ListenAndServe(opts.PProfHost, nil))
+		}()
+	}
 
 	switch opts.LogLevel {
 	case "debug":
@@ -145,72 +153,99 @@ func main() {
 		}
 	}
 
-	if opts.LogPlain == false {
+	if opts.LogPlain {
+		if opts.DisableStdlog {
+			log.SetFormatter(&log.TextFormatter{
+				DisableColors: true,
+			})
+		}
+	} else {
 		log.SetFormatter(&log.JSONFormatter{})
 	}
 
-	log.Info("gobgpd started")
-
-	configCh := make(chan config.BgpConfigSet)
-	reloadCh := make(chan bool)
-	bgpServer := server.NewBgpServer()
-	if opts.Ops {
-		m, err := ops.NewOpsConfigManager(bgpServer.GrpcReqCh)
-		if err != nil {
-			log.Errorf("Failed to start ops config manager: %s", err)
-			os.Exit(1)
+	configCh := make(chan *config.BgpConfigSet)
+	if opts.Dry {
+		go config.ReadConfigfileServe(opts.ConfigFile, opts.ConfigType, configCh)
+		c := <-configCh
+		if opts.LogLevel == "debug" {
+			p.Println(c)
 		}
-		go m.Serve()
-	} else if opts.ConfigFile != "" {
-		go config.ReadConfigfileServe(opts.ConfigFile, opts.ConfigType, configCh, reloadCh)
-		reloadCh <- true
+		os.Exit(0)
 	}
+
+	log.Info("gobgpd started")
+	bgpServer := server.NewBgpServer()
 	go bgpServer.Serve()
 
 	// start grpc Server
-	grpcServer := server.NewGrpcServer(opts.GrpcPort, bgpServer.GrpcReqCh)
+	grpcServer := server.NewGrpcServer(opts.GrpcHosts, bgpServer.GrpcReqCh)
 	go func() {
 		if err := grpcServer.Serve(); err != nil {
 			log.Fatalf("failed to listen grpc port: %s", err)
 		}
 	}()
 
-	var bgpConfig *config.Bgp = nil
-	var policyConfig *config.RoutingPolicy = nil
+	if opts.Ops {
+		m, err := ops.NewOpsManager(bgpServer.GrpcReqCh)
+		if err != nil {
+			log.Errorf("Failed to start ops config manager: %s", err)
+			os.Exit(1)
+		}
+		log.Info("Coordination with OpenSwitch")
+		m.Serve()
+	} else if opts.ConfigFile != "" {
+		go config.ReadConfigfileServe(opts.ConfigFile, opts.ConfigType, configCh)
+	}
+
+	var c *config.BgpConfigSet = nil
 	for {
 		select {
 		case newConfig := <-configCh:
 			var added, deleted, updated []config.Neighbor
+			var updatePolicy bool
 
-			if bgpConfig == nil {
-				bgpServer.SetGlobalType(newConfig.Bgp.Global)
-				bgpConfig = &newConfig.Bgp
-				bgpServer.SetRpkiConfig(newConfig.Bgp.RpkiServers)
-				added = newConfig.Bgp.Neighbors
-				deleted = []config.Neighbor{}
-				updated = []config.Neighbor{}
-			} else {
-				bgpConfig, added, deleted, updated = config.UpdateConfig(bgpConfig, &newConfig.Bgp)
-			}
-
-			if policyConfig == nil {
-				policyConfig = &newConfig.Policy
-				// FIXME: Currently the following code
-				// is safe because the above
-				// SetRpkiConfig will be blocked
-				// because the length of rpkiConfigCh
-				// is zero. So server.GlobalRib is
-				// allocated before the above
-				// SetPolicy. But this should be
-				// handled more cleanly.
-				if err := bgpServer.SetRoutingPolicy(newConfig.Policy); err != nil {
-					log.Fatal(err)
+			if c == nil {
+				c = newConfig
+				if err := bgpServer.SetGlobalType(newConfig.Global); err != nil {
+					log.Fatalf("failed to set global config: %s", err)
 				}
+				if err := bgpServer.SetZebraConfig(newConfig.Zebra); err != nil {
+					log.Fatalf("failed to set zebra config: %s", err)
+				}
+				if err := bgpServer.SetCollector(newConfig.Collector); err != nil {
+					log.Fatalf("failed to set collector config: %s", err)
+				}
+				if err := bgpServer.SetRpkiConfig(newConfig.RpkiServers); err != nil {
+					log.Fatalf("failed to set rpki config: %s", err)
+				}
+				if err := bgpServer.SetBmpConfig(newConfig.BmpServers); err != nil {
+					log.Fatalf("failed to set bmp config: %s", err)
+				}
+				if err := bgpServer.SetMrtConfig(newConfig.MrtDump); err != nil {
+					log.Fatalf("failed to set mrt config: %s", err)
+				}
+				p := config.ConfigSetToRoutingPolicy(newConfig)
+				if err := bgpServer.SetRoutingPolicy(*p); err != nil {
+					log.Fatalf("failed to set routing policy: %s", err)
+				}
+
+				added = newConfig.Neighbors
+				if opts.GracefulRestart {
+					for i, n := range added {
+						if n.GracefulRestart.Config.Enabled {
+							added[i].GracefulRestart.State.LocalRestarting = true
+						}
+					}
+				}
+
 			} else {
-				if config.CheckPolicyDifference(policyConfig, &newConfig.Policy) {
+				added, deleted, updated, updatePolicy = config.UpdateConfig(c, newConfig)
+				if updatePolicy {
 					log.Info("Policy config is updated")
-					bgpServer.UpdatePolicy(newConfig.Policy)
+					p := config.ConfigSetToRoutingPolicy(newConfig)
+					bgpServer.UpdatePolicy(*p)
 				}
+				c = newConfig
 			}
 
 			for _, p := range added {
@@ -223,15 +258,33 @@ func main() {
 			}
 			for _, p := range updated {
 				log.Infof("Peer %v is updated", p.Config.NeighborAddress)
-				bgpServer.PeerUpdate(p)
+				u, _ := bgpServer.PeerUpdate(p)
+				updatePolicy = updatePolicy || u
+			}
+
+			if updatePolicy {
+				// TODO: we want to apply the new policies to the existing
+				// routes here. Sending SOFT_RESET_IN to all the peers works
+				// for the change of in and import policies. SOFT_RESET_OUT is
+				// necessary for the export policy but we can't blindly
+				// execute SOFT_RESET_OUT because we unnecessarily advertize
+				// the existing routes. Needs to investigate the changes of
+				// policies and handle only affected peers.
+				ch := make(chan *server.GrpcResponse)
+				bgpServer.GrpcReqCh <- &server.GrpcRequest{
+					RequestType: server.REQ_NEIGHBOR_SOFT_RESET_IN,
+					Name:        "all",
+					ResponseCh:  ch,
+				}
+				<-ch
 			}
 		case sig := <-sigCh:
 			switch sig {
-			case syscall.SIGHUP:
-				log.Info("reload the config file")
-				reloadCh <- true
 			case syscall.SIGKILL, syscall.SIGTERM:
 				bgpServer.Shutdown()
+			case syscall.SIGUSR1:
+				runtime.GC()
+				debug.FreeOSMemory()
 			}
 		}
 	}

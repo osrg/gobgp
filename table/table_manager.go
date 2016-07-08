@@ -19,7 +19,7 @@ import (
 	"bytes"
 	"fmt"
 	log "github.com/Sirupsen/logrus"
-	"github.com/osrg/gobgp/packet"
+	"github.com/osrg/gobgp/packet/bgp"
 	"net"
 	"time"
 )
@@ -105,6 +105,9 @@ func ProcessMessage(m *bgp.BGPMessage, peerInfo *PeerInfo, timestamp time.Time) 
 	pathList = append(pathList, withdraw2Path(m, peerInfo, timestamp)...)
 	pathList = append(pathList, mpreachNlri2Path(m, peerInfo, timestamp)...)
 	pathList = append(pathList, mpunreachNlri2Path(m, peerInfo, timestamp)...)
+	if y, f := m.Body.(*bgp.BGPUpdate).IsEndOfRib(); y {
+		pathList = append(pathList, NewEOR(f))
+	}
 	return pathList
 }
 
@@ -213,30 +216,55 @@ func (manager *TableManager) DeleteVrf(name string) ([]*Path, error) {
 	return msgs, nil
 }
 
-func (manager *TableManager) calculate(destinations []*Destination) {
-	for _, destination := range destinations {
+func (manager *TableManager) calculate(ids []string, destinations []*Destination) (map[string][]*Path, []*Path, [][]*Path) {
+	withdrawn := make([]*Path, 0, len(destinations))
+	best := make(map[string][]*Path, len(ids))
+
+	emptyDsts := make([]*Destination, 0, len(destinations))
+	var multi [][]*Path
+	if UseMultiplePaths.Enabled && len(ids) == 1 && ids[0] == GLOBAL_RIB_NAME {
+		multi = make([][]*Path, 0, len(destinations))
+	}
+
+	for _, dst := range destinations {
 		log.WithFields(log.Fields{
 			"Topic": "table",
-			"Key":   destination.GetNlri().String(),
+			"Key":   dst.GetNlri().String(),
 		}).Debug("Processing destination")
-		destination.Calculate()
+		paths, w, m := dst.Calculate(ids)
+		for id, path := range paths {
+			best[id] = append(best[id], path)
+		}
+		withdrawn = append(withdrawn, w...)
+		if m != nil {
+			multi = append(multi, m)
+		}
+
+		if len(dst.knownPathList) == 0 {
+			emptyDsts = append(emptyDsts, dst)
+		}
 	}
+
+	for _, dst := range emptyDsts {
+		t := manager.Tables[dst.Family()]
+		t.deleteDest(dst)
+	}
+	return best, withdrawn, multi
 }
 
-func (manager *TableManager) DeletePathsByPeer(info *PeerInfo, rf bgp.RouteFamily) []*Destination {
+func (manager *TableManager) DeletePathsByPeer(ids []string, info *PeerInfo, rf bgp.RouteFamily) (map[string][]*Path, []*Path, [][]*Path) {
 	if t, ok := manager.Tables[rf]; ok {
 		dsts := t.DeleteDestByPeer(info)
-		manager.calculate(dsts)
-		return dsts
+		return manager.calculate(ids, dsts)
 	}
-	return nil
+	return nil, nil, nil
 }
 
-func (manager *TableManager) ProcessPaths(pathList []*Path) []*Destination {
+func (manager *TableManager) ProcessPaths(ids []string, pathList []*Path) (map[string][]*Path, []*Path, [][]*Path) {
 	m := make(map[string]bool, len(pathList))
 	dsts := make([]*Destination, 0, len(pathList))
 	for _, path := range pathList {
-		if path == nil {
+		if path == nil || path.IsEOR() {
 			continue
 		}
 		rf := path.GetRouteFamily()
@@ -258,8 +286,7 @@ func (manager *TableManager) ProcessPaths(pathList []*Path) []*Destination {
 			}
 		}
 	}
-	manager.calculate(dsts)
-	return dsts
+	return manager.calculate(ids, dsts)
 }
 
 // EVPN MAC MOBILITY HANDLING
@@ -337,4 +364,16 @@ func (manager *TableManager) GetPathList(id string, rfList []bgp.RouteFamily) []
 		}
 	}
 	return paths
+}
+
+func (manager *TableManager) GetDestination(path *Path) *Destination {
+	if path == nil {
+		return nil
+	}
+	family := path.GetRouteFamily()
+	t, ok := manager.Tables[family]
+	if !ok {
+		return nil
+	}
+	return t.GetDestination(path.getPrefix())
 }

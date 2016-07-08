@@ -22,10 +22,13 @@ import (
 	log "github.com/Sirupsen/logrus"
 	api "github.com/osrg/gobgp/api"
 	"github.com/osrg/gobgp/config"
-	"github.com/osrg/gobgp/packet"
+	"github.com/osrg/gobgp/packet/bgp"
 	"net"
 	"sort"
 )
+
+var SelectionOptions config.RouteSelectionOptionsConfig
+var UseMultiplePaths config.UseMultiplePathsConfig
 
 type BestPathReason string
 
@@ -42,6 +45,7 @@ const (
 	BPR_ASN                BestPathReason = "ASN"
 	BPR_IGP_COST           BestPathReason = "IGP Cost"
 	BPR_ROUTER_ID          BestPathReason = "Router ID"
+	BPR_OLDER              BestPathReason = "Older"
 )
 
 func IpToRadixkey(b []byte, max uint8) string {
@@ -64,6 +68,7 @@ type PeerInfo struct {
 	LocalAS                 uint32
 	LocalID                 net.IP
 	Address                 net.IP
+	LocalAddress            net.IP
 	RouteReflectorClient    bool
 	RouteReflectorClusterID net.IP
 }
@@ -111,16 +116,12 @@ func NewPeerInfo(g *config.Global, p *config.Neighbor) *PeerInfo {
 }
 
 type Destination struct {
-	routeFamily           bgp.RouteFamily
-	nlri                  bgp.AddrPrefixInterface
-	oldKnownPathList      paths
-	knownPathList         paths
-	withdrawList          paths
-	newPathList           paths
-	WithdrawnList         paths
-	ImplicitWithdrawnList paths
-	UpdatedPathList       paths
-	RadixKey              string
+	routeFamily   bgp.RouteFamily
+	nlri          bgp.AddrPrefixInterface
+	knownPathList paths
+	withdrawList  paths
+	newPathList   paths
+	RadixKey      string
 }
 
 func NewDestination(nlri bgp.AddrPrefixInterface) *Destination {
@@ -165,7 +166,7 @@ func (dd *Destination) ToApiStruct(id string) *api.Destination {
 	}
 }
 
-func (dd *Destination) getRouteFamily() bgp.RouteFamily {
+func (dd *Destination) Family() bgp.RouteFamily {
 	return dd.routeFamily
 }
 
@@ -204,15 +205,6 @@ func (dd *Destination) GetBestPath(id string) *Path {
 	return nil
 }
 
-func (dd *Destination) oldBest(id string) *Path {
-	for _, p := range dd.oldKnownPathList {
-		if p.Filtered(id) == POLICY_DIRECTION_NONE {
-			return p
-		}
-	}
-	return nil
-}
-
 func (dd *Destination) addWithdraw(withdraw *Path) {
 	dd.validatePath(withdraw)
 	dd.withdrawList = append(dd.withdrawList, withdraw)
@@ -237,38 +229,94 @@ func (dd *Destination) validatePath(path *Path) {
 
 // Calculates best-path among known paths for this destination.
 //
-// Returns: - Best path
-//
 // Modifies destination's state related to stored paths. Removes withdrawn
 // paths from known paths. Also, adds new paths to known paths.
-func (dest *Destination) Calculate() {
-	dest.oldKnownPathList = dest.knownPathList
-	dest.UpdatedPathList = dest.newPathList
+func (dest *Destination) Calculate(ids []string) (map[string]*Path, []*Path, []*Path) {
+	best := make(map[string]*Path, len(ids))
+	oldKnownPathList := dest.knownPathList
 	// First remove the withdrawn paths.
-	dest.WithdrawnList = dest.explicitWithdraw()
+	withdrawnList := dest.explicitWithdraw()
 	// Do implicit withdrawal
-	dest.ImplicitWithdrawnList = dest.implicitWithdraw()
+	dest.implicitWithdraw()
 	// Collect all new paths into known paths.
 	dest.knownPathList = append(dest.knownPathList, dest.newPathList...)
 	// Clear new paths as we copied them.
 	dest.newPathList = make([]*Path, 0)
 	// Compute new best path
 	dest.computeKnownBestPath()
-}
 
-func (dest *Destination) NewFeed(id string) *Path {
-	old := dest.oldBest(id)
-	best := dest.GetBestPath(id)
-	if best != nil && best.Equal(old) {
-		return nil
-	}
-	if best == nil {
-		if old == nil {
+	f := func(id string) *Path {
+		old := func() *Path {
+			for _, p := range oldKnownPathList {
+				if p.Filtered(id) == POLICY_DIRECTION_NONE {
+					return p
+				}
+			}
+			return nil
+		}()
+		best := dest.GetBestPath(id)
+		if best != nil && best.Equal(old) {
+			// RFC4684 3.2. Intra-AS VPN Route Distribution
+			// When processing RT membership NLRIs received from internal iBGP
+			// peers, it is necessary to consider all available iBGP paths for a
+			// given RT prefix, for building the outbound route filter, and not just
+			// the best path.
+			if best.GetRouteFamily() == bgp.RF_RTC_UC {
+				return best
+			}
 			return nil
 		}
-		return old.Clone(true)
+		if best == nil {
+			if old == nil {
+				return nil
+			}
+			return old.Clone(true)
+		}
+		return best
 	}
-	return best
+
+	var multi []*Path
+	for _, id := range ids {
+		best[id] = f(id)
+		if id == GLOBAL_RIB_NAME && UseMultiplePaths.Enabled {
+			multipath := func(paths []*Path) []*Path {
+				mp := make([]*Path, 0, len(paths))
+				var best *Path
+				for _, path := range paths {
+					if path.Filtered(id) == POLICY_DIRECTION_NONE {
+						if best == nil {
+							best = path
+							mp = append(mp, path)
+						} else if best.Compare(path) == 0 {
+							mp = append(mp, path)
+						}
+					}
+				}
+				return mp
+			}
+			diff := func(lhs, rhs []*Path) bool {
+				if len(lhs) != len(rhs) {
+					return true
+				}
+				for idx, l := range lhs {
+					if !l.Equal(rhs[idx]) {
+						return true
+					}
+				}
+				return false
+			}
+			oldM := multipath(oldKnownPathList)
+			newM := multipath(dest.knownPathList)
+			if diff(oldM, newM) {
+				multi = newM
+				if len(newM) == 0 {
+					multi = []*Path{best[id]}
+				}
+			}
+		}
+	}
+
+	return best, withdrawnList, multi
 }
 
 // Removes withdrawn paths.
@@ -308,7 +356,6 @@ func (dest *Destination) explicitWithdraw() paths {
 	// delete them first.
 	matches := make([]*Path, 0, len(dest.withdrawList)/2)
 	newKnownPaths := make([]*Path, 0, len(dest.knownPathList)/2)
-	newWithdrawPaths := make([]*Path, 0, len(dest.withdrawList)/2)
 
 	// Match all withdrawals from destination paths.
 	for _, withdraw := range dest.withdrawList {
@@ -317,10 +364,12 @@ func (dest *Destination) explicitWithdraw() paths {
 			// We have a match if the source are same.
 			if path.GetSource().Equal(withdraw.GetSource()) {
 				isFound = true
+				// this path is referenced in peer's adj-rib-in
+				// when there was no policy modification applied.
+				// we sould flag IsWithdraw down after use to avoid
+				// a path with IsWithdraw flag exists in adj-rib-in
 				path.IsWithdraw = true
-				matches = append(matches, path)
-				// One withdraw can remove only one path.
-				break
+				matches = append(matches, withdraw)
 			}
 		}
 
@@ -330,29 +379,20 @@ func (dest *Destination) explicitWithdraw() paths {
 				"Topic": "Table",
 				"Key":   dest.GetNlri().String(),
 				"Path":  withdraw,
-			}).Debug("No matching path for withdraw found, may be path was not installed into table")
-			newWithdrawPaths = append(newWithdrawPaths, withdraw)
+			}).Warn("No matching path for withdraw found, may be path was not installed into table")
 		}
-	}
-
-	// If we have partial match.
-	if len(newWithdrawPaths) > 0 {
-		log.WithFields(log.Fields{
-			"Topic":          "Table",
-			"Key":            dest.GetNlri().String(),
-			"MatchLength":    len(matches),
-			"WithdrawLength": len(dest.withdrawList),
-		}).Debug("Did not find match for some withdrawals.")
 	}
 
 	for _, path := range dest.knownPathList {
 		if !path.IsWithdraw {
 			newKnownPaths = append(newKnownPaths, path)
 		}
+		// here we flag IsWithdraw down
+		path.IsWithdraw = false
 	}
 
 	dest.knownPathList = newKnownPaths
-	dest.withdrawList = newWithdrawPaths
+	dest.withdrawList = make([]*Path, 0)
 	return matches
 }
 
@@ -502,6 +542,10 @@ func (p paths) Less(i, j int) bool {
 		reason = BPR_IGP_COST
 	}
 	if better == nil {
+		better = compareByAge(path1, path2)
+		reason = BPR_OLDER
+	}
+	if better == nil {
 		var e error = nil
 		better, e = compareByRouterID(path1, path2)
 		if e != nil {
@@ -516,7 +560,7 @@ func (p paths) Less(i, j int) bool {
 
 	better.reason = reason
 
-	if better.Equal(path1) {
+	if better == path1 {
 		return true
 	}
 	return false
@@ -552,16 +596,8 @@ func compareByLocalPref(path1, path2 *Path) *Path {
 	//
 	//	# Default local-pref values is 100
 	log.Debugf("enter compareByLocalPref")
-	attribute1 := path1.getPathAttr(bgp.BGP_ATTR_TYPE_LOCAL_PREF)
-	attribute2 := path2.getPathAttr(bgp.BGP_ATTR_TYPE_LOCAL_PREF)
-
-	if attribute1 == nil || attribute2 == nil {
-		return nil
-	}
-
-	localPref1 := attribute1.(*bgp.PathAttributeLocalPref).Value
-	localPref2 := attribute2.(*bgp.PathAttributeLocalPref).Value
-
+	localPref1, _ := path1.GetLocalPref()
+	localPref2, _ := path2.GetLocalPref()
 	// Highest local-preference value is preferred.
 	if localPref1 > localPref2 {
 		return path1
@@ -670,25 +706,53 @@ func compareByMED(path1, path2 *Path) *Path {
 	//	RFC says lower MED is preferred over higher MED value.
 	//  compare MED among not only same AS path but also all path,
 	//  like bgp always-compare-med
-	log.Debugf("enter compareByMED")
-	getMed := func(path *Path) uint32 {
-		attribute := path.getPathAttr(bgp.BGP_ATTR_TYPE_MULTI_EXIT_DISC)
-		if attribute == nil {
+
+	isInternal := func() bool { return path1.GetAsPathLen() == 0 && path2.GetAsPathLen() == 0 }()
+
+	isSameAS := func() bool {
+		firstAS := func(path *Path) uint32 {
+			if aspath := path.GetAsPath(); aspath != nil {
+				asPathParam := aspath.Value
+				for i := 0; i < len(asPathParam); i++ {
+					asPath := asPathParam[i].(*bgp.As4PathParam)
+					if asPath.Num == 0 {
+						continue
+					}
+					if asPath.Type == bgp.BGP_ASPATH_ATTR_TYPE_CONFED_SET || asPath.Type == bgp.BGP_ASPATH_ATTR_TYPE_CONFED_SEQ {
+						continue
+					}
+					return asPath.AS[0]
+				}
+			}
 			return 0
 		}
-		med := attribute.(*bgp.PathAttributeMultiExitDisc).Value
-		return med
-	}
+		return firstAS(path1) != 0 && firstAS(path1) == firstAS(path2)
+	}()
 
-	med1 := getMed(path1)
-	med2 := getMed(path2)
-	log.Debugf("compareByMED -- med1: %d, med2: %d", med1, med2)
-	if med1 == med2 {
+	if SelectionOptions.AlwaysCompareMed || isInternal || isSameAS {
+		log.Debugf("enter compareByMED")
+		getMed := func(path *Path) uint32 {
+			attribute := path.getPathAttr(bgp.BGP_ATTR_TYPE_MULTI_EXIT_DISC)
+			if attribute == nil {
+				return 0
+			}
+			med := attribute.(*bgp.PathAttributeMultiExitDisc).Value
+			return med
+		}
+
+		med1 := getMed(path1)
+		med2 := getMed(path2)
+		log.Debugf("compareByMED -- med1: %d, med2: %d", med1, med2)
+		if med1 == med2 {
+			return nil
+		} else if med1 < med2 {
+			return path1
+		}
+		return path2
+	} else {
+		log.Debugf("skip compareByMED %v %v %v", SelectionOptions.AlwaysCompareMed, isInternal, isSameAS)
 		return nil
-	} else if med1 < med2 {
-		return path1
 	}
-	return path2
 }
 
 func compareByASNumber(path1, path2 *Path) *Path {
@@ -737,11 +801,11 @@ func compareByRouterID(path1, path2 *Path) (*Path, error) {
 
 	// If both paths are from eBGP peers, then according to RFC we need
 	// not tie break using router id.
-	if !path1.IsIBGP() && !path2.IsIBGP() {
+	if !SelectionOptions.ExternalCompareRouterId && !path1.IsIBGP() && !path2.IsIBGP() {
 		return nil, nil
 	}
 
-	if path1.IsIBGP() != path2.IsIBGP() {
+	if !SelectionOptions.ExternalCompareRouterId && path1.IsIBGP() != path2.IsIBGP() {
 		return nil, fmt.Errorf("This method does not support comparing ebgp with ibgp path")
 	}
 
@@ -760,6 +824,62 @@ func compareByRouterID(path1, path2 *Path) (*Path, error) {
 	}
 }
 
+func compareByAge(path1, path2 *Path) *Path {
+	if !path1.IsIBGP() && !path2.IsIBGP() && !SelectionOptions.ExternalCompareRouterId {
+		age1 := path1.GetTimestamp().UnixNano()
+		age2 := path2.GetTimestamp().UnixNano()
+		if age1 == age2 {
+			return nil
+		} else if age1 < age2 {
+			return path1
+		}
+		return path2
+	}
+	return nil
+}
+
 func (dest *Destination) String() string {
 	return fmt.Sprintf("Destination NLRI: %s", dest.nlri.String())
+}
+
+type destinations []*Destination
+
+func (d destinations) Len() int {
+	return len(d)
+}
+
+func (d destinations) Swap(i, j int) {
+	d[i], d[j] = d[j], d[i]
+}
+
+func (d destinations) Less(i, j int) bool {
+	switch d[i].routeFamily {
+	case bgp.RF_FS_IPv4_UC, bgp.RF_FS_IPv6_UC, bgp.RF_FS_IPv4_VPN, bgp.RF_FS_IPv6_VPN, bgp.RF_FS_L2_VPN:
+		var s, t *bgp.FlowSpecNLRI
+		switch d[i].routeFamily {
+		case bgp.RF_FS_IPv4_UC:
+			s = &d[i].nlri.(*bgp.FlowSpecIPv4Unicast).FlowSpecNLRI
+			t = &d[j].nlri.(*bgp.FlowSpecIPv4Unicast).FlowSpecNLRI
+		case bgp.RF_FS_IPv6_UC:
+			s = &d[i].nlri.(*bgp.FlowSpecIPv6Unicast).FlowSpecNLRI
+			t = &d[j].nlri.(*bgp.FlowSpecIPv6Unicast).FlowSpecNLRI
+		case bgp.RF_FS_IPv4_VPN:
+			s = &d[i].nlri.(*bgp.FlowSpecIPv4VPN).FlowSpecNLRI
+			t = &d[j].nlri.(*bgp.FlowSpecIPv4VPN).FlowSpecNLRI
+		case bgp.RF_FS_IPv6_VPN:
+			s = &d[i].nlri.(*bgp.FlowSpecIPv6VPN).FlowSpecNLRI
+			t = &d[j].nlri.(*bgp.FlowSpecIPv6VPN).FlowSpecNLRI
+		case bgp.RF_FS_L2_VPN:
+			s = &d[i].nlri.(*bgp.FlowSpecL2VPN).FlowSpecNLRI
+			t = &d[j].nlri.(*bgp.FlowSpecL2VPN).FlowSpecNLRI
+		}
+		if r, _ := bgp.CompareFlowSpecNLRI(s, t); r >= 0 {
+			return true
+		} else {
+			return false
+		}
+	default:
+		strings := sort.StringSlice{d[i].nlri.String(), d[j].nlri.String()}
+		return strings.Less(0, 1)
+	}
 }

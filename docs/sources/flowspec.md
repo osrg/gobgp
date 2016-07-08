@@ -1,8 +1,9 @@
 # Flowspec (RFC5575)
 
 GoBGP supports [RFC5575](https://tools.ietf.org/html/rfc5575),
-[draft-ietf-idr-flowspec-redirect-rt-bis-05](http://tools.ietf.org/html/draft-ietf-idr-flowspec-redirect-rt-bis-05)
-and [draft-ietf-idr-flow-spec-v6-06](https://tools.ietf.org/html/draft-ietf-idr-flow-spec-v6-06).
+[RFC7674](https://tools.ietf.org/html/rfc7674), 
+[draft-ietf-idr-flow-spec-v6-06](https://tools.ietf.org/html/draft-ietf-idr-flow-spec-v6-06) 
+and [draft-ietf-idr-flowspec-l2vpn-03](https://tools.ietf.org/html/draft-ietf-idr-flowspec-l2vpn-03).
 
 ## Prerequisites
 
@@ -27,12 +28,19 @@ afi-safis like below.
   neighbor-address = "10.0.255.1"
   peer-as = 64512
 [[neighbors.afi-safis]]
+  [neighbors.afi-safis.config]
   afi-safi-name = "ipv4-flowspec"
+[[neighbors.afi-safis]]
+  [neighbors.afi-safis.config]
+  afi-safi-name = "ipv6-flowspec"
+[[neighbors.afi-safis]]
+  [neighbors.afi-safis.config]
+  afi-safi-name = "l2vpn-flowspec"
 ```
 
 ## <a name="section1"> Add Flowspec routes through CLI
 
-CLI syntax to add flowspec is
+CLI syntax to add ipv4/ipv6 flowspec rule is
 
 ```shell
 % global rib add match <MATCH_EXPR> then <THEN_EXPR> -a [ipv4-flowspec|ipv6-flowspec]
@@ -40,11 +48,22 @@ CLI syntax to add flowspec is
                      protocol <PROTO>... | fragment <FRAGMENT_TYPE> | tcp-flags <TCPFLAG>... |
                      { port | destination-port | source-port | icmp-type | icmp-code | packet-length | dscp } <ITEM>... }...
         <PROTO> : ipip, sctp, unknown, igmp, tcp, egp, rsvp, pim, icmp, igp, udp, gre, ospf
-        <FRAGMENT_TYPE> : not-a-fragment, is-a-fragment, first-fragment, last-fragment
+        <FRAGMENT_TYPE> : dont-fragment, is-fragment, first-fragment, last-fragment, not-a-fragment
         <TCPFLAG> : push, ack, urgent, fin, syn, rst
         <ITEM> : &?{<|>|=}<value>
     <THEN_EXPR> : { accept | discard | rate-limit <value> | redirect <RT> | mark <value> | action { sample | terminal | sample-terminal } | rt <RT>... }...
         <RT> : xxx:yyy, xx.xx.xx.xx:yyy, xxx.xxx:yyy
+```
+
+that for l2vpn flowspec rule is
+
+``` shell
+% global rib add match <MATCH_EXPR> then <THEN_EXPR> -a [l2vpn-flowspec]
+   <MATCH_EXPR> : { { destination-mac | source-mac } <MAC> | ether-type <ETHER_TYPE> | { llc-dsap | llc-ssap | llc-control | snap | vid | cos | inner-vid | inner-cos } <ITEM>... }...
+   <ETHER_TYPE> : arp, vmtp, ipx, snmp, net-bios, xtp, pppoe-discovery, ipv4, rarp, ipv6, pppoe-session, loopback, apple-talk, aarp
+   <ITEM> : &?{<|>|=}<value>
+   <THEN_EXPR> : { accept | discard | rate-limit <value> | redirect <RT> | mark <value> | action { sample | terminal | sample-terminal } | rt <RT>... }...
+   <RT> : xxx:yyy, xx.xx.xx.xx:yyy, xxx.xxx:yyy
 ```
 
 ### Examples

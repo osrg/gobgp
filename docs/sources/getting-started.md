@@ -7,7 +7,7 @@ Route Server), this example gives you the basics of GoBGP usage.
 
 ## Prerequisites
 
-You need to install [Go 1.3 or later](http://golang.org/doc/install). After installing Go, make sure that `$GOPATH/bin` in included in your `$PATH`.
+You need to install [Go 1.5 or later](http://golang.org/doc/install). After installing Go, make sure that `$GOPATH/bin` in included in your `$PATH`.
 
 ## Installing GoBGP
 
@@ -25,6 +25,8 @@ In addition, if you use Bash shell, you can enjoy CLI's tab completion:
 
 ```bash
 $ wget https://raw.githubusercontent.com/osrg/gobgp/master/tools/completion/gobgp-completion.bash
+$ wget https://raw.githubusercontent.com/osrg/gobgp/master/tools/completion/gobgp-static-completion.bash
+$ wget https://raw.githubusercontent.com/osrg/gobgp/master/tools/completion/gobgp-dynamic-completion.bash
 $ source gobgp-completion.bash
 ```
 

@@ -14,7 +14,7 @@ import (
 	log "github.com/Sirupsen/logrus"
 	api "github.com/osrg/gobgp/api"
 	"github.com/osrg/gobgp/gobgp/cmd"
-	"github.com/osrg/gobgp/packet"
+	"github.com/osrg/gobgp/packet/bgp"
 	gobgp "github.com/osrg/gobgp/server"
 )
 
@@ -25,12 +25,11 @@ func main() {
 
 	// start grpc api server. this is not mandatory
 	// but you will be able to use `gobgp` cmd with this.
-	g := gobgp.NewGrpcServer(50051, s.GrpcReqCh)
+	g := gobgp.NewGrpcServer(":50051", s.GrpcReqCh)
 	go g.Serve()
 
 	// global configuration
-	req := gobgp.NewGrpcRequest(gobgp.REQ_MOD_GLOBAL_CONFIG, "", bgp.RouteFamily(0), &api.ModGlobalConfigArguments{
-		Operation: api.Operation_ADD,
+	req := gobgp.NewGrpcRequest(gobgp.REQ_START_SERVER, "", bgp.RouteFamily(0), &api.StartServerRequest{
 		Global: &api.Global{
 			As:         65003,
 			RouterId:   "192.168.0.4",
@@ -44,8 +43,7 @@ func main() {
 	}
 
 	// neighbor configuration
-	req = gobgp.NewGrpcRequest(gobgp.REQ_MOD_NEIGHBOR, "", bgp.RouteFamily(0), &api.ModNeighborArguments{
-		Operation: api.Operation_ADD,
+	req = gobgp.NewGrpcRequest(gobgp.REQ_GRPC_ADD_NEIGHBOR, "", bgp.RouteFamily(0), &api.AddNeighborRequest{
 		Peer: &api.Peer{
 			Conf: &api.PeerConf{
 				NeighborAddress: "192.168.0.3",
@@ -64,9 +62,9 @@ func main() {
 
 	// add routes
 	path, _ := cmd.ParsePath(bgp.RF_IPv4_UC, []string{"10.0.0.0/24", "nexthop", "10.10.10.10"})
-	req = gobgp.NewGrpcRequest(gobgp.REQ_MOD_PATH, "", bgp.RouteFamily(0), &api.ModPathArguments{
+	req = gobgp.NewGrpcRequest(gobgp.REQ_ADD_PATH, "", bgp.RouteFamily(0), &api.AddPathRequest{
 		Resource: api.Resource_GLOBAL,
-		Paths:    []*api.Path{path},
+		Path:     path,
 	})
 	s.GrpcReqCh <- req
 	res = <-req.ResponseCh
@@ -75,7 +73,9 @@ func main() {
 	}
 
 	// monitor new routes
-	req = gobgp.NewGrpcRequest(gobgp.REQ_MONITOR_GLOBAL_BEST_CHANGED, "", bgp.RF_IPv4_UC, nil)
+	req = gobgp.NewGrpcRequest(gobgp.REQ_MONITOR_RIB, "", bgp.RF_IPv4_UC, &api.Table{
+		Type: api.Resource_GLOBAL,
+	})
 	s.GrpcReqCh <- req
 	for res := range req.ResponseCh {
 		p, _ := cmd.ApiStruct2Path(res.Data.(*api.Destination).Paths[0])

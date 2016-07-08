@@ -113,7 +113,7 @@ class GrpcClient {
 
             current_path->set_nlri(path_c_struct->nlri.value, path_c_struct->nlri.len);
 
-            gobgpapi::ModPathArguments request;
+            gobgpapi::ModPathsArguments request;
             request.set_resource(gobgpapi::Resource::GLOBAL);
 
             google::protobuf::RepeatedPtrField< ::gobgpapi::Path >* current_path_list = request.mutable_paths(); 
@@ -125,7 +125,7 @@ class GrpcClient {
             gobgpapi::Error return_error;
 
             // result is a std::unique_ptr<grpc::ClientWriter<gobgpapi::ModPathArguments> >
-            auto send_stream = stub_->ModPath(&context, &return_error);
+            auto send_stream = stub_->ModPaths(&context, &return_error);
 
             bool write_result = send_stream->Write(request);
 
@@ -180,7 +180,7 @@ class GrpcClient {
 
             current_path->set_nlri(path_c_struct->nlri.value, path_c_struct->nlri.len);
 
-            gobgpapi::ModPathArguments request;
+            gobgpapi::ModPathsArguments request;
             request.set_resource(gobgpapi::Resource::GLOBAL);
             google::protobuf::RepeatedPtrField< ::gobgpapi::Path >* current_path_list = request.mutable_paths(); 
             current_path_list->AddAllocated(current_path);
@@ -191,7 +191,7 @@ class GrpcClient {
             gobgpapi::Error return_error;
 
             // result is a std::unique_ptr<grpc::ClientWriter<api::ModPathArguments> >
-            auto send_stream = stub_->ModPath(&context, &return_error);
+            auto send_stream = stub_->ModPaths(&context, &return_error);
 
             bool write_result = send_stream->Write(request);
 

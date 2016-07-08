@@ -16,14 +16,16 @@
 package cmd
 
 import (
+	"encoding/json"
 	"fmt"
 	api "github.com/osrg/gobgp/api"
-	"github.com/osrg/gobgp/packet"
+	"github.com/osrg/gobgp/packet/bgp"
+	"github.com/osrg/gobgp/table"
 	"github.com/spf13/cobra"
 	"golang.org/x/net/context"
 	"net"
-	"os"
 	"regexp"
+	"sort"
 	"strconv"
 	"strings"
 )
@@ -256,9 +258,11 @@ func ParseExtendedCommunities(input string) ([]bgp.ExtendedCommunityInterface, e
 			continue
 		}
 		if i < len(idxs)-1 {
-			a = args[idx.i:idxs[i+1].i]
+			a = args[:idxs[i+1].i-idx.i]
+			args = args[(idxs[i+1].i - idx.i):]
 		} else {
-			a = args[idx.i:]
+			a = args
+			args = nil
 		}
 		ext, err := f(a)
 		if err != nil {
@@ -266,14 +270,18 @@ func ParseExtendedCommunities(input string) ([]bgp.ExtendedCommunityInterface, e
 		}
 		exts = append(exts, ext...)
 	}
+	if len(args) > 0 {
+		return nil, fmt.Errorf("failed to parse %v", args)
+	}
 	return exts, nil
 }
 
-func ParseFlowSpecArgs(rf bgp.RouteFamily, args []string) (bgp.AddrPrefixInterface, []string, error) {
+func ParseFlowSpecArgs(rf bgp.RouteFamily, args []string, rd bgp.RouteDistinguisherInterface) (bgp.AddrPrefixInterface, []string, error) {
 	thenPos := len(args)
 	for idx, v := range args {
 		if v == "then" {
 			thenPos = idx
+			break
 		}
 	}
 	if len(args) < 4 || args[0] != "match" || thenPos > len(args)-2 {
@@ -285,15 +293,30 @@ func ParseFlowSpecArgs(rf bgp.RouteFamily, args []string) (bgp.AddrPrefixInterfa
 		return nil, nil, err
 	}
 	var nlri bgp.AddrPrefixInterface
+	var fnlri *bgp.FlowSpecNLRI
 	switch rf {
 	case bgp.RF_FS_IPv4_UC:
 		nlri = bgp.NewFlowSpecIPv4Unicast(cmp)
+		fnlri = &nlri.(*bgp.FlowSpecIPv4Unicast).FlowSpecNLRI
 	case bgp.RF_FS_IPv6_UC:
 		nlri = bgp.NewFlowSpecIPv6Unicast(cmp)
+		fnlri = &nlri.(*bgp.FlowSpecIPv6Unicast).FlowSpecNLRI
+	case bgp.RF_FS_IPv4_VPN:
+		nlri = bgp.NewFlowSpecIPv4VPN(rd, cmp)
+		fnlri = &nlri.(*bgp.FlowSpecIPv4VPN).FlowSpecNLRI
+	case bgp.RF_FS_IPv6_VPN:
+		nlri = bgp.NewFlowSpecIPv6VPN(rd, cmp)
+		fnlri = &nlri.(*bgp.FlowSpecIPv6VPN).FlowSpecNLRI
+	case bgp.RF_FS_L2_VPN:
+		nlri = bgp.NewFlowSpecL2VPN(rd, cmp)
+		fnlri = &nlri.(*bgp.FlowSpecL2VPN).FlowSpecNLRI
 	default:
 		return nil, nil, fmt.Errorf("invalid route family")
 	}
-	return nlri, args[thenPos:], nil
+	var comms table.FlowSpecComponents
+	comms = fnlri.Value
+	sort.Sort(comms)
+	return nlri, args[thenPos+1:], nil
 }
 
 func ParseEvpnMacAdvArgs(args []string) (bgp.AddrPrefixInterface, []string, error) {
@@ -411,6 +434,25 @@ func ParseEvpnArgs(args []string) (bgp.AddrPrefixInterface, []string, error) {
 	return nil, nil, fmt.Errorf("invalid subtype. expect [macadv|multicast] but %s", subtype)
 }
 
+func extractOrigin(args []string) ([]string, bgp.PathAttributeInterface, error) {
+	typ := bgp.BGP_ORIGIN_ATTR_TYPE_INCOMPLETE
+	for idx, arg := range args {
+		if arg == "origin" && len(args) > (idx+1) {
+			switch args[idx+1] {
+			case "igp":
+				typ = bgp.BGP_ORIGIN_ATTR_TYPE_IGP
+			case "egp":
+				typ = bgp.BGP_ORIGIN_ATTR_TYPE_EGP
+			case "incomplete":
+			default:
+				return nil, nil, fmt.Errorf("invalid origin type. expect [igp|egp|incomplete] but %s", args[idx+1])
+			}
+			args = append(args[:idx], args[idx+2:]...)
+			break
+		}
+	}
+	return args, bgp.NewPathAttributeOrigin(uint8(typ)), nil
+}
 func extractNexthop(rf bgp.RouteFamily, args []string) ([]string, string, error) {
 	afi, _ := bgp.RouteFamilyToAfiSafi(rf)
 	nexthop := "0.0.0.0"
@@ -430,7 +472,7 @@ func extractNexthop(rf bgp.RouteFamily, args []string) ([]string, string, error)
 	return args, nexthop, nil
 }
 
-func extractLocalPref(args []string) ([]string, []byte, error) {
+func extractLocalPref(args []string) ([]string, bgp.PathAttributeInterface, error) {
 	for idx, arg := range args {
 		if arg == "local-pref" && len(args) > (idx+1) {
 			metric, err := strconv.Atoi(args[idx+1])
@@ -438,14 +480,13 @@ func extractLocalPref(args []string) ([]string, []byte, error) {
 				return nil, nil, err
 			}
 			args = append(args[:idx], args[idx+2:]...)
-			localPref, _ := bgp.NewPathAttributeLocalPref(uint32(metric)).Serialize()
-			return args, localPref, nil
+			return args, bgp.NewPathAttributeLocalPref(uint32(metric)), nil
 		}
 	}
 	return args, nil, nil
 }
 
-func extractMed(args []string) ([]string, []byte, error) {
+func extractMed(args []string) ([]string, bgp.PathAttributeInterface, error) {
 	for idx, arg := range args {
 		if arg == "med" && len(args) > (idx+1) {
 			metric, err := strconv.Atoi(args[idx+1])
@@ -453,14 +494,32 @@ func extractMed(args []string) ([]string, []byte, error) {
 				return nil, nil, err
 			}
 			args = append(args[:idx], args[idx+2:]...)
-			med, _ := bgp.NewPathAttributeMultiExitDisc(uint32(metric)).Serialize()
-			return args, med, nil
+			return args, bgp.NewPathAttributeMultiExitDisc(uint32(metric)), nil
 		}
 	}
 	return args, nil, nil
 }
 
-func extractAigp(args []string) ([]string, []byte, error) {
+func extractCommunity(args []string) ([]string, bgp.PathAttributeInterface, error) {
+	for idx, arg := range args {
+		if arg == "community" && len(args) > (idx+1) {
+			elems := strings.Split(args[idx+1], ",")
+			comms := make([]uint32, 0, 1)
+			for _, elem := range elems {
+				c, err := table.ParseCommunity(elem)
+				if err != nil {
+					return nil, nil, err
+				}
+				comms = append(comms, c)
+			}
+			args = append(args[:idx], args[idx+2:]...)
+			return args, bgp.NewPathAttributeCommunities(comms), nil
+		}
+	}
+	return args, nil, nil
+}
+
+func extractAigp(args []string) ([]string, bgp.PathAttributeInterface, error) {
 	for idx, arg := range args {
 		if arg == "aigp" {
 			if len(args) < (idx + 3) {
@@ -473,7 +532,7 @@ func extractAigp(args []string) ([]string, []byte, error) {
 				if err != nil {
 					return nil, nil, err
 				}
-				aigp, _ := bgp.NewPathAttributeAigp([]bgp.AigpTLV{bgp.NewAigpTLVIgpMetric(uint64(metric))}).Serialize()
+				aigp := bgp.NewPathAttributeAigp([]bgp.AigpTLV{bgp.NewAigpTLVIgpMetric(uint64(metric))})
 				return append(args[:idx], args[idx+3:]...), aigp, nil
 			default:
 				return nil, nil, fmt.Errorf("unknown aigp type: %s", typ)
@@ -483,45 +542,77 @@ func extractAigp(args []string) ([]string, []byte, error) {
 	return args, nil, nil
 }
 
+func extractAggregator(args []string) ([]string, bgp.PathAttributeInterface, error) {
+	for idx, arg := range args {
+		if arg == "aggregator" {
+			if len(args) < (idx + 1) {
+				return nil, nil, fmt.Errorf("invalid aggregator format")
+			}
+			v := strings.SplitN(args[idx+1], ":", 2)
+			if len(v) != 2 {
+				return nil, nil, fmt.Errorf("invalid aggregator format")
+			}
+			as, err := strconv.ParseUint(v[0], 10, 32)
+			if err != nil {
+				return nil, nil, fmt.Errorf("invalid aggregator format")
+			}
+			attr := bgp.NewPathAttributeAggregator(uint32(as), net.ParseIP(v[1]).String())
+			return append(args[:idx], args[idx+2:]...), attr, nil
+		}
+	}
+	return args, nil, nil
+}
+
+func extractRouteDistinguisher(args []string) ([]string, bgp.RouteDistinguisherInterface, error) {
+	for idx, arg := range args {
+		if arg == "rd" {
+			if len(args) < (idx + 1) {
+				return nil, nil, fmt.Errorf("invalid rd format")
+			}
+			rd, err := bgp.ParseRouteDistinguisher(args[idx+1])
+			if err != nil {
+				return nil, nil, err
+			}
+			return append(args[:idx], args[idx+2:]...), rd, nil
+		}
+	}
+	return args, nil, nil
+}
+
 func ParsePath(rf bgp.RouteFamily, args []string) (*api.Path, error) {
 	var nlri bgp.AddrPrefixInterface
+	var rd bgp.RouteDistinguisherInterface
 	var extcomms []string
 	var err error
+	attrs := table.PathAttrs(make([]bgp.PathAttributeInterface, 0, 1))
 
 	path := &api.Path{
 		Pattrs: make([][]byte, 0),
 	}
 
+	fns := []func([]string) ([]string, bgp.PathAttributeInterface, error){
+		extractOrigin,
+		extractMed,
+		extractLocalPref,
+		extractCommunity,
+		extractAigp,
+		extractAggregator,
+	}
+
+	for _, fn := range fns {
+		var a bgp.PathAttributeInterface
+		args, a, err = fn(args)
+		if err != nil {
+			return nil, err
+		}
+		if a != nil {
+			attrs = append(attrs, a)
+		}
+	}
+
 	args, nexthop, err := extractNexthop(rf, args)
 	if err != nil {
 		return nil, err
-	}
-
-	var med []byte
-	args, med, err = extractMed(args)
-	if err != nil {
-		return nil, err
-	}
-	if med != nil {
-		path.Pattrs = append(path.Pattrs, med)
-	}
-
-	var localPref []byte
-	args, localPref, err = extractLocalPref(args)
-	if err != nil {
-		return nil, err
-	}
-	if localPref != nil {
-		path.Pattrs = append(path.Pattrs, localPref)
-	}
-
-	var aigp []byte
-	args, aigp, err = extractAigp(args)
-	if err != nil {
-		return nil, err
-	}
-	if aigp != nil {
-		path.Pattrs = append(path.Pattrs, aigp)
 	}
 
 	switch rf {
@@ -555,7 +646,7 @@ func ParsePath(rf bgp.RouteFamily, args []string) (*api.Path, error) {
 		ip, net, _ := net.ParseCIDR(args[0])
 		ones, _ := net.Mask.Size()
 
-		rd, err := bgp.ParseRouteDistinguisher(args[2])
+		rd, err = bgp.ParseRouteDistinguisher(args[2])
 		if err != nil {
 			return nil, err
 		}
@@ -575,10 +666,49 @@ func ParsePath(rf bgp.RouteFamily, args []string) (*api.Path, error) {
 			}
 			nlri = bgp.NewLabeledVPNIPv6AddrPrefix(uint8(ones), ip.String(), *mpls, rd)
 		}
+	case bgp.RF_IPv4_MPLS, bgp.RF_IPv6_MPLS:
+		if len(args) < 2 {
+			return nil, fmt.Errorf("invalid format")
+		}
+
+		ip, net, _ := net.ParseCIDR(args[0])
+		ones, _ := net.Mask.Size()
+
+		mpls, err := bgp.ParseMPLSLabelStack(args[1])
+		if err != nil {
+			return nil, err
+		}
+
+		extcomms = args[2:]
+
+		if rf == bgp.RF_IPv4_MPLS {
+			if ip.To4() == nil {
+				return nil, fmt.Errorf("invalid ipv4 prefix")
+			}
+			nlri = bgp.NewLabeledIPAddrPrefix(uint8(ones), ip.String(), *mpls)
+		} else {
+			if ip.To4() != nil {
+				return nil, fmt.Errorf("invalid ipv6 prefix")
+			}
+			nlri = bgp.NewLabeledIPv6AddrPrefix(uint8(ones), ip.String(), *mpls)
+		}
 	case bgp.RF_EVPN:
 		nlri, extcomms, err = ParseEvpnArgs(args)
+	case bgp.RF_FS_IPv4_VPN, bgp.RF_FS_IPv6_VPN, bgp.RF_FS_L2_VPN:
+		args, rd, err = extractRouteDistinguisher(args)
+		if err != nil {
+			return nil, err
+		}
+		fallthrough
 	case bgp.RF_FS_IPv4_UC, bgp.RF_FS_IPv6_UC:
-		nlri, extcomms, err = ParseFlowSpecArgs(rf, args)
+		nlri, extcomms, err = ParseFlowSpecArgs(rf, args, rd)
+	case bgp.RF_OPAQUE:
+		m := extractReserved(args, []string{"key", "value"})
+		if len(m["key"]) != 1 || len(m["value"]) != 1 {
+			return nil, fmt.Errorf("invalid key-value format")
+		}
+		nlri = bgp.NewOpaqueNLRI([]byte(m["key"][0]))
+		attrs = append(attrs, bgp.NewPathAttributeOpaqueValue([]byte(m["value"][0])))
 	default:
 		return nil, fmt.Errorf("Unsupported route family: %s", rf)
 	}
@@ -588,15 +718,11 @@ func ParsePath(rf bgp.RouteFamily, args []string) (*api.Path, error) {
 
 	if rf == bgp.RF_IPv4_UC {
 		path.Nlri, _ = nlri.Serialize()
-		n, _ := bgp.NewPathAttributeNextHop(nexthop).Serialize()
-		path.Pattrs = append(path.Pattrs, n)
+		attrs = append(attrs, bgp.NewPathAttributeNextHop(nexthop))
 	} else {
-		mpreach, _ := bgp.NewPathAttributeMpReachNLRI(nexthop, []bgp.AddrPrefixInterface{nlri}).Serialize()
-		path.Pattrs = append(path.Pattrs, mpreach)
+		mpreach := bgp.NewPathAttributeMpReachNLRI(nexthop, []bgp.AddrPrefixInterface{nlri})
+		attrs = append(attrs, mpreach)
 	}
-
-	origin, _ := bgp.NewPathAttributeOrigin(bgp.BGP_ORIGIN_ATTR_TYPE_INCOMPLETE).Serialize()
-	path.Pattrs = append(path.Pattrs, origin)
 
 	if extcomms != nil && len(extcomms) > 0 {
 		extcomms, err := ParseExtendedCommunities(strings.Join(extcomms, " "))
@@ -604,7 +730,13 @@ func ParsePath(rf bgp.RouteFamily, args []string) (*api.Path, error) {
 			return nil, err
 		}
 		p := bgp.NewPathAttributeExtendedCommunities(extcomms)
-		buf, err := p.Serialize()
+		attrs = append(attrs, p)
+	}
+
+	sort.Sort(attrs)
+
+	for _, attr := range attrs {
+		buf, err := attr.Serialize()
 		if err != nil {
 			return nil, err
 		}
@@ -641,20 +773,29 @@ func modPath(resource api.Resource, name, modtype string, args []string) error {
 			ss = append(ss, v)
 		}
 		flags := strings.Join(ss, ", ")
+		ss = make([]string, 0, len(bgp.EthernetTypeNameMap))
+		for _, v := range bgp.EthernetTypeNameMap {
+			ss = append(ss, v)
+		}
+		etherTypes := strings.Join(ss, ", ")
 		helpErrMap := map[bgp.RouteFamily]error{}
-		helpErrMap[bgp.RF_IPv4_UC] = fmt.Errorf("usage: %s rib %s <PREFIX> [nexthop <ADDRESS>] [med <VALUE>] [local-pref <VALUE>] [aigp metric <METRIC>] -a ipv4", cmdstr, modtype)
-		helpErrMap[bgp.RF_IPv6_UC] = fmt.Errorf("usage: %s rib %s <PREFIX> [nexthop <ADDRESS>] [med <VALUE>] [local-pref <VALUE>] [aigp metric <METRIC>] -a ipv6", cmdstr, modtype)
+		helpErrMap[bgp.RF_IPv4_UC] = fmt.Errorf("usage: %s rib %s <PREFIX> [origin { igp | egp | incomplete }] [nexthop <ADDRESS>] [med <VALUE>] [local-pref <VALUE>] [community <VALUE>] [aigp metric <METRIC>] -a ipv4", cmdstr, modtype)
+		helpErrMap[bgp.RF_IPv6_UC] = fmt.Errorf("usage: %s rib %s <PREFIX> [origin { igp | egp | incomplete }] [nexthop <ADDRESS>] [med <VALUE>] [local-pref <VALUE>] [community <VALUE>] [aigp metric <METRIC>] -a ipv6", cmdstr, modtype)
 		fsHelpMsgFmt := fmt.Sprintf(`err: %s
-usage: %s rib %s match <MATCH_EXPR> then <THEN_EXPR> -a %%s
-    <MATCH_EXPR> : { %s <PREFIX> [<OFFSET>] | %s <PREFIX> [<OFFSET>] |
-		     %s <PROTO>... | %s <FRAGMENT_TYPE> | %s [not] [match] <TCPFLAG>... |
-		     { %s | %s | %s | %s | %s | %s | %s | %s } <ITEM>... }...
-	<PROTO> : %s
-	<FRAGMENT_TYPE> : not-a-fragment, is-a-fragment, first-fragment, last-fragment
-	<TCPFLAG> : %s
-	<ITEM> : &?{<|>|=}<value>
-    <THEN_EXPR> : { %s | %s | %s <value> | %s <RT> | %s <value> | %s { sample | terminal | sample-terminal } | %s <RT>... }...
-	<RT> : xxx:yyy, xx.xx.xx.xx:yyy, xxx.xxx:yyy`, err, cmdstr, modtype,
+usage: %s rib %s%%smatch <MATCH_EXPR> then <THEN_EXPR> -a %%s
+%%s
+   <THEN_EXPR> : { %s | %s | %s <value> | %s <RT> | %s <value> | %s { sample | terminal | sample-terminal } | %s <RT>... }...
+   <RT> : xxx:yyy, xx.xx.xx.xx:yyy, xxx.xxx:yyy`, err, cmdstr, modtype,
+			ExtCommNameMap[ACCEPT], ExtCommNameMap[DISCARD],
+			ExtCommNameMap[RATE], ExtCommNameMap[REDIRECT],
+			ExtCommNameMap[MARK], ExtCommNameMap[ACTION], ExtCommNameMap[RT])
+		ipFsMatchExpr := fmt.Sprintf(`   <MATCH_EXPR> : { %s <PREFIX> [<OFFSET>] | %s <PREFIX> [<OFFSET>] |
+                    %s <PROTO>... | %s <FRAGMENT_TYPE> | %s [not] [match] <TCPFLAG>... |
+                    { %s | %s | %s | %s | %s | %s | %s | %s } <ITEM>... }...
+   <PROTO> : %s
+   <FRAGMENT_TYPE> : dont-fragment, is-fragment, first-fragment, last-fragment, not-a-fragment
+   <TCPFLAG> : %s
+   <ITEM> : &?{<|>|=}<value>`,
 			bgp.FlowSpecNameMap[bgp.FLOW_SPEC_TYPE_DST_PREFIX],
 			bgp.FlowSpecNameMap[bgp.FLOW_SPEC_TYPE_SRC_PREFIX],
 			bgp.FlowSpecNameMap[bgp.FLOW_SPEC_TYPE_IP_PROTO],
@@ -668,63 +809,121 @@ usage: %s rib %s match <MATCH_EXPR> then <THEN_EXPR> -a %%s
 			bgp.FlowSpecNameMap[bgp.FLOW_SPEC_TYPE_PKT_LEN],
 			bgp.FlowSpecNameMap[bgp.FLOW_SPEC_TYPE_DSCP],
 			bgp.FlowSpecNameMap[bgp.FLOW_SPEC_TYPE_LABEL],
-			protos, flags,
-			ExtCommNameMap[ACCEPT], ExtCommNameMap[DISCARD],
-			ExtCommNameMap[RATE], ExtCommNameMap[REDIRECT],
-			ExtCommNameMap[MARK], ExtCommNameMap[ACTION], ExtCommNameMap[RT])
-		helpErrMap[bgp.RF_FS_IPv4_UC] = fmt.Errorf(fsHelpMsgFmt, "ipv4-flowspec")
-		helpErrMap[bgp.RF_FS_IPv6_UC] = fmt.Errorf(fsHelpMsgFmt, "ipv6-flowspec")
+			protos,
+			flags,
+		)
+		helpErrMap[bgp.RF_FS_IPv4_UC] = fmt.Errorf(fsHelpMsgFmt, " ", "ipv4-flowspec", ipFsMatchExpr)
+		helpErrMap[bgp.RF_FS_IPv6_UC] = fmt.Errorf(fsHelpMsgFmt, " ", "ipv6-flowspec", ipFsMatchExpr)
+		helpErrMap[bgp.RF_FS_IPv4_VPN] = fmt.Errorf(fsHelpMsgFmt, " rd <RD> ", "ipv4-l3vpn-flowspec", ipFsMatchExpr)
+		helpErrMap[bgp.RF_FS_IPv6_VPN] = fmt.Errorf(fsHelpMsgFmt, " rd <RD> ", "ipv6-l3vpn-flowspec", ipFsMatchExpr)
+		macFsMatchExpr := fmt.Sprintf(`   <MATCH_EXPR> : { { %s | %s } <MAC> | %s <ETHER_TYPE> | { %s | %s | %s | %s | %s | %s | %s | %s } <ITEM>... }...
+   <ETHER_TYPE> : %s
+   <ITEM> : &?{<|>|=}<value>`,
+			bgp.FlowSpecNameMap[bgp.FLOW_SPEC_TYPE_DST_MAC],
+			bgp.FlowSpecNameMap[bgp.FLOW_SPEC_TYPE_SRC_MAC],
+			bgp.FlowSpecNameMap[bgp.FLOW_SPEC_TYPE_ETHERNET_TYPE],
+			bgp.FlowSpecNameMap[bgp.FLOW_SPEC_TYPE_LLC_DSAP],
+			bgp.FlowSpecNameMap[bgp.FLOW_SPEC_TYPE_LLC_SSAP],
+			bgp.FlowSpecNameMap[bgp.FLOW_SPEC_TYPE_LLC_CONTROL],
+			bgp.FlowSpecNameMap[bgp.FLOW_SPEC_TYPE_SNAP],
+			bgp.FlowSpecNameMap[bgp.FLOW_SPEC_TYPE_VID],
+			bgp.FlowSpecNameMap[bgp.FLOW_SPEC_TYPE_COS],
+			bgp.FlowSpecNameMap[bgp.FLOW_SPEC_TYPE_INNER_VID],
+			bgp.FlowSpecNameMap[bgp.FLOW_SPEC_TYPE_INNER_COS],
+			etherTypes,
+		)
+		helpErrMap[bgp.RF_FS_L2_VPN] = fmt.Errorf(fsHelpMsgFmt, "l2vpn-flowspec", macFsMatchExpr)
 		helpErrMap[bgp.RF_EVPN] = fmt.Errorf(`usage: %s rib %s { macadv <MACADV> | multicast <MULTICAST> } -a evpn
     <MACADV>    : <mac address> <ip address> <etag> <label> rd <rd> rt <rt>... [encap <encap type>]
     <MULTICAST> : <ip address> <etag> rd <rd> rt <rt>... [encap <encap type>]`, cmdstr, modtype)
+		helpErrMap[bgp.RF_OPAQUE] = fmt.Errorf(`usage: %s rib %s key <KEY> value <VALUE>`, cmdstr, modtype)
 		if err, ok := helpErrMap[rf]; ok {
 			return err
 		}
 		return err
 	}
 
-	arg := &api.ModPathArguments{
-		Operation: api.Operation_ADD,
-		Resource:  resource,
-		Name:      name,
-		Path:      path,
+	if modtype == CMD_ADD {
+		arg := &api.AddPathRequest{
+			Resource: resource,
+			VrfId:    name,
+			Path:     path,
+		}
+		_, err = client.AddPath(context.Background(), arg)
+	} else {
+		arg := &api.DeletePathRequest{
+			Resource: resource,
+			VrfId:    name,
+			Path:     path,
+		}
+		_, err = client.DeletePath(context.Background(), arg)
 	}
-
-	if modtype == CMD_DEL {
-		arg.Operation = api.Operation_DEL
-	}
-
-	_, err = client.ModPath(context.Background(), arg)
 	return err
 }
 
 func showGlobalConfig(args []string) error {
-	g, err := client.GetGlobalConfig(context.Background(), &api.Arguments{})
+	rsp, err := client.GetServer(context.Background(), &api.GetServerRequest{})
 	if err != nil {
 		return err
 	}
+	g := rsp.Global
+	if globalOpts.Json {
+		j, _ := json.Marshal(g)
+		fmt.Println(string(j))
+		return nil
+	}
 	fmt.Println("AS:       ", g.As)
 	fmt.Println("Router-ID:", g.RouterId)
+	if len(g.ListenAddresses) > 0 {
+		fmt.Printf("Listening Port: %d, Addresses: %s\n", g.ListenPort, strings.Join(g.ListenAddresses, ", "))
+	}
+	fmt.Printf("MPLS Label Range: %d..%d\n", g.MplsLabelMin, g.MplsLabelMax)
 	return nil
 }
 
 func modGlobalConfig(args []string) error {
-	if len(args) != 4 || args[0] != "as" || args[2] != "router-id" {
-		return fmt.Errorf("usage: gobgp global as <asn> router-id <route-id>")
+	m := extractReserved(args, []string{"as", "router-id", "listen-port",
+		"listen-addresses", "mpls-label-min", "mpls-label-max"})
+
+	if len(m["as"]) != 1 || len(m["router-id"]) != 1 {
+		return fmt.Errorf("usage: gobgp global as <VALUE> router-id <VALUE> [listen-port <VALUE>] [listen-addresses <VALUE>...] [mpls-label-min <VALUE>] [mpls-label-max <VALUE>]")
 	}
-	asn, err := strconv.Atoi(args[1])
+	asn, err := strconv.Atoi(m["as"][0])
 	if err != nil {
 		return err
 	}
-	id := net.ParseIP(args[3])
+	id := net.ParseIP(m["router-id"][0])
 	if id.To4() == nil {
 		return fmt.Errorf("invalid router-id format")
 	}
-	_, err = client.ModGlobalConfig(context.Background(), &api.ModGlobalConfigArguments{
-		Operation: api.Operation_ADD,
+	var port int
+	if len(m["listen-port"]) > 0 {
+		port, err = strconv.Atoi(m["listen-port"][0])
+		if err != nil {
+			return err
+		}
+	}
+	var min, max int
+	if len(m["mpls-label-min"]) > 0 {
+		min, err = strconv.Atoi(m["mpls-label-min"][0])
+		if err != nil {
+			return err
+		}
+	}
+	if len(m["mpls-label-man"]) > 0 {
+		min, err = strconv.Atoi(m["mpls-label-man"][0])
+		if err != nil {
+			return err
+		}
+	}
+	_, err = client.StartServer(context.Background(), &api.StartServerRequest{
 		Global: &api.Global{
-			As:       uint32(asn),
-			RouterId: args[3],
+			As:              uint32(asn),
+			RouterId:        id.String(),
+			ListenPort:      int32(port),
+			ListenAddresses: m["listen-addresses"],
+			MplsLabelMin:    uint32(min),
+			MplsLabelMax:    uint32(max),
 		},
 	})
 	return err
@@ -741,8 +940,7 @@ func NewGlobalCmd() *cobra.Command {
 				err = showGlobalConfig(args)
 			}
 			if err != nil {
-				fmt.Println(err)
-				os.Exit(1)
+				exitWithError(err)
 			}
 		},
 	}
@@ -751,8 +949,7 @@ func NewGlobalCmd() *cobra.Command {
 		Use: CMD_RIB,
 		Run: func(cmd *cobra.Command, args []string) {
 			if err := showGlobalRib(args); err != nil {
-				fmt.Println(err)
-				os.Exit(1)
+				exitWithError(err)
 			}
 		},
 	}
@@ -765,33 +962,54 @@ func NewGlobalCmd() *cobra.Command {
 			Run: func(cmd *cobra.Command, args []string) {
 				err := modPath(api.Resource_GLOBAL, "", cmd.Use, args)
 				if err != nil {
-					fmt.Println(err)
-					os.Exit(1)
+					exitWithError(err)
 				}
 			},
 		}
 		ribCmd.AddCommand(cmd)
+
+		if v == CMD_DEL {
+			subcmd := &cobra.Command{
+				Use: CMD_ALL,
+				Run: func(cmd *cobra.Command, args []string) {
+					family, err := checkAddressFamily(bgp.RouteFamily(0))
+					if err != nil {
+						exitWithError(err)
+					}
+					arg := &api.DeletePathRequest{
+						Resource: api.Resource_GLOBAL,
+						Family:   uint32(family),
+					}
+					_, err = client.DeletePath(context.Background(), arg)
+					if err != nil {
+						exitWithError(err)
+					}
+				},
+			}
+			cmd.AddCommand(subcmd)
+		}
 	}
 
 	policyCmd := &cobra.Command{
 		Use: CMD_POLICY,
 		Run: func(cmd *cobra.Command, args []string) {
+			if len(args) > 0 {
+				exitWithError(fmt.Errorf("usage: gobgp global policy [{ import | export }]"))
+			}
 			for _, v := range []string{CMD_IMPORT, CMD_EXPORT} {
 				if err := showNeighborPolicy(nil, v, 4); err != nil {
-					fmt.Println(err)
-					os.Exit(1)
+					exitWithError(err)
 				}
 			}
 		},
 	}
 
-	for _, v := range []string{CMD_IN, CMD_IMPORT, CMD_EXPORT} {
+	for _, v := range []string{CMD_IMPORT, CMD_EXPORT} {
 		cmd := &cobra.Command{
 			Use: v,
 			Run: func(cmd *cobra.Command, args []string) {
 				if err := showNeighborPolicy(nil, cmd.Use, 0); err != nil {
-					fmt.Println(err)
-					os.Exit(1)
+					exitWithError(err)
 				}
 			},
 		}
@@ -802,8 +1020,7 @@ func NewGlobalCmd() *cobra.Command {
 				Run: func(subcmd *cobra.Command, args []string) {
 					err := modNeighborPolicy(nil, cmd.Use, subcmd.Use, args)
 					if err != nil {
-						fmt.Println(err)
-						os.Exit(1)
+						exitWithError(err)
 					}
 				},
 			}
@@ -813,6 +1030,21 @@ func NewGlobalCmd() *cobra.Command {
 		policyCmd.AddCommand(cmd)
 	}
 
-	globalCmd.AddCommand(ribCmd, policyCmd)
+	delCmd := &cobra.Command{
+		Use: CMD_DEL,
+	}
+
+	allCmd := &cobra.Command{
+		Use: CMD_ALL,
+		Run: func(cmd *cobra.Command, args []string) {
+			_, err := client.StopServer(context.Background(), &api.StopServerRequest{})
+			if err != nil {
+				exitWithError(err)
+			}
+		},
+	}
+	delCmd.AddCommand(allCmd)
+
+	globalCmd.AddCommand(ribCmd, policyCmd, delCmd)
 	return globalCmd
 }

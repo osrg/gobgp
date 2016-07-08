@@ -19,87 +19,135 @@ import (
 	"fmt"
 	log "github.com/Sirupsen/logrus"
 	api "github.com/osrg/gobgp/api"
-	"github.com/osrg/gobgp/packet"
+	"github.com/osrg/gobgp/packet/bgp"
 	"golang.org/x/net/context"
 	"google.golang.org/grpc"
 	"io"
 	"net"
+	"strings"
+	"sync"
 )
 
 const (
 	_ = iota
-	REQ_GLOBAL_CONFIG
-	REQ_MOD_GLOBAL_CONFIG
+	REQ_GET_SERVER
+	REQ_START_SERVER
+	REQ_STOP_SERVER
 	REQ_NEIGHBOR
-	REQ_NEIGHBORS
 	REQ_ADJ_RIB_IN
 	REQ_ADJ_RIB_OUT
 	REQ_LOCAL_RIB
-	REQ_NEIGHBOR_SHUTDOWN
 	REQ_NEIGHBOR_RESET
 	REQ_NEIGHBOR_SOFT_RESET
 	REQ_NEIGHBOR_SOFT_RESET_IN
 	REQ_NEIGHBOR_SOFT_RESET_OUT
+	REQ_NEIGHBOR_SHUTDOWN
 	REQ_NEIGHBOR_ENABLE
 	REQ_NEIGHBOR_DISABLE
-	REQ_MOD_NEIGHBOR
+	REQ_ADD_NEIGHBOR
+	REQ_DEL_NEIGHBOR
+	// FIXME: we should merge
+	REQ_GRPC_ADD_NEIGHBOR
+	REQ_GRPC_DELETE_NEIGHBOR
+	REQ_UPDATE_NEIGHBOR
 	REQ_GLOBAL_RIB
-	REQ_MONITOR_GLOBAL_BEST_CHANGED
-	REQ_MONITOR_INCOMING
+	REQ_MONITOR_RIB
 	REQ_MONITOR_NEIGHBOR_PEER_STATE
-	REQ_MONITOR_ROA_VALIDATION_RESULT
-	REQ_MRT_GLOBAL_RIB
-	REQ_MRT_LOCAL_RIB
-	REQ_MOD_MRT
-	REQ_MOD_BMP
-	REQ_RPKI
-	REQ_MOD_RPKI
+	REQ_ENABLE_MRT
+	REQ_DISABLE_MRT
+	REQ_INJECT_MRT
+	REQ_ADD_BMP
+	REQ_DELETE_BMP
+	REQ_VALIDATE_RIB
+	// TODO: delete
+	REQ_INITIALIZE_RPKI
+	REQ_GET_RPKI
+	REQ_ADD_RPKI
+	REQ_DELETE_RPKI
+	REQ_ENABLE_RPKI
+	REQ_DISABLE_RPKI
+	REQ_RESET_RPKI
+	REQ_SOFT_RESET_RPKI
 	REQ_ROA
+	REQ_ADD_VRF
+	REQ_DELETE_VRF
 	REQ_VRF
-	REQ_VRFS
-	REQ_VRF_MOD
-	REQ_MOD_PATH
-	REQ_MOD_PATHS
-	REQ_DEFINED_SET
-	REQ_MOD_DEFINED_SET
-	REQ_STATEMENT
-	REQ_MOD_STATEMENT
-	REQ_POLICY
-	REQ_MOD_POLICY
-	REQ_POLICY_ASSIGNMENT
-	REQ_MOD_POLICY_ASSIGNMENT
+	REQ_GET_VRF
+	REQ_ADD_PATH
+	REQ_DELETE_PATH
+	REQ_GET_DEFINED_SET
+	REQ_ADD_DEFINED_SET
+	REQ_DELETE_DEFINED_SET
+	REQ_REPLACE_DEFINED_SET
+	REQ_GET_STATEMENT
+	REQ_ADD_STATEMENT
+	REQ_DELETE_STATEMENT
+	REQ_REPLACE_STATEMENT
+	REQ_GET_POLICY
+	REQ_ADD_POLICY
+	REQ_DELETE_POLICY
+	REQ_REPLACE_POLICY
+	REQ_GET_POLICY_ASSIGNMENT
+	REQ_ADD_POLICY_ASSIGNMENT
+	REQ_DELETE_POLICY_ASSIGNMENT
+	REQ_REPLACE_POLICY_ASSIGNMENT
 	REQ_BMP_NEIGHBORS
 	REQ_BMP_GLOBAL
 	REQ_BMP_ADJ_IN
+	REQ_DEFERRAL_TIMER_EXPIRED
+	REQ_RELOAD_POLICY
+	REQ_INITIALIZE_ZEBRA
+	REQ_INITIALIZE_COLLECTOR
+	REQ_WATCHER_ADJ_RIB_IN // FIXME
 )
 
 type Server struct {
 	grpcServer  *grpc.Server
 	bgpServerCh chan *GrpcRequest
-	port        int
+	hosts       string
 }
 
 func (s *Server) Serve() error {
-	lis, err := net.Listen("tcp", fmt.Sprintf(":%d", s.port))
-	if err != nil {
-		return fmt.Errorf("failed to listen: %v", err)
+	var wg sync.WaitGroup
+	l := strings.Split(s.hosts, ",")
+	wg.Add(len(l))
+
+	serve := func(host string) {
+		for {
+			defer wg.Done()
+			lis, err := net.Listen("tcp", fmt.Sprintf(host))
+			if err != nil {
+				log.WithFields(log.Fields{
+					"Topic": "grpc",
+					"Key":   host,
+					"Error": err,
+				}).Warn("listen failed")
+				return
+			}
+			err = s.grpcServer.Serve(lis)
+			log.WithFields(log.Fields{
+				"Topic": "grpc",
+				"Key":   host,
+				"Error": err,
+			}).Warn("accept failed")
+		}
 	}
-	s.grpcServer.Serve(lis)
+	for _, host := range l {
+		go serve(host)
+	}
+	wg.Wait()
 	return nil
 }
 
-func (s *Server) GetNeighbor(ctx context.Context, arg *api.Arguments) (*api.Peer, error) {
+func (s *Server) GetNeighbor(ctx context.Context, arg *api.GetNeighborRequest) (*api.GetNeighborResponse, error) {
 	var rf bgp.RouteFamily
-	req := NewGrpcRequest(REQ_NEIGHBOR, arg.Name, rf, nil)
+	req := NewGrpcRequest(REQ_NEIGHBOR, "", rf, nil)
 	s.bgpServerCh <- req
-
 	res := <-req.ResponseCh
-	if err := res.Err(); err != nil {
-		log.Debug(err.Error())
-		return nil, err
+	if res.Err() != nil {
+		return nil, res.Err()
 	}
-
-	return res.Data.(*api.Peer), nil
+	return res.Data.(*api.GetNeighborResponse), nil
 }
 
 func handleMultipleResponses(req *GrpcRequest, f func(*GrpcResponse) error) error {
@@ -117,19 +165,9 @@ func handleMultipleResponses(req *GrpcRequest, f func(*GrpcResponse) error) erro
 	return nil
 }
 
-func (s *Server) GetNeighbors(_ *api.Arguments, stream api.GobgpApi_GetNeighborsServer) error {
-	var rf bgp.RouteFamily
-	req := NewGrpcRequest(REQ_NEIGHBORS, "", rf, nil)
-	s.bgpServerCh <- req
-
-	return handleMultipleResponses(req, func(res *GrpcResponse) error {
-		return stream.Send(res.Data.(*api.Peer))
-	})
-}
-
-func (s *Server) GetRib(ctx context.Context, arg *api.Table) (*api.Table, error) {
+func (s *Server) GetRib(ctx context.Context, arg *api.GetRibRequest) (*api.GetRibResponse, error) {
 	var reqType int
-	switch arg.Type {
+	switch arg.Table.Type {
 	case api.Resource_LOCAL:
 		reqType = REQ_LOCAL_RIB
 	case api.Resource_GLOBAL:
@@ -141,40 +179,23 @@ func (s *Server) GetRib(ctx context.Context, arg *api.Table) (*api.Table, error)
 	case api.Resource_VRF:
 		reqType = REQ_VRF
 	default:
-		return nil, fmt.Errorf("unsupported resource type: %v", arg.Type)
+		return nil, fmt.Errorf("unsupported resource type: %v", arg.Table.Type)
 	}
 	d, err := s.get(reqType, arg)
 	if err != nil {
 		return nil, err
 	}
-	return d.(*api.Table), nil
-}
-
-func (s *Server) MonitorBestChanged(arg *api.Arguments, stream api.GobgpApi_MonitorBestChangedServer) error {
-	var reqType int
-	switch arg.Resource {
-	case api.Resource_GLOBAL:
-		reqType = REQ_MONITOR_GLOBAL_BEST_CHANGED
-	default:
-		return fmt.Errorf("unsupported resource type: %v", arg.Resource)
-	}
-
-	req := NewGrpcRequest(reqType, "", bgp.RouteFamily(arg.Family), nil)
-	s.bgpServerCh <- req
-
-	return handleMultipleResponses(req, func(res *GrpcResponse) error {
-		return stream.Send(res.Data.(*api.Destination))
-	})
+	return d.(*api.GetRibResponse), nil
 }
 
 func (s *Server) MonitorRib(arg *api.Table, stream api.GobgpApi_MonitorRibServer) error {
 	switch arg.Type {
-	case api.Resource_ADJ_IN:
+	case api.Resource_ADJ_IN, api.Resource_GLOBAL:
 	default:
 		return fmt.Errorf("unsupported resource type: %v", arg.Type)
 	}
 
-	req := NewGrpcRequest(REQ_MONITOR_INCOMING, arg.Name, bgp.RouteFamily(arg.Family), arg)
+	req := NewGrpcRequest(REQ_MONITOR_RIB, arg.Name, bgp.RouteFamily(arg.Family), arg)
 	s.bgpServerCh <- req
 	return handleMultipleResponses(req, func(res *GrpcResponse) error {
 		return stream.Send(res.Data.(*api.Destination))
@@ -191,65 +212,93 @@ func (s *Server) MonitorPeerState(arg *api.Arguments, stream api.GobgpApi_Monito
 	})
 }
 
-func (s *Server) MonitorROAValidation(arg *api.Arguments, stream api.GobgpApi_MonitorROAValidationServer) error {
-	req := NewGrpcRequest(REQ_MONITOR_ROA_VALIDATION_RESULT, "", bgp.RouteFamily(arg.Family), nil)
+func (s *Server) neighbor(reqType int, address string, d interface{}) (interface{}, error) {
+	req := NewGrpcRequest(reqType, address, bgp.RouteFamily(0), d)
 	s.bgpServerCh <- req
-
-	return handleMultipleResponses(req, func(res *GrpcResponse) error {
-		return stream.Send(res.Data.(*api.ROAResult))
-	})
-}
-
-func (s *Server) neighbor(reqType int, arg *api.Arguments) (*api.Error, error) {
-	none := &api.Error{}
-	req := NewGrpcRequest(reqType, arg.Name, bgp.RouteFamily(arg.Family), nil)
-	s.bgpServerCh <- req
-
 	res := <-req.ResponseCh
-	if err := res.Err(); err != nil {
-		log.Debug(err.Error())
-		return nil, err
-	}
-	return none, nil
+	return res.Data, res.Err()
 }
 
-func (s *Server) Reset(ctx context.Context, arg *api.Arguments) (*api.Error, error) {
-	return s.neighbor(REQ_NEIGHBOR_RESET, arg)
-}
-
-func (s *Server) SoftReset(ctx context.Context, arg *api.Arguments) (*api.Error, error) {
-	return s.neighbor(REQ_NEIGHBOR_SOFT_RESET, arg)
-}
-
-func (s *Server) SoftResetIn(ctx context.Context, arg *api.Arguments) (*api.Error, error) {
-	return s.neighbor(REQ_NEIGHBOR_SOFT_RESET_IN, arg)
-}
-
-func (s *Server) SoftResetOut(ctx context.Context, arg *api.Arguments) (*api.Error, error) {
-	return s.neighbor(REQ_NEIGHBOR_SOFT_RESET_OUT, arg)
-}
-
-func (s *Server) Shutdown(ctx context.Context, arg *api.Arguments) (*api.Error, error) {
-	return s.neighbor(REQ_NEIGHBOR_SHUTDOWN, arg)
-}
-
-func (s *Server) Enable(ctx context.Context, arg *api.Arguments) (*api.Error, error) {
-	return s.neighbor(REQ_NEIGHBOR_ENABLE, arg)
-}
-
-func (s *Server) Disable(ctx context.Context, arg *api.Arguments) (*api.Error, error) {
-	return s.neighbor(REQ_NEIGHBOR_DISABLE, arg)
-}
-
-func (s *Server) ModPath(ctx context.Context, arg *api.ModPathArguments) (*api.ModPathResponse, error) {
-	d, err := s.get(REQ_MOD_PATH, arg)
+func (s *Server) ResetNeighbor(ctx context.Context, arg *api.ResetNeighborRequest) (*api.ResetNeighborResponse, error) {
+	d, err := s.neighbor(REQ_NEIGHBOR_RESET, arg.Address, arg)
 	if err != nil {
 		return nil, err
 	}
-	return d.(*api.ModPathResponse), nil
+	return d.(*api.ResetNeighborResponse), err
 }
 
-func (s *Server) ModPaths(stream api.GobgpApi_ModPathsServer) error {
+func (s *Server) SoftResetNeighbor(ctx context.Context, arg *api.SoftResetNeighborRequest) (*api.SoftResetNeighborResponse, error) {
+	op := REQ_NEIGHBOR_SOFT_RESET
+	switch arg.Direction {
+	case api.SoftResetNeighborRequest_IN:
+		op = REQ_NEIGHBOR_SOFT_RESET_IN
+	case api.SoftResetNeighborRequest_OUT:
+		op = REQ_NEIGHBOR_SOFT_RESET_OUT
+	}
+	d, err := s.neighbor(op, arg.Address, arg)
+	if err != nil {
+		return nil, err
+	}
+	return d.(*api.SoftResetNeighborResponse), err
+}
+
+func (s *Server) ShutdownNeighbor(ctx context.Context, arg *api.ShutdownNeighborRequest) (*api.ShutdownNeighborResponse, error) {
+	d, err := s.neighbor(REQ_NEIGHBOR_SHUTDOWN, arg.Address, arg)
+	if err != nil {
+		return nil, err
+	}
+	return d.(*api.ShutdownNeighborResponse), err
+}
+
+func (s *Server) EnableNeighbor(ctx context.Context, arg *api.EnableNeighborRequest) (*api.EnableNeighborResponse, error) {
+	d, err := s.neighbor(REQ_NEIGHBOR_ENABLE, arg.Address, arg)
+	if err != nil {
+		return nil, err
+	}
+	return d.(*api.EnableNeighborResponse), err
+}
+
+func (s *Server) DisableNeighbor(ctx context.Context, arg *api.DisableNeighborRequest) (*api.DisableNeighborResponse, error) {
+	d, err := s.neighbor(REQ_NEIGHBOR_DISABLE, arg.Address, arg)
+	if err != nil {
+		return nil, err
+	}
+	return d.(*api.DisableNeighborResponse), err
+}
+
+func (s *Server) AddPath(ctx context.Context, arg *api.AddPathRequest) (*api.AddPathResponse, error) {
+	d, err := s.get(REQ_ADD_PATH, arg)
+	if err != nil {
+		return nil, err
+	}
+	return d.(*api.AddPathResponse), err
+}
+
+func (s *Server) DeletePath(ctx context.Context, arg *api.DeletePathRequest) (*api.DeletePathResponse, error) {
+	d, err := s.get(REQ_DELETE_PATH, arg)
+	if err != nil {
+		return nil, err
+	}
+	return d.(*api.DeletePathResponse), err
+}
+
+func (s *Server) EnableMrt(ctx context.Context, arg *api.EnableMrtRequest) (*api.EnableMrtResponse, error) {
+	d, err := s.get(REQ_ENABLE_MRT, arg)
+	if err != nil {
+		return nil, err
+	}
+	return d.(*api.EnableMrtResponse), err
+}
+
+func (s *Server) DisableMrt(ctx context.Context, arg *api.DisableMrtRequest) (*api.DisableMrtResponse, error) {
+	d, err := s.get(REQ_DISABLE_MRT, arg)
+	if err != nil {
+		return nil, err
+	}
+	return d.(*api.DisableMrtResponse), err
+}
+
+func (s *Server) InjectMrt(stream api.GobgpApi_InjectMrtServer) error {
 	for {
 		arg, err := stream.Recv()
 
@@ -263,7 +312,7 @@ func (s *Server) ModPaths(stream api.GobgpApi_ModPathsServer) error {
 			return fmt.Errorf("unsupported resource: %s", arg.Resource)
 		}
 
-		req := NewGrpcRequest(REQ_MOD_PATHS, arg.Name, bgp.RouteFamily(0), arg)
+		req := NewGrpcRequest(REQ_INJECT_MRT, "", bgp.RouteFamily(0), arg)
 		s.bgpServerCh <- req
 
 		res := <-req.ResponseCh
@@ -272,180 +321,300 @@ func (s *Server) ModPaths(stream api.GobgpApi_ModPathsServer) error {
 			return err
 		}
 	}
-	err := stream.SendAndClose(&api.Error{
-		Code: api.Error_SUCCESS,
-	})
-
-	return err
+	return stream.SendAndClose(&api.InjectMrtResponse{})
 }
 
-func (s *Server) GetMrt(arg *api.MrtArguments, stream api.GobgpApi_GetMrtServer) error {
-	var reqType int
-	switch arg.Resource {
-	case api.Resource_GLOBAL:
-		reqType = REQ_MRT_GLOBAL_RIB
-	case api.Resource_LOCAL:
-		reqType = REQ_MRT_LOCAL_RIB
-	default:
-		return fmt.Errorf("unsupported resource type: %v", arg.Resource)
+func (s *Server) AddBmp(ctx context.Context, arg *api.AddBmpRequest) (*api.AddBmpResponse, error) {
+	d, err := s.get(REQ_ADD_BMP, arg)
+	if err != nil {
+		return nil, err
 	}
-	req := NewGrpcRequest(reqType, arg.NeighborAddress, bgp.RouteFamily(arg.Family), arg.Interval)
+	return d.(*api.AddBmpResponse), err
+}
+
+func (s *Server) DeleteBmp(ctx context.Context, arg *api.DeleteBmpRequest) (*api.DeleteBmpResponse, error) {
+	d, err := s.get(REQ_DELETE_BMP, arg)
+	if err != nil {
+		return nil, err
+	}
+	return d.(*api.DeleteBmpResponse), err
+}
+
+func (s *Server) ValidateRib(ctx context.Context, arg *api.ValidateRibRequest) (*api.ValidateRibResponse, error) {
+	d, err := s.get(REQ_VALIDATE_RIB, arg)
+	if err != nil {
+		return nil, err
+	}
+	return d.(*api.ValidateRibResponse), err
+}
+
+func (s *Server) AddRpki(ctx context.Context, arg *api.AddRpkiRequest) (*api.AddRpkiResponse, error) {
+	d, err := s.get(REQ_ADD_RPKI, arg)
+	if err != nil {
+		return nil, err
+	}
+	return d.(*api.AddRpkiResponse), err
+}
+
+func (s *Server) DeleteRpki(ctx context.Context, arg *api.DeleteRpkiRequest) (*api.DeleteRpkiResponse, error) {
+	d, err := s.get(REQ_DELETE_RPKI, arg)
+	if err != nil {
+		return nil, err
+	}
+	return d.(*api.DeleteRpkiResponse), err
+}
+
+func (s *Server) EnableRpki(ctx context.Context, arg *api.EnableRpkiRequest) (*api.EnableRpkiResponse, error) {
+	d, err := s.get(REQ_ENABLE_RPKI, arg)
+	if err != nil {
+		return nil, err
+	}
+	return d.(*api.EnableRpkiResponse), err
+}
+
+func (s *Server) DisableRpki(ctx context.Context, arg *api.DisableRpkiRequest) (*api.DisableRpkiResponse, error) {
+	d, err := s.get(REQ_DISABLE_RPKI, arg)
+	if err != nil {
+		return nil, err
+	}
+	return d.(*api.DisableRpkiResponse), err
+}
+
+func (s *Server) ResetRpki(ctx context.Context, arg *api.ResetRpkiRequest) (*api.ResetRpkiResponse, error) {
+	d, err := s.get(REQ_RESET_RPKI, arg)
+	if err != nil {
+		return nil, err
+	}
+	return d.(*api.ResetRpkiResponse), err
+}
+
+func (s *Server) SoftResetRpki(ctx context.Context, arg *api.SoftResetRpkiRequest) (*api.SoftResetRpkiResponse, error) {
+	d, err := s.get(REQ_SOFT_RESET_RPKI, arg)
+	if err != nil {
+		return nil, err
+	}
+	return d.(*api.SoftResetRpkiResponse), err
+}
+
+func (s *Server) GetRpki(ctx context.Context, arg *api.GetRpkiRequest) (*api.GetRpkiResponse, error) {
+	req := NewGrpcRequest(REQ_GET_RPKI, "", bgp.RouteFamily(arg.Family), nil)
 	s.bgpServerCh <- req
-	return handleMultipleResponses(req, func(res *GrpcResponse) error {
-		return stream.Send(res.Data.(*api.MrtMessage))
-	})
+	res := <-req.ResponseCh
+	if res.Err() != nil {
+		return nil, res.Err()
+	}
+	return res.Data.(*api.GetRpkiResponse), res.Err()
 }
 
-func (s *Server) ModMrt(ctx context.Context, arg *api.ModMrtArguments) (*api.Error, error) {
-	return s.mod(REQ_MOD_MRT, arg)
-}
-
-func (s *Server) ModBmp(ctx context.Context, arg *api.ModBmpArguments) (*api.Error, error) {
-	return s.mod(REQ_MOD_BMP, arg)
-}
-
-func (s *Server) ModRPKI(ctx context.Context, arg *api.ModRpkiArguments) (*api.Error, error) {
-	return s.mod(REQ_MOD_RPKI, arg)
-}
-
-func (s *Server) GetRPKI(arg *api.Arguments, stream api.GobgpApi_GetRPKIServer) error {
-	req := NewGrpcRequest(REQ_RPKI, "", bgp.RouteFamily(arg.Family), nil)
+func (s *Server) GetRoa(ctx context.Context, arg *api.GetRoaRequest) (*api.GetRoaResponse, error) {
+	req := NewGrpcRequest(REQ_ROA, "", bgp.RouteFamily(arg.Family), nil)
 	s.bgpServerCh <- req
-
-	return handleMultipleResponses(req, func(res *GrpcResponse) error {
-		return stream.Send(res.Data.(*api.RPKI))
-	})
+	res := <-req.ResponseCh
+	if res.Err() != nil {
+		return nil, res.Err()
+	}
+	return res.Data.(*api.GetRoaResponse), res.Err()
 }
 
-func (s *Server) GetROA(arg *api.Arguments, stream api.GobgpApi_GetROAServer) error {
-	req := NewGrpcRequest(REQ_ROA, arg.Name, bgp.RouteFamily(arg.Family), nil)
+func (s *Server) GetVrf(ctx context.Context, arg *api.GetVrfRequest) (*api.GetVrfResponse, error) {
+	req := NewGrpcRequest(REQ_GET_VRF, "", bgp.RouteFamily(0), nil)
 	s.bgpServerCh <- req
-
-	return handleMultipleResponses(req, func(res *GrpcResponse) error {
-		return stream.Send(res.Data.(*api.ROA))
-	})
-}
-
-func (s *Server) GetVrfs(arg *api.Arguments, stream api.GobgpApi_GetVrfsServer) error {
-	req := NewGrpcRequest(REQ_VRFS, "", bgp.RouteFamily(0), nil)
-	s.bgpServerCh <- req
-
-	return handleMultipleResponses(req, func(res *GrpcResponse) error {
-		return stream.Send(res.Data.(*api.Vrf))
-	})
+	res := <-req.ResponseCh
+	if res.Err() != nil {
+		return nil, res.Err()
+	}
+	return res.Data.(*api.GetVrfResponse), res.Err()
 }
 
 func (s *Server) get(typ int, d interface{}) (interface{}, error) {
 	req := NewGrpcRequest(typ, "", bgp.RouteFamily(0), d)
 	s.bgpServerCh <- req
 	res := <-req.ResponseCh
-	if err := res.Err(); err != nil {
-		return nil, err
-	}
-	return res.Data, nil
+	return res.Data, res.Err()
 }
 
-func (s *Server) mod(typ int, d interface{}) (*api.Error, error) {
-	none := &api.Error{}
-	req := NewGrpcRequest(typ, "", bgp.RouteFamily(0), d)
-	s.bgpServerCh <- req
-	res := <-req.ResponseCh
-	if err := res.Err(); err != nil {
-		return none, err
-	}
-	return none, nil
-}
-
-func (s *Server) ModVrf(ctx context.Context, arg *api.ModVrfArguments) (*api.Error, error) {
-	return s.mod(REQ_VRF_MOD, arg)
-}
-
-func (s *Server) ModNeighbor(ctx context.Context, arg *api.ModNeighborArguments) (*api.Error, error) {
-	return s.mod(REQ_MOD_NEIGHBOR, arg)
-}
-
-func (s *Server) GetDefinedSet(ctx context.Context, arg *api.DefinedSet) (*api.DefinedSet, error) {
-	d, err := s.get(REQ_DEFINED_SET, arg)
+func (s *Server) AddVrf(ctx context.Context, arg *api.AddVrfRequest) (*api.AddVrfResponse, error) {
+	d, err := s.get(REQ_ADD_VRF, arg)
 	if err != nil {
 		return nil, err
 	}
-	return d.(*api.DefinedSet), nil
+	return d.(*api.AddVrfResponse), err
 }
 
-func (s *Server) GetDefinedSets(arg *api.DefinedSet, stream api.GobgpApi_GetDefinedSetsServer) error {
-	req := NewGrpcRequest(REQ_DEFINED_SET, "", bgp.RouteFamily(0), arg)
-	s.bgpServerCh <- req
-	return handleMultipleResponses(req, func(res *GrpcResponse) error {
-		return stream.Send(res.Data.(*api.DefinedSet))
-	})
-}
-
-func (s *Server) ModDefinedSet(ctx context.Context, arg *api.ModDefinedSetArguments) (*api.Error, error) {
-	return s.mod(REQ_MOD_DEFINED_SET, arg)
-}
-
-func (s *Server) GetStatement(ctx context.Context, arg *api.Statement) (*api.Statement, error) {
-	d, err := s.get(REQ_STATEMENT, arg)
+func (s *Server) DeleteVrf(ctx context.Context, arg *api.DeleteVrfRequest) (*api.DeleteVrfResponse, error) {
+	d, err := s.get(REQ_DELETE_VRF, arg)
 	if err != nil {
 		return nil, err
 	}
-	return d.(*api.Statement), nil
+	return d.(*api.DeleteVrfResponse), err
 }
 
-func (s *Server) GetStatements(arg *api.Statement, stream api.GobgpApi_GetStatementsServer) error {
-	req := NewGrpcRequest(REQ_STATEMENT, "", bgp.RouteFamily(0), arg)
-	s.bgpServerCh <- req
-	return handleMultipleResponses(req, func(res *GrpcResponse) error {
-		return stream.Send(res.Data.(*api.Statement))
-	})
-}
-
-func (s *Server) ModStatement(ctx context.Context, arg *api.ModStatementArguments) (*api.Error, error) {
-	return s.mod(REQ_MOD_STATEMENT, arg)
-}
-
-func (s *Server) GetPolicy(ctx context.Context, arg *api.Policy) (*api.Policy, error) {
-	d, err := s.get(REQ_POLICY, arg)
+func (s *Server) AddNeighbor(ctx context.Context, arg *api.AddNeighborRequest) (*api.AddNeighborResponse, error) {
+	d, err := s.get(REQ_GRPC_ADD_NEIGHBOR, arg)
 	if err != nil {
 		return nil, err
 	}
-	return d.(*api.Policy), nil
+	return d.(*api.AddNeighborResponse), err
 }
 
-func (s *Server) GetPolicies(arg *api.Policy, stream api.GobgpApi_GetPoliciesServer) error {
-	req := NewGrpcRequest(REQ_POLICY, "", bgp.RouteFamily(0), arg)
-	s.bgpServerCh <- req
-	return handleMultipleResponses(req, func(res *GrpcResponse) error {
-		return stream.Send(res.Data.(*api.Policy))
-	})
-}
-
-func (s *Server) ModPolicy(ctx context.Context, arg *api.ModPolicyArguments) (*api.Error, error) {
-	return s.mod(REQ_MOD_POLICY, arg)
-}
-
-func (s *Server) GetPolicyAssignment(ctx context.Context, arg *api.PolicyAssignment) (*api.PolicyAssignment, error) {
-	d, err := s.get(REQ_POLICY_ASSIGNMENT, arg)
+func (s *Server) DeleteNeighbor(ctx context.Context, arg *api.DeleteNeighborRequest) (*api.DeleteNeighborResponse, error) {
+	d, err := s.get(REQ_GRPC_DELETE_NEIGHBOR, arg)
 	if err != nil {
 		return nil, err
 	}
-	return d.(*api.PolicyAssignment), nil
+	return d.(*api.DeleteNeighborResponse), err
 }
 
-func (s *Server) ModPolicyAssignment(ctx context.Context, arg *api.ModPolicyAssignmentArguments) (*api.Error, error) {
-	return s.mod(REQ_MOD_POLICY_ASSIGNMENT, arg)
-}
-
-func (s *Server) GetGlobalConfig(ctx context.Context, arg *api.Arguments) (*api.Global, error) {
-	d, err := s.get(REQ_GLOBAL_CONFIG, arg)
+func (s *Server) GetDefinedSet(ctx context.Context, arg *api.GetDefinedSetRequest) (*api.GetDefinedSetResponse, error) {
+	d, err := s.get(REQ_GET_DEFINED_SET, arg)
 	if err != nil {
 		return nil, err
 	}
-	return d.(*api.Global), nil
+	return d.(*api.GetDefinedSetResponse), err
 }
 
-func (s *Server) ModGlobalConfig(ctx context.Context, arg *api.ModGlobalConfigArguments) (*api.Error, error) {
-	return s.mod(REQ_MOD_GLOBAL_CONFIG, arg)
+func (s *Server) AddDefinedSet(ctx context.Context, arg *api.AddDefinedSetRequest) (*api.AddDefinedSetResponse, error) {
+	d, err := s.get(REQ_ADD_DEFINED_SET, arg)
+	if err != nil {
+		return nil, err
+	}
+	return d.(*api.AddDefinedSetResponse), err
+}
+
+func (s *Server) DeleteDefinedSet(ctx context.Context, arg *api.DeleteDefinedSetRequest) (*api.DeleteDefinedSetResponse, error) {
+	d, err := s.get(REQ_DELETE_DEFINED_SET, arg)
+	if err != nil {
+		return nil, err
+	}
+	return d.(*api.DeleteDefinedSetResponse), err
+}
+
+func (s *Server) ReplaceDefinedSet(ctx context.Context, arg *api.ReplaceDefinedSetRequest) (*api.ReplaceDefinedSetResponse, error) {
+	d, err := s.get(REQ_REPLACE_DEFINED_SET, arg)
+	if err != nil {
+		return nil, err
+	}
+	return d.(*api.ReplaceDefinedSetResponse), err
+}
+
+func (s *Server) GetStatement(ctx context.Context, arg *api.GetStatementRequest) (*api.GetStatementResponse, error) {
+	d, err := s.get(REQ_GET_STATEMENT, arg)
+	if err != nil {
+		return nil, err
+	}
+	return d.(*api.GetStatementResponse), err
+}
+
+func (s *Server) AddStatement(ctx context.Context, arg *api.AddStatementRequest) (*api.AddStatementResponse, error) {
+	d, err := s.get(REQ_ADD_STATEMENT, arg)
+	if err != nil {
+		return nil, err
+	}
+	return d.(*api.AddStatementResponse), err
+}
+
+func (s *Server) DeleteStatement(ctx context.Context, arg *api.DeleteStatementRequest) (*api.DeleteStatementResponse, error) {
+	d, err := s.get(REQ_DELETE_STATEMENT, arg)
+	if err != nil {
+		return nil, err
+	}
+	return d.(*api.DeleteStatementResponse), err
+}
+
+func (s *Server) ReplaceStatement(ctx context.Context, arg *api.ReplaceStatementRequest) (*api.ReplaceStatementResponse, error) {
+	d, err := s.get(REQ_REPLACE_STATEMENT, arg)
+	if err != nil {
+		return nil, err
+	}
+	return d.(*api.ReplaceStatementResponse), err
+}
+
+func (s *Server) GetPolicy(ctx context.Context, arg *api.GetPolicyRequest) (*api.GetPolicyResponse, error) {
+	d, err := s.get(REQ_GET_POLICY, arg)
+	if err != nil {
+		return nil, err
+	}
+	return d.(*api.GetPolicyResponse), err
+}
+
+func (s *Server) AddPolicy(ctx context.Context, arg *api.AddPolicyRequest) (*api.AddPolicyResponse, error) {
+	d, err := s.get(REQ_ADD_POLICY, arg)
+	if err != nil {
+		return nil, err
+	}
+	return d.(*api.AddPolicyResponse), err
+}
+
+func (s *Server) DeletePolicy(ctx context.Context, arg *api.DeletePolicyRequest) (*api.DeletePolicyResponse, error) {
+	d, err := s.get(REQ_DELETE_POLICY, arg)
+	if err != nil {
+		return nil, err
+	}
+	return d.(*api.DeletePolicyResponse), err
+}
+
+func (s *Server) ReplacePolicy(ctx context.Context, arg *api.ReplacePolicyRequest) (*api.ReplacePolicyResponse, error) {
+	d, err := s.get(REQ_REPLACE_POLICY, arg)
+	if err != nil {
+		return nil, err
+	}
+	return d.(*api.ReplacePolicyResponse), err
+}
+
+func (s *Server) GetPolicyAssignment(ctx context.Context, arg *api.GetPolicyAssignmentRequest) (*api.GetPolicyAssignmentResponse, error) {
+	d, err := s.get(REQ_GET_POLICY_ASSIGNMENT, arg)
+	if err != nil {
+		return nil, err
+	}
+	return d.(*api.GetPolicyAssignmentResponse), err
+}
+
+func (s *Server) AddPolicyAssignment(ctx context.Context, arg *api.AddPolicyAssignmentRequest) (*api.AddPolicyAssignmentResponse, error) {
+	d, err := s.get(REQ_ADD_POLICY_ASSIGNMENT, arg)
+	if err != nil {
+		return nil, err
+	}
+	return d.(*api.AddPolicyAssignmentResponse), err
+}
+
+func (s *Server) DeletePolicyAssignment(ctx context.Context, arg *api.DeletePolicyAssignmentRequest) (*api.DeletePolicyAssignmentResponse, error) {
+	d, err := s.get(REQ_DELETE_POLICY_ASSIGNMENT, arg)
+	if err != nil {
+		return nil, err
+	}
+	return d.(*api.DeletePolicyAssignmentResponse), err
+}
+
+func (s *Server) ReplacePolicyAssignment(ctx context.Context, arg *api.ReplacePolicyAssignmentRequest) (*api.ReplacePolicyAssignmentResponse, error) {
+	d, err := s.get(REQ_REPLACE_POLICY_ASSIGNMENT, arg)
+	if err != nil {
+		return nil, err
+	}
+	return d.(*api.ReplacePolicyAssignmentResponse), err
+}
+
+func (s *Server) GetServer(ctx context.Context, arg *api.GetServerRequest) (*api.GetServerResponse, error) {
+	d, err := s.get(REQ_GET_SERVER, arg)
+	if err != nil {
+		return nil, err
+	}
+	return d.(*api.GetServerResponse), err
+}
+
+func (s *Server) StartServer(ctx context.Context, arg *api.StartServerRequest) (*api.StartServerResponse, error) {
+	d, err := s.get(REQ_START_SERVER, arg)
+	if err != nil {
+		return nil, err
+	}
+	return d.(*api.StartServerResponse), err
+}
+
+func (s *Server) StopServer(ctx context.Context, arg *api.StopServerRequest) (*api.StopServerResponse, error) {
+	d, err := s.get(REQ_STOP_SERVER, arg)
+	if err != nil {
+		return nil, err
+	}
+	return d.(*api.StopServerResponse), err
 }
 
 type GrpcRequest struct {
@@ -479,12 +648,13 @@ func (r *GrpcResponse) Err() error {
 	return r.ResponseErr
 }
 
-func NewGrpcServer(port int, bgpServerCh chan *GrpcRequest) *Server {
+func NewGrpcServer(hosts string, bgpServerCh chan *GrpcRequest) *Server {
+	grpc.EnableTracing = false
 	grpcServer := grpc.NewServer()
 	server := &Server{
 		grpcServer:  grpcServer,
 		bgpServerCh: bgpServerCh,
-		port:        port,
+		hosts:       hosts,
 	}
 	api.RegisterGobgpApiServer(grpcServer, server)
 	return server

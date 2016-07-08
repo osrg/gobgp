@@ -4,7 +4,7 @@ require 'gobgp_services'
 host = 'localhost'
 host = ARGV[0] if ARGV.length > 0
 
-stub = Gobgpapi::GobgpApi::Stub.new("#{host}:50051")
+stub = Gobgpapi::GobgpApi::Stub.new("#{host}:50051", :this_channel_is_insecure)
 arg = Gobgpapi::Arguments.new()
 stub.get_neighbors(arg).each do |n|
     puts "BGP neighbor is #{n.conf.neighbor_address}, remote AS #{n.conf.peer_as}"

@@ -87,6 +87,9 @@ class GoBGPTestBase(unittest.TestCase):
         for q in self.quaggas.itervalues():
             # paths expected to exist in gobgp's global rib
             def f():
+                state = self.gobgp.get_neighbor_state(q)
+                self.assertEqual(state, BGP_FSM_ESTABLISHED)
+
                 routes = q.routes.keys()
                 global_rib = [p['prefix'] for p in self.gobgp.get_global_rib()]
                 for p in global_rib:

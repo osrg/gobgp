@@ -1,12 +1,40 @@
 language: go
 
-go: 
+sudo: required
+services:
+  - docker
+
+go:
  - 1.3
  - 1.4
  - 1.5
+ - 1.6
  - tip
 
-script:
- - go test -v ./...
+env:
+ - SCENARIO=false
+ - SCENARIO=true
 
-sudo: false
+matrix:
+  allow_failures:
+    - go: 1.3
+    - go: 1.4
+    - go: tip
+  exclude:
+    - go: 1.3
+      env: SCENARIO=true
+    - go: 1.4
+      env: SCENARIO=true
+    - go: 1.5
+      env: SCENARIO=true
+    - go: tip
+      env: SCENARIO=true
+
+go_import_path: github.com/osrg/gobgp
+
+script:
+ - if [[ "$TRAVIS_GO_VERSION" == "1.5" ]]; then test -z "$(go fmt ./...)"; fi && bash test/scenario_test/ci-scripts/travis-build-script.sh $SCENARIO
+
+notifications:
+ slack:
+  secure: KzuC9kytzS7wTlfj4MqSg8EpqXfJRMbo59dAVTA3w587achnVCS3vhUenWuhMCiWk7+6DVWwNpwzn2+A0S6RwMFMpKAU6Ij6K9sxEOgqBGuMN8w1//w+uJTryzsnebEIhInGt2kKfqz4Wx3QQqW5gVhI+8s+c5M0iXxFtN4soVk=

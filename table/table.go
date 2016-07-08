@@ -17,7 +17,9 @@ package table
 
 import (
 	log "github.com/Sirupsen/logrus"
-	"github.com/osrg/gobgp/packet"
+	"github.com/armon/go-radix"
+	"github.com/osrg/gobgp/packet/bgp"
+	"sort"
 )
 
 type Table struct {
@@ -84,8 +86,7 @@ func (t *Table) deletePathsByVrf(vrf *Vrf) []*Path {
 				return pathList
 			}
 			if p.IsLocal() && vrf.Rd.String() == rd.String() {
-				p.IsWithdraw = true
-				pathList = append(pathList, p)
+				pathList = append(pathList, p.Clone(true))
 				break
 			}
 		}
@@ -106,8 +107,7 @@ func (t *Table) deleteRTCPathsByVrf(vrf *Vrf, vrfs map[string]*Vrf) []*Path {
 			if lhs == rhs && isLastTargetUser(vrfs, target) {
 				for _, p := range dest.knownPathList {
 					if p.IsLocal() {
-						p.IsWithdraw = true
-						pathList = append(pathList, p)
+						pathList = append(pathList, p.Clone(true))
 						break
 					}
 				}
@@ -122,6 +122,9 @@ func (t *Table) deleteDestByNlri(nlri bgp.AddrPrefixInterface) *Destination {
 	dest := destinations[t.tableKey(nlri)]
 	if dest != nil {
 		delete(destinations, t.tableKey(nlri))
+		if len(destinations) == 0 {
+			t.destinations = make(map[string]*Destination)
+		}
 	}
 	return dest
 }
@@ -129,6 +132,9 @@ func (t *Table) deleteDestByNlri(nlri bgp.AddrPrefixInterface) *Destination {
 func (t *Table) deleteDest(dest *Destination) {
 	destinations := t.GetDestinations()
 	delete(destinations, t.tableKey(dest.GetNlri()))
+	if len(destinations) == 0 {
+		t.destinations = make(map[string]*Destination)
+	}
 }
 
 func (t *Table) validatePath(path *Path) {
@@ -186,6 +192,31 @@ func (t *Table) getOrCreateDest(nlri bgp.AddrPrefixInterface) *Destination {
 		t.setDestination(tableKey, dest)
 	}
 	return dest
+}
+
+func (t *Table) GetSortedDestinations() []*Destination {
+	results := make([]*Destination, 0, len(t.GetDestinations()))
+	switch t.routeFamily {
+	case bgp.RF_IPv4_UC, bgp.RF_IPv6_UC:
+		r := radix.New()
+		for _, dst := range t.GetDestinations() {
+			r.Insert(dst.RadixKey, dst)
+		}
+		r.Walk(func(s string, v interface{}) bool {
+			results = append(results, v.(*Destination))
+			return false
+		})
+	case bgp.RF_FS_IPv4_UC, bgp.RF_FS_IPv6_UC, bgp.RF_FS_IPv4_VPN, bgp.RF_FS_IPv6_VPN, bgp.RF_FS_L2_VPN:
+		for _, dst := range t.GetDestinations() {
+			results = append(results, dst)
+		}
+		sort.Sort(destinations(results))
+	default:
+		for _, dst := range t.GetDestinations() {
+			results = append(results, dst)
+		}
+	}
+	return results
 }
 
 func (t *Table) GetDestinations() map[string]*Destination {

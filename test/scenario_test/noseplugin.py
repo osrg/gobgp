@@ -15,6 +15,7 @@ class OptionParser(Plugin):
         parser.add_option('--gobgp-log-level', action="store",
                           dest="gobgp_log_level", default="info")
         parser.add_option('--test-index', action="store", type="int", dest="test_index", default=0)
+        parser.add_option('--config-format', action="store", dest="config_format", default="yaml")
 
     def configure(self, options, conf):
         super(OptionParser, self).configure(options, conf)

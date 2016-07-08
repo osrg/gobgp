@@ -18,6 +18,6 @@ How to use
    -p $YANG_DIR/public/release/models/bgp \
    -p $YANG_DIR/public/release/models/policy \
    -f golang $YANG_DIR/public/release/models/bgp/openconfig-bgp.yang \
-   $YANG_DIR/public/release/modesl/policy/openconfig-routing-policy.yang \
+   $YANG_DIR/public/release/models/policy/openconfig-routing-policy.yang \
    $GOBGP_PATH/tools/pyang_plugins/gobgp.yang \
    | gofmt > $GOBGP_PATH/config/bgp_configs.go

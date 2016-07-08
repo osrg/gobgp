@@ -18,38 +18,23 @@ package cmd
 import (
 	"fmt"
 	api "github.com/osrg/gobgp/api"
-	"github.com/osrg/gobgp/packet"
+	"github.com/osrg/gobgp/packet/bgp"
 	"github.com/spf13/cobra"
 	"golang.org/x/net/context"
-	"io"
 	"net"
-	"os"
-	"strconv"
 	"time"
 )
 
 func showRPKIServer(args []string) error {
-	arg := &api.Arguments{}
-
-	stream, err := client.GetRPKI(context.Background(), arg)
+	rsp, err := client.GetRpki(context.Background(), &api.GetRpkiRequest{})
 	if err != nil {
 		fmt.Println(err)
 		return err
 	}
-	servers := make([]*api.RPKI, 0)
-	for {
-		r, err := stream.Recv()
-		if err == io.EOF {
-			break
-		} else if err != nil {
-			return err
-		}
-		servers = append(servers, r)
-	}
 	if len(args) == 0 {
 		format := "%-23s %-6s %-10s %s\n"
 		fmt.Printf(format, "Session", "State", "Uptime", "#IPv4/IPv6 records")
-		for _, r := range servers {
+		for _, r := range rsp.Servers {
 			s := "Down"
 			uptime := "never"
 			if r.State.Up == true {
@@ -57,10 +42,10 @@ func showRPKIServer(args []string) error {
 				uptime = fmt.Sprint(formatTimedelta(int64(time.Now().Sub(time.Unix(r.State.Uptime, 0)).Seconds())))
 			}
 
-			fmt.Printf(format, net.JoinHostPort(r.Conf.Address, strconv.Itoa(int(r.Conf.RemotePort))), s, uptime, fmt.Sprintf("%d/%d", r.State.RecordIpv4, r.State.RecordIpv6))
+			fmt.Printf(format, net.JoinHostPort(r.Conf.Address, r.Conf.RemotePort), s, uptime, fmt.Sprintf("%d/%d", r.State.RecordIpv4, r.State.RecordIpv6))
 		}
 	} else {
-		for _, r := range servers {
+		for _, r := range rsp.Servers {
 			if r.Conf.Address == args[0] {
 				up := "Down"
 				if r.State.Up == true {
@@ -90,16 +75,12 @@ func showRPKIServer(args []string) error {
 func showRPKITable(args []string) error {
 	family, err := checkAddressFamily(bgp.RouteFamily(0))
 	if err != nil {
-		fmt.Println(err)
-		os.Exit(1)
+		exitWithError(err)
 	}
-	arg := &api.Arguments{
+	arg := &api.GetRoaRequest{
 		Family: uint32(family),
 	}
-	if len(args) > 0 {
-		arg.Name = args[0]
-	}
-	stream, err := client.GetROA(context.Background(), arg)
+	rsp, err := client.GetRoa(context.Background(), arg)
 	if err != nil {
 		fmt.Println(err)
 		return err
@@ -113,18 +94,12 @@ func showRPKITable(args []string) error {
 		format = "%-42s %-6s %-10s %s\n"
 	}
 	fmt.Printf(format, "Network", "Maxlen", "AS", "Server")
-	for {
-		r, err := stream.Recv()
-		if err == io.EOF {
-			break
-		} else if err != nil {
-			return err
-		}
+	for _, r := range rsp.Roas {
 		if len(args) > 0 && args[0] != r.Conf.Address {
 			continue
 		}
 
-		server := net.JoinHostPort(r.Conf.Address, strconv.Itoa(int(r.Conf.RemotePort)))
+		server := net.JoinHostPort(r.Conf.Address, r.Conf.RemotePort)
 		fmt.Printf(format, fmt.Sprintf("%s/%d", r.Prefix, r.Prefixlen), fmt.Sprint(r.Maxlen), fmt.Sprint(r.As), server)
 	}
 	return nil
@@ -135,16 +110,6 @@ func NewRPKICmd() *cobra.Command {
 		Use: CMD_RPKI,
 	}
 
-	modRPKI := func(op api.Operation, address string) error {
-		arg := &api.ModRpkiArguments{
-			Operation: op,
-			Address:   address,
-			Port:      323,
-		}
-		_, err := client.ModRPKI(context.Background(), arg)
-		return err
-	}
-
 	serverCmd := &cobra.Command{
 		Use: CMD_RPKI_SERVER,
 		Run: func(cmd *cobra.Command, args []string) {
@@ -152,31 +117,40 @@ func NewRPKICmd() *cobra.Command {
 				showRPKIServer(args)
 				return
 			} else if len(args) != 2 {
-				fmt.Println("usage: gobgp rpki server <ip address> [reset|softreset|enable]")
-				os.Exit(1)
+				exitWithError(fmt.Errorf("usage: gobgp rpki server <ip address> [reset|softreset|enable]"))
 			}
 			addr := net.ParseIP(args[0])
 			if addr == nil {
-				fmt.Println("invalid ip address:", args[0])
-				os.Exit(1)
+				exitWithError(fmt.Errorf("invalid ip address: %s", args[0]))
 			}
-			var op api.Operation
+			var err error
 			switch args[1] {
 			case "add":
-				op = api.Operation_ADD
+				_, err = client.AddRpki(context.Background(), &api.AddRpkiRequest{
+					Address: addr.String(),
+					Port:    323,
+				})
 			case "reset":
-				op = api.Operation_RESET
+				_, err = client.ResetRpki(context.Background(), &api.ResetRpkiRequest{
+					Address: addr.String(),
+				})
 			case "softreset":
-				op = api.Operation_SOFTRESET
+				_, err = client.SoftResetRpki(context.Background(), &api.SoftResetRpkiRequest{
+					Address: addr.String(),
+				})
 			case "enable":
-				op = api.Operation_ENABLE
+				_, err = client.EnableRpki(context.Background(), &api.EnableRpkiRequest{
+					Address: addr.String(),
+				})
+			case "disable":
+				_, err = client.DisableRpki(context.Background(), &api.DisableRpkiRequest{
+					Address: addr.String(),
+				})
 			default:
-				fmt.Println("unknown operation:", args[1])
-				os.Exit(1)
+				exitWithError(fmt.Errorf("unknown operation: %s", args[1]))
 			}
-			err := modRPKI(op, addr.String())
 			if err != nil {
-				fmt.Println(err)
+				exitWithError(err)
 			}
 		},
 	}
@@ -193,7 +167,11 @@ func NewRPKICmd() *cobra.Command {
 	validateCmd := &cobra.Command{
 		Use: "validate",
 		Run: func(cmd *cobra.Command, args []string) {
-			modRPKI(api.Operation_REPLACE, "")
+			arg := &api.ValidateRibRequest{}
+			if len(args) == 1 {
+				arg.Prefix = args[0]
+			}
+			client.ValidateRib(context.Background(), arg)
 		},
 	}
 	rpkiCmd.AddCommand(validateCmd)

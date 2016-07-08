@@ -17,23 +17,16 @@ package server
 
 import (
 	"fmt"
+	"net"
+	"sync"
+	"time"
+
 	log "github.com/Sirupsen/logrus"
-	"github.com/osrg/gobgp/packet"
+	"github.com/eapache/channels"
+	"github.com/osrg/gobgp/packet/bgp"
 	"github.com/osrg/gobgp/table"
 	"gopkg.in/tomb.v2"
-	"net"
-	"os"
-	"time"
 )
-
-type broadcastWatcherMsg struct {
-	ch    chan watcherEvent
-	event watcherEvent
-}
-
-func (m *broadcastWatcherMsg) send() {
-	m.ch <- m.event
-}
 
 type watcherType uint8
 
@@ -42,8 +35,8 @@ const (
 	WATCHER_MRT             // UPDATE MSG
 	WATCHER_BMP
 	WATCHER_ZEBRA
-	WATCHER_GRPC_BESTPATH
-	WATCHER_GRPC_INCOMING
+	WATCHER_COLLECTOR
+	WATCHER_GRPC_MONITOR
 )
 
 type watcherEventType uint8
@@ -54,6 +47,7 @@ const (
 	WATCHER_EVENT_STATE_CHANGE
 	WATCHER_EVENT_BESTPATH_CHANGE
 	WATCHER_EVENT_POST_POLICY_UPDATE_MSG
+	WATCHER_EVENT_ADJ_IN
 )
 
 type watcherEvent interface {
@@ -84,139 +78,114 @@ type watcherEventStateChangedMsg struct {
 	sentOpen     *bgp.BGPMessage
 	recvOpen     *bgp.BGPMessage
 	state        bgp.FSMState
+	adminState   AdminState
 	timestamp    time.Time
+}
+
+type watcherEventAdjInMsg struct {
+	pathList []*table.Path
+}
+
+type watcherEventBestPathMsg struct {
+	pathList      []*table.Path
+	multiPathList [][]*table.Path
 }
 
 type watcher interface {
 	notify(watcherEventType) chan watcherEvent
-	restart(string) error
 	stop()
 	watchingEventTypes() []watcherEventType
 }
 
-type mrtWatcherOp struct {
-	filename string //used for rotate
-	result   chan error
+type watcherMsg struct {
+	typ watcherEventType
+	ev  watcherEvent
 }
 
-type mrtWatcher struct {
-	t        tomb.Tomb
-	filename string
-	file     *os.File
-	ch       chan watcherEvent
-	opCh     chan *mrtWatcherOp
+type watcherManager struct {
+	t  tomb.Tomb
+	mu sync.RWMutex
+	m  map[watcherType]watcher
+	ch *channels.InfiniteChannel
 }
 
-func (w *mrtWatcher) notify(t watcherEventType) chan watcherEvent {
-	if t == WATCHER_EVENT_UPDATE_MSG {
-		return w.ch
+func (m *watcherManager) watching(typ watcherEventType) bool {
+	for _, w := range m.m {
+		for _, ev := range w.watchingEventTypes() {
+			if ev == typ {
+				return true
+			}
+		}
 	}
+	return false
+}
+
+// this will be called from server's main goroutine.
+// shouldn't block.
+func (m *watcherManager) notify(typ watcherEventType, ev watcherEvent) {
+	m.ch.In() <- &watcherMsg{typ, ev}
+}
+
+func (m *watcherManager) loop() error {
+	for {
+		select {
+		case i, ok := <-m.ch.Out():
+			if !ok {
+				continue
+			}
+			msg := i.(*watcherMsg)
+			m.mu.RLock()
+			for _, w := range m.m {
+				if ch := w.notify(msg.typ); ch != nil {
+					t := time.NewTimer(time.Second)
+					select {
+					case ch <- msg.ev:
+					case <-t.C:
+						log.WithFields(log.Fields{
+							"Topic": "Watcher",
+						}).Warnf("notification to %s timeout expired")
+					}
+				}
+			}
+			m.mu.RUnlock()
+		}
+	}
+}
+
+func (m *watcherManager) watcher(typ watcherType) (watcher, bool) {
+	m.mu.RLock()
+	defer m.mu.RUnlock()
+	w, y := m.m[typ]
+	return w, y
+}
+
+func (m *watcherManager) addWatcher(typ watcherType, w watcher) error {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	if _, y := m.m[typ]; y {
+		return fmt.Errorf("already exists %s watcher", typ)
+	}
+	m.m[typ] = w
 	return nil
 }
 
-func (w *mrtWatcher) stop() {
-	w.t.Kill(nil)
+func (m *watcherManager) delWatcher(typ watcherType) error {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	if _, y := m.m[typ]; !y {
+		return fmt.Errorf("not found %s watcher", typ)
+	}
+	w := m.m[typ]
+	w.stop()
+	delete(m.m, typ)
+	return nil
 }
 
-func (w *mrtWatcher) restart(filename string) error {
-	adminOp := &mrtWatcherOp{
-		filename: filename,
-		result:   make(chan error),
+func newWatcherManager() *watcherManager {
+	m := &watcherManager{
+		m:  make(map[watcherType]watcher),
+		ch: channels.NewInfiniteChannel(),
 	}
-	select {
-	case w.opCh <- adminOp:
-	default:
-		return fmt.Errorf("already an admin operaiton in progress")
-	}
-	return <-adminOp.result
-}
-
-func (w *mrtWatcher) loop() error {
-	defer w.file.Close()
-	for {
-		write := func(ev watcherEvent) {
-			m := ev.(*watcherEventUpdateMsg)
-			subtype := bgp.MESSAGE_AS4
-			mp := bgp.NewBGP4MPMessage(m.peerAS, m.localAS, 0, m.peerAddress.String(), m.localAddress.String(), m.fourBytesAs, nil)
-			mp.BGPMessagePayload = m.payload
-			if m.fourBytesAs == false {
-				subtype = bgp.MESSAGE
-			}
-			bm, err := bgp.NewMRTMessage(uint32(m.timestamp.Unix()), bgp.BGP4MP, subtype, mp)
-			if err != nil {
-				log.WithFields(log.Fields{
-					"Topic": "mrt",
-					"Data":  m,
-				}).Warn(err)
-				return
-			}
-			buf, err := bm.Serialize()
-			if err == nil {
-				_, err = w.file.Write(buf)
-			}
-
-			if err != nil {
-				log.WithFields(log.Fields{
-					"Topic": "mrt",
-					"Data":  m,
-				}).Warn(err)
-			}
-		}
-
-		drain := func() {
-			for len(w.ch) > 0 {
-				m := <-w.ch
-				write(m)
-			}
-		}
-
-		select {
-		case <-w.t.Dying():
-			drain()
-			return nil
-		case m := <-w.ch:
-			write(m)
-		case adminOp := <-w.opCh:
-			var err error
-			if adminOp.filename != "" {
-				err = os.Rename(w.file.Name(), adminOp.filename)
-			}
-			if err == nil {
-				var file *os.File
-				file, err = mrtFileOpen(w.file.Name())
-				if err == nil {
-					w.file.Close()
-					w.file = file
-				}
-			}
-			adminOp.result <- err
-		}
-	}
-}
-
-func (w *mrtWatcher) watchingEventTypes() []watcherEventType {
-	return []watcherEventType{WATCHER_EVENT_UPDATE_MSG}
-}
-
-func mrtFileOpen(filename string) (*os.File, error) {
-	file, err := os.OpenFile(filename, os.O_CREATE|os.O_RDWR|os.O_APPEND, 0644)
-	if err != nil {
-		log.Warn(err)
-	}
-	return file, err
-}
-
-func newMrtWatcher(filename string) (*mrtWatcher, error) {
-	file, err := mrtFileOpen(filename)
-	if err != nil {
-		return nil, err
-	}
-	w := mrtWatcher{
-		filename: filename,
-		file:     file,
-		ch:       make(chan watcherEvent),
-		opCh:     make(chan *mrtWatcherOp, 1),
-	}
-	w.t.Go(w.loop)
-	return &w, nil
+	m.t.Go(m.loop)
+	return m
 }

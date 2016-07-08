@@ -42,6 +42,10 @@ _COPYRIGHT_NOTICE = """
 
 emitted_type_names = {}
 
+EQUAL_TYPE_LEAF = 0
+EQUAL_TYPE_ARRAY = 1
+EQUAL_TYPE_MAP = 2
+EQUAL_TYPE_CONTAINER = 3
 
 def pyang_plugin_init():
     plugin.register_plugin(GolangPlugin())
@@ -91,6 +95,8 @@ def emit_go(ctx):
     # emit
     generate_header(ctx)
 
+    generate_common_functions(ctx)
+
     for mod in ctx.module_deps:
         if mod not in _module_excluded:
             emit_typedef(ctx, mod)
@@ -135,6 +141,9 @@ def emit_class_def(ctx, yang_statement, struct_name, prefix):
 
     print >> o, '//struct for container %s:%s' % (prefix, yang_statement.arg)
     print >> o, 'type %s struct {' % convert_to_golang(struct_name)
+
+    equal_elems = []
+
     for child in yang_statement.i_children:
 
         if child.path in _path_exclude:
@@ -144,6 +153,8 @@ def emit_class_def(ctx, yang_statement, struct_name, prefix):
         val_name_go = convert_to_golang(child.arg)
         child_prefix = get_orig_prefix(child.i_orig_module)
         tag_name = child.uniq_name.lower()
+        equal_type = EQUAL_TYPE_LEAF
+        equal_data = None
         print >> o, '  // original -> %s:%s' % \
                     (child_prefix, container_or_list_name)
 
@@ -159,6 +170,8 @@ def emit_class_def(ctx, yang_statement, struct_name, prefix):
 
             # case leafref
             elif type_name == 'leafref':
+                if type_obj.search_one('path').arg.startswith('../config'):
+                    continue
                 t = dig_leafref(type_obj)
                 if is_translation_required(t):
                     print >> o, '  //%s:%s\'s original type is %s' \
@@ -200,6 +213,7 @@ def emit_class_def(ctx, yang_statement, struct_name, prefix):
             type_name = type_obj.arg
             val_name_go = val_name_go + 'List'
             tag_name += '-list'
+            equal_type = EQUAL_TYPE_ARRAY
 
             # case leafref
             if type_name == 'leafref':
@@ -232,8 +246,14 @@ def emit_class_def(ctx, yang_statement, struct_name, prefix):
             if len(t.i_children) == 1 and is_list(t.i_children[0]):
                 l = t.i_children[0]
                 emit_type_name = '[]' + l.golang_name
+                equal_type = EQUAL_TYPE_MAP
+                equal_data = l.search_one('key').arg
+                leaf = l.search_one('leaf').search_one('type')
+                if leaf.arg == 'leafref' and leaf.search_one('path').arg.startswith('../config'):
+                    equal_data = 'config.' + equal_data
             else:
                 emit_type_name = t.golang_name
+                equal_type = EQUAL_TYPE_CONTAINER
 
         # case list
         elif is_list(child):
@@ -242,6 +262,8 @@ def emit_class_def(ctx, yang_statement, struct_name, prefix):
             val_name_go = val_name_go + 'List'
             tag_name += '-list'
             emit_type_name = '[]' + t.golang_name
+            equal_type = EQUAL_TYPE_MAP
+            equal_data = child.search_one('key').arg
 
         if is_container(child):
             name = emit_type_name
@@ -251,8 +273,59 @@ def emit_class_def(ctx, yang_statement, struct_name, prefix):
             elif name.startswith(convert_to_golang(struct_name)) and name.endswith("State"):
                 tag_name = 'state'
                 val_name_go = 'State'
+
         print >> o, '  {0}\t{1} `mapstructure:"{2}"`'.format(val_name_go, emit_type_name, tag_name)
 
+        equal_elems.append((val_name_go, emit_type_name, equal_type, equal_data))
+
+    print >> o, '}'
+
+    print >> o, 'func (lhs *{0}) Equal(rhs *{0}) bool {{'.format(convert_to_golang(struct_name))
+    print >> o, 'if lhs == nil || rhs == nil {'
+    print >> o, 'return false'
+    print >> o, '}'
+
+    for val_name, type_name, typ, elem in equal_elems:
+        if val_name == 'State':
+            continue
+        if typ == EQUAL_TYPE_LEAF:
+            print >> o, 'if lhs.{0} != rhs.{0} {{'.format(val_name)
+            print >> o, 'return false'
+            print >> o, '}'
+        elif typ == EQUAL_TYPE_CONTAINER:
+            print >> o, 'if !lhs.{0}.Equal(&(rhs.{0})) {{'.format(val_name)
+            print >> o, 'return false'
+            print >> o, '}'
+        elif typ == EQUAL_TYPE_ARRAY:
+            print >> o, 'if len(lhs.{0}) != len(rhs.{0}) {{'.format(val_name)
+            print >> o, 'return false'
+            print >> o, '}'
+            print >> o, 'for idx, l := range lhs.{0} {{'.format(val_name)
+            print >> o, 'if l != rhs.{0}[idx] {{'.format(val_name)
+            print >> o, 'return false'
+            print >> o, '}'
+            print >> o, '}'
+        elif typ ==EQUAL_TYPE_MAP:
+            print >> o, 'if len(lhs.{0}) != len(rhs.{0}) {{'.format(val_name)
+            print >> o, 'return false'
+            print >> o, '}'
+            print >> o, '{'
+            print >> o, 'lmap := make(map[string]*{0})'.format(type_name[2:])
+            print >> o, 'for i, l := range lhs.{0} {{'.format(val_name)
+            print >> o, 'lmap[mapkey(i, string({0}))] = &lhs.{1}[i]'.format(' + '.join('l.{0}'.format(convert_to_golang(v)) for v in elem.split(' ')), val_name)
+            print >> o, '}'
+            print >> o, 'for i, r := range rhs.{0} {{'.format(val_name)
+            print >> o, 'if l, y := lmap[mapkey(i, string({0}))]; !y {{'.format('+'.join('r.{0}'.format(convert_to_golang(v)) for v in elem.split(' ')))
+            print >> o, 'return false'
+            print >> o, '} else if !r.Equal(l) {'
+            print >> o, 'return false'
+            print >> o, '}'
+            print >> o, '}'
+            print >> o, '}'
+        else:
+            sys.stderr.write("invalid equal type %s", typ)
+
+    print >> o, 'return true'
     print >> o, '}'
     print o.getvalue()
 
@@ -619,6 +692,15 @@ def generate_header(ctx):
     print ''
 
 
+def generate_common_functions(ctx):
+    print 'func mapkey(index int, name string) string {'
+    print 'if name != "" {'
+    print 'return name'
+    print '}'
+    print 'return fmt.Sprintf("%v", index)'
+    print '}'
+
+
 def translate_type(key):
     if key in _type_translation_map.keys():
         return _type_translation_map[key]
@@ -628,9 +710,9 @@ def translate_type(key):
 
 # 'hoge-hoge' -> 'HogeHoge'
 def convert_to_golang(type_string):
-    a = type_string.split('-')
+    a = type_string.split('.')
     a = map(lambda x: x.capitalize(), a)  # XXX locale sensitive
-    return ''.join(a)
+    return '.'.join( ''.join(t.capitalize() for t in x.split('-')) for x in a)
 
 
 # 'hoge-hoge' -> 'HOGE_HOGE'

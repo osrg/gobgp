@@ -17,9 +17,10 @@ package cmd
 
 import (
 	"bytes"
+	"encoding/json"
 	"fmt"
 	"github.com/osrg/gobgp/api"
-	"github.com/osrg/gobgp/packet"
+	"github.com/osrg/gobgp/packet/bgp"
 	"google.golang.org/grpc"
 	"net"
 	"os"
@@ -94,6 +95,7 @@ var actionOpts struct {
 	CommunityAction     string `long:"community" description:"specifying a community action of policy"`
 	MedAction           string `long:"med" description:"specifying a med action of policy"`
 	AsPathPrependAction string `long:"as-prepend" description:"specifying a as-prepend action of policy"`
+	NexthopAction       string `long:"next-hop" description:"specifying a next-hop action of policy"`
 }
 
 var mrtOpts struct {
@@ -164,19 +166,25 @@ type Path struct {
 	Validation int32                        `json:"validation"`
 	Filtered   bool                         `json:"filtered"`
 	SourceId   string                       `json:"source-id"`
+	NeighborIp string                       `json:"neighbor-ip"`
+	Stale      bool                         `json:"stale"`
 }
 
 func ApiStruct2Path(p *gobgpapi.Path) ([]*Path, error) {
 	nlris := make([]bgp.AddrPrefixInterface, 0, 1)
-	data := p.Nlri
-	if p.Family == uint32(bgp.RF_IPv4_UC) && len(data) > 0 {
-		nlri := &bgp.IPAddrPrefix{}
-		err := nlri.DecodeFromBytes(data)
-		if err != nil {
-			return nil, err
-		}
-		nlris = append(nlris, nlri)
+	if len(p.Nlri) == 0 {
+		return nil, fmt.Errorf("path doesn't have nlri")
 	}
+	afi, safi := bgp.RouteFamilyToAfiSafi(bgp.RouteFamily(p.Family))
+	nlri, err := bgp.NewPrefixFromRouteFamily(afi, safi)
+	if err != nil {
+		return nil, err
+	}
+
+	if err := nlri.DecodeFromBytes(p.Nlri); err != nil {
+		return nil, err
+	}
+	nlris = append(nlris, nlri)
 
 	pattr := make([]bgp.PathAttributeInterface, 0, len(p.Pattrs))
 	for _, attr := range p.Pattrs {
@@ -188,14 +196,6 @@ func ApiStruct2Path(p *gobgpapi.Path) ([]*Path, error) {
 		err = p.DecodeFromBytes(attr)
 		if err != nil {
 			return nil, err
-		}
-
-		switch p.GetType() {
-		case bgp.BGP_ATTR_TYPE_MP_REACH_NLRI:
-			mpreach := p.(*bgp.PathAttributeMpReachNLRI)
-			for _, nlri := range mpreach.Value {
-				nlris = append(nlris, nlri)
-			}
 		}
 		pattr = append(pattr, p)
 	}
@@ -210,7 +210,9 @@ func ApiStruct2Path(p *gobgpapi.Path) ([]*Path, error) {
 			IsWithdraw: p.IsWithdraw,
 			Validation: p.Validation,
 			SourceId:   p.SourceId,
+			NeighborIp: p.NeighborIp,
 			Filtered:   p.Filtered,
+			Stale:      p.Stale,
 		})
 	}
 	return paths, nil
@@ -237,20 +239,48 @@ func (p paths) Less(i, j int) bool {
 	return strings.Less(0, 1)
 }
 
+func extractReserved(args, keys []string) map[string][]string {
+	m := make(map[string][]string, len(keys))
+	var k string
+	isReserved := func(s string) bool {
+		for _, r := range keys {
+			if s == r {
+				return true
+			}
+		}
+		return false
+	}
+	for _, arg := range args {
+		if isReserved(arg) {
+			k = arg
+			m[k] = make([]string, 0, 1)
+		} else if k == "" {
+			m[k] = []string{arg}
+		} else {
+			m[k] = append(m[k], arg)
+		}
+	}
+	return m
+}
+
 type PeerConf struct {
 	RemoteIp          net.IP                             `json:"remote_ip,omitempty"`
 	Id                net.IP                             `json:"id,omitempty"`
 	RemoteAs          uint32                             `json:"remote_as,omitempty"`
+	LocalAs           uint32                             `json:"local-as,omitempty"`
 	RemoteCap         []bgp.ParameterCapabilityInterface `json:"remote_cap,omitempty"`
 	LocalCap          []bgp.ParameterCapabilityInterface `json:"local_cap,omitempty"`
 	Holdtime          uint32                             `json:"holdtime,omitempty"`
 	KeepaliveInterval uint32                             `json:"keepalive_interval,omitempty"`
+	PrefixLimits      []*gobgpapi.PrefixLimit
 }
 
 type Peer struct {
-	Conf   PeerConf            `json:"conf,omitempty"`
-	Info   *gobgpapi.PeerState `json:"info,omitempty"`
-	Timers *gobgpapi.Timers    `json:"timers,,omitempty"`
+	Conf           PeerConf                 `json:"conf,omitempty"`
+	Info           *gobgpapi.PeerState      `json:"info,omitempty"`
+	Timers         *gobgpapi.Timers         `json:"timers,omitempty"`
+	RouteReflector *gobgpapi.RouteReflector `json:"route_reflector,omitempty"`
+	RouteServer    *gobgpapi.RouteServer    `json:"route_server,omitempty"`
 }
 
 func ApiStruct2Peer(p *gobgpapi.Peer) *Peer {
@@ -265,16 +295,20 @@ func ApiStruct2Peer(p *gobgpapi.Peer) *Peer {
 		remoteCaps = append(remoteCaps, c)
 	}
 	conf := PeerConf{
-		RemoteIp:  net.ParseIP(p.Conf.NeighborAddress),
-		Id:        net.ParseIP(p.Conf.Id),
-		RemoteAs:  p.Conf.PeerAs,
-		RemoteCap: remoteCaps,
-		LocalCap:  localCaps,
+		RemoteIp:     net.ParseIP(p.Conf.NeighborAddress),
+		Id:           net.ParseIP(p.Conf.Id),
+		RemoteAs:     p.Conf.PeerAs,
+		LocalAs:      p.Conf.LocalAs,
+		RemoteCap:    remoteCaps,
+		LocalCap:     localCaps,
+		PrefixLimits: p.Conf.PrefixLimits,
 	}
 	return &Peer{
-		Conf:   conf,
-		Info:   p.Info,
-		Timers: p.Timers,
+		Conf:           conf,
+		Info:           p.Info,
+		Timers:         p.Timers,
+		RouteReflector: p.RouteReflector,
+		RouteServer:    p.RouteServer,
 	}
 }
 
@@ -350,7 +384,7 @@ func (p policies) Less(i, j int) bool {
 	return p[i].Name < p[j].Name
 }
 
-type roas []*gobgpapi.ROA
+type roas []*gobgpapi.Roa
 
 func (r roas) Len() int {
 	return len(r)
@@ -385,8 +419,7 @@ func connGrpc() *grpc.ClientConn {
 	target := net.JoinHostPort(globalOpts.Host, strconv.Itoa(globalOpts.Port))
 	conn, err := grpc.Dial(target, timeout, grpc.WithBlock(), grpc.WithInsecure())
 	if err != nil {
-		fmt.Println(err)
-		os.Exit(1)
+		exitWithError(err)
 	}
 	return conn
 }
@@ -408,24 +441,50 @@ func checkAddressFamily(def bgp.RouteFamily) (bgp.RouteFamily, error) {
 		rf = bgp.RF_IPv4_UC
 	case "ipv6", "v6", "6":
 		rf = bgp.RF_IPv6_UC
-	case "vpnv4", "vpn-ipv4":
+	case "ipv4-l3vpn", "vpnv4", "vpn-ipv4":
 		rf = bgp.RF_IPv4_VPN
-	case "vpnv6", "vpn-ipv6":
+	case "ipv6-l3vpn", "vpnv6", "vpn-ipv6":
 		rf = bgp.RF_IPv6_VPN
+	case "ipv4-labeled", "ipv4-labelled", "ipv4-mpls":
+		rf = bgp.RF_IPv4_MPLS
+	case "ipv6-labeled", "ipv6-labelled", "ipv6-mpls":
+		rf = bgp.RF_IPv6_MPLS
 	case "evpn":
 		rf = bgp.RF_EVPN
-	case "encap":
-		rf = bgp.RF_ENCAP
+	case "encap", "ipv4-encap":
+		rf = bgp.RF_IPv4_ENCAP
+	case "ipv6-encap":
+		rf = bgp.RF_IPv6_ENCAP
 	case "rtc":
 		rf = bgp.RF_RTC_UC
 	case "ipv4-flowspec", "ipv4-flow", "flow4":
 		rf = bgp.RF_FS_IPv4_UC
 	case "ipv6-flowspec", "ipv6-flow", "flow6":
 		rf = bgp.RF_FS_IPv6_UC
+	case "ipv4-l3vpn-flowspec", "ipv4vpn-flowspec", "flowvpn4":
+		rf = bgp.RF_FS_IPv4_VPN
+	case "ipv6-l3vpn-flowspec", "ipv6vpn-flowspec", "flowvpn6":
+		rf = bgp.RF_FS_IPv6_VPN
+	case "l2vpn-flowspec":
+		rf = bgp.RF_FS_L2_VPN
+	case "opaque":
+		rf = bgp.RF_OPAQUE
 	case "":
 		rf = def
 	default:
 		e = fmt.Errorf("unsupported address family: %s", subOpts.AddressFamily)
 	}
 	return rf, e
+}
+
+func exitWithError(err error) {
+	if globalOpts.Json {
+		j, _ := json.Marshal(struct {
+			Error string `json:"error"`
+		}{Error: err.Error()})
+		fmt.Println(string(j))
+	} else {
+		fmt.Println(err)
+	}
+	os.Exit(1)
 }

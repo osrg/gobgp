@@ -16,46 +16,40 @@
 package table
 
 import (
-	"github.com/osrg/gobgp/packet"
-	"reflect"
+	"github.com/osrg/gobgp/packet/bgp"
 )
 
 type AdjRib struct {
-	id          string
-	accepted    map[bgp.RouteFamily]int
-	table       map[bgp.RouteFamily]map[string]*Path
-	isCollector bool
+	id       string
+	accepted map[bgp.RouteFamily]int
+	table    map[bgp.RouteFamily]map[string]*Path
 }
 
-func NewAdjRib(id string, rfList []bgp.RouteFamily, isCollector bool) *AdjRib {
+func NewAdjRib(id string, rfList []bgp.RouteFamily) *AdjRib {
 	table := make(map[bgp.RouteFamily]map[string]*Path)
 	for _, rf := range rfList {
 		table[rf] = make(map[string]*Path)
 	}
 	return &AdjRib{
-		id:          id,
-		table:       table,
-		accepted:    make(map[bgp.RouteFamily]int),
-		isCollector: isCollector,
+		id:       id,
+		table:    table,
+		accepted: make(map[bgp.RouteFamily]int),
 	}
 }
 
 func (adj *AdjRib) Update(pathList []*Path) {
 	for _, path := range pathList {
-		if path == nil {
+		if path == nil || path.IsEOR() {
 			continue
 		}
 		rf := path.GetRouteFamily()
 		key := path.getPrefix()
-		if adj.isCollector {
-			key += path.GetSource().Address.String()
-		}
 
 		old, found := adj.table[rf][key]
 		if path.IsWithdraw {
 			if found {
 				delete(adj.table[rf], key)
-				if old.Filtered(adj.id) == POLICY_DIRECTION_NONE {
+				if old.Filtered(adj.id) != POLICY_DIRECTION_IN {
 					adj.accepted[rf]--
 				}
 			}
@@ -73,7 +67,7 @@ func (adj *AdjRib) Update(pathList []*Path) {
 					adj.accepted[rf]++
 				}
 			}
-			if found && reflect.DeepEqual(old.GetPathAttrs(), path.GetPathAttrs()) {
+			if found && old.Equal(path) {
 				path.setTimestamp(old.GetTimestamp())
 			}
 			adj.table[rf][key] = path
@@ -96,7 +90,7 @@ func (adj *AdjRib) PathList(rfList []bgp.RouteFamily, accepted bool) []*Path {
 	pathList := make([]*Path, 0, adj.Count(rfList))
 	for _, rf := range rfList {
 		for _, rr := range adj.table[rf] {
-			if accepted && rr.Filtered(adj.id) > POLICY_DIRECTION_NONE {
+			if accepted && rr.Filtered(adj.id) == POLICY_DIRECTION_IN {
 				continue
 			}
 			pathList = append(pathList, rr)
@@ -132,4 +126,45 @@ func (adj *AdjRib) Drop(rfList []bgp.RouteFamily) {
 			adj.accepted[rf] = 0
 		}
 	}
+}
+
+func (adj *AdjRib) DropStale(rfList []bgp.RouteFamily) []*Path {
+	pathList := make([]*Path, 0, adj.Count(rfList))
+	for _, rf := range rfList {
+		if table, ok := adj.table[rf]; ok {
+			for _, p := range table {
+				if p.IsStale() {
+					delete(table, p.getPrefix())
+					if p.Filtered(adj.id) == POLICY_DIRECTION_NONE {
+						adj.accepted[rf]--
+					}
+					pathList = append(pathList, p.Clone(true))
+				}
+			}
+		}
+	}
+	return pathList
+}
+
+func (adj *AdjRib) StaleAll(rfList []bgp.RouteFamily) {
+	for _, rf := range rfList {
+		if table, ok := adj.table[rf]; ok {
+			for _, p := range table {
+				p.MarkStale(true)
+			}
+		}
+	}
+}
+
+func (adj *AdjRib) Exists(path *Path) bool {
+	if path == nil {
+		return false
+	}
+	family := path.GetRouteFamily()
+	table, ok := adj.table[family]
+	if !ok {
+		return false
+	}
+	_, ok = table[path.getPrefix()]
+	return ok
 }

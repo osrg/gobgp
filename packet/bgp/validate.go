@@ -66,14 +66,37 @@ func ValidateAttribute(a PathAttributeInterface, rfs map[RouteFamily]bool, doCon
 	eSubCodeUnknown := uint8(BGP_ERROR_SUB_UNRECOGNIZED_WELL_KNOWN_ATTRIBUTE)
 	eSubCodeMalformedAspath := uint8(BGP_ERROR_SUB_MALFORMED_AS_PATH)
 
-	checkPrefix := func(l []AddrPrefixInterface) bool {
+	checkPrefix := func(l []AddrPrefixInterface) error {
 		for _, prefix := range l {
 			rf := AfiSafiToRouteFamily(prefix.AFI(), prefix.SAFI())
 			if _, ok := rfs[rf]; !ok {
-				return false
+				return NewMessageError(0, 0, nil, fmt.Sprintf("Address-family %s not avalible for this session", rf))
+			}
+			switch rf {
+			case RF_FS_IPv4_UC, RF_FS_IPv6_UC, RF_FS_IPv4_VPN, RF_FS_IPv6_VPN, RF_FS_L2_VPN:
+				t := BGPFlowSpecType(0)
+				value := make([]FlowSpecComponentInterface, 0)
+				switch rf {
+				case RF_FS_IPv4_UC:
+					value = prefix.(*FlowSpecIPv4Unicast).Value
+				case RF_FS_IPv6_UC:
+					value = prefix.(*FlowSpecIPv6Unicast).Value
+				case RF_FS_IPv4_VPN:
+					value = prefix.(*FlowSpecIPv4VPN).Value
+				case RF_FS_IPv6_VPN:
+					value = prefix.(*FlowSpecIPv6VPN).Value
+				case RF_FS_L2_VPN:
+					value = prefix.(*FlowSpecL2VPN).Value
+				}
+				for _, v := range value {
+					if v.Type() <= t {
+						return NewMessageError(0, 0, nil, fmt.Sprintf("%s nlri violate strict type ordering", rf))
+					}
+					t = v.Type()
+				}
 			}
 		}
-		return true
+		return nil
 	}
 
 	switch p := a.(type) {
@@ -82,16 +105,16 @@ func ValidateAttribute(a PathAttributeInterface, rfs map[RouteFamily]bool, doCon
 		if _, ok := rfs[rf]; !ok {
 			return false, NewMessageError(0, 0, nil, fmt.Sprintf("Address-family rf %d not avalible for session", rf))
 		}
-		if checkPrefix(p.Value) == false {
-			return false, NewMessageError(0, 0, nil, fmt.Sprintf("Address-family rf %d not avalible for session", rf))
+		if err := checkPrefix(p.Value); err != nil {
+			return false, err
 		}
 	case *PathAttributeMpReachNLRI:
 		rf := AfiSafiToRouteFamily(p.AFI, p.SAFI)
 		if _, ok := rfs[rf]; !ok {
 			return false, NewMessageError(0, 0, nil, fmt.Sprintf("Address-family rf %d not avalible for session", rf))
 		}
-		if checkPrefix(p.Value) == false {
-			return false, NewMessageError(0, 0, nil, fmt.Sprintf("Address-family rf %d not avalible for session", rf))
+		if err := checkPrefix(p.Value); err != nil {
+			return false, err
 		}
 	case *PathAttributeOrigin:
 		v := uint8(p.Value[0])
@@ -138,7 +161,7 @@ func ValidateAttribute(a PathAttributeInterface, rfs map[RouteFamily]bool, doCon
 		}
 
 	case *PathAttributeUnknown:
-		if p.getFlags()&BGP_ATTR_FLAG_OPTIONAL == 0 {
+		if p.GetFlags()&BGP_ATTR_FLAG_OPTIONAL == 0 {
 			eMsg := fmt.Sprintf("unrecognized well-known attribute %s", p.GetType())
 			data, _ := a.Serialize()
 			return false, NewMessageError(eCode, eSubCodeUnknown, data, eMsg)
@@ -173,7 +196,7 @@ func ValidateFlags(t BGPAttrType, flags BGPAttrFlag) (bool, string) {
 	}
 
 	// check flags are correct
-	if f, ok := pathAttrFlags[t]; ok {
+	if f, ok := PathAttrFlags[t]; ok {
 		if f != flags & ^BGP_ATTR_FLAG_EXTENDED_LENGTH & ^BGP_ATTR_FLAG_PARTIAL {
 			eMsg := fmt.Sprintf("flags are invalid. attribute type: %s, expect: %s, actual: %s", t, f, flags)
 			return false, eMsg

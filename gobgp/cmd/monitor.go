@@ -19,57 +19,53 @@ import (
 	"encoding/json"
 	"fmt"
 	"github.com/osrg/gobgp/api"
-	"github.com/osrg/gobgp/packet"
+	"github.com/osrg/gobgp/packet/bgp"
 	"github.com/spf13/cobra"
 	"golang.org/x/net/context"
 	"io"
 	"net"
-	"os"
-	"strconv"
-	"time"
 )
 
 func NewMonitorCmd() *cobra.Command {
+
+	monitor := func(arg *gobgpapi.Table) {
+		stream, err := client.MonitorRib(context.Background(), arg)
+		if err != nil {
+			exitWithError(err)
+		}
+		for {
+			d, err := stream.Recv()
+			if err == io.EOF {
+				break
+			} else if err != nil {
+				exitWithError(err)
+			}
+			p, err := ApiStruct2Path(d.Paths[0])
+			if err != nil {
+				exitWithError(err)
+			}
+
+			if globalOpts.Json {
+				j, _ := json.Marshal(p)
+				fmt.Println(string(j))
+			} else {
+				ShowRoute(p, false, false, false, true, false)
+			}
+		}
+	}
+
 	ribCmd := &cobra.Command{
 		Use: CMD_RIB,
 		Run: func(cmd *cobra.Command, args []string) {
 			family, err := checkAddressFamily(bgp.RouteFamily(0))
 			if err != nil {
-				fmt.Println(err)
-				os.Exit(1)
+				exitWithError(err)
 			}
-			arg := &gobgpapi.Arguments{
-				Resource: gobgpapi.Resource_GLOBAL,
-				Family:   uint32(family),
+			arg := &gobgpapi.Table{
+				Type:   gobgpapi.Resource_GLOBAL,
+				Family: uint32(family),
 			}
-
-			stream, err := client.MonitorBestChanged(context.Background(), arg)
-			if err != nil {
-				fmt.Println(err)
-				os.Exit(1)
-			}
-			for {
-				d, err := stream.Recv()
-				if err == io.EOF {
-					break
-				} else if err != nil {
-					fmt.Println(err)
-					os.Exit(1)
-				}
-				p, err := ApiStruct2Path(d.Paths[0])
-				if err != nil {
-					fmt.Println(err)
-					os.Exit(1)
-				}
-
-				if globalOpts.Json {
-					j, _ := json.Marshal(p)
-					fmt.Println(string(j))
-				} else {
-					ShowRoute(p, false, false, false, true, false)
-				}
-			}
-
+			monitor(arg)
 		},
 	}
 	ribCmd.PersistentFlags().StringVarP(&subOpts.AddressFamily, "address-family", "a", "", "address family")
@@ -93,72 +89,20 @@ func NewMonitorCmd() *cobra.Command {
 
 			stream, err := client.MonitorPeerState(context.Background(), arg)
 			if err != nil {
-				fmt.Println(err)
-				os.Exit(1)
+				exitWithError(err)
 			}
 			for {
 				s, err := stream.Recv()
 				if err == io.EOF {
 					break
 				} else if err != nil {
-					fmt.Println(err)
-					os.Exit(1)
+					exitWithError(err)
 				}
 				if globalOpts.Json {
 					j, _ := json.Marshal(s)
 					fmt.Println(string(j))
 				} else {
 					fmt.Printf("[NEIGH] %s fsm: %s admin: %s\n", s.Conf.NeighborAddress, s.Info.BgpState, s.Info.AdminState)
-				}
-			}
-		},
-	}
-
-	rpkiCmd := &cobra.Command{
-		Use: CMD_RPKI,
-		Run: func(cmd *cobra.Command, args []string) {
-			stream, err := client.MonitorROAValidation(context.Background(), &gobgpapi.Arguments{})
-			if err != nil {
-				fmt.Println(err)
-				os.Exit(1)
-			}
-			for {
-				s, err := stream.Recv()
-				if err == io.EOF {
-					break
-				} else if err != nil {
-					fmt.Println(err)
-					os.Exit(1)
-				}
-				if globalOpts.Json {
-					j, _ := json.Marshal(s)
-					fmt.Println(string(j))
-				} else {
-					reason := "Update"
-					if s.Reason == gobgpapi.ROAResult_WITHDRAW {
-						reason = "Withdraw"
-					} else if s.Reason == gobgpapi.ROAResult_PEER_DOWN {
-						reason = "PeerDown"
-					} else if s.Reason == gobgpapi.ROAResult_REVALIDATE {
-						reason = "Revalidate"
-					} else {
-						reason = "Unknown"
-					}
-					aspath := &bgp.PathAttributeAsPath{}
-					aspath.DecodeFromBytes(s.AspathAttr)
-					fmt.Printf("[VALIDATION] Reason: %s, Peer: %s, Timestamp: %s, Prefix:%s, OriginAS:%d, ASPath:%s, Old:%s, New:%s", reason, s.Address, time.Unix(s.Timestamp, 0).String(), s.Prefix, s.OriginAs, aspath.String(), s.OldResult, s.NewResult)
-					if len(s.Roas) == 0 {
-						fmt.Printf("\n")
-					} else {
-						fmt.Printf(", ROAs:")
-						for i, roa := range s.Roas {
-							if i != 0 {
-								fmt.Printf(",")
-							}
-							fmt.Printf(" [Source: %s, AS: %v, Prefix: %s, Prefixlen: %v, Maxlen: %v]", net.JoinHostPort(roa.Conf.Address, strconv.Itoa(int(roa.Conf.RemotePort))), roa.As, roa.Prefix, roa.Prefixlen, roa.Maxlen)
-						}
-						fmt.Printf("\n")
-					}
 				}
 			}
 		},
@@ -171,49 +115,20 @@ func NewMonitorCmd() *cobra.Command {
 			if len(args) > 0 {
 				remoteIP := net.ParseIP(args[0])
 				if remoteIP == nil {
-					fmt.Println("invalid ip address: %s", args[0])
-					os.Exit(1)
+					exitWithError(fmt.Errorf("invalid ip address: %s", args[0]))
 				}
 				name = args[0]
 			}
 			family, err := checkAddressFamily(bgp.RouteFamily(0))
 			if err != nil {
-				fmt.Println(err)
-				os.Exit(1)
+				exitWithError(err)
 			}
 			arg := &gobgpapi.Table{
 				Type:   gobgpapi.Resource_ADJ_IN,
 				Family: uint32(family),
 				Name:   name,
 			}
-
-			stream, err := client.MonitorRib(context.Background(), arg)
-			if err != nil {
-				fmt.Println(err)
-				os.Exit(1)
-			}
-			for {
-				d, err := stream.Recv()
-				if err == io.EOF {
-					break
-				} else if err != nil {
-					fmt.Println(err)
-					os.Exit(1)
-				}
-				p, err := ApiStruct2Path(d.Paths[0])
-				if err != nil {
-					fmt.Println(err)
-					os.Exit(1)
-				}
-
-				if globalOpts.Json {
-					j, _ := json.Marshal(p)
-					fmt.Println(string(j))
-				} else {
-					ShowRoute(p, false, false, false, true, false)
-				}
-			}
-
+			monitor(arg)
 		},
 	}
 	adjInCmd.PersistentFlags().StringVarP(&subOpts.AddressFamily, "address-family", "a", "", "address family")
@@ -223,7 +138,6 @@ func NewMonitorCmd() *cobra.Command {
 	}
 	monitorCmd.AddCommand(globalCmd)
 	monitorCmd.AddCommand(neighborCmd)
-	monitorCmd.AddCommand(rpkiCmd)
 	monitorCmd.AddCommand(adjInCmd)
 
 	return monitorCmd

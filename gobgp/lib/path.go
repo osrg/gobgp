@@ -37,7 +37,7 @@ import (
 	"strings"
 
 	"github.com/osrg/gobgp/gobgp/cmd"
-	"github.com/osrg/gobgp/packet"
+	"github.com/osrg/gobgp/packet/bgp"
 )
 
 //export get_route_family

@@ -19,35 +19,20 @@ import (
 	"encoding/json"
 	"fmt"
 	api "github.com/osrg/gobgp/api"
-	"github.com/osrg/gobgp/packet"
+	"github.com/osrg/gobgp/packet/bgp"
 	"github.com/spf13/cobra"
 	"golang.org/x/net/context"
-	"io"
-	"os"
 	"sort"
 	"strings"
 )
 
 func getVrfs() (vrfs, error) {
-	arg := &api.Arguments{}
-	stream, err := client.GetVrfs(context.Background(), arg)
+	rsp, err := client.GetVrf(context.Background(), &api.GetVrfRequest{})
 	if err != nil {
 		return nil, err
 	}
-	vs := make(vrfs, 0)
-	for {
-		v, err := stream.Recv()
-		if err == io.EOF {
-			break
-		} else if err != nil {
-			return nil, err
-		}
-		vs = append(vs, v)
-	}
-
-	sort.Sort(vs)
-
-	return vs, nil
+	sort.Sort(vrfs(rsp.Vrfs))
+	return rsp.Vrfs, nil
 }
 
 func showVrfs() error {
@@ -108,7 +93,7 @@ func showVrf(name string) error {
 }
 
 func modVrf(typ string, args []string) error {
-	var arg *api.ModVrfArguments
+	var err error
 	switch typ {
 	case CMD_ADD:
 		if len(args) < 6 || args[1] != "rd" || args[3] != "rt" {
@@ -148,8 +133,7 @@ func modVrf(typ string, args []string) error {
 			}
 		}
 		buf, _ := rd.Serialize()
-		arg = &api.ModVrfArguments{
-			Operation: api.Operation_ADD,
+		arg := &api.AddVrfRequest{
 			Vrf: &api.Vrf{
 				Name:     name,
 				Rd:       buf,
@@ -157,19 +141,18 @@ func modVrf(typ string, args []string) error {
 				ExportRt: exportRt,
 			},
 		}
+		_, err = client.AddVrf(context.Background(), arg)
 	case CMD_DEL:
 		if len(args) != 1 {
 			return fmt.Errorf("Usage: gobgp vrf del <vrf name>")
 		}
-		arg = &api.ModVrfArguments{
-			Operation: api.Operation_DEL,
+		arg := &api.DeleteVrfRequest{
 			Vrf: &api.Vrf{
 				Name: args[0],
 			},
 		}
+		_, err = client.DeleteVrf(context.Background(), arg)
 	}
-
-	_, err := client.ModVrf(context.Background(), arg)
 	return err
 }
 
@@ -185,8 +168,7 @@ func NewVrfCmd() *cobra.Command {
 				err = fmt.Errorf("usage: gobgp vrf <vrf-name> rib")
 			}
 			if err != nil {
-				fmt.Println(err)
-				os.Exit(1)
+				exitWithError(err)
 			}
 		},
 	}
@@ -197,8 +179,7 @@ func NewVrfCmd() *cobra.Command {
 			Run: func(cmd *cobra.Command, args []string) {
 				err := modPath(api.Resource_VRF, args[len(args)-1], cmd.Use, args[:len(args)-1])
 				if err != nil {
-					fmt.Println(err)
-					os.Exit(1)
+					exitWithError(err)
 				}
 			},
 		}
@@ -221,8 +202,7 @@ func NewVrfCmd() *cobra.Command {
 				err = vrfCmdImpl.Execute()
 			}
 			if err != nil {
-				fmt.Println(err)
-				os.Exit(1)
+				exitWithError(err)
 			}
 		},
 	}
@@ -233,8 +213,7 @@ func NewVrfCmd() *cobra.Command {
 			Run: func(cmd *cobra.Command, args []string) {
 				err := modVrf(cmd.Use, args)
 				if err != nil {
-					fmt.Println(err)
-					os.Exit(1)
+					exitWithError(err)
 				}
 			},
 		}

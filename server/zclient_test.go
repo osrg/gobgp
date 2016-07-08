@@ -16,14 +16,16 @@
 package server
 
 import (
+	"github.com/osrg/gobgp/gobgp/cmd"
 	"github.com/osrg/gobgp/table"
 	"github.com/osrg/gobgp/zebra"
 	"github.com/stretchr/testify/assert"
 	"net"
 	"testing"
+	"time"
 )
 
-func Test_createPathFromIPRouteMessage(t *testing.T) {
+func Test_createRequestFromIPRouteMessage(t *testing.T) {
 	assert := assert.New(t)
 
 	m := &zebra.Message{}
@@ -51,28 +53,36 @@ func Test_createPathFromIPRouteMessage(t *testing.T) {
 	m.Header = *h
 	m.Body = b
 
-	pi := &table.PeerInfo{
-		AS:      65000,
-		LocalID: net.ParseIP("10.0.0.1"),
-	}
-	p := createPathFromIPRouteMessage(m, pi)
-	assert.NotEqual(nil, p)
-	assert.Equal("0.0.0.0", p.GetNexthop().String())
-	assert.Equal("192.168.100.0/24", p.GetNlri().String())
-	assert.True(p.IsFromZebra())
-	assert.False(p.IsWithdraw)
+	p := createRequestFromIPRouteMessage(m)
+	assert.NotNil(p)
+	paths, err := cmd.ApiStruct2Path(p.Path)
+	assert.Nil(err)
+	assert.Equal(len(paths), 1)
+	path := paths[0]
+	pp := table.NewPath(nil, path.Nlri, path.IsWithdraw, path.PathAttrs, time.Now(), false)
+	pp.SetIsFromExternal(p.Path.IsFromExternal)
+	assert.Equal("0.0.0.0", pp.GetNexthop().String())
+	assert.Equal("192.168.100.0/24", pp.GetNlri().String())
+	assert.True(pp.IsFromExternal())
+	assert.False(pp.IsWithdraw)
 
 	// withdraw
 	h.Command = zebra.IPV4_ROUTE_DELETE
 	m.Header = *h
-	p = createPathFromIPRouteMessage(m, pi)
-	assert.NotEqual(nil, p)
-	assert.Equal("0.0.0.0", p.GetNexthop().String())
-	assert.Equal("192.168.100.0/24", p.GetNlri().String())
-	med, _ := p.GetMed()
+	p = createRequestFromIPRouteMessage(m)
+	assert.NotNil(p)
+	paths, err = cmd.ApiStruct2Path(p.Path)
+	assert.Nil(err)
+	assert.Equal(len(paths), 1)
+	path = paths[0]
+	pp = table.NewPath(nil, path.Nlri, path.IsWithdraw, path.PathAttrs, time.Now(), false)
+	pp.SetIsFromExternal(p.Path.IsFromExternal)
+	assert.Equal("0.0.0.0", pp.GetNexthop().String())
+	assert.Equal("192.168.100.0/24", pp.GetNlri().String())
+	med, _ := pp.GetMed()
 	assert.Equal(uint32(100), med)
-	assert.True(p.IsFromZebra())
-	assert.True(p.IsWithdraw)
+	assert.True(pp.IsFromExternal())
+	assert.True(pp.IsWithdraw)
 
 	// IPv6
 	h.Command = zebra.IPV6_ROUTE_ADD
@@ -82,23 +92,34 @@ func Test_createPathFromIPRouteMessage(t *testing.T) {
 	m.Header = *h
 	m.Body = b
 
-	p = createPathFromIPRouteMessage(m, pi)
-	assert.NotEqual(nil, p)
-	assert.Equal("::", p.GetNexthop().String())
-	assert.Equal("2001:db8:0:f101::/64", p.GetNlri().String())
-	med, _ = p.GetMed()
+	p = createRequestFromIPRouteMessage(m)
+	assert.NotNil(p)
+	paths, err = cmd.ApiStruct2Path(p.Path)
+	assert.Nil(err)
+	assert.Equal(len(paths), 1)
+	path = paths[0]
+	pp = table.NewPath(nil, path.Nlri, path.IsWithdraw, path.PathAttrs, time.Now(), false)
+	pp.SetIsFromExternal(p.Path.IsFromExternal)
+	assert.Equal("::", pp.GetNexthop().String())
+	assert.Equal("2001:db8:0:f101::/64", pp.GetNlri().String())
+	med, _ = pp.GetMed()
 	assert.Equal(uint32(100), med)
-	assert.True(p.IsFromZebra())
-	assert.False(p.IsWithdraw)
+	assert.True(pp.IsFromExternal())
+	assert.False(pp.IsWithdraw)
 
 	// withdraw
 	h.Command = zebra.IPV6_ROUTE_DELETE
 	m.Header = *h
-	p = createPathFromIPRouteMessage(m, pi)
-	assert.NotEqual(nil, p)
-	assert.Equal("::", p.GetNexthop().String())
-	assert.Equal("2001:db8:0:f101::/64", p.GetNlri().String())
-	assert.True(p.IsFromZebra())
-	assert.True(p.IsWithdraw)
-
+	p = createRequestFromIPRouteMessage(m)
+	assert.NotNil(p)
+	paths, err = cmd.ApiStruct2Path(p.Path)
+	assert.Nil(err)
+	assert.Equal(len(paths), 1)
+	path = paths[0]
+	pp = table.NewPath(nil, path.Nlri, path.IsWithdraw, path.PathAttrs, time.Now(), false)
+	pp.SetIsFromExternal(p.Path.IsFromExternal)
+	assert.Equal("::", pp.GetNexthop().String())
+	assert.Equal("2001:db8:0:f101::/64", pp.GetNlri().String())
+	assert.True(pp.IsFromExternal())
+	assert.True(pp.IsWithdraw)
 }

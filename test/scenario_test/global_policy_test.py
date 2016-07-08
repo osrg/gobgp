@@ -44,7 +44,8 @@ class GoBGPTestBase(unittest.TestCase):
 
         g1 = GoBGPContainer(name='g1', asn=65000, router_id='192.168.0.1',
                             ctn_image_name=gobgp_ctn_image_name,
-                            log_level=parser_option.gobgp_log_level)
+                            log_level=parser_option.gobgp_log_level,
+                            config_format=parser_option.config_format)
         q1 = ExaBGPContainer(name='q1', asn=65001, router_id='192.168.0.2')
         q2 = ExaBGPContainer(name='q2', asn=65002, router_id='192.168.0.3')
         q3 = ExaBGPContainer(name='q3', asn=65003, router_id='192.168.0.4')
@@ -96,6 +97,8 @@ class GoBGPTestBase(unittest.TestCase):
         self.gobgp.wait_for(expected_state=BGP_FSM_IDLE, peer=q3)
 
         for q in self.quaggas.itervalues():
+            if q.name == 'q3':
+                continue
             self.assertTrue(len(self.gobgp.get_adj_rib_out(q)) == 0)
 
     def test_05_enable_peer(self):
@@ -118,6 +121,8 @@ class GoBGPTestBase(unittest.TestCase):
         self.gobgp.wait_for(expected_state=BGP_FSM_IDLE, peer=q3)
 
         for q in self.quaggas.itervalues():
+            if q.name == 'q3':
+                continue
             self.assertTrue(len(self.gobgp.get_adj_rib_out(q)) == 0)
 
     def test_07_adv_to_one_peer(self):
@@ -132,6 +137,8 @@ class GoBGPTestBase(unittest.TestCase):
 
     def test_08_check_adj_rib_out(self):
         for q in self.quaggas.itervalues():
+            if q.name == 'q3':
+                continue
             paths = self.gobgp.get_adj_rib_out(q)
             if q == self.quaggas['q1']:
                 self.assertTrue(len(paths) == 2)
@@ -146,16 +153,41 @@ class GoBGPTestBase(unittest.TestCase):
 
     def test_10_check_adj_rib_out(self):
         for q in self.quaggas.itervalues():
+            if q.name == 'q3':
+                continue
             paths = self.gobgp.get_adj_rib_out(q)
             if q != self.quaggas['q3']:
                 self.assertTrue(len(paths) == 2)
-            else:
-                self.assertTrue(len(paths) == 0)
             for path in paths:
                 if q == self.quaggas['q1']:
                     self.assertTrue(community_exists(path, '65100:10'))
                 else:
                     self.assertFalse(community_exists(path, '65100:10'))
+
+    def test_11_add_ibgp_peer(self):
+        q = ExaBGPContainer(name='q5', asn=65000, router_id='192.168.0.6')
+        time.sleep(q.run())
+        self.quaggas['q5'] = q
+
+        self.gobgp.add_peer(q)
+        q.add_peer(self.gobgp)
+        self.gobgp.wait_for(expected_state=BGP_FSM_ESTABLISHED, peer=q)
+
+    def test_12_add_local_pref_policy(self):
+        self.gobgp.local('gobgp policy statement st1 add action accept')
+        self.gobgp.local('gobgp policy statement st1 add action local-pref 300')
+        self.gobgp.local('gobgp policy add p1 st1')
+        self.gobgp.local('gobgp global policy export set p1 default reject')
+        for q in self.quaggas.itervalues():
+            self.gobgp.softreset(q, type='out')
+
+    def test_13_check_adj_rib_out(self):
+        q1 = self.quaggas['q1']
+        for path in self.gobgp.get_adj_rib_out(q1):
+            self.assertTrue(path['local-pref'] == None)
+        q5 = self.quaggas['q5']
+        for path in self.gobgp.get_adj_rib_out(q5):
+            self.assertTrue(path['local-pref'] == 300)
 
 
 if __name__ == '__main__':

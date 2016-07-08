@@ -18,55 +18,59 @@ package cmd
 import (
 	"fmt"
 	api "github.com/osrg/gobgp/api"
-	"github.com/osrg/gobgp/packet"
+	"github.com/osrg/gobgp/packet/bmp"
 	"github.com/spf13/cobra"
 	"golang.org/x/net/context"
 	"net"
-	"os"
 	"strconv"
 )
 
 func modBmpServer(cmdType string, args []string) error {
-	arg := &api.ModBmpArguments{}
 	if len(args) < 1 {
 		return fmt.Errorf("usage: gobgp bmp %s <addr>[:<port>] [{pre|post|both}]", cmdType)
 	}
 
-	host, port, err := net.SplitHostPort(args[0])
-	if err != nil {
+	var address string
+	port := uint32(bmp.BMP_DEFAULT_PORT)
+	if host, p, err := net.SplitHostPort(args[0]); err != nil {
 		ip := net.ParseIP(args[0])
 		if ip == nil {
 			return nil
 		}
-		arg.Address = args[0]
-		arg.Port = bgp.BMP_DEFAULT_PORT
+		address = args[0]
 	} else {
-		arg.Address = host
-		p, _ := strconv.Atoi(port)
-		arg.Port = uint32(p)
+		address = host
+		pn, _ := strconv.Atoi(p)
+		port = uint32(pn)
 	}
 
+	var err error
 	switch cmdType {
 	case CMD_ADD:
-		arg.Operation = api.Operation_ADD
+		policyType := api.AddBmpRequest_PRE
 		if len(args) > 1 {
 			switch args[1] {
 			case "pre":
-				arg.Type = api.ModBmpArguments_PRE
+				policyType = api.AddBmpRequest_PRE
 			case "post":
-				arg.Type = api.ModBmpArguments_POST
+				policyType = api.AddBmpRequest_POST
 			case "both":
-				arg.Type = api.ModBmpArguments_BOTH
+				policyType = api.AddBmpRequest_BOTH
 			default:
 				return fmt.Errorf("invalid bmp policy type. valid type is {pre|post|both}")
 			}
-		} else {
-			arg.Type = api.ModBmpArguments_PRE
 		}
+		_, err = client.AddBmp(context.Background(), &api.AddBmpRequest{
+			Address: address,
+			Port:    port,
+			Type:    policyType,
+		})
 	case CMD_DEL:
-		arg.Operation = api.Operation_DEL
+		_, err = client.DeleteBmp(context.Background(), &api.DeleteBmpRequest{
+			Address: address,
+			Port:    port,
+		})
 	}
-	_, err = client.ModBmp(context.Background(), arg)
 	return err
 }
 
@@ -82,8 +86,7 @@ func NewBmpCmd() *cobra.Command {
 			Run: func(cmd *cobra.Command, args []string) {
 				err := modBmpServer(cmd.Use, args)
 				if err != nil {
-					fmt.Println(err)
-					os.Exit(1)
+					exitWithError(err)
 				}
 			},
 		}

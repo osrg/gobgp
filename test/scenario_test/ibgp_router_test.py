@@ -73,6 +73,8 @@ class GoBGPTestBase(unittest.TestCase):
             count = 0
             while True:
                 # gobgp's global rib
+                state = self.gobgp.get_neighbor_state(q)
+                self.assertEqual(state, BGP_FSM_ESTABLISHED)
                 global_rib = [p['prefix'] for p in self.gobgp.get_global_rib()]
 
                 for p in global_rib:

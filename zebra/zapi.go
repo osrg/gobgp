@@ -301,16 +301,15 @@ func (c *Client) Send(m *Message) {
 			log.Debugf("recovered: %s", err)
 		}
 	}()
+	log.WithFields(log.Fields{
+		"Topic":  "Zebra",
+		"Header": m.Header,
+		"Body":   m.Body,
+	}).Debug("send command to zebra")
 	c.outgoing <- m
 }
 
 func (c *Client) SendCommand(command API_TYPE, body Body) error {
-
-	log.WithFields(log.Fields{
-		"Topic":   "Zebra",
-		"Command": command.String(),
-		"Body":    body,
-	}).Debug("send command to zebra")
 	m := &Message{
 		Header: Header{
 			Len:     HEADER_SIZE,
@@ -697,8 +696,8 @@ func (b *IPRouteBody) DecodeFromBytes(data []byte) error {
 }
 
 func (b *IPRouteBody) String() string {
-	s := fmt.Sprintf("type: %s, flags: %s, message: %d, prefix: %s, length: %d, nexthop: %s, ifindex: %d, distance: %d, metric: %d",
-		b.Type.String(), b.Flags.String(), b.Message, b.Prefix.String(), b.PrefixLength, b.Nexthops[0].String(), b.Ifindexs[0], b.Distance, b.Metric)
+	s := fmt.Sprintf("type: %s, flags: %s, message: %d, prefix: %s, length: %d, nexthop: %s, distance: %d, metric: %d",
+		b.Type.String(), b.Flags.String(), b.Message, b.Prefix.String(), b.PrefixLength, b.Nexthops[0].String(), b.Distance, b.Metric)
 	return s
 }
 

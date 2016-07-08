@@ -18,6 +18,7 @@ from fabric.api import local
 from lib import base
 from lib.gobgp import *
 from lib.quagga import *
+from lib.exabgp import *
 import sys
 import os
 import time
@@ -53,8 +54,8 @@ class GoBGPTestBase(unittest.TestCase):
         time.sleep(initial_wait_time)
 
         for q in qs:
-            g1.add_peer(q, reload_config=False)
-            q.add_peer(g1)
+            g1.add_peer(q, reload_config=False, passwd='passwd')
+            q.add_peer(g1, passwd='passwd', passive=True)
 
         g1.create_config()
         g1.reload_config()
@@ -74,8 +75,11 @@ class GoBGPTestBase(unittest.TestCase):
             timeout = 120
             interval = 1
             count = 0
+
             while True:
                 # gobgp's global rib
+                state = self.gobgp.get_neighbor_state(q)
+                self.assertEqual(state, BGP_FSM_ESTABLISHED)
                 global_rib = [p['prefix'] for p in self.gobgp.get_global_rib()]
 
                 for p in global_rib:
@@ -167,15 +171,13 @@ class GoBGPTestBase(unittest.TestCase):
         med200 = {'name': 'med200',
                   'type': 'permit',
                   'match': '0.0.0.0/0',
-                  'direction': 'out',
                   'med': 200}
-        q2.add_policy(med200, self.gobgp)
+        q2.add_policy(med200, self.gobgp, 'out')
         med100 = {'name': 'med100',
                   'type': 'permit',
                   'match': '0.0.0.0/0',
-                  'direction': 'out',
                   'med': 100}
-        q3.add_policy(med100, self.gobgp)
+        q3.add_policy(med100, self.gobgp, 'out')
 
         q5.add_route('10.0.6.0/24')
 
@@ -248,7 +250,7 @@ class GoBGPTestBase(unittest.TestCase):
 
     def test_15_check_active_connection(self):
         g1 = self.gobgp
-        g2 = GoBGPContainer(name='g2', asn=65000, router_id='192.168.0.5',
+        g2 = GoBGPContainer(name='g2', asn=65000, router_id='192.168.0.7',
                             ctn_image_name=self.gobgp.image,
                             log_level=parser_option.gobgp_log_level)
         time.sleep(g2.run())
@@ -281,6 +283,72 @@ class GoBGPTestBase(unittest.TestCase):
         self.assertTrue(local_pref['value'] == 100)
         med = extract_path_attribute(path, BGP_ATTR_TYPE_MULTI_EXIT_DISC)
         self.assertTrue(med['metric'] == 2000)
+
+    def test_17_check_shutdown(self):
+        q1 = self.quaggas['q1']
+        q2 = self.quaggas['q2']
+        q3 = self.quaggas['q3']
+
+        q2.add_route('20.0.0.0/24')
+        q3.add_route('20.0.0.0/24')
+
+        self.test_01_neighbor_established()
+
+        self.test_02_check_gobgp_global_rib()
+
+        paths = q1.get_global_rib('20.0.0.0/24')
+        self.assertTrue(len(paths) == 1)
+        n_addrs = [i[1].split('/')[0] for i in self.gobgp.ip_addrs]
+        self.assertTrue(paths[0]['nexthop'] in n_addrs)
+
+        q3.stop()
+        del self.quaggas['q3']
+
+        time.sleep(3)
+
+        paths = q1.get_global_rib('20.0.0.0/24')
+        self.assertTrue(len(paths) == 1)
+        self.assertTrue(paths[0]['nexthop'] in n_addrs)
+
+    def test_18_check_withdrawal(self):
+        g1 = self.gobgp
+        q1 = self.quaggas['q1']
+        q2 = self.quaggas['q2']
+
+        g1.add_route('30.0.0.0/24')
+        q1.add_route('30.0.0.0/24')
+
+        self.test_01_neighbor_established()
+
+        self.test_02_check_gobgp_global_rib()
+
+        paths = g1.get_adj_rib_out(q1, '30.0.0.0/24')
+        self.assertTrue(len(paths) == 1)
+        self.assertTrue(paths[0]['source-id'] == '<nil>')
+        paths = g1.get_adj_rib_out(q2, '30.0.0.0/24')
+        self.assertTrue(len(paths) == 1)
+        self.assertTrue(paths[0]['source-id'] == '<nil>')
+
+        g1.local('gobgp global rib del 30.0.0.0/24')
+
+        paths = g1.get_adj_rib_out(q1, '30.0.0.0/24')
+        self.assertTrue(len(paths) == 0)
+        paths = g1.get_adj_rib_out(q2, '30.0.0.0/24')
+        self.assertTrue(len(paths) == 1)
+        self.assertTrue(paths[0]['source-id'] == '192.168.0.2')
+
+    def test_19_check_grpc_add_neighbor(self):
+        g1 = self.gobgp
+        e1 = ExaBGPContainer(name='e1', asn=65000, router_id='192.168.0.7')
+        time.sleep(e1.run())
+        e1.add_peer(g1)
+        n = e1.peers[g1]['local_addr'].split('/')[0]
+        g1.local('gobgp n add {0} as 65000'.format(n))
+        g1.add_peer(e1, reload_config=False) 
+
+        g1.wait_for(expected_state=BGP_FSM_ESTABLISHED, peer=e1)
+
+
 
 if __name__ == '__main__':
     if os.geteuid() is not 0:

@@ -18,8 +18,9 @@ package server
 import (
 	"fmt"
 	log "github.com/Sirupsen/logrus"
+	"github.com/eapache/channels"
 	"github.com/osrg/gobgp/config"
-	"github.com/osrg/gobgp/packet"
+	"github.com/osrg/gobgp/packet/bgp"
 	"github.com/osrg/gobgp/table"
 	"github.com/stretchr/testify/assert"
 	"net"
@@ -33,7 +34,6 @@ type MockConnection struct {
 	recvCh    chan chan byte
 	sendBuf   [][]byte
 	currentCh chan byte
-	readBytes int
 	isClosed  bool
 	wait      int
 }
@@ -163,6 +163,7 @@ func TestFSMHandlerOpensent_HoldTimerExpired(t *testing.T) {
 
 	// push mock connection
 	p.fsm.conn = m
+	p.fsm.h = h
 
 	// set keepalive ticker
 	p.fsm.pConf.Timers.State.NegotiatedHoldTime = 3
@@ -188,6 +189,7 @@ func TestFSMHandlerOpenconfirm_HoldTimerExpired(t *testing.T) {
 
 	// push mock connection
 	p.fsm.conn = m
+	p.fsm.h = h
 
 	// set up keepalive ticker
 	p.fsm.pConf.Timers.Config.KeepaliveInterval = 1
@@ -212,6 +214,7 @@ func TestFSMHandlerEstablish_HoldTimerExpired(t *testing.T) {
 
 	// push mock connection
 	p.fsm.conn = m
+	p.fsm.h = h
 
 	// set keepalive ticker
 	p.fsm.pConf.Timers.State.NegotiatedHoldTime = 3
@@ -249,6 +252,7 @@ func TestFSMHandlerOpenconfirm_HoldtimeZero(t *testing.T) {
 
 	// push mock connection
 	p.fsm.conn = m
+	p.fsm.h = h
 
 	// set up keepalive ticker
 	p.fsm.pConf.Timers.Config.KeepaliveInterval = 1
@@ -271,6 +275,7 @@ func TestFSMHandlerEstablished_HoldtimeZero(t *testing.T) {
 
 	// push mock connection
 	p.fsm.conn = m
+	p.fsm.h = h
 
 	// set holdtime
 	p.fsm.pConf.Timers.State.NegotiatedHoldTime = 0
@@ -283,23 +288,15 @@ func TestFSMHandlerEstablished_HoldtimeZero(t *testing.T) {
 }
 
 func makePeerAndHandler() (*Peer, *FSMHandler) {
-	gConf := config.Global{}
-	pConf := config.Neighbor{}
-
 	p := &Peer{
-		gConf: gConf,
-		conf:  pConf,
+		fsm:      NewFSM(&config.Global{}, &config.Neighbor{}, table.NewRoutingPolicy()),
+		outgoing: channels.NewInfiniteChannel(),
 	}
-
-	p.fsm = NewFSM(&gConf, &pConf, table.NewRoutingPolicy())
-
-	incoming := make(chan *FsmMsg, 4096)
-	p.outgoing = make(chan *bgp.BGPMessage, 4096)
 
 	h := &FSMHandler{
 		fsm:      p.fsm,
 		errorCh:  make(chan FsmStateReason, 2),
-		incoming: incoming,
+		incoming: channels.NewInfiniteChannel(),
 		outgoing: p.outgoing,
 	}
 
@@ -312,10 +309,10 @@ func open() *bgp.BGPMessage {
 		[]bgp.ParameterCapabilityInterface{bgp.NewCapRouteRefresh()})
 	p2 := bgp.NewOptionParameterCapability(
 		[]bgp.ParameterCapabilityInterface{bgp.NewCapMultiProtocol(bgp.RF_IPv4_UC)})
-	g := bgp.CapGracefulRestartTuples{4, 2, 3}
+	g := &bgp.CapGracefulRestartTuple{4, 2, 3}
 	p3 := bgp.NewOptionParameterCapability(
-		[]bgp.ParameterCapabilityInterface{bgp.NewCapGracefulRestart(2, 100,
-			[]bgp.CapGracefulRestartTuples{g})})
+		[]bgp.ParameterCapabilityInterface{bgp.NewCapGracefulRestart(true, 100,
+			[]*bgp.CapGracefulRestartTuple{g})})
 	p4 := bgp.NewOptionParameterCapability(
 		[]bgp.ParameterCapabilityInterface{bgp.NewCapFourOctetASNumber(100000)})
 	return bgp.NewBGPOpenMessage(11033, 303, "100.4.10.3",

@@ -30,8 +30,9 @@ class ExaBGPContainer(BGPContainer):
     def _start_exabgp(self):
         cmd = CmdBuffer(' ')
         cmd << 'env exabgp.log.destination={0}/exabgpd.log'.format(self.SHARED_VOLUME)
+        cmd << "exabgp.tcp.bind='0.0.0.0' exabgp.tcp.port=179"
         cmd << './exabgp/sbin/exabgp {0}/exabgpd.conf'.format(self.SHARED_VOLUME)
-        self.local(str(cmd), flag='-d')
+        self.local(str(cmd), detach=True)
 
     def _update_exabgp(self):
         if self.exabgp_path == '':
@@ -73,6 +74,12 @@ class ExaBGPContainer(BGPContainer):
                 cmd << '    capability {'
                 cmd << '        asn4 disable;'
                 cmd << '    }'
+
+            if info['passwd']:
+                cmd << '    md5 "{0}";'.format(info['passwd'])
+
+            if info['passive']:
+                cmd << '    passive;'
 
             routes = [r for r in self.routes.values() if r['rf'] == 'ipv4' or r['rf'] == 'ipv6']
 
@@ -157,3 +164,30 @@ class ExaBGPContainer(BGPContainer):
             if not _is_running():
                 raise RuntimeError()
         try_several_times(_reload)
+
+
+class RawExaBGPContainer(ExaBGPContainer):
+    def __init__(self, name, config, ctn_image_name='osrg/exabgp',
+                 exabgp_path=''):
+        asn = None
+        router_id = None
+        for line in config.split('\n'):
+            line = line.strip()
+            if line.startswith('local-as'):
+                asn = int(line[len('local-as'):].strip('; '))
+            if line.startswith('router-id'):
+                router_id = line[len('router-id'):].strip('; ')
+        if not asn:
+            raise Exception('asn not in exabgp config')
+        if not router_id:
+            raise Exception('router-id not in exabgp config')
+        self.config = config
+
+        super(RawExaBGPContainer, self).__init__(name, asn, router_id,
+                                                 ctn_image_name, exabgp_path)
+
+    def create_config(self):
+        with open('{0}/exabgpd.conf'.format(self.config_dir), 'w') as f:
+            print colors.yellow('[{0}\'s new config]'.format(self.name))
+            print colors.yellow(self.config)
+            f.write(self.config)

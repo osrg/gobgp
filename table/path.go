@@ -21,10 +21,15 @@ import (
 	log "github.com/Sirupsen/logrus"
 	api "github.com/osrg/gobgp/api"
 	"github.com/osrg/gobgp/config"
-	"github.com/osrg/gobgp/packet"
+	"github.com/osrg/gobgp/packet/bgp"
 	"math"
 	"net"
+	"sort"
 	"time"
+)
+
+const (
+	DEFAULT_LOCAL_PREF = 100
 )
 
 type Bitmap []uint64
@@ -51,9 +56,25 @@ type originInfo struct {
 	timestamp          time.Time
 	noImplicitWithdraw bool
 	validation         config.RpkiValidationResultType
-	isFromZebra        bool
+	isFromExternal     bool
 	key                string
 	uuid               []byte
+	eor                bool
+	stale              bool
+}
+
+type FlowSpecComponents []bgp.FlowSpecComponentInterface
+
+func (c FlowSpecComponents) Len() int {
+	return len(c)
+}
+
+func (c FlowSpecComponents) Swap(i, j int) {
+	c[i], c[j] = c[j], c[i]
+}
+
+func (c FlowSpecComponents) Less(i, j int) bool {
+	return c[i].Type() < c[j].Type()
 }
 
 type Path struct {
@@ -76,6 +97,25 @@ func NewPath(source *PeerInfo, nlri bgp.AddrPrefixInterface, isWithdraw bool, pa
 		return nil
 	}
 
+	if nlri != nil && (nlri.SAFI() == bgp.SAFI_FLOW_SPEC_UNICAST || nlri.SAFI() == bgp.SAFI_FLOW_SPEC_VPN) {
+		var coms FlowSpecComponents
+		var f *bgp.FlowSpecNLRI
+		switch nlri.(type) {
+		case *bgp.FlowSpecIPv4Unicast:
+			f = &nlri.(*bgp.FlowSpecIPv4Unicast).FlowSpecNLRI
+		case *bgp.FlowSpecIPv4VPN:
+			f = &nlri.(*bgp.FlowSpecIPv4VPN).FlowSpecNLRI
+		case *bgp.FlowSpecIPv6Unicast:
+			f = &nlri.(*bgp.FlowSpecIPv6Unicast).FlowSpecNLRI
+		case *bgp.FlowSpecIPv6VPN:
+			f = &nlri.(*bgp.FlowSpecIPv6VPN).FlowSpecNLRI
+		}
+		if f != nil {
+			coms = f.Value
+			sort.Sort(coms)
+		}
+	}
+
 	return &Path{
 		info: &originInfo{
 			nlri:               nlri,
@@ -87,6 +127,25 @@ func NewPath(source *PeerInfo, nlri bgp.AddrPrefixInterface, isWithdraw bool, pa
 		pathAttrs:  pattrs,
 		filtered:   make(map[string]PolicyDirection),
 	}
+}
+
+func NewEOR(family bgp.RouteFamily) *Path {
+	afi, safi := bgp.RouteFamilyToAfiSafi(family)
+	nlri, _ := bgp.NewPrefixFromRouteFamily(afi, safi)
+	return &Path{
+		info: &originInfo{
+			nlri: nlri,
+			eor:  true,
+		},
+		filtered: make(map[string]PolicyDirection),
+	}
+}
+
+func (path *Path) IsEOR() bool {
+	if path.info != nil && path.info.eor {
+		return true
+	}
+	return false
 }
 
 func cloneAsPath(asAttr *bgp.PathAttributeAsPath) *bgp.PathAttributeAsPath {
@@ -101,27 +160,35 @@ func cloneAsPath(asAttr *bgp.PathAttributeAsPath) *bgp.PathAttributeAsPath {
 }
 
 func (path *Path) UpdatePathAttrs(global *config.Global, peer *config.Neighbor) {
+	for _, a := range path.GetPathAttrs() {
+		if _, y := bgp.PathAttrFlags[a.GetType()]; !y {
+			if a.GetFlags()&bgp.BGP_ATTR_FLAG_TRANSITIVE == 0 {
+				path.delPathAttr(a.GetType())
+			}
+		}
+	}
 
 	if peer.RouteServer.Config.RouteServerClient {
 		return
 	}
 
-	localAddress := net.ParseIP(peer.Transport.Config.LocalAddress)
+	localAddress := net.ParseIP(peer.Transport.State.LocalAddress)
+	isZero := func(ip net.IP) bool {
+		return ip.Equal(net.ParseIP("0.0.0.0")) || ip.Equal(net.ParseIP("::"))
+	}
+	nexthop := path.GetNexthop()
 	if peer.Config.PeerType == config.PEER_TYPE_EXTERNAL {
 		// NEXTHOP handling
-		path.SetNexthop(localAddress)
+		if !path.IsLocal() || isZero(nexthop) {
+			path.SetNexthop(localAddress)
+		}
 
 		// AS_PATH handling
-		path.PrependAsn(global.Config.As, 1)
+		path.PrependAsn(peer.Config.LocalAs, 1)
 
 		// MED Handling
 		if med := path.getPathAttr(bgp.BGP_ATTR_TYPE_MULTI_EXIT_DISC); med != nil && !path.IsLocal() {
 			path.delPathAttr(bgp.BGP_ATTR_TYPE_MULTI_EXIT_DISC)
-		}
-
-		// remove local-pref attribute
-		if pref := path.getPathAttr(bgp.BGP_ATTR_TYPE_LOCAL_PREF); pref != nil && !config.IsConfederationMember(global, peer) {
-			path.delPathAttr(bgp.BGP_ATTR_TYPE_LOCAL_PREF)
 		}
 
 	} else if peer.Config.PeerType == config.PEER_TYPE_INTERNAL {
@@ -129,8 +196,7 @@ func (path *Path) UpdatePathAttrs(global *config.Global, peer *config.Neighbor) 
 		// if the path generated locally set local address as nexthop.
 		// if not, don't modify it.
 		// TODO: NEXT-HOP-SELF support
-		nexthop := path.GetNexthop()
-		if path.IsLocal() && (nexthop.Equal(net.ParseIP("0.0.0.0")) || nexthop.Equal(net.ParseIP("::"))) {
+		if path.IsLocal() && isZero(nexthop) {
 			path.SetNexthop(localAddress)
 		}
 
@@ -145,7 +211,7 @@ func (path *Path) UpdatePathAttrs(global *config.Global, peer *config.Neighbor) 
 		// for connected or local prefixes.
 		// We set default local-pref 100.
 		if pref := path.getPathAttr(bgp.BGP_ATTR_TYPE_LOCAL_PREF); pref == nil || !path.IsLocal() {
-			path.setPathAttr(bgp.NewPathAttributeLocalPref(100))
+			path.setPathAttr(bgp.NewPathAttributeLocalPref(DEFAULT_LOCAL_PREF))
 		}
 
 		// RFC4456: BGP Route Reflection
@@ -154,7 +220,16 @@ func (path *Path) UpdatePathAttrs(global *config.Global, peer *config.Neighbor) 
 		if peer.RouteReflector.Config.RouteReflectorClient {
 			// This attribute will carry the BGP Identifier of the originator of the route in the local AS.
 			// A BGP speaker SHOULD NOT create an ORIGINATOR_ID attribute if one already exists.
-			if path.getPathAttr(bgp.BGP_ATTR_TYPE_ORIGINATOR_ID) == nil {
+			//
+			// RFC4684 3.2 Intra-AS VPN Route Distribution
+			// When advertising RT membership NLRI to a route-reflector client,
+			// the Originator attribute shall be set to the router-id of the
+			// advertiser, and the Next-hop attribute shall be set of the local
+			// address for that session.
+			if path.GetRouteFamily() == bgp.RF_RTC_UC {
+				path.SetNexthop(localAddress)
+				path.setPathAttr(bgp.NewPathAttributeOriginatorId(info.LocalID.String()))
+			} else if path.getPathAttr(bgp.BGP_ATTR_TYPE_ORIGINATOR_ID) == nil {
 				path.setPathAttr(bgp.NewPathAttributeOriginatorId(info.ID.String()))
 			}
 			// When an RR reflects a route, it MUST prepend the local CLUSTER_ID to the CLUSTER_LIST.
@@ -209,15 +284,18 @@ func (path *Path) ToApiStruct(id string) *api.Path {
 		return ret
 	}(path.GetPathAttrs())
 	return &api.Path{
-		Nlri:       n,
-		Pattrs:     pattrs,
-		Age:        int64(time.Now().Sub(path.OriginInfo().timestamp).Seconds()),
-		IsWithdraw: path.IsWithdraw,
-		Validation: int32(path.OriginInfo().validation.ToInt()),
-		Filtered:   path.Filtered(id) == POLICY_DIRECTION_IN,
-		Family:     family,
-		SourceAsn:  path.OriginInfo().source.AS,
-		SourceId:   path.OriginInfo().source.ID.String(),
+		Nlri:           n,
+		Pattrs:         pattrs,
+		Age:            path.OriginInfo().timestamp.Unix(),
+		IsWithdraw:     path.IsWithdraw,
+		Validation:     int32(path.OriginInfo().validation.ToInt()),
+		Filtered:       path.Filtered(id) == POLICY_DIRECTION_IN,
+		Family:         family,
+		SourceAsn:      path.OriginInfo().source.AS,
+		SourceId:       path.OriginInfo().source.ID.String(),
+		NeighborIp:     path.OriginInfo().source.Address.String(),
+		Stale:          path.IsStale(),
+		IsFromExternal: path.OriginInfo().isFromExternal,
 	}
 }
 
@@ -254,12 +332,12 @@ func (path *Path) SetValidation(r config.RpkiValidationResultType) {
 	path.OriginInfo().validation = r
 }
 
-func (path *Path) IsFromZebra() bool {
-	return path.OriginInfo().isFromZebra
+func (path *Path) IsFromExternal() bool {
+	return path.OriginInfo().isFromExternal
 }
 
-func (path *Path) SetIsFromZebra(y bool) {
-	path.OriginInfo().isFromZebra = y
+func (path *Path) SetIsFromExternal(y bool) {
+	path.OriginInfo().isFromExternal = y
 }
 
 func (path *Path) UUID() []byte {
@@ -287,6 +365,14 @@ func (path *Path) setSource(source *PeerInfo) {
 }
 func (path *Path) GetSource() *PeerInfo {
 	return path.OriginInfo().source
+}
+
+func (path *Path) MarkStale(s bool) {
+	path.OriginInfo().stale = s
+}
+
+func (path *Path) IsStale() bool {
+	return path.OriginInfo().stale
 }
 
 func (path *Path) GetSourceAs() uint32 {
@@ -333,22 +419,58 @@ func (path *Path) GetNlri() bgp.AddrPrefixInterface {
 	return path.OriginInfo().nlri
 }
 
+type PathAttrs []bgp.PathAttributeInterface
+
+func (a PathAttrs) Len() int {
+	return len(a)
+}
+
+func (a PathAttrs) Swap(i, j int) {
+	a[i], a[j] = a[j], a[i]
+}
+
+func (a PathAttrs) Less(i, j int) bool {
+	return a[i].GetType() < a[j].GetType()
+}
+
 func (path *Path) GetPathAttrs() []bgp.PathAttributeInterface {
-	seen := NewBitmap(math.MaxUint8)
-	list := make([]bgp.PathAttributeInterface, 0, 4)
+	deleted := NewBitmap(math.MaxUint8)
+	modified := make(map[uint]bgp.PathAttributeInterface)
 	p := path
 	for {
 		for _, t := range p.dels {
-			seen.Flag(uint(t))
-		}
-		for _, a := range p.pathAttrs {
-			if typ := uint(a.GetType()); !seen.GetFlag(typ) {
-				list = append(list, a)
-				seen.Flag(typ)
-			}
+			deleted.Flag(uint(t))
 		}
 		if p.parent == nil {
+			list := PathAttrs(make([]bgp.PathAttributeInterface, 0, len(p.pathAttrs)))
+			// we assume that the original pathAttrs are
+			// in order, that is, other bgp speakers send
+			// attributes in order.
+			for _, a := range p.pathAttrs {
+				typ := uint(a.GetType())
+				if m, ok := modified[typ]; ok {
+					list = append(list, m)
+					delete(modified, typ)
+				} else if !deleted.GetFlag(typ) {
+					list = append(list, a)
+				}
+			}
+			if len(modified) > 0 {
+				// Huh, some attributes were newly
+				// added. So we need to sort...
+				for _, m := range modified {
+					list = append(list, m)
+				}
+				sort.Sort(list)
+			}
 			return list
+		} else {
+			for _, a := range p.pathAttrs {
+				typ := uint(a.GetType())
+				if _, ok := modified[typ]; !deleted.GetFlag(typ) && !ok {
+					modified[typ] = a
+				}
+			}
 		}
 		p = p.parent
 	}
@@ -399,6 +521,10 @@ func (path *Path) delPathAttr(typ bgp.BGPAttrType) {
 // return Path's string representation
 func (path *Path) String() string {
 	s := bytes.NewBuffer(make([]byte, 0, 64))
+	if path.IsEOR() {
+		s.WriteString(fmt.Sprintf("{ %s EOR | src: %s }", path.GetRouteFamily(), path.GetSource()))
+		return s.String()
+	}
 	s.WriteString(fmt.Sprintf("{ %s | ", path.getPrefix()))
 	s.WriteString(fmt.Sprintf("src: %s", path.GetSource()))
 	s.WriteString(fmt.Sprintf(", nh: %s", path.GetNexthop()))
@@ -692,6 +818,12 @@ func (path *Path) SetMed(med int64, doReplace bool) error {
 	return nil
 }
 
+func (path *Path) RemoveLocalPref() {
+	if path.getPathAttr(bgp.BGP_ATTR_TYPE_LOCAL_PREF) != nil {
+		path.delPathAttr(bgp.BGP_ATTR_TYPE_LOCAL_PREF)
+	}
+}
+
 func (path *Path) GetOriginatorID() net.IP {
 	if attr := path.getPathAttr(bgp.BGP_ATTR_TYPE_ORIGINATOR_ID); attr != nil {
 		return attr.(*bgp.PathAttributeOriginatorId).Value
@@ -706,6 +838,74 @@ func (path *Path) GetClusterList() []net.IP {
 	return nil
 }
 
+func (path *Path) GetOrigin() (uint8, error) {
+	if attr := path.getPathAttr(bgp.BGP_ATTR_TYPE_ORIGIN); attr != nil {
+		return attr.(*bgp.PathAttributeOrigin).Value[0], nil
+	}
+	return 0, fmt.Errorf("no origin path attr")
+}
+
+func (path *Path) GetLocalPref() (uint32, error) {
+	lp := uint32(DEFAULT_LOCAL_PREF)
+	attr := path.getPathAttr(bgp.BGP_ATTR_TYPE_LOCAL_PREF)
+	if attr != nil {
+		lp = attr.(*bgp.PathAttributeLocalPref).Value
+	}
+	return lp, nil
+}
+
 func (lhs *Path) Equal(rhs *Path) bool {
-	return lhs == rhs
+	if rhs == nil {
+		return false
+	}
+
+	if lhs.GetSource() != rhs.GetSource() {
+		return false
+	}
+
+	pattrs := func(arg []bgp.PathAttributeInterface) []byte {
+		ret := make([]byte, 0)
+		for _, a := range arg {
+			aa, _ := a.Serialize()
+			ret = append(ret, aa...)
+		}
+		return ret
+	}
+	return bytes.Equal(pattrs(lhs.GetPathAttrs()), pattrs(rhs.GetPathAttrs()))
+}
+
+func (lhs *Path) Compare(rhs *Path) int {
+	if lhs.IsLocal() && !rhs.IsLocal() {
+		return 1
+	} else if !lhs.IsLocal() && rhs.IsLocal() {
+		return -1
+	}
+
+	if !lhs.IsIBGP() && rhs.IsIBGP() {
+		return 1
+	} else if lhs.IsIBGP() && !rhs.IsIBGP() {
+		return -1
+	}
+
+	lp1, _ := lhs.GetLocalPref()
+	lp2, _ := rhs.GetLocalPref()
+	if lp1 != lp2 {
+		return int(lp1 - lp2)
+	}
+
+	l1 := lhs.GetAsPathLen()
+	l2 := rhs.GetAsPathLen()
+	if l1 != l2 {
+		return int(l2 - l1)
+	}
+
+	o1, _ := lhs.GetOrigin()
+	o2, _ := rhs.GetOrigin()
+	if o1 != o2 {
+		return int(o2 - o1)
+	}
+
+	m1, _ := lhs.GetMed()
+	m2, _ := rhs.GetMed()
+	return int(m2 - m1)
 }
