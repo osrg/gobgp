@@ -43,7 +43,7 @@ func main() {
 	}
 
 	// neighbor configuration
-	req = gobgp.NewGrpcRequest(gobgp.REQ_GRPC_ADD_NEIGHBOR, "", bgp.RouteFamily(0), &api.AddNeighborRequest{
+	req = gobgp.NewGrpcRequest(gobgp.REQ_ADD_NEIGHBOR, "", bgp.RouteFamily(0), &api.AddNeighborRequest{
 		Peer: &api.Peer{
 			Conf: &api.PeerConf{
 				NeighborAddress: "192.168.0.3",
