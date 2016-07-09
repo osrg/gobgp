@@ -21,10 +21,13 @@ import (
 	api "github.com/osrg/gobgp/api"
 	"github.com/osrg/gobgp/config"
 	"github.com/osrg/gobgp/packet/bgp"
+	"github.com/osrg/gobgp/table"
 	"golang.org/x/net/context"
 	"google.golang.org/grpc"
 	"io"
 	"net"
+	"regexp"
+	"strconv"
 	"strings"
 	"sync"
 )
@@ -666,7 +669,62 @@ func (s *Server) GetDefinedSet(ctx context.Context, arg *api.GetDefinedSetReques
 	if err != nil {
 		return nil, err
 	}
-	return d.(*api.GetDefinedSetResponse), err
+	sets := make([]*api.DefinedSet, 0)
+	cd := d.(*config.DefinedSets)
+	for _, cs := range cd.PrefixSets {
+		ad := &api.DefinedSet{
+			Type: api.DefinedType_PREFIX,
+			Name: cs.PrefixSetName,
+			Prefixes: func() []*api.Prefix {
+				l := make([]*api.Prefix, 0, len(cs.PrefixList))
+				for _, p := range cs.PrefixList {
+					exp := regexp.MustCompile("(\\d+)\\.\\.(\\d+)")
+					elems := exp.FindStringSubmatch(p.MasklengthRange)
+					min, _ := strconv.Atoi(elems[1])
+					max, _ := strconv.Atoi(elems[2])
+
+					l = append(l, &api.Prefix{IpPrefix: p.IpPrefix, MaskLengthMin: uint32(min), MaskLengthMax: uint32(max)})
+				}
+				return l
+			}(),
+		}
+		sets = append(sets, ad)
+
+	}
+	for _, cs := range cd.NeighborSets {
+		ad := &api.DefinedSet{
+			Type: api.DefinedType_NEIGHBOR,
+			Name: cs.NeighborSetName,
+			List: cs.NeighborInfoList,
+		}
+		sets = append(sets, ad)
+	}
+	for _, cs := range cd.BgpDefinedSets.CommunitySets {
+		ad := &api.DefinedSet{
+			Type: api.DefinedType_COMMUNITY,
+			Name: cs.CommunitySetName,
+			List: cs.CommunityList,
+		}
+		sets = append(sets, ad)
+	}
+	for _, cs := range cd.BgpDefinedSets.ExtCommunitySets {
+		ad := &api.DefinedSet{
+			Type: api.DefinedType_EXT_COMMUNITY,
+			Name: cs.ExtCommunitySetName,
+			List: cs.ExtCommunityList,
+		}
+		sets = append(sets, ad)
+	}
+	for _, cs := range cd.BgpDefinedSets.AsPathSets {
+		ad := &api.DefinedSet{
+			Type: api.DefinedType_AS_PATH,
+			Name: cs.AsPathSetName,
+			List: cs.AsPathList,
+		}
+		sets = append(sets, ad)
+	}
+
+	return &api.GetDefinedSetResponse{Sets: sets}, nil
 }
 
 func (s *Server) AddDefinedSet(ctx context.Context, arg *api.AddDefinedSetRequest) (*api.AddDefinedSetResponse, error) {
@@ -693,12 +751,142 @@ func (s *Server) ReplaceDefinedSet(ctx context.Context, arg *api.ReplaceDefinedS
 	return d.(*api.ReplaceDefinedSetResponse), err
 }
 
+func toStatementApi(s *config.Statement) *api.Statement {
+	cs := &api.Conditions{}
+	if s.Conditions.MatchPrefixSet.PrefixSet != "" {
+		cs.PrefixSet = &api.MatchSet{
+			Type: api.MatchType(s.Conditions.MatchPrefixSet.MatchSetOptions.ToInt()),
+			Name: s.Conditions.MatchPrefixSet.PrefixSet,
+		}
+	}
+	if s.Conditions.MatchNeighborSet.NeighborSet != "" {
+		cs.NeighborSet = &api.MatchSet{
+			Type: api.MatchType(s.Conditions.MatchNeighborSet.MatchSetOptions.ToInt()),
+			Name: s.Conditions.MatchNeighborSet.NeighborSet,
+		}
+	}
+	if s.Conditions.BgpConditions.AsPathLength.Operator != "" {
+		cs.AsPathLength = &api.AsPathLength{
+			Length: s.Conditions.BgpConditions.AsPathLength.Value,
+			Type:   api.AsPathLengthType(s.Conditions.BgpConditions.AsPathLength.Operator.ToInt()),
+		}
+	}
+	if s.Conditions.BgpConditions.MatchAsPathSet.AsPathSet != "" {
+		cs.AsPathSet = &api.MatchSet{
+			Type: api.MatchType(s.Conditions.BgpConditions.MatchAsPathSet.MatchSetOptions.ToInt()),
+			Name: s.Conditions.BgpConditions.MatchAsPathSet.AsPathSet,
+		}
+	}
+	if s.Conditions.BgpConditions.MatchCommunitySet.CommunitySet != "" {
+		cs.CommunitySet = &api.MatchSet{
+			Type: api.MatchType(s.Conditions.BgpConditions.MatchCommunitySet.MatchSetOptions.ToInt()),
+			Name: s.Conditions.BgpConditions.MatchCommunitySet.CommunitySet,
+		}
+	}
+	if s.Conditions.BgpConditions.MatchExtCommunitySet.ExtCommunitySet != "" {
+		cs.CommunitySet = &api.MatchSet{
+			Type: api.MatchType(s.Conditions.BgpConditions.MatchExtCommunitySet.MatchSetOptions.ToInt()),
+			Name: s.Conditions.BgpConditions.MatchExtCommunitySet.ExtCommunitySet,
+		}
+	}
+	cs.RpkiResult = int32(s.Conditions.BgpConditions.RpkiValidationResult.ToInt())
+	as := &api.Actions{
+		RouteAction: func() api.RouteAction {
+			if s.Actions.RouteDisposition.AcceptRoute {
+				return api.RouteAction_ACCEPT
+			}
+			return api.RouteAction_REJECT
+		}(),
+		Community: func() *api.CommunityAction {
+			if len(s.Actions.BgpActions.SetCommunity.SetCommunityMethod.CommunitiesList) == 0 {
+				return nil
+			}
+			return &api.CommunityAction{
+				Type:        api.CommunityActionType(config.BgpSetCommunityOptionTypeToIntMap[config.BgpSetCommunityOptionType(s.Actions.BgpActions.SetCommunity.Options)]),
+				Communities: s.Actions.BgpActions.SetCommunity.SetCommunityMethod.CommunitiesList}
+		}(),
+		Med: func() *api.MedAction {
+			if len(string(s.Actions.BgpActions.SetMed)) == 0 {
+				return nil
+			}
+			exp := regexp.MustCompile("^(\\+|\\-)?(\\d+)$")
+			elems := exp.FindStringSubmatch(string(s.Actions.BgpActions.SetMed))
+			action := api.MedActionType_MED_REPLACE
+			switch elems[1] {
+			case "+", "-":
+				action = api.MedActionType_MED_MOD
+			}
+			value, _ := strconv.Atoi(string(s.Actions.BgpActions.SetMed))
+			return &api.MedAction{
+				Value: int64(value),
+				Type:  action,
+			}
+		}(),
+		AsPrepend: func() *api.AsPrependAction {
+			if len(s.Actions.BgpActions.SetAsPathPrepend.As) == 0 {
+				return nil
+			}
+			asn := 0
+			useleft := false
+			if s.Actions.BgpActions.SetAsPathPrepend.As != "last-as" {
+				asn, _ = strconv.Atoi(s.Actions.BgpActions.SetAsPathPrepend.As)
+			} else {
+				useleft = true
+			}
+			return &api.AsPrependAction{
+				Asn:         uint32(asn),
+				Repeat:      uint32(s.Actions.BgpActions.SetAsPathPrepend.RepeatN),
+				UseLeftMost: useleft,
+			}
+		}(),
+		ExtCommunity: func() *api.CommunityAction {
+			if len(s.Actions.BgpActions.SetExtCommunity.SetExtCommunityMethod.CommunitiesList) == 0 {
+				return nil
+			}
+			return &api.CommunityAction{
+				Type:        api.CommunityActionType(config.BgpSetCommunityOptionTypeToIntMap[config.BgpSetCommunityOptionType(s.Actions.BgpActions.SetExtCommunity.Options)]),
+				Communities: s.Actions.BgpActions.SetExtCommunity.SetExtCommunityMethod.CommunitiesList,
+			}
+		}(),
+		Nexthop: func() *api.NexthopAction {
+			if len(string(s.Actions.BgpActions.SetNextHop)) == 0 {
+				return nil
+			}
+
+			if string(s.Actions.BgpActions.SetNextHop) == "self" {
+				return &api.NexthopAction{
+					Self: true,
+				}
+			}
+			return &api.NexthopAction{
+				Address: string(s.Actions.BgpActions.SetNextHop),
+			}
+		}(),
+		LocalPref: func() *api.LocalPrefAction {
+			if s.Actions.BgpActions.SetLocalPref == 0 {
+				return nil
+			}
+			return &api.LocalPrefAction{Value: s.Actions.BgpActions.SetLocalPref}
+		}(),
+	}
+	return &api.Statement{
+		Name:       s.Name,
+		Conditions: cs,
+		Actions:    as,
+	}
+}
+
 func (s *Server) GetStatement(ctx context.Context, arg *api.GetStatementRequest) (*api.GetStatementResponse, error) {
 	d, err := s.get(REQ_GET_STATEMENT, arg)
 	if err != nil {
 		return nil, err
 	}
-	return d.(*api.GetStatementResponse), err
+
+	l := make([]*api.Statement, 0)
+	for _, s := range d.([]*config.Statement) {
+		l = append(l, toStatementApi(s))
+	}
+	return &api.GetStatementResponse{Statements: l}, err
 }
 
 func (s *Server) AddStatement(ctx context.Context, arg *api.AddStatementRequest) (*api.AddStatementResponse, error) {
@@ -725,12 +913,29 @@ func (s *Server) ReplaceStatement(ctx context.Context, arg *api.ReplaceStatement
 	return d.(*api.ReplaceStatementResponse), err
 }
 
+func toPolicyApi(p *config.PolicyDefinition) *api.Policy {
+	return &api.Policy{
+		Name: p.Name,
+		Statements: func() []*api.Statement {
+			l := make([]*api.Statement, 0)
+			for _, s := range p.Statements {
+				l = append(l, toStatementApi(&s))
+			}
+			return l
+		}(),
+	}
+}
+
 func (s *Server) GetPolicy(ctx context.Context, arg *api.GetPolicyRequest) (*api.GetPolicyResponse, error) {
 	d, err := s.get(REQ_GET_POLICY, arg)
 	if err != nil {
 		return nil, err
 	}
-	return d.(*api.GetPolicyResponse), err
+	l := make([]*api.Policy, 0)
+	for _, p := range d.([]*config.PolicyDefinition) {
+		l = append(l, toPolicyApi(p))
+	}
+	return &api.GetPolicyResponse{Policies: l}, err
 }
 
 func (s *Server) AddPolicy(ctx context.Context, arg *api.AddPolicyRequest) (*api.AddPolicyResponse, error) {
@@ -762,7 +967,28 @@ func (s *Server) GetPolicyAssignment(ctx context.Context, arg *api.GetPolicyAssi
 	if err != nil {
 		return nil, err
 	}
-	return d.(*api.GetPolicyAssignmentResponse), err
+	a := d.(*PolicyAssignment)
+	return &api.GetPolicyAssignmentResponse{
+		Assignment: &api.PolicyAssignment{
+			Default: func() api.RouteAction {
+				switch a.Default {
+				case table.ROUTE_TYPE_ACCEPT:
+					return api.RouteAction_ACCEPT
+				case table.ROUTE_TYPE_REJECT:
+					return api.RouteAction_REJECT
+				}
+				return api.RouteAction_NONE
+
+			}(),
+			Policies: func() []*api.Policy {
+				l := make([]*api.Policy, 0)
+				for _, p := range a.PolicyDefinitions {
+					l = append(l, toPolicyApi(p))
+				}
+				return l
+			}(),
+		},
+	}, err
 }
 
 func (s *Server) AddPolicyAssignment(ctx context.Context, arg *api.AddPolicyAssignmentRequest) (*api.AddPolicyAssignmentResponse, error) {
