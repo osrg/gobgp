@@ -2142,20 +2142,6 @@ ERROR:
 	return
 }
 
-func (server *BgpServer) handleGrpcGetDefinedSet(grpcReq *GrpcRequest) (*api.GetDefinedSetResponse, error) {
-	arg := grpcReq.Data.(*api.GetDefinedSetRequest)
-	typ := table.DefinedType(arg.Type)
-	set, ok := server.policy.DefinedSetMap[typ]
-	if !ok {
-		return &api.GetDefinedSetResponse{}, fmt.Errorf("invalid defined-set type: %d", typ)
-	}
-	sets := make([]*api.DefinedSet, 0)
-	for _, s := range set {
-		sets = append(sets, s.ToApiStruct())
-	}
-	return &api.GetDefinedSetResponse{Sets: sets}, nil
-}
-
 func (server *BgpServer) handleAddNeighbor(c *config.Neighbor) error {
 	addr := c.Config.NeighborAddress
 	if _, y := server.neighborMap[addr]; y {
@@ -2292,6 +2278,39 @@ func (server *BgpServer) handleUpdateNeighbor(c *config.Neighbor) (bool, error) 
 	return policyUpdated, err
 }
 
+func (server *BgpServer) handleGrpcGetDefinedSet(grpcReq *GrpcRequest) (*config.DefinedSets, error) {
+	arg := grpcReq.Data.(*api.GetDefinedSetRequest)
+	typ := table.DefinedType(arg.Type)
+	set, ok := server.policy.DefinedSetMap[typ]
+	if !ok {
+		return nil, fmt.Errorf("invalid defined-set type: %d", typ)
+	}
+	sets := config.DefinedSets{
+		PrefixSets:   make([]config.PrefixSet, 0),
+		NeighborSets: make([]config.NeighborSet, 0),
+		BgpDefinedSets: config.BgpDefinedSets{
+			CommunitySets:    make([]config.CommunitySet, 0),
+			ExtCommunitySets: make([]config.ExtCommunitySet, 0),
+			AsPathSets:       make([]config.AsPathSet, 0),
+		},
+	}
+	for _, s := range set {
+		switch s.(type) {
+		case *table.PrefixSet:
+			sets.PrefixSets = append(sets.PrefixSets, *s.(*table.PrefixSet).ToConfig())
+		case *table.NeighborSet:
+			sets.NeighborSets = append(sets.NeighborSets, *s.(*table.NeighborSet).ToConfig())
+		case *table.CommunitySet:
+			sets.BgpDefinedSets.CommunitySets = append(sets.BgpDefinedSets.CommunitySets, *s.(*table.CommunitySet).ToConfig())
+		case *table.ExtCommunitySet:
+			sets.BgpDefinedSets.ExtCommunitySets = append(sets.BgpDefinedSets.ExtCommunitySets, *s.(*table.ExtCommunitySet).ToConfig())
+		case *table.AsPathSet:
+			sets.BgpDefinedSets.AsPathSets = append(sets.BgpDefinedSets.AsPathSets, *s.(*table.AsPathSet).ToConfig())
+		}
+	}
+	return &sets, nil
+}
+
 func (server *BgpServer) handleGrpcAddDefinedSet(grpcReq *GrpcRequest) (*api.AddDefinedSetResponse, error) {
 	arg := grpcReq.Data.(*api.AddDefinedSetRequest)
 	set := arg.Set
@@ -2365,12 +2384,12 @@ func (server *BgpServer) handleGrpcReplaceDefinedSet(grpcReq *GrpcRequest) (*api
 	return &api.ReplaceDefinedSetResponse{}, d.Replace(s)
 }
 
-func (server *BgpServer) handleGrpcGetStatement(grpcReq *GrpcRequest) (*api.GetStatementResponse, error) {
-	l := make([]*api.Statement, 0)
+func (server *BgpServer) handleGrpcGetStatement(grpcReq *GrpcRequest) ([]*config.Statement, error) {
+	l := make([]*config.Statement, 0)
 	for _, s := range server.policy.StatementMap {
-		l = append(l, s.ToApiStruct())
+		l = append(l, s.ToConfig())
 	}
-	return &api.GetStatementResponse{Statements: l}, nil
+	return l, nil
 }
 
 func (server *BgpServer) handleGrpcAddStatement(grpcReq *GrpcRequest) (*api.AddStatementResponse, error) {
@@ -2432,12 +2451,12 @@ func (server *BgpServer) handleGrpcReplaceStatement(grpcReq *GrpcRequest) (*api.
 	return &api.ReplaceStatementResponse{}, err
 }
 
-func (server *BgpServer) handleGrpcGetPolicy(grpcReq *GrpcRequest) (*api.GetPolicyResponse, error) {
-	policies := make([]*api.Policy, 0, len(server.policy.PolicyMap))
+func (server *BgpServer) handleGrpcGetPolicy(grpcReq *GrpcRequest) ([]*config.PolicyDefinition, error) {
+	policies := make([]*config.PolicyDefinition, 0, len(server.policy.PolicyMap))
 	for _, s := range server.policy.PolicyMap {
-		policies = append(policies, s.ToApiStruct())
+		policies = append(policies, s.ToConfig())
 	}
-	return &api.GetPolicyResponse{Policies: policies}, nil
+	return policies, nil
 }
 
 func (server *BgpServer) policyInUse(x *table.Policy) bool {
@@ -2612,21 +2631,28 @@ func (server *BgpServer) getPolicyInfo(a *api.PolicyAssignment) (string, table.P
 
 }
 
-func (server *BgpServer) handleGrpcGetPolicyAssignment(grpcReq *GrpcRequest) (*api.GetPolicyAssignmentResponse, error) {
-	rsp := &api.GetPolicyAssignmentResponse{}
+// temporarily
+type PolicyAssignment struct {
+	Default           table.RouteType
+	PolicyDefinitions []*config.PolicyDefinition
+}
+
+func (server *BgpServer) handleGrpcGetPolicyAssignment(grpcReq *GrpcRequest) (*PolicyAssignment, error) {
 	id, dir, err := server.getPolicyInfo(grpcReq.Data.(*api.GetPolicyAssignmentRequest).Assignment)
 	if err != nil {
-		return rsp, err
+		return nil, err
 	}
-	rsp.Assignment = &api.PolicyAssignment{
-		Default: server.policy.GetDefaultPolicy(id, dir).ToApiStruct(),
-	}
-	ps := server.policy.GetPolicy(id, dir)
-	rsp.Assignment.Policies = make([]*api.Policy, 0, len(ps))
-	for _, x := range ps {
-		rsp.Assignment.Policies = append(rsp.Assignment.Policies, x.ToApiStruct())
-	}
-	return rsp, nil
+	return &PolicyAssignment{
+		Default: server.policy.GetDefaultPolicy(id, dir),
+		PolicyDefinitions: func() []*config.PolicyDefinition {
+			ps := server.policy.GetPolicy(id, dir)
+			l := make([]*config.PolicyDefinition, 0, len(ps))
+			for _, p := range ps {
+				l = append(l, p.ToConfig())
+			}
+			return l
+		}(),
+	}, nil
 }
 
 func (server *BgpServer) handleGrpcAddPolicyAssignment(grpcReq *GrpcRequest) (*api.AddPolicyAssignmentResponse, error) {
