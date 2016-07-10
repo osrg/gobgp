@@ -485,23 +485,64 @@ func (s *Server) SoftResetRpki(ctx context.Context, arg *api.SoftResetRpkiReques
 }
 
 func (s *Server) GetRpki(ctx context.Context, arg *api.GetRpkiRequest) (*api.GetRpkiResponse, error) {
-	req := NewGrpcRequest(REQ_GET_RPKI, "", bgp.RouteFamily(arg.Family), nil)
-	s.bgpServerCh <- req
-	res := <-req.ResponseCh
-	if res.Err() != nil {
-		return nil, res.Err()
+	d, err := s.get(REQ_GET_RPKI, arg)
+	if err != nil {
+		return nil, err
 	}
-	return res.Data.(*api.GetRpkiResponse), res.Err()
+	l := make([]*api.Rpki, 0)
+	for _, s := range d.([]*config.RpkiServer) {
+		received := &s.State.RpkiMessages.RpkiReceived
+		sent := &s.State.RpkiMessages.RpkiSent
+		rpki := &api.Rpki{
+			Conf: &api.RPKIConf{
+				Address:    s.Config.Address,
+				RemotePort: strconv.Itoa(int(s.Config.Port)),
+			},
+			State: &api.RPKIState{
+				Uptime:        s.State.Uptime,
+				Downtime:      s.State.Downtime,
+				Up:            s.State.Up,
+				RecordIpv4:    s.State.RecordsV4,
+				RecordIpv6:    s.State.RecordsV6,
+				PrefixIpv4:    s.State.PrefixesV4,
+				PrefixIpv6:    s.State.PrefixesV6,
+				Serial:        s.State.SerialNumber,
+				ReceivedIpv4:  received.Ipv4Prefix,
+				ReceivedIpv6:  received.Ipv6Prefix,
+				SerialNotify:  received.SerialNotify,
+				CacheReset:    received.CacheReset,
+				CacheResponse: received.CacheResponse,
+				EndOfData:     received.EndOfData,
+				Error:         received.Error,
+				SerialQuery:   sent.SerialQuery,
+				ResetQuery:    sent.ResetQuery,
+			},
+		}
+		l = append(l, rpki)
+	}
+	return &api.GetRpkiResponse{Servers: l}, nil
 }
 
 func (s *Server) GetRoa(ctx context.Context, arg *api.GetRoaRequest) (*api.GetRoaResponse, error) {
-	req := NewGrpcRequest(REQ_ROA, "", bgp.RouteFamily(arg.Family), nil)
-	s.bgpServerCh <- req
-	res := <-req.ResponseCh
-	if res.Err() != nil {
-		return nil, res.Err()
+	d, err := s.get(REQ_ROA, arg)
+	if err != nil {
+		return nil, err
 	}
-	return res.Data.(*api.GetRoaResponse), res.Err()
+	l := make([]*api.Roa, 0, len(d.([]*ROA)))
+	for _, r := range d.([]*ROA) {
+		host, port, _ := net.SplitHostPort(r.Src)
+		l = append(l, &api.Roa{
+			As:        r.AS,
+			Maxlen:    uint32(r.MaxLen),
+			Prefixlen: uint32(r.Prefix.Length),
+			Prefix:    r.Prefix.Prefix.String(),
+			Conf: &api.RPKIConf{
+				Address:    host,
+				RemotePort: port,
+			},
+		})
+	}
+	return &api.GetRoaResponse{Roas: l}, nil
 }
 
 func (s *Server) GetVrf(ctx context.Context, arg *api.GetVrfRequest) (*api.GetVrfResponse, error) {
