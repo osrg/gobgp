@@ -1210,6 +1210,19 @@ func (lhs *RpkiMessages) Equal(rhs *RpkiMessages) bool {
 
 //struct for container gobgp:state
 type RpkiServerState struct {
+	// original -> gobgp:up
+	//gobgp:up's original type is boolean
+	Up bool `mapstructure:"up"`
+	// original -> gobgp:serial-number
+	SerialNumber uint32 `mapstructure:"serial-number"`
+	// original -> gobgp:records-v4
+	RecordsV4 uint32 `mapstructure:"records-v4"`
+	// original -> gobgp:records-v6
+	RecordsV6 uint32 `mapstructure:"records-v6"`
+	// original -> gobgp:prefixes-v4
+	PrefixesV4 uint32 `mapstructure:"prefixes-v4"`
+	// original -> gobgp:prefixes-v6
+	PrefixesV6 uint32 `mapstructure:"prefixes-v6"`
 	// original -> gobgp:uptime
 	Uptime int64 `mapstructure:"uptime"`
 	// original -> gobgp:downtime
@@ -1222,6 +1235,24 @@ type RpkiServerState struct {
 
 func (lhs *RpkiServerState) Equal(rhs *RpkiServerState) bool {
 	if lhs == nil || rhs == nil {
+		return false
+	}
+	if lhs.Up != rhs.Up {
+		return false
+	}
+	if lhs.SerialNumber != rhs.SerialNumber {
+		return false
+	}
+	if lhs.RecordsV4 != rhs.RecordsV4 {
+		return false
+	}
+	if lhs.RecordsV6 != rhs.RecordsV6 {
+		return false
+	}
+	if lhs.PrefixesV4 != rhs.PrefixesV4 {
+		return false
+	}
+	if lhs.PrefixesV6 != rhs.PrefixesV6 {
 		return false
 	}
 	if lhs.Uptime != rhs.Uptime {

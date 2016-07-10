@@ -412,6 +412,24 @@ module gobgp {
   grouping gobgp-rpki-server-state {
     description "additional RPKI state";
 
+    leaf up {
+      type boolean;
+    }
+    leaf serial-number {
+      type uint32;
+    }
+    leaf records-v4 {
+      type uint32;
+    }
+    leaf records-v6 {
+      type uint32;
+    }
+    leaf prefixes-v4 {
+      type uint32;
+    }
+    leaf prefixes-v6 {
+      type uint32;
+    }
     leaf uptime {
       type int64;
       description
