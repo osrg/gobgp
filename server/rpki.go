@@ -21,11 +21,11 @@ import (
 	"io"
 	"net"
 	"sort"
+	"strconv"
 	"time"
 
 	log "github.com/Sirupsen/logrus"
 	"github.com/armon/go-radix"
-	api "github.com/osrg/gobgp/api"
 	"github.com/osrg/gobgp/config"
 	"github.com/osrg/gobgp/packet/bgp"
 	"github.com/osrg/gobgp/packet/rtr"
@@ -77,21 +77,7 @@ func (r *ROA) Equal(roa *ROA) bool {
 	return false
 }
 
-func (r *ROA) toApiStruct() *api.Roa {
-	host, port, _ := net.SplitHostPort(r.Src)
-	return &api.Roa{
-		As:        r.AS,
-		Maxlen:    uint32(r.MaxLen),
-		Prefixlen: uint32(r.Prefix.Length),
-		Prefix:    r.Prefix.Prefix.String(),
-		Conf: &api.RPKIConf{
-			Address:    host,
-			RemotePort: port,
-		},
-	}
-}
-
-type roas []*api.Roa
+type roas []*ROA
 
 func (r roas) Len() int {
 	return len(r)
@@ -105,13 +91,13 @@ func (r roas) Less(i, j int) bool {
 	r1 := r[i]
 	r2 := r[j]
 
-	if r1.Maxlen < r1.Maxlen {
+	if r1.MaxLen < r1.MaxLen {
 		return true
-	} else if r1.Maxlen > r1.Maxlen {
+	} else if r1.MaxLen > r1.MaxLen {
 		return false
 	}
 
-	if r1.As < r2.As {
+	if r1.AS < r2.AS {
 		return true
 	}
 	return false
@@ -465,57 +451,43 @@ func (c *roaManager) handleGRPC(grpcReq *GrpcRequest) *GrpcResponse {
 		recordsV4, prefixesV4 := f(c.Roas[bgp.RF_IPv4_UC])
 		recordsV6, prefixesV6 := f(c.Roas[bgp.RF_IPv6_UC])
 
-		l := make([]*api.Rpki, 0, len(c.clientMap))
+		l := make([]*config.RpkiServer, 0, len(c.clientMap))
 		for _, client := range c.clientMap {
-			state := client.state
-			addr, port, _ := net.SplitHostPort(client.host)
-			received := &state.RpkiMessages.RpkiReceived
-			sent := client.state.RpkiMessages.RpkiSent
-			up := true
-			if client.conn == nil {
-				up = false
-			}
+			state := &client.state
 
+			addr, port, _ := net.SplitHostPort(client.host)
+			l = append(l, &config.RpkiServer{
+				Config: config.RpkiServerConfig{
+					Address: addr,
+					Port:    func() uint32 { p, _ := strconv.Atoi(port); return uint32(p) }(),
+				},
+				State: client.state,
+			})
+
+			if client.conn == nil {
+				state.Up = false
+			} else {
+				state.Up = true
+			}
 			f := func(m map[string]uint32, key string) uint32 {
 				if r, ok := m[key]; ok {
 					return r
 				}
 				return 0
 			}
-
-			rpki := &api.Rpki{
-				Conf: &api.RPKIConf{
-					Address:    addr,
-					RemotePort: port,
-				},
-				State: &api.RPKIState{
-					Uptime:        state.Uptime,
-					Downtime:      state.Downtime,
-					Up:            up,
-					RecordIpv4:    f(recordsV4, client.host),
-					RecordIpv6:    f(recordsV6, client.host),
-					PrefixIpv4:    f(prefixesV4, client.host),
-					PrefixIpv6:    f(prefixesV6, client.host),
-					Serial:        client.serialNumber,
-					ReceivedIpv4:  received.Ipv4Prefix,
-					ReceivedIpv6:  received.Ipv6Prefix,
-					SerialNotify:  received.SerialNotify,
-					CacheReset:    received.CacheReset,
-					CacheResponse: received.CacheResponse,
-					EndOfData:     received.EndOfData,
-					Error:         received.Error,
-					SerialQuery:   sent.SerialQuery,
-					ResetQuery:    sent.ResetQuery,
-				},
-			}
-			l = append(l, rpki)
+			state.RecordsV4 = f(recordsV4, client.host)
+			state.RecordsV6 = f(recordsV6, client.host)
+			state.PrefixesV4 = f(prefixesV4, client.host)
+			state.PrefixesV6 = f(prefixesV6, client.host)
+			state.SerialNumber = client.serialNumber
 		}
-		return &GrpcResponse{Data: &api.GetRpkiResponse{Servers: l}}
+		return &GrpcResponse{
+			Data: l,
+		}
 	case REQ_ROA:
 		if len(c.clientMap) == 0 {
 			return &GrpcResponse{
 				ResponseErr: fmt.Errorf("RPKI server isn't configured."),
-				Data:        &api.GetRoaResponse{},
 			}
 		}
 		var rfList []bgp.RouteFamily
@@ -527,14 +499,14 @@ func (c *roaManager) handleGRPC(grpcReq *GrpcRequest) *GrpcResponse {
 		default:
 			rfList = []bgp.RouteFamily{bgp.RF_IPv4_UC, bgp.RF_IPv6_UC}
 		}
-		l := make([]*api.Roa, 0)
+		l := make([]*ROA, 0)
 		for _, rf := range rfList {
 			if tree, ok := c.Roas[rf]; ok {
 				tree.Walk(func(s string, v interface{}) bool {
 					b, _ := v.(*roaBucket)
 					var roaList roas
 					for _, r := range b.entries {
-						roaList = append(roaList, r.toApiStruct())
+						roaList = append(roaList, r)
 					}
 					sort.Sort(roaList)
 					for _, roa := range roaList {
@@ -544,7 +516,7 @@ func (c *roaManager) handleGRPC(grpcReq *GrpcRequest) *GrpcResponse {
 				})
 			}
 		}
-		return &GrpcResponse{Data: &api.GetRoaResponse{Roas: l}}
+		return &GrpcResponse{Data: l}
 	}
 	return nil
 }
