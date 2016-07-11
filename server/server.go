@@ -1385,11 +1385,11 @@ func (server *BgpServer) handleVrfRequest(req *GrpcRequest) []*table.Path {
 		}
 		goto END
 	case REQ_GET_VRF:
-		l := make([]*api.Vrf, 0, len(server.globalRib.Vrfs))
+		l := make([]*table.Vrf, 0, len(server.globalRib.Vrfs))
 		for _, vrf := range server.globalRib.Vrfs {
-			l = append(l, vrf.ToApiStruct())
+			l = append(l, vrf.Clone())
 		}
-		result.Data = &api.GetVrfResponse{Vrfs: l}
+		result.Data = l
 	case REQ_ADD_VRF:
 		msgs, result.ResponseErr = server.handleAddVrfRequest(req)
 		result.Data = &api.AddVrfResponse{}
