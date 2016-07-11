@@ -252,6 +252,34 @@ func handleMultipleResponses(req *GrpcRequest, f func(*GrpcResponse) error) erro
 	return nil
 }
 
+func toPathApi(id string, path *table.Path) *api.Path {
+	nlri := path.GetNlri()
+	n, _ := nlri.Serialize()
+	family := uint32(bgp.AfiSafiToRouteFamily(nlri.AFI(), nlri.SAFI()))
+	pattrs := func(arg []bgp.PathAttributeInterface) [][]byte {
+		ret := make([][]byte, 0, len(arg))
+		for _, a := range arg {
+			aa, _ := a.Serialize()
+			ret = append(ret, aa)
+		}
+		return ret
+	}(path.GetPathAttrs())
+	return &api.Path{
+		Nlri:           n,
+		Pattrs:         pattrs,
+		Age:            path.GetTimestamp().Unix(),
+		IsWithdraw:     path.IsWithdraw,
+		Validation:     int32(path.Validation().ToInt()),
+		Filtered:       path.Filtered(id) == table.POLICY_DIRECTION_IN,
+		Family:         family,
+		SourceAsn:      path.GetSource().AS,
+		SourceId:       path.GetSource().ID.String(),
+		NeighborIp:     path.GetSource().Address.String(),
+		Stale:          path.IsStale(),
+		IsFromExternal: path.IsFromExternal(),
+	}
+}
+
 func (s *Server) GetRib(ctx context.Context, arg *api.GetRibRequest) (*api.GetRibResponse, error) {
 	var reqType int
 	switch arg.Table.Type {
@@ -271,6 +299,56 @@ func (s *Server) GetRib(ctx context.Context, arg *api.GetRibRequest) (*api.GetRi
 	d, err := s.get(reqType, arg)
 	if err != nil {
 		return nil, err
+	}
+
+	switch reqType {
+	case REQ_LOCAL_RIB, REQ_GLOBAL_RIB:
+		dsts := make([]*api.Destination, 0, len(d.(map[string][]*table.Path)))
+		for k, v := range d.(map[string][]*table.Path) {
+			dsts = append(dsts, &api.Destination{
+				Prefix: k,
+				Paths: func(paths []*table.Path) []*api.Path {
+					l := make([]*api.Path, 0, len(v))
+					for i, p := range paths {
+						pp := toPathApi("", p)
+						if i == 0 {
+							pp.Best = true
+						}
+						l = append(l, pp)
+					}
+					return l
+				}(v),
+			})
+		}
+		d := &api.Table{
+			Type:         arg.Table.Type,
+			Family:       arg.Table.Family,
+			Destinations: dsts,
+		}
+		return &api.GetRibResponse{Table: d}, nil
+	case REQ_ADJ_RIB_IN, REQ_ADJ_RIB_OUT, REQ_VRF:
+		dsts := make([]*api.Destination, 0, len(d.([]*table.Path)))
+		var prefix string
+		var dst *api.Destination
+		for _, path := range d.([]*table.Path) {
+			if path.GetNlri().String() != prefix {
+				prefix = path.GetNlri().String()
+				dst = &api.Destination{
+					Prefix: prefix,
+					Paths:  []*api.Path{toPathApi(arg.Table.Name, path)},
+				}
+			} else {
+				dst.Paths = append(dst.Paths, toPathApi(arg.Table.Name, path))
+			}
+			dsts = append(dsts, dst)
+		}
+		return &api.GetRibResponse{
+			Table: &api.Table{
+				Type:         arg.Table.Type,
+				Family:       arg.Table.Family,
+				Destinations: dsts,
+			},
+		}, nil
 	}
 	return d.(*api.GetRibResponse), nil
 }
