@@ -73,7 +73,8 @@ func injectMrt(r string, filename string, count int, skip int) error {
 
 			msg, err := mrt.ParseMRTBody(h, buf)
 			if err != nil {
-				exitWithError(fmt.Errorf("failed to parse: %s", err))
+				printError(fmt.Errorf("failed to parse: %s", err))
+				continue
 			}
 
 			if globalOpts.Debug {
