@@ -2190,21 +2190,21 @@ func flowSpecPrefixParser(rf RouteFamily, args []string) (FlowSpecComponentInter
 	switch typ {
 	case FlowSpecNameMap[FLOW_SPEC_TYPE_DST_PREFIX]:
 		switch rf {
-		case RF_FS_IPv4_UC:
+		case RF_FS_IPv4_UC, RF_FS_IPv4_VPN:
 			return NewFlowSpecDestinationPrefix(NewIPAddrPrefix(uint8(ones), ip.String())), nil
-		case RF_FS_IPv6_UC:
+		case RF_FS_IPv6_UC, RF_FS_IPv6_VPN:
 			return NewFlowSpecDestinationPrefix6(NewIPv6AddrPrefix(uint8(ones), ip.String()), offset), nil
 		default:
-			return nil, fmt.Errorf("invalid type. only RF_FS_IPv4_UC or RF_FS_IPv6_UC is allowed")
+			return nil, fmt.Errorf("invalid type")
 		}
 	case FlowSpecNameMap[FLOW_SPEC_TYPE_SRC_PREFIX]:
 		switch rf {
-		case RF_FS_IPv4_UC:
+		case RF_FS_IPv4_UC, RF_FS_IPv4_VPN:
 			return NewFlowSpecSourcePrefix(NewIPAddrPrefix(uint8(ones), ip.String())), nil
-		case RF_FS_IPv6_UC:
+		case RF_FS_IPv6_UC, RF_FS_IPv6_VPN:
 			return NewFlowSpecSourcePrefix6(NewIPv6AddrPrefix(uint8(ones), ip.String()), offset), nil
 		default:
-			return nil, fmt.Errorf("invalid type. only RF_FS_IPv4_UC or RF_FS_IPv6_UC is allowed")
+			return nil, fmt.Errorf("invalid type")
 		}
 	}
 	return nil, fmt.Errorf("invalid type. only destination or source is allowed")
@@ -2975,6 +2975,7 @@ func (p *FlowSpecUnknown) MarshalJSON() ([]byte, error) {
 type FlowSpecNLRI struct {
 	Value []FlowSpecComponentInterface
 	rf    RouteFamily
+	rd    RouteDistinguisherInterface
 }
 
 func (n *FlowSpecNLRI) AFI() uint16 {
@@ -2985,6 +2986,10 @@ func (n *FlowSpecNLRI) AFI() uint16 {
 func (n *FlowSpecNLRI) SAFI() uint8 {
 	_, safi := RouteFamilyToAfiSafi(n.rf)
 	return safi
+}
+
+func (n *FlowSpecNLRI) RD() RouteDistinguisherInterface {
+	return n.rd
 }
 
 func (n *FlowSpecNLRI) decodeFromBytes(rf RouteFamily, data []byte) error {
@@ -3001,6 +3006,15 @@ func (n *FlowSpecNLRI) decodeFromBytes(rf RouteFamily, data []byte) error {
 
 	n.rf = rf
 
+	if n.SAFI() == SAFI_FLOW_SPEC_VPN {
+		if length < 8 {
+			return NewMessageError(BGP_ERROR_UPDATE_MESSAGE_ERROR, BGP_ERROR_SUB_MALFORMED_ATTRIBUTE_LIST, nil, "not all flowspec component bytes available")
+		}
+		n.rd = GetRouteDistinguisher(data[:8])
+		data = data[8:]
+		length -= 8
+	}
+
 	for l := length; l > 0; {
 		if len(data) == 0 {
 			return NewMessageError(BGP_ERROR_UPDATE_MESSAGE_ERROR, BGP_ERROR_SUB_MALFORMED_ATTRIBUTE_LIST, nil, "not all flowspec component bytes available")
@@ -3009,28 +3023,20 @@ func (n *FlowSpecNLRI) decodeFromBytes(rf RouteFamily, data []byte) error {
 		var i FlowSpecComponentInterface
 		switch t {
 		case FLOW_SPEC_TYPE_DST_PREFIX:
-			switch rf {
-			case RF_FS_IPv4_UC:
+			switch {
+			case rf>>16 == AFI_IP:
 				i = NewFlowSpecDestinationPrefix(NewIPAddrPrefix(0, ""))
-			case RF_FS_IPv4_VPN:
-				i = NewFlowSpecDestinationPrefix(NewLabeledVPNIPAddrPrefix(0, "", *NewMPLSLabelStack(), nil))
-			case RF_FS_IPv6_UC:
+			case rf>>16 == AFI_IP6:
 				i = NewFlowSpecDestinationPrefix6(NewIPv6AddrPrefix(0, ""), 0)
-			case RF_FS_IPv6_VPN:
-				i = NewFlowSpecDestinationPrefix6(NewLabeledVPNIPv6AddrPrefix(0, "", *NewMPLSLabelStack(), nil), 0)
 			default:
 				return NewMessageError(BGP_ERROR_UPDATE_MESSAGE_ERROR, BGP_ERROR_SUB_MALFORMED_ATTRIBUTE_LIST, nil, fmt.Sprintf("Invalid address family: %v", rf))
 			}
 		case FLOW_SPEC_TYPE_SRC_PREFIX:
-			switch rf {
-			case RF_FS_IPv4_UC:
+			switch {
+			case rf>>16 == AFI_IP:
 				i = NewFlowSpecSourcePrefix(NewIPAddrPrefix(0, ""))
-			case RF_FS_IPv4_VPN:
-				i = NewFlowSpecSourcePrefix(NewLabeledVPNIPAddrPrefix(0, "", *NewMPLSLabelStack(), nil))
-			case RF_FS_IPv6_UC:
+			case rf>>16 == AFI_IP6:
 				i = NewFlowSpecSourcePrefix6(NewIPv6AddrPrefix(0, ""), 0)
-			case RF_FS_IPv6_VPN:
-				i = NewFlowSpecSourcePrefix6(NewLabeledVPNIPv6AddrPrefix(0, "", *NewMPLSLabelStack(), nil), 0)
 			default:
 				return NewMessageError(BGP_ERROR_UPDATE_MESSAGE_ERROR, BGP_ERROR_SUB_MALFORMED_ATTRIBUTE_LIST, nil, fmt.Sprintf("Invalid address family: %v", rf))
 			}
@@ -3072,6 +3078,16 @@ func (n *FlowSpecNLRI) decodeFromBytes(rf RouteFamily, data []byte) error {
 
 func (n *FlowSpecNLRI) Serialize() ([]byte, error) {
 	buf := make([]byte, 0, 32)
+	if n.SAFI() == SAFI_FLOW_SPEC_VPN {
+		if n.rd == nil {
+			return nil, fmt.Errorf("RD is nil")
+		}
+		b, err := n.rd.Serialize()
+		if err != nil {
+			return nil, err
+		}
+		buf = append(buf, b...)
+	}
 	for _, v := range n.Value {
 		b, err := v.Serialize()
 		if err != nil {
@@ -3097,6 +3113,9 @@ func (n *FlowSpecNLRI) Serialize() ([]byte, error) {
 
 func (n *FlowSpecNLRI) Len() int {
 	l := 0
+	if n.SAFI() == SAFI_FLOW_SPEC_VPN {
+		l += n.RD().Len()
+	}
 	for _, v := range n.Value {
 		l += v.Len()
 	}
@@ -3109,6 +3128,9 @@ func (n *FlowSpecNLRI) Len() int {
 
 func (n *FlowSpecNLRI) String() string {
 	buf := bytes.NewBuffer(make([]byte, 0, 32))
+	if n.SAFI() == SAFI_FLOW_SPEC_VPN {
+		buf.WriteString(fmt.Sprintf("[rd: %s]", n.rd))
+	}
 	for _, v := range n.Value {
 		buf.WriteString(v.String())
 	}
@@ -3116,11 +3138,21 @@ func (n *FlowSpecNLRI) String() string {
 }
 
 func (n *FlowSpecNLRI) MarshalJSON() ([]byte, error) {
+	if n.rd != nil {
+		return json.Marshal(struct {
+			RD    RouteDistinguisherInterface  `json:"rd"`
+			Value []FlowSpecComponentInterface `json:"value"`
+		}{
+			RD:    n.rd,
+			Value: n.Value,
+		})
+	}
 	return json.Marshal(struct {
 		Value []FlowSpecComponentInterface `json:"value"`
 	}{
 		Value: n.Value,
 	})
+
 }
 
 //
@@ -3137,6 +3169,13 @@ func CompareFlowSpecNLRI(n, m *FlowSpecNLRI) (int, error) {
 	longer := n.Value
 	shorter := m.Value
 	invert := 1
+	if n.SAFI() == SAFI_FLOW_SPEC_VPN {
+		k, _ := n.Serialize()
+		l, _ := m.Serialize()
+		if result := bytes.Compare(k, l); result != 0 {
+			return result, nil
+		}
+	}
 	if len(n.Value) < len(m.Value) {
 		longer = m.Value
 		shorter = n.Value
@@ -3160,33 +3199,13 @@ func CompareFlowSpecNLRI(n, m *FlowSpecNLRI) (int, error) {
 			// common prefix is equal, then the most specific prefix has precedence.
 			var p, q *IPAddrPrefixDefault
 			var pCommon, qCommon uint64
-			if family == RF_FS_IPv4_UC || family == RF_FS_IPv4_VPN {
-				if family == RF_FS_IPv4_VPN {
-					var s, t *LabeledVPNIPAddrPrefix
-					if v.Type() == FLOW_SPEC_TYPE_DST_PREFIX {
-						s = v.(*FlowSpecDestinationPrefix).Prefix.(*LabeledVPNIPAddrPrefix)
-						t = w.(*FlowSpecDestinationPrefix).Prefix.(*LabeledVPNIPAddrPrefix)
-					} else {
-						s = v.(*FlowSpecSourcePrefix).Prefix.(*LabeledVPNIPAddrPrefix)
-						t = w.(*FlowSpecSourcePrefix).Prefix.(*LabeledVPNIPAddrPrefix)
-					}
-					k, _ := s.RD.Serialize()
-					l, _ := t.RD.Serialize()
-					if result := bytes.Compare(k, l); result < 0 {
-						return invert, nil
-					} else if result > 0 {
-						return invert * -1, nil
-					}
-					p = &s.IPAddrPrefixDefault
-					q = &t.IPAddrPrefixDefault
+			if n.AFI() == AFI_IP {
+				if v.Type() == FLOW_SPEC_TYPE_DST_PREFIX {
+					p = &v.(*FlowSpecDestinationPrefix).Prefix.(*IPAddrPrefix).IPAddrPrefixDefault
+					q = &w.(*FlowSpecDestinationPrefix).Prefix.(*IPAddrPrefix).IPAddrPrefixDefault
 				} else {
-					if v.Type() == FLOW_SPEC_TYPE_DST_PREFIX {
-						p = &v.(*FlowSpecDestinationPrefix).Prefix.(*IPAddrPrefix).IPAddrPrefixDefault
-						q = &w.(*FlowSpecDestinationPrefix).Prefix.(*IPAddrPrefix).IPAddrPrefixDefault
-					} else {
-						p = &v.(*FlowSpecSourcePrefix).Prefix.(*IPAddrPrefix).IPAddrPrefixDefault
-						q = &w.(*FlowSpecSourcePrefix).Prefix.(*IPAddrPrefix).IPAddrPrefixDefault
-					}
+					p = &v.(*FlowSpecSourcePrefix).Prefix.(*IPAddrPrefix).IPAddrPrefixDefault
+					q = &w.(*FlowSpecSourcePrefix).Prefix.(*IPAddrPrefix).IPAddrPrefixDefault
 				}
 				min := p.Length
 				if q.Length < p.Length {
@@ -3194,33 +3213,13 @@ func CompareFlowSpecNLRI(n, m *FlowSpecNLRI) (int, error) {
 				}
 				pCommon = uint64(binary.BigEndian.Uint32([]byte(p.Prefix.To4())) >> (32 - min))
 				qCommon = uint64(binary.BigEndian.Uint32([]byte(q.Prefix.To4())) >> (32 - min))
-			} else if family == RF_FS_IPv6_UC || family == RF_FS_IPv6_VPN {
-				if family == RF_FS_IPv6_VPN {
-					var s, t *LabeledVPNIPv6AddrPrefix
-					if v.Type() == FLOW_SPEC_TYPE_DST_PREFIX {
-						s = v.(*FlowSpecDestinationPrefix6).Prefix.(*LabeledVPNIPv6AddrPrefix)
-						t = w.(*FlowSpecDestinationPrefix6).Prefix.(*LabeledVPNIPv6AddrPrefix)
-					} else {
-						s = v.(*FlowSpecSourcePrefix6).Prefix.(*LabeledVPNIPv6AddrPrefix)
-						t = w.(*FlowSpecSourcePrefix6).Prefix.(*LabeledVPNIPv6AddrPrefix)
-					}
-					k, _ := s.RD.Serialize()
-					l, _ := t.RD.Serialize()
-					if result := bytes.Compare(k, l); result < 0 {
-						return invert, nil
-					} else if result > 0 {
-						return invert * -1, nil
-					}
-					p = &s.IPAddrPrefixDefault
-					q = &t.IPAddrPrefixDefault
+			} else if n.AFI() == AFI_IP6 {
+				if v.Type() == FLOW_SPEC_TYPE_DST_PREFIX {
+					p = &v.(*FlowSpecDestinationPrefix6).Prefix.(*IPv6AddrPrefix).IPAddrPrefixDefault
+					q = &w.(*FlowSpecDestinationPrefix6).Prefix.(*IPv6AddrPrefix).IPAddrPrefixDefault
 				} else {
-					if v.Type() == FLOW_SPEC_TYPE_DST_PREFIX {
-						p = &v.(*FlowSpecDestinationPrefix6).Prefix.(*IPv6AddrPrefix).IPAddrPrefixDefault
-						q = &w.(*FlowSpecDestinationPrefix6).Prefix.(*IPv6AddrPrefix).IPAddrPrefixDefault
-					} else {
-						p = &v.(*FlowSpecSourcePrefix6).Prefix.(*IPv6AddrPrefix).IPAddrPrefixDefault
-						q = &w.(*FlowSpecSourcePrefix6).Prefix.(*IPv6AddrPrefix).IPAddrPrefixDefault
-					}
+					p = &v.(*FlowSpecSourcePrefix6).Prefix.(*IPv6AddrPrefix).IPAddrPrefixDefault
+					q = &w.(*FlowSpecSourcePrefix6).Prefix.(*IPv6AddrPrefix).IPAddrPrefixDefault
 				}
 				min := uint(p.Length)
 				if q.Length < p.Length {
@@ -3287,7 +3286,7 @@ func (n *FlowSpecIPv4Unicast) DecodeFromBytes(data []byte) error {
 }
 
 func NewFlowSpecIPv4Unicast(value []FlowSpecComponentInterface) *FlowSpecIPv4Unicast {
-	return &FlowSpecIPv4Unicast{FlowSpecNLRI{value, RF_FS_IPv4_UC}}
+	return &FlowSpecIPv4Unicast{FlowSpecNLRI{value, RF_FS_IPv4_UC, nil}}
 }
 
 type FlowSpecIPv4VPN struct {
@@ -3298,8 +3297,8 @@ func (n *FlowSpecIPv4VPN) DecodeFromBytes(data []byte) error {
 	return n.decodeFromBytes(AfiSafiToRouteFamily(n.AFI(), n.SAFI()), data)
 }
 
-func NewFlowSpecIPv4VPN(value []FlowSpecComponentInterface) *FlowSpecIPv4VPN {
-	return &FlowSpecIPv4VPN{FlowSpecNLRI{value, RF_FS_IPv4_VPN}}
+func NewFlowSpecIPv4VPN(rd RouteDistinguisherInterface, value []FlowSpecComponentInterface) *FlowSpecIPv4VPN {
+	return &FlowSpecIPv4VPN{FlowSpecNLRI{value, RF_FS_IPv4_VPN, rd}}
 }
 
 type FlowSpecIPv6Unicast struct {
@@ -3325,10 +3324,11 @@ func (n *FlowSpecIPv6VPN) DecodeFromBytes(data []byte) error {
 	return n.decodeFromBytes(AfiSafiToRouteFamily(n.AFI(), n.SAFI()), data)
 }
 
-func NewFlowSpecIPv6VPN(value []FlowSpecComponentInterface) *FlowSpecIPv6VPN {
+func NewFlowSpecIPv6VPN(rd RouteDistinguisherInterface, value []FlowSpecComponentInterface) *FlowSpecIPv6VPN {
 	return &FlowSpecIPv6VPN{FlowSpecNLRI{
 		Value: value,
 		rf:    RF_FS_IPv6_VPN,
+		rd:    rd,
 	}}
 }
 
@@ -3340,10 +3340,11 @@ func (n *FlowSpecL2VPN) DecodeFromBytes(data []byte) error {
 	return n.decodeFromBytes(AfiSafiToRouteFamily(n.AFI(), n.SAFI()), data)
 }
 
-func NewFlowSpecL2VPN(value []FlowSpecComponentInterface) *FlowSpecL2VPN {
+func NewFlowSpecL2VPN(rd RouteDistinguisherInterface, value []FlowSpecComponentInterface) *FlowSpecL2VPN {
 	return &FlowSpecL2VPN{FlowSpecNLRI{
 		Value: value,
 		rf:    RF_FS_L2_VPN,
+		rd:    rd,
 	}}
 }
 
