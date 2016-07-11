@@ -545,13 +545,33 @@ func (s *Server) GetRoa(ctx context.Context, arg *api.GetRoaRequest) (*api.GetRo
 }
 
 func (s *Server) GetVrf(ctx context.Context, arg *api.GetVrfRequest) (*api.GetVrfResponse, error) {
-	req := NewGrpcRequest(REQ_GET_VRF, "", bgp.RouteFamily(0), nil)
-	s.bgpServerCh <- req
-	res := <-req.ResponseCh
-	if res.Err() != nil {
-		return nil, res.Err()
+	d, err := s.get(REQ_GET_VRF, arg)
+	if err != nil {
+		return nil, err
 	}
-	return res.Data.(*api.GetVrfResponse), res.Err()
+	l := make([]*api.Vrf, 0, len(d.([]*table.Vrf)))
+	toApi := func(v *table.Vrf) *api.Vrf {
+		f := func(rts []bgp.ExtendedCommunityInterface) [][]byte {
+			ret := make([][]byte, 0, len(rts))
+			for _, rt := range rts {
+				b, _ := rt.Serialize()
+				ret = append(ret, b)
+			}
+			return ret
+		}
+		rd, _ := v.Rd.Serialize()
+		return &api.Vrf{
+			Name:     v.Name,
+			Rd:       rd,
+			ImportRt: f(v.ImportRt),
+			ExportRt: f(v.ExportRt),
+		}
+	}
+
+	for _, v := range d.([]*table.Vrf) {
+		l = append(l, toApi(v))
+	}
+	return &api.GetVrfResponse{Vrfs: l}, nil
 }
 
 func (s *Server) get(typ int, d interface{}) (interface{}, error) {
