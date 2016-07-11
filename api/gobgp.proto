@@ -489,6 +489,7 @@ message Destination {
   string prefix = 1;
   repeated Path paths = 2;
   bool longer_prefixes = 3;
+  bool shorter_prefixes = 4;
 }
 
 message Table {

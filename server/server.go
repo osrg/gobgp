@@ -1605,7 +1605,21 @@ func (server *BgpServer) handleGrpc(grpcReq *GrpcRequest) {
 			}
 			for _, dst := range arg.Table.Destinations {
 				key := dst.Prefix
-				if _, err := f(id, key); err != nil {
+				if dst.LongerPrefixes {
+					_, prefix, _ := net.ParseCIDR(key)
+					for _, dst := range rib.Tables[af].GetLongerPrefixDestinations(prefix.String()) {
+						if d := dst.ToApiStruct(id); d != nil {
+							dsts = append(dsts, d)
+						}
+					}
+				} else if dst.ShorterPrefixes {
+					_, prefix, _ := net.ParseCIDR(key)
+					ones, bits := prefix.Mask.Size()
+					for i := ones; i > 0; i-- {
+						prefix.Mask = net.CIDRMask(i, bits)
+						f(id, prefix.String())
+					}
+				} else if _, err := f(id, key); err != nil {
 					if host := net.ParseIP(key); host != nil {
 						masklen := 32
 						if af == bgp.RF_IPv6_UC {
@@ -1615,14 +1629,6 @@ func (server *BgpServer) handleGrpc(grpcReq *GrpcRequest) {
 							if y, _ := f(id, fmt.Sprintf("%s/%d", key, i)); y {
 								break
 							}
-						}
-					}
-				} else if dst.LongerPrefixes {
-					_, prefix, _ := net.ParseCIDR(key)
-
-					for _, dst := range rib.Tables[af].GetLongerPrefixDestinations(prefix.String()) {
-						if d := dst.ToApiStruct(id); d != nil {
-							dsts = append(dsts, d)
 						}
 					}
 				}

@@ -483,16 +483,21 @@ func showNeighborRib(r string, name string, args []string) error {
 			return fmt.Errorf("route filtering is only supported for IPv4/IPv6 unicast routes")
 		}
 		longerPrefixes := false
+		shorterPrefixes := false
 		if len(args) > 1 {
-			if args[1] != "longer-prefixes" {
+			if args[1] == "longer-prefixes" {
+				longerPrefixes = true
+			} else if args[1] == "shorter-prefixes" {
+				shorterPrefixes = true
+			} else {
 				return fmt.Errorf("invalid format for route filtering")
 			}
-			longerPrefixes = true
 		}
 		arg.Destinations = []*api.Destination{
 			&api.Destination{
-				Prefix:         args[0],
-				LongerPrefixes: longerPrefixes,
+				Prefix:          args[0],
+				LongerPrefixes:  longerPrefixes,
+				ShorterPrefixes: shorterPrefixes,
 			},
 		}
 	}
