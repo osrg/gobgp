@@ -477,7 +477,7 @@ func checkAddressFamily(def bgp.RouteFamily) (bgp.RouteFamily, error) {
 	return rf, e
 }
 
-func exitWithError(err error) {
+func printError(err error) {
 	if globalOpts.Json {
 		j, _ := json.Marshal(struct {
 			Error string `json:"error"`
@@ -486,5 +486,9 @@ func exitWithError(err error) {
 	} else {
 		fmt.Println(err)
 	}
+}
+
+func exitWithError(err error) {
+	printError(err)
 	os.Exit(1)
 }
