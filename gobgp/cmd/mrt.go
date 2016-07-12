@@ -27,7 +27,7 @@ import (
 	"strconv"
 )
 
-func injectMrt(r string, filename string, count int, skip int) error {
+func injectMrt(r string, filename string, count int, skip int, bestpath bool) error {
 
 	var resource api.Resource
 	switch r {
@@ -131,6 +131,11 @@ func injectMrt(r string, filename string, count int, skip int) error {
 					paths = append(paths, path)
 				}
 
+				if bestpath {
+					// Not really the best path
+					paths = paths[:1]
+				}
+
 				if idx >= skip {
 					ch <- &api.InjectMrtRequest{
 						Resource: resource,
@@ -190,12 +195,13 @@ func NewMrtCmd() *cobra.Command {
 					}
 				}
 			}
-			err := injectMrt(CMD_GLOBAL, filename, count, skip)
+			err := injectMrt(CMD_GLOBAL, filename, count, skip, mrtOpts.BestPath)
 			if err != nil {
 				exitWithError(err)
 			}
 		},
 	}
+	globalInjectCmd.PersistentFlags().BoolVarP(&mrtOpts.BestPath, "best-path", "b", false, "only keep best routes")
 
 	injectCmd := &cobra.Command{
 		Use: CMD_INJECT,
