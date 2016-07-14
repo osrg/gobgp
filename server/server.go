@@ -104,6 +104,7 @@ type BgpServer struct {
 	roaManager  *roaManager
 	shutdown    bool
 	watchers    *watcherManager
+	mu          sync.RWMutex
 }
 
 func NewBgpServer() *BgpServer {
@@ -138,21 +139,27 @@ func (server *BgpServer) Serve() {
 	server.fsmincomingCh = channels.NewInfiniteChannel()
 	server.fsmStateCh = make(chan *FsmMsg, 4096)
 
-	handleFsmMsg := func(e *FsmMsg) {
-		peer, found := server.neighborMap[e.MsgSrc]
-		if !found {
-			log.Warn("Can't find the neighbor ", e.MsgSrc)
-			return
-		}
-		if e.Version != peer.fsm.version {
-			log.Debug("FSM Version inconsistent")
-			return
-		}
-		server.handleFSMMessage(peer, e)
-	}
-
 	for {
+		handleFsmMsg := func(e *FsmMsg) {
+			server.mu.Lock()
+			defer server.mu.Unlock()
+
+			peer, found := server.neighborMap[e.MsgSrc]
+			if !found {
+				log.Warn("Can't find the neighbor ", e.MsgSrc)
+				return
+			}
+			if e.Version != peer.fsm.version {
+				log.Debug("FSM Version inconsistent")
+				return
+			}
+			server.handleFSMMessage(peer, e)
+		}
+
 		passConn := func(conn *net.TCPConn) {
+			server.mu.Lock()
+			defer server.mu.Unlock()
+
 			host, _, _ := net.SplitHostPort(conn.RemoteAddr().String())
 			ipaddr, _ := net.ResolveIPAddr("ip", host)
 			remoteAddr := ipaddr.IP.String()
@@ -217,7 +224,9 @@ func (server *BgpServer) Serve() {
 
 		select {
 		case rmsg := <-server.roaManager.ReceiveROA():
+			server.mu.Lock()
 			server.roaManager.HandleROAEvent(rmsg)
+			server.mu.Unlock()
 		case conn := <-server.acceptCh:
 			passConn(conn)
 		case e, ok := <-server.fsmincomingCh.Out():
@@ -1485,6 +1494,9 @@ func (server *BgpServer) handleModConfig(grpcReq *GrpcRequest) error {
 }
 
 func (server *BgpServer) handleGrpc(grpcReq *GrpcRequest) {
+	server.mu.Lock()
+	defer server.mu.Unlock()
+
 	logOp := func(addr string, action string) {
 		log.WithFields(log.Fields{
 			"Topic": "Operation",
