@@ -1,4 +1,4 @@
-// Copyright (C) 2014,2015 Nippon Telegraph and Telephone Corporation.
+// Copyright (C) 2014-2016 Nippon Telegraph and Telephone Corporation.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -19,11 +19,15 @@ import (
 	"fmt"
 	log "github.com/Sirupsen/logrus"
 	api "github.com/osrg/gobgp/api"
+	"github.com/osrg/gobgp/config"
 	"github.com/osrg/gobgp/packet/bgp"
+	"github.com/osrg/gobgp/table"
 	"golang.org/x/net/context"
 	"google.golang.org/grpc"
 	"io"
 	"net"
+	"regexp"
+	"strconv"
 	"strings"
 	"sync"
 )
@@ -45,10 +49,7 @@ const (
 	REQ_NEIGHBOR_ENABLE
 	REQ_NEIGHBOR_DISABLE
 	REQ_ADD_NEIGHBOR
-	REQ_DEL_NEIGHBOR
-	// FIXME: we should merge
-	REQ_GRPC_ADD_NEIGHBOR
-	REQ_GRPC_DELETE_NEIGHBOR
+	REQ_DELETE_NEIGHBOR
 	REQ_UPDATE_NEIGHBOR
 	REQ_GLOBAL_RIB
 	REQ_MONITOR_RIB
@@ -91,7 +92,6 @@ const (
 	REQ_ADD_POLICY_ASSIGNMENT
 	REQ_DELETE_POLICY_ASSIGNMENT
 	REQ_REPLACE_POLICY_ASSIGNMENT
-	REQ_BMP_NEIGHBORS
 	REQ_BMP_GLOBAL
 	REQ_BMP_ADJ_IN
 	REQ_DEFERRAL_TIMER_EXPIRED
@@ -147,7 +147,94 @@ func (s *Server) GetNeighbor(ctx context.Context, arg *api.GetNeighborRequest) (
 	if res.Err() != nil {
 		return nil, res.Err()
 	}
-	return res.Data.(*api.GetNeighborResponse), nil
+
+	toApi := func(pconf *config.Neighbor) *api.Peer {
+		prefixLimits := make([]*api.PrefixLimit, 0, len(pconf.AfiSafis))
+		for _, family := range pconf.AfiSafis {
+			if c := family.PrefixLimit.Config; c.MaxPrefixes > 0 {
+				k, _ := bgp.GetRouteFamily(string(family.Config.AfiSafiName))
+				prefixLimits = append(prefixLimits, &api.PrefixLimit{
+					Family:               uint32(k),
+					MaxPrefixes:          c.MaxPrefixes,
+					ShutdownThresholdPct: uint32(c.ShutdownThresholdPct),
+				})
+			}
+		}
+
+		timer := pconf.Timers
+		s := pconf.State
+		return &api.Peer{
+			Conf: &api.PeerConf{
+				NeighborAddress:  pconf.Config.NeighborAddress,
+				Id:               s.Description,
+				PeerAs:           pconf.Config.PeerAs,
+				LocalAs:          pconf.Config.LocalAs,
+				PeerType:         uint32(pconf.Config.PeerType.ToInt()),
+				AuthPassword:     pconf.Config.AuthPassword,
+				RemovePrivateAs:  uint32(pconf.Config.RemovePrivateAs.ToInt()),
+				RouteFlapDamping: pconf.Config.RouteFlapDamping,
+				SendCommunity:    uint32(pconf.Config.SendCommunity.ToInt()),
+				Description:      pconf.Config.Description,
+				PeerGroup:        pconf.Config.PeerGroup,
+				RemoteCap:        s.Capabilities.RemoteList,
+				LocalCap:         s.Capabilities.LocalList,
+				PrefixLimits:     prefixLimits,
+			},
+			Info: &api.PeerState{
+				BgpState:   bgp.FSMState(s.SessionState.ToInt()).String(),
+				AdminState: s.AdminState,
+				Messages: &api.Messages{
+					Received: &api.Message{
+						NOTIFICATION: s.Messages.Received.Notification,
+						UPDATE:       s.Messages.Received.Update,
+						OPEN:         s.Messages.Received.Open,
+						KEEPALIVE:    s.Messages.Received.Keepalive,
+						REFRESH:      s.Messages.Received.Refresh,
+						DISCARDED:    s.Messages.Received.Discarded,
+						TOTAL:        s.Messages.Received.Total,
+					},
+					Sent: &api.Message{
+						NOTIFICATION: s.Messages.Sent.Notification,
+						UPDATE:       s.Messages.Sent.Update,
+						OPEN:         s.Messages.Sent.Open,
+						KEEPALIVE:    s.Messages.Sent.Keepalive,
+						REFRESH:      s.Messages.Sent.Refresh,
+						DISCARDED:    s.Messages.Sent.Discarded,
+						TOTAL:        s.Messages.Sent.Total,
+					},
+				},
+				Received:   s.AdjTable.Received,
+				Accepted:   s.AdjTable.Accepted,
+				Advertised: s.AdjTable.Advertised,
+			},
+			Timers: &api.Timers{
+				Config: &api.TimersConfig{
+					ConnectRetry:      uint64(timer.Config.ConnectRetry),
+					HoldTime:          uint64(timer.Config.HoldTime),
+					KeepaliveInterval: uint64(timer.Config.KeepaliveInterval),
+				},
+				State: &api.TimersState{
+					KeepaliveInterval:  uint64(timer.State.KeepaliveInterval),
+					NegotiatedHoldTime: uint64(timer.State.NegotiatedHoldTime),
+					Uptime:             uint64(timer.State.Uptime),
+					Downtime:           uint64(timer.State.Downtime),
+				},
+			},
+			RouteReflector: &api.RouteReflector{
+				RouteReflectorClient:    pconf.RouteReflector.Config.RouteReflectorClient,
+				RouteReflectorClusterId: string(pconf.RouteReflector.Config.RouteReflectorClusterId),
+			},
+			RouteServer: &api.RouteServer{
+				RouteServerClient: pconf.RouteServer.Config.RouteServerClient,
+			},
+		}
+	}
+
+	p := []*api.Peer{}
+	for _, e := range res.Data.([]*config.Neighbor) {
+		p = append(p, toApi(e))
+	}
+	return &api.GetNeighborResponse{Peers: p}, nil
 }
 
 func handleMultipleResponses(req *GrpcRequest, f func(*GrpcResponse) error) error {
@@ -163,6 +250,34 @@ func handleMultipleResponses(req *GrpcRequest, f func(*GrpcResponse) error) erro
 		}
 	}
 	return nil
+}
+
+func toPathApi(id string, path *table.Path) *api.Path {
+	nlri := path.GetNlri()
+	n, _ := nlri.Serialize()
+	family := uint32(bgp.AfiSafiToRouteFamily(nlri.AFI(), nlri.SAFI()))
+	pattrs := func(arg []bgp.PathAttributeInterface) [][]byte {
+		ret := make([][]byte, 0, len(arg))
+		for _, a := range arg {
+			aa, _ := a.Serialize()
+			ret = append(ret, aa)
+		}
+		return ret
+	}(path.GetPathAttrs())
+	return &api.Path{
+		Nlri:           n,
+		Pattrs:         pattrs,
+		Age:            path.GetTimestamp().Unix(),
+		IsWithdraw:     path.IsWithdraw,
+		Validation:     int32(path.Validation().ToInt()),
+		Filtered:       path.Filtered(id) == table.POLICY_DIRECTION_IN,
+		Family:         family,
+		SourceAsn:      path.GetSource().AS,
+		SourceId:       path.GetSource().ID.String(),
+		NeighborIp:     path.GetSource().Address.String(),
+		Stale:          path.IsStale(),
+		IsFromExternal: path.IsFromExternal(),
+	}
 }
 
 func (s *Server) GetRib(ctx context.Context, arg *api.GetRibRequest) (*api.GetRibResponse, error) {
@@ -184,6 +299,56 @@ func (s *Server) GetRib(ctx context.Context, arg *api.GetRibRequest) (*api.GetRi
 	d, err := s.get(reqType, arg)
 	if err != nil {
 		return nil, err
+	}
+
+	switch reqType {
+	case REQ_LOCAL_RIB, REQ_GLOBAL_RIB:
+		dsts := make([]*api.Destination, 0, len(d.(map[string][]*table.Path)))
+		for k, v := range d.(map[string][]*table.Path) {
+			dsts = append(dsts, &api.Destination{
+				Prefix: k,
+				Paths: func(paths []*table.Path) []*api.Path {
+					l := make([]*api.Path, 0, len(v))
+					for i, p := range paths {
+						pp := toPathApi("", p)
+						if i == 0 {
+							pp.Best = true
+						}
+						l = append(l, pp)
+					}
+					return l
+				}(v),
+			})
+		}
+		d := &api.Table{
+			Type:         arg.Table.Type,
+			Family:       arg.Table.Family,
+			Destinations: dsts,
+		}
+		return &api.GetRibResponse{Table: d}, nil
+	case REQ_ADJ_RIB_IN, REQ_ADJ_RIB_OUT, REQ_VRF:
+		dsts := make([]*api.Destination, 0, len(d.([]*table.Path)))
+		var prefix string
+		var dst *api.Destination
+		for _, path := range d.([]*table.Path) {
+			if path.GetNlri().String() != prefix {
+				prefix = path.GetNlri().String()
+				dst = &api.Destination{
+					Prefix: prefix,
+					Paths:  []*api.Path{toPathApi(arg.Table.Name, path)},
+				}
+			} else {
+				dst.Paths = append(dst.Paths, toPathApi(arg.Table.Name, path))
+			}
+			dsts = append(dsts, dst)
+		}
+		return &api.GetRibResponse{
+			Table: &api.Table{
+				Type:         arg.Table.Type,
+				Family:       arg.Table.Family,
+				Destinations: dsts,
+			},
+		}, nil
 	}
 	return d.(*api.GetRibResponse), nil
 }
@@ -397,33 +562,94 @@ func (s *Server) SoftResetRpki(ctx context.Context, arg *api.SoftResetRpkiReques
 }
 
 func (s *Server) GetRpki(ctx context.Context, arg *api.GetRpkiRequest) (*api.GetRpkiResponse, error) {
-	req := NewGrpcRequest(REQ_GET_RPKI, "", bgp.RouteFamily(arg.Family), nil)
-	s.bgpServerCh <- req
-	res := <-req.ResponseCh
-	if res.Err() != nil {
-		return nil, res.Err()
+	d, err := s.get(REQ_GET_RPKI, arg)
+	if err != nil {
+		return nil, err
 	}
-	return res.Data.(*api.GetRpkiResponse), res.Err()
+	l := make([]*api.Rpki, 0)
+	for _, s := range d.([]*config.RpkiServer) {
+		received := &s.State.RpkiMessages.RpkiReceived
+		sent := &s.State.RpkiMessages.RpkiSent
+		rpki := &api.Rpki{
+			Conf: &api.RPKIConf{
+				Address:    s.Config.Address,
+				RemotePort: strconv.Itoa(int(s.Config.Port)),
+			},
+			State: &api.RPKIState{
+				Uptime:        s.State.Uptime,
+				Downtime:      s.State.Downtime,
+				Up:            s.State.Up,
+				RecordIpv4:    s.State.RecordsV4,
+				RecordIpv6:    s.State.RecordsV6,
+				PrefixIpv4:    s.State.PrefixesV4,
+				PrefixIpv6:    s.State.PrefixesV6,
+				Serial:        s.State.SerialNumber,
+				ReceivedIpv4:  received.Ipv4Prefix,
+				ReceivedIpv6:  received.Ipv6Prefix,
+				SerialNotify:  received.SerialNotify,
+				CacheReset:    received.CacheReset,
+				CacheResponse: received.CacheResponse,
+				EndOfData:     received.EndOfData,
+				Error:         received.Error,
+				SerialQuery:   sent.SerialQuery,
+				ResetQuery:    sent.ResetQuery,
+			},
+		}
+		l = append(l, rpki)
+	}
+	return &api.GetRpkiResponse{Servers: l}, nil
 }
 
 func (s *Server) GetRoa(ctx context.Context, arg *api.GetRoaRequest) (*api.GetRoaResponse, error) {
-	req := NewGrpcRequest(REQ_ROA, "", bgp.RouteFamily(arg.Family), nil)
-	s.bgpServerCh <- req
-	res := <-req.ResponseCh
-	if res.Err() != nil {
-		return nil, res.Err()
+	d, err := s.get(REQ_ROA, arg)
+	if err != nil {
+		return nil, err
 	}
-	return res.Data.(*api.GetRoaResponse), res.Err()
+	l := make([]*api.Roa, 0, len(d.([]*ROA)))
+	for _, r := range d.([]*ROA) {
+		host, port, _ := net.SplitHostPort(r.Src)
+		l = append(l, &api.Roa{
+			As:        r.AS,
+			Maxlen:    uint32(r.MaxLen),
+			Prefixlen: uint32(r.Prefix.Length),
+			Prefix:    r.Prefix.Prefix.String(),
+			Conf: &api.RPKIConf{
+				Address:    host,
+				RemotePort: port,
+			},
+		})
+	}
+	return &api.GetRoaResponse{Roas: l}, nil
 }
 
 func (s *Server) GetVrf(ctx context.Context, arg *api.GetVrfRequest) (*api.GetVrfResponse, error) {
-	req := NewGrpcRequest(REQ_GET_VRF, "", bgp.RouteFamily(0), nil)
-	s.bgpServerCh <- req
-	res := <-req.ResponseCh
-	if res.Err() != nil {
-		return nil, res.Err()
+	d, err := s.get(REQ_GET_VRF, arg)
+	if err != nil {
+		return nil, err
 	}
-	return res.Data.(*api.GetVrfResponse), res.Err()
+	l := make([]*api.Vrf, 0, len(d.([]*table.Vrf)))
+	toApi := func(v *table.Vrf) *api.Vrf {
+		f := func(rts []bgp.ExtendedCommunityInterface) [][]byte {
+			ret := make([][]byte, 0, len(rts))
+			for _, rt := range rts {
+				b, _ := rt.Serialize()
+				ret = append(ret, b)
+			}
+			return ret
+		}
+		rd, _ := v.Rd.Serialize()
+		return &api.Vrf{
+			Name:     v.Name,
+			Rd:       rd,
+			ImportRt: f(v.ImportRt),
+			ExportRt: f(v.ExportRt),
+		}
+	}
+
+	for _, v := range d.([]*table.Vrf) {
+		l = append(l, toApi(v))
+	}
+	return &api.GetVrfResponse{Vrfs: l}, nil
 }
 
 func (s *Server) get(typ int, d interface{}) (interface{}, error) {
@@ -450,7 +676,117 @@ func (s *Server) DeleteVrf(ctx context.Context, arg *api.DeleteVrfRequest) (*api
 }
 
 func (s *Server) AddNeighbor(ctx context.Context, arg *api.AddNeighborRequest) (*api.AddNeighborResponse, error) {
-	d, err := s.get(REQ_GRPC_ADD_NEIGHBOR, arg)
+	c, err := func(a *api.Peer) (*config.Neighbor, error) {
+		pconf := &config.Neighbor{}
+		if a.Conf != nil {
+			pconf.Config.NeighborAddress = a.Conf.NeighborAddress
+			pconf.Config.PeerAs = a.Conf.PeerAs
+			pconf.Config.LocalAs = a.Conf.LocalAs
+
+			if pconf.Config.PeerAs != pconf.Config.LocalAs {
+				pconf.Config.PeerType = config.PEER_TYPE_EXTERNAL
+			} else {
+				pconf.Config.PeerType = config.PEER_TYPE_INTERNAL
+			}
+			pconf.Config.AuthPassword = a.Conf.AuthPassword
+			pconf.Config.RemovePrivateAs = config.RemovePrivateAsOption(a.Conf.RemovePrivateAs)
+			pconf.Config.RouteFlapDamping = a.Conf.RouteFlapDamping
+			pconf.Config.SendCommunity = config.CommunityType(a.Conf.SendCommunity)
+			pconf.Config.Description = a.Conf.Description
+			pconf.Config.PeerGroup = a.Conf.PeerGroup
+			pconf.Config.NeighborAddress = a.Conf.NeighborAddress
+		}
+		if a.Timers != nil {
+			if a.Timers.Config != nil {
+				pconf.Timers.Config.ConnectRetry = float64(a.Timers.Config.ConnectRetry)
+				pconf.Timers.Config.HoldTime = float64(a.Timers.Config.HoldTime)
+				pconf.Timers.Config.KeepaliveInterval = float64(a.Timers.Config.KeepaliveInterval)
+				pconf.Timers.Config.MinimumAdvertisementInterval = float64(a.Timers.Config.MinimumAdvertisementInterval)
+			}
+		} else {
+			pconf.Timers.Config.ConnectRetry = float64(config.DEFAULT_CONNECT_RETRY)
+			pconf.Timers.Config.HoldTime = float64(config.DEFAULT_HOLDTIME)
+			pconf.Timers.Config.KeepaliveInterval = float64(config.DEFAULT_HOLDTIME / 3)
+		}
+		if a.RouteReflector != nil {
+			pconf.RouteReflector.Config.RouteReflectorClusterId = config.RrClusterIdType(a.RouteReflector.RouteReflectorClusterId)
+			pconf.RouteReflector.Config.RouteReflectorClient = a.RouteReflector.RouteReflectorClient
+		}
+		if a.RouteServer != nil {
+			pconf.RouteServer.Config.RouteServerClient = a.RouteServer.RouteServerClient
+		}
+		if a.ApplyPolicy != nil {
+			if a.ApplyPolicy.ImportPolicy != nil {
+				pconf.ApplyPolicy.Config.DefaultImportPolicy = config.DefaultPolicyType(a.ApplyPolicy.ImportPolicy.Default)
+				for _, p := range a.ApplyPolicy.ImportPolicy.Policies {
+					pconf.ApplyPolicy.Config.ImportPolicyList = append(pconf.ApplyPolicy.Config.ImportPolicyList, p.Name)
+				}
+			}
+			if a.ApplyPolicy.ExportPolicy != nil {
+				pconf.ApplyPolicy.Config.DefaultExportPolicy = config.DefaultPolicyType(a.ApplyPolicy.ExportPolicy.Default)
+				for _, p := range a.ApplyPolicy.ExportPolicy.Policies {
+					pconf.ApplyPolicy.Config.ExportPolicyList = append(pconf.ApplyPolicy.Config.ExportPolicyList, p.Name)
+				}
+			}
+			if a.ApplyPolicy.InPolicy != nil {
+				pconf.ApplyPolicy.Config.DefaultInPolicy = config.DefaultPolicyType(a.ApplyPolicy.InPolicy.Default)
+				for _, p := range a.ApplyPolicy.InPolicy.Policies {
+					pconf.ApplyPolicy.Config.InPolicyList = append(pconf.ApplyPolicy.Config.InPolicyList, p.Name)
+				}
+			}
+		}
+		if a.Families != nil {
+			for _, family := range a.Families {
+				name, ok := bgp.AddressFamilyNameMap[bgp.RouteFamily(family)]
+				if !ok {
+					return pconf, fmt.Errorf("invalid address family: %d", family)
+				}
+				cAfiSafi := config.AfiSafi{
+					Config: config.AfiSafiConfig{
+						AfiSafiName: config.AfiSafiType(name),
+					},
+				}
+				pconf.AfiSafis = append(pconf.AfiSafis, cAfiSafi)
+			}
+		} else {
+			if net.ParseIP(a.Conf.NeighborAddress).To4() != nil {
+				pconf.AfiSafis = []config.AfiSafi{
+					config.AfiSafi{
+						Config: config.AfiSafiConfig{
+							AfiSafiName: "ipv4-unicast",
+						},
+					},
+				}
+			} else {
+				pconf.AfiSafis = []config.AfiSafi{
+					config.AfiSafi{
+						Config: config.AfiSafiConfig{
+							AfiSafiName: "ipv6-unicast",
+						},
+					},
+				}
+			}
+		}
+		if a.Transport != nil {
+			pconf.Transport.Config.LocalAddress = a.Transport.LocalAddress
+			pconf.Transport.Config.PassiveMode = a.Transport.PassiveMode
+		} else {
+			if net.ParseIP(a.Conf.NeighborAddress).To4() != nil {
+				pconf.Transport.Config.LocalAddress = "0.0.0.0"
+			} else {
+				pconf.Transport.Config.LocalAddress = "::"
+			}
+		}
+		if a.EbgpMultihop != nil {
+			pconf.EbgpMultihop.Config.Enabled = a.EbgpMultihop.Enabled
+			pconf.EbgpMultihop.Config.MultihopTtl = uint8(a.EbgpMultihop.MultihopTtl)
+		}
+		return pconf, nil
+	}(arg.Peer)
+	if err != nil {
+		return nil, err
+	}
+	d, err := s.get(REQ_ADD_NEIGHBOR, c)
 	if err != nil {
 		return nil, err
 	}
@@ -458,7 +794,9 @@ func (s *Server) AddNeighbor(ctx context.Context, arg *api.AddNeighborRequest) (
 }
 
 func (s *Server) DeleteNeighbor(ctx context.Context, arg *api.DeleteNeighborRequest) (*api.DeleteNeighborResponse, error) {
-	d, err := s.get(REQ_GRPC_DELETE_NEIGHBOR, arg)
+	d, err := s.get(REQ_DELETE_NEIGHBOR, &config.Neighbor{Config: config.NeighborConfig{
+		NeighborAddress: arg.Peer.Conf.NeighborAddress,
+	}})
 	if err != nil {
 		return nil, err
 	}
@@ -470,7 +808,62 @@ func (s *Server) GetDefinedSet(ctx context.Context, arg *api.GetDefinedSetReques
 	if err != nil {
 		return nil, err
 	}
-	return d.(*api.GetDefinedSetResponse), err
+	sets := make([]*api.DefinedSet, 0)
+	cd := d.(*config.DefinedSets)
+	for _, cs := range cd.PrefixSets {
+		ad := &api.DefinedSet{
+			Type: api.DefinedType_PREFIX,
+			Name: cs.PrefixSetName,
+			Prefixes: func() []*api.Prefix {
+				l := make([]*api.Prefix, 0, len(cs.PrefixList))
+				for _, p := range cs.PrefixList {
+					exp := regexp.MustCompile("(\\d+)\\.\\.(\\d+)")
+					elems := exp.FindStringSubmatch(p.MasklengthRange)
+					min, _ := strconv.Atoi(elems[1])
+					max, _ := strconv.Atoi(elems[2])
+
+					l = append(l, &api.Prefix{IpPrefix: p.IpPrefix, MaskLengthMin: uint32(min), MaskLengthMax: uint32(max)})
+				}
+				return l
+			}(),
+		}
+		sets = append(sets, ad)
+
+	}
+	for _, cs := range cd.NeighborSets {
+		ad := &api.DefinedSet{
+			Type: api.DefinedType_NEIGHBOR,
+			Name: cs.NeighborSetName,
+			List: cs.NeighborInfoList,
+		}
+		sets = append(sets, ad)
+	}
+	for _, cs := range cd.BgpDefinedSets.CommunitySets {
+		ad := &api.DefinedSet{
+			Type: api.DefinedType_COMMUNITY,
+			Name: cs.CommunitySetName,
+			List: cs.CommunityList,
+		}
+		sets = append(sets, ad)
+	}
+	for _, cs := range cd.BgpDefinedSets.ExtCommunitySets {
+		ad := &api.DefinedSet{
+			Type: api.DefinedType_EXT_COMMUNITY,
+			Name: cs.ExtCommunitySetName,
+			List: cs.ExtCommunityList,
+		}
+		sets = append(sets, ad)
+	}
+	for _, cs := range cd.BgpDefinedSets.AsPathSets {
+		ad := &api.DefinedSet{
+			Type: api.DefinedType_AS_PATH,
+			Name: cs.AsPathSetName,
+			List: cs.AsPathList,
+		}
+		sets = append(sets, ad)
+	}
+
+	return &api.GetDefinedSetResponse{Sets: sets}, nil
 }
 
 func (s *Server) AddDefinedSet(ctx context.Context, arg *api.AddDefinedSetRequest) (*api.AddDefinedSetResponse, error) {
@@ -497,12 +890,142 @@ func (s *Server) ReplaceDefinedSet(ctx context.Context, arg *api.ReplaceDefinedS
 	return d.(*api.ReplaceDefinedSetResponse), err
 }
 
+func toStatementApi(s *config.Statement) *api.Statement {
+	cs := &api.Conditions{}
+	if s.Conditions.MatchPrefixSet.PrefixSet != "" {
+		cs.PrefixSet = &api.MatchSet{
+			Type: api.MatchType(s.Conditions.MatchPrefixSet.MatchSetOptions.ToInt()),
+			Name: s.Conditions.MatchPrefixSet.PrefixSet,
+		}
+	}
+	if s.Conditions.MatchNeighborSet.NeighborSet != "" {
+		cs.NeighborSet = &api.MatchSet{
+			Type: api.MatchType(s.Conditions.MatchNeighborSet.MatchSetOptions.ToInt()),
+			Name: s.Conditions.MatchNeighborSet.NeighborSet,
+		}
+	}
+	if s.Conditions.BgpConditions.AsPathLength.Operator != "" {
+		cs.AsPathLength = &api.AsPathLength{
+			Length: s.Conditions.BgpConditions.AsPathLength.Value,
+			Type:   api.AsPathLengthType(s.Conditions.BgpConditions.AsPathLength.Operator.ToInt()),
+		}
+	}
+	if s.Conditions.BgpConditions.MatchAsPathSet.AsPathSet != "" {
+		cs.AsPathSet = &api.MatchSet{
+			Type: api.MatchType(s.Conditions.BgpConditions.MatchAsPathSet.MatchSetOptions.ToInt()),
+			Name: s.Conditions.BgpConditions.MatchAsPathSet.AsPathSet,
+		}
+	}
+	if s.Conditions.BgpConditions.MatchCommunitySet.CommunitySet != "" {
+		cs.CommunitySet = &api.MatchSet{
+			Type: api.MatchType(s.Conditions.BgpConditions.MatchCommunitySet.MatchSetOptions.ToInt()),
+			Name: s.Conditions.BgpConditions.MatchCommunitySet.CommunitySet,
+		}
+	}
+	if s.Conditions.BgpConditions.MatchExtCommunitySet.ExtCommunitySet != "" {
+		cs.CommunitySet = &api.MatchSet{
+			Type: api.MatchType(s.Conditions.BgpConditions.MatchExtCommunitySet.MatchSetOptions.ToInt()),
+			Name: s.Conditions.BgpConditions.MatchExtCommunitySet.ExtCommunitySet,
+		}
+	}
+	cs.RpkiResult = int32(s.Conditions.BgpConditions.RpkiValidationResult.ToInt())
+	as := &api.Actions{
+		RouteAction: func() api.RouteAction {
+			if s.Actions.RouteDisposition.AcceptRoute {
+				return api.RouteAction_ACCEPT
+			}
+			return api.RouteAction_REJECT
+		}(),
+		Community: func() *api.CommunityAction {
+			if len(s.Actions.BgpActions.SetCommunity.SetCommunityMethod.CommunitiesList) == 0 {
+				return nil
+			}
+			return &api.CommunityAction{
+				Type:        api.CommunityActionType(config.BgpSetCommunityOptionTypeToIntMap[config.BgpSetCommunityOptionType(s.Actions.BgpActions.SetCommunity.Options)]),
+				Communities: s.Actions.BgpActions.SetCommunity.SetCommunityMethod.CommunitiesList}
+		}(),
+		Med: func() *api.MedAction {
+			if len(string(s.Actions.BgpActions.SetMed)) == 0 {
+				return nil
+			}
+			exp := regexp.MustCompile("^(\\+|\\-)?(\\d+)$")
+			elems := exp.FindStringSubmatch(string(s.Actions.BgpActions.SetMed))
+			action := api.MedActionType_MED_REPLACE
+			switch elems[1] {
+			case "+", "-":
+				action = api.MedActionType_MED_MOD
+			}
+			value, _ := strconv.Atoi(string(s.Actions.BgpActions.SetMed))
+			return &api.MedAction{
+				Value: int64(value),
+				Type:  action,
+			}
+		}(),
+		AsPrepend: func() *api.AsPrependAction {
+			if len(s.Actions.BgpActions.SetAsPathPrepend.As) == 0 {
+				return nil
+			}
+			asn := 0
+			useleft := false
+			if s.Actions.BgpActions.SetAsPathPrepend.As != "last-as" {
+				asn, _ = strconv.Atoi(s.Actions.BgpActions.SetAsPathPrepend.As)
+			} else {
+				useleft = true
+			}
+			return &api.AsPrependAction{
+				Asn:         uint32(asn),
+				Repeat:      uint32(s.Actions.BgpActions.SetAsPathPrepend.RepeatN),
+				UseLeftMost: useleft,
+			}
+		}(),
+		ExtCommunity: func() *api.CommunityAction {
+			if len(s.Actions.BgpActions.SetExtCommunity.SetExtCommunityMethod.CommunitiesList) == 0 {
+				return nil
+			}
+			return &api.CommunityAction{
+				Type:        api.CommunityActionType(config.BgpSetCommunityOptionTypeToIntMap[config.BgpSetCommunityOptionType(s.Actions.BgpActions.SetExtCommunity.Options)]),
+				Communities: s.Actions.BgpActions.SetExtCommunity.SetExtCommunityMethod.CommunitiesList,
+			}
+		}(),
+		Nexthop: func() *api.NexthopAction {
+			if len(string(s.Actions.BgpActions.SetNextHop)) == 0 {
+				return nil
+			}
+
+			if string(s.Actions.BgpActions.SetNextHop) == "self" {
+				return &api.NexthopAction{
+					Self: true,
+				}
+			}
+			return &api.NexthopAction{
+				Address: string(s.Actions.BgpActions.SetNextHop),
+			}
+		}(),
+		LocalPref: func() *api.LocalPrefAction {
+			if s.Actions.BgpActions.SetLocalPref == 0 {
+				return nil
+			}
+			return &api.LocalPrefAction{Value: s.Actions.BgpActions.SetLocalPref}
+		}(),
+	}
+	return &api.Statement{
+		Name:       s.Name,
+		Conditions: cs,
+		Actions:    as,
+	}
+}
+
 func (s *Server) GetStatement(ctx context.Context, arg *api.GetStatementRequest) (*api.GetStatementResponse, error) {
 	d, err := s.get(REQ_GET_STATEMENT, arg)
 	if err != nil {
 		return nil, err
 	}
-	return d.(*api.GetStatementResponse), err
+
+	l := make([]*api.Statement, 0)
+	for _, s := range d.([]*config.Statement) {
+		l = append(l, toStatementApi(s))
+	}
+	return &api.GetStatementResponse{Statements: l}, err
 }
 
 func (s *Server) AddStatement(ctx context.Context, arg *api.AddStatementRequest) (*api.AddStatementResponse, error) {
@@ -529,12 +1052,29 @@ func (s *Server) ReplaceStatement(ctx context.Context, arg *api.ReplaceStatement
 	return d.(*api.ReplaceStatementResponse), err
 }
 
+func toPolicyApi(p *config.PolicyDefinition) *api.Policy {
+	return &api.Policy{
+		Name: p.Name,
+		Statements: func() []*api.Statement {
+			l := make([]*api.Statement, 0)
+			for _, s := range p.Statements {
+				l = append(l, toStatementApi(&s))
+			}
+			return l
+		}(),
+	}
+}
+
 func (s *Server) GetPolicy(ctx context.Context, arg *api.GetPolicyRequest) (*api.GetPolicyResponse, error) {
 	d, err := s.get(REQ_GET_POLICY, arg)
 	if err != nil {
 		return nil, err
 	}
-	return d.(*api.GetPolicyResponse), err
+	l := make([]*api.Policy, 0)
+	for _, p := range d.([]*config.PolicyDefinition) {
+		l = append(l, toPolicyApi(p))
+	}
+	return &api.GetPolicyResponse{Policies: l}, err
 }
 
 func (s *Server) AddPolicy(ctx context.Context, arg *api.AddPolicyRequest) (*api.AddPolicyResponse, error) {
@@ -566,7 +1106,28 @@ func (s *Server) GetPolicyAssignment(ctx context.Context, arg *api.GetPolicyAssi
 	if err != nil {
 		return nil, err
 	}
-	return d.(*api.GetPolicyAssignmentResponse), err
+	a := d.(*PolicyAssignment)
+	return &api.GetPolicyAssignmentResponse{
+		Assignment: &api.PolicyAssignment{
+			Default: func() api.RouteAction {
+				switch a.Default {
+				case table.ROUTE_TYPE_ACCEPT:
+					return api.RouteAction_ACCEPT
+				case table.ROUTE_TYPE_REJECT:
+					return api.RouteAction_REJECT
+				}
+				return api.RouteAction_NONE
+
+			}(),
+			Policies: func() []*api.Policy {
+				l := make([]*api.Policy, 0)
+				for _, p := range a.PolicyDefinitions {
+					l = append(l, toPolicyApi(p))
+				}
+				return l
+			}(),
+		},
+	}, err
 }
 
 func (s *Server) AddPolicyAssignment(ctx context.Context, arg *api.AddPolicyAssignmentRequest) (*api.AddPolicyAssignmentResponse, error) {
@@ -598,7 +1159,17 @@ func (s *Server) GetServer(ctx context.Context, arg *api.GetServerRequest) (*api
 	if err != nil {
 		return nil, err
 	}
-	return d.(*api.GetServerResponse), err
+	g := d.(*config.Global)
+	return &api.GetServerResponse{
+		Global: &api.Global{
+			As:              g.Config.As,
+			RouterId:        g.Config.RouterId,
+			ListenPort:      g.Config.Port,
+			ListenAddresses: g.Config.LocalAddressList,
+			MplsLabelMin:    g.MplsLabelRange.MinLabel,
+			MplsLabelMax:    g.MplsLabelRange.MaxLabel,
+		},
+	}, err
 }
 
 func (s *Server) StartServer(ctx context.Context, arg *api.StartServerRequest) (*api.StartServerResponse, error) {
