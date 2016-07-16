@@ -950,16 +950,6 @@ func (server *BgpServer) Shutdown() {
 	// TODO: call fsmincomingCh.Close()
 }
 
-func (server *BgpServer) UpdatePolicy(policy config.RoutingPolicy) {
-	ch := make(chan *GrpcResponse)
-	server.GrpcReqCh <- &GrpcRequest{
-		RequestType: REQ_RELOAD_POLICY,
-		Data:        policy,
-		ResponseCh:  ch,
-	}
-	<-ch
-}
-
 func (server *BgpServer) setPolicyByConfig(id string, c config.ApplyPolicy) {
 	for _, dir := range []table.PolicyDirection{table.POLICY_DIRECTION_IN, table.POLICY_DIRECTION_IMPORT, table.POLICY_DIRECTION_EXPORT} {
 		ps, def, err := server.policy.GetAssignmentFromConfig(dir, c)
@@ -975,7 +965,7 @@ func (server *BgpServer) setPolicyByConfig(id string, c config.ApplyPolicy) {
 	}
 }
 
-func (server *BgpServer) SetRoutingPolicy(pl config.RoutingPolicy) error {
+func (server *BgpServer) setRoutingPolicy(pl config.RoutingPolicy) error {
 	if err := server.policy.Reload(pl); err != nil {
 		log.WithFields(log.Fields{
 			"Topic": "Policy",
@@ -986,8 +976,15 @@ func (server *BgpServer) SetRoutingPolicy(pl config.RoutingPolicy) error {
 	return nil
 }
 
-func (server *BgpServer) handlePolicy(pl config.RoutingPolicy) error {
-	if err := server.SetRoutingPolicy(pl); err != nil {
+func (server *BgpServer) UpdatePolicy(pl config.RoutingPolicy) error {
+	server.mu.Lock()
+	policyMutex.Lock()
+	defer func() {
+		policyMutex.Unlock()
+		server.mu.Unlock()
+	}()
+
+	if err := server.setRoutingPolicy(pl); err != nil {
 		log.WithFields(log.Fields{
 			"Topic": "Policy",
 		}).Errorf("failed to set new policy: %s", err)
@@ -1482,10 +1479,12 @@ func (server *BgpServer) handleModConfig(grpcReq *GrpcRequest) error {
 	rfs, _ := config.AfiSafis(c.AfiSafis).ToRfList()
 	server.globalRib = table.NewTableManager(rfs, c.MplsLabelRange.MinLabel, c.MplsLabelRange.MaxLabel)
 
-	p := config.RoutingPolicy{}
-	if err := server.SetRoutingPolicy(p); err != nil {
-		return err
-	}
+	// reset all policy configurations. no active peers should
+	// exist. Probaly we don't the mutex here but be consistent.
+	policyMutex.Lock()
+	server.setRoutingPolicy(config.RoutingPolicy{})
+	policyMutex.Unlock()
+
 	server.bgpConfig.Global = *c
 	// update route selection options
 	table.SelectionOptions = c.RouteSelectionOptions.Config
@@ -1936,118 +1935,6 @@ func (server *BgpServer) handleGrpc(grpcReq *GrpcRequest) {
 			ResponseErr: err,
 		}
 		close(grpcReq.ResponseCh)
-	case REQ_GET_DEFINED_SET:
-		rsp, err := server.handleGrpcGetDefinedSet(grpcReq)
-		grpcReq.ResponseCh <- &GrpcResponse{
-			ResponseErr: err,
-			Data:        rsp,
-		}
-		close(grpcReq.ResponseCh)
-	case REQ_ADD_DEFINED_SET:
-		rsp, err := server.handleGrpcAddDefinedSet(grpcReq)
-		grpcReq.ResponseCh <- &GrpcResponse{
-			ResponseErr: err,
-			Data:        rsp,
-		}
-		close(grpcReq.ResponseCh)
-	case REQ_DELETE_DEFINED_SET:
-		rsp, err := server.handleGrpcDeleteDefinedSet(grpcReq)
-		grpcReq.ResponseCh <- &GrpcResponse{
-			ResponseErr: err,
-			Data:        rsp,
-		}
-		close(grpcReq.ResponseCh)
-	case REQ_REPLACE_DEFINED_SET:
-		rsp, err := server.handleGrpcReplaceDefinedSet(grpcReq)
-		grpcReq.ResponseCh <- &GrpcResponse{
-			ResponseErr: err,
-			Data:        rsp,
-		}
-		close(grpcReq.ResponseCh)
-	case REQ_GET_STATEMENT:
-		rsp, err := server.handleGrpcGetStatement(grpcReq)
-		grpcReq.ResponseCh <- &GrpcResponse{
-			ResponseErr: err,
-			Data:        rsp,
-		}
-		close(grpcReq.ResponseCh)
-	case REQ_ADD_STATEMENT:
-		data, err := server.handleGrpcAddStatement(grpcReq)
-		grpcReq.ResponseCh <- &GrpcResponse{
-			ResponseErr: err,
-			Data:        data,
-		}
-		close(grpcReq.ResponseCh)
-	case REQ_DELETE_STATEMENT:
-		data, err := server.handleGrpcDeleteStatement(grpcReq)
-		grpcReq.ResponseCh <- &GrpcResponse{
-			ResponseErr: err,
-			Data:        data,
-		}
-		close(grpcReq.ResponseCh)
-	case REQ_REPLACE_STATEMENT:
-		data, err := server.handleGrpcReplaceStatement(grpcReq)
-		grpcReq.ResponseCh <- &GrpcResponse{
-			ResponseErr: err,
-			Data:        data,
-		}
-		close(grpcReq.ResponseCh)
-	case REQ_GET_POLICY:
-		rsp, err := server.handleGrpcGetPolicy(grpcReq)
-		grpcReq.ResponseCh <- &GrpcResponse{
-			ResponseErr: err,
-			Data:        rsp,
-		}
-		close(grpcReq.ResponseCh)
-	case REQ_ADD_POLICY:
-		data, err := server.handleGrpcAddPolicy(grpcReq)
-		grpcReq.ResponseCh <- &GrpcResponse{
-			ResponseErr: err,
-			Data:        data,
-		}
-		close(grpcReq.ResponseCh)
-	case REQ_DELETE_POLICY:
-		data, err := server.handleGrpcDeletePolicy(grpcReq)
-		grpcReq.ResponseCh <- &GrpcResponse{
-			ResponseErr: err,
-			Data:        data,
-		}
-		close(grpcReq.ResponseCh)
-	case REQ_REPLACE_POLICY:
-		data, err := server.handleGrpcReplacePolicy(grpcReq)
-		grpcReq.ResponseCh <- &GrpcResponse{
-			ResponseErr: err,
-			Data:        data,
-		}
-		close(grpcReq.ResponseCh)
-	case REQ_GET_POLICY_ASSIGNMENT:
-		data, err := server.handleGrpcGetPolicyAssignment(grpcReq)
-		grpcReq.ResponseCh <- &GrpcResponse{
-			ResponseErr: err,
-			Data:        data,
-		}
-		close(grpcReq.ResponseCh)
-	case REQ_ADD_POLICY_ASSIGNMENT:
-		data, err := server.handleGrpcAddPolicyAssignment(grpcReq)
-		grpcReq.ResponseCh <- &GrpcResponse{
-			ResponseErr: err,
-			Data:        data,
-		}
-		close(grpcReq.ResponseCh)
-	case REQ_DELETE_POLICY_ASSIGNMENT:
-		data, err := server.handleGrpcDeletePolicyAssignment(grpcReq)
-		grpcReq.ResponseCh <- &GrpcResponse{
-			ResponseErr: err,
-			Data:        data,
-		}
-		close(grpcReq.ResponseCh)
-	case REQ_REPLACE_POLICY_ASSIGNMENT:
-		data, err := server.handleGrpcReplacePolicyAssignment(grpcReq)
-		grpcReq.ResponseCh <- &GrpcResponse{
-			ResponseErr: err,
-			Data:        data,
-		}
-		close(grpcReq.ResponseCh)
 	case REQ_MONITOR_RIB, REQ_MONITOR_NEIGHBOR_PEER_STATE:
 		if grpcReq.Name != "" {
 			if _, err = server.checkNeighborRequest(grpcReq); err != nil {
@@ -2089,12 +1976,6 @@ func (server *BgpServer) handleGrpc(grpcReq *GrpcRequest) {
 		if len(pathList) > 0 {
 			server.propagateUpdate(nil, pathList)
 		}
-	case REQ_RELOAD_POLICY:
-		err := server.handlePolicy(grpcReq.Data.(config.RoutingPolicy))
-		grpcReq.ResponseCh <- &GrpcResponse{
-			ResponseErr: err,
-		}
-		close(grpcReq.ResponseCh)
 	case REQ_INITIALIZE_ZEBRA:
 		c := grpcReq.Data.(*config.ZebraConfig)
 		protos := make([]string, 0, len(c.RedistributeRouteTypeList))
@@ -2159,7 +2040,9 @@ func (server *BgpServer) handleAddNeighbor(c *config.Neighbor) error {
 	}
 
 	peer := NewPeer(&server.bgpConfig.Global, c, server.globalRib, server.policy)
+	policyMutex.Lock()
 	server.setPolicyByConfig(peer.ID(), c.ApplyPolicy)
+	policyMutex.Unlock()
 	if peer.isRouteServerClient() {
 		pathList := make([]*table.Path, 0)
 		rfList := peer.configuredRFlist()
@@ -2218,7 +2101,9 @@ func (server *BgpServer) handleUpdateNeighbor(c *config.Neighbor) (bool, error) 
 			"Topic": "Peer",
 			"Key":   addr,
 		}).Info("Update ApplyPolicy")
+		policyMutex.Lock()
 		server.setPolicyByConfig(peer.ID(), c.ApplyPolicy)
+		policyMutex.Unlock()
 		peer.fsm.pConf.ApplyPolicy = c.ApplyPolicy
 		policyUpdated = true
 	}
@@ -2277,9 +2162,14 @@ func (server *BgpServer) handleUpdateNeighbor(c *config.Neighbor) (bool, error) 
 	return policyUpdated, err
 }
 
-func (server *BgpServer) handleGrpcGetDefinedSet(grpcReq *GrpcRequest) (*config.DefinedSets, error) {
-	arg := grpcReq.Data.(*api.GetDefinedSetRequest)
-	typ := table.DefinedType(arg.Type)
+func (server *BgpServer) GetDefinedSet(typ table.DefinedType) (*config.DefinedSets, error) {
+	server.mu.Lock()
+	policyMutex.Lock()
+	defer func() {
+		policyMutex.Unlock()
+		server.mu.Unlock()
+	}()
+
 	set, ok := server.policy.DefinedSetMap[typ]
 	if !ok {
 		return nil, fmt.Errorf("invalid defined-set type: %d", typ)
@@ -2310,93 +2200,100 @@ func (server *BgpServer) handleGrpcGetDefinedSet(grpcReq *GrpcRequest) (*config.
 	return &sets, nil
 }
 
-func (server *BgpServer) handleGrpcAddDefinedSet(grpcReq *GrpcRequest) (*api.AddDefinedSetResponse, error) {
-	arg := grpcReq.Data.(*api.AddDefinedSetRequest)
-	set := arg.Set
-	typ := table.DefinedType(set.Type)
-	name := set.Name
-	var err error
-	m, ok := server.policy.DefinedSetMap[typ]
-	if !ok {
-		return nil, fmt.Errorf("invalid defined-set type: %d", typ)
-	}
-	d, ok := m[name]
-	s, err := table.NewDefinedSetFromApiStruct(set)
-	if err != nil {
-		return nil, err
-	}
-	if ok {
-		err = d.Append(s)
-	} else {
-		m[name] = s
-	}
-	return &api.AddDefinedSetResponse{}, err
-}
+func (server *BgpServer) AddDefinedSet(a table.DefinedSet) (err error) {
+	server.mu.Lock()
+	policyMutex.Lock()
+	defer func() {
+		policyMutex.Unlock()
+		server.mu.Unlock()
+	}()
 
-func (server *BgpServer) handleGrpcDeleteDefinedSet(grpcReq *GrpcRequest) (*api.DeleteDefinedSetResponse, error) {
-	arg := grpcReq.Data.(*api.DeleteDefinedSetRequest)
-	set := arg.Set
-	typ := table.DefinedType(set.Type)
-	name := set.Name
-	var err error
-	m, ok := server.policy.DefinedSetMap[typ]
-	if !ok {
-		return nil, fmt.Errorf("invalid defined-set type: %d", typ)
-	}
-	d, ok := m[name]
-	if !ok {
-		return nil, fmt.Errorf("not found defined-set: %s", name)
-	}
-	s, err := table.NewDefinedSetFromApiStruct(set)
-	if err != nil {
-		return nil, err
-	}
-	if arg.All {
-		if server.policy.InUse(d) {
-			return nil, fmt.Errorf("can't delete. defined-set %s is in use", name)
+	if m, ok := server.policy.DefinedSetMap[a.Type()]; !ok {
+		return fmt.Errorf("invalid defined-set type: %d", a.Type())
+	} else {
+		if d, ok := m[a.Name()]; ok {
+			err = d.Append(a)
+		} else {
+			m[a.Name()] = a
 		}
-		delete(m, name)
+	}
+	return err
+}
+
+func (server *BgpServer) DeleteDefinedSet(a table.DefinedSet, all bool) (err error) {
+	server.mu.Lock()
+	policyMutex.Lock()
+	defer func() {
+		policyMutex.Unlock()
+		server.mu.Unlock()
+	}()
+
+	if m, ok := server.policy.DefinedSetMap[a.Type()]; !ok {
+		return fmt.Errorf("invalid defined-set type: %d", a.Type())
 	} else {
-		err = d.Remove(s)
+		d, ok := m[a.Name()]
+		if !ok {
+			return fmt.Errorf("not found defined-set: %s", a.Name())
+		}
+		if all {
+			if server.policy.InUse(d) {
+				return fmt.Errorf("can't delete. defined-set %s is in use", a.Name())
+			}
+			delete(m, a.Name())
+		} else {
+			err = d.Remove(a)
+		}
 	}
-	return &api.DeleteDefinedSetResponse{}, err
+	return err
 }
 
-func (server *BgpServer) handleGrpcReplaceDefinedSet(grpcReq *GrpcRequest) (*api.ReplaceDefinedSetResponse, error) {
-	arg := grpcReq.Data.(*api.ReplaceDefinedSetRequest)
-	set := arg.Set
-	typ := table.DefinedType(set.Type)
-	name := set.Name
-	var err error
-	m, ok := server.policy.DefinedSetMap[typ]
-	if !ok {
-		return nil, fmt.Errorf("invalid defined-set type: %d", typ)
+func (server *BgpServer) ReplaceDefinedSet(a table.DefinedSet) (err error) {
+	server.mu.Lock()
+	policyMutex.Lock()
+	defer func() {
+		policyMutex.Unlock()
+		server.mu.Unlock()
+	}()
+
+	if m, ok := server.policy.DefinedSetMap[a.Type()]; !ok {
+		return fmt.Errorf("invalid defined-set type: %d", a.Type())
+	} else {
+		if d, ok := m[a.Name()]; !ok {
+			return fmt.Errorf("not found defined-set: %s", a.Name())
+		} else {
+			err = d.Replace(a)
+		}
 	}
-	d, ok := m[name]
-	if !ok {
-		return nil, fmt.Errorf("not found defined-set: %s", name)
-	}
-	s, err := table.NewDefinedSetFromApiStruct(set)
-	if err != nil {
-		return nil, err
-	}
-	return &api.ReplaceDefinedSetResponse{}, d.Replace(s)
+	return err
 }
 
-func (server *BgpServer) handleGrpcGetStatement(grpcReq *GrpcRequest) ([]*config.Statement, error) {
-	l := make([]*config.Statement, 0)
+func (server *BgpServer) GetStatement() []*config.Statement {
+	server.mu.Lock()
+	policyMutex.Lock()
+	defer func() {
+		policyMutex.Unlock()
+		server.mu.Unlock()
+	}()
+
+	l := make([]*config.Statement, 0, len(server.policy.StatementMap))
 	for _, s := range server.policy.StatementMap {
 		l = append(l, s.ToConfig())
 	}
-	return l, nil
+	return l
 }
 
-func (server *BgpServer) handleGrpcAddStatement(grpcReq *GrpcRequest) (*api.AddStatementResponse, error) {
-	var err error
-	arg := grpcReq.Data.(*api.AddStatementRequest)
-	s, err := table.NewStatementFromApiStruct(arg.Statement, server.policy.DefinedSetMap)
-	if err != nil {
-		return nil, err
+func (server *BgpServer) AddStatement(s *table.Statement) (err error) {
+	server.mu.Lock()
+	policyMutex.Lock()
+	defer func() {
+		policyMutex.Unlock()
+		server.mu.Unlock()
+	}()
+
+	for _, c := range s.Conditions {
+		if err := server.policy.ValidateCondition(c); err != nil {
+			return err
+		}
 	}
 	m := server.policy.StatementMap
 	name := s.Name
@@ -2405,20 +2302,21 @@ func (server *BgpServer) handleGrpcAddStatement(grpcReq *GrpcRequest) (*api.AddS
 	} else {
 		m[name] = s
 	}
-	return &api.AddStatementResponse{}, err
+	return err
 }
 
-func (server *BgpServer) handleGrpcDeleteStatement(grpcReq *GrpcRequest) (*api.DeleteStatementResponse, error) {
-	var err error
-	arg := grpcReq.Data.(*api.DeleteStatementRequest)
-	s, err := table.NewStatementFromApiStruct(arg.Statement, server.policy.DefinedSetMap)
-	if err != nil {
-		return nil, err
-	}
+func (server *BgpServer) DeleteStatement(s *table.Statement, all bool) (err error) {
+	server.mu.Lock()
+	policyMutex.Lock()
+	defer func() {
+		policyMutex.Unlock()
+		server.mu.Unlock()
+	}()
+
 	m := server.policy.StatementMap
 	name := s.Name
 	if d, ok := m[name]; ok {
-		if arg.All {
+		if all {
 			if server.policy.StatementInUse(d) {
 				err = fmt.Errorf("can't delete. statement %s is in use", name)
 			} else {
@@ -2430,16 +2328,17 @@ func (server *BgpServer) handleGrpcDeleteStatement(grpcReq *GrpcRequest) (*api.D
 	} else {
 		err = fmt.Errorf("not found statement: %s", name)
 	}
-	return &api.DeleteStatementResponse{}, err
+	return err
 }
 
-func (server *BgpServer) handleGrpcReplaceStatement(grpcReq *GrpcRequest) (*api.ReplaceStatementResponse, error) {
-	var err error
-	arg := grpcReq.Data.(*api.ReplaceStatementRequest)
-	s, err := table.NewStatementFromApiStruct(arg.Statement, server.policy.DefinedSetMap)
-	if err != nil {
-		return nil, err
-	}
+func (server *BgpServer) ReplaceStatement(s *table.Statement) (err error) {
+	server.mu.Lock()
+	policyMutex.Lock()
+	defer func() {
+		policyMutex.Unlock()
+		server.mu.Unlock()
+	}()
+
 	m := server.policy.StatementMap
 	name := s.Name
 	if d, ok := m[name]; ok {
@@ -2447,22 +2346,29 @@ func (server *BgpServer) handleGrpcReplaceStatement(grpcReq *GrpcRequest) (*api.
 	} else {
 		err = fmt.Errorf("not found statement: %s", name)
 	}
-	return &api.ReplaceStatementResponse{}, err
+	return err
 }
 
-func (server *BgpServer) handleGrpcGetPolicy(grpcReq *GrpcRequest) ([]*config.PolicyDefinition, error) {
+func (server *BgpServer) GetPolicy() []*config.PolicyDefinition {
+	server.mu.Lock()
+	policyMutex.Lock()
+	defer func() {
+		policyMutex.Unlock()
+		server.mu.Unlock()
+	}()
+
 	policies := make([]*config.PolicyDefinition, 0, len(server.policy.PolicyMap))
 	for _, s := range server.policy.PolicyMap {
 		policies = append(policies, s.ToConfig())
 	}
-	return policies, nil
+	return policies
 }
 
 func (server *BgpServer) policyInUse(x *table.Policy) bool {
 	for _, peer := range server.neighborMap {
 		for _, dir := range []table.PolicyDirection{table.POLICY_DIRECTION_IN, table.POLICY_DIRECTION_EXPORT, table.POLICY_DIRECTION_EXPORT} {
 			for _, y := range server.policy.GetPolicy(peer.ID(), dir) {
-				if x.Name() == y.Name() {
+				if x.Name == y.Name {
 					return true
 				}
 			}
@@ -2470,7 +2376,7 @@ func (server *BgpServer) policyInUse(x *table.Policy) bool {
 	}
 	for _, dir := range []table.PolicyDirection{table.POLICY_DIRECTION_EXPORT, table.POLICY_DIRECTION_EXPORT} {
 		for _, y := range server.policy.GetPolicy(table.GLOBAL_RIB_NAME, dir) {
-			if x.Name() == y.Name() {
+			if x.Name == y.Name {
 				return true
 			}
 		}
@@ -2478,25 +2384,32 @@ func (server *BgpServer) policyInUse(x *table.Policy) bool {
 	return false
 }
 
-func (server *BgpServer) handleGrpcAddPolicy(grpcReq *GrpcRequest) (*api.AddPolicyResponse, error) {
+func (server *BgpServer) AddPolicy(x *table.Policy, refer bool) (err error) {
+	server.mu.Lock()
 	policyMutex.Lock()
-	defer policyMutex.Unlock()
-	rsp := &api.AddPolicyResponse{}
-	arg := grpcReq.Data.(*api.AddPolicyRequest)
-	x, err := table.NewPolicyFromApiStruct(arg.Policy, server.policy.DefinedSetMap)
-	if err != nil {
-		return rsp, err
+	defer func() {
+		policyMutex.Unlock()
+		server.mu.Unlock()
+	}()
+
+	for _, s := range x.Statements {
+		for _, c := range s.Conditions {
+			if err := server.policy.ValidateCondition(c); err != nil {
+				return err
+			}
+		}
 	}
+
 	pMap := server.policy.PolicyMap
 	sMap := server.policy.StatementMap
-	name := x.Name()
+	name := x.Name
 	y, ok := pMap[name]
-	if arg.ReferExistingStatements {
+	if refer {
 		err = x.FillUp(sMap)
 	} else {
 		for _, s := range x.Statements {
 			if _, ok := sMap[s.Name]; ok {
-				return rsp, fmt.Errorf("statement %s already defined", s.Name)
+				return fmt.Errorf("statement %s already defined", s.Name)
 			}
 			sMap[s.Name] = s
 		}
@@ -2506,28 +2419,27 @@ func (server *BgpServer) handleGrpcAddPolicy(grpcReq *GrpcRequest) (*api.AddPoli
 	} else {
 		pMap[name] = x
 	}
-	return &api.AddPolicyResponse{}, err
+	return err
 }
 
-func (server *BgpServer) handleGrpcDeletePolicy(grpcReq *GrpcRequest) (*api.DeletePolicyResponse, error) {
+func (server *BgpServer) DeletePolicy(x *table.Policy, all, preserve bool) (err error) {
+	server.mu.Lock()
 	policyMutex.Lock()
-	defer policyMutex.Unlock()
-	rsp := &api.DeletePolicyResponse{}
-	arg := grpcReq.Data.(*api.DeletePolicyRequest)
-	x, err := table.NewPolicyFromApiStruct(arg.Policy, server.policy.DefinedSetMap)
-	if err != nil {
-		return rsp, err
-	}
+	defer func() {
+		policyMutex.Unlock()
+		server.mu.Unlock()
+	}()
+
 	pMap := server.policy.PolicyMap
 	sMap := server.policy.StatementMap
-	name := x.Name()
+	name := x.Name
 	y, ok := pMap[name]
 	if !ok {
-		return rsp, fmt.Errorf("not found policy: %s", name)
+		return fmt.Errorf("not found policy: %s", name)
 	}
-	if arg.All {
+	if all {
 		if server.policyInUse(y) {
-			return rsp, fmt.Errorf("can't delete. policy %s is in use", name)
+			return fmt.Errorf("can't delete. policy %s is in use", name)
 		}
 		log.WithFields(log.Fields{
 			"Topic": "Policy",
@@ -2537,7 +2449,7 @@ func (server *BgpServer) handleGrpcDeletePolicy(grpcReq *GrpcRequest) (*api.Dele
 	} else {
 		err = y.Remove(x)
 	}
-	if err == nil && !arg.PreserveStatements {
+	if err == nil && !preserve {
 		for _, s := range y.Statements {
 			if !server.policy.StatementInUse(s) {
 				log.WithFields(log.Fields{
@@ -2548,40 +2460,47 @@ func (server *BgpServer) handleGrpcDeletePolicy(grpcReq *GrpcRequest) (*api.Dele
 			}
 		}
 	}
-	return rsp, err
+	return err
 }
 
-func (server *BgpServer) handleGrpcReplacePolicy(grpcReq *GrpcRequest) (*api.ReplacePolicyResponse, error) {
+func (server *BgpServer) ReplacePolicy(x *table.Policy, refer, preserve bool) (err error) {
+	server.mu.Lock()
 	policyMutex.Lock()
-	defer policyMutex.Unlock()
-	rsp := &api.ReplacePolicyResponse{}
-	arg := grpcReq.Data.(*api.ReplacePolicyRequest)
-	x, err := table.NewPolicyFromApiStruct(arg.Policy, server.policy.DefinedSetMap)
-	if err != nil {
-		return rsp, err
+	defer func() {
+		policyMutex.Unlock()
+		server.mu.Unlock()
+	}()
+
+	for _, s := range x.Statements {
+		for _, c := range s.Conditions {
+			if err := server.policy.ValidateCondition(c); err != nil {
+				return err
+			}
+		}
 	}
+
 	pMap := server.policy.PolicyMap
 	sMap := server.policy.StatementMap
-	name := x.Name()
+	name := x.Name
 	y, ok := pMap[name]
 	if !ok {
-		return rsp, fmt.Errorf("not found policy: %s", name)
+		return fmt.Errorf("not found policy: %s", name)
 	}
-	if arg.ReferExistingStatements {
+	if refer {
 		if err = x.FillUp(sMap); err != nil {
-			return rsp, err
+			return err
 		}
 	} else {
 		for _, s := range x.Statements {
 			if _, ok := sMap[s.Name]; ok {
-				return rsp, fmt.Errorf("statement %s already defined", s.Name)
+				return fmt.Errorf("statement %s already defined", s.Name)
 			}
 			sMap[s.Name] = s
 		}
 	}
 
 	err = y.Replace(x)
-	if err == nil && !arg.PreserveStatements {
+	if err == nil && !preserve {
 		for _, s := range y.Statements {
 			if !server.policy.StatementInUse(s) {
 				log.WithFields(log.Fields{
@@ -2592,90 +2511,73 @@ func (server *BgpServer) handleGrpcReplacePolicy(grpcReq *GrpcRequest) (*api.Rep
 			}
 		}
 	}
-	return rsp, err
+	return err
 }
 
-func (server *BgpServer) getPolicyInfo(a *api.PolicyAssignment) (string, table.PolicyDirection, error) {
-	switch a.Resource {
-	case api.Resource_GLOBAL:
-		switch a.Type {
-		case api.PolicyType_IMPORT:
-			return table.GLOBAL_RIB_NAME, table.POLICY_DIRECTION_IMPORT, nil
-		case api.PolicyType_EXPORT:
-			return table.GLOBAL_RIB_NAME, table.POLICY_DIRECTION_EXPORT, nil
-		default:
-			return "", table.POLICY_DIRECTION_NONE, fmt.Errorf("invalid policy type")
+func (server *BgpServer) toPolicyInfo(name string, dir table.PolicyDirection) (string, error) {
+	if name == "" {
+		switch dir {
+		case table.POLICY_DIRECTION_IMPORT, table.POLICY_DIRECTION_EXPORT:
+			return table.GLOBAL_RIB_NAME, nil
 		}
-	case api.Resource_LOCAL:
-		peer, ok := server.neighborMap[a.Name]
+		return "", fmt.Errorf("invalid policy type")
+	} else {
+		peer, ok := server.neighborMap[name]
 		if !ok {
-			return "", table.POLICY_DIRECTION_NONE, fmt.Errorf("not found peer %s", a.Name)
+			return "", fmt.Errorf("not found peer %s", name)
 		}
 		if !peer.isRouteServerClient() {
-			return "", table.POLICY_DIRECTION_NONE, fmt.Errorf("non-rs-client peer %s doesn't have per peer policy", a.Name)
+			return "", fmt.Errorf("non-rs-client peer %s doesn't have per peer policy", name)
 		}
-		switch a.Type {
-		case api.PolicyType_IN:
-			return peer.ID(), table.POLICY_DIRECTION_IN, nil
-		case api.PolicyType_IMPORT:
-			return peer.ID(), table.POLICY_DIRECTION_IMPORT, nil
-		case api.PolicyType_EXPORT:
-			return peer.ID(), table.POLICY_DIRECTION_EXPORT, nil
-		default:
-			return "", table.POLICY_DIRECTION_NONE, fmt.Errorf("invalid policy type")
-		}
-	default:
-		return "", table.POLICY_DIRECTION_NONE, fmt.Errorf("invalid resource type")
+		return peer.ID(), nil
 	}
-
 }
 
-// temporarily
-type PolicyAssignment struct {
-	Default           table.RouteType
-	PolicyDefinitions []*config.PolicyDefinition
-}
+func (server *BgpServer) GetPolicyAssignment(name string, dir table.PolicyDirection) (table.RouteType, []*config.PolicyDefinition, error) {
+	server.mu.Lock()
+	policyMutex.Lock()
+	defer func() {
+		policyMutex.Unlock()
+		server.mu.Unlock()
+	}()
 
-func (server *BgpServer) handleGrpcGetPolicyAssignment(grpcReq *GrpcRequest) (*PolicyAssignment, error) {
-	id, dir, err := server.getPolicyInfo(grpcReq.Data.(*api.GetPolicyAssignmentRequest).Assignment)
+	id, err := server.toPolicyInfo(name, dir)
 	if err != nil {
-		return nil, err
+		return table.ROUTE_TYPE_NONE, nil, err
 	}
-	return &PolicyAssignment{
-		Default: server.policy.GetDefaultPolicy(id, dir),
-		PolicyDefinitions: func() []*config.PolicyDefinition {
+	return server.policy.GetDefaultPolicy(id, dir),
+		func() []*config.PolicyDefinition {
 			ps := server.policy.GetPolicy(id, dir)
 			l := make([]*config.PolicyDefinition, 0, len(ps))
 			for _, p := range ps {
 				l = append(l, p.ToConfig())
 			}
 			return l
-		}(),
-	}, nil
+		}(), nil
 }
 
-func (server *BgpServer) handleGrpcAddPolicyAssignment(grpcReq *GrpcRequest) (*api.AddPolicyAssignmentResponse, error) {
-	var err error
-	var dir table.PolicyDirection
-	var id string
-	rsp := &api.AddPolicyAssignmentResponse{}
+func (server *BgpServer) AddPolicyAssignment(name string, dir table.PolicyDirection, policies []*config.PolicyDefinition, def table.RouteType) (err error) {
+	server.mu.Lock()
 	policyMutex.Lock()
-	defer policyMutex.Unlock()
-	arg := grpcReq.Data.(*api.AddPolicyAssignmentRequest)
-	assignment := arg.Assignment
-	id, dir, err = server.getPolicyInfo(assignment)
+	defer func() {
+		policyMutex.Unlock()
+		server.mu.Unlock()
+	}()
+
+	id, err := server.toPolicyInfo(name, dir)
 	if err != nil {
-		return rsp, err
+		return err
 	}
-	ps := make([]*table.Policy, 0, len(assignment.Policies))
+
+	ps := make([]*table.Policy, 0, len(policies))
 	seen := make(map[string]bool)
-	for _, x := range assignment.Policies {
+	for _, x := range policies {
 		p, ok := server.policy.PolicyMap[x.Name]
 		if !ok {
-			return rsp, fmt.Errorf("not found policy %s", x.Name)
+			return fmt.Errorf("not found policy %s", x.Name)
 		}
 		if seen[x.Name] {
-			return rsp, fmt.Errorf("duplicated policy %s", x.Name)
+			return fmt.Errorf("duplicated policy %s", x.Name)
 		}
 		seen[x.Name] = true
 		ps = append(ps, p)
@@ -2687,58 +2589,51 @@ func (server *BgpServer) handleGrpcAddPolicyAssignment(grpcReq *GrpcRequest) (*a
 		seen = make(map[string]bool)
 		ps = append(cur, ps...)
 		for _, x := range ps {
-			if seen[x.Name()] {
-				return rsp, fmt.Errorf("duplicated policy %s", x.Name())
+			if seen[x.Name] {
+				return fmt.Errorf("duplicated policy %s", x.Name)
 			}
-			seen[x.Name()] = true
+			seen[x.Name] = true
 		}
 		err = server.policy.SetPolicy(id, dir, ps)
 	}
-	if err != nil {
-		return rsp, err
+	if err == nil && def != table.ROUTE_TYPE_NONE {
+		err = server.policy.SetDefaultPolicy(id, dir, def)
 	}
-
-	switch assignment.Default {
-	case api.RouteAction_ACCEPT:
-		err = server.policy.SetDefaultPolicy(id, dir, table.ROUTE_TYPE_ACCEPT)
-	case api.RouteAction_REJECT:
-		err = server.policy.SetDefaultPolicy(id, dir, table.ROUTE_TYPE_REJECT)
-	}
-	return rsp, err
+	return err
 }
 
-func (server *BgpServer) handleGrpcDeletePolicyAssignment(grpcReq *GrpcRequest) (*api.DeletePolicyAssignmentResponse, error) {
-	var err error
-	var dir table.PolicyDirection
-	var id string
+func (server *BgpServer) DeletePolicyAssignment(name string, dir table.PolicyDirection, policies []*config.PolicyDefinition, all bool) (err error) {
+	server.mu.Lock()
 	policyMutex.Lock()
-	defer policyMutex.Unlock()
-	rsp := &api.DeletePolicyAssignmentResponse{}
-	arg := grpcReq.Data.(*api.DeletePolicyAssignmentRequest)
-	assignment := arg.Assignment
-	id, dir, err = server.getPolicyInfo(assignment)
+	defer func() {
+		policyMutex.Unlock()
+		server.mu.Unlock()
+	}()
+
+	id, err := server.toPolicyInfo(name, dir)
 	if err != nil {
-		return rsp, err
+		return err
 	}
-	ps := make([]*table.Policy, 0, len(assignment.Policies))
+
+	ps := make([]*table.Policy, 0, len(policies))
 	seen := make(map[string]bool)
-	for _, x := range assignment.Policies {
+	for _, x := range policies {
 		p, ok := server.policy.PolicyMap[x.Name]
 		if !ok {
-			return rsp, fmt.Errorf("not found policy %s", x.Name)
+			return fmt.Errorf("not found policy %s", x.Name)
 		}
 		if seen[x.Name] {
-			return rsp, fmt.Errorf("duplicated policy %s", x.Name)
+			return fmt.Errorf("duplicated policy %s", x.Name)
 		}
 		seen[x.Name] = true
 		ps = append(ps, p)
 	}
 	cur := server.policy.GetPolicy(id, dir)
 
-	if arg.All {
+	if all {
 		err = server.policy.SetPolicy(id, dir, nil)
 		if err != nil {
-			return rsp, err
+			return err
 		}
 		err = server.policy.SetDefaultPolicy(id, dir, table.ROUTE_TYPE_NONE)
 	} else {
@@ -2746,7 +2641,7 @@ func (server *BgpServer) handleGrpcDeletePolicyAssignment(grpcReq *GrpcRequest) 
 		for _, y := range cur {
 			found := false
 			for _, x := range ps {
-				if x.Name() == y.Name() {
+				if x.Name == y.Name {
 					found = true
 					break
 				}
@@ -2757,47 +2652,41 @@ func (server *BgpServer) handleGrpcDeletePolicyAssignment(grpcReq *GrpcRequest) 
 		}
 		err = server.policy.SetPolicy(id, dir, n)
 	}
-	return rsp, err
+	return err
 }
 
-func (server *BgpServer) handleGrpcReplacePolicyAssignment(grpcReq *GrpcRequest) (*api.ReplacePolicyAssignmentResponse, error) {
-	var err error
-	var dir table.PolicyDirection
-	var id string
+func (server *BgpServer) ReplacePolicyAssignment(name string, dir table.PolicyDirection, policies []*config.PolicyDefinition, def table.RouteType) (err error) {
+	server.mu.Lock()
 	policyMutex.Lock()
-	defer policyMutex.Unlock()
-	rsp := &api.ReplacePolicyAssignmentResponse{}
-	arg := grpcReq.Data.(*api.ReplacePolicyAssignmentRequest)
-	assignment := arg.Assignment
-	id, dir, err = server.getPolicyInfo(assignment)
+	defer func() {
+		policyMutex.Unlock()
+		server.mu.Unlock()
+	}()
+
+	id, err := server.toPolicyInfo(name, dir)
 	if err != nil {
-		return rsp, err
+		return err
 	}
-	ps := make([]*table.Policy, 0, len(assignment.Policies))
+
+	ps := make([]*table.Policy, 0, len(policies))
 	seen := make(map[string]bool)
-	for _, x := range assignment.Policies {
+	for _, x := range policies {
 		p, ok := server.policy.PolicyMap[x.Name]
 		if !ok {
-			return rsp, fmt.Errorf("not found policy %s", x.Name)
+			return fmt.Errorf("not found policy %s", x.Name)
 		}
 		if seen[x.Name] {
-			return rsp, fmt.Errorf("duplicated policy %s", x.Name)
+			return fmt.Errorf("duplicated policy %s", x.Name)
 		}
 		seen[x.Name] = true
 		ps = append(ps, p)
 	}
 	server.policy.GetPolicy(id, dir)
 	err = server.policy.SetPolicy(id, dir, ps)
-	if err != nil {
-		return rsp, err
+	if err == nil && def != table.ROUTE_TYPE_NONE {
+		err = server.policy.SetDefaultPolicy(id, dir, def)
 	}
-	switch assignment.Default {
-	case api.RouteAction_ACCEPT:
-		err = server.policy.SetDefaultPolicy(id, dir, table.ROUTE_TYPE_ACCEPT)
-	case api.RouteAction_REJECT:
-		err = server.policy.SetDefaultPolicy(id, dir, table.ROUTE_TYPE_REJECT)
-	}
-	return rsp, err
+	return err
 }
 
 func grpcDone(grpcReq *GrpcRequest, e error) {

@@ -178,7 +178,7 @@ func main() {
 	go bgpServer.Serve()
 
 	// start grpc Server
-	grpcServer := server.NewGrpcServer(opts.GrpcHosts, bgpServer.GrpcReqCh)
+	grpcServer := server.NewGrpcServer(bgpServer, opts.GrpcHosts, bgpServer.GrpcReqCh)
 	go func() {
 		if err := grpcServer.Serve(); err != nil {
 			log.Fatalf("failed to listen grpc port: %s", err)
@@ -225,7 +225,7 @@ func main() {
 					log.Fatalf("failed to set mrt config: %s", err)
 				}
 				p := config.ConfigSetToRoutingPolicy(newConfig)
-				if err := bgpServer.SetRoutingPolicy(*p); err != nil {
+				if err := bgpServer.UpdatePolicy(*p); err != nil {
 					log.Fatalf("failed to set routing policy: %s", err)
 				}
 
