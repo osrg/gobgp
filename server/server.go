@@ -911,37 +911,6 @@ func (server *BgpServer) SetMrtConfig(c []config.Mrt) error {
 	return nil
 }
 
-func (server *BgpServer) PeerAdd(peer config.Neighbor) error {
-	ch := make(chan *GrpcResponse)
-	server.GrpcReqCh <- &GrpcRequest{
-		RequestType: REQ_ADD_NEIGHBOR,
-		Data:        &peer,
-		ResponseCh:  ch,
-	}
-	return (<-ch).Err()
-}
-
-func (server *BgpServer) PeerDelete(peer config.Neighbor) error {
-	ch := make(chan *GrpcResponse)
-	server.GrpcReqCh <- &GrpcRequest{
-		RequestType: REQ_DELETE_NEIGHBOR,
-		Data:        &peer,
-		ResponseCh:  ch,
-	}
-	return (<-ch).Err()
-}
-
-func (server *BgpServer) PeerUpdate(peer config.Neighbor) (bool, error) {
-	ch := make(chan *GrpcResponse)
-	server.GrpcReqCh <- &GrpcRequest{
-		RequestType: REQ_UPDATE_NEIGHBOR,
-		Data:        &peer,
-		ResponseCh:  ch,
-	}
-	res := <-ch
-	return res.Data.(bool), res.Err()
-}
-
 func (server *BgpServer) Shutdown() {
 	server.shutdown = true
 	for _, p := range server.neighborMap {
@@ -1447,7 +1416,7 @@ func (server *BgpServer) handleModConfig(grpcReq *GrpcRequest) error {
 		c = arg
 	case *api.StopServerRequest:
 		for k, _ := range server.neighborMap {
-			err := server.handleDeleteNeighbor(&config.Neighbor{Config: config.NeighborConfig{
+			err := server.deleteNeighbor(&config.Neighbor{Config: config.NeighborConfig{
 				NeighborAddress: k}}, bgp.BGP_ERROR_CEASE, bgp.BGP_ERROR_SUB_PEER_DECONFIGURED)
 			if err != nil {
 				return err
@@ -1914,27 +1883,6 @@ func (server *BgpServer) handleGrpc(grpcReq *GrpcRequest) {
 		}
 		grpcReq.ResponseCh <- result
 		close(grpcReq.ResponseCh)
-	case REQ_ADD_NEIGHBOR:
-		err := server.handleAddNeighbor(grpcReq.Data.(*config.Neighbor))
-		grpcReq.ResponseCh <- &GrpcResponse{
-			Data:        &api.AddNeighborResponse{},
-			ResponseErr: err,
-		}
-		close(grpcReq.ResponseCh)
-	case REQ_DELETE_NEIGHBOR:
-		err := server.handleDeleteNeighbor(grpcReq.Data.(*config.Neighbor), bgp.BGP_ERROR_CEASE, bgp.BGP_ERROR_SUB_PEER_DECONFIGURED)
-		grpcReq.ResponseCh <- &GrpcResponse{
-			Data:        &api.DeleteNeighborResponse{},
-			ResponseErr: err,
-		}
-		close(grpcReq.ResponseCh)
-	case REQ_UPDATE_NEIGHBOR:
-		policyUpdated, err := server.handleUpdateNeighbor(grpcReq.Data.(*config.Neighbor))
-		grpcReq.ResponseCh <- &GrpcResponse{
-			Data:        policyUpdated,
-			ResponseErr: err,
-		}
-		close(grpcReq.ResponseCh)
 	case REQ_MONITOR_RIB, REQ_MONITOR_NEIGHBOR_PEER_STATE:
 		if grpcReq.Name != "" {
 			if _, err = server.checkNeighborRequest(grpcReq); err != nil {
@@ -2022,7 +1970,7 @@ ERROR:
 	return
 }
 
-func (server *BgpServer) handleAddNeighbor(c *config.Neighbor) error {
+func (server *BgpServer) addNeighbor(c *config.Neighbor) error {
 	addr := c.Config.NeighborAddress
 	if _, y := server.neighborMap[addr]; y {
 		return fmt.Errorf("Can't overwrite the exising peer: %s", addr)
@@ -2040,9 +1988,7 @@ func (server *BgpServer) handleAddNeighbor(c *config.Neighbor) error {
 	}
 
 	peer := NewPeer(&server.bgpConfig.Global, c, server.globalRib, server.policy)
-	policyMutex.Lock()
 	server.setPolicyByConfig(peer.ID(), c.ApplyPolicy)
-	policyMutex.Unlock()
 	if peer.isRouteServerClient() {
 		pathList := make([]*table.Path, 0)
 		rfList := peer.configuredRFlist()
@@ -2063,7 +2009,17 @@ func (server *BgpServer) handleAddNeighbor(c *config.Neighbor) error {
 	return nil
 }
 
-func (server *BgpServer) handleDeleteNeighbor(c *config.Neighbor, code, subcode uint8) error {
+func (server *BgpServer) AddNeighbor(c *config.Neighbor) error {
+	server.mu.Lock()
+	policyMutex.Lock()
+	defer func() {
+		policyMutex.Unlock()
+		server.mu.Unlock()
+	}()
+	return server.addNeighbor(c)
+}
+
+func (server *BgpServer) deleteNeighbor(c *config.Neighbor, code, subcode uint8) error {
 	addr := c.Config.NeighborAddress
 	n, y := server.neighborMap[addr]
 	if !y {
@@ -2091,7 +2047,21 @@ func (server *BgpServer) handleDeleteNeighbor(c *config.Neighbor, code, subcode 
 	return nil
 }
 
-func (server *BgpServer) handleUpdateNeighbor(c *config.Neighbor) (bool, error) {
+func (server *BgpServer) DeleteNeighbor(c *config.Neighbor) error {
+	server.mu.Lock()
+	defer server.mu.Unlock()
+
+	return server.deleteNeighbor(c, bgp.BGP_ERROR_CEASE, bgp.BGP_ERROR_SUB_PEER_DECONFIGURED)
+}
+
+func (server *BgpServer) UpdateNeighbor(c *config.Neighbor) (bool, error) {
+	server.mu.Lock()
+	policyMutex.Lock()
+	defer func() {
+		policyMutex.Unlock()
+		server.mu.Unlock()
+	}()
+
 	addr := c.Config.NeighborAddress
 	peer := server.neighborMap[addr]
 	policyUpdated := false
@@ -2101,9 +2071,7 @@ func (server *BgpServer) handleUpdateNeighbor(c *config.Neighbor) (bool, error) 
 			"Topic": "Peer",
 			"Key":   addr,
 		}).Info("Update ApplyPolicy")
-		policyMutex.Lock()
 		server.setPolicyByConfig(peer.ID(), c.ApplyPolicy)
-		policyMutex.Unlock()
 		peer.fsm.pConf.ApplyPolicy = c.ApplyPolicy
 		policyUpdated = true
 	}
@@ -2125,14 +2093,14 @@ func (server *BgpServer) handleUpdateNeighbor(c *config.Neighbor) (bool, error) 
 		} else if original.Config.PeerAs != c.Config.PeerAs {
 			sub = bgp.BGP_ERROR_SUB_PEER_DECONFIGURED
 		}
-		if err := server.handleDeleteNeighbor(peer.fsm.pConf, bgp.BGP_ERROR_CEASE, sub); err != nil {
+		if err := server.deleteNeighbor(peer.fsm.pConf, bgp.BGP_ERROR_CEASE, sub); err != nil {
 			log.WithFields(log.Fields{
 				"Topic": "Peer",
 				"Key":   addr,
 			}).Error(err)
 			return policyUpdated, err
 		}
-		err := server.handleAddNeighbor(c)
+		err := server.addNeighbor(c)
 		if err != nil {
 			log.WithFields(log.Fields{
 				"Topic": "Peer",

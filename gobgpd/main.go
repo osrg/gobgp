@@ -248,17 +248,17 @@ func main() {
 				c = newConfig
 			}
 
-			for _, p := range added {
+			for i, p := range added {
 				log.Infof("Peer %v is added", p.Config.NeighborAddress)
-				bgpServer.PeerAdd(p)
+				bgpServer.AddNeighbor(&added[i])
 			}
-			for _, p := range deleted {
+			for i, p := range deleted {
 				log.Infof("Peer %v is deleted", p.Config.NeighborAddress)
-				bgpServer.PeerDelete(p)
+				bgpServer.DeleteNeighbor(&deleted[i])
 			}
-			for _, p := range updated {
+			for i, p := range updated {
 				log.Infof("Peer %v is updated", p.Config.NeighborAddress)
-				u, _ := bgpServer.PeerUpdate(p)
+				u, _ := bgpServer.UpdateNeighbor(&updated[i])
 				updatePolicy = updatePolicy || u
 			}
 

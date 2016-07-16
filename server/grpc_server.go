@@ -49,9 +49,6 @@ const (
 	REQ_NEIGHBOR_SHUTDOWN
 	REQ_NEIGHBOR_ENABLE
 	REQ_NEIGHBOR_DISABLE
-	REQ_ADD_NEIGHBOR
-	REQ_DELETE_NEIGHBOR
-	REQ_UPDATE_NEIGHBOR
 	REQ_GLOBAL_RIB
 	REQ_MONITOR_RIB
 	REQ_MONITOR_NEIGHBOR_PEER_STATE
@@ -771,21 +768,13 @@ func (s *Server) AddNeighbor(ctx context.Context, arg *api.AddNeighborRequest) (
 	if err != nil {
 		return nil, err
 	}
-	d, err := s.get(REQ_ADD_NEIGHBOR, c)
-	if err != nil {
-		return nil, err
-	}
-	return d.(*api.AddNeighborResponse), err
+	return &api.AddNeighborResponse{}, s.bgpServer.AddNeighbor(c)
 }
 
 func (s *Server) DeleteNeighbor(ctx context.Context, arg *api.DeleteNeighborRequest) (*api.DeleteNeighborResponse, error) {
-	d, err := s.get(REQ_DELETE_NEIGHBOR, &config.Neighbor{Config: config.NeighborConfig{
+	return &api.DeleteNeighborResponse{}, s.bgpServer.DeleteNeighbor(&config.Neighbor{Config: config.NeighborConfig{
 		NeighborAddress: arg.Peer.Conf.NeighborAddress,
 	}})
-	if err != nil {
-		return nil, err
-	}
-	return d.(*api.DeleteNeighborResponse), err
 }
 
 func NewPrefixFromApiStruct(a *api.Prefix) (*table.Prefix, error) {
