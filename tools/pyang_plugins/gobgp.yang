@@ -188,6 +188,23 @@ module gobgp {
   }
 
 
+  grouping gobgp-adjacent-table {
+    container adj-table {
+      leaf ADVERTISED {
+        type uint32;
+      }
+
+      leaf RECEIVED {
+        type uint32;
+      }
+
+      leaf ACCEPTED {
+        type uint32;
+      }
+    }
+  }
+
+
   grouping gobgp-timer {
     description "additional timer";
 
@@ -395,6 +412,24 @@ module gobgp {
   grouping gobgp-rpki-server-state {
     description "additional RPKI state";
 
+    leaf up {
+      type boolean;
+    }
+    leaf serial-number {
+      type uint32;
+    }
+    leaf records-v4 {
+      type uint32;
+    }
+    leaf records-v6 {
+      type uint32;
+    }
+    leaf prefixes-v4 {
+      type uint32;
+    }
+    leaf prefixes-v6 {
+      type uint32;
+    }
     leaf uptime {
       type int64;
       description
@@ -561,6 +596,27 @@ module gobgp {
     uses gobgp-message-counter;
   }
 
+  augment "/bgp:bgp/bgp:neighbors/bgp:neighbor/bgp:state" {
+    description "additional counters";
+    uses gobgp-adjacent-table;
+  }
+
+
+  augment "/bgp:bgp/bgp:neighbors/bgp:neighbor/bgp:state" {
+    container Capabilities {
+      leaf-list remote {
+        type binary;
+      }
+      leaf-list local {
+        type binary;
+      }
+    }
+
+    leaf received-open-message {
+      type binary;
+    }
+  }
+
   augment "/bgp:bgp/bgp:neighbors/bgp:neighbor/bgp:config" {
     description "additional state elements";
 
@@ -578,6 +634,10 @@ module gobgp {
       type boolean;
       description
         "The state of administrative operation. If the state is true, it indicates the neighbor is disabled by the administrator";
+    }
+
+    leaf admin-state {
+      type string;
     }
 
     leaf established-count {

@@ -19,7 +19,6 @@ import (
 	"bytes"
 	"fmt"
 	log "github.com/Sirupsen/logrus"
-	api "github.com/osrg/gobgp/api"
 	"github.com/osrg/gobgp/config"
 	"github.com/osrg/gobgp/packet/bgp"
 	"math"
@@ -269,34 +268,6 @@ func (path *Path) IsLocal() bool {
 
 func (path *Path) IsIBGP() bool {
 	return path.GetSource().AS == path.GetSource().LocalAS
-}
-
-func (path *Path) ToApiStruct(id string) *api.Path {
-	nlri := path.GetNlri()
-	n, _ := nlri.Serialize()
-	family := uint32(bgp.AfiSafiToRouteFamily(nlri.AFI(), nlri.SAFI()))
-	pattrs := func(arg []bgp.PathAttributeInterface) [][]byte {
-		ret := make([][]byte, 0, len(arg))
-		for _, a := range arg {
-			aa, _ := a.Serialize()
-			ret = append(ret, aa)
-		}
-		return ret
-	}(path.GetPathAttrs())
-	return &api.Path{
-		Nlri:           n,
-		Pattrs:         pattrs,
-		Age:            path.OriginInfo().timestamp.Unix(),
-		IsWithdraw:     path.IsWithdraw,
-		Validation:     int32(path.OriginInfo().validation.ToInt()),
-		Filtered:       path.Filtered(id) == POLICY_DIRECTION_IN,
-		Family:         family,
-		SourceAsn:      path.OriginInfo().source.AS,
-		SourceId:       path.OriginInfo().source.ID.String(),
-		NeighborIp:     path.OriginInfo().source.Address.String(),
-		Stale:          path.IsStale(),
-		IsFromExternal: path.OriginInfo().isFromExternal,
-	}
 }
 
 // create new PathAttributes
