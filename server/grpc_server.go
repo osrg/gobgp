@@ -26,6 +26,7 @@ import (
 	"google.golang.org/grpc"
 	"io"
 	"net"
+	"reflect"
 	"regexp"
 	"strconv"
 	"strings"
@@ -103,6 +104,7 @@ const (
 )
 
 type Server struct {
+	bgpServer   *BgpServer
 	grpcServer  *grpc.Server
 	bgpServerCh chan *GrpcRequest
 	hosts       string
@@ -804,13 +806,74 @@ func (s *Server) DeleteNeighbor(ctx context.Context, arg *api.DeleteNeighborRequ
 	return d.(*api.DeleteNeighborResponse), err
 }
 
+func NewPrefixFromApiStruct(a *api.Prefix) (*table.Prefix, error) {
+	addr, prefix, err := net.ParseCIDR(a.IpPrefix)
+	if err != nil {
+		return nil, err
+	}
+	rf := bgp.RF_IPv4_UC
+	if addr.To4() == nil {
+		rf = bgp.RF_IPv6_UC
+	}
+	return &table.Prefix{
+		Prefix:             prefix,
+		AddressFamily:      rf,
+		MasklengthRangeMin: uint8(a.MaskLengthMin),
+		MasklengthRangeMax: uint8(a.MaskLengthMax),
+	}, nil
+}
+
+func NewDefinedSetFromApiStruct(a *api.DefinedSet) (table.DefinedSet, error) {
+	if a.Name == "" {
+		return nil, fmt.Errorf("empty neighbor set name")
+	}
+	switch table.DefinedType(a.Type) {
+	case table.DEFINED_TYPE_PREFIX:
+		prefixes := make([]*table.Prefix, 0, len(a.Prefixes))
+		for _, p := range a.Prefixes {
+			prefix, err := NewPrefixFromApiStruct(p)
+			if err != nil {
+				return nil, err
+			}
+			prefixes = append(prefixes, prefix)
+		}
+		return table.NewPrefixSetFromApiStruct(a.Name, prefixes)
+	case table.DEFINED_TYPE_NEIGHBOR:
+		list := make([]net.IP, 0, len(a.List))
+		for _, x := range a.List {
+			addr := net.ParseIP(x)
+			if addr == nil {
+				return nil, fmt.Errorf("invalid ip address format: %s", x)
+			}
+			list = append(list, addr)
+		}
+		return table.NewNeighborSetFromApiStruct(a.Name, list)
+	case table.DEFINED_TYPE_AS_PATH:
+		return table.NewAsPathSet(config.AsPathSet{
+			AsPathSetName: a.Name,
+			AsPathList:    a.List,
+		})
+	case table.DEFINED_TYPE_COMMUNITY:
+		return table.NewCommunitySet(config.CommunitySet{
+			CommunitySetName: a.Name,
+			CommunityList:    a.List,
+		})
+	case table.DEFINED_TYPE_EXT_COMMUNITY:
+		return table.NewExtCommunitySet(config.ExtCommunitySet{
+			ExtCommunitySetName: a.Name,
+			ExtCommunityList:    a.List,
+		})
+	default:
+		return nil, fmt.Errorf("invalid defined type")
+	}
+}
+
 func (s *Server) GetDefinedSet(ctx context.Context, arg *api.GetDefinedSetRequest) (*api.GetDefinedSetResponse, error) {
-	d, err := s.get(REQ_GET_DEFINED_SET, arg)
+	cd, err := s.bgpServer.GetDefinedSet(table.DefinedType(arg.Type))
 	if err != nil {
 		return nil, err
 	}
 	sets := make([]*api.DefinedSet, 0)
-	cd := d.(*config.DefinedSets)
 	for _, cs := range cd.PrefixSets {
 		ad := &api.DefinedSet{
 			Type: api.DefinedType_PREFIX,
@@ -868,27 +931,27 @@ func (s *Server) GetDefinedSet(ctx context.Context, arg *api.GetDefinedSetReques
 }
 
 func (s *Server) AddDefinedSet(ctx context.Context, arg *api.AddDefinedSetRequest) (*api.AddDefinedSetResponse, error) {
-	d, err := s.get(REQ_ADD_DEFINED_SET, arg)
+	set, err := NewDefinedSetFromApiStruct(arg.Set)
 	if err != nil {
 		return nil, err
 	}
-	return d.(*api.AddDefinedSetResponse), err
+	return &api.AddDefinedSetResponse{}, s.bgpServer.AddDefinedSet(set)
 }
 
 func (s *Server) DeleteDefinedSet(ctx context.Context, arg *api.DeleteDefinedSetRequest) (*api.DeleteDefinedSetResponse, error) {
-	d, err := s.get(REQ_DELETE_DEFINED_SET, arg)
+	set, err := NewDefinedSetFromApiStruct(arg.Set)
 	if err != nil {
 		return nil, err
 	}
-	return d.(*api.DeleteDefinedSetResponse), err
+	return &api.DeleteDefinedSetResponse{}, s.bgpServer.DeleteDefinedSet(set, arg.All)
 }
 
 func (s *Server) ReplaceDefinedSet(ctx context.Context, arg *api.ReplaceDefinedSetRequest) (*api.ReplaceDefinedSetResponse, error) {
-	d, err := s.get(REQ_REPLACE_DEFINED_SET, arg)
+	set, err := NewDefinedSetFromApiStruct(arg.Set)
 	if err != nil {
 		return nil, err
 	}
-	return d.(*api.ReplaceDefinedSetResponse), err
+	return &api.ReplaceDefinedSetResponse{}, s.bgpServer.ReplaceDefinedSet(set)
 }
 
 func toStatementApi(s *config.Statement) *api.Statement {
@@ -1016,41 +1079,323 @@ func toStatementApi(s *config.Statement) *api.Statement {
 	}
 }
 
-func (s *Server) GetStatement(ctx context.Context, arg *api.GetStatementRequest) (*api.GetStatementResponse, error) {
-	d, err := s.get(REQ_GET_STATEMENT, arg)
+func toConfigMatchSetOption(a api.MatchType) (config.MatchSetOptionsType, error) {
+	var typ config.MatchSetOptionsType
+	switch a {
+	case api.MatchType_ANY:
+		typ = config.MATCH_SET_OPTIONS_TYPE_ANY
+	case api.MatchType_ALL:
+		typ = config.MATCH_SET_OPTIONS_TYPE_ALL
+	case api.MatchType_INVERT:
+		typ = config.MATCH_SET_OPTIONS_TYPE_INVERT
+	default:
+		return typ, fmt.Errorf("invalid match type")
+	}
+	return typ, nil
+}
+
+func toConfigMatchSetOptionRestricted(a api.MatchType) (config.MatchSetOptionsRestrictedType, error) {
+	var typ config.MatchSetOptionsRestrictedType
+	switch a {
+	case api.MatchType_ANY:
+		typ = config.MATCH_SET_OPTIONS_RESTRICTED_TYPE_ANY
+	case api.MatchType_INVERT:
+		typ = config.MATCH_SET_OPTIONS_RESTRICTED_TYPE_INVERT
+	default:
+		return typ, fmt.Errorf("invalid match type")
+	}
+	return typ, nil
+}
+
+func NewPrefixConditionFromApiStruct(a *api.MatchSet) (*table.PrefixCondition, error) {
+	if a == nil {
+		return nil, nil
+	}
+	typ, err := toConfigMatchSetOptionRestricted(a.Type)
 	if err != nil {
 		return nil, err
 	}
+	c := config.MatchPrefixSet{
+		PrefixSet:       a.Name,
+		MatchSetOptions: typ,
+	}
+	return table.NewPrefixCondition(c)
+}
 
+func NewNeighborConditionFromApiStruct(a *api.MatchSet) (*table.NeighborCondition, error) {
+	if a == nil {
+		return nil, nil
+	}
+	typ, err := toConfigMatchSetOptionRestricted(a.Type)
+	if err != nil {
+		return nil, err
+	}
+	c := config.MatchNeighborSet{
+		NeighborSet:     a.Name,
+		MatchSetOptions: typ,
+	}
+	return table.NewNeighborCondition(c)
+}
+
+func NewAsPathLengthConditionFromApiStruct(a *api.AsPathLength) (*table.AsPathLengthCondition, error) {
+	if a == nil {
+		return nil, nil
+	}
+	return table.NewAsPathLengthCondition(config.AsPathLength{
+		Operator: config.IntToAttributeComparisonMap[int(a.Type)],
+		Value:    a.Length,
+	})
+}
+
+func NewAsPathConditionFromApiStruct(a *api.MatchSet) (*table.AsPathCondition, error) {
+	if a == nil {
+		return nil, nil
+	}
+	typ, err := toConfigMatchSetOption(a.Type)
+	if err != nil {
+		return nil, err
+	}
+	c := config.MatchAsPathSet{
+		AsPathSet:       a.Name,
+		MatchSetOptions: typ,
+	}
+	return table.NewAsPathCondition(c)
+}
+
+func NewRpkiValidationConditionFromApiStruct(a int32) (*table.RpkiValidationCondition, error) {
+	if a < 1 {
+		return nil, nil
+	}
+	return table.NewRpkiValidationCondition(config.IntToRpkiValidationResultTypeMap[int(a)])
+}
+
+func NewCommunityConditionFromApiStruct(a *api.MatchSet) (*table.CommunityCondition, error) {
+	if a == nil {
+		return nil, nil
+	}
+	typ, err := toConfigMatchSetOption(a.Type)
+	if err != nil {
+		return nil, err
+	}
+	c := config.MatchCommunitySet{
+		CommunitySet:    a.Name,
+		MatchSetOptions: typ,
+	}
+	return table.NewCommunityCondition(c)
+}
+
+func NewExtCommunityConditionFromApiStruct(a *api.MatchSet) (*table.ExtCommunityCondition, error) {
+	if a == nil {
+		return nil, nil
+	}
+	typ, err := toConfigMatchSetOption(a.Type)
+	if err != nil {
+		return nil, err
+	}
+	c := config.MatchExtCommunitySet{
+		ExtCommunitySet: a.Name,
+		MatchSetOptions: typ,
+	}
+	return table.NewExtCommunityCondition(c)
+}
+
+func NewRoutingActionFromApiStruct(a api.RouteAction) (*table.RoutingAction, error) {
+	if a == api.RouteAction_NONE {
+		return nil, nil
+	}
+	accept := false
+	if a == api.RouteAction_ACCEPT {
+		accept = true
+	}
+	return &table.RoutingAction{
+		AcceptRoute: accept,
+	}, nil
+}
+
+func NewCommunityActionFromApiStruct(a *api.CommunityAction) (*table.CommunityAction, error) {
+	if a == nil {
+		return nil, nil
+	}
+	return table.NewCommunityAction(config.SetCommunity{
+		Options: string(config.IntToBgpSetCommunityOptionTypeMap[int(a.Type)]),
+		SetCommunityMethod: config.SetCommunityMethod{
+			CommunitiesList: a.Communities,
+		},
+	})
+}
+
+func NewExtCommunityActionFromApiStruct(a *api.CommunityAction) (*table.ExtCommunityAction, error) {
+	if a == nil {
+		return nil, nil
+	}
+	return table.NewExtCommunityAction(config.SetExtCommunity{
+		Options: string(config.IntToBgpSetCommunityOptionTypeMap[int(a.Type)]),
+		SetExtCommunityMethod: config.SetExtCommunityMethod{
+			CommunitiesList: a.Communities,
+		},
+	})
+}
+
+func NewMedActionFromApiStruct(a *api.MedAction) (*table.MedAction, error) {
+	if a == nil {
+		return nil, nil
+	}
+	return table.NewMedActionFromApiStruct(table.MedActionType(a.Type), int(a.Value)), nil
+}
+
+func NewLocalPrefActionFromApiStruct(a *api.LocalPrefAction) (*table.LocalPrefAction, error) {
+	if a == nil || a.Value == 0 {
+		return nil, nil
+	}
+	return table.NewLocalPrefAction(a.Value)
+}
+
+func NewAsPathPrependActionFromApiStruct(a *api.AsPrependAction) (*table.AsPathPrependAction, error) {
+	if a == nil {
+		return nil, nil
+	}
+	return table.NewAsPathPrependAction(config.SetAsPathPrepend{
+		RepeatN: uint8(a.Repeat),
+		As: func() string {
+			if a.UseLeftMost {
+				return "last-as"
+			}
+			return fmt.Sprintf("%d", a.Asn)
+		}(),
+	})
+}
+
+func NewNexthopActionFromApiStruct(a *api.NexthopAction) (*table.NexthopAction, error) {
+	if a == nil {
+		return nil, nil
+	}
+	return table.NewNexthopAction(config.BgpNextHopType(
+		func() string {
+			if a.Self {
+				return "self"
+			}
+			return a.Address
+		}(),
+	))
+}
+
+func NewStatementFromApiStruct(a *api.Statement) (*table.Statement, error) {
+	if a.Name == "" {
+		return nil, fmt.Errorf("empty statement name")
+	}
+	var ra table.Action
+	var as []table.Action
+	var cs []table.Condition
+	var err error
+	if a.Conditions != nil {
+		cfs := []func() (table.Condition, error){
+			func() (table.Condition, error) {
+				return NewPrefixConditionFromApiStruct(a.Conditions.PrefixSet)
+			},
+			func() (table.Condition, error) {
+				return NewNeighborConditionFromApiStruct(a.Conditions.NeighborSet)
+			},
+			func() (table.Condition, error) {
+				return NewAsPathLengthConditionFromApiStruct(a.Conditions.AsPathLength)
+			},
+			func() (table.Condition, error) {
+				return NewRpkiValidationConditionFromApiStruct(a.Conditions.RpkiResult)
+			},
+			func() (table.Condition, error) {
+				return NewAsPathConditionFromApiStruct(a.Conditions.AsPathSet)
+			},
+			func() (table.Condition, error) {
+				return NewCommunityConditionFromApiStruct(a.Conditions.CommunitySet)
+			},
+			func() (table.Condition, error) {
+				return NewExtCommunityConditionFromApiStruct(a.Conditions.ExtCommunitySet)
+			},
+		}
+		cs = make([]table.Condition, 0, len(cfs))
+		for _, f := range cfs {
+			c, err := f()
+			if err != nil {
+				return nil, err
+			}
+			if !reflect.ValueOf(c).IsNil() {
+				cs = append(cs, c)
+			}
+		}
+	}
+	if a.Actions != nil {
+		ra, err = NewRoutingActionFromApiStruct(a.Actions.RouteAction)
+		if err != nil {
+			return nil, err
+		}
+		afs := []func() (table.Action, error){
+			func() (table.Action, error) {
+				return NewCommunityActionFromApiStruct(a.Actions.Community)
+			},
+			func() (table.Action, error) {
+				return NewExtCommunityActionFromApiStruct(a.Actions.ExtCommunity)
+			},
+			func() (table.Action, error) {
+				return NewMedActionFromApiStruct(a.Actions.Med)
+			},
+			func() (table.Action, error) {
+				return NewLocalPrefActionFromApiStruct(a.Actions.LocalPref)
+			},
+			func() (table.Action, error) {
+				return NewAsPathPrependActionFromApiStruct(a.Actions.AsPrepend)
+			},
+			func() (table.Action, error) {
+				return NewNexthopActionFromApiStruct(a.Actions.Nexthop)
+			},
+		}
+		as = make([]table.Action, 0, len(afs))
+		for _, f := range afs {
+			a, err := f()
+			if err != nil {
+				return nil, err
+			}
+			if !reflect.ValueOf(a).IsNil() {
+				as = append(as, a)
+			}
+		}
+	}
+	return &table.Statement{
+		Name:        a.Name,
+		Conditions:  cs,
+		RouteAction: ra,
+		ModActions:  as,
+	}, nil
+}
+
+func (s *Server) GetStatement(ctx context.Context, arg *api.GetStatementRequest) (*api.GetStatementResponse, error) {
 	l := make([]*api.Statement, 0)
-	for _, s := range d.([]*config.Statement) {
+	for _, s := range s.bgpServer.GetStatement() {
 		l = append(l, toStatementApi(s))
 	}
-	return &api.GetStatementResponse{Statements: l}, err
+	return &api.GetStatementResponse{Statements: l}, nil
 }
 
 func (s *Server) AddStatement(ctx context.Context, arg *api.AddStatementRequest) (*api.AddStatementResponse, error) {
-	d, err := s.get(REQ_ADD_STATEMENT, arg)
-	if err != nil {
-		return nil, err
+	st, err := NewStatementFromApiStruct(arg.Statement)
+	if err == nil {
+		err = s.bgpServer.AddStatement(st)
 	}
-	return d.(*api.AddStatementResponse), err
+	return &api.AddStatementResponse{}, err
 }
 
 func (s *Server) DeleteStatement(ctx context.Context, arg *api.DeleteStatementRequest) (*api.DeleteStatementResponse, error) {
-	d, err := s.get(REQ_DELETE_STATEMENT, arg)
-	if err != nil {
-		return nil, err
+	st, err := NewStatementFromApiStruct(arg.Statement)
+	if err == nil {
+		err = s.bgpServer.DeleteStatement(st, arg.All)
 	}
-	return d.(*api.DeleteStatementResponse), err
+	return &api.DeleteStatementResponse{}, err
 }
 
 func (s *Server) ReplaceStatement(ctx context.Context, arg *api.ReplaceStatementRequest) (*api.ReplaceStatementResponse, error) {
-	d, err := s.get(REQ_REPLACE_STATEMENT, arg)
-	if err != nil {
-		return nil, err
+	st, err := NewStatementFromApiStruct(arg.Statement)
+	if err == nil {
+		err = s.bgpServer.ReplaceStatement(st)
 	}
-	return d.(*api.ReplaceStatementResponse), err
+	return &api.ReplaceStatementResponse{}, err
 }
 
 func toPolicyApi(p *config.PolicyDefinition) *api.Policy {
@@ -1066,52 +1411,100 @@ func toPolicyApi(p *config.PolicyDefinition) *api.Policy {
 	}
 }
 
-func (s *Server) GetPolicy(ctx context.Context, arg *api.GetPolicyRequest) (*api.GetPolicyResponse, error) {
-	d, err := s.get(REQ_GET_POLICY, arg)
-	if err != nil {
-		return nil, err
+func NewPolicyFromApiStruct(a *api.Policy) (*table.Policy, error) {
+	if a.Name == "" {
+		return nil, fmt.Errorf("empty policy name")
 	}
+	stmts := make([]*table.Statement, 0, len(a.Statements))
+	for idx, x := range a.Statements {
+		if x.Name == "" {
+			x.Name = fmt.Sprintf("%s_stmt%d", a.Name, idx)
+		}
+		y, err := NewStatementFromApiStruct(x)
+		if err != nil {
+			return nil, err
+		}
+		stmts = append(stmts, y)
+	}
+	return &table.Policy{
+		Name:       a.Name,
+		Statements: stmts,
+	}, nil
+}
+
+func (s *Server) GetPolicy(ctx context.Context, arg *api.GetPolicyRequest) (*api.GetPolicyResponse, error) {
 	l := make([]*api.Policy, 0)
-	for _, p := range d.([]*config.PolicyDefinition) {
+	for _, p := range s.bgpServer.GetPolicy() {
 		l = append(l, toPolicyApi(p))
 	}
-	return &api.GetPolicyResponse{Policies: l}, err
+	return &api.GetPolicyResponse{Policies: l}, nil
 }
 
 func (s *Server) AddPolicy(ctx context.Context, arg *api.AddPolicyRequest) (*api.AddPolicyResponse, error) {
-	d, err := s.get(REQ_ADD_POLICY, arg)
+	x, err := NewPolicyFromApiStruct(arg.Policy)
 	if err != nil {
 		return nil, err
 	}
-	return d.(*api.AddPolicyResponse), err
+	return &api.AddPolicyResponse{}, s.bgpServer.AddPolicy(x, arg.ReferExistingStatements)
 }
 
 func (s *Server) DeletePolicy(ctx context.Context, arg *api.DeletePolicyRequest) (*api.DeletePolicyResponse, error) {
-	d, err := s.get(REQ_DELETE_POLICY, arg)
+	x, err := NewPolicyFromApiStruct(arg.Policy)
 	if err != nil {
 		return nil, err
 	}
-	return d.(*api.DeletePolicyResponse), err
+	return &api.DeletePolicyResponse{}, s.bgpServer.DeletePolicy(x, arg.All, arg.PreserveStatements)
 }
 
 func (s *Server) ReplacePolicy(ctx context.Context, arg *api.ReplacePolicyRequest) (*api.ReplacePolicyResponse, error) {
-	d, err := s.get(REQ_REPLACE_POLICY, arg)
+	x, err := NewPolicyFromApiStruct(arg.Policy)
 	if err != nil {
 		return nil, err
 	}
-	return d.(*api.ReplacePolicyResponse), err
+	return &api.ReplacePolicyResponse{}, s.bgpServer.ReplacePolicy(x, arg.ReferExistingStatements, arg.PreserveStatements)
+}
+
+func toPolicyAssignmentName(a *api.PolicyAssignment) (string, table.PolicyDirection, error) {
+	switch a.Resource {
+	case api.Resource_GLOBAL:
+		switch a.Type {
+		case api.PolicyType_IMPORT:
+			return "", table.POLICY_DIRECTION_IMPORT, nil
+		case api.PolicyType_EXPORT:
+			return "", table.POLICY_DIRECTION_EXPORT, nil
+		default:
+			return "", table.POLICY_DIRECTION_NONE, fmt.Errorf("invalid policy type")
+		}
+	case api.Resource_LOCAL:
+		switch a.Type {
+		case api.PolicyType_IN:
+			return a.Name, table.POLICY_DIRECTION_IN, nil
+		case api.PolicyType_IMPORT:
+			return a.Name, table.POLICY_DIRECTION_IMPORT, nil
+		case api.PolicyType_EXPORT:
+			return a.Name, table.POLICY_DIRECTION_EXPORT, nil
+		default:
+			return "", table.POLICY_DIRECTION_NONE, fmt.Errorf("invalid policy type")
+		}
+	default:
+		return "", table.POLICY_DIRECTION_NONE, fmt.Errorf("invalid resource type")
+	}
+
 }
 
 func (s *Server) GetPolicyAssignment(ctx context.Context, arg *api.GetPolicyAssignmentRequest) (*api.GetPolicyAssignmentResponse, error) {
-	d, err := s.get(REQ_GET_POLICY_ASSIGNMENT, arg)
+	name, dir, err := toPolicyAssignmentName(arg.Assignment)
 	if err != nil {
 		return nil, err
 	}
-	a := d.(*PolicyAssignment)
+	d, a, err := s.bgpServer.GetPolicyAssignment(name, dir)
+	if err != nil {
+		return nil, err
+	}
 	return &api.GetPolicyAssignmentResponse{
 		Assignment: &api.PolicyAssignment{
 			Default: func() api.RouteAction {
-				switch a.Default {
+				switch d {
 				case table.ROUTE_TYPE_ACCEPT:
 					return api.RouteAction_ACCEPT
 				case table.ROUTE_TYPE_REJECT:
@@ -1122,7 +1515,7 @@ func (s *Server) GetPolicyAssignment(ctx context.Context, arg *api.GetPolicyAssi
 			}(),
 			Policies: func() []*api.Policy {
 				l := make([]*api.Policy, 0)
-				for _, p := range a.PolicyDefinitions {
+				for _, p := range a {
 					l = append(l, toPolicyApi(p))
 				}
 				return l
@@ -1131,28 +1524,47 @@ func (s *Server) GetPolicyAssignment(ctx context.Context, arg *api.GetPolicyAssi
 	}, err
 }
 
+func defaultRouteType(d api.RouteAction) table.RouteType {
+	switch d {
+	case api.RouteAction_ACCEPT:
+		return table.ROUTE_TYPE_ACCEPT
+	case api.RouteAction_REJECT:
+		return table.ROUTE_TYPE_REJECT
+	default:
+		return table.ROUTE_TYPE_NONE
+	}
+}
+
+func toPolicyDefinition(policies []*api.Policy) []*config.PolicyDefinition {
+	l := make([]*config.PolicyDefinition, 0, len(policies))
+	for _, p := range policies {
+		l = append(l, &config.PolicyDefinition{Name: p.Name})
+	}
+	return l
+}
+
 func (s *Server) AddPolicyAssignment(ctx context.Context, arg *api.AddPolicyAssignmentRequest) (*api.AddPolicyAssignmentResponse, error) {
-	d, err := s.get(REQ_ADD_POLICY_ASSIGNMENT, arg)
+	name, dir, err := toPolicyAssignmentName(arg.Assignment)
 	if err != nil {
 		return nil, err
 	}
-	return d.(*api.AddPolicyAssignmentResponse), err
+	return &api.AddPolicyAssignmentResponse{}, s.bgpServer.AddPolicyAssignment(name, dir, toPolicyDefinition(arg.Assignment.Policies), defaultRouteType(arg.Assignment.Default))
 }
 
 func (s *Server) DeletePolicyAssignment(ctx context.Context, arg *api.DeletePolicyAssignmentRequest) (*api.DeletePolicyAssignmentResponse, error) {
-	d, err := s.get(REQ_DELETE_POLICY_ASSIGNMENT, arg)
+	name, dir, err := toPolicyAssignmentName(arg.Assignment)
 	if err != nil {
 		return nil, err
 	}
-	return d.(*api.DeletePolicyAssignmentResponse), err
+	return &api.DeletePolicyAssignmentResponse{}, s.bgpServer.DeletePolicyAssignment(name, dir, toPolicyDefinition(arg.Assignment.Policies), arg.All)
 }
 
 func (s *Server) ReplacePolicyAssignment(ctx context.Context, arg *api.ReplacePolicyAssignmentRequest) (*api.ReplacePolicyAssignmentResponse, error) {
-	d, err := s.get(REQ_REPLACE_POLICY_ASSIGNMENT, arg)
+	name, dir, err := toPolicyAssignmentName(arg.Assignment)
 	if err != nil {
 		return nil, err
 	}
-	return d.(*api.ReplacePolicyAssignmentResponse), err
+	return &api.ReplacePolicyAssignmentResponse{}, s.bgpServer.ReplacePolicyAssignment(name, dir, toPolicyDefinition(arg.Assignment.Policies), defaultRouteType(arg.Assignment.Default))
 }
 
 func (s *Server) GetServer(ctx context.Context, arg *api.GetServerRequest) (*api.GetServerResponse, error) {
@@ -1220,10 +1632,11 @@ func (r *GrpcResponse) Err() error {
 	return r.ResponseErr
 }
 
-func NewGrpcServer(hosts string, bgpServerCh chan *GrpcRequest) *Server {
+func NewGrpcServer(b *BgpServer, hosts string, bgpServerCh chan *GrpcRequest) *Server {
 	grpc.EnableTracing = false
 	grpcServer := grpc.NewServer()
 	server := &Server{
+		bgpServer:   b,
 		grpcServer:  grpcServer,
 		bgpServerCh: bgpServerCh,
 		hosts:       hosts,
