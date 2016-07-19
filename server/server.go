@@ -96,6 +96,7 @@ type BgpServer struct {
 	fsmStateCh    chan *FsmMsg
 	acceptCh      chan *net.TCPConn
 
+	mgmtCh      chan func()
 	GrpcReqCh   chan *GrpcRequest
 	policy      *table.RoutingPolicy
 	listeners   []*TCPListener
@@ -114,6 +115,7 @@ func NewBgpServer() *BgpServer {
 		policy:      table.NewRoutingPolicy(),
 		roaManager:  roaManager,
 		watchers:    newWatcherManager(),
+		mgmtCh:      make(chan func(), 1),
 	}
 }
 
@@ -216,6 +218,8 @@ func (server *BgpServer) Serve() {
 	CONT:
 
 		select {
+		case f := <-server.mgmtCh:
+			f()
 		case rmsg := <-server.roaManager.ReceiveROA():
 			server.roaManager.HandleROAEvent(rmsg)
 		case conn := <-server.acceptCh:
