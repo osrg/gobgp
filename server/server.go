@@ -1321,19 +1321,6 @@ func (server *BgpServer) handleModConfig(grpcReq *GrpcRequest) error {
 		c = &b.Global
 	case *config.Global:
 		c = arg
-	case *api.StopServerRequest:
-		for k, _ := range server.neighborMap {
-			err := server.deleteNeighbor(&config.Neighbor{Config: config.NeighborConfig{
-				NeighborAddress: k}}, bgp.BGP_ERROR_CEASE, bgp.BGP_ERROR_SUB_PEER_DECONFIGURED)
-			if err != nil {
-				return err
-			}
-		}
-		for _, l := range server.listeners {
-			l.Close()
-		}
-		server.bgpConfig.Global = config.Global{}
-		return nil
 	}
 
 	if server.bgpConfig.Global.Config.As != 0 {
@@ -1365,6 +1352,23 @@ func (server *BgpServer) handleModConfig(grpcReq *GrpcRequest) error {
 	// update route selection options
 	table.SelectionOptions = c.RouteSelectionOptions.Config
 	table.UseMultiplePaths = c.UseMultiplePaths.Config
+	return nil
+}
+
+func (server *BgpServer) Stop() error {
+	server.mu.Lock()
+	defer server.mu.Unlock()
+
+	for k, _ := range server.neighborMap {
+		if err := server.deleteNeighbor(&config.Neighbor{Config: config.NeighborConfig{
+			NeighborAddress: k}}, bgp.BGP_ERROR_CEASE, bgp.BGP_ERROR_SUB_PEER_DECONFIGURED); err != nil {
+			return err
+		}
+	}
+	for _, l := range server.listeners {
+		l.Close()
+	}
+	server.bgpConfig.Global = config.Global{}
 	return nil
 }
 
@@ -1413,13 +1417,6 @@ func (server *BgpServer) handleGrpc(grpcReq *GrpcRequest) {
 		grpcReq.ResponseCh <- &GrpcResponse{
 			ResponseErr: err,
 			Data:        &api.StartServerResponse{},
-		}
-		close(grpcReq.ResponseCh)
-	case REQ_STOP_SERVER:
-		err := server.handleModConfig(grpcReq)
-		grpcReq.ResponseCh <- &GrpcResponse{
-			ResponseErr: err,
-			Data:        &api.StopServerResponse{},
 		}
 		close(grpcReq.ResponseCh)
 	case REQ_GLOBAL_RIB, REQ_LOCAL_RIB:
