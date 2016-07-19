@@ -298,9 +298,9 @@ See [installation document](https://github.com/grpc/grpc/blob/master/INSTALL).
 ```bash
 $ [sudo] apt-get install unzip autoconf libtool build-essential
 
-$ wget https://github.com/google/protobuf/archive/v3.0.0-beta-1.tar.gz
-$ tar zxvf v3.0.0-beta-1.tar.gz
-$ cd protobuf-3.0.0-beta-1/
+$ wget https://github.com/google/protobuf/archive/v3.0.0-beta-4.tar.gz
+$ tar zxvf v3.0.0-beta-4.tar.gz
+$ cd protobuf-3.0.0-beta-4/
 $ ./autogen.sh
 $ ./configure
 $ make
@@ -340,44 +340,45 @@ Here is an example to show neighbor information.
 ```javascript
 var grpc = require('grpc');
 var api = grpc.load('gobgp.proto').gobgpapi;
-var stub = new api.GobgpApi('localhost:50051', grpc.Credentials.createInsecure());
+var stub = new api.GobgpApi('localhost:50051', grpc.credentials.createInsecure());
 
-var call = stub.getNeighbors({});
-call.on('data', function(neighbor) {
-  console.log('BGP neighbor is', neighbor.conf.remote_ip,
-              ', remote AS', neighbor.conf.remote_as);
-  console.log("\tBGP version 4, remote route ID", neighbor.conf.id);
-  console.log("\tBGP state =", neighbor.info.bgp_state,
-              ', up for', neighbor.info.uptime);
-  console.log("\tBGP OutQ =", neighbor.info.out_q,
-              ', Flops =', neighbor.info.flops);
-  console.log("\tHold time is", neighbor.info.negotiated_holdtime,
-              ', keepalive interval is', neighbor.info.keepalive_interval, 'seconds');
-  console.log("\tConfigured hold time is", neighbor.conf.holdtime);
-});
-call.on('end', function() {
-  // do something when the server has finished sending
-});
-call.on('status', function(status) {
-  // do something with the status
+stub.getNeighbor({}, function(err, neighbor) {
+  neighbor.peers.forEach(function(peer) {
+    if(peer.info.bgp_state == 'BGP_FSM_ESTABLISHED') {
+      var date = new Date(Number(peer.timers.state.uptime)*1000);
+      var holdtime = peer.timers.state.negotiated_hold_time;
+      var keepalive = peer.timers.state.keepalive_interval;
+    }
+
+    console.log('BGP neighbor:', peer.conf.neighbor_address,
+                ', remote AS:', peer.conf.peer_as);
+    console.log("\tBGP version 4, remote router ID:", peer.conf.id);
+    console.log("\tBGP state:", peer.info.bgp_state,
+                ', uptime:', date);
+    console.log("\tBGP OutQ:", peer.info.out_q,
+                ', Flops:', peer.info.flops);
+    console.log("\tHold time:", holdtime,
+                ', keepalive interval:', keepalive, 'seconds');
+    console.log("\tConfigured hold time:", peer.timers.config.hold_time);
+  });
 });
 ```
 
 Let's run this:
 
 ```
-BGP neighbor is undefined , remote AS undefined
-        BGP version 4, remote route ID <nil>
-        BGP state = BGP_FSM_ACTIVE , up for undefined
-        BGP OutQ = 0 , Flops = 0
-        Hold time is undefined , keepalive interval is undefined seconds
-        Configured hold time is undefined
-BGP neighbor is undefined , remote AS undefined
-        BGP version 4, remote route ID <nil>
-        BGP state = BGP_FSM_ACTIVE , up for undefined
-        BGP OutQ = 0 , Flops = 0
-        Hold time is undefined , keepalive interval is undefined seconds
-        Configured hold time is undefined
+BGP neighbor: 10.0.255.1 , remote AS: 65001
+        BGP version 4, remote router ID: 10.0.255.1
+        BGP state: BGP_FSM_ESTABLISHED , uptime: Wed Jul 20 2016 05:37:22 GMT+0900 (JST)
+        BGP OutQ: 0 , Flops: 0
+        Hold time: 90 , keepalive interval: 30 seconds
+        Configured hold time: 90
+BGP neighbor: 10.0.255.2 , remote AS: 65002
+        BGP version 4, remote router ID: <nil>
+        BGP state: BGP_FSM_ACTIVE , uptime: undefined
+        BGP OutQ: 0 , Flops: 0
+        Hold time: undefined , keepalive interval: undefined seconds
+        Configured hold time: 90
 ```
 
 ## <a name="java"> Java
