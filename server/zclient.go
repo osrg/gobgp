@@ -187,15 +187,15 @@ func (w *zebraWatcher) loop() error {
 				}
 			}
 		case ev := <-w.ch:
-			msg := ev.(*watcherEventBestPathMsg)
+			msg := ev.(*WatcherEventBestPathMsg)
 			if table.UseMultiplePaths.Enabled {
-				for _, dst := range msg.multiPathList {
+				for _, dst := range msg.MultiPathList {
 					if m := newIPRouteMessage(dst); m != nil {
 						w.client.Send(m)
 					}
 				}
 			} else {
-				for _, path := range msg.pathList {
+				for _, path := range msg.PathList {
 					if m := newIPRouteMessage([]*table.Path{path}); m != nil {
 						w.client.Send(m)
 					}

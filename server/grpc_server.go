@@ -336,17 +336,74 @@ func (s *Server) GetRib(ctx context.Context, arg *api.GetRibRequest) (*api.GetRi
 }
 
 func (s *Server) MonitorRib(arg *api.Table, stream api.GobgpApi_MonitorRibServer) error {
-	switch arg.Type {
-	case api.Resource_ADJ_IN, api.Resource_GLOBAL:
-	default:
-		return fmt.Errorf("unsupported resource type: %v", arg.Type)
+	w, err := func() (*Watcher, error) {
+		switch arg.Type {
+		case api.Resource_GLOBAL:
+			return s.bgpServer.Watch(WithBest()), nil
+		case api.Resource_ADJ_IN:
+			if arg.PostPolicy {
+				return s.bgpServer.Watch(WithPostUpdate()), nil
+			}
+			return s.bgpServer.Watch(WithUpdate()), nil
+		default:
+			return nil, fmt.Errorf("unsupported resource type: %v", arg.Type)
+		}
+	}()
+	if err != nil {
+		return nil
 	}
 
-	req := NewGrpcRequest(REQ_MONITOR_RIB, arg.Name, bgp.RouteFamily(arg.Family), arg)
-	s.bgpServerCh <- req
-	return handleMultipleResponses(req, func(res *GrpcResponse) error {
-		return stream.Send(res.Data.(*api.Destination))
-	})
+	return func() error {
+		defer func() { w.Stop() }()
+
+		sendPath := func(pathList []*table.Path) error {
+			dsts := make(map[string]*api.Destination)
+			for _, path := range pathList {
+				if path == nil {
+					continue
+				}
+				if dst, y := dsts[path.GetNlri().String()]; y {
+					dst.Paths = append(dst.Paths, toPathApi(table.GLOBAL_RIB_NAME, path))
+				} else {
+					dsts[path.GetNlri().String()] = &api.Destination{
+						Prefix: path.GetNlri().String(),
+						Paths:  []*api.Path{toPathApi(table.GLOBAL_RIB_NAME, path)},
+					}
+				}
+			}
+			for _, dst := range dsts {
+				if err := stream.Send(dst); err != nil {
+					return err
+				}
+			}
+			return nil
+		}
+		for {
+			select {
+			case ev := <-w.Event():
+				switch msg := ev.(type) {
+				case *WatcherEventBestPathMsg:
+					if err := sendPath(func() []*table.Path {
+						if len(msg.MultiPathList) > 0 {
+							l := make([]*table.Path, 0)
+							for _, p := range msg.MultiPathList {
+								l = append(l, p...)
+							}
+							return l
+						} else {
+							return msg.PathList
+						}
+					}()); err != nil {
+						return err
+					}
+				case *watcherEventUpdateMsg:
+					if err := sendPath(msg.pathList); err != nil {
+						return err
+					}
+				}
+			}
+		}
+	}()
 }
 
 func (s *Server) MonitorPeerState(arg *api.Arguments, stream api.GobgpApi_MonitorPeerStateServer) error {

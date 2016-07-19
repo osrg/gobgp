@@ -124,11 +124,11 @@ func (w *grpcWatcher) loop() error {
 				sendMultiPaths(reqType, dsts)
 			}
 			switch msg := ev.(type) {
-			case *watcherEventBestPathMsg:
+			case *WatcherEventBestPathMsg:
 				if table.UseMultiplePaths.Enabled {
-					sendMultiPaths(WATCHER_EVENT_BESTPATH_CHANGE, msg.multiPathList)
+					sendMultiPaths(WATCHER_EVENT_BESTPATH_CHANGE, msg.MultiPathList)
 				} else {
-					sendPaths(WATCHER_EVENT_BESTPATH_CHANGE, msg.pathList)
+					sendPaths(WATCHER_EVENT_BESTPATH_CHANGE, msg.PathList)
 				}
 			case *watcherEventUpdateMsg:
 				if msg.postPolicy {
