@@ -817,19 +817,6 @@ func (server *BgpServer) handleFSMMessage(peer *Peer, e *FsmMsg) {
 	return
 }
 
-func (server *BgpServer) SetGlobalType(g config.Global) error {
-	ch := make(chan *GrpcResponse)
-	server.GrpcReqCh <- &GrpcRequest{
-		RequestType: REQ_START_SERVER,
-		Data:        &g,
-		ResponseCh:  ch,
-	}
-	if err := (<-ch).Err(); err != nil {
-		return err
-	}
-	return nil
-}
-
 func (server *BgpServer) SetCollector(c config.Collector) error {
 	if len(c.Config.Url) == 0 {
 		return nil
@@ -1279,49 +1266,9 @@ END:
 	return msgs
 }
 
-func (server *BgpServer) handleModConfig(grpcReq *GrpcRequest) error {
-	var c *config.Global
-	switch arg := grpcReq.Data.(type) {
-	case *api.StartServerRequest:
-		g := arg.Global
-		if net.ParseIP(g.RouterId) == nil {
-			return fmt.Errorf("invalid router-id format: %s", g.RouterId)
-		}
-		families := make([]config.AfiSafi, 0, len(g.Families))
-		for _, f := range g.Families {
-			name := config.AfiSafiType(bgp.RouteFamily(f).String())
-			families = append(families, config.AfiSafi{
-				Config: config.AfiSafiConfig{
-					AfiSafiName: name,
-					Enabled:     true,
-				},
-				State: config.AfiSafiState{
-					AfiSafiName: name,
-				},
-			})
-		}
-		b := &config.BgpConfigSet{
-			Global: config.Global{
-				Config: config.GlobalConfig{
-					As:               g.As,
-					RouterId:         g.RouterId,
-					Port:             g.ListenPort,
-					LocalAddressList: g.ListenAddresses,
-				},
-				MplsLabelRange: config.MplsLabelRange{
-					MinLabel: g.MplsLabelMin,
-					MaxLabel: g.MplsLabelMax,
-				},
-				AfiSafis: families,
-			},
-		}
-		if err := config.SetDefaultConfigValues(nil, b); err != nil {
-			return err
-		}
-		c = &b.Global
-	case *config.Global:
-		c = arg
-	}
+func (server *BgpServer) Start(c *config.Global) error {
+	server.mu.Lock()
+	defer server.mu.Unlock()
 
 	if server.bgpConfig.Global.Config.As != 0 {
 		return fmt.Errorf("gobgp is already started")
@@ -1410,13 +1357,6 @@ func (server *BgpServer) handleGrpc(grpcReq *GrpcRequest) {
 		g := server.bgpConfig.Global
 		grpcReq.ResponseCh <- &GrpcResponse{
 			Data: &g,
-		}
-		close(grpcReq.ResponseCh)
-	case REQ_START_SERVER:
-		err := server.handleModConfig(grpcReq)
-		grpcReq.ResponseCh <- &GrpcResponse{
-			ResponseErr: err,
-			Data:        &api.StartServerResponse{},
 		}
 		close(grpcReq.ResponseCh)
 	case REQ_GLOBAL_RIB, REQ_LOCAL_RIB:
