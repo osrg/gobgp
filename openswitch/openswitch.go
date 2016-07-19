@@ -24,6 +24,7 @@ import (
 	"github.com/osrg/gobgp/server"
 	"github.com/satori/go.uuid"
 	ovsdb "github.com/socketplane/libovsdb"
+	"golang.org/x/net/context"
 	"net"
 	"reflect"
 	"strconv"
@@ -351,14 +352,14 @@ func (m *OpsManager) handleNeighborUpdate(update ovsdb.TableUpdate) []*server.Gr
 					}).Debug("remote-as is not configured yet")
 					continue
 				}
-				reqs = append(reqs, server.NewGrpcRequest(server.REQ_GRPC_ADD_NEIGHBOR, "", bgp.RouteFamily(0), &api.AddNeighborRequest{
+				m.grpcServer.AddNeighbor(context.Background(), &api.AddNeighborRequest{
 					Peer: &api.Peer{
 						Conf: &api.PeerConf{
 							NeighborAddress: addrs[idx].String(),
 							PeerAs:          uint32(asn),
 						},
 					},
-				}))
+				})
 			}
 		}
 	}
@@ -717,6 +718,7 @@ type OpsChs struct {
 }
 
 type OpsManager struct {
+	grpcServer  *server.Server
 	ops         *ovsdb.OvsdbClient
 	grpcCh      chan *server.GrpcRequest
 	opsCh       chan *OpsOperation
@@ -726,7 +728,7 @@ type OpsManager struct {
 	cache       map[string]map[string]ovsdb.Row
 }
 
-func NewOpsManager(grpcCh chan *server.GrpcRequest) (*OpsManager, error) {
+func NewOpsManager(grpcServer *server.Server, grpcCh chan *server.GrpcRequest) (*OpsManager, error) {
 	ops, err := ovsdb.Connect("", 0)
 	if err != nil {
 		return nil, err
@@ -737,6 +739,7 @@ func NewOpsManager(grpcCh chan *server.GrpcRequest) (*OpsManager, error) {
 	ops.Register(n)
 
 	return &OpsManager{
+		grpcServer:  grpcServer,
 		ops:         ops,
 		grpcCh:      grpcCh,
 		opsCh:       make(chan *OpsOperation, 1024),
