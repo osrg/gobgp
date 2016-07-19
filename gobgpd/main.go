@@ -209,7 +209,7 @@ func main() {
 				if err := bgpServer.Start(&newConfig.Global); err != nil {
 					log.Fatalf("failed to set global config: %s", err)
 				}
-				if err := bgpServer.SetZebraConfig(newConfig.Zebra); err != nil {
+				if err := bgpServer.StartZClient(&newConfig.Zebra.Config); err != nil {
 					log.Fatalf("failed to set zebra config: %s", err)
 				}
 				if err := bgpServer.SetCollector(newConfig.Collector); err != nil {

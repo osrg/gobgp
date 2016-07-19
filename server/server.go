@@ -833,20 +833,19 @@ func (server *BgpServer) SetCollector(c config.Collector) error {
 	return nil
 }
 
-func (server *BgpServer) SetZebraConfig(z config.Zebra) error {
-	if !z.Config.Enabled {
+func (server *BgpServer) StartZClient(c *config.ZebraConfig) error {
+	if !c.Enabled {
 		return nil
 	}
-	ch := make(chan *GrpcResponse)
-	server.GrpcReqCh <- &GrpcRequest{
-		RequestType: REQ_INITIALIZE_ZEBRA,
-		Data:        &z.Config,
-		ResponseCh:  ch,
+	protos := make([]string, 0, len(c.RedistributeRouteTypeList))
+	for _, p := range c.RedistributeRouteTypeList {
+		protos = append(protos, string(p))
 	}
-	if err := (<-ch).Err(); err != nil {
-		return err
+	z, err := newZebraWatcher(server, c.Url, protos)
+	if err == nil {
+		server.watchers.addWatcher(WATCHER_ZEBRA, z)
 	}
-	return nil
+	return err
 }
 
 func (server *BgpServer) SetRpkiConfig(c []config.RpkiServer) error {
@@ -1751,20 +1750,6 @@ func (server *BgpServer) handleGrpc(grpcReq *GrpcRequest) {
 		if len(pathList) > 0 {
 			server.propagateUpdate(nil, pathList)
 		}
-	case REQ_INITIALIZE_ZEBRA:
-		c := grpcReq.Data.(*config.ZebraConfig)
-		protos := make([]string, 0, len(c.RedistributeRouteTypeList))
-		for _, p := range c.RedistributeRouteTypeList {
-			protos = append(protos, string(p))
-		}
-		z, err := newZebraWatcher(server, c.Url, protos)
-		if err == nil {
-			server.watchers.addWatcher(WATCHER_ZEBRA, z)
-		}
-		grpcReq.ResponseCh <- &GrpcResponse{
-			ResponseErr: err,
-		}
-		close(grpcReq.ResponseCh)
 	case REQ_INITIALIZE_COLLECTOR:
 		c := grpcReq.Data.(*config.CollectorConfig)
 		collector, err := NewCollector(server.GrpcReqCh, c.Url, c.DbName, c.TableDumpInterval)
