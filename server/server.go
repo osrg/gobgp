@@ -1053,87 +1053,27 @@ func getMacMobilityExtendedCommunity(etag uint32, mac net.HardwareAddr, evpnPath
 	return nil
 }
 
-func (server *BgpServer) Api2PathList(resource api.Resource, name string, ApiPathList []*api.Path) ([]*table.Path, error) {
-	var nlri bgp.AddrPrefixInterface
-	var nexthop string
-	var pi *table.PeerInfo
+func (server *BgpServer) fixupApiPath(vrfId string, pathList []*table.Path) error {
+	pi := &table.PeerInfo{
+		AS:      server.bgpConfig.Global.Config.As,
+		LocalID: net.ParseIP(server.bgpConfig.Global.Config.RouterId).To4(),
+	}
 
-	paths := make([]*table.Path, 0, len(ApiPathList))
+	for _, path := range pathList {
+		if path.GetSource() == nil {
+			path.SetSource(pi)
+		}
 
-	for _, path := range ApiPathList {
-		seen := make(map[bgp.BGPAttrType]bool)
-
-		pattr := make([]bgp.PathAttributeInterface, 0)
 		extcomms := make([]bgp.ExtendedCommunityInterface, 0)
-
-		if path.SourceAsn != 0 {
-			pi = &table.PeerInfo{
-				AS:      path.SourceAsn,
-				LocalID: net.ParseIP(path.SourceId),
-			}
-		} else {
-			pi = &table.PeerInfo{
-				AS:      server.bgpConfig.Global.Config.As,
-				LocalID: net.ParseIP(server.bgpConfig.Global.Config.RouterId).To4(),
-			}
-		}
-
-		if len(path.Nlri) > 0 {
-			nlri = &bgp.IPAddrPrefix{}
-			err := nlri.DecodeFromBytes(path.Nlri)
-			if err != nil {
-				return nil, err
-			}
-		}
-
-		for _, attr := range path.Pattrs {
-			p, err := bgp.GetPathAttribute(attr)
-			if err != nil {
-				return nil, err
-			}
-
-			err = p.DecodeFromBytes(attr)
-			if err != nil {
-				return nil, err
-			}
-
-			if _, ok := seen[p.GetType()]; !ok {
-				seen[p.GetType()] = true
-			} else {
-				return nil, fmt.Errorf("the path attribute apears twice. Type : " + strconv.Itoa(int(p.GetType())))
-			}
-			switch p.GetType() {
-			case bgp.BGP_ATTR_TYPE_NEXT_HOP:
-				nexthop = p.(*bgp.PathAttributeNextHop).Value.String()
-			case bgp.BGP_ATTR_TYPE_EXTENDED_COMMUNITIES:
-				value := p.(*bgp.PathAttributeExtendedCommunities).Value
-				if len(value) > 0 {
-					extcomms = append(extcomms, value...)
-				}
-			case bgp.BGP_ATTR_TYPE_MP_REACH_NLRI:
-				mpreach := p.(*bgp.PathAttributeMpReachNLRI)
-				if len(mpreach.Value) != 1 {
-					return nil, fmt.Errorf("include only one route in mp_reach_nlri")
-				}
-				nlri = mpreach.Value[0]
-				nexthop = mpreach.Nexthop.String()
-			default:
-				pattr = append(pattr, p)
-			}
-		}
-
-		if nlri == nil || nexthop == "" {
-			return nil, fmt.Errorf("not found nlri or nexthop")
-		}
-
+		nlri := path.GetNlri()
 		rf := bgp.AfiSafiToRouteFamily(nlri.AFI(), nlri.SAFI())
 
-		if resource == api.Resource_VRF {
-			label, err := server.globalRib.GetNextLabel(name, nexthop, path.IsWithdraw)
+		if vrfId != "" {
+			label, err := server.globalRib.GetNextLabel(vrfId, path.GetNexthop().String(), path.IsWithdraw)
 			if err != nil {
-				return nil, err
+				return err
 			}
-			vrf := server.globalRib.Vrfs[name]
+			vrf := server.globalRib.Vrfs[vrfId]
 			switch rf {
 			case bgp.RF_IPv4_UC:
 				n := nlri.(*bgp.IPAddrPrefix)
@@ -1150,17 +1090,10 @@ func (server *BgpServer) Api2PathList(resource api.Resource, name string, ApiPat
 					n.RouteTypeData.(*bgp.EVPNMulticastEthernetTagRoute).RD = vrf.Rd
 				}
 			default:
-				return nil, fmt.Errorf("unsupported route family for vrf: %s", rf)
+				return fmt.Errorf("unsupported route family for vrf: %s", rf)
 			}
 			extcomms = append(extcomms, vrf.ExportRt...)
 		}
-
-		if resource != api.Resource_VRF && rf == bgp.RF_IPv4_UC {
-			pattr = append(pattr, bgp.NewPathAttributeNextHop(nexthop))
-		} else {
-			pattr = append(pattr, bgp.NewPathAttributeMpReachNLRI(nexthop, []bgp.AddrPrefixInterface{nlri}))
-		}
-
 		if rf == bgp.RF_EVPN {
 			evpnNlri := nlri.(*bgp.EVPNNLRI)
 			if evpnNlri.RouteType == bgp.EVPN_ROUTE_TYPE_MAC_IP_ADVERTISEMENT {
@@ -1175,104 +1108,62 @@ func (server *BgpServer) Api2PathList(resource api.Resource, name string, ApiPat
 		}
 
 		if len(extcomms) > 0 {
-			pattr = append(pattr, bgp.NewPathAttributeExtendedCommunities(extcomms))
+			path.SetExtCommunities(extcomms, false)
 		}
-		newPath := table.NewPath(pi, nlri, path.IsWithdraw, pattr, time.Now(), path.NoImplicitWithdraw)
-		newPath.SetIsFromExternal(path.IsFromExternal)
-		paths = append(paths, newPath)
-
 	}
-	return paths, nil
+	return nil
 }
 
-func (server *BgpServer) handleAddPathRequest(grpcReq *GrpcRequest) []*table.Path {
-	var err error
+func (server *BgpServer) AddPath(vrfId string, pathList []*table.Path) ([]byte, error) {
+	server.mu.Lock()
+	defer server.mu.Unlock()
+
+	if err := server.fixupApiPath(vrfId, pathList); err != nil {
+		return nil, err
+	}
+
 	var uuidBytes []byte
-	paths := make([]*table.Path, 0, 1)
-	arg, ok := grpcReq.Data.(*api.AddPathRequest)
-	if !ok {
-		err = fmt.Errorf("type assertion failed")
-	} else {
-		paths, err = server.Api2PathList(arg.Resource, arg.VrfId, []*api.Path{arg.Path})
-		if err == nil {
-			u := uuid.NewV4()
-			uuidBytes = u.Bytes()
-			paths[0].SetUUID(uuidBytes)
-		}
+	if len(pathList) == 1 {
+		uuidBytes = uuid.NewV4().Bytes()
+		pathList[0].SetUUID(uuidBytes)
 	}
-	grpcReq.ResponseCh <- &GrpcResponse{
-		ResponseErr: err,
-		Data: &api.AddPathResponse{
-			Uuid: uuidBytes,
-		},
-	}
-	close(grpcReq.ResponseCh)
-	return paths
+	server.propagateUpdate(nil, pathList)
+	return uuidBytes, nil
 }
 
-func (server *BgpServer) handleDeletePathRequest(grpcReq *GrpcRequest) []*table.Path {
-	var err error
-	paths := make([]*table.Path, 0, 1)
-	arg, ok := grpcReq.Data.(*api.DeletePathRequest)
-	if !ok {
-		err = fmt.Errorf("type assertion failed")
-	} else {
-		if len(arg.Uuid) > 0 {
-			path := func() *table.Path {
-				for _, path := range server.globalRib.GetPathList(table.GLOBAL_RIB_NAME, server.globalRib.GetRFlist()) {
-					if len(path.UUID()) > 0 && bytes.Equal(path.UUID(), arg.Uuid) {
-						return path
-					}
+func (server *BgpServer) DeletePath(uuid []byte, f bgp.RouteFamily, vrfId string, pathList []*table.Path) (err error) {
+	deletePathList := make([]*table.Path, 0)
+	if len(uuid) > 0 {
+		path := func() *table.Path {
+			for _, path := range server.globalRib.GetPathList(table.GLOBAL_RIB_NAME, server.globalRib.GetRFlist()) {
+				if len(path.UUID()) > 0 && bytes.Equal(path.UUID(), uuid) {
+					return path
 				}
-				return nil
-			}()
-			if path != nil {
-				paths = append(paths, path.Clone(true))
-			} else {
-				err = fmt.Errorf("Can't find a specified path")
 			}
-		} else if arg.Path != nil {
-			arg.Path.IsWithdraw = true
-			paths, err = server.Api2PathList(arg.Resource, arg.VrfId, []*api.Path{arg.Path})
+			return nil
+		}()
+		if path != nil {
+			deletePathList = append(deletePathList, path.Clone(true))
 		} else {
-			// delete all paths
-			families := server.globalRib.GetRFlist()
-			if arg.Family != 0 {
-				families = []bgp.RouteFamily{bgp.RouteFamily(arg.Family)}
-			}
-			for _, path := range server.globalRib.GetPathList(table.GLOBAL_RIB_NAME, families) {
-				paths = append(paths, path.Clone(true))
-			}
+			err = fmt.Errorf("Can't find a specified path")
 		}
-	}
-	grpcReq.ResponseCh <- &GrpcResponse{
-		ResponseErr: err,
-		Data:        &api.DeletePathResponse{},
-	}
-	close(grpcReq.ResponseCh)
-	return paths
-}
-
-func (server *BgpServer) handleInjectMrtRequest(grpcReq *GrpcRequest) []*table.Path {
-	var err error
-	var paths []*table.Path
-	arg, ok := grpcReq.Data.(*api.InjectMrtRequest)
-	if !ok {
-		err = fmt.Errorf("type assertion failed")
-	}
-	if err == nil {
-		paths, err = server.Api2PathList(arg.Resource, arg.VrfId, arg.Paths)
-		if err == nil {
-			return paths
+	} else if len(pathList) == 0 {
+		// delete all paths
+		families := server.globalRib.GetRFlist()
+		if f != 0 {
+			families = []bgp.RouteFamily{f}
 		}
+		for _, path := range server.globalRib.GetPathList(table.GLOBAL_RIB_NAME, families) {
+			deletePathList = append(deletePathList, path.Clone(true))
+		}
+	} else {
+		if err := server.fixupApiPath(vrfId, pathList); err != nil {
+			return err
+		}
+		deletePathList = pathList
 	}
-	result := &GrpcResponse{
-		ResponseErr: err,
-	}
-	grpcReq.ResponseCh <- result
-	close(grpcReq.ResponseCh)
-	return []*table.Path{}
-
+	server.propagateUpdate(nil, deletePathList)
+	return err
 }
 
 func (server *BgpServer) handleAddVrfRequest(grpcReq *GrpcRequest) ([]*table.Path, error) {
@@ -1614,16 +1505,6 @@ func (server *BgpServer) handleGrpc(grpcReq *GrpcRequest) {
 			Data: bmpmsgs,
 		}
 		close(grpcReq.ResponseCh)
-	case REQ_ADD_PATH:
-		pathList := server.handleAddPathRequest(grpcReq)
-		if len(pathList) > 0 {
-			server.propagateUpdate(nil, pathList)
-		}
-	case REQ_DELETE_PATH:
-		pathList := server.handleDeletePathRequest(grpcReq)
-		if len(pathList) > 0 {
-			server.propagateUpdate(nil, pathList)
-		}
 	case REQ_NEIGHBOR:
 		l := make([]*config.Neighbor, 0)
 		for _, peer := range server.neighborMap {
@@ -1897,13 +1778,6 @@ func (server *BgpServer) handleGrpc(grpcReq *GrpcRequest) {
 		server.handleEnableMrtRequest(grpcReq)
 	case REQ_DISABLE_MRT:
 		server.handleDisableMrtRequest(grpcReq)
-	case REQ_INJECT_MRT:
-		pathList := server.handleInjectMrtRequest(grpcReq)
-		if len(pathList) > 0 {
-			server.propagateUpdate(nil, pathList)
-			grpcReq.ResponseCh <- &GrpcResponse{}
-			close(grpcReq.ResponseCh)
-		}
 	case REQ_ADD_BMP:
 		server.handleAddBmp(grpcReq)
 	case REQ_DELETE_BMP:
@@ -1930,7 +1804,7 @@ func (server *BgpServer) handleGrpc(grpcReq *GrpcRequest) {
 		for _, p := range c.RedistributeRouteTypeList {
 			protos = append(protos, string(p))
 		}
-		z, err := newZebraWatcher(server.GrpcReqCh, c.Url, protos)
+		z, err := newZebraWatcher(server, c.Url, protos)
 		if err == nil {
 			server.watchers.addWatcher(WATCHER_ZEBRA, z)
 		}
