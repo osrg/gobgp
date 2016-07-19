@@ -178,7 +178,7 @@ func main() {
 	go bgpServer.Serve()
 
 	// start grpc Server
-	grpcServer := server.NewGrpcServer(opts.GrpcHosts, bgpServer.GrpcReqCh)
+	grpcServer := server.NewGrpcServer(bgpServer, opts.GrpcHosts, bgpServer.GrpcReqCh)
 	go func() {
 		if err := grpcServer.Serve(); err != nil {
 			log.Fatalf("failed to listen grpc port: %s", err)
@@ -186,7 +186,7 @@ func main() {
 	}()
 
 	if opts.Ops {
-		m, err := ops.NewOpsManager(bgpServer.GrpcReqCh)
+		m, err := ops.NewOpsManager(grpcServer, bgpServer.GrpcReqCh)
 		if err != nil {
 			log.Errorf("Failed to start ops config manager: %s", err)
 			os.Exit(1)
@@ -206,10 +206,10 @@ func main() {
 
 			if c == nil {
 				c = newConfig
-				if err := bgpServer.SetGlobalType(newConfig.Global); err != nil {
+				if err := bgpServer.Start(&newConfig.Global); err != nil {
 					log.Fatalf("failed to set global config: %s", err)
 				}
-				if err := bgpServer.SetZebraConfig(newConfig.Zebra); err != nil {
+				if err := bgpServer.StartZClient(&newConfig.Zebra.Config); err != nil {
 					log.Fatalf("failed to set zebra config: %s", err)
 				}
 				if err := bgpServer.SetCollector(newConfig.Collector); err != nil {
@@ -225,7 +225,7 @@ func main() {
 					log.Fatalf("failed to set mrt config: %s", err)
 				}
 				p := config.ConfigSetToRoutingPolicy(newConfig)
-				if err := bgpServer.SetRoutingPolicy(*p); err != nil {
+				if err := bgpServer.UpdatePolicy(*p); err != nil {
 					log.Fatalf("failed to set routing policy: %s", err)
 				}
 
@@ -248,17 +248,17 @@ func main() {
 				c = newConfig
 			}
 
-			for _, p := range added {
+			for i, p := range added {
 				log.Infof("Peer %v is added", p.Config.NeighborAddress)
-				bgpServer.PeerAdd(p)
+				bgpServer.AddNeighbor(&added[i])
 			}
-			for _, p := range deleted {
+			for i, p := range deleted {
 				log.Infof("Peer %v is deleted", p.Config.NeighborAddress)
-				bgpServer.PeerDelete(p)
+				bgpServer.DeleteNeighbor(&deleted[i])
 			}
-			for _, p := range updated {
+			for i, p := range updated {
 				log.Infof("Peer %v is updated", p.Config.NeighborAddress)
-				u, _ := bgpServer.PeerUpdate(p)
+				u, _ := bgpServer.UpdateNeighbor(&updated[i])
 				updatePolicy = updatePolicy || u
 			}
 

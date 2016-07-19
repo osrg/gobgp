@@ -83,7 +83,7 @@ func (w *grpcWatcher) loop() error {
 				for _, dst := range dsts {
 					paths := make([]*api.Path, 0, len(dst))
 					for _, path := range dst {
-						paths = append(paths, path.ToApiStruct(table.GLOBAL_RIB_NAME))
+						paths = append(paths, toPathApi(table.GLOBAL_RIB_NAME, path))
 					}
 					if len(paths) == 0 {
 						continue
@@ -124,11 +124,11 @@ func (w *grpcWatcher) loop() error {
 				sendMultiPaths(reqType, dsts)
 			}
 			switch msg := ev.(type) {
-			case *watcherEventBestPathMsg:
+			case *WatcherEventBestPathMsg:
 				if table.UseMultiplePaths.Enabled {
-					sendMultiPaths(WATCHER_EVENT_BESTPATH_CHANGE, msg.multiPathList)
+					sendMultiPaths(WATCHER_EVENT_BESTPATH_CHANGE, msg.MultiPathList)
 				} else {
-					sendPaths(WATCHER_EVENT_BESTPATH_CHANGE, msg.pathList)
+					sendPaths(WATCHER_EVENT_BESTPATH_CHANGE, msg.PathList)
 				}
 			case *watcherEventUpdateMsg:
 				if msg.postPolicy {

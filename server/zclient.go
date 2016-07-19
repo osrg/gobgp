@@ -18,7 +18,6 @@ package server
 import (
 	"fmt"
 	log "github.com/Sirupsen/logrus"
-	api "github.com/osrg/gobgp/api"
 	"github.com/osrg/gobgp/packet/bgp"
 	"github.com/osrg/gobgp/table"
 	"github.com/osrg/gobgp/zebra"
@@ -26,6 +25,7 @@ import (
 	"net"
 	"strconv"
 	"strings"
+	"time"
 )
 
 func newIPRouteMessage(dst []*table.Path) *zebra.Message {
@@ -94,7 +94,7 @@ func newIPRouteMessage(dst []*table.Path) *zebra.Message {
 	}
 }
 
-func createRequestFromIPRouteMessage(m *zebra.Message) *api.AddPathRequest {
+func createPathFromIPRouteMessage(m *zebra.Message) *table.Path {
 
 	header := m.Header
 	body := m.Body.(*zebra.IPRouteBody)
@@ -144,33 +144,16 @@ func createRequestFromIPRouteMessage(m *zebra.Message) *api.AddPathRequest {
 	med := bgp.NewPathAttributeMultiExitDisc(body.Metric)
 	pattr = append(pattr, med)
 
-	binPattrs := make([][]byte, 0, len(pattr))
-	for _, a := range pattr {
-		bin, _ := a.Serialize()
-		binPattrs = append(binPattrs, bin)
-	}
-
-	binNlri, _ := nlri.Serialize()
-
-	path := &api.Path{
-		Nlri:           binNlri,
-		Pattrs:         binPattrs,
-		IsWithdraw:     isWithdraw,
-		Family:         uint32(family),
-		IsFromExternal: true,
-	}
-	return &api.AddPathRequest{
-		Resource: api.Resource_GLOBAL,
-		Path:     path,
-	}
-
+	path := table.NewPath(nil, nlri, isWithdraw, pattr, time.Now(), false)
+	path.SetIsFromExternal(true)
+	return path
 }
 
 type zebraWatcher struct {
 	t      tomb.Tomb
 	ch     chan watcherEvent
 	client *zebra.Client
-	apiCh  chan *GrpcRequest
+	server *BgpServer
 }
 
 func (w *zebraWatcher) notify(t watcherEventType) chan watcherEvent {
@@ -196,29 +179,23 @@ func (w *zebraWatcher) loop() error {
 		case msg := <-w.client.Receive():
 			switch msg.Body.(type) {
 			case *zebra.IPRouteBody:
-				p := createRequestFromIPRouteMessage(msg)
+				p := createPathFromIPRouteMessage(msg)
 				if p != nil {
-					ch := make(chan *GrpcResponse)
-					w.apiCh <- &GrpcRequest{
-						RequestType: REQ_ADD_PATH,
-						Data:        p,
-						ResponseCh:  ch,
-					}
-					if err := (<-ch).Err(); err != nil {
+					if _, err := w.server.AddPath("", []*table.Path{p}); err != nil {
 						log.Errorf("failed to add path from zebra: %s", p)
 					}
 				}
 			}
 		case ev := <-w.ch:
-			msg := ev.(*watcherEventBestPathMsg)
+			msg := ev.(*WatcherEventBestPathMsg)
 			if table.UseMultiplePaths.Enabled {
-				for _, dst := range msg.multiPathList {
+				for _, dst := range msg.MultiPathList {
 					if m := newIPRouteMessage(dst); m != nil {
 						w.client.Send(m)
 					}
 				}
 			} else {
-				for _, path := range msg.pathList {
+				for _, path := range msg.PathList {
 					if m := newIPRouteMessage([]*table.Path{path}); m != nil {
 						w.client.Send(m)
 					}
@@ -229,7 +206,7 @@ func (w *zebraWatcher) loop() error {
 	return nil
 }
 
-func newZebraWatcher(apiCh chan *GrpcRequest, url string, protos []string) (*zebraWatcher, error) {
+func newZebraWatcher(s *BgpServer, url string, protos []string) (*zebraWatcher, error) {
 	l := strings.SplitN(url, ":", 2)
 	if len(l) != 2 {
 		return nil, fmt.Errorf("unsupported url: %s", url)
@@ -251,7 +228,7 @@ func newZebraWatcher(apiCh chan *GrpcRequest, url string, protos []string) (*zeb
 	w := &zebraWatcher{
 		ch:     make(chan watcherEvent),
 		client: cli,
-		apiCh:  apiCh,
+		server: s,
 	}
 	w.t.Go(w.loop)
 	return w, nil
