@@ -485,7 +485,7 @@ policy-definitions consists of condition and action. Condition part is used to e
       [policy-definitions.statements.conditions.bgp-conditions.as-path-length]
         operator = "eq"
         value = 2
-      [policy-definitions.statements.actions.route-dispodition]
+      [policy-definitions.statements.actions.route-disposition]
         accept-route = true
       [policy-definitions.statements.actions.bgp-actions]
         set-med = "-200"
@@ -610,7 +610,7 @@ policy-definitions consists of condition and action. Condition part is used to e
        prefix-set = "ps1"
      [policy-definitions.statements.conditions.match-neighbor-set]
        neighbor-set = "ns1"
-     [policy-definitions.statements.actions.route-dispodition]
+     [policy-definitions.statements.actions.route-disposition]
        reject-route = true
  ```
 
@@ -628,7 +628,7 @@ policy-definitions consists of condition and action. Condition part is used to e
        prefix-set = "ps1"
      [policy-definitions.statements.conditions.match-neighbor-set]
        neighbor-set = "ns1"
-     [policy-definitions.statements.actions.route-dispodition]
+     [policy-definitions.statements.actions.route-disposition]
        reject-route = true
    # second statement - (2)
    [[policy-definitions.statements]]
@@ -637,7 +637,7 @@ policy-definitions consists of condition and action. Condition part is used to e
        prefix-set = "ps2"
      [policy-definitions.statements.conditions.match-neighbor-set]
        neighbor-set = "ns2"
-     [policy-definitions.statements.actions.route-dispodition]
+     [policy-definitions.statements.actions.route-disposition]
        reject-route = true
  ```
   - if a route matches the condition inside the first statement(1), GoBGP applies its action and quits the policy evaluation.
@@ -657,7 +657,7 @@ policy-definitions consists of condition and action. Condition part is used to e
         prefix-set = "ps1"
       [policy-definitions.statements.conditions.match-neighbor-set]
         neighbor-set = "ns1"
-      [policy-definitions.statements.actions.route-dispodition]
+      [policy-definitions.statements.actions.route-disposition]
         reject-route = true
  # second policy
  [[policy-definitions]]
@@ -668,7 +668,7 @@ policy-definitions consists of condition and action. Condition part is used to e
         prefix-set = "ps2"
       [policy-definitions.statements.conditions.match-neighbor-set]
         neighbor-set = "ns2"
-      [policy-definitions.statements.actions.route-dispodition]
+      [policy-definitions.statements.actions.route-disposition]
         reject-route = true
  ```
 
@@ -702,7 +702,7 @@ policy-definitions consists of condition and action. Condition part is used to e
       [policy-definitions.statements.conditions.bgp-conditions.as-path-length]
         operator = "eq"
         value = 2
-      [policy-definitions.statements.actions.route-dispodition]
+      [policy-definitions.statements.actions.route-disposition]
         accept-route = true
       [policy-definitions.statements.actions.bgp-actions]
         set-med = "-200"
@@ -839,7 +839,7 @@ define an import policy for neighbor 10.0.255.2 that drops
     [policy-definitions.statements.conditions.match-neighbor-set]
       neighbor-set = "ns1"
       match-set-options = "any"
-    [policy-definitions.statements.actions.route-dispodition]
+    [policy-definitions.statements.actions.route-disposition]
       reject-route = true
 ```
 
