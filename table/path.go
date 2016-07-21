@@ -91,7 +91,6 @@ func NewPath(source *PeerInfo, nlri bgp.AddrPrefixInterface, isWithdraw bool, pa
 		log.WithFields(log.Fields{
 			"Topic": "Table",
 			"Key":   nlri.String(),
-			"Peer":  source.Address.String(),
 		}).Error("Need to provide patattrs for the path that is not withdraw.")
 		return nil
 	}
@@ -331,7 +330,7 @@ func (path *Path) GetRouteFamily() bgp.RouteFamily {
 	return bgp.AfiSafiToRouteFamily(path.OriginInfo().nlri.AFI(), path.OriginInfo().nlri.SAFI())
 }
 
-func (path *Path) setSource(source *PeerInfo) {
+func (path *Path) SetSource(source *PeerInfo) {
 	path.OriginInfo().source = source
 }
 func (path *Path) GetSource() *PeerInfo {

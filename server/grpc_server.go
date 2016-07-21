@@ -31,6 +31,7 @@ import (
 	"strconv"
 	"strings"
 	"sync"
+	"time"
 )
 
 const (
@@ -57,7 +58,6 @@ const (
 	REQ_MONITOR_NEIGHBOR_PEER_STATE
 	REQ_ENABLE_MRT
 	REQ_DISABLE_MRT
-	REQ_INJECT_MRT
 	REQ_ADD_BMP
 	REQ_DELETE_BMP
 	REQ_VALIDATE_RIB
@@ -434,20 +434,112 @@ func (s *Server) DisableNeighbor(ctx context.Context, arg *api.DisableNeighborRe
 	return d.(*api.DisableNeighborResponse), err
 }
 
-func (s *Server) AddPath(ctx context.Context, arg *api.AddPathRequest) (*api.AddPathResponse, error) {
-	d, err := s.get(REQ_ADD_PATH, arg)
-	if err != nil {
-		return nil, err
+func (s *Server) api2PathList(resource api.Resource, ApiPathList []*api.Path) ([]*table.Path, error) {
+	var nlri bgp.AddrPrefixInterface
+	var nexthop string
+	var pi *table.PeerInfo
+
+	pathList := make([]*table.Path, 0, len(ApiPathList))
+	for _, path := range ApiPathList {
+		seen := make(map[bgp.BGPAttrType]bool)
+
+		pattr := make([]bgp.PathAttributeInterface, 0)
+		extcomms := make([]bgp.ExtendedCommunityInterface, 0)
+
+		if path.SourceAsn != 0 {
+			pi = &table.PeerInfo{
+				AS:      path.SourceAsn,
+				LocalID: net.ParseIP(path.SourceId),
+			}
+		}
+
+		if len(path.Nlri) > 0 {
+			nlri = &bgp.IPAddrPrefix{}
+			err := nlri.DecodeFromBytes(path.Nlri)
+			if err != nil {
+				return nil, err
+			}
+		}
+
+		for _, attr := range path.Pattrs {
+			p, err := bgp.GetPathAttribute(attr)
+			if err != nil {
+				return nil, err
+			}
+
+			err = p.DecodeFromBytes(attr)
+			if err != nil {
+				return nil, err
+			}
+
+			if _, ok := seen[p.GetType()]; !ok {
+				seen[p.GetType()] = true
+			} else {
+				return nil, fmt.Errorf("the path attribute apears twice. Type : " + strconv.Itoa(int(p.GetType())))
+			}
+			switch p.GetType() {
+			case bgp.BGP_ATTR_TYPE_NEXT_HOP:
+				nexthop = p.(*bgp.PathAttributeNextHop).Value.String()
+			case bgp.BGP_ATTR_TYPE_EXTENDED_COMMUNITIES:
+				value := p.(*bgp.PathAttributeExtendedCommunities).Value
+				if len(value) > 0 {
+					extcomms = append(extcomms, value...)
+				}
+			case bgp.BGP_ATTR_TYPE_MP_REACH_NLRI:
+				mpreach := p.(*bgp.PathAttributeMpReachNLRI)
+				if len(mpreach.Value) != 1 {
+					return nil, fmt.Errorf("include only one route in mp_reach_nlri")
+				}
+				nlri = mpreach.Value[0]
+				nexthop = mpreach.Nexthop.String()
+			default:
+				pattr = append(pattr, p)
+			}
+		}
+
+		if nlri == nil || nexthop == "" {
+			return nil, fmt.Errorf("not found nlri or nexthop")
+		}
+
+		rf := bgp.AfiSafiToRouteFamily(nlri.AFI(), nlri.SAFI())
+
+		if resource != api.Resource_VRF && rf == bgp.RF_IPv4_UC {
+			pattr = append(pattr, bgp.NewPathAttributeNextHop(nexthop))
+		} else {
+			pattr = append(pattr, bgp.NewPathAttributeMpReachNLRI(nexthop, []bgp.AddrPrefixInterface{nlri}))
+		}
+
+		if len(extcomms) > 0 {
+			pattr = append(pattr, bgp.NewPathAttributeExtendedCommunities(extcomms))
+		}
+		newPath := table.NewPath(pi, nlri, path.IsWithdraw, pattr, time.Now(), path.NoImplicitWithdraw)
+		newPath.SetIsFromExternal(path.IsFromExternal)
+		pathList = append(pathList, newPath)
 	}
-	return d.(*api.AddPathResponse), err
+	return pathList, nil
+}
+
+func (s *Server) AddPath(ctx context.Context, arg *api.AddPathRequest) (*api.AddPathResponse, error) {
+	pathList, err := s.api2PathList(arg.Resource, []*api.Path{arg.Path})
+	var uuid []byte
+	if err == nil {
+		uuid, err = s.bgpServer.AddPath(arg.VrfId, pathList)
+	}
+	return &api.AddPathResponse{Uuid: uuid}, err
 }
 
 func (s *Server) DeletePath(ctx context.Context, arg *api.DeletePathRequest) (*api.DeletePathResponse, error) {
-	d, err := s.get(REQ_DELETE_PATH, arg)
+	pathList, err := func() ([]*table.Path, error) {
+		if arg.Path != nil {
+			arg.Path.IsWithdraw = true
+			return s.api2PathList(arg.Resource, []*api.Path{arg.Path})
+		}
+		return []*table.Path{}, nil
+	}()
 	if err != nil {
 		return nil, err
 	}
-	return d.(*api.DeletePathResponse), err
+	return &api.DeletePathResponse{}, s.bgpServer.DeletePath(arg.Uuid, bgp.RouteFamily(arg.Family), arg.VrfId, pathList)
 }
 
 func (s *Server) EnableMrt(ctx context.Context, arg *api.EnableMrtRequest) (*api.EnableMrtResponse, error) {
@@ -480,13 +572,12 @@ func (s *Server) InjectMrt(stream api.GobgpApi_InjectMrtServer) error {
 			return fmt.Errorf("unsupported resource: %s", arg.Resource)
 		}
 
-		req := NewGrpcRequest(REQ_INJECT_MRT, "", bgp.RouteFamily(0), arg)
-		s.bgpServerCh <- req
-
-		res := <-req.ResponseCh
-		if err := res.Err(); err != nil {
-			log.Debug(err.Error())
+		if pathList, err := s.api2PathList(arg.Resource, arg.Paths); err != nil {
 			return err
+		} else {
+			if _, err = s.bgpServer.AddPath("", pathList); err != nil {
+				return err
+			}
 		}
 	}
 	return stream.SendAndClose(&api.InjectMrtResponse{})
