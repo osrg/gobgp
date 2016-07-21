@@ -906,37 +906,6 @@ func (server *BgpServer) SetMrtConfig(c []config.Mrt) error {
 	return nil
 }
 
-func (server *BgpServer) PeerAdd(peer config.Neighbor) error {
-	ch := make(chan *GrpcResponse)
-	server.GrpcReqCh <- &GrpcRequest{
-		RequestType: REQ_ADD_NEIGHBOR,
-		Data:        &peer,
-		ResponseCh:  ch,
-	}
-	return (<-ch).Err()
-}
-
-func (server *BgpServer) PeerDelete(peer config.Neighbor) error {
-	ch := make(chan *GrpcResponse)
-	server.GrpcReqCh <- &GrpcRequest{
-		RequestType: REQ_DELETE_NEIGHBOR,
-		Data:        &peer,
-		ResponseCh:  ch,
-	}
-	return (<-ch).Err()
-}
-
-func (server *BgpServer) PeerUpdate(peer config.Neighbor) (bool, error) {
-	ch := make(chan *GrpcResponse)
-	server.GrpcReqCh <- &GrpcRequest{
-		RequestType: REQ_UPDATE_NEIGHBOR,
-		Data:        &peer,
-		ResponseCh:  ch,
-	}
-	res := <-ch
-	return res.Data.(bool), res.Err()
-}
-
 func (server *BgpServer) Shutdown() {
 	server.shutdown = true
 	for _, p := range server.neighborMap {
@@ -1441,7 +1410,7 @@ func (server *BgpServer) handleModConfig(grpcReq *GrpcRequest) error {
 		c = arg
 	case *api.StopServerRequest:
 		for k, _ := range server.neighborMap {
-			err := server.handleDeleteNeighbor(&config.Neighbor{Config: config.NeighborConfig{
+			err := server.deleteNeighbor(&config.Neighbor{Config: config.NeighborConfig{
 				NeighborAddress: k}}, bgp.BGP_ERROR_CEASE, bgp.BGP_ERROR_SUB_PEER_DECONFIGURED)
 			if err != nil {
 				return err
@@ -1922,27 +1891,6 @@ func (server *BgpServer) handleGrpc(grpcReq *GrpcRequest) {
 		}
 		grpcReq.ResponseCh <- result
 		close(grpcReq.ResponseCh)
-	case REQ_ADD_NEIGHBOR:
-		err := server.handleAddNeighbor(grpcReq.Data.(*config.Neighbor))
-		grpcReq.ResponseCh <- &GrpcResponse{
-			Data:        &api.AddNeighborResponse{},
-			ResponseErr: err,
-		}
-		close(grpcReq.ResponseCh)
-	case REQ_DELETE_NEIGHBOR:
-		err := server.handleDeleteNeighbor(grpcReq.Data.(*config.Neighbor), bgp.BGP_ERROR_CEASE, bgp.BGP_ERROR_SUB_PEER_DECONFIGURED)
-		grpcReq.ResponseCh <- &GrpcResponse{
-			Data:        &api.DeleteNeighborResponse{},
-			ResponseErr: err,
-		}
-		close(grpcReq.ResponseCh)
-	case REQ_UPDATE_NEIGHBOR:
-		policyUpdated, err := server.handleUpdateNeighbor(grpcReq.Data.(*config.Neighbor))
-		grpcReq.ResponseCh <- &GrpcResponse{
-			Data:        policyUpdated,
-			ResponseErr: err,
-		}
-		close(grpcReq.ResponseCh)
 	case REQ_MONITOR_RIB, REQ_MONITOR_NEIGHBOR_PEER_STATE:
 		if grpcReq.Name != "" {
 			if _, err = server.checkNeighborRequest(grpcReq); err != nil {
@@ -2030,7 +1978,7 @@ ERROR:
 	return
 }
 
-func (server *BgpServer) handleAddNeighbor(c *config.Neighbor) error {
+func (server *BgpServer) addNeighbor(c *config.Neighbor) error {
 	addr := c.Config.NeighborAddress
 	if _, y := server.neighborMap[addr]; y {
 		return fmt.Errorf("Can't overwrite the exising peer: %s", addr)
@@ -2048,9 +1996,7 @@ func (server *BgpServer) handleAddNeighbor(c *config.Neighbor) error {
 	}
 
 	peer := NewPeer(&server.bgpConfig.Global, c, server.globalRib, server.policy)
-	policyMutex.Lock()
 	server.setPolicyByConfig(peer.ID(), c.ApplyPolicy)
-	policyMutex.Unlock()
 	if peer.isRouteServerClient() {
 		pathList := make([]*table.Path, 0)
 		rfList := peer.configuredRFlist()
@@ -2071,7 +2017,22 @@ func (server *BgpServer) handleAddNeighbor(c *config.Neighbor) error {
 	return nil
 }
 
-func (server *BgpServer) handleDeleteNeighbor(c *config.Neighbor, code, subcode uint8) error {
+func (s *BgpServer) AddNeighbor(c *config.Neighbor) (err error) {
+	ch := make(chan struct{})
+	defer func() { <-ch }()
+
+	s.mgmtCh <- func() {
+		policyMutex.Lock()
+		defer func() {
+			policyMutex.Unlock()
+			close(ch)
+		}()
+		err = s.addNeighbor(c)
+	}
+	return err
+}
+
+func (server *BgpServer) deleteNeighbor(c *config.Neighbor, code, subcode uint8) error {
 	addr := c.Config.NeighborAddress
 	n, y := server.neighborMap[addr]
 	if !y {
@@ -2099,73 +2060,96 @@ func (server *BgpServer) handleDeleteNeighbor(c *config.Neighbor, code, subcode 
 	return nil
 }
 
-func (server *BgpServer) handleUpdateNeighbor(c *config.Neighbor) (bool, error) {
-	addr := c.Config.NeighborAddress
-	peer := server.neighborMap[addr]
-	policyUpdated := false
+func (s *BgpServer) DeleteNeighbor(c *config.Neighbor) (err error) {
+	ch := make(chan struct{})
+	defer func() { <-ch }()
 
-	if !peer.fsm.pConf.ApplyPolicy.Equal(&c.ApplyPolicy) {
-		log.WithFields(log.Fields{
-			"Topic": "Peer",
-			"Key":   addr,
-		}).Info("Update ApplyPolicy")
+	s.mgmtCh <- func() {
 		policyMutex.Lock()
-		server.setPolicyByConfig(peer.ID(), c.ApplyPolicy)
-		peer.fsm.pConf.ApplyPolicy = c.ApplyPolicy
-		policyMutex.Unlock()
-		policyUpdated = true
+		defer func() {
+			policyMutex.Unlock()
+			close(ch)
+		}()
+		err = s.deleteNeighbor(c, bgp.BGP_ERROR_CEASE, bgp.BGP_ERROR_SUB_PEER_DECONFIGURED)
 	}
-	original := peer.fsm.pConf
+	return err
+}
 
-	if !original.Config.Equal(&c.Config) || !original.Transport.Config.Equal(&c.Transport.Config) || config.CheckAfiSafisChange(original.AfiSafis, c.AfiSafis) {
-		sub := uint8(bgp.BGP_ERROR_SUB_OTHER_CONFIGURATION_CHANGE)
-		if original.Config.AdminDown != c.Config.AdminDown {
-			sub = bgp.BGP_ERROR_SUB_ADMINISTRATIVE_SHUTDOWN
-			state := "Admin Down"
-			if c.Config.AdminDown == false {
-				state = "Admin Up"
-			}
-			log.WithFields(log.Fields{
-				"Topic": "Peer",
-				"Key":   peer.ID(),
-				"State": state,
-			}).Info("update admin-state configuration")
-		} else if original.Config.PeerAs != c.Config.PeerAs {
-			sub = bgp.BGP_ERROR_SUB_PEER_DECONFIGURED
-		}
-		if err := server.handleDeleteNeighbor(peer.fsm.pConf, bgp.BGP_ERROR_CEASE, sub); err != nil {
+func (s *BgpServer) UpdateNeighbor(c *config.Neighbor) (policyUpdated bool, err error) {
+	ch := make(chan struct{})
+	defer func() { <-ch }()
+
+	s.mgmtCh <- func() {
+		policyMutex.Lock()
+		defer func() {
+			policyMutex.Unlock()
+			close(ch)
+		}()
+
+		addr := c.Config.NeighborAddress
+		peer := s.neighborMap[addr]
+
+		if !peer.fsm.pConf.ApplyPolicy.Equal(&c.ApplyPolicy) {
 			log.WithFields(log.Fields{
 				"Topic": "Peer",
 				"Key":   addr,
-			}).Error(err)
-			return policyUpdated, err
+			}).Info("Update ApplyPolicy")
+			s.setPolicyByConfig(peer.ID(), c.ApplyPolicy)
+			peer.fsm.pConf.ApplyPolicy = c.ApplyPolicy
+			policyUpdated = true
 		}
-		err := server.handleAddNeighbor(c)
+		original := peer.fsm.pConf
+
+		if !original.Config.Equal(&c.Config) || !original.Transport.Config.Equal(&c.Transport.Config) || config.CheckAfiSafisChange(original.AfiSafis, c.AfiSafis) {
+			sub := uint8(bgp.BGP_ERROR_SUB_OTHER_CONFIGURATION_CHANGE)
+			if original.Config.AdminDown != c.Config.AdminDown {
+				sub = bgp.BGP_ERROR_SUB_ADMINISTRATIVE_SHUTDOWN
+				state := "Admin Down"
+				if c.Config.AdminDown == false {
+					state = "Admin Up"
+				}
+				log.WithFields(log.Fields{
+					"Topic": "Peer",
+					"Key":   peer.ID(),
+					"State": state,
+				}).Info("update admin-state configuration")
+			} else if original.Config.PeerAs != c.Config.PeerAs {
+				sub = bgp.BGP_ERROR_SUB_PEER_DECONFIGURED
+			}
+			if err = s.deleteNeighbor(peer.fsm.pConf, bgp.BGP_ERROR_CEASE, sub); err != nil {
+				log.WithFields(log.Fields{
+					"Topic": "Peer",
+					"Key":   addr,
+				}).Error(err)
+				return
+			}
+			err = s.addNeighbor(c)
+			if err != nil {
+				log.WithFields(log.Fields{
+					"Topic": "Peer",
+					"Key":   addr,
+				}).Error(err)
+			}
+			return
+		}
+
+		if !original.Timers.Config.Equal(&c.Timers.Config) {
+			log.WithFields(log.Fields{
+				"Topic": "Peer",
+				"Key":   peer.ID(),
+			}).Info("update timer configuration")
+			peer.fsm.pConf.Timers.Config = c.Timers.Config
+		}
+
+		err = peer.updatePrefixLimitConfig(c.AfiSafis)
 		if err != nil {
 			log.WithFields(log.Fields{
 				"Topic": "Peer",
 				"Key":   addr,
 			}).Error(err)
+			// rollback to original state
+			peer.fsm.pConf = original
 		}
-		return policyUpdated, err
-	}
-
-	if !original.Timers.Config.Equal(&c.Timers.Config) {
-		log.WithFields(log.Fields{
-			"Topic": "Peer",
-			"Key":   peer.ID(),
-		}).Info("update timer configuration")
-		peer.fsm.pConf.Timers.Config = c.Timers.Config
-	}
-
-	err := peer.updatePrefixLimitConfig(c.AfiSafis)
-	if err != nil {
-		log.WithFields(log.Fields{
-			"Topic": "Peer",
-			"Key":   addr,
-		}).Error(err)
-		// rollback to original state
-		peer.fsm.pConf = original
 	}
 	return policyUpdated, err
 }
