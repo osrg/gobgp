@@ -21,7 +21,6 @@ import (
 	"github.com/osrg/gobgp/packet/bgp"
 	"github.com/osrg/gobgp/table"
 	"github.com/osrg/gobgp/zebra"
-	"gopkg.in/tomb.v2"
 	"net"
 	"strconv"
 	"strings"
@@ -149,64 +148,53 @@ func createPathFromIPRouteMessage(m *zebra.Message) *table.Path {
 	return path
 }
 
-type zebraWatcher struct {
-	t      tomb.Tomb
-	ch     chan watcherEvent
+type zebraClient struct {
 	client *zebra.Client
 	server *BgpServer
+	dead   chan struct{}
 }
 
-func (w *zebraWatcher) notify(t watcherEventType) chan watcherEvent {
-	if t == WATCHER_EVENT_BESTPATH_CHANGE {
-		return w.ch
-	}
-	return nil
+func (z *zebraClient) stop() {
+	close(z.dead)
 }
 
-func (w *zebraWatcher) stop() {
-	w.t.Kill(nil)
-}
+func (z *zebraClient) loop() {
+	w := z.server.Watch(WatchBestPath())
+	defer func() { w.Stop() }()
 
-func (w *zebraWatcher) watchingEventTypes() []watcherEventType {
-	return []watcherEventType{WATCHER_EVENT_BESTPATH_CHANGE}
-}
-
-func (w *zebraWatcher) loop() error {
 	for {
 		select {
-		case <-w.t.Dying():
-			return w.client.Close()
-		case msg := <-w.client.Receive():
+		case <-z.dead:
+			return
+		case msg := <-z.client.Receive():
 			switch msg.Body.(type) {
 			case *zebra.IPRouteBody:
-				p := createPathFromIPRouteMessage(msg)
-				if p != nil {
-					if _, err := w.server.AddPath("", []*table.Path{p}); err != nil {
+				if p := createPathFromIPRouteMessage(msg); p != nil {
+					if _, err := z.server.AddPath("", []*table.Path{p}); err != nil {
 						log.Errorf("failed to add path from zebra: %s", p)
 					}
 				}
 			}
-		case ev := <-w.ch:
+		case ev := <-w.Event():
 			msg := ev.(*watcherEventBestPathMsg)
 			if table.UseMultiplePaths.Enabled {
 				for _, dst := range msg.multiPathList {
 					if m := newIPRouteMessage(dst); m != nil {
-						w.client.Send(m)
+						z.client.Send(m)
 					}
 				}
 			} else {
 				for _, path := range msg.pathList {
 					if m := newIPRouteMessage([]*table.Path{path}); m != nil {
-						w.client.Send(m)
+						z.client.Send(m)
 					}
 				}
 			}
 		}
 	}
-	return nil
 }
 
-func newZebraWatcher(s *BgpServer, url string, protos []string) (*zebraWatcher, error) {
+func newZebraClient(s *BgpServer, url string, protos []string) (*zebraClient, error) {
 	l := strings.SplitN(url, ":", 2)
 	if len(l) != 2 {
 		return nil, fmt.Errorf("unsupported url: %s", url)
@@ -225,11 +213,11 @@ func newZebraWatcher(s *BgpServer, url string, protos []string) (*zebraWatcher, 
 		}
 		cli.SendRedistribute(t)
 	}
-	w := &zebraWatcher{
-		ch:     make(chan watcherEvent),
+	w := &zebraClient{
+		dead:   make(chan struct{}),
 		client: cli,
 		server: s,
 	}
-	w.t.Go(w.loop)
+	go w.loop()
 	return w, nil
 }
