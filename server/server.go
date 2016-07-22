@@ -103,7 +103,6 @@ type BgpServer struct {
 	globalRib   *table.TableManager
 	roaManager  *roaManager
 	shutdown    bool
-	watchers    *watcherManager
 	watcherMap  map[watchType][]*Watcher
 	zclient     *zebraClient
 	bmpManager  *bmpClientManager
@@ -117,7 +116,6 @@ func NewBgpServer() *BgpServer {
 		neighborMap: make(map[string]*Peer),
 		policy:      table.NewRoutingPolicy(),
 		roaManager:  roaManager,
-		watchers:    newWatcherManager(),
 		mgmtCh:      make(chan func(), 1),
 		watcherMap:  make(map[watchType][]*Watcher),
 	}
@@ -369,7 +367,6 @@ func (server *BgpServer) dropPeerAllRoutes(peer *Peer, families []bgp.RouteFamil
 		best, _, multipath := server.globalRib.DeletePathsByPeer(ids, peer.fsm.peerInfo, rf)
 
 		if !peer.isRouteServerClient() {
-			server.watchers.notify(WATCHER_EVENT_BESTPATH_CHANGE, &watcherEventBestPathMsg{pathList: best[table.GLOBAL_RIB_NAME], multiPathList: multipath})
 			for _, w := range server.watcherMap[WATCH_TYPE_BESTPATH] {
 				w.notify(&watcherEventBestPathMsg{pathList: best[table.GLOBAL_RIB_NAME], multiPathList: multipath})
 			}
@@ -411,9 +408,6 @@ func (server *BgpServer) broadcastPeerState(peer *Peer, oldState bgp.FSMState) {
 	newState := peer.fsm.state
 	if oldState == bgp.BGP_FSM_ESTABLISHED || newState == bgp.BGP_FSM_ESTABLISHED {
 		ev := createWatcherEventStateChange(peer)
-		if server.watchers.watching(WATCHER_EVENT_STATE_CHANGE) {
-			server.watchers.notify(WATCHER_EVENT_STATE_CHANGE, ev)
-		}
 		for _, w := range server.watcherMap[WATCH_TYPE_PEER_STATE] {
 			w.notify(ev)
 		}
@@ -527,7 +521,6 @@ func (server *BgpServer) propagateUpdate(peer *Peer, pathList []*table.Path) []*
 		if len(best[table.GLOBAL_RIB_NAME]) == 0 {
 			return alteredPathList
 		}
-		server.watchers.notify(WATCHER_EVENT_BESTPATH_CHANGE, &watcherEventBestPathMsg{pathList: best[table.GLOBAL_RIB_NAME], multiPathList: multi})
 		for _, w := range server.watcherMap[WATCH_TYPE_BESTPATH] {
 			w.notify(&watcherEventBestPathMsg{pathList: best[table.GLOBAL_RIB_NAME], multiPathList: multi})
 		}
@@ -674,7 +667,7 @@ func (server *BgpServer) handleFSMMessage(peer *Peer, e *FsmMsg) {
 				sendFsmOutgoingMsg(peer, nil, notification, true)
 				return
 			}
-			if m.Header.Type == bgp.BGP_MSG_UPDATE && (server.watchers.watching(WATCHER_EVENT_UPDATE_MSG) || len(server.watcherMap[WATCH_TYPE_PRE_UPDATE]) > 0) {
+			if m.Header.Type == bgp.BGP_MSG_UPDATE && len(server.watcherMap[WATCH_TYPE_PRE_UPDATE]) > 0 {
 				_, y := peer.fsm.capMap[bgp.BGP_CAP_FOUR_OCTET_AS_NUMBER]
 				l, _ := peer.fsm.LocalHostPort()
 				ev := &watcherEventUpdateMsg{
@@ -690,7 +683,6 @@ func (server *BgpServer) handleFSMMessage(peer *Peer, e *FsmMsg) {
 					postPolicy:   false,
 					pathList:     pathList,
 				}
-				server.watchers.notify(WATCHER_EVENT_UPDATE_MSG, ev)
 				for _, w := range server.watcherMap[WATCH_TYPE_PRE_UPDATE] {
 					w.notify(ev)
 				}
@@ -699,7 +691,7 @@ func (server *BgpServer) handleFSMMessage(peer *Peer, e *FsmMsg) {
 			if len(pathList) > 0 {
 				var altered []*table.Path
 				altered = server.propagateUpdate(peer, pathList)
-				if server.watchers.watching(WATCHER_EVENT_POST_POLICY_UPDATE_MSG) || len(server.watcherMap[WATCH_TYPE_POST_UPDATE]) > 0 {
+				if len(server.watcherMap[WATCH_TYPE_POST_UPDATE]) > 0 {
 					_, y := peer.fsm.capMap[bgp.BGP_CAP_FOUR_OCTET_AS_NUMBER]
 					l, _ := peer.fsm.LocalHostPort()
 					ev := &watcherEventUpdateMsg{
@@ -716,7 +708,6 @@ func (server *BgpServer) handleFSMMessage(peer *Peer, e *FsmMsg) {
 					for _, u := range table.CreateUpdateMsgFromPaths(altered) {
 						payload, _ := u.Serialize()
 						ev.payload = payload
-						server.watchers.notify(WATCHER_EVENT_POST_POLICY_UPDATE_MSG, ev)
 						for _, w := range server.watcherMap[WATCH_TYPE_POST_UPDATE] {
 							w.notify(ev)
 						}
@@ -1761,15 +1752,6 @@ func (server *BgpServer) handleGrpc(grpcReq *GrpcRequest) {
 		if len(pathList) > 0 {
 			server.propagateUpdate(nil, pathList)
 		}
-	case REQ_WATCHER_ADJ_RIB_IN:
-		pathList := make([]*table.Path, 0)
-		for _, peer := range server.neighborMap {
-			pathList = append(pathList, peer.adjRibIn.PathList(peer.configuredRFlist(), false)...)
-		}
-
-		grpcReq.ResponseCh <- &GrpcResponse{}
-		close(grpcReq.ResponseCh)
-		server.watchers.notify(WATCHER_EVENT_ADJ_IN, &watcherEventAdjInMsg{pathList: pathList})
 	default:
 		err = fmt.Errorf("Unknown request type: %v", grpcReq.RequestType)
 		goto ERROR
@@ -2882,4 +2864,45 @@ func (s *BgpServer) Watch(opts ...WatchOption) (w *Watcher) {
 		go w.loop()
 	}
 	return w
+}
+
+type watcherEvent interface {
+}
+
+type watcherEventUpdateMsg struct {
+	message      *bgp.BGPMessage
+	peerAS       uint32
+	localAS      uint32
+	peerAddress  net.IP
+	localAddress net.IP
+	peerID       net.IP
+	fourBytesAs  bool
+	timestamp    time.Time
+	payload      []byte
+	postPolicy   bool
+	pathList     []*table.Path
+}
+
+type watcherEventStateChangedMsg struct {
+	peerAS       uint32
+	localAS      uint32
+	peerAddress  net.IP
+	localAddress net.IP
+	peerPort     uint16
+	localPort    uint16
+	peerID       net.IP
+	sentOpen     *bgp.BGPMessage
+	recvOpen     *bgp.BGPMessage
+	state        bgp.FSMState
+	adminState   AdminState
+	timestamp    time.Time
+}
+
+type watcherEventAdjInMsg struct {
+	pathList []*table.Path
+}
+
+type watcherEventBestPathMsg struct {
+	pathList      []*table.Path
+	multiPathList [][]*table.Path
 }
