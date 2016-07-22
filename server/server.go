@@ -831,20 +831,15 @@ func (server *BgpServer) SetGlobalType(g config.Global) error {
 	return nil
 }
 
-func (server *BgpServer) SetCollector(c config.Collector) error {
-	if len(c.Config.Url) == 0 {
-		return nil
+func (s *BgpServer) StartCollector(c *config.CollectorConfig) (err error) {
+	ch := make(chan struct{})
+	defer func() { <-ch }()
+
+	s.mgmtCh <- func() {
+		defer close(ch)
+		_, err = NewCollector(s, c.Url, c.DbName, c.TableDumpInterval)
 	}
-	ch := make(chan *GrpcResponse)
-	server.GrpcReqCh <- &GrpcRequest{
-		RequestType: REQ_INITIALIZE_COLLECTOR,
-		Data:        &c.Config,
-		ResponseCh:  ch,
-	}
-	if err := (<-ch).Err(); err != nil {
-		return err
-	}
-	return nil
+	return err
 }
 
 func (s *BgpServer) StartZebraClient(x *config.Zebra) (err error) {
@@ -1790,16 +1785,6 @@ func (server *BgpServer) handleGrpc(grpcReq *GrpcRequest) {
 		if len(pathList) > 0 {
 			server.propagateUpdate(nil, pathList)
 		}
-	case REQ_INITIALIZE_COLLECTOR:
-		c := grpcReq.Data.(*config.CollectorConfig)
-		collector, err := NewCollector(server.GrpcReqCh, c.Url, c.DbName, c.TableDumpInterval)
-		if err == nil {
-			server.watchers.addWatcher(WATCHER_COLLECTOR, collector)
-		}
-		grpcReq.ResponseCh <- &GrpcResponse{
-			ResponseErr: err,
-		}
-		close(grpcReq.ResponseCh)
 	case REQ_WATCHER_ADJ_RIB_IN:
 		pathList := make([]*table.Path, 0)
 		for _, peer := range server.neighborMap {
@@ -2762,6 +2747,28 @@ type Watcher struct {
 
 func (w *Watcher) Event() <-chan watcherEvent {
 	return w.realCh
+}
+
+func (w *Watcher) Generate(t watchType) (err error) {
+	ch := make(chan struct{})
+	defer func() { <-ch }()
+
+	w.s.mgmtCh <- func() {
+		defer close(ch)
+
+		switch t {
+		case WATCH_TYPE_PRE_UPDATE:
+		default:
+			err = fmt.Errorf("unsupported type ", t)
+			return
+		}
+		pathList := make([]*table.Path, 0)
+		for _, peer := range w.s.neighborMap {
+			pathList = append(pathList, peer.adjRibIn.PathList(peer.configuredRFlist(), false)...)
+		}
+		w.notify(&watcherEventAdjInMsg{pathList: pathList})
+	}
+	return err
 }
 
 func (w *Watcher) notify(v watcherEvent) {
