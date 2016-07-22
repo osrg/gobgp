@@ -128,7 +128,7 @@ func (peer *Peer) getAccepted(rfList []bgp.RouteFamily) []*table.Path {
 	return peer.adjRibIn.PathList(rfList, true)
 }
 
-func (peer *Peer) filterpath(path *table.Path) *table.Path {
+func (peer *Peer) filterpath(path *table.Path, withdrawals []*table.Path) *table.Path {
 	// special handling for RTC nlri
 	// see comments in (*Destination).Calculate()
 	if path != nil && path.GetRouteFamily() == bgp.RF_RTC_UC && !path.IsWithdraw {
@@ -147,7 +147,7 @@ func (peer *Peer) filterpath(path *table.Path) *table.Path {
 			}
 		}
 	}
-	if filterpath(peer, path) == nil {
+	if path = filterpath(peer, path, withdrawals); path == nil {
 		return nil
 	}
 
@@ -172,7 +172,7 @@ func (peer *Peer) getBestFromLocal(rfList []bgp.RouteFamily) ([]*table.Path, []*
 	pathList := []*table.Path{}
 	filtered := []*table.Path{}
 	for _, path := range peer.localRib.GetBestPathList(peer.TableID(), rfList) {
-		if p := peer.filterpath(path); p != nil {
+		if p := peer.filterpath(path, nil); p != nil {
 			pathList = append(pathList, p)
 		} else {
 			filtered = append(filtered, path)
@@ -200,23 +200,9 @@ func (peer *Peer) processOutgoingPaths(paths, withdrawals []*table.Path) []*tabl
 	}
 
 	outgoing := make([]*table.Path, 0, len(paths))
-	// Note: multiple paths having the same prefix could exist the
-	// withdrawals list in the case of Route Server setup with
-	// import policies modifying paths. In such case, gobgp sends
-	// duplicated update messages; withdraw messages for the same
-	// prefix.
-	// However, currently we don't support local path for Route
-	// Server setup so this is NOT the case.
-	for _, path := range withdrawals {
-		if path.IsLocal() {
-			if _, ok := peer.fsm.rfMap[path.GetRouteFamily()]; ok {
-				outgoing = append(outgoing, path)
-			}
-		}
-	}
 
 	for _, path := range paths {
-		if p := peer.filterpath(path); p != nil {
+		if p := peer.filterpath(path, withdrawals); p != nil {
 			outgoing = append(outgoing, p)
 		}
 	}
