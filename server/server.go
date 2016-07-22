@@ -267,7 +267,7 @@ func isASLoop(peer *Peer, path *table.Path) bool {
 	return false
 }
 
-func filterpath(peer *Peer, path *table.Path) *table.Path {
+func filterpath(peer *Peer, path *table.Path, withdrawals []*table.Path) *table.Path {
 	if path == nil {
 		return nil
 	}
@@ -349,6 +349,25 @@ func filterpath(peer *Peer, path *table.Path) *table.Path {
 	}
 
 	if peer.ID() == path.GetSource().Address.String() {
+		// Say, gobgp was advertising prefix A and peer P also.
+		// When gobgp withdraws prefix A, best path calculation chooses
+		// the path from P as the best path for prefix A.
+		// For peers other than P, this path should be advertised
+		// (as implicit withdrawal). However for P, we should advertise
+		// the local withdraw path.
+
+		// Note: multiple paths having the same prefix could exist the
+		// withdrawals list in the case of Route Server setup with
+		// import policies modifying paths. In such case, gobgp sends
+		// duplicated update messages; withdraw messages for the same
+		// prefix.
+		// However, currently we don't support local path for Route
+		// Server setup so this is NOT the case.
+		for _, w := range withdrawals {
+			if w.IsLocal() && path.GetNlri().String() == w.GetNlri().String() {
+				return w
+			}
+		}
 		log.WithFields(log.Fields{
 			"Topic": "Peer",
 			"Key":   peer.ID(),

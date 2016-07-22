@@ -25,6 +25,9 @@ import time
 import nose
 from noseplugin import OptionParser, parser_option
 from itertools import chain
+import ryu.lib.pcaplib as pcap
+from ryu.lib.packet.packet import Packet
+from ryu.lib.packet.bgp import BGPMessage
 
 
 class GoBGPTestBase(unittest.TestCase):
@@ -354,6 +357,37 @@ class GoBGPTestBase(unittest.TestCase):
 
         g1.wait_for(expected_state=BGP_FSM_ESTABLISHED, peer=e1)
 
+    def test_20_check_withdrawal_2(self):
+        g1 = self.gobgp
+        g2 = self.quaggas['g2']
+
+        dumpfile = g2.start_tcpdump()
+
+        g1.add_route('10.40.0.0/24')
+
+        time.sleep(1)
+
+        paths = g2.get_global_rib('10.40.0.0/24')
+        self.assertTrue(len(paths) == 1)
+
+        g1.local('gobgp global rib del 10.40.0.0/24')
+
+        time.sleep(1)
+
+        paths = g2.get_global_rib('10.40.0.0/24')
+        self.assertTrue(len(paths) == 0)
+
+        g2.stop_tcpdump()
+        time.sleep(1)
+
+        cnt = 0
+        for pkt in pcap.Reader(open(dumpfile)):
+            last = Packet(pkt[1]).protocols[-1]
+            if type(last) == str:
+                pkt = BGPMessage.parser(last)[0]
+                cnt += len(pkt.withdrawn_routes)
+
+        self.assertTrue(cnt == 1)
 
 
 if __name__ == '__main__':
