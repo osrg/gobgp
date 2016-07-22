@@ -220,8 +220,10 @@ func main() {
 				if err := bgpServer.SetRpkiConfig(newConfig.RpkiServers); err != nil {
 					log.Fatalf("failed to set rpki config: %s", err)
 				}
-				if err := bgpServer.SetBmpConfig(newConfig.BmpServers); err != nil {
-					log.Fatalf("failed to set bmp config: %s", err)
+				for _, c := range newConfig.BmpServers {
+					if err := bgpServer.AddBmp(&c.Config); err != nil {
+						log.Fatalf("failed to set bmp config: %s", err)
+					}
 				}
 				if err := bgpServer.SetMrtConfig(newConfig.MrtDump); err != nil {
 					log.Fatalf("failed to set mrt config: %s", err)

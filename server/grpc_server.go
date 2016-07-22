@@ -93,9 +93,6 @@ const (
 	REQ_ADD_POLICY_ASSIGNMENT
 	REQ_DELETE_POLICY_ASSIGNMENT
 	REQ_REPLACE_POLICY_ASSIGNMENT
-	REQ_BMP_NEIGHBORS
-	REQ_BMP_GLOBAL
-	REQ_BMP_ADJ_IN
 	REQ_DEFERRAL_TIMER_EXPIRED
 	REQ_RELOAD_POLICY
 	REQ_INITIALIZE_ZEBRA
@@ -348,9 +345,9 @@ func (s *Server) MonitorRib(arg *api.Table, stream api.GobgpApi_MonitorRibServer
 			return s.bgpServer.Watch(WatchBestPath()), nil
 		case api.Resource_ADJ_IN:
 			if arg.PostPolicy {
-				return s.bgpServer.Watch(WatchPostUpdate()), nil
+				return s.bgpServer.Watch(WatchPostUpdate(false)), nil
 			}
-			return s.bgpServer.Watch(WatchUpdate()), nil
+			return s.bgpServer.Watch(WatchUpdate(false)), nil
 		default:
 			return nil, fmt.Errorf("unsupported resource type: %v", arg.Type)
 		}
@@ -414,7 +411,7 @@ func (s *Server) MonitorRib(arg *api.Table, stream api.GobgpApi_MonitorRibServer
 
 func (s *Server) MonitorPeerState(arg *api.Arguments, stream api.GobgpApi_MonitorPeerStateServer) error {
 	return func() error {
-		w := s.bgpServer.Watch(WatchPeerState())
+		w := s.bgpServer.Watch(WatchPeerState(false))
 		defer func() { w.Stop() }()
 
 		for {
@@ -657,19 +654,18 @@ func (s *Server) InjectMrt(stream api.GobgpApi_InjectMrtServer) error {
 }
 
 func (s *Server) AddBmp(ctx context.Context, arg *api.AddBmpRequest) (*api.AddBmpResponse, error) {
-	d, err := s.get(REQ_ADD_BMP, arg)
-	if err != nil {
-		return nil, err
-	}
-	return d.(*api.AddBmpResponse), err
+	return &api.AddBmpResponse{}, s.bgpServer.AddBmp(&config.BmpServerConfig{
+		Address: arg.Address,
+		Port:    arg.Port,
+		RouteMonitoringPolicy: config.BmpRouteMonitoringPolicyType(arg.Type),
+	})
 }
 
 func (s *Server) DeleteBmp(ctx context.Context, arg *api.DeleteBmpRequest) (*api.DeleteBmpResponse, error) {
-	d, err := s.get(REQ_DELETE_BMP, arg)
-	if err != nil {
-		return nil, err
-	}
-	return d.(*api.DeleteBmpResponse), err
+	return &api.DeleteBmpResponse{}, s.bgpServer.DeleteBmp(&config.BmpServerConfig{
+		Address: arg.Address,
+		Port:    arg.Port,
+	})
 }
 
 func (s *Server) ValidateRib(ctx context.Context, arg *api.ValidateRibRequest) (*api.ValidateRibResponse, error) {
