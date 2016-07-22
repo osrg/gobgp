@@ -227,8 +227,13 @@ func main() {
 						log.Fatalf("failed to set bmp config: %s", err)
 					}
 				}
-				if err := bgpServer.SetMrtConfig(newConfig.MrtDump); err != nil {
-					log.Fatalf("failed to set mrt config: %s", err)
+				for _, c := range newConfig.MrtDump {
+					if len(c.FileName) == 0 {
+						continue
+					}
+					if err := bgpServer.EnableMrt(&c); err != nil {
+						log.Fatalf("failed to set mrt config: %s", err)
+					}
 				}
 				p := config.ConfigSetToRoutingPolicy(newConfig)
 				if err := bgpServer.UpdatePolicy(*p); err != nil {

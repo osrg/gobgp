@@ -612,19 +612,15 @@ func (s *Server) DeletePath(ctx context.Context, arg *api.DeletePathRequest) (*a
 }
 
 func (s *Server) EnableMrt(ctx context.Context, arg *api.EnableMrtRequest) (*api.EnableMrtResponse, error) {
-	d, err := s.get(REQ_ENABLE_MRT, arg)
-	if err != nil {
-		return nil, err
-	}
-	return d.(*api.EnableMrtResponse), err
+	return &api.EnableMrtResponse{}, s.bgpServer.EnableMrt(&config.Mrt{
+		Interval: arg.Interval,
+		DumpType: config.IntToMrtTypeMap[int(arg.DumpType)],
+		FileName: arg.Filename,
+	})
 }
 
 func (s *Server) DisableMrt(ctx context.Context, arg *api.DisableMrtRequest) (*api.DisableMrtResponse, error) {
-	d, err := s.get(REQ_DISABLE_MRT, arg)
-	if err != nil {
-		return nil, err
-	}
-	return d.(*api.DisableMrtResponse), err
+	return &api.DisableMrtResponse{}, s.bgpServer.DisableMrt()
 }
 
 func (s *Server) InjectMrt(stream api.GobgpApi_InjectMrtServer) error {

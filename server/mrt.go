@@ -22,43 +22,37 @@ import (
 
 	log "github.com/Sirupsen/logrus"
 	"github.com/osrg/gobgp/packet/mrt"
-	"gopkg.in/tomb.v2"
 )
 
-type mrtWatcher struct {
-	t        tomb.Tomb
+type mrtWriter struct {
+	dead     chan struct{}
+	s        *BgpServer
 	filename string
 	file     *os.File
-	ch       chan watcherEvent
 	interval uint64
 }
 
-func (w *mrtWatcher) notify(t watcherEventType) chan watcherEvent {
-	if t == WATCHER_EVENT_UPDATE_MSG {
-		return w.ch
-	}
-	return nil
+func (m *mrtWriter) Stop() {
+	close(m.dead)
 }
 
-func (w *mrtWatcher) stop() {
-	w.t.Kill(nil)
-}
-
-func (w *mrtWatcher) loop() error {
+func (m *mrtWriter) loop() error {
+	w := m.s.Watch(WatchUpdate(false))
 	c := func() *time.Ticker {
-		if w.interval == 0 {
+		if m.interval == 0 {
 			return &time.Ticker{}
 		}
-		return time.NewTicker(time.Second * time.Duration(w.interval))
+		return time.NewTicker(time.Second * time.Duration(m.interval))
 	}()
 
 	defer func() {
-		if w.file != nil {
-			w.file.Close()
+		if m.file != nil {
+			m.file.Close()
 		}
-		if w.interval != 0 {
+		if m.interval != 0 {
 			c.Stop()
 		}
+		w.Stop()
 	}()
 
 	for {
@@ -82,19 +76,18 @@ func (w *mrtWatcher) loop() error {
 		}
 
 		drain := func(ev watcherEvent) {
-			events := make([]watcherEvent, 0, 1+len(w.ch))
+			events := make([]watcherEvent, 0, 1+len(w.Event()))
 			if ev != nil {
 				events = append(events, ev)
 			}
 
-			for len(w.ch) > 0 {
-				e := <-w.ch
-				events = append(events, e)
+			for len(w.Event()) > 0 {
+				events = append(events, <-w.Event())
 			}
 
 			w := func(buf []byte) {
-				if _, err := w.file.Write(buf); err == nil {
-					w.file.Sync()
+				if _, err := m.file.Write(buf); err == nil {
+					m.file.Sync()
 				} else {
 					log.WithFields(log.Fields{
 						"Topic": "mrt",
@@ -124,25 +117,21 @@ func (w *mrtWatcher) loop() error {
 			}
 		}
 		select {
-		case <-w.t.Dying():
+		case <-m.dead:
 			drain(nil)
 			return nil
-		case e := <-w.ch:
+		case e := <-w.Event():
 			drain(e)
 		case <-c.C:
-			w.file.Close()
-			file, err := mrtFileOpen(w.filename, w.interval)
+			m.file.Close()
+			file, err := mrtFileOpen(m.filename, m.interval)
 			if err == nil {
-				w.file = file
+				m.file = file
 			} else {
 				log.Info("can't rotate mrt file", err)
 			}
 		}
 	}
-}
-
-func (w *mrtWatcher) watchingEventTypes() []watcherEventType {
-	return []watcherEventType{WATCHER_EVENT_UPDATE_MSG}
 }
 
 func mrtFileOpen(filename string, interval uint64) (*os.File, error) {
@@ -176,17 +165,17 @@ func mrtFileOpen(filename string, interval uint64) (*os.File, error) {
 	return file, err
 }
 
-func newMrtWatcher(dumpType int32, filename string, interval uint64) (*mrtWatcher, error) {
+func newMrtWriter(s *BgpServer, dumpType int, filename string, interval uint64) (*mrtWriter, error) {
 	file, err := mrtFileOpen(filename, interval)
 	if err != nil {
 		return nil, err
 	}
-	w := mrtWatcher{
+	m := mrtWriter{
+		s:        s,
 		filename: filename,
 		file:     file,
-		ch:       make(chan watcherEvent, 1<<16),
 		interval: interval,
 	}
-	w.t.Go(w.loop)
-	return &w, nil
+	go m.loop()
+	return &m, nil
 }

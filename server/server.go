@@ -107,6 +107,7 @@ type BgpServer struct {
 	watcherMap  map[watchType][]*Watcher
 	zclient     *zebraClient
 	bmpManager  *bmpClientManager
+	mrt         *mrtWriter
 }
 
 func NewBgpServer() *BgpServer {
@@ -915,27 +916,6 @@ func (s *BgpServer) DeleteBmp(c *config.BmpServerConfig) (err error) {
 		err = s.bmpManager.deleteServer(c)
 	}
 	return err
-}
-
-func (server *BgpServer) SetMrtConfig(c []config.Mrt) error {
-	for _, s := range c {
-		if s.FileName != "" {
-			ch := make(chan *GrpcResponse)
-			server.GrpcReqCh <- &GrpcRequest{
-				RequestType: REQ_ENABLE_MRT,
-				Data: &api.EnableMrtRequest{
-					DumpType: int32(s.DumpType.ToInt()),
-					Filename: s.FileName,
-					Interval: s.Interval,
-				},
-				ResponseCh: ch,
-			}
-			if err := (<-ch).Err(); err != nil {
-				return err
-			}
-		}
-	}
-	return nil
 }
 
 func (server *BgpServer) Shutdown() {
@@ -1765,10 +1745,6 @@ func (server *BgpServer) handleGrpc(grpcReq *GrpcRequest) {
 		}
 		grpcReq.ResponseCh <- result
 		close(grpcReq.ResponseCh)
-	case REQ_ENABLE_MRT:
-		server.handleEnableMrtRequest(grpcReq)
-	case REQ_DISABLE_MRT:
-		server.handleDisableMrtRequest(grpcReq)
 	case REQ_VALIDATE_RIB:
 		server.handleValidateRib(grpcReq)
 	case REQ_INITIALIZE_RPKI:
@@ -2601,38 +2577,42 @@ func grpcDone(grpcReq *GrpcRequest, e error) {
 	close(grpcReq.ResponseCh)
 }
 
-func (server *BgpServer) handleEnableMrtRequest(grpcReq *GrpcRequest) {
-	arg := grpcReq.Data.(*api.EnableMrtRequest)
-	if _, y := server.watchers.watcher(WATCHER_MRT); y {
-		grpcDone(grpcReq, fmt.Errorf("already enabled"))
-		return
+func (s *BgpServer) EnableMrt(c *config.Mrt) (err error) {
+	ch := make(chan struct{})
+	defer func() { <-ch }()
+
+	s.mgmtCh <- func() {
+		defer close(ch)
+
+		if s.mrt != nil {
+			err = fmt.Errorf("already enabled")
+		} else {
+			interval := c.Interval
+
+			if interval != 0 && interval < 30 {
+				log.Info("minimum mrt dump interval is 30 seconds")
+				interval = 30
+			}
+			s.mrt, err = newMrtWriter(s, c.DumpType.ToInt(), c.FileName, interval)
+		}
 	}
-	if arg.Interval != 0 && arg.Interval < 30 {
-		log.Info("minimum mrt dump interval is 30 seconds")
-		arg.Interval = 30
-	}
-	w, err := newMrtWatcher(arg.DumpType, arg.Filename, arg.Interval)
-	if err == nil {
-		server.watchers.addWatcher(WATCHER_MRT, w)
-	}
-	grpcReq.ResponseCh <- &GrpcResponse{
-		ResponseErr: err,
-		Data:        &api.EnableMrtResponse{},
-	}
-	close(grpcReq.ResponseCh)
+	return err
 }
 
-func (server *BgpServer) handleDisableMrtRequest(grpcReq *GrpcRequest) {
-	_, y := server.watchers.watcher(WATCHER_MRT)
-	if !y {
-		grpcDone(grpcReq, fmt.Errorf("not enabled yet"))
-		return
+func (s *BgpServer) DisableMrt() (err error) {
+	ch := make(chan struct{})
+	defer func() { <-ch }()
+
+	s.mgmtCh <- func() {
+		defer close(ch)
+
+		if s.mrt != nil {
+			s.mrt.Stop()
+		} else {
+			err = fmt.Errorf("not enabled")
+		}
 	}
-	server.watchers.delWatcher(WATCHER_MRT)
-	grpcReq.ResponseCh <- &GrpcResponse{
-		Data: &api.DisableMrtResponse{},
-	}
-	close(grpcReq.ResponseCh)
+	return err
 }
 
 func (server *BgpServer) handleValidateRib(grpcReq *GrpcRequest) {
