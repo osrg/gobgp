@@ -42,21 +42,31 @@ func ReadConfigfileServe(path, format string, configCh chan *BgpConfigSet) {
 			goto ERROR
 		}
 		if cnt == 0 {
-			log.Info("finished reading the config file")
+			log.WithFields(log.Fields{
+				"Topic": "Config",
+			}).Info("Finished reading the config file")
 		}
 		cnt++
 		configCh <- c
 		goto NEXT
 	ERROR:
 		if cnt == 0 {
-			log.Fatal("can't read config file ", path, ", ", err)
+			log.WithFields(log.Fields{
+				"Topic": "Config",
+				"Error": err,
+			}).Fatalf("Can't read config file %s", path)
 		} else {
-			log.Warning("can't read config file ", path, ", ", err)
+			log.WithFields(log.Fields{
+				"Topic": "Config",
+				"Error": err,
+			}).Warningf("Can't read config file %s", path)
 		}
 	NEXT:
 		select {
 		case <-sigCh:
-			log.Info("reload the config file")
+			log.WithFields(log.Fields{
+				"Topic": "Config",
+			}).Info("Reload the config file")
 		}
 	}
 }
@@ -87,8 +97,12 @@ func UpdateConfig(curC, newC *BgpConfigSet) ([]Neighbor, []Neighbor, []Neighbor,
 		if idx := inSlice(n, curC.Neighbors); idx < 0 {
 			added = append(added, n)
 		} else if !n.Equal(&curC.Neighbors[idx]) {
-			log.Debug("current neighbor config:", curC.Neighbors[idx])
-			log.Debug("new neighbor config:", n)
+			log.WithFields(log.Fields{
+				"Topic": "Config",
+			}).Debugf("Current neighbor config:%s", curC.Neighbors[idx])
+			log.WithFields(log.Fields{
+				"Topic": "Config",
+			}).Debugf("New neighbor config:%s", n)
 			updated = append(updated, n)
 		}
 	}
@@ -104,8 +118,12 @@ func UpdateConfig(curC, newC *BgpConfigSet) ([]Neighbor, []Neighbor, []Neighbor,
 
 func CheckPolicyDifference(currentPolicy *RoutingPolicy, newPolicy *RoutingPolicy) bool {
 
-	log.Debug("current policy : ", currentPolicy)
-	log.Debug("newPolicy policy : ", newPolicy)
+	log.WithFields(log.Fields{
+		"Topic": "Config",
+	}).Debugf("Current policy:%s", currentPolicy)
+	log.WithFields(log.Fields{
+		"Topic": "Config",
+	}).Debugf("New policy:%s", newPolicy)
 
 	var result bool = false
 	if currentPolicy == nil && newPolicy == nil {
