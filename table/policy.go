@@ -1170,7 +1170,9 @@ func (c *NeighborCondition) Option() MatchOption {
 func (c *NeighborCondition) Evaluate(path *Path, options *PolicyOptions) bool {
 
 	if len(c.set.list) == 0 {
-		log.Debug("NeighborList doesn't have elements")
+		log.WithFields(log.Fields{
+			"Topic": "Policy",
+		}).Debug("NeighborList doesn't have elements")
 		return true
 	}
 
@@ -1968,7 +1970,8 @@ func (a *MedAction) Apply(path *Path, _ *PolicyOptions) *Path {
 		log.WithFields(log.Fields{
 			"Topic": "Policy",
 			"Type":  "Med Action",
-		}).Warn(err)
+			"Error": err,
+		}).Warn("Could not set Med on path")
 	}
 	return path
 }
@@ -2066,7 +2069,7 @@ func (a *AsPathPrependAction) Apply(path *Path, _ *PolicyOptions) *Path {
 			log.WithFields(log.Fields{
 				"Topic": "Policy",
 				"Type":  "AsPathPrepend Action",
-			}).Warnf("aspath length is zero.")
+			}).Warn("aspath length is zero.")
 			return path
 		}
 		asn = aspath[0]
@@ -2074,7 +2077,7 @@ func (a *AsPathPrependAction) Apply(path *Path, _ *PolicyOptions) *Path {
 			log.WithFields(log.Fields{
 				"Topic": "Policy",
 				"Type":  "AsPathPrepend Action",
-			}).Warnf("left-most ASN is not seq")
+			}).Warn("left-most ASN is not seq")
 			return path
 		}
 	} else {

@@ -65,7 +65,7 @@ func (w *bmpWatcher) tryConnect(server *bmpServer) {
 	interval := 1
 	host := server.host
 	for {
-		log.Debug("connecting bmp server: ", host)
+		log.WithFields(log.Fields{"Topic": "bmp"}).Debugf("Connecting BMP server:%s", host)
 		conn, err := net.Dial("tcp", host)
 		if err != nil {
 			time.Sleep(time.Duration(interval) * time.Second)
@@ -73,7 +73,7 @@ func (w *bmpWatcher) tryConnect(server *bmpServer) {
 				interval *= 2
 			}
 		} else {
-			log.Info("bmp server is connected, ", host)
+			log.WithFields(log.Fields{"Topic": "bmp"}).Infof("BMP server is connected:%s", host)
 			w.newConnCh <- conn.(*net.TCPConn)
 			break
 		}
@@ -119,13 +119,13 @@ func (w *bmpWatcher) loop() error {
 		case newConn := <-w.newConnCh:
 			server, y := w.connMap[newConn.RemoteAddr().String()]
 			if !y {
-				log.Warnf("Can't find bmp server %s", newConn.RemoteAddr().String())
+				log.WithFields(log.Fields{"Topic": "bmp"}).Warnf("Can't find BMP server %s", newConn.RemoteAddr().String())
 				break
 			}
 			i := bmp.NewBMPInitiation([]bmp.BMPTLV{})
 			buf, _ := i.Serialize()
 			if _, err := newConn.Write(buf); err != nil {
-				log.Warnf("failed to write to bmp server %s", server.host)
+				log.WithFields(log.Fields{"Topic": "bmp"}).Errorf("Failed to write to BMP server:%s", server.host)
 				go w.tryConnect(server)
 				break
 			}
@@ -139,7 +139,7 @@ func (w *bmpWatcher) loop() error {
 					for _, msg := range res.Data.([]*bmp.BMPMessage) {
 						buf, _ = msg.Serialize()
 						if _, err := newConn.Write(buf); err != nil {
-							log.Warnf("failed to write to bmp server %s %s", server.host, err)
+							log.WithFields(log.Fields{"Topic": "bmp", "Error": err}).Warnf("Failed to write to BMP server:%s", server.host)
 							go w.tryConnect(server)
 							return err
 						}
@@ -187,7 +187,7 @@ func (w *bmpWatcher) loop() error {
 						if send {
 							_, err := server.conn.Write(buf)
 							if err != nil {
-								log.Warnf("failed to write to bmp server %s", server.host)
+								log.WithFields(log.Fields{"Topic": "bmp", "Error": err}).Warnf("Failed to write to BMP server:%s", server.host)
 							}
 						}
 					}
@@ -209,16 +209,16 @@ func (w *bmpWatcher) loop() error {
 					if server.conn != nil {
 						_, err := server.conn.Write(buf)
 						if err != nil {
-							log.Warnf("failed to write to bmp server %s", server.host)
+							log.WithFields(log.Fields{"Topic": "bmp", "Error": err}).Warnf("Failed to write to BMP server:%s", server.host)
 						}
 					}
 				}
 			default:
-				log.Warnf("unknown watcher event")
+				log.WithFields(log.Fields{"Topic": "bmp"}).Warn("Unknown watcher event")
 			}
 		case conn := <-w.endCh:
 			host := conn.RemoteAddr().String()
-			log.Debugf("bmp connection to %s killed", host)
+			log.WithFields(log.Fields{"Topic": "bmp"}).Debugf("BMP connection to: %s killed", host)
 			if _, y := w.connMap[host]; y {
 				w.connMap[host].conn = nil
 				go w.tryConnect(w.connMap[host])

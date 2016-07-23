@@ -78,7 +78,10 @@ func NewTCPListener(address string, port uint32, ch chan *net.TCPConn) (*TCPList
 			conn, err := l.AcceptTCP()
 			if err != nil {
 				close(closeCh)
-				log.Warn(err)
+				log.WithFields(log.Fields{
+					"Topic": "Peer",
+					"Error": err,
+				}).Warn("Failed to AcceptTCP")
 				return err
 			}
 			ch <- conn
@@ -141,11 +144,15 @@ func (server *BgpServer) Serve() {
 	handleFsmMsg := func(e *FsmMsg) {
 		peer, found := server.neighborMap[e.MsgSrc]
 		if !found {
-			log.Warn("Can't find the neighbor ", e.MsgSrc)
+			log.WithFields(log.Fields{
+				"Topic": "Peer",
+			}).Warnf("Cant't find the neighbor %s", e.MsgSrc)
 			return
 		}
 		if e.Version != peer.fsm.version {
-			log.Debug("FSM Version inconsistent")
+			log.WithFields(log.Fields{
+				"Topic": "Peer",
+			}).Debug("FSM version inconsistent")
 			return
 		}
 		server.handleFSMMessage(peer, e)
@@ -159,7 +166,11 @@ func (server *BgpServer) Serve() {
 			peer, found := server.neighborMap[remoteAddr]
 			if found {
 				if peer.fsm.adminState != ADMIN_STATE_UP {
-					log.Debug("new connection for non admin-state-up peer ", remoteAddr, peer.fsm.adminState)
+					log.WithFields(log.Fields{
+						"Topic":       "Peer",
+						"Remote Addr": remoteAddr,
+						"Admin State": peer.fsm.adminState,
+					}).Debug("New connection for non admin-state-up peer")
 					conn.Close()
 					return
 				}
@@ -189,10 +200,14 @@ func (server *BgpServer) Serve() {
 					conn.Close()
 					return
 				}
-				log.Debug("accepted a new passive connection from ", remoteAddr)
+				log.WithFields(log.Fields{
+					"Topic": "Peer",
+				}).Debugf("Accepted a new passive connection from:%s", remoteAddr)
 				peer.PassConn(conn)
 			} else {
-				log.Info("can't find configuration for a new passive connection from ", remoteAddr)
+				log.WithFields(log.Fields{
+					"Topic": "Peer",
+				}).Infof("Can't find configuration for a new passive connection from:%s", remoteAddr)
 				conn.Close()
 			}
 		}
@@ -611,7 +626,7 @@ func (server *BgpServer) handleFSMMessage(peer *Peer, e *FsmMsg) {
 				log.WithFields(log.Fields{
 					"Topic": "Peer",
 					"Key":   peer.ID(),
-				}).Debugf("now syncing, suppress sending updates. start deferral timer(%d)", deferral)
+				}).Debugf("Now syncing, suppress sending updates. start deferral timer(%d)", deferral)
 				time.AfterFunc(time.Second*time.Duration(deferral), deferralExpiredFunc(bgp.RouteFamily(0)))
 			}
 		} else {
@@ -1709,10 +1724,14 @@ func (server *BgpServer) handleGrpc(grpcReq *GrpcRequest) {
 		var paths []*table.Path
 		if grpcReq.RequestType == REQ_ADJ_RIB_IN {
 			paths = peer.adjRibIn.PathList([]bgp.RouteFamily{rf}, false)
-			log.Debugf("RouteFamily=%v adj-rib-in found : %d", rf.String(), len(paths))
+			log.WithFields(log.Fields{
+				"Topic": "Peer",
+			}).Debugf("RouteFamily=%v adj-rib-in found : %d", rf.String(), len(paths))
 		} else {
 			paths = peer.adjRibOut.PathList([]bgp.RouteFamily{rf}, false)
-			log.Debugf("RouteFamily=%v adj-rib-out found : %d", rf.String(), len(paths))
+			log.WithFields(log.Fields{
+				"Topic": "Peer",
+			}).Debugf("RouteFamily=%v adj-rib-out found : %d", rf.String(), len(paths))
 		}
 
 		results := make([]*api.Destination, 0, len(paths))
@@ -1930,7 +1949,9 @@ func (server *BgpServer) handleGrpc(grpcReq *GrpcRequest) {
 					"Key":   peer.fsm.pConf.Config.NeighborAddress,
 				}).Debug("ADMIN_STATE_UP requested")
 			default:
-				log.Warning("previous request is still remaining. : ", peer.fsm.pConf.Config.NeighborAddress)
+				log.WithFields(log.Fields{
+					"Topic": "Peer",
+				}).Warningf("Previous request is still remaining:%s", peer.fsm.pConf.Config.NeighborAddress)
 				result.ResponseErr = fmt.Errorf("previous request is still remaining %v", peer.fsm.pConf.Config.NeighborAddress)
 			}
 			result.Data = &api.EnableNeighborResponse{}
@@ -1942,7 +1963,9 @@ func (server *BgpServer) handleGrpc(grpcReq *GrpcRequest) {
 					"Key":   peer.fsm.pConf.Config.NeighborAddress,
 				}).Debug("ADMIN_STATE_DOWN requested")
 			default:
-				log.Warning("previous request is still remaining. : ", peer.fsm.pConf.Config.NeighborAddress)
+				log.WithFields(log.Fields{
+					"Topic": "Peer",
+				}).Warningf("Previous request is still remaining:%s", peer.fsm.pConf.Config.NeighborAddress)
 				result.ResponseErr = fmt.Errorf("previous request is still remaining %v", peer.fsm.pConf.Config.NeighborAddress)
 			}
 			result.Data = &api.DisableNeighborResponse{}
@@ -2212,7 +2235,9 @@ func (server *BgpServer) handleAddNeighbor(c *config.Neighbor) error {
 			SetTcpMD5SigSockopts(l, addr, c.Config.AuthPassword)
 		}
 	}
-	log.Info("Add a peer configuration for ", addr)
+	log.WithFields(log.Fields{
+		"Topic": "Peer",
+	}).Infof("Add a peer configuration for:%s", addr)
 
 	peer := NewPeer(&server.bgpConfig.Global, c, server.globalRib, server.policy)
 	policyMutex.Lock()
@@ -2247,16 +2272,23 @@ func (server *BgpServer) handleDelNeighbor(c *config.Neighbor, code, subcode uin
 	for _, l := range server.Listeners(addr) {
 		SetTcpMD5SigSockopts(l, addr, "")
 	}
-	log.Info("Delete a peer configuration for ", addr)
+	log.WithFields(log.Fields{
+		"Topic": "Peer",
+	}).Infof("Delete a peer configuration for:%s", addr)
 
 	n.fsm.sendNotification(code, subcode, nil, "")
 
 	go func(addr string) {
-		t := time.AfterFunc(time.Minute*5, func() { log.Fatal("failed to free the fsm.h.t for ", addr) })
+		logfatal := func() {
+			log.WithFields(log.Fields{
+				"Topic": "Peer",
+			}).Fatalf("Failed to free the fsm.h.t for %s", addr)
+		}
+		t := time.AfterFunc(time.Minute*5, logfatal)
 		n.fsm.h.t.Kill(nil)
 		n.fsm.h.t.Wait()
 		t.Stop()
-		t = time.AfterFunc(time.Minute*5, func() { log.Fatal("failed to free the fsm.h for ", addr) })
+		t = time.AfterFunc(time.Minute*5, logfatal)
 		n.fsm.t.Kill(nil)
 		n.fsm.t.Wait()
 		t.Stop()
@@ -2967,7 +2999,9 @@ func (server *BgpServer) handleEnableMrtRequest(grpcReq *GrpcRequest) {
 		return
 	}
 	if arg.Interval != 0 && arg.Interval < 30 {
-		log.Info("minimum mrt dump interval is 30 seconds")
+		log.WithFields(log.Fields{
+			"Topic": "Peer",
+		}).Info("Minimum mrt dump interval is 30 seconds")
 		arg.Interval = 30
 	}
 	w, err := newMrtWatcher(arg.DumpType, arg.Filename, arg.Interval)

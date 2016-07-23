@@ -143,7 +143,7 @@ func (m *watcherManager) loop() error {
 					case <-t.C:
 						log.WithFields(log.Fields{
 							"Topic": "Watcher",
-						}).Warnf("notification to %s timeout expired")
+						}).Warnf("notification to %s timeout expired", w)
 					}
 				}
 			}

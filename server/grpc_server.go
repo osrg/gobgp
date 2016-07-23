@@ -153,7 +153,7 @@ func (s *Server) GetNeighbor(ctx context.Context, arg *api.GetNeighborRequest) (
 func handleMultipleResponses(req *GrpcRequest, f func(*GrpcResponse) error) error {
 	for res := range req.ResponseCh {
 		if err := res.Err(); err != nil {
-			log.Debug(err.Error())
+			log.WithFields(log.Fields{"Topic": "grpc", "Error": err}).Debug("Got error in response")
 			req.EndCh <- struct{}{}
 			return err
 		}
@@ -317,7 +317,7 @@ func (s *Server) InjectMrt(stream api.GobgpApi_InjectMrtServer) error {
 
 		res := <-req.ResponseCh
 		if err := res.Err(); err != nil {
-			log.Debug(err.Error())
+			log.WithFields(log.Fields{"Topic": "grpc", "Error": err}).Debug("Got error in response")
 			return err
 		}
 	}

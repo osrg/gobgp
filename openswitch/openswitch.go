@@ -168,7 +168,9 @@ func parseRouteToGobgp(route ovsdb.RowUpdate, nexthops map[string]ovsdb.Row) (*a
 		nexthop = "::"
 	}
 	if len(nh) == 0 {
-		log.Debug("nexthop addres does not exist")
+		log.WithFields(log.Fields{
+			"Topic": "openswitch",
+		}).Debug("nexthop addres does not exist")
 	} else if len(nh) == 1 {
 		if net.ParseIP(nh[0].(string)) == nil {
 			return nil, isWithdraw, isFromGobgp, fmt.Errorf("invalid nexthop address")
@@ -286,7 +288,10 @@ func (m *OpsManager) handleVrfUpdate(update ovsdb.TableUpdate) *server.GrpcReque
 func (m *OpsManager) handleBgpRouterUpdate(update ovsdb.TableUpdate) []*server.GrpcRequest {
 	asn, id, err := m.getBGPRouterUUID()
 	if err != nil {
-		log.Debugf("%s", err)
+		log.WithFields(log.Fields{
+			"Topic": "openswitch",
+			"Error": err,
+		}).Debug("Could not get BGP Rounter UUID")
 		return nil
 	}
 	reqs := []*server.GrpcRequest{}
@@ -380,7 +385,7 @@ func (m *OpsManager) handleRouteUpdate(update ovsdb.TableUpdate) []*server.GrpcR
 				log.WithFields(log.Fields{
 					"Topic": "openswitch",
 					"Path":  path,
-					"Err":   err,
+					"Error": err,
 				}).Debug("failed to parse path")
 				return nil
 			}
@@ -583,7 +588,7 @@ func (m *OpsManager) GobgpMonitor(ready *bool) {
 				"Topic":       "openswitch",
 				"Type":        "Monitor",
 				"RequestType": req.RequestType,
-				"Err":         err,
+				"Error":       err,
 			}).Error("grpc operation failed")
 		}
 		d := res.Data.(*api.Destination)
@@ -596,7 +601,7 @@ func (m *OpsManager) GobgpMonitor(ready *bool) {
 			log.WithFields(log.Fields{
 				"Topic": "openswitch",
 				"Type":  "MonitorRequest",
-				"Err":   err,
+				"Error": err,
 			}).Error("failed parse path of gobgp")
 		}
 		o, err := m.TransactPreparation(p)
@@ -604,7 +609,7 @@ func (m *OpsManager) GobgpMonitor(ready *bool) {
 			log.WithFields(log.Fields{
 				"Topic": "openswitch",
 				"Type":  "Monitor",
-				"Err":   err,
+				"Error": err,
 			}).Error("failed transact preparation of ops")
 		}
 		m.opsCh <- o
@@ -631,7 +636,7 @@ func (m *OpsManager) GobgpServe() error {
 			log.WithFields(log.Fields{
 				"Topic": "openswitch",
 				"Type":  "ModRequest",
-				"Err":   r.Err(),
+				"Error": r.Err(),
 			}).Error("grpc operation failed")
 		} else {
 			if monitorReady {
