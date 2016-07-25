@@ -367,9 +367,7 @@ func (server *BgpServer) dropPeerAllRoutes(peer *Peer, families []bgp.RouteFamil
 		best, _, multipath := server.globalRib.DeletePathsByPeer(ids, peer.fsm.peerInfo, rf)
 
 		if !peer.isRouteServerClient() {
-			for _, w := range server.watcherMap[WATCH_TYPE_BESTPATH] {
-				w.notify(&watcherEventBestPathMsg{pathList: best[table.GLOBAL_RIB_NAME], multiPathList: multipath})
-			}
+			server.notifyWatcher(WATCH_TYPE_BESTPATH, &watcherEventBestPathMsg{pathList: best[table.GLOBAL_RIB_NAME], multiPathList: multipath})
 		}
 
 		for _, targetPeer := range server.neighborMap {
@@ -407,10 +405,7 @@ func createWatcherEventStateChange(peer *Peer) *watcherEventStateChangedMsg {
 func (server *BgpServer) broadcastPeerState(peer *Peer, oldState bgp.FSMState) {
 	newState := peer.fsm.state
 	if oldState == bgp.BGP_FSM_ESTABLISHED || newState == bgp.BGP_FSM_ESTABLISHED {
-		ev := createWatcherEventStateChange(peer)
-		for _, w := range server.watcherMap[WATCH_TYPE_PEER_STATE] {
-			w.notify(ev)
-		}
+		server.notifyWatcher(WATCH_TYPE_PEER_STATE, createWatcherEventStateChange(peer))
 	}
 }
 
@@ -521,9 +516,7 @@ func (server *BgpServer) propagateUpdate(peer *Peer, pathList []*table.Path) []*
 		if len(best[table.GLOBAL_RIB_NAME]) == 0 {
 			return alteredPathList
 		}
-		for _, w := range server.watcherMap[WATCH_TYPE_BESTPATH] {
-			w.notify(&watcherEventBestPathMsg{pathList: best[table.GLOBAL_RIB_NAME], multiPathList: multi})
-		}
+		server.notifyWatcher(WATCH_TYPE_BESTPATH, &watcherEventBestPathMsg{pathList: best[table.GLOBAL_RIB_NAME], multiPathList: multi})
 
 	}
 
@@ -667,7 +660,7 @@ func (server *BgpServer) handleFSMMessage(peer *Peer, e *FsmMsg) {
 				sendFsmOutgoingMsg(peer, nil, notification, true)
 				return
 			}
-			if m.Header.Type == bgp.BGP_MSG_UPDATE && len(server.watcherMap[WATCH_TYPE_PRE_UPDATE]) > 0 {
+			if m.Header.Type == bgp.BGP_MSG_UPDATE && server.isWatched(WATCH_TYPE_PRE_UPDATE) {
 				_, y := peer.fsm.capMap[bgp.BGP_CAP_FOUR_OCTET_AS_NUMBER]
 				l, _ := peer.fsm.LocalHostPort()
 				ev := &watcherEventUpdateMsg{
@@ -683,15 +676,13 @@ func (server *BgpServer) handleFSMMessage(peer *Peer, e *FsmMsg) {
 					postPolicy:   false,
 					pathList:     pathList,
 				}
-				for _, w := range server.watcherMap[WATCH_TYPE_PRE_UPDATE] {
-					w.notify(ev)
-				}
+				server.notifyWatcher(WATCH_TYPE_PRE_UPDATE, ev)
 			}
 
 			if len(pathList) > 0 {
 				var altered []*table.Path
 				altered = server.propagateUpdate(peer, pathList)
-				if len(server.watcherMap[WATCH_TYPE_POST_UPDATE]) > 0 {
+				if server.isWatched(WATCH_TYPE_POST_UPDATE) {
 					_, y := peer.fsm.capMap[bgp.BGP_CAP_FOUR_OCTET_AS_NUMBER]
 					l, _ := peer.fsm.LocalHostPort()
 					ev := &watcherEventUpdateMsg{
@@ -708,9 +699,7 @@ func (server *BgpServer) handleFSMMessage(peer *Peer, e *FsmMsg) {
 					for _, u := range table.CreateUpdateMsgFromPaths(altered) {
 						payload, _ := u.Serialize()
 						ev.payload = payload
-						for _, w := range server.watcherMap[WATCH_TYPE_POST_UPDATE] {
-							w.notify(ev)
-						}
+						server.notifyWatcher(WATCH_TYPE_POST_UPDATE, ev)
 					}
 				}
 			}
@@ -2775,6 +2764,16 @@ func (w *Watcher) Stop() {
 				}
 			}
 		}()
+	}
+}
+
+func (s *BgpServer) isWatched(typ watchType) bool {
+	return len(s.watcherMap[typ]) != 0
+}
+
+func (s *BgpServer) notifyWatcher(typ watchType, ev watcherEvent) {
+	for _, w := range s.watcherMap[typ] {
+		w.notify(ev)
 	}
 }
 
