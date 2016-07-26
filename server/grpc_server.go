@@ -138,14 +138,6 @@ func (s *Server) Serve() error {
 }
 
 func (s *Server) GetNeighbor(ctx context.Context, arg *api.GetNeighborRequest) (*api.GetNeighborResponse, error) {
-	var rf bgp.RouteFamily
-	req := NewGrpcRequest(REQ_NEIGHBOR, "", rf, nil)
-	s.bgpServerCh <- req
-	res := <-req.ResponseCh
-	if res.Err() != nil {
-		return nil, res.Err()
-	}
-
 	toApi := func(pconf *config.Neighbor) *api.Peer {
 		prefixLimits := make([]*api.PrefixLimit, 0, len(pconf.AfiSafis))
 		for _, family := range pconf.AfiSafis {
@@ -229,7 +221,7 @@ func (s *Server) GetNeighbor(ctx context.Context, arg *api.GetNeighborRequest) (
 	}
 
 	p := []*api.Peer{}
-	for _, e := range res.Data.([]*config.Neighbor) {
+	for _, e := range s.bgpServer.GetNeighbor() {
 		p = append(p, toApi(e))
 	}
 	return &api.GetNeighborResponse{Peers: p}, nil

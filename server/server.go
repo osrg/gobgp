@@ -1460,15 +1460,6 @@ func (server *BgpServer) handleGrpc(grpcReq *GrpcRequest) {
 			Data: dsts,
 		}
 		close(grpcReq.ResponseCh)
-	case REQ_NEIGHBOR:
-		l := make([]*config.Neighbor, 0)
-		for _, peer := range server.neighborMap {
-			l = append(l, peer.ToConfig())
-		}
-		grpcReq.ResponseCh <- &GrpcResponse{
-			Data: l,
-		}
-		close(grpcReq.ResponseCh)
 	case REQ_ADJ_RIB_IN, REQ_ADJ_RIB_OUT:
 		arg := grpcReq.Data.(*api.GetRibRequest)
 
@@ -1730,6 +1721,21 @@ ERROR:
 	}
 	close(grpcReq.ResponseCh)
 	return
+}
+
+func (s *BgpServer) GetNeighbor() (l []*config.Neighbor) {
+	ch := make(chan struct{})
+	defer func() { <-ch }()
+
+	s.mgmtCh <- func() {
+		defer close(ch)
+
+		l = make([]*config.Neighbor, 0, len(s.neighborMap))
+		for _, peer := range s.neighborMap {
+			l = append(l, peer.ToConfig())
+		}
+	}
+	return l
 }
 
 func (server *BgpServer) addNeighbor(c *config.Neighbor) error {
