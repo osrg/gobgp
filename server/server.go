@@ -351,6 +351,16 @@ func filterpath(peer *Peer, path *table.Path) *table.Path {
 	return path
 }
 
+func clonePathList(pathList []*table.Path) []*table.Path {
+	l := make([]*table.Path, 0, len(pathList))
+	for _, p := range pathList {
+		if p != nil {
+			l = append(l, p.Clone(p.IsWithdraw))
+		}
+	}
+	return l
+}
+
 func (server *BgpServer) dropPeerAllRoutes(peer *Peer, families []bgp.RouteFamily) {
 	ids := make([]string, 0, len(server.neighborMap))
 	if peer.isRouteServerClient() {
@@ -367,7 +377,11 @@ func (server *BgpServer) dropPeerAllRoutes(peer *Peer, families []bgp.RouteFamil
 		best, _, multipath := server.globalRib.DeletePathsByPeer(ids, peer.fsm.peerInfo, rf)
 
 		if !peer.isRouteServerClient() {
-			server.notifyWatcher(WATCH_TYPE_BESTPATH, &watcherEventBestPathMsg{pathList: best[table.GLOBAL_RIB_NAME], multiPathList: multipath})
+			clonedMpath := make([][]*table.Path, len(multipath))
+			for i, pathList := range multipath {
+				clonedMpath[i] = clonePathList(pathList)
+			}
+			server.notifyWatcher(WATCH_TYPE_BESTPATH, &watcherEventBestPathMsg{pathList: clonePathList(best[table.GLOBAL_RIB_NAME]), multiPathList: clonedMpath})
 		}
 
 		for _, targetPeer := range server.neighborMap {
@@ -511,12 +525,16 @@ func (server *BgpServer) propagateUpdate(peer *Peer, pathList []*table.Path) []*
 			}
 		}
 		alteredPathList = pathList
-		var multi [][]*table.Path
-		best, withdrawn, multi = rib.ProcessPaths([]string{table.GLOBAL_RIB_NAME}, pathList)
+		var multipath [][]*table.Path
+		best, withdrawn, multipath = rib.ProcessPaths([]string{table.GLOBAL_RIB_NAME}, pathList)
 		if len(best[table.GLOBAL_RIB_NAME]) == 0 {
 			return alteredPathList
 		}
-		server.notifyWatcher(WATCH_TYPE_BESTPATH, &watcherEventBestPathMsg{pathList: best[table.GLOBAL_RIB_NAME], multiPathList: multi})
+		clonedMpath := make([][]*table.Path, len(multipath))
+		for i, pathList := range multipath {
+			clonedMpath[i] = clonePathList(pathList)
+		}
+		server.notifyWatcher(WATCH_TYPE_BESTPATH, &watcherEventBestPathMsg{pathList: clonePathList(best[table.GLOBAL_RIB_NAME]), multiPathList: clonedMpath})
 
 	}
 
@@ -674,7 +692,7 @@ func (server *BgpServer) handleFSMMessage(peer *Peer, e *FsmMsg) {
 					timestamp:    e.timestamp,
 					payload:      e.payload,
 					postPolicy:   false,
-					pathList:     pathList,
+					pathList:     clonePathList(pathList),
 				}
 				server.notifyWatcher(WATCH_TYPE_PRE_UPDATE, ev)
 			}
@@ -694,7 +712,7 @@ func (server *BgpServer) handleFSMMessage(peer *Peer, e *FsmMsg) {
 						fourBytesAs:  y,
 						timestamp:    e.timestamp,
 						postPolicy:   true,
-						pathList:     altered,
+						pathList:     clonePathList(altered),
 					}
 					for _, u := range table.CreateUpdateMsgFromPaths(altered) {
 						payload, _ := u.Serialize()
@@ -2717,7 +2735,7 @@ func (w *Watcher) Generate(t watchType) (err error) {
 		for _, peer := range w.s.neighborMap {
 			pathList = append(pathList, peer.adjRibIn.PathList(peer.configuredRFlist(), false)...)
 		}
-		w.notify(&watcherEventAdjInMsg{pathList: pathList})
+		w.notify(&watcherEventAdjInMsg{pathList: clonePathList(pathList)})
 	}
 	return err
 }
