@@ -1706,11 +1706,7 @@ func (s *Server) ReplacePolicyAssignment(ctx context.Context, arg *api.ReplacePo
 }
 
 func (s *Server) GetServer(ctx context.Context, arg *api.GetServerRequest) (*api.GetServerResponse, error) {
-	d, err := s.get(REQ_GET_SERVER, arg)
-	if err != nil {
-		return nil, err
-	}
-	g := d.(*config.Global)
+	g := s.bgpServer.GetServer()
 	return &api.GetServerResponse{
 		Global: &api.Global{
 			As:              g.Config.As,
@@ -1720,7 +1716,7 @@ func (s *Server) GetServer(ctx context.Context, arg *api.GetServerRequest) (*api
 			MplsLabelMin:    g.MplsLabelRange.MinLabel,
 			MplsLabelMax:    g.MplsLabelRange.MaxLabel,
 		},
-	}, err
+	}, nil
 }
 
 func (s *Server) StartServer(ctx context.Context, arg *api.StartServerRequest) (*api.StartServerResponse, error) {

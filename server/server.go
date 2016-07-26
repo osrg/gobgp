@@ -1361,12 +1361,6 @@ func (server *BgpServer) handleGrpc(grpcReq *GrpcRequest) {
 	var err error
 
 	switch grpcReq.RequestType {
-	case REQ_GET_SERVER:
-		g := server.bgpConfig.Global
-		grpcReq.ResponseCh <- &GrpcResponse{
-			Data: &g,
-		}
-		close(grpcReq.ResponseCh)
 	case REQ_GLOBAL_RIB, REQ_LOCAL_RIB:
 		arg := grpcReq.Data.(*api.GetRibRequest)
 		rib := server.globalRib
@@ -1715,6 +1709,19 @@ ERROR:
 	}
 	close(grpcReq.ResponseCh)
 	return
+}
+
+func (s *BgpServer) GetServer() (c *config.Global) {
+	ch := make(chan struct{})
+	defer func() { <-ch }()
+
+	s.mgmtCh <- func() {
+		defer close(ch)
+
+		g := s.bgpConfig.Global
+		c = &g
+	}
+	return c
 }
 
 func (s *BgpServer) GetNeighbor() (l []*config.Neighbor) {
