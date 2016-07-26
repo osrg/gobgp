@@ -1172,42 +1172,6 @@ func (s *BgpServer) DeletePath(uuid []byte, f bgp.RouteFamily, vrfId string, pat
 	return err
 }
 
-func (server *BgpServer) handleAddVrfRequest(grpcReq *GrpcRequest) ([]*table.Path, error) {
-	arg, _ := grpcReq.Data.(*api.AddVrfRequest)
-	rib := server.globalRib
-	rd := bgp.GetRouteDistinguisher(arg.Vrf.Rd)
-	f := func(bufs [][]byte) ([]bgp.ExtendedCommunityInterface, error) {
-		ret := make([]bgp.ExtendedCommunityInterface, 0, len(bufs))
-		for _, rt := range bufs {
-			r, err := bgp.ParseExtended(rt)
-			if err != nil {
-				return nil, err
-			}
-			ret = append(ret, r)
-		}
-		return ret, nil
-	}
-	importRt, err := f(arg.Vrf.ImportRt)
-	if err != nil {
-		return nil, err
-	}
-	exportRt, err := f(arg.Vrf.ExportRt)
-	if err != nil {
-		return nil, err
-	}
-	pi := &table.PeerInfo{
-		AS:      server.bgpConfig.Global.Config.As,
-		LocalID: net.ParseIP(server.bgpConfig.Global.Config.RouterId).To4(),
-	}
-	return rib.AddVrf(arg.Vrf.Name, rd, importRt, exportRt, pi)
-}
-
-func (server *BgpServer) handleDeleteVrfRequest(grpcReq *GrpcRequest) ([]*table.Path, error) {
-	arg, _ := grpcReq.Data.(*api.DeleteVrfRequest)
-	rib := server.globalRib
-	return rib.DeleteVrf(arg.Vrf.Name)
-}
-
 func (server *BgpServer) handleVrfRequest(req *GrpcRequest) []*table.Path {
 	var msgs []*table.Path
 	result := &GrpcResponse{}
@@ -1247,12 +1211,6 @@ func (server *BgpServer) handleVrfRequest(req *GrpcRequest) []*table.Path {
 			Data: paths,
 		}
 		goto END
-	case REQ_ADD_VRF:
-		msgs, result.ResponseErr = server.handleAddVrfRequest(req)
-		result.Data = &api.AddVrfResponse{}
-	case REQ_DELETE_VRF:
-		msgs, result.ResponseErr = server.handleDeleteVrfRequest(req)
-		result.Data = &api.DeleteVrfResponse{}
 	default:
 		result.ResponseErr = fmt.Errorf("unknown request type: %d", req.RequestType)
 	}
@@ -1316,6 +1274,41 @@ func (s *BgpServer) GetVrf() (l []*table.Vrf) {
 		}
 	}
 	return l
+}
+
+func (s *BgpServer) AddVrf(name string, rd bgp.RouteDistinguisherInterface, im, ex []bgp.ExtendedCommunityInterface) (err error) {
+	ch := make(chan struct{})
+	defer func() { <-ch }()
+
+	s.mgmtCh <- func() {
+		defer close(ch)
+
+		pi := &table.PeerInfo{
+			AS:      s.bgpConfig.Global.Config.As,
+			LocalID: net.ParseIP(s.bgpConfig.Global.Config.RouterId).To4(),
+		}
+		if pathList, e := s.globalRib.AddVrf(name, rd, im, ex, pi); e != nil {
+			err = e
+		} else if len(pathList) > 0 {
+			s.propagateUpdate(nil, pathList)
+		}
+	}
+	return err
+}
+
+func (s *BgpServer) DeleteVrf(name string) (err error) {
+	ch := make(chan struct{})
+	defer func() { <-ch }()
+
+	s.mgmtCh <- func() {
+		defer close(ch)
+
+		pathList, err := s.globalRib.DeleteVrf(name)
+		if err == nil && len(pathList) > 0 {
+			s.propagateUpdate(nil, pathList)
+		}
+	}
+	return err
 }
 
 func (s *BgpServer) Stop() (err error) {
@@ -1702,7 +1695,7 @@ func (server *BgpServer) handleGrpc(grpcReq *GrpcRequest) {
 		rsp := server.roaManager.handleGRPC(grpcReq)
 		grpcReq.ResponseCh <- rsp
 		close(grpcReq.ResponseCh)
-	case REQ_VRF, REQ_ADD_VRF, REQ_DELETE_VRF:
+	case REQ_VRF:
 		pathList := server.handleVrfRequest(grpcReq)
 		if len(pathList) > 0 {
 			server.propagateUpdate(nil, pathList)

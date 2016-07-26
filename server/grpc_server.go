@@ -804,20 +804,32 @@ func (s *Server) get(typ int, d interface{}) (interface{}, error) {
 	return res.Data, res.Err()
 }
 
-func (s *Server) AddVrf(ctx context.Context, arg *api.AddVrfRequest) (*api.AddVrfResponse, error) {
-	d, err := s.get(REQ_ADD_VRF, arg)
-	if err != nil {
-		return nil, err
+func (s *Server) AddVrf(ctx context.Context, arg *api.AddVrfRequest) (r *api.AddVrfResponse, err error) {
+	rd := bgp.GetRouteDistinguisher(arg.Vrf.Rd)
+	f := func(bufs [][]byte) ([]bgp.ExtendedCommunityInterface, error) {
+		ret := make([]bgp.ExtendedCommunityInterface, 0, len(bufs))
+		for _, rt := range bufs {
+			r, err := bgp.ParseExtended(rt)
+			if err != nil {
+				return nil, err
+			}
+			ret = append(ret, r)
+		}
+		return ret, nil
 	}
-	return d.(*api.AddVrfResponse), err
+	im, err := f(arg.Vrf.ImportRt)
+	if err != nil {
+		return &api.AddVrfResponse{}, err
+	}
+	ex, err := f(arg.Vrf.ExportRt)
+	if err != nil {
+		return &api.AddVrfResponse{}, err
+	}
+	return &api.AddVrfResponse{}, s.bgpServer.AddVrf(arg.Vrf.Name, rd, im, ex)
 }
 
 func (s *Server) DeleteVrf(ctx context.Context, arg *api.DeleteVrfRequest) (*api.DeleteVrfResponse, error) {
-	d, err := s.get(REQ_DELETE_VRF, arg)
-	if err != nil {
-		return nil, err
-	}
-	return d.(*api.DeleteVrfResponse), err
+	return &api.DeleteVrfResponse{}, s.bgpServer.DeleteVrf(arg.Vrf.Name)
 }
 
 func (s *Server) AddNeighbor(ctx context.Context, arg *api.AddNeighborRequest) (*api.AddNeighborResponse, error) {
