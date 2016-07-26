@@ -367,7 +367,7 @@ func ParseEvpnMacAdvArgs(args []string) (bgp.AddrPrefixInterface, []string, erro
 		MacAddress:       mac,
 		IPAddressLength:  uint8(iplen),
 		IPAddress:        ip,
-		Labels:           []uint32{uint32(label)},
+		Labels:           *bgp.NewMPLSLabelStack(uint32(label)),
 		ETag:             uint32(eTag),
 	}
 	nlri = bgp.NewEVPNNLRI(bgp.EVPN_ROUTE_TYPE_MAC_IP_ADVERTISEMENT, 0, macIpAdv)
