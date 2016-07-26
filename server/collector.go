@@ -47,28 +47,28 @@ func (c *Collector) writePoints(points []*client.Point) error {
 	return c.client.Write(bp)
 }
 
-func (c *Collector) writePeer(msg *watcherEventStateChangedMsg) error {
+func (c *Collector) writePeer(msg *WatchEventPeerState) error {
 	var state string
-	switch msg.state {
+	switch msg.State {
 	case bgp.BGP_FSM_ESTABLISHED:
 		state = "Established"
 	case bgp.BGP_FSM_IDLE:
 		state = "Idle"
 	default:
-		return fmt.Errorf("unexpected fsm state %v", msg.state)
+		return fmt.Errorf("unexpected fsm state %v", msg.State)
 	}
 
 	tags := map[string]string{
-		"PeerAddress": msg.peerAddress.String(),
-		"PeerAS":      fmt.Sprintf("%v", msg.peerAS),
+		"PeerAddress": msg.PeerAddress.String(),
+		"PeerAS":      fmt.Sprintf("%v", msg.PeerAS),
 		"State":       state,
 	}
 
 	fields := map[string]interface{}{
-		"PeerID": msg.peerID.String(),
+		"PeerID": msg.PeerID.String(),
 	}
 
-	pt, err := client.NewPoint(MEATUREMENT_PEER, tags, fields, msg.timestamp)
+	pt, err := client.NewPoint(MEATUREMENT_PEER, tags, fields, msg.Timestamp)
 	if err != nil {
 		return err
 	}
@@ -121,14 +121,14 @@ func path2data(path *table.Path) (map[string]interface{}, map[string]string) {
 	return fields, tags
 }
 
-func (c *Collector) writeUpdate(msg *watcherEventUpdateMsg) error {
-	if len(msg.pathList) == 0 {
+func (c *Collector) writeUpdate(msg *WatchEventUpdate) error {
+	if len(msg.PathList) == 0 {
 		// EOR
 		return nil
 	}
 	now := time.Now()
-	points := make([]*client.Point, 0, len(msg.pathList))
-	for _, path := range msg.pathList {
+	points := make([]*client.Point, 0, len(msg.PathList))
+	for _, path := range msg.PathList {
 		fields, tags := path2data(path)
 		tags["Withdraw"] = fmt.Sprintf("%v", path.IsWithdraw)
 		pt, err := client.NewPoint(MEATUREMENT_UPDATE, tags, fields, now)
@@ -140,10 +140,10 @@ func (c *Collector) writeUpdate(msg *watcherEventUpdateMsg) error {
 	return c.writePoints(points)
 }
 
-func (c *Collector) writeTable(msg *watcherEventAdjInMsg) error {
+func (c *Collector) writeTable(msg *WatchEventAdjIn) error {
 	now := time.Now()
-	points := make([]*client.Point, 0, len(msg.pathList))
-	for _, path := range msg.pathList {
+	points := make([]*client.Point, 0, len(msg.PathList))
+	for _, path := range msg.PathList {
 		fields, tags := path2data(path)
 		pt, err := client.NewPoint(MEATUREMENT_TABLE, tags, fields, now)
 		if err != nil {
@@ -168,18 +168,18 @@ func (c *Collector) loop() {
 	for {
 		select {
 		case <-ticker.C:
-			w.Generate(WATCH_TYPE_PRE_UPDATE)
+			w.Generate(WATCH_EVENT_TYPE_PRE_UPDATE)
 		case ev := <-w.Event():
 			switch msg := ev.(type) {
-			case *watcherEventUpdateMsg:
+			case *WatchEventUpdate:
 				if err := c.writeUpdate(msg); err != nil {
 					log.Error(err)
 				}
-			case *watcherEventStateChangedMsg:
+			case *WatchEventPeerState:
 				if err := c.writePeer(msg); err != nil {
 					log.Error(err)
 				}
-			case *watcherEventAdjInMsg:
+			case *WatchEventAdjIn:
 				if err := c.writeTable(msg); err != nil {
 					log.Error(err)
 				}

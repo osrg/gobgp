@@ -56,15 +56,15 @@ func (m *mrtWriter) loop() error {
 	}()
 
 	for {
-		serialize := func(ev watcherEvent) ([]byte, error) {
-			m := ev.(*watcherEventUpdateMsg)
+		serialize := func(ev WatchEvent) ([]byte, error) {
+			m := ev.(*WatchEventUpdate)
 			subtype := mrt.MESSAGE_AS4
-			mp := mrt.NewBGP4MPMessage(m.peerAS, m.localAS, 0, m.peerAddress.String(), m.localAddress.String(), m.fourBytesAs, nil)
-			mp.BGPMessagePayload = m.payload
-			if m.fourBytesAs == false {
+			mp := mrt.NewBGP4MPMessage(m.PeerAS, m.LocalAS, 0, m.PeerAddress.String(), m.LocalAddress.String(), m.FourBytesAs, nil)
+			mp.BGPMessagePayload = m.Payload
+			if m.FourBytesAs == false {
 				subtype = mrt.MESSAGE
 			}
-			bm, err := mrt.NewMRTMessage(uint32(m.timestamp.Unix()), mrt.BGP4MP, subtype, mp)
+			bm, err := mrt.NewMRTMessage(uint32(m.Timestamp.Unix()), mrt.BGP4MP, subtype, mp)
 			if err != nil {
 				log.WithFields(log.Fields{
 					"Topic": "mrt",
@@ -75,8 +75,8 @@ func (m *mrtWriter) loop() error {
 			return bm.Serialize()
 		}
 
-		drain := func(ev watcherEvent) {
-			events := make([]watcherEvent, 0, 1+len(w.Event()))
+		drain := func(ev WatchEvent) {
+			events := make([]WatchEvent, 0, 1+len(w.Event()))
 			if ev != nil {
 				events = append(events, ev)
 			}

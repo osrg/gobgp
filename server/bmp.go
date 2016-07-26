@@ -87,27 +87,27 @@ func (b *bmpClient) loop() {
 				select {
 				case ev := <-w.Event():
 					switch msg := ev.(type) {
-					case *watcherEventUpdateMsg:
+					case *WatchEventUpdate:
 						info := &table.PeerInfo{
-							Address: msg.peerAddress,
-							AS:      msg.peerAS,
-							ID:      msg.peerID,
+							Address: msg.PeerAddress,
+							AS:      msg.PeerAS,
+							ID:      msg.PeerID,
 						}
-						if err := write(bmpPeerRoute(bmp.BMP_PEER_TYPE_GLOBAL, msg.postPolicy, 0, info, msg.timestamp.Unix(), msg.payload)); err != nil {
+						if err := write(bmpPeerRoute(bmp.BMP_PEER_TYPE_GLOBAL, msg.PostPolicy, 0, info, msg.Timestamp.Unix(), msg.Payload)); err != nil {
 							return false
 						}
-					case *watcherEventStateChangedMsg:
+					case *WatchEventPeerState:
 						info := &table.PeerInfo{
-							Address: msg.peerAddress,
-							AS:      msg.peerAS,
-							ID:      msg.peerID,
+							Address: msg.PeerAddress,
+							AS:      msg.PeerAS,
+							ID:      msg.PeerID,
 						}
-						if msg.state == bgp.BGP_FSM_ESTABLISHED {
-							if err := write(bmpPeerUp(msg.localAddress.String(), msg.localPort, msg.peerPort, msg.sentOpen, msg.recvOpen, bmp.BMP_PEER_TYPE_GLOBAL, false, 0, info, msg.timestamp.Unix())); err != nil {
+						if msg.State == bgp.BGP_FSM_ESTABLISHED {
+							if err := write(bmpPeerUp(msg.LocalAddress.String(), msg.LocalPort, msg.PeerPort, msg.SentOpen, msg.RecvOpen, bmp.BMP_PEER_TYPE_GLOBAL, false, 0, info, msg.Timestamp.Unix())); err != nil {
 								return false
 							}
 						} else {
-							if err := write(bmpPeerDown(bmp.BMP_PEER_DOWN_REASON_UNKNOWN, bmp.BMP_PEER_TYPE_GLOBAL, false, 0, info, msg.timestamp.Unix())); err != nil {
+							if err := write(bmpPeerDown(bmp.BMP_PEER_DOWN_REASON_UNKNOWN, bmp.BMP_PEER_TYPE_GLOBAL, false, 0, info, msg.Timestamp.Unix())); err != nil {
 								return false
 							}
 						}

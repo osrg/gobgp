@@ -383,22 +383,22 @@ func (s *Server) MonitorRib(arg *api.Table, stream api.GobgpApi_MonitorRibServer
 			select {
 			case ev := <-w.Event():
 				switch msg := ev.(type) {
-				case *watcherEventBestPathMsg:
+				case *WatchEventBestPath:
 					if err := sendPath(func() []*table.Path {
-						if len(msg.multiPathList) > 0 {
+						if len(msg.MultiPathList) > 0 {
 							l := make([]*table.Path, 0)
-							for _, p := range msg.multiPathList {
+							for _, p := range msg.MultiPathList {
 								l = append(l, p...)
 							}
 							return l
 						} else {
-							return msg.pathList
+							return msg.PathList
 						}
 					}()); err != nil {
 						return err
 					}
-				case *watcherEventUpdateMsg:
-					if err := sendPath(msg.pathList); err != nil {
+				case *WatchEventUpdate:
+					if err := sendPath(msg.PathList); err != nil {
 						return err
 					}
 				}
@@ -416,28 +416,28 @@ func (s *Server) MonitorPeerState(arg *api.Arguments, stream api.GobgpApi_Monito
 			select {
 			case ev := <-w.Event():
 				switch msg := ev.(type) {
-				case *watcherEventStateChangedMsg:
-					if len(arg.Name) > 0 && arg.Name != msg.peerAddress.String() {
+				case *WatchEventPeerState:
+					if len(arg.Name) > 0 && arg.Name != msg.PeerAddress.String() {
 						continue
 					}
 					if err := stream.Send(&api.Peer{
 						Conf: &api.PeerConf{
-							PeerAs:          msg.peerAS,
-							LocalAs:         msg.localAS,
-							NeighborAddress: msg.peerAddress.String(),
-							Id:              msg.peerID.String(),
+							PeerAs:          msg.PeerAS,
+							LocalAs:         msg.LocalAS,
+							NeighborAddress: msg.PeerAddress.String(),
+							Id:              msg.PeerID.String(),
 						},
 						Info: &api.PeerState{
-							PeerAs:          msg.peerAS,
-							LocalAs:         msg.localAS,
-							NeighborAddress: msg.peerAddress.String(),
-							BgpState:        msg.state.String(),
-							AdminState:      msg.adminState.String(),
+							PeerAs:          msg.PeerAS,
+							LocalAs:         msg.LocalAS,
+							NeighborAddress: msg.PeerAddress.String(),
+							BgpState:        msg.State.String(),
+							AdminState:      msg.AdminState.String(),
 						},
 						Transport: &api.Transport{
-							LocalAddress: msg.localAddress.String(),
-							LocalPort:    uint32(msg.localPort),
-							RemotePort:   uint32(msg.peerPort),
+							LocalAddress: msg.LocalAddress.String(),
+							LocalPort:    uint32(msg.LocalPort),
+							RemotePort:   uint32(msg.PeerPort),
 						},
 					}); err != nil {
 						return err

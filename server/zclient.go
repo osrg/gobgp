@@ -176,15 +176,15 @@ func (z *zebraClient) loop() {
 				}
 			}
 		case ev := <-w.Event():
-			msg := ev.(*watcherEventBestPathMsg)
+			msg := ev.(*WatchEventBestPath)
 			if table.UseMultiplePaths.Enabled {
-				for _, dst := range msg.multiPathList {
+				for _, dst := range msg.MultiPathList {
 					if m := newIPRouteMessage(dst); m != nil {
 						z.client.Send(m)
 					}
 				}
 			} else {
-				for _, path := range msg.pathList {
+				for _, path := range msg.PathList {
 					if m := newIPRouteMessage([]*table.Path{path}); m != nil {
 						z.client.Send(m)
 					}
