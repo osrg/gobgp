@@ -903,12 +903,19 @@ func (s *BgpServer) DeleteBmp(c *config.BmpServerConfig) (err error) {
 	return err
 }
 
-func (server *BgpServer) Shutdown() {
-	server.shutdown = true
-	for _, p := range server.neighborMap {
-		p.fsm.adminStateCh <- ADMIN_STATE_DOWN
+func (s *BgpServer) Shutdown() {
+	ch := make(chan struct{})
+	defer func() { <-ch }()
+
+	s.mgmtCh <- func() {
+		defer close(ch)
+
+		s.shutdown = true
+		for _, p := range s.neighborMap {
+			p.fsm.adminStateCh <- ADMIN_STATE_DOWN
+		}
+		// TODO: call fsmincomingCh.Close()
 	}
-	// TODO: call fsmincomingCh.Close()
 }
 
 func (s *BgpServer) UpdatePolicy(policy config.RoutingPolicy) (err error) {
