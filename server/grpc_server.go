@@ -772,11 +772,6 @@ func (s *Server) GetRoa(ctx context.Context, arg *api.GetRoaRequest) (*api.GetRo
 }
 
 func (s *Server) GetVrf(ctx context.Context, arg *api.GetVrfRequest) (*api.GetVrfResponse, error) {
-	d, err := s.get(REQ_GET_VRF, arg)
-	if err != nil {
-		return nil, err
-	}
-	l := make([]*api.Vrf, 0, len(d.([]*table.Vrf)))
 	toApi := func(v *table.Vrf) *api.Vrf {
 		f := func(rts []bgp.ExtendedCommunityInterface) [][]byte {
 			ret := make([][]byte, 0, len(rts))
@@ -794,8 +789,9 @@ func (s *Server) GetVrf(ctx context.Context, arg *api.GetVrfRequest) (*api.GetVr
 			ExportRt: f(v.ExportRt),
 		}
 	}
-
-	for _, v := range d.([]*table.Vrf) {
+	vrfs := s.bgpServer.GetVrf()
+	l := make([]*api.Vrf, 0, len(vrfs))
+	for _, v := range vrfs {
 		l = append(l, toApi(v))
 	}
 	return &api.GetVrfResponse{Vrfs: l}, nil

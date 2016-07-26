@@ -1247,12 +1247,6 @@ func (server *BgpServer) handleVrfRequest(req *GrpcRequest) []*table.Path {
 			Data: paths,
 		}
 		goto END
-	case REQ_GET_VRF:
-		l := make([]*table.Vrf, 0, len(server.globalRib.Vrfs))
-		for _, vrf := range server.globalRib.Vrfs {
-			l = append(l, vrf.Clone())
-		}
-		result.Data = l
 	case REQ_ADD_VRF:
 		msgs, result.ResponseErr = server.handleAddVrfRequest(req)
 		result.Data = &api.AddVrfResponse{}
@@ -1307,6 +1301,21 @@ func (s *BgpServer) Start(c *config.Global) (err error) {
 		table.UseMultiplePaths = c.UseMultiplePaths.Config
 	}
 	return nil
+}
+
+func (s *BgpServer) GetVrf() (l []*table.Vrf) {
+	ch := make(chan struct{})
+	defer func() { <-ch }()
+
+	s.mgmtCh <- func() {
+		defer close(ch)
+
+		l = make([]*table.Vrf, 0, len(s.globalRib.Vrfs))
+		for _, vrf := range s.globalRib.Vrfs {
+			l = append(l, vrf.Clone())
+		}
+	}
+	return l
 }
 
 func (s *BgpServer) Stop() (err error) {
@@ -1693,7 +1702,7 @@ func (server *BgpServer) handleGrpc(grpcReq *GrpcRequest) {
 		rsp := server.roaManager.handleGRPC(grpcReq)
 		grpcReq.ResponseCh <- rsp
 		close(grpcReq.ResponseCh)
-	case REQ_VRF, REQ_GET_VRF, REQ_ADD_VRF, REQ_DELETE_VRF:
+	case REQ_VRF, REQ_ADD_VRF, REQ_DELETE_VRF:
 		pathList := server.handleVrfRequest(grpcReq)
 		if len(pathList) > 0 {
 			server.propagateUpdate(nil, pathList)
