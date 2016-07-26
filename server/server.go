@@ -817,19 +817,6 @@ func (server *BgpServer) handleFSMMessage(peer *Peer, e *FsmMsg) {
 	return
 }
 
-func (server *BgpServer) SetGlobalType(g config.Global) error {
-	ch := make(chan *GrpcResponse)
-	server.GrpcReqCh <- &GrpcRequest{
-		RequestType: REQ_START_SERVER,
-		Data:        &g,
-		ResponseCh:  ch,
-	}
-	if err := (<-ch).Err(); err != nil {
-		return err
-	}
-	return nil
-}
-
 func (s *BgpServer) StartCollector(c *config.CollectorConfig) (err error) {
 	ch := make(chan struct{})
 	defer func() { <-ch }()
