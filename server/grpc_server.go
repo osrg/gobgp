@@ -1740,11 +1740,7 @@ func (s *Server) StartServer(ctx context.Context, arg *api.StartServerRequest) (
 }
 
 func (s *Server) StopServer(ctx context.Context, arg *api.StopServerRequest) (*api.StopServerResponse, error) {
-	d, err := s.get(REQ_STOP_SERVER, arg)
-	if err != nil {
-		return nil, err
-	}
-	return d.(*api.StopServerResponse), err
+	return &api.StopServerResponse{}, s.bgpServer.Stop()
 }
 
 type GrpcRequest struct {
