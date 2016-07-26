@@ -1732,11 +1732,42 @@ func (s *Server) GetServer(ctx context.Context, arg *api.GetServerRequest) (*api
 }
 
 func (s *Server) StartServer(ctx context.Context, arg *api.StartServerRequest) (*api.StartServerResponse, error) {
-	d, err := s.get(REQ_START_SERVER, arg)
-	if err != nil {
+	g := arg.Global
+	if net.ParseIP(g.RouterId) == nil {
+		return nil, fmt.Errorf("invalid router-id format: %s", g.RouterId)
+	}
+	families := make([]config.AfiSafi, 0, len(g.Families))
+	for _, f := range g.Families {
+		name := config.AfiSafiType(bgp.RouteFamily(f).String())
+		families = append(families, config.AfiSafi{
+			Config: config.AfiSafiConfig{
+				AfiSafiName: name,
+				Enabled:     true,
+			},
+			State: config.AfiSafiState{
+				AfiSafiName: name,
+			},
+		})
+	}
+	b := &config.BgpConfigSet{
+		Global: config.Global{
+			Config: config.GlobalConfig{
+				As:               g.As,
+				RouterId:         g.RouterId,
+				Port:             g.ListenPort,
+				LocalAddressList: g.ListenAddresses,
+			},
+			MplsLabelRange: config.MplsLabelRange{
+				MinLabel: g.MplsLabelMin,
+				MaxLabel: g.MplsLabelMax,
+			},
+			AfiSafis: families,
+		},
+	}
+	if err := config.SetDefaultConfigValues(nil, b); err != nil {
 		return nil, err
 	}
-	return d.(*api.StartServerResponse), err
+	return &api.StartServerResponse{}, s.bgpServer.Start(&b.Global)
 }
 
 func (s *Server) StopServer(ctx context.Context, arg *api.StopServerRequest) (*api.StopServerResponse, error) {
