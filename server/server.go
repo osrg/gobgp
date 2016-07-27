@@ -851,16 +851,6 @@ func (s *BgpServer) StartZebraClient(x *config.Zebra) (err error) {
 }
 
 func (server *BgpServer) SetRpkiConfig(c []config.RpkiServer) error {
-	ch := make(chan *GrpcResponse)
-	server.GrpcReqCh <- &GrpcRequest{
-		RequestType: REQ_INITIALIZE_RPKI,
-		Data:        &server.bgpConfig.Global,
-		ResponseCh:  ch,
-	}
-	if err := (<-ch).Err(); err != nil {
-		return err
-	}
-
 	for _, s := range c {
 		ch := make(chan *GrpcResponse)
 		server.GrpcReqCh <- &GrpcRequest{
@@ -1257,6 +1247,8 @@ func (s *BgpServer) Start(c *config.Global) (err error) {
 		// update route selection options
 		table.SelectionOptions = c.RouteSelectionOptions.Config
 		table.UseMultiplePaths = c.UseMultiplePaths.Config
+
+		s.roaManager.SetAS(s.bgpConfig.Global.Config.As)
 	}
 	return nil
 }
@@ -1623,9 +1615,6 @@ func (server *BgpServer) handleGrpc(grpcReq *GrpcRequest) {
 		}
 		grpcReq.ResponseCh <- &GrpcResponse{Data: &api.SoftResetNeighborResponse{}}
 		close(grpcReq.ResponseCh)
-	case REQ_INITIALIZE_RPKI:
-		g := grpcReq.Data.(*config.Global)
-		grpcDone(grpcReq, server.roaManager.SetAS(g.Config.As))
 	case REQ_ADD_RPKI, REQ_DELETE_RPKI, REQ_ENABLE_RPKI, REQ_DISABLE_RPKI, REQ_RESET_RPKI, REQ_SOFT_RESET_RPKI:
 		server.handleModRpki(grpcReq)
 	case REQ_ROA, REQ_GET_RPKI:
