@@ -448,11 +448,7 @@ func (s *Server) neighbor(reqType int, address string, d interface{}) (interface
 }
 
 func (s *Server) ResetNeighbor(ctx context.Context, arg *api.ResetNeighborRequest) (*api.ResetNeighborResponse, error) {
-	d, err := s.neighbor(REQ_NEIGHBOR_RESET, arg.Address, arg)
-	if err != nil {
-		return nil, err
-	}
-	return d.(*api.ResetNeighborResponse), err
+	return &api.ResetNeighborResponse{}, s.bgpServer.ResetNeighbor(arg.Address)
 }
 
 func (s *Server) SoftResetNeighbor(ctx context.Context, arg *api.SoftResetNeighborRequest) (*api.SoftResetNeighborResponse, error) {

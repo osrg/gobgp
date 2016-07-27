@@ -1511,20 +1511,6 @@ func (server *BgpServer) handleGrpc(grpcReq *GrpcRequest) {
 			Data: paths,
 		}
 		close(grpcReq.ResponseCh)
-	case REQ_NEIGHBOR_RESET:
-		peers, err := reqToPeers(grpcReq)
-		if err != nil {
-			break
-		}
-		logOp(grpcReq.Name, "Neighbor reset")
-		m := bgp.NewBGPNotificationMessage(bgp.BGP_ERROR_CEASE, bgp.BGP_ERROR_SUB_ADMINISTRATIVE_RESET, nil)
-		for _, peer := range peers {
-			peer.fsm.idleHoldTime = peer.fsm.pConf.Timers.Config.IdleHoldTimeAfterReset
-			sendFsmOutgoingMsg(peer, nil, m, false)
-		}
-		grpcReq.ResponseCh <- &GrpcResponse{Data: &api.ResetNeighborResponse{}}
-		close(grpcReq.ResponseCh)
-
 	case REQ_NEIGHBOR_SOFT_RESET, REQ_NEIGHBOR_SOFT_RESET_IN:
 		peers, err := reqToPeers(grpcReq)
 		if err != nil {
@@ -1904,39 +1890,62 @@ func (s *BgpServer) UpdateNeighbor(c *config.Neighbor) (policyUpdated bool, err 
 	return policyUpdated, err
 }
 
-func (s *BgpServer) addrToPeers(address string) (l []*Peer, err error) {
-	if address == "all" {
+func (s *BgpServer) addrToPeers(addr string) (l []*Peer, err error) {
+	if len(addr) == 0 {
 		for _, p := range s.neighborMap {
 			l = append(l, p)
 		}
 		return l, nil
 	}
-	peer, found := s.neighborMap[address]
+	peer, found := s.neighborMap[addr]
 	if !found {
-		return l, fmt.Errorf("Neighbor that has %v doesn't exist.", address)
+		return l, fmt.Errorf("Neighbor that has %v doesn't exist.", addr)
 	}
 	return []*Peer{peer}, nil
 }
 
-func (s *BgpServer) ShutdownNeighbor(address string) (err error) {
+func (s *BgpServer) resetNeighbor(op, addr string, subcode uint8) error {
+	log.WithFields(log.Fields{
+		"Topic": "Operation",
+		"Key":   addr,
+	}).Info(op)
+
+	peers, err := s.addrToPeers(addr)
+	if err == nil {
+		m := bgp.NewBGPNotificationMessage(bgp.BGP_ERROR_CEASE, subcode, nil)
+		for _, peer := range peers {
+			sendFsmOutgoingMsg(peer, nil, m, false)
+		}
+	}
+	return err
+}
+
+func (s *BgpServer) ShutdownNeighbor(addr string) (err error) {
 	ch := make(chan struct{})
 	defer func() { <-ch }()
 
 	s.mgmtCh <- func() {
 		defer close(ch)
 
-		log.WithFields(log.Fields{
-			"Topic": "Operation",
-			"Key":   address,
-		}).Info("Neighbor shutdown")
+		err = s.resetNeighbor("Neighbor shutdown", addr, bgp.BGP_ERROR_SUB_ADMINISTRATIVE_SHUTDOWN)
+	}
+	return err
+}
 
-		l := []*Peer{}
-		l, err = s.addrToPeers(address)
+func (s *BgpServer) ResetNeighbor(addr string) (err error) {
+	ch := make(chan struct{})
+	defer func() { <-ch }()
+
+	s.mgmtCh <- func() {
+		defer close(ch)
+
+		err = s.resetNeighbor("Neighbor reset", addr, bgp.BGP_ERROR_SUB_ADMINISTRATIVE_RESET)
 		if err == nil {
-			m := bgp.NewBGPNotificationMessage(bgp.BGP_ERROR_CEASE, bgp.BGP_ERROR_SUB_ADMINISTRATIVE_SHUTDOWN, nil)
-			for _, peer := range l {
-				sendFsmOutgoingMsg(peer, nil, m, false)
+			peers, _ := s.addrToPeers(addr)
+			for _, peer := range peers {
+				peer.fsm.idleHoldTime = peer.fsm.pConf.Timers.Config.IdleHoldTimeAfterReset
 			}
+
 		}
 	}
 	return err
