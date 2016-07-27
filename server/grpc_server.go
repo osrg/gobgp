@@ -639,11 +639,7 @@ func (s *Server) DeleteBmp(ctx context.Context, arg *api.DeleteBmpRequest) (*api
 }
 
 func (s *Server) ValidateRib(ctx context.Context, arg *api.ValidateRibRequest) (*api.ValidateRibResponse, error) {
-	d, err := s.get(REQ_VALIDATE_RIB, arg)
-	if err != nil {
-		return nil, err
-	}
-	return d.(*api.ValidateRibResponse), err
+	return &api.ValidateRibResponse{}, s.bgpServer.ValidateRib(arg.Prefix)
 }
 
 func (s *Server) AddRpki(ctx context.Context, arg *api.AddRpkiRequest) (*api.AddRpkiResponse, error) {

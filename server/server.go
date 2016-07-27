@@ -1623,8 +1623,6 @@ func (server *BgpServer) handleGrpc(grpcReq *GrpcRequest) {
 		}
 		grpcReq.ResponseCh <- &GrpcResponse{Data: &api.SoftResetNeighborResponse{}}
 		close(grpcReq.ResponseCh)
-	case REQ_VALIDATE_RIB:
-		server.handleValidateRib(grpcReq)
 	case REQ_INITIALIZE_RPKI:
 		g := grpcReq.Data.(*config.Global)
 		grpcDone(grpcReq, server.roaManager.SetAS(g.Config.As))
@@ -2622,27 +2620,29 @@ func (s *BgpServer) DisableMrt() (err error) {
 	return err
 }
 
-func (server *BgpServer) handleValidateRib(grpcReq *GrpcRequest) {
-	arg := grpcReq.Data.(*api.ValidateRibRequest)
-	for _, rf := range server.globalRib.GetRFlist() {
-		if t, ok := server.globalRib.Tables[rf]; ok {
-			dsts := t.GetDestinations()
-			if arg.Prefix != "" {
-				_, prefix, _ := net.ParseCIDR(arg.Prefix)
-				if dst := t.GetDestination(prefix.String()); dst != nil {
-					dsts = map[string]*table.Destination{prefix.String(): dst}
+func (s *BgpServer) ValidateRib(prefix string) (err error) {
+	ch := make(chan struct{})
+	defer func() { <-ch }()
+
+	s.mgmtCh <- func() {
+		defer close(ch)
+
+		for _, rf := range s.globalRib.GetRFlist() {
+			if t, ok := s.globalRib.Tables[rf]; ok {
+				dsts := t.GetDestinations()
+				if prefix != "" {
+					_, p, _ := net.ParseCIDR(prefix)
+					if dst := t.GetDestination(p.String()); dst != nil {
+						dsts = map[string]*table.Destination{p.String(): dst}
+					}
 				}
-			}
-			for _, dst := range dsts {
-				server.roaManager.validate(dst.GetAllKnownPathList())
+				for _, dst := range dsts {
+					s.roaManager.validate(dst.GetAllKnownPathList())
+				}
 			}
 		}
 	}
-	result := &GrpcResponse{
-		Data: &api.ValidateRibResponse{},
-	}
-	grpcReq.ResponseCh <- result
-	close(grpcReq.ResponseCh)
+	return err
 }
 
 func (server *BgpServer) handleModRpki(grpcReq *GrpcRequest) {
