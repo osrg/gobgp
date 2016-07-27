@@ -471,11 +471,7 @@ func (s *Server) SoftResetNeighbor(ctx context.Context, arg *api.SoftResetNeighb
 }
 
 func (s *Server) ShutdownNeighbor(ctx context.Context, arg *api.ShutdownNeighborRequest) (*api.ShutdownNeighborResponse, error) {
-	d, err := s.neighbor(REQ_NEIGHBOR_SHUTDOWN, arg.Address, arg)
-	if err != nil {
-		return nil, err
-	}
-	return d.(*api.ShutdownNeighborResponse), err
+	return &api.ShutdownNeighborResponse{}, s.bgpServer.ShutdownNeighbor(arg.Address)
 }
 
 func (s *Server) EnableNeighbor(ctx context.Context, arg *api.EnableNeighborRequest) (*api.EnableNeighborResponse, error) {

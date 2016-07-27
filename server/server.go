@@ -1511,19 +1511,6 @@ func (server *BgpServer) handleGrpc(grpcReq *GrpcRequest) {
 			Data: paths,
 		}
 		close(grpcReq.ResponseCh)
-	case REQ_NEIGHBOR_SHUTDOWN:
-		peers, err := reqToPeers(grpcReq)
-		if err != nil {
-			break
-		}
-		logOp(grpcReq.Name, "Neighbor shutdown")
-		m := bgp.NewBGPNotificationMessage(bgp.BGP_ERROR_CEASE, bgp.BGP_ERROR_SUB_ADMINISTRATIVE_SHUTDOWN, nil)
-		for _, peer := range peers {
-			sendFsmOutgoingMsg(peer, nil, m, false)
-		}
-		grpcReq.ResponseCh <- &GrpcResponse{Data: &api.ShutdownNeighborResponse{}}
-		close(grpcReq.ResponseCh)
-
 	case REQ_NEIGHBOR_RESET:
 		peers, err := reqToPeers(grpcReq)
 		if err != nil {
@@ -1915,6 +1902,44 @@ func (s *BgpServer) UpdateNeighbor(c *config.Neighbor) (policyUpdated bool, err 
 		}
 	}
 	return policyUpdated, err
+}
+
+func (s *BgpServer) addrToPeers(address string) (l []*Peer, err error) {
+	if address == "all" {
+		for _, p := range s.neighborMap {
+			l = append(l, p)
+		}
+		return l, nil
+	}
+	peer, found := s.neighborMap[address]
+	if !found {
+		return l, fmt.Errorf("Neighbor that has %v doesn't exist.", address)
+	}
+	return []*Peer{peer}, nil
+}
+
+func (s *BgpServer) ShutdownNeighbor(address string) (err error) {
+	ch := make(chan struct{})
+	defer func() { <-ch }()
+
+	s.mgmtCh <- func() {
+		defer close(ch)
+
+		log.WithFields(log.Fields{
+			"Topic": "Operation",
+			"Key":   address,
+		}).Info("Neighbor shutdown")
+
+		l := []*Peer{}
+		l, err = s.addrToPeers(address)
+		if err == nil {
+			m := bgp.NewBGPNotificationMessage(bgp.BGP_ERROR_CEASE, bgp.BGP_ERROR_SUB_ADMINISTRATIVE_SHUTDOWN, nil)
+			for _, peer := range l {
+				sendFsmOutgoingMsg(peer, nil, m, false)
+			}
+		}
+	}
+	return err
 }
 
 func (s *BgpServer) GetDefinedSet(typ table.DefinedType) (sets *config.DefinedSets, err error) {
