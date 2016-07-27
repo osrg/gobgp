@@ -1623,40 +1623,6 @@ func (server *BgpServer) handleGrpc(grpcReq *GrpcRequest) {
 		}
 		grpcReq.ResponseCh <- &GrpcResponse{Data: &api.SoftResetNeighborResponse{}}
 		close(grpcReq.ResponseCh)
-
-	case REQ_NEIGHBOR_ENABLE, REQ_NEIGHBOR_DISABLE:
-		peer, err1 := server.checkNeighborRequest(grpcReq)
-		if err1 != nil {
-			break
-		}
-		result := &GrpcResponse{}
-		if grpcReq.RequestType == REQ_NEIGHBOR_ENABLE {
-			select {
-			case peer.fsm.adminStateCh <- ADMIN_STATE_UP:
-				log.WithFields(log.Fields{
-					"Topic": "Peer",
-					"Key":   peer.fsm.pConf.Config.NeighborAddress,
-				}).Debug("ADMIN_STATE_UP requested")
-			default:
-				log.Warning("previous request is still remaining. : ", peer.fsm.pConf.Config.NeighborAddress)
-				result.ResponseErr = fmt.Errorf("previous request is still remaining %v", peer.fsm.pConf.Config.NeighborAddress)
-			}
-			result.Data = &api.EnableNeighborResponse{}
-		} else {
-			select {
-			case peer.fsm.adminStateCh <- ADMIN_STATE_DOWN:
-				log.WithFields(log.Fields{
-					"Topic": "Peer",
-					"Key":   peer.fsm.pConf.Config.NeighborAddress,
-				}).Debug("ADMIN_STATE_DOWN requested")
-			default:
-				log.Warning("previous request is still remaining. : ", peer.fsm.pConf.Config.NeighborAddress)
-				result.ResponseErr = fmt.Errorf("previous request is still remaining %v", peer.fsm.pConf.Config.NeighborAddress)
-			}
-			result.Data = &api.DisableNeighborResponse{}
-		}
-		grpcReq.ResponseCh <- result
-		close(grpcReq.ResponseCh)
 	case REQ_VALIDATE_RIB:
 		server.handleValidateRib(grpcReq)
 	case REQ_INITIALIZE_RPKI:
@@ -1947,6 +1913,55 @@ func (s *BgpServer) ResetNeighbor(addr string) (err error) {
 			}
 
 		}
+	}
+	return err
+}
+
+func (s *BgpServer) setAdminState(addr string, enable bool) error {
+	peers, err := s.addrToPeers(addr)
+	if err == nil {
+		for _, peer := range peers {
+			f := func(state AdminState, message string) {
+				select {
+				case peer.fsm.adminStateCh <- state:
+					log.WithFields(log.Fields{
+						"Topic": "Peer",
+						"Key":   peer.fsm.pConf.Config.NeighborAddress,
+					}).Debug(message)
+				default:
+					log.Warning("previous request is still remaining. : ", peer.fsm.pConf.Config.NeighborAddress)
+				}
+			}
+			if enable {
+				f(ADMIN_STATE_UP, "ADMIN_STATE_UP requested")
+			} else {
+				f(ADMIN_STATE_DOWN, "ADMIN_STATE_DOWN requested")
+			}
+		}
+	}
+	return err
+}
+
+func (s *BgpServer) EnableNeighbor(addr string) (err error) {
+	ch := make(chan struct{})
+	defer func() { <-ch }()
+
+	s.mgmtCh <- func() {
+		defer close(ch)
+
+		err = s.setAdminState(addr, true)
+	}
+	return err
+}
+
+func (s *BgpServer) DisableNeighbor(addr string) (err error) {
+	ch := make(chan struct{})
+	defer func() { <-ch }()
+
+	s.mgmtCh <- func() {
+		defer close(ch)
+
+		err = s.setAdminState(addr, false)
 	}
 	return err
 }

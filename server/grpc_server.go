@@ -471,19 +471,11 @@ func (s *Server) ShutdownNeighbor(ctx context.Context, arg *api.ShutdownNeighbor
 }
 
 func (s *Server) EnableNeighbor(ctx context.Context, arg *api.EnableNeighborRequest) (*api.EnableNeighborResponse, error) {
-	d, err := s.neighbor(REQ_NEIGHBOR_ENABLE, arg.Address, arg)
-	if err != nil {
-		return nil, err
-	}
-	return d.(*api.EnableNeighborResponse), err
+	return &api.EnableNeighborResponse{}, s.bgpServer.EnableNeighbor(arg.Address)
 }
 
 func (s *Server) DisableNeighbor(ctx context.Context, arg *api.DisableNeighborRequest) (*api.DisableNeighborResponse, error) {
-	d, err := s.neighbor(REQ_NEIGHBOR_DISABLE, arg.Address, arg)
-	if err != nil {
-		return nil, err
-	}
-	return d.(*api.DisableNeighborResponse), err
+	return &api.DisableNeighborResponse{}, s.bgpServer.DisableNeighbor(arg.Address)
 }
 
 func (s *Server) api2PathList(resource api.Resource, ApiPathList []*api.Path) ([]*table.Path, error) {
