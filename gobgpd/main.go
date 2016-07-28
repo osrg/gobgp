@@ -1,4 +1,4 @@
-// Copyright (C) 2014 Nippon Telegraph and Telephone Corporation.
+// Copyright (C) 2014-2016 Nippon Telegraph and Telephone Corporation.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -20,6 +20,7 @@ import (
 	"github.com/Sirupsen/logrus/hooks/syslog"
 	"github.com/jessevdk/go-flags"
 	p "github.com/kr/pretty"
+	api "github.com/osrg/gobgp/api"
 	"github.com/osrg/gobgp/config"
 	ops "github.com/osrg/gobgp/openswitch"
 	"github.com/osrg/gobgp/packet/bgp"
@@ -179,7 +180,7 @@ func main() {
 	go bgpServer.Serve()
 
 	// start grpc Server
-	grpcServer := server.NewGrpcServer(bgpServer, opts.GrpcHosts)
+	grpcServer := api.NewGrpcServer(bgpServer, opts.GrpcHosts)
 	go func() {
 		if err := grpcServer.Serve(); err != nil {
 			log.Fatalf("failed to listen grpc port: %s", err)
