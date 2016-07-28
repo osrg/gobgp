@@ -686,12 +686,12 @@ func (s *Server) SoftResetRpki(ctx context.Context, arg *api.SoftResetRpkiReques
 }
 
 func (s *Server) GetRpki(ctx context.Context, arg *api.GetRpkiRequest) (*api.GetRpkiResponse, error) {
-	d, err := s.get(REQ_GET_RPKI, arg)
+	servers, err := s.bgpServer.GetRpki()
 	if err != nil {
 		return nil, err
 	}
-	l := make([]*api.Rpki, 0)
-	for _, s := range d.([]*config.RpkiServer) {
+	l := make([]*api.Rpki, 0, len(servers))
+	for _, s := range servers {
 		received := &s.State.RpkiMessages.RpkiReceived
 		sent := &s.State.RpkiMessages.RpkiSent
 		rpki := &api.Rpki{
@@ -725,12 +725,12 @@ func (s *Server) GetRpki(ctx context.Context, arg *api.GetRpkiRequest) (*api.Get
 }
 
 func (s *Server) GetRoa(ctx context.Context, arg *api.GetRoaRequest) (*api.GetRoaResponse, error) {
-	d, err := s.get(REQ_ROA, arg)
+	roas, err := s.bgpServer.GetRoa(bgp.RouteFamily(arg.Family))
 	if err != nil {
 		return nil, err
 	}
-	l := make([]*api.Roa, 0, len(d.([]*ROA)))
-	for _, r := range d.([]*ROA) {
+	l := make([]*api.Roa, 0, len(roas))
+	for _, r := range roas {
 		host, port, _ := net.SplitHostPort(r.Src)
 		l = append(l, &api.Roa{
 			As:        r.AS,

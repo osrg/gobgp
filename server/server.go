@@ -850,25 +850,6 @@ func (s *BgpServer) StartZebraClient(x *config.Zebra) (err error) {
 	return err
 }
 
-func (server *BgpServer) SetRpkiConfig(c []config.RpkiServer) error {
-	for _, s := range c {
-		ch := make(chan *GrpcResponse)
-		server.GrpcReqCh <- &GrpcRequest{
-			RequestType: REQ_ADD_RPKI,
-			Data: &api.AddRpkiRequest{
-				Address:  s.Config.Address,
-				Port:     s.Config.Port,
-				Lifetime: s.Config.RecordLifetime,
-			},
-			ResponseCh: ch,
-		}
-		if err := (<-ch).Err(); err != nil {
-			return err
-		}
-	}
-	return nil
-}
-
 func (s *BgpServer) AddBmp(c *config.BmpServerConfig) (err error) {
 	ch := make(chan struct{})
 	defer func() { <-ch }()
@@ -1417,12 +1398,6 @@ func (server *BgpServer) handleGrpc(grpcReq *GrpcRequest) {
 			}
 		}
 		grpcReq.ResponseCh <- &GrpcResponse{Data: &api.SoftResetNeighborResponse{}}
-		close(grpcReq.ResponseCh)
-	case REQ_ADD_RPKI, REQ_DELETE_RPKI, REQ_ENABLE_RPKI, REQ_DISABLE_RPKI, REQ_RESET_RPKI, REQ_SOFT_RESET_RPKI:
-		server.handleModRpki(grpcReq)
-	case REQ_ROA, REQ_GET_RPKI:
-		rsp := server.roaManager.handleGRPC(grpcReq)
-		grpcReq.ResponseCh <- rsp
 		close(grpcReq.ResponseCh)
 	default:
 		err = fmt.Errorf("Unknown request type: %v", grpcReq.RequestType)
@@ -2635,30 +2610,100 @@ func (s *BgpServer) ValidateRib(prefix string) (err error) {
 	return err
 }
 
-func (server *BgpServer) handleModRpki(grpcReq *GrpcRequest) {
-	done := func(grpcReq *GrpcRequest, data interface{}, e error) {
-		result := &GrpcResponse{
-			ResponseErr: e,
-			Data:        data,
-		}
-		grpcReq.ResponseCh <- result
-		close(grpcReq.ResponseCh)
-	}
+func (s *BgpServer) GetRpki() (l []*config.RpkiServer, err error) {
+	ch := make(chan struct{})
+	defer func() { <-ch }()
 
-	switch arg := grpcReq.Data.(type) {
-	case *api.AddRpkiRequest:
-		done(grpcReq, &api.AddRpkiResponse{}, server.roaManager.AddServer(net.JoinHostPort(arg.Address, strconv.Itoa(int(arg.Port))), arg.Lifetime))
-	case *api.DeleteRpkiRequest:
-		done(grpcReq, &api.DeleteRpkiResponse{}, server.roaManager.DeleteServer(arg.Address))
-	case *api.EnableRpkiRequest:
-		done(grpcReq, &api.EnableRpkiResponse{}, server.roaManager.Enable(arg.Address))
-	case *api.DisableRpkiRequest:
-		done(grpcReq, &api.DisableRpkiResponse{}, server.roaManager.Disable(arg.Address))
-	case *api.ResetRpkiRequest:
-		done(grpcReq, &api.ResetRpkiResponse{}, server.roaManager.Reset(arg.Address))
-	case *api.SoftResetRpkiRequest:
-		done(grpcReq, &api.SoftResetRpkiResponse{}, server.roaManager.SoftReset(arg.Address))
+	s.mgmtCh <- func() {
+		defer close(ch)
+
+		l = s.roaManager.GetServers()
 	}
+	return l, err
+}
+
+func (s *BgpServer) GetRoa(family bgp.RouteFamily) (l []*ROA, err error) {
+	ch := make(chan struct{})
+	defer func() { <-ch }()
+
+	s.mgmtCh <- func() {
+		defer close(ch)
+
+		l, err = s.roaManager.GetRoa(family)
+	}
+	return l, err
+}
+
+func (s *BgpServer) AddRpki(c *config.RpkiServerConfig) (err error) {
+	ch := make(chan struct{})
+	defer func() { <-ch }()
+
+	s.mgmtCh <- func() {
+		defer close(ch)
+
+		err = s.roaManager.AddServer(net.JoinHostPort(c.Address, strconv.Itoa(int(c.Port))), c.RecordLifetime)
+	}
+	return err
+}
+
+func (s *BgpServer) DeleteRpki(c *config.RpkiServerConfig) (err error) {
+	ch := make(chan struct{})
+	defer func() { <-ch }()
+
+	s.mgmtCh <- func() {
+		defer close(ch)
+
+		err = s.roaManager.DeleteServer(c.Address)
+	}
+	return err
+}
+
+func (s *BgpServer) EnableRpki(c *config.RpkiServerConfig) (err error) {
+	ch := make(chan struct{})
+	defer func() { <-ch }()
+
+	s.mgmtCh <- func() {
+		defer close(ch)
+
+		err = s.roaManager.Enable(c.Address)
+	}
+	return err
+}
+
+func (s *BgpServer) DisableRpki(c *config.RpkiServerConfig) (err error) {
+	ch := make(chan struct{})
+	defer func() { <-ch }()
+
+	s.mgmtCh <- func() {
+		defer close(ch)
+
+		err = s.roaManager.Disable(c.Address)
+	}
+	return err
+}
+
+func (s *BgpServer) ResetRpki(c *config.RpkiServerConfig) (err error) {
+	ch := make(chan struct{})
+	defer func() { <-ch }()
+
+	s.mgmtCh <- func() {
+		defer close(ch)
+
+		err = s.roaManager.Reset(c.Address)
+	}
+	return err
+}
+
+func (s *BgpServer) SoftResetRpki(c *config.RpkiServerConfig) (err error) {
+	ch := make(chan struct{})
+	defer func() { <-ch }()
+
+	s.mgmtCh <- func() {
+		defer close(ch)
+
+		err = s.roaManager.SoftReset(c.Address)
+	}
+	return err
 }
 
 type WatchEventType string

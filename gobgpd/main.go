@@ -219,8 +219,10 @@ func main() {
 						log.Fatalf("failed to set collector config: %s", err)
 					}
 				}
-				if err := bgpServer.SetRpkiConfig(newConfig.RpkiServers); err != nil {
-					log.Fatalf("failed to set rpki config: %s", err)
+				for _, c := range newConfig.RpkiServers {
+					if err := bgpServer.AddRpki(&c.Config); err != nil {
+						log.Fatalf("failed to set rpki config: %s", err)
+					}
 				}
 				for _, c := range newConfig.BmpServers {
 					if err := bgpServer.AddBmp(&c.Config); err != nil {
