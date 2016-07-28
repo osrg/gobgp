@@ -25,11 +25,10 @@ import (
 )
 
 type Collector struct {
-	grpcCh   chan *GrpcRequest
+	s        *BgpServer
 	url      string
 	dbName   string
 	interval uint64
-	ch       chan watcherEvent
 	client   client.Client
 }
 
@@ -38,20 +37,6 @@ const (
 	MEATUREMENT_PEER   = "peer"
 	MEATUREMENT_TABLE  = "table"
 )
-
-func (c *Collector) notify(t watcherEventType) chan watcherEvent {
-	if t == WATCHER_EVENT_UPDATE_MSG || t == WATCHER_EVENT_STATE_CHANGE || t == WATCHER_EVENT_ADJ_IN {
-		return c.ch
-	}
-	return nil
-}
-
-func (c *Collector) stop() {
-}
-
-func (c *Collector) watchingEventTypes() []watcherEventType {
-	return []watcherEventType{WATCHER_EVENT_UPDATE_MSG, WATCHER_EVENT_STATE_CHANGE, WATCHER_EVENT_ADJ_IN}
-}
 
 func (c *Collector) writePoints(points []*client.Point) error {
 	bp, _ := client.NewBatchPoints(client.BatchPointsConfig{
@@ -62,28 +47,28 @@ func (c *Collector) writePoints(points []*client.Point) error {
 	return c.client.Write(bp)
 }
 
-func (c *Collector) writePeer(msg *watcherEventStateChangedMsg) error {
+func (c *Collector) writePeer(msg *WatchEventPeerState) error {
 	var state string
-	switch msg.state {
+	switch msg.State {
 	case bgp.BGP_FSM_ESTABLISHED:
 		state = "Established"
 	case bgp.BGP_FSM_IDLE:
 		state = "Idle"
 	default:
-		return fmt.Errorf("unexpected fsm state %v", msg.state)
+		return fmt.Errorf("unexpected fsm state %v", msg.State)
 	}
 
 	tags := map[string]string{
-		"PeerAddress": msg.peerAddress.String(),
-		"PeerAS":      fmt.Sprintf("%v", msg.peerAS),
+		"PeerAddress": msg.PeerAddress.String(),
+		"PeerAS":      fmt.Sprintf("%v", msg.PeerAS),
 		"State":       state,
 	}
 
 	fields := map[string]interface{}{
-		"PeerID": msg.peerID.String(),
+		"PeerID": msg.PeerID.String(),
 	}
 
-	pt, err := client.NewPoint(MEATUREMENT_PEER, tags, fields, msg.timestamp)
+	pt, err := client.NewPoint(MEATUREMENT_PEER, tags, fields, msg.Timestamp)
 	if err != nil {
 		return err
 	}
@@ -136,14 +121,14 @@ func path2data(path *table.Path) (map[string]interface{}, map[string]string) {
 	return fields, tags
 }
 
-func (c *Collector) writeUpdate(msg *watcherEventUpdateMsg) error {
-	if len(msg.pathList) == 0 {
+func (c *Collector) writeUpdate(msg *WatchEventUpdate) error {
+	if len(msg.PathList) == 0 {
 		// EOR
 		return nil
 	}
 	now := time.Now()
-	points := make([]*client.Point, 0, len(msg.pathList))
-	for _, path := range msg.pathList {
+	points := make([]*client.Point, 0, len(msg.PathList))
+	for _, path := range msg.PathList {
 		fields, tags := path2data(path)
 		tags["Withdraw"] = fmt.Sprintf("%v", path.IsWithdraw)
 		pt, err := client.NewPoint(MEATUREMENT_UPDATE, tags, fields, now)
@@ -155,10 +140,10 @@ func (c *Collector) writeUpdate(msg *watcherEventUpdateMsg) error {
 	return c.writePoints(points)
 }
 
-func (c *Collector) writeTable(msg *watcherEventAdjInMsg) error {
+func (c *Collector) writeTable(msg *WatchEventAdjIn) error {
 	now := time.Now()
-	points := make([]*client.Point, 0, len(msg.pathList))
-	for _, path := range msg.pathList {
+	points := make([]*client.Point, 0, len(msg.PathList))
+	for _, path := range msg.PathList {
 		fields, tags := path2data(path)
 		pt, err := client.NewPoint(MEATUREMENT_TABLE, tags, fields, now)
 		if err != nil {
@@ -170,6 +155,9 @@ func (c *Collector) writeTable(msg *watcherEventAdjInMsg) error {
 }
 
 func (c *Collector) loop() {
+	w := c.s.Watch(WatchPeerState(true), WatchUpdate(false))
+	defer w.Stop()
+
 	ticker := func() *time.Ticker {
 		if c.interval == 0 {
 			return &time.Ticker{}
@@ -180,25 +168,18 @@ func (c *Collector) loop() {
 	for {
 		select {
 		case <-ticker.C:
-			go func() {
-				ch := make(chan *GrpcResponse)
-				c.grpcCh <- &GrpcRequest{
-					RequestType: REQ_WATCHER_ADJ_RIB_IN,
-					ResponseCh:  ch,
-				}
-				(<-ch).Err()
-			}()
-		case ev := <-c.ch:
+			w.Generate(WATCH_EVENT_TYPE_PRE_UPDATE)
+		case ev := <-w.Event():
 			switch msg := ev.(type) {
-			case *watcherEventUpdateMsg:
+			case *WatchEventUpdate:
 				if err := c.writeUpdate(msg); err != nil {
 					log.WithFields(log.Fields{"Type": "collector", "Error": err}).Error("Failed to write update event message")
 				}
-			case *watcherEventStateChangedMsg:
+			case *WatchEventPeerState:
 				if err := c.writePeer(msg); err != nil {
 					log.WithFields(log.Fields{"Type": "collector", "Error": err}).Error("Failed to write state changed event message")
 				}
-			case *watcherEventAdjInMsg:
+			case *WatchEventAdjIn:
 				if err := c.writeTable(msg); err != nil {
 					log.WithFields(log.Fields{"Type": "collector", "Error": err}).Error("Failed to write Adj-In event message")
 				}
@@ -207,7 +188,7 @@ func (c *Collector) loop() {
 	}
 }
 
-func NewCollector(grpcCh chan *GrpcRequest, url, dbName string, interval uint64) (*Collector, error) {
+func NewCollector(s *BgpServer, url, dbName string, interval uint64) (*Collector, error) {
 	c, err := client.NewHTTPClient(client.HTTPConfig{
 		Addr: url,
 	})
@@ -229,11 +210,10 @@ func NewCollector(grpcCh chan *GrpcRequest, url, dbName string, interval uint64)
 	}
 
 	collector := &Collector{
-		grpcCh:   grpcCh,
+		s:        s,
 		url:      url,
 		dbName:   dbName,
 		interval: interval,
-		ch:       make(chan watcherEvent, 16),
 		client:   c,
 	}
 	go collector.loop()

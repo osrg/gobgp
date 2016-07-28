@@ -178,7 +178,7 @@ func main() {
 	go bgpServer.Serve()
 
 	// start grpc Server
-	grpcServer := server.NewGrpcServer(opts.GrpcHosts, bgpServer.GrpcReqCh)
+	grpcServer := server.NewGrpcServer(bgpServer, opts.GrpcHosts, bgpServer.GrpcReqCh)
 	go func() {
 		if err := grpcServer.Serve(); err != nil {
 			log.Fatalf("failed to listen grpc port: %s", err)
@@ -186,7 +186,7 @@ func main() {
 	}()
 
 	if opts.Ops {
-		m, err := ops.NewOpsManager(bgpServer.GrpcReqCh)
+		m, err := ops.NewOpsManager(opts.GrpcHosts)
 		if err != nil {
 			log.Errorf("Failed to start ops config manager: %s", err)
 			os.Exit(1)
@@ -206,23 +206,34 @@ func main() {
 
 			if c == nil {
 				c = newConfig
-				if err := bgpServer.SetGlobalType(newConfig.Global); err != nil {
+				if err := bgpServer.Start(&newConfig.Global); err != nil {
 					log.Fatalf("failed to set global config: %s", err)
 				}
-				if err := bgpServer.SetZebraConfig(newConfig.Zebra); err != nil {
-					log.Fatalf("failed to set zebra config: %s", err)
+				if newConfig.Zebra.Config.Enabled {
+					if err := bgpServer.StartZebraClient(&newConfig.Zebra); err != nil {
+						log.Fatalf("failed to set zebra config: %s", err)
+					}
 				}
-				if err := bgpServer.SetCollector(newConfig.Collector); err != nil {
-					log.Fatalf("failed to set collector config: %s", err)
+				if len(newConfig.Collector.Config.Url) > 0 {
+					if err := bgpServer.StartCollector(&newConfig.Collector.Config); err != nil {
+						log.Fatalf("failed to set collector config: %s", err)
+					}
 				}
 				if err := bgpServer.SetRpkiConfig(newConfig.RpkiServers); err != nil {
 					log.Fatalf("failed to set rpki config: %s", err)
 				}
-				if err := bgpServer.SetBmpConfig(newConfig.BmpServers); err != nil {
-					log.Fatalf("failed to set bmp config: %s", err)
+				for _, c := range newConfig.BmpServers {
+					if err := bgpServer.AddBmp(&c.Config); err != nil {
+						log.Fatalf("failed to set bmp config: %s", err)
+					}
 				}
-				if err := bgpServer.SetMrtConfig(newConfig.MrtDump); err != nil {
-					log.Fatalf("failed to set mrt config: %s", err)
+				for _, c := range newConfig.MrtDump {
+					if len(c.FileName) == 0 {
+						continue
+					}
+					if err := bgpServer.EnableMrt(&c); err != nil {
+						log.Fatalf("failed to set mrt config: %s", err)
+					}
 				}
 				p := config.ConfigSetToRoutingPolicy(newConfig)
 				if err := bgpServer.UpdatePolicy(*p); err != nil {
@@ -248,17 +259,17 @@ func main() {
 				c = newConfig
 			}
 
-			for _, p := range added {
+			for i, p := range added {
 				log.Infof("Peer %v is added", p.Config.NeighborAddress)
-				bgpServer.PeerAdd(p)
+				bgpServer.AddNeighbor(&added[i])
 			}
-			for _, p := range deleted {
+			for i, p := range deleted {
 				log.Infof("Peer %v is deleted", p.Config.NeighborAddress)
-				bgpServer.PeerDelete(p)
+				bgpServer.DeleteNeighbor(&deleted[i])
 			}
-			for _, p := range updated {
+			for i, p := range updated {
 				log.Infof("Peer %v is updated", p.Config.NeighborAddress)
-				u, _ := bgpServer.PeerUpdate(p)
+				u, _ := bgpServer.UpdateNeighbor(&updated[i])
 				updatePolicy = updatePolicy || u
 			}
 
