@@ -256,38 +256,58 @@ func toPathApi(id string, path *table.Path) *api.Path {
 }
 
 func (s *Server) GetRib(ctx context.Context, arg *api.GetRibRequest) (*api.GetRibResponse, error) {
-	var reqType int
+	f := func() []*LookupPrefix {
+		l := make([]*LookupPrefix, 0, len(arg.Table.Destinations))
+		for _, p := range arg.Table.Destinations {
+			l = append(l, &LookupPrefix{
+				Prefix: p.Prefix,
+				LookupOption: func() LookupOption {
+					if p.LongerPrefixes {
+						return LOOKUP_LONGER
+					} else if p.ShorterPrefixes {
+						return LOOKUP_SHORTER
+					}
+					return LOOKUP_EXACT
+				}(),
+			})
+		}
+		return l
+	}
+
+	var in bool
+	var err error
+	var id string
+	var r map[string][]*table.Path
+
+	family := bgp.RouteFamily(arg.Table.Family)
 	switch arg.Table.Type {
-	case api.Resource_LOCAL:
-		reqType = REQ_LOCAL_RIB
-	case api.Resource_GLOBAL:
-		reqType = REQ_GLOBAL_RIB
+	case api.Resource_LOCAL, api.Resource_GLOBAL:
+		id, r, err = s.bgpServer.GetRib(arg.Table.Name, family, f())
 	case api.Resource_ADJ_IN:
-		reqType = REQ_ADJ_RIB_IN
+		in = true
+		fallthrough
 	case api.Resource_ADJ_OUT:
-		reqType = REQ_ADJ_RIB_OUT
+		id, r, err = s.bgpServer.GetAdjRib(arg.Table.Name, family, in, f())
 	case api.Resource_VRF:
-		reqType = REQ_VRF
+		id, r, err = s.bgpServer.GetVrfRib(arg.Table.Name, family, []*LookupPrefix{})
 	default:
 		return nil, fmt.Errorf("unsupported resource type: %v", arg.Table.Type)
 	}
-	d, err := s.get(reqType, arg)
-	if err != nil {
-		return nil, err
-	}
 
-	switch reqType {
-	case REQ_LOCAL_RIB, REQ_GLOBAL_RIB:
-		dsts := make([]*api.Destination, 0, len(d.(map[string][]*table.Path)))
-		for k, v := range d.(map[string][]*table.Path) {
+	dsts := make([]*api.Destination, 0, len(r))
+	if err == nil {
+		for k, v := range r {
 			dsts = append(dsts, &api.Destination{
 				Prefix: k,
 				Paths: func(paths []*table.Path) []*api.Path {
 					l := make([]*api.Path, 0, len(v))
 					for i, p := range paths {
-						pp := toPathApi("", p)
-						if i == 0 {
-							pp.Best = true
+						pp := toPathApi(id, p)
+						switch arg.Table.Type {
+						case api.Resource_LOCAL, api.Resource_GLOBAL:
+							if i == 0 {
+								pp.Best = true
+							}
 						}
 						l = append(l, pp)
 					}
@@ -295,37 +315,12 @@ func (s *Server) GetRib(ctx context.Context, arg *api.GetRibRequest) (*api.GetRi
 				}(v),
 			})
 		}
-		d := &api.Table{
-			Type:         arg.Table.Type,
-			Family:       arg.Table.Family,
-			Destinations: dsts,
-		}
-		return &api.GetRibResponse{Table: d}, nil
-	case REQ_ADJ_RIB_IN, REQ_ADJ_RIB_OUT, REQ_VRF:
-		dsts := make([]*api.Destination, 0, len(d.([]*table.Path)))
-		var prefix string
-		var dst *api.Destination
-		for _, path := range d.([]*table.Path) {
-			if path.GetNlri().String() != prefix {
-				prefix = path.GetNlri().String()
-				dst = &api.Destination{
-					Prefix: prefix,
-					Paths:  []*api.Path{toPathApi(arg.Table.Name, path)},
-				}
-			} else {
-				dst.Paths = append(dst.Paths, toPathApi(arg.Table.Name, path))
-			}
-			dsts = append(dsts, dst)
-		}
-		return &api.GetRibResponse{
-			Table: &api.Table{
-				Type:         arg.Table.Type,
-				Family:       arg.Table.Family,
-				Destinations: dsts,
-			},
-		}, nil
 	}
-	return d.(*api.GetRibResponse), nil
+	return &api.GetRibResponse{Table: &api.Table{
+		Type:         arg.Table.Type,
+		Family:       arg.Table.Family,
+		Destinations: dsts},
+	}, err
 }
 
 func (s *Server) MonitorRib(arg *api.Table, stream api.GobgpApi_MonitorRibServer) error {
