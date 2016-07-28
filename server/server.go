@@ -2572,14 +2572,6 @@ func (s *BgpServer) ReplacePolicyAssignment(name string, dir table.PolicyDirecti
 	return err
 }
 
-func grpcDone(grpcReq *GrpcRequest, e error) {
-	result := &GrpcResponse{
-		ResponseErr: e,
-	}
-	grpcReq.ResponseCh <- result
-	close(grpcReq.ResponseCh)
-}
-
 func (s *BgpServer) EnableMrt(c *config.Mrt) (err error) {
 	ch := make(chan struct{})
 	defer func() { <-ch }()
