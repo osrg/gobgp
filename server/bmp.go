@@ -30,7 +30,7 @@ import (
 func (b *bmpClient) tryConnect() *net.TCPConn {
 	interval := 1
 	for {
-		log.WithFields(log.Fields{"Topic": "bmp"}).Debugf("Connecting BMP server:%s", host)
+		log.WithFields(log.Fields{"Topic": "bmp"}).Debugf("Connecting BMP server:%s", b.host)
 		conn, err := net.Dial("tcp", b.host)
 		if err != nil {
 			select {
