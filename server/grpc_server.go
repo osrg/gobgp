@@ -641,51 +641,42 @@ func (s *Server) ValidateRib(ctx context.Context, arg *api.ValidateRibRequest) (
 }
 
 func (s *Server) AddRpki(ctx context.Context, arg *api.AddRpkiRequest) (*api.AddRpkiResponse, error) {
-	d, err := s.get(REQ_ADD_RPKI, arg)
-	if err != nil {
-		return nil, err
-	}
-	return d.(*api.AddRpkiResponse), err
+	return &api.AddRpkiResponse{}, s.bgpServer.AddRpki(&config.RpkiServerConfig{
+		Address:        arg.Address,
+		Port:           arg.Port,
+		RecordLifetime: arg.Lifetime,
+	})
 }
 
 func (s *Server) DeleteRpki(ctx context.Context, arg *api.DeleteRpkiRequest) (*api.DeleteRpkiResponse, error) {
-	d, err := s.get(REQ_DELETE_RPKI, arg)
-	if err != nil {
-		return nil, err
-	}
-	return d.(*api.DeleteRpkiResponse), err
+	return &api.DeleteRpkiResponse{}, s.bgpServer.DeleteRpki(&config.RpkiServerConfig{
+		Address: arg.Address,
+		Port:    arg.Port,
+	})
 }
 
 func (s *Server) EnableRpki(ctx context.Context, arg *api.EnableRpkiRequest) (*api.EnableRpkiResponse, error) {
-	d, err := s.get(REQ_ENABLE_RPKI, arg)
-	if err != nil {
-		return nil, err
-	}
-	return d.(*api.EnableRpkiResponse), err
+	return &api.EnableRpkiResponse{}, s.bgpServer.EnableRpki(&config.RpkiServerConfig{
+		Address: arg.Address,
+	})
 }
 
 func (s *Server) DisableRpki(ctx context.Context, arg *api.DisableRpkiRequest) (*api.DisableRpkiResponse, error) {
-	d, err := s.get(REQ_DISABLE_RPKI, arg)
-	if err != nil {
-		return nil, err
-	}
-	return d.(*api.DisableRpkiResponse), err
+	return &api.DisableRpkiResponse{}, s.bgpServer.DisableRpki(&config.RpkiServerConfig{
+		Address: arg.Address,
+	})
 }
 
 func (s *Server) ResetRpki(ctx context.Context, arg *api.ResetRpkiRequest) (*api.ResetRpkiResponse, error) {
-	d, err := s.get(REQ_RESET_RPKI, arg)
-	if err != nil {
-		return nil, err
-	}
-	return d.(*api.ResetRpkiResponse), err
+	return &api.ResetRpkiResponse{}, s.bgpServer.ResetRpki(&config.RpkiServerConfig{
+		Address: arg.Address,
+	})
 }
 
 func (s *Server) SoftResetRpki(ctx context.Context, arg *api.SoftResetRpkiRequest) (*api.SoftResetRpkiResponse, error) {
-	d, err := s.get(REQ_SOFT_RESET_RPKI, arg)
-	if err != nil {
-		return nil, err
-	}
-	return d.(*api.SoftResetRpkiResponse), err
+	return &api.SoftResetRpkiResponse{}, s.bgpServer.SoftResetRpki(&config.RpkiServerConfig{
+		Address: arg.Address,
+	})
 }
 
 func (s *Server) GetRpki(ctx context.Context, arg *api.GetRpkiRequest) (*api.GetRpkiResponse, error) {
