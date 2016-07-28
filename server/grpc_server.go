@@ -447,18 +447,21 @@ func (s *Server) ResetNeighbor(ctx context.Context, arg *api.ResetNeighborReques
 }
 
 func (s *Server) SoftResetNeighbor(ctx context.Context, arg *api.SoftResetNeighborRequest) (*api.SoftResetNeighborResponse, error) {
-	op := REQ_NEIGHBOR_SOFT_RESET
+	var err error
+	addr := arg.Address
+	if addr == "all" {
+		addr = ""
+	}
+	family := bgp.RouteFamily(0)
 	switch arg.Direction {
 	case api.SoftResetNeighborRequest_IN:
-		op = REQ_NEIGHBOR_SOFT_RESET_IN
+		err = s.bgpServer.SoftResetIn(addr, family)
 	case api.SoftResetNeighborRequest_OUT:
-		op = REQ_NEIGHBOR_SOFT_RESET_OUT
+		err = s.bgpServer.SoftResetOut(addr, family)
+	default:
+		err = s.bgpServer.SoftReset(addr, family)
 	}
-	d, err := s.neighbor(op, arg.Address, arg)
-	if err != nil {
-		return nil, err
-	}
-	return d.(*api.SoftResetNeighborResponse), err
+	return &api.SoftResetNeighborResponse{}, err
 }
 
 func (s *Server) ShutdownNeighbor(ctx context.Context, arg *api.ShutdownNeighborRequest) (*api.ShutdownNeighborResponse, error) {

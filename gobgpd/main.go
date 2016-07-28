@@ -22,6 +22,7 @@ import (
 	p "github.com/kr/pretty"
 	"github.com/osrg/gobgp/config"
 	ops "github.com/osrg/gobgp/openswitch"
+	"github.com/osrg/gobgp/packet/bgp"
 	"github.com/osrg/gobgp/server"
 	"io/ioutil"
 	"log/syslog"
@@ -276,20 +277,7 @@ func main() {
 			}
 
 			if updatePolicy {
-				// TODO: we want to apply the new policies to the existing
-				// routes here. Sending SOFT_RESET_IN to all the peers works
-				// for the change of in and import policies. SOFT_RESET_OUT is
-				// necessary for the export policy but we can't blindly
-				// execute SOFT_RESET_OUT because we unnecessarily advertize
-				// the existing routes. Needs to investigate the changes of
-				// policies and handle only affected peers.
-				ch := make(chan *server.GrpcResponse)
-				bgpServer.GrpcReqCh <- &server.GrpcRequest{
-					RequestType: server.REQ_NEIGHBOR_SOFT_RESET_IN,
-					Name:        "all",
-					ResponseCh:  ch,
-				}
-				<-ch
+				bgpServer.SoftResetIn("", bgp.RouteFamily(0))
 			}
 		case sig := <-sigCh:
 			switch sig {
