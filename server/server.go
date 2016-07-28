@@ -1151,6 +1151,10 @@ func (s *BgpServer) Start(c *config.Global) (err error) {
 			return
 		}
 
+		if err = config.SetDefaultGlobalConfigValues(c); err != nil {
+			return
+		}
+
 		if c.Config.Port > 0 {
 			acceptCh := make(chan *net.TCPConn, 4096)
 			for _, addr := range c.Config.LocalAddressList {
@@ -1645,6 +1649,11 @@ func (s *BgpServer) GetNeighbor() (l []*config.Neighbor) {
 }
 
 func (server *BgpServer) addNeighbor(c *config.Neighbor) error {
+
+	if err := config.SetDefaultNeighborConfigValues(c, server.bgpConfig.Global.Config.As); err != nil {
+		return err
+	}
+
 	addr := c.Config.NeighborAddress
 	if _, y := server.neighborMap[addr]; y {
 		return fmt.Errorf("Can't overwrite the exising peer: %s", addr)

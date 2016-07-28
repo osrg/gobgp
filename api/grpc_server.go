@@ -735,18 +735,12 @@ func (s *Server) DeleteVrf(ctx context.Context, arg *DeleteVrfRequest) (*DeleteV
 }
 
 func (s *Server) AddNeighbor(ctx context.Context, arg *AddNeighborRequest) (*AddNeighborResponse, error) {
-	c, err := func(a *Peer) (config.Neighbor, error) {
-		pconf := config.Neighbor{}
+	c, err := func(a *Peer) (*config.Neighbor, error) {
+		pconf := &config.Neighbor{}
 		if a.Conf != nil {
 			pconf.Config.NeighborAddress = a.Conf.NeighborAddress
 			pconf.Config.PeerAs = a.Conf.PeerAs
 			pconf.Config.LocalAs = a.Conf.LocalAs
-
-			if pconf.Config.PeerAs != pconf.Config.LocalAs {
-				pconf.Config.PeerType = config.PEER_TYPE_EXTERNAL
-			} else {
-				pconf.Config.PeerType = config.PEER_TYPE_INTERNAL
-			}
 			pconf.Config.AuthPassword = a.Conf.AuthPassword
 			pconf.Config.RemovePrivateAs = config.RemovePrivateAsOption(a.Conf.RemovePrivateAs)
 			pconf.Config.RouteFlapDamping = a.Conf.RouteFlapDamping
@@ -755,17 +749,11 @@ func (s *Server) AddNeighbor(ctx context.Context, arg *AddNeighborRequest) (*Add
 			pconf.Config.PeerGroup = a.Conf.PeerGroup
 			pconf.Config.NeighborAddress = a.Conf.NeighborAddress
 		}
-		if a.Timers != nil {
-			if a.Timers.Config != nil {
-				pconf.Timers.Config.ConnectRetry = float64(a.Timers.Config.ConnectRetry)
-				pconf.Timers.Config.HoldTime = float64(a.Timers.Config.HoldTime)
-				pconf.Timers.Config.KeepaliveInterval = float64(a.Timers.Config.KeepaliveInterval)
-				pconf.Timers.Config.MinimumAdvertisementInterval = float64(a.Timers.Config.MinimumAdvertisementInterval)
-			}
-		} else {
-			pconf.Timers.Config.ConnectRetry = float64(config.DEFAULT_CONNECT_RETRY)
-			pconf.Timers.Config.HoldTime = float64(config.DEFAULT_HOLDTIME)
-			pconf.Timers.Config.KeepaliveInterval = float64(config.DEFAULT_HOLDTIME / 3)
+		if a.Timers != nil && a.Timers.Config != nil {
+			pconf.Timers.Config.ConnectRetry = float64(a.Timers.Config.ConnectRetry)
+			pconf.Timers.Config.HoldTime = float64(a.Timers.Config.HoldTime)
+			pconf.Timers.Config.KeepaliveInterval = float64(a.Timers.Config.KeepaliveInterval)
+			pconf.Timers.Config.MinimumAdvertisementInterval = float64(a.Timers.Config.MinimumAdvertisementInterval)
 		}
 		if a.RouteReflector != nil {
 			pconf.RouteReflector.Config.RouteReflectorClusterId = config.RrClusterIdType(a.RouteReflector.RouteReflectorClusterId)
@@ -807,34 +795,10 @@ func (s *Server) AddNeighbor(ctx context.Context, arg *AddNeighborRequest) (*Add
 				}
 				pconf.AfiSafis = append(pconf.AfiSafis, cAfiSafi)
 			}
-		} else {
-			if net.ParseIP(a.Conf.NeighborAddress).To4() != nil {
-				pconf.AfiSafis = []config.AfiSafi{
-					config.AfiSafi{
-						Config: config.AfiSafiConfig{
-							AfiSafiName: "ipv4-unicast",
-						},
-					},
-				}
-			} else {
-				pconf.AfiSafis = []config.AfiSafi{
-					config.AfiSafi{
-						Config: config.AfiSafiConfig{
-							AfiSafiName: "ipv6-unicast",
-						},
-					},
-				}
-			}
 		}
 		if a.Transport != nil {
 			pconf.Transport.Config.LocalAddress = a.Transport.LocalAddress
 			pconf.Transport.Config.PassiveMode = a.Transport.PassiveMode
-		} else {
-			if net.ParseIP(a.Conf.NeighborAddress).To4() != nil {
-				pconf.Transport.Config.LocalAddress = "0.0.0.0"
-			} else {
-				pconf.Transport.Config.LocalAddress = "::"
-			}
 		}
 		if a.EbgpMultihop != nil {
 			pconf.EbgpMultihop.Config.Enabled = a.EbgpMultihop.Enabled
@@ -845,7 +809,7 @@ func (s *Server) AddNeighbor(ctx context.Context, arg *AddNeighborRequest) (*Add
 	if err != nil {
 		return nil, err
 	}
-	return &AddNeighborResponse{}, s.bgpServer.AddNeighbor(&c)
+	return &AddNeighborResponse{}, s.bgpServer.AddNeighbor(c)
 }
 
 func (s *Server) DeleteNeighbor(ctx context.Context, arg *DeleteNeighborRequest) (*DeleteNeighborResponse, error) {
@@ -1661,9 +1625,6 @@ func (s *Server) StartServer(ctx context.Context, arg *StartServerRequest) (*Sta
 			},
 			AfiSafis: families,
 		},
-	}
-	if err := config.SetDefaultConfigValues(b); err != nil {
-		return nil, err
 	}
 	return &StartServerResponse{}, s.bgpServer.Start(&b.Global)
 }

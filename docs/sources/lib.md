@@ -40,10 +40,6 @@ func main() {
 		},
 	}
 
-	if err := config.SetDefaultGlobalConfigValues(global); err != nil {
-		log.Fatal(err)
-	}
-
 	if err := s.Start(global); err != nil {
 		log.Fatal(err)
 	}
@@ -54,10 +50,6 @@ func main() {
 			NeighborAddress: "10.0.255.1",
 			PeerAs:          65001,
 		},
-	}
-
-	if err := config.SetDefaultNeighborConfigValues(n, global.Config.As); err != nil {
-		log.Fatal(err)
 	}
 
 	if err := s.AddNeighbor(n); err != nil {
