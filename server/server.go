@@ -95,7 +95,6 @@ type BgpServer struct {
 	acceptCh      chan *net.TCPConn
 
 	mgmtCh      chan func()
-	GrpcReqCh   chan *GrpcRequest
 	policy      *table.RoutingPolicy
 	listeners   []*TCPListener
 	neighborMap map[string]*Peer
@@ -111,7 +110,6 @@ type BgpServer struct {
 func NewBgpServer() *BgpServer {
 	roaManager, _ := NewROAManager(0)
 	s := &BgpServer{
-		GrpcReqCh:   make(chan *GrpcRequest, 1),
 		neighborMap: make(map[string]*Peer),
 		policy:      table.NewRoutingPolicy(),
 		roaManager:  roaManager,
@@ -133,6 +131,13 @@ func (server *BgpServer) Listeners(addr string) []*net.TCPListener {
 		}
 	}
 	return list
+}
+
+func (s *BgpServer) active() error {
+	if s.bgpConfig.Global.Config.As == 0 {
+		return fmt.Errorf("bgp server hasn't started yet")
+	}
+	return nil
 }
 
 func (server *BgpServer) Serve() {
@@ -200,8 +205,6 @@ func (server *BgpServer) Serve() {
 		}
 
 		select {
-		case grpcReq := <-server.GrpcReqCh:
-			server.handleGrpc(grpcReq)
 		case conn := <-server.acceptCh:
 			passConn(conn)
 		default:
@@ -231,8 +234,6 @@ func (server *BgpServer) Serve() {
 			handleFsmMsg(e.(*FsmMsg))
 		case e := <-server.fsmStateCh:
 			handleFsmMsg(e)
-		case grpcReq := <-server.GrpcReqCh:
-			server.handleGrpc(grpcReq)
 		}
 	}
 }
@@ -942,19 +943,6 @@ func (server *BgpServer) handlePolicy(pl config.RoutingPolicy) error {
 	return nil
 }
 
-func (server *BgpServer) checkNeighborRequest(grpcReq *GrpcRequest) (*Peer, error) {
-	remoteAddr := grpcReq.Name
-	peer, found := server.neighborMap[remoteAddr]
-	if !found {
-		result := &GrpcResponse{}
-		result.ResponseErr = fmt.Errorf("Neighbor that has %v doesn't exist.", remoteAddr)
-		grpcReq.ResponseCh <- result
-		close(grpcReq.ResponseCh)
-		return nil, result.ResponseErr
-	}
-	return peer, nil
-}
-
 // EVPN MAC MOBILITY HANDLING
 //
 // We don't have multihoming function now, so ignore
@@ -1094,6 +1082,10 @@ func (s *BgpServer) AddPath(vrfId string, pathList []*table.Path) (uuidBytes []b
 	s.mgmtCh <- func() {
 		defer close(ch)
 
+		if err = s.active(); err != nil {
+			return
+		}
+
 		if err = s.fixupApiPath(vrfId, pathList); err == nil {
 			if len(pathList) == 1 {
 				uuidBytes = uuid.NewV4().Bytes()
@@ -1102,7 +1094,7 @@ func (s *BgpServer) AddPath(vrfId string, pathList []*table.Path) (uuidBytes []b
 			s.propagateUpdate(nil, pathList)
 		}
 	}
-	return uuidBytes, nil
+	return uuidBytes, err
 }
 
 func (s *BgpServer) DeletePath(uuid []byte, f bgp.RouteFamily, vrfId string, pathList []*table.Path) (err error) {
@@ -1210,6 +1202,10 @@ func (s *BgpServer) AddVrf(name string, rd bgp.RouteDistinguisherInterface, im, 
 
 	s.mgmtCh <- func() {
 		defer close(ch)
+
+		if err = s.active(); err != nil {
+			return
+		}
 
 		pi := &table.PeerInfo{
 			AS:      s.bgpConfig.Global.Config.As,
@@ -1407,20 +1403,6 @@ func (s *BgpServer) SoftReset(addr string, family bgp.RouteFamily) (err error) {
 		err = s.softResetOut(addr, family, false)
 	}
 	return err
-}
-
-func (server *BgpServer) handleGrpc(grpcReq *GrpcRequest) {
-	if server.bgpConfig.Global.Config.As == 0 && grpcReq.RequestType != REQ_START_SERVER {
-		grpcReq.ResponseCh <- &GrpcResponse{
-			ResponseErr: fmt.Errorf("bgpd main loop is not started yet"),
-		}
-		close(grpcReq.ResponseCh)
-		return
-	}
-
-	switch grpcReq.RequestType {
-	}
-	return
 }
 
 type LookupOption uint8
@@ -1711,6 +1693,10 @@ func (s *BgpServer) AddNeighbor(c *config.Neighbor) (err error) {
 			policyMutex.Unlock()
 			close(ch)
 		}()
+
+		if err = s.active(); err != nil {
+			return
+		}
 		err = s.addNeighbor(c)
 	}
 	return err

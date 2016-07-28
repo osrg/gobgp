@@ -34,75 +34,22 @@ import (
 	"time"
 )
 
-const (
-	_ = iota
-	REQ_GET_SERVER
-	REQ_START_SERVER
-	REQ_STOP_SERVER
-	REQ_NEIGHBOR
-	REQ_ADJ_RIB_IN
-	REQ_ADJ_RIB_OUT
-	REQ_LOCAL_RIB
-	REQ_NEIGHBOR_RESET
-	REQ_NEIGHBOR_SOFT_RESET
-	REQ_NEIGHBOR_SOFT_RESET_IN
-	REQ_NEIGHBOR_SOFT_RESET_OUT
-	REQ_NEIGHBOR_SHUTDOWN
-	REQ_NEIGHBOR_ENABLE
-	REQ_NEIGHBOR_DISABLE
-	REQ_ADD_NEIGHBOR
-	REQ_DELETE_NEIGHBOR
-	REQ_UPDATE_NEIGHBOR
-	REQ_GLOBAL_RIB
-	REQ_MONITOR_RIB
-	REQ_MONITOR_NEIGHBOR_PEER_STATE
-	REQ_ENABLE_MRT
-	REQ_DISABLE_MRT
-	REQ_ADD_BMP
-	REQ_DELETE_BMP
-	REQ_VALIDATE_RIB
-	// TODO: delete
-	REQ_INITIALIZE_RPKI
-	REQ_GET_RPKI
-	REQ_ADD_RPKI
-	REQ_DELETE_RPKI
-	REQ_ENABLE_RPKI
-	REQ_DISABLE_RPKI
-	REQ_RESET_RPKI
-	REQ_SOFT_RESET_RPKI
-	REQ_ROA
-	REQ_ADD_VRF
-	REQ_DELETE_VRF
-	REQ_VRF
-	REQ_GET_VRF
-	REQ_ADD_PATH
-	REQ_DELETE_PATH
-	REQ_GET_DEFINED_SET
-	REQ_ADD_DEFINED_SET
-	REQ_DELETE_DEFINED_SET
-	REQ_REPLACE_DEFINED_SET
-	REQ_GET_STATEMENT
-	REQ_ADD_STATEMENT
-	REQ_DELETE_STATEMENT
-	REQ_REPLACE_STATEMENT
-	REQ_GET_POLICY
-	REQ_ADD_POLICY
-	REQ_DELETE_POLICY
-	REQ_REPLACE_POLICY
-	REQ_GET_POLICY_ASSIGNMENT
-	REQ_ADD_POLICY_ASSIGNMENT
-	REQ_DELETE_POLICY_ASSIGNMENT
-	REQ_REPLACE_POLICY_ASSIGNMENT
-	REQ_DEFERRAL_TIMER_EXPIRED
-	REQ_RELOAD_POLICY
-	REQ_INITIALIZE_ZEBRA
-)
-
 type Server struct {
-	bgpServer   *BgpServer
-	grpcServer  *grpc.Server
-	bgpServerCh chan *GrpcRequest
-	hosts       string
+	bgpServer  *BgpServer
+	grpcServer *grpc.Server
+	hosts      string
+}
+
+func NewGrpcServer(b *BgpServer, hosts string) *Server {
+	grpc.EnableTracing = false
+	grpcServer := grpc.NewServer()
+	server := &Server{
+		bgpServer:  b,
+		grpcServer: grpcServer,
+		hosts:      hosts,
+	}
+	api.RegisterGobgpApiServer(grpcServer, server)
+	return server
 }
 
 func (s *Server) Serve() error {
@@ -435,13 +382,6 @@ func (s *Server) MonitorPeerState(arg *api.Arguments, stream api.GobgpApi_Monito
 	}()
 }
 
-func (s *Server) neighbor(reqType int, address string, d interface{}) (interface{}, error) {
-	req := NewGrpcRequest(reqType, address, bgp.RouteFamily(0), d)
-	s.bgpServerCh <- req
-	res := <-req.ResponseCh
-	return res.Data, res.Err()
-}
-
 func (s *Server) ResetNeighbor(ctx context.Context, arg *api.ResetNeighborRequest) (*api.ResetNeighborResponse, error) {
 	return &api.ResetNeighborResponse{}, s.bgpServer.ResetNeighbor(arg.Address)
 }
@@ -764,13 +704,6 @@ func (s *Server) GetVrf(ctx context.Context, arg *api.GetVrfRequest) (*api.GetVr
 		l = append(l, toApi(v))
 	}
 	return &api.GetVrfResponse{Vrfs: l}, nil
-}
-
-func (s *Server) get(typ int, d interface{}) (interface{}, error) {
-	req := NewGrpcRequest(typ, "", bgp.RouteFamily(0), d)
-	s.bgpServerCh <- req
-	res := <-req.ResponseCh
-	return res.Data, res.Err()
 }
 
 func (s *Server) AddVrf(ctx context.Context, arg *api.AddVrfRequest) (r *api.AddVrfResponse, err error) {
@@ -1737,48 +1670,4 @@ func (s *Server) StartServer(ctx context.Context, arg *api.StartServerRequest) (
 
 func (s *Server) StopServer(ctx context.Context, arg *api.StopServerRequest) (*api.StopServerResponse, error) {
 	return &api.StopServerResponse{}, s.bgpServer.Stop()
-}
-
-type GrpcRequest struct {
-	RequestType int
-	Name        string
-	RouteFamily bgp.RouteFamily
-	ResponseCh  chan *GrpcResponse
-	EndCh       chan struct{}
-	Err         error
-	Data        interface{}
-}
-
-func NewGrpcRequest(reqType int, name string, rf bgp.RouteFamily, d interface{}) *GrpcRequest {
-	r := &GrpcRequest{
-		RequestType: reqType,
-		RouteFamily: rf,
-		Name:        name,
-		ResponseCh:  make(chan *GrpcResponse, 8),
-		EndCh:       make(chan struct{}, 1),
-		Data:        d,
-	}
-	return r
-}
-
-type GrpcResponse struct {
-	ResponseErr error
-	Data        interface{}
-}
-
-func (r *GrpcResponse) Err() error {
-	return r.ResponseErr
-}
-
-func NewGrpcServer(b *BgpServer, hosts string, bgpServerCh chan *GrpcRequest) *Server {
-	grpc.EnableTracing = false
-	grpcServer := grpc.NewServer()
-	server := &Server{
-		bgpServer:   b,
-		grpcServer:  grpcServer,
-		bgpServerCh: bgpServerCh,
-		hosts:       hosts,
-	}
-	api.RegisterGobgpApiServer(grpcServer, server)
-	return server
 }
