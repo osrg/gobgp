@@ -32,44 +32,27 @@ func main() {
 	go g.Serve()
 
 	// global configuration
-	b := &config.BgpConfigSet{
-		Global: config.Global{
-			Config: config.GlobalConfig{
-				As:       65000,
-				RouterId: "10.0.255.254",
-				Port:     -1, // gobgp won't listen on tcp:179
-			},
+	global := &config.Global{
+		Config: config.GlobalConfig{
+			As:       65000,
+			RouterId: "10.0.255.254",
+			Port:     -1, // gobgp won't listen on tcp:179
 		},
 	}
 
-	if err := config.SetDefaultConfigValues(nil, b); err != nil {
-		log.Fatal(err)
-	}
-
-	if err := s.Start(&b.Global); err != nil {
+	if err := s.Start(global); err != nil {
 		log.Fatal(err)
 	}
 
 	// neighbor configuration
-	if err := s.AddNeighbor(&config.Neighbor{
+	n := &config.Neighbor{
 		Config: config.NeighborConfig{
 			NeighborAddress: "10.0.255.1",
 			PeerAs:          65001,
 		},
-		Timers: config.Timers{
-			Config: config.TimersConfig{
-				HoldTime:          90,
-				KeepaliveInterval: 30,
-			},
-		},
-		AfiSafis: []config.AfiSafi{
-			config.AfiSafi{
-				Config: config.AfiSafiConfig{
-					AfiSafiName: config.AFI_SAFI_TYPE_IPV4_UNICAST,
-				},
-			},
-		},
-	}); err != nil {
+	}
+
+	if err := s.AddNeighbor(n); err != nil {
 		log.Fatal(err)
 	}
 
