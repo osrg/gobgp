@@ -514,6 +514,25 @@ func Test_EVPNIPPrefixRoute(t *testing.T) {
 		t.Error(len(buf2), n2, buf2)
 		t.Log(bytes.Equal(buf1, buf2))
 	}
+}
+
+func Test_CapExtendedNexthop(t *testing.T) {
+	assert := assert.New(t)
+	tuple := NewCapExtendedNexthopTuple(RF_IPv4_UC, AFI_IP6)
+	n1 := NewCapExtendedNexthop([]*CapExtendedNexthopTuple{tuple})
+	buf1, err := n1.Serialize()
+	assert.Nil(err)
+	n2, err := DecodeCapability(buf1)
+	assert.Nil(err)
+	buf2, _ := n2.Serialize()
+	if reflect.DeepEqual(n1, n2) {
+		t.Log("OK")
+	} else {
+		t.Error("Something wrong")
+		t.Error(len(buf1), n1, buf1)
+		t.Error(len(buf2), n2, buf2)
+		t.Log(bytes.Equal(buf1, buf2))
+	}
 
 }
 

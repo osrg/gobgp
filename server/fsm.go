@@ -561,6 +561,21 @@ func capabilitiesFromConfig(pConf *config.Neighbor) []bgp.ParameterCapabilityInt
 			caps = append(caps, bgp.NewCapLongLivedGracefulRestart(ltuples))
 		}
 	}
+
+	// unnumbered BGP
+	if pConf.Config.NeighborInterface != "" {
+		tuples := []*bgp.CapExtendedNexthopTuple{}
+		families, _ := config.AfiSafis(pConf.AfiSafis).ToRfList()
+		for _, family := range families {
+			if family == bgp.RF_IPv6_UC {
+				continue
+			}
+			tuple := bgp.NewCapExtendedNexthopTuple(family, bgp.AFI_IP6)
+			tuples = append(tuples, tuple)
+		}
+		cap := bgp.NewCapExtendedNexthop(tuples)
+		caps = append(caps, cap)
+	}
 	return caps
 }
 

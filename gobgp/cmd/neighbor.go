@@ -292,7 +292,37 @@ func showNeighbor(args []string) error {
 					fmt.Printf("        Remote:\n%s", s)
 				}
 			}
-
+		case bgp.BGP_CAP_EXTENDED_NEXTHOP:
+			fmt.Printf("    %s:\t%s\n", c.Code(), support)
+			exnhStr := func(e *bgp.CapExtendedNexthop) string {
+				lines := make([]string, 0, len(e.Tuples))
+				for _, t := range e.Tuples {
+					var nhafi string
+					switch int(t.NexthopAFI) {
+					case bgp.AFI_IP:
+						nhafi = "ipv4"
+					case bgp.AFI_IP6:
+						nhafi = "ipv6"
+					default:
+						nhafi = fmt.Sprintf("%d", t.NexthopAFI)
+					}
+					line := fmt.Sprintf("nlri: %s, nexthop: %s", bgp.AfiSafiToRouteFamily(t.NLRIAFI, uint8(t.NLRISAFI)), nhafi)
+					lines = append(lines, line)
+				}
+				return strings.Join(lines, "\n")
+			}
+			if m := lookup(c, p.Conf.LocalCap); m != nil {
+				e := m.(*bgp.CapExtendedNexthop)
+				if s := exnhStr(e); len(s) > 0 {
+					fmt.Printf("        Local:  %s\n", s)
+				}
+			}
+			if m := lookup(c, p.Conf.RemoteCap); m != nil {
+				e := m.(*bgp.CapExtendedNexthop)
+				if s := exnhStr(e); len(s) > 0 {
+					fmt.Printf("        Remote: %s\n", s)
+				}
+			}
 		default:
 			fmt.Printf("    %s:\t%s\n", c.Code(), support)
 		}
