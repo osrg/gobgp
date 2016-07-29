@@ -100,6 +100,10 @@ func (s *Server) GetNeighbor(ctx context.Context, arg *GetNeighborRequest) (*Get
 
 		timer := pconf.Timers
 		s := pconf.State
+		localAddress := pconf.Transport.Config.LocalAddress
+		if pconf.Transport.State.LocalAddress != "" {
+			localAddress = pconf.Transport.State.LocalAddress
+		}
 		return &Peer{
 			Conf: &PeerConf{
 				NeighborAddress:  pconf.Config.NeighborAddress,
@@ -116,6 +120,7 @@ func (s *Server) GetNeighbor(ctx context.Context, arg *GetNeighborRequest) (*Get
 				RemoteCap:        s.Capabilities.RemoteList,
 				LocalCap:         s.Capabilities.LocalList,
 				PrefixLimits:     prefixLimits,
+				LocalAddress:     localAddress,
 			},
 			Info: &PeerState{
 				BgpState:   bgp.FSMState(s.SessionState.ToInt()).String(),
