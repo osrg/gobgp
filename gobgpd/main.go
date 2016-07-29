@@ -1,4 +1,4 @@
-// Copyright (C) 2014 Nippon Telegraph and Telephone Corporation.
+// Copyright (C) 2014-2016 Nippon Telegraph and Telephone Corporation.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -20,8 +20,10 @@ import (
 	"github.com/Sirupsen/logrus/hooks/syslog"
 	"github.com/jessevdk/go-flags"
 	p "github.com/kr/pretty"
+	api "github.com/osrg/gobgp/api"
 	"github.com/osrg/gobgp/config"
 	ops "github.com/osrg/gobgp/openswitch"
+	"github.com/osrg/gobgp/packet/bgp"
 	"github.com/osrg/gobgp/server"
 	"io/ioutil"
 	"log/syslog"
@@ -178,7 +180,7 @@ func main() {
 	go bgpServer.Serve()
 
 	// start grpc Server
-	grpcServer := server.NewGrpcServer(bgpServer, opts.GrpcHosts, bgpServer.GrpcReqCh)
+	grpcServer := api.NewGrpcServer(bgpServer, opts.GrpcHosts)
 	go func() {
 		if err := grpcServer.Serve(); err != nil {
 			log.Fatalf("failed to listen grpc port: %s", err)
@@ -219,8 +221,10 @@ func main() {
 						log.Fatalf("failed to set collector config: %s", err)
 					}
 				}
-				if err := bgpServer.SetRpkiConfig(newConfig.RpkiServers); err != nil {
-					log.Fatalf("failed to set rpki config: %s", err)
+				for _, c := range newConfig.RpkiServers {
+					if err := bgpServer.AddRpki(&c.Config); err != nil {
+						log.Fatalf("failed to set rpki config: %s", err)
+					}
 				}
 				for _, c := range newConfig.BmpServers {
 					if err := bgpServer.AddBmp(&c.Config); err != nil {
@@ -274,20 +278,7 @@ func main() {
 			}
 
 			if updatePolicy {
-				// TODO: we want to apply the new policies to the existing
-				// routes here. Sending SOFT_RESET_IN to all the peers works
-				// for the change of in and import policies. SOFT_RESET_OUT is
-				// necessary for the export policy but we can't blindly
-				// execute SOFT_RESET_OUT because we unnecessarily advertize
-				// the existing routes. Needs to investigate the changes of
-				// policies and handle only affected peers.
-				ch := make(chan *server.GrpcResponse)
-				bgpServer.GrpcReqCh <- &server.GrpcRequest{
-					RequestType: server.REQ_NEIGHBOR_SOFT_RESET_IN,
-					Name:        "all",
-					ResponseCh:  ch,
-				}
-				<-ch
+				bgpServer.SoftResetIn("", bgp.RouteFamily(0))
 			}
 		case sig := <-sigCh:
 			switch sig {

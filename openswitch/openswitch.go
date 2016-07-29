@@ -380,7 +380,7 @@ func (m *OpsManager) handleRouteUpdate(cli api.GobgpApiClient, update ovsdb.Tabl
 				log.WithFields(log.Fields{
 					"Topic": "openswitch",
 					"Path":  path,
-					"Err":   err,
+					"Error": err,
 				}).Debug("failed to parse path")
 				return
 			}
@@ -587,7 +587,7 @@ func (m *OpsManager) GobgpMonitor(target string) {
 			log.WithFields(log.Fields{
 				"Topic": "openswitch",
 				"Type":  "MonitorRequest",
-				"Err":   err,
+				"Error": err,
 			}).Error("failed parse path of gobgp")
 		}
 		o, err := m.TransactPreparation(p)
@@ -595,7 +595,7 @@ func (m *OpsManager) GobgpMonitor(target string) {
 			log.WithFields(log.Fields{
 				"Topic": "openswitch",
 				"Type":  "Monitor",
-				"Err":   err,
+				"Error": err,
 			}).Error("failed transact preparation of ops")
 		}
 		m.opsCh <- o
