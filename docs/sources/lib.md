@@ -42,7 +42,7 @@ func main() {
 		},
 	}
 
-	if err := config.SetDefaultConfigValues(nil, b); err != nil {
+	if err := config.SetDefaultConfigValues(b); err != nil {
 		log.Fatal(err)
 	}
 
@@ -51,25 +51,18 @@ func main() {
 	}
 
 	// neighbor configuration
-	if err := s.AddNeighbor(&config.Neighbor{
+	n := &config.Neighbor{
 		Config: config.NeighborConfig{
 			NeighborAddress: "10.0.255.1",
 			PeerAs:          65001,
 		},
-		Timers: config.Timers{
-			Config: config.TimersConfig{
-				HoldTime:          90,
-				KeepaliveInterval: 30,
-			},
-		},
-		AfiSafis: []config.AfiSafi{
-			config.AfiSafi{
-				Config: config.AfiSafiConfig{
-					AfiSafiName: config.AFI_SAFI_TYPE_IPV4_UNICAST,
-				},
-			},
-		},
-	}); err != nil {
+	}
+
+	if err := config.SetDefaultNeighborConfigValues(n, b.Global.Config.As); err != nil {
+		log.Fatal(err)
+	}
+
+	if err := s.AddNeighbor(n); err != nil {
 		log.Fatal(err)
 	}
 
