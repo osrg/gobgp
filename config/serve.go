@@ -38,7 +38,7 @@ func ReadConfigfileServe(path, format string, configCh chan *BgpConfigSet) {
 		if err = v.UnmarshalExact(c); err != nil {
 			goto ERROR
 		}
-		if err = SetDefaultConfigValues(v, c); err != nil {
+		if err = setDefaultConfigValuesWithViper(v, c); err != nil {
 			goto ERROR
 		}
 		if cnt == 0 {

@@ -1662,7 +1662,7 @@ func (s *Server) StartServer(ctx context.Context, arg *StartServerRequest) (*Sta
 			AfiSafis: families,
 		},
 	}
-	if err := config.SetDefaultConfigValues(nil, b); err != nil {
+	if err := config.SetDefaultConfigValues(b); err != nil {
 		return nil, err
 	}
 	return &StartServerResponse{}, s.bgpServer.Start(&b.Global)
