@@ -148,6 +148,33 @@ func setDefaultNeighborConfigValuesWithViper(v *viper.Viper, n *Neighbor, asn ui
 	return nil
 }
 
+func SetDefaultGlobalConfigValues(g *Global) error {
+	if len(g.AfiSafis) == 0 {
+		g.AfiSafis = []AfiSafi{}
+		for k, _ := range AfiSafiTypeToIntMap {
+			g.AfiSafis = append(g.AfiSafis, defaultAfiSafi(k, true))
+		}
+	}
+
+	if g.Config.Port == 0 {
+		g.Config.Port = bgp.BGP_PORT
+	}
+
+	if len(g.Config.LocalAddressList) == 0 {
+		g.Config.LocalAddressList = []string{"0.0.0.0", "::"}
+	}
+
+	if g.MplsLabelRange.MinLabel == 0 {
+		g.MplsLabelRange.MinLabel = DEFAULT_MPLS_LABEL_MIN
+	}
+
+	if g.MplsLabelRange.MaxLabel == 0 {
+		g.MplsLabelRange.MaxLabel = DEFAULT_MPLS_LABEL_MAX
+	}
+	return nil
+
+}
+
 func SetDefaultConfigValues(b *BgpConfigSet) error {
 	return setDefaultConfigValuesWithViper(nil, b)
 }
@@ -157,23 +184,8 @@ func setDefaultConfigValuesWithViper(v *viper.Viper, b *BgpConfigSet) error {
 		v = viper.New()
 	}
 
-	if b.Zebra.Config.Url == "" {
-		b.Zebra.Config.Url = "unix:/var/run/quagga/zserv.api"
-	}
-
-	if len(b.Global.AfiSafis) == 0 {
-		b.Global.AfiSafis = []AfiSafi{}
-		for k, _ := range AfiSafiTypeToIntMap {
-			b.Global.AfiSafis = append(b.Global.AfiSafis, defaultAfiSafi(k, true))
-		}
-	}
-
-	if b.Global.Config.Port == 0 {
-		b.Global.Config.Port = bgp.BGP_PORT
-	}
-
-	if len(b.Global.Config.LocalAddressList) == 0 {
-		b.Global.Config.LocalAddressList = []string{"0.0.0.0", "::"}
+	if err := SetDefaultGlobalConfigValues(&b.Global); err != nil {
+		return err
 	}
 
 	for idx, server := range b.BmpServers {
@@ -183,12 +195,8 @@ func setDefaultConfigValuesWithViper(v *viper.Viper, b *BgpConfigSet) error {
 		b.BmpServers[idx] = server
 	}
 
-	if b.Global.MplsLabelRange.MinLabel == 0 {
-		b.Global.MplsLabelRange.MinLabel = DEFAULT_MPLS_LABEL_MIN
-	}
-
-	if b.Global.MplsLabelRange.MaxLabel == 0 {
-		b.Global.MplsLabelRange.MaxLabel = DEFAULT_MPLS_LABEL_MAX
+	if b.Zebra.Config.Url == "" {
+		b.Zebra.Config.Url = "unix:/var/run/quagga/zserv.api"
 	}
 
 	list, err := extractArray(v.Get("neighbors"))

@@ -32,21 +32,19 @@ func main() {
 	go g.Serve()
 
 	// global configuration
-	b := &config.BgpConfigSet{
-		Global: config.Global{
-			Config: config.GlobalConfig{
-				As:       65000,
-				RouterId: "10.0.255.254",
-				Port:     -1, // gobgp won't listen on tcp:179
-			},
+	global := &config.Global{
+		Config: config.GlobalConfig{
+			As:       65000,
+			RouterId: "10.0.255.254",
+			Port:     -1, // gobgp won't listen on tcp:179
 		},
 	}
 
-	if err := config.SetDefaultConfigValues(b); err != nil {
+	if err := config.SetDefaultGlobalConfigValues(global); err != nil {
 		log.Fatal(err)
 	}
 
-	if err := s.Start(&b.Global); err != nil {
+	if err := s.Start(global); err != nil {
 		log.Fatal(err)
 	}
 
@@ -58,7 +56,7 @@ func main() {
 		},
 	}
 
-	if err := config.SetDefaultNeighborConfigValues(n, b.Global.Config.As); err != nil {
+	if err := config.SetDefaultNeighborConfigValues(n, global.Config.As); err != nil {
 		log.Fatal(err)
 	}
 
