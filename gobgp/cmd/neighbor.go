@@ -39,8 +39,8 @@ func getNeighbors() (peers, error) {
 	m := peers{}
 	for _, p := range r.Peers {
 		if neighborsOpts.Transport != "" {
-			addr := net.ParseIP(p.Conf.NeighborAddress)
-			if addr.To4() != nil {
+			addr, _ := net.ResolveIPAddr("ip", p.Conf.NeighborAddress)
+			if addr.IP.To4() != nil {
 				if neighborsOpts.Transport != "ipv4" {
 					continue
 				}
@@ -61,7 +61,7 @@ func getNeighbor(addr string) (*Peer, error) {
 		return nil, e
 	}
 	for _, p := range l {
-		if p.Conf.RemoteIp.String() == addr {
+		if p.Conf.RemoteIp == addr {
 			return p, nil
 		}
 	}
@@ -94,8 +94,8 @@ func showNeighbors() error {
 
 	now := time.Now()
 	for _, p := range m {
-		if len(p.Conf.RemoteIp) > maxaddrlen {
-			maxaddrlen = len(p.Conf.RemoteIp)
+		if l := len(p.Conf.RemoteIp); l > maxaddrlen {
+			maxaddrlen = l
 		}
 		if len(fmt.Sprint(p.Conf.RemoteAs)) > maxaslen {
 			maxaslen = len(fmt.Sprint(p.Conf.RemoteAs))
@@ -771,8 +771,11 @@ func modNeighbor(cmdType string, args []string) error {
 		usage += " as <VALUE>"
 	}
 
-	if len(m[""]) != 1 || net.ParseIP(m[""][0]) == nil {
+	if len(m[""]) != 1 {
 		return fmt.Errorf("%s", usage)
+	}
+	if _, err := net.ResolveIPAddr("ip", m[""][0]); err != nil {
+		return err
 	}
 	var err error
 	switch cmdType {

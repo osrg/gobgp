@@ -52,6 +52,25 @@ func extractArray(intf interface{}) ([]interface{}, error) {
 	return nil, nil
 }
 
+func getIPv6LinkLocalAddress(ifname string) (string, error) {
+	ifi, err := net.InterfaceByName(ifname)
+	if err != nil {
+		return "", err
+	}
+	addrs, err := ifi.Addrs()
+	if err != nil {
+		return "", err
+	}
+	for _, addr := range addrs {
+		if ip, _, err := net.ParseCIDR(addr.String()); err != nil {
+			return "", err
+		} else if ip.To4() == nil && ip.IsLinkLocalUnicast() {
+			return fmt.Sprintf("%s%%%s", ip.String(), ifname), nil
+		}
+	}
+	return "", fmt.Errorf("no ipv6 link local address for %s", ifname)
+}
+
 func SetDefaultNeighborConfigValues(n *Neighbor, asn uint32) error {
 	return setDefaultNeighborConfigValuesWithViper(nil, n, asn)
 }
@@ -85,28 +104,33 @@ func setDefaultNeighborConfigValuesWithViper(v *viper.Viper, n *Neighbor, asn ui
 	}
 
 	if n.Transport.Config.LocalAddress == "" {
-		if n.Config.NeighborAddress != "" {
-			v6 := true
-			if ip := net.ParseIP(n.Config.NeighborAddress); ip.To4() != nil {
-				v6 = false
-			}
-			if v6 {
-				n.Transport.Config.LocalAddress = "::"
-			} else {
-				n.Transport.Config.LocalAddress = "0.0.0.0"
-			}
-		} else {
+		if n.Config.NeighborAddress == "" {
 			return fmt.Errorf("no neighbor address/interface specified")
 		}
+		ipAddr, err := net.ResolveIPAddr("ip", n.Config.NeighborAddress)
+		if err != nil {
+			return err
+		}
+		localAddress := "0.0.0.0"
+		if ipAddr.IP.To4() == nil {
+			localAddress = "::"
+			if ipAddr.Zone != "" {
+				localAddress, err = getIPv6LinkLocalAddress(ipAddr.Zone)
+				if err != nil {
+					return err
+				}
+			}
+		}
+		n.Transport.Config.LocalAddress = localAddress
 	}
 
 	if len(n.AfiSafis) == 0 {
-		if ip := net.ParseIP(n.Config.NeighborAddress); ip.To4() != nil {
-			n.AfiSafis = []AfiSafi{defaultAfiSafi(AFI_SAFI_TYPE_IPV4_UNICAST, true)}
-		} else if ip.To16() != nil {
-			n.AfiSafis = []AfiSafi{defaultAfiSafi(AFI_SAFI_TYPE_IPV6_UNICAST, true)}
-		} else {
+		if ipAddr, err := net.ResolveIPAddr("ip", n.Config.NeighborAddress); err != nil {
 			return fmt.Errorf("invalid neighbor address: %s", n.Config.NeighborAddress)
+		} else if ipAddr.IP.To4() != nil {
+			n.AfiSafis = []AfiSafi{defaultAfiSafi(AFI_SAFI_TYPE_IPV4_UNICAST, true)}
+		} else {
+			n.AfiSafis = []AfiSafi{defaultAfiSafi(AFI_SAFI_TYPE_IPV6_UNICAST, true)}
 		}
 	} else {
 		afs, err := extractArray(v.Get("neighbor.afi-safis"))

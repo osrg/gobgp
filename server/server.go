@@ -162,7 +162,7 @@ func (server *BgpServer) Serve() {
 		passConn := func(conn *net.TCPConn) {
 			host, _, _ := net.SplitHostPort(conn.RemoteAddr().String())
 			ipaddr, _ := net.ResolveIPAddr("ip", host)
-			remoteAddr := ipaddr.IP.String()
+			remoteAddr := ipaddr.String()
 			peer, found := server.neighborMap[remoteAddr]
 			if found {
 				if peer.fsm.adminState != ADMIN_STATE_UP {
