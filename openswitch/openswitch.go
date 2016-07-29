@@ -169,7 +169,9 @@ func parseRouteToGobgp(route ovsdb.RowUpdate, nexthops map[string]ovsdb.Row) (*a
 		nexthop = "::"
 	}
 	if len(nh) == 0 {
-		log.Debug("nexthop addres does not exist")
+		log.WithFields(log.Fields{
+			"Topic": "openswitch",
+		}).Debug("nexthop addres does not exist")
 	} else if len(nh) == 1 {
 		if net.ParseIP(nh[0].(string)) == nil {
 			return nil, isWithdraw, isFromGobgp, fmt.Errorf("invalid nexthop address")
@@ -286,7 +288,10 @@ func (m *OpsManager) handleVrfUpdate(cli api.GobgpApiClient, update ovsdb.TableU
 func (m *OpsManager) handleBgpRouterUpdate(cli api.GobgpApiClient, update ovsdb.TableUpdate) {
 	asn, id, err := m.getBGPRouterUUID()
 	if err != nil {
-		log.Debugf("%s", err)
+		log.WithFields(log.Fields{
+			"Topic": "openswitch",
+			"Error": err,
+		}).Debug("Could not get BGP router UUID")
 		return
 	}
 	for k, v := range update.Rows {
@@ -375,7 +380,7 @@ func (m *OpsManager) handleRouteUpdate(cli api.GobgpApiClient, update ovsdb.Tabl
 				log.WithFields(log.Fields{
 					"Topic": "openswitch",
 					"Path":  path,
-					"Err":   err,
+					"Error": err,
 				}).Debug("failed to parse path")
 				return
 			}
@@ -562,7 +567,9 @@ func (m *OpsManager) GobgpMonitor(target string) {
 
 	conn, err := grpc.Dial(target, grpc.WithTimeout(time.Second), grpc.WithBlock(), grpc.WithInsecure())
 	if err != nil {
-		log.Fatal(err)
+		log.WithFields(log.Fields{
+			"Topic": "openswitch",
+		}).Fatal(err)
 	}
 	cli := api.NewGobgpApiClient(conn)
 	stream, err := cli.MonitorRib(context.Background(), &api.Table{
@@ -580,7 +587,7 @@ func (m *OpsManager) GobgpMonitor(target string) {
 			log.WithFields(log.Fields{
 				"Topic": "openswitch",
 				"Type":  "MonitorRequest",
-				"Err":   err,
+				"Error": err,
 			}).Error("failed parse path of gobgp")
 		}
 		o, err := m.TransactPreparation(p)
@@ -588,7 +595,7 @@ func (m *OpsManager) GobgpMonitor(target string) {
 			log.WithFields(log.Fields{
 				"Topic": "openswitch",
 				"Type":  "Monitor",
-				"Err":   err,
+				"Error": err,
 			}).Error("failed transact preparation of ops")
 		}
 		m.opsCh <- o
@@ -605,7 +612,9 @@ func (m *OpsManager) OpsServe(target string) error {
 	}()
 	conn, err := grpc.Dial(target, grpc.WithTimeout(time.Second), grpc.WithBlock(), grpc.WithInsecure())
 	if err != nil {
-		log.Fatal(err)
+		log.WithFields(log.Fields{
+			"Topic": "openswitch",
+		}).Fatal(err)
 	}
 	cli := api.NewGobgpApiClient(conn)
 	for {
