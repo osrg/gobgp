@@ -556,6 +556,7 @@ message PeerConf {
   repeated bytes local_cap = 12;
   string id = 13;
   repeated PrefixLimit prefix_limits = 14;
+  string local_address = 15;
 }
 
 message EbgpMultihop {
