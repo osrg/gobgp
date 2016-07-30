@@ -16,7 +16,6 @@
 package server
 
 import (
-	api "github.com/osrg/gobgp/api"
 	"github.com/osrg/gobgp/config"
 	"github.com/osrg/gobgp/table"
 	"github.com/stretchr/testify/assert"
@@ -27,56 +26,27 @@ func TestModPolicyAssign(t *testing.T) {
 	assert := assert.New(t)
 	s := NewBgpServer()
 	go s.Serve()
-	s.SetGlobalType(config.Global{
+	s.Start(&config.Global{
 		Config: config.GlobalConfig{
 			As:       1,
 			RouterId: "1.1.1.1",
 		},
 	})
-	_, err := s.handleGrpcAddPolicy(&GrpcRequest{
-		Data: &api.AddPolicyRequest{
-			Policy: &api.Policy{
-				Name: "p1",
-			},
-		},
-	})
-	assert.Nil(err)
-	_, err = s.handleGrpcAddPolicy(&GrpcRequest{
-		Data: &api.AddPolicyRequest{
-			Policy: &api.Policy{
-				Name: "p2",
-			},
-		},
-	})
-	assert.Nil(err)
-	_, err = s.handleGrpcAddPolicy(&GrpcRequest{
-		Data: &api.AddPolicyRequest{
-			Policy: &api.Policy{
-				Name: "p3",
-			},
-		},
-	})
-	assert.Nil(err)
-	_, err = s.handleGrpcAddPolicyAssignment(&GrpcRequest{
-		Data: &api.AddPolicyAssignmentRequest{
-			Assignment: &api.PolicyAssignment{
-				Type:     api.PolicyType_IMPORT,
-				Resource: api.Resource_GLOBAL,
-				Policies: []*api.Policy{&api.Policy{Name: "p1"}, &api.Policy{Name: "p2"}, &api.Policy{Name: "p3"}},
-			},
-		},
-	})
+	err := s.AddPolicy(&table.Policy{Name: "p1"}, false)
 	assert.Nil(err)
 
-	_, err = s.handleGrpcDeletePolicyAssignment(&GrpcRequest{
-		Data: &api.DeletePolicyAssignmentRequest{
-			Assignment: &api.PolicyAssignment{
-				Type:     api.PolicyType_IMPORT,
-				Resource: api.Resource_GLOBAL,
-				Policies: []*api.Policy{&api.Policy{Name: "p1"}},
-			},
-		},
-	})
+	err = s.AddPolicy(&table.Policy{Name: "p2"}, false)
+	assert.Nil(err)
+
+	err = s.AddPolicy(&table.Policy{Name: "p3"}, false)
+	assert.Nil(err)
+
+	err = s.AddPolicyAssignment("", table.POLICY_DIRECTION_IMPORT,
+		[]*config.PolicyDefinition{&config.PolicyDefinition{Name: "p1"}, &config.PolicyDefinition{Name: "p2"}, &config.PolicyDefinition{Name: "p3"}}, table.ROUTE_TYPE_ACCEPT)
+	assert.Nil(err)
+
+	err = s.DeletePolicyAssignment("", table.POLICY_DIRECTION_IMPORT,
+		[]*config.PolicyDefinition{&config.PolicyDefinition{Name: "p1"}}, false)
 	assert.Nil(err)
 
 	ps := s.policy.GetPolicy(table.GLOBAL_RIB_NAME, table.POLICY_DIRECTION_IMPORT)

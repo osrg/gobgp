@@ -20,7 +20,6 @@ import (
 	"encoding/binary"
 	"fmt"
 	log "github.com/Sirupsen/logrus"
-	api "github.com/osrg/gobgp/api"
 	"github.com/osrg/gobgp/config"
 	"github.com/osrg/gobgp/packet/bgp"
 	"net"
@@ -137,33 +136,6 @@ func NewDestination(nlri bgp.AddrPrefixInterface) *Destination {
 		d.RadixKey = CidrToRadixkey(nlri.String())
 	}
 	return d
-}
-
-func (dd *Destination) ToApiStruct(id string) *api.Destination {
-	prefix := dd.GetNlri().String()
-	paths := func(arg []*Path) []*api.Path {
-		ret := make([]*api.Path, 0, len(arg))
-		first := true
-		for _, p := range arg {
-			if p.Filtered(id) == POLICY_DIRECTION_NONE {
-				pp := p.ToApiStruct(id)
-				if first {
-					pp.Best = true
-					first = false
-				}
-				ret = append(ret, pp)
-			}
-		}
-		return ret
-	}(dd.knownPathList)
-
-	if len(paths) == 0 {
-		return nil
-	}
-	return &api.Destination{
-		Prefix: prefix,
-		Paths:  paths,
-	}
 }
 
 func (dd *Destination) Family() bgp.RouteFamily {
