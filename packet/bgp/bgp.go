@@ -1108,6 +1108,7 @@ func ParseRouteDistinguisher(rd string) (RouteDistinguisherInterface, error) {
 // The label information carried (as part of NLRI) in the Withdrawn
 // Routes field should be set to 0x800000.
 const WITHDRAW_LABEL = uint32(0x800000)
+const ZERO_LABEL = uint32(0) // some platform uses this as withdraw label
 
 type MPLSLabelStack struct {
 	Labels []uint32
@@ -1118,7 +1119,7 @@ func (l *MPLSLabelStack) DecodeFromBytes(data []byte) error {
 	foundBottom := false
 	for len(data) >= 3 {
 		label := uint32(data[0])<<16 | uint32(data[1])<<8 | uint32(data[2])
-		if label == WITHDRAW_LABEL {
+		if label == WITHDRAW_LABEL || label == ZERO_LABEL {
 			l.Labels = []uint32{label}
 			return nil
 		}
