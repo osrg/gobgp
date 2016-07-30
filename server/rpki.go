@@ -158,7 +158,7 @@ func (m *roaManager) AddServer(host string, lifetime int64) error {
 		lifetime = 3600
 	}
 	if _, ok := m.clientMap[host]; ok {
-		return fmt.Errorf("roa server exists %s", host)
+		return fmt.Errorf("ROA server exists %s", host)
 	}
 	client := NewRoaClient(address, port, m.eventCh, lifetime)
 	m.clientMap[host] = client
@@ -169,7 +169,7 @@ func (m *roaManager) AddServer(host string, lifetime int64) error {
 func (m *roaManager) DeleteServer(host string) error {
 	client, ok := m.clientMap[host]
 	if !ok {
-		return fmt.Errorf("roa server doesn't exists %s", host)
+		return fmt.Errorf("ROA server doesn't exists %s", host)
 	}
 	client.reset()
 	delete(m.clientMap, host)
@@ -208,7 +208,7 @@ func (m *roaManager) Enable(address string) error {
 			return nil
 		}
 	}
-	return fmt.Errorf("roa server not found %s", address)
+	return fmt.Errorf("ROA server not found %s", address)
 }
 
 func (m *roaManager) Disable(address string) error {
@@ -219,7 +219,7 @@ func (m *roaManager) Disable(address string) error {
 			return nil
 		}
 	}
-	return fmt.Errorf("roa server not found %s", address)
+	return fmt.Errorf("ROA server not found %s", address)
 }
 
 func (m *roaManager) Reset(address string) error {
@@ -230,7 +230,7 @@ func (m *roaManager) Reset(address string) error {
 			return nil
 		}
 	}
-	return fmt.Errorf("roa server not found %s", address)
+	return fmt.Errorf("ROA server not found %s", address)
 }
 
 func (m *roaManager) SoftReset(address string) error {
@@ -242,7 +242,7 @@ func (m *roaManager) SoftReset(address string) error {
 			return nil
 		}
 	}
-	return fmt.Errorf("roa server not found %s", address)
+	return fmt.Errorf("ROA server not found %s", address)
 }
 
 func (c *roaManager) ReceiveROA() chan *ROAEvent {
@@ -262,12 +262,12 @@ func (m *roaManager) HandleROAEvent(ev *ROAEvent) {
 		if ev.EventType == CONNECTED {
 			ev.conn.Close()
 		}
-		log.Error("can't find %s roa server configuration", ev.Src)
+		log.WithFields(log.Fields{"Topic": "rpki"}).Errorf("Can't find %s ROA server configuration", ev.Src)
 		return
 	}
 	switch ev.EventType {
 	case DISCONNECTED:
-		log.Info("roa server is disconnected, ", ev.Src)
+		log.WithFields(log.Fields{"Topic": "rpki"}).Infof("ROA server %s is disconnected", ev.Src)
 		client.state.Downtime = time.Now().Unix()
 		// clear state
 		client.endOfData = false
@@ -279,7 +279,7 @@ func (m *roaManager) HandleROAEvent(ev *ROAEvent) {
 		client.timer = time.AfterFunc(time.Duration(client.lifetime)*time.Second, client.lifetimeout)
 		client.oldSessionID = client.sessionID
 	case CONNECTED:
-		log.Info("roa server is connected, ", ev.Src)
+		log.WithFields(log.Fields{"Topic": "rpki"}).Infof("ROA server %s is connected", ev.Src)
 		client.conn = ev.conn
 		client.state.Uptime = time.Now().Unix()
 		client.t = tomb.Tomb{}
@@ -295,9 +295,9 @@ func (m *roaManager) HandleROAEvent(ev *ROAEvent) {
 		// all stale ROAs were deleted -> timer was cancelled
 		// so should not be here.
 		if client.oldSessionID != client.sessionID {
-			log.Info("reconnected so ignore timeout", client.host)
+			log.WithFields(log.Fields{"Topic": "rpki"}).Infof("Reconnected to %s. Ignore timeout", client.host)
 		} else {
-			log.Info("delete all due to timeout", client.host)
+			log.WithFields(log.Fields{"Topic": "rpki"}).Infof("Deleting all ROAs due to timeout with:%s", client.host)
 			m.deleteAllROA(client.host)
 		}
 	}
@@ -330,7 +330,13 @@ func (m *roaManager) deleteROA(roa *ROA) {
 			return
 		}
 	}
-	log.Info("can't withdraw a roa", roa.Prefix.Prefix.String(), roa.Prefix.Length, roa.AS, roa.MaxLen)
+	log.WithFields(log.Fields{
+		"Topic":         "rpki",
+		"Prefix":        roa.Prefix.Prefix.String(),
+		"Prefix Length": roa.Prefix.Length,
+		"AS":            roa.AS,
+		"Max Length":    roa.MaxLen,
+	}).Info("Can't withdraw a ROA")
 }
 
 func (m *roaManager) addROA(roa *ROA) {
@@ -419,7 +425,11 @@ func (c *roaManager) handleRTRMsg(client *roaClient, state *config.RpkiServerSta
 			received.Error++
 		}
 	} else {
-		log.Info("failed to parse a RTR message ", client.host, err)
+		log.WithFields(log.Fields{
+			"Topic": "rpki",
+			"Host":  client.host,
+			"Error": err,
+		}).Info("Failed to parse an RTR message")
 	}
 }
 

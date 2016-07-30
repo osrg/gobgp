@@ -414,7 +414,9 @@ func (dest *Destination) computeKnownBestPath() (*Path, BestPathReason, error) {
 		return nil, BPR_UNKNOWN, nil
 	}
 
-	log.Debugf("computeKnownBestPath known pathlist: %d", len(dest.knownPathList))
+	log.WithFields(log.Fields{
+		"Topic": "Table",
+	}).Debugf("computeKnownBestPath known pathlist: %d", len(dest.knownPathList))
 
 	// We pick the first path as current best path. This helps in breaking
 	// tie between two new paths learned in one cycle for which best-path
@@ -521,7 +523,10 @@ func (p paths) Less(i, j int) bool {
 		var e error = nil
 		better, e = compareByRouterID(path1, path2)
 		if e != nil {
-			log.Error(e)
+			log.WithFields(log.Fields{
+				"Topic": "Table",
+				"Error": e,
+			}).Error("Could not get best path by comparing router ID")
 		}
 		reason = BPR_ROUTER_ID
 	}
@@ -543,7 +548,9 @@ func compareByReachableNexthop(path1, path2 *Path) *Path {
 	//
 	//	If no path matches this criteria, return None.
 	//  However RouteServer doesn't need to check reachability, so return nil.
-	log.Debugf("enter compareByReachableNexthop -- path1: %s, path2: %s", path1, path2)
+	log.WithFields(log.Fields{
+		"Topic": "Table",
+	}).Debugf("enter compareByReachableNexthop -- path1: %s, path2: %s", path1, path2)
 	return nil
 }
 
@@ -554,7 +561,9 @@ func compareByHighestWeight(path1, path2 *Path) *Path {
 	//	is configured.
 	//	Return:
 	//	nil if best path among given paths cannot be decided, else best path.
-	log.Debugf("enter compareByHighestWeight -- path1: %s, path2: %s", path1, path2)
+	log.WithFields(log.Fields{
+		"Topic": "Table",
+	}).Debugf("enter compareByHighestWeight -- path1: %s, path2: %s", path1, path2)
 	return nil
 }
 
@@ -567,7 +576,9 @@ func compareByLocalPref(path1, path2 *Path) *Path {
 	//	we return None.
 	//
 	//	# Default local-pref values is 100
-	log.Debugf("enter compareByLocalPref")
+	log.WithFields(log.Fields{
+		"Topic": "Table",
+	}).Debug("enter compareByLocalPref")
 	localPref1, _ := path1.GetLocalPref()
 	localPref2, _ := path2.GetLocalPref()
 	// Highest local-preference value is preferred.
@@ -588,7 +599,9 @@ func compareByLocalOrigin(path1, path2 *Path) *Path {
 	// Returns None if given paths have same source.
 	//
 	// If both paths are from same sources we cannot compare them here.
-	log.Debugf("enter compareByLocalOrigin")
+	log.WithFields(log.Fields{
+		"Topic": "Table",
+	}).Debug("enter compareByLocalOrigin")
 	if path1.GetSource().Equal(path2.GetSource()) {
 		return nil
 	}
@@ -610,7 +623,9 @@ func compareByASPath(path1, path2 *Path) *Path {
 	//
 	// Shortest as-path length is preferred. If both path have same lengths,
 	// we return None.
-	log.Debugf("enter compareByASPath")
+	log.WithFields(log.Fields{
+		"Topic": "Table",
+	}).Debug("enter compareByASPath")
 	attribute1 := path1.getPathAttr(bgp.BGP_ATTR_TYPE_AS_PATH)
 	attribute2 := path2.getPathAttr(bgp.BGP_ATTR_TYPE_AS_PATH)
 
@@ -626,7 +641,9 @@ func compareByASPath(path1, path2 *Path) *Path {
 	l1 := path1.GetAsPathLen()
 	l2 := path2.GetAsPathLen()
 
-	log.Debugf("compareByASPath -- l1: %d, l2: %d", l1, l2)
+	log.WithFields(log.Fields{
+		"Topic": "Table",
+	}).Debugf("compareByASPath -- l1: %d, l2: %d", l1, l2)
 	if l1 > l2 {
 		return path2
 	} else if l1 < l2 {
@@ -641,7 +658,9 @@ func compareByOrigin(path1, path2 *Path) *Path {
 	//
 	//	IGP is preferred over EGP; EGP is preferred over Incomplete.
 	//	If both paths have same origin, we return None.
-	log.Debugf("enter compareByOrigin")
+	log.WithFields(log.Fields{
+		"Topic": "Table",
+	}).Debug("enter compareByOrigin")
 	attribute1 := path1.getPathAttr(bgp.BGP_ATTR_TYPE_ORIGIN)
 	attribute2 := path2.getPathAttr(bgp.BGP_ATTR_TYPE_ORIGIN)
 
@@ -657,7 +676,9 @@ func compareByOrigin(path1, path2 *Path) *Path {
 
 	origin1, n1 := binary.Uvarint(attribute1.(*bgp.PathAttributeOrigin).Value)
 	origin2, n2 := binary.Uvarint(attribute2.(*bgp.PathAttributeOrigin).Value)
-	log.Debugf("compareByOrigin -- origin1: %d(%d), origin2: %d(%d)", origin1, n1, origin2, n2)
+	log.WithFields(log.Fields{
+		"Topic": "Table",
+	}).Debugf("compareByOrigin -- origin1: %d(%d), origin2: %d(%d)", origin1, n1, origin2, n2)
 
 	// If both paths have same origins
 	if origin1 == origin2 {
@@ -702,7 +723,9 @@ func compareByMED(path1, path2 *Path) *Path {
 	}()
 
 	if SelectionOptions.AlwaysCompareMed || isInternal || isSameAS {
-		log.Debugf("enter compareByMED")
+		log.WithFields(log.Fields{
+			"Topic": "Table",
+		}).Debug("enter compareByMED")
 		getMed := func(path *Path) uint32 {
 			attribute := path.getPathAttr(bgp.BGP_ATTR_TYPE_MULTI_EXIT_DISC)
 			if attribute == nil {
@@ -714,7 +737,9 @@ func compareByMED(path1, path2 *Path) *Path {
 
 		med1 := getMed(path1)
 		med2 := getMed(path2)
-		log.Debugf("compareByMED -- med1: %d, med2: %d", med1, med2)
+		log.WithFields(log.Fields{
+			"Topic": "Table",
+		}).Debugf("compareByMED -- med1: %d, med2: %d", med1, med2)
 		if med1 == med2 {
 			return nil
 		} else if med1 < med2 {
@@ -722,7 +747,9 @@ func compareByMED(path1, path2 *Path) *Path {
 		}
 		return path2
 	} else {
-		log.Debugf("skip compareByMED %v %v %v", SelectionOptions.AlwaysCompareMed, isInternal, isSameAS)
+		log.WithFields(log.Fields{
+			"Topic": "Table",
+		}).Debugf("skip compareByMED %v %v %v", SelectionOptions.AlwaysCompareMed, isInternal, isSameAS)
 		return nil
 	}
 }
@@ -733,9 +760,13 @@ func compareByASNumber(path1, path2 *Path) *Path {
 	//
 	//eBGP path is preferred over iBGP. If both paths are from same kind of
 	//peers, return None.
-	log.Debugf("enter compareByASNumber")
+	log.WithFields(log.Fields{
+		"Topic": "Table",
+	}).Debug("enter compareByASNumber")
 
-	log.Debugf("compareByASNumber -- p1Asn: %d, p2Asn: %d", path1.GetSource().AS, path2.GetSource().AS)
+	log.WithFields(log.Fields{
+		"Topic": "Table",
+	}).Debugf("compareByASNumber -- p1Asn: %d, p2Asn: %d", path1.GetSource().AS, path2.GetSource().AS)
 	// If one path is from ibgp peer and another is from ebgp peer, take the ebgp path
 	if path1.IsIBGP() != path2.IsIBGP() {
 		if path1.IsIBGP() {
@@ -753,7 +784,9 @@ func compareByIGPCost(path1, path2 *Path) *Path {
 	//
 	//	Return None if igp cost is same.
 	// Currently BGPS has no concept of IGP and IGP cost.
-	log.Debugf("enter compareByIGPCost -- path1: %v, path2: %v", path1, path2)
+	log.WithFields(log.Fields{
+		"Topic": "Table",
+	}).Debugf("enter compareByIGPCost -- path1: %v, path2: %v", path1, path2)
 	return nil
 }
 
@@ -764,7 +797,9 @@ func compareByRouterID(path1, path2 *Path) (*Path, error) {
 	//	not pick best-path based on this criteria.
 	//	RFC: http://tools.ietf.org/html/rfc5004
 	//	We pick best path between two iBGP paths as usual.
-	log.Debugf("enter compareByRouterID")
+	log.WithFields(log.Fields{
+		"Topic": "Table",
+	}).Debug("enter compareByRouterID")
 
 	// If both paths are from NC we have same router Id, hence cannot compare.
 	if path1.IsLocal() && path2.IsLocal() {

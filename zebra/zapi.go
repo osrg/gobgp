@@ -235,13 +235,17 @@ func NewClient(network, address string, typ ROUTE_TYPE) (*Client, error) {
 			if more {
 				b, err := m.Serialize()
 				if err != nil {
-					log.Warnf("failed to serialize: %s", m)
+					log.WithFields(log.Fields{
+						"Topic": "Zebra",
+					}).Warnf("failed to serialize: %s", m)
 					continue
 				}
 
 				_, err = conn.Write(b)
 				if err != nil {
-					log.Errorf("failed to write: %s", err)
+					log.WithFields(log.Fields{
+						"Topic": "Zebra",
+					}).Errorf("failed to write: %s", err)
 					close(outgoing)
 				}
 			} else {
@@ -255,26 +259,38 @@ func NewClient(network, address string, typ ROUTE_TYPE) (*Client, error) {
 		for {
 			headerBuf, err := readAll(conn, HEADER_SIZE)
 			if err != nil {
-				log.Error("failed to read header: ", err)
+				log.WithFields(log.Fields{
+					"Topic": "Zebra",
+				}).Errorf("failed to read header:%s", err)
 				return
 			}
-			log.Debugf("read header from zebra: %v", headerBuf)
+			log.WithFields(log.Fields{
+				"Topic": "Zebra",
+			}).Debugf("read header from zebra: %v", headerBuf)
 			hd := &Header{}
 			err = hd.DecodeFromBytes(headerBuf)
 			if err != nil {
-				log.Error("failed to decode header: ", err)
+				log.WithFields(log.Fields{
+					"Topic": "Zebra",
+				}).Errorf("failed to decode header:%s", err)
 				return
 			}
 
 			bodyBuf, err := readAll(conn, int(hd.Len-HEADER_SIZE))
 			if err != nil {
-				log.Error("failed to read body: ", err)
+				log.WithFields(log.Fields{
+					"Topic": "Zebra",
+				}).Errorf("failed to read body:%s", err)
 				return
 			}
-			log.Debugf("read body from zebra: %v", bodyBuf)
+			log.WithFields(log.Fields{
+				"Topic": "Zebra",
+			}).Debugf("read body from zebra: %v", bodyBuf)
 			m, err := ParseMessage(hd, bodyBuf)
 			if err != nil {
-				log.Warn("failed to parse message: ", err)
+				log.WithFields(log.Fields{
+					"Topic": "Zebra",
+				}).Warnf("failed to parse message:%s", err)
 				continue
 			}
 
@@ -298,7 +314,9 @@ func (c *Client) Receive() chan *Message {
 func (c *Client) Send(m *Message) {
 	defer func() {
 		if err := recover(); err != nil {
-			log.Debugf("recovered: %s", err)
+			log.WithFields(log.Fields{
+				"Topic": "Zebra",
+			}).Debugf("recovered: %s", err)
 		}
 	}()
 	log.WithFields(log.Fields{
@@ -926,13 +944,19 @@ func ParseMessage(hdr *Header, data []byte) (*Message, error) {
 		m.Body = &RouterIDUpdateBody{}
 	case IPV4_ROUTE_ADD, IPV6_ROUTE_ADD, IPV4_ROUTE_DELETE, IPV6_ROUTE_DELETE:
 		m.Body = &IPRouteBody{Api: m.Header.Command}
-		log.Debugf("ipv4/v6 route add/delete message received: %v", data)
+		log.WithFields(log.Fields{
+			"Topic": "Zebra",
+		}).Debugf("ipv4/v6 route add/delete message received: %v", data)
 	case IPV4_NEXTHOP_LOOKUP, IPV6_NEXTHOP_LOOKUP:
 		m.Body = &NexthopLookupBody{Api: m.Header.Command}
-		log.Debugf("ipv4/v6 nexthop lookup received: %v", data)
+		log.WithFields(log.Fields{
+			"Topic": "Zebra",
+		}).Debugf("ipv4/v6 nexthop lookup received: %v", data)
 	case IPV4_IMPORT_LOOKUP:
 		m.Body = &ImportLookupBody{Api: m.Header.Command}
-		log.Debugf("ipv4 import lookup message received: %v", data)
+		log.WithFields(log.Fields{
+			"Topic": "Zebra",
+		}).Debugf("ipv4 import lookup message received: %v", data)
 	default:
 		return nil, fmt.Errorf("Unknown zapi command: %d", m.Header.Command)
 	}

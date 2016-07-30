@@ -69,7 +69,8 @@ func (m *mrtWriter) loop() error {
 				log.WithFields(log.Fields{
 					"Topic": "mrt",
 					"Data":  m,
-				}).Warn(err)
+					"Error": err,
+				}).Warn("Failed to create MRT message in serialize()")
 				return nil, err
 			}
 			return bm.Serialize()
@@ -92,7 +93,7 @@ func (m *mrtWriter) loop() error {
 					log.WithFields(log.Fields{
 						"Topic": "mrt",
 						"Error": err,
-					}).Warn(err)
+					}).Warn("Can't write to destination MRT file")
 				}
 			}
 
@@ -103,7 +104,8 @@ func (m *mrtWriter) loop() error {
 					log.WithFields(log.Fields{
 						"Topic": "mrt",
 						"Data":  e,
-					}).Warn(err)
+						"Error": err,
+					}).Warn("Failed to serialize event")
 					continue
 				}
 				b.Write(buf)
@@ -128,7 +130,10 @@ func (m *mrtWriter) loop() error {
 			if err == nil {
 				m.file = file
 			} else {
-				log.Info("can't rotate mrt file", err)
+				log.WithFields(log.Fields{
+					"Topic": "mrt",
+					"Error": err,
+				}).Warn("can't rotate MRT file")
 			}
 		}
 	}
@@ -139,6 +144,11 @@ func mrtFileOpen(filename string, interval uint64) (*os.File, error) {
 	if interval != 0 {
 		realname = time.Now().Format(filename)
 	}
+	log.WithFields(log.Fields{
+		"Topic":         "mrt",
+		"Filename":      realname,
+		"Dump Interval": interval,
+	}).Debug("Setting new MRT destination file")
 
 	i := len(realname)
 	for i > 0 && os.IsPathSeparator(realname[i-1]) {
@@ -153,14 +163,20 @@ func mrtFileOpen(filename string, interval uint64) (*os.File, error) {
 
 	if j > 0 {
 		if err := os.MkdirAll(realname[0:j-1], 0755); err != nil {
-			log.Warn(err)
+			log.WithFields(log.Fields{
+				"Topic": "mrt",
+				"Error": err,
+			}).Warn("can't create MRT destination directory")
 			return nil, err
 		}
 	}
 
 	file, err := os.OpenFile(realname, os.O_CREATE|os.O_RDWR|os.O_APPEND, 0644)
 	if err != nil {
-		log.Warn(err)
+		log.WithFields(log.Fields{
+			"Topic": "mrt",
+			"Error": err,
+		}).Warn("can't create MRT destination file")
 	}
 	return file, err
 }
