@@ -143,7 +143,9 @@ func UpdatePathAttrs4ByteAs(msg *bgp.BGPUpdate) error {
 				if p.Type == bgp.BGP_ASPATH_ATTR_TYPE_CONFED_SET {
 					typ = "CONFED_SET"
 				}
-				log.Warnf("AS4_PATH contains %s segment %s. ignore", typ, p.String())
+				log.WithFields(log.Fields{
+					"Topic": "Table",
+				}).Warnf("AS4_PATH contains %s segment %s. ignore", typ, p.String())
 				continue
 			}
 			as4Len += p.ASLen()
@@ -152,7 +154,9 @@ func UpdatePathAttrs4ByteAs(msg *bgp.BGPUpdate) error {
 	}
 
 	if asLen+asConfedLen < as4Len {
-		log.Warnf("AS4_PATH is longer than AS_PATH. ignore AS4_PATH")
+		log.WithFields(log.Fields{
+			"Topic": "Table",
+		}).Warn("AS4_PATH is longer than AS_PATH. ignore AS4_PATH")
 		return nil
 	}
 
