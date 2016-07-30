@@ -1688,9 +1688,7 @@ func (server *BgpServer) addNeighbor(c *config.Neighbor) error {
 	}).Infof("Add a peer configuration for:%s", addr)
 
 	peer := NewPeer(&server.bgpConfig.Global, c, server.globalRib, server.policy)
-	policyMutex.Lock()
 	server.setPolicyByConfig(peer.ID(), c.ApplyPolicy)
-	policyMutex.Unlock()
 	if peer.isRouteServerClient() {
 		pathList := make([]*table.Path, 0)
 		rfList := peer.configuredRFlist()
