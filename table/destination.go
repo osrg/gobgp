@@ -177,12 +177,12 @@ func (dd *Destination) GetBestPath(id string) *Path {
 	return nil
 }
 
-func (dd *Destination) addWithdraw(withdraw *Path) {
+func (dd *Destination) AddWithdraw(withdraw *Path) {
 	dd.validatePath(withdraw)
 	dd.withdrawList = append(dd.withdrawList, withdraw)
 }
 
-func (dd *Destination) addNewPath(newPath *Path) {
+func (dd *Destination) AddNewPath(newPath *Path) {
 	dd.validatePath(newPath)
 	dd.newPathList = append(dd.newPathList, newPath)
 }

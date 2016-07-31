@@ -20,14 +20,16 @@ import (
 	api "github.com/osrg/gobgp/api"
 	"github.com/osrg/gobgp/packet/bgp"
 	"github.com/osrg/gobgp/packet/mrt"
+	"github.com/osrg/gobgp/table"
 	"github.com/spf13/cobra"
 	"golang.org/x/net/context"
 	"io"
 	"os"
 	"strconv"
+	"time"
 )
 
-func injectMrt(r string, filename string, count int, skip int) error {
+func injectMrt(r string, filename string, count int, skip int, onlyBest bool) error {
 
 	var resource api.Resource
 	switch r {
@@ -110,26 +112,63 @@ func injectMrt(r string, filename string, count int, skip int) error {
 						exitWithError(fmt.Errorf("invalid peer index: %d (PEER_INDEX_TABLE has only %d peers)\n", e.PeerIndex, len(peers)))
 					}
 
-					path := &api.Path{
-						Pattrs:             make([][]byte, 0),
-						NoImplicitWithdraw: true,
-						SourceAsn:          peers[e.PeerIndex].AS,
-						SourceId:           peers[e.PeerIndex].BgpId.String(),
-					}
-
-					if rf == bgp.RF_IPv4_UC {
-						path.Nlri, _ = nlri.Serialize()
-					}
-
-					for _, p := range e.PathAttributes {
-						b, err := p.Serialize()
-						if err != nil {
-							continue
+					if !onlyBest {
+						path := &api.Path{
+							Pattrs:             make([][]byte, 0),
+							NoImplicitWithdraw: true,
+							SourceAsn:          peers[e.PeerIndex].AS,
+							SourceId:           peers[e.PeerIndex].BgpId.String(),
 						}
-						path.Pattrs = append(path.Pattrs, b)
-					}
 
-					paths = append(paths, path)
+						if rf == bgp.RF_IPv4_UC {
+							path.Nlri, _ = nlri.Serialize()
+						}
+
+						for _, p := range e.PathAttributes {
+							b, err := p.Serialize()
+							if err != nil {
+								continue
+							}
+							path.Pattrs = append(path.Pattrs, b)
+						}
+
+						paths = append(paths, path)
+					}
+				}
+				if onlyBest {
+					paths = func() []*api.Path {
+						dst := table.NewDestination(nlri)
+						pathList := make([]*table.Path, 0, len(rib.Entries))
+						for _, e := range rib.Entries {
+							p := table.NewPath(&table.PeerInfo{AS: peers[e.PeerIndex].AS, ID: peers[e.PeerIndex].BgpId}, nlri, false, e.PathAttributes, time.Unix(int64(e.OriginatedTime), 0), false)
+							dst.AddNewPath(p)
+							pathList = append(pathList, p)
+						}
+						best, _, _ := dst.Calculate([]string{table.GLOBAL_RIB_NAME})
+						for _, p := range pathList {
+							if p == best[table.GLOBAL_RIB_NAME] {
+								nb, _ := nlri.Serialize()
+								return []*api.Path{&api.Path{
+									Nlri:               nb,
+									NoImplicitWithdraw: true,
+									SourceAsn:          p.GetSource().AS,
+									SourceId:           p.GetSource().ID.String(),
+									Pattrs: func() [][]byte {
+										attrs := make([][]byte, 0)
+										for _, a := range p.GetPathAttrs() {
+											if b, e := a.Serialize(); e == nil {
+
+												attrs = append(attrs, b)
+											}
+										}
+										return attrs
+									}(),
+								}}
+							}
+						}
+						exitWithError(fmt.Errorf("Can't find the best %v", nlri))
+						return []*api.Path{}
+					}()
 				}
 
 				if idx >= skip {
@@ -191,7 +230,7 @@ func NewMrtCmd() *cobra.Command {
 					}
 				}
 			}
-			err := injectMrt(CMD_GLOBAL, filename, count, skip)
+			err := injectMrt(CMD_GLOBAL, filename, count, skip, mrtOpts.Best)
 			if err != nil {
 				exitWithError(err)
 			}
@@ -208,5 +247,6 @@ func NewMrtCmd() *cobra.Command {
 	}
 	mrtCmd.AddCommand(injectCmd)
 
+	mrtCmd.PersistentFlags().BoolVarP(&mrtOpts.Best, "only-best", "", false, "inject only best paths")
 	return mrtCmd
 }

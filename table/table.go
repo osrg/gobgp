@@ -44,10 +44,10 @@ func (t *Table) insert(path *Path) *Destination {
 
 	if path.IsWithdraw {
 		// withdraw insert
-		dest.addWithdraw(path)
+		dest.AddWithdraw(path)
 	} else {
 		// path insert
-		dest.addNewPath(path)
+		dest.AddNewPath(path)
 	}
 	return dest
 }
@@ -58,7 +58,7 @@ func (t *Table) DeleteDestByPeer(peerInfo *PeerInfo) []*Destination {
 		match := false
 		for _, p := range dst.knownPathList {
 			if p.GetSource().Equal(peerInfo) {
-				dst.addWithdraw(p)
+				dst.AddWithdraw(p)
 				match = true
 			}
 		}

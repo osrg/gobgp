@@ -102,6 +102,7 @@ var actionOpts struct {
 var mrtOpts struct {
 	OutputDir  string
 	FileFormat string
+	Best       bool `long:"only-best" description:"only keep best path routes"`
 }
 
 func formatTimedelta(d int64) string {

@@ -87,8 +87,8 @@ func TestCalculate(t *testing.T) {
 	path2.Filter("1", POLICY_DIRECTION_IMPORT)
 
 	d := NewDestination(nlri)
-	d.addNewPath(path1)
-	d.addNewPath(path2)
+	d.AddNewPath(path1)
+	d.AddNewPath(path2)
 
 	d.Calculate([]string{"1", "2"})
 
@@ -96,7 +96,7 @@ func TestCalculate(t *testing.T) {
 	assert.Equal(t, len(d.GetKnownPathList("2")), 1)
 	assert.Equal(t, len(d.knownPathList), 2)
 
-	d.addWithdraw(path1.Clone(true))
+	d.AddWithdraw(path1.Clone(true))
 
 	d.Calculate([]string{"1", "2"})
 
@@ -121,7 +121,7 @@ func TestCalculate2(t *testing.T) {
 	path1 := ProcessMessage(update1, peer1, time.Now())[0]
 
 	d := NewDestination(nlri)
-	d.addNewPath(path1)
+	d.AddNewPath(path1)
 	d.Calculate(nil)
 
 	// suppose peer2 sends grammaatically correct but semantically flawed update message
@@ -131,7 +131,7 @@ func TestCalculate2(t *testing.T) {
 	path2 := ProcessMessage(update2, peer2, time.Now())[0]
 	assert.Equal(t, path2.IsWithdraw, true)
 
-	d.addWithdraw(path2)
+	d.AddWithdraw(path2)
 	d.Calculate(nil)
 
 	// we have a path from peer1 here
@@ -142,7 +142,7 @@ func TestCalculate2(t *testing.T) {
 	path3 := ProcessMessage(update3, peer2, time.Now())[0]
 	assert.Equal(t, path3.IsWithdraw, false)
 
-	d.addNewPath(path3)
+	d.AddNewPath(path3)
 	d.Calculate(nil)
 
 	// this time, we have paths from peer1 and peer2
@@ -153,7 +153,7 @@ func TestCalculate2(t *testing.T) {
 	update4 := bgp.NewBGPUpdateMessage(nil, pathAttributes, []*bgp.IPAddrPrefix{nlri})
 	path4 := ProcessMessage(update4, peer3, time.Now())[0]
 
-	d.addNewPath(path4)
+	d.AddNewPath(path4)
 	d.Calculate(nil)
 
 	// we must have paths from peer1, peer2 and peer3
@@ -185,8 +185,8 @@ func TestImplicitWithdrawCalculate(t *testing.T) {
 	path2.Filter("3", POLICY_DIRECTION_IMPORT)
 
 	d := NewDestination(nlri)
-	d.addNewPath(path1)
-	d.addNewPath(path2)
+	d.AddNewPath(path1)
+	d.AddNewPath(path2)
 
 	d.Calculate(nil)
 
@@ -206,7 +206,7 @@ func TestImplicitWithdrawCalculate(t *testing.T) {
 	path3 := ProcessMessage(updateMsg, peer1, time.Now())[0]
 	path3.Filter("1", POLICY_DIRECTION_IMPORT)
 
-	d.addNewPath(path3)
+	d.AddNewPath(path3)
 	d.Calculate(nil)
 
 	assert.Equal(t, len(d.GetKnownPathList("1")), 0) // peer "1" is the originator
@@ -289,8 +289,8 @@ func TestTimeTieBreaker(t *testing.T) {
 	path2 := ProcessMessage(updateMsg, peer2, time.Now().Add(-1*time.Hour))[0]                 // older than path1
 
 	d := NewDestination(nlri)
-	d.addNewPath(path1)
-	d.addNewPath(path2)
+	d.AddNewPath(path1)
+	d.AddNewPath(path2)
 
 	d.Calculate(nil)
 
@@ -300,8 +300,8 @@ func TestTimeTieBreaker(t *testing.T) {
 	// this option disables tie breaking by age
 	SelectionOptions.ExternalCompareRouterId = true
 	d = NewDestination(nlri)
-	d.addNewPath(path1)
-	d.addNewPath(path2)
+	d.AddNewPath(path1)
+	d.AddNewPath(path2)
 
 	d.Calculate(nil)
 
@@ -434,8 +434,8 @@ func TestMultipath(t *testing.T) {
 	path2 := ProcessMessage(updateMsg, peer2, time.Now())[0]
 
 	d := NewDestination(nlri[0])
-	d.addNewPath(path1)
-	d.addNewPath(path2)
+	d.AddNewPath(path1)
+	d.AddNewPath(path2)
 
 	best, w, multi := d.Calculate([]string{GLOBAL_RIB_NAME})
 	assert.Equal(t, len(best), 1)
@@ -444,7 +444,7 @@ func TestMultipath(t *testing.T) {
 	assert.Equal(t, len(d.GetKnownPathList(GLOBAL_RIB_NAME)), 2)
 
 	path3 := path2.Clone(true)
-	d.addWithdraw(path3)
+	d.AddWithdraw(path3)
 	best, w, multi = d.Calculate([]string{GLOBAL_RIB_NAME})
 	assert.Equal(t, len(best), 1)
 	assert.Equal(t, len(w), 1)
@@ -462,7 +462,7 @@ func TestMultipath(t *testing.T) {
 	}
 	updateMsg = bgp.NewBGPUpdateMessage(nil, pathAttributes, nlri)
 	path4 := ProcessMessage(updateMsg, peer3, time.Now())[0]
-	d.addNewPath(path4)
+	d.AddNewPath(path4)
 
 	best, w, multi = d.Calculate([]string{GLOBAL_RIB_NAME})
 	assert.Equal(t, len(best), 1)
@@ -479,7 +479,7 @@ func TestMultipath(t *testing.T) {
 	}
 	updateMsg = bgp.NewBGPUpdateMessage(nil, pathAttributes, nlri)
 	path5 := ProcessMessage(updateMsg, peer2, time.Now())[0]
-	d.addNewPath(path5)
+	d.AddNewPath(path5)
 
 	best, w, multi = d.Calculate([]string{GLOBAL_RIB_NAME})
 	assert.Equal(t, len(best), 1)
