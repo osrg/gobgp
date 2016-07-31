@@ -1744,19 +1744,22 @@ func (server *BgpServer) deleteNeighbor(c *config.Neighbor, code, subcode uint8)
 	n.fsm.sendNotification(code, subcode, nil, "")
 
 	go func(addr string) {
-		logfatal := func() {
+		t1 := time.AfterFunc(time.Minute*5, func() {
 			log.WithFields(log.Fields{
 				"Topic": "Peer",
-			}).Fatalf("Failed to free the fsm.h.t for %s", addr)
-		}
-		t := time.AfterFunc(time.Minute*5, logfatal)
+			}).Warnf("Failed to free the fsm.h.t for %s", addr)
+		})
 		n.fsm.h.t.Kill(nil)
 		n.fsm.h.t.Wait()
-		t.Stop()
-		t = time.AfterFunc(time.Minute*5, logfatal)
+		t1.Stop()
+		t2 := time.AfterFunc(time.Minute*5, func() {
+			log.WithFields(log.Fields{
+				"Topic": "Peer",
+			}).Warnf("Failed to free the fsm.t for %s", addr)
+		})
 		n.fsm.t.Kill(nil)
 		n.fsm.t.Wait()
-		t.Stop()
+		t2.Stop()
 	}(addr)
 	delete(server.neighborMap, addr)
 	server.dropPeerAllRoutes(n, n.configuredRFlist())
