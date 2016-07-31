@@ -1793,7 +1793,11 @@ func (s *BgpServer) UpdateNeighbor(c *config.Neighbor) (policyUpdated bool, err 
 		}()
 
 		addr := c.Config.NeighborAddress
-		peer := s.neighborMap[addr]
+		peer, ok := s.neighborMap[addr]
+		if !ok {
+			err = fmt.Errorf("Neighbor that has %v doesn't exist.", addr)
+			return
+		}
 
 		if !peer.fsm.pConf.ApplyPolicy.Equal(&c.ApplyPolicy) {
 			log.WithFields(log.Fields{
