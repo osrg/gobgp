@@ -1730,6 +1730,13 @@ func (s *BgpServer) AddNeighbor(c *config.Neighbor) (err error) {
 
 func (server *BgpServer) deleteNeighbor(c *config.Neighbor, code, subcode uint8) error {
 	addr := c.Config.NeighborAddress
+	if intf := c.Config.NeighborInterface; intf != "" {
+		var err error
+		addr, err = config.GetIPv6LinkLocalNeighborAddress(intf)
+		if err != nil {
+			return err
+		}
+	}
 	n, y := server.neighborMap[addr]
 	if !y {
 		return fmt.Errorf("Can't delete a peer configuration for %s", addr)
