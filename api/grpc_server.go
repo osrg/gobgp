@@ -106,21 +106,22 @@ func (s *Server) GetNeighbor(ctx context.Context, arg *GetNeighborRequest) (*Get
 		}
 		return &Peer{
 			Conf: &PeerConf{
-				NeighborAddress:  pconf.Config.NeighborAddress,
-				Id:               s.Description,
-				PeerAs:           pconf.Config.PeerAs,
-				LocalAs:          pconf.Config.LocalAs,
-				PeerType:         uint32(pconf.Config.PeerType.ToInt()),
-				AuthPassword:     pconf.Config.AuthPassword,
-				RemovePrivateAs:  uint32(pconf.Config.RemovePrivateAs.ToInt()),
-				RouteFlapDamping: pconf.Config.RouteFlapDamping,
-				SendCommunity:    uint32(pconf.Config.SendCommunity.ToInt()),
-				Description:      pconf.Config.Description,
-				PeerGroup:        pconf.Config.PeerGroup,
-				RemoteCap:        s.Capabilities.RemoteList,
-				LocalCap:         s.Capabilities.LocalList,
-				PrefixLimits:     prefixLimits,
-				LocalAddress:     localAddress,
+				NeighborAddress:   pconf.Config.NeighborAddress,
+				Id:                s.Description,
+				PeerAs:            pconf.Config.PeerAs,
+				LocalAs:           pconf.Config.LocalAs,
+				PeerType:          uint32(pconf.Config.PeerType.ToInt()),
+				AuthPassword:      pconf.Config.AuthPassword,
+				RemovePrivateAs:   uint32(pconf.Config.RemovePrivateAs.ToInt()),
+				RouteFlapDamping:  pconf.Config.RouteFlapDamping,
+				SendCommunity:     uint32(pconf.Config.SendCommunity.ToInt()),
+				Description:       pconf.Config.Description,
+				PeerGroup:         pconf.Config.PeerGroup,
+				RemoteCap:         s.Capabilities.RemoteList,
+				LocalCap:          s.Capabilities.LocalList,
+				PrefixLimits:      prefixLimits,
+				LocalAddress:      localAddress,
+				NeighborInterface: pconf.Config.NeighborInterface,
 			},
 			Info: &PeerState{
 				BgpState:   bgp.FSMState(s.SessionState.ToInt()).String(),
@@ -753,6 +754,7 @@ func (s *Server) AddNeighbor(ctx context.Context, arg *AddNeighborRequest) (*Add
 			pconf.Config.Description = a.Conf.Description
 			pconf.Config.PeerGroup = a.Conf.PeerGroup
 			pconf.Config.NeighborAddress = a.Conf.NeighborAddress
+			pconf.Config.NeighborInterface = a.Conf.NeighborInterface
 		}
 		if a.Timers != nil && a.Timers.Config != nil {
 			pconf.Timers.Config.ConnectRetry = float64(a.Timers.Config.ConnectRetry)
@@ -819,7 +821,8 @@ func (s *Server) AddNeighbor(ctx context.Context, arg *AddNeighborRequest) (*Add
 
 func (s *Server) DeleteNeighbor(ctx context.Context, arg *DeleteNeighborRequest) (*DeleteNeighborResponse, error) {
 	return &DeleteNeighborResponse{}, s.bgpServer.DeleteNeighbor(&config.Neighbor{Config: config.NeighborConfig{
-		NeighborAddress: arg.Peer.Conf.NeighborAddress,
+		NeighborAddress:   arg.Peer.Conf.NeighborAddress,
+		NeighborInterface: arg.Peer.Conf.NeighborInterface,
 	}})
 }
 

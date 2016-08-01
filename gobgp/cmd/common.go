@@ -256,8 +256,6 @@ func extractReserved(args, keys []string) map[string][]string {
 		if isReserved(arg) {
 			k = arg
 			m[k] = make([]string, 0, 1)
-		} else if k == "" {
-			m[k] = []string{arg}
 		} else {
 			m[k] = append(m[k], arg)
 		}
@@ -276,6 +274,7 @@ type PeerConf struct {
 	KeepaliveInterval uint32                             `json:"keepalive_interval,omitempty"`
 	PrefixLimits      []*gobgpapi.PrefixLimit            `json:"prefix_limits,omitempty"`
 	LocalIp           string                             `json:"local_ip,omitempty"`
+	Interface         string                             `json:"interface,omitempty"`
 }
 
 type Peer struct {
@@ -308,6 +307,7 @@ func ApiStruct2Peer(p *gobgpapi.Peer) *Peer {
 		LocalCap:     localCaps,
 		PrefixLimits: p.Conf.PrefixLimits,
 		LocalIp:      localIp.String(),
+		Interface:    p.Conf.NeighborInterface,
 	}
 	return &Peer{
 		Conf:           conf,

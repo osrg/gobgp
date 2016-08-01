@@ -55,17 +55,17 @@ func getNeighbors() (peers, error) {
 	return m, nil
 }
 
-func getNeighbor(addr string) (*Peer, error) {
+func getNeighbor(name string) (*Peer, error) {
 	l, e := getNeighbors()
 	if e != nil {
 		return nil, e
 	}
 	for _, p := range l {
-		if p.Conf.RemoteIp == addr {
+		if p.Conf.RemoteIp == name || p.Conf.Interface == name {
 			return p, nil
 		}
 	}
-	return nil, fmt.Errorf("Neighbor that has %v doesn't exist.", addr)
+	return nil, fmt.Errorf("Neighbor %v doesn't exist.", name)
 }
 
 func showNeighbors() error {
@@ -94,8 +94,10 @@ func showNeighbors() error {
 
 	now := time.Now()
 	for _, p := range m {
-		if l := len(p.Conf.RemoteIp); l > maxaddrlen {
-			maxaddrlen = l
+		if i := len(p.Conf.Interface); i > maxaddrlen {
+			maxaddrlen = i
+		} else if j := len(p.Conf.RemoteIp); j > maxaddrlen {
+			maxaddrlen = j
 		}
 		if len(fmt.Sprint(p.Conf.RemoteAs)) > maxaslen {
 			maxaslen = len(fmt.Sprint(p.Conf.RemoteAs))
@@ -141,7 +143,11 @@ func showNeighbors() error {
 	}
 
 	for i, p := range m {
-		fmt.Printf(format, p.Conf.RemoteIp, fmt.Sprint(p.Conf.RemoteAs), timedelta[i], format_fsm(p.Info.AdminState, p.Info.BgpState), fmt.Sprint(p.Info.Advertised), fmt.Sprint(p.Info.Received), fmt.Sprint(p.Info.Accepted))
+		neigh := p.Conf.RemoteIp
+		if p.Conf.Interface != "" {
+			neigh = p.Conf.Interface
+		}
+		fmt.Printf(format, neigh, fmt.Sprint(p.Conf.RemoteAs), timedelta[i], format_fsm(p.Info.AdminState, p.Info.BgpState), fmt.Sprint(p.Info.Advertised), fmt.Sprint(p.Info.Received), fmt.Sprint(p.Info.Accepted))
 	}
 
 	return nil
@@ -639,7 +645,7 @@ func stateChangeNeighbor(cmd string, remoteIP string, args []string) error {
 	return err
 }
 
-func showNeighborPolicy(remoteIP net.IP, policyType string, indent int) error {
+func showNeighborPolicy(remoteIP, policyType string, indent int) error {
 	var typ api.PolicyType
 	switch strings.ToLower(policyType) {
 	case "in":
@@ -650,12 +656,12 @@ func showNeighborPolicy(remoteIP net.IP, policyType string, indent int) error {
 		typ = api.PolicyType_EXPORT
 	}
 	r := api.Resource_LOCAL
-	if remoteIP == nil {
+	if remoteIP == "" {
 		r = api.Resource_GLOBAL
 	}
 	arg := &api.GetPolicyAssignmentRequest{
 		Assignment: &api.PolicyAssignment{
-			Name:     remoteIP.String(),
+			Name:     remoteIP,
 			Resource: r,
 			Type:     typ,
 		},
@@ -700,7 +706,7 @@ func extractDefaultAction(args []string) ([]string, api.RouteAction, error) {
 	return args, api.RouteAction_NONE, nil
 }
 
-func modNeighborPolicy(remoteIP net.IP, policyType, cmdType string, args []string) error {
+func modNeighborPolicy(remoteIP, policyType, cmdType string, args []string) error {
 	var typ api.PolicyType
 	switch strings.ToLower(policyType) {
 	case "in":
@@ -712,7 +718,7 @@ func modNeighborPolicy(remoteIP net.IP, policyType, cmdType string, args []strin
 	}
 	r := api.Resource_LOCAL
 	usage := fmt.Sprintf("usage: gobgp neighbor %s policy %s %s", remoteIP, policyType, cmdType)
-	if remoteIP == nil {
+	if remoteIP == "" {
 		r = api.Resource_GLOBAL
 		usage = fmt.Sprintf("usage: gobgp global policy %s %s", policyType, cmdType)
 	}
@@ -720,7 +726,7 @@ func modNeighborPolicy(remoteIP net.IP, policyType, cmdType string, args []strin
 	assign := &api.PolicyAssignment{
 		Type:     typ,
 		Resource: r,
-		Name:     remoteIP.String(),
+		Name:     remoteIP,
 	}
 
 	var err error
@@ -765,17 +771,34 @@ func modNeighborPolicy(remoteIP net.IP, policyType, cmdType string, args []strin
 }
 
 func modNeighbor(cmdType string, args []string) error {
-	m := extractReserved(args, []string{"as"})
-	usage := fmt.Sprintf("usage: gobgp neighbor %s <neighbor-address>", cmdType)
+	m := extractReserved(args, []string{"interface", "as"})
+	usage := fmt.Sprintf("usage: gobgp neighbor %s [<neighbor-address>| interface <neighbor-interface>]", cmdType)
 	if cmdType == CMD_ADD {
 		usage += " as <VALUE>"
 	}
 
-	if len(m[""]) != 1 {
+	if len(m[""]) < 1 && len(m["interface"]) < 1 {
 		return fmt.Errorf("%s", usage)
 	}
-	if _, err := net.ResolveIPAddr("ip", m[""][0]); err != nil {
-		return err
+	unnumbered := len(m["interface"]) > 0
+	if !unnumbered {
+		if _, err := net.ResolveIPAddr("ip", m[""][0]); err != nil {
+			return err
+		}
+	}
+
+	getConf := func(asn int) *api.Peer {
+		peer := &api.Peer{
+			Conf: &api.PeerConf{
+				PeerAs: uint32(asn),
+			},
+		}
+		if unnumbered {
+			peer.Conf.NeighborInterface = m["interface"][0]
+		} else {
+			peer.Conf.NeighborAddress = m[""][0]
+		}
+		return peer
 	}
 	var err error
 	switch cmdType {
@@ -783,28 +806,14 @@ func modNeighbor(cmdType string, args []string) error {
 		if len(m["as"]) != 1 {
 			return fmt.Errorf("%s", usage)
 		}
-		as, err := strconv.Atoi(m["as"][0])
+		var as int
+		as, err = strconv.Atoi(m["as"][0])
 		if err != nil {
 			return err
 		}
-		arg := &api.AddNeighborRequest{
-			Peer: &api.Peer{
-				Conf: &api.PeerConf{
-					NeighborAddress: m[""][0],
-					PeerAs:          uint32(as),
-				},
-			},
-		}
-		_, err = client.AddNeighbor(context.Background(), arg)
+		_, err = client.AddNeighbor(context.Background(), &api.AddNeighborRequest{Peer: getConf(as)})
 	case CMD_DEL:
-		arg := &api.DeleteNeighborRequest{
-			Peer: &api.Peer{
-				Conf: &api.PeerConf{
-					NeighborAddress: m[""][0],
-				},
-			},
-		}
-		_, err = client.DeleteNeighbor(context.Background(), arg)
+		_, err = client.DeleteNeighbor(context.Background(), &api.DeleteNeighborRequest{Peer: getConf(0)})
 	}
 	return err
 }
@@ -837,11 +846,11 @@ func NewNeighborCmd() *cobra.Command {
 						}
 					}
 					if addr == "" {
-						remoteIP := net.ParseIP(args[len(args)-1])
-						if remoteIP == nil {
-							exitWithError(fmt.Errorf("invalid ip address: %s", args[len(args)-1]))
+						peer, err := getNeighbor(args[len(args)-1])
+						if err != nil {
+							exitWithError(err)
 						}
-						addr = remoteIP.String()
+						addr = peer.Conf.RemoteIp
 					}
 					err := f(cmd.Use, addr, args[:len(args)-1])
 					if err != nil {
@@ -856,11 +865,11 @@ func NewNeighborCmd() *cobra.Command {
 	policyCmd := &cobra.Command{
 		Use: CMD_POLICY,
 		Run: func(cmd *cobra.Command, args []string) {
-			remoteIP := net.ParseIP(args[0])
-			if remoteIP == nil {
-				exitWithError(fmt.Errorf("invalid ip address: %s", args[0]))
+			peer, err := getNeighbor(args[0])
+			if err != nil {
+				exitWithError(err)
 			}
-
+			remoteIP := peer.Conf.RemoteIp
 			for _, v := range []string{CMD_IN, CMD_IMPORT, CMD_EXPORT} {
 				if err := showNeighborPolicy(remoteIP, v, 4); err != nil {
 					exitWithError(err)
@@ -873,17 +882,15 @@ func NewNeighborCmd() *cobra.Command {
 		cmd := &cobra.Command{
 			Use: v,
 			Run: func(cmd *cobra.Command, args []string) {
-				var err error
-				remoteIP := net.ParseIP(args[0])
-				if remoteIP == nil {
-					err = fmt.Errorf("invalid ip address: %s", args[0])
-				} else {
-					err = showNeighborPolicy(remoteIP, cmd.Use, 0)
-				}
+				peer, err := getNeighbor(args[0])
 				if err != nil {
 					exitWithError(err)
 				}
-
+				remoteIP := peer.Conf.RemoteIp
+				err = showNeighborPolicy(remoteIP, cmd.Use, 0)
+				if err != nil {
+					exitWithError(err)
+				}
 			},
 		}
 
@@ -891,13 +898,13 @@ func NewNeighborCmd() *cobra.Command {
 			subcmd := &cobra.Command{
 				Use: w,
 				Run: func(subcmd *cobra.Command, args []string) {
-					remoteIP := net.ParseIP(args[len(args)-1])
-					args = args[:len(args)-1]
-					if remoteIP == nil {
-						exitWithError(fmt.Errorf("invalid ip address: %s", args[len(args)-1]))
-					}
-					err := modNeighborPolicy(remoteIP, cmd.Use, subcmd.Use, args)
+					peer, err := getNeighbor(args[len(args)-1])
 					if err != nil {
+						exitWithError(err)
+					}
+					remoteIP := peer.Conf.RemoteIp
+					args = args[:len(args)-1]
+					if err = modNeighborPolicy(remoteIP, cmd.Use, subcmd.Use, args); err != nil {
 						exitWithError(err)
 					}
 				},
@@ -918,12 +925,7 @@ func NewNeighborCmd() *cobra.Command {
 			if len(args) == 0 {
 				err = showNeighbors()
 			} else if len(args) == 1 {
-				remoteIP := net.ParseIP(args[0])
-				if remoteIP == nil {
-					err = fmt.Errorf("invalid ip address: %s", args[0])
-				} else {
-					err = showNeighbor(args)
-				}
+				err = showNeighbor(args)
 			} else {
 				args = append(args[1:], args[0])
 				neighborCmdImpl.SetArgs(args)
