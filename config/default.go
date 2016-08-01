@@ -233,7 +233,9 @@ func setDefaultConfigValuesWithViper(v *viper.Viper, b *BgpConfigSet) error {
 		if len(list) > idx {
 			vv.Set("neighbor", list[idx])
 		}
-		setDefaultNeighborConfigValuesWithViper(vv, &n, b.Global.Config.As)
+		if err := setDefaultNeighborConfigValuesWithViper(vv, &n, b.Global.Config.As); err != nil {
+			return err
+		}
 		b.Neighbors[idx] = n
 	}
 
