@@ -997,7 +997,7 @@ func NewGlobalCmd() *cobra.Command {
 				exitWithError(fmt.Errorf("usage: gobgp global policy [{ import | export }]"))
 			}
 			for _, v := range []string{CMD_IMPORT, CMD_EXPORT} {
-				if err := showNeighborPolicy(nil, v, 4); err != nil {
+				if err := showNeighborPolicy("", v, 4); err != nil {
 					exitWithError(err)
 				}
 			}
@@ -1008,7 +1008,7 @@ func NewGlobalCmd() *cobra.Command {
 		cmd := &cobra.Command{
 			Use: v,
 			Run: func(cmd *cobra.Command, args []string) {
-				if err := showNeighborPolicy(nil, cmd.Use, 0); err != nil {
+				if err := showNeighborPolicy("", cmd.Use, 0); err != nil {
 					exitWithError(err)
 				}
 			},
@@ -1018,7 +1018,7 @@ func NewGlobalCmd() *cobra.Command {
 			subcmd := &cobra.Command{
 				Use: w,
 				Run: func(subcmd *cobra.Command, args []string) {
-					err := modNeighborPolicy(nil, cmd.Use, subcmd.Use, args)
+					err := modNeighborPolicy("", cmd.Use, subcmd.Use, args)
 					if err != nil {
 						exitWithError(err)
 					}
