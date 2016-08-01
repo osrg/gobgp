@@ -362,12 +362,18 @@ func (c *CapGracefulRestart) DecodeFromBytes(data []byte) error {
 	c.Flags = uint8(restart >> 12)
 	c.Time = restart & 0xfff
 	data = data[2:]
-	c.Tuples = make([]*CapGracefulRestartTuple, 0, len(data)/4)
-	for len(data) >= 4 {
-		t := &CapGracefulRestartTuple{binary.BigEndian.Uint16(data[0:2]),
-			data[2], data[3]}
-		c.Tuples = append(c.Tuples, t)
-		data = data[4:]
+ 
+	var valueLen int = int(c.CapLen) - 2
+
+	if valueLen >= 4 && len(data) >= valueLen { 
+		c.Tuples = make([]*CapGracefulRestartTuple, 0, valueLen/4)
+
+		for i := valueLen; i >= 4; i -= 4  {
+			t := &CapGracefulRestartTuple{binary.BigEndian.Uint16(data[0:2]),
+				data[2], data[3]}
+			c.Tuples = append(c.Tuples, t)
+			data = data[4:]
+		}
 	}
 	return nil
 }
