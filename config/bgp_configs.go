@@ -2477,6 +2477,8 @@ type NeighborState struct {
 	EstablishedCount uint32 `mapstructure:"established-count"`
 	// original -> gobgp:flops
 	Flops uint32 `mapstructure:"flops"`
+	// original -> gobgp:neighbor-interface
+	NeighborInterface string `mapstructure:"neighbor-interface"`
 }
 
 func (lhs *NeighborState) Equal(rhs *NeighborState) bool {
@@ -2551,6 +2553,9 @@ func (lhs *NeighborState) Equal(rhs *NeighborState) bool {
 	if lhs.Flops != rhs.Flops {
 		return false
 	}
+	if lhs.NeighborInterface != rhs.NeighborInterface {
+		return false
+	}
 	return true
 }
 
@@ -2583,6 +2588,8 @@ type NeighborConfig struct {
 	// original -> gobgp:admin-down
 	//gobgp:admin-down's original type is boolean
 	AdminDown bool `mapstructure:"admin-down"`
+	// original -> gobgp:neighbor-interface
+	NeighborInterface string `mapstructure:"neighbor-interface"`
 }
 
 func (lhs *NeighborConfig) Equal(rhs *NeighborConfig) bool {
@@ -2620,6 +2627,9 @@ func (lhs *NeighborConfig) Equal(rhs *NeighborConfig) bool {
 		return false
 	}
 	if lhs.AdminDown != rhs.AdminDown {
+		return false
+	}
+	if lhs.NeighborInterface != rhs.NeighborInterface {
 		return false
 	}
 	return true
