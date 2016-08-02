@@ -2068,25 +2068,13 @@ func (s *BgpServer) DeletePolicy(x *table.Policy, all, preserve bool) (err error
 	s.mgmtCh <- func() {
 		defer close(ch)
 
-		err = s.policy.DeletePolicy(x, all, preserve, func(x *table.Policy) bool {
-			for _, peer := range s.neighborMap {
-				for _, dir := range []table.PolicyDirection{table.POLICY_DIRECTION_IN, table.POLICY_DIRECTION_EXPORT, table.POLICY_DIRECTION_EXPORT} {
-					for _, y := range s.policy.GetPolicy(peer.ID(), dir) {
-						if x.Name == y.Name {
-							return true
-						}
-					}
-				}
-			}
-			for _, dir := range []table.PolicyDirection{table.POLICY_DIRECTION_EXPORT, table.POLICY_DIRECTION_EXPORT} {
-				for _, y := range s.policy.GetPolicy(table.GLOBAL_RIB_NAME, dir) {
-					if x.Name == y.Name {
-						return true
-					}
-				}
-			}
-			return false
-		})
+		l := make([]string, 0, len(s.neighborMap)+1)
+		for _, peer := range s.neighborMap {
+			l = append(l, peer.ID())
+		}
+		l = append(l, table.GLOBAL_RIB_NAME)
+
+		err = s.policy.DeletePolicy(x, all, preserve, l)
 
 	}
 	return err

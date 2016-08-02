@@ -2727,7 +2727,7 @@ func (r *RoutingPolicy) AddPolicy(x *Policy, refer bool) (err error) {
 	return err
 }
 
-func (r *RoutingPolicy) DeletePolicy(x *Policy, all, preserve bool, inUse func(x *Policy) bool) (err error) {
+func (r *RoutingPolicy) DeletePolicy(x *Policy, all, preserve bool, activeId []string) (err error) {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 
@@ -2739,8 +2739,21 @@ func (r *RoutingPolicy) DeletePolicy(x *Policy, all, preserve bool, inUse func(x
 		err = fmt.Errorf("not found policy: %s", name)
 		return
 	}
+	inUse := func(ids []string) bool {
+		for _, id := range ids {
+			for _, dir := range []PolicyDirection{POLICY_DIRECTION_IN, POLICY_DIRECTION_EXPORT, POLICY_DIRECTION_EXPORT} {
+				for _, y := range r.getPolicy(id, dir) {
+					if x.Name == y.Name {
+						return true
+					}
+				}
+			}
+		}
+		return false
+	}
+
 	if all {
-		if inUse(y) {
+		if inUse(activeId) {
 			err = fmt.Errorf("can't delete. policy %s is in use", name)
 			return
 		}

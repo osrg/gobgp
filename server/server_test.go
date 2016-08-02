@@ -49,6 +49,6 @@ func TestModPolicyAssign(t *testing.T) {
 		[]*config.PolicyDefinition{&config.PolicyDefinition{Name: "p1"}}, false)
 	assert.Nil(err)
 
-	ps := s.policy.GetPolicy(table.GLOBAL_RIB_NAME, table.POLICY_DIRECTION_IMPORT)
+	_, ps, _ := s.GetPolicyAssignment("", table.POLICY_DIRECTION_IMPORT)
 	assert.Equal(len(ps), 2)
 }
