@@ -759,8 +759,11 @@ func (server *BgpServer) handleFSMMessage(peer *Peer, e *FsmMsg) {
 		if nextState == bgp.BGP_FSM_ESTABLISHED {
 			// update for export policy
 			laddr, _ := peer.fsm.LocalHostPort()
+			// may include zone info
 			peer.fsm.pConf.Transport.State.LocalAddress = laddr
-			peer.fsm.peerInfo.LocalAddress = net.ParseIP(laddr)
+			// exclude zone info
+			ipaddr, _ := net.ResolveIPAddr("ip", laddr)
+			peer.fsm.peerInfo.LocalAddress = ipaddr.IP
 			deferralExpiredFunc := func(family bgp.RouteFamily) func() {
 				return func() {
 					server.mgmtOperation(func() error {
