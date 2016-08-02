@@ -374,6 +374,12 @@ func (path *Path) GetNexthop() net.IP {
 }
 
 func (path *Path) SetNexthop(nexthop net.IP) {
+	if path.GetRouteFamily() == bgp.RF_IPv4_UC && nexthop.To4() == nil {
+		path.delPathAttr(bgp.BGP_ATTR_TYPE_NEXT_HOP)
+		mpreach := bgp.NewPathAttributeMpReachNLRI(nexthop.String(), []bgp.AddrPrefixInterface{path.GetNlri()})
+		path.setPathAttr(mpreach)
+		return
+	}
 	attr := path.getPathAttr(bgp.BGP_ATTR_TYPE_NEXT_HOP)
 	if attr != nil {
 		path.setPathAttr(bgp.NewPathAttributeNextHop(nexthop.String()))
