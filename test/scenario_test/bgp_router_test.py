@@ -145,9 +145,12 @@ class GoBGPTestBase(unittest.TestCase):
         self.test_04_check_quagga_global_rib()
 
     def test_07_stop_one_quagga(self):
+        g1 = self.gobgp
         q4 = self.quaggas['q4']
         q4.stop()
         self.gobgp.wait_for(expected_state=BGP_FSM_ACTIVE, peer=q4)
+
+        g1.del_peer(q4)
         del self.quaggas['q4']
 
     # check gobgp properly send withdrawal message with q4's route
@@ -285,6 +288,7 @@ class GoBGPTestBase(unittest.TestCase):
         self.assertTrue(med['metric'] == 2000)
 
     def test_17_check_shutdown(self):
+        g1 = self.gobgp
         q1 = self.quaggas['q1']
         q2 = self.quaggas['q2']
         q3 = self.quaggas['q3']
@@ -302,13 +306,15 @@ class GoBGPTestBase(unittest.TestCase):
         self.assertTrue(paths[0]['nexthop'] in n_addrs)
 
         q3.stop()
-        del self.quaggas['q3']
 
         time.sleep(3)
 
         paths = q1.get_global_rib('20.0.0.0/24')
         self.assertTrue(len(paths) == 1)
         self.assertTrue(paths[0]['nexthop'] in n_addrs)
+
+        g1.del_peer(q3)
+        del self.quaggas['q3']
 
     def test_18_check_withdrawal(self):
         g1 = self.gobgp
