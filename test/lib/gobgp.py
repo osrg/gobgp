@@ -152,9 +152,7 @@ class GoBGPContainer(BGPContainer):
         return None
 
     def _trigger_peer_cmd(self, cmd, peer):
-        if peer not in self.peers:
-            raise Exception('not found peer {0}'.format(peer.router_id))
-        peer_addr = self.peers[peer]['neigh_addr'].split('/')[0]
+        peer_addr = self.peer_name(peer)
         cmd = 'gobgp neighbor {0} {1}'.format(peer_addr, cmd)
         self.local(cmd)
 
@@ -171,9 +169,7 @@ class GoBGPContainer(BGPContainer):
         self._trigger_peer_cmd('softreset{0} -a {1}'.format(type, rf), peer)
 
     def get_local_rib(self, peer, prefix='', rf='ipv4'):
-        if peer not in self.peers:
-            raise Exception('not found peer {0}'.format(peer.router_id))
-        peer_addr = self.peers[peer]['neigh_addr'].split('/')[0]
+        peer_addr = self.peer_name(peer)
         cmd = 'gobgp -j neighbor {0} local {1} -a {2}'.format(peer_addr, prefix, rf)
         output = self.local(cmd, capture=True)
         ret = json.loads(output)
@@ -226,9 +222,7 @@ class GoBGPContainer(BGPContainer):
         t.start()
 
     def _get_adj_rib(self, adj_type, peer, prefix='', rf='ipv4'):
-        if peer not in self.peers:
-            raise Exception('not found peer {0}'.format(peer.router_id))
-        peer_addr = self.peers[peer]['neigh_addr'].split('/')[0]
+        peer_addr = self.peer_name(peer)
         cmd = 'gobgp neighbor {0} adj-{1} {2} -a {3} -j'.format(peer_addr,
                                                                 adj_type,
                                                                 prefix, rf)
@@ -249,10 +243,7 @@ class GoBGPContainer(BGPContainer):
         return self._get_adj_rib('out', peer, prefix, rf)
 
     def get_neighbor(self, peer):
-        if peer not in self.peers:
-            raise Exception('not found peer {0}'.format(peer.router_id))
-        peer_addr = self.peers[peer]['neigh_addr'].split('/')[0]
-        cmd = 'gobgp -j neighbor {0}'.format(peer_addr)
+        cmd = 'gobgp -j neighbor {0}'.format(self.peer_name(peer))
         return json.loads(self.local(cmd, capture=True))
 
     def get_neighbor_state(self, peer):
@@ -317,13 +308,17 @@ class GoBGPContainer(BGPContainer):
 
         for peer, info in self.peers.iteritems():
             afi_safi_list = []
-            version = netaddr.IPNetwork(info['neigh_addr']).version
-            if version == 4:
-                afi_safi_list.append({'config': {'afi-safi-name': 'ipv4-unicast'}})
-            elif version == 6:
-                afi_safi_list.append({'config': {'afi-safi-name': 'ipv6-unicast'}})
+            if info['interface'] != '':
+                afi_safi_list.append({'config':{'afi-safi-name': 'ipv4-unicast'}})
+                afi_safi_list.append({'config':{'afi-safi-name': 'ipv6-unicast'}})
             else:
-                Exception('invalid ip address version. {0}'.format(version))
+                version = netaddr.IPNetwork(info['neigh_addr']).version
+                if version == 4:
+                    afi_safi_list.append({'config':{'afi-safi-name': 'ipv4-unicast'}})
+                elif version == 6:
+                    afi_safi_list.append({'config':{'afi-safi-name': 'ipv6-unicast'}})
+                else:
+                    Exception('invalid ip address version. {0}'.format(version))
 
             if info['vpn']:
                 afi_safi_list.append({'config': {'afi-safi-name': 'l3vpn-ipv4-unicast'}})
@@ -337,9 +332,16 @@ class GoBGPContainer(BGPContainer):
                 afi_safi_list.append({'config': {'afi-safi-name': 'ipv6-flowspec'}})
                 afi_safi_list.append({'config': {'afi-safi-name': 'l3vpn-ipv6-flowspec'}})
 
+            neigh_addr = None
+            interface = None
+            if info['interface'] == '':
+                neigh_addr = info['neigh_addr'].split('/')[0]
+            else:
+                interface = info['interface']
             n = {
                 'config': {
-                    'neighbor-address': info['neigh_addr'].split('/')[0],
+                    'neighbor-address': neigh_addr,
+                    'neighbor-interface': interface,
                     'peer-as': peer.asn,
                     'auth-password': info['passwd'],
                     'vrf': info['vrf'],
