@@ -657,7 +657,6 @@ func (h *FSMHandler) recvMessageWithError() (*FsmMsg, error) {
 					if err == nil {
 						fmsg.PathList = table.ProcessMessage(m, h.fsm.peerInfo, fmsg.timestamp)
 						id := h.fsm.pConf.Config.NeighborAddress
-						policyMutex.RLock()
 						for _, path := range fmsg.PathList {
 							if path.IsEOR() {
 								continue
@@ -666,7 +665,6 @@ func (h *FSMHandler) recvMessageWithError() (*FsmMsg, error) {
 								path.Filter(id, table.POLICY_DIRECTION_IN)
 							}
 						}
-						policyMutex.RUnlock()
 					} else {
 						fmsg.MsgData = err
 					}
