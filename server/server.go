@@ -916,44 +916,46 @@ func (s *BgpServer) UpdatePolicy(policy config.RoutingPolicy) (err error) {
 	s.mgmtCh <- func() {
 		defer close(ch)
 
-		err = s.handlePolicy(policy)
+		ap := make(map[string]config.ApplyPolicy, len(s.neighborMap)+1)
+		ap[table.GLOBAL_RIB_NAME] = s.bgpConfig.Global.ApplyPolicy
+		for _, peer := range s.neighborMap {
+			log.WithFields(log.Fields{
+				"Topic": "Peer",
+				"Key":   peer.fsm.pConf.Config.NeighborAddress,
+			}).Info("call set policy")
+			ap[peer.ID()] = peer.fsm.pConf.ApplyPolicy
+		}
+		err = s.setPolicy(&policy, ap)
 	}
 	return err
 }
 
-// This function MUST be called with policyMutex locked.
-// FIXME: move policyMutex to table/policy.go
-func (server *BgpServer) setPolicyByConfig(id string, c config.ApplyPolicy) {
-	for _, dir := range []table.PolicyDirection{table.POLICY_DIRECTION_IN, table.POLICY_DIRECTION_IMPORT, table.POLICY_DIRECTION_EXPORT} {
-		ps, def, err := server.policy.GetAssignmentFromConfig(dir, c)
-		if err != nil {
-			log.WithFields(log.Fields{
-				"Topic": "Policy",
-				"Dir":   dir,
-			}).Errorf("failed to get policy info: %s", err)
-			continue
-		}
-		server.policy.SetDefaultPolicy(id, dir, def)
-		server.policy.SetPolicy(id, dir, ps)
-	}
-}
-
-func (server *BgpServer) handlePolicy(pl config.RoutingPolicy) error {
+func (s *BgpServer) setPolicy(rp *config.RoutingPolicy, ap map[string]config.ApplyPolicy) error {
 	policyMutex.Lock()
 	defer policyMutex.Unlock()
-	if err := server.policy.Reload(pl); err != nil {
-		log.WithFields(log.Fields{
-			"Topic": "Policy",
-		}).Errorf("failed to create routing policy: %s", err)
-		return err
+
+	if rp != nil {
+		if err := s.policy.Reload(*rp); err != nil {
+			log.WithFields(log.Fields{
+				"Topic": "Policy",
+			}).Errorf("failed to create routing policy: %s", err)
+			return err
+		}
 	}
-	server.setPolicyByConfig(table.GLOBAL_RIB_NAME, server.bgpConfig.Global.ApplyPolicy)
-	for _, peer := range server.neighborMap {
-		log.WithFields(log.Fields{
-			"Topic": "Peer",
-			"Key":   peer.fsm.pConf.Config.NeighborAddress,
-		}).Info("call set policy")
-		server.setPolicyByConfig(peer.ID(), peer.fsm.pConf.ApplyPolicy)
+
+	for id, c := range ap {
+		for _, dir := range []table.PolicyDirection{table.POLICY_DIRECTION_IN, table.POLICY_DIRECTION_IMPORT, table.POLICY_DIRECTION_EXPORT} {
+			ps, def, err := s.policy.GetAssignmentFromConfig(dir, c)
+			if err != nil {
+				log.WithFields(log.Fields{
+					"Topic": "Policy",
+					"Dir":   dir,
+				}).Errorf("failed to get policy info: %s", err)
+				continue
+			}
+			s.policy.SetDefaultPolicy(id, dir, def)
+			s.policy.SetPolicy(id, dir, ps)
+		}
 	}
 	return nil
 }
@@ -1186,8 +1188,7 @@ func (s *BgpServer) Start(c *config.Global) (err error) {
 		rfs, _ := config.AfiSafis(c.AfiSafis).ToRfList()
 		s.globalRib = table.NewTableManager(rfs, c.MplsLabelRange.MinLabel, c.MplsLabelRange.MaxLabel)
 
-		p := config.RoutingPolicy{}
-		if err = s.handlePolicy(p); err != nil {
+		if err = s.setPolicy(&config.RoutingPolicy{}, map[string]config.ApplyPolicy{}); err != nil {
 			return
 		}
 		s.bgpConfig.Global = *c
@@ -1688,7 +1689,7 @@ func (server *BgpServer) addNeighbor(c *config.Neighbor) error {
 	}).Infof("Add a peer configuration for:%s", addr)
 
 	peer := NewPeer(&server.bgpConfig.Global, c, server.globalRib, server.policy)
-	server.setPolicyByConfig(peer.ID(), c.ApplyPolicy)
+	server.setPolicy(nil, map[string]config.ApplyPolicy{peer.ID(): c.ApplyPolicy})
 	if peer.isRouteServerClient() {
 		pathList := make([]*table.Path, 0)
 		rfList := peer.configuredRFlist()
@@ -1714,11 +1715,7 @@ func (s *BgpServer) AddNeighbor(c *config.Neighbor) (err error) {
 	defer func() { <-ch }()
 
 	s.mgmtCh <- func() {
-		policyMutex.Lock()
-		defer func() {
-			policyMutex.Unlock()
-			close(ch)
-		}()
+		defer close(ch)
 
 		if err = s.active(); err != nil {
 			return
@@ -1778,11 +1775,8 @@ func (s *BgpServer) DeleteNeighbor(c *config.Neighbor) (err error) {
 	defer func() { <-ch }()
 
 	s.mgmtCh <- func() {
-		policyMutex.Lock()
-		defer func() {
-			policyMutex.Unlock()
-			close(ch)
-		}()
+		defer close(ch)
+
 		err = s.deleteNeighbor(c, bgp.BGP_ERROR_CEASE, bgp.BGP_ERROR_SUB_PEER_DECONFIGURED)
 	}
 	return err
@@ -1793,11 +1787,7 @@ func (s *BgpServer) UpdateNeighbor(c *config.Neighbor) (policyUpdated bool, err 
 	defer func() { <-ch }()
 
 	s.mgmtCh <- func() {
-		policyMutex.Lock()
-		defer func() {
-			policyMutex.Unlock()
-			close(ch)
-		}()
+		defer close(ch)
 
 		addr := c.Config.NeighborAddress
 		peer, ok := s.neighborMap[addr]
@@ -1811,7 +1801,7 @@ func (s *BgpServer) UpdateNeighbor(c *config.Neighbor) (policyUpdated bool, err 
 				"Topic": "Peer",
 				"Key":   addr,
 			}).Info("Update ApplyPolicy")
-			s.setPolicyByConfig(peer.ID(), c.ApplyPolicy)
+			s.setPolicy(nil, map[string]config.ApplyPolicy{peer.ID(): c.ApplyPolicy})
 			peer.fsm.pConf.ApplyPolicy = c.ApplyPolicy
 			policyUpdated = true
 		}
