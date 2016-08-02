@@ -163,7 +163,7 @@ func cloneAsPath(asAttr *bgp.PathAttributeAsPath) *bgp.PathAttributeAsPath {
 	return bgp.NewPathAttributeAsPath(newASparams)
 }
 
-func (path *Path) UpdatePathAttrs(global *config.Global, peer *config.Neighbor) {
+func (path *Path) UpdatePathAttrs(global *config.Global, peer *config.Neighbor, info *PeerInfo) {
 	if peer.RouteServer.Config.RouteServerClient {
 		return
 	}
@@ -176,7 +176,7 @@ func (path *Path) UpdatePathAttrs(global *config.Global, peer *config.Neighbor) 
 		}
 	}
 
-	localAddress := net.ParseIP(peer.Transport.State.LocalAddress)
+	localAddress := info.LocalAddress
 	isZero := func(ip net.IP) bool {
 		return ip.Equal(net.ParseIP("0.0.0.0")) || ip.Equal(net.ParseIP("::"))
 	}
