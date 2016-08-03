@@ -150,7 +150,12 @@ func setDefaultNeighborConfigValuesWithViper(v *viper.Viper, n *Neighbor, asn ui
 	}
 
 	if len(n.AfiSafis) == 0 {
-		if ipAddr, err := net.ResolveIPAddr("ip", n.Config.NeighborAddress); err != nil {
+		if n.Config.NeighborInterface != "" {
+			n.AfiSafis = []AfiSafi{
+				defaultAfiSafi(AFI_SAFI_TYPE_IPV4_UNICAST, true),
+				defaultAfiSafi(AFI_SAFI_TYPE_IPV6_UNICAST, true),
+			}
+		} else if ipAddr, err := net.ResolveIPAddr("ip", n.Config.NeighborAddress); err != nil {
 			return fmt.Errorf("invalid neighbor address: %s", n.Config.NeighborAddress)
 		} else if ipAddr.IP.To4() != nil {
 			n.AfiSafis = []AfiSafi{defaultAfiSafi(AFI_SAFI_TYPE_IPV4_UNICAST, true)}
