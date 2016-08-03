@@ -185,9 +185,11 @@ func TestNumGoroutineWithAddDeleteNeighbor(t *testing.T) {
 }
 
 func newPeerandInfo(myAs, as uint32, address string, rib *table.TableManager) (*Peer, *table.PeerInfo) {
+	nConf := &config.Neighbor{Config: config.NeighborConfig{PeerAs: as, NeighborAddress: address}}
+	config.SetDefaultNeighborConfigValues(nConf, myAs)
 	p := NewPeer(
 		&config.Global{Config: config.GlobalConfig{As: myAs}},
-		&config.Neighbor{Config: config.NeighborConfig{PeerAs: as, NeighborAddress: address}},
+		nConf,
 		rib,
 		&table.RoutingPolicy{})
 	for _, f := range rib.GetRFlist() {

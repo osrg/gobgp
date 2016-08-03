@@ -181,7 +181,7 @@ func (path *Path) UpdatePathAttrs(global *config.Global, peer *config.Neighbor, 
 		return ip.Equal(net.ParseIP("0.0.0.0")) || ip.Equal(net.ParseIP("::"))
 	}
 	nexthop := path.GetNexthop()
-	if peer.Config.PeerType == config.PEER_TYPE_EXTERNAL {
+	if peer.State.PeerType == config.PEER_TYPE_EXTERNAL {
 		// NEXTHOP handling
 		if !path.IsLocal() || isZero(nexthop) {
 			path.SetNexthop(localAddress)
@@ -195,7 +195,7 @@ func (path *Path) UpdatePathAttrs(global *config.Global, peer *config.Neighbor, 
 			path.delPathAttr(bgp.BGP_ATTR_TYPE_MULTI_EXIT_DISC)
 		}
 
-	} else if peer.Config.PeerType == config.PEER_TYPE_INTERNAL {
+	} else if peer.State.PeerType == config.PEER_TYPE_INTERNAL {
 		// NEXTHOP handling for iBGP
 		// if the path generated locally set local address as nexthop.
 		// if not, don't modify it.
@@ -255,7 +255,7 @@ func (path *Path) UpdatePathAttrs(global *config.Global, peer *config.Neighbor, 
 		log.WithFields(log.Fields{
 			"Topic": "Peer",
 			"Key":   peer.Config.NeighborAddress,
-		}).Warnf("invalid peer type: %d", peer.Config.PeerType)
+		}).Warnf("invalid peer type: %d", peer.State.PeerType)
 	}
 }
 
