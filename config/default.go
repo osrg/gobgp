@@ -123,6 +123,9 @@ func setDefaultNeighborConfigValuesWithViper(v *viper.Viper, n *Neighbor, asn ui
 	}
 
 	if n.Config.NeighborInterface != "" {
+		if n.RouteServer.Config.RouteServerClient {
+			return fmt.Errorf("configuring route server client as unnumbered peer is not supported")
+		}
 		addr, err := GetIPv6LinkLocalNeighborAddress(n.Config.NeighborInterface)
 		if err != nil {
 			return err
