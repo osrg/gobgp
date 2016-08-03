@@ -149,6 +149,8 @@ func (s *Server) GetNeighbor(ctx context.Context, arg *GetNeighborRequest) (*Get
 				Received:   s.AdjTable.Received,
 				Accepted:   s.AdjTable.Accepted,
 				Advertised: s.AdjTable.Advertised,
+				PeerAs:     pconf.State.PeerAs,
+				PeerType:   uint32(pconf.State.PeerType.ToInt()),
 			},
 			Timers: &Timers{
 				Config: &TimersConfig{

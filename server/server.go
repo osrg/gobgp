@@ -260,7 +260,7 @@ func sendFsmOutgoingMsg(peer *Peer, paths []*table.Path, notification *bgp.BGPMe
 
 func isASLoop(peer *Peer, path *table.Path) bool {
 	for _, as := range path.GetAsList() {
-		if as == peer.fsm.pConf.Config.PeerAs {
+		if as == peer.fsm.pConf.State.PeerAs {
 			return true
 		}
 	}
@@ -616,6 +616,10 @@ func (server *BgpServer) handleFSMMessage(peer *Peer, e *FsmMsg) {
 			peer.prefixLimitWarned = make(map[bgp.RouteFamily]bool)
 			peer.DropAll(drop)
 			server.dropPeerAllRoutes(peer, drop)
+			if peer.fsm.pConf.Config.PeerAs == 0 {
+				peer.fsm.pConf.State.PeerAs = 0
+				peer.fsm.peerInfo.AS = 0
+			}
 		} else if peer.fsm.pConf.GracefulRestart.State.PeerRestarting && nextState == bgp.BGP_FSM_IDLE {
 			// RFC 4724 4.2
 			// If the session does not get re-established within the "Restart Time"

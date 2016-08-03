@@ -266,15 +266,17 @@ class GoBGPContainer(BGPContainer):
 
             neigh_addr = None
             interface = None
+            peer_asn = peer.asn
             if info['interface'] == '':
                 neigh_addr = info['neigh_addr'].split('/')[0]
             else:
+                peer_asn = None
                 interface = info['interface']
 
             n = {'config':
                  {'neighbor-address': neigh_addr,
                   'neighbor-interface': interface,
-                  'peer-as': peer.asn,
+                  'peer-as': peer_asn,
                   'auth-password': info['passwd'],
                   },
                  'afi-safis': afi_safi_list,
