@@ -216,6 +216,31 @@ const (
 	BGP_CAP_ROUTE_REFRESH_CISCO    BGPCapabilityCode = 128
 )
 
+func (c BGPCapabilityCode) String() string {
+	switch c {
+	case BGP_CAP_MULTIPROTOCOL:
+		return "multi-protocol"
+	case BGP_CAP_ROUTE_REFRESH:
+		return "route-refresh"
+	case BGP_CAP_CARRYING_LABEL_INFO:
+		return "carrying-label-info"
+	case BGP_CAP_EXTENDED_NEXTHOP:
+		return "extended-nexthop"
+	case BGP_CAP_GRACEFUL_RESTART:
+		return "graceful-restart"
+	case BGP_CAP_FOUR_OCTET_AS_NUMBER:
+		return "four-octet-as"
+	case BGP_CAP_ADD_PATH:
+		return "add-path"
+	case BGP_CAP_ENHANCED_ROUTE_REFRESH:
+		return "enhanced-route-refresh"
+	case BGP_CAP_ROUTE_REFRESH_CISCO:
+		return "route-refresh-cisco"
+	default:
+		return fmt.Sprintf("BGPCapability(%d)", c)
+	}
+}
+
 type ParameterCapabilityInterface interface {
 	DecodeFromBytes([]byte) error
 	Serialize() ([]byte, error)
