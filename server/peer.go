@@ -152,7 +152,7 @@ func (peer *Peer) filterpath(path *table.Path, withdrawals []*table.Path) *table
 	}
 
 	path = path.Clone(path.IsWithdraw)
-	path.UpdatePathAttrs(peer.fsm.gConf, peer.fsm.pConf)
+	path.UpdatePathAttrs(peer.fsm.gConf, peer.fsm.pConf, peer.fsm.peerInfo)
 
 	options := &table.PolicyOptions{
 		Info: peer.fsm.peerInfo,
