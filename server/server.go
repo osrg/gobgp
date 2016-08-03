@@ -288,7 +288,7 @@ func sendFsmOutgoingMsg(peer *Peer, paths []*table.Path, notification *bgp.BGPMe
 
 func isASLoop(peer *Peer, path *table.Path) bool {
 	for _, as := range path.GetAsList() {
-		if as == peer.fsm.pConf.Config.PeerAs {
+		if as == peer.fsm.pConf.State.PeerAs {
 			return true
 		}
 	}
@@ -329,7 +329,7 @@ func filterpath(peer *Peer, path, old *table.Path) *table.Path {
 			ignore = true
 			info := path.GetSource()
 			//if the path comes from eBGP peer
-			if info.AS != peer.fsm.pConf.Config.PeerAs {
+			if info.AS != peer.fsm.pConf.State.PeerAs {
 				ignore = false
 			}
 			// RFC4456 8. Avoiding Routing Information Loops
@@ -509,18 +509,19 @@ func createWatchEventPeerState(peer *Peer) *WatchEventPeerState {
 	sentOpen := buildopen(peer.fsm.gConf, peer.fsm.pConf)
 	recvOpen := peer.fsm.recvOpen
 	return &WatchEventPeerState{
-		PeerAS:       peer.fsm.peerInfo.AS,
-		LocalAS:      peer.fsm.peerInfo.LocalAS,
-		PeerAddress:  peer.fsm.peerInfo.Address,
-		LocalAddress: net.ParseIP(laddr),
-		PeerPort:     rport,
-		LocalPort:    lport,
-		PeerID:       peer.fsm.peerInfo.ID,
-		SentOpen:     sentOpen,
-		RecvOpen:     recvOpen,
-		State:        peer.fsm.state,
-		AdminState:   peer.fsm.adminState,
-		Timestamp:    time.Now(),
+		PeerAS:        peer.fsm.peerInfo.AS,
+		LocalAS:       peer.fsm.peerInfo.LocalAS,
+		PeerAddress:   peer.fsm.peerInfo.Address,
+		LocalAddress:  net.ParseIP(laddr),
+		PeerPort:      rport,
+		LocalPort:     lport,
+		PeerID:        peer.fsm.peerInfo.ID,
+		SentOpen:      sentOpen,
+		RecvOpen:      recvOpen,
+		State:         peer.fsm.state,
+		AdminState:    peer.fsm.adminState,
+		Timestamp:     time.Now(),
+		PeerInterface: peer.fsm.pConf.Config.NeighborInterface,
 	}
 }
 
@@ -687,6 +688,10 @@ func (server *BgpServer) handleFSMMessage(peer *Peer, e *FsmMsg) {
 			peer.prefixLimitWarned = make(map[bgp.RouteFamily]bool)
 			peer.DropAll(drop)
 			server.dropPeerAllRoutes(peer, drop)
+			if peer.fsm.pConf.Config.PeerAs == 0 {
+				peer.fsm.pConf.State.PeerAs = 0
+				peer.fsm.peerInfo.AS = 0
+			}
 		} else if peer.fsm.pConf.GracefulRestart.State.PeerRestarting && nextState == bgp.BGP_FSM_IDLE {
 			if peer.fsm.pConf.GracefulRestart.State.LongLivedEnabled {
 				llgr, no_llgr := peer.llgrFamilies()
@@ -2114,18 +2119,19 @@ type WatchEventUpdate struct {
 }
 
 type WatchEventPeerState struct {
-	PeerAS       uint32
-	LocalAS      uint32
-	PeerAddress  net.IP
-	LocalAddress net.IP
-	PeerPort     uint16
-	LocalPort    uint16
-	PeerID       net.IP
-	SentOpen     *bgp.BGPMessage
-	RecvOpen     *bgp.BGPMessage
-	State        bgp.FSMState
-	AdminState   AdminState
-	Timestamp    time.Time
+	PeerAS        uint32
+	LocalAS       uint32
+	PeerAddress   net.IP
+	LocalAddress  net.IP
+	PeerPort      uint16
+	LocalPort     uint16
+	PeerID        net.IP
+	SentOpen      *bgp.BGPMessage
+	RecvOpen      *bgp.BGPMessage
+	State         bgp.FSMState
+	AdminState    AdminState
+	Timestamp     time.Time
+	PeerInterface string
 }
 
 type WatchEventAdjIn struct {
