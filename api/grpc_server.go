@@ -195,6 +195,8 @@ func NewPeerFromConfigStruct(pconf *config.Neighbor) *Peer {
 			Received:   s.AdjTable.Received,
 			Accepted:   s.AdjTable.Accepted,
 			Advertised: s.AdjTable.Advertised,
+			PeerAs:     s.PeerAs,
+			PeerType:   uint32(s.PeerType.ToInt()),
 		},
 		Timers: &Timers{
 			Config: &TimersConfig{
@@ -429,15 +431,16 @@ func (s *Server) MonitorPeerState(arg *Arguments, stream GobgpApi_MonitorPeerSta
 			case ev := <-w.Event():
 				switch msg := ev.(type) {
 				case *server.WatchEventPeerState:
-					if len(arg.Name) > 0 && arg.Name != msg.PeerAddress.String() {
+					if len(arg.Name) > 0 && arg.Name != msg.PeerAddress.String() && arg.Name != msg.PeerInterface {
 						continue
 					}
 					if err := stream.Send(&Peer{
 						Conf: &PeerConf{
-							PeerAs:          msg.PeerAS,
-							LocalAs:         msg.LocalAS,
-							NeighborAddress: msg.PeerAddress.String(),
-							Id:              msg.PeerID.String(),
+							PeerAs:            msg.PeerAS,
+							LocalAs:           msg.LocalAS,
+							NeighborAddress:   msg.PeerAddress.String(),
+							Id:                msg.PeerID.String(),
+							NeighborInterface: msg.PeerInterface,
 						},
 						Info: &PeerState{
 							PeerAs:          msg.PeerAS,
@@ -961,6 +964,8 @@ func NewNeighborFromAPIStruct(a *Peer) (*config.Neighbor, error) {
 		pconf.State.AdjTable.Received = a.Info.Received
 		pconf.State.AdjTable.Accepted = a.Info.Accepted
 		pconf.State.AdjTable.Advertised = a.Info.Advertised
+		pconf.State.PeerAs = a.Info.PeerAs
+		pconf.State.PeerType = config.IntToPeerTypeMap[int(a.Info.PeerType)]
 
 		if a.Info.Messages != nil {
 			if a.Info.Messages.Sent != nil {

@@ -53,6 +53,14 @@ func getNeighbor(name string) (*config.Neighbor, error) {
 	return client.GetNeighbor(name)
 }
 
+func getASN(p *config.Neighbor) string {
+	asn := "*"
+	if p.State.PeerAs > 0 {
+		asn = fmt.Sprint(p.State.PeerAs)
+	}
+	return asn
+}
+
 func showNeighbors(vrf string) error {
 	m, err := getNeighbors(vrf)
 	if err != nil {
@@ -71,7 +79,7 @@ func showNeighbors(vrf string) error {
 		return nil
 	}
 	maxaddrlen := 0
-	maxaslen := 0
+	maxaslen := 2
 	maxtimelen := len("Up/Down")
 	timedelta := []string{}
 
@@ -84,8 +92,8 @@ func showNeighbors(vrf string) error {
 		} else if j := len(n.Config.NeighborAddress); j > maxaddrlen {
 			maxaddrlen = j
 		}
-		if len(fmt.Sprint(n.Config.PeerAs)) > maxaslen {
-			maxaslen = len(fmt.Sprint(n.Config.PeerAs))
+		if l := len(getASN(n)); l > maxaslen {
+			maxaslen = l
 		}
 		timeStr := "never"
 		if n.Timers.State.Uptime != 0 {
@@ -135,7 +143,7 @@ func showNeighbors(vrf string) error {
 		if n.Config.NeighborInterface != "" {
 			neigh = n.Config.NeighborInterface
 		}
-		fmt.Printf(format, neigh, fmt.Sprint(n.Config.PeerAs), timedelta[i], format_fsm(n.State.AdminState, n.State.SessionState), fmt.Sprint(n.State.AdjTable.Received), fmt.Sprint(n.State.AdjTable.Accepted))
+		fmt.Printf(format, neigh, getASN(n), timedelta[i], format_fsm(n.State.AdminState, n.State.SessionState), fmt.Sprint(n.State.AdjTable.Received), fmt.Sprint(n.State.AdjTable.Accepted))
 	}
 
 	return nil
@@ -152,7 +160,7 @@ func showNeighbor(args []string) error {
 		return nil
 	}
 
-	fmt.Printf("BGP neighbor is %s, remote AS %d", p.Config.NeighborAddress, p.Config.PeerAs)
+	fmt.Printf("BGP neighbor is %s, remote AS %s", p.Config.NeighborAddress, getASN(p))
 
 	if p.RouteReflector.Config.RouteReflectorClient {
 		fmt.Printf(", route-reflector-client\n")
@@ -311,13 +319,13 @@ func showNeighbor(args []string) error {
 				}
 				return strings.Join(lines, "\n")
 			}
-			if m := lookup(c, p.Conf.LocalCap); m != nil {
+			if m := lookup(c, p.State.LocalCapabilityList); m != nil {
 				e := m.(*bgp.CapExtendedNexthop)
 				if s := exnhStr(e); len(s) > 0 {
 					fmt.Printf("        Local:  %s\n", s)
 				}
 			}
-			if m := lookup(c, p.Conf.RemoteCap); m != nil {
+			if m := lookup(c, p.State.LocalCapabilityList); m != nil {
 				e := m.(*bgp.CapExtendedNexthop)
 				if s := exnhStr(e); len(s) > 0 {
 					fmt.Printf("        Remote: %s\n", s)
@@ -849,13 +857,15 @@ func modNeighbor(cmdType string, args []string) error {
 	var err error
 	switch cmdType {
 	case CMD_ADD:
-		if len(m["as"]) != 1 {
+		if len(m[""]) > 0 && len(m["as"]) != 1 {
 			return fmt.Errorf("%s", usage)
 		}
 		var as int
-		as, err = strconv.Atoi(m["as"][0])
-		if err != nil {
-			return err
+		if len(m["as"]) > 0 {
+			as, err = strconv.Atoi(m["as"][0])
+			if err != nil {
+				return err
+			}
 		}
 		err = client.AddNeighbor(getConf(as))
 	case CMD_DEL:
