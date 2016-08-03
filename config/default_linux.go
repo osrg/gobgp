@@ -38,7 +38,7 @@ func GetIPv6LinkLocalNeighborAddress(ifname string) (string, error) {
 		if err != nil {
 			return "", err
 		}
-		if neigh.IP.IsLinkLocalUnicast() && !local {
+		if neigh.State&netlink.NUD_FAILED == 0 && neigh.IP.IsLinkLocalUnicast() && !local {
 			addr = neigh.IP
 			cnt += 1
 		}
