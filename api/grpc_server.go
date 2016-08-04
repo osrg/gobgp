@@ -531,15 +531,15 @@ func (s *Server) DeletePath(ctx context.Context, arg *DeletePathRequest) (*Delet
 }
 
 func (s *Server) EnableMrt(ctx context.Context, arg *EnableMrtRequest) (*EnableMrtResponse, error) {
-	return &EnableMrtResponse{}, s.bgpServer.EnableMrt(&config.Mrt{
-		Interval: arg.Interval,
-		DumpType: config.IntToMrtTypeMap[int(arg.DumpType)],
-		FileName: arg.Filename,
+	return &EnableMrtResponse{}, s.bgpServer.EnableMrt(&config.MrtConfig{
+		RotationInterval: arg.Interval,
+		DumpType:         config.IntToMrtTypeMap[int(arg.DumpType)],
+		FileName:         arg.Filename,
 	})
 }
 
 func (s *Server) DisableMrt(ctx context.Context, arg *DisableMrtRequest) (*DisableMrtResponse, error) {
-	return &DisableMrtResponse{}, s.bgpServer.DisableMrt()
+	return &DisableMrtResponse{}, s.bgpServer.DisableMrt(&config.MrtConfig{})
 }
 
 func (s *Server) InjectMrt(stream GobgpApi_InjectMrtServer) error {
