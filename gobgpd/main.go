@@ -232,10 +232,10 @@ func main() {
 					}
 				}
 				for _, c := range newConfig.MrtDump {
-					if len(c.FileName) == 0 {
+					if len(c.Config.FileName) == 0 {
 						continue
 					}
-					if err := bgpServer.EnableMrt(&c); err != nil {
+					if err := bgpServer.EnableMrt(&c.Config); err != nil {
 						log.Fatalf("failed to set mrt config: %s", err)
 					}
 				}
