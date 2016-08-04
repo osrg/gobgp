@@ -820,24 +820,36 @@ module gobgp {
     }
   }
 
+  grouping gobgp-mrt-set {
+    container config {
+      leaf dump-type {
+        type mrt-type;
+      }
+      leaf file-name {
+        type string;
+        description
+          "Configures a file name to be written.";
+      }
+      leaf dump-interval {
+        type uint64;
+      }
+      leaf rotation-interval {
+        type uint64;
+      }
+    }
+  }
+
   grouping gobgp-mrt {
     description "additional mrt configuration";
     container mrt-dump {
       list mrt {
         key "file-name";
-        description
-          "Configure dump bgp messages in the mrt format";
-        leaf dump-type {
-          type mrt-type;
-        }
         leaf file-name {
-          type string;
-          description
-            "Configures a file name to be written.";
+          type leafref {
+            path "../config/file-name";
+          }
         }
-        leaf interval {
-          type uint64;
-        }
+        uses gobgp-mrt-set;
       }
     }
   }

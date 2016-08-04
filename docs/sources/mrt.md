@@ -22,7 +22,9 @@ $ gobgp mrt inject global <dumpfile> [<number of prefix to inject>]
 ### <a name="section1.1"> Configuration
 
 With the following configuration, gobgpd continuously dumps BGP update
-messages to `/tmp/updates.dump` file in the BGP4MP format.
+messages to `/tmp/updates.dump` file in the BGP4MP format and dumps
+routes in the global rib to `/tmp/table.dump` file in the TABLE_DUMPv2
+format every 60 seconds.
 
 ```toml
 [global.config]
@@ -35,8 +37,15 @@ router-id = "10.0.255.254"
     neighbor-address = "10.0.255.1"
 
 [[mrt-dump]]
+  [mrt-dump.config]
     dump-type = "updates"
     file-name = "/tmp/updates.dump"
+
+[[mrt-dump]]
+  [mrt-dump.config]
+    dump-type = "table"
+    file-name = "/tmp/table.dump"
+    dump-interval = 60
 ```
 
 Also gobgpd supports log rotation; a new dump file is created
@@ -57,9 +66,10 @@ router-id = "10.0.255.254"
     neighbor-address = "10.0.255.1"
 
 [[mrt-dump]]
+  [mrt-dump.config]
     dump-type = "updates"
     file-name = "/tmp/log/20060102.1504.dump"
-    interval = 180
+    rotation-interval = 180
 ```
 
 
