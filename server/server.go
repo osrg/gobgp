@@ -2389,7 +2389,9 @@ type WatchEventAdjIn struct {
 }
 
 type WatchEventTable struct {
-	PathList []*table.Path
+	RouterId string
+	PathList map[string][]*table.Path
+	Neighbor []*config.Neighbor
 }
 
 type WatchEventBestPath struct {
@@ -2468,18 +2470,22 @@ func (w *Watcher) Generate(t WatchEventType) (err error) {
 			}
 			w.notify(&WatchEventAdjIn{PathList: clonePathList(pathList)})
 		case WATCH_EVENT_TYPE_TABLE:
-			pathList := func() []*table.Path {
-				pathList := make([]*table.Path, 0)
+			pathList := func() map[string][]*table.Path {
+				pathList := make(map[string][]*table.Path)
 				for _, t := range w.s.globalRib.Tables {
 					for _, dst := range t.GetSortedDestinations() {
 						if paths := dst.GetKnownPathList(table.GLOBAL_RIB_NAME); len(paths) > 0 {
-							pathList = append(pathList, paths...)
+							pathList[dst.GetNlri().String()] = clonePathList(paths)
 						}
 					}
 				}
 				return pathList
 			}()
-			w.notify(&WatchEventTable{PathList: clonePathList(pathList)})
+			l := make([]*config.Neighbor, 0, len(w.s.neighborMap))
+			for _, peer := range w.s.neighborMap {
+				l = append(l, peer.ToConfig())
+			}
+			w.notify(&WatchEventTable{PathList: pathList, Neighbor: l})
 		default:
 			err = fmt.Errorf("unsupported type ", t)
 			return

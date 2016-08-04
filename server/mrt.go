@@ -23,7 +23,9 @@ import (
 
 	log "github.com/Sirupsen/logrus"
 	"github.com/osrg/gobgp/config"
+	"github.com/osrg/gobgp/packet/bgp"
 	"github.com/osrg/gobgp/packet/mrt"
+	"github.com/osrg/gobgp/table"
 )
 
 type mrtWriter struct {
@@ -54,7 +56,7 @@ func (m *mrtWriter) loop() error {
 		}
 		return time.NewTicker(time.Second * time.Duration(m.rotationInterval))
 	}()
-	table := func() *time.Ticker {
+	dump := func() *time.Ticker {
 		if m.dumpInterval == 0 {
 			return &time.Ticker{}
 		}
@@ -69,14 +71,14 @@ func (m *mrtWriter) loop() error {
 			rotator.Stop()
 		}
 		if m.dumpInterval == 0 {
-			table.Stop()
+			dump.Stop()
 		}
 		w.Stop()
 	}()
 
 	for {
-		serialize := func(ev WatchEvent) ([]byte, error) {
-			var bm *mrt.MRTMessage
+		serialize := func(ev WatchEvent) []*mrt.MRTMessage {
+			msg := make([]*mrt.MRTMessage, 0, 1)
 			switch m := ev.(type) {
 			case *WatchEventUpdate:
 				subtype := mrt.MESSAGE_AS4
@@ -85,19 +87,67 @@ func (m *mrtWriter) loop() error {
 				if m.FourBytesAs == false {
 					subtype = mrt.MESSAGE
 				}
-				var err error
-				bm, err = mrt.NewMRTMessage(uint32(m.Timestamp.Unix()), mrt.BGP4MP, subtype, mp)
-				if err != nil {
+				if bm, err := mrt.NewMRTMessage(uint32(m.Timestamp.Unix()), mrt.BGP4MP, subtype, mp); err != nil {
 					log.WithFields(log.Fields{
 						"Topic": "mrt",
 						"Data":  m,
 						"Error": err,
 					}).Warn("Failed to create MRT message in serialize()")
-					return nil, err
+				} else {
+					msg = append(msg, bm)
 				}
 			case *WatchEventTable:
+				t := uint32(time.Now().Unix())
+				peers := make([]*mrt.Peer, 0, len(m.Neighbor))
+				for _, pconf := range m.Neighbor {
+					peers = append(peers, mrt.NewPeer(pconf.State.Description, pconf.Config.NeighborAddress, pconf.Config.PeerAs, true))
+				}
+				if bm, err := mrt.NewMRTMessage(t, mrt.TABLE_DUMPv2, mrt.PEER_INDEX_TABLE, mrt.NewPeerIndexTable(m.RouterId, "", peers)); err != nil {
+					break
+				} else {
+					msg = append(msg, bm)
+				}
+
+				idx := func(p *table.Path) uint16 {
+					for i, pconf := range m.Neighbor {
+						if p.GetSource().Address.String() == pconf.Config.NeighborAddress {
+							return uint16(i)
+						}
+					}
+					return uint16(len(m.Neighbor))
+				}
+
+				subtype := func(p *table.Path) mrt.MRTSubTypeTableDumpv2 {
+					switch p.GetRouteFamily() {
+					case bgp.RF_IPv4_UC:
+						return mrt.RIB_IPV4_UNICAST
+					case bgp.RF_IPv4_MC:
+						return mrt.RIB_IPV4_MULTICAST
+					case bgp.RF_IPv6_UC:
+						return mrt.RIB_IPV6_UNICAST
+					case bgp.RF_IPv6_MC:
+						return mrt.RIB_IPV6_MULTICAST
+					}
+					return mrt.RIB_GENERIC
+				}
+
+				seq := uint32(0)
+				for _, pathList := range m.PathList {
+					entries := make([]*mrt.RibEntry, 0, len(pathList))
+					for _, path := range pathList {
+						if path.IsLocal() {
+							continue
+						}
+						entries = append(entries, mrt.NewRibEntry(idx(path), uint32(path.GetTimestamp().Unix()), path.GetPathAttrs()))
+					}
+					if len(entries) > 0 {
+						bm, _ := mrt.NewMRTMessage(t, mrt.TABLE_DUMPv2, subtype(pathList[0]), mrt.NewRib(seq, pathList[0].GetNlri(), entries))
+						msg = append(msg, bm)
+						seq++
+					}
+				}
 			}
-			return bm.Serialize()
+			return msg
 		}
 
 		drain := func(ev WatchEvent) {
@@ -123,19 +173,20 @@ func (m *mrtWriter) loop() error {
 
 			var b bytes.Buffer
 			for _, e := range events {
-				buf, err := serialize(e)
-				if err != nil {
-					log.WithFields(log.Fields{
-						"Topic": "mrt",
-						"Data":  e,
-						"Error": err,
-					}).Warn("Failed to serialize event")
-					continue
-				}
-				b.Write(buf)
-				if b.Len() > 1*1000*1000 {
-					w(b.Bytes())
-					b.Reset()
+				for _, m := range serialize(e) {
+					if buf, err := m.Serialize(); err != nil {
+						log.WithFields(log.Fields{
+							"Topic": "mrt",
+							"Data":  e,
+							"Error": err,
+						}).Warn("Failed to serialize event")
+					} else {
+						b.Write(buf)
+						if b.Len() > 1*1000*1000 {
+							w(b.Bytes())
+							b.Reset()
+						}
+					}
 				}
 			}
 			if b.Len() > 0 {
@@ -159,7 +210,7 @@ func (m *mrtWriter) loop() error {
 					"Error": err,
 				}).Warn("can't rotate MRT file")
 			}
-		case <-table.C:
+		case <-dump.C:
 			w.Generate(WATCH_EVENT_TYPE_TABLE)
 		}
 	}
