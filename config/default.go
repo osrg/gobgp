@@ -6,7 +6,6 @@ import (
 	"github.com/osrg/gobgp/packet/bmp"
 	"github.com/osrg/gobgp/packet/rtr"
 	"github.com/spf13/viper"
-	"github.com/vishvananda/netlink"
 	"net"
 )
 
@@ -87,37 +86,6 @@ func isLocalLinkLocalAddress(ifindex int, addr net.IP) (bool, error) {
 		}
 	}
 	return false, nil
-}
-
-func GetIPv6LinkLocalNeighborAddress(ifname string) (string, error) {
-	ifi, err := net.InterfaceByName(ifname)
-	if err != nil {
-		return "", err
-	}
-	neighs, err := netlink.NeighList(ifi.Index, netlink.FAMILY_V6)
-	if err != nil {
-		return "", err
-	}
-	cnt := 0
-	var addr net.IP
-	for _, neigh := range neighs {
-		local, err := isLocalLinkLocalAddress(ifi.Index, neigh.IP)
-		if err != nil {
-			return "", err
-		}
-		if neigh.IP.IsLinkLocalUnicast() && !local {
-			addr = neigh.IP
-			cnt += 1
-		}
-	}
-
-	if cnt == 0 {
-		return "", fmt.Errorf("no ipv6 link-local neighbor found")
-	} else if cnt > 1 {
-		return "", fmt.Errorf("found %d link-local neighbors. only support p2p link", cnt)
-	}
-
-	return fmt.Sprintf("%s%%%s", addr, ifname), nil
 }
 
 func SetDefaultNeighborConfigValues(n *Neighbor, asn uint32) error {
