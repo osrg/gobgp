@@ -9,6 +9,10 @@ go:
  - 1.6
  - tip
 
+os:
+ - linux
+ - osx
+
 env:
  - SCENARIO=false
  - SCENARIO=true
@@ -21,6 +25,13 @@ matrix:
       env: SCENARIO=true
     - go: tip
       env: SCENARIO=true
+    - os: osx
+      go: 1.5
+    - os: osx
+      go: 1.6
+      env: SCENARIO=true
+    - os: osx
+      go: tip
 
 go_import_path: github.com/osrg/gobgp
 
