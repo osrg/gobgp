@@ -254,15 +254,15 @@ func ParseExtendedCommunities(input string) ([]bgp.ExtendedCommunityInterface, e
 	for i, idx := range idxs {
 		var a []string
 		f := ExtCommParserMap[idx.t]
-		if f == nil {
-			continue
-		}
 		if i < len(idxs)-1 {
 			a = args[:idxs[i+1].i-idx.i]
 			args = args[(idxs[i+1].i - idx.i):]
 		} else {
 			a = args
 			args = nil
+		}
+		if f == nil {
+			continue
 		}
 		ext, err := f(a)
 		if err != nil {
