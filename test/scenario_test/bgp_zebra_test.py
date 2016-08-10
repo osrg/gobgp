@@ -213,7 +213,6 @@ class GoBGPTestBase(unittest.TestCase):
         g5 = self.ctns['g5']
         for g in [g2, g3, g4, g5]:
             g1.wait_for(expected_state=BGP_FSM_ESTABLISHED, peer=g)
-        time.sleep(3)
 
     def test_09_mpath_test_check_mpath_injected(self):
         g1 = self.ctns['g1']
@@ -230,52 +229,48 @@ class GoBGPTestBase(unittest.TestCase):
                     n.append(line.split(' ')[2].strip())
             return n
 
-        nhs = nexthops()
-        self.assertTrue(len(nhs) == 2)
-        self.assertTrue(g1.peers[g4]['neigh_addr'].split('/')[0] in nhs)
-        self.assertTrue(g1.peers[g5]['neigh_addr'].split('/')[0] in nhs)
+        def validate_nexthops(peers):
+            interval = 1
+            count = 0
+            timeout = 30
+            while True:
+                valid = False
+                nhs = nexthops()
+                if len(nhs) == len(peers):
+                    valid = True
+                    for peer in peers:
+                        if g1.peers[peer]['neigh_addr'].split('/')[0] not in nhs:
+                            valid = False
+                            break
+                if valid:
+                    return
+
+                time.sleep(interval)
+                count += interval
+                if count >= timeout:
+                    raise Exception(nhs)
+
+        validate_nexthops([g4, g5])
 
         g4.local('gobgp g ri del 10.0.10.0/24')
-        time.sleep(3)
-
-        nhs = nexthops()
-        self.assertTrue(len(nhs) == 1)
-        self.assertTrue(g1.peers[g5]['neigh_addr'].split('/')[0] in nhs)
+        validate_nexthops([g5])
 
         g4.local('gobgp g ri add 10.0.10.0/24 local-pref 200')
-        time.sleep(3)
-
-        nhs = nexthops()
-        self.assertTrue(len(nhs) == 1)
-        self.assertTrue(g1.peers[g4]['neigh_addr'].split('/')[0] in nhs)
+        validate_nexthops([g4])
 
         g4.local('gobgp g ri del 10.0.10.0/24')
         g5.local('gobgp g ri del 10.0.10.0/24')
-        time.sleep(3)
-
-        nhs = nexthops()
-        self.assertTrue(len(nhs) == 2)
-        self.assertTrue(g1.peers[g2]['neigh_addr'].split('/')[0] in nhs)
-        self.assertTrue(g1.peers[g3]['neigh_addr'].split('/')[0] in nhs)
+        validate_nexthops([g2, g3])
 
         g3.local('gobgp g ri del 10.0.10.0/24')
-        time.sleep(3)
-
-        nhs = nexthops()
-        self.assertTrue(len(nhs) == 1)
-        self.assertTrue(g1.peers[g2]['neigh_addr'].split('/')[0] in nhs)
+        validate_nexthops([g2])
 
         g3.local('gobgp g ri add 10.0.10.0/24 med 10')
-
-        nhs = nexthops()
-        self.assertTrue(len(nhs) == 1)
-        self.assertTrue(g1.peers[g2]['neigh_addr'].split('/')[0] in nhs)
+        validate_nexthops([g2])
 
         g2.local('gobgp g ri add 10.0.10.0/24 med 20')
+        validate_nexthops([g3])
 
-        nhs = nexthops()
-        self.assertTrue(len(nhs) == 1)
-        self.assertTrue(g1.peers[g3]['neigh_addr'].split('/')[0] in nhs)
 
 if __name__ == '__main__':
     if os.geteuid() is not 0:
