@@ -339,6 +339,17 @@ func filterpath(peer *Peer, path *table.Path, withdrawals []*table.Path) *table.
 		}
 
 		if ignore {
+
+			for _, adv := range peer.adjRibOut.PathList([]bgp.RouteFamily{path.GetRouteFamily()}, false) {
+				// we advertise a route from ebgp,
+				// which is the old best. We got the
+				// new best from ibgp. We don't
+				// advertise the new best and need to
+				// withdraw the old.
+				if path.GetNlri().String() == adv.GetNlri().String() {
+					return adv.Clone(true)
+				}
+			}
 			log.WithFields(log.Fields{
 				"Topic": "Peer",
 				"Key":   peer.ID(),
