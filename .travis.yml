@@ -1,6 +1,7 @@
 language: go
 
 sudo: required
+dist: trusty
 services:
   - docker
 
@@ -16,6 +17,14 @@ os:
 env:
  - SCENARIO=false
  - SCENARIO=true
+
+before_install:
+ - if [[ "$TRAVIS_OS_NAME" == "linux" ]]; then sudo sh -c 'echo "deb http://apt.dockerproject.org/repo ubuntu-trusty main" > /etc/apt/sources.list.d/docker.list'; fi
+ - if [[ "$TRAVIS_OS_NAME" == "linux" ]]; then sudo apt-key adv --keyserver hkp://p80.pool.sks-keyservers.net:80 --recv-keys 58118E89F3A912897C070ADBF76221572C52609D; fi
+ - if [[ "$TRAVIS_OS_NAME" == "linux" ]]; then sudo apt-get update; fi
+ - if [[ "$TRAVIS_OS_NAME" == "linux" ]]; then sudo apt-get remove --purge -y --force-yes docker-engine; fi
+ - if [[ "$TRAVIS_OS_NAME" == "linux" ]]; then sudo apt-get -y --force-yes install docker-engine=1.8.3-0~trusty; fi
+ - if [[ "$TRAVIS_OS_NAME" == "linux" ]]; then sudo docker -v; fi
 
 matrix:
   allow_failures:
