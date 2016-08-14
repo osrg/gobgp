@@ -60,7 +60,7 @@ def try_several_times(f, t=3, s=1):
 
 
 def get_bridges():
-    return try_several_times(lambda : local("brctl show | awk 'NR > 1{print $1}'", capture=True)).split('\n')
+    return try_several_times(lambda : local("ip li show type bridge | gawk -e '/^[0-9]+:/{ gsub(\":\", \"\", $2); print $2 }'", capture=True)).split('\n')
 
 
 def get_containers():
