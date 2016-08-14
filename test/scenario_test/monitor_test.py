@@ -73,15 +73,11 @@ class GoBGPTestBase(unittest.TestCase):
         cnt = 0
 
         while True:
-            try:
-                info = qu.get(timeout=1)
-                if info == 'timeout':
-                    raise Exception('timeout')
-                cnt += 1
-                if cnt == len(self.quaggas):
-                    break
-            except Queue.Empty:
-                pass
+            info = qu.get(timeout=120)
+            cnt += 1
+            print 'monitor got {0}, cnt = {1}'.format(info, cnt)
+            if cnt == len(self.quaggas):
+                break
 
     def test_02_stop_q1(self):
         qu = Queue.Queue()
@@ -89,14 +85,10 @@ class GoBGPTestBase(unittest.TestCase):
         self.quaggas['q1'].stop()
 
         while True:
-            try:
-                info = qu.get(timeout=1)
-                if info == 'timeout':
-                    raise Exception('timeout')
-                self.assertTrue(info['isWithdraw'])
-                break
-            except Queue.Empty:
-                pass
+            info = qu.get(timeout=120)
+            print 'monitor got {0}'.format(info)
+            self.assertTrue(info['isWithdraw'])
+            break
 
 
 if __name__ == '__main__':
