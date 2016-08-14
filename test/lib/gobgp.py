@@ -20,6 +20,8 @@ import yaml
 from itertools import chain
 from threading import Thread
 import socket
+import subprocess
+import os
 
 def extract_path_attribute(path, typ):
     for a in path['attrs']:
@@ -138,24 +140,21 @@ class GoBGPContainer(BGPContainer):
         return ret
 
     def monitor_global_rib(self, queue, rf='ipv4'):
+        host = self.ip_addrs[0][1].split('/')[0]
+
+        if not os.path.exists('{0}/gobgp'.format(self.config_dir)):
+            self.local('cp /go/bin/gobgp {0}/'.format(self.SHARED_VOLUME))
+
+        args = '{0}/gobgp -u {1} -j monitor global rib -a {2}'.format(self.config_dir, host, rf).split(' ')
+
         def monitor():
-            it = self.local('gobgp -j monitor global rib -a {0}'.format(rf), stream=True)
-            buf = ''
-            try:
-                for line in it:
-                    if line == '\n':
-                        p = json.loads(buf)[0]
-                        p["nexthop"] = self._get_nexthop(p)
-                        p["aspath"] = self._get_as_path(p)
-                        p["local-pref"] = self._get_local_pref(p)
-                        queue.put(p)
-                        buf = ''
-                    else:
-                        buf += line
-            except socket.timeout:
-                #self.local('pkill -x gobgp')
-                queue.put('timeout')
-                return
+            process = subprocess.Popen(args, stdout=subprocess.PIPE)
+            for line in iter(process.stdout.readline, ''):
+                p = json.loads(line)[0]
+                p["nexthop"] = self._get_nexthop(p)
+                p["aspath"] = self._get_as_path(p)
+                p["local-pref"] = self._get_local_pref(p)
+                queue.put(p)
 
         t = Thread(target=monitor)
         t.daemon = True
