@@ -27,7 +27,7 @@ from noseplugin import OptionParser, parser_option
 from itertools import chain
 import ryu.lib.pcaplib as pcap
 from ryu.lib.packet.packet import Packet
-from ryu.lib.packet.bgp import BGPMessage
+from ryu.lib.packet.bgp import BGPMessage, BGPUpdate
 
 
 class GoBGPTestBase(unittest.TestCase):
@@ -385,7 +385,8 @@ class GoBGPTestBase(unittest.TestCase):
             last = Packet(pkt[1]).protocols[-1]
             if type(last) == str:
                 pkt = BGPMessage.parser(last)[0]
-                cnt += len(pkt.withdrawn_routes)
+                if type(pkt) == BGPUpdate:
+                    cnt += len(pkt.withdrawn_routes)
 
         self.assertTrue(cnt == 1)
 
