@@ -828,7 +828,12 @@ module gobgp {
       leaf file-name {
         type string;
         description
-          "Configures a file name to be written.";
+          "Configures a file name to be written";
+      }
+      leaf table-name {
+        type string;
+        description
+          "specify the table name with route server setup";
       }
       leaf dump-interval {
         type uint64;

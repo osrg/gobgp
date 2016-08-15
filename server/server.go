@@ -2417,6 +2417,7 @@ type watchOptions struct {
 	initUpdate     bool
 	initPostUpdate bool
 	initPeerState  bool
+	tableName      string
 }
 
 type WatchOption func(*watchOptions)
@@ -2454,6 +2455,12 @@ func WatchPeerState(current bool) WatchOption {
 	}
 }
 
+func WatchTableName(name string) WatchOption {
+	return func(o *watchOptions) {
+		o.tableName = name
+	}
+}
+
 type Watcher struct {
 	opts   watchOptions
 	realCh chan WatchEvent
@@ -2480,11 +2487,25 @@ func (w *Watcher) Generate(t WatchEventType) (err error) {
 			}
 			w.notify(&WatchEventAdjIn{PathList: clonePathList(pathList)})
 		case WATCH_EVENT_TYPE_TABLE:
+			id := table.GLOBAL_RIB_NAME
+			if len(w.opts.tableName) > 0 {
+				peer, ok := w.s.neighborMap[w.opts.tableName]
+				if !ok {
+					err = fmt.Errorf("Neighbor that has %v doesn't exist.", w.opts.tableName)
+					break
+				}
+				if !peer.isRouteServerClient() {
+					err = fmt.Errorf("Neighbor %v doesn't have local rib", w.opts.tableName)
+					return
+				}
+				id = peer.ID()
+			}
+
 			pathList := func() map[string][]*table.Path {
 				pathList := make(map[string][]*table.Path)
 				for _, t := range w.s.globalRib.Tables {
 					for _, dst := range t.GetSortedDestinations() {
-						if paths := dst.GetKnownPathList(table.GLOBAL_RIB_NAME); len(paths) > 0 {
+						if paths := dst.GetKnownPathList(id); len(paths) > 0 {
 							pathList[dst.GetNlri().String()] = clonePathList(paths)
 						}
 					}

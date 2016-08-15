@@ -32,6 +32,7 @@ type mrtWriter struct {
 	dead             chan struct{}
 	s                *BgpServer
 	filename         string
+	tablename        string
 	file             *os.File
 	rotationInterval uint64
 	dumpInterval     uint64
@@ -48,6 +49,9 @@ func (m *mrtWriter) loop() error {
 	case config.MRT_TYPE_UPDATES:
 		ops = append(ops, WatchUpdate(false))
 	case config.MRT_TYPE_TABLE:
+		if len(m.tablename) > 0 {
+			ops = append(ops, WatchTableName(m.tablename))
+		}
 	}
 	w := m.s.Watch(ops...)
 	rotator := func() *time.Ticker {
@@ -258,7 +262,7 @@ func mrtFileOpen(filename string, interval uint64) (*os.File, error) {
 	return file, err
 }
 
-func newMrtWriter(s *BgpServer, dumpType config.MrtType, filename string, rInterval, dInterval uint64) (*mrtWriter, error) {
+func newMrtWriter(s *BgpServer, dumpType config.MrtType, filename, tablename string, rInterval, dInterval uint64) (*mrtWriter, error) {
 	file, err := mrtFileOpen(filename, rInterval)
 	if err != nil {
 		return nil, err
@@ -268,6 +272,7 @@ func newMrtWriter(s *BgpServer, dumpType config.MrtType, filename string, rInter
 		s:                s,
 		filename:         filename,
 		file:             file,
+		tablename:        tablename,
 		rotationInterval: rInterval,
 		dumpInterval:     dInterval,
 	}
@@ -298,9 +303,12 @@ func (m *mrtManager) enable(c *config.MrtConfig) error {
 		}
 	} else if c.DumpType == config.MRT_TYPE_UPDATES {
 		dInterval = 0
+		if len(c.TableName) > 0 {
+			return fmt.Errorf("can't specify the table name with the update dump type")
+		}
 	}
 
-	w, err := newMrtWriter(m.bgpServer, c.DumpType, c.FileName, rInterval, dInterval)
+	w, err := newMrtWriter(m.bgpServer, c.DumpType, c.FileName, c.TableName, rInterval, dInterval)
 	if err == nil {
 		m.writer[c.FileName] = w
 	}

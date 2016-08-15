@@ -1038,6 +1038,8 @@ type MrtConfig struct {
 	DumpType MrtType `mapstructure:"dump-type"`
 	// original -> gobgp:file-name
 	FileName string `mapstructure:"file-name"`
+	// original -> gobgp:table-name
+	TableName string `mapstructure:"table-name"`
 	// original -> gobgp:dump-interval
 	DumpInterval uint64 `mapstructure:"dump-interval"`
 	// original -> gobgp:rotation-interval
@@ -1052,6 +1054,9 @@ func (lhs *MrtConfig) Equal(rhs *MrtConfig) bool {
 		return false
 	}
 	if lhs.FileName != rhs.FileName {
+		return false
+	}
+	if lhs.TableName != rhs.TableName {
 		return false
 	}
 	if lhs.DumpInterval != rhs.DumpInterval {
