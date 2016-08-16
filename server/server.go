@@ -937,7 +937,7 @@ func (s *BgpServer) Shutdown() {
 	}
 }
 
-func (s *BgpServer) UpdatePolicy(policy config.RoutingPolicy) (err error) {
+func (s *BgpServer) UpdatePolicy(policy config.RoutingPolicy, global config.ApplyPolicy) (policyUpdated bool, err error) {
 	ch := make(chan struct{})
 	defer func() { <-ch }()
 
@@ -945,6 +945,13 @@ func (s *BgpServer) UpdatePolicy(policy config.RoutingPolicy) (err error) {
 		defer close(ch)
 
 		ap := make(map[string]config.ApplyPolicy, len(s.neighborMap)+1)
+		if !s.bgpConfig.Global.ApplyPolicy.Equal(&global) {
+			log.WithFields(log.Fields{
+				"Topic": "Global",
+			}).Info("Update ApplyPolicy")
+			s.bgpConfig.Global.ApplyPolicy = global
+			policyUpdated = true
+		}
 		ap[table.GLOBAL_RIB_NAME] = s.bgpConfig.Global.ApplyPolicy
 		for _, peer := range s.neighborMap {
 			log.WithFields(log.Fields{
@@ -955,7 +962,7 @@ func (s *BgpServer) UpdatePolicy(policy config.RoutingPolicy) (err error) {
 		}
 		err = s.policy.Reset(&policy, ap)
 	}
-	return err
+	return
 }
 
 // EVPN MAC MOBILITY HANDLING
@@ -1185,7 +1192,8 @@ func (s *BgpServer) Start(c *config.Global) (err error) {
 
 		rfs, _ := config.AfiSafis(c.AfiSafis).ToRfList()
 		s.globalRib = table.NewTableManager(rfs, c.MplsLabelRange.MinLabel, c.MplsLabelRange.MaxLabel)
-		if err = s.policy.Reset(&config.RoutingPolicy{}, map[string]config.ApplyPolicy{table.GLOBAL_RIB_NAME: c.ApplyPolicy}); err != nil {
+
+		if err = s.policy.Reset(&config.RoutingPolicy{}, map[string]config.ApplyPolicy{}); err != nil {
 			return
 		}
 		s.bgpConfig.Global = *c
