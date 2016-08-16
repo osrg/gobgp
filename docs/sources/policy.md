@@ -98,6 +98,7 @@ Conditions are categorized into attributes below:
 - community
 - extended community
 - rpki validation result
+- route type (internal/external/local)
 
 As showed in the figure above, some of the conditions point to defined sets,
 which are a container for each condition item (e.g. prefixes).

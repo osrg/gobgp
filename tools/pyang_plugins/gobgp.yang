@@ -798,6 +798,29 @@ module gobgp {
     uses gobgp-rpki-validation-result;
   }
 
+  deviation "/rpol:routing-policy/rpol:policy-definitions/" +
+    "rpol:policy-definition/rpol:statements/rpol:statement/" +
+    "rpol:conditions/bgp-pol:bgp-conditions/bgp-pol:route-type" {
+    description "alternative route-type condition";
+    deviate replace {
+        type enumeration {
+          enum NONE {
+            description "route type is none";
+          }
+          enum INTERNAL {
+            description "route type is internal";
+          }
+          enum EXTERNAL {
+            description "route type is external";
+          }
+          enum LOCAL {
+            description "route type is local";
+          }
+        }
+
+    }
+  }
+
   augment "/bgp:bgp" {
     description "additional rpki configuration and state";
     uses gobgp-rpki-servers;

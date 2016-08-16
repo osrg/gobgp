@@ -1012,6 +1012,9 @@ func toStatementApi(s *config.Statement) *Statement {
 			Name: s.Conditions.BgpConditions.MatchExtCommunitySet.ExtCommunitySet,
 		}
 	}
+	if s.Conditions.BgpConditions.RouteType != "" {
+		cs.RouteType = Conditions_RouteType(s.Conditions.BgpConditions.RouteType.ToInt())
+	}
 	cs.RpkiResult = int32(s.Conditions.BgpConditions.RpkiValidationResult.ToInt())
 	as := &Actions{
 		RouteAction: func() RouteAction {
@@ -1189,6 +1192,17 @@ func NewRpkiValidationConditionFromApiStruct(a int32) (*table.RpkiValidationCond
 	return table.NewRpkiValidationCondition(config.IntToRpkiValidationResultTypeMap[int(a)])
 }
 
+func NewRouteTypeConditionFromApiStruct(a Conditions_RouteType) (*table.RouteTypeCondition, error) {
+	if a == 0 {
+		return nil, nil
+	}
+	typ, ok := config.IntToRouteTypeMap[int(a)]
+	if !ok {
+		return nil, fmt.Errorf("invalid route type: %d", a)
+	}
+	return table.NewRouteTypeCondition(typ)
+}
+
 func NewCommunityConditionFromApiStruct(a *MatchSet) (*table.CommunityCondition, error) {
 	if a == nil {
 		return nil, nil
@@ -1320,6 +1334,9 @@ func NewStatementFromApiStruct(a *Statement) (*table.Statement, error) {
 			},
 			func() (table.Condition, error) {
 				return NewRpkiValidationConditionFromApiStruct(a.Conditions.RpkiResult)
+			},
+			func() (table.Condition, error) {
+				return NewRouteTypeConditionFromApiStruct(a.Conditions.RouteType)
 			},
 			func() (table.Condition, error) {
 				return NewAsPathConditionFromApiStruct(a.Conditions.AsPathSet)

@@ -702,6 +702,13 @@ message Conditions {
   MatchSet community_set = 5;
   MatchSet ext_community_set = 6;
   int32 rpki_result = 7;
+  enum RouteType {
+    ROUTE_TYPE_NONE = 0;
+    ROUTE_TYPE_INTERNAL = 1;
+    ROUTE_TYPE_EXTERNAL = 2;
+    ROUTE_TYPE_LOCAL = 3;
+  }
+  RouteType route_type = 8;
 }
 
 enum RouteAction {

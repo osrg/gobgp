@@ -125,6 +125,7 @@ const (
 	CONDITION_EXT_COMMUNITY
 	CONDITION_AS_PATH_LENGTH
 	CONDITION_RPKI
+	CONDITION_ROUTE_TYPE
 )
 
 type ActionType int
@@ -1336,6 +1337,44 @@ func NewRpkiValidationCondition(c config.RpkiValidationResultType) (*RpkiValidat
 	}, nil
 }
 
+type RouteTypeCondition struct {
+	typ config.RouteType
+}
+
+func (c *RouteTypeCondition) Type() ConditionType {
+	return CONDITION_ROUTE_TYPE
+}
+
+func (c *RouteTypeCondition) Evaluate(path *Path, _ *PolicyOptions) bool {
+	switch c.typ {
+	case config.ROUTE_TYPE_LOCAL:
+		return path.IsLocal()
+	case config.ROUTE_TYPE_INTERNAL:
+		return !path.IsLocal() && path.IsIBGP()
+	case config.ROUTE_TYPE_EXTERNAL:
+		return !path.IsLocal() && !path.IsIBGP()
+	}
+	return false
+}
+
+func (c *RouteTypeCondition) Set() DefinedSet {
+	return nil
+}
+
+func (c *RouteTypeCondition) Name() string { return "" }
+
+func NewRouteTypeCondition(c config.RouteType) (*RouteTypeCondition, error) {
+	if string(c) == "" || c == config.ROUTE_TYPE_NONE {
+		return nil, nil
+	}
+	if err := c.Validate(); err != nil {
+		return nil, err
+	}
+	return &RouteTypeCondition{
+		typ: c,
+	}, nil
+}
+
 type Action interface {
 	Type() ActionType
 	Apply(*Path, *PolicyOptions) *Path
@@ -1856,6 +1895,9 @@ func (s *Statement) ToConfig() *config.Statement {
 				case *RpkiValidationCondition:
 					v := c.(*RpkiValidationCondition)
 					cond.BgpConditions.RpkiValidationResult = v.result
+				case *RouteTypeCondition:
+					v := c.(*RouteTypeCondition)
+					cond.BgpConditions.RouteType = v.typ
 				}
 			}
 			return cond
@@ -2026,6 +2068,9 @@ func NewStatement(c config.Statement) (*Statement, error) {
 		},
 		func() (Condition, error) {
 			return NewRpkiValidationCondition(c.Conditions.BgpConditions.RpkiValidationResult)
+		},
+		func() (Condition, error) {
+			return NewRouteTypeCondition(c.Conditions.BgpConditions.RouteType)
 		},
 		func() (Condition, error) {
 			return NewAsPathCondition(c.Conditions.BgpConditions.MatchAsPathSet)

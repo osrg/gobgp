@@ -584,13 +584,17 @@ func (v AttributeComparison) Validate() error {
 type RouteType string
 
 const (
+	ROUTE_TYPE_NONE     RouteType = "none"
 	ROUTE_TYPE_INTERNAL RouteType = "internal"
 	ROUTE_TYPE_EXTERNAL RouteType = "external"
+	ROUTE_TYPE_LOCAL    RouteType = "local"
 )
 
 var RouteTypeToIntMap = map[RouteType]int{
-	ROUTE_TYPE_INTERNAL: 0,
-	ROUTE_TYPE_EXTERNAL: 1,
+	ROUTE_TYPE_NONE:     0,
+	ROUTE_TYPE_INTERNAL: 1,
+	ROUTE_TYPE_EXTERNAL: 2,
+	ROUTE_TYPE_LOCAL:    3,
 }
 
 func (v RouteType) ToInt() int {
@@ -602,8 +606,10 @@ func (v RouteType) ToInt() int {
 }
 
 var IntToRouteTypeMap = map[int]RouteType{
-	0: ROUTE_TYPE_INTERNAL,
-	1: ROUTE_TYPE_EXTERNAL,
+	0: ROUTE_TYPE_NONE,
+	1: ROUTE_TYPE_INTERNAL,
+	2: ROUTE_TYPE_EXTERNAL,
+	3: ROUTE_TYPE_LOCAL,
 }
 
 func (v RouteType) Validate() error {
