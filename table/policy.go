@@ -2563,6 +2563,9 @@ func (r *RoutingPolicy) reload(c config.RoutingPolicy) error {
 	r.policyMap = pmap
 	r.statementMap = smap
 	r.assignmentMap = make(map[string]*Assignment)
+	// allow all routes coming in and going out by default
+	r.setDefaultPolicy(GLOBAL_RIB_NAME, POLICY_DIRECTION_IMPORT, ROUTE_TYPE_ACCEPT)
+	r.setDefaultPolicy(GLOBAL_RIB_NAME, POLICY_DIRECTION_EXPORT, ROUTE_TYPE_ACCEPT)
 	return nil
 }
 
