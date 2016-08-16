@@ -300,7 +300,7 @@ func (s *Server) MonitorRib(arg *Table, stream GobgpApi_MonitorRibServer) error 
 		sendPath := func(pathList []*table.Path) error {
 			dsts := make(map[string]*Destination)
 			for _, path := range pathList {
-				if path == nil {
+				if path == nil || (arg.Family != 0 && bgp.RouteFamily(arg.Family) != path.GetRouteFamily()) {
 					continue
 				}
 				if dst, y := dsts[path.GetNlri().String()]; y {
