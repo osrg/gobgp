@@ -189,6 +189,65 @@ class GoBGPTestBase(unittest.TestCase):
         for path in self.gobgp.get_adj_rib_out(q5):
             self.assertTrue(path['local-pref'] == 300)
 
+    def test_14_route_type_condition_local(self):
+        self.gobgp.local('gobgp policy statement st2 add action accept')
+        self.gobgp.local('gobgp policy statement st2 add condition route-type local')
+        self.gobgp.local('gobgp policy add p2 st2')
+        self.gobgp.local('gobgp global policy export set p2 default reject')
+        for q in self.quaggas.itervalues():
+            self.gobgp.softreset(q, type='out')
+
+        q1 = self.quaggas['q1']
+        self.assertTrue(len(self.gobgp.get_adj_rib_out(q1)) == 0)
+
+        self.gobgp.add_route('10.20.0.0/24')
+
+        time.sleep(1)
+
+        self.assertTrue(len(self.gobgp.get_adj_rib_out(q1)) == 1)
+        self.assertTrue(self.gobgp.get_adj_rib_out(q1)[0]['nlri']['prefix'] == u'10.20.0.0/24')
+
+    def test_15_route_type_condition_internal(self):
+        self.gobgp.local('gobgp policy statement st2 set condition route-type internal')
+        for q in self.quaggas.itervalues():
+            self.gobgp.softreset(q, type='out')
+
+        q1 = self.quaggas['q1']
+        self.assertTrue(len(self.gobgp.get_adj_rib_out(q1)) == 0)
+
+        q5 = self.quaggas['q5']
+        q5.add_route('10.30.0.0/24')
+
+        time.sleep(1)
+
+        self.assertTrue(len(self.gobgp.get_adj_rib_out(q1)) == 1)
+        self.assertTrue(self.gobgp.get_adj_rib_out(q1)[0]['nlri']['prefix'] == u'10.30.0.0/24')
+
+    def test_16_route_type_condition_external(self):
+        self.gobgp.local('gobgp policy statement st2 set condition route-type external')
+        for q in self.quaggas.itervalues():
+            self.gobgp.softreset(q, type='out')
+
+        q1 = self.quaggas['q1']
+        num1 = len(self.gobgp.get_adj_rib_out(q1))
+
+        self.gobgp.add_route('10.40.0.0/24')
+        time.sleep(1)
+        num2 = len(self.gobgp.get_adj_rib_out(q1))
+        self.assertTrue(num1 == num2)
+
+        q5 = self.quaggas['q5']
+        q5.add_route('10.50.0.0/24')
+        time.sleep(1)
+        num3 = len(self.gobgp.get_adj_rib_out(q1))
+        self.assertTrue(num1 == num3)
+
+        q2 = self.quaggas['q2']
+        q2.add_route('10.60.0.0/24')
+        time.sleep(1)
+        num4 = len(self.gobgp.get_adj_rib_out(q1))
+        self.assertTrue(num1 + 1 == num4)
+
 
 if __name__ == '__main__':
     if os.geteuid() is not 0:
