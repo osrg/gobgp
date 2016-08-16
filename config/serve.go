@@ -113,7 +113,9 @@ func UpdateConfig(curC, newC *BgpConfigSet) ([]Neighbor, []Neighbor, []Neighbor,
 		}
 	}
 
-	return added, deleted, updated, CheckPolicyDifference(ConfigSetToRoutingPolicy(curC), ConfigSetToRoutingPolicy(newC))
+	globalPolicyUpdated := !curC.Global.ApplyPolicy.Equal(&newC.Global.ApplyPolicy)
+
+	return added, deleted, updated, globalPolicyUpdated || CheckPolicyDifference(ConfigSetToRoutingPolicy(curC), ConfigSetToRoutingPolicy(newC))
 }
 
 func CheckPolicyDifference(currentPolicy *RoutingPolicy, newPolicy *RoutingPolicy) bool {

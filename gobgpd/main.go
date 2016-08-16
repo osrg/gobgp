@@ -240,7 +240,7 @@ func main() {
 					}
 				}
 				p := config.ConfigSetToRoutingPolicy(newConfig)
-				if err := bgpServer.UpdatePolicy(*p); err != nil {
+				if _, err := bgpServer.UpdatePolicy(*p, newConfig.Global.ApplyPolicy); err != nil {
 					log.Fatalf("failed to set routing policy: %s", err)
 				}
 
@@ -258,7 +258,7 @@ func main() {
 				if updatePolicy {
 					log.Info("Policy config is updated")
 					p := config.ConfigSetToRoutingPolicy(newConfig)
-					bgpServer.UpdatePolicy(*p)
+					bgpServer.UpdatePolicy(*p, newConfig.Global.ApplyPolicy)
 				}
 				c = newConfig
 			}
