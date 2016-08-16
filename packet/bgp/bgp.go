@@ -2218,28 +2218,26 @@ func flowSpecPrefixParser(rf RouteFamily, args []string) (FlowSpecComponentInter
 }
 
 func flowSpecIpProtoParser(rf RouteFamily, args []string) (FlowSpecComponentInterface, error) {
-	ss := make([]string, 0, len(ProtocolNameMap))
-	for _, v := range ProtocolNameMap {
-		ss = append(ss, v)
-	}
-	protos := strings.Join(ss, "|")
-	exp := regexp.MustCompile(fmt.Sprintf("^%s (((%s) )*)(%s)$", FlowSpecNameMap[FLOW_SPEC_TYPE_IP_PROTO], protos, protos))
-	elems := exp.FindStringSubmatch(strings.Join(args, " "))
-	if len(elems) < 2 {
+	if len(args) < 2 || args[0] != FlowSpecNameMap[FLOW_SPEC_TYPE_IP_PROTO] {
 		return nil, fmt.Errorf("invalid ip-proto format")
 	}
 	items := make([]*FlowSpecComponentItem, 0)
 	eq := 0x1
-	if elems[1] != "" {
-		for _, v := range strings.Split(elems[1], " ") {
-			p, ok := ProtocolValueMap[v]
-			if !ok {
-				continue
-			}
-			items = append(items, NewFlowSpecComponentItem(eq, int(p)))
+	for _, v := range args[1:] {
+		if v == "" {
+			continue
 		}
+		p, ok := ProtocolValueMap[v]
+		if ok {
+			items = append(items, NewFlowSpecComponentItem(eq, int(p)))
+			continue
+		}
+		i, err := strconv.ParseUint(v, 10, 8)
+		if err != nil {
+			return nil, fmt.Errorf("invalid ip-proto format: failed to parse %s", v)
+		}
+		items = append(items, NewFlowSpecComponentItem(eq, int(i)))
 	}
-	items = append(items, NewFlowSpecComponentItem(eq, int(ProtocolValueMap[elems[4]])))
 	return NewFlowSpecComponent(FLOW_SPEC_TYPE_IP_PROTO, items), nil
 }
 

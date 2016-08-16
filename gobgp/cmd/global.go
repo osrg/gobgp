@@ -767,6 +767,7 @@ func modPath(resource api.Resource, name, modtype string, args []string) error {
 		for _, v := range bgp.ProtocolNameMap {
 			ss = append(ss, v)
 		}
+		ss = append(ss, "<VALUE>")
 		protos := strings.Join(ss, ", ")
 		ss = make([]string, 0, len(bgp.TCPFlagNameMap))
 		for _, v := range bgp.TCPFlagNameMap {
