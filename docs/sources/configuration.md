@@ -195,4 +195,25 @@
             options = "remove"
             [policy-definitions.statements.actions.bgp-actions.set-ext-community.set-ext-community-method]
                 communities-list = ["soo:500:600", "rt:700:800"]
+
+[[policy-definitions]]
+    name = "route-type-policy"
+    [[policy-definitions.statements]]
+        # this statement matches with locally generated routes 
+        [policy-definitions.statements.conditions.bgp-conditions]
+            route-type = "local"
+        [policy-definitions.statements.actions.route-disposition]
+            accept-route = true
+    [[policy-definitions.statements]]
+        # this statement matches with routes from iBGP peers
+        [policy-definitions.statements.conditions.bgp-conditions]
+            route-type = "internal"
+        [policy-definitions.statements.actions.route-disposition]
+            accept-route = true
+    [[policy-definitions.statements]]
+        # this statement matches with routes from eBGP peers
+        [policy-definitions.statements.conditions.bgp-conditions]
+            route-type = "external"
+        [policy-definitions.statements.actions.route-disposition]
+            accept-route = true
 ```
