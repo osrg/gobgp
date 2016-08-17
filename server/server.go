@@ -1678,7 +1678,15 @@ func (server *BgpServer) addNeighbor(c *config.Neighbor) error {
 
 	if server.bgpConfig.Global.Config.Port > 0 {
 		for _, l := range server.Listeners(addr) {
-			SetTcpMD5SigSockopts(l, addr, c.Config.AuthPassword)
+			if err := SetTcpMD5SigSockopts(l, addr, c.Config.AuthPassword); err != nil {
+				log.WithFields(log.Fields{
+					"Topic": "Peer",
+				}).Debugf("failed to set md5 %s %s", addr, err)
+			} else {
+				log.WithFields(log.Fields{
+					"Topic": "Peer",
+				}).Debugf("successfully set md5 %s", addr)
+			}
 		}
 	}
 	log.WithFields(log.Fields{
