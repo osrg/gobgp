@@ -8,6 +8,7 @@ services:
 go:
  - 1.5
  - 1.6
+ - 1.7
  - tip
 
 os:
@@ -34,11 +35,15 @@ matrix:
       env: SCENARIO=true
     - go: tip
       env: SCENARIO=true
+    - go: 1.7
+      env: SCENARIO=true
     - os: osx
       go: 1.5
     - os: osx
       go: 1.6
       env: SCENARIO=true
+    - os: osx
+      go: 1.7
     - os: osx
       go: tip
 
