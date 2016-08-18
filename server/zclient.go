@@ -18,7 +18,6 @@ package server
 import (
 	"fmt"
 	log "github.com/Sirupsen/logrus"
-	"github.com/osrg/gobgp/config"
 	"github.com/osrg/gobgp/packet/bgp"
 	"github.com/osrg/gobgp/table"
 	"github.com/osrg/gobgp/zebra"
@@ -28,20 +27,23 @@ import (
 	"time"
 )
 
-type broadcastZapiMsg struct {
-	client *zebra.Client
-	msg    *zebra.Message
-}
+func newIPRouteMessage(dst []*table.Path) *zebra.Message {
+	paths := make([]*table.Path, 0, len(dst))
+	for _, path := range dst {
+		if path == nil || path.IsFromExternal() {
+			continue
+		}
+		paths = append(paths, path)
+	}
+	if len(paths) == 0 {
+		return nil
+	}
+	path := paths[0]
 
-func (m *broadcastZapiMsg) send() {
-	m.client.Send(m.msg)
-}
-
-func newIPRouteMessage(path *table.Path) *zebra.Message {
 	l := strings.SplitN(path.GetNlri().String(), "/", 2)
 	var command zebra.API_TYPE
 	var prefix net.IP
-	nexthops := []net.IP{}
+	nexthops := make([]net.IP, 0, len(paths))
 	switch path.GetRouteFamily() {
 	case bgp.RF_IPv4_UC:
 		if path.IsWithdraw == true {
@@ -50,7 +52,9 @@ func newIPRouteMessage(path *table.Path) *zebra.Message {
 			command = zebra.IPV4_ROUTE_ADD
 		}
 		prefix = net.ParseIP(l[0]).To4()
-		nexthops = append(nexthops, path.GetNexthop().To4())
+		for _, p := range paths {
+			nexthops = append(nexthops, p.GetNexthop().To4())
+		}
 	case bgp.RF_IPv6_UC:
 		if path.IsWithdraw == true {
 			command = zebra.IPV6_ROUTE_DELETE
@@ -58,11 +62,12 @@ func newIPRouteMessage(path *table.Path) *zebra.Message {
 			command = zebra.IPV6_ROUTE_ADD
 		}
 		prefix = net.ParseIP(l[0]).To16()
-		nexthops = append(nexthops, path.GetNexthop().To16())
+		for _, p := range paths {
+			nexthops = append(nexthops, p.GetNexthop().To16())
+		}
 	default:
 		return nil
 	}
-
 	flags := uint8(zebra.MESSAGE_NEXTHOP)
 	plen, _ := strconv.Atoi(l[1])
 	med, err := path.GetMed()
@@ -88,11 +93,14 @@ func newIPRouteMessage(path *table.Path) *zebra.Message {
 	}
 }
 
-func createPathFromIPRouteMessage(m *zebra.Message, peerInfo *table.PeerInfo) *table.Path {
+func createPathFromIPRouteMessage(m *zebra.Message) *table.Path {
 
 	header := m.Header
 	body := m.Body.(*zebra.IPRouteBody)
-	isV4 := header.Command == zebra.IPV4_ROUTE_ADD || header.Command == zebra.IPV4_ROUTE_DELETE
+	family := bgp.RF_IPv6_UC
+	if header.Command == zebra.IPV4_ROUTE_ADD || header.Command == zebra.IPV4_ROUTE_DELETE {
+		family = bgp.RF_IPv4_UC
+	}
 
 	var nlri bgp.AddrPrefixInterface
 	pattr := make([]bgp.PathAttributeInterface, 0)
@@ -116,58 +124,77 @@ func createPathFromIPRouteMessage(m *zebra.Message, peerInfo *table.PeerInfo) *t
 		"api":          header.Command.String(),
 	}).Debugf("create path from ip route message.")
 
-	if isV4 {
+	switch family {
+	case bgp.RF_IPv4_UC:
 		nlri = bgp.NewIPAddrPrefix(body.PrefixLength, body.Prefix.String())
 		nexthop := bgp.NewPathAttributeNextHop(body.Nexthops[0].String())
 		pattr = append(pattr, nexthop)
-	} else {
+	case bgp.RF_IPv6_UC:
 		nlri = bgp.NewIPv6AddrPrefix(body.PrefixLength, body.Prefix.String())
 		mpnlri = bgp.NewPathAttributeMpReachNLRI(body.Nexthops[0].String(), []bgp.AddrPrefixInterface{nlri})
 		pattr = append(pattr, mpnlri)
+	default:
+		log.WithFields(log.Fields{
+			"Topic": "Zebra",
+		}).Errorf("unsupport address family: %s", family)
+		return nil
 	}
 
 	med := bgp.NewPathAttributeMultiExitDisc(body.Metric)
 	pattr = append(pattr, med)
 
-	p := table.NewPath(peerInfo, nlri, isWithdraw, pattr, time.Now(), false)
-	p.SetIsFromExternal(true)
-	return p
+	path := table.NewPath(nil, nlri, isWithdraw, pattr, time.Now(), false)
+	path.SetIsFromExternal(true)
+	return path
 }
 
-func newBroadcastZapiBestMsg(cli *zebra.Client, path *table.Path) *broadcastZapiMsg {
-	if cli == nil {
-		return nil
-	}
-	m := newIPRouteMessage(path)
-	if m == nil {
-		return nil
-	}
-	return &broadcastZapiMsg{
-		client: cli,
-		msg:    m,
-	}
+type zebraClient struct {
+	client *zebra.Client
+	server *BgpServer
+	dead   chan struct{}
 }
 
-func handleZapiMsg(msg *zebra.Message, server *BgpServer) []*SenderMsg {
+func (z *zebraClient) stop() {
+	close(z.dead)
+}
 
-	switch b := msg.Body.(type) {
-	case *zebra.IPRouteBody:
-		pi := &table.PeerInfo{
-			AS:      server.bgpConfig.Global.Config.As,
-			LocalID: net.ParseIP(server.bgpConfig.Global.Config.RouterId).To4(),
+func (z *zebraClient) loop() {
+	w := z.server.Watch(WatchBestPath())
+	defer func() { w.Stop() }()
+
+	for {
+		select {
+		case <-z.dead:
+			return
+		case msg := <-z.client.Receive():
+			switch msg.Body.(type) {
+			case *zebra.IPRouteBody:
+				if p := createPathFromIPRouteMessage(msg); p != nil {
+					if _, err := z.server.AddPath("", []*table.Path{p}); err != nil {
+						log.Errorf("failed to add path from zebra: %s", p)
+					}
+				}
+			}
+		case ev := <-w.Event():
+			msg := ev.(*WatchEventBestPath)
+			if table.UseMultiplePaths.Enabled {
+				for _, dst := range msg.MultiPathList {
+					if m := newIPRouteMessage(dst); m != nil {
+						z.client.Send(m)
+					}
+				}
+			} else {
+				for _, path := range msg.PathList {
+					if m := newIPRouteMessage([]*table.Path{path}); m != nil {
+						z.client.Send(m)
+					}
+				}
+			}
 		}
-
-		if b.Prefix != nil && len(b.Nexthops) > 0 && b.Type != zebra.ROUTE_KERNEL {
-			p := createPathFromIPRouteMessage(msg, pi)
-			msgs, _ := server.propagateUpdate(nil, []*table.Path{p})
-			return msgs
-		}
 	}
-
-	return nil
 }
 
-func NewZclient(url string, redistRouteTypes []config.InstallProtocolType) (*zebra.Client, error) {
+func newZebraClient(s *BgpServer, url string, protos []string) (*zebraClient, error) {
 	l := strings.SplitN(url, ":", 2)
 	if len(l) != 2 {
 		return nil, fmt.Errorf("unsupported url: %s", url)
@@ -179,15 +206,18 @@ func NewZclient(url string, redistRouteTypes []config.InstallProtocolType) (*zeb
 	cli.SendHello()
 	cli.SendRouterIDAdd()
 	cli.SendInterfaceAdd()
-	for _, typ := range redistRouteTypes {
-		t, err := zebra.RouteTypeFromString(string(typ))
+	for _, typ := range protos {
+		t, err := zebra.RouteTypeFromString(typ)
 		if err != nil {
 			return nil, err
 		}
 		cli.SendRedistribute(t)
 	}
-	if e := cli.SendCommand(zebra.REDISTRIBUTE_DEFAULT_ADD, nil); e != nil {
-		return nil, e
+	w := &zebraClient{
+		dead:   make(chan struct{}),
+		client: cli,
+		server: s,
 	}
-	return cli, nil
+	go w.loop()
+	return w, nil
 }

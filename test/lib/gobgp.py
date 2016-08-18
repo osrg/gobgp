@@ -16,9 +16,12 @@
 from base import *
 import json
 import toml
+import yaml
 from itertools import chain
 from threading import Thread
 import socket
+import subprocess
+import os
 
 def extract_path_attribute(path, typ):
     for a in path['attrs']:
@@ -31,8 +34,8 @@ class GoBGPContainer(BGPContainer):
     SHARED_VOLUME = '/root/shared_volume'
     QUAGGA_VOLUME = '/etc/quagga'
 
-    def __init__(self, name, asn, router_id, ctn_image_name='gobgp',
-                 log_level='debug', zebra=False):
+    def __init__(self, name, asn, router_id, ctn_image_name='osrg/gobgp',
+                 log_level='debug', zebra=False, config_format='toml'):
         super(GoBGPContainer, self).__init__(name, asn, router_id,
                                              ctn_image_name)
         self.shared_volumes.append((self.config_dir, self.SHARED_VOLUME))
@@ -43,12 +46,13 @@ class GoBGPContainer(BGPContainer):
         self.bgp_set = None
         self.default_policy = None
         self.zebra = zebra
+        self.config_format = config_format
 
     def _start_gobgp(self, graceful_restart=False):
         c = CmdBuffer()
         c << '#!/bin/bash'
-        c << '/go/bin/gobgpd -f {0}/gobgpd.conf -l {1} -p {2} > ' \
-             '{0}/gobgpd.log 2>&1'.format(self.SHARED_VOLUME, self.log_level, '-r' if graceful_restart else '')
+        c << '/go/bin/gobgpd -f {0}/gobgpd.conf -l {1} -p {2} -t {3} > ' \
+             '{0}/gobgpd.log 2>&1'.format(self.SHARED_VOLUME, self.log_level, '-r' if graceful_restart else '', self.config_format)
 
         cmd = 'echo "{0:s}" > {1}/start.sh'.format(c, self.config_dir)
         local(cmd, capture=True)
@@ -85,6 +89,12 @@ class GoBGPContainer(BGPContainer):
             if p['type'] == BGP_ATTR_TYPE_NEXT_HOP or p['type'] == BGP_ATTR_TYPE_MP_REACH_NLRI:
                 return p['nexthop']
 
+    def _get_local_pref(self, path):
+        for p in path['attrs']:
+            if p['type'] == BGP_ATTR_TYPE_LOCAL_PREF:
+                return p['value']
+        return None
+
     def _trigger_peer_cmd(self, cmd, peer):
         if peer not in self.peers:
             raise Exception('not found peer {0}'.format(peer.router_id))
@@ -115,6 +125,7 @@ class GoBGPContainer(BGPContainer):
             for p in d["paths"]:
                 p["nexthop"] = self._get_nexthop(p)
                 p["aspath"] = self._get_as_path(p)
+                p["local-pref"] = self._get_local_pref(p)
         return ret
 
     def get_global_rib(self, prefix='', rf='ipv4'):
@@ -125,26 +136,25 @@ class GoBGPContainer(BGPContainer):
             for p in d["paths"]:
                 p["nexthop"] = self._get_nexthop(p)
                 p["aspath"] = self._get_as_path(p)
+                p["local-pref"] = self._get_local_pref(p)
         return ret
 
     def monitor_global_rib(self, queue, rf='ipv4'):
+        host = self.ip_addrs[0][1].split('/')[0]
+
+        if not os.path.exists('{0}/gobgp'.format(self.config_dir)):
+            self.local('cp /go/bin/gobgp {0}/'.format(self.SHARED_VOLUME))
+
+        args = '{0}/gobgp -u {1} -j monitor global rib -a {2}'.format(self.config_dir, host, rf).split(' ')
+
         def monitor():
-            it = self.local('gobgp -j monitor global rib -a {0}'.format(rf), stream=True)
-            buf = ''
-            try:
-                for line in it:
-                    if line == '\n':
-                        p = json.loads(buf)[0]
-                        p["nexthop"] = self._get_nexthop(p)
-                        p["aspath"] = self._get_as_path(p)
-                        queue.put(p)
-                        buf = ''
-                    else:
-                        buf += line
-            except socket.timeout:
-                #self.local('pkill -x gobgp')
-                queue.put('timeout')
-                return
+            process = subprocess.Popen(args, stdout=subprocess.PIPE)
+            for line in iter(process.stdout.readline, ''):
+                p = json.loads(line)[0]
+                p["nexthop"] = self._get_nexthop(p)
+                p["aspath"] = self._get_as_path(p)
+                p["local-pref"] = self._get_local_pref(p)
+                queue.put(p)
 
         t = Thread(target=monitor)
         t.daemon = True
@@ -163,6 +173,7 @@ class GoBGPContainer(BGPContainer):
             p["nexthop"] = self._get_nexthop(p)
             p["aspath"] = self._get_as_path(p)
             p["prefix"] = p['nlri']['prefix']
+            p["local-pref"] = self._get_local_pref(p)
         return ret
 
     def get_adj_rib_in(self, peer, prefix='', rf='ipv4'):
@@ -171,13 +182,15 @@ class GoBGPContainer(BGPContainer):
     def get_adj_rib_out(self, peer, prefix='', rf='ipv4'):
         return self._get_adj_rib('out', peer, prefix, rf)
 
-    def get_neighbor_state(self, peer):
+    def get_neighbor(self, peer):
         if peer not in self.peers:
             raise Exception('not found peer {0}'.format(peer.router_id))
         peer_addr = self.peers[peer]['neigh_addr'].split('/')[0]
         cmd = 'gobgp -j neighbor {0}'.format(peer_addr)
-        output = self.local(cmd, capture=True)
-        return json.loads(output)['info']['bgp_state']
+        return json.loads(self.local(cmd, capture=True))
+
+    def get_neighbor_state(self, peer):
+        return self.get_neighbor(peer)['info']['bgp_state']
 
     def clear_policy(self):
         self.policies = {}
@@ -223,6 +236,10 @@ class GoBGPContainer(BGPContainer):
                     },
                 },
         }}
+
+        if self.zebra:
+            config['global']['use-multiple-paths'] = {'config': {'enabled': True}}
+
         for peer, info in self.peers.iteritems():
             afi_safi_list = []
             version = netaddr.IPNetwork(info['neigh_addr']).version
@@ -237,7 +254,7 @@ class GoBGPContainer(BGPContainer):
                 afi_safi_list.append({'config': {'afi-safi-name': 'l3vpn-ipv4-unicast'}})
                 afi_safi_list.append({'config': {'afi-safi-name': 'l3vpn-ipv6-unicast'}})
                 afi_safi_list.append({'config': {'afi-safi-name': 'l2vpn-evpn'}})
-                afi_safi_list.append({'config': {'afi-safi-name': 'rtc'}, 'route-target-membership': {'deferral-time': 10}})
+                afi_safi_list.append({'config': {'afi-safi-name': 'rtc'}, 'route-target-membership': {'config': {'deferral-time': 10}}})
 
             if info['flowspec']:
                 afi_safi_list.append({'config': {'afi-safi-name': 'ipv4-flowspec'}})
@@ -253,11 +270,15 @@ class GoBGPContainer(BGPContainer):
                  'afi-safis': afi_safi_list,
                  'timers': {'config': {
                      'connect-retry': 10,
-                    }},
+                  }},
+                 'transport': {'config': {}},
                  }
 
+            if ':' in info['local_addr']:
+                n['transport']['config']['local-address'] = info['local_addr'].split('/')[0]
+
             if info['passive']:
-                n['transport'] = {'config': {'passive-mode': True}}
+                n['transport']['config']['passive-mode'] = True
 
             if info['is_rs_client']:
                 n['route-server'] = {'config': {'route-server-client': True}}
@@ -323,13 +344,21 @@ class GoBGPContainer(BGPContainer):
             config['policy-definitions'] = policy_list
 
         if self.zebra:
-            config['global']['zebra'] = {'enabled': True,
-                                         'redistribute-route-type-list':['connect']}
+            config['zebra'] = {'config':{'enabled': True,
+                                         'redistribute-route-type-list':['connect']}}
 
         with open('{0}/gobgpd.conf'.format(self.config_dir), 'w') as f:
             print colors.yellow('[{0}\'s new config]'.format(self.name))
-            print colors.yellow(indent(toml.dumps(config)))
-            f.write(toml.dumps(config))
+            if self.config_format is 'toml':
+                raw = toml.dumps(config)
+            elif self.config_format is 'yaml':
+                raw = yaml.dump(config)
+            elif self.config_format is 'json':
+                raw = json.dumps(config)
+            else:
+                raise Exception('invalid config_format {0}'.format(self.config_format))
+            print colors.yellow(indent(raw))
+            f.write(raw)
 
     def _create_config_zebra(self):
         c = CmdBuffer()
@@ -372,3 +401,27 @@ class GoBGPContainer(BGPContainer):
             else:
                 raise Exception('unsupported route faily: {0}'.format(rf))
             self.local(cmd)
+
+
+class RawGoBGPContainer(GoBGPContainer):
+    def __init__(self, name, config, ctn_image_name='osrg/gobgp',
+                 log_level='debug', zebra=False, config_format='yaml'):
+        if config_format is 'toml':
+            d = toml.loads(config)
+        elif config_format is 'yaml':
+            d = yaml.load(config)
+        elif config_format is 'json':
+            d = json.loads(config)
+        else:
+            raise Exception('invalid config format {0}'.format(config_format))
+        asn = d['global']['config']['as']
+        router_id = d['global']['config']['router-id']
+        self.config = config
+        super(RawGoBGPContainer, self).__init__(name, asn, router_id,
+                                                ctn_image_name, log_level,
+                                                zebra, config_format)
+    def create_config(self):
+        with open('{0}/gobgpd.conf'.format(self.config_dir), 'w') as f:
+            print colors.yellow('[{0}\'s new config]'.format(self.name))
+            print colors.yellow(indent(self.config))
+            f.write(self.config)

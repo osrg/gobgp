@@ -17,10 +17,11 @@ Assume you finished [Getting Started](https://github.com/osrg/gobgp/blob/master/
 You need to enable the zebra feature in the Global configuration as follows.
 
 ```toml
-[globa.zebra]
-  enabled = true
-  url = "unix:/var/run/quagga/zserv.api"
-  redistribute-route-type-list = ["connect"]
+[zebra]
+    [zebra.config]
+        enabled = true
+        url = "unix:/var/run/quagga/zserv.api"
+        redistribute-route-type-list = ["connect"]
 ```
 
 You can skip Url. If it's skipped, GoBGP uses "unix:/var/run/quagga/zserv.api" as the Url.

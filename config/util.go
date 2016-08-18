@@ -66,3 +66,19 @@ func GetAfiSafi(p *Neighbor, family bgp.RouteFamily) *AfiSafi {
 	}
 	return nil
 }
+
+func CheckAfiSafisChange(x, y []AfiSafi) bool {
+	if len(x) != len(y) {
+		return true
+	}
+	m := make(map[string]bool)
+	for _, e := range x {
+		m[string(e.Config.AfiSafiName)] = true
+	}
+	for _, e := range y {
+		if !m[string(e.Config.AfiSafiName)] {
+			return true
+		}
+	}
+	return false
+}

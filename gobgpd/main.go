@@ -1,4 +1,4 @@
-// Copyright (C) 2014 Nippon Telegraph and Telephone Corporation.
+// Copyright (C) 2014-2016 Nippon Telegraph and Telephone Corporation.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -20,8 +20,10 @@ import (
 	"github.com/Sirupsen/logrus/hooks/syslog"
 	"github.com/jessevdk/go-flags"
 	p "github.com/kr/pretty"
+	api "github.com/osrg/gobgp/api"
 	"github.com/osrg/gobgp/config"
 	ops "github.com/osrg/gobgp/openswitch"
+	"github.com/osrg/gobgp/packet/bgp"
 	"github.com/osrg/gobgp/server"
 	"io/ioutil"
 	"log/syslog"
@@ -52,6 +54,8 @@ func main() {
 		GrpcHosts       string `long:"api-hosts" description:"specify the hosts that gobgpd listens on" default:":50051"`
 		GracefulRestart bool   `short:"r" long:"graceful-restart" description:"flag restart-state in graceful-restart capability"`
 		Dry             bool   `short:"d" long:"dry-run" description:"check configuration"`
+		PProfHost       string `long:"pprof-host" description:"specify the host that gobgpd listens on for pprof" default:"localhost:6060"`
+		PProfDisable    bool   `long:"pprof-disable" description:"disable pprof profiling"`
 	}
 	_, err := flags.Parse(&opts)
 	if err != nil {
@@ -68,9 +72,11 @@ func main() {
 		runtime.GOMAXPROCS(opts.CPUs)
 	}
 
-	go func() {
-		log.Println(http.ListenAndServe("localhost:6060", nil))
-	}()
+	if !opts.PProfDisable {
+		go func() {
+			log.Println(http.ListenAndServe(opts.PProfHost, nil))
+		}()
+	}
 
 	switch opts.LogLevel {
 	case "debug":
@@ -174,7 +180,7 @@ func main() {
 	go bgpServer.Serve()
 
 	// start grpc Server
-	grpcServer := server.NewGrpcServer(opts.GrpcHosts, bgpServer.GrpcReqCh)
+	grpcServer := api.NewGrpcServer(bgpServer, opts.GrpcHosts)
 	go func() {
 		if err := grpcServer.Serve(); err != nil {
 			log.Fatalf("failed to listen grpc port: %s", err)
@@ -182,7 +188,7 @@ func main() {
 	}()
 
 	if opts.Ops {
-		m, err := ops.NewOpsManager(bgpServer.GrpcReqCh)
+		m, err := ops.NewOpsManager(opts.GrpcHosts)
 		if err != nil {
 			log.Errorf("Failed to start ops config manager: %s", err)
 			os.Exit(1)
@@ -202,20 +208,39 @@ func main() {
 
 			if c == nil {
 				c = newConfig
-				if err := bgpServer.SetGlobalType(newConfig.Global); err != nil {
+				if err := bgpServer.Start(&newConfig.Global); err != nil {
 					log.Fatalf("failed to set global config: %s", err)
 				}
-				if err := bgpServer.SetRpkiConfig(newConfig.RpkiServers); err != nil {
-					log.Fatalf("failed to set rpki config: %s", err)
+				if newConfig.Zebra.Config.Enabled {
+					if err := bgpServer.StartZebraClient(&newConfig.Zebra); err != nil {
+						log.Fatalf("failed to set zebra config: %s", err)
+					}
 				}
-				if err := bgpServer.SetBmpConfig(newConfig.BmpServers); err != nil {
-					log.Fatalf("failed to set bmp config: %s", err)
+				if len(newConfig.Collector.Config.Url) > 0 {
+					if err := bgpServer.StartCollector(&newConfig.Collector.Config); err != nil {
+						log.Fatalf("failed to set collector config: %s", err)
+					}
 				}
-				if err := bgpServer.SetMrtConfig(newConfig.MrtDump); err != nil {
-					log.Fatalf("failed to set mrt config: %s", err)
+				for _, c := range newConfig.RpkiServers {
+					if err := bgpServer.AddRpki(&c.Config); err != nil {
+						log.Fatalf("failed to set rpki config: %s", err)
+					}
+				}
+				for _, c := range newConfig.BmpServers {
+					if err := bgpServer.AddBmp(&c.Config); err != nil {
+						log.Fatalf("failed to set bmp config: %s", err)
+					}
+				}
+				for _, c := range newConfig.MrtDump {
+					if len(c.Config.FileName) == 0 {
+						continue
+					}
+					if err := bgpServer.EnableMrt(&c.Config); err != nil {
+						log.Fatalf("failed to set mrt config: %s", err)
+					}
 				}
 				p := config.ConfigSetToRoutingPolicy(newConfig)
-				if err := bgpServer.SetRoutingPolicy(*p); err != nil {
+				if err := bgpServer.UpdatePolicy(*p); err != nil {
 					log.Fatalf("failed to set routing policy: %s", err)
 				}
 
@@ -238,35 +263,22 @@ func main() {
 				c = newConfig
 			}
 
-			for _, p := range added {
+			for i, p := range added {
 				log.Infof("Peer %v is added", p.Config.NeighborAddress)
-				bgpServer.PeerAdd(p)
+				bgpServer.AddNeighbor(&added[i])
 			}
-			for _, p := range deleted {
+			for i, p := range deleted {
 				log.Infof("Peer %v is deleted", p.Config.NeighborAddress)
-				bgpServer.PeerDelete(p)
+				bgpServer.DeleteNeighbor(&deleted[i])
 			}
-			for _, p := range updated {
+			for i, p := range updated {
 				log.Infof("Peer %v is updated", p.Config.NeighborAddress)
-				u, _ := bgpServer.PeerUpdate(p)
+				u, _ := bgpServer.UpdateNeighbor(&updated[i])
 				updatePolicy = updatePolicy || u
 			}
 
 			if updatePolicy {
-				// TODO: we want to apply the new policies to the existing
-				// routes here. Sending SOFT_RESET_IN to all the peers works
-				// for the change of in and import policies. SOFT_RESET_OUT is
-				// necessary for the export policy but we can't blindly
-				// execute SOFT_RESET_OUT because we unnecessarily advertize
-				// the existing routes. Needs to investigate the changes of
-				// policies and handle only affected peers.
-				ch := make(chan *server.GrpcResponse)
-				bgpServer.GrpcReqCh <- &server.GrpcRequest{
-					RequestType: server.REQ_NEIGHBOR_SOFT_RESET_IN,
-					Name:        "all",
-					ResponseCh:  ch,
-				}
-				<-ch
+				bgpServer.SoftResetIn("", bgp.RouteFamily(0))
 			}
 		case sig := <-sigCh:
 			switch sig {

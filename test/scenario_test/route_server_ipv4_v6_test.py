@@ -63,16 +63,12 @@ class GoBGPIPv6Test(unittest.TestCase):
             g1.add_peer(ctn, is_rs_client=True)
             ctn.add_peer(g1)
 
-        br02 = Bridge(name='br02', subnet='2001::/96')
-        br02.addif(g1)
         for ctn in v6:
-            br02.addif(ctn)
-            g1.add_peer(ctn, is_rs_client=True, bridge=br02.name)
-            ctn.add_peer(g1, bridge=br02.name)
+            g1.add_peer(ctn, is_rs_client=True, v6=True)
+            ctn.add_peer(g1, v6=True)
 
         cls.gobgp = g1
         cls.quaggas = {'q1': q1, 'q2': q2, 'q3': q3, 'q4': q4}
-        cls.bridges = {'br02': br02}
         cls.ipv4s = {'q1': q1, 'q2': q2}
         cls.ipv6s = {'q3': q3, 'q4': q4}
 

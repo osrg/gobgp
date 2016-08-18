@@ -2,10 +2,13 @@
 SCENARIO=$1
 echo "travis-build-script.sh"
 
+export GOBGP=`pwd`
+
 if [ "$SCENARIO" != "true" ]; then
   echo "execute unit test."
   go version
-  go test -v ./...
+  go test -v ./... || exit "$?"
+  python $GOBGP/test/scenario_test/ci-scripts/build_embeded_go.py $GOBGP/docs/sources/lib.md
   exit $?
 fi
 
@@ -14,7 +17,6 @@ docker version
 echo ""
 
 export GOBGP_IMAGE=gobgp
-export GOBGP=`pwd`
 
 sudo apt-get -q update
 sudo apt-get -q -y install iputils-arping bridge-utils lv
@@ -34,6 +36,12 @@ cd $GOBGP/test/scenario_test
 PIDS=()
 
 sudo  PYTHONPATH=$GOBGP/test python route_server_test.py --gobgp-image $GOBGP_IMAGE --test-prefix rs -x &
+PIDS=("${PIDS[@]}" $!)
+
+sudo  PYTHONPATH=$GOBGP/test python route_server_test2.py --gobgp-image $GOBGP_IMAGE --test-prefix rs2 -x &
+PIDS=("${PIDS[@]}" $!)
+
+sudo  PYTHONPATH=$GOBGP/test python route_server_softreset_test.py --gobgp-image $GOBGP_IMAGE --test-prefix rs3 -x &
 PIDS=("${PIDS[@]}" $!)
 
 sudo  PYTHONPATH=$GOBGP/test python route_server_ipv4_v6_test.py --gobgp-image $GOBGP_IMAGE --test-prefix v6 -x &
@@ -73,10 +81,10 @@ PIDS=("${PIDS[@]}" $!)
 sudo  PYTHONPATH=$GOBGP/test python graceful_restart_test.py --gobgp-image $GOBGP_IMAGE --test-prefix gr -x &
 PIDS=("${PIDS[@]}" $!)
 
-sudo  PYTHONPATH=$GOBGP/test python bgp_zebra_test.py --gobgp-image $GOBGP_IMAGE --test-prefix zebra -x &
+sudo  PYTHONPATH=$GOBGP/test python bgp_zebra_test.py --gobgp-image $GOBGP_IMAGE --test-prefix zebra -x -s &
 PIDS=("${PIDS[@]}" $!)
 
-sudo  PYTHONPATH=$GOBGP/test python monitor_test.py --gobgp-image $GOBGP_IMAGE --test-prefix mon -x &
+sudo  PYTHONPATH=$GOBGP/test python monitor_test.py --gobgp-image $GOBGP_IMAGE --test-prefix mon -x -s &
 PIDS=("${PIDS[@]}" $!)
 
 

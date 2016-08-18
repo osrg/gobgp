@@ -15,6 +15,8 @@ type BgpConfigSet struct {
 	RpkiServers       []RpkiServer       `mapstructure:"rpki-servers"`
 	BmpServers        []BmpServer        `mapstructure:"bmp-servers"`
 	MrtDump           []Mrt              `mapstructure:"mrt-dump"`
+	Zebra             Zebra              `mapstructure:"zebra"`
+	Collector         Collector          `mapstructure:"collector"`
 	DefinedSets       DefinedSets        `mapstructure:"defined-sets"`
 	PolicyDefinitions []PolicyDefinition `mapstructure:"policy-definitions"`
 }
@@ -36,27 +38,36 @@ func ReadConfigfileServe(path, format string, configCh chan *BgpConfigSet) {
 		if err = v.UnmarshalExact(c); err != nil {
 			goto ERROR
 		}
-		if err = SetDefaultConfigValues(v, c); err != nil {
+		if err = setDefaultConfigValuesWithViper(v, c); err != nil {
 			goto ERROR
 		}
 		if cnt == 0 {
-			log.Info("finished reading the config file")
+			log.WithFields(log.Fields{
+				"Topic": "Config",
+			}).Info("Finished reading the config file")
 		}
 		cnt++
 		configCh <- c
-		select {
-		case <-sigCh:
-			log.Info("reload the config file")
-		}
-		continue
+		goto NEXT
 	ERROR:
 		if cnt == 0 {
-			log.Fatal("can't read config file ", path, ", ", err)
+			log.WithFields(log.Fields{
+				"Topic": "Config",
+				"Error": err,
+			}).Fatalf("Can't read config file %s", path)
 		} else {
-			log.Warning("can't read config file ", path, ", ", err)
-			continue
+			log.WithFields(log.Fields{
+				"Topic": "Config",
+				"Error": err,
+			}).Warningf("Can't read config file %s", path)
 		}
-
+	NEXT:
+		select {
+		case <-sigCh:
+			log.WithFields(log.Fields{
+				"Topic": "Config",
+			}).Info("Reload the config file")
+		}
 	}
 }
 
@@ -86,6 +97,12 @@ func UpdateConfig(curC, newC *BgpConfigSet) ([]Neighbor, []Neighbor, []Neighbor,
 		if idx := inSlice(n, curC.Neighbors); idx < 0 {
 			added = append(added, n)
 		} else if !n.Equal(&curC.Neighbors[idx]) {
+			log.WithFields(log.Fields{
+				"Topic": "Config",
+			}).Debugf("Current neighbor config:%s", curC.Neighbors[idx])
+			log.WithFields(log.Fields{
+				"Topic": "Config",
+			}).Debugf("New neighbor config:%s", n)
 			updated = append(updated, n)
 		}
 	}
@@ -101,8 +118,12 @@ func UpdateConfig(curC, newC *BgpConfigSet) ([]Neighbor, []Neighbor, []Neighbor,
 
 func CheckPolicyDifference(currentPolicy *RoutingPolicy, newPolicy *RoutingPolicy) bool {
 
-	log.Debug("current policy : ", currentPolicy)
-	log.Debug("newPolicy policy : ", newPolicy)
+	log.WithFields(log.Fields{
+		"Topic": "Config",
+	}).Debugf("Current policy:%s", currentPolicy)
+	log.WithFields(log.Fields{
+		"Topic": "Config",
+	}).Debugf("New policy:%s", newPolicy)
 
 	var result bool = false
 	if currentPolicy == nil && newPolicy == nil {

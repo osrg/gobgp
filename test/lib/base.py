@@ -39,6 +39,8 @@ BGP_ATTR_TYPE_NEXT_HOP = 3
 BGP_ATTR_TYPE_MULTI_EXIT_DISC = 4
 BGP_ATTR_TYPE_LOCAL_PREF = 5
 BGP_ATTR_TYPE_COMMUNITIES = 8
+BGP_ATTR_TYPE_ORIGINATOR_ID = 9
+BGP_ATTR_TYPE_CLUSTER_LIST = 10
 BGP_ATTR_TYPE_MP_REACH_NLRI = 14
 BGP_ATTR_TYPE_EXTENDED_COMMUNITIES = 16
 
@@ -153,8 +155,10 @@ class Container(object):
         self.image = image
         self.shared_volumes = []
         self.ip_addrs = []
+        self.ip6_addrs = []
         self.is_running = False
         self.eths = []
+        self.tcpdump_running = False
 
         if self.docker_name() in get_containers():
             self.remove()
@@ -182,6 +186,9 @@ class Container(object):
             if line.strip().startswith("inet "):
                 elems = [e.strip() for e in line.strip().split(' ')]
                 self.ip_addrs.append(('eth0', elems[1], 'docker0'))
+            elif line.strip().startswith("inet6 "):
+                elems = [e.strip() for e in line.strip().split(' ')]
+                self.ip6_addrs.append(('eth0', elems[1], 'docker0'))
         return 0
 
     def stop(self):
@@ -224,6 +231,21 @@ class Container(object):
             return int(local(cmd, capture=True))
         return -1
 
+    def start_tcpdump(self, interface=None, filename=None, expr='tcp port 179'):
+        if self.tcpdump_running:
+            raise Exception('tcpdump already running')
+        self.tcpdump_running = True
+        if not interface:
+            interface = "eth0"
+        if not filename:
+            filename = '{0}.dump'.format(interface)
+        self.local("tcpdump -i {0} -w {1}/{2} {3}".format(interface, self.shared_volumes[0][1], filename, expr), detach=True)
+        return '{0}/{1}'.format(self.shared_volumes[0][0], filename)
+
+    def stop_tcpdump(self):
+        self.local("pkill tcpdump")
+        self.tcpdump_running = False
+
 
 class BGPContainer(Container):
 
@@ -254,15 +276,23 @@ class BGPContainer(Container):
                  policies=None, passive=False,
                  is_rr_client=False, cluster_id=None,
                  flowspec=False, bridge='', reload_config=True, as2=False,
-                 graceful_restart=None, local_as=None, prefix_limit=None):
+                 graceful_restart=None, local_as=None, prefix_limit=None,
+                 v6=False):
         neigh_addr = ''
         local_addr = ''
-        for me, you in itertools.product(self.ip_addrs, peer.ip_addrs):
+        it = itertools.product(self.ip_addrs, peer.ip_addrs)
+        if v6:
+            it = itertools.product(self.ip6_addrs, peer.ip6_addrs)
+
+        for me, you in it:
             if bridge != '' and bridge != me[2]:
                 continue
             if me[2] == you[2]:
                 neigh_addr = you[1]
                 local_addr = me[1]
+                if v6:
+                    addr, mask = local_addr.split('/')
+                    local_addr = "{0}%{1}/{2}".format(addr, me[0], mask)
                 break
 
         if neigh_addr == '':

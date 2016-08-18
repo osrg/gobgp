@@ -4,28 +4,22 @@
 [global.config]
     as = 1
     router-id = "1.1.1.1"
+    # listen port (by default 179)
+    port = 1790
+    # to disable listening
+    # port = -1
+
+    # listen address list (by default "0.0.0.0" and "::")
+    local-address-list = ["192.168.10.1", "2001:db8::1"]
+
     [global.apply-policy.config]
         import-policy-list = ["policy1"]
         default-import-policy = "reject-route"
         export-policy-list = ["policy2"]
         default-export-policy = "accept-route"
-    [global.zebra]
-        enabled = true
-        url = "unix:/var/run/quagga/zserv.api"
-        redistribute-route-type-list = ["connect"]
     [global.mpls-label-range]
         min-label = 1000
         max-label = 2000
-    [global.listen-config]
-        # listen port (by default 179)
-        port = 1790
-        # to disable listening
-        # port = -1
-
-        # listen address list (by default "0.0.0.0" and "::")
-        local-address-list = ["192.168.10.1", "2001:db8::1"]
-    [global.collector]
-        enabled = true
 
 [[rpki-servers]]
     [rpki-servers.config]
@@ -42,6 +36,12 @@
     file-name = "/tmp/log/2006/01/02.1504.dump"
     interval = 180
 
+[zebra]
+    [zebra.config]
+        enabled = true
+        url = "unix:/var/run/quagga/zserv.api"
+        redistribute-route-type-list = ["connect"]
+
 [[neighbors]]
     [neighbors.config]
         peer-as = 2
@@ -56,6 +56,7 @@
     [neighbors.transport.config]
         passive-mode = true
         local-address = "192.168.10.1"
+        remote-port = 2016
     [neighbors.ebgp-multihop.config]
         enabled = true
         multihop-ttl = 100
@@ -194,4 +195,25 @@
             options = "remove"
             [policy-definitions.statements.actions.bgp-actions.set-ext-community.set-ext-community-method]
                 communities-list = ["soo:500:600", "rt:700:800"]
+
+[[policy-definitions]]
+    name = "route-type-policy"
+    [[policy-definitions.statements]]
+        # this statement matches with locally generated routes 
+        [policy-definitions.statements.conditions.bgp-conditions]
+            route-type = "local"
+        [policy-definitions.statements.actions.route-disposition]
+            accept-route = true
+    [[policy-definitions.statements]]
+        # this statement matches with routes from iBGP peers
+        [policy-definitions.statements.conditions.bgp-conditions]
+            route-type = "internal"
+        [policy-definitions.statements.actions.route-disposition]
+            accept-route = true
+    [[policy-definitions.statements]]
+        # this statement matches with routes from eBGP peers
+        [policy-definitions.statements.conditions.bgp-conditions]
+            route-type = "external"
+        [policy-definitions.statements.actions.route-disposition]
+            accept-route = true
 ```

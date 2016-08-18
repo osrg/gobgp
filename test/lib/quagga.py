@@ -228,10 +228,13 @@ class QuaggaBGPContainer(BGPContainer):
             f.writelines(str(c))
 
     def vtysh(self, cmd, config=True):
+        if type(cmd) is not list:
+            cmd = [cmd]
+        cmd = ' '.join("-c '{0}'".format(c) for c in cmd)
         if config:
-            return self.local("vtysh -d bgpd -c 'en' -c 'conf t' -c 'router bgp {0}' -c '{1}'".format(self.asn, cmd), capture=True)
+            return self.local("vtysh -d bgpd -c 'en' -c 'conf t' -c 'router bgp {0}' {1}".format(self.asn, cmd), capture=True)
         else:
-            return self.local("vtysh -d bgpd -c '{0}'".format(cmd), capture=True)
+            return self.local("vtysh -d bgpd {0}".format(cmd), capture=True)
 
     def reload_config(self):
         daemon = []
@@ -241,3 +244,28 @@ class QuaggaBGPContainer(BGPContainer):
         for d in daemon:
             cmd = '/usr/bin/pkill {0} -SIGHUP'.format(d)
             self.local(cmd, capture=True)
+
+
+class RawQuaggaBGPContainer(QuaggaBGPContainer):
+    def __init__(self, name, config, ctn_image_name='osrg/quagga', zebra=False):
+        asn = None
+        router_id = None
+        for line in config.split('\n'):
+            line = line.strip()
+            if line.startswith('router bgp'):
+                asn = int(line[len('router bgp'):].strip())
+            if line.startswith('bgp router-id'):
+                router_id = line[len('bgp router-id'):].strip()
+        if not asn:
+            raise Exception('asn not in quagga config')
+        if not router_id:
+            raise Exception('router-id not in quagga config')
+        self.config = config
+        super(RawQuaggaBGPContainer, self).__init__(name, asn, router_id,
+                                                    ctn_image_name, zebra)
+
+    def create_config(self):
+        with open('{0}/bgpd.conf'.format(self.config_dir), 'w') as f:
+            print colors.yellow('[{0}\'s new config]'.format(self.name))
+            print colors.yellow(indent(self.config))
+            f.writelines(self.config)

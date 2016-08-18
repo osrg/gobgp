@@ -44,15 +44,15 @@ CLI syntax to add ipv4/ipv6 flowspec rule is
 
 ```shell
 % global rib add match <MATCH_EXPR> then <THEN_EXPR> -a [ipv4-flowspec|ipv6-flowspec]
-    <MATCH_EXPR> : { destination <PREFIX> | source <PREFIX> |
-                     protocol <PROTO>... | fragment <FRAGMENT_TYPE> | tcp-flags <TCPFLAG>... |
-                     { port | destination-port | source-port | icmp-type | icmp-code | packet-length | dscp } <ITEM>... }...
-        <PROTO> : ipip, sctp, unknown, igmp, tcp, egp, rsvp, pim, icmp, igp, udp, gre, ospf
-        <FRAGMENT_TYPE> : dont-fragment, is-fragment, first-fragment, last-fragment, not-a-fragment
-        <TCPFLAG> : push, ack, urgent, fin, syn, rst
-        <ITEM> : &?{<|>|=}<value>
-    <THEN_EXPR> : { accept | discard | rate-limit <value> | redirect <RT> | mark <value> | action { sample | terminal | sample-terminal } | rt <RT>... }...
-        <RT> : xxx:yyy, xx.xx.xx.xx:yyy, xxx.xxx:yyy
+   <MATCH_EXPR> : { destination <PREFIX> [<OFFSET>] | source <PREFIX> [<OFFSET>] |
+                    protocol <PROTO>... | fragment <FRAGMENT_TYPE> | tcp-flags [not] [match] <TCPFLAG>... |
+                    { port | destination-port | source-port | icmp-type | icmp-code | packet-length | dscp | label } <ITEM>... }...
+   <PROTO> : ospf, pim, igp, udp, igmp, tcp, egp, rsvp, gre, ipip, unknown, icmp, sctp, <VALUE>
+   <FRAGMENT_TYPE> : dont-fragment, is-fragment, first-fragment, last-fragment, not-a-fragment
+   <TCPFLAG> : rst, push, ack, urgent, fin, syn
+   <ITEM> : &?{<|>|=}<value>
+   <THEN_EXPR> : { accept | discard | rate-limit <value> | redirect <RT> | mark <value> | action { sample | terminal | sample-terminal } | rt <RT>... }...
+   <RT> : xxx:yyy, xx.xx.xx.xx:yyy, xxx.xxx:yyy
 ```
 
 that for l2vpn flowspec rule is

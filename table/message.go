@@ -20,6 +20,7 @@ import (
 	log "github.com/Sirupsen/logrus"
 	"github.com/osrg/gobgp/packet/bgp"
 	"hash/fnv"
+	"reflect"
 )
 
 func UpdatePathAttrs2ByteAs(msg *bgp.BGPUpdate) error {
@@ -142,7 +143,9 @@ func UpdatePathAttrs4ByteAs(msg *bgp.BGPUpdate) error {
 				if p.Type == bgp.BGP_ASPATH_ATTR_TYPE_CONFED_SET {
 					typ = "CONFED_SET"
 				}
-				log.Warnf("AS4_PATH contains %s segment %s. ignore", typ, p.String())
+				log.WithFields(log.Fields{
+					"Topic": "Table",
+				}).Warnf("AS4_PATH contains %s segment %s. ignore", typ, p.String())
 				continue
 			}
 			as4Len += p.ASLen()
@@ -151,7 +154,9 @@ func UpdatePathAttrs4ByteAs(msg *bgp.BGPUpdate) error {
 	}
 
 	if asLen+asConfedLen < as4Len {
-		log.Warnf("AS4_PATH is longer than AS_PATH. ignore AS4_PATH")
+		log.WithFields(log.Fields{
+			"Topic": "Table",
+		}).Warn("AS4_PATH is longer than AS_PATH. ignore AS4_PATH")
 		return nil
 	}
 
@@ -198,6 +203,59 @@ func UpdatePathAttrs4ByteAs(msg *bgp.BGPUpdate) error {
 	return nil
 }
 
+func UpdatePathAggregator2ByteAs(msg *bgp.BGPUpdate) {
+	as := uint32(0)
+	var addr string
+	for i, attr := range msg.PathAttributes {
+		switch attr.(type) {
+		case *bgp.PathAttributeAggregator:
+			agg := attr.(*bgp.PathAttributeAggregator)
+			addr = agg.Value.Address.String()
+			if agg.Value.AS > (1<<16)-1 {
+				as = agg.Value.AS
+				msg.PathAttributes[i] = bgp.NewPathAttributeAggregator(uint16(bgp.AS_TRANS), addr)
+			} else {
+				msg.PathAttributes[i] = bgp.NewPathAttributeAggregator(uint16(agg.Value.AS), addr)
+			}
+		}
+	}
+	if as != 0 {
+		msg.PathAttributes = append(msg.PathAttributes, bgp.NewPathAttributeAs4Aggregator(as, addr))
+	}
+}
+
+func UpdatePathAggregator4ByteAs(msg *bgp.BGPUpdate) error {
+	var aggAttr *bgp.PathAttributeAggregator
+	var agg4Attr *bgp.PathAttributeAs4Aggregator
+	agg4AttrPos := 0
+	for i, attr := range msg.PathAttributes {
+		switch attr.(type) {
+		case *bgp.PathAttributeAggregator:
+			attr := attr.(*bgp.PathAttributeAggregator)
+			if attr.Value.Askind == reflect.Uint16 {
+				aggAttr = attr
+				aggAttr.Value.Askind = reflect.Uint32
+			}
+		case *bgp.PathAttributeAs4Aggregator:
+			agg4Attr = attr.(*bgp.PathAttributeAs4Aggregator)
+			agg4AttrPos = i
+		}
+	}
+	if aggAttr == nil && agg4Attr == nil {
+		return nil
+	}
+
+	if aggAttr == nil && agg4Attr != nil {
+		return bgp.NewMessageError(bgp.BGP_ERROR_UPDATE_MESSAGE_ERROR, bgp.BGP_ERROR_SUB_MALFORMED_ATTRIBUTE_LIST, nil, "AS4 AGGREGATOR attribute exists, but AGGREGATOR doesn't")
+	}
+
+	if agg4Attr != nil {
+		msg.PathAttributes = append(msg.PathAttributes[:agg4AttrPos], msg.PathAttributes[agg4AttrPos+1:]...)
+		aggAttr.Value.AS = agg4Attr.Value.AS
+	}
+	return nil
+}
+
 func createUpdateMsgFromPath(path *Path, msg *bgp.BGPMessage) *bgp.BGPMessage {
 	rf := path.GetRouteFamily()
 
@@ -238,7 +296,7 @@ func createUpdateMsgFromPath(path *Path, msg *bgp.BGPMessage) *bgp.BGPMessage {
 					attr = path.getPathAttr(bgp.BGP_ATTR_TYPE_MP_UNREACH_NLRI)
 					nlris = attr.(*bgp.PathAttributeMpUnreachNLRI).Value
 				} else {
-					nlris = attr.(*bgp.PathAttributeMpReachNLRI).Value
+					nlris = []bgp.AddrPrefixInterface{path.GetNlri()}
 				}
 
 				clonedAttrs := path.GetPathAttrs()
@@ -260,10 +318,20 @@ func createUpdateMsgFromPath(path *Path, msg *bgp.BGPMessage) *bgp.BGPMessage {
 					}
 				}
 			} else {
+				attrs := make([]bgp.PathAttributeInterface, 0, 8)
+
+				for _, p := range path.GetPathAttrs() {
+					if p.GetType() == bgp.BGP_ATTR_TYPE_MP_REACH_NLRI {
+						attrs = append(attrs, bgp.NewPathAttributeMpReachNLRI(path.GetNexthop().String(), []bgp.AddrPrefixInterface{path.GetNlri()}))
+					} else {
+						attrs = append(attrs, p)
+					}
+				}
+
 				// we don't need to clone here but we
 				// might merge path to this message in
 				// the future so let's clone anyway.
-				return bgp.NewBGPUpdateMessage(nil, path.GetPathAttrs(), nil)
+				return bgp.NewBGPUpdateMessage(nil, attrs, nil)
 			}
 		}
 	}

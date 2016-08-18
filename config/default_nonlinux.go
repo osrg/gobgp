@@ -12,16 +12,14 @@
 // implied.
 // See the License for the specific language governing permissions and
 // limitations under the License.
-//
 // +build !linux
 
-package server
+package config
 
 import (
 	"fmt"
-	"net"
 )
 
-func DialTCPTimeoutWithMD5Sig(host string, port int, localAddr, key string, msec int) (*net.TCPConn, error) {
-	return nil, fmt.Errorf("md5 active connection unsupported")
+func GetIPv6LinkLocalNeighborAddress(ifname string) (string, error) {
+	return "", fmt.Errorf("unnumbered peering is not supported")
 }

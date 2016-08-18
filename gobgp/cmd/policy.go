@@ -24,7 +24,6 @@ import (
 	"github.com/osrg/gobgp/table"
 	"github.com/spf13/cobra"
 	"golang.org/x/net/context"
-	"io"
 	"net"
 	"regexp"
 	"sort"
@@ -150,34 +149,22 @@ func showDefinedSet(v string, args []string) error {
 	default:
 		return fmt.Errorf("unknown defined type: %s", v)
 	}
+	rsp, err := client.GetDefinedSet(context.Background(), &api.GetDefinedSetRequest{Type: typ})
+	if err != nil {
+		return err
+	}
 	m := sets{}
 	if len(args) > 0 {
-		arg := &api.DefinedSet{
-			Type: typ,
-			Name: args[0],
-		}
-		p, e := client.GetDefinedSet(context.Background(), arg)
-		if e != nil {
-			return e
-		}
-		m = append(m, p)
-	} else {
-		arg := &api.DefinedSet{
-			Type: typ,
-		}
-		stream, e := client.GetDefinedSets(context.Background(), arg)
-		if e != nil {
-			return e
-		}
-		for {
-			p, e := stream.Recv()
-			if e == io.EOF {
-				break
-			} else if e != nil {
-				return e
+		for _, set := range rsp.Sets {
+			if args[0] == set.Name {
+				m = append(m, set)
 			}
-			m = append(m, p)
 		}
+		if len(m) == 0 {
+			return fmt.Errorf("not found %s", args[0])
+		}
+	} else {
+		m = rsp.Sets
 	}
 	if globalOpts.Json {
 		j, _ := json.Marshal(m)
@@ -383,23 +370,25 @@ func modDefinedSet(settype string, modtype string, args []string) error {
 	if d, err = parseDefinedSet(settype, args); err != nil {
 		return err
 	}
-	var op api.Operation
 	switch modtype {
 	case CMD_ADD:
-		op = api.Operation_ADD
+		_, err = client.AddDefinedSet(context.Background(), &api.AddDefinedSetRequest{
+			Set: d,
+		})
 	case CMD_DEL:
+		all := false
 		if len(args) < 2 {
-			op = api.Operation_DEL_ALL
-		} else {
-			op = api.Operation_DEL
+			all = true
 		}
+		_, err = client.DeleteDefinedSet(context.Background(), &api.DeleteDefinedSetRequest{
+			Set: d,
+			All: all,
+		})
 	case CMD_SET:
-		op = api.Operation_REPLACE
+		_, err = client.ReplaceDefinedSet(context.Background(), &api.ReplaceDefinedSetRequest{
+			Set: d,
+		})
 	}
-	_, err = client.ModDefinedSet(context.Background(), &api.ModDefinedSetArguments{
-		Operation: op,
-		Set:       d,
-	})
 	return err
 }
 
@@ -445,6 +434,10 @@ func printStatement(indent int, s *api.Statement) {
 		fmt.Printf("%sRPKI result: %s\n", sIndent(indent+4), config.IntToRpkiValidationResultTypeMap[int(rpki)])
 	}
 
+	if routeType := s.Conditions.RouteType; routeType > 0 {
+		fmt.Printf("%sRoute Type: %s\n", sIndent(indent+4), config.IntToRouteTypeMap[int(routeType)])
+	}
+
 	fmt.Printf("%sActions:\n", sIndent(indent+2))
 
 	formatComAction := func(c *api.CommunityAction) string {
@@ -463,7 +456,10 @@ func printStatement(indent int, s *api.Statement) {
 		fmt.Printf("%sExtCommunity:    %s\n", sIndent(indent+4), formatComAction(s.Actions.ExtCommunity))
 	}
 	if s.Actions.Med != nil {
-		fmt.Printf("%sMed:             %s\n", sIndent(indent+4), s.Actions.Med.Value)
+		fmt.Printf("%sMed:             %d\n", sIndent(indent+4), s.Actions.Med.Value)
+	}
+	if s.Actions.LocalPref != nil {
+		fmt.Printf("%sLocalPref:             %d\n", sIndent(indent+4), s.Actions.LocalPref.Value)
 	}
 	if s.Actions.AsPrepend != nil {
 		var asn string
@@ -476,7 +472,11 @@ func printStatement(indent int, s *api.Statement) {
 		fmt.Printf("%sAsPrepend:       %s   %d\n", sIndent(indent+4), asn, s.Actions.AsPrepend.Repeat)
 	}
 	if s.Actions.Nexthop != nil {
-		fmt.Printf("%sNexthop:             %s\n", sIndent(indent+4), s.Actions.Nexthop.Address)
+		addr := s.Actions.Nexthop.Address
+		if s.Actions.Nexthop.Self {
+			addr = "SELF"
+		}
+		fmt.Printf("%sNexthop:             %s\n", sIndent(indent+4), addr)
 	}
 	fmt.Printf("%s%s\n", sIndent(indent+4), s.Actions.RouteAction)
 }
@@ -488,31 +488,23 @@ func printPolicy(indent int, pd *api.Policy) {
 }
 
 func showPolicy(args []string) error {
+	rsp, err := client.GetPolicy(context.Background(), &api.GetPolicyRequest{})
+	if err != nil {
+		return err
+	}
 	m := policies{}
 	if len(args) > 0 {
-		arg := &api.Policy{
-			Name: args[0],
-		}
-		p, e := client.GetPolicy(context.Background(), arg)
-		if e != nil {
-			return e
-		}
-		m = append(m, p)
-	} else {
-		arg := &api.Policy{}
-		stream, e := client.GetPolicies(context.Background(), arg)
-		if e != nil {
-			return e
-		}
-		for {
-			p, e := stream.Recv()
-			if e == io.EOF {
+		for _, p := range rsp.Policies {
+			if args[0] == p.Name {
+				m = append(m, p)
 				break
-			} else if e != nil {
-				return e
 			}
-			m = append(m, p)
 		}
+		if len(m) == 0 {
+			return fmt.Errorf("not found %s", args[0])
+		}
+	} else {
+		m = rsp.Policies
 	}
 	if globalOpts.Json {
 		j, _ := json.Marshal(m)
@@ -534,31 +526,23 @@ func showPolicy(args []string) error {
 }
 
 func showStatement(args []string) error {
+	rsp, err := client.GetStatement(context.Background(), &api.GetStatementRequest{})
+	if err != nil {
+		return err
+	}
 	m := []*api.Statement{}
 	if len(args) > 0 {
-		arg := &api.Statement{
-			Name: args[0],
-		}
-		p, e := client.GetStatement(context.Background(), arg)
-		if e != nil {
-			return e
-		}
-		m = append(m, p)
-	} else {
-		arg := &api.Statement{}
-		stream, e := client.GetStatements(context.Background(), arg)
-		if e != nil {
-			return e
-		}
-		for {
-			p, e := stream.Recv()
-			if e == io.EOF {
+		for _, s := range rsp.Statements {
+			if args[0] == s.Name {
+				m = append(m, s)
 				break
-			} else if e != nil {
-				return e
 			}
-			m = append(m, p)
 		}
+		if len(m) == 0 {
+			return fmt.Errorf("not found %s", args[0])
+		}
+	} else {
+		m = rsp.Statements
 	}
 	if globalOpts.Json {
 		j, _ := json.Marshal(m)
@@ -581,50 +565,33 @@ func modStatement(op string, args []string) error {
 	if len(args) < 1 {
 		return fmt.Errorf("usage: gobgp policy statement %s <name>", op)
 	}
-	name := args[0]
-	var o api.Operation
+	stmt := &api.Statement{
+		Name: args[0],
+	}
+	var err error
 	switch op {
 	case CMD_ADD:
-		o = api.Operation_ADD
+		_, err = client.AddStatement(context.Background(), &api.AddStatementRequest{
+			Statement: stmt,
+		})
 	case CMD_DEL:
-		o = api.Operation_DEL_ALL
+		_, err = client.DeleteStatement(context.Background(), &api.DeleteStatementRequest{
+			Statement: stmt,
+		})
 	default:
 		return fmt.Errorf("invalid operation: %s", op)
 	}
-	stmt := &api.Statement{
-		Name: name,
-	}
-	arg := &api.ModStatementArguments{
-		Operation: o,
-		Statement: stmt,
-	}
-	_, err := client.ModStatement(context.Background(), arg)
 	return err
 }
 
 func modCondition(name, op string, args []string) error {
-	var o api.Operation
-	switch op {
-	case CMD_ADD:
-		o = api.Operation_ADD
-	case CMD_DEL:
-		o = api.Operation_DEL
-	case CMD_SET:
-		o = api.Operation_REPLACE
-	default:
-		return fmt.Errorf("invalid operation: %s", op)
-	}
 	stmt := &api.Statement{
 		Name:       name,
 		Conditions: &api.Conditions{},
 	}
-	arg := &api.ModStatementArguments{
-		Operation: o,
-		Statement: stmt,
-	}
 	usage := fmt.Sprintf("usage: gobgp policy statement %s %s condition", name, op)
 	if len(args) < 1 {
-		return fmt.Errorf("%s { prefix | neighbor | as-path | community | ext-community | as-path-length | rpki }", usage)
+		return fmt.Errorf("%s { prefix | neighbor | as-path | community | ext-community | as-path-length | rpki | route-type }", usage)
 	}
 	typ := args[0]
 	args = args[1:]
@@ -760,34 +727,52 @@ func modCondition(name, op string, args []string) error {
 		default:
 			return fmt.Errorf("%s rpki { valid | invalid | not-found }", usage)
 		}
+	case "route-type":
+		err := fmt.Errorf("%s route-type { internal | external | local }", usage)
+		if len(args) < 1 {
+			return err
+		}
+		switch strings.ToLower(args[0]) {
+		case "internal":
+			stmt.Conditions.RouteType = api.Conditions_ROUTE_TYPE_INTERNAL
+		case "external":
+			stmt.Conditions.RouteType = api.Conditions_ROUTE_TYPE_EXTERNAL
+		case "local":
+			stmt.Conditions.RouteType = api.Conditions_ROUTE_TYPE_LOCAL
+		default:
+			return err
+		}
+	default:
+		return fmt.Errorf("%s { prefix | neighbor | as-path | community | ext-community | as-path-length | rpki | route-type }", usage)
 	}
-	_, err := client.ModStatement(context.Background(), arg)
+	var err error
+	switch op {
+	case CMD_ADD:
+		_, err = client.AddStatement(context.Background(), &api.AddStatementRequest{
+			Statement: stmt,
+		})
+	case CMD_DEL:
+		_, err = client.DeleteStatement(context.Background(), &api.DeleteStatementRequest{
+			Statement: stmt,
+		})
+	case CMD_SET:
+		_, err = client.ReplaceStatement(context.Background(), &api.ReplaceStatementRequest{
+			Statement: stmt,
+		})
+	default:
+		return fmt.Errorf("invalid operation: %s", op)
+	}
 	return err
 }
 
 func modAction(name, op string, args []string) error {
-	var o api.Operation
-	switch op {
-	case CMD_ADD:
-		o = api.Operation_ADD
-	case CMD_DEL:
-		o = api.Operation_DEL
-	case CMD_SET:
-		o = api.Operation_REPLACE
-	default:
-		return fmt.Errorf("invalid operation: %s", op)
-	}
 	stmt := &api.Statement{
 		Name:    name,
 		Actions: &api.Actions{},
 	}
-	arg := &api.ModStatementArguments{
-		Operation: o,
-		Statement: stmt,
-	}
 	usage := fmt.Sprintf("usage: gobgp policy statement %s %s action", name, op)
 	if len(args) < 1 {
-		return fmt.Errorf("%s { reject | accept | community | ext-community | med | as-prepend | next-hop }", usage)
+		return fmt.Errorf("%s { reject | accept | community | ext-community | med | local-pref | as-prepend | next-hop }", usage)
 	}
 	typ := args[0]
 	args = args[1:]
@@ -852,6 +837,17 @@ func modAction(name, op string, args []string) error {
 		default:
 			return fmt.Errorf("%s med { add | sub | set } <value>")
 		}
+	case "local-pref":
+		if len(args) < 1 {
+			return fmt.Errorf("%s local-pref <value>", usage)
+		}
+		value, err := strconv.ParseUint(args[0], 10, 32)
+		if err != nil {
+			return err
+		}
+		stmt.Actions.LocalPref = &api.LocalPrefAction{
+			Value: uint32(value),
+		}
 	case "as-prepend":
 		if len(args) < 2 {
 			return fmt.Errorf("%s as-prepend { <asn> | last-as } <repeat-value>", usage)
@@ -874,13 +870,38 @@ func modAction(name, op string, args []string) error {
 		}
 	case "next-hop":
 		if len(args) != 1 {
-			return fmt.Errorf("%s next-hop <value>", usage)
+			return fmt.Errorf("%s next-hop { <value> | self }", usage)
 		}
-		stmt.Actions.Nexthop = &api.NexthopAction{
-			Address: args[0],
+		if strings.ToLower(args[0]) == "self" {
+			stmt.Actions.Nexthop = &api.NexthopAction{
+				Self: true,
+			}
+		} else {
+			if net.ParseIP(args[0]) == nil {
+				return fmt.Errorf("invalid next-hop format: %s", args[0])
+			}
+			stmt.Actions.Nexthop = &api.NexthopAction{
+				Address: args[0],
+			}
 		}
 	}
-	_, err := client.ModStatement(context.Background(), arg)
+	var err error
+	switch op {
+	case CMD_ADD:
+		_, err = client.AddStatement(context.Background(), &api.AddStatementRequest{
+			Statement: stmt,
+		})
+	case CMD_DEL:
+		_, err = client.DeleteStatement(context.Background(), &api.DeleteStatementRequest{
+			Statement: stmt,
+		})
+	case CMD_SET:
+		_, err = client.ReplaceStatement(context.Background(), &api.ReplaceStatementRequest{
+			Statement: stmt,
+		})
+	default:
+		return fmt.Errorf("invalid operation: %s", op)
+	}
 	return err
 }
 
@@ -890,33 +911,43 @@ func modPolicy(modtype string, args []string) error {
 	}
 	name := args[0]
 	args = args[1:]
-	var op api.Operation
-	switch modtype {
-	case CMD_ADD:
-		op = api.Operation_ADD
-	case CMD_DEL:
-		if len(args) < 1 {
-			op = api.Operation_DEL_ALL
-		} else {
-			op = api.Operation_DEL
-		}
-	case CMD_SET:
-		op = api.Operation_REPLACE
-	}
 	stmts := make([]*api.Statement, 0, len(args))
 	for _, n := range args {
 		stmts = append(stmts, &api.Statement{Name: n})
 	}
-	arg := &api.ModPolicyArguments{
-		Operation: op,
-		Policy: &api.Policy{
-			Name:       name,
-			Statements: stmts,
-		},
-		ReferExistingStatements: true,
-		PreserveStatements:      true,
+	var err error
+	switch modtype {
+	case CMD_ADD:
+		_, err = client.AddPolicy(context.Background(), &api.AddPolicyRequest{
+			Policy: &api.Policy{
+				Name:       name,
+				Statements: stmts,
+			},
+			ReferExistingStatements: true,
+		})
+	case CMD_DEL:
+		all := false
+		if len(args) < 1 {
+			all = true
+		}
+		_, err = client.DeletePolicy(context.Background(), &api.DeletePolicyRequest{
+			Policy: &api.Policy{
+				Name:       name,
+				Statements: stmts,
+			},
+			All:                all,
+			PreserveStatements: true,
+		})
+	case CMD_SET:
+		_, err = client.ReplacePolicy(context.Background(), &api.ReplacePolicyRequest{
+			Policy: &api.Policy{
+				Name:       name,
+				Statements: stmts,
+			},
+			ReferExistingStatements: true,
+			PreserveStatements:      true,
+		})
 	}
-	_, err := client.ModPolicy(context.Background(), arg)
 	return err
 }
 

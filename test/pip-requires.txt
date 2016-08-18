@@ -1,9 +1,8 @@
 nose
 toml
-ciscoconfparse
-ecdsa
-pycrypto>=2.1
+pyyaml
 fabric
 netaddr
 nsenter
 docker-py
+ryu

@@ -188,6 +188,23 @@ module gobgp {
   }
 
 
+  grouping gobgp-adjacent-table {
+    container adj-table {
+      leaf ADVERTISED {
+        type uint32;
+      }
+
+      leaf RECEIVED {
+        type uint32;
+      }
+
+      leaf ACCEPTED {
+        type uint32;
+      }
+    }
+  }
+
+
   grouping gobgp-timer {
     description "additional timer";
 
@@ -395,6 +412,24 @@ module gobgp {
   grouping gobgp-rpki-server-state {
     description "additional RPKI state";
 
+    leaf up {
+      type boolean;
+    }
+    leaf serial-number {
+      type uint32;
+    }
+    leaf records-v4 {
+      type uint32;
+    }
+    leaf records-v6 {
+      type uint32;
+    }
+    leaf prefixes-v4 {
+      type uint32;
+    }
+    leaf prefixes-v6 {
+      type uint32;
+    }
     leaf uptime {
       type int64;
       description
@@ -562,12 +597,47 @@ module gobgp {
   }
 
   augment "/bgp:bgp/bgp:neighbors/bgp:neighbor/bgp:state" {
+    description "additional counters";
+    uses gobgp-adjacent-table;
+  }
+
+
+  augment "/bgp:bgp/bgp:neighbors/bgp:neighbor/bgp:state" {
+    container Capabilities {
+      leaf-list remote {
+        type binary;
+      }
+      leaf-list local {
+        type binary;
+      }
+    }
+
+    leaf received-open-message {
+      type binary;
+    }
+  }
+
+  augment "/bgp:bgp/bgp:neighbors/bgp:neighbor/bgp:config" {
+    description "additional state elements";
+
+    leaf admin-down {
+      type boolean;
+      description
+        "The config of administrative operation. If state, indicates the neighbor is disabled by the administrator";
+    }
+  }
+
+  augment "/bgp:bgp/bgp:neighbors/bgp:neighbor/bgp:state" {
     description "additional state elements";
 
     leaf admin-down {
       type boolean;
       description
         "The state of administrative operation. If the state is true, it indicates the neighbor is disabled by the administrator";
+    }
+
+    leaf admin-state {
+      type string;
     }
 
     leaf established-count {
@@ -586,7 +656,19 @@ module gobgp {
   }
 
   augment "/bgp:bgp/bgp:neighbors/bgp:neighbor/bgp:config" {
-    leaf neighbor-port-number {
+    leaf neighbor-interface {
+      type string;
+    }
+  }
+
+  augment "/bgp:bgp/bgp:neighbors/bgp:neighbor/bgp:state" {
+    leaf neighbor-interface {
+      type string;
+    }
+  }
+
+  augment "/bgp:bgp/bgp:neighbors/bgp:neighbor/bgp:transport/bgp:config" {
+    leaf remote-port {
       type inet:port-number;
     }
   }
@@ -716,20 +798,32 @@ module gobgp {
     uses gobgp-rpki-validation-result;
   }
 
+  deviation "/rpol:routing-policy/rpol:policy-definitions/" +
+    "rpol:policy-definition/rpol:statements/rpol:statement/" +
+    "rpol:conditions/bgp-pol:bgp-conditions/bgp-pol:route-type" {
+    description "alternative route-type condition";
+    deviate replace {
+        type enumeration {
+          enum NONE {
+            description "route type is none";
+          }
+          enum INTERNAL {
+            description "route type is internal";
+          }
+          enum EXTERNAL {
+            description "route type is external";
+          }
+          enum LOCAL {
+            description "route type is local";
+          }
+        }
+
+    }
+  }
+
   augment "/bgp:bgp" {
     description "additional rpki configuration and state";
     uses gobgp-rpki-servers;
-  }
-
-  augment "/bgp:bgp/bgp:global" {
-    description "route collector mode";
-    container collector {
-      leaf enabled {
-        type boolean;
-         description
-          "Configure enabling route-collector mode.";
-      }
-    }
   }
 
   augment "/bgp:bgp" {
@@ -749,24 +843,41 @@ module gobgp {
     }
   }
 
+  grouping gobgp-mrt-set {
+    container config {
+      leaf dump-type {
+        type mrt-type;
+      }
+      leaf file-name {
+        type string;
+        description
+          "Configures a file name to be written";
+      }
+      leaf table-name {
+        type string;
+        description
+          "specify the table name with route server setup";
+      }
+      leaf dump-interval {
+        type uint64;
+      }
+      leaf rotation-interval {
+        type uint64;
+      }
+    }
+  }
+
   grouping gobgp-mrt {
     description "additional mrt configuration";
     container mrt-dump {
       list mrt {
         key "file-name";
-        description
-          "Configure dump bgp messages in the mrt format";
-        leaf dump-type {
-          type mrt-type;
-        }
         leaf file-name {
-          type string;
-          description
-            "Configures a file name to be written.";
+          type leafref {
+            path "../config/file-name";
+          }
         }
-        leaf interval {
-          type uint64;
-        }
+        uses gobgp-mrt-set;
       }
     }
   }
@@ -776,27 +887,64 @@ module gobgp {
     uses gobgp-mrt;
   }
 
-  augment "/bgp:bgp/bgp:global" {
-    description "zebra configuration";
-    container zebra {
-       description
-         "Configure connection to zebra";
-      leaf enabled {
-        type boolean;
-        description
-          "Configure enabling to connect to zebra.";
-      }
-      leaf url {
-        type string;
-        description
-          "Configure url for zebra.";
-      }
-      leaf-list redistribute-route-type {
-        type identityref {
-          base ptypes:install-protocol-type;
-        }
+  grouping zebra-config {
+    leaf enabled {
+      type boolean;
+      description
+        "Configure enabling to connect to zebra.";
+    }
+    leaf url {
+      type string;
+      description
+        "Configure url for zebra.";
+    }
+    leaf-list redistribute-route-type {
+      type identityref {
+        base ptypes:install-protocol-type;
       }
     }
+  }
+
+  grouping zebra-set {
+    container zebra {
+      container config {
+        uses zebra-config;
+      }
+      container state {
+        uses zebra-config;
+      }
+    }
+  }
+
+  augment "/bgp:bgp" {
+    uses zebra-set;
+  }
+
+  grouping collector-config {
+    leaf url {
+      type string;
+    }
+    leaf db-name {
+      type string;
+    }
+    leaf table-dump-interval {
+      type uint64;
+    }
+  }
+
+  grouping collector-set {
+    container collector {
+      container config {
+        uses collector-config;
+      }
+      container state {
+        uses collector-config;
+      }
+    }
+  }
+
+  augment "/bgp:bgp" {
+    uses collector-set;
   }
 
   augment "/bgp:bgp/bgp:global" {
@@ -812,26 +960,41 @@ module gobgp {
     }
   }
 
-  augment "/bgp:bgp/bgp:global" {
-    container listen-config {
-        leaf port {
-            type int32;
-        }
-        leaf-list local-address {
-            type string;
-        }
+  grouping listen-config {
+    leaf port {
+        type int32;
     }
+    leaf-list local-address {
+        type string;
+    }
+  }
+
+  augment "/bgp:bgp/bgp:global/bgp:config" {
+      uses listen-config;
+  }
+
+  augment "/bgp:bgp/bgp:global/bgp:state" {
+      uses listen-config;
   }
 
   augment "/bgp:bgp/bgp:global/bgp:afi-safis/bgp:afi-safi" {
       uses bgp-mp:all-afi-safi-common;
   }
 
+  grouping route-target-membership-config {
+      leaf deferral-time {
+        type uint16;
+      }
+  }
+
   augment "/bgp:bgp/bgp:global/bgp:afi-safis/bgp:afi-safi" {
     container route-target-membership {
-        leaf deferral-time {
-          type uint16;
-        }
+      container config {
+          uses route-target-membership-config;
+      }
+      container state {
+          uses route-target-membership-config;
+      }
     }
   }
 }

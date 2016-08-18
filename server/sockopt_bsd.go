@@ -12,21 +12,63 @@
 // implied.
 // See the License for the specific language governing permissions and
 // limitations under the License.
-// +build !linux,!dragonfly,!freebsd,!netbsd,!openbsd
+// +build dragonfly freebsd netbsd
 
 package server
 
 import (
 	"fmt"
 	"net"
+	"os"
+	"strings"
+	"syscall"
+	"unsafe"
+)
+
+const (
+	TCP_MD5SIG = 0x10
 )
 
 func SetTcpMD5SigSockopts(l *net.TCPListener, address string, key string) error {
-	return fmt.Errorf("md5 not supported")
+	fi, err := l.File()
+	defer fi.Close()
+
+	if err != nil {
+		return err
+	}
+
+	if l, err := net.FileListener(fi); err == nil {
+		defer l.Close()
+	}
+
+	// always enable and assumes that the configuration is done by
+	// setkey()
+	t := int32(1)
+	_, _, e := syscall.Syscall6(syscall.SYS_SETSOCKOPT, fi.Fd(),
+		uintptr(syscall.IPPROTO_TCP), uintptr(TCP_MD5SIG),
+		uintptr(unsafe.Pointer(&t)), unsafe.Sizeof(t), 0)
+	if e > 0 {
+		return e
+	}
+	return nil
 }
 
 func SetTcpTTLSockopts(conn *net.TCPConn, ttl int) error {
-	return fmt.Errorf("setting ttl is not supported")
+	level := syscall.IPPROTO_IP
+	name := syscall.IP_TTL
+	if strings.Contains(conn.RemoteAddr().String(), "[") {
+		level = syscall.IPPROTO_IPV6
+		name = syscall.IPV6_UNICAST_HOPS
+	}
+	fi, err := conn.File()
+	defer fi.Close()
+	if err != nil {
+		return err
+	}
+	if conn, err := net.FileConn(fi); err == nil {
+		defer conn.Close()
+	}
+	return os.NewSyscallError("setsockopt", syscall.SetsockoptInt(int(fi.Fd()), level, name, ttl))
 }
 
 func DialTCPTimeoutWithMD5Sig(host string, port int, localAddr, key string, msec int) (*net.TCPConn, error) {

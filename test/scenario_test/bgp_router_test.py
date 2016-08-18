@@ -18,12 +18,16 @@ from fabric.api import local
 from lib import base
 from lib.gobgp import *
 from lib.quagga import *
+from lib.exabgp import *
 import sys
 import os
 import time
 import nose
 from noseplugin import OptionParser, parser_option
 from itertools import chain
+import ryu.lib.pcaplib as pcap
+from ryu.lib.packet.packet import Packet
+from ryu.lib.packet.bgp import BGPMessage, BGPUpdate
 
 
 class GoBGPTestBase(unittest.TestCase):
@@ -144,9 +148,12 @@ class GoBGPTestBase(unittest.TestCase):
         self.test_04_check_quagga_global_rib()
 
     def test_07_stop_one_quagga(self):
+        g1 = self.gobgp
         q4 = self.quaggas['q4']
         q4.stop()
         self.gobgp.wait_for(expected_state=BGP_FSM_ACTIVE, peer=q4)
+
+        g1.del_peer(q4)
         del self.quaggas['q4']
 
     # check gobgp properly send withdrawal message with q4's route
@@ -284,6 +291,7 @@ class GoBGPTestBase(unittest.TestCase):
         self.assertTrue(med['metric'] == 2000)
 
     def test_17_check_shutdown(self):
+        g1 = self.gobgp
         q1 = self.quaggas['q1']
         q2 = self.quaggas['q2']
         q3 = self.quaggas['q3']
@@ -301,13 +309,15 @@ class GoBGPTestBase(unittest.TestCase):
         self.assertTrue(paths[0]['nexthop'] in n_addrs)
 
         q3.stop()
-        del self.quaggas['q3']
 
         time.sleep(3)
 
         paths = q1.get_global_rib('20.0.0.0/24')
         self.assertTrue(len(paths) == 1)
         self.assertTrue(paths[0]['nexthop'] in n_addrs)
+
+        g1.del_peer(q3)
+        del self.quaggas['q3']
 
     def test_18_check_withdrawal(self):
         g1 = self.gobgp
@@ -335,6 +345,50 @@ class GoBGPTestBase(unittest.TestCase):
         paths = g1.get_adj_rib_out(q2, '30.0.0.0/24')
         self.assertTrue(len(paths) == 1)
         self.assertTrue(paths[0]['source-id'] == '192.168.0.2')
+
+    def test_19_check_grpc_add_neighbor(self):
+        g1 = self.gobgp
+        e1 = ExaBGPContainer(name='e1', asn=65000, router_id='192.168.0.7')
+        time.sleep(e1.run())
+        e1.add_peer(g1)
+        n = e1.peers[g1]['local_addr'].split('/')[0]
+        g1.local('gobgp n add {0} as 65000'.format(n))
+        g1.add_peer(e1, reload_config=False) 
+
+        g1.wait_for(expected_state=BGP_FSM_ESTABLISHED, peer=e1)
+
+    def test_20_check_withdrawal_2(self):
+        g1 = self.gobgp
+        g2 = self.quaggas['g2']
+
+        dumpfile = g2.start_tcpdump()
+
+        g1.add_route('10.40.0.0/24')
+
+        time.sleep(1)
+
+        paths = g2.get_global_rib('10.40.0.0/24')
+        self.assertTrue(len(paths) == 1)
+
+        g1.local('gobgp global rib del 10.40.0.0/24')
+
+        time.sleep(1)
+
+        paths = g2.get_global_rib('10.40.0.0/24')
+        self.assertTrue(len(paths) == 0)
+
+        g2.stop_tcpdump()
+        time.sleep(1)
+
+        cnt = 0
+        for pkt in pcap.Reader(open(dumpfile)):
+            last = Packet(pkt[1]).protocols[-1]
+            if type(last) == str:
+                pkt = BGPMessage.parser(last)[0]
+                if type(pkt) == BGPUpdate:
+                    cnt += len(pkt.withdrawn_routes)
+
+        self.assertTrue(cnt == 1)
 
 
 if __name__ == '__main__':

@@ -146,7 +146,7 @@ func Test_Validate_duplicate_attribute(t *testing.T) {
 	assert := assert.New(t)
 	message := bgpupdate().Body.(*BGPUpdate)
 	// duplicate origin path attribute
-	originBytes := []byte{byte(pathAttrFlags[BGP_ATTR_TYPE_ORIGIN]), 1, 1, 1}
+	originBytes := []byte{byte(PathAttrFlags[BGP_ATTR_TYPE_ORIGIN]), 1, 1, 1}
 	origin := &PathAttributeOrigin{}
 	origin.DecodeFromBytes(originBytes)
 	message.PathAttributes = append(message.PathAttributes, origin)
@@ -189,7 +189,7 @@ func Test_Validate_invalid_origin(t *testing.T) {
 	assert := assert.New(t)
 	message := bgpupdate().Body.(*BGPUpdate)
 	// origin needs to be well-known
-	originBytes := []byte{byte(pathAttrFlags[BGP_ATTR_TYPE_ORIGIN]), 1, 1, 5}
+	originBytes := []byte{byte(PathAttrFlags[BGP_ATTR_TYPE_ORIGIN]), 1, 1, 5}
 	origin := &PathAttributeOrigin{}
 	origin.DecodeFromBytes(originBytes)
 	message.PathAttributes[0] = origin
@@ -209,7 +209,7 @@ func Test_Validate_invalid_nexthop_zero(t *testing.T) {
 
 	// invalid nexthop
 	addr := net.ParseIP("0.0.0.1").To4()
-	nexthopBytes := []byte{byte(pathAttrFlags[BGP_ATTR_TYPE_NEXT_HOP]), 3, 4}
+	nexthopBytes := []byte{byte(PathAttrFlags[BGP_ATTR_TYPE_NEXT_HOP]), 3, 4}
 	nexthopBytes = append(nexthopBytes, addr...)
 	nexthop := &PathAttributeNextHop{}
 	nexthop.DecodeFromBytes(nexthopBytes)
@@ -230,7 +230,7 @@ func Test_Validate_invalid_nexthop_lo(t *testing.T) {
 
 	// invalid nexthop
 	addr := net.ParseIP("127.0.0.1").To4()
-	nexthopBytes := []byte{byte(pathAttrFlags[BGP_ATTR_TYPE_NEXT_HOP]), 3, 4}
+	nexthopBytes := []byte{byte(PathAttrFlags[BGP_ATTR_TYPE_NEXT_HOP]), 3, 4}
 	nexthopBytes = append(nexthopBytes, addr...)
 	nexthop := &PathAttributeNextHop{}
 	nexthop.DecodeFromBytes(nexthopBytes)
@@ -251,7 +251,7 @@ func Test_Validate_invalid_nexthop_de(t *testing.T) {
 
 	// invalid nexthop
 	addr := net.ParseIP("224.0.0.1").To4()
-	nexthopBytes := []byte{byte(pathAttrFlags[BGP_ATTR_TYPE_NEXT_HOP]), 3, 4}
+	nexthopBytes := []byte{byte(PathAttrFlags[BGP_ATTR_TYPE_NEXT_HOP]), 3, 4}
 	nexthopBytes = append(nexthopBytes, addr...)
 	nexthop := &PathAttributeNextHop{}
 	nexthop.DecodeFromBytes(nexthopBytes)
@@ -340,4 +340,47 @@ func Test_Validate_aspath(t *testing.T) {
 	assert.Equal(uint8(BGP_ERROR_UPDATE_MESSAGE_ERROR), e.TypeCode)
 	assert.Equal(uint8(BGP_ERROR_SUB_MALFORMED_AS_PATH), e.SubTypeCode)
 	assert.Nil(e.Data)
+}
+
+func Test_Validate_flowspec(t *testing.T) {
+	assert := assert.New(t)
+	cmp := make([]FlowSpecComponentInterface, 0)
+	cmp = append(cmp, NewFlowSpecDestinationPrefix(NewIPAddrPrefix(24, "10.0.0.0")))
+	cmp = append(cmp, NewFlowSpecSourcePrefix(NewIPAddrPrefix(24, "10.0.0.0")))
+	eq := 0x1
+	gt := 0x2
+	lt := 0x4
+	and := 0x40
+	not := 0x2
+	item1 := NewFlowSpecComponentItem(eq, TCP)
+	cmp = append(cmp, NewFlowSpecComponent(FLOW_SPEC_TYPE_IP_PROTO, []*FlowSpecComponentItem{item1}))
+	item2 := NewFlowSpecComponentItem(gt|eq, 20)
+	item3 := NewFlowSpecComponentItem(and|lt|eq, 30)
+	item4 := NewFlowSpecComponentItem(eq, 10)
+	cmp = append(cmp, NewFlowSpecComponent(FLOW_SPEC_TYPE_PORT, []*FlowSpecComponentItem{item2, item3, item4}))
+	cmp = append(cmp, NewFlowSpecComponent(FLOW_SPEC_TYPE_DST_PORT, []*FlowSpecComponentItem{item2, item3, item4}))
+	cmp = append(cmp, NewFlowSpecComponent(FLOW_SPEC_TYPE_SRC_PORT, []*FlowSpecComponentItem{item2, item3, item4}))
+	cmp = append(cmp, NewFlowSpecComponent(FLOW_SPEC_TYPE_ICMP_TYPE, []*FlowSpecComponentItem{item2, item3, item4}))
+	cmp = append(cmp, NewFlowSpecComponent(FLOW_SPEC_TYPE_ICMP_CODE, []*FlowSpecComponentItem{item2, item3, item4}))
+	item5 := NewFlowSpecComponentItem(0, TCP_FLAG_ACK)
+	item6 := NewFlowSpecComponentItem(and|not, TCP_FLAG_URGENT)
+	cmp = append(cmp, NewFlowSpecComponent(FLOW_SPEC_TYPE_TCP_FLAG, []*FlowSpecComponentItem{item5, item6}))
+	cmp = append(cmp, NewFlowSpecComponent(FLOW_SPEC_TYPE_PKT_LEN, []*FlowSpecComponentItem{item2, item3, item4}))
+	cmp = append(cmp, NewFlowSpecComponent(FLOW_SPEC_TYPE_DSCP, []*FlowSpecComponentItem{item2, item3, item4}))
+	isFlagment := 0x02
+	item7 := NewFlowSpecComponentItem(isFlagment, 0)
+	cmp = append(cmp, NewFlowSpecComponent(FLOW_SPEC_TYPE_FRAGMENT, []*FlowSpecComponentItem{item7}))
+	n1 := NewFlowSpecIPv4Unicast(cmp)
+	a := NewPathAttributeMpReachNLRI("", []AddrPrefixInterface{n1})
+	m := map[RouteFamily]bool{RF_FS_IPv4_UC: true}
+	_, err := ValidateAttribute(a, m, false)
+	assert.Nil(err)
+
+	cmp = make([]FlowSpecComponentInterface, 0)
+	cmp = append(cmp, NewFlowSpecSourcePrefix(NewIPAddrPrefix(24, "10.0.0.0")))
+	cmp = append(cmp, NewFlowSpecDestinationPrefix(NewIPAddrPrefix(24, "10.0.0.0")))
+	n1 = NewFlowSpecIPv4Unicast(cmp)
+	a = NewPathAttributeMpReachNLRI("", []AddrPrefixInterface{n1})
+	_, err = ValidateAttribute(a, m, false)
+	assert.NotNil(err)
 }

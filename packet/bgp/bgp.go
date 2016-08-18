@@ -142,6 +142,7 @@ const (
 	TUNNEL_TYPE_MPLS        TunnelType = 10
 	TUNNEL_TYPE_MPLS_IN_GRE TunnelType = 11
 	TUNNEL_TYPE_VXLAN_GRE   TunnelType = 12
+	TUNNEL_TYPE_MPLS_IN_UDP TunnelType = 13
 )
 
 type PmsiTunnelType uint8
@@ -235,7 +236,7 @@ func (c *DefaultParameterCapability) DecodeFromBytes(data []byte) error {
 	c.CapCode = BGPCapabilityCode(data[0])
 	c.CapLen = data[1]
 	if len(data) < 2+int(c.CapLen) {
-		return fmt.Errorf("Not all OptionParameterCapability bytes available")
+		return NewMessageError(BGP_ERROR_OPEN_MESSAGE_ERROR, BGP_ERROR_SUB_UNSUPPORTED_CAPABILITY, nil, "Not all OptionParameterCapability bytes available")
 	}
 	if c.CapLen > 0 {
 		c.CapValue = data[2 : 2+c.CapLen]
@@ -265,7 +266,7 @@ func (c *CapMultiProtocol) DecodeFromBytes(data []byte) error {
 	c.DefaultParameterCapability.DecodeFromBytes(data)
 	data = data[2:]
 	if len(data) < 4 {
-		return fmt.Errorf("Not all CapabilityMultiProtocol bytes available")
+		return NewMessageError(BGP_ERROR_OPEN_MESSAGE_ERROR, BGP_ERROR_SUB_UNSUPPORTED_CAPABILITY, nil, "Not all CapabilityMultiProtocol bytes available")
 	}
 	c.CapValue = AfiSafiToRouteFamily(binary.BigEndian.Uint16(data[0:2]), data[3])
 	return nil
@@ -354,16 +355,25 @@ type CapGracefulRestart struct {
 func (c *CapGracefulRestart) DecodeFromBytes(data []byte) error {
 	c.DefaultParameterCapability.DecodeFromBytes(data)
 	data = data[2:]
+	if len(data) < 2 {
+		return NewMessageError(BGP_ERROR_OPEN_MESSAGE_ERROR, BGP_ERROR_SUB_UNSUPPORTED_CAPABILITY, nil, "Not all CapabilityGracefulRestart bytes available")
+	}
 	restart := binary.BigEndian.Uint16(data[0:2])
 	c.Flags = uint8(restart >> 12)
 	c.Time = restart & 0xfff
 	data = data[2:]
-	c.Tuples = make([]*CapGracefulRestartTuple, 0, len(data)/4)
-	for len(data) >= 4 {
-		t := &CapGracefulRestartTuple{binary.BigEndian.Uint16(data[0:2]),
-			data[2], data[3]}
-		c.Tuples = append(c.Tuples, t)
-		data = data[4:]
+
+	valueLen := int(c.CapLen) - 2
+
+	if valueLen >= 4 && len(data) >= valueLen {
+		c.Tuples = make([]*CapGracefulRestartTuple, 0, valueLen/4)
+
+		for i := valueLen; i >= 4; i -= 4 {
+			t := &CapGracefulRestartTuple{binary.BigEndian.Uint16(data[0:2]),
+				data[2], data[3]}
+			c.Tuples = append(c.Tuples, t)
+			data = data[4:]
+		}
 	}
 	return nil
 }
@@ -420,7 +430,7 @@ func (c *CapFourOctetASNumber) DecodeFromBytes(data []byte) error {
 	c.DefaultParameterCapability.DecodeFromBytes(data)
 	data = data[2:]
 	if len(data) < 4 {
-		return fmt.Errorf("Not all CapabilityMultiProtocol bytes available")
+		return NewMessageError(BGP_ERROR_OPEN_MESSAGE_ERROR, BGP_ERROR_SUB_UNSUPPORTED_CAPABILITY, nil, "Not all CapabilityFourOctetASNumber bytes available")
 	}
 	c.CapValue = binary.BigEndian.Uint32(data[0:4])
 	return nil
@@ -483,7 +493,7 @@ func (c *CapAddPath) DecodeFromBytes(data []byte) error {
 	c.DefaultParameterCapability.DecodeFromBytes(data)
 	data = data[2:]
 	if len(data) < 4 {
-		return fmt.Errorf("Not all CapabilityAddPath bytes available")
+		return NewMessageError(BGP_ERROR_OPEN_MESSAGE_ERROR, BGP_ERROR_SUB_UNSUPPORTED_CAPABILITY, nil, "Not all CapabilityAddPath bytes available")
 	}
 	c.RouteFamily = AfiSafiToRouteFamily(binary.BigEndian.Uint16(data[:2]), data[2])
 	c.Mode = BGPAddPathMode(data[3])
@@ -552,7 +562,7 @@ type CapUnknown struct {
 
 func DecodeCapability(data []byte) (ParameterCapabilityInterface, error) {
 	if len(data) < 2 {
-		return nil, fmt.Errorf("Not all ParameterCapability bytes available")
+		return nil, NewMessageError(BGP_ERROR_OPEN_MESSAGE_ERROR, BGP_ERROR_SUB_UNSUPPORTED_CAPABILITY, nil, "Not all ParameterCapability bytes available")
 	}
 	var c ParameterCapabilityInterface
 	switch BGPCapabilityCode(data[0]) {
@@ -591,7 +601,7 @@ type OptionParameterCapability struct {
 
 func (o *OptionParameterCapability) DecodeFromBytes(data []byte) error {
 	if uint8(len(data)) < o.ParamLen {
-		return fmt.Errorf("Not all OptionParameterCapability bytes available")
+		return NewMessageError(BGP_ERROR_OPEN_MESSAGE_ERROR, BGP_ERROR_SUB_UNSUPPORTED_OPTIONAL_PARAMETER, nil, "Not all OptionParameterCapability bytes available")
 	}
 	for len(data) >= 2 {
 		c, err := DecodeCapability(data)
@@ -659,7 +669,7 @@ func (msg *BGPOpen) DecodeFromBytes(data []byte) error {
 	msg.OptParamLen = data[9]
 	data = data[10:]
 	if len(data) < int(msg.OptParamLen) {
-		return fmt.Errorf("Not all BGP Open message bytes available")
+		return NewMessageError(BGP_ERROR_MESSAGE_HEADER_ERROR, BGP_ERROR_SUB_BAD_MESSAGE_LENGTH, nil, "Not all BGP Open message bytes available")
 	}
 
 	msg.OptParams = []OptionParameterInterface{}
@@ -667,7 +677,7 @@ func (msg *BGPOpen) DecodeFromBytes(data []byte) error {
 		paramtype := data[0]
 		paramlen := data[1]
 		if rest < paramlen+2 {
-			return fmt.Errorf("Malformed BGP Open message")
+			return NewMessageError(BGP_ERROR_MESSAGE_HEADER_ERROR, BGP_ERROR_SUB_BAD_MESSAGE_LENGTH, nil, "Malformed BGP Open message")
 		}
 		rest -= paramlen + 2
 
@@ -723,6 +733,10 @@ type AddrPrefixInterface interface {
 	Len() int
 	String() string
 	MarshalJSON() ([]byte, error)
+
+	// Create a flat map to describe attributes and their
+	// values. This can be used to create structured outputs.
+	Flat() map[string]string
 }
 
 type IPAddrPrefixDefault struct {
@@ -1100,6 +1114,7 @@ func ParseRouteDistinguisher(rd string) (RouteDistinguisherInterface, error) {
 // The label information carried (as part of NLRI) in the Withdrawn
 // Routes field should be set to 0x800000.
 const WITHDRAW_LABEL = uint32(0x800000)
+const ZERO_LABEL = uint32(0) // some platform uses this as withdraw label
 
 type MPLSLabelStack struct {
 	Labels []uint32
@@ -1110,7 +1125,7 @@ func (l *MPLSLabelStack) DecodeFromBytes(data []byte) error {
 	foundBottom := false
 	for len(data) >= 3 {
 		label := uint32(data[0])<<16 | uint32(data[1])<<8 | uint32(data[2])
-		if label == WITHDRAW_LABEL {
+		if label == WITHDRAW_LABEL || label == ZERO_LABEL {
 			l.Labels = []uint32{label}
 			return nil
 		}
@@ -1186,7 +1201,7 @@ func ParseMPLSLabelStack(buf string) (*MPLSLabelStack, error) {
 	}
 	return NewMPLSLabelStack(labels...), nil
 ERR:
-	return nil, fmt.Errorf("invalid mpls label stack format")
+	return nil, NewMessageError(BGP_ERROR_UPDATE_MESSAGE_ERROR, BGP_ERROR_SUB_MALFORMED_ATTRIBUTE_LIST, nil, "invalid mpls label stack format")
 }
 
 //
@@ -1405,7 +1420,7 @@ func (n *RouteTargetMembershipNLRI) DecodeFromBytes(data []byte) error {
 	if len(data) == 0 {
 		return nil
 	} else if len(data) != 12 {
-		return fmt.Errorf("Not all RouteTargetMembershipNLRI bytes available")
+		return NewMessageError(BGP_ERROR_UPDATE_MESSAGE_ERROR, BGP_ERROR_SUB_MALFORMED_ATTRIBUTE_LIST, nil, "Not all RouteTargetMembershipNLRI bytes available")
 	}
 	n.AS = binary.BigEndian.Uint32(data[0:4])
 	rt, err := ParseExtended(data[4:])
@@ -1496,7 +1511,7 @@ func (esi *EthernetSegmentIdentifier) DecodeFromBytes(data []byte) error {
 	switch esi.Type {
 	case ESI_LACP, ESI_MSTP, ESI_ROUTERID, ESI_AS:
 		if esi.Value[8] != 0x00 {
-			return fmt.Errorf("invalid %s. last octet must be 0x00 (0x%02x)", esi.Type.String(), esi.Value[8])
+			return NewMessageError(BGP_ERROR_UPDATE_MESSAGE_ERROR, BGP_ERROR_SUB_MALFORMED_ATTRIBUTE_LIST, nil, fmt.Sprintf("invalid %s. last octet must be 0x00 (0x%02x)", esi.Type.String(), esi.Value[8]))
 		}
 	}
 	return nil
@@ -1672,7 +1687,7 @@ func (er *EVPNMacIPAdvertisementRoute) DecodeFromBytes(data []byte) error {
 	if er.IPAddressLength == 32 || er.IPAddressLength == 128 {
 		er.IPAddress = net.IP(data[0:((er.IPAddressLength) / 8)])
 	} else if er.IPAddressLength != 0 {
-		return fmt.Errorf("Invalid IP address length: %d", er.IPAddressLength)
+		return NewMessageError(BGP_ERROR_UPDATE_MESSAGE_ERROR, BGP_ERROR_SUB_MALFORMED_ATTRIBUTE_LIST, nil, fmt.Sprintf("Invalid IP address length: %d", er.IPAddressLength))
 	}
 	data = data[(er.IPAddressLength / 8):]
 	label1 := labelDecode(data)
@@ -1721,7 +1736,7 @@ func (er *EVPNMacIPAdvertisementRoute) Serialize() ([]byte, error) {
 		}
 		buf = append(buf, []byte(er.IPAddress)...)
 	} else {
-		return nil, fmt.Errorf("Invalid IP address length: %d", er.IPAddressLength)
+		return nil, NewMessageError(BGP_ERROR_UPDATE_MESSAGE_ERROR, BGP_ERROR_SUB_MALFORMED_ATTRIBUTE_LIST, nil, fmt.Sprintf("Invalid IP address length: %d", er.IPAddressLength))
 	}
 
 	for _, l := range er.Labels {
@@ -1774,7 +1789,7 @@ func (er *EVPNMulticastEthernetTagRoute) DecodeFromBytes(data []byte) error {
 	if er.IPAddressLength == 32 || er.IPAddressLength == 128 {
 		er.IPAddress = net.IP(data[:er.IPAddressLength/8])
 	} else {
-		return fmt.Errorf("Invalid IP address length: %d", er.IPAddressLength)
+		return NewMessageError(BGP_ERROR_UPDATE_MESSAGE_ERROR, BGP_ERROR_SUB_MALFORMED_ATTRIBUTE_LIST, nil, fmt.Sprintf("Invalid IP address length: %d", er.IPAddressLength))
 	}
 	return nil
 }
@@ -1845,7 +1860,7 @@ func (er *EVPNEthernetSegmentRoute) DecodeFromBytes(data []byte) error {
 	if er.IPAddressLength == 32 || er.IPAddressLength == 128 {
 		er.IPAddress = net.IP(data[:er.IPAddressLength/8])
 	} else {
-		return fmt.Errorf("Invalid IP address length: %d", er.IPAddressLength)
+		return NewMessageError(BGP_ERROR_UPDATE_MESSAGE_ERROR, BGP_ERROR_SUB_MALFORMED_ATTRIBUTE_LIST, nil, fmt.Sprintf("Invalid IP address length: %d", er.IPAddressLength))
 	}
 	return nil
 }
@@ -1917,7 +1932,7 @@ func getEVPNRouteType(t uint8) (EVPNRouteTypeInterface, error) {
 	case EVPN_ETHERNET_SEGMENT_ROUTE:
 		return &EVPNEthernetSegmentRoute{}, nil
 	}
-	return nil, fmt.Errorf("Unknown EVPN Route type: %d", t)
+	return nil, NewMessageError(BGP_ERROR_UPDATE_MESSAGE_ERROR, BGP_ERROR_SUB_MALFORMED_ATTRIBUTE_LIST, nil, fmt.Sprintf("Unknown EVPN Route type: %d", t))
 }
 
 const (
@@ -1935,13 +1950,13 @@ type EVPNNLRI struct {
 
 func (n *EVPNNLRI) DecodeFromBytes(data []byte) error {
 	if len(data) < 2 {
-		return fmt.Errorf("Not all EVPNNLRI bytes available")
+		return NewMessageError(BGP_ERROR_UPDATE_MESSAGE_ERROR, BGP_ERROR_SUB_MALFORMED_ATTRIBUTE_LIST, nil, "Not all EVPNNLRI bytes available")
 	}
 	n.RouteType = data[0]
 	n.Length = data[1]
 	data = data[2:]
 	if len(data) < int(n.Length) {
-		return fmt.Errorf("Not all EVPNNLRI Route type bytes available")
+		return NewMessageError(BGP_ERROR_UPDATE_MESSAGE_ERROR, BGP_ERROR_SUB_MALFORMED_ATTRIBUTE_LIST, nil, "Not all EVPNNLRI Route type bytes available")
 	}
 	r, err := getEVPNRouteType(n.RouteType)
 	if err != nil {
@@ -2182,46 +2197,47 @@ func flowSpecPrefixParser(rf RouteFamily, args []string) (FlowSpecComponentInter
 	switch typ {
 	case FlowSpecNameMap[FLOW_SPEC_TYPE_DST_PREFIX]:
 		switch rf {
-		case RF_FS_IPv4_UC:
+		case RF_FS_IPv4_UC, RF_FS_IPv4_VPN:
 			return NewFlowSpecDestinationPrefix(NewIPAddrPrefix(uint8(ones), ip.String())), nil
-		case RF_FS_IPv6_UC:
+		case RF_FS_IPv6_UC, RF_FS_IPv6_VPN:
 			return NewFlowSpecDestinationPrefix6(NewIPv6AddrPrefix(uint8(ones), ip.String()), offset), nil
 		default:
-			return nil, fmt.Errorf("invalid type. only RF_FS_IPv4_UC or RF_FS_IPv6_UC is allowed")
+			return nil, fmt.Errorf("invalid type")
 		}
 	case FlowSpecNameMap[FLOW_SPEC_TYPE_SRC_PREFIX]:
 		switch rf {
-		case RF_FS_IPv4_UC:
+		case RF_FS_IPv4_UC, RF_FS_IPv4_VPN:
 			return NewFlowSpecSourcePrefix(NewIPAddrPrefix(uint8(ones), ip.String())), nil
-		case RF_FS_IPv6_UC:
+		case RF_FS_IPv6_UC, RF_FS_IPv6_VPN:
 			return NewFlowSpecSourcePrefix6(NewIPv6AddrPrefix(uint8(ones), ip.String()), offset), nil
 		default:
-			return nil, fmt.Errorf("invalid type. only RF_FS_IPv4_UC or RF_FS_IPv6_UC is allowed")
+			return nil, fmt.Errorf("invalid type")
 		}
 	}
 	return nil, fmt.Errorf("invalid type. only destination or source is allowed")
 }
 
 func flowSpecIpProtoParser(rf RouteFamily, args []string) (FlowSpecComponentInterface, error) {
-	ss := make([]string, 0, len(ProtocolNameMap))
-	for _, v := range ProtocolNameMap {
-		ss = append(ss, v)
+	if len(args) < 2 || args[0] != FlowSpecNameMap[FLOW_SPEC_TYPE_IP_PROTO] {
+		return nil, fmt.Errorf("invalid ip-proto format")
 	}
-	protos := strings.Join(ss, "|")
-	exp := regexp.MustCompile(fmt.Sprintf("^%s (((%s) )*)(%s)$", FlowSpecNameMap[FLOW_SPEC_TYPE_IP_PROTO], protos, protos))
-	elems := exp.FindStringSubmatch(strings.Join(args, " "))
 	items := make([]*FlowSpecComponentItem, 0)
 	eq := 0x1
-	if elems[1] != "" {
-		for _, v := range strings.Split(elems[1], " ") {
-			p, ok := ProtocolValueMap[v]
-			if !ok {
-				continue
-			}
-			items = append(items, NewFlowSpecComponentItem(eq, int(p)))
+	for _, v := range args[1:] {
+		if v == "" {
+			continue
 		}
+		p, ok := ProtocolValueMap[v]
+		if ok {
+			items = append(items, NewFlowSpecComponentItem(eq, int(p)))
+			continue
+		}
+		i, err := strconv.ParseUint(v, 10, 8)
+		if err != nil {
+			return nil, fmt.Errorf("invalid ip-proto format: failed to parse %s", v)
+		}
+		items = append(items, NewFlowSpecComponentItem(eq, int(i)))
 	}
-	items = append(items, NewFlowSpecComponentItem(eq, int(ProtocolValueMap[elems[4]])))
 	return NewFlowSpecComponent(FLOW_SPEC_TYPE_IP_PROTO, items), nil
 }
 
@@ -2624,7 +2640,7 @@ type flowSpecMac struct {
 
 func (p *flowSpecMac) DecodeFromBytes(data []byte) error {
 	if len(data) < 2 || len(data) < 2+int(data[1]) {
-		return fmt.Errorf("not all mac bits available")
+		return NewMessageError(BGP_ERROR_UPDATE_MESSAGE_ERROR, BGP_ERROR_SUB_MALFORMED_ATTRIBUTE_LIST, nil, "not all mac bits available")
 	}
 	p.type_ = BGPFlowSpecType(data[0])
 	p.Mac = net.HardwareAddr(data[2 : 2+int(data[1])])
@@ -2746,7 +2762,7 @@ func (p *FlowSpecComponent) DecodeFromBytes(data []byte) error {
 	p.Items = make([]*FlowSpecComponentItem, 0)
 	for {
 		if len(data) < 2 {
-			return fmt.Errorf("not all flowspec component bytes available")
+			return NewMessageError(BGP_ERROR_UPDATE_MESSAGE_ERROR, BGP_ERROR_SUB_MALFORMED_ATTRIBUTE_LIST, nil, "not all flowspec component bytes available")
 		}
 		op := data[0]
 		end := op & 0x80
@@ -2951,9 +2967,34 @@ func (p *FlowSpecUnknown) String() string {
 	return fmt.Sprintf("[unknown:%v]", p.Value)
 }
 
+func (p *FlowSpecUnknown) MarshalJSON() ([]byte, error) {
+	return json.Marshal(struct {
+		Type  BGPFlowSpecType `json:"type"`
+		Value string          `json:"value"`
+	}{
+		Type:  p.Type(),
+		Value: string(p.Value),
+	})
+}
+
 type FlowSpecNLRI struct {
 	Value []FlowSpecComponentInterface
 	rf    RouteFamily
+	rd    RouteDistinguisherInterface
+}
+
+func (n *FlowSpecNLRI) AFI() uint16 {
+	afi, _ := RouteFamilyToAfiSafi(n.rf)
+	return afi
+}
+
+func (n *FlowSpecNLRI) SAFI() uint8 {
+	_, safi := RouteFamilyToAfiSafi(n.rf)
+	return safi
+}
+
+func (n *FlowSpecNLRI) RD() RouteDistinguisherInterface {
+	return n.rd
 }
 
 func (n *FlowSpecNLRI) decodeFromBytes(rf RouteFamily, data []byte) error {
@@ -2965,57 +3006,58 @@ func (n *FlowSpecNLRI) decodeFromBytes(rf RouteFamily, data []byte) error {
 		length = int(data[0])
 		data = data[1:]
 	} else {
-		return fmt.Errorf("not all flowspec component bytes available")
+		return NewMessageError(BGP_ERROR_UPDATE_MESSAGE_ERROR, BGP_ERROR_SUB_MALFORMED_ATTRIBUTE_LIST, nil, "not all flowspec component bytes available")
 	}
 
 	n.rf = rf
 
+	if n.SAFI() == SAFI_FLOW_SPEC_VPN {
+		if length < 8 {
+			return NewMessageError(BGP_ERROR_UPDATE_MESSAGE_ERROR, BGP_ERROR_SUB_MALFORMED_ATTRIBUTE_LIST, nil, "not all flowspec component bytes available")
+		}
+		n.rd = GetRouteDistinguisher(data[:8])
+		data = data[8:]
+		length -= 8
+	}
+
 	for l := length; l > 0; {
 		if len(data) == 0 {
-			return fmt.Errorf("not all flowspec component bytes available")
+			return NewMessageError(BGP_ERROR_UPDATE_MESSAGE_ERROR, BGP_ERROR_SUB_MALFORMED_ATTRIBUTE_LIST, nil, "not all flowspec component bytes available")
 		}
 		t := BGPFlowSpecType(data[0])
 		var i FlowSpecComponentInterface
 		switch t {
 		case FLOW_SPEC_TYPE_DST_PREFIX:
-			switch rf {
-			case RF_FS_IPv4_UC:
+			switch {
+			case rf>>16 == AFI_IP:
 				i = NewFlowSpecDestinationPrefix(NewIPAddrPrefix(0, ""))
-			case RF_FS_IPv4_VPN:
-				i = NewFlowSpecDestinationPrefix(NewLabeledVPNIPAddrPrefix(0, "", *NewMPLSLabelStack(), nil))
-			case RF_FS_IPv6_UC:
+			case rf>>16 == AFI_IP6:
 				i = NewFlowSpecDestinationPrefix6(NewIPv6AddrPrefix(0, ""), 0)
-			case RF_FS_IPv6_VPN:
-				i = NewFlowSpecDestinationPrefix6(NewLabeledVPNIPv6AddrPrefix(0, "", *NewMPLSLabelStack(), nil), 0)
 			default:
-				return fmt.Errorf("Invalid RF: %v", rf)
+				return NewMessageError(BGP_ERROR_UPDATE_MESSAGE_ERROR, BGP_ERROR_SUB_MALFORMED_ATTRIBUTE_LIST, nil, fmt.Sprintf("Invalid address family: %v", rf))
 			}
 		case FLOW_SPEC_TYPE_SRC_PREFIX:
-			switch rf {
-			case RF_FS_IPv4_UC:
+			switch {
+			case rf>>16 == AFI_IP:
 				i = NewFlowSpecSourcePrefix(NewIPAddrPrefix(0, ""))
-			case RF_FS_IPv4_VPN:
-				i = NewFlowSpecSourcePrefix(NewLabeledVPNIPAddrPrefix(0, "", *NewMPLSLabelStack(), nil))
-			case RF_FS_IPv6_UC:
+			case rf>>16 == AFI_IP6:
 				i = NewFlowSpecSourcePrefix6(NewIPv6AddrPrefix(0, ""), 0)
-			case RF_FS_IPv6_VPN:
-				i = NewFlowSpecSourcePrefix6(NewLabeledVPNIPv6AddrPrefix(0, "", *NewMPLSLabelStack(), nil), 0)
 			default:
-				return fmt.Errorf("Invalid RF: %v", rf)
+				return NewMessageError(BGP_ERROR_UPDATE_MESSAGE_ERROR, BGP_ERROR_SUB_MALFORMED_ATTRIBUTE_LIST, nil, fmt.Sprintf("Invalid address family: %v", rf))
 			}
 		case FLOW_SPEC_TYPE_SRC_MAC:
 			switch rf {
 			case RF_FS_L2_VPN:
 				i = NewFlowSpecSourceMac(nil)
 			default:
-				return fmt.Errorf("invalid family: %v", rf)
+				return NewMessageError(BGP_ERROR_UPDATE_MESSAGE_ERROR, BGP_ERROR_SUB_MALFORMED_ATTRIBUTE_LIST, nil, fmt.Sprintf("Invalid address family: %v", rf))
 			}
 		case FLOW_SPEC_TYPE_DST_MAC:
 			switch rf {
 			case RF_FS_L2_VPN:
 				i = NewFlowSpecDestinationMac(nil)
 			default:
-				return fmt.Errorf("invalid family: %v", rf)
+				return NewMessageError(BGP_ERROR_UPDATE_MESSAGE_ERROR, BGP_ERROR_SUB_MALFORMED_ATTRIBUTE_LIST, nil, fmt.Sprintf("Invalid address family: %v", rf))
 			}
 		case FLOW_SPEC_TYPE_IP_PROTO, FLOW_SPEC_TYPE_PORT, FLOW_SPEC_TYPE_DST_PORT, FLOW_SPEC_TYPE_SRC_PORT,
 			FLOW_SPEC_TYPE_ICMP_TYPE, FLOW_SPEC_TYPE_ICMP_CODE, FLOW_SPEC_TYPE_TCP_FLAG, FLOW_SPEC_TYPE_PKT_LEN,
@@ -3041,6 +3083,16 @@ func (n *FlowSpecNLRI) decodeFromBytes(rf RouteFamily, data []byte) error {
 
 func (n *FlowSpecNLRI) Serialize() ([]byte, error) {
 	buf := make([]byte, 0, 32)
+	if n.SAFI() == SAFI_FLOW_SPEC_VPN {
+		if n.rd == nil {
+			return nil, fmt.Errorf("RD is nil")
+		}
+		b, err := n.rd.Serialize()
+		if err != nil {
+			return nil, err
+		}
+		buf = append(buf, b...)
+	}
 	for _, v := range n.Value {
 		b, err := v.Serialize()
 		if err != nil {
@@ -3066,6 +3118,9 @@ func (n *FlowSpecNLRI) Serialize() ([]byte, error) {
 
 func (n *FlowSpecNLRI) Len() int {
 	l := 0
+	if n.SAFI() == SAFI_FLOW_SPEC_VPN {
+		l += n.RD().Len()
+	}
 	for _, v := range n.Value {
 		l += v.Len()
 	}
@@ -3078,6 +3133,9 @@ func (n *FlowSpecNLRI) Len() int {
 
 func (n *FlowSpecNLRI) String() string {
 	buf := bytes.NewBuffer(make([]byte, 0, 32))
+	if n.SAFI() == SAFI_FLOW_SPEC_VPN {
+		buf.WriteString(fmt.Sprintf("[rd: %s]", n.rd))
+	}
 	for _, v := range n.Value {
 		buf.WriteString(v.String())
 	}
@@ -3085,11 +3143,143 @@ func (n *FlowSpecNLRI) String() string {
 }
 
 func (n *FlowSpecNLRI) MarshalJSON() ([]byte, error) {
+	if n.rd != nil {
+		return json.Marshal(struct {
+			RD    RouteDistinguisherInterface  `json:"rd"`
+			Value []FlowSpecComponentInterface `json:"value"`
+		}{
+			RD:    n.rd,
+			Value: n.Value,
+		})
+	}
 	return json.Marshal(struct {
 		Value []FlowSpecComponentInterface `json:"value"`
 	}{
 		Value: n.Value,
 	})
+
+}
+
+//
+// CompareFlowSpecNLRI(n, m) returns
+// -1 when m has precedence
+//  0 when n and m have same precedence
+//  1 when n has precedence
+//
+func CompareFlowSpecNLRI(n, m *FlowSpecNLRI) (int, error) {
+	family := AfiSafiToRouteFamily(n.AFI(), n.SAFI())
+	if family != AfiSafiToRouteFamily(m.AFI(), m.SAFI()) {
+		return 0, fmt.Errorf("address family mismatch")
+	}
+	longer := n.Value
+	shorter := m.Value
+	invert := 1
+	if n.SAFI() == SAFI_FLOW_SPEC_VPN {
+		k, _ := n.Serialize()
+		l, _ := m.Serialize()
+		if result := bytes.Compare(k, l); result != 0 {
+			return result, nil
+		}
+	}
+	if len(n.Value) < len(m.Value) {
+		longer = m.Value
+		shorter = n.Value
+		invert = -1
+	}
+	for idx, v := range longer {
+		if len(shorter) < idx+1 {
+			return invert, nil
+		}
+		w := shorter[idx]
+		if v.Type() < w.Type() {
+			return invert, nil
+		} else if w.Type() > v.Type() {
+			return invert * -1, nil
+		}
+		if v.Type() == FLOW_SPEC_TYPE_DST_PREFIX || v.Type() == FLOW_SPEC_TYPE_SRC_PREFIX {
+			// RFC5575 5.1
+			//
+			// For IP prefix values (IP destination and source prefix) precedence is
+			// given to the lowest IP value of the common prefix length; if the
+			// common prefix is equal, then the most specific prefix has precedence.
+			var p, q *IPAddrPrefixDefault
+			var pCommon, qCommon uint64
+			if n.AFI() == AFI_IP {
+				if v.Type() == FLOW_SPEC_TYPE_DST_PREFIX {
+					p = &v.(*FlowSpecDestinationPrefix).Prefix.(*IPAddrPrefix).IPAddrPrefixDefault
+					q = &w.(*FlowSpecDestinationPrefix).Prefix.(*IPAddrPrefix).IPAddrPrefixDefault
+				} else {
+					p = &v.(*FlowSpecSourcePrefix).Prefix.(*IPAddrPrefix).IPAddrPrefixDefault
+					q = &w.(*FlowSpecSourcePrefix).Prefix.(*IPAddrPrefix).IPAddrPrefixDefault
+				}
+				min := p.Length
+				if q.Length < p.Length {
+					min = q.Length
+				}
+				pCommon = uint64(binary.BigEndian.Uint32([]byte(p.Prefix.To4())) >> (32 - min))
+				qCommon = uint64(binary.BigEndian.Uint32([]byte(q.Prefix.To4())) >> (32 - min))
+			} else if n.AFI() == AFI_IP6 {
+				if v.Type() == FLOW_SPEC_TYPE_DST_PREFIX {
+					p = &v.(*FlowSpecDestinationPrefix6).Prefix.(*IPv6AddrPrefix).IPAddrPrefixDefault
+					q = &w.(*FlowSpecDestinationPrefix6).Prefix.(*IPv6AddrPrefix).IPAddrPrefixDefault
+				} else {
+					p = &v.(*FlowSpecSourcePrefix6).Prefix.(*IPv6AddrPrefix).IPAddrPrefixDefault
+					q = &w.(*FlowSpecSourcePrefix6).Prefix.(*IPv6AddrPrefix).IPAddrPrefixDefault
+				}
+				min := uint(p.Length)
+				if q.Length < p.Length {
+					min = uint(q.Length)
+				}
+				var mask uint
+				if min-64 > 0 {
+					mask = min - 64
+				}
+				pCommon = binary.BigEndian.Uint64([]byte(p.Prefix.To16()[:8])) >> mask
+				qCommon = binary.BigEndian.Uint64([]byte(q.Prefix.To16()[:8])) >> mask
+				if pCommon == qCommon && mask == 0 {
+					mask = 64 - min
+					pCommon = binary.BigEndian.Uint64([]byte(p.Prefix.To16()[8:])) >> mask
+					qCommon = binary.BigEndian.Uint64([]byte(q.Prefix.To16()[8:])) >> mask
+				}
+			}
+
+			if pCommon < qCommon {
+				return invert, nil
+			} else if pCommon > qCommon {
+				return invert * -1, nil
+			} else if p.Length > q.Length {
+				return invert, nil
+			} else if p.Length < q.Length {
+				return invert * -1, nil
+			}
+
+		} else {
+			// RFC5575 5.1
+			//
+			// For all other component types, unless otherwise specified, the
+			// comparison is performed by comparing the component data as a binary
+			// string using the memcmp() function as defined by the ISO C standard.
+			// For strings of different lengths, the common prefix is compared.  If
+			// equal, the longest string is considered to have higher precedence
+			// than the shorter one.
+			p, _ := v.Serialize()
+			q, _ := w.Serialize()
+			min := len(p)
+			if len(q) < len(p) {
+				min = len(q)
+			}
+			if result := bytes.Compare(p[:min], q[:min]); result < 0 {
+				return invert, nil
+			} else if result > 0 {
+				return invert * -1, nil
+			} else if len(p) > len(q) {
+				return invert, nil
+			} else if len(q) > len(p) {
+				return invert * -1, nil
+			}
+		}
+	}
+	return 0, nil
 }
 
 type FlowSpecIPv4Unicast struct {
@@ -3100,16 +3290,8 @@ func (n *FlowSpecIPv4Unicast) DecodeFromBytes(data []byte) error {
 	return n.decodeFromBytes(AfiSafiToRouteFamily(n.AFI(), n.SAFI()), data)
 }
 
-func (n *FlowSpecIPv4Unicast) AFI() uint16 {
-	return AFI_IP
-}
-
-func (n *FlowSpecIPv4Unicast) SAFI() uint8 {
-	return SAFI_FLOW_SPEC_UNICAST
-}
-
 func NewFlowSpecIPv4Unicast(value []FlowSpecComponentInterface) *FlowSpecIPv4Unicast {
-	return &FlowSpecIPv4Unicast{FlowSpecNLRI{value, RF_FS_IPv4_UC}}
+	return &FlowSpecIPv4Unicast{FlowSpecNLRI{value, RF_FS_IPv4_UC, nil}}
 }
 
 type FlowSpecIPv4VPN struct {
@@ -3120,16 +3302,8 @@ func (n *FlowSpecIPv4VPN) DecodeFromBytes(data []byte) error {
 	return n.decodeFromBytes(AfiSafiToRouteFamily(n.AFI(), n.SAFI()), data)
 }
 
-func (n *FlowSpecIPv4VPN) AFI() uint16 {
-	return AFI_IP
-}
-
-func (n *FlowSpecIPv4VPN) SAFI() uint8 {
-	return SAFI_FLOW_SPEC_VPN
-}
-
-func NewFlowSpecIPv4VPN(value []FlowSpecComponentInterface) *FlowSpecIPv4VPN {
-	return &FlowSpecIPv4VPN{FlowSpecNLRI{value, RF_FS_IPv4_VPN}}
+func NewFlowSpecIPv4VPN(rd RouteDistinguisherInterface, value []FlowSpecComponentInterface) *FlowSpecIPv4VPN {
+	return &FlowSpecIPv4VPN{FlowSpecNLRI{value, RF_FS_IPv4_VPN, rd}}
 }
 
 type FlowSpecIPv6Unicast struct {
@@ -3138,14 +3312,6 @@ type FlowSpecIPv6Unicast struct {
 
 func (n *FlowSpecIPv6Unicast) DecodeFromBytes(data []byte) error {
 	return n.decodeFromBytes(AfiSafiToRouteFamily(n.AFI(), n.SAFI()), data)
-}
-
-func (n *FlowSpecIPv6Unicast) AFI() uint16 {
-	return AFI_IP6
-}
-
-func (n *FlowSpecIPv6Unicast) SAFI() uint8 {
-	return SAFI_FLOW_SPEC_UNICAST
 }
 
 func NewFlowSpecIPv6Unicast(value []FlowSpecComponentInterface) *FlowSpecIPv6Unicast {
@@ -3163,18 +3329,11 @@ func (n *FlowSpecIPv6VPN) DecodeFromBytes(data []byte) error {
 	return n.decodeFromBytes(AfiSafiToRouteFamily(n.AFI(), n.SAFI()), data)
 }
 
-func (n *FlowSpecIPv6VPN) AFI() uint16 {
-	return AFI_IP6
-}
-
-func (n *FlowSpecIPv6VPN) SAFI() uint8 {
-	return SAFI_FLOW_SPEC_VPN
-}
-
-func NewFlowSpecIPv6VPN(value []FlowSpecComponentInterface) *FlowSpecIPv6VPN {
+func NewFlowSpecIPv6VPN(rd RouteDistinguisherInterface, value []FlowSpecComponentInterface) *FlowSpecIPv6VPN {
 	return &FlowSpecIPv6VPN{FlowSpecNLRI{
 		Value: value,
 		rf:    RF_FS_IPv6_VPN,
+		rd:    rd,
 	}}
 }
 
@@ -3186,18 +3345,11 @@ func (n *FlowSpecL2VPN) DecodeFromBytes(data []byte) error {
 	return n.decodeFromBytes(AfiSafiToRouteFamily(n.AFI(), n.SAFI()), data)
 }
 
-func (n *FlowSpecL2VPN) AFI() uint16 {
-	return AFI_L2VPN
-}
-
-func (n *FlowSpecL2VPN) SAFI() uint8 {
-	return SAFI_FLOW_SPEC_VPN
-}
-
-func NewFlowSpecL2VPN(value []FlowSpecComponentInterface) *FlowSpecL2VPN {
+func NewFlowSpecL2VPN(rd RouteDistinguisherInterface, value []FlowSpecComponentInterface) *FlowSpecL2VPN {
 	return &FlowSpecL2VPN{FlowSpecNLRI{
 		Value: value,
 		rf:    RF_FS_L2_VPN,
+		rd:    rd,
 	}}
 }
 
@@ -3209,7 +3361,7 @@ type OpaqueNLRI struct {
 func (n *OpaqueNLRI) DecodeFromBytes(data []byte) error {
 	n.Length = data[0]
 	if len(data)-1 < int(n.Length) {
-		return fmt.Errorf("Not all OpaqueNLRI bytes available")
+		return NewMessageError(BGP_ERROR_UPDATE_MESSAGE_ERROR, BGP_ERROR_SUB_MALFORMED_ATTRIBUTE_LIST, nil, "Not all OpaqueNLRI bytes available")
 	}
 	n.Key = data[1 : 1+n.Length]
 	return nil
@@ -3371,15 +3523,15 @@ func NewPrefixFromRouteFamily(afi uint16, safi uint8) (prefix AddrPrefixInterfac
 	case RF_IPv6_ENCAP:
 		prefix = NewEncapv6NLRI("")
 	case RF_FS_IPv4_UC:
-		prefix = &FlowSpecIPv4Unicast{}
+		prefix = &FlowSpecIPv4Unicast{FlowSpecNLRI{rf: RF_FS_IPv4_UC}}
 	case RF_FS_IPv4_VPN:
-		prefix = &FlowSpecIPv4VPN{}
+		prefix = &FlowSpecIPv4VPN{FlowSpecNLRI{rf: RF_FS_IPv4_VPN}}
 	case RF_FS_IPv6_UC:
-		prefix = &FlowSpecIPv6Unicast{}
+		prefix = &FlowSpecIPv6Unicast{FlowSpecNLRI{rf: RF_FS_IPv6_UC}}
 	case RF_FS_IPv6_VPN:
-		prefix = &FlowSpecIPv6VPN{}
+		prefix = &FlowSpecIPv6VPN{FlowSpecNLRI{rf: RF_FS_IPv6_VPN}}
 	case RF_FS_L2_VPN:
-		prefix = &FlowSpecL2VPN{}
+		prefix = &FlowSpecL2VPN{FlowSpecNLRI{rf: RF_FS_L2_VPN}}
 	case RF_OPAQUE:
 		prefix = &OpaqueNLRI{}
 	default:
@@ -3456,6 +3608,7 @@ const (
 	BGP_ERROR_HOLD_TIMER_EXPIRED
 	BGP_ERROR_FSM_ERROR
 	BGP_ERROR_CEASE
+	BGP_ERROR_ROUTE_REFRESH_MESSAGE_ERROR
 )
 
 // NOTIFICATION Error Subcode for BGP_ERROR_MESSAGE_HEADER_ERROR
@@ -3473,8 +3626,9 @@ const (
 	BGP_ERROR_SUB_BAD_PEER_AS
 	BGP_ERROR_SUB_BAD_BGP_IDENTIFIER
 	BGP_ERROR_SUB_UNSUPPORTED_OPTIONAL_PARAMETER
-	BGP_ERROR_SUB_AUTHENTICATION_FAILURE
+	BGP_ERROR_SUB_DEPRECATED_AUTHENTICATION_FAILURE
 	BGP_ERROR_SUB_UNACCEPTABLE_HOLD_TIME
+	BGP_ERROR_SUB_UNSUPPORTED_CAPABILITY
 )
 
 // NOTIFICATION Error Subcode for BGP_ERROR_UPDATE_MESSAGE_ERROR
@@ -3486,7 +3640,7 @@ const (
 	BGP_ERROR_SUB_ATTRIBUTE_FLAGS_ERROR
 	BGP_ERROR_SUB_ATTRIBUTE_LENGTH_ERROR
 	BGP_ERROR_SUB_INVALID_ORIGIN_ATTRIBUTE
-	BGP_ERROR_SUB_ROUTING_LOOP
+	BGP_ERROR_SUB_DEPRECATED_ROUTING_LOOP
 	BGP_ERROR_SUB_INVALID_NEXT_HOP_ATTRIBUTE
 	BGP_ERROR_SUB_OPTIONAL_ATTRIBUTE_ERROR
 	BGP_ERROR_SUB_INVALID_NETWORK_FIELD
@@ -3502,7 +3656,9 @@ const (
 // NOTIFICATION Error Subcode for BGP_ERROR_FSM_ERROR
 const (
 	_ = iota
-	BGP_ERROR_SUB_FSM_ERROR
+	BGP_ERROR_SUB_RECEIVE_UNEXPECTED_MESSAGE_IN_OPENSENT_STATE
+	BGP_ERROR_SUB_RECEIVE_UNEXPECTED_MESSAGE_IN_OPENCONFIRM_STATE
+	BGP_ERROR_SUB_RECEIVE_UNEXPECTED_MESSAGE_IN_ESTABLISHED_STATE
 )
 
 // NOTIFICATION Error Subcode for BGP_ERROR_CEASE  (RFC 4486)
@@ -3512,13 +3668,102 @@ const (
 	BGP_ERROR_SUB_ADMINISTRATIVE_SHUTDOWN
 	BGP_ERROR_SUB_PEER_DECONFIGURED
 	BGP_ERROR_SUB_ADMINISTRATIVE_RESET
-	BGP_ERROR_SUB_CONNECTION_RESET
+	BGP_ERROR_SUB_CONNECTION_REJECTED
 	BGP_ERROR_SUB_OTHER_CONFIGURATION_CHANGE
 	BGP_ERROR_SUB_CONNECTION_COLLISION_RESOLUTION
 	BGP_ERROR_SUB_OUT_OF_RESOURCES
 )
 
-var pathAttrFlags map[BGPAttrType]BGPAttrFlag = map[BGPAttrType]BGPAttrFlag{
+// NOTIFICATION Error Subcode for BGP_ERROR_ROUTE_REFRESH
+const (
+	_ = iota
+	BGP_ERROR_SUB_INVALID_MESSAGE_LENGTH
+)
+
+type NotificationErrorCode uint16
+
+func (c NotificationErrorCode) String() string {
+	code := uint8(uint16(c) >> 8)
+	subcode := uint8(uint16(c) & 0xff)
+	UNDEFINED := "undefined"
+	codeStr := UNDEFINED
+	subcodeList := []string{}
+	switch code {
+	case BGP_ERROR_MESSAGE_HEADER_ERROR:
+		codeStr = "header"
+		subcodeList = []string{
+			UNDEFINED,
+			"connection not synchronized",
+			"bad message length",
+			"bad message type"}
+	case BGP_ERROR_OPEN_MESSAGE_ERROR:
+		codeStr = "open"
+		subcodeList = []string{
+			UNDEFINED,
+			"unsupported version number",
+			"bad peer as",
+			"bad bgp identifier",
+			"unsupported optional parameter",
+			"deprecated authentication failure",
+			"unacceptable hold time",
+			"unsupported capability"}
+	case BGP_ERROR_UPDATE_MESSAGE_ERROR:
+		codeStr = "update"
+		subcodeList = []string{
+			UNDEFINED,
+			"malformed attribute list",
+			"unrecognized well known attribute",
+			"missing well known attribute",
+			"attribute flags error",
+			"attribute length error",
+			"invalid origin attribute",
+			"deprecated routing loop",
+			"invalid next hop attribute",
+			"optional attribute error",
+			"invalid network field",
+			"sub malformed as path"}
+	case BGP_ERROR_HOLD_TIMER_EXPIRED:
+		codeStr = "hold timer expired"
+		subcodeList = []string{
+			UNDEFINED,
+			"hold timer expired"}
+	case BGP_ERROR_FSM_ERROR:
+		codeStr = "fsm"
+		subcodeList = []string{
+			UNDEFINED,
+			"receive unexpected message in opensent state",
+			"receive unexpected message in openconfirm state",
+			"receive unexpected message in established state"}
+	case BGP_ERROR_CEASE:
+		codeStr = "cease"
+		subcodeList = []string{
+			UNDEFINED,
+			"maximum number of prefixes reached",
+			"administrative shutdown",
+			"peer deconfigured",
+			"administrative reset",
+			"connection rejected",
+			"other configuration change",
+			"connection collision resolution",
+			"out of resources"}
+	case BGP_ERROR_ROUTE_REFRESH_MESSAGE_ERROR:
+		codeStr = "route refresh"
+		subcodeList = []string{"invalid message length"}
+	}
+	subcodeStr := func(idx uint8, l []string) string {
+		if len(l) == 0 || int(idx) > len(l)-1 {
+			return UNDEFINED
+		}
+		return l[idx]
+	}(subcode, subcodeList)
+	return fmt.Sprintf("code %v(%v) subcode %v(%v)", code, codeStr, subcode, subcodeStr)
+}
+
+func NewNotificationErrorCode(code, subcode uint8) NotificationErrorCode {
+	return NotificationErrorCode(uint16(code)<<8 | uint16(subcode))
+}
+
+var PathAttrFlags map[BGPAttrType]BGPAttrFlag = map[BGPAttrType]BGPAttrFlag{
 	BGP_ATTR_TYPE_ORIGIN:               BGP_ATTR_FLAG_TRANSITIVE,
 	BGP_ATTR_TYPE_AS_PATH:              BGP_ATTR_FLAG_TRANSITIVE,
 	BGP_ATTR_TYPE_NEXT_HOP:             BGP_ATTR_FLAG_TRANSITIVE,
@@ -3544,10 +3789,11 @@ type PathAttributeInterface interface {
 	DecodeFromBytes([]byte) error
 	Serialize() ([]byte, error)
 	Len() int
-	getFlags() BGPAttrFlag
+	GetFlags() BGPAttrFlag
 	GetType() BGPAttrType
 	String() string
 	MarshalJSON() ([]byte, error)
+	Flat() map[string]string
 }
 
 type PathAttribute struct {
@@ -3570,7 +3816,7 @@ func (p *PathAttribute) Len() int {
 	return int(l)
 }
 
-func (p *PathAttribute) getFlags() BGPAttrFlag {
+func (p *PathAttribute) GetFlags() BGPAttrFlag {
 	return p.Flags
 }
 
@@ -3681,7 +3927,7 @@ func NewPathAttributeOrigin(value uint8) *PathAttributeOrigin {
 	return &PathAttributeOrigin{
 
 		PathAttribute: PathAttribute{
-			Flags: pathAttrFlags[t],
+			Flags: PathAttrFlags[t],
 			Type:  t,
 			Value: []byte{byte(value)},
 		},
@@ -4009,7 +4255,7 @@ func NewPathAttributeAsPath(value []AsPathParamInterface) *PathAttributeAsPath {
 	t := BGP_ATTR_TYPE_AS_PATH
 	return &PathAttributeAsPath{
 		PathAttribute: PathAttribute{
-			Flags: pathAttrFlags[t],
+			Flags: PathAttrFlags[t],
 			Type:  t,
 		},
 		Value: value,
@@ -4062,7 +4308,7 @@ func NewPathAttributeNextHop(value string) *PathAttributeNextHop {
 	t := BGP_ATTR_TYPE_NEXT_HOP
 	return &PathAttributeNextHop{
 		PathAttribute: PathAttribute{
-			Flags: pathAttrFlags[t],
+			Flags: PathAttrFlags[t],
 			Type:  t,
 		},
 		Value: net.ParseIP(value).To4(),
@@ -4113,7 +4359,7 @@ func NewPathAttributeMultiExitDisc(value uint32) *PathAttributeMultiExitDisc {
 	t := BGP_ATTR_TYPE_MULTI_EXIT_DISC
 	return &PathAttributeMultiExitDisc{
 		PathAttribute: PathAttribute{
-			Flags: pathAttrFlags[t],
+			Flags: PathAttrFlags[t],
 			Type:  t,
 		},
 		Value: value,
@@ -4164,7 +4410,7 @@ func NewPathAttributeLocalPref(value uint32) *PathAttributeLocalPref {
 	t := BGP_ATTR_TYPE_LOCAL_PREF
 	return &PathAttributeLocalPref{
 		PathAttribute: PathAttribute{
-			Flags: pathAttrFlags[t],
+			Flags: PathAttrFlags[t],
 			Type:  t,
 		},
 		Value: value,
@@ -4191,7 +4437,7 @@ func NewPathAttributeAtomicAggregate() *PathAttributeAtomicAggregate {
 	t := BGP_ATTR_TYPE_ATOMIC_AGGREGATE
 	return &PathAttributeAtomicAggregate{
 		PathAttribute: PathAttribute{
-			Flags: pathAttrFlags[t],
+			Flags: PathAttrFlags[t],
 			Type:  t,
 		},
 	}
@@ -4199,7 +4445,7 @@ func NewPathAttributeAtomicAggregate() *PathAttributeAtomicAggregate {
 
 type PathAttributeAggregatorParam struct {
 	AS      uint32
-	askind  reflect.Kind
+	Askind  reflect.Kind
 	Address net.IP
 }
 
@@ -4221,18 +4467,18 @@ func (p *PathAttributeAggregator) DecodeFromBytes(data []byte) error {
 	if len(p.PathAttribute.Value) == 6 {
 		p.Value.AS = uint32(binary.BigEndian.Uint16(p.PathAttribute.Value[0:2]))
 		p.Value.Address = p.PathAttribute.Value[2:]
-		p.Value.askind = reflect.Uint16
+		p.Value.Askind = reflect.Uint16
 	} else {
 		p.Value.AS = binary.BigEndian.Uint32(p.PathAttribute.Value[0:4])
 		p.Value.Address = p.PathAttribute.Value[4:]
-		p.Value.askind = reflect.Uint32
+		p.Value.Askind = reflect.Uint32
 	}
 	return nil
 }
 
 func (p *PathAttributeAggregator) Serialize() ([]byte, error) {
 	var buf []byte
-	switch p.Value.askind {
+	switch p.Value.Askind {
 	case reflect.Uint16:
 		buf = make([]byte, 6)
 		binary.BigEndian.PutUint16(buf, uint16(p.Value.AS))
@@ -4268,12 +4514,12 @@ func NewPathAttributeAggregator(as interface{}, address string) *PathAttributeAg
 	t := BGP_ATTR_TYPE_AGGREGATOR
 	return &PathAttributeAggregator{
 		PathAttribute: PathAttribute{
-			Flags: pathAttrFlags[t],
+			Flags: PathAttrFlags[t],
 			Type:  t,
 		},
 		Value: PathAttributeAggregatorParam{
 			AS:      uint32(v.Uint()),
-			askind:  v.Kind(),
+			Askind:  v.Kind(),
 			Address: net.ParseIP(address).To4(),
 		},
 	}
@@ -4388,7 +4634,7 @@ func NewPathAttributeCommunities(value []uint32) *PathAttributeCommunities {
 	t := BGP_ATTR_TYPE_COMMUNITIES
 	return &PathAttributeCommunities{
 		PathAttribute{
-			Flags:  pathAttrFlags[t],
+			Flags:  PathAttrFlags[t],
 			Type:   t,
 			Length: 0,
 			Value:  nil},
@@ -4440,7 +4686,7 @@ func NewPathAttributeOriginatorId(value string) *PathAttributeOriginatorId {
 	t := BGP_ATTR_TYPE_ORIGINATOR_ID
 	return &PathAttributeOriginatorId{
 		PathAttribute{
-			Flags:  pathAttrFlags[t],
+			Flags:  PathAttrFlags[t],
 			Type:   t,
 			Length: 0,
 			Value:  nil},
@@ -4506,7 +4752,7 @@ func NewPathAttributeClusterList(value []string) *PathAttributeClusterList {
 	t := BGP_ATTR_TYPE_CLUSTER_LIST
 	return &PathAttributeClusterList{
 		PathAttribute{
-			Flags:  pathAttrFlags[t],
+			Flags:  PathAttrFlags[t],
 			Type:   t,
 			Length: 0,
 			Value:  nil},
@@ -4672,7 +4918,7 @@ func NewPathAttributeMpReachNLRI(nexthop string, nlri []AddrPrefixInterface) *Pa
 	}
 	p := &PathAttributeMpReachNLRI{
 		PathAttribute: PathAttribute{
-			Flags: pathAttrFlags[t],
+			Flags: PathAttrFlags[t],
 			Type:  t,
 		},
 		Nexthop: ip,
@@ -4757,7 +5003,7 @@ func NewPathAttributeMpUnreachNLRI(nlri []AddrPrefixInterface) *PathAttributeMpU
 	t := BGP_ATTR_TYPE_MP_UNREACH_NLRI
 	p := &PathAttributeMpUnreachNLRI{
 		PathAttribute: PathAttribute{
-			Flags:  pathAttrFlags[t],
+			Flags:  PathAttrFlags[t],
 			Type:   t,
 			Length: 0,
 		},
@@ -4775,6 +5021,7 @@ type ExtendedCommunityInterface interface {
 	String() string
 	GetTypes() (ExtendedCommunityAttrType, ExtendedCommunityAttrSubType)
 	MarshalJSON() ([]byte, error)
+	Flat() map[string]string
 }
 
 type TwoOctetAsSpecificExtended struct {
@@ -5092,6 +5339,8 @@ func (e *EncapExtended) String() string {
 		return "MPLS in GRE"
 	case TUNNEL_TYPE_VXLAN_GRE:
 		return "VXLAN GRE"
+	case TUNNEL_TYPE_MPLS_IN_UDP:
+		return "MPLS in UDP"
 	default:
 		return fmt.Sprintf("tunnel: %d", e.TunnelType)
 	}
@@ -5105,7 +5354,7 @@ type OpaqueExtended struct {
 
 func (e *OpaqueExtended) DecodeFromBytes(data []byte) error {
 	if len(data) != 7 {
-		return fmt.Errorf("Invalid OpaqueExtended bytes len: %d", len(data))
+		return NewMessageError(BGP_ERROR_UPDATE_MESSAGE_ERROR, BGP_ERROR_SUB_MALFORMED_ATTRIBUTE_LIST, nil, fmt.Sprintf("Invalid OpaqueExtended bytes len: %d", len(data)))
 	}
 	e.SubType = ExtendedCommunityAttrSubType(data[0])
 
@@ -5339,7 +5588,7 @@ func NewMacMobilityExtended(seq uint32, isSticky bool) *MacMobilityExtended {
 
 func parseEvpnExtended(data []byte) (ExtendedCommunityInterface, error) {
 	if ExtendedCommunityAttrType(data[0]) != EC_TYPE_EVPN {
-		return nil, fmt.Errorf("ext comm type is not EC_TYPE_EVPN: %d", data[0])
+		return nil, NewMessageError(BGP_ERROR_UPDATE_MESSAGE_ERROR, BGP_ERROR_SUB_MALFORMED_ATTRIBUTE_LIST, nil, fmt.Sprintf("ext comm type is not EC_TYPE_EVPN: %d", data[0]))
 	}
 	subType := ExtendedCommunityAttrSubType(data[1])
 	switch subType {
@@ -5368,7 +5617,7 @@ func parseEvpnExtended(data []byte) (ExtendedCommunityInterface, error) {
 			IsSticky: isSticky,
 		}, nil
 	}
-	return nil, fmt.Errorf("unknown evpn subtype: %d", subType)
+	return nil, NewMessageError(BGP_ERROR_UPDATE_MESSAGE_ERROR, BGP_ERROR_SUB_MALFORMED_ATTRIBUTE_LIST, nil, fmt.Sprintf("unknown evpn subtype: %d", subType))
 }
 
 type TrafficRateExtended struct {
@@ -5595,7 +5844,7 @@ func NewTrafficRemarkExtended(dscp uint8) *TrafficRemarkExtended {
 func parseFlowSpecExtended(data []byte) (ExtendedCommunityInterface, error) {
 	typ := ExtendedCommunityAttrType(data[0])
 	if typ != EC_TYPE_GENERIC_TRANSITIVE_EXPERIMENTAL && typ != EC_TYPE_GENERIC_TRANSITIVE_EXPERIMENTAL2 && typ != EC_TYPE_GENERIC_TRANSITIVE_EXPERIMENTAL3 {
-		return nil, fmt.Errorf("ext comm type is not EC_TYPE_FLOWSPEC: %d", data[0])
+		return nil, NewMessageError(BGP_ERROR_UPDATE_MESSAGE_ERROR, BGP_ERROR_SUB_MALFORMED_ATTRIBUTE_LIST, nil, fmt.Sprintf("ext comm type is not EC_TYPE_FLOWSPEC: %d", data[0]))
 	}
 	subType := ExtendedCommunityAttrSubType(data[1])
 	switch subType {
@@ -5678,7 +5927,7 @@ type PathAttributeExtendedCommunities struct {
 
 func ParseExtended(data []byte) (ExtendedCommunityInterface, error) {
 	if len(data) < 8 {
-		return nil, fmt.Errorf("not all extended community bytes are available")
+		return nil, NewMessageError(BGP_ERROR_UPDATE_MESSAGE_ERROR, BGP_ERROR_SUB_MALFORMED_ATTRIBUTE_LIST, nil, "not all extended community bytes are available")
 	}
 	attrType := ExtendedCommunityAttrType(data[0])
 	subtype := ExtendedCommunityAttrSubType(data[1])
@@ -5786,7 +6035,7 @@ func NewPathAttributeExtendedCommunities(value []ExtendedCommunityInterface) *Pa
 	t := BGP_ATTR_TYPE_EXTENDED_COMMUNITIES
 	return &PathAttributeExtendedCommunities{
 		PathAttribute: PathAttribute{
-			Flags: pathAttrFlags[t],
+			Flags: PathAttrFlags[t],
 			Type:  t,
 		},
 		Value: value,
@@ -5851,7 +6100,7 @@ func NewPathAttributeAs4Path(value []*As4PathParam) *PathAttributeAs4Path {
 	t := BGP_ATTR_TYPE_AS4_PATH
 	return &PathAttributeAs4Path{
 		PathAttribute: PathAttribute{
-			Flags: pathAttrFlags[t],
+			Flags: PathAttrFlags[t],
 			Type:  t,
 		},
 		Value: value,
@@ -5890,7 +6139,7 @@ func NewPathAttributeAs4Aggregator(as uint32, address string) *PathAttributeAs4A
 	t := BGP_ATTR_TYPE_AS4_AGGREGATOR
 	return &PathAttributeAs4Aggregator{
 		PathAttribute: PathAttribute{
-			Flags: pathAttrFlags[t],
+			Flags: PathAttrFlags[t],
 			Type:  t,
 		},
 		Value: PathAttributeAggregatorParam{
@@ -5968,7 +6217,7 @@ func (p *TunnelEncapSubTLV) DecodeFromBytes(data []byte) error {
 	switch p.Type {
 	case ENCAP_SUBTLV_TYPE_ENCAPSULATION:
 		if len(data) < 4 {
-			return fmt.Errorf("Not all TunnelEncapSubTLV bytes available")
+			return NewMessageError(BGP_ERROR_UPDATE_MESSAGE_ERROR, BGP_ERROR_SUB_MALFORMED_ATTRIBUTE_LIST, nil, "Not all TunnelEncapSubTLV bytes available")
 		}
 		key := binary.BigEndian.Uint32(data[:4])
 		p.Value = &TunnelEncapSubTLVEncapuslation{
@@ -5977,13 +6226,13 @@ func (p *TunnelEncapSubTLV) DecodeFromBytes(data []byte) error {
 		}
 	case ENCAP_SUBTLV_TYPE_PROTOCOL:
 		if len(data) < 2 {
-			return fmt.Errorf("Not all TunnelEncapSubTLV bytes available")
+			return NewMessageError(BGP_ERROR_UPDATE_MESSAGE_ERROR, BGP_ERROR_SUB_MALFORMED_ATTRIBUTE_LIST, nil, "Not all TunnelEncapSubTLV bytes available")
 		}
 		protocol := binary.BigEndian.Uint16(data[:2])
 		p.Value = &TunnelEncapSubTLVProtocol{protocol}
 	case ENCAP_SUBTLV_TYPE_COLOR:
 		if len(data) < 8 {
-			return fmt.Errorf("Not all TunnelEncapSubTLV bytes available")
+			return NewMessageError(BGP_ERROR_UPDATE_MESSAGE_ERROR, BGP_ERROR_SUB_MALFORMED_ATTRIBUTE_LIST, nil, "Not all TunnelEncapSubTLV bytes available")
 		}
 		color := binary.BigEndian.Uint32(data[4:])
 		p.Value = &TunnelEncapSubTLVColor{color}
@@ -6008,7 +6257,7 @@ func (t *TunnelEncapTLV) DecodeFromBytes(data []byte) error {
 		subType := EncapSubTLVType(data[curr])
 		l := int(data[curr+1])
 		if len(data) < curr+2+l {
-			return fmt.Errorf("Not all TunnelEncapSubTLV bytes available")
+			return NewMessageError(BGP_ERROR_UPDATE_MESSAGE_ERROR, BGP_ERROR_SUB_MALFORMED_ATTRIBUTE_LIST, nil, "Not all TunnelEncapSubTLV bytes available")
 		}
 		v := data[curr+2 : curr+2+l]
 		subTlv := &TunnelEncapSubTLV{
@@ -6058,7 +6307,7 @@ func (p *PathAttributeTunnelEncap) DecodeFromBytes(data []byte) error {
 		tunnelType := TunnelType(t)
 		l := int(binary.BigEndian.Uint16(p.PathAttribute.Value[curr+2 : curr+4]))
 		if len(p.PathAttribute.Value) < curr+4+l {
-			return fmt.Errorf("Not all TunnelEncapTLV bytes available. %d < %d", len(p.PathAttribute.Value), curr+4+l)
+			return NewMessageError(BGP_ERROR_UPDATE_MESSAGE_ERROR, BGP_ERROR_SUB_MALFORMED_ATTRIBUTE_LIST, nil, fmt.Sprintf("Not all TunnelEncapTLV bytes available. %d < %d", len(p.PathAttribute.Value), curr+4+l))
 		}
 		v := p.PathAttribute.Value[curr+4 : curr+4+l]
 		tlv := &TunnelEncapTLV{
@@ -6092,7 +6341,7 @@ func NewPathAttributeTunnelEncap(value []*TunnelEncapTLV) *PathAttributeTunnelEn
 	t := BGP_ATTR_TYPE_TUNNEL_ENCAP
 	return &PathAttributeTunnelEncap{
 		PathAttribute: PathAttribute{
-			Flags: pathAttrFlags[t],
+			Flags: PathAttrFlags[t],
 			Type:  t,
 		},
 		Value: value,
@@ -6213,7 +6462,7 @@ func NewPathAttributePmsiTunnel(typ PmsiTunnelType, isLeafInfoRequired bool, lab
 	t := BGP_ATTR_TYPE_PMSI_TUNNEL
 	return &PathAttributePmsiTunnel{
 		PathAttribute: PathAttribute{
-			Flags: pathAttrFlags[t],
+			Flags: PathAttrFlags[t],
 			Type:  t,
 		},
 		IsLeafInfoRequired: isLeafInfoRequired,
@@ -6386,7 +6635,7 @@ func NewPathAttributeAigp(values []AigpTLV) *PathAttributeAigp {
 	t := BGP_ATTR_TYPE_AIGP
 	return &PathAttributeAigp{
 		PathAttribute: PathAttribute{
-			Flags: pathAttrFlags[t],
+			Flags: PathAttrFlags[t],
 			Type:  t,
 		},
 		Values: values,
@@ -6415,7 +6664,7 @@ func NewPathAttributeOpaqueValue(value []byte) *PathAttributeOpaqueValue {
 	t := BGP_ATTR_TYPE_OPAQUE_VALUE
 	return &PathAttributeOpaqueValue{
 		PathAttribute: PathAttribute{
-			Flags: pathAttrFlags[t],
+			Flags: PathAttrFlags[t],
 			Type:  t,
 			Value: value,
 		},
@@ -6627,7 +6876,7 @@ func NewEndOfRib(family RouteFamily) *BGPMessage {
 		t := BGP_ATTR_TYPE_MP_UNREACH_NLRI
 		unreach := &PathAttributeMpUnreachNLRI{
 			PathAttribute: PathAttribute{
-				Flags:  pathAttrFlags[t],
+				Flags:  PathAttrFlags[t],
 				Type:   t,
 				Length: 0,
 			},
@@ -6646,7 +6895,7 @@ type BGPNotification struct {
 
 func (msg *BGPNotification) DecodeFromBytes(data []byte) error {
 	if len(data) < 2 {
-		return fmt.Errorf("Not all Notificaiton bytes available")
+		return NewMessageError(BGP_ERROR_MESSAGE_HEADER_ERROR, BGP_ERROR_SUB_BAD_MESSAGE_LENGTH, nil, "Not all Notificaiton bytes available")
 	}
 	msg.ErrorCode = data[0]
 	msg.ErrorSubcode = data[1]
@@ -6697,7 +6946,7 @@ type BGPRouteRefresh struct {
 
 func (msg *BGPRouteRefresh) DecodeFromBytes(data []byte) error {
 	if len(data) < 4 {
-		return fmt.Errorf("Not all RouteRefresh bytes available")
+		return NewMessageError(BGP_ERROR_ROUTE_REFRESH_MESSAGE_ERROR, BGP_ERROR_SUB_INVALID_MESSAGE_LENGTH, nil, "Not all RouteRefresh bytes available")
 	}
 	msg.AFI = binary.BigEndian.Uint16(data[0:2])
 	msg.Demarcation = data[2]
@@ -6739,7 +6988,7 @@ type BGPHeader struct {
 func (msg *BGPHeader) DecodeFromBytes(data []byte) error {
 	// minimum BGP message length
 	if uint16(len(data)) < BGP_HEADER_LENGTH {
-		return fmt.Errorf("Not all BGP message header")
+		return NewMessageError(BGP_ERROR_MESSAGE_HEADER_ERROR, BGP_ERROR_SUB_BAD_MESSAGE_LENGTH, nil, "not all BGP message header")
 	}
 	msg.Len = binary.BigEndian.Uint16(data[16:18])
 	if int(msg.Len) < BGP_HEADER_LENGTH {
@@ -6766,7 +7015,7 @@ type BGPMessage struct {
 
 func parseBody(h *BGPHeader, data []byte) (*BGPMessage, error) {
 	if len(data) < int(h.Len)-BGP_HEADER_LENGTH {
-		return nil, fmt.Errorf("Not all BGP message bytes available")
+		return nil, NewMessageError(BGP_ERROR_MESSAGE_HEADER_ERROR, BGP_ERROR_SUB_BAD_MESSAGE_LENGTH, nil, "Not all BGP message bytes available")
 	}
 	msg := &BGPMessage{Header: *h}
 
@@ -6840,4 +7089,141 @@ func NewMessageError(typeCode, subTypeCode uint8, data []byte, msg string) error
 
 func (e *MessageError) Error() string {
 	return e.Message
+}
+
+func (e *TwoOctetAsSpecificExtended) Flat() map[string]string {
+	if e.SubType == EC_SUBTYPE_ROUTE_TARGET {
+		return map[string]string{"routeTarget": e.String()}
+	}
+	return map[string]string{}
+}
+
+func (e *OpaqueExtended) Flat() map[string]string {
+	if e.SubType == EC_SUBTYPE_ENCAPSULATION {
+		return map[string]string{"encaspulation": e.Value.String()}
+	}
+	return map[string]string{}
+}
+
+func (e *IPv4AddressSpecificExtended) Flat() map[string]string {
+	return map[string]string{}
+}
+
+func (e *FourOctetAsSpecificExtended) Flat() map[string]string {
+	return map[string]string{}
+}
+
+func (e *ESILabelExtended) Flat() map[string]string {
+	return map[string]string{}
+}
+
+func (e *ESImportRouteTarget) Flat() map[string]string {
+	return map[string]string{}
+}
+
+func (e *MacMobilityExtended) Flat() map[string]string {
+	return map[string]string{}
+}
+
+func (e *TrafficRateExtended) Flat() map[string]string {
+	return map[string]string{}
+}
+
+func (e *TrafficRemarkExtended) Flat() map[string]string {
+	return map[string]string{}
+}
+
+func (e *RedirectIPv4AddressSpecificExtended) Flat() map[string]string {
+	return map[string]string{}
+}
+
+func (e *RedirectFourOctetAsSpecificExtended) Flat() map[string]string {
+	return map[string]string{}
+}
+
+func (e *UnknownExtended) Flat() map[string]string {
+	return map[string]string{}
+}
+
+func (e *TrafficActionExtended) Flat() map[string]string {
+	return map[string]string{}
+}
+
+func (p *PathAttributeExtendedCommunities) Flat() map[string]string {
+	flat := map[string]string{}
+	for _, ec := range p.Value {
+		FlatUpdate(flat, ec.Flat())
+	}
+	return flat
+}
+
+func (p *PathAttribute) Flat() map[string]string {
+	return map[string]string{}
+}
+
+func (l *LabeledVPNIPAddrPrefix) Flat() map[string]string {
+	prefixLen := l.IPAddrPrefixDefault.Length - uint8(8*(l.Labels.Len()+l.RD.Len()))
+	return map[string]string{
+		"Prefix":    l.IPAddrPrefixDefault.Prefix.String(),
+		"PrefixLen": fmt.Sprintf("%d", prefixLen),
+		"NLRI":      l.String(),
+		"Label":     l.Labels.String(),
+	}
+}
+
+func (p *IPAddrPrefixDefault) Flat() map[string]string {
+	l := strings.Split(p.String(), "/")
+	if len(l) == 2 {
+		return map[string]string{
+			"Prefix":    l[0],
+			"PrefixLen": l[1],
+		}
+	}
+	return map[string]string{}
+}
+
+func (l *EVPNNLRI) Flat() map[string]string {
+	return map[string]string{}
+}
+func (l *RouteTargetMembershipNLRI) Flat() map[string]string {
+	return map[string]string{}
+}
+func (l *FlowSpecIPv4Unicast) Flat() map[string]string {
+	return map[string]string{}
+}
+func (l *FlowSpecIPv4VPN) Flat() map[string]string {
+	return map[string]string{}
+}
+func (l *FlowSpecIPv6Unicast) Flat() map[string]string {
+	return map[string]string{}
+}
+func (l *FlowSpecIPv6VPN) Flat() map[string]string {
+	return map[string]string{}
+}
+func (l *FlowSpecL2VPN) Flat() map[string]string {
+	return map[string]string{}
+}
+func (l *OpaqueNLRI) Flat() map[string]string {
+	return map[string]string{}
+}
+
+// Update a Flat representation by adding elements of the second
+// one. If two elements use same keys, values are separated with
+// ';'. In this case, it returns an error but the update has been
+// realized.
+func FlatUpdate(f1, f2 map[string]string) error {
+	conflict := false
+	for k2, v2 := range f2 {
+		if v1, ok := f1[k2]; ok {
+			f1[k2] = v1 + ";" + v2
+			conflict = true
+		} else {
+			f1[k2] = v2
+		}
+	}
+	if conflict {
+		return fmt.Errorf("Keys conflict")
+	} else {
+		return nil
+	}
 }
