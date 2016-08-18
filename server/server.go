@@ -1674,7 +1674,7 @@ func (server *BgpServer) addNeighbor(c *config.Neighbor) error {
 
 	addr := c.Config.NeighborAddress
 	if _, y := server.neighborMap[addr]; y {
-		return fmt.Errorf("Can't overwrite the exising peer: %s", addr)
+		return fmt.Errorf("Can't overwrite the existing peer: %s", addr)
 	}
 
 	if server.bgpConfig.Global.Config.Port > 0 {

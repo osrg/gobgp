@@ -3,14 +3,15 @@ package main
 import (
 	"bytes"
 	"fmt"
-	"github.com/BurntSushi/toml"
-	"github.com/jessevdk/go-flags"
-	"github.com/osrg/gobgp/config"
 	"io/ioutil"
 	"log"
 	"net"
 	"os"
 	"path/filepath"
+
+	"github.com/BurntSushi/toml"
+	"github.com/jessevdk/go-flags"
+	"github.com/osrg/gobgp/config"
 )
 
 type QuaggaConfig struct {
@@ -80,7 +81,7 @@ func create_config_files(nr int, outputDir string) {
 func main() {
 	var opts struct {
 		ClientNumber int    `short:"n" long:"client-number" description:"specfying the number of clients" default:"8"`
-		OutputDir    string `short:"c" long:"output" description:"specifing the output directory"`
+		OutputDir    string `short:"c" long:"output" description:"specifying the output directory"`
 	}
 	parser := flags.NewParser(&opts, flags.Default)
 

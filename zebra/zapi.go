@@ -18,11 +18,12 @@ package zebra
 import (
 	"encoding/binary"
 	"fmt"
-	log "github.com/Sirupsen/logrus"
 	"io"
 	"net"
 	"strings"
 	"syscall"
+
+	log "github.com/Sirupsen/logrus"
 )
 
 const (
@@ -488,7 +489,7 @@ func (b *InterfaceUpdateBody) Serialize() ([]byte, error) {
 }
 
 func (b *InterfaceUpdateBody) String() string {
-	s := fmt.Sprintf("name: %s, idx: %d, status: %s, flags: %s, metric: %d, mtu: %d, mtu6: %d, bandwith: %d", b.Name, b.Index, b.Status, intfflag2string(b.Flags), b.Metric, b.MTU, b.MTU6, b.Bandwidth)
+	s := fmt.Sprintf("name: %s, idx: %d, status: %s, flags: %s, metric: %d, mtu: %d, mtu6: %d, bandwidth: %d", b.Name, b.Index, b.Status, intfflag2string(b.Flags), b.Metric, b.MTU, b.MTU6, b.Bandwidth)
 	if len(b.HardwareAddr) > 0 {
 		return s + fmt.Sprintf(", mac: %s", b.HardwareAddr)
 	}
