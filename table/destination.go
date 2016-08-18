@@ -19,11 +19,12 @@ import (
 	"bytes"
 	"encoding/binary"
 	"fmt"
+	"net"
+	"sort"
+
 	log "github.com/Sirupsen/logrus"
 	"github.com/osrg/gobgp/config"
 	"github.com/osrg/gobgp/packet/bgp"
-	"net"
-	"sort"
 )
 
 var SelectionOptions config.RouteSelectionOptionsConfig
@@ -338,7 +339,7 @@ func (dest *Destination) explicitWithdraw() paths {
 				isFound = true
 				// this path is referenced in peer's adj-rib-in
 				// when there was no policy modification applied.
-				// we sould flag IsWithdraw down after use to avoid
+				// we could flag IsWithdraw down after use to avoid
 				// a path with IsWithdraw flag exists in adj-rib-in
 				path.IsWithdraw = true
 				matches = append(matches, withdraw)

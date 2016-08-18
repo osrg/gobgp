@@ -17,6 +17,11 @@ package openswitch
 
 import (
 	"fmt"
+	"net"
+	"reflect"
+	"strconv"
+	"time"
+
 	log "github.com/Sirupsen/logrus"
 	api "github.com/osrg/gobgp/api"
 	"github.com/osrg/gobgp/gobgp/cmd"
@@ -25,10 +30,6 @@ import (
 	ovsdb "github.com/socketplane/libovsdb"
 	"golang.org/x/net/context"
 	"google.golang.org/grpc"
-	"net"
-	"reflect"
-	"strconv"
-	"time"
 )
 
 const (
@@ -171,7 +172,7 @@ func parseRouteToGobgp(route ovsdb.RowUpdate, nexthops map[string]ovsdb.Row) (*a
 	if len(nh) == 0 {
 		log.WithFields(log.Fields{
 			"Topic": "openswitch",
-		}).Debug("nexthop addres does not exist")
+		}).Debug("nexthop address does not exist")
 	} else if len(nh) == 1 {
 		if net.ParseIP(nh[0].(string)) == nil {
 			return nil, isWithdraw, isFromGobgp, fmt.Errorf("invalid nexthop address")

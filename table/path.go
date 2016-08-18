@@ -18,13 +18,14 @@ package table
 import (
 	"bytes"
 	"fmt"
-	log "github.com/Sirupsen/logrus"
-	"github.com/osrg/gobgp/config"
-	"github.com/osrg/gobgp/packet/bgp"
 	"math"
 	"net"
 	"sort"
 	"time"
+
+	log "github.com/Sirupsen/logrus"
+	"github.com/osrg/gobgp/config"
+	"github.com/osrg/gobgp/packet/bgp"
 )
 
 const (
@@ -683,7 +684,7 @@ func (path *Path) SetCommunities(communities []uint32, doReplace bool) {
 }
 
 // RemoveCommunities removes specific communities.
-// If the length of communites is 0, it does nothing.
+// If the length of communities is 0, it does nothing.
 // If all communities are removed, it removes Communities path attribute itself.
 func (path *Path) RemoveCommunities(communities []uint32) int {
 
