@@ -180,7 +180,7 @@ func (s *Server) GetNeighbor(ctx context.Context, arg *GetNeighborRequest) (*Get
 	return &GetNeighborResponse{Peers: p}, nil
 }
 
-func toPathApi(path *table.Path) *Path {
+func ToPathApi(path *table.Path) *Path {
 	nlri := path.GetNlri()
 	n, _ := nlri.Serialize()
 	family := uint32(bgp.AfiSafiToRouteFamily(nlri.AFI(), nlri.SAFI()))
@@ -257,7 +257,7 @@ func (s *Server) GetRib(ctx context.Context, arg *GetRibRequest) (*GetRibRespons
 			Paths: func(paths []*table.Path) []*Path {
 				l := make([]*Path, 0, len(paths))
 				for i, p := range paths {
-					pp := toPathApi(p)
+					pp := ToPathApi(p)
 					switch arg.Table.Type {
 					case Resource_LOCAL, Resource_GLOBAL:
 						if i == 0 {
@@ -306,11 +306,11 @@ func (s *Server) MonitorRib(arg *Table, stream GobgpApi_MonitorRibServer) error 
 					continue
 				}
 				if dst, y := dsts[path.GetNlri().String()]; y {
-					dst.Paths = append(dst.Paths, toPathApi(path))
+					dst.Paths = append(dst.Paths, ToPathApi(path))
 				} else {
 					dsts[path.GetNlri().String()] = &Destination{
 						Prefix: path.GetNlri().String(),
-						Paths:  []*Path{toPathApi(path)},
+						Paths:  []*Path{ToPathApi(path)},
 					}
 				}
 			}
