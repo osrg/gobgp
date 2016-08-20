@@ -24,8 +24,8 @@ import (
 
 	log "github.com/Sirupsen/logrus"
 	api "github.com/osrg/gobgp/api"
-	"github.com/osrg/gobgp/gobgp/cmd"
 	"github.com/osrg/gobgp/packet/bgp"
+	"github.com/osrg/gobgp/table"
 	"github.com/satori/go.uuid"
 	ovsdb "github.com/socketplane/libovsdb"
 	"golang.org/x/net/context"
@@ -403,63 +403,60 @@ func (m *OpsManager) handleRouteUpdate(cli api.GobgpApiClient, update ovsdb.Tabl
 	}
 }
 
-func parseRouteToOps(pl []*cmd.Path) (map[string]interface{}, bool, error) {
+func parseRouteToOps(p *table.Path) (map[string]interface{}, bool, error) {
 	route := map[string]interface{}{"metric": 0, "peer": "Remote announcement"}
 	IsWithdraw := false
-	for _, p := range pl {
-		var nexthop string
-		pathAttr := map[string]string{"BGP_iBGP": "false",
-			"BGP_flags":    "16",
-			"BGP_internal": "false",
-			"BGP_loc_pref": "0",
-			"IsFromGobgp":  "true",
-		}
-		for _, a := range p.PathAttrs {
-			switch a.GetType() {
-			case bgp.BGP_ATTR_TYPE_NEXT_HOP:
-				nexthop = a.(*bgp.PathAttributeNextHop).Value.String()
-			case bgp.BGP_ATTR_TYPE_MP_REACH_NLRI:
-				n := a.(*bgp.PathAttributeMpReachNLRI).Nexthop
-				if n != nil {
-					nexthop = n.String()
-				} else {
-					nexthop = ""
-				}
-			case bgp.BGP_ATTR_TYPE_AS_PATH:
-				pathAttr["BGP_AS_path"] = a.(*bgp.PathAttributeAsPath).String()
-			case bgp.BGP_ATTR_TYPE_ORIGIN:
-				origin := "-"
-				switch a.(*bgp.PathAttributeOrigin).Value[0] {
-				case bgp.BGP_ORIGIN_ATTR_TYPE_IGP:
-					origin = "i"
-				case bgp.BGP_ORIGIN_ATTR_TYPE_EGP:
-					origin = "e"
-				case bgp.BGP_ORIGIN_ATTR_TYPE_INCOMPLETE:
-					origin = "?"
-				}
-				pathAttr["BGP_origin"] = origin
-			case bgp.BGP_ATTR_TYPE_LOCAL_PREF:
-				pathAttr["BGP_loc_pref"] = fmt.Sprintf("%v", a.(*bgp.PathAttributeLocalPref).Value)
-			case bgp.BGP_ATTR_TYPE_MULTI_EXIT_DISC:
-				route["metric"] = a.(*bgp.PathAttributeMultiExitDisc).Value
-			default:
-				continue
-			}
-		}
-		IsWithdraw = p.IsWithdraw
-		afi := "ipv4"
-		if p.Nlri.AFI() != bgp.AFI_IP {
-			afi = "ipv6"
-		}
-		safi := "unicast"
-
-		route["prefix"] = p.Nlri.String()
-		route["address_family"] = afi
-		route["sub_address_family"] = safi
-		route["bgp_nexthops"] = nexthop
-		route["path_attributes"] = pathAttr
-		break
+	var nexthop string
+	pathAttr := map[string]string{"BGP_iBGP": "false",
+		"BGP_flags":    "16",
+		"BGP_internal": "false",
+		"BGP_loc_pref": "0",
+		"IsFromGobgp":  "true",
 	}
+	for _, a := range p.GetPathAttrs() {
+		switch a.GetType() {
+		case bgp.BGP_ATTR_TYPE_NEXT_HOP:
+			nexthop = a.(*bgp.PathAttributeNextHop).Value.String()
+		case bgp.BGP_ATTR_TYPE_MP_REACH_NLRI:
+			n := a.(*bgp.PathAttributeMpReachNLRI).Nexthop
+			if n != nil {
+				nexthop = n.String()
+			} else {
+				nexthop = ""
+			}
+		case bgp.BGP_ATTR_TYPE_AS_PATH:
+			pathAttr["BGP_AS_path"] = a.(*bgp.PathAttributeAsPath).String()
+		case bgp.BGP_ATTR_TYPE_ORIGIN:
+			origin := "-"
+			switch a.(*bgp.PathAttributeOrigin).Value[0] {
+			case bgp.BGP_ORIGIN_ATTR_TYPE_IGP:
+				origin = "i"
+			case bgp.BGP_ORIGIN_ATTR_TYPE_EGP:
+				origin = "e"
+			case bgp.BGP_ORIGIN_ATTR_TYPE_INCOMPLETE:
+				origin = "?"
+			}
+			pathAttr["BGP_origin"] = origin
+		case bgp.BGP_ATTR_TYPE_LOCAL_PREF:
+			pathAttr["BGP_loc_pref"] = fmt.Sprintf("%v", a.(*bgp.PathAttributeLocalPref).Value)
+		case bgp.BGP_ATTR_TYPE_MULTI_EXIT_DISC:
+			route["metric"] = a.(*bgp.PathAttributeMultiExitDisc).Value
+		default:
+			continue
+		}
+	}
+	IsWithdraw = p.IsWithdraw
+	afi := "ipv4"
+	if p.GetNlri().AFI() != bgp.AFI_IP {
+		afi = "ipv6"
+	}
+	safi := "unicast"
+
+	route["prefix"] = p.GetNlri().String()
+	route["address_family"] = afi
+	route["sub_address_family"] = safi
+	route["bgp_nexthops"] = nexthop
+	route["path_attributes"] = pathAttr
 
 	return route, IsWithdraw, nil
 }
@@ -512,7 +509,7 @@ func deleteRoute(opsRoute map[string]interface{}) ovsdb.Operation {
 	return deleteOp
 }
 
-func (m *OpsManager) TransactPreparation(p []*cmd.Path) (*OpsOperation, error) {
+func (m *OpsManager) TransactPreparation(p *table.Path) (*OpsOperation, error) {
 	v, err := m.getVrfUUID()
 	if err != nil {
 		return nil, err
@@ -571,25 +568,38 @@ func (m *OpsManager) GobgpMonitor(target string) {
 		log.Fatal(err)
 	}
 	cli := api.NewGobgpApiClient(conn)
+	rsp, err := cli.GetServer(context.Background(), &api.GetServerRequest{})
+	if err != nil {
+		log.Fatal(err)
+	}
+	nativeOption := api.ToNativeOption{
+		LocalAS: uint32(rsp.Global.As),
+		LocalID: net.ParseIP(rsp.Global.RouterId),
+	}
 	stream, err := cli.MonitorRib(context.Background(), &api.Table{
 		Type:   api.Resource_GLOBAL,
 		Family: uint32(bgp.RF_IPv4_UC),
 	})
+	if err != nil {
+		log.Fatal(err)
+	}
 	for {
 		d, err := stream.Recv()
-		bPath := d.Paths[0]
-		if bPath.IsFromExternal && !bPath.IsWithdraw {
-			continue
+		if err != nil {
+			log.Fatal(err)
 		}
-		p, err := cmd.ApiStruct2Path(bPath)
+		dst, err := d.ToNativeDestination(nativeOption)
 		if err != nil {
 			log.WithFields(log.Fields{
 				"Topic": "openswitch",
-				"Type":  "MonitorRequest",
-				"Error": err,
-			}).Error("failed parse path of gobgp")
+			}).Error(err)
+			continue
 		}
-		o, err := m.TransactPreparation(p)
+		path := dst.GetAllKnownPathList()[0]
+		if path.IsLocal() && !path.IsWithdraw {
+			continue
+		}
+		o, err := m.TransactPreparation(path)
 		if err != nil {
 			log.WithFields(log.Fields{
 				"Topic": "openswitch",

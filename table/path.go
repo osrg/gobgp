@@ -17,6 +17,7 @@ package table
 
 import (
 	"bytes"
+	"encoding/json"
 	"fmt"
 	"math"
 	"net"
@@ -843,6 +844,30 @@ func (lhs *Path) Equal(rhs *Path) bool {
 		return ret
 	}
 	return bytes.Equal(pattrs(lhs.GetPathAttrs()), pattrs(rhs.GetPathAttrs()))
+}
+
+func (path *Path) MarshalJSON() ([]byte, error) {
+	return json.Marshal(struct {
+		Nlri       bgp.AddrPrefixInterface      `json:"nlri"`
+		PathAttrs  []bgp.PathAttributeInterface `json:"attrs"`
+		Age        int64                        `json:"age"`
+		Withdrawal bool                         `json:"withdrawal,omitempty"`
+		Validation string                       `json:"validation,omitempty"`
+		SourceID   net.IP                       `json:"source-id,omitempty"`
+		NeighborIP net.IP                       `json:"neighbor-ip,omitempty"`
+		Stale      bool                         `json:"stale,omitempty"`
+		Filtered   bool                         `json:"filtered,omitempty"`
+	}{
+		Nlri:       path.GetNlri(),
+		PathAttrs:  path.GetPathAttrs(),
+		Age:        path.GetTimestamp().Unix(),
+		Withdrawal: path.IsWithdraw,
+		Validation: string(path.Validation()),
+		SourceID:   path.GetSource().ID,
+		NeighborIP: path.GetSource().Address,
+		Stale:      path.IsStale(),
+		Filtered:   path.Filtered("") > POLICY_DIRECTION_NONE,
+	})
 }
 
 func (lhs *Path) Compare(rhs *Path) int {

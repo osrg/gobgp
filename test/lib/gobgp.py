@@ -121,23 +121,29 @@ class GoBGPContainer(BGPContainer):
         cmd = 'gobgp -j neighbor {0} local {1} -a {2}'.format(peer_addr, prefix, rf)
         output = self.local(cmd, capture=True)
         ret = json.loads(output)
-        for d in ret:
-            for p in d["paths"]:
+        dsts = []
+        for k, v in ret.iteritems():
+            for p in v:
                 p["nexthop"] = self._get_nexthop(p)
                 p["aspath"] = self._get_as_path(p)
                 p["local-pref"] = self._get_local_pref(p)
-        return ret
+                p["prefix"] = k
+            dsts.append({'paths': v, 'prefix': k})
+        return dsts
 
     def get_global_rib(self, prefix='', rf='ipv4'):
         cmd = 'gobgp -j global rib {0} -a {1}'.format(prefix, rf)
         output = self.local(cmd, capture=True)
         ret = json.loads(output)
-        for d in ret:
-            for p in d["paths"]:
+        dsts = []
+        for k, v in ret.iteritems():
+            for p in v:
                 p["nexthop"] = self._get_nexthop(p)
                 p["aspath"] = self._get_as_path(p)
                 p["local-pref"] = self._get_local_pref(p)
-        return ret
+                p["prefix"] = k
+            dsts.append({'paths': v, 'prefix': k})
+        return dsts
 
     def monitor_global_rib(self, queue, rf='ipv4'):
         host = self.ip_addrs[0][1].split('/')[0]
@@ -168,7 +174,7 @@ class GoBGPContainer(BGPContainer):
                                                                 adj_type,
                                                                 prefix, rf)
         output = self.local(cmd, capture=True)
-        ret = [p["paths"][0] for p in json.loads(output)]
+        ret = [p[0] for p in json.loads(output).itervalues()]
         for p in ret:
             p["nexthop"] = self._get_nexthop(p)
             p["aspath"] = self._get_as_path(p)

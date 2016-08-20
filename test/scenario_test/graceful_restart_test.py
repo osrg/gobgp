@@ -82,7 +82,7 @@ class GoBGPTestBase(unittest.TestCase):
         self.assertTrue(len(g2.get_global_rib('10.10.10.0/24')) == 0)
         for d in g2.get_global_rib():
             for p in d['paths']:
-                self.assertFalse(p['stale'])
+                self.assertFalse(p.get('stale', False))
 
     def test_04_add_non_graceful_restart_enabled_peer(self):
         g1 = self.bgpds['g1']

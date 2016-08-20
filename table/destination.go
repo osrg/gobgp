@@ -18,6 +18,7 @@ package table
 import (
 	"bytes"
 	"encoding/binary"
+	"encoding/json"
 	"fmt"
 	"net"
 	"sort"
@@ -124,11 +125,11 @@ type Destination struct {
 	RadixKey      string
 }
 
-func NewDestination(nlri bgp.AddrPrefixInterface) *Destination {
+func NewDestination(nlri bgp.AddrPrefixInterface, known ...*Path) *Destination {
 	d := &Destination{
 		routeFamily:   bgp.AfiSafiToRouteFamily(nlri.AFI(), nlri.SAFI()),
 		nlri:          nlri,
-		knownPathList: make([]*Path, 0),
+		knownPathList: known,
 		withdrawList:  make([]*Path, 0),
 		newPathList:   make([]*Path, 0),
 	}
@@ -854,6 +855,10 @@ type DestinationSelectOption struct {
 	ID  string
 	VRF *Vrf
 	adj bool
+}
+
+func (d *Destination) MarshalJSON() ([]byte, error) {
+	return json.Marshal(d.GetAllKnownPathList())
 }
 
 func (old *Destination) Select(option ...DestinationSelectOption) *Destination {

@@ -87,7 +87,7 @@ class GoBGPTestBase(unittest.TestCase):
         while True:
             info = qu.get(timeout=120)
             print 'monitor got {0}'.format(info)
-            self.assertTrue(info['isWithdraw'])
+            self.assertTrue(info['withdrawal'])
             break
 
 

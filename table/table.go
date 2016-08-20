@@ -50,10 +50,14 @@ type Table struct {
 	destinations map[string]*Destination
 }
 
-func NewTable(rf bgp.RouteFamily) *Table {
+func NewTable(rf bgp.RouteFamily, dsts ...*Destination) *Table {
+	destinations := make(map[string]*Destination)
+	for _, dst := range dsts {
+		destinations[dst.GetNlri().String()] = dst
+	}
 	return &Table{
 		routeFamily:  rf,
-		destinations: make(map[string]*Destination),
+		destinations: destinations,
 	}
 }
 
@@ -229,15 +233,11 @@ func (t *Table) GetSortedDestinations() []*Destination {
 			results = append(results, v.(*Destination))
 			return false
 		})
-	case bgp.RF_FS_IPv4_UC, bgp.RF_FS_IPv6_UC, bgp.RF_FS_IPv4_VPN, bgp.RF_FS_IPv6_VPN, bgp.RF_FS_L2_VPN:
-		for _, dst := range t.GetDestinations() {
-			results = append(results, dst)
-		}
-		sort.Sort(destinations(results))
 	default:
 		for _, dst := range t.GetDestinations() {
 			results = append(results, dst)
 		}
+		sort.Sort(destinations(results))
 	}
 	return results
 }
