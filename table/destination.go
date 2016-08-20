@@ -849,6 +849,48 @@ func (dest *Destination) String() string {
 	return fmt.Sprintf("Destination NLRI: %s", dest.nlri.String())
 }
 
+type DestinationSelectOption struct {
+	ID  string
+	VRF *Vrf
+	adj bool
+}
+
+func (old *Destination) Select(option ...DestinationSelectOption) *Destination {
+	id := GLOBAL_RIB_NAME
+	var vrf *Vrf
+	adj := false
+	for _, o := range option {
+		if o.ID != "" {
+			id = o.ID
+		}
+		if o.VRF != nil {
+			vrf = o.VRF
+		}
+		adj = o.adj
+	}
+	var paths []*Path
+	if adj {
+		paths = old.knownPathList
+	} else {
+		paths = old.GetKnownPathList(id)
+	}
+	new := NewDestination(old.nlri)
+	list := make([]*Path, 0, len(old.knownPathList))
+	for _, path := range paths {
+		if vrf != nil && !CanImportToVrf(vrf, path) {
+			continue
+		}
+		p := path.Clone(path.IsWithdraw)
+		p.Filter("", path.Filtered(id))
+		list = append(list, p)
+	}
+	if len(list) == 0 {
+		return nil
+	}
+	new.knownPathList = list
+	return new
+}
+
 type destinations []*Destination
 
 func (d destinations) Len() int {

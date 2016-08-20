@@ -180,7 +180,7 @@ func (s *Server) GetNeighbor(ctx context.Context, arg *GetNeighborRequest) (*Get
 	return &GetNeighborResponse{Peers: p}, nil
 }
 
-func toPathApi(id string, path *table.Path) *Path {
+func toPathApi(path *table.Path) *Path {
 	nlri := path.GetNlri()
 	n, _ := nlri.Serialize()
 	family := uint32(bgp.AfiSafiToRouteFamily(nlri.AFI(), nlri.SAFI()))
@@ -198,7 +198,7 @@ func toPathApi(id string, path *table.Path) *Path {
 		Age:            path.GetTimestamp().Unix(),
 		IsWithdraw:     path.IsWithdraw,
 		Validation:     int32(path.Validation().ToInt()),
-		Filtered:       path.Filtered(id) == table.POLICY_DIRECTION_IN,
+		Filtered:       path.Filtered("") == table.POLICY_DIRECTION_IN,
 		Family:         family,
 		SourceAsn:      path.GetSource().AS,
 		SourceId:       path.GetSource().ID.String(),
@@ -209,18 +209,18 @@ func toPathApi(id string, path *table.Path) *Path {
 }
 
 func (s *Server) GetRib(ctx context.Context, arg *GetRibRequest) (*GetRibResponse, error) {
-	f := func() []*server.LookupPrefix {
-		l := make([]*server.LookupPrefix, 0, len(arg.Table.Destinations))
+	f := func() []*table.LookupPrefix {
+		l := make([]*table.LookupPrefix, 0, len(arg.Table.Destinations))
 		for _, p := range arg.Table.Destinations {
-			l = append(l, &server.LookupPrefix{
+			l = append(l, &table.LookupPrefix{
 				Prefix: p.Prefix,
-				LookupOption: func() server.LookupOption {
+				LookupOption: func() table.LookupOption {
 					if p.LongerPrefixes {
-						return server.LOOKUP_LONGER
+						return table.LOOKUP_LONGER
 					} else if p.ShorterPrefixes {
-						return server.LOOKUP_SHORTER
+						return table.LOOKUP_SHORTER
 					}
-					return server.LOOKUP_EXACT
+					return table.LOOKUP_EXACT
 				}(),
 			})
 		}
@@ -229,46 +229,48 @@ func (s *Server) GetRib(ctx context.Context, arg *GetRibRequest) (*GetRibRespons
 
 	var in bool
 	var err error
-	var id string
-	var r map[string][]*table.Path
+	var tbl *table.Table
 
 	family := bgp.RouteFamily(arg.Table.Family)
 	switch arg.Table.Type {
 	case Resource_LOCAL, Resource_GLOBAL:
-		id, r, err = s.bgpServer.GetRib(arg.Table.Name, family, f())
+		tbl, err = s.bgpServer.GetRib(arg.Table.Name, family, f())
 	case Resource_ADJ_IN:
 		in = true
 		fallthrough
 	case Resource_ADJ_OUT:
-		id, r, err = s.bgpServer.GetAdjRib(arg.Table.Name, family, in, f())
+		tbl, err = s.bgpServer.GetAdjRib(arg.Table.Name, family, in, f())
 	case Resource_VRF:
-		id, r, err = s.bgpServer.GetVrfRib(arg.Table.Name, family, []*server.LookupPrefix{})
+		tbl, err = s.bgpServer.GetVrfRib(arg.Table.Name, family, []*table.LookupPrefix{})
 	default:
 		return nil, fmt.Errorf("unsupported resource type: %v", arg.Table.Type)
 	}
 
-	dsts := make([]*Destination, 0, len(r))
-	if err == nil {
-		for k, v := range r {
-			dsts = append(dsts, &Destination{
-				Prefix: k,
-				Paths: func(paths []*table.Path) []*Path {
-					l := make([]*Path, 0, len(v))
-					for i, p := range paths {
-						pp := toPathApi(id, p)
-						switch arg.Table.Type {
-						case Resource_LOCAL, Resource_GLOBAL:
-							if i == 0 {
-								pp.Best = true
-							}
-						}
-						l = append(l, pp)
-					}
-					return l
-				}(v),
-			})
-		}
+	if err != nil {
+		return nil, err
 	}
+
+	dsts := []*Destination{}
+	for _, dst := range tbl.GetSortedDestinations() {
+		dsts = append(dsts, &Destination{
+			Prefix: dst.GetNlri().String(),
+			Paths: func(paths []*table.Path) []*Path {
+				l := make([]*Path, 0, len(paths))
+				for i, p := range paths {
+					pp := toPathApi(p)
+					switch arg.Table.Type {
+					case Resource_LOCAL, Resource_GLOBAL:
+						if i == 0 {
+							pp.Best = true
+						}
+					}
+					l = append(l, pp)
+				}
+				return l
+			}(dst.GetAllKnownPathList()),
+		})
+	}
+
 	return &GetRibResponse{Table: &Table{
 		Type:         arg.Table.Type,
 		Family:       arg.Table.Family,
@@ -304,11 +306,11 @@ func (s *Server) MonitorRib(arg *Table, stream GobgpApi_MonitorRibServer) error 
 					continue
 				}
 				if dst, y := dsts[path.GetNlri().String()]; y {
-					dst.Paths = append(dst.Paths, toPathApi(table.GLOBAL_RIB_NAME, path))
+					dst.Paths = append(dst.Paths, toPathApi(path))
 				} else {
 					dsts[path.GetNlri().String()] = &Destination{
 						Prefix: path.GetNlri().String(),
-						Paths:  []*Path{toPathApi(table.GLOBAL_RIB_NAME, path)},
+						Paths:  []*Path{toPathApi(path)},
 					}
 				}
 			}
