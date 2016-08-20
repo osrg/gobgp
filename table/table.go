@@ -43,6 +43,8 @@ type TableSelectOption struct {
 	LookupPrefixes []*LookupPrefix
 	VRF            *Vrf
 	adj            bool
+	Best           bool
+	MultiPath      bool
 }
 
 type Table struct {
@@ -314,6 +316,8 @@ func (t *Table) Select(option ...TableSelectOption) (*Table, error) {
 	var vrf *Vrf
 	adj := false
 	prefixes := make([]*LookupPrefix, 0, len(option))
+	best := false
+	mp := false
 	for _, o := range option {
 		if o.ID != "" {
 			id = o.ID
@@ -323,12 +327,15 @@ func (t *Table) Select(option ...TableSelectOption) (*Table, error) {
 		}
 		adj = o.adj
 		prefixes = append(prefixes, o.LookupPrefixes...)
+		best = o.Best
+		mp = o.MultiPath
 	}
+	dOption := DestinationSelectOption{ID: id, VRF: vrf, adj: adj, Best: best, MultiPath: mp}
 	dsts := make(map[string]*Destination)
 	if (t.routeFamily == bgp.RF_IPv4_UC || t.routeFamily == bgp.RF_IPv6_UC) && len(prefixes) > 0 {
 		f := func(id, key string) (bool, error) {
 			if dst := t.GetDestination(key); dst != nil {
-				if d := dst.Select(DestinationSelectOption{ID: id, adj: adj}); d != nil {
+				if d := dst.Select(dOption); d != nil {
 					dsts[key] = d
 					return true, nil
 				}
@@ -344,7 +351,9 @@ func (t *Table) Select(option ...TableSelectOption) (*Table, error) {
 					return nil, err
 				}
 				for _, dst := range ds {
-					dsts[dst.GetNlri().String()] = dst.Select(DestinationSelectOption{ID: id, adj: adj})
+					if d := dst.Select(dOption); d != nil {
+						dsts[dst.GetNlri().String()] = d
+					}
 				}
 			case LOOKUP_SHORTER:
 				_, prefix, err := net.ParseCIDR(key)
@@ -374,7 +383,7 @@ func (t *Table) Select(option ...TableSelectOption) (*Table, error) {
 		}
 	} else {
 		for k, dst := range t.GetDestinations() {
-			if d := dst.Select(DestinationSelectOption{ID: id, VRF: vrf, adj: adj}); d != nil {
+			if d := dst.Select(dOption); d != nil {
 				dsts[k] = d
 			}
 		}

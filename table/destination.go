@@ -851,9 +851,11 @@ func (dest *Destination) String() string {
 }
 
 type DestinationSelectOption struct {
-	ID  string
-	VRF *Vrf
-	adj bool
+	ID        string
+	VRF       *Vrf
+	adj       bool
+	Best      bool
+	MultiPath bool
 }
 
 func (d *Destination) MarshalJSON() ([]byte, error) {
@@ -864,6 +866,8 @@ func (old *Destination) Select(option ...DestinationSelectOption) *Destination {
 	id := GLOBAL_RIB_NAME
 	var vrf *Vrf
 	adj := false
+	best := false
+	mp := false
 	for _, o := range option {
 		if o.ID != "" {
 			id = o.ID
@@ -872,27 +876,50 @@ func (old *Destination) Select(option ...DestinationSelectOption) *Destination {
 			vrf = o.VRF
 		}
 		adj = o.adj
+		best = o.Best
+		mp = o.MultiPath
 	}
 	var paths []*Path
 	if adj {
 		paths = old.knownPathList
 	} else {
 		paths = old.GetKnownPathList(id)
+		if vrf != nil {
+			ps := make([]*Path, 0, len(paths))
+			for _, p := range paths {
+				if CanImportToVrf(vrf, p) {
+					ps = append(ps, p)
+				}
+			}
+			paths = ps
+		}
+		if len(paths) == 0 {
+			return nil
+		}
+		if best {
+			if !mp {
+				paths = []*Path{paths[0]}
+			} else {
+				ps := make([]*Path, 0, len(paths))
+				var best *Path
+				for _, p := range paths {
+					if best == nil {
+						best = p
+						ps = append(ps, p)
+					} else if best.Compare(p) == 0 {
+						ps = append(ps, p)
+					}
+				}
+				paths = ps
+			}
+		}
 	}
 	new := NewDestination(old.nlri)
-	list := make([]*Path, 0, len(old.knownPathList))
 	for _, path := range paths {
-		if vrf != nil && !CanImportToVrf(vrf, path) {
-			continue
-		}
 		p := path.Clone(path.IsWithdraw)
 		p.Filter("", path.Filtered(id))
-		list = append(list, p)
+		new.knownPathList = append(new.knownPathList, p)
 	}
-	if len(list) == 0 {
-		return nil
-	}
-	new.knownPathList = list
 	return new
 }
 
