@@ -16,10 +16,12 @@
 package table
 
 import (
+	"net"
+	"sort"
+
 	log "github.com/Sirupsen/logrus"
 	"github.com/armon/go-radix"
 	"github.com/osrg/gobgp/packet/bgp"
-	"sort"
 )
 
 type Table struct {
@@ -234,15 +236,20 @@ func (t *Table) GetDestination(key string) *Destination {
 	}
 }
 
-func (t *Table) GetLongerPrefixDestinations(key string) []*Destination {
+func (t *Table) GetLongerPrefixDestinations(key string) ([]*Destination, error) {
 	results := make([]*Destination, 0, len(t.GetDestinations()))
 	switch t.routeFamily {
 	case bgp.RF_IPv4_UC, bgp.RF_IPv6_UC:
+		_, prefix, err := net.ParseCIDR(key)
+		if err != nil {
+			return nil, err
+		}
+		k := CidrToRadixkey(prefix.String())
 		r := radix.New()
 		for _, dst := range t.GetDestinations() {
 			r.Insert(dst.RadixKey, dst)
 		}
-		r.WalkPrefix(key, func(s string, v interface{}) bool {
+		r.WalkPrefix(k, func(s string, v interface{}) bool {
 			results = append(results, v.(*Destination))
 			return false
 		})
@@ -251,7 +258,7 @@ func (t *Table) GetLongerPrefixDestinations(key string) []*Destination {
 			results = append(results, dst)
 		}
 	}
-	return results
+	return results, nil
 }
 
 func (t *Table) setDestination(key string, dest *Destination) {

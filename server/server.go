@@ -1483,20 +1483,22 @@ func (s *BgpServer) GetRib(addr string, family bgp.RouteFamily, prefixes []*Look
 				key := p.Prefix
 				switch p.LookupOption {
 				case LOOKUP_LONGER:
-					_, prefix, err := net.ParseCIDR(key)
+					ds, e := rib.Tables[af].GetLongerPrefixDestinations(key)
 					if err != nil {
-						return id, nil, err
+						err = e
+						return
 					}
-					for _, dst := range rib.Tables[af].GetLongerPrefixDestinations(prefix.String()) {
+					for _, dst := range ds {
 						if paths := dst.GetKnownPathList(id); len(paths) > 0 {
 							dsts[dst.GetNlri().String()] = clonePathList(paths)
 						}
 					}
 
 				case LOOKUP_SHORTER:
-					_, prefix, err := net.ParseCIDR(key)
-					if err != nil {
-						return id, nil, err
+					_, prefix, e := net.ParseCIDR(key)
+					if e != nil {
+						err = e
+						return
 					}
 					ones, bits := prefix.Mask.Size()
 					for i := ones; i > 0; i-- {
