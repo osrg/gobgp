@@ -251,7 +251,7 @@ func (s *Server) GetRib(ctx context.Context, arg *GetRibRequest) (*GetRibRespons
 	}
 
 	dsts := []*Destination{}
-	for _, dst := range tbl.GetSortedDestinations() {
+	for _, dst := range tbl.GetDestinations() {
 		dsts = append(dsts, &Destination{
 			Prefix: dst.GetNlri().String(),
 			Paths: func(paths []*table.Path) []*Path {

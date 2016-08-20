@@ -40,16 +40,16 @@ func NewMonitorCmd() *cobra.Command {
 			} else if err != nil {
 				exitWithError(err)
 			}
-			p, err := ApiStruct2Path(d.Paths[0])
+			dst, err := d.ToNativeDestination()
 			if err != nil {
 				exitWithError(err)
 			}
 
 			if globalOpts.Json {
-				j, _ := json.Marshal(p)
+				j, _ := json.Marshal(dst.GetAllKnownPathList())
 				fmt.Println(string(j))
 			} else {
-				ShowRoute(p, false, false, false, true, false)
+				ShowRoute(dst.GetAllKnownPathList(), false, false, false, true, false)
 			}
 		}
 	}

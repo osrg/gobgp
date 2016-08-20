@@ -333,10 +333,10 @@ class GoBGPTestBase(unittest.TestCase):
 
         paths = g1.get_adj_rib_out(q1, '30.0.0.0/24')
         self.assertTrue(len(paths) == 1)
-        self.assertTrue(paths[0]['source-id'] == '<nil>')
+        self.assertTrue('source-id' not in paths[0])
         paths = g1.get_adj_rib_out(q2, '30.0.0.0/24')
         self.assertTrue(len(paths) == 1)
-        self.assertTrue(paths[0]['source-id'] == '<nil>')
+        self.assertTrue('source-id' not in paths[0])
 
         g1.local('gobgp global rib del 30.0.0.0/24')
 
@@ -405,8 +405,8 @@ class GoBGPTestBase(unittest.TestCase):
         cnt2 = 0
         g = next_prefix()
         n = g.next()
-        for path in g1.get_global_rib():
-            if path['prefix'] == n:
+        for path in g1.local("gobgp global rib", capture=True).split('\n')[1:]:
+            if [elem for elem in path.split(' ') if elem != ''][1] == n:
                 try:
                     cnt2 += 1
                     n = g.next()

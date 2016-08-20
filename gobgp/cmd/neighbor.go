@@ -21,6 +21,7 @@ import (
 	api "github.com/osrg/gobgp/api"
 	"github.com/osrg/gobgp/config"
 	"github.com/osrg/gobgp/packet/bgp"
+	"github.com/osrg/gobgp/table"
 	"github.com/spf13/cobra"
 	"golang.org/x/net/context"
 	"net"
@@ -310,7 +311,7 @@ type AsPathFormat struct {
 	separator string
 }
 
-func ShowRoute(pathList []*Path, showAge, showBest, showLabel, isMonitor, printHeader bool) {
+func ShowRoute(pathList []*table.Path, showAge, showBest, showLabel, isMonitor, printHeader bool) {
 
 	var pathStrs [][]interface{}
 	maxPrefixLen := 20
@@ -319,25 +320,17 @@ func ShowRoute(pathList []*Path, showAge, showBest, showLabel, isMonitor, printH
 	maxLabelLen := 10
 
 	now := time.Now()
-	for _, p := range pathList {
-		var nexthop string
-		var aspathstr string
+	for idx, p := range pathList {
+		nexthop := "fictitious"
+		if n := p.GetNexthop(); n != nil {
+			nexthop = p.GetNexthop().String()
+		}
+		aspathstr := p.GetAsString()
 
 		s := []string{}
-		for _, a := range p.PathAttrs {
+		for _, a := range p.GetPathAttrs() {
 			switch a.GetType() {
-			case bgp.BGP_ATTR_TYPE_NEXT_HOP:
-				nexthop = a.(*bgp.PathAttributeNextHop).Value.String()
-			case bgp.BGP_ATTR_TYPE_MP_REACH_NLRI:
-				n := a.(*bgp.PathAttributeMpReachNLRI).Nexthop
-				if n != nil {
-					nexthop = n.String()
-				} else {
-					nexthop = "fictitious"
-				}
-			case bgp.BGP_ATTR_TYPE_AS_PATH:
-				aspathstr = a.String()
-			case bgp.BGP_ATTR_TYPE_AS4_PATH:
+			case bgp.BGP_ATTR_TYPE_NEXT_HOP, bgp.BGP_ATTR_TYPE_MP_REACH_NLRI, bgp.BGP_ATTR_TYPE_AS_PATH, bgp.BGP_ATTR_TYPE_AS4_PATH:
 				continue
 			default:
 				s = append(s, a.String())
@@ -354,27 +347,27 @@ func ShowRoute(pathList []*Path, showAge, showBest, showLabel, isMonitor, printH
 		}
 
 		best := ""
-		if p.Stale {
+		if p.IsStale() {
 			best += "S"
 		}
-		switch int(p.Validation) {
-		case config.RPKI_VALIDATION_RESULT_TYPE_NOT_FOUND.ToInt():
+		switch p.Validation() {
+		case config.RPKI_VALIDATION_RESULT_TYPE_NOT_FOUND:
 			best += "N"
-		case config.RPKI_VALIDATION_RESULT_TYPE_VALID.ToInt():
+		case config.RPKI_VALIDATION_RESULT_TYPE_VALID:
 			best += "V"
-		case config.RPKI_VALIDATION_RESULT_TYPE_INVALID.ToInt():
+		case config.RPKI_VALIDATION_RESULT_TYPE_INVALID:
 			best += "I"
 		}
 		if showBest {
-			if p.Best {
+			if idx == 0 {
 				best += "*>"
 			} else {
 				best += "* "
 			}
 		}
-		nlri := p.Nlri.String()
-		if maxPrefixLen < len(nlri) {
-			maxPrefixLen = len(nlri)
+		nlri := p.GetNlri()
+		if maxPrefixLen < len(nlri.String()) {
+			maxPrefixLen = len(nlri.String())
 		}
 
 		if isMonitor {
@@ -387,15 +380,15 @@ func ShowRoute(pathList []*Path, showAge, showBest, showLabel, isMonitor, printH
 			args := []interface{}{best, nlri}
 			if showLabel {
 				label := ""
-				switch p.Nlri.(type) {
+				switch nlri.(type) {
 				case *bgp.LabeledIPAddrPrefix:
-					label = p.Nlri.(*bgp.LabeledIPAddrPrefix).Labels.String()
+					label = nlri.(*bgp.LabeledIPAddrPrefix).Labels.String()
 				case *bgp.LabeledIPv6AddrPrefix:
-					label = p.Nlri.(*bgp.LabeledIPv6AddrPrefix).Labels.String()
+					label = nlri.(*bgp.LabeledIPv6AddrPrefix).Labels.String()
 				case *bgp.LabeledVPNIPAddrPrefix:
-					label = p.Nlri.(*bgp.LabeledVPNIPAddrPrefix).Labels.String()
+					label = nlri.(*bgp.LabeledVPNIPAddrPrefix).Labels.String()
 				case *bgp.LabeledVPNIPv6AddrPrefix:
-					label = p.Nlri.(*bgp.LabeledVPNIPv6AddrPrefix).Labels.String()
+					label = nlri.(*bgp.LabeledVPNIPv6AddrPrefix).Labels.String()
 				}
 				if maxLabelLen < len(label) {
 					maxLabelLen = len(label)
@@ -404,7 +397,7 @@ func ShowRoute(pathList []*Path, showAge, showBest, showLabel, isMonitor, printH
 			}
 			args = append(args, []interface{}{nexthop, aspathstr}...)
 			if showAge {
-				args = append(args, formatTimedelta(int64(now.Sub(time.Unix(int64(p.Age), 0)).Seconds())))
+				args = append(args, formatTimedelta(int64(now.Sub(p.GetTimestamp()).Seconds())))
 			}
 			args = append(args, pattrstr)
 			pathStrs = append(pathStrs, args)
@@ -514,10 +507,9 @@ func showNeighborRib(r string, name string, args []string) error {
 	if err != nil {
 		return err
 	}
-	rib := rsp.Table
 	switch r {
 	case CMD_LOCAL, CMD_ADJ_IN, CMD_ACCEPTED, CMD_REJECTED, CMD_ADJ_OUT:
-		if len(rib.Destinations) == 0 {
+		if len(rsp.Table.Destinations) == 0 {
 			peer, err := getNeighbor(name)
 			if err != nil {
 				return err
@@ -528,84 +520,48 @@ func showNeighborRib(r string, name string, args []string) error {
 		}
 	}
 
-	isResultSorted := func(rf bgp.RouteFamily) bool {
-		switch rf {
-		case bgp.RF_IPv4_UC, bgp.RF_IPv6_UC, bgp.RF_FS_IPv4_UC, bgp.RF_FS_IPv6_UC, bgp.RF_FS_IPv4_VPN, bgp.RF_FS_IPv6_VPN, bgp.RF_FS_L2_VPN:
-			return true
-		}
-		return false
-	}
-
-	dsts := []*Destination{}
-	counter := 0
-	for _, d := range rib.Destinations {
-		dst, err := ApiStruct2Destination(d)
-		if err != nil {
-			return err
-		}
-		if isResultSorted(rf) && !globalOpts.Json && len(dst.Paths) > 0 {
-			ps := paths{}
-			for _, p := range dst.Paths {
-				switch r {
-				case CMD_ACCEPTED:
-					if !p.Filtered {
-						ps = append(ps, p)
-					}
-				case CMD_REJECTED:
-					if p.Filtered {
-						ps = append(ps, p)
-					}
-				default:
-					ps = append(ps, p)
-				}
-			}
-			sort.Sort(ps)
-			if counter == 0 {
-				ShowRoute(ps, showAge, showBest, showLabel, false, true)
-			} else {
-				ShowRoute(ps, showAge, showBest, showLabel, false, false)
-			}
-			counter++
-		}
-		dsts = append(dsts, dst)
+	rib, err := rsp.Table.ToNativeTable()
+	if err != nil {
+		return err
 	}
 
 	if globalOpts.Json {
-		j, _ := json.Marshal(dsts)
+		j, _ := json.Marshal(rib.GetDestinations())
 		fmt.Println(string(j))
 		return nil
 	}
 
-	if isResultSorted(rf) && counter != 0 {
-		// we already showed
-		return nil
-	}
-
-	ps := paths{}
-	for _, dst := range dsts {
-		for _, p := range dst.Paths {
-			switch r {
-			case CMD_ACCEPTED:
-				if !p.Filtered {
-					ps = append(ps, p)
+	counter := 0
+	for _, d := range rib.GetSortedDestinations() {
+		var ps []*table.Path
+		if r == CMD_ACCEPTED || r == CMD_REJECTED {
+			for _, p := range d.GetAllKnownPathList() {
+				switch r {
+				case CMD_ACCEPTED:
+					if p.Filtered("") > table.POLICY_DIRECTION_NONE {
+						continue
+					}
+				case CMD_REJECTED:
+					if p.Filtered("") == table.POLICY_DIRECTION_NONE {
+						continue
+					}
 				}
-			case CMD_REJECTED:
-				if p.Filtered {
-					ps = append(ps, p)
-				}
-			default:
 				ps = append(ps, p)
 			}
+		} else {
+			ps = d.GetAllKnownPathList()
 		}
+		if counter == 0 {
+			ShowRoute(ps, showAge, showBest, showLabel, false, true)
+		} else {
+			ShowRoute(ps, showAge, showBest, showLabel, false, false)
+		}
+		counter++
 	}
 
-	if len(ps) == 0 {
+	if counter == 0 {
 		fmt.Println("Network not in table")
-		return nil
 	}
-
-	sort.Sort(ps)
-	ShowRoute(ps, showAge, showBest, showLabel, false, true)
 	return nil
 }
 

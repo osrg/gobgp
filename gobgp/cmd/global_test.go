@@ -31,11 +31,10 @@ func Test_ParsePath(t *testing.T) {
 	assert.Nil(err)
 	fmt.Println(path)
 	path.Family = uint32(bgp.RF_IPv4_UC)
-	paths, err := ApiStruct2Path(path)
+	p, err := path.ToNativePath()
 	assert.Nil(err)
-	assert.True(len(paths) == 1)
 	i := 0
-	for _, a := range paths[0].PathAttrs {
+	for _, a := range p.GetPathAttrs() {
 		assert.True(i < int(a.GetType()))
 		i = int(a.GetType())
 	}
