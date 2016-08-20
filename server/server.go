@@ -1483,7 +1483,10 @@ func (s *BgpServer) GetRib(addr string, family bgp.RouteFamily, prefixes []*Look
 				key := p.Prefix
 				switch p.LookupOption {
 				case LOOKUP_LONGER:
-					_, prefix, _ := net.ParseCIDR(key)
+					_, prefix, err := net.ParseCIDR(key)
+					if err != nil {
+						return id, nil, err
+					}
 					for _, dst := range rib.Tables[af].GetLongerPrefixDestinations(prefix.String()) {
 						if paths := dst.GetKnownPathList(id); len(paths) > 0 {
 							dsts[dst.GetNlri().String()] = clonePathList(paths)
@@ -1491,7 +1494,10 @@ func (s *BgpServer) GetRib(addr string, family bgp.RouteFamily, prefixes []*Look
 					}
 
 				case LOOKUP_SHORTER:
-					_, prefix, _ := net.ParseCIDR(key)
+					_, prefix, err := net.ParseCIDR(key)
+					if err != nil {
+						return id, nil, err
+					}
 					ones, bits := prefix.Mask.Size()
 					for i := ones; i > 0; i-- {
 						prefix.Mask = net.CIDRMask(i, bits)
