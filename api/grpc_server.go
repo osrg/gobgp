@@ -1608,12 +1608,13 @@ func (s *Server) GetServer(ctx context.Context, arg *GetServerRequest) (*GetServ
 	g := s.bgpServer.GetServer()
 	return &GetServerResponse{
 		Global: &Global{
-			As:              g.Config.As,
-			RouterId:        g.Config.RouterId,
-			ListenPort:      g.Config.Port,
-			ListenAddresses: g.Config.LocalAddressList,
-			MplsLabelMin:    g.MplsLabelRange.MinLabel,
-			MplsLabelMax:    g.MplsLabelRange.MaxLabel,
+			As:               g.Config.As,
+			RouterId:         g.Config.RouterId,
+			ListenPort:       g.Config.Port,
+			ListenAddresses:  g.Config.LocalAddressList,
+			MplsLabelMin:     g.MplsLabelRange.MinLabel,
+			MplsLabelMax:     g.MplsLabelRange.MaxLabel,
+			UseMultiplePaths: g.UseMultiplePaths.Config.Enabled,
 		},
 	}, nil
 }
@@ -1649,6 +1650,11 @@ func (s *Server) StartServer(ctx context.Context, arg *StartServerRequest) (*Sta
 				MaxLabel: g.MplsLabelMax,
 			},
 			AfiSafis: families,
+			UseMultiplePaths: config.UseMultiplePaths{
+				Config: config.UseMultiplePathsConfig{
+					Enabled: g.UseMultiplePaths,
+				},
+			},
 		},
 	}
 	return &StartServerResponse{}, s.bgpServer.Start(&b.Global)
