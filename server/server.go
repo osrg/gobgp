@@ -24,7 +24,6 @@ import (
 	"time"
 
 	log "github.com/Sirupsen/logrus"
-	"github.com/armon/go-radix"
 	"github.com/eapache/channels"
 	"github.com/osrg/gobgp/config"
 	"github.com/osrg/gobgp/packet/bgp"
@@ -1423,28 +1422,15 @@ func (s *BgpServer) SoftReset(addr string, family bgp.RouteFamily) (err error) {
 	return err
 }
 
-type LookupOption uint8
-
-const (
-	LOOKUP_EXACT LookupOption = iota
-	LOOKUP_LONGER
-	LOOKUP_SHORTER
-)
-
-type LookupPrefix struct {
-	Prefix string
-	LookupOption
-}
-
-func (s *BgpServer) GetRib(addr string, family bgp.RouteFamily, prefixes []*LookupPrefix) (id string, dsts map[string][]*table.Path, err error) {
+func (s *BgpServer) GetRib(addr string, family bgp.RouteFamily, prefixes []*table.LookupPrefix) (rib *table.Table, err error) {
 	ch := make(chan struct{})
 	defer func() { <-ch }()
 
 	s.mgmtCh <- func() {
 		defer close(ch)
 
-		rib := s.globalRib
-		id = table.GLOBAL_RIB_NAME
+		m := s.globalRib
+		id := table.GLOBAL_RIB_NAME
 		if len(addr) > 0 {
 			peer, ok := s.neighborMap[addr]
 			if !ok {
@@ -1458,113 +1444,49 @@ func (s *BgpServer) GetRib(addr string, family bgp.RouteFamily, prefixes []*Look
 			id = peer.ID()
 		}
 		af := bgp.RouteFamily(family)
-		if _, ok := rib.Tables[af]; !ok {
+		tbl, ok := m.Tables[af]
+		if !ok {
 			err = fmt.Errorf("address family: %s not supported", af)
 			return
 		}
-
-		dsts = make(map[string][]*table.Path)
-		if (af == bgp.RF_IPv4_UC || af == bgp.RF_IPv6_UC) && len(prefixes) > 0 {
-			f := func(id, cidr string) (bool, error) {
-				_, prefix, err := net.ParseCIDR(cidr)
-				if err != nil {
-					return false, err
-				}
-				if dst := rib.Tables[af].GetDestination(prefix.String()); dst != nil {
-					if paths := dst.GetKnownPathList(id); len(paths) > 0 {
-						dsts[dst.GetNlri().String()] = clonePathList(paths)
-					}
-					return true, nil
-				} else {
-					return false, nil
-				}
-			}
-			for _, p := range prefixes {
-				key := p.Prefix
-				switch p.LookupOption {
-				case LOOKUP_LONGER:
-					_, prefix, _ := net.ParseCIDR(key)
-					for _, dst := range rib.Tables[af].GetLongerPrefixDestinations(prefix.String()) {
-						if paths := dst.GetKnownPathList(id); len(paths) > 0 {
-							dsts[dst.GetNlri().String()] = clonePathList(paths)
-						}
-					}
-
-				case LOOKUP_SHORTER:
-					_, prefix, _ := net.ParseCIDR(key)
-					ones, bits := prefix.Mask.Size()
-					for i := ones; i > 0; i-- {
-						prefix.Mask = net.CIDRMask(i, bits)
-						f(id, prefix.String())
-					}
-				default:
-					if _, err := f(id, key); err != nil {
-						if host := net.ParseIP(key); host != nil {
-							masklen := 32
-							if af == bgp.RF_IPv6_UC {
-								masklen = 128
-							}
-							for i := masklen; i > 0; i-- {
-								if y, _ := f(id, fmt.Sprintf("%s/%d", key, i)); y {
-									break
-								}
-							}
-						}
-					}
-				}
-			}
-		} else {
-			for _, dst := range rib.Tables[af].GetSortedDestinations() {
-				if paths := dst.GetKnownPathList(id); len(paths) > 0 {
-					dsts[dst.GetNlri().String()] = clonePathList(paths)
-				}
-			}
-		}
+		rib, err = tbl.Select(table.TableSelectOption{ID: id, LookupPrefixes: prefixes})
 	}
-	return id, dsts, err
+	return
 }
 
-func (s *BgpServer) GetVrfRib(name string, family bgp.RouteFamily, prefixes []*LookupPrefix) (id string, dsts map[string][]*table.Path, err error) {
+func (s *BgpServer) GetVrfRib(name string, family bgp.RouteFamily, prefixes []*table.LookupPrefix) (rib *table.Table, err error) {
 	ch := make(chan struct{})
 	defer func() { <-ch }()
 
 	s.mgmtCh <- func() {
 		defer close(ch)
 
-		rib := s.globalRib
-		vrfs := rib.Vrfs
+		m := s.globalRib
+		vrfs := m.Vrfs
 		if _, ok := vrfs[name]; !ok {
 			err = fmt.Errorf("vrf %s not found", name)
 			return
 		}
-		var rf bgp.RouteFamily
+		var af bgp.RouteFamily
 		switch family {
 		case bgp.RF_IPv4_UC:
-			rf = bgp.RF_IPv4_VPN
+			af = bgp.RF_IPv4_VPN
 		case bgp.RF_IPv6_UC:
-			rf = bgp.RF_IPv6_VPN
+			af = bgp.RF_IPv6_VPN
 		case bgp.RF_EVPN:
-			rf = bgp.RF_EVPN
-		default:
-			err = fmt.Errorf("unsupported route family: %s", family)
+			af = bgp.RF_EVPN
+		}
+		tbl, ok := m.Tables[af]
+		if !ok {
+			err = fmt.Errorf("address family: %s not supported", af)
 			return
 		}
-
-		dsts = make(map[string][]*table.Path)
-		for _, path := range rib.GetPathList(table.GLOBAL_RIB_NAME, []bgp.RouteFamily{rf}) {
-			if ok := table.CanImportToVrf(vrfs[name], path); ok {
-				if d, y := dsts[path.GetNlri().String()]; y {
-					d = append(d, path.Clone(false))
-				} else {
-					dsts[path.GetNlri().String()] = []*table.Path{path.Clone(false)}
-				}
-			}
-		}
+		rib, err = tbl.Select(table.TableSelectOption{VRF: vrfs[name], LookupPrefixes: prefixes})
 	}
-	return table.GLOBAL_RIB_NAME, dsts, err
+	return
 }
 
-func (s *BgpServer) GetAdjRib(addr string, family bgp.RouteFamily, in bool, prefixes []*LookupPrefix) (id string, dsts map[string][]*table.Path, err error) {
+func (s *BgpServer) GetAdjRib(addr string, family bgp.RouteFamily, in bool, prefixes []*table.LookupPrefix) (rib *table.Table, err error) {
 	ch := make(chan struct{})
 	defer func() { <-ch }()
 
@@ -1576,66 +1498,17 @@ func (s *BgpServer) GetAdjRib(addr string, family bgp.RouteFamily, in bool, pref
 			err = fmt.Errorf("Neighbor that has %v doesn't exist.", addr)
 			return
 		}
-		id = peer.TableID()
+		id := peer.TableID()
 
-		var paths []*table.Path
+		var adjRib *table.AdjRib
 		if in {
-			paths = peer.adjRibIn.PathList([]bgp.RouteFamily{family}, false)
-			log.WithFields(log.Fields{
-				"Topic": "Peer",
-			}).Debugf("RouteFamily=%v adj-rib-in found : %d", family.String(), len(paths))
+			adjRib = peer.adjRibIn
 		} else {
-			paths = peer.adjRibOut.PathList([]bgp.RouteFamily{family}, false)
-			log.WithFields(log.Fields{
-				"Topic": "Peer",
-			}).Debugf("RouteFamily=%v adj-rib-out found : %d", family.String(), len(paths))
+			adjRib = peer.adjRibOut
 		}
-
-		for i, p := range paths {
-			paths[i] = p.Clone(false)
-			paths[i].Filter(id, p.Filtered(id))
-		}
-
-		dsts = make(map[string][]*table.Path)
-		switch family {
-		case bgp.RF_IPv4_UC, bgp.RF_IPv6_UC:
-			r := radix.New()
-			for _, p := range paths {
-				key := p.GetNlri().String()
-				found := true
-				for _, p := range prefixes {
-					found = false
-					if p.Prefix == key {
-						found = true
-						break
-					}
-				}
-
-				if found {
-					b, _ := r.Get(table.CidrToRadixkey(key))
-					if b == nil {
-						r.Insert(table.CidrToRadixkey(key), []*table.Path{p})
-					} else {
-						l := b.([]*table.Path)
-						l = append(l, p)
-					}
-				}
-			}
-			r.Walk(func(s string, v interface{}) bool {
-				dsts[s] = v.([]*table.Path)
-				return false
-			})
-		default:
-			for _, p := range paths {
-				if d, y := dsts[p.GetNlri().String()]; y {
-					d = append(d, p)
-				} else {
-					dsts[p.GetNlri().String()] = []*table.Path{p}
-				}
-			}
-		}
+		rib, err = adjRib.Select(family, false, table.TableSelectOption{ID: id, LookupPrefixes: prefixes})
 	}
-	return id, dsts, err
+	return
 }
 
 func (s *BgpServer) GetServer() (c *config.Global) {

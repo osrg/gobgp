@@ -168,3 +168,23 @@ func (adj *AdjRib) Exists(path *Path) bool {
 	_, ok = table[path.getPrefix()]
 	return ok
 }
+
+func (adj *AdjRib) Select(family bgp.RouteFamily, accepted bool, option ...TableSelectOption) (*Table, error) {
+	paths := adj.PathList([]bgp.RouteFamily{family}, accepted)
+	dsts := make(map[string]*Destination, len(paths))
+	for _, path := range paths {
+		if d, y := dsts[path.GetNlri().String()]; y {
+			d.knownPathList = append(d.knownPathList, path)
+		} else {
+			dst := NewDestination(path.GetNlri())
+			dsts[path.GetNlri().String()] = dst
+			dst.knownPathList = append(dst.knownPathList, path)
+		}
+	}
+	tbl := &Table{
+		routeFamily:  family,
+		destinations: dsts,
+	}
+	option = append(option, TableSelectOption{adj: true})
+	return tbl.Select(option...)
+}
