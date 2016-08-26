@@ -107,7 +107,7 @@ func (s *Server) GetNeighbor(ctx context.Context, arg *GetNeighborRequest) (*Get
 		return &Peer{
 			Conf: &PeerConf{
 				NeighborAddress:   pconf.Config.NeighborAddress,
-				Id:                s.Description,
+				Id:                s.RemoteRouterId,
 				PeerAs:            pconf.Config.PeerAs,
 				LocalAs:           pconf.Config.LocalAs,
 				PeerType:          uint32(pconf.Config.PeerType.ToInt()),

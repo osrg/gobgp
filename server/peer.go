@@ -394,7 +394,7 @@ func (peer *Peer) ToConfig() *config.Neighbor {
 	}
 	conf.State.Capabilities.LocalList = localCap
 
-	conf.State.Description = peer.fsm.peerInfo.ID.To4().String()
+	conf.State.RemoteRouterId = peer.fsm.peerInfo.ID.To4().String()
 	conf.State.SessionState = config.IntToSessionStateMap[int(peer.fsm.state)]
 	conf.State.AdminState = peer.fsm.adminState.String()
 

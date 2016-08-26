@@ -104,7 +104,7 @@ func (m *mrtWriter) loop() error {
 				t := uint32(time.Now().Unix())
 				peers := make([]*mrt.Peer, 0, len(m.Neighbor))
 				for _, pconf := range m.Neighbor {
-					peers = append(peers, mrt.NewPeer(pconf.State.Description, pconf.Config.NeighborAddress, pconf.Config.PeerAs, true))
+					peers = append(peers, mrt.NewPeer(pconf.State.RemoteRouterId, pconf.Config.NeighborAddress, pconf.Config.PeerAs, true))
 				}
 				if bm, err := mrt.NewMRTMessage(t, mrt.TABLE_DUMPv2, mrt.PEER_INDEX_TABLE, mrt.NewPeerIndexTable(m.RouterId, "", peers)); err != nil {
 					break

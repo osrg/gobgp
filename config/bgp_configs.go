@@ -2512,6 +2512,8 @@ type NeighborState struct {
 	Flops uint32 `mapstructure:"flops"`
 	// original -> gobgp:neighbor-interface
 	NeighborInterface string `mapstructure:"neighbor-interface"`
+	// original -> gobgp:remote-router-id
+	RemoteRouterId string `mapstructure:"remote-router-id"`
 }
 
 func (lhs *NeighborState) Equal(rhs *NeighborState) bool {
@@ -2587,6 +2589,9 @@ func (lhs *NeighborState) Equal(rhs *NeighborState) bool {
 		return false
 	}
 	if lhs.NeighborInterface != rhs.NeighborInterface {
+		return false
+	}
+	if lhs.RemoteRouterId != rhs.RemoteRouterId {
 		return false
 	}
 	return true

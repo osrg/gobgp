@@ -667,6 +667,12 @@ module gobgp {
     }
   }
 
+  augment "/bgp:bgp/bgp:neighbors/bgp:neighbor/bgp:state" {
+    leaf remote-router-id {
+        type string;
+    }
+  }
+
   augment "/bgp:bgp/bgp:neighbors/bgp:neighbor/bgp:transport/bgp:config" {
     leaf remote-port {
       type inet:port-number;
