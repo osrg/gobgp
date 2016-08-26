@@ -875,7 +875,7 @@ func (s *BgpServer) StartCollector(c *config.CollectorConfig) (err error) {
 	return err
 }
 
-func (s *BgpServer) StartZebraClient(x *config.Zebra) (err error) {
+func (s *BgpServer) StartZebraClient(c *config.ZebraConfig) (err error) {
 	ch := make(chan struct{})
 	defer func() { <-ch }()
 
@@ -885,8 +885,6 @@ func (s *BgpServer) StartZebraClient(x *config.Zebra) (err error) {
 		if s.zclient != nil {
 			err = fmt.Errorf("already connected to Zebra")
 		} else {
-			c := x.Config
-
 			protos := make([]string, 0, len(c.RedistributeRouteTypeList))
 			for _, p := range c.RedistributeRouteTypeList {
 				protos = append(protos, string(p))

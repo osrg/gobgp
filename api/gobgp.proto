@@ -50,6 +50,7 @@ service GobgpApi {
   rpc ResetRpki(ResetRpkiRequest) returns (ResetRpkiResponse) {}
   rpc SoftResetRpki(SoftResetRpkiRequest) returns (SoftResetRpkiResponse) {}
   rpc GetRoa(GetRoaRequest) returns (GetRoaResponse) {}
+  rpc EnableZebra(EnableZebraRequest) returns (EnableZebraResponse) {}
   rpc AddVrf(AddVrfRequest) returns (AddVrfResponse) {}
   rpc DeleteVrf(DeleteVrfRequest) returns (DeleteVrfResponse) {}
   rpc GetVrf(GetVrfRequest) returns (GetVrfResponse) {}
@@ -287,6 +288,14 @@ message SoftResetRpkiRequest {
 }
 
 message SoftResetRpkiResponse {
+}
+
+message EnableZebraRequest {
+  string url = 1;
+  repeated string route_types = 2;
+}
+
+message EnableZebraResponse {
 }
 
 message GetVrfRequest {

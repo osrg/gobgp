@@ -688,6 +688,21 @@ func (s *Server) GetRoa(ctx context.Context, arg *GetRoaRequest) (*GetRoaRespons
 	return &GetRoaResponse{Roas: l}, nil
 }
 
+func (s *Server) EnableZebra(ctx context.Context, arg *EnableZebraRequest) (*EnableZebraResponse, error) {
+	l := []config.InstallProtocolType{}
+	for _, p := range arg.RouteTypes {
+		if err := config.InstallProtocolType(p).Validate(); err != nil {
+			return &EnableZebraResponse{}, err
+		} else {
+			l = append(l, config.InstallProtocolType(p))
+		}
+	}
+	return &EnableZebraResponse{}, s.bgpServer.StartZebraClient(&config.ZebraConfig{
+		Url: arg.Url,
+		RedistributeRouteTypeList: l,
+	})
+}
+
 func (s *Server) GetVrf(ctx context.Context, arg *GetVrfRequest) (*GetVrfResponse, error) {
 	toApi := func(v *table.Vrf) *Vrf {
 		f := func(rts []bgp.ExtendedCommunityInterface) [][]byte {
