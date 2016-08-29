@@ -176,7 +176,6 @@ func setDefaultNeighborConfigValuesWithViper(v *viper.Viper, n *Neighbor, asn ui
 	}
 
 	n.State.Description = n.Config.Description
-	n.Config.Description = ""
 	n.State.AdminDown = n.Config.AdminDown
 
 	if n.GracefulRestart.Config.Enabled {
