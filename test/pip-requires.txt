@@ -5,4 +5,4 @@ fabric
 netaddr
 nsenter
 docker-py
-ryu
+ryu==4.5
