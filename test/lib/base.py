@@ -239,7 +239,7 @@ class Container(object):
             interface = "eth0"
         if not filename:
             filename = '{0}.dump'.format(interface)
-        self.local("tcpdump -i {0} -w {1}/{2} {3}".format(interface, self.shared_volumes[0][1], filename, expr), detach=True)
+        self.local("tcpdump -U -i {0} -w {1}/{2} {3}".format(interface, self.shared_volumes[0][1], filename, expr), detach=True)
         return '{0}/{1}'.format(self.shared_volumes[0][0], filename)
 
     def stop_tcpdump(self):
