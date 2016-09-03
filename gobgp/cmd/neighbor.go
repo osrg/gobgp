@@ -478,9 +478,6 @@ func showNeighborRib(r string, name string, args []string) error {
 	}
 
 	if len(args) > 0 {
-		if rf != bgp.RF_IPv4_UC && rf != bgp.RF_IPv6_UC {
-			return fmt.Errorf("route filtering is only supported for IPv4/IPv6 unicast routes")
-		}
 		longerPrefixes := false
 		shorterPrefixes := false
 		if len(args) > 1 {

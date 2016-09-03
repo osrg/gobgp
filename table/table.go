@@ -262,7 +262,7 @@ func (t *Table) GetDestination(key string) *Destination {
 func (t *Table) GetLongerPrefixDestinations(key string) ([]*Destination, error) {
 	results := make([]*Destination, 0, len(t.GetDestinations()))
 	switch t.routeFamily {
-	case bgp.RF_IPv4_UC, bgp.RF_IPv6_UC:
+	case bgp.RF_IPv4_UC, bgp.RF_IPv6_UC, bgp.RF_IPv4_MPLS, bgp.RF_IPv6_MPLS:
 		_, prefix, err := net.ParseCIDR(key)
 		if err != nil {
 			return nil, err
@@ -332,54 +332,61 @@ func (t *Table) Select(option ...TableSelectOption) (*Table, error) {
 	}
 	dOption := DestinationSelectOption{ID: id, VRF: vrf, adj: adj, Best: best, MultiPath: mp}
 	dsts := make(map[string]*Destination)
-	if (t.routeFamily == bgp.RF_IPv4_UC || t.routeFamily == bgp.RF_IPv6_UC) && len(prefixes) > 0 {
-		f := func(id, key string) (bool, error) {
-			if dst := t.GetDestination(key); dst != nil {
-				if d := dst.Select(dOption); d != nil {
-					dsts[key] = d
-					return true, nil
-				}
-			}
-			return false, nil
-		}
-		for _, p := range prefixes {
-			key := p.Prefix
-			switch p.LookupOption {
-			case LOOKUP_LONGER:
-				ds, err := t.GetLongerPrefixDestinations(key)
-				if err != nil {
-					return nil, err
-				}
-				for _, dst := range ds {
+
+	if len(prefixes) != 0 {
+		switch t.routeFamily {
+		case bgp.RF_IPv4_UC, bgp.RF_IPv6_UC, bgp.RF_IPv4_MPLS, bgp.RF_IPv6_MPLS:
+			f := func(id, key string) (bool, error) {
+				if dst := t.GetDestination(key); dst != nil {
 					if d := dst.Select(dOption); d != nil {
-						dsts[dst.GetNlri().String()] = d
+						dsts[key] = d
+						return true, nil
 					}
 				}
-			case LOOKUP_SHORTER:
-				_, prefix, err := net.ParseCIDR(key)
-				if err != nil {
-					return nil, err
-				}
-				ones, bits := prefix.Mask.Size()
-				for i := ones; i > 0; i-- {
-					prefix.Mask = net.CIDRMask(i, bits)
-					f(id, prefix.String())
-				}
-			default:
-				if _, err := f(id, key); err != nil {
-					if host := net.ParseIP(key); host != nil {
-						masklen := 32
-						if t.routeFamily == bgp.RF_IPv6_UC {
-							masklen = 128
+				return false, nil
+			}
+
+			for _, p := range prefixes {
+				key := p.Prefix
+				switch p.LookupOption {
+				case LOOKUP_LONGER:
+					ds, err := t.GetLongerPrefixDestinations(key)
+					if err != nil {
+						return nil, err
+					}
+					for _, dst := range ds {
+						if d := dst.Select(dOption); d != nil {
+							dsts[dst.GetNlri().String()] = d
 						}
-						for i := masklen; i > 0; i-- {
-							if y, _ := f(id, fmt.Sprintf("%s/%d", key, i)); y {
-								break
+					}
+				case LOOKUP_SHORTER:
+					_, prefix, err := net.ParseCIDR(key)
+					if err != nil {
+						return nil, err
+					}
+					ones, bits := prefix.Mask.Size()
+					for i := ones; i > 0; i-- {
+						prefix.Mask = net.CIDRMask(i, bits)
+						f(id, prefix.String())
+					}
+				default:
+					if _, err := f(id, key); err != nil {
+						if host := net.ParseIP(key); host != nil {
+							masklen := 32
+							if afi, _ := RouteFamilyToAfiSafi(t.routeFamily); afi == AFI_IP6 {
+								masklen = 128
+							}
+							for i := masklen; i > 0; i-- {
+								if y, _ := f(id, fmt.Sprintf("%s/%d", key, i)); y {
+									break
+								}
 							}
 						}
 					}
 				}
 			}
+		default:
+			return nil, fmt.Errorf("route filtering is only supported for IPv4/IPv6 unicast/mpls routes")
 		}
 	} else {
 		for k, dst := range t.GetDestinations() {
