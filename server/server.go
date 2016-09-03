@@ -1037,37 +1037,19 @@ func (server *BgpServer) fixupApiPath(vrfId string, pathList []*table.Path) erro
 			path.SetSource(pi)
 		}
 
-		extcomms := make([]bgp.ExtendedCommunityInterface, 0)
-		nlri := path.GetNlri()
-		rf := bgp.AfiSafiToRouteFamily(nlri.AFI(), nlri.SAFI())
-
 		if vrfId != "" {
 			label, err := server.globalRib.GetNextLabel(vrfId, path.GetNexthop().String(), path.IsWithdraw)
 			if err != nil {
 				return err
 			}
 			vrf := server.globalRib.Vrfs[vrfId]
-			switch rf {
-			case bgp.RF_IPv4_UC:
-				n := nlri.(*bgp.IPAddrPrefix)
-				nlri = bgp.NewLabeledVPNIPAddrPrefix(n.Length, n.Prefix.String(), *bgp.NewMPLSLabelStack(label), vrf.Rd)
-			case bgp.RF_IPv6_UC:
-				n := nlri.(*bgp.IPv6AddrPrefix)
-				nlri = bgp.NewLabeledVPNIPv6AddrPrefix(n.Length, n.Prefix.String(), *bgp.NewMPLSLabelStack(label), vrf.Rd)
-			case bgp.RF_EVPN:
-				n := nlri.(*bgp.EVPNNLRI)
-				switch n.RouteType {
-				case bgp.EVPN_ROUTE_TYPE_MAC_IP_ADVERTISEMENT:
-					n.RouteTypeData.(*bgp.EVPNMacIPAdvertisementRoute).RD = vrf.Rd
-				case bgp.EVPN_INCLUSIVE_MULTICAST_ETHERNET_TAG:
-					n.RouteTypeData.(*bgp.EVPNMulticastEthernetTagRoute).RD = vrf.Rd
-				}
-			default:
-				return fmt.Errorf("unsupported route family for vrf: %s", rf)
+			if err := vrf.ToGlobalPath(path, label); err != nil {
+				return err
 			}
-			extcomms = append(extcomms, vrf.ExportRt...)
 		}
-		if rf == bgp.RF_EVPN {
+
+		if path.GetRouteFamily() == bgp.RF_EVPN {
+			nlri := path.GetNlri()
 			evpnNlri := nlri.(*bgp.EVPNNLRI)
 			if evpnNlri.RouteType == bgp.EVPN_ROUTE_TYPE_MAC_IP_ADVERTISEMENT {
 				macIpAdv := evpnNlri.RouteTypeData.(*bgp.EVPNMacIPAdvertisementRoute)
@@ -1075,14 +1057,11 @@ func (server *BgpServer) fixupApiPath(vrfId string, pathList []*table.Path) erro
 				mac := macIpAdv.MacAddress
 				paths := server.globalRib.GetBestPathList(table.GLOBAL_RIB_NAME, []bgp.RouteFamily{bgp.RF_EVPN})
 				if m := getMacMobilityExtendedCommunity(etag, mac, paths); m != nil {
-					extcomms = append(extcomms, m)
+					path.SetExtCommunities([]bgp.ExtendedCommunityInterface{m}, false)
 				}
 			}
 		}
 
-		if len(extcomms) > 0 {
-			path.SetExtCommunities(extcomms, false)
-		}
 	}
 	return nil
 }
