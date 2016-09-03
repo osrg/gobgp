@@ -336,14 +336,14 @@ func (t *Table) Select(option ...TableSelectOption) (*Table, error) {
 	if len(prefixes) != 0 {
 		switch t.routeFamily {
 		case bgp.RF_IPv4_UC, bgp.RF_IPv6_UC, bgp.RF_IPv4_MPLS, bgp.RF_IPv6_MPLS:
-			f := func(id, key string) (bool, error) {
+			f := func(key string) bool {
 				if dst := t.GetDestination(key); dst != nil {
 					if d := dst.Select(dOption); d != nil {
 						dsts[key] = d
-						return true, nil
+						return true
 					}
 				}
-				return false, nil
+				return false
 			}
 
 			for _, p := range prefixes {
@@ -367,21 +367,21 @@ func (t *Table) Select(option ...TableSelectOption) (*Table, error) {
 					ones, bits := prefix.Mask.Size()
 					for i := ones; i > 0; i-- {
 						prefix.Mask = net.CIDRMask(i, bits)
-						f(id, prefix.String())
+						f(prefix.String())
 					}
 				default:
-					if _, err := f(id, key); err != nil {
-						if host := net.ParseIP(key); host != nil {
-							masklen := 32
-							if afi, _ := RouteFamilyToAfiSafi(t.routeFamily); afi == AFI_IP6 {
-								masklen = 128
-							}
-							for i := masklen; i > 0; i-- {
-								if y, _ := f(id, fmt.Sprintf("%s/%d", key, i)); y {
-									break
-								}
+					if host := net.ParseIP(key); host != nil {
+						masklen := 32
+						if t.routeFamily == bgp.RF_IPv6_UC {
+							masklen = 128
+						}
+						for i := masklen; i > 0; i-- {
+							if f(fmt.Sprintf("%s/%d", key, i)) {
+								break
 							}
 						}
+					} else {
+						f(key)
 					}
 				}
 			}
