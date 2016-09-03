@@ -134,7 +134,7 @@ func NewDestination(nlri bgp.AddrPrefixInterface, known ...*Path) *Destination {
 		newPathList:   make([]*Path, 0),
 	}
 	switch d.routeFamily {
-	case bgp.RF_IPv4_UC, bgp.RF_IPv6_UC:
+	case bgp.RF_IPv4_UC, bgp.RF_IPv6_UC, bgp.RF_IPv4_MPLS, bgp.RF_IPv6_MPLS:
 		d.RadixKey = CidrToRadixkey(nlri.String())
 	}
 	return d
