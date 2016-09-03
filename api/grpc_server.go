@@ -273,7 +273,7 @@ func (s *Server) GetRib(ctx context.Context, arg *GetRibRequest) (*GetRibRespons
 
 	return &GetRibResponse{Table: &Table{
 		Type:         arg.Table.Type,
-		Family:       arg.Table.Family,
+		Family:       uint32(tbl.GetRoutefamily()),
 		Destinations: dsts},
 	}, err
 }
