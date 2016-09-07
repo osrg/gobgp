@@ -20,7 +20,7 @@ export GOBGP_IMAGE=gobgp
 
 sudo apt-get -q update
 sudo apt-get -q -y install iputils-arping bridge-utils lv
-sudo wget https://raw.github.com/jpetazzo/pipework/master/pipework -O /usr/local/bin/pipework
+sudo wget https://raw.github.com/osrg/pipework/master/pipework -O /usr/local/bin/pipework
 sudo chmod 755 /usr/local/bin/pipework
 
 sudo -H pip --quiet install -r $GOBGP/test/pip-requires.txt
