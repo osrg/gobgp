@@ -3606,7 +3606,8 @@ const (
 	BGP_ATTR_TYPE_TUNNEL_ENCAP
 	_
 	_
-	BGP_ATTR_TYPE_AIGP // = 26
+	BGP_ATTR_TYPE_AIGP                        // = 26
+	BGP_ATTR_TYPE_LARGE_COMMUNITY BGPAttrType = 41
 )
 
 // NOTIFICATION Error Code  RFC 4271 4.5.
@@ -3792,6 +3793,7 @@ var PathAttrFlags map[BGPAttrType]BGPAttrFlag = map[BGPAttrType]BGPAttrFlag{
 	BGP_ATTR_TYPE_PMSI_TUNNEL:          BGP_ATTR_FLAG_TRANSITIVE | BGP_ATTR_FLAG_OPTIONAL,
 	BGP_ATTR_TYPE_TUNNEL_ENCAP:         BGP_ATTR_FLAG_TRANSITIVE | BGP_ATTR_FLAG_OPTIONAL,
 	BGP_ATTR_TYPE_AIGP:                 BGP_ATTR_FLAG_OPTIONAL,
+	BGP_ATTR_TYPE_LARGE_COMMUNITY:      BGP_ATTR_FLAG_TRANSITIVE | BGP_ATTR_FLAG_OPTIONAL,
 }
 
 type PathAttributeInterface interface {
@@ -6651,6 +6653,125 @@ func NewPathAttributeAigp(values []AigpTLV) *PathAttributeAigp {
 	}
 }
 
+type LargeCommunity struct {
+	ASN        uint32
+	LocalData1 uint32
+	LocalData2 uint32
+}
+
+func (c *LargeCommunity) Serialize() ([]byte, error) {
+	buf := make([]byte, 12)
+	binary.BigEndian.PutUint32(buf, c.ASN)
+	binary.BigEndian.PutUint32(buf[4:], c.LocalData1)
+	binary.BigEndian.PutUint32(buf[8:], c.LocalData2)
+	return buf, nil
+}
+
+func (c *LargeCommunity) String() string {
+	return fmt.Sprintf("%d:%d:%d", c.ASN, c.LocalData1, c.LocalData2)
+}
+
+func NewLargeCommunity(asn, data1, data2 uint32) *LargeCommunity {
+	return &LargeCommunity{
+		ASN:        asn,
+		LocalData1: data1,
+		LocalData2: data2,
+	}
+}
+
+func ParseLargeCommunity(value string) (*LargeCommunity, error) {
+	elems := strings.Split(value, ":")
+	if len(elems) != 3 {
+		return nil, fmt.Errorf("invalid large community format")
+	}
+	v := make([]uint32, 0, 3)
+	for _, elem := range elems {
+		e, err := strconv.ParseUint(elem, 10, 32)
+		if err != nil {
+			return nil, fmt.Errorf("invalid large community format")
+		}
+		v = append(v, uint32(e))
+	}
+	return NewLargeCommunity(v[0], v[1], v[2]), nil
+}
+
+type PathAttributeLargeCommunities struct {
+	PathAttribute
+	Values []*LargeCommunity
+}
+
+func (p *PathAttributeLargeCommunities) DecodeFromBytes(data []byte) error {
+	err := p.PathAttribute.DecodeFromBytes(data)
+	if err != nil {
+		return err
+	}
+
+	rest := p.PathAttribute.Value
+
+	if len(rest)%12 != 0 {
+		eCode := uint8(BGP_ERROR_UPDATE_MESSAGE_ERROR)
+		eSubCode := uint8(BGP_ERROR_SUB_ATTRIBUTE_LENGTH_ERROR)
+		return NewMessageError(eCode, eSubCode, nil, "large communities length isn't correct")
+	}
+
+	p.Values = make([]*LargeCommunity, 0, len(rest)/12)
+
+	for len(rest) >= 12 {
+		asn := binary.BigEndian.Uint32(rest[:4])
+		data1 := binary.BigEndian.Uint32(rest[4:8])
+		data2 := binary.BigEndian.Uint32(rest[8:12])
+		p.Values = append(p.Values, NewLargeCommunity(asn, data1, data2))
+		rest = rest[12:]
+	}
+	return nil
+}
+
+func (p *PathAttributeLargeCommunities) Serialize() ([]byte, error) {
+	buf := make([]byte, 0)
+	for _, t := range p.Values {
+		bbuf, err := t.Serialize()
+		if err != nil {
+			return nil, err
+		}
+		buf = append(buf, bbuf...)
+	}
+	p.PathAttribute.Value = buf
+	return p.PathAttribute.Serialize()
+}
+
+func (p *PathAttributeLargeCommunities) String() string {
+	buf := bytes.NewBuffer(make([]byte, 0, 32))
+	buf.WriteString("{LargeCommunity: [ ")
+	ss := []string{}
+	for _, v := range p.Values {
+		ss = append(ss, v.String())
+	}
+	buf.WriteString(strings.Join(ss, ", "))
+	buf.WriteString("]}")
+	return buf.String()
+}
+
+func (p *PathAttributeLargeCommunities) MarshalJSON() ([]byte, error) {
+	return json.Marshal(struct {
+		Type  BGPAttrType       `json:"type"`
+		Value []*LargeCommunity `json:"value"`
+	}{
+		Type:  p.GetType(),
+		Value: p.Values,
+	})
+}
+
+func NewPathAttributeLargeCommunities(values []*LargeCommunity) *PathAttributeLargeCommunities {
+	t := BGP_ATTR_TYPE_LARGE_COMMUNITY
+	return &PathAttributeLargeCommunities{
+		PathAttribute: PathAttribute{
+			Flags: PathAttrFlags[t],
+			Type:  t,
+		},
+		Values: values,
+	}
+}
+
 type PathAttributeUnknown struct {
 	PathAttribute
 }
@@ -6698,6 +6819,8 @@ func GetPathAttribute(data []byte) (PathAttributeInterface, error) {
 		return &PathAttributePmsiTunnel{}, nil
 	case BGP_ATTR_TYPE_AIGP:
 		return &PathAttributeAigp{}, nil
+	case BGP_ATTR_TYPE_LARGE_COMMUNITY:
+		return &PathAttributeLargeCommunities{}, nil
 	}
 	return &PathAttributeUnknown{}, nil
 }
