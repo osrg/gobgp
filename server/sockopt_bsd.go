@@ -43,12 +43,9 @@ func SetTcpMD5SigSockopts(l *net.TCPListener, address string, key string) error 
 
 	// always enable and assumes that the configuration is done by
 	// setkey()
-	t := int32(1)
-	_, _, e := syscall.Syscall6(syscall.SYS_SETSOCKOPT, fi.Fd(),
-		uintptr(syscall.IPPROTO_TCP), uintptr(TCP_MD5SIG),
-		uintptr(unsafe.Pointer(&t)), unsafe.Sizeof(t), 0)
-	if e > 0 {
-		return e
+	if err := syscall.SetsockoptInt(int(fi.Fd()),
+		syscall.IPPROTO_TCP, TCP_MD5SIG, 1); err != nil {
+		return err
 	}
 	return nil
 }
