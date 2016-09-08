@@ -704,11 +704,14 @@ func ParsePath(rf bgp.RouteFamily, args []string) (*api.Path, error) {
 		nlri, extcomms, err = ParseFlowSpecArgs(rf, args, rd)
 	case bgp.RF_OPAQUE:
 		m := extractReserved(args, []string{"key", "value"})
-		if len(m["key"]) != 1 || len(m["value"]) != 1 {
-			return nil, fmt.Errorf("invalid key-value format")
+		if len(m["key"]) != 1 {
+			return nil, fmt.Errorf("opaque nlri key missing")
 		}
-		nlri = bgp.NewOpaqueNLRI([]byte(m["key"][0]))
-		attrs = append(attrs, bgp.NewPathAttributeOpaqueValue([]byte(m["value"][0])))
+		if len(m["value"]) > 0 {
+			nlri = bgp.NewOpaqueNLRI([]byte(m["key"][0]), []byte(m["value"][0]))
+		} else {
+			nlri = bgp.NewOpaqueNLRI([]byte(m["key"][0]), nil)
+		}
 	default:
 		return nil, fmt.Errorf("Unsupported route family: %s", rf)
 	}
@@ -837,7 +840,7 @@ usage: %s rib %s%%smatch <MATCH_EXPR> then <THEN_EXPR> -a %%s
 		helpErrMap[bgp.RF_EVPN] = fmt.Errorf(`usage: %s rib %s { macadv <MACADV> | multicast <MULTICAST> } -a evpn
     <MACADV>    : <mac address> <ip address> <etag> <label> rd <rd> rt <rt>... [encap <encap type>]
     <MULTICAST> : <ip address> <etag> rd <rd> rt <rt>... [encap <encap type>]`, cmdstr, modtype)
-		helpErrMap[bgp.RF_OPAQUE] = fmt.Errorf(`usage: %s rib %s key <KEY> value <VALUE>`, cmdstr, modtype)
+		helpErrMap[bgp.RF_OPAQUE] = fmt.Errorf(`usage: %s rib %s key <KEY> [value <VALUE>]`, cmdstr, modtype)
 		if err, ok := helpErrMap[rf]; ok {
 			return err
 		}
