@@ -519,6 +519,25 @@ func extractCommunity(args []string) ([]string, bgp.PathAttributeInterface, erro
 	return args, nil, nil
 }
 
+func extractLargeCommunity(args []string) ([]string, bgp.PathAttributeInterface, error) {
+	for idx, arg := range args {
+		if arg == "large-community" && len(args) > (idx+1) {
+			elems := strings.Split(args[idx+1], ",")
+			comms := make([]*bgp.LargeCommunity, 0, 1)
+			for _, elem := range elems {
+				c, err := bgp.ParseLargeCommunity(elem)
+				if err != nil {
+					return nil, nil, err
+				}
+				comms = append(comms, c)
+			}
+			args = append(args[:idx], args[idx+2:]...)
+			return args, bgp.NewPathAttributeLargeCommunities(comms), nil
+		}
+	}
+	return args, nil, nil
+}
+
 func extractAigp(args []string) ([]string, bgp.PathAttributeInterface, error) {
 	for idx, arg := range args {
 		if arg == "aigp" {
@@ -597,6 +616,7 @@ func ParsePath(rf bgp.RouteFamily, args []string) (*api.Path, error) {
 		extractCommunity,
 		extractAigp,
 		extractAggregator,
+		extractLargeCommunity,
 	}
 
 	for _, fn := range fns {
@@ -783,8 +803,8 @@ func modPath(resource api.Resource, name, modtype string, args []string) error {
 		}
 		etherTypes := strings.Join(ss, ", ")
 		helpErrMap := map[bgp.RouteFamily]error{}
-		helpErrMap[bgp.RF_IPv4_UC] = fmt.Errorf("usage: %s rib %s <PREFIX> [origin { igp | egp | incomplete }] [nexthop <ADDRESS>] [med <VALUE>] [local-pref <VALUE>] [community <VALUE>] [aigp metric <METRIC>] -a ipv4", cmdstr, modtype)
-		helpErrMap[bgp.RF_IPv6_UC] = fmt.Errorf("usage: %s rib %s <PREFIX> [origin { igp | egp | incomplete }] [nexthop <ADDRESS>] [med <VALUE>] [local-pref <VALUE>] [community <VALUE>] [aigp metric <METRIC>] -a ipv6", cmdstr, modtype)
+		helpErrMap[bgp.RF_IPv4_UC] = fmt.Errorf("usage: %s rib %s <PREFIX> [origin { igp | egp | incomplete }] [nexthop <ADDRESS>] [med <VALUE>] [local-pref <VALUE>] [community <VALUE>] [aigp metric <METRIC>] [large-community <VALUE> ] -a ipv4", cmdstr, modtype)
+		helpErrMap[bgp.RF_IPv6_UC] = fmt.Errorf("usage: %s rib %s <PREFIX> [origin { igp | egp | incomplete }] [nexthop <ADDRESS>] [med <VALUE>] [local-pref <VALUE>] [community <VALUE>] [aigp metric <METRIC>] [large-community <VALUE> ] -a ipv6", cmdstr, modtype)
 		fsHelpMsgFmt := fmt.Sprintf(`err: %s
 usage: %s rib %s%%smatch <MATCH_EXPR> then <THEN_EXPR> -a %%s
 %%s
