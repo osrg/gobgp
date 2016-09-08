@@ -3354,24 +3354,32 @@ func NewFlowSpecL2VPN(rd RouteDistinguisherInterface, value []FlowSpecComponentI
 }
 
 type OpaqueNLRI struct {
-	Length uint8
+	Length uint16
 	Key    []byte
+	Value  []byte
 }
 
 func (n *OpaqueNLRI) DecodeFromBytes(data []byte) error {
-	n.Length = data[0]
-	if len(data)-1 < int(n.Length) {
+	if len(data) < 2 {
 		return NewMessageError(BGP_ERROR_UPDATE_MESSAGE_ERROR, BGP_ERROR_SUB_MALFORMED_ATTRIBUTE_LIST, nil, "Not all OpaqueNLRI bytes available")
 	}
-	n.Key = data[1 : 1+n.Length]
+	n.Length = binary.BigEndian.Uint16(data[0:2])
+	if len(data)-2 < int(n.Length) {
+		return NewMessageError(BGP_ERROR_UPDATE_MESSAGE_ERROR, BGP_ERROR_SUB_MALFORMED_ATTRIBUTE_LIST, nil, "Not all OpaqueNLRI bytes available")
+	}
+	n.Key = data[2 : 2+n.Length]
+	n.Value = data[2+n.Length:]
 	return nil
 }
 
 func (n *OpaqueNLRI) Serialize() ([]byte, error) {
-	if len(n.Key) > math.MaxUint8 {
+	if len(n.Key) > math.MaxUint16 {
 		return nil, fmt.Errorf("Key length too big")
 	}
-	return append([]byte{byte(len(n.Key))}, n.Key...), nil
+	buf := make([]byte, 2)
+	binary.BigEndian.PutUint16(buf, uint16(len(n.Key)))
+	buf = append(buf, n.Key...)
+	return append(buf, n.Value...), nil
 }
 
 func (n *OpaqueNLRI) AFI() uint16 {
@@ -3383,24 +3391,27 @@ func (n *OpaqueNLRI) SAFI() uint8 {
 }
 
 func (n *OpaqueNLRI) Len() int {
-	return 1 + len(n.Key)
+	return 2 + len(n.Key) + len(n.Value)
 }
 
 func (n *OpaqueNLRI) String() string {
-	return string(n.Key)
+	return fmt.Sprintf("%s", n.Key)
 }
 
 func (n *OpaqueNLRI) MarshalJSON() ([]byte, error) {
 	return json.Marshal(struct {
-		Key string `json:"key"`
+		Key   string `json:"key"`
+		Value string `json:"value"`
 	}{
-		Key: n.String(),
+		Key:   string(n.Key),
+		Value: string(n.Value),
 	})
 }
 
-func NewOpaqueNLRI(key []byte) *OpaqueNLRI {
+func NewOpaqueNLRI(key, value []byte) *OpaqueNLRI {
 	return &OpaqueNLRI{
-		Key: key,
+		Key:   key,
+		Value: value,
 	}
 }
 
@@ -3595,8 +3606,7 @@ const (
 	BGP_ATTR_TYPE_TUNNEL_ENCAP
 	_
 	_
-	BGP_ATTR_TYPE_AIGP                     // = 26
-	BGP_ATTR_TYPE_OPAQUE_VALUE BGPAttrType = 41
+	BGP_ATTR_TYPE_AIGP // = 26
 )
 
 // NOTIFICATION Error Code  RFC 4271 4.5.
@@ -3782,7 +3792,6 @@ var PathAttrFlags map[BGPAttrType]BGPAttrFlag = map[BGPAttrType]BGPAttrFlag{
 	BGP_ATTR_TYPE_PMSI_TUNNEL:          BGP_ATTR_FLAG_TRANSITIVE | BGP_ATTR_FLAG_OPTIONAL,
 	BGP_ATTR_TYPE_TUNNEL_ENCAP:         BGP_ATTR_FLAG_TRANSITIVE | BGP_ATTR_FLAG_OPTIONAL,
 	BGP_ATTR_TYPE_AIGP:                 BGP_ATTR_FLAG_OPTIONAL,
-	BGP_ATTR_TYPE_OPAQUE_VALUE:         BGP_ATTR_FLAG_TRANSITIVE | BGP_ATTR_FLAG_OPTIONAL,
 }
 
 type PathAttributeInterface interface {
@@ -6642,35 +6651,6 @@ func NewPathAttributeAigp(values []AigpTLV) *PathAttributeAigp {
 	}
 }
 
-type PathAttributeOpaqueValue struct {
-	PathAttribute
-}
-
-func (p *PathAttributeOpaqueValue) String() string {
-	return fmt.Sprintf("{Value: %s}", string(p.Value))
-}
-
-func (p *PathAttributeOpaqueValue) MarshalJSON() ([]byte, error) {
-	return json.Marshal(struct {
-		Type  BGPAttrType `json:"type"`
-		Value string      `json:"value"`
-	}{
-		Type:  p.GetType(),
-		Value: string(p.Value),
-	})
-}
-
-func NewPathAttributeOpaqueValue(value []byte) *PathAttributeOpaqueValue {
-	t := BGP_ATTR_TYPE_OPAQUE_VALUE
-	return &PathAttributeOpaqueValue{
-		PathAttribute: PathAttribute{
-			Flags: PathAttrFlags[t],
-			Type:  t,
-			Value: value,
-		},
-	}
-}
-
 type PathAttributeUnknown struct {
 	PathAttribute
 }
@@ -6718,8 +6698,6 @@ func GetPathAttribute(data []byte) (PathAttributeInterface, error) {
 		return &PathAttributePmsiTunnel{}, nil
 	case BGP_ATTR_TYPE_AIGP:
 		return &PathAttributeAigp{}, nil
-	case BGP_ATTR_TYPE_OPAQUE_VALUE:
-		return &PathAttributeOpaqueValue{}, nil
 	}
 	return &PathAttributeUnknown{}, nil
 }
