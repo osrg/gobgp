@@ -65,11 +65,11 @@ func SetTcpMD5SigSockopts(l *net.TCPListener, address string, key string) error 
 	if l, err := net.FileListener(fi); err == nil {
 		defer l.Close()
 	}
-	_, _, e := syscall.Syscall6(syscall.SYS_SETSOCKOPT, fi.Fd(),
-		uintptr(syscall.IPPROTO_TCP), uintptr(TCP_MD5SIG),
-		uintptr(unsafe.Pointer(&t)), unsafe.Sizeof(t), 0)
-	if e > 0 {
-		return e
+	b := *(*[unsafe.Sizeof(t)]byte)(unsafe.Pointer(&t))
+	if err := syscall.SetsockoptString(int(fi.Fd()),
+		syscall.IPPROTO_TCP, TCP_MD5SIG,
+		string(b[:])); err != nil {
+		return err
 	}
 	return nil
 }
@@ -160,10 +160,11 @@ func DialTCPTimeoutWithMD5Sig(host string, port int, localAddr, key string, msec
 	if err != nil {
 		return nil, err
 	}
-	if _, _, e := syscall.Syscall6(syscall.SYS_SETSOCKOPT, uintptr(fd),
-		uintptr(syscall.IPPROTO_TCP), uintptr(TCP_MD5SIG),
-		uintptr(unsafe.Pointer(&t)), unsafe.Sizeof(t), 0); e > 0 {
-		return nil, os.NewSyscallError("setsockopt", e)
+	b := *(*[unsafe.Sizeof(t)]byte)(unsafe.Pointer(&t))
+	if err := syscall.SetsockoptString(int(fi.Fd()),
+		syscall.IPPROTO_TCP, TCP_MD5SIG,
+		string(b[:])); err != nil {
+		return nil, os.NewSyscallError("setsockopt", err)
 	}
 
 	if err = syscall.SetsockoptInt(fd, syscall.SOL_SOCKET, syscall.SO_BROADCAST, 1); err != nil {
