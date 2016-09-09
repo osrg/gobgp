@@ -20,8 +20,6 @@ export GOBGP_IMAGE=gobgp
 
 sudo apt-get -q update
 sudo apt-get -q -y install iputils-arping lv
-sudo wget https://raw.github.com/jpetazzo/pipework/master/pipework -O /usr/local/bin/pipework
-sudo chmod 755 /usr/local/bin/pipework
 
 sudo -H pip --quiet install -r $GOBGP/test/pip-requires.txt
 
@@ -81,7 +79,7 @@ PIDS=("${PIDS[@]}" $!)
 sudo  PYTHONPATH=$GOBGP/test python graceful_restart_test.py --gobgp-image $GOBGP_IMAGE --test-prefix gr -x &
 PIDS=("${PIDS[@]}" $!)
 
-sudo  PYTHONPATH=$GOBGP/test python bgp_zebra_test.py --gobgp-image $GOBGP_IMAGE --test-prefix zebra -x -s &
+sudo  PYTHONPATH=$GOBGP/test python bgp_zebra_test.py --gobgp-image $GOBGP_IMAGE --test-prefix z -x -s &
 PIDS=("${PIDS[@]}" $!)
 
 sudo  PYTHONPATH=$GOBGP/test python monitor_test.py --gobgp-image $GOBGP_IMAGE --test-prefix mon -x -s &
