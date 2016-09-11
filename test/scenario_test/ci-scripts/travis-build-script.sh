@@ -81,10 +81,10 @@ PIDS=("${PIDS[@]}" $!)
 sudo  PYTHONPATH=$GOBGP/test python graceful_restart_test.py --gobgp-image $GOBGP_IMAGE --test-prefix gr -x &
 PIDS=("${PIDS[@]}" $!)
 
-sudo  PYTHONPATH=$GOBGP/test python bgp_zebra_test.py --gobgp-image $GOBGP_IMAGE --test-prefix z -x -s &
+sudo  PYTHONPATH=$GOBGP/test python bgp_zebra_test.py --gobgp-image $GOBGP_IMAGE --test-prefix z -x &
 PIDS=("${PIDS[@]}" $!)
 
-sudo  PYTHONPATH=$GOBGP/test python monitor_test.py --gobgp-image $GOBGP_IMAGE --test-prefix mon -x -s &
+sudo  PYTHONPATH=$GOBGP/test python monitor_test.py --gobgp-image $GOBGP_IMAGE --test-prefix mon -x &
 PIDS=("${PIDS[@]}" $!)
 
 
@@ -116,57 +116,9 @@ do
     fi
 done
 
-# route server policy test
-NUM=$(sudo  PYTHONPATH=$GOBGP/test python route_server_policy_test.py --test-index -1 -s 2> /dev/null | awk '/invalid/{print $NF}')
-PARALLEL_NUM=10
-for (( i = 0; i < $(( NUM / PARALLEL_NUM + 1)); ++i ))
-do
-    PIDS=()
-    for (( j = $((PARALLEL_NUM * $i + 1)); j < $((PARALLEL_NUM * ($i+1) + 1)); ++j))
-    do
-        sudo  PYTHONPATH=$GOBGP/test python route_server_policy_test.py --gobgp-image $GOBGP_IMAGE --test-prefix p$j --test-index $j -x --gobgp-log-level debug &
-        PIDS=("${PIDS[@]}" $!)
-        if [ $j -eq $NUM ]; then
-            break
-        fi
-        sleep 3
-    done
+sudo PYTHONPATH=$GOBGP/test python route_server_policy_test.py --gobgp-image $GOBGP_IMAGE --test-prefix p -x --gobgp-log-level debug
 
-    for (( j = 0; j < ${#PIDS[@]}; ++j ))
-    do
-        wait ${PIDS[$j]}
-        if [ $? != 0 ]; then
-            exit 1
-        fi
-    done
-
-done
-
-# route server policy grpc test
-NUM=$(sudo  PYTHONPATH=$GOBGP/test python route_server_policy_grpc_test.py --test-index -1 -s 2> /dev/null | awk '/invalid/{print $NF}')
-PARALLEL_NUM=10
-for (( i = 0; i < $(( NUM / PARALLEL_NUM + 1)); ++i ))
-do
-    PIDS=()
-    for (( j = $((PARALLEL_NUM * $i + 1)); j < $((PARALLEL_NUM * ($i+1) + 1)); ++j))
-    do
-        sudo  PYTHONPATH=$GOBGP/test python route_server_policy_grpc_test.py --gobgp-image $GOBGP_IMAGE --test-prefix pg$j --test-index $j -x --gobgp-log-level debug &
-        PIDS=("${PIDS[@]}" $!)
-        if [ $j -eq $NUM ]; then
-            break
-        fi
-        sleep 3
-    done
-
-    for (( j = 0; j < ${#PIDS[@]}; ++j ))
-    do
-        wait ${PIDS[$j]}
-        if [ $? != 0 ]; then
-            exit 1
-        fi
-    done
-
-done
+sudo PYTHONPATH=$GOBGP/test python route_server_policy_grpc_test.py --gobgp-image $GOBGP_IMAGE --test-prefix pg -x --gobgp-log-level debug
 
 echo 'all tests passed successfully'
 exit 0
