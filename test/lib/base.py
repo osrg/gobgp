@@ -18,11 +18,15 @@ from fabric import colors
 from fabric.utils import indent
 from fabric.state import env, output
 from docker import Client
+from pyroute2 import IPRoute
+from nsenter import Namespace
 
 import netaddr
 import os
 import time
 import itertools
+import string
+import random
 
 DEFAULT_TEST_PREFIX = ''
 DEFAULT_TEST_BASE_DIR = '/tmp/gobgp'
@@ -47,6 +51,9 @@ BGP_ATTR_TYPE_EXTENDED_COMMUNITIES = 16
 env.abort_exception = RuntimeError
 output.stderr = False
 
+random_str = lambda n : ''.join([random.choice(string.ascii_letters + string.digits) for i in range(n)])
+dckr = Client(version='auto')
+
 def try_several_times(f, t=3, s=1):
     e = None
     for i in range(t):
@@ -60,7 +67,7 @@ def try_several_times(f, t=3, s=1):
 
 
 def get_bridges():
-    return try_several_times(lambda : local("brctl show | awk 'NR > 1{print $1}'", capture=True)).split('\n')
+    return try_several_times(lambda : local("ip li show type bridge | gawk -e '/^[0-9]+:/{ gsub(\":\", \"\", $2); print $2 }'", capture=True)).split('\n')
 
 
 def get_containers():
@@ -102,12 +109,37 @@ def make_gobgp_ctn(tag='gobgp', local_gobgp_path='', from_image='osrg/quagga'):
         local('rm Dockerfile')
 
 
+class docker_netns(object):
+    def __init__(self, name):
+        pid = int(dckr.inspect_container(name)['State']['Pid'])
+        if pid == 0:
+            raise Exception('no container named {0}'.format(name))
+        self.pid = pid
+
+    def __enter__(self):
+        pid = self.pid
+        if not os.path.exists('/var/run/netns'):
+            os.mkdir('/var/run/netns')
+        os.symlink('/proc/{0}/ns/net'.format(pid), '/var/run/netns/{0}'.format(pid))
+        return str(pid)
+
+    def __exit__(self, type, value, traceback):
+        pid = self.pid
+        os.unlink('/var/run/netns/{0}'.format(pid))
+
+
 class Bridge(object):
-    def __init__(self, name, subnet='', with_ip=True, self_ip=False):
-        self.name = name
-        if TEST_PREFIX != '':
-            self.name = '{0}_{1}'.format(TEST_PREFIX, name)
-        self.with_ip = with_ip
+    def __init__(self, name, subnet='', with_ip=True):
+        name = '{0}_{1}'.format(TEST_PREFIX, name)
+        ip = IPRoute()
+        br = ip.link_lookup(ifname=name)
+        if len(br) != 0:
+            ip.link('del', index=br[0])
+        ip.link('add', ifname=name, kind='bridge')
+        br = ip.link_lookup(ifname=name)
+        br = br[0]
+        ip.link('set', index=br, state='up')
+
         if with_ip:
             self.subnet = netaddr.IPNetwork(subnet)
 
@@ -117,36 +149,59 @@ class Bridge(object):
             self._ip_generator = f()
             # throw away first network address
             self.next_ip_address()
-
-        def f():
-            if self.name in get_bridges():
-                self.delete()
-            local("ip link add {0} type bridge".format(self.name))
-        try_several_times(f)
-        try_several_times(lambda : local("ip link set up dev {0}".format(self.name)))
-
-        self.self_ip = self_ip
-        if self_ip:
             self.ip_addr = self.next_ip_address()
-            try_several_times(lambda :local("ip addr add {0} dev {1}".format(self.ip_addr, self.name)))
+            address, prefixlen = self.ip_addr.split('/')
+            ip.addr('add', index=br, address=address, prefixlen=int(prefixlen))
+
+        self.name = name
+        self.with_ip = with_ip
+        self.br = br
         self.ctns = []
 
     def next_ip_address(self):
         return "{0}/{1}".format(self._ip_generator.next(),
                                 self.subnet.prefixlen)
 
-    def addif(self, ctn):
-        name = ctn.next_if_name()
-        self.ctns.append(ctn)
-        if self.with_ip:
+    def addif(self, ctn, ifname='', mac=''):
+        with docker_netns(ctn.docker_name()) as pid:
+            host_ifname = '{0}_{1}'.format(self.name, ctn.name)
+            guest_ifname = 'if' + random_str(5)
+            ip = IPRoute()
+            host = ip.link_lookup(ifname=host_ifname)
+            if len(host) != 0:
+                ip.link('del', index=host[0])
 
-            ctn.pipework(self, self.next_ip_address(), name)
-        else:
-            ctn.pipework(self, '0/0', name)
+            # this somehow fails on travis, call ip command for workaround
+            # ip.link('add', ifname=host_ifname, kind='veth', peer=guest_ifname)
+            print local('ip link add {0} type veth peer name {1}'.format(host_ifname, guest_ifname), capture=True)
+            host = ip.link_lookup(ifname=host_ifname)[0]
+            ip.link('set', index=host, master=self.br)
+            ip.link('set', index=host, state='up')
 
-    def delete(self):
-        try_several_times(lambda : local("ip link set down dev {0}".format(self.name)))
-        try_several_times(lambda : local("ip link delete {0} type bridge".format(self.name)))
+            self.ctns.append(ctn)
+
+            guest = ip.link_lookup(ifname=guest_ifname)[0]
+            ip.link('set', index=guest, net_ns_fd=pid)
+            with Namespace(pid, 'net'):
+                ip = IPRoute()
+                if ifname == '':
+                    links = [x.get_attr('IFLA_IFNAME') for x in ip.get_links()]
+                    n = [int(l[len('eth'):]) for l in links if l.startswith('eth')]
+                    idx = 0
+                    if len(n) > 0:
+                        idx = max(n) + 1
+                    ifname = 'eth{0}'.format(idx)
+                ip.link('set', index=guest, ifname=ifname)
+                ip.link('set', index=guest, state='up')
+
+                if mac != '':
+                    ip.link('set', index=guest, address=mac)
+
+                if self.with_ip:
+                    address, mask = self.next_ip_address().split('/')
+                    ip.addr('add', index=guest, address=address, mask=int(mask))
+                    ctn.ip_addrs.append((ifname, address, self.name))
+            return ifname
 
 
 class Container(object):
@@ -201,20 +256,6 @@ class Container(object):
         self.is_running = False
         return ret
 
-    def pipework(self, bridge, ip_addr, intf_name=""):
-        if not self.is_running:
-            print colors.yellow('call run() before pipeworking')
-            return
-        c = CmdBuffer(' ')
-        c << "pipework {0}".format(bridge.name)
-
-        if intf_name != "":
-            c << "-i {0}".format(intf_name)
-        else:
-            intf_name = "eth1"
-        c << "{0} {1}".format(self.docker_name(), ip_addr)
-        self.ip_addrs.append((intf_name, ip_addr, bridge.name))
-        try_several_times(lambda :local(str(c)))
 
     def local(self, cmd, capture=False, stream=False, detach=False):
         if stream:
