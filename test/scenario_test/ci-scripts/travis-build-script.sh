@@ -82,8 +82,8 @@ PIDS=("${PIDS[@]}" $!)
 sudo  PYTHONPATH=$GOBGP/test python bgp_zebra_test.py --gobgp-image $GOBGP_IMAGE --test-prefix z -x &
 PIDS=("${PIDS[@]}" $!)
 
-sudo  PYTHONPATH=$GOBGP/test python monitor_test.py --gobgp-image $GOBGP_IMAGE --test-prefix mon -x &
-PIDS=("${PIDS[@]}" $!)
+#sudo  PYTHONPATH=$GOBGP/test python monitor_test.py --gobgp-image $GOBGP_IMAGE --test-prefix mon -x &
+#PIDS=("${PIDS[@]}" $!)
 
 
 for (( i = 0; i < ${#PIDS[@]}; ++i ))
