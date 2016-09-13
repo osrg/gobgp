@@ -1,51 +1,134 @@
 language: go
 
-sudo: required
-services:
-  - docker
-
-go:
- - 1.5
- - 1.6
- - 1.7
- - tip
-
-os:
- - linux
- - osx
-
-env:
- - SCENARIO=false
- - SCENARIO=true
-
 before_install:
- - if [[ "$TRAVIS_OS_NAME" == "linux" ]]; then sudo sysctl -w net.ipv6.conf.all.disable_ipv6=0; fi
- - if [[ "$TRAVIS_OS_NAME" == "linux" ]]; then sudo sysctl -w net.ipv6.conf.default.disable_ipv6=0; fi
+  - if [[ "$TRAVIS_OS_NAME" == "linux" ]]; then sudo sysctl -w net.ipv6.conf.all.disable_ipv6=0; fi
+  - if [[ "$TRAVIS_OS_NAME" == "linux" ]]; then sudo sysctl -w net.ipv6.conf.default.disable_ipv6=0; fi
+install: test/scenario_test/ci-scripts/travis-install-script.sh
+script: test/scenario_test/ci-scripts/travis-build-script.sh
 
 matrix:
   allow_failures:
     - go: tip
-  exclude:
+  include:
     - go: 1.5
-      env: SCENARIO=true
-    - go: tip
-      env: SCENARIO=true
+      before_install: true
+      install: go get -t ./...
+      script: go test ./...
+    - go: 1.6
+      before_install: true
+      install: go get -t ./...
+      script: go test ./...
     - go: 1.7
-      env: SCENARIO=true
-    - os: osx
-      go: 1.5
-    - os: osx
-      go: 1.6
-      env: SCENARIO=true
-    - os: osx
-      go: 1.7
-    - os: osx
-      go: tip
+      before_install: true
+      install: go get -t ./...
+      script: go test ./...
+    - go: tip
+      before_install: true
+      install: go get -t ./...
+      script: go test ./...
+    - go: 1.7
+      os: osx
+      before_install: true
+      install: go get -t ./...
+      script: go test ./...
+    - go: 1.7
+      before_install: true
+      install: true
+      script: test -z "$(go fmt ./...)"
+    - go: 1.7
+      before_install: true
+      install: go get ./...
+      script: python test/scenario_test/ci-scripts/build_embeded_go.py docs/sources/lib.md
+    - env:
+        - TEST=bgp_router_test.py DOCKER_IMAGE=gobgp
+      sudo: required
+      services:
+        - docker
+    - env:
+        - TEST=bgp_zebra_test.py DOCKER_IMAGE=gobgp
+      sudo: required
+      services:
+        - docker
+    - env:
+        - TEST=evpn_test.py DOCKER_IMAGE=gobgp
+      sudo: required
+      services:
+        - docker
+    - env:
+        - TEST=flow_spec_test.py DOCKER_IMAGE=gobgp
+      sudo: required
+      services:
+        - docker
+    - env:
+        - TEST=flow_spec_test.py DOCKER_IMAGE=gobgp
+      sudo: required
+      services:
+        - docker
+    - env:
+        - TEST=global_policy_test.py DOCKER_IMAGE=gobgp
+      sudo: required
+      services:
+        - docker
+    - env:
+        - TEST=graceful_restart_test.py DOCKER_IMAGE=gobgp
+      sudo: required
+      services:
+        - docker
+    - env:
+        - TEST=ibgp_router_test.py DOCKER_IMAGE=gobgp
+      sudo: required
+      services:
+        - docker
+    - env:
+        - TEST=route_reflector_test.py DOCKER_IMAGE=gobgp
+      sudo: required
+      services:
+        - docker
+    - env:
+        - TEST=route_server_as2_test.py DOCKER_IMAGE=gobgp
+      sudo: required
+      services:
+        - docker
+    - env:
+        - TEST=route_server_ipv4_v6_test.py DOCKER_IMAGE=gobgp
+      sudo: required
+      services:
+        - docker
+    - env:
+        - TEST=route_server_malformed_test.py DOCKER_IMAGE=gobgp
+      sudo: required
+      services:
+        - docker
+    - env:
+        - TEST=route_server_policy_grpc_test.py DOCKER_IMAGE=gobgp
+      sudo: required
+      services:
+        - docker
+    - env:
+        - TEST=route_server_policy_test.py DOCKER_IMAGE=gobgp
+      sudo: required
+      services:
+        - docker
+    - env:
+        - TEST=route_server_softreset_test.py DOCKER_IMAGE=gobgp
+      sudo: required
+      services:
+        - docker
+    - env:
+        - TEST=route_server_test.py DOCKER_IMAGE=gobgp
+      sudo: required
+      services:
+        - docker
+    - env:
+        - TEST=route_server_test2.py DOCKER_IMAGE=gobgp
+      sudo: required
+      services:
+        - docker
+
+cache:
+  pip: true
 
 go_import_path: github.com/osrg/gobgp
-
-script:
- - if [[ "$TRAVIS_GO_VERSION" == "1.5" ]]; then test -z "$(go fmt ./...)"; fi && bash test/scenario_test/ci-scripts/travis-build-script.sh $SCENARIO
 
 notifications:
  slack:
