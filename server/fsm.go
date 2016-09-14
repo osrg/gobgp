@@ -467,9 +467,9 @@ func (h *FSMHandler) active() (bgp.FSMState, FsmStateReason) {
 				break
 			}
 			fsm.conn = conn
-			if fsm.pConf.Config.PeerType == config.PEER_TYPE_EXTERNAL {
+			if fsm.pConf.Config.PeerAs != 0 && fsm.pConf.Config.PeerType == config.PEER_TYPE_EXTERNAL {
 				ttl := 1
-				if fsm.pConf.EbgpMultihop.Config.Enabled == true {
+				if fsm.pConf.EbgpMultihop.Config.Enabled {
 					ttl = int(fsm.pConf.EbgpMultihop.Config.MultihopTtl)
 				}
 				if ttl != 0 {
@@ -545,6 +545,21 @@ func capabilitiesFromConfig(pConf *config.Neighbor) []bgp.ParameterCapabilityInt
 		}
 		time := c.RestartTime
 		caps = append(caps, bgp.NewCapGracefulRestart(restarting, time, tuples))
+	}
+
+	// unnumbered BGP
+	if pConf.Config.NeighborInterface != "" {
+		tuples := []*bgp.CapExtendedNexthopTuple{}
+		families, _ := config.AfiSafis(pConf.AfiSafis).ToRfList()
+		for _, family := range families {
+			if family == bgp.RF_IPv6_UC {
+				continue
+			}
+			tuple := bgp.NewCapExtendedNexthopTuple(family, bgp.AFI_IP6)
+			tuples = append(tuples, tuple)
+		}
+		cap := bgp.NewCapExtendedNexthop(tuples)
+		caps = append(caps, cap)
 	}
 	return caps
 }
@@ -798,11 +813,29 @@ func (h *FSMHandler) opensent() (bgp.FSMState, FsmStateReason) {
 				if m.Header.Type == bgp.BGP_MSG_OPEN {
 					fsm.recvOpen = m
 					body := m.Body.(*bgp.BGPOpen)
-					err := bgp.ValidateOpenMsg(body, fsm.pConf.Config.PeerAs)
+					peerAs, err := bgp.ValidateOpenMsg(body, fsm.pConf.Config.PeerAs)
 					if err != nil {
 						fsm.sendNotificationFromErrorMsg(err.(*bgp.MessageError))
 						return bgp.BGP_FSM_IDLE, FSM_INVALID_MSG
 					}
+
+					// ASN negotiation was skipped
+					if fsm.pConf.Config.PeerAs == 0 {
+						typ := config.PEER_TYPE_EXTERNAL
+						if fsm.peerInfo.LocalAS == peerAs {
+							typ = config.PEER_TYPE_INTERNAL
+						}
+						fsm.pConf.State.PeerType = typ
+						log.WithFields(log.Fields{
+							"Topic": "Peer",
+							"Key":   fsm.pConf.Config.NeighborAddress,
+							"State": fsm.state.String(),
+						}).Infof("skiped asn negotiation: peer-as: %d, peer-type: %s", peerAs, typ)
+					} else {
+						fsm.pConf.State.PeerType = fsm.pConf.Config.PeerType
+					}
+					fsm.pConf.State.PeerAs = peerAs
+					fsm.peerInfo.AS = peerAs
 					fsm.peerInfo.ID = body.ID
 					fsm.capMap, fsm.rfMap = open2Cap(body, fsm.pConf)
 

@@ -70,7 +70,7 @@ func (peer *Peer) TableID() string {
 }
 
 func (peer *Peer) isIBGPPeer() bool {
-	return peer.fsm.pConf.Config.PeerAs == peer.fsm.gConf.Config.As
+	return peer.fsm.pConf.State.PeerAs == peer.fsm.gConf.Config.As
 }
 
 func (peer *Peer) isRouteServerClient() bool {
@@ -152,7 +152,7 @@ func (peer *Peer) filterpath(path *table.Path, withdrawals []*table.Path) *table
 	}
 
 	path = path.Clone(path.IsWithdraw)
-	path.UpdatePathAttrs(peer.fsm.gConf, peer.fsm.pConf)
+	path.UpdatePathAttrs(peer.fsm.gConf, peer.fsm.pConf, peer.fsm.peerInfo)
 
 	options := &table.PolicyOptions{
 		Info: peer.fsm.peerInfo,
@@ -162,7 +162,7 @@ func (peer *Peer) filterpath(path *table.Path, withdrawals []*table.Path) *table
 	// remove local-pref attribute
 	// we should do this after applying export policy since policy may
 	// set local-preference
-	if path != nil && peer.fsm.pConf.Config.PeerType == config.PEER_TYPE_EXTERNAL {
+	if path != nil && peer.fsm.pConf.State.PeerType == config.PEER_TYPE_EXTERNAL {
 		path.RemoveLocalPref()
 	}
 	return path
