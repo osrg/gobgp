@@ -6,6 +6,10 @@ before_install:
 install: test/scenario_test/ci-scripts/travis-install-script.sh
 script: test/scenario_test/ci-scripts/travis-build-script.sh
 
+env:
+  global:
+    - DOCKER_IMAGE=gobgp
+
 matrix:
   allow_failures:
     - go: tip
@@ -40,87 +44,87 @@ matrix:
       install: go get ./...
       script: python test/scenario_test/ci-scripts/build_embeded_go.py docs/sources/lib.md
     - env:
-        - TEST=bgp_router_test.py DOCKER_IMAGE=gobgp
+        - TEST=bgp_router_test.py
       sudo: required
       services:
         - docker
     - env:
-        - TEST=bgp_zebra_test.py DOCKER_IMAGE=gobgp
+        - TEST=bgp_zebra_test.py
       sudo: required
       services:
         - docker
     - env:
-        - TEST=evpn_test.py DOCKER_IMAGE=gobgp
+        - TEST=evpn_test.py
       sudo: required
       services:
         - docker
     - env:
-        - TEST=flow_spec_test.py DOCKER_IMAGE=gobgp
+        - TEST=flow_spec_test.py
       sudo: required
       services:
         - docker
     - env:
-        - TEST=flow_spec_test.py DOCKER_IMAGE=gobgp
+        - TEST=flow_spec_test.py
       sudo: required
       services:
         - docker
     - env:
-        - TEST=global_policy_test.py DOCKER_IMAGE=gobgp
+        - TEST=global_policy_test.py
       sudo: required
       services:
         - docker
     - env:
-        - TEST=graceful_restart_test.py DOCKER_IMAGE=gobgp
+        - TEST=graceful_restart_test.py
       sudo: required
       services:
         - docker
     - env:
-        - TEST=ibgp_router_test.py DOCKER_IMAGE=gobgp
+        - TEST=ibgp_router_test.py
       sudo: required
       services:
         - docker
     - env:
-        - TEST=route_reflector_test.py DOCKER_IMAGE=gobgp
+        - TEST=route_reflector_test.py
       sudo: required
       services:
         - docker
     - env:
-        - TEST=route_server_as2_test.py DOCKER_IMAGE=gobgp
+        - TEST=route_server_as2_test.py
       sudo: required
       services:
         - docker
     - env:
-        - TEST=route_server_ipv4_v6_test.py DOCKER_IMAGE=gobgp
+        - TEST=route_server_ipv4_v6_test.py
       sudo: required
       services:
         - docker
     - env:
-        - TEST=route_server_malformed_test.py DOCKER_IMAGE=gobgp
+        - TEST=route_server_malformed_test.py
       sudo: required
       services:
         - docker
     - env:
-        - TEST=route_server_policy_grpc_test.py DOCKER_IMAGE=gobgp
+        - TEST=route_server_policy_grpc_test.py
       sudo: required
       services:
         - docker
     - env:
-        - TEST=route_server_policy_test.py DOCKER_IMAGE=gobgp
+        - TEST=route_server_policy_test.py
       sudo: required
       services:
         - docker
     - env:
-        - TEST=route_server_softreset_test.py DOCKER_IMAGE=gobgp
+        - TEST=route_server_softreset_test.py
       sudo: required
       services:
         - docker
     - env:
-        - TEST=route_server_test.py DOCKER_IMAGE=gobgp
+        - TEST=route_server_test.py
       sudo: required
       services:
         - docker
     - env:
-        - TEST=route_server_test2.py DOCKER_IMAGE=gobgp
+        - TEST=route_server_test2.py
       sudo: required
       services:
         - docker
