@@ -205,14 +205,15 @@ const (
 type BGPCapabilityCode uint8
 
 const (
-	BGP_CAP_MULTIPROTOCOL          BGPCapabilityCode = 1
-	BGP_CAP_ROUTE_REFRESH          BGPCapabilityCode = 2
-	BGP_CAP_CARRYING_LABEL_INFO    BGPCapabilityCode = 4
-	BGP_CAP_GRACEFUL_RESTART       BGPCapabilityCode = 64
-	BGP_CAP_FOUR_OCTET_AS_NUMBER   BGPCapabilityCode = 65
-	BGP_CAP_ADD_PATH               BGPCapabilityCode = 69
-	BGP_CAP_ENHANCED_ROUTE_REFRESH BGPCapabilityCode = 70
-	BGP_CAP_ROUTE_REFRESH_CISCO    BGPCapabilityCode = 128
+	BGP_CAP_MULTIPROTOCOL               BGPCapabilityCode = 1
+	BGP_CAP_ROUTE_REFRESH               BGPCapabilityCode = 2
+	BGP_CAP_CARRYING_LABEL_INFO         BGPCapabilityCode = 4
+	BGP_CAP_GRACEFUL_RESTART            BGPCapabilityCode = 64
+	BGP_CAP_FOUR_OCTET_AS_NUMBER        BGPCapabilityCode = 65
+	BGP_CAP_ADD_PATH                    BGPCapabilityCode = 69
+	BGP_CAP_ENHANCED_ROUTE_REFRESH      BGPCapabilityCode = 70
+	BGP_CAP_ROUTE_REFRESH_CISCO         BGPCapabilityCode = 128
+	BGP_CAP_LONG_LIVED_GRACEFUL_RESTART BGPCapabilityCode = 129
 )
 
 type ParameterCapabilityInterface interface {
@@ -556,6 +557,97 @@ func NewCapRouteRefreshCisco() *CapRouteRefreshCisco {
 	}
 }
 
+type CapLongLivedGracefulRestartTuple struct {
+	AFI         uint16
+	SAFI        uint8
+	Flags       uint8
+	RestartTime uint32
+}
+
+func (c *CapLongLivedGracefulRestartTuple) MarshalJSON() ([]byte, error) {
+	return json.Marshal(struct {
+		RouteFamily RouteFamily `json:"route_family"`
+		Flags       uint8       `json:"flags"`
+		RestartTime uint32      `json:"restart_time"`
+	}{
+		RouteFamily: AfiSafiToRouteFamily(c.AFI, c.SAFI),
+		Flags:       c.Flags,
+		RestartTime: c.RestartTime,
+	})
+}
+
+func NewCapLongLivedGracefulRestartTuple(rf RouteFamily, forward bool, restartTime uint32) *CapLongLivedGracefulRestartTuple {
+	afi, safi := RouteFamilyToAfiSafi(rf)
+	flags := 0
+	if forward {
+		flags = 0x80
+	}
+	return &CapLongLivedGracefulRestartTuple{
+		AFI:         afi,
+		SAFI:        safi,
+		Flags:       uint8(flags),
+		RestartTime: restartTime,
+	}
+}
+
+type CapLongLivedGracefulRestart struct {
+	DefaultParameterCapability
+	Tuples []*CapLongLivedGracefulRestartTuple
+}
+
+func (c *CapLongLivedGracefulRestart) DecodeFromBytes(data []byte) error {
+	c.DefaultParameterCapability.DecodeFromBytes(data)
+	data = data[2:]
+
+	if len(data)%7 != 0 {
+		return NewMessageError(BGP_ERROR_OPEN_MESSAGE_ERROR, BGP_ERROR_SUB_UNSUPPORTED_CAPABILITY, nil, "invalid length of long lived graceful restart capablity")
+	}
+	for len(data) > 0 {
+		t := &CapLongLivedGracefulRestartTuple{
+			binary.BigEndian.Uint16(data),
+			data[2],
+			data[3],
+			uint32(data[4])<<16 | uint32(data[5])<<8 | uint32(data[6]),
+		}
+		c.Tuples = append(c.Tuples, t)
+		data = data[7:]
+	}
+	return nil
+}
+
+func (c *CapLongLivedGracefulRestart) Serialize() ([]byte, error) {
+	buf := make([]byte, 7*len(c.Tuples))
+	for idx, t := range c.Tuples {
+		binary.BigEndian.PutUint16(buf[idx*7:], t.AFI)
+		buf[idx*7+2] = t.SAFI
+		buf[idx*7+3] = t.Flags
+		buf[idx*7+4] = uint8((t.RestartTime >> 16) & 0xff)
+		buf[idx*7+5] = uint8((t.RestartTime >> 8) & 0xff)
+		buf[idx*7+6] = uint8(t.RestartTime & 0xff)
+	}
+	c.DefaultParameterCapability.CapValue = buf
+	return c.DefaultParameterCapability.Serialize()
+}
+
+func (c *CapLongLivedGracefulRestart) MarshalJSON() ([]byte, error) {
+	return json.Marshal(struct {
+		Code   BGPCapabilityCode                   `json:"code"`
+		Tuples []*CapLongLivedGracefulRestartTuple `json:"tuples"`
+	}{
+		Code:   c.Code(),
+		Tuples: c.Tuples,
+	})
+}
+
+func NewCapLongLivedGracefulRestart(tuples []*CapLongLivedGracefulRestartTuple) *CapLongLivedGracefulRestart {
+	return &CapLongLivedGracefulRestart{
+		DefaultParameterCapability: DefaultParameterCapability{
+			CapCode: BGP_CAP_LONG_LIVED_GRACEFUL_RESTART,
+		},
+		Tuples: tuples,
+	}
+}
+
 type CapUnknown struct {
 	DefaultParameterCapability
 }
@@ -582,6 +674,8 @@ func DecodeCapability(data []byte) (ParameterCapabilityInterface, error) {
 		c = &CapEnhancedRouteRefresh{}
 	case BGP_CAP_ROUTE_REFRESH_CISCO:
 		c = &CapRouteRefreshCisco{}
+	case BGP_CAP_LONG_LIVED_GRACEFUL_RESTART:
+		c = &CapLongLivedGracefulRestart{}
 	default:
 		c = &CapUnknown{}
 	}
