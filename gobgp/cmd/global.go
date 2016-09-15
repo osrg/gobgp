@@ -419,6 +419,61 @@ func ParseEvpnMulticastArgs(args []string) (bgp.AddrPrefixInterface, []string, e
 
 }
 
+func ParseEVPNIPPrefixArgs(args []string) (bgp.AddrPrefixInterface, []string, error) {
+	if len(args) < 6 {
+		return nil, nil, fmt.Errorf("lack of number of args needs 6 at least but got %d", len(args))
+	}
+	m := extractReserved(args, []string{"gw", "rd", "rt", "encap", "etag", "label"})
+	if len(m[""]) < 1 {
+		return nil, nil, fmt.Errorf("specify prefix")
+	}
+	ip, n, err := net.ParseCIDR(m[""][0])
+	if err != nil {
+		return nil, nil, err
+	}
+	ones, _ := n.Mask.Size()
+	var gw net.IP
+	if len(m["gw"]) > 0 {
+		gw = net.ParseIP(m["gw"][0])
+	}
+
+	if len(m["rd"]) < 1 {
+		return nil, nil, fmt.Errorf("specify RD")
+	}
+	rd, err := bgp.ParseRouteDistinguisher(m["rd"][0])
+	if err != nil {
+		return nil, nil, err
+	}
+
+	var etag uint32
+	if len(m["etag"]) > 0 {
+		e, err := strconv.Atoi(m["etag"][0])
+		if err != nil {
+			return nil, nil, err
+		}
+		etag = uint32(e)
+	}
+
+	var label uint32
+	if len(m["label"]) > 0 {
+		e, err := strconv.Atoi(m["label"][0])
+		if err != nil {
+			return nil, nil, err
+		}
+		label = uint32(e)
+	}
+
+	r := &bgp.EVPNIPPrefixRoute{
+		RD:             rd,
+		ETag:           etag,
+		IPPrefixLength: uint8(ones),
+		IPPrefix:       ip,
+		GWIPAddress:    gw,
+		Label:          label,
+	}
+	return bgp.NewEVPNNLRI(bgp.EVPN_IP_PREFIX, 0, r), nil, nil
+}
+
 func ParseEvpnArgs(args []string) (bgp.AddrPrefixInterface, []string, error) {
 	if len(args) < 1 {
 		return nil, nil, fmt.Errorf("lack of args. need 1 but %d", len(args))
@@ -430,8 +485,10 @@ func ParseEvpnArgs(args []string) (bgp.AddrPrefixInterface, []string, error) {
 		return ParseEvpnMacAdvArgs(args)
 	case "multicast":
 		return ParseEvpnMulticastArgs(args)
+	case "prefix":
+		return ParseEVPNIPPrefixArgs(args)
 	}
-	return nil, nil, fmt.Errorf("invalid subtype. expect [macadv|multicast] but %s", subtype)
+	return nil, nil, fmt.Errorf("invalid subtype. expect [macadv|multicast|prefix] but %s", subtype)
 }
 
 func extractOrigin(args []string) ([]string, bgp.PathAttributeInterface, error) {
@@ -857,9 +914,10 @@ usage: %s rib %s%%smatch <MATCH_EXPR> then <THEN_EXPR> -a %%s
 			etherTypes,
 		)
 		helpErrMap[bgp.RF_FS_L2_VPN] = fmt.Errorf(fsHelpMsgFmt, "l2vpn-flowspec", macFsMatchExpr)
-		helpErrMap[bgp.RF_EVPN] = fmt.Errorf(`usage: %s rib %s { macadv <MACADV> | multicast <MULTICAST> } -a evpn
+		helpErrMap[bgp.RF_EVPN] = fmt.Errorf(`usage: %s rib %s { macadv <MACADV> | multicast <MULTICAST> | prefix <PREFIX> } -a evpn
     <MACADV>    : <mac address> <ip address> <etag> <label> rd <rd> rt <rt>... [encap <encap type>]
-    <MULTICAST> : <ip address> <etag> rd <rd> rt <rt>... [encap <encap type>]`, cmdstr, modtype)
+    <MULTICAST> : <ip address> <etag> rd <rd> rt <rt>... [encap <encap type>]
+    <PREFIX>    : <ip prefix> [gw <gateway>] etag <etag> rd <rd> rt <rt>... [encap <encap type>]`, cmdstr, modtype)
 		helpErrMap[bgp.RF_OPAQUE] = fmt.Errorf(`usage: %s rib %s key <KEY> [value <VALUE>]`, cmdstr, modtype)
 		if err, ok := helpErrMap[rf]; ok {
 			return err
