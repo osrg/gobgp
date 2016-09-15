@@ -1006,7 +1006,7 @@ func (s *BgpServer) Shutdown() {
 	}
 }
 
-func (s *BgpServer) UpdatePolicy(policy config.RoutingPolicy) (err error) {
+func (s *BgpServer) UpdatePolicy(policy *config.RoutingPolicy) (err error) {
 	ch := make(chan struct{})
 	defer func() { <-ch }()
 
@@ -1022,7 +1022,7 @@ func (s *BgpServer) UpdatePolicy(policy config.RoutingPolicy) (err error) {
 			}).Info("call set policy")
 			ap[peer.ID()] = peer.fsm.pConf.ApplyPolicy
 		}
-		err = s.policy.Reset(&policy, ap)
+		err = s.policy.Reset(policy, ap)
 	}
 	return err
 }
