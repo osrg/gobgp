@@ -480,3 +480,39 @@ func Test_FlowSpecNlriVPN(t *testing.T) {
 		t.Log(bytes.Equal(buf1, buf2))
 	}
 }
+
+func Test_EVPNIPPrefixRoute(t *testing.T) {
+	assert := assert.New(t)
+	rd, _ := ParseRouteDistinguisher("100:100")
+	r := &EVPNIPPrefixRoute{
+		RD: rd,
+		ESI: EthernetSegmentIdentifier{
+			Type:  ESI_ARBITRARY,
+			Value: make([]byte, 9),
+		},
+		ETag:           10,
+		IPPrefixLength: 24,
+		IPPrefix:       net.IP{10, 10, 10, 0},
+		GWIPAddress:    net.IP{10, 10, 10, 10},
+		Label:          1000,
+	}
+	n1 := NewEVPNNLRI(EVPN_IP_PREFIX, 0, r)
+	buf1, err := n1.Serialize()
+	assert.Nil(err)
+	n2, err := NewPrefixFromRouteFamily(RouteFamilyToAfiSafi(RF_EVPN))
+	assert.Nil(err)
+	err = n2.DecodeFromBytes(buf1)
+	assert.Nil(err)
+	buf2, _ := n2.Serialize()
+	t.Log(n1.RouteTypeData.(*EVPNIPPrefixRoute).ESI.Value, n2.(*EVPNNLRI).RouteTypeData.(*EVPNIPPrefixRoute).ESI.Value)
+	t.Log(reflect.DeepEqual(n1.RouteTypeData.(*EVPNIPPrefixRoute).ESI.Value, n2.(*EVPNNLRI).RouteTypeData.(*EVPNIPPrefixRoute).ESI.Value))
+	if reflect.DeepEqual(n1, n2) {
+		t.Log("OK")
+	} else {
+		t.Error("Something wrong")
+		t.Error(len(buf1), n1, buf1)
+		t.Error(len(buf2), n2, buf2)
+		t.Log(bytes.Equal(buf1, buf2))
+	}
+
+}

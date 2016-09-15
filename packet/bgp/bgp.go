@@ -1893,14 +1893,6 @@ func (er *EVPNEthernetSegmentRoute) Serialize() ([]byte, error) {
 	return buf, nil
 }
 
-type EVPNRouteTypeInterface interface {
-	DecodeFromBytes([]byte) error
-	Serialize() ([]byte, error)
-	String() string
-	rd() RouteDistinguisherInterface
-	MarshalJSON() ([]byte, error)
-}
-
 func (er *EVPNEthernetSegmentRoute) String() string {
 	return fmt.Sprintf("[type:esi][rd:%s][esi:%d][ip:%s]", er.RD, er.ESI, er.IPAddress)
 }
@@ -1921,6 +1913,129 @@ func (er *EVPNEthernetSegmentRoute) rd() RouteDistinguisherInterface {
 	return er.RD
 }
 
+type EVPNIPPrefixRoute struct {
+	RD             RouteDistinguisherInterface
+	ESI            EthernetSegmentIdentifier
+	ETag           uint32
+	IPPrefixLength uint8
+	IPPrefix       net.IP
+	GWIPAddress    net.IP
+	Label          uint32
+}
+
+func (er *EVPNIPPrefixRoute) DecodeFromBytes(data []byte) error {
+	if len(data) < 30 { // rd + esi + etag + prefix-len + ipv4 addr + label
+		return NewMessageError(BGP_ERROR_UPDATE_MESSAGE_ERROR, BGP_ERROR_SUB_MALFORMED_ATTRIBUTE_LIST, nil, "Not all EVPN IP Prefix Route bytes available")
+	}
+	er.RD = GetRouteDistinguisher(data)
+	data = data[er.RD.Len():]
+	err := er.ESI.DecodeFromBytes(data)
+	if err != nil {
+		return err
+	}
+	data = data[10:]
+	er.ETag = binary.BigEndian.Uint32(data[0:4])
+	data = data[4:]
+	er.IPPrefixLength = data[0]
+	addrLen := 4
+	data = data[1:]
+	if len(data) > 19 { // ipv6 addr + label
+		addrLen = 16
+	}
+	er.IPPrefix = net.IP(data[:addrLen])
+	data = data[addrLen:]
+	switch {
+	case len(data) == 3:
+		er.Label = labelDecode(data)
+	case len(data) == addrLen+3:
+		er.GWIPAddress = net.IP(data[:addrLen])
+		er.Label = labelDecode(data[addrLen:])
+	default:
+		return NewMessageError(BGP_ERROR_UPDATE_MESSAGE_ERROR, BGP_ERROR_SUB_MALFORMED_ATTRIBUTE_LIST, nil, "Not all EVPN IP Prefix Route bytes available")
+	}
+	return nil
+}
+
+func (er *EVPNIPPrefixRoute) Serialize() ([]byte, error) {
+	var buf []byte
+	var err error
+	if er.RD != nil {
+		buf, err = er.RD.Serialize()
+		if err != nil {
+			return nil, err
+		}
+	} else {
+		buf = make([]byte, 8)
+	}
+	tbuf, err := er.ESI.Serialize()
+	if err != nil {
+		return nil, err
+	}
+	buf = append(buf, tbuf...)
+
+	tbuf = make([]byte, 4)
+	binary.BigEndian.PutUint32(tbuf, er.ETag)
+	buf = append(buf, tbuf...)
+
+	buf = append(buf, er.IPPrefixLength)
+
+	if er.IPPrefix == nil {
+		return nil, NewMessageError(BGP_ERROR_UPDATE_MESSAGE_ERROR, BGP_ERROR_SUB_MALFORMED_ATTRIBUTE_LIST, nil, fmt.Sprintf("IP Prefix is nil"))
+	} else if er.IPPrefix.To4() != nil {
+		buf = append(buf, []byte(er.IPPrefix.To4())...)
+	} else {
+		buf = append(buf, []byte(er.IPPrefix)...)
+	}
+
+	if er.GWIPAddress != nil {
+		if er.GWIPAddress.To4() != nil {
+			buf = append(buf, []byte(er.GWIPAddress.To4())...)
+		} else {
+			buf = append(buf, []byte(er.GWIPAddress.To16())...)
+		}
+	}
+
+	tbuf = make([]byte, 3)
+	labelSerialize(er.Label, tbuf)
+	buf = append(buf, tbuf...)
+
+	return buf, nil
+}
+
+func (er *EVPNIPPrefixRoute) String() string {
+	return fmt.Sprintf("[type:Prefix][rd:%s][esi:%s][etag:%d][prefix:%s/%d][gw:%s][label:%d]", er.RD, er.ESI.String(), er.ETag, er.IPPrefix, er.IPPrefixLength, er.GWIPAddress, er.Label)
+}
+
+func (er *EVPNIPPrefixRoute) MarshalJSON() ([]byte, error) {
+	return json.Marshal(struct {
+		RD      RouteDistinguisherInterface `json:"rd"`
+		ESI     string                      `json:"esi"`
+		Etag    uint32                      `json:"etag"`
+		Prefix  string                      `json:"prefix"`
+		Gateway string                      `json:"gateway"`
+		Label   uint32                      `json:"label"`
+	}{
+		RD:      er.RD,
+		ESI:     er.ESI.String(),
+		Etag:    er.ETag,
+		Prefix:  fmt.Sprintf("%s/%d", er.IPPrefix, er.IPPrefixLength),
+		Gateway: er.GWIPAddress.String(),
+		Label:   er.Label,
+	})
+}
+
+func (er *EVPNIPPrefixRoute) rd() RouteDistinguisherInterface {
+	return er.RD
+}
+
+type EVPNRouteTypeInterface interface {
+	DecodeFromBytes([]byte) error
+	Serialize() ([]byte, error)
+	String() string
+	rd() RouteDistinguisherInterface
+	MarshalJSON() ([]byte, error)
+}
+
 func getEVPNRouteType(t uint8) (EVPNRouteTypeInterface, error) {
 	switch t {
 	case EVPN_ROUTE_TYPE_ETHERNET_AUTO_DISCOVERY:
@@ -1931,6 +2046,8 @@ func getEVPNRouteType(t uint8) (EVPNRouteTypeInterface, error) {
 		return &EVPNMulticastEthernetTagRoute{}, nil
 	case EVPN_ETHERNET_SEGMENT_ROUTE:
 		return &EVPNEthernetSegmentRoute{}, nil
+	case EVPN_IP_PREFIX:
+		return &EVPNIPPrefixRoute{}, nil
 	}
 	return nil, NewMessageError(BGP_ERROR_UPDATE_MESSAGE_ERROR, BGP_ERROR_SUB_MALFORMED_ATTRIBUTE_LIST, nil, fmt.Sprintf("Unknown EVPN Route type: %d", t))
 }
@@ -1940,6 +2057,7 @@ const (
 	EVPN_ROUTE_TYPE_MAC_IP_ADVERTISEMENT    = 2
 	EVPN_INCLUSIVE_MULTICAST_ETHERNET_TAG   = 3
 	EVPN_ETHERNET_SEGMENT_ROUTE             = 4
+	EVPN_IP_PREFIX                          = 5
 )
 
 type EVPNNLRI struct {
