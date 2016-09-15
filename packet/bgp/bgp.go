@@ -2221,24 +2221,18 @@ func flowSpecIpProtoParser(rf RouteFamily, args []string) (FlowSpecComponentInte
 	if len(args) < 2 || args[0] != FlowSpecNameMap[FLOW_SPEC_TYPE_IP_PROTO] {
 		return nil, fmt.Errorf("invalid ip-proto format")
 	}
-	items := make([]*FlowSpecComponentItem, 0)
-	eq := 0x1
-	for _, v := range args[1:] {
-		if v == "" {
-			continue
-		}
-		p, ok := ProtocolValueMap[v]
-		if ok {
-			items = append(items, NewFlowSpecComponentItem(eq, int(p)))
-			continue
-		}
-		i, err := strconv.ParseUint(v, 10, 8)
-		if err != nil {
-			return nil, fmt.Errorf("invalid ip-proto format: failed to parse %s", v)
-		}
-		items = append(items, NewFlowSpecComponentItem(eq, int(i)))
+	s := strings.Join(args, " ")
+	for i, name := range ProtocolNameMap {
+		s = strings.Replace(s, name, fmt.Sprintf("%d", i), -1)
 	}
-	return NewFlowSpecComponent(FLOW_SPEC_TYPE_IP_PROTO, items), nil
+	args = strings.Split(s, " ")
+	validationFunc := func(i int) error {
+		if 0 < i && i < 255 {
+			return nil
+		}
+		return fmt.Errorf("ip protocol range exceeded")
+	}
+	return doFlowSpecNumericParser(0, args, validationFunc)
 }
 
 func flowSpecTcpFlagParser(rf RouteFamily, args []string) (FlowSpecComponentInterface, error) {
@@ -2271,26 +2265,22 @@ func flowSpecTcpFlagParser(rf RouteFamily, args []string) (FlowSpecComponentInte
 }
 
 func flowSpecEtherTypeParser(rf RouteFamily, args []string) (FlowSpecComponentInterface, error) {
-	ss := make([]string, 0, len(EthernetTypeNameMap))
-	for _, v := range EthernetTypeNameMap {
-		ss = append(ss, v)
+	if len(args) < 2 || args[0] != FlowSpecNameMap[FLOW_SPEC_TYPE_ETHERNET_TYPE] {
+		return nil, fmt.Errorf("invalid ethernet-type format")
 	}
-	protos := strings.Join(ss, "|")
-	exp := regexp.MustCompile(fmt.Sprintf("^%s (((%s) )*)(%s)$", FlowSpecNameMap[FLOW_SPEC_TYPE_ETHERNET_TYPE], protos, protos))
-	elems := exp.FindStringSubmatch(strings.Join(args, " "))
-	items := make([]*FlowSpecComponentItem, 0)
-	eq := 0x1
-	if elems[1] != "" {
-		for _, v := range strings.Split(elems[1], " ") {
-			p, ok := EthernetTypeValueMap[v]
-			if !ok {
-				continue
-			}
-			items = append(items, NewFlowSpecComponentItem(eq, int(p)))
+	s := strings.Join(args, " ")
+	for i, name := range EthernetTypeNameMap {
+		s = strings.Replace(s, name, fmt.Sprintf("%d", i), -1)
+	}
+	args = strings.Split(s, " ")
+	validationFunc := func(i int) error {
+		if 0 < i && i < 0xffff {
+			return nil
 		}
+		return fmt.Errorf("ethernet type range exceeded")
 	}
-	items = append(items, NewFlowSpecComponentItem(eq, int(EthernetTypeValueMap[elems[4]])))
-	return NewFlowSpecComponent(FLOW_SPEC_TYPE_ETHERNET_TYPE, items), nil
+	fmt.Println(args)
+	return doFlowSpecNumericParser(0, args, validationFunc)
 }
 
 func doFlowSpecNumericParser(rf RouteFamily, args []string, validationFunc func(int) error) (FlowSpecComponentInterface, error) {
@@ -2838,7 +2828,7 @@ func formatNumeric(op int, value int) string {
 }
 
 func formatProto(op int, value int) string {
-	return fmt.Sprintf(" %s", Protocol(value).String())
+	return fmt.Sprintf("%s%s", formatNumericOp(op), Protocol(value).String())
 }
 
 func formatFlag(op int, value int) string {
@@ -2883,7 +2873,7 @@ func formatFragment(op int, value int) string {
 }
 
 func formatEtherType(op int, value int) string {
-	return fmt.Sprintf(" %s", EthernetType(value).String())
+	return fmt.Sprintf("%s%s", formatNumericOp(op), EthernetType(value).String())
 }
 
 var flowSpecFormatMap = map[BGPFlowSpecType]func(op int, value int) string{
