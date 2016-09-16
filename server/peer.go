@@ -162,7 +162,7 @@ func (peer *Peer) filterpath(path *table.Path, withdrawals []*table.Path) *table
 	// remove local-pref attribute
 	// we should do this after applying export policy since policy may
 	// set local-preference
-	if path != nil && peer.fsm.pConf.Config.PeerType == config.PEER_TYPE_EXTERNAL {
+	if path != nil && !peer.isIBGPPeer() && !peer.isRouteServerClient() {
 		path.RemoveLocalPref()
 	}
 	return path
