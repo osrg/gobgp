@@ -202,23 +202,45 @@ func main() {
 			// breaks configuration file reloading behavior and is not supported.
 			softResetIn := false
 			gr := false
+			start := false
 			if count == 0 && opts.GracefulRestart {
 				gr = true
 			}
 
 			if prev.Global.Config.As == 0 && new.Global.Config.As != 0 {
+				// this removes all policy configuration inside `bgpServer`
 				bgpServer.Start(&new.Global)
+				start = true
 			} else if prev.Global.Config.As != 0 && new.Global.Config.As == 0 {
-				// since `bgpServer.Stop()` removes all neighbor configuration inside `bgpServer`,
-				// calling it causes inconsistence between `prev` and `bgpServer`
+				// bgpServer.Stop() removes all neighbor configuration inside `bgpServer`
+				// calling it may cause inconsistence between `prev` and `bgpServer`
 				log.Error("Removing global configuration is not supported. Configuration reload failed")
-				continue
-			} else if !prev.Global.Equal(&new.Global) {
-				log.Error("Updating global configuration is not supported. Configuration reload failed")
 				continue
 			}
 
-			prev.Global = new.Global
+			// bgpServer.UpdatePolicy() must be called after bgpServer.Start() and
+			// before bgpServer.Update(), bgpServer.AddNeighbor() and bgpServer.UpdateNeighbor()
+			if config.CheckPolicyDifference(config.ConfigSetToRoutingPolicy(prev), config.ConfigSetToRoutingPolicy(new)) {
+				bgpServer.UpdatePolicy(config.ConfigSetToRoutingPolicy(new))
+				softResetIn = true
+			}
+
+			prev.DefinedSets = new.DefinedSets
+			prev.PolicyDefinitions = new.PolicyDefinitions
+
+			if !start {
+				g := new.Global
+				if !prev.Global.Equal(&g) {
+					if err := bgpServer.Update(&g); err != nil {
+						log.Errorf("Configuration reload failed: %s", err)
+						continue
+					}
+					if !prev.Global.ApplyPolicy.Equal(&new.Global.ApplyPolicy) {
+						softResetIn = true
+					}
+				}
+				prev.Global = new.Global
+			}
 
 			inNSlice := func(n config.Neighbor, b []config.Neighbor) int {
 				for i, nb := range b {
@@ -251,14 +273,6 @@ func main() {
 			}
 
 			prev.Neighbors = new.Neighbors
-
-			if config.CheckPolicyDifference(config.ConfigSetToRoutingPolicy(prev), config.ConfigSetToRoutingPolicy(new)) {
-				bgpServer.UpdatePolicy(config.ConfigSetToRoutingPolicy(new))
-				softResetIn = true
-			}
-
-			prev.DefinedSets = new.DefinedSets
-			prev.PolicyDefinitions = new.PolicyDefinitions
 
 			if !prev.Zebra.Config.Enabled && new.Zebra.Config.Enabled {
 				bgpServer.StartZebraClient(&new.Zebra.Config)

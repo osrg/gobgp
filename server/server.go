@@ -1304,6 +1304,37 @@ func (s *BgpServer) DeleteVrf(name string) (err error) {
 	return err
 }
 
+func (s *BgpServer) Update(c *config.Global) (err error) {
+	ch := make(chan struct{})
+	defer func() { <-ch }()
+
+	s.mgmtCh <- func() {
+		defer close(ch)
+		if err = s.active(); err != nil {
+			return
+		}
+
+		p := s.bgpConfig.Global
+		n := *c
+		empty := config.ApplyPolicy{}
+		p.ApplyPolicy = empty
+		n.ApplyPolicy = empty
+		if !p.Equal(&n) {
+			err = fmt.Errorf("Updating global configuration except policy assignment is not supported")
+			return
+		}
+
+		if !s.bgpConfig.Global.ApplyPolicy.Equal(&c.ApplyPolicy) {
+			log.WithFields(log.Fields{
+				"Topic": "Peer",
+			}).Info("Update Global ApplyPolicy")
+			s.policy.Reset(nil, map[string]config.ApplyPolicy{table.GLOBAL_RIB_NAME: c.ApplyPolicy})
+			s.bgpConfig.Global.ApplyPolicy = c.ApplyPolicy
+		}
+	}
+	return nil
+}
+
 func (s *BgpServer) Stop() (err error) {
 	ch := make(chan struct{})
 	defer func() { <-ch }()
