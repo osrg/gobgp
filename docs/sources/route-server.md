@@ -1,6 +1,6 @@
 # Route Server
 
-This page explains how to set up GoBGP as a route server.
+This page explains how to set up GoBGP as a [route server](https://tools.ietf.org/html/rfc7947)
 
 ## Prerequisites
 
