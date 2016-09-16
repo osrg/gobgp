@@ -88,7 +88,7 @@ func NewTCPListener(address string, port uint32, ch chan *net.TCPConn) (*TCPList
 }
 
 type BgpServer struct {
-	bgpConfig     config.Bgp
+	bgpConfig     config.BgpConfigSet
 	fsmincomingCh *channels.InfiniteChannel
 	fsmStateCh    chan *FsmMsg
 	acceptCh      chan *net.TCPConn
@@ -115,6 +115,7 @@ func NewBgpServer() *BgpServer {
 		mgmtCh:      make(chan func(), 1),
 		watcherMap:  make(map[WatchEventType][]*Watcher),
 	}
+	config.SetDefaultConfigValues(&s.bgpConfig)
 	s.bmpManager = newBmpClientManager(s)
 	s.mrtManager = newMrtManager(s)
 	return s
@@ -943,6 +944,9 @@ func (s *BgpServer) StartCollector(c *config.CollectorConfig) (err error) {
 	s.mgmtCh <- func() {
 		defer close(ch)
 		_, err = NewCollector(s, c.Url, c.DbName, c.TableDumpInterval)
+		if err != nil {
+			s.bgpConfig.Collector.Config = *c
+		}
 	}
 	return err
 }
@@ -962,6 +966,9 @@ func (s *BgpServer) StartZebraClient(c *config.ZebraConfig) (err error) {
 				protos = append(protos, string(p))
 			}
 			s.zclient, err = newZebraClient(s, c.Url, protos, c.Version)
+			if err == nil {
+				s.bgpConfig.Zebra.Config = *c
+			}
 		}
 	}
 	return err
@@ -989,6 +996,17 @@ func (s *BgpServer) DeleteBmp(c *config.BmpServerConfig) (err error) {
 		err = s.bmpManager.deleteServer(c)
 	}
 	return err
+}
+
+func (s *BgpServer) GetBmp() (l []*config.BmpServer, err error) {
+	ch := make(chan struct{})
+	defer func() { <-ch }()
+
+	s.mgmtCh <- func() {
+		defer close(ch)
+		l = s.bmpManager.getServers()
+	}
+	return
 }
 
 func (s *BgpServer) Shutdown() {
@@ -1023,6 +1041,9 @@ func (s *BgpServer) UpdatePolicy(policy *config.RoutingPolicy) (err error) {
 			ap[peer.ID()] = peer.fsm.pConf.ApplyPolicy
 		}
 		err = s.policy.Reset(policy, ap)
+		if err == nil {
+			s.bgpConfig.PolicyDefinitions = policy.PolicyDefinitions
+		}
 	}
 	return err
 }
@@ -1233,6 +1254,8 @@ func (s *BgpServer) Start(c *config.Global) (err error) {
 		if err = s.policy.Reset(&config.RoutingPolicy{}, map[string]config.ApplyPolicy{}); err != nil {
 			return
 		}
+		s.bgpConfig = config.BgpConfigSet{}
+		config.SetDefaultConfigValues(&s.bgpConfig)
 		s.bgpConfig.Global = *c
 		// update route selection options
 		table.SelectionOptions = c.RouteSelectionOptions.Config
@@ -1302,6 +1325,51 @@ func (s *BgpServer) DeleteVrf(name string) (err error) {
 		}
 	}
 	return err
+}
+
+func (s *BgpServer) GetConfig() (c *config.BgpConfigSet, err error) {
+	ch := make(chan struct{})
+	defer func() { <-ch }()
+
+	s.mgmtCh <- func() {
+		defer close(ch)
+		neighbors := make([]config.Neighbor, 0, len(s.neighborMap))
+		for _, n := range s.neighborMap {
+			c := n.ToConfig(false, true)
+			neighbors = append(neighbors, *c)
+		}
+		r := s.roaManager.GetServers()
+		rpkis := make([]config.RpkiServer, 0, len(r))
+		for _, n := range r {
+			n.State = config.RpkiServerState{}
+			rpkis = append(rpkis, *n)
+		}
+		b := s.bmpManager.getServers()
+		bmps := make([]config.BmpServer, 0, len(b))
+		for _, n := range b {
+			n.State = config.BmpServerState{}
+			bmps = append(bmps, *n)
+		}
+		m := s.mrtManager.list()
+		mrts := make([]config.Mrt, 0, len(m))
+		for _, n := range m {
+			mrts = append(mrts, *n)
+		}
+
+		defs, _ := s.policy.GetAllDefinedSet()
+		c = &config.BgpConfigSet{
+			Global:            s.bgpConfig.Global,
+			Neighbors:         neighbors,
+			RpkiServers:       rpkis,
+			BmpServers:        bmps,
+			MrtDump:           mrts,
+			Zebra:             s.bgpConfig.Zebra,
+			Collector:         s.bgpConfig.Collector,
+			DefinedSets:       *defs,
+			PolicyDefinitions: s.bgpConfig.PolicyDefinitions,
+		}
+	}
+	return
 }
 
 func (s *BgpServer) Update(c *config.Global) (err error) {
@@ -1658,7 +1726,7 @@ func (s *BgpServer) GetNeighbor(getAdvertised bool) (l []*config.Neighbor) {
 
 		l = make([]*config.Neighbor, 0, len(s.neighborMap))
 		for _, peer := range s.neighborMap {
-			l = append(l, peer.ToConfig(getAdvertised))
+			l = append(l, peer.ToConfig(getAdvertised, false))
 		}
 	}
 	return l
@@ -2112,6 +2180,16 @@ func (s *BgpServer) AddPolicy(x *table.Policy, refer bool) (err error) {
 		defer close(ch)
 
 		err = s.policy.AddPolicy(x, refer)
+		if err == nil {
+			p := s.policy.GetPolicy(x.Name)
+			for idx, q := range s.bgpConfig.PolicyDefinitions {
+				if q.Name == x.Name {
+					s.bgpConfig.PolicyDefinitions[idx] = *p
+					return
+				}
+			}
+			s.bgpConfig.PolicyDefinitions = append(s.bgpConfig.PolicyDefinitions, *p)
+		}
 	}
 	return err
 }
@@ -2130,6 +2208,16 @@ func (s *BgpServer) DeletePolicy(x *table.Policy, all, preserve bool) (err error
 		l = append(l, table.GLOBAL_RIB_NAME)
 
 		err = s.policy.DeletePolicy(x, all, preserve, l)
+		if err == nil {
+			ps := make([]config.PolicyDefinition, 0, len(s.bgpConfig.PolicyDefinitions))
+			for _, q := range s.bgpConfig.PolicyDefinitions {
+				if q.Name == x.Name {
+					continue
+				}
+				ps = append(ps, q)
+			}
+			s.bgpConfig.PolicyDefinitions = ps
+		}
 
 	}
 	return err
@@ -2143,6 +2231,15 @@ func (s *BgpServer) ReplacePolicy(x *table.Policy, refer, preserve bool) (err er
 		defer close(ch)
 
 		err = s.policy.ReplacePolicy(x, refer, preserve)
+		if err == nil {
+			p := s.policy.GetPolicy(x.Name)
+			for idx, q := range s.bgpConfig.PolicyDefinitions {
+				if q.Name == x.Name {
+					s.bgpConfig.PolicyDefinitions[idx] = *p
+					return
+				}
+			}
+		}
 	}
 	return err
 }
@@ -2542,7 +2639,7 @@ func (w *Watcher) Generate(t WatchEventType) (err error) {
 			}()
 			l := make([]*config.Neighbor, 0, len(w.s.neighborMap))
 			for _, peer := range w.s.neighborMap {
-				l = append(l, peer.ToConfig(false))
+				l = append(l, peer.ToConfig(false, false))
 			}
 			w.notify(&WatchEventTable{PathList: pathList, Neighbor: l})
 		default:

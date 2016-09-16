@@ -357,6 +357,22 @@ func (m *mrtManager) disable(c *config.MrtConfig) error {
 	return nil
 }
 
+func (m *mrtManager) list() []*config.Mrt {
+	l := make([]*config.Mrt, 0, len(m.writer))
+	for _, w := range m.writer {
+		l = append(l, &config.Mrt{
+			Config: config.MrtConfig{
+				FileName:         w.filename,
+				RotationInterval: w.rotationInterval,
+				DumpInterval:     w.dumpInterval,
+				DumpType:         w.dumpType,
+				TableName:        w.tablename,
+			},
+		})
+	}
+	return l
+}
+
 func newMrtManager(s *BgpServer) *mrtManager {
 	return &mrtManager{
 		bgpServer: s,

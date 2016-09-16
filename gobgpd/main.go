@@ -189,17 +189,12 @@ func main() {
 		go config.ReadConfigfileServe(opts.ConfigFile, opts.ConfigType, configCh)
 	}
 
-	prev := &config.BgpConfigSet{}
-	config.SetDefaultConfigValues(prev)
 	count := 0
 
 	for {
 		select {
 		case new := <-configCh:
 
-			// we assume `prev` holds the "same" configuration inside `bgpServer`
-			// using both configuration file reloading and configuration via gRPC API
-			// breaks configuration file reloading behavior and is not supported.
 			softResetIn := false
 			gr := false
 			start := false
@@ -207,13 +202,12 @@ func main() {
 				gr = true
 			}
 
+			prev, _ := bgpServer.GetConfig()
+
 			if prev.Global.Config.As == 0 && new.Global.Config.As != 0 {
-				// this removes all policy configuration inside `bgpServer`
 				bgpServer.Start(&new.Global)
 				start = true
 			} else if prev.Global.Config.As != 0 && new.Global.Config.As == 0 {
-				// bgpServer.Stop() removes all neighbor configuration inside `bgpServer`
-				// calling it may cause inconsistence between `prev` and `bgpServer`
 				log.Error("Removing global configuration is not supported. Configuration reload failed")
 				continue
 			}
@@ -224,9 +218,6 @@ func main() {
 				bgpServer.UpdatePolicy(config.ConfigSetToRoutingPolicy(new))
 				softResetIn = true
 			}
-
-			prev.DefinedSets = new.DefinedSets
-			prev.PolicyDefinitions = new.PolicyDefinitions
 
 			if !start {
 				g := new.Global
@@ -239,7 +230,6 @@ func main() {
 						softResetIn = true
 					}
 				}
-				prev.Global = new.Global
 			}
 
 			inNSlice := func(n config.Neighbor, b []config.Neighbor) int {
@@ -272,8 +262,6 @@ func main() {
 				}
 			}
 
-			prev.Neighbors = new.Neighbors
-
 			if !prev.Zebra.Config.Enabled && new.Zebra.Config.Enabled {
 				bgpServer.StartZebraClient(&new.Zebra.Config)
 			} else if prev.Zebra.Config.Enabled && !new.Zebra.Config.Enabled {
@@ -284,8 +272,6 @@ func main() {
 				continue
 			}
 
-			prev.Zebra = new.Zebra
-
 			if prev.Collector.Config.Url == "" && new.Collector.Config.Url != "" {
 				bgpServer.StartCollector(&new.Collector.Config)
 			} else if prev.Collector.Config.Url != "" && new.Collector.Config.Url == "" {
@@ -295,8 +281,6 @@ func main() {
 				log.Error("Updating collector configuration is not supported. Configuration reload failed")
 				continue
 			}
-
-			prev.Collector = new.Collector
 
 			inRPKISlice := func(n config.RpkiServer, b []config.RpkiServer) int {
 				for i, nb := range b {
@@ -323,8 +307,6 @@ func main() {
 				}
 			}
 
-			prev.RpkiServers = new.RpkiServers
-
 			inBMPSlice := func(n config.BmpServer, b []config.BmpServer) int {
 				for i, nb := range b {
 					if nb.Config.Address == n.Config.Address {
@@ -350,8 +332,6 @@ func main() {
 				}
 			}
 
-			prev.BmpServers = new.BmpServers
-
 			inMRTSlice := func(n config.Mrt, b []config.Mrt) int {
 				for i, nb := range b {
 					if nb.Config.FileName == n.Config.FileName {
@@ -376,8 +356,6 @@ func main() {
 					bgpServer.DisableMrt(&mrt.Config)
 				}
 			}
-
-			prev.MrtDump = new.MrtDump
 
 			if softResetIn && count > 0 {
 				bgpServer.SoftResetIn("", bgp.RouteFamily(0))

@@ -502,13 +502,23 @@ func (peer *Peer) PassConn(conn *net.TCPConn) {
 	}
 }
 
-func (peer *Peer) ToConfig(getAdvertised bool) *config.Neighbor {
+func (peer *Peer) ToConfig(getAdvertised, configOnly bool) *config.Neighbor {
 	// create copy which can be access to without mutex
 	conf := *peer.fsm.pConf
 
 	conf.AfiSafis = make([]config.AfiSafi, len(peer.fsm.pConf.AfiSafis))
 	for i := 0; i < len(peer.fsm.pConf.AfiSafis); i++ {
 		conf.AfiSafis[i] = peer.fsm.pConf.AfiSafis[i]
+	}
+
+	if configOnly {
+		conf.State = config.NeighborState{}
+		conf.Timers.State = config.TimersState{}
+		conf.Transport.State = config.TransportState{}
+		for _, afisafi := range conf.AfiSafis {
+			afisafi.State = config.AfiSafiState{}
+		}
+		return &conf
 	}
 
 	remoteCap := make([]bgp.ParameterCapabilityInterface, 0, len(peer.fsm.capMap))
