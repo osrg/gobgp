@@ -215,6 +215,24 @@ const (
 	BGP_CAP_ROUTE_REFRESH_CISCO    BGPCapabilityCode = 128
 )
 
+var CapNameMap = map[BGPCapabilityCode]string{
+	BGP_CAP_MULTIPROTOCOL:          "multiprotocol",
+	BGP_CAP_ROUTE_REFRESH:          "route-refresh",
+	BGP_CAP_CARRYING_LABEL_INFO:    "carrying-label-info",
+	BGP_CAP_GRACEFUL_RESTART:       "graceful-restart",
+	BGP_CAP_FOUR_OCTET_AS_NUMBER:   "4-octet-as",
+	BGP_CAP_ADD_PATH:               "add-path",
+	BGP_CAP_ENHANCED_ROUTE_REFRESH: "enhanced-route-refresh",
+	BGP_CAP_ROUTE_REFRESH_CISCO:    "cisco-route-refresh",
+}
+
+func (c BGPCapabilityCode) String() string {
+	if n, y := CapNameMap[c]; y {
+		return n
+	}
+	return fmt.Sprintf("UnknownCapability(%d)", c)
+}
+
 type ParameterCapabilityInterface interface {
 	DecodeFromBytes([]byte) error
 	Serialize() ([]byte, error)
