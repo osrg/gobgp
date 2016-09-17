@@ -273,6 +273,20 @@ func showNeighbor(args []string) error {
 					fmt.Printf("        Remote: %s", s)
 				}
 			}
+		case bgp.BGP_CAP_ADD_PATH:
+			fmt.Printf("    %s:\t%s\n", c.Code(), support)
+			if m := lookup(c, p.Conf.LocalCap); m != nil {
+				fmt.Println("      Local:")
+				for _, item := range m.(*bgp.CapAddPath).Items {
+					fmt.Printf("         %s:\t%s\n", item.Family, item.Mode)
+				}
+			}
+			if m := lookup(c, p.Conf.RemoteCap); m != nil {
+				fmt.Println("      Remote:")
+				for _, item := range m.(*bgp.CapAddPath).Items {
+					fmt.Printf("         %s:\t%s\n", item.Family, item.Mode)
+				}
+			}
 		default:
 			fmt.Printf("    %s:\t%s\n", c.Code(), support)
 		}
