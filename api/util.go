@@ -70,7 +70,13 @@ func (d *Destination) ToNativeDestination(option ...ToNativeOption) (*table.Dest
 	})
 	paths := make([]*table.Path, 0, len(d.Paths))
 	for _, p := range d.Paths {
-		path, err := p.ToNativePath(option...)
+		var path *table.Path
+		var err error
+		if p.Identifier > 0 {
+			path, err = p.ToNativePath()
+		} else {
+			path, err = p.ToNativePath(option...)
+		}
 		if err != nil {
 			return nil, err
 		}
@@ -113,6 +119,7 @@ func (p *Path) ToNativePath(option ...ToNativeOption) (*table.Path, error) {
 		pattr = append(pattr, p)
 	}
 	t := time.Unix(p.Age, 0)
+	nlri.SetPathIdentifier(p.Identifier)
 	path := table.NewPath(info, nlri, p.IsWithdraw, pattr, t, false)
 	path.SetValidation(config.IntToRpkiValidationResultTypeMap[int(p.Validation)])
 	path.MarkStale(p.Stale)

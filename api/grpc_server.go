@@ -205,6 +205,7 @@ func ToPathApi(path *table.Path) *Path {
 		NeighborIp:     path.GetSource().Address.String(),
 		Stale:          path.IsStale(),
 		IsFromExternal: path.IsFromExternal(),
+		Identifier:     nlri.PathIdentifier(),
 	}
 }
 
