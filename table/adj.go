@@ -16,6 +16,7 @@
 package table
 
 import (
+	"fmt"
 	"github.com/osrg/gobgp/packet/bgp"
 )
 
@@ -43,7 +44,7 @@ func (adj *AdjRib) Update(pathList []*Path) {
 			continue
 		}
 		rf := path.GetRouteFamily()
-		key := path.getPrefix()
+		key := fmt.Sprintf("%d:%s", path.GetNlri().PathIdentifier(), path.getPrefix())
 
 		old, found := adj.table[rf][key]
 		if path.IsWithdraw {

@@ -335,8 +335,8 @@ func (dest *Destination) explicitWithdraw() paths {
 	for _, withdraw := range dest.withdrawList {
 		isFound := false
 		for _, path := range dest.knownPathList {
-			// We have a match if the source are same.
-			if path.GetSource().Equal(withdraw.GetSource()) {
+			// We have a match if the source and path-id are same.
+			if path.GetSource().Equal(withdraw.GetSource()) && path.GetNlri().PathIdentifier() == withdraw.GetNlri().PathIdentifier() {
 				isFound = true
 				// this path is referenced in peer's adj-rib-in
 				// when there was no policy modification applied.
@@ -387,7 +387,7 @@ func (dest *Destination) implicitWithdraw() paths {
 			// version num. as newPaths are implicit withdrawal of old
 			// paths and when doing RouteRefresh (not EnhancedRouteRefresh)
 			// we get same paths again.
-			if newPath.GetSource().Equal(path.GetSource()) {
+			if newPath.GetSource().Equal(path.GetSource()) && newPath.GetNlri().PathIdentifier() == path.GetNlri().PathIdentifier() {
 				log.WithFields(log.Fields{
 					"Topic": "Table",
 					"Key":   dest.GetNlri().String(),
