@@ -391,7 +391,7 @@ type AsPathFormat struct {
 	separator string
 }
 
-func ShowRoute(pathList []*table.Path, showAge, showBest, showLabel, isMonitor, printHeader bool) {
+func ShowRoute(pathList []*table.Path, showAge, showBest, showLabel, showIdentifier, isMonitor, printHeader bool) {
 
 	var pathStrs [][]interface{}
 	maxPrefixLen := 20
@@ -455,9 +455,17 @@ func ShowRoute(pathList []*table.Path, showAge, showBest, showLabel, isMonitor, 
 			if p.IsWithdraw {
 				title = "DELROUTE"
 			}
-			pathStrs = append(pathStrs, []interface{}{title, nlri, nexthop, aspathstr, pattrstr})
+			if showIdentifier {
+				pathStrs = append(pathStrs, []interface{}{title, nlri.PathIdentifier(), nlri, nexthop, aspathstr, pattrstr})
+			} else {
+				pathStrs = append(pathStrs, []interface{}{title, nlri, nexthop, aspathstr, pattrstr})
+			}
 		} else {
-			args := []interface{}{best, nlri}
+			args := []interface{}{best}
+			if showIdentifier {
+				args = append(args, fmt.Sprint(nlri.PathIdentifier()))
+			}
+			args = append(args, nlri)
 			if showLabel {
 				label := ""
 				switch nlri.(type) {
@@ -486,9 +494,13 @@ func ShowRoute(pathList []*table.Path, showAge, showBest, showLabel, isMonitor, 
 
 	var format string
 	if isMonitor {
-		format = "[%s] %s via %s aspath [%s] attrs %s\n"
+		format = "[%s] %d:%s via %s aspath [%s] attrs %s\n"
 	} else {
-		format = fmt.Sprintf("%%-3s %%-%ds", maxPrefixLen)
+		format = fmt.Sprintf("%%-3s")
+		if showIdentifier {
+			format += "%-3s "
+		}
+		format += fmt.Sprintf("%%-%ds ", maxPrefixLen)
 		if showLabel {
 			format += fmt.Sprintf("%%-%ds ", maxLabelLen)
 		}
@@ -497,11 +509,14 @@ func ShowRoute(pathList []*table.Path, showAge, showBest, showLabel, isMonitor, 
 			format += "%-10s "
 		}
 		format += "%-s\n"
-
 	}
 
 	if printHeader {
-		args := []interface{}{"", "Network"}
+		args := []interface{}{""}
+		if showIdentifier {
+			args = append(args, "ID")
+		}
+		args = append(args, "Network")
 		if showLabel {
 			args = append(args, "Labels")
 		}
@@ -573,6 +588,7 @@ func showNeighborRib(r string, name string, args []string) error {
 	showBest := false
 	showAge := true
 	showLabel := false
+	showIdentifier := false
 	def := addr2AddressFamily(net.ParseIP(name))
 	switch r {
 	case CMD_GLOBAL:
@@ -623,8 +639,10 @@ func showNeighborRib(r string, name string, args []string) error {
 	case CMD_LOCAL:
 		rib, err = client.GetLocalRIB(name, family, filter)
 	case CMD_ADJ_IN, CMD_ACCEPTED, CMD_REJECTED:
+		showIdentifier = true
 		rib, err = client.GetAdjRIBIn(name, family, filter)
 	case CMD_ADJ_OUT:
+		showIdentifier = true
 		rib, err = client.GetAdjRIBOut(name, family, filter)
 	case CMD_VRF:
 		rib, err = client.GetVRFRIB(name, family, filter)
@@ -673,11 +691,11 @@ func showNeighborRib(r string, name string, args []string) error {
 		} else {
 			ps = d.GetAllKnownPathList()
 		}
+		showHeader := false
 		if counter == 0 {
-			ShowRoute(ps, showAge, showBest, showLabel, false, true)
-		} else {
-			ShowRoute(ps, showAge, showBest, showLabel, false, false)
+			showHeader = true
 		}
+		ShowRoute(ps, showAge, showBest, showLabel, showIdentifier, false, showHeader)
 		counter++
 	}
 

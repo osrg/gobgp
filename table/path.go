@@ -971,6 +971,7 @@ func (path *Path) MarshalJSON() ([]byte, error) {
 		Stale      bool                         `json:"stale,omitempty"`
 		Filtered   bool                         `json:"filtered,omitempty"`
 		UUID       string                       `json:"uuid,omitempty"`
+		ID         uint32                       `json:"id,omitempty"`
 	}{
 		Nlri:       path.GetNlri(),
 		PathAttrs:  path.GetPathAttrs(),
@@ -982,6 +983,7 @@ func (path *Path) MarshalJSON() ([]byte, error) {
 		Stale:      path.IsStale(),
 		Filtered:   path.Filtered("") > POLICY_DIRECTION_NONE,
 		UUID:       path.UUID().String(),
+		ID:         path.GetNlri().PathIdentifier(),
 	})
 }
 
