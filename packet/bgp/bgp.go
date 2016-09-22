@@ -2397,7 +2397,6 @@ func flowSpecEtherTypeParser(rf RouteFamily, args []string) (FlowSpecComponentIn
 		}
 		return fmt.Errorf("ethernet type range exceeded")
 	}
-	fmt.Println(args)
 	return doFlowSpecNumericParser(0, args, validationFunc)
 }
 
@@ -3301,10 +3300,9 @@ func CompareFlowSpecNLRI(n, m *FlowSpecNLRI) (int, error) {
 		w := shorter[idx]
 		if v.Type() < w.Type() {
 			return invert, nil
-		} else if w.Type() > v.Type() {
+		} else if v.Type() > w.Type() {
 			return invert * -1, nil
-		}
-		if v.Type() == FLOW_SPEC_TYPE_DST_PREFIX || v.Type() == FLOW_SPEC_TYPE_SRC_PREFIX {
+		} else if v.Type() == FLOW_SPEC_TYPE_DST_PREFIX || v.Type() == FLOW_SPEC_TYPE_SRC_PREFIX {
 			// RFC5575 5.1
 			//
 			// For IP prefix values (IP destination and source prefix) precedence is
