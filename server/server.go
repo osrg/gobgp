@@ -360,23 +360,25 @@ func filterpath(peer *Peer, path *table.Path, withdrawals []*table.Path) *table.
 	}
 
 	if peer.ID() == path.GetSource().Address.String() {
-		// Say, gobgp was advertising prefix A and peer P also.
-		// When gobgp withdraws prefix A, best path calculation chooses
-		// the path from P as the best path for prefix A.
-		// For peers other than P, this path should be advertised
-		// (as implicit withdrawal). However for P, we should advertise
-		// the local withdraw path.
-
 		// Note: multiple paths having the same prefix could exist the
 		// withdrawals list in the case of Route Server setup with
 		// import policies modifying paths. In such case, gobgp sends
 		// duplicated update messages; withdraw messages for the same
 		// prefix.
-		// However, currently we don't support local path for Route
-		// Server setup so this is NOT the case.
-		for _, w := range withdrawals {
-			if w.IsLocal() && path.GetNlri().String() == w.GetNlri().String() {
-				return w
+		if !peer.isRouteServerClient() {
+			// Say, peer A and B advertized same prefix P, and
+			// best path calculation chose a path from B as best.
+			// When B withdraws prefix P, best path calculation chooses
+			// the path from A as best.
+			// For peers other than A, this path should be advertised
+			// (as implicit withdrawal). However for A, we should advertise
+			// the withdrawal path.
+			// Thing is same when peer A and we advertized prefix P (as local
+			// route), then, we withdraws the prefix.
+			for _, w := range withdrawals {
+				if path.GetNlri().String() == w.GetNlri().String() {
+					return w
+				}
 			}
 		}
 		log.WithFields(log.Fields{
