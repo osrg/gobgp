@@ -172,6 +172,7 @@ type PeerConf struct {
 	PrefixLimits      []*gobgpapi.PrefixLimit            `json:"prefix_limits,omitempty"`
 	LocalIp           string                             `json:"local_ip,omitempty"`
 	Interface         string                             `json:"interface,omitempty"`
+	Description       string                             `json:"description,omitempty"`
 }
 
 type Peer struct {
@@ -205,6 +206,7 @@ func ApiStruct2Peer(p *gobgpapi.Peer) *Peer {
 		PrefixLimits: p.Conf.PrefixLimits,
 		LocalIp:      localIp.String(),
 		Interface:    p.Conf.NeighborInterface,
+		Description:  p.Conf.Description,
 	}
 	return &Peer{
 		Conf:           conf,
