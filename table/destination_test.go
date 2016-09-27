@@ -399,6 +399,7 @@ func TestRadixkey(t *testing.T) {
 	assert.Equal(t, "000010100000001100100000", CidrToRadixkey("10.3.32.0/24"))
 	assert.Equal(t, "000010100000001100100000", IpToRadixkey(net.ParseIP("10.3.32.0").To4(), 24))
 	assert.Equal(t, "000010100000001100100000", IpToRadixkey(net.ParseIP("10.3.32.0").To4(), 24))
+	assert.Equal(t, CidrToRadixkey("::ffff:0.0.0.0/96")+"000010100000001100100000", CidrToRadixkey("::ffff:10.3.32.0/120"))
 }
 
 func TestMultipath(t *testing.T) {

@@ -538,3 +538,43 @@ func Test_CompareFlowSpecNLRI(t *testing.T) {
 	assert.Nil(err)
 	assert.True(r < 0)
 }
+
+func Test_NLRIwithIPv4MappedIPv6prefix(t *testing.T) {
+	assert := assert.New(t)
+	n1 := NewIPv6AddrPrefix(120, "::ffff:10.0.0.1")
+	buf1, err := n1.Serialize()
+	assert.Nil(err)
+	n2, err := NewPrefixFromRouteFamily(RouteFamilyToAfiSafi(RF_IPv6_UC))
+	assert.Nil(err)
+	err = n2.DecodeFromBytes(buf1)
+	assert.Nil(err)
+	buf2, _ := n2.Serialize()
+	if reflect.DeepEqual(n1, n2) {
+		t.Log("OK")
+	} else {
+		t.Error("Something wrong")
+		t.Error(len(buf1), n1, buf1)
+		t.Error(len(buf2), n2, buf2)
+		t.Log(bytes.Equal(buf1, buf2))
+	}
+
+	label := NewMPLSLabelStack(2)
+
+	n3 := NewLabeledIPv6AddrPrefix(120, "::ffff:10.0.0.1", *label)
+	buf1, err = n3.Serialize()
+	assert.Nil(err)
+	n4, err := NewPrefixFromRouteFamily(RouteFamilyToAfiSafi(RF_IPv6_MPLS))
+	assert.Nil(err)
+	err = n4.DecodeFromBytes(buf1)
+	assert.Nil(err)
+	buf2, _ = n3.Serialize()
+	t.Log(n3, n4)
+	if reflect.DeepEqual(n3, n4) {
+		t.Log("OK")
+	} else {
+		t.Error("Something wrong")
+		t.Error(len(buf1), n3, buf1)
+		t.Error(len(buf2), n4, buf2)
+		t.Log(bytes.Equal(buf1, buf2))
+	}
+}

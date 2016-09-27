@@ -833,6 +833,10 @@ func NewIPAddrPrefix(length uint8, prefix string) *IPAddrPrefix {
 	}
 }
 
+func isIPv4MappedIPv6(ip net.IP) bool {
+	return len(ip) == net.IPv6len && ip.To4() != nil
+}
+
 type IPv6AddrPrefix struct {
 	IPAddrPrefix
 }
@@ -842,18 +846,11 @@ func (r *IPv6AddrPrefix) AFI() uint16 {
 }
 
 func (r *IPv6AddrPrefix) String() string {
-	isZero := func(p net.IP) bool {
-		for i := 0; i < len(p); i++ {
-			if p[i] != 0 {
-				return false
-			}
-		}
-		return true
-	}(r.Prefix[0:10])
-	if isZero && r.Prefix[10] == 0xff && r.Prefix[11] == 0xff {
-		return fmt.Sprintf("::ffff:%s/%d", r.Prefix.String(), r.Length)
+	prefix := r.Prefix.String()
+	if isIPv4MappedIPv6(r.Prefix) {
+		prefix = "::ffff:" + prefix
 	}
-	return fmt.Sprintf("%s/%d", r.Prefix.String(), r.Length)
+	return fmt.Sprintf("%s/%d", prefix, r.Length)
 }
 
 func NewIPv6AddrPrefix(length uint8, prefix string) *IPv6AddrPrefix {
@@ -1379,7 +1376,21 @@ func (l *LabeledIPAddrPrefix) Serialize() ([]byte, error) {
 }
 
 func (l *LabeledIPAddrPrefix) String() string {
-	return fmt.Sprintf("%s/%d", l.Prefix.String(), int(l.Length)-l.Labels.Len()*8)
+	prefix := l.Prefix.String()
+	if isIPv4MappedIPv6(l.Prefix) {
+		prefix = "::ffff:" + prefix
+	}
+	return fmt.Sprintf("%s/%d", prefix, int(l.Length)-l.Labels.Len()*8)
+}
+
+func (l *LabeledIPAddrPrefix) MarshalJSON() ([]byte, error) {
+	return json.Marshal(struct {
+		Prefix string   `json:"prefix"`
+		Labels []uint32 `json:"labels"`
+	}{
+		Prefix: l.String(),
+		Labels: l.Labels.Labels,
+	})
 }
 
 func NewLabeledIPAddrPrefix(length uint8, prefix string, label MPLSLabelStack) *LabeledIPAddrPrefix {
