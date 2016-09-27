@@ -353,7 +353,7 @@ class GoBGPTestBase(unittest.TestCase):
         e1.add_peer(g1)
         n = e1.peers[g1]['local_addr'].split('/')[0]
         g1.local('gobgp n add {0} as 65000'.format(n))
-        g1.add_peer(e1, reload_config=False) 
+        g1.add_peer(e1, reload_config=False)
 
         g1.wait_for(expected_state=BGP_FSM_ESTABLISHED, peer=e1)
 
@@ -381,18 +381,17 @@ class GoBGPTestBase(unittest.TestCase):
         time.sleep(1)
 
         cnt = 0
-        for pkt in pcap.Reader(open(dumpfile)):
-            last = Packet(pkt[1]).protocols[-1]
-            if type(last) == str:
-                pkt = BGPMessage.parser(last)[0]
-                if type(pkt) == BGPUpdate:
-                    cnt += len(pkt.withdrawn_routes)
+        for _, buf in pcap.Reader(open(dumpfile)):
+            pkt = Packet(buf).get_protocol(BGPMessage)
+            if isinstance(pkt, BGPUpdate):
+                cnt += len(pkt.withdrawn_routes)
 
         self.assertTrue(cnt == 1)
 
     def test_21_check_cli_sorted(self):
         g1 = self.gobgp
         cnt = 0
+
         def next_prefix():
             for i in range(100, 105):
                 for j in range(100, 105):
