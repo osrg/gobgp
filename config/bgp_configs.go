@@ -965,6 +965,8 @@ type ZebraState struct {
 	Url string `mapstructure:"url"`
 	// original -> gobgp:redistribute-route-type
 	RedistributeRouteTypeList []InstallProtocolType `mapstructure:"redistribute-route-type-list"`
+	// original -> gobgp:version
+	Version uint8 `mapstructure:"version"`
 }
 
 func (lhs *ZebraState) Equal(rhs *ZebraState) bool {
@@ -997,6 +999,8 @@ type ZebraConfig struct {
 	Url string `mapstructure:"url"`
 	// original -> gobgp:redistribute-route-type
 	RedistributeRouteTypeList []InstallProtocolType `mapstructure:"redistribute-route-type-list"`
+	// original -> gobgp:version
+	Version uint8 `mapstructure:"version"`
 }
 
 func (lhs *ZebraConfig) Equal(rhs *ZebraConfig) bool {

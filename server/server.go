@@ -889,7 +889,7 @@ func (s *BgpServer) StartZebraClient(c *config.ZebraConfig) (err error) {
 			for _, p := range c.RedistributeRouteTypeList {
 				protos = append(protos, string(p))
 			}
-			s.zclient, err = newZebraClient(s, c.Url, protos)
+			s.zclient, err = newZebraClient(s, c.Url, protos, c.Version)
 		}
 	}
 	return err
