@@ -29,9 +29,9 @@ func Test_createRequestFromIPRouteMessage(t *testing.T) {
 
 	m := &zebra.Message{}
 	h := &zebra.Header{
-		Len:     zebra.HEADER_SIZE,
+		Len:     zebra.HeaderSize(2),
 		Marker:  zebra.HEADER_MARKER,
-		Version: zebra.VERSION,
+		Version: 2,
 		Command: zebra.IPV4_ROUTE_ADD,
 	}
 
