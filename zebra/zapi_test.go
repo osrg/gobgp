@@ -29,7 +29,7 @@ func Test_Header(t *testing.T) {
 	buf := make([]byte, 6)
 	binary.BigEndian.PutUint16(buf[0:], 10)
 	buf[2] = HEADER_MARKER
-	buf[3] = VERSION
+	buf[3] = 2
 	binary.BigEndian.PutUint16(buf[4:], uint16(IPV4_ROUTE_ADD))
 	h := &Header{}
 	err := h.DecodeFromBytes(buf)
@@ -44,7 +44,7 @@ func Test_Header(t *testing.T) {
 	assert.Equal(h, h2)
 
 	// header_size mismatch
-	buf = make([]byte, HEADER_SIZE-1)
+	buf = make([]byte, HeaderSize(2)-1)
 	binary.BigEndian.PutUint16(buf[0:], 10)
 	buf[2] = 0xff
 	buf[3] = 0x02
