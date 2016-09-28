@@ -27,9 +27,7 @@ import (
 )
 
 const (
-	HEADER_SIZE      = 6
 	HEADER_MARKER    = 255
-	VERSION          = 2
 	INTERFACE_NAMSIZ = 20
 )
 
@@ -40,6 +38,15 @@ const (
 	INTERFACE_SUB           = 0x02
 	INTERFACE_LINKDETECTION = 0x04
 )
+
+func HeaderSize(version uint8) uint16 {
+	switch version {
+	case 3:
+		return 8
+	default:
+		return 6
+	}
+}
 
 func (t INTERFACE_STATUS) String() string {
 	ss := make([]string, 0, 3)
@@ -213,21 +220,26 @@ type Client struct {
 	incoming      chan *Message
 	redistDefault ROUTE_TYPE
 	conn          net.Conn
+	Version       uint8
 }
 
-func NewClient(network, address string, typ ROUTE_TYPE) (*Client, error) {
+func NewClient(network, address string, typ ROUTE_TYPE, version uint8) (*Client, error) {
 	conn, err := net.Dial(network, address)
 	if err != nil {
 		return nil, err
 	}
 	outgoing := make(chan *Message)
 	incoming := make(chan *Message, 64)
+	if version != 3 {
+		version = 2
+	}
 
 	c := &Client{
 		outgoing:      outgoing,
 		incoming:      incoming,
 		redistDefault: typ,
 		conn:          conn,
+		Version:       version,
 	}
 
 	go func() {
@@ -258,7 +270,7 @@ func NewClient(network, address string, typ ROUTE_TYPE) (*Client, error) {
 
 	go func() {
 		for {
-			headerBuf, err := readAll(conn, HEADER_SIZE)
+			headerBuf, err := readAll(conn, int(HeaderSize(version)))
 			if err != nil {
 				log.WithFields(log.Fields{
 					"Topic": "Zebra",
@@ -277,7 +289,7 @@ func NewClient(network, address string, typ ROUTE_TYPE) (*Client, error) {
 				return
 			}
 
-			bodyBuf, err := readAll(conn, int(hd.Len-HEADER_SIZE))
+			bodyBuf, err := readAll(conn, int(hd.Len-HeaderSize(version)))
 			if err != nil {
 				log.WithFields(log.Fields{
 					"Topic": "Zebra",
@@ -331,9 +343,9 @@ func (c *Client) Send(m *Message) {
 func (c *Client) SendCommand(command API_TYPE, body Body) error {
 	m := &Message{
 		Header: Header{
-			Len:     HEADER_SIZE,
+			Len:     HeaderSize(c.Version),
 			Marker:  HEADER_MARKER,
-			Version: VERSION,
+			Version: c.Version,
 			Command: command,
 		},
 		Body: body,
@@ -397,26 +409,40 @@ type Header struct {
 	Len     uint16
 	Marker  uint8
 	Version uint8
+	VrfId   uint16
 	Command API_TYPE
 }
 
 func (h *Header) Serialize() ([]byte, error) {
-	buf := make([]byte, HEADER_SIZE)
+	buf := make([]byte, HeaderSize(h.Version))
 	binary.BigEndian.PutUint16(buf[0:], h.Len)
 	buf[2] = h.Marker
 	buf[3] = h.Version
-	binary.BigEndian.PutUint16(buf[4:], uint16(h.Command))
+	if h.Version == 3 {
+		binary.BigEndian.PutUint16(buf[4:6], uint16(h.VrfId))
+		binary.BigEndian.PutUint16(buf[6:], uint16(h.Command))
+	} else {
+		binary.BigEndian.PutUint16(buf[4:], uint16(h.Command))
+	}
 	return buf, nil
 }
 
 func (h *Header) DecodeFromBytes(data []byte) error {
-	if uint16(len(data)) < HEADER_SIZE {
+	if uint16(len(data)) < 4 {
 		return fmt.Errorf("Not all ZAPI message header")
 	}
 	h.Len = binary.BigEndian.Uint16(data[0:2])
 	h.Marker = data[2]
 	h.Version = data[3]
-	h.Command = API_TYPE(binary.BigEndian.Uint16(data[4:6]))
+	if uint16(len(data)) < HeaderSize(h.Version) {
+		return fmt.Errorf("Not all ZAPI message header")
+	}
+	if h.Version == 3 {
+		h.VrfId = binary.BigEndian.Uint16(data[4:6])
+		h.Command = API_TYPE(binary.BigEndian.Uint16(data[6:8]))
+	} else {
+		h.Command = API_TYPE(binary.BigEndian.Uint16(data[4:6]))
+	}
 	return nil
 }
 
@@ -925,7 +951,7 @@ func (m *Message) Serialize() ([]byte, error) {
 			return nil, err
 		}
 	}
-	m.Header.Len = uint16(len(body)) + HEADER_SIZE
+	m.Header.Len = uint16(len(body)) + HeaderSize(m.Header.Version)
 	hdr, err := m.Header.Serialize()
 	if err != nil {
 		return nil, err

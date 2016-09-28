@@ -700,6 +700,7 @@ func (s *Server) EnableZebra(ctx context.Context, arg *EnableZebraRequest) (*Ena
 	return &EnableZebraResponse{}, s.bgpServer.StartZebraClient(&config.ZebraConfig{
 		Url: arg.Url,
 		RedistributeRouteTypeList: l,
+		Version:                   uint8(arg.Version),
 	})
 }
 

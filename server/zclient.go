@@ -27,7 +27,7 @@ import (
 	"time"
 )
 
-func newIPRouteMessage(dst []*table.Path) *zebra.Message {
+func newIPRouteMessage(dst []*table.Path, version uint8) *zebra.Message {
 	paths := make([]*table.Path, 0, len(dst))
 	for _, path := range dst {
 		if path == nil || path.IsFromExternal() {
@@ -76,9 +76,9 @@ func newIPRouteMessage(dst []*table.Path) *zebra.Message {
 	}
 	return &zebra.Message{
 		Header: zebra.Header{
-			Len:     zebra.HEADER_SIZE,
+			Len:     zebra.HeaderSize(version),
 			Marker:  zebra.HEADER_MARKER,
-			Version: zebra.VERSION,
+			Version: version,
 			Command: command,
 		},
 		Body: &zebra.IPRouteBody{
@@ -179,13 +179,13 @@ func (z *zebraClient) loop() {
 			msg := ev.(*WatchEventBestPath)
 			if table.UseMultiplePaths.Enabled {
 				for _, dst := range msg.MultiPathList {
-					if m := newIPRouteMessage(dst); m != nil {
+					if m := newIPRouteMessage(dst, z.client.Version); m != nil {
 						z.client.Send(m)
 					}
 				}
 			} else {
 				for _, path := range msg.PathList {
-					if m := newIPRouteMessage([]*table.Path{path}); m != nil {
+					if m := newIPRouteMessage([]*table.Path{path}, z.client.Version); m != nil {
 						z.client.Send(m)
 					}
 				}
@@ -194,12 +194,12 @@ func (z *zebraClient) loop() {
 	}
 }
 
-func newZebraClient(s *BgpServer, url string, protos []string) (*zebraClient, error) {
+func newZebraClient(s *BgpServer, url string, protos []string, version uint8) (*zebraClient, error) {
 	l := strings.SplitN(url, ":", 2)
 	if len(l) != 2 {
 		return nil, fmt.Errorf("unsupported url: %s", url)
 	}
-	cli, err := zebra.NewClient(l[0], l[1], zebra.ROUTE_BGP)
+	cli, err := zebra.NewClient(l[0], l[1], zebra.ROUTE_BGP, version)
 	if err != nil {
 		return nil, err
 	}
