@@ -298,15 +298,7 @@ func createUpdateMsgFromPath(path *Path, msg *bgp.BGPMessage) *bgp.BGPMessage {
 				} else {
 					nlris = []bgp.AddrPrefixInterface{path.GetNlri()}
 				}
-
-				clonedAttrs := path.GetPathAttrs()
-				for i, a := range clonedAttrs {
-					if a.GetType() == bgp.BGP_ATTR_TYPE_MP_UNREACH_NLRI || a.GetType() == bgp.BGP_ATTR_TYPE_MP_REACH_NLRI {
-						clonedAttrs[i] = bgp.NewPathAttributeMpUnreachNLRI(nlris)
-						break
-					}
-				}
-				return bgp.NewBGPUpdateMessage(nil, clonedAttrs, nil)
+				return bgp.NewBGPUpdateMessage(nil, []bgp.PathAttributeInterface{bgp.NewPathAttributeMpUnreachNLRI(nlris)}, nil)
 			}
 		} else {
 			if msg != nil {
