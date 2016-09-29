@@ -257,9 +257,13 @@ func UpdatePathAggregator4ByteAs(msg *bgp.BGPUpdate) error {
 }
 
 func createUpdateMsgFromPath(path *Path, msg *bgp.BGPMessage) *bgp.BGPMessage {
-	rf := path.GetRouteFamily()
+	family := path.GetRouteFamily()
+	v4 := true
+	if family != bgp.RF_IPv4_UC || !path.IsWithdraw && path.GetNexthop().To4() == nil {
+		v4 = false
+	}
 
-	if rf == bgp.RF_IPv4_UC {
+	if v4 {
 		nlri := path.GetNlri().(*bgp.IPAddrPrefix)
 		if path.IsWithdraw {
 			if msg != nil {
