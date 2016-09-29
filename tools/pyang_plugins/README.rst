@@ -7,7 +7,7 @@ How to use
 ==========
 ::
 
-   $ git clone https://github.com/openconfig/public
+   $ git clone https://github.com/osrg/public
    $ git clone https://github.com/YangModels/yang
    $ YANG_DIR=`pwd`
    $ cd $PYANG_INSTALL_DIR
