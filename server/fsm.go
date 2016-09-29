@@ -47,6 +47,7 @@ const (
 	FSM_NEW_CONNECTION          = "new-connection"
 	FSM_OPEN_MSG_RECEIVED       = "open-msg-received"
 	FSM_OPEN_MSG_NEGOTIATED     = "open-msg-negotiated"
+	FSM_HARD_RESET              = "hard-reset"
 )
 
 type FsmMsgType int
@@ -544,7 +545,8 @@ func capabilitiesFromConfig(pConf *config.Neighbor) []bgp.ParameterCapabilityInt
 			}
 		}
 		time := c.RestartTime
-		caps = append(caps, bgp.NewCapGracefulRestart(restarting, time, tuples))
+		notification := c.NotificationEnabled
+		caps = append(caps, bgp.NewCapGracefulRestart(restarting, notification, time, tuples))
 	}
 	return caps
 }
@@ -693,8 +695,11 @@ func (h *FSMHandler) recvMessageWithError() (*FsmMsg, error) {
 					"Subcode": body.ErrorSubcode,
 					"Data":    body.Data,
 				}).Warn("received notification")
-
-				sendToErrorCh(FsmStateReason(fmt.Sprintf("%s %s", FSM_NOTIFICATION_RECV, bgp.NewNotificationErrorCode(body.ErrorCode, body.ErrorSubcode).String())))
+				if body.ErrorCode == bgp.BGP_ERROR_CEASE && body.ErrorSubcode == bgp.BGP_ERROR_SUB_HARD_RESET {
+					sendToErrorCh(FSM_HARD_RESET)
+				} else {
+					sendToErrorCh(FsmStateReason(fmt.Sprintf("%s %s", FSM_NOTIFICATION_RECV, bgp.NewNotificationErrorCode(body.ErrorCode, body.ErrorSubcode).String())))
+				}
 				return nil, nil
 			}
 		}
@@ -847,7 +852,7 @@ func (h *FSMHandler) opensent() (bgp.FSMState, FsmStateReason) {
 						// To re-establish the session with its peer, the Restarting Speaker
 						// MUST set the "Restart State" bit in the Graceful Restart Capability
 						// of the OPEN message.
-						if fsm.pConf.GracefulRestart.State.PeerRestarting && cap.Flags != 0x08 {
+						if fsm.pConf.GracefulRestart.State.PeerRestarting && cap.Flags&0x08 == 0 {
 							log.WithFields(log.Fields{
 								"Topic": "Peer",
 								"Key":   fsm.pConf.Config.NeighborAddress,
@@ -856,6 +861,9 @@ func (h *FSMHandler) opensent() (bgp.FSMState, FsmStateReason) {
 							// send notification?
 							h.conn.Close()
 							return bgp.BGP_FSM_IDLE, FSM_INVALID_MSG
+						}
+						if fsm.pConf.GracefulRestart.Config.NotificationEnabled && cap.Flags&0x04 > 0 {
+							fsm.pConf.GracefulRestart.State.NotificationEnabled = true
 						}
 					}
 
@@ -1170,7 +1178,7 @@ func (h *FSMHandler) established() (bgp.FSMState, FsmStateReason) {
 		case err := <-h.errorCh:
 			h.conn.Close()
 			h.t.Kill(nil)
-			if s := fsm.pConf.GracefulRestart.State; s.Enabled && (err == FSM_READ_FAILED || err == FSM_WRITE_FAILED) {
+			if s := fsm.pConf.GracefulRestart.State; s.Enabled && ((s.NotificationEnabled && err != FSM_HARD_RESET) || err == FSM_READ_FAILED || err == FSM_WRITE_FAILED) {
 				err = FSM_GRACEFUL_RESTART
 				log.WithFields(log.Fields{
 					"Topic": "Peer",

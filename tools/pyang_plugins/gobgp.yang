@@ -705,12 +705,18 @@ module gobgp {
     leaf deferral-time {
       type uint16;
     }
+    leaf notification-enabled {
+      type boolean;
+    }
   }
 
   augment "/bgp:bgp/bgp:neighbors/bgp:neighbor/bgp:graceful-restart/bgp:state" {
     description "additional graceful-restart status";
     leaf deferral-time {
       type uint16;
+    }
+    leaf notification-enabled {
+      type boolean;
     }
   }
 

@@ -3549,6 +3549,9 @@ type GracefulRestartState struct {
 	Mode Mode `mapstructure:"mode"`
 	// original -> gobgp:deferral-time
 	DeferralTime uint16 `mapstructure:"deferral-time"`
+	// original -> gobgp:notification-enabled
+	//gobgp:notification-enabled's original type is boolean
+	NotificationEnabled bool `mapstructure:"notification-enabled"`
 }
 
 func (lhs *GracefulRestartState) Equal(rhs *GracefulRestartState) bool {
@@ -3582,6 +3585,9 @@ func (lhs *GracefulRestartState) Equal(rhs *GracefulRestartState) bool {
 	if lhs.DeferralTime != rhs.DeferralTime {
 		return false
 	}
+	if lhs.NotificationEnabled != rhs.NotificationEnabled {
+		return false
+	}
 	return true
 }
 
@@ -3600,6 +3606,9 @@ type GracefulRestartConfig struct {
 	HelperOnly bool `mapstructure:"helper-only"`
 	// original -> gobgp:deferral-time
 	DeferralTime uint16 `mapstructure:"deferral-time"`
+	// original -> gobgp:notification-enabled
+	//gobgp:notification-enabled's original type is boolean
+	NotificationEnabled bool `mapstructure:"notification-enabled"`
 }
 
 func (lhs *GracefulRestartConfig) Equal(rhs *GracefulRestartConfig) bool {
@@ -3619,6 +3628,9 @@ func (lhs *GracefulRestartConfig) Equal(rhs *GracefulRestartConfig) bool {
 		return false
 	}
 	if lhs.DeferralTime != rhs.DeferralTime {
+		return false
+	}
+	if lhs.NotificationEnabled != rhs.NotificationEnabled {
 		return false
 	}
 	return true
