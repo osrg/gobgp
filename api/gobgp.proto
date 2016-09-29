@@ -492,6 +492,7 @@ message Path {
   bool stale = 12;
   bool is_from_external = 13;
   string neighbor_ip = 14;
+  uint32 identifier = 15;
 }
 
 message Destination {

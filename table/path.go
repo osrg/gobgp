@@ -857,6 +857,7 @@ func (path *Path) MarshalJSON() ([]byte, error) {
 		NeighborIP net.IP                       `json:"neighbor-ip,omitempty"`
 		Stale      bool                         `json:"stale,omitempty"`
 		Filtered   bool                         `json:"filtered,omitempty"`
+		ID         uint32                       `json:"id,omitempty"`
 	}{
 		Nlri:       path.GetNlri(),
 		PathAttrs:  path.GetPathAttrs(),
@@ -867,6 +868,7 @@ func (path *Path) MarshalJSON() ([]byte, error) {
 		NeighborIP: path.GetSource().Address,
 		Stale:      path.IsStale(),
 		Filtered:   path.Filtered("") > POLICY_DIRECTION_NONE,
+		ID:         path.GetNlri().PathIdentifier(),
 	})
 }
 

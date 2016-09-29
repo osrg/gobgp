@@ -33,6 +33,10 @@ func NewMonitorCmd() *cobra.Command {
 		if err != nil {
 			exitWithError(err)
 		}
+		showIdentifier := false
+		if arg.Type == gobgpapi.Resource_ADJ_IN {
+			showIdentifier = true
+		}
 		for {
 			d, err := stream.Recv()
 			if err == io.EOF {
@@ -49,7 +53,7 @@ func NewMonitorCmd() *cobra.Command {
 				j, _ := json.Marshal(dst.GetAllKnownPathList())
 				fmt.Println(string(j))
 			} else {
-				ShowRoute(dst.GetAllKnownPathList(), false, false, false, true, false)
+				ShowRoute(dst.GetAllKnownPathList(), false, false, false, showIdentifier, true, false)
 			}
 		}
 	}
