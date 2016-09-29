@@ -3713,7 +3713,7 @@ const (
 	_
 	_
 	BGP_ATTR_TYPE_AIGP                        // = 26
-	BGP_ATTR_TYPE_LARGE_COMMUNITY BGPAttrType = 41
+	BGP_ATTR_TYPE_LARGE_COMMUNITY BGPAttrType = 30
 )
 
 // NOTIFICATION Error Code  RFC 4271 4.5.
