@@ -306,6 +306,12 @@ class GoBGPContainer(BGPContainer):
                 for afi_safi in afi_safi_list:
                     afi_safi['mp-graceful-restart'] = {'config': {'enabled': True}}
 
+                if info['llgr'] is not None:
+                    n['graceful-restart']['config']['restart-time'] = 1
+                    n['graceful-restart']['config']['long-lived-enabled'] = True
+                    for afi_safi in afi_safi_list:
+                        afi_safi['long-lived-graceful-restart'] = {'config': {'enabled': True, 'restart-time': 30}}
+
             if info['is_rr_client']:
                 clusterId = self.router_id
                 if 'cluster_id' in info and info['cluster_id'] is not None:

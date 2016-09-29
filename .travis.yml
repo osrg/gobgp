@@ -134,7 +134,11 @@ matrix:
       sudo: required
       services:
         - docker
-
+    - env:
+        - TEST=long_lived_graceful_restart_test.py
+      sudo: required
+      services:
+        - docker
 
 cache:
   pip: true

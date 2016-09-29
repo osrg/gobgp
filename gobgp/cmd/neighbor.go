@@ -243,12 +243,19 @@ func showNeighbor(args []string) error {
 				if len(g.Tuples) > 0 {
 					str += fmt.Sprintf("restart time %d sec", g.Time)
 				}
-				if g.Flags == 0x08 {
+				if g.Flags&0x08 > 0 {
 					if len(str) > 0 {
 						str += ", "
 					}
 					str += "restart flag set"
 				}
+				if g.Flags&0x04 > 0 {
+					if len(str) > 0 {
+						str += ", "
+					}
+					str += "notification flag set"
+				}
+
 				if len(str) > 0 {
 					str += "\n"
 				}
@@ -273,6 +280,32 @@ func showNeighbor(args []string) error {
 					fmt.Printf("        Remote: %s", s)
 				}
 			}
+		case bgp.BGP_CAP_LONG_LIVED_GRACEFUL_RESTART:
+			fmt.Printf("    %s:\t%s\n", c.Code(), support)
+			grStr := func(g *bgp.CapLongLivedGracefulRestart) string {
+				var str string
+				for _, t := range g.Tuples {
+					str += fmt.Sprintf("	    %s, restart time %d sec", bgp.AfiSafiToRouteFamily(t.AFI, t.SAFI), t.RestartTime)
+					if t.Flags == 0x80 {
+						str += ", forward flag set"
+					}
+					str += "\n"
+				}
+				return str
+			}
+			if m := lookup(c, p.Conf.LocalCap); m != nil {
+				g := m.(*bgp.CapLongLivedGracefulRestart)
+				if s := grStr(g); len(s) > 0 {
+					fmt.Printf("        Local:\n%s", s)
+				}
+			}
+			if m := lookup(c, p.Conf.RemoteCap); m != nil {
+				g := m.(*bgp.CapLongLivedGracefulRestart)
+				if s := grStr(g); len(s) > 0 {
+					fmt.Printf("        Remote:\n%s", s)
+				}
+			}
+
 		default:
 			fmt.Printf("    %s:\t%s\n", c.Code(), support)
 		}
