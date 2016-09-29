@@ -909,6 +909,11 @@ module gobgp {
         base ptypes:install-protocol-type;
       }
     }
+    leaf version {
+      type uint8;
+      description
+        "Configure version of zebra protocol.  Default is 2. Supported up to 3.";
+    }
   }
 
   grouping zebra-set {

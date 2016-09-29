@@ -987,6 +987,9 @@ func (lhs *ZebraState) Equal(rhs *ZebraState) bool {
 			return false
 		}
 	}
+	if lhs.Version != rhs.Version {
+		return false
+	}
 	return true
 }
 
@@ -1020,6 +1023,9 @@ func (lhs *ZebraConfig) Equal(rhs *ZebraConfig) bool {
 		if l != rhs.RedistributeRouteTypeList[idx] {
 			return false
 		}
+	}
+	if lhs.Version != rhs.Version {
+		return false
 	}
 	return true
 }
