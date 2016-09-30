@@ -751,7 +751,7 @@ func (s *Server) AddVrf(ctx context.Context, arg *AddVrfRequest) (r *AddVrfRespo
 	if err != nil {
 		return &AddVrfResponse{}, err
 	}
-	return &AddVrfResponse{}, s.bgpServer.AddVrf(arg.Vrf.Name, rd, im, ex)
+	return &AddVrfResponse{}, s.bgpServer.AddVrf(arg.Vrf.Name, arg.Vrf.Id, rd, im, ex)
 }
 
 func (s *Server) DeleteVrf(ctx context.Context, arg *DeleteVrfRequest) (*DeleteVrfResponse, error) {

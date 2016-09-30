@@ -164,7 +164,7 @@ func (manager *TableManager) getNextLabel() (uint32, error) {
 	return label, nil
 }
 
-func (manager *TableManager) AddVrf(name string, rd bgp.RouteDistinguisherInterface, importRt, exportRt []bgp.ExtendedCommunityInterface, info *PeerInfo) ([]*Path, error) {
+func (manager *TableManager) AddVrf(name string, id uint32, rd bgp.RouteDistinguisherInterface, importRt, exportRt []bgp.ExtendedCommunityInterface, info *PeerInfo) ([]*Path, error) {
 	if _, ok := manager.Vrfs[name]; ok {
 		return nil, fmt.Errorf("vrf %s already exists", name)
 	}
@@ -177,6 +177,7 @@ func (manager *TableManager) AddVrf(name string, rd bgp.RouteDistinguisherInterf
 	}).Debugf("add vrf")
 	manager.Vrfs[name] = &Vrf{
 		Name:     name,
+		Id:       id,
 		Rd:       rd,
 		ImportRt: importRt,
 		ExportRt: exportRt,

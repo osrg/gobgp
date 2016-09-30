@@ -819,6 +819,7 @@ message Vrf {
   bytes rd = 2;
   repeated bytes import_rt = 3;
   repeated bytes export_rt = 4;
+  uint32 id = 5;
 }
 
 message Global {

@@ -1190,7 +1190,7 @@ func (s *BgpServer) GetVrf() (l []*table.Vrf) {
 	return l
 }
 
-func (s *BgpServer) AddVrf(name string, rd bgp.RouteDistinguisherInterface, im, ex []bgp.ExtendedCommunityInterface) (err error) {
+func (s *BgpServer) AddVrf(name string, id uint32, rd bgp.RouteDistinguisherInterface, im, ex []bgp.ExtendedCommunityInterface) (err error) {
 	ch := make(chan struct{})
 	defer func() { <-ch }()
 
@@ -1205,7 +1205,7 @@ func (s *BgpServer) AddVrf(name string, rd bgp.RouteDistinguisherInterface, im, 
 			AS:      s.bgpConfig.Global.Config.As,
 			LocalID: net.ParseIP(s.bgpConfig.Global.Config.RouterId).To4(),
 		}
-		if pathList, e := s.globalRib.AddVrf(name, rd, im, ex, pi); e != nil {
+		if pathList, e := s.globalRib.AddVrf(name, id, rd, im, ex, pi); e != nil {
 			err = e
 		} else if len(pathList) > 0 {
 			s.propagateUpdate(nil, pathList)
