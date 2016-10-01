@@ -27,7 +27,7 @@ import (
 	"time"
 )
 
-func newIPRouteMessage(dst []*table.Path, version uint8) *zebra.Message {
+func newIPRouteMessage(dst []*table.Path, version uint8, vrfId uint16) *zebra.Message {
 	paths := make([]*table.Path, 0, len(dst))
 	for _, path := range dst {
 		if path == nil || path.IsFromExternal() {
@@ -45,23 +45,31 @@ func newIPRouteMessage(dst []*table.Path, version uint8) *zebra.Message {
 	var prefix net.IP
 	nexthops := make([]net.IP, 0, len(paths))
 	switch path.GetRouteFamily() {
-	case bgp.RF_IPv4_UC:
+	case bgp.RF_IPv4_UC, bgp.RF_IPv4_VPN:
 		if path.IsWithdraw == true {
 			command = zebra.IPV4_ROUTE_DELETE
 		} else {
 			command = zebra.IPV4_ROUTE_ADD
 		}
-		prefix = net.ParseIP(l[0]).To4()
+		if path.GetRouteFamily() == bgp.RF_IPv4_UC {
+			prefix = path.GetNlri().(*bgp.IPAddrPrefix).IPAddrPrefixDefault.Prefix.To4()
+		} else {
+			prefix = path.GetNlri().(*bgp.LabeledVPNIPAddrPrefix).IPAddrPrefixDefault.Prefix.To4()
+		}
 		for _, p := range paths {
 			nexthops = append(nexthops, p.GetNexthop().To4())
 		}
-	case bgp.RF_IPv6_UC:
+	case bgp.RF_IPv6_UC, bgp.RF_IPv6_VPN:
 		if path.IsWithdraw == true {
 			command = zebra.IPV6_ROUTE_DELETE
 		} else {
 			command = zebra.IPV6_ROUTE_ADD
 		}
-		prefix = net.ParseIP(l[0]).To16()
+		if path.GetRouteFamily() == bgp.RF_IPv6_UC {
+			prefix = path.GetNlri().(*bgp.IPv6AddrPrefix).IPAddrPrefixDefault.Prefix.To16()
+		} else {
+			prefix = path.GetNlri().(*bgp.LabeledVPNIPv6AddrPrefix).IPAddrPrefixDefault.Prefix.To16()
+		}
 		for _, p := range paths {
 			nexthops = append(nexthops, p.GetNexthop().To16())
 		}
@@ -80,6 +88,7 @@ func newIPRouteMessage(dst []*table.Path, version uint8) *zebra.Message {
 			Marker:  zebra.HEADER_MARKER,
 			Version: version,
 			Command: command,
+			VrfId:   vrfId,
 		},
 		Body: &zebra.IPRouteBody{
 			Type:         zebra.ROUTE_BGP,
@@ -179,14 +188,20 @@ func (z *zebraClient) loop() {
 			msg := ev.(*WatchEventBestPath)
 			if table.UseMultiplePaths.Enabled {
 				for _, dst := range msg.MultiPathList {
-					if m := newIPRouteMessage(dst, z.client.Version); m != nil {
+					if m := newIPRouteMessage(dst, z.client.Version, 0); m != nil {
 						z.client.Send(m)
 					}
 				}
 			} else {
 				for _, path := range msg.PathList {
-					if m := newIPRouteMessage([]*table.Path{path}, z.client.Version); m != nil {
-						z.client.Send(m)
+					if len(path.VrfIds) == 0 {
+						path.VrfIds = []uint16{0}
+					}
+
+					for _, i := range path.VrfIds {
+						if m := newIPRouteMessage([]*table.Path{path}, z.client.Version, i); m != nil {
+							z.client.Send(m)
+						}
 					}
 				}
 			}
