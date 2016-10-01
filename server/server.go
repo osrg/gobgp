@@ -403,6 +403,25 @@ func clonePathList(pathList []*table.Path) []*table.Path {
 	return l
 }
 
+func (server *BgpServer) notifyBestWatcher(best map[string][]*table.Path, multipath [][]*table.Path) {
+	clonedM := make([][]*table.Path, len(multipath))
+	for i, pathList := range multipath {
+		clonedM[i] = clonePathList(pathList)
+	}
+	clonedB := clonePathList(best[table.GLOBAL_RIB_NAME])
+	for _, p := range clonedB {
+		switch p.GetRouteFamily() {
+		case bgp.RF_IPv4_VPN, bgp.RF_IPv6_VPN:
+			for _, vrf := range server.globalRib.Vrfs {
+				if table.CanImportToVrf(vrf, p) {
+					p.VrfIds = append(p.VrfIds, uint16(vrf.Id))
+				}
+			}
+		}
+	}
+	server.notifyWatcher(WATCH_EVENT_TYPE_BEST_PATH, &WatchEventBestPath{PathList: clonedB, MultiPathList: clonedM})
+}
+
 func (server *BgpServer) dropPeerAllRoutes(peer *Peer, families []bgp.RouteFamily) {
 	ids := make([]string, 0, len(server.neighborMap))
 	if peer.isRouteServerClient() {
@@ -417,13 +436,8 @@ func (server *BgpServer) dropPeerAllRoutes(peer *Peer, families []bgp.RouteFamil
 	}
 	for _, rf := range families {
 		best, _, multipath := server.globalRib.DeletePathsByPeer(ids, peer.fsm.peerInfo, rf)
-
 		if !peer.isRouteServerClient() {
-			clonedMpath := make([][]*table.Path, len(multipath))
-			for i, pathList := range multipath {
-				clonedMpath[i] = clonePathList(pathList)
-			}
-			server.notifyWatcher(WATCH_EVENT_TYPE_BEST_PATH, &WatchEventBestPath{PathList: clonePathList(best[table.GLOBAL_RIB_NAME]), MultiPathList: clonedMpath})
+			server.notifyBestWatcher(best, multipath)
 		}
 
 		for _, targetPeer := range server.neighborMap {
@@ -572,12 +586,7 @@ func (server *BgpServer) propagateUpdate(peer *Peer, pathList []*table.Path) []*
 		if len(best[table.GLOBAL_RIB_NAME]) == 0 {
 			return alteredPathList
 		}
-		clonedMpath := make([][]*table.Path, len(multipath))
-		for i, pathList := range multipath {
-			clonedMpath[i] = clonePathList(pathList)
-		}
-		server.notifyWatcher(WATCH_EVENT_TYPE_BEST_PATH, &WatchEventBestPath{PathList: clonePathList(best[table.GLOBAL_RIB_NAME]), MultiPathList: clonedMpath})
-
+		server.notifyBestWatcher(best, multipath)
 	}
 
 	for _, targetPeer := range server.neighborMap {

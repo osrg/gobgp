@@ -86,6 +86,7 @@ type Path struct {
 	parent     *Path
 	dels       []bgp.BGPAttrType
 	filtered   map[string]PolicyDirection
+	VrfIds     []uint16
 }
 
 func NewPath(source *PeerInfo, nlri bgp.AddrPrefixInterface, isWithdraw bool, pattrs []bgp.PathAttributeInterface, timestamp time.Time, noImplicitWithdraw bool) *Path {
