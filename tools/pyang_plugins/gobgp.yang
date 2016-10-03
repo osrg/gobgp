@@ -8,12 +8,11 @@ module gobgp {
   prefix "gobgp";
 
   // import some basic types
-  import openconfig-bgp { prefix bgp; }
-  import openconfig-bgp-types { prefix bgp-types; }
-  import openconfig-bgp-multiprotocol { prefix bgp-mp; }
-  import openconfig-routing-policy {prefix rpol; }
-  import openconfig-policy-types {prefix ptypes; }
-  import openconfig-bgp-policy {prefix bgp-pol; }
+  import openconfig-bgp { prefix oc-bgp; }
+  import openconfig-bgp-types { prefix oc-bgp-types; }
+  import openconfig-routing-policy {prefix oc-rpol; }
+  import openconfig-policy-types {prefix oc-pol-types; }
+  import openconfig-bgp-policy {prefix oc-bgp-pol; }
   import ietf-inet-types { prefix inet; }
   import ietf-yang-types { prefix yang; }
 
@@ -52,89 +51,89 @@ module gobgp {
   }
 
   identity eq {
-      base ptypes:attribute-comparison;
+      base oc-pol-types:ATTRIBUTE_COMPARISON;
   }
 
   identity ge {
-      base ptypes:attribute-comparison;
+      base oc-pol-types:ATTRIBUTE_COMPARISON;
   }
 
   identity le {
-      base ptypes:attribute-comparison;
+      base oc-pol-types:ATTRIBUTE_COMPARISON;
   }
 
   identity IPV4-MULTICAST {
-    base bgp-types:afi-safi-type;
+    base oc-bgp-types:AFI_SAFI_TYPE;
     description
       "IPv4 multicast (AFI,SAFI = 1,2)";
     reference "RFC4760";
   }
 
   identity IPV6-MULTICAST {
-    base bgp-types:afi-safi-type;
+    base oc-bgp-types:AFI_SAFI_TYPE;
     description
       "IPv4 multicast (AFI,SAFI = 1,2)";
     reference "RFC4760";
   }
 
   identity RTC {
-    base bgp-types:afi-safi-type;
+    base oc-bgp-types:AFI_SAFI_TYPE;
     description
       "Route target membership (AFI,SAFI = 1,132)";
     reference "RFC4684";
   }
 
   identity IPV4-ENCAP {
-    base bgp-types:afi-safi-type;
+    base oc-bgp-types:AFI_SAFI_TYPE;
     description
       "Encapsulation (AFI,SAFI = 1,7)";
     reference "RFC5512";
   }
 
   identity IPV6-ENCAP {
-    base bgp-types:afi-safi-type;
+    base oc-bgp-types:AFI_SAFI_TYPE;
     description
       "Encapsulation (AFI,SAFI = 2,7)";
     reference "RFC5512";
   }
 
   identity IPV4-FLOWSPEC {
-    base bgp-types:afi-safi-type;
+    base oc-bgp-types:AFI_SAFI_TYPE;
     description
       "IPv4 flowspec (AFI,SAFI = 1,133)";
     reference "RFC5575";
   }
 
   identity L3VPN-IPV4-FLOWSPEC {
-    base bgp-types:afi-safi-type;
+    base oc-bgp-types:AFI_SAFI_TYPE;
     description
       "L3VPN IPv4 flowspec (AFI,SAFI = 1,134)";
     reference "RFC5575";
   }
 
   identity IPV6-FLOWSPEC {
-    base bgp-types:afi-safi-type;
+    base oc-bgp-types:AFI_SAFI_TYPE;
     description
       "IPv6 flowspec (AFI,SAFI = 1,133)";
     reference "RFC5575";
   }
 
   identity L3VPN-IPV6-FLOWSPEC {
-    base bgp-types:afi-safi-type;
+    base oc-bgp-types:AFI_SAFI_TYPE;
     description
       "L3VPN IPv6 flowspec (AFI,SAFI = 1,134)";
     reference "RFC5575";
   }
 
   identity L2VPN-FLOWSPEC {
-    base bgp-types:afi-safi-type;
+    base oc-bgp-types:AFI_SAFI_TYPE;
     description
       "L2VPN flowspec (AFI,SAFI = 25,134)";
     reference "draft-ietf-idr-flowspec-l2vpn-03";
   }
 
   identity OPAQUE {
-    base bgp-types:afi-safi-type;
+    base oc-bgp-types:AFI_SAFI_TYPE;
     description
       "Opaque (AFI,SAFI = 16397,241)";
     reference "https://tools.ietf.org/html/draft-lapukhov-bgp-opaque-signaling-01";
@@ -245,8 +244,8 @@ module gobgp {
 
     leaf-list in-policy {
       type leafref {
-        path "/rpol:routing-policy/rpol:policy-definitions/" +
-            "rpol:policy-definition/rpol:name";
+        path "/oc-rpol:routing-policy/oc-rpol:policy-definitions/" +
+            "oc-rpol:policy-definition/oc-rpol:name";
         //require-instance true;
       }
       description
@@ -256,8 +255,8 @@ module gobgp {
     }
 
     leaf default-in-policy {
-      type rpol:default-policy-type;
-      default REJECT-ROUTE;
+      type oc-rpol:default-policy-type;
+      default REJECT_ROUTE;
       description
         "explicitly set a default policy if no policy definition
         in the in-policy chain is satisfied.";
@@ -586,23 +585,23 @@ module gobgp {
   }
 
   // augment statements
-  augment "/bgp:bgp/bgp:neighbors/bgp:neighbor/bgp:state/bgp:messages/bgp:sent" {
+  augment "/oc-bgp:bgp/oc-bgp:neighbors/oc-bgp:neighbor/oc-bgp:state/oc-bgp:messages/oc-bgp:sent" {
     description "additional counters";
     uses gobgp-message-counter;
   }
 
-  augment "/bgp:bgp/bgp:neighbors/bgp:neighbor/bgp:state/bgp:messages/bgp:received" {
+  augment "/oc-bgp:bgp/oc-bgp:neighbors/oc-bgp:neighbor/oc-bgp:state/oc-bgp:messages/oc-bgp:received" {
     description "additional counters";
     uses gobgp-message-counter;
   }
 
-  augment "/bgp:bgp/bgp:neighbors/bgp:neighbor/bgp:state" {
+  augment "/oc-bgp:bgp/oc-bgp:neighbors/oc-bgp:neighbor/oc-bgp:state" {
     description "additional counters";
     uses gobgp-adjacent-table;
   }
 
 
-  augment "/bgp:bgp/bgp:neighbors/bgp:neighbor/bgp:state" {
+  augment "/oc-bgp:bgp/oc-bgp:neighbors/oc-bgp:neighbor/oc-bgp:state" {
     container Capabilities {
       leaf-list remote {
         type binary;
@@ -617,7 +616,7 @@ module gobgp {
     }
   }
 
-  augment "/bgp:bgp/bgp:neighbors/bgp:neighbor/bgp:config" {
+  augment "/oc-bgp:bgp/oc-bgp:neighbors/oc-bgp:neighbor/oc-bgp:config" {
     description "additional state elements";
 
     leaf admin-down {
@@ -627,7 +626,7 @@ module gobgp {
     }
   }
 
-  augment "/bgp:bgp/bgp:neighbors/bgp:neighbor/bgp:state" {
+  augment "/oc-bgp:bgp/oc-bgp:neighbors/oc-bgp:neighbor/oc-bgp:state" {
     description "additional state elements";
 
     leaf admin-down {
@@ -640,12 +639,6 @@ module gobgp {
       type string;
     }
 
-    leaf established-count {
-      type uint32;
-      description
-        "The number of how many the peer became established state";
-    }
-
      leaf flops {
       type uint32;
       description
@@ -655,42 +648,42 @@ module gobgp {
 
   }
 
-  augment "/bgp:bgp/bgp:neighbors/bgp:neighbor/bgp:config" {
+  augment "/oc-bgp:bgp/oc-bgp:neighbors/oc-bgp:neighbor/oc-bgp:config" {
     leaf neighbor-interface {
       type string;
     }
   }
 
-  augment "/bgp:bgp/bgp:neighbors/bgp:neighbor/bgp:state" {
+  augment "/oc-bgp:bgp/oc-bgp:neighbors/oc-bgp:neighbor/oc-bgp:state" {
     leaf neighbor-interface {
       type string;
     }
   }
 
-  augment "/bgp:bgp/bgp:neighbors/bgp:neighbor/bgp:state" {
+  augment "/oc-bgp:bgp/oc-bgp:neighbors/oc-bgp:neighbor/oc-bgp:state" {
     leaf remote-router-id {
         type string;
     }
   }
 
-  augment "/bgp:bgp/bgp:neighbors/bgp:neighbor/bgp:transport/bgp:config" {
+  augment "/oc-bgp:bgp/oc-bgp:neighbors/oc-bgp:neighbor/oc-bgp:transport/oc-bgp:config" {
     leaf remote-port {
       type inet:port-number;
     }
   }
 
-  augment "/bgp:bgp/bgp:neighbors/bgp:neighbor/bgp:timers/bgp:config" {
+  augment "/oc-bgp:bgp/oc-bgp:neighbors/oc-bgp:neighbor/oc-bgp:timers/oc-bgp:config" {
     description "additional timer";
     uses gobgp-timer;
    }
 
-  augment "/bgp:bgp/bgp:neighbors/bgp:neighbor/bgp:timers/bgp:state" {
+  augment "/oc-bgp:bgp/oc-bgp:neighbors/oc-bgp:neighbor/oc-bgp:timers/oc-bgp:state" {
     description "additional timers";
     uses gobgp-timer;
     uses gobgp-neighbor-timer;
    }
 
-  augment "/bgp:bgp/bgp:neighbors/bgp:neighbor/bgp:afi-safis/bgp:afi-safi/bgp:graceful-restart/bgp:state" {
+  augment "/oc-bgp:bgp/oc-bgp:neighbors/oc-bgp:neighbor/oc-bgp:afi-safis/oc-bgp:afi-safi/oc-bgp:graceful-restart/oc-bgp:state" {
     description "additional graceful-restart status";
     leaf end-of-rib-received {
       type boolean;
@@ -700,47 +693,46 @@ module gobgp {
     }
   }
 
-  augment "/bgp:bgp/bgp:neighbors/bgp:neighbor/bgp:graceful-restart/bgp:config" {
+  augment "/oc-bgp:bgp/oc-bgp:neighbors/oc-bgp:neighbor/oc-bgp:graceful-restart/oc-bgp:config" {
     description "additional graceful-restart status";
     leaf deferral-time {
       type uint16;
     }
   }
 
-  augment "/bgp:bgp/bgp:neighbors/bgp:neighbor/bgp:graceful-restart/bgp:state" {
+  augment "/oc-bgp:bgp/oc-bgp:neighbors/oc-bgp:neighbor/oc-bgp:graceful-restart/oc-bgp:state" {
     description "additional graceful-restart status";
     leaf deferral-time {
       type uint16;
     }
   }
 
-  augment "/bgp:bgp/bgp:peer-groups/bgp:peer-group" {
+  augment "/oc-bgp:bgp/oc-bgp:peer-groups/oc-bgp:peer-group" {
     description "route server configuration for peer-group";
     uses gobgp-route-server-config-set;
   }
 
-  augment "/bgp:bgp/bgp:neighbors/bgp:neighbor" {
+  augment "/oc-bgp:bgp/oc-bgp:neighbors/oc-bgp:neighbor" {
     description "route server configuration for neighbor";
     uses gobgp-route-server-config-set;
   }
 
-  augment "/bgp:bgp/bgp:global/bgp:apply-policy/bgp:config" {
+  augment "/oc-bgp:bgp/oc-bgp:global/oc-bgp:apply-policy/oc-bgp:config" {
     description "addtional policy";
     uses gobgp-in-policy;
 
   }
 
-  augment "/bgp:bgp/bgp:global/bgp:apply-policy/bgp:state" {
+  augment "/oc-bgp:bgp/oc-bgp:global/oc-bgp:apply-policy/oc-bgp:state" {
     description "additional policy";
     uses gobgp-in-policy;
 
   }
 
-  augment "/rpol:routing-policy/rpol:policy-definitions/" +
-    "rpol:policy-definition/rpol:statements/rpol:statement/" +
-    "rpol:actions/bgp-pol:bgp-actions/bgp-pol:set-as-path-prepend" {
+  augment "/oc-rpol:routing-policy/oc-rpol:policy-definitions/" +
+    "oc-rpol:policy-definition/oc-rpol:statements/oc-rpol:statement/" +
+    "oc-rpol:actions/oc-bgp-pol:bgp-actions/oc-bgp-pol:set-as-path-prepend/oc-bgp-pol:config" {
     description "as number used for aspath prepend";
-
        leaf as {
          type union {
            type inet:as-number;
@@ -754,59 +746,33 @@ module gobgp {
        }
   }
 
-  augment "/rpol:routing-policy/rpol:defined-sets/rpol:neighbor-sets/rpol:neighbor-set" {
-    description "alternative for the existing neighbor element";
-
-    leaf-list neighbor-info {
-      description
-            "neighbor ip address";
-      type inet:ip-address;
-    }
+  augment "/oc-rpol:routing-policy/oc-rpol:policy-definitions/" +
+    "oc-rpol:policy-definition/oc-rpol:statements/oc-rpol:statement/" +
+    "oc-rpol:actions/oc-bgp-pol:bgp-actions/oc-bgp-pol:set-as-path-prepend/oc-bgp-pol:state" {
+    description "as number used for aspath prepend";
+       leaf as {
+         type union {
+           type inet:as-number;
+           type string {
+             pattern "last-as";
+           }
+         }
+         description
+           "autonomous system number or 'last-as' which means
+           the leftmost as number in the AS-path to be prepended";
+       }
   }
 
-  augment "/rpol:routing-policy/rpol:defined-sets/" +
-    "bgp-pol:bgp-defined-sets/bgp-pol:community-sets/bgp-pol:community-set" {
-    description "alternative for the existing community-member";
-
-    leaf-list community {
-      description
-        "community set member";
-      type string;
-    }
-  }
-
-  augment "/rpol:routing-policy/rpol:defined-sets/" +
-    "bgp-pol:bgp-defined-sets/bgp-pol:ext-community-sets/bgp-pol:ext-community-set" {
-    description "alternative for the existing ext-community-member";
-
-    leaf-list ext-community {
-      type string;
-      description
-        "extended community set member";
-    }
-  }
-
-  augment "/rpol:routing-policy/rpol:defined-sets/" +
-    "bgp-pol:bgp-defined-sets/bgp-pol:as-path-sets/bgp-pol:as-path-set" {
-    description "alternative for the existing as-path-set-member";
-
-    leaf-list as-path {
-      type string;
-      description
-        "AS path expression";
-    }
-  }
-
-  augment "/rpol:routing-policy/rpol:policy-definitions/" +
-    "rpol:policy-definition/rpol:statements/rpol:statement/" +
-    "rpol:conditions/bgp-pol:bgp-conditions" {
+  augment "/oc-rpol:routing-policy/oc-rpol:policy-definitions/" +
+    "oc-rpol:policy-definition/oc-rpol:statements/oc-rpol:statement/" +
+    "oc-rpol:conditions/oc-bgp-pol:bgp-conditions" {
     description "additional rpki condition";
     uses gobgp-rpki-validation-result;
   }
 
-  deviation "/rpol:routing-policy/rpol:policy-definitions/" +
-    "rpol:policy-definition/rpol:statements/rpol:statement/" +
-    "rpol:conditions/bgp-pol:bgp-conditions/bgp-pol:route-type" {
+  deviation "/oc-rpol:routing-policy/oc-rpol:policy-definitions/" +
+    "oc-rpol:policy-definition/oc-rpol:statements/oc-rpol:statement/" +
+    "oc-rpol:conditions/oc-bgp-pol:bgp-conditions/oc-bgp-pol:config/oc-bgp-pol:route-type" {
     description "alternative route-type condition";
     deviate replace {
         type enumeration {
@@ -827,12 +793,35 @@ module gobgp {
     }
   }
 
-  augment "/bgp:bgp" {
+  deviation "/oc-rpol:routing-policy/oc-rpol:policy-definitions/" +
+    "oc-rpol:policy-definition/oc-rpol:statements/oc-rpol:statement/" +
+    "oc-rpol:conditions/oc-bgp-pol:bgp-conditions/oc-bgp-pol:state/oc-bgp-pol:route-type" {
+    description "alternative route-type condition";
+    deviate replace {
+        type enumeration {
+          enum NONE {
+            description "route type is none";
+          }
+          enum INTERNAL {
+            description "route type is internal";
+          }
+          enum EXTERNAL {
+            description "route type is external";
+          }
+          enum LOCAL {
+            description "route type is local";
+          }
+        }
+
+    }
+  }
+
+  augment "/oc-bgp:bgp" {
     description "additional rpki configuration and state";
     uses gobgp-rpki-servers;
   }
 
-  augment "/bgp:bgp" {
+  augment "/oc-bgp:bgp" {
     description "additional bmp configuration";
     uses gobgp-bmp-servers;
   }
@@ -888,7 +877,7 @@ module gobgp {
     }
   }
 
-  augment "/bgp:bgp" {
+  augment "/oc-bgp:bgp" {
     description "additional mrt configuration";
     uses gobgp-mrt;
   }
@@ -906,7 +895,7 @@ module gobgp {
     }
     leaf-list redistribute-route-type {
       type identityref {
-        base ptypes:install-protocol-type;
+        base oc-pol-types:INSTALL_PROTOCOL_TYPE;
       }
     }
     leaf version {
@@ -927,7 +916,7 @@ module gobgp {
     }
   }
 
-  augment "/bgp:bgp" {
+  augment "/oc-bgp:bgp" {
     uses zebra-set;
   }
 
@@ -954,11 +943,11 @@ module gobgp {
     }
   }
 
-  augment "/bgp:bgp" {
+  augment "/oc-bgp:bgp" {
     uses collector-set;
   }
 
-  augment "/bgp:bgp/bgp:global" {
+  augment "/oc-bgp:bgp/oc-bgp:global" {
     container mpls-label-range {
       description "mpls labal range";
 
@@ -980,16 +969,16 @@ module gobgp {
     }
   }
 
-  augment "/bgp:bgp/bgp:global/bgp:config" {
+  augment "/oc-bgp:bgp/oc-bgp:global/oc-bgp:config" {
       uses listen-config;
   }
 
-  augment "/bgp:bgp/bgp:global/bgp:state" {
+  augment "/oc-bgp:bgp/oc-bgp:global/oc-bgp:state" {
       uses listen-config;
   }
 
-  augment "/bgp:bgp/bgp:global/bgp:afi-safis/bgp:afi-safi" {
-      uses bgp-mp:all-afi-safi-common;
+  augment "/oc-bgp:bgp/oc-bgp:global/oc-bgp:afi-safis/oc-bgp:afi-safi" {
+      uses oc-bgp:bgp-common-mp-all-afi-safi-common;
   }
 
   grouping route-target-membership-config {
@@ -998,7 +987,7 @@ module gobgp {
       }
   }
 
-  augment "/bgp:bgp/bgp:global/bgp:afi-safis/bgp:afi-safi" {
+  augment "/oc-bgp:bgp/oc-bgp:global/oc-bgp:afi-safis/oc-bgp:afi-safi" {
     container route-target-membership {
       container config {
           uses route-target-membership-config;

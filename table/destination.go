@@ -28,8 +28,8 @@ import (
 	"github.com/osrg/gobgp/packet/bgp"
 )
 
-var SelectionOptions config.RouteSelectionOptionsConfig
-var UseMultiplePaths config.UseMultiplePathsConfig
+var SelectionOptions config.RouteSelectionOptions
+var UseMultiplePaths config.UseMultiplePaths
 
 type BestPathReason string
 
@@ -105,13 +105,13 @@ func (i *PeerInfo) String() string {
 }
 
 func NewPeerInfo(g *config.Global, p *config.Neighbor) *PeerInfo {
-	id := net.ParseIP(string(p.RouteReflector.Config.RouteReflectorClusterId)).To4()
+	id := net.ParseIP(string(p.RouteReflector.RouteReflectorClusterID)).To4()
 	return &PeerInfo{
-		AS:                      p.Config.PeerAs,
-		LocalAS:                 g.Config.As,
-		LocalID:                 net.ParseIP(g.Config.RouterId).To4(),
-		Address:                 net.ParseIP(p.Config.NeighborAddress),
-		RouteReflectorClient:    p.RouteReflector.Config.RouteReflectorClient,
+		AS:                      p.PeerAS,
+		LocalAS:                 g.AS,
+		LocalID:                 net.ParseIP(g.RouterID).To4(),
+		Address:                 net.ParseIP(p.NeighborAddress),
+		RouteReflectorClient:    p.RouteReflector.RouteReflectorClient,
 		RouteReflectorClusterID: id,
 	}
 }
@@ -370,7 +370,7 @@ func (dest *Destination) explicitWithdraw() paths {
 	return matches
 }
 
-// Identifies which of known paths are old and removes them.
+// IDentifies which of known paths are old and removes them.
 //
 // Known paths will no longer have paths whose new version is present in
 // new paths.
@@ -470,7 +470,7 @@ func (p paths) Less(i, j int) bool {
 	//
 	//	Returns None if best-path among given paths cannot be computed else best
 	//	path.
-	//	Assumes paths from NC has source equal to None.
+	//	ASsumes paths from NC has source equal to None.
 	//
 
 	path1 := p[i]
@@ -498,7 +498,7 @@ func (p paths) Less(i, j int) bool {
 		reason = BPR_LOCAL_ORIGIN
 	}
 	if better == nil {
-		better = compareByASPath(path1, path2)
+		better = compareByAsPath(path1, path2)
 		reason = BPR_ASPATH
 	}
 	if better == nil {
@@ -620,24 +620,24 @@ func compareByLocalOrigin(path1, path2 *Path) *Path {
 	return nil
 }
 
-func compareByASPath(path1, path2 *Path) *Path {
+func compareByAsPath(path1, path2 *Path) *Path {
 	// Calculated the best-paths by comparing as-path lengths.
 	//
 	// Shortest as-path length is preferred. If both path have same lengths,
 	// we return None.
 	log.WithFields(log.Fields{
 		"Topic": "Table",
-	}).Debug("enter compareByASPath")
+	}).Debug("enter compareByAsPath")
 	attribute1 := path1.getPathAttr(bgp.BGP_ATTR_TYPE_AS_PATH)
 	attribute2 := path2.getPathAttr(bgp.BGP_ATTR_TYPE_AS_PATH)
 
 	if attribute1 == nil || attribute2 == nil {
 		log.WithFields(log.Fields{
 			"Topic":   "Table",
-			"Key":     "compareByASPath",
-			"ASPath1": attribute1,
-			"ASPath2": attribute2,
-		}).Warn("can't compare ASPath because it's not present")
+			"Key":     "compareByAsPath",
+			"AsPath1": attribute1,
+			"AsPath2": attribute2,
+		}).Warn("can't compare AsPath because it's not present")
 	}
 
 	l1 := path1.GetAsPathLen()
@@ -645,7 +645,7 @@ func compareByASPath(path1, path2 *Path) *Path {
 
 	log.WithFields(log.Fields{
 		"Topic": "Table",
-	}).Debugf("compareByASPath -- l1: %d, l2: %d", l1, l2)
+	}).Debugf("compareByAsPath -- l1: %d, l2: %d", l1, l2)
 	if l1 > l2 {
 		return path2
 	} else if l1 < l2 {
@@ -724,11 +724,11 @@ func compareByMED(path1, path2 *Path) *Path {
 		return firstAS(path1) != 0 && firstAS(path1) == firstAS(path2)
 	}()
 
-	if SelectionOptions.AlwaysCompareMed || isInternal || isSameAS {
+	if SelectionOptions.AlwaysCompareMED || isInternal || isSameAS {
 		log.WithFields(log.Fields{
 			"Topic": "Table",
 		}).Debug("enter compareByMED")
-		getMed := func(path *Path) uint32 {
+		getMED := func(path *Path) uint32 {
 			attribute := path.getPathAttr(bgp.BGP_ATTR_TYPE_MULTI_EXIT_DISC)
 			if attribute == nil {
 				return 0
@@ -737,8 +737,8 @@ func compareByMED(path1, path2 *Path) *Path {
 			return med
 		}
 
-		med1 := getMed(path1)
-		med2 := getMed(path2)
+		med1 := getMED(path1)
+		med2 := getMED(path2)
 		log.WithFields(log.Fields{
 			"Topic": "Table",
 		}).Debugf("compareByMED -- med1: %d, med2: %d", med1, med2)
@@ -751,7 +751,7 @@ func compareByMED(path1, path2 *Path) *Path {
 	} else {
 		log.WithFields(log.Fields{
 			"Topic": "Table",
-		}).Debugf("skip compareByMED %v %v %v", SelectionOptions.AlwaysCompareMed, isInternal, isSameAS)
+		}).Debugf("skip compareByMED %v %v %v", SelectionOptions.AlwaysCompareMED, isInternal, isSameAS)
 		return nil
 	}
 }
@@ -768,7 +768,7 @@ func compareByASNumber(path1, path2 *Path) *Path {
 
 	log.WithFields(log.Fields{
 		"Topic": "Table",
-	}).Debugf("compareByASNumber -- p1Asn: %d, p2Asn: %d", path1.GetSource().AS, path2.GetSource().AS)
+	}).Debugf("compareByASNumber -- p1ASn: %d, p2ASn: %d", path1.GetSource().AS, path2.GetSource().AS)
 	// If one path is from ibgp peer and another is from ebgp peer, take the ebgp path
 	if path1.IsIBGP() != path2.IsIBGP() {
 		if path1.IsIBGP() {
@@ -803,18 +803,18 @@ func compareByRouterID(path1, path2 *Path) (*Path, error) {
 		"Topic": "Table",
 	}).Debug("enter compareByRouterID")
 
-	// If both paths are from NC we have same router Id, hence cannot compare.
+	// If both paths are from NC we have same router ID, hence cannot compare.
 	if path1.IsLocal() && path2.IsLocal() {
 		return nil, nil
 	}
 
 	// If both paths are from eBGP peers, then according to RFC we need
 	// not tie break using router id.
-	if !SelectionOptions.ExternalCompareRouterId && !path1.IsIBGP() && !path2.IsIBGP() {
+	if !SelectionOptions.ExternalCompareRouterID && !path1.IsIBGP() && !path2.IsIBGP() {
 		return nil, nil
 	}
 
-	if !SelectionOptions.ExternalCompareRouterId && path1.IsIBGP() != path2.IsIBGP() {
+	if !SelectionOptions.ExternalCompareRouterID && path1.IsIBGP() != path2.IsIBGP() {
 		return nil, fmt.Errorf("This method does not support comparing ebgp with ibgp path")
 	}
 
@@ -834,7 +834,7 @@ func compareByRouterID(path1, path2 *Path) (*Path, error) {
 }
 
 func compareByAge(path1, path2 *Path) *Path {
-	if !path1.IsIBGP() && !path2.IsIBGP() && !SelectionOptions.ExternalCompareRouterId {
+	if !path1.IsIBGP() && !path2.IsIBGP() && !SelectionOptions.ExternalCompareRouterID {
 		age1 := path1.GetTimestamp().UnixNano()
 		age2 := path2.GetTimestamp().UnixNano()
 		if age1 == age2 {

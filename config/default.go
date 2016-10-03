@@ -19,10 +19,8 @@ const (
 
 func defaultAfiSafi(typ AfiSafiType, enable bool) AfiSafi {
 	return AfiSafi{
-		Config: AfiSafiConfig{
-			AfiSafiName: typ,
-			Enabled:     enable,
-		},
+		AfiSafiName: typ,
+		Enabled:     enable,
 		State: AfiSafiState{
 			AfiSafiName: typ,
 		},
@@ -97,42 +95,42 @@ func setDefaultNeighborConfigValuesWithViper(v *viper.Viper, n *Neighbor, asn ui
 		v = viper.New()
 	}
 
-	if n.Config.LocalAs == 0 {
-		n.Config.LocalAs = asn
+	if n.LocalAS == 0 {
+		n.LocalAS = asn
 	}
 
-	if n.Config.PeerAs != n.Config.LocalAs {
-		n.Config.PeerType = PEER_TYPE_EXTERNAL
+	if n.PeerAS != n.LocalAS {
+		n.PeerType = PEER_TYPE_EXTERNAL
 	} else {
-		n.Config.PeerType = PEER_TYPE_INTERNAL
+		n.PeerType = PEER_TYPE_INTERNAL
 	}
 
-	if !v.IsSet("neighbor.timers.config.connect-retry") && n.Timers.Config.ConnectRetry == 0 {
-		n.Timers.Config.ConnectRetry = float64(DEFAULT_CONNECT_RETRY)
+	if !v.IsSet("neighbor.timers.config.connect-retry") && n.Timers.ConnectRetry == 0 {
+		n.Timers.ConnectRetry = float64(DEFAULT_CONNECT_RETRY)
 	}
-	if !v.IsSet("neighbor.timers.config.hold-time") && n.Timers.Config.HoldTime == 0 {
-		n.Timers.Config.HoldTime = float64(DEFAULT_HOLDTIME)
+	if !v.IsSet("neighbor.timers.config.hold-time") && n.Timers.HoldTime == 0 {
+		n.Timers.HoldTime = float64(DEFAULT_HOLDTIME)
 	}
-	if !v.IsSet("neighbor.timers.config.keepalive-interval") && n.Timers.Config.KeepaliveInterval == 0 {
-		n.Timers.Config.KeepaliveInterval = n.Timers.Config.HoldTime / 3
+	if !v.IsSet("neighbor.timers.config.keepalive-interval") && n.Timers.KeepaliveInterval == 0 {
+		n.Timers.KeepaliveInterval = n.Timers.HoldTime / 3
 	}
-	if !v.IsSet("neighbor.timers.config.idle-hold-time-after-reset") && n.Timers.Config.IdleHoldTimeAfterReset == 0 {
-		n.Timers.Config.IdleHoldTimeAfterReset = float64(DEFAULT_IDLE_HOLDTIME_AFTER_RESET)
+	if !v.IsSet("neighbor.timers.config.idle-hold-time-after-reset") && n.Timers.IdleHoldTimeAfterReset == 0 {
+		n.Timers.IdleHoldTimeAfterReset = float64(DEFAULT_IDLE_HOLDTIME_AFTER_RESET)
 	}
 
-	if n.Config.NeighborInterface != "" {
-		addr, err := GetIPv6LinkLocalNeighborAddress(n.Config.NeighborInterface)
+	if n.NeighborInterface != "" {
+		addr, err := GetIPv6LinkLocalNeighborAddress(n.NeighborInterface)
 		if err != nil {
 			return err
 		}
-		n.Config.NeighborAddress = addr
+		n.NeighborAddress = addr
 	}
 
-	if n.Transport.Config.LocalAddress == "" {
-		if n.Config.NeighborAddress == "" {
+	if n.Transport.LocalAddress == "" {
+		if n.NeighborAddress == "" {
 			return fmt.Errorf("no neighbor address/interface specified")
 		}
-		ipAddr, err := net.ResolveIPAddr("ip", n.Config.NeighborAddress)
+		ipAddr, err := net.ResolveIPAddr("ip", n.NeighborAddress)
 		if err != nil {
 			return err
 		}
@@ -146,12 +144,12 @@ func setDefaultNeighborConfigValuesWithViper(v *viper.Viper, n *Neighbor, asn ui
 				}
 			}
 		}
-		n.Transport.Config.LocalAddress = localAddress
+		n.Transport.LocalAddress = localAddress
 	}
 
 	if len(n.AfiSafis) == 0 {
-		if ipAddr, err := net.ResolveIPAddr("ip", n.Config.NeighborAddress); err != nil {
-			return fmt.Errorf("invalid neighbor address: %s", n.Config.NeighborAddress)
+		if ipAddr, err := net.ResolveIPAddr("ip", n.NeighborAddress); err != nil {
+			return fmt.Errorf("invalid neighbor address: %s", n.NeighborAddress)
 		} else if ipAddr.IP.To4() != nil {
 			n.AfiSafis = []AfiSafi{defaultAfiSafi(AFI_SAFI_TYPE_IPV4_UNICAST, true)}
 		} else {
@@ -167,30 +165,30 @@ func setDefaultNeighborConfigValuesWithViper(v *viper.Viper, n *Neighbor, asn ui
 			if len(afs) > i {
 				vv.Set("afi-safi", afs[i])
 			}
-			af.State.AfiSafiName = af.Config.AfiSafiName
+			af.State.AfiSafiName = af.AfiSafiName
 			if !vv.IsSet("afi-safi.config") {
-				af.Config.Enabled = true
+				af.Enabled = true
 			}
 			n.AfiSafis[i] = af
 		}
 	}
 
-	n.State.Description = n.Config.Description
-	n.State.AdminDown = n.Config.AdminDown
+	n.State.Description = n.Description
+	n.State.AdminDown = n.AdminDown
 
-	if n.GracefulRestart.Config.Enabled {
-		if !v.IsSet("neighbor.graceful-restart.config.restart-time") && n.GracefulRestart.Config.RestartTime == 0 {
+	if n.GracefulRestart.Enabled {
+		if !v.IsSet("neighbor.graceful-restart.config.restart-time") && n.GracefulRestart.RestartTime == 0 {
 			// RFC 4724 4. Operation
 			// A suggested default for the Restart Time is a value less than or
 			// equal to the HOLDTIME carried in the OPEN.
-			n.GracefulRestart.Config.RestartTime = uint16(n.Timers.Config.HoldTime)
+			n.GracefulRestart.RestartTime = uint16(n.Timers.HoldTime)
 		}
-		if !v.IsSet("neighbor.graceful-restart.config.deferral-time") && n.GracefulRestart.Config.DeferralTime == 0 {
+		if !v.IsSet("neighbor.graceful-restart.config.deferral-time") && n.GracefulRestart.DeferralTime == 0 {
 			// RFC 4724 4.1. Procedures for the Restarting Speaker
 			// The value of this timer should be large
 			// enough, so as to provide all the peers of the Restarting Speaker with
 			// enough time to send all the routes to the Restarting Speaker
-			n.GracefulRestart.Config.DeferralTime = uint16(360)
+			n.GracefulRestart.DeferralTime = uint16(360)
 		}
 	}
 	return nil
@@ -204,20 +202,20 @@ func SetDefaultGlobalConfigValues(g *Global) error {
 		}
 	}
 
-	if g.Config.Port == 0 {
-		g.Config.Port = bgp.BGP_PORT
+	if g.Port == 0 {
+		g.Port = bgp.BGP_PORT
 	}
 
-	if len(g.Config.LocalAddressList) == 0 {
-		g.Config.LocalAddressList = []string{"0.0.0.0", "::"}
+	if len(g.LocalAddressList) == 0 {
+		g.LocalAddressList = []string{"0.0.0.0", "::"}
 	}
 
-	if g.MplsLabelRange.MinLabel == 0 {
-		g.MplsLabelRange.MinLabel = DEFAULT_MPLS_LABEL_MIN
+	if g.MPLSLabelRange.MinLabel == 0 {
+		g.MPLSLabelRange.MinLabel = DEFAULT_MPLS_LABEL_MIN
 	}
 
-	if g.MplsLabelRange.MaxLabel == 0 {
-		g.MplsLabelRange.MaxLabel = DEFAULT_MPLS_LABEL_MAX
+	if g.MPLSLabelRange.MaxLabel == 0 {
+		g.MPLSLabelRange.MaxLabel = DEFAULT_MPLS_LABEL_MAX
 	}
 	return nil
 
@@ -236,15 +234,15 @@ func setDefaultConfigValuesWithViper(v *viper.Viper, b *BgpConfigSet) error {
 		return err
 	}
 
-	for idx, server := range b.BmpServers {
-		if server.Config.Port == 0 {
-			server.Config.Port = bmp.BMP_DEFAULT_PORT
+	for idx, server := range b.BMPServers {
+		if server.Port == 0 {
+			server.Port = bmp.BMP_DEFAULT_PORT
 		}
-		b.BmpServers[idx] = server
+		b.BMPServers[idx] = server
 	}
 
-	if b.Zebra.Config.Url == "" {
-		b.Zebra.Config.Url = "unix:/var/run/quagga/zserv.api"
+	if b.Zebra.URL == "" {
+		b.Zebra.URL = "unix:/var/run/quagga/zserv.api"
 	}
 
 	list, err := extractArray(v.Get("neighbors"))
@@ -257,15 +255,15 @@ func setDefaultConfigValuesWithViper(v *viper.Viper, b *BgpConfigSet) error {
 		if len(list) > idx {
 			vv.Set("neighbor", list[idx])
 		}
-		if err := setDefaultNeighborConfigValuesWithViper(vv, &n, b.Global.Config.As); err != nil {
+		if err := setDefaultNeighborConfigValuesWithViper(vv, &n, b.Global.AS); err != nil {
 			return err
 		}
 		b.Neighbors[idx] = n
 	}
 
-	for _, r := range b.RpkiServers {
-		if r.Config.Port == 0 {
-			r.Config.Port = rtr.RPKI_DEFAULT_PORT
+	for _, r := range b.RPKIServers {
+		if r.Port == 0 {
+			r.Port = rtr.RPKI_DEFAULT_PORT
 		}
 	}
 

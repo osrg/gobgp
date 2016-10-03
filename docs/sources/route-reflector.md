@@ -12,35 +12,31 @@ Configure `RouteReflector.RouteReflectorConfig` section to enable route reflecto
 The configuration below configures two route reflector clients and two normal iBGP peers.
 
 ```toml
-[global.config]
+[global]
   router-id = "192.168.0.1"
   as = 65000
 
 [[neighbors]]
-  [neighbors.config]
-    neighbor-address = "192.168.10.2"
-    peer-as = 65000
-  [neighbors.route-reflector.config]
+  neighbor-address = "192.168.10.2"
+  peer-as = 65000
+  [neighbors.route-reflector]
     route-reflector-client = true
     route-reflector-cluster-id = "192.168.0.1"
 
 [[neighbors]]
-  [neighbors.config]
-    neighbor-address = "192.168.10.3"
-    peer-as = 65000
-  [neighbors.route-reflector.config]
+  neighbor-address = "192.168.10.3"
+  peer-as = 65000
+  [neighbors.route-reflector]
     route-reflector-client = true
     route-reflector-cluster-id = "192.168.0.1"
 
 [[neighbors]]
-  [neighbors.config]
-    neighbor-address = "192.168.10.4"
-    peer-as = 65000
+  neighbor-address = "192.168.10.4"
+  peer-as = 65000
 
 [[neighbors]]
-  [neighbors.config]
-    neighbor-address = "192.168.10.5"
-    peer-as = 65000
+  neighbor-address = "192.168.10.5"
+  peer-as = 65000
 ```
 
 ## Check route reflector behavior

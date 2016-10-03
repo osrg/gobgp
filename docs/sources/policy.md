@@ -728,10 +728,10 @@ and  [neighbor local rib](#rs-attachment).
 
 #### <a name="global-attachment"> 4.1 Attach policy to global rib
 
-To attach policies to global rib, add policy name to `global.apply-policy.config`.
+To attach policies to global rib, add policy name to `global.apply-policy`.
 
 ```toml
-[global.apply-policy.config]
+[global.apply-policy]
 import-policy-list = ["policy1"]
 export-policy-list = ["policy2"]
 default-import-policy = "accept-route"
@@ -756,12 +756,11 @@ This example attatches *policy1* to Import policy and *policy2* to Export policy
 
 ```toml
 [[neighbors]]
-  [neighbors.config]
-    neighbor-address = "10.0.255.2"
-    peer-as = 65002
-  [neighbors.route-server.config]
+  neighbor-address = "10.0.255.2"
+  peer-as = 65002
+  [neighbors.route-server]
     route-server-client = true
-  [neighbors.apply-policy.config]
+  [neighbors.apply-policy]
     import-policy-list = ["policy1"]
     export-policy-list = ["policy2"]
     in-policy-list = ["policy3"]
@@ -791,31 +790,28 @@ define an import policy for neighbor 10.0.255.2 that drops
 10.33.0.0/16 route from Neighbor 10.0.255.1.
 
 ```toml
-[global.config]
+[global]
   as = 64512
   router-id = "192.168.255.1"
 
 [[neighbors]]
-  [neighbors.config]
-    neighbor-address = "10.0.255.1"
-    peer-as = 65001
-  [neighbors.route-server.config]
+  neighbor-address = "10.0.255.1"
+  peer-as = 65001
+  [neighbors.route-server]
     route-server-client = true
 
 [[neighbors]]
-  [neighbors.config]
-    neighbor-address = "10.0.255.2"
-    peer-as = 65002
-  [neighbors.route-server.config]
+  neighbor-address = "10.0.255.2"
+  peer-as = 65002
+  [neighbors.route-server]
     route-server-client = true
-  [neighbors.apply-policy.config]
+  [neighbors.apply-policy]
     import-policy-list = ["pd2"]
 
 [[neighbors]]
-  [neighbors.config]
-    neighbor-address = "10.0.255.3"
-    peer-as = 65003
-  [neighbors.route-server.config]
+  neighbor-address = "10.0.255.3"
+  peer-as = 65003
+  [neighbors.route-server]
     route-server-client = true
 
 [[defined-sets.prefix-sets]]

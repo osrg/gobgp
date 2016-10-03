@@ -272,7 +272,7 @@ func (m *roaManager) HandleROAEvent(ev *ROAEvent) {
 		// clear state
 		client.endOfData = false
 		client.pendingROAs = make([]*ROA, 0)
-		client.state.RpkiMessages = config.RpkiMessages{}
+		client.state.RPKIMessages = config.RPKIMessages{}
 		client.conn = nil
 		client.t = tomb.Tomb{}
 		client.t.Go(client.tryConnect)
@@ -361,8 +361,8 @@ func (m *roaManager) addROA(roa *ROA) {
 	bucket.entries = append(bucket.entries, roa)
 }
 
-func (c *roaManager) handleRTRMsg(client *roaClient, state *config.RpkiServerState, buf []byte) {
-	received := &state.RpkiMessages.RpkiReceived
+func (c *roaManager) handleRTRMsg(client *roaClient, state *config.RPKIServerState, buf []byte) {
+	received := &state.RPKIMessages.RPKIReceived
 
 	m, err := rtr.ParseRTR(buf)
 	if err == nil {
@@ -433,7 +433,7 @@ func (c *roaManager) handleRTRMsg(client *roaClient, state *config.RpkiServerSta
 	}
 }
 
-func (c *roaManager) GetServers() []*config.RpkiServer {
+func (c *roaManager) GetServers() []*config.RPKIServer {
 	f := func(tree *radix.Tree) (map[string]uint32, map[string]uint32) {
 		records := make(map[string]uint32)
 		prefixes := make(map[string]uint32)
@@ -459,17 +459,15 @@ func (c *roaManager) GetServers() []*config.RpkiServer {
 	recordsV4, prefixesV4 := f(c.Roas[bgp.RF_IPv4_UC])
 	recordsV6, prefixesV6 := f(c.Roas[bgp.RF_IPv6_UC])
 
-	l := make([]*config.RpkiServer, 0, len(c.clientMap))
+	l := make([]*config.RPKIServer, 0, len(c.clientMap))
 	for _, client := range c.clientMap {
 		state := &client.state
 
 		addr, port, _ := net.SplitHostPort(client.host)
-		l = append(l, &config.RpkiServer{
-			Config: config.RpkiServerConfig{
-				Address: addr,
-				Port:    func() uint32 { p, _ := strconv.Atoi(port); return uint32(p) }(),
-			},
-			State: client.state,
+		l = append(l, &config.RPKIServer{
+			Address: addr,
+			Port:    func() uint32 { p, _ := strconv.Atoi(port); return uint32(p) }(),
+			State:   client.state,
 		})
 
 		if client.conn == nil {
@@ -525,7 +523,7 @@ func (c *roaManager) GetRoa(family bgp.RouteFamily) ([]*ROA, error) {
 	return l, nil
 }
 
-func validatePath(ownAs uint32, tree *radix.Tree, cidr string, asPath *bgp.PathAttributeAsPath) config.RpkiValidationResultType {
+func validatePath(ownAs uint32, tree *radix.Tree, cidr string, asPath *bgp.PathAttributeAsPath) config.RPKIValidationResultType {
 	var as uint32
 
 	if len(asPath.Value) == 0 {
@@ -577,7 +575,7 @@ func (c *roaManager) validate(pathList []*table.Path) {
 		}
 		if tree, ok := c.Roas[path.GetRouteFamily()]; ok {
 			r := validatePath(c.AS, tree, path.GetNlri().String(), path.GetAsPath())
-			path.SetValidation(config.RpkiValidationResultType(r))
+			path.SetValidation(config.RPKIValidationResultType(r))
 		}
 	}
 }
@@ -586,7 +584,7 @@ type roaClient struct {
 	t            tomb.Tomb
 	host         string
 	conn         *net.TCPConn
-	state        config.RpkiServerState
+	state        config.RPKIServerState
 	eventCh      chan *ROAEvent
 	sessionID    uint16
 	oldSessionID uint16
@@ -614,7 +612,7 @@ func (c *roaClient) enable(serial uint32) error {
 		if err != nil {
 			return err
 		}
-		c.state.RpkiMessages.RpkiSent.SerialQuery++
+		c.state.RPKIMessages.RPKISent.SerialQuery++
 	}
 	return nil
 }
@@ -627,7 +625,7 @@ func (c *roaClient) softReset() error {
 		if err != nil {
 			return err
 		}
-		c.state.RpkiMessages.RpkiSent.ResetQuery++
+		c.state.RPKIMessages.RPKISent.ResetQuery++
 		c.endOfData = false
 		c.pendingROAs = make([]*ROA, 0)
 	}

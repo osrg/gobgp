@@ -127,7 +127,7 @@ type bmpClient struct {
 	s    *BgpServer
 	dead chan struct{}
 	host string
-	typ  config.BmpRouteMonitoringPolicyType
+	typ  config.BMPRouteMonitoringPolicyType
 }
 
 func bmpPeerUp(laddr string, lport, rport uint16, sent, recv *bgp.BGPMessage, t uint8, policy bool, pd uint64, peeri *table.PeerInfo, timestamp int64) *bmp.BMPMessage {
@@ -148,7 +148,7 @@ func bmpPeerRoute(t uint8, policy bool, pd uint64, peeri *table.PeerInfo, timest
 	return m
 }
 
-func (b *bmpClientManager) addServer(c *config.BmpServerConfig) error {
+func (b *bmpClientManager) addServer(c *config.BMPServer) error {
 	host := net.JoinHostPort(c.Address, strconv.Itoa(int(c.Port)))
 	if _, y := b.clientMap[host]; y {
 		return fmt.Errorf("bmp client %s is already configured", host)
@@ -163,7 +163,7 @@ func (b *bmpClientManager) addServer(c *config.BmpServerConfig) error {
 	return nil
 }
 
-func (b *bmpClientManager) deleteServer(c *config.BmpServerConfig) error {
+func (b *bmpClientManager) deleteServer(c *config.BMPServer) error {
 	host := net.JoinHostPort(c.Address, strconv.Itoa(int(c.Port)))
 	if c, y := b.clientMap[host]; !y {
 		return fmt.Errorf("bmp client %s isn't found", host)

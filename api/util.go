@@ -114,7 +114,7 @@ func (p *Path) ToNativePath(option ...ToNativeOption) (*table.Path, error) {
 	}
 	t := time.Unix(p.Age, 0)
 	path := table.NewPath(info, nlri, p.IsWithdraw, pattr, t, false)
-	path.SetValidation(config.IntToRpkiValidationResultTypeMap[int(p.Validation)])
+	path.SetValidation(config.IntToRPKIValidationResultTypeMap[int(p.Validation)])
 	path.MarkStale(p.Stale)
 	if p.Filtered {
 		path.Filter("", table.POLICY_DIRECTION_IN)

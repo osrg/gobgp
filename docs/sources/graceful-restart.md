@@ -15,15 +15,14 @@ to do graceful restart. GoBGP supports both roles.
 Below is the configuration to enable helper speaker behavior.
 
 ```toml
-[global.config]
+[global]
   as = 64512
   router-id = "192.168.255.1"
 
 [[neighbors]]
-  [neighbors.config]
-    neighbor-address = "10.0.255.1"
-    peer-as = 65001
-  [neighbors.graceful-restart.config]
+  neighbor-address = "10.0.255.1"
+  peer-as = 65001
+  [neighbors.graceful-restart]
     enabled = true
 ```
 
@@ -65,21 +64,19 @@ BGP neighbor is 10.0.255.1, remote AS 65001
 To support restarting speaker behavior, try the configuration below.
 
 ```toml
-[global.config]
+[global]
   as = 64512
   router-id = "192.168.255.1"
 
 [[neighbors]]
-  [neighbors.config]
     neighbor-address = "10.0.255.1"
     peer-as = 65001
-  [neighbors.graceful-restart.config]
+  [neighbors.graceful-restart]
     enabled = true
     restart-time = 120
   [[neighbors.afi-safis]]
-    [neighbors.afi-safis.config]
     afi-safi-name = "ipv4-unicast"
-    [neighbors.afi-safis.mp-graceful-restart.config]
+    [neighbors.afi-safis.mp-graceful-restart]
         enabled = true
 ```
 

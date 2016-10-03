@@ -235,84 +235,76 @@ class GoBGPContainer(BGPContainer):
             self._create_config_zebra()
 
     def _create_config_bgp(self):
-        config = {'global': {'config': {'as': self.asn, 'router-id': self.router_id},
-                'route-selection-options':{
-                    'config': {
-                        'external-compare-router-id': True,
-                    },
-                },
-        }}
+        config = {'global': {'as': self.asn, 
+                            'router-id': self.router_id,
+                            'route-selection-options':{'external-compare-router-id': True}}}
 
         if self.zebra:
-            config['global']['use-multiple-paths'] = {'config': {'enabled': True}}
+            config['global']['use-multiple-paths'] = {'enabled': True}
 
         for peer, info in self.peers.iteritems():
             afi_safi_list = []
             version = netaddr.IPNetwork(info['neigh_addr']).version
             if version == 4:
-                afi_safi_list.append({'config':{'afi-safi-name': 'ipv4-unicast'}})
+                afi_safi_list.append({'afi-safi-name': 'ipv4-unicast'})
             elif version == 6:
-                afi_safi_list.append({'config':{'afi-safi-name': 'ipv6-unicast'}})
+                afi_safi_list.append({'afi-safi-name': 'ipv6-unicast'})
             else:
                 Exception('invalid ip address version. {0}'.format(version))
 
             if info['vpn']:
-                afi_safi_list.append({'config': {'afi-safi-name': 'l3vpn-ipv4-unicast'}})
-                afi_safi_list.append({'config': {'afi-safi-name': 'l3vpn-ipv6-unicast'}})
-                afi_safi_list.append({'config': {'afi-safi-name': 'l2vpn-evpn'}})
-                afi_safi_list.append({'config': {'afi-safi-name': 'rtc'}, 'route-target-membership': {'config': {'deferral-time': 10}}})
+                afi_safi_list.append({'afi-safi-name': 'l3vpn-ipv4-unicast'})
+                afi_safi_list.append({'afi-safi-name': 'l3vpn-ipv6-unicast'})
+                afi_safi_list.append({'afi-safi-name': 'l2vpn-evpn'})
+                afi_safi_list.append({'afi-safi-name': 'rtc', 'route-target-membership': {'deferral-time': 10}})
 
             if info['flowspec']:
-                afi_safi_list.append({'config': {'afi-safi-name': 'ipv4-flowspec'}})
-                afi_safi_list.append({'config': {'afi-safi-name': 'l3vpn-ipv4-flowspec'}})
-                afi_safi_list.append({'config': {'afi-safi-name': 'ipv6-flowspec'}})
-                afi_safi_list.append({'config': {'afi-safi-name': 'l3vpn-ipv6-flowspec'}})
+                afi_safi_list.append({'afi-safi-name': 'ipv4-flowspec'})
+                afi_safi_list.append({'afi-safi-name': 'l3vpn-ipv4-flowspec'})
+                afi_safi_list.append({'afi-safi-name': 'ipv6-flowspec'})
+                afi_safi_list.append({'afi-safi-name': 'l3vpn-ipv6-flowspec'})
 
-            n = {'config':
-                 {'neighbor-address': info['neigh_addr'].split('/')[0],
-                  'peer-as': peer.asn,
-                  'auth-password': info['passwd'],
-                  },
+            n = {'neighbor-address': info['neigh_addr'].split('/')[0],
+                 'peer-as': peer.asn,
+                 'auth-password': info['passwd'],
                  'afi-safis': afi_safi_list,
-                 'timers': {'config': {
-                     'connect-retry': 10,
-                  }},
-                 'transport': {'config': {}},
+                 'timers': {'connect-retry': 10},
+                 'transport': {},
                  }
 
             if ':' in info['local_addr']:
-                n['transport']['config']['local-address'] = info['local_addr'].split('/')[0]
+                n['transport']['local-address'] = info['local_addr'].split('/')[0]
 
             if info['passive']:
-                n['transport']['config']['passive-mode'] = True
+                n['transport']['passive-mode'] = True
 
             if info['is_rs_client']:
-                n['route-server'] = {'config': {'route-server-client': True}}
+                n['route-server'] = {'route-server-client': True}
 
             if info['local_as']:
                 n['config']['local-as'] = info['local_as']
 
             if info['prefix_limit']:
                 for v in afi_safi_list:
-                    v['prefix-limit'] = {'config': {'max-prefixes': info['prefix_limit'], 'shutdown-threshold-pct': 80 }}
+                    v['prefix-limit'] = {'max-prefixes': info['prefix_limit'], 'shutdown-threshold-pct': 80 }
 
             if info['graceful_restart'] is not None:
-                n['graceful-restart'] = {'config': {'enabled': True, 'restart-time': 20}}
+                n['graceful-restart'] = {'enabled': True, 'restart-time': 20}
                 for afi_safi in afi_safi_list:
-                    afi_safi['mp-graceful-restart'] = {'config': {'enabled': True}}
+                    afi_safi['mp-graceful-restart'] = {'enabled': True}
 
             if info['is_rr_client']:
                 clusterId = self.router_id
                 if 'cluster_id' in info and info['cluster_id'] is not None:
                     clusterId = info['cluster_id']
-                n['route-reflector'] = {'config' : {'route-reflector-client': True,
-                                                   'route-reflector-cluster-id': clusterId}}
+                n['route-reflector'] = {'route-reflector-client': True,
+                                        'route-reflector-cluster-id': clusterId}
 
             if len(info.get('default-policy', [])) + len(info.get('policies', [])) > 0:
-                n['apply-policy'] = {'config': {}}
+                n['apply-policy'] = {}
 
             for typ, p in info.get('policies', {}).iteritems():
-                n['apply-policy']['config']['{0}-policy-list'.format(typ)] = [p['name']]
+                n['apply-policy']['{0}-policy-list'.format(typ)] = [p['name']]
 
             def f(v):
                 if v == 'reject':
@@ -322,7 +314,7 @@ class GoBGPContainer(BGPContainer):
                 raise Exception('invalid default policy type {0}'.format(v))
 
             for typ, d in info.get('default-policy', {}).iteritems():
-                n['apply-policy']['config']['default-{0}-policy'.format(typ)] = f(d)
+                n['apply-policy']['default-{0}-policy'.format(typ)] = f(d)
 
             if 'neighbors' not in config:
                 config['neighbors'] = []
@@ -350,8 +342,8 @@ class GoBGPContainer(BGPContainer):
             config['policy-definitions'] = policy_list
 
         if self.zebra:
-            config['zebra'] = {'config':{'enabled': True,
-                                         'redistribute-route-type-list':['connect']}}
+            config['zebra'] = {'enabled': True,
+                               'redistribute-route-type-list':['connect']}
 
         with open('{0}/gobgpd.conf'.format(self.config_dir), 'w') as f:
             print colors.yellow('[{0}\'s new config]'.format(self.name))

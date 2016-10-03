@@ -298,7 +298,7 @@ func TestTimeTieBreaker(t *testing.T) {
 	assert.Equal(t, true, d.GetBestPath("").GetSource().ID.Equal(net.IP{2, 2, 2, 2})) // path from peer2 win
 
 	// this option disables tie breaking by age
-	SelectionOptions.ExternalCompareRouterId = true
+	SelectionOptions.ExternalCompareRouterID = true
 	d = NewDestination(nlri)
 	d.AddNewPath(path1)
 	d.AddNewPath(path2)

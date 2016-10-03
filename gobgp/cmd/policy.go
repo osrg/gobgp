@@ -431,7 +431,7 @@ func printStatement(indent int, s *api.Statement) {
 
 	rpki := s.Conditions.RpkiResult
 	if rpki > 0 {
-		fmt.Printf("%sRPKI result: %s\n", sIndent(indent+4), config.IntToRpkiValidationResultTypeMap[int(rpki)])
+		fmt.Printf("%sRPKI result: %s\n", sIndent(indent+4), config.IntToRPKIValidationResultTypeMap[int(rpki)])
 	}
 
 	if routeType := s.Conditions.RouteType; routeType > 0 {

@@ -16,28 +16,26 @@ the configuration file used in [Getting Started](https://github.com/osrg/gobgp/b
  * MD5 passwords are enabled.
 
 ```toml
-[global.config]
+[global]
   as = 64512
   router-id = "192.168.255.1"
 
 [[neighbors]]
-  [neighbors.config]
-    neighbor-address = "10.0.255.1"
-    peer-as = 65001
-    auth-password = "hoge1"
-  [neighbors.transport.config]
+  neighbor-address = "10.0.255.1"
+  peer-as = 65001
+  auth-password = "hoge1"
+  [neighbors.transport]
     passive-mode = true
-  [neighbors.route-server.config]
+  [neighbors.route-server]
     route-server-client = true
 
 [[neighbors]]
-  [neighbors.config]
-    neighbor-address = "10.0.255.2"
-    peer-as = 65002
-    auth-password = "hoge2"
-  [neighbors.transport.config]
+  neighbor-address = "10.0.255.2"
+  peer-as = 65002
+  auth-password = "hoge2"
+  [neighbors.transport]
     passive-mode = true
-  [neighbors.route-server.config]
+  [neighbors.route-server]
     route-server-client = true
 ```
 

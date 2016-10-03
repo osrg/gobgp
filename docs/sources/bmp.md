@@ -15,14 +15,13 @@ Assume you finished [Getting Started](https://github.com/osrg/gobgp/blob/master/
 Add `[bmp-servers]` session to enable BMP like below.
 
 ```toml
-[global.config]
+[global]
   as = 64512
   router-id = "192.168.255.1"
 
 [[bmp-servers]]
-  [bmp-servers.config]
-    address = "127.0.0.1"
-    port=11019
+  address = "127.0.0.1"
+  port=11019
 ```
 
 ## <a name="verify"> Verification

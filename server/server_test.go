@@ -30,10 +30,8 @@ func TestModPolicyAssign(t *testing.T) {
 	s := NewBgpServer()
 	go s.Serve()
 	s.Start(&config.Global{
-		Config: config.GlobalConfig{
-			As:       1,
-			RouterId: "1.1.1.1",
-		},
+		AS:       1,
+		RouterID: "1.1.1.1",
 	})
 	err := s.AddPolicy(&table.Policy{Name: "p1"}, false)
 	assert.Nil(err)
@@ -61,21 +59,15 @@ func TestMonitor(test *testing.T) {
 	s := NewBgpServer()
 	go s.Serve()
 	s.Start(&config.Global{
-		Config: config.GlobalConfig{
-			As:       1,
-			RouterId: "1.1.1.1",
-			Port:     10179,
-		},
+		AS:       1,
+		RouterID: "1.1.1.1",
+		Port:     10179,
 	})
 	n := &config.Neighbor{
-		Config: config.NeighborConfig{
-			NeighborAddress: "127.0.0.1",
-			PeerAs:          2,
-		},
+		NeighborAddress: "127.0.0.1",
+		PeerAS:          2,
 		Transport: config.Transport{
-			Config: config.TransportConfig{
-				PassiveMode: true,
-			},
+			PassiveMode: true,
 		},
 	}
 	if err := s.AddNeighbor(n); err != nil {
@@ -84,21 +76,15 @@ func TestMonitor(test *testing.T) {
 	t := NewBgpServer()
 	go t.Serve()
 	t.Start(&config.Global{
-		Config: config.GlobalConfig{
-			As:       2,
-			RouterId: "2.2.2.2",
-			Port:     -1,
-		},
+		AS:       2,
+		RouterID: "2.2.2.2",
+		Port:     -1,
 	})
 	m := &config.Neighbor{
-		Config: config.NeighborConfig{
-			NeighborAddress: "127.0.0.1",
-			PeerAs:          1,
-		},
+		NeighborAddress: "127.0.0.1",
+		PeerAS:          1,
 		Transport: config.Transport{
-			Config: config.TransportConfig{
-				RemotePort: 10179,
-			},
+			RemotePort: 10179,
 		},
 	}
 	if err := t.AddNeighbor(m); err != nil {

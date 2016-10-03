@@ -25,25 +25,22 @@ With the following configuration, gobgpd continuously dumps BGP update
 messages to `/tmp/updates.dump` file in the BGP4MP format.
 
 ```toml
-[global.config]
+[global]
 as = 64512
 router-id = "10.0.255.254"
 
 [[neighbors]]
-  [neighbors.config]
-    peer-as = 65001
-    neighbor-address = "10.0.255.1"
+  peer-as = 65001
+  neighbor-address = "10.0.255.1"
 
 [[mrt-dump]]
-  [mrt-dump.config]
-    dump-type = "updates"
-    file-name = "/tmp/updates.dump"
+  dump-type = "updates"
+  file-name = "/tmp/updates.dump"
 
 [[mrt-dump]]
-  [mrt-dump.config]
-    dump-type = "table"
-    file-name = "/tmp/table.dump"
-    dump-interval = 60
+  dump-type = "table"
+  file-name = "/tmp/table.dump"
+  dump-interval = 60
 ```
 
 Also gobgpd supports log rotation; a new dump file is created
@@ -54,20 +51,18 @@ specified in golang's
 [time](https://golang.org/pkg/time/#pkg-constants) package's format.
 
 ```toml
-[global.config]
+[global]
 as = 64512
 router-id = "10.0.255.254"
 
 [[neighbors]]
-  [neighbors.config]
-    peer-as = 65001
-    neighbor-address = "10.0.255.1"
+  peer-as = 65001
+  neighbor-address = "10.0.255.1"
 
 [[mrt-dump]]
-  [mrt-dump.config]
-    dump-type = "updates"
-    file-name = "/tmp/log/20060102.1504.dump"
-    rotation-interval = 180
+  dump-type = "updates"
+  file-name = "/tmp/log/20060102.1504.dump"
+  rotation-interval = 180
 ```
 
 ## <a name="section1"> Dump the RIB in MRT TABLE_DUMPv2 format
@@ -80,20 +75,18 @@ every 60 seconds.
 
 
 ```toml
-[global.config]
+[global]
 as = 64512
 router-id = "10.0.255.254"
 
 [[neighbors]]
-  [neighbors.config]
-    peer-as = 65001
-    neighbor-address = "10.0.255.1"
+  peer-as = 65001
+  neighbor-address = "10.0.255.1"
 
 [[mrt-dump]]
-  [mrt-dump.config]
-    dump-type = "table"
-    file-name = "/tmp/table.dump"
-    dump-interval = 60
+  dump-type = "table"
+  file-name = "/tmp/table.dump"
+  dump-interval = 60
 ```
 
 With a route server configuration, gobgpd can dump routes in each
@@ -101,41 +94,37 @@ peer's RIB.
 
 
 ```toml
-[global.config]
+[global]
   as = 64512
   router-id = "192.168.255.1"
 
 [[neighbors]]
-  [neighbors.config]
-    neighbor-address = "10.0.255.1"
-    peer-as = 65001
-    auth-password = "hoge1"
-  [neighbors.transport.config]
+  neighbor-address = "10.0.255.1"
+  peer-as = 65001
+  auth-password = "hoge1"
+  [neighbors.transport]
     passive-mode = true
-  [neighbors.route-server.config]
+  [neighbors.route-server]
     route-server-client = true
 
 [[neighbors]]
-  [neighbors.config]
-    neighbor-address = "10.0.255.2"
-    peer-as = 65002
-    auth-password = "hoge2"
-  [neighbors.transport.config]
+  neighbor-address = "10.0.255.2"
+  peer-as = 65002
+  auth-password = "hoge2"
+  [neighbors.transport]
     passive-mode = true
-  [neighbors.route-server.config]
+  [neighbors.route-server]
     route-server-client = true
 
 [[mrt-dump]]
-  [mrt-dump.config]
-    dump-type = "table"
-    file-name = "/tmp/table-1.dump"
-    table-name = "10.0.255.1"
-    dump-interval = 60
+  dump-type = "table"
+  file-name = "/tmp/table-1.dump"
+  table-name = "10.0.255.1"
+  dump-interval = 60
 
 [[mrt-dump]]
-  [mrt-dump.config]
-    dump-type = "table"
-    file-name = "/tmp/table-2.dump"
-    table-name = "10.0.255.2"
-    dump-interval = 60
+  dump-type = "table"
+  file-name = "/tmp/table-2.dump"
+  table-name = "10.0.255.2"
+  dump-interval = 60
 ```
