@@ -9,6 +9,7 @@ script: test/scenario_test/ci-scripts/travis-build-script.sh
 env:
   global:
     - DOCKER_IMAGE=gobgp
+    - FROM_IMAGE=osrg/quagga
 
 matrix:
   allow_failures:
@@ -128,6 +129,12 @@ matrix:
       sudo: required
       services:
         - docker
+    - env:
+        - TEST=zapi_v3_test.py FROM_IMAGE=osrg/quagga:v1.0
+      sudo: required
+      services:
+        - docker
+
 
 cache:
   pip: true
