@@ -94,6 +94,8 @@ const (
 	LINK_TYPE_IEEE802154_PHY
 )
 
+const VRF_DEFAULT = 0
+
 func HeaderSize(version uint8) uint16 {
 	switch version {
 	case 3:
@@ -395,12 +397,13 @@ func (c *Client) Send(m *Message) {
 	c.outgoing <- m
 }
 
-func (c *Client) SendCommand(command API_TYPE, body Body) error {
+func (c *Client) SendCommand(command API_TYPE, vrfId uint16, body Body) error {
 	m := &Message{
 		Header: Header{
 			Len:     HeaderSize(c.Version),
 			Marker:  HEADER_MARKER,
 			Version: c.Version,
+			VrfId:   vrfId,
 			Command: command,
 		},
 		Body: body,
@@ -414,25 +417,25 @@ func (c *Client) SendHello() error {
 		body := &HelloBody{
 			RedistDefault: c.redistDefault,
 		}
-		return c.SendCommand(HELLO, body)
+		return c.SendCommand(HELLO, VRF_DEFAULT, body)
 	}
 	return nil
 }
 
 func (c *Client) SendRouterIDAdd() error {
-	return c.SendCommand(ROUTER_ID_ADD, nil)
+	return c.SendCommand(ROUTER_ID_ADD, VRF_DEFAULT, nil)
 }
 
 func (c *Client) SendInterfaceAdd() error {
-	return c.SendCommand(INTERFACE_ADD, nil)
+	return c.SendCommand(INTERFACE_ADD, VRF_DEFAULT, nil)
 }
 
-func (c *Client) SendRedistribute(t ROUTE_TYPE) error {
+func (c *Client) SendRedistribute(t ROUTE_TYPE, vrfId uint16) error {
 	if c.redistDefault != t {
 		body := &RedistributeBody{
 			Redist: t,
 		}
-		if e := c.SendCommand(REDISTRIBUTE_ADD, body); e != nil {
+		if e := c.SendCommand(REDISTRIBUTE_ADD, vrfId, body); e != nil {
 			return e
 		}
 	}
@@ -446,7 +449,7 @@ func (c *Client) SendRedistributeDelete(t ROUTE_TYPE) error {
 		body := &RedistributeBody{
 			Redist: t,
 		}
-		if e := c.SendCommand(REDISTRIBUTE_DELETE, body); e != nil {
+		if e := c.SendCommand(REDISTRIBUTE_DELETE, VRF_DEFAULT, body); e != nil {
 			return e
 		}
 	} else {
