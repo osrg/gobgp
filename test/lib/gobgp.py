@@ -35,7 +35,8 @@ class GoBGPContainer(BGPContainer):
     QUAGGA_VOLUME = '/etc/quagga'
 
     def __init__(self, name, asn, router_id, ctn_image_name='osrg/gobgp',
-                 log_level='debug', zebra=False, config_format='toml'):
+                 log_level='debug', zebra=False, config_format='toml',
+                 zapi_version=2):
         super(GoBGPContainer, self).__init__(name, asn, router_id,
                                              ctn_image_name)
         self.shared_volumes.append((self.config_dir, self.SHARED_VOLUME))
@@ -46,6 +47,7 @@ class GoBGPContainer(BGPContainer):
         self.bgp_set = None
         self.default_policy = None
         self.zebra = zebra
+        self.zapi_version = zapi_version
         self.config_format = config_format
 
     def _start_gobgp(self, graceful_restart=False):
@@ -64,9 +66,12 @@ class GoBGPContainer(BGPContainer):
         self.local("pkill -INT gobgpd")
 
     def _start_zebra(self):
-        cmd = 'cp {0}/zebra.conf {1}/'.format(self.SHARED_VOLUME, self.QUAGGA_VOLUME)
-        self.local(cmd)
-        cmd = '/usr/lib/quagga/zebra -f {0}/zebra.conf'.format(self.QUAGGA_VOLUME)
+        if self.zapi_version == 2:
+            cmd = 'cp {0}/zebra.conf {1}/'.format(self.SHARED_VOLUME, self.QUAGGA_VOLUME)
+            self.local(cmd)
+            cmd = '/usr/lib/quagga/zebra -f {0}/zebra.conf'.format(self.QUAGGA_VOLUME)
+        else:
+            cmd = 'zebra -u root -g root -f {0}/zebra.conf'.format(self.SHARED_VOLUME)
         self.local(cmd, detach=True)
 
     def run(self):
@@ -351,7 +356,8 @@ class GoBGPContainer(BGPContainer):
 
         if self.zebra:
             config['zebra'] = {'config':{'enabled': True,
-                                         'redistribute-route-type-list':['connect']}}
+                                         'redistribute-route-type-list':['connect'],
+                                         'version': self.zapi_version}}
 
         with open('{0}/gobgpd.conf'.format(self.config_dir), 'w') as f:
             print colors.yellow('[{0}\'s new config]'.format(self.name))
@@ -370,7 +376,7 @@ class GoBGPContainer(BGPContainer):
         c = CmdBuffer()
         c << 'hostname zebra'
         c << 'password zebra'
-        c << 'log file {0}/zebra.log'.format(self.QUAGGA_VOLUME)
+        c << 'log file {0}/zebra.log'.format(self.SHARED_VOLUME)
         c << 'debug zebra packet'
         c << 'debug zebra kernel'
         c << 'debug zebra rib'
