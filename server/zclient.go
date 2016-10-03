@@ -226,7 +226,7 @@ func newZebraClient(s *BgpServer, url string, protos []string, version uint8) (*
 		if err != nil {
 			return nil, err
 		}
-		cli.SendRedistribute(t)
+		cli.SendRedistribute(t, zebra.VRF_DEFAULT)
 	}
 	w := &zebraClient{
 		dead:   make(chan struct{}),
