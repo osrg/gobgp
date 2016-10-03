@@ -211,31 +211,31 @@ func main() {
 				if err := bgpServer.Start(&newConfig.Global); err != nil {
 					log.Fatalf("failed to set global config: %s", err)
 				}
-				if newConfig.Zebra.Config.Enabled {
-					if err := bgpServer.StartZebraClient(&newConfig.Zebra.Config); err != nil {
+				if newConfig.Zebra.Enabled {
+					if err := bgpServer.StartZebraClient(&newConfig.Zebra); err != nil {
 						log.Fatalf("failed to set zebra config: %s", err)
 					}
 				}
-				if len(newConfig.Collector.Config.Url) > 0 {
-					if err := bgpServer.StartCollector(&newConfig.Collector.Config); err != nil {
+				if len(newConfig.Collector.URL) > 0 {
+					if err := bgpServer.StartCollector(&newConfig.Collector); err != nil {
 						log.Fatalf("failed to set collector config: %s", err)
 					}
 				}
-				for _, c := range newConfig.RpkiServers {
-					if err := bgpServer.AddRpki(&c.Config); err != nil {
+				for _, c := range newConfig.RPKIServers {
+					if err := bgpServer.AddRpki(&c); err != nil {
 						log.Fatalf("failed to set rpki config: %s", err)
 					}
 				}
-				for _, c := range newConfig.BmpServers {
-					if err := bgpServer.AddBmp(&c.Config); err != nil {
+				for _, c := range newConfig.BMPServers {
+					if err := bgpServer.AddBmp(&c); err != nil {
 						log.Fatalf("failed to set bmp config: %s", err)
 					}
 				}
-				for _, c := range newConfig.MrtDump {
-					if len(c.Config.FileName) == 0 {
+				for _, c := range newConfig.MRTDump {
+					if len(c.FileName) == 0 {
 						continue
 					}
-					if err := bgpServer.EnableMrt(&c.Config); err != nil {
+					if err := bgpServer.EnableMrt(&c); err != nil {
 						log.Fatalf("failed to set mrt config: %s", err)
 					}
 				}
@@ -247,7 +247,7 @@ func main() {
 				added = newConfig.Neighbors
 				if opts.GracefulRestart {
 					for i, n := range added {
-						if n.GracefulRestart.Config.Enabled {
+						if n.GracefulRestart.Enabled {
 							added[i].GracefulRestart.State.LocalRestarting = true
 						}
 					}
@@ -264,15 +264,15 @@ func main() {
 			}
 
 			for i, p := range added {
-				log.Infof("Peer %v is added", p.Config.NeighborAddress)
+				log.Infof("Peer %v is added", p.NeighborAddress)
 				bgpServer.AddNeighbor(&added[i])
 			}
 			for i, p := range deleted {
-				log.Infof("Peer %v is deleted", p.Config.NeighborAddress)
+				log.Infof("Peer %v is deleted", p.NeighborAddress)
 				bgpServer.DeleteNeighbor(&deleted[i])
 			}
 			for i, p := range updated {
-				log.Infof("Peer %v is updated", p.Config.NeighborAddress)
+				log.Infof("Peer %v is updated", p.NeighborAddress)
 				u, _ := bgpServer.UpdateNeighbor(&updated[i])
 				updatePolicy = updatePolicy || u
 			}

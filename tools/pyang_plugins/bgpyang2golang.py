@@ -14,10 +14,10 @@
 # limitations under the License.
 
 
-import optparse
 import StringIO
 import sys
 from pyang import plugin
+from itertools import chain
 
 _COPYRIGHT_NOTICE = """
 // DO NOT EDIT
@@ -67,7 +67,9 @@ class GolangPlugin(plugin.PyangPlugin):
         ctx.module_deps = []
 
         for m in modules:
-            check_module_deps(ctx, m)
+            check_module_deps(ctx, m, modules)
+
+        ctx.module_deps += modules
 
         # visit yang statements
         visit_modules(ctx)
@@ -98,7 +100,7 @@ def emit_go(ctx):
     generate_common_functions(ctx)
 
     for mod in ctx.module_deps:
-        if mod not in _module_excluded:
+        if mod.arg not in _module_excluded:
             emit_typedef(ctx, mod)
             emit_identity(ctx, mod)
 
@@ -110,17 +112,19 @@ def emit_go(ctx):
         done.add(struct_name)
 
 
-def check_module_deps(ctx, module):
+def check_module_deps(ctx, module, top_modules):
 
     own_prefix = module.i_prefix
     for k, v in module.i_prefixes.items():
         mod = ctx.get_module(v[0])
         if mod.i_prefix != own_prefix:
-            check_module_deps(ctx, mod)
+            check_module_deps(ctx, mod, top_modules)
 
         ctx.prefix_rel[mod.i_prefix] = k
         if mod not in ctx.module_deps \
                 and mod.i_modulename not in _module_excluded:
+            if mod.arg in [m.arg for m in top_modules]:
+                continue
             ctx.module_deps.append(mod)
 
 
@@ -144,10 +148,15 @@ def emit_class_def(ctx, yang_statement, struct_name, prefix):
 
     equal_elems = []
 
-    for child in yang_statement.i_children:
+    config_children = list(chain.from_iterable([c.i_children for c in yang_statement.i_children if c.arg == 'config']))
+    children = config_children + [ c for c in yang_statement.i_children if c.arg != 'config' ]
 
-        if child.path in _path_exclude:
+    for child in children:
+        if getattr(child, 'path', None) and child.path in _path_exclude:
             continue
+
+        if getattr(child, 'uniq_name', None) == None:
+            child.uniq_name = child.arg
 
         container_or_list_name = child.uniq_name
         val_name_go = convert_to_golang(child.arg)
@@ -174,8 +183,7 @@ def emit_class_def(ctx, yang_statement, struct_name, prefix):
                     continue
                 t = dig_leafref(type_obj)
                 if is_translation_required(t):
-                    print >> o, '  //%s:%s\'s original type is %s' \
-                                % (child_prefix, container_or_list_name, t.arg)
+                    print >> o, '  // - original type: {0}'.format(t.arg)
                     emit_type_name = translate_type(t.arg)
                 elif is_identityref(t):
                     emit_type_name = convert_to_golang(t.search_one('base').arg.split(':')[-1])
@@ -188,8 +196,7 @@ def emit_class_def(ctx, yang_statement, struct_name, prefix):
 
             # case translation required
             elif is_translation_required(type_obj):
-                print >> o, '  //%s:%s\'s original type is %s'\
-                            % (child_prefix, container_or_list_name, type_name)
+                print >> o, '  // - original type: {0}'.format(type_name)
                 emit_type_name = translate_type(type_name)
 
             # case other primitives
@@ -217,7 +224,7 @@ def emit_class_def(ctx, yang_statement, struct_name, prefix):
 
             # case leafref
             if type_name == 'leafref':
-                t = type_obj.i_type_spec.i_target_node.search_one('type')
+                t = dig_leafref(type_obj)
                 emit_type_name = '[]'+t.arg
 
             elif type_name == 'identityref':
@@ -225,7 +232,7 @@ def emit_class_def(ctx, yang_statement, struct_name, prefix):
 
             # case translation required
             elif is_translation_required(type_obj):
-                print >> o, '  // original type is list of %s' % (type_obj.arg)
+                print >> o, '  // - original type: list of %s' % (type_obj.arg)
                 emit_type_name = '[]'+translate_type(type_name)
 
             # case other primitives
@@ -249,8 +256,6 @@ def emit_class_def(ctx, yang_statement, struct_name, prefix):
                 equal_type = EQUAL_TYPE_MAP
                 equal_data = l.search_one('key').arg
                 leaf = l.search_one('leaf').search_one('type')
-                if leaf.arg == 'leafref' and leaf.search_one('path').arg.startswith('../config'):
-                    equal_data = 'config.' + equal_data
             else:
                 emit_type_name = t.golang_name
                 equal_type = EQUAL_TYPE_CONTAINER
@@ -367,16 +372,32 @@ def visit_children(ctx, module, children):
             prefix = get_orig_prefix(c.i_orig_module)
 
         c.uniq_name = c.arg
+        c.path = get_path(c)
+
         if c.arg == 'config':
             c.uniq_name = c.parent.uniq_name + '-config'
 
         if c.arg == 'state':
             c.uniq_name = c.parent.uniq_name + '-state'
 
-        if c.arg == 'graceful-restart' and prefix == 'bgp-mp':
-             c.uniq_name = 'mp-graceful-restart'
-
-        t = c.search_one('type')
+        if c.arg == 'graceful-restart' and c.parent.arg == 'afi-safi':
+            #
+            # we have two kind of 'graceful-restart' container under oc-bgp module.
+            #
+            # 1. container for configuring general gr feature
+            #  - /oc-bgp:bgp/oc-bgp:global/oc-bgp:graceful-restart
+            #  - /oc-bgp:bgp/oc-bgp:neighbors/oc-bgp:neighbor/oc-bgp:graceful-restart
+            #  - /oc-bgp:bgp/oc-bgp:peer-groups/oc-bgp:peer-group/oc-bgp:graceful-restart
+            #
+            # 2. container for configuring per afi-safi gr feature
+            #  - /oc-bgp:bgp/oc-bgp:global/oc-bgp:afi-safis/oc-bgp:afi-safi/oc-bgp:graceful-restart
+            #  - /oc-bgp:bgp/oc-bgp:neighbors/oc-bgp:neighbor/oc-bgp:afi-safis/oc-bgp:afi-safi/oc-bgp:graceful-restart
+            #  - /oc-bgp:bgp/oc-bgp:peer-groups/oc-bgp:peer-group/oc-bgp:afi-safis/oc-bgp:afi-safi/oc-bgp:graceful-restart
+            #
+            # since two has totally different fields, we have to name them differently.
+            # use name 'mp-graceful-restart' for the container for per afi-safi configuration
+            #
+            c.uniq_name = 'mp-graceful-restart'
 
         # define container embeded enums
         if is_leaf(c) and c.search_one('type').arg == 'enumeration':
@@ -399,18 +420,45 @@ def visit_children(ctx, module, children):
                 ext_c = ctx.golang_struct_names.get(prefix+':'+c.uniq_name)
                 ext_c_child_count = len(getattr(ext_c, "i_children"))
                 current_c_child_count = len(getattr(c, "i_children"))
+                #
+                # container with same name could have difference fields
+                # (mostly by using yang 'augment').
+                # handle the diffrence here (use the definition who has
+                # more fields than others)
+                #
+                # e.g) apply-policy-config
+                #
+                # * /oc-bgp:bgp/oc-bgp:global/oc-bgp:apply-policy/oc-bgp:config
+                #  - 'import-policy'
+                #  - 'default-import-policy'
+                #  - 'export-policy'
+                #  - 'default-export-policy'
+                #  - 'in-policy'
+                #  - 'default-in-policy'
+                #
+                # * /oc-bgp:bgp/oc-bgp:global/oc-bgp:afi-safis/oc-bgp:afi-safi/oc-bgp:apply-policy/oc-bgp:config
+                #  - 'import-policy'
+                #  - 'default-import-policy'
+                #  - 'export-policy'
+                #  - 'default-export-policy'
+                #
                 if ext_c_child_count < current_c_child_count:
                     c.module_prefix = prefix
                     ctx.golang_struct_names[prefix+':'+c.uniq_name] = c
+                    if c.arg == 'config':
+                        for idx, n in enumerate(ext_c.parent.i_children):
+                            if n.arg == 'config':
+                                ext_c.parent.i_children[idx] =c
+                        continue
                     idx = ctx.golang_struct_def.index(ext_c)
                     ctx.golang_struct_def[idx] = c
             else:
                 c.module_prefix = prefix
                 ctx.golang_struct_names[prefix+':'+c.uniq_name] = c
+                if c.arg == 'config':
+                    continue
                 ctx.golang_struct_def.append(c)
 
-        c.path = get_path(c)
-        # print(c.path)
         if hasattr(c, 'i_children'):
             visit_children(ctx, module, c.i_children)
 
@@ -497,6 +545,9 @@ def emit_enum(prefix, name, stmt, substmts):
         type_name = stmt.golang_name
         o = StringIO.StringIO()
 
+        def enum_string(d):
+            return d.lower().replace('_', '-')
+
         print >> o, '// typedef for identity %s:%s' % (prefix, type_name_org)
         print >> o, 'type %s string' % (type_name)
 
@@ -505,8 +556,8 @@ def emit_enum(prefix, name, stmt, substmts):
         m = {}
         for sub in substmts:
             enum_name = '%s_%s' % (const_prefix, convert_const_prefix(sub.arg))
-            m[sub.arg.lower()] = enum_name
-            print >> o, ' %s %s = "%s"' % (enum_name, type_name, sub.arg.lower())
+            m[enum_string(sub.arg)] = enum_name
+            print >> o, ' %s %s = "%s"' % (enum_name, type_name, enum_string(sub.arg))
         print >> o, ')\n'
 
         print >> o, 'var %sToIntMap = map[%s]int {' % (type_name, type_name)
@@ -585,6 +636,9 @@ def emit_typedef(ctx, module):
             print >> o, '// typedef for typedef %s:%s'\
                         % (prefix, type_name_org)
             print >> o, 'type %s string' % (type_name)
+        elif t.arg == 'leafref':
+            print >> o, '// typedef for leafref %s:%s' % (prefix, type_name_org)
+            print >> o, 'type %s string' % (type_name)
         else:
             print >> o, '// typedef for typedef %s:%s'\
                         % (prefix, type_name_org)
@@ -656,6 +710,7 @@ _type_translation_map = {
     'boolean': 'bool',
     'empty': 'bool',
     'inet:ip-address': 'string',
+    'inet:ip-address-no-zone': 'string',
     'inet:ip-prefix': 'string',
     'inet:ipv4-address': 'string',
     'inet:as-number': 'uint32',
@@ -663,6 +718,10 @@ _type_translation_map = {
     'inet:port-number': 'uint16',
     'yang:timeticks': 'int64',
     'ptypes:install-protocol-type': 'string',
+    'yang:counter32': 'uint32',
+    'yang:counter64': 'uint64',
+    'yang:date-and-time': 'string',
+    'yang:dotted-quad': 'string',
     'binary': '[]byte',
 }
 
@@ -682,6 +741,8 @@ _type_builtin = ["union",
 
 _module_excluded = ["ietf-inet-types",
                     "ietf-yang-types",
+                    "ietf-interfaces",
+                    "openconfig-interfaces",
                     ]
 
 _path_exclude = ["/rpol:routing-policy/rpol:defined-sets/rpol:neighbor-sets/rpol:neighbor-set/rpol:neighbor",
@@ -717,12 +778,19 @@ def translate_type(key):
     else:
         return key
 
+_abbrs = ['bgp', 'ip', 'med', 'rr', 'as', 'rpki', 'bmp', 'mrt', 'igp', 'url', 'db', 'ttl', 'ebgp', 'ibgp', 'tcp', 'mss', 'mtu', 'rib', 'mp', 'aigp', 'id', 'mpls']
 
 # 'hoge-hoge' -> 'HogeHoge'
 def convert_to_golang(type_string):
+    type_string = type_string.replace('_', '-')
     a = type_string.split('.')
-    a = map(lambda x: x.capitalize(), a)  # XXX locale sensitive
-    return '.'.join( ''.join(t.capitalize() for t in x.split('-')) for x in a)
+    def f(t):
+        if t.lower() in _abbrs:
+            return t.upper()
+        else:
+            return t.capitalize()
+    a = map(lambda x: f(x), a)  # XXX locale sensitive
+    return '.'.join( ''.join(f(t) for t in x.split('-')) for x in a)
 
 
 # 'hoge-hoge' -> 'HOGE_HOGE'

@@ -93,7 +93,7 @@ class GoBGPTestBase(unittest.TestCase):
 
         num = g2.get_neighbor(g1)['info']['messages']['received']['UPDATE']
 
-        ps0 = {'prefix-set-name': 'ps0', 'prefix-list': [p1]}
+        ps0 = {'prefix-set-name': 'ps0', 'prefixes': [p1]}
         g1.set_prefix_set(ps0)
         g1.create_config()
         # this will cause g1 to do softresetin for all neighbors (policy is changed)

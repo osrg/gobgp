@@ -21,9 +21,9 @@ import (
 )
 
 func IsConfederationMember(g *Global, p *Neighbor) bool {
-	if p.Config.PeerAs != g.Config.As {
-		for _, member := range g.Confederation.Config.MemberAsList {
-			if member == p.Config.PeerAs {
+	if p.PeerAS != g.AS {
+		for _, member := range g.Confederation.MemberASList {
+			if member == p.PeerAS {
 				return true
 			}
 		}
@@ -32,7 +32,7 @@ func IsConfederationMember(g *Global, p *Neighbor) bool {
 }
 
 func IsEBGPPeer(g *Global, p *Neighbor) bool {
-	return p.Config.PeerAs != g.Config.As
+	return p.PeerAS != g.AS
 }
 
 type AfiSafis []AfiSafi
@@ -40,9 +40,9 @@ type AfiSafis []AfiSafi
 func (c AfiSafis) ToRfList() ([]bgp.RouteFamily, error) {
 	rfs := make([]bgp.RouteFamily, 0, len(c))
 	for _, rf := range c {
-		k, err := bgp.GetRouteFamily(string(rf.Config.AfiSafiName))
+		k, err := bgp.GetRouteFamily(string(rf.AfiSafiName))
 		if err != nil {
-			return nil, fmt.Errorf("invalid address family: %s", rf.Config.AfiSafiName)
+			return nil, fmt.Errorf("invalid address family: %s", rf.AfiSafiName)
 		}
 		rfs = append(rfs, k)
 	}
@@ -60,7 +60,7 @@ func CreateRfMap(p *Neighbor) map[bgp.RouteFamily]bool {
 
 func GetAfiSafi(p *Neighbor, family bgp.RouteFamily) *AfiSafi {
 	for _, a := range p.AfiSafis {
-		if string(a.Config.AfiSafiName) == family.String() {
+		if string(a.AfiSafiName) == family.String() {
 			return &a
 		}
 	}
@@ -73,10 +73,10 @@ func CheckAfiSafisChange(x, y []AfiSafi) bool {
 	}
 	m := make(map[string]bool)
 	for _, e := range x {
-		m[string(e.Config.AfiSafiName)] = true
+		m[string(e.AfiSafiName)] = true
 	}
 	for _, e := range y {
-		if !m[string(e.Config.AfiSafiName)] {
+		if !m[string(e.AfiSafiName)] {
 			return true
 		}
 	}

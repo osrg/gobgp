@@ -23,11 +23,11 @@ import (
 func TestEqual(t *testing.T) {
 	assert := assert.New(t)
 	p1 := Prefix{
-		IpPrefix:        "192.168.0.0",
+		IPPrefix:        "192.168.0.0",
 		MasklengthRange: "24..32",
 	}
 	p2 := Prefix{
-		IpPrefix:        "192.168.0.0",
+		IPPrefix:        "192.168.0.0",
 		MasklengthRange: "24..32",
 	}
 	assert.True(p1.Equal(&p2))
@@ -35,19 +35,19 @@ func TestEqual(t *testing.T) {
 	var p3 *Prefix
 	assert.False(p3.Equal(&p1))
 	p3 = &Prefix{
-		IpPrefix:        "192.168.0.0",
+		IPPrefix:        "192.168.0.0",
 		MasklengthRange: "24..32",
 	}
 	assert.True(p3.Equal(&p1))
-	p3.IpPrefix = "10.10.0.0"
+	p3.IPPrefix = "10.10.0.0"
 	assert.False(p3.Equal(&p1))
 	ps1 := PrefixSet{
 		PrefixSetName: "ps",
-		PrefixList:    []Prefix{p1, p2},
+		Prefixes:      []Prefix{p1, p2},
 	}
 	ps2 := PrefixSet{
 		PrefixSetName: "ps",
-		PrefixList:    []Prefix{p2, p1},
+		Prefixes:      []Prefix{p2, p1},
 	}
 	assert.True(ps1.Equal(&ps2))
 	ps2.PrefixSetName = "ps2"

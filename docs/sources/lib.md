@@ -33,11 +33,9 @@ func main() {
 
 	// global configuration
 	global := &config.Global{
-		Config: config.GlobalConfig{
-			As:       65000,
-			RouterId: "10.0.255.254",
-			Port:     -1, // gobgp won't listen on tcp:179
-		},
+		AS:       65000,
+		RouterID: "10.0.255.254",
+		Port:     -1, // gobgp won't listen on tcp:179
 	}
 
 	if err := s.Start(global); err != nil {
@@ -46,10 +44,8 @@ func main() {
 
 	// neighbor configuration
 	n := &config.Neighbor{
-		Config: config.NeighborConfig{
-			NeighborAddress: "10.0.255.1",
-			PeerAs:          65001,
-		},
+		NeighborAddress: "10.0.255.1",
+		PeerAS:          65001,
 	}
 
 	if err := s.AddNeighbor(n); err != nil {

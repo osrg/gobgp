@@ -12,9 +12,9 @@ type BgpConfigSet struct {
 	Global            Global             `mapstructure:"global"`
 	Neighbors         []Neighbor         `mapstructure:"neighbors"`
 	PeerGroups        []PeerGroup        `mapstructure:"peer-groups"`
-	RpkiServers       []RpkiServer       `mapstructure:"rpki-servers"`
-	BmpServers        []BmpServer        `mapstructure:"bmp-servers"`
-	MrtDump           []Mrt              `mapstructure:"mrt-dump"`
+	RPKIServers       []RPKIServer       `mapstructure:"rpki-servers"`
+	BMPServers        []BMPServer        `mapstructure:"bmp-servers"`
+	MRTDump           []MRT              `mapstructure:"mrt-dump"`
 	Zebra             Zebra              `mapstructure:"zebra"`
 	Collector         Collector          `mapstructure:"collector"`
 	DefinedSets       DefinedSets        `mapstructure:"defined-sets"`
@@ -73,7 +73,7 @@ func ReadConfigfileServe(path, format string, configCh chan *BgpConfigSet) {
 
 func inSlice(n Neighbor, b []Neighbor) int {
 	for i, nb := range b {
-		if nb.Config.NeighborAddress == n.Config.NeighborAddress {
+		if nb.NeighborAddress == n.NeighborAddress {
 			return i
 		}
 	}

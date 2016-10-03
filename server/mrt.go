@@ -41,7 +41,7 @@ type mrtWriter struct {
 	file             *os.File
 	rotationInterval uint64
 	dumpInterval     uint64
-	dumpType         config.MrtType
+	dumpType         config.MRTType
 }
 
 func (m *mrtWriter) Stop() {
@@ -109,7 +109,7 @@ func (m *mrtWriter) loop() error {
 				t := uint32(time.Now().Unix())
 				peers := make([]*mrt.Peer, 0, len(m.Neighbor))
 				for _, pconf := range m.Neighbor {
-					peers = append(peers, mrt.NewPeer(pconf.State.RemoteRouterId, pconf.Config.NeighborAddress, pconf.Config.PeerAs, true))
+					peers = append(peers, mrt.NewPeer(pconf.State.RemoteRouterID, pconf.NeighborAddress, pconf.PeerAS, true))
 				}
 				if bm, err := mrt.NewMRTMessage(t, mrt.TABLE_DUMPv2, mrt.PEER_INDEX_TABLE, mrt.NewPeerIndexTable(m.RouterId, "", peers)); err != nil {
 					break
@@ -119,7 +119,7 @@ func (m *mrtWriter) loop() error {
 
 				idx := func(p *table.Path) uint16 {
 					for i, pconf := range m.Neighbor {
-						if p.GetSource().Address.String() == pconf.Config.NeighborAddress {
+						if p.GetSource().Address.String() == pconf.NeighborAddress {
 							return uint16(i)
 						}
 					}
@@ -278,7 +278,7 @@ func mrtFileOpen(filename string, interval uint64) (*os.File, error) {
 	return file, err
 }
 
-func newMrtWriter(s *BgpServer, dumpType config.MrtType, filename, tablename string, rInterval, dInterval uint64) (*mrtWriter, error) {
+func newMrtWriter(s *BgpServer, dumpType config.MRTType, filename, tablename string, rInterval, dInterval uint64) (*mrtWriter, error) {
 	file, err := mrtFileOpen(filename, rInterval)
 	if err != nil {
 		return nil, err
@@ -301,7 +301,7 @@ type mrtManager struct {
 	writer    map[string]*mrtWriter
 }
 
-func (m *mrtManager) enable(c *config.MrtConfig) error {
+func (m *mrtManager) enable(c *config.MRT) error {
 	if _, ok := m.writer[c.FileName]; ok {
 		return fmt.Errorf("%s already exists", c.FileName)
 	}
@@ -347,7 +347,7 @@ func (m *mrtManager) enable(c *config.MrtConfig) error {
 	return err
 }
 
-func (m *mrtManager) disable(c *config.MrtConfig) error {
+func (m *mrtManager) disable(c *config.MRT) error {
 	if w, ok := m.writer[c.FileName]; !ok {
 		return fmt.Errorf("%s doesn't exists", c.FileName)
 	} else {

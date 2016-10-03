@@ -38,19 +38,17 @@ Default configuration format of GoBGP is [toml](https://github.com/toml-lang/tom
 If you don't like `toml`, you can use `json`, `yaml` and `hcl` instead.
 
 ```toml
-[global.config]
+[global]
   as = 64512
   router-id = "192.168.255.1"
 
 [[neighbors]]
-  [neighbors.config]
-    neighbor-address = "10.0.255.1"
-    peer-as = 65001
+  neighbor-address = "10.0.255.1"
+  peer-as = 65001
 
 [[neighbors]]
-  [neighbors.config]
-    neighbor-address = "10.0.255.2"
-    peer-as = 65002
+  neighbor-address = "10.0.255.2"
+  peer-as = 65002
 ```
 
 see [here](https://github.com/osrg/gobgp/blob/master/docs/sources/configuration.md) for
@@ -73,16 +71,13 @@ equivalent yaml configuration.
 
 ```yaml
 global:
-    config:
-        as: 64512
-        router-id: 192.168.255.1
+    as: 64512
+    router-id: 192.168.255.1
 neighbors:
-    - config:
-        neighbor-address: 10.0.255.1
-        peer-as: 65001
-    - config:
-        neighbor-address: 10.0.255.2
-        peer-as: 65002
+    - neighbor-address: 10.0.255.1
+      peer-as: 65001
+    - neighbor-address: 10.0.255.2
+      peer-as: 65002
 ```
 
 ```bash

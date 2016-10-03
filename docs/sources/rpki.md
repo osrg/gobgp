@@ -22,28 +22,25 @@ file. We use the following file. Note that this is for route server
 setup but RPKI can be used with non route server setup.
 
 ```toml
-[global.config]
+[global]
 as = 64512
 router-id = "10.0.255.254"
 
 [[neighbors]]
-  [neighbors.config]
-    peer-as = 65001
-    neighbor-address = "10.0.255.1"
-  [neighbors.route-server.config]
+  peer-as = 65001
+  neighbor-address = "10.0.255.1"
+  [neighbors.route-server]
     route-server-client = true
 
 [[neighbors]]
-  [neighbors.config]
-    peer-as = 65002
-    neighbor-address = "10.0.255.2"
-  [neighbors.route-server.config]
+  peer-as = 65002
+  neighbor-address = "10.0.255.2"
+  [neighbors.route-server]
     route-server-client = true
 
 [[rpki-servers]]
-  [rpki-servers.config]
-    address = "210.173.170.254"
-    port = 323
+  address = "210.173.170.254"
+  port = 323
 ```
 
 ## <a name="section1"> Validation
@@ -122,31 +119,28 @@ $ gobgp neighbor 10.0.255.2 local
 We add a policy to the above configuration.
 
 ```toml
-[global.config]
+[global]
 as = 64512
 router-id = "10.0.255.254"
 
 [[neighbors]]
-  [neighbors.config]
-    peer-as = 65001
-    neighbor-address = "10.0.255.1"
-  [neighbors.route-server.config]
+  peer-as = 65001
+  neighbor-address = "10.0.255.1"
+  [neighbors.route-server]
     route-server-client = true
 
 [[neighbors]]
-  [neighbors.config]
-    peer-as = 65002
-    neighbor-address = "10.0.255.2"
-  [neighbors.route-server.config]
+  peer-as = 65002
+  neighbor-address = "10.0.255.2"
+  [neighbors.route-server]
     route-server-client = true
-  [neighbors.apply-policy-config]
+  [neighbors.apply-policy]
     import-policy-list = ["AS65002-IMPORT-RPKI"]
 
 
 [[rpki-servers]]
-  [rpki-servers.config]
-    address = "210.173.170.254"
-    port = 323
+  address = "210.173.170.254"
+  port = 323
 
 [[policy-definitions]]
   name = "AS65002-IMPORT-RPKI"

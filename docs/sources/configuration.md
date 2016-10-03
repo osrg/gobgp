@@ -1,7 +1,7 @@
 # Configuration example
 
 ```toml
-[global.config]
+[global]
     as = 1
     router-id = "1.1.1.1"
     # listen port (by default 179)
@@ -12,7 +12,7 @@
     # listen address list (by default "0.0.0.0" and "::")
     local-address-list = ["192.168.10.1", "2001:db8::1"]
 
-    [global.apply-policy.config]
+    [global.apply-policy]
         import-policy-list = ["policy1"]
         default-import-policy = "reject-route"
         export-policy-list = ["policy2"]
@@ -22,14 +22,12 @@
         max-label = 2000
 
 [[rpki-servers]]
-    [rpki-servers.config]
-        address = "210.173.170.254"
-        port = 323
+    address = "210.173.170.254"
+    port = 323
 
 [[bmp-servers]]
-    [bmp-servers.config]
-        address = "127.0.0.1"
-        port = 11019
+    address = "127.0.0.1"
+    port = 11019
 
 [[mrt-dump]]
     dump-type = "updates"
@@ -37,79 +35,66 @@
     interval = 180
 
 [zebra]
-    [zebra.config]
-        enabled = true
-        url = "unix:/var/run/quagga/zserv.api"
-        redistribute-route-type-list = ["connect"]
+    enabled = true
+    url = "unix:/var/run/quagga/zserv.api"
+    redistribute-route-type-list = ["connect"]
 
 [[neighbors]]
-    [neighbors.config]
-        peer-as = 2
-        auth-password = "password"
-        neighbor-address = "192.168.10.2"
-        # override global.config.as value
-        local-as = 1000
-    [neighbors.timers.config]
+    peer-as = 2
+    auth-password = "password"
+    neighbor-address = "192.168.10.2"
+    # override global.config.as value
+    local-as = 1000
+    [neighbors.timers]
         connect-retry = 5
         hold-time = 9
         keepalive-interval = 3
-    [neighbors.transport.config]
+    [neighbors.transport]
         passive-mode = true
         local-address = "192.168.10.1"
         remote-port = 2016
-    [neighbors.ebgp-multihop.config]
+    [neighbors.ebgp-multihop]
         enabled = true
         multihop-ttl = 100
-    [neighbors.route-reflector.config]
+    [neighbors.route-reflector]
         route-reflector-client = true
         route-reflector-cluster-id = "192.168.0.1"
     [[neighbors.afi-safis]]
-        [neighbors.afi-safis.config]
+        [neighbors.afi-safis]
         afi-safi-name = "ipv4-unicast"
-        [neighbors.afi-safis.prefix-limit.config]
+        [neighbors.afi-safis.prefix-limit]
            max-prefixes = 1000
            shutdown-threshold-pct = 80
     [[neighbors.afi-safis]]
-        [neighbors.afi-safis.config]
         afi-safi-name = "ipv6-unicast"
     [[neighbors.afi-safis]]
-        [neighbors.afi-safis.config]
-        afi-safi-name = "ipv4-labelled-unicast"
+        afi-safi-name = "ipv4-labeled-unicast"
     [[neighbors.afi-safis]]
-        [neighbors.afi-safis.config]
-        afi-safi-name = "ipv6-labelled-unicast"
+        afi-safi-name = "ipv6-labeled-unicast"
     [[neighbors.afi-safis]]
-        [neighbors.afi-safis.config]
         afi-safi-name = "l3vpn-ipv4-unicast"
     [[neighbors.afi-safis]]
-        [neighbors.afi-safis.config]
         afi-safi-name = "l3vpn-ipv6-unicast"
     [[neighbors.afi-safis]]
-        [neighbors.afi-safis.config]
         afi-safi-name = "l2vpn-evpn"
     [[neighbors.afi-safis]]
-        [neighbors.afi-safis.config]
         afi-safi-name = "rtc"
     [[neighbors.afi-safis]]
-        [neighbors.afi-safis.config]
         afi-safi-name = "ipv4-encap"
     [[neighbors.afi-safis]]
-        [neighbors.afi-safis.config]
         afi-safi-name = "ipv6-encap"
     [[neighbors.afi-safis]]
-        [neighbors.afi-safis.config]
         afi-safi-name = "ipv4-flowspec"
     [[neighbors.afi-safis]]
-        [neighbors.afi-safis.config]
         afi-safi-name = "ipv6-flowspec"
-    [neighbors.apply-policy.config]
+    [neighbors.apply-policy]
         import-policy-list = ["policy1"]
         default-import-policy = "reject-route"
         export-policy-list = ["policy2"]
         default-export-policy = "accept-route"
         in-policy-list = ["policy3"]
         default-in-policy = "reject-route"
-    [neighbors.route-server.config]
+    [neighbors.route-server]
         route-server-client = true
 
 [[defined-sets.prefix-sets]]

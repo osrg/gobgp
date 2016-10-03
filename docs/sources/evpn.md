@@ -26,24 +26,20 @@ perspective of BGP but this example just shows two OSS BGP
 implementations can interchange EVPN messages.
 
 ```toml
-[global.config]
+[global]
   as = 64512
   router-id = "192.168.255.1"
 
 [[neighbors]]
-[neighbors.config]
   neighbor-address = "10.0.255.1"
   peer-as = 64512
 [[neighbors.afi-safis]]
-  [neighbors.afi-safis.config]
   afi-safi-name = "l2vpn-evpn"
 
 [[neighbors]]
-[neighbors.config]
   neighbor-address = "10.0.255.2"
   peer-as = 64512
 [[neighbors.afi-safis]]
-  [neighbors.afi-safis.config]
   afi-safi-name = "l2vpn-evpn"
 ```
 
@@ -124,33 +120,29 @@ routes from one YABGP peer and advertises it to another YABGP peer.
 Gobgp configuration:
 
 ```toml
-[global.config]
+[global]
 as = 100
 router-id = "192.168.1.2"
 local-address-list = ["10.79.45.72"]
 
 [[neighbors]]
-[neighbors.config]
 neighbor-address = "10.75.44.10"
 peer-as = 300
 [[neighbors.afi-safis]]
-[neighbors.afi-safis.config]
 afi-safi-name = "l2vpn-evpn"
-[neighbors.transport.config]
+[neighbors.transport]
 local-address = "10.79.45.72"
-[neighbors.ebgp-multihop.config]
+[neighbors.ebgp-multihop]
 enabled = true
 
 [[neighbors]]
-[neighbors.config]
 neighbor-address = "10.75.44.11"
 peer-as = 200
 [[neighbors.afi-safis]]
-[neighbors.afi-safis.config]
 afi-safi-name = "l2vpn-evpn"
-[neighbors.transport.config]
+[neighbors.transport]
 local-address = "10.79.45.72"
-[neighbors.ebgp-multihop.config]
+[neighbors.ebgp-multihop]
 enabled = true
 ```
 

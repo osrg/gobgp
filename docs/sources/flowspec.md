@@ -19,22 +19,18 @@ To advertise flowspec routes, enumerate `ipv4-flowspec` to neighbor's
 afi-safis like below.
 
 ```toml
-[global.config]
+[global]
   as = 64512
   router-id = "192.168.255.1"
 
 [[neighbors]]
-[neighbors.config]
   neighbor-address = "10.0.255.1"
   peer-as = 64512
 [[neighbors.afi-safis]]
-  [neighbors.afi-safis.config]
   afi-safi-name = "ipv4-flowspec"
 [[neighbors.afi-safis]]
-  [neighbors.afi-safis.config]
   afi-safi-name = "ipv6-flowspec"
 [[neighbors.afi-safis]]
-  [neighbors.afi-safis.config]
   afi-safi-name = "l2vpn-flowspec"
 ```
 

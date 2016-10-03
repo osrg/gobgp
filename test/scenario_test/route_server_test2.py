@@ -39,7 +39,8 @@ class GoBGPTestBase(unittest.TestCase):
                             ctn_image_name=gobgp_ctn_image_name,
                             log_level=parser_option.gobgp_log_level)
 
-        g2 = GoBGPContainer(name='g2', asn=65001, router_id='192.168.0.2')
+        g2 = GoBGPContainer(name='g2', asn=65001, router_id='192.168.0.2',
+                            ctn_image_name=gobgp_ctn_image_name)
         e1 = ExaBGPContainer(name='e1', asn=65002, router_id='192.168.0.3')
         ctns = [g1, g2, e1]
 
