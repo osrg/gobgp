@@ -621,10 +621,11 @@ func (c *CapLongLivedGracefulRestart) DecodeFromBytes(data []byte) error {
 	c.DefaultParameterCapability.DecodeFromBytes(data)
 	data = data[2:]
 
-	if len(data)%7 != 0 {
+	valueLen := int(c.CapLen)
+	if valueLen%7 != 0 || len(data) < valueLen {
 		return NewMessageError(BGP_ERROR_OPEN_MESSAGE_ERROR, BGP_ERROR_SUB_UNSUPPORTED_CAPABILITY, nil, "invalid length of long lived graceful restart capablity")
 	}
-	for len(data) > 0 {
+	for i := valueLen; i >= 7; i -= 7 {
 		t := &CapLongLivedGracefulRestartTuple{
 			binary.BigEndian.Uint16(data),
 			data[2],
