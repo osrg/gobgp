@@ -57,6 +57,9 @@ func ReadConfigfileServeExtensive(path, format string, configCh chan *BgpConfigS
 		}
 		cnt++
 		configCh <- c
+		if viperCh != nil {
+			viperCh <- v
+		}
 		goto NEXT
 	ERROR:
 		if cnt == 0 {
