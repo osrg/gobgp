@@ -41,14 +41,17 @@ type Server struct {
 }
 
 func NewGrpcServer(b *server.BgpServer, hosts string) *Server {
+	return NewServer(b, grpc.NewServer(), hosts)
+}
+
+func NewServer(b *server.BgpServer, g *grpc.Server, hosts string) *Server {
 	grpc.EnableTracing = false
-	grpcServer := grpc.NewServer()
 	server := &Server{
 		bgpServer:  b,
-		grpcServer: grpcServer,
+		grpcServer: g,
 		hosts:      hosts,
 	}
-	RegisterGobgpApiServer(grpcServer, server)
+	RegisterGobgpApiServer(g, server)
 	return server
 }
 
