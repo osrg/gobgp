@@ -415,7 +415,7 @@ func (server *BgpServer) notifyBestWatcher(best map[string][]*table.Path, multip
 		switch p.GetRouteFamily() {
 		case bgp.RF_IPv4_VPN, bgp.RF_IPv6_VPN:
 			for _, vrf := range server.globalRib.Vrfs {
-				if table.CanImportToVrf(vrf, p) {
+				if vrf.Id != 0 && table.CanImportToVrf(vrf, p) {
 					p.VrfIds = append(p.VrfIds, uint16(vrf.Id))
 				}
 			}
