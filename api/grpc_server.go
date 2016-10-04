@@ -718,6 +718,7 @@ func (s *Server) GetVrf(ctx context.Context, arg *GetVrfRequest) (*GetVrfRespons
 		return &Vrf{
 			Name:     v.Name,
 			Rd:       rd,
+			Id:       v.Id,
 			ImportRt: f(v.ImportRt),
 			ExportRt: f(v.ExportRt),
 		}

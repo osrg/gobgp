@@ -23,6 +23,7 @@ import (
 	"github.com/spf13/cobra"
 	"golang.org/x/net/context"
 	"sort"
+	"strconv"
 	"strings"
 )
 
@@ -36,7 +37,7 @@ func getVrfs() (vrfs, error) {
 }
 
 func showVrfs() error {
-	maxLens := []int{20, 20, 20, 20}
+	maxLens := []int{20, 20, 20, 20, 5}
 	vrfs, err := getVrfs()
 	if err != nil {
 		return err
@@ -71,7 +72,7 @@ func showVrfs() error {
 
 		importRts, _ := f(v.ImportRt)
 		exportRts, _ := f(v.ExportRt)
-		lines = append(lines, []string{name, rd, importRts, exportRts})
+		lines = append(lines, []string{name, rd, importRts, exportRts, fmt.Sprintf("%d", v.Id)})
 
 		for i, v := range []int{len(name), len(rd), len(importRts), len(exportRts)} {
 			if v > maxLens[i] {
@@ -80,10 +81,10 @@ func showVrfs() error {
 		}
 
 	}
-	format := fmt.Sprintf("  %%-%ds %%-%ds %%-%ds %%-%ds\n", maxLens[0], maxLens[1], maxLens[2], maxLens[3])
-	fmt.Printf(format, "Name", "RD", "Import RT", "Export RT")
+	format := fmt.Sprintf("  %%-%ds %%-%ds %%-%ds %%-%ds %%-%ds\n", maxLens[0], maxLens[1], maxLens[2], maxLens[3], maxLens[4])
+	fmt.Printf(format, "Name", "RD", "Import RT", "Export RT", "ID")
 	for _, l := range lines {
-		fmt.Printf(format, l[0], l[1], l[2], l[3])
+		fmt.Printf(format, l[0], l[1], l[2], l[3], l[4])
 	}
 	return nil
 }
@@ -96,18 +97,19 @@ func modVrf(typ string, args []string) error {
 	var err error
 	switch typ {
 	case CMD_ADD:
-		if len(args) < 6 || args[1] != "rd" || args[3] != "rt" {
-			return fmt.Errorf("Usage: gobgp vrf add <vrf name> rd <rd> rt { import | export | both } <rt>...")
+		a := extractReserved(args, []string{"rd", "rt", "id"})
+		if len(a[""]) != 1 || len(a["rd"]) != 1 || len(a["rt"]) < 2 || len(a["id"]) > 1 {
+			return fmt.Errorf("Usage: gobgp vrf add <vrf name> id <id> rd <rd> rt { import | export | both } <rt>...")
 		}
-		name := args[0]
-		rd, err := bgp.ParseRouteDistinguisher(args[2])
+		name := a[""][0]
+		rd, err := bgp.ParseRouteDistinguisher(a["rd"][0])
 		if err != nil {
 			return err
 		}
 		cur := ""
 		importRt := make([][]byte, 0)
 		exportRt := make([][]byte, 0)
-		for _, elem := range args[4:] {
+		for _, elem := range a["rt"] {
 			if elem == "import" || elem == "export" || elem == "both" {
 				cur = elem
 				continue
@@ -132,11 +134,19 @@ func modVrf(typ string, args []string) error {
 				return fmt.Errorf("Usage: gobgp vrf add <vrf name> rd <rd> rt { import | export | both } <rt>...")
 			}
 		}
+		vrfId := 0
+		if len(a["id"]) > 0 {
+			vrfId, err = strconv.Atoi(a["id"][0])
+			if err != nil {
+				return err
+			}
+		}
 		buf, _ := rd.Serialize()
 		arg := &api.AddVrfRequest{
 			Vrf: &api.Vrf{
 				Name:     name,
 				Rd:       buf,
+				Id:       uint32(vrfId),
 				ImportRt: importRt,
 				ExportRt: exportRt,
 			},
