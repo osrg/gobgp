@@ -248,7 +248,7 @@ class GoBGPContainer(BGPContainer):
                 },
         }}
 
-        if self.zebra:
+        if self.zebra and self.zapi_version == 2:
             config['global']['use-multiple-paths'] = {'config': {'enabled': True}}
 
         for peer, info in self.peers.iteritems():

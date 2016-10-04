@@ -46,8 +46,8 @@ class GoBGPTestBase(unittest.TestCase):
 
         time.sleep(initial_wait_time)
 
-        g1.add_peer(g2)
-        g2.add_peer(g1)
+        g1.add_peer(g2, vpn=True)
+        g2.add_peer(g1, vpn=True)
 
         cls.g1 = g1
         cls.g2 = g2
@@ -70,6 +70,24 @@ class GoBGPTestBase(unittest.TestCase):
         self.g1.local("vtysh -c 'en' -c 'conf t' -c 'vrf 2 netns ns02'")
         self.g2.local("vtysh -c 'en' -c 'conf t' -c 'vrf 1 netns ns01'")
         self.g2.local("vtysh -c 'en' -c 'conf t' -c 'vrf 2 netns ns02'")
+
+        self.g1.local("gobgp vrf add vrf01 id 1 rd 1:1 rt both 1:1")
+        self.g1.local("gobgp vrf add vrf02 id 2 rd 2:2 rt both 2:2")
+        self.g2.local("gobgp vrf add vrf01 id 1 rd 1:1 rt both 1:1")
+        self.g2.local("gobgp vrf add vrf02 id 2 rd 2:2 rt both 2:2")
+
+        self.g1.local("gobgp vrf vrf01 rib add 10.0.0.0/24 nexthop 127.0.0.1")
+        self.g1.local("gobgp vrf vrf02 rib add 20.0.0.0/24 nexthop 127.0.0.1")
+
+        time.sleep(2)
+
+        lines = self.g2.local("ip netns exec ns01 ip r", capture=True).split('\n')
+        self.assertTrue(len(lines) == 1)
+        self.assertTrue(lines[0].split(' ')[0] == '10.0.0.0/24')
+
+        lines = self.g2.local("ip netns exec ns02 ip r", capture=True).split('\n')
+        self.assertTrue(len(lines) == 1)
+        self.assertTrue(lines[0].split(' ')[0] == '20.0.0.0/24')
 
 
 if __name__ == '__main__':
