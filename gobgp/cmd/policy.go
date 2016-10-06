@@ -118,7 +118,7 @@ func formatDefinedSet(head bool, typ string, indent int, list []*api.DefinedSet)
 			buff.WriteString(fmt.Sprintf(format, s.Name, ""))
 		}
 		for i, x := range s.List {
-			if typ == "COMMUNITY" || typ == "EXT-COMMUNITY" {
+			if typ == "COMMUNITY" || typ == "EXT-COMMUNITY" || typ == "LARGE-COMMUNITY" {
 				exp := regexp.MustCompile("\\^(\\S+)\\$")
 				x = exp.ReplaceAllString(x, "$1")
 			}
@@ -146,6 +146,8 @@ func showDefinedSet(v string, args []string) error {
 		typ = api.DefinedType_COMMUNITY
 	case CMD_EXTCOMMUNITY:
 		typ = api.DefinedType_EXT_COMMUNITY
+	case CMD_LARGECOMMUNITY:
+		typ = api.DefinedType_LARGE_COMMUNITY
 	default:
 		return fmt.Errorf("unknown defined type: %s", v)
 	}
@@ -199,6 +201,8 @@ func showDefinedSet(v string, args []string) error {
 		output = formatDefinedSet(true, "COMMUNITY", 0, m)
 	case CMD_EXTCOMMUNITY:
 		output = formatDefinedSet(true, "EXT-COMMUNITY", 0, m)
+	case CMD_LARGECOMMUNITY:
+		output = formatDefinedSet(true, "LARGE-COMMUNITY", 0, m)
 	}
 	fmt.Print(output)
 	return nil
@@ -336,6 +340,24 @@ func parseExtCommunitySet(args []string) (*api.DefinedSet, error) {
 	}, nil
 }
 
+func parseLargeCommunitySet(args []string) (*api.DefinedSet, error) {
+	if len(args) < 1 {
+		return nil, fmt.Errorf("empty large-community set name")
+	}
+	name := args[0]
+	args = args[1:]
+	for _, arg := range args {
+		if _, err := table.ParseLargeCommunityRegexp(arg); err != nil {
+			return nil, err
+		}
+	}
+	return &api.DefinedSet{
+		Type: api.DefinedType_LARGE_COMMUNITY,
+		Name: name,
+		List: args,
+	}, nil
+}
+
 func parseDefinedSet(settype string, args []string) (*api.DefinedSet, error) {
 	switch settype {
 	case CMD_PREFIX:
@@ -348,17 +370,20 @@ func parseDefinedSet(settype string, args []string) (*api.DefinedSet, error) {
 		return parseCommunitySet(args)
 	case CMD_EXTCOMMUNITY:
 		return parseExtCommunitySet(args)
+	case CMD_LARGECOMMUNITY:
+		return parseLargeCommunitySet(args)
 	default:
 		return nil, fmt.Errorf("invalid setype: %s", settype)
 	}
 }
 
 var modPolicyUsageFormat = map[string]string{
-	CMD_PREFIX:       "usage: policy prefix %s <name> [<prefix> [<mask range>]]",
-	CMD_NEIGHBOR:     "usage: policy neighbor %s <name> [<neighbor address>...]",
-	CMD_ASPATH:       "usage: policy aspath %s <name> [<regexp>...]",
-	CMD_COMMUNITY:    "usage: policy community %s <name> [<regexp>...]",
-	CMD_EXTCOMMUNITY: "usage: policy extcommunity %s <name> [<regexp>...]",
+	CMD_PREFIX:         "usage: policy prefix %s <name> [<prefix> [<mask range>]]",
+	CMD_NEIGHBOR:       "usage: policy neighbor %s <name> [<neighbor address>...]",
+	CMD_ASPATH:         "usage: policy aspath %s <name> [<regexp>...]",
+	CMD_COMMUNITY:      "usage: policy community %s <name> [<regexp>...]",
+	CMD_EXTCOMMUNITY:   "usage: policy extcommunity %s <name> [<regexp>...]",
+	CMD_LARGECOMMUNITY: "usage: policy large-community %s <name> [<regexp>...]",
 }
 
 func modDefinedSet(settype string, modtype string, args []string) error {
@@ -424,6 +449,11 @@ func printStatement(indent int, s *api.Statement) {
 		fmt.Printf("%sExtCommunitySet: %s %s\n", sIndent(indent+4), ecs.Type, ecs.Name)
 	}
 
+	lcs := s.Conditions.LargeCommunitySet
+	if lcs != nil {
+		fmt.Printf("%sLargeCommunitySet: %s %s\n", sIndent(indent+4), ecs.Type, ecs.Name)
+	}
+
 	asPathLentgh := s.Conditions.AsPathLength
 	if asPathLentgh != nil {
 		fmt.Printf("%sAsPathLength: %s %d\n", sIndent(indent+4), asPathLentgh.Type, asPathLentgh.Length)
@@ -454,6 +484,9 @@ func printStatement(indent int, s *api.Statement) {
 	}
 	if s.Actions.ExtCommunity != nil {
 		fmt.Printf("%sExtCommunity:    %s\n", sIndent(indent+4), formatComAction(s.Actions.ExtCommunity))
+	}
+	if s.Actions.LargeCommunity != nil {
+		fmt.Printf("%sLargeCommunity:    %s\n", sIndent(indent+4), formatComAction(s.Actions.LargeCommunity))
 	}
 	if s.Actions.Med != nil {
 		fmt.Printf("%sMed:             %d\n", sIndent(indent+4), s.Actions.Med.Value)
@@ -591,7 +624,7 @@ func modCondition(name, op string, args []string) error {
 	}
 	usage := fmt.Sprintf("usage: gobgp policy statement %s %s condition", name, op)
 	if len(args) < 1 {
-		return fmt.Errorf("%s { prefix | neighbor | as-path | community | ext-community | as-path-length | rpki | route-type }", usage)
+		return fmt.Errorf("%s { prefix | neighbor | as-path | community | ext-community | large-community | as-path-length | rpki | route-type }", usage)
 	}
 	typ := args[0]
 	args = args[1:]
@@ -692,6 +725,26 @@ func modCondition(name, op string, args []string) error {
 		default:
 			return fmt.Errorf("%s ext-community <set-name> [{ any | all | invert }]", usage)
 		}
+	case "large-community":
+		if len(args) < 1 {
+			return fmt.Errorf("%s large-community <set-name> [{ any | all | invert }]", usage)
+		}
+		stmt.Conditions.LargeCommunitySet = &api.MatchSet{
+			Name: args[0],
+		}
+		if len(args) == 1 {
+			break
+		}
+		switch strings.ToLower(args[1]) {
+		case "any":
+			stmt.Conditions.LargeCommunitySet.Type = api.MatchType_ANY
+		case "all":
+			stmt.Conditions.LargeCommunitySet.Type = api.MatchType_ALL
+		case "invert":
+			stmt.Conditions.LargeCommunitySet.Type = api.MatchType_INVERT
+		default:
+			return fmt.Errorf("%s large-community <set-name> [{ any | all | invert }]", usage)
+		}
 	case "as-path-length":
 		if len(args) < 2 {
 			return fmt.Errorf("%s as-path-length <length> { eq | ge | le }", usage)
@@ -743,7 +796,7 @@ func modCondition(name, op string, args []string) error {
 			return err
 		}
 	default:
-		return fmt.Errorf("%s { prefix | neighbor | as-path | community | ext-community | as-path-length | rpki | route-type }", usage)
+		return fmt.Errorf("%s { prefix | neighbor | as-path | community | ext-community | large-community | as-path-length | rpki | route-type }", usage)
 	}
 	var err error
 	switch op {
@@ -772,7 +825,7 @@ func modAction(name, op string, args []string) error {
 	}
 	usage := fmt.Sprintf("usage: gobgp policy statement %s %s action", name, op)
 	if len(args) < 1 {
-		return fmt.Errorf("%s { reject | accept | community | ext-community | med | local-pref | as-prepend | next-hop }", usage)
+		return fmt.Errorf("%s { reject | accept | community | ext-community | large-community | med | local-pref | as-prepend | next-hop }", usage)
 	}
 	typ := args[0]
 	args = args[1:]
@@ -814,6 +867,23 @@ func modAction(name, op string, args []string) error {
 			stmt.Actions.ExtCommunity.Type = api.CommunityActionType_COMMUNITY_REPLACE
 		default:
 			return fmt.Errorf("%s ext-community { add | remove | replace } <value>...", usage)
+		}
+	case "large-community":
+		if len(args) < 1 {
+			return fmt.Errorf("%s large-community { add | remove | replace } <value>...", usage)
+		}
+		stmt.Actions.LargeCommunity = &api.CommunityAction{
+			Communities: args[1:],
+		}
+		switch strings.ToLower(args[0]) {
+		case "add":
+			stmt.Actions.LargeCommunity.Type = api.CommunityActionType_COMMUNITY_ADD
+		case "remove":
+			stmt.Actions.LargeCommunity.Type = api.CommunityActionType_COMMUNITY_REMOVE
+		case "replace":
+			stmt.Actions.LargeCommunity.Type = api.CommunityActionType_COMMUNITY_REPLACE
+		default:
+			return fmt.Errorf("%s large-community { add | remove | replace } <value>...", usage)
 		}
 	case "med":
 		if len(args) < 2 {
@@ -962,7 +1032,7 @@ func NewPolicyCmd() *cobra.Command {
 		},
 	}
 
-	for _, v := range []string{CMD_PREFIX, CMD_NEIGHBOR, CMD_ASPATH, CMD_COMMUNITY, CMD_EXTCOMMUNITY} {
+	for _, v := range []string{CMD_PREFIX, CMD_NEIGHBOR, CMD_ASPATH, CMD_COMMUNITY, CMD_EXTCOMMUNITY, CMD_LARGECOMMUNITY} {
 		cmd := &cobra.Command{
 			Use: v,
 			Run: func(cmd *cobra.Command, args []string) {

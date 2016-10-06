@@ -337,22 +337,48 @@ If you want to remove one element(extended community) of ExtCommunitySet, to spe
 % gobgp policy prefix del ecs1 RT:65100:10
 ```
 
-### 3.6 Statement Operation - add/del/show -
+### 3.6. Operations for LargeCommunitySet - add/del/show -
+#### Syntax
+```shell
+# add LargeCommunitySet
+% gobgp policy large-community add <set name> <large community>...
+# delete a specific LargeCommunitySet
+% gobgp policy large-community del <set name>
+# delete a large-community from a LargeCommunitySet
+% gobgp policy large-community del <set name> <large community>
+# show all LargeCommunitySet information
+% gobgp policy large-community
+# show a specific LargeCommunitySet information
+% gobgp policy large-community <set name>
+```
+
+#### Example
+```shell
+% gobgp policy large-community add l0 100:100:100
+% gobgp policy large-community add l0 ^100:
+% gobgp policy large-community add l0 :100$
+% gobgp policy large-community del l0 100:100:100
+% gobgp policy large-community add l0 200:100:100
+% gobgp policy large-community
+% gobgp policy large-community set l0 100:100:100 200:200:200 300:300:300
+```
+
+### 3.7 Statement Operation - add/del/show -
 #### Syntax
 ```shell
 # mod statement
 % gobgp policy statement { add | del } <statement name>
 # mod a condition to a statement
-% gobgp policy statement <statement name> { add | del | set } condition { { prefix | neighbor | as-path | community | ext-community } <set name> [{ any | all | invert }] | as-path-length <len> { eq | ge | le } | rpki { valid | invalid | not-found } }
+% gobgp policy statement <statement name> { add | del | set } condition { { prefix | neighbor | as-path | community | ext-community | large-community } <set name> [{ any | all | invert }] | as-path-length <len> { eq | ge | le } | rpki { valid | invalid | not-found } }
 # mod an action to a statement
-% gobgp policy statement <statement name> { add | del | set } action { reject | accept | { community | ext-community } { add | remove | replace } <value>... | med { add | sub | set } <value> | local-pref <value> | as-prepend { <asn> | last-as } <repeat-value> }
+% gobgp policy statement <statement name> { add | del | set } action { reject | accept | { community | ext-community | large-community } { add | remove | replace } <value>... | med { add | sub | set } <value> | local-pref <value> | as-prepend { <asn> | last-as } <repeat-value> }
 # show all statements
 % gobgp policy statement
 # show a specific statement
 % gobgp policy statement <statement name>
 ```
 
-### 3.7 Policy Operation - add/del/show -
+### 3.8 Policy Operation - add/del/show -
 #### Syntax
 ```shell
 # mod policy

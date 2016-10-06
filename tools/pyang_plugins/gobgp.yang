@@ -829,6 +829,24 @@ module gobgp {
   }
 
   augment "/rpol:routing-policy/rpol:defined-sets/" +
+    "bgp-pol:bgp-defined-sets" {
+    container large-community-sets {
+      list large-community-set {
+        key "large-community-set-name";
+
+        leaf large-community-set-name {
+          type string;
+        }
+        leaf-list large-community {
+          type string;
+          description
+            "extended community set member";
+        }
+      }
+    }
+  }
+
+  augment "/rpol:routing-policy/rpol:defined-sets/" +
     "bgp-pol:bgp-defined-sets/bgp-pol:as-path-sets/bgp-pol:as-path-set" {
     description "alternative for the existing as-path-set-member";
 
@@ -866,6 +884,32 @@ module gobgp {
           }
         }
 
+    }
+  }
+
+  augment "/rpol:routing-policy/rpol:policy-definitions/" +
+      "rpol:policy-definition/rpol:statements/rpol:statement/" +
+      "rpol:conditions/bgp-pol:bgp-conditions" {
+    container match-large-community-set {
+      leaf large-community-set {
+        type string;
+      }
+      uses rpol:match-set-options-group;
+    }
+  }
+
+  augment "/rpol:routing-policy/rpol:policy-definitions/" +
+    "rpol:policy-definition/rpol:statements/rpol:statement/" +
+    "rpol:actions/bgp-pol:bgp-actions" {
+    container set-large-community {
+      container set-large-community-method {
+        leaf-list communities {
+          type string;
+        }
+      }
+      leaf options {
+        type bgp-pol:bgp-set-community-option-type;
+      }
     }
   }
 

@@ -673,6 +673,7 @@ enum DefinedType {
   AS_PATH = 3;
   COMMUNITY = 4;
   EXT_COMMUNITY = 5;
+  LARGE_COMMUNITY = 6;
 }
 
 message DefinedSet {
@@ -719,6 +720,7 @@ message Conditions {
     ROUTE_TYPE_LOCAL = 3;
   }
   RouteType route_type = 8;
+  MatchSet large_community_set = 9;
 }
 
 enum RouteAction {
@@ -771,6 +773,7 @@ message Actions {
   CommunityAction ext_community = 5;
   NexthopAction nexthop = 6;
   LocalPrefAction local_pref = 7;
+  CommunityAction large_community = 8;
 }
 
 message Statement {

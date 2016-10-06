@@ -141,6 +141,9 @@
 [[defined-sets.bgp-defined-sets.as-path-sets]]
     as-path-set-name = "as0"
     as-path-list = ["^100", "200$"]
+[[defined-sets.bgp-defined-sets.large-community-sets]]
+    large-community-set-name = "ls0"
+    large-community-list = ["100:100:100", "200:200:200"]
 
 [[policy-definitions]]
     name = "policy1"
@@ -153,6 +156,9 @@
             match-set-options = "invert"
         [policy-definitions.statements.conditions.bgp-conditions.match-community-set]
             community-set = "cs0"
+            match-set-options = "all"
+        [policy-definitions.statements.conditions.bgp-conditions.match-large-community-set]
+            community-set = "ls0"
             match-set-options = "all"
         [policy-definitions.statements.actions.bgp-actions.set-as-path-prepend]
             as = "last-as"
@@ -228,4 +234,32 @@
             route-type = "external"
         [policy-definitions.statements.actions.route-disposition]
             accept-route = true
+
+[[policy-definitions]]
+    name = "large-communty-policy"
+    [[policy-definitions.statements]]
+        # this statement adds specified large communities
+        [policy-definitions.statements.actions.route-disposition]
+            accept-route = true
+        [policy-definitions.statements.actions.bgp-actions.set-large-community]
+            options = "add"
+            [policy-definitions.statements.actions.bgp-actions.set-large-community.set-large-community-method]
+                communities-list = ["100:200:300"]
+    [[policy-definitions.statements]]
+        # this statement adds specified large communities
+        [policy-definitions.statements.actions.route-disposition]
+            accept-route = true
+        [policy-definitions.statements.actions.bgp-actions.set-large-community]
+            options = "replace"
+            [policy-definitions.statements.actions.bgp-actions.set-large-community.set-large-community-method]
+                communities-list = ["100:200:300"]
+    [[policy-definitions.statements]]
+        # this statement removes specified large communities
+        # regular expression is also supported
+        [policy-definitions.statements.actions.route-disposition]
+            accept-route = true
+        [policy-definitions.statements.actions.bgp-actions.set-large-community]
+            options = "remove"
+            [policy-definitions.statements.actions.bgp-actions.set-large-community.set-large-community-method]
+                communities-list = ["100:200:300", "^200:"]
 ```

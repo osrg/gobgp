@@ -99,6 +99,7 @@ Conditions are categorized into attributes below:
 - extended community
 - rpki validation result
 - route type (internal/external/local)
+- large community
 
 As showed in the figure above, some of the conditions point to defined sets,
 which are a container for each condition item (e.g. prefixes).
@@ -124,6 +125,7 @@ $ gobgp policy neighbor
 $ gobgp policy as-path
 $ gobgp policy community
 $ gobgp policy ext-community
+$ gobgp policy large-community
 ```
 
 ## <a name="configuration"> Policy Configuration
@@ -148,6 +150,7 @@ Below are the steps for policy configuration
   1. define community-sets
   1. define ext-community-sets
   1. define as-path-setList
+  1. define large-community-sets
 1. define policy-definitions 
 1. attach policies to global rib (or neighbor local rib when neighbor is [route-server-client](https://github.com/osrg/gobgp/blob/master/docs/sources/route-server.md)).
 
@@ -320,6 +323,10 @@ part. Like prefix-sets and neighbor-sets, each can have multiple sets and each s
  [[defined-sets.bgp-defined-sets.as-path-sets]]
    as-path-set-name = "aspath1"
    as-path-list = ["^65100"]
+# Large Community match part
+ [[defined-sets.bgp-defined-sets.large-community-sets]]
+   large-community-set-name = "lcommunity1"
+   large-community-list = ["65100:100:100"]
  ```
 
   ----

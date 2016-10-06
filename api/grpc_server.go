@@ -905,6 +905,11 @@ func NewDefinedSetFromApiStruct(a *DefinedSet) (table.DefinedSet, error) {
 			ExtCommunitySetName: a.Name,
 			ExtCommunityList:    a.List,
 		})
+	case table.DEFINED_TYPE_LARGE_COMMUNITY:
+		return table.NewLargeCommunitySet(config.LargeCommunitySet{
+			LargeCommunitySetName: a.Name,
+			LargeCommunityList:    a.List,
+		})
 	default:
 		return nil, fmt.Errorf("invalid defined type")
 	}
@@ -957,6 +962,14 @@ func (s *Server) GetDefinedSet(ctx context.Context, arg *GetDefinedSetRequest) (
 			Type: DefinedType_EXT_COMMUNITY,
 			Name: cs.ExtCommunitySetName,
 			List: cs.ExtCommunityList,
+		}
+		sets = append(sets, ad)
+	}
+	for _, cs := range cd.BgpDefinedSets.LargeCommunitySets {
+		ad := &DefinedSet{
+			Type: DefinedType_LARGE_COMMUNITY,
+			Name: cs.LargeCommunitySetName,
+			List: cs.LargeCommunityList,
 		}
 		sets = append(sets, ad)
 	}
@@ -1034,6 +1047,12 @@ func toStatementApi(s *config.Statement) *Statement {
 			Name: s.Conditions.BgpConditions.MatchExtCommunitySet.ExtCommunitySet,
 		}
 	}
+	if s.Conditions.BgpConditions.MatchLargeCommunitySet.LargeCommunitySet != "" {
+		cs.CommunitySet = &MatchSet{
+			Type: MatchType(s.Conditions.BgpConditions.MatchLargeCommunitySet.MatchSetOptions.ToInt()),
+			Name: s.Conditions.BgpConditions.MatchLargeCommunitySet.LargeCommunitySet,
+		}
+	}
 	if s.Conditions.BgpConditions.RouteType != "" {
 		cs.RouteType = Conditions_RouteType(s.Conditions.BgpConditions.RouteType.ToInt())
 	}
@@ -1094,6 +1113,15 @@ func toStatementApi(s *config.Statement) *Statement {
 			return &CommunityAction{
 				Type:        CommunityActionType(config.BgpSetCommunityOptionTypeToIntMap[config.BgpSetCommunityOptionType(s.Actions.BgpActions.SetExtCommunity.Options)]),
 				Communities: s.Actions.BgpActions.SetExtCommunity.SetExtCommunityMethod.CommunitiesList,
+			}
+		}(),
+		LargeCommunity: func() *CommunityAction {
+			if len(s.Actions.BgpActions.SetLargeCommunity.SetLargeCommunityMethod.CommunitiesList) == 0 {
+				return nil
+			}
+			return &CommunityAction{
+				Type:        CommunityActionType(config.BgpSetCommunityOptionTypeToIntMap[config.BgpSetCommunityOptionType(s.Actions.BgpActions.SetLargeCommunity.Options)]),
+				Communities: s.Actions.BgpActions.SetLargeCommunity.SetLargeCommunityMethod.CommunitiesList,
 			}
 		}(),
 		Nexthop: func() *NexthopAction {
@@ -1255,6 +1283,21 @@ func NewExtCommunityConditionFromApiStruct(a *MatchSet) (*table.ExtCommunityCond
 	return table.NewExtCommunityCondition(c)
 }
 
+func NewLargeCommunityConditionFromApiStruct(a *MatchSet) (*table.LargeCommunityCondition, error) {
+	if a == nil {
+		return nil, nil
+	}
+	typ, err := toConfigMatchSetOption(a.Type)
+	if err != nil {
+		return nil, err
+	}
+	c := config.MatchLargeCommunitySet{
+		LargeCommunitySet: a.Name,
+		MatchSetOptions:   typ,
+	}
+	return table.NewLargeCommunityCondition(c)
+}
+
 func NewRoutingActionFromApiStruct(a RouteAction) (*table.RoutingAction, error) {
 	if a == RouteAction_NONE {
 		return nil, nil
@@ -1287,6 +1330,18 @@ func NewExtCommunityActionFromApiStruct(a *CommunityAction) (*table.ExtCommunity
 	return table.NewExtCommunityAction(config.SetExtCommunity{
 		Options: string(config.IntToBgpSetCommunityOptionTypeMap[int(a.Type)]),
 		SetExtCommunityMethod: config.SetExtCommunityMethod{
+			CommunitiesList: a.Communities,
+		},
+	})
+}
+
+func NewLargeCommunityActionFromApiStruct(a *CommunityAction) (*table.LargeCommunityAction, error) {
+	if a == nil {
+		return nil, nil
+	}
+	return table.NewLargeCommunityAction(config.SetLargeCommunity{
+		Options: config.IntToBgpSetCommunityOptionTypeMap[int(a.Type)],
+		SetLargeCommunityMethod: config.SetLargeCommunityMethod{
 			CommunitiesList: a.Communities,
 		},
 	})
@@ -1369,6 +1424,9 @@ func NewStatementFromApiStruct(a *Statement) (*table.Statement, error) {
 			func() (table.Condition, error) {
 				return NewExtCommunityConditionFromApiStruct(a.Conditions.ExtCommunitySet)
 			},
+			func() (table.Condition, error) {
+				return NewLargeCommunityConditionFromApiStruct(a.Conditions.LargeCommunitySet)
+			},
 		}
 		cs = make([]table.Condition, 0, len(cfs))
 		for _, f := range cfs {
@@ -1392,6 +1450,9 @@ func NewStatementFromApiStruct(a *Statement) (*table.Statement, error) {
 			},
 			func() (table.Action, error) {
 				return NewExtCommunityActionFromApiStruct(a.Actions.ExtCommunity)
+			},
+			func() (table.Action, error) {
+				return NewLargeCommunityActionFromApiStruct(a.Actions.LargeCommunity)
 			},
 			func() (table.Action, error) {
 				return NewMedActionFromApiStruct(a.Actions.Med)

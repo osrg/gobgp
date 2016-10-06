@@ -4456,6 +4456,48 @@ func (lhs *Bgp) Equal(rhs *Bgp) bool {
 	return true
 }
 
+//struct for container gobgp:set-large-community-method
+type SetLargeCommunityMethod struct {
+	// original -> gobgp:communities
+	CommunitiesList []string `mapstructure:"communities-list"`
+}
+
+func (lhs *SetLargeCommunityMethod) Equal(rhs *SetLargeCommunityMethod) bool {
+	if lhs == nil || rhs == nil {
+		return false
+	}
+	if len(lhs.CommunitiesList) != len(rhs.CommunitiesList) {
+		return false
+	}
+	for idx, l := range lhs.CommunitiesList {
+		if l != rhs.CommunitiesList[idx] {
+			return false
+		}
+	}
+	return true
+}
+
+//struct for container gobgp:set-large-community
+type SetLargeCommunity struct {
+	// original -> gobgp:set-large-community-method
+	SetLargeCommunityMethod SetLargeCommunityMethod `mapstructure:"set-large-community-method"`
+	// original -> gobgp:options
+	Options BgpSetCommunityOptionType `mapstructure:"options"`
+}
+
+func (lhs *SetLargeCommunity) Equal(rhs *SetLargeCommunity) bool {
+	if lhs == nil || rhs == nil {
+		return false
+	}
+	if !lhs.SetLargeCommunityMethod.Equal(&(rhs.SetLargeCommunityMethod)) {
+		return false
+	}
+	if lhs.Options != rhs.Options {
+		return false
+	}
+	return true
+}
+
 //struct for container bgp-pol:set-ext-community-method
 type SetExtCommunityMethod struct {
 	// original -> bgp-pol:communities
@@ -4592,6 +4634,8 @@ type BgpActions struct {
 	SetNextHop BgpNextHopType `mapstructure:"set-next-hop"`
 	// original -> bgp-pol:set-med
 	SetMed BgpSetMedType `mapstructure:"set-med"`
+	// original -> gobgp:set-large-community
+	SetLargeCommunity SetLargeCommunity `mapstructure:"set-large-community"`
 }
 
 func (lhs *BgpActions) Equal(rhs *BgpActions) bool {
@@ -4617,6 +4661,9 @@ func (lhs *BgpActions) Equal(rhs *BgpActions) bool {
 		return false
 	}
 	if lhs.SetMed != rhs.SetMed {
+		return false
+	}
+	if !lhs.SetLargeCommunity.Equal(&(rhs.SetLargeCommunity)) {
 		return false
 	}
 	return true
@@ -4682,6 +4729,27 @@ func (lhs *Actions) Equal(rhs *Actions) bool {
 		return false
 	}
 	if !lhs.BgpActions.Equal(&(rhs.BgpActions)) {
+		return false
+	}
+	return true
+}
+
+//struct for container gobgp:match-large-community-set
+type MatchLargeCommunitySet struct {
+	// original -> gobgp:large-community-set
+	LargeCommunitySet string `mapstructure:"large-community-set"`
+	// original -> rpol:match-set-options
+	MatchSetOptions MatchSetOptionsType `mapstructure:"match-set-options"`
+}
+
+func (lhs *MatchLargeCommunitySet) Equal(rhs *MatchLargeCommunitySet) bool {
+	if lhs == nil || rhs == nil {
+		return false
+	}
+	if lhs.LargeCommunitySet != rhs.LargeCommunitySet {
+		return false
+	}
+	if lhs.MatchSetOptions != rhs.MatchSetOptions {
 		return false
 	}
 	return true
@@ -4819,6 +4887,8 @@ type BgpConditions struct {
 	RouteType RouteType `mapstructure:"route-type"`
 	// original -> gobgp:rpki-validation-result
 	RpkiValidationResult RpkiValidationResultType `mapstructure:"rpki-validation-result"`
+	// original -> gobgp:match-large-community-set
+	MatchLargeCommunitySet MatchLargeCommunitySet `mapstructure:"match-large-community-set"`
 }
 
 func (lhs *BgpConditions) Equal(rhs *BgpConditions) bool {
@@ -4869,6 +4939,9 @@ func (lhs *BgpConditions) Equal(rhs *BgpConditions) bool {
 		return false
 	}
 	if lhs.RpkiValidationResult != rhs.RpkiValidationResult {
+		return false
+	}
+	if !lhs.MatchLargeCommunitySet.Equal(&(rhs.MatchLargeCommunitySet)) {
 		return false
 	}
 	return true
@@ -5054,6 +5127,32 @@ func (lhs *PolicyDefinition) Equal(rhs *PolicyDefinition) bool {
 	return true
 }
 
+//struct for container gobgp:large-community-set
+type LargeCommunitySet struct {
+	// original -> gobgp:large-community-set-name
+	LargeCommunitySetName string `mapstructure:"large-community-set-name"`
+	// original -> gobgp:large-community
+	LargeCommunityList []string `mapstructure:"large-community-list"`
+}
+
+func (lhs *LargeCommunitySet) Equal(rhs *LargeCommunitySet) bool {
+	if lhs == nil || rhs == nil {
+		return false
+	}
+	if lhs.LargeCommunitySetName != rhs.LargeCommunitySetName {
+		return false
+	}
+	if len(lhs.LargeCommunityList) != len(rhs.LargeCommunityList) {
+		return false
+	}
+	for idx, l := range lhs.LargeCommunityList {
+		if l != rhs.LargeCommunityList[idx] {
+			return false
+		}
+	}
+	return true
+}
+
 //struct for container bgp-pol:as-path-set
 type AsPathSet struct {
 	// original -> bgp-pol:as-path-set-name
@@ -5140,6 +5239,8 @@ type BgpDefinedSets struct {
 	ExtCommunitySets []ExtCommunitySet `mapstructure:"ext-community-sets"`
 	// original -> bgp-pol:as-path-sets
 	AsPathSets []AsPathSet `mapstructure:"as-path-sets"`
+	// original -> gobgp:large-community-sets
+	LargeCommunitySets []LargeCommunitySet `mapstructure:"large-community-sets"`
 }
 
 func (lhs *BgpDefinedSets) Equal(rhs *BgpDefinedSets) bool {
@@ -5188,6 +5289,22 @@ func (lhs *BgpDefinedSets) Equal(rhs *BgpDefinedSets) bool {
 		}
 		for i, r := range rhs.AsPathSets {
 			if l, y := lmap[mapkey(i, string(r.AsPathSetName))]; !y {
+				return false
+			} else if !r.Equal(l) {
+				return false
+			}
+		}
+	}
+	if len(lhs.LargeCommunitySets) != len(rhs.LargeCommunitySets) {
+		return false
+	}
+	{
+		lmap := make(map[string]*LargeCommunitySet)
+		for i, l := range lhs.LargeCommunitySets {
+			lmap[mapkey(i, string(l.LargeCommunitySetName))] = &lhs.LargeCommunitySets[i]
+		}
+		for i, r := range rhs.LargeCommunitySets {
+			if l, y := lmap[mapkey(i, string(r.LargeCommunitySetName))]; !y {
 				return false
 			} else if !r.Equal(l) {
 				return false

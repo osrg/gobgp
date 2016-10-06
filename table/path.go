@@ -762,6 +762,28 @@ func (path *Path) SetExtCommunities(exts []bgp.ExtendedCommunityInterface, doRep
 	}
 }
 
+func (path *Path) GetLargeCommunities() []*bgp.LargeCommunity {
+	if a := path.getPathAttr(bgp.BGP_ATTR_TYPE_LARGE_COMMUNITY); a != nil {
+		v := a.(*bgp.PathAttributeLargeCommunities).Values
+		ret := make([]*bgp.LargeCommunity, 0, len(v))
+		for _, c := range v {
+			ret = append(ret, c)
+		}
+		return ret
+	}
+	return nil
+}
+
+func (path *Path) SetLargeCommunities(cs []*bgp.LargeCommunity, doReplace bool) {
+	a := path.getPathAttr(bgp.BGP_ATTR_TYPE_LARGE_COMMUNITY)
+	if a == nil || doReplace {
+		path.setPathAttr(bgp.NewPathAttributeLargeCommunities(cs))
+	} else {
+		l := a.(*bgp.PathAttributeLargeCommunities).Values
+		path.setPathAttr(bgp.NewPathAttributeLargeCommunities(append(l, cs...)))
+	}
+}
+
 func (path *Path) GetMed() (uint32, error) {
 	attr := path.getPathAttr(bgp.BGP_ATTR_TYPE_MULTI_EXIT_DISC)
 	if attr == nil {
