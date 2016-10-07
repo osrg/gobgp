@@ -702,7 +702,7 @@ func (h *FSMHandler) recvMessageWithError() (*FsmMsg, error) {
 					"Subcode": body.ErrorSubcode,
 					"Data":    body.Data,
 				}).Warn("received notification")
-				if body.ErrorCode == bgp.BGP_ERROR_CEASE && body.ErrorSubcode == bgp.BGP_ERROR_SUB_HARD_RESET {
+				if s := h.fsm.pConf.GracefulRestart.State; s.Enabled && s.NotificationEnabled && body.ErrorCode == bgp.BGP_ERROR_CEASE && body.ErrorSubcode == bgp.BGP_ERROR_SUB_HARD_RESET {
 					sendToErrorCh(FSM_HARD_RESET)
 				} else {
 					sendToErrorCh(FsmStateReason(fmt.Sprintf("%s %s", FSM_NOTIFICATION_RECV, bgp.NewNotificationErrorCode(body.ErrorCode, body.ErrorSubcode).String())))
