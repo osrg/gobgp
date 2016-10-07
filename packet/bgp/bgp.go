@@ -4697,6 +4697,7 @@ const (
 	COMMUNITY_ROUTE_FILTER_v6                               = 0xffff0005
 	COMMUNITY_LLGR_STALE                                    = 0xffff0006
 	COMMUNITY_NO_LLGR                                       = 0xffff0007
+	COMMUNITY_BLACKHOLE                                     = 0xffff029a
 	COMMUNITY_NO_EXPORT                                     = 0xffffff01
 	COMMUNITY_NO_ADVERTISE                                  = 0xffffff02
 	COMMUNITY_NO_EXPORT_SUBCONFED                           = 0xffffff03
@@ -4713,6 +4714,7 @@ var WellKnownCommunityNameMap = map[WellKnownCommunity]string{
 	COMMUNITY_ROUTE_FILTER_v6:            "route-filter-v6",
 	COMMUNITY_LLGR_STALE:                 "llgr-stale",
 	COMMUNITY_NO_LLGR:                    "no-llgr",
+	COMMUNITY_BLACKHOLE:                  "blackhole",
 	COMMUNITY_NO_EXPORT:                  "no-export",
 	COMMUNITY_NO_ADVERTISE:               "no-advertise",
 	COMMUNITY_NO_EXPORT_SUBCONFED:        "no-export-subconfed",
@@ -4730,6 +4732,7 @@ var WellKnownCommunityValueMap = map[string]WellKnownCommunity{
 	WellKnownCommunityNameMap[COMMUNITY_LLGR_STALE]:                 COMMUNITY_LLGR_STALE,
 	WellKnownCommunityNameMap[COMMUNITY_NO_LLGR]:                    COMMUNITY_NO_LLGR,
 	WellKnownCommunityNameMap[COMMUNITY_NO_EXPORT]:                  COMMUNITY_NO_EXPORT,
+	WellKnownCommunityNameMap[COMMUNITY_BLACKHOLE]:                  COMMUNITY_BLACKHOLE,
 	WellKnownCommunityNameMap[COMMUNITY_NO_ADVERTISE]:               COMMUNITY_NO_ADVERTISE,
 	WellKnownCommunityNameMap[COMMUNITY_NO_EXPORT_SUBCONFED]:        COMMUNITY_NO_EXPORT_SUBCONFED,
 	WellKnownCommunityNameMap[COMMUNITY_NO_PEER]:                    COMMUNITY_NO_PEER,
