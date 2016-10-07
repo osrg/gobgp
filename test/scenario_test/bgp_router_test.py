@@ -431,7 +431,6 @@ class GoBGPTestBase(unittest.TestCase):
         self.quaggas = {'g2': g2, 'g3': g3}
 
         g2.local('gobgp global rib add 50.0.0.0/24')
-        g3.local('gobgp global rib add 50.0.0.0/24 med 10')
 
         g1.add_peer(g2)
         g2.add_peer(g1)
@@ -441,6 +440,8 @@ class GoBGPTestBase(unittest.TestCase):
         self.test_01_neighbor_established()
 
         self.test_02_check_gobgp_global_rib()
+
+        g3.local('gobgp global rib add 50.0.0.0/24 med 10')
 
         paths = g1.get_adj_rib_out(g2, '50.0.0.0/24')
         self.assertTrue(len(paths) == 0)
