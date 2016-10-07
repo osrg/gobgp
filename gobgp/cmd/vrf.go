@@ -99,7 +99,7 @@ func modVrf(typ string, args []string) error {
 	case CMD_ADD:
 		a := extractReserved(args, []string{"rd", "rt", "id"})
 		if len(a[""]) != 1 || len(a["rd"]) != 1 || len(a["rt"]) < 2 || len(a["id"]) > 1 {
-			return fmt.Errorf("Usage: gobgp vrf add <vrf name> id <id> rd <rd> rt { import | export | both } <rt>...")
+			return fmt.Errorf("Usage: gobgp vrf add <vrf name> [ id <id> ] rd <rd> rt { import | export | both } <rt>...")
 		}
 		name := a[""][0]
 		rd, err := bgp.ParseRouteDistinguisher(a["rd"][0])
@@ -196,8 +196,39 @@ func NewVrfCmd() *cobra.Command {
 		ribCmd.AddCommand(cmd)
 	}
 
+	neighborCmd := &cobra.Command{
+		Use: CMD_NEIGHBOR,
+		Run: func(cmd *cobra.Command, args []string) {
+			var err error
+			if len(args) == 1 {
+				var vs vrfs
+				vs, err = getVrfs()
+				if err != nil {
+					exitWithError(err)
+				}
+				found := false
+				for _, v := range vs {
+					if v.Name == args[0] {
+						found = true
+						break
+					}
+				}
+				if !found {
+					err = fmt.Errorf("vrf %s not found", args[0])
+				} else {
+					err = showNeighbors(args[0])
+				}
+			} else {
+				err = fmt.Errorf("usage: gobgp vrf <vrf-name> neighbor")
+			}
+			if err != nil {
+				exitWithError(err)
+			}
+		},
+	}
+
 	vrfCmdImpl := &cobra.Command{}
-	vrfCmdImpl.AddCommand(ribCmd)
+	vrfCmdImpl.AddCommand(ribCmd, neighborCmd)
 
 	vrfCmd := &cobra.Command{
 		Use: CMD_VRF,

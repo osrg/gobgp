@@ -1395,8 +1395,12 @@ func (l *LabeledVPNIPAddrPrefix) SAFI() uint8 {
 }
 
 func (l *LabeledVPNIPAddrPrefix) String() string {
+	return fmt.Sprintf("%s:%s", l.RD, l.IPPrefix())
+}
+
+func (l *LabeledVPNIPAddrPrefix) IPPrefix() string {
 	masklen := l.IPAddrPrefixDefault.Length - uint8(8*(l.Labels.Len()+l.RD.Len()))
-	return fmt.Sprintf("%s:%s/%d", l.RD, l.IPAddrPrefixDefault.Prefix, masklen)
+	return fmt.Sprintf("%s/%d", l.IPAddrPrefixDefault.Prefix, masklen)
 }
 
 func (l *LabeledVPNIPAddrPrefix) MarshalJSON() ([]byte, error) {

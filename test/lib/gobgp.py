@@ -277,6 +277,7 @@ class GoBGPContainer(BGPContainer):
                  {'neighbor-address': info['neigh_addr'].split('/')[0],
                   'peer-as': peer.asn,
                   'auth-password': info['passwd'],
+                  'vrf': info['vrf'],
                   },
                  'afi-safis': afi_safi_list,
                  'timers': {'config': {

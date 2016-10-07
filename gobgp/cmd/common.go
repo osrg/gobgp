@@ -173,6 +173,7 @@ type PeerConf struct {
 	LocalIp           string                             `json:"local_ip,omitempty"`
 	Interface         string                             `json:"interface,omitempty"`
 	Description       string                             `json:"description,omitempty"`
+	VRF               string                             `json:"vrf,omitempty"`
 }
 
 type Peer struct {
@@ -207,6 +208,7 @@ func ApiStruct2Peer(p *gobgpapi.Peer) *Peer {
 		LocalIp:      localIp.String(),
 		Interface:    p.Conf.NeighborInterface,
 		Description:  p.Conf.Description,
+		VRF:          p.Conf.Vrf,
 	}
 	return &Peer{
 		Conf:           conf,
