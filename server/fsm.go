@@ -27,6 +27,7 @@ import (
 	"math/rand"
 	"net"
 	"strconv"
+	"strings"
 	"time"
 )
 
@@ -1201,7 +1202,7 @@ func (h *FSMHandler) established() (bgp.FSMState, FsmStateReason) {
 		case err := <-h.errorCh:
 			h.conn.Close()
 			h.t.Kill(nil)
-			if s := fsm.pConf.GracefulRestart.State; s.Enabled && ((s.NotificationEnabled && err == FSM_NOTIFICATION_RECV) || err == FSM_READ_FAILED || err == FSM_WRITE_FAILED) {
+			if s := fsm.pConf.GracefulRestart.State; s.Enabled && ((s.NotificationEnabled && strings.HasPrefix(string(err), FSM_NOTIFICATION_RECV)) || err == FSM_READ_FAILED || err == FSM_WRITE_FAILED) {
 				err = FSM_GRACEFUL_RESTART
 				log.WithFields(log.Fields{
 					"Topic": "Peer",
