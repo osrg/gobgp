@@ -1634,6 +1634,10 @@ func (server *BgpServer) addNeighbor(c *config.Neighbor) error {
 		}
 	}
 
+	if c.RouteServer.Config.RouteServerClient && c.RouteReflector.Config.RouteReflectorClient {
+		return fmt.Errorf("can't be both route-server-client and route-reflector-client")
+	}
+
 	if server.bgpConfig.Global.Config.Port > 0 {
 		for _, l := range server.Listeners(addr) {
 			if err := SetTcpMD5SigSockopts(l, addr, c.Config.AuthPassword); err != nil {

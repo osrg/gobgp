@@ -759,13 +759,13 @@ func modNeighborPolicy(remoteIP, policyType, cmdType string, args []string) erro
 }
 
 func modNeighbor(cmdType string, args []string) error {
-	m := extractReserved(args, []string{"interface", "as", "vrf"})
+	m := extractReserved(args, []string{"interface", "as", "vrf", "route-reflector-client", "route-server-client"})
 	usage := fmt.Sprintf("usage: gobgp neighbor %s [<neighbor-address>| interface <neighbor-interface>]", cmdType)
 	if cmdType == CMD_ADD {
-		usage += " as <VALUE> [ vrf <vrf-name> ]"
+		usage += " as <VALUE> [ vrf <vrf-name> | route-reflector-client [<cluster-id>] | route-server-client ]"
 	}
 
-	if (len(m[""]) != 1 && len(m["interface"]) != 1) || len(m["as"]) > 1 || len(m["vrf"]) > 1 {
+	if (len(m[""]) != 1 && len(m["interface"]) != 1) || len(m["as"]) > 1 || len(m["vrf"]) > 1 || len(m["route-reflector-client"]) > 1 {
 		return fmt.Errorf("%s", usage)
 	}
 	unnumbered := len(m["interface"]) > 0
@@ -788,6 +788,19 @@ func modNeighbor(cmdType string, args []string) error {
 		}
 		if len(m["vrf"]) == 1 {
 			peer.Conf.Vrf = m["vrf"][0]
+		}
+		if rr, ok := m["route-reflector-client"]; ok {
+			peer.RouteReflector = &api.RouteReflector{
+				RouteReflectorClient: true,
+			}
+			if len(rr) == 1 {
+				peer.RouteReflector.RouteReflectorClusterId = rr[0]
+			}
+		}
+		if _, ok := m["route-server-client"]; ok {
+			peer.RouteServer = &api.RouteServer{
+				RouteServerClient: true,
+			}
 		}
 		return peer
 	}
