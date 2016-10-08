@@ -668,6 +668,7 @@ func stateChangeNeighbor(cmd string, remoteIP string, args []string) error {
 	var err error
 	switch cmd {
 	case CMD_SHUTDOWN:
+		fmt.Printf("WARNING: command `%s` is deprecated. use `%s` instead", CMD_SHUTDOWN, CMD_DISABLE)
 		_, err = client.ShutdownNeighbor(context.Background(), &api.ShutdownNeighborRequest{Address: remoteIP})
 	case CMD_ENABLE:
 		_, err = client.EnableNeighbor(context.Background(), &api.EnableNeighborRequest{Address: remoteIP})
