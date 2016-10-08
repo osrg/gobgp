@@ -1296,7 +1296,7 @@ func NewMedActionFromApiStruct(a *MedAction) (*table.MedAction, error) {
 	if a == nil {
 		return nil, nil
 	}
-	return table.NewMedActionFromApiStruct(table.MedActionType(a.Type), int(a.Value)), nil
+	return table.NewMedActionFromApiStruct(table.MedActionType(a.Type), a.Value), nil
 }
 
 func NewLocalPrefActionFromApiStruct(a *LocalPrefAction) (*table.LocalPrefAction, error) {
