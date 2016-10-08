@@ -102,13 +102,16 @@ The following options can be specified in the global subcommand:
 ### 2.2. Operations for neighbor - shutdown/reset/softreset/enable/disable -
 #### - syntax
 ```shell
-% gobgp neighbor <neighbor address> shutdown
-% gobgp neighbor <neighbor address> reset
+# add neighbor
+% gobgp neighbor add { <neighbor address> | interface <ifname> } as <as number> [ vrf <vrf-name> | route-reflector-client [<cluster-id>] | route-server-client ]
+# delete neighbor
+% gobgp neighbor delete { <neighbor address> | interface <ifname> }
 % gobgp neighbor <neighbor address> softreset [-a <address family>]
 % gobgp neighbor <neighbor address> softresetin [-a <address family>]
 % gobgp neighbor <neighbor address> softresetout [-a <address family>]
 % gobgp neighbor <neighbor address> enable
 % gobgp neighbor <neighbor address> disable
+% gobgp neighbor <neighbor address> reset
 ```
 #### - option
   The following options can be specified in the neighbor subcommand:
