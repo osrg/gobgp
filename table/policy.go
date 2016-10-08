@@ -751,7 +751,7 @@ func (s *CommunitySet) ToConfig() *config.CommunitySet {
 }
 
 func ParseCommunity(arg string) (uint32, error) {
-	i, err := strconv.Atoi(arg)
+	i, err := strconv.ParseUint(arg, 10, 32)
 	if err == nil {
 		return uint32(i), nil
 	}
@@ -802,7 +802,7 @@ func ParseExtCommunity(arg string) (bgp.ExtendedCommunityInterface, error) {
 }
 
 func ParseCommunityRegexp(arg string) (*regexp.Regexp, error) {
-	i, err := strconv.Atoi(arg)
+	i, err := strconv.ParseUint(arg, 10, 32)
 	if err == nil {
 		return regexp.MustCompile(fmt.Sprintf("^%d:%d$", i>>16, i&0x0000ffff)), nil
 	}
@@ -1618,7 +1618,7 @@ func NewExtCommunityAction(c config.SetExtCommunity) (*ExtCommunityAction, error
 }
 
 type MedAction struct {
-	value  int
+	value  int64
 	action MedActionType
 }
 
@@ -1630,9 +1630,9 @@ func (a *MedAction) Apply(path *Path, _ *PolicyOptions) *Path {
 	var err error
 	switch a.action {
 	case MED_ACTION_MOD:
-		err = path.SetMed(int64(a.value), false)
+		err = path.SetMed(a.value, false)
 	case MED_ACTION_REPLACE:
-		err = path.SetMed(int64(a.value), true)
+		err = path.SetMed(a.value, true)
 	}
 
 	if err != nil {
@@ -1666,14 +1666,14 @@ func NewMedAction(c config.BgpSetMedType) (*MedAction, error) {
 	case "+", "-":
 		action = MED_ACTION_MOD
 	}
-	value, _ := strconv.Atoi(string(c))
+	value, _ := strconv.ParseInt(string(c), 10, 64)
 	return &MedAction{
 		value:  value,
 		action: action,
 	}, nil
 }
 
-func NewMedActionFromApiStruct(action MedActionType, value int) *MedAction {
+func NewMedActionFromApiStruct(action MedActionType, value int64) *MedAction {
 	return &MedAction{action: action, value: value}
 }
 
@@ -1768,7 +1768,7 @@ func NewAsPathPrependAction(action config.SetAsPathPrepend) (*AsPathPrependActio
 	case "last-as":
 		a.useLeftMost = true
 	default:
-		asn, err := strconv.Atoi(action.As)
+		asn, err := strconv.ParseUint(action.As, 10, 32)
 		if err != nil {
 			return nil, fmt.Errorf("As number string invalid")
 		}

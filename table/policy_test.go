@@ -2335,7 +2335,7 @@ func TestPolicyMatchAndAddingMedOverFlow(t *testing.T) {
 	ds.PrefixSets = []config.PrefixSet{ps}
 	ds.NeighborSets = []config.NeighborSet{ns}
 
-	m := fmt.Sprintf("+%d", math.MaxUint32)
+	m := fmt.Sprintf("+%d", uint32(math.MaxUint32))
 	ma := "1"
 
 	s := createStatement("statement1", "ps1", "ns1", true)
@@ -2623,7 +2623,8 @@ func TestPolicyAs4PathPrepend(t *testing.T) {
 	//test
 	r := NewRoutingPolicy()
 	r.reload(pl)
-	p, _ := NewPolicy(pl.PolicyDefinitions[0])
+	p, err := NewPolicy(pl.PolicyDefinitions[0])
+	assert.Nil(err)
 	addPolicy(r, p)
 
 	pType, newPath := p.Apply(path, nil)
