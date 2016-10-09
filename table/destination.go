@@ -47,6 +47,7 @@ const (
 	BPR_IGP_COST           BestPathReason = "IGP Cost"
 	BPR_ROUTER_ID          BestPathReason = "Router ID"
 	BPR_OLDER              BestPathReason = "Older"
+	BPR_NON_LLGR_STALE     BestPathReason = "no LLGR Stale"
 )
 
 func IpToRadixkey(b []byte, max uint8) string {
@@ -479,6 +480,11 @@ func (p paths) Less(i, j int) bool {
 	var better *Path
 	reason := BPR_UNKNOWN
 
+	// draft-uttaro-idr-bgp-persistence-02
+	if better == nil {
+		better = compareByLLGRStaleCommunity(path1, path2)
+		reason = BPR_NON_LLGR_STALE
+	}
 	// Follow best path calculation algorithm steps.
 	// compare by reachability
 	if better == nil {
@@ -543,6 +549,17 @@ func (p paths) Less(i, j int) bool {
 		return true
 	}
 	return false
+}
+
+func compareByLLGRStaleCommunity(path1, path2 *Path) *Path {
+	p1 := path1.IsLLGRStale()
+	p2 := path2.IsLLGRStale()
+	if p1 == p2 {
+		return nil
+	} else if p1 {
+		return path2
+	}
+	return path1
 }
 
 func compareByReachableNexthop(path1, path2 *Path) *Path {

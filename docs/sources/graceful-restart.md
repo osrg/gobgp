@@ -1,6 +1,8 @@
 # Graceful Restart
 
-This page explains how to configure [Graceful Restart](https://tools.ietf.org/html/rfc4724).
+This page explains how to configure [Graceful Restart](https://tools.ietf.org/html/rfc4724),
+[Graceful Restart Notification Support](https://tools.ietf.org/html/draft-ietf-idr-bgp-gr-notification-07) and
+[Long Lived Graceful Restart](https://tools.ietf.org/html/draft-uttaro-idr-bgp-persistence-02).
 Graceful Restart has two sides. One is restarting speaker which does restart,
 the other is receiving speaker (helper speaker) which helps a restarting speaker
 to do graceful restart. GoBGP supports both roles.
@@ -9,6 +11,8 @@ to do graceful restart. GoBGP supports both roles.
 
 - [Helper speaker](#helper)
 - [Restarting speaker](#restarting)
+- [Graceful Restart Notification Support](#notification)
+- [Long Lived Graceful Restart](#long-lived)
 
 ## <a name="helper"> Helper speaker
 
@@ -140,3 +144,96 @@ immediately withdraw all routes which were advertised from `gobgpd`.
 Also, when `gobgpd` doesn't recovered within `restart-time`, the peers will
 withdraw all routes.
 Default value of `restart-time` is equal to `hold-time`.
+
+## <a name="notification"> Graceful Restart Notification Support
+
+[RFC4724](https://tools.ietf.org/html/rfc4724) specifies gracful restart procedures are triggered only when
+the BGP session between graceful restart capable peers turns down without
+a notification message for backward compatibility.
+[Graceful Restart Notification Support](https://tools.ietf.org/html/draft-ietf-idr-bgp-gr-notification-07)
+expands this to trigger graceful restart procedures also with a notification message.
+To turn on this feature, add `notification-enabled = true` to configuration like below.
+
+```toml
+[global.config]
+  as = 64512
+  router-id = "192.168.255.1"
+
+[[neighbors]]
+  [neighbors.config]
+    neighbor-address = "10.0.255.1"
+    peer-as = 65001
+  [neighbors.graceful-restart.config]
+    enabled = true
+    notification-enabled = true
+```
+
+## <a name="long-lived"> Long Lived Graceful Restart
+
+### Long Lived Graceful Restart Helper Speaker Configuration
+
+```toml
+[global.config]
+  as = 64512
+  router-id = "192.168.255.1"
+
+[[neighbors]]
+  [neighbors.config]
+    neighbor-address = "10.0.255.1"
+    peer-as = 65001
+  [neighbors.graceful-restart.config]
+    enabled = true
+    long-lived-enabled = true
+```
+
+### Long Lived Graceful Restart Restarting Speaker Configuration
+
+Unlike normal graceful restart, long-lived graceful restart supports
+restart-time as per address family.
+
+```toml
+[global.config]
+  as = 64512
+  router-id = "192.168.255.1"
+
+[[neighbors]]
+  [neighbors.config]
+    neighbor-address = "10.0.255.1"
+    peer-as = 65001
+  [neighbors.graceful-restart.config]
+    enabled = true
+    long-lived-enabled = true
+  [[neighbors.afi-safis]]
+    [neighbors.afi-safis.config]
+    afi-safi-name = "ipv4-unicast"
+    [neighbors.afi-safis.long-lived-graceful-restart.config]
+        enabled = true
+        restart-time = 100000
+```
+
+### Conbination with normal Graceful Restart
+
+You can also use long lived graceful restart with normal graceful restart.
+
+```toml
+[global.config]
+  as = 64512
+  router-id = "192.168.255.1"
+
+[[neighbors]]
+  [neighbors.config]
+    neighbor-address = "10.0.255.1"
+    peer-as = 65001
+  [neighbors.graceful-restart.config]
+    enabled = true
+    long-lived-enabled = true
+    restart-time = 120
+  [[neighbors.afi-safis]]
+    [neighbors.afi-safis.config]
+    afi-safi-name = "ipv4-unicast"
+    [neighbors.afi-safis.mp-graceful-restart.config]
+        enabled = true
+    [neighbors.afi-safis.long-lived-graceful-restart.config]
+        enabled = true
+        restart-time = 100000
+```

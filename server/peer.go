@@ -40,6 +40,7 @@ type Peer struct {
 	policy            *table.RoutingPolicy
 	localRib          *table.TableManager
 	prefixLimitWarned map[bgp.RouteFamily]bool
+	llgrEndChs        []chan struct{}
 }
 
 func NewPeer(g *config.Global, conf *config.Neighbor, loc *table.TableManager, policy *table.RoutingPolicy) *Peer {
@@ -99,6 +100,25 @@ func (peer *Peer) configuredRFlist() []bgp.RouteFamily {
 	return rfs
 }
 
+func classifyFamilies(all, part []bgp.RouteFamily) ([]bgp.RouteFamily, []bgp.RouteFamily) {
+	a := []bgp.RouteFamily{}
+	b := []bgp.RouteFamily{}
+	for _, f := range all {
+		p := true
+		for _, g := range part {
+			if f == g {
+				p = false
+				a = append(a, f)
+				break
+			}
+		}
+		if p {
+			b = append(b, f)
+		}
+	}
+	return a, b
+}
+
 func (peer *Peer) forwardingPreservedFamilies() ([]bgp.RouteFamily, []bgp.RouteFamily) {
 	list := []bgp.RouteFamily{}
 	for _, a := range peer.fsm.pConf.AfiSafis {
@@ -107,21 +127,83 @@ func (peer *Peer) forwardingPreservedFamilies() ([]bgp.RouteFamily, []bgp.RouteF
 			list = append(list, f)
 		}
 	}
-	preserved := []bgp.RouteFamily{}
-	notPreserved := []bgp.RouteFamily{}
-	for _, f := range peer.configuredRFlist() {
-		p := true
-		for _, g := range list {
-			if f == g {
-				p = false
-				preserved = append(preserved, f)
-			}
-		}
-		if p {
-			notPreserved = append(notPreserved, f)
+	return classifyFamilies(peer.configuredRFlist(), list)
+}
+
+func (peer *Peer) llgrFamilies() ([]bgp.RouteFamily, []bgp.RouteFamily) {
+	list := []bgp.RouteFamily{}
+	for _, a := range peer.fsm.pConf.AfiSafis {
+		if a.LongLivedGracefulRestart.State.Enabled {
+			f, _ := bgp.GetRouteFamily(string(a.Config.AfiSafiName))
+			list = append(list, f)
 		}
 	}
-	return preserved, notPreserved
+	return classifyFamilies(peer.configuredRFlist(), list)
+}
+
+func (peer *Peer) isLLGREnabledFamily(family bgp.RouteFamily) bool {
+	if !peer.fsm.pConf.GracefulRestart.Config.LongLivedEnabled {
+		return false
+	}
+	fs, _ := peer.llgrFamilies()
+	for _, f := range fs {
+		if f == family {
+			return true
+		}
+	}
+	return false
+}
+
+func (peer *Peer) llgrRestartTime(family bgp.RouteFamily) uint32 {
+	for _, a := range peer.fsm.pConf.AfiSafis {
+		if f, _ := bgp.GetRouteFamily(string(a.Config.AfiSafiName)); f == family {
+			return a.LongLivedGracefulRestart.State.PeerRestartTime
+		}
+	}
+	return 0
+}
+
+func (peer *Peer) llgrRestartTimerExpired(family bgp.RouteFamily) bool {
+	all := true
+	for _, a := range peer.fsm.pConf.AfiSafis {
+		if f, _ := bgp.GetRouteFamily(string(a.Config.AfiSafiName)); f == family {
+			a.LongLivedGracefulRestart.State.PeerRestartTimerExpired = true
+		}
+		s := a.LongLivedGracefulRestart.State
+		if s.Received && !s.PeerRestartTimerExpired {
+			all = false
+		}
+	}
+	return all
+}
+
+func (peer *Peer) markLLGRStale(fs []bgp.RouteFamily) []*table.Path {
+	paths := peer.adjRibIn.PathList(fs, true)
+	for i, p := range paths {
+		doStale := true
+		for _, c := range p.GetCommunities() {
+			if c == bgp.COMMUNITY_NO_LLGR {
+				doStale = false
+				p = p.Clone(true)
+				break
+			}
+		}
+		if doStale {
+			p = p.Clone(false)
+			p.SetCommunities([]uint32{bgp.COMMUNITY_LLGR_STALE}, false)
+		}
+		paths[i] = p
+	}
+	return paths
+}
+
+func (peer *Peer) stopPeerRestarting() {
+	peer.fsm.pConf.GracefulRestart.State.PeerRestarting = false
+	for _, ch := range peer.llgrEndChs {
+		close(ch)
+	}
+	peer.llgrEndChs = make([]chan struct{}, 0)
+
 }
 
 func (peer *Peer) getAccepted(rfList []bgp.RouteFamily) []*table.Path {
@@ -158,6 +240,22 @@ func (peer *Peer) filterpath(path *table.Path, withdrawals []*table.Path) *table
 		Info: peer.fsm.peerInfo,
 	}
 	path = peer.policy.ApplyPolicy(peer.TableID(), table.POLICY_DIRECTION_EXPORT, path, options)
+
+	// draft-uttaro-idr-bgp-persistence-02
+	// 4.3.  Processing LLGR_STALE Routes
+	//
+	// The route SHOULD NOT be advertised to any neighbor from which the
+	// Long-lived Graceful Restart Capability has not been received.  The
+	// exception is described in the Optional Partial Deployment
+	// Procedure section (Section 4.7).  Note that this requirement
+	// implies that such routes should be withdrawn from any such neighbor.
+	if path != nil && !path.IsWithdraw && !peer.isLLGREnabledFamily(path.GetRouteFamily()) && path.IsLLGRStale() {
+		if peer.adjRibOut.Exists(path) {
+			path = path.Clone(true)
+		} else {
+			return nil
+		}
+	}
 
 	// remove local-pref attribute
 	// we should do this after applying export policy since policy may

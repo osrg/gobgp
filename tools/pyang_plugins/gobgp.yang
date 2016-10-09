@@ -585,6 +585,36 @@ module gobgp {
     }
   }
 
+  grouping long-lived-graceful-restart {
+      container long-lived-graceful-restart {
+	  container config {
+	      leaf enabled {
+		  type boolean;
+	      }
+	      leaf restart-time {
+		  type uint32;
+	      }
+	  }
+	  container state {
+	      leaf enabled {
+		  type boolean;
+	      }
+	      leaf received {
+		  type boolean;
+	      }
+	      leaf advertised {
+		  type boolean;
+	      }
+	      leaf peer-restart-time {
+		  type uint32;
+	      }
+	      leaf peer-restart-timer-expired {
+		  type boolean;
+	      }
+	  }
+      }
+  }
+
   // augment statements
   augment "/bgp:bgp/bgp:neighbors/bgp:neighbor/bgp:state/bgp:messages/bgp:sent" {
     description "additional counters";
@@ -708,6 +738,9 @@ module gobgp {
     leaf notification-enabled {
       type boolean;
     }
+    leaf long-lived-enabled {
+      type boolean;
+    }
   }
 
   augment "/bgp:bgp/bgp:neighbors/bgp:neighbor/bgp:graceful-restart/bgp:state" {
@@ -716,6 +749,9 @@ module gobgp {
       type uint16;
     }
     leaf notification-enabled {
+      type boolean;
+    }
+    leaf long-lived-enabled {
       type boolean;
     }
   }
@@ -1013,5 +1049,7 @@ module gobgp {
           uses route-target-membership-config;
       }
     }
+    
+    uses long-lived-graceful-restart;
   }
 }

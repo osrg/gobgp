@@ -348,6 +348,15 @@ func (path *Path) IsStale() bool {
 	return path.OriginInfo().stale
 }
 
+func (path *Path) IsLLGRStale() bool {
+	for _, c := range path.GetCommunities() {
+		if c == bgp.COMMUNITY_LLGR_STALE {
+			return true
+		}
+	}
+	return false
+}
+
 func (path *Path) GetSourceAs() uint32 {
 	attr := path.getPathAttr(bgp.BGP_ATTR_TYPE_AS_PATH)
 	if attr != nil {

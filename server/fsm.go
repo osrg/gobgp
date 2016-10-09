@@ -27,6 +27,7 @@ import (
 	"math/rand"
 	"net"
 	"strconv"
+	"strings"
 	"time"
 )
 
@@ -521,6 +522,7 @@ func capabilitiesFromConfig(pConf *config.Neighbor) []bgp.ParameterCapabilityInt
 
 	if c := pConf.GracefulRestart.Config; c.Enabled {
 		tuples := []*bgp.CapGracefulRestartTuple{}
+		ltuples := []*bgp.CapLongLivedGracefulRestartTuple{}
 
 		// RFC 4724 4.1
 		// To re-establish the session with its peer, the Restarting Speaker
@@ -530,8 +532,8 @@ func capabilitiesFromConfig(pConf *config.Neighbor) []bgp.ParameterCapabilityInt
 
 		if !c.HelperOnly {
 			for i, rf := range pConf.AfiSafis {
-				if rf.MpGracefulRestart.Config.Enabled {
-					k, _ := bgp.GetRouteFamily(string(rf.Config.AfiSafiName))
+				k, _ := bgp.GetRouteFamily(string(rf.Config.AfiSafiName))
+				if m := rf.MpGracefulRestart.Config; m.Enabled {
 					// When restarting, always flag forwaring bit.
 					// This can be a lie, depending on how gobgpd is used.
 					// For a route-server use-case, since a route-server
@@ -542,11 +544,17 @@ func capabilitiesFromConfig(pConf *config.Neighbor) []bgp.ParameterCapabilityInt
 					tuples = append(tuples, bgp.NewCapGracefulRestartTuple(k, restarting))
 					pConf.AfiSafis[i].MpGracefulRestart.State.Advertised = true
 				}
+				if m := rf.LongLivedGracefulRestart.Config; m.Enabled {
+					ltuples = append(ltuples, bgp.NewCapLongLivedGracefulRestartTuple(k, restarting, m.RestartTime))
+				}
 			}
 		}
 		time := c.RestartTime
 		notification := c.NotificationEnabled
 		caps = append(caps, bgp.NewCapGracefulRestart(restarting, notification, time, tuples))
+		if c.LongLivedEnabled {
+			caps = append(caps, bgp.NewCapLongLivedGracefulRestart(ltuples))
+		}
 	}
 	return caps
 }
@@ -695,7 +703,7 @@ func (h *FSMHandler) recvMessageWithError() (*FsmMsg, error) {
 					"Subcode": body.ErrorSubcode,
 					"Data":    body.Data,
 				}).Warn("received notification")
-				if body.ErrorCode == bgp.BGP_ERROR_CEASE && body.ErrorSubcode == bgp.BGP_ERROR_SUB_HARD_RESET {
+				if s := h.fsm.pConf.GracefulRestart.State; s.Enabled && s.NotificationEnabled && body.ErrorCode == bgp.BGP_ERROR_CEASE && body.ErrorSubcode == bgp.BGP_ERROR_SUB_HARD_RESET {
 					sendToErrorCh(FSM_HARD_RESET)
 				} else {
 					sendToErrorCh(FsmStateReason(fmt.Sprintf("%s %s", FSM_NOTIFICATION_RECV, bgp.NewNotificationErrorCode(body.ErrorCode, body.ErrorSubcode).String())))
@@ -864,6 +872,22 @@ func (h *FSMHandler) opensent() (bgp.FSMState, FsmStateReason) {
 						}
 						if fsm.pConf.GracefulRestart.Config.NotificationEnabled && cap.Flags&0x04 > 0 {
 							fsm.pConf.GracefulRestart.State.NotificationEnabled = true
+						}
+					}
+					llgr, ok2 := fsm.capMap[bgp.BGP_CAP_LONG_LIVED_GRACEFUL_RESTART]
+					if fsm.pConf.GracefulRestart.Config.LongLivedEnabled && ok && ok2 {
+						fsm.pConf.GracefulRestart.State.LongLivedEnabled = true
+						cap := llgr[len(llgr)-1].(*bgp.CapLongLivedGracefulRestart)
+						for _, t := range cap.Tuples {
+							n := bgp.AddressFamilyNameMap[bgp.AfiSafiToRouteFamily(t.AFI, t.SAFI)]
+							for i, a := range fsm.pConf.AfiSafis {
+								if string(a.Config.AfiSafiName) == n {
+									fsm.pConf.AfiSafis[i].LongLivedGracefulRestart.State.Enabled = true
+									fsm.pConf.AfiSafis[i].LongLivedGracefulRestart.State.Received = true
+									fsm.pConf.AfiSafis[i].LongLivedGracefulRestart.State.PeerRestartTime = t.RestartTime
+									break
+								}
+							}
 						}
 					}
 
@@ -1178,7 +1202,7 @@ func (h *FSMHandler) established() (bgp.FSMState, FsmStateReason) {
 		case err := <-h.errorCh:
 			h.conn.Close()
 			h.t.Kill(nil)
-			if s := fsm.pConf.GracefulRestart.State; s.Enabled && ((s.NotificationEnabled && err != FSM_HARD_RESET) || err == FSM_READ_FAILED || err == FSM_WRITE_FAILED) {
+			if s := fsm.pConf.GracefulRestart.State; s.Enabled && ((s.NotificationEnabled && strings.HasPrefix(string(err), FSM_NOTIFICATION_RECV)) || err == FSM_READ_FAILED || err == FSM_WRITE_FAILED) {
 				err = FSM_GRACEFUL_RESTART
 				log.WithFields(log.Fields{
 					"Topic": "Peer",

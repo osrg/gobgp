@@ -63,12 +63,24 @@
     [neighbors.route-reflector.config]
         route-reflector-client = true
         route-reflector-cluster-id = "192.168.0.1"
+    [neighbors.graceful-restart.config]
+        enabled = true
+        notification-enabled = true
+        long-lived-enabled = true
+        # graceful restart restart time
+        restart-time = 20
     [[neighbors.afi-safis]]
         [neighbors.afi-safis.config]
         afi-safi-name = "ipv4-unicast"
         [neighbors.afi-safis.prefix-limit.config]
            max-prefixes = 1000
            shutdown-threshold-pct = 80
+        [neighbors.afi-safis.mp-graceful-restart.config]
+           enabled = true
+        [neighbors.afi-safis.long-lived-graceful-restart.config]
+           enabled = true
+           # long lived graceful restart restart time
+           restart-time = 100000
     [[neighbors.afi-safis]]
         [neighbors.afi-safis.config]
         afi-safi-name = "ipv6-unicast"

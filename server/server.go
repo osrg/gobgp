@@ -628,13 +628,72 @@ func (server *BgpServer) handleFSMMessage(peer *Peer, e *FsmMsg) {
 			peer.DropAll(drop)
 			server.dropPeerAllRoutes(peer, drop)
 		} else if peer.fsm.pConf.GracefulRestart.State.PeerRestarting && nextState == bgp.BGP_FSM_IDLE {
-			// RFC 4724 4.2
-			// If the session does not get re-established within the "Restart Time"
-			// that the peer advertised previously, the Receiving Speaker MUST
-			// delete all the stale routes from the peer that it is retaining.
-			peer.fsm.pConf.GracefulRestart.State.PeerRestarting = false
-			peer.DropAll(peer.configuredRFlist())
-			server.dropPeerAllRoutes(peer, peer.configuredRFlist())
+			if peer.fsm.pConf.GracefulRestart.State.LongLivedEnabled {
+				llgr, no_llgr := peer.llgrFamilies()
+
+				peer.DropAll(no_llgr)
+				server.dropPeerAllRoutes(peer, no_llgr)
+
+				// attach LLGR_STALE community to paths in peer's adj-rib-in
+				// paths with NO_LLGR are deleted
+				pathList := peer.markLLGRStale(llgr)
+
+				// calculate again
+				// wheh path with LLGR_STALE chosen as best,
+				// peer which doesn't support LLGR will drop the path
+				// if it is in adj-rib-out, do withdrawal
+				server.propagateUpdate(peer, pathList)
+
+				for _, f := range llgr {
+					endCh := make(chan struct{})
+					peer.llgrEndChs = append(peer.llgrEndChs, endCh)
+					go func(family bgp.RouteFamily, endCh chan struct{}) {
+						t := peer.llgrRestartTime(family)
+						timer := time.NewTimer(time.Second * time.Duration(t))
+
+						log.WithFields(log.Fields{
+							"Topic":  "Peer",
+							"Key":    peer.ID(),
+							"Family": family,
+						}).Debugf("start LLGR restart timer (%d sec) for %s", t, family)
+
+						select {
+						case <-timer.C:
+							ch := make(chan struct{})
+							defer func() { <-ch }()
+							server.mgmtCh <- func() {
+								log.WithFields(log.Fields{
+									"Topic":  "Peer",
+									"Key":    peer.ID(),
+									"Family": family,
+								}).Debugf("LLGR restart timer (%d sec) for %s expired", t, family)
+								defer close(ch)
+								peer.DropAll([]bgp.RouteFamily{family})
+								server.dropPeerAllRoutes(peer, []bgp.RouteFamily{family})
+
+								// when all llgr restart timer expired, stop PeerRestarting
+								if peer.llgrRestartTimerExpired(family) {
+									peer.stopPeerRestarting()
+								}
+							}
+						case <-endCh:
+							log.WithFields(log.Fields{
+								"Topic":  "Peer",
+								"Key":    peer.ID(),
+								"Family": family,
+							}).Debugf("stop LLGR restart timer (%d sec) for %s", t, family)
+						}
+					}(f, endCh)
+				}
+			} else {
+				// RFC 4724 4.2
+				// If the session does not get re-established within the "Restart Time"
+				// that the peer advertised previously, the Receiving Speaker MUST
+				// delete all the stale routes from the peer that it is retaining.
+				peer.fsm.pConf.GracefulRestart.State.PeerRestarting = false
+				peer.DropAll(peer.configuredRFlist())
+				server.dropPeerAllRoutes(peer, peer.configuredRFlist())
+			}
 		}
 
 		peer.outgoing.Close()
@@ -651,8 +710,7 @@ func (server *BgpServer) handleFSMMessage(peer *Peer, e *FsmMsg) {
 
 					server.mgmtCh <- func() {
 						defer close(ch)
-
-						server.softResetOut(peer.fsm.pConf.Config.NeighborAddress, bgp.RouteFamily(0), true)
+						server.softResetOut(peer.fsm.pConf.Config.NeighborAddress, family, true)
 					}
 				}
 			}
@@ -832,7 +890,7 @@ func (server *BgpServer) handleFSMMessage(peer *Peer, e *FsmMsg) {
 				}
 				if peer.fsm.pConf.GracefulRestart.State.PeerRestarting {
 					if peer.recvedAllEOR() {
-						peer.fsm.pConf.GracefulRestart.State.PeerRestarting = false
+						peer.stopPeerRestarting()
 						pathList := peer.adjRibIn.DropStale(peer.configuredRFlist())
 						log.WithFields(log.Fields{
 							"Topic": "Peer",
@@ -1613,6 +1671,7 @@ func (server *BgpServer) deleteNeighbor(c *config.Neighbor, code, subcode uint8)
 	}).Infof("Delete a peer configuration for:%s", addr)
 
 	n.fsm.sendNotification(code, subcode, nil, "")
+	n.stopPeerRestarting()
 
 	go func(addr string) {
 		t1 := time.AfterFunc(time.Minute*5, func() {
