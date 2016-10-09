@@ -426,10 +426,13 @@ func (c *CapGracefulRestart) MarshalJSON() ([]byte, error) {
 	})
 }
 
-func NewCapGracefulRestart(restarting bool, time uint16, tuples []*CapGracefulRestartTuple) *CapGracefulRestart {
+func NewCapGracefulRestart(restarting, notification bool, time uint16, tuples []*CapGracefulRestartTuple) *CapGracefulRestart {
 	flags := 0
 	if restarting {
 		flags = 0x08
+	}
+	if notification {
+		flags |= 0x04
 	}
 	return &CapGracefulRestart{
 		DefaultParameterCapability: DefaultParameterCapability{
@@ -3914,6 +3917,7 @@ const (
 	BGP_ERROR_SUB_OTHER_CONFIGURATION_CHANGE
 	BGP_ERROR_SUB_CONNECTION_COLLISION_RESOLUTION
 	BGP_ERROR_SUB_OUT_OF_RESOURCES
+	BGP_ERROR_SUB_HARD_RESET //draft-ietf-idr-bgp-gr-notification-07
 )
 
 // NOTIFICATION Error Subcode for BGP_ERROR_ROUTE_REFRESH
