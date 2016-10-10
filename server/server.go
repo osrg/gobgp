@@ -814,8 +814,22 @@ func (server *BgpServer) handleFSMMessage(peer *Peer, e *FsmMsg) {
 			}
 
 			if len(pathList) > 0 {
-				var altered []*table.Path
-				altered = server.propagateUpdate(peer, pathList)
+				if v := peer.fsm.pConf.Config.Vrf; v != "" {
+					vrf := server.globalRib.Vrfs[v]
+					for idx, path := range pathList {
+						label, err := server.globalRib.GetNextLabel(v, path.GetNexthop().String(), path.IsWithdraw)
+						if err != nil {
+							log.WithFields(log.Fields{
+								"Topic": "Peer",
+								"Key":   peer.ID(),
+								"Path":  path.String(),
+							}).Warnf("failed to convert vrf path to global path: %s", err)
+							continue
+						}
+						pathList[idx] = path.ToGlobal(vrf, label)
+					}
+				}
+				altered := server.propagateUpdate(peer, pathList)
 				if server.isWatched(WATCH_EVENT_TYPE_POST_UPDATE) {
 					_, y := peer.fsm.capMap[bgp.BGP_CAP_FOUR_OCTET_AS_NUMBER]
 					l, _ := peer.fsm.LocalHostPort()
@@ -1101,7 +1115,7 @@ func (server *BgpServer) fixupApiPath(vrfId string, pathList []*table.Path) erro
 		LocalID: net.ParseIP(server.bgpConfig.Global.Config.RouterId).To4(),
 	}
 
-	for _, path := range pathList {
+	for idx, path := range pathList {
 		if path.GetSource() == nil {
 			path.SetSource(pi)
 		}
@@ -1112,9 +1126,7 @@ func (server *BgpServer) fixupApiPath(vrfId string, pathList []*table.Path) erro
 				return err
 			}
 			vrf := server.globalRib.Vrfs[vrfId]
-			if err := vrf.ToGlobalPath(path, label); err != nil {
-				return err
-			}
+			pathList[idx] = path.ToGlobal(vrf, label)
 		}
 
 		if path.GetRouteFamily() == bgp.RF_EVPN {
@@ -1289,6 +1301,13 @@ func (s *BgpServer) DeleteVrf(name string) (err error) {
 
 	s.mgmtCh <- func() {
 		defer close(ch)
+
+		for _, n := range s.neighborMap {
+			if n.fsm.pConf.Config.Vrf == name {
+				err = fmt.Errorf("failed to delete VRF %s: neighbor %s is in use", name, n.ID())
+				return
+			}
+		}
 
 		pathList, err := s.globalRib.DeleteVrf(name)
 		if err == nil && len(pathList) > 0 {
@@ -1594,6 +1613,29 @@ func (server *BgpServer) addNeighbor(c *config.Neighbor) error {
 	addr := c.Config.NeighborAddress
 	if _, y := server.neighborMap[addr]; y {
 		return fmt.Errorf("Can't overwrite the existing peer: %s", addr)
+	}
+
+	if vrf := c.Config.Vrf; vrf != "" {
+		if c.RouteServer.Config.RouteServerClient {
+			return fmt.Errorf("route server client can't be enslaved to VRF")
+		}
+		if c.RouteReflector.Config.RouteReflectorClient {
+			return fmt.Errorf("route reflector client can't be enslaved to VRF")
+		}
+		families, _ := config.AfiSafis(c.AfiSafis).ToRfList()
+		for _, f := range families {
+			if f != bgp.RF_IPv4_UC && f != bgp.RF_IPv6_UC {
+				return fmt.Errorf("%s is not supported for VRF enslaved neighbor", f)
+			}
+		}
+		_, y := server.globalRib.Vrfs[vrf]
+		if !y {
+			return fmt.Errorf("VRF not found: %s", vrf)
+		}
+	}
+
+	if c.RouteServer.Config.RouteServerClient && c.RouteReflector.Config.RouteReflectorClient {
+		return fmt.Errorf("can't be both route-server-client and route-reflector-client")
 	}
 
 	if server.bgpConfig.Global.Config.Port > 0 {

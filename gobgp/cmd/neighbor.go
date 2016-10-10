@@ -31,7 +31,7 @@ import (
 	"time"
 )
 
-func getNeighbors() (peers, error) {
+func getNeighbors(vrf string) (peers, error) {
 	r, e := client.GetNeighbor(context.Background(), &api.GetNeighborRequest{})
 	if e != nil {
 		fmt.Println(e)
@@ -51,13 +51,16 @@ func getNeighbors() (peers, error) {
 				}
 			}
 		}
+		if vrf != "" && p.Conf.Vrf != vrf {
+			continue
+		}
 		m = append(m, ApiStruct2Peer(p))
 	}
 	return m, nil
 }
 
 func getNeighbor(name string) (*Peer, error) {
-	l, e := getNeighbors()
+	l, e := getNeighbors("")
 	if e != nil {
 		return nil, e
 	}
@@ -69,8 +72,8 @@ func getNeighbor(name string) (*Peer, error) {
 	return nil, fmt.Errorf("Neighbor %v doesn't exist.", name)
 }
 
-func showNeighbors() error {
-	m, err := getNeighbors()
+func showNeighbors(vrf string) error {
+	m, err := getNeighbors(vrf)
 	if err != nil {
 		return err
 	}
@@ -492,7 +495,6 @@ func showNeighborRib(r string, name string, args []string) error {
 		resource = api.Resource_ADJ_OUT
 	case CMD_VRF:
 		def = bgp.RF_IPv4_UC
-		showLabel = true
 		resource = api.Resource_VRF
 	}
 	rf, err := checkAddressFamily(def)
@@ -622,6 +624,7 @@ func stateChangeNeighbor(cmd string, remoteIP string, args []string) error {
 	var err error
 	switch cmd {
 	case CMD_SHUTDOWN:
+		fmt.Printf("WARNING: command `%s` is deprecated. use `%s` instead", CMD_SHUTDOWN, CMD_DISABLE)
 		_, err = client.ShutdownNeighbor(context.Background(), &api.ShutdownNeighborRequest{Address: remoteIP})
 	case CMD_ENABLE:
 		_, err = client.EnableNeighbor(context.Background(), &api.EnableNeighborRequest{Address: remoteIP})
@@ -757,13 +760,13 @@ func modNeighborPolicy(remoteIP, policyType, cmdType string, args []string) erro
 }
 
 func modNeighbor(cmdType string, args []string) error {
-	m := extractReserved(args, []string{"interface", "as"})
+	m := extractReserved(args, []string{"interface", "as", "vrf", "route-reflector-client", "route-server-client"})
 	usage := fmt.Sprintf("usage: gobgp neighbor %s [<neighbor-address>| interface <neighbor-interface>]", cmdType)
 	if cmdType == CMD_ADD {
-		usage += " as <VALUE>"
+		usage += " as <VALUE> [ vrf <vrf-name> | route-reflector-client [<cluster-id>] | route-server-client ]"
 	}
 
-	if len(m[""]) < 1 && len(m["interface"]) < 1 {
+	if (len(m[""]) != 1 && len(m["interface"]) != 1) || len(m["as"]) > 1 || len(m["vrf"]) > 1 || len(m["route-reflector-client"]) > 1 {
 		return fmt.Errorf("%s", usage)
 	}
 	unnumbered := len(m["interface"]) > 0
@@ -783,6 +786,22 @@ func modNeighbor(cmdType string, args []string) error {
 			peer.Conf.NeighborInterface = m["interface"][0]
 		} else {
 			peer.Conf.NeighborAddress = m[""][0]
+		}
+		if len(m["vrf"]) == 1 {
+			peer.Conf.Vrf = m["vrf"][0]
+		}
+		if rr, ok := m["route-reflector-client"]; ok {
+			peer.RouteReflector = &api.RouteReflector{
+				RouteReflectorClient: true,
+			}
+			if len(rr) == 1 {
+				peer.RouteReflector.RouteReflectorClusterId = rr[0]
+			}
+		}
+		if _, ok := m["route-server-client"]; ok {
+			peer.RouteServer = &api.RouteServer{
+				RouteServerClient: true,
+			}
 		}
 		return peer
 	}
@@ -909,7 +928,7 @@ func NewNeighborCmd() *cobra.Command {
 		Run: func(cmd *cobra.Command, args []string) {
 			var err error
 			if len(args) == 0 {
-				err = showNeighbors()
+				err = showNeighbors("")
 			} else if len(args) == 1 {
 				err = showNeighbor(args)
 			} else {

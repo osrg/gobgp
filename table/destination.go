@@ -906,7 +906,7 @@ func (old *Destination) Select(option ...DestinationSelectOption) *Destination {
 			ps := make([]*Path, 0, len(paths))
 			for _, p := range paths {
 				if CanImportToVrf(vrf, p) {
-					ps = append(ps, p)
+					ps = append(ps, p.ToLocal())
 				}
 			}
 			paths = ps

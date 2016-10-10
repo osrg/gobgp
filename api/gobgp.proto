@@ -568,6 +568,7 @@ message PeerConf {
   repeated PrefixLimit prefix_limits = 14;
   string local_address = 15;
   string neighbor_interface = 16;
+  string vrf = 17;
 }
 
 message EbgpMultihop {
