@@ -217,6 +217,8 @@ func (server *BgpServer) Serve() {
 		}
 
 		select {
+		case f := <-server.mgmtCh:
+			f()
 		case conn := <-server.acceptCh:
 			passConn(conn)
 		default:
