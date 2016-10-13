@@ -651,7 +651,7 @@ func (h *FSMHandler) recvMessageWithError() (*FsmMsg, error) {
 			case bgp.BGP_MSG_UPDATE:
 				body := m.Body.(*bgp.BGPUpdate)
 				confedCheck := !config.IsConfederationMember(h.fsm.gConf, h.fsm.pConf) && config.IsEBGPPeer(h.fsm.gConf, h.fsm.pConf)
-				_, err := bgp.ValidateUpdateMsg(body, h.fsm.rfMap, confedCheck)
+				_, err = bgp.ValidateUpdateMsg(body, h.fsm.rfMap, confedCheck)
 				if err != nil {
 					log.WithFields(log.Fields{
 						"Topic": "Peer",
@@ -663,7 +663,7 @@ func (h *FSMHandler) recvMessageWithError() (*FsmMsg, error) {
 				} else {
 					// FIXME: we should use the original message for bmp/mrt
 					table.UpdatePathAttrs4ByteAs(body)
-					err := table.UpdatePathAggregator4ByteAs(body)
+					err = table.UpdatePathAggregator4ByteAs(body)
 					if err == nil {
 						fmsg.PathList = table.ProcessMessage(m, h.fsm.peerInfo, fmsg.timestamp)
 						id := h.fsm.pConf.Config.NeighborAddress
