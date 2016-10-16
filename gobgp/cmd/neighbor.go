@@ -471,6 +471,50 @@ func ShowRoute(pathList []*table.Path, showAge, showBest, showLabel, isMonitor, 
 	}
 }
 
+func showRibInfo(r, name string) error {
+	var resource api.Resource
+	def := addr2AddressFamily(net.ParseIP(name))
+	switch r {
+	case CMD_GLOBAL:
+		def = bgp.RF_IPv4_UC
+		resource = api.Resource_GLOBAL
+	case CMD_LOCAL:
+		resource = api.Resource_LOCAL
+	case CMD_ADJ_IN:
+		resource = api.Resource_ADJ_IN
+	case CMD_ADJ_OUT:
+		resource = api.Resource_ADJ_OUT
+	default:
+		return fmt.Errorf("invalid resource to show RIB info: %s", r)
+	}
+
+	family, err := checkAddressFamily(def)
+	if err != nil {
+		return err
+	}
+
+	res, err := client.GetRibInfo(context.Background(), &api.GetRibInfoRequest{
+		Info: &api.TableInfo{
+			Type:   resource,
+			Name:   name,
+			Family: uint32(family),
+		},
+	})
+	if err != nil {
+		return err
+	}
+	info := res.Info
+	if globalOpts.Json {
+		j, _ := json.Marshal(info)
+		fmt.Println(string(j))
+		return nil
+	}
+	fmt.Printf("Table %s\n", family)
+	fmt.Printf("Destination: %d, Path: %d\n", info.NumDestination, info.NumPath)
+	return nil
+
+}
+
 func showNeighborRib(r string, name string, args []string) error {
 	var resource api.Resource
 	showBest := false
@@ -845,6 +889,18 @@ func NewNeighborCmd() *cobra.Command {
 				},
 			}
 			neighborCmdImpl.AddCommand(c)
+			switch name {
+			case CMD_LOCAL, CMD_ADJ_IN, CMD_ADJ_OUT:
+				n := name
+				c.AddCommand(&cobra.Command{
+					Use: CMD_SUMMARY,
+					Run: func(cmd *cobra.Command, args []string) {
+						if err := showRibInfo(n, args[len(args)-1]); err != nil {
+							exitWithError(err)
+						}
+					},
+				})
+			}
 		}
 	}
 

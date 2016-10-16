@@ -400,3 +400,24 @@ func (t *Table) Select(option ...TableSelectOption) (*Table, error) {
 		destinations: dsts,
 	}, nil
 }
+
+type TableInfo struct {
+	NumDestination int
+	NumPath        int
+	NumAccepted    int
+}
+
+func (t *Table) Info(id string) *TableInfo {
+	var numD, numP int
+	for _, d := range t.destinations {
+		ps := d.GetKnownPathList(id)
+		if len(ps) > 0 {
+			numD += 1
+			numP += len(ps)
+		}
+	}
+	return &TableInfo{
+		NumDestination: numD,
+		NumPath:        numP,
+	}
+}

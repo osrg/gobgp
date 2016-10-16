@@ -1080,6 +1080,16 @@ func NewGlobalCmd() *cobra.Command {
 		}
 	}
 
+	summaryCmd := &cobra.Command{
+		Use: CMD_SUMMARY,
+		Run: func(cmd *cobra.Command, args []string) {
+			if err := showRibInfo(CMD_GLOBAL, ""); err != nil {
+				exitWithError(err)
+			}
+		},
+	}
+	ribCmd.AddCommand(summaryCmd)
+
 	policyCmd := &cobra.Command{
 		Use: CMD_POLICY,
 		Run: func(cmd *cobra.Command, args []string) {

@@ -1559,6 +1559,56 @@ func (s *BgpServer) GetAdjRib(addr string, family bgp.RouteFamily, in bool, pref
 	return
 }
 
+func (s *BgpServer) GetRibInfo(addr string, family bgp.RouteFamily) (info *table.TableInfo, err error) {
+	ch := make(chan struct{})
+	defer func() { <-ch }()
+
+	s.mgmtCh <- func() {
+		defer close(ch)
+
+		m := s.globalRib
+		id := table.GLOBAL_RIB_NAME
+		if len(addr) > 0 {
+			peer, ok := s.neighborMap[addr]
+			if !ok {
+				err = fmt.Errorf("Neighbor that has %v doesn't exist.", addr)
+				return
+			}
+			if !peer.isRouteServerClient() {
+				err = fmt.Errorf("Neighbor %v doesn't have local rib", addr)
+				return
+			}
+			id = peer.ID()
+		}
+		info, err = m.TableInfo(id, family)
+	}
+	return
+}
+
+func (s *BgpServer) GetAdjRibInfo(addr string, family bgp.RouteFamily, in bool) (info *table.TableInfo, err error) {
+	ch := make(chan struct{})
+	defer func() { <-ch }()
+
+	s.mgmtCh <- func() {
+		defer close(ch)
+
+		peer, ok := s.neighborMap[addr]
+		if !ok {
+			err = fmt.Errorf("Neighbor that has %v doesn't exist.", addr)
+			return
+		}
+
+		var adjRib *table.AdjRib
+		if in {
+			adjRib = peer.adjRibIn
+		} else {
+			adjRib = peer.adjRibOut
+		}
+		info, err = adjRib.TableInfo(family)
+	}
+	return
+}
+
 func (s *BgpServer) GetServer() (c *config.Global) {
 	ch := make(chan struct{})
 	defer func() { <-ch }()

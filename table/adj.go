@@ -16,6 +16,7 @@
 package table
 
 import (
+	"fmt"
 	"github.com/osrg/gobgp/packet/bgp"
 )
 
@@ -187,4 +188,17 @@ func (adj *AdjRib) Select(family bgp.RouteFamily, accepted bool, option ...Table
 	}
 	option = append(option, TableSelectOption{adj: true})
 	return tbl.Select(option...)
+}
+
+func (adj *AdjRib) TableInfo(family bgp.RouteFamily) (*TableInfo, error) {
+	if _, ok := adj.table[family]; !ok {
+		return nil, fmt.Errorf("%s unsupported")
+	}
+	c := adj.Count([]bgp.RouteFamily{family})
+	a := adj.Accepted([]bgp.RouteFamily{family})
+	return &TableInfo{
+		NumDestination: c,
+		NumPath:        c,
+		NumAccepted:    a,
+	}, nil
 }

@@ -1746,3 +1746,37 @@ func (s *Server) StartServer(ctx context.Context, arg *StartServerRequest) (*Sta
 func (s *Server) StopServer(ctx context.Context, arg *StopServerRequest) (*StopServerResponse, error) {
 	return &StopServerResponse{}, s.bgpServer.Stop()
 }
+
+func (s *Server) GetRibInfo(ctx context.Context, arg *GetRibInfoRequest) (*GetRibInfoResponse, error) {
+	family := bgp.RouteFamily(arg.Info.Family)
+	var in bool
+	var err error
+	var info *table.TableInfo
+	switch arg.Info.Type {
+	case Resource_GLOBAL, Resource_LOCAL:
+		info, err = s.bgpServer.GetRibInfo(arg.Info.Name, family)
+	case Resource_ADJ_IN:
+		in = true
+		fallthrough
+	case Resource_ADJ_OUT:
+		info, err = s.bgpServer.GetAdjRibInfo(arg.Info.Name, family, in)
+	default:
+		return nil, fmt.Errorf("unsupported resource type: %s", arg.Info.Type)
+	}
+
+	if err != nil {
+		return nil, err
+	}
+
+	return &GetRibInfoResponse{
+		Info: &TableInfo{
+			Type:           arg.Info.Type,
+			Family:         arg.Info.Family,
+			Name:           arg.Info.Name,
+			NumDestination: uint64(info.NumDestination),
+			NumPath:        uint64(info.NumPath),
+			NumAccepted:    uint64(info.NumAccepted),
+		},
+	}, nil
+
+}

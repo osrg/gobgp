@@ -73,6 +73,7 @@ const (
 	CMD_ROTATE         = "rotate"
 	CMD_BMP            = "bmp"
 	CMD_LARGECOMMUNITY = "large-community"
+	CMD_SUMMARY        = "summary"
 )
 
 var subOpts struct {

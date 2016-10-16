@@ -41,6 +41,8 @@ gobgp has six subcommands.
 % gobgp global rib [-a <address family>]
 # show a specific route information
 % gobgp global rib [<prefix>|<host>] [longer-prefixes|shorter-prefixes] [-a <address family>]
+# show table summary
+% gobgp global rib summary [-a <address family>]
 ```
 
 #### - example
@@ -122,6 +124,8 @@ The following options can be specified in the global subcommand:
 % gobgp neighbor <neighbor address> [local|adj-in|adj-out] [-a <address family>]
 # show a specific route in [local|adj-in|adj-out] table
 % gobgp neighbor <neighbor address> [local|adj-in|adj-out] [<prefix>|<host>] [longer-prefixes|shorter-prefixes] [-a <address family>]
+# show table summary
+% gobgp neighbor <neighbor address> [local|adj-in|adj-out] summary [-a <address family>]
 ```
 
 #### - example

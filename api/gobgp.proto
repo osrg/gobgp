@@ -70,6 +70,7 @@ service GobgpApi {
   rpc AddPolicyAssignment(AddPolicyAssignmentRequest) returns (AddPolicyAssignmentResponse) {}
   rpc DeletePolicyAssignment(DeletePolicyAssignmentRequest) returns (DeletePolicyAssignmentResponse) {}
   rpc ReplacePolicyAssignment(ReplacePolicyAssignmentRequest) returns (ReplacePolicyAssignmentResponse) {}
+  rpc GetRibInfo(GetRibInfoRequest) returns (GetRibInfoResponse) {}
 }
 
 message GetNeighborRequest {
@@ -834,4 +835,21 @@ message Global {
   uint32 mpls_label_min = 6;
   uint32 mpls_label_max = 7;
   bool use_multiple_paths = 8;
+}
+
+message TableInfo {
+  Resource type = 1;
+  string name = 2;
+  uint32 family = 3;
+  uint64 num_destination = 4;
+  uint64 num_path = 5;
+  uint64 num_accepted = 6; // only meaningful when type == ADJ_IN
+}
+
+message GetRibInfoRequest {
+    TableInfo info  = 1;
+}
+
+message GetRibInfoResponse {
+    TableInfo info = 1;
 }
