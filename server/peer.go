@@ -214,18 +214,28 @@ func (peer *Peer) filterpath(path *table.Path, withdrawals []*table.Path) *table
 	// special handling for RTC nlri
 	// see comments in (*Destination).Calculate()
 	if path != nil && path.GetRouteFamily() == bgp.RF_RTC_UC && !path.IsWithdraw {
-		// if we already sent the same nlri, ignore this
-		if peer.adjRibOut.Exists(path) {
-			return nil
-		}
 		dst := peer.localRib.GetDestination(path)
-		path = nil
-		// we send a path even if it is not a best path
-		for _, p := range dst.GetKnownPathList(peer.TableID()) {
-			// just take care not to send back it
+		knownPaths := dst.GetKnownPathList(peer.TableID())
+		paths := make([]*table.Path, 0, len(knownPaths))
+		for _, p := range knownPaths {
 			if peer.ID() != p.GetSource().Address.String() {
-				path = p
-				break
+				paths = append(paths, p)
+			}
+		}
+
+		if len(paths) > 0 {
+			// if we already sent the same nlri, ignore this
+			if peer.adjRibOut.Exists(path) {
+				path = nil
+			} else {
+				path = paths[0]
+			}
+		} else {
+			for _, w := range withdrawals {
+				if path.GetNlri().String() == w.GetNlri().String() {
+					path = w
+					break
+				}
 			}
 		}
 	}
