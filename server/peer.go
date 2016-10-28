@@ -44,11 +44,17 @@ type Peer struct {
 }
 
 func NewPeer(g *config.Global, conf *config.Neighbor, loc *table.TableManager, policy *table.RoutingPolicy) *Peer {
+	peerId := conf.Config.NeighborAddress
+	rfs, _ := config.AfiSafis(conf.AfiSafis).ToRfList()
+	adjRibIn := table.NewAdjRib(peerId, rfs)
+	adjRibOut := table.NewAdjRib(peerId, rfs)
 	peer := &Peer{
 		outgoing:          channels.NewInfiniteChannel(),
 		localRib:          loc,
 		policy:            policy,
-		fsm:               NewFSM(g, conf, policy),
+		adjRibIn:          adjRibIn,
+		adjRibOut:         adjRibOut,
+		fsm:               NewFSM(g, conf, policy, adjRibOut),
 		prefixLimitWarned: make(map[bgp.RouteFamily]bool),
 	}
 	if peer.isRouteServerClient() {
@@ -56,9 +62,6 @@ func NewPeer(g *config.Global, conf *config.Neighbor, loc *table.TableManager, p
 	} else {
 		peer.tableId = table.GLOBAL_RIB_NAME
 	}
-	rfs, _ := config.AfiSafis(conf.AfiSafis).ToRfList()
-	peer.adjRibIn = table.NewAdjRib(peer.ID(), rfs)
-	peer.adjRibOut = table.NewAdjRib(peer.ID(), rfs)
 	return peer
 }
 
@@ -304,8 +307,6 @@ func (peer *Peer) processOutgoingPaths(paths, withdrawals []*table.Path) []*tabl
 			outgoing = append(outgoing, p)
 		}
 	}
-
-	peer.adjRibOut.Update(outgoing)
 	return outgoing
 }
 
@@ -331,7 +332,6 @@ func (peer *Peer) handleRouteRefresh(e *FsmMsg) []*table.Path {
 	rfList := []bgp.RouteFamily{rf}
 	peer.adjRibOut.Drop(rfList)
 	accepted, filtered := peer.getBestFromLocal(rfList)
-	peer.adjRibOut.Update(accepted)
 	for _, path := range filtered {
 		path.IsWithdraw = true
 		accepted = append(accepted, path)

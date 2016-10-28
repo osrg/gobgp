@@ -123,6 +123,7 @@ type FSM struct {
 	recvOpen             *bgp.BGPMessage
 	peerInfo             *table.PeerInfo
 	policy               *table.RoutingPolicy
+	adjRibOut            *table.AdjRib
 	gracefulRestartTimer *time.Timer
 	twoByteAsTrans       bool
 	version              uint
@@ -177,7 +178,7 @@ func (fsm *FSM) bgpMessageStateUpdate(MessageType uint8, isIn bool) {
 	}
 }
 
-func NewFSM(gConf *config.Global, pConf *config.Neighbor, policy *table.RoutingPolicy) *FSM {
+func NewFSM(gConf *config.Global, pConf *config.Neighbor, policy *table.RoutingPolicy, ribOut *table.AdjRib) *FSM {
 	adminState := ADMIN_STATE_UP
 	if pConf.Config.AdminDown {
 		adminState = ADMIN_STATE_DOWN
@@ -198,6 +199,7 @@ func NewFSM(gConf *config.Global, pConf *config.Neighbor, policy *table.RoutingP
 		capMap:               make(map[bgp.BGPCapabilityCode][]bgp.ParameterCapabilityInterface),
 		peerInfo:             table.NewPeerInfo(gConf, pConf),
 		policy:               policy,
+		adjRibOut:            ribOut,
 		gracefulRestartTimer: time.NewTimer(time.Hour),
 		version:              fsmVersion,
 	}
@@ -1134,6 +1136,7 @@ func (h *FSMHandler) sendMessageloop() error {
 			return nil
 		case o := <-h.outgoing.Out():
 			m := o.(*FsmOutgoingMsg)
+			fsm.adjRibOut.Update(m.Paths)
 			for _, msg := range table.CreateUpdateMsgFromPaths(m.Paths) {
 				if err := send(msg); err != nil {
 					return nil

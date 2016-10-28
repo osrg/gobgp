@@ -18,12 +18,14 @@ package table
 import (
 	"fmt"
 	"github.com/osrg/gobgp/packet/bgp"
+	"sync"
 )
 
 type AdjRib struct {
 	id       string
 	accepted map[bgp.RouteFamily]int
 	table    map[bgp.RouteFamily]map[string]*Path
+	mu       sync.RWMutex
 }
 
 func NewAdjRib(id string, rfList []bgp.RouteFamily) *AdjRib {
@@ -39,6 +41,9 @@ func NewAdjRib(id string, rfList []bgp.RouteFamily) *AdjRib {
 }
 
 func (adj *AdjRib) Update(pathList []*Path) {
+	adj.mu.Lock()
+	defer adj.mu.Unlock()
+
 	for _, path := range pathList {
 		if path == nil || path.IsEOR() {
 			continue
@@ -77,6 +82,9 @@ func (adj *AdjRib) Update(pathList []*Path) {
 }
 
 func (adj *AdjRib) RefreshAcceptedNumber(rfList []bgp.RouteFamily) {
+	adj.mu.Lock()
+	defer adj.mu.Unlock()
+
 	for _, rf := range rfList {
 		adj.accepted[rf] = 0
 		for _, p := range adj.table[rf] {
@@ -88,6 +96,9 @@ func (adj *AdjRib) RefreshAcceptedNumber(rfList []bgp.RouteFamily) {
 }
 
 func (adj *AdjRib) PathList(rfList []bgp.RouteFamily, accepted bool) []*Path {
+	adj.mu.RLock()
+	defer adj.mu.RUnlock()
+
 	pathList := make([]*Path, 0, adj.Count(rfList))
 	for _, rf := range rfList {
 		for _, rr := range adj.table[rf] {
@@ -101,6 +112,9 @@ func (adj *AdjRib) PathList(rfList []bgp.RouteFamily, accepted bool) []*Path {
 }
 
 func (adj *AdjRib) Count(rfList []bgp.RouteFamily) int {
+	adj.mu.RLock()
+	defer adj.mu.RUnlock()
+
 	count := 0
 	for _, rf := range rfList {
 		if table, ok := adj.table[rf]; ok {
@@ -111,6 +125,9 @@ func (adj *AdjRib) Count(rfList []bgp.RouteFamily) int {
 }
 
 func (adj *AdjRib) Accepted(rfList []bgp.RouteFamily) int {
+	adj.mu.RLock()
+	defer adj.mu.RUnlock()
+
 	count := 0
 	for _, rf := range rfList {
 		if n, ok := adj.accepted[rf]; ok {
@@ -121,6 +138,9 @@ func (adj *AdjRib) Accepted(rfList []bgp.RouteFamily) int {
 }
 
 func (adj *AdjRib) Drop(rfList []bgp.RouteFamily) {
+	adj.mu.Lock()
+	defer adj.mu.Unlock()
+
 	for _, rf := range rfList {
 		if _, ok := adj.table[rf]; ok {
 			adj.table[rf] = make(map[string]*Path)
@@ -130,6 +150,9 @@ func (adj *AdjRib) Drop(rfList []bgp.RouteFamily) {
 }
 
 func (adj *AdjRib) DropStale(rfList []bgp.RouteFamily) []*Path {
+	adj.mu.Lock()
+	defer adj.mu.Unlock()
+
 	pathList := make([]*Path, 0, adj.Count(rfList))
 	for _, rf := range rfList {
 		if table, ok := adj.table[rf]; ok {
@@ -148,6 +171,9 @@ func (adj *AdjRib) DropStale(rfList []bgp.RouteFamily) []*Path {
 }
 
 func (adj *AdjRib) StaleAll(rfList []bgp.RouteFamily) {
+	adj.mu.Lock()
+	defer adj.mu.Unlock()
+
 	for _, rf := range rfList {
 		if table, ok := adj.table[rf]; ok {
 			for _, p := range table {
@@ -158,6 +184,9 @@ func (adj *AdjRib) StaleAll(rfList []bgp.RouteFamily) {
 }
 
 func (adj *AdjRib) Exists(path *Path) bool {
+	adj.mu.RLock()
+	defer adj.mu.RUnlock()
+
 	if path == nil {
 		return false
 	}
@@ -171,6 +200,9 @@ func (adj *AdjRib) Exists(path *Path) bool {
 }
 
 func (adj *AdjRib) Select(family bgp.RouteFamily, accepted bool, option ...TableSelectOption) (*Table, error) {
+	adj.mu.RLock()
+	defer adj.mu.RUnlock()
+
 	paths := adj.PathList([]bgp.RouteFamily{family}, accepted)
 	dsts := make(map[string]*Destination, len(paths))
 	for _, path := range paths {

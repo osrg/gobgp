@@ -740,7 +740,6 @@ func (server *BgpServer) handleFSMMessage(peer *Peer, e *FsmMsg) {
 				}
 
 				if len(pathList) > 0 {
-					peer.adjRibOut.Update(pathList)
 					sendFsmOutgoingMsg(peer, pathList, nil, false)
 				}
 			} else {
@@ -877,7 +876,6 @@ func (server *BgpServer) handleFSMMessage(peer *Peer, e *FsmMsg) {
 							}
 							paths, _ := p.getBestFromLocal(p.configuredRFlist())
 							if len(paths) > 0 {
-								p.adjRibOut.Update(paths)
 								sendFsmOutgoingMsg(p, paths, nil, false)
 							}
 						}
@@ -919,7 +917,6 @@ func (server *BgpServer) handleFSMMessage(peer *Peer, e *FsmMsg) {
 						}
 					}
 					if paths, _ := peer.getBestFromLocal(families); len(paths) > 0 {
-						peer.adjRibOut.Update(paths)
 						sendFsmOutgoingMsg(peer, paths, nil, false)
 					}
 				}
@@ -1398,7 +1395,6 @@ func (s *BgpServer) softResetOut(addr string, family bgp.RouteFamily, deferral b
 		peer.adjRibOut.Drop(families)
 		pathList, filtered := peer.getBestFromLocal(families)
 		if len(pathList) > 0 {
-			peer.adjRibOut.Update(pathList)
 			sendFsmOutgoingMsg(peer, pathList, nil, false)
 		}
 		if deferral == false && len(filtered) > 0 {
