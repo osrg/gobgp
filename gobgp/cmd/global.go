@@ -692,6 +692,8 @@ func ParsePath(rf bgp.RouteFamily, args []string) (*api.Path, error) {
 		return nil, err
 	}
 
+	fmt.Println("hello", rf)
+
 	switch rf {
 	case bgp.RF_IPv4_UC, bgp.RF_IPv6_UC:
 		if len(args) < 1 {
@@ -717,20 +719,24 @@ func ParsePath(rf bgp.RouteFamily, args []string) (*api.Path, error) {
 		extcomms = args[1:]
 
 	case bgp.RF_IPv4_VPN, bgp.RF_IPv6_VPN:
-		if len(args) < 3 || args[1] != "rd" {
+		if len(args) < 5 || args[1] != "label" || args[3] != "rd" {
 			return nil, fmt.Errorf("invalid format")
 		}
 		ip, net, _ := net.ParseCIDR(args[0])
 		ones, _ := net.Mask.Size()
 
-		rd, err = bgp.ParseRouteDistinguisher(args[2])
+		label := 0
+		if label, err = strconv.Atoi(args[2]); err != nil {
+			return nil, fmt.Errorf("invalid format")
+		}
+		mpls := bgp.NewMPLSLabelStack(uint32(label))
+
+		rd, err = bgp.ParseRouteDistinguisher(args[4])
 		if err != nil {
 			return nil, err
 		}
 
-		extcomms = args[3:]
-
-		mpls := bgp.NewMPLSLabelStack()
+		extcomms = args[5:]
 
 		if rf == bgp.RF_IPv4_VPN {
 			if ip.To4() == nil {
@@ -836,7 +842,6 @@ func modPath(resource api.Resource, name, modtype string, args []string) error {
 	}
 
 	path, err := ParsePath(rf, args)
-
 	if err != nil {
 		cmdstr := "global"
 		if resource == api.Resource_VRF {

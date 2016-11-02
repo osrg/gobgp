@@ -73,10 +73,10 @@ If you want to remove routes with the address of the ipv6 from global rib：
 % gobgp global rib add -a ipv4-mpls 10.0.0.0/24 100/200
 % gobgp global rib add -a ipv4-mpls 10.0.0.0/24 100 nexthop 20.20.20.20
 % gobgp global rib add -a ipv4-mpls 10.0.0.0/24 100 med 10
-% gobgp global rib add -a vpnv4 10.0.0.0/24 rd 100:100
-% gobgp global rib add -a vpnv4 10.0.0.0/24 rd 100.100:100
-% gobgp global rib add -a vpnv4 10.0.0.0/24 rd 10.10.10.10:100
-% gobgp global rib add -a vpnv4 10.0.0.0/24 rd 100:100 rt 100:200
+% gobgp global rib add -a vpnv4 10.0.0.0/24 label 10 rd 100:100
+% gobgp global rib add -a vpnv4 10.0.0.0/24 label 10 rd 100.100:100
+% gobgp global rib add -a vpnv4 10.0.0.0/24 label 10 rd 10.10.10.10:100
+% gobgp global rib add -a vpnv4 10.0.0.0/24 label 10 rd 100:100 rt 100:200
 % gobgp global rib add -a opaque key hello value world
 ```
 

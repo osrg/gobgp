@@ -345,7 +345,7 @@ func checkAddressFamily(def bgp.RouteFamily) (bgp.RouteFamily, error) {
 	var e error
 	switch subOpts.AddressFamily {
 	case "ipv4", "v4", "4":
-		rf = bgp.RF_IPv4_UC
+		rf = bgp.RF_IPv4_VPN
 	case "ipv6", "v6", "6":
 		rf = bgp.RF_IPv6_UC
 	case "ipv4-l3vpn", "vpnv4", "vpn-ipv4":
