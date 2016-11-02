@@ -1109,12 +1109,8 @@ func (server *BgpServer) fixupApiPath(vrfId string, pathList []*table.Path) erro
 		}
 
 		if vrfId != "" {
-			label, err := server.globalRib.GetNextLabel(vrfId, path.GetNexthop().String(), path.IsWithdraw)
-			if err != nil {
-				return err
-			}
 			vrf := server.globalRib.Vrfs[vrfId]
-			if err := vrf.ToGlobalPath(path, label); err != nil {
+			if err := vrf.ToGlobalPath(path); err != nil {
 				return err
 			}
 		}
