@@ -964,7 +964,6 @@ func showGlobalConfig(args []string) error {
 	if len(g.ListenAddresses) > 0 {
 		fmt.Printf("Listening Port: %d, Addresses: %s\n", g.ListenPort, strings.Join(g.ListenAddresses, ", "))
 	}
-	fmt.Printf("MPLS Label Range: %d..%d\n", g.MplsLabelMin, g.MplsLabelMax)
 	if g.UseMultiplePaths {
 		fmt.Printf("Multipath: enabled")
 	}
@@ -973,10 +972,10 @@ func showGlobalConfig(args []string) error {
 
 func modGlobalConfig(args []string) error {
 	m := extractReserved(args, []string{"as", "router-id", "listen-port",
-		"listen-addresses", "mpls-label-min", "mpls-label-max", "use-multipath"})
+		"listen-addresses", "use-multipath"})
 
 	if len(m["as"]) != 1 || len(m["router-id"]) != 1 {
-		return fmt.Errorf("usage: gobgp global as <VALUE> router-id <VALUE> [use-multipath] [listen-port <VALUE>] [listen-addresses <VALUE>...] [mpls-label-min <VALUE>] [mpls-label-max <VALUE>]")
+		return fmt.Errorf("usage: gobgp global as <VALUE> router-id <VALUE> [use-multipath] [listen-port <VALUE>] [listen-addresses <VALUE>...]")
 	}
 	asn, err := strconv.Atoi(m["as"][0])
 	if err != nil {
@@ -993,19 +992,6 @@ func modGlobalConfig(args []string) error {
 			return err
 		}
 	}
-	var min, max int
-	if len(m["mpls-label-min"]) > 0 {
-		min, err = strconv.Atoi(m["mpls-label-min"][0])
-		if err != nil {
-			return err
-		}
-	}
-	if len(m["mpls-label-man"]) > 0 {
-		min, err = strconv.Atoi(m["mpls-label-man"][0])
-		if err != nil {
-			return err
-		}
-	}
 	useMultipath := false
 	if _, ok := m["use-multipath"]; ok {
 		useMultipath = true
@@ -1016,8 +1002,6 @@ func modGlobalConfig(args []string) error {
 			RouterId:         id.String(),
 			ListenPort:       int32(port),
 			ListenAddresses:  m["listen-addresses"],
-			MplsLabelMin:     uint32(min),
-			MplsLabelMax:     uint32(max),
 			UseMultiplePaths: useMultipath,
 		},
 	})
