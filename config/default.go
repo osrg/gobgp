@@ -13,8 +13,6 @@ const (
 	DEFAULT_HOLDTIME                  = 90
 	DEFAULT_IDLE_HOLDTIME_AFTER_RESET = 30
 	DEFAULT_CONNECT_RETRY             = 120
-	DEFAULT_MPLS_LABEL_MIN            = 16000
-	DEFAULT_MPLS_LABEL_MAX            = 1048575
 )
 
 func defaultAfiSafi(typ AfiSafiType, enable bool) AfiSafi {
@@ -211,16 +209,7 @@ func SetDefaultGlobalConfigValues(g *Global) error {
 	if len(g.Config.LocalAddressList) == 0 {
 		g.Config.LocalAddressList = []string{"0.0.0.0", "::"}
 	}
-
-	if g.MplsLabelRange.MinLabel == 0 {
-		g.MplsLabelRange.MinLabel = DEFAULT_MPLS_LABEL_MIN
-	}
-
-	if g.MplsLabelRange.MaxLabel == 0 {
-		g.MplsLabelRange.MaxLabel = DEFAULT_MPLS_LABEL_MAX
-	}
 	return nil
-
 }
 
 func SetDefaultConfigValues(b *BgpConfigSet) error {

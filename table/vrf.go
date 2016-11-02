@@ -26,7 +26,6 @@ type Vrf struct {
 	Rd       bgp.RouteDistinguisherInterface
 	ImportRt []bgp.ExtendedCommunityInterface
 	ExportRt []bgp.ExtendedCommunityInterface
-	LabelMap map[string]uint32
 }
 
 func (v *Vrf) ToGlobalPath(path *Path) error {
@@ -67,13 +66,6 @@ func (v *Vrf) Clone() *Vrf {
 		Rd:       v.Rd,
 		ImportRt: f(v.ImportRt),
 		ExportRt: f(v.ExportRt),
-		LabelMap: func() map[string]uint32 {
-			m := make(map[string]uint32)
-			for k, v := range v.LabelMap {
-				m[k] = v
-			}
-			return m
-		}(),
 	}
 }
 

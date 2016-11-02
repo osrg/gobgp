@@ -1695,8 +1695,6 @@ func (s *Server) GetServer(ctx context.Context, arg *GetServerRequest) (*GetServ
 			RouterId:         g.Config.RouterId,
 			ListenPort:       g.Config.Port,
 			ListenAddresses:  g.Config.LocalAddressList,
-			MplsLabelMin:     g.MplsLabelRange.MinLabel,
-			MplsLabelMax:     g.MplsLabelRange.MaxLabel,
 			UseMultiplePaths: g.UseMultiplePaths.Config.Enabled,
 		},
 	}, nil
@@ -1727,10 +1725,6 @@ func (s *Server) StartServer(ctx context.Context, arg *StartServerRequest) (*Sta
 				RouterId:         g.RouterId,
 				Port:             g.ListenPort,
 				LocalAddressList: g.ListenAddresses,
-			},
-			MplsLabelRange: config.MplsLabelRange{
-				MinLabel: g.MplsLabelMin,
-				MaxLabel: g.MplsLabelMax,
 			},
 			AfiSafis: families,
 			UseMultiplePaths: config.UseMultiplePaths{

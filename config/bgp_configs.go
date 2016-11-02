@@ -2780,27 +2780,6 @@ func (lhs *Neighbor) Equal(rhs *Neighbor) bool {
 	return true
 }
 
-//struct for container gobgp:mpls-label-range
-type MplsLabelRange struct {
-	// original -> gobgp:min-label
-	MinLabel uint32 `mapstructure:"min-label"`
-	// original -> gobgp:max-label
-	MaxLabel uint32 `mapstructure:"max-label"`
-}
-
-func (lhs *MplsLabelRange) Equal(rhs *MplsLabelRange) bool {
-	if lhs == nil || rhs == nil {
-		return false
-	}
-	if lhs.MinLabel != rhs.MinLabel {
-		return false
-	}
-	if lhs.MaxLabel != rhs.MaxLabel {
-		return false
-	}
-	return true
-}
-
 //struct for container gobgp:state
 type LongLivedGracefulRestartState struct {
 	// original -> gobgp:enabled
@@ -4289,8 +4268,6 @@ type Global struct {
 	AfiSafis []AfiSafi `mapstructure:"afi-safis"`
 	// original -> rpol:apply-policy
 	ApplyPolicy ApplyPolicy `mapstructure:"apply-policy"`
-	// original -> gobgp:mpls-label-range
-	MplsLabelRange MplsLabelRange `mapstructure:"mpls-label-range"`
 }
 
 func (lhs *Global) Equal(rhs *Global) bool {
@@ -4332,9 +4309,6 @@ func (lhs *Global) Equal(rhs *Global) bool {
 		}
 	}
 	if !lhs.ApplyPolicy.Equal(&(rhs.ApplyPolicy)) {
-		return false
-	}
-	if !lhs.MplsLabelRange.Equal(&(rhs.MplsLabelRange)) {
 		return false
 	}
 	return true

@@ -1227,7 +1227,7 @@ func (s *BgpServer) Start(c *config.Global) (err error) {
 		}
 
 		rfs, _ := config.AfiSafis(c.AfiSafis).ToRfList()
-		s.globalRib = table.NewTableManager(rfs, c.MplsLabelRange.MinLabel, c.MplsLabelRange.MaxLabel)
+		s.globalRib = table.NewTableManager(rfs)
 
 		if err = s.policy.Reset(&config.RoutingPolicy{}, map[string]config.ApplyPolicy{}); err != nil {
 			return
