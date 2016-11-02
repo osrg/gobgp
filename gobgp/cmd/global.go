@@ -692,6 +692,8 @@ func ParsePath(rf bgp.RouteFamily, args []string) (*api.Path, error) {
 		return nil, err
 	}
 
+	fmt.Println("hello", rf)
+
 	switch rf {
 	case bgp.RF_IPv4_UC, bgp.RF_IPv6_UC:
 		if len(args) < 1 {
@@ -717,20 +719,24 @@ func ParsePath(rf bgp.RouteFamily, args []string) (*api.Path, error) {
 		extcomms = args[1:]
 
 	case bgp.RF_IPv4_VPN, bgp.RF_IPv6_VPN:
-		if len(args) < 3 || args[1] != "rd" {
+		if len(args) < 5 || args[1] != "label" || args[3] != "rd" {
 			return nil, fmt.Errorf("invalid format")
 		}
 		ip, net, _ := net.ParseCIDR(args[0])
 		ones, _ := net.Mask.Size()
 
-		rd, err = bgp.ParseRouteDistinguisher(args[2])
+		label := 0
+		if label, err = strconv.Atoi(args[2]); err != nil {
+			return nil, fmt.Errorf("invalid format")
+		}
+		mpls := bgp.NewMPLSLabelStack(uint32(label))
+
+		rd, err = bgp.ParseRouteDistinguisher(args[4])
 		if err != nil {
 			return nil, err
 		}
 
-		extcomms = args[3:]
-
-		mpls := bgp.NewMPLSLabelStack()
+		extcomms = args[5:]
 
 		if rf == bgp.RF_IPv4_VPN {
 			if ip.To4() == nil {
@@ -836,7 +842,6 @@ func modPath(resource api.Resource, name, modtype string, args []string) error {
 	}
 
 	path, err := ParsePath(rf, args)
-
 	if err != nil {
 		cmdstr := "global"
 		if resource == api.Resource_VRF {
@@ -959,7 +964,6 @@ func showGlobalConfig(args []string) error {
 	if len(g.ListenAddresses) > 0 {
 		fmt.Printf("Listening Port: %d, Addresses: %s\n", g.ListenPort, strings.Join(g.ListenAddresses, ", "))
 	}
-	fmt.Printf("MPLS Label Range: %d..%d\n", g.MplsLabelMin, g.MplsLabelMax)
 	if g.UseMultiplePaths {
 		fmt.Printf("Multipath: enabled")
 	}
@@ -968,10 +972,10 @@ func showGlobalConfig(args []string) error {
 
 func modGlobalConfig(args []string) error {
 	m := extractReserved(args, []string{"as", "router-id", "listen-port",
-		"listen-addresses", "mpls-label-min", "mpls-label-max", "use-multipath"})
+		"listen-addresses", "use-multipath"})
 
 	if len(m["as"]) != 1 || len(m["router-id"]) != 1 {
-		return fmt.Errorf("usage: gobgp global as <VALUE> router-id <VALUE> [use-multipath] [listen-port <VALUE>] [listen-addresses <VALUE>...] [mpls-label-min <VALUE>] [mpls-label-max <VALUE>]")
+		return fmt.Errorf("usage: gobgp global as <VALUE> router-id <VALUE> [use-multipath] [listen-port <VALUE>] [listen-addresses <VALUE>...]")
 	}
 	asn, err := strconv.Atoi(m["as"][0])
 	if err != nil {
@@ -988,19 +992,6 @@ func modGlobalConfig(args []string) error {
 			return err
 		}
 	}
-	var min, max int
-	if len(m["mpls-label-min"]) > 0 {
-		min, err = strconv.Atoi(m["mpls-label-min"][0])
-		if err != nil {
-			return err
-		}
-	}
-	if len(m["mpls-label-man"]) > 0 {
-		min, err = strconv.Atoi(m["mpls-label-man"][0])
-		if err != nil {
-			return err
-		}
-	}
 	useMultipath := false
 	if _, ok := m["use-multipath"]; ok {
 		useMultipath = true
@@ -1011,8 +1002,6 @@ func modGlobalConfig(args []string) error {
 			RouterId:         id.String(),
 			ListenPort:       int32(port),
 			ListenAddresses:  m["listen-addresses"],
-			MplsLabelMin:     uint32(min),
-			MplsLabelMax:     uint32(max),
 			UseMultiplePaths: useMultipath,
 		},
 	})
