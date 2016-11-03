@@ -299,7 +299,7 @@ func filterpath(peer *Peer, path *table.Path, withdrawals []*table.Path) *table.
 			}
 		}
 
-		if !path.IsLocal() {
+		if !path.IsLocal() && !ignore {
 			ignore = true
 			info := path.GetSource()
 			//if the path comes from eBGP peer
