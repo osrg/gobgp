@@ -190,10 +190,14 @@ class GoBGPTestBase(unittest.TestCase):
                             log_level=parser_option.gobgp_log_level,
                             config_format=parser_option.config_format,
                             zebra=True)
-        g2 = GoBGPContainer(name='g2', asn=65001, router_id='192.168.0.2')
-        g3 = GoBGPContainer(name='g3', asn=65001, router_id='192.168.0.3')
-        g4 = GoBGPContainer(name='g4', asn=65000, router_id='192.168.0.4')
-        g5 = GoBGPContainer(name='g5', asn=65000, router_id='192.168.0.5')
+        g2 = GoBGPContainer(name='g2', asn=65001, router_id='192.168.0.2',
+                            ctn_image_name=parser_option.gobgp_image)
+        g3 = GoBGPContainer(name='g3', asn=65001, router_id='192.168.0.3',
+                            ctn_image_name=parser_option.gobgp_image)
+        g4 = GoBGPContainer(name='g4', asn=65000, router_id='192.168.0.4',
+                            ctn_image_name=parser_option.gobgp_image)
+        g5 = GoBGPContainer(name='g5', asn=65000, router_id='192.168.0.5',
+                            ctn_image_name=parser_option.gobgp_image)
 
         ctns = [g1, g2, g3, g4, g5]
         for ctn in ctns:

@@ -229,6 +229,22 @@ func (peer *Peer) filterpath(path *table.Path, withdrawals []*table.Path) *table
 			}
 		}
 	}
+
+	// only allow vpnv4 and vpnv6 paths to be advertised to VRFed neighbors.
+	// also check we can import this path using table.CanImportToVrf()
+	// if we can, make it local path by calling (*Path).ToLocal()
+	if path != nil && peer.fsm.pConf.Config.Vrf != "" {
+		if f := path.GetRouteFamily(); f != bgp.RF_IPv4_VPN && f != bgp.RF_IPv6_VPN {
+			return nil
+		}
+		vrf := peer.localRib.Vrfs[peer.fsm.pConf.Config.Vrf]
+		if table.CanImportToVrf(vrf, path) {
+			path = path.ToLocal()
+		} else {
+			return nil
+		}
+	}
+
 	if path = filterpath(peer, path, withdrawals); path == nil {
 		return nil
 	}

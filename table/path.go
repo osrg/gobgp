@@ -937,3 +937,100 @@ func (lhs *Path) Compare(rhs *Path) int {
 	m2, _ := rhs.GetMed()
 	return int(m2 - m1)
 }
+
+func (v *Vrf) ToGlobalPath(path *Path) error {
+	nlri := path.GetNlri()
+	switch rf := path.GetRouteFamily(); rf {
+	case bgp.RF_IPv4_UC:
+		n := nlri.(*bgp.IPAddrPrefix)
+		path.OriginInfo().nlri = bgp.NewLabeledVPNIPAddrPrefix(n.Length, n.Prefix.String(), *bgp.NewMPLSLabelStack(0), v.Rd)
+	case bgp.RF_IPv6_UC:
+		n := nlri.(*bgp.IPv6AddrPrefix)
+		path.OriginInfo().nlri = bgp.NewLabeledVPNIPv6AddrPrefix(n.Length, n.Prefix.String(), *bgp.NewMPLSLabelStack(0), v.Rd)
+	case bgp.RF_EVPN:
+		n := nlri.(*bgp.EVPNNLRI)
+		switch n.RouteType {
+		case bgp.EVPN_ROUTE_TYPE_MAC_IP_ADVERTISEMENT:
+			n.RouteTypeData.(*bgp.EVPNMacIPAdvertisementRoute).RD = v.Rd
+		case bgp.EVPN_INCLUSIVE_MULTICAST_ETHERNET_TAG:
+			n.RouteTypeData.(*bgp.EVPNMulticastEthernetTagRoute).RD = v.Rd
+		}
+	default:
+		return fmt.Errorf("unsupported route family for vrf: %s", rf)
+	}
+	path.SetExtCommunities(v.ExportRt, false)
+	return nil
+}
+
+func (p *Path) ToGlobal(vrf *Vrf) *Path {
+	nlri := p.GetNlri()
+	nh := p.GetNexthop()
+	switch rf := p.GetRouteFamily(); rf {
+	case bgp.RF_IPv4_UC:
+		n := nlri.(*bgp.IPAddrPrefix)
+		nlri = bgp.NewLabeledVPNIPAddrPrefix(n.Length, n.Prefix.String(), *bgp.NewMPLSLabelStack(0), vrf.Rd)
+	case bgp.RF_IPv6_UC:
+		n := nlri.(*bgp.IPv6AddrPrefix)
+		nlri = bgp.NewLabeledVPNIPv6AddrPrefix(n.Length, n.Prefix.String(), *bgp.NewMPLSLabelStack(0), vrf.Rd)
+	case bgp.RF_EVPN:
+		n := nlri.(*bgp.EVPNNLRI)
+		switch n.RouteType {
+		case bgp.EVPN_ROUTE_TYPE_MAC_IP_ADVERTISEMENT:
+			old := n.RouteTypeData.(*bgp.EVPNMacIPAdvertisementRoute)
+			new := &bgp.EVPNMacIPAdvertisementRoute{
+				RD:               vrf.Rd,
+				ESI:              old.ESI,
+				ETag:             old.ETag,
+				MacAddressLength: old.MacAddressLength,
+				MacAddress:       old.MacAddress,
+				IPAddressLength:  old.IPAddressLength,
+				IPAddress:        old.IPAddress,
+				Labels:           old.Labels,
+			}
+			nlri = bgp.NewEVPNNLRI(n.RouteType, n.Length, new)
+		case bgp.EVPN_INCLUSIVE_MULTICAST_ETHERNET_TAG:
+			old := n.RouteTypeData.(*bgp.EVPNMulticastEthernetTagRoute)
+			new := &bgp.EVPNMulticastEthernetTagRoute{
+				RD:              vrf.Rd,
+				ETag:            old.ETag,
+				IPAddressLength: old.IPAddressLength,
+				IPAddress:       old.IPAddress,
+			}
+			nlri = bgp.NewEVPNNLRI(n.RouteType, n.Length, new)
+		}
+	default:
+		return p
+	}
+	path := NewPath(p.OriginInfo().source, nlri, p.IsWithdraw, p.GetPathAttrs(), p.OriginInfo().timestamp, false)
+	path.SetExtCommunities(vrf.ExportRt, false)
+	path.delPathAttr(bgp.BGP_ATTR_TYPE_NEXT_HOP)
+	path.setPathAttr(bgp.NewPathAttributeMpReachNLRI(nh.String(), []bgp.AddrPrefixInterface{nlri}))
+	return path
+}
+
+func (p *Path) ToLocal() *Path {
+	nlri := p.GetNlri()
+	f := p.GetRouteFamily()
+	switch f {
+	case bgp.RF_IPv4_VPN:
+		n := nlri.(*bgp.LabeledVPNIPAddrPrefix)
+		_, c, _ := net.ParseCIDR(n.IPPrefix())
+		ones, _ := c.Mask.Size()
+		nlri = bgp.NewIPAddrPrefix(uint8(ones), c.IP.String())
+	case bgp.RF_IPv6_VPN:
+		n := nlri.(*bgp.LabeledVPNIPv6AddrPrefix)
+		_, c, _ := net.ParseCIDR(n.IPPrefix())
+		ones, _ := c.Mask.Size()
+		nlri = bgp.NewIPAddrPrefix(uint8(ones), c.IP.String())
+	default:
+		return p
+	}
+	path := NewPath(p.OriginInfo().source, nlri, p.IsWithdraw, p.GetPathAttrs(), p.OriginInfo().timestamp, false)
+	path.delPathAttr(bgp.BGP_ATTR_TYPE_EXTENDED_COMMUNITIES)
+	if f == bgp.RF_IPv4_VPN {
+		nh := path.GetNexthop()
+		path.delPathAttr(bgp.BGP_ATTR_TYPE_MP_REACH_NLRI)
+		path.setPathAttr(bgp.NewPathAttributeNextHop(nh.String()))
+	}
+	return path
+}

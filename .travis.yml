@@ -141,6 +141,11 @@ matrix:
       sudo: required
       services:
         - docker
+    - env:
+        - TEST=vrf_neighbor_test.py
+      sudo: required
+      services:
+        - docker
 
 cache:
   pip: true

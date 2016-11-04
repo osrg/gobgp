@@ -2522,6 +2522,8 @@ type NeighborState struct {
 	Flops uint32 `mapstructure:"flops"`
 	// original -> gobgp:neighbor-interface
 	NeighborInterface string `mapstructure:"neighbor-interface"`
+	// original -> gobgp:vrf
+	Vrf string `mapstructure:"vrf"`
 	// original -> gobgp:remote-router-id
 	RemoteRouterId string `mapstructure:"remote-router-id"`
 }
@@ -2601,6 +2603,9 @@ func (lhs *NeighborState) Equal(rhs *NeighborState) bool {
 	if lhs.NeighborInterface != rhs.NeighborInterface {
 		return false
 	}
+	if lhs.Vrf != rhs.Vrf {
+		return false
+	}
 	if lhs.RemoteRouterId != rhs.RemoteRouterId {
 		return false
 	}
@@ -2638,6 +2643,8 @@ type NeighborConfig struct {
 	AdminDown bool `mapstructure:"admin-down"`
 	// original -> gobgp:neighbor-interface
 	NeighborInterface string `mapstructure:"neighbor-interface"`
+	// original -> gobgp:vrf
+	Vrf string `mapstructure:"vrf"`
 }
 
 func (lhs *NeighborConfig) Equal(rhs *NeighborConfig) bool {
@@ -2678,6 +2685,9 @@ func (lhs *NeighborConfig) Equal(rhs *NeighborConfig) bool {
 		return false
 	}
 	if lhs.NeighborInterface != rhs.NeighborInterface {
+		return false
+	}
+	if lhs.Vrf != rhs.Vrf {
 		return false
 	}
 	return true

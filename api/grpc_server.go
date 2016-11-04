@@ -125,6 +125,7 @@ func (s *Server) GetNeighbor(ctx context.Context, arg *GetNeighborRequest) (*Get
 				PrefixLimits:      prefixLimits,
 				LocalAddress:      localAddress,
 				NeighborInterface: pconf.Config.NeighborInterface,
+				Vrf:               pconf.Config.Vrf,
 			},
 			Info: &PeerState{
 				BgpState:   bgp.FSMState(s.SessionState.ToInt()).String(),
@@ -777,6 +778,7 @@ func (s *Server) AddNeighbor(ctx context.Context, arg *AddNeighborRequest) (*Add
 			pconf.Config.PeerGroup = a.Conf.PeerGroup
 			pconf.Config.NeighborAddress = a.Conf.NeighborAddress
 			pconf.Config.NeighborInterface = a.Conf.NeighborInterface
+			pconf.Config.Vrf = a.Conf.Vrf
 		}
 		if a.Timers != nil && a.Timers.Config != nil {
 			pconf.Timers.Config.ConnectRetry = float64(a.Timers.Config.ConnectRetry)

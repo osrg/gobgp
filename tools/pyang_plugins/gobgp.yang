@@ -689,10 +689,16 @@ module gobgp {
     leaf neighbor-interface {
       type string;
     }
+    leaf vrf {
+      type string;
+    }
   }
 
   augment "/bgp:bgp/bgp:neighbors/bgp:neighbor/bgp:state" {
     leaf neighbor-interface {
+      type string;
+    }
+    leaf vrf {
       type string;
     }
   }
