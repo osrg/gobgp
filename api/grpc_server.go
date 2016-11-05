@@ -574,10 +574,14 @@ func (s *Server) InjectMrt(stream GobgpApi_InjectMrtServer) error {
 }
 
 func (s *Server) AddBmp(ctx context.Context, arg *AddBmpRequest) (*AddBmpResponse, error) {
+	t, ok := config.IntToBmpRouteMonitoringPolicyTypeMap[int(arg.Type)]
+	if !ok {
+		return nil, fmt.Errorf("invalid bmp route monitoring policy: %d", arg.Type)
+	}
 	return &AddBmpResponse{}, s.bgpServer.AddBmp(&config.BmpServerConfig{
 		Address: arg.Address,
 		Port:    arg.Port,
-		RouteMonitoringPolicy: config.BmpRouteMonitoringPolicyType(arg.Type),
+		RouteMonitoringPolicy: t,
 	})
 }
 
