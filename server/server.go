@@ -1660,9 +1660,6 @@ func (server *BgpServer) addNeighbor(c *config.Neighbor) error {
 		if c.RouteServer.Config.RouteServerClient {
 			return fmt.Errorf("route server client can't be enslaved to VRF")
 		}
-		if c.RouteReflector.Config.RouteReflectorClient {
-			return fmt.Errorf("route reflector client can't be enslaved to VRF")
-		}
 		families, _ := config.AfiSafis(c.AfiSafis).ToRfList()
 		for _, f := range families {
 			if f != bgp.RF_IPv4_UC && f != bgp.RF_IPv6_UC {
