@@ -100,6 +100,29 @@ func (peer *Peer) configuredRFlist() []bgp.RouteFamily {
 	return rfs
 }
 
+func (peer *Peer) toGlobalFamilies(families []bgp.RouteFamily) []bgp.RouteFamily {
+	if peer.fsm.pConf.Config.Vrf != "" {
+		fs := make([]bgp.RouteFamily, 0, len(families))
+		for _, f := range families {
+			switch f {
+			case bgp.RF_IPv4_UC:
+				fs = append(fs, bgp.RF_IPv4_VPN)
+			case bgp.RF_IPv6_UC:
+				fs = append(fs, bgp.RF_IPv6_VPN)
+			default:
+				log.WithFields(log.Fields{
+					"Topic":  "Peer",
+					"Key":    peer.ID(),
+					"Family": f,
+					"VRF":    peer.fsm.pConf.Config.Vrf,
+				}).Warn("invalid family configured for vrfed neighbor")
+			}
+		}
+		families = fs
+	}
+	return families
+}
+
 func classifyFamilies(all, part []bgp.RouteFamily) ([]bgp.RouteFamily, []bgp.RouteFamily) {
 	a := []bgp.RouteFamily{}
 	b := []bgp.RouteFamily{}
@@ -285,7 +308,7 @@ func (peer *Peer) filterpath(path *table.Path, withdrawals []*table.Path) *table
 func (peer *Peer) getBestFromLocal(rfList []bgp.RouteFamily) ([]*table.Path, []*table.Path) {
 	pathList := []*table.Path{}
 	filtered := []*table.Path{}
-	for _, path := range peer.localRib.GetBestPathList(peer.TableID(), rfList) {
+	for _, path := range peer.localRib.GetBestPathList(peer.TableID(), peer.toGlobalFamilies(rfList)) {
 		if p := peer.filterpath(path, nil); p != nil {
 			pathList = append(pathList, p)
 		} else {
