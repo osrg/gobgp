@@ -67,11 +67,6 @@ matrix:
       services:
         - docker
     - env:
-        - TEST=flow_spec_test.py
-      sudo: required
-      services:
-        - docker
-    - env:
         - TEST=global_policy_test.py
       sudo: required
       services:
