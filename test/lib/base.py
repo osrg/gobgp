@@ -47,6 +47,19 @@ BGP_ATTR_TYPE_EXTENDED_COMMUNITIES = 16
 env.abort_exception = RuntimeError
 output.stderr = False
 
+def wait_for_completion(f, timeout=120):
+    interval = 1
+    count = 0
+    while True:
+        if f():
+            return
+
+        time.sleep(interval)
+        count += interval
+        if count >= timeout:
+            raise Exception('timeout')
+
+
 def try_several_times(f, t=3, s=1):
     e = None
     for i in range(t):

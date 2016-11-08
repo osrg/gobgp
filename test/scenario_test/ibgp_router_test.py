@@ -16,6 +16,7 @@
 import unittest
 from fabric.api import local
 from lib import base
+from lib.base import wait_for_completion
 from lib.gobgp import *
 from lib.quagga import *
 import sys
@@ -233,6 +234,53 @@ class GoBGPTestBase(unittest.TestCase):
             paths = self.gobgp.get_adj_rib_out(q)
             # only gobgp's locally generated routes must exists
             self.assertTrue(len(paths) == len(self.gobgp.routes))
+
+    def test_15_add_ebgp_peer(self):
+        q4 = QuaggaBGPContainer(name='q4', asn=65001, router_id='192.168.0.5')
+        self.quaggas['q4'] = q4
+
+        prefix = '10.0.4.0/24'
+        q4.add_route(prefix)
+
+        initial_wait_time = q4.run()
+        time.sleep(initial_wait_time)
+        self.gobgp.add_peer(q4)
+        q4.add_peer(self.gobgp)
+
+        self.gobgp.wait_for(expected_state=BGP_FSM_ESTABLISHED, peer=q4)
+
+        q1 = self.quaggas['q1']
+        q2 = self.quaggas['q2']
+        for q in [q1, q2]:
+            def f():
+                return prefix in [p['nlri']['prefix'] for p in self.gobgp.get_adj_rib_out(q)]
+            wait_for_completion(f)
+
+        def f():
+            return len(q2.get_global_rib(prefix)) == 1
+        wait_for_completion(f)
+
+    def test_16_add_best_path_from_ibgp(self):
+        q1 = self.quaggas['q1']
+        q2 = self.quaggas['q2']
+
+        prefix = '10.0.4.0/24'
+        q1.add_route(prefix)
+
+        def f():
+            l = self.gobgp.get_global_rib(prefix)
+            return len(l) == 1 and len(l[0]['paths']) == 2
+        wait_for_completion(f)
+
+        def f():
+            return prefix not in [p['nlri']['prefix'] for p in self.gobgp.get_adj_rib_out(q2)]
+        wait_for_completion(f)
+
+        def f():
+            l = q2.get_global_rib(prefix)
+            # route from ibgp so aspath should be empty
+            return len(l) == 1 and len(l[0]['aspath']) == 0
+        wait_for_completion(f)
 
 
 if __name__ == '__main__':
