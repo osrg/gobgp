@@ -432,9 +432,9 @@ class GoBGPTestBase(unittest.TestCase):
 
         g2.local('gobgp global rib add 50.0.0.0/24')
 
-        g1.add_peer(g2)
+        g1.add_peer(g2, passive=True)
         g2.add_peer(g1)
-        g1.add_peer(g3)
+        g1.add_peer(g3, passive=True)
         g3.add_peer(g1)
 
         self.test_01_neighbor_established()
