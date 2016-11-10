@@ -665,6 +665,8 @@ _type_translation_map = {
     'yang:timeticks': 'int64',
     'ptypes:install-protocol-type': 'string',
     'binary': '[]byte',
+    'bgp-capability': 'bgp.ParameterCapabilityInterface',
+    'bgp-open-message': '*bgp.BGPMessage',
 }
 
 
@@ -690,7 +692,9 @@ _path_exclude = ["/rpol:routing-policy/rpol:defined-sets/rpol:neighbor-sets/rpol
                  "/rpol:routing-policy/rpol:defined-sets/bgp-pol:bgp-defined-sets/bgp-pol:ext-community-sets/bgp-pol:ext-community-set/bgp-pol:ext-community-member",
                  "/rpol:routing-policy/rpol:defined-sets/bgp-pol:bgp-defined-sets/bgp-pol:as-path-sets/bgp-pol:as-path-set/bgp-pol:as-path-set-member"]
 
-_typedef_exclude =[]
+_typedef_exclude =["/gobgp:bgp-capability",
+                   "/gobgp:bgp-open-message"]
+
 
 def generate_header(ctx):
     print _COPYRIGHT_NOTICE
@@ -698,7 +702,8 @@ def generate_header(ctx):
     print ''
     print 'import ('
     print '"fmt"'
-    print '"bytes"'
+    print ''
+    print '"github.com/osrg/gobgp/packet/bgp"'
     print ')'
     print ''
 

@@ -631,19 +631,24 @@ module gobgp {
     uses gobgp-adjacent-table;
   }
 
+  typedef bgp-capability {
+      type uint8;
+  }
+
+  typedef bgp-open-message {
+      type uint8;
+  }
 
   augment "/bgp:bgp/bgp:neighbors/bgp:neighbor/bgp:state" {
-    container Capabilities {
-      leaf-list remote {
-        type binary;
-      }
-      leaf-list local {
-        type binary;
-      }
+    leaf-list remote-capability {
+      type bgp-capability;
+    }
+    leaf-list local-capability {
+      type bgp-capability;
     }
 
     leaf received-open-message {
-      type binary;
+      type bgp-open-message;
     }
   }
 

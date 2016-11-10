@@ -107,6 +107,15 @@ func (s *Server) GetNeighbor(ctx context.Context, arg *GetNeighborRequest) (*Get
 		if pconf.Transport.State.LocalAddress != "" {
 			localAddress = pconf.Transport.State.LocalAddress
 		}
+		var remoteCap, localCap [][]byte
+		for _, cap := range pconf.State.RemoteCapabilityList {
+			c, _ := cap.Serialize()
+			remoteCap = append(remoteCap, c)
+		}
+		for _, cap := range pconf.State.LocalCapabilityList {
+			c, _ := cap.Serialize()
+			localCap = append(localCap, c)
+		}
 		return &Peer{
 			Conf: &PeerConf{
 				NeighborAddress:   pconf.Config.NeighborAddress,
@@ -120,8 +129,8 @@ func (s *Server) GetNeighbor(ctx context.Context, arg *GetNeighborRequest) (*Get
 				SendCommunity:     uint32(pconf.Config.SendCommunity.ToInt()),
 				Description:       pconf.Config.Description,
 				PeerGroup:         pconf.Config.PeerGroup,
-				RemoteCap:         s.Capabilities.RemoteList,
-				LocalCap:          s.Capabilities.LocalList,
+				RemoteCap:         remoteCap,
+				LocalCap:          localCap,
 				PrefixLimits:      prefixLimits,
 				LocalAddress:      localAddress,
 				NeighborInterface: pconf.Config.NeighborInterface,

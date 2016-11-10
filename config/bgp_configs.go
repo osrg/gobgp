@@ -19,8 +19,9 @@
 package config
 
 import (
-	"bytes"
 	"fmt"
+
+	"github.com/osrg/gobgp/packet/bgp"
 )
 
 func mapkey(index int, name string) string {
@@ -1996,39 +1997,6 @@ func (lhs *Timers) Equal(rhs *Timers) bool {
 	return true
 }
 
-//struct for container gobgp:Capabilities
-type Capabilities struct {
-	// original -> gobgp:remote
-	// original type is list of binary
-	RemoteList [][]byte `mapstructure:"remote-list"`
-	// original -> gobgp:local
-	// original type is list of binary
-	LocalList [][]byte `mapstructure:"local-list"`
-}
-
-func (lhs *Capabilities) Equal(rhs *Capabilities) bool {
-	if lhs == nil || rhs == nil {
-		return false
-	}
-	if len(lhs.RemoteList) != len(rhs.RemoteList) {
-		return false
-	}
-	for idx, l := range lhs.RemoteList {
-		if bytes.Compare(l, rhs.RemoteList[idx]) != 0 {
-			return false
-		}
-	}
-	if len(lhs.LocalList) != len(rhs.LocalList) {
-		return false
-	}
-	for idx, l := range lhs.LocalList {
-		if bytes.Compare(l, rhs.LocalList[idx]) != 0 {
-			return false
-		}
-	}
-	return true
-}
-
 //struct for container gobgp:adj-table
 type AdjTable struct {
 	// original -> gobgp:ADVERTISED
@@ -2235,11 +2203,15 @@ type NeighborState struct {
 	Queues Queues `mapstructure:"queues"`
 	// original -> gobgp:adj-table
 	AdjTable AdjTable `mapstructure:"adj-table"`
-	// original -> gobgp:Capabilities
-	Capabilities Capabilities `mapstructure:"capabilities"`
+	// original -> gobgp:remote-capability
+	// original type is list of bgp-capability
+	RemoteCapabilityList []bgp.ParameterCapabilityInterface `mapstructure:"remote-capability-list"`
+	// original -> gobgp:local-capability
+	// original type is list of bgp-capability
+	LocalCapabilityList []bgp.ParameterCapabilityInterface `mapstructure:"local-capability-list"`
 	// original -> gobgp:received-open-message
-	//gobgp:received-open-message's original type is binary
-	ReceivedOpenMessage []byte `mapstructure:"received-open-message"`
+	//gobgp:received-open-message's original type is bgp-open-message
+	ReceivedOpenMessage *bgp.BGPMessage `mapstructure:"received-open-message"`
 	// original -> gobgp:admin-down
 	//gobgp:admin-down's original type is boolean
 	AdminDown bool `mapstructure:"admin-down"`

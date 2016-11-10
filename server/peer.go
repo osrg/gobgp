@@ -511,22 +511,17 @@ func (peer *Peer) ToConfig() *config.Neighbor {
 		conf.AfiSafis[i] = peer.fsm.pConf.AfiSafis[i]
 	}
 
-	remoteCap := make([][]byte, 0, len(peer.fsm.capMap))
+	remoteCap := make([]bgp.ParameterCapabilityInterface, 0, len(peer.fsm.capMap))
 	for _, c := range peer.fsm.capMap {
 		for _, m := range c {
+			// need to copy all values here
 			buf, _ := m.Serialize()
-			remoteCap = append(remoteCap, buf)
+			cap, _ := bgp.DecodeCapability(buf)
+			remoteCap = append(remoteCap, cap)
 		}
 	}
-	conf.State.Capabilities.RemoteList = remoteCap
-
-	caps := capabilitiesFromConfig(peer.fsm.pConf)
-	localCap := make([][]byte, 0, len(caps))
-	for _, c := range caps {
-		buf, _ := c.Serialize()
-		localCap = append(localCap, buf)
-	}
-	conf.State.Capabilities.LocalList = localCap
+	conf.State.RemoteCapabilityList = remoteCap
+	conf.State.LocalCapabilityList = capabilitiesFromConfig(peer.fsm.pConf)
 
 	conf.State.RemoteRouterId = peer.fsm.peerInfo.ID.To4().String()
 	conf.State.SessionState = config.IntToSessionStateMap[int(peer.fsm.state)]
@@ -541,9 +536,9 @@ func (peer *Peer) ToConfig() *config.Neighbor {
 
 		conf.Transport.State.LocalAddress, conf.Transport.State.LocalPort = peer.fsm.LocalHostPort()
 		_, conf.Transport.State.RemotePort = peer.fsm.RemoteHostPort()
-
-		conf.State.ReceivedOpenMessage, _ = peer.fsm.recvOpen.Serialize()
-
+		buf, _ := peer.fsm.recvOpen.Serialize()
+		// need to copy all values here
+		conf.State.ReceivedOpenMessage, _ = bgp.ParseBGPMessage(buf)
 	}
 	return &conf
 }
