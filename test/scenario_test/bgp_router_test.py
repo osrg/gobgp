@@ -13,9 +13,11 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import json
 import unittest
 from fabric.api import local
 from lib import base
+from lib.base import wait_for_completion
 from lib.gobgp import *
 from lib.quagga import *
 from lib.exabgp import *
@@ -361,32 +363,22 @@ class GoBGPTestBase(unittest.TestCase):
         g1 = self.gobgp
         g2 = self.quaggas['g2']
 
-        dumpfile = g2.start_tcpdump()
+        prefix = '40.10.0.0/24'
+        g1.add_route(prefix)
+        wait_for_completion(lambda: len(g1.get_global_rib(prefix)) == 1)
+        wait_for_completion(lambda: len(g2.get_global_rib(prefix)) == 1)
 
-        g1.add_route('10.40.0.0/24')
+        r = g2.local('gobgp monitor global rib -j', stream=True, tty=False)
 
-        time.sleep(1)
+        g1.local('gobgp global rib del 40.10.0.0/24')
+        del g1.routes[prefix]
 
-        paths = g2.get_global_rib('10.40.0.0/24')
-        self.assertTrue(len(paths) == 1)
+        wait_for_completion(lambda: len(g1.get_global_rib(prefix)) == 0)
+        wait_for_completion(lambda: len(g2.get_global_rib(prefix)) == 0)
 
-        g1.local('gobgp global rib del 10.40.0.0/24')
-
-        time.sleep(1)
-
-        paths = g2.get_global_rib('10.40.0.0/24')
-        self.assertTrue(len(paths) == 0)
-
-        g2.stop_tcpdump()
-        time.sleep(1)
-
-        cnt = 0
-        for _, buf in pcap.Reader(open(dumpfile)):
-            pkt = Packet(buf).get_protocol(BGPMessage)
-            if isinstance(pkt, BGPUpdate):
-                cnt += len(pkt.withdrawn_routes)
-
-        self.assertTrue(cnt == 1)
+        ret = json.loads(r.next())
+        self.assertTrue(ret[0]['nlri']['prefix'] == prefix)
+        self.assertTrue('withdrawal' in ret[0])
 
     def test_21_check_cli_sorted(self):
         g1 = self.gobgp
@@ -414,47 +406,46 @@ class GoBGPTestBase(unittest.TestCase):
 
         self.assertTrue(cnt == cnt2)
 
-
     def test_22_check_withdrawal3(self):
         gobgp_ctn_image_name = parser_option.gobgp_image
         g1 = self.gobgp
-        g2 = GoBGPContainer(name='g2', asn=65006, router_id='192.168.0.8',
+        g3 = GoBGPContainer(name='g3', asn=65006, router_id='192.168.0.8',
                             ctn_image_name=gobgp_ctn_image_name,
                             log_level=parser_option.gobgp_log_level)
-        g3 = GoBGPContainer(name='g3', asn=65007, router_id='192.168.0.9',
+        g4 = GoBGPContainer(name='g4', asn=65007, router_id='192.168.0.9',
                             ctn_image_name=gobgp_ctn_image_name,
                             log_level=parser_option.gobgp_log_level)
 
-        initial_wait_time = max(ctn.run() for ctn in [g2, g3])
+        initial_wait_time = max(ctn.run() for ctn in [g3, g4])
         time.sleep(initial_wait_time)
 
-        self.quaggas = {'g2': g2, 'g3': g3}
+        self.quaggas = {'g3': g3, 'g4': g4}
 
-        g2.local('gobgp global rib add 50.0.0.0/24')
+        g3.local('gobgp global rib add 50.0.0.0/24')
 
-        g1.add_peer(g2, passive=True)
-        g2.add_peer(g1)
         g1.add_peer(g3, passive=True)
         g3.add_peer(g1)
+        g1.add_peer(g4, passive=True)
+        g4.add_peer(g1)
 
         self.test_01_neighbor_established()
 
         self.test_02_check_gobgp_global_rib()
 
-        g3.local('gobgp global rib add 50.0.0.0/24 med 10')
+        g4.local('gobgp global rib add 50.0.0.0/24 med 10')
 
-        paths = g1.get_adj_rib_out(g2, '50.0.0.0/24')
-        self.assertTrue(len(paths) == 0)
         paths = g1.get_adj_rib_out(g3, '50.0.0.0/24')
+        self.assertTrue(len(paths) == 0)
+        paths = g1.get_adj_rib_out(g4, '50.0.0.0/24')
         self.assertTrue(len(paths) == 1)
         self.assertTrue(paths[0]['source-id'] == '192.168.0.8')
 
-        g2.local('gobgp global rib del 50.0.0.0/24')
+        g3.local('gobgp global rib del 50.0.0.0/24')
 
-        paths = g1.get_adj_rib_out(g2, '50.0.0.0/24')
+        paths = g1.get_adj_rib_out(g3, '50.0.0.0/24')
         self.assertTrue(len(paths) == 1)
         self.assertTrue(paths[0]['source-id'] == '192.168.0.9')
-        paths = g1.get_adj_rib_out(g3, '50.0.0.0/24')
+        paths = g1.get_adj_rib_out(g4, '50.0.0.0/24')
         self.assertTrue(len(paths) == 0)
 
 

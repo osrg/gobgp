@@ -232,11 +232,11 @@ class Container(object):
         self.ip_addrs.append((intf_name, ip_addr, bridge.name))
         try_several_times(lambda :local(str(c)))
 
-    def local(self, cmd, capture=False, stream=False, detach=False):
+    def local(self, cmd, capture=False, stream=False, detach=False, tty=True):
         if stream:
             dckr = Client(timeout=120, version='auto')
             i = dckr.exec_create(container=self.docker_name(), cmd=cmd)
-            return dckr.exec_start(i['Id'], tty=True, stream=stream, detach=detach)
+            return dckr.exec_start(i['Id'], tty=tty, stream=stream, detach=detach)
         else:
             flag = '-d' if detach else ''
             return local('docker exec {0} {1} {2}'.format(flag, self.docker_name(), cmd), capture)
