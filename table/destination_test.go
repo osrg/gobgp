@@ -438,17 +438,17 @@ func TestMultipath(t *testing.T) {
 	d.AddNewPath(path1)
 	d.AddNewPath(path2)
 
-	best, w, multi := d.Calculate([]string{GLOBAL_RIB_NAME})
+	best, old, multi := d.Calculate([]string{GLOBAL_RIB_NAME})
 	assert.Equal(t, len(best), 1)
-	assert.Equal(t, len(w), 0)
+	assert.Equal(t, old[GLOBAL_RIB_NAME], (*Path)(nil))
 	assert.Equal(t, len(multi), 2)
 	assert.Equal(t, len(d.GetKnownPathList(GLOBAL_RIB_NAME)), 2)
 
 	path3 := path2.Clone(true)
 	d.AddWithdraw(path3)
-	best, w, multi = d.Calculate([]string{GLOBAL_RIB_NAME})
+	best, old, multi = d.Calculate([]string{GLOBAL_RIB_NAME})
 	assert.Equal(t, len(best), 1)
-	assert.Equal(t, len(w), 1)
+	assert.Equal(t, old[GLOBAL_RIB_NAME], path1)
 	assert.Equal(t, len(multi), 1)
 	assert.Equal(t, len(d.GetKnownPathList(GLOBAL_RIB_NAME)), 1)
 
@@ -465,9 +465,8 @@ func TestMultipath(t *testing.T) {
 	path4 := ProcessMessage(updateMsg, peer3, time.Now())[0]
 	d.AddNewPath(path4)
 
-	best, w, multi = d.Calculate([]string{GLOBAL_RIB_NAME})
+	best, _, multi = d.Calculate([]string{GLOBAL_RIB_NAME})
 	assert.Equal(t, len(best), 1)
-	assert.Equal(t, len(w), 0)
 	assert.Equal(t, len(multi), 1)
 	assert.Equal(t, len(d.GetKnownPathList(GLOBAL_RIB_NAME)), 2)
 
@@ -482,9 +481,8 @@ func TestMultipath(t *testing.T) {
 	path5 := ProcessMessage(updateMsg, peer2, time.Now())[0]
 	d.AddNewPath(path5)
 
-	best, w, multi = d.Calculate([]string{GLOBAL_RIB_NAME})
+	best, _, multi = d.Calculate([]string{GLOBAL_RIB_NAME})
 	assert.Equal(t, len(best), 1)
-	assert.Equal(t, len(w), 0)
 	assert.Equal(t, len(multi), 2)
 	assert.Equal(t, len(d.GetKnownPathList(GLOBAL_RIB_NAME)), 3)
 

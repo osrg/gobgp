@@ -206,11 +206,12 @@ func (dd *Destination) validatePath(path *Path) {
 //
 // Modifies destination's state related to stored paths. Removes withdrawn
 // paths from known paths. Also, adds new paths to known paths.
-func (dest *Destination) Calculate(ids []string) (map[string]*Path, []*Path, []*Path) {
-	best := make(map[string]*Path, len(ids))
+func (dest *Destination) Calculate(ids []string) (map[string]*Path, map[string]*Path, []*Path) {
+	bestList := make(map[string]*Path, len(ids))
+	oldList := make(map[string]*Path, len(ids))
 	oldKnownPathList := dest.knownPathList
 	// First remove the withdrawn paths.
-	withdrawnList := dest.explicitWithdraw()
+	dest.explicitWithdraw()
 	// Do implicit withdrawal
 	dest.implicitWithdraw()
 	// Collect all new paths into known paths.
@@ -220,7 +221,7 @@ func (dest *Destination) Calculate(ids []string) (map[string]*Path, []*Path, []*
 	// Compute new best path
 	dest.computeKnownBestPath()
 
-	f := func(id string) *Path {
+	f := func(id string) (*Path, *Path) {
 		old := func() *Path {
 			for _, p := range oldKnownPathList {
 				if p.Filtered(id) == POLICY_DIRECTION_NONE {
@@ -237,22 +238,22 @@ func (dest *Destination) Calculate(ids []string) (map[string]*Path, []*Path, []*
 			// given RT prefix, for building the outbound route filter, and not just
 			// the best path.
 			if best.GetRouteFamily() == bgp.RF_RTC_UC {
-				return best
+				return best, old
 			}
-			return nil
+			return nil, old
 		}
 		if best == nil {
 			if old == nil {
-				return nil
+				return nil, nil
 			}
-			return old.Clone(true)
+			return old.Clone(true), old
 		}
-		return best
+		return best, old
 	}
 
 	var multi []*Path
 	for _, id := range ids {
-		best[id] = f(id)
+		bestList[id], oldList[id] = f(id)
 		if id == GLOBAL_RIB_NAME && UseMultiplePaths.Enabled {
 			multipath := func(paths []*Path) []*Path {
 				mp := make([]*Path, 0, len(paths))
@@ -285,13 +286,13 @@ func (dest *Destination) Calculate(ids []string) (map[string]*Path, []*Path, []*
 			if diff(oldM, newM) {
 				multi = newM
 				if len(newM) == 0 {
-					multi = []*Path{best[id]}
+					multi = []*Path{bestList[id]}
 				}
 			}
 		}
 	}
 
-	return best, withdrawnList, multi
+	return bestList, oldList, multi
 }
 
 // Removes withdrawn paths.

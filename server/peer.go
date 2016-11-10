@@ -233,7 +233,7 @@ func (peer *Peer) getAccepted(rfList []bgp.RouteFamily) []*table.Path {
 	return peer.adjRibIn.PathList(rfList, true)
 }
 
-func (peer *Peer) filterpath(path *table.Path, withdrawals []*table.Path) *table.Path {
+func (peer *Peer) filterpath(path, old *table.Path) *table.Path {
 	// special handling for RTC nlri
 	// see comments in (*Destination).Calculate()
 	if path != nil && path.GetRouteFamily() == bgp.RF_RTC_UC && !path.IsWithdraw {
@@ -268,7 +268,7 @@ func (peer *Peer) filterpath(path *table.Path, withdrawals []*table.Path) *table
 		}
 	}
 
-	if path = filterpath(peer, path, withdrawals); path == nil {
+	if path = filterpath(peer, path, old); path == nil {
 		return nil
 	}
 
@@ -324,7 +324,7 @@ func (peer *Peer) getBestFromLocal(rfList []bgp.RouteFamily) ([]*table.Path, []*
 	return pathList, filtered
 }
 
-func (peer *Peer) processOutgoingPaths(paths, withdrawals []*table.Path) []*table.Path {
+func (peer *Peer) processOutgoingPaths(paths, olds []*table.Path) []*table.Path {
 	if peer.fsm.state != bgp.BGP_FSM_ESTABLISHED {
 		return nil
 	}
@@ -338,8 +338,12 @@ func (peer *Peer) processOutgoingPaths(paths, withdrawals []*table.Path) []*tabl
 
 	outgoing := make([]*table.Path, 0, len(paths))
 
-	for _, path := range paths {
-		if p := peer.filterpath(path, withdrawals); p != nil {
+	for idx, path := range paths {
+		var old *table.Path
+		if olds != nil {
+			old = olds[idx]
+		}
+		if p := peer.filterpath(path, old); p != nil {
 			outgoing = append(outgoing, p)
 		}
 	}

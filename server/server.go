@@ -269,7 +269,7 @@ func isASLoop(peer *Peer, path *table.Path) bool {
 	return false
 }
 
-func filterpath(peer *Peer, path *table.Path, withdrawals []*table.Path) *table.Path {
+func filterpath(peer *Peer, path, old *table.Path) *table.Path {
 	if path == nil {
 		return nil
 	}
@@ -377,10 +377,8 @@ func filterpath(peer *Peer, path *table.Path, withdrawals []*table.Path) *table.
 			// the withdrawal path.
 			// Thing is same when peer A and we advertized prefix P (as local
 			// route), then, we withdraws the prefix.
-			for _, w := range withdrawals {
-				if path.GetNlri().String() == w.GetNlri().String() {
-					return w
-				}
+			if old != nil {
+				return old.Clone(true)
 			}
 		}
 		log.WithFields(log.Fields{
@@ -512,8 +510,8 @@ func (server *BgpServer) RSimportPaths(peer *Peer, pathList []*table.Path) []*ta
 
 func (server *BgpServer) propagateUpdate(peer *Peer, pathList []*table.Path) []*table.Path {
 	rib := server.globalRib
-	var alteredPathList, withdrawn []*table.Path
-	var best map[string][]*table.Path
+	var alteredPathList []*table.Path
+	var best, old map[string][]*table.Path
 
 	if peer != nil && peer.fsm.pConf.Config.Vrf != "" {
 		vrf := server.globalRib.Vrfs[peer.fsm.pConf.Config.Vrf]
@@ -544,7 +542,7 @@ func (server *BgpServer) propagateUpdate(peer *Peer, pathList []*table.Path) []*
 				ids = append(ids, targetPeer.TableID())
 			}
 		}
-		best, withdrawn, _ = rib.ProcessPaths(ids, append(pathList, moded...))
+		best, old, _ = rib.ProcessPaths(ids, append(pathList, moded...))
 	} else {
 		for idx, path := range pathList {
 			path = server.policy.ApplyPolicy(table.GLOBAL_RIB_NAME, table.POLICY_DIRECTION_IMPORT, path, nil)
@@ -596,7 +594,7 @@ func (server *BgpServer) propagateUpdate(peer *Peer, pathList []*table.Path) []*
 		}
 		alteredPathList = pathList
 		var multipath [][]*table.Path
-		best, withdrawn, multipath = rib.ProcessPaths([]string{table.GLOBAL_RIB_NAME}, pathList)
+		best, old, multipath = rib.ProcessPaths([]string{table.GLOBAL_RIB_NAME}, pathList)
 		if len(best[table.GLOBAL_RIB_NAME]) == 0 {
 			return alteredPathList
 		}
@@ -607,7 +605,7 @@ func (server *BgpServer) propagateUpdate(peer *Peer, pathList []*table.Path) []*
 		if (peer == nil && targetPeer.isRouteServerClient()) || (peer != nil && peer.isRouteServerClient() != targetPeer.isRouteServerClient()) {
 			continue
 		}
-		if paths := targetPeer.processOutgoingPaths(best[targetPeer.TableID()], withdrawn); len(paths) > 0 {
+		if paths := targetPeer.processOutgoingPaths(best[targetPeer.TableID()], old[targetPeer.TableID()]); len(paths) > 0 {
 			sendFsmOutgoingMsg(targetPeer, paths, nil, false)
 		}
 	}
