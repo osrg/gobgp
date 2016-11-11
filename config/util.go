@@ -17,6 +17,10 @@ package config
 
 import (
 	"fmt"
+	"net"
+	"regexp"
+	"strconv"
+
 	"github.com/osrg/gobgp/packet/bgp"
 )
 
@@ -81,4 +85,42 @@ func CheckAfiSafisChange(x, y []AfiSafi) bool {
 		}
 	}
 	return false
+}
+
+func ParseMaskLength(prefix, mask string) (int, int, error) {
+	_, ipNet, err := net.ParseCIDR(prefix)
+	if err != nil {
+		return 0, 0, fmt.Errorf("invalid prefix: %s", prefix)
+	}
+	if mask == "" {
+		l, _ := ipNet.Mask.Size()
+		return l, l, nil
+	}
+	exp := regexp.MustCompile("(\\d+)\\.\\.(\\d+)")
+	elems := exp.FindStringSubmatch(mask)
+	if len(elems) != 3 {
+		return 0, 0, fmt.Errorf("invalid mask length range: %s", mask)
+	}
+	// we've already checked the range is sane by regexp
+	min, _ := strconv.Atoi(elems[1])
+	max, _ := strconv.Atoi(elems[2])
+	if min > max {
+		return 0, 0, fmt.Errorf("invalid mask length range: %s", mask)
+	}
+	if ipv4 := ipNet.IP.To4(); ipv4 != nil {
+		f := func(i int) bool {
+			return i >= 0 && i <= 32
+		}
+		if !f(min) || !f(max) {
+			return 0, 0, fmt.Errorf("ipv4 mask length range outside scope :%s", mask)
+		}
+	} else {
+		f := func(i int) bool {
+			return i >= 0 && i <= 128
+		}
+		if !f(min) || !f(max) {
+			return 0, 0, fmt.Errorf("ipv6 mask length range outside scope :%s", mask)
+		}
+	}
+	return min, max, nil
 }

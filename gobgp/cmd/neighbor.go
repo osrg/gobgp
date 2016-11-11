@@ -109,7 +109,7 @@ func showNeighbors(vrf string) error {
 		timeStr := "never"
 		if p.Timers.State.Uptime != 0 {
 			t := int64(p.Timers.State.Downtime)
-			if p.Info.BgpState == "BGP_FSM_ESTABLISHED" {
+			if p.Info.BgpState == string(config.SESSION_STATE_ESTABLISHED) {
 				t = int64(p.Timers.State.Uptime)
 			}
 			timeStr = formatTimedelta(int64(now.Sub(time.Unix(int64(t), 0)).Seconds()))
@@ -131,18 +131,21 @@ func showNeighbors(vrf string) error {
 			return "Idle(PfxCt)"
 		}
 
-		if fsm == "BGP_FSM_IDLE" {
+		switch config.SessionState(fsm) {
+		case config.SESSION_STATE_IDLE:
 			return "Idle"
-		} else if fsm == "BGP_FSM_CONNECT" {
+		case config.SESSION_STATE_CONNECT:
 			return "Connect"
-		} else if fsm == "BGP_FSM_ACTIVE" {
+		case config.SESSION_STATE_ACTIVE:
 			return "Active"
-		} else if fsm == "BGP_FSM_OPENSENT" {
+		case config.SESSION_STATE_OPENSENT:
 			return "Sent"
-		} else if fsm == "BGP_FSM_OPENCONFIRM" {
+		case config.SESSION_STATE_OPENCONFIRM:
 			return "Confirm"
-		} else {
+		case config.SESSION_STATE_ESTABLISHED:
 			return "Establ"
+		default:
+			return fsm
 		}
 	}
 
@@ -590,7 +593,7 @@ func showNeighborRib(r string, name string, args []string) error {
 			if err != nil {
 				return err
 			}
-			if peer.Info.BgpState != "BGP_FSM_ESTABLISHED" {
+			if peer.Info.BgpState != string(config.SESSION_STATE_ESTABLISHED) {
 				return fmt.Errorf("Neighbor %v's BGP session is not established", name)
 			}
 		}
