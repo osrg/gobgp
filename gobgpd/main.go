@@ -22,7 +22,6 @@ import (
 	p "github.com/kr/pretty"
 	api "github.com/osrg/gobgp/api"
 	"github.com/osrg/gobgp/config"
-	ops "github.com/osrg/gobgp/openswitch"
 	"github.com/osrg/gobgp/packet/bgp"
 	"github.com/osrg/gobgp/server"
 	"io/ioutil"
@@ -50,7 +49,6 @@ func main() {
 		Facility        string `long:"syslog-facility" description:"specify syslog facility"`
 		DisableStdlog   bool   `long:"disable-stdlog" description:"disable standard logging"`
 		CPUs            int    `long:"cpus" description:"specify the number of CPUs to be used"`
-		Ops             bool   `long:"openswitch" description:"openswitch mode"`
 		GrpcHosts       string `long:"api-hosts" description:"specify the hosts that gobgpd listens on" default:":50051"`
 		GracefulRestart bool   `short:"r" long:"graceful-restart" description:"flag restart-state in graceful-restart capability"`
 		Dry             bool   `short:"d" long:"dry-run" description:"check configuration"`
@@ -187,15 +185,7 @@ func main() {
 		}
 	}()
 
-	if opts.Ops {
-		m, err := ops.NewOpsManager(opts.GrpcHosts)
-		if err != nil {
-			log.Errorf("Failed to start ops config manager: %s", err)
-			os.Exit(1)
-		}
-		log.Info("Coordination with OpenSwitch")
-		m.Serve()
-	} else if opts.ConfigFile != "" {
+	if opts.ConfigFile != "" {
 		go config.ReadConfigfileServe(opts.ConfigFile, opts.ConfigType, configCh)
 	}
 
