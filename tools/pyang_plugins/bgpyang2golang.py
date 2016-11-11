@@ -274,7 +274,7 @@ def emit_class_def(ctx, yang_statement, struct_name, prefix):
                 tag_name = 'state'
                 val_name_go = 'State'
 
-        print >> o, '  {0}\t{1} `mapstructure:"{2}"`'.format(val_name_go, emit_type_name, tag_name)
+        print >> o, '  {0}\t{1} `mapstructure:"{2}" json:"{2},omitempty"`'.format(val_name_go, emit_type_name, tag_name)
 
         equal_elems.append((val_name_go, emit_type_name, equal_type, equal_data))
 

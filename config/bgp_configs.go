@@ -890,21 +890,21 @@ func (v RpkiValidationResultType) Validate() error {
 //struct for container gobgp:state
 type CollectorState struct {
 	// original -> gobgp:url
-	Url string `mapstructure:"url"`
+	Url string `mapstructure:"url" json:"url,omitempty"`
 	// original -> gobgp:db-name
-	DbName string `mapstructure:"db-name"`
+	DbName string `mapstructure:"db-name" json:"db-name,omitempty"`
 	// original -> gobgp:table-dump-interval
-	TableDumpInterval uint64 `mapstructure:"table-dump-interval"`
+	TableDumpInterval uint64 `mapstructure:"table-dump-interval" json:"table-dump-interval,omitempty"`
 }
 
 //struct for container gobgp:config
 type CollectorConfig struct {
 	// original -> gobgp:url
-	Url string `mapstructure:"url"`
+	Url string `mapstructure:"url" json:"url,omitempty"`
 	// original -> gobgp:db-name
-	DbName string `mapstructure:"db-name"`
+	DbName string `mapstructure:"db-name" json:"db-name,omitempty"`
 	// original -> gobgp:table-dump-interval
-	TableDumpInterval uint64 `mapstructure:"table-dump-interval"`
+	TableDumpInterval uint64 `mapstructure:"table-dump-interval" json:"table-dump-interval,omitempty"`
 }
 
 func (lhs *CollectorConfig) Equal(rhs *CollectorConfig) bool {
@@ -926,9 +926,9 @@ func (lhs *CollectorConfig) Equal(rhs *CollectorConfig) bool {
 //struct for container gobgp:collector
 type Collector struct {
 	// original -> gobgp:collector-config
-	Config CollectorConfig `mapstructure:"config"`
+	Config CollectorConfig `mapstructure:"config" json:"config,omitempty"`
 	// original -> gobgp:collector-state
-	State CollectorState `mapstructure:"state"`
+	State CollectorState `mapstructure:"state" json:"state,omitempty"`
 }
 
 func (lhs *Collector) Equal(rhs *Collector) bool {
@@ -945,26 +945,26 @@ func (lhs *Collector) Equal(rhs *Collector) bool {
 type ZebraState struct {
 	// original -> gobgp:enabled
 	//gobgp:enabled's original type is boolean
-	Enabled bool `mapstructure:"enabled"`
+	Enabled bool `mapstructure:"enabled" json:"enabled,omitempty"`
 	// original -> gobgp:url
-	Url string `mapstructure:"url"`
+	Url string `mapstructure:"url" json:"url,omitempty"`
 	// original -> gobgp:redistribute-route-type
-	RedistributeRouteTypeList []InstallProtocolType `mapstructure:"redistribute-route-type-list"`
+	RedistributeRouteTypeList []InstallProtocolType `mapstructure:"redistribute-route-type-list" json:"redistribute-route-type-list,omitempty"`
 	// original -> gobgp:version
-	Version uint8 `mapstructure:"version"`
+	Version uint8 `mapstructure:"version" json:"version,omitempty"`
 }
 
 //struct for container gobgp:config
 type ZebraConfig struct {
 	// original -> gobgp:enabled
 	//gobgp:enabled's original type is boolean
-	Enabled bool `mapstructure:"enabled"`
+	Enabled bool `mapstructure:"enabled" json:"enabled,omitempty"`
 	// original -> gobgp:url
-	Url string `mapstructure:"url"`
+	Url string `mapstructure:"url" json:"url,omitempty"`
 	// original -> gobgp:redistribute-route-type
-	RedistributeRouteTypeList []InstallProtocolType `mapstructure:"redistribute-route-type-list"`
+	RedistributeRouteTypeList []InstallProtocolType `mapstructure:"redistribute-route-type-list" json:"redistribute-route-type-list,omitempty"`
 	// original -> gobgp:version
-	Version uint8 `mapstructure:"version"`
+	Version uint8 `mapstructure:"version" json:"version,omitempty"`
 }
 
 func (lhs *ZebraConfig) Equal(rhs *ZebraConfig) bool {
@@ -994,9 +994,9 @@ func (lhs *ZebraConfig) Equal(rhs *ZebraConfig) bool {
 //struct for container gobgp:zebra
 type Zebra struct {
 	// original -> gobgp:zebra-config
-	Config ZebraConfig `mapstructure:"config"`
+	Config ZebraConfig `mapstructure:"config" json:"config,omitempty"`
 	// original -> gobgp:zebra-state
-	State ZebraState `mapstructure:"state"`
+	State ZebraState `mapstructure:"state" json:"state,omitempty"`
 }
 
 func (lhs *Zebra) Equal(rhs *Zebra) bool {
@@ -1012,15 +1012,15 @@ func (lhs *Zebra) Equal(rhs *Zebra) bool {
 //struct for container gobgp:config
 type MrtConfig struct {
 	// original -> gobgp:dump-type
-	DumpType MrtType `mapstructure:"dump-type"`
+	DumpType MrtType `mapstructure:"dump-type" json:"dump-type,omitempty"`
 	// original -> gobgp:file-name
-	FileName string `mapstructure:"file-name"`
+	FileName string `mapstructure:"file-name" json:"file-name,omitempty"`
 	// original -> gobgp:table-name
-	TableName string `mapstructure:"table-name"`
+	TableName string `mapstructure:"table-name" json:"table-name,omitempty"`
 	// original -> gobgp:dump-interval
-	DumpInterval uint64 `mapstructure:"dump-interval"`
+	DumpInterval uint64 `mapstructure:"dump-interval" json:"dump-interval,omitempty"`
 	// original -> gobgp:rotation-interval
-	RotationInterval uint64 `mapstructure:"rotation-interval"`
+	RotationInterval uint64 `mapstructure:"rotation-interval" json:"rotation-interval,omitempty"`
 }
 
 func (lhs *MrtConfig) Equal(rhs *MrtConfig) bool {
@@ -1049,7 +1049,7 @@ func (lhs *MrtConfig) Equal(rhs *MrtConfig) bool {
 type Mrt struct {
 	// original -> gobgp:file-name
 	// original -> gobgp:mrt-config
-	Config MrtConfig `mapstructure:"config"`
+	Config MrtConfig `mapstructure:"config" json:"config,omitempty"`
 }
 
 func (lhs *Mrt) Equal(rhs *Mrt) bool {
@@ -1070,11 +1070,11 @@ type BmpServerState struct {
 type BmpServerConfig struct {
 	// original -> gobgp:address
 	//gobgp:address's original type is inet:ip-address
-	Address string `mapstructure:"address"`
+	Address string `mapstructure:"address" json:"address,omitempty"`
 	// original -> gobgp:port
-	Port uint32 `mapstructure:"port"`
+	Port uint32 `mapstructure:"port" json:"port,omitempty"`
 	// original -> gobgp:route-monitoring-policy
-	RouteMonitoringPolicy BmpRouteMonitoringPolicyType `mapstructure:"route-monitoring-policy"`
+	RouteMonitoringPolicy BmpRouteMonitoringPolicyType `mapstructure:"route-monitoring-policy" json:"route-monitoring-policy,omitempty"`
 }
 
 func (lhs *BmpServerConfig) Equal(rhs *BmpServerConfig) bool {
@@ -1097,9 +1097,9 @@ func (lhs *BmpServerConfig) Equal(rhs *BmpServerConfig) bool {
 type BmpServer struct {
 	// original -> gobgp:address
 	// original -> gobgp:bmp-server-config
-	Config BmpServerConfig `mapstructure:"config"`
+	Config BmpServerConfig `mapstructure:"config" json:"config,omitempty"`
 	// original -> gobgp:bmp-server-state
-	State BmpServerState `mapstructure:"state"`
+	State BmpServerState `mapstructure:"state" json:"state,omitempty"`
 }
 
 func (lhs *BmpServer) Equal(rhs *BmpServer) bool {
@@ -1115,19 +1115,19 @@ func (lhs *BmpServer) Equal(rhs *BmpServer) bool {
 //struct for container gobgp:rpki-received
 type RpkiReceived struct {
 	// original -> gobgp:serial-notify
-	SerialNotify int64 `mapstructure:"serial-notify"`
+	SerialNotify int64 `mapstructure:"serial-notify" json:"serial-notify,omitempty"`
 	// original -> gobgp:cache-reset
-	CacheReset int64 `mapstructure:"cache-reset"`
+	CacheReset int64 `mapstructure:"cache-reset" json:"cache-reset,omitempty"`
 	// original -> gobgp:cache-response
-	CacheResponse int64 `mapstructure:"cache-response"`
+	CacheResponse int64 `mapstructure:"cache-response" json:"cache-response,omitempty"`
 	// original -> gobgp:ipv4-prefix
-	Ipv4Prefix int64 `mapstructure:"ipv4-prefix"`
+	Ipv4Prefix int64 `mapstructure:"ipv4-prefix" json:"ipv4-prefix,omitempty"`
 	// original -> gobgp:ipv6-prefix
-	Ipv6Prefix int64 `mapstructure:"ipv6-prefix"`
+	Ipv6Prefix int64 `mapstructure:"ipv6-prefix" json:"ipv6-prefix,omitempty"`
 	// original -> gobgp:end-of-data
-	EndOfData int64 `mapstructure:"end-of-data"`
+	EndOfData int64 `mapstructure:"end-of-data" json:"end-of-data,omitempty"`
 	// original -> gobgp:error
-	Error int64 `mapstructure:"error"`
+	Error int64 `mapstructure:"error" json:"error,omitempty"`
 }
 
 func (lhs *RpkiReceived) Equal(rhs *RpkiReceived) bool {
@@ -1161,11 +1161,11 @@ func (lhs *RpkiReceived) Equal(rhs *RpkiReceived) bool {
 //struct for container gobgp:rpki-sent
 type RpkiSent struct {
 	// original -> gobgp:serial-query
-	SerialQuery int64 `mapstructure:"serial-query"`
+	SerialQuery int64 `mapstructure:"serial-query" json:"serial-query,omitempty"`
 	// original -> gobgp:reset-query
-	ResetQuery int64 `mapstructure:"reset-query"`
+	ResetQuery int64 `mapstructure:"reset-query" json:"reset-query,omitempty"`
 	// original -> gobgp:error
-	Error int64 `mapstructure:"error"`
+	Error int64 `mapstructure:"error" json:"error,omitempty"`
 }
 
 func (lhs *RpkiSent) Equal(rhs *RpkiSent) bool {
@@ -1187,9 +1187,9 @@ func (lhs *RpkiSent) Equal(rhs *RpkiSent) bool {
 //struct for container gobgp:rpki-messages
 type RpkiMessages struct {
 	// original -> gobgp:rpki-sent
-	RpkiSent RpkiSent `mapstructure:"rpki-sent"`
+	RpkiSent RpkiSent `mapstructure:"rpki-sent" json:"rpki-sent,omitempty"`
 	// original -> gobgp:rpki-received
-	RpkiReceived RpkiReceived `mapstructure:"rpki-received"`
+	RpkiReceived RpkiReceived `mapstructure:"rpki-received" json:"rpki-received,omitempty"`
 }
 
 func (lhs *RpkiMessages) Equal(rhs *RpkiMessages) bool {
@@ -1209,42 +1209,42 @@ func (lhs *RpkiMessages) Equal(rhs *RpkiMessages) bool {
 type RpkiServerState struct {
 	// original -> gobgp:up
 	//gobgp:up's original type is boolean
-	Up bool `mapstructure:"up"`
+	Up bool `mapstructure:"up" json:"up,omitempty"`
 	// original -> gobgp:serial-number
-	SerialNumber uint32 `mapstructure:"serial-number"`
+	SerialNumber uint32 `mapstructure:"serial-number" json:"serial-number,omitempty"`
 	// original -> gobgp:records-v4
-	RecordsV4 uint32 `mapstructure:"records-v4"`
+	RecordsV4 uint32 `mapstructure:"records-v4" json:"records-v4,omitempty"`
 	// original -> gobgp:records-v6
-	RecordsV6 uint32 `mapstructure:"records-v6"`
+	RecordsV6 uint32 `mapstructure:"records-v6" json:"records-v6,omitempty"`
 	// original -> gobgp:prefixes-v4
-	PrefixesV4 uint32 `mapstructure:"prefixes-v4"`
+	PrefixesV4 uint32 `mapstructure:"prefixes-v4" json:"prefixes-v4,omitempty"`
 	// original -> gobgp:prefixes-v6
-	PrefixesV6 uint32 `mapstructure:"prefixes-v6"`
+	PrefixesV6 uint32 `mapstructure:"prefixes-v6" json:"prefixes-v6,omitempty"`
 	// original -> gobgp:uptime
-	Uptime int64 `mapstructure:"uptime"`
+	Uptime int64 `mapstructure:"uptime" json:"uptime,omitempty"`
 	// original -> gobgp:downtime
-	Downtime int64 `mapstructure:"downtime"`
+	Downtime int64 `mapstructure:"downtime" json:"downtime,omitempty"`
 	// original -> gobgp:last-pdu-recv-time
-	LastPduRecvTime int64 `mapstructure:"last-pdu-recv-time"`
+	LastPduRecvTime int64 `mapstructure:"last-pdu-recv-time" json:"last-pdu-recv-time,omitempty"`
 	// original -> gobgp:rpki-messages
-	RpkiMessages RpkiMessages `mapstructure:"rpki-messages"`
+	RpkiMessages RpkiMessages `mapstructure:"rpki-messages" json:"rpki-messages,omitempty"`
 }
 
 //struct for container gobgp:config
 type RpkiServerConfig struct {
 	// original -> gobgp:address
 	//gobgp:address's original type is inet:ip-address
-	Address string `mapstructure:"address"`
+	Address string `mapstructure:"address" json:"address,omitempty"`
 	// original -> gobgp:port
-	Port uint32 `mapstructure:"port"`
+	Port uint32 `mapstructure:"port" json:"port,omitempty"`
 	// original -> gobgp:refresh-time
-	RefreshTime int64 `mapstructure:"refresh-time"`
+	RefreshTime int64 `mapstructure:"refresh-time" json:"refresh-time,omitempty"`
 	// original -> gobgp:hold-time
-	HoldTime int64 `mapstructure:"hold-time"`
+	HoldTime int64 `mapstructure:"hold-time" json:"hold-time,omitempty"`
 	// original -> gobgp:record-lifetime
-	RecordLifetime int64 `mapstructure:"record-lifetime"`
+	RecordLifetime int64 `mapstructure:"record-lifetime" json:"record-lifetime,omitempty"`
 	// original -> gobgp:preference
-	Preference uint8 `mapstructure:"preference"`
+	Preference uint8 `mapstructure:"preference" json:"preference,omitempty"`
 }
 
 func (lhs *RpkiServerConfig) Equal(rhs *RpkiServerConfig) bool {
@@ -1276,9 +1276,9 @@ func (lhs *RpkiServerConfig) Equal(rhs *RpkiServerConfig) bool {
 type RpkiServer struct {
 	// original -> gobgp:address
 	// original -> gobgp:rpki-server-config
-	Config RpkiServerConfig `mapstructure:"config"`
+	Config RpkiServerConfig `mapstructure:"config" json:"config,omitempty"`
 	// original -> gobgp:rpki-server-state
-	State RpkiServerState `mapstructure:"state"`
+	State RpkiServerState `mapstructure:"state" json:"state,omitempty"`
 }
 
 func (lhs *RpkiServer) Equal(rhs *RpkiServer) bool {
@@ -1295,54 +1295,54 @@ func (lhs *RpkiServer) Equal(rhs *RpkiServer) bool {
 type PeerGroupState struct {
 	// original -> bgp:peer-as
 	//bgp:peer-as's original type is inet:as-number
-	PeerAs uint32 `mapstructure:"peer-as"`
+	PeerAs uint32 `mapstructure:"peer-as" json:"peer-as,omitempty"`
 	// original -> bgp:local-as
 	//bgp:local-as's original type is inet:as-number
-	LocalAs uint32 `mapstructure:"local-as"`
+	LocalAs uint32 `mapstructure:"local-as" json:"local-as,omitempty"`
 	// original -> bgp:peer-type
-	PeerType PeerType `mapstructure:"peer-type"`
+	PeerType PeerType `mapstructure:"peer-type" json:"peer-type,omitempty"`
 	// original -> bgp:auth-password
-	AuthPassword string `mapstructure:"auth-password"`
+	AuthPassword string `mapstructure:"auth-password" json:"auth-password,omitempty"`
 	// original -> bgp:remove-private-as
-	RemovePrivateAs RemovePrivateAsOption `mapstructure:"remove-private-as"`
+	RemovePrivateAs RemovePrivateAsOption `mapstructure:"remove-private-as" json:"remove-private-as,omitempty"`
 	// original -> bgp:route-flap-damping
 	//bgp:route-flap-damping's original type is boolean
-	RouteFlapDamping bool `mapstructure:"route-flap-damping"`
+	RouteFlapDamping bool `mapstructure:"route-flap-damping" json:"route-flap-damping,omitempty"`
 	// original -> bgp:send-community
-	SendCommunity CommunityType `mapstructure:"send-community"`
+	SendCommunity CommunityType `mapstructure:"send-community" json:"send-community,omitempty"`
 	// original -> bgp:description
-	Description string `mapstructure:"description"`
+	Description string `mapstructure:"description" json:"description,omitempty"`
 	// original -> bgp:peer-group-name
-	PeerGroupName string `mapstructure:"peer-group-name"`
+	PeerGroupName string `mapstructure:"peer-group-name" json:"peer-group-name,omitempty"`
 	// original -> bgp-op:total-paths
-	TotalPaths uint32 `mapstructure:"total-paths"`
+	TotalPaths uint32 `mapstructure:"total-paths" json:"total-paths,omitempty"`
 	// original -> bgp-op:total-prefixes
-	TotalPrefixes uint32 `mapstructure:"total-prefixes"`
+	TotalPrefixes uint32 `mapstructure:"total-prefixes" json:"total-prefixes,omitempty"`
 }
 
 //struct for container bgp:config
 type PeerGroupConfig struct {
 	// original -> bgp:peer-as
 	//bgp:peer-as's original type is inet:as-number
-	PeerAs uint32 `mapstructure:"peer-as"`
+	PeerAs uint32 `mapstructure:"peer-as" json:"peer-as,omitempty"`
 	// original -> bgp:local-as
 	//bgp:local-as's original type is inet:as-number
-	LocalAs uint32 `mapstructure:"local-as"`
+	LocalAs uint32 `mapstructure:"local-as" json:"local-as,omitempty"`
 	// original -> bgp:peer-type
-	PeerType PeerType `mapstructure:"peer-type"`
+	PeerType PeerType `mapstructure:"peer-type" json:"peer-type,omitempty"`
 	// original -> bgp:auth-password
-	AuthPassword string `mapstructure:"auth-password"`
+	AuthPassword string `mapstructure:"auth-password" json:"auth-password,omitempty"`
 	// original -> bgp:remove-private-as
-	RemovePrivateAs RemovePrivateAsOption `mapstructure:"remove-private-as"`
+	RemovePrivateAs RemovePrivateAsOption `mapstructure:"remove-private-as" json:"remove-private-as,omitempty"`
 	// original -> bgp:route-flap-damping
 	//bgp:route-flap-damping's original type is boolean
-	RouteFlapDamping bool `mapstructure:"route-flap-damping"`
+	RouteFlapDamping bool `mapstructure:"route-flap-damping" json:"route-flap-damping,omitempty"`
 	// original -> bgp:send-community
-	SendCommunity CommunityType `mapstructure:"send-community"`
+	SendCommunity CommunityType `mapstructure:"send-community" json:"send-community,omitempty"`
 	// original -> bgp:description
-	Description string `mapstructure:"description"`
+	Description string `mapstructure:"description" json:"description,omitempty"`
 	// original -> bgp:peer-group-name
-	PeerGroupName string `mapstructure:"peer-group-name"`
+	PeerGroupName string `mapstructure:"peer-group-name" json:"peer-group-name,omitempty"`
 }
 
 func (lhs *PeerGroupConfig) Equal(rhs *PeerGroupConfig) bool {
@@ -1383,35 +1383,35 @@ func (lhs *PeerGroupConfig) Equal(rhs *PeerGroupConfig) bool {
 type PeerGroup struct {
 	// original -> bgp:peer-group-name
 	// original -> bgp:peer-group-config
-	Config PeerGroupConfig `mapstructure:"config"`
+	Config PeerGroupConfig `mapstructure:"config" json:"config,omitempty"`
 	// original -> bgp:peer-group-state
-	State PeerGroupState `mapstructure:"state"`
+	State PeerGroupState `mapstructure:"state" json:"state,omitempty"`
 	// original -> bgp:timers
-	Timers Timers `mapstructure:"timers"`
+	Timers Timers `mapstructure:"timers" json:"timers,omitempty"`
 	// original -> bgp:transport
-	Transport Transport `mapstructure:"transport"`
+	Transport Transport `mapstructure:"transport" json:"transport,omitempty"`
 	// original -> bgp:error-handling
-	ErrorHandling ErrorHandling `mapstructure:"error-handling"`
+	ErrorHandling ErrorHandling `mapstructure:"error-handling" json:"error-handling,omitempty"`
 	// original -> bgp:logging-options
-	LoggingOptions LoggingOptions `mapstructure:"logging-options"`
+	LoggingOptions LoggingOptions `mapstructure:"logging-options" json:"logging-options,omitempty"`
 	// original -> bgp:ebgp-multihop
-	EbgpMultihop EbgpMultihop `mapstructure:"ebgp-multihop"`
+	EbgpMultihop EbgpMultihop `mapstructure:"ebgp-multihop" json:"ebgp-multihop,omitempty"`
 	// original -> bgp:route-reflector
-	RouteReflector RouteReflector `mapstructure:"route-reflector"`
+	RouteReflector RouteReflector `mapstructure:"route-reflector" json:"route-reflector,omitempty"`
 	// original -> bgp:as-path-options
-	AsPathOptions AsPathOptions `mapstructure:"as-path-options"`
+	AsPathOptions AsPathOptions `mapstructure:"as-path-options" json:"as-path-options,omitempty"`
 	// original -> bgp:add-paths
-	AddPaths AddPaths `mapstructure:"add-paths"`
+	AddPaths AddPaths `mapstructure:"add-paths" json:"add-paths,omitempty"`
 	// original -> bgp:afi-safis
-	AfiSafis []AfiSafi `mapstructure:"afi-safis"`
+	AfiSafis []AfiSafi `mapstructure:"afi-safis" json:"afi-safis,omitempty"`
 	// original -> bgp:graceful-restart
-	GracefulRestart GracefulRestart `mapstructure:"graceful-restart"`
+	GracefulRestart GracefulRestart `mapstructure:"graceful-restart" json:"graceful-restart,omitempty"`
 	// original -> rpol:apply-policy
-	ApplyPolicy ApplyPolicy `mapstructure:"apply-policy"`
+	ApplyPolicy ApplyPolicy `mapstructure:"apply-policy" json:"apply-policy,omitempty"`
 	// original -> bgp-mp:use-multiple-paths
-	UseMultiplePaths UseMultiplePaths `mapstructure:"use-multiple-paths"`
+	UseMultiplePaths UseMultiplePaths `mapstructure:"use-multiple-paths" json:"use-multiple-paths,omitempty"`
 	// original -> gobgp:route-server
-	RouteServer RouteServer `mapstructure:"route-server"`
+	RouteServer RouteServer `mapstructure:"route-server" json:"route-server,omitempty"`
 }
 
 func (lhs *PeerGroup) Equal(rhs *PeerGroup) bool {
@@ -1480,14 +1480,14 @@ func (lhs *PeerGroup) Equal(rhs *PeerGroup) bool {
 type RouteServerState struct {
 	// original -> gobgp:route-server-client
 	//gobgp:route-server-client's original type is boolean
-	RouteServerClient bool `mapstructure:"route-server-client"`
+	RouteServerClient bool `mapstructure:"route-server-client" json:"route-server-client,omitempty"`
 }
 
 //struct for container gobgp:config
 type RouteServerConfig struct {
 	// original -> gobgp:route-server-client
 	//gobgp:route-server-client's original type is boolean
-	RouteServerClient bool `mapstructure:"route-server-client"`
+	RouteServerClient bool `mapstructure:"route-server-client" json:"route-server-client,omitempty"`
 }
 
 func (lhs *RouteServerConfig) Equal(rhs *RouteServerConfig) bool {
@@ -1503,9 +1503,9 @@ func (lhs *RouteServerConfig) Equal(rhs *RouteServerConfig) bool {
 //struct for container gobgp:route-server
 type RouteServer struct {
 	// original -> gobgp:route-server-config
-	Config RouteServerConfig `mapstructure:"config"`
+	Config RouteServerConfig `mapstructure:"config" json:"config,omitempty"`
 	// original -> gobgp:route-server-state
-	State RouteServerState `mapstructure:"state"`
+	State RouteServerState `mapstructure:"state" json:"state,omitempty"`
 }
 
 func (lhs *RouteServer) Equal(rhs *RouteServer) bool {
@@ -1521,11 +1521,11 @@ func (lhs *RouteServer) Equal(rhs *RouteServer) bool {
 //struct for container bgp-op:prefixes
 type Prefixes struct {
 	// original -> bgp-op:received
-	Received uint32 `mapstructure:"received"`
+	Received uint32 `mapstructure:"received" json:"received,omitempty"`
 	// original -> bgp-op:sent
-	Sent uint32 `mapstructure:"sent"`
+	Sent uint32 `mapstructure:"sent" json:"sent,omitempty"`
 	// original -> bgp-op:installed
-	Installed uint32 `mapstructure:"installed"`
+	Installed uint32 `mapstructure:"installed" json:"installed,omitempty"`
 }
 
 func (lhs *Prefixes) Equal(rhs *Prefixes) bool {
@@ -1548,18 +1548,18 @@ func (lhs *Prefixes) Equal(rhs *Prefixes) bool {
 type AddPathsState struct {
 	// original -> bgp:receive
 	//bgp:receive's original type is boolean
-	Receive bool `mapstructure:"receive"`
+	Receive bool `mapstructure:"receive" json:"receive,omitempty"`
 	// original -> bgp:send-max
-	SendMax uint8 `mapstructure:"send-max"`
+	SendMax uint8 `mapstructure:"send-max" json:"send-max,omitempty"`
 }
 
 //struct for container bgp:config
 type AddPathsConfig struct {
 	// original -> bgp:receive
 	//bgp:receive's original type is boolean
-	Receive bool `mapstructure:"receive"`
+	Receive bool `mapstructure:"receive" json:"receive,omitempty"`
 	// original -> bgp:send-max
-	SendMax uint8 `mapstructure:"send-max"`
+	SendMax uint8 `mapstructure:"send-max" json:"send-max,omitempty"`
 }
 
 func (lhs *AddPathsConfig) Equal(rhs *AddPathsConfig) bool {
@@ -1578,9 +1578,9 @@ func (lhs *AddPathsConfig) Equal(rhs *AddPathsConfig) bool {
 //struct for container bgp:add-paths
 type AddPaths struct {
 	// original -> bgp:add-paths-config
-	Config AddPathsConfig `mapstructure:"config"`
+	Config AddPathsConfig `mapstructure:"config" json:"config,omitempty"`
 	// original -> bgp:add-paths-state
-	State AddPathsState `mapstructure:"state"`
+	State AddPathsState `mapstructure:"state" json:"state,omitempty"`
 }
 
 func (lhs *AddPaths) Equal(rhs *AddPaths) bool {
@@ -1596,19 +1596,19 @@ func (lhs *AddPaths) Equal(rhs *AddPaths) bool {
 //struct for container bgp:state
 type AsPathOptionsState struct {
 	// original -> bgp:allow-own-as
-	AllowOwnAs uint8 `mapstructure:"allow-own-as"`
+	AllowOwnAs uint8 `mapstructure:"allow-own-as" json:"allow-own-as,omitempty"`
 	// original -> bgp:replace-peer-as
 	//bgp:replace-peer-as's original type is boolean
-	ReplacePeerAs bool `mapstructure:"replace-peer-as"`
+	ReplacePeerAs bool `mapstructure:"replace-peer-as" json:"replace-peer-as,omitempty"`
 }
 
 //struct for container bgp:config
 type AsPathOptionsConfig struct {
 	// original -> bgp:allow-own-as
-	AllowOwnAs uint8 `mapstructure:"allow-own-as"`
+	AllowOwnAs uint8 `mapstructure:"allow-own-as" json:"allow-own-as,omitempty"`
 	// original -> bgp:replace-peer-as
 	//bgp:replace-peer-as's original type is boolean
-	ReplacePeerAs bool `mapstructure:"replace-peer-as"`
+	ReplacePeerAs bool `mapstructure:"replace-peer-as" json:"replace-peer-as,omitempty"`
 }
 
 func (lhs *AsPathOptionsConfig) Equal(rhs *AsPathOptionsConfig) bool {
@@ -1627,9 +1627,9 @@ func (lhs *AsPathOptionsConfig) Equal(rhs *AsPathOptionsConfig) bool {
 //struct for container bgp:as-path-options
 type AsPathOptions struct {
 	// original -> bgp:as-path-options-config
-	Config AsPathOptionsConfig `mapstructure:"config"`
+	Config AsPathOptionsConfig `mapstructure:"config" json:"config,omitempty"`
 	// original -> bgp:as-path-options-state
-	State AsPathOptionsState `mapstructure:"state"`
+	State AsPathOptionsState `mapstructure:"state" json:"state,omitempty"`
 }
 
 func (lhs *AsPathOptions) Equal(rhs *AsPathOptions) bool {
@@ -1645,19 +1645,19 @@ func (lhs *AsPathOptions) Equal(rhs *AsPathOptions) bool {
 //struct for container bgp:state
 type RouteReflectorState struct {
 	// original -> bgp:route-reflector-cluster-id
-	RouteReflectorClusterId RrClusterIdType `mapstructure:"route-reflector-cluster-id"`
+	RouteReflectorClusterId RrClusterIdType `mapstructure:"route-reflector-cluster-id" json:"route-reflector-cluster-id,omitempty"`
 	// original -> bgp:route-reflector-client
 	//bgp:route-reflector-client's original type is boolean
-	RouteReflectorClient bool `mapstructure:"route-reflector-client"`
+	RouteReflectorClient bool `mapstructure:"route-reflector-client" json:"route-reflector-client,omitempty"`
 }
 
 //struct for container bgp:config
 type RouteReflectorConfig struct {
 	// original -> bgp:route-reflector-cluster-id
-	RouteReflectorClusterId RrClusterIdType `mapstructure:"route-reflector-cluster-id"`
+	RouteReflectorClusterId RrClusterIdType `mapstructure:"route-reflector-cluster-id" json:"route-reflector-cluster-id,omitempty"`
 	// original -> bgp:route-reflector-client
 	//bgp:route-reflector-client's original type is boolean
-	RouteReflectorClient bool `mapstructure:"route-reflector-client"`
+	RouteReflectorClient bool `mapstructure:"route-reflector-client" json:"route-reflector-client,omitempty"`
 }
 
 func (lhs *RouteReflectorConfig) Equal(rhs *RouteReflectorConfig) bool {
@@ -1676,9 +1676,9 @@ func (lhs *RouteReflectorConfig) Equal(rhs *RouteReflectorConfig) bool {
 //struct for container bgp:route-reflector
 type RouteReflector struct {
 	// original -> bgp:route-reflector-config
-	Config RouteReflectorConfig `mapstructure:"config"`
+	Config RouteReflectorConfig `mapstructure:"config" json:"config,omitempty"`
 	// original -> bgp:route-reflector-state
-	State RouteReflectorState `mapstructure:"state"`
+	State RouteReflectorState `mapstructure:"state" json:"state,omitempty"`
 }
 
 func (lhs *RouteReflector) Equal(rhs *RouteReflector) bool {
@@ -1695,18 +1695,18 @@ func (lhs *RouteReflector) Equal(rhs *RouteReflector) bool {
 type EbgpMultihopState struct {
 	// original -> bgp:enabled
 	//bgp:enabled's original type is boolean
-	Enabled bool `mapstructure:"enabled"`
+	Enabled bool `mapstructure:"enabled" json:"enabled,omitempty"`
 	// original -> bgp:multihop-ttl
-	MultihopTtl uint8 `mapstructure:"multihop-ttl"`
+	MultihopTtl uint8 `mapstructure:"multihop-ttl" json:"multihop-ttl,omitempty"`
 }
 
 //struct for container bgp:config
 type EbgpMultihopConfig struct {
 	// original -> bgp:enabled
 	//bgp:enabled's original type is boolean
-	Enabled bool `mapstructure:"enabled"`
+	Enabled bool `mapstructure:"enabled" json:"enabled,omitempty"`
 	// original -> bgp:multihop-ttl
-	MultihopTtl uint8 `mapstructure:"multihop-ttl"`
+	MultihopTtl uint8 `mapstructure:"multihop-ttl" json:"multihop-ttl,omitempty"`
 }
 
 func (lhs *EbgpMultihopConfig) Equal(rhs *EbgpMultihopConfig) bool {
@@ -1725,9 +1725,9 @@ func (lhs *EbgpMultihopConfig) Equal(rhs *EbgpMultihopConfig) bool {
 //struct for container bgp:ebgp-multihop
 type EbgpMultihop struct {
 	// original -> bgp:ebgp-multihop-config
-	Config EbgpMultihopConfig `mapstructure:"config"`
+	Config EbgpMultihopConfig `mapstructure:"config" json:"config,omitempty"`
 	// original -> bgp:ebgp-multihop-state
-	State EbgpMultihopState `mapstructure:"state"`
+	State EbgpMultihopState `mapstructure:"state" json:"state,omitempty"`
 }
 
 func (lhs *EbgpMultihop) Equal(rhs *EbgpMultihop) bool {
@@ -1744,14 +1744,14 @@ func (lhs *EbgpMultihop) Equal(rhs *EbgpMultihop) bool {
 type LoggingOptionsState struct {
 	// original -> bgp:log-neighbor-state-changes
 	//bgp:log-neighbor-state-changes's original type is boolean
-	LogNeighborStateChanges bool `mapstructure:"log-neighbor-state-changes"`
+	LogNeighborStateChanges bool `mapstructure:"log-neighbor-state-changes" json:"log-neighbor-state-changes,omitempty"`
 }
 
 //struct for container bgp:config
 type LoggingOptionsConfig struct {
 	// original -> bgp:log-neighbor-state-changes
 	//bgp:log-neighbor-state-changes's original type is boolean
-	LogNeighborStateChanges bool `mapstructure:"log-neighbor-state-changes"`
+	LogNeighborStateChanges bool `mapstructure:"log-neighbor-state-changes" json:"log-neighbor-state-changes,omitempty"`
 }
 
 func (lhs *LoggingOptionsConfig) Equal(rhs *LoggingOptionsConfig) bool {
@@ -1767,9 +1767,9 @@ func (lhs *LoggingOptionsConfig) Equal(rhs *LoggingOptionsConfig) bool {
 //struct for container bgp:logging-options
 type LoggingOptions struct {
 	// original -> bgp:logging-options-config
-	Config LoggingOptionsConfig `mapstructure:"config"`
+	Config LoggingOptionsConfig `mapstructure:"config" json:"config,omitempty"`
 	// original -> bgp:logging-options-state
-	State LoggingOptionsState `mapstructure:"state"`
+	State LoggingOptionsState `mapstructure:"state" json:"state,omitempty"`
 }
 
 func (lhs *LoggingOptions) Equal(rhs *LoggingOptions) bool {
@@ -1786,16 +1786,16 @@ func (lhs *LoggingOptions) Equal(rhs *LoggingOptions) bool {
 type ErrorHandlingState struct {
 	// original -> bgp:treat-as-withdraw
 	//bgp:treat-as-withdraw's original type is boolean
-	TreatAsWithdraw bool `mapstructure:"treat-as-withdraw"`
+	TreatAsWithdraw bool `mapstructure:"treat-as-withdraw" json:"treat-as-withdraw,omitempty"`
 	// original -> bgp-op:erroneous-update-messages
-	ErroneousUpdateMessages uint32 `mapstructure:"erroneous-update-messages"`
+	ErroneousUpdateMessages uint32 `mapstructure:"erroneous-update-messages" json:"erroneous-update-messages,omitempty"`
 }
 
 //struct for container bgp:config
 type ErrorHandlingConfig struct {
 	// original -> bgp:treat-as-withdraw
 	//bgp:treat-as-withdraw's original type is boolean
-	TreatAsWithdraw bool `mapstructure:"treat-as-withdraw"`
+	TreatAsWithdraw bool `mapstructure:"treat-as-withdraw" json:"treat-as-withdraw,omitempty"`
 }
 
 func (lhs *ErrorHandlingConfig) Equal(rhs *ErrorHandlingConfig) bool {
@@ -1811,9 +1811,9 @@ func (lhs *ErrorHandlingConfig) Equal(rhs *ErrorHandlingConfig) bool {
 //struct for container bgp:error-handling
 type ErrorHandling struct {
 	// original -> bgp:error-handling-config
-	Config ErrorHandlingConfig `mapstructure:"config"`
+	Config ErrorHandlingConfig `mapstructure:"config" json:"config,omitempty"`
 	// original -> bgp:error-handling-state
-	State ErrorHandlingState `mapstructure:"state"`
+	State ErrorHandlingState `mapstructure:"state" json:"state,omitempty"`
 }
 
 func (lhs *ErrorHandling) Equal(rhs *ErrorHandling) bool {
@@ -1829,43 +1829,43 @@ func (lhs *ErrorHandling) Equal(rhs *ErrorHandling) bool {
 //struct for container bgp:state
 type TransportState struct {
 	// original -> bgp:tcp-mss
-	TcpMss uint16 `mapstructure:"tcp-mss"`
+	TcpMss uint16 `mapstructure:"tcp-mss" json:"tcp-mss,omitempty"`
 	// original -> bgp:mtu-discovery
 	//bgp:mtu-discovery's original type is boolean
-	MtuDiscovery bool `mapstructure:"mtu-discovery"`
+	MtuDiscovery bool `mapstructure:"mtu-discovery" json:"mtu-discovery,omitempty"`
 	// original -> bgp:passive-mode
 	//bgp:passive-mode's original type is boolean
-	PassiveMode bool `mapstructure:"passive-mode"`
+	PassiveMode bool `mapstructure:"passive-mode" json:"passive-mode,omitempty"`
 	// original -> bgp:local-address
 	//bgp:local-address's original type is union
-	LocalAddress string `mapstructure:"local-address"`
+	LocalAddress string `mapstructure:"local-address" json:"local-address,omitempty"`
 	// original -> bgp-op:local-port
 	//bgp-op:local-port's original type is inet:port-number
-	LocalPort uint16 `mapstructure:"local-port"`
+	LocalPort uint16 `mapstructure:"local-port" json:"local-port,omitempty"`
 	// original -> bgp-op:remote-address
 	//bgp-op:remote-address's original type is inet:ip-address
-	RemoteAddress string `mapstructure:"remote-address"`
+	RemoteAddress string `mapstructure:"remote-address" json:"remote-address,omitempty"`
 	// original -> bgp-op:remote-port
 	//bgp-op:remote-port's original type is inet:port-number
-	RemotePort uint16 `mapstructure:"remote-port"`
+	RemotePort uint16 `mapstructure:"remote-port" json:"remote-port,omitempty"`
 }
 
 //struct for container bgp:config
 type TransportConfig struct {
 	// original -> bgp:tcp-mss
-	TcpMss uint16 `mapstructure:"tcp-mss"`
+	TcpMss uint16 `mapstructure:"tcp-mss" json:"tcp-mss,omitempty"`
 	// original -> bgp:mtu-discovery
 	//bgp:mtu-discovery's original type is boolean
-	MtuDiscovery bool `mapstructure:"mtu-discovery"`
+	MtuDiscovery bool `mapstructure:"mtu-discovery" json:"mtu-discovery,omitempty"`
 	// original -> bgp:passive-mode
 	//bgp:passive-mode's original type is boolean
-	PassiveMode bool `mapstructure:"passive-mode"`
+	PassiveMode bool `mapstructure:"passive-mode" json:"passive-mode,omitempty"`
 	// original -> bgp:local-address
 	//bgp:local-address's original type is union
-	LocalAddress string `mapstructure:"local-address"`
+	LocalAddress string `mapstructure:"local-address" json:"local-address,omitempty"`
 	// original -> gobgp:remote-port
 	//gobgp:remote-port's original type is inet:port-number
-	RemotePort uint16 `mapstructure:"remote-port"`
+	RemotePort uint16 `mapstructure:"remote-port" json:"remote-port,omitempty"`
 }
 
 func (lhs *TransportConfig) Equal(rhs *TransportConfig) bool {
@@ -1893,9 +1893,9 @@ func (lhs *TransportConfig) Equal(rhs *TransportConfig) bool {
 //struct for container bgp:transport
 type Transport struct {
 	// original -> bgp:transport-config
-	Config TransportConfig `mapstructure:"config"`
+	Config TransportConfig `mapstructure:"config" json:"config,omitempty"`
 	// original -> bgp:transport-state
-	State TransportState `mapstructure:"state"`
+	State TransportState `mapstructure:"state" json:"state,omitempty"`
 }
 
 func (lhs *Transport) Equal(rhs *Transport) bool {
@@ -1912,49 +1912,49 @@ func (lhs *Transport) Equal(rhs *Transport) bool {
 type TimersState struct {
 	// original -> bgp:connect-retry
 	//bgp:connect-retry's original type is decimal64
-	ConnectRetry float64 `mapstructure:"connect-retry"`
+	ConnectRetry float64 `mapstructure:"connect-retry" json:"connect-retry,omitempty"`
 	// original -> bgp:hold-time
 	//bgp:hold-time's original type is decimal64
-	HoldTime float64 `mapstructure:"hold-time"`
+	HoldTime float64 `mapstructure:"hold-time" json:"hold-time,omitempty"`
 	// original -> bgp:keepalive-interval
 	//bgp:keepalive-interval's original type is decimal64
-	KeepaliveInterval float64 `mapstructure:"keepalive-interval"`
+	KeepaliveInterval float64 `mapstructure:"keepalive-interval" json:"keepalive-interval,omitempty"`
 	// original -> bgp:minimum-advertisement-interval
 	//bgp:minimum-advertisement-interval's original type is decimal64
-	MinimumAdvertisementInterval float64 `mapstructure:"minimum-advertisement-interval"`
+	MinimumAdvertisementInterval float64 `mapstructure:"minimum-advertisement-interval" json:"minimum-advertisement-interval,omitempty"`
 	// original -> bgp-op:uptime
 	//bgp-op:uptime's original type is yang:timeticks
-	Uptime int64 `mapstructure:"uptime"`
+	Uptime int64 `mapstructure:"uptime" json:"uptime,omitempty"`
 	// original -> bgp-op:negotiated-hold-time
 	//bgp-op:negotiated-hold-time's original type is decimal64
-	NegotiatedHoldTime float64 `mapstructure:"negotiated-hold-time"`
+	NegotiatedHoldTime float64 `mapstructure:"negotiated-hold-time" json:"negotiated-hold-time,omitempty"`
 	// original -> gobgp:idle-hold-time-after-reset
 	//gobgp:idle-hold-time-after-reset's original type is decimal64
-	IdleHoldTimeAfterReset float64 `mapstructure:"idle-hold-time-after-reset"`
+	IdleHoldTimeAfterReset float64 `mapstructure:"idle-hold-time-after-reset" json:"idle-hold-time-after-reset,omitempty"`
 	// original -> gobgp:downtime
 	//gobgp:downtime's original type is yang:timeticks
-	Downtime int64 `mapstructure:"downtime"`
+	Downtime int64 `mapstructure:"downtime" json:"downtime,omitempty"`
 	// original -> gobgp:update-recv-time
-	UpdateRecvTime int64 `mapstructure:"update-recv-time"`
+	UpdateRecvTime int64 `mapstructure:"update-recv-time" json:"update-recv-time,omitempty"`
 }
 
 //struct for container bgp:config
 type TimersConfig struct {
 	// original -> bgp:connect-retry
 	//bgp:connect-retry's original type is decimal64
-	ConnectRetry float64 `mapstructure:"connect-retry"`
+	ConnectRetry float64 `mapstructure:"connect-retry" json:"connect-retry,omitempty"`
 	// original -> bgp:hold-time
 	//bgp:hold-time's original type is decimal64
-	HoldTime float64 `mapstructure:"hold-time"`
+	HoldTime float64 `mapstructure:"hold-time" json:"hold-time,omitempty"`
 	// original -> bgp:keepalive-interval
 	//bgp:keepalive-interval's original type is decimal64
-	KeepaliveInterval float64 `mapstructure:"keepalive-interval"`
+	KeepaliveInterval float64 `mapstructure:"keepalive-interval" json:"keepalive-interval,omitempty"`
 	// original -> bgp:minimum-advertisement-interval
 	//bgp:minimum-advertisement-interval's original type is decimal64
-	MinimumAdvertisementInterval float64 `mapstructure:"minimum-advertisement-interval"`
+	MinimumAdvertisementInterval float64 `mapstructure:"minimum-advertisement-interval" json:"minimum-advertisement-interval,omitempty"`
 	// original -> gobgp:idle-hold-time-after-reset
 	//gobgp:idle-hold-time-after-reset's original type is decimal64
-	IdleHoldTimeAfterReset float64 `mapstructure:"idle-hold-time-after-reset"`
+	IdleHoldTimeAfterReset float64 `mapstructure:"idle-hold-time-after-reset" json:"idle-hold-time-after-reset,omitempty"`
 }
 
 func (lhs *TimersConfig) Equal(rhs *TimersConfig) bool {
@@ -1982,9 +1982,9 @@ func (lhs *TimersConfig) Equal(rhs *TimersConfig) bool {
 //struct for container bgp:timers
 type Timers struct {
 	// original -> bgp:timers-config
-	Config TimersConfig `mapstructure:"config"`
+	Config TimersConfig `mapstructure:"config" json:"config,omitempty"`
 	// original -> bgp:timers-state
-	State TimersState `mapstructure:"state"`
+	State TimersState `mapstructure:"state" json:"state,omitempty"`
 }
 
 func (lhs *Timers) Equal(rhs *Timers) bool {
@@ -2000,11 +2000,11 @@ func (lhs *Timers) Equal(rhs *Timers) bool {
 //struct for container gobgp:adj-table
 type AdjTable struct {
 	// original -> gobgp:ADVERTISED
-	Advertised uint32 `mapstructure:"advertised"`
+	Advertised uint32 `mapstructure:"advertised" json:"advertised,omitempty"`
 	// original -> gobgp:RECEIVED
-	Received uint32 `mapstructure:"received"`
+	Received uint32 `mapstructure:"received" json:"received,omitempty"`
 	// original -> gobgp:ACCEPTED
-	Accepted uint32 `mapstructure:"accepted"`
+	Accepted uint32 `mapstructure:"accepted" json:"accepted,omitempty"`
 }
 
 func (lhs *AdjTable) Equal(rhs *AdjTable) bool {
@@ -2026,9 +2026,9 @@ func (lhs *AdjTable) Equal(rhs *AdjTable) bool {
 //struct for container bgp:queues
 type Queues struct {
 	// original -> bgp-op:input
-	Input uint32 `mapstructure:"input"`
+	Input uint32 `mapstructure:"input" json:"input,omitempty"`
 	// original -> bgp-op:output
-	Output uint32 `mapstructure:"output"`
+	Output uint32 `mapstructure:"output" json:"output,omitempty"`
 }
 
 func (lhs *Queues) Equal(rhs *Queues) bool {
@@ -2047,21 +2047,21 @@ func (lhs *Queues) Equal(rhs *Queues) bool {
 //struct for container bgp:received
 type Received struct {
 	// original -> bgp-op:UPDATE
-	Update uint64 `mapstructure:"update"`
+	Update uint64 `mapstructure:"update" json:"update,omitempty"`
 	// original -> bgp-op:NOTIFICATION
-	Notification uint64 `mapstructure:"notification"`
+	Notification uint64 `mapstructure:"notification" json:"notification,omitempty"`
 	// original -> gobgp:OPEN
-	Open uint64 `mapstructure:"open"`
+	Open uint64 `mapstructure:"open" json:"open,omitempty"`
 	// original -> gobgp:REFRESH
-	Refresh uint64 `mapstructure:"refresh"`
+	Refresh uint64 `mapstructure:"refresh" json:"refresh,omitempty"`
 	// original -> gobgp:KEEPALIVE
-	Keepalive uint64 `mapstructure:"keepalive"`
+	Keepalive uint64 `mapstructure:"keepalive" json:"keepalive,omitempty"`
 	// original -> gobgp:DYNAMIC-CAP
-	DynamicCap uint64 `mapstructure:"dynamic-cap"`
+	DynamicCap uint64 `mapstructure:"dynamic-cap" json:"dynamic-cap,omitempty"`
 	// original -> gobgp:DISCARDED
-	Discarded uint64 `mapstructure:"discarded"`
+	Discarded uint64 `mapstructure:"discarded" json:"discarded,omitempty"`
 	// original -> gobgp:TOTAL
-	Total uint64 `mapstructure:"total"`
+	Total uint64 `mapstructure:"total" json:"total,omitempty"`
 }
 
 func (lhs *Received) Equal(rhs *Received) bool {
@@ -2098,21 +2098,21 @@ func (lhs *Received) Equal(rhs *Received) bool {
 //struct for container bgp:sent
 type Sent struct {
 	// original -> bgp-op:UPDATE
-	Update uint64 `mapstructure:"update"`
+	Update uint64 `mapstructure:"update" json:"update,omitempty"`
 	// original -> bgp-op:NOTIFICATION
-	Notification uint64 `mapstructure:"notification"`
+	Notification uint64 `mapstructure:"notification" json:"notification,omitempty"`
 	// original -> gobgp:OPEN
-	Open uint64 `mapstructure:"open"`
+	Open uint64 `mapstructure:"open" json:"open,omitempty"`
 	// original -> gobgp:REFRESH
-	Refresh uint64 `mapstructure:"refresh"`
+	Refresh uint64 `mapstructure:"refresh" json:"refresh,omitempty"`
 	// original -> gobgp:KEEPALIVE
-	Keepalive uint64 `mapstructure:"keepalive"`
+	Keepalive uint64 `mapstructure:"keepalive" json:"keepalive,omitempty"`
 	// original -> gobgp:DYNAMIC-CAP
-	DynamicCap uint64 `mapstructure:"dynamic-cap"`
+	DynamicCap uint64 `mapstructure:"dynamic-cap" json:"dynamic-cap,omitempty"`
 	// original -> gobgp:DISCARDED
-	Discarded uint64 `mapstructure:"discarded"`
+	Discarded uint64 `mapstructure:"discarded" json:"discarded,omitempty"`
 	// original -> gobgp:TOTAL
-	Total uint64 `mapstructure:"total"`
+	Total uint64 `mapstructure:"total" json:"total,omitempty"`
 }
 
 func (lhs *Sent) Equal(rhs *Sent) bool {
@@ -2149,9 +2149,9 @@ func (lhs *Sent) Equal(rhs *Sent) bool {
 //struct for container bgp:messages
 type Messages struct {
 	// original -> bgp:sent
-	Sent Sent `mapstructure:"sent"`
+	Sent Sent `mapstructure:"sent" json:"sent,omitempty"`
 	// original -> bgp:received
-	Received Received `mapstructure:"received"`
+	Received Received `mapstructure:"received" json:"received,omitempty"`
 }
 
 func (lhs *Messages) Equal(rhs *Messages) bool {
@@ -2171,97 +2171,97 @@ func (lhs *Messages) Equal(rhs *Messages) bool {
 type NeighborState struct {
 	// original -> bgp:peer-as
 	//bgp:peer-as's original type is inet:as-number
-	PeerAs uint32 `mapstructure:"peer-as"`
+	PeerAs uint32 `mapstructure:"peer-as" json:"peer-as,omitempty"`
 	// original -> bgp:local-as
 	//bgp:local-as's original type is inet:as-number
-	LocalAs uint32 `mapstructure:"local-as"`
+	LocalAs uint32 `mapstructure:"local-as" json:"local-as,omitempty"`
 	// original -> bgp:peer-type
-	PeerType PeerType `mapstructure:"peer-type"`
+	PeerType PeerType `mapstructure:"peer-type" json:"peer-type,omitempty"`
 	// original -> bgp:auth-password
-	AuthPassword string `mapstructure:"auth-password"`
+	AuthPassword string `mapstructure:"auth-password" json:"auth-password,omitempty"`
 	// original -> bgp:remove-private-as
-	RemovePrivateAs RemovePrivateAsOption `mapstructure:"remove-private-as"`
+	RemovePrivateAs RemovePrivateAsOption `mapstructure:"remove-private-as" json:"remove-private-as,omitempty"`
 	// original -> bgp:route-flap-damping
 	//bgp:route-flap-damping's original type is boolean
-	RouteFlapDamping bool `mapstructure:"route-flap-damping"`
+	RouteFlapDamping bool `mapstructure:"route-flap-damping" json:"route-flap-damping,omitempty"`
 	// original -> bgp:send-community
-	SendCommunity CommunityType `mapstructure:"send-community"`
+	SendCommunity CommunityType `mapstructure:"send-community" json:"send-community,omitempty"`
 	// original -> bgp:description
-	Description string `mapstructure:"description"`
+	Description string `mapstructure:"description" json:"description,omitempty"`
 	// original -> bgp:peer-group
-	PeerGroup string `mapstructure:"peer-group"`
+	PeerGroup string `mapstructure:"peer-group" json:"peer-group,omitempty"`
 	// original -> bgp:neighbor-address
 	//bgp:neighbor-address's original type is inet:ip-address
-	NeighborAddress string `mapstructure:"neighbor-address"`
+	NeighborAddress string `mapstructure:"neighbor-address" json:"neighbor-address,omitempty"`
 	// original -> bgp-op:session-state
-	SessionState SessionState `mapstructure:"session-state"`
+	SessionState SessionState `mapstructure:"session-state" json:"session-state,omitempty"`
 	// original -> bgp-op:supported-capabilities
-	SupportedCapabilitiesList []BgpCapability `mapstructure:"supported-capabilities-list"`
+	SupportedCapabilitiesList []BgpCapability `mapstructure:"supported-capabilities-list" json:"supported-capabilities-list,omitempty"`
 	// original -> bgp:messages
-	Messages Messages `mapstructure:"messages"`
+	Messages Messages `mapstructure:"messages" json:"messages,omitempty"`
 	// original -> bgp:queues
-	Queues Queues `mapstructure:"queues"`
+	Queues Queues `mapstructure:"queues" json:"queues,omitempty"`
 	// original -> gobgp:adj-table
-	AdjTable AdjTable `mapstructure:"adj-table"`
+	AdjTable AdjTable `mapstructure:"adj-table" json:"adj-table,omitempty"`
 	// original -> gobgp:remote-capability
 	// original type is list of bgp-capability
-	RemoteCapabilityList []bgp.ParameterCapabilityInterface `mapstructure:"remote-capability-list"`
+	RemoteCapabilityList []bgp.ParameterCapabilityInterface `mapstructure:"remote-capability-list" json:"remote-capability-list,omitempty"`
 	// original -> gobgp:local-capability
 	// original type is list of bgp-capability
-	LocalCapabilityList []bgp.ParameterCapabilityInterface `mapstructure:"local-capability-list"`
+	LocalCapabilityList []bgp.ParameterCapabilityInterface `mapstructure:"local-capability-list" json:"local-capability-list,omitempty"`
 	// original -> gobgp:received-open-message
 	//gobgp:received-open-message's original type is bgp-open-message
-	ReceivedOpenMessage *bgp.BGPMessage `mapstructure:"received-open-message"`
+	ReceivedOpenMessage *bgp.BGPMessage `mapstructure:"received-open-message" json:"received-open-message,omitempty"`
 	// original -> gobgp:admin-down
 	//gobgp:admin-down's original type is boolean
-	AdminDown bool `mapstructure:"admin-down"`
+	AdminDown bool `mapstructure:"admin-down" json:"admin-down,omitempty"`
 	// original -> gobgp:admin-state
-	AdminState string `mapstructure:"admin-state"`
+	AdminState string `mapstructure:"admin-state" json:"admin-state,omitempty"`
 	// original -> gobgp:established-count
-	EstablishedCount uint32 `mapstructure:"established-count"`
+	EstablishedCount uint32 `mapstructure:"established-count" json:"established-count,omitempty"`
 	// original -> gobgp:flops
-	Flops uint32 `mapstructure:"flops"`
+	Flops uint32 `mapstructure:"flops" json:"flops,omitempty"`
 	// original -> gobgp:neighbor-interface
-	NeighborInterface string `mapstructure:"neighbor-interface"`
+	NeighborInterface string `mapstructure:"neighbor-interface" json:"neighbor-interface,omitempty"`
 	// original -> gobgp:vrf
-	Vrf string `mapstructure:"vrf"`
+	Vrf string `mapstructure:"vrf" json:"vrf,omitempty"`
 	// original -> gobgp:remote-router-id
-	RemoteRouterId string `mapstructure:"remote-router-id"`
+	RemoteRouterId string `mapstructure:"remote-router-id" json:"remote-router-id,omitempty"`
 }
 
 //struct for container bgp:config
 type NeighborConfig struct {
 	// original -> bgp:peer-as
 	//bgp:peer-as's original type is inet:as-number
-	PeerAs uint32 `mapstructure:"peer-as"`
+	PeerAs uint32 `mapstructure:"peer-as" json:"peer-as,omitempty"`
 	// original -> bgp:local-as
 	//bgp:local-as's original type is inet:as-number
-	LocalAs uint32 `mapstructure:"local-as"`
+	LocalAs uint32 `mapstructure:"local-as" json:"local-as,omitempty"`
 	// original -> bgp:peer-type
-	PeerType PeerType `mapstructure:"peer-type"`
+	PeerType PeerType `mapstructure:"peer-type" json:"peer-type,omitempty"`
 	// original -> bgp:auth-password
-	AuthPassword string `mapstructure:"auth-password"`
+	AuthPassword string `mapstructure:"auth-password" json:"auth-password,omitempty"`
 	// original -> bgp:remove-private-as
-	RemovePrivateAs RemovePrivateAsOption `mapstructure:"remove-private-as"`
+	RemovePrivateAs RemovePrivateAsOption `mapstructure:"remove-private-as" json:"remove-private-as,omitempty"`
 	// original -> bgp:route-flap-damping
 	//bgp:route-flap-damping's original type is boolean
-	RouteFlapDamping bool `mapstructure:"route-flap-damping"`
+	RouteFlapDamping bool `mapstructure:"route-flap-damping" json:"route-flap-damping,omitempty"`
 	// original -> bgp:send-community
-	SendCommunity CommunityType `mapstructure:"send-community"`
+	SendCommunity CommunityType `mapstructure:"send-community" json:"send-community,omitempty"`
 	// original -> bgp:description
-	Description string `mapstructure:"description"`
+	Description string `mapstructure:"description" json:"description,omitempty"`
 	// original -> bgp:peer-group
-	PeerGroup string `mapstructure:"peer-group"`
+	PeerGroup string `mapstructure:"peer-group" json:"peer-group,omitempty"`
 	// original -> bgp:neighbor-address
 	//bgp:neighbor-address's original type is inet:ip-address
-	NeighborAddress string `mapstructure:"neighbor-address"`
+	NeighborAddress string `mapstructure:"neighbor-address" json:"neighbor-address,omitempty"`
 	// original -> gobgp:admin-down
 	//gobgp:admin-down's original type is boolean
-	AdminDown bool `mapstructure:"admin-down"`
+	AdminDown bool `mapstructure:"admin-down" json:"admin-down,omitempty"`
 	// original -> gobgp:neighbor-interface
-	NeighborInterface string `mapstructure:"neighbor-interface"`
+	NeighborInterface string `mapstructure:"neighbor-interface" json:"neighbor-interface,omitempty"`
 	// original -> gobgp:vrf
-	Vrf string `mapstructure:"vrf"`
+	Vrf string `mapstructure:"vrf" json:"vrf,omitempty"`
 }
 
 func (lhs *NeighborConfig) Equal(rhs *NeighborConfig) bool {
@@ -2314,35 +2314,35 @@ func (lhs *NeighborConfig) Equal(rhs *NeighborConfig) bool {
 type Neighbor struct {
 	// original -> bgp:neighbor-address
 	// original -> bgp:neighbor-config
-	Config NeighborConfig `mapstructure:"config"`
+	Config NeighborConfig `mapstructure:"config" json:"config,omitempty"`
 	// original -> bgp:neighbor-state
-	State NeighborState `mapstructure:"state"`
+	State NeighborState `mapstructure:"state" json:"state,omitempty"`
 	// original -> bgp:timers
-	Timers Timers `mapstructure:"timers"`
+	Timers Timers `mapstructure:"timers" json:"timers,omitempty"`
 	// original -> bgp:transport
-	Transport Transport `mapstructure:"transport"`
+	Transport Transport `mapstructure:"transport" json:"transport,omitempty"`
 	// original -> bgp:error-handling
-	ErrorHandling ErrorHandling `mapstructure:"error-handling"`
+	ErrorHandling ErrorHandling `mapstructure:"error-handling" json:"error-handling,omitempty"`
 	// original -> bgp:logging-options
-	LoggingOptions LoggingOptions `mapstructure:"logging-options"`
+	LoggingOptions LoggingOptions `mapstructure:"logging-options" json:"logging-options,omitempty"`
 	// original -> bgp:ebgp-multihop
-	EbgpMultihop EbgpMultihop `mapstructure:"ebgp-multihop"`
+	EbgpMultihop EbgpMultihop `mapstructure:"ebgp-multihop" json:"ebgp-multihop,omitempty"`
 	// original -> bgp:route-reflector
-	RouteReflector RouteReflector `mapstructure:"route-reflector"`
+	RouteReflector RouteReflector `mapstructure:"route-reflector" json:"route-reflector,omitempty"`
 	// original -> bgp:as-path-options
-	AsPathOptions AsPathOptions `mapstructure:"as-path-options"`
+	AsPathOptions AsPathOptions `mapstructure:"as-path-options" json:"as-path-options,omitempty"`
 	// original -> bgp:add-paths
-	AddPaths AddPaths `mapstructure:"add-paths"`
+	AddPaths AddPaths `mapstructure:"add-paths" json:"add-paths,omitempty"`
 	// original -> bgp:afi-safis
-	AfiSafis []AfiSafi `mapstructure:"afi-safis"`
+	AfiSafis []AfiSafi `mapstructure:"afi-safis" json:"afi-safis,omitempty"`
 	// original -> bgp:graceful-restart
-	GracefulRestart GracefulRestart `mapstructure:"graceful-restart"`
+	GracefulRestart GracefulRestart `mapstructure:"graceful-restart" json:"graceful-restart,omitempty"`
 	// original -> rpol:apply-policy
-	ApplyPolicy ApplyPolicy `mapstructure:"apply-policy"`
+	ApplyPolicy ApplyPolicy `mapstructure:"apply-policy" json:"apply-policy,omitempty"`
 	// original -> bgp-mp:use-multiple-paths
-	UseMultiplePaths UseMultiplePaths `mapstructure:"use-multiple-paths"`
+	UseMultiplePaths UseMultiplePaths `mapstructure:"use-multiple-paths" json:"use-multiple-paths,omitempty"`
 	// original -> gobgp:route-server
-	RouteServer RouteServer `mapstructure:"route-server"`
+	RouteServer RouteServer `mapstructure:"route-server" json:"route-server,omitempty"`
 }
 
 func (lhs *Neighbor) Equal(rhs *Neighbor) bool {
@@ -2411,27 +2411,27 @@ func (lhs *Neighbor) Equal(rhs *Neighbor) bool {
 type LongLivedGracefulRestartState struct {
 	// original -> gobgp:enabled
 	//gobgp:enabled's original type is boolean
-	Enabled bool `mapstructure:"enabled"`
+	Enabled bool `mapstructure:"enabled" json:"enabled,omitempty"`
 	// original -> gobgp:received
 	//gobgp:received's original type is boolean
-	Received bool `mapstructure:"received"`
+	Received bool `mapstructure:"received" json:"received,omitempty"`
 	// original -> gobgp:advertised
 	//gobgp:advertised's original type is boolean
-	Advertised bool `mapstructure:"advertised"`
+	Advertised bool `mapstructure:"advertised" json:"advertised,omitempty"`
 	// original -> gobgp:peer-restart-time
-	PeerRestartTime uint32 `mapstructure:"peer-restart-time"`
+	PeerRestartTime uint32 `mapstructure:"peer-restart-time" json:"peer-restart-time,omitempty"`
 	// original -> gobgp:peer-restart-timer-expired
 	//gobgp:peer-restart-timer-expired's original type is boolean
-	PeerRestartTimerExpired bool `mapstructure:"peer-restart-timer-expired"`
+	PeerRestartTimerExpired bool `mapstructure:"peer-restart-timer-expired" json:"peer-restart-timer-expired,omitempty"`
 }
 
 //struct for container gobgp:config
 type LongLivedGracefulRestartConfig struct {
 	// original -> gobgp:enabled
 	//gobgp:enabled's original type is boolean
-	Enabled bool `mapstructure:"enabled"`
+	Enabled bool `mapstructure:"enabled" json:"enabled,omitempty"`
 	// original -> gobgp:restart-time
-	RestartTime uint32 `mapstructure:"restart-time"`
+	RestartTime uint32 `mapstructure:"restart-time" json:"restart-time,omitempty"`
 }
 
 func (lhs *LongLivedGracefulRestartConfig) Equal(rhs *LongLivedGracefulRestartConfig) bool {
@@ -2450,9 +2450,9 @@ func (lhs *LongLivedGracefulRestartConfig) Equal(rhs *LongLivedGracefulRestartCo
 //struct for container gobgp:long-lived-graceful-restart
 type LongLivedGracefulRestart struct {
 	// original -> gobgp:long-lived-graceful-restart-config
-	Config LongLivedGracefulRestartConfig `mapstructure:"config"`
+	Config LongLivedGracefulRestartConfig `mapstructure:"config" json:"config,omitempty"`
 	// original -> gobgp:long-lived-graceful-restart-state
-	State LongLivedGracefulRestartState `mapstructure:"state"`
+	State LongLivedGracefulRestartState `mapstructure:"state" json:"state,omitempty"`
 }
 
 func (lhs *LongLivedGracefulRestart) Equal(rhs *LongLivedGracefulRestart) bool {
@@ -2468,13 +2468,13 @@ func (lhs *LongLivedGracefulRestart) Equal(rhs *LongLivedGracefulRestart) bool {
 //struct for container gobgp:state
 type RouteTargetMembershipState struct {
 	// original -> gobgp:deferral-time
-	DeferralTime uint16 `mapstructure:"deferral-time"`
+	DeferralTime uint16 `mapstructure:"deferral-time" json:"deferral-time,omitempty"`
 }
 
 //struct for container gobgp:config
 type RouteTargetMembershipConfig struct {
 	// original -> gobgp:deferral-time
-	DeferralTime uint16 `mapstructure:"deferral-time"`
+	DeferralTime uint16 `mapstructure:"deferral-time" json:"deferral-time,omitempty"`
 }
 
 func (lhs *RouteTargetMembershipConfig) Equal(rhs *RouteTargetMembershipConfig) bool {
@@ -2490,9 +2490,9 @@ func (lhs *RouteTargetMembershipConfig) Equal(rhs *RouteTargetMembershipConfig) 
 //struct for container gobgp:route-target-membership
 type RouteTargetMembership struct {
 	// original -> gobgp:route-target-membership-config
-	Config RouteTargetMembershipConfig `mapstructure:"config"`
+	Config RouteTargetMembershipConfig `mapstructure:"config" json:"config,omitempty"`
 	// original -> gobgp:route-target-membership-state
-	State RouteTargetMembershipState `mapstructure:"state"`
+	State RouteTargetMembershipState `mapstructure:"state" json:"state,omitempty"`
 }
 
 func (lhs *RouteTargetMembership) Equal(rhs *RouteTargetMembership) bool {
@@ -2508,7 +2508,7 @@ func (lhs *RouteTargetMembership) Equal(rhs *RouteTargetMembership) bool {
 //struct for container bgp-mp:l2vpn-evpn
 type L2vpnEvpn struct {
 	// original -> bgp-mp:prefix-limit
-	PrefixLimit PrefixLimit `mapstructure:"prefix-limit"`
+	PrefixLimit PrefixLimit `mapstructure:"prefix-limit" json:"prefix-limit,omitempty"`
 }
 
 func (lhs *L2vpnEvpn) Equal(rhs *L2vpnEvpn) bool {
@@ -2524,7 +2524,7 @@ func (lhs *L2vpnEvpn) Equal(rhs *L2vpnEvpn) bool {
 //struct for container bgp-mp:l2vpn-vpls
 type L2vpnVpls struct {
 	// original -> bgp-mp:prefix-limit
-	PrefixLimit PrefixLimit `mapstructure:"prefix-limit"`
+	PrefixLimit PrefixLimit `mapstructure:"prefix-limit" json:"prefix-limit,omitempty"`
 }
 
 func (lhs *L2vpnVpls) Equal(rhs *L2vpnVpls) bool {
@@ -2540,7 +2540,7 @@ func (lhs *L2vpnVpls) Equal(rhs *L2vpnVpls) bool {
 //struct for container bgp-mp:l3vpn-ipv6-multicast
 type L3vpnIpv6Multicast struct {
 	// original -> bgp-mp:prefix-limit
-	PrefixLimit PrefixLimit `mapstructure:"prefix-limit"`
+	PrefixLimit PrefixLimit `mapstructure:"prefix-limit" json:"prefix-limit,omitempty"`
 }
 
 func (lhs *L3vpnIpv6Multicast) Equal(rhs *L3vpnIpv6Multicast) bool {
@@ -2556,7 +2556,7 @@ func (lhs *L3vpnIpv6Multicast) Equal(rhs *L3vpnIpv6Multicast) bool {
 //struct for container bgp-mp:l3vpn-ipv4-multicast
 type L3vpnIpv4Multicast struct {
 	// original -> bgp-mp:prefix-limit
-	PrefixLimit PrefixLimit `mapstructure:"prefix-limit"`
+	PrefixLimit PrefixLimit `mapstructure:"prefix-limit" json:"prefix-limit,omitempty"`
 }
 
 func (lhs *L3vpnIpv4Multicast) Equal(rhs *L3vpnIpv4Multicast) bool {
@@ -2572,7 +2572,7 @@ func (lhs *L3vpnIpv4Multicast) Equal(rhs *L3vpnIpv4Multicast) bool {
 //struct for container bgp-mp:l3vpn-ipv6-unicast
 type L3vpnIpv6Unicast struct {
 	// original -> bgp-mp:prefix-limit
-	PrefixLimit PrefixLimit `mapstructure:"prefix-limit"`
+	PrefixLimit PrefixLimit `mapstructure:"prefix-limit" json:"prefix-limit,omitempty"`
 }
 
 func (lhs *L3vpnIpv6Unicast) Equal(rhs *L3vpnIpv6Unicast) bool {
@@ -2588,7 +2588,7 @@ func (lhs *L3vpnIpv6Unicast) Equal(rhs *L3vpnIpv6Unicast) bool {
 //struct for container bgp-mp:l3vpn-ipv4-unicast
 type L3vpnIpv4Unicast struct {
 	// original -> bgp-mp:prefix-limit
-	PrefixLimit PrefixLimit `mapstructure:"prefix-limit"`
+	PrefixLimit PrefixLimit `mapstructure:"prefix-limit" json:"prefix-limit,omitempty"`
 }
 
 func (lhs *L3vpnIpv4Unicast) Equal(rhs *L3vpnIpv4Unicast) bool {
@@ -2604,7 +2604,7 @@ func (lhs *L3vpnIpv4Unicast) Equal(rhs *L3vpnIpv4Unicast) bool {
 //struct for container bgp-mp:ipv6-labelled-unicast
 type Ipv6LabelledUnicast struct {
 	// original -> bgp-mp:prefix-limit
-	PrefixLimit PrefixLimit `mapstructure:"prefix-limit"`
+	PrefixLimit PrefixLimit `mapstructure:"prefix-limit" json:"prefix-limit,omitempty"`
 }
 
 func (lhs *Ipv6LabelledUnicast) Equal(rhs *Ipv6LabelledUnicast) bool {
@@ -2620,7 +2620,7 @@ func (lhs *Ipv6LabelledUnicast) Equal(rhs *Ipv6LabelledUnicast) bool {
 //struct for container bgp-mp:ipv4-labelled-unicast
 type Ipv4LabelledUnicast struct {
 	// original -> bgp-mp:prefix-limit
-	PrefixLimit PrefixLimit `mapstructure:"prefix-limit"`
+	PrefixLimit PrefixLimit `mapstructure:"prefix-limit" json:"prefix-limit,omitempty"`
 }
 
 func (lhs *Ipv4LabelledUnicast) Equal(rhs *Ipv4LabelledUnicast) bool {
@@ -2637,14 +2637,14 @@ func (lhs *Ipv4LabelledUnicast) Equal(rhs *Ipv4LabelledUnicast) bool {
 type Ipv6UnicastState struct {
 	// original -> bgp-mp:send-default-route
 	//bgp-mp:send-default-route's original type is boolean
-	SendDefaultRoute bool `mapstructure:"send-default-route"`
+	SendDefaultRoute bool `mapstructure:"send-default-route" json:"send-default-route,omitempty"`
 }
 
 //struct for container bgp-mp:config
 type Ipv6UnicastConfig struct {
 	// original -> bgp-mp:send-default-route
 	//bgp-mp:send-default-route's original type is boolean
-	SendDefaultRoute bool `mapstructure:"send-default-route"`
+	SendDefaultRoute bool `mapstructure:"send-default-route" json:"send-default-route,omitempty"`
 }
 
 func (lhs *Ipv6UnicastConfig) Equal(rhs *Ipv6UnicastConfig) bool {
@@ -2660,11 +2660,11 @@ func (lhs *Ipv6UnicastConfig) Equal(rhs *Ipv6UnicastConfig) bool {
 //struct for container bgp-mp:ipv6-unicast
 type Ipv6Unicast struct {
 	// original -> bgp-mp:prefix-limit
-	PrefixLimit PrefixLimit `mapstructure:"prefix-limit"`
+	PrefixLimit PrefixLimit `mapstructure:"prefix-limit" json:"prefix-limit,omitempty"`
 	// original -> bgp-mp:ipv6-unicast-config
-	Config Ipv6UnicastConfig `mapstructure:"config"`
+	Config Ipv6UnicastConfig `mapstructure:"config" json:"config,omitempty"`
 	// original -> bgp-mp:ipv6-unicast-state
-	State Ipv6UnicastState `mapstructure:"state"`
+	State Ipv6UnicastState `mapstructure:"state" json:"state,omitempty"`
 }
 
 func (lhs *Ipv6Unicast) Equal(rhs *Ipv6Unicast) bool {
@@ -2684,14 +2684,14 @@ func (lhs *Ipv6Unicast) Equal(rhs *Ipv6Unicast) bool {
 type Ipv4UnicastState struct {
 	// original -> bgp-mp:send-default-route
 	//bgp-mp:send-default-route's original type is boolean
-	SendDefaultRoute bool `mapstructure:"send-default-route"`
+	SendDefaultRoute bool `mapstructure:"send-default-route" json:"send-default-route,omitempty"`
 }
 
 //struct for container bgp-mp:config
 type Ipv4UnicastConfig struct {
 	// original -> bgp-mp:send-default-route
 	//bgp-mp:send-default-route's original type is boolean
-	SendDefaultRoute bool `mapstructure:"send-default-route"`
+	SendDefaultRoute bool `mapstructure:"send-default-route" json:"send-default-route,omitempty"`
 }
 
 func (lhs *Ipv4UnicastConfig) Equal(rhs *Ipv4UnicastConfig) bool {
@@ -2707,23 +2707,23 @@ func (lhs *Ipv4UnicastConfig) Equal(rhs *Ipv4UnicastConfig) bool {
 //struct for container bgp-mp:state
 type PrefixLimitState struct {
 	// original -> bgp-mp:max-prefixes
-	MaxPrefixes uint32 `mapstructure:"max-prefixes"`
+	MaxPrefixes uint32 `mapstructure:"max-prefixes" json:"max-prefixes,omitempty"`
 	// original -> bgp-mp:shutdown-threshold-pct
-	ShutdownThresholdPct Percentage `mapstructure:"shutdown-threshold-pct"`
+	ShutdownThresholdPct Percentage `mapstructure:"shutdown-threshold-pct" json:"shutdown-threshold-pct,omitempty"`
 	// original -> bgp-mp:restart-timer
 	//bgp-mp:restart-timer's original type is decimal64
-	RestartTimer float64 `mapstructure:"restart-timer"`
+	RestartTimer float64 `mapstructure:"restart-timer" json:"restart-timer,omitempty"`
 }
 
 //struct for container bgp-mp:config
 type PrefixLimitConfig struct {
 	// original -> bgp-mp:max-prefixes
-	MaxPrefixes uint32 `mapstructure:"max-prefixes"`
+	MaxPrefixes uint32 `mapstructure:"max-prefixes" json:"max-prefixes,omitempty"`
 	// original -> bgp-mp:shutdown-threshold-pct
-	ShutdownThresholdPct Percentage `mapstructure:"shutdown-threshold-pct"`
+	ShutdownThresholdPct Percentage `mapstructure:"shutdown-threshold-pct" json:"shutdown-threshold-pct,omitempty"`
 	// original -> bgp-mp:restart-timer
 	//bgp-mp:restart-timer's original type is decimal64
-	RestartTimer float64 `mapstructure:"restart-timer"`
+	RestartTimer float64 `mapstructure:"restart-timer" json:"restart-timer,omitempty"`
 }
 
 func (lhs *PrefixLimitConfig) Equal(rhs *PrefixLimitConfig) bool {
@@ -2745,9 +2745,9 @@ func (lhs *PrefixLimitConfig) Equal(rhs *PrefixLimitConfig) bool {
 //struct for container bgp-mp:prefix-limit
 type PrefixLimit struct {
 	// original -> bgp-mp:prefix-limit-config
-	Config PrefixLimitConfig `mapstructure:"config"`
+	Config PrefixLimitConfig `mapstructure:"config" json:"config,omitempty"`
 	// original -> bgp-mp:prefix-limit-state
-	State PrefixLimitState `mapstructure:"state"`
+	State PrefixLimitState `mapstructure:"state" json:"state,omitempty"`
 }
 
 func (lhs *PrefixLimit) Equal(rhs *PrefixLimit) bool {
@@ -2763,11 +2763,11 @@ func (lhs *PrefixLimit) Equal(rhs *PrefixLimit) bool {
 //struct for container bgp-mp:ipv4-unicast
 type Ipv4Unicast struct {
 	// original -> bgp-mp:prefix-limit
-	PrefixLimit PrefixLimit `mapstructure:"prefix-limit"`
+	PrefixLimit PrefixLimit `mapstructure:"prefix-limit" json:"prefix-limit,omitempty"`
 	// original -> bgp-mp:ipv4-unicast-config
-	Config Ipv4UnicastConfig `mapstructure:"config"`
+	Config Ipv4UnicastConfig `mapstructure:"config" json:"config,omitempty"`
 	// original -> bgp-mp:ipv4-unicast-state
-	State Ipv4UnicastState `mapstructure:"state"`
+	State Ipv4UnicastState `mapstructure:"state" json:"state,omitempty"`
 }
 
 func (lhs *Ipv4Unicast) Equal(rhs *Ipv4Unicast) bool {
@@ -2786,33 +2786,33 @@ func (lhs *Ipv4Unicast) Equal(rhs *Ipv4Unicast) bool {
 //struct for container rpol:state
 type ApplyPolicyState struct {
 	// original -> rpol:import-policy
-	ImportPolicyList []string `mapstructure:"import-policy-list"`
+	ImportPolicyList []string `mapstructure:"import-policy-list" json:"import-policy-list,omitempty"`
 	// original -> rpol:default-import-policy
-	DefaultImportPolicy DefaultPolicyType `mapstructure:"default-import-policy"`
+	DefaultImportPolicy DefaultPolicyType `mapstructure:"default-import-policy" json:"default-import-policy,omitempty"`
 	// original -> rpol:export-policy
-	ExportPolicyList []string `mapstructure:"export-policy-list"`
+	ExportPolicyList []string `mapstructure:"export-policy-list" json:"export-policy-list,omitempty"`
 	// original -> rpol:default-export-policy
-	DefaultExportPolicy DefaultPolicyType `mapstructure:"default-export-policy"`
+	DefaultExportPolicy DefaultPolicyType `mapstructure:"default-export-policy" json:"default-export-policy,omitempty"`
 	// original -> gobgp:in-policy
-	InPolicyList []string `mapstructure:"in-policy-list"`
+	InPolicyList []string `mapstructure:"in-policy-list" json:"in-policy-list,omitempty"`
 	// original -> gobgp:default-in-policy
-	DefaultInPolicy DefaultPolicyType `mapstructure:"default-in-policy"`
+	DefaultInPolicy DefaultPolicyType `mapstructure:"default-in-policy" json:"default-in-policy,omitempty"`
 }
 
 //struct for container rpol:config
 type ApplyPolicyConfig struct {
 	// original -> rpol:import-policy
-	ImportPolicyList []string `mapstructure:"import-policy-list"`
+	ImportPolicyList []string `mapstructure:"import-policy-list" json:"import-policy-list,omitempty"`
 	// original -> rpol:default-import-policy
-	DefaultImportPolicy DefaultPolicyType `mapstructure:"default-import-policy"`
+	DefaultImportPolicy DefaultPolicyType `mapstructure:"default-import-policy" json:"default-import-policy,omitempty"`
 	// original -> rpol:export-policy
-	ExportPolicyList []string `mapstructure:"export-policy-list"`
+	ExportPolicyList []string `mapstructure:"export-policy-list" json:"export-policy-list,omitempty"`
 	// original -> rpol:default-export-policy
-	DefaultExportPolicy DefaultPolicyType `mapstructure:"default-export-policy"`
+	DefaultExportPolicy DefaultPolicyType `mapstructure:"default-export-policy" json:"default-export-policy,omitempty"`
 	// original -> gobgp:in-policy
-	InPolicyList []string `mapstructure:"in-policy-list"`
+	InPolicyList []string `mapstructure:"in-policy-list" json:"in-policy-list,omitempty"`
 	// original -> gobgp:default-in-policy
-	DefaultInPolicy DefaultPolicyType `mapstructure:"default-in-policy"`
+	DefaultInPolicy DefaultPolicyType `mapstructure:"default-in-policy" json:"default-in-policy,omitempty"`
 }
 
 func (lhs *ApplyPolicyConfig) Equal(rhs *ApplyPolicyConfig) bool {
@@ -2858,9 +2858,9 @@ func (lhs *ApplyPolicyConfig) Equal(rhs *ApplyPolicyConfig) bool {
 //struct for container rpol:apply-policy
 type ApplyPolicy struct {
 	// original -> rpol:apply-policy-config
-	Config ApplyPolicyConfig `mapstructure:"config"`
+	Config ApplyPolicyConfig `mapstructure:"config" json:"config,omitempty"`
 	// original -> rpol:apply-policy-state
-	State ApplyPolicyState `mapstructure:"state"`
+	State ApplyPolicyState `mapstructure:"state" json:"state,omitempty"`
 }
 
 func (lhs *ApplyPolicy) Equal(rhs *ApplyPolicy) bool {
@@ -2876,23 +2876,23 @@ func (lhs *ApplyPolicy) Equal(rhs *ApplyPolicy) bool {
 //struct for container bgp-mp:state
 type AfiSafiState struct {
 	// original -> bgp-mp:afi-safi-name
-	AfiSafiName AfiSafiType `mapstructure:"afi-safi-name"`
+	AfiSafiName AfiSafiType `mapstructure:"afi-safi-name" json:"afi-safi-name,omitempty"`
 	// original -> bgp-mp:enabled
 	//bgp-mp:enabled's original type is boolean
-	Enabled bool `mapstructure:"enabled"`
+	Enabled bool `mapstructure:"enabled" json:"enabled,omitempty"`
 	// original -> bgp-op:total-paths
-	TotalPaths uint32 `mapstructure:"total-paths"`
+	TotalPaths uint32 `mapstructure:"total-paths" json:"total-paths,omitempty"`
 	// original -> bgp-op:total-prefixes
-	TotalPrefixes uint32 `mapstructure:"total-prefixes"`
+	TotalPrefixes uint32 `mapstructure:"total-prefixes" json:"total-prefixes,omitempty"`
 }
 
 //struct for container bgp-mp:config
 type AfiSafiConfig struct {
 	// original -> bgp-mp:afi-safi-name
-	AfiSafiName AfiSafiType `mapstructure:"afi-safi-name"`
+	AfiSafiName AfiSafiType `mapstructure:"afi-safi-name" json:"afi-safi-name,omitempty"`
 	// original -> bgp-mp:enabled
 	//bgp-mp:enabled's original type is boolean
-	Enabled bool `mapstructure:"enabled"`
+	Enabled bool `mapstructure:"enabled" json:"enabled,omitempty"`
 }
 
 func (lhs *AfiSafiConfig) Equal(rhs *AfiSafiConfig) bool {
@@ -2912,26 +2912,26 @@ func (lhs *AfiSafiConfig) Equal(rhs *AfiSafiConfig) bool {
 type MpGracefulRestartState struct {
 	// original -> bgp-mp:enabled
 	//bgp-mp:enabled's original type is boolean
-	Enabled bool `mapstructure:"enabled"`
+	Enabled bool `mapstructure:"enabled" json:"enabled,omitempty"`
 	// original -> bgp-op:received
 	//bgp-op:received's original type is boolean
-	Received bool `mapstructure:"received"`
+	Received bool `mapstructure:"received" json:"received,omitempty"`
 	// original -> bgp-op:advertised
 	//bgp-op:advertised's original type is boolean
-	Advertised bool `mapstructure:"advertised"`
+	Advertised bool `mapstructure:"advertised" json:"advertised,omitempty"`
 	// original -> gobgp:end-of-rib-received
 	//gobgp:end-of-rib-received's original type is boolean
-	EndOfRibReceived bool `mapstructure:"end-of-rib-received"`
+	EndOfRibReceived bool `mapstructure:"end-of-rib-received" json:"end-of-rib-received,omitempty"`
 	// original -> gobgp:end-of-rib-sent
 	//gobgp:end-of-rib-sent's original type is boolean
-	EndOfRibSent bool `mapstructure:"end-of-rib-sent"`
+	EndOfRibSent bool `mapstructure:"end-of-rib-sent" json:"end-of-rib-sent,omitempty"`
 }
 
 //struct for container bgp-mp:config
 type MpGracefulRestartConfig struct {
 	// original -> bgp-mp:enabled
 	//bgp-mp:enabled's original type is boolean
-	Enabled bool `mapstructure:"enabled"`
+	Enabled bool `mapstructure:"enabled" json:"enabled,omitempty"`
 }
 
 func (lhs *MpGracefulRestartConfig) Equal(rhs *MpGracefulRestartConfig) bool {
@@ -2947,9 +2947,9 @@ func (lhs *MpGracefulRestartConfig) Equal(rhs *MpGracefulRestartConfig) bool {
 //struct for container bgp-mp:graceful-restart
 type MpGracefulRestart struct {
 	// original -> bgp-mp:mp-graceful-restart-config
-	Config MpGracefulRestartConfig `mapstructure:"config"`
+	Config MpGracefulRestartConfig `mapstructure:"config" json:"config,omitempty"`
 	// original -> bgp-mp:mp-graceful-restart-state
-	State MpGracefulRestartState `mapstructure:"state"`
+	State MpGracefulRestartState `mapstructure:"state" json:"state,omitempty"`
 }
 
 func (lhs *MpGracefulRestart) Equal(rhs *MpGracefulRestart) bool {
@@ -2966,43 +2966,43 @@ func (lhs *MpGracefulRestart) Equal(rhs *MpGracefulRestart) bool {
 type AfiSafi struct {
 	// original -> bgp-mp:afi-safi-name
 	// original -> bgp-mp:mp-graceful-restart
-	MpGracefulRestart MpGracefulRestart `mapstructure:"mp-graceful-restart"`
+	MpGracefulRestart MpGracefulRestart `mapstructure:"mp-graceful-restart" json:"mp-graceful-restart,omitempty"`
 	// original -> bgp-mp:afi-safi-config
-	Config AfiSafiConfig `mapstructure:"config"`
+	Config AfiSafiConfig `mapstructure:"config" json:"config,omitempty"`
 	// original -> bgp-mp:afi-safi-state
-	State AfiSafiState `mapstructure:"state"`
+	State AfiSafiState `mapstructure:"state" json:"state,omitempty"`
 	// original -> rpol:apply-policy
-	ApplyPolicy ApplyPolicy `mapstructure:"apply-policy"`
+	ApplyPolicy ApplyPolicy `mapstructure:"apply-policy" json:"apply-policy,omitempty"`
 	// original -> bgp-mp:ipv4-unicast
-	Ipv4Unicast Ipv4Unicast `mapstructure:"ipv4-unicast"`
+	Ipv4Unicast Ipv4Unicast `mapstructure:"ipv4-unicast" json:"ipv4-unicast,omitempty"`
 	// original -> bgp-mp:ipv6-unicast
-	Ipv6Unicast Ipv6Unicast `mapstructure:"ipv6-unicast"`
+	Ipv6Unicast Ipv6Unicast `mapstructure:"ipv6-unicast" json:"ipv6-unicast,omitempty"`
 	// original -> bgp-mp:ipv4-labelled-unicast
-	Ipv4LabelledUnicast Ipv4LabelledUnicast `mapstructure:"ipv4-labelled-unicast"`
+	Ipv4LabelledUnicast Ipv4LabelledUnicast `mapstructure:"ipv4-labelled-unicast" json:"ipv4-labelled-unicast,omitempty"`
 	// original -> bgp-mp:ipv6-labelled-unicast
-	Ipv6LabelledUnicast Ipv6LabelledUnicast `mapstructure:"ipv6-labelled-unicast"`
+	Ipv6LabelledUnicast Ipv6LabelledUnicast `mapstructure:"ipv6-labelled-unicast" json:"ipv6-labelled-unicast,omitempty"`
 	// original -> bgp-mp:l3vpn-ipv4-unicast
-	L3vpnIpv4Unicast L3vpnIpv4Unicast `mapstructure:"l3vpn-ipv4-unicast"`
+	L3vpnIpv4Unicast L3vpnIpv4Unicast `mapstructure:"l3vpn-ipv4-unicast" json:"l3vpn-ipv4-unicast,omitempty"`
 	// original -> bgp-mp:l3vpn-ipv6-unicast
-	L3vpnIpv6Unicast L3vpnIpv6Unicast `mapstructure:"l3vpn-ipv6-unicast"`
+	L3vpnIpv6Unicast L3vpnIpv6Unicast `mapstructure:"l3vpn-ipv6-unicast" json:"l3vpn-ipv6-unicast,omitempty"`
 	// original -> bgp-mp:l3vpn-ipv4-multicast
-	L3vpnIpv4Multicast L3vpnIpv4Multicast `mapstructure:"l3vpn-ipv4-multicast"`
+	L3vpnIpv4Multicast L3vpnIpv4Multicast `mapstructure:"l3vpn-ipv4-multicast" json:"l3vpn-ipv4-multicast,omitempty"`
 	// original -> bgp-mp:l3vpn-ipv6-multicast
-	L3vpnIpv6Multicast L3vpnIpv6Multicast `mapstructure:"l3vpn-ipv6-multicast"`
+	L3vpnIpv6Multicast L3vpnIpv6Multicast `mapstructure:"l3vpn-ipv6-multicast" json:"l3vpn-ipv6-multicast,omitempty"`
 	// original -> bgp-mp:l2vpn-vpls
-	L2vpnVpls L2vpnVpls `mapstructure:"l2vpn-vpls"`
+	L2vpnVpls L2vpnVpls `mapstructure:"l2vpn-vpls" json:"l2vpn-vpls,omitempty"`
 	// original -> bgp-mp:l2vpn-evpn
-	L2vpnEvpn L2vpnEvpn `mapstructure:"l2vpn-evpn"`
+	L2vpnEvpn L2vpnEvpn `mapstructure:"l2vpn-evpn" json:"l2vpn-evpn,omitempty"`
 	// original -> bgp-mp:route-selection-options
-	RouteSelectionOptions RouteSelectionOptions `mapstructure:"route-selection-options"`
+	RouteSelectionOptions RouteSelectionOptions `mapstructure:"route-selection-options" json:"route-selection-options,omitempty"`
 	// original -> bgp-mp:use-multiple-paths
-	UseMultiplePaths UseMultiplePaths `mapstructure:"use-multiple-paths"`
+	UseMultiplePaths UseMultiplePaths `mapstructure:"use-multiple-paths" json:"use-multiple-paths,omitempty"`
 	// original -> bgp-mp:prefix-limit
-	PrefixLimit PrefixLimit `mapstructure:"prefix-limit"`
+	PrefixLimit PrefixLimit `mapstructure:"prefix-limit" json:"prefix-limit,omitempty"`
 	// original -> gobgp:route-target-membership
-	RouteTargetMembership RouteTargetMembership `mapstructure:"route-target-membership"`
+	RouteTargetMembership RouteTargetMembership `mapstructure:"route-target-membership" json:"route-target-membership,omitempty"`
 	// original -> gobgp:long-lived-graceful-restart
-	LongLivedGracefulRestart LongLivedGracefulRestart `mapstructure:"long-lived-graceful-restart"`
+	LongLivedGracefulRestart LongLivedGracefulRestart `mapstructure:"long-lived-graceful-restart" json:"long-lived-graceful-restart,omitempty"`
 }
 
 func (lhs *AfiSafi) Equal(rhs *AfiSafi) bool {
@@ -3070,56 +3070,56 @@ func (lhs *AfiSafi) Equal(rhs *AfiSafi) bool {
 type GracefulRestartState struct {
 	// original -> bgp:enabled
 	//bgp:enabled's original type is boolean
-	Enabled bool `mapstructure:"enabled"`
+	Enabled bool `mapstructure:"enabled" json:"enabled,omitempty"`
 	// original -> bgp:restart-time
-	RestartTime uint16 `mapstructure:"restart-time"`
+	RestartTime uint16 `mapstructure:"restart-time" json:"restart-time,omitempty"`
 	// original -> bgp:stale-routes-time
 	//bgp:stale-routes-time's original type is decimal64
-	StaleRoutesTime float64 `mapstructure:"stale-routes-time"`
+	StaleRoutesTime float64 `mapstructure:"stale-routes-time" json:"stale-routes-time,omitempty"`
 	// original -> bgp:helper-only
 	//bgp:helper-only's original type is boolean
-	HelperOnly bool `mapstructure:"helper-only"`
+	HelperOnly bool `mapstructure:"helper-only" json:"helper-only,omitempty"`
 	// original -> bgp-op:peer-restart-time
-	PeerRestartTime uint16 `mapstructure:"peer-restart-time"`
+	PeerRestartTime uint16 `mapstructure:"peer-restart-time" json:"peer-restart-time,omitempty"`
 	// original -> bgp-op:peer-restarting
 	//bgp-op:peer-restarting's original type is boolean
-	PeerRestarting bool `mapstructure:"peer-restarting"`
+	PeerRestarting bool `mapstructure:"peer-restarting" json:"peer-restarting,omitempty"`
 	// original -> bgp-op:local-restarting
 	//bgp-op:local-restarting's original type is boolean
-	LocalRestarting bool `mapstructure:"local-restarting"`
+	LocalRestarting bool `mapstructure:"local-restarting" json:"local-restarting,omitempty"`
 	// original -> bgp-op:mode
-	Mode Mode `mapstructure:"mode"`
+	Mode Mode `mapstructure:"mode" json:"mode,omitempty"`
 	// original -> gobgp:deferral-time
-	DeferralTime uint16 `mapstructure:"deferral-time"`
+	DeferralTime uint16 `mapstructure:"deferral-time" json:"deferral-time,omitempty"`
 	// original -> gobgp:notification-enabled
 	//gobgp:notification-enabled's original type is boolean
-	NotificationEnabled bool `mapstructure:"notification-enabled"`
+	NotificationEnabled bool `mapstructure:"notification-enabled" json:"notification-enabled,omitempty"`
 	// original -> gobgp:long-lived-enabled
 	//gobgp:long-lived-enabled's original type is boolean
-	LongLivedEnabled bool `mapstructure:"long-lived-enabled"`
+	LongLivedEnabled bool `mapstructure:"long-lived-enabled" json:"long-lived-enabled,omitempty"`
 }
 
 //struct for container bgp:config
 type GracefulRestartConfig struct {
 	// original -> bgp:enabled
 	//bgp:enabled's original type is boolean
-	Enabled bool `mapstructure:"enabled"`
+	Enabled bool `mapstructure:"enabled" json:"enabled,omitempty"`
 	// original -> bgp:restart-time
-	RestartTime uint16 `mapstructure:"restart-time"`
+	RestartTime uint16 `mapstructure:"restart-time" json:"restart-time,omitempty"`
 	// original -> bgp:stale-routes-time
 	//bgp:stale-routes-time's original type is decimal64
-	StaleRoutesTime float64 `mapstructure:"stale-routes-time"`
+	StaleRoutesTime float64 `mapstructure:"stale-routes-time" json:"stale-routes-time,omitempty"`
 	// original -> bgp:helper-only
 	//bgp:helper-only's original type is boolean
-	HelperOnly bool `mapstructure:"helper-only"`
+	HelperOnly bool `mapstructure:"helper-only" json:"helper-only,omitempty"`
 	// original -> gobgp:deferral-time
-	DeferralTime uint16 `mapstructure:"deferral-time"`
+	DeferralTime uint16 `mapstructure:"deferral-time" json:"deferral-time,omitempty"`
 	// original -> gobgp:notification-enabled
 	//gobgp:notification-enabled's original type is boolean
-	NotificationEnabled bool `mapstructure:"notification-enabled"`
+	NotificationEnabled bool `mapstructure:"notification-enabled" json:"notification-enabled,omitempty"`
 	// original -> gobgp:long-lived-enabled
 	//gobgp:long-lived-enabled's original type is boolean
-	LongLivedEnabled bool `mapstructure:"long-lived-enabled"`
+	LongLivedEnabled bool `mapstructure:"long-lived-enabled" json:"long-lived-enabled,omitempty"`
 }
 
 func (lhs *GracefulRestartConfig) Equal(rhs *GracefulRestartConfig) bool {
@@ -3153,9 +3153,9 @@ func (lhs *GracefulRestartConfig) Equal(rhs *GracefulRestartConfig) bool {
 //struct for container bgp:graceful-restart
 type GracefulRestart struct {
 	// original -> bgp:graceful-restart-config
-	Config GracefulRestartConfig `mapstructure:"config"`
+	Config GracefulRestartConfig `mapstructure:"config" json:"config,omitempty"`
 	// original -> bgp:graceful-restart-state
-	State GracefulRestartState `mapstructure:"state"`
+	State GracefulRestartState `mapstructure:"state" json:"state,omitempty"`
 }
 
 func (lhs *GracefulRestart) Equal(rhs *GracefulRestart) bool {
@@ -3171,13 +3171,13 @@ func (lhs *GracefulRestart) Equal(rhs *GracefulRestart) bool {
 //struct for container bgp-mp:state
 type IbgpState struct {
 	// original -> bgp-mp:maximum-paths
-	MaximumPaths uint32 `mapstructure:"maximum-paths"`
+	MaximumPaths uint32 `mapstructure:"maximum-paths" json:"maximum-paths,omitempty"`
 }
 
 //struct for container bgp-mp:config
 type IbgpConfig struct {
 	// original -> bgp-mp:maximum-paths
-	MaximumPaths uint32 `mapstructure:"maximum-paths"`
+	MaximumPaths uint32 `mapstructure:"maximum-paths" json:"maximum-paths,omitempty"`
 }
 
 func (lhs *IbgpConfig) Equal(rhs *IbgpConfig) bool {
@@ -3193,9 +3193,9 @@ func (lhs *IbgpConfig) Equal(rhs *IbgpConfig) bool {
 //struct for container bgp-mp:ibgp
 type Ibgp struct {
 	// original -> bgp-mp:ibgp-config
-	Config IbgpConfig `mapstructure:"config"`
+	Config IbgpConfig `mapstructure:"config" json:"config,omitempty"`
 	// original -> bgp-mp:ibgp-state
-	State IbgpState `mapstructure:"state"`
+	State IbgpState `mapstructure:"state" json:"state,omitempty"`
 }
 
 func (lhs *Ibgp) Equal(rhs *Ibgp) bool {
@@ -3212,18 +3212,18 @@ func (lhs *Ibgp) Equal(rhs *Ibgp) bool {
 type EbgpState struct {
 	// original -> bgp-mp:allow-multiple-as
 	//bgp-mp:allow-multiple-as's original type is boolean
-	AllowMultipleAs bool `mapstructure:"allow-multiple-as"`
+	AllowMultipleAs bool `mapstructure:"allow-multiple-as" json:"allow-multiple-as,omitempty"`
 	// original -> bgp-mp:maximum-paths
-	MaximumPaths uint32 `mapstructure:"maximum-paths"`
+	MaximumPaths uint32 `mapstructure:"maximum-paths" json:"maximum-paths,omitempty"`
 }
 
 //struct for container bgp-mp:config
 type EbgpConfig struct {
 	// original -> bgp-mp:allow-multiple-as
 	//bgp-mp:allow-multiple-as's original type is boolean
-	AllowMultipleAs bool `mapstructure:"allow-multiple-as"`
+	AllowMultipleAs bool `mapstructure:"allow-multiple-as" json:"allow-multiple-as,omitempty"`
 	// original -> bgp-mp:maximum-paths
-	MaximumPaths uint32 `mapstructure:"maximum-paths"`
+	MaximumPaths uint32 `mapstructure:"maximum-paths" json:"maximum-paths,omitempty"`
 }
 
 func (lhs *EbgpConfig) Equal(rhs *EbgpConfig) bool {
@@ -3242,9 +3242,9 @@ func (lhs *EbgpConfig) Equal(rhs *EbgpConfig) bool {
 //struct for container bgp-mp:ebgp
 type Ebgp struct {
 	// original -> bgp-mp:ebgp-config
-	Config EbgpConfig `mapstructure:"config"`
+	Config EbgpConfig `mapstructure:"config" json:"config,omitempty"`
 	// original -> bgp-mp:ebgp-state
-	State EbgpState `mapstructure:"state"`
+	State EbgpState `mapstructure:"state" json:"state,omitempty"`
 }
 
 func (lhs *Ebgp) Equal(rhs *Ebgp) bool {
@@ -3261,14 +3261,14 @@ func (lhs *Ebgp) Equal(rhs *Ebgp) bool {
 type UseMultiplePathsState struct {
 	// original -> bgp-mp:enabled
 	//bgp-mp:enabled's original type is boolean
-	Enabled bool `mapstructure:"enabled"`
+	Enabled bool `mapstructure:"enabled" json:"enabled,omitempty"`
 }
 
 //struct for container bgp-mp:config
 type UseMultiplePathsConfig struct {
 	// original -> bgp-mp:enabled
 	//bgp-mp:enabled's original type is boolean
-	Enabled bool `mapstructure:"enabled"`
+	Enabled bool `mapstructure:"enabled" json:"enabled,omitempty"`
 }
 
 func (lhs *UseMultiplePathsConfig) Equal(rhs *UseMultiplePathsConfig) bool {
@@ -3284,13 +3284,13 @@ func (lhs *UseMultiplePathsConfig) Equal(rhs *UseMultiplePathsConfig) bool {
 //struct for container bgp-mp:use-multiple-paths
 type UseMultiplePaths struct {
 	// original -> bgp-mp:use-multiple-paths-config
-	Config UseMultiplePathsConfig `mapstructure:"config"`
+	Config UseMultiplePathsConfig `mapstructure:"config" json:"config,omitempty"`
 	// original -> bgp-mp:use-multiple-paths-state
-	State UseMultiplePathsState `mapstructure:"state"`
+	State UseMultiplePathsState `mapstructure:"state" json:"state,omitempty"`
 	// original -> bgp-mp:ebgp
-	Ebgp Ebgp `mapstructure:"ebgp"`
+	Ebgp Ebgp `mapstructure:"ebgp" json:"ebgp,omitempty"`
 	// original -> bgp-mp:ibgp
-	Ibgp Ibgp `mapstructure:"ibgp"`
+	Ibgp Ibgp `mapstructure:"ibgp" json:"ibgp,omitempty"`
 }
 
 func (lhs *UseMultiplePaths) Equal(rhs *UseMultiplePaths) bool {
@@ -3313,26 +3313,26 @@ func (lhs *UseMultiplePaths) Equal(rhs *UseMultiplePaths) bool {
 type ConfederationState struct {
 	// original -> bgp:enabled
 	//bgp:enabled's original type is boolean
-	Enabled bool `mapstructure:"enabled"`
+	Enabled bool `mapstructure:"enabled" json:"enabled,omitempty"`
 	// original -> bgp:identifier
 	//bgp:identifier's original type is inet:as-number
-	Identifier uint32 `mapstructure:"identifier"`
+	Identifier uint32 `mapstructure:"identifier" json:"identifier,omitempty"`
 	// original -> bgp:member-as
 	// original type is list of inet:as-number
-	MemberAsList []uint32 `mapstructure:"member-as-list"`
+	MemberAsList []uint32 `mapstructure:"member-as-list" json:"member-as-list,omitempty"`
 }
 
 //struct for container bgp:config
 type ConfederationConfig struct {
 	// original -> bgp:enabled
 	//bgp:enabled's original type is boolean
-	Enabled bool `mapstructure:"enabled"`
+	Enabled bool `mapstructure:"enabled" json:"enabled,omitempty"`
 	// original -> bgp:identifier
 	//bgp:identifier's original type is inet:as-number
-	Identifier uint32 `mapstructure:"identifier"`
+	Identifier uint32 `mapstructure:"identifier" json:"identifier,omitempty"`
 	// original -> bgp:member-as
 	// original type is list of inet:as-number
-	MemberAsList []uint32 `mapstructure:"member-as-list"`
+	MemberAsList []uint32 `mapstructure:"member-as-list" json:"member-as-list,omitempty"`
 }
 
 func (lhs *ConfederationConfig) Equal(rhs *ConfederationConfig) bool {
@@ -3359,9 +3359,9 @@ func (lhs *ConfederationConfig) Equal(rhs *ConfederationConfig) bool {
 //struct for container bgp:confederation
 type Confederation struct {
 	// original -> bgp:confederation-config
-	Config ConfederationConfig `mapstructure:"config"`
+	Config ConfederationConfig `mapstructure:"config" json:"config,omitempty"`
 	// original -> bgp:confederation-state
-	State ConfederationState `mapstructure:"state"`
+	State ConfederationState `mapstructure:"state" json:"state,omitempty"`
 }
 
 func (lhs *Confederation) Equal(rhs *Confederation) bool {
@@ -3377,17 +3377,17 @@ func (lhs *Confederation) Equal(rhs *Confederation) bool {
 //struct for container bgp:state
 type DefaultRouteDistanceState struct {
 	// original -> bgp:external-route-distance
-	ExternalRouteDistance uint8 `mapstructure:"external-route-distance"`
+	ExternalRouteDistance uint8 `mapstructure:"external-route-distance" json:"external-route-distance,omitempty"`
 	// original -> bgp:internal-route-distance
-	InternalRouteDistance uint8 `mapstructure:"internal-route-distance"`
+	InternalRouteDistance uint8 `mapstructure:"internal-route-distance" json:"internal-route-distance,omitempty"`
 }
 
 //struct for container bgp:config
 type DefaultRouteDistanceConfig struct {
 	// original -> bgp:external-route-distance
-	ExternalRouteDistance uint8 `mapstructure:"external-route-distance"`
+	ExternalRouteDistance uint8 `mapstructure:"external-route-distance" json:"external-route-distance,omitempty"`
 	// original -> bgp:internal-route-distance
-	InternalRouteDistance uint8 `mapstructure:"internal-route-distance"`
+	InternalRouteDistance uint8 `mapstructure:"internal-route-distance" json:"internal-route-distance,omitempty"`
 }
 
 func (lhs *DefaultRouteDistanceConfig) Equal(rhs *DefaultRouteDistanceConfig) bool {
@@ -3406,9 +3406,9 @@ func (lhs *DefaultRouteDistanceConfig) Equal(rhs *DefaultRouteDistanceConfig) bo
 //struct for container bgp:default-route-distance
 type DefaultRouteDistance struct {
 	// original -> bgp:default-route-distance-config
-	Config DefaultRouteDistanceConfig `mapstructure:"config"`
+	Config DefaultRouteDistanceConfig `mapstructure:"config" json:"config,omitempty"`
 	// original -> bgp:default-route-distance-state
-	State DefaultRouteDistanceState `mapstructure:"state"`
+	State DefaultRouteDistanceState `mapstructure:"state" json:"state,omitempty"`
 }
 
 func (lhs *DefaultRouteDistance) Equal(rhs *DefaultRouteDistance) bool {
@@ -3425,44 +3425,44 @@ func (lhs *DefaultRouteDistance) Equal(rhs *DefaultRouteDistance) bool {
 type RouteSelectionOptionsState struct {
 	// original -> bgp-mp:always-compare-med
 	//bgp-mp:always-compare-med's original type is boolean
-	AlwaysCompareMed bool `mapstructure:"always-compare-med"`
+	AlwaysCompareMed bool `mapstructure:"always-compare-med" json:"always-compare-med,omitempty"`
 	// original -> bgp-mp:ignore-as-path-length
 	//bgp-mp:ignore-as-path-length's original type is boolean
-	IgnoreAsPathLength bool `mapstructure:"ignore-as-path-length"`
+	IgnoreAsPathLength bool `mapstructure:"ignore-as-path-length" json:"ignore-as-path-length,omitempty"`
 	// original -> bgp-mp:external-compare-router-id
 	//bgp-mp:external-compare-router-id's original type is boolean
-	ExternalCompareRouterId bool `mapstructure:"external-compare-router-id"`
+	ExternalCompareRouterId bool `mapstructure:"external-compare-router-id" json:"external-compare-router-id,omitempty"`
 	// original -> bgp-mp:advertise-inactive-routes
 	//bgp-mp:advertise-inactive-routes's original type is boolean
-	AdvertiseInactiveRoutes bool `mapstructure:"advertise-inactive-routes"`
+	AdvertiseInactiveRoutes bool `mapstructure:"advertise-inactive-routes" json:"advertise-inactive-routes,omitempty"`
 	// original -> bgp-mp:enable-aigp
 	//bgp-mp:enable-aigp's original type is boolean
-	EnableAigp bool `mapstructure:"enable-aigp"`
+	EnableAigp bool `mapstructure:"enable-aigp" json:"enable-aigp,omitempty"`
 	// original -> bgp-mp:ignore-next-hop-igp-metric
 	//bgp-mp:ignore-next-hop-igp-metric's original type is boolean
-	IgnoreNextHopIgpMetric bool `mapstructure:"ignore-next-hop-igp-metric"`
+	IgnoreNextHopIgpMetric bool `mapstructure:"ignore-next-hop-igp-metric" json:"ignore-next-hop-igp-metric,omitempty"`
 }
 
 //struct for container bgp-mp:config
 type RouteSelectionOptionsConfig struct {
 	// original -> bgp-mp:always-compare-med
 	//bgp-mp:always-compare-med's original type is boolean
-	AlwaysCompareMed bool `mapstructure:"always-compare-med"`
+	AlwaysCompareMed bool `mapstructure:"always-compare-med" json:"always-compare-med,omitempty"`
 	// original -> bgp-mp:ignore-as-path-length
 	//bgp-mp:ignore-as-path-length's original type is boolean
-	IgnoreAsPathLength bool `mapstructure:"ignore-as-path-length"`
+	IgnoreAsPathLength bool `mapstructure:"ignore-as-path-length" json:"ignore-as-path-length,omitempty"`
 	// original -> bgp-mp:external-compare-router-id
 	//bgp-mp:external-compare-router-id's original type is boolean
-	ExternalCompareRouterId bool `mapstructure:"external-compare-router-id"`
+	ExternalCompareRouterId bool `mapstructure:"external-compare-router-id" json:"external-compare-router-id,omitempty"`
 	// original -> bgp-mp:advertise-inactive-routes
 	//bgp-mp:advertise-inactive-routes's original type is boolean
-	AdvertiseInactiveRoutes bool `mapstructure:"advertise-inactive-routes"`
+	AdvertiseInactiveRoutes bool `mapstructure:"advertise-inactive-routes" json:"advertise-inactive-routes,omitempty"`
 	// original -> bgp-mp:enable-aigp
 	//bgp-mp:enable-aigp's original type is boolean
-	EnableAigp bool `mapstructure:"enable-aigp"`
+	EnableAigp bool `mapstructure:"enable-aigp" json:"enable-aigp,omitempty"`
 	// original -> bgp-mp:ignore-next-hop-igp-metric
 	//bgp-mp:ignore-next-hop-igp-metric's original type is boolean
-	IgnoreNextHopIgpMetric bool `mapstructure:"ignore-next-hop-igp-metric"`
+	IgnoreNextHopIgpMetric bool `mapstructure:"ignore-next-hop-igp-metric" json:"ignore-next-hop-igp-metric,omitempty"`
 }
 
 func (lhs *RouteSelectionOptionsConfig) Equal(rhs *RouteSelectionOptionsConfig) bool {
@@ -3493,9 +3493,9 @@ func (lhs *RouteSelectionOptionsConfig) Equal(rhs *RouteSelectionOptionsConfig) 
 //struct for container bgp-mp:route-selection-options
 type RouteSelectionOptions struct {
 	// original -> bgp-mp:route-selection-options-config
-	Config RouteSelectionOptionsConfig `mapstructure:"config"`
+	Config RouteSelectionOptionsConfig `mapstructure:"config" json:"config,omitempty"`
 	// original -> bgp-mp:route-selection-options-state
-	State RouteSelectionOptionsState `mapstructure:"state"`
+	State RouteSelectionOptionsState `mapstructure:"state" json:"state,omitempty"`
 }
 
 func (lhs *RouteSelectionOptions) Equal(rhs *RouteSelectionOptions) bool {
@@ -3512,32 +3512,32 @@ func (lhs *RouteSelectionOptions) Equal(rhs *RouteSelectionOptions) bool {
 type GlobalState struct {
 	// original -> bgp:as
 	//bgp:as's original type is inet:as-number
-	As uint32 `mapstructure:"as"`
+	As uint32 `mapstructure:"as" json:"as,omitempty"`
 	// original -> bgp:router-id
 	//bgp:router-id's original type is inet:ipv4-address
-	RouterId string `mapstructure:"router-id"`
+	RouterId string `mapstructure:"router-id" json:"router-id,omitempty"`
 	// original -> bgp-op:total-paths
-	TotalPaths uint32 `mapstructure:"total-paths"`
+	TotalPaths uint32 `mapstructure:"total-paths" json:"total-paths,omitempty"`
 	// original -> bgp-op:total-prefixes
-	TotalPrefixes uint32 `mapstructure:"total-prefixes"`
+	TotalPrefixes uint32 `mapstructure:"total-prefixes" json:"total-prefixes,omitempty"`
 	// original -> gobgp:port
-	Port int32 `mapstructure:"port"`
+	Port int32 `mapstructure:"port" json:"port,omitempty"`
 	// original -> gobgp:local-address
-	LocalAddressList []string `mapstructure:"local-address-list"`
+	LocalAddressList []string `mapstructure:"local-address-list" json:"local-address-list,omitempty"`
 }
 
 //struct for container bgp:config
 type GlobalConfig struct {
 	// original -> bgp:as
 	//bgp:as's original type is inet:as-number
-	As uint32 `mapstructure:"as"`
+	As uint32 `mapstructure:"as" json:"as,omitempty"`
 	// original -> bgp:router-id
 	//bgp:router-id's original type is inet:ipv4-address
-	RouterId string `mapstructure:"router-id"`
+	RouterId string `mapstructure:"router-id" json:"router-id,omitempty"`
 	// original -> gobgp:port
-	Port int32 `mapstructure:"port"`
+	Port int32 `mapstructure:"port" json:"port,omitempty"`
 	// original -> gobgp:local-address
-	LocalAddressList []string `mapstructure:"local-address-list"`
+	LocalAddressList []string `mapstructure:"local-address-list" json:"local-address-list,omitempty"`
 }
 
 func (lhs *GlobalConfig) Equal(rhs *GlobalConfig) bool {
@@ -3567,23 +3567,23 @@ func (lhs *GlobalConfig) Equal(rhs *GlobalConfig) bool {
 //struct for container bgp:global
 type Global struct {
 	// original -> bgp:global-config
-	Config GlobalConfig `mapstructure:"config"`
+	Config GlobalConfig `mapstructure:"config" json:"config,omitempty"`
 	// original -> bgp:global-state
-	State GlobalState `mapstructure:"state"`
+	State GlobalState `mapstructure:"state" json:"state,omitempty"`
 	// original -> bgp-mp:route-selection-options
-	RouteSelectionOptions RouteSelectionOptions `mapstructure:"route-selection-options"`
+	RouteSelectionOptions RouteSelectionOptions `mapstructure:"route-selection-options" json:"route-selection-options,omitempty"`
 	// original -> bgp:default-route-distance
-	DefaultRouteDistance DefaultRouteDistance `mapstructure:"default-route-distance"`
+	DefaultRouteDistance DefaultRouteDistance `mapstructure:"default-route-distance" json:"default-route-distance,omitempty"`
 	// original -> bgp:confederation
-	Confederation Confederation `mapstructure:"confederation"`
+	Confederation Confederation `mapstructure:"confederation" json:"confederation,omitempty"`
 	// original -> bgp-mp:use-multiple-paths
-	UseMultiplePaths UseMultiplePaths `mapstructure:"use-multiple-paths"`
+	UseMultiplePaths UseMultiplePaths `mapstructure:"use-multiple-paths" json:"use-multiple-paths,omitempty"`
 	// original -> bgp:graceful-restart
-	GracefulRestart GracefulRestart `mapstructure:"graceful-restart"`
+	GracefulRestart GracefulRestart `mapstructure:"graceful-restart" json:"graceful-restart,omitempty"`
 	// original -> bgp:afi-safis
-	AfiSafis []AfiSafi `mapstructure:"afi-safis"`
+	AfiSafis []AfiSafi `mapstructure:"afi-safis" json:"afi-safis,omitempty"`
 	// original -> rpol:apply-policy
-	ApplyPolicy ApplyPolicy `mapstructure:"apply-policy"`
+	ApplyPolicy ApplyPolicy `mapstructure:"apply-policy" json:"apply-policy,omitempty"`
 }
 
 func (lhs *Global) Equal(rhs *Global) bool {
@@ -3633,21 +3633,21 @@ func (lhs *Global) Equal(rhs *Global) bool {
 //struct for container bgp:bgp
 type Bgp struct {
 	// original -> bgp:global
-	Global Global `mapstructure:"global"`
+	Global Global `mapstructure:"global" json:"global,omitempty"`
 	// original -> bgp:neighbors
-	Neighbors []Neighbor `mapstructure:"neighbors"`
+	Neighbors []Neighbor `mapstructure:"neighbors" json:"neighbors,omitempty"`
 	// original -> bgp:peer-groups
-	PeerGroups []PeerGroup `mapstructure:"peer-groups"`
+	PeerGroups []PeerGroup `mapstructure:"peer-groups" json:"peer-groups,omitempty"`
 	// original -> gobgp:rpki-servers
-	RpkiServers []RpkiServer `mapstructure:"rpki-servers"`
+	RpkiServers []RpkiServer `mapstructure:"rpki-servers" json:"rpki-servers,omitempty"`
 	// original -> gobgp:bmp-servers
-	BmpServers []BmpServer `mapstructure:"bmp-servers"`
+	BmpServers []BmpServer `mapstructure:"bmp-servers" json:"bmp-servers,omitempty"`
 	// original -> gobgp:mrt-dump
-	MrtDump []Mrt `mapstructure:"mrt-dump"`
+	MrtDump []Mrt `mapstructure:"mrt-dump" json:"mrt-dump,omitempty"`
 	// original -> gobgp:zebra
-	Zebra Zebra `mapstructure:"zebra"`
+	Zebra Zebra `mapstructure:"zebra" json:"zebra,omitempty"`
 	// original -> gobgp:collector
-	Collector Collector `mapstructure:"collector"`
+	Collector Collector `mapstructure:"collector" json:"collector,omitempty"`
 }
 
 func (lhs *Bgp) Equal(rhs *Bgp) bool {
@@ -3749,7 +3749,7 @@ func (lhs *Bgp) Equal(rhs *Bgp) bool {
 //struct for container gobgp:set-large-community-method
 type SetLargeCommunityMethod struct {
 	// original -> gobgp:communities
-	CommunitiesList []string `mapstructure:"communities-list"`
+	CommunitiesList []string `mapstructure:"communities-list" json:"communities-list,omitempty"`
 }
 
 func (lhs *SetLargeCommunityMethod) Equal(rhs *SetLargeCommunityMethod) bool {
@@ -3770,9 +3770,9 @@ func (lhs *SetLargeCommunityMethod) Equal(rhs *SetLargeCommunityMethod) bool {
 //struct for container gobgp:set-large-community
 type SetLargeCommunity struct {
 	// original -> gobgp:set-large-community-method
-	SetLargeCommunityMethod SetLargeCommunityMethod `mapstructure:"set-large-community-method"`
+	SetLargeCommunityMethod SetLargeCommunityMethod `mapstructure:"set-large-community-method" json:"set-large-community-method,omitempty"`
 	// original -> gobgp:options
-	Options BgpSetCommunityOptionType `mapstructure:"options"`
+	Options BgpSetCommunityOptionType `mapstructure:"options" json:"options,omitempty"`
 }
 
 func (lhs *SetLargeCommunity) Equal(rhs *SetLargeCommunity) bool {
@@ -3792,9 +3792,9 @@ func (lhs *SetLargeCommunity) Equal(rhs *SetLargeCommunity) bool {
 type SetExtCommunityMethod struct {
 	// original -> bgp-pol:communities
 	// original type is list of union
-	CommunitiesList []string `mapstructure:"communities-list"`
+	CommunitiesList []string `mapstructure:"communities-list" json:"communities-list,omitempty"`
 	// original -> bgp-pol:ext-community-set-ref
-	ExtCommunitySetRef string `mapstructure:"ext-community-set-ref"`
+	ExtCommunitySetRef string `mapstructure:"ext-community-set-ref" json:"ext-community-set-ref,omitempty"`
 }
 
 func (lhs *SetExtCommunityMethod) Equal(rhs *SetExtCommunityMethod) bool {
@@ -3818,10 +3818,10 @@ func (lhs *SetExtCommunityMethod) Equal(rhs *SetExtCommunityMethod) bool {
 //struct for container bgp-pol:set-ext-community
 type SetExtCommunity struct {
 	// original -> bgp-pol:set-ext-community-method
-	SetExtCommunityMethod SetExtCommunityMethod `mapstructure:"set-ext-community-method"`
+	SetExtCommunityMethod SetExtCommunityMethod `mapstructure:"set-ext-community-method" json:"set-ext-community-method,omitempty"`
 	// original -> bgp-pol:options
 	//bgp-pol:options's original type is bgp-set-community-option-type
-	Options string `mapstructure:"options"`
+	Options string `mapstructure:"options" json:"options,omitempty"`
 }
 
 func (lhs *SetExtCommunity) Equal(rhs *SetExtCommunity) bool {
@@ -3841,9 +3841,9 @@ func (lhs *SetExtCommunity) Equal(rhs *SetExtCommunity) bool {
 type SetCommunityMethod struct {
 	// original -> bgp-pol:communities
 	// original type is list of union
-	CommunitiesList []string `mapstructure:"communities-list"`
+	CommunitiesList []string `mapstructure:"communities-list" json:"communities-list,omitempty"`
 	// original -> bgp-pol:community-set-ref
-	CommunitySetRef string `mapstructure:"community-set-ref"`
+	CommunitySetRef string `mapstructure:"community-set-ref" json:"community-set-ref,omitempty"`
 }
 
 func (lhs *SetCommunityMethod) Equal(rhs *SetCommunityMethod) bool {
@@ -3867,10 +3867,10 @@ func (lhs *SetCommunityMethod) Equal(rhs *SetCommunityMethod) bool {
 //struct for container bgp-pol:set-community
 type SetCommunity struct {
 	// original -> bgp-pol:set-community-method
-	SetCommunityMethod SetCommunityMethod `mapstructure:"set-community-method"`
+	SetCommunityMethod SetCommunityMethod `mapstructure:"set-community-method" json:"set-community-method,omitempty"`
 	// original -> bgp-pol:options
 	//bgp-pol:options's original type is bgp-set-community-option-type
-	Options string `mapstructure:"options"`
+	Options string `mapstructure:"options" json:"options,omitempty"`
 }
 
 func (lhs *SetCommunity) Equal(rhs *SetCommunity) bool {
@@ -3889,10 +3889,10 @@ func (lhs *SetCommunity) Equal(rhs *SetCommunity) bool {
 //struct for container bgp-pol:set-as-path-prepend
 type SetAsPathPrepend struct {
 	// original -> bgp-pol:repeat-n
-	RepeatN uint8 `mapstructure:"repeat-n"`
+	RepeatN uint8 `mapstructure:"repeat-n" json:"repeat-n,omitempty"`
 	// original -> gobgp:as
 	//gobgp:as's original type is union
-	As string `mapstructure:"as"`
+	As string `mapstructure:"as" json:"as,omitempty"`
 }
 
 func (lhs *SetAsPathPrepend) Equal(rhs *SetAsPathPrepend) bool {
@@ -3911,21 +3911,21 @@ func (lhs *SetAsPathPrepend) Equal(rhs *SetAsPathPrepend) bool {
 //struct for container bgp-pol:bgp-actions
 type BgpActions struct {
 	// original -> bgp-pol:set-as-path-prepend
-	SetAsPathPrepend SetAsPathPrepend `mapstructure:"set-as-path-prepend"`
+	SetAsPathPrepend SetAsPathPrepend `mapstructure:"set-as-path-prepend" json:"set-as-path-prepend,omitempty"`
 	// original -> bgp-pol:set-community
-	SetCommunity SetCommunity `mapstructure:"set-community"`
+	SetCommunity SetCommunity `mapstructure:"set-community" json:"set-community,omitempty"`
 	// original -> bgp-pol:set-ext-community
-	SetExtCommunity SetExtCommunity `mapstructure:"set-ext-community"`
+	SetExtCommunity SetExtCommunity `mapstructure:"set-ext-community" json:"set-ext-community,omitempty"`
 	// original -> bgp-pol:set-route-origin
-	SetRouteOrigin BgpOriginAttrType `mapstructure:"set-route-origin"`
+	SetRouteOrigin BgpOriginAttrType `mapstructure:"set-route-origin" json:"set-route-origin,omitempty"`
 	// original -> bgp-pol:set-local-pref
-	SetLocalPref uint32 `mapstructure:"set-local-pref"`
+	SetLocalPref uint32 `mapstructure:"set-local-pref" json:"set-local-pref,omitempty"`
 	// original -> bgp-pol:set-next-hop
-	SetNextHop BgpNextHopType `mapstructure:"set-next-hop"`
+	SetNextHop BgpNextHopType `mapstructure:"set-next-hop" json:"set-next-hop,omitempty"`
 	// original -> bgp-pol:set-med
-	SetMed BgpSetMedType `mapstructure:"set-med"`
+	SetMed BgpSetMedType `mapstructure:"set-med" json:"set-med,omitempty"`
 	// original -> gobgp:set-large-community
-	SetLargeCommunity SetLargeCommunity `mapstructure:"set-large-community"`
+	SetLargeCommunity SetLargeCommunity `mapstructure:"set-large-community" json:"set-large-community,omitempty"`
 }
 
 func (lhs *BgpActions) Equal(rhs *BgpActions) bool {
@@ -3962,7 +3962,7 @@ func (lhs *BgpActions) Equal(rhs *BgpActions) bool {
 //struct for container rpol:igp-actions
 type IgpActions struct {
 	// original -> rpol:set-tag
-	SetTag TagType `mapstructure:"set-tag"`
+	SetTag TagType `mapstructure:"set-tag" json:"set-tag,omitempty"`
 }
 
 func (lhs *IgpActions) Equal(rhs *IgpActions) bool {
@@ -3979,10 +3979,10 @@ func (lhs *IgpActions) Equal(rhs *IgpActions) bool {
 type RouteDisposition struct {
 	// original -> rpol:accept-route
 	//rpol:accept-route's original type is empty
-	AcceptRoute bool `mapstructure:"accept-route"`
+	AcceptRoute bool `mapstructure:"accept-route" json:"accept-route,omitempty"`
 	// original -> rpol:reject-route
 	//rpol:reject-route's original type is empty
-	RejectRoute bool `mapstructure:"reject-route"`
+	RejectRoute bool `mapstructure:"reject-route" json:"reject-route,omitempty"`
 }
 
 func (lhs *RouteDisposition) Equal(rhs *RouteDisposition) bool {
@@ -4001,11 +4001,11 @@ func (lhs *RouteDisposition) Equal(rhs *RouteDisposition) bool {
 //struct for container rpol:actions
 type Actions struct {
 	// original -> rpol:route-disposition
-	RouteDisposition RouteDisposition `mapstructure:"route-disposition"`
+	RouteDisposition RouteDisposition `mapstructure:"route-disposition" json:"route-disposition,omitempty"`
 	// original -> rpol:igp-actions
-	IgpActions IgpActions `mapstructure:"igp-actions"`
+	IgpActions IgpActions `mapstructure:"igp-actions" json:"igp-actions,omitempty"`
 	// original -> bgp-pol:bgp-actions
-	BgpActions BgpActions `mapstructure:"bgp-actions"`
+	BgpActions BgpActions `mapstructure:"bgp-actions" json:"bgp-actions,omitempty"`
 }
 
 func (lhs *Actions) Equal(rhs *Actions) bool {
@@ -4027,9 +4027,9 @@ func (lhs *Actions) Equal(rhs *Actions) bool {
 //struct for container gobgp:match-large-community-set
 type MatchLargeCommunitySet struct {
 	// original -> gobgp:large-community-set
-	LargeCommunitySet string `mapstructure:"large-community-set"`
+	LargeCommunitySet string `mapstructure:"large-community-set" json:"large-community-set,omitempty"`
 	// original -> rpol:match-set-options
-	MatchSetOptions MatchSetOptionsType `mapstructure:"match-set-options"`
+	MatchSetOptions MatchSetOptionsType `mapstructure:"match-set-options" json:"match-set-options,omitempty"`
 }
 
 func (lhs *MatchLargeCommunitySet) Equal(rhs *MatchLargeCommunitySet) bool {
@@ -4048,9 +4048,9 @@ func (lhs *MatchLargeCommunitySet) Equal(rhs *MatchLargeCommunitySet) bool {
 //struct for container bgp-pol:as-path-length
 type AsPathLength struct {
 	// original -> ptypes:operator
-	Operator AttributeComparison `mapstructure:"operator"`
+	Operator AttributeComparison `mapstructure:"operator" json:"operator,omitempty"`
 	// original -> ptypes:value
-	Value uint32 `mapstructure:"value"`
+	Value uint32 `mapstructure:"value" json:"value,omitempty"`
 }
 
 func (lhs *AsPathLength) Equal(rhs *AsPathLength) bool {
@@ -4069,9 +4069,9 @@ func (lhs *AsPathLength) Equal(rhs *AsPathLength) bool {
 //struct for container bgp-pol:community-count
 type CommunityCount struct {
 	// original -> ptypes:operator
-	Operator AttributeComparison `mapstructure:"operator"`
+	Operator AttributeComparison `mapstructure:"operator" json:"operator,omitempty"`
 	// original -> ptypes:value
-	Value uint32 `mapstructure:"value"`
+	Value uint32 `mapstructure:"value" json:"value,omitempty"`
 }
 
 func (lhs *CommunityCount) Equal(rhs *CommunityCount) bool {
@@ -4090,9 +4090,9 @@ func (lhs *CommunityCount) Equal(rhs *CommunityCount) bool {
 //struct for container bgp-pol:match-as-path-set
 type MatchAsPathSet struct {
 	// original -> bgp-pol:as-path-set
-	AsPathSet string `mapstructure:"as-path-set"`
+	AsPathSet string `mapstructure:"as-path-set" json:"as-path-set,omitempty"`
 	// original -> rpol:match-set-options
-	MatchSetOptions MatchSetOptionsType `mapstructure:"match-set-options"`
+	MatchSetOptions MatchSetOptionsType `mapstructure:"match-set-options" json:"match-set-options,omitempty"`
 }
 
 func (lhs *MatchAsPathSet) Equal(rhs *MatchAsPathSet) bool {
@@ -4111,9 +4111,9 @@ func (lhs *MatchAsPathSet) Equal(rhs *MatchAsPathSet) bool {
 //struct for container bgp-pol:match-ext-community-set
 type MatchExtCommunitySet struct {
 	// original -> bgp-pol:ext-community-set
-	ExtCommunitySet string `mapstructure:"ext-community-set"`
+	ExtCommunitySet string `mapstructure:"ext-community-set" json:"ext-community-set,omitempty"`
 	// original -> rpol:match-set-options
-	MatchSetOptions MatchSetOptionsType `mapstructure:"match-set-options"`
+	MatchSetOptions MatchSetOptionsType `mapstructure:"match-set-options" json:"match-set-options,omitempty"`
 }
 
 func (lhs *MatchExtCommunitySet) Equal(rhs *MatchExtCommunitySet) bool {
@@ -4132,9 +4132,9 @@ func (lhs *MatchExtCommunitySet) Equal(rhs *MatchExtCommunitySet) bool {
 //struct for container bgp-pol:match-community-set
 type MatchCommunitySet struct {
 	// original -> bgp-pol:community-set
-	CommunitySet string `mapstructure:"community-set"`
+	CommunitySet string `mapstructure:"community-set" json:"community-set,omitempty"`
 	// original -> rpol:match-set-options
-	MatchSetOptions MatchSetOptionsType `mapstructure:"match-set-options"`
+	MatchSetOptions MatchSetOptionsType `mapstructure:"match-set-options" json:"match-set-options,omitempty"`
 }
 
 func (lhs *MatchCommunitySet) Equal(rhs *MatchCommunitySet) bool {
@@ -4153,32 +4153,32 @@ func (lhs *MatchCommunitySet) Equal(rhs *MatchCommunitySet) bool {
 //struct for container bgp-pol:bgp-conditions
 type BgpConditions struct {
 	// original -> bgp-pol:match-community-set
-	MatchCommunitySet MatchCommunitySet `mapstructure:"match-community-set"`
+	MatchCommunitySet MatchCommunitySet `mapstructure:"match-community-set" json:"match-community-set,omitempty"`
 	// original -> bgp-pol:match-ext-community-set
-	MatchExtCommunitySet MatchExtCommunitySet `mapstructure:"match-ext-community-set"`
+	MatchExtCommunitySet MatchExtCommunitySet `mapstructure:"match-ext-community-set" json:"match-ext-community-set,omitempty"`
 	// original -> bgp-pol:match-as-path-set
-	MatchAsPathSet MatchAsPathSet `mapstructure:"match-as-path-set"`
+	MatchAsPathSet MatchAsPathSet `mapstructure:"match-as-path-set" json:"match-as-path-set,omitempty"`
 	// original -> bgp-pol:med-eq
-	MedEq uint32 `mapstructure:"med-eq"`
+	MedEq uint32 `mapstructure:"med-eq" json:"med-eq,omitempty"`
 	// original -> bgp-pol:origin-eq
-	OriginEq BgpOriginAttrType `mapstructure:"origin-eq"`
+	OriginEq BgpOriginAttrType `mapstructure:"origin-eq" json:"origin-eq,omitempty"`
 	// original -> bgp-pol:next-hop-in
 	// original type is list of inet:ip-address
-	NextHopInList []string `mapstructure:"next-hop-in-list"`
+	NextHopInList []string `mapstructure:"next-hop-in-list" json:"next-hop-in-list,omitempty"`
 	// original -> bgp-pol:afi-safi-in
-	AfiSafiInList []AfiSafiType `mapstructure:"afi-safi-in-list"`
+	AfiSafiInList []AfiSafiType `mapstructure:"afi-safi-in-list" json:"afi-safi-in-list,omitempty"`
 	// original -> bgp-pol:local-pref-eq
-	LocalPrefEq uint32 `mapstructure:"local-pref-eq"`
+	LocalPrefEq uint32 `mapstructure:"local-pref-eq" json:"local-pref-eq,omitempty"`
 	// original -> bgp-pol:community-count
-	CommunityCount CommunityCount `mapstructure:"community-count"`
+	CommunityCount CommunityCount `mapstructure:"community-count" json:"community-count,omitempty"`
 	// original -> bgp-pol:as-path-length
-	AsPathLength AsPathLength `mapstructure:"as-path-length"`
+	AsPathLength AsPathLength `mapstructure:"as-path-length" json:"as-path-length,omitempty"`
 	// original -> bgp-pol:route-type
-	RouteType RouteType `mapstructure:"route-type"`
+	RouteType RouteType `mapstructure:"route-type" json:"route-type,omitempty"`
 	// original -> gobgp:rpki-validation-result
-	RpkiValidationResult RpkiValidationResultType `mapstructure:"rpki-validation-result"`
+	RpkiValidationResult RpkiValidationResultType `mapstructure:"rpki-validation-result" json:"rpki-validation-result,omitempty"`
 	// original -> gobgp:match-large-community-set
-	MatchLargeCommunitySet MatchLargeCommunitySet `mapstructure:"match-large-community-set"`
+	MatchLargeCommunitySet MatchLargeCommunitySet `mapstructure:"match-large-community-set" json:"match-large-community-set,omitempty"`
 }
 
 func (lhs *BgpConditions) Equal(rhs *BgpConditions) bool {
@@ -4251,9 +4251,9 @@ func (lhs *IgpConditions) Equal(rhs *IgpConditions) bool {
 //struct for container rpol:match-tag-set
 type MatchTagSet struct {
 	// original -> rpol:tag-set
-	TagSet string `mapstructure:"tag-set"`
+	TagSet string `mapstructure:"tag-set" json:"tag-set,omitempty"`
 	// original -> rpol:match-set-options
-	MatchSetOptions MatchSetOptionsRestrictedType `mapstructure:"match-set-options"`
+	MatchSetOptions MatchSetOptionsRestrictedType `mapstructure:"match-set-options" json:"match-set-options,omitempty"`
 }
 
 func (lhs *MatchTagSet) Equal(rhs *MatchTagSet) bool {
@@ -4272,9 +4272,9 @@ func (lhs *MatchTagSet) Equal(rhs *MatchTagSet) bool {
 //struct for container rpol:match-neighbor-set
 type MatchNeighborSet struct {
 	// original -> rpol:neighbor-set
-	NeighborSet string `mapstructure:"neighbor-set"`
+	NeighborSet string `mapstructure:"neighbor-set" json:"neighbor-set,omitempty"`
 	// original -> rpol:match-set-options
-	MatchSetOptions MatchSetOptionsRestrictedType `mapstructure:"match-set-options"`
+	MatchSetOptions MatchSetOptionsRestrictedType `mapstructure:"match-set-options" json:"match-set-options,omitempty"`
 }
 
 func (lhs *MatchNeighborSet) Equal(rhs *MatchNeighborSet) bool {
@@ -4293,9 +4293,9 @@ func (lhs *MatchNeighborSet) Equal(rhs *MatchNeighborSet) bool {
 //struct for container rpol:match-prefix-set
 type MatchPrefixSet struct {
 	// original -> rpol:prefix-set
-	PrefixSet string `mapstructure:"prefix-set"`
+	PrefixSet string `mapstructure:"prefix-set" json:"prefix-set,omitempty"`
 	// original -> rpol:match-set-options
-	MatchSetOptions MatchSetOptionsRestrictedType `mapstructure:"match-set-options"`
+	MatchSetOptions MatchSetOptionsRestrictedType `mapstructure:"match-set-options" json:"match-set-options,omitempty"`
 }
 
 func (lhs *MatchPrefixSet) Equal(rhs *MatchPrefixSet) bool {
@@ -4314,19 +4314,19 @@ func (lhs *MatchPrefixSet) Equal(rhs *MatchPrefixSet) bool {
 //struct for container rpol:conditions
 type Conditions struct {
 	// original -> rpol:call-policy
-	CallPolicy string `mapstructure:"call-policy"`
+	CallPolicy string `mapstructure:"call-policy" json:"call-policy,omitempty"`
 	// original -> rpol:match-prefix-set
-	MatchPrefixSet MatchPrefixSet `mapstructure:"match-prefix-set"`
+	MatchPrefixSet MatchPrefixSet `mapstructure:"match-prefix-set" json:"match-prefix-set,omitempty"`
 	// original -> rpol:match-neighbor-set
-	MatchNeighborSet MatchNeighborSet `mapstructure:"match-neighbor-set"`
+	MatchNeighborSet MatchNeighborSet `mapstructure:"match-neighbor-set" json:"match-neighbor-set,omitempty"`
 	// original -> rpol:match-tag-set
-	MatchTagSet MatchTagSet `mapstructure:"match-tag-set"`
+	MatchTagSet MatchTagSet `mapstructure:"match-tag-set" json:"match-tag-set,omitempty"`
 	// original -> rpol:install-protocol-eq
-	InstallProtocolEq InstallProtocolType `mapstructure:"install-protocol-eq"`
+	InstallProtocolEq InstallProtocolType `mapstructure:"install-protocol-eq" json:"install-protocol-eq,omitempty"`
 	// original -> rpol:igp-conditions
-	IgpConditions IgpConditions `mapstructure:"igp-conditions"`
+	IgpConditions IgpConditions `mapstructure:"igp-conditions" json:"igp-conditions,omitempty"`
 	// original -> bgp-pol:bgp-conditions
-	BgpConditions BgpConditions `mapstructure:"bgp-conditions"`
+	BgpConditions BgpConditions `mapstructure:"bgp-conditions" json:"bgp-conditions,omitempty"`
 }
 
 func (lhs *Conditions) Equal(rhs *Conditions) bool {
@@ -4360,11 +4360,11 @@ func (lhs *Conditions) Equal(rhs *Conditions) bool {
 //struct for container rpol:statement
 type Statement struct {
 	// original -> rpol:name
-	Name string `mapstructure:"name"`
+	Name string `mapstructure:"name" json:"name,omitempty"`
 	// original -> rpol:conditions
-	Conditions Conditions `mapstructure:"conditions"`
+	Conditions Conditions `mapstructure:"conditions" json:"conditions,omitempty"`
 	// original -> rpol:actions
-	Actions Actions `mapstructure:"actions"`
+	Actions Actions `mapstructure:"actions" json:"actions,omitempty"`
 }
 
 func (lhs *Statement) Equal(rhs *Statement) bool {
@@ -4386,9 +4386,9 @@ func (lhs *Statement) Equal(rhs *Statement) bool {
 //struct for container rpol:policy-definition
 type PolicyDefinition struct {
 	// original -> rpol:name
-	Name string `mapstructure:"name"`
+	Name string `mapstructure:"name" json:"name,omitempty"`
 	// original -> rpol:statements
-	Statements []Statement `mapstructure:"statements"`
+	Statements []Statement `mapstructure:"statements" json:"statements,omitempty"`
 }
 
 func (lhs *PolicyDefinition) Equal(rhs *PolicyDefinition) bool {
@@ -4420,9 +4420,9 @@ func (lhs *PolicyDefinition) Equal(rhs *PolicyDefinition) bool {
 //struct for container gobgp:large-community-set
 type LargeCommunitySet struct {
 	// original -> gobgp:large-community-set-name
-	LargeCommunitySetName string `mapstructure:"large-community-set-name"`
+	LargeCommunitySetName string `mapstructure:"large-community-set-name" json:"large-community-set-name,omitempty"`
 	// original -> gobgp:large-community
-	LargeCommunityList []string `mapstructure:"large-community-list"`
+	LargeCommunityList []string `mapstructure:"large-community-list" json:"large-community-list,omitempty"`
 }
 
 func (lhs *LargeCommunitySet) Equal(rhs *LargeCommunitySet) bool {
@@ -4446,9 +4446,9 @@ func (lhs *LargeCommunitySet) Equal(rhs *LargeCommunitySet) bool {
 //struct for container bgp-pol:as-path-set
 type AsPathSet struct {
 	// original -> bgp-pol:as-path-set-name
-	AsPathSetName string `mapstructure:"as-path-set-name"`
+	AsPathSetName string `mapstructure:"as-path-set-name" json:"as-path-set-name,omitempty"`
 	// original -> gobgp:as-path
-	AsPathList []string `mapstructure:"as-path-list"`
+	AsPathList []string `mapstructure:"as-path-list" json:"as-path-list,omitempty"`
 }
 
 func (lhs *AsPathSet) Equal(rhs *AsPathSet) bool {
@@ -4472,9 +4472,9 @@ func (lhs *AsPathSet) Equal(rhs *AsPathSet) bool {
 //struct for container bgp-pol:ext-community-set
 type ExtCommunitySet struct {
 	// original -> bgp-pol:ext-community-set-name
-	ExtCommunitySetName string `mapstructure:"ext-community-set-name"`
+	ExtCommunitySetName string `mapstructure:"ext-community-set-name" json:"ext-community-set-name,omitempty"`
 	// original -> gobgp:ext-community
-	ExtCommunityList []string `mapstructure:"ext-community-list"`
+	ExtCommunityList []string `mapstructure:"ext-community-list" json:"ext-community-list,omitempty"`
 }
 
 func (lhs *ExtCommunitySet) Equal(rhs *ExtCommunitySet) bool {
@@ -4498,9 +4498,9 @@ func (lhs *ExtCommunitySet) Equal(rhs *ExtCommunitySet) bool {
 //struct for container bgp-pol:community-set
 type CommunitySet struct {
 	// original -> bgp-pol:community-set-name
-	CommunitySetName string `mapstructure:"community-set-name"`
+	CommunitySetName string `mapstructure:"community-set-name" json:"community-set-name,omitempty"`
 	// original -> gobgp:community
-	CommunityList []string `mapstructure:"community-list"`
+	CommunityList []string `mapstructure:"community-list" json:"community-list,omitempty"`
 }
 
 func (lhs *CommunitySet) Equal(rhs *CommunitySet) bool {
@@ -4524,13 +4524,13 @@ func (lhs *CommunitySet) Equal(rhs *CommunitySet) bool {
 //struct for container bgp-pol:bgp-defined-sets
 type BgpDefinedSets struct {
 	// original -> bgp-pol:community-sets
-	CommunitySets []CommunitySet `mapstructure:"community-sets"`
+	CommunitySets []CommunitySet `mapstructure:"community-sets" json:"community-sets,omitempty"`
 	// original -> bgp-pol:ext-community-sets
-	ExtCommunitySets []ExtCommunitySet `mapstructure:"ext-community-sets"`
+	ExtCommunitySets []ExtCommunitySet `mapstructure:"ext-community-sets" json:"ext-community-sets,omitempty"`
 	// original -> bgp-pol:as-path-sets
-	AsPathSets []AsPathSet `mapstructure:"as-path-sets"`
+	AsPathSets []AsPathSet `mapstructure:"as-path-sets" json:"as-path-sets,omitempty"`
 	// original -> gobgp:large-community-sets
-	LargeCommunitySets []LargeCommunitySet `mapstructure:"large-community-sets"`
+	LargeCommunitySets []LargeCommunitySet `mapstructure:"large-community-sets" json:"large-community-sets,omitempty"`
 }
 
 func (lhs *BgpDefinedSets) Equal(rhs *BgpDefinedSets) bool {
@@ -4607,7 +4607,7 @@ func (lhs *BgpDefinedSets) Equal(rhs *BgpDefinedSets) bool {
 //struct for container rpol:tag
 type Tag struct {
 	// original -> rpol:value
-	Value TagType `mapstructure:"value"`
+	Value TagType `mapstructure:"value" json:"value,omitempty"`
 }
 
 func (lhs *Tag) Equal(rhs *Tag) bool {
@@ -4623,9 +4623,9 @@ func (lhs *Tag) Equal(rhs *Tag) bool {
 //struct for container rpol:tag-set
 type TagSet struct {
 	// original -> rpol:tag-set-name
-	TagSetName string `mapstructure:"tag-set-name"`
+	TagSetName string `mapstructure:"tag-set-name" json:"tag-set-name,omitempty"`
 	// original -> rpol:tag
-	TagList []Tag `mapstructure:"tag-list"`
+	TagList []Tag `mapstructure:"tag-list" json:"tag-list,omitempty"`
 }
 
 func (lhs *TagSet) Equal(rhs *TagSet) bool {
@@ -4657,10 +4657,10 @@ func (lhs *TagSet) Equal(rhs *TagSet) bool {
 //struct for container rpol:neighbor-set
 type NeighborSet struct {
 	// original -> rpol:neighbor-set-name
-	NeighborSetName string `mapstructure:"neighbor-set-name"`
+	NeighborSetName string `mapstructure:"neighbor-set-name" json:"neighbor-set-name,omitempty"`
 	// original -> gobgp:neighbor-info
 	// original type is list of inet:ip-address
-	NeighborInfoList []string `mapstructure:"neighbor-info-list"`
+	NeighborInfoList []string `mapstructure:"neighbor-info-list" json:"neighbor-info-list,omitempty"`
 }
 
 func (lhs *NeighborSet) Equal(rhs *NeighborSet) bool {
@@ -4685,9 +4685,9 @@ func (lhs *NeighborSet) Equal(rhs *NeighborSet) bool {
 type Prefix struct {
 	// original -> rpol:ip-prefix
 	//rpol:ip-prefix's original type is inet:ip-prefix
-	IpPrefix string `mapstructure:"ip-prefix"`
+	IpPrefix string `mapstructure:"ip-prefix" json:"ip-prefix,omitempty"`
 	// original -> rpol:masklength-range
-	MasklengthRange string `mapstructure:"masklength-range"`
+	MasklengthRange string `mapstructure:"masklength-range" json:"masklength-range,omitempty"`
 }
 
 func (lhs *Prefix) Equal(rhs *Prefix) bool {
@@ -4706,9 +4706,9 @@ func (lhs *Prefix) Equal(rhs *Prefix) bool {
 //struct for container rpol:prefix-set
 type PrefixSet struct {
 	// original -> rpol:prefix-set-name
-	PrefixSetName string `mapstructure:"prefix-set-name"`
+	PrefixSetName string `mapstructure:"prefix-set-name" json:"prefix-set-name,omitempty"`
 	// original -> rpol:prefix
-	PrefixList []Prefix `mapstructure:"prefix-list"`
+	PrefixList []Prefix `mapstructure:"prefix-list" json:"prefix-list,omitempty"`
 }
 
 func (lhs *PrefixSet) Equal(rhs *PrefixSet) bool {
@@ -4740,13 +4740,13 @@ func (lhs *PrefixSet) Equal(rhs *PrefixSet) bool {
 //struct for container rpol:defined-sets
 type DefinedSets struct {
 	// original -> rpol:prefix-sets
-	PrefixSets []PrefixSet `mapstructure:"prefix-sets"`
+	PrefixSets []PrefixSet `mapstructure:"prefix-sets" json:"prefix-sets,omitempty"`
 	// original -> rpol:neighbor-sets
-	NeighborSets []NeighborSet `mapstructure:"neighbor-sets"`
+	NeighborSets []NeighborSet `mapstructure:"neighbor-sets" json:"neighbor-sets,omitempty"`
 	// original -> rpol:tag-sets
-	TagSets []TagSet `mapstructure:"tag-sets"`
+	TagSets []TagSet `mapstructure:"tag-sets" json:"tag-sets,omitempty"`
 	// original -> bgp-pol:bgp-defined-sets
-	BgpDefinedSets BgpDefinedSets `mapstructure:"bgp-defined-sets"`
+	BgpDefinedSets BgpDefinedSets `mapstructure:"bgp-defined-sets" json:"bgp-defined-sets,omitempty"`
 }
 
 func (lhs *DefinedSets) Equal(rhs *DefinedSets) bool {
@@ -4810,9 +4810,9 @@ func (lhs *DefinedSets) Equal(rhs *DefinedSets) bool {
 //struct for container rpol:routing-policy
 type RoutingPolicy struct {
 	// original -> rpol:defined-sets
-	DefinedSets DefinedSets `mapstructure:"defined-sets"`
+	DefinedSets DefinedSets `mapstructure:"defined-sets" json:"defined-sets,omitempty"`
 	// original -> rpol:policy-definitions
-	PolicyDefinitions []PolicyDefinition `mapstructure:"policy-definitions"`
+	PolicyDefinitions []PolicyDefinition `mapstructure:"policy-definitions" json:"policy-definitions,omitempty"`
 }
 
 func (lhs *RoutingPolicy) Equal(rhs *RoutingPolicy) bool {
