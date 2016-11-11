@@ -91,7 +91,7 @@ class GoBGPTestBase(unittest.TestCase):
 
         time.sleep(1)
 
-        num = g2.get_neighbor(g1)['info']['messages']['received']['UPDATE']
+        num = g2.get_neighbor(g1)['state']['messages']['received']['update']
 
         ps0 = {'prefix-set-name': 'ps0', 'prefix-list': [p1]}
         g1.set_prefix_set(ps0)
@@ -101,14 +101,14 @@ class GoBGPTestBase(unittest.TestCase):
 
         time.sleep(1)
 
-        num2 = g2.get_neighbor(g1)['info']['messages']['received']['UPDATE']
+        num2 = g2.get_neighbor(g1)['state']['messages']['received']['update']
         self.assertTrue(num+1 == num2)
 
         g3.softreset(g1, type='out')
 
         time.sleep(1)
 
-        num3 = g2.get_neighbor(g1)['info']['messages']['received']['UPDATE']
+        num3 = g2.get_neighbor(g1)['state']['messages']['received']['update']
         self.assertTrue(num2 == num3)
 
     def test_03_softresetin_test2(self):
@@ -118,13 +118,13 @@ class GoBGPTestBase(unittest.TestCase):
         g2.add_route('10.0.10.0/24')
         time.sleep(1)
 
-        num = g2.get_neighbor(g1)['info']['messages']['received']['UPDATE']
+        num = g2.get_neighbor(g1)['state']['messages']['received']['update']
         time.sleep(3)
 
         g1.local('gobgp n all softresetin')
         time.sleep(3)
 
-        num1 = g2.get_neighbor(g1)['info']['messages']['received']['UPDATE']
+        num1 = g2.get_neighbor(g1)['state']['messages']['received']['update']
 
         self.assertTrue(num == num1)
 

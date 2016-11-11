@@ -18,22 +18,20 @@ package cmd
 import (
 	"encoding/json"
 	"fmt"
-	api "github.com/osrg/gobgp/api"
 	"github.com/osrg/gobgp/packet/bgp"
 	"github.com/spf13/cobra"
-	"golang.org/x/net/context"
 	"sort"
 	"strconv"
 	"strings"
 )
 
 func getVrfs() (vrfs, error) {
-	rsp, err := client.GetVrf(context.Background(), &api.GetVrfRequest{})
+	ret, err := client.GetVRF()
 	if err != nil {
 		return nil, err
 	}
-	sort.Sort(vrfs(rsp.Vrfs))
-	return rsp.Vrfs, nil
+	sort.Sort(vrfs(ret))
+	return ret, nil
 }
 
 func showVrfs() error {
@@ -56,16 +54,12 @@ func showVrfs() error {
 	lines := make([][]string, 0, len(vrfs))
 	for _, v := range vrfs {
 		name := v.Name
-		rd := bgp.GetRouteDistinguisher(v.Rd).String()
+		rd := v.Rd.String()
 
-		f := func(bufs [][]byte) (string, error) {
-			ret := make([]string, 0, len(bufs))
-			for _, rt := range bufs {
-				r, err := bgp.ParseExtended(rt)
-				if err != nil {
-					return "", err
-				}
-				ret = append(ret, r.String())
+		f := func(rts []bgp.ExtendedCommunityInterface) (string, error) {
+			ret := make([]string, 0, len(rts))
+			for _, rt := range rts {
+				ret = append(ret, rt.String())
 			}
 			return strings.Join(ret, ", "), nil
 		}
@@ -107,8 +101,8 @@ func modVrf(typ string, args []string) error {
 			return err
 		}
 		cur := ""
-		importRt := make([][]byte, 0)
-		exportRt := make([][]byte, 0)
+		importRt := make([]bgp.ExtendedCommunityInterface, 0)
+		exportRt := make([]bgp.ExtendedCommunityInterface, 0)
 		for _, elem := range a["rt"] {
 			if elem == "import" || elem == "export" || elem == "both" {
 				cur = elem
@@ -118,18 +112,14 @@ func modVrf(typ string, args []string) error {
 			if err != nil {
 				return err
 			}
-			buf, err := rt.Serialize()
-			if err != nil {
-				return err
-			}
 			switch cur {
 			case "import":
-				importRt = append(importRt, buf)
+				importRt = append(importRt, rt)
 			case "export":
-				exportRt = append(exportRt, buf)
+				exportRt = append(exportRt, rt)
 			case "both":
-				importRt = append(importRt, buf)
-				exportRt = append(exportRt, buf)
+				importRt = append(importRt, rt)
+				exportRt = append(exportRt, rt)
 			default:
 				return fmt.Errorf("Usage: gobgp vrf add <vrf name> rd <rd> rt { import | export | both } <rt>...")
 			}
@@ -141,27 +131,12 @@ func modVrf(typ string, args []string) error {
 				return err
 			}
 		}
-		buf, _ := rd.Serialize()
-		arg := &api.AddVrfRequest{
-			Vrf: &api.Vrf{
-				Name:     name,
-				Rd:       buf,
-				Id:       uint32(vrfId),
-				ImportRt: importRt,
-				ExportRt: exportRt,
-			},
-		}
-		_, err = client.AddVrf(context.Background(), arg)
+		err = client.AddVRF(name, vrfId, rd, importRt, exportRt)
 	case CMD_DEL:
 		if len(args) != 1 {
 			return fmt.Errorf("Usage: gobgp vrf del <vrf name>")
 		}
-		arg := &api.DeleteVrfRequest{
-			Vrf: &api.Vrf{
-				Name: args[0],
-			},
-		}
-		_, err = client.DeleteVrf(context.Background(), arg)
+		err = client.DeleteVRF(args[0])
 	}
 	return err
 }
@@ -187,7 +162,7 @@ func NewVrfCmd() *cobra.Command {
 		cmd := &cobra.Command{
 			Use: v,
 			Run: func(cmd *cobra.Command, args []string) {
-				err := modPath(api.Resource_VRF, args[len(args)-1], cmd.Use, args[:len(args)-1])
+				err := modPath(CMD_VRF, args[len(args)-1], cmd.Use, args[:len(args)-1])
 				if err != nil {
 					exitWithError(err)
 				}

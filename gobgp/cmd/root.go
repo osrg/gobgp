@@ -17,7 +17,7 @@ package cmd
 
 import (
 	"fmt"
-	api "github.com/osrg/gobgp/api"
+	cli "github.com/osrg/gobgp/client"
 	"github.com/spf13/cobra"
 	"net/http"
 	_ "net/http/pprof"
@@ -35,7 +35,7 @@ var globalOpts struct {
 }
 
 var cmds []string
-var client api.GobgpApiClient
+var client *cli.GoBGPClient
 
 func NewRootCmd() *cobra.Command {
 	cobra.EnablePrefixMatching = true
@@ -51,8 +51,7 @@ func NewRootCmd() *cobra.Command {
 			}
 
 			if !globalOpts.GenCmpl {
-				conn := connGrpc()
-				client = api.NewGobgpApiClient(conn)
+				client = newClient()
 			}
 		},
 		Run: func(cmd *cobra.Command, args []string) {
@@ -60,6 +59,11 @@ func NewRootCmd() *cobra.Command {
 				cmd.GenBashCompletionFile(globalOpts.BashCmplFile)
 			} else {
 				cmd.HelpFunc()(cmd, args)
+			}
+		},
+		PersistentPostRun: func(cmd *cobra.Command, args []string) {
+			if client != nil {
+				client.Close()
 			}
 		},
 	}

@@ -19,15 +19,16 @@ import (
 	"bytes"
 	"encoding/json"
 	"fmt"
-	"github.com/osrg/gobgp/api"
-	"github.com/osrg/gobgp/packet/bgp"
-	"google.golang.org/grpc"
 	"net"
 	"os"
 	"sort"
 	"strconv"
 	"strings"
-	"time"
+
+	cli "github.com/osrg/gobgp/client"
+	"github.com/osrg/gobgp/config"
+	"github.com/osrg/gobgp/packet/bgp"
+	"github.com/osrg/gobgp/table"
 )
 
 const (
@@ -162,78 +163,19 @@ func extractReserved(args, keys []string) map[string][]string {
 	return m
 }
 
-type PeerConf struct {
-	RemoteIp          string                             `json:"remote_ip,omitempty"`
-	Id                net.IP                             `json:"id,omitempty"`
-	RemoteAs          uint32                             `json:"remote_as,omitempty"`
-	LocalAs           uint32                             `json:"local-as,omitempty"`
-	RemoteCap         []bgp.ParameterCapabilityInterface `json:"remote_cap,omitempty"`
-	LocalCap          []bgp.ParameterCapabilityInterface `json:"local_cap,omitempty"`
-	Holdtime          uint32                             `json:"holdtime,omitempty"`
-	KeepaliveInterval uint32                             `json:"keepalive_interval,omitempty"`
-	PrefixLimits      []*gobgpapi.PrefixLimit            `json:"prefix_limits,omitempty"`
-	LocalIp           string                             `json:"local_ip,omitempty"`
-	Interface         string                             `json:"interface,omitempty"`
-	Description       string                             `json:"description,omitempty"`
-	VRF               string                             `json:"vrf,omitempty"`
+type neighbors []*config.Neighbor
+
+func (n neighbors) Len() int {
+	return len(n)
 }
 
-type Peer struct {
-	Conf           PeerConf                 `json:"conf,omitempty"`
-	Info           *gobgpapi.PeerState      `json:"info,omitempty"`
-	Timers         *gobgpapi.Timers         `json:"timers,omitempty"`
-	RouteReflector *gobgpapi.RouteReflector `json:"route_reflector,omitempty"`
-	RouteServer    *gobgpapi.RouteServer    `json:"route_server,omitempty"`
+func (n neighbors) Swap(i, j int) {
+	n[i], n[j] = n[j], n[i]
 }
 
-func ApiStruct2Peer(p *gobgpapi.Peer) *Peer {
-	localCaps := capabilities{}
-	remoteCaps := capabilities{}
-	for _, buf := range p.Conf.LocalCap {
-		c, _ := bgp.DecodeCapability(buf)
-		localCaps = append(localCaps, c)
-	}
-	for _, buf := range p.Conf.RemoteCap {
-		c, _ := bgp.DecodeCapability(buf)
-		remoteCaps = append(remoteCaps, c)
-	}
-	remoteIp, _ := net.ResolveIPAddr("ip", p.Conf.NeighborAddress)
-	localIp, _ := net.ResolveIPAddr("ip", p.Conf.LocalAddress)
-	conf := PeerConf{
-		RemoteIp:     remoteIp.String(),
-		Id:           net.ParseIP(p.Conf.Id),
-		RemoteAs:     p.Conf.PeerAs,
-		LocalAs:      p.Conf.LocalAs,
-		RemoteCap:    remoteCaps,
-		LocalCap:     localCaps,
-		PrefixLimits: p.Conf.PrefixLimits,
-		LocalIp:      localIp.String(),
-		Interface:    p.Conf.NeighborInterface,
-		Description:  p.Conf.Description,
-		VRF:          p.Conf.Vrf,
-	}
-	return &Peer{
-		Conf:           conf,
-		Info:           p.Info,
-		Timers:         p.Timers,
-		RouteReflector: p.RouteReflector,
-		RouteServer:    p.RouteServer,
-	}
-}
-
-type peers []*Peer
-
-func (p peers) Len() int {
-	return len(p)
-}
-
-func (p peers) Swap(i, j int) {
-	p[i], p[j] = p[j], p[i]
-}
-
-func (p peers) Less(i, j int) bool {
-	p1 := p[i].Conf.RemoteIp
-	p2 := p[j].Conf.RemoteIp
+func (n neighbors) Less(i, j int) bool {
+	p1 := n[i].Config.NeighborAddress
+	p2 := n[j].Config.NeighborAddress
 	p1Isv4 := !strings.Contains(p1, ":")
 	p2Isv4 := !strings.Contains(p2, ":")
 	if p1Isv4 != p2Isv4 {
@@ -265,51 +207,7 @@ func (c capabilities) Less(i, j int) bool {
 	return c[i].Code() < c[j].Code()
 }
 
-type sets []*gobgpapi.DefinedSet
-
-func (n sets) Len() int {
-	return len(n)
-}
-
-func (n sets) Swap(i, j int) {
-	n[i], n[j] = n[j], n[i]
-}
-
-func (n sets) Less(i, j int) bool {
-	return n[i].Name < n[j].Name
-}
-
-type policies []*gobgpapi.Policy
-
-func (p policies) Len() int {
-	return len(p)
-}
-
-func (p policies) Swap(i, j int) {
-	p[i], p[j] = p[j], p[i]
-}
-
-func (p policies) Less(i, j int) bool {
-	return p[i].Name < p[j].Name
-}
-
-type roas []*gobgpapi.Roa
-
-func (r roas) Len() int {
-	return len(r)
-}
-
-func (r roas) Swap(i, j int) {
-	r[i], r[j] = r[j], r[i]
-}
-
-func (r roas) Less(i, j int) bool {
-	strings := sort.StringSlice{cidr2prefix(fmt.Sprintf("%s/%d", r[i].Prefix, r[i].Prefixlen)),
-		cidr2prefix(fmt.Sprintf("%s/%d", r[j].Prefix, r[j].Prefixlen))}
-	return strings.Less(0, 1)
-}
-
-type vrfs []*gobgpapi.Vrf
+type vrfs []*table.Vrf
 
 func (v vrfs) Len() int {
 	return len(v)
@@ -323,14 +221,13 @@ func (v vrfs) Less(i, j int) bool {
 	return v[i].Name < v[j].Name
 }
 
-func connGrpc() *grpc.ClientConn {
-	timeout := grpc.WithTimeout(time.Second)
+func newClient() *cli.GoBGPClient {
 	target := net.JoinHostPort(globalOpts.Host, strconv.Itoa(globalOpts.Port))
-	conn, err := grpc.Dial(target, timeout, grpc.WithBlock(), grpc.WithInsecure())
+	client, err := cli.NewGoBGPClient(target)
 	if err != nil {
 		exitWithError(err)
 	}
-	return conn
+	return client
 }
 
 func addr2AddressFamily(a net.IP) bgp.RouteFamily {

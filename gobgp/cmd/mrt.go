@@ -17,27 +17,17 @@ package cmd
 
 import (
 	"fmt"
-	api "github.com/osrg/gobgp/api"
-	"github.com/osrg/gobgp/packet/bgp"
-	"github.com/osrg/gobgp/packet/mrt"
-	"github.com/osrg/gobgp/table"
-	"github.com/spf13/cobra"
-	"golang.org/x/net/context"
 	"io"
 	"os"
 	"strconv"
 	"time"
+
+	"github.com/osrg/gobgp/packet/mrt"
+	"github.com/osrg/gobgp/table"
+	"github.com/spf13/cobra"
 )
 
-func injectMrt(r string, filename string, count int, skip int, onlyBest bool) error {
-
-	var resource api.Resource
-	switch r {
-	case CMD_GLOBAL:
-		resource = api.Resource_GLOBAL
-	default:
-		return fmt.Errorf("unknown resource type: %s", r)
-	}
+func injectMrt(filename string, count int, skip int, onlyBest bool) error {
 
 	file, err := os.Open(filename)
 	if err != nil {
@@ -46,7 +36,7 @@ func injectMrt(r string, filename string, count int, skip int, onlyBest bool) er
 
 	idx := 0
 
-	ch := make(chan *api.InjectMrtRequest, 1<<20)
+	ch := make(chan []*table.Path, 1<<20)
 
 	go func() {
 
@@ -85,15 +75,10 @@ func injectMrt(r string, filename string, count int, skip int, onlyBest bool) er
 
 			if msg.Header.Type == mrt.TABLE_DUMPv2 {
 				subType := mrt.MRTSubTypeTableDumpv2(msg.Header.SubType)
-				var rf bgp.RouteFamily
 				switch subType {
 				case mrt.PEER_INDEX_TABLE:
 					peers = msg.Body.(*mrt.PeerIndexTable).Peers
 					continue
-				case mrt.RIB_IPV4_UNICAST:
-					rf = bgp.RF_IPv4_UC
-				case mrt.RIB_IPV6_UNICAST:
-					rf = bgp.RF_IPv6_UC
 				default:
 					exitWithError(fmt.Errorf("unsupported subType: %s", subType))
 				}
@@ -105,77 +90,34 @@ func injectMrt(r string, filename string, count int, skip int, onlyBest bool) er
 				rib := msg.Body.(*mrt.Rib)
 				nlri := rib.Prefix
 
-				paths := make([]*api.Path, 0, len(rib.Entries))
+				paths := make([]*table.Path, 0, len(rib.Entries))
 
 				for _, e := range rib.Entries {
 					if len(peers) < int(e.PeerIndex) {
 						exitWithError(fmt.Errorf("invalid peer index: %d (PEER_INDEX_TABLE has only %d peers)\n", e.PeerIndex, len(peers)))
 					}
-
-					if !onlyBest {
-						path := &api.Path{
-							Pattrs:             make([][]byte, 0),
-							NoImplicitWithdraw: true,
-							SourceAsn:          peers[e.PeerIndex].AS,
-							SourceId:           peers[e.PeerIndex].BgpId.String(),
-						}
-
-						if rf == bgp.RF_IPv4_UC {
-							path.Nlri, _ = nlri.Serialize()
-						}
-
-						for _, p := range e.PathAttributes {
-							b, err := p.Serialize()
-							if err != nil {
-								continue
-							}
-							path.Pattrs = append(path.Pattrs, b)
-						}
-
-						paths = append(paths, path)
+					source := &table.PeerInfo{
+						AS: peers[e.PeerIndex].AS,
+						ID: peers[e.PeerIndex].BgpId,
 					}
+					t := time.Unix(int64(e.OriginatedTime), 0)
+					paths = append(paths, table.NewPath(source, nlri, false, e.PathAttributes, t, false))
 				}
-				if onlyBest {
-					paths = func() []*api.Path {
-						dst := table.NewDestination(nlri)
-						pathList := make([]*table.Path, 0, len(rib.Entries))
-						for _, e := range rib.Entries {
-							p := table.NewPath(&table.PeerInfo{AS: peers[e.PeerIndex].AS, ID: peers[e.PeerIndex].BgpId}, nlri, false, e.PathAttributes, time.Unix(int64(e.OriginatedTime), 0), false)
-							dst.AddNewPath(p)
-							pathList = append(pathList, p)
-						}
-						best, _, _ := dst.Calculate([]string{table.GLOBAL_RIB_NAME})
-						for _, p := range pathList {
-							if p == best[table.GLOBAL_RIB_NAME] {
-								nb, _ := nlri.Serialize()
-								return []*api.Path{&api.Path{
-									Nlri:               nb,
-									NoImplicitWithdraw: true,
-									SourceAsn:          p.GetSource().AS,
-									SourceId:           p.GetSource().ID.String(),
-									Pattrs: func() [][]byte {
-										attrs := make([][]byte, 0)
-										for _, a := range p.GetPathAttrs() {
-											if b, e := a.Serialize(); e == nil {
 
-												attrs = append(attrs, b)
-											}
-										}
-										return attrs
-									}(),
-								}}
-							}
-						}
+				if onlyBest {
+					dst := table.NewDestination(nlri)
+					for _, p := range paths {
+						dst.AddNewPath(p)
+					}
+					best, _, _ := dst.Calculate([]string{table.GLOBAL_RIB_NAME})
+					if best[table.GLOBAL_RIB_NAME] == nil {
 						exitWithError(fmt.Errorf("Can't find the best %v", nlri))
-						return []*api.Path{}
-					}()
+					}
+					paths = []*table.Path{best[table.GLOBAL_RIB_NAME]}
 				}
 
 				if idx >= skip {
-					ch <- &api.InjectMrtRequest{
-						Resource: resource,
-						Paths:    paths,
-					}
+					ch <- paths
 				}
 
 				idx += 1
@@ -188,20 +130,19 @@ func injectMrt(r string, filename string, count int, skip int, onlyBest bool) er
 		close(ch)
 	}()
 
-	stream, err := client.InjectMrt(context.Background())
+	stream, err := client.AddPathByStream()
 	if err != nil {
 		return fmt.Errorf("failed to modpath: %s", err)
 	}
 
-	for arg := range ch {
-		err = stream.Send(arg)
+	for paths := range ch {
+		err = stream.Send(paths...)
 		if err != nil {
 			return fmt.Errorf("failed to send: %s", err)
 		}
 	}
 
-	_, err = stream.CloseAndRecv()
-	if err != nil {
+	if err := stream.Close(); err != nil {
 		return fmt.Errorf("failed to send: %s", err)
 	}
 	return nil
@@ -230,7 +171,7 @@ func NewMrtCmd() *cobra.Command {
 					}
 				}
 			}
-			err := injectMrt(CMD_GLOBAL, filename, count, skip, mrtOpts.Best)
+			err := injectMrt(filename, count, skip, mrtOpts.Best)
 			if err != nil {
 				exitWithError(err)
 			}

@@ -211,7 +211,7 @@ class GoBGPContainer(BGPContainer):
         return json.loads(self.local(cmd, capture=True))
 
     def get_neighbor_state(self, peer):
-        return self.get_neighbor(peer)['info']['bgp_state']
+        return self.get_neighbor(peer)['state']['session-state']
 
     def clear_policy(self):
         self.policies = {}

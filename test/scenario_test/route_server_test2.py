@@ -85,7 +85,7 @@ class GoBGPTestBase(unittest.TestCase):
     def test_04_withdraw_path(self):
         self.clients['g2'].local('gobgp global rib del 10.0.0.0/24')
         time.sleep(1)
-        info = self.gobgp.get_neighbor(self.clients['g2'])['info']
+        info = self.gobgp.get_neighbor(self.clients['g2'])['state']['adj-table']
         self.assertTrue(info['advertised'] == 1)
         self.assertTrue('accepted' not in info) # means info['accepted'] == 0
         self.assertTrue('received' not in info) # means info['received'] == 0

@@ -17,10 +17,9 @@ package cmd
 
 import (
 	"fmt"
-	api "github.com/osrg/gobgp/api"
+	"github.com/osrg/gobgp/config"
 	"github.com/osrg/gobgp/packet/bmp"
 	"github.com/spf13/cobra"
-	"golang.org/x/net/context"
 	"net"
 	"strconv"
 )
@@ -47,26 +46,24 @@ func modBmpServer(cmdType string, args []string) error {
 	var err error
 	switch cmdType {
 	case CMD_ADD:
-		policyType := api.AddBmpRequest_PRE
+		policyType := config.BMP_ROUTE_MONITORING_POLICY_TYPE_PRE_POLICY
 		if len(args) > 1 {
 			switch args[1] {
-			case "pre":
-				policyType = api.AddBmpRequest_PRE
 			case "post":
-				policyType = api.AddBmpRequest_POST
+				policyType = config.BMP_ROUTE_MONITORING_POLICY_TYPE_POST_POLICY
 			case "both":
-				policyType = api.AddBmpRequest_BOTH
+				policyType = config.BMP_ROUTE_MONITORING_POLICY_TYPE_BOTH
 			default:
 				return fmt.Errorf("invalid bmp policy type. valid type is {pre|post|both}")
 			}
 		}
-		_, err = client.AddBmp(context.Background(), &api.AddBmpRequest{
+		err = client.AddBMP(&config.BmpServerConfig{
 			Address: address,
 			Port:    port,
-			Type:    policyType,
+			RouteMonitoringPolicy: policyType,
 		})
 	case CMD_DEL:
-		_, err = client.DeleteBmp(context.Background(), &api.DeleteBmpRequest{
+		err = client.DeleteBMP(&config.BmpServerConfig{
 			Address: address,
 			Port:    port,
 		})

@@ -18,16 +18,17 @@ package cmd
 import (
 	"encoding/json"
 	"fmt"
-	api "github.com/osrg/gobgp/api"
-	"github.com/osrg/gobgp/packet/bgp"
-	"github.com/osrg/gobgp/table"
-	"github.com/spf13/cobra"
-	"golang.org/x/net/context"
 	"net"
 	"regexp"
 	"sort"
 	"strconv"
 	"strings"
+	"time"
+
+	"github.com/osrg/gobgp/config"
+	"github.com/osrg/gobgp/packet/bgp"
+	"github.com/osrg/gobgp/table"
+	"github.com/spf13/cobra"
 )
 
 type ExtCommType int
@@ -655,16 +656,12 @@ func extractRouteDistinguisher(args []string) ([]string, bgp.RouteDistinguisherI
 	return args, nil, nil
 }
 
-func ParsePath(rf bgp.RouteFamily, args []string) (*api.Path, error) {
+func ParsePath(rf bgp.RouteFamily, args []string) (*table.Path, error) {
 	var nlri bgp.AddrPrefixInterface
 	var rd bgp.RouteDistinguisherInterface
 	var extcomms []string
 	var err error
 	attrs := table.PathAttrs(make([]bgp.PathAttributeInterface, 0, 1))
-
-	path := &api.Path{
-		Pattrs: make([][]byte, 0),
-	}
 
 	fns := []func([]string) ([]string, bgp.PathAttributeInterface, error){
 		extractOrigin,
@@ -801,7 +798,6 @@ func ParsePath(rf bgp.RouteFamily, args []string) (*api.Path, error) {
 	}
 
 	if rf == bgp.RF_IPv4_UC {
-		path.Nlri, _ = nlri.Serialize()
 		attrs = append(attrs, bgp.NewPathAttributeNextHop(nexthop))
 	} else {
 		mpreach := bgp.NewPathAttributeMpReachNLRI(nexthop, []bgp.AddrPrefixInterface{nlri})
@@ -819,21 +815,14 @@ func ParsePath(rf bgp.RouteFamily, args []string) (*api.Path, error) {
 
 	sort.Sort(attrs)
 
-	for _, attr := range attrs {
-		buf, err := attr.Serialize()
-		if err != nil {
-			return nil, err
-		}
-		path.Pattrs = append(path.Pattrs, buf)
-	}
-	return path, nil
+	return table.NewPath(nil, nlri, false, attrs, time.Now(), false), nil
 }
 
 func showGlobalRib(args []string) error {
 	return showNeighborRib(CMD_GLOBAL, "", args)
 }
 
-func modPath(resource api.Resource, name, modtype string, args []string) error {
+func modPath(resource string, name, modtype string, args []string) error {
 	rf, err := checkAddressFamily(bgp.RF_IPv4_UC)
 	if err != nil {
 		return err
@@ -842,7 +831,7 @@ func modPath(resource api.Resource, name, modtype string, args []string) error {
 	path, err := ParsePath(rf, args)
 	if err != nil {
 		cmdstr := "global"
-		if resource == api.Resource_VRF {
+		if resource == CMD_VRF {
 			cmdstr = fmt.Sprintf("vrf %s", name)
 		}
 
@@ -929,40 +918,37 @@ usage: %s rib %s%%smatch <MATCH_EXPR> then <THEN_EXPR> -a %%s
 	}
 
 	if modtype == CMD_ADD {
-		arg := &api.AddPathRequest{
-			Resource: resource,
-			VrfId:    name,
-			Path:     path,
+		if resource == CMD_VRF {
+			_, err = client.AddVRFPath(name, []*table.Path{path})
+		} else {
+			_, err = client.AddPath([]*table.Path{path})
 		}
-		_, err = client.AddPath(context.Background(), arg)
 	} else {
-		arg := &api.DeletePathRequest{
-			Resource: resource,
-			VrfId:    name,
-			Path:     path,
+		if resource == CMD_VRF {
+			err = client.DeleteVRFPath(name, []*table.Path{path})
+		} else {
+			err = client.DeletePath([]*table.Path{path})
 		}
-		_, err = client.DeletePath(context.Background(), arg)
 	}
 	return err
 }
 
 func showGlobalConfig(args []string) error {
-	rsp, err := client.GetServer(context.Background(), &api.GetServerRequest{})
+	g, err := client.GetServer()
 	if err != nil {
 		return err
 	}
-	g := rsp.Global
 	if globalOpts.Json {
 		j, _ := json.Marshal(g)
 		fmt.Println(string(j))
 		return nil
 	}
-	fmt.Println("AS:       ", g.As)
-	fmt.Println("Router-ID:", g.RouterId)
-	if len(g.ListenAddresses) > 0 {
-		fmt.Printf("Listening Port: %d, Addresses: %s\n", g.ListenPort, strings.Join(g.ListenAddresses, ", "))
+	fmt.Println("AS:       ", g.Config.As)
+	fmt.Println("Router-ID:", g.Config.RouterId)
+	if len(g.Config.LocalAddressList) > 0 {
+		fmt.Printf("Listening Port: %d, Addresses: %s\n", g.Config.Port, strings.Join(g.Config.LocalAddressList, ", "))
 	}
-	if g.UseMultiplePaths {
+	if g.UseMultiplePaths.Config.Enabled {
 		fmt.Printf("Multipath: enabled")
 	}
 	return nil
@@ -994,16 +980,19 @@ func modGlobalConfig(args []string) error {
 	if _, ok := m["use-multipath"]; ok {
 		useMultipath = true
 	}
-	_, err = client.StartServer(context.Background(), &api.StartServerRequest{
-		Global: &api.Global{
+	return client.StartServer(&config.Global{
+		Config: config.GlobalConfig{
 			As:               uint32(asn),
 			RouterId:         id.String(),
-			ListenPort:       int32(port),
-			ListenAddresses:  m["listen-addresses"],
-			UseMultiplePaths: useMultipath,
+			Port:             int32(port),
+			LocalAddressList: m["listen-addresses"],
+		},
+		UseMultiplePaths: config.UseMultiplePaths{
+			Config: config.UseMultiplePathsConfig{
+				Enabled: useMultipath,
+			},
 		},
 	})
-	return err
 }
 
 func NewGlobalCmd() *cobra.Command {
@@ -1037,7 +1026,7 @@ func NewGlobalCmd() *cobra.Command {
 		cmd := &cobra.Command{
 			Use: v,
 			Run: func(cmd *cobra.Command, args []string) {
-				err := modPath(api.Resource_GLOBAL, "", cmd.Use, args)
+				err := modPath(CMD_GLOBAL, "", cmd.Use, args)
 				if err != nil {
 					exitWithError(err)
 				}
@@ -1053,12 +1042,7 @@ func NewGlobalCmd() *cobra.Command {
 					if err != nil {
 						exitWithError(err)
 					}
-					arg := &api.DeletePathRequest{
-						Resource: api.Resource_GLOBAL,
-						Family:   uint32(family),
-					}
-					_, err = client.DeletePath(context.Background(), arg)
-					if err != nil {
+					if err = client.DeletePathByFamily(family); err != nil {
 						exitWithError(err)
 					}
 				},
@@ -1124,8 +1108,7 @@ func NewGlobalCmd() *cobra.Command {
 	allCmd := &cobra.Command{
 		Use: CMD_ALL,
 		Run: func(cmd *cobra.Command, args []string) {
-			_, err := client.StopServer(context.Background(), &api.StopServerRequest{})
-			if err != nil {
+			if err := client.StopServer(); err != nil {
 				exitWithError(err)
 			}
 		},

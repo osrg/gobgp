@@ -42,6 +42,10 @@ type ipPrefix struct {
 	Length uint8
 }
 
+func (p *ipPrefix) String() string {
+	return fmt.Sprintf("%s/%d", p.Prefix, p.Length)
+}
+
 type roaBucket struct {
 	Prefix  *ipPrefix
 	entries []*ROA

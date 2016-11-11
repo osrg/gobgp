@@ -18,12 +18,10 @@ package cmd
 import (
 	"encoding/json"
 	"fmt"
-	api "github.com/osrg/gobgp/api"
 	"github.com/osrg/gobgp/config"
 	"github.com/osrg/gobgp/packet/bgp"
 	"github.com/osrg/gobgp/table"
 	"github.com/spf13/cobra"
-	"golang.org/x/net/context"
 	"net"
 	"sort"
 	"strconv"
@@ -31,16 +29,16 @@ import (
 	"time"
 )
 
-func getNeighbors(vrf string) (peers, error) {
-	r, e := client.GetNeighbor(context.Background(), &api.GetNeighborRequest{})
+func getNeighbors(vrf string) (neighbors, error) {
+	ns, e := client.GetNeighbor()
 	if e != nil {
 		fmt.Println(e)
 		return nil, e
 	}
-	m := peers{}
-	for _, p := range r.Peers {
+	var m neighbors
+	for _, n := range ns {
 		if neighborsOpts.Transport != "" {
-			addr, _ := net.ResolveIPAddr("ip", p.Conf.NeighborAddress)
+			addr, _ := net.ResolveIPAddr("ip", n.Config.NeighborAddress)
 			if addr.IP.To4() != nil {
 				if neighborsOpts.Transport != "ipv4" {
 					continue
@@ -51,21 +49,21 @@ func getNeighbors(vrf string) (peers, error) {
 				}
 			}
 		}
-		if vrf != "" && p.Conf.Vrf != vrf {
+		if vrf != "" && n.Config.Vrf != vrf {
 			continue
 		}
-		m = append(m, ApiStruct2Peer(p))
+		m = append(m, n)
 	}
 	return m, nil
 }
 
-func getNeighbor(name string) (*Peer, error) {
+func getNeighbor(name string) (*config.Neighbor, error) {
 	l, e := getNeighbors("")
 	if e != nil {
 		return nil, e
 	}
 	for _, p := range l {
-		if p.Conf.RemoteIp == name || p.Conf.Interface == name {
+		if p.Config.NeighborAddress == name || p.Config.NeighborAddress == name {
 			return p, nil
 		}
 	}
@@ -85,7 +83,7 @@ func showNeighbors(vrf string) error {
 
 	if globalOpts.Quiet {
 		for _, p := range m {
-			fmt.Println(p.Conf.RemoteIp)
+			fmt.Println(p.Config.NeighborAddress)
 		}
 		return nil
 	}
@@ -97,20 +95,20 @@ func showNeighbors(vrf string) error {
 	sort.Sort(m)
 
 	now := time.Now()
-	for _, p := range m {
-		if i := len(p.Conf.Interface); i > maxaddrlen {
+	for _, n := range m {
+		if i := len(n.Config.NeighborInterface); i > maxaddrlen {
 			maxaddrlen = i
-		} else if j := len(p.Conf.RemoteIp); j > maxaddrlen {
+		} else if j := len(n.Config.NeighborAddress); j > maxaddrlen {
 			maxaddrlen = j
 		}
-		if len(fmt.Sprint(p.Conf.RemoteAs)) > maxaslen {
-			maxaslen = len(fmt.Sprint(p.Conf.RemoteAs))
+		if len(fmt.Sprint(n.Config.PeerAs)) > maxaslen {
+			maxaslen = len(fmt.Sprint(n.Config.PeerAs))
 		}
 		timeStr := "never"
-		if p.Timers.State.Uptime != 0 {
-			t := int64(p.Timers.State.Downtime)
-			if p.Info.BgpState == string(config.SESSION_STATE_ESTABLISHED) {
-				t = int64(p.Timers.State.Uptime)
+		if n.Timers.State.Uptime != 0 {
+			t := int64(n.Timers.State.Downtime)
+			if n.State.SessionState == config.SESSION_STATE_ESTABLISHED {
+				t = int64(n.Timers.State.Uptime)
 			}
 			timeStr = formatTimedelta(int64(now.Sub(time.Unix(int64(t), 0)).Seconds()))
 		}
@@ -123,7 +121,7 @@ func showNeighbors(vrf string) error {
 	format = "%-" + fmt.Sprint(maxaddrlen) + "s" + " %" + fmt.Sprint(maxaslen) + "s" + " %" + fmt.Sprint(maxtimelen) + "s"
 	format += " %-11s |%11s %8s %8s\n"
 	fmt.Printf(format, "Peer", "AS", "Up/Down", "State", "#Advertised", "Received", "Accepted")
-	format_fsm := func(admin, fsm string) string {
+	format_fsm := func(admin string, fsm config.SessionState) string {
 		switch admin {
 		case "ADMIN_STATE_DOWN":
 			return "Idle(Admin)"
@@ -131,7 +129,7 @@ func showNeighbors(vrf string) error {
 			return "Idle(PfxCt)"
 		}
 
-		switch config.SessionState(fsm) {
+		switch fsm {
 		case config.SESSION_STATE_IDLE:
 			return "Idle"
 		case config.SESSION_STATE_CONNECT:
@@ -145,16 +143,16 @@ func showNeighbors(vrf string) error {
 		case config.SESSION_STATE_ESTABLISHED:
 			return "Establ"
 		default:
-			return fsm
+			return string(fsm)
 		}
 	}
 
-	for i, p := range m {
-		neigh := p.Conf.RemoteIp
-		if p.Conf.Interface != "" {
-			neigh = p.Conf.Interface
+	for i, n := range m {
+		neigh := n.Config.NeighborAddress
+		if n.Config.NeighborInterface != "" {
+			neigh = n.Config.NeighborInterface
 		}
-		fmt.Printf(format, neigh, fmt.Sprint(p.Conf.RemoteAs), timedelta[i], format_fsm(p.Info.AdminState, p.Info.BgpState), fmt.Sprint(p.Info.Advertised), fmt.Sprint(p.Info.Received), fmt.Sprint(p.Info.Accepted))
+		fmt.Printf(format, neigh, fmt.Sprint(n.Config.PeerAs), timedelta[i], format_fsm(n.State.AdminState, n.State.SessionState), fmt.Sprint(n.State.AdjTable.Advertised), fmt.Sprint(n.State.AdjTable.Received), fmt.Sprint(n.State.AdjTable.Accepted))
 	}
 
 	return nil
@@ -171,23 +169,23 @@ func showNeighbor(args []string) error {
 		return nil
 	}
 
-	fmt.Printf("BGP neighbor is %s, remote AS %d", p.Conf.RemoteIp, p.Conf.RemoteAs)
+	fmt.Printf("BGP neighbor is %s, remote AS %d", p.Config.NeighborAddress, p.Config.PeerAs)
 
-	if p.RouteReflector != nil && p.RouteReflector.RouteReflectorClient {
+	if p.RouteReflector.Config.RouteReflectorClient {
 		fmt.Printf(", route-reflector-client\n")
-	} else if p.RouteServer != nil && p.RouteServer.RouteServerClient {
+	} else if p.RouteServer.Config.RouteServerClient {
 		fmt.Printf(", route-server-client\n")
 	} else {
 		fmt.Printf("\n")
 	}
 
 	id := "unknown"
-	if p.Conf.Id != nil {
-		id = p.Conf.Id.String()
+	if p.State.RemoteRouterId != "" {
+		id = p.State.RemoteRouterId
 	}
 	fmt.Printf("  BGP version 4, remote router ID %s\n", id)
-	fmt.Printf("  BGP state = %s, up for %s\n", p.Info.BgpState, formatTimedelta(int64(p.Timers.State.Uptime)-time.Now().Unix()))
-	fmt.Printf("  BGP OutQ = %d, Flops = %d\n", p.Info.OutQ, p.Info.Flops)
+	fmt.Printf("  BGP state = %s, up for %s\n", p.State.SessionState, formatTimedelta(int64(p.Timers.State.Uptime)-time.Now().Unix()))
+	fmt.Printf("  BGP OutQ = %d, Flops = %d\n", p.State.Queues.Output, p.State.Flops)
 	fmt.Printf("  Hold time is %d, keepalive interval is %d seconds\n", p.Timers.State.NegotiatedHoldTime, p.Timers.State.KeepaliveInterval)
 	fmt.Printf("  Configured hold time is %d, keepalive interval is %d seconds\n", p.Timers.Config.HoldTime, p.Timers.Config.KeepaliveInterval)
 
@@ -209,10 +207,10 @@ func showNeighbor(args []string) error {
 		}
 		return nil
 	}
-	for _, c := range p.Conf.LocalCap {
+	for _, c := range p.State.LocalCapabilityList {
 		caps = append(caps, c)
 	}
-	for _, c := range p.Conf.RemoteCap {
+	for _, c := range p.State.RemoteCapabilityList {
 		if lookup(c, caps) == nil {
 			caps = append(caps, c)
 		}
@@ -224,10 +222,10 @@ func showNeighbor(args []string) error {
 
 	for _, c := range caps {
 		support := ""
-		if m := lookup(c, p.Conf.LocalCap); m != nil {
+		if m := lookup(c, p.State.LocalCapabilityList); m != nil {
 			support += "advertised"
 		}
-		if lookup(c, p.Conf.RemoteCap) != nil {
+		if lookup(c, p.State.RemoteCapabilityList) != nil {
 			if len(support) != 0 {
 				support += " and "
 			}
@@ -274,13 +272,13 @@ func showNeighbor(args []string) error {
 				}
 				return str
 			}
-			if m := lookup(c, p.Conf.LocalCap); m != nil {
+			if m := lookup(c, p.State.LocalCapabilityList); m != nil {
 				g := m.(*bgp.CapGracefulRestart)
 				if s := grStr(g); len(s) > 0 {
 					fmt.Printf("        Local: %s", s)
 				}
 			}
-			if m := lookup(c, p.Conf.RemoteCap); m != nil {
+			if m := lookup(c, p.State.LocalCapabilityList); m != nil {
 				g := m.(*bgp.CapGracefulRestart)
 				if s := grStr(g); len(s) > 0 {
 					fmt.Printf("        Remote: %s", s)
@@ -299,13 +297,13 @@ func showNeighbor(args []string) error {
 				}
 				return str
 			}
-			if m := lookup(c, p.Conf.LocalCap); m != nil {
+			if m := lookup(c, p.State.LocalCapabilityList); m != nil {
 				g := m.(*bgp.CapLongLivedGracefulRestart)
 				if s := grStr(g); len(s) > 0 {
 					fmt.Printf("        Local:\n%s", s)
 				}
 			}
-			if m := lookup(c, p.Conf.RemoteCap); m != nil {
+			if m := lookup(c, p.State.LocalCapabilityList); m != nil {
 				g := m.(*bgp.CapLongLivedGracefulRestart)
 				if s := grStr(g); len(s) > 0 {
 					fmt.Printf("        Remote:\n%s", s)
@@ -318,29 +316,32 @@ func showNeighbor(args []string) error {
 	}
 	fmt.Print("  Message statistics:\n")
 	fmt.Print("                         Sent       Rcvd\n")
-	fmt.Printf("    Opens:         %10d %10d\n", p.Info.Messages.Sent.OPEN, p.Info.Messages.Received.OPEN)
-	fmt.Printf("    Notifications: %10d %10d\n", p.Info.Messages.Sent.NOTIFICATION, p.Info.Messages.Received.NOTIFICATION)
-	fmt.Printf("    Updates:       %10d %10d\n", p.Info.Messages.Sent.UPDATE, p.Info.Messages.Received.UPDATE)
-	fmt.Printf("    Keepalives:    %10d %10d\n", p.Info.Messages.Sent.KEEPALIVE, p.Info.Messages.Received.KEEPALIVE)
-	fmt.Printf("    Route Refesh:  %10d %10d\n", p.Info.Messages.Sent.REFRESH, p.Info.Messages.Received.REFRESH)
-	fmt.Printf("    Discarded:     %10d %10d\n", p.Info.Messages.Sent.DISCARDED, p.Info.Messages.Received.DISCARDED)
-	fmt.Printf("    Total:         %10d %10d\n", p.Info.Messages.Sent.TOTAL, p.Info.Messages.Received.TOTAL)
+	fmt.Printf("    Opens:         %10d %10d\n", p.State.Messages.Sent.Open, p.State.Messages.Received.Open)
+	fmt.Printf("    Notifications: %10d %10d\n", p.State.Messages.Sent.Notification, p.State.Messages.Received.Notification)
+	fmt.Printf("    Updates:       %10d %10d\n", p.State.Messages.Sent.Update, p.State.Messages.Received.Update)
+	fmt.Printf("    Keepalives:    %10d %10d\n", p.State.Messages.Sent.Keepalive, p.State.Messages.Received.Keepalive)
+	fmt.Printf("    Route Refesh:  %10d %10d\n", p.State.Messages.Sent.Refresh, p.State.Messages.Received.Refresh)
+	fmt.Printf("    Discarded:     %10d %10d\n", p.State.Messages.Sent.Discarded, p.State.Messages.Received.Discarded)
+	fmt.Printf("    Total:         %10d %10d\n", p.State.Messages.Sent.Total, p.State.Messages.Received.Total)
 	fmt.Print("  Route statistics:\n")
-	fmt.Printf("    Advertised:    %10d\n", p.Info.Advertised)
-	fmt.Printf("    Received:      %10d\n", p.Info.Received)
-	fmt.Printf("    Accepted:      %10d\n", p.Info.Accepted)
-	if len(p.Conf.PrefixLimits) > 0 {
-		fmt.Println("  Prefix Limits:")
-		for _, c := range p.Conf.PrefixLimits {
-			fmt.Printf("    %s:\tMaximum prefixes allowed %d", bgp.RouteFamily(c.Family), c.MaxPrefixes)
-			if c.ShutdownThresholdPct > 0 {
-				fmt.Printf(", Threshold for warning message %d%%\n", c.ShutdownThresholdPct)
+	fmt.Printf("    Advertised:    %10d\n", p.State.AdjTable.Advertised)
+	fmt.Printf("    Received:      %10d\n", p.State.AdjTable.Received)
+	fmt.Printf("    Accepted:      %10d\n", p.State.AdjTable.Accepted)
+	first := true
+	for _, afisafi := range p.AfiSafis {
+		if afisafi.PrefixLimit.Config.MaxPrefixes > 0 {
+			if first {
+				fmt.Println("  Prefix Limits:")
+				first = false
+			}
+			fmt.Printf("    %s:\tMaximum prefixes allowed %d", afisafi.Config.AfiSafiName, afisafi.PrefixLimit.Config.MaxPrefixes)
+			if afisafi.PrefixLimit.Config.ShutdownThresholdPct > 0 {
+				fmt.Printf(", Threshold for warning message %d%%\n", afisafi.PrefixLimit.Config.ShutdownThresholdPct)
 			} else {
 				fmt.Printf("\n")
 			}
 		}
 	}
-
 	return nil
 }
 
@@ -478,38 +479,33 @@ func ShowRoute(pathList []*table.Path, showAge, showBest, showLabel, isMonitor, 
 }
 
 func showRibInfo(r, name string) error {
-	var resource api.Resource
 	def := addr2AddressFamily(net.ParseIP(name))
-	switch r {
-	case CMD_GLOBAL:
+	if r == CMD_GLOBAL {
 		def = bgp.RF_IPv4_UC
-		resource = api.Resource_GLOBAL
-	case CMD_LOCAL:
-		resource = api.Resource_LOCAL
-	case CMD_ADJ_IN:
-		resource = api.Resource_ADJ_IN
-	case CMD_ADJ_OUT:
-		resource = api.Resource_ADJ_OUT
-	default:
-		return fmt.Errorf("invalid resource to show RIB info: %s", r)
 	}
-
 	family, err := checkAddressFamily(def)
 	if err != nil {
 		return err
 	}
 
-	res, err := client.GetRibInfo(context.Background(), &api.GetRibInfoRequest{
-		Info: &api.TableInfo{
-			Type:   resource,
-			Name:   name,
-			Family: uint32(family),
-		},
-	})
+	var info *table.TableInfo
+	switch r {
+	case CMD_GLOBAL:
+		info, err = client.GetRIBInfo(family)
+	case CMD_LOCAL:
+		info, err = client.GetLocalRIBInfo(name, family)
+	case CMD_ADJ_IN:
+		info, err = client.GetAdjRIBInInfo(name, family)
+	case CMD_ADJ_OUT:
+		info, err = client.GetAdjRIBOutInfo(name, family)
+	default:
+		return fmt.Errorf("invalid resource to show RIB info: %s", r)
+	}
+
 	if err != nil {
 		return err
 	}
-	info := res.Info
+
 	if globalOpts.Json {
 		j, _ := json.Marshal(info)
 		fmt.Println(string(j))
@@ -522,7 +518,6 @@ func showRibInfo(r, name string) error {
 }
 
 func showNeighborRib(r string, name string, args []string) error {
-	var resource api.Resource
 	showBest := false
 	showAge := true
 	showLabel := false
@@ -531,77 +526,70 @@ func showNeighborRib(r string, name string, args []string) error {
 	case CMD_GLOBAL:
 		def = bgp.RF_IPv4_UC
 		showBest = true
-		resource = api.Resource_GLOBAL
 	case CMD_LOCAL:
 		showBest = true
-		resource = api.Resource_LOCAL
-	case CMD_ADJ_IN, CMD_ACCEPTED, CMD_REJECTED:
-		resource = api.Resource_ADJ_IN
 	case CMD_ADJ_OUT:
 		showAge = false
-		resource = api.Resource_ADJ_OUT
 	case CMD_VRF:
 		def = bgp.RF_IPv4_UC
-		resource = api.Resource_VRF
 	}
-	rf, err := checkAddressFamily(def)
+	family, err := checkAddressFamily(def)
 	if err != nil {
 		return err
 	}
-	switch rf {
+	switch family {
 	case bgp.RF_IPv4_MPLS, bgp.RF_IPv6_MPLS, bgp.RF_IPv4_VPN, bgp.RF_IPv6_VPN:
 		showLabel = true
 	}
 
-	arg := &api.Table{
-		Type:   resource,
-		Family: uint32(rf),
-		Name:   name,
-	}
-
+	var filter []*table.LookupPrefix
 	if len(args) > 0 {
-		longerPrefixes := false
-		shorterPrefixes := false
+		var option table.LookupOption
 		if len(args) > 1 {
 			if args[1] == "longer-prefixes" {
-				longerPrefixes = true
+				option = table.LOOKUP_LONGER
 			} else if args[1] == "shorter-prefixes" {
-				shorterPrefixes = true
+				option = table.LOOKUP_SHORTER
 			} else {
 				return fmt.Errorf("invalid format for route filtering")
 			}
 		}
-		arg.Destinations = []*api.Destination{
-			&api.Destination{
-				Prefix:          args[0],
-				LongerPrefixes:  longerPrefixes,
-				ShorterPrefixes: shorterPrefixes,
-			},
+		filter = []*table.LookupPrefix{&table.LookupPrefix{
+			Prefix:       args[0],
+			LookupOption: option,
+		},
 		}
 	}
 
-	rsp, err := client.GetRib(context.Background(), &api.GetRibRequest{
-		Table: arg,
-	})
+	var rib *table.Table
+	switch r {
+	case CMD_GLOBAL:
+		rib, err = client.GetRIB(family, filter)
+	case CMD_LOCAL:
+		rib, err = client.GetLocalRIB(name, family, filter)
+	case CMD_ADJ_IN, CMD_ACCEPTED, CMD_REJECTED:
+		rib, err = client.GetAdjRIBIn(name, family, filter)
+	case CMD_ADJ_OUT:
+		rib, err = client.GetAdjRIBOut(name, family, filter)
+	case CMD_VRF:
+		rib, err = client.GetVRFRIB(name, family, filter)
+	}
+
 	if err != nil {
 		return err
 	}
+
 	switch r {
 	case CMD_LOCAL, CMD_ADJ_IN, CMD_ACCEPTED, CMD_REJECTED, CMD_ADJ_OUT:
-		if len(rsp.Table.Destinations) == 0 {
+		if rib.Info("").NumDestination == 0 {
 			peer, err := getNeighbor(name)
 			if err != nil {
 				return err
 			}
-			if peer.Info.BgpState != string(config.SESSION_STATE_ESTABLISHED) {
+			if peer.State.SessionState != config.SESSION_STATE_ESTABLISHED {
 				return fmt.Errorf("Neighbor %v's BGP session is not established", name)
 			}
 		}
-	}
-
-	rib, err := rsp.Table.ToNativeTable()
-	if err != nil {
-		return err
 	}
 
 	if globalOpts.Json {
@@ -645,124 +633,103 @@ func showNeighborRib(r string, name string, args []string) error {
 }
 
 func resetNeighbor(cmd string, remoteIP string, args []string) error {
+	family := bgp.RouteFamily(0)
 	switch cmd {
 	case CMD_RESET:
-		client.ResetNeighbor(context.Background(), &api.ResetNeighborRequest{Address: remoteIP})
+		return client.ResetNeighbor(remoteIP)
 	case CMD_SOFT_RESET:
-		client.SoftResetNeighbor(context.Background(), &api.SoftResetNeighborRequest{
-			Address:   remoteIP,
-			Direction: api.SoftResetNeighborRequest_BOTH,
-		})
+		return client.SoftReset(remoteIP, family)
 	case CMD_SOFT_RESET_IN:
-		client.SoftResetNeighbor(context.Background(), &api.SoftResetNeighborRequest{
-			Address:   remoteIP,
-			Direction: api.SoftResetNeighborRequest_IN,
-		})
+		return client.SoftResetIn(remoteIP, family)
 	case CMD_SOFT_RESET_OUT:
-		client.SoftResetNeighbor(context.Background(), &api.SoftResetNeighborRequest{
-			Address:   remoteIP,
-			Direction: api.SoftResetNeighborRequest_OUT,
-		})
+		return client.SoftResetOut(remoteIP, family)
 	}
 	return nil
 }
 
 func stateChangeNeighbor(cmd string, remoteIP string, args []string) error {
-	var err error
 	switch cmd {
 	case CMD_SHUTDOWN:
 		fmt.Printf("WARNING: command `%s` is deprecated. use `%s` instead", CMD_SHUTDOWN, CMD_DISABLE)
-		_, err = client.ShutdownNeighbor(context.Background(), &api.ShutdownNeighborRequest{Address: remoteIP})
+		return client.ShutdownNeighbor(remoteIP)
 	case CMD_ENABLE:
-		_, err = client.EnableNeighbor(context.Background(), &api.EnableNeighborRequest{Address: remoteIP})
+		return client.EnableNeighbor(remoteIP)
 	case CMD_DISABLE:
-		_, err = client.DisableNeighbor(context.Background(), &api.DisableNeighborRequest{Address: remoteIP})
+		return client.DisableNeighbor(remoteIP)
 	}
-	return err
+	return nil
 }
 
 func showNeighborPolicy(remoteIP, policyType string, indent int) error {
-	var typ api.PolicyType
+	var assignment *table.PolicyAssignment
+	var err error
+
 	switch strings.ToLower(policyType) {
 	case "in":
-		typ = api.PolicyType_IN
+		assignment, err = client.GetRouteServerInPolicy(remoteIP)
 	case "import":
-		typ = api.PolicyType_IMPORT
+		assignment, err = client.GetRouteServerImportPolicy(remoteIP)
 	case "export":
-		typ = api.PolicyType_EXPORT
+		assignment, err = client.GetRouteServerExportPolicy(remoteIP)
+	default:
+		fmt.Errorf("invalid policy type: choose from (in|import|export)")
 	}
-	r := api.Resource_LOCAL
-	if remoteIP == "" {
-		r = api.Resource_GLOBAL
-	}
-	arg := &api.GetPolicyAssignmentRequest{
-		Assignment: &api.PolicyAssignment{
-			Name:     remoteIP,
-			Resource: r,
-			Type:     typ,
-		},
-	}
-	ap, e := client.GetPolicyAssignment(context.Background(), arg)
-	if e != nil {
-		return e
+
+	if err != nil {
+		return err
 	}
 
 	if globalOpts.Json {
-		j, _ := json.Marshal(ap)
+		j, _ := json.Marshal(assignment)
 		fmt.Println(string(j))
 		return nil
 	}
 
 	fmt.Printf("%s policy:\n", strings.Title(policyType))
-	fmt.Printf("%sDefault: %s\n", strings.Repeat(" ", indent), ap.Assignment.Default)
-	for _, p := range ap.Assignment.Policies {
+	fmt.Printf("%sDefault: %s\n", strings.Repeat(" ", indent), assignment.Default)
+	for _, p := range assignment.Policies {
 		fmt.Printf("%sName %s:\n", strings.Repeat(" ", indent), p.Name)
 		printPolicy(indent+4, p)
 	}
 	return nil
 }
 
-func extractDefaultAction(args []string) ([]string, api.RouteAction, error) {
+func extractDefaultAction(args []string) ([]string, table.RouteType, error) {
 	for idx, arg := range args {
 		if arg == "default" {
 			if len(args) < (idx + 2) {
-				return nil, api.RouteAction_NONE, fmt.Errorf("specify default action [accept|reject]")
+				return nil, table.ROUTE_TYPE_NONE, fmt.Errorf("specify default action [accept|reject]")
 			}
 			typ := args[idx+1]
 			switch strings.ToLower(typ) {
 			case "accept":
-				return append(args[:idx], args[idx+2:]...), api.RouteAction_ACCEPT, nil
+				return append(args[:idx], args[idx+2:]...), table.ROUTE_TYPE_ACCEPT, nil
 			case "reject":
-				return append(args[:idx], args[idx+2:]...), api.RouteAction_REJECT, nil
+				return append(args[:idx], args[idx+2:]...), table.ROUTE_TYPE_REJECT, nil
 			default:
-				return nil, api.RouteAction_NONE, fmt.Errorf("invalid default action")
+				return nil, table.ROUTE_TYPE_NONE, fmt.Errorf("invalid default action")
 			}
 		}
 	}
-	return args, api.RouteAction_NONE, nil
+	return args, table.ROUTE_TYPE_NONE, nil
 }
 
 func modNeighborPolicy(remoteIP, policyType, cmdType string, args []string) error {
-	var typ api.PolicyType
+	assign := &table.PolicyAssignment{
+		Name: remoteIP,
+	}
 	switch strings.ToLower(policyType) {
 	case "in":
-		typ = api.PolicyType_IN
+		assign.Type = table.POLICY_DIRECTION_IN
 	case "import":
-		typ = api.PolicyType_IMPORT
+		assign.Type = table.POLICY_DIRECTION_IMPORT
 	case "export":
-		typ = api.PolicyType_EXPORT
-	}
-	r := api.Resource_LOCAL
-	usage := fmt.Sprintf("usage: gobgp neighbor %s policy %s %s", remoteIP, policyType, cmdType)
-	if remoteIP == "" {
-		r = api.Resource_GLOBAL
-		usage = fmt.Sprintf("usage: gobgp global policy %s %s", policyType, cmdType)
+		assign.Type = table.POLICY_DIRECTION_EXPORT
 	}
 
-	assign := &api.PolicyAssignment{
-		Type:     typ,
-		Resource: r,
-		Name:     remoteIP,
+	usage := fmt.Sprintf("usage: gobgp neighbor %s policy %s %s", remoteIP, policyType, cmdType)
+	if remoteIP == "" {
+		usage = fmt.Sprintf("usage: gobgp global policy %s %s", policyType, cmdType)
 	}
 
 	var err error
@@ -772,36 +739,29 @@ func modNeighborPolicy(remoteIP, policyType, cmdType string, args []string) erro
 			return fmt.Errorf("%s <policy name>... [default {%s|%s}]", usage, "accept", "reject")
 		}
 		var err error
-		var def api.RouteAction
+		var def table.RouteType
 		args, def, err = extractDefaultAction(args)
 		if err != nil {
 			return fmt.Errorf("%s\n%s <policy name>... [default {%s|%s}]", err, usage, "accept", "reject")
 		}
 		assign.Default = def
 	}
-	ps := make([]*api.Policy, 0, len(args))
+	ps := make([]*table.Policy, 0, len(args))
 	for _, name := range args {
-		ps = append(ps, &api.Policy{Name: name})
+		ps = append(ps, &table.Policy{Name: name})
 	}
 	assign.Policies = ps
 	switch cmdType {
 	case CMD_ADD:
-		_, err = client.AddPolicyAssignment(context.Background(), &api.AddPolicyAssignmentRequest{
-			Assignment: assign,
-		})
+		err = client.AddPolicyAssignment(assign)
 	case CMD_SET:
-		_, err = client.ReplacePolicyAssignment(context.Background(), &api.ReplacePolicyAssignmentRequest{
-			Assignment: assign,
-		})
+		err = client.ReplacePolicyAssignment(assign)
 	case CMD_DEL:
 		all := false
 		if len(args) == 0 {
 			all = true
 		}
-		_, err = client.DeletePolicyAssignment(context.Background(), &api.DeletePolicyAssignmentRequest{
-			Assignment: assign,
-			All:        all,
-		})
+		err = client.DeletePolicyAssignment(assign, all)
 	}
 	return err
 }
@@ -823,30 +783,30 @@ func modNeighbor(cmdType string, args []string) error {
 		}
 	}
 
-	getConf := func(asn int) *api.Peer {
-		peer := &api.Peer{
-			Conf: &api.PeerConf{
+	getConf := func(asn int) *config.Neighbor {
+		peer := &config.Neighbor{
+			Config: config.NeighborConfig{
 				PeerAs: uint32(asn),
 			},
 		}
 		if unnumbered {
-			peer.Conf.NeighborInterface = m["interface"][0]
+			peer.Config.NeighborInterface = m["interface"][0]
 		} else {
-			peer.Conf.NeighborAddress = m[""][0]
+			peer.Config.NeighborAddress = m[""][0]
 		}
 		if len(m["vrf"]) == 1 {
-			peer.Conf.Vrf = m["vrf"][0]
+			peer.Config.Vrf = m["vrf"][0]
 		}
 		if rr, ok := m["route-reflector-client"]; ok {
-			peer.RouteReflector = &api.RouteReflector{
+			peer.RouteReflector.Config = config.RouteReflectorConfig{
 				RouteReflectorClient: true,
 			}
 			if len(rr) == 1 {
-				peer.RouteReflector.RouteReflectorClusterId = rr[0]
+				peer.RouteReflector.Config.RouteReflectorClusterId = config.RrClusterIdType(rr[0])
 			}
 		}
 		if _, ok := m["route-server-client"]; ok {
-			peer.RouteServer = &api.RouteServer{
+			peer.RouteServer.Config = config.RouteServerConfig{
 				RouteServerClient: true,
 			}
 		}
@@ -863,9 +823,9 @@ func modNeighbor(cmdType string, args []string) error {
 		if err != nil {
 			return err
 		}
-		_, err = client.AddNeighbor(context.Background(), &api.AddNeighborRequest{Peer: getConf(as)})
+		err = client.AddNeighbor(getConf(as))
 	case CMD_DEL:
-		_, err = client.DeleteNeighbor(context.Background(), &api.DeleteNeighborRequest{Peer: getConf(0)})
+		err = client.DeleteNeighbor(getConf(0))
 	}
 	return err
 }
@@ -902,7 +862,7 @@ func NewNeighborCmd() *cobra.Command {
 						if err != nil {
 							exitWithError(err)
 						}
-						addr = peer.Conf.RemoteIp
+						addr = peer.Config.NeighborAddress
 					}
 					err := f(cmd.Use, addr, args[:len(args)-1])
 					if err != nil {
@@ -933,7 +893,7 @@ func NewNeighborCmd() *cobra.Command {
 			if err != nil {
 				exitWithError(err)
 			}
-			remoteIP := peer.Conf.RemoteIp
+			remoteIP := peer.Config.NeighborAddress
 			for _, v := range []string{CMD_IN, CMD_IMPORT, CMD_EXPORT} {
 				if err := showNeighborPolicy(remoteIP, v, 4); err != nil {
 					exitWithError(err)
@@ -950,7 +910,7 @@ func NewNeighborCmd() *cobra.Command {
 				if err != nil {
 					exitWithError(err)
 				}
-				remoteIP := peer.Conf.RemoteIp
+				remoteIP := peer.Config.NeighborAddress
 				err = showNeighborPolicy(remoteIP, cmd.Use, 0)
 				if err != nil {
 					exitWithError(err)
@@ -966,7 +926,7 @@ func NewNeighborCmd() *cobra.Command {
 					if err != nil {
 						exitWithError(err)
 					}
-					remoteIP := peer.Conf.RemoteIp
+					remoteIP := peer.Config.NeighborAddress
 					args = args[:len(args)-1]
 					if err = modNeighborPolicy(remoteIP, cmd.Use, subcmd.Use, args); err != nil {
 						exitWithError(err)

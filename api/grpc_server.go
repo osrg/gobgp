@@ -505,7 +505,7 @@ func (s *Server) api2PathList(resource Resource, ApiPathList []*Path) ([]*table.
 			}
 		}
 
-		if nlri == nil || nexthop == "" {
+		if nlri == nil || (!path.IsWithdraw && nexthop == "") {
 			return nil, fmt.Errorf("not found nlri or nexthop")
 		}
 

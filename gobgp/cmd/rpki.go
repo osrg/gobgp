@@ -17,16 +17,15 @@ package cmd
 
 import (
 	"fmt"
-	api "github.com/osrg/gobgp/api"
-	"github.com/osrg/gobgp/packet/bgp"
-	"github.com/spf13/cobra"
-	"golang.org/x/net/context"
 	"net"
 	"time"
+
+	"github.com/osrg/gobgp/packet/bgp"
+	"github.com/spf13/cobra"
 )
 
 func showRPKIServer(args []string) error {
-	rsp, err := client.GetRpki(context.Background(), &api.GetRpkiRequest{})
+	servers, err := client.GetRPKI()
 	if err != nil {
 		fmt.Println(err)
 		return err
@@ -34,7 +33,7 @@ func showRPKIServer(args []string) error {
 	if len(args) == 0 {
 		format := "%-23s %-6s %-10s %s\n"
 		fmt.Printf(format, "Session", "State", "Uptime", "#IPv4/IPv6 records")
-		for _, r := range rsp.Servers {
+		for _, r := range servers {
 			s := "Down"
 			uptime := "never"
 			if r.State.Up == true {
@@ -42,30 +41,30 @@ func showRPKIServer(args []string) error {
 				uptime = fmt.Sprint(formatTimedelta(int64(time.Now().Sub(time.Unix(r.State.Uptime, 0)).Seconds())))
 			}
 
-			fmt.Printf(format, net.JoinHostPort(r.Conf.Address, r.Conf.RemotePort), s, uptime, fmt.Sprintf("%d/%d", r.State.RecordIpv4, r.State.RecordIpv6))
+			fmt.Printf(format, net.JoinHostPort(r.Config.Address, fmt.Sprintf("%d", r.Config.Port)), s, uptime, fmt.Sprintf("%d/%d", r.State.RecordsV4, r.State.RecordsV6))
 		}
 	} else {
-		for _, r := range rsp.Servers {
-			if r.Conf.Address == args[0] {
+		for _, r := range servers {
+			if r.Config.Address == args[0] {
 				up := "Down"
 				if r.State.Up == true {
 					up = "Up"
 				}
-				fmt.Printf("Session: %s, State: %s\n", r.Conf.Address, up)
-				fmt.Println("  Port:", r.Conf.RemotePort)
-				fmt.Println("  Serial:", r.State.Serial)
-				fmt.Printf("  Prefix: %d/%d\n", r.State.PrefixIpv4, r.State.PrefixIpv6)
-				fmt.Printf("  Record: %d/%d\n", r.State.RecordIpv4, r.State.RecordIpv6)
+				fmt.Printf("Session: %s, State: %s\n", r.Config.Address, up)
+				fmt.Println("  Port:", r.Config.Port)
+				fmt.Println("  Serial:", r.State.SerialNumber)
+				fmt.Printf("  Prefix: %d/%d\n", r.State.PrefixesV4, r.State.PrefixesV6)
+				fmt.Printf("  Record: %d/%d\n", r.State.RecordsV4, r.State.RecordsV6)
 				fmt.Println("  Message statistics:")
-				fmt.Printf("    Receivedv4:    %10d\n", r.State.ReceivedIpv4)
-				fmt.Printf("    Receivedv6:    %10d\n", r.State.ReceivedIpv6)
-				fmt.Printf("    SerialNotify:  %10d\n", r.State.SerialNotify)
-				fmt.Printf("    CacheReset:    %10d\n", r.State.CacheReset)
-				fmt.Printf("    CacheResponse: %10d\n", r.State.CacheResponse)
-				fmt.Printf("    EndOfData:     %10d\n", r.State.EndOfData)
-				fmt.Printf("    Error:         %10d\n", r.State.Error)
-				fmt.Printf("    SerialQuery:   %10d\n", r.State.SerialQuery)
-				fmt.Printf("    ResetQuery:    %10d\n", r.State.ResetQuery)
+				fmt.Printf("    Receivedv4:    %10d\n", r.State.RpkiMessages.RpkiReceived.Ipv4Prefix)
+				fmt.Printf("    Receivedv6:    %10d\n", r.State.RpkiMessages.RpkiReceived.Ipv4Prefix)
+				fmt.Printf("    SerialNotify:  %10d\n", r.State.RpkiMessages.RpkiReceived.SerialNotify)
+				fmt.Printf("    CacheReset:    %10d\n", r.State.RpkiMessages.RpkiReceived.CacheReset)
+				fmt.Printf("    CacheResponse: %10d\n", r.State.RpkiMessages.RpkiReceived.CacheResponse)
+				fmt.Printf("    EndOfData:     %10d\n", r.State.RpkiMessages.RpkiReceived.EndOfData)
+				fmt.Printf("    Error:         %10d\n", r.State.RpkiMessages.RpkiReceived.Error)
+				fmt.Printf("    SerialQuery:   %10d\n", r.State.RpkiMessages.RpkiSent.SerialQuery)
+				fmt.Printf("    ResetQuery:    %10d\n", r.State.RpkiMessages.RpkiSent.ResetQuery)
 			}
 		}
 	}
@@ -77,13 +76,9 @@ func showRPKITable(args []string) error {
 	if err != nil {
 		exitWithError(err)
 	}
-	arg := &api.GetRoaRequest{
-		Family: uint32(family),
-	}
-	rsp, err := client.GetRoa(context.Background(), arg)
+	roas, err := client.GetROA(family)
 	if err != nil {
-		fmt.Println(err)
-		return err
+		exitWithError(err)
 	}
 
 	var format string
@@ -94,13 +89,12 @@ func showRPKITable(args []string) error {
 		format = "%-42s %-6s %-10s %s\n"
 	}
 	fmt.Printf(format, "Network", "Maxlen", "AS", "Server")
-	for _, r := range rsp.Roas {
-		if len(args) > 0 && args[0] != r.Conf.Address {
+	for _, r := range roas {
+		host, _, _ := net.SplitHostPort(r.Src)
+		if len(args) > 0 && args[0] != host {
 			continue
 		}
-
-		server := net.JoinHostPort(r.Conf.Address, r.Conf.RemotePort)
-		fmt.Printf(format, fmt.Sprintf("%s/%d", r.Prefix, r.Prefixlen), fmt.Sprint(r.Maxlen), fmt.Sprint(r.As), server)
+		fmt.Printf(format, r.Prefix.String(), fmt.Sprint(r.MaxLen), fmt.Sprint(r.AS), r.Src)
 	}
 	return nil
 }
@@ -126,26 +120,15 @@ func NewRPKICmd() *cobra.Command {
 			var err error
 			switch args[1] {
 			case "add":
-				_, err = client.AddRpki(context.Background(), &api.AddRpkiRequest{
-					Address: addr.String(),
-					Port:    323,
-				})
+				err = client.AddRPKIServer(addr.String(), 323, 0)
 			case "reset":
-				_, err = client.ResetRpki(context.Background(), &api.ResetRpkiRequest{
-					Address: addr.String(),
-				})
+				err = client.ResetRPKIServer(addr.String())
 			case "softreset":
-				_, err = client.SoftResetRpki(context.Background(), &api.SoftResetRpkiRequest{
-					Address: addr.String(),
-				})
+				err = client.SoftResetRPKIServer(addr.String())
 			case "enable":
-				_, err = client.EnableRpki(context.Background(), &api.EnableRpkiRequest{
-					Address: addr.String(),
-				})
+				err = client.EnableRPKIServer(addr.String())
 			case "disable":
-				_, err = client.DisableRpki(context.Background(), &api.DisableRpkiRequest{
-					Address: addr.String(),
-				})
+				err = client.DisableRPKIServer(addr.String())
 			default:
 				exitWithError(fmt.Errorf("unknown operation: %s", args[1]))
 			}
@@ -167,11 +150,9 @@ func NewRPKICmd() *cobra.Command {
 	validateCmd := &cobra.Command{
 		Use: "validate",
 		Run: func(cmd *cobra.Command, args []string) {
-			arg := &api.ValidateRibRequest{}
-			if len(args) == 1 {
-				arg.Prefix = args[0]
+			if err := client.ValidateRIBWithRPKI(args...); err != nil {
+				exitWithError(err)
 			}
-			client.ValidateRib(context.Background(), arg)
 		},
 	}
 	rpkiCmd.AddCommand(validateCmd)
