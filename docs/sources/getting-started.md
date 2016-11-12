@@ -18,7 +18,7 @@ $ go get github.com/osrg/gobgp/gobgp
 
 Finished. No dependency hell (library, package, etc) thanks to Go.
 The first command installs GoBGP daemon (speaking BGP protocol). The
-second one installs GoBGP CLI. The CLI isn't a must but handy whey you
+second one installs GoBGP CLI. The CLI isn't a must but handy when you
 play with GoBGP.
 
 In addition, if you use Bash shell, you can enjoy CLI's tab completion:
@@ -100,7 +100,7 @@ Peer          AS  Up/Down State       |#Advertised Received Accepted
 10.0.255.2 65002 00:00:14 Establ      |          5        2        2
 ```
 
-Want to the details of a particular peer?
+Want to see the details of a particular peer?
 
 ```bash
 $ gobgp neighbor 10.0.255.1
