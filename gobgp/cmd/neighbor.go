@@ -30,44 +30,27 @@ import (
 )
 
 func getNeighbors(vrf string) (neighbors, error) {
-	ns, e := client.GetNeighbor()
-	if e != nil {
-		fmt.Println(e)
-		return nil, e
-	}
-	var m neighbors
-	for _, n := range ns {
-		if neighborsOpts.Transport != "" {
-			addr, _ := net.ResolveIPAddr("ip", n.Config.NeighborAddress)
-			if addr.IP.To4() != nil {
-				if neighborsOpts.Transport != "ipv4" {
-					continue
-				}
-			} else {
-				if neighborsOpts.Transport != "ipv6" {
-					continue
-				}
-			}
+	if vrf != "" {
+		n, err := client.ListNeighborByVRF(vrf)
+		return neighbors(n), err
+	} else if t := neighborsOpts.Transport; t != "" {
+		switch t {
+		case "ipv4":
+			n, err := client.ListNeighborByTransport(bgp.AFI_IP)
+			return neighbors(n), err
+		case "ipv6":
+			n, err := client.ListNeighborByTransport(bgp.AFI_IP6)
+			return neighbors(n), err
+		default:
+			return nil, fmt.Errorf("invalid transport: %s", t)
 		}
-		if vrf != "" && n.Config.Vrf != vrf {
-			continue
-		}
-		m = append(m, n)
 	}
-	return m, nil
+	n, err := client.ListNeighbor()
+	return neighbors(n), err
 }
 
 func getNeighbor(name string) (*config.Neighbor, error) {
-	l, e := getNeighbors("")
-	if e != nil {
-		return nil, e
-	}
-	for _, p := range l {
-		if p.Config.NeighborAddress == name || p.Config.NeighborAddress == name {
-			return p, nil
-		}
-	}
-	return nil, fmt.Errorf("Neighbor %v doesn't exist.", name)
+	return client.GetNeighbor(name)
 }
 
 func showNeighbors(vrf string) error {

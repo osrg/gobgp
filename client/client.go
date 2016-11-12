@@ -97,7 +97,7 @@ func (cli *GoBGPClient) GetServer() (*config.Global, error) {
 	}, nil
 }
 
-func (cli *GoBGPClient) GetNeighbor() ([]*config.Neighbor, error) {
+func (cli *GoBGPClient) getNeighbor(name string, afi int, vrf string) ([]*config.Neighbor, error) {
 	ret, err := cli.cli.GetNeighbor(context.Background(), &api.GetNeighborRequest{})
 	if err != nil {
 		return nil, err
@@ -106,6 +106,18 @@ func (cli *GoBGPClient) GetNeighbor() ([]*config.Neighbor, error) {
 	neighbors := make([]*config.Neighbor, 0, len(ret.Peers))
 
 	for _, p := range ret.Peers {
+		if name != "" && name != p.Conf.NeighborAddress {
+			continue
+		}
+		if vrf != "" && name != p.Conf.Vrf {
+			continue
+		}
+		if afi > 0 {
+			v6 := net.ParseIP(p.Conf.NeighborAddress).To4() == nil
+			if afi == bgp.AFI_IP && v6 || afi == bgp.AFI_IP6 && !v6 {
+				continue
+			}
+		}
 		n, err := api.NewNeighborFromAPIStruct(p)
 		if err != nil {
 			return nil, err
@@ -113,6 +125,26 @@ func (cli *GoBGPClient) GetNeighbor() ([]*config.Neighbor, error) {
 		neighbors = append(neighbors, n)
 	}
 	return neighbors, nil
+}
+
+func (cli *GoBGPClient) ListNeighbor() ([]*config.Neighbor, error) {
+	return cli.getNeighbor("", 0, "")
+}
+
+func (cli *GoBGPClient) ListNeighborByTransport(afi int) ([]*config.Neighbor, error) {
+	return cli.getNeighbor("", afi, "")
+}
+
+func (cli *GoBGPClient) ListNeighborByVRF(vrf string) ([]*config.Neighbor, error) {
+	return cli.getNeighbor("", 0, vrf)
+}
+
+func (cli *GoBGPClient) GetNeighbor(name string) (*config.Neighbor, error) {
+	ns, err := cli.getNeighbor(name, 0, "")
+	if err != nil {
+		return nil, err
+	}
+	return ns[0], nil
 }
 
 func (cli *GoBGPClient) AddNeighbor(c *config.Neighbor) error {
