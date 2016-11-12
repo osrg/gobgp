@@ -248,6 +248,22 @@ class GoBGPTestBase(unittest.TestCase):
         num4 = len(self.gobgp.get_adj_rib_out(q1))
         self.assertTrue(num1 + 1 == num4)
 
+    def test_17_multi_statement(self):
+        self.gobgp.local('gobgp policy statement st3 add action med set 100')
+        self.gobgp.local('gobgp policy statement st4 add action local-pref 100')
+        self.gobgp.local('gobgp policy add p3 st3 st4')
+        self.gobgp.local('gobgp global policy import set p3 default accept')
+
+        self.gobgp.add_route('10.70.0.0/24')
+        time.sleep(1)
+        rib = self.gobgp.get_global_rib('10.70.0.0/24')
+        self.assertTrue(len(rib) == 1)
+        self.assertTrue(len(rib[0]['paths']) == 1)
+        path = rib[0]['paths'][0]
+        self.assertTrue(path['med'] == 100)
+        self.assertTrue(path['local-pref'] == 100)
+
+
 
 if __name__ == '__main__':
     if os.geteuid() is not 0:

@@ -1068,7 +1068,10 @@ func toStatementApi(s *config.Statement) *Statement {
 			if s.Actions.RouteDisposition.AcceptRoute {
 				return RouteAction_ACCEPT
 			}
-			return RouteAction_REJECT
+			if s.Actions.RouteDisposition.RejectRoute {
+				return RouteAction_REJECT
+			}
+			return RouteAction_NONE
 		}(),
 		Community: func() *CommunityAction {
 			if len(s.Actions.BgpActions.SetCommunity.SetCommunityMethod.CommunitiesList) == 0 {

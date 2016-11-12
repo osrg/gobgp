@@ -1570,6 +1570,8 @@ func (a *RoutingAction) Apply(path *Path, _ *PolicyOptions) *Path {
 func NewRoutingAction(c config.RouteDisposition) (*RoutingAction, error) {
 	if c.AcceptRoute == c.RejectRoute && c.AcceptRoute {
 		return nil, fmt.Errorf("invalid route disposition")
+	} else if !c.AcceptRoute && !c.RejectRoute {
+		return nil, nil
 	}
 	accept := false
 	if c.AcceptRoute && !c.RejectRoute {
@@ -2174,7 +2176,7 @@ func (s *Statement) ToConfig() *config.Statement {
 			act := config.Actions{}
 			if s.RouteAction != nil && !reflect.ValueOf(s.RouteAction).IsNil() {
 				a := s.RouteAction.(*RoutingAction)
-				act.RouteDisposition = config.RouteDisposition{AcceptRoute: a.AcceptRoute, RejectRoute: false}
+				act.RouteDisposition = config.RouteDisposition{AcceptRoute: a.AcceptRoute, RejectRoute: !a.AcceptRoute}
 			}
 			for _, a := range s.ModActions {
 				switch a.(type) {

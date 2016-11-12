@@ -100,6 +100,12 @@ class GoBGPContainer(BGPContainer):
                 return p['value']
         return None
 
+    def _get_med(self, path):
+        for p in path['attrs']:
+            if p['type'] == BGP_ATTR_TYPE_MULTI_EXIT_DISC:
+                return p['metric']
+        return None
+
     def _trigger_peer_cmd(self, cmd, peer):
         if peer not in self.peers:
             raise Exception('not found peer {0}'.format(peer.router_id))
@@ -132,6 +138,7 @@ class GoBGPContainer(BGPContainer):
                 p["nexthop"] = self._get_nexthop(p)
                 p["aspath"] = self._get_as_path(p)
                 p["local-pref"] = self._get_local_pref(p)
+                p["med"] = self._get_med(p)
                 p["prefix"] = k
             dsts.append({'paths': v, 'prefix': k})
         return dsts
@@ -146,6 +153,7 @@ class GoBGPContainer(BGPContainer):
                 p["nexthop"] = self._get_nexthop(p)
                 p["aspath"] = self._get_as_path(p)
                 p["local-pref"] = self._get_local_pref(p)
+                p["med"] = self._get_med(p)
                 p["prefix"] = k
             dsts.append({'paths': v, 'prefix': k})
         return dsts
@@ -165,6 +173,7 @@ class GoBGPContainer(BGPContainer):
                 p["nexthop"] = self._get_nexthop(p)
                 p["aspath"] = self._get_as_path(p)
                 p["local-pref"] = self._get_local_pref(p)
+                p["med"] = self._get_med(p)
                 queue.put(p)
 
         t = Thread(target=monitor)
@@ -185,6 +194,7 @@ class GoBGPContainer(BGPContainer):
             p["aspath"] = self._get_as_path(p)
             p["prefix"] = p['nlri']['prefix']
             p["local-pref"] = self._get_local_pref(p)
+            p["med"] = self._get_med(p)
         return ret
 
     def get_adj_rib_in(self, peer, prefix='', rf='ipv4'):
