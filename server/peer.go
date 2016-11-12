@@ -525,7 +525,7 @@ func (peer *Peer) ToConfig() *config.Neighbor {
 
 	conf.State.RemoteRouterId = peer.fsm.peerInfo.ID.To4().String()
 	conf.State.SessionState = config.IntToSessionStateMap[int(peer.fsm.state)]
-	conf.State.AdminState = peer.fsm.adminState.String()
+	conf.State.AdminState = config.IntToAdminStateMap[int(peer.fsm.adminState)]
 
 	if peer.fsm.state == bgp.BGP_FSM_ESTABLISHED {
 		rfList := peer.configuredRFlist()

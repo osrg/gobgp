@@ -138,7 +138,7 @@ func NewPeerFromConfigStruct(pconf *config.Neighbor) *Peer {
 		},
 		Info: &PeerState{
 			BgpState:   string(s.SessionState),
-			AdminState: s.AdminState,
+			AdminState: PeerState_AdminState(s.AdminState.ToInt()),
 			Messages: &Messages{
 				Received: &Message{
 					NOTIFICATION: s.Messages.Received.Notification,
@@ -392,7 +392,7 @@ func (s *Server) MonitorPeerState(arg *Arguments, stream GobgpApi_MonitorPeerSta
 							LocalAs:         msg.LocalAS,
 							NeighborAddress: msg.PeerAddress.String(),
 							BgpState:        msg.State.String(),
-							AdminState:      msg.AdminState.String(),
+							AdminState:      PeerState_AdminState(msg.AdminState),
 						},
 						Transport: &Transport{
 							LocalAddress: msg.LocalAddress.String(),
@@ -907,7 +907,7 @@ func NewNeighborFromAPIStruct(a *Peer) (*config.Neighbor, error) {
 	}
 	if a.Info != nil {
 		pconf.State.SessionState = config.SessionState(a.Info.BgpState)
-		pconf.State.AdminState = a.Info.AdminState
+		pconf.State.AdminState = config.IntToAdminStateMap[int(a.Info.AdminState)]
 
 		pconf.State.AdjTable.Received = a.Info.Received
 		pconf.State.AdjTable.Accepted = a.Info.Accepted

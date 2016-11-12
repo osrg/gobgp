@@ -672,7 +672,17 @@ module gobgp {
     }
 
     leaf admin-state {
-      type string;
+      type enumeration {
+        enum UP {
+          description "admin state is up";
+        }
+        enum DOWN {
+          description "admin state is down";
+        }
+        enum PFX_CT {
+          description "prefix counter over limit";
+        }
+      }
     }
 
     leaf established-count {

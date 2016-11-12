@@ -598,7 +598,12 @@ message PeerState {
   uint32 session_state = 13;
   repeated string supported_capabilities = 14;
   string bgp_state = 15;
-  string admin_state = 16;
+  enum AdminState {
+      UP = 0;
+      DOWN = 1;
+      PFX_CT = 2; // prefix counter over limit
+  }
+  AdminState admin_state = 16;
   uint32 received = 17;
   uint32 accepted = 18;
   uint32 advertised = 19;

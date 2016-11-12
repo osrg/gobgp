@@ -698,6 +698,42 @@ func (v SessionState) Validate() error {
 	return nil
 }
 
+// typedef for identity bgp:admin-state
+type AdminState string
+
+const (
+	ADMIN_STATE_UP     AdminState = "up"
+	ADMIN_STATE_DOWN   AdminState = "down"
+	ADMIN_STATE_PFX_CT AdminState = "pfx_ct"
+)
+
+var AdminStateToIntMap = map[AdminState]int{
+	ADMIN_STATE_UP:     0,
+	ADMIN_STATE_DOWN:   1,
+	ADMIN_STATE_PFX_CT: 2,
+}
+
+func (v AdminState) ToInt() int {
+	i, ok := AdminStateToIntMap[v]
+	if !ok {
+		return -1
+	}
+	return i
+}
+
+var IntToAdminStateMap = map[int]AdminState{
+	0: ADMIN_STATE_UP,
+	1: ADMIN_STATE_DOWN,
+	2: ADMIN_STATE_PFX_CT,
+}
+
+func (v AdminState) Validate() error {
+	if _, ok := AdminStateToIntMap[v]; !ok {
+		return fmt.Errorf("invalid AdminState: %s", v)
+	}
+	return nil
+}
+
 // typedef for identity bgp:mode
 type Mode string
 
@@ -2216,7 +2252,7 @@ type NeighborState struct {
 	//gobgp:admin-down's original type is boolean
 	AdminDown bool `mapstructure:"admin-down" json:"admin-down,omitempty"`
 	// original -> gobgp:admin-state
-	AdminState string `mapstructure:"admin-state" json:"admin-state,omitempty"`
+	AdminState AdminState `mapstructure:"admin-state" json:"admin-state,omitempty"`
 	// original -> gobgp:established-count
 	EstablishedCount uint32 `mapstructure:"established-count" json:"established-count,omitempty"`
 	// original -> gobgp:flops

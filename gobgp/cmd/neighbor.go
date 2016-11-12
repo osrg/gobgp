@@ -121,11 +121,11 @@ func showNeighbors(vrf string) error {
 	format = "%-" + fmt.Sprint(maxaddrlen) + "s" + " %" + fmt.Sprint(maxaslen) + "s" + " %" + fmt.Sprint(maxtimelen) + "s"
 	format += " %-11s |%11s %8s %8s\n"
 	fmt.Printf(format, "Peer", "AS", "Up/Down", "State", "#Advertised", "Received", "Accepted")
-	format_fsm := func(admin string, fsm config.SessionState) string {
+	format_fsm := func(admin config.AdminState, fsm config.SessionState) string {
 		switch admin {
-		case "ADMIN_STATE_DOWN":
+		case config.ADMIN_STATE_DOWN:
 			return "Idle(Admin)"
-		case "ADMIN_STATE_PFX_CT":
+		case config.ADMIN_STATE_PFX_CT:
 			return "Idle(PfxCt)"
 		}
 
