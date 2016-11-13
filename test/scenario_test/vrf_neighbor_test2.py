@@ -16,6 +16,7 @@
 import unittest
 from fabric.api import local
 from lib import base
+from lib.base import wait_for_completion
 from lib.gobgp import *
 from lib.quagga import *
 import sys
@@ -23,6 +24,7 @@ import os
 import time
 import nose
 from noseplugin import OptionParser, parser_option
+
 
 class GoBGPTestBase(unittest.TestCase):
 
@@ -79,7 +81,6 @@ class GoBGPTestBase(unittest.TestCase):
         cls.g4 = g4
         cls.g5 = g5
 
-
     # test each neighbor state is turned establish
     def test_01_neighbor_established(self):
         self.g3.wait_for(expected_state=BGP_FSM_ESTABLISHED, peer=self.g1)
@@ -87,55 +88,44 @@ class GoBGPTestBase(unittest.TestCase):
         self.g3.wait_for(expected_state=BGP_FSM_ESTABLISHED, peer=self.g4)
         self.g3.wait_for(expected_state=BGP_FSM_ESTABLISHED, peer=self.g5)
 
-
     def test_02_add_routes(self):
         self.g1.local("gobgp global rib add 10.0.0.0/24")
         self.g4.local("gobgp global rib add 10.0.0.0/24")
-        time.sleep(3)
-        self.assertTrue(len(self.g3.get_global_rib(rf="vpnv4")) == 2)
-        self.assertTrue(len(self.g2.get_global_rib()) == 1)
-        self.assertTrue(len(self.g5.get_global_rib()) == 1)
-
+        wait_for_completion(lambda: len(self.g3.get_global_rib(rf="vpnv4")) == 2)
+        wait_for_completion(lambda: len(self.g2.get_global_rib()) == 1)
+        wait_for_completion(lambda: len(self.g5.get_global_rib()) == 1)
 
     def test_03_disable(self):
         self.g3.disable_peer(self.g1)
-        time.sleep(3)
-        self.assertTrue(len(self.g3.get_global_rib(rf="vpnv4")) == 1)
-        self.assertTrue(len(self.g2.get_global_rib()) == 0)
-        self.assertTrue(len(self.g5.get_global_rib()) == 1)
+        wait_for_completion(lambda: len(self.g3.get_global_rib(rf="vpnv4")) == 1)
+        wait_for_completion(lambda: len(self.g2.get_global_rib()) == 0)
+        wait_for_completion(lambda: len(self.g5.get_global_rib()) == 1)
         self.g3.enable_peer(self.g1)
         self.g3.wait_for(expected_state=BGP_FSM_ESTABLISHED, peer=self.g1)
 
-
     def test_04_softreset_in(self):
         self.g3.softreset(self.g1)
-        time.sleep(3)
-        self.assertTrue(len(self.g3.get_global_rib()) == 0)
-        self.assertTrue(len(self.g3.get_global_rib(rf="vpnv4")) == 2)
-        self.assertTrue(len(self.g2.get_global_rib()) == 1)
-        self.assertTrue(len(self.g5.get_global_rib()) == 1)
-
+        wait_for_completion(lambda: len(self.g3.get_global_rib()) == 0)
+        wait_for_completion(lambda: len(self.g3.get_global_rib(rf="vpnv4")) == 2)
+        wait_for_completion(lambda: len(self.g2.get_global_rib()) == 1)
+        wait_for_completion(lambda: len(self.g5.get_global_rib()) == 1)
 
     def test_05_softreset_out(self):
         self.g3.softreset(self.g2, type='out')
-        time.sleep(3)
-        self.assertTrue(len(self.g3.get_global_rib()) == 0)
-        self.assertTrue(len(self.g3.get_global_rib(rf="vpnv4")) == 2)
-        self.assertTrue(len(self.g2.get_global_rib()) == 1)
-        self.assertTrue(len(self.g5.get_global_rib()) == 1)
-
+        wait_for_completion(lambda: len(self.g3.get_global_rib()) == 0)
+        wait_for_completion(lambda: len(self.g3.get_global_rib(rf="vpnv4")) == 2)
+        wait_for_completion(lambda: len(self.g2.get_global_rib()) == 1)
+        wait_for_completion(lambda: len(self.g5.get_global_rib()) == 1)
 
     def test_06_graceful_restart(self):
         self.g1.graceful_restart()
         self.g3.wait_for(expected_state=BGP_FSM_ACTIVE, peer=self.g1)
 
-        time.sleep(1)
-        self.assertTrue(len(self.g3.get_global_rib(rf="vpnv4")) == 2)
-        self.assertTrue(len(self.g2.get_global_rib()) == 1)
+        wait_for_completion(lambda: len(self.g3.get_global_rib(rf="vpnv4")) == 2)
+        wait_for_completion(lambda: len(self.g2.get_global_rib()) == 1)
 
-        time.sleep(35)
-        self.assertTrue(len(self.g3.get_global_rib(rf="vpnv4")) == 1)
-        self.assertTrue(len(self.g2.get_global_rib()) == 0)
+        wait_for_completion(lambda: len(self.g3.get_global_rib(rf="vpnv4")) == 1)
+        wait_for_completion(lambda: len(self.g2.get_global_rib()) == 0)
 
 
 if __name__ == '__main__':
