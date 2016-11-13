@@ -565,7 +565,7 @@ func (server *BgpServer) propagateUpdate(peer *Peer, pathList []*table.Path) []*
 				}
 				var candidates []*table.Path
 				if path.IsWithdraw {
-					candidates = peer.adjRibOut.PathList(fs, false)
+					candidates, _ = peer.getBestFromLocal(peer.configuredRFlist())
 				} else {
 					candidates = rib.GetBestPathList(peer.TableID(), fs)
 				}
@@ -745,7 +745,6 @@ func (server *BgpServer) handleFSMMessage(peer *Peer, e *FsmMsg) {
 				}
 
 				if len(pathList) > 0 {
-					peer.adjRibOut.Update(pathList)
 					sendFsmOutgoingMsg(peer, pathList, nil, false)
 				}
 			} else {
@@ -881,7 +880,6 @@ func (server *BgpServer) handleFSMMessage(peer *Peer, e *FsmMsg) {
 							}
 							paths, _ := p.getBestFromLocal(p.configuredRFlist())
 							if len(paths) > 0 {
-								p.adjRibOut.Update(paths)
 								sendFsmOutgoingMsg(p, paths, nil, false)
 							}
 						}
@@ -923,7 +921,6 @@ func (server *BgpServer) handleFSMMessage(peer *Peer, e *FsmMsg) {
 						}
 					}
 					if paths, _ := peer.getBestFromLocal(families); len(paths) > 0 {
-						peer.adjRibOut.Update(paths)
 						sendFsmOutgoingMsg(peer, paths, nil, false)
 					}
 				}
@@ -1401,26 +1398,14 @@ func (s *BgpServer) softResetOut(addr string, family bgp.RouteFamily, deferral b
 			}
 		}
 
-		sentPathList := peer.adjRibOut.PathList(families, false)
-		peer.adjRibOut.Drop(families)
 		pathList, filtered := peer.getBestFromLocal(families)
 		if len(pathList) > 0 {
-			peer.adjRibOut.Update(pathList)
 			sendFsmOutgoingMsg(peer, pathList, nil, false)
 		}
 		if deferral == false && len(filtered) > 0 {
 			withdrawnList := make([]*table.Path, 0, len(filtered))
 			for _, p := range filtered {
-				found := false
-				for _, sentPath := range sentPathList {
-					if p.GetNlri() == sentPath.GetNlri() {
-						found = true
-						break
-					}
-				}
-				if found {
-					withdrawnList = append(withdrawnList, p.Clone(true))
-				}
+				withdrawnList = append(withdrawnList, p.Clone(true))
 			}
 			sendFsmOutgoingMsg(peer, withdrawnList, nil, false)
 		}
@@ -1559,7 +1544,9 @@ func (s *BgpServer) GetAdjRib(addr string, family bgp.RouteFamily, in bool, pref
 		if in {
 			adjRib = peer.adjRibIn
 		} else {
-			adjRib = peer.adjRibOut
+			adjRib = table.NewAdjRib(peer.ID(), peer.configuredRFlist())
+			accepted, _ := peer.getBestFromLocal(peer.configuredRFlist())
+			adjRib.Update(accepted)
 		}
 		rib, err = adjRib.Select(family, false, table.TableSelectOption{ID: id, LookupPrefixes: prefixes})
 	}
@@ -1609,7 +1596,9 @@ func (s *BgpServer) GetAdjRibInfo(addr string, family bgp.RouteFamily, in bool) 
 		if in {
 			adjRib = peer.adjRibIn
 		} else {
-			adjRib = peer.adjRibOut
+			adjRib = table.NewAdjRib(peer.ID(), peer.configuredRFlist())
+			accepted, _ := peer.getBestFromLocal(peer.configuredRFlist())
+			adjRib.Update(accepted)
 		}
 		info, err = adjRib.TableInfo(family)
 	}

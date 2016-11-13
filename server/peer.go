@@ -35,7 +35,6 @@ type Peer struct {
 	tableId           string
 	fsm               *FSM
 	adjRibIn          *table.AdjRib
-	adjRibOut         *table.AdjRib
 	outgoing          *channels.InfiniteChannel
 	policy            *table.RoutingPolicy
 	localRib          *table.TableManager
@@ -58,7 +57,6 @@ func NewPeer(g *config.Global, conf *config.Neighbor, loc *table.TableManager, p
 	}
 	rfs, _ := config.AfiSafis(conf.AfiSafis).ToRfList()
 	peer.adjRibIn = table.NewAdjRib(peer.ID(), rfs)
-	peer.adjRibOut = table.NewAdjRib(peer.ID(), rfs)
 	return peer
 }
 
@@ -237,10 +235,11 @@ func (peer *Peer) filterpath(path, old *table.Path) *table.Path {
 	// special handling for RTC nlri
 	// see comments in (*Destination).Calculate()
 	if path != nil && path.GetRouteFamily() == bgp.RF_RTC_UC && !path.IsWithdraw {
-		// if we already sent the same nlri, ignore this
-		if peer.adjRibOut.Exists(path) {
-			return nil
-		}
+
+		// If we already sent the same nlri, send unnecessary
+		// update. Fix this after the API change between table
+		// and server packages.
+
 		dst := peer.localRib.GetDestination(path)
 		path = nil
 		// we send a path even if it is not a best path
@@ -289,11 +288,9 @@ func (peer *Peer) filterpath(path, old *table.Path) *table.Path {
 	// Procedure section (Section 4.7).  Note that this requirement
 	// implies that such routes should be withdrawn from any such neighbor.
 	if path != nil && !path.IsWithdraw && !peer.isLLGREnabledFamily(path.GetRouteFamily()) && path.IsLLGRStale() {
-		if peer.adjRibOut.Exists(path) {
-			path = path.Clone(true)
-		} else {
-			return nil
-		}
+		// we send unnecessary withdrawn even if we didn't
+		// sent the route.
+		path = path.Clone(true)
 	}
 
 	// remove local-pref attribute
@@ -347,8 +344,6 @@ func (peer *Peer) processOutgoingPaths(paths, olds []*table.Path) []*table.Path 
 			outgoing = append(outgoing, p)
 		}
 	}
-
-	peer.adjRibOut.Update(outgoing)
 	return outgoing
 }
 
@@ -372,9 +367,7 @@ func (peer *Peer) handleRouteRefresh(e *FsmMsg) []*table.Path {
 		return nil
 	}
 	rfList := []bgp.RouteFamily{rf}
-	peer.adjRibOut.Drop(rfList)
 	accepted, filtered := peer.getBestFromLocal(rfList)
-	peer.adjRibOut.Update(accepted)
 	for _, path := range filtered {
 		path.IsWithdraw = true
 		accepted = append(accepted, path)
@@ -541,7 +534,8 @@ func (peer *Peer) ToConfig() *config.Neighbor {
 
 	if peer.fsm.state == bgp.BGP_FSM_ESTABLISHED {
 		rfList := peer.configuredRFlist()
-		conf.State.AdjTable.Advertised = uint32(peer.adjRibOut.Count(rfList))
+		pathList, _ := peer.getBestFromLocal(rfList)
+		conf.State.AdjTable.Advertised = uint32(len(pathList))
 		conf.State.AdjTable.Received = uint32(peer.adjRibIn.Count(rfList))
 		conf.State.AdjTable.Accepted = uint32(peer.adjRibIn.Accepted(rfList))
 
@@ -556,5 +550,4 @@ func (peer *Peer) ToConfig() *config.Neighbor {
 
 func (peer *Peer) DropAll(rfList []bgp.RouteFamily) {
 	peer.adjRibIn.Drop(rfList)
-	peer.adjRibOut.Drop(rfList)
 }
