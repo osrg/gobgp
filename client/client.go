@@ -930,3 +930,19 @@ func (cli *GoBGPClient) MonitorNeighborState(names ...string) (*MonitorNeighborS
 	}
 	return &MonitorNeighborStateClient{stream}, nil
 }
+
+func (cli *GoBGPClient) Create(b []byte) error {
+	r, err := newResourceFromBytes(b)
+	if err != nil {
+		return err
+	}
+	return r.create(cli)
+}
+
+func (cli *GoBGPClient) Delete(b []byte) error {
+	r, err := newResourceFromBytes(b)
+	if err != nil {
+		return err
+	}
+	return r.delete(cli)
+}

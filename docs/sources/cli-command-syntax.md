@@ -7,13 +7,15 @@ This page explains gobgp client command syntax.
 ## basic command pattern
 gobgp \<subcommand> \<object>  opts...
 
-gobgp has six subcommands.
+gobgp has 8 subcommands.
 - [global](#global)
 - [neighbor](#neighbor)
 - [policy](#policy)
 - [vrf](#vrf)
 - [monitor](#monitor)
 - [mrt](#mrt)
+- [create](#resource)
+- [delete](#resource)
 
 
 ## 1. <a name="global"> global subcommand
@@ -513,3 +515,82 @@ see [MRT](https://github.com/osrg/gobgp/blob/master/docs/sources/mrt.md).
 
 #### Example
 see [MRT](https://github.com/osrg/gobgp/blob/master/docs/sources/mrt.md).
+
+## 7. <a name="resource"> create/delete subcommand
+
+`create` and `delete` command takes a mandatory `-f` argument following with
+the name of the file which contains a resource spec.
+
+Resource spec's format is `json` or `yaml`. It must be a map with key `kind`
+and `spec`. The value of the `kind` can be `global`, `neighbor`, `defined-set`
+or `policy`. `spec` contains the definition of the resource. Its syntax is
+same as the configuration file.
+
+#### Syntax
+```shell
+# create command
+% gobgp create -f <filename>
+% cat file | gobgp create -f -
+
+# delete command
+% gobgp delete -f <filename>
+% cat file | gobgp delete -f -
+```
+
+#### Example
+```shell
+# start BGP server
+% cat global.yaml
+kind: global
+spec:
+    config:
+        as: 1
+        router-id: 1.1.1.1
+        port: 1709
+% gobgp create -f global.yaml
+# stop BGP server
+% gobgp delete -f global.yaml
+
+# add a neighbor
+% cat neighbor.yaml
+kind: neighbor
+spec:
+    config:
+        peer-as: 1000
+        neighbor-address: 10.0.0.1
+% gobgp create -f neighbor.yaml
+# delete a neighbor
+% gobgp delete -f neighbor.yaml
+
+# add a defined-set
+% cat defined-set.yaml
+kind: defined-set
+spec:
+    prefix-sets:
+        - prefix-set-name: ps1
+          prefix-list:
+              - ip-prefix: 10.0.0.0/24
+              - ip-prefix: 20.0.0.0/24
+                masklength-range: 10..20
+% gobgp create -f defined-set.yaml
+# delete a defined-set
+% gobgp delete -f defined-set.yaml
+
+# add a policy
+% cat policy.yaml
+kind: policy
+spec:
+    name: p1
+    statements:
+        - conditions:
+            match-prefix-set:
+              prefix-set: ps1
+            match-neighbor-set:
+              neighbor-set: ns1
+        - actions:
+            route-disposition:
+              accept-route: true
+% gobgp create -f policy.yaml
+# delete a policy
+% gobgp delete -f policy.yaml
+```
