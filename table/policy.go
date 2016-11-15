@@ -2977,17 +2977,16 @@ func (r *RoutingPolicy) statementInUse(x *Statement) bool {
 	return false
 }
 
-func (r *RoutingPolicy) reload(c config.RoutingPolicy) error {
+func newDefinedSetMap(d config.DefinedSets) (DefinedSetMap, error) {
 	dmap := make(map[DefinedType]map[string]DefinedSet)
 	dmap[DEFINED_TYPE_PREFIX] = make(map[string]DefinedSet)
-	d := c.DefinedSets
 	for _, x := range d.PrefixSets {
 		y, err := NewPrefixSet(x)
 		if err != nil {
-			return err
+			return nil, err
 		}
 		if y == nil {
-			return fmt.Errorf("empty prefix set")
+			return nil, fmt.Errorf("empty prefix set")
 		}
 		dmap[DEFINED_TYPE_PREFIX][y.Name()] = y
 	}
@@ -2995,10 +2994,10 @@ func (r *RoutingPolicy) reload(c config.RoutingPolicy) error {
 	for _, x := range d.NeighborSets {
 		y, err := NewNeighborSet(x)
 		if err != nil {
-			return err
+			return nil, err
 		}
 		if y == nil {
-			return fmt.Errorf("empty neighbor set")
+			return nil, fmt.Errorf("empty neighbor set")
 		}
 		dmap[DEFINED_TYPE_NEIGHBOR][y.Name()] = y
 	}
@@ -3010,15 +3009,15 @@ func (r *RoutingPolicy) reload(c config.RoutingPolicy) error {
 	//		}
 	//		dmap[DEFINED_TYPE_TAG][y.Name()] = y
 	//	}
-	bd := c.DefinedSets.BgpDefinedSets
+	bd := d.BgpDefinedSets
 	dmap[DEFINED_TYPE_AS_PATH] = make(map[string]DefinedSet)
 	for _, x := range bd.AsPathSets {
 		y, err := NewAsPathSet(x)
 		if err != nil {
-			return err
+			return nil, err
 		}
 		if y == nil {
-			return fmt.Errorf("empty as path set")
+			return nil, fmt.Errorf("empty as path set")
 		}
 		dmap[DEFINED_TYPE_AS_PATH][y.Name()] = y
 	}
@@ -3026,10 +3025,10 @@ func (r *RoutingPolicy) reload(c config.RoutingPolicy) error {
 	for _, x := range bd.CommunitySets {
 		y, err := NewCommunitySet(x)
 		if err != nil {
-			return err
+			return nil, err
 		}
 		if y == nil {
-			return fmt.Errorf("empty community set")
+			return nil, fmt.Errorf("empty community set")
 		}
 		dmap[DEFINED_TYPE_COMMUNITY][y.Name()] = y
 	}
@@ -3037,10 +3036,10 @@ func (r *RoutingPolicy) reload(c config.RoutingPolicy) error {
 	for _, x := range bd.ExtCommunitySets {
 		y, err := NewExtCommunitySet(x)
 		if err != nil {
-			return err
+			return nil, err
 		}
 		if y == nil {
-			return fmt.Errorf("empty ext-community set")
+			return nil, fmt.Errorf("empty ext-community set")
 		}
 		dmap[DEFINED_TYPE_EXT_COMMUNITY][y.Name()] = y
 	}
@@ -3048,12 +3047,42 @@ func (r *RoutingPolicy) reload(c config.RoutingPolicy) error {
 	for _, x := range bd.LargeCommunitySets {
 		y, err := NewLargeCommunitySet(x)
 		if err != nil {
-			return err
+			return nil, err
 		}
 		if y == nil {
-			return fmt.Errorf("empty large-community set")
+			return nil, fmt.Errorf("empty large-community set")
 		}
 		dmap[DEFINED_TYPE_LARGE_COMMUNITY][y.Name()] = y
+	}
+	return DefinedSetMap(dmap), nil
+}
+
+func NewDefinedSet(d config.DefinedSets) (DefinedSet, error) {
+	dmap, err := newDefinedSetMap(d)
+	if err != nil {
+		return nil, err
+	}
+	found := false
+	var v DefinedSet
+	for _, s := range dmap {
+		for _, t := range s {
+			if found {
+				return nil, fmt.Errorf("includes multiple defined set")
+			}
+			v = t
+			found = true
+		}
+	}
+	if !found {
+		return nil, fmt.Errorf("no defined set defined")
+	}
+	return v, nil
+}
+
+func (r *RoutingPolicy) reload(c config.RoutingPolicy) error {
+	dmap, err := newDefinedSetMap(c.DefinedSets)
+	if err != nil {
+		return err
 	}
 	pmap := make(map[string]*Policy)
 	smap := make(map[string]*Statement)
