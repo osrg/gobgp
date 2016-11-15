@@ -37,51 +37,12 @@ func before(a, b uint32) bool {
 	return int32(a-b) < 0
 }
 
-type ipPrefix struct {
-	Prefix net.IP
-	Length uint8
-}
-
-func (p *ipPrefix) String() string {
-	return fmt.Sprintf("%s/%d", p.Prefix, p.Length)
-}
-
 type roaBucket struct {
-	Prefix  *ipPrefix
-	entries []*ROA
+	Prefix  *table.IPPrefix
+	entries []*table.ROA
 }
 
-type ROA struct {
-	Family int
-	Prefix *ipPrefix
-	MaxLen uint8
-	AS     uint32
-	Src    string
-}
-
-func NewROA(family int, prefixByte []byte, prefixLen uint8, maxLen uint8, as uint32, src string) *ROA {
-	p := make([]byte, len(prefixByte))
-	copy(p, prefixByte)
-	return &ROA{
-		Family: family,
-		Prefix: &ipPrefix{
-			Prefix: p,
-			Length: prefixLen,
-		},
-		MaxLen: maxLen,
-		AS:     as,
-		Src:    src,
-	}
-}
-
-func (r *ROA) Equal(roa *ROA) bool {
-	if r.MaxLen == roa.MaxLen && r.Src == roa.Src && r.AS == roa.AS {
-		return true
-	}
-	return false
-}
-
-type roas []*ROA
+type roas []*table.ROA
 
 func (r roas) Len() int {
 	return len(r)
@@ -185,7 +146,7 @@ func (m *roaManager) deleteAllROA(network string) {
 		deleteKeys := make([]string, 0, tree.Len())
 		tree.Walk(func(s string, v interface{}) bool {
 			b, _ := v.(*roaBucket)
-			newEntries := make([]*ROA, 0, len(b.entries))
+			newEntries := make([]*table.ROA, 0, len(b.entries))
 			for _, r := range b.entries {
 				if r.Src != network {
 					newEntries = append(newEntries, r)
@@ -275,7 +236,7 @@ func (m *roaManager) HandleROAEvent(ev *ROAEvent) {
 		client.state.Downtime = time.Now().Unix()
 		// clear state
 		client.endOfData = false
-		client.pendingROAs = make([]*ROA, 0)
+		client.pendingROAs = make([]*table.ROA, 0)
 		client.state.RpkiMessages = config.RpkiMessages{}
 		client.conn = nil
 		client.t = tomb.Tomb{}
@@ -307,7 +268,7 @@ func (m *roaManager) HandleROAEvent(ev *ROAEvent) {
 	}
 }
 
-func (m *roaManager) roa2tree(roa *ROA) (*radix.Tree, string) {
+func (m *roaManager) roa2tree(roa *table.ROA) (*radix.Tree, string) {
 	tree := m.Roas[bgp.RF_IPv4_UC]
 	if roa.Family == bgp.AFI_IP6 {
 		tree = m.Roas[bgp.RF_IPv6_UC]
@@ -315,12 +276,12 @@ func (m *roaManager) roa2tree(roa *ROA) (*radix.Tree, string) {
 	return tree, table.IpToRadixkey(roa.Prefix.Prefix, roa.Prefix.Length)
 }
 
-func (m *roaManager) deleteROA(roa *ROA) {
+func (m *roaManager) deleteROA(roa *table.ROA) {
 	tree, key := m.roa2tree(roa)
 	b, _ := tree.Get(key)
 	if b != nil {
 		bucket := b.(*roaBucket)
-		newEntries := make([]*ROA, 0, len(bucket.entries))
+		newEntries := make([]*table.ROA, 0, len(bucket.entries))
 		for _, r := range bucket.entries {
 			if !r.Equal(roa) {
 				newEntries = append(newEntries, r)
@@ -343,14 +304,14 @@ func (m *roaManager) deleteROA(roa *ROA) {
 	}).Info("Can't withdraw a ROA")
 }
 
-func (m *roaManager) addROA(roa *ROA) {
+func (m *roaManager) addROA(roa *table.ROA) {
 	tree, key := m.roa2tree(roa)
 	b, _ := tree.Get(key)
 	var bucket *roaBucket
 	if b == nil {
 		bucket = &roaBucket{
 			Prefix:  roa.Prefix,
-			entries: make([]*ROA, 0),
+			entries: make([]*table.ROA, 0),
 		}
 		tree.Insert(key, bucket)
 	} else {
@@ -394,7 +355,7 @@ func (c *roaManager) handleRTRMsg(client *roaClient, state *config.RpkiServerSta
 				family = bgp.AFI_IP6
 				received.Ipv6Prefix++
 			}
-			roa := NewROA(family, msg.Prefix, msg.PrefixLen, msg.MaxLen, msg.AS, client.host)
+			roa := table.NewROA(family, msg.Prefix, msg.PrefixLen, msg.MaxLen, msg.AS, client.host)
 			if (msg.Flags & 1) == 1 {
 				if client.endOfData {
 					c.addROA(roa)
@@ -421,7 +382,7 @@ func (c *roaManager) handleRTRMsg(client *roaClient, state *config.RpkiServerSta
 			for _, roa := range client.pendingROAs {
 				c.addROA(roa)
 			}
-			client.pendingROAs = make([]*ROA, 0)
+			client.pendingROAs = make([]*table.ROA, 0)
 		case *rtr.RTRCacheReset:
 			client.softReset()
 			received.CacheReset++
@@ -496,9 +457,9 @@ func (c *roaManager) GetServers() []*config.RpkiServer {
 	return l
 }
 
-func (c *roaManager) GetRoa(family bgp.RouteFamily) ([]*ROA, error) {
+func (c *roaManager) GetRoa(family bgp.RouteFamily) ([]*table.ROA, error) {
 	if len(c.clientMap) == 0 {
-		return []*ROA{}, fmt.Errorf("RPKI server isn't configured.")
+		return []*table.ROA{}, fmt.Errorf("RPKI server isn't configured.")
 	}
 	var rfList []bgp.RouteFamily
 	switch family {
@@ -509,7 +470,7 @@ func (c *roaManager) GetRoa(family bgp.RouteFamily) ([]*ROA, error) {
 	default:
 		rfList = []bgp.RouteFamily{bgp.RF_IPv4_UC, bgp.RF_IPv6_UC}
 	}
-	l := make([]*ROA, 0)
+	l := make([]*table.ROA, 0)
 	for _, rf := range rfList {
 		if tree, ok := c.Roas[rf]; ok {
 			tree.Walk(func(s string, v interface{}) bool {
@@ -598,7 +559,7 @@ type roaClient struct {
 	timer        *time.Timer
 	lifetime     int64
 	endOfData    bool
-	pendingROAs  []*ROA
+	pendingROAs  []*table.ROA
 }
 
 func NewRoaClient(address, port string, ch chan *ROAEvent, lifetime int64) *roaClient {
@@ -606,7 +567,7 @@ func NewRoaClient(address, port string, ch chan *ROAEvent, lifetime int64) *roaC
 		host:        net.JoinHostPort(address, port),
 		eventCh:     ch,
 		lifetime:    lifetime,
-		pendingROAs: make([]*ROA, 0),
+		pendingROAs: make([]*table.ROA, 0),
 	}
 }
 
@@ -633,7 +594,7 @@ func (c *roaClient) softReset() error {
 		}
 		c.state.RpkiMessages.RpkiSent.ResetQuery++
 		c.endOfData = false
-		c.pendingROAs = make([]*ROA, 0)
+		c.pendingROAs = make([]*table.ROA, 0)
 	}
 	return nil
 }

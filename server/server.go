@@ -2265,7 +2265,7 @@ func (s *BgpServer) GetRpki() (l []*config.RpkiServer, err error) {
 	return l, err
 }
 
-func (s *BgpServer) GetRoa(family bgp.RouteFamily) (l []*ROA, err error) {
+func (s *BgpServer) GetRoa(family bgp.RouteFamily) (l []*table.ROA, err error) {
 	ch := make(chan struct{})
 	defer func() { <-ch }()
 

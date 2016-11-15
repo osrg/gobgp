@@ -25,7 +25,6 @@ import (
 	api "github.com/osrg/gobgp/api"
 	"github.com/osrg/gobgp/config"
 	"github.com/osrg/gobgp/packet/bgp"
-	"github.com/osrg/gobgp/server"
 	"github.com/osrg/gobgp/table"
 	"golang.org/x/net/context"
 	"google.golang.org/grpc"
@@ -775,21 +774,21 @@ func (cli *GoBGPClient) GetRPKI() ([]*config.RpkiServer, error) {
 	return servers, nil
 }
 
-func (cli *GoBGPClient) GetROA(family bgp.RouteFamily) ([]*server.ROA, error) {
+func (cli *GoBGPClient) GetROA(family bgp.RouteFamily) ([]*table.ROA, error) {
 	rsp, err := cli.cli.GetRoa(context.Background(), &api.GetRoaRequest{
 		Family: uint32(family),
 	})
 	if err != nil {
 		return nil, err
 	}
-	roas := make([]*server.ROA, 0, len(rsp.Roas))
+	roas := make([]*table.ROA, 0, len(rsp.Roas))
 	for _, r := range rsp.Roas {
 		ip := net.ParseIP(r.Prefix)
 		if ip.To4() != nil {
 			ip = ip.To4()
 		}
 		afi, _ := bgp.RouteFamilyToAfiSafi(family)
-		roa := server.NewROA(int(afi), []byte(ip), uint8(r.Prefixlen), uint8(r.Maxlen), r.As, net.JoinHostPort(r.Conf.Address, r.Conf.RemotePort))
+		roa := table.NewROA(int(afi), []byte(ip), uint8(r.Prefixlen), uint8(r.Maxlen), r.As, net.JoinHostPort(r.Conf.Address, r.Conf.RemotePort))
 		roas = append(roas, roa)
 	}
 	return roas, nil

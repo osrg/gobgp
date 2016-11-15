@@ -24,6 +24,7 @@ import (
 	"github.com/armon/go-radix"
 	"github.com/osrg/gobgp/config"
 	"github.com/osrg/gobgp/packet/bgp"
+	"github.com/osrg/gobgp/table"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -61,8 +62,8 @@ func TestValidate0(t *testing.T) {
 	assert := assert.New(t)
 
 	manager, _ := NewROAManager(0)
-	manager.addROA(NewROA(bgp.AFI_IP, net.ParseIP("192.168.0.0").To4(), 24, 32, 100, ""))
-	manager.addROA(NewROA(bgp.AFI_IP, net.ParseIP("192.168.0.0").To4(), 24, 24, 200, ""))
+	manager.addROA(table.NewROA(bgp.AFI_IP, net.ParseIP("192.168.0.0").To4(), 24, 32, 100, ""))
+	manager.addROA(table.NewROA(bgp.AFI_IP, net.ParseIP("192.168.0.0").To4(), 24, 24, 200, ""))
 
 	var r config.RpkiValidationResultType
 
@@ -90,7 +91,7 @@ func TestValidate1(t *testing.T) {
 	assert := assert.New(t)
 
 	manager, _ := NewROAManager(0)
-	manager.addROA(NewROA(bgp.AFI_IP, net.ParseIP("10.0.0.0").To4(), 16, 16, 65000, ""))
+	manager.addROA(table.NewROA(bgp.AFI_IP, net.ParseIP("10.0.0.0").To4(), 16, 16, 65000, ""))
 
 	var r config.RpkiValidationResultType
 
@@ -121,7 +122,7 @@ func TestValidate3(t *testing.T) {
 	assert := assert.New(t)
 
 	manager, _ := NewROAManager(0)
-	manager.addROA(NewROA(bgp.AFI_IP, net.ParseIP("10.0.0.0").To4(), 16, 16, 65000, ""))
+	manager.addROA(table.NewROA(bgp.AFI_IP, net.ParseIP("10.0.0.0").To4(), 16, 16, 65000, ""))
 
 	var r config.RpkiValidationResultType
 
@@ -133,7 +134,7 @@ func TestValidate3(t *testing.T) {
 	assert.Equal(r, config.RPKI_VALIDATION_RESULT_TYPE_INVALID)
 
 	manager, _ = NewROAManager(0)
-	manager.addROA(NewROA(bgp.AFI_IP, net.ParseIP("10.0.0.0").To4(), 16, 24, 65000, ""))
+	manager.addROA(table.NewROA(bgp.AFI_IP, net.ParseIP("10.0.0.0").To4(), 16, 24, 65000, ""))
 
 	tree = manager.Roas[bgp.RF_IPv4_UC]
 	r = validateOne(tree, "10.0.0.0/17", "65000")
@@ -144,8 +145,8 @@ func TestValidate4(t *testing.T) {
 	assert := assert.New(t)
 
 	manager, _ := NewROAManager(0)
-	manager.addROA(NewROA(bgp.AFI_IP, net.ParseIP("10.0.0.0").To4(), 16, 16, 65000, ""))
-	manager.addROA(NewROA(bgp.AFI_IP, net.ParseIP("10.0.0.0").To4(), 16, 16, 65001, ""))
+	manager.addROA(table.NewROA(bgp.AFI_IP, net.ParseIP("10.0.0.0").To4(), 16, 16, 65000, ""))
+	manager.addROA(table.NewROA(bgp.AFI_IP, net.ParseIP("10.0.0.0").To4(), 16, 16, 65001, ""))
 
 	var r config.RpkiValidationResultType
 	tree := manager.Roas[bgp.RF_IPv4_UC]
@@ -160,8 +161,8 @@ func TestValidate5(t *testing.T) {
 	assert := assert.New(t)
 
 	manager, _ := NewROAManager(0)
-	manager.addROA(NewROA(bgp.AFI_IP, net.ParseIP("10.0.0.0").To4(), 17, 17, 65000, ""))
-	manager.addROA(NewROA(bgp.AFI_IP, net.ParseIP("10.0.128.0").To4(), 17, 17, 65000, ""))
+	manager.addROA(table.NewROA(bgp.AFI_IP, net.ParseIP("10.0.0.0").To4(), 17, 17, 65000, ""))
+	manager.addROA(table.NewROA(bgp.AFI_IP, net.ParseIP("10.0.128.0").To4(), 17, 17, 65000, ""))
 
 	var r config.RpkiValidationResultType
 	tree := manager.Roas[bgp.RF_IPv4_UC]
@@ -173,7 +174,7 @@ func TestValidate6(t *testing.T) {
 	assert := assert.New(t)
 
 	manager, _ := NewROAManager(0)
-	manager.addROA(NewROA(bgp.AFI_IP, net.ParseIP("10.0.0.0").To4(), 8, 32, 0, ""))
+	manager.addROA(table.NewROA(bgp.AFI_IP, net.ParseIP("10.0.0.0").To4(), 8, 32, 0, ""))
 
 	var r config.RpkiValidationResultType
 	tree := manager.Roas[bgp.RF_IPv4_UC]
@@ -191,7 +192,7 @@ func TestValidate7(t *testing.T) {
 	assert := assert.New(t)
 
 	manager, _ := NewROAManager(0)
-	manager.addROA(NewROA(bgp.AFI_IP, net.ParseIP("10.0.0.0").To4(), 16, 24, 65000, ""))
+	manager.addROA(table.NewROA(bgp.AFI_IP, net.ParseIP("10.0.0.0").To4(), 16, 24, 65000, ""))
 
 	var r config.RpkiValidationResultType
 	tree := manager.Roas[bgp.RF_IPv4_UC]
@@ -209,8 +210,8 @@ func TestValidate8(t *testing.T) {
 	assert := assert.New(t)
 
 	manager, _ := NewROAManager(0)
-	manager.addROA(NewROA(bgp.AFI_IP, net.ParseIP("10.0.0.0").To4(), 16, 24, 0, ""))
-	manager.addROA(NewROA(bgp.AFI_IP, net.ParseIP("10.0.0.0").To4(), 16, 24, 65000, ""))
+	manager.addROA(table.NewROA(bgp.AFI_IP, net.ParseIP("10.0.0.0").To4(), 16, 24, 0, ""))
+	manager.addROA(table.NewROA(bgp.AFI_IP, net.ParseIP("10.0.0.0").To4(), 16, 24, 65000, ""))
 
 	var r config.RpkiValidationResultType
 	tree := manager.Roas[bgp.RF_IPv4_UC]
