@@ -143,6 +143,9 @@ func (cli *GoBGPClient) GetNeighbor(name string) (*config.Neighbor, error) {
 	if err != nil {
 		return nil, err
 	}
+	if len(ns) == 0 {
+		return nil, fmt.Errorf("not found neighbor %s", name)
+	}
 	return ns[0], nil
 }
 
