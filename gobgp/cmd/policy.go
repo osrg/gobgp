@@ -333,7 +333,7 @@ func printStatement(indent int, s *table.Statement) {
 		case *table.LargeCommunityCondition:
 			fmt.Printf("%sLargeCommunitySet: %s %s\n", ind, t.Option(), t.Name())
 		case *table.AsPathLengthCondition:
-			fmt.Printf("%sAsPathLength: %s %d\n", ind, t.String())
+			fmt.Printf("%sAsPathLength: %s\n", ind, t.String())
 		case *table.RpkiValidationCondition:
 			fmt.Printf("%sRPKI result: %s\n", ind, t.String())
 		case *table.RouteTypeCondition:
